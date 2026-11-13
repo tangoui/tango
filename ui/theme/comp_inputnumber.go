@@ -29,7 +29,13 @@ func deriveInputNumber(t *Theme) InputNumberToken {
 		SideHandleBg:      t.FillTertiary, SideHandleColor: t.TextSecondary, SideHandleHoverColor: t.Primary.Base,
 		SideHandleFontSize: 14,
 	}
-	if t.Flavor == StyleShadcn {
+	switch t.Flavor {
+	case Element:
+		// el-input-number: 150px wide ($input-number-width), step buttons
+		// as wide as the control is high (32px). Its default puts them at
+		// the sides (InputNumber's ControlsPosition default).
+		k.ControlWidth, k.HandleWidth = 150, 32
+	case StyleShadcn:
 		// Always visible lucide chevrons that turn foreground on an
 		// accent background under the pointer.
 		k.HandleFontSize = 12

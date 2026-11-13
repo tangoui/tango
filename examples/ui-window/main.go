@@ -34,6 +34,7 @@ var (
 	runner *ui.Runner
 
 	themeName = "跟随系统" // uihost follows the system's light/dark by default
+	darkMode  bool
 	tab       = "form"
 
 	name, email, city, bio string
@@ -50,14 +51,39 @@ var (
 	selected []int
 )
 
-func themeFor(n string) *theme.Theme {
+// themeFor builds the chosen design system, light or dark.
+func themeFor(n string, dark bool) *theme.Theme {
 	switch n {
 	case "Element Plus":
+		if dark {
+			return theme.ElementPlus(theme.Dark())
+		}
 		return theme.ElementPlus()
-	case "暗色":
+	case "shadcn":
+		if dark {
+			return theme.Shadcn(theme.Dark())
+		}
+		return theme.Shadcn()
+	}
+	if dark {
 		return theme.AntDesign(theme.Dark())
 	}
 	return theme.AntDesign()
+}
+
+// applyTheme switches the window to the chosen theme after this frame:
+// following the system (Ant, light or dark as the system is), or a fixed
+// design system with the dark switch.
+func applyTheme() {
+	name, dark := themeName, darkMode
+	app.Post(func() {
+		if name == "跟随系统" {
+			uihost.FollowSystemTheme(runner, true)
+			return
+		}
+		uihost.FollowSystemTheme(runner, false) // a fixed theme from now on
+		runner.SetTheme(themeFor(name, dark))
+	})
 }
 
 func page(c *ui.Context) {
@@ -66,16 +92,18 @@ func page(c *ui.Context) {
 			ui.Row(c, func() {
 				ui.Title(c, "Tango 自绘 UI", 3)
 				ui.Spacer(c)
-				if ui.Segmented(c, &themeName, ui.Opts("跟随系统", "Ant Design", "Element Plus", "暗色")).Changed() {
-					name := themeName
-					app.Post(func() { // apply after this frame
-						if name == "跟随系统" {
-							uihost.FollowSystemTheme(runner, true)
-							return
-						}
-						uihost.FollowSystemTheme(runner, false) // a fixed theme from now on
-						runner.SetTheme(themeFor(name))
-					})
+				if ui.Segmented(c, &themeName, ui.Opts("跟随系统", "Ant Design", "Element Plus", "shadcn")).Changed() {
+					applyTheme()
+				}
+				ui.Text(c, "暗色").Tertiary()
+				// While following the system the switch shows the system's
+				// choice; turning it picks a fixed Ant theme.
+				darkMode = c.Theme.Dark
+				if ui.Switch(c, &darkMode).A11yLabel("暗色").Changed() {
+					if themeName == "跟随系统" {
+						themeName = "Ant Design"
+					}
+					applyTheme()
 				}
 			}, layout.Middle(), layout.Gap(12))
 

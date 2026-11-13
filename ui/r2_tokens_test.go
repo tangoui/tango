@@ -241,10 +241,12 @@ func r2Handles(d *Driver) *node {
 // TestR2InputNumberHandleArrows: the stacked step arrows of Ant / Element
 // sit inside their handles (they were drawn from the step nodes' rects
 // before those were laid out for the frame, i.e. at the window origin).
+// Element's default puts the buttons at the sides, so the stacked ones are
+// asked for explicitly.
 func TestR2InputNumberHandleArrows(t *testing.T) {
 	for _, th := range []*theme.Theme{theme.AntDesign(), theme.ElementPlus(), theme.Shadcn()} {
 		d := NewDriver(func(c *Context) {
-			Column(c, func() { v := 3.0; InputNumber(c, &v) }, layout.Pad(40))
+			Column(c, func() { v := 3.0; InputNumber(c, &v).ControlsPosition("right") }, layout.Pad(40))
 		}, DriverOptions{Width: 400, Height: 200, Theme: th})
 		d.Settle()
 		d.Move(geom.Pt(60, 56))

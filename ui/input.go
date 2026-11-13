@@ -554,7 +554,7 @@ type InputNumberW struct {
 
 	formatter func(string) string // Formatter
 	parser    func(string) string // Parser
-	ctrlPos   string              // ControlsPosition: "right" (default) | "sides"
+	ctrlPos   string              // ControlsPosition: "sides", or "right" / "" (stacked at the right)
 	wheel     bool                // Wheel
 	sval      *string             // StringMode
 	variant   string              // Variant
@@ -714,8 +714,9 @@ func (w *InputNumberW) Prefix(ic *icon.Icon) *InputNumberW { w.prefix = ic; retu
 func (w *InputNumberW) PrefixText(s string) *InputNumberW { w.prefixTxt = s; return w }
 
 // ControlsPosition places the step buttons: "right" (stacked at the right,
-// Ant and Element controls-position="right", the default) or "sides"
-// (− before and + after the value, Element's default look).
+// Ant's look and Element's controls-position="right") or "sides" (− before
+// and + after the value). The default follows the design system: "sides"
+// under Element (el-input-number's default), "right" otherwise.
 func (w *InputNumberW) ControlsPosition(pos string) *InputNumberW { w.ctrlPos = pos; return w }
 
 // Wheel lets the mouse wheel step the value while the field has focus
@@ -735,6 +736,9 @@ func (w *InputNumberW) StringMode(s *string) *InputNumberW { w.sval = s; return 
 // "controlsPosition", "variant" (string), "wheel" (bool).
 func (w *InputNumberW) configDefaults() {
 	c := w.c
+	if w.ctrlPos == "" && w.nth.Flavor == theme.Element {
+		w.ctrlPos = "sides" // el-input-number puts − and + at the sides by default
+	}
 	w.ctrlPos = propString(c, "InputNumber", "controlsPosition", w.ctrlPos)
 	w.variant = propString(c, "InputNumber", "variant", w.variant)
 	w.wheel = propBool(c, "InputNumber", "wheel", w.wheel)

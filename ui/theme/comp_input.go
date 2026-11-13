@@ -34,8 +34,8 @@ type InputToken struct {
 
 func deriveInput(t *Theme) InputToken {
 	k := InputToken{
-		// The text inset is the same in every design system (Ant's 11px,
-		// 7px when small).
+		// Ant's text inset (11px, 7px when small); Element widens the large
+		// one below.
 		PaddingInline: 11, PaddingInlineSM: 7, PaddingInlineLG: 11,
 		InputFontSize: t.FontSize, InputFontSizeSM: t.FontSize, InputFontSizeLG: t.FontSizeLG,
 		Bg: t.ControlBg, ActiveBg: t.ControlBg, HoverBg: t.ControlBg,
@@ -46,7 +46,14 @@ func deriveInput(t *Theme) InputToken {
 		ErrorActiveShadowColor: t.ControlOutlineError, WarningActiveShadowColor: t.ControlOutlineWarning,
 		Shadow: t.InputShadow,
 	}
-	if t.Flavor == StyleShadcn {
+	switch t.Flavor {
+	case Element:
+		// el-input ($input-font-size, $input-padding-horizontal in
+		// theme-chalk var.scss): 12 / 14 / 14 px text, 8 / 12 / 16 px
+		// padding including the 1px border.
+		k.InputFontSizeSM, k.InputFontSizeLG = 12, t.FontSize
+		k.PaddingInlineLG = 15
+	case StyleShadcn:
 		// new-york: text-sm at every size, no hover border.
 		k.InputFontSizeLG = t.FontSize
 		k.HoverBorderColor = t.Border

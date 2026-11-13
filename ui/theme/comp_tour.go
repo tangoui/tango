@@ -41,7 +41,9 @@ func deriveTour(t *Theme) TourToken {
 		CloseBtnSize: 22, CloseIconSize: 14, MaskColor: t.BgMask, HoleRadius: t.Radius,
 	}
 	if t.Flavor == Element {
-		// el-tour: 16px regular title, base radius.
+		// el-tour ($tour in theme-chalk var.scss): 520px wide, 12px
+		// padding, 16px regular title, base radius.
+		k.Width, k.PanelPadding = 520, 12
 		k.TitleFontSize, k.TitleFontWeight, k.Radius = 16, 0, t.Radius
 	}
 	return k

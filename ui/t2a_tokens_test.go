@@ -224,7 +224,13 @@ func TestT2aTokenDefaults(t *testing.T) {
 		}
 		// Tour.
 		tr := k.Tour
-		if tr.Width != 320 || tr.Bg != th.BgElevated || tr.PrimaryBg != th.Primary.Base || tr.MaskColor != th.BgMask ||
+		// el-tour is 520px wide with 12px padding ($tour in Element Plus
+		// theme-chalk var.scss); Ant's panel is 320 / 16.
+		wantW, wantPad := float32(320), float32(16)
+		if el {
+			wantW, wantPad = 520, 12
+		}
+		if tr.Width != wantW || tr.PanelPadding != wantPad || tr.Bg != th.BgElevated || tr.PrimaryBg != th.Primary.Base || tr.MaskColor != th.BgMask ||
 			(el && (tr.TitleFontSize != 16 || tr.TitleFontWeight != 0 || tr.Radius != th.Radius)) ||
 			(!el && (tr.TitleFontWeight != th.FontWeightStrong || tr.Radius != th.RadiusLG)) {
 			t.Errorf("%s tour: %+v", name, tr)

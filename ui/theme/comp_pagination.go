@@ -36,9 +36,10 @@ func derivePagination(t *Theme) PaginationToken {
 	}
 	switch t.Flavor {
 	case Element:
-		// el-pagination keeps one size; without background the current
-		// page is only colored, the hovered one too.
-		k.ItemSize, k.ItemSizeSM = 32, 32
+		// el-pagination: 32px buttons, 24px when small ($pagination
+		// button-height(-small) in theme-chalk var.scss); without
+		// background the current page is only colored, the hovered one too.
+		k.ItemSize, k.ItemSizeSM = 32, 24
 		k.ItemHoverBg, k.ItemHoverColor = Color{}, t.Primary.Base
 		k.ItemActiveBg, k.ItemActiveBorderColor, k.ItemActiveBgDisabled = Color{}, Color{}, Color{}
 		k.ItemFilledColor = t.TextSecondary
