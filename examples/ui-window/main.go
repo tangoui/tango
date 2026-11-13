@@ -95,7 +95,7 @@ func page(c *ui.Context) {
 				miscTab(c)
 			}
 		}, layout.Gap(16), layout.Pad(24))
-	})
+	}, layout.Fill()) // Scroll needs a bounded height: fill the window
 }
 
 func stat(c *ui.Context, title string, v float64) {

@@ -154,7 +154,7 @@ func (l *Ledger) Page(c *ui.Context) {
 				l.breakdown(c)
 			}, layout.Gap(16), layout.AlignItems(layout.AlignStart))
 		}, layout.Gap(16), layout.Pad(24))
-	})
+	}, layout.Fill()) // Scroll needs a bounded height: fill the window
 	l.editor(c)
 }
 
