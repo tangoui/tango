@@ -1,6 +1,6 @@
 # 自绘 UI 上屏（Canvas Surface）
 
-状态：设计稿，2026-11-12。实现分 A–D 四步，A 先做（macOS 能实机验证）。
+状态：设计稿，2026-11-12。实现分 A–D 四步，A 先做（macOS 能实机验证）。C 步（移动端）已按 [mobile-canvas.md](mobile-canvas.md) 的 M1–M5 实现，iOS 与 Android 都能上屏自绘界面，见下文“C 步”的现状。
 
 ## 目标
 

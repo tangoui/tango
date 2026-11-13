@@ -79,7 +79,7 @@ final class Device {
             case "takeBackground": return takeBackground();
             case "finishBackground": finishBackground(a.optLong("id"), a.optBoolean("success")); return "";
             case "updateWidget": return updateWidget(a.optString("title", ""), a.optString("text", ""));
-            default: return "!unsupported " + op;
+            default: return Sysx.call(cb, op, a);
         }
     }
 
@@ -129,7 +129,7 @@ final class Device {
     static void apply(TangoActivity a) {
         if (a == null) return;
         Window w = a.getWindow();
-        if (keepOn) w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (keepOn || Sysx.keepScreenOn()) w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         else w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         WindowManager.LayoutParams lp = w.getAttributes();
         if (lp.screenBrightness != brightness) {

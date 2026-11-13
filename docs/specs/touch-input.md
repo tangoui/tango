@@ -1,6 +1,6 @@
 # 触摸输入与安全区（宿主对接约定）
 
-状态：ui 层已实现（`ui/input/touch.go`、`ui/touch.go`、`ui/pointer_capture.go`、`ui/safearea.go`）；iOS / Android 上自绘界面上屏、把平台触摸事件送进 Runner 是后续工作，本文是 ui 层与平台层之间的约定。组件作者的用法见 `ui/AUTHORING.md` 第 7 节。
+状态：ui 层已实现（`ui/input/touch.go`、`ui/touch.go`、`ui/pointer_capture.go`、`ui/safearea.go`）；iOS / Android 的自绘界面上屏也已按本约定实现（[mobile-canvas.md](mobile-canvas.md) M1–M5：iOS `internal/platform/ios/canvas.m` 的 `touchesBegan/Moved/Ended/Cancelled`，Android `CanvasView.java` 的 `onTouchEvent` → `internal/platform/android/canvas_input.go`，安全区两端都报给 `uihost`），示例 `examples/mobile-ui`，模拟器烟测 `scripts/smoke.sh ios-ui|android-ui`。本文是 ui 层与平台层之间的约定。组件作者的用法见 `ui/AUTHORING.md` 第 7 节。
 
 ## 1. 接口
 

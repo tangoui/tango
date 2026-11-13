@@ -15,11 +15,20 @@
 // Drags that start on plain ui widgets inside a scroll view or swipe cell
 // are handed to the container by the ui layer's pointer takeover.
 // The scroll physics (Scroller) and recognizers (Track, PinchRecognizer,
-// RefreshMachine) are pure types usable on their own.
+// RefreshMachine) are pure types usable on their own. Long lists of
+// fixed-height rows build only the visible rows with ScrollViewW.Rows.
+//
+// Under a high-contrast ui theme (theme.HighContrast) the mobile neutrals
+// are lifted to WCAG AA like the ui theme's (NewTheme).
 //
 // Components read ConfigProvider defaults under "mobile.<Component>"
 // names (ui.ConfigProvider(c).Defaults("mobile.Button", ui.Props{"size":
 // "large"})); explicit modifiers win. Each constructor documents its keys.
+//
+// On iOS and Android the widgets run in a self-drawn canvas page that
+// uihost.Open shows natively (touch, safe area, keyboard, input methods
+// and accessibility come from the platform; see docs/specs/mobile-canvas.md
+// and examples/mobile-ui). On the desktop they run in any uihost window.
 //
 // Wrap a mobile page in Provider to pick the design style and safe area:
 //

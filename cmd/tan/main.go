@@ -103,6 +103,38 @@ func newFlags(name, synopsis string) *flag.FlagSet {
 	return fs
 }
 
+// noArgs rejects positional arguments left after fs.Parse, for commands
+// that take only flags. A platform name gets a hint, since "tan build ios"
+// would otherwise build for the desktop.
+func noArgs(fs *flag.FlagSet) error {
+	if fs.NArg() == 0 {
+		return nil
+	}
+	return unexpectedArg(fs, fs.Arg(0))
+}
+
+// argsAfterDashDash rejects positional arguments that are not behind "--",
+// for commands whose positionals are passed on to the app (tan dev).
+// args is what fs parsed.
+func argsAfterDashDash(fs *flag.FlagSet, args []string) error {
+	n := fs.NArg()
+	if n == 0 {
+		return nil
+	}
+	if i := len(args) - n - 1; i >= 0 && args[i] == "--" {
+		return nil
+	}
+	return unexpectedArg(fs, fs.Arg(0))
+}
+
+func unexpectedArg(fs *flag.FlagSet, arg string) error {
+	fs.Usage()
+	if p, _, _ := strings.Cut(arg, "/"); p == osIOS || p == osIOSSimulator || p == osAndroid || p == "darwin" || p == "windows" || p == "linux" {
+		return fmt.Errorf("unexpected argument %q: did you mean -platform %s?", arg, arg)
+	}
+	return fmt.Errorf("unexpected argument %q", arg)
+}
+
 // projectFlag adds -C, the project directory.
 func projectFlag(fs *flag.FlagSet) *string {
 	return fs.String("C", ".", "project `dir` (where tan.json is)")

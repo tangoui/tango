@@ -27,15 +27,28 @@ func isCJK(r rune) bool {
 // language packs are not checked. A literal that is not interface text
 // (parsing separators, line-breaking tables, a probe glyph) is allowed with
 // a "// i18n:ok <reason>" comment on the same line.
+//
+// The scan covers package ui and the packages built on it that ship
+// interface text (ui/mobile), each with a floor on the files it must see
+// so a moved directory does not silently pass.
 func TestNoHardcodedCJK(t *testing.T) {
-	files, err := filepath.Glob("*.go")
+	for _, dir := range []struct {
+		glob string
+		min  int
+	}{{"*.go", 50}, {"mobile/*.go", 15}} {
+		t.Run(dir.glob, func(t *testing.T) { scanCJK(t, dir.glob, dir.min) })
+	}
+}
+
+func scanCJK(t *testing.T, glob string, min int) {
+	files, err := filepath.Glob(glob)
 	if err != nil {
 		t.Fatal(err)
 	}
 	fset := token.NewFileSet()
 	checked := 0
 	for _, path := range files {
-		if strings.HasSuffix(path, "_test.go") || i18nPackFiles[path] {
+		if strings.HasSuffix(path, "_test.go") || i18nPackFiles[filepath.Base(path)] {
 			continue
 		}
 		f, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
@@ -76,8 +89,8 @@ func TestNoHardcodedCJK(t *testing.T) {
 			return true
 		})
 	}
-	if checked < 50 {
-		t.Fatalf("only %d files scanned", checked)
+	if checked < min {
+		t.Fatalf("%s: only %d files scanned", glob, checked)
 	}
 }
 

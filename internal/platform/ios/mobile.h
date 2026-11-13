@@ -32,6 +32,7 @@ enum {
 	TGE_PUSH_TOKEN = 4,       // str = token
 	TGE_PUSH_RECEIVED = 5,    // str = payload JSON
 	TGE_PUSH_OPENED = 6,      // str = payload JSON
+	TGE_NOTIFICATION_OPENED = 7, // str = local notification request id (sysx.m)
 };
 
 typedef struct {

@@ -20,6 +20,7 @@
 #include "bridge_private.h"
 #include "mobile.h"
 #include "mobile2.h"
+#include "sysx.h"
 #include "_cgo_export.h"
 
 static void *loadFramework2(const char *name) {
@@ -470,10 +471,8 @@ void tgm2_review(void) {
 }
 
 int tgm2_open_settings(void) {
-	NSURL *u = [NSURL URLWithString:UIApplicationOpenSettingsURLString];
-	if (!u) return TGM_UNSUPPORTED;
-	[UIApplication.sharedApplication openURL:u options:@{} completionHandler:nil];
-	return TGM_OK;
+	int code = tgx_open_url(UIApplicationOpenSettingsURLString.UTF8String); // sysx.m
+	return code == TGM_OK ? TGM_OK : TGM_UNSUPPORTED;
 }
 
 // ---------------------------------------------------------------------------

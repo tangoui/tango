@@ -3,3 +3,10 @@ build/
 app/build/
 local.properties
 app/src/main/jniLibs/
+# IDE files (tan build does not copy them into apps either)
+.project
+.classpath
+.settings/
+.idea/
+*.iml
+.vscode/

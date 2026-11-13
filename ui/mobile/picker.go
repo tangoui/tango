@@ -175,50 +175,18 @@ func dateBinding(c *ui.Context, value *time.Time, p DatePrecision, lo, hi time.T
 		hi = time.Date(value.Year()+10, 12, 31, 23, 59, 0, 0, value.Location())
 	}
 	loc := c.Locale()
-	dayFmt := c.Locale().Mobile.DayFmt
-	hourFmt := c.Locale().Mobile.HourFmt
-	minFmt := c.Locale().Mobile.MinuteFmt
 	n := int(p) + 1
 	names := []string{loc.Calendar.Year, loc.Calendar.Month, loc.A11y.Day, loc.A11y.Hour, loc.A11y.Minute}[:n]
+	dc := dateColumnsFor(c, dateColsKey{lo: lo.Year(), hi: hi.Year(), n: n, loc: loc,
+		dayFmt: loc.Mobile.DayFmt, hourFmt: loc.Mobile.HourFmt, minFmt: loc.Mobile.MinuteFmt})
 	cols := func(sel []int) [][]ui.Option {
-		out := make([][]ui.Option, 0, n)
+		if n < 3 {
+			return dc.cols[0]
+		}
 		y := lo.Year() + idx(sel, 0)
-		years := make([]ui.Option, hi.Year()-lo.Year()+1)
-		for i := range years {
-			years[i] = ui.Option{Label: loc.Year(lo.Year() + i), Value: fmt.Sprint(lo.Year() + i)}
-		}
-		out = append(out, years)
-		if n > 1 {
-			ms := make([]ui.Option, 12)
-			for i := range ms {
-				ms[i] = ui.Option{Label: loc.Month(i + 1), Value: fmt.Sprint(i + 1)}
-			}
-			out = append(out, ms)
-		}
-		if n > 2 {
-			m := time.Month(idx(sel, 1) + 1)
-			days := time.Date(y, m+1, 0, 0, 0, 0, 0, time.UTC).Day()
-			ds := make([]ui.Option, days)
-			for i := range ds {
-				ds[i] = ui.Option{Label: fmt.Sprintf(dayFmt, i+1), Value: fmt.Sprint(i + 1)}
-			}
-			out = append(out, ds)
-		}
-		if n > 3 {
-			hs := make([]ui.Option, 24)
-			for i := range hs {
-				hs[i] = ui.Option{Label: fmt.Sprintf(hourFmt, i), Value: fmt.Sprint(i)}
-			}
-			out = append(out, hs)
-		}
-		if n > 4 {
-			mm := make([]ui.Option, 60)
-			for i := range mm {
-				mm[i] = ui.Option{Label: fmt.Sprintf(minFmt, i), Value: fmt.Sprint(i)}
-			}
-			out = append(out, mm)
-		}
-		return out
+		m := time.Month(idx(sel, 1) + 1)
+		days := time.Date(y, m+1, 0, 0, 0, 0, 0, time.UTC).Day()
+		return dc.cols[days-28]
 	}
 	return binding{
 		names: names,
@@ -257,6 +225,95 @@ func dateBinding(c *ui.Context, value *time.Time, p DatePrecision, lo, hi time.T
 			*value = nt
 		},
 	}
+}
+
+// dateColsKey identifies the options of a date picker's wheels: the year
+// range, the number of columns and the locale (with its formats, in case
+// an application edits a registered pack).
+type dateColsKey struct {
+	lo, hi, n               int
+	loc                     *ui.Locale
+	dayFmt, hourFmt, minFmt string
+}
+
+// dateCols holds the ready-made columns of a date picker, one set per
+// month length (28–31 days; index days-28). The sets share their option
+// slices; callers only read them.
+type dateCols struct {
+	cols [4][][]ui.Option
+}
+
+type dateColsCache struct {
+	m map[dateColsKey]*dateCols
+}
+
+var keyDateCols = ui.ID(0x6d6f62696c650010)
+
+// dateColumnsFor returns the cached columns for k, building them once per
+// key: an open date picker formats its years, months, days, hours and
+// minutes only when the range, locale or precision changes, not every
+// frame.
+func dateColumnsFor(c *ui.Context, k dateColsKey) *dateCols {
+	cache := ui.State(c, keyDateCols, func() dateColsCache { return dateColsCache{m: map[dateColsKey]*dateCols{}} })
+	if dc, ok := cache.m[k]; ok {
+		return dc
+	}
+	if len(cache.m) >= 8 {
+		clear(cache.m)
+	}
+	dc := buildDateCols(k)
+	cache.m[k] = dc
+	return dc
+}
+
+func buildDateCols(k dateColsKey) *dateCols {
+	loc := k.loc
+	years := make([]ui.Option, max(0, k.hi-k.lo+1))
+	for i := range years {
+		years[i] = ui.Option{Label: loc.Year(k.lo + i), Value: strconv.Itoa(k.lo + i)}
+	}
+	base := [][]ui.Option{years}
+	if k.n > 1 {
+		ms := make([]ui.Option, 12)
+		for i := range ms {
+			ms[i] = ui.Option{Label: loc.Month(i + 1), Value: strconv.Itoa(i + 1)}
+		}
+		base = append(base, ms)
+	}
+	var ds, hs, mm []ui.Option
+	if k.n > 2 {
+		ds = make([]ui.Option, 31)
+		for i := range ds {
+			ds[i] = ui.Option{Label: fmt.Sprintf(k.dayFmt, i+1), Value: strconv.Itoa(i + 1)}
+		}
+	}
+	if k.n > 3 {
+		hs = make([]ui.Option, 24)
+		for i := range hs {
+			hs[i] = ui.Option{Label: fmt.Sprintf(k.hourFmt, i), Value: strconv.Itoa(i)}
+		}
+	}
+	if k.n > 4 {
+		mm = make([]ui.Option, 60)
+		for i := range mm {
+			mm[i] = ui.Option{Label: fmt.Sprintf(k.minFmt, i), Value: strconv.Itoa(i)}
+		}
+	}
+	dc := &dateCols{}
+	for j := range dc.cols {
+		out := append(make([][]ui.Option, 0, k.n), base...)
+		if k.n > 2 {
+			out = append(out, ds[:28+j])
+		}
+		if k.n > 3 {
+			out = append(out, hs)
+		}
+		if k.n > 4 {
+			out = append(out, mm)
+		}
+		dc.cols[j] = out
+	}
+	return dc
 }
 
 func idx(sel []int, i int) int {
@@ -510,20 +567,28 @@ func wheel(c *ui.Context, th *Theme, opts []ui.Option, sel int, ih, h float32, n
 	})
 	if sc.Mode == Idle && n > 0 {
 		k := int(math.Round(sc.Pos / float64(ih)))
-		k = max(0, min(k, n-1))
-		// Skip disabled rows.
-		for d := 0; d < n && opts[k].Disabled; d++ {
-			if k+1 < n {
-				k++
-			} else {
-				k--
-			}
-		}
-		if k != sel {
+		k = nearestEnabled(opts, max(0, min(k, n-1)))
+		if k >= 0 && k != sel {
 			return k, true
 		}
 	}
 	return sel, false
+}
+
+// nearestEnabled returns the enabled option closest to k (the later one
+// on a tie), or -1 when every option is disabled. A wheel that comes to
+// rest on a disabled row settles here instead.
+func nearestEnabled(opts []ui.Option, k int) int {
+	n := len(opts)
+	for d := 0; d < n; d++ {
+		if t := k + d; t >= 0 && t < n && !opts[t].Disabled {
+			return t
+		}
+		if t := k - d; t >= 0 && t < n && !opts[t].Disabled {
+			return t
+		}
+	}
+	return -1
 }
 
 // optionIndex finds an option by label, value or (numeric) index.

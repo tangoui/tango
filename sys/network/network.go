@@ -8,14 +8,17 @@
 // Platforms: macOS uses Network.framework's path monitor (nw_path_monitor);
 // Windows the Network List Manager (INetworkListManager connectivity and
 // connection cost) with IP interface change notifications; Linux
-// NetworkManager over the system D-Bus. "Online" is the system's own
+// NetworkManager over the system D-Bus; iOS the same path monitor as
+// macOS; Android ConnectivityManager's default-network callback (Online
+// needs a validated internet connection, Constrained is Data Saver on a
+// metered network; the host manifest declares ACCESS_NETWORK_STATE). "Online" is the system's own
 // judgement (a usable default route, or NetworkManager's connectivity
 // check), not a probe of any particular server.
 //
 // Functions are safe from any goroutine once the app runs; handlers run
 // on the main thread and only for real changes. OnChange may be called
 // before Run. Get returns ErrUnsupported where the backend cannot tell
-// (mobile, minimal backends, Linux without NetworkManager) and
+// (minimal backends, Linux without NetworkManager) and
 // tango.ErrNotRunning after the app quit.
 package network
 

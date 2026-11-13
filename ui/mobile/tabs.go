@@ -10,6 +10,7 @@ import (
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
+	"github.com/tangoui/tango/ui/theme"
 )
 
 // ---------------------------------------------------------------------------
@@ -51,6 +52,18 @@ type TabsW struct {
 //
 // ConfigProvider defaults ("mobile.Tabs"): "swipeable" (bool).
 func Tabs(c *ui.Context, titles []string, active *int) *TabsW {
+	// Callers often restore a tab index before the data arrives. Clamp it
+	// before either the header or pane builder uses it; otherwise a stale
+	// index can panic while constructing the selected pane.
+	if active != nil {
+		if len(titles) == 0 {
+			*active = 0
+		} else if *active < 0 {
+			*active = 0
+		} else if *active >= len(titles) {
+			*active = len(titles) - 1
+		}
+	}
 	w := &TabsW{c: c, th: ThemeOf(c), titles: titles, active: active, rtl: c.IsRTL()}
 	w.outer = ui.Div(c)
 	w.st = ui.State[tabsState](c, w.outer.ID(), nil)
@@ -344,6 +357,9 @@ func (w *TabsW) snapPane(now time.Time) {
 func (w *TabsW) panes(pane func(i int)) {
 	c, st := w.c, w.st
 	n := len(w.titles)
+	if n == 0 {
+		return
+	}
 	if !w.swipeable {
 		ui.Key(c, *w.active, func() {
 			col := ui.Column(c, func() { pane(*w.active) })
@@ -458,6 +474,8 @@ type SwiperW struct {
 	changed   bool
 	radius    float32
 	rtl       bool // the next slide comes in from the left
+
+	dotOn, dotOff theme.Color // indicator colors (zero: the style's)
 }
 
 // Swiper creates a carousel; *cur is the current slide (nil keeps it
@@ -466,7 +484,8 @@ type SwiperW struct {
 // to the right shows it and the indicator starts at the right.
 //
 // ConfigProvider defaults ("mobile.Swiper"): "autoplay" (time.Duration
-// or ms), "loop", "indicator" (bool), "height", "radius" (numbers).
+// or ms), "loop", "indicator" (bool), "height", "radius" (numbers),
+// "indicatorColor" ("white" for IndicatorWhite).
 func Swiper(c *ui.Context, cur *int) *SwiperW {
 	w := &SwiperW{c: c, th: ThemeOf(c), cur: cur, height: 150, indicator: true, rtl: c.IsRTL()}
 	if w.cur == nil {
@@ -487,6 +506,9 @@ func Swiper(c *ui.Context, cur *int) *SwiperW {
 	if v, ok := cfgNum(c, "Swiper", "radius"); ok {
 		w.radius = float32(v)
 	}
+	if v, ok := cfgStr(c, "Swiper", "indicatorColor"); ok && v == "white" {
+		w.IndicatorWhite()
+	}
 	return w
 }
 
@@ -504,6 +526,23 @@ func (w *SwiperW) Radius(px float32) *SwiperW { w.radius = px; return w }
 
 // Indicator toggles the dots.
 func (w *SwiperW) Indicator(on bool) *SwiperW { w.indicator = on; return w }
+
+// IndicatorColor sets the color of the current slide's dot and of the
+// others (a zero inactive color is active at 40% opacity). Use it when the
+// style's dots (primary on a faint track) would vanish on the slides.
+func (w *SwiperW) IndicatorColor(active, inactive theme.Color) *SwiperW {
+	if inactive.A == 0 {
+		inactive = theme.Fade(active, 0.4)
+	}
+	w.dotOn, w.dotOff = active, inactive
+	return w
+}
+
+// IndicatorWhite draws white dots (Ant Design Mobile's indicator color
+// "white"), for slides that are images or saturated colors.
+func (w *SwiperW) IndicatorWhite() *SwiperW {
+	return w.IndicatorColor(theme.Hex("#ffffff"), theme.RGBA(255, 255, 255, .4))
+}
 
 // Changed reports a slide change this frame.
 func (w *SwiperW) Changed() bool { return w.changed }
@@ -682,9 +721,12 @@ func (w *SwiperW) dots(l *paint.List, r geom.Rect, n, cur int, frac float32, sp 
 		x := r.X + (r.W-total)/2
 		y := r.Bottom() - 12 - d/2
 		for i := 0; i < n; i++ {
-			col := fadeCol(th.Border, 0.6)
+			col, on := fadeCol(th.Border, 0.6), th.Primary
+			if w.dotOn.A > 0 {
+				col, on = w.dotOff, w.dotOn
+			}
 			if i == cur {
-				col = th.Primary
+				col = on
 			}
 			sp.fill(l, geom.Rect{X: x, Y: y, W: d, H: d}, geom.Rad(d/2), col)
 			x += d + gap
@@ -696,9 +738,12 @@ func (w *SwiperW) dots(l *paint.List, r geom.Rect, n, cur int, frac float32, sp 
 	x := r.X + (r.W-total)/2
 	y := r.Bottom() - 6 - dh
 	for i := 0; i < n; i++ {
-		wd, col := dw, fadeCol(th.Base.Text, 0.2)
+		wd, col, on := dw, fadeCol(th.Base.Text, 0.2), th.Primary
+		if w.dotOn.A > 0 {
+			col, on = w.dotOff, w.dotOn
+		}
 		if i == cur {
-			wd, col = aw, th.Primary
+			wd, col = aw, on
 		}
 		sp.fill(l, geom.Rect{X: x, Y: y, W: wd, H: dh}, geom.Rad(1), col)
 		x += wd + gap

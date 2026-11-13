@@ -15,9 +15,18 @@
 // system D-Bus. A sleep the user asks for (closing the lid, the Sleep
 // command) is never blocked: blocks only stop idle sleep.
 //
+// On iOS, UIDevice battery monitoring and NSProcessInfo's Low Power Mode;
+// both block kinds disable the idle timer (the screen stays on: an app
+// cannot keep the device awake with the screen off). On Android, the
+// battery broadcast and PowerManager's power-saver mode; KeepDisplayOn
+// sets FLAG_KEEP_SCREEN_ON, KeepAwake holds a partial wake lock when the
+// app declares android.permission.WAKE_LOCK and keeps the screen on
+// otherwise. Neither mobile system tells apps about sleep and wake, so
+// OnSuspend and OnResume never fire there; use the app lifecycle.
+//
 // Functions are safe from any goroutine once the app runs; handlers run
 // on the main thread. On* may be called before Run. Get returns
-// ErrUnsupported where the backend has no power support (mobile, minimal
+// ErrUnsupported where the backend has no power support (minimal
 // backends) and tango.ErrNotRunning after the app quit; handlers then
 // simply never fire.
 package power

@@ -82,9 +82,9 @@ func init() {
 }
 
 func selfTest() {
-	for app == nil {
-		time.Sleep(100 * time.Millisecond)
-	}
+	// Start once the page is up: a cold launch (a just-booted simulator)
+	// can take longer than any fixed delay.
+	<-firstFrame
 	touch := func(phase int, x, y float64) {
 		app.Post(func() { C.muiTouch(C.int(phase), C.double(x), C.double(y)) })
 		time.Sleep(16 * time.Millisecond) // one event per frame, as a finger
@@ -96,7 +96,7 @@ func selfTest() {
 		touch(2, x, y)
 		time.Sleep(700 * time.Millisecond)
 	}
-	time.Sleep(3 * time.Second)
+	time.Sleep(time.Second)
 	tap("tap the counter row", 200, 370)
 	tap("tap the counter row again", 200, 370)
 	tap("tap the bluetooth switch", 370, 225)

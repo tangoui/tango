@@ -7,25 +7,32 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/tangoui/tango"
+	"github.com/tangoui/tango/i18n"
 	"github.com/tangoui/tango/sys/background"
 	"github.com/tangoui/tango/sys/biometric"
 	"github.com/tangoui/tango/sys/device"
 	"github.com/tangoui/tango/sys/haptics"
 	"github.com/tangoui/tango/sys/location"
 	"github.com/tangoui/tango/sys/media"
+	"github.com/tangoui/tango/sys/network"
+	"github.com/tangoui/tango/sys/notify"
 	"github.com/tangoui/tango/sys/orientation"
 	"github.com/tangoui/tango/sys/permission"
+	"github.com/tangoui/tango/sys/power"
 	"github.com/tangoui/tango/sys/purchase"
 	"github.com/tangoui/tango/sys/push"
 	"github.com/tangoui/tango/sys/safearea"
 	"github.com/tangoui/tango/sys/securestore"
 	"github.com/tangoui/tango/sys/share"
+	"github.com/tangoui/tango/sys/shell"
 	"github.com/tangoui/tango/sys/widget"
 )
 
@@ -75,6 +82,8 @@ var restored struct {
 
 var watchStop func()
 
+var awake *power.Block // keepAwake toggles it
+
 var bgRuns struct {
 	sync.Mutex
 	n int
@@ -91,9 +100,27 @@ const demoProduct = "dev.tango.mobilehello.pro"
 // as SIMCTL_CHILD_TANGO_CAPS_AUTORUN). The app then opens caps.html first.
 const autorunEnv = "TANGO_CAPS_AUTORUN"
 
+// autorunProp is the Android system property carrying the same list
+// (adb shell setprop debug.tango.caps.autorun notify,network), since adb
+// cannot set an app's environment. Read when the app starts.
+const autorunProp = "debug.tango.caps.autorun"
+
+// autorun returns the buttons to tap by themselves.
+func autorun() string {
+	if v := os.Getenv(autorunEnv); v != "" {
+		return v
+	}
+	if runtime.GOOS == "android" {
+		if out, err := exec.Command("/system/bin/getprop", autorunProp).Output(); err == nil {
+			return strings.TrimSpace(string(out))
+		}
+	}
+	return ""
+}
+
 // startURL is the first page: caps.html when autorunning.
 func startURL() string {
-	if os.Getenv(autorunEnv) != "" {
+	if autorun() != "" {
 		return "/caps.html"
 	}
 	return ""
@@ -113,6 +140,18 @@ func setupCaps(app *tango.App) {
 		broadcast(app, "openURL", u)
 	})
 	device.OnKeyboard(app, func(h float64) { broadcast(app, "keyboard", h) })
+	notify.OnClick(app, func(id string) {
+		log.Printf("caps: notification clicked %s", id)
+		broadcast(app, "notificationClicked", id)
+	})
+	network.OnChange(app, func(st network.Status) {
+		log.Printf("caps: network changed %+v", st)
+		broadcast(app, "network", st)
+	})
+	power.OnChange(app, func(st power.Status) {
+		log.Printf("caps: power changed %+v", st)
+		broadcast(app, "power", st)
+	})
 	purchase.OnUpdate(app, func(t purchase.Transaction) {
 		log.Printf("caps: transaction %+v", t)
 		broadcast(app, "transaction", t)
@@ -177,7 +216,7 @@ func run(app *tango.App, s *tango.Surface, req request) (any, error) {
 		bgRuns.Lock()
 		bg := bgRuns.n
 		bgRuns.Unlock()
-		return map[string]any{"os": runtime.GOOS + "/" + runtime.GOARCH, "restored": n, "auto": os.Getenv(autorunEnv),
+		return map[string]any{"os": runtime.GOOS + "/" + runtime.GOARCH, "restored": n, "auto": autorun(),
 			"background": bg, "pid": os.Getpid(), "started": startedAt.Format("15:04:05")}, nil
 
 	case "share":
@@ -334,6 +373,44 @@ func run(app *tango.App, s *tango.Surface, req request) (any, error) {
 	case "receipt":
 		r, err := purchase.Receipt(app)
 		return fmt.Sprintf("%d bytes", len(r)), err
+
+	case "openURL":
+		return "opened", shell.OpenURL(app, "https://github.com/tangoui/tango")
+	case "openPath":
+		f := filepath.Join(os.TempDir(), "tango-open.txt")
+		if err := os.WriteFile(f, []byte("Opened by shell.OpenPath at "+time.Now().Format(time.RFC3339)+"\n"), 0o644); err != nil {
+			return nil, err
+		}
+		return f, shell.OpenPath(app, f)
+	case "notify":
+		return notify.Send(app, notify.Message{Title: "Tango Hello", Subtitle: "sys/notify",
+			Body: "A local notification sent at " + time.Now().Format("15:04:05")})
+	case "notifyPerm":
+		return notify.RequestPermission(app)
+	case "network":
+		st, err := network.Get(app)
+		log.Printf("caps: network %+v %v", st, err)
+		return st, err
+	case "power":
+		st, err := power.Get(app)
+		log.Printf("caps: power %+v %v", st, err)
+		return st, err
+	case "keepAwake":
+		if awake != nil {
+			awake.Release()
+			awake = nil
+			return "released", nil
+		}
+		b, err := power.KeepDisplayOn(app, "caps demo")
+		if err != nil {
+			return nil, err
+		}
+		awake = b
+		return "held", nil
+	case "locale":
+		v := map[string]any{"preferred": i18n.Preferred(), "locale": i18n.Locale()}
+		log.Printf("caps: locale %v", v)
+		return v, nil
 
 	case "widget":
 		text := "updated at " + time.Now().Format("15:04:05")

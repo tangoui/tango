@@ -23,7 +23,15 @@
 // COM activator). Where toasts are unavailable or turned off — or with
 // TANGO_WINDOWS_TOAST=0 — they fall back to notification-area balloons.
 // On Linux they go to
-// org.freedesktop.Notifications over D-Bus.
+// org.freedesktop.Notifications over D-Bus. On iOS they are local
+// UNUserNotificationCenter notifications, shown as banners also while the
+// app is in the foreground; Send asks for permission the first time. On
+// Android they go to a "Notifications" channel (a "Silent notifications"
+// one for Silent); on Android 13+ the app must declare "notifications" in
+// tan.json (POST_NOTIFICATIONS) and Send asks the first time. On both,
+// a tap opens the app and calls OnClick; a tap on a notification of an
+// earlier run (including the one that launched the app) arrives through
+// OnClick too.
 package notify
 
 import (

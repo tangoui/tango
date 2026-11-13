@@ -151,6 +151,9 @@ func runKeygen(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := noArgs(fs); err != nil {
+		return err
+	}
 	priv, pub := *out+".key", *out+".pub"
 	if !*force {
 		for _, p := range []string{priv, pub} {

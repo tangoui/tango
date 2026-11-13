@@ -168,7 +168,8 @@ func mobileDisplayScreen(overlays bool) func(c *ui.Context) {
 			mobile.ScrollView(c).Layout(layout.Grow(1)).Body(func() {
 				ui.Column(c, func() {
 					colors := []string{"#4b7bec", "#20bf6b", "#fa8231", "#a55eea"}
-					mobile.Swiper(c, &cur).Height(140).Radius(8).Loop().Slides(4, func(i int) {
+					// White dots: the style's primary dot vanishes on the blue slide.
+					mobile.Swiper(c, &cur).Height(140).Radius(8).Loop().IndicatorWhite().Slides(4, func(i int) {
 						ui.Div(c, layout.Grow(1), layout.Center()).Bg(hexColor(colors[i])).Body(func() {
 							ui.Text(c, fmt.Sprint("轮播 ", i+1)).Size(20).Color(th.OnSolid)
 						})
@@ -377,29 +378,34 @@ func chatRow(c *ui.Context, th *mobile.Theme, name, msg, at string, i int) {
 	palette := []string{"#4b7bec", "#20bf6b", "#fa8231", "#a55eea", "#eb3b5a", "#0fb9b1", "#3867d6", "#f7b731"}
 	col := themeHex(palette[i%len(palette)])
 	unread := map[int]string{0: "3", 3: "dot", 6: "1"}[i]
+	// Placed by inline offsets from the start edge (c.Inline), so the row
+	// mirrors in RTL: avatar at the start, its badge on the avatar's end
+	// corner, time at the end.
 	ui.Custom(c, func(maxW, _ float32) geom.Size { return geom.Size{W: maxW, H: 72} }, func(l *paint.List, r geom.Rect) {
+		sp := c.Inline(r)
 		l.Fill(r, geom.Radii{}, th.Box)
-		x := r.X + th.PadH
-		av := geom.Rect{X: x, Y: r.Y + 14, W: 44, H: 44}
+		off := th.PadH
+		av := sp.Rect(off, r.Y+14, 44, 44)
 		l.Fill(av, geom.Rad(8), col)
 		first := []rune(name)[:1]
 		lay := text.Shape(string(first), th.Font(18, text.Medium), text.Options{NoWrap: true})
 		l.Glyphs(geom.Pt(av.X+(av.W-lay.Width)/2, av.Y+(av.H-lay.Height)/2), lay.Glyphs, th.OnSolid)
 		if unread != "" {
-			mobile.DrawBadge(l, th, unread, av.Right(), av.Y)
+			mobile.DrawBadge(l, th, unread, sp.X(off+44, 0), av.Y)
 		}
-		tx := av.Right() + 12
+		toff := off + 44 + 12 // start of the texts
+		tw := r.W - toff      // from there to the end edge
 		if i > 0 {
-			l.Fill(geom.Rect{X: tx, Y: r.Y, W: r.Right() - tx, H: 0.5}, geom.Radii{}, th.Border)
+			l.Fill(sp.Rect(toff, r.Y, tw, 0.5), geom.Radii{}, th.Border)
 		}
 		nf := th.Font(th.FontBody, text.Regular)
 		mf := th.Font(th.FontSmall+1, text.Regular)
 		tf := th.Font(12, text.Regular)
 		at := text.Shape(at, tf, text.Options{NoWrap: true})
-		l.Glyphs(geom.Pt(r.Right()-th.PadH-at.Width, r.Y+16), at.Glyphs, th.TextLight)
-		nl := text.Shape(name, nf, text.Options{MaxWidth: r.Right() - tx - 80, MaxLines: 1, Ellipsis: true})
-		l.Glyphs(geom.Pt(tx, r.Y+13), nl.Glyphs, th.Text)
-		ml := text.Shape(msg, mf, text.Options{MaxWidth: r.Right() - tx - th.PadH, MaxLines: 1, Ellipsis: true})
-		l.Glyphs(geom.Pt(tx, r.Y+13+nf.LineHeight+2), ml.Glyphs, th.TextWeak)
+		l.Glyphs(geom.Pt(sp.X(r.W-th.PadH-at.Width, at.Width), r.Y+16), at.Glyphs, th.TextLight)
+		nl := text.Shape(name, nf, text.Options{MaxWidth: tw - 80, MaxLines: 1, Ellipsis: true})
+		l.Glyphs(geom.Pt(sp.X(toff, nl.Width), r.Y+13), nl.Glyphs, th.Text)
+		ml := text.Shape(msg, mf, text.Options{MaxWidth: tw - th.PadH, MaxLines: 1, Ellipsis: true})
+		l.Glyphs(geom.Pt(sp.X(toff, ml.Width), r.Y+13+nf.LineHeight+2), ml.Glyphs, th.TextWeak)
 	})
 }

@@ -4,6 +4,8 @@
     <!-- Pages from tango.localhost never touch the network; this is for
          pages and fetches that do (a dev server, remote APIs). -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- sys/network (ConnectivityManager); granted at install, no prompt. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:label="@string/app_name"

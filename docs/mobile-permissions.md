@@ -23,6 +23,8 @@ iOS 上缺用途说明键时直接调用相关 API 会让系统终止应用；Ta
 
 不需要声明的：`share`、`haptics`（Android `performHapticFeedback` 不需要 `VIBRATE`）、`safearea`、`orientation`、`securestore`（iOS Keychain、Android Keystore）。
 
+`network`、`power`、`shell` 不需要在 `tan.json` 里声明：Android 的 `ACCESS_NETWORK_STATE`（`sys/network`，普通权限）已在宿主清单模板里；`power.KeepAwake` 想在息屏时保持 CPU 运行需要应用自己在清单加 `android.permission.WAKE_LOCK`（普通权限，不声明时退化为保持屏幕常亮）。`notify` 在 iOS 上无需任何键，第一次发送时系统询问；Android 13+ 必须声明 `notifications`，否则 `notify.Send` 返回 `ErrNotConfigured`。
+
 ## 其他声明
 
 - **分享文件 / 拍照（Android）**：宿主自带的 `org.tango.host.TangoFileProvider`（`android:authorities="${applicationId}.tango.files"`、`exported="false"`、`grantUriPermissions="true"`）已在 `mobile/android` 的清单里，生成清单时保留。

@@ -946,6 +946,9 @@ static BOOL isRemote(UNNotification *n) {
 	if (isRemote(r.notification)) {
 		NSString *action = [r.actionIdentifier isEqualToString:UNNotificationDefaultActionIdentifier] ? @"" : r.actionIdentifier;
 		appEvent(TGE_PUSH_OPENED, pushJSON(r.notification.request.content, r.notification.request.content.userInfo, action));
+	} else if (![r.actionIdentifier isEqualToString:UNNotificationDismissActionIdentifier]) {
+		// A local notification (sys/notify, sysx.m): its request id.
+		appEvent(TGE_NOTIFICATION_OPENED, r.notification.request.identifier);
 	}
 	done();
 }

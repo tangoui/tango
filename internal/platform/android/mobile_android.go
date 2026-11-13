@@ -189,6 +189,8 @@ func Java_org_tango_host_Mobile_nativeEvent(penv *C.JNIEnv, cls C.jclass, kind C
 		ev.Insets.Bottom = parseFloat(arg) // dp
 	case platform.AppThemeChanged, platform.AppReduceMotionChanged, platform.AppContrastChanged:
 		// Theme read at delivery (deliverMobileEvent); the others are signals.
+	case platform.AppNotificationOpened:
+		ev.Notification = arg // routed at delivery (deliverMobileEvent)
 	case platform.AppMemoryWarning:
 		// A signal (TangoActivity.onTrimMemory / onLowMemory).
 		logf(logInfo, "memory warning: delivering AppMemoryWarning")
@@ -218,6 +220,11 @@ func (b *Backend) deliverMobileEvent(hx platform.HostEx, ev platform.AppEvent) {
 		ev.Orientation = b.Orientation()
 	case platform.AppThemeChanged:
 		ev.Theme = b.SystemTheme() // system_android.go
+	case platform.AppNotificationOpened:
+		// A notification this run sent goes to its onClick (sysx_android.go).
+		if notificationOpened(ev.Notification) {
+			return
+		}
 	}
 	hx.OnAppEvent(ev)
 }

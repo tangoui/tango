@@ -279,19 +279,19 @@ tan build -platform android/arm64,android/amd64     # release：签名的 APK �
 tan run -platform android                           # 构建设备 ABI 的 debug APK、安装、启动、显示日志
 ```
 
-`mobile/android/build.sh [APP_DIR]` 保留为 CI 入口（`TANGO_ABIS`、`TANGO_BUILD=debug|release`、`TANGO_GRADLE_ARGS`），内部调用 `tan build`。
+`mobile/android/build.sh [APP_DIR]` 保留为 CI 入口（`TANGO_ABIS`、`TANGO_BUILD=debug|release`、`TANGO_GRADLE_ARGS`、`TANGO_ANDROID_OUT` 输出目录），内部调用 `tan build`。
 
 `tan build` 的步骤：
 
 1. 对每个 ABI（`android/<arch>`：`arm64`、`amd64`、`arm`、`386`，也接受 `arm64-v8a` 这类 ABI 名；只写 `android` 时为 arm64 + amd64）用 NDK 的 clang（`<ndk>/toolchains/llvm/prebuilt/<host>/bin/<triple><minSdk>-clang`）执行 `GOOS=android GOARCH=… CGO_ENABLED=1 go build -buildmode=c-shared`，输出到 Gradle 工程的 `jniLibs/<abi>/libtango.so`。NDK 取 `ANDROID_NDK_HOME`，否则 `$ANDROID_HOME/ndk/` 下最新版本。Go 链接出的段按 16 KB 对齐，满足 Android 15+ 16 KB 页设备的要求。
-2. 把 Tango 模块里的 `mobile/android` 同步到 `build/android/project`（保留 `.gradle`、`app/build` 以便增量构建），然后按 tan.json 写入：`res/values/tango_app.xml`（应用名）、`mipmap-*/ic_launcher.png`（由 `icon` 缩放）、AndroidManifest.xml（在模板上插入权限、`uses-feature required=false`、`TangoActivity` 上的深链 `intent-filter`、图标；模板里其余声明原样保留）。
-3. `sh gradlew --offline -PtangoAppId=… -PtangoVersionName=… -PtangoVersionCode=… -PtangoMinSdk=… -PtangoTargetSdk=…`：`-debug` 时 `assembleDebug`；否则 `assembleRelease bundleRelease`，用 `android.keystore`/`android.keyAlias` 签名，密码从环境变量 `TANGO_ANDROID_KEYSTORE_PASSWORD`、`TANGO_ANDROID_KEY_PASSWORD`（默认同前者）读，缺配置时在编译前报错。release 加 `-tags tango_release` 与 `-s -w`。宿主依赖 Android Gradle 插件与 `androidx.webkit`（WebView 桥的 WebMessageListener）；未设 `TANGO_GRADLE_ARGS` 且 `--offline` 构建失败时（例如 Gradle 缓存里还没有这些依赖），tan 自动去掉 `--offline` 联网重试一次，所以首次构建需要网络，之后可离线。
+2. 把 Tango 模块里的 `mobile/android` 同步到 `build/android/project`（保留 `.gradle`、`app/build` 以便增量构建；模板里属于某台机器的文件不复制：任意层级的 `build/`、`.gradle/`、`local.properties`，以及 IDE 文件 `.project`、`.classpath`、`.settings/`、`.idea/`、`*.iml`），然后按 tan.json 写入：`res/values/tango_app.xml`（应用名）、`mipmap-*/ic_launcher.png`（由 `icon` 缩放）、AndroidManifest.xml（在模板上插入权限、`uses-feature required=false`、`TangoActivity` 上的深链 `intent-filter`、图标；模板里其余声明原样保留）。
+3. `sh gradlew --offline`，应用标识经环境变量 `ORG_GRADLE_PROJECT_tangoAppId`、`…_tangoVersionName`、`…_tangoVersionCode`、`…_tangoMinSdk`、`…_tangoTargetSdk`、`…_tangoCompileSdk`（release 另有 `…_tangoKeystore`、`…_tangoKeyAlias`）作为 Gradle 项目属性传入，不放在命令行上（`cmd/tan/build_android_app.go` 的 `gradleEnv`；默认值在 `app/build.gradle`）：`-debug` 时 `assembleDebug`；否则 `assembleRelease bundleRelease`，用 `android.keystore`/`android.keyAlias` 签名，密码从环境变量 `TANGO_ANDROID_KEYSTORE_PASSWORD`、`TANGO_ANDROID_KEY_PASSWORD`（默认同前者）读，缺配置时在编译前报错。release 加 `-tags tango_release` 与 `-s -w`。宿主依赖 Android Gradle 插件与 `androidx.webkit`（WebView 桥的 WebMessageListener）；未设 `TANGO_GRADLE_ARGS` 且 `--offline` 构建失败时（例如 Gradle 缓存里还没有这些依赖），tan 自动去掉 `--offline` 联网重试一次，所以首次构建需要网络，之后可离线。
 
 产物：`build/android/<Exe>-<version>-debug.apk`，或 `<Exe>-<version>.apk` 与 `.aab`。
 
 `tan run -platform android`：用 `adb devices` 里唯一在线的设备（`-device` 指定序列号）；没有设备时启动第一个 AVD（`-avd` 指定）并等开机完成；按 `ro.product.cpu.abilist` 只编该设备的 ABI；`adb install -r`（签名不符时先卸载）、`am start`，然后 `adb logcat --pid=<应用进程>` 显示本应用日志（Go 的 stdout/stderr 与 log 包在 `Tango` 标签下，页面 console 在 `chromium` 标签下），应用退出或 Ctrl-C 时结束。
 
-`mobile/android` 是普通 Gradle 工程（Groovy DSL、Gradle wrapper 9.3.1、AGP 9.1.0，默认 minSdk 24、compileSdk/targetSdk 36），宿主只用平台 API，不依赖 androidx，有 Gradle 缓存即可离线构建。AGP 9 即便是纯 Java 工程也要求 Kotlin Gradle 插件在 classpath 上，根 `build.gradle` 固定为常见已缓存的 2.4.0；`android.builtInKotlin=false` 防止 kotlin-stdlib 被打进 APK。
+`mobile/android` 是普通 Gradle 工程（Groovy DSL、Gradle wrapper 9.3.1、AGP 9.1.0，默认 minSdk 24、compileSdk/targetSdk 36），宿主是纯 Java，唯一的库依赖是 `androidx.webkit:webkit:1.11.0`（`app/build.gradle`；`Page.java` 用 `WebViewCompat.addWebMessageListener` 做 JS 桥），选这个版本是因为它的依赖（androidx.annotation、androidx.core）也是纯 Java，APK 里没有 kotlin-stdlib；Gradle 缓存里有这些依赖后即可离线构建。AGP 9 即便是纯 Java 工程也要求 Kotlin Gradle 插件在 classpath 上，根 `build.gradle` 固定为常见已缓存的 2.4.0；AGP 9 的内置 Kotlin 保持开启（关闭它的 `android.builtInKotlin=false` 已被 AGP 标为弃用），`gradle.properties` 里的 `kotlin.stdlib.default.dependency=false` 防止 kotlin-stdlib 被打进 APK（工程没有 Kotlin 源码，`compileDebugKotlin` 为 NO-SOURCE）。
 
 ### 原生宿主
 
@@ -360,16 +360,16 @@ Go 侧调用 Java 时，方法 ID 在 `nativeInit`（主线程）里一次查好
 - origin `https://tango.localhost`，在 `shouldInterceptRequest` 里拦截（只拦截该 origin，其余请求照常走网络）→ JNI `nativeServeAsset` → `Host.ServeAsset`。
 - **线程**：`shouldInterceptRequest` 在 WebView 的请求线程上调用。契约第二轮已允许 `ServeAsset` 在任意线程调用，所以直接在该线程调用，不切到主线程（切过去同步等待会让慢请求卡住界面，且主线程在 Step 里等待时有死锁风险）。handler 在独立 goroutine 里运行。
 - **流式响应**：请求线程等到响应提交（`WriteHeader`、第一次 `Write` 或 `Flush`）或 handler 返回。已返回的整体交给 WebView；还在写的经 `InputStream`（`Page.GoStream` → `nativeStreamRead`）边写边读，所以 SSE 之类长响应可用。写在前面最多缓冲 256 KiB，之后 `Write` 等读取。WebView 关闭流时请求的 `Context` 被取消，`Write` 返回错误。
-- **请求体**：Android 的 `WebResourceRequest` 不提供请求体，所以注入的引导脚本（`body.go` 的 `bodyScript`，在 shim 的闭包里）包装了 `fetch` 与 `XMLHttpRequest`：目标是资源 origin（`https://tango.localhost`）、方法不是 GET/HEAD 且有 body 的请求，先把 body 序列化（`fetch` 用 `new Request(...).clone().arrayBuffer()`，所以文本、JSON、`URLSearchParams`、`FormData`（含文件，multipart 边界与 `Content-Type` 一致）、`Blob`、`ArrayBuffer`/TypedArray 都按浏览器规则编码；XHR 的字符串/`URLSearchParams`/`ArrayBuffer` 同步编码，`Blob`/`FormData` 经 `new Response(body)` 异步读出后再 `send`），base64 后经 `__tangoAndroid.body(token, id, contentType, data)` **同步**交给 Go 暂存（`nativeStashBody`，校验页面 token），然后带 `X-Tango-Body: <随机 id>` 头、空 body 发出请求；`shouldInterceptRequest` 时 Go 按 id 取回 body（`takeBody`），去掉该头，用暂存的 `Content-Type` 覆盖 WebView 为空 body 生成的那个。限制：单个 body 64 MiB、待取合计 128 MiB、1 分钟未取即丢弃，超限时退回原请求（body 为空）；同步 XHR 的 `Blob`/`FormData`、`navigator.sendBeacon`、HTML `<form method=post>` 导航、ReadableStream body 不覆盖（仍为空）。307/308 同源重定向会带着 body 重发。
+- **请求体**：Android 的 `WebResourceRequest` 不提供请求体，所以注入的引导脚本（`body.go` 的 `bodyScript`，在 shim 的闭包里）包装了 `fetch` 与 `XMLHttpRequest`：目标是资源 origin（`https://tango.localhost`）、方法不是 GET/HEAD 且有 body 的请求，先把 body 序列化（`fetch` 用 `new Request(...).clone().arrayBuffer()`，所以文本、JSON、`URLSearchParams`、`FormData`（含文件，multipart 边界与 `Content-Type` 一致）、`Blob`、`ArrayBuffer`/TypedArray 都按浏览器规则编码；XHR 的字符串/`URLSearchParams`/`ArrayBuffer` 同步编码，`Blob`/`FormData` 经 `new Response(body)` 异步读出后再 `send`），base64 后交给 Go 暂存（`nativeStashBody`，校验页面 token；WebMessageListener 通道上是一条 `b<token><id>…` 消息，等 Go 回复 `b1<id>`/`b0<id>` 后再继续，JavascriptInterface 通道上是同步的 `__tangoAndroid.body(token, id, contentType, data)`），然后带 `X-Tango-Body: <随机 id>` 头、空 body 发出请求；`shouldInterceptRequest` 时 Go 按 id 取回 body（`takeBody`），去掉该头，用暂存的 `Content-Type` 覆盖 WebView 为空 body 生成的那个。限制：单个 body 64 MiB、待取合计 128 MiB、1 分钟未取即丢弃，超限时退回原请求（body 为空）；同步 XHR 的 `Blob`/`FormData`、`navigator.sendBeacon`、HTML `<form method=post>` 导航、ReadableStream body 不覆盖（仍为空）。307/308 同源重定向会带着 body 重发。
 - **状态码**：`WebResourceResponse` 拒绝 3xx。同源重定向在 Go 侧内部跟随（最多 5 次，307/308 保留方法），所以 `http.FileServer` 把 `/index.html` 重定向到 `./` 也能正常显示；跨源重定向返回 502。条件请求头（`If-None-Match`、`If-Modified-Since`）不转发，避免 304。
 - 响应头：`WebResourceResponse` 的头映射每个名字只有一个值，同名多值按 RFC 9110 §5.3 用 `, ` 合并。`Set-Cookie` 例外（值里可以有逗号）：Go 用换行连接各值，`Page.java` 在把响应交给 WebView 之前逐条 `CookieManager.setCookie(url, …)` 并移除该头（WebView 本来就忽略拦截响应里的 Set-Cookie）；`HttpOnly` 有效（`document.cookie` 看不到，请求会带）。反方向，拦截到的请求本身不带 Cookie，宿主从 `CookieManager.getCookie(url)` 补上 `Cookie` 头，所以基于 cookie 的会话在 Go handler 里可用。
 
 ### JS 桥
 
-- `addJavascriptInterface` 暴露 `window.__tangoAndroid.post(token, msg)`（在 JavaBridge 线程上调用，宿主再 post 到主线程交给 Go）。shim：
-  `window.__tangoNative = { post: s => __tangoAndroid.post(<token>, String(s)) }`，不可改写。
-- **为什么带 token**：JavascriptInterface 对所有 frame 可见，而且不告诉调用者是哪个 frame。每个页面有随机 token，只写在注入主框架的脚本里，shim 在子框架（`window !== window.top`）中不定义；Go 丢弃 token 不对的消息。跨源 iframe 读不到父页面的脚本，也就伪造不了消息。报告给核心的 origin 是主框架当前 URL 的 origin（`WebView.getUrl()`，在主线程读）。注入的 `<script>` 执行后把自己从 DOM 移除。
-- **注入时机（取舍）**：androidx.webkit 的 `addDocumentStartJavaScript` 能在文档开始时注入，但要引入 androidx 依赖，且依赖 WebView 版本支持。这里不引依赖：
+- **通道**：`Page.java` 在 WebView 支持 `WEB_MESSAGE_LISTENER` 时用 androidx.webkit 的 `WebViewCompat.addWebMessageListener` 注册 `window.__tangoAndroid`，规则只含受信 origin（资源 origin `https://tango.localhost`，以及 Go 最近一次导航到的 URL 的 origin）：WebView 只在这些 origin 的 frame 里放这个对象，并告诉宿主每条消息的来源 origin 和是否主框架；宿主只转发主框架的消息（`nativeWebMessage`）。消息是字符串：类别字节 + token + 内容（`m` 页面消息，`b` 请求体，见 `token.go` 的 `parseWire`）。不支持该特性的旧 WebView 退回 `addJavascriptInterface`，暴露 `__tangoAndroid.post(token, msg)` 与 `body(...)`（在 JavaBridge 线程上调用，宿主按 token 定下 origin 后 post 到主线程交给 Go）。
+- shim（`script.go` 的 `pageScript`）在子框架（`window !== window.top`）中直接返回；在主框架里把通道对象和 token 收进闭包、删掉全局的 `__tangoAndroid`，再定义不可改写的 `window.__tangoNative = { post }`，所以页面后来的脚本拿不到通道，也换不掉它。
+- **token**：每个受信 origin 的主框架文档有自己的随机 token（`token.go`），只写在注入该文档的脚本里（注入的 `<script>` 执行后把自己从 DOM 移除）。Go 只接受当前文档的 token，报告给核心的 origin 是签发该 token 时文档的 origin，而不是处理消息时 WebView 正显示的 URL；下一个文档开始（`onPageStarted` → `nativeBeginPage`）时旧 token 失效。WebMessageListener 通道上 token 是第二道防线；JavascriptInterface 对所有 frame 可见且不告诉调用者是哪个 frame，那时只靠 token 区分应用自己的文档（跨源 iframe 读不到父页面的脚本，也就伪造不了消息）。不受信的 origin 拿不到脚本。
+- **注入时机（取舍）**：没有用 androidx.webkit 的 `addDocumentStartJavaScript`（依赖 WebView 版本支持，且对每个 frame 生效），而是：
   1. `tango.localhost` 的主框架 HTML 响应：Go 把 shim + BridgeScript 作为内联 `<script>` 插到 `<head>` 开头（没有 `<head>` 时插在 `<html>`/doctype 之后），先于页面任何脚本执行。脚本先转成纯 ASCII（`\uXXXX`），并转义 `</script` 与 `<!--`，任何字符集的页面都安全。插入后去掉 `Content-Length`。
   2. 其他 origin（开发服务器等）或无法改写的响应（`Content-Encoding` 压缩过的 HTML）：`onPageStarted` 时 `evaluateJavascript` 注入（先检查 `window.__tangoNative` 避免重复），**可能晚于页面自己的早期脚本**。开发时可以在 `Assets` 里用 `httputil.ReverseProxy` 代理开发服务器，让页面走 `tango.localhost` 以获得第 1 种注入。
   3. 页面 CSP 禁止内联脚本时第 1 种会被拦截：给 CSP 加 `'unsafe-inline'` 或相应 hash/nonce。
@@ -406,7 +406,7 @@ Android 36（`system-images;android-36;default;arm64-v8a`，emulator 37.2.13，A
 
 1. `ServeAsset` 已改为可在任意线程调用（第二轮），Android 依赖这一点；建议在注释里写明“handler 可能并发执行，后端可在 ServeAsset 返回前流式交付已写入的数据”。
 2. ~~`Backend.Step` 无法嵌套泵事件~~：已加可选接口 `platform.NestedLoop`，见上文（契约第三轮）。
-3. `Host.OnMessage` 的 origin：Android 无法得知发消息的 frame，目前靠 token 保证只有主框架能发；建议契约注明“后端须保证消息来自主框架”，不限定实现手段。
+3. `Host.OnMessage` 的 origin：Android 宿主用 WebMessageListener 的 `isMainFrame` 只转发主框架的消息，旧 WebView 退回 JavascriptInterface 时靠 token 保证；建议契约注明“后端须保证消息来自主框架”，不限定实现手段。
 
 
 ## 系统能力（sys/...）
@@ -432,13 +432,30 @@ Android 36（`system-images;android-36;default;arm64-v8a`，emulator 37.2.13，A
 
 iOS 实现在 `internal/platform/ios/mobile.{go,m,h}`（`bridge_private.h` 是 bridge.m 与 mobile.m 共用的 ObjC 声明）。宿主的 AppDelegate 已自己实现推送/URL 回调时 Tango 不覆盖，需要在其中调用 `TangoDidRegisterForRemoteNotifications(token, error)`。iOS 桥接修正：页面消息按长度传递，含 NUL 的核心内部消息（`"\x00tango-int:"`）此前在 iOS 上被截断成空串。
 
+## 桌面能力在移动端：shell、notify、network、power、语言
+
+桌面已有的四个能力包在移动后端上也实现了（契约是 `internal/platform` 里桌面用的同一组接口：`Shell`、`Notifier`、`Network`、`Power`）。实现在 `internal/platform/ios/sysx.{go,m,h}` 与 `internal/platform/android/sysx_android.go` + 宿主 `org.tango.host.Sysx`。
+
+| 能力 | iOS | Android |
+|---|---|---|
+| shell.OpenURL | `UIApplication openURL:options:completionHandler:`（系统异步决定；没有应用能打开时只记日志）；`device.OpenSettings` 共用同一实现 | `Intent.ACTION_VIEW` + `CATEGORY_BROWSABLE`；没有应用处理 → `ErrNotAvailable` |
+| shell.OpenPath | `UIDocumentInteractionController` 的 QuickLook 预览，类型不支持时弹“用其他应用打开”菜单；文件夹 → `ErrUnsupported` | `ACTION_VIEW` + 宿主 `TangoFileProvider` 的 content URI（读授权）；文件夹 → `ErrUnsupported` |
+| shell.RevealPath | `ErrUnsupported` | `ErrUnsupported` |
+| notify | `UNUserNotificationCenter` 本地通知（无触发器，立即投递）；第一次发送 / `RequestPermission` 时请求授权；前台也显示横幅（`TGPush` 代理）；点击 → 本次运行发出的走 `OnClick` 回调，其余（含冷启动那次点击）作为 `EventNotificationOpened` | `NotificationManager`，渠道 “Notifications”（`Silent` 用 “Silent notifications”，低重要性无声音）；13+ 需在 `tan.json` 声明 `notifications`（`POST_NOTIFICATIONS`），未询问过时第一次发送先请求；点击 → `PendingIntent` 打开 `TangoActivity`（extra `org.tango.notification`）→ 同上。小图标用 `tan.json` 的 `icons.notification`（`ic_stat_tango`），否则应用图标 |
+| network | Network.framework `nw_path_monitor`（与 macOS 相同）：`satisfied` 为在线，接口类型 Wi-Fi/蜂窝/有线，`expensive` → Metered，`constrained`（低数据模式）→ Constrained | `ConnectivityManager.registerDefaultNetworkCallback`：在线 = `INTERNET` 且 `VALIDATED`；`NOT_METERED` 缺失 → Metered；省流量模式（Data Saver）限制本应用 → Constrained。宿主清单自带 `ACCESS_NETWORK_STATE`（安装时授予，无弹窗） |
+| power | `UIDevice` 电池监控（电量、充电/充满 → AC）+ `NSProcessInfo.lowPowerModeEnabled`，相关通知 → `OnChange`；模拟器没有电池信息（`HasBattery` false、`Battery` -1）。两种 Keep* 都关闭空闲计时器（屏幕常亮，应用无法让设备息屏后不休眠），与 `device.KeepScreenOn` 叠加 | `ACTION_BATTERY_CHANGED` 粘性广播 + `PowerManager.isPowerSaveMode`，变化去重后 → `OnChange`。`KeepDisplayOn` = `FLAG_KEEP_SCREEN_ON`；`KeepAwake` 在应用声明 `WAKE_LOCK` 时持有 `PARTIAL_WAKE_LOCK`，否则同样保持屏幕常亮 |
+
+两个移动系统都不把系统休眠/唤醒告诉应用，`power.OnSuspend` / `OnResume` 不会触发（用应用生命周期）。
+
+**语言**：两个移动后端在包的 `init` 里用 `platform.SetLocaleSource` / `SetLocaleWatch` 注册系统语言列表与变化监听（与桌面后端相同），所以 `i18n.Locale()`、uihost 内置文字等不调用 `i18n.Init` 也跟随系统语言（此前移动端没人调用 `i18n.Init` 时会退回环境变量，结果总是 `en`）。Android 的列表经 `Mobile.call` 读取，宿主在 `main.main` 之前已解析好该类。
+
 ## 系统能力（第四轮）：后台任务、应用内购买、设备控制、小组件
 
 契约在 `internal/platform/mobile_ext.go` 末尾（可选接口），公开包：`sys/background`、`sys/purchase`、`sys/device`、`sys/widget`；fake 后端在 `internal/platform/fake/mobile2.go`。新增应用事件（接续 100–105）：`AppKeyboardChanged`（106，`Insets.Bottom` = 键盘覆盖高度，CSS 像素，0 = 收起）、`AppBackgroundTask`（107）、`AppPurchaseUpdated`（108）。后两个是无负载的信号：`AppEvent` 没有对应字段，监听者在主线程上用 `TakeBackgroundTasks` / `TakePurchaseUpdates` 取走后端排队的更新（更新留在后端队列里，直到有人取：`OnTask` / `OnUpdate` 注册时会先取一次，所以后台启动、冷启动时、监听注册前到达的任务和交易不会丢）。
 
 | 能力 | iOS | Android |
 |---|---|---|
-| background | `BGTaskScheduler`：`<id>.tango.refresh`（`BGAppRefreshTask`）、`<id>.tango.processing`（`BGProcessingTask`） | `JobScheduler`（不用 WorkManager，无 androidx）：job id 1 = refresh、2 = processing，`TangoJobService`；有 `RECEIVE_BOOT_COMPLETED` 时 `setPersisted` |
+| background | `BGTaskScheduler`：`<id>.tango.refresh`（`BGAppRefreshTask`）、`<id>.tango.processing`（`BGProcessingTask`） | `JobScheduler`（不用 WorkManager）：job id 1 = refresh、2 = processing，`TangoJobService`；有 `RECEIVE_BOOT_COMPLETED` 时 `setPersisted` |
 | purchase | StoreKit（ObjC 可用的 `SKProductsRequest` / `SKPaymentQueue`） | 不支持：`ErrUnsupported`（见下） |
 | device.RequestReview | `SKStoreReviewController`（是否弹出由系统决定） | 打开商店页：`market://details?id=…`，无商店时 `https://play.google.com/store/apps/details?id=…` |
 | device.OpenSettings | `UIApplicationOpenSettingsURLString` | `ACTION_APPLICATION_DETAILS_SETTINGS` |

@@ -110,10 +110,21 @@ func (t *Theme) ColorOf(name string) theme.Color {
 }
 
 // NewTheme derives the mobile tokens for style from the ui theme base.
+// Under a high-contrast base (theme.HighContrast) the neutrals are lifted
+// to WCAG AA like the ui theme's: text 4.5:1, arrows, borders and switch
+// tracks 3:1 (see highContrast).
 func NewTheme(base *theme.Theme, style Style) *Theme {
 	if base == nil {
 		base = theme.AntDesign()
 	}
+	t := newTheme(base, style)
+	if base.HighContrast {
+		t.highContrast()
+	}
+	return t
+}
+
+func newTheme(base *theme.Theme, style Style) *Theme {
 	if style == AntMobile && base.Flavor == theme.StyleShadcn {
 		style = Shadcn
 	}
@@ -148,6 +159,48 @@ func NewTheme(base *theme.Theme, style Style) *Theme {
 		t.PrimaryLight = theme.Fade(t.Primary, 0.2)
 	}
 	return t
+}
+
+// Contrast targets of a high-contrast mobile theme (WCAG 2.2 AA).
+const (
+	hcText    = 4.5 // text and its weaker shades
+	hcNonText = 3.0 // arrows, hairlines, switch tracks
+)
+
+// highContrast lifts the style's hard-coded neutrals to the WCAG targets
+// on the surfaces they are drawn on (cells, the page, fills). Each color
+// moves the shortest distance (theme.EnsureContrast's 10% steps) towards
+// the mobile text color, then towards black (white in dark mode), so the
+// style keeps its hues and only gets darker (lighter) ink.
+func (t *Theme) highContrast() {
+	ink := theme.Hex("#000000")
+	if t.Dark {
+		ink = theme.Hex("#ffffff")
+	}
+	lift := func(c *theme.Color, min float64, toward theme.Color, bgs ...theme.Color) {
+		for _, bg := range bgs {
+			*c = theme.EnsureContrast(*c, opaque(bg, t.Box), min, toward, ink)
+		}
+	}
+	surfaces := []theme.Color{t.Box, t.PageBg, t.Fill}
+	lift(&t.Text, hcText, ink, surfaces...)
+	lift(&t.TextSecondary, hcText, t.Text, surfaces...)
+	lift(&t.TextWeak, hcText, t.Text, surfaces...)
+	lift(&t.TextLight, hcNonText, t.Text, t.Box, t.PageBg) // arrows, disabled rows
+	lift(&t.Border, hcNonText, t.Text, t.Box, t.PageBg)
+	lift(&t.SwitchOff, hcNonText, t.Text, t.Box)
+	lift(&t.NoticeText, hcText, ink, t.NoticeBg)
+	if t.CardBorder.A > 0 {
+		lift(&t.CardBorder, hcNonText, t.Text, t.PageBg)
+	}
+}
+
+// opaque composites a translucent color over bg.
+func opaque(c, bg theme.Color) theme.Color {
+	if c.A < 255 {
+		return theme.Over(c, bg)
+	}
+	return c
 }
 
 // shad reports the shadcn derivation (structural branches: Drawer sheets,

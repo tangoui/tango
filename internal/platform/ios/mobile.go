@@ -156,7 +156,7 @@ func emitEvent(ev platform.AppEvent) {
 	// Before App.Run: keep links and pushes; state events are re-read.
 	switch ev.Kind {
 	case platform.AppOpenURL, platform.AppPushOpened, platform.AppPushReceived, platform.AppPushToken,
-		platform.AppBackgroundTask, platform.AppPurchaseUpdated:
+		platform.AppBackgroundTask, platform.AppPurchaseUpdated, platform.AppNotificationOpened:
 		pendingEvents = append(pendingEvents, ev)
 	}
 }
@@ -178,6 +178,9 @@ func tangoIOSAppEvent(kind C.int, s *C.char) {
 		ev = platform.AppEvent{Kind: platform.AppPushReceived, Push: platform.PushEvent{Payload: platform.ParsePushPayload(str)}}
 	case C.TGE_PUSH_OPENED:
 		ev = platform.AppEvent{Kind: platform.AppPushOpened, Push: platform.PushEvent{Payload: platform.ParsePushPayload(str)}}
+	case C.TGE_NOTIFICATION_OPENED:
+		notificationOpened(str) // sysx.go
+		return
 	default:
 		return
 	}

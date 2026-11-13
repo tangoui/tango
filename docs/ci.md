@@ -10,6 +10,8 @@ bash scripts/smoke.sh list                # 列出程序名
 bash scripts/smoke.sh desktop hello smokeext   # 只跑指定的几个
 bash scripts/smoke.sh ios                 # 构建 examples/mobile-hello，在 iPhone 模拟器里运行
 bash scripts/smoke.sh android             # 构建 APK，装到已连接的设备/模拟器上运行
+bash scripts/smoke.sh ios-ui              # 自绘示例 examples/mobile-ui：首帧、截图、自检触摸（TANGO_MOBILEUI_SELFTEST）点到计数行
+bash scripts/smoke.sh android-ui          # 同上，Android：首帧、截图、按无障碍树找到“点我计数”后 adb input tap，查 logcat 的 tap #1
 ```
 
 ```powershell

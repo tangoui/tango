@@ -222,12 +222,11 @@ func (b *backend) OpenAppSettings() error {
 	return mobileErr(int(C.tgm2_open_settings()), "")
 }
 
+// SetKeepScreenOn disables the idle timer; sleep blocks (sysx.go) keep
+// it disabled too.
 func (b *backend) SetKeepScreenOn(on bool) error {
-	v := C.int(0)
-	if on {
-		v = 1
-	}
-	C.tgm2_keep_screen_on(v)
+	keepScreenOn = on
+	applyIdleTimer()
 	return nil
 }
 

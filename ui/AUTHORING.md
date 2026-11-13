@@ -364,16 +364,16 @@ func init() {
 | 图表 | `chart.DualAxes` | DualAxes（柱 + 线）/ ECharts 双 yAxis | chart/dual.go |
 | 图表 | `chart.TinyLine`、`chart.TinyArea`、`chart.TinyColumn`、`chart.TinyProgress` | Tiny 系列 / ECharts sparkline 写法 | chart/tiny.go |
 | 图表 | `chart.Liquid` | Liquid / echarts-liquidfill | chart/liquid.go |
-| 移动端 | `mobile.Provider`、`mobile.ThemeOf`、`mobile.NewTheme`（Ant Design Mobile / Vant 两套令牌，暗色随 ui 主题） | ConfigProvider / van-config-provider | mobile/theme.go |
+| 移动端 | `mobile.Provider`、`mobile.ThemeOf`、`mobile.NewTheme`（Ant Design Mobile / Vant 两套令牌，暗色随 ui 主题；ui 主题为 `theme.HighContrast` 时文字抬到 4.5:1、箭头/分隔线/开关轨道抬到 3:1） | ConfigProvider / van-config-provider | mobile/theme.go |
 | 移动端 | `mobile.Area`、`mobile.Within`、`mobile.Touchable`（手势仲裁：点按、长按、滑动、拖拽；双指捏合来自 `input.TouchEvent`；起点在普通控件上的拖动经 `TakePointer` 交给手势区） | — / @vant/use useTouch | mobile/arena.go、mobile/recognizer.go |
 | 移动端 | `mobile.Scroller`、`mobile.Decay`、`mobile.Spring`、`mobile.Rubber`（惯性、回弹、吸附） | — | mobile/physics.go |
-| 移动端 | `mobile.ScrollView`、`mobile.PullToRefresh`、`mobile.InfiniteList`、`mobile.RefreshMachine` | PullToRefresh、InfiniteScroll / van-pull-refresh、van-list | mobile/scrollview.go |
+| 移动端 | `mobile.ScrollView`、`mobile.PullToRefresh`、`mobile.InfiniteList`、`mobile.RefreshMachine`；长列表用 `ScrollViewW.Rows(n, rowH, row)`（定高行，只构建可见行） | PullToRefresh、InfiniteScroll / van-pull-refresh、van-list | mobile/scrollview.go |
 | 移动端 | `mobile.NavBar`、`mobile.TabBar` | NavBar、TabBar / van-nav-bar、van-tabbar | mobile/navbar.go |
 | 移动端 | `mobile.List`、`mobile.Cell`、`mobile.SwipeCell` | List、SwipeAction / van-cell、van-swipe-cell | mobile/list.go |
 | 移动端 | `mobile.Popup`、`mobile.ActionSheet`、`mobile.Dialog`、`mobile.Toast`、`mobile.ShowToast` | Popup、ActionSheet、Dialog、Toast / van-popup、van-action-sheet、van-dialog、van-toast | mobile/overlay.go |
 | 移动端 | `mobile.PickerView`、`mobile.CascadePickerView`、`mobile.DatePickerView`、`mobile.Picker` | Picker、CascadePicker、DatePicker / van-picker、van-date-picker | mobile/picker.go |
 | 移动端 | `mobile.Form`、`mobile.FormItem`、`mobile.Field`、`mobile.SearchBar`、`mobile.Stepper` | Form、Input、SearchBar、Stepper / van-form、van-field、van-search、van-stepper | mobile/form.go |
-| 移动端 | `mobile.Tabs`、`mobile.Swiper` | Tabs、Swiper / van-tabs、van-swipe | mobile/tabs.go |
+| 移动端 | `mobile.Tabs`、`mobile.Swiper`（指示点颜色 `.IndicatorColor` / `.IndicatorWhite`） | Tabs、Swiper / van-tabs、van-swipe | mobile/tabs.go |
 | 移动端 | `mobile.Button`、`mobile.Badge`、`mobile.Tag`、`mobile.Grid`、`mobile.NoticeBar`、`mobile.Skeleton`、`mobile.Empty`、`mobile.Result` | 同名组件 / van-button、van-badge、van-tag、van-grid、van-notice-bar、van-skeleton、van-empty | mobile/display.go |
 | 移动端 | `mobile.IndexBar`、`mobile.FloatingBubble`、`mobile.SafeArea`（读 `c.SafeArea()`） | IndexBar、FloatingBubble、SafeArea / van-index-bar、van-floating-bubble | mobile/indexbar.go、mobile/theme.go |
 

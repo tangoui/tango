@@ -135,21 +135,37 @@ func (w *FormItemW) Body(fn func()) *FormItemW {
 	if th.shad() {
 		lf = th.Font(th.FontMain, text.Medium) // shadcn Label: text-sm font-medium
 	}
-	// A label above its field starts at the left in the shadcn style
-	// (the other styles keep their centred placement).
+	// A label above its field starts at the start edge (the right in RTL)
+	// in every style, as in Ant Design Mobile and Vant; a label beside its
+	// field is centred vertically on the row.
 	labelAlign := layout.AlignCenter
-	if vertical && th.shad() {
+	if vertical {
 		labelAlign = layout.AlignStart
 	}
 	rtl := c.IsRTL()
 	label := func(width float32) {
 		req := w.required
 		s := w.label
-		lb := ui.Custom(c, func(_, _ float32) geom.Size {
-			if width > 0 {
-				return geom.Size{W: width, H: lf.LineHeight}
+		starW := float32(0)
+		if req {
+			starW = textW("*", lf) + 2
+		}
+		var lines []string // wrapped label (nil: one line, fits)
+		lb := ui.Custom(c, func(maxW, _ float32) geom.Size {
+			lines = nil
+			nat := starW + textW(s, lf)
+			box := width
+			if box <= 0 {
+				box = max(textW(s, lf)+10, nat)
+				if maxW > 0 && box > maxW {
+					box = maxW
+				}
 			}
-			return geom.Size{W: textW(s, lf) + 10, H: lf.LineHeight}
+			if nat > box {
+				lines = wrapLabel(s, lf, box-starW, rtl)
+				return geom.Size{W: box, H: lf.LineHeight * float32(len(lines))}
+			}
+			return geom.Size{W: box, H: lf.LineHeight}
 		}, func(l *paint.List, r geom.Rect) {
 			// The label starts at the start edge of its box (the right in
 			// RTL), after the required asterisk.
@@ -162,7 +178,15 @@ func (w *FormItemW) Body(fn func()) *FormItemW {
 			if vertical && !th.shad() {
 				col = th.TextSecondary
 			}
-			sp.text(l, s, lf, x, r.Y, col)
+			if lines == nil {
+				sp.text(l, s, lf, x, r.Y, col)
+				return
+			}
+			// Too long for the label column: wrapped onto two lines, the
+			// rest cut with an ellipsis (the full label stays the name).
+			for i, ln := range lines {
+				sp.ellipsis(l, ln, lf, x, r.Y+float32(i)*lf.LineHeight, r.Right()-x, col)
+			}
 		}, layout.Self(labelAlign))
 		if w.arrow {
 			lb.Semantics(a11y.RoleText, s) // part of the row button's name
@@ -232,6 +256,31 @@ func (w *FormItemW) Body(fn func()) *FormItemW {
 	return w
 }
 
+// formLabelLines is the most lines a label beside its field wraps to.
+const formLabelLines = 2
+
+// wrapLabel breaks a form label that does not fit maxW into at most
+// formLabelLines lines (Ant Design Mobile and Vant wrap long labels in
+// their label column); the last line keeps the rest of the text, which
+// the painter cuts with an ellipsis.
+func wrapLabel(s string, st text.Style, maxW float32, rtl bool) []string {
+	o := text.Options{MaxWidth: maxW, MaxLines: formLabelLines}
+	if rtl {
+		o.Direction = text.DirRTL
+	}
+	lay := text.Shape(s, st, o)
+	if len(lay.Lines) < 2 {
+		return []string{s}
+	}
+	out := make([]string, 0, formLabelLines)
+	for i := 0; i < formLabelLines-1 && i < len(lay.Lines); i++ {
+		ln := lay.Lines[i]
+		out = append(out, strings.TrimSpace(string(lay.Runes[ln.Start:ln.End])))
+	}
+	last := lay.Lines[len(out)].Start
+	return append(out, strings.TrimSpace(string(lay.Runes[last:])))
+}
+
 // Clicked reports a tap on the row (open a picker from an Arrow item).
 func (w *FormItemW) Clicked() bool { return w.pr != nil && w.pr.Tap }
 
@@ -259,9 +308,7 @@ func Field(c *ui.Context, val *string) *FieldW {
 	ui.Div(c, layout.H(line), layout.Grow(1)).Clip().Body(func() {
 		inset := (h - line) / 2
 		in = ui.Input(c, val).Size(size).Layout(layout.Abs(-pad-1, -inset, -pad-1, -inset))
-		if th.shad() {
-			in.Bg(th.Box) // the field sits on the cell (lifted in dark mode)
-		}
+		in.Bg(th.Box) // the field sits on the cell: no darker block in dark mode
 	})
 	if f, ok := fieldLabel(c); ok {
 		in.A11yLabel(f.label)

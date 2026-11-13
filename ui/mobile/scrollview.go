@@ -505,6 +505,64 @@ func (w *ScrollViewW) footer() {
 	})
 }
 
+// rowsOverscan is how many rows Rows builds beyond each edge of the view,
+// so a fling's first frames and keyboard focus moves find a row built.
+const rowsOverscan = 4
+
+// Rows builds a long list of n rows of a fixed height rowH inside Body,
+// creating only the rows in or near the visible part of the view: the
+// rest is a blank of the right height, so the scroll range, the fling and
+// the infinite-load trigger behave as if every row were there. row(i)
+// builds row i (keyed by i, so its state follows the index); keep the
+// row's content within rowH. Other content may come before or after the
+// rows in the same Body.
+//
+//	sv := mobile.ScrollView(c).Layout(layout.Grow(1))
+//	sv.Body(func() {
+//		mobile.List(c, "").Body(func() {
+//			sv.Rows(len(items), 50, func(i int) { mobile.Cell(c, items[i]) })
+//		})
+//	})
+//
+// Rows that are not built are not in the accessibility tree; a screen
+// reader reaches them by scrolling. For variable row heights or a desktop
+// scroll bar use ui.VirtualList inside the page instead.
+func (w *ScrollViewW) Rows(n int, rowH float32, row func(i int)) {
+	c, st := w.c, w.st
+	if n <= 0 || rowH <= 0 {
+		return
+	}
+	blk := ui.Div(c, layout.H(float32(n)*rowH), layout.Shrink(0))
+	// Where the block starts in the content, from the last frame (both
+	// boxes move together, so the scroll translation cancels out).
+	top := float32(0)
+	if br, ok := c.RectOf(blk.ID()); ok {
+		if cr, ok := c.RectOf(st.content); ok {
+			top = br.Y - cr.Y
+		}
+	}
+	view := float32(st.viewH)
+	if view <= 0 {
+		view = c.Size().H
+	}
+	pos := float32(st.sc.Pos)
+	first := max(0, int((pos-top)/rowH)-rowsOverscan)
+	last := min(n, int((pos+view-top)/rowH)+1+rowsOverscan)
+	if first >= last { // scrolled well past the block (or before it)
+		first, last = 0, 0
+	}
+	blk.Body(func() {
+		if first > 0 {
+			ui.Div(c, layout.H(float32(first)*rowH), layout.Shrink(0))
+		}
+		for i := first; i < last; i++ {
+			ui.Key(c, i, func() {
+				ui.Div(c, layout.H(rowH), layout.Shrink(0)).Body(func() { row(i) })
+			})
+		}
+	})
+}
+
 // Refreshed reports that the user pulled to refresh this frame.
 func (w *ScrollViewW) Refreshed() bool { return w.refreshed }
 

@@ -16,8 +16,9 @@
 #                       $TANGO_ANDROID_KEYSTORE_PASSWORD
 #   TANGO_GRADLE_ARGS   Gradle arguments before the tasks (default --offline)
 #   JAVA_HOME           a JDK 17+ for Gradle
+#   TANGO_ANDROID_OUT   output directory (default <APP_DIR>/build), as tan build -o
 #
-# Output: <APP_DIR>/build/android/<Name>-<version>-debug.apk (release:
+# Output: <out>/android/<Name>-<version>-debug.apk (release:
 # <Name>-<version>.apk and .aab). The last line is "APK: <path>".
 set -euo pipefail
 
@@ -30,10 +31,13 @@ for abi in ${TANGO_ABIS:-arm64-v8a x86_64}; do
 	platforms+=("android/$abi")
 done
 platform="$(IFS=,; echo "${platforms[*]}")"
+out="${TANGO_ANDROID_OUT:-$pkg/build}"
+mkdir -p "$out"
+out="$(cd "$out" && pwd)"
 flags=()
 [[ "${TANGO_BUILD:-debug}" == release ]] || flags+=(-debug)
 
-(cd "$repo/cmd/tan" && go run . build -C "$pkg" -platform "$platform" "${flags[@]+"${flags[@]}"}")
+(cd "$repo/cmd/tan" && go run . build -C "$pkg" -platform "$platform" -o "$out" "${flags[@]+"${flags[@]}"}")
 
-apk="$(ls -t "$pkg"/build/android/*.apk | head -n 1)"
+apk="$(ls -t "$out"/android/*.apk | head -n 1)"
 echo "APK: $apk"

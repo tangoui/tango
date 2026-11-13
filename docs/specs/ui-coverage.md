@@ -366,7 +366,7 @@ Affix、Alert、Anchor、App、AutoComplete、Avatar、Badge、Breadcrumb、Brea
 ### 6.2 子包简述（不计入三家对标）
 
 - `ui/chart`：Line/Area、Column/Bar、Pie/Donut、Scatter/Bubble、Radar、Gauge、Funnel、Heatmap、DualAxes、Tiny 系列、Liquid。三种风格都有样式（chart/style_shadcn.go），有无障碍测试（chart/a11y_chart_test.go）。
-- `ui/mobile`：对标 Ant Design Mobile / Vant 两套令牌，共 61 个入口，截图 44 张（antd/vant × 亮/暗）。
+- `ui/mobile`：对标 Ant Design Mobile / Vant 两套令牌，另有 shadcn/ui 的移动端派生风格，共 61 个入口，截图 66 张（antd/vant/shadcn × 亮/暗，见 5.2）。在 iOS / Android 上经自绘 canvas 上屏（[mobile-canvas.md](mobile-canvas.md)，M1–M5 已实现，示例 `examples/mobile-ui`）。
 - `ui/editor`：代码编辑器（buffer、monarch 高亮、IME、gutter）。规格与进度见 docs/specs/code-editor*.md，不属于组件库对标范围。
 
 ## 7. 已知的平台层与非 UI 缺口（来自项目记录，未做代码核实）

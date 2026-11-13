@@ -103,6 +103,13 @@
   <button data-op="widget">Update widget</button>
   <div class="out" id="o-widget"></div></section>
 
+<section><h2>Shell, notifications, network, power, language</h2>
+  <button data-op="openURL">Open tango site</button><button data-op="openPath">Open a file</button>
+  <button data-op="notify">Notify</button><button data-op="notifyPerm">Notify permission</button><br>
+  <button data-op="network">Network</button><button data-op="power">Power</button>
+  <button data-op="keepAwake">Keep awake on/off</button><button data-op="locale">Language</button>
+  <div class="out" id="o-sysx"></div></section>
+
 <section><h2>HTTP to Go (fetch / XHR)</h2>
   <button data-http="text">POST text</button><button data-http="json">POST JSON</button><button data-http="form">POST FormData+file</button>
   <button data-http="blob">POST Blob</button><button data-http="buffer">PUT ArrayBuffer</button><button data-http="xhr">XHR POST</button>
@@ -124,7 +131,8 @@
     pick: "media", photo: "media", location: "location", watch: "location", push: "push", permissions: "perm", request: "perm",
     review: "device", settings: "device", keepOn: "device", brightness: "device", statusbar: "device", keyboard: "device",
     hideKeyboard: "device", bgSchedule: "bg", bgCancel: "bg", canPay: "iap", products: "iap", buy: "iap", restore: "iap",
-    receipt: "iap", widget: "widget"};
+    receipt: "iap", widget: "widget", openURL: "sysx", openPath: "sysx", notify: "sysx", notifyPerm: "sysx",
+    network: "sysx", power: "sysx", keepAwake: "sysx", locale: "sysx"};
   const pending = {};
   let seq = 0;
   function out(id, text, cls) {

@@ -525,3 +525,81 @@ func TestPermissionsTable(t *testing.T) {
 		t.Errorf("perms %v", names)
 	}
 }
+
+// syncAndroidProject copies the template but none of one machine's files:
+// IDE metadata, build outputs, local.properties.
+func TestSyncAndroidProjectSkipsLocalFiles(t *testing.T) {
+	src, proj := t.TempDir(), t.TempDir()
+	write := func(root, rel string) {
+		t.Helper()
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(rel), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keep := []string{
+		"build.gradle", "settings.gradle", "gradle.properties", "gradlew",
+		"gradle/wrapper/gradle-wrapper.properties",
+		"app/build.gradle", "app/src/main/AndroidManifest.xml",
+		"app/src/main/java/org/tango/host/Tango.java",
+		"app/src/main/res/values/build.xml", // a file named like a skipped dir
+	}
+	skip := []string{
+		".project", ".classpath", ".settings/org.eclipse.buildship.core.prefs",
+		"app/.project", "app/.classpath", "app/.settings/org.eclipse.jdt.core.prefs",
+		".idea/workspace.xml", "app/.idea/misc.xml", "android.iml", "app/app.iml",
+		"local.properties", "app/local.properties",
+		"build/tmp/x", "app/build/outputs/apk/debug/app-debug.apk",
+		".gradle/8.0/x", ".kotlin/errors/x", "app/.cxx/x",
+		"app/src/main/jniLibs/arm64-v8a/libtango.so", "build.sh",
+	}
+	for _, rel := range append(append([]string(nil), keep...), skip...) {
+		write(src, rel)
+	}
+	// A stale source in the project is replaced, not kept.
+	write(proj, "app/src/main/java/Old.java")
+	if err := syncAndroidProject(src, proj); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range keep {
+		if _, err := os.Stat(filepath.Join(proj, filepath.FromSlash(rel))); err != nil {
+			t.Errorf("%s not copied: %v", rel, err)
+		}
+	}
+	for _, rel := range append(skip, "app/src/main/java/Old.java") {
+		if _, err := os.Stat(filepath.Join(proj, filepath.FromSlash(rel))); err == nil {
+			t.Errorf("%s copied into the project", rel)
+		}
+	}
+	for _, dir := range []string{".settings", "app/.settings", ".idea", "build", "app/build", ".gradle"} {
+		if _, err := os.Stat(filepath.Join(proj, filepath.FromSlash(dir))); err == nil {
+			t.Errorf("directory %s created in the project", dir)
+		}
+	}
+}
+
+// The host template in this checkout carries no IDE or machine files.
+func TestAndroidTemplateHasNoLocalFiles(t *testing.T) {
+	root := filepath.Join("..", "..", "mobile", "android")
+	if _, err := os.Stat(root); err != nil {
+		t.Skip(err)
+	}
+	out, err := exec.Command("git", "-C", root, "ls-files", ".").Output()
+	if err != nil {
+		t.Skipf("git ls-files: %v", err)
+	}
+	for _, rel := range strings.Fields(string(out)) {
+		if _, err := os.Lstat(filepath.Join(root, filepath.FromSlash(rel))); err != nil {
+			continue // deleted in the work tree, not committed yet
+		}
+		parts := strings.Split(rel, "/")
+		for i, p := range parts {
+			if androidLocalFile(p, i < len(parts)-1) {
+				t.Errorf("mobile/android/%s is a machine-local file; remove it from the template", rel)
+			}
+		}
+	}
+}

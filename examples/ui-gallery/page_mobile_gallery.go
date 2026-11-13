@@ -29,17 +29,26 @@ const (
 var phoneInsets = geom.Insets{Top: 47, Bottom: 34}
 
 // phonePage wraps a screen body in a full phone page: status bar, the
-// screen, and the page background of the mobile style.
-func phonePage(style mobile.Style, body func(c *ui.Context)) func(c *ui.Context) {
+// screen, and the page background of the mobile style; rtl lays the
+// screen out right to left (the status bar is system chrome and keeps its
+// physical layout).
+func phonePage(style mobile.Style, rtl bool, body func(c *ui.Context)) func(c *ui.Context) {
 	return func(c *ui.Context) {
 		in := phoneInsets
-		mobile.Provider(c, mobile.Options{Style: style, SafeArea: &in}, func() {
-			th := mobile.ThemeOf(c)
-			ui.Column(c, func() {
-				statusBar(c, th, in.Top)
-				body(c)
-			}, layout.Size(c.Size().W, c.Size().H)).Bg(th.PageBg)
-		})
+		page := func() {
+			mobile.Provider(c, mobile.Options{Style: style, SafeArea: &in}, func() {
+				th := mobile.ThemeOf(c)
+				ui.Column(c, func() {
+					statusBar(c, th, in.Top)
+					body(c)
+				}, layout.Size(c.Size().W, c.Size().H)).Bg(th.PageBg)
+			})
+		}
+		if rtl {
+			ui.ConfigProvider(c).Direction(ui.RTL).Body(page)
+			return
+		}
+		page()
 	}
 }
 
@@ -76,18 +85,23 @@ var phoneVariants = []phoneVariant{
 	{"shadcn-dark", mobile.Shadcn, func() *theme.Theme { return theme.Shadcn(theme.Dark()) }},
 }
 
-// renderPhoneShots writes build/ui-gallery/mobile/<screen>-<variant>.png at
-// 390×844 logical points, 3× device pixels.
-func renderPhoneShots(only string) error {
+// renderPhoneShots writes build/ui-gallery/mobile/<screen>-<variant>.png
+// (<screen>-<variant>-rtl.png when rtl) at 390×844 logical points, 3×
+// device pixels.
+func renderPhoneShots(only string, rtl bool) error {
+	suffix := ""
+	if rtl {
+		suffix = "-rtl"
+	}
 	for _, s := range mobileScreens {
 		if only != "" && only != s.name {
 			continue
 		}
 		for _, v := range phoneVariants {
-			d := ui.NewDriver(phonePage(v.style, s.make(true)), ui.DriverOptions{Width: phoneW, Height: phoneH, Scale: phoneScale, Theme: v.theme()})
+			d := ui.NewDriver(phonePage(v.style, rtl, s.make(true)), ui.DriverOptions{Width: phoneW, Height: phoneH, Scale: phoneScale, Theme: v.theme()})
 			d.Settle()
 			d.Settle()
-			p := filepath.Join(*outDir, "mobile", s.name+"-"+v.suffix+".png")
+			p := filepath.Join(*outDir, "mobile", s.name+"-"+v.suffix+suffix+".png")
 			if err := d.SavePNG(p); err != nil {
 				return err
 			}
@@ -96,6 +110,16 @@ func renderPhoneShots(only string) error {
 	}
 	return nil
 }
+
+// The Mobile page's Setup writes the phone shots. It runs once per theme
+// pass and direction pass, but the shots already cover every style and
+// theme (phoneVariants), so they are written once per direction: the page
+// records the direction it was rendered in (-dir rtl wraps it in an RTL
+// ConfigProvider) and Setup skips a direction already written.
+var (
+	phoneShotsRTL  bool
+	phoneShotsDone = map[bool]bool{}
+)
 
 func init() {
 	// One gallery page per mobile screen: the screen inside a phone-sized
@@ -121,15 +145,22 @@ func init() {
 		})
 	}
 	// The phone screenshots (all screens × Ant Mobile / Vant / shadcn × light /
-	// dark at 3×) are produced by this page's Setup:
-	//   go run ./examples/ui-gallery -only Mobile
+	// dark at 3×) are produced by this page's Setup, once per direction:
+	//   go run ./examples/ui-gallery -only Mobile           # <screen>-<variant>.png
+	//   go run ./examples/ui-gallery -only Mobile -dir rtl  # <screen>-<variant>-rtl.png
 	gallery.Register(gallery.Page{
 		Name: "Mobile", Title: "Mobile 移动端组件", Group: gallery.Display, Order: 899, Width: phoneW + 48,
 		Render: func(c *ui.Context) {
+			phoneShotsRTL = c.IsRTL()
 			ui.Text(c, fmt.Sprintf("手机画布 %d×%d、%d 倍输出：build/ui-gallery/mobile/<screen>-<antd|vant|shadcn|antd-dark|vant-dark|shadcn-dark>.png", phoneW, phoneH, phoneScale)).Tertiary()
 		},
 		Setup: func(*ui.Driver) {
-			if err := renderPhoneShots(""); err != nil {
+			rtl := phoneShotsRTL
+			if phoneShotsDone[rtl] {
+				return
+			}
+			phoneShotsDone[rtl] = true
+			if err := renderPhoneShots("", rtl); err != nil {
 				fmt.Println("mobile shots:", err)
 			}
 		},

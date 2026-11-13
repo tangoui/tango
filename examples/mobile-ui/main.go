@@ -43,9 +43,10 @@ var (
 	wifi, bt, dark = true, false, false
 	taps           int
 	logged         bool
-	qty            = 1.0  // settings page stepper
-	volume         = 50.0 // settings page slider
-	memWarnings    int    // EventMemoryWarning count
+	firstFrame     = make(chan struct{}) // closed with the first frame's log line
+	qty            = 1.0                 // settings page stepper
+	volume         = 50.0                // settings page slider
+	memWarnings    int                   // EventMemoryWarning count
 )
 
 func main() {
@@ -85,6 +86,7 @@ func renderer() string {
 func page(c *ui.Context) {
 	if !logged && c.Size().W > 0 {
 		logged = true
+		close(firstFrame)
 		in := c.SafeArea()
 		log.Printf("mobile-ui: first frame %.0fx%.0f, safe area top %.0f bottom %.0f left %.0f right %.0f, dark %v",
 			c.Size().W, c.Size().H, in.Top, in.Bottom, in.Left, in.Right, c.Theme.Dark)

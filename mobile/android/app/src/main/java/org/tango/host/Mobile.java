@@ -63,6 +63,7 @@ import javax.crypto.spec.GCMParameterSpec;
  * Mobile system capabilities for the Go backend (mobile_android.go):
  * share sheet, haptics, safe area, orientation, biometrics, secure storage,
  * photo picker, camera, location, push, runtime permissions and app events.
+ * Operations neither this class nor {@link Device} knows go to {@link Sysx}.
  *
  * Go calls {@link #call}. Synchronous operations return their result;
  * failures are "!code message" with the codes the Go side maps to platform
@@ -214,6 +215,7 @@ public final class Mobile {
             event(PUSH_OPENED, TangoPush.fromExtras(extras), null);
             i.removeExtra("google.message_id"); // report a tap once
         }
+        Sysx.handleIntent(i); // taps on local notifications (sys/notify)
     }
 
     private static void layoutChanged() {
@@ -238,11 +240,11 @@ public final class Mobile {
         else Tango.main.post(() -> nativeEvent(kind, url, path));
     }
 
-    private static void done(int cb, String result) {
+    static void done(int cb, String result) {
         finish(cb, result, null);
     }
 
-    private static void fail(int cb, String err) {
+    static void fail(int cb, String err) {
         finish(cb, null, err.startsWith("!") ? err : "!" + err);
     }
 

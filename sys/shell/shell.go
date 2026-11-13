@@ -8,6 +8,13 @@
 // the app launch arbitrary protocol handlers or local programs (file:,
 // custom schemes) just by passing a string. Paths are checked to exist.
 //
+// On iOS OpenURL goes through UIApplication openURL (Safari, Mail, …),
+// OpenPath shows a QuickLook preview (or the "Open in…" menu) and
+// RevealPath is ErrUnsupported, as is OpenPath for folders. On Android
+// OpenURL starts Intent.ACTION_VIEW, OpenPath does the same with a
+// content:// URI of the host's file provider, and RevealPath and folders
+// are ErrUnsupported.
+//
 // Functions are safe from any goroutine once the app runs. They return
 // ErrUnsupported when the backend has no shell integration and
 // tango.ErrNotRunning after the app quit.

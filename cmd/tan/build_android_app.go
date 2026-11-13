@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -360,11 +361,26 @@ func syncAndroidProject(src, proj string) error {
 	}
 	return copyTree(src, proj, func(rel string, d fs.DirEntry) bool {
 		switch rel {
-		case ".gradle", "build", "app/build", "app/src/main/jniLibs", "local.properties", ".idea", ".kotlin", "build.sh":
+		case "app/src/main/jniLibs", "build.sh":
 			return true
 		}
-		return false
+		return androidLocalFile(path.Base(rel), d.IsDir())
 	})
+}
+
+// androidLocalFile reports whether a file or directory of the host
+// project, at any depth, belongs to one machine rather than to the
+// template: build outputs, Gradle state, local.properties and IDE files
+// (Eclipse/Buildship, IntelliJ/Android Studio). syncAndroidProject leaves
+// them out, so a checkout opened in an IDE does not leak them into apps.
+func androidLocalFile(name string, dir bool) bool {
+	switch name {
+	case "local.properties", ".project", ".classpath", ".DS_Store":
+		return !dir
+	case "build", ".gradle", ".kotlin", ".settings", ".idea", ".vscode", ".cxx":
+		return dir
+	}
+	return !dir && strings.HasSuffix(name, ".iml")
 }
 
 // writeAndroidResources writes local.properties, the app name, the

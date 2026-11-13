@@ -26,6 +26,9 @@ func runPackage(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := noArgs(fs); err != nil {
+		return err
+	}
 	cfg, err := LoadConfig(*dir)
 	if err != nil {
 		return err
