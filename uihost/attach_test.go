@@ -135,7 +135,8 @@ func TestAttachInput(t *testing.T) {
 }
 
 func TestAttachSurfaceCloseClosesRunner(t *testing.T) {
-	a, fb := faketest.Run(t, tango.Options{})
+	keep := false // closing the last surface must not quit (default on Linux/Windows)
+	a, fb := faketest.Run(t, tango.Options{QuitOnLastClose: &keep})
 	s := webSurface(t, a, 200, 100)
 	r, at, cv := attach(t, a, fb, s, uihost.Layer{Above: true}, func(c *ui.Context) { ui.Text(c, "x") })
 	closed := make(chan struct{})
@@ -242,7 +243,8 @@ func TestAttachOffMainThread(t *testing.T) {
 }
 
 func TestAttachClosedSurface(t *testing.T) {
-	a, fb := faketest.Run(t, tango.Options{})
+	keep := false // closing the last surface must not quit (default on Linux/Windows)
+	a, fb := faketest.Run(t, tango.Options{QuitOnLastClose: &keep})
 	s := webSurface(t, a, 200, 100)
 	fb.RequestClose(s.ID())
 	o := tango.Await(a, func() attached {

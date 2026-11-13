@@ -267,7 +267,8 @@ func TestLocaleFixed(t *testing.T) {
 
 func TestSharedSubscription(t *testing.T) {
 	resetLocale(t)
-	a, fb := faketest.Run(t, tango.Options{})
+	keep := false // closing the last window must not quit (default on Linux/Windows)
+	a, fb := faketest.Run(t, tango.Options{QuitOnLastClose: &keep})
 	fb.SetTheme(platform.Theme{})
 	calls := 0
 	opts := uihost.Options{Customize: func(*theme.Theme) { calls++ }}
