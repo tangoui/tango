@@ -129,10 +129,37 @@ func (s *State) Move(dir Direction, unit Unit, extend bool) {
 			}
 			continue
 		}
-		out[k] = moved(sel, s.target(dir, unit, clampOff(snap, sel.Head)))
+		to := s.target(dir, unit, clampOff(snap, sel.Head))
+		if unit == Char {
+			to = s.overFolds(snap, dir, clampOff(snap, sel.Head), to)
+		}
+		out[k] = moved(sel, to)
 	}
 	s.setSels(out, nil)
 	s.setUps(out, ups)
+}
+
+// overFolds is a Char move from off to to that crosses a line break over
+// the folded regions: as Monaco's cursor moves in view lines, Left and
+// Right step from a folded line's end to the next shown line and back,
+// never onto a hidden line (they do not unfold it).
+func (s *State) overFolds(snap buffer.Snapshot, dir Direction, off, to int) int {
+	vl := s.lines()
+	if len(vl.hid) == 0 {
+		return to
+	}
+	l, tl := snap.LineOf(off), snap.LineOf(to)
+	if l == tl || !vl.hidden(tl) {
+		return to
+	}
+	if dir == Forward {
+		nx := vl.nextVisible(l)
+		if nx >= snap.LineCount() {
+			return off // the folded region ends the document: no shown line after it
+		}
+		return snap.LineStart(nx)
+	}
+	return lineEnd(snap, max(0, vl.prevVisible(l)))
 }
 
 // selRange returns the primary selection as an ordered, clamped range.

@@ -297,6 +297,22 @@ func (h *Highlighter) FinalBefore(snap buffer.Snapshot, line int) bool {
 	return h.st.nextDirty() >= upTo && h.st.minPending() >= upTo
 }
 
+// FinalLines returns how many leading lines of snap are final, like the
+// largest line for which FinalBefore reports true, without side effects:
+// 0 for a snapshot the Highlighter has not seen, every line without a
+// lexer. The editor's bracket pairs scan only final lines.
+func (h *Highlighter) FinalLines(snap buffer.Snapshot) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.lx == nil {
+		return snap.LineCount()
+	}
+	if !h.have || snap.Version() != h.snap.Version() || snap.LineCount() != h.st.n() {
+		return 0
+	}
+	return min(h.st.nextDirty(), h.st.minPending(), h.st.n())
+}
+
 // WindowRange returns the lines [lo, hi) whose token slices DefaultView's
 // token window currently keeps (diagnostics and tests: a caller can check
 // that it does not move the window back and forth); it is

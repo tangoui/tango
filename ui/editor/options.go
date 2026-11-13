@@ -19,7 +19,89 @@ const (
 	LineNumbersOn LineNumbersMode = "on"
 	// LineNumbersOff hides the line numbers.
 	LineNumbersOff LineNumbersMode = "off"
+	// LineNumbersRelative shows each line's distance to the primary
+	// caret's line, and that line's own number (left aligned).
+	LineNumbersRelative LineNumbersMode = "relative"
+	// LineNumbersInterval shows the numbers of every tenth line, of the
+	// last line and of the primary caret's line.
+	LineNumbersInterval LineNumbersMode = "interval"
 )
+
+// RenderWhitespaceMode is which blanks are drawn as visible marks: a
+// middle dot for a space, an arrow for a tab (Monaco's renderWhitespace).
+type RenderWhitespaceMode string
+
+const (
+	// RenderWhitespaceNone draws no marks.
+	RenderWhitespaceNone RenderWhitespaceMode = "none"
+	// RenderWhitespaceBoundary marks the leading and trailing blanks, tabs,
+	// and runs of two or more spaces.
+	RenderWhitespaceBoundary RenderWhitespaceMode = "boundary"
+	// RenderWhitespaceSelection marks the blanks inside the selections.
+	RenderWhitespaceSelection RenderWhitespaceMode = "selection"
+	// RenderWhitespaceTrailing marks the trailing blanks (all of a blank
+	// line's).
+	RenderWhitespaceTrailing RenderWhitespaceMode = "trailing"
+	// RenderWhitespaceAll marks every blank.
+	RenderWhitespaceAll RenderWhitespaceMode = "all"
+)
+
+// MatchBracketsMode is when the brackets around the caret are highlighted
+// (Monaco's matchBrackets).
+type MatchBracketsMode string
+
+const (
+	// MatchBracketsAlways highlights the pair a caret touches, else the
+	// pair enclosing it.
+	MatchBracketsAlways MatchBracketsMode = "always"
+	// MatchBracketsNear highlights only the pair a caret touches.
+	MatchBracketsNear MatchBracketsMode = "near"
+	// MatchBracketsNever highlights no brackets.
+	MatchBracketsNever MatchBracketsMode = "never"
+)
+
+// RenderLineHighlightMode is where the caret's line is highlighted
+// (Monaco's renderLineHighlight).
+type RenderLineHighlightMode string
+
+const (
+	// RenderLineHighlightNone highlights nothing.
+	RenderLineHighlightNone RenderLineHighlightMode = "none"
+	// RenderLineHighlightGutter highlights the line's gutter (also with a
+	// selection).
+	RenderLineHighlightGutter RenderLineHighlightMode = "gutter"
+	// RenderLineHighlightLine highlights the line's text area while every
+	// selection is empty.
+	RenderLineHighlightLine RenderLineHighlightMode = "line"
+	// RenderLineHighlightAll is both.
+	RenderLineHighlightAll RenderLineHighlightMode = "all"
+)
+
+// GuidesOptions are the guide lines drawn in the text (Monaco's guides).
+type GuidesOptions struct {
+	// Indentation draws a vertical line at each indentation level
+	// (guides.indentation: true).
+	Indentation bool
+	// HighlightActiveIndentation draws the guide of the primary caret's
+	// block with editorIndentGuide.activeBackground
+	// (guides.highlightActiveIndentation: true).
+	HighlightActiveIndentation bool
+	// BracketPairs draws bracket pair guides (guides.bracketPairs:
+	// false). Not drawn yet: setting it changes nothing (milestone 2).
+	BracketPairs bool
+}
+
+// PaddingOptions are the empty space above the first line and below the
+// last (Monaco's padding), in logical pixels.
+type PaddingOptions struct {
+	// Top is the space above the first line, scrolled away with the text
+	// (padding.top: 0).
+	Top float32
+	// Bottom is the extra scroll room below the last line (padding.bottom:
+	// 0); as scrolling stops with the last line at the top, at most a line
+	// height of it is used.
+	Bottom float32
+}
 
 // Options are one editor's settings (Monaco's editor options). Each field
 // defaults to Monaco 0.56's default (DefaultOptions); the comment names the
@@ -38,9 +120,8 @@ type Options struct {
 	// navigation and copy keep working, and the context key
 	// editorReadonly is true (readOnly: false).
 	ReadOnly bool
-	// LineNumbers shows or hides the line numbers (lineNumbers: "on").
-	// Milestone 2 Task 2 supports LineNumbersOn and LineNumbersOff; any
-	// other value shows them.
+	// LineNumbers is how the gutter shows line numbers (lineNumbers:
+	// "on"); unset or unknown values are "on".
 	LineNumbers LineNumbersMode
 	// Comments are the settings of the comment commands (comments).
 	Comments CommentsOptions
@@ -112,6 +193,31 @@ type Options struct {
 	// (showFoldingControls: "mouseover"); unset or unknown values are
 	// "mouseover".
 	ShowFoldingControls ShowFoldingControls
+
+	// RenderWhitespace is which blanks are drawn as marks
+	// (renderWhitespace: "selection"); unset or unknown values are
+	// "selection".
+	RenderWhitespace RenderWhitespaceMode
+	// RenderControlCharacters draws control characters (U+0000–U+001F but
+	// tab, and U+007F) as their Control Pictures symbols, white on dark red
+	// (renderControlCharacters: true).
+	RenderControlCharacters bool
+	// Guides are the indentation guides (guides).
+	Guides GuidesOptions
+	// BracketPairColorization colors brackets by nesting level and
+	// unmatched ones as errors (bracketPairColorization.enabled: true).
+	// Large files (Model.LargeFile) and documents over 5 000 000 bytes are
+	// not colorized.
+	BracketPairColorization bool
+	// MatchBrackets is when the bracket pair at the caret is highlighted
+	// (matchBrackets: "always"); unset or unknown values are "always".
+	MatchBrackets MatchBracketsMode
+	// RenderLineHighlight is where the caret's line is highlighted
+	// (renderLineHighlight: "line"); unset or unknown values are "line".
+	RenderLineHighlight RenderLineHighlightMode
+	// Padding is the space above the first line and below the last
+	// (padding: {top: 0, bottom: 0}).
+	Padding PaddingOptions
 }
 
 // AutoClosingStrategy is when a pair is auto-closed (Monaco's
@@ -275,7 +381,58 @@ func DefaultOptions() Options {
 		FoldingStrategy:     FoldingAuto,
 		FoldingHighlight:    true,
 		ShowFoldingControls: FoldingControlsMouseOver,
+
+		RenderWhitespace:        RenderWhitespaceSelection,
+		RenderControlCharacters: true,
+		Guides:                  GuidesOptions{Indentation: true, HighlightActiveIndentation: true},
+		BracketPairColorization: true,
+		MatchBrackets:           MatchBracketsAlways,
+		RenderLineHighlight:     RenderLineHighlightLine,
 	}
+}
+
+// lineNumbersMode returns LineNumbers, "on" for unset or unknown values.
+func (o *Options) lineNumbersMode() LineNumbersMode {
+	switch o.LineNumbers {
+	case LineNumbersOff, LineNumbersRelative, LineNumbersInterval:
+		return o.LineNumbers
+	}
+	return LineNumbersOn
+}
+
+// renderWhitespace returns RenderWhitespace, "selection" for unset or
+// unknown values.
+func (o *Options) renderWhitespace() RenderWhitespaceMode {
+	switch o.RenderWhitespace {
+	case RenderWhitespaceNone, RenderWhitespaceBoundary, RenderWhitespaceTrailing, RenderWhitespaceAll:
+		return o.RenderWhitespace
+	}
+	return RenderWhitespaceSelection
+}
+
+// matchBrackets returns MatchBrackets, "always" for unset or unknown
+// values.
+func (o *Options) matchBrackets() MatchBracketsMode {
+	switch o.MatchBrackets {
+	case MatchBracketsNear, MatchBracketsNever:
+		return o.MatchBrackets
+	}
+	return MatchBracketsAlways
+}
+
+// lineHighlight returns whether the caret's line is highlighted in the
+// gutter and in the text area (RenderLineHighlight; unset or unknown:
+// "line").
+func (o *Options) lineHighlight() (gutter, line bool) {
+	switch o.RenderLineHighlight {
+	case RenderLineHighlightNone:
+		return false, false
+	case RenderLineHighlightGutter:
+		return true, false
+	case RenderLineHighlightAll:
+		return true, true
+	}
+	return false, true
 }
 
 // foldingStrategy returns FoldingStrategy, "auto" for unset or unknown
@@ -306,7 +463,7 @@ func (o *Options) fontSize() float32 {
 }
 
 // lineNumbers reports whether the gutter shows line numbers.
-func (o *Options) lineNumbers() bool { return o.LineNumbers != LineNumbersOff }
+func (o *Options) lineNumbers() bool { return o.lineNumbersMode() != LineNumbersOff }
 
 // wordWrap returns WordWrap, "off" for unset or unknown values.
 func (o *Options) wordWrap() WrapMode {

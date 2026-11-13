@@ -3,6 +3,7 @@ package editor
 import (
 	"math"
 	"sync"
+	"time"
 
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/editor/buffer"
@@ -36,9 +37,11 @@ const lineCacheSize = 512
 // the lines are view lines: a long model line is shown as several rows,
 // each shaped on its own, and only the lines around the viewport are
 // wrapped (wrap.go, viewlines.go). Redraws are driven by input and by the application: apart
-// from the caret blink (a Context.WakeAt while focused) and one frame after
-// input it applied while painting, the View never requests frames on its
-// own, not even while highlighting is incomplete. An application that starts the Highlighter's background
+// from the caret blink (a Context.WakeAt while focused), one frame after
+// input it applied while painting and, in a large document, a frame when
+// the folding controls' ranges are due (paint.go, foldRangesNow), the View
+// never requests frames on its own, not even while highlighting is
+// incomplete. An application that starts the Highlighter's background
 // goroutine passes c.Invalidator() (or ui.Invalidate) as its ready
 // callback, so newly final tokens are drawn when they arrive.
 type ViewW struct {
@@ -82,6 +85,24 @@ type viewState struct {
 	foldX        float32
 	ellipsis     *text.Layout
 	ellipsisSize float32
+	// The folding ranges awaiting the debounce (foldRangesNow): the text
+	// they are for and when they are due.
+	foldStale foldRangesKey
+	foldDue   time.Time
+	// placeholderPress is the folded line whose placeholder the pointer
+	// went down on, -1 for none (unfolded on release there; input.go).
+	placeholderPress int
+
+	// brk is this frame's colored brackets per model line, wsMarks the
+	// shaped whitespace marks (bracketpairs.go, whitespace.go); match
+	// the matched brackets for matchKey.
+	brk       map[int][]brSpan
+	wsMarks   *whitespaceMarks
+	match     []brange
+	matchKey  matchKey
+	matchOK   bool
+	matchPend matchKey  // the key awaiting matchDelay
+	matchDue  time.Time // when it is due
 
 	// dmg is what the last paint drew, for the redraw hints (damage.go);
 	// dmgSpare holds the buffers of the paint before it, for reuse.
@@ -89,7 +110,7 @@ type viewState struct {
 }
 
 func newViewState() viewState {
-	return viewState{lines: text.NewLineCache(lineCacheSize), long: map[longKey]*longLine{}, foldX: -1}
+	return viewState{lines: text.NewLineCache(lineCacheSize), long: map[longKey]*longLine{}, foldX: -1, placeholderPress: -1}
 }
 
 // shapeHook, when set (tests), sees every LineCache call the View makes for

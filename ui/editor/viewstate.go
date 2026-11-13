@@ -52,6 +52,9 @@ func (s *State) RestoreViewState(v ViewState) {
 	top := max(0, min(v.TopLine, n-1))
 	s.anchorTop(top, 0) // to a view line
 	vp.OffsetY = max(0, v.OffsetY)
+	if top == 0 {
+		vp.OffsetY = max(-vp.PadTop, v.OffsetY) // the top padding
+	}
 	if lh := vp.LineHeight; lh > 0 && vp.OffsetY >= lh {
 		vp.OffsetY = 0
 	}

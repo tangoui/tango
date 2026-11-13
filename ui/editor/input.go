@@ -329,6 +329,12 @@ func (w *ViewW) finish() {
 	} else if p.drag {
 		w.drag(p.dragPos)
 	}
+	if p.release {
+		if l := vs.placeholderPress; l >= 0 && w.placeholderAt(p.relPos) == l {
+			st.toggleFoldAt(l, false)
+		}
+		vs.placeholderPress = -1
+	}
 	if r := p.menu; r != nil {
 		st.execute(r.cmd, r.args, w.keyContext())
 	}
@@ -566,13 +572,10 @@ func (w *ViewW) press(p pending) {
 	if w.foldControlPress(p) {
 		return
 	}
-	unfold := w.placeholderAt(p.pressPos)
-	if unfold >= 0 {
-		// A click on a folded line's placeholder unfolds it (Monaco's
-		// FoldingController.onEditorMouseUp); the caret goes to the
-		// line's end first, as the press places it.
-		defer st.toggleFoldAt(unfold, false)
-	}
+	// A click on a folded line's placeholder unfolds it when released on
+	// the same placeholder (Monaco's FoldingController.onEditorMouseDown /
+	// onEditorMouseUp), so a drag starting there only selects.
+	vs.placeholderPress = w.placeholderAt(p.pressPos)
 	snap := st.Snapshot()
 	off, up := w.hitAt(snap, p.pressPos)
 	vs.dragMode, vs.dragBase = dragPrimary, nil

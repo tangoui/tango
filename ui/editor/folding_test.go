@@ -232,12 +232,69 @@ func TestCaretEntersFoldUnfolds(t *testing.T) {
 			t.Fatal("not folded")
 		}
 	}
-	// Right from the end of the folded line into its body.
+	// Left and Right step over the folded region (Monaco moves in view
+	// lines), also extending the selection; the fold stays.
+	snap := st.Snapshot()
 	fold()
-	caretAt(st, 3, len(st.Snapshot().Line(3)))
+	caretAt(st, 3, len(snap.Line(3)))
 	st.Move(Forward, Char, false)
+	if h := st.Primary().Head; h != snap.LineStart(7) || len(st.Folded()) != 1 {
+		t.Fatalf("right from the folded line: caret %d (want %d), folded %v", h, snap.LineStart(7), st.Folded())
+	}
+	st.Move(Backward, Char, false)
+	if h := st.Primary().Head; h != lineEnd(snap, 3) || len(st.Folded()) != 1 {
+		t.Fatalf("left onto the folded line: caret %d (want %d), folded %v", h, lineEnd(snap, 3), st.Folded())
+	}
+	st.Move(Forward, Char, true)
+	if p := st.Primary(); p != (Selection{Anchor: lineEnd(snap, 3), Head: snap.LineStart(7)}) || len(st.Folded()) != 1 {
+		t.Fatalf("shift+right over the fold: %+v, folded %v", p, st.Folded())
+	}
+	caretAt(st, 7, 0)
+	st.Move(Backward, Char, true)
+	if p := st.Primary(); p != (Selection{Anchor: snap.LineStart(7), Head: lineEnd(snap, 3)}) || len(st.Folded()) != 1 {
+		t.Fatalf("shift+left over the fold: %+v, folded %v", p, st.Folded())
+	}
+	// A word move lands in the body (model positions): it unfolds.
+	caretAt(st, 3, len(snap.Line(3)))
+	st.Execute("cursorWordRight", nil)
 	if got := st.Folded(); len(got) != 0 {
-		t.Fatalf("caret moved into the fold: still folded %v", got)
+		t.Fatalf("word move into the fold: still folded %v", got)
+	}
+	// So does the document end when the fold ends the document.
+	fold()
+	st.Execute("cursorBottom", nil)
+	if got := st.Folded(); len(got) != 1 {
+		t.Fatalf("cursorBottom (after the fold): %v", got)
+	}
+	// Right at the end of a folded region that ends the document stays.
+	py := NewState("x = 1\ndef f():\n    a\n    b", "a.py", nil)
+	caretAt(py, 1, 0)
+	py.Execute("editor.fold", nil)
+	caretAt(py, 1, len(py.Snapshot().Line(1)))
+	py.Move(Forward, Char, false)
+	if h := py.Primary().Head; h != lineEnd(py.Snapshot(), 1) || len(py.Folded()) != 1 {
+		t.Fatalf("right at a fold ending the document: caret %d, folded %v", h, py.Folded())
+	}
+	// A selection whose head is in the fold, its anchor outside (Select
+	// All, Shift+Ctrl+End, Shift+Ctrl+Right): the fold stays.
+	for _, c := range []struct {
+		name string
+		run  func()
+	}{
+		{"selectAll", func() { py.Execute("editor.action.selectAll", nil) }},
+		{"cursorBottomSelect", func() { caretAt(py, 0, 0); py.Execute("cursorBottomSelect", nil) }},
+		{"cursorWordRightSelect", func() {
+			caretAt(py, 1, len(py.Snapshot().Line(1)))
+			py.Execute("cursorWordRightSelect", nil)
+		}},
+	} {
+		c.run()
+		if got := py.Folded(); !slices.Equal(got, []FoldingRange{{1, 3, ""}}) {
+			t.Fatalf("%s (selection %+v): folded %v", c.name, py.Primary(), got)
+		}
+		if l := py.Snapshot().LineOf(py.Primary().Head); l < 2 {
+			t.Fatalf("%s: the head %d is not in the fold", c.name, py.Primary().Head)
+		}
 	}
 	// A caret put there.
 	fold()
@@ -266,6 +323,23 @@ func TestCaretEntersFoldUnfolds(t *testing.T) {
 	caretAt(st, 6, 0)
 	if got := st.Folded(); !slices.Equal(got, []FoldingRange{{0, 2, ""}, {9, 10, ""}}) {
 		t.Fatalf("nested: folded %v", got)
+	}
+	// Several cursors in one region toggle it once, and fold it once.
+	st.Execute("editor.unfoldAll", nil)
+	s3 := st.Snapshot()
+	st.SetSelections([]Selection{{Anchor: s3.LineStart(3), Head: s3.LineStart(3)}, {Anchor: s3.LineStart(3) + 2, Head: s3.LineStart(3) + 2}})
+	if len(st.Sels) != 2 {
+		t.Fatalf("%d cursors", len(st.Sels))
+	}
+	st.Execute("editor.toggleFold", nil)
+	if got := st.Folded(); !slices.Equal(got, []FoldingRange{{3, 7, ""}}) {
+		t.Fatalf("toggleFold with two cursors: %v", got)
+	}
+	st.Execute("editor.unfoldAll", nil)
+	st.SetSelections([]Selection{{Anchor: s3.LineStart(3), Head: s3.LineStart(3)}, {Anchor: s3.LineStart(3) + 2, Head: s3.LineStart(3) + 2}})
+	st.Execute("editor.fold", nil)
+	if got := st.Folded(); !slices.Equal(got, []FoldingRange{{3, 7, ""}}) {
+		t.Fatalf("fold with two cursors: %v", got)
 	}
 	// Another view's edit moving the caret into a fold.
 	m := NewModel("a.go", foldGoDoc, DefaultRegistry())
@@ -534,6 +608,64 @@ func damageFoldScript(t *testing.T) {
 		h.typeText(string(rune('a' + i)))
 		h.step("type")
 	}
+	// Folding the region whose body holds the top line: the start line
+	// comes to the top.
+	body := st.topModelLine() + 1
+	for st.lines().rowsOf(body) == 0 || indentLevel(st.Snapshot().Line(body), 4) != 8 { // "\t\treturn x"
+		body++
+	}
+	st.anchorTop(body, 0)
+	h.frame()
+	caretAt(st, body, 0)
+	h.step("caret in the body")
+	st.Execute("editor.fold", nil)
+	whole("fold over the top line")
+	if l := st.topModelLine(); l != body-1 || st.fold.foldAt(l) < 0 {
+		t.Fatalf("top line %d after folding over it (body %d), folded %v", l, body, st.Folded())
+	}
+	for _, dy := range []float32{8, -4, 12} {
+		h.r.HandleEvent(input.Scroll{Pos: p, DY: dy})
+		h.step(fmt.Sprintf("scroll %v", dy))
+	}
+	// Word wrap with folds: wrapped rows and hidden lines together.
+	st.Options.WordWrap = WrapColumn
+	st.Options.WordWrapColumn = 14
+	h.frame()
+	if !st.wrapping() {
+		t.Fatal("not wrapping")
+	}
+	st.Execute("editor.foldAll", nil)
+	whole("fold all, wrapped")
+	for _, dy := range []float32{8, 16, -8, 30, -12} {
+		h.r.HandleEvent(input.Scroll{Pos: p, DY: dy})
+		h.step(fmt.Sprintf("scroll wrapped %v", dy))
+	}
+	// Typing on a short line (its rows stay).
+	for l := st.topModelLine() + 1; ; l++ {
+		if st.Snapshot().Line(l) == "}" && !st.lines().hidden(l) {
+			caretAt(st, l, 0)
+			break
+		}
+	}
+	h.step("caret wrapped")
+	for i := range 4 {
+		h.typeText(string(rune('a' + i)))
+		h.step("type wrapped")
+	}
+	h.key(input.KeyDown, 0)
+	h.step("down wrapped")
+	other2 := NewView(st.Model, th)
+	defer other2.Close()
+	ol2, _ := st.lines().find(st.Viewport.TopLine + 2)
+	other2.MoveCaret(other2.Snapshot().LineStart(ol2)+1, false)
+	other2.Insert("other view text that wraps ")
+	h.step("other view types, wrapped")
+	st.Execute("editor.unfoldAll", nil)
+	whole("unfold all, wrapped")
+	for i := range 3 {
+		h.typeText(string(rune('a' + i)))
+		h.step("type wrapped unfolded")
+	}
 	h.verified()
 }
 
@@ -577,5 +709,119 @@ func TestFoldKeys(t *testing.T) {
 		if got := st.Folded(); !slices.Equal(got, []FoldingRange{{0, 2, ""}, {8, 9, ""}}) {
 			t.Fatalf("%s: fold level 1 chord: %v", c.name, got)
 		}
+	}
+}
+
+// TestFoldRangesDebounce: in a large document the gutter's controls get
+// their ranges foldDebounce after the last change, not on every key; in a
+// small one at once.
+func TestFoldRangesDebounce(t *testing.T) {
+	goText(t)
+	for _, n := range []int{100, foldSyncLines + 10} {
+		var b strings.Builder
+		for i := range n / 2 {
+			fmt.Fprintf(&b, "a%d\n\tb\n", i)
+		}
+		st := NewState(b.String(), "a.txt", theme.Base("vs"))
+		st.Options.ShowFoldingControls = FoldingControlsAlways
+		ed := newEditDriver(st, 500, 300, pinMac)
+		ed.focus(t) // a second later
+		ed.Frame()
+		if !st.foldRangesFresh() {
+			t.Fatalf("%d lines: no ranges for the controls", n)
+		}
+		if (*ed.vw).foldCodes(nil, true, true) == nil {
+			t.Fatal("no codes")
+		}
+		ed.Type("x")
+		if fresh := st.foldRangesFresh(); fresh != (n <= foldSyncLines) {
+			t.Fatalf("%d lines: ranges fresh %v right after typing", n, fresh)
+		}
+		if n > foldSyncLines {
+			// The view asks to be woken when they are due, and for no
+			// frame before.
+			ed.Frame()
+			vs := (*ed.vw).vs
+			if wake := ed.Runner().NextWake(); !wake.Equal(vs.foldDue) || !vs.foldDue.Equal(ed.Now().Add(foldDebounce)) {
+				t.Fatalf("wake %v, due %v, now %v", wake, vs.foldDue, ed.Now())
+			}
+			if ed.NeedsFrame() {
+				t.Fatal("frames requested while the ranges wait")
+			}
+			ed.Advance(foldDebounce / 2)
+			ed.Frame()
+			if st.foldRangesFresh() || ed.NeedsFrame() {
+				t.Fatalf("before the debounce: fresh %v, frame requested %v", st.foldRangesFresh(), ed.NeedsFrame())
+			}
+			ed.Advance(foldDebounce / 2)
+			ed.Frame()
+			if !st.foldRangesFresh() {
+				t.Fatalf("%d lines: ranges not computed when due", n)
+			}
+			continue
+		}
+		ed.Advance(foldDebounce)
+		ed.Frame()
+		if !st.foldRangesFresh() {
+			t.Fatalf("%d lines: ranges not computed after the debounce", n)
+		}
+	}
+}
+
+// TestFoldPlaceholderClick: a click on a folded line's placeholder unfolds
+// it on release (Monaco's mouse up); a drag starting there selects and
+// keeps the fold.
+func TestFoldPlaceholderClick(t *testing.T) {
+	goText(t)
+	st := NewState(foldGoDoc, "a.go", theme.Base("vs"))
+	ed := newEditDriver(st, 500, 300, pinMac)
+	ed.focus(t)
+	fold := func() {
+		caretAt(st, 3, 0)
+		st.Execute("editor.fold", nil)
+		ed.Frame()
+		if len(st.Folded()) != 1 {
+			t.Fatal("not folded")
+		}
+	}
+	at := func() geom.Point {
+		w := *ed.vw
+		lv := w.rowAt(st.Snapshot(), 3, 0)
+		x0, x1 := w.placeholderX(&lv)
+		g, v := w.vs, st.Viewport
+		return geom.Pt(g.text.X-v.ScrollX+(x0+x1)/2, g.text.Y-v.OffsetY+3.5*v.LineHeight)
+	}
+	fold()
+	p := at()
+	if (*ed.vw).placeholderAt(p) != 3 {
+		t.Fatal("no placeholder at the point")
+	}
+	ed.Inject(input.Pointer{Kind: input.Move, Pos: p})
+	ed.Inject(input.Pointer{Kind: input.Press, Pos: p})
+	ed.Frame()
+	if len(st.Folded()) != 1 {
+		t.Fatal("unfolded on press")
+	}
+	ed.Inject(input.Pointer{Kind: input.Release, Pos: p})
+	ed.Frame()
+	if got := st.Folded(); len(got) != 0 {
+		t.Fatalf("click on the placeholder: still folded %v", got)
+	}
+	ed.Advance(time.Second)
+	fold()
+	p = at()
+	q := geom.Pt(p.X-60, p.Y+3*st.Viewport.LineHeight)
+	ed.Inject(input.Pointer{Kind: input.Move, Pos: p})
+	ed.Inject(input.Pointer{Kind: input.Press, Pos: p})
+	ed.Frame()
+	ed.Inject(input.Pointer{Kind: input.Move, Pos: q})
+	ed.Frame()
+	ed.Inject(input.Pointer{Kind: input.Release, Pos: q})
+	ed.Frame()
+	if got := st.Folded(); len(got) != 1 {
+		t.Fatalf("drag from the placeholder unfolded: %v", got)
+	}
+	if st.Primary().Anchor == st.Primary().Head {
+		t.Fatal("the drag selected nothing")
 	}
 }

@@ -192,6 +192,10 @@ var defaultBindings = []defaultBinding{
 	{"editor.action.clipboardPasteAction", "mod+v", 0, textInput, nil},
 	{"editor.action.clipboardPasteAction", "shift+insert", onWindows, textInput, nil},
 
+	// Brackets (Monaco's bracketMatching contribution; selectToBracket
+	// has no default key).
+	{"editor.action.jumpToBracket", "mod+shift+\\", 0, textFocus, nil},
+
 	// Folding (Monaco's folding contribution; MinCode's table does not
 	// list these commands).
 	{"editor.fold", "ctrl+shift+[", onPC, textFocus, nil},

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"regexp"
+	"regexp/syntax"
 	"slices"
 	"strings"
 
@@ -143,6 +144,51 @@ func (m *markerMatcher) match(s string) (start, end bool) {
 	return false, test(m.end, s)
 }
 
+// stdBothRegexp compiles "(start)|(?:end)" for an unanchored search with
+// RE2, nil when they cannot be translated. When both start with "^" (the
+// usual "^\s*//\s*#region"), the "^" is taken out of the alternation, so
+// the search stops at the line start instead of trying every position.
+func stdBothRegexp(start, end, flags string) *regexp.Regexp {
+	s, ok1 := regex.Translate(start, flags)
+	e, ok2 := regex.Translate(end, flags)
+	if !ok1 || !ok2 {
+		return nil
+	}
+	if s2, ok := dropAnchor(s); ok {
+		if e2, ok := dropAnchor(e); ok {
+			if re, err := regexp.Compile(`^(?:(` + s2 + `)|(?:` + e2 + `))`); err == nil {
+				return re
+			}
+		}
+	}
+	re, err := regexp.Compile(`(` + s + `)|(?:` + e + `)`)
+	if err != nil {
+		return nil
+	}
+	return re
+}
+
+// dropAnchor returns RE2 pattern p without its leading "^" (after a flags
+// group such as "(?i)") when p is a sequence starting at the text start.
+func dropAnchor(p string) (string, bool) {
+	re, err := syntax.Parse(p, syntax.Perl)
+	if err != nil || re.Op != syntax.OpConcat || len(re.Sub) == 0 || re.Sub[0].Op != syntax.OpBeginText {
+		return "", false
+	}
+	pre := ""
+	if strings.HasPrefix(p, "(?") {
+		i := strings.IndexByte(p, ')')
+		if i < 0 || strings.ContainsAny(p[2:i], ":(") {
+			return "", false
+		}
+		pre, p = p[:i+1], p[i+1:]
+	}
+	if !strings.HasPrefix(p, "^") {
+		return "", false
+	}
+	return pre + p[1:], true
+}
+
 // stdRegexp compiles a JavaScript regex for an unanchored search with
 // RE2, nil when it cannot be translated.
 func stdRegexp(source, flags string) *regexp.Regexp {
@@ -168,7 +214,7 @@ func markersOf(conf *langs.Conf) *markerMatcher {
 	s, e := conf.Folding.Start, conf.Folding.End
 	m := &markerMatcher{}
 	if s.Flags == e.Flags {
-		m.stdBoth = stdRegexp(`(`+s.Source+`)|(?:`+e.Source+`)`, s.Flags)
+		m.stdBoth = stdBothRegexp(s.Source, e.Source, s.Flags)
 	}
 	if m.stdBoth == nil {
 		m.stdStart, m.stdEnd = stdRegexp(s.Source, s.Flags), stdRegexp(e.Source, e.Flags)

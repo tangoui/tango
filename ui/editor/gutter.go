@@ -118,19 +118,55 @@ func (w *ViewW) numbersWidth(d digitGlyphs, n int) float32 {
 	return float32(math.Ceil(float64(float32(digits) * d.adv)))
 }
 
-// paintGutter draws the gutter background and the line numbers of the
-// laid out rows: a wrapped line's number on its first row only (as
-// Monaco); lineY is a view line's top. The caret's line uses the active
-// color.
-func (w *ViewW) paintGutter(l *paint.List, gx, gw float32, rows []lineView, lineY func(int) float32, n, caretLine int, d digitGlyphs, bg color.NRGBA) {
+// lineNumber returns what the gutter shows for model line i (0-based) of
+// a document of n lines with the primary caret on caretLine (Monaco's
+// _getLineRenderLineNumber): the number, whether there is one, and
+// whether it is left aligned (relative mode's caret line).
+func (o *Options) lineNumber(i, caretLine, n int) (num int, show, left bool) {
+	switch o.lineNumbersMode() {
+	case LineNumbersOff:
+		return 0, false, false
+	case LineNumbersRelative:
+		if i == caretLine {
+			return i + 1, true, true
+		}
+		return max(i-caretLine, caretLine-i), true, false
+	case LineNumbersInterval:
+		if i == caretLine || (i+1)%10 == 0 || i+1 == n {
+			return i + 1, true, false
+		}
+		return 0, false, false
+	}
+	return i + 1, true, false
+}
+
+// paintGutter draws the gutter background, the current line's gutter
+// highlight (rows marked in curG; renderLineHighlight "gutter" and
+// "all") and the line numbers of the laid out rows: a wrapped line's
+// number on its first row only (as Monaco); lineY is a view line's top.
+// The caret's line uses the active color.
+func (w *ViewW) paintGutter(l *paint.List, gx, gw float32, rows []lineView, lineY func(int) float32, n, caretLine int, d digitGlyphs, bg color.NRGBA, curG []bool, fill color.NRGBA, isFill bool, border color.NRGBA) {
 	th := w.st.Theme
 	l.Fill(rectXYWH(gx, w.vs.rect.Y, gw, w.vs.rect.H), geom.Radii{}, bg)
+	lh := w.lineHeight()
+	for k := range curG {
+		if !curG[k] {
+			continue
+		}
+		row := rectXYWH(gx, lineY(rows[k].vi), gw, lh)
+		if isFill {
+			l.Fill(row, geom.Radii{}, fill)
+		} else {
+			l.Stroke(row, geom.Radii{}, 2, border)
+		}
+	}
 	if !w.opts.lineNumbers() {
 		return
 	}
 	fg := defaultColor(th, "editorLineNumber.foreground")
 	act := defaultColor(th, "editorLineNumber.activeForeground")
-	right := gx + gutterLeftPad + w.numbersWidth(d, n)
+	left := gx + gutterLeftPad
+	right := left + w.numbersWidth(d, n)
 	var buf [20]byte
 	var gl []paint.Glyph
 	for k := range rows {
@@ -138,9 +174,16 @@ func (w *ViewW) paintGutter(l *paint.List, gx, gw float32, rows []lineView, line
 		if lv.row != 0 || lv.i >= n {
 			continue
 		}
-		s := strconv.AppendInt(buf[:0], int64(lv.i+1), 10)
+		num, show, leftAlign := w.opts.lineNumber(lv.i, caretLine, n)
+		if !show {
+			continue
+		}
+		s := strconv.AppendInt(buf[:0], int64(num), 10)
 		gl = gl[:0]
 		x := right - float32(len(s))*d.adv
+		if leftAlign {
+			x = left
+		}
 		for k, ch := range s {
 			g := d.g[ch-'0']
 			g.X += x + float32(k)*d.adv

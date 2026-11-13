@@ -21,10 +21,14 @@ import (
 //     model line and row, its text (the shaped chunks of a long line, the
 //     row of a wrapped one) with its x, its token colors and styles, the
 //     selection ranges on it and whether its line break is selected, the
-//     current-line highlight, the composition shown on it and its line
-//     number with the number's color, and its folding decorations (the
-//     folding control shown, the placeholder and background of a folded
-//     line).
+//     current-line highlight in the text area and in the gutter, the
+//     composition shown on it and its line number as shown (its value in
+//     the relative and interval modes, its alignment, its color), its
+//     folding decorations (the folding control shown, the placeholder and
+//     background of a folded line), its indentation guides (their count
+//     and the active one) and the matched brackets' boxes on it. Colored
+//     brackets and control characters are run colors; whitespace marks
+//     follow from the text, the options and the selections.
 //     A row whose fingerprint changed, or that is drawn in only one of the
 //     two paints, is damaged across the whole view (gutter and text) at its
 //     place in this paint, padded by rowPad for glyphs and strokes reaching
@@ -100,6 +104,7 @@ type paintFrame struct {
 	lines     []lineView
 	vis       []visSel
 	cur       []bool // rows with the current-line highlight (nil: none)
+	curG      []bool // rows with the gutter's current-line highlight (nil: none)
 	cmp       compView
 	caretLine int
 	scrollX   float32
@@ -107,6 +112,8 @@ type paintFrame struct {
 	// aLine, aRow: the model line and row at the top.
 	aLine, aRow int
 	fold        []uint8 // folding decorations per row (foldCtlExpanded ...)
+	guides      []rowGuides
+	match       []matchRow
 }
 
 // rowPad is how far, in logical pixels, a row's damage reaches past its
@@ -136,6 +143,12 @@ func (w *ViewW) rowHashes(pf *paintFrame, dst []uint64) []uint64 {
 		num(lv.row)
 		if lv.i == pf.caretLine {
 			num(1) // the active line number color
+		}
+		if v, show, left := pf.g.opts.lineNumber(lv.i, pf.caretLine, n); show && lv.row == 0 {
+			num(v)
+			if left {
+				num(1)
+			}
 		}
 		num(len(lv.segs))
 		for _, sg := range lv.segs {
@@ -179,6 +192,21 @@ func (w *ViewW) rowHashes(pf *paintFrame, dst []uint64) []uint64 {
 			}
 			if lv.breakSelected(bb, le, n) {
 				num(4)
+			}
+		}
+		if pf.curG != nil && pf.curG[k] {
+			num(9)
+		}
+		if k < len(pf.guides) && pf.guides[k].level > 0 {
+			num(8)
+			num(pf.guides[k].level)
+			num(pf.guides[k].active)
+		}
+		for _, m := range pf.match {
+			if m.k == k {
+				num(7)
+				num(m.r0)
+				num(m.r1)
 			}
 		}
 		if k < len(pf.fold) && pf.fold[k] != 0 {

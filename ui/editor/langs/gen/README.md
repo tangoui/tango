@@ -12,6 +12,15 @@ node export.mjs      # 需要联网：下载 microsoft/monaco-editor 标签 v0.5
 cd ../../../.. && go test ./ui/editor/langs/
 ```
 
+另有 `export_colors.mjs`：导出 Monaco 颜色注册表的默认颜色，生成
+`ui/editor/theme/colors_gen.go`（不需要联网）：
+
+```sh
+cd ui/editor/langs/gen
+node export_colors.mjs   # 打印计数与抽查值，写 ../../theme/colors_gen.go 并 gofmt
+cd ../../../.. && go test ./ui/editor/theme/
+```
+
 ## 产物
 
 | 路径 | 内容 |
@@ -37,3 +46,19 @@ cd ../../../.. && go test ./ui/editor/langs/
   `../test/testRunner` 换成收集函数；测试文件若导入其他模块则报错。同一主语言 id
   的多个文件合并，逐字节相同的用例只保留一份。
 - 脚本最后打印计数，与 `EXPECTED` 不符或有任何错误时退出码为 1 且不写任何文件。
+
+## 默认颜色（export_colors.mjs）
+
+- 用 esbuild 打包 `esm/vs` 下所有调用 `registerColor(` 的模块（编辑器各贡献点的颜色都在内，
+  不含定义它的 `colorUtils.js`），以 banner 注入一个极小的 DOM 垫片（`window`、`document`
+  等若干全局量换成吸收一切访问的 Proxy；颜色注册表本身不用 DOM）。
+- 对 `vs`、`vs-dark`、`hc-black`、`hc-light` 各建一个与 Monaco `StandaloneTheme` 解析规则相同的
+  主题对象（先查基础主题自己的 `colors`，再按注册表默认值解析引用与 `transparent`、`lighten`、
+  `darken`、`oneOf`、`lessProminent`、`ifDefinedThenElse` 等变换），逐键得到最终颜色。
+- 产物 `colors_gen.go` 含三张表：`defaultColors`（四个基础主题下的最终颜色）、`defaultUnset`
+  （某主题下没有颜色的键，即 null 默认值）、`colorDefaults`（注册表默认值表达式本身，Go 端
+  用它对带自定义颜色的主题重新解析，见 `theme/colors.go`）。
+- 默认值引用了未注册且不在主题颜色里的键、出现未知变换、或模块数/颜色数与 `EXPECTED` 不符时，
+  脚本列出原因、不写文件并以退出码 1 结束。`DANGLING` 列出的三个 VS Code 工作台颜色
+  （`sideBar.background` 等）在独立版 Monaco 中本就解析为空，按 Monaco 行为保留为引用；
+  这个名单本身也会被校验（不再被引用时报错）。

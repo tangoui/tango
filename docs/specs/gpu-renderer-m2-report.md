@@ -148,13 +148,21 @@ M1 报告里两处卡线或超标的问题，这次都解决了：
 
 程序：`examples/ui-window`。它的 `-renderer cpu|gpu` 参数会设置 `TANGO_RENDERER`，并在日志里打印实际使用的渲染器。为了避免其他会话的未完成改动打断 `go run`，先用 `go build` 编出二进制再运行（默认构建，即开发模式，校验模式开启）。窗口号用 `task-10-shots/winid.js`（JXA 调用 `CGWindowListCopyWindowInfo`）获取。
 
-### 3.1 截图对照：**待用户确认**
+### 3.1 截图对照：**已通过**（2026-11-13 18:45 补测）
+
+解锁后从 HEAD `4086b64` 导出代码编译 `examples/ui-window`，分别用 `-renderer gpu` 和 `-renderer cpu` 运行，用 `screencapture -x -o -l<窗口号>` 截图（1000×792 pt，2000×1584 px，4K 外接屏，2x）。逐像素比较（`task-10-shots/realwin-2026-11-13/cmp.go`）：最大差 **3/255**；差 1 的像素 2,014,414 个，差 2 的 929 个，差 3 的 40 个，超过 4 的为 0。与 M1 定位的 CoreAnimation 色彩转换偏差（1–3/255）一致。截图为同目录下的 `uw-gpu.png` 和 `uw-cpu.png`。表单页上的描边、阴影、图标、禁用态按钮目视一致。图片预览和虚线不在首屏，这次没看。
+
+以下是锁屏时的原记录：
 
 - 日志：`-renderer gpu` 时为 `ui-window: renderer: gpu`，`-renderer cpu` 时为 `ui-window: renderer: cpu`，两种渲染器都正常启动。`CGWindowListCopyWindowInfo` 能看到窗口（980×776 pt，标题"Tango 自绘 UI"）。
 - `screencapture -x -o -l<窗口号>` 和 `screencapture -R` 都报 "could not create image from window/rect"，全屏截图则是纯黑。原因是当时屏幕已锁定：`CGSessionCopyCurrentDictionary` 返回 `CGSSessionScreenIsLocked = true`，时间是凌晨 5:30，显示器休眠设置为 10 分钟。所以没有拿到截图，也无法描述 GPU 和 CPU 画面的差异。
 - 离屏结果可以作为代替：GPU 与 CPU 在黄金页面上最大差 ≤ 3（纯 Go 引擎），系统引擎下的差异只在图标上，原因见 1.2。M1 已经定位过实机 GPU 和 CPU 截图之间 1–3/255 的差异，来自 CoreAnimation 的色彩转换。
 
-### 3.2 静止零帧：**待用户确认**（锁屏下初测 0 帧，仅供参考）
+### 3.2 静止零帧：**解锁后初测 0 帧**（2026-11-13 补测，待复核）
+
+解锁状态下，GPU 窗口启动 4 秒后空闲 10 秒，`ps -o time=` 为 0:00.58 → 0:00.58。屏幕在 18:48 前后自动锁定，无法确认这 10 秒全部处于解锁状态；CPU 渲染器和改变大小之后的空闲没来得及测。
+
+以下是锁屏时的原记录：
 
 每次启动 4 秒后，用 `ps -o %cpu` 每 2 秒采样一次，共采样 5 次，并读取 `ps -o time=` 的进程 CPU 时间：
 

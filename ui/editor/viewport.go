@@ -12,7 +12,10 @@ import "math"
 // when unknown).
 //
 // Vertical scrolling follows Monaco's default scrollBeyondLastLine: the
-// last line may scroll up to the top of the viewport.
+// last line may scroll up to the top of the viewport. Options.Padding adds
+// PadTop pixels above the first line (scrolled to the top, OffsetY is
+// -PadTop on line 0) and lets the last line scroll PadBottom pixels
+// further, up to a line height.
 type Viewport struct {
 	// TopLine is the first view line at least partly visible. While
 	// wrapping it may move without the picture moving, when the rows of
@@ -20,7 +23,8 @@ type Viewport struct {
 	// the model line instead.
 	TopLine int
 	// OffsetY is how many pixels of TopLine are scrolled above the top
-	// edge, in [0, LineHeight).
+	// edge, in [0, LineHeight); on line 0 it goes down to -PadTop, the top
+	// padding showing above it.
 	OffsetY float32
 	// ScrollX is the horizontal scroll in pixels, >= 0.
 	ScrollX float32
@@ -28,6 +32,8 @@ type Viewport struct {
 	Height, Width float32
 	LineHeight    float32
 	ContentWidth  float32
+	// PadTop and PadBottom are Options.Padding, set by the View.
+	PadTop, PadBottom float32
 }
 
 // scrollY returns the vertical scroll position in pixels.
@@ -43,14 +49,19 @@ func (v *Viewport) setScrollY(y float64, n int) {
 		v.TopLine, v.OffsetY = max(0, min(v.TopLine, n-1)), 0
 		return
 	}
-	y = max(0, min(y, float64(n-1)*lh))
+	pb := max(0, min(float64(v.PadBottom), lh-1))
+	y = max(-float64(max(v.PadTop, 0)), min(y, float64(n-1)*lh+pb))
+	if y < 0 {
+		v.TopLine, v.OffsetY = 0, float32(y)
+		return
+	}
 	top := int(math.Floor(y / lh))
 	off := y - float64(top)*lh
 	if off >= lh { // rounding
 		top, off = top+1, 0
 	}
 	if top > n-1 {
-		top, off = n-1, 0
+		top, off = n-1, y-float64(n-1)*lh
 	}
 	v.TopLine, v.OffsetY = top, float32(off)
 }

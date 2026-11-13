@@ -125,6 +125,16 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 
 	v := &st.Viewport
 	v.LineHeight, v.Height, v.Width = lh, vs.text.H, vs.text.W
+	// Padding: a view scrolled to the very top stays there when the top
+	// padding changes (a new State starts at the top).
+	if pt, pb := max(w.opts.Padding.Top, 0), max(w.opts.Padding.Bottom, 0); v.PadTop != pt || v.PadBottom != pb {
+		atTop := v.TopLine == 0 && v.OffsetY <= -v.PadTop
+		v.PadTop, v.PadBottom = pt, pb
+		if atTop {
+			v.OffsetY = -pt
+		}
+		st.clampViewport()
+	}
 	// Word wrap: the wrapping column follows the text area's width; the
 	// rows of the lines around the viewport are computed now (viewlines.go).
 	wcfg := w.wrapConfig(vs.text.W, colW)
@@ -136,7 +146,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	// before the rows are laid out (computing them may change the hidden
 	// lines; folding.go).
 	showAll, showFolded := w.foldControls()
-	st.foldPrepare(showAll)
+	st.foldPrepare(showAll && w.foldRangesNow())
 	st.measureViewport()
 	vl := st.lines()
 	first, last := st.VisibleLines()
@@ -159,9 +169,18 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		hl.HighlightFor(st.hlKey, snap, upTo, highlightBudget)
 	}
 
+	// Bracket pair colorization (bracketpairs.go): the colors of the
+	// brackets of the lines about to be laid out.
+	vs.brk = w.bracketSpans(snap, vl, lo, hi, mhi, th)
+
 	lines := w.layoutRows(snap, lo, hi, hl, th, colW)
+	fold := w.foldCodes(lines, showAll, showFolded)
 	for k := range lines {
 		vs.maxW = max(vs.maxW, lines[k].endX)
+		if fold[k]&foldPlaceholder != 0 {
+			_, x1 := w.placeholderX(&lines[k])
+			vs.maxW = max(vs.maxW, x1)
+		}
 	}
 	v.ContentWidth = vs.maxW + colW // room for the caret after the widest line
 	v.clampX()
@@ -180,8 +199,6 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		}
 		return nil
 	}
-
-	fold := w.foldCodes(lines, showAll, showFolded)
 
 	// Colors.
 	bg := defaultColor(th, "editor.background")
@@ -213,38 +230,45 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	l.Fill(r, geom.Radii{}, bg)
 	l.Clip(vs.text, geom.Radii{})
 
-	// 2. Current line highlight: the lines of the carets, only when no
-	// selection is empty (as Monaco). With word wrap the background fills
-	// every row of the caret's line and the border (the themes without a
-	// background) frames the caret's row only (Monaco's current-line /
+	// 2. Current line highlight: the lines of the carets, in the text area
+	// only when no selection is empty, in the gutter always (Monaco's
+	// renderLineHighlight). With word wrap the background fills every row
+	// of the caret's line and the border (the themes without a background)
+	// frames the caret's row only (Monaco's current-line /
 	// current-line-exact).
-	var cur []bool // rows with the highlight, for the redraw hints
-	if allEmpty {
-		cur = make([]bool, len(lines))
-		fill, isFill := lookupColor(th, "editor.lineHighlightBackground")
-		border := defaultColor(th, "editor.lineHighlightBorder")
+	hlGutter, hlLine := w.opts.lineHighlight()
+	fill, isFill := lookupColor(th, "editor.lineHighlightBackground")
+	border := defaultColor(th, "editor.lineHighlightBorder")
+	lineHL := func(on bool) []bool {
+		if !on {
+			return nil
+		}
+		marks := make([]bool, len(lines))
 		for _, vsl := range vis {
 			cr := st.peekRowOf(vsl.head, st.headUp(vsl.idx))
 			if isFill {
 				cl := snap.LineOf(vsl.head)
 				r0 := vl.viewOf(cl)
 				for r := max(r0, lo); r <= min(r0+vl.rowsOf(cl)-1, hi); r++ {
-					cur[r-lo] = true
+					marks[r-lo] = true
 				}
 			} else if cr >= lo && cr <= hi && border.A > 0 {
-				cur[cr-lo] = true
+				marks[cr-lo] = true
 			}
 		}
-		for k := range lines {
-			if !cur[k] {
-				continue
-			}
-			row := rectXYWH(vs.text.X, lineY(lines[k].vi), vs.text.W, lh)
-			if isFill {
-				l.Fill(row, geom.Radii{}, fill)
-			} else {
-				l.Stroke(row, geom.Radii{}, 2, border)
-			}
+		return marks
+	}
+	cur := lineHL(hlLine && allEmpty) // rows with the highlight, for the redraw hints
+	curG := lineHL(hlGutter)
+	for k := range cur {
+		if !cur[k] {
+			continue
+		}
+		row := rectXYWH(vs.text.X, lineY(lines[k].vi), vs.text.W, lh)
+		if isFill {
+			l.Fill(row, geom.Radii{}, fill)
+		} else {
+			l.Stroke(row, geom.Radii{}, 2, border)
 		}
 	}
 
@@ -289,13 +313,40 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		}
 	}
 
-	// 4. Text, and the placeholder after folded lines.
+	// Indentation guides (guides.go), the matched brackets' boxes and the
+	// control characters' backgrounds (whitespace.go).
+	guides := w.guidesFor(snap, lines, caretLine)
+	if guides != nil {
+		maxX := float32(0)
+		if wcfg.on() {
+			maxX = float32(wcfg.col) * colW
+		}
+		paintGuides(l, lines, guides, guideColorsOf(th), tx, colW, lh, max(w.tabs(), 1), maxX, lineY)
+	}
+	var match []brange
+	if focused {
+		caretShown := false
+		for _, x := range vis {
+			caretShown = caretShown || x.a == x.b
+		}
+		match = w.matched(caretShown)
+	}
+	matchRows := paintMatch(l, snap, lines, match, tx, lh, lineY, defaultColor(th, "editorBracketMatch.background"), defaultColor(th, "editorBracketMatch.border"))
+	if w.opts.RenderControlCharacters {
+		for k := range lines {
+			w.paintControlBackgrounds(l, &lines[k], tx, lineY(lines[k].vi), lh)
+		}
+	}
+
+	// 4. Text, the whitespace marks and the placeholder after folded lines.
+	wsColor := defaultColor(th, "editorWhitespace.foreground")
 	for k := range lines {
 		lv := &lines[k]
 		y := lineY(lv.vi)
 		for _, sg := range lv.segs {
 			drawSeg(l, sg, tx, y)
 		}
+		w.paintWhitespace(l, snap, lv, vis, tx, y, wsColor)
 		if fold[k]&foldPlaceholder != 0 {
 			w.paintPlaceholder(l, lv, tx, y, th)
 		}
@@ -345,7 +396,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	// below the visible ones stay inside the view).
 	gbg := defaultColor(th, "editorGutter.background")
 	l.Clip(vs.gutter, geom.Radii{})
-	w.paintGutter(l, r.X, gw, lines, lineY, n, caretLine, dg, gbg)
+	w.paintGutter(l, r.X, gw, lines, lineY, n, caretLine, dg, gbg, curG, fill, isFill, border)
 	vs.foldX = -1
 	if w.foldControlsShown() {
 		vs.foldX = w.foldControlX(r.X, dg, n)
@@ -357,8 +408,8 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	w.declareDamage(&paintFrame{
 		g: damageGlobal{rect: r, gutter: vs.gutter, text: vs.text, colW: colW, lh: lh, theme: th, opts: w.opts,
 			tab: w.tabs(), focused: focused, wrap: wcfg, numW: w.numbersWidth(dg, n), foldGen: st.fold.gen},
-		snap: snap, lines: lines, vis: vis, cur: cur, cmp: cmp, caretLine: caretLine, scrollX: v.ScrollX, marks: marks,
-		aLine: aLine, aRow: aRow, fold: fold,
+		snap: snap, lines: lines, vis: vis, cur: cur, curG: curG, cmp: cmp, caretLine: caretLine, scrollX: v.ScrollX, marks: marks,
+		aLine: aLine, aRow: aRow, fold: fold, guides: guides, match: matchRows,
 	})
 }
 
@@ -671,25 +722,28 @@ func (w *ViewW) lineOptions() text.LineOptions {
 // shapeSeg shapes s, the runes [r0,r1) at byte b0 of line i, with the
 // token styles of toks (ByteStart relative to the line start).
 func (w *ViewW) shapeSeg(i int, s string, r0, r1, b0 int, toks []monarch.Token, th *theme.Theme) seg {
-	runs, paints := w.styleRuns(s, b0, toks, th)
+	// Colored brackets and control characters override the token colors.
+	over := w.vs.brk[i]
+	shaped := s
+	if w.opts.RenderControlCharacters && hasControl(s) {
+		over = mergeSpans(over, controlSpans(s, b0, nil))
+		shaped = controlPictures(s)
+	}
+	runs, paints := w.styleRuns(s, b0, toks, th, over)
 	if shapeHook != nil {
 		shapeHook(i, s)
 	}
-	lay := w.vs.lines.Shape(s, runs, w.lineOptions())
+	lay := w.vs.lines.Shape(shaped, runs, w.lineOptions())
 	return seg{lay: lay, r0: r0, r1: r1, b0: b0, b1: b0 + len(s), paints: paints}
 }
 
 // styleRuns turns the tokens over s (bytes [b0, b0+len(s)) of its line)
 // into style runs, merging neighbours with the same theme style.
-func (w *ViewW) styleRuns(s string, b0 int, toks []monarch.Token, th *theme.Theme) ([]text.Run, []runPaint) {
+func (w *ViewW) styleRuns(s string, b0 int, toks []monarch.Token, th *theme.Theme, over []brSpan) ([]text.Run, []runPaint) {
 	b1 := b0 + len(s)
 	def := th.Style("")
 	// Boundaries: (byte offset in s, style).
-	type bound struct {
-		at int
-		st theme.Style
-	}
-	bounds := []bound{{0, def}}
+	bounds := []styleBound{{0, def}}
 	for k, tk := range toks {
 		end := b1
 		if k+1 < len(toks) {
@@ -703,8 +757,16 @@ func (w *ViewW) styleRuns(s string, b0 int, toks []monarch.Token, th *theme.Them
 		if bounds[len(bounds)-1].at == at {
 			bounds[len(bounds)-1].st = ts
 		} else {
-			bounds = append(bounds, bound{at, ts})
+			bounds = append(bounds, styleBound{at, ts})
 		}
+	}
+	// Spans of other colors (colored brackets, control characters): cut
+	// the runs at their ends and take their color inside.
+	if len(over) > 0 {
+		bounds = overrideBounds(bounds, over, b0, len(s), func(st theme.Style, c color.NRGBA) theme.Style {
+			st.Foreground = c
+			return st
+		})
 	}
 	// Merge equal neighbours.
 	m := bounds[:1]
@@ -741,6 +803,67 @@ func (w *ViewW) styleRuns(s string, b0 int, toks []monarch.Token, th *theme.Them
 	return runs, paints
 }
 
+// styleBound is where a style starts in a seg's text.
+type styleBound struct {
+	at int
+	st theme.Style
+}
+
+// overrideBounds cuts the style boundaries of a text of n bytes at byte b0
+// of its line at the ends of spans (line bytes, sorted, not overlapping)
+// and gives the bytes inside them set(style, span color).
+func overrideBounds(bounds []styleBound, over []brSpan, b0, n int, set func(theme.Style, color.NRGBA) theme.Style) []styleBound {
+	out := make([]styleBound, 0, len(bounds)+2*len(over))
+	push := func(b styleBound) {
+		if n := len(out); n > 0 && out[n-1].at == b.at {
+			out[n-1] = b
+			return
+		}
+		out = append(out, b)
+	}
+	k := 0
+	cur := bounds[0].st // the style in effect at the last cut
+	for _, sp := range over {
+		a, z := max(sp.b0, b0)-b0, min(sp.b1, b0+n)-b0
+		if a >= z {
+			continue
+		}
+		for ; k < len(bounds) && bounds[k].at <= a; k++ {
+			if bounds[k].at < a {
+				push(bounds[k])
+			}
+			cur = bounds[k].st
+		}
+		push(styleBound{a, set(cur, sp.c)})
+		for ; k < len(bounds) && bounds[k].at <= z; k++ {
+			cur = bounds[k].st
+		}
+		if z < n {
+			push(styleBound{z, cur})
+		}
+	}
+	for _, b := range bounds[k:] {
+		push(b)
+	}
+	return out
+}
+
+// mergeSpans merges two sorted span lists.
+func mergeSpans(a, b []brSpan) []brSpan {
+	if len(a) == 0 {
+		return b
+	}
+	out := make([]brSpan, 0, len(a)+len(b))
+	for len(a) > 0 && len(b) > 0 {
+		if a[0].b0 <= b[0].b0 {
+			out, a = append(out, a[0]), a[1:]
+		} else {
+			out, b = append(out, b[0]), b[1:]
+		}
+	}
+	return append(append(out, a...), b...)
+}
+
 func rectXYWH(x, y, w, h float32) geom.Rect { return geom.Rect{X: x, Y: y, W: max(w, 0), H: max(h, 0)} }
 
 func themeOf(st *State) *theme.Theme {
@@ -750,43 +873,8 @@ func themeOf(st *State) *theme.Theme {
 	return theme.Base("vs")
 }
 
-// Default colors.
-//
-// The values are Monaco 0.56's registered defaults (light = vs, dark =
-// vs-dark, hcDark = hc-black, hcLight = hc-light) from
-// monaco-editor/esm/vs/platform/theme/common/colors/editorColors.js
-// (editor.background, editor.foreground, editor.selectionBackground,
-// editor.inactiveSelectionBackground = selectionBackground at 50% alpha,
-// 70% for high contrast), esm/vs/editor/common/core/editorColorRegistry.js
-// (editorLineNumber.foreground, editorLineNumber.activeForeground via
-// editorActiveLineNumber.foreground, editor.lineHighlightBorder,
-// editorCursor.foreground, editorGutter.background = editor.background) and
-// platform/theme/common/colors/baseColors.js (contrastBorder,
-// focusBorder/contrastActiveBorder used by the high contrast entries).
-// Copyright (c) Microsoft Corporation, MIT License (see
-// ui/editor/theme/NOTICE). A theme's own colors table
-// (theme.Theme.Color) takes precedence; the base themes of
-// esm/vs/editor/standalone/common/themes.js define some keys themselves
-// (vs: editor.background #FFFFFE).
-//
-// editor.lineHighlightBackground has no default in Monaco (null): the
-// current line then gets a 2px editor.lineHighlightBorder frame instead.
-var monacoDefaults = map[string][4]string{
-	//                                       vs           vs-dark      hc-black     hc-light
-	"editor.background":                 {"#FFFFFF", "#1E1E1E", "#000000", "#FFFFFF"},
-	"editor.foreground":                 {"#333333", "#BBBBBB", "#FFFFFF", "#292929"},
-	"editorLineNumber.foreground":       {"#237893", "#858585", "#FFFFFF", "#292929"},
-	"editorLineNumber.activeForeground": {"#0B216F", "#C6C6C6", "#F38518", "#006BBD"},
-	"editor.lineHighlightBorder":        {"#EEEEEE", "#282828", "#F38518", "#0F4A85"},
-	"editor.selectionBackground":        {"#ADD6FF", "#264F78", "#F3F518", "#0F4A85"},
-	"editorCursor.foreground":           {"#000000", "#AEAFAD", "#FFFFFF", "#0F4A85"},
-	// Folding (contrib/folding/browser/foldingDecorations.js; the control
-	// color defaults to icon.foreground, baseColors.js).
-	"editor.foldPlaceholderForeground":      {"#808080", "#808080", "", ""},
-	"editorGutter.foldingControlForeground": {"#424242", "#C5C5C5", "#FFFFFF", "#292929"},
-}
-
-// lookupColor returns the theme's own value of key.
+// lookupColor returns the theme's color for key (theme.Theme.Color: its
+// own value, else Monaco 0.56's registered default for its base type).
 func lookupColor(th *theme.Theme, key string) (color.NRGBA, bool) {
 	if th == nil {
 		return color.NRGBA{}, false
@@ -794,50 +882,23 @@ func lookupColor(th *theme.Theme, key string) (color.NRGBA, bool) {
 	return th.Color(key)
 }
 
-// defaultColor returns the theme's value of key, or Monaco's default for
-// the theme's type (see monacoDefaults), following Monaco's fallbacks
-// between keys.
+// defaultColor returns the theme's color for key, transparent when Monaco
+// has none there; keys Monaco has no default for, but the View draws
+// anyway, fall back as Monaco's CSS does.
 func defaultColor(th *theme.Theme, key string) color.NRGBA {
 	if c, ok := lookupColor(th, key); ok {
 		return c
 	}
 	switch key {
-	case "editorGutter.background":
-		return defaultColor(th, "editor.background")
-	case "editorLineNumber.activeForeground":
-		if c, ok := lookupColor(th, "editorActiveLineNumber.foreground"); ok {
-			return c
-		}
-	case "editor.foldBackground":
-		// transparent(editor.selectionBackground, 0.3); none for high
-		// contrast.
-		if themeType(th) >= 2 {
-			return color.NRGBA{}
-		}
-		c := defaultColor(th, "editor.selectionBackground")
-		c.A = uint8(math.Round(float64(c.A) * 0.3))
-		return c
 	case "editor.foldPlaceholderForeground":
-		if themeType(th) >= 2 {
-			// No default: the placeholder takes the text color.
-			return defaultColor(th, "editor.foreground")
-		}
-	case "editor.inactiveSelectionBackground":
-		c := defaultColor(th, "editor.selectionBackground")
-		k := 0.5
-		if t := themeType(th); t >= 2 {
-			k = 0.7
-		}
-		c.A = uint8(math.Round(float64(c.A) * k))
-		return c
-	}
-	if v, ok := monacoDefaults[key]; ok {
-		return hexColor(v[themeType(th)])
+		// No default in high contrast: the placeholder takes the text color.
+		return defaultColor(th, "editor.foreground")
 	}
 	return color.NRGBA{}
 }
 
-// themeType is the column of monacoDefaults for th.
+// themeType is th's base theme type: 0 vs, 1 vs-dark, 2 hc-black, 3
+// hc-light.
 func themeType(th *theme.Theme) int {
 	if th == nil {
 		return 0
@@ -851,29 +912,6 @@ func themeType(th *theme.Theme) int {
 		return 3
 	}
 	return 0
-}
-
-// hexColor parses "#RRGGBB" or "#RRGGBBAA" (the table's own literals).
-func hexColor(s string) color.NRGBA {
-	h := func(i int) uint8 {
-		v := func(b byte) uint8 {
-			switch {
-			case b >= '0' && b <= '9':
-				return b - '0'
-			case b >= 'a' && b <= 'f':
-				return b - 'a' + 10
-			case b >= 'A' && b <= 'F':
-				return b - 'A' + 10
-			}
-			return 0
-		}
-		return v(s[i])<<4 | v(s[i+1])
-	}
-	c := color.NRGBA{h(1), h(3), h(5), 255}
-	if len(s) == 9 {
-		c.A = h(7)
-	}
-	return c
 }
 
 // foldControls returns which folding controls the gutter shows this frame:
@@ -892,6 +930,35 @@ func (w *ViewW) foldControls() (all, folded bool) {
 	return in && w.ia.Hovered && w.vs.gutter.Contains(p), true
 }
 
+// Folding ranges for the gutter's controls are computed at once in a
+// document of up to foldSyncLines lines; in a larger one, foldDebounce
+// after the last change (Monaco's folding update delay, at least 200 ms),
+// so typing does not recompute them on every key.
+const (
+	foldSyncLines = 20000
+	foldDebounce  = 200 * time.Millisecond
+)
+
+// foldRangesNow reports whether paint computes the folding ranges for the
+// controls this frame (see foldSyncLines); otherwise it wakes the view
+// when they are due.
+func (w *ViewW) foldRangesNow() bool {
+	st, vs := w.st, w.vs
+	snap := st.Snapshot()
+	if st.foldRangesFresh() || snap.LineCount() <= foldSyncLines {
+		return true
+	}
+	now := w.c.Now()
+	if k := st.foldRangesKey(); vs.foldStale != k {
+		vs.foldStale, vs.foldDue = k, now.Add(foldDebounce)
+	}
+	if now.Before(vs.foldDue) {
+		w.c.WakeAt(vs.foldDue)
+		return false
+	}
+	return true
+}
+
 // foldCodes returns the folding decorations of the laid out rows (see
 // foldCtlExpanded). It reads the folding state only: paint calls it after
 // laying out the rows.
@@ -902,7 +969,10 @@ func (w *ViewW) foldCodes(rows []lineView, all, folded bool) []uint8 {
 	if len(fs.folds) == 0 && !all {
 		return codes
 	}
-	ranges := all && fs.rsOK && fs.rsKey.buf == st.Model.Buffer() && fs.rsKey.ver == st.Snapshot().Version()
+	// The ranges of the current text, or while they wait for the debounce
+	// (foldRangesNow) those of the last text when it had as many lines.
+	ranges := all && fs.rsOK && fs.rsKey.buf == st.Model.Buffer() &&
+		(fs.rsKey.ver == st.Snapshot().Version() || fs.rsLines == st.Snapshot().LineCount())
 	highlight := w.opts.FoldingHighlight
 	for k := range rows {
 		lv := &rows[k]

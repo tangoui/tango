@@ -42,7 +42,11 @@ import (
 // the start line (HiddenRangeModel.adjustSelections); a selection end that
 // gets into a hidden line otherwise (a cursor move, an edit, another
 // view's edit) unfolds the regions holding it (FoldingController
-// .revealCursor, without its 200 ms delay). Folding changes happen before
+// .revealCursor, without its 200 ms delay; Monaco looks at the selection's
+// start, the anchor, so a selection extended into a folded region keeps
+// it folded). Left and Right step over a folded region as Monaco's cursor
+// does in view lines (State.overFolds); moves in model positions (words,
+// the document's ends, clicks, edits) may land in it and unfold it. Folding changes happen before
 // the View lays out its rows: in commands, in the View's input, or when the
 // State syncs to a new text.
 
@@ -63,10 +67,11 @@ type foldState struct {
 	folds []fold // by start line, one per line
 	gen   uint64 // counts the changes of the folded regions (damage.go)
 
-	// The folding ranges of text version rsKey.ver.
-	rs    []FoldingRange
-	rsKey foldRangesKey
-	rsOK  bool
+	// The folding ranges of text version rsKey.ver, of rsLines lines.
+	rs      []FoldingRange
+	rsKey   foldRangesKey
+	rsOK    bool
+	rsLines int
 
 	provider FoldingRangeProvider // ViewW.FoldingProvider
 	provGen  uint64               // counts provider changes
@@ -157,8 +162,7 @@ func (s *State) foldRanges() []FoldingRange {
 	s.lines() // the folded regions follow the text first
 	fs := &s.fold
 	snap := s.Snapshot()
-	key := foldRangesKey{buf: s.Model.Buffer(), ver: snap.Version(), tab: s.indentSize(), conf: s.Model.Conf(),
-		strategy: s.Options.foldingStrategy(), provGen: fs.provGen}
+	key := s.foldRangesKey()
 	if fs.rsOK && fs.rsKey == key {
 		return fs.rs
 	}
@@ -173,10 +177,21 @@ func (s *State) foldRanges() []FoldingRange {
 		off := conf != nil && conf.Folding.OffSide
 		rs = indentRanges(snap, s.indentSize(), off, markersOf(conf), foldingMaximumRegions)
 	}
-	fs.rs, fs.rsKey, fs.rsOK = rs, key, true
+	fs.rs, fs.rsKey, fs.rsOK, fs.rsLines = rs, key, true, snap.LineCount()
 	s.mergeFolds()
 	return fs.rs
 }
+
+// foldRangesKey returns what the folding ranges of the current text
+// depend on.
+func (s *State) foldRangesKey() foldRangesKey {
+	return foldRangesKey{buf: s.Model.Buffer(), ver: s.Snapshot().Version(), tab: s.indentSize(), conf: s.Model.Conf(),
+		strategy: s.Options.foldingStrategy(), provGen: s.fold.provGen}
+}
+
+// foldRangesFresh reports whether the folding ranges of the current text
+// are computed.
+func (s *State) foldRangesFresh() bool { return s.fold.rsOK && s.fold.rsKey == s.foldRangesKey() }
 
 // syncFolds follows the folded regions to the current text (through their
 // anchors) and hides their lines in the view lines, which must be synced
@@ -468,8 +483,8 @@ func (s *State) adjustSels() {
 	}
 }
 
-// revealFolds unfolds the folded regions holding a selection end on a
-// hidden line (see the top of the file).
+// revealFolds unfolds the folded regions holding a selection's anchor on
+// a hidden line (see the top of the file).
 func (s *State) revealFolds() {
 	if len(s.fold.folds) == 0 {
 		return
@@ -479,12 +494,13 @@ func (s *State) revealFolds() {
 		return
 	}
 	snap := s.Snapshot()
+	// Monaco checks the selections' selectionStartLineNumber: the
+	// anchor. A selection extended into a folded region (Select All,
+	// Shift+Ctrl+End) leaves it folded.
 	var lines []int
 	for _, sel := range s.sels() {
-		for _, off := range [2]int{sel.Anchor, sel.Head} {
-			if l := snap.LineOf(clampOff(snap, off)); vl.hidden(l) {
-				lines = append(lines, l)
-			}
+		if l := snap.LineOf(clampOff(snap, sel.Anchor)); vl.hidden(l) {
+			lines = append(lines, l)
 		}
 	}
 	if len(lines) == 0 {
@@ -633,13 +649,20 @@ func collapseLevelsUp(regs []foldRegion, collapse bool, levels int, lines []int)
 // foldUp folds the innermost unfolded region at each line (Monaco's
 // setCollapseStateUp).
 func foldUp(regs []foldRegion, lines []int) {
+	// Every line's region is chosen before any is folded: several
+	// cursors in one region fold it once (Monaco's toggleCollapseState
+	// processes each region once).
+	var fold []int
 	for _, l := range lines {
 		for i := regionAt(regs, l); i >= 0; i = regs[i].parent {
 			if !regs[i].collapsed {
-				regs[i].collapsed = true
+				fold = append(fold, i)
 				break
 			}
 		}
+	}
+	for _, i := range fold {
+		regs[i].collapsed = true
 	}
 }
 
@@ -680,8 +703,11 @@ func foldCommands() []Command {
 			}
 		}),
 		foldCommand("editor.toggleFold", "Toggle Fold", func(st *State, regs []foldRegion, _ any) {
+			// Each region once, however many cursors are in it.
+			done := map[int]bool{}
 			for _, l := range st.selectedLines() {
-				if i := regionAt(regs, l); i >= 0 {
+				if i := regionAt(regs, l); i >= 0 && !done[i] {
+					done[i] = true
 					regs[i].collapsed = !regs[i].collapsed
 				}
 			}

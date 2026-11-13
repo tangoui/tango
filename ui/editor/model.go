@@ -107,6 +107,7 @@ type Model struct {
 	wordRe *regexp.Regexp         // nil: Unicode letters, digits, marks and '_'
 	hl     *highlight.Highlighter // never nil; its lexer is nil for plain text
 	plain  bool                   // no grammar: hl is not fed edits
+	brk    *bracketTree           // bracket pairs, built on first use (bracketpairs.go)
 
 	subs listeners[func(ModelChange)]
 
@@ -245,7 +246,7 @@ func (m *Model) SetLanguage(id string) {
 }
 
 func (m *Model) setLanguage(id string) {
-	m.lang, m.conf, m.wordRe = id, nil, nil
+	m.lang, m.conf, m.wordRe, m.brk = id, nil, nil, nil
 	var lx *monarch.Lexer
 	if l := langs.ByID(id); l != nil {
 		m.conf = &l.Conf
@@ -312,6 +313,7 @@ func (m *Model) SetEOL(eol string) {
 	if !m.plain {
 		m.hl.Edit(old, ns, nil)
 	}
+	m.bracketsEdited(old, ns, nil)
 	m.lastSource = nil
 	m.notify(ModelChange{Old: old, New: ns, EOL: true})
 }
@@ -394,6 +396,7 @@ func (m *Model) edit(src *State, edits []buffer.Edit, before, after []Selection,
 	if !m.plain {
 		m.hl.Edit(old, ns, edits)
 	}
+	m.bracketsEdited(old, ns, edits)
 	m.lastSource = src
 	done(ns)
 	m.notify(ModelChange{Old: old, New: ns, Edits: edits, Source: src})
@@ -416,6 +419,7 @@ func (m *Model) history(src *State, redo bool, done func(buffer.Snapshot, []Sele
 	if !m.plain {
 		m.hl.Edit(old, ns, edits)
 	}
+	m.bracketsEdited(old, ns, edits)
 	m.lastSource = nil
 	done(ns, sels)
 	m.notify(ModelChange{Old: old, New: ns, Edits: edits, Source: src, Undo: !redo, Redo: redo, EOL: ns.EOL() != eol})

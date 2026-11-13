@@ -432,24 +432,65 @@ func TestViewGolden(t *testing.T) {
 			b := snap.LineStart(7) + strings.Index(snap.Line(7), "x *")
 			st.MoveCaret(a, false)
 			st.MoveCaret(b, true)
-			img := d.Frame()
-			path := filepath.Join("testdata", "view_"+strings.ReplaceAll(name, "-", "_")+".png")
-			if *update {
-				if err := savePNG(path, img); err != nil {
-					t.Fatal(err)
-				}
-				return
-			}
-			want, err := loadPNG(path)
-			if err != nil {
-				t.Fatalf("missing golden (go test ./ui/editor -run Golden -update): %v", err)
-			}
-			if diff := comparePNG(img, want, 24); diff > 0.005 {
-				out := filepath.Join(t.TempDir(), filepath.Base(path))
-				savePNG(out, img)
-				t.Fatalf("%.2f%% pixels differ; got %s", diff*100, out)
-			}
+			checkGolden(t, d.Frame(), "view_"+strings.ReplaceAll(name, "-", "_")+".png")
 		})
+		// Every display decoration of Task 12 on: relative line numbers,
+		// whitespace marks, a control character, indentation guides with
+		// the active one, colored brackets (an unexpected one), the matched
+		// pair at the caret, the line highlight in the gutter and the text,
+		// and a top padding.
+		t.Run(name+"/decorations", func(t *testing.T) {
+			st := NewState(goldenDecoSource, "demo.go", theme.Base(name))
+			o := &st.Options
+			o.LineNumbers = LineNumbersRelative
+			o.RenderWhitespace = RenderWhitespaceAll
+			o.RenderLineHighlight = RenderLineHighlightAll
+			o.Padding = PaddingOptions{Top: 6}
+			d, _ := viewDriver(st, 520, 300, nil)
+			d.Frame()
+			d.Click(geom.Pt(400, 280)) // focus
+			snap := st.Snapshot()
+			// The caret after the "{" of the for loop (line 4).
+			st.MoveCaret(snap.LineStart(4)+strings.Index(snap.Line(4), "{")+1, false)
+			checkGolden(t, d.Frame(), "view_"+strings.ReplaceAll(name, "-", "_")+"_decorations.png")
+		})
+	}
+}
+
+// goldenDecoSource is the document of the decorations golden images.
+const goldenDecoSource = "// Package demo 演示装饰\n" +
+	"package demo\n" +
+	"\n" +
+	"func Sum(xs []int) (n int) {\n" +
+	"\tfor _, x := range xs {\n" +
+	"\t\tif x > 0 {\n" +
+	"\t\t\tn += x  // twice\n" +
+	"\n" +
+	"\t\t}\n" +
+	"\t}\n" +
+	"\treturn n \x01\n" +
+	"}\n" +
+	"\n" +
+	"var bad = [1, 2)\n"
+
+// checkGolden compares img with testdata/file (rewritten with -update).
+func checkGolden(t *testing.T, img image.Image, file string) {
+	t.Helper()
+	path := filepath.Join("testdata", file)
+	if *update {
+		if err := savePNG(path, img); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	want, err := loadPNG(path)
+	if err != nil {
+		t.Fatalf("missing golden (go test ./ui/editor -run Golden -update): %v", err)
+	}
+	if diff := comparePNG(img, want, 24); diff > 0.005 {
+		out := filepath.Join(t.TempDir(), filepath.Base(path))
+		savePNG(out, img)
+		t.Fatalf("%.2f%% pixels differ; got %s", diff*100, out)
 	}
 }
 

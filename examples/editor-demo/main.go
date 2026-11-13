@@ -108,12 +108,13 @@ func genTS(n int) string {
 // autoRun scrolls and types from inside the page, one event per frame,
 // and records the interval between frames.
 type autoRun struct {
-	start  time.Time
-	last   time.Time
-	n      int
-	scroll []time.Duration
-	typing []time.Duration
-	done   bool
+	start    time.Time
+	last     time.Time
+	frameNow time.Time // c.Now of the frame last counted
+	n        int
+	scroll   []time.Duration
+	typing   []time.Duration
+	done     bool
 }
 
 const (
@@ -123,9 +124,13 @@ const (
 )
 
 func (a *autoRun) frame(c *ui.Context) {
-	if a.done {
+	// The runner builds the page up to three times in a frame with input
+	// (ui.Runner.Frame); c.Now is the same in each pass: count the frame
+	// and post its event once.
+	if a.done || c.Now().Equal(a.frameNow) {
 		return
 	}
+	a.frameNow = c.Now()
 	now := time.Now()
 	if a.n > autoWarm {
 		d := now.Sub(a.last)

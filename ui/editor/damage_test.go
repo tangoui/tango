@@ -238,6 +238,80 @@ func TestViewDamageVerified(t *testing.T) {
 	t.Run("fold", damageFoldScript)
 	t.Run("recolour", damageRecolour)
 	t.Run("otherView", damageOtherView)
+	t.Run("brackets", damageBrackets)
+}
+
+// damageBrackets runs the display decorations of Task 12 through the
+// verifier: the matched brackets' boxes appearing, moving and going away
+// as the caret moves, bracket colors changing when an edit unbalances and
+// rebalances the brackets below, relative line numbers following the
+// caret, whitespace marks, the active indentation guide moving, the line
+// highlight in the gutter, and scrolling through the top padding.
+func damageBrackets(t *testing.T) {
+	th := theme.Base("vs-dark")
+	var sb strings.Builder
+	sb.WriteString("package main\n\n")
+	for i := range 40 {
+		fmt.Fprintf(&sb, "func f%d(x []int) int {\n\tif x[0] > %d {\n\t\treturn (x[1] + %d)  \n\t}\n\treturn 0\n}\n", i, i, i)
+	}
+	st := NewState(sb.String(), "main.go", th)
+	o := &st.Options
+	o.RenderWhitespace = RenderWhitespaceAll
+	o.RenderLineHighlight = RenderLineHighlightAll
+	o.Padding = PaddingOptions{Top: 10}
+	h := newHintHost(t, st, geom.Size{W: 480, H: 360}, 1.25)
+	h.focusAt(4)
+	snap := st.Snapshot()
+	brace := snap.LineStart(2) + strings.Index(snap.Line(2), "{")
+	// Onto, off and around brackets.
+	// rest lets time pass after an edit (verified, not counted).
+	rest := func() {
+		h.now = h.now.Add(matchDelay)
+		h.frame()
+	}
+	for _, off := range []int{brace, brace + 1, snap.LineStart(4) + 3, snap.LineStart(4) + 9, snap.LineStart(5) + 1, snap.LineStart(9)} {
+		st.MoveCaret(off, false)
+		h.step("caret")
+	}
+	for _, k := range []input.Key{input.KeyDown, input.KeyDown, input.KeyUp, input.KeyRight, input.KeyRight, input.KeyEnd} {
+		h.key(k, 0)
+		h.step(fmt.Sprintf("key %v", k))
+	}
+	// Unbalance the brackets below (Insert: no auto-closing), then
+	// rebalance them.
+	st.MoveCaret(snap.LineStart(3), false)
+	st.Insert("{")
+	h.step("unbalanced")
+	rest()
+	st.Undo()
+	h.step("undo")
+	rest()
+	st.MoveCaret(snap.LineStart(4)+2, false)
+	st.Insert("(")
+	h.step("open paren")
+	st.Insert(")")
+	h.step("close paren")
+	rest()
+	// A selection (whitespace marks stay, the text's line highlight goes).
+	h.key(input.KeyRight, input.ModShift)
+	h.step("select")
+	h.key(input.KeyLeft, 0)
+	h.step("collapse")
+	// Scrolling through the top padding.
+	p := geom.Pt(240, 180)
+	for _, dy := range []float32{4, 8, 24, -16, -40, 8} {
+		h.r.HandleEvent(input.Scroll{Pos: p, DY: dy})
+		h.step(fmt.Sprintf("scroll %v", dy))
+	}
+	// Relative line numbers: a caret line change redraws every number
+	// (full frames are expected; the verifier checks them all the same).
+	o.LineNumbers = LineNumbersRelative
+	h.frame()
+	for _, k := range []input.Key{input.KeyDown, input.KeyRight, input.KeyUp} {
+		h.key(k, 0)
+		h.frame()
+	}
+	h.verified()
 }
 
 // verified fails the test on a verify failure or when fewer than 70% of

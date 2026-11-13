@@ -48,6 +48,16 @@ type Theme struct {
 	root     *node
 	cache    sync.Map // token type -> Style
 	warnings []string
+	// plain: the colors are exactly the base theme's, so the registry
+	// defaults resolve to the generated final colors (colors.go).
+	plain    bool
+	defaults sync.Map // color id -> colorResult, for themes that are not plain
+}
+
+// colorResult is a resolved registry default.
+type colorResult struct {
+	c  color.NRGBA
+	ok bool
 }
 
 // rawRule is one entry of a theme's "rules" array. Pointer fields distinguish
@@ -261,6 +271,17 @@ func parse(data []byte, baseOf func(string) *Theme) (*Theme, error) {
 	rules = append(rules, ownRules...)
 
 	t.root = buildTrie(rules)
+	if baseOf == nil {
+		t.plain = true // a base theme
+	} else if b := baseOf(d.Base); b != nil && len(b.colors) == len(t.colors) {
+		t.plain = true
+		for k, c := range b.colors {
+			if t.colors[k] != c {
+				t.plain = false
+				break
+			}
+		}
+	}
 	return t, nil
 }
 
@@ -284,8 +305,32 @@ func (t *Theme) Style(tokenType string) Style {
 }
 
 // Color returns the theme color for a workbench color key such as
-// "editor.lineHighlightBackground".
+// "editor.lineHighlightBackground": the theme's own value (with inherit,
+// its base theme's values for keys it does not set), else Monaco 0.56's
+// registered default for the theme's base type, resolved against the
+// theme's colors (colors.go). It reports false for a key without a color:
+// one Monaco has no default for there (editor.lineHighlightBackground), or
+// that is not a registered color id.
 func (t *Theme) Color(key string) (color.NRGBA, bool) {
+	if c, ok := t.colors[key]; ok {
+		return c, true
+	}
+	if t.plain {
+		return defaultColor(key, baseType(t.base))
+	}
+	if r, ok := t.defaults.Load(key); ok {
+		r := r.(colorResult)
+		return r.c, r.ok
+	}
+	c, ok := resolveDefault(t, key)
+	t.defaults.Store(key, colorResult{c, ok})
+	return c, ok
+}
+
+// OwnColor returns the theme's own value of key (with inherit, including
+// its base theme's colors), without the registry defaults: Monaco's
+// theme.defines(key) is whether it reports true.
+func (t *Theme) OwnColor(key string) (color.NRGBA, bool) {
 	c, ok := t.colors[key]
 	return c, ok
 }

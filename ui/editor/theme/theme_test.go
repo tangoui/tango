@@ -199,8 +199,13 @@ func TestInheritOverride(t *testing.T) {
 	if got := th.Style("string.go").Foreground; got == ruleFG(t, vs, "string") {
 		t.Errorf("non-inheriting theme picked up vs string color")
 	}
-	if _, ok := th.Color("editor.background"); ok {
+	if _, ok := th.OwnColor("editor.background"); ok {
 		t.Error("non-inheriting theme picked up vs colors")
+	}
+	// Color falls back to the registry default (#FFFFFF for light themes),
+	// not to vs's own #FFFFFE.
+	if got, ok := th.Color("editor.background"); !ok || got != (color.NRGBA{0xff, 0xff, 0xff, 0xff}) {
+		t.Errorf("non-inheriting editor.background = %v %v, want the registry default #FFFFFF", got, ok)
 	}
 }
 
