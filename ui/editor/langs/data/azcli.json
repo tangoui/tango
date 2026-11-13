@@ -1,0 +1,125 @@
+{
+	"registrationOrder": 2,
+	"registration": {
+		"id": "azcli",
+		"extensions": [
+			".azcli"
+		],
+		"filenames": [],
+		"filenamePatterns": [],
+		"aliases": [
+			"Azure CLI",
+			"azcli"
+		],
+		"mimetypes": [],
+		"firstLine": ""
+	},
+	"language": {
+		"defaultToken": "keyword",
+		"ignoreCase": true,
+		"tokenPostfix": ".azcli",
+		"str": {
+			"$regex": "[^#\\s]",
+			"flags": ""
+		},
+		"tokenizer": {
+			"root": [
+				{
+					"include": "@comment"
+				},
+				[
+					{
+						"$regex": "\\s-+@str*\\s*",
+						"flags": ""
+					},
+					{
+						"cases": {
+							"@eos": {
+								"token": "key.identifier",
+								"next": "@popall"
+							},
+							"@default": {
+								"token": "key.identifier",
+								"next": "@type"
+							}
+						}
+					}
+				],
+				[
+					{
+						"$regex": "^-+@str*\\s*",
+						"flags": ""
+					},
+					{
+						"cases": {
+							"@eos": {
+								"token": "key.identifier",
+								"next": "@popall"
+							},
+							"@default": {
+								"token": "key.identifier",
+								"next": "@type"
+							}
+						}
+					}
+				]
+			],
+			"type": [
+				{
+					"include": "@comment"
+				},
+				[
+					{
+						"$regex": "-+@str*\\s*",
+						"flags": ""
+					},
+					{
+						"cases": {
+							"@eos": {
+								"token": "key.identifier",
+								"next": "@popall"
+							},
+							"@default": "key.identifier"
+						}
+					}
+				],
+				[
+					{
+						"$regex": "@str+\\s*",
+						"flags": ""
+					},
+					{
+						"cases": {
+							"@eos": {
+								"token": "string",
+								"next": "@popall"
+							},
+							"@default": "string"
+						}
+					}
+				]
+			],
+			"comment": [
+				[
+					{
+						"$regex": "#.*$",
+						"flags": ""
+					},
+					{
+						"cases": {
+							"@eos": {
+								"token": "comment",
+								"next": "@popall"
+							}
+						}
+					}
+				]
+			]
+		}
+	},
+	"conf": {
+		"comments": {
+			"lineComment": "#"
+		}
+	}
+}

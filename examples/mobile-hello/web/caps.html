@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tango capabilities</title>
+<style>
+  :root { color-scheme: light dark; font-family: -apple-system, system-ui, sans-serif; --accent: #0a7cff; }
+  body {
+    margin: 0;
+    /* --tango-safe-* come from safearea.SyncPage; env() is the fallback. */
+    padding: calc(12px + var(--tango-safe-top, env(safe-area-inset-top, 0px))) calc(14px + var(--tango-safe-right, env(safe-area-inset-right, 0px)))
+             calc(24px + var(--tango-safe-bottom, env(safe-area-inset-bottom, 0px))) calc(14px + var(--tango-safe-left, env(safe-area-inset-left, 0px)));
+  }
+  h1 { font-size: 24px; margin: 4px 0 2px; }
+  #sub { opacity: .7; font-size: 14px; margin-bottom: 8px; }
+  section { margin: 12px 0; padding: 10px 12px; border-radius: 12px; background: rgba(127,127,127,.12); }
+  h2 { font-size: 15px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .04em; opacity: .75; }
+  button { font: inherit; font-size: 15px; padding: 8px 12px; margin: 0 6px 6px 0; border-radius: 10px; border: 0;
+           background: var(--accent); color: #fff; }
+  input { font: inherit; font-size: 15px; padding: 7px 8px; border-radius: 8px; border: 1px solid rgba(127,127,127,.5);
+          width: 9em; margin: 0 6px 6px 0; }
+  .out { font: 13px ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all; min-height: 1.2em; }
+  .err { color: #e5484d; }
+  .uns { color: #a07c00; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<a href="/">&larr; Hello</a>
+<h1>System capabilities</h1>
+<div id="sub">…</div>
+
+<section><h2>Share</h2>
+  <button data-op="share">Share text + URL</button><button data-op="shareFile">Share a file</button>
+  <div class="out" id="o-share"></div></section>
+
+<section><h2>Haptics</h2>
+  <button data-op="haptic" data-arg="light">Light</button><button data-op="haptic" data-arg="medium">Medium</button>
+  <button data-op="haptic" data-arg="heavy">Heavy</button><button data-op="haptic" data-arg="selection">Selection</button>
+  <button data-op="haptic" data-arg="success">Success</button><button data-op="haptic" data-arg="warning">Warning</button>
+  <button data-op="haptic" data-arg="error">Error</button>
+  <div class="out" id="o-haptic"></div></section>
+
+<section><h2>Safe area &amp; orientation</h2>
+  <button data-op="safearea">Read safe area</button><button data-op="orientation">Orientation</button>
+  <button data-op="lock" data-arg="landscape">Lock landscape</button><button data-op="lock" data-arg="portrait">Lock portrait</button>
+  <button data-op="lock" data-arg="none">Unlock</button>
+  <div class="out" id="o-safearea"></div>
+  <div class="out" id="css"></div></section>
+
+<section><h2>Biometrics</h2>
+  <button data-op="biometry">Available?</button><button data-op="authenticate">Authenticate</button>
+  <button data-op="authenticate" data-arg="passcode">…or passcode</button>
+  <div class="out" id="o-biometry"></div></section>
+
+<section><h2>Secure store</h2>
+  <input id="secret" value="s3cret-✓"><button data-op="secureSet">Set</button><button data-op="secureGet">Get</button>
+  <button data-op="secureDelete">Delete</button>
+  <div class="out" id="o-secure"></div></section>
+
+<section><h2>Photos &amp; camera</h2>
+  <button data-op="pick">Pick up to 3</button><button data-op="photo">Take photo</button>
+  <div class="out" id="o-media"></div></section>
+
+<section><h2>Location</h2>
+  <button data-op="location">Current</button><button data-op="watch">Watch on/off</button>
+  <div class="out" id="o-location"></div></section>
+
+<section><h2>Push</h2>
+  <button data-op="push">Register</button>
+  <div class="out" id="o-push"></div></section>
+
+<section><h2>Permissions</h2>
+  <button data-op="permissions">Check all</button>
+  <button data-op="request" data-arg="camera">Camera</button><button data-op="request" data-arg="photos">Photos</button>
+  <button data-op="request" data-arg="location">Location</button><button data-op="request" data-arg="notifications">Notifications</button>
+  <button data-op="request" data-arg="microphone">Microphone</button>
+  <div class="out" id="o-perm"></div></section>
+
+<section><h2>Device</h2>
+  <button data-op="review">Rate app</button><button data-op="settings">App settings</button>
+  <button data-op="keepOn" data-arg="on">Keep screen on</button><button data-op="keepOn" data-arg="off">…off</button><br>
+  <button data-op="brightness">Brightness?</button><button data-op="brightness" data-arg="0.2">20%</button>
+  <button data-op="brightness" data-arg="1">100%</button><button data-op="brightness" data-arg="reset">System</button><br>
+  <button data-op="statusbar" data-arg="light">Bar light</button><button data-op="statusbar" data-arg="dark">Bar dark</button>
+  <button data-op="statusbar" data-arg="hidden">Bar hidden</button><button data-op="statusbar" data-arg="color">Bar red</button>
+  <button data-op="statusbar" data-arg="reset">Bar default</button><br>
+  <input id="kbd" placeholder="tap to type"><button data-op="keyboard">Keyboard?</button><button data-op="hideKeyboard">Hide keyboard</button>
+  <div class="out" id="o-device"></div></section>
+
+<section><h2>Background tasks</h2>
+  <button data-op="bgSchedule" data-arg="refresh">Schedule refresh</button><button data-op="bgSchedule" data-arg="processing">Schedule processing</button>
+  <button data-op="bgCancel">Cancel</button>
+  <div class="out" id="o-bg"></div></section>
+
+<section><h2>In-app purchase</h2>
+  <button data-op="canPay">Can pay?</button><button data-op="products">Query product</button><button data-op="buy">Buy</button>
+  <button data-op="restore">Restore</button><button data-op="receipt">Receipt</button>
+  <div class="out" id="o-iap"></div></section>
+
+<section><h2>Widget</h2>
+  <button data-op="widget">Update widget</button>
+  <div class="out" id="o-widget"></div></section>
+
+<section><h2>HTTP to Go (fetch / XHR)</h2>
+  <button data-http="text">POST text</button><button data-http="json">POST JSON</button><button data-http="form">POST FormData+file</button>
+  <button data-http="blob">POST Blob</button><button data-http="buffer">PUT ArrayBuffer</button><button data-http="xhr">XHR POST</button>
+  <button data-http="xhrform">XHR FormData</button><button data-http="urlenc">POST URLSearchParams</button><br>
+  <button data-http="cookies">Set 2 cookies</button><button data-http="whoami">Cookies sent</button>
+  <div class="out" id="o-http"></div></section>
+
+<section><h2>Page state</h2>
+  <button id="bump">Counter +1</button> <span id="counter">0</span> · loaded <span id="loadedAt"></span>
+  <div class="out" id="o-state"></div></section>
+
+<section><h2>Events</h2>
+  <div class="out" id="o-events"></div></section>
+
+<script>
+  // Each op writes into one output box.
+  const box = {share: "share", shareFile: "share", haptic: "haptic", safearea: "safearea", orientation: "safearea", lock: "safearea",
+    biometry: "biometry", authenticate: "biometry", secureSet: "secure", secureGet: "secure", secureDelete: "secure",
+    pick: "media", photo: "media", location: "location", watch: "location", push: "push", permissions: "perm", request: "perm",
+    review: "device", settings: "device", keepOn: "device", brightness: "device", statusbar: "device", keyboard: "device",
+    hideKeyboard: "device", bgSchedule: "bg", bgCancel: "bg", canPay: "iap", products: "iap", buy: "iap", restore: "iap",
+    receipt: "iap", widget: "widget"};
+  const pending = {};
+  let seq = 0;
+  function out(id, text, cls) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = "out" + (cls ? " " + cls : "");
+  }
+  function call(op, arg, value) {
+    const id = ++seq;
+    return new Promise(resolve => {
+      pending[id] = resolve;
+      window.__tango.post(JSON.stringify({id, op, arg: arg || "", value: value || ""}));
+    });
+  }
+  function fmt(v) { return v === undefined || v === null ? "ok" : typeof v === "string" ? v : JSON.stringify(v, null, 1); }
+  function events(line) {
+    const el = document.getElementById("o-events");
+    el.textContent = (new Date().toLocaleTimeString() + " " + line + "\n" + el.textContent).slice(0, 2000);
+  }
+  function showCSS() {
+    const cs = getComputedStyle(document.documentElement);
+    const v = k => cs.getPropertyValue("--tango-safe-" + k).trim() || "unset";
+    out("css", "CSS --tango-safe-*: top " + v("top") + ", bottom " + v("bottom") + ", left " + v("left") + ", right " + v("right"));
+  }
+  window.__tango.onMessage(raw => {
+    let m;
+    try { m = JSON.parse(raw); } catch (e) { return; }
+    if (m.event) {
+      events(m.event + ": " + fmt(m.data));
+      if (m.event === "safearea") showCSS();
+      return;
+    }
+    const done = pending[m.id];
+    delete pending[m.id];
+    if (done) done(m);
+  });
+  document.querySelectorAll("button[data-op]").forEach(b => b.onclick = async () => {
+    const op = b.dataset.op, arg = b.dataset.arg;
+    const target = "o-" + box[op];
+    out(target, op + (arg ? " " + arg : "") + "…");
+    const m = await call(op, arg, op === "secureSet" ? document.getElementById("secret").value : "");
+    if (m.error) out(target, (m.kind === "unsupported" ? "not supported here: " : "error: ") + m.error, m.kind === "unsupported" ? "uns" : "err");
+    else out(target, op + (arg ? " " + arg : "") + " → " + fmt(m.result));
+  });
+  // HTTP requests to the Go asset handler (examples/mobile-hello/api.go).
+  // The expected SHA-256 prefixes are computed here to compare with Go's.
+  async function sha8(buf) {
+    const d = new Uint8Array(await crypto.subtle.digest("SHA-256", buf));
+    return Array.from(d.slice(0, 8), b => b.toString(16).padStart(2, "0")).join("");
+  }
+  const bin = () => { const b = new Uint8Array(70000); for (let i = 0; i < b.length; i++) b[i] = (i * 7 + 3) & 255; return b; };
+  function xhr(method, url, body) {
+    return new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open(method, url);
+      x.onload = () => resolve(JSON.parse(x.responseText));
+      x.onerror = () => reject(new Error("xhr failed"));
+      x.send(body);
+    });
+  }
+  const httpTests = {
+    text: async () => { const t = "héllo ✓ " + Date.now(); const r = await (await fetch("/api/echo", {method: "POST", body: t})).json();
+      return [r, r.body === t]; },
+    json: async () => { const t = JSON.stringify({a: 1, s: "ünï"}); const r = await (await fetch("/api/echo", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: t})).json(); return [r, r.body === t && r.contentType === "application/json"]; },
+    form: async () => { const f = new FormData(); f.append("name", "tango ✓"); const b = bin();
+      f.append("file", new Blob([b], {type: "application/octet-stream"}), "data.bin");
+      const r = await (await fetch("/api/echo", {method: "POST", body: f})).json();
+      return [r, r.fields && r.fields.name === "tango ✓" && r.files && r.files.file.size === b.length && r.files.file.sha256 === await sha8(b)]; },
+    blob: async () => { const b = bin(); const r = await (await fetch("/api/echo", {method: "POST", body: new Blob([b], {type: "image/x-test"})})).json();
+      return [r, r.size === b.length && r.sha256 === await sha8(b) && r.contentType === "image/x-test"]; },
+    buffer: async () => { const b = bin(); const r = await (await fetch("/api/echo", {method: "PUT", body: b.buffer})).json();
+      return [r, r.method === "PUT" && r.size === b.length && r.sha256 === await sha8(b)]; },
+    xhr: async () => { const t = "xhr body " + Date.now(); const r = await xhr("POST", "/api/echo", t); return [r, r.body === t]; },
+    xhrform: async () => { const f = new FormData(); f.append("k", "v"); const b = bin(); f.append("file", new Blob([b]), "x.bin");
+      const r = await xhr("POST", "/api/echo", f); return [r, r.fields && r.fields.k === "v" && r.files.file.size === b.length]; },
+    urlenc: async () => { const r = await (await fetch("/api/echo", {method: "POST", body: new URLSearchParams({q: "a b", n: "1"})})).json();
+      return [r, r.fields && r.fields.q && r.fields.q[0] === "a b"]; },
+    cookies: async () => { const res = await fetch("/api/cookies"); const r = await res.json();
+      return [{...r, multi: res.headers.get("X-Tango-Multi"), documentCookie: document.cookie}, /tango_a=/.test(document.cookie)]; },
+    whoami: async () => { const r = await (await fetch("/api/whoami")).json();
+      return [r, r.cookies.some(c => c.startsWith("tango_a=")) && r.cookies.some(c => c.startsWith("tango_b="))]; },
+  };
+  document.querySelectorAll("button[data-http]").forEach(b => b.onclick = async () => {
+    const k = b.dataset.http;
+    out("o-http", k + "…");
+    try {
+      const [r, ok] = await httpTests[k]();
+      out("o-http", (ok ? "PASS " : "FAIL ") + k + " → " + JSON.stringify(r), ok ? "" : "err");
+      console.log("tango-http " + (ok ? "PASS " : "FAIL ") + k + " " + JSON.stringify(r));
+    } catch (e) {
+      out("o-http", "FAIL " + k + ": " + e, "err");
+      console.log("tango-http FAIL " + k + " " + e);
+    }
+  });
+  window.__tangoRunHTTP = async () => {
+    const res = {};
+    for (const k of Object.keys(httpTests)) {
+      try { const [r, ok] = await httpTests[k](); res[k] = ok ? "PASS" : "FAIL " + JSON.stringify(r); }
+      catch (e) { res[k] = "FAIL " + e; }
+    }
+    return res;
+  };
+  let counter = 0;
+  document.getElementById("loadedAt").textContent = new Date().toLocaleTimeString();
+  document.getElementById("bump").onclick = () => { document.getElementById("counter").textContent = ++counter; };
+  window.addEventListener("tangosafearea", showCSS);
+  showCSS();
+  call("info").then(m => {
+    const r = m.result || {};
+    document.getElementById("sub").textContent = "Go on " + r.os + (r.restored ? " · web view restored " + r.restored + "×" : "");
+    out("o-state", "Go pid " + r.pid + ", started " + r.started + ", background runs " + r.background);
+    if (r.restored) events("page reloaded after the web content process was killed (#" + r.restored + ")");
+    if (r.auto && !r.restored) autorun(r.auto.split(","));
+  });
+  // Test hook (TANGO_CAPS_AUTORUN): tap the listed buttons one after another.
+  async function autorun(steps) {
+    for (const step of steps) {
+      const [op, arg] = step.split(":");
+      const sel = 'button[data-op="' + op + '"]' + (arg ? '[data-arg="' + arg + '"]' : ':not([data-arg])');
+      const b = op === "http" ? document.querySelector('button[data-http="' + arg + '"]')
+        : document.querySelector(sel) || document.querySelector('button[data-op="' + op + '"]');
+      if (b) { b.scrollIntoView({block: "center"}); b.click(); }
+      await new Promise(r => setTimeout(r, 1500));
+    }
+  }
+</script>
+</body>
+</html>

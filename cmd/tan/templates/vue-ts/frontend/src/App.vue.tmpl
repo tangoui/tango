@@ -1,0 +1,26 @@
+<script setup lang="ts">
+import { ref } from "vue";
+import { call } from "@tangoui/runtime";
+
+const name = ref("");
+const greeting = ref("");
+
+async function greet() {
+  try {
+    greeting.value = await call<string>("Greeter.Hello", name.value);
+  } catch (err) {
+    greeting.value = "Error: " + (err as Error).message;
+  }
+}
+</script>
+
+<template>
+  <main>
+    <h1>[[.Name]]</h1>
+    <form @submit.prevent="greet">
+      <input v-model="name" placeholder="Your name" />
+      <button>Greet</button>
+    </form>
+    <p>{{ greeting }}</p>
+  </main>
+</template>

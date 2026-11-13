@@ -1,0 +1,267 @@
+{
+  "date": "2026-11-13",
+  "commit": "36322bce11341ab6476aa6b23ce665d05ea74ea0",
+  "go_version": "go version go1.27.2 darwin/arm64",
+  "host": "darwin/arm64",
+  "build": "tan package (default production build): CGO_ENABLED=0, -trimpath, -ldflags=-s -w (-H windowsgui on Windows); no tango_dev, no UPX",
+  "units": {
+    "MB": 1000000,
+    "MiB": 1048576
+  },
+  "samples": [
+    {
+      "template": "vanilla",
+      "target": "darwin-arm64",
+      "binary_bytes": 8077392,
+      "binary_sha256": "c890d03026a4d38add9c797c6d4174e4e28b527bfd3b8b93e0853e87c37cf66e",
+      "macos_bundle_bytes": 8257110,
+      "macos_icns_included": true,
+      "packages": [
+        {
+          "format": ".dmg",
+          "bytes": 3508351,
+          "sha256": "cd0dac0d187762a7cfc5902da5743f8ccf24f6edac8d84b405605faca0a5c771",
+          "path": "packages/vanilla/SizeWeb-0.1.0-darwin-arm64.dmg"
+        }
+      ]
+    },
+    {
+      "template": "vanilla",
+      "target": "windows-amd64",
+      "binary_bytes": 8415232,
+      "binary_sha256": "21035e4bbc3535f2d4ec354394883db38e00168778ff99d5f99a40ab17f3020e",
+      "macos_bundle_bytes": null,
+      "macos_icns_included": null,
+      "packages": [
+        {
+          "format": "NSIS -setup.exe",
+          "bytes": 2784151,
+          "sha256": "300c1ad73bd142a136ab2d58792baae5ceed3f7d5198fe4c6ff632b10254f581",
+          "path": "packages/vanilla/SizeWeb-0.1.0-windows-amd64-setup.exe"
+        }
+      ]
+    },
+    {
+      "template": "vanilla",
+      "target": "darwin-amd64",
+      "binary_bytes": 8686288,
+      "binary_sha256": "b59bf6544b5d49418ee396935a171b81a7deeb11a68880014f99fd65b9fa1079",
+      "macos_bundle_bytes": 8866006,
+      "macos_icns_included": true,
+      "packages": [
+        {
+          "format": ".dmg",
+          "bytes": 3860337,
+          "sha256": "69ea029792ed4fcc7d010933c1db80091675e400427085ae1d827b5d9ebff1de",
+          "path": "packages/vanilla/SizeWeb-0.1.0-darwin-amd64.dmg"
+        }
+      ]
+    },
+    {
+      "template": "vanilla",
+      "target": "linux-amd64",
+      "binary_bytes": 8302855,
+      "binary_sha256": "153eb09c9186743e3d78fdc9c6c7cd02b694667c51cc5c33c7444ecc665bf6c1",
+      "macos_bundle_bytes": null,
+      "macos_icns_included": null,
+      "packages": [
+        {
+          "format": ".deb",
+          "bytes": 3488664,
+          "sha256": "dd210fc5a7f355176808acfc545bc047be6c90616047bcb83839d7d396c7e94f",
+          "path": "packages/vanilla/SizeWeb-0.1.0-linux-amd64.deb"
+        },
+        {
+          "format": ".rpm",
+          "bytes": 3491434,
+          "sha256": "96673971b7dcff571d730da8ce35b40ace23f99e65ee0e322f4ada7e4d1dd787",
+          "path": "packages/vanilla/SizeWeb-0.1.0-linux-amd64.rpm"
+        },
+        {
+          "format": ".AppImage",
+          "bytes": 4098552,
+          "sha256": "7326bad176b95d796a2690805dbb6b0b57fd3e2765db3db51370df7c7702e4ac",
+          "path": "packages/vanilla/SizeWeb-0.1.0-linux-amd64.AppImage"
+        },
+        {
+          "format": ".tar.gz",
+          "bytes": 3577726,
+          "sha256": "973bad2303e723b6371001805fc19ed36f4315a2f99c9c9e028d0d86de4cb447",
+          "path": "packages/vanilla/SizeWeb-0.1.0-linux-amd64.tar.gz"
+        }
+      ]
+    },
+    {
+      "template": "vanilla",
+      "target": "linux-arm64",
+      "binary_bytes": 7864583,
+      "binary_sha256": "167828dfa7c145202f84c34e8a274a300c3de1598b75ea446eb91bf3656ee445",
+      "macos_bundle_bytes": null,
+      "macos_icns_included": null,
+      "packages": [
+        {
+          "format": ".deb",
+          "bytes": 3184172,
+          "sha256": "9aed6ded901cf75ac4b28a0ed0367f867d83b3245788fe7723cd9d2130c43611",
+          "path": "packages/vanilla/SizeWeb-0.1.0-linux-arm64.deb"
+        },
+        {
+          "format": ".rpm",
+          "bytes": 3187019,
+          "sha256": "9cd1691136ba0d6143c7b7af25f39633a029c86d7825d05e93ba1cbae4abbb2d",
+          "path": "packages/vanilla/SizeWeb-0.1.0-linux-arm64.rpm"
+        },
+        {
+          "format": ".AppImage",
+          "bytes": 3774984,
+          "sha256": "a087f708c4fe5587804bb3bd1091acc368f86e02740f665c519e6f171ce86143",
+          "path": "packages/vanilla/SizeWeb-0.1.0-linux-arm64.AppImage"
+        },
+        {
+          "format": ".tar.gz",
+          "bytes": 3259897,
+          "sha256": "2c42f5778198dfb7980e9b050f86e41664fd0285256693160dc730814e6a8961",
+          "path": "packages/vanilla/SizeWeb-0.1.0-linux-arm64.tar.gz"
+        }
+      ]
+    },
+    {
+      "template": "ui",
+      "target": "darwin-arm64",
+      "binary_bytes": 10544944,
+      "binary_sha256": "77ce4558b027a905cf44e254025ec11854984e0fd9e600ffed08e0a5b4bdfcd7",
+      "macos_bundle_bytes": 10724879,
+      "macos_icns_included": true,
+      "packages": [
+        {
+          "format": ".dmg",
+          "bytes": 4568706,
+          "sha256": "5fdd53a331f136cfdb714ca11c6d0f67c7427fa10dfde78f864ff9a8dd684539",
+          "path": "packages/ui/SizeUI-0.1.0-darwin-arm64.dmg"
+        }
+      ]
+    },
+    {
+      "template": "ui",
+      "target": "windows-amd64",
+      "binary_bytes": 11096064,
+      "binary_sha256": "a0e9a888d46d583c383bdf901f3999bf388923203d41f51a4881e991d50ecf06",
+      "macos_bundle_bytes": null,
+      "macos_icns_included": null,
+      "packages": [
+        {
+          "format": "NSIS -setup.exe",
+          "bytes": 3637209,
+          "sha256": "4ad3552d4afaefbe00aa7ba05e58eaf8b8f53508e9d6a30ae2a10cb29efd2e81",
+          "path": "packages/ui/SizeUI-0.1.0-windows-amd64-setup.exe"
+        }
+      ]
+    },
+    {
+      "template": "ui",
+      "target": "darwin-amd64",
+      "binary_bytes": 11647520,
+      "binary_sha256": "9ba3a1fbf5cb36e28ca5630e701fb0a5cd6f039a76443264f296b9f357b56b10",
+      "macos_bundle_bytes": 11827455,
+      "macos_icns_included": true,
+      "packages": [
+        {
+          "format": ".dmg",
+          "bytes": 5109907,
+          "sha256": "b94724cede0538d958e3493448921f23c0a44b2a7a7176716d312c11fc927d83",
+          "path": "packages/ui/SizeUI-0.1.0-darwin-amd64.dmg"
+        }
+      ]
+    },
+    {
+      "template": "ui",
+      "target": "linux-amd64",
+      "binary_bytes": 10674439,
+      "binary_sha256": "3a6191f18de441138aa9f19e0f1821c8fee38a6de1e03706168db2e079093892",
+      "macos_bundle_bytes": null,
+      "macos_icns_included": null,
+      "packages": [
+        {
+          "format": ".deb",
+          "bytes": 4504208,
+          "sha256": "d1ea0d4f8b6833770eda1dcf34f6dc25afa9849eb6ea8b592829cce58c73d83b",
+          "path": "packages/ui/SizeUI-0.1.0-linux-amd64.deb"
+        },
+        {
+          "format": ".rpm",
+          "bytes": 4506656,
+          "sha256": "be593b951b6d0c7d8503514a44b7c9240404c6615022617be14f24171d6b356e",
+          "path": "packages/ui/SizeUI-0.1.0-linux-amd64.rpm"
+        },
+        {
+          "format": ".AppImage",
+          "bytes": 5024248,
+          "sha256": "c34e95faeb127de79c7df6cba5802b2ddf5c16ec3276e789d1b7efdc2d4446d3",
+          "path": "packages/ui/SizeUI-0.1.0-linux-amd64.AppImage"
+        },
+        {
+          "format": ".tar.gz",
+          "bytes": 4621546,
+          "sha256": "6d6500531a5d2515dd14da6aebe7d227fb8f043d92dc0fcfc06bba1e0365adca",
+          "path": "packages/ui/SizeUI-0.1.0-linux-amd64.tar.gz"
+        }
+      ]
+    },
+    {
+      "template": "ui",
+      "target": "linux-arm64",
+      "binary_bytes": 9765127,
+      "binary_sha256": "3aeb11c5cdf9559305b39c4f422144b2df38516fc7c07d8c4f8933ba619f80ef",
+      "macos_bundle_bytes": null,
+      "macos_icns_included": null,
+      "packages": [
+        {
+          "format": ".deb",
+          "bytes": 4057792,
+          "sha256": "c04ddf421b678ca0db777c35dae7161269599962f4a64b4a6a7f8f6f4d0805b8",
+          "path": "packages/ui/SizeUI-0.1.0-linux-arm64.deb"
+        },
+        {
+          "format": ".rpm",
+          "bytes": 4060272,
+          "sha256": "a55f979ae221841cdec191e05050a1fe8c76d84036ad1c34683bdc8caff1676a",
+          "path": "packages/ui/SizeUI-0.1.0-linux-arm64.rpm"
+        },
+        {
+          "format": ".AppImage",
+          "bytes": 4561416,
+          "sha256": "51a39fa9f523c5ac4c185e85083548ed9834cd4d9dfb4b3b8a03add0d2e6c541",
+          "path": "packages/ui/SizeUI-0.1.0-linux-arm64.AppImage"
+        },
+        {
+          "format": ".tar.gz",
+          "bytes": 4154053,
+          "sha256": "05eec169775455f6d276ac618c22d46c52292dfc95067d85a2ebc7d9508085ba",
+          "path": "packages/ui/SizeUI-0.1.0-linux-arm64.tar.gz"
+        }
+      ]
+    }
+  ],
+  "cli": {
+    "target": "darwin-arm64",
+    "bytes": 12986370,
+    "sha256": "7c16a4f3e955386e4c70cc361f5ce26fb9f52fb049efcd11b591190f53bce41a",
+    "build": "CGO_ENABLED=0 go build -trimpath -ldflags=\"-s -w\" ./cmd/tan (clean worktree of the commit above)"
+  },
+  "limitations": [
+    "macOS: DMGs made by tan package (hdiutil, UDZO zlib-9) with ICNS icon; apps ad-hoc signed, not notarized. Intel (amd64) and Apple silicon (arm64) are separate DMGs; universal builds were not measured.",
+    "Windows: NSIS 3.13 installer for amd64; app and installer unsigned. Windows arm64 and MSIX were not measured.",
+    "Linux: .deb/.rpm/.tar.gz written by tan package itself; AppImage made by appimagetool from the AppDir tan wrote. linux.maintainer not set in the sample tan.json. Flatpak was not measured (needs flatpak-builder and the GNOME runtime).",
+    "linux-arm64 .deb installed with dpkg and started under xvfb in a Debian 12 container; the linux-arm64 Go UI AppImage started under xvfb. .rpm checked with rpm -qip/-K only. amd64 Linux and Windows packages were not installed or run.",
+    "Mobile APK/AAB/IPA were not measured."
+  ],
+  "tools": {
+    "nsis": "3.13",
+    "hdiutil": "macOS system",
+    "appimagetool": "AppImage/appimagetool continuous build 370 (git 11d54c9), aarch64, run in a linux/arm64 container with --runtime-file",
+    "appimage_runtime_sha256": {
+      "x86_64": "617aa77314d57c8b8e4fae9c3f0b35af7b30d5529cb69e98f64f92510ed98a46",
+      "aarch64": "9a72a744d221576c9347ec074243acc5c3c7568896b12714e0e82e9f0bf47900"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "title": "Tango 多語言範例",
+  "hello": "你好，{name}！",
+  "files": {"other": "已選取 {count} 個檔案"},
+  "locale": "目前語言：{locale}"
+}

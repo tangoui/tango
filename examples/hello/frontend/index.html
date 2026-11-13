@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Tango Hello</title>
+<style>
+  body { font: 15px -apple-system, "PingFang SC", sans-serif; margin: 40px; color: #1f1f1f; }
+  button { background: #1677ff; color: #fff; border: 0; border-radius: 6px; padding: 8px 16px; font-size: 14px; cursor: pointer; }
+  pre { background: #f5f5f5; border-radius: 6px; padding: 12px; min-height: 120px; }
+</style>
+</head>
+<body>
+<h1>Tango Hello</h1>
+<p><input id="name" value="世界"> <button id="go">调用 Go</button></p>
+<pre id="out"></pre>
+<script>
+window.addEventListener('error', (e) => window.__tango && __tango.post('page-error: ' + e.message));
+window.addEventListener('unhandledrejection', (e) => window.__tango && __tango.post('page-reject: ' + (e.reason && e.reason.message || e.reason)));
+const out = document.getElementById('out');
+const log = (s) => { out.textContent += s + '\n'; };
+
+async function run() {
+  const greeting = await tango.call('Greeter.Hello', document.getElementById('name').value);
+  log('call:   ' + greeting);
+  let n = 0;
+  for await (const tick of tango.stream('Greeter.Count', 5)) { n++; log('stream: ' + tick); }
+  try { await tango.call('Greeter.Fail'); } catch (e) { log('error:  ' + e.message); }
+  tango.emit('done', { greeting, ticks: n });
+}
+
+document.getElementById('go').onclick = run;
+tango.on('server-time', (t) => log('event:  ' + t));
+if (location.search.includes('smoke')) run();
+</script>
+</body>
+</html>

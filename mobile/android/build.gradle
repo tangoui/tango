@@ -1,0 +1,15 @@
+// The host is plain Java. Its only library is androidx.webkit (see
+// app/build.gradle); a Gradle cache without it needs one online build
+// (TANGO_GRADLE_ARGS= tan build ...). Versions are ones commonly already in
+// the Gradle cache, so the project builds with --offline.
+buildscript {
+    dependencies {
+        // AGP 9 depends on the Kotlin Gradle plugin (2.2.10) even for Java-only
+        // apps; pin a newer one that is usually cached. Any >= 2.2.10 works.
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.0"
+    }
+}
+
+plugins {
+    id "com.android.application" version "9.1.0" apply false
+}

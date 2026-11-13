@@ -1,0 +1,191 @@
+import { useEffect, useState, type FormEvent } from "react"
+import { call } from "@tangoui/runtime"
+import { toast } from "sonner"
+import { SettingsIcon } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Toaster } from "@/components/ui/sonner"
+
+// Set by main.go where the window has no system title bar (macOS): the page
+// draws one there and leaves room for the traffic lights. Windows and Linux
+// keep the system title bar.
+const ownTitleBar = document.documentElement.dataset.tangoTitleBar === "hidden"
+
+const fruits = [
+  { label: "Apple", value: "apple" },
+  { label: "Banana", value: "banana" },
+  { label: "Blueberry", value: "blueberry" },
+  { label: "Grapes", value: "grapes" },
+  { label: "Pineapple", value: "pineapple" },
+]
+
+export default function App() {
+  const [name, setName] = useState("")
+  const [fruit, setFruit] = useState<string | null>(null)
+  const [appearance, setAppearance] = useState("system")
+
+  useEffect(() => {
+    call<string>("Appearance.Get").then(setAppearance, () => {})
+  }, [])
+
+  // Go regenerates the page's variables (light, dark or following the
+  // system); lib/theme.ts moves the .dark class with them.
+  async function changeAppearance(mode: string) {
+    try {
+      await call("Appearance.Set", mode)
+      setAppearance(mode)
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
+
+  async function greet(e: FormEvent) {
+    e.preventDefault()
+    try {
+      toast.success(await call<string>("Greeter.Hello", name))
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
+
+  return (
+    <div className="flex h-screen flex-col">
+      {ownTitleBar && (
+        // Drag region: --tango-drag: drag moves the window; controls put
+        // here would opt out with [--tango-drag:no-drag].
+        <header className="flex h-10 shrink-0 items-center justify-center border-b px-20 select-none [--tango-drag:drag]">
+          <span className="truncate text-sm font-medium">[[.Name]]</span>
+        </header>
+      )}
+
+      <main className="flex-1 overflow-auto">
+        <div className="mx-auto flex max-w-xl flex-col gap-8 p-8">
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <h1 className="flex-1 text-2xl font-semibold tracking-tight">[[.Name]]</h1>
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+                  <SettingsIcon /> Menu
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>My App</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => toast("Profile clicked")}>
+                      Profile <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => toast("Settings clicked")}>
+                      Settings <DropdownMenuShortcut>⌘,</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>Appearance</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={appearance} onValueChange={changeAppearance}>
+                      <DropdownMenuRadioItem value="system">System</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              React, Tailwind CSS and shadcn/ui inside a Tango window. Colors and radius come from Go (theme.Shadcn) and
+              follow the system's light and dark mode.
+            </p>
+          </section>
+
+          <form onSubmit={greet} className="flex flex-col gap-2">
+            <Label htmlFor="name">Your name</Label>
+            <div className="flex gap-2">
+              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Type here (try an IME too)" autoComplete="off" />
+              <Button type="submit">Greet</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Calls Greeter.Hello in Go and shows the answer as a toast.</p>
+          </form>
+
+          <section className="flex flex-col gap-2">
+            <Label>Select</Label>
+            <Select items={fruits} value={fruit} onValueChange={setFruit}>
+              <SelectTrigger className="w-56">
+                <SelectValue placeholder="Pick a fruit" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Fruits</SelectLabel>
+                  {fruits.map((f) => (
+                    <SelectItem key={f.value} value={f.value}>
+                      {f.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </section>
+
+          <section className="flex flex-wrap gap-2">
+            <Dialog>
+              <DialogTrigger render={<Button variant="outline" />}>Open dialog</DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit profile</DialogTitle>
+                  <DialogDescription>Make changes to your profile here. Click save when you are done.</DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="dialog-name">Name</Label>
+                  <Input id="dialog-name" defaultValue="Tango" />
+                </div>
+                <DialogFooter>
+                  <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+                  <DialogClose render={<Button />} onClick={() => toast.success("Profile saved")}>
+                    Save
+                  </DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <Button variant="secondary" onClick={() => toast("Event has been created", { description: "Sunday, December 03, 2023 at 9:00 AM" })}>
+              Show toast
+            </Button>
+            <Button variant="destructive" onClick={() => toast.error("Something went wrong")}>
+              Error toast
+            </Button>
+          </section>
+        </div>
+      </main>
+      <Toaster position="bottom-right" />
+    </div>
+  )
+}

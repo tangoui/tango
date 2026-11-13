@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>WebView + 自绘浮层</title>
+<style>
+  /* Transparent page: with the canvas below the WebView it shows through;
+     with the canvas above, the WebView paints its usual white. */
+  html, body { background: transparent; margin: 0; }
+  body { font: 15px/1.6 -apple-system, "PingFang SC", sans-serif; color: #1f2329; padding: 24px 32px 120px; }
+  h1 { font-size: 24px; margin: 0 0 8px; }
+  .note { color: #555; }
+  .row { display: flex; gap: 12px; align-items: center; margin: 16px 0; }
+  button { font: inherit; padding: 6px 16px; border-radius: 6px; border: 1px solid #3370ff; background: #3370ff; color: #fff; cursor: pointer; }
+  button.ghost { background: rgba(255,255,255,.85); color: #3370ff; }
+  .card { background: rgba(255,255,255,.82); border: 1px solid rgba(0,0,0,.08); border-radius: 10px; padding: 12px 16px; margin: 12px 0; max-width: 560px; }
+  #count { font-weight: 600; }
+  #from-go { color: #d4380d; }
+</style>
+</head>
+<body>
+  <h1>这是网页（WKWebView / WebView2 / WebKitGTK）</h1>
+  <p class="note">右下角的工具面板和可拖动的圆形按钮由 Tango 自绘 UI 画在网页之上；浮层以外透明的地方，点击、滚动、选择文字都直接交给网页。</p>
+  <div class="row">
+    <button id="btn">网页按钮</button>
+    <span>已点击 <span id="count">0</span> 次</span>
+    <button class="ghost" id="toggle">切换自绘层：上 / 下</button>
+  </div>
+  <p id="from-go"></p>
+  <div id="list"></div>
+<script>
+  const post = s => window.__tango && window.__tango.post(s);
+  let n = 0;
+  document.getElementById('btn').onclick = () => {
+    n++;
+    document.getElementById('count').textContent = n;
+    post('click:' + n);
+  };
+  document.getElementById('toggle').onclick = () => post('toggle');
+  const list = document.getElementById('list');
+  for (let i = 1; i <= 30; i++) {
+    const d = document.createElement('div');
+    d.className = 'card';
+    d.textContent = '第 ' + i + ' 段可滚动内容。滚动、选中文字都由网页处理，自绘浮层保持在固定位置。';
+    list.appendChild(d);
+  }
+  window.__tango && window.__tango.onMessage(m => {
+    document.getElementById('from-go').textContent = m;
+  });
+</script>
+</body>
+</html>

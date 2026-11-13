@@ -1,0 +1,9 @@
+/build/
+# Windows resources tan build writes next to main.go (left behind by Ctrl-C)
+zz_tan_*.syso
+node_modules/
+[[- if .Dist]]
+/[[.Dist]]/*
+![[.Dist]]/.gitkeep
+[[- end]]
+.DS_Store

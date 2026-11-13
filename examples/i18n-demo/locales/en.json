@@ -1,0 +1,6 @@
+{
+  "title": "Tango i18n demo",
+  "hello": "Hello, {name}!",
+  "files": {"one": "{count} file selected", "other": "{count} files selected"},
+  "locale": "Current locale: {locale}"
+}

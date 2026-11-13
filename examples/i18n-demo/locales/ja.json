@@ -1,0 +1,6 @@
+{
+  "title": "Tango 多言語デモ",
+  "hello": "こんにちは、{name}さん！",
+  "files": {"other": "{count} 個のファイルを選択中"},
+  "locale": "現在の言語：{locale}"
+}

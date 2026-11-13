@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tango Hello</title>
+<style>
+  :root { color-scheme: light dark; font-family: -apple-system, system-ui, sans-serif; }
+  body { margin: 0; padding: 24px; }
+  h1 { font-size: 28px; margin: 8px 0 16px; }
+  button { font: inherit; font-size: 18px; padding: 12px 20px; border-radius: 12px; border: 0;
+           background: #0a7cff; color: #fff; }
+  #log { margin-top: 20px; font-size: 17px; line-height: 1.5; }
+  #log p { margin: 6px 0; padding: 8px 12px; border-radius: 10px; background: rgba(10,124,255,.12); }
+</style>
+</head>
+<body>
+<h1>Tango Hello</h1>
+<button id="ping">Send to Go</button>
+<p><a href="/caps.html">System capabilities &rarr;</a></p>
+<div id="log"></div>
+<script>
+  const log = document.getElementById("log");
+  function show(text) {
+    const p = document.createElement("p");
+    p.textContent = text;
+    log.appendChild(p);
+  }
+  window.__tango.onMessage(show);
+  let taps = 0;
+  document.getElementById("ping").onclick = () => window.__tango.post("tap " + (++taps));
+  window.__tango.post("hello from " + navigator.platform);
+</script>
+</body>
+</html>

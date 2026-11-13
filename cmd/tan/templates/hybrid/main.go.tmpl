@@ -1,0 +1,156 @@
+// [[.Name]] is a Tango application that mixes a WebView page (frontend/)
+// with Tango's self-drawn UI: a tool panel drawn by package ui floats over
+// the page in the bottom-right corner.
+//
+// The canvas covers the whole window (uihost.Layer Above + PassThrough) but
+// is transparent outside the panel, so clicks, scrolling and text
+// selection there go to the page. The two sides talk over IPC: the page
+// emits "page:clicked", the panel answers with "panel:message".
+//
+// tan dev's hot reload host cannot show attached canvases, so tan dev
+// sees uihost.Attach in the build and restarts the whole app on changes
+// instead of hot-reloading it.
+package main
+
+import (
+	"embed"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
+	"log"
+
+	"github.com/tangoui/tango"
+	"github.com/tangoui/tango/asset"
+	"github.com/tangoui/tango/bind"
+	"github.com/tangoui/tango/ipc"
+	"github.com/tangoui/tango/runtime-js/runtimejs"
+	"github.com/tangoui/tango/ui"
+	"github.com/tangoui/tango/ui/layout"
+	"github.com/tangoui/tango/ui/theme"
+	"github.com/tangoui/tango/uihost"
+)
+
+// The built front end. During "tan dev" requests go to the dev server
+// instead: tan dev builds with -tags tango_dev, and only then does
+// asset.FromEnv read TANGO_DEV_URL. A plain go build / go run is a
+// production build that always serves these files.
+//
+//go:embed all:[[.Embed]]
+var frontend embed.FS
+
+// Greeter is called from the page as Greeter.Hello.
+type Greeter struct{}
+
+// Hello returns a greeting for name.
+func (*Greeter) Hello(name string) string {
+	if name == "" {
+		name = "stranger"
+	}
+	return "Hello, " + name + "!"
+}
+
+var (
+	router  = ipc.NewRouter()
+	surface *tango.Surface
+	runner  *ui.Runner
+
+	pageClicks int  // reported by the page
+	sent       int  // messages sent to the page
+	collapsed  bool // card hidden, only its "show" button left
+)
+
+// panel is the self-drawn layer: a Card pinned to the bottom-right corner,
+// or just a button there while the card is hidden.
+func panel(c *ui.Context) {
+	corner := layout.Abs(layout.Unset, layout.Unset, 20, 20)
+	if collapsed {
+		ui.Div(c, corner).Body(func() {
+			if ui.Button(c, "Show tool panel").Primary().Clicked() {
+				collapsed = false
+			}
+		})
+		return
+	}
+	ui.Card(c, "Tool panel").Shadow("always").Layout(corner, layout.W(280)).
+		Extra(func() {
+			if ui.Button(c, "Hide").Link().Small().Clicked() {
+				collapsed = true
+			}
+		}).
+		Body(func() {
+			ui.Column(c, func() {
+				ui.Text(c, "Drawn by Go on top of the page.")
+				ui.Text(c, fmt.Sprintf("Page button clicks: %d", pageClicks))
+				if ui.Button(c, "Send a message to the page").Primary().Block().Clicked() {
+					sent++
+					if err := router.Emit(surface, "panel:message", fmt.Sprintf("Message #%d from the panel", sent)); err != nil {
+						log.Print(err)
+					}
+				}
+				if ui.Button(c, "Reset the page counter").Block().Clicked() {
+					pageClicks = 0
+					_ = router.Emit(surface, "panel:reset", nil)
+				}
+			}, layout.Gap(12))
+		})
+}
+
+func main() {
+	files, err := fs.Sub(frontend, "[[.Embed]]")
+	if err != nil {
+		log.Fatal(err)
+	}
+	app := tango.New(tango.Options{
+		Name:   "[[.Name]]",
+		ID:     "[[.ID]]",
+		Assets: asset.FromEnv(files, asset.Options{SPA: true}),
+	})
+
+	if err := bind.Register(router, "Greeter", &Greeter{}); err != nil {
+		log.Fatal(err)
+	}
+	router.On("page:clicked", func(_ ipc.Conn, data json.RawMessage) {
+		_ = json.Unmarshal(data, &pageClicks)
+		if runner != nil {
+			runner.Invalidate()
+		}
+	})
+	app.AddBridgeScript(runtimejs.Script)
+	app.OnMessage(func(s *tango.Surface, msg string) { router.HandleMessage(s, msg) })
+
+	app.OnReady(func() {
+		surface, err = app.NewSurface(tango.SurfaceOptions{
+			Title:     "[[.Name]]",
+			Width:     960,
+			Height:    640,
+			Resizable: true,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		surface.OnClosed(func() {
+			router.Drop(surface)
+			app.Quit()
+		})
+
+		// A transparent layout background: only the card is opaque, so
+		// PassThrough hands the rest of the window to the page.
+		th := theme.AntDesign()
+		th.BgLayout = theme.Color{}
+		runner, _, err = uihost.Attach(surface, uihost.Layer{Above: true, PassThrough: true}, panel, ui.RunnerOptions{Theme: th})
+		if errors.Is(err, tango.ErrUnsupported) {
+			// The platform cannot put a canvas over a WebView (or the
+			// app runs under a hot reload host, which tan dev avoids for
+			// apps using Attach): the page works without the panel.
+			log.Printf("tool panel unavailable: %v", err)
+			runner, err = nil, nil
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+	})
+	if err := app.Run(); err != nil {
+		log.Fatal(err)
+	}
+}

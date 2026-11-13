@@ -1,0 +1,10 @@
+{
+  "name": "Ledger",
+  "id": "dev.tango.ledger",
+  "version": "0.1.0",
+  "icon": "icons/icon.png",
+  "copyright": "© 2026 Tango contributors",
+  "icons": {
+    "android": { "background": "#1677FF" }
+  }
+}

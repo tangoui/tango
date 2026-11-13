@@ -1,0 +1,58 @@
+{
+  "name": "@tangoui/runtime",
+  "version": "0.1.0",
+  "description": "JavaScript runtime for Tango apps: calls, events and streams to Go over window.__tango",
+  "keywords": [
+    "tango",
+    "go",
+    "golang",
+    "webview",
+    "desktop",
+    "mobile",
+    "ipc",
+    "runtime"
+  ],
+  "homepage": "https://tangoui.github.io/tango/reference/js-api",
+  "bugs": {
+    "url": "https://github.com/tangoui/tango/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tangoui/tango.git",
+    "directory": "runtime-js"
+  },
+  "license": "MIT",
+  "author": "Tango contributors",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./iife": "./dist/tango.iife.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": true,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node build.mjs && node --test test/*.test.mjs",
+    "prepublishOnly": "npm test"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "typescript": "5.9.3"
+  }
+}

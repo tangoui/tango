@@ -1,0 +1,225 @@
+# GPU 渲染器里程碑 2 验收记录（macOS Metal）
+
+状态：2026-11-13 离屏部分（黄金图、对拍、基准、二进制增量）已完成，结果见第 1、2、4 节。实机窗口部分**均未完成验收**：测量时屏幕处于锁定状态（`CGSSessionScreenIsLocked = true`），`screencapture` 只能拿到全黑图或报 "could not create image from window"，System Events 也取不到窗口。所以 GPU/CPU 截图对照、改变窗口大小、静止零帧三项都列为**待用户确认**（第 3、6 节）。静止零帧在锁屏下做过一次初测（0 帧），只能作参考。
+对应规格：[gpu-renderer.md](gpu-renderer.md) 6.6（正确性与验收）、6.8（边界决定、性能口径）。M1 记录：[gpu-renderer-m1-report.md](gpu-renderer-m1-report.md)。
+
+## 0. 环境
+
+- 机器：Apple M4（10 核，16 GB），macOS 26.6。显示器与 M1 相同：外接 4K 屏，按 1920×1080 @2x 缩放。
+- 负载：本轮基准开跑前后 `uptime` 的负载平均值都是 **1.75–2.48**，低于主控要求的 6，不用等待。这比 M1 两轮（19–28、7.1–7.4）低得多，所以与 M1 **报告**里的数字直接对比会把负载差异也算进去。为了同条件对比，本轮用 `git archive 9047122` 导出 M2 改动前的只读副本（`/tmp/tango-m1`，与台账 Ruling 37 用的基线相同），在同一时段、同样负载下重跑了 M1 的基准（2.3 节）。
+- **校验模式关闭**：M2 的基准都用 `-tags tango_release` 构建，此时 `verifyDefault = false`（`ui/gpu/verify_release.go`）。局部重绘基准（`benchPartial`）另外显式调用了 `SetVerify(false)`。整帧基准用的 `timedDevice` 不是 `gpu.Retainer`，本来就不走局部重绘，校验模式对它没有影响。M1 副本中没有校验模式。
+- 每个基准跑 `-count=5`，表中给出"中位数（最小–最大）"。原始输出存在 `.superpowers/sdd/2026-11-13-gpu-m2/task-10-shots/`：
+  - `bench-release.txt`：M2 全部基准
+  - `bench-m1-baseline.txt`：M1 副本
+  - `bench-interleave-m1.txt` / `bench-interleave-m2.txt`：编辑器整帧和 gallery 窗口两组基准，M1、M2 交替各跑 2×3 次，用来排除时段差异
+
+命令：
+
+```
+go test -tags tango_release ./ui/gpu/metal/ -run '^$' -bench 'Gallery|Editor|OpacityGroups|IconPage' -count=5   # M2
+(cd /tmp/tango-m1 && go test ./ui/gpu/metal/ -run '^$' -bench 'Gallery|Editor' -count=5)                     # M1 副本
+```
+
+## 1. 黄金图与一致性测试
+
+### 1.1 纯 Go 文字引擎（`TestGoldenPagesGPU`，口径与 M1 相同）
+
+命令：`go test ./ui/gpu/metal/ -run 'Golden|GalleryPageIs|SystemText|MatchesCPU|EditorText|EditorPartial' -v -count=1`，全部通过。完整日志在 `task-10-shots/golden-go.txt`。
+
+| 页面 | 缩放 | Metal 与 paint.CPU 的最大通道差 | 超过 4 的像素 | 超过 2 的像素 | Metal 与 `ui/testdata` 的最大差（仅 1x） | 结论 |
+|---|---|---|---|---|---|---|
+| basic_antd | 1x | 3 | 0 | 2（0.001%） | 8（超过 24 的像素为 0） | 通过 |
+| basic_antd | 2x | 2 | 0 | 0 | — | 通过 |
+| basic_element | 1x | 2 | 0 | 0 | 6 | 通过 |
+| basic_element | 2x | 2 | 0 | 0 | — | 通过 |
+| basic_dark | 1x | 2 | 0 | 0 | 8 | 通过 |
+| basic_dark | 2x | 2 | 0 | 0 | — | 通过 |
+
+- `TestGalleryPageIsGoldenPage`（`paint.CPU` 1x 与 `ui/testdata/basic_*.png` 比较）：最大差分别为 8、6、7，超过 24 的像素为 0，通过。M1 时这一项是 0。差异来自 M2 对 CPU 渲染器的有意修改：Task 2 把阴影改成逐像素四舍五入（Ruling 40），Task 4 改了图片边缘的抗锯齿。黄金图在 Task 1 重录过一次，之后没有再重录。差异都在 `TestGolden` 的容差（24）以内。
+- 对拍场景 `TestMetalMatchesCPU`：M2 新增了 strokes、shadows、gradients、gradstops、checker、paths、pathgrad、images、opacitynest、opacitygrad、xform、xformrot、xformnest，各在 1/1.5/2x 下比较。最大差 ≤ 4。其中 `opacity` 场景的最大差为 3，超过几何阈值 2 的像素占 0.023–0.165%，仍在 0.5% 以内。原因是单操作组直接乘 alpha（Ruling 75，已接受）。
+- `TestMetalEditorText`：编辑器全屏帧在 1x、2x 下最大差都是 1。`TestMetalEditorPartial`：局部重绘帧通过校验模式（脏区与整帧逐像素相同；拷贝区容差 1，见第 5 节第 15 项）。
+
+### 1.2 系统文字引擎（CoreText）
+
+- 已有的对拍 `TestMetalMatchesCPUSystemText`（text、opacity、opacitynest、xform*、textmix，1/1.5/2x）全部通过。text 的最大差为 1，textmix 为 2，xform 2x 为 4，opacity 为 3（超过 2 的像素 ≤ 0.186%）。
+- **本任务新增** `TestGoldenPagesGPUSystemText`（`ui/gpu/metal/golden_darwin_test.go`）：在系统引擎下用三个主题、1x 和 2x 渲染黄金页面，比较 Metal 与 `paint.CPU`。黄金图是用纯 Go 引擎录的，所以这里不与 `ui/testdata` 比较。设置 `TANGO_GPU_DIFF_DIR` 后，测试会写出 cpu、metal、diff 三张图。
+
+| 页面 | 缩放 | 最大通道差 | 超过 4 的像素 | 超过 2 的像素 | 结论 |
+|---|---|---|---|---|---|
+| basic_antd | 1x | 19 | 46（0.024%） | 54（0.028%） | 通过（≤ 0.5%） |
+| basic_antd | 2x | 47 | 97（0.013%） | 121（0.016%） | 通过 |
+| basic_element | 1x | 13 | 43（0.022%） | 50（0.026%） | 通过 |
+| basic_element | 2x | 33 | 90（0.012%） | 114（0.015%） | 通过 |
+| basic_dark | 1x | 16 | 45（0.023%） | 51（0.027%） | 通过 |
+| basic_dark | 2x | 42 | 92（0.012%） | 117（0.015%） | 通过 |
+
+**差异定位**：所有超阈值像素都在"搜索"按钮的放大镜图标上（1x 时位于 x 322–333，y 27–37），文字本身没有超阈值的像素。系统引擎量出的按钮文字宽度和 Go 引擎不同，图标的平移因此落在 `E = 320.67188` 这样的小数位置上。GPU 按 Task 7 的规则把路径的亚像素相位取整到 1/4 设备像素（Ruling 82），CPU 则在精确位置光栅化。
+
+单独验证过：只用 `paint.CPU`，把图标分别画在精确位置和取整后的位置，两张图之间的差在 1x 时是 19，在 2x 时是 48。GPU 与 CPU 之间的差是 1x 19、2x 47（上表 basic_antd），两者相差不超过 1 级。后来又对整张黄金页面做了同样的验证：把页面里所有平移按 GPU 的规则取整到 1/4 设备像素，再与精确位置的 CPU 图比较。三个主题的结果（CPU 对 CPU，与 GPU 对 CPU 对照）如下：
+
+| 主题 | 1x | 2x |
+|---|---|---|
+| antd | 19 对 19 | 47 对 47 |
+| element | 13 对 13 | 34 对 33 |
+| dark | 16 对 16 | 42 对 42 |
+
+两组差值在 1 级以内。把图标放在 1/4 像素网格上时，GPU 与 CPU 的差只有 1–2。所以这不是新缺陷，而是已接受取舍的实际幅度。不过 Ruling 82 当时写的"图标页最坏 10 级"低估了这个幅度，见第 5 节。
+
+## 2. 性能（规格 6.6 / 6.8）
+
+### 2.1 口径
+
+口径与 M1 相同（M1 报告 2.1）：gpu-ms 是命令缓冲区的 GPU 时间；submit-ms 是从 `Render` 开始到 commit 的 CPU 时间；frame-ms 是从 `Render` 开始到命令缓冲区完成。`paint.List` 在计时前生成，计时不含 build 和布局。
+
+新增的局部重绘基准是 Task 8 写的：
+
+- `BenchmarkMetalEditorDamage`：全屏编辑器帧，只有 1 行带 Damage，对应打字的情况。
+- `BenchmarkMetalEditorScroll`：编辑器每帧滚动一行（先向下再向上），用一个 ScrollRegion 搬运内容，再重画新露出的一行和当前行高亮。
+
+冷首帧沿用 M1 的 `BenchmarkMetalEditorColdFrame`：每帧新建 Renderer，字形图集为空，Metal 设备沿用。本任务没有新增基准，因为 brief 要求的场景（gallery 1920×1080 @2x、冷首帧）都已经有了。
+
+### 2.2 结果与目标对照（M2，负载 1.75–2.48，tango_release）
+
+| 场景 | 缩放 | gpu-ms | submit-ms | frame-ms | 目标 | 结论 |
+|---|---|---|---|---|---|---|
+| gallery 640×300 | 1x | 0.072（0.042–0.074） | 0.073（0.028–0.134） | — | GPU ≤ 2，提交 ≤ 2 | 达标 |
+| gallery 640×300 | 2x | 0.121（0.104–0.148） | 0.046（0.033–0.066） | — | 同上 | 达标 |
+| gallery 窗口 1920×1080 | 1x | 0.114（0.073–0.130） | 0.042（0.026–0.091） | 0.53（0.35–0.63） | 同上 | 达标 |
+| **gallery 窗口 1920×1080（参考配置）** | **2x** | **0.349（0.237–0.438）** | **0.042（0.028–0.103）** | 0.70（0.52–0.97） | 同上 | **达标** |
+| 编辑器全屏文本（热） | 1x | 0.583（0.543–0.697） | 0.792（0.767–0.951） | 1.67（1.60–2.01） | 整帧 ≤ 4 | 达标 |
+| **编辑器全屏文本（热，参考配置）** | **2x** | 0.970（0.934–1.223） | 0.791（0.758–0.832） | **2.07（1.99–2.37）** | 整帧 ≤ 4 | **达标** |
+| 单行编辑（Damage 1 行） | 1x | 0.029 | 0.189 | 0.425（0.424–0.436） | ≤ 1 | 达标 |
+| **单行编辑（Damage 1 行）** | **2x** | 0.044 | 0.189 | **0.441（0.434–0.447）** | ≤ 1 | **达标** |
+| 滚动一行（ScrollRegion） | 1x | 0.169 | 0.320 | 0.745（0.694–0.825） | —（规格未定指标） | 优于整帧（1.67） |
+| 滚动一行（ScrollRegion） | 2x | 0.669 | 0.328 | 1.33（1.28–1.72） | — | 优于整帧（2.07） |
+| 编辑器首帧（冷图集） | 1x | 0.707 | 1.291 | 2.46（2.32–2.96） | ≤ 50 | 达标 |
+| **编辑器首帧（冷图集）** | **2x** | 1.352 | 1.588 | **3.63（2.89–4.21）** | ≤ 50 | **达标** |
+| 图标页（Task 7） | 2x | 0.228 | 0.066 | 0.56 | — | 参考 |
+| 48 个半透明组（Task 6） | 2x | **4.817** | 1.983 | 7.71 | —（非 6.6 场景） | 参考；GPU 偏高，见 2.4 |
+| 静止零帧 | — | — | — | — | 0 帧 | **待用户确认**（锁屏下初测 0 帧，仅供参考，见 3.2） |
+| 冷首帧字形光栅化按核数并行（6.8） | — | — | — | — | 按核数并行 | **未实现**（M1 起即未做；冷首帧 3.6 ms 远低于 50 ms，见 2.4 第 2 项） |
+| 二进制增量 | — | — | — | — | ≤ 1 MB | **达标：+298 KiB**（见 4） |
+
+规格 6.6 中**离屏可测的帧时间和体积指标**全部达标。静止零帧要等解锁后实机复测（待用户确认）。6.8 的"字形光栅化按核数并行"没有实现。参考配置（1920×1080 @2x）下的各项：
+
+- gallery：GPU 0.35 ms，提交 0.04 ms。
+- 编辑器整帧：2.07 ms。
+- 单行编辑：0.44 ms。这个数字来自手工构造的基准（`BenchmarkMetalEditorDamage`：编辑器帧上手动加 1 行 `Damage`）。局部重绘目前只是渲染器的能力：已发布的组件还没有调用 `Context.Damage`、`Context.ScrollShift` 或 `List.Scroll`，所以实际界面的帧仍然都是整帧重画，要等组件接入提示后才能拿到这个收益。
+- 冷首帧：3.6 ms。
+
+### 2.3 M1 → M2 对比
+
+"M1 报告"一栏取 M1 报告的 B 轮（负载 7.1–7.4）。"M1 同条件"一栏是本轮用 M1 副本、在同样负载下重跑的结果（`bench-m1-baseline.txt`）；编辑器和 gallery 窗口两组再与交替运行的结果（`bench-interleave-*`）核对过，一致。每格都是中位数。
+
+| 场景（参考配置为 2x） | 指标 | M1 报告（负载 7） | M1 同条件（负载 2） | M2（负载 2） | M2 相对 M1 同条件 |
+|---|---|---|---|---|---|
+| gallery 640×300 2x | submit-ms | 1.36 | 0.869 | 0.046 | **−95%**（不再有 CPU patch 光栅化） |
+| gallery 640×300 2x | gpu-ms | 0.79 | 0.144 | 0.121 | −16% |
+| gallery 窗口 2x | submit-ms | 2.05（卡在目标线上） | 1.476 | 0.042 | **−97%** |
+| gallery 窗口 2x | gpu-ms | 1.34 | 0.321 | 0.349 | +9%（在波动范围内） |
+| gallery 窗口 2x | frame-ms | 5.37 | 2.419 | 0.70 | **−71%** |
+| 编辑器热帧 1x | gpu-ms | 0.50 | 0.249 | 0.583 | **+134%** |
+| 编辑器热帧 1x | submit-ms | 1.23 | 0.860 | 0.792 | −8% |
+| 编辑器热帧 1x | frame-ms | 4.06 | 1.370 | 1.670 | **+22%** |
+| 编辑器热帧 2x | gpu-ms | 0.89 | 0.513 | 0.970 | **+89%** |
+| 编辑器热帧 2x | submit-ms | 1.23 | 0.903 | 0.791 | −12% |
+| 编辑器热帧 2x | frame-ms | 4.37（超标 0.4） | 1.732 | 2.065 | **+19%**（仍在 4 ms 内） |
+| 编辑器冷首帧 2x | frame-ms | 7.9 | 2.673 | 3.627 | +36%（离 50 ms 很远） |
+| 单行编辑 | frame-ms | M1 未实现 | — | 0.44 | 新增 |
+| 滚动一行 2x | frame-ms | M1 未实现 | — | 1.33 | 新增 |
+| 二进制增量 | 字节 | +119,648 | +119,648 | +305,024 | +185,376（GPU 部分本身的增长） |
+
+M1 报告里两处卡线或超标的问题，这次都解决了：
+
+- **gallery 2x 提交时间**（2.05 ms）：降到 0.04 ms。原生描边、阴影、渐变和图标都画在 GPU 上，gallery 不再需要 patch（`TestGalleryNoPatches`）。
+- **编辑器 2x 整帧**（4.37 ms）：降到 2.07 ms。主要原因是负载差异，同条件下 M1 也只有 1.73 ms。
+
+### 2.4 未达标项、退步与下一步
+
+规格 6.6 和 6.8 中离屏可测的时间指标都没有超标。未达标或未确认的有两项：6.8 的"字形光栅化按核数并行"没有实现（见第 2 项），静止零帧待实机确认（见 3.2）。另外，下面三项是本轮测量中发现的退步或偏高：
+
+1. **编辑器热帧的 GPU 时间约翻倍**（同条件下，1x 从 0.25 ms 到 0.58 ms，2x 从 0.51 ms 到 0.97 ms，交替重跑结论相同）。编辑器的指标只有"整帧 ≤ 4 ms"（"GPU ≤ 2 ms"是 gallery 的指标，不适用于编辑器）。整帧 2.07 ms 仍在预算内，但 GPU 部分占的比例变大，余量变小了。
+   - 已知的变化：实例结构从 112 字节涨到 144 字节（`QuadInstanceStride`，新增 Params 和 Dash 两个 vec4）；四边形片元着色器从 1 种扩展到 8 种 Kind（描边、阴影、渐变、棋盘格、图片、层），多绑定了色带、图片、层等纹理。约 1.2 万个字形实例都要走这个统一着色器，寄存器压力和分支可能降低了占用率。**这一点是推测，没有用 Metal GPU 计数器或 Instruments 验证**。
+   - 候选下一步：给字形（KindMask）和纯色单独做精简管线，或者用 Metal function constants 按 Kind 特化着色器；字形实例改用更窄的布局（不带 Clip、Params、Dash）。先用 Xcode 的 GPU 帧捕获确认瓶颈，再决定方案。
+2. **冷首帧变慢 36%**（2.67 ms 到 3.63 ms）：GPU 部分的原因和第 1 项相同。离 50 ms 的上限还很远。规格 6.8 的"字形光栅化按核数并行"仍未实现，M1 时就是这样，列为**未达标项**。候选下一步：冷图集时把一帧缺失的字形分批，交给 `runtime.NumCPU()` 个 worker 并行调用 `GlyphMask`，再在单线程里按顺序插入图集。
+3. **大量半透明组**（Task 6 的 48 组场景）在 2x 时 GPU 4.8 ms、整帧 7.7 ms。原因是每个层一个渲染 pass（Ruling 74，已接受）。真实页面很少同时出现几十个半透明组，所以不算 6.6 场景。候选下一步是把同一层级的组打包进同一张纹理，这需要改帧契约，已列为 M3 候选。
+
+## 3. 实机验收
+
+程序：`examples/ui-window`。它的 `-renderer cpu|gpu` 参数会设置 `TANGO_RENDERER`，并在日志里打印实际使用的渲染器。为了避免其他会话的未完成改动打断 `go run`，先用 `go build` 编出二进制再运行（默认构建，即开发模式，校验模式开启）。窗口号用 `task-10-shots/winid.js`（JXA 调用 `CGWindowListCopyWindowInfo`）获取。
+
+### 3.1 截图对照：**待用户确认**
+
+- 日志：`-renderer gpu` 时为 `ui-window: renderer: gpu`，`-renderer cpu` 时为 `ui-window: renderer: cpu`，两种渲染器都正常启动。`CGWindowListCopyWindowInfo` 能看到窗口（980×776 pt，标题"Tango 自绘 UI"）。
+- `screencapture -x -o -l<窗口号>` 和 `screencapture -R` 都报 "could not create image from window/rect"，全屏截图则是纯黑。原因是当时屏幕已锁定：`CGSessionCopyCurrentDictionary` 返回 `CGSSessionScreenIsLocked = true`，时间是凌晨 5:30，显示器休眠设置为 10 分钟。所以没有拿到截图，也无法描述 GPU 和 CPU 画面的差异。
+- 离屏结果可以作为代替：GPU 与 CPU 在黄金页面上最大差 ≤ 3（纯 Go 引擎），系统引擎下的差异只在图标上，原因见 1.2。M1 已经定位过实机 GPU 和 CPU 截图之间 1–3/255 的差异，来自 CoreAnimation 的色彩转换。
+
+### 3.2 静止零帧：**待用户确认**（锁屏下初测 0 帧，仅供参考）
+
+每次启动 4 秒后，用 `ps -o %cpu` 每 2 秒采样一次，共采样 5 次，并读取 `ps -o time=` 的进程 CPU 时间：
+
+| 渲染器 | %cpu 采样 | 空闲 10 秒内的 CPU 时间 | 改变大小未成功（-1719，窗口没有变化）之后，再空闲 10 秒 |
+|---|---|---|---|
+| gpu | 0.0 ×5 | 0:00.16 → 0:00.16 | 0:00.17 → 0:00.17 |
+| cpu | 0.0 ×5 | 0:00.13 → 0:00.13 | 0:00.14 → 0:00.14 |
+
+锁屏期间进程没有出帧，CPU 占用为 0。但屏幕锁定、显示器休眠时，系统本来就可能不发送显示刷新回调，所以这个 0 帧**不能证明**解锁后也是 0 帧，不作为达标依据。这一项要解锁后按第 6 节第 3 项复测。另外，最后一栏不是"改变大小之后"的结果：改变大小的命令全部失败，窗口一直没有变化。
+
+`uptime` 和 `ps` 的采样当时只打印到终端，没有存成文件。现在按当时的输出原样转录到 `task-10-shots/load-and-idle-samples.txt`，运行日志在 `run-gpu.log` 和 `run-cpu.log`。
+
+### 3.3 改变窗口大小：**待用户确认**
+
+M1 用的是 System Events 的 `set size of window 1 of (first process whose unix id is <pid>)`。这次锁屏状态下它报错 -1719（无效的索引），窗口没有改变大小。测试结束后两个进程都用 SIGTERM 结束，`pgrep -fl ui-window` 确认没有残留进程。
+
+## 4. 二进制增量
+
+方法与 M1 相同（M1 报告 3.4）：用 `go build -trimpath -ldflags "-s -w"` 构建 `examples/ui-window` 两次，第二次用 `-overlay` 把 `uihost/gpu.go` 换成不引用 GPU 的存根。M2 的 `uihost` 多了 `gpuRenderer.Close`，所以存根加了这个方法（`task-10-shots/gpu_stub_m2.go.txt`）。用 `go list -deps` 确认过：替换后依赖里的 `ui/gpu*`、`ui/shader*` 从 6 个变为 0 个。同一套方法也在 M1 副本上跑了一遍。
+
+| 构建 | 含 GPU（字节） | 不含 GPU（字节） | 增量 |
+|---|---|---|---|
+| M1 副本（9047122） | 9,606,962 | 9,487,314 | 119,648（117 KiB），与 M1 报告一致 |
+| M2 当前 | 10,939,202 | 10,634,178 | **305,024（298 KiB）**，目标 ≤ 1 MB，**达标** |
+
+- GPU 部分本身增长了 185,376 字节。另外，不含 GPU 的部分也从 9.49 MB 涨到 10.63 MB，这是同期其他会话在 `ui` 等包里的改动，与本里程碑无关。
+- 辅助数据：对未剥离符号的构建运行 `go tool nm -size`，各包的符号大小为 `ui/gpu` 63,016 字节、`ui/gpu/metal` 40,512 字节、`ui/gpu/atlas` 7,024 字节、`ui/gpu/gen` 3,024 字节。剩下的增量来自 pclntab、类型元数据和 Metal 着色器源码字符串。
+
+## 5. 已知偏差与取舍
+
+下面汇总已知偏差与取舍，并补上本轮实测到的幅度。注明了 Ruling 编号的各项已在台账（`.superpowers/sdd/2026-11-13-gpu-m2/progress.md`）中裁定接受；没有编号的项（如第 12、14、15 项）是本轮记录的事实或审阅后的修正，并非都经过裁定：
+
+1. **路径亚像素相位按 1/4 设备像素取整**（Ruling 82，Task 7）：路径（图标）最多偏离精确位置 1/8 像素。Ruling 当时写的是"图标页最坏 10 级"，但**本轮实测，当图标落在网格外的位置时，最大差在 1x 时为 19 级、2x 时为 47–48 级**（系统引擎下的黄金页面，"搜索"图标）。超阈值的像素占比 ≤ 0.024%，肉眼看不出。如果要收紧，可以改用 1/8 像素相位（条目数 ×4），或者把图标的平移对齐到整设备像素（需要改 `icon.Draw`）。
+2. **非均匀缩放（sx ≠ sy）仍走 patch**（Ruling 83）。层池收缩期间最多暂留 4 张大纹理。
+3. **每层一个渲染 pass**（Ruling 74，Task 6）：48 组的场景 GPU 时间偏高（2x 时 4.8 ms），见 2.4 第 3 项。同段所有层纹理同时驻留（Ruling 75）。
+4. **单操作组直接乘 alpha**（Ruling 75）：`opacity` 场景最大差 3，超过几何阈值的像素 ≤ 0.19%。
+5. **CPU 阴影改为逐像素四舍五入**（Ruling 40，Task 2）：overview-shadcn 叠层的 2px 线有最多 56 级的差异；`paint.CPU` 与已录黄金图的最大差也从 0 变为 6–8（容差 24）。阴影半径截断到整数设备像素（Ruling 39）。
+6. **色带纹理用 RGBA16Unorm**（Ruling 46）。渐变种类放在 Kind.Y，棋盘格的第二色借用 Dash 字段（Ruling 47）。硬分界或间距很近的色标，精度为渐变长度的 1/255。
+7. **图片**（Ruling 54）：`KindImage` 改名为 `KindPatch`，新的 `KindImage = 7`；图片按浮点矩形绘制并做边缘抗锯齿（ImagePreview 边缘一列差 124，肉眼一致）；缩小倍数 < 2x 时用 4×4 核，结果略锐；原地修改图片像素后需要调用 `InvalidateImage`。
+8. **字形与路径**（Ruling 64）：未入图集的字形按 4em 预先剔除；FillPath 的 GPU/CPU 最大差为 2。
+9. **方角对角线两侧的虚线弧长不连续，超过 4 段的虚线会被截断**（Ruling 24）。
+10. **声明式 Damage 提示的固有风险**（Ruling 21、87）：只要组件声明了提示，渲染器就认为其余区域没有变化。开发构建的校验模式（脏区容差 0、拷贝区容差 1，见第 15 项）可以兜底，发布构建（`tango_release`）没有这层保护。自动外扩常量 24/48/12 px。动画引起的兄弟节点布局位移不会自动并入脏区（Task 9 minor）。表格吸顶表头将来接入 ScrollShift 时需要单独声明（Task 9 carry）。
+11. **发布构建只在脏区交集内光栅化 patch**（Ruling 92）：开发构建与发布构建的 patch 抗锯齿可能相差 1 级。
+12. **系统引擎的黄金页面没有直接挂钩 `ui/testdata`**：黄金图只为纯 Go 引擎录制。系统引擎只做 GPU 与 CPU 的对拍（1.2）。
+13. **无 Damage 提示时整帧重绘，去掉了"比较本帧与上帧操作序列"的兜底**（Ruling 12，min-55 要求，默认更安全）。这一条直接偏离规格 6.2："本帧没有任何提示时，渲染器比较本帧与上帧的 `paint.List`（按操作序列与包围盒）兜底算出脏矩形。"实际行为是：组件没有声明 Damage 或 ScrollRegion 时，这一帧整帧重画，所以没有声明提示的界面拿不到局部重绘的收益。规格 6.2 已于 2026-11-13 按这个裁定修订（附注明这是经审阅的偏差），M3 可重新评估是否需要兜底。
+14. 本轮新发现的退步：编辑器 GPU 时间约翻倍（2.4 第 1 项），仍在指标内，未处理。
+15. **校验模式的容差与报错方式（M2 终审修正）**：校验模式原先要求局部帧与整帧逐像素相同（容差 0）。终审发现，正确的滚动拷贝也会被误报：整像素平移不能精确重现小数位置内容的抗锯齿（`(y-off)·scale` 按 float32 取整，平移后结果不同），也不能重现渐变抖动（4×4 抖动按绝对设备像素定位）。两者都在 1 级以内。现在的规则是：拷贝目标区域内（且不在脏矩形内）允许 1 级差，其他位置仍要求 0。另外，开发构建发现不一致时只按限频写日志，并照常返回 nil，因为此时目标里已经是正确的整帧，而 `ui.Runner` 不会呈现 Render 失败的帧。测试二进制里（`testing.Testing()`）仍然直接报错。见 `SetVerifyStrict` 和 `VerifyFailures`。
+
+## 6. 人工确认清单
+
+1. **GPU 与 CPU 截图对照**（3.1，本轮未完成）：解锁屏幕后依次运行 `go run ./examples/ui-window -renderer gpu` 和 `-renderer cpu`，分别执行 `screencapture -x -o -l<窗口号>`（窗口号可以用 `osascript -l JavaScript .superpowers/sdd/2026-11-13-gpu-m2/task-10-shots/winid.js <pid>` 获取）。对照两张截图，重点看：
+   - 描边、虚线、阴影、渐变、图标在两种渲染器下是否一致；
+   - 半透明（禁用态）控件；
+   - 图片预览。
+2. **改变窗口大小**（3.3，本轮未完成）：用 System Events 设置窗口大小，或者手动拖动右下角，在 800×600 到 1400×950 之间来回切换。确认没有拉伸、黑边、闪烁，也没有残留的旧画面（局部重绘在窗口尺寸变化后应该先画一次整帧）。另外试一下双击标题栏缩放、进入并退出全屏、最小化后恢复。
+3. **静止零帧复查**：解锁屏幕后让窗口空闲 10 秒，`ps -o time= -p <pid>` 的值不应变化。然后把焦点放进输入框，让光标闪烁：这时应该只有定时器触发的帧。按 Task 9 的修复，定时器触发的帧是整帧，不是局部重绘。
+4. **局部重绘的实际效果**：在输入框里打字、滚动长列表，确认没有残影或漏画。开发构建的校验模式一旦发现局部帧和整帧不同，会在日志里输出 `gpu: verify: partial redraw differs ...`，这时需要把对应日志贴回来。
+5. **Retina 与 1x 屏之间拖动**（M1 遗留的 3.5 第 1 项）：本机仍然没有 1x 显示器。
+6. 第 1、2、4 项各用 `-renderer cpu` 再做一遍，对照两种渲染器的表现。
+
+## 7. 构建与测试
+
+- `go build ./... && go vet ./...`：通过。
+- `GOOS=windows go build ./... && GOOS=windows go vet ./ui/...`：通过。
+- `GOOS=linux go build ./... && GOOS=linux go vet ./ui/...`：通过。
+- `go test ./ui/gpu/... ./ui/paint/ ./ui/`：全部通过。
+- `go test -count=1 ./ui/shader/...`（包括 `ui/shader/msl` 的 `TestMetalCompiles`，`-run TestMetalCompiles -v` 单独确认为 PASS）：全部通过。另外 `go test -tags tango_release ./ui/gpu/metal/` 也通过。
+- 本任务对代码的唯一改动是在 `ui/gpu/metal/golden_darwin_test.go` 新增测试 `TestGoldenPagesGPUSystemText`，没有修改产品代码。

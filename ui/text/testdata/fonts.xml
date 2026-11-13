@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A hand-written font configuration in the Android fonts.xml format, for
+     ui/text/fontsxml_test.go. File names refer to test fonts the test
+     writes into a temporary directory (Go fonts and a collection built from
+     them); they are not Android's files. -->
+<familyset version="23">
+    <!-- The default family: one variable-style file per weight entry. -->
+    <family name="sans-serif">
+        <font weight="100" style="normal">Sans.ttf
+            <axis tag="wght" stylevalue="100" />
+        </font>
+        <font weight="400" style="normal">Sans.ttf
+            <axis tag="wght" stylevalue="400" />
+        </font>
+        <font weight="700" style="normal">SansBold.ttf</font>
+        <font weight="400" style="italic">SansItalic.ttf</font>
+    </family>
+    <alias name="sans-serif-medium" to="sans-serif" weight="500" />
+    <alias name="helvetica" to="sans-serif" />
+
+    <family name="serif">
+        <font weight="400" style="normal">Serif.ttf</font>
+    </family>
+
+    <family name="monospace">
+        <font weight="400" style="normal">Mono.ttf</font>
+    </family>
+    <alias name="courier" to="monospace" />
+
+    <!-- Fallback families, in order. -->
+    <family lang="und-Arab" variant="elegant">
+        <font weight="400" style="normal">Arabic.ttf</font>
+        <font weight="400" style="normal" fallbackFor="serif">ArabicSerif.ttf</font>
+    </family>
+    <family lang="und-Thai" ignore="true">
+        <font weight="400" style="normal">Ignored.ttf</font>
+    </family>
+    <family lang="zh-Hans">
+        <font weight="400" style="normal" index="0" postScriptName="TestCJK-SC">Collection.ttc
+            <axis tag="wght" stylevalue="400"/>
+        </font>
+    </family>
+    <family lang="zh-Hant,zh-Bopo">
+        <font weight="400" style="normal" index="1" postScriptName="TestCJK-TC">Collection.ttc</font>
+    </family>
+    <family lang="ja">
+        <font weight="400" style="normal" index="1" postScriptName="TestCJK-JP">
+            Collection.ttc
+        </font>
+    </family>
+    <family lang="ko">
+        <font weight="400" style="normal" index="0" postScriptName="TestCJK-KR">Collection.ttc</font>
+    </family>
+    <family lang="und-Zsye">
+        <font weight="400" style="normal">TestColorEmoji.ttf</font>
+    </family>
+    <family lang="und-Zsym">
+        <font weight="400" style="normal">Symbols.ttf</font>
+    </family>
+</familyset>

@@ -1,0 +1,83 @@
+name: Documentation Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "ui/**"
+      - "examples/ui-gallery/**"
+      - "cmd/tan/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/docs-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: docs-pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: "**/go.sum"
+
+      - name: Setup Node
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Generate component screenshots
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-core fonts-noto-cjk
+          # The gallery is a best-effort enhancement. Some CI graphics
+          # environments can leave the renderer running, so never block Pages
+          # deployment on screenshot generation.
+          if timeout --foreground 180s go run ./examples/ui-gallery; then
+            echo "gallery screenshots generated"
+          else
+            echo "::warning::component screenshot generation timed out or failed; publishing the catalog without screenshots"
+          fi
+
+      - name: Build documentation
+        working-directory: site
+        env:
+          DOCS_BASE: /${{ github.event.repository.name }}/
+        run: |
+          npm ci
+          npm run docs:test
+          npm run docs:build
+          npm run docs:links
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6.0.0
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: site/.vitepress/dist
+
+      - name: Deploy Pages
+        id: deploy
+        uses: actions/deploy-pages@v5.0.1

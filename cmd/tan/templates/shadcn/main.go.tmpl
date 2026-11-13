@@ -1,0 +1,163 @@
+// [[.Name]] is a Tango application: a React + shadcn/ui page (frontend/)
+// whose colors and radius come from Go.
+//
+// uivars.SyncPage injects the CSS variables of theme.Shadcn (--background,
+// --primary, --radius, ...) into the page and swaps them when the system
+// switches between light and dark; frontend/src/index.css only maps them
+// to Tailwind. Change pageTheme to restyle the page, e.g.
+//
+//	theme.Shadcn(theme.ShadcnOptions{Base: "zinc", Radius: 12, Primary: theme.Hex("#2563eb")})
+package main
+
+import (
+	"embed"
+	"errors"
+	"fmt"
+	"io/fs"
+	"log"
+	"runtime"
+	"sync/atomic"
+
+	"github.com/tangoui/tango"
+	"github.com/tangoui/tango/asset"
+	"github.com/tangoui/tango/bind"
+	"github.com/tangoui/tango/ipc"
+	"github.com/tangoui/tango/runtime-js/runtimejs"
+	systheme "github.com/tangoui/tango/sys/theme"
+	"github.com/tangoui/tango/sys/theme/uivars"
+	"github.com/tangoui/tango/ui/theme"
+)
+
+// The built front end. During "tan dev" requests go to the dev server
+// instead: tan dev builds with -tags tango_dev, and only then does
+// asset.FromEnv read TANGO_DEV_URL. A plain go build / go run is a
+// production build that always serves these files.
+//
+//go:embed all:[[.Embed]]
+var frontend embed.FS
+
+// ownTitleBar: on macOS the page runs under the title bar and draws its
+// own (with a drag region, --tango-drag: drag); the traffic lights stay.
+// Windows and Linux keep the system title bar.
+const ownTitleBar = runtime.GOOS == "darwin"
+
+// Greeter is called from the page as Greeter.Hello.
+type Greeter struct{}
+
+// Hello returns a greeting for name.
+func (*Greeter) Hello(name string) string {
+	if name == "" {
+		name = "stranger"
+	}
+	return "Hello, " + name + "!"
+}
+
+// mode is the page's appearance: "system" (follow the system), "light" or
+// "dark". Set from the page through Appearance.Set.
+var mode atomic.Value
+
+// pageTheme is the theme whose variables the page gets.
+func pageTheme(sys systheme.Theme) *theme.Theme {
+	dark := sys.Dark
+	switch mode.Load() {
+	case "light":
+		dark = false
+	case "dark":
+		dark = true
+	}
+	if dark {
+		return theme.Shadcn(theme.Dark())
+	}
+	return theme.Shadcn()
+}
+
+// Appearance is called from the page as Appearance.Get / Appearance.Set.
+type Appearance struct{ app *tango.App }
+
+// Get returns "system", "light" or "dark".
+func (a *Appearance) Get() string {
+	m, _ := mode.Load().(string)
+	return m
+}
+
+// Set switches the page between following the system and a fixed light
+// or dark look. On macOS the window (title bar, traffic lights, menus)
+// follows too; elsewhere systheme.SetAppearance is unsupported and only
+// the page changes.
+func (a *Appearance) Set(m string) error {
+	var ap systheme.Appearance
+	switch m {
+	case "system":
+		ap = systheme.AppearanceSystem
+	case "light":
+		ap = systheme.AppearanceLight
+	case "dark":
+		ap = systheme.AppearanceDark
+	default:
+		return fmt.Errorf("unknown appearance %q", m)
+	}
+	mode.Store(m)
+	// Forcing the app's appearance also reports a theme change, which
+	// refreshes the variables; the explicit Refresh covers the platforms
+	// that cannot force it.
+	if err := systheme.SetAppearance(a.app, ap); err != nil && !errors.Is(err, systheme.ErrUnsupported) {
+		return err
+	}
+	uivars.Refresh(a.app) // regenerates the variables with pageTheme
+	return nil
+}
+
+func main() {
+	files, err := fs.Sub(frontend, "[[.Embed]]")
+	if err != nil {
+		log.Fatal(err)
+	}
+	app := tango.New(tango.Options{
+		Name:   "[[.Name]]",
+		ID:     "[[.ID]]",
+		Assets: asset.FromEnv(files, asset.Options{SPA: true}),
+	})
+	mode.Store("system")
+	// Before any surface: the variables are set at document start, so the
+	// page does not flash.
+	if err := uivars.SyncPage(app, pageTheme); err != nil {
+		log.Printf("the page cannot follow the system theme: %v", err)
+	}
+	if ownTitleBar {
+		// Tells the page to draw its title bar (App.tsx).
+		app.AddBridgeScript(`(function(){function f(){document.documentElement.dataset.tangoTitleBar="hidden"}document.documentElement?f():document.addEventListener("readystatechange",f,{once:true})})();`)
+	}
+
+	r := ipc.NewRouter()
+	if err := bind.Register(r, "Greeter", &Greeter{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := bind.Register(r, "Appearance", &Appearance{app: app}); err != nil {
+		log.Fatal(err)
+	}
+	app.AddBridgeScript(runtimejs.Script)
+	app.OnMessage(func(s *tango.Surface, msg string) { r.HandleMessage(s, msg) })
+
+	app.OnReady(func() {
+		opts := tango.SurfaceOptions{
+			Title:     "[[.Name]]",
+			Width:     960,
+			Height:    640,
+			Resizable: true,
+		}
+		if ownTitleBar {
+			opts.Appearance.TitleBar = tango.TitleBarHidden
+		}
+		s, err := app.NewSurface(opts)
+		if err != nil {
+			log.Fatal(err)
+		}
+		s.OnClosed(func() {
+			r.Drop(s)
+			app.Quit()
+		})
+	})
+	if err := app.Run(); err != nil {
+		log.Fatal(err)
+	}
+}

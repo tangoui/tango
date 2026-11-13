@@ -1,0 +1,60 @@
+# Go API compatibility: reports incompatible changes to the public API of
+# github.com/tangoui/tango (scripts/apidiff.sh). A separate workflow so that
+# adding or removing the api-break label re-runs only this check.
+# See docs/ci.md and docs/release.md ("API 稳定性").
+name: API
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "Base commit, tag or branch to compare with"
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apidiff:
+    name: apidiff
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: "**/go.sum"
+
+      - name: Check API compatibility
+        env:
+          # PR: the base branch tip (the checkout is the merge commit, so this
+          # is exactly the PR's change). Push: the previous tip of main.
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'workflow_dispatch' && inputs.base || github.event.before }}
+          ALLOW_API_BREAK: ${{ (contains(github.event.pull_request.labels.*.name, 'api-break') || contains(github.event.head_commit.message, '[api-break]')) && '1' || '' }}
+        run: |
+          if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ]; then
+            echo "::notice::no base commit to compare with; skipped"
+            exit 0
+          fi
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] &&
+             git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
+            BASE="origin/$BASE"   # a branch name: use the remote branch
+          fi
+          if ! git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
+            echo "::notice::base $BASE is not in the history (force push?); skipped"
+            exit 0
+          fi
+          bash scripts/apidiff.sh "$BASE"

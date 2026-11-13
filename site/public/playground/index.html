@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Tango Go UI · 在线交互</title>
+  <link rel="stylesheet" href="./preview.css">
+</head>
+<body>
+  <div class="toolbar" aria-label="预览设置">
+    <label>主题 <select id="theme"><option value="antd">Ant Design</option><option value="element">Element Plus</option><option value="shadcn">shadcn</option></select></label>
+    <label class="dark-toggle"><input id="dark" type="checkbox"> 深色</label>
+    <button id="reset" type="button" disabled>重置</button>
+    <label class="font-picker">字体 <input id="font" type="file" accept=".ttf,.otf" aria-label="导入本地字体，查看中文等字符"></label>
+    <span class="badge">Go · WASM</span>
+  </div>
+  <div id="stage">
+    <p id="loading" role="status">正在加载真实 Go 组件，首次访问需要下载 WASM…</p>
+    <canvas id="canvas" tabindex="0" aria-label="Tango 组件交互预览；聚焦后用方向键、空格或 Enter 操作，Tab 离开预览"></canvas>
+    <textarea id="ime" aria-label="组件文字输入" spellcheck="false" autocapitalize="off" autocomplete="off" tabindex="-1"></textarea>
+  </div>
+  <div class="footnote"><span id="state" aria-live="polite">加载完成后即可操作</span><span id="keyboard-help">Tab 可离开画布</span></div>
+  <p id="error" role="alert" hidden></p>
+  <script src="./wasm_exec.js"></script>
+  <script type="module" src="./preview.mjs"></script>
+</body>
+</html>

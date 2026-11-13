@@ -1,0 +1,13 @@
+{
+  "name": "tango-editor-langs-gen",
+  "private": true,
+  "description": "Dev-time exporter: converts monaco-editor@0.56.0 grammars, language configs, base themes and official tokenization tests to JSON for ui/editor/langs.",
+  "type": "module",
+  "scripts": {
+    "export": "node export.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "monaco-editor": "0.56.0"
+  }
+}

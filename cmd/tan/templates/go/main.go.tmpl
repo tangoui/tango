@@ -1,0 +1,71 @@
+// [[.Name]] is a Tango application.
+package main
+
+import (
+	"embed"
+	"io/fs"
+	"log"
+
+	"github.com/tangoui/tango"
+	"github.com/tangoui/tango/asset"
+	"github.com/tangoui/tango/bind"
+	"github.com/tangoui/tango/ipc"
+	"github.com/tangoui/tango/runtime-js/runtimejs"
+)
+
+// The built front end. During "tan dev" requests go to the dev server
+// instead: tan dev builds with -tags tango_dev, and only then does
+// asset.FromEnv read TANGO_DEV_URL. A plain go build / go run is a
+// production build that always serves these files.
+//
+//go:embed all:[[.Embed]]
+var frontend embed.FS
+
+// Greeter is called from the page as Greeter.Hello.
+type Greeter struct{}
+
+// Hello returns a greeting for name.
+func (*Greeter) Hello(name string) string {
+	if name == "" {
+		name = "stranger"
+	}
+	return "Hello, " + name + "!"
+}
+
+func main() {
+	files, err := fs.Sub(frontend, "[[.Embed]]")
+	if err != nil {
+		log.Fatal(err)
+	}
+	app := tango.New(tango.Options{
+		Name:   "[[.Name]]",
+		ID:     "[[.ID]]",
+		Assets: asset.FromEnv(files, asset.Options{SPA: true}),
+	})
+
+	r := ipc.NewRouter()
+	if err := bind.Register(r, "Greeter", &Greeter{}); err != nil {
+		log.Fatal(err)
+	}
+	app.AddBridgeScript(runtimejs.Script)
+	app.OnMessage(func(s *tango.Surface, msg string) { r.HandleMessage(s, msg) })
+
+	app.OnReady(func() {
+		s, err := app.NewSurface(tango.SurfaceOptions{
+			Title:     "[[.Name]]",
+			Width:     960,
+			Height:    640,
+			Resizable: true,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		s.OnClosed(func() {
+			r.Drop(s)
+			app.Quit()
+		})
+	})
+	if err := app.Run(); err != nil {
+		log.Fatal(err)
+	}
+}

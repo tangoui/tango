@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞 / Security vulnerability
+    url: https://github.com/tangoui/tango/security/advisories/new
+    about: 请私下报告，不要公开提 issue。/ Report privately, not in a public issue.
+  - name: 文档 / Documentation
+    url: https://tangoui.github.io/tango/
+    about: 先查文档站和 API 参考。/ Check the documentation site and API reference first.

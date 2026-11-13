@@ -1,0 +1,82 @@
+:root {
+  --accent: var(--tango-accent, #3b6cf6);
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --fg: #1d2129;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --code: #eef1f5;
+  --radius: 10px;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #16181d; --panel: #1f2229; --fg: #e8eaed; --muted: #9aa0a6; --line: #2e323b; --code: #272b33; }
+}
+/* theme.SyncPage mirrors the system theme here, which also covers pages
+   that pin color-scheme. */
+html[data-tango-theme="dark"] { --bg: #16181d; --panel: #1f2229; --fg: #e8eaed; --muted: #9aa0a6; --line: #2e323b; --code: #272b33; }
+html[data-tango-theme="light"] { --bg: #f6f7f9; --panel: #ffffff; --fg: #1d2129; --muted: #6b7280; --line: #e5e7eb; --code: #eef1f5; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  display: flex;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.55 -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Noto Sans CJK SC", sans-serif;
+}
+code { background: var(--code); border-radius: 4px; padding: 1px 5px; font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+.side {
+  width: 200px; flex: none; padding: 20px 12px; border-right: 1px solid var(--line);
+  background: var(--panel); display: flex; flex-direction: column; gap: 16px;
+}
+.brand { font-weight: 600; display: flex; align-items: center; gap: 8px; padding: 0 8px; }
+.logo { width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--accent); position: relative; }
+.logo::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--accent); }
+nav { display: flex; flex-direction: column; gap: 2px; }
+nav a { color: var(--fg); text-decoration: none; padding: 7px 10px; border-radius: 7px; }
+nav a:hover { background: var(--code); }
+nav a.active { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-weight: 500; }
+.foot { margin-top: auto; color: var(--muted); font-size: 12px; padding: 0 8px; word-break: break-word; }
+
+main { flex: 1; overflow: auto; padding: 28px 36px 60px; scroll-behavior: smooth; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 20px; }
+h1 { font-size: 22px; margin: 0 0 8px; }
+h2 { font-size: 17px; margin: 0 0 6px; }
+.lead { color: var(--muted); margin: 0 0 16px; }
+.hint { color: var(--muted); font-size: 12.5px; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.card .k { color: var(--muted); font-size: 12px; }
+.card .v { font-weight: 600; margin-top: 2px; word-break: break-word; }
+
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 10px 0; }
+button {
+  background: var(--accent); color: #fff; border: 1px solid transparent; border-radius: 7px;
+  padding: 7px 12px; font: inherit; font-size: 13px; cursor: pointer;
+}
+button:hover { filter: brightness(1.08); }
+button:disabled { opacity: .5; cursor: default; filter: none; }
+button.ghost { background: transparent; color: var(--fg); border-color: var(--line); }
+input { font: inherit; padding: 6px 9px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); width: 140px; }
+input[type=number] { width: 70px; }
+
+.log { background: var(--code); border-radius: 8px; padding: 10px 12px; height: 130px; overflow: auto; margin: 10px 0 0;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; }
+canvas { width: 100%; height: 140px; background: var(--code); border-radius: 8px; display: block; }
+
+.status { list-style: none; padding: 0; margin: 10px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.status li { border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; }
+.status li.ok::before { content: "● "; color: #22a06b; }
+.status li.no::before { content: "● "; color: #d97706; }
+
+.swatches { display: flex; gap: 10px; margin: 10px 0; }
+.sw { flex: 1; border-radius: 8px; padding: 18px 12px; text-align: center; font-size: 12.5px; border: 1px solid var(--line); }
+.sw.accent { background: var(--accent); color: #fff; border-color: transparent; }
+.sw.surface { background: var(--bg); }
+.sw.text { background: var(--fg); color: var(--bg); }
+
+@media (max-width: 760px) { .side { display: none; } main { padding: 16px; } }

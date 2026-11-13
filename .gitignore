@@ -1,0 +1,39 @@
+/bin/
+/build/
+node_modules/
+dist/
+# ...except the empty dist/ placeholders of the tan init templates (go:embed
+# needs them in the module, or generated projects miss frontend/dist).
+!cmd/tan/templates/*/frontend/dist/
+.DS_Store
+.claude/
+ui/editor/langs/gen/node_modules/
+/.superpowers/
+# build outputs
+/cmd/tan/tan
+*.test
+examples/*/build/
+
+# Documentation site: dependencies, build output and generated pages.
+# Gallery screenshots are large and regenerated from build/ui-gallery.
+site/public/gallery/
+site/.vitepress/cache/
+site/.vitepress/dist/
+site/reference/api/
+site/reference/_cli-flags.md
+site/guide/components.md
+/examples/ui-gallery/ui-gallery
+/ui-gallery
+/mobile-ui
+
+# Compiled browser playground; rebuilt with the matching Go SDK.
+/site/public/playground/playground.wasm
+/site/public/playground/wasm_exec.js
+
+# Generated live-catalog manifests, component pages and Go source overlay.
+/site/.playground/
+/site/.vitepress/generated/
+/site/public/playground/catalog.json
+/site/components/catalog/
+/site/public/playground/playground.wasm.gz
+/site/public/playground/EDITOR-NOTICES.txt

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Pages from tango.localhost never touch the network; this is for
+         pages and fetches that do (a dev server, remote APIs). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@android:drawable/sym_def_app_icon"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar"
+        android:hardwareAccelerated="true"
+        android:supportsRtl="true"
+        android:enableOnBackInvokedCallback="true">
+
+        <!-- Configuration changes are handled in place (no flicker, no
+             relayout from scratch). When the system recreates the Activity
+             anyway, TangoActivity moves the pages to the new instance. -->
+        <activity
+            android:name="org.tango.host.TangoActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|keyboard|keyboardHidden|navigation|uiMode|fontScale|layoutDirection|locale|colorMode|touchscreen|mcc|mnc|fontWeightAdjustment|grammaticalGender"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Background jobs of sys/background (JobScheduler). Only the
+             system may bind it (BIND_JOB_SERVICE). -->
+        <service
+            android:name="org.tango.host.TangoJobService"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="true" />
+
+        <!-- content:// URIs for shared files and the camera's output file
+             (org.tango.host.TangoFileProvider); reachable only through
+             per-Intent grants. -->
+        <provider
+            android:name="org.tango.host.TangoFileProvider"
+            android:authorities="${applicationId}.tango.files"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+    </application>
+</manifest>

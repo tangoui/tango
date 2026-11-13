@@ -1,0 +1,9 @@
+{
+  "name": "UI Hot Reload",
+  "id": "dev.tango.uihotreload",
+  "version": "0.1.0",
+  "frontend": {
+    "dir": ".",
+    "dist": "."
+  }
+}

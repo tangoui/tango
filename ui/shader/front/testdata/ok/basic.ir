@@ -1,0 +1,63 @@
+struct Globals {
+  Viewport: vec2<f32>
+  Scale: f32
+  Pad: f32
+}
+struct Instance {
+  Rect: vec4<f32> @location(0)
+  Color: vec4<f32> @location(1)
+  Radius: f32 @location(2)
+  Kind: u32 @location(3)
+}
+struct Varyings {
+  Pos: vec4<f32> @builtin(position)
+  Local: vec2<f32> @location(0)
+  Half: vec2<f32> @location(1)
+  Color: vec4<f32> @location(2)
+  Radius: f32 @location(3)
+  Kind: u32 @location(4) @flat
+}
+uniform U: Globals @binding(0)
+texture Tex @binding(0) linear
+func rrectSDF(p: vec2<f32>, half: vec2<f32>, r: f32) -> f32 {
+  var q: vec2<f32> = ((sl.AbsV2(p) - half) + vec2<f32>(r, r))
+  return ((sl.Length(sl.MaxV2(q, 0.0)) + sl.Min(sl.Max(q.x, q.y), 0.0)) - r)
+}
+vertex func vs(in: Instance, vid: u32 @builtin(vertex_id)) -> Varyings {
+  var corner: vec2<f32> = vec2<f32>(0.0, 0.0)
+  if ((vid == 1u) || (vid == 3u)) {
+    corner.x = 1.0
+  }
+  if (vid >= 2u) {
+    corner.y = 1.0
+  }
+  var size: vec2<f32> = (in.Rect.zw - in.Rect.xy)
+  var pos: vec2<f32> = (in.Rect.xy + (size * corner))
+  var clip: vec2<f32> = (((pos / U.Viewport) * 2.0) - vec2<f32>(1.0, 1.0))
+  var out: Varyings
+  out.Pos = vec4<f32>(clip.x, (-clip.y), 0.0, 1.0)
+  out.Local = ((pos - in.Rect.xy) - (size * 0.5))
+  out.Half = (size * 0.5)
+  out.Color = in.Color
+  out.Radius = in.Radius
+  out.Kind = in.Kind
+  return out
+}
+fragment func fs(in: Varyings) -> vec4<f32> {
+  var d: f32 = rrectSDF(in.Local, in.Half, in.Radius)
+  var cov: f32 = 0.0
+  for (var i: i32 = 0i; (i < 4i); i = (i + 1i)) {
+    var off: f32 = ((convert<f32>(i) - 1.5) * 0.25)
+    cov = (cov + sl.Clamp((0.5 - (d + (off * U.Scale))), 0.0, 1.0))
+  }
+  cov = (cov / 4.0)
+  if (in.Kind == 1u) {
+    var t: vec4<f32> = sl.Sample(Tex, (in.Local / in.Half))
+    return (t * cov)
+  } else if (cov <= 0.0) {
+    return vec4<f32>(0.0, 0.0, 0.0, 0.0)
+  } else {
+    cov = sl.Smoothstep(0.0, 1.0, cov)
+  }
+  return (in.Color * cov)
+}

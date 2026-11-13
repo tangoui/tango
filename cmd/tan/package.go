@@ -1,0 +1,392 @@
+package main
+
+import (
+	"archive/tar"
+	"compress/gzip"
+	"context"
+	"errors"
+	"fmt"
+	"html"
+	"io"
+	"io/fs"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"slices"
+	"strings"
+	"unicode"
+)
+
+func runPackage(args []string) error {
+	fs := newFlags("package", "[flags]")
+	dir := projectFlag(fs)
+	platform := fs.String("platform", "", "comma-separated `targets`, as for tan build")
+	out := fs.String("o", "build", "output `dir`")
+	format := fs.String("format", "", "package `format`: empty for each platform's default (disk image, tarball and AppImage, NSIS installer); msix (Windows targets only); or, for Linux targets, a comma-separated list of tar, appimage, deb, rpm, flatpak")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cfg, err := LoadConfig(*dir)
+	if err != nil {
+		return err
+	}
+	ts, err := parseTargets(*platform)
+	if err != nil {
+		return err
+	}
+	if slices.ContainsFunc(ts, isMobile) {
+		return errors.New("mobile apps are packaged by tan build (.ipa, .apk, .aab); tan package is for desktop targets")
+	}
+	if err := checkPackageFormat(cfg, *format, ts); err != nil {
+		return err
+	}
+	warnedUnsigned = false // winsign.go: warn once per run
+	ctx := context.Background()
+	arts, err := build(ctx, cfg, buildOptions{targets: ts, out: *out})
+	if err != nil {
+		return err
+	}
+	for _, a := range arts {
+		var made []string
+		var err error
+		switch a.target.OS {
+		case "darwin":
+			made, err = packageDarwin(ctx, cfg, a)
+		case "linux":
+			if *format == "" {
+				made, err = packageLinux(cfg, a)
+			} else {
+				made, err = packageLinuxFormats(ctx, cfg, a, linuxFormats(*format)) // linux_pkg.go
+			}
+		case "windows":
+			if *format == "msix" {
+				made, err = packageMSIX(ctx, cfg, a) // msix.go
+			} else {
+				made, err = packageWindows(ctx, cfg, a)
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("%s: %w", a.target, err)
+		}
+		for _, m := range made {
+			logf("  → %s", m)
+		}
+	}
+	return nil
+}
+
+// artifactBase names packages: <Exe>-<version>-<os>-<arch>.
+func artifactBase(cfg *Config, t target) string {
+	return fmt.Sprintf("%s-%s-%s-%s", cfg.Exe(), cfg.Version, t.OS, t.Arch)
+}
+
+// desktopEntry renders the freedesktop .desktop file. %U passes the
+// URLs or files the app is opened with; MimeType lists the deep-link
+// schemes (x-scheme-handler/<scheme>) and the associated file types.
+func desktopEntry(cfg *Config) string {
+	var b strings.Builder
+	b.WriteString("[Desktop Entry]\nType=Application\n")
+	fmt.Fprintf(&b, "Name=%s\nExec=%s %%U\nIcon=%s\n", desktopValue(cfg.Name), cfg.Exe(), cfg.Exe())
+	b.WriteString("Categories=Utility;\nTerminal=false\n")
+	fmt.Fprintf(&b, "StartupWMClass=%s\n", cfg.Exe())
+	if types := desktopMIMETypes(cfg); len(types) > 0 {
+		b.WriteString("MimeType=" + strings.Join(types, ";") + ";\n")
+	}
+	return b.String()
+}
+
+// desktopValue escapes a string value for a .desktop file (Desktop Entry
+// Specification, "Possible value types": \s, \n, \t, \r and \\), so a
+// value stays on its line whatever tan.json holds; validate already
+// rejects such names, this is the second line of defence. Other control
+// characters are dropped.
+func desktopValue(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch r {
+		case '\\':
+			b.WriteString(`\\`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		default:
+			if !unicode.IsControl(r) {
+				b.WriteRune(r)
+			}
+		}
+	}
+	return b.String()
+}
+
+func desktopMIMETypes(cfg *Config) []string {
+	var types []string
+	for _, sc := range cfg.URLSchemes {
+		types = append(types, "x-scheme-handler/"+sc)
+	}
+	for _, f := range cfg.FileAssociations {
+		if t := f.MIMEType(cfg); !slices.Contains(types, t) {
+			types = append(types, t)
+		}
+	}
+	return types
+}
+
+// mimePackage defines, in the shared-mime-info XML format, the private
+// MIME types tan derived for associations without "mime" so the desktop
+// can map their extensions. Nil when there are none.
+func mimePackage(cfg *Config) []byte {
+	var b strings.Builder
+	n := 0
+	b.WriteString("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<mime-info xmlns=\"http://www.freedesktop.org/standards/shared-mime-info\">\n")
+	for _, f := range cfg.FileAssociations {
+		if f.MIME != "" {
+			continue
+		}
+		n++
+		fmt.Fprintf(&b, "  <mime-type type=\"%s\">\n    <comment>%s</comment>\n    <glob pattern=\"*.%s\"/>\n  </mime-type>\n",
+			f.MIMEType(cfg), html.EscapeString(f.Name), f.Ext)
+	}
+	b.WriteString("</mime-info>\n")
+	if n == 0 {
+		return nil
+	}
+	return []byte(b.String())
+}
+
+// installScript installs the unpacked tarball for the current user (or
+// under $PREFIX) and refreshes the desktop, icon and MIME databases so the
+// icon, schemes and file types take effect. hasIcon says the tarball has
+// icons under share/icons/hicolor.
+func installScript(cfg *Config, hasIcon, hasMIME bool) string {
+	exe := cfg.Exe()
+	var b strings.Builder
+	b.WriteString("#!/bin/sh\n# Generated by tan package. Installs " + exe + " for this user, or under $PREFIX.\nset -e\n")
+	b.WriteString("cd \"$(dirname \"$0\")\"\nPREFIX=\"${PREFIX:-$HOME/.local}\"\n")
+	b.WriteString("mkdir -p \"$PREFIX/bin\" \"$PREFIX/share/applications\"\n")
+	fmt.Fprintf(&b, "install -m 755 %s \"$PREFIX/bin/%s\"\n", exe, exe)
+	fmt.Fprintf(&b, "sed \"s|^Exec=%s |Exec=$PREFIX/bin/%s |\" %s.desktop > \"$PREFIX/share/applications/%s.desktop\"\n", exe, exe, exe, exe)
+	if hasIcon {
+		// Every size directory of the hicolor theme, then the theme's
+		// icon cache (-t: a per-user theme directory has no index.theme).
+		b.WriteString("for d in share/icons/hicolor/*/apps; do\n")
+		b.WriteString("  mkdir -p \"$PREFIX/$d\"\n  install -m 644 \"$d\"/* \"$PREFIX/$d/\"\ndone\n")
+		b.WriteString("command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q -t -f \"$PREFIX/share/icons/hicolor\" || true\n")
+	}
+	if hasMIME {
+		b.WriteString("mkdir -p \"$PREFIX/share/mime/packages\"\n")
+		fmt.Fprintf(&b, "install -m 644 %s-mime.xml \"$PREFIX/share/mime/packages/%s.xml\"\n", exe, cfg.ID)
+		b.WriteString("command -v update-mime-database >/dev/null && update-mime-database \"$PREFIX/share/mime\" || true\n")
+	}
+	b.WriteString("command -v update-desktop-database >/dev/null && update-desktop-database \"$PREFIX/share/applications\" || true\n")
+	fmt.Fprintf(&b, "echo \"Installed %s to $PREFIX\"\n", exe)
+	return b.String()
+}
+
+// packageLinux writes a .tar.gz (executable, .desktop, icons) and an
+// AppImage directory (<Exe>.AppDir). The AppDir becomes a single-file
+// AppImage with appimagetool when it is on PATH; tan does not download it.
+// Icons follow the freedesktop icon theme layout, share/icons/hicolor/
+// <n>x<n>/apps/<exe>.png (icon_desktop.go), in both.
+func packageLinux(cfg *Config, a artifact) ([]string, error) {
+	icons, err := linuxIconTree(cfg)
+	if err != nil {
+		return nil, err
+	}
+	tgz, err := linuxTarball(cfg, a, icons)
+	if err != nil {
+		return nil, err
+	}
+	made, err := linuxAppImage(cfg, a, icons)
+	return append([]string{tgz}, made...), err
+}
+
+// linuxTarball writes <base>.tar.gz: the executable, .desktop, icons, MIME
+// definitions and install.sh.
+func linuxTarball(cfg *Config, a artifact, icons map[string][]byte) (string, error) {
+	exe := cfg.Exe()
+	tgz := filepath.Join(filepath.Dir(a.dir), artifactBase(cfg, a.target)+".tar.gz")
+	files := map[string]fileEntry{
+		exe:              {path: a.exe, mode: 0o755},
+		exe + ".desktop": {data: []byte(desktopEntry(cfg)), mode: 0o644},
+	}
+	for p, b := range icons {
+		files["share/"+p] = fileEntry{data: b, mode: 0o644}
+	}
+	mimeXML := mimePackage(cfg)
+	if mimeXML != nil {
+		files[exe+"-mime.xml"] = fileEntry{data: mimeXML, mode: 0o644}
+	}
+	files["install.sh"] = fileEntry{data: []byte(installScript(cfg, len(icons) > 0, mimeXML != nil)), mode: 0o755}
+	if err := writeTarGz(tgz, artifactBase(cfg, a.target), files); err != nil {
+		return "", err
+	}
+	return tgz, nil
+}
+
+// linuxAppImage writes the AppDir, and the AppImage when appimagetool is on
+// PATH: AppRun at the top, the .desktop and icon beside it (and the icon
+// again as .DirIcon), the program in usr/bin, the icon theme in
+// usr/share/icons.
+func linuxAppImage(cfg *Config, a artifact, icons map[string][]byte) ([]string, error) {
+	exe := cfg.Exe()
+	parent := filepath.Dir(a.dir)
+	base := artifactBase(cfg, a.target)
+	appDir := filepath.Join(parent, exe+"-"+a.target.Arch+".AppDir")
+	os.RemoveAll(appDir)
+	bin := filepath.Join(appDir, "usr", "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		return nil, err
+	}
+	if err := copyFile(a.exe, filepath.Join(bin, exe), 0o755); err != nil {
+		return nil, err
+	}
+	appRun := "#!/bin/sh\nHERE=\"$(dirname \"$(readlink -f \"$0\")\")\"\nexec \"$HERE/usr/bin/" + exe + "\" \"$@\"\n"
+	writes := map[string][]byte{
+		"AppRun":         []byte(appRun),
+		exe + ".desktop": []byte(desktopEntry(cfg)),
+	}
+	if icon := icons[hicolorPath(exe, 256)]; icon != nil {
+		writes[exe+".png"] = icon
+		writes[".DirIcon"] = icon
+	}
+	for p, b := range icons {
+		writes[filepath.Join("usr", "share", filepath.FromSlash(p))] = b
+	}
+	for name, b := range writes {
+		mode := os.FileMode(0o644)
+		if name == "AppRun" {
+			mode = 0o755
+		}
+		path := filepath.Join(appDir, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(path, b, mode); err != nil {
+			return nil, err
+		}
+	}
+	made := []string{appDir}
+	tool, err := exec.LookPath("appimagetool")
+	if err != nil {
+		warnf("appimagetool is not on PATH: %s is ready; run appimagetool on it to make the .AppImage", filepath.Base(appDir))
+		return made, nil
+	}
+	img := filepath.Join(parent, base+".AppImage")
+	arch := map[string]string{"amd64": "x86_64", "arm64": "aarch64"}[a.target.Arch]
+	if err := runIn(context.Background(), "", []string{"ARCH=" + arch}, tool, appDir, img); err != nil {
+		return made, err
+	}
+	return append(made, img), nil
+}
+
+type fileEntry struct {
+	path string // copy from this file, or
+	data []byte // write these bytes
+	mode int64
+}
+
+// writeTarGz writes files under the directory prefix.
+func writeTarGz(out, prefix string, files map[string]fileEntry) error {
+	f, err := os.Create(out)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	if err := tw.WriteHeader(&tar.Header{Name: prefix + "/", Typeflag: tar.TypeDir, Mode: 0o755}); err != nil {
+		return err
+	}
+	for _, name := range sortedKeys(files) {
+		e := files[name]
+		data := e.data
+		if e.path != "" {
+			if data, err = os.ReadFile(e.path); err != nil {
+				return err
+			}
+		}
+		hdr := &tar.Header{Name: prefix + "/" + name, Mode: e.mode, Size: int64(len(data)), Typeflag: tar.TypeReg}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+		if _, err := tw.Write(data); err != nil {
+			return err
+		}
+	}
+	if err := tw.Close(); err != nil {
+		return err
+	}
+	if err := gz.Close(); err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+// packageWindows writes installer.nsi next to the build (package_nsis.go)
+// and runs makensis: from PATH, or on Windows hosts a pinned NSIS release
+// tan downloads once (nsis_download.go). Elsewhere without makensis it
+// stops at the script. WebView2 ships with Windows 10 1803+ and 11, so the
+// installer does not bundle it.
+//
+// With a signing certificate configured (winsign.go) the executable is
+// signed before NSIS packs it, and the installer after.
+func packageWindows(ctx context.Context, cfg *Config, a artifact) ([]string, error) {
+	signer, sign, err := packageSigner(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if sign {
+		if err := signWindowsFile(ctx, signer, a.exe); err != nil {
+			return nil, err
+		}
+	}
+	setup := filepath.Join(filepath.Dir(a.dir), artifactBase(cfg, a.target)+"-setup.exe")
+	nsi, err := writeNSISScript(cfg, a, setup)
+	if err != nil {
+		return nil, err
+	}
+	made := []string{nsi}
+	tool, err := findMakensis(ctx)
+	if err != nil {
+		warnf("%v: wrote %s; run makensis on it", err, nsi)
+		return made, nil
+	}
+	if err := runIn(ctx, a.dir, nil, tool, "-V2", nsi); err != nil {
+		return made, err
+	}
+	if sign {
+		if err := signWindowsFile(ctx, signer, setup); err != nil {
+			return made, err
+		}
+	}
+	return append(made, setup), nil
+}
+
+func copyFile(src, dst string, mode fs.FileMode) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
+}
+
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	return keys
+}

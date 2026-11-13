@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Privacy manifest template for a Tango iOS app. Copy it into the app
+  bundle (Tango Hello.app/PrivacyInfo.xcprivacy) or add it to the Xcode
+  target. See https://developer.apple.com/documentation/bundleresources/privacy-manifest-files
+
+  NSPrivacyAccessedAPITypes lists the "required reason" APIs that Tango
+  itself (the Go runtime and the iOS backend) uses:
+
+  - File timestamp APIs (stat/fstat/getattrlist): os.Stat and friends, and
+    http.FileServer's Last-Modified for assets embedded in the app. Reason
+    C617.1: metadata of files inside the app container. 3B52.1 covers
+    files the user picked (dialog.Open, media.Pick copies them into the
+    container, but the picker hands over the originals first).
+  - System boot time APIs (mach_absolute_time): the Go runtime's monotonic
+    clock. Reason 35F9.1: measuring elapsed time between events in the app.
+
+  Add what your own code uses (NSUserDefaults: CA92.1, disk space: E174.1,
+  ...), and declare collected data types / tracking if your app does any;
+  Tango collects nothing.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+				<string>3B52.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>35F9.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

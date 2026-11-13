@@ -1,0 +1,72 @@
+plugins {
+    id "com.android.application"
+}
+
+// The app's identity and signing come from Gradle properties, which
+// tan build passes from tan.json as ORG_GRADLE_PROJECT_* environment
+// variables (defaults in gradle.properties); values never go on the command line.
+// Release signing passwords are read from the environment so they never
+// appear on a command line.
+def prop = { String name, String fallback -> (project.findProperty(name) ?: fallback).toString() }
+def releaseKeystore = project.findProperty("tangoKeystore")
+
+android {
+    // Package of the host's Java classes (org.tango.host.*), which the Go
+    // side's JNI symbols name. The app's identity is applicationId.
+    namespace = "org.tango.host"
+    compileSdk = Integer.parseInt(prop("tangoCompileSdk", "36"))
+
+    defaultConfig {
+        applicationId = prop("tangoAppId", "org.tango.app")
+        minSdk = Integer.parseInt(prop("tangoMinSdk", "24"))
+        targetSdk = Integer.parseInt(prop("tangoTargetSdk", "36"))
+        versionCode = Integer.parseInt(prop("tangoVersionCode", "1"))
+        versionName = prop("tangoVersionName", "0.1.0")
+        // The launcher label is the string resource app_name: tan build
+        // writes it to res/values/tango_app.xml.
+    }
+
+    signingConfigs {
+        if (releaseKeystore) {
+            release {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("TANGO_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = prop("tangoKeyAlias", "")
+                keyPassword = System.getenv("TANGO_ANDROID_KEY_PASSWORD") ?: System.getenv("TANGO_ANDROID_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled = false
+            // tan build refuses release builds without a keystore; a plain
+            // Gradle build falls back to the debug key.
+            signingConfig = releaseKeystore ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    buildFeatures {
+        buildConfig = false
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    // libtango.so is built by tan build into src/main/jniLibs/<abi>/.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+}
+
+dependencies {
+    // WebViewCompat.addWebMessageListener (Page.java): the bridge object only
+    // in frames of the app's origins, and each message's origin and frame.
+    // 1.11.0 is the newest release whose dependencies (androidx.annotation
+    // 1.2.0, androidx.core 1.1.0) are plain Java: no kotlin-stdlib in the APK.
+    implementation "androidx.webkit:webkit:1.11.0"
+}

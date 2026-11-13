@@ -1,0 +1,308 @@
+package main
+
+import (
+	"context"
+	"crypto/md5"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+)
+
+// writeXcodeProject writes <dir>/<Exe>.xcodeproj: an iOS app target whose
+// first build phase runs go build -buildmode=c-archive for the SDK Xcode
+// builds for, then compiles the host's main.m and links both, so the app
+// can be run, signed and debugged from Xcode. Host/ holds main.m (copied
+// from the Tango module), Info.plist (from tan.json) and the icon. Running
+// tan build -xcode again overwrites these files.
+func writeXcodeProject(ctx context.Context, cfg *Config, dir string) (string, error) {
+	tango, err := tangoModuleDir(ctx, cfg)
+	if err != nil {
+		return "", err
+	}
+	host := filepath.Join(dir, "Host")
+	if err := os.MkdirAll(host, 0o755); err != nil {
+		return "", err
+	}
+	if err := copyFile(filepath.Join(tango, "mobile", "ios", "main.m"), filepath.Join(host, "main.m"), 0o644); err != nil {
+		return "", err
+	}
+	// Info.plist without the keys Xcode adds itself (platforms, device
+	// family, icons).
+	info := iosInfoPlist(cfg, iosSDK{platform: "iPhoneOS"}, nil)
+	var kept plist
+	for _, e := range info {
+		if e.key != "CFBundleSupportedPlatforms" && e.key != "UIDeviceFamily" {
+			kept = append(kept, e)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(host, "Info.plist"), encodePlist(kept), 0o644); err != nil {
+		return "", err
+	}
+	// The same asset catalog tan build compiles (icon_mobile.go).
+	hasIcon, _, err := writeIOSAssetCatalog(cfg, filepath.Join(host, "Assets.xcassets"), iosIconAppearancesSupported(ctx, cfg))
+	if err != nil {
+		return "", err
+	}
+	privacy := filepath.Join(tango, "mobile", "ios", "PrivacyInfo.xcprivacy")
+	hasPrivacy := fileExists(privacy)
+	if hasPrivacy {
+		if err := copyFile(privacy, filepath.Join(host, "PrivacyInfo.xcprivacy"), 0o644); err != nil {
+			return "", err
+		}
+	}
+	// Frameworks the Go packages link (#cgo LDFLAGS), as for tan build.
+	env := []string{"GOOS=ios", "GOARCH=arm64", "CGO_ENABLED=1"}
+	extra, err := cgoLinkFlags(ctx, cfg, env)
+	if err != nil {
+		return "", err
+	}
+	goBin, err := exec.LookPath("go")
+	if err != nil {
+		goBin = "go"
+	}
+	rel, err := filepath.Rel(dir, cfg.dir)
+	if err != nil {
+		rel = cfg.dir
+	}
+	proj := filepath.Join(dir, cfg.Exe()+".xcodeproj")
+	if err := os.MkdirAll(proj, 0o755); err != nil {
+		return "", err
+	}
+	// Universal Links: Host/<Exe>.entitlements with the associated domains
+	// (on top of ios.entitlements, if any). Xcode's automatic signing adds
+	// the capability to the App ID and the profile.
+	var entitlements string
+	if len(cfg.AppLinks) > 0 {
+		entitlements = "Host/" + cfg.Exe() + ".entitlements"
+		var base string
+		if cfg.IOS.Entitlements != "" {
+			base = cfg.Path(cfg.IOS.Entitlements)
+		}
+		if err := writeAppLinkEntitlements(ctx, cfg, base, filepath.Join(dir, entitlements)); err != nil {
+			return "", err
+		}
+	}
+	pbx := pbxproj(cfg, xcodeInputs{
+		goBin:        goBin,
+		goDir:        rel,
+		extra:        extra,
+		hasIcon:      hasIcon,
+		hasPrivacy:   hasPrivacy,
+		team:         teamID(firstNonEmpty(os.Getenv(envIOSSignIdentity), cfg.IOS.SignIdentity)),
+		entitlements: entitlements,
+	})
+	return proj, os.WriteFile(filepath.Join(proj, "project.pbxproj"), []byte(pbx), 0o644)
+}
+
+type xcodeInputs struct {
+	goBin   string   // absolute path of go (Xcode's PATH does not have it)
+	goDir   string   // the Go main package, relative to the project dir
+	extra   []string // cgo link flags
+	hasIcon bool
+	// hasPrivacy adds Host/PrivacyInfo.xcprivacy to the app's resources.
+	hasPrivacy   bool
+	team         string // DEVELOPMENT_TEAM, if known
+	entitlements string // CODE_SIGN_ENTITLEMENTS, relative to the project dir, if any
+}
+
+var pbxBarePattern = regexp.MustCompile(`^[A-Za-z0-9_./]+$`)
+
+var teamPattern = regexp.MustCompile(`\(([A-Z0-9]{10})\)\s*$`)
+
+// teamID takes the team from "Apple Development: Jane (ABCDE12345)".
+func teamID(identity string) string {
+	if m := teamPattern.FindStringSubmatch(identity); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
+// xcodeID makes a stable 24-hex-digit object id.
+func xcodeID(name string) string {
+	return strings.ToUpper(fmt.Sprintf("%x", md5.Sum([]byte("tan:"+name)))[:24])
+}
+
+// pbxString quotes a value for the old-style property list format of
+// project.pbxproj when it needs quoting.
+func pbxString(s string) string {
+	if s != "" && pbxBarePattern.MatchString(s) {
+		return s
+	}
+	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`, "\t", `\t`)
+	return `"` + r.Replace(s) + `"`
+}
+
+func pbxList(vals []string) string {
+	var b strings.Builder
+	b.WriteString("(\n")
+	for _, v := range vals {
+		b.WriteString("\t\t\t\t\t" + pbxString(v) + ",\n")
+	}
+	b.WriteString("\t\t\t\t)")
+	return b.String()
+}
+
+// xcodeGoScript is the Run Script phase: go build -buildmode=c-archive
+// for the SDK and deployment target of the current Xcode build.
+func xcodeGoScript(in xcodeInputs) string {
+	return fmt.Sprintf(`# Generated by tan build -xcode: builds the Go code as a static library.
+set -e
+cd "$PROJECT_DIR/%s"
+target="arm64-apple-ios${IPHONEOS_DEPLOYMENT_TARGET}"
+if [ "$PLATFORM_NAME" = iphonesimulator ]; then target="$target-simulator"; fi
+export GOOS=ios GOARCH=arm64 CGO_ENABLED=1
+export CC="$(xcrun --sdk "$PLATFORM_NAME" --find clang)"
+export CGO_CFLAGS="-isysroot $SDKROOT -target $target -O2"
+export CGO_LDFLAGS="-isysroot $SDKROOT -target $target"
+flags=""
+if [ "$CONFIGURATION" = Release ]; then flags="-trimpath"; fi
+%s build -buildmode=c-archive $flags -o "$DERIVED_FILE_DIR/libapp.a" .
+`, in.goDir, pbxShellQuote(in.goBin))
+}
+
+func pbxShellQuote(s string) string { return `'` + strings.ReplaceAll(s, `'`, `'\''`) + `'` }
+
+// pbxproj renders project.pbxproj (objectVersion 56, Xcode 14+).
+func pbxproj(cfg *Config, in xcodeInputs) string {
+	id := xcodeID
+	app := cfg.Exe() + ".app"
+	ldflags := append([]string{"$(DERIVED_FILE_DIR)/libapp.a", "-ObjC", "-lresolv"},
+		dedupeLinkFlags(append([]string{"-framework", "Foundation", "-framework", "UIKit", "-framework", "WebKit",
+			"-framework", "UniformTypeIdentifiers", "-framework", "CoreFoundation", "-framework", "Security"}, in.extra...))...)
+
+	var o strings.Builder
+	w := func(format string, a ...any) { fmt.Fprintf(&o, format, a...) }
+	w("// !$*UTF8*$!\n{\n\tarchiveVersion = 1;\n\tclasses = {\n\t};\n\tobjectVersion = 56;\n\tobjects = {\n\n")
+
+	w("/* Begin PBXBuildFile section */\n")
+	w("\t\t%s /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = %s /* main.m */; };\n", id("bf.main"), id("fr.main"))
+	if in.hasIcon {
+		w("\t\t%s /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = %s /* Assets.xcassets */; };\n", id("bf.assets"), id("fr.assets"))
+	}
+	if in.hasPrivacy {
+		w("\t\t%s /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = %s /* PrivacyInfo.xcprivacy */; };\n", id("bf.privacy"), id("fr.privacy"))
+	}
+	w("/* End PBXBuildFile section */\n\n")
+
+	w("/* Begin PBXFileReference section */\n")
+	w("\t\t%s /* %s */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = %s; sourceTree = BUILT_PRODUCTS_DIR; };\n", id("fr.app"), app, pbxString(app))
+	w("\t\t%s /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = \"<group>\"; };\n", id("fr.main"))
+	w("\t\t%s /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = \"<group>\"; };\n", id("fr.plist"))
+	if in.hasIcon {
+		w("\t\t%s /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = \"<group>\"; };\n", id("fr.assets"))
+	}
+	if in.hasPrivacy {
+		w("\t\t%s /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = \"<group>\"; };\n", id("fr.privacy"))
+	}
+	w("/* End PBXFileReference section */\n\n")
+
+	w("/* Begin PBXFrameworksBuildPhase section */\n")
+	w("\t\t%s /* Frameworks */ = {\n\t\t\tisa = PBXFrameworksBuildPhase;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t};\n", id("phase.frameworks"))
+	w("/* End PBXFrameworksBuildPhase section */\n\n")
+
+	w("/* Begin PBXGroup section */\n")
+	w("\t\t%s = {\n\t\t\tisa = PBXGroup;\n\t\t\tchildren = (\n\t\t\t\t%s /* Host */,\n\t\t\t\t%s /* Products */,\n\t\t\t);\n\t\t\tsourceTree = \"<group>\";\n\t\t};\n", id("group.main"), id("group.host"), id("group.products"))
+	hostChildren := fmt.Sprintf("\t\t\t\t%s /* main.m */,\n\t\t\t\t%s /* Info.plist */,\n", id("fr.main"), id("fr.plist"))
+	if in.hasIcon {
+		hostChildren += fmt.Sprintf("\t\t\t\t%s /* Assets.xcassets */,\n", id("fr.assets"))
+	}
+	if in.hasPrivacy {
+		hostChildren += fmt.Sprintf("\t\t\t\t%s /* PrivacyInfo.xcprivacy */,\n", id("fr.privacy"))
+	}
+	w("\t\t%s /* Host */ = {\n\t\t\tisa = PBXGroup;\n\t\t\tchildren = (\n%s\t\t\t);\n\t\t\tpath = Host;\n\t\t\tsourceTree = \"<group>\";\n\t\t};\n", id("group.host"), hostChildren)
+	w("\t\t%s /* Products */ = {\n\t\t\tisa = PBXGroup;\n\t\t\tchildren = (\n\t\t\t\t%s /* %s */,\n\t\t\t);\n\t\t\tname = Products;\n\t\t\tsourceTree = \"<group>\";\n\t\t};\n", id("group.products"), id("fr.app"), app)
+	w("/* End PBXGroup section */\n\n")
+
+	w("/* Begin PBXNativeTarget section */\n")
+	w("\t\t%s /* %s */ = {\n\t\t\tisa = PBXNativeTarget;\n\t\t\tbuildConfigurationList = %s;\n\t\t\tbuildPhases = (\n\t\t\t\t%s /* Build Go */,\n\t\t\t\t%s /* Sources */,\n\t\t\t\t%s /* Frameworks */,\n\t\t\t\t%s /* Resources */,\n\t\t\t);\n\t\t\tbuildRules = (\n\t\t\t);\n\t\t\tdependencies = (\n\t\t\t);\n\t\t\tname = %s;\n\t\t\tproductName = %s;\n\t\t\tproductReference = %s /* %s */;\n\t\t\tproductType = \"com.apple.product-type.application\";\n\t\t};\n",
+		id("target"), cfg.Exe(), id("configs.target"), id("phase.go"), id("phase.sources"), id("phase.frameworks"), id("phase.resources"), pbxString(cfg.Exe()), pbxString(cfg.Exe()), id("fr.app"), app)
+	w("/* End PBXNativeTarget section */\n\n")
+
+	w("/* Begin PBXProject section */\n")
+	w("\t\t%s /* Project object */ = {\n\t\t\tisa = PBXProject;\n\t\t\tattributes = {\n\t\t\t\tBuildIndependentTargetsInParallel = 1;\n\t\t\t\tLastUpgradeCheck = 1600;\n\t\t\t};\n\t\t\tbuildConfigurationList = %s;\n\t\t\tcompatibilityVersion = \"Xcode 14.0\";\n\t\t\tdevelopmentRegion = en;\n\t\t\thasScannedForEncodings = 0;\n\t\t\tknownRegions = (\n\t\t\t\ten,\n\t\t\t\tBase,\n\t\t\t);\n\t\t\tmainGroup = %s;\n\t\t\tproductRefGroup = %s /* Products */;\n\t\t\tprojectDirPath = \"\";\n\t\t\tprojectRoot = \"\";\n\t\t\ttargets = (\n\t\t\t\t%s /* %s */,\n\t\t\t);\n\t\t};\n",
+		id("project"), id("configs.project"), id("group.main"), id("group.products"), id("target"), cfg.Exe())
+	w("/* End PBXProject section */\n\n")
+
+	w("/* Begin PBXResourcesBuildPhase section */\n")
+	res := ""
+	if in.hasIcon {
+		res = fmt.Sprintf("\t\t\t\t%s /* Assets.xcassets in Resources */,\n", id("bf.assets"))
+	}
+	if in.hasPrivacy {
+		res += fmt.Sprintf("\t\t\t\t%s /* PrivacyInfo.xcprivacy in Resources */,\n", id("bf.privacy"))
+	}
+	w("\t\t%s /* Resources */ = {\n\t\t\tisa = PBXResourcesBuildPhase;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n%s\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t};\n", id("phase.resources"), res)
+	w("/* End PBXResourcesBuildPhase section */\n\n")
+
+	w("/* Begin PBXShellScriptBuildPhase section */\n")
+	w("\t\t%s /* Build Go */ = {\n\t\t\tisa = PBXShellScriptBuildPhase;\n\t\t\talwaysOutOfDate = 1;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t);\n\t\t\tinputPaths = (\n\t\t\t);\n\t\t\tname = \"Build Go\";\n\t\t\toutputPaths = (\n\t\t\t\t\"$(DERIVED_FILE_DIR)/libapp.a\",\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t\tshellPath = /bin/sh;\n\t\t\tshellScript = %s;\n\t\t};\n",
+		id("phase.go"), pbxString(xcodeGoScript(in)))
+	w("/* End PBXShellScriptBuildPhase section */\n\n")
+
+	w("/* Begin PBXSourcesBuildPhase section */\n")
+	w("\t\t%s /* Sources */ = {\n\t\t\tisa = PBXSourcesBuildPhase;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t\t%s /* main.m in Sources */,\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t};\n", id("phase.sources"), id("bf.main"))
+	w("/* End PBXSourcesBuildPhase section */\n\n")
+
+	settings := func(m [][2]string, list map[string][]string) string {
+		var b strings.Builder
+		b.WriteString("{\n")
+		for _, kv := range m {
+			fmt.Fprintf(&b, "\t\t\t\t%s = %s;\n", kv[0], pbxString(kv[1]))
+		}
+		for _, k := range sortedKeys(list) {
+			fmt.Fprintf(&b, "\t\t\t\t%s = %s;\n", k, pbxList(list[k]))
+		}
+		b.WriteString("\t\t\t}")
+		return b.String()
+	}
+	w("/* Begin XCBuildConfiguration section */\n")
+	for _, conf := range []string{"Debug", "Release"} {
+		proj := [][2]string{
+			{"ALWAYS_SEARCH_USER_PATHS", "NO"},
+			{"CLANG_ENABLE_OBJC_ARC", "YES"},
+			{"IPHONEOS_DEPLOYMENT_TARGET", cfg.IOSMinVersion()},
+			{"SDKROOT", "iphoneos"},
+		}
+		if conf == "Debug" {
+			proj = append(proj, [2]string{"DEBUG_INFORMATION_FORMAT", "dwarf"}, [2]string{"GCC_OPTIMIZATION_LEVEL", "0"}, [2]string{"ONLY_ACTIVE_ARCH", "YES"})
+		} else {
+			proj = append(proj, [2]string{"DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"}, [2]string{"VALIDATE_PRODUCT", "YES"})
+		}
+		w("\t\t%s /* %s */ = {\n\t\t\tisa = XCBuildConfiguration;\n\t\t\tbuildSettings = %s;\n\t\t\tname = %s;\n\t\t};\n", id("config.project."+conf), conf, settings(proj, nil), conf)
+		tgt := [][2]string{
+			{"ARCHS", "arm64"},
+			{"CODE_SIGN_STYLE", "Automatic"},
+			{"CURRENT_PROJECT_VERSION", cfg.IOSBuild()},
+			{"ENABLE_USER_SCRIPT_SANDBOXING", "NO"}, // the Go build reads the module cache
+			{"GENERATE_INFOPLIST_FILE", "NO"},
+			{"INFOPLIST_FILE", "Host/Info.plist"},
+			{"MARKETING_VERSION", cfg.IOSShortVersion()},
+			{"PRODUCT_BUNDLE_IDENTIFIER", cfg.ID},
+			{"PRODUCT_NAME", cfg.Exe()},
+			{"TARGETED_DEVICE_FAMILY", "1,2"},
+		}
+		if in.hasIcon {
+			tgt = append(tgt, [2]string{"ASSETCATALOG_COMPILER_APPICON_NAME", "AppIcon"})
+		}
+		if in.team != "" {
+			tgt = append(tgt, [2]string{"DEVELOPMENT_TEAM", in.team})
+		}
+		if in.entitlements != "" {
+			tgt = append(tgt, [2]string{"CODE_SIGN_ENTITLEMENTS", in.entitlements})
+		}
+		w("\t\t%s /* %s */ = {\n\t\t\tisa = XCBuildConfiguration;\n\t\t\tbuildSettings = %s;\n\t\t\tname = %s;\n\t\t};\n", id("config.target."+conf), conf, settings(tgt, map[string][]string{"OTHER_LDFLAGS": ldflags}), conf)
+	}
+	w("/* End XCBuildConfiguration section */\n\n")
+
+	w("/* Begin XCConfigurationList section */\n")
+	for _, l := range []string{"project", "target"} {
+		w("\t\t%s = {\n\t\t\tisa = XCConfigurationList;\n\t\t\tbuildConfigurations = (\n\t\t\t\t%s /* Debug */,\n\t\t\t\t%s /* Release */,\n\t\t\t);\n\t\t\tdefaultConfigurationIsVisible = 0;\n\t\t\tdefaultConfigurationName = Release;\n\t\t};\n",
+			id("configs."+l), id("config."+l+".Debug"), id("config."+l+".Release"))
+	}
+	w("/* End XCConfigurationList section */\n")
+	w("\t};\n\trootObject = %s /* Project object */;\n}\n", id("project"))
+	return o.String()
+}

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<title>Tango Runtime Demo</title>
+<style>
+  :root { --bg: #fff; --fg: #1f1f1f; --muted: #6b6b6b; --card: #f5f5f7; --accent: #1677ff; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1e1e1e; --fg: #eee; --muted: #aaa; --card: #2a2a2a; } }
+  body { font: 14px -apple-system, "PingFang SC", "Segoe UI", sans-serif; margin: 24px; background: var(--bg); color: var(--fg); }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  button { background: var(--accent); color: #fff; border: 0; border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+  input { padding: 5px 8px; border-radius: 6px; border: 1px solid #8884; background: var(--card); color: var(--fg); }
+  pre { background: var(--card); border-radius: 6px; padding: 12px; height: 240px; overflow: auto; font-size: 12px; }
+  .hint { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Tango 运行时 API</h1>
+<div class="row">
+  <input id="title" value="新标题">
+  <button id="setTitle">改标题</button>
+  <button id="screens">屏幕信息</button>
+  <button id="theme">主题</button>
+  <button id="copy">写剪贴板</button>
+  <button id="paste">读剪贴板</button>
+  <button id="msg">消息框</button>
+  <button id="open">打开文件…</button>
+  <button id="max">最大化/还原</button>
+  <button id="notify">通知（未开启）</button>
+</div>
+<p class="hint">在本页任意处右键弹出原生菜单；拖入文件会触发 filesDropped。</p>
+<pre id="out"></pre>
+<script>
+const { Window, App, Theme, Screens, Clipboard, Dialog, Notify, Menu } = tango;
+const out = document.getElementById("out");
+const log = (...a) => {
+  const s = a.map((v) => (typeof v === "string" ? v : JSON.stringify(v))).join(" ");
+  out.textContent += s + "\n";
+  out.scrollTop = out.scrollHeight;
+  if (location.search.includes("smoke")) tango.emit("smoke-log", s);
+};
+const fail = (e) => log("错误", e.code || "", e.message || String(e));
+const on = (id, fn) => (document.getElementById(id).onclick = () => fn().catch(fail));
+
+// Subscriptions: window, theme, screens, app events.
+Window.onResize((s) => log("resize", s));
+Window.onMove((p) => log("move", p));
+Window.onStateChange((s) => log("state", s));
+Window.onFocus(() => log("focus"));
+Window.onBlur(() => log("blur"));
+Window.onFilesDropped((d) => log("filesDropped", d.paths));
+Theme.onChange((t) => log("theme", t));
+Screens.onChange((d) => log("screens", d.length));
+App.onOpenURL((u) => log("openURL", u));
+App.onOpenFiles((p) => log("openFiles", p));
+App.onSecondInstance((l) => log("secondInstance", l));
+
+on("setTitle", () => Window.setTitle(document.getElementById("title").value));
+on("screens", async () => log("screens", await Screens.all(), "current", (await Screens.current()).name));
+on("theme", async () => log("theme", await Theme.get()));
+on("copy", () => Clipboard.writeText("来自 Tango 的问候 " + new Date().toLocaleTimeString()));
+on("paste", async () => log("clipboard", await Clipboard.readText()));
+on("msg", async () => log("button", await Dialog.message({ kind: "question", title: "Tango", message: "喜欢这个 API 吗？", buttons: ["喜欢", "还行"] })));
+on("open", async () => log("open", await Dialog.open({ multiple: true })));
+on("max", () => Window.toggleMaximize());
+on("notify", () => Notify.send({ title: "hi" }));
+Menu.bindContextMenu(window, () => [
+  { label: "复制", role: "copy" },
+  { type: "separator" },
+  { label: "置顶", type: "checkbox", onClick: (on) => Window.setAlwaysOnTop(on) },
+  { label: "缩放", submenu: [
+    { label: "100%", onClick: () => Window.setZoom(1) },
+    { label: "125%", onClick: () => Window.setZoom(1.25) },
+  ] },
+  { label: "居中", onClick: () => Window.center() },
+]);
+
+// -smoke: automatic checks; everything that needs a person is skipped.
+async function smoke() {
+  const failures = [];
+  const check = (cond, what) => { if (!cond) failures.push(what); };
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    await Window.setTitle("Runtime Demo ✓");
+    const id = await Window.id();
+    check(id > 0, "window id");
+
+    const info = await App.info();
+    log("env", info);
+    check(info.os && info.webView, "env info");
+
+    const screens = await Screens.all();
+    log("screens", screens.length, screens[0]);
+    check(screens.length >= 1 && screens[0].primary && screens[0].bounds.width > 0 && screens[0].scale > 0, "screens");
+    const cur = await Screens.current();
+    check(cur.bounds.width > 0, "current screen");
+
+    const theme = await Theme.get();
+    log("theme", theme);
+    check(typeof theme.dark === "boolean", "theme");
+
+    // Resize and expect the resize event.
+    const resized = new Promise((r) => { const off = Window.onResize((s) => { off(); r(s); }); });
+    await Window.setSize(720, 520);
+    const ev = await Promise.race([resized, wait(3000).then(() => null)]);
+    log("resize event", ev);
+    check(ev && ev.width === 720 && ev.height === 520, "resize event");
+    const size = await Window.size();
+    check(size.width === 720 && size.height === 520, "size after setSize");
+
+    const b = await Window.bounds();
+    await Window.setPosition(b.x + 10, b.y + 10);
+    const pos = await Window.position();
+    log("position", b, pos);
+    check(Math.abs(pos.x - (b.x + 10)) <= 1 && Math.abs(pos.y - (b.y + 10)) <= 1, "setPosition");
+    await Window.center();
+
+    await Window.setAlwaysOnTop(true);
+    check(await Window.isAlwaysOnTop(), "always on top");
+    await Window.setAlwaysOnTop(false);
+    await Window.setZoom(1.25);
+    check((await Window.zoom()) === 1.25, "zoom");
+    await Window.setZoom(1);
+    check((await Window.state()) === "normal", "state");
+
+    // Clipboard round trip, restoring what was there.
+    const before = await Clipboard.readText();
+    const token = "tango-smoke-" + Date.now();
+    await Clipboard.writeText(token);
+    const got = await Clipboard.readText();
+    await Clipboard.writeText(before);
+    check(got === token, "clipboard round trip");
+
+    // Notifications are not enabled for this app: forbidden.
+    try { await Notify.send({ title: "x" }); failures.push("notify should be forbidden"); }
+    catch (e) { check(e instanceof tango.TangoError && e.code === "forbidden", "notify forbidden code: " + e.code); }
+
+    // Dialog.message and Menu.popup need a person: skipped in -smoke.
+    log("skip: Dialog.message, Menu.popup (need user input)");
+  } catch (e) {
+    failures.push("exception: " + (e.code || "") + " " + (e.message || e));
+  }
+  log(failures.length ? "FAIL " + failures.join(", ") : "all checks passed");
+  tango.emit("done", { ok: failures.length === 0, failures });
+}
+if (location.search.includes("smoke")) smoke();
+</script>
+</body>
+</html>

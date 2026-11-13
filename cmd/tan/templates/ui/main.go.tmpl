@@ -1,0 +1,197 @@
+// [[.Name]] is a Tango application with a self-drawn UI: everything in the
+// window is drawn by package ui (no WebView, no front end to build).
+//
+// Under "tan dev" the window hot-reloads: save a .go file and the new code
+// shows up in the same window, keeping the values registered with
+// uihost.Persist.
+package main
+
+import (
+	"log"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/tangoui/tango"
+	"github.com/tangoui/tango/ui"
+	"github.com/tangoui/tango/ui/layout"
+	"github.com/tangoui/tango/ui/theme"
+	"github.com/tangoui/tango/uihost"
+)
+
+// Person is a row of the table.
+type Person struct {
+	Name, Email, Role string
+}
+
+// State is what survives a hot reload: exported, gob-encodable fields.
+type State struct {
+	Theme  string
+	Name   string
+	Email  string
+	Role   string
+	People []Person
+}
+
+var (
+	app    *tango.App
+	runner *ui.Runner
+
+	st = State{
+		Theme: "Light",
+		Role:  "Developer",
+		People: []Person{
+			{"Ada Lovelace", "ada@example.com", "Developer"},
+			{"Grace Hopper", "grace@example.com", "Admin"},
+			{"Alan Turing", "alan@example.com", "Designer"},
+		},
+	}
+	selected  []int
+	aboutOpen bool
+)
+
+func themeFor(name string) *theme.Theme {
+	switch name {
+	case "Dark":
+		return theme.AntDesign(theme.Dark())
+	case "Element":
+		return theme.ElementPlus()
+	}
+	return theme.AntDesign()
+}
+
+func page(c *ui.Context) {
+	ui.Scroll(c, func() {
+		ui.Column(c, func() {
+			header(c)
+			ui.Row(c, func() {
+				ui.Card(c, "Add a person").Layout(layout.W(360)).Body(func() { form(c) })
+				ui.Card(c, "People").Layout(layout.Grow(1)).Body(func() { table(c) })
+			}, layout.Gap(16), layout.WrapItems())
+		}, layout.Gap(16), layout.Pad(24))
+	})
+	about(c)
+}
+
+func header(c *ui.Context) {
+	ui.Row(c, func() {
+		ui.Title(c, "[[.Name]]", 3)
+		ui.Spacer(c)
+		if ui.Button(c, "About").Clicked() {
+			aboutOpen = true
+		}
+		if ui.Segmented(c, &st.Theme, ui.Opts("Light", "Dark", "Element")).Changed() {
+			t := themeFor(st.Theme)
+			app.Post(func() { runner.SetTheme(t) }) // after this frame
+		}
+	}, layout.Middle(), layout.Gap(12))
+}
+
+func form(c *ui.Context) {
+	f := ui.Form(c).Vertical()
+	f.Body(func() {
+		f.Item("Name").Rules(&st.Name, ui.Required("Please enter a name")).Body(func() {
+			ui.Input(c, &st.Name).Placeholder("Jane Doe").AllowClear()
+		})
+		f.Item("Email").Rules(&st.Email, ui.Required("Please enter an email"), ui.Email("Not an email address")).Body(func() {
+			ui.Input(c, &st.Email).Placeholder("jane@example.com")
+		})
+		f.Item("Role").Body(func() {
+			ui.Select(c, &st.Role, ui.Opts("Developer", "Designer", "Admin"))
+		})
+		f.Item("").NoLabel().Body(func() {
+			ui.Row(c, func() {
+				if ui.Button(c, "Add").Primary().Clicked() {
+					if f.Validate() {
+						st.People = append(st.People, Person{st.Name, st.Email, st.Role})
+						ui.Message(c, "success", "Added "+st.Name)
+						st.Name, st.Email = "", ""
+						f.ResetValidation()
+					} else {
+						ui.Message(c, "error", "Please fix the form")
+					}
+				}
+				if ui.Button(c, "Reset").Clicked() {
+					st.Name, st.Email = "", ""
+					f.ResetValidation()
+				}
+			}, layout.Gap(8))
+		})
+	})
+}
+
+func table(c *ui.Context) {
+	ui.Column(c, func() {
+		ui.Table(c, []ui.TableColumn{
+			{Key: "name", Title: "Name", Sortable: true,
+				Compare: func(a, b int) int { return strings.Compare(st.People[a].Name, st.People[b].Name) },
+				Text:    func(i int) string { return st.People[i].Name }},
+			{Key: "email", Title: "Email", Ellipsis: true, Text: func(i int) string { return st.People[i].Email }},
+			{Key: "role", Title: "Role", Width: 110,
+				Filters:  ui.Opts("Developer", "Designer", "Admin"),
+				OnFilter: func(i int, v string) bool { return st.People[i].Role == v },
+				Render:   func(i int) { ui.Tag(c, st.People[i].Role).Color(roleColor(st.People[i].Role)) }},
+		}, len(st.People)).Selection(&selected).Show()
+		if ui.Button(c, "Remove selected").Danger().Disabled(len(selected) == 0).Clicked() {
+			n := len(selected)
+			slices.Sort(selected)
+			for _, i := range slices.Backward(selected) {
+				st.People = slices.Delete(st.People, i, i+1)
+			}
+			selected = nil
+			ui.Message(c, "info", "Removed "+plural(n, "person", "people"))
+		}
+	}, layout.Gap(12))
+}
+
+func about(c *ui.Context) {
+	m := ui.Modal(c, &aboutOpen, "About [[.Name]]").OkText("Nice").Body(func() {
+		ui.Paragraph(c, "This window is drawn by Tango's self-drawn UI (package ui), shown through package uihost. "+
+			"Edit main.go while \"tan dev\" runs: the window reloads and keeps the form and the table.")
+	})
+	if m.Ok() {
+		ui.Message(c, "success", "Thanks!")
+	}
+}
+
+func roleColor(role string) string {
+	switch role {
+	case "Admin":
+		return "error"
+	case "Designer":
+		return "processing"
+	}
+	return "success"
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return strconv.Itoa(n) + " " + many
+}
+
+func main() {
+	uihost.Persist(&st) // before the first frame
+
+	quit := true // closing the window quits, on macOS too
+	app = tango.New(tango.Options{Name: "[[.Name]]", ID: "[[.ID]]", QuitOnLastClose: &quit})
+	app.OnReady(func() {
+		r, _, err := uihost.Open(app, uihost.Options{Surface: tango.SurfaceOptions{
+			Title:     "[[.Name]]",
+			Width:     1000,
+			Height:    680,
+			MinWidth:  640,
+			MinHeight: 480,
+			Resizable: true,
+			Centered:  true,
+		}}, page, ui.RunnerOptions{Theme: themeFor(st.Theme)})
+		if err != nil {
+			log.Fatal(err)
+		}
+		runner = r
+	})
+	if err := app.Run(); err != nil {
+		log.Fatal(err)
+	}
+}

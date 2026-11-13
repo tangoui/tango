@@ -1,0 +1,21 @@
+{
+  "name": "Tango Hello",
+  "id": "dev.tango.mobilehello",
+  "version": "0.1.0",
+  "icon": "icon.png",
+  "frontend": {
+    "dir": "web",
+    "dist": "."
+  },
+  "urlSchemes": ["tangohello"],
+  "permissions": ["camera", "photos", "location", "microphone", "biometric", "notifications", "background", "widget"],
+  "ios": {
+    "usageDescriptions": {
+      "camera": "The capability demo takes a photo when you tap \"Take photo\".",
+      "photos": "The capability demo shows your photo library permission status.",
+      "location": "The capability demo shows your location when you tap \"Current\".",
+      "microphone": "The capability demo shows how the microphone permission is requested.",
+      "biometric": "The capability demo verifies you with Face ID when you tap \"Authenticate\"."
+    }
+  }
+}

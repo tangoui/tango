@@ -1,0 +1,27 @@
+import { useState, type FormEvent } from "react";
+import { call } from "@tangoui/runtime";
+
+export default function App() {
+  const [name, setName] = useState("");
+  const [greeting, setGreeting] = useState("");
+
+  async function greet(e: FormEvent) {
+    e.preventDefault();
+    try {
+      setGreeting(await call<string>("Greeter.Hello", name));
+    } catch (err) {
+      setGreeting("Error: " + (err as Error).message);
+    }
+  }
+
+  return (
+    <main>
+      <h1>[[.Name]]</h1>
+      <form onSubmit={greet}>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
+        <button>Greet</button>
+      </form>
+      <p>{greeting}</p>
+    </main>
+  );
+}

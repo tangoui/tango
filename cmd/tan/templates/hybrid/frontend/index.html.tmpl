@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>[[.Name]]</title>
+  </head>
+  <body>
+    <main>
+      <h1>[[.Name]]</h1>
+      <p class="note">
+        This page is HTML in a WebView. The tool panel in the bottom-right corner is drawn by Go
+        (Tango's self-drawn UI) on a transparent layer above it: outside the panel, clicks,
+        scrolling and text selection reach the page.
+      </p>
+      <div class="row">
+        <button id="count">Page button</button>
+        <span>clicked <b id="clicks">0</b> times</span>
+      </div>
+      <form id="greet" class="row">
+        <input id="name" placeholder="Your name" autocomplete="off" />
+        <button>Greet</button>
+        <span id="greeting"></span>
+      </form>
+      <p id="from-panel" class="from-panel"></p>
+      <div id="filler"></div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

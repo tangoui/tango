@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Tango Showcase</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<aside class="side">
+  <div class="brand"><span class="logo" aria-hidden="true"></span>Tango Showcase</div>
+  <nav>
+    <a href="#overview" class="active">概览</a>
+    <a href="#ipc">调用与事件</a>
+    <a href="#stream">流</a>
+    <a href="#system">系统能力</a>
+    <a href="#native">托盘与菜单</a>
+    <a href="#theme">主题</a>
+  </nav>
+  <div class="foot" id="envline">…</div>
+</aside>
+
+<main>
+  <section id="overview">
+    <h1>一套 Go 代码，原生窗口里的 Web 界面</h1>
+    <p class="lead">本页是纯 HTML/CSS/JS，没有任何 npm 依赖。页面通过注入的 <code>window.tango</code> 调用 Go：绑定的服务、事件、流，以及经 <code>jsapi</code> 白名单开放的系统能力。</p>
+    <div class="cards">
+      <div class="card"><div class="k">Go</div><div class="v" id="ov-go">—</div></div>
+      <div class="card"><div class="k">系统</div><div class="v" id="ov-os">—</div></div>
+      <div class="card"><div class="k">WebView</div><div class="v" id="ov-wv">—</div></div>
+      <div class="card"><div class="k">主题</div><div class="v" id="ov-theme">—</div></div>
+    </div>
+  </section>
+
+  <section id="ipc">
+    <h2>调用与事件</h2>
+    <p class="hint"><code>bind.Register(r, "Showcase", svc)</code> 把导出方法变成 <code>Showcase.*</code>；Go 返回的 <code>ipc.Error</code> 在页面里是带 <code>code</code> 的 <code>TangoError</code>。</p>
+    <div class="row">
+      <input id="name" value="Tango" aria-label="名字">
+      <input id="times" type="number" min="1" max="5" value="2" aria-label="次数">
+      <button id="greet">Showcase.Greet</button>
+      <button id="divide" class="ghost">除以 0（看错误）</button>
+      <button id="ping" class="ghost">emit("ping") → pong</button>
+    </div>
+    <pre id="ipc-out" class="log"></pre>
+  </section>
+
+  <section id="stream">
+    <h2>流</h2>
+    <p class="hint"><code>for await</code> 消费 Go 产生的 <code>Showcase.Ticker</code>：每条是 Go 运行时的堆大小和 goroutine 数。发送方按 64 条窗口背压；跳出循环会在 Go 侧取消。</p>
+    <div class="row">
+      <button id="st-start">开始</button>
+      <button id="st-stop" class="ghost" disabled>停止（取消）</button>
+      <span class="hint" id="st-info">未运行</span>
+    </div>
+    <canvas id="chart" width="720" height="140" aria-label="堆大小曲线"></canvas>
+  </section>
+
+  <section id="system">
+    <h2>系统能力（jsapi）</h2>
+    <p class="hint">Go 侧 <code>jsapi.Install</code> 开启了剪贴板、对话框、通知、打开 URL、应用控制；<b>全局快捷键没开</b>，点它会得到 <code>forbidden</code>。</p>
+    <div class="grid">
+      <button data-act="title">改窗口标题</button>
+      <button data-act="center">窗口居中</button>
+      <button data-act="screens">屏幕信息</button>
+      <button data-act="copy">写剪贴板</button>
+      <button data-act="paste">读剪贴板</button>
+      <button data-act="message">消息框</button>
+      <button data-act="open">打开文件…</button>
+      <button data-act="save">保存对话框…</button>
+      <button data-act="notify">页面发通知</button>
+      <button data-act="gonotify">让 Go 发通知</button>
+      <button data-act="badge">Dock 徽标</button>
+      <button data-act="url">打开 tango 仓库</button>
+      <button data-act="hotkey" class="ghost">注册快捷键（未开启）</button>
+    </div>
+    <p class="hint">在本节任意处右键：页面描述的菜单，由原生菜单弹出（<code>Menu.bindContextMenu</code>）。把文件拖进窗口会触发 <code>Window.onFilesDropped</code>。</p>
+    <pre id="sys-out" class="log"></pre>
+  </section>
+
+  <section id="native">
+    <h2>托盘与应用菜单</h2>
+    <p class="hint">这些由 Go 创建（<code>sys/tray</code>、<code>sys/menu</code>）。左键托盘图标显示窗口，右键打开托盘菜单；应用菜单里有「演示」子菜单。点击结果以事件发回本页。</p>
+    <ul class="status" id="native-status"><li>读取中…</li></ul>
+    <pre id="native-out" class="log"></pre>
+  </section>
+
+  <section id="theme">
+    <h2>主题跟随</h2>
+    <p class="hint">WebView 自带 <code>prefers-color-scheme</code>；<code>theme.SyncPage</code> 另外在 <code>&lt;html&gt;</code> 上写 <code>data-tango-theme</code> 和 <code>--tango-accent</code>（系统强调色）。在系统设置里切换深浅色试试。</p>
+    <div class="swatches">
+      <div class="sw accent">强调色</div>
+      <div class="sw surface">表面</div>
+      <div class="sw text">文字</div>
+    </div>
+    <pre id="theme-out" class="log"></pre>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+body { margin: 0; }
+main { max-width: 640px; padding: 24px 32px 160px; }
+h1 { margin: 0 0 8px; }
+.note { opacity: 0.75; line-height: 1.5; }
+.row { display: flex; gap: 8px; align-items: center; margin: 16px 0; }
+input, button { font: inherit; padding: 6px 12px; }
+.from-panel { color: #d4380d; min-height: 1.5em; }
+.card { border: 1px solid #8884; border-radius: 8px; padding: 10px 14px; }
