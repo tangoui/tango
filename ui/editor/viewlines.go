@@ -12,8 +12,9 @@ import (
 // View lines (Monaco's viewModelLines).
 //
 // The View shows view lines (rows): a model line that wraps is several
-// rows (wrap.go); Task 11's folding will hide model lines (zero rows).
-// Viewport.TopLine is a view line; selections stay model offsets.
+// rows (wrap.go), a model line hidden inside a folded region none
+// (folding.go). Viewport.TopLine is a view line; selections stay model
+// offsets.
 //
 // Wrapping is computed lazily: a model line's rows are only known once its
 // breaks have been computed, which happens for the lines around the
@@ -26,15 +27,23 @@ import (
 //
 // Learning a line's real row count changes the view line numbers of every
 // line below it. The State keeps what is shown stable: whenever row counts
-// change (lines measured, the text edited, the wrapping column changed) it
-// keeps the first visible model line and its row at the top
-// (Viewport.TopLine is moved, the picture is not); the View's redraw hints
-// compare frames through that anchor (damage.go). Count is therefore an
-// estimate until every line has been seen, as is the view line of a line
-// far from the viewport.
+// change (lines measured, the text edited, the wrapping column changed,
+// regions folded or unfolded) it keeps the first visible model line and
+// its row at the top (Viewport.TopLine is moved, the picture is not); the
+// View's redraw hints compare frames through that anchor (damage.go).
+// Count is therefore an estimate until every line has been seen, as is the
+// view line of a line far from the viewport.
 //
-// Without wrapping (and, until Task 11, without folding) the mapping is the
-// identity and holds no per-line state.
+// The mapping API: ModelToView and ViewToModel convert between model
+// positions and view lines (with the content x on the column grid); the
+// State's rowOf (measuring) and peekRowOf (not measuring, for paint after
+// layout) and the find / viewOf primitives are the same mapping
+// (viewLines.locate). A position on a hidden line maps to the end of the
+// visible line before it (Monaco's convertModelPositionToViewPosition).
+//
+// Without wrapping and folding the mapping is the identity and holds no
+// per-line state; with folding alone the tree holds the hidden lines only
+// (no row counts).
 type viewLines struct {
 	cfg  wrapConfig
 	colW float32 // column width of the last paint, for x
@@ -45,12 +54,17 @@ type viewLines struct {
 	n    int // model lines
 
 	// rows[l] is the row count of model line l, 0 when not measured yet
-	// (counted as one row); tree is a Fenwick tree over rows[l]-1 (1-based)
-	// and total the sum of those extra rows. Allocated only while
-	// wrapping.
+	// (counted as one row); allocated only while wrapping. tree is a
+	// Fenwick tree over the lines' extra rows (rows-1; -1 for a hidden
+	// line), 1-based, and total the sum of those; allocated while wrapping
+	// or folding (mapped).
 	rows  []int32
 	tree  []int32
 	total int
+
+	// hid are the hidden model lines (sorted, disjoint, in the synced
+	// text): the folded regions' bodies (folding.go).
+	hid []lineSpan
 
 	// breaks of recently measured lines, by model line; cleared when the
 	// text or the configuration changes.
@@ -60,33 +74,109 @@ type viewLines struct {
 	computed int
 }
 
+// lineSpan is the model lines [a, b] (inclusive).
+type lineSpan struct{ a, b int }
+
 // breaksCacheMax bounds viewLines.breaks: a few screens of lines.
 const breaksCacheMax = 4096
 
+// on reports whether lines wrap.
 func (vl *viewLines) on() bool { return vl.cfg.on() }
+
+// mapped reports whether the mapping is not the identity: lines wrap or
+// some are hidden.
+func (vl *viewLines) mapped() bool { return vl.cfg.on() || len(vl.hid) > 0 }
 
 // Count returns the number of view lines (see viewLines on estimates).
 func (vl *viewLines) Count() int {
-	if !vl.on() {
+	if !vl.mapped() {
 		return vl.n
 	}
 	return vl.n + vl.total
 }
 
-// extra returns the extra rows of model line l (rows-1, 0 when unknown).
-func (vl *viewLines) extra(l int) int32 {
-	if r := vl.rows[l]; r > 0 {
-		return r - 1
+// hiddenAt returns the index in hid of the range holding model line l, -1
+// when l is shown.
+func (vl *viewLines) hiddenAt(l int) int {
+	h := vl.hid
+	if len(h) == 0 || l < h[0].a {
+		return -1
+	}
+	i, _ := slices.BinarySearchFunc(h, l, func(r lineSpan, l int) int {
+		switch {
+		case r.b < l:
+			return -1
+		case r.a > l:
+			return 1
+		}
+		return 0
+	})
+	if i < len(h) && h[i].a <= l && l <= h[i].b {
+		return i
+	}
+	return -1
+}
+
+// hidden reports whether model line l is hidden.
+func (vl *viewLines) hidden(l int) bool { return vl.hiddenAt(l) >= 0 }
+
+// visibleLine returns l, or for a hidden line the visible line before its
+// hidden range (a folded region's start line).
+func (vl *viewLines) visibleLine(l int) (int, bool) {
+	if i := vl.hiddenAt(l); i >= 0 {
+		return max(0, vl.hid[i].a-1), true
+	}
+	return l, false
+}
+
+// nextVisible returns the first shown model line after l (n when none).
+func (vl *viewLines) nextVisible(l int) int {
+	l++
+	if i := vl.hiddenAt(l); i >= 0 {
+		l = vl.hid[i].b + 1
+	}
+	return l
+}
+
+// prevVisible returns the last shown model line before l (-1 when none).
+func (vl *viewLines) prevVisible(l int) int {
+	l--
+	if i := vl.hiddenAt(l); i >= 0 {
+		l = vl.hid[i].a - 1
+	}
+	return l
+}
+
+// wrapExtra returns the extra rows of model line l from wrapping (rows-1,
+// 0 when unknown or not wrapping).
+func (vl *viewLines) wrapExtra(l int) int32 {
+	if l < len(vl.rows) {
+		if r := vl.rows[l]; r > 0 {
+			return r - 1
+		}
 	}
 	return 0
 }
 
-// rowsOf returns the row count of model line l (1 when unknown).
+// extra returns the extra rows of model line l in the tree: -1 for a
+// hidden line, else wrapExtra.
+func (vl *viewLines) extra(l int) int32 {
+	if vl.hidden(l) {
+		return -1
+	}
+	return vl.wrapExtra(l)
+}
+
+// rowsOf returns the row count of model line l: 0 when hidden, 1 when
+// unknown or not wrapping.
 func (vl *viewLines) rowsOf(l int) int {
-	if !vl.on() || l < 0 || l >= len(vl.rows) || vl.rows[l] == 0 {
+	if l < 0 || l >= vl.n {
 		return 1
 	}
-	return int(vl.rows[l])
+	if vl.hidden(l) {
+		return 0
+	}
+	return int(vl.wrapExtra(l)) + 1
 }
 
 // add adds d to the extra rows of model line l in the tree.
@@ -100,15 +190,20 @@ func (vl *viewLines) add(l int, d int32) {
 // prefix returns the extra rows of model lines [0, l).
 func (vl *viewLines) prefix(l int) int {
 	s := 0
-	for i := min(l, vl.n); i > 0; i -= i & -i {
+	for i := min(l, vl.n, len(vl.tree)-1); i > 0; i -= i & -i {
 		s += int(vl.tree[i])
 	}
 	return s
 }
 
-// rebuild recomputes the tree from rows in linear time.
+// rebuild recomputes the tree from rows and hid in linear time (it frees
+// the tree when the mapping is the identity).
 func (vl *viewLines) rebuild() {
-	n := len(vl.rows)
+	n := vl.n
+	if !vl.mapped() {
+		vl.tree, vl.total = nil, 0
+		return
+	}
 	if cap(vl.tree) >= n+1 {
 		vl.tree = vl.tree[:n+1]
 		clear(vl.tree)
@@ -116,8 +211,16 @@ func (vl *viewLines) rebuild() {
 		vl.tree = make([]int32, n+1, n+1+n/8) // room for added lines
 	}
 	vl.total = 0
+	h := 0 // next range of hid
 	for i := 1; i <= n; i++ {
-		e := vl.extra(i - 1)
+		l := i - 1
+		for h < len(vl.hid) && vl.hid[h].b < l {
+			h++
+		}
+		e := vl.wrapExtra(l)
+		if h < len(vl.hid) && vl.hid[h].a <= l {
+			e = -1
+		}
 		vl.total += int(e)
 		vl.tree[i] += e
 		if j := i + i&-i; j <= n {
@@ -126,23 +229,57 @@ func (vl *viewLines) rebuild() {
 	}
 }
 
-// viewOf returns the first view line of model line l.
+// setHidden sets the hidden lines (sorted, disjoint, within the synced
+// text), updating the tree.
+func (vl *viewLines) setHidden(h []lineSpan) {
+	if slices.Equal(h, vl.hid) {
+		return
+	}
+	size := 0
+	for _, r := range vl.hid {
+		size += r.b - r.a + 1
+	}
+	for _, r := range h {
+		size += r.b - r.a + 1
+	}
+	if len(vl.tree) != vl.n+1 || len(h) == 0 && !vl.on() || size > vl.n/16 {
+		vl.hid = h
+		vl.rebuild()
+		return
+	}
+	// Incrementally: show the old ranges, hide the new ones.
+	for _, r := range vl.hid {
+		for l := r.a; l <= r.b; l++ {
+			vl.add(l, vl.wrapExtra(l)+1)
+		}
+	}
+	vl.hid = h
+	for _, r := range h {
+		for l := r.a; l <= r.b; l++ {
+			vl.add(l, -vl.wrapExtra(l)-1)
+		}
+	}
+}
+
+// viewOf returns the first view line of model line l (for a hidden line,
+// the view line after the visible line before it).
 func (vl *viewLines) viewOf(l int) int {
 	l = max(0, min(l, vl.n))
-	if !vl.on() {
+	if !vl.mapped() {
 		return l
 	}
 	return l + vl.prefix(l)
 }
 
 // find returns the model line showing view line v and the row of v in it
-// (v clamped to the view lines).
+// (v clamped to the view lines). The line is never hidden.
 func (vl *viewLines) find(v int) (line, row int) {
 	v = max(0, min(v, vl.Count()-1))
-	if !vl.on() {
+	if !vl.mapped() {
 		return v, 0
 	}
-	// The largest pos with sum(rows[0:pos]) <= v: the line holding v.
+	// The largest pos with sum(rows[0:pos]) <= v: the line holding v
+	// (rows are >= 0, so hidden lines before it are skipped).
 	pos, rem := 0, v
 	for step := 1 << (bits.Len(uint(vl.n)) - 1); step > 0; step >>= 1 {
 		if p := pos + step; p <= vl.n && int(vl.tree[p])+step <= rem {
@@ -151,17 +288,45 @@ func (vl *viewLines) find(v int) (line, row int) {
 		}
 	}
 	if pos >= vl.n {
-		return vl.n - 1, vl.rowsOf(vl.n-1) - 1
+		l := vl.n - 1
+		if vl.hidden(l) {
+			l = max(0, vl.prevVisible(l))
+		}
+		return l, max(0, vl.rowsOf(l)-1)
 	}
 	return pos, rem
 }
 
-// reset forgets every measured line (n model lines).
+// locate is the model-to-view mapping: the view line showing byte column
+// col of model line l (up places a row boundary at the end of the earlier
+// row), with the visible line and column it is drawn at (a hidden line's
+// position is the end of the visible line before it). breaks returns the
+// rows of a line, nil when they are not known (the first row is used).
+func (vl *viewLines) locate(snap buffer.Snapshot, l, col int, up bool, breaks func(int) *lineBreaks) (vline, line, c int) {
+	if !vl.mapped() {
+		return l, l, col
+	}
+	if vis, hidden := vl.visibleLine(l); hidden {
+		l, col, up = vis, len(snap.Line(vis)), false
+	}
+	v := vl.viewOf(l)
+	if !vl.on() {
+		return v, l, col
+	}
+	if lb := breaks(l); lb != nil {
+		v += lb.rowOf(col, up)
+	}
+	return v, l, col
+}
+
+// reset forgets every measured line (n model lines), keeping the hidden
+// lines.
 func (vl *viewLines) reset(n int) {
 	vl.n = n
 	clear(vl.breaks)
 	if !vl.on() {
-		vl.rows, vl.tree, vl.total = nil, nil, 0
+		vl.rows = nil
+		vl.rebuild()
 		return
 	}
 	if cap(vl.rows) >= n {
@@ -173,17 +338,28 @@ func (vl *viewLines) reset(n int) {
 	vl.rebuild()
 }
 
+// dropHidden forgets the hidden lines before the text changes under them
+// (the State hides the lines of the new text afterwards: State.lines).
+func (vl *viewLines) dropHidden() {
+	if len(vl.hid) == 0 {
+		return
+	}
+	vl.setHidden(nil)
+}
+
 // sync follows the text to snap of buffer b: incrementally after the
 // buffer's last change when it started from the synced version, else by
-// forgetting every measured line.
+// forgetting every measured line. Hidden lines are dropped.
 func (vl *viewLines) sync(b *buffer.Buffer, snap buffer.Snapshot) {
 	if vl.buf == b && vl.ver == snap.Version() && vl.n == snap.LineCount() {
 		return
 	}
+	vl.dropHidden()
 	same, prev := vl.buf == b, vl.ver
 	vl.buf, vl.ver, vl.snap = b, snap.Version(), snap
 	if !vl.on() {
 		vl.n = snap.LineCount()
+		vl.rebuild()
 		return
 	}
 	clear(vl.breaks)
@@ -197,12 +373,14 @@ func (vl *viewLines) sync(b *buffer.Buffer, snap buffer.Snapshot) {
 	vl.reset(snap.LineCount())
 }
 
-// syncEdits follows edits (in old's coordinates) from old to snap.
+// syncEdits follows edits (in old's coordinates) from old to snap. Hidden
+// lines are dropped.
 func (vl *viewLines) syncEdits(b *buffer.Buffer, old buffer.Snapshot, edits []buffer.Edit, snap buffer.Snapshot) {
 	if !vl.on() || vl.buf != b || old.LineCount() != vl.n || old.Version() != vl.ver {
 		vl.sync(b, snap)
 		return
 	}
+	vl.dropHidden()
 	vl.ver, vl.snap = snap.Version(), snap
 	clear(vl.breaks)
 	if !vl.applied(old, edits, snap) {
@@ -212,7 +390,7 @@ func (vl *viewLines) syncEdits(b *buffer.Buffer, old buffer.Snapshot, edits []bu
 
 // applied applies edits from old to snap to the measured lines: the lines
 // an edit touches become unknown. It reports false when the edits do not
-// account for snap's line count.
+// account for snap's line count. There are no hidden lines.
 func (vl *viewLines) applied(old buffer.Snapshot, edits []buffer.Edit, snap buffer.Snapshot) bool {
 	if len(edits) == 0 {
 		return snap.LineCount() == vl.n
@@ -248,7 +426,7 @@ func (vl *viewLines) applied(old buffer.Snapshot, edits []buffer.Edit, snap buff
 	if same {
 		for _, sp := range spans {
 			for l := sp.l0; l <= sp.l1; l++ {
-				if e := vl.extra(l); e != 0 {
+				if e := vl.wrapExtra(l); e != 0 {
 					vl.add(l, -e)
 				}
 				vl.rows[l] = 0
@@ -300,6 +478,9 @@ func (vl *viewLines) configure(cfg wrapConfig, colW float32, b *buffer.Buffer, s
 		vl.sync(b, snap)
 		return false
 	}
+	if vl.buf != b || vl.ver != snap.Version() {
+		vl.dropHidden() // of another text
+	}
 	vl.cfg, vl.colW = cfg, colW
 	vl.buf, vl.ver, vl.snap = b, snap.Version(), snap
 	vl.reset(snap.LineCount())
@@ -334,34 +515,41 @@ func (vl *viewLines) measureText(l int, s string) (*lineBreaks, bool) {
 	if vl.rows[l] == r {
 		return &lb, false
 	}
-	vl.add(l, (r-1)-vl.extra(l))
+	old := vl.extra(l)
 	vl.rows[l] = r
-	return &lb, true
+	d := vl.extra(l) - old // 0 for a hidden line
+	if d != 0 {
+		vl.add(l, d)
+	}
+	return &lb, d != 0
 }
 
 // ModelToView returns the view line and the content x (on the column
 // grid) of byte column col of model line line, in the synced text. A
-// column at a row boundary is at the start of the later row.
+// column at a row boundary is at the start of the later row; a column on a
+// hidden line is at the end of the visible line before it.
 func (vl *viewLines) ModelToView(line, col int) (vline int, x float32) {
 	snap, tab := vl.snap, max(vl.cfg.tab, 1)
 	line = max(0, min(line, snap.LineCount()-1))
+	col = max(0, min(col, len(snap.Line(line))))
+	measure := func(l int) *lineBreaks { lb, _ := vl.breaksOf(snap, l); return lb }
+	vline, line, col = vl.locate(snap, line, col, false, measure)
 	s := snap.Line(line)
-	col = max(0, min(col, len(s)))
 	if !vl.on() {
-		return line, float32(lineColumnTab(s, col, tab)) * vl.colW
+		return vline, float32(lineColumnTab(s, col, tab)) * vl.colW
 	}
-	lb, _ := vl.breaksOf(snap, line)
+	lb := measure(line)
 	k := lb.rowOf(col, false)
 	b0, _ := lb.rowRange(k, len(s))
 	c := lb.rowIndent(k) + lineColumnTab(s[b0:col], col-b0, tab)
-	return vl.viewOf(line) + k, float32(c) * vl.colW
+	return vline, float32(c) * vl.colW
 }
 
 // ViewToModel returns the model line and the byte column (a grapheme
 // boundary, the nearest one on the column grid) at content x of view line
 // vline (clamped to the document), in the synced text. Past the end of a
 // row that continues on the next one, it returns the row end, which is
-// that next row's start.
+// that next row's start. The line is never hidden.
 func (vl *viewLines) ViewToModel(vline int, x float32) (line, col int) {
 	snap, tab := vl.snap, max(vl.cfg.tab, 1)
 	line, row := vl.find(vline)
@@ -421,25 +609,33 @@ func (s *State) lines() *viewLines {
 	if vl.buf == b && vl.ver == snap.Version() {
 		return vl
 	}
-	if !vl.on() {
+	if !vl.mapped() && len(s.fold.folds) == 0 {
 		vl.sync(b, snap)
 		return vl
 	}
 	line, row := vl.find(s.Viewport.TopLine)
 	vl.sync(b, snap)
+	s.syncFolds()
 	s.anchorTop(line, row)
 	return vl
 }
 
 // anchorTop sets Viewport.TopLine to row of model line (both clamped),
-// measuring the line.
+// measuring the line; a hidden line anchors the visible line before it.
 func (s *State) anchorTop(line, row int) {
 	vl := s.lines()
-	if !vl.on() {
+	if !vl.mapped() {
 		s.Viewport.TopLine = line
 		return
 	}
 	line = max(0, min(line, vl.n-1))
+	if vis, hidden := vl.visibleLine(line); hidden {
+		line, row = vis, 0
+	}
+	if !vl.on() {
+		s.Viewport.TopLine = vl.viewOf(line)
+		return
+	}
 	lb, _ := vl.breaksOf(s.Snapshot(), line)
 	s.Viewport.TopLine = vl.viewOf(line) + max(0, min(row, lb.rows()-1))
 }
@@ -520,7 +716,7 @@ func (s *State) measureViewport() {
 		need += int(math.Ceil(float64(v.OffsetY+v.Height) / float64(v.LineHeight)))
 	}
 	snap := s.Snapshot()
-	for l, got := line, -row; l < vl.n && got < need; l++ {
+	for l, got := line, -row; l < vl.n && got < need; l = vl.nextVisible(l) {
 		lb, _ := vl.breaksOf(snap, l)
 		got += lb.rows()
 	}
@@ -602,51 +798,53 @@ func (s *State) peekRowOf(off int, up bool) int {
 	off = clampOff(snap, off)
 	l := snap.LineOf(off)
 	vl := s.lines()
-	if !vl.on() {
-		return l
-	}
-	lb := vl.breaks[l]
-	if lb == nil || l >= vl.n {
-		return vl.viewOf(l)
-	}
-	return vl.viewOf(l) + lb.rowOf(off-snap.LineStart(l), up)
+	v, _, _ := vl.locate(snap, l, off-snap.LineStart(l), up, func(l int) *lineBreaks { return vl.breaks[l] })
+	return v
 }
 
 // rowOf returns the view line showing offset off; up places a row
-// boundary at the end of the earlier row.
+// boundary at the end of the earlier row. An offset on a hidden line is
+// on the last row of the visible line before it.
 func (s *State) rowOf(off int, up bool) int {
 	snap := s.Snapshot()
 	off = clampOff(snap, off)
 	l := snap.LineOf(off)
-	vl := s.lines()
-	if !vl.on() {
-		return l
-	}
-	lb := s.breaks(l)
-	return vl.viewOf(l) + lb.rowOf(off-snap.LineStart(l), up)
+	v, _, _ := s.lines().locate(snap, l, off-snap.LineStart(l), up, s.breaks)
+	return v
 }
 
 // headRow returns the view line of the primary caret.
 func (s *State) headRow() int { return s.rowOf(s.Primary().Head, s.caretUp()) }
 
-// rowPos returns the model line and the row of offset off.
+// rowPos returns the model line and the row of offset off (for an offset
+// on a hidden line, the visible line before it and its last row).
 func (s *State) rowPos(off int, up bool) (line, row int) {
 	snap := s.Snapshot()
 	off = clampOff(snap, off)
 	line = snap.LineOf(off)
-	if !s.lines().on() {
+	vl := s.lines()
+	if !vl.mapped() {
 		return line, 0
 	}
-	return line, s.breaks(line).rowOf(off-snap.LineStart(line), up)
+	col := off - snap.LineStart(line)
+	if vis, hidden := vl.visibleLine(line); hidden {
+		line, col, up = vis, len(snap.Line(vis)), false
+	}
+	if !vl.on() {
+		return line, 0
+	}
+	return line, s.breaks(line).rowOf(col, up)
 }
 
-// stepRows moves (line, row) n rows up (Backward) or down; it reports
-// false when that leaves the document (above the first row or below the
-// last). Rows are measured on the way, so the moves are exact.
+// stepRows moves (line, row) n rows up (Backward) or down, over the
+// hidden lines; it reports false when that leaves the document (above the
+// first row or below the last). Rows are measured on the way, so the moves
+// are exact.
 func (s *State) stepRows(line, row int, dir Direction, n int) (int, int, bool) {
 	snap := s.Snapshot()
 	nl := snap.LineCount()
-	if !s.lines().on() {
+	vl := s.lines()
+	if !vl.mapped() {
 		if dir == Backward {
 			line -= n
 		} else {
@@ -654,27 +852,35 @@ func (s *State) stepRows(line, row int, dir Direction, n int) (int, int, bool) {
 		}
 		return line, 0, line >= 0 && line < nl
 	}
+	rows := func(l int) int {
+		if !vl.on() {
+			return 1
+		}
+		return s.breaks(l).rows()
+	}
 	for range n {
 		if dir == Backward {
 			if row > 0 {
 				row--
 				continue
 			}
-			if line == 0 {
+			p := vl.prevVisible(line)
+			if p < 0 {
 				return 0, 0, false
 			}
-			line--
-			row = s.breaks(line).rows() - 1
+			line = p
+			row = rows(line) - 1
 			continue
 		}
-		if row+1 < s.breaks(line).rows() {
+		if row+1 < rows(line) {
 			row++
 			continue
 		}
-		if line+1 >= nl {
+		nx := vl.nextVisible(line)
+		if nx >= nl {
 			return line, row, false
 		}
-		line, row = line+1, 0
+		line, row = nx, 0
 	}
 	return line, row, true
 }

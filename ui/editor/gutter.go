@@ -18,6 +18,10 @@ const (
 	gutterLeftPad       = 8
 	lineDecorationsW    = 18
 	noNumbersGutterW    = 10 // only the decorations margin
+	// foldControlW is the room of the folding controls, at the left of
+	// the decorations margin (Monaco widens lineDecorationsWidth by 16
+	// while folding is on and showFoldingControls is not "never").
+	foldControlW = 16
 )
 
 // digitGlyphs are the glyphs of 0–9 in the document font: line numbers are
@@ -52,10 +56,61 @@ func digitsOf(st text.Style) digitGlyphs {
 
 // gutterWidth returns the width of the gutter for a document of n lines.
 func (w *ViewW) gutterWidth(d digitGlyphs, n int) float32 {
-	if !w.opts.lineNumbers() {
-		return noNumbersGutterW
+	fw := float32(0)
+	if w.foldControlsShown() {
+		fw = foldControlW
 	}
-	return gutterLeftPad + w.numbersWidth(d, n) + lineDecorationsW
+	if !w.opts.lineNumbers() {
+		return noNumbersGutterW + fw
+	}
+	return gutterLeftPad + w.numbersWidth(d, n) + fw + lineDecorationsW
+}
+
+// foldControlsShown reports whether the gutter has room for the folding
+// controls (folding on and showFoldingControls not "never", as Monaco
+// lays out the gutter; a large file keeps the room, without controls).
+func (w *ViewW) foldControlsShown() bool {
+	return w.opts.Folding && w.opts.foldingControls() != FoldingControlsNever
+}
+
+// foldControlX returns the x of the folding controls' box (foldControlW
+// wide) in a gutter at gx.
+func (w *ViewW) foldControlX(gx float32, d digitGlyphs, n int) float32 {
+	if !w.opts.lineNumbers() {
+		return gx
+	}
+	return gx + gutterLeftPad + w.numbersWidth(d, n)
+}
+
+// Folding decorations of a row (paintFrame.fold, damage.go).
+const (
+	foldCtlExpanded  = 1 << iota // the control of an unfolded range
+	foldCtlCollapsed             // the control of a folded region
+	foldPlaceholder              // the folded line's "⋯" (its last row)
+	foldBackground               // the folded line's background
+)
+
+// paintFoldControls draws the folding controls of the laid out rows (a
+// line's control on its first row): a chevron pointing down for an
+// unfolded range, right for a folded region (Monaco's codicons
+// folding-expanded / folding-collapsed), in a box foldControlW wide at x.
+func paintFoldControls(l *paint.List, x float32, rows []lineView, codes []uint8, lineY func(int) float32, lh float32, c color.NRGBA) {
+	for k := range rows {
+		code := codes[k]
+		if code&(foldCtlExpanded|foldCtlCollapsed) == 0 {
+			continue
+		}
+		cx := x + 2 + (foldControlW-2)/2 // Monaco's margin-left: 2px
+		cy := lineY(rows[k].vi) + lh/2
+		const a = 4 // half the chevron's width
+		if code&foldCtlCollapsed != 0 {
+			l.Line(geom.Pt(cx-a/2, cy-a), geom.Pt(cx+a/2, cy), 1.5, c)
+			l.Line(geom.Pt(cx+a/2, cy), geom.Pt(cx-a/2, cy+a), 1.5, c)
+		} else {
+			l.Line(geom.Pt(cx-a, cy-a/2), geom.Pt(cx, cy+a/2), 1.5, c)
+			l.Line(geom.Pt(cx, cy+a/2), geom.Pt(cx+a, cy-a/2), 1.5, c)
+		}
+	}
 }
 
 func (w *ViewW) numbersWidth(d digitGlyphs, n int) float32 {

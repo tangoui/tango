@@ -191,6 +191,26 @@ var defaultBindings = []defaultBinding{
 	{"editor.action.clipboardCutAction", "shift+delete", onWindows, textInput, nil},
 	{"editor.action.clipboardPasteAction", "mod+v", 0, textInput, nil},
 	{"editor.action.clipboardPasteAction", "shift+insert", onWindows, textInput, nil},
+
+	// Folding (Monaco's folding contribution; MinCode's table does not
+	// list these commands).
+	{"editor.fold", "ctrl+shift+[", onPC, textFocus, nil},
+	{"editor.fold", "cmd+alt+[", onMac, textFocus, nil},
+	{"editor.unfold", "ctrl+shift+]", onPC, textFocus, nil},
+	{"editor.unfold", "cmd+alt+]", onMac, textFocus, nil},
+	{"editor.toggleFold", "mod+k mod+l", 0, textFocus, nil},
+	{"editor.foldRecursively", "mod+k mod+[", 0, textFocus, nil},
+	{"editor.foldAllBlockComments", "mod+k mod+/", 0, textFocus, nil},
+	{"editor.foldAllMarkerRegions", "mod+k mod+8", 0, textFocus, nil},
+	{"editor.foldAll", "mod+k mod+0", 0, textFocus, nil},
+	{"editor.unfoldAll", "mod+k mod+j", 0, textFocus, nil},
+	{"editor.foldLevel1", "mod+k mod+1", 0, textFocus, nil},
+	{"editor.foldLevel2", "mod+k mod+2", 0, textFocus, nil},
+	{"editor.foldLevel3", "mod+k mod+3", 0, textFocus, nil},
+	{"editor.foldLevel4", "mod+k mod+4", 0, textFocus, nil},
+	{"editor.foldLevel5", "mod+k mod+5", 0, textFocus, nil},
+	{"editor.foldLevel6", "mod+k mod+6", 0, textFocus, nil},
+	{"editor.foldLevel7", "mod+k mod+7", 0, textFocus, nil},
 }
 
 // DefaultRules returns the default rules for platform p (see the table

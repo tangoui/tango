@@ -77,13 +77,19 @@ type viewState struct {
 	// menu is the context menu (menu.go).
 	menu menuState
 
+	// Folding (paint.go): the x of the folding controls' box in the last
+	// paint (-1: none), and the shaped placeholder of folded lines.
+	foldX        float32
+	ellipsis     *text.Layout
+	ellipsisSize float32
+
 	// dmg is what the last paint drew, for the redraw hints (damage.go);
 	// dmgSpare holds the buffers of the paint before it, for reuse.
 	dmg, dmgSpare damageRec
 }
 
 func newViewState() viewState {
-	return viewState{lines: text.NewLineCache(lineCacheSize), long: map[longKey]*longLine{}}
+	return viewState{lines: text.NewLineCache(lineCacheSize), long: map[longKey]*longLine{}, foldX: -1}
 }
 
 // shapeHook, when set (tests), sees every LineCache call the View makes for

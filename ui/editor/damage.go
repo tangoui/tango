@@ -22,7 +22,9 @@ import (
 //     row of a wrapped one) with its x, its token colors and styles, the
 //     selection ranges on it and whether its line break is selected, the
 //     current-line highlight, the composition shown on it and its line
-//     number with the number's color.
+//     number with the number's color, and its folding decorations (the
+//     folding control shown, the placeholder and background of a folded
+//     line).
 //     A row whose fingerprint changed, or that is drawn in only one of the
 //     two paints, is damaged across the whole view (gutter and text) at its
 //     place in this paint, padded by rowPad for glyphs and strokes reaching
@@ -52,9 +54,12 @@ import (
 //     (its column follows the width; editor.action.toggleWordWrap), the
 //     width of the line numbers (their digit count; a narrow view clips the
 //     gutter, so its rectangle may not change), focus (selection colors),
-//     and the first paint after a frame that did not paint the view.
-//     Folding and similar changes of the line mapping added later must be
-//     listed here or fingerprinted per row.
+//     the first paint after a frame that did not paint the view, and a
+//     change of the folded regions (folding or unfolding hides or shows
+//     lines: the mapping changes everywhere below them; folding.go).
+//     The hidden lines moving with an edit are row changes like any other;
+//     with hidden lines, as while wrapping, the last paint's top is
+//     located through its anchor.
 //
 // A frame in which nothing changed declares nothing. Display elements added
 // to the View must be covered by these rules: fingerprinted with their row,
@@ -71,6 +76,7 @@ type damageGlobal struct {
 	focused            bool
 	wrap               wrapConfig
 	numW               float32 // width of the line numbers
+	foldGen            uint64  // foldState.gen: changes of the folded regions
 }
 
 // damageRec is what the View drew in its last paint.
@@ -100,6 +106,7 @@ type paintFrame struct {
 	marks     []geom.Rect
 	// aLine, aRow: the model line and row at the top.
 	aLine, aRow int
+	fold        []uint8 // folding decorations per row (foldCtlExpanded ...)
 }
 
 // rowPad is how far, in logical pixels, a row's damage reaches past its
@@ -174,6 +181,10 @@ func (w *ViewW) rowHashes(pf *paintFrame, dst []uint64) []uint64 {
 				num(4)
 			}
 		}
+		if k < len(pf.fold) && pf.fold[k] != 0 {
+			num(6)
+			num(int(pf.fold[k]))
+		}
 		// The composition (inline: its text is in lv.text).
 		if c := pf.cmp; c.on && lv.i == pf.caretLine {
 			num(5)
@@ -216,8 +227,7 @@ func (w *ViewW) declareDamage(pf *paintFrame) {
 	lh := g.lh
 	// The last paint's top and first row in this paint's view lines.
 	ptop, plo := prev.topLine, prev.lo
-	if g.wrap.on() {
-		vl := &w.st.vl
+	if vl := &w.st.vl; g.wrap.on() || vl.mapped() {
 		if prev.aLine >= vl.n || prev.aRow >= vl.rowsOf(prev.aLine) {
 			c.Damage(g.rect)
 			return

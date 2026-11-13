@@ -97,6 +97,7 @@ func (s *State) setSels(sels []Selection, goals []int) {
 	s.lastAdded = last
 	s.clampLast()
 	s.validateAutoClosed()
+	s.revealFolds()
 }
 
 // ordered returns sel as an ordered range.

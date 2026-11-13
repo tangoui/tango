@@ -296,7 +296,7 @@ func (s *State) vertical(snap buffer.Snapshot, off int, dir Direction, n, goal i
 // (headUp); it also reports the affinity of the result: the end of a row
 // that continues on the next one when the goal column lies past it.
 func (s *State) verticalUp(snap buffer.Snapshot, off int, up bool, dir Direction, n, goal int) (int, bool) {
-	if s.lines().on() {
+	if s.lines().mapped() { // by view lines: rows of wrapped lines, over folded regions
 		line, row := s.rowPos(off, up)
 		if goal < 0 {
 			goal = s.viewColumn(snap, off, up)

@@ -586,8 +586,7 @@ func TestViewStateRoundTrip(t *testing.T) {
 	st.ScrollBy(123, 40)
 	st.MoveCaret(m.Snapshot().LineStart(20)+1, false)
 	st.MoveCaret(m.Snapshot().LineStart(22)+3, true)
-	st.folded = []int{3, 7}
-	v := st.SaveViewState()
+	v := st.SaveViewState() // folded regions: TestFoldViewState
 	if v.TopLine != 12 || v.OffsetY != 3 || v.ScrollX != 40 || len(v.Selections) != 1 || v.Selections[0] != st.Primary() {
 		t.Fatalf("saved %+v (sel %+v)", v, st.Primary())
 	}
@@ -595,7 +594,6 @@ func TestViewStateRoundTrip(t *testing.T) {
 	// The same view after showing something else, and a new view.
 	st.MoveCaret(0, false)
 	st.ScrollBy(-1e6, -1e6)
-	st.folded = nil
 	other := NewView(m, nil)
 	other.Viewport = Viewport{Height: 95, Width: 200, LineHeight: 10, ContentWidth: 500}
 	for _, s := range []*State{st, other} {
@@ -604,10 +602,6 @@ func TestViewStateRoundTrip(t *testing.T) {
 			!slices.Equal(got.Selections, v.Selections) || !slices.Equal(got.Folded, v.Folded) {
 			t.Fatalf("restored %+v, want %+v", got, v)
 		}
-	}
-	v.Folded[0] = 99 // the saved state does not alias the view's
-	if st.folded[0] != 3 {
-		t.Fatal("ViewState aliases the view's folded lines")
 	}
 }
 
@@ -628,8 +622,8 @@ func TestRestoreViewStateClamps(t *testing.T) {
 	if st.Primary() != (Selection{Anchor: 0, Head: 27}) {
 		t.Fatalf("selection %+v", st.Primary())
 	}
-	if !slices.Equal(st.folded, []int{2, 4}) {
-		t.Fatalf("folded %v", st.folded)
+	if f := st.Folded(); len(f) != 0 { // no folding range starts on those lines
+		t.Fatalf("folded %v", f)
 	}
 
 	st.RestoreViewState(ViewState{TopLine: -3, OffsetY: 25, ScrollX: -4})

@@ -97,6 +97,21 @@ type Options struct {
 	// WrappingIndent is the indentation of continuation rows
 	// (wrappingIndent: "same"); unset or unknown values are "same".
 	WrappingIndent WrappingIndentMode
+
+	// Folding enables code folding: the fold commands, the gutter's
+	// folding controls and hidden regions (folding: true; folding.go).
+	// Large files (Model.LargeFile) have no folding.
+	Folding bool
+	// FoldingStrategy is how the folding ranges are computed
+	// (foldingStrategy: "auto"); unset or unknown values are "auto".
+	FoldingStrategy FoldingStrategy
+	// FoldingHighlight gives folded regions' start lines a background
+	// (foldingHighlight: true).
+	FoldingHighlight bool
+	// ShowFoldingControls is when the gutter shows the folding controls
+	// (showFoldingControls: "mouseover"); unset or unknown values are
+	// "mouseover".
+	ShowFoldingControls ShowFoldingControls
 }
 
 // AutoClosingStrategy is when a pair is auto-closed (Monaco's
@@ -255,7 +270,31 @@ func DefaultOptions() Options {
 		WordWrap:       WrapOff,
 		WordWrapColumn: DefaultWordWrapColumn,
 		WrappingIndent: WrapIndentSame,
+
+		Folding:             true,
+		FoldingStrategy:     FoldingAuto,
+		FoldingHighlight:    true,
+		ShowFoldingControls: FoldingControlsMouseOver,
 	}
+}
+
+// foldingStrategy returns FoldingStrategy, "auto" for unset or unknown
+// values.
+func (o *Options) foldingStrategy() FoldingStrategy {
+	if o.FoldingStrategy == FoldingIndentation {
+		return FoldingIndentation
+	}
+	return FoldingAuto
+}
+
+// foldingControls returns ShowFoldingControls, "mouseover" for unset or
+// unknown values.
+func (o *Options) foldingControls() ShowFoldingControls {
+	switch o.ShowFoldingControls {
+	case FoldingControlsAlways, FoldingControlsNever:
+		return o.ShowFoldingControls
+	}
+	return FoldingControlsMouseOver
 }
 
 // fontSize returns FontSize, or the default when unset.

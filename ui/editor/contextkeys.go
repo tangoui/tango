@@ -16,6 +16,7 @@ import (
 //	editorHasMultipleSelections  more than one selection (multiple cursors)
 //	editorLangId                 the Model's language id ("go", "plaintext")
 //	editorTabMovesFocus          "Tab moves focus" mode (editor.action.toggleTabFocusMode)
+//	foldingEnabled               folding is on (Options.Folding, not a large file; folding.go)
 //	isMac, isWindows, isLinux    the keymap's platform
 //
 // The application adds keys of its own with ViewW.Context; its function
@@ -29,6 +30,7 @@ const (
 	CtxEditorHasMultipleSelections = "editorHasMultipleSelections"
 	CtxEditorLangID                = "editorLangId"
 	CtxEditorTabMovesFocus         = "editorTabMovesFocus"
+	CtxFoldingEnabled              = "foldingEnabled"
 	CtxIsMac                       = "isMac"
 	CtxIsWindows                   = "isWindows"
 	CtxIsLinux                     = "isLinux"
@@ -81,6 +83,8 @@ func (c contextKeys) Value(key string) (any, bool) {
 		return st.Model.Language(), true
 	case CtxEditorTabMovesFocus:
 		return st.tabFocus, true
+	case CtxFoldingEnabled:
+		return st.foldingOn(), true
 	case CtxIsMac, CtxIsWindows, CtxIsLinux:
 		p := keymap.Current()
 		if c.w != nil {

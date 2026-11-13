@@ -98,6 +98,10 @@ type Model struct {
 	reg  *monarch.Registry
 	pool *ModelPool // nil unless opened through a pool
 
+	// large: the text was too large for folding when the Model was
+	// created (LargeFile).
+	large bool
+
 	lang   string
 	conf   *langs.Conf
 	wordRe *regexp.Regexp         // nil: Unicode letters, digits, marks and '_'
@@ -139,6 +143,8 @@ type queued struct {
 // reg, shows no highlighting (Highlighter returns nil).
 func NewModel(uri, text string, reg *monarch.Registry) *Model {
 	m := &Model{uri: uri, buf: buffer.New(text), reg: reg, hl: highlight.New(nil), tabSize: DefaultTabSize, insertSpaces: true}
+	snap := m.buf.Snapshot()
+	m.large = snap.Len() > LargeFileSize || snap.LineCount() > LargeFileLines
 	id := PlainText
 	if l := langs.ForFilename(uriPath(uri)); l != nil {
 		id = l.ID
@@ -163,6 +169,23 @@ func uriPath(uri string) string {
 	}
 	return path.Base(p)
 }
+
+// Large-file thresholds: Monaco 0.56's TextModel.LARGE_FILE_SIZE_THRESHOLD
+// (20 MB) and LARGE_FILE_LINE_COUNT_THRESHOLD (300 000 lines), with
+// largeFileOptimizations on (its default).
+const (
+	LargeFileSize  = 20 * 1024 * 1024
+	LargeFileLines = 300 * 1000
+)
+
+// LargeFile reports whether the text was larger than LargeFileSize bytes
+// or LargeFileLines lines when the Model was created (Monaco's
+// isTooLargeForTokenization, decided once at creation as there). A large
+// file has no folding (Monaco gives such models no hidden areas); unlike
+// Monaco, syntax highlighting stays on. The size counts UTF-8 bytes where
+// Monaco counts UTF-16 code units, so text outside ASCII reaches it
+// sooner.
+func (m *Model) LargeFile() bool { return m.large }
 
 // URI returns the Model's URI (the file name for NewState's private model).
 func (m *Model) URI() string { return m.uri }

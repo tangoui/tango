@@ -132,6 +132,11 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	if vs.wrapCol != wcfg.col {
 		vs.wrapCol, vs.maxW = wcfg.col, 0
 	}
+	// Folding: the folding ranges the controls show are computed now,
+	// before the rows are laid out (computing them may change the hidden
+	// lines; folding.go).
+	showAll, showFolded := w.foldControls()
+	st.foldPrepare(showAll)
 	st.measureViewport()
 	vl := st.lines()
 	first, last := st.VisibleLines()
@@ -175,6 +180,8 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		}
 		return nil
 	}
+
+	fold := w.foldCodes(lines, showAll, showFolded)
 
 	// Colors.
 	bg := defaultColor(th, "editor.background")
@@ -241,6 +248,16 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		}
 	}
 
+	// Folded lines' background (Monaco's folded-background, the whole
+	// line).
+	if fb := defaultColor(th, "editor.foldBackground"); fb.A > 0 {
+		for k := range lines {
+			if fold[k]&foldBackground != 0 {
+				l.Fill(rectXYWH(vs.text.X, lineY(lines[k].vi), vs.text.W, lh), geom.Radii{}, fb)
+			}
+		}
+	}
+
 	// 3. Selections (the primary hidden while composing: the composition
 	// replaces it).
 	for _, vsl := range vis {
@@ -272,12 +289,15 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		}
 	}
 
-	// 4. Text.
+	// 4. Text, and the placeholder after folded lines.
 	for k := range lines {
 		lv := &lines[k]
 		y := lineY(lv.vi)
 		for _, sg := range lv.segs {
 			drawSeg(l, sg, tx, y)
+		}
+		if fold[k]&foldPlaceholder != 0 {
+			w.paintPlaceholder(l, lv, tx, y, th)
 		}
 	}
 
@@ -326,14 +346,19 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	gbg := defaultColor(th, "editorGutter.background")
 	l.Clip(vs.gutter, geom.Radii{})
 	w.paintGutter(l, r.X, gw, lines, lineY, n, caretLine, dg, gbg)
+	vs.foldX = -1
+	if w.foldControlsShown() {
+		vs.foldX = w.foldControlX(r.X, dg, n)
+		paintFoldControls(l, vs.foldX, lines, fold, lineY, lh, defaultColor(th, "editorGutter.foldingControlForeground"))
+	}
 	l.Pop()
 
 	aLine, aRow := vl.find(v.TopLine)
 	w.declareDamage(&paintFrame{
 		g: damageGlobal{rect: r, gutter: vs.gutter, text: vs.text, colW: colW, lh: lh, theme: th, opts: w.opts,
-			tab: w.tabs(), focused: focused, wrap: wcfg, numW: w.numbersWidth(dg, n)},
+			tab: w.tabs(), focused: focused, wrap: wcfg, numW: w.numbersWidth(dg, n), foldGen: st.fold.gen},
 		snap: snap, lines: lines, vis: vis, cur: cur, cmp: cmp, caretLine: caretLine, scrollX: v.ScrollX, marks: marks,
-		aLine: aLine, aRow: aRow,
+		aLine: aLine, aRow: aRow, fold: fold,
 	})
 }
 
@@ -498,8 +523,12 @@ func (w *ViewW) layoutRows(snap buffer.Snapshot, lo, hi int, hl *highlight.Highl
 	out := make([]lineView, 0, hi-lo+1)
 	vl := w.st.lines()
 	if !vl.on() {
-		for i := lo; i <= hi; i++ {
-			out = append(out, w.layoutLine(snap, i, hl, th, colW))
+		// One row per shown line (folded regions hide some).
+		for v := lo; v <= hi; v++ {
+			i, _ := vl.find(v)
+			lv := w.layoutLine(snap, i, hl, th, colW)
+			lv.vi = v
+			out = append(out, lv)
 		}
 		return out
 	}
@@ -751,6 +780,10 @@ var monacoDefaults = map[string][4]string{
 	"editor.lineHighlightBorder":        {"#EEEEEE", "#282828", "#F38518", "#0F4A85"},
 	"editor.selectionBackground":        {"#ADD6FF", "#264F78", "#F3F518", "#0F4A85"},
 	"editorCursor.foreground":           {"#000000", "#AEAFAD", "#FFFFFF", "#0F4A85"},
+	// Folding (contrib/folding/browser/foldingDecorations.js; the control
+	// color defaults to icon.foreground, baseColors.js).
+	"editor.foldPlaceholderForeground":      {"#808080", "#808080", "", ""},
+	"editorGutter.foldingControlForeground": {"#424242", "#C5C5C5", "#FFFFFF", "#292929"},
 }
 
 // lookupColor returns the theme's own value of key.
@@ -774,6 +807,20 @@ func defaultColor(th *theme.Theme, key string) color.NRGBA {
 	case "editorLineNumber.activeForeground":
 		if c, ok := lookupColor(th, "editorActiveLineNumber.foreground"); ok {
 			return c
+		}
+	case "editor.foldBackground":
+		// transparent(editor.selectionBackground, 0.3); none for high
+		// contrast.
+		if themeType(th) >= 2 {
+			return color.NRGBA{}
+		}
+		c := defaultColor(th, "editor.selectionBackground")
+		c.A = uint8(math.Round(float64(c.A) * 0.3))
+		return c
+	case "editor.foldPlaceholderForeground":
+		if themeType(th) >= 2 {
+			// No default: the placeholder takes the text color.
+			return defaultColor(th, "editor.foreground")
 		}
 	case "editor.inactiveSelectionBackground":
 		c := defaultColor(th, "editor.selectionBackground")
@@ -827,4 +874,88 @@ func hexColor(s string) color.NRGBA {
 		c.A = h(7)
 	}
 	return c
+}
+
+// foldControls returns which folding controls the gutter shows this frame:
+// all of them (showFoldingControls "always", or "mouseover" with the
+// pointer over the gutter), and those of folded regions (any mode but
+// "never").
+func (w *ViewW) foldControls() (all, folded bool) {
+	if !w.foldControlsShown() || !w.st.foldingOn() {
+		return false, false
+	}
+	switch w.opts.foldingControls() {
+	case FoldingControlsAlways:
+		return true, true
+	}
+	p, in := w.c.Pointer()
+	return in && w.ia.Hovered && w.vs.gutter.Contains(p), true
+}
+
+// foldCodes returns the folding decorations of the laid out rows (see
+// foldCtlExpanded). It reads the folding state only: paint calls it after
+// laying out the rows.
+func (w *ViewW) foldCodes(rows []lineView, all, folded bool) []uint8 {
+	st := w.st
+	fs := &st.fold
+	codes := make([]uint8, len(rows))
+	if len(fs.folds) == 0 && !all {
+		return codes
+	}
+	ranges := all && fs.rsOK && fs.rsKey.buf == st.Model.Buffer() && fs.rsKey.ver == st.Snapshot().Version()
+	highlight := w.opts.FoldingHighlight
+	for k := range rows {
+		lv := &rows[k]
+		isFolded := fs.foldAt(lv.i) >= 0
+		var c uint8
+		if lv.row == 0 {
+			switch {
+			case isFolded && folded:
+				c |= foldCtlCollapsed
+			case !isFolded && ranges && fs.rangeAt(lv.i):
+				c |= foldCtlExpanded
+			}
+		}
+		if isFolded {
+			if lv.last() {
+				c |= foldPlaceholder
+			}
+			if highlight {
+				c |= foldBackground
+			}
+		}
+		codes[k] = c
+	}
+	return codes
+}
+
+// foldEllipsis is Monaco's placeholder after a folded line (U+22EF, the
+// inline-folded ::after content).
+const foldEllipsis = "⋯"
+
+// placeholderX returns the content x range of the placeholder after row
+// lv (Monaco's margin: 0.2em on each side).
+func (w *ViewW) placeholderX(lv *lineView) (x0, x1 float32) {
+	lay := w.ellipsis()
+	em := w.opts.fontSize()
+	x0 = lv.endX + 0.2*em
+	return x0, x0 + lay.Width + 0.2*em
+}
+
+// ellipsis returns the shaped placeholder, cached per font size.
+func (w *ViewW) ellipsis() *text.Layout {
+	vs := w.vs
+	if sz := w.opts.fontSize(); vs.ellipsis == nil || vs.ellipsisSize != sz {
+		vs.ellipsis = text.Shape(foldEllipsis, w.monoStyle(), text.Options{NoWrap: true})
+		vs.ellipsisSize = sz
+	}
+	return vs.ellipsis
+}
+
+// paintPlaceholder draws the placeholder after row lv, a folded line's
+// last row at y; tx is the screen x of content x 0.
+func (w *ViewW) paintPlaceholder(l *paint.List, lv *lineView, tx, y float32, th *theme.Theme) {
+	x0, _ := w.placeholderX(lv)
+	lay := w.ellipsis()
+	l.Glyphs(geom.Pt(tx+x0, y), lay.Glyphs, defaultColor(th, "editor.foldPlaceholderForeground"))
 }

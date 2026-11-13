@@ -42,7 +42,7 @@ type State struct {
 	ups        caretAffinity
 	wrapToggle WrapMode
 
-	folded []int // start lines of folded regions (ViewState; folding is not implemented yet)
+	fold foldState // folded regions and folding ranges (folding.go)
 
 	goals    []int // goal columns of vertical moves, one per selection; nil when unset
 	lastKind editKind
@@ -152,18 +152,21 @@ func (s *State) modelChanged(ch ModelChange) {
 		return top
 	}
 	switch vl := &s.vl; {
-	case vl.on() && vl.ver == ch.Old.Version() && vl.buf == s.Model.Buffer():
-		// Wrapping: the top model line follows the text, keeping its row.
+	case vl.mapped() && vl.ver == ch.Old.Version() && vl.buf == s.Model.Buffer():
+		// Wrapping or folding: the top model line follows the text,
+		// keeping its row; the folds follow their anchors.
 		line, row := vl.find(s.Viewport.TopLine)
 		vl.syncEdits(s.Model.Buffer(), ch.Old, ch.Edits, ch.New)
+		s.syncFolds()
 		s.anchorTop(mapTop(line), row)
-	case vl.on():
+	case vl.mapped() || len(s.fold.folds) > 0:
 		line, row := s.topAnchor()
 		s.anchorTop(mapTop(line), row)
 	default:
 		s.Viewport.TopLine = mapTop(s.Viewport.TopLine)
 	}
 	s.clampViewport()
+	s.revealFolds()
 }
 
 // Highlighter returns the Model's highlighter, nil for plain text.
@@ -300,6 +303,7 @@ func (s *State) edit(edits []buffer.Edit, kind editKind, after []Selection, exac
 		s.goals = nil
 		s.clearCursorHistory()
 		s.clampViewport()
+		s.revealFolds()
 	})
 	if err != nil {
 		return err
@@ -346,5 +350,6 @@ func (s *State) history(redo bool) bool {
 		s.lastKind = kindNone
 		s.clearCursorHistory()
 		s.clampViewport()
+		s.revealFolds()
 	})
 }

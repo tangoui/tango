@@ -18,7 +18,10 @@ type ViewState struct {
 	ScrollX float32
 	// Selections are the selections, the primary first.
 	Selections []Selection
-	// Folded are the start lines of the folded regions.
+	// Folded are the start lines of the folded regions. Restoring folds
+	// the folding ranges of the current text starting there (Monaco keeps
+	// their end lines and a checksum too; a start line that no longer
+	// starts a range is not folded).
 	Folded []int
 }
 
@@ -30,7 +33,7 @@ func (s *State) SaveViewState() ViewState {
 		OffsetY:    s.Viewport.OffsetY,
 		ScrollX:    s.Viewport.ScrollX,
 		Selections: slices.Clone(s.sels()),
-		Folded:     slices.Clone(s.folded),
+		Folded:     s.foldedStarts(),
 	}
 }
 
@@ -43,6 +46,9 @@ func (s *State) RestoreViewState(v ViewState) {
 	snap := s.Model.Snapshot()
 	n := snap.LineCount()
 	vp := &s.Viewport
+	// The folded regions first, so the top line is anchored in the view
+	// lines they leave.
+	s.restoreFolds(v.Folded)
 	top := max(0, min(v.TopLine, n-1))
 	s.anchorTop(top, 0) // to a view line
 	vp.OffsetY = max(0, v.OffsetY)
@@ -62,14 +68,7 @@ func (s *State) RestoreViewState(v ViewState) {
 	s.lastAdded = len(s.Sels) - 1
 	s.goals = nil
 	s.lastKind = kindNone
-	s.folded = s.folded[:0]
-	for _, l := range v.Folded {
-		if l >= 0 && l < n {
-			s.folded = append(s.folded, l)
-		}
-	}
-	slices.Sort(s.folded)
-	s.folded = slices.Compact(s.folded)
+	s.revealFolds()
 }
 
 // topModelLine returns the model line at the top of the viewport.

@@ -235,6 +235,7 @@ func TestViewDamageVerified(t *testing.T) {
 		t.Run(fmt.Sprintf("wrap/scale%v", scale), func(t *testing.T) { damageWrapScript(t, scale) })
 	}
 	t.Run("staleTop", damageStaleTop)
+	t.Run("fold", damageFoldScript)
 	t.Run("recolour", damageRecolour)
 	t.Run("otherView", damageOtherView)
 }

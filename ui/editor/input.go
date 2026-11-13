@@ -563,6 +563,16 @@ func (w *ViewW) press(p pending) {
 	if !w.hasGeom() {
 		return
 	}
+	if w.foldControlPress(p) {
+		return
+	}
+	unfold := w.placeholderAt(p.pressPos)
+	if unfold >= 0 {
+		// A click on a folded line's placeholder unfolds it (Monaco's
+		// FoldingController.onEditorMouseUp); the caret goes to the
+		// line's end first, as the press places it.
+		defer st.toggleFoldAt(unfold, false)
+	}
 	snap := st.Snapshot()
 	off, up := w.hitAt(snap, p.pressPos)
 	vs.dragMode, vs.dragBase = dragPrimary, nil
@@ -610,6 +620,57 @@ func (w *ViewW) press(p pending) {
 	vs.dragA, vs.dragB = a, b
 	w.setSel(a, b)
 	st.setCaretUp(up && a == b)
+}
+
+// foldControlPress handles a press on a folding control in the gutter:
+// it folds or unfolds the region starting on that line (with Shift
+// recursively, Monaco's FoldingController.onEditorMouseUp), and reports
+// whether it did. The caret does not move.
+func (w *ViewW) foldControlPress(p pending) bool {
+	vs, st := w.vs, w.st
+	if vs.foldX < 0 || !st.foldingOn() {
+		return false
+	}
+	pt := p.pressPos
+	if !vs.gutter.Contains(pt) || pt.X < vs.foldX || pt.X >= vs.foldX+foldControlW {
+		return false
+	}
+	r := w.pointRow(pt)
+	if r < 0 || r >= st.viewCount() {
+		return false
+	}
+	line, row := st.lines().find(r)
+	if row != 0 {
+		return false
+	}
+	return st.toggleFoldAt(line, p.shift)
+}
+
+// placeholderAt returns the folded line whose placeholder is at window
+// point pt, -1 for none.
+func (w *ViewW) placeholderAt(pt geom.Point) int {
+	vs, st := w.vs, w.st
+	if len(st.fold.folds) == 0 || !vs.text.Contains(pt) {
+		return -1
+	}
+	r := w.pointRow(pt)
+	if r < 0 || r >= st.viewCount() {
+		return -1
+	}
+	line, row := st.lines().find(r)
+	if st.fold.foldAt(line) < 0 {
+		return -1
+	}
+	snap := st.Snapshot()
+	lv := w.rowAt(snap, line, row)
+	if !lv.last() {
+		return -1
+	}
+	x0, x1 := w.placeholderX(&lv)
+	if x := pt.X - vs.text.X + st.Viewport.ScrollX; x >= x0-1 && x < x1 {
+		return line
+	}
+	return -1
 }
 
 // visualAt returns the line and the visual column (State.ColumnSelect) at
@@ -774,6 +835,7 @@ func (w *ViewW) rowAt(snap buffer.Snapshot, i, row int) lineView {
 		}
 	}
 	lv := w.layoutLine(snap, i, hl, th, w.vs.colW)
+	lv.vi = w.st.lines().viewOf(i)
 	if lv.long != nil {
 		w.layoutChunks(&lv, th, w.vs.colW)
 	}
