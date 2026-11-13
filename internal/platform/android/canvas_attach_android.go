@@ -33,10 +33,15 @@ import (
 // (the size at the first layout after Attach or SetLayer) to the current
 // one (canvas_attach_plan.go). Zero Bounds fill the frame.
 //
-// Pass-through. The overlay keeps the alpha of its last frame (hitMask).
-// CanvasView.dispatchTouchEvent asks nativeHit on ACTION_DOWN; below the
-// layer's HitThreshold it refuses the event, so the frame offers the whole
-// gesture to the WebView underneath.
+// Pass-through. The overlay keeps the alpha of its last frame that reached
+// the screen (hitMask). CanvasView.dispatchTouchEvent asks nativeHit on
+// ACTION_DOWN; below the layer's HitThreshold it refuses the event, so the
+// frame offers the whole gesture to the WebView underneath. Pointer
+// streams (mouse, trackpad: hover and scroll) are decided the same way,
+// once at the stream's start, so a scroll does not hop between the overlay
+// and the page as it crosses transparent pixels. The mask is dropped
+// (everything passes through) when the Surface goes away or changes size
+// and when a presentation fails, until the next frame is on screen.
 //
 // Below the WebView (Above false) the WebView's background is transparent
 // while such a canvas is attached; the page must not paint one either.
@@ -177,7 +182,7 @@ func (o *overlay) Present(img *image.RGBA) error {
 		return o.detachedErr()
 	}
 	err := o.canvas.Present(img)
-	o.keepMask(img, nil)
+	o.keepMask(img, nil, err)
 	return err
 }
 
@@ -188,19 +193,20 @@ func (o *overlay) PresentDamage(img *image.RGBA, dirty []image.Rectangle) error 
 		return o.detachedErr()
 	}
 	err := o.canvas.PresentDamage(img, dirty)
-	if img == nil {
+	if img == nil || err != nil {
+		o.keepMask(img, nil, err)
 		return err
 	}
 	rects, full := platform.DamageRects(dirty, img.Bounds(), damageMaxRects)
 	switch {
 	case full:
-		o.keepMask(img, nil)
+		o.keepMask(img, nil, nil)
 	case len(rects) > 0:
 		u := rects[0]
 		for _, r := range rects[1:] {
 			u = u.Union(r)
 		}
-		o.keepMask(img, &u)
+		o.keepMask(img, &u, nil)
 	}
 	return err
 }
@@ -214,15 +220,20 @@ func (o *overlay) detachedErr() error {
 	return errDetached
 }
 
-func (o *overlay) keepMask(img *image.RGBA, r *image.Rectangle) {
+// keepMask records a presentation for pass-through hit testing (see
+// hitMask.presented).
+func (o *overlay) keepMask(img *image.RGBA, r *image.Rectangle, err error) {
 	if !o.passThrough() {
 		o.mask.reset()
 		return
 	}
-	if img != nil {
-		o.mask.update(img, r)
-	}
+	o.mask.presented(img, r, err)
 }
+
+// surfaceGone forgets the mask when the overlay's Surface is destroyed or
+// changes size: until the next frame is on screen nothing of the overlay
+// is known to be there. Main thread.
+func (o *overlay) surfaceGone() { o.mask.reset() }
 
 // UseNativeWindow: attached canvases present on the CPU only.
 func (o *overlay) UseNativeWindow() (uintptr, error) {

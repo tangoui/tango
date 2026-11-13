@@ -503,6 +503,9 @@ func Java_org_tango_host_TangoCanvas_nativeSurfaceChanged(penv *C.JNIEnv, cls C.
 		fresh = true
 	}
 	if fresh || int(w) != c.wpx || int(h) != c.hpx {
+		if c.ov != nil {
+			c.ov.surfaceGone() // the old frame's alpha no longer matches
+		}
 		if C.tg_cv_geometry(c.win, w, h, C.int(btoi(c.ov != nil))) != 0 {
 			logf(logWarn, "canvas %d: setBuffersGeometry(%d, %d) failed", c.id, int(w), int(h))
 		}
@@ -547,6 +550,9 @@ func Java_org_tango_host_TangoCanvas_nativeSurfaceDestroyed(penv *C.JNIEnv, cls 
 		logf(logInfo, "canvas %d: Surface destroyed", c.id)
 	}
 	c.releaseWindow()
+	if c.ov != nil {
+		c.ov.surfaceGone()
+	}
 	if c.closed {
 		return 0
 	}

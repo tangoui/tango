@@ -1,6 +1,7 @@
 package android
 
 import (
+	"errors"
 	"image"
 	"testing"
 
@@ -142,5 +143,41 @@ func TestPackPoint(t *testing.T) {
 		if x, y := int(int32(v>>32)), int(int32(uint32(v))); x != p.X || y != p.Y {
 			t.Errorf("packPoint(%v) unpacks to (%d, %d)", p, x, y)
 		}
+	}
+}
+
+// TestHitMaskPresented: the mask follows only frames that reached the
+// screen. A failed presentation drops it (gestures pass through until a
+// frame is shown), and a partial update of a mask of another size, or of
+// none, waits for a full frame instead of mixing two frames.
+func TestHitMaskPresented(t *testing.T) {
+	opaque := maskImage(4, 4, func(int, int) uint8 { return 255 })
+	var m hitMask
+	m.presented(opaque, nil, nil)
+	if !m.hit(1, 1, 1) {
+		t.Fatal("presented frame does not hit")
+	}
+	m.presented(opaque, nil, errors.New("present failed"))
+	if m.hit(1, 1, 1) {
+		t.Error("failed presentation kept the stale mask")
+	}
+	r := image.Rect(0, 0, 2, 2)
+	m.presented(opaque, &r, nil)
+	if m.hit(1, 1, 1) {
+		t.Error("partial frame built a mask from nothing")
+	}
+	m.presented(opaque, nil, nil)
+	big := maskImage(8, 8, func(int, int) uint8 { return 255 })
+	m.presented(big, &r, nil)
+	if m.hit(1, 1, 1) || m.hit(6, 6, 1) {
+		t.Error("partial frame of another size kept or mixed the old mask")
+	}
+	m.presented(big, nil, nil)
+	if !m.hit(6, 6, 1) {
+		t.Error("full frame after a resize does not hit")
+	}
+	m.presented(nil, nil, nil)
+	if m.hit(6, 6, 1) {
+		t.Error("nil image kept the mask")
 	}
 }

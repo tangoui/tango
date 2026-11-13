@@ -301,10 +301,54 @@ final class CanvasView extends FrameLayout
         return super.dispatchTouchEvent(e);
     }
 
+    /**
+     * Pointer streams without a press (mouse and trackpad hover, wheel and
+     * two-finger scroll) are decided like touch gestures: once, where the
+     * stream starts, and the rest follows that decision. A hover stream runs
+     * from HOVER_ENTER (or the first move) to HOVER_EXIT; a scroll stream
+     * is a run of SCROLL events less than SCROLL_STREAM_MS apart. Asking per
+     * event let a scroll hop between the overlay and the page as it crossed
+     * transparent pixels.
+     */
+    static final long SCROLL_STREAM_MS = 300;
+    /** The current hover stream: 0 none, 1 this overlay's, -1 the page's. */
+    private int hoverOwner;
+    /** The current scroll stream's owner as hoverOwner, and its last event time. */
+    private int scrollOwner;
+    private long scrollAt;
+
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent e) {
-        if (e.isFromSource(InputDevice.SOURCE_CLASS_POINTER) && !hits(e.getX(), e.getY())) return false;
+        if (!e.isFromSource(InputDevice.SOURCE_CLASS_POINTER)) return super.dispatchGenericMotionEvent(e);
+        if (!pointerHits(e)) return false;
         return super.dispatchGenericMotionEvent(e);
+    }
+
+    /** Whether a pointer event without a press belongs to this canvas (see SCROLL_STREAM_MS). */
+    private boolean pointerHits(MotionEvent e) {
+        switch (e.getActionMasked()) {
+            case MotionEvent.ACTION_HOVER_ENTER:
+                hoverOwner = hits(e.getX(), e.getY()) ? 1 : -1;
+                return hoverOwner > 0;
+            case MotionEvent.ACTION_HOVER_MOVE:
+                if (hoverOwner == 0) hoverOwner = hits(e.getX(), e.getY()) ? 1 : -1;
+                return hoverOwner > 0;
+            case MotionEvent.ACTION_HOVER_EXIT: {
+                boolean mine = hoverOwner > 0 || (hoverOwner == 0 && hits(e.getX(), e.getY()));
+                hoverOwner = 0;
+                return mine;
+            }
+            case MotionEvent.ACTION_SCROLL: {
+                long t = e.getEventTime();
+                if (scrollOwner == 0 || t - scrollAt > SCROLL_STREAM_MS) {
+                    scrollOwner = hits(e.getX(), e.getY()) ? 1 : -1;
+                }
+                scrollAt = t;
+                return scrollOwner > 0;
+            }
+            default:
+                return hits(e.getX(), e.getY());
+        }
     }
 
     /**

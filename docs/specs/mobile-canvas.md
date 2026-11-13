@@ -2,17 +2,19 @@
 
 状态：设计稿写于 2026-11-13；**M1–M5 已实现**（进度见下表），两端都还没上真机。下文第 1–7 节保留设计时的调研与方案，其中"现状"一类描述指设计当时。
 
-**实施进度**（2026-11-13 按代码核对；M5 一行按提交 `83f84b2` 更新）
+**实施进度**（2026-11-13 按代码核对；M5 一行按提交 `83f84b2` 更新；2026-11-14 补模拟器实测，见表后）
 
 | 里程碑 | 状态 | 代码证据 | 验证 |
 |---|---|---|---|
-| M1 iOS 上屏、触摸、安全区 | ✅ 已实现 | `internal/platform/ios/canvas.go`（`platform.Canvas`、`CanvasMetal`、`CanvasInsets`）、`canvas.m`（`TGCanvasPage/View`、CADisplayLink） | 本文未记录模拟器结果（Android 的见右侧） |
+| M1 iOS 上屏、触摸、安全区 | ✅ 已实现 | `internal/platform/ios/canvas.go`（`platform.Canvas`、`CanvasMetal`、`CanvasInsets`）、`canvas.m`（`TGCanvasPage/View`、CADisplayLink） | **模拟器通过**（2026-11-14，iPhone 17 / iOS 27.2）：`smoke.sh ios-ui` PASS，renderer gpu、text engine coretext、402×874、安全区 62/34，自检点按与开关生效 |
 | M2 Android CPU 上屏、触摸、insets | ✅ 已实现 | `internal/platform/android/canvas_android.{go,c}`、`mobile/android/.../CanvasPage.java`、`CanvasView.java` | AVD API 36 模拟器，结果见 [../mobile.md](../mobile.md)"自绘页"一节 |
-| M3 两端输入法与键盘 | ✅ 已实现（M3a 与 M3b） | iOS：`ios/canvas_text.{go,m}`（UITextInput）、`canvas_textdoc.go`；Android：`android/canvas_ime.go`、`canvas_ime_android.go`、`CanvasInput.java`；键盘 inset 两端都报给 `uihost` | iOS 有模拟器自检 `TANGO_CANVAS_IME_SELFTEST`（`ios/canvas_selftest.go`）；本文未记录人工输入法验收结果 |
-| M4 两端无障碍 | ✅ 已实现 | iOS：`ios/canvas_a11y.{go,m}`、`a11ybridge/ios.go`；Android：`android/canvas_a11y.go`、`canvas_a11y_android.go`、`CanvasA11y.java`、`a11ybridge/android.go` | 单测；本文未记录 VoiceOver / TalkBack 实测结果 |
-| M5 Android GPU、WebView 叠放、收尾 | ✅ 已实现（大部分） | Android GPU：`ui/gpu/gl/presenter_android.go`、`egl_android.go`（OpenGL ES 3.0 + EGL，与 Linux GL 共用设备），`uihost/gpu_android.go` 经 `platform.CanvasNativeWindow` 接入，上下文丢失后重建，失败或软件光栅化时回退 CPU，`debug.tango.renderer` 属性切换；叠放（`CanvasAttacher`）：iOS `ios/canvas_attach.{go,m}`（子视图），Android `android/canvas_attach_android.go` + `CanvasOverlay.java`（TextureView），两端叠放层只走 CPU；返回键 `ui/back.go`（`WantBack`/`ClaimBack`）与 `uihost/back.go`；内存警告 `uihost/memory.go`（`AppMemoryWarning` 后裁剪图集、纹理和排版缓存）；iPad 指针与触控板 `ios/canvas_pointer.{go,m}`。未做：黄金图比对进 CI；独立的 `ResetDevice` 接口（Android 呈现器自己重建上下文） | 单测（`presenter_android_test.go`、`canvas_attach_plan_test.go` 等）；本文未记录模拟器或真机结果 |
+| M3 两端输入法与键盘 | ✅ 已实现（M3a 与 M3b） | iOS：`ios/canvas_text.{go,m}`（UITextInput）、`canvas_textdoc.go`；Android：`android/canvas_ime.go`、`canvas_ime_android.go`、`CanvasInput.java`；键盘 inset 两端都报给 `uihost` | **iOS 模拟器自检通过**（2026-11-14）：点表单页"用户名"后键盘弹出、inset 329，拼音组字 `zhong` → 提交"中"、输入、退格、自动纠错 `teh`→`the`（`TextEdit`）、移动光标后插入，字段内容为 `>中ab the`，截图里系统拼音候选栏可见。Android 输入法、多种第三方输入法、真人输入仍未验收 |
+| M4 两端无障碍 | ✅ 已实现 | iOS：`ios/canvas_a11y.{go,m}`、`a11ybridge/ios.go`；Android：`android/canvas_a11y.go`、`canvas_a11y_android.go`、`CanvasA11y.java`、`a11ybridge/android.go` | 单测；Android 模拟器上无障碍树在 `smoke.sh android-ui` 中被激活（26 个节点，冒烟用它定位"点我计数"行并点中）。VoiceOver / TalkBack 实际朗读与手势仍未验收 |
+| M5 Android GPU、WebView 叠放、收尾 | ✅ 已实现（大部分） | Android GPU：`ui/gpu/gl/presenter_android.go`、`egl_android.go`（OpenGL ES 3.0 + EGL，与 Linux GL 共用设备），`uihost/gpu_android.go` 经 `platform.CanvasNativeWindow` 接入，上下文丢失后重建，失败或软件光栅化时回退 CPU，`debug.tango.renderer` 属性切换；叠放（`CanvasAttacher`）：iOS `ios/canvas_attach.{go,m}`（子视图），Android `android/canvas_attach_android.go` + `CanvasOverlay.java`（TextureView），两端叠放层只走 CPU；返回键 `ui/back.go`（`WantBack`/`ClaimBack`）与 `uihost/back.go`；内存警告 `uihost/memory.go`（`AppMemoryWarning` 后裁剪图集、纹理和排版缓存）；iPad 指针与触控板 `ios/canvas_pointer.{go,m}`。未做：黄金图比对进 CI；独立的 `ResetDevice` 接口（Android 呈现器自己重建上下文） | 单测（`presenter_android_test.go`、`canvas_attach_plan_test.go` 等）。**Android 模拟器**（2026-11-14，AVD API 36）：`smoke.sh android-ui` PASS，整页走 GPU 呈现；WebView + 叠放层页：透明区点按穿透到网页按钮、卡片按钮打开弹出层、返回键先关弹出层，旋转到横屏后同样正确。上下文丢失、真机 GPU 仍未验收 |
 
 真机：两端都还没有在真机上跑过自绘页（[../mobile.md](../mobile.md) 两端"已知限制"）。
+
+叠放层穿透修正（2026-11-14）：Android 叠放层的透明度掩码只跟随**已上屏**的帧——Present 失败、Surface 销毁或改变尺寸时清空（这期间手势一律交给下面的网页，直到下一帧上屏），局部帧不再拼接到尺寸不符或已清空的掩码上（`hitMask.presented`，`canvas_attach_plan_test.go` 的 `TestHitMaskPresented`）。鼠标与触控板的悬停、滚轮流也像触摸手势一样只在流开始时判定一次归属（`CanvasView.pointerHits`；滚动事件间隔超过 300 ms 算新的一段），不再在穿过透明像素时在叠放层和网页之间来回切换。
 
 相关文档：[canvas-surface.md](canvas-surface.md)（C 步即本文）、[touch-input.md](touch-input.md)、[gpu-renderer.md](gpu-renderer.md)、[a11y-bridge.md](a11y-bridge.md)、[../accessibility.md](../accessibility.md)、[../mobile.md](../mobile.md)。
 

@@ -55,6 +55,28 @@ func (m *hitMask) update(img *image.RGBA, r *image.Rectangle) {
 	}
 }
 
+// presented records a presentation of img over the dirty rectangle r (nil:
+// the whole frame) that returned err. The mask follows only frames that
+// reached the screen: after a failed presentation what is on screen is
+// unknown, so the mask is dropped (every point misses, so a gesture goes
+// to the page below) until a frame succeeds. A partial update of a mask
+// of another size, or of none, cannot be trusted either: then the mask
+// waits for a full frame (Present after a resize is full: needFull).
+func (m *hitMask) presented(img *image.RGBA, r *image.Rectangle, err error) {
+	if err != nil || img == nil {
+		m.reset()
+		return
+	}
+	if r != nil {
+		b := img.Bounds()
+		if m.w != b.Dx() || m.h != b.Dy() {
+			m.reset()
+			return
+		}
+	}
+	m.update(img, r)
+}
+
 // hit reports whether the frame's pixel at (x, y) has an alpha of at least
 // threshold. Points outside the frame, or without a frame, miss.
 func (m *hitMask) hit(x, y float32, threshold uint8) bool {
