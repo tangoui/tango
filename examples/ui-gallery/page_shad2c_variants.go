@@ -22,6 +22,7 @@ func shad2cBase(name string) (gallery.Page, bool) {
 func shad2cVariant(base, suffix, title string, mk func() *theme.Theme) {
 	gallery.Register(gallery.Page{
 		Name: base + suffix, Title: base + title, Group: gallery.Navigation, Order: 900, Variant: true, Parent: base,
+		Width:  shad2cWidths[base],  // the base page's screenshot width (if not the default)
 		Height: shad2cHeights[base], // the base page's fixed screenshot height (if any)
 		Render: func(c *ui.Context) {
 			if p, ok := shad2cBase(base); ok {
@@ -46,6 +47,8 @@ func shad2cVariant(base, suffix, title string, mk func() *theme.Theme) {
 	})
 }
 
+var shad2cWidths = map[string]float32{"CodeEditor": 1100, "CodeEditorLarge": 1100}
+
 var shad2cHeights = map[string]float32{"Pagination": 300, "Popconfirm": 300, "Command": 520, "Confirm": 640, "MessageBox": 640, "Prompt": 640}
 
 func init() {
@@ -59,5 +62,11 @@ func init() {
 	for _, n := range []string{"Confirm", "MessageBox", "Prompt"} {
 		shad2cVariant(n, "-Dark", "（暗色）", dark)
 		shad2cVariant(n, "-Element-Dark", "（Element 暗色）", elDark)
+	}
+	// The last pages without Element and dark variants (ui-coverage.md
+	// 5.2). The code editor follows the dark theme (vs-dark).
+	for _, n := range []string{"CodeEditor", "CodeEditorLarge", "DescriptionsResponsive", "TreeVirtual", "Icon"} {
+		shad2cVariant(n, "-Element", "（Element Plus）", el)
+		shad2cVariant(n, "-Dark", "（暗色）", dark)
 	}
 }

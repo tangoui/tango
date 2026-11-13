@@ -283,17 +283,17 @@
 |---|---|---|---|
 | Ant 亮色 | 219 / 219 | 0 | 201 / 201 |
 | shadcn 亮 + 暗 | 219 / 219（各 219 张） | 0 | 201 / 201 |
-| Element 变体（`-Element`/`-element`） | 191 / 219 | 28 | 158（缺 43） |
-| 暗色变体（`-Dark`/`-dark`） | 191 / 219 | 28 | 132（缺 69） |
+| Element 变体（`-Element`/`-element`） | 196 / 219 | 23 | 158（缺 43） |
+| 暗色变体（`-Dark`/`-dark`） | 196 / 219 | 23 | 132（缺 69） |
 | Element 暗色（`-element-dark`） | 40 张 | — | 34 |
 | 移动端（`mobile/`） | 66 张 | — | 44 |
 
-**没有 Element 与暗色变体的页面（28，两者是同一批）**
+**没有 Element 与暗色变体的页面（23，两者是同一批；2026-11-13 夜补上了下面"其余 5 页"，数字按补后计）**
 
 - 移动端页（13）：`Mobile` 与 `Mobile*`，用 antd/vant 两套令牌，本来就不按 Element 出图。
 - 多语言子页（9）：`ConfigProvider-{en-US,ja-JP,zh-TW}-{Data,Date,Modal}`。
 - shadcn 专属页：ShadcnDashboard。
-- 其余 5 页：CodeEditor、CodeEditorLarge、DescriptionsResponsive、Icon、TreeVirtual。
+- ~~其余 5 页：CodeEditor、CodeEditorLarge、DescriptionsResponsive、Icon、TreeVirtual~~：已在 `page_shad2c_variants.go` 补注册 `-Element` / `-Dark`（代码编辑器宽 1100，暗色下用 vs-dark）。注意 DescriptionsResponsive-Element 在 960 宽下是 Element 的 sm 断点（≥768 且 <992），列表单列，这是 Element Plus 断点与 Ant 不同的正常结果。
 - 上次只缺暗色的 26 页（BorderBeam、Confirm、Listy、Radio、VirtualTree 等）现在都有暗色图。
 
 **Pro2 组件的 shadcn 检查**：之前记为"未截图检查"，本次已渲染并抽查了 ProCard、StatisticCard、PageContainer（含 FooterToolbar）、CheckCard、ProSkeleton（shadcn-dark），结果见 5.3，这个缺口可以关闭。
