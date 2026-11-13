@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"path/filepath"
+	"path" // Linux paths, whatever OS the tests run on
 	"strings"
 )
 
@@ -97,10 +97,10 @@ func fileListPayloads(paths []string) (fileListData, error) {
 	}
 	uris := make([]string, len(paths))
 	for i, p := range paths {
-		if !filepath.IsAbs(p) {
+		if !path.IsAbs(p) {
 			return fileListData{}, fmt.Errorf("tango/linux: clipboard file path is not absolute: %q", p)
 		}
-		uris[i] = fileURI(filepath.Clean(p))
+		uris[i] = fileURI(path.Clean(p))
 	}
 	return fileListData{
 		uriList: strings.Join(uris, "\r\n") + "\r\n",

@@ -398,7 +398,9 @@ func checkDirLaunch(tree, target, exe string) error {
 		return nil
 	}
 	fi, err := os.Lstat(filepath.Join(tree, rel))
-	if err != nil || !fi.Mode().IsRegular() || fi.Mode().Perm()&0o100 == 0 {
+	// Windows file modes carry no execute bit (FormatDir is a Linux format;
+	// this only matters for tests run there).
+	if err != nil || !fi.Mode().IsRegular() || runtime.GOOS != "windows" && fi.Mode().Perm()&0o100 == 0 {
 		return fmt.Errorf("updater: the release has no executable %s, which the app runs as", filepath.ToSlash(rel))
 	}
 	return nil

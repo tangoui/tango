@@ -1,0 +1,9 @@
+# Files the tests compare byte for byte with what the code produces. Windows
+# checkouts with core.autocrlf=true (the Git for Windows default, and
+# GitHub's Windows runners) would turn them CRLF and fail the comparison, or
+# for golden_fonts.txt silently skip the golden image tests, so keep them LF
+# everywhere.
+ui/shader/*/testdata/** text eol=lf
+ui/gpu/gen/** text eol=lf
+ui/testdata/*.txt text eol=lf
+ui/editor/testdata/*.txt text eol=lf

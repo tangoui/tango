@@ -253,6 +253,7 @@ func buildTTC(fonts ...[]byte) []byte {
 
 func TestFontsXMLLoadFamilies(t *testing.T) {
 	dir := t.TempDir()
+	t.Cleanup(afCloseFiles) // runs before the directory is removed
 	files := map[string][]byte{
 		"Sans.ttf": goregular.TTF, "SansBold.ttf": gobold.TTF, "SansItalic.ttf": goitalic.TTF,
 		"Mono.ttf": gomono.TTF, "Arabic.ttf": goregular.TTF, "Symbols.ttf": goregular.TTF,

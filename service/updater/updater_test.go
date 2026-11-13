@@ -548,7 +548,8 @@ func TestTreePatch(t *testing.T) {
 	if got, _ := TreeDigest(p.Path); got != digest {
 		t.Fatal("patched tree differs")
 	}
-	if l, err := os.Readlink(filepath.Join(p.Path, "Contents/Frameworks/F.framework/F")); err != nil || l != "Versions/Current/F" {
+	// Windows stores (and reads back) the link target with backslashes.
+	if l, err := os.Readlink(filepath.Join(p.Path, "Contents/Frameworks/F.framework/F")); err != nil || filepath.ToSlash(l) != "Versions/Current/F" {
 		t.Fatalf("symlink: %q %v", l, err)
 	}
 	if fi, _ := os.Stat(filepath.Join(p.Path, "Contents/MacOS/Notes")); runtime.GOOS != "windows" && fi.Mode().Perm()&0o100 == 0 {

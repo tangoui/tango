@@ -159,8 +159,10 @@ func TestFractTinyNegative(t *testing.T) {
 }
 
 // TestErf: Erf is Abramowitz–Stegun 7.1.26 (absolute error at most
-// 1.5e-7 in exact arithmetic; float32 rounding adds a few ulps), odd, and
-// saturates to ±1 without NaN for huge or infinite arguments.
+// 1.5e-7 in exact arithmetic; float32 rounding adds a few ulps, more where
+// the compiler does not fuse multiply-adds: about 4.1e-7 on amd64 against
+// under 4e-7 on arm64), odd, and saturates to ±1 without NaN for huge or
+// infinite arguments.
 func TestErf(t *testing.T) {
 	maxErr := 0.0
 	for i := -6000; i <= 6000; i++ {
@@ -173,8 +175,8 @@ func TestErf(t *testing.T) {
 			t.Fatalf("Erf(%v) = %v but Erf(%v) = %v: not odd", x, got, -x, Erf(-x))
 		}
 	}
-	if maxErr > 4e-7 {
-		t.Errorf("max |Erf - math.Erf| = %g, want <= 4e-7", maxErr)
+	if maxErr > 5e-7 {
+		t.Errorf("max |Erf - math.Erf| = %g, want <= 5e-7", maxErr)
 	}
 	inf := float32(math.Inf(1))
 	for _, c := range []struct{ x, want float32 }{{0, 0}, {inf, 1}, {-inf, -1}, {1e30, 1}, {-1e30, -1}} {

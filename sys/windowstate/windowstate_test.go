@@ -141,7 +141,8 @@ func TestTrackDefaultStoreAndUnsupported(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("AppData", t.TempDir())
-	a, fb := faketest.Run(t, tango.Options{ID: "com.example.track"})
+	keep := false // closing the last surface must not quit (default on Linux/Windows)
+	a, fb := faketest.Run(t, tango.Options{ID: "com.example.track", QuitOnLastClose: &keep})
 	s, _ := a.NewSurface(tango.SurfaceOptions{Width: 300, Height: 200})
 	if err := Track(s, "w", nil); err != nil {
 		t.Fatal(err)

@@ -24,7 +24,7 @@ import (
 	"encoding/xml"
 	"io"
 	"os"
-	"path/filepath"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -145,7 +145,7 @@ func parseFontsXML(r io.Reader, dir string) (*afConfig, error) {
 			case "font":
 				if fnt != nil && fam != nil {
 					if file := strings.TrimSpace(text.String()); file != "" {
-						fnt.path = filepath.Join(dir, file)
+						fnt.path = path.Join(dir, file) // a device path: always /
 						fam.fonts = append(fam.fonts, *fnt)
 					}
 				}
@@ -381,7 +381,7 @@ func planFamily(f *afFamily, name string) (afPlan, bool) {
 	if name == "" {
 		name = fonts[0].postScript
 		if name == "" {
-			name = strings.TrimSuffix(filepath.Base(fonts[0].path), filepath.Ext(fonts[0].path))
+			name = strings.TrimSuffix(path.Base(fonts[0].path), path.Ext(fonts[0].path))
 		}
 		if len(f.langs) > 0 {
 			name += " (" + strings.Join(f.langs, ",") + ")"
@@ -475,6 +475,19 @@ var afFiles struct {
 	sync.Mutex
 	loaders map[string][]*ot.Loader  // nil entry: the file failed
 	fonts   map[afFontKey]*font.Font // nil entry: the face failed
+	files   []*os.File               // open behind loaders
+}
+
+// afCloseFiles closes the font files and forgets what was parsed from them.
+// For tests: Windows removes a temporary font directory only once its files
+// are closed.
+func afCloseFiles() {
+	afFiles.Lock()
+	defer afFiles.Unlock()
+	for _, f := range afFiles.files {
+		f.Close()
+	}
+	afFiles.files, afFiles.loaders, afFiles.fonts = nil, nil, nil
 }
 
 type afFontKey struct {
@@ -499,6 +512,8 @@ func afParsed(path string, index int) *font.Font {
 			if lds, err = ot.NewLoaders(f); err != nil || len(lds) == 0 {
 				f.Close()
 				lds = nil
+			} else {
+				afFiles.files = append(afFiles.files, f)
 			}
 		}
 		afFiles.loaders[path] = lds

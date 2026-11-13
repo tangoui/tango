@@ -21,6 +21,7 @@ package paths
 import (
 	"errors"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -68,10 +69,14 @@ func dirsFor(goos, appID, home string, getenv func(string) string) (Dirs, error)
 	if appID == "." || appID == ".." || strings.ContainsAny(appID, `/\`) {
 		return Dirs{}, errBadID
 	}
-	// Paths are built with the target platform's separator, not the host's.
-	join := filepath.Join
-	if goos == "windows" && filepath.Separator != '\\' {
+	// Paths are built and judged by the target platform's rules, not the
+	// host's (the same thing when goos is runtime.GOOS).
+	join, isAbs := filepath.Join, filepath.IsAbs
+	switch {
+	case goos == "windows" && filepath.Separator != '\\':
 		join = func(el ...string) string { return strings.Join(el, `\`) }
+	case goos != "windows" && filepath.Separator != '/':
+		join, isAbs = path.Join, path.IsAbs
 	}
 	needHome := func() error {
 		if home == "" {
@@ -146,7 +151,7 @@ func dirsFor(goos, appID, home string, getenv func(string) string) (Dirs, error)
 
 	default: // Linux and other Unix: XDG Base Directory specification
 		xdg := func(env string, rel ...string) (string, error) {
-			if d := getenv(env); filepath.IsAbs(d) {
+			if d := getenv(env); isAbs(d) {
 				return d, nil // relative values must be ignored, per the spec
 			}
 			if err := needHome(); err != nil {

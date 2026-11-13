@@ -1,7 +1,7 @@
 package linux
 
 import (
-	"path/filepath"
+	"path" // Linux paths, whatever OS the tests run on
 
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/rolenames"
@@ -77,11 +77,11 @@ func fileChooserAction(o platform.FileOptions, save bool) int32 {
 // name: an absolute Filename sets both.
 func saveLocation(o platform.FileOptions) (dir, name string) {
 	dir, name = o.Directory, o.Filename
-	if filepath.IsAbs(name) {
+	if path.IsAbs(name) {
 		if dir == "" {
-			dir = filepath.Dir(name)
+			dir = path.Dir(name)
 		}
-		name = filepath.Base(name)
+		name = path.Base(name)
 	}
 	return dir, name
 }

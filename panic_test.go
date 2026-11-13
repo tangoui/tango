@@ -20,7 +20,8 @@ func panicApp(t *testing.T, keep bool) (*App, *fake.Backend, <-chan Panic) {
 	t.Helper()
 	ch := make(chan Panic, 16)
 	fb := fake.New()
-	a := newWithBackend(Options{Name: "Test", OnPanic: func(p Panic) bool { ch <- p; return keep }}, fb)
+	stay := false // closing the last surface must not quit (default on Linux/Windows)
+	a := newWithBackend(Options{Name: "Test", QuitOnLastClose: &stay, OnPanic: func(p Panic) bool { ch <- p; return keep }}, fb)
 	runApp(t, a)
 	return a, fb, ch
 }

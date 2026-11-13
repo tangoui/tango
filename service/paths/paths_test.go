@@ -1,6 +1,7 @@
 package paths
 
 import (
+	"path"
 	"path/filepath"
 	"testing"
 )
@@ -10,7 +11,7 @@ func env(m map[string]string) func(string) string {
 }
 
 func TestDirsFor(t *testing.T) {
-	j := filepath.Join
+	j := path.Join // Unix layouts are built with / on every host
 	const id = "com.example.app"
 	tests := []struct {
 		goos string
@@ -48,9 +49,6 @@ func TestDirsFor(t *testing.T) {
 			Cache:  j("/data/user/0/x/files/cache"),
 			Logs:   j("/data/user/0/x/files/logs"),
 		}},
-	}
-	if filepath.Separator == '\\' {
-		tests = append(tests[:0], tests[len(tests):]...) // Unix layouts use host joins; skip on Windows hosts
 	}
 	tests = append(tests, struct {
 		goos string
