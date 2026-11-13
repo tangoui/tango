@@ -117,6 +117,8 @@ type CanvasLayer struct {
 
 iOS `UIView` + `CALayer.contents`，触摸映射为 Pointer（单指）；Android `SurfaceView`/`TextureView` + `ANativeWindow_lock` 或 Java 侧 Bitmap。输入法与安全区在移动端扩展里一起做。
 
+现状：按 [mobile-canvas.md](mobile-canvas.md) 实现了 M1–M4，比本节原计划多：多点触控（`input.TouchEvent`）、iOS Metal GPU 路径、安全区与键盘 inset、两端输入法、两端无障碍。M5（Android GPU 与移动端 `CanvasAttacher` 叠放）未做。Android 自绘页有模拟器实测记录（[../mobile.md](../mobile.md)），两端都还没在真机上跑过。
+
 ## D 步：WebView 与自绘同窗
 
 实现 `CanvasAttacher`：macOS 把 canvas view 作为 WKWebView 的兄弟视图加在上方或下方；Windows 用子 HWND（WebView2 的 controller 父窗口同级）；Linux 用 `GtkOverlay`。`uihost.Attach(surface, layer, page, ropts)` 是对应的公开 API。PassThrough 由 `hitTest:` / `WM_NCHITTEST` 返回透明 / `gtk_widget_input_shape_combine_region` 实现。

@@ -2,7 +2,7 @@
 
 状态：接口已确认（min-a6，2026-11-13），实现中。
 
-`ui` 层每帧生成平台中立的语义树（`ui/a11y`，约定见 `docs/accessibility.md`），本设计把它接到桌面平台的 canvas（`internal/platform/canvas.go`）上，由各后端映射到 NSAccessibility、UI Automation、AT-SPI2。iOS/Android 以后可用同一接口，本期不做。
+`ui` 层每帧生成平台中立的语义树（`ui/a11y`，约定见 `docs/accessibility.md`），本设计把它接到桌面平台的 canvas（`internal/platform/canvas.go`）上，由各后端映射到 NSAccessibility、UI Automation、AT-SPI2。iOS/Android 的自绘页后来也接入了同一接口（`CanvasAccessible`），见下文实现状态的"移动端"一项与 [mobile-canvas.md](mobile-canvas.md) §5。
 
 ## 分层
 
@@ -205,4 +205,5 @@ AccessibilityUpdate(tree, changed):
 - macOS：`darwin/canvas_a11y.go`（`TangoA11yElement : NSAccessibilityElement`）、`darwin/motion.go`；`canvas_view.go` 一行、`canvas.go` 一个字段 + `destroy` 一行。
 - Windows：`windows/canvas_a11y_windows.go`、`uia_plan.go`（纯逻辑）、`motion_windows.go`。`ElementProviderFromPoint` 与 `RangeValue.SetValue` 的 double 参数 `syscall.NewCallback` 收不到，用一小段可执行内存里的转接指令把浮点寄存器挪到整数寄存器（amd64/arm64），未在实机执行过。
 - Linux：`linux/canvas_a11y_linux.go`、`atspi_plan.go`、`motion_linux.go`；`GtkWidgetClass.get_accessible` 偏移 688（GTK 3.24 gtkwidget.h）由镜像结构体单测校验。
+- 移动端（mobile-canvas M4）：iOS `ios/canvas_a11y.{go,m}`（UIAccessibility 元素容器），映射在 `a11ybridge/ios.go`；Android `android/canvas_a11y.go`、`canvas_a11y_android.go` + `CanvasA11y.java`（`AccessibilityNodeProvider`），映射在 `a11ybridge/android.go`。只有单测，未记录 VoiceOver / TalkBack 实测。
 - 验证：`examples/a11y-demo -smoke`（加入 `scripts/smoke.sh`）。辅助功能授权时走 AX API（后台线程），否则进程内调用 NSAccessibility；`A11Y_SMOKE_INPROCESS=1` 强制后者。

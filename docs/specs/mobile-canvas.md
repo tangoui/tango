@@ -1,7 +1,20 @@
 # 移动端自绘 UI（iOS / Android Canvas）
 
-状态：设计稿，2026-11-13。只读调研后写成，**未在本机交叉编译验证**；凡写"推断"处需在 M1 第 0 步确认。
-相关：[canvas-surface.md](canvas-surface.md)（C 步即本文）、[touch-input.md](touch-input.md)、[gpu-renderer.md](gpu-renderer.md)、[a11y-bridge.md](a11y-bridge.md)、[../accessibility.md](../accessibility.md)、[../mobile.md](../mobile.md)。
+状态：设计稿写于 2026-11-13；**M1–M4 已实现，M5 未开始**（进度见下表）。下文第 1–7 节保留设计时的调研与方案，其中"现状"一类描述指设计当时。
+
+**实施进度**（2026-11-13 按代码核对）
+
+| 里程碑 | 状态 | 代码证据 | 验证 |
+|---|---|---|---|
+| M1 iOS 上屏、触摸、安全区 | ✅ 已实现 | `internal/platform/ios/canvas.go`（`platform.Canvas`、`CanvasMetal`、`CanvasInsets`）、`canvas.m`（`TGCanvasPage/View`、CADisplayLink） | 本文未记录模拟器结果（Android 的见右侧） |
+| M2 Android CPU 上屏、触摸、insets | ✅ 已实现 | `internal/platform/android/canvas_android.{go,c}`、`mobile/android/.../CanvasPage.java`、`CanvasView.java` | AVD API 36 模拟器，结果见 [../mobile.md](../mobile.md)"自绘页"一节 |
+| M3 两端输入法与键盘 | ✅ 已实现（M3a 与 M3b） | iOS：`ios/canvas_text.{go,m}`（UITextInput）、`canvas_textdoc.go`；Android：`android/canvas_ime.go`、`canvas_ime_android.go`、`CanvasInput.java`；键盘 inset 两端都报给 `uihost` | iOS 有模拟器自检 `TANGO_CANVAS_IME_SELFTEST`（`ios/canvas_selftest.go`）；本文未记录人工输入法验收结果 |
+| M4 两端无障碍 | ✅ 已实现 | iOS：`ios/canvas_a11y.{go,m}`、`a11ybridge/ios.go`；Android：`android/canvas_a11y.go`、`canvas_a11y_android.go`、`CanvasA11y.java`、`a11ybridge/android.go` | 单测；本文未记录 VoiceOver / TalkBack 实测结果 |
+| M5 Android GPU、WebView 叠放、收尾 | ❌ 未开始 | 只有接口 `internal/platform/canvas_mobile.go` 的 `CanvasNativeWindow`，无实现；没有 EGL/GLES 代码、`uihost/gpu_android.go`、两端 `canvas_attach*` | — |
+
+真机：两端都还没有在真机上跑过自绘页（[../mobile.md](../mobile.md) 两端"已知限制"）。
+
+相关文档：[canvas-surface.md](canvas-surface.md)（C 步即本文）、[touch-input.md](touch-input.md)、[gpu-renderer.md](gpu-renderer.md)、[a11y-bridge.md](a11y-bridge.md)、[../accessibility.md](../accessibility.md)、[../mobile.md](../mobile.md)。
 
 ## 0. 摘要
 
@@ -21,7 +34,7 @@
 | 事实 | 出处 |
 |---|---|
 | `uihost.Open` 经 `corehook.NewCanvasSurface` 进根包。根包断言 `a.b.(platform.CanvasCreator)`，不支持时返回 `ErrUnsupported` | `uihost/uihost.go:65-104`、`canvas_hook.go:40` |
-| iOS、Android 后端都还没实现 `CanvasCreator`，所以移动端 `uihost.Open` 目前返回 `ErrUnsupported` | `internal/platform/ios/*`、`internal/platform/android/*`（无 canvas 文件） |
+| （设计时）iOS、Android 后端都还没实现 `CanvasCreator`，所以移动端 `uihost.Open` 返回 `ErrUnsupported`。**现已实现**：`ios/canvas.go`、`android/canvas_android.go` | 设计时：`internal/platform/ios/*`、`internal/platform/android/*`（无 canvas 文件） |
 | `uihost/gpu_darwin.go` 的标签是 `darwin`，GOOS=ios 也会编译它，它断言 `CanvasMetal` 后调 `metal.NewPresenter` | `uihost/gpu_darwin.go:1-12`、`uihost/gpu.go:50-57` |
 | `ui/gpu/metal` 的标签是 `darwin`，用 purego dlopen 加载 Metal / QuartzCore / CoreGraphics，不依赖 AppKit | `ui/gpu/metal/objc_darwin.go:96-115`、`presenter_darwin.go:111-121` |
 | Metal 纹理全部是 Private，缓冲区是 Shared，没有用 macOS 才有的 Managed，所以在 iOS 与 Apple Silicon 模拟器上可用 | `ui/gpu/metal/metal_darwin.go:366,882,932,1175` |

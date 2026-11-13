@@ -136,7 +136,7 @@
 3. 补 Drawer / Splitter / Carousel 等实际应用需要的高级交互、统一货币格式。
 4. 单独推进代码编辑器后续里程碑。
 
-移动端自绘 Canvas 宿主仍未实现。它应作为独立的可选平台项目，不计入本次桌面 GUI 的必补项；`ui/mobile` 的组件与无头手势测试不等于 iOS/Android 已能运行自绘窗口。
+移动端自绘 Canvas 宿主作为独立的可选平台项目，不计入本次桌面 GUI 的必补项。（更正，2026-11-13 晚：本文写成时说它"仍未实现"，与代码不符。iOS / Android 自绘页已按 [mobile-canvas.md](mobile-canvas.md) 实现 M1–M4，即上屏、触摸、安全区、输入法与无障碍，Android 在模拟器上跑过；缺的是 M5 的 Android GPU 与 WebView 叠放，以及真机验证。）
 
 ## 8. 处理状态（2026-11-13 同日跟进）
 
