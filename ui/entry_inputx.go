@@ -176,7 +176,22 @@ func ixSearchButton(c *Context, size ControlSize, loading, disabled bool) bool {
 		if disabled {
 			bg, border, fg = th.BgContainerDisabled, th.Border, th.TextDisabled
 		}
-		l.Shadows(r, rad, c.ThemeFor(theme.CompButton).Components.Button.DefaultShadow)
+		btk := c.ThemeFor(theme.CompButton).Components.Button
+		if th.Flavor == theme.StyleShadcn {
+			// shadcn's outline icon button, as Button's shadcn look: the
+			// border stays, hover is bg-accent, disabled is opacity-50
+			// (its primary is near-black, so Ant's primary-tinted hover
+			// would read as a pressed dark border).
+			if disabled {
+				hv = 0
+				l.Opacity(.5)
+				defer l.Pop()
+			}
+			border = btk.DefaultBorderColor
+			fg = theme.Lerp(btk.DefaultColor, btk.DefaultHoverColor, hv)
+			bg = theme.Lerp(btk.DefaultBg, btk.DefaultHoverBg, hv)
+		}
+		l.Shadows(r, rad, btk.DefaultShadow)
 		l.Fill(r, rad, th.BgContainer)
 		l.Fill(r, rad, bg)
 		l.Stroke(r, rad, 1, border)

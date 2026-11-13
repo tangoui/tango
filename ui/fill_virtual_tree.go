@@ -758,14 +758,21 @@ func (w *VirtualTreeW) row(item int32) {
 			dis := nd.Disabled
 			q := w.query
 			title.paint = func(l *paint.List, r geom.Rect) {
+				// The title highlight and the selected weight come from the
+				// Tree token, as in Tree (shadcn: rounded-md, font-medium).
+				ts := st0
+				if cur && !dis {
+					ts.Weight = themeWeight(tk.NodeSelectedFontWeight)
+				}
 				if !el {
 					tr := r
-					tr.W = min(r.W, text.Width(nd.Title, st0)+8)
+					tr.W = min(r.W, text.Width(nd.Title, ts)+8)
 					tr = treeMirror(tr, r, c.IsRTL()) // hugs the title at the start edge
+					rad := geom.Rad(tk.NodeBorderRadius)
 					if cur && !dis {
-						l.Fill(tr, geom.Rad(th.RadiusSM), tk.NodeSelectedBg)
+						l.Fill(tr, rad, tk.NodeSelectedBg)
 					} else if (rowIA.Hovered || cursorRow) && !dis {
-						l.Fill(tr, geom.Rad(th.RadiusSM), tk.NodeHoverBg)
+						l.Fill(tr, rad, tk.NodeHoverBg)
 					}
 				}
 				col := tk.TitleColor
@@ -775,7 +782,7 @@ func (w *VirtualTreeW) row(item int32) {
 				if dis {
 					col = th.TextDisabled
 				}
-				fillVTTitle(c, l, nd.Title, q, st0, r.X+4, r, col, tk.FilterHighlightColor)
+				fillVTTitle(c, l, nd.Title, q, ts, r.X+4, r, col, tk.FilterHighlightColor)
 			}
 		})
 		rb.Paint(func(l *paint.List, r geom.Rect) {

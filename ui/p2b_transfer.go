@@ -151,10 +151,9 @@ func (w *TransferW) renderItem(n *node, it TransferItem) {
 	c := w.c
 	n.ln.Dir = layout.Row
 	n.ln.Align = layout.AlignCenter
-	pad := float32(12)
-	if w.th.Flavor == theme.Element {
-		pad = 15
-	}
+	// Same inset as the default rows (Transfer token: Ant 12, Element 15,
+	// shadcn px-2).
+	pad := w.tk.ItemPaddingInline
 	n.ln.Padding = geom.Insets{Left: pad + c.boxSize() + 8, Right: 12}
 	n.ln.Measure = nil
 	o := Option{Label: it.Title, Value: it.Key, Disabled: it.Disabled}
@@ -165,13 +164,10 @@ func (w *TransferW) renderItem(n *node, it TransferItem) {
 // a remove button at the end.
 func (w *TransferW) oneWayItem(n *node, it TransferItem, ia Interaction, off bool, h float32) *node {
 	c, th, tk := w.c, w.th, w.tk
-	el := th.Flavor == theme.Element
 	n.ln.Dir = layout.Row
 	n.ln.Align = layout.AlignCenter
-	n.ln.Padding = geom.Insets{Left: 12, Right: 8}
-	if el {
-		n.ln.Padding.Left = 15
-	}
+	// The default rows' inset and hover shape (Transfer token).
+	n.ln.Padding = geom.Insets{Left: tk.ItemPaddingInline, Right: 8}
 	n.ln.Measure = nil
 	n.setRole(a11y.RoleOption).setState(a11y.Selectable)
 	c.body(n, func() {
@@ -196,7 +192,7 @@ func (w *TransferW) oneWayItem(n *node, it TransferItem, ia Interaction, off boo
 	})
 	n.paint = func(l *paint.List, r geom.Rect) {
 		if ia.Hovered && !off && tk.ItemHoverBg.A > 0 {
-			l.Fill(r, geom.Radii{}, tk.ItemHoverBg)
+			l.Fill(r, geom.Rad(tk.ItemBorderRadius), tk.ItemHoverBg)
 		}
 		if c.focus == n.id && c.focusVisible {
 			entFocusRing(c, l, r.Inset(geom.All(3)), th.RadiusSM)

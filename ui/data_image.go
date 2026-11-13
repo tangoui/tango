@@ -290,7 +290,12 @@ func (w *ImageW) paint(l *paint.List, r geom.Rect) {
 	rad := w.rad()
 	img := w.showing()
 	if img == nil {
-		// Placeholder (loading) or fallback (error) box.
+		// Placeholder (loading) or fallback (error) box. shadcn pulses the
+		// loading box (animate-pulse) instead of Ant's shimmer sweep.
+		if w.loading && th.Flavor == theme.StyleShadcn {
+			l.Opacity(shadPulse(c))
+			defer l.Pop()
+		}
 		l.Fill(r, rad, tk.PlaceholderBg)
 		if el {
 			s := w.loc.Loading
@@ -308,7 +313,7 @@ func (w *ImageW) paint(l *paint.List, r geom.Rect) {
 			ic = icon.PictureOff
 		}
 		icon.Draw(l, ic, geom.Rect{X: r.X + (r.W-s)/2, Y: r.Y + (r.H-s)/2, W: s, H: s}, tk.PlaceholderColor, 0)
-		if w.loading && !c.still() {
+		if w.loading && !c.still() && th.Flavor != theme.StyleShadcn {
 			// Shimmer sweep like Ant's Skeleton.Image.
 			c.animating = true
 			t := float32(c.now.UnixMilli()%1400) / 1400

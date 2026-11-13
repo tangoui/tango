@@ -350,6 +350,13 @@ func p2aPaintRangeField(c *Context, l *paint.List, r geom.Rect, f p2aRangeField)
 		left += is + 8
 	}
 	right := r.Right() - 11 - is - 8
+	if shad {
+		// As DatePicker's shadcn field (date.go): px-3 insets and a 16px
+		// end icon with 6px before it.
+		pad := th.ControlPaddingH
+		*f.clearR = mr(geom.Rect{X: r.Right() - pad - 16, Y: r.Y + (r.H-16)/2, W: 16, H: 16})
+		left, right = r.X+pad, r.Right()-pad-16-6
+	}
 	sepW := entTextW(c, f.sep, fs, text.Regular) + 16
 	if !el {
 		sepW = is + 16
@@ -414,7 +421,10 @@ func p2aPaintRangeField(c *Context, l *paint.List, r geom.Rect, f p2aRangeField)
 		}
 		return
 	}
-	if !el {
+	switch {
+	case shad:
+		drawIcon(l, f.ic, f.clearR.X, f.clearR.Y, 16, theme.Fade(th.Text, .5))
+	case !el:
 		drawIcon(l, f.ic, f.clearR.X, iy, is, iconCol)
 	}
 	if f.focusVisible && !f.open {

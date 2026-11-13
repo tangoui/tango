@@ -102,10 +102,15 @@ func (f *dtField) setDisabled() {
 func (f *dtField) focused() bool { return f.c.focus == f.ed.id }
 
 func (f *dtField) padding() geom.Insets {
-	el := f.c.Theme.Flavor == theme.Element
+	th := f.c.Theme
 	is := float32(14)
-	if el {
+	switch th.Flavor {
+	case theme.Element:
 		return geom.Insets{Left: 11 + is + 8, Right: 11 + is + 4}
+	case theme.StyleShadcn:
+		// As DatePicker's shadcn field (date.go): px-3, a 16px icon at the
+		// end with 6px before it.
+		return geom.Insets{Left: th.ControlPaddingH, Right: th.ControlPaddingH + 16 + 6}
 	}
 	return geom.Insets{Left: 11, Right: 11 + is + 4}
 }
@@ -217,10 +222,21 @@ func (f *dtField) paintFrame(l *paint.List, r geom.Rect) {
 	rtl := c.IsRTL()
 	f.st.clearR = dtMirrorRect(rtl, geom.Rect{X: r.Right() - 11 - is, Y: iy, W: is, H: is}, r)
 	showClear := f.allowClear && !dis && hover && f.display() != ""
-	if th.Flavor == theme.Element {
+	switch th.Flavor {
+	case theme.Element:
 		drawIcon(l, f.ic, dtMirror(rtl, r, r.X+11, is), iy, is, col)
 		if showClear {
 			icon.Draw(l, icon.CloseCircle, f.st.clearR, th.TextQuaternary, 0)
+		}
+		return
+	case theme.StyleShadcn:
+		// As DatePicker's shadcn field (date.go): a 16px icon in
+		// foreground/50 at px-3 from the end.
+		f.st.clearR = dtMirrorRect(rtl, geom.Rect{X: r.Right() - th.ControlPaddingH - 16, Y: r.Y + (r.H-16)/2, W: 16, H: 16}, r)
+		if showClear {
+			entClearIcon(c, l, f.st.clearR)
+		} else {
+			drawIcon(l, f.ic, f.st.clearR.X, f.st.clearR.Y, 16, theme.Fade(th.Text, .5))
 		}
 		return
 	}

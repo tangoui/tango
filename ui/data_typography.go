@@ -203,25 +203,28 @@ func (t *Label) suffixHovered(st *typoState, ia Interaction, kind string) (geom.
 	return geom.Rect{}, false
 }
 
-// typoTip shows a small dark tooltip above rect r (relative to anchor id).
+// typoTip shows a small tooltip above rect r (relative to anchor id),
+// styled by the Tooltip token like Tooltip (shadcn: px-3 py-1.5 text-xs,
+// no shadow).
 func typoTip(c *Context, anchor ID, r geom.Rect, tip string) {
-	th := c.Theme
+	tth := c.ThemeFor(theme.CompTooltip)
+	tk := &tth.Components.Tooltip
 	ar, ok := c.anchorRect(anchor)
 	if !ok {
 		return
 	}
 	ov := Overlay(c, OverlayOptions{Anchor: anchor, Place: Top, Offset: 8, ShiftX: r.X + r.W/2 - (ar.X + ar.W/2)}, func() {
-		Text(c, tip).Color(th.TextOnSpotlight).NoWrap()
-	}, layout.PadVH(6, 8))
-	if th.Flavor == theme.Element {
-		ov.n.ln.Padding = geom.VH(5, 11)
-	}
-	ov.Bg(th.BgSpotlight).Radius(th.Radius).Shadow(th.Shadow)
+		tx := Text(c, tip).Color(tk.Color).NoWrap()
+		if tk.ContentFontSize != c.Theme.FontSize {
+			tx.Size(tk.ContentFontSize)
+		}
+	}, layout.PadVH(tk.PaddingBlock, tk.PaddingInline))
+	ov.Bg(tk.Bg).Radius(tk.Radius).Shadow(tk.Shadow)
 	ov.n.hit = false
 	ov.n.over = func(l *paint.List, rr geom.Rect) {
 		cx := r.X + r.W/2
 		p := paint.NewPath().MoveTo(cx-6, rr.Bottom()-0.5).LineTo(cx, rr.Bottom()+5.5).LineTo(cx+6, rr.Bottom()-0.5).Close()
-		l.Path(p, th.BgSpotlight)
+		l.Path(p, tk.Bg)
 	}
 }
 

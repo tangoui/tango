@@ -144,6 +144,12 @@ func skelToken(c *Context) *theme.SkeletonToken {
 func skelPaint(c *Context, l *paint.List, r geom.Rect, rad geom.Radii, active bool) {
 	tk := skelToken(c)
 	base, hi := tk.GradientFromColor, tk.GradientToColor
+	if active && c.Theme.Flavor == theme.StyleShadcn {
+		// shadcn Skeleton is bg-muted animate-pulse: the block fades to
+		// half opacity and back, no sweeping band.
+		l.Fill(r, rad, theme.Fade(base, float64(shadPulse(c))))
+		return
+	}
 	l.Fill(r, rad, base)
 	if !active {
 		return
@@ -250,14 +256,13 @@ func Countdown(c *Context, title string, deadline time.Time) *CountdownW {
 	} else {
 		st.done = false
 	}
-	tst := c.style(th.FontSize, 400)
-	vst := c.style(24, 400)
-	vst.LineHeight = 32
-	if th.Flavor == theme.Element {
-		tst = c.style(12, 400)
-		vst = c.style(20, 400)
-		vst.LineHeight = 28
-	}
+	// Title and value as Statistic's (its token: Element 12 / 20 px,
+	// shadcn font-medium label and font-bold number).
+	stk := &c.ThemeFor(theme.CompStatistic).Components.Statistic
+	tw, vw := themeWeight(stk.TitleFontWeight), themeWeight(stk.ContentFontWeight)
+	tst := c.style(stk.TitleFontSize, tw)
+	vst := c.style(stk.ContentFontSize, vw)
+	vst.LineHeight = stk.ContentLineHeight
 	value := func() string { return FormatDuration(left, w.format) }
 	if c.a11yOn {
 		w.n.fill(semFunc(func(s *a11y.Node) {
@@ -268,22 +273,22 @@ func Countdown(c *Context, title string, deadline time.Time) *CountdownW {
 		}))
 	}
 	w.n.ln.Measure = func(_, _ float32) geom.Size {
-		tw := c.dataShape(w.title, tst.Size, 400).Width
-		v := c.dataShape(w.prefix+value()+w.suffix, vst.Size, 400).Width
+		tW := c.dataShape(w.title, tst.Size, tw).Width
+		v := c.dataShape(w.prefix+value()+w.suffix, vst.Size, vw).Width
 		h := vst.LineHeight
 		if w.title != "" {
 			h += tst.LineHeight + 4
 		}
-		return geom.Size{W: max(tw, v+2), H: h}
+		return geom.Size{W: max(tW, v+2), H: h}
 	}
 	w.n.paint = func(l *paint.List, r geom.Rect) {
 		y, sp := r.Y, c.inline(r) // title and value at the inline start
 		if w.title != "" {
-			tl := c.dataShape(w.title, tst.Size, 400)
-			dataText(l, tl, sp.X(0, tl.Width), y, th.TextTertiary)
+			tl := c.dataShape(w.title, tst.Size, tw)
+			dataText(l, tl, sp.X(0, tl.Width), y, stk.TitleColor)
 			y += tst.LineHeight + 4
 		}
-		lay := c.dataShape(w.prefix+value()+w.suffix, vst.Size, 400)
+		lay := c.dataShape(w.prefix+value()+w.suffix, vst.Size, vw)
 		dataText(l, lay, sp.X(0, lay.Width), y+(vst.LineHeight-lay.Height)/2, w.color)
 	}
 	if left > 0 {
@@ -418,7 +423,7 @@ func (s *StatisticW) Loading(on bool) *StatisticW {
 		return s
 	}
 	s.n.setState(a11y.Busy)
-	c, th := s.c, s.c.Theme
+	c := s.c
 	prevMeasure := s.n.ln.Measure
 	s.n.ln.Measure = func(w, h float32) geom.Size {
 		sz := prevMeasure(w, h)
@@ -426,18 +431,17 @@ func (s *StatisticW) Loading(on bool) *StatisticW {
 		return sz
 	}
 	s.n.paint = func(l *paint.List, r geom.Rect) {
-		tst := c.style(th.FontSize, 400)
-		if th.Flavor == theme.Element {
-			tst = c.style(12, 400)
-		}
+		// The title as Statistic paints it; the bar as a Skeleton block.
+		tw := themeWeight(s.tk.TitleFontWeight)
+		tst := c.style(s.tk.TitleFontSize, tw)
 		y, sp := r.Y, c.inline(r)
 		if s.title != "" {
-			tl := c.dataShape(s.title, tst.Size, 400)
-			dataText(l, tl, sp.X(0, tl.Width), y, th.TextTertiary)
+			tl := c.dataShape(s.title, tst.Size, tw)
+			dataText(l, tl, sp.X(0, tl.Width), y, s.tk.TitleColor)
 			y += tst.LineHeight + 4
 		}
 		bh := float32(16)
-		skelPaint(c, l, sp.Rect(0, y+(s.vst.LineHeight-bh)/2, min(r.W, 120), bh), geom.Rad(th.RadiusSM), true)
+		skelPaint(c, l, sp.Rect(0, y+(s.vst.LineHeight-bh)/2, min(r.W, 120), bh), geom.Rad(skelToken(c).BlockRadius), true)
 	}
 	return s
 }
@@ -452,4 +456,21 @@ func (s *StatisticW) CountUp(v float64, precision int) *StatisticW {
 	}
 	_ = math.Abs
 	return s
+}
+
+// shadPulse is Tailwind's animate-pulse opacity (keyframes 50% {opacity:
+// .5}, 2s cubic-bezier(0.4, 0, 0.6, 1) infinite) at the current frame; 1
+// when animations are off.
+func shadPulse(c *Context) float32 {
+	if c.still() {
+		return 1
+	}
+	c.animating = true
+	t := float64(c.now.UnixMilli()%2000) / 2000
+	p := 2 * t // 0 → 1 over the first second, back over the second
+	if t > .5 {
+		p = 2 * (1 - t)
+	}
+	e := (1 - math.Cos(math.Pi*p)) / 2 // symmetric ease-in-out
+	return float32(1 - .5*e)
 }
