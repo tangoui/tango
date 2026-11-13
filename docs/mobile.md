@@ -136,7 +136,10 @@ Go 运行时在 `TangoStart` 之前就已由 c-archive 的加载初始化启动�
 - **帧调度**：与 Android 共用 `mobilecanvas.Sched`。`Invalidate` 可在任意 goroutine 调用，只在空闲变为待处理时触发主 run loop common modes 里的 `CFRunLoopSource`（滚动跟踪和嵌套 run loop 中也会触发），由它恢复视图的 `CADisplayLink`；空闲几个 tick 后暂停。`layoutSubviews` 报尺寸变化后同步出一帧。后台时不出帧（iOS 会终止在后台提交 GPU 命令的应用）。
 - **输入法**（M3，`canvas_text.{go,m}`、`canvas_textdoc.go`）：视图实现 `UITextInput`，UIKit 的高频查询由镜像文档回答，只有编辑才调 Go。M3a 只有组合串；控件发来 `input.TextInputState` 时（M3b）镜像是控件的文本，UIKit 对已提交文本的修改变成 `input.TextEdit` / `input.SelectionChange`。模拟器上 simctl 不能点按和打字，用 `SIMCTL_CHILD_TANGO_CANVAS_IME_SELFTEST` 运行自检（`canvas_selftest.go`）。
 - **无障碍**（M4，`canvas_a11y.{go,m}`、`a11ybridge/ios.go`）：实现 `platform.CanvasAccessible`，把新增或变化的节点推给视图，UIKit 的查询不调 Go。VoiceOver 或切换控制运行时，或视图的 `accessibilityElements` 第一次被查询时（语音控制、XCUITest、辅助功能检查器）启用；两者都不在且 30 秒没有查询后关闭。
-- 未做（M5）：`uihost.Attach` 叠放层（自绘层叠在 WebView 页里）。
+- **叠放层**（M5，`canvas_attach.{go,m}`）：`uihost.Attach` 把自绘层（`TGCanvasOverlay`，也是 `TGCanvasView`）插在页面的 `WKWebView` 上方或下方，随页面显示、隐藏、旋转和关闭；按 alpha 决定是否穿透触摸。叠放层只走 CPU。
+- **iPad 指针与触控板**（M5，`canvas_pointer.{go,m}`）：悬停、触控板与滚轮滚动、指针形状（`UIPointerInteraction`）；点击仍按触摸处理。
+- **内存警告**（M5）：系统内存警告变成 `tango.EventMemoryWarning`，uihost 裁剪 GPU 图集、图片纹理与排版缓存（`uihost/memory.go`）。
+- M5 部分只有单测，本节没有模拟器实测记录。
 
 ### 已知限制
 
@@ -335,7 +338,7 @@ Go 侧调用 Java 时，方法 ID 在 `nativeInit`（主线程）里一次查好
 
 ### 自绘页（uihost，docs/specs/mobile-canvas.md M2–M4）
 
-- **上屏**：`CanvasView` 是整页 `SurfaceView`（`RGBX_8888`，不透明）。`surfaceChanged` 时 Go 用 `ANativeWindow_fromSurface` 取窗口并 `setBuffersGeometry`，报 `CanvasResized` 后**同步**出一帧（旋转时不出现拉伸的旧帧）；`surfaceDestroyed` 时同步 `ANativeWindow_release`。`Present` 逐行拷贝（按 `stride`；图像比缓冲小 1 px 时重复最后一行/列；缓冲是 `RGB_565` 时转换并打一次日志）。实现了 `platform.CanvasDamagePresenter`：脏矩形取外接矩形交给 `ANativeWindow_lock` 的 `inOutDirtyBounds`，按系统返回（可能扩大）的区域拷贝。CPU 光栅化（`uihost.Renderer` 为 `cpu`），GPU（GLES）在 M5。
+- **上屏**：`CanvasView` 是整页 `SurfaceView`（`RGBX_8888`，不透明）。`surfaceChanged` 时 Go 用 `ANativeWindow_fromSurface` 取窗口并 `setBuffersGeometry`，报 `CanvasResized` 后**同步**出一帧（旋转时不出现拉伸的旧帧）；`surfaceDestroyed` 时同步 `ANativeWindow_release`。`Present` 逐行拷贝（按 `stride`；图像比缓冲小 1 px 时重复最后一行/列；缓冲是 `RGB_565` 时转换并打一次日志）。实现了 `platform.CanvasDamagePresenter`：脏矩形取外接矩形交给 `ANativeWindow_lock` 的 `inOutDirtyBounds`，按系统返回（可能扩大）的区域拷贝。整页默认走 GPU（M5）：OpenGL ES 3.0 + EGL 呈现器（`ui/gpu/gl/presenter_android.go`，经 `platform.CanvasNativeWindow` 接入，见 `uihost/gpu_android.go`），Surface 回来时重建窗口表面，上下文丢失后重建；呈现器起不来或在软件光栅化上运行时回退到上面的 CPU 路径（带局部上屏）。`adb shell setprop debug.tango.renderer cpu` 强制走 CPU，设为 `gpu` 则连软件光栅化也用（应用启动时读取，对应桌面的 `TANGO_RENDERER`）。
 - **帧调度**：`mobilecanvas.Sched`。`Invalidate` 可在任意 goroutine 调用，只在空闲变为待处理时经 JNI 调 `TangoCanvas.requestFrame`（主线程上直接调；其他 goroutine 交给一个只 attach 一次的常驻线程）→ `Handler.post` → `nativeWake`；`Choreographer` 帧回调每个 vsync 调 `nativeFrame`，有请求才出帧，空闲 4 个 tick 后停；`InvalidateAt` 用 `Handler.postAtTime`。调度器的结论（帧回调开/停、定时器）作为各 native 调用的 long 返回值交给 Java 执行，Go 不在这些回调里反调 Java。Surface 不存在时（后台、被遮住、隐藏）调度器处于后台状态，不出帧，请求保留到 Surface 回来。
 - **尺寸**：`Scale()` = `DisplayMetrics.density`（模拟器 2.625），`Size()` = Surface 像素 ÷ density。`Surface.Size` 返回 dp 并投递 `SurfaceResized`；`Native` 返回 `CanvasView` 的 JNI 全局引用。
 - **输入**：触摸屏事件整包（所有手指、历史点）打成一个 `float[]` 过 JNI，经 `mobilecanvas.Touches`/`Coalesce` 生成 `input.TouchEvent`（ID 递增，历史点最多补 4 个，`ACTION_CANCEL` 与窗口失焦取消全部手指）；第一根手指由 Runner 合成指针事件。鼠标（`TOOL_TYPE_MOUSE`）、悬停（`ACTION_HOVER_*`）和滚轮（`ACTION_SCROLL`，系统滚动系数）产生 `input.Pointer` / `input.Scroll`。硬件键盘：键码与 meta 状态按 `canvas_keys.go` 映射（字母、数字按当前布局产生的字符，其余按位置；小键盘按 NumLock），文本输入开启时可打印字符另发 `TextInput`。返回键不交给自绘页，按页面栈规则处理（`ShouldClose` 后关闭）。`SetCursor` → `PointerIcon`。
@@ -345,7 +348,10 @@ Go 侧调用 Java 时，方法 ID 在 `nativeInit`（主线程）里一次查好
 - **调试**：`adb shell setprop debug.tango.canvas 1`（应用启动时读取）记录输入事件和帧耗时摘要，`2` 再记录每帧（含 `ANativeWindow_lock` 等待、拷贝、提交各自耗时）和调度动作。
 - **软键盘与输入法**（M3，`canvas_ime.go`、`canvas_ime_android.go`、`CanvasInput.java`）：文本输入开启时 `CanvasView` 作为文本编辑器，`onCreateInputConnection` 交给输入法一个 `CanvasInput`，每次编辑同步调一次 `TangoCanvas.nativeIME`，Go 把它转成输入事件并更新 Java 侧的镜像文档（`SpannableStringBuilder`），输入法的高频查询不过 JNI。控件不描述文本时（M3a）镜像只含组合串；控件发来 `input.TextInputState` 时（M3b）镜像是选区附近的文本窗口，对已提交文本的修改变成 `input.TextEdit`。
 - **无障碍**（M4，`canvas_a11y.go`、`canvas_a11y_android.go`、`CanvasA11y.java`、`a11ybridge/android.go`）：`CanvasView` 的 `AccessibilityNodeProvider` 同步向 Go 取节点（视图本身是根，其余是虚拟视图），动作经 `nativeA11yAction` 回到 Go，内容变化、焦点与播报经 `CanvasPage` 排队发出。
-- 未做（M5）：GPU（GLES）与 `uihost.Attach` 叠放层。M3、M4 本节没有模拟器实测记录（上面的模拟器结果是 M2 的）。
+- **叠放层**（M5，`canvas_attach_android.go`、`CanvasOverlay.java`）：`uihost.Attach` 用半透明 `TextureView` 加在页面 frame 里 WebView 的上方或下方，帧、输入、输入法、无障碍与整页共用代码；缓冲是预乘 `RGBA_8888`，只走 CPU。
+- **返回键**（M5，`ui/back.go`、`uihost/back.go`）：自绘界面有可关闭的东西（Modal、Drawer、弹出菜单、移动端 Popup 等）时，返回键作为 Escape 交给 Go，逐层关闭；没有时按页面栈规则处理。
+- **内存**（M5）：`onTrimMemory` 变成 `tango.EventMemoryWarning`，uihost 裁剪 GPU 图集、图片纹理与排版缓存。
+- M3、M4、M5 本节没有模拟器实测记录（上面的模拟器结果是 M2 的）。
 
 模拟器结果（AVD API 36，1080×2400，density 2.625，`examples/mobile-ui`）：拉丁、中文、希腊、阿拉伯文正常显示，安全区上 52 / 下 48 dp；旋转后 914×411，安全区变为左 52（刘海）/ 右 48（导航栏）/ 上 28；`input tap/swipe` 驱动点按与滚动，`input keyevent` 与 `input mouse` 产生按键、指针与滚轮事件；深色模式与“移除动画”实时跟随；WebView 页叠在自绘页上时自绘页 Surface 释放，返回后重建并同步出帧；Home 后不再出帧；根页按返回键关闭后应用退出。帧耗时：滚动帧约 10–12 ms，其中 `ANativeWindow_lock` 等待空闲缓冲约 8 ms（vsync 背压，在主线程上）、拷贝 0.3–0.9 ms，光栅化约 2–3 ms；整页重画（切换深色）约 25 ms（光栅化约 7 ms，其余为 lock 与提交）；冷启动首帧约 0.3–0.45 s（字体解析）。
 

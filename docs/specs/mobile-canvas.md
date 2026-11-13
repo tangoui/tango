@@ -1,8 +1,8 @@
 # 移动端自绘 UI（iOS / Android Canvas）
 
-状态：设计稿写于 2026-11-13；**M1–M4 已实现，M5 未开始**（进度见下表）。下文第 1–7 节保留设计时的调研与方案，其中"现状"一类描述指设计当时。
+状态：设计稿写于 2026-11-13；**M1–M5 已实现**（进度见下表），两端都还没上真机。下文第 1–7 节保留设计时的调研与方案，其中"现状"一类描述指设计当时。
 
-**实施进度**（2026-11-13 按代码核对）
+**实施进度**（2026-11-13 按代码核对；M5 一行按提交 `83f84b2` 更新）
 
 | 里程碑 | 状态 | 代码证据 | 验证 |
 |---|---|---|---|
@@ -10,7 +10,7 @@
 | M2 Android CPU 上屏、触摸、insets | ✅ 已实现 | `internal/platform/android/canvas_android.{go,c}`、`mobile/android/.../CanvasPage.java`、`CanvasView.java` | AVD API 36 模拟器，结果见 [../mobile.md](../mobile.md)"自绘页"一节 |
 | M3 两端输入法与键盘 | ✅ 已实现（M3a 与 M3b） | iOS：`ios/canvas_text.{go,m}`（UITextInput）、`canvas_textdoc.go`；Android：`android/canvas_ime.go`、`canvas_ime_android.go`、`CanvasInput.java`；键盘 inset 两端都报给 `uihost` | iOS 有模拟器自检 `TANGO_CANVAS_IME_SELFTEST`（`ios/canvas_selftest.go`）；本文未记录人工输入法验收结果 |
 | M4 两端无障碍 | ✅ 已实现 | iOS：`ios/canvas_a11y.{go,m}`、`a11ybridge/ios.go`；Android：`android/canvas_a11y.go`、`canvas_a11y_android.go`、`CanvasA11y.java`、`a11ybridge/android.go` | 单测；本文未记录 VoiceOver / TalkBack 实测结果 |
-| M5 Android GPU、WebView 叠放、收尾 | ❌ 未开始 | 只有接口 `internal/platform/canvas_mobile.go` 的 `CanvasNativeWindow`，无实现；没有 EGL/GLES 代码、`uihost/gpu_android.go`、两端 `canvas_attach*` | — |
+| M5 Android GPU、WebView 叠放、收尾 | ✅ 已实现（大部分） | Android GPU：`ui/gpu/gl/presenter_android.go`、`egl_android.go`（OpenGL ES 3.0 + EGL，与 Linux GL 共用设备），`uihost/gpu_android.go` 经 `platform.CanvasNativeWindow` 接入，上下文丢失后重建，失败或软件光栅化时回退 CPU，`debug.tango.renderer` 属性切换；叠放（`CanvasAttacher`）：iOS `ios/canvas_attach.{go,m}`（子视图），Android `android/canvas_attach_android.go` + `CanvasOverlay.java`（TextureView），两端叠放层只走 CPU；返回键 `ui/back.go`（`WantBack`/`ClaimBack`）与 `uihost/back.go`；内存警告 `uihost/memory.go`（`AppMemoryWarning` 后裁剪图集、纹理和排版缓存）；iPad 指针与触控板 `ios/canvas_pointer.{go,m}`。未做：黄金图比对进 CI；独立的 `ResetDevice` 接口（Android 呈现器自己重建上下文） | 单测（`presenter_android_test.go`、`canvas_attach_plan_test.go` 等）；本文未记录模拟器或真机结果 |
 
 真机：两端都还没有在真机上跑过自绘页（[../mobile.md](../mobile.md) 两端"已知限制"）。
 

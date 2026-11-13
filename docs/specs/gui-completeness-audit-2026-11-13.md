@@ -136,7 +136,7 @@
 3. 补 Drawer / Splitter / Carousel 等实际应用需要的高级交互、统一货币格式。
 4. 单独推进代码编辑器后续里程碑。
 
-移动端自绘 Canvas 宿主作为独立的可选平台项目，不计入本次桌面 GUI 的必补项。（更正，2026-11-13 晚：本文写成时说它"仍未实现"，与代码不符。iOS / Android 自绘页已按 [mobile-canvas.md](mobile-canvas.md) 实现 M1–M4，即上屏、触摸、安全区、输入法与无障碍，Android 在模拟器上跑过；缺的是 M5 的 Android GPU 与 WebView 叠放，以及真机验证。）
+移动端自绘 Canvas 宿主作为独立的可选平台项目，不计入本次桌面 GUI 的必补项。（更正，2026-11-13 晚：本文写成时说它"仍未实现"，与代码不符。iOS / Android 自绘页已按 [mobile-canvas.md](mobile-canvas.md) 实现 M1–M5，即上屏、触摸、安全区、输入法、无障碍、Android GPU 与 WebView 叠放；Android 的 M2 在模拟器上跑过，其余里程碑没有实测记录，两端都缺真机验证。）
 
 ## 8. 处理状态（2026-11-13 同日跟进）
 
@@ -150,4 +150,5 @@
 | 桌面多点触摸 | 已实现：Windows WM_POINTER(PT_TOUCH)、Linux GTK touch-event；待实机 |
 | Drawer / Splitter / Carousel / SliderRange / ColorPicker / CascaderPanel | 已实现；ColorPicker 渐变值未做；SliderRange 拖动交叉原本已有，现加 `AllowCross` 开关 |
 | 货币格式 | 已修：`FormatMoney` / `ProFormatLocale`，ISO 4217 代码决定符号与精度，地区决定分隔符与符号位置；ja 语言包改为 JPY |
-| Linux GPU、编辑器后续里程碑、Windows 实机验收 | 未处理 |
+| Linux GPU | 已实现（提交 `25ba786`）：`ui/gpu/gl` OpenGL 3.3 设备、`GtkGLArea` 呈现器、`uihost/gpu_linux.go`，Linux 窗口默认走 GL；只在容器里的 llvmpipe/Xvfb 上验证，真实 GPU 驱动、Wayland、HiDPI 待测（见 [gpu-renderer-m4-report.md](gpu-renderer-m4-report.md)） |
+| 编辑器后续里程碑、Windows 实机验收 | 未处理 |
