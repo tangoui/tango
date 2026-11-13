@@ -565,15 +565,24 @@ func (c *suite) gradientRampRows(t *testing.T) {
 // LastFrame forwards to a device (its gpu.Retainer and gpu.PixelReader
 // included, so the Renderer redraws partially and verifies) and keeps the
 // last frame's number of Dirty rectangles and its Copies.
+//
+// In verify mode the Renderer follows every partial frame with a full one
+// (Renderer.SetVerify), so Dirty and Copies then describe that full frame;
+// PartialCopies keeps the Copies of the last partial frame (one with
+// Dirty rectangles), which the verification frame does not replace.
 type LastFrame struct {
 	gpu.Device
-	Dirty  int
-	Copies []gpu.CopyRegion
+	Dirty         int
+	Copies        []gpu.CopyRegion
+	PartialCopies []gpu.CopyRegion
 }
 
 // Execute implements gpu.Device.
 func (lf *LastFrame) Execute(f *gpu.Frame) error {
 	lf.Dirty, lf.Copies = len(f.Dirty), append(lf.Copies[:0], f.Copies...)
+	if len(f.Dirty) > 0 {
+		lf.PartialCopies = append(lf.PartialCopies[:0], f.Copies...)
+	}
 	return lf.Device.Execute(f)
 }
 

@@ -106,8 +106,8 @@ func TestGLScrollOverlap(t *testing.T) {
 	for _, scale := range []float32{1, 2} {
 		t.Run(fmt.Sprint(scale), func(t *testing.T) {
 			d := newTestDevice(t)
-			pc := &partialCopies{Device: d}
-			r := gpu.NewRenderer(pc)
+			lf := &gpuconf.LastFrame{Device: d}
+			r := gpu.NewRenderer(lf)
 			r.SetVerify(true)
 			prev := float32(0)
 			if err := r.Render(gpuconf.ScrollList(t, prev, nil), gpuconf.ScrollSize, scale); err != nil {
@@ -116,33 +116,19 @@ func TestGLScrollOverlap(t *testing.T) {
 			for _, off := range []float32{40, 0} {
 				dy := prev - off
 				l := gpuconf.ScrollList(t, off, func(l *paint.List) { l.Scroll(gpuconf.ScrollViewport, geom.Pt(0, dy)) })
-				pc.copies = pc.copies[:0]
+				lf.PartialCopies = lf.PartialCopies[:0]
 				if err := r.Render(l, gpuconf.ScrollSize, scale); err != nil {
 					t.Fatalf("scroll %v: %v", dy, err)
 				}
 				// Verify mode follows the partial frame with a full one:
 				// the copies are those of the partial frame.
-				if len(pc.copies) != 1 {
-					t.Fatalf("scroll %v: copies %v, want one", dy, pc.copies)
+				if len(lf.PartialCopies) != 1 {
+					t.Fatalf("scroll %v: copies %v, want one", dy, lf.PartialCopies)
 				}
 				prev = off
 			}
 		})
 	}
-}
-
-// partialCopies forwards to a device and collects the Copies of the
-// partial frames it executes.
-type partialCopies struct {
-	*Device
-	copies []gpu.CopyRegion
-}
-
-func (pc *partialCopies) Execute(f *gpu.Frame) error {
-	if len(f.Dirty) > 0 {
-		pc.copies = append(pc.copies, f.Copies...)
-	}
-	return pc.Device.Execute(f)
 }
 
 // TestGLCopiesWithoutDirtyRejected: a frame with Copies but no Dirty is

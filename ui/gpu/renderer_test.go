@@ -483,6 +483,14 @@ func rendererAtlasOverflow(t *testing.T) {
 	for i, s := range frames {
 		l := &paint.List{Background: white}
 		gs := shape(t, s, size)
+		for _, g := range gs {
+			// Glyph 0 is .notdef: without a CJK font every character is
+			// the same tofu glyph, so the frames share their masks and
+			// nothing is evicted (Linux without fonts-noto-cjk).
+			if g.ID == 0 {
+				t.Skipf("%q: no font has its glyphs (.notdef); needs a CJK font", s)
+			}
+		}
 		l.Glyphs(geom.Pt(2, 4), gs, ink)
 		lists[i] = l
 		for _, g := range gs {

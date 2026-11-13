@@ -119,8 +119,10 @@ func TestD3DScrollOverlap(t *testing.T) {
 				if err := r.Render(l, gpuconf.ScrollSize, scale); err != nil {
 					t.Fatalf("scroll %v: %v", dy, err)
 				}
-				if len(lf.Copies) != 1 {
-					t.Fatalf("scroll %v: copies %v, want one", dy, lf.Copies)
+				// Verify mode follows the partial frame with a full one:
+				// check the copies of the partial frame.
+				if len(lf.PartialCopies) != 1 {
+					t.Fatalf("scroll %v: copies %v, want one", dy, lf.PartialCopies)
 				}
 				prev = off
 			}
