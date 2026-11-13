@@ -252,7 +252,7 @@ func (d *Device) applyImages(f *gpu.Frame) error {
 		pix, pitch := imageUploadPix(u)
 		t, err := newTexture(d.dev, u.Size, imageSpec, pix, pitch)
 		if err != nil {
-			return &allocError{err}
+			return &allocError{Err: err}
 		}
 		old := d.images[u.ID]
 		old.release()

@@ -14,6 +14,14 @@ package linux
 // platform.CanvasDropTarget draws its own from "drag-motion" (CanvasDragOver)
 // and "drag-leave" (CanvasDragLeave, which GTK also emits right before a
 // drop).
+//
+// The destination is the GtkOverlay around the drawing area when there is
+// one (wrapGL), not the drawing area: GTK finds the drop target by walking
+// up from the widget under the pointer, and once UseGLArea has put a
+// GtkGLArea above the drawing area that widget is the GLArea, whose
+// parent is the overlay (the drawing area, a sibling, would never be
+// asked). The overlay has the drawing area's allocation, so the drag
+// coordinates are the same.
 
 import (
 	"sync"
@@ -46,19 +54,23 @@ func loadCanvasDropFFI() bool {
 	return canvasDropFFI.ok
 }
 
-// enableFileDrop makes the canvas widget accept dropped files; onDrop
-// runs on the main thread with the paths and the drop point (logical
-// pixels relative to the widget). Main thread.
+// enableFileDrop makes the canvas widget (its overlay, when wrapped)
+// accept dropped files; onDrop runs on the main thread with the paths and
+// the drop point (logical pixels relative to the widget). Main thread.
 func (c *canvas) enableFileDrop(onDrop func(paths []string, x, y int)) {
 	if c.closed || c.dropOn || !loadCanvasDropFFI() {
 		return
 	}
 	c.dropOn = true
-	canvasDropFFI.destSet(c.widget, canvasGtkDestDefaultMotion|canvasGtkDestDefaultDrop, 0, 0, canvasGdkActionCopy)
-	canvasDropFFI.destAddURITargets(c.widget)
+	dest := c.widget
+	if c.glOverlay != 0 {
+		dest = c.glOverlay // see the file comment: the GLArea would hide the drawing area
+	}
+	canvasDropFFI.destSet(dest, canvasGtkDestDefaultMotion|canvasGtkDestDefaultDrop, 0, 0, canvasGdkActionCopy)
+	canvasDropFFI.destAddURITargets(dest)
 
 	// drag-motion(widget, context, x, y, time) -> gboolean
-	connectExt(c.widget, "drag-motion", 4, func(a [7]uintptr) uintptr {
+	connectExt(dest, "drag-motion", 4, func(a [7]uintptr) uintptr {
 		if c.closed || !canvasDragOffersURIs(a[1]) {
 			return 0
 		}
@@ -66,12 +78,12 @@ func (c *canvas) enableFileDrop(onDrop func(paths []string, x, y int)) {
 		return 0 // GTK_DEST_DEFAULT_MOTION answers the drag status
 	})
 	// drag-leave(widget, context, time)
-	connectExt2(c.widget, "drag-leave", func(a [7]uintptr) uintptr {
+	connectExt2(dest, "drag-leave", func(a [7]uintptr) uintptr {
 		c.dragLeave()
 		return 0
 	})
 	// drag-data-received(widget, context, x, y, selection_data, info, time)
-	connectExt(c.widget, "drag-data-received", 6, func(a [7]uintptr) uintptr {
+	connectExt(dest, "drag-data-received", 6, func(a [7]uintptr) uintptr {
 		sd := a[4]
 		if c.closed || sd == 0 || wx.selectionGetTarget(sd) != wx.atomIntern("text/uri-list", false) {
 			return 0

@@ -117,7 +117,7 @@ internal/platform   Canvas 契约扩展：GPU 呈现目标（第 6.5 节）
 - Windows：canvas 的 HWND 上创建 D3D11 设备 + DXGI flip-model 交换链（`DXGI_SWAP_EFFECT_FLIP_DISCARD`，支持 `Present1` 脏矩形）；B 步的 `StretchDIBits` 作为 CPU 回退。
 - Linux：canvas 控件从 `GtkDrawingArea` 换成 `GtkGLArea`（GL 3.3 core），在其 `render` 信号里渲染；X11 与 Wayland 都由 GTK 处理。B 步 cairo 路径作为 CPU 回退。
 - 契约草案：`GPUCanvas` 可选接口暴露原生句柄（`CAMetalLayer*`、`HWND`、GL 上下文回调）与呈现时机；具体形状留给实现者，但须写回 `docs/specs/canvas-surface.md` 并保持 CPU 路径不变。
-- 回退策略：创建 GPU 设备失败、驱动黑名单、环境变量 `TANGO_RENDERER=cpu` 时使用 CPU 渲染。
+- 回退策略：创建 GPU 设备失败、驱动黑名单、环境变量 `TANGO_RENDERER=cpu` 时使用 CPU 渲染。Linux（里程碑 4 终审裁定，2026-11-13）：OpenGL 呈现器的 `GL_RENDERER` 不区分大小写地含 `llvmpipe`、`softpipe` 或 `swrast`（Mesa 软件光栅化：无 3D 的虚拟机、`LIBGL_ALWAYS_SOFTWARE`）时同样视为没有 GPU，关闭呈现器、撤销 GtkGLArea 切换（`CanvasGL.ReleaseGLArea`）、记一次 "GPU unavailable … software GL renderer <名字>" 日志，窗口走 CPU；`TANGO_RENDERER=gpu` 时照用软件 GL。详见 [canvas-surface.md](canvas-surface.md) Linux `CanvasGL` 一节"uihost 的选择"。
 
 ### 6.6 正确性与验收
 
@@ -135,6 +135,7 @@ internal/platform   Canvas 契约扩展：GPU 呈现目标（第 6.5 节）
 2. **全部操作 + 局部重绘**：阴影、渐变、虚线、图片、FillPath 蒙版、不透明度组、脏矩形与滚动平移。
 3. **Windows D3D11 + HLSL 后端**（交叉编译 + vet；实机验收待补）。
 4. **Linux GL + GLSL 后端**（同上），GLSL ES 方言通过离线编译检查。
+   - **状态（2026-11-13）**：完成。GLSL 330 / GLSL ES 300 后端（`ui/shader/glsl`）、`ui/gpu/gl` 设备（与 Metal 同一帧契约，一致性套件全组通过）与 `GtkGLArea` 呈现器、Linux `CanvasGL`、uihost 接入。只在容器（Mesa llvmpipe、Xvfb、X11/GLX）里实测过；真实 GPU、Wayland、HiDPI 硬件的实机验收待补。见 [gpu-renderer-m4-report.md](gpu-renderer-m4-report.md)。
 5. **回退与稳健性**：设备丢失、CPU 回退、DPI 变化、多窗口共享设备、内存与图集上限。
 
 ### 6.8 边界决定（审阅后补充，设计者的决定）
@@ -154,4 +155,5 @@ internal/platform   Canvas 契约扩展：GPU 呈现目标（第 6.5 节）
 - 批处理的排序与合并策略、实例数据布局、缓冲区环形分配。
 - 脏矩形算法的合并启发式、阈值。
 - GLSL 离线校验工具的选择。
+  - **已决定（2026-11-13，里程碑 4）**：用 Khronos 参考编译器 glslang（`glslangValidator`，Debian 包 `glslang-tools`）。它在 Linux 测试容器里按需安装（`apt-get install -y glslang-tools`），在 PATH 上查找 `glslangValidator`，或由环境变量 `TANGO_GLSLANG` 指定路径；`ui/shader/glsl` 的 `TestGlslangValidates` 对每个测试模块的 `.vert`/`.frag` 分别按 GLSL 330 与 GLSL ES 300 校验，没有 glslang 时跳过。仓库不带二进制，macOS 上默认跳过。见 [gpu-renderer-m4-report.md](gpu-renderer-m4-report.md) 第 2 节。
 - `GPUCanvas` 契约的具体方法签名（须保持 CPU 路径兼容并更新 canvas-surface 文档）。

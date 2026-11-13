@@ -262,7 +262,7 @@ func (d *Device) Execute(f *gpu.Frame) error {
 	// touches a target.
 	instOff := 0
 	if nInst > 0 {
-		ins := d.gather.gather(f, d.layers.size)
+		ins := d.gather.gather(f, d.layers.Size)
 		off, err := d.inst.write(d.dev, d.ctx, ins, nInst)
 		d.gather.reset() // keep no reference to the Frame
 		if err != nil {
@@ -363,7 +363,7 @@ func (d *Device) encode(f *gpu.Frame, instOff, nInst int) {
 				// A layer is transparent before the first batch drawing
 				// into it.
 				var transparent [4]float32
-				comCall(ctx, ctxClearRenderTargetView, d.layers.tex[cur].rtv, uintptr(unsafe.Pointer(&transparent)))
+				comCall(ctx, ctxClearRenderTargetView, d.layers.Tex[cur].rtv, uintptr(unsafe.Pointer(&transparent)))
 				d.started[cur] = true
 			}
 		}
@@ -381,7 +381,7 @@ func (d *Device) encode(f *gpu.Frame, instOff, nInst int) {
 			views[0] = d.images[b.Image].srv // held: checked by checkImages
 		}
 		if b.Layer != 0 {
-			views[1] = d.layers.tex[b.Layer].srv // drawn by an earlier batch: checked by assign
+			views[1] = d.layers.Tex[b.Layer].srv // drawn by an earlier batch: checked by assign
 		}
 		comCall(ctx, ctxPSSetShaderResources, gpu.TexImage, 2, uintptr(unsafe.Pointer(&views[0])))
 		setVB(off)
@@ -417,8 +417,8 @@ func (d *Device) bindTarget(f *gpu.Frame, target int) {
 	fu := shaders.Frame{ViewSize: sl.V2(float32(size.X), float32(size.Y))}
 	if target != 0 {
 		ld := f.Layers[target-1]
-		rtv = d.layers.tex[target].rtv
-		size = d.layers.size[target] // ≥ ld.Size: the layer is its top-left part
+		rtv = d.layers.Tex[target].rtv
+		size = d.layers.Size[target] // ≥ ld.Size: the layer is its top-left part
 		fu = shaders.Frame{ViewSize: sl.V2(float32(size.X), float32(size.Y)), Origin: sl.V2(float32(ld.Bounds.Min.X), float32(ld.Bounds.Min.Y))}
 	}
 	// OMSetRenderTargets(NumViews, ppRenderTargetViews, pDepthStencilView)
@@ -541,7 +541,7 @@ func (d *Device) release() {
 		delete(d.images, id)
 	}
 	if d.layers != nil {
-		d.layers.releaseAll()
+		d.layers.ReleaseAll()
 	}
 	d.target.release()
 	for i := range d.tex {

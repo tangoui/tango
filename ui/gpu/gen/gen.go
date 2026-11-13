@@ -20,3 +20,13 @@ var QuadMSL string
 //
 //go:embed quad.hlsl
 var QuadHLSL string
+
+// QuadGLSLVertex and QuadGLSLFragment are the GLSL 330 core sources of the
+// quad shader's vertex and fragment stages (entry point main in each; see
+// ui/shader/glsl for the attribute, uniform-block and sampler bindings).
+//
+//go:embed quad.vert
+var QuadGLSLVertex string
+
+//go:embed quad.frag
+var QuadGLSLFragment string

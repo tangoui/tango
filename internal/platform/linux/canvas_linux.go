@@ -38,6 +38,7 @@ import (
 	"image"
 	"math"
 	"sync"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -86,7 +87,7 @@ type canvas struct {
 	focused   bool // last focus reported to the sink
 
 	// File drop (canvas_drop_linux.go).
-	dropOn    bool // the widget is a drag destination
+	dropOn    bool // a drag destination is set: the overlay (glOverlay) when there is one, else the widget
 	dropHover bool // CanvasDragOver reported, CanvasDragLeave pending
 
 	// Frame scheduling.
@@ -104,6 +105,13 @@ type canvas struct {
 	surfW, surfH int
 
 	ax *canvasA11y // AT-SPI bridge (canvas_a11y_linux.go); nil until used
+
+	// GPU presentation (canvas_gl_linux.go).
+	owner     *surface // the canvas surface; nil for attached canvases
+	tid       int      // the main thread (gettid), where newCanvasWidget ran
+	glOverlay ptr      // GtkOverlay around the drawing area; 0 when not wrapped
+	glArea    ptr      // GtkGLArea after UseGLArea; we hold a reference
+	gl        canvasGL
 
 	// Guarded by canvasQueue.mu.
 	queued bool
@@ -141,13 +149,15 @@ func (b *backend) NewCanvasSurface(id platform.SurfaceID, o platform.SurfaceOpti
 	if err != nil {
 		return nil, nil, err
 	}
+	packed := c.wrapGL() // the GtkOverlay for UseGLArea (canvas_gl_linux.go), or widget
 	s, err := b.newWindow(id, o)
 	if err != nil {
-		gtkWidgetDestroy(widget)
+		gtkWidgetDestroy(packed)
 		return nil, nil, err
 	}
-	gtkBoxPackStart(s.box, widget, true, true, 0)
+	gtkBoxPackStart(s.box, packed, true, true, 0)
 	s.content, s.canvas = widget, c
+	c.owner = s
 	b.finishSurface(s, &ex)
 	if o.Visible {
 		gtkWindowPresent(s.win)
@@ -196,6 +206,7 @@ func newCanvasWidget(sink platform.CanvasSink) (*canvas, ptr, error) {
 		cursors:    map[input.Cursor]ptr{},
 		downKeys:   map[input.Key]bool{},
 		drawWanted: true,
+		tid:        syscall.Gettid(),
 	}
 	f.widgetSetCanFocus(w, true)
 	f.widgetAddEvents(w, canvasEventMask)
@@ -350,16 +361,22 @@ func (c *canvas) onTick(_, _ ptr) ptr {
 	}
 	draw, keep := c.sched.tick()
 	if draw {
-		if c.checkGeometry() || c.drawWanted || !c.ready {
+		queue, now := c.gl.tick(c.checkGeometry(), c.drawWanted, c.ready)
+		switch {
+		case queue:
 			// A size change (or the first frame) renders inside the draw
 			// handler, so the frame matches the allocation it paints.
 			c.drawWanted = true
 			canvasFFI.widgetQueueDraw(c.widget)
-		} else {
+		case now:
 			// Render now, in the frame clock's update phase: Present queues
 			// a redraw of what changed (all of it, or only the damage of
-			// a partial frame, canvas_damage_linux.go), painted in the
+			// a partial frame, canvas_damage_linux.go; on the GL path the
+			// presenter queues a render of the GLArea), painted in the
 			// same frame clock cycle.
+			if c.gl.on {
+				c.drawWanted = false
+			}
 			c.frame()
 		}
 	}
@@ -405,13 +422,15 @@ func (c *canvas) onDraw(_, cr ptr) ptr {
 	}
 	c.inDraw = true
 	defer func() { c.inDraw = false }()
-	c.checkGeometry()
-	if c.drawWanted {
+	if c.checkGeometry() && !c.gl.drawFrames() {
+		c.requestFrame() // GL path: frames never run in here
+	}
+	if c.drawWanted && c.gl.drawFrames() {
 		c.drawWanted = false
 		c.sched.drew()
 		c.frame()
 	}
-	if c.surf != 0 {
+	if c.surf != 0 && c.gl.paintSurface() {
 		canvasFFI.setSourceSurface(cr, c.surf, 0, 0)
 		canvasFFI.paint(cr) // clipped by GTK to the invalid region
 	}
@@ -439,7 +458,11 @@ func (c *canvas) frame() {
 // onGeometry handles "size-allocate" and "notify::scale-factor".
 func (c *canvas) onGeometry(_, _ ptr) ptr {
 	if c.checkGeometry() {
-		canvasFFI.widgetQueueDraw(c.widget)
+		if c.gl.resizeFrame() {
+			c.resizeGL() // canvas_gl_linux.go
+		} else {
+			canvasFFI.widgetQueueDraw(c.widget)
+		}
 	}
 	return 0
 }
@@ -508,6 +531,10 @@ func (c *canvas) destroy() {
 		f.surfaceDestroy(c.surf)
 		c.surf = 0
 	}
+	if c.glArea != 0 {
+		gObjectUnref(c.glArea) // the reference taken in UseGLArea; the overlay holds one until GTK destroys it
+		c.glArea = 0
+	}
 	gObjectUnref(c.widget) // the reference taken in newCanvasWidget; the container still holds one
 }
 
@@ -567,12 +594,18 @@ func (c *canvas) gdkCursor(cur input.Cursor) ptr {
 }
 
 // Present implements platform.Canvas: it copies img into the canvas's
-// cairo surface and, outside a draw, queues one. Main thread.
+// cairo surface and, outside a draw, queues one. Main thread. After
+// UseGLArea, Present(nil) reports a GPU frame and Present(img) hides the
+// GLArea while CPU frames come (canvas_gl_linux.go).
 func (c *canvas) Present(img *image.RGBA) error {
 	if c.closed {
 		return canvasErrClosed
 	}
 	if img == nil {
+		if c.gl.on {
+			c.presentGL(false)
+			return nil
+		}
 		return errors.New("tango/linux: Present: nil image")
 	}
 	r := img.Bounds()
@@ -613,6 +646,7 @@ func (c *canvas) Present(img *image.RGBA) error {
 	canvasRGBAToARGB32(dst, stride, img.Pix[off:off+n], img.Stride, w, h)
 	f.surfaceMarkDirty(c.surf)
 	f.surfaceSetDeviceScale(c.surf, c.scale, c.scale)
+	c.presentGL(true)
 	if !c.inDraw {
 		f.widgetQueueDraw(c.widget)
 	}

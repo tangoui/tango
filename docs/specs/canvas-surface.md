@@ -170,6 +170,7 @@ uihost 胶水（`uihost/gpu.go`，按 GOOS 拆分，见下文 Windows 一节）�
 - `ErrDeviceLost`：这个窗口从此永久改用 `paint.CPU`，并 Invalidate 一次。
 - 呈现器创建失败：窗口留在 CPU 模式，canvas 保留 Metal layer，用 `Present(img)` 显示 CPU 帧。
 - `TANGO_RENDERER=cpu`：跳过 GPU。
+- 软件 GL（Linux，2026-11-13 终审裁定）：见下文 Linux 一节"uihost 的选择"。
 
 tan dev worker 和附着层（Attach）一直走 CPU。
 
@@ -195,7 +196,7 @@ GPU 侧：`d3d11.NewPresenter(hwnd uintptr) (paint.Renderer, present func(size i
 - **`NewPresenter` 失败 → CPU，经兄弟子窗口显示**：包括缺少 `d3dcompiler_47.dll`（错误包装 `d3d11.ErrNoDevice`）。canvas 保持切换状态，`gpuRenderer` 在 CPU 模式下每帧 `Present(img)`，兄弟窗口一直显示。
 - **关闭顺序**：顶层窗口的 WM_DESTROY 先到，`surface.destroyed` 报告 `SurfaceClosed`，uihost 在同一调用里关闭 `gpuRenderer`（释放交换链），之后系统才销毁子窗口（canvas 与兄弟窗口），即"先释放交换链，再 `DestroyWindow`"。
 
-uihost 胶水的文件组织：共享逻辑（`gpuRenderer`、`setupGPU`、错误处理、`metalTarget`/`hwndTarget`）在无构建标签的 `uihost/gpu.go`；`gpu_darwin.go` 选 `CanvasMetal` + `metal.NewPresenter`（行为与里程碑 1 相同），`gpu_windows.go` 选 `CanvasHWND` + `d3d11.NewPresenter`，`gpu_other.go` 一律 CPU（Linux GL 留到里程碑 4）。错误判断改用 `gpu.ErrTargetTooLarge` / `gpu.ErrDeviceLost`（与 metal、d3d11 再导出的值相同）。测试用 `SetGPUHooksHWND` 在任何 OS 上走 HWND 路径（fake 后端的 `EnableCanvasHWND`）。
+uihost 胶水的文件组织：共享逻辑（`gpuRenderer`、`setupGPU`、错误处理、`metalTarget`/`hwndTarget`/`glAreaTarget`）在无构建标签的 `uihost/gpu.go`；`gpu_darwin.go` 选 `CanvasMetal` + `metal.NewPresenter`（行为与里程碑 1 相同），`gpu_windows.go` 选 `CanvasHWND` + `d3d11.NewPresenter`，`gpu_linux.go`（`linux && !android`，里程碑 4）选 `CanvasGL` + `gl.NewPresenter`，`gpu_other.go` 一律 CPU（含 Android）。错误判断改用 `gpu.ErrTargetTooLarge` / `gpu.ErrDeviceLost`（与 metal、d3d11 再导出的值相同）。测试用 `SetGPUHooksHWND` / `SetGPUHooksGL` 在任何 OS 上走 HWND / GtkGLArea 路径（fake 后端的 `EnableCanvasHWND` / `EnableCanvasGL`）。
 
 实机验收（[gpu-renderer-m3-report.md](gpu-renderer-m3-report.md) 第 5 节的 12 项）尚未进行，平台侧额外需要看：兄弟窗口能否盖住 flip-model 交换链（DWM 对子窗口交换链与 GDI 兄弟窗口的 Z 序）；兄弟窗口显示时指针、光标、滚轮、IME 候选窗是否仍正常；UIA 树里是否多出一个空的 pane（兄弟窗口显示时）；遮挡/最小化/恢复后画面是否正确。
 
@@ -206,7 +207,48 @@ uihost 胶水的文件组织：共享逻辑（`gpuRenderer`、`setupGPU`、错�
 - 实例数超过设备实例缓冲上限（约 93 万个实例）时，`Execute` 返回包装 `gpu.ErrTargetTooLarge` 的错误，与纹理超限的处理相同（这一帧临时在 CPU 上画），但错误文本是 "instance count exceeds the device buffer limit"。`uihost/gpu.go` 的日志行已改为 "exceeds a GPU limit, drawing on the CPU until it fits: <err>"，可以区分两种原因。
 - 关闭顺序：先关闭渲染器（释放交换链），再 `DestroyWindow`。平台侧按此顺序（见上文"关闭顺序"）；反过来不应崩溃，但未实机验证。
 
-Linux（GL）的对应接口留到 GPU 里程碑 4。
+### Linux：`CanvasGL`（平台侧已实现，里程碑 4 Task 5；呈现器与 uihost 胶水见 Task 6）
+
+```go
+type CanvasGL interface {
+    UseGLArea() (glarea uintptr, err error) // GtkGLArea*
+    ReleaseGLArea()                         // 撤销切换，回到纯 cairo 路径（2026-11-13 终审补充）
+}
+```
+
+GPU 侧（Task 6，`ui/gpu/gl/presenter_linux.go`）：`gl.NewPresenter(glarea uintptr)`，形状与 `metal.NewPresenter` / `d3d11.NewPresenter` 相同（非 Linux 返回 `gl.ErrUnsupported`）。GTK 符号由呈现器自己 dlopen（`libgtk-3.so.0`、`libgdk-3.so.0`、`libgobject-2.0.so.0`），不依赖平台包。它在 `NewPresenter` 里就连接 GLArea 的 `render` 信号（早于第一次 present），持有 GLArea 的一个引用直到 Close。平台实现在 `internal/platform/linux/canvas_gl_linux.go`，纯逻辑（tick/尺寸变化在哪出帧、draw 是否画 cairo surface、Present 对 GLArea 的显示/隐藏、哪些 canvas 支持）在无构建标签的 `canvas_gl_plan.go`，各 OS 上都有单测。fake 后端：`EnableCanvasGL`（形状同 `EnableCanvasHWND`）。
+
+语义（摘自 `internal/platform/canvas.go` 的文档注释）：
+
+- **控件树**：canvas surface 创建时就把 GtkDrawingArea 作为一个 GtkOverlay 的主子控件打包（`wrapGL`；CPU 路径下 overlay 只有这一个子控件）。不在切换时再改父控件，因为那会让 drawing area unrealize，丢掉焦点和输入法 client window。缺少 GtkOverlay/GtkGLArea 符号（GTK < 3.18）时直接打包 drawing area，`UseGLArea` 返回 `ErrUnsupported`。
+- **切换**：只切换一次，把 GtkGLArea 加为 overlay 唯一的 overlay 子控件（在 drawing area 之上）并返回其指针；GLArea 归 surface 所有，surface 关闭前有效，调用方须在关闭前或关闭时释放 GL 对象。再次调用返回同一个指针。只能在主线程调用（与创建 canvas 时的线程按 `gettid` 比对）；非主线程、surface 关闭后调用返回错误。它本身不调用 sink，但会经主循环安排一次 `CanvasFrame`。
+- **GL 上下文**：返回前已 realize（窗口还没显示时，`gtk_widget_realize` 会先 realize overlay 与顶层窗口，不映射）。要求 OpenGL 3.3 core（`gtk_gl_area_set_required_version(3,3)`，`set_use_es(FALSE)`）。realize 后检查 `gtk_gl_area_get_error`，再 `gtk_gl_area_make_current` 后用 `gdk_gl_context_get_version` 复核版本（GDK 在首次 make current 时才读出版本，之前是 0.0）。任何一项失败：GLArea 被销毁，返回错误（不是 `ErrUnsupported`），canvas 保持 cairo 路径、状态不变。auto-render 关闭（每次由呈现器 queue render），无 alpha，无深度/模板缓冲，不可获得焦点。
+- **输入**：overlay 给 GLArea 的子 GdkWindow 设为 pass-through（`gtk_overlay_set_overlay_pass_through`）。这还不够：GtkGLArea 在 realize 时会在里面再建一个 input-only 的事件窗口，会吃掉所有指针事件（容器内实测：drawing area 收到一个 leave，收不到按下）。所以每次 realize 时把 GLArea 自己的 GdkWindow 也设为 pass-through（`gdk_window_set_pass_through`，按 `gdk_window_get_user_data` 找）。这样 GDK 的命中检测跳过两者，指针、crossing 事件和光标都属于下面 drawing area 的窗口；键盘焦点、输入法、AT-SPI 本来就在 drawing area 上，不变。
+- **拖入文件**（`SurfaceExtras.AcceptFiles`）：pass-through 只影响事件投递，GTK 找拖放目标时仍从指针下的控件往上找，GLArea 盖住 drawing area 后找到的是 GLArea，它的父控件是 overlay，兄弟 drawing area 永远问不到。所以拖放目标（`gtk_drag_dest_set` 与 drag-motion/leave/data-received）注册在 overlay 上（没有 overlay 时仍是 drawing area），overlay 与 drawing area 分配相同，坐标不变。GPU 里程碑 4 Task 7 容器实测：注册在 drawing area 上时，合成的 XDND 拖动在 GPU 窗口上得到 XdndStatus "不接受"、无高亮；改到 overlay 后 GPU 与 CPU 窗口都接受、DropZone 高亮、落下得到路径（`GDK_SCALE` 1 与 2）。回归测试 `TestGLAreaFileDropTarget`。光标同时实测：输入框、按钮、空白处的 XFixes 光标图像在 GPU 与 CPU 窗口上逐一相同。
+- **帧调度**：GL 路径下帧不在 drawing area 的 draw 里跑：tick 里直接 `CanvasFrame`（update 阶段），尺寸/缩放变化在 `size-allocate` / `notify::scale-factor` 里同步出一帧（layout 阶段，与 Windows 的 WM_SIZE 同步帧对应）。这样呈现器的 `gtk_gl_area_queue_render` 总在 GTK 本周期绘制之前发出，不在绘制阶段里再失效窗口；被盖住的 drawing area 也不用为出帧而重画（GTK 3.24 仍会画被盖住的 drawing area，已实测，所以这是为了省事而不是必需）。每刷新周期最多一帧、静止窗口不出帧、InvalidateAt 不变。
+- **Present**：切换后 `Present(nil)` 表示"GPU 已经呈现"，返回 nil（切换前仍是错误）。`Present(img)` 仍是 CPU 回退：照旧拷进 cairo surface，隐藏 GLArea，drawing area 画出该帧；下一次 `Present(nil)` 再显示 GLArea。GLArea 显示时 drawing area 的 draw 不画 cairo surface（可能是旧帧，且被盖住）。
+- **局部上屏**：GL 路径下 `PresentDamage` 一律按整帧（`Present`）处理：GLArea 每次重画整个缓冲，隐藏 GLArea 的 CPU 回退帧也必须铺满 drawing area。
+- **撤销切换**（`ReleaseGLArea`，2026-11-13 终审补充）：调用方不会用这个 GLArea 呈现时（呈现器起不来，或被软件 GL 裁定拒绝，见下）调用。它销毁 GLArea（从 overlay 移除并 unrealize，所以从不显示没人渲染的缓冲），canvas 回到纯 cairo 路径：`Present(nil)` 重新是错误，`Present(img)` 与局部上屏（`PresentDamage`）恢复，帧回到 drawing area 的 draw 里跑；并安排一次整帧 `CanvasFrame`。调用前须先关闭该 GLArea 上的呈现器。之后再调 `UseGLArea` 返回 `ErrUnsupported`。只在主线程；切换前、重复调用、surface 关闭后都是空操作。overlay 留下，只剩 drawing area。测试 `TestReleaseGLArea`（容器）、`TestCanvasGLRelease`（plan）。
+- **不支持的 canvas**：附着的 canvas（`CanvasAttacher`，含分层与 PassThrough 层）与透明 canvas（调用时 `Appearance.Transparent`）返回 `ErrUnsupported`。Linux 不实现 Material，所以不在判断里。切换之后再改成透明不会切回 cairo。
+
+#### 呈现器（Task 6）
+
+- **出帧**：`r.Render` 先 `gtk_gl_area_make_current`（未 realize、`gtk_gl_area_get_error` 非空、没有 context、make_current 后当前 context 不是它，或 GLArea 的 context 已不是 `NewPresenter` 记下的那个——GLArea 被 unrealize 后 context 已销毁，或又 realize 出新 context → 包装 `gpu.ErrDeviceLost`，uihost 永久回退 CPU；记下的 context 用 GObject 弱引用跟踪，从不比较或使用已销毁 context 的地址，`TestPresenterContextChanged`），再在调用者线程（GTK 主线程，`CanvasFrame` 内）执行到离屏 FBO。`present(size, scale)`：size 为空返回 nil、不排队；否则 `gtk_gl_area_queue_render`，不等 GPU。背压就是 GTK 的：每次绘制至多一次 render，多次 present 合并。
+- **render 信号**（回调返回 TRUE）：以进入时的 `GL_DRAW_FRAMEBUFFER_BINDING` 为 GLArea 的帧缓冲，缓冲尺寸 = 分配尺寸 × `gtk_widget_get_scale_factor`（与 GTK 分配缓冲的算法相同）。`glBlitFramebuffer` 源 `(0,0,w,h)` → 目标 `(0,H,w,H-h)`（y 翻转一次，`GL_NEAREST`）。离屏目标与缓冲尺寸不同（resize 后帧先于 GLArea 拿到新分配而跑；目标是 ceil(Size×Scale)）时先清成该帧的 `Frame.Clear`，再左上对齐 blit，多出的部分裁掉。第一帧之前、或上一帧失败（目标里没有完整帧）时只清成该颜色（第一帧前为不透明黑），所以 GLArea 从不显示未初始化的缓冲。blit 的 GL 错误由下一次 present 返回，连续 3 次或 `GL_OUT_OF_MEMORY` 丢失设备。
+- **共享上下文的状态**：GLArea 的 context 也归 GTK 用（它的帧缓冲/renderbuffer、resize 默认处理的 `glViewport`、无 GL 合成时回读缓冲的 `glReadPixels`）。设备工作之前和 blit 之前，呈现器把 GTK 可能留下、又会改变结果的状态复位：`GL_PIXEL_UNPACK_BUFFER`/`GL_PIXEL_PACK_BUFFER` 解绑，pack/unpack 的 `SKIP_PIXELS`/`SKIP_ROWS`/`ROW_LENGTH` 为 0、`ALIGNMENT` 为 4，关 `GL_RASTERIZER_DISCARD`、`GL_SAMPLE_ALPHA_TO_COVERAGE`，`glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)`；blit 前另关 scissor、`GL_FRAMEBUFFER_SRGB`，开全部颜色通道（三者都影响 blit）。blit 后把 GLArea 的帧缓冲也绑为 read framebuffer，两个绑定都回到 GTK 进入回调时的样子。其余绘制状态设备每帧自己设。`TestPresenterSharedState` 预先弄脏这些状态后出帧，画面与 ReadPixels 都正确（去掉复位时该测试失败：解绑前 `PIXEL_UNPACK_BUFFER` 让新纹理建成不完整的帧缓冲）。
+- **关闭顺序**（2026-11-13 终审实测更正）：GTK 3.24 的 `gtk_widget_dispose` 先隐藏并（递归地）unrealize 顶层窗口，**之后**才发出 "destroy"；GtkGLArea 在 unrealize 时删掉自己的缓冲并释放 GdkGLContext。所以 surface 的 destroy 报告 `SurfaceClosed`、uihost 在同一调用里关闭 `gpuRenderer` 时，GLArea 已经 unrealize、context 已经销毁（overlay 与呈现器的引用让 GLArea 指针仍然有效）。呈现器的 `Close` 此时：断开 render 信号处理器 → 发现 GLArea 未 realize，**不发任何 GL 调用、不 make_current**（不碰已销毁的 context），跳过删除 → 去掉 context 的弱引用（已被通知则不用）→ 释放自己对 GLArea 的引用。GL 对象随 context 释放：GDK 建 GLArea 的 context 时与顶层 GdkWindow 的 paint context 共享对象，同一次 destroy 销毁顶层 GdkWindow 时 paint context 也随之销毁，所以没有对象活得比窗口久（共享关系按 GTK 3.24 源码 `gdk_window_create_gl_context` 推断，未单独实测）。容器实测 `TestPresenterSurfaceClose`（真实 Linux 后端的 canvas surface + `UseGLArea` + 呈现器，`Surface.Close`，在 `OnSurfaceEvent(SurfaceClosed)` 里 Close）：`realizedAtSurfaceClosed=false contextAtSurfaceClosed=false contextFinalizedAtSurfaceClosed=true closeDeletedWithContext=false`。窗口仍在时关闭呈现器（GPU 丢失后回退 CPU、软件 GL 被拒）才走"make_current 后同步删除全部 GL 对象"那条路径（`TestPresenterClose` 断言删除了）。GLArea 先被单独销毁同样不会崩溃（`TestPresenterAreaDestroyed`）。
+- **容器实测**（Task 6，同下方环境）：`ui/gpu/gl/presenter_linux_test.go` 的 `TestPresenterBasic`（3 帧；`gtk_gl_area_attach_buffers` 后 `glReadPixels` 读 GLArea 帧缓冲：中心、左上、右下像素正确，画面正立）、`TestPresenterBeforeFirstFrame`、`TestPresenterResize`（变大时旧帧左上对齐、其余为 Frame.Clear；新尺寸铺满；变小时裁剪）、`TestPresenterZeroSize`、`TestPresenterScale2`（`GDK_SCALE=2` 子进程：缓冲 320×200 = 2×160×100，scale 2 的帧铺满）、`TestPresenterClose`、`TestPresenterBadArea`、`TestPresenterSharedState`、`TestPresenterAreaDestroyed`；端到端（uihost 窗口 → 真 GL 呈现器 → 读回 GLArea 中心像素）见 Task 6 报告。
+
+#### uihost 的选择（Linux）
+
+`setupGPU` 先 `UseGLArea`，再 `gl.NewPresenter`：
+- `UseGLArea` 失败（无 GL 3.3、`GDK_GL=disable`、附着或透明 canvas）：canvas 没有切换，窗口走纯 CPU 路径。
+- `NewPresenter` 失败（着色器被拒、缺库）：记一次 "GPU unavailable" 日志，`ReleaseGLArea`，窗口走纯 CPU 路径（与 Metal/HWND 不同：那两者保留切换、用 `gpuRenderer` 的 CPU 模式经 sublayer/兄弟窗口显示）。
+- **软件 GL**（终审裁定）：呈现器的 renderer 实现 `interface{ GLRenderer() string }`，返回 `NewPresenter` 时读到的 `GL_RENDERER`。名字（不区分大小写）含 `llvmpipe`、`softpipe` 或 `swrast` 时视为没有 GPU：关闭呈现器，记一次 `tango: GPU unavailable, using CPU: software GL renderer <名字> (TANGO_RENDERER=gpu uses it)`，`ReleaseGLArea`，窗口走纯 CPU 路径。原因：用 CPU 光栅化 GL 比 `paint.CPU` 更费 CPU，还多一次拷贝（无 3D 的虚拟机、`LIBGL_ALWAYS_SOFTWARE`）。`TANGO_RENDERER=gpu` 时照用软件 GL。测试 `TestLinuxSoftwareGL`（fake，所有 OS）。
+
+**实测范围（2026-11-13）**：只在容器里测过——podman `localhost/tango-linuxtest:bookworm`（aarch64，GTK 3.24.38，Mesa 22.3 llvmpipe，`LIBGL_ALWAYS_SOFTWARE=1`），Xvfb（`xvfb-run -a -s "-screen 0 1280x800x24"`），GDK 走 X11/GLX。窗口测试 `internal/platform/linux/canvas_gl_linux_test.go`：`TestUseGLArea`（非 0、再调同一指针、已 realize、auto-render/alpha/depth/stencil 关闭、切换后自动出一帧、Invalidate 与 resize 出帧、关闭后报错）、`TestUseGLAreaTransparent`、`TestUseGLAreaUnavailable`（`GDK_GL=disable` 子进程：报错 "GL support disabled via GDK_DEBUG"，canvas 仍能 `Present(img)` 并出帧）、`TestGLAreaInputPassThrough`（经 XTest 由 X 服务器点击 GLArea 上方，drawing area 的 sink 收到按下，坐标正确）、`TestGLAreaCPUFallbackToggle`（Present(img) 隐藏、Present(nil) 显示、PresentDamage 整帧）。同一组窗口测试在容器里加 `GDK_SCALE=2` 也通过（XTest 坐标按缩放换算成设备像素）。另实测：窗口未显示时 `UseGLArea` 能 realize（顶层被 realize 但不映射，显示后 GLArea 正常映射）。`gdk_test_simulate_button` 发出的合成按下在该容器里 GDK 不投递（smokeattach 的点击检查同样失败），所以改用 XTest。
+
+**未测**：Wayland（GDK 走 EGL）；真实 GPU 与驱动（Intel/AMD Mesa、NVIDIA 专有驱动）；HiDPI 硬件（`GDK_SCALE=2` 的缩放由 Task 6 的 `TestPresenterScale2` 在容器里覆盖，真机未测）；GPU 重置；有窗口管理器/合成器的真实桌面上的焦点、光标与输入法候选窗；从真实文件管理器拖入文件（容器里只有合成的 XDND）。GLArea 实际画面在容器（llvmpipe、Xvfb、X11/GLX）里由 Task 6 测过，真机未测。
 
 ## 脏矩形上屏（DamagePresenter，已实现 2026-11-13）
 

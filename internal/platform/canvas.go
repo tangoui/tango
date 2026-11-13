@@ -270,6 +270,64 @@ type CanvasHWND interface {
 	UseGPUWindow() (hwnd uintptr, err error)
 }
 
+// CanvasGL is implemented by Linux canvases that can present with OpenGL
+// through a GtkGLArea. Discover it with a type assertion on the Canvas
+// from CanvasCreator.NewCanvasSurface; it parallels CanvasMetal and
+// CanvasHWND.
+type CanvasGL interface {
+	// UseGLArea switches the canvas to GPU presentation once and returns
+	// the GtkGLArea* (owned by the surface: valid until it closes; the
+	// caller must release its GL objects before or when the surface
+	// closes). Calling it again returns the same area. Main thread; it
+	// never calls the sink itself but schedules one CanvasFrame, so the
+	// first GPU frame follows without an Invalidate.
+	//
+	// The area is realized before return and requires OpenGL 3.3 core.
+	// When GTK reports a GL error (gtk_gl_area_get_error after realize,
+	// e.g. no GL 3.3 or GL disabled) the area is destroyed, the error is
+	// returned and the canvas stays on cairo, unchanged. Auto-render is
+	// off (the presenter queues each render), no alpha, no depth or
+	// stencil buffer; the presenter connects the area's "render" signal
+	// and makes its context current itself.
+	//
+	// Frame scheduling is unchanged: CanvasFrame still comes only after
+	// Invalidate/InvalidateAt, a size or scale change (reported as
+	// CanvasResized and followed by a frame synchronously from the size
+	// allocation, on the main thread; the presenter adapts to the
+	// GLArea's buffer size, the allocation in device pixels, in its
+	// render callback), or the switch itself, at most once per display
+	// refresh, and a still window costs no frames. Input, IME, cursor,
+	// focus and scale behave as before: the GLArea sits in a GtkOverlay
+	// above the drawing area with pass-through input, so the drawing area
+	// keeps receiving every event.
+	//
+	// After a successful call, Present(nil) means "the GPU presented
+	// already" and returns nil. Present(img) still works as a CPU fallback
+	// (the presenter cannot start, a frame beyond a device limit, a lost
+	// device): the GLArea is hidden and the drawing area shows img with
+	// cairo until the next Present(nil) shows the GLArea again. Partial
+	// presentation (CanvasDamagePresenter) presents whole frames.
+	//
+	// Returns ErrUnsupported for attached (CanvasAttacher) canvases,
+	// layered ones and so PassThrough layers, and for transparent canvases
+	// (Appearance.Transparent), and an error off the main thread or after
+	// the surface closed.
+	UseGLArea() (glarea uintptr, err error)
+
+	// ReleaseGLArea undoes a successful UseGLArea for good, for a caller
+	// that will not present with the area (its presenter could not
+	// start, or was rejected): it destroys the GtkGLArea, so it never
+	// shows a buffer nobody renders, and returns the canvas to the plain
+	// cairo path — Present(nil) is an error again, Present(img) and
+	// partial presentation (CanvasDamagePresenter) work as before the
+	// switch, frames run as on the cairo path — and schedules one
+	// CanvasFrame. The caller must have closed any presenter on the area
+	// first. Later UseGLArea calls return ErrUnsupported. Main thread; a
+	// no-op before UseGLArea succeeded, when called again and after the
+	// surface closed.
+	ReleaseGLArea()
+}
+
 // CanvasDropTarget is optionally implemented by a CanvasSink that wants
 // drop feedback (a highlight) while files are dragged over its canvas.
 // Backends call it only for canvases of surfaces created with

@@ -213,3 +213,83 @@ func loadCanvasClickSettings(bd *binder, t, o ptr) {
 		canvasFFI.dblDist = float64(d)
 	}
 }
+
+// canvasGLFFI holds the symbols of GPU presentation (canvas_gl_linux.go):
+// GtkOverlay (the drawing area is the main child, the GtkGLArea an overlay
+// child) and GtkGLArea. Bound on first use by loadCanvasGLFFI, apart from
+// canvasFFI, so a GTK without them (before 3.18) keeps cairo canvases and
+// only UseGLArea reports ErrUnsupported.
+var canvasGLFFI struct {
+	once sync.Once
+	err  error
+
+	overlayNew            func() ptr
+	overlayAddOverlay     func(o, w ptr)
+	overlaySetPassThrough func(o, w ptr, on bool) // 3.18
+	containerAdd          func(c, w ptr)
+	widgetShow            func(w ptr)
+	widgetHide            func(w ptr)
+	widgetRealize         func(w ptr)
+	widgetSetCanFocus     func(w ptr, on bool)
+	widgetGetParentWindow func(w ptr) ptr
+
+	// GdkWindow, for the GLArea's input-only event window (canvas_gl_linux.go)
+	windowGetChildren    func(win ptr) ptr // GList*, free with listFree
+	windowGetUserData    func(win ptr, data *ptr)
+	windowSetPassThrough func(win ptr, on bool) // 3.18
+	listFree             func(l ptr)
+
+	glAreaNew           func() ptr // 3.16
+	glAreaSetRequired   func(a ptr, major, minor int32)
+	glAreaSetAutoRender func(a ptr, on bool)
+	glAreaSetHasAlpha   func(a ptr, on bool)
+	glAreaSetHasDepth   func(a ptr, on bool)
+	glAreaSetHasStencil func(a ptr, on bool)
+	glAreaGetError      func(a ptr) ptr      // const GError*, owned by the area
+	glAreaSetUseES      func(a ptr, on bool) // 3.22, optional
+	glAreaGetContext    func(a ptr) ptr      // GdkGLContext*
+	glAreaMakeCurrent   func(a ptr)
+	glContextGetVersion func(ctx ptr, major, minor *int32)
+}
+
+// loadCanvasGLFFI binds the GL presentation symbols once. Main thread,
+// after loadCanvasFFI.
+func loadCanvasGLFFI() error {
+	f := &canvasGLFFI
+	f.once.Do(func() {
+		if libGTK == 0 || libGLib == 0 {
+			f.err = errors.New("tango/linux: canvas GL used before Init")
+			return
+		}
+		var bd binder
+		t, d, g := libGTK, canvasFFI.gdk, libGLib
+		bd.req(&f.overlayNew, "gtk_overlay_new", t)
+		bd.req(&f.overlayAddOverlay, "gtk_overlay_add_overlay", t)
+		bd.req(&f.overlaySetPassThrough, "gtk_overlay_set_overlay_pass_through", t)
+		bd.req(&f.containerAdd, "gtk_container_add", t)
+		bd.req(&f.widgetShow, "gtk_widget_show", t)
+		bd.req(&f.widgetHide, "gtk_widget_hide", t)
+		bd.req(&f.widgetRealize, "gtk_widget_realize", t)
+		bd.req(&f.widgetSetCanFocus, "gtk_widget_set_can_focus", t)
+		bd.req(&f.widgetGetParentWindow, "gtk_widget_get_parent_window", t)
+		bd.req(&f.windowGetChildren, "gdk_window_get_children", d, t)
+		bd.req(&f.windowGetUserData, "gdk_window_get_user_data", d, t)
+		bd.req(&f.windowSetPassThrough, "gdk_window_set_pass_through", d, t)
+		bd.req(&f.listFree, "g_list_free", g)
+		bd.req(&f.glAreaNew, "gtk_gl_area_new", t)
+		bd.req(&f.glAreaSetRequired, "gtk_gl_area_set_required_version", t)
+		bd.req(&f.glAreaSetAutoRender, "gtk_gl_area_set_auto_render", t)
+		bd.req(&f.glAreaSetHasAlpha, "gtk_gl_area_set_has_alpha", t)
+		bd.req(&f.glAreaSetHasDepth, "gtk_gl_area_set_has_depth_buffer", t)
+		bd.req(&f.glAreaSetHasStencil, "gtk_gl_area_set_has_stencil_buffer", t)
+		bd.req(&f.glAreaGetError, "gtk_gl_area_get_error", t)
+		bd.req(&f.glAreaGetContext, "gtk_gl_area_get_context", t)
+		bd.req(&f.glAreaMakeCurrent, "gtk_gl_area_make_current", t)
+		bd.req(&f.glContextGetVersion, "gdk_gl_context_get_version", d, t)
+		bd.opt(&f.glAreaSetUseES, "gtk_gl_area_set_use_es", t)
+		if len(bd.missing) > 0 {
+			f.err = errors.New("tango/linux: canvas GL: missing native symbols: " + strings.Join(bd.missing, ", "))
+		}
+	})
+	return f.err
+}

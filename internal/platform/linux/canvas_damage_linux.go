@@ -13,8 +13,10 @@ package linux
 // the whole widget invalid already and presents whole.
 //
 // The whole frame is presented instead (Present) when there is no surface
-// of the frame's size yet and when the damage does not pay off
-// (platform.DamageRects).
+// of the frame's size yet, when the damage does not pay off
+// (platform.DamageRects), and after UseGLArea (canvas_gl_linux.go: the
+// GLArea redraws its whole buffer, and a CPU fallback frame that hides it
+// must fill the drawing area).
 
 import (
 	"image"
@@ -33,8 +35,8 @@ func (c *canvas) PresentDamage(img *image.RGBA, dirty []image.Rectangle) error {
 	if c.closed {
 		return canvasErrClosed
 	}
-	if img == nil || c.inDraw {
-		return c.Present(img)
+	if img == nil || c.inDraw || !c.gl.partial() {
+		return c.Present(img) // on the GL path every frame is whole (canvas_gl_linux.go)
 	}
 	b := img.Bounds()
 	if c.surf == 0 || c.surfW != b.Dx() || c.surfH != b.Dy() {

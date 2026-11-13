@@ -9,6 +9,7 @@ import (
 
 	"github.com/tangoui/tango/ui/gpu"
 	"github.com/tangoui/tango/ui/gpu/gen"
+	"github.com/tangoui/tango/ui/gpu/internal/devkit"
 )
 
 // The parts of executing a frame that need no Direct3D: validation, the
@@ -151,10 +152,7 @@ func scissorFor(s image.Rectangle, origin image.Point, full image.Rectangle) (r 
 // clearColor is the float color a target is cleared to for c: paint.CPU
 // fills the target with the 8-bit premultiplied color, and c/255 converts
 // back to exactly those bytes in an R8G8B8A8_UNORM target.
-func clearColor(c color.NRGBA) [4]float32 {
-	p := color.RGBAModel.Convert(c).(color.RGBA)
-	return [4]float32{float32(p.R) / 255, float32(p.G) / 255, float32(p.B) / 255, float32(p.A) / 255}
-}
+func clearColor(c color.NRGBA) [4]float32 { return devkit.ClearColor(c) }
 
 // inputFormat returns the DXGI_FORMAT of a vertex attribute of n
 // components of kind ("f32", "i32", "u32"), as gen.QuadInstanceAttrs

@@ -1,6 +1,7 @@
 package front
 
 import (
+	"fmt"
 	"go/types"
 )
 
@@ -28,6 +29,12 @@ import (
 //     16 bytes apart. Every field offset must match Go there too, so for
 //     example an array of float32 in a uniform struct is rejected (stride
 //     4 in Go and MSL, 16 in HLSL); use an array of sl.Vec4.
+//   - The same struct is read by GLSL (OpenGL) from a std140 uniform block
+//     (see std140Layout): vec2 is 8-byte aligned, vec4 16, arrays have a
+//     16-byte-aligned element stride, and a struct is 16-byte aligned with
+//     its size rounded up to 16. Every field offset must match Go there
+//     too. The GL host allocates the buffer with the Go size rounded up to
+//     16 bytes, so only a std140 size beyond that is an error.
 //   - Instance attributes are read through a vertex descriptor whose
 //     offsets and stride the host takes from the Go struct (the generator
 //     emits them, with compile-time assertions, next to the MSL), so only
@@ -243,6 +250,8 @@ func (c *compiler) checkUniformLayout(n *types.Named) bool {
 	}
 	if !c.checkHLSLLayout(n, st, fields, goOffs) {
 		ok = false
+	} else if ok && !c.checkStd140Layout(n, st, fields, goOffs) {
+		ok = false
 	}
 	c.layoutOK[n.Obj()] = ok
 	return ok
@@ -280,6 +289,105 @@ func (c *compiler) checkHLSLLayout(n *types.Named, st *types.Struct, fields []*t
 		return false
 	}
 	return true
+}
+
+// std140Layout returns the size and base alignment of t in a GLSL std140
+// uniform block; ok is false for a type with no host layout.
+//
+// std140: a scalar (bool included) is 4 bytes, 4-byte aligned; vec2 is 8
+// bytes, 8-byte aligned; vec3 is 12 bytes and vec4 16, both 16-byte
+// aligned; an array's elements are aligned, and spaced, by the element's
+// alignment rounded up to 16, its size is that stride times the length; a
+// struct's alignment is its largest member alignment rounded up to 16, and
+// its size is rounded up to that alignment.
+func std140Layout(t types.Type) (size, align int64, ok bool) {
+	t = types.Unalias(t)
+	switch {
+	case isSL(t, "Vec2"):
+		return 8, 8, true
+	case isSL(t, "Vec3"):
+		return 12, 16, true
+	case isSL(t, "Vec4"):
+		return 16, 16, true
+	}
+	switch t := t.(type) {
+	case *types.Basic:
+		switch t.Kind() {
+		case types.Float32, types.Int32, types.Uint32, types.Bool:
+			return 4, 4, true
+		}
+		return 0, 0, false
+	case *types.Named:
+		return std140Layout(t.Underlying())
+	case *types.Array:
+		s, a, ok := std140Layout(t.Elem())
+		if !ok {
+			return 0, 0, false
+		}
+		stride := roundUp(roundUp(s, a), 16)
+		return stride * t.Len(), 16, true
+	case *types.Struct:
+		_, size, ok := std140Offsets(t)
+		return size, 16, ok
+	}
+	return 0, 0, false
+}
+
+// std140Offsets returns the std140 offsets of the fields of st (relative
+// to the struct's start) and the struct's size, rounded up to 16.
+func std140Offsets(st *types.Struct) (offs []int64, size int64, ok bool) {
+	var off int64
+	for i := 0; i < st.NumFields(); i++ {
+		s, a, has := std140Layout(st.Field(i).Type())
+		if !has {
+			return nil, 0, false
+		}
+		off = roundUp(off, a)
+		offs = append(offs, off)
+		off += s
+	}
+	return offs, roundUp(off, 16), true
+}
+
+// std140Mismatch compares the Go layout of the uniform struct name (field
+// offsets goOffs, size goSize) with its std140 layout. It returns "" when
+// they agree; otherwise a message naming the field and both offsets, with
+// the index of that field, or -1 when the std140 size exceeds the Go size
+// rounded up to 16 (the size the GL host allocates).
+func std140Mismatch(name string, st *types.Struct, goOffs []int64, goSize int64) (field int, msg string) {
+	offs, size, ok := std140Offsets(st)
+	if !ok {
+		return -1, fmt.Sprintf("uniform struct %s has no std140 layout", name)
+	}
+	for i, off := range offs {
+		if goOffs[i] != off {
+			fv := st.Field(i)
+			return i, fmt.Sprintf("field %s of uniform struct %s is at byte %d in Go but %d in std140 (GLSL uniform block: vec2 is 8-byte aligned, vec4, arrays and structs 16, array elements 16 bytes apart); reorder the fields or add a padding field before it",
+				fv.Name(), name, goOffs[i], off)
+		}
+	}
+	if alloc := roundUp(goSize, 16); size > alloc {
+		return -1, fmt.Sprintf("uniform struct %s is %d bytes in Go (%d allocated by the GL host) but %d in std140; add %d bytes of padding fields at the end",
+			name, goSize, alloc, size, size-alloc)
+	}
+	return -1, ""
+}
+
+// checkStd140Layout reports a field of the uniform struct n whose Go
+// offset differs from its std140 offset, or a struct too large in std140.
+// It runs only after the MSL and HLSL checks passed (so every field type
+// has a layout and no field is reported twice).
+func (c *compiler) checkStd140Layout(n *types.Named, st *types.Struct, fields []*types.Var, goOffs []int64) bool {
+	i, msg := std140Mismatch(n.Obj().Name(), st, goOffs, goSizes.Sizeof(st))
+	if msg == "" {
+		return true
+	}
+	pos := n.Obj().Pos()
+	if i >= 0 {
+		pos = fields[i].Pos()
+	}
+	c.errorf(pos, "%s", msg)
+	return false
 }
 
 // checkAttrType reports a vertex input field whose type has no vertex

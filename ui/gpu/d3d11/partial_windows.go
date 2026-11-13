@@ -35,7 +35,7 @@ func (d *Device) ensureScratch(copies []gpu.CopyRegion) error {
 	}
 	t, err := newTexture(d.dev, size, scratchSpec, nil, 0)
 	if err != nil {
-		return &allocError{err}
+		return &allocError{Err: err}
 	}
 	d.scratch.release()
 	d.scratch = t
