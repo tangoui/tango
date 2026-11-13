@@ -43,7 +43,7 @@
   - 本次逐个对照了 v6 新增的模式：Timeline 横向、Segmented 竖向、Steps inline/panel、Drawer resizable、Button color×variant。
   - 本次也把 Dropdown 分组失效、Link type 着色无效、shadcn Tabs 无溢出处理等新发现的缺口计入了"部分"。
 - **已知缺口的复核结果**：用户列出的已知缺口，除"Pro2 组件 shadcn 下未截图检查"外**全部仍存在**，证据见各表和第 8 节。Pro2 那一项本次已通过 shadcn 渲染和抽查补上，见第 5 节。
-  - 晚间按代码复核：Dropdown 分组、Link 着色、Tabs shadcn/溢出、ProFormat 货币、CarouselCard 键盘、RangePicker 粒度与键盘输入、Form 按字段校验、TreeSelect 受控展开等已补，剩余项见第 8 节。复核只读代码，**没有重跑截图和审计**，第 5 节仍是早先那次渲染的结果。
+  - 晚间按代码复核：Dropdown 分组、Link 着色、Tabs shadcn/溢出、ProFormat 货币、CarouselCard 键盘、RangePicker 粒度与键盘输入、Form 按字段校验、TreeSelect 受控展开等已补，剩余项见第 8 节。复核先只读代码；之后重跑了截图（`-theme all`）与 `-audit`，第 5 节已按新结果更新。
 
 ## 2. Ant Design v6（72）
 
@@ -274,45 +274,41 @@
 - 画廊首页 `gallery.Home` 能在 Ant / Element / shadcn 与暗色之间切换。
 - shadcn 是**主题轮次**，不是逐页手写的变体。全仓只有 `page_shadcn.go` 一个 shadcn 专属页（ShadcnDashboard，以及 Command/Toggle/Kbd 等）。
 
-### 5.2 本次渲染结果（2026-11-13，`-theme all -scale 1`）
+### 5.2 本次渲染结果（2026-11-13 晚重跑，HEAD `22a1c1a`，`-theme all -scale 1`）
 
-- 全部成功，退出码 0，没有编译或渲染错误。
-- 基础页面（非变体）共 201 个，含 Table、Image、ConfigProvider 等的子演示页。
+- 全部成功，退出码 0，耗时 4 分 25 秒；`components/` 下 1085 张，`mobile/` 下 66 张，另有首页、总览、仪表盘、浮层图。
+- 基础页面（非变体）共 219 个（上次 201）。
 
-| 维度 | 有截图的页面 | 缺的页面 |
-|---|---|---|
-| Ant 亮色 | 201 / 201 | 0 |
-| shadcn 亮 + 暗 | 201 / 201（各 201 张） | **0**（所有页面都经主题轮次渲染） |
-| Element 变体（`-Element`/`-element`） | 158 / 201 | 43 |
-| 暗色变体（`-Dark`/`-dark`） | 132 / 201 | 69 |
-| Element 暗色（`-element-dark`） | 34 | — |
-| 移动端（`mobile/`，antd/vant × 亮/暗） | 44 张 | — |
+| 维度 | 有截图的页面 | 缺的页面 | 上次 |
+|---|---|---|---|
+| Ant 亮色 | 219 / 219 | 0 | 201 / 201 |
+| shadcn 亮 + 暗 | 219 / 219（各 219 张） | 0 | 201 / 201 |
+| Element 变体（`-Element`/`-element`） | 191 / 219 | 28 | 158（缺 43） |
+| 暗色变体（`-Dark`/`-dark`） | 191 / 219 | 28 | 132（缺 69） |
+| Element 暗色（`-element-dark`） | 40 张 | — | 34 |
+| 移动端（`mobile/`） | 66 张 | — | 44 |
 
-**没有 Element 变体的页面（43）**
+**没有 Element 与暗色变体的页面（28，两者是同一批）**
 
-- 基础组件页：Alert、Breadcrumb、Button、Checkbox、Divider、Form、Icon、Input、InputNumber、Pagination、Popconfirm、Select、Switch、Table、Tabs、Tag、Tooltip、Typography。
-  - 其中不少有带 Element 变体的兄弟页，例如 `TableBasic/TableFixed…-element`、`TabsMore-element`、`InputVariants-Element`、`SelectAdvanced-Element`、`InputNumberMore-Element`。总览图 `overview` 只有 Ant 和 shadcn 两版。
-- shadcn 专属页：Command、Toggle、ShadcnDashboard。
+- 移动端页（13）：`Mobile` 与 `Mobile*`，用 antd/vant 两套令牌，本来就不按 Element 出图。
 - 多语言子页（9）：`ConfigProvider-{en-US,ja-JP,zh-TW}-{Data,Date,Modal}`。
-- 移动端页（13）：`Mobile*`，用 antd/vant 两套令牌，本来就不按 Element 出图。
-
-**没有暗色变体的页面（69）**
-
-- 上面 43 页。
-- 另外 26 页：BorderBeam、CheckableTag、CheckCard、ColorPickerPanel、Confirm、DatePickerPanel、FooterToolbar、IconButton、InfiniteScroll、Listy、Markdown、MarkdownEditor、Masonry、MessageBox、PageContainer、ProCard、Prompt、ProSkeleton、Radio、RichText、StatisticCard、TimePanel、TimeSelect、VirtualList、VirtualSelect、VirtualTree。
-- 这些页面都有 `-shadcn-dark` 图，可以间接看暗色表现，但 Ant 暗色和 Element 暗色没有截图。
+- shadcn 专属页：ShadcnDashboard。
+- 其余 5 页：CodeEditor、CodeEditorLarge、DescriptionsResponsive、Icon、TreeVirtual。
+- 上次只缺暗色的 26 页（BorderBeam、Confirm、Listy、Radio、VirtualTree 等）现在都有暗色图。
 
 **Pro2 组件的 shadcn 检查**：之前记为"未截图检查"，本次已渲染并抽查了 ProCard、StatisticCard、PageContainer（含 FooterToolbar）、CheckCard、ProSkeleton（shadcn-dark），结果见 5.3，这个缺口可以关闭。
 
 ### 5.3 shadcn 抽查结果
 
+（2026-11-13 晚重跑后复看了 TabsMore、ProCard、Menu 三张，结论已写进下表。）
+
 抽查了以下 10 张：TabsMore、Menu、ProCard、StatisticCard、PageContainer、CheckCard、LoginForm、ProSkeleton-dark、Table-dark，以及 Calendar（只看了尺寸）。
 
 | 图 | 结论 |
 |---|---|
-| TabsMore-shadcn | **有问题**：<br>① 竖向（Left/Right）和 Bottom 位置仍是 Ant 的 line/card 画法，和顶部的 shadcn segmented 风格不统一；<br>② 第 4 段"溢出滚动与「更多」"的标签条直接裁到容器外，**看不到"…"更多按钮**，这与 nav.go `showShadcn` 没有 overflow 处理的结论一致；<br>③ 可编辑卡片是 Ant 卡片式样，可以接受。 |
-| Menu-shadcn | "内嵌模式 / 暗色"一栏右侧的暗色菜单**没有变暗**。这是设计取舍：nav_menu.go:104 写明 shadcn 只有一套 Sidebar 外观，`Menu.Dark()` 在 shadcn 下被忽略，需要在文档里说明。弹出子菜单正常。 |
-| ProCard-shadcn | 整体正常。"默认尺寸"卡片的头部"操作"文字没有贴右，位置偏中间，是轻微对齐问题，待确认。 |
+| TabsMore-shadcn | **已修（重跑确认）**：Left/Right/Bottom 位置与可编辑卡片都改用 shadcn 分段样式；"溢出滚动与「更多」"一栏右侧出现"…"按钮，`ExtraLeft`/额外操作正常。上次的三点问题都不再出现。 |
+| Menu-shadcn | "内嵌模式 / 暗色"一栏右侧的暗色菜单**没有变暗**。这是设计取舍：nav_menu.go:104 写明 shadcn 只有一套 Sidebar 外观，`Menu.Dark()` 在 shadcn 下被忽略，需要在文档里说明。弹出子菜单正常。重跑后不变。 |
+| ProCard-shadcn | 整体正常。"默认尺寸"卡片头部的"操作"离右边缘约 16 px，**不是缺陷**：它是 Link 按钮，按钮两侧保留内边距（button.go `measure` 用 `padX()`；shadcn 16 px 即 `px-4`，Ant 15 px），与 shadcn/ui 和 Ant Design 原版一致，Ant 版截图同样如此。同排"带边框"卡片的日期是纯文本，所以贴右。Element 风格的 link 按钮按 `el-link` 去掉了内边距。 |
 | StatisticCard-shadcn | 正常。趋势红涨绿跌，迷你图用 `--chart-1` 色。 |
 | PageContainer-shadcn | 正常。页头、标签（segmented 风格）、FooterToolbar 吸底都对；FooterToolbar 没有毛玻璃（与第 4 节一致）。 |
 | CheckCard-shadcn | 正常。选中态是深色边框加右上角三角标。 |
@@ -320,11 +316,11 @@
 | ProSkeleton-shadcn-dark | 能用。页头区块是一整块浅灰，层次比 Ant 暗色更"反"（外层比卡片亮），属于 shadcn 暗色令牌本身的特点。 |
 | Table-shadcn-dark | 能用。排序列有整列底色高亮（这是 Ant 的行为，shadcn 原版没有）；未勾选复选框的边框在暗色下很淡。两点都是轻微问题。 |
 
-### 5.4 无障碍审计（`-audit`，603 次页面渲染 × 3 种风格）
+### 5.4 无障碍审计（`-audit`，2026-11-13 晚重跑：657 次页面渲染 × 3 种风格）
 
-- missing-name 0，no-role 0；**not-keyboard 12**，全部来自 `CarouselCard`：卡片模式下第 2 张和第 5 张卡片（group 角色）不能用键盘到达，三种风格都有。
-  - 复核：代码已处理，data_carousel.go 卡片模式给每张卡片设 `aKbd`（注释：键盘经指示点或可聚焦外框的方向键到达同一张），a11y_audit.go 据此不再报 not-keyboard。没有重跑审计。
-- 对比度：6 个内置主题 0 项失败；35 项设计默认值低于 WCAG AA（设计规范本身如此，HighContrast 能修正）；24 项豁免；HighContrast 下 0 项失败。
+- missing-name 0，no-role 0，**not-keyboard 0**（上次 12，全部来自 `CarouselCard`；data_carousel.go 卡片模式给每张卡片设 `aKbd` 后已消失）；无名交互节点 0。
+- 对比度：6 个内置主题 0 项失败；58 项设计默认值低于 WCAG AA（上次记 35 项；设计规范本身如此，HighContrast 能修正）；24 项豁免（禁用态、装饰性分隔线）；HighContrast 下 0 项失败。
+- 运行：`go run ./examples/ui-gallery -audit`，16 秒，退出码 0。
 
 ## 6. 非组件能力
 
@@ -340,7 +336,7 @@
 | 高对比度 | ✅ | `theme.HighContrast(th)`（ui/theme/highcontrast.go）、`Theme.HighContrast` 标志，对比度审计 `theme.ContrastIssues`，画廊 `-theme hc`。`ConfigProvider.HighContrast(on)`（nav_config.go，局部固定高对比度或标准变体；根级作用于窗口，宿主随之停止跟随系统）；宿主跟随系统高对比度见 uihost/contrast.go `ContrastSystem`（默认）。 |
 | 语言 | ✅ | 四个内置包 `ZhCN/EnUS/ZhTW/Ja`（locale_packs.go）；`ConfigProvider.Locale/LocaleCode`、`SetDefaultLocale`、`LocaleByCode`；`TestLocalePacksComplete`、i18n_wiring_test.go、i18n_scan_test.go。货币按 ISO 代码和地区规则格式化（money.go `FormatMoney`，第 4 节）。 |
 | ReduceMotion | ✅ | `RunnerOptions.ReduceMotion` / `Runner.SetReduceMotion`；`Anim/AnimFrom` 直接到终值；装饰性动效用 `c.still()`（anim.go:69），调用方有 data_badge、data_image、data_progress、data_skeleton、nav_util、text、data_carousel。 |
-| 无障碍 | ✅ | 语义树 ui/a11y、ui/a11y_tree.go；审计 `Driver.Audit()`（a11y_audit.go:102）和 gallery `-audit`；键盘漫游 `rovingTabStop/rovingStep`；`c.TrapFocus`。本次审计只剩 CarouselCard 12 处键盘不可达（5.4），复核时代码已处理（`aKbd`），未重跑审计。 |
+| 无障碍 | ✅ | 语义树 ui/a11y、ui/a11y_tree.go；审计 `Driver.Audit()`（a11y_audit.go:102）和 gallery `-audit`；键盘漫游 `rovingTabStop/rovingStep`；`c.TrapFocus`。重跑审计（5.4）：missing-name、no-role、not-keyboard 都为 0，上次 CarouselCard 的 12 处键盘不可达已消失。 |
 | 响应式断点 | ⚠️ | `Breakpoint` XS…XXL、`ScreenBreakpoint(c)`（nav_grid.go:39）。GridRow/Col（`XS…XXL`、`GutterAt`）、Masonry（`ColumnsAt`）、ProLayout/Sider（`Breakpoint`）、Descriptions（`ColumnAt/Columns`）、List 网格（`GridAt`）用到，后两者共用 data_util.go `dataRespCols`。**ProDescriptions（`Column(n)`）、ProList 网格（`Grid(n)`）、QueryFilter 列数仍不跟随断点。** |
 
 ### 6.1 ConfigProvider.Defaults 接线清单
@@ -388,10 +384,10 @@ Affix、Alert、Anchor、App、AutoComplete、Avatar、Badge、Breadcrumb、Brea
 | 优先级 | 项 | 工作量 | 理由 |
 |---|---|---|---|
 | P0 | Dropdown 支持 `MenuItem.Group`（复用 `menuFlatGroups`）；Menu/Dropdown 弹出层的分组画标题（nav_menu.go 已有 inline `menu-group-title` 可以复用） | 小 | 已完成（复核：nav_dropdown.go `navMenuPopup.group`，见第 2 节 Dropdown/Menu） |
-| P0 | Tabs：shadcn 横向和所有竖向 Tabs 的溢出加"…"更多下拉；shadcn 下 Card/Closable/OnAdd/竖向给出统一画法 | 中 | 已完成（复核：nav.go `shadTrack`、竖向 `Height` 溢出；未重跑截图） |
+| P0 | Tabs：shadcn 横向和所有竖向 Tabs 的溢出加"…"更多下拉；shadcn 下 Card/Closable/OnAdd/竖向给出统一画法 | 中 | 已完成（复核：nav.go `shadTrack`、竖向 `Height` 溢出；重跑截图 TabsMore-shadcn 确认） |
 | P0 | Link 的 `Type` 着色生效 | 小 | 已完成（复核：text.go `LinkW.colors`） |
 | P0 | `ProFormat(ValueMoney)` 改为读 Locale/Currency，不再写死 "¥"；货币格式改成 ISO 代码加地区规则 | 小（前者）/ 中（后者） | 已完成（复核：money.go `FormatMoney`、table_pro.go `ProFormatLocale`，见第 4 节） |
-| P0 | CarouselCard 的卡片键盘可达 | 小 | 已完成（复核：data_carousel.go 卡片 `aKbd`；未重跑审计） |
+| P0 | CarouselCard 的卡片键盘可达 | 小 | 已完成（复核：data_carousel.go 卡片 `aKbd`；重跑审计 not-keyboard 0 确认） |
 | P1 | RangePicker 支持 week/month/quarter/year 粒度（面板 `DatePickerPanel.Range().Picker()` 已有，接到触发器上）；DatePicker/RangePicker/TimeRangePicker 支持键盘输入（复用 DateTimePicker 的 `dtParse` 和输入框） | 中 | 已完成（复核：entry_daterange.go `Picker/typed`、p2a_time_range.go `typed`、date.go `dtTyping`） |
 | P1 | ProDescriptions、ProList、QueryFilter 的列数跟随断点（Descriptions `ColumnAt`、List `GridAt` 已完成，可复用 data_util.go `dataRespCols`） | 小 | 已有断点基础设施 |
 | P1 | Form 按字段校验、清除（validateFields(names)/clearValidate）；RulesFunc 支持 reset；表单级 Disabled | 中 | 已完成（复核：p2d_form.go `ValidateFields/ClearValidate/Disabled/OnReset`） |
