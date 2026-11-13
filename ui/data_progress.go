@@ -28,6 +28,7 @@ type ProgressW struct {
 	stroke     float32
 	small      bool
 	showInfo   bool
+	infoSet    bool // ShowInfo / HideInfo / ConfigProvider "showInfo" chose it
 	inside     bool
 	striped    bool
 	flow       bool
@@ -55,7 +56,11 @@ func Progress(c *Context, percent float64) *ProgressW {
 		p.small = s == Small
 	}
 	p.kind = Prop(c, "Progress", "type", p.kind)
-	p.showInfo = Prop(c, "Progress", "showInfo", true)
+	if v, ok := c.ConfigProp("Progress", "showInfo"); ok {
+		if b, ok := v.(bool); ok {
+			p.showInfo, p.infoSet = b, true
+		}
+	}
 	p.round = Prop(c, "Progress", "strokeLinecap", "round") == "round"
 	p.n = c.add("progress", "")
 	p.n.ln.Measure = p.measure
@@ -113,7 +118,20 @@ func (p *ProgressW) StrokeWidth(w float32) *ProgressW { p.stroke = w; return p }
 func (p *ProgressW) Small() *ProgressW { p.small = true; return p }
 
 // HideInfo hides the percentage text / status icon.
-func (p *ProgressW) HideInfo() *ProgressW { p.showInfo = false; return p }
+func (p *ProgressW) HideInfo() *ProgressW { p.showInfo, p.infoSet = false, true; return p }
+
+// ShowInfo shows the percentage text / status icon. It is the default,
+// except for a shadcn line bar, which (like shadcn/ui's Progress) shows
+// only the bar unless asked.
+func (p *ProgressW) ShowInfo() *ProgressW { p.showInfo, p.infoSet = true, true; return p }
+
+// lineInfo reports whether a line bar shows its text (see ShowInfo).
+func (p *ProgressW) lineInfo() bool {
+	if p.infoSet || p.inside {
+		return p.showInfo
+	}
+	return p.showInfo && p.th.Flavor != theme.StyleShadcn
+}
 
 // TextInside draws the percentage inside the bar (Element text-inside).
 func (p *ProgressW) TextInside() *ProgressW { p.inside = true; return p }
@@ -215,7 +233,7 @@ func (p *ProgressW) lineStroke() float32 {
 }
 
 func (p *ProgressW) infoWidth() float32 {
-	if !p.showInfo || p.inside || p.indeterm {
+	if !p.lineInfo() || p.inside || p.indeterm {
 		return 0
 	}
 	return 8 + max(text.Width(p.label(), p.font()), text.Width("100%", p.font()))

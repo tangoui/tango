@@ -5,6 +5,7 @@ import (
 
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -342,7 +343,8 @@ func (e *EmptyW) build() {
 			n.aHidden = true // decorative: the description says "no data"
 		}
 		w := size * 1.6
-		if el {
+		tile := tk.MediaBg.A > 0 && !e.simple
+		if el || tile {
 			w = size
 		}
 		n.ln.Width, n.ln.Height = w, size
@@ -350,6 +352,11 @@ func (e *EmptyW) build() {
 		simple := e.simple
 		n.paint = func(l *paint.List, r geom.Rect) {
 			switch {
+			case tile:
+				// shadcn: a muted tile with a 24px inbox icon (size-6 in size-10).
+				l.Fill(r, geom.Rad(tk.MediaRadius), tk.MediaBg)
+				is := r.H * .6
+				icon.Draw(l, icon.Inbox, geom.Rect{X: r.X + (r.W-is)/2, Y: r.Y + (r.H-is)/2, W: is, H: is}, tk.MediaColor, 0)
 			case el:
 				drawElementEmpty(c, l, r)
 			case simple:

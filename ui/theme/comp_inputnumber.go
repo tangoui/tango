@@ -9,6 +9,7 @@ type InputNumberToken struct {
 	HandleFontSize      float32 // their arrow icons
 	HandleColor         Color   `contrast:"nontext:@Page"`
 	HandleHoverColor    Color
+	HandleBg            Color // resting background (zero: none)
 	HandleHoverBg       Color // zero: none
 	HandleDisabledColor Color // at a limit or disabled
 	HandleBorderColor   Color // dividers of the step buttons
@@ -33,8 +34,11 @@ func deriveInputNumber(t *Theme) InputNumberToken {
 	case Element:
 		// el-input-number: 150px wide ($input-number-width), step buttons
 		// as wide as the control is high (32px). Its default puts them at
-		// the sides (InputNumber's ControlsPosition default).
+		// the sides (InputNumber's ControlsPosition default). Stacked at
+		// the right they are always shown, on --el-fill-color-light in
+		// --el-text-color-regular, primary on hover (input-number.scss).
 		k.ControlWidth, k.HandleWidth = 150, 32
+		k.HandleBg, k.HandleColor, k.HandleHoverColor = t.FillTertiary, t.TextSecondary, t.Primary.Base
 	case StyleShadcn:
 		// Always visible lucide chevrons that turn foreground on an
 		// accent background under the pointer.

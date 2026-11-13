@@ -22,8 +22,14 @@ func deriveAnchor(t *Theme) AnchorToken {
 		RailColor: t.Split, RailWidth: 2, InkBarColor: t.Primary.Base,
 		PaddingBlock: 4, HorizontalGap: 16,
 	}
-	if t.Flavor == Element {
+	switch t.Flavor {
+	case Element:
 		k.LinkColor, k.HorizontalGap = t.TextSecondary, 20
+	case StyleShadcn:
+		// The docs' "On this page" list: muted-foreground links, the
+		// current one and the hovered one in foreground (shadcn's primary
+		// is near-black, so primary would not mark the current link).
+		k.LinkColor, k.LinkHoverColor, k.LinkActiveColor = t.TextTertiary, t.Text, t.Text
 	}
 	return k
 }

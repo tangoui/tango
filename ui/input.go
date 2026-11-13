@@ -642,12 +642,26 @@ func InputNumber(c *Context, val *float64) *InputNumberW {
 			return
 		}
 		a := c.Anim(w.box.id, "handles", b2f((w.ia.Hovered || c.focus == w.ed.id) && !w.box.disabled), th.DurationMid)
+		if th.Flavor == theme.Element {
+			// el-input-number controls-position="right": the buttons are
+			// always shown (Ant fades them in on hover or focus).
+			a = 1
+		}
 		if a <= 0.01 {
 			return
 		}
 		l.Opacity(a)
 		// The handles sit at the inline end; their divider faces the value.
 		s := c.inline(r)
+		if tk.HandleBg.A > 0 {
+			// Inside the frame's 1px border, rounded at the outer corners.
+			rr := max(controlRadiusOf(th, w.size)-1, 0)
+			rad := geom.Radii{TR: rr, BR: rr}
+			if c.IsRTL() {
+				rad = geom.Radii{TL: rr, BL: rr}
+			}
+			l.Fill(s.Rect(1, r.Y+1, r.W-2, r.H-2), rad, tk.HandleBg)
+		}
 		l.Fill(s.Rect(0, r.Y+1, 1, r.H-2), geom.Radii{}, tk.HandleBorderColor)
 		l.Fill(s.Rect(0, r.Y+r.H/2, r.W-1, 1), geom.Radii{}, tk.HandleBorderColor)
 		is := tk.HandleFontSize

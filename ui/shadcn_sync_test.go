@@ -272,3 +272,100 @@ func TestShadcnTypographyTipLikeTooltip(t *testing.T) {
 		t.Errorf("tooltip text %vpx, want the Tooltip token's %vpx", size, tk.ContentFontSize)
 	}
 }
+
+// TestShadcnMarkdownTypography: under shadcn, Markdown follows shadcn's
+// typography page: h2 has a border-b rule, blockquotes a 2px start bar in
+// the border color, code blocks bg-muted with no border.
+func TestShadcnMarkdownTypography(t *testing.T) {
+	th := theme.Shadcn()
+	d := NewDriver(func(c *Context) {
+		Column(c, func() { Markdown(c, "# One\n\n## Two\n\n> quoted\n\n```\ncode\n```\n") }, layout.Pad(20), layout.W(500))
+	}, DriverOptions{Width: 600, Height: 600, Theme: th})
+	d.Settle()
+	var rules, bars int
+	for _, f := range fillsOf(d, th.Border) {
+		switch {
+		case f.Rect.H == 1 && f.Rect.W > 100:
+			rules++
+		case f.Rect.W == 2 && f.Rect.H > 10:
+			bars++
+		}
+	}
+	if rules != 1 {
+		t.Errorf("%d heading rules, want 1 (h2 only)", rules)
+	}
+	if bars != 1 {
+		t.Errorf("%d 2px quote bars, want 1", bars)
+	}
+	if len(fillsOf(d, th.Components.Typography.CodeBg)) == 0 {
+		t.Error("code block not on the muted (Typography code) background")
+	}
+}
+
+// TestShadcnEmptyIconTile: shadcn's Empty is a muted icon tile (size-10
+// rounded-lg bg-muted) instead of Ant's illustration; Simple keeps the
+// compact picture.
+func TestShadcnEmptyIconTile(t *testing.T) {
+	th := theme.Shadcn()
+	tk := th.Components.Empty
+	d := NewDriver(func(c *Context) {
+		Column(c, func() { Empty(c).Body(nil) }, layout.Pad(20))
+	}, DriverOptions{Width: 400, Height: 300, Theme: th})
+	d.Settle()
+	tiles := fillsOf(d, tk.MediaBg)
+	if len(tiles) != 1 || tiles[0].Rect.W != 40 || tiles[0].Rect.H != 40 || tiles[0].Radii.TL != tk.MediaRadius {
+		t.Errorf("icon tile %+v, want one 40x40 tile", tiles)
+	}
+}
+
+// TestShadcnProgressBarOnly: a shadcn line Progress shows only the bar,
+// like shadcn/ui's, unless ShowInfo (or a ConfigProvider default) asks for
+// the text; circles and the other design systems keep it.
+func TestShadcnProgressBarOnly(t *testing.T) {
+	for _, c := range []struct {
+		th   *theme.Theme
+		mk   func(c *Context) *ProgressW
+		info bool
+	}{
+		{theme.Shadcn(), func(c *Context) *ProgressW { return Progress(c, 40) }, false},
+		{theme.Shadcn(), func(c *Context) *ProgressW { return Progress(c, 40).ShowInfo() }, true},
+		{theme.Shadcn(), func(c *Context) *ProgressW {
+			var p *ProgressW
+			ConfigProvider(c).Defaults("Progress", Props{"showInfo": true}).Body(func() { p = Progress(c, 40) })
+			return p
+		}, true},
+		{theme.AntDesign(), func(c *Context) *ProgressW { return Progress(c, 40) }, true},
+		{theme.AntDesign(), func(c *Context) *ProgressW { return Progress(c, 40).HideInfo() }, false},
+	} {
+		var p *ProgressW
+		d := NewDriver(func(cx *Context) { Column(cx, func() { p = c.mk(cx) }, layout.Pad(20), layout.W(300)) },
+			DriverOptions{Width: 400, Height: 120, Theme: c.th})
+		d.Settle()
+		if got := p.infoWidth() > 0; got != c.info {
+			t.Errorf("%v: line text shown %v, want %v", c.th.Flavor, got, c.info)
+		}
+	}
+}
+
+// TestShadcnBreakpoints: shadcn layouts use Tailwind's breakpoints
+// (sm 640, md 768, lg 1024, xl 1280, 2xl 1536).
+func TestShadcnBreakpoints(t *testing.T) {
+	if got := BreakpointMins(theme.Shadcn()); got != [5]float32{640, 768, 1024, 1280, 1536} {
+		t.Errorf("shadcn breakpoints %v", got)
+	}
+	for _, c := range []struct {
+		th   *theme.Theme
+		w    float32
+		want Breakpoint
+	}{
+		{theme.Shadcn(), 1000, MD}, {theme.AntDesign(), 1000, LG},
+		{theme.Shadcn(), 600, XS}, {theme.AntDesign(), 600, SM},
+	} {
+		var bp Breakpoint
+		d := NewDriver(func(cx *Context) { bp = ScreenBreakpoint(cx) }, DriverOptions{Width: c.w, Height: 100, Theme: c.th})
+		d.Settle()
+		if bp != c.want {
+			t.Errorf("%v at %v: %v, want %v", c.th.Flavor, c.w, bp, c.want)
+		}
+	}
+}

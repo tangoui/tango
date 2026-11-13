@@ -27,10 +27,14 @@ func (b Breakpoint) String() string {
 }
 
 // BreakpointMins returns the minimum widths of SM..XXL for the theme: Ant
-// 576/768/992/1200/1600, Element 768/992/1200/1920 (no xxl).
+// 576/768/992/1200/1600, Element 768/992/1200/1920 (no xxl), shadcn
+// Tailwind's sm..2xl 640/768/1024/1280/1536.
 func BreakpointMins(th *theme.Theme) [5]float32 {
-	if th.Flavor == theme.Element {
+	switch th.Flavor {
+	case theme.Element:
 		return [5]float32{768, 992, 1200, 1920, 1e9}
+	case theme.StyleShadcn:
+		return [5]float32{640, 768, 1024, 1280, 1536}
 	}
 	return [5]float32{576, 768, 992, 1200, 1600}
 }

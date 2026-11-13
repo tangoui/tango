@@ -149,7 +149,12 @@ func TestT2bTokenDefaults(t *testing.T) {
 			{"Progress.DefaultColor", k.Progress.DefaultColor, th.Primary.Base},
 			{"Alert.ErrorIconColor", k.Alert.ErrorIconColor, th.Error.Base},
 			{"Statistic.ContentColor", k.Statistic.ContentColor, th.TextHeading},
-			{"Divider.Color", k.Divider.Color, th.Split},
+			{"Divider.Color", k.Divider.Color, func() theme.Color {
+				if el {
+					return th.Border
+				}
+				return th.Split
+			}()},
 			{"Typography.MarkBg", k.Typography.MarkBg, th.MarkBg},
 			{"Typography.MarkColor", k.Typography.MarkColor, th.MarkText},
 			{"Typography.LinkColor", k.Typography.LinkColor, th.TextLink},

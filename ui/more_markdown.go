@@ -835,6 +835,7 @@ type MarkdownW struct {
 	toggled  int
 	z        *lazy
 	el       bool
+	shad     bool // shadcn's typography (h2 rule, quote bar, muted code)
 	copyable bool
 	noSelect bool
 }
@@ -880,6 +881,7 @@ func (m *MarkdownW) TaskToggled() (int, bool) { m.z.run(); return m.toggled, m.t
 func (m *MarkdownW) build() {
 	c := m.c
 	m.el = c.Theme.Flavor == theme.Element
+	m.shad = c.Theme.Flavor == theme.StyleShadcn
 	st := State[mdCache](c, m.b.n.id, nil)
 	if st.blocks == nil || st.src != m.src {
 		src := strings.ReplaceAll(m.src, "\r\n", "\n")
@@ -938,10 +940,17 @@ func (m *MarkdownW) blocks(bs []*mdBlock, base Span, top bool) {
 					w.n.fill(semFunc(func(s *a11y.Node) { s.Level = lv }))
 				}
 				w.Layout(layout.Margin(geom.Insets{Top: mt, Bottom: min(mb, size*0.5)}))
-				if m.el && b.level <= 2 {
+				switch {
+				case m.el && b.level <= 2:
 					w.n.ln.Padding.Bottom = 6
 					w.n.over = func(l *paint.List, r geom.Rect) {
 						l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, th.BorderSecondary)
+					}
+				case m.shad && b.level == 2:
+					// shadcn typography h2: border-b pb-2.
+					w.n.ln.Padding.Bottom = 8
+					w.n.over = func(l *paint.List, r geom.Rect) {
+						l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, th.Border)
 					}
 				}
 			case mdPara:
@@ -950,13 +959,20 @@ func (m *MarkdownW) blocks(bs []*mdBlock, base Span, top bool) {
 				m.code(b, mb)
 			case mdQuote:
 				col := th.TextSecondary
+				bar, barW, padL := th.Split, float32(4), float32(12)
+				if m.shad {
+					// shadcn typography blockquote: border-l-2 pl-6 italic,
+					// in the body color.
+					col, bar, barW, padL = base.Color, th.Border, 2, 24
+				}
 				q := Column(c, func() {
 					inner := base
 					inner.Color = col
+					inner.Italic = inner.Italic || m.shad
 					m.blocks(b.kids, inner, false)
-				}, layout.Padding(geom.Insets{Left: 12, Top: 2, Bottom: 2}), layout.Margin(geom.Insets{Bottom: mb}))
+				}, layout.Padding(geom.Insets{Left: padL, Top: 2, Bottom: 2}), layout.Margin(geom.Insets{Bottom: mb}))
 				q.Paint(func(l *paint.List, r geom.Rect) {
-					l.Fill(c.inline(r).Rect(0, r.Y, 4, r.H), geom.Rad(2), th.Split) // bar on the start edge
+					l.Fill(c.inline(r).Rect(0, r.Y, barW, r.H), geom.Rad(barW/2), bar) // bar on the start edge
 				})
 				if m.el {
 					q.n.ln.Padding = geom.Insets{Left: 12, Top: 8, Right: 12, Bottom: 8}
@@ -1008,8 +1024,12 @@ func (m *MarkdownW) code(b *mdBlock, mb float32) {
 		}
 	}, layout.PadVH(10, 14), layout.Margin(geom.Insets{Bottom: mb}))
 	box.Bg(theme.RGBA(150, 150, 150, .1)).Border(1, theme.RGBA(100, 100, 100, .2)).Radius(th.RadiusSM + 2)
-	if m.el {
+	switch {
+	case m.el:
 		box.Bg(th.FillAlter).Border(1, th.BorderSecondary).Radius(th.Radius)
+	case m.shad:
+		// bg-muted, no border, rounded-md (the Typography code token).
+		box.Bg(c.ThemeFor(theme.CompTypography).Components.Typography.CodeBg).Border(0, theme.Color{}).Radius(th.Radius)
 	}
 }
 

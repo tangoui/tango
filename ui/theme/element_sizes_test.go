@@ -46,3 +46,17 @@ func TestElementPlusComponentSizes(t *testing.T) {
 		}
 	}
 }
+
+// TestElementPlusDivider: el-divider draws its rule in --el-border-color
+// with the title 20px from it and 24px margins with or without a title
+// (theme-chalk divider.scss); Ant keeps Split / 16 / 16.
+func TestElementPlusDivider(t *testing.T) {
+	el := ElementPlus()
+	if d := el.Components.Divider; d.Color != el.Border || d.TextPaddingInline != 20 || d.TextMarginBlock != 24 || d.MarginBlock != 24 {
+		t.Errorf("element divider: %+v", d)
+	}
+	ant := AntDesign()
+	if d := ant.Components.Divider; d.Color != ant.Split || d.TextPaddingInline != 16 || d.TextMarginBlock != 16 {
+		t.Errorf("ant divider: %+v", d)
+	}
+}

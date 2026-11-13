@@ -3,6 +3,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/theme"
 )
 
@@ -42,5 +43,29 @@ func TestInputNumberControlsDefaultByFlavor(t *testing.T) {
 			}
 		}
 		_ = d
+	}
+}
+
+// TestInputNumberElementRightHandlesShown: Element's stacked step buttons
+// (ControlsPosition "right") are always shown on --el-fill-color-light, as
+// el-input-number's; Ant's appear only on hover or focus.
+func TestInputNumberElementRightHandlesShown(t *testing.T) {
+	for _, c := range []struct {
+		th    *theme.Theme
+		shown bool
+	}{{theme.ElementPlus(), true}, {theme.AntDesign(), false}} {
+		v := 1.0
+		d := p2dDriver(c.th, func(cx *Context) { InputNumber(cx, &v).ControlsPosition("right").A11yLabel("n") })
+		d.Move(geom.Pt(800, 600)) // away from the control
+		d.Settle()
+		tk := c.th.Components.InputNumber
+		bg := tk.HandleBg.A > 0 && t2aCount(d, tk.HandleBg) > 0
+		arrows := t2aCount(d, tk.HandleColor) > 0
+		if c.shown && (!bg || !arrows) {
+			t.Errorf("%v: resting handles background %v, arrows %v", c.th.Flavor, bg, arrows)
+		}
+		if !c.shown && arrows {
+			t.Errorf("%v: handles shown without hover", c.th.Flavor)
+		}
 	}
 }
