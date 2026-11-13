@@ -51,10 +51,21 @@ static NSDictionary *noActions(void) {
 @end
 
 static NSMutableDictionary<NSNumber *, TGCanvasPage *> *canvasPages;
+// Canvases attached to WebView pages (canvas_attach.m), by handle.
+static NSMutableDictionary<NSNumber *, TGCanvasView *> *canvasOverlays;
 static CFRunLoopSourceRef canvasSource;
 
 static TGCanvasView *canvasView(uintptr_t h) {
-	return canvasPages[@(h)].canvas;
+	TGCanvasView *v = canvasPages[@(h)].canvas;
+	return v ?: canvasOverlays[@(h)];
+}
+
+// allViews lists every open canvas view: pages and overlays.
+static NSArray<TGCanvasView *> *allViews(void) {
+	NSMutableArray<TGCanvasView *> *a = [NSMutableArray array];
+	for (TGCanvasPage *p in canvasPages.allValues) [a addObject:p.canvas];
+	[a addObjectsFromArray:canvasOverlays.allValues];
+	return a;
 }
 
 TGCanvasView *tgc_view(uintptr_t h) {
@@ -63,6 +74,21 @@ TGCanvasView *tgc_view(uintptr_t h) {
 
 static int appActive(void) {
 	return UIApplication.sharedApplication.applicationState == UIApplicationStateActive;
+}
+
+static void reportFocus(TGCanvasView *v, BOOL f);
+
+// focusNow reports whether v has focus: a canvas page while it is in a
+// window, an overlay while it is also first responder (the web view
+// beside it takes keyboard focus otherwise); either only while the app is
+// active.
+static BOOL focusNow(TGCanvasView *v) {
+	if (!v.window || !appActive()) return NO;
+	return !v.tgOverlay || v.isFirstResponder;
+}
+
+void tgc_report_focus(TGCanvasView *v) {
+	reportFocus(v, focusNow(v));
 }
 
 static void reportFocus(TGCanvasView *v, BOOL f) {
@@ -84,6 +110,7 @@ static void canvasPerform(void *info) {
 static void installCanvas(void) {
 	if (canvasPages) return;
 	canvasPages = [NSMutableDictionary dictionary];
+	canvasOverlays = [NSMutableDictionary dictionary];
 	CFRunLoopSourceContext ctx = {0};
 	ctx.perform = canvasPerform;
 	canvasSource = CFRunLoopSourceCreate(NULL, 0, &ctx);
@@ -97,10 +124,10 @@ static void installCanvas(void) {
 		tangoIOSCanvasBackground(0);
 	}];
 	[nc addObserverForName:UIApplicationWillResignActiveNotification object:nil queue:nil usingBlock:^(NSNotification *n) {
-		for (TGCanvasPage *p in canvasPages.allValues) reportFocus(p.canvas, NO);
+		for (TGCanvasView *v in allViews()) reportFocus(v, NO);
 	}];
 	[nc addObserverForName:UIApplicationDidBecomeActiveNotification object:nil queue:nil usingBlock:^(NSNotification *n) {
-		for (TGCanvasPage *p in canvasPages.allValues) reportFocus(p.canvas, p.canvas.window != nil);
+		for (TGCanvasView *v in allViews()) reportFocus(v, focusNow(v));
 	}];
 }
 
@@ -181,10 +208,12 @@ int tgc_in_background(void) {
 - (void)didMoveToWindow {
 	[super didMoveToWindow];
 	if (self.window) {
-		[self becomeFirstResponder]; // hardware keys (pressesBegan:)
+		// Hardware keys (pressesBegan:). An overlay waits for a touch: the
+		// web view beside it keeps the keyboard until then.
+		if (!self.tgOverlay) [self becomeFirstResponder];
 		[self safeAreaInsetsDidChange];
 	}
-	reportFocus(self, self.window != nil && appActive());
+	reportFocus(self, focusNow(self));
 }
 
 // The canvas is first responder while it is in a window, for hardware
@@ -299,20 +328,35 @@ void tgc_new(uintptr_t h, uint64_t sid, const char *title) {
 	UIWindow *w = tg_window();
 	CGRect frame = w ? w.bounds : UIScreen.mainScreen.bounds;
 	TGCanvasView *v = [[TGCanvasView alloc] initWithFrame:frame];
-	v.handle = h;
-	[v watchTraits];
 	v.opaque = YES;
 	v.backgroundColor = UIColor.systemBackgroundColor; // until the first frame
-	v.multipleTouchEnabled = YES;
 	v.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+	v.insets = w ? w.safeAreaInsets : UIEdgeInsetsZero;
+	tgc_setup_view(v, h);
+	p.canvas = v;
+	canvasPages[@(h)] = p;
+	tg_page_register(p);
+}
+
+void tgc_add_overlay(uintptr_t h, TGCanvasView *v) {
+	installCanvas();
+	v.tgOverlay = YES;
+	tgc_setup_view(v, h);
+	canvasOverlays[@(h)] = v;
+}
+
+void tgc_setup_view(TGCanvasView *v, uintptr_t h) {
+	installCanvas();
+	v.handle = h;
+	[v watchTraits];
+	v.multipleTouchEnabled = YES;
 	v.layer.actions = noActions();
 	// A frame whose size is not the view's yet (ceil vs. round, or a
 	// resize in progress) stays unscaled at the top-left corner.
 	v.layer.contentsGravity = v.layer.contentsAreFlipped ? kCAGravityBottomLeft : kCAGravityTopLeft;
 	v.layer.contentsScale = v.scale;
-	v.insets = w ? w.safeAreaInsets : UIEdgeInsetsZero;
 	[v setupText];
-	p.canvas = v;
+	tgp_install(v); // canvas_pointer.m: iPad pointer and trackpad
 
 	TGCanvasLinkTarget *target = [TGCanvasLinkTarget new];
 	target.view = v;
@@ -328,15 +372,11 @@ void tgc_new(uintptr_t h, uint64_t sid, const char *title) {
 		}
 	});
 	CFRunLoopAddTimer(CFRunLoopGetMain(), v.timer, kCFRunLoopCommonModes);
-
-	canvasPages[@(h)] = p;
-	tg_page_register(p);
 }
 
 void tgc_destroy(uintptr_t h) {
-	TGCanvasPage *p = canvasPages[@(h)];
-	if (!p) return;
-	TGCanvasView *v = p.canvas;
+	TGCanvasView *v = canvasView(h);
+	if (!v) return;
 	[v.link invalidate];
 	v.link = nil;
 	if (v.timer) {
@@ -350,6 +390,12 @@ void tgc_destroy(uintptr_t h) {
 	tga_teardown(v);
 	[NSNotificationCenter.defaultCenter removeObserver:v];
 	if (v.isFirstResponder) [v resignFirstResponder];
+	tgp_teardown(v);
+	if (v.tgOverlay) {
+		[v removeFromSuperview];
+		[canvasOverlays removeObjectForKey:@(h)];
+		return;
+	}
 	[canvasPages removeObjectForKey:@(h)];
 }
 
@@ -369,7 +415,7 @@ void tgc_geometry(uintptr_t h, double *w, double *hh, double *scale,
 
 int tgc_focused(uintptr_t h) {
 	TGCanvasView *v = canvasView(h);
-	return v && v.window && appActive();
+	return v && focusNow(v);
 }
 
 // ---------------------------------------------------------------------------

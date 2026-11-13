@@ -61,6 +61,8 @@ type Runner struct {
 	actions     []a11yAction // queued PerformAction requests
 
 	dmg damageState // redraw-hint change tracking (damage.go)
+
+	backOn bool // last value sent to BackWindow (back.go)
 }
 
 // NewRunner creates a runner for page. Call Attach before Frame.
@@ -411,6 +413,7 @@ func (r *Runner) build() {
 	c.curOverlay = 0
 	c.escNext = 0
 	c.escPending = c.escPending[:0]
+	c.backNext = false
 	c.layer = 0
 	c.wantText = false
 	c.ime.want = false
@@ -602,6 +605,7 @@ func (r *Runner) afterFrame() {
 		}
 	}
 	c.escTop = c.escNext
+	r.updateBack() // back.go
 	c.focusList, c.nextFocus = c.nextFocus, c.focusList
 	if f := c.focus; c.updateFocus() || c.focus != f {
 		c.animating = true // repaint the focus ring where focus moved

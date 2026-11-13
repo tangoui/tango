@@ -1,9 +1,10 @@
-//go:build !darwin && !windows && !(linux && !android)
+//go:build !darwin && !windows && !linux
 
 package uihost
 
-// Other platforms (Android included, whose windows are not GTK) have no
-// GPU presenter: every window stays on the CPU path.
+// Other platforms have no GPU presenter: every window stays on the CPU
+// path. (The linux tag covers Android too: gpu_linux.go is Linux without
+// Android, gpu_android.go Android.)
 
 import (
 	"errors"

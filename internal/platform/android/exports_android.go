@@ -120,6 +120,7 @@ func Java_org_tango_host_Tango_nativeSurfaceEvent(penv *C.JNIEnv, cls C.jclass, 
 		b.mu.Lock()
 		delete(b.surfaces, sid)
 		b.mu.Unlock()
+		s.dropOverlays(e) // canvas_attach_android.go
 		s.release()
 		bodies.dropSurface(sid)
 	}

@@ -1,4 +1,4 @@
-//go:build !linux
+//go:build !linux || android
 
 package gl
 
@@ -9,7 +9,8 @@ import (
 )
 
 // NewPresenter presents into a GTK 3 GtkGLArea, which exists only on
-// Linux: here it always fails with ErrUnsupported. (On darwin the OpenGL
+// Linux: here (Android included, see NewPresenterAndroid) it always fails
+// with ErrUnsupported. (On darwin the OpenGL
 // device serves tests only; applications render with ui/gpu/metal.)
 func NewPresenter(glarea uintptr) (r paint.Renderer, present func(size image.Point, scale float32) error, err error) {
 	return nil, nil, ErrUnsupported

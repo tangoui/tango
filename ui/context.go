@@ -187,6 +187,8 @@ type Context struct {
 	nextOverlayLayer map[ID]int
 	escTop, escNext  int  // highest layer listening for Escape: last frame / this build
 	escPending       []ID // Escape listeners whose panel had no layer yet
+	backClaimed      bool // ClaimBack in the last frame (back.go)
+	backNext         bool // ClaimBack in this build
 	pressLayer       int  // layer under the pointer when it went down this frame
 	ctxPressed       bool // secondary-button press this frame
 	ctxPos           geom.Point

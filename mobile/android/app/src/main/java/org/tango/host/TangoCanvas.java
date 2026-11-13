@@ -18,8 +18,11 @@ import java.util.HashMap;
  * and up its uptime in milliseconds (0 cancels it).
  */
 public final class TangoCanvas {
-    /** Live canvas pages by surface id. Main thread. */
-    private static final HashMap<Long, CanvasPage> pages = new HashMap<>();
+    /**
+     * Live canvases by id: pages by surface id, overlays by the id Go gave
+     * them (canvas_attach_android.go). Main thread.
+     */
+    private static final HashMap<Long, CanvasView> views = new HashMap<>();
 
     private TangoCanvas() {}
 
@@ -33,21 +36,35 @@ public final class TangoCanvas {
         Context base = Tango.activity != null ? Tango.activity : Mobile.app;
         if (base == null) return null;
         CanvasPage p = new CanvasPage(base, id, title);
-        pages.put(id, p);
+        views.put(id, p.canvas);
         TangoActivity.addPage(p, visible);
         return p;
+    }
+
+    /**
+     * Attaches a canvas to a WebView page (uihost.Attach): above or below
+     * the WebView, with pass-through, in bounds given in dp (zero width or
+     * height fills the page). Null when the page is gone.
+     */
+    static CanvasOverlay newOverlay(Page page, long id, boolean above, boolean passThrough, int x, int y, int w, int h) {
+        if (page == null || page.closed) return null;
+        CanvasOverlay o = new CanvasOverlay(page, id);
+        o.apply(above, passThrough, x, y, w, h);
+        views.put(id, o.canvas);
+        page.addOverlay(o);
+        return o;
     }
 
     /** Asks for a scheduler wake on the main thread. Any thread. */
     static void requestFrame(long id) {
         Tango.main.post(() -> {
-            CanvasPage p = pages.get(id);
-            if (p != null && !p.closed) p.canvas.wake();
+            CanvasView v = views.get(id);
+            if (v != null) v.wake();
         });
     }
 
     static void forget(long id) {
-        pages.remove(id);
+        views.remove(id);
     }
 
     // ---- implemented in Go ----
@@ -73,6 +90,17 @@ public final class TangoCanvas {
     static native void nativeIME(long id, int op, String text, int a, int b);
     /** A page event (Tango.CLOSED, FOCUSED, BLURRED). */
     static native void nativeSurfaceEvent(long id, int kind);
+
+    // Overlays (CanvasOverlay; canvas_attach_android.go). Main thread.
+
+    /**
+     * Where an overlay with fixed bounds goes in its page frame of w x h
+     * pixels: x in the high 32 bits, y in the low ones; Long.MIN_VALUE to
+     * leave it where it is.
+     */
+    static native long nativePlace(long id, int w, int h, float density);
+    /** Whether the last frame is opaque enough at (x, y), view pixels, to take a gesture starting there. */
+    static native boolean nativeHit(long id, float x, float y);
 
     // Accessibility (CanvasA11y; canvas_a11y_android.go). Main thread.
 

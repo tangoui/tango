@@ -24,9 +24,9 @@ void tg_cv_release(void *win) {
 	if (win != NULL) ANativeWindow_release((ANativeWindow *)win);
 }
 
-int tg_cv_geometry(void *win, int w, int h) {
+int tg_cv_geometry(void *win, int w, int h, int translucent) {
 	if (win == NULL) return -1;
-	return ANativeWindow_setBuffersGeometry((ANativeWindow *)win, w, h, TG_FMT_RGBX_8888);
+	return ANativeWindow_setBuffersGeometry((ANativeWindow *)win, w, h, translucent ? TG_FMT_RGBA_8888 : TG_FMT_RGBX_8888);
 }
 
 // row32 copies one row of n pixels from src (iw pixels) to a 32-bit

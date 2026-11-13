@@ -27,6 +27,8 @@ type surface struct {
 	id     platform.SurfaceID
 	closed bool
 	cv     *canvas // canvas pages (canvas.go): no web view; nil for WebView pages
+
+	overlays []*overlay // canvases attached to the WebView page (canvas_attach.go)
 }
 
 func (b *backend) newSurface(id platform.SurfaceID, opts platform.SurfaceOptions) (*surface, error) {
@@ -89,6 +91,7 @@ func (s *surface) Close() {
 	if s.cv != nil {
 		s.cv.destroy()
 	}
+	s.destroyOverlays() // the core learns of it from SurfaceClosed
 	C.tg_surface_close(s.sid())
 	delete(s.b.surfaces, s.id)
 	s.b.h.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceClosed})

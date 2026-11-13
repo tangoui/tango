@@ -22,13 +22,15 @@ import (
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/mobilecanvas"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/gpu/gl/nativewindow"
 	"github.com/tangoui/tango/ui/input"
 )
 
 // Canvas surfaces on Android (docs/specs/mobile-canvas.md §1.3, M2): a
 // CanvasPage in the Activity's page stack whose CanvasView holds a
 // full-page SurfaceView. Frames are drawn on the CPU by the runner and
-// copied into the Surface's ANativeWindow buffers.
+// copied into the Surface's ANativeWindow buffers, or, with GPU
+// presentation (canvas_gl_android.go, M5), drawn with OpenGL ES into it.
 //
 // Threads. Everything but Invalidate/InvalidateAt runs on the Android main
 // thread, inside the JNI callbacks of org.tango.host.TangoCanvas. The
@@ -43,9 +45,13 @@ import (
 const (
 	canvasClassName     = "org/tango/host/TangoCanvas"
 	canvasPageClassName = "org/tango/host/CanvasPage"
+	canvasHostClassName = "org/tango/host/CanvasHost"
 )
 
-var canvasClass, canvasPageClass C.jclass
+// canvasHostClass is the interface both canvas kinds implement (CanvasPage
+// for pages, CanvasOverlay for canvases attached to WebView pages): the
+// methods every canvas calls on its Java object are looked up on it.
+var canvasClass, canvasPageClass, canvasHostClass C.jclass
 
 var (
 	// TangoCanvas (static).
@@ -53,16 +59,20 @@ var (
 	mCanvasRequestFrame = &jmethod{cls: &canvasClass, static: true, name: "requestFrame", sig: "(J)V"}
 
 	// CanvasPage (instance).
-	mCvShow      = &jmethod{cls: &canvasPageClass, name: "show", sig: "()V"}
-	mCvHide      = &jmethod{cls: &canvasPageClass, name: "hide", sig: "()V"}
-	mCvClose     = &jmethod{cls: &canvasPageClass, name: "close", sig: "()V"}
-	mCvFocus     = &jmethod{cls: &canvasPageClass, name: "focus", sig: "()V"}
-	mCvSetTitle  = &jmethod{cls: &canvasPageClass, name: "setTitle", sig: "(Ljava/lang/String;)V"}
-	mCvSetCursor = &jmethod{cls: &canvasPageClass, name: "setCursor", sig: "(I)V"}
-	mCvView      = &jmethod{cls: &canvasPageClass, name: "view", sig: "()Landroid/view/View;"}
+	mCvShow     = &jmethod{cls: &canvasPageClass, name: "show", sig: "()V"}
+	mCvHide     = &jmethod{cls: &canvasPageClass, name: "hide", sig: "()V"}
+	mCvClose    = &jmethod{cls: &canvasPageClass, name: "close", sig: "()V"}
+	mCvFocus    = &jmethod{cls: &canvasPageClass, name: "focus", sig: "()V"}
+	mCvSetTitle = &jmethod{cls: &canvasPageClass, name: "setTitle", sig: "(Ljava/lang/String;)V"}
+	mCvView     = &jmethod{cls: &canvasPageClass, name: "view", sig: "()Landroid/view/View;"}
+
+	// CanvasHost (instance, both kinds).
+	mCvSetCursor = &jmethod{cls: &canvasHostClass, name: "setCursor", sig: "(I)V"}
+	mCvSetBack   = &jmethod{cls: &canvasHostClass, name: "setBackHandling", sig: "(Z)V"}
 )
 
-var canvasMethods = []*jmethod{mCanvasNewPage, mCanvasRequestFrame, mCvShow, mCvHide, mCvClose, mCvFocus, mCvSetTitle, mCvSetCursor, mCvView, mCvTextInput, mCvMirror}
+var canvasMethods = []*jmethod{mCanvasNewPage, mCanvasRequestFrame, mCvShow, mCvHide, mCvClose, mCvFocus, mCvSetTitle, mCvView,
+	mCvSetCursor, mCvSetBack, mCvTextInput, mCvMirror}
 
 // lookupCanvas resolves the canvas classes and methods. Main thread, from
 // nativeInit. A host without them (an older copy of mobile/android) keeps
@@ -71,7 +81,7 @@ func lookupCanvas(e env) {
 	for _, c := range []struct {
 		dst  *C.jclass
 		name string
-	}{{&canvasClass, canvasClassName}, {&canvasPageClass, canvasPageClassName}} {
+	}{{&canvasClass, canvasClassName}, {&canvasPageClass, canvasPageClassName}, {&canvasHostClass, canvasHostClassName}} {
 		n := C.CString(c.name)
 		*c.dst = C.tg_find_class(e.p, n)
 		C.free(unsafe.Pointer(n))
@@ -97,6 +107,8 @@ func lookupCanvas(e env) {
 		}
 	}
 	canvasDebug = int(C.tg_cv_debug())
+	rendererFromProperty() // canvas_gl_android.go
+	lookupOverlay(e)       // canvas_attach_android.go
 }
 
 // canvasDebug is the canvas debug level (adb shell setprop
@@ -171,6 +183,18 @@ type canvas struct {
 	cursor  input.Cursor
 	closed  bool
 	inFrame bool // inside CanvasFrame
+	back    bool // Back is delivered as Escape (SetBackHandling)
+	// closedInFrame: the page closed during a frame (a button that closes
+	// it); that frame's Present is dropped quietly.
+	closedInFrame bool
+
+	// ov is set for canvases attached to a WebView page
+	// (canvas_attach_android.go); nil for canvas pages.
+	ov *overlay
+
+	// gl is the native window holder of GPU presentation
+	// (canvas_gl_android.go); nil while frames are copied by the CPU.
+	gl *nativewindow.Holder
 
 	needFull     bool // the next present copies the whole frame
 	lastW, lastH int  // size of the last frame presented
@@ -268,6 +292,9 @@ const damageMaxRects = 16
 
 func (c *canvas) present(img *image.RGBA, dirty *image.Rectangle) error {
 	if c.closed {
+		if c.closedInFrame {
+			return nil
+		}
 		return errors.New("tango/android: canvas closed")
 	}
 	if img == nil {
@@ -277,6 +304,7 @@ func (c *canvas) present(img *image.RGBA, dirty *image.Rectangle) error {
 		c.needFull = true
 		return nil
 	}
+	c.gpuYieldToCPU() // an EGL-connected window cannot be locked
 	b := img.Bounds()
 	if b.Empty() {
 		return nil
@@ -317,6 +345,32 @@ func (c *canvas) present(img *image.RGBA, dirty *image.Rectangle) error {
 	c.needFull = false
 	c.lastW, c.lastH = b.Dx(), b.Dy()
 	return nil
+}
+
+// ---- platform.CanvasBackHandler ----
+
+var _ platform.CanvasBackHandler = (*canvas)(nil)
+
+// SetBackHandling implements platform.CanvasBackHandler: while on, the
+// Java host takes Back (the button and the back gesture) from the page
+// stack whenever this canvas is the top-most visible one asking for it, and
+// delivers it as KEYCODE_ESCAPE down and up through nativeKey. Main thread.
+func (c *canvas) SetBackHandling(on bool) {
+	if c.closed || on == c.back {
+		return
+	}
+	c.back = on
+	if canvasDebug > 0 {
+		logf(logInfo, "canvas %d: back handling %v", c.id, on)
+	}
+	withEnv(func(e env) { e.callVoid(c.page, mCvSetBack, jvBool(on)) })
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // ---- platform.CanvasInsets ----
@@ -449,12 +503,13 @@ func Java_org_tango_host_TangoCanvas_nativeSurfaceChanged(penv *C.JNIEnv, cls C.
 		fresh = true
 	}
 	if fresh || int(w) != c.wpx || int(h) != c.hpx {
-		if C.tg_cv_geometry(c.win, w, h) != 0 {
+		if C.tg_cv_geometry(c.win, w, h, C.int(btoi(c.ov != nil))) != 0 {
 			logf(logWarn, "canvas %d: setBuffersGeometry(%d, %d) failed", c.id, int(w), int(h))
 		}
 		c.needFull = true
 	}
 	c.wpx, c.hpx = int(w), int(h)
+	c.gpuSetWindow() // the GPU presenter draws into the new window
 	if density > 0 {
 		c.density = float32(density)
 	}
@@ -463,7 +518,7 @@ func Java_org_tango_host_TangoCanvas_nativeSurfaceChanged(penv *C.JNIEnv, cls C.
 	lw, lh := c.Size()
 	if lw != oldW || lh != oldH || c.density != oldD {
 		c.sink.CanvasResized(lw, lh, c.density)
-		if hst := c.b.host(); hst != nil && !c.closed {
+		if hst := c.b.host(); hst != nil && !c.closed && c.ov == nil {
 			hst.OnSurfaceEvent(c.id, platform.SurfaceEvent{Kind: platform.SurfaceResized, Width: int(lw + 0.5), Height: int(lh + 0.5)})
 		}
 	}
@@ -500,6 +555,7 @@ func Java_org_tango_host_TangoCanvas_nativeSurfaceDestroyed(penv *C.JNIEnv, cls 
 }
 
 func (c *canvas) releaseWindow() {
+	c.gpuClearWindow() // the EGL surface goes before the window
 	if c.win != nil {
 		C.tg_cv_release(c.win)
 		c.win = nil
@@ -643,8 +699,10 @@ func (c *canvas) teardown(e env) {
 		return
 	}
 	c.closed = true
+	c.closedInFrame = c.inFrame
 	c.sched.Close()
 	c.releaseWindow()
+	c.gpuClose()
 	delete(canvases, int64(c.id))
 	page, view := c.page, c.view
 	c.page, c.view = 0, 0

@@ -25,8 +25,8 @@ import (
 
 var (
 	// CanvasPage (instance).
-	mCvTextInput = &jmethod{cls: &canvasPageClass, name: "textInput", sig: "(ZIIFFFFZ)V"}
-	mCvMirror    = &jmethod{cls: &canvasPageClass, name: "mirror", sig: "(Ljava/lang/String;IIIII)V"}
+	mCvTextInput = &jmethod{cls: &canvasHostClass, name: "textInput", sig: "(ZIIFFFFZ)V"}
+	mCvMirror    = &jmethod{cls: &canvasHostClass, name: "mirror", sig: "(Ljava/lang/String;IIIII)V"}
 )
 
 var _ platform.CanvasTextInputState = (*canvas)(nil)

@@ -189,6 +189,9 @@ func Java_org_tango_host_Mobile_nativeEvent(penv *C.JNIEnv, cls C.jclass, kind C
 		ev.Insets.Bottom = parseFloat(arg) // dp
 	case platform.AppThemeChanged, platform.AppReduceMotionChanged, platform.AppContrastChanged:
 		// Theme read at delivery (deliverMobileEvent); the others are signals.
+	case platform.AppMemoryWarning:
+		// A signal (TangoActivity.onTrimMemory / onLowMemory).
+		logf(logInfo, "memory warning: delivering AppMemoryWarning")
 	default:
 		ev.URL = arg
 		if p := e.gostr(path); p != "" {

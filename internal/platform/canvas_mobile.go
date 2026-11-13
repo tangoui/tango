@@ -47,3 +47,21 @@ type CanvasTextInputState interface {
 type CanvasNativeWindow interface {
 	UseNativeWindow() (target uintptr, err error)
 }
+
+// CanvasBackHandler is implemented by canvases on platforms with a system
+// Back action (Android's back button and back gesture). The core calls
+// SetBackHandling(true) while the UI has something Back should close (an
+// overlay, a drawer, a dialog: ui.Context.WantBack) and false otherwise.
+// While handling is on, the platform intercepts Back and delivers it to the
+// canvas as an input.KeyEvent for input.KeyEscape (down then up) instead of
+// closing the page. Main thread.
+type CanvasBackHandler interface {
+	SetBackHandling(on bool)
+}
+
+// AppMemoryWarning: the system is low on memory (iOS memory warning,
+// Android onTrimMemory at TRIM_MEMORY_RUNNING_LOW or above). No payload.
+// Receivers release caches they can rebuild (GPU atlases and textures,
+// glyph caches). 201 is AppContrastChanged, 202 is reserved for a future
+// AppTextScaleChanged (docs/specs/mobile-canvas.md §3.3–3.4).
+const AppMemoryWarning AppEventKind = 203

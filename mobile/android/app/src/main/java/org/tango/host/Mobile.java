@@ -75,8 +75,8 @@ public final class Mobile {
     // platform.AppEventKind values.
     static final int OPEN_URL = 1, SAFE_AREA = 100, ORIENTATION = 101, PUSH_TOKEN = 102,
             PUSH_RECEIVED = 103, PUSH_OPENED = 104, WEBVIEW_RESTORED = 105;
-    // platform.AppThemeChanged, AppReduceMotionChanged, AppContrastChanged.
-    static final int THEME_CHANGED = 3, REDUCE_MOTION_CHANGED = 200, CONTRAST_CHANGED = 201;
+    // platform.AppThemeChanged, AppReduceMotionChanged, AppContrastChanged, AppMemoryWarning.
+    static final int THEME_CHANGED = 3, REDUCE_MOTION_CHANGED = 200, CONTRAST_CHANGED = 201, MEMORY_WARNING = 203;
 
     // platform.HapticKind values.
     private static final int H_LIGHT = 1, H_MEDIUM = 2, H_HEAVY = 3, H_SELECTION = 4,

@@ -26,6 +26,7 @@ type pipeline struct {
 	samplers []uint32
 	frameU   uint32 // GL_UNIFORM_BUFFER holding shaders.Frame
 	frameUAt uint32 // its uniform buffer binding point
+	es       bool   // an OpenGL ES context: no GL_FRAMEBUFFER_SRGB (gles.go)
 }
 
 // minInstBuffer is the smallest instance buffer allocated (455 instances).
@@ -91,10 +92,15 @@ const (
 	frameUSize  = (int(unsafe.Sizeof(shaders.Frame{})) + 15) &^ 15
 )
 
-// newPipeline compiles the quad shader and creates the pipeline's
-// objects on f's context. On error everything created is deleted.
-func newPipeline(f *glFuncs) (p *pipeline, err error) {
-	samplers, blocks, err := quadBindings(gen.QuadGLSLVertex, gen.QuadGLSLFragment)
+// newPipeline compiles the quad shader (its GLSL ES 3.00 form when es)
+// and creates the pipeline's objects on f's context. On error everything
+// created is deleted.
+func newPipeline(f *glFuncs, es bool) (p *pipeline, err error) {
+	vert, frag := gen.QuadGLSLVertex, gen.QuadGLSLFragment
+	if es {
+		vert, frag = esSource(vert), esSource(frag)
+	}
+	samplers, blocks, err := quadBindings(vert, frag)
 	if err != nil {
 		return nil, err
 	}
@@ -104,14 +110,14 @@ func newPipeline(f *glFuncs) (p *pipeline, err error) {
 	if len(blocks) != 1 || blocks[0].name != frameUBlock {
 		return nil, fmt.Errorf("gl: the quad shader declares uniform blocks %v, want only %s", blocks, frameUBlock)
 	}
-	p = &pipeline{}
+	p = &pipeline{es: es}
 	defer func() {
 		if err != nil {
 			p.release(f)
 			p = nil
 		}
 	}()
-	if p.prog, err = compileProgram(f, gen.QuadGLSLVertex, gen.QuadGLSLFragment); err != nil {
+	if p.prog, err = compileProgram(f, vert, frag); err != nil {
 		return nil, err
 	}
 	f.UseProgram(p.prog)
@@ -219,7 +225,9 @@ func (p *pipeline) bind(f *glFuncs) {
 	f.Disable(glSTENCIL_TEST)
 	f.Disable(glCULL_FACE)
 	f.Disable(glDITHER)
-	f.Disable(glFRAMEBUFFER_SRGB)
+	if !p.es {
+		f.Disable(glFRAMEBUFFER_SRGB)
+	}
 	f.ColorMask(1, 1, 1, 1)
 	f.Enable(glSCISSOR_TEST)
 }

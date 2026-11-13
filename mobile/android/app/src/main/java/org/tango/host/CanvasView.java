@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.graphics.RectF;
+import android.graphics.SurfaceTexture;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -16,8 +17,10 @@ import android.view.Choreographer;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.ViewConfiguration;
 import android.view.View;
 import android.view.ViewGroup;
@@ -31,9 +34,17 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.FrameLayout;
 
 /**
- * The view of a {@link CanvasPage}: a SurfaceView filling the page, whose
- * native window Go draws into (canvas_android.go), plus input forwarding
- * and the frame clock.
+ * The view of a canvas: a SurfaceView filling the page of a
+ * {@link CanvasPage}, or a translucent TextureView for a
+ * {@link CanvasOverlay} inside a WebView page (any z-order and alpha). Go
+ * draws into the native window of either (canvas_android.go,
+ * canvas_attach_android.go); this view adds input forwarding and the frame
+ * clock.
+ *
+ * <p>Overlays with pass-through (CanvasLayer.PassThrough) refuse a gesture
+ * that starts on a pixel of the last frame below the hit threshold
+ * ({@link #dispatchTouchEvent}), so the page layout gives the whole gesture
+ * to the WebView under it.
  *
  * <p>Frames: Go's scheduler decides; this view carries out its answers
  * ({@link #apply}): a Choreographer frame callback that runs while frames
@@ -48,13 +59,25 @@ import android.widget.FrameLayout;
  * keeps the document; the view holds a mirror of it for the input method's
  * queries and reports selection changes and the caret to the input method.
  */
-final class CanvasView extends FrameLayout implements SurfaceHolder.Callback, Choreographer.FrameCallback {
+final class CanvasView extends FrameLayout
+        implements SurfaceHolder.Callback, TextureView.SurfaceTextureListener, Choreographer.FrameCallback {
     // nativePointer kinds (canvas_input.go).
     static final int PTR_MOVE = 0, PTR_PRESS = 1, PTR_RELEASE = 2, PTR_LEAVE = 3, PTR_CANCEL = 4, PTR_SCROLL = 5;
 
-    private final CanvasPage page;
-    private final long id;
+    final long id;
+    /** A canvas inside a WebView page (TextureView), not a page of its own (SurfaceView). */
+    final boolean overlay;
+    /** The SurfaceView of a page canvas, or null. */
     private final SurfaceView surface;
+    /** The TextureView of an overlay, or null, and the Surface made on its SurfaceTexture. */
+    private final TextureView texture;
+    private Surface textureSurface;
+    /** Overlay placement (CanvasOverlay): fills the page, or Go places it (Page.Frame). */
+    boolean fill = true;
+    /** Overlay: touches over pixels Go reports transparent pass to the views below. */
+    boolean passThrough;
+    /** Back arrives as Escape while this canvas is the top-most one asking (CanvasHost.setBackHandling). */
+    boolean backHandling;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable timer = this::timerFired;
 
@@ -62,7 +85,7 @@ final class CanvasView extends FrameLayout implements SurfaceHolder.Callback, Ch
     private boolean running;
     /** A frame callback is posted. */
     private boolean posted;
-    private boolean released;
+    boolean released;
     private int mouseButton = MotionEvent.BUTTON_PRIMARY;
     private final int[] insets = {-1, -1, -1, -1, -1};
     private float[] packed = new float[64];
@@ -89,24 +112,38 @@ final class CanvasView extends FrameLayout implements SurfaceHolder.Callback, Ch
     /** Accessibility: the provider of Tango's semantics tree. */
     final CanvasA11y a11y;
 
-    CanvasView(Context context, CanvasPage page) {
+    CanvasView(Context context, long id, boolean overlay) {
         super(context);
-        this.page = page;
-        this.id = page.id;
+        this.id = id;
+        this.overlay = overlay;
         setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setFocusable(true);
         setFocusableInTouchMode(true);
-        surface = new SurfaceView(context);
-        surface.setLayoutParams(new FrameLayout.LayoutParams(
+        View content;
+        if (overlay) {
+            // Translucent and in the view tree's order: Go fills premultiplied
+            // RGBA_8888 buffers, which the TextureView blends over (or under)
+            // the WebView.
+            surface = null;
+            texture = new TextureView(context);
+            texture.setOpaque(false);
+            texture.setSurfaceTextureListener(this);
+            content = texture;
+        } else {
+            texture = null;
+            surface = new SurfaceView(context);
+            // Opaque: the compositor skips blending (Go asks for RGBX buffers too).
+            surface.getHolder().setFormat(PixelFormat.RGBX_8888);
+            surface.getHolder().addCallback(this);
+            content = surface;
+        }
+        content.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        // Opaque: the compositor skips blending (Go asks for RGBX buffers too).
-        surface.getHolder().setFormat(PixelFormat.RGBX_8888);
-        surface.getHolder().addCallback(this);
         // The tree's nodes are virtual views of this view (CanvasA11y);
         // the SurfaceView itself means nothing to a screen reader.
-        surface.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        addView(surface);
+        content.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        addView(content);
         a11y = new CanvasA11y(this, id);
     }
 
@@ -206,6 +243,70 @@ final class CanvasView extends FrameLayout implements SurfaceHolder.Callback, Ch
         apply(TangoCanvas.nativeSurfaceDestroyed(id, SystemClock.uptimeMillis()));
     }
 
+    // ---- TextureView (overlays) ----
+
+    @Override
+    public void onSurfaceTextureAvailable(SurfaceTexture st, int width, int height) {
+        if (released) return;
+        if (textureSurface == null) textureSurface = new Surface(st);
+        apply(TangoCanvas.nativeSurfaceChanged(id, textureSurface, width, height, density(),
+                SystemClock.uptimeMillis()));
+    }
+
+    @Override
+    public void onSurfaceTextureSizeChanged(SurfaceTexture st, int width, int height) {
+        if (released || textureSurface == null) return;
+        apply(TangoCanvas.nativeSurfaceChanged(id, textureSurface, width, height, density(),
+                SystemClock.uptimeMillis()));
+    }
+
+    @Override
+    public boolean onSurfaceTextureDestroyed(SurfaceTexture st) {
+        // Also after release: Go lets go of the native window first.
+        apply(TangoCanvas.nativeSurfaceDestroyed(id, SystemClock.uptimeMillis()));
+        if (textureSurface != null) {
+            textureSurface.release();
+            textureSurface = null;
+        }
+        return true; // the TextureView releases the SurfaceTexture
+    }
+
+    @Override
+    public void onSurfaceTextureUpdated(SurfaceTexture st) {}
+
+    // ---- Back (CanvasHost.setBackHandling) ----
+
+    /** Delivers the system Back action as Escape, down then up, through the key path. */
+    void deliverBack() {
+        if (released) return;
+        TangoCanvas.nativeKey(id, true, KeyEvent.KEYCODE_ESCAPE, 0, 0, 0, 0);
+        if (!released) TangoCanvas.nativeKey(id, false, KeyEvent.KEYCODE_ESCAPE, 0, 0, 0, 0);
+    }
+
+    // ---- pass-through (overlays) ----
+
+    /** Whether a pointer at (x, y), view pixels, belongs to this canvas rather than to the views below. */
+    private boolean hits(float x, float y) {
+        return !overlay || !passThrough || released || TangoCanvas.nativeHit(id, x, y);
+    }
+
+    /**
+     * A gesture starting over a transparent pixel is refused whole: the
+     * parent then offers ACTION_DOWN to the views below (the WebView), and
+     * the rest of the gesture follows it there.
+     */
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent e) {
+        if (e.getActionMasked() == MotionEvent.ACTION_DOWN && !hits(e.getX(), e.getY())) return false;
+        return super.dispatchTouchEvent(e);
+    }
+
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent e) {
+        if (e.isFromSource(InputDevice.SOURCE_CLASS_POINTER) && !hits(e.getX(), e.getY())) return false;
+        return super.dispatchGenericMotionEvent(e);
+    }
+
     /**
      * Hidden (GONE) or covered (INVISIBLE) pages hide the SurfaceView itself
      * too: a SurfaceView releases its Surface when its own visibility is not
@@ -235,6 +336,7 @@ final class CanvasView extends FrameLayout implements SurfaceHolder.Callback, Ch
     /** Touch exploration (a screen reader's hover events) finds the virtual node under the finger. */
     @Override
     protected boolean dispatchHoverEvent(MotionEvent e) {
+        if (!hits(e.getX(), e.getY())) return false;
         if (!released && a11y.hover(e)) return true;
         return super.dispatchHoverEvent(e);
     }

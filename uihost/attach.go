@@ -118,6 +118,7 @@ func AttachWith(s *tango.Surface, layer Layer, opts Options, page func(*ui.Conte
 	r.Attach(h.win)
 	at := &Attached{s: s, h: h, cv: cv, layer: layer}
 	s.OnClosed(h.close)
+	watchMemory(s.App(), r) // memory.go
 	at.stop = fl.start(r, s)
 	cv.Invalidate()
 	return r, at, nil

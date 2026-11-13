@@ -32,6 +32,12 @@ func loadCurrentFuncs() (*glFuncs, error) {
 	if major == 0 { // before 3.0 GL_MAJOR_VERSION is unknown
 		major, minor, _ = parseVersion(f.GetString(glVERSION))
 	}
+	if isES(f.GetString(glVERSION)) { // Android: OpenGL ES 3.0 is enough (gles.go)
+		if major < 3 {
+			return nil, fmt.Errorf("gl: OpenGL ES %d.%d (%s), need 3.0: %w", major, minor, f.GetString(glRENDERER), ErrNoDevice)
+		}
+		return f, nil
+	}
 	if major < 3 || major == 3 && minor < 3 {
 		return nil, fmt.Errorf("gl: OpenGL %d.%d (%s), need 3.3: %w", major, minor, f.GetString(glRENDERER), ErrNoDevice)
 	}

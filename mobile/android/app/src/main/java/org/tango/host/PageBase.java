@@ -45,6 +45,14 @@ abstract class PageBase {
     }
 
     /**
+     * The canvas that takes Back instead of the page stack while this page
+     * is on top (CanvasHost.setBackHandling), or null.
+     */
+    CanvasView backCanvas() {
+        return null;
+    }
+
+    /**
      * The window insets changed (API 30+; the root layout no longer pads
      * itself): keep the page's content clear of what it must avoid.
      */

@@ -23,6 +23,10 @@ type texFormat struct {
 	format   uint32 // pixel transfer format
 	typ      uint32 // pixel transfer type
 	bpp      int    // bytes per texel in Upload.Pix
+	// half: Upload.Pix holds 16-bit unorm texels that are converted to
+	// half floats before the upload (the ramp on ES without
+	// GL_EXT_texture_norm16, gles.go).
+	half bool
 }
 
 // Texture formats: the target, the patch page, images and layers are
@@ -37,7 +41,8 @@ var (
 )
 
 // sampledFormats are the formats of the textures of gpu.TexMask,
-// gpu.TexColor and gpu.TexRamp, by index.
+// gpu.TexColor and gpu.TexRamp, by index (a Device starts from them in
+// Device.formats; on ES the ramp may differ, see gles.go).
 var sampledFormats = [3]texFormat{gpu.TexMask: r8Format, gpu.TexColor: rgba8Format, gpu.TexRamp: rgba16Format}
 
 // newTexture creates a texture of size (a zero or negative side is
@@ -106,7 +111,7 @@ func (d *Device) ensureTextures(fr *gpu.Frame) error {
 			continue
 		}
 		d.tex[i].release(f)
-		d.tex[i] = newTexture(f, uint32(i), want, sampledFormats[i], nil)
+		d.tex[i] = newTexture(f, uint32(i), want, d.formats[i], nil)
 	}
 	return nil
 }
@@ -192,10 +197,16 @@ func (d *Device) upload(ups []gpu.Upload) {
 		if w <= 0 || h <= 0 {
 			continue
 		}
-		tf := sampledFormats[u.Tex]
+		tf := d.formats[u.Tex]
 		f.ActiveTexture(glTEXTURE0 + uint32(u.Tex))
 		f.BindTexture(glTEXTURE_2D, d.tex[u.Tex].tex)
 		x, y := int32(u.Rect.Min.X), int32(u.Rect.Min.Y)
+		if tf.half { // ES ramp without norm16: converted, tightly packed
+			d.halfBuf = halfRows(d.halfBuf, u.Pix, w, h, u.Stride)
+			f.PixelStorei(glUNPACK_ROW_LENGTH, 0)
+			f.TexSubImage2D(glTEXTURE_2D, 0, x, y, int32(w), int32(h), tf.format, tf.typ, unsafe.Pointer(&d.halfBuf[0]))
+			continue
+		}
 		if h == 1 || u.Stride%tf.bpp == 0 && u.Stride >= w*tf.bpp {
 			rowLen := int32(0) // one row: the row length does not matter
 			if h > 1 {

@@ -124,7 +124,10 @@ type Device struct {
 	// resetStatus is glGetGraphicsResetStatus when the context offers it.
 	resetStatus func() uint32
 
-	maxTex      int // min(GL_MAX_TEXTURE_SIZE, 16384)
+	maxTex      int          // min(GL_MAX_TEXTURE_SIZE, 16384)
+	es          bool         // an OpenGL ES 3.0 context (gles.go)
+	formats     [3]texFormat // sampledFormats, but the ramp's on ES without norm16
+	halfBuf     []byte       // ramp uploads converted to half floats (formats[gpu.TexRamp].half)
 	pipe        *pipeline
 	fbo         uint32     // framebuffer with target as its color attachment
 	target      texture    // the frame's render target
@@ -186,15 +189,21 @@ func NewDevice() (*Device, error) {
 // executing functions on the thread it is current on. The context stays
 // the caller's (Close deletes the device's objects, not the context).
 func newDevice(run func(func()), f *glFuncs) (d *Device, err error) {
-	d = &Device{run: run, f: f, clear: color.NRGBA{A: 255}}
+	d = &Device{run: run, f: f, clear: color.NRGBA{A: 255}, formats: sampledFormats}
 	d.layers = d.newLayerPool()
 	run(func() {
 		drainErrors(f) // errors left on a shared context are not the device's
 		var maxTex int32
 		f.GetIntegerv(glMAX_TEXTURE_SIZE, &maxTex)
 		d.maxTex = min(int(maxTex), maxTextureSize)
-		d.resetStatus = loadResetStatus(f)
-		if d.pipe, err = newPipeline(f); err != nil {
+		if isES(f.GetString(glVERSION)) {
+			d.es = true
+			if !hasGLExt(f, "GL_EXT_texture_norm16") {
+				d.formats[gpu.TexRamp] = rgba16fFormat
+			}
+		}
+		d.resetStatus = loadResetStatus(f, d.es)
+		if d.pipe, err = newPipeline(f, d.es); err != nil {
 			return
 		}
 		// Transparent black: what a batch binding no image or layer gets
@@ -211,23 +220,28 @@ func newDevice(run func(func()), f *glFuncs) (d *Device, err error) {
 	return d, nil
 }
 
-// loadResetStatus returns glGetGraphicsResetStatus (or its ARB/KHR form)
-// when f's context offers it, else nil. The extension is checked first:
-// libepoxy aborts the process when a function without a provider is
-// called.
-func loadResetStatus(f *glFuncs) func() uint32 {
+// loadResetStatus returns glGetGraphicsResetStatus (or its ARB/KHR form;
+// on ES, es, the KHR or EXT form) when f's context offers it, else nil.
+// The extension is checked first: libepoxy aborts the process when a
+// function without a provider is called.
+func loadResetStatus(f *glFuncs, es bool) func() uint32 {
 	major, minor := f.version()
 	names := []string{}
-	if major > 4 || major == 4 && minor >= 5 {
+	if !es && (major > 4 || major == 4 && minor >= 5) {
 		names = append(names, "glGetGraphicsResetStatus")
 	}
 	var n int32
 	f.GetIntegerv(glNUM_EXTENSIONS, &n)
 	for i := range uint32(max(n, 0)) {
-		switch f.GetStringi(glEXTENSIONS, i) {
-		case "GL_KHR_robustness":
+		switch ext := f.GetStringi(glEXTENSIONS, i); {
+		case es && ext == "GL_KHR_robustness":
+			names = append(names, "glGetGraphicsResetStatusKHR")
+		case es && ext == "GL_EXT_robustness":
+			names = append(names, "glGetGraphicsResetStatusEXT")
+		case es:
+		case ext == "GL_KHR_robustness":
 			names = append(names, "glGetGraphicsResetStatus")
-		case "GL_ARB_robustness":
+		case ext == "GL_ARB_robustness":
 			names = append(names, "glGetGraphicsResetStatusARB")
 		}
 	}
@@ -246,6 +260,18 @@ func loadResetStatus(f *glFuncs) func() uint32 {
 		}
 	}
 	return nil
+}
+
+// hasGLExt reports whether f's context lists ext in GL_EXTENSIONS.
+func hasGLExt(f *glFuncs, ext string) bool {
+	var n int32
+	f.GetIntegerv(glNUM_EXTENSIONS, &n)
+	for i := range uint32(max(n, 0)) {
+		if f.GetStringi(glEXTENSIONS, i) == ext {
+			return true
+		}
+	}
+	return false
 }
 
 // drainErrors reads glGetError until it returns GL_NO_ERROR (GL keeps one

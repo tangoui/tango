@@ -14,12 +14,12 @@ import android.view.WindowInsets;
  * reports them, with the display cut-out, as its safe area, and the soft
  * keyboard as its keyboard inset. Go owns its lifetime (main thread).
  */
-final class CanvasPage extends PageBase {
+final class CanvasPage extends PageBase implements CanvasHost {
     final CanvasView canvas;
 
     CanvasPage(Context base, long id, String title) {
         super(base, id, title);
-        canvas = new CanvasView(context, this);
+        canvas = new CanvasView(context, id, false);
     }
 
     @Override
@@ -68,39 +68,58 @@ final class CanvasPage extends PageBase {
      * Text input on or off, with the EditorInfo inputType and imeOptions
      * and the caret in device pixels (see CanvasView.textInput).
      */
-    void textInput(boolean on, int inputType, int imeOptions, float x, float y, float w, float h, boolean restart) {
+    @Override
+    public void textInput(boolean on, int inputType, int imeOptions, float x, float y, float w, float h, boolean restart) {
         if (!closed) canvas.textInput(on, inputType, imeOptions, x, y, w, h, restart);
     }
 
     /** The input method's document (see CanvasView.mirror). */
-    void mirror(String text, int base, int selStart, int selEnd, int compStart, int compEnd) {
+    @Override
+    public void mirror(String text, int base, int selStart, int selEnd, int compStart, int compEnd) {
         if (!closed) canvas.mirror(text, base, selStart, selEnd, compStart, compEnd);
     }
 
     /** A content change of a virtual view (CanvasA11y.C_* bits; 0 undefined). */
-    void a11yEvent(int virtualId, int changes) {
+    @Override
+    public void a11yEvent(int virtualId, int changes) {
         if (!closed) canvas.a11y.contentChanged(virtualId, changes);
     }
 
     /** The virtual view with input focus (CanvasA11y.NO_ID: none). */
-    void a11yFocus(int virtualId) {
+    @Override
+    public void a11yFocus(int virtualId) {
         if (!closed) canvas.a11y.focusChanged(virtualId);
     }
 
     /** Text to speak once that no live region carries (ui.Context.Announce). */
-    void a11yAnnounce(String text, int live) {
+    @Override
+    public void a11yAnnounce(String text, int live) {
         if (!closed) canvas.a11y.announce(text, live);
     }
 
     /** Debug self-test: performs an action on a virtual view through the provider. */
-    void a11ySelfTest(int virtualId, int action) {
+    @Override
+    public void a11ySelfTest(int virtualId, int action) {
         if (!closed) canvas.a11y.selfTest(virtualId, action);
     }
 
     /** Sets the mouse pointer shape (a PointerIcon type). */
-    void setCursor(int type) {
+    @Override
+    public void setCursor(int type) {
         if (closed) return;
         canvas.setPointerIcon(PointerIcon.getSystemIcon(context, type));
+    }
+
+    @Override
+    public void setBackHandling(boolean on) {
+        if (closed || canvas.backHandling == on) return;
+        canvas.backHandling = on;
+        TangoActivity.backChanged();
+    }
+
+    @Override
+    CanvasView backCanvas() {
+        return !closed && canvas.backHandling ? canvas : null;
     }
 
     // ---- internals ----

@@ -12,9 +12,10 @@
 void *tg_cv_window(JNIEnv *env, jobject surface);
 void tg_cv_release(void *win);
 
-// tg_cv_geometry sets the buffer size (device pixels) and an opaque
-// RGBX_8888 format. 0 on success.
-int tg_cv_geometry(void *win, int w, int h);
+// tg_cv_geometry sets the buffer size (device pixels) and the format:
+// opaque RGBX_8888 for pages, premultiplied RGBA_8888 when translucent
+// (overlays in a TextureView). 0 on success.
+int tg_cv_geometry(void *win, int w, int h, int translucent);
 
 // tg_cv_present copies a premultiplied RGBA image (pix, stride bytes per
 // row, iw x ih pixels) into the next buffer and posts it.

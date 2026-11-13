@@ -87,6 +87,10 @@ type canvas struct {
 	keys    map[uint16]input.KeyEvent // HID usage -> its reported press
 
 	ax canvasA11y // accessibility bridge (canvas_a11y.go)
+
+	hover  hoverState // iPad pointer over the view (canvas_pointer.go)
+	cursor int        // pointer style last set (pointerStyle)
+	ov     *overlay   // set for canvases attached to a WebView page (canvas_attach.go)
 }
 
 // Main-thread registry of open canvases by handle.
@@ -124,6 +128,7 @@ func (b *backend) NewCanvasSurface(id platform.SurfaceID, opts platform.SurfaceO
 	c.wantFocus = C.tgc_focused(C.uintptr_t(c.h)) != 0
 	c.Invalidate()
 	startSelftest(c)
+	startPointerSelftest(c)
 	c.a11yStart()
 	return s, c, nil
 }
@@ -166,9 +171,14 @@ func (c *canvas) InvalidateAt(t time.Time) {
 	}
 }
 
-// SetCursor does nothing: there is no pointer on a phone (iPad pointer
-// shapes are milestone M5).
-func (c *canvas) SetCursor(input.Cursor) {}
+// SetCursor sets the iPad pointer's shape over the canvas
+// (canvas_pointer.go). Phones have no pointer: it does nothing there.
+func (c *canvas) SetCursor(cur input.Cursor) {
+	if c.closed {
+		return
+	}
+	c.setCursor(cur)
+}
 
 // SetTextInput turns text input on or off: the view's UITextInput then
 // shows or hides the soft keyboard (canvas_text.go). caret places the

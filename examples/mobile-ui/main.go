@@ -5,7 +5,9 @@
 // bash mobile/ios/build.sh examples/mobile-ui). See
 // docs/specs/mobile-canvas.md §6.3.
 //
-// Three tabs: a list page (rows, switches, a tap counter), a form page
+// Three tabs: a list page (rows, switches, a tap counter, and overlays
+// that the system Back action closes plus a WebView page with an attached
+// self-drawn overlay: overlays.go, web.go), a form page
 // (text fields of every keyboard kind stacked down to the bottom of the
 // screen, to exercise the soft keyboard, input methods and keyboard
 // avoidance) and a settings page that shows how the window is drawn: the
@@ -43,10 +45,20 @@ var (
 	logged         bool
 	qty            = 1.0  // settings page stepper
 	volume         = 50.0 // settings page slider
+	memWarnings    int    // EventMemoryWarning count
 )
 
 func main() {
-	app = tango.New(tango.Options{Name: "Tango Mobile UI", ID: "dev.tango.mobileui"})
+	app = tango.New(tango.Options{Name: "Tango Mobile UI", ID: "dev.tango.mobileui", Assets: webAssets()}) // web.go
+	app.OnMessage(webMessage)
+	app.OnEventKind(tango.EventMemoryWarning, func(tango.AppEvent) {
+		// uihost has already trimmed the GPU and text caches.
+		memWarnings++
+		log.Printf("mobile-ui: memory warning #%d", memWarnings)
+		if runner != nil {
+			runner.Invalidate()
+		}
+	})
 	app.OnReady(func() {
 		r, s, err := uihost.Open(app, uihost.Options{
 			Surface: tango.SurfaceOptions{Title: "Mobile UI", Width: 390, Height: 844},
@@ -100,6 +112,7 @@ func page(c *ui.Context) {
 				}, layout.Grow(1))
 				mobile.SafeArea(c, mobile.Right)
 			}, layout.Grow(1))
+			overlays(c) // overlays.go
 			tb := mobile.TabBar(c, []mobile.TabItem{
 				{Key: "list", Title: "列表", Icon: icon.Home},
 				{Key: "form", Title: "表单", Icon: icon.Edit},
@@ -139,6 +152,7 @@ func listPage(c *ui.Context) {
 				log.Printf("mobile-ui: button tap #%d", taps)
 			}
 		}, layout.PadVH(16, 16))
+		overlayRows(c) // overlays.go
 	})
 }
 

@@ -3,6 +3,7 @@ package org.tango.host;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
@@ -28,6 +29,7 @@ import androidx.webkit.WebViewFeature;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -36,6 +38,12 @@ import java.util.Set;
 /**
  * One Tango surface: a full-screen WebView in the Activity. Go owns its
  * lifetime through the methods below (main thread).
+ *
+ * <p>The WebView sits in a {@link Frame} (the view placed in the Activity),
+ * which also holds the canvases attached to the page
+ * ({@link CanvasOverlay}, uihost.Attach) above or below it. While a canvas
+ * is below, the WebView's background is transparent (the page's CSS must
+ * not paint one either).
  *
  * <p>The bridge (internal/platform/android, token.go and script.go): only
  * documents of the app's trusted origins, the asset origin and the origin
@@ -55,6 +63,12 @@ final class Page extends PageBase {
 
     /** Replaced when the render process dies (see recover). Main thread. */
     WebView web;
+    /** Holds the WebView and the attached canvases; the view in the Activity's root. */
+    final Frame frame;
+    /** Canvases attached to the page, in the order they came. */
+    private final ArrayList<CanvasOverlay> overlays = new ArrayList<>();
+    /** The WebView's background is transparent for a canvas below it. */
+    private boolean webClear;
     private final boolean debug;
     /** Origin of the URL Go last navigated to (trusted besides the asset origin), or null. */
     private String navOrigin;
@@ -74,17 +88,22 @@ final class Page extends PageBase {
         super(base, id, title);
         this.debug = debug;
         setMargins(TangoActivity.insets());
+        frame = new Frame(context);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        lp.setMargins(margins[0], margins[1], margins[2], margins[3]);
+        frame.setLayoutParams(lp);
         web = makeWebView();
+        frame.addView(web);
     }
 
     @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface", "AddJavascriptInterface"})
     private WebView makeWebView() {
         if (debug) WebView.setWebContentsDebuggingEnabled(true);
         WebView w = new WebView(context);
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-        lp.setMargins(margins[0], margins[1], margins[2], margins[3]);
-        w.setLayoutParams(lp);
+        w.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        if (webClear) w.setBackgroundColor(Color.TRANSPARENT);
         WebSettings s = w.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -139,7 +158,7 @@ final class Page extends PageBase {
 
     @Override
     View view() {
-        return web;
+        return frame;
     }
 
     @Override
@@ -154,16 +173,101 @@ final class Page extends PageBase {
         return true;
     }
 
-    /** The WebView keeps clear of the system bars, cut-out and keyboard, as before. */
+    /** The WebView (with its canvases) keeps clear of the system bars, cut-out and keyboard, as before. */
     @Override
     void applyInsets(WindowInsets insets) {
         if (!setMargins(insets)) return;
-        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) web.getLayoutParams();
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) frame.getLayoutParams();
         if (lp == null) {
             lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         }
         lp.setMargins(margins[0], margins[1], margins[2], margins[3]);
-        web.setLayoutParams(lp);
+        frame.setLayoutParams(lp);
+    }
+
+    /** The top-most attached canvas that takes Back, or null. */
+    @Override
+    CanvasView backCanvas() {
+        for (int i = frame.getChildCount() - 1; i >= 0; i--) {
+            View c = frame.getChildAt(i);
+            if (c instanceof CanvasView) {
+                CanvasView v = (CanvasView) c;
+                if (v.backHandling && !v.released && v.getVisibility() == View.VISIBLE) return v;
+            }
+        }
+        return null;
+    }
+
+    // ---- attached canvases (CanvasOverlay) ----
+
+    /** Adds a canvas above or below the WebView (TangoCanvas.newOverlay). */
+    void addOverlay(CanvasOverlay o) {
+        overlays.add(o);
+        insertOverlay(o);
+        overlaysChanged();
+    }
+
+    /**
+     * Above: over everything so far; below: right under the WebView, over
+     * the canvases below it so far.
+     */
+    private void insertOverlay(CanvasOverlay o) {
+        if (o.above) frame.addView(o.canvas);
+        else frame.addView(o.canvas, Math.max(0, frame.indexOfChild(web)));
+    }
+
+    /** The canvas changed sides of the WebView; it keeps the keyboard focus. */
+    void restackOverlay(CanvasOverlay o) {
+        boolean focused = o.canvas.hasFocus();
+        frame.removeView(o.canvas);
+        insertOverlay(o);
+        if (focused) o.canvas.requestFocus();
+    }
+
+    void removeOverlay(CanvasOverlay o) {
+        overlays.remove(o);
+        frame.removeView(o.canvas);
+        overlaysChanged();
+    }
+
+    /** Canvases came, went or moved: the WebView is see-through while one is below it. */
+    void overlaysChanged() {
+        if (closed) return;
+        boolean under = false;
+        for (CanvasOverlay o : overlays) under |= !o.closed && !o.above;
+        if (under != webClear) {
+            webClear = under;
+            web.setBackgroundColor(under ? Color.TRANSPARENT : Color.WHITE);
+        }
+        frame.requestLayout();
+    }
+
+    /**
+     * The page's layout: the WebView fills it; canvases with fixed bounds
+     * are placed where Go computes (TangoCanvas.nativePlace: the bounds kept
+     * at their anchor for the current size).
+     */
+    static final class Frame extends FrameLayout {
+        Frame(Context c) {
+            super(c);
+        }
+
+        @Override
+        protected void onLayout(boolean changed, int l, int t, int r, int b) {
+            super.onLayout(changed, l, t, r, b);
+            int w = r - l, h = b - t;
+            float d = getResources().getDisplayMetrics().density;
+            for (int i = 0; i < getChildCount(); i++) {
+                View c = getChildAt(i);
+                if (!(c instanceof CanvasView) || c.getVisibility() == GONE) continue;
+                CanvasView v = (CanvasView) c;
+                if (!v.overlay || v.fill || v.released) continue;
+                long p = TangoCanvas.nativePlace(v.id, w, h, d);
+                if (p == Long.MIN_VALUE) continue;
+                int x = (int) (p >> 32), y = (int) p;
+                c.layout(x, y, x + c.getMeasuredWidth(), y + c.getMeasuredHeight());
+            }
+        }
     }
 
     /** Updates margins from insets; true if they changed. */
@@ -234,8 +338,11 @@ final class Page extends PageBase {
     void destroy() {
         if (closed) return;
         closed = true;
-        ViewGroup parent = (ViewGroup) web.getParent();
-        if (parent != null) parent.removeView(web);
+        for (CanvasOverlay o : overlays) o.destroy();
+        overlays.clear();
+        ViewGroup parent = (ViewGroup) frame.getParent();
+        if (parent != null) parent.removeView(frame);
+        frame.removeView(web);
         web.stopLoading();
         removeChannel(web);
         web.destroy();

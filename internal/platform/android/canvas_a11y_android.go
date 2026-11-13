@@ -47,12 +47,12 @@ import (
 // even the first dump sees the whole tree.
 
 var (
-	// CanvasPage (instance); optional: an older Java host without them
+	// CanvasHost (CanvasPage and CanvasOverlay); optional: an older Java host without them
 	// keeps working without accessibility.
-	mCvA11yEvent    = &jmethod{cls: &canvasPageClass, name: "a11yEvent", sig: "(II)V"}
-	mCvA11yFocus    = &jmethod{cls: &canvasPageClass, name: "a11yFocus", sig: "(I)V"}
-	mCvA11yAnnounce = &jmethod{cls: &canvasPageClass, name: "a11yAnnounce", sig: "(Ljava/lang/String;I)V"}
-	mCvA11ySelfTest = &jmethod{cls: &canvasPageClass, name: "a11ySelfTest", sig: "(II)V"}
+	mCvA11yEvent    = &jmethod{cls: &canvasHostClass, name: "a11yEvent", sig: "(II)V"}
+	mCvA11yFocus    = &jmethod{cls: &canvasHostClass, name: "a11yFocus", sig: "(I)V"}
+	mCvA11yAnnounce = &jmethod{cls: &canvasHostClass, name: "a11yAnnounce", sig: "(Ljava/lang/String;I)V"}
+	mCvA11ySelfTest = &jmethod{cls: &canvasHostClass, name: "a11ySelfTest", sig: "(II)V"}
 )
 
 var a11yMethods = []*jmethod{mCvA11yEvent, mCvA11yFocus, mCvA11yAnnounce, mCvA11ySelfTest}

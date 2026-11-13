@@ -55,6 +55,10 @@ void tgs_install(void) {
 	void (^refresh)(NSNotification *) = ^(NSNotification *n) { tgs_refresh(); };
 	[nc addObserverForName:UIAccessibilityReduceMotionStatusDidChangeNotification object:nil queue:nil usingBlock:refresh];
 	[nc addObserverForName:UIAccessibilityDarkerSystemColorsStatusDidChangeNotification object:nil queue:nil usingBlock:refresh];
+	// Posted on the main thread; the receivers drop caches they can rebuild.
+	[nc addObserverForName:UIApplicationDidReceiveMemoryWarningNotification object:nil queue:nil usingBlock:^(NSNotification *n) {
+		tangoIOSSystemChanged(TGS_MEMORY);
+	}];
 	// The appearance can change while the app is in the background (the
 	// automatic light/dark schedule): read it again when it comes back.
 	// The window's trait changes cover a switch while the app is on

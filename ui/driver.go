@@ -47,6 +47,7 @@ type driverWindow struct {
 	invalid   atomic.Bool // set from any goroutine (Window.Invalidate)
 	wake      time.Time
 	presented int
+	back      bool // BackWindow state (back.go)
 
 	a11yOn      bool // AccessibilityHost: EnableAccessibility turns it on
 	a11yUpdates int
@@ -67,6 +68,7 @@ func (w *driverWindow) SetCursor(c input.Cursor)      { w.cursor = c }
 func (w *driverWindow) ReadClipboard() string         { return w.clip }
 func (w *driverWindow) WriteClipboard(s string)       { w.clip = s }
 func (w *driverWindow) Present(img *image.RGBA) error { w.presented++; return nil }
+func (w *driverWindow) SetBackHandling(on bool)       { w.back = on }
 func (w *driverWindow) SetTextInput(on bool, caret geom.Rect) {
 	w.textOn, w.caret = on, caret
 }
@@ -274,6 +276,10 @@ func (d *Driver) TextInputActive() (bool, geom.Rect) { return d.w.textOn, d.w.ca
 
 // Presented returns how many frames were presented.
 func (d *Driver) Presented() int { return d.w.presented }
+
+// BackHandling reports what the runner last told the window through
+// BackWindow: whether the system Back action has something to close.
+func (d *Driver) BackHandling() bool { return d.w.back }
 
 // NeedsFrame reports whether the UI asked for another frame.
 func (d *Driver) NeedsFrame() bool { return d.w.invalid.Load() || d.r.Animating() }

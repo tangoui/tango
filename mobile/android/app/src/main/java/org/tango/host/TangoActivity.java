@@ -1,6 +1,7 @@
 package org.tango.host;
 
 import android.app.Activity;
+import android.content.ComponentCallbacks2;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Build;
@@ -42,6 +43,11 @@ public class TangoActivity extends Activity {
 
     private FrameLayout root;
     private OnBackInvokedCallback backCallback;
+    /**
+     * Registered above backCallback while the top page has a canvas that
+     * takes Back (API 33+; see canvasBack).
+     */
+    private OnBackInvokedCallback canvasBackCallback;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -124,6 +130,10 @@ public class TangoActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 33 && backCallback != null) {
             getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(backCallback);
         }
+        if (Build.VERSION.SDK_INT >= 33 && canvasBackCallback != null) {
+            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(canvasBackCallback);
+            canvasBackCallback = null;
+        }
         Mobile.activityDestroyed(this);
         if (current) Tango.activity = null;
         super.onDestroy();
@@ -142,6 +152,26 @@ public class TangoActivity extends Activity {
         back(); // before API 33
     }
 
+    /**
+     * Memory pressure: Go hears platform.AppMemoryWarning and drops caches
+     * it can rebuild (GPU atlases, glyph caches).
+     */
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        // Memory pressure only: TRIM_MEMORY_UI_HIDDEN (20) just means the UI
+        // went to the background, which is not a low-memory condition.
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW && level != ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
+            Mobile.event(Mobile.MEMORY_WARNING, null, null);
+        }
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        Mobile.event(Mobile.MEMORY_WARNING, null, null);
+    }
+
     @Override
     protected void onActivityResult(int request, int result, Intent data) {
         if (!Dialogs.onActivityResult(this, request, result, data)
@@ -156,6 +186,11 @@ public class TangoActivity extends Activity {
      * ends the app.
      */
     void back() {
+        CanvasView c = canvasBackTarget();
+        if (c != null) {
+            c.deliverBack();
+            return;
+        }
         PageBase p = top;
         if (p == null) {
             finish();
@@ -165,6 +200,36 @@ public class TangoActivity extends Activity {
         if (!Tango.nativeShouldClose(p.id)) return;
         p.close();
         if (pages.isEmpty()) finish();
+    }
+
+    /**
+     * The canvas that takes Back now: the top-most one asking for it
+     * (CanvasHost.setBackHandling) on the top page, or null.
+     */
+    private static CanvasView canvasBackTarget() {
+        PageBase p = top;
+        return p == null || p.closed ? null : p.backCanvas();
+    }
+
+    /**
+     * A canvas started or stopped asking for Back, or the top page changed.
+     * From API 33 a callback of overlay priority is registered while a
+     * canvas takes Back, so the system routes the gesture to it (and shows
+     * no back-to-home preview); before, back() checks the same target.
+     */
+    static void backChanged() {
+        TangoActivity a = Tango.activity;
+        if (a == null || Build.VERSION.SDK_INT < 33) return;
+        boolean want = canvasBackTarget() != null;
+        if (want == (a.canvasBackCallback != null)) return;
+        if (want) {
+            a.canvasBackCallback = a::back;
+            a.getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_OVERLAY, a.canvasBackCallback);
+        } else {
+            a.getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(a.canvasBackCallback);
+            a.canvasBackCallback = null;
+        }
     }
 
     // ---- pages (main thread; work without an Activity too) ----
@@ -231,11 +296,13 @@ public class TangoActivity extends Activity {
         }
         TangoActivity a = Tango.activity;
         if (a != null && next != null && next.title != null && !next.title.isEmpty()) a.setTitle(next.title);
-        if (next == top) return;
-        PageBase prev = top;
-        top = next;
-        if (prev != null && !prev.closed) prev.reportEvent(Tango.BLURRED);
-        if (next != null) next.reportEvent(Tango.FOCUSED);
+        if (next != top) {
+            PageBase prev = top;
+            top = next;
+            if (prev != null && !prev.closed) prev.reportEvent(Tango.BLURRED);
+            if (next != null) next.reportEvent(Tango.FOCUSED);
+        }
+        backChanged();
     }
 
     /**

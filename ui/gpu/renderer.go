@@ -285,6 +285,20 @@ func (r *Renderer) InvalidateImage(img image.Image) {
 	r.cpu.InvalidateImage(img)
 }
 
+// Trim releases what the renderer caches and can rebuild, for a low-memory
+// warning (docs/specs/mobile-canvas.md §3.4): the glyph and path mask atlas
+// shrinks to one empty page and every image texture is freed. The next
+// frame re-rasterizes and re-uploads what it draws (the whole mask atlas
+// texture, at its new size), so it costs more than usual but draws the
+// same pixels. Main thread, between frames.
+func (r *Renderer) Trim() {
+	r.atlas.Reset()
+	r.maskSent = image.Point{} // upload the shrunken atlas whole
+	for _, t := range r.images.byKey {
+		r.images.free(t) // freed on the device with the next frame
+	}
+}
+
 // Render converts l into a Frame and executes it on the device. A frame
 // with no pixels (width or height 0 after scaling) is skipped without
 // calling the device. When l carries redraw hints and the device retains

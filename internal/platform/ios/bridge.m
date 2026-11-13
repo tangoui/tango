@@ -196,6 +196,7 @@ void tg_page_register(TGPage *p) { pages[@(p.sid)] = p; }
 		self.reported = s;
 		tangoIOSResized(self.sid, (int)lround(s.width), (int)lround(s.height));
 	}
+	if (self.web && pages[@(self.sid)]) tangoIOSPageLayout(self.sid, s.width, s.height); // canvas_attach.go
 }
 
 // WKNavigationDelegate

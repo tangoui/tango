@@ -16,7 +16,7 @@ import (
 )
 
 // System settings the self-drawn UI follows (docs/specs/mobile-canvas.md
-// §3.3): uihost's theme, reduce-motion, contrast and language following
+// §3.3), and memory warnings (AppMemoryWarning, §3.4): uihost's theme, reduce-motion, contrast and language following
 // work unchanged once the backend has these capabilities. Implemented in
 // system.m; the values are cached there, so every method may be called
 // from any goroutine.
@@ -81,5 +81,8 @@ func tangoIOSSystemChanged(kind C.int) {
 		emitEvent(platform.AppEvent{Kind: platform.AppContrastChanged})
 	case C.TGS_LOCALE:
 		localeListeners.Notify()
+	case C.TGS_MEMORY:
+		pointerLogf("memory warning: emitting AppMemoryWarning (%d)", platform.AppMemoryWarning)
+		emitEvent(platform.AppEvent{Kind: platform.AppMemoryWarning})
 	}
 }

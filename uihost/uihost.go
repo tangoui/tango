@@ -104,6 +104,7 @@ func Open(app *tango.App, opts Options, page func(*ui.Context), ropts ui.RunnerO
 		renderers.Store(r, h.gpu)
 	}
 	s.OnClosed(h.close)
+	watchMemory(app, r) // memory.go
 	fl.start(r, s)
 	automationWatch(app, s, r, h) // TANGO_AUTOMATION (automation_dev.go)
 	// Callbacks before Attach found no window; make sure a frame follows.
@@ -200,6 +201,7 @@ func (h *host) close() {
 	if h.r != nil {
 		h.r.Close()
 		renderers.Delete(h.r)
+		memRunners.Delete(h.r) // memory.go
 	}
 	if h.gpu != nil {
 		// Free the Metal device, render targets and atlas now; Runner.Close

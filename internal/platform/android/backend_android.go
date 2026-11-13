@@ -246,6 +246,8 @@ type surface struct {
 	view   C.jobject // global ref to its WebView, made by Native
 	w, h   int       // dp, from the last Resized
 	closed bool
+
+	overlays []*overlay // attached canvases (canvas_attach_android.go)
 }
 
 func (s *surface) call(m *jmethod, args ...C.jvalue) {
