@@ -163,16 +163,23 @@ func createPipe(path string, first bool) (syscall.Handle, error) {
 type pipeServer struct {
 	path   string
 	closed atomic.Bool
+	done   chan struct{} // closed when the accept loop has released its instance
 	c      closeOnce
 }
 
 // Close stops the accept loop: ConnectNamedPipe blocks synchronously, so
-// connect once ourselves to wake it.
+// connect once ourselves to wake it. It returns once the loop has closed
+// its listening instance, so the key is free for a new primary (bounded,
+// in case the wake-up connection could not be made).
 func (s *pipeServer) Close() error {
 	return s.c.do(func() error {
 		s.closed.Store(true)
 		if h, err := openPipe(s.path); err == nil {
 			syscall.CloseHandle(h)
+		}
+		select {
+		case <-s.done:
+		case <-time.After(2 * time.Second):
 		}
 		return nil
 	})
@@ -187,8 +194,9 @@ func listen(name string, deliver func(message)) (server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &pipeServer{path: path}
+	s := &pipeServer{path: path, done: make(chan struct{})}
 	go func() {
+		defer close(s.done)
 		cur := h
 		for {
 			r, _, e := procConnectNamedPipe.Call(uintptr(cur), 0)
