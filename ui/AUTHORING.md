@@ -221,7 +221,7 @@ func init() {
 - 不要复制 Viva、mygo、Wails 或其他项目的代码、常量表、图标数据；设计令牌和色值按 Ant Design / Element Plus 官方文档。
 - 不要改 `ui/theme`、`ui/paint`、`ui/text`、`ui/layout`、`ui/input` 与 `context.go/runner.go/overlay.go/driver.go` 来满足单个组件；需要扩展先提出。
 - 不要在组件文件里私建通用工具（颜色换算、图片缩放、日期网格、图标、复选框/选择器外壳、悬停延迟、子树命中判断、滚到可见）：先查基础层（theme/paint/icon、date_util.go、choice.go、selector.go、hover.go、layers.go、reveal.go），没有就补到基础层。
-- 新组件先查第 14 节总表，已有同类组件就扩展它，不要再加一个同义的新名字（shadcn 的 Sheet = `Drawer`、Accordion = `Collapse`、HoverCard = `Popover.Trigger("hover")`、Separator = `Divider`、Sonner = `Message/Notification`、Badge = `Tag`、Field = `FormItem`、InputGroup = `Compact`/`Addon`/输入框前后缀、NativeSelect = `Select`、Combobox = `Select.Searchable`/`MultiSelect.Searchable`/`AutoComplete`、Typography keyboard = `Kbd`，只做外观）。shadcn 特有组件文件以 `shad_` 开头。
+- 新组件先查第 14 节总表，已有同类组件就扩展它，不要再加一个同义的新名字（shadcn 的 Sheet = `Drawer`、Accordion / Collapsible = `Collapse`、HoverCard = `Popover.Trigger("hover")`、Separator = `Divider`、Sonner = `Message/Notification`、Badge = `Tag`、Field = `FormItem`、InputGroup = `Compact`/`Addon`/输入框前后缀、NativeSelect = `Select`、Combobox = `Select.Searchable`/`MultiSelect.Searchable`/`AutoComplete`、Typography keyboard = `Kbd`，只做外观）。shadcn 特有组件文件以 `shad_` 开头。
 - 不要在组件文件里写死界面文案（中文、英文都不行），见第 15 节；`TestNoHardcodedCJK` 会拦住 CJK 字面量。
 
 ## 14. 组件总表
@@ -253,7 +253,7 @@ func init() {
 | 布局 | `Dock`（`DockLayout`/`DockNode` 分割树与标签组，JSON 保存、`ParseDockLayout` 恢复；标签拖放拆分/合并、分割条、最大化、撕出） | IDE 工作台编辑器分组（VS Code / JetBrains） | dock.go、dock_layout.go |
 | 布局 | `Scroll`、`ScrollH` | （滚动容器）/ el-scrollbar | scroll.go、reveal.go |
 | 导航 | `Menu` | Menu / el-menu | nav_menu.go |
-| 导航 | `Tabs`（`Draggable` 拖拽排序、`OnTearOff` 拖出窗口撕出） | Tabs / el-tabs | nav.go、nav_tabs_drag.go |
+| 导航 | `Tabs`（`Draggable` 拖拽排序、`OnTearOff` 拖出窗口撕出；`TabPlacement`、`Stretch`、`BeforeLeave`、shadcn `Variant("line")`） | Tabs / el-tabs；shadcn Tabs | nav.go、nav_tabs_drag.go |
 | 导航 | `Breadcrumb`、`BreadcrumbItems`（items 写法、下拉、分隔符） | Breadcrumb / el-breadcrumb | nav.go |
 | 导航 | `Pagination` | Pagination / el-pagination | nav.go |
 | 导航 | `Dropdown` | Dropdown、Dropdown.Button / el-dropdown；`ContextMenuAt` 无触发器右键菜单 | nav_dropdown.go、nav_contextmenu.go |
@@ -326,10 +326,10 @@ func init() {
 | 数据展示 | `ProList` | ProList | pro3_list.go |
 | 数据展示 | `Tree` | Tree / el-tree | data_tree.go |
 | 数据展示 | `VirtualTree` | Tree virtual / el-tree-v2 | fill_virtual_tree.go |
-| 数据展示 | `Tag` | Tag / el-tag | display.go |
-| 数据展示 | `CheckableTag` | Tag.CheckableTag / el-check-tag | more_checktag.go |
+| 数据展示 | `Tag`（`Variant` filled/solid/outlined、`Disabled`、`CloseIcon`、`Round`；shadcn Badge 变体含 `ghost`/`link`） | Tag / el-tag；shadcn Badge | display.go |
+| 数据展示 | `CheckableTag`、`CheckableTagGroup` | Tag.CheckableTag、Tag.CheckableTagGroup / el-check-tag | more_checktag.go |
 | 数据展示 | `Badge`、`BadgeRibbon` | Badge、Badge.Ribbon / el-badge | data_badge.go |
-| 数据展示 | `Avatar`、`AvatarGroup` | Avatar / el-avatar | display.go、data_badge.go |
+| 数据展示 | `Avatar`（`Small/Large/Shape/Gap`）、`AvatarGroup`（`MaxPopover`） | Avatar / el-avatar、el-avatar-group | display.go、data_badge.go |
 | 数据展示 | `Card`、`CardMeta`、`CardAction` | Card / el-card | data_card.go |
 | 数据展示 | `ProCard` | ProCard | pro2_card.go |
 | 数据展示 | `Descriptions` | Descriptions / el-descriptions | data_card.go |
@@ -337,7 +337,7 @@ func init() {
 | 数据展示 | `Statistic`、`Countdown` | Statistic / el-statistic、el-countdown | display.go、data_skeleton.go |
 | 数据展示 | `StatisticCard`、`StatisticCardGroup` | StatisticCard、StatisticCard.Group | pro2_statistic.go |
 | 数据展示 | `Progress` | Progress / el-progress | data_progress.go |
-| 数据展示 | `Empty` | Empty / el-empty | data_result.go |
+| 数据展示 | `Empty`（`Title`） | Empty / el-empty；shadcn Empty | data_result.go |
 | 数据展示 | `Result` | Result / el-result | data_result.go |
 | 数据展示 | `Skeleton`、`SkeletonAvatar/Button/Input/Image` | Skeleton / el-skeleton | data_skeleton.go |
 | 数据展示 | `ProSkeleton` | ProSkeleton | pro2_skeleton.go |
