@@ -454,7 +454,7 @@ type DescriptionsW struct {
 	title    string
 	extra    func()
 	items    []DescItem
-	cols     int
+	cols     int // 0 = DEFAULT_COLUMN_MAP
 	bordered bool
 	size     ControlSize
 	vertical bool
@@ -468,7 +468,9 @@ type DescriptionsW struct {
 	tk       *theme.DescriptionsToken
 }
 
-// Descriptions adds a description list (default 3 columns, no border).
+// Descriptions adds a description list (no border). Without Column or a
+// "column" default the column count follows antd's DEFAULT_COLUMN_MAP:
+// 1 on xs, 2 on sm, 3 from md up.
 // Modifiers apply until the end of the build; the content is built then.
 //
 // ConfigProvider.Defaults("Descriptions", ...) keys: "column" (int or
@@ -481,7 +483,7 @@ func Descriptions(c *Context, items []DescItem) *DescriptionsW {
 	if tk.DefaultMiddle {
 		def = Middle // Element's default size
 	}
-	d := &DescriptionsW{c: c, items: items, cols: 3, colon: true, size: c.sizeOr(def), th: th, tk: tk}
+	d := &DescriptionsW{c: c, items: items, colon: true, size: c.sizeOr(def), th: th, tk: tk}
 	dataPropCols(c, "Descriptions", "column", &d.cols, &d.colsDef)
 	d.bordered = Prop(c, "Descriptions", "bordered", false)
 	if s, ok := dataPropSize(c, "Descriptions"); ok {
@@ -506,7 +508,8 @@ func (d *DescriptionsW) Column(n int) *DescriptionsW {
 
 // ColumnAt sets the column count from breakpoint bp upwards (Ant
 // column={{ xs: 1, sm: 2, md: 3 }}); the largest set breakpoint not above
-// the window width wins, Column (default 3) is the fallback.
+// the window width wins, Column (default DEFAULT_COLUMN_MAP) is the
+// fallback.
 func (d *DescriptionsW) ColumnAt(bp Breakpoint, n int) *DescriptionsW { d.colsAt.set(bp, n); return d }
 
 // Columns sets several breakpoint column counts at once.
@@ -605,11 +608,27 @@ func (d *DescriptionsW) itemPad() (row, vlabel float32) {
 	return tk.ItemPaddingBottom, tk.VerticalLabelPaddingBottom
 }
 
+// descDefaultCols is antd's DEFAULT_COLUMN_MAP (descriptions/constant.js:
+// xs 1, sm 2, md..xxl 3; Tango has no xxxl).
+func descDefaultCols(c *Context) int {
+	switch ScreenBreakpoint(c) {
+	case XS:
+		return 1
+	case SM:
+		return 2
+	}
+	return 3
+}
+
 func (d *DescriptionsW) build() {
 	c, th, tk := d.c, d.th, d.tk
-	fallback := d.cols
+	base := d.cols
+	if base == 0 {
+		base = descDefaultCols(c)
+	}
+	fallback := base
 	if !d.colsSet {
-		fallback = d.colsDef.resolve(c, d.cols)
+		fallback = d.colsDef.resolve(c, base)
 	}
 	d.cols = d.colsAt.resolve(c, fallback)
 	el := th.Flavor == theme.Element

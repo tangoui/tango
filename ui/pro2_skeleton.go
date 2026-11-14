@@ -31,20 +31,27 @@ type ProSkeletonW struct {
 	pageHeader bool
 	statistic  int
 	list       int
+	listSet    bool
 	toolbar    bool
 	opts       []layout.Option
 }
 
 // ProSkeleton starts a page skeleton of kind (SkeletonList, SkeletonResult
 // or SkeletonDescriptions; "" = list). Defaults: active, with page header,
-// 4 statistics, a toolbar and 5 list rows.
+// 2 statistics, a toolbar and 5 list rows (4 table rows on the
+// descriptions page).
+//
+// Pro v3 picks the statistic count from the first breakpoint key that is
+// true; antd's screens put xs/sm first, so in a browser that is always 2
+// (xs and sm both map to 2). Tango renders that observed default, not the
+// md/xl entries of the lookup table.
 func ProSkeleton(c *Context, kind string) *ProSkeletonW {
 	if kind == "" {
 		kind = SkeletonList
 	}
 	// ConfigProvider.Defaults("ProSkeleton", ...) keys: "active",
 	// "pageHeader", "toolbar" (bool), "statistic", "list" (number).
-	s := &ProSkeletonW{c: c, kind: kind, active: true, pageHeader: true, statistic: 4, list: 5, toolbar: true}
+	s := &ProSkeletonW{c: c, kind: kind, active: true, pageHeader: true, statistic: 2, list: 5, toolbar: true}
 	s.active = Prop(c, "ProSkeleton", "active", s.active)
 	s.pageHeader = Prop(c, "ProSkeleton", "pageHeader", s.pageHeader)
 	s.toolbar = Prop(c, "ProSkeleton", "toolbar", s.toolbar)
@@ -52,7 +59,7 @@ func ProSkeleton(c *Context, kind string) *ProSkeletonW {
 		s.statistic = n
 	}
 	if n, ok := proPropInt(c, "ProSkeleton", "list"); ok {
-		s.list = n
+		s.list, s.listSet = n, true
 	}
 	return s
 }
@@ -64,11 +71,13 @@ func (s *ProSkeletonW) Active(on bool) *ProSkeletonW { s.active = on; return s }
 func (s *ProSkeletonW) PageHeader(on bool) *ProSkeletonW { s.pageHeader = on; return s }
 
 // Statistic sets the number of statistic placeholders (list type; 0 hides
-// them).
+// them; default 2).
 func (s *ProSkeletonW) Statistic(n int) *ProSkeletonW { s.statistic = n; return s }
 
-// List sets the number of list rows (list type; 0 hides the list).
-func (s *ProSkeletonW) List(n int) *ProSkeletonW { s.list = n; return s }
+// List sets the number of list rows (list type, default 5) or table rows
+// (descriptions type, default 4); 0 hides the list, or the divider and
+// table. The list toolbar is controlled by Toolbar alone.
+func (s *ProSkeletonW) List(n int) *ProSkeletonW { s.list, s.listSet = n, true; return s }
 
 // Toolbar shows or hides the list toolbar placeholder.
 func (s *ProSkeletonW) Toolbar(on bool) *ProSkeletonW { s.toolbar = on; return s }
@@ -104,7 +113,7 @@ func (s *ProSkeletonW) Show() *Box {
 			if s.statistic > 0 {
 				s.statistics()
 			}
-			if s.list > 0 {
+			if s.list > 0 || s.toolbar {
 				s.listCard()
 			}
 		}
@@ -165,10 +174,11 @@ func (s *ProSkeletonW) header() {
 // statistics: one card with n columns split by vertical dividers.
 func (s *ProSkeletonW) statistics() {
 	c, th := s.c, s.c.Theme
+	n := s.statistic
 	split := th.Split
 	s.card(func() {
 		Row(c, func() {
-			for i := 0; i < s.statistic; i++ {
+			for i := 0; i < n; i++ {
 				col := Column(c, func() {
 					s.bar(100, 14)
 					s.bar(0, 32).widthPct = 0.6
@@ -226,15 +236,27 @@ func (s *ProSkeletonW) result() {
 	})
 }
 
-// descriptions: a descriptions card and a table card.
+// descCols is the descriptions-page column count. Pro v3 takes the first
+// true breakpoint key (xs below 576px, otherwise sm), so in a browser it
+// is 1 on xs and 2 elsewhere (Descriptions MediaQueryKeyEnum xs 1, sm 2).
+func (s *ProSkeletonW) descCols() int {
+	if ScreenBreakpoint(s.c) == XS {
+		return 1
+	}
+	return 2
+}
+
+// descriptions: a descriptions card and, unless List(0), a table card
+// with List rows (default 4).
 func (s *ProSkeletonW) descriptions() {
 	c, th := s.c, s.c.Theme
 	split := th.Split
+	cols := s.descCols()
 	s.card(func() {
 		s.bar(160, 20, layout.Margin(geom.Insets{Bottom: 24}))
 		for r := 0; r < 3; r++ {
 			Row(c, func() {
-				for col := 0; col < 3; col++ {
+				for col := 0; col < cols; col++ {
 					Row(c, func() {
 						s.bar(64, 14)
 						s.bar(0, 14, layout.Grow(1)).widthPct = 0.7
@@ -243,17 +265,28 @@ func (s *ProSkeletonW) descriptions() {
 			}, layout.Gap(24), layout.Margin(geom.Insets{Bottom: 16}))
 		}
 	})
+	rows := 4 // TableSkeleton size default
+	if s.listSet {
+		rows = s.list
+	}
+	if rows <= 0 {
+		return
+	}
+	// DescriptionsPageSkeleton renders Line only when the table is shown.
+	Column(c, nil, layout.H(1), layout.Margin(geom.Insets{Left: 24, Right: 24})).Bg(split)
 	s.card(func() {
 		s.bar(160, 20, layout.Margin(geom.Insets{Bottom: 24}))
-		for r := 0; r < 4; r++ {
+		for r := 0; r <= rows; r++ { // header row + rows
 			row := Row(c, func() {
-				for col := 0; col < 4; col++ {
-					h := float32(14)
-					if r == 0 {
-						h = 16
-					}
+				h := float32(14)
+				if r == 0 {
+					h = 16
+				}
+				// TableItemSkeleton: cols flex-1 cells and one flex-3 cell.
+				for col := 0; col < cols; col++ {
 					s.bar(0, h, layout.Grow(1), layout.Basis(0)).widthPct = 0.6
 				}
+				s.bar(0, h, layout.Grow(3), layout.Basis(0)).widthPct = 0.6
 			}, layout.Gap(24), layout.PadVH(16, 16))
 			if r > 0 {
 				row.Paint(func(l *paint.List, rc geom.Rect) { dataHLine(l, rc.X, rc.Y, rc.W, split) })

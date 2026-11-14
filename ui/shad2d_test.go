@@ -56,6 +56,10 @@ func TestShad2dProCardAntUnchanged(t *testing.T) {
 	if card.box.n.radii.TL != th.RadiusLG {
 		t.Fatalf("Ant ProCard radius changed: %v", card.box.n.radii.TL)
 	}
+	// Pro v3: variant defaults to "outlined" (was borderless on Ant).
+	if !card.outlined {
+		t.Fatal("Ant ProCard must be outlined by default")
+	}
 }
 
 func TestShad2dProCardDefaults(t *testing.T) {
