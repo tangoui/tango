@@ -29,6 +29,7 @@ type releaseServer struct {
 	file     []byte        // the release file
 	hold     chan struct{} // non-nil: requests wait on it (manifest and file)
 	hits     atomic.Int32  // manifest requests
+	aborted  atomic.Int32  // held requests the client gave up on
 }
 
 func newReleaseServer(t *testing.T) *releaseServer {
@@ -70,6 +71,7 @@ func (s *releaseServer) wait(r *http.Request) {
 		select {
 		case <-h:
 		case <-r.Context().Done():
+			s.aborted.Add(1)
 		}
 	}
 }

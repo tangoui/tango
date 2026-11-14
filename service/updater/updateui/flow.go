@@ -25,7 +25,8 @@ type flow struct {
 	m *model
 
 	busy        atomic.Bool
-	downloading atomic.Bool // OnEvent download events go to the model
+	downloading atomic.Bool    // OnEvent download events go to the model
+	running     sync.WaitGroup // checks and downloads in progress (stop waits)
 
 	mu           sync.Mutex
 	st           persisted
@@ -77,6 +78,11 @@ func (f *flow) check(ctx context.Context, manual bool) {
 		return
 	}
 	defer f.busy.Store(false)
+	if ctx.Err() != nil {
+		return // the session stopped
+	}
+	f.running.Add(1)
+	defer f.running.Done()
 	if manual {
 		f.m.set(func(m *model) { m.phase, m.manual, m.err, m.unsupported = phaseChecking, true, nil, false })
 		f.show(true)
@@ -133,7 +139,9 @@ func (f *flow) download() {
 	f.mu.Unlock()
 	f.downloading.Store(true)
 	f.m.set(func(m *model) { m.phase, m.done, m.total, m.err = phaseDownloading, 0, -1, nil })
+	f.running.Add(1)
 	go func() {
+		defer f.running.Done()
 		defer f.busy.Store(false)
 		p, err := f.u.Download(ctx, rel, "")
 		f.downloading.Store(false)
@@ -245,12 +253,16 @@ func (f *flow) schedule(ctx context.Context, interval, firstDelay time.Duration)
 			wait = d
 		}
 	}
+	timer := after // read here, not on the goroutine (tests replace it)
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-after(wait):
+			case <-timer(wait):
+			}
+			if ctx.Err() != nil {
+				return // both were ready and select picked the timer
 			}
 			f.check(ctx, false)
 			wait = interval

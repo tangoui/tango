@@ -1,5 +1,13 @@
+pkg github.com/tangoui/tango/service/updater/updateui, const DefaultFirstDelay time.Duration = 30000000000
+pkg github.com/tangoui/tango/service/updater/updateui, const DefaultInterval time.Duration = 86400000000000
+pkg github.com/tangoui/tango/service/updater/updateui, func CheckNow(*tango.App, *service/updater.Updater, Options)
+pkg github.com/tangoui/tango/service/updater/updateui, func Start(*tango.App, *service/updater.Updater, Options) (func(), error)
 pkg github.com/tangoui/tango/service/updater/updateui, type Options struct
+pkg github.com/tangoui/tango/service/updater/updateui, type Options struct, FirstDelay time.Duration
+pkg github.com/tangoui/tango/service/updater/updateui, type Options struct, Interval time.Duration
 pkg github.com/tangoui/tango/service/updater/updateui, type Options struct, Text *Strings
+pkg github.com/tangoui/tango/service/updater/updateui, type Options struct, Window uihost.Options
+pkg github.com/tangoui/tango/service/updater/updateui, type Options struct, noncomparable
 pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct
 pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Cancel string
 pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Checking string
