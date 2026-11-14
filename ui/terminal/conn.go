@@ -15,7 +15,9 @@ type Conn interface {
 	// Resize tells the program the terminal's new size in cells and
 	// pixels.
 	Resize(cols, rows, widthPx, heightPx int) error
-	// Close closes the connection. It must unblock a pending Read.
+	// Close closes the connection. It must unblock a pending Read and a
+	// pending Write, as closing an os.File, a pipe or a net.Conn does;
+	// [Terminal.Close] waits for both to return.
 	Close() error
 }
 
@@ -26,8 +28,8 @@ type Options struct {
 	// top. 0 means the default, 10 000; a negative value keeps none.
 	Scrollback int
 	// OnExit is called once, from the read goroutine, when the read loop
-	// ends: err is nil at EOF or after Close, otherwise the read error.
-	// It may call [Terminal.Close].
+	// ends: err is nil at EOF or when [Terminal.Close] ended it,
+	// otherwise the read error. It may call [Terminal.Close].
 	OnExit func(err error)
 }
 
@@ -62,11 +64,14 @@ type Terminal struct {
 	conn    Conn
 	onExit  func(error)
 	replies chan []byte
-	wmu     sync.Mutex // serializes writes to conn
+	done    chan struct{} // closed by Close before it closes conn
+	wmu     sync.Mutex    // serializes writes to conn
 	wg      sync.WaitGroup
 
 	// smu guards the lifecycle state. It is separate from mu so that
-	// Exited and Close work while the view holds the lock.
+	// Exited and Close work while the view holds the lock. Lock order:
+	// smu is never held while taking mu (the view may call Exited with
+	// mu held).
 	smu     sync.Mutex
 	started bool
 	closing bool
@@ -84,6 +89,7 @@ func New(o Options) *Terminal {
 		conn:    o.Conn,
 		onExit:  o.OnExit,
 		replies: make(chan []byte, replyQueue),
+		done:    make(chan struct{}),
 	}
 	t.vt = vt.New(vt.Options{
 		Cols:       defaultCols,
@@ -104,6 +110,10 @@ func (t *Terminal) reply(b []byte) {
 // read loop. invalidate is called, from the read goroutine, after each
 // batch of output; it must be safe to call from any goroutine. Start
 // does nothing if the Terminal was already started or closed.
+//
+// The initial Conn.Resize error is ignored: the program then simply runs
+// at the Conn's previous size, and a failing Conn also fails Read, which
+// ends the loop and reports the error through OnExit.
 func (t *Terminal) Start(cols, rows int, invalidate func()) {
 	t.smu.Lock()
 	if t.started || t.closing {
@@ -111,7 +121,6 @@ func (t *Terminal) Start(cols, rows int, invalidate func()) {
 		return
 	}
 	t.started = true
-	t.wg.Add(2)
 	t.smu.Unlock()
 
 	if invalidate == nil {
@@ -120,13 +129,28 @@ func (t *Terminal) Start(cols, rows int, invalidate func()) {
 	t.mu.Lock()
 	t.vt.Resize(cols, rows)
 	t.mu.Unlock()
-	t.conn.Resize(cols, rows, 0, 0)
 
+	// Re-check under smu: Close sets closing under smu before it closes
+	// the Conn, so neither Resize nor the goroutines run after it, and
+	// wg.Add happens before Close's wg.Wait or not at all.
+	t.smu.Lock()
+	defer t.smu.Unlock()
+	if t.closing {
+		return
+	}
+	t.conn.Resize(cols, rows, 0, 0)
+	t.wg.Add(2)
 	go t.writeLoop()
 	go t.readLoop(invalidate)
 }
 
 // readLoop feeds the program's output to the emulator until Read fails.
+//
+// A Read error counts as caused by Close, and is reported as nil, when
+// done is already closed when the loop sees the error; Close closes
+// done before it closes the Conn. An error that arrives before Close is
+// reported as is, except in the narrow window where Close begins between
+// Read returning it and the check, where it is reported as nil.
 func (t *Terminal) readLoop(invalidate func()) {
 	buf := make([]byte, readBufSize)
 	var err error
@@ -141,13 +165,13 @@ func (t *Terminal) readLoop(invalidate func()) {
 			break
 		}
 	}
+	if err == io.EOF || t.isClosing() {
+		err = nil
+	}
 	// The read loop is the only sender on replies.
 	close(t.replies)
 
 	t.smu.Lock()
-	if err == io.EOF || t.closing {
-		err = nil
-	}
 	t.exited, t.exitErr = true, err
 	t.smu.Unlock()
 	invalidate()
@@ -158,10 +182,21 @@ func (t *Terminal) readLoop(invalidate func()) {
 	}
 }
 
+// isClosing reports whether Close has begun.
+func (t *Terminal) isClosing() bool {
+	select {
+	case <-t.done:
+		return true
+	default:
+		return false
+	}
+}
+
 // feed writes b to the emulator, holding mu for at most maxLockBytes at
 // a time, then queues the replies it produced for the writer. Queuing
 // may block the read loop when the queue is full, never with mu held;
-// replies are small and the writer drains continuously.
+// replies are small and the writer drains continuously. After Close,
+// replies are dropped instead.
 func (t *Terminal) feed(b []byte) {
 	for len(b) > 0 {
 		n := min(len(b), maxLockBytes)
@@ -172,20 +207,33 @@ func (t *Terminal) feed(b []byte) {
 		t.mu.Unlock()
 		b = b[n:]
 		for _, r := range pending {
-			t.replies <- r
+			select {
+			case t.replies <- r:
+			case <-t.done:
+				return
+			}
 		}
 	}
 }
 
 // writeLoop writes queued replies to the program until the read loop
-// closes the queue. Write errors are ignored: a broken Conn also ends
-// the read loop.
+// closes the queue or Close begins. A Write in progress at Close returns
+// because Close closes the Conn. Write errors are ignored: a broken Conn
+// also ends the read loop.
 func (t *Terminal) writeLoop() {
 	defer t.wg.Done()
-	for r := range t.replies {
-		t.wmu.Lock()
-		t.conn.Write(r)
-		t.wmu.Unlock()
+	for {
+		select {
+		case r, ok := <-t.replies:
+			if !ok {
+				return
+			}
+			t.wmu.Lock()
+			t.conn.Write(r)
+			t.wmu.Unlock()
+		case <-t.done:
+			return
+		}
 	}
 }
 
@@ -201,12 +249,11 @@ func (t *Terminal) Unlock() { t.mu.Unlock() }
 
 // Send writes b, encoded input such as keys or a paste, to the program.
 // It writes on the caller's goroutine and does not take the emulator
-// lock. Send does nothing after Close.
+// lock. Send does nothing after Close. A Send racing Close may reach
+// the Conn just after it was closed and fail there, silently: Send does
+// not hold smu across the Write, which may block until Close.
 func (t *Terminal) Send(b []byte) {
-	t.smu.Lock()
-	closing := t.closing
-	t.smu.Unlock()
-	if closing || len(b) == 0 {
+	if len(b) == 0 || t.isClosing() {
 		return
 	}
 	t.wmu.Lock()
@@ -215,15 +262,19 @@ func (t *Terminal) Send(b []byte) {
 }
 
 // Resize resizes the emulator to cols×rows cells and tells the program
-// the new size, in cells and pixels. A Conn error is ignored.
+// the new size, in cells and pixels. A Conn error is ignored. Resize
+// does nothing after Close, and never calls Conn.Resize once Close has
+// begun: the Conn call is made under smu, which Close takes first.
 func (t *Terminal) Resize(cols, rows, wpx, hpx int) {
+	if t.isClosing() {
+		return
+	}
 	t.mu.Lock()
 	t.vt.Resize(cols, rows)
 	t.mu.Unlock()
 	t.smu.Lock()
-	closing := t.closing
-	t.smu.Unlock()
-	if !closing {
+	defer t.smu.Unlock()
+	if !t.closing {
 		t.conn.Resize(cols, rows, wpx, hpx)
 	}
 }
@@ -236,13 +287,16 @@ func (t *Terminal) Exited() (bool, error) {
 	return t.exited, t.exitErr
 }
 
-// Close closes the Conn and waits for the read loop and the writer to
-// end. It is safe to call more than once, concurrently, before Start
-// and from OnExit; every call returns the first call's result.
+// Close stops the writer, closes the Conn and waits for the read loop
+// and the writer to end; it relies on Conn.Close unblocking a pending
+// Read and Write. It is safe to call more than once, concurrently,
+// before Start and from OnExit; every call returns the first call's
+// result.
 func (t *Terminal) Close() error {
 	t.closeOnce.Do(func() {
 		t.smu.Lock()
 		t.closing = true
+		close(t.done) // before conn.Close: see readLoop
 		t.smu.Unlock()
 		t.closeErr = t.conn.Close()
 		t.wg.Wait()

@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"runtime"
 	"strings"
@@ -21,9 +22,10 @@ type pipeConn struct {
 	inR  *io.PipeReader // test reads terminal input
 	inW  *io.PipeWriter // terminal writes input
 
-	mu      sync.Mutex
-	resizes [][4]int
-	closed  int
+	mu          sync.Mutex
+	resizes     [][4]int
+	closed      int
+	lateResizes int // Resize calls after Close
 }
 
 func newPipeConn() *pipeConn {
@@ -38,6 +40,9 @@ func (c *pipeConn) Write(b []byte) (int, error) { return c.inW.Write(b) }
 
 func (c *pipeConn) Resize(cols, rows, w, h int) error {
 	c.mu.Lock()
+	if c.closed > 0 {
+		c.lateResizes++
+	}
 	c.resizes = append(c.resizes, [4]int{cols, rows, w, h})
 	c.mu.Unlock()
 	return nil
@@ -315,5 +320,200 @@ func TestTerminalCloseFromOnExit(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Close from OnExit deadlocked")
+	}
+}
+
+// closeWithin calls term.Close and fails if it does not return within d.
+func closeWithin(t *testing.T, term *Terminal, d time.Duration) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		term.Close()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(d):
+		t.Fatal("Close did not return")
+	}
+}
+
+// TestTerminalCloseBlockedWriter: the program floods cursor position
+// requests and never reads its input, so the writer blocks in Conn.Write
+// and the reply queue fills, blocking the read loop. Close must still
+// end both goroutines.
+func TestTerminalCloseBlockedWriter(t *testing.T) {
+	base := runtime.NumGoroutine()
+	c := newPipeConn()
+	exited := make(chan error, 1)
+	term := New(Options{Conn: c, OnExit: func(err error) { exited <- err }})
+	term.Start(10, 3, func() {})
+
+	flood := []byte(strings.Repeat("\x1b[6n", 4*replyQueue))
+	go func() {
+		for {
+			if _, err := c.outW.Write(flood); err != nil {
+				return
+			}
+		}
+	}()
+	// Wait until the reply queue is full: the read loop is then blocked
+	// enqueueing and the writer is blocked in Write.
+	waitFor(t, 5*time.Second, "reply queue to fill", func() bool {
+		return len(term.replies) == replyQueue
+	})
+	closeWithin(t, term, 5*time.Second)
+	if err := <-exited; err != nil {
+		t.Errorf("OnExit err = %v, want nil", err)
+	}
+	c.outW.Close()
+	c.inR.Close()
+	waitGoroutines(t, base)
+}
+
+func TestTerminalSendRacingClose(t *testing.T) {
+	base := runtime.NumGoroutine()
+	for range 50 {
+		c := newPipeConn()
+		term := New(Options{Conn: c})
+		term.Start(10, 3, func() {})
+		var wg sync.WaitGroup
+		for range 4 {
+			wg.Add(1)
+			go func() { // nobody reads: Send blocks until Close
+				defer wg.Done()
+				term.Send([]byte("x"))
+			}()
+		}
+		closeWithin(t, term, 5*time.Second)
+		wg.Wait()
+		term.Send([]byte("y")) // after Close: no-op, no block
+		c.outW.Close()
+		c.inR.Close()
+	}
+	waitGoroutines(t, base)
+}
+
+func TestTerminalResizeRacingClose(t *testing.T) {
+	for range 50 {
+		c := newPipeConn()
+		term := New(Options{Conn: c})
+		term.Start(10, 3, func() {})
+		var wg sync.WaitGroup
+		for i := range 4 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := range 20 {
+					term.Resize(20+i, 5+j, 0, 0)
+				}
+			}()
+		}
+		closeWithin(t, term, 5*time.Second)
+		wg.Wait()
+		c.mu.Lock()
+		late := c.lateResizes
+		c.mu.Unlock()
+		if late != 0 {
+			t.Fatalf("%d Conn.Resize calls after Close", late)
+		}
+		v := term.Lock()
+		cols, rows := v.Screen().Size()
+		term.Unlock()
+		term.Resize(70, 30, 0, 0) // after Close: no-op
+		v = term.Lock()
+		cols2, rows2 := v.Screen().Size()
+		term.Unlock()
+		if cols2 != cols || rows2 != rows {
+			t.Fatalf("Resize after Close changed size %dx%d -> %dx%d", cols, rows, cols2, rows2)
+		}
+		c.outW.Close()
+		c.inR.Close()
+	}
+}
+
+func TestTerminalStartRacingClose(t *testing.T) {
+	base := runtime.NumGoroutine()
+	for range 100 {
+		c := newPipeConn()
+		var exits atomic.Int32
+		term := New(Options{Conn: c, OnExit: func(error) { exits.Add(1) }})
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() { defer wg.Done(); term.Start(10, 3, func() {}) }()
+		go func() { defer wg.Done(); term.Close() }()
+		wg.Wait()
+		term.Close() // waits for any loop Start launched
+		c.mu.Lock()
+		late := c.lateResizes
+		c.mu.Unlock()
+		if late != 0 {
+			t.Fatalf("%d Conn.Resize calls after Close", late)
+		}
+		if n := exits.Load(); n > 1 {
+			t.Fatalf("OnExit called %d times", n)
+		}
+		c.outW.Close()
+		c.inR.Close()
+	}
+	waitGoroutines(t, base)
+}
+
+func TestTerminalStartTwice(t *testing.T) {
+	base := runtime.NumGoroutine()
+	c := newPipeConn()
+	term := New(Options{Conn: c})
+	term.Start(10, 3, func() {})
+	n := runtime.NumGoroutine()
+	term.Start(40, 9, func() {})
+	if got := runtime.NumGoroutine(); got > n {
+		t.Errorf("second Start added goroutines: %d -> %d", n, got)
+	}
+	c.mu.Lock()
+	got := len(c.resizes)
+	c.mu.Unlock()
+	if got != 1 {
+		t.Errorf("Conn.Resize called %d times, want 1", got)
+	}
+	v := term.Lock()
+	cols, rows := v.Screen().Size()
+	term.Unlock()
+	if cols != 10 || rows != 3 {
+		t.Errorf("size = %dx%d, want 10x3", cols, rows)
+	}
+	closeWithin(t, term, 5*time.Second)
+	c.outW.Close()
+	c.inR.Close()
+	waitGoroutines(t, base)
+}
+
+// errConn fails Read with err.
+type errConn struct {
+	*pipeConn
+	err error
+}
+
+func (c errConn) Read([]byte) (int, error) { return 0, c.err }
+
+func TestTerminalReadError(t *testing.T) {
+	want := errors.New("boom")
+	c := errConn{newPipeConn(), want}
+	exited := make(chan error, 1)
+	term := New(Options{Conn: c, OnExit: func(err error) { exited <- err }})
+	term.Start(10, 3, func() {})
+	select {
+	case err := <-exited:
+		if err != want {
+			t.Errorf("OnExit err = %v, want %v", err, want)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("OnExit not called")
+	}
+	if ex, err := term.Exited(); !ex || err != want {
+		t.Errorf("Exited = %v, %v, want true, %v", ex, err, want)
+	}
+	closeWithin(t, term, 5*time.Second)
+	if ex, err := term.Exited(); !ex || err != want {
+		t.Errorf("Exited after Close = %v, %v, want true, %v", ex, err, want)
 	}
 }
