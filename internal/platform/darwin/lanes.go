@@ -106,10 +106,12 @@ func (s *surface) SendLanePacket([]byte) bool { return false }
 
 // LaneStats are the scheme handler's lane counters.
 type LaneStats struct {
-	DownRequests int64 // GET /__tango/lane/down requests
-	DownConns    int64 // of them, answered 200: accepted down connections
-	DownActive   int64 // accepted down connections not yet finished or stopped
-	DownWrites   int64 // data blocks handed to WebKit on accepted down connections
+	DownRequests int64 // GET /__tango/lane/poll requests (down:poll)
+	DownConns    int64 // of them, answered 200 (a batch)
+	DownActive   int64 // answered 200 and not yet finished or stopped
+	DownWrites   int64 // data blocks handed to WebKit on those answered 200
+	DownRefused  int64 // of them, answered 403 (no valid token)
+	DownOpen     int64 // of them, not yet finished or stopped (held ones included)
 	UpRequests   int64 // POST /__tango/lane/up requests
 	UpAccepted   int64 // of them, answered 2xx
 	UpActive     int64 // POST /__tango/lane/up requests not yet finished or stopped

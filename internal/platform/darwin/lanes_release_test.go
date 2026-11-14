@@ -17,7 +17,7 @@ func TestTestHooksInertRelease(t *testing.T) {
 	if serveProbe(0) {
 		t.Fatal("serveProbe answered in a production build")
 	}
-	for _, p := range []string{"/__tango/lane/up", "/__tango/lane/down", "/__tango/probe/stream"} {
+	for _, p := range []string{"/__tango/lane/up", "/__tango/lane/poll", "/__tango/probe/stream"} {
 		lt := laneTrackFor(p)
 		if lt != nil {
 			t.Fatalf("laneTrackFor(%q) = %v, want nil", p, lt)

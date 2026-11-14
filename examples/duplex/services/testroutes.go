@@ -54,10 +54,12 @@ type Stats struct {
 	// ios.LaneDownStats; zero on other platforms, and on macOS in builds
 	// without -tags tango_dev): lane requests it saw and
 	// how they were answered.
-	DownRequests int64 `json:"downRequests"` // GET /__tango/lane/down
+	DownRequests int64 `json:"downRequests"` // GET /__tango/lane/poll (macOS; /__tango/lane/down on iOS)
 	DownConns    int64 `json:"downConns"`    // of them answered 200
-	DownActive   int64 `json:"downActive"`   // accepted and still open
-	DownWrites   int64 `json:"downWrites"`   // data blocks handed to WebKit on accepted ones
+	DownActive   int64 `json:"downActive"`   // answered 200 and still open
+	DownWrites   int64 `json:"downWrites"`   // data blocks handed to WebKit on those answered 200
+	DownRefused  int64 `json:"downRefused"`  // of them answered 403 (macOS only)
+	DownOpen     int64 `json:"downOpen"`     // of them not finished yet, held ones included (macOS only)
 	UpRequests   int64 `json:"upRequests"`   // POST /__tango/lane/up
 	UpAccepted   int64 `json:"upAccepted"`   // of them answered 2xx
 	UpActive     int64 `json:"upActive"`     // started and not yet finished or stopped

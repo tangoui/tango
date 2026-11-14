@@ -18,14 +18,14 @@ func LaneDownStats() LaneStats { return laneProbe.stats() }
 var laneProbe laneCounters
 
 type laneCounters struct {
-	downReq, downConns, downActive, downWrites, upReq, upOK, upActive atomic.Int64
-	upMainNanos, upMainMax, upBodyBytes                               atomic.Int64
+	downReq, downConns, downActive, downWrites, downRefused, downOpen, upReq, upOK, upActive atomic.Int64
+	upMainNanos, upMainMax, upBodyBytes                                                      atomic.Int64
 }
 
 func (c *laneCounters) stats() LaneStats {
 	return LaneStats{
 		DownRequests: c.downReq.Load(), DownConns: c.downConns.Load(), DownActive: c.downActive.Load(),
-		DownWrites: c.downWrites.Load(), UpRequests: c.upReq.Load(), UpAccepted: c.upOK.Load(),
+		DownWrites: c.downWrites.Load(), DownRefused: c.downRefused.Load(), DownOpen: c.downOpen.Load(), UpRequests: c.upReq.Load(), UpAccepted: c.upOK.Load(),
 		UpActive: c.upActive.Load(), UpMainNanos: c.upMainNanos.Load(), UpMainMaxNanos: c.upMainMax.Load(),
 		UpBodyBytes: c.upBodyBytes.Load(),
 	}
@@ -35,9 +35,10 @@ func (c *laneCounters) stats() LaneStats {
 // request.
 func (c *laneCounters) track(path string) *laneTrack {
 	switch path {
-	case "/__tango/lane/down":
+	case "/__tango/lane/poll":
 		c.downReq.Add(1)
-		return &laneTrack{c: c, down: true}
+		c.downOpen.Add(1)
+		return &laneTrack{c: c, down: true, open: true}
 	case "/__tango/lane/up":
 		c.upReq.Add(1)
 		c.upActive.Add(1)
@@ -52,7 +53,7 @@ type laneTrack struct {
 	c        *laneCounters
 	down     bool
 	accepted bool // a down connection answered 200, until done
-	open     bool // an up request, until done
+	open     bool // until done
 }
 
 func (t *laneTrack) respond(status int) {
@@ -62,6 +63,8 @@ func (t *laneTrack) respond(status int) {
 		t.accepted = true
 		t.c.downConns.Add(1)
 		t.c.downActive.Add(1)
+	case t.down && status == 403:
+		t.c.downRefused.Add(1)
 	case !t.down && status >= 200 && status < 300:
 		t.c.upOK.Add(1)
 	}
@@ -96,7 +99,11 @@ func (t *laneTrack) done() {
 	}
 	if t != nil && t.open {
 		t.open = false
-		t.c.upActive.Add(-1)
+		if t.down {
+			t.c.downOpen.Add(-1)
+		} else {
+			t.c.upActive.Add(-1)
+		}
 	}
 }
 
