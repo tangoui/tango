@@ -3,31 +3,9 @@
 package darwin
 
 import (
-	"slices"
 	"testing"
 	"time"
 )
-
-// TestLaneCapsAllRelease: production builds ignore the experimental
-// TANGO_IPC_LANES_DARWIN=all (it behaves like the default, up:post only);
-// the off switches still work.
-func TestLaneCapsAllRelease(t *testing.T) {
-	for _, v := range []string{"all", "ALL", " All "} {
-		env := map[string]string{"TANGO_IPC_LANES_DARWIN": v}
-		if got := laneCapsFromEnv(func(k string) string { return env[k] }); !slices.Equal(got, []string{"up:post"}) {
-			t.Errorf("DARWIN=%q: caps %q, want up:post only", v, got)
-		}
-	}
-	for _, env := range []map[string]string{
-		{"TANGO_IPC_LANES_DARWIN": "0"},
-		{"TANGO_IPC_LANES_DARWIN": "off"},
-		{"TANGO_IPC_LANES_DARWIN": "all", "TANGO_IPC_LANES": "0"},
-	} {
-		if got := laneCapsFromEnv(func(k string) string { return env[k] }); got != nil {
-			t.Errorf("%v: caps %q, want none", env, got)
-		}
-	}
-}
 
 // TestTestHooksInertRelease: with TANGO_SCHEME_PROBE=1 set, a production
 // build still has no streaming probe and counts nothing.

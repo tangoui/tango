@@ -2,18 +2,13 @@
 
 package darwin
 
-// Development-build test hooks of the lanes (see lanes.go): the
-// TANGO_IPC_LANES_DARWIN=all experiment and the lane counters.
+// Development-build test hooks of the lanes (see lanes.go): the lane
+// counters, on with TANGO_SCHEME_PROBE=1.
 
 import (
 	"sync/atomic"
 	"time"
 )
-
-// devTestHooks is true in development builds: laneCapsFromEnv honours
-// TANGO_IPC_LANES_DARWIN=all and the scheme handler honours
-// TANGO_SCHEME_PROBE=1 (lane counters, the streaming probe route).
-const devTestHooks = true
 
 // LaneDownStats returns the lane counters (all zero unless
 // TANGO_SCHEME_PROBE=1, and always zero in production builds). Any

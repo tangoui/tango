@@ -2,26 +2,7 @@
 
 package darwin
 
-import (
-	"slices"
-	"testing"
-)
-
-// TestLaneCapsAllDev: development builds honour the experimental
-// TANGO_IPC_LANES_DARWIN=all (down:poll and up:post); the kill switch
-// still wins.
-func TestLaneCapsAllDev(t *testing.T) {
-	for _, v := range []string{"all", "ALL", " All "} {
-		env := map[string]string{"TANGO_IPC_LANES_DARWIN": v}
-		if got := laneCapsFromEnv(func(k string) string { return env[k] }); !slices.Equal(got, []string{"down:poll", "up:post"}) {
-			t.Errorf("DARWIN=%q: caps %q, want down:poll and up:post", v, got)
-		}
-	}
-	env := map[string]string{"TANGO_IPC_LANES_DARWIN": "all", "TANGO_IPC_LANES": "0"}
-	if got := laneCapsFromEnv(func(k string) string { return env[k] }); got != nil {
-		t.Errorf("DARWIN=all LANES=0: caps %q, want none", got)
-	}
-}
+import "testing"
 
 func TestLaneProbeCounters(t *testing.T) {
 	var c laneCounters

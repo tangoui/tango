@@ -3,15 +3,11 @@
 package darwin
 
 // Production builds leave out the lanes' test hooks (lanes_dev.go):
-// TANGO_IPC_LANES_DARWIN=all behaves like the default (up:post only) and
-// TANGO_SCHEME_PROBE is ignored, so nothing is counted. The off switches
-// (TANGO_IPC_LANES_DARWIN=0/false/off, TANGO_IPC_LANES=0) work in every
-// build.
+// TANGO_SCHEME_PROBE is ignored, so nothing is counted.
+// TANGO_IPC_LANES_DARWIN and TANGO_IPC_LANES mean the same in every build
+// (laneCapsFromEnv).
 
 import "time"
-
-// devTestHooks is false in production builds.
-const devTestHooks = false
 
 // LaneDownStats returns zeros: production builds do not count. Any
 // goroutine.
