@@ -188,7 +188,7 @@ func (b *BadgeW) paintBubble(l *paint.List, cx, cy float32) {
 	l.Fill(r.Expand(1), geom.Rad(h/2+1), ring)
 	l.Fill(r, geom.Rad(h/2), col)
 	lay := text.Shape(s, st, text.Options{NoWrap: true})
-	l.Glyphs(geom.Pt(r.X+(w-lay.Width)/2, r.Y+(h-lay.Height)/2), lay.Glyphs, tk.TextColor)
+	l.Glyphs(geom.Pt(r.X+(w-lay.Width)/2, r.Y+(h-lay.Height)/2), lay.Glyphs, th.TextOn(col, tk.TextColor))
 }
 
 // Body wraps fn's content and draws the bubble at its top-end corner.
@@ -347,7 +347,7 @@ func BadgeRibbon(c *Context, label, color, placement string, fn func()) *Box {
 			p.MoveTo(x+w, y+h).LineTo(x+w-8, y+h).LineTo(x+w-8, y+h+8).Close()
 		}
 		l.Path(p, dark)
-		l.Glyphs(geom.Pt(x+8, y+(h-lay.Height)/2), lay.Glyphs, tk.RibbonColor)
+		l.Glyphs(geom.Pt(x+8, y+(h-lay.Height)/2), lay.Glyphs, th.TextOn(col, tk.RibbonColor))
 	}
 	return box
 }

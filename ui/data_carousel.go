@@ -547,7 +547,13 @@ func (w *CarouselW) indicators(cur int, goTo func(int), seq int) {
 				default:
 					col = tk.DotColor
 				}
-				l.Fill(in, geom.Rad(min(tk.DotRadius, min(in.W, in.H)/2)), col)
+				rad := geom.Rad(min(tk.DotRadius, min(in.W, in.H)/2))
+				l.Fill(in, rad, col)
+				if !outside {
+					// The dots are light, for photos; the ring keeps them
+					// visible on light slides.
+					l.Stroke(in.Expand(1), geom.Rad(rad.TL+1), 1, tk.DotRingColor)
+				}
 			}
 		}
 		rovingTabStop(nodes, cur)

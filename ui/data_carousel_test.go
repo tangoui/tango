@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 	"testing"
 
 	"github.com/tangoui/tango/ui/a11y"
@@ -9,6 +10,8 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
+	"github.com/tangoui/tango/ui/paint"
+	"github.com/tangoui/tango/ui/theme"
 )
 
 func carouselDriver(cur *int, mod func(w *CarouselW)) (*Driver, **Box) {
@@ -165,5 +168,34 @@ func TestCarouselNoLoop(t *testing.T) {
 	d.Drag(mid, geom.Pt(mid.X-200, mid.Y))
 	if cur != 2 {
 		t.Fatalf("swipe past the last slide: cur=%d", cur)
+	}
+}
+
+// TestCarouselDotsRingedOnLightSlides: the light dots drawn on the slides
+// get a dark ring, so they stay visible on light slides (here the slides are
+// the white page); dots placed outside the frame, on the page, get none.
+func TestCarouselDotsRingedOnLightSlides(t *testing.T) {
+	for _, tc := range []struct {
+		pos   string
+		rings int
+	}{{"bottom", 3}, {"outside", 0}} {
+		cur := 0
+		d, _ := carouselDriver(&cur, func(w *CarouselW) { w.DotPosition(tc.pos) })
+		ring := d.Runner().Context().ThemeFor(theme.CompCarousel).Components.Carousel.DotRingColor
+		n := 0
+		for _, op := range d.Runner().List().Ops {
+			if s, ok := op.(paint.StrokeRect); ok && s.Color == color.NRGBA(ring) {
+				n++
+			}
+		}
+		if n != tc.rings {
+			t.Errorf("%s: %d ringed dots, want %d", tc.pos, n, tc.rings)
+		}
+		if tc.rings > 0 {
+			white := theme.Hex("#ffffff")
+			if l := theme.Luma(theme.Over(ring, white)); l > 0.8 {
+				t.Errorf("ring over white has luma %.2f: not visible", l)
+			}
+		}
 	}
 }

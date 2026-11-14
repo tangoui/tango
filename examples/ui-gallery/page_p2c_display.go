@@ -138,7 +138,11 @@ func p2cCarouselPage(c *ui.Context) {
 		th := c.Theme
 		cols := []theme.Color{th.Primary.Base, th.Success.Base, th.Warning.Base, th.Error.Base, th.Info.Base}
 		ui.Carousel(c, len(cols), func(i int) {
-			ui.Column(c, func() { ui.Title(c, fmt.Sprint(i+1), 3).Color(th.TextOnSolid) }, layout.Grow(1), layout.Center()).Bg(cols[i])
+			fg := th.TextOnSolid
+			if i == 0 {
+				fg = th.TextOnPrimary // shadcn's primary is near white in dark mode
+			}
+			ui.Column(c, func() { ui.Title(c, fmt.Sprint(i+1), 3).Color(fg) }, layout.Grow(1), layout.Center()).Bg(cols[i])
 		}).Card().Height(200).Current(&p2cDisp.card).Show()
 	})
 }
@@ -147,7 +151,7 @@ func p2cGridPage(c *ui.Context) {
 	th := c.Theme
 	cell := func(s string, col theme.Color) func() {
 		return func() {
-			ui.Column(c, func() { ui.Text(c, s).Color(th.TextOnSolid) }, layout.H(40), layout.Center()).Bg(col)
+			ui.Column(c, func() { ui.Text(c, s).Color(th.TextOnPrimary) }, layout.H(40), layout.Center()).Bg(col)
 		}
 	}
 	navDemo(c, "栅格排序 Push / Pull", "col-18 push-6 与 col-6 pull-18 交换显示位置。", func() {

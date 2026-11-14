@@ -19,7 +19,7 @@ func layoutPage(c *ui.Context) {
 	label := func(s string) func() { return func() { ui.Text(c, s) } }
 	box := func(fn func()) { ui.Column(c, fn).Border(1, th.BorderSecondary).Radius(th.Radius).Clip() }
 	navDemo(c, "主题默认样式", "Header / Sider / Content / Footer 使用当前设计语言的默认尺寸与配色。", func() {
-		white := theme.Hex("#ffffff")
+		white := th.TextOn(th.SiderBg, theme.Hex("#ffffff")) // shadcn's sider is light
 		box(func() {
 			ui.Layout(c, func() {
 				ui.Header(c, func() { ui.Text(c, "Header").Color(white) }).Bg(th.SiderBg)

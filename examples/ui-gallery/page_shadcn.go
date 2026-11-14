@@ -274,16 +274,22 @@ func sdNavItem(c *ui.Context, key, label string, ic *icon.Icon) {
 		if on {
 			b.A11yState(a11y.Current)
 		}
-		bg := th.SiderItemHoverBg
+		// The sidebar is the light one (SiderLightBg). shadcn's sider tokens
+		// describe it (SiderBg == SiderLightBg); Ant Design's and Element's
+		// describe their dark sider, so use the light surface's colors there.
+		fg, fgOn, bg := th.SiderText, th.SiderTextActive, th.SiderItemHoverBg
+		if th.SiderBg != th.SiderLightBg {
+			fg, fgOn, bg = th.TextSecondary, th.Text, th.FillSecondary
+		}
 		if !on && !ia.Hovered {
 			bg.A = 0
 		}
 		b.Bg(bg).Radius(th.Radius).Body(func() {
 			ui.Row(c, func() {
-				ui.Icon(c, ic).Size(16).Color(th.SiderText)
-				t := ui.Text(c, label).Color(th.SiderText)
+				ui.Icon(c, ic).Size(16).Color(fg)
+				t := ui.Text(c, label).Color(fg)
 				if on {
-					t.Weight(text.Medium).Color(th.SiderTextActive)
+					t.Weight(text.Medium).Color(fgOn)
 				}
 			}, layout.Gap(8), layout.Middle(), layout.Grow(1))
 		})

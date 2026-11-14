@@ -32,7 +32,7 @@ var (
 	audit  = flag.Bool("audit", false, "run the accessibility audit (every page in the antd, element and shadcn styles) instead of rendering PNGs")
 	dirs   = flag.String("dir", "ltr", "direction passes: ltr, rtl (each shot under ConfigProvider.Direction(RTL), written as <name>-rtl.png), both")
 	mirror = flag.Bool("mirror-check", false, "render every page left to right and right to left and report nodes that do not mirror (ui.Driver.MirrorCheck) instead of rendering PNGs")
-	themes = flag.String("theme", "antd", "theme passes: antd (Ant Design + per-page Element/dark variants), shadcn (every page as <Name>-shadcn and <Name>-shadcn-dark), hc (dashboard, Form, Switch and Checkbox pages of every style, default and HighContrast, under hc/), all")
+	themes = flag.String("theme", "antd", "theme passes: antd (Ant Design + per-page Element/dark variants), antd-dark (every page as <Name>-antd-dark), element (every page as <Name>-element and <Name>-element-dark), shadcn (every page as <Name>-shadcn and <Name>-shadcn-dark), hc (dashboard, Form, Switch and Checkbox pages of every style, default and HighContrast, under hc/), all")
 )
 
 // themePass is one extra rendering of every page with a whole theme.
@@ -44,6 +44,15 @@ type themePass struct {
 var shadcnPasses = []themePass{
 	{"-shadcn", func() *theme.Theme { return theme.Shadcn() }},
 	{"-shadcn-dark", func() *theme.Theme { return theme.Shadcn(theme.Dark()) }},
+}
+
+var elementPasses = []themePass{
+	{"-element", func() *theme.Theme { return theme.ElementPlus() }},
+	{"-element-dark", func() *theme.Theme { return theme.ElementPlus(theme.Dark()) }},
+}
+
+var antDarkPasses = []themePass{
+	{"-antd-dark", func() *theme.Theme { return theme.AntDesign(theme.Dark()) }},
 }
 
 func main() {
@@ -153,15 +162,24 @@ func run() error {
 		return runAnt()
 	case "shadcn":
 		return runPasses(shadcnPasses)
+	case "element":
+		return runPasses(elementPasses)
+	case "antd-dark":
+		return runPasses(antDarkPasses)
 	case "hc":
 		return runHighContrast()
 	case "all":
 		if err := runAnt(); err != nil {
 			return err
 		}
-		return runPasses(shadcnPasses)
+		for _, ps := range [][]themePass{antDarkPasses, elementPasses, shadcnPasses} {
+			if err := runPasses(ps); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
-	return fmt.Errorf("unknown -theme %q (antd, shadcn, hc, all)", *themes)
+	return fmt.Errorf("unknown -theme %q (antd, antd-dark, element, shadcn, hc, all)", *themes)
 }
 
 func want(n string) bool {

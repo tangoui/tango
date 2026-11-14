@@ -269,11 +269,7 @@ func (t *TagW) effectColors(bg, border, fg theme.Color) (theme.Color, theme.Colo
 				base = th.TextSecondary
 			}
 		}
-		txt := t.tk.SolidTextColor
-		if theme.Luma(base) > 0.75 {
-			txt = th.Text
-		}
-		return base, base, txt
+		return base, base, th.TextOn(base, t.tk.SolidTextColor)
 	case "plain", "outlined":
 		if th.Flavor == theme.Element {
 			// Element plain: light-5 border.
@@ -411,13 +407,7 @@ func Avatar(c *Context, label string) *AvatarW {
 		l.Fill(r, rad, a.bg)
 		fg := tk.Color
 		if a.bgSet {
-			fg = th.TextOnSolid // custom colored background
-			if theme.Luma(a.bg) > 0.75 {
-				fg = th.Text // light custom fill (shadcn dark primary): dark mark
-				if theme.Luma(th.Text) > 0.5 {
-					fg = th.BgContainer
-				}
-			}
+			fg = th.TextOn(a.bg, th.TextOnSolid) // custom colored background
 		}
 		if label == "" || a.ic != nil {
 			ic := icon.User
@@ -700,10 +690,7 @@ func (t *TooltipW) colors() (bg, fg, border theme.Color) {
 		}
 		bg = col
 	}
-	fg = th.TextOnSolid
-	if theme.Luma(bg) > 0.75 {
-		fg = th.Text
-	}
+	fg = th.TextOn(bg, th.TextOnSolid)
 	return bg, fg, theme.Color{}
 }
 

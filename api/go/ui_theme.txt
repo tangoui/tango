@@ -117,6 +117,7 @@ pkg github.com/tangoui/tango/ui/theme, method (*Theme) For(Comp) *Theme
 pkg github.com/tangoui/tango/ui/theme, method (*Theme) LineHeightFor(float32) float32
 pkg github.com/tangoui/tango/ui/theme, method (*Theme) Override(Components) *Theme
 pkg github.com/tangoui/tango/ui/theme, method (*Theme) Overrides() Components
+pkg github.com/tangoui/tango/ui/theme, method (*Theme) TextOn(Color, Color) Color
 pkg github.com/tangoui/tango/ui/theme, method (Comp) String() string
 pkg github.com/tangoui/tango/ui/theme, method (Components) Hash() uint64
 pkg github.com/tangoui/tango/ui/theme, method (Components) Merge(Components) Components
@@ -327,6 +328,7 @@ pkg github.com/tangoui/tango/ui/theme, type CarouselToken struct, DotHoverColor 
 pkg github.com/tangoui/tango/ui/theme, type CarouselToken struct, DotOutsideActiveColor Color `contrast:"nontext:@Page"`
 pkg github.com/tangoui/tango/ui/theme, type CarouselToken struct, DotOutsideColor Color
 pkg github.com/tangoui/tango/ui/theme, type CarouselToken struct, DotRadius float32
+pkg github.com/tangoui/tango/ui/theme, type CarouselToken struct, DotRingColor Color
 pkg github.com/tangoui/tango/ui/theme, type CarouselToken struct, DotWidth float32
 pkg github.com/tangoui/tango/ui/theme, type CarouselToken struct, Radius float32
 pkg github.com/tangoui/tango/ui/theme, type CarouselToken struct, embedded Alias

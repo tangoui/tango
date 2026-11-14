@@ -15,7 +15,7 @@ import (
 func p3Logo(c *ui.Context) {
 	th := c.Theme
 	ui.Row(c, func() {
-		ui.Text(c, "T").Size(24).Strong().Color(th.TextOnSolid)
+		ui.Text(c, "T").Size(24).Strong().Color(th.TextOnPrimary)
 	}, layout.W(44), layout.H(44), layout.Center(), layout.Middle()).Bg(th.Primary.Base).Radius(10)
 }
 

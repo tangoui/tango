@@ -7,7 +7,6 @@ import (
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/layout"
-	"github.com/tangoui/tango/ui/theme"
 )
 
 func gridCell(c *ui.Context, label string, dark bool) {
@@ -16,7 +15,7 @@ func gridCell(c *ui.Context, label string, dark bool) {
 	if !dark {
 		bg = th.Primary.Shades[4]
 	}
-	ui.Column(c, func() { ui.Text(c, label).Color(theme.Hex("#ffffff")).NoWrap() }, layout.H(40), layout.Center()).Bg(bg).Radius(th.RadiusSM)
+	ui.Column(c, func() { ui.Text(c, label).Color(th.TextOnPrimary).NoWrap() }, layout.H(40), layout.Center()).Bg(bg).Radius(th.RadiusSM)
 }
 
 func gridPage(c *ui.Context) {

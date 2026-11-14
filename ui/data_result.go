@@ -177,9 +177,10 @@ func drawResultIllustration(c *Context, l *paint.List, r geom.Rect, status strin
 		shackle.MoveTo(x0, y0).LineTo(x0, y0-10*s)
 		shackle.Arc((x0+x1)/2, y0-10*s, (x1-x0)/2, math.Pi, math.Pi)
 		shackle.LineTo(x1, y0)
-		stroke(shackle, 5, white)
+		lock := th.TextOn(pr.Shades[4], white) // on the inner shield
+		stroke(shackle, 5, lock)
 		br, brad := rect(104, 84, 44, 34, 5)
-		l.Fill(br, brad, white)
+		l.Fill(br, brad, lock)
 		l.Path(circle(126, 97, 4.5), strong)
 		kr, krad := rect(124, 99, 4, 10, 2)
 		l.Fill(kr, krad, strong)
@@ -205,7 +206,7 @@ func drawResultIllustration(c *Context, l *paint.List, r geom.Rect, status strin
 		l.Path(sign, strong)
 		lay := text.Shape("?", text.Style{Size: 26 * s, Weight: text.Bold, LineHeight: 30 * s}, text.Options{NoWrap: true})
 		sx, sy := P(178, 75)
-		l.Glyphs(geom.Pt(sx-lay.Width/2, sy-lay.Height/2), lay.Glyphs, white)
+		l.Glyphs(geom.Pt(sx-lay.Width/2, sy-lay.Height/2), lay.Glyphs, th.TextOn(strong, white))
 		big := text.Style{Size: 58 * s, Weight: text.Bold, LineHeight: 72 * s}
 		lay = text.Shape("404", big, text.Options{NoWrap: true})
 		tx, ty := P(90, 132)
@@ -235,7 +236,7 @@ func drawResultIllustration(c *Context, l *paint.List, r geom.Rect, status strin
 			l.Path(circle(106, y+11, 3), led)
 			for k := 0; k < 3; k++ {
 				g, gd := rect(122+float32(k)*10, y+7, 6, 8, 1.5)
-				l.Fill(g, gd, theme.Fade(white, 0.7))
+				l.Fill(g, gd, theme.Fade(th.TextOn(col, white), 0.7))
 			}
 		}
 		feet, fd := rect(92, 180, 68, 6, 3)

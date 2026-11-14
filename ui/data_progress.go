@@ -447,7 +447,7 @@ func (p *ProgressW) paintLine(l *paint.List, r geom.Rect) {
 		lay := text.Shape(p.label(), fs, text.Options{NoWrap: true})
 		if lay.Width+10 < fw {
 			lr := mr(geom.Rect{X: fill.Right() - lay.Width - 10, W: lay.Width})
-			l.Glyphs(geom.Pt(lr.X, y+(h-lay.Height)/2), lay.Glyphs, tk.InnerTextColor)
+			l.Glyphs(geom.Pt(lr.X, y+(h-lay.Height)/2), lay.Glyphs, p.th.TextOn(col, tk.InnerTextColor))
 		}
 	}
 	if info > 0 {
