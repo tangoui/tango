@@ -17,10 +17,10 @@ func TestTryMatchStartReportsTimeout(t *testing.T) {
 	if m != nil || !errors.Is(err, ErrTimeout) {
 		t.Fatalf("got %v, %v; want nil, ErrTimeout", m, err)
 	}
-	if d < MatchTimeout {
-		t.Fatalf("returned after %v, before MatchTimeout %v", d, MatchTimeout)
+	if d < 2*MatchTimeout {
+		t.Fatalf("returned after %v, before two full MatchTimeout allowances %v", d, 2*MatchTimeout)
 	}
-	assertBudget(t, "timed-out match", d, MatchTimeout+100*time.Millisecond)
+	assertBudget(t, "timed-out match with confirmation", d, 2*MatchTimeout+100*time.Millisecond)
 
 	// 正常匹配与不匹配都没有错误；rs 传入时结果相同。
 	for _, src := range []string{`x(?=y)`, `[a-z]+`} {

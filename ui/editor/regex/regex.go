@@ -63,7 +63,10 @@ type Regexp interface {
 
 // MatchTimeout 是回溯引擎单次匹配的时限。正常输入上的匹配远低于此值，只有病态回溯会触及；
 // monarch 在一行内遇到第一次超时就降级整行（见 monarch.LineInfo），因此单行最坏多花约这么久。
-// 只有真实耗时达到时限才报告超时（regexp2 的后台时钟滞后时会重试，见 TryMatchStart 实现）。
+// 每次引擎匹配保留完整 MatchTimeout；第一次超时后从头确认一次，两次都超时才报告 ErrTimeout。
+// 因而一次调度/GC 停顿不会被误报为病态回溯。确认会使真实病态匹配花约 2*MatchTimeout，
+// 另加后台时钟检查粒度；这不是严格的墙钟上限（调度暂停仍会延长总耗时）。
+// 后台时钟滞后导致的提前超时不计入确认次数（见 TryMatchStart）。
 // -race 构建中时限放大 10 倍（race.go）。
 const MatchTimeout = 100 * time.Millisecond
 
@@ -172,14 +175,21 @@ func (r *backtrackRegexp) MatchStartRunes(s string, rs []rune) []int {
 }
 
 func (r *backtrackRegexp) TryMatchStart(s string, rs []rune) ([]int, error) {
+	return r.tryMatchStart(s, rs, r.re.FindRunesMatch, time.Now)
+}
+
+// Dependencies are call-local: deterministic pause tests never mutate a shared
+// Regexp, the regexp2 process clock, or a global hook used by other goroutines.
+func (r *backtrackRegexp) tryMatchStart(s string, rs []rune, find func([]rune) (*regexp2.Match, error), now func() time.Time) ([]int, error) {
 	if rs == nil {
 		rs = []rune(s)
 	}
-	start := time.Now()
+	start := now()
+	confirmed := false
 	var m *regexp2.Match
 	for {
 		var err error
-		m, err = r.re.FindRunesMatch(rs)
+		m, err = find(rs)
 		if err == nil {
 			break
 		}
@@ -187,12 +197,16 @@ func (r *backtrackRegexp) TryMatchStart(s string, rs []rune) ([]int, error) {
 		if !strings.Contains(err.Error(), "timeout") {
 			return nil, fmt.Errorf("regex: match %q: %w", r.src, err)
 		}
-		// regexp2 的截止时间取自后台时钟（见 init）；时钟 goroutine 在高负载下（如 -race、
-		// 并行测试）会滞后，截止时间因而可能早于真实的 MatchTimeout，甚至一开始就已过期。
-		// 只有真实耗时达到 MatchTimeout 才算超时，否则用新的截止时间重试。
-		if time.Since(start) >= matchTimeout {
-			nTimeouts.Add(1)
-			return nil, ErrTimeout
+		// A stale regexp2 clock can produce an early timeout. Give each phase
+		// its own elapsed-time allowance, then confirm on a fresh deadline.
+		// A scheduler pause in the first phase does not consume the second.
+		if now().Sub(start) >= matchTimeout {
+			if confirmed {
+				nTimeouts.Add(1)
+				return nil, ErrTimeout
+			}
+			confirmed = true
+			start = now()
 		}
 	}
 	if m == nil {

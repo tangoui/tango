@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/tangoui/tango/ui/editor/regex"
 )
 
 func addLexer(t *testing.T, id, g string) *Lexer {
@@ -37,7 +39,8 @@ func TestPathologicalLineDegrades(t *testing.T) {
 	start := time.Now()
 	toks, st, info := lx.TokenizeLineInfo(line, st1, nil)
 	d := time.Since(start)
-	assertBudget(t, "pathological line", d, 200*time.Millisecond)
+	// Full 100ms engine allowance plus one confirmation, with clock slop.
+	assertBudget(t, "pathological line", d, 2*regex.MatchTimeout+100*time.Millisecond)
 	if !info.Degraded {
 		t.Fatal("Degraded = false, want true")
 	}

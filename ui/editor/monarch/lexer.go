@@ -21,8 +21,10 @@ const MaxLineLength = 20000
 
 // LineBudget 是一行分词的时间预算。超过预算（或一行内第一次回溯正则超时，见 regex.MatchTimeout）
 // 时该行降级：已产出的 token 保留，其余部分作为一个 "" token，行尾状态等于输入状态（同长行规则），
-// LineInfo.Degraded=true。预算按本行分词的墙钟时间计（分词时间几乎全是正则匹配），
-// 每 budgetCheckEvery 次匹配迭代或每次回溯引擎匹配后检查一次。第一次进入嵌入语言时编译其语法的耗时不计入。
+// LineInfo.Degraded=true。一般匹配的墙钟超预算还须累计至少 minLineWork 的工作量，避免
+// 调度/GC 停顿使普通短行降级；回溯匹配另累计经慢匹配重试确认的耗时估计，不受字节门槛
+// 豁免。maxLineWork 是不依赖时钟的硬上限。每 budgetCheckEvery 次匹配迭代或每次回溯
+// 引擎匹配后检查。第一次进入嵌入语言时编译其语法的耗时不计入。
 // -race 构建中预算放大 10 倍（race.go）。
 const LineBudget = 50 * time.Millisecond
 
@@ -100,6 +102,11 @@ func (l *Lexer) TokenizeLine(line string, st State, dst []Token) ([]Token, State
 // LineBudget）使该行降级：降级点之前的 token 保留，其后是一个 "" token，返回输入状态 st，
 // Degraded=true。见 LineInfo。
 func (l *Lexer) TokenizeLineInfo(line string, st State, dst []Token) ([]Token, State, LineInfo) {
+	return l.tokenizeLineInfo(line, st, dst, time.Now)
+}
+
+// now is local to this call, so tests can simulate pauses without a global clock race.
+func (l *Lexer) tokenizeLineInfo(line string, st State, dst []Token, now func() time.Time) ([]Token, State, LineInfo) {
 	ls, ok := l.lookupState(st)
 	if !ok {
 		st, ls = l.initial, l.mustState(l.initial)
@@ -109,7 +116,7 @@ func (l *Lexer) TokenizeLineInfo(line string, st State, dst []Token) ([]Token, S
 	if len(line) > MaxLineLength { // UTF-16 长度不超过字节长度
 		cut, cutCol = cutUTF16(line, MaxLineLength)
 	}
-	c := collector{toks: dst, budget: lineBudget{start: time.Now()}}
+	c := collector{toks: dst, budget: lineBudget{start: now(), now: now}}
 	text, hasEOL := line, true
 	if cut >= 0 {
 		text, hasEOL = line[:cut], false
@@ -144,29 +151,83 @@ func (l *Lexer) TokenizeLineInfo(line string, st State, dst []Token) ([]Token, S
 	return dst, l.internState(end), LineInfo{}
 }
 
-// lineBudget 记录一行分词的开始时间，用于 LineBudget 检查。
+// Work is a conservative upper estimate: each match charges the remaining input
+// bytes plus one attempt. A short ordinary line cannot exhaust this allowance,
+// regardless of scheduler pauses. The hard cap also bounds work with a frozen
+// clock; it exceeds a full 20k line matched one byte at a time by simple rules.
+const minLineWork = 1 << 20
+const maxLineWork = 1 << 34
+
+// lineBudget combines a wall-clock soft budget with deterministic work limits.
 type lineBudget struct {
-	start time.Time
-	n     int
+	start          time.Time
+	now            func() time.Time
+	n              int
+	work           int64
+	backtrackSpent time.Duration
+	exhausted      bool // latched for the whole line, including guards/embedded searches
+}
+
+func (b *lineBudget) stop(off int) error {
+	b.exhausted = true
+	return &errDegraded{off: off}
 }
 
 // check 每 budgetCheckEvery 次（force 时每次）检查本行是否超过 LineBudget；超过返回 errDegraded。
 func (b *lineBudget) check(off int, force bool) error {
+	if b.exhausted {
+		return b.stop(off)
+	}
 	b.n++
 	if !force && b.n%budgetCheckEvery != 0 {
 		return nil
 	}
-	if time.Since(b.start) > lineBudgetDur {
-		return &errDegraded{off: off}
+	elapsed := b.now().Sub(b.start)
+	if b.work >= maxLineWork || b.work >= minLineWork && elapsed > lineBudgetDur {
+		return b.stop(off)
 	}
 	return nil
 }
 
 // match 执行一次锚定匹配；回溯超时转为 errDegraded（off 为本次匹配在行内的字节起点）。
 func (b *lineBudget) match(re regex.Regexp, s string, rs []rune, off int) ([]int, error) {
+	// All exhaustion paths latch: a guard reporting false after a timeout
+	// must never grant subsequent guards another engine timeout allowance.
+	if b.exhausted || b.backtrackSpent > lineBudgetDur {
+		return nil, b.stop(off)
+	}
+	b.work += int64(len(s)) + 1
+	if b.work >= maxLineWork {
+		return nil, b.stop(off)
+	}
+	backtrack := re.Engine() == regex.Backtrack
+	var start time.Time
+	if backtrack {
+		start = b.now()
+	}
 	m, err := re.TryMatchStart(s, rs)
 	if err != nil {
-		return nil, &errDegraded{off: off}
+		return nil, b.stop(off)
+	}
+	if backtrack {
+		elapsed := b.now().Sub(start)
+		// Successful backtracking can be expensive in aggregate even on a
+		// short input. Confirm slow matches, or the match crossing the line
+		// allowance, once. Charge the smaller duration so one long pause is
+		// not mistaken for work. These are elapsed-time estimates, NOT CPU
+		// measurements; separate long pauses in both attempts remain possible.
+		if elapsed >= 250*time.Microsecond*raceFactor || b.backtrackSpent+elapsed > lineBudgetDur {
+			start = b.now()
+			m, err = re.TryMatchStart(s, rs)
+			if err != nil {
+				return nil, b.stop(off)
+			}
+			elapsed = min(elapsed, b.now().Sub(start))
+		}
+		b.backtrackSpent += elapsed
+		if b.backtrackSpent > lineBudgetDur {
+			return nil, b.stop(off)
+		}
 	}
 	return m, nil
 }
@@ -247,6 +308,9 @@ func (c *collector) emit(off int, typ string) {
 
 // nested 用嵌入语言分词一段文本，返回嵌入语言的新状态。
 func (c *collector) nested(line string, hasEOL bool, e embedded, off int) (State, error) {
+	if c.budget.exhausted {
+		return 0, c.budget.stop(off)
+	}
 	if e.lexer == nil {
 		c.lang = "\x00" + e.lang
 		c.emit(off, "")
@@ -301,6 +365,9 @@ func (l *Lexer) safeTokenize(line string, hasEOL bool, ls lineState, c *collecto
 
 // tokenizeLS 对应 MonarchTokenizer._tokenize。
 func (l *Lexer) tokenizeLS(line string, hasEOL bool, ls lineState, off int, c *collector) (lineState, error) {
+	if c.budget.exhausted {
+		return ls, c.budget.stop(off)
+	}
 	if ls.emb.active {
 		return l.nestedTokenize(line, hasEOL, ls, off, c)
 	}
@@ -501,11 +568,11 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 
 		ctx.matched, ctx.matches, ctx.state, ctx.eos = matched, matches, state, pos == lineLen
 		ctx.timedOut = false
-		for act.kind == actCases {
+		for act.kind == actCases && !ctx.stopped() {
 			act = act.test(ctx, g.defAction)
 		}
-		if ctx.timedOut { // cases 里 ~regex 守卫的回溯匹配超时
-			return ls, &errDegraded{off: off + pos0}
+		if ctx.stopped() { // guards and nested cases must stop at the first failure
+			return ls, c.budget.stop(off + pos0)
 		}
 
 		var result string
@@ -570,9 +637,9 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 
 		enterEmbedded := func() (lineState, error) {
 			// 第一次进入某个嵌入语言时会在这里编译它的语法：编译耗时不计入本行的匹配预算
-			t0 := time.Now()
+			t0 := c.budget.now()
 			e := l.reg.embeddedFor(entering)
-			c.budget.start = c.budget.start.Add(time.Since(t0))
+			c.budget.start = c.budget.start.Add(c.budget.now().Sub(t0))
 			if pos < lineLen {
 				rest := ""
 				if pos < lineNoLFLen {
@@ -674,8 +741,20 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 
 // test 依次尝试 cases 分支，返回第一个命中的值；都不命中返回 def（defaultToken）。
 func (a *action) test(c *matchCtx, def *action) *action {
+	if c.stopped() {
+		return def
+	}
 	for _, arm := range a.cases {
-		if arm.test == nil || arm.test(c) {
+		if c.stopped() {
+			return def
+		}
+		matched := arm.test == nil || arm.test(c)
+		// A negated timeout can look like a successful guard. Check before
+		// selecting its value, including a value containing nested cases.
+		if c.stopped() {
+			return def
+		}
+		if matched {
 			return arm.value
 		}
 	}

@@ -127,8 +127,8 @@ func TestBacktrackTimeout(t *testing.T) {
 	if got != nil {
 		t.Errorf("got %v, want nil", got)
 	}
-	// MatchTimeout 加上 regexp2 时钟的检查粒度（5ms）与余量
-	assertBudget(t, "timed-out MatchStart", elapsed, MatchTimeout+100*time.Millisecond)
+	// Two full MatchTimeout allowances plus regexp2 clock granularity/slop.
+	assertBudget(t, "timed-out MatchStart with confirmation", elapsed, 2*MatchTimeout+100*time.Millisecond)
 	if _, _, after := Stats(); after <= before {
 		t.Errorf("timeouts %d → %d, want increase", before, after)
 	}

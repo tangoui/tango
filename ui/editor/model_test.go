@@ -247,7 +247,18 @@ func fullTokens(lx *monarch.Lexer, s buffer.Snapshot) [][]monarch.Token {
 	out := make([][]monarch.Token, s.LineCount())
 	state := lx.Initial()
 	for i := range out {
-		out[i], state = lx.TokenizeLine(s.Line(i), state, nil)
+		// A reference must never silently use a truncated, degraded result.
+		// Retry from the SAME input state; a degraded end state is not trusted.
+		for attempt := 0; ; attempt++ {
+			toks, end, info := lx.TokenizeLineInfo(s.Line(i), state, nil)
+			if !info.Degraded {
+				out[i], state = toks, end
+				break
+			}
+			if attempt == 3 {
+				panic("fullTokens: reference repeatedly degraded")
+			}
+		}
 	}
 	return out
 }
@@ -259,8 +270,15 @@ func checkHighlight(t *testing.T, st *State, ctx string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !h.Highlight(s, s.LineCount(), time.Hour) {
-		t.Fatalf("%s: not ready", ctx)
+	ready := false
+	for attempt := 0; attempt <= h.MaxRetries+1; attempt++ {
+		if h.Highlight(s, s.LineCount(), time.Hour) {
+			ready = true
+			break
+		}
+	}
+	if !ready {
+		t.Fatalf("%s: not ready after synchronous retries", ctx)
 	}
 	want := fullTokens(lx, s)
 	for i := range want {
@@ -280,6 +298,9 @@ func TestUndoRedoHighlightIncremental(t *testing.T) {
 		b.WriteString("const x" + strings.Repeat("y", i%7) + " = `a` + 1; // c\n")
 	}
 	st := NewState(b.String(), "big.ts", nil)
+	// Drive retries synchronously, without depending on wall-clock delays or
+	// background scheduling. Set tuning fields before the first highlight.
+	st.Highlighter().RetryDelay = 0
 	checkHighlight(t, st, "initial")
 	s := st.Model.Buffer().Snapshot()
 	st.Model.Buffer().PushUndoStop()

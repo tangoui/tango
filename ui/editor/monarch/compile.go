@@ -82,7 +82,11 @@ type matchCtx struct {
 	state    string
 	eos      bool
 	budget   *lineBudget
-	timedOut bool // 守卫正则的回溯匹配超时（调用方据此降级该行）
+	timedOut bool // guard failure latched until the current token is abandoned
+}
+
+func (c *matchCtx) stopped() bool {
+	return c != nil && (c.timedOut || c.budget != nil && c.budget.exhausted)
 }
 
 type compileError struct{ msg string }
@@ -419,6 +423,10 @@ func (m *matcher) resolve(state string) *compiledRe {
 // searchIndex 对应 JS 的 line.search(re)：第一个匹配的起点（字节），无匹配 -1。
 // 逐位置回退匹配时受行预算约束：超时或超预算返回 errDegraded（off 为 line 在整行中的起点）。
 func (c *compiledRe) searchIndex(line string, off int, b *lineBudget) (int, error) {
+	// The optimized RE2 search bypasses match; honor the same line latch.
+	if b.exhausted {
+		return 0, b.stop(off)
+	}
 	if c.re == nil {
 		return -1, nil
 	}
@@ -797,10 +805,21 @@ func newTestRe(src, flags string) (*testRe, error) {
 
 // test 执行 re.test(s)；回溯超时记入 c.timedOut（c 可为 nil）并按不匹配返回。
 func (t *testRe) test(s string, c *matchCtx) bool {
+	if c.stopped() {
+		return false
+	}
 	if t.re == nil {
 		return false
 	}
-	m, err := t.re.TryMatchStart(s, nil)
+	var m []int
+	var err error
+	if c != nil && c.budget != nil {
+		// Include successful, cumulatively expensive guard matches too. The
+		// caller supplies the actual token offset when c.timedOut is observed.
+		m, err = c.budget.match(t.re, s, nil, 0)
+	} else {
+		m, err = t.re.TryMatchStart(s, nil)
+	}
 	if err != nil && c != nil {
 		c.timedOut = true
 	}
