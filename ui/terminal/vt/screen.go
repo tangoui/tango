@@ -110,6 +110,7 @@ func (s *Screen) ScrollUp(top, bottom int) {
 		}
 	} else {
 		s.head++ // evict the oldest line; its slot becomes the new last row
+		s.styles.evicted++
 		if s.head == len(s.ring) {
 			s.head = 0
 		}
@@ -151,11 +152,22 @@ const maxStyles = 0xFFFF
 // indexes for cells to refer to. Index 0 is always the default style.
 // When the table is full, interning a new style first drops the entries
 // no cell of the owning screen uses, renumbering the cells that remain.
+//
+// Compacting scans every cell of the screen, so it is rate-limited: after
+// a compaction that freed less than an eighth of the table, the next one
+// waits until an eighth of the table's worth of styles have been refused
+// (interned as 0) or an eighth of the stored lines have been evicted from
+// the scrollback. Until then a new style on a full table is the default.
 type StyleTable struct {
 	styles []Style
 	index  map[Style]uint16
 	limit  int     // capacity; maxStyles except in tests
 	screen *Screen // whose cells to scan when compacting
+
+	backoff  bool // the last compaction freed too little to retry at once
+	refused  int  // Intern calls answered 0 since the last compaction
+	evicted  int  // scrollback lines evicted since the last compaction
+	compacts int  // compactions run; read by tests
 }
 
 func (t *StyleTable) init(s *Screen) {
@@ -186,8 +198,11 @@ func (t *StyleTable) Intern(st Style) uint16 {
 		return i
 	}
 	if len(t.styles) >= t.limit {
-		t.Compact()
+		if t.mayCompact() {
+			t.Compact()
+		}
 		if len(t.styles) >= t.limit {
+			t.refused++
 			return 0
 		}
 	}
@@ -197,9 +212,25 @@ func (t *StyleTable) Intern(st Style) uint16 {
 	return i
 }
 
+// mayCompact reports whether a full table should try compacting now.
+func (t *StyleTable) mayCompact() bool {
+	if !t.backoff {
+		return true
+	}
+	step := max(t.limit/8, 1)
+	lines := max((t.screen.sbLen+t.screen.rows)/8, 1)
+	return t.refused >= step || t.evicted >= lines
+}
+
 // Compact removes the styles no cell of the screen uses and renumbers the
 // remaining ones, updating the cells. The default style stays at index 0.
 func (t *StyleTable) Compact() {
+	t.compacts++
+	before := len(t.styles)
+	defer func() {
+		t.backoff = before-len(t.styles) < max(t.limit/8, 1)
+		t.refused, t.evicted = 0, 0
+	}()
 	used := make([]bool, len(t.styles))
 	used[0] = true
 	s := t.screen

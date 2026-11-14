@@ -10,6 +10,7 @@ pkg github.com/tangoui/tango/ui/terminal/vt, const ColorDefault Color = 0
 pkg github.com/tangoui/tango/ui/terminal/vt, const ColorIndexed untyped int = 1
 pkg github.com/tangoui/tango/ui/terminal/vt, const ColorKindDefault untyped int = 0
 pkg github.com/tangoui/tango/ui/terminal/vt, const ColorRGB untyped int = 2
+pkg github.com/tangoui/tango/ui/terminal/vt, func FillBlank([]Cell)
 pkg github.com/tangoui/tango/ui/terminal/vt, func IndexedColor(uint8) Color
 pkg github.com/tangoui/tango/ui/terminal/vt, func NewParser(Handler) *Parser
 pkg github.com/tangoui/tango/ui/terminal/vt, func NewScreen(int, int, int) *Screen
@@ -64,3 +65,4 @@ pkg github.com/tangoui/tango/ui/terminal/vt, type Style struct, Bg Color
 pkg github.com/tangoui/tango/ui/terminal/vt, type Style struct, Fg Color
 pkg github.com/tangoui/tango/ui/terminal/vt, type StyleTable struct
 pkg github.com/tangoui/tango/ui/terminal/vt, type StyleTable struct, noncomparable
+pkg github.com/tangoui/tango/ui/terminal/vt, var BlankCell Cell

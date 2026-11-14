@@ -5,10 +5,15 @@
 //
 //	go run ./internal/widthgen -data DIR [-o width_table.go]
 //
-// DIR must hold EastAsianWidth.txt, emoji-data.txt and
-// DerivedGeneralCategory.txt of one Unicode version (currently 15.1.0,
-// from https://www.unicode.org/Public/15.1.0/ucd/). The data files are
-// not kept in the repository.
+// DIR must hold these three files directly (flat, no subdirectories),
+// downloaded from:
+//
+//	https://www.unicode.org/Public/15.1.0/ucd/EastAsianWidth.txt
+//	https://www.unicode.org/Public/15.1.0/ucd/emoji/emoji-data.txt
+//	https://www.unicode.org/Public/15.1.0/ucd/extracted/DerivedGeneralCategory.txt
+//
+// Each file's header must name Unicode (or Emoji) version 15.1. The data
+// files are not kept in the repository.
 //
 // The width rules follow xterm.js's unicode11 addon:
 //
@@ -34,7 +39,10 @@ import (
 	"strings"
 )
 
-const unicodeVersion = "15.1.0"
+const (
+	unicodeVersion = "15.1.0"
+	emojiVersion   = "15.1" // as named in emoji-data.txt's header
+)
 
 // extraZero lists code points xterm.js treats as zero width in addition
 // to Mn/Me/Cf.
@@ -67,7 +75,7 @@ func main() {
 	zero := map[rune]bool{}
 	wide := map[rune]bool{}
 
-	mustParse(filepath.Join(*data, "DerivedGeneralCategory.txt"), unicodeVersion, func(lo, hi rune, prop string) {
+	mustParse(filepath.Join(*data, "DerivedGeneralCategory.txt"), "-"+unicodeVersion+".txt", func(lo, hi rune, prop string) {
 		if prop == "Mn" || prop == "Me" || prop == "Cf" {
 			mark(zero, lo, hi)
 		}
@@ -75,7 +83,7 @@ func main() {
 	for _, r := range extraZero {
 		mark(zero, r[0], r[1])
 	}
-	mustParse(filepath.Join(*data, "EastAsianWidth.txt"), unicodeVersion, func(lo, hi rune, prop string) {
+	mustParse(filepath.Join(*data, "EastAsianWidth.txt"), "-"+unicodeVersion+".txt", func(lo, hi rune, prop string) {
 		if prop == "W" || prop == "F" {
 			mark(wide, lo, hi)
 		}
@@ -83,9 +91,7 @@ func main() {
 	for _, r := range extraWide {
 		mark(wide, r[0], r[1])
 	}
-	// emoji-data.txt carries the emoji version, not the UCD version, in
-	// its header, so it is not version-checked.
-	mustParse(filepath.Join(*data, "emoji-data.txt"), "", func(lo, hi rune, prop string) {
+	mustParse(filepath.Join(*data, "emoji-data.txt"), "Emoji Version "+emojiVersion, func(lo, hi rune, prop string) {
 		if prop == "Emoji_Presentation" {
 			mark(wide, lo, hi)
 		}
@@ -149,22 +155,25 @@ func writeTable(buf *bytes.Buffer, name, doc string, rs [][2]rune) {
 	buf.WriteString("\n}\n\n")
 }
 
-// mustParse calls fn for every "range ; property" line of a UCD file. If
-// version is not empty the file's first line must name it.
-func mustParse(path, version string, fn func(lo, hi rune, prop string)) {
+// mustParse calls fn for every "range ; property" line of a UCD file. The
+// header (the comment lines before the first data line) must contain
+// marker: "-15.1.0.txt" in the UCD files' first line, "Emoji Version 15.1"
+// in emoji-data.txt.
+func mustParse(path, marker string, fn func(lo, hi rune, prop string)) {
 	f, err := os.Open(path)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer f.Close()
 	sc := bufio.NewScanner(f)
-	first := true
+	header := true
 	for n := 1; sc.Scan(); n++ {
 		line := sc.Text()
-		if first {
-			first = false
-			if version != "" && !strings.Contains(line, "-"+version+".txt") {
-				log.Fatalf("%s: want Unicode %s, header is %q", path, version, line)
+		if header {
+			if strings.Contains(line, marker) {
+				header = false
+			} else if !strings.HasPrefix(line, "#") && strings.TrimSpace(line) != "" {
+				log.Fatalf("%s: header does not contain %q; want version %s data", path, marker, unicodeVersion)
 			}
 		}
 		if i := strings.IndexByte(line, '#'); i >= 0 {
@@ -185,6 +194,9 @@ func mustParse(path, version string, fn func(lo, hi rune, prop string)) {
 	}
 	if err := sc.Err(); err != nil {
 		log.Fatal(err)
+	}
+	if header {
+		log.Fatalf("%s: header does not contain %q; want version %s data", path, marker, unicodeVersion)
 	}
 }
 

@@ -58,18 +58,22 @@ type Style struct {
 
 // Cell is one character cell.
 //
+// The zero Cell is NOT a blank: Cell{} (Width 0) is the right half of a
+// wide character. A blank cell is [BlankCell], Cell{Width: 1}; pad and
+// erase with it (or with Cell{Style: s, Width: 1} for a styled blank).
+//
 // A wide character takes two cells: the left one holds the character with
-// Width 2, the right one has Rune 0 and Width 0. A blank cell has Rune 0
-// and Width 1. For a grapheme with combining marks, Rune is the base
-// character.
+// Width 2, the right one has Rune 0 and Width 0. For a grapheme with
+// combining marks, Rune is the base character.
 type Cell struct {
 	Rune  rune   // 0 is a blank (drawn as a space)
 	Style uint16 // index into the screen's StyleTable
 	Width uint8  // 1 or 2; 0 for the right half of a wide character
 }
 
-// blankCell is an empty cell in the default style.
-var blankCell = Cell{Width: 1}
+// BlankCell is an empty cell in the default style. Note that the zero
+// Cell is not blank; see [Cell].
+var BlankCell = Cell{Width: 1}
 
 // Line is one row of cells.
 type Line struct {
@@ -86,18 +90,18 @@ func (l *Line) clear(cols int) {
 	} else {
 		l.Cells = make([]Cell, cols)
 	}
-	fillBlank(l.Cells)
+	FillBlank(l.Cells)
 	l.Wrapped = false
 	l.Dirty = true
 }
 
-// fillBlank sets every cell of cells to blankCell, doubling the copied run
-// each step.
-func fillBlank(cells []Cell) {
+// FillBlank sets every cell of cells to [BlankCell].
+func FillBlank(cells []Cell) {
+	// Copy a doubling run instead of storing cell by cell.
 	if len(cells) == 0 {
 		return
 	}
-	cells[0] = blankCell
+	cells[0] = BlankCell
 	for n := 1; n < len(cells); n *= 2 {
 		copy(cells[n:], cells[:n])
 	}

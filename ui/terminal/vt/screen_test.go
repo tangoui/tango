@@ -466,3 +466,92 @@ func BenchmarkScrollUp(b *testing.B) {
 	}
 	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*lines), "ns/line")
 }
+
+// fillLiveStyles fills tab to its limit with styles that cells of s use.
+func fillLiveStyles(t *testing.T, s *Screen, tab *StyleTable) {
+	t.Helper()
+	cols, rows := s.Size()
+	for i := 0; tab.Len() < tab.limit; i++ {
+		idx := tab.Intern(Style{Fg: RGBColor(1, uint8(i>>8), uint8(i))})
+		s.Line(i / cols % rows).Cells[i%cols].Style = idx
+	}
+}
+
+func TestStyleTableFullCompactsRarely(t *testing.T) {
+	s := NewScreen(64, 2, 4)
+	tab := s.Styles()
+	tab.limit = 64
+	fillLiveStyles(t, s, tab)
+	const n = 1000
+	for i := range n {
+		if got := tab.Intern(Style{Fg: RGBColor(2, uint8(i>>8), uint8(i))}); got != 0 {
+			t.Fatalf("Intern on a full live table = %d, want 0", got)
+		}
+	}
+	// One compaction finds nothing to free; after that one retry per
+	// limit/8 refused styles.
+	if max := 1 + n/(64/8); tab.compacts > max {
+		t.Fatalf("Compact ran %d times for %d refused styles, want <= %d", tab.compacts, n, max)
+	}
+	if tab.compacts < 2 {
+		t.Fatalf("Compact ran %d times, want periodic retries", tab.compacts)
+	}
+}
+
+func TestStyleTableRetriesAfterEviction(t *testing.T) {
+	s := NewScreen(64, 1, 2)
+	tab := s.Styles()
+	tab.limit = 64
+	fillLiveStyles(t, s, tab) // all styles live on row 0
+	if tab.Intern(Style{Attr: AttrBold}) != 0 {
+		t.Fatal("full live table accepted a new style")
+	}
+	c := tab.compacts
+	if tab.Intern(Style{Attr: AttrItalic}) != 0 || tab.compacts != c {
+		t.Fatal("compacted again without new evictions or enough refusals")
+	}
+	// Push the styled row through the scrollback until it is evicted.
+	for range 3 {
+		s.ScrollUp(0, 0)
+	}
+	if got := tab.Intern(Style{Attr: AttrItalic}); got == 0 {
+		t.Fatal("no compaction after the styled lines were evicted")
+	}
+	if tab.compacts != c+1 {
+		t.Fatalf("compacts = %d, want %d", tab.compacts, c+1)
+	}
+}
+
+func TestZeroCellIsNotBlank(t *testing.T) {
+	if (Cell{}).Width != 0 || BlankCell != (Cell{Width: 1}) {
+		t.Fatal("Cell{} must be a wide right half and BlankCell {Width:1}")
+	}
+	cells := make([]Cell, 37)
+	FillBlank(cells)
+	for i, c := range cells {
+		if c != BlankCell {
+			t.Fatalf("cell %d = %+v after FillBlank", i, c)
+		}
+	}
+	FillBlank(nil)
+}
+
+func BenchmarkInternFullLiveTable(b *testing.B) {
+	s := NewScreen(200, 50, 10_000)
+	tab := s.Styles()
+	// Fill the scrollback and the table with live styles.
+	for i := 0; tab.Len() < tab.limit; i++ {
+		_, rows := s.Size()
+		idx := tab.Intern(Style{Fg: RGBColor(1, uint8(i>>8), uint8(i))})
+		x := i % 200
+		s.Line(rows - 1).Cells[x].Style = idx
+		if x == 199 {
+			s.ScrollUp(0, rows-1)
+		}
+	}
+	i := 0
+	for b.Loop() {
+		tab.Intern(Style{Fg: RGBColor(3, uint8(i>>8), uint8(i)), Attr: Attr(i >> 16)})
+		i++
+	}
+}
