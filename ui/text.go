@@ -483,7 +483,7 @@ func (lw *LinkW) Icon(ic *icon.Icon) *LinkW { lw.ic = ic; return lw }
 func (lw *LinkW) colors(th *theme.Theme, tk *theme.TypographyToken) (base, hover, active theme.Color) {
 	switch lw.status {
 	case "":
-		return tk.LinkColor, tk.LinkHoverColor, tk.LinkActiveColor
+		return tk.LinkTextColor, tk.LinkTextHoverColor, tk.LinkTextActiveColor
 	case "secondary", "default": // Element type="default": regular text, link color on hover
 		return th.TextSecondary, tk.LinkHoverColor, tk.LinkActiveColor
 	}

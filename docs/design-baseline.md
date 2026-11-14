@@ -32,3 +32,11 @@
 - Ant Design Pro：https://pro.ant.design/zh-CN
 - Pro Components：https://procomponents.ant.design
 - Ant Design Pro 源码（页面模板、布局配置）：https://github.com/ant-design/ant-design-pro
+
+## 4. 已记录的偏离
+
+按规则 5，必须和基线不一样的地方在这里汇总（代码注释和对照记录里也写了）。
+
+| 组件 | 基线 | Tango | 原因 | 记录 |
+|---|---|---|---|---|
+| Layout.Sider 收起宽度（Ant 主题） | antd 6.7 `collapsedWidth` 默认 80（`es/layout/Sider.js`） | 64（`ui/theme/comp_layout.go` `SiderCollapsedWidth`） | ProLayout 收起时用同一个 Sider，Ant Design Pro v6 收起宽度是 64；主线程 2026-11-14 临时决定，用户可改 | [1-basic.md](specs/align/1-basic.md) Layout |

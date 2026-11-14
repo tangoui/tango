@@ -16,6 +16,11 @@ type LayoutToken struct {
 	SiderBg             Color // dark sider
 	LightSiderBg        Color
 	SiderWidth          float32
+	// SiderCollapsedWidth is the collapsed Sider width. Difference from
+	// antd 6.7: Layout.Sider collapsedWidth defaults to 80
+	// (antd/es/layout/Sider.js); Tango's Ant theme keeps 64 because
+	// ProLayout collapses the same Sider to 64 (Pro v6). Recorded in
+	// docs/design-baseline.md.
 	SiderCollapsedWidth float32
 	TriggerBg           Color
 	TriggerColor        Color `contrast:"text:TriggerBg"`
