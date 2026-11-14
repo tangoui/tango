@@ -50,9 +50,29 @@
 - `internal/cmd/shadcngen`：从 shadcn/ui 的 `apps/v4/registry/themes.ts` 和 Tailwind CSS v4 的 `theme.css` 生成 `ui/theme/shadcn_data.go`。
 - **默认更新界面** `service/updater/updateui`（实验性）：`updateui.Start(app, u, …)` 一行接上现成的更新窗口：后台定时检查、更新说明、下载进度（补丁优先）、立即重启或下次启动时安装、跳过此版本；`CheckNow` 给"检查更新…"菜单用。WebView 与自绘应用都能用，跟随主题与语言。见 [docs/updates.md](docs/updates.md#默认更新界面updateui)，示例 `examples/update-demo`。
 - `tango.SurfaceOptions.Auxiliary`：辅助窗口（更新窗口、工具面板等）不算作"最后一个窗口"，`QuitOnLastClose` 下最后一个普通窗口关闭时应用照常退出，辅助窗口随之关闭，关掉辅助窗口本身不会让应用退出；零值保持原行为。见 [生命周期](site/guide/concepts/lifecycle.md)。
+- **组件规范对齐 第 1 批：基础和表单输入**（均为实验性 API；逐组件对照记录见 [docs/specs/align/](docs/specs/align/) 的 `1-basic.md`、`1-input.md`、`1-select.md`、`1-datetime.md`）：
+  - 基础与布局：Button `IconPlacement`（antd v6 iconPlacement，Defaults `iconPlacement`）、`LoadingIcon`、`LoadingDelay`；Link `UnderlineMode`（Defaults `underline`）、`Icon`、`Type`；Divider `Vertical`、`TitlePlacement`、`Variant`、`Size`（Defaults `titlePlacement`、`variant`、`size`、`vertical`、`orientation`）；Space `Orientation`、`Separator`（`Split` 弃用）、Flex `Orientation`；GridRow `VGutterAt`；Segmented `ItemRender`（自定义每项内容）、`Tooltips`、`Orientation`；Toggle / ToggleGroup `Variant`，ToggleGroup `Spacing`；Rate `Small/Large`、`Keyboard`、`Tooltips`、`CharacterFunc`、`Colors`、`Thresholds`、`VoidColor`、`Icons`、`ScoreFormat`；令牌 `ButtonToken.AutoInsertSpace`、`DividerToken.TextFontSize/MarginBlockSM/MarginBlockMD`、`TypographyToken.LinkFontWeight/LinkUnderline/LinkHoverUnderline`、`RateToken.StarSizeSM/StarSizeLG/HeightSM/HeightLG`。
+  - 输入与表单：InputNumber `Mode("input"|"spinner")`（antd 6，Defaults `mode`）、`Controls`、`ReadOnly`、`Keyboard`、`StepStrictly`、`UpDisabled/DownDisabled`；OTP `Separator`、`SeparatorFunc`、`Variant`、`ReadOnly`；Search `Variant`；Input `VisibilityToggle`；TextArea `Variant`、`ReadOnly`；Compact `Size`、`Orientation`；Form `RequiredMarkOptional`（文案 `Locale.Form.Optional`）；RadioGroup `Vertical`、`Orientation`、`Block`；Switch `ActionIcons`；Slider `Reverse`、`Included`、`Keyboard`、`ChangeComplete`；Upload `ShowUploadList`；令牌 `InputNumber.SideHandleWidth*`、`InputNumber.HideControlsInactive`、`Input.TextAreaMinHeight`、`Form.LabelOptionalColor`、`Radio.DotHoverColor/DotInnerColor`、`Slider.HandleActiveOutlineWidth`。Defaults 的 `variant`：OTP、Search 回落到 `Input` 键，TextArea 只读 `TextArea` 键（同 antd）。
+  - 选择器：Select `Placement`、`LabelRender`、`NotFoundContent`、`OpenChanged`（Defaults `variant`、`placement`）；MultiSelect `Placement`、`NotFoundContent`、`OpenChanged`、`MaxTagPlaceholder`、`MaxTagTextLength`；VirtualSelect、AutoComplete、Cascader、TreeSelect `Placement`、`NotFoundContent`（Cascader、TreeSelect 另有 `MaxTagPlaceholder`，Cascader `Separator`）；Mentions `Split`、`Placement`；InputTag `Trigger`；Transfer `Actions`（antd 6 actions；`Operations` 弃用）、`TargetOrder`、`ShowSelectAll`。shadcn NativeSelect、Combobox 对应已有的 `Select`（`Searchable`）/ `MultiSelect` / `AutoComplete`，不新增入口。
+  - 日期时间与颜色：DatePicker 系列 `MinDate`、`MaxDate`、`ShowWeek`、`ShowNow`；日期、时间、颜色选择器 `Placement`（Defaults `placement`）；RangePicker / TimeRangePicker `Order`、`Separator`；TimePicker `NeedConfirm`；DateTimePicker `DefaultTime`；TimeSelect `IncludeEndTime`；ColorPicker / ColorPickerPanel `DisabledFormat`；令牌 `DatePickerToken.NavDisabledOpacity/NavDisabledColor`。
 
 ### 变更
 
+- **组件规范对齐 第 1 批：默认值和行为改为规范的样子**（依据见各对照记录；不加保留旧行为的开关）：
+  - Button：Ant 主题两字中文按钮默认插入空格（「确定」→「确 定」，antd autoInsertSpace 默认 true；Element、shadcn 不插）。关掉用 `Defaults("Button", Props{"autoInsertSpace": false})` 或 `AutoInsertSpace(false)`；优先级：方法 > Defaults > 主题令牌。
+  - Divider：`Orientation` 改为表示方向（horizontal / vertical，antd v6），旧的标题位置值仍可用；`"left"`/`"right"` 标题位置改为物理方向；Ant 带标题分割线字号 14 → 16、高 22 → 24，竖线高 14 → 12.6（0.9em）；shadcn 竖线撑满所在行。
+  - Link：Element 主题字重 400 → 500，悬停显示下划线。
+  - Layout：Footer 内容不再居中；Ant 亮色主题深色 Sider 触发器底色 #000c17 → #002140。
+  - Rate：Ant 星星尺寸由 ControlHeight × 0.625 推导（默认仍 20，紧凑主题变小）。
+  - Toggle：Small 内边距 8 → 6；ToggleGroup 默认间距 4 → 0（项相连，只圆外角）。
+  - InputNumber：Ant 两侧 / spinner 按钮改为透明底、宽 37 / 29 / 39；Element 两侧按钮图标 14 → 13px；到达 Min/Max 的步进按钮禁用；Ant、shadcn 禁用或只读时不显示步进按钮（Element 保留）；只读时失焦不再改写值。
+  - Radio：Ant 选中圆点 8 → 6，选中后悬停用 colorPrimaryHover，暗色内点改白色；Element 禁用选中点 8 → 4，暗色内点改白色。
+  - Slider：Ant 悬停手柄描边 4 → 2.5，禁用轨道色改 colorBgContainerDisabled，光晕改为悬停 / 按下 / 聚焦时 6px，禁用时悬停不再放大；竖向 + Reverse 方向键与 rc-slider 一致；Element 禁用色改 TextQuaternary。
+  - TextArea：默认 3 行 → 2 行；shadcn 最小高度 64。
+  - Upload：`MaxCount(1)` 时新文件替换旧文件（原来到上限就拒绝）。
+  - Select：值不在选项里时显示值本身（原来空白）；键盘移动跳过禁用选项；Select / MultiSelect / VirtualSelect `Loading(true)` 时箭头位置显示转圈（设了 `SuffixIcon` 时仍显示自定义图标）。
+  - Transfer：新移入的键放在目标切片最前、右侧按目标切片顺序显示（antd；要 Element 的数据源顺序用 `TargetOrder("original")`）；Ant / shadcn 列表默认 200×240 → 180×200；Element 列表高 280 → 318。
+  - 日期面板：Ant 日期面板行高 32 → 36（弹层高 28px），月 / 季 / 年面板行高 56 → 63，预设栏宽 110 → 120（shadcn 同）；“今天”/“此刻”在当前时刻不可选时显示为禁用；禁用的翻页箭头显示禁止光标。
 - **IPC 线协议升级到 v2，不兼容旧版 runtime-js**：握手带 `proto:2`，Go 拒绝其他版本（回 `runtime-js protocol mismatch` 并记 `slog.Warn`）。`@tangoui/runtime` 必须与 Go 模块同版本；自己实现协议的客户端需要按 `ipc` 包注释更新。流的背压从按条数改为按字节计的信用窗口（默认 1 MiB，每帧计负载 + 64 字节），`ack` 改为带归还字节数 `b`；单帧负载上限 16 MiB，超过时这次写入返回 `bad_args`。
 - **macOS/iOS 的资源处理函数改在主线程之外运行**：`tango://` 协议处理器改为异步，`Options.Assets` 的处理函数每个请求在自己的 goroutine 里运行（请求可能并发处理），不再在主线程上同步执行。大文件、SSE 等大的或长时间不结束的响应不再卡住界面；WebKit 取消请求时 `r.Context()` 被取消，阻塞中的写入返回 `context.Canceled`。处理函数里若直接访问只能在主线程用的状态，改用 `app.Post` 投递到主线程或加锁；`tango.Await` 也可以，但它会一直阻塞到主线程执行完，这个请求的响应也跟着等（平台契约一直允许在任意线程调用处理函数）。
 - **`Stream.Close` 语义改为优雅全关闭**：本方结束发送并不再接收，对方之后的写入返回 "stream closed by peer"。只想结束本方发送、继续读的用新增的 `CloseSend`。处理函数返回 nil 时 Router 发的就是这个 `close`。

@@ -263,6 +263,7 @@ pkg github.com/tangoui/tango/ui/theme, type BreadcrumbToken struct, SeparatorCol
 pkg github.com/tangoui/tango/ui/theme, type BreadcrumbToken struct, SeparatorMargin float32
 pkg github.com/tangoui/tango/ui/theme, type BreadcrumbToken struct, embedded Alias
 pkg github.com/tangoui/tango/ui/theme, type ButtonToken struct
+pkg github.com/tangoui/tango/ui/theme, type ButtonToken struct, AutoInsertSpace bool
 pkg github.com/tangoui/tango/ui/theme, type ButtonToken struct, ContentFontSize float32
 pkg github.com/tangoui/tango/ui/theme, type ButtonToken struct, DangerBg Color
 pkg github.com/tangoui/tango/ui/theme, type ButtonToken struct, DangerColor Color `contrast:"text:DangerBg"`
@@ -669,6 +670,8 @@ pkg github.com/tangoui/tango/ui/theme, type DatePickerToken struct, HeaderHoverB
 pkg github.com/tangoui/tango/ui/theme, type DatePickerToken struct, HeaderHoverColor Color
 pkg github.com/tangoui/tango/ui/theme, type DatePickerToken struct, MonthCellHeight float32
 pkg github.com/tangoui/tango/ui/theme, type DatePickerToken struct, MonthCellWidth float32
+pkg github.com/tangoui/tango/ui/theme, type DatePickerToken struct, NavDisabledColor Color
+pkg github.com/tangoui/tango/ui/theme, type DatePickerToken struct, NavDisabledOpacity float64
 pkg github.com/tangoui/tango/ui/theme, type DatePickerToken struct, PanelBg Color
 pkg github.com/tangoui/tango/ui/theme, type DatePickerToken struct, PanelBorderColor Color
 pkg github.com/tangoui/tango/ui/theme, type DatePickerToken struct, PanelPaddingInline float32
@@ -717,9 +720,12 @@ pkg github.com/tangoui/tango/ui/theme, type DescriptionsToken struct, embedded A
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, Color Color
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, MarginBlock float32
+pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, MarginBlockMD float32
+pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, MarginBlockSM float32
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, OrientationMargin float32
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, PlainTextColor Color `contrast:"text:@Page"`
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, TextColor Color `contrast:"text:@Page"`
+pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, TextFontSize float32
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, TextFontWeight int
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, TextMarginBlock float32
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, TextPaddingInline float32
@@ -850,6 +856,7 @@ pkg github.com/tangoui/tango/ui/theme, type FormToken struct, LabelErrorColor Co
 pkg github.com/tangoui/tango/ui/theme, type FormToken struct, LabelFontSize float32
 pkg github.com/tangoui/tango/ui/theme, type FormToken struct, LabelFontWeight int
 pkg github.com/tangoui/tango/ui/theme, type FormToken struct, LabelHeight float32
+pkg github.com/tangoui/tango/ui/theme, type FormToken struct, LabelOptionalColor Color `contrast:"text:@Page"`
 pkg github.com/tangoui/tango/ui/theme, type FormToken struct, LabelRequiredMarkColor Color `contrast:"text:@Page"`
 pkg github.com/tangoui/tango/ui/theme, type FormToken struct, LabelTooltipColor Color
 pkg github.com/tangoui/tango/ui/theme, type FormToken struct, MessageFontSize float32
@@ -924,10 +931,14 @@ pkg github.com/tangoui/tango/ui/theme, type InputNumberToken struct, HandleFontS
 pkg github.com/tangoui/tango/ui/theme, type InputNumberToken struct, HandleHoverBg Color
 pkg github.com/tangoui/tango/ui/theme, type InputNumberToken struct, HandleHoverColor Color
 pkg github.com/tangoui/tango/ui/theme, type InputNumberToken struct, HandleWidth float32
+pkg github.com/tangoui/tango/ui/theme, type InputNumberToken struct, HideControlsInactive int
 pkg github.com/tangoui/tango/ui/theme, type InputNumberToken struct, SideHandleBg Color
 pkg github.com/tangoui/tango/ui/theme, type InputNumberToken struct, SideHandleColor Color `contrast:"nontext:SideHandleBg"`
 pkg github.com/tangoui/tango/ui/theme, type InputNumberToken struct, SideHandleFontSize float32
 pkg github.com/tangoui/tango/ui/theme, type InputNumberToken struct, SideHandleHoverColor Color
+pkg github.com/tangoui/tango/ui/theme, type InputNumberToken struct, SideHandleWidth float32
+pkg github.com/tangoui/tango/ui/theme, type InputNumberToken struct, SideHandleWidthLG float32
+pkg github.com/tangoui/tango/ui/theme, type InputNumberToken struct, SideHandleWidthSM float32
 pkg github.com/tangoui/tango/ui/theme, type InputNumberToken struct, embedded Alias
 pkg github.com/tangoui/tango/ui/theme, type InputToken struct
 pkg github.com/tangoui/tango/ui/theme, type InputToken struct, ActiveBg Color
@@ -949,6 +960,7 @@ pkg github.com/tangoui/tango/ui/theme, type InputToken struct, PaddingInlineLG f
 pkg github.com/tangoui/tango/ui/theme, type InputToken struct, PaddingInlineSM float32
 pkg github.com/tangoui/tango/ui/theme, type InputToken struct, PlaceholderColor Color `contrast:"text:ActiveBg"`
 pkg github.com/tangoui/tango/ui/theme, type InputToken struct, Shadow []ui/paint.Shadow
+pkg github.com/tangoui/tango/ui/theme, type InputToken struct, TextAreaMinHeight float32
 pkg github.com/tangoui/tango/ui/theme, type InputToken struct, WarningActiveShadowColor Color
 pkg github.com/tangoui/tango/ui/theme, type InputToken struct, embedded Alias
 pkg github.com/tangoui/tango/ui/theme, type InputToken struct, noncomparable
@@ -1314,11 +1326,15 @@ pkg github.com/tangoui/tango/ui/theme, type RadioToken struct, ButtonPaddingInli
 pkg github.com/tangoui/tango/ui/theme, type RadioToken struct, ButtonSolidCheckedBg Color
 pkg github.com/tangoui/tango/ui/theme, type RadioToken struct, ButtonSolidCheckedColor Color `contrast:"text:ButtonSolidCheckedBg"`
 pkg github.com/tangoui/tango/ui/theme, type RadioToken struct, DotColor Color `contrast:"nontext:@Page"`
+pkg github.com/tangoui/tango/ui/theme, type RadioToken struct, DotHoverColor Color
+pkg github.com/tangoui/tango/ui/theme, type RadioToken struct, DotInnerColor Color
 pkg github.com/tangoui/tango/ui/theme, type RadioToken struct, DotSize float32
 pkg github.com/tangoui/tango/ui/theme, type RadioToken struct, RadioSize float32
 pkg github.com/tangoui/tango/ui/theme, type RadioToken struct, embedded Alias
 pkg github.com/tangoui/tango/ui/theme, type RateToken struct
 pkg github.com/tangoui/tango/ui/theme, type RateToken struct, Height float32
+pkg github.com/tangoui/tango/ui/theme, type RateToken struct, HeightLG float32
+pkg github.com/tangoui/tango/ui/theme, type RateToken struct, HeightSM float32
 pkg github.com/tangoui/tango/ui/theme, type RateToken struct, ScoreColor Color
 pkg github.com/tangoui/tango/ui/theme, type RateToken struct, StarBg Color `contrast:"nontext:@Page"`
 pkg github.com/tangoui/tango/ui/theme, type RateToken struct, StarBgDisabled Color
@@ -1327,6 +1343,8 @@ pkg github.com/tangoui/tango/ui/theme, type RateToken struct, StarGap float32
 pkg github.com/tangoui/tango/ui/theme, type RateToken struct, StarHoverScale float32
 pkg github.com/tangoui/tango/ui/theme, type RateToken struct, StarOutlineColor Color
 pkg github.com/tangoui/tango/ui/theme, type RateToken struct, StarSize float32
+pkg github.com/tangoui/tango/ui/theme, type RateToken struct, StarSizeLG float32
+pkg github.com/tangoui/tango/ui/theme, type RateToken struct, StarSizeSM float32
 pkg github.com/tangoui/tango/ui/theme, type RateToken struct, TextColor Color `contrast:"text:@Page"`
 pkg github.com/tangoui/tango/ui/theme, type RateToken struct, TextColorDisabled Color
 pkg github.com/tangoui/tango/ui/theme, type RateToken struct, embedded Alias
@@ -1446,6 +1464,7 @@ pkg github.com/tangoui/tango/ui/theme, type SliderToken struct, DotBorderColor C
 pkg github.com/tangoui/tango/ui/theme, type SliderToken struct, DotSize float32
 pkg github.com/tangoui/tango/ui/theme, type SliderToken struct, HandleActiveColor Color
 pkg github.com/tangoui/tango/ui/theme, type SliderToken struct, HandleActiveOutlineColor Color `zero:"none"`
+pkg github.com/tangoui/tango/ui/theme, type SliderToken struct, HandleActiveOutlineWidth float32
 pkg github.com/tangoui/tango/ui/theme, type SliderToken struct, HandleBg Color
 pkg github.com/tangoui/tango/ui/theme, type SliderToken struct, HandleColor Color `contrast:"nontext:@Page"`
 pkg github.com/tangoui/tango/ui/theme, type SliderToken struct, HandleColorDisabled Color
@@ -1980,7 +1999,10 @@ pkg github.com/tangoui/tango/ui/theme, type TypographyToken struct, HighlightBg 
 pkg github.com/tangoui/tango/ui/theme, type TypographyToken struct, HighlightColor Color `contrast:"text:HighlightBg"`
 pkg github.com/tangoui/tango/ui/theme, type TypographyToken struct, LinkActiveColor Color `contrast:"text:@Page"`
 pkg github.com/tangoui/tango/ui/theme, type TypographyToken struct, LinkColor Color `contrast:"text:@Page"`
+pkg github.com/tangoui/tango/ui/theme, type TypographyToken struct, LinkFontWeight int
 pkg github.com/tangoui/tango/ui/theme, type TypographyToken struct, LinkHoverColor Color `contrast:"text:@Page"`
+pkg github.com/tangoui/tango/ui/theme, type TypographyToken struct, LinkHoverUnderline float32
+pkg github.com/tangoui/tango/ui/theme, type TypographyToken struct, LinkUnderline float32
 pkg github.com/tangoui/tango/ui/theme, type TypographyToken struct, MarkBg Color
 pkg github.com/tangoui/tango/ui/theme, type TypographyToken struct, MarkColor Color `contrast:"text:MarkBg"`
 pkg github.com/tangoui/tango/ui/theme, type TypographyToken struct, embedded Alias

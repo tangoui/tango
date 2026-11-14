@@ -221,7 +221,7 @@ func init() {
 - 不要复制 Viva、mygo、Wails 或其他项目的代码、常量表、图标数据；设计令牌和色值按 Ant Design / Element Plus 官方文档。
 - 不要改 `ui/theme`、`ui/paint`、`ui/text`、`ui/layout`、`ui/input` 与 `context.go/runner.go/overlay.go/driver.go` 来满足单个组件；需要扩展先提出。
 - 不要在组件文件里私建通用工具（颜色换算、图片缩放、日期网格、图标、复选框/选择器外壳、悬停延迟、子树命中判断、滚到可见）：先查基础层（theme/paint/icon、date_util.go、choice.go、selector.go、hover.go、layers.go、reveal.go），没有就补到基础层。
-- 新组件先查第 14 节总表，已有同类组件就扩展它，不要再加一个同义的新名字（shadcn 的 Sheet = `Drawer`、Accordion = `Collapse`、HoverCard = `Popover.Trigger("hover")`、Separator = `Divider`、Sonner = `Message/Notification`、Badge = `Tag`，只做外观）。shadcn 特有组件文件以 `shad_` 开头。
+- 新组件先查第 14 节总表，已有同类组件就扩展它，不要再加一个同义的新名字（shadcn 的 Sheet = `Drawer`、Accordion = `Collapse`、HoverCard = `Popover.Trigger("hover")`、Separator = `Divider`、Sonner = `Message/Notification`、Badge = `Tag`、Field = `FormItem`、InputGroup = `Compact`/`Addon`/输入框前后缀、NativeSelect = `Select`、Combobox = `Select.Searchable`/`MultiSelect.Searchable`/`AutoComplete`、Typography keyboard = `Kbd`，只做外观）。shadcn 特有组件文件以 `shad_` 开头。
 - 不要在组件文件里写死界面文案（中文、英文都不行），见第 15 节；`TestNoHardcodedCJK` 会拦住 CJK 字面量。
 
 ## 14. 组件总表
