@@ -211,7 +211,10 @@ test("close → close marker, code 1000 without waiting for Go", async () => {
   await until(() => closes.length === 1);
   assert.equal(ws.readyState, TangoSocket.CLOSED);
   assert.deepEqual(log, ["open", "close:1000::true"]);
-  assert.ok(closes[0] instanceof CloseEvent);
+  // Node 22 has no global CloseEvent; the runtime falls back to its own.
+  assert.ok(closes[0] instanceof (globalThis.CloseEvent ?? Event));
+  assert.equal(closes[0].constructor.name, "CloseEvent");
+  assert.deepEqual([closes[0].code, closes[0].wasClean], [1000, true]);
   b.recv(frame(0, { data: "late" })); // the stream is finished: ignored
   b.recv(go("close", { seq: 1 }));
   await tick();

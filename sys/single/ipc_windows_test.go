@@ -65,7 +65,18 @@ func TestPipeDACL(t *testing.T) {
 	defer syscall.CloseHandle(c)
 	dacl := daclOf(t, c)
 	// GA is reported mapped to the pipe's generic-all rights (FA).
-	if !strings.HasPrefix(dacl, "D:P(") || strings.Count(dacl, "(") != 1 || !strings.HasSuffix(dacl, ";;;"+sid+")") {
+	// SDDL writes well-known accounts as aliases ("LA" for the built-in
+	// Administrator, which CI runs as); resolve the trustee to its SID.
+	trustee := ""
+	if i := strings.LastIndex(dacl, ";;;"); i >= 0 && strings.HasSuffix(dacl, ")") {
+		trustee = dacl[i+3 : len(dacl)-1]
+		if !strings.HasPrefix(trustee, "S-1-") {
+			if s, err := syscall.StringToSid(trustee); err == nil {
+				trustee, _ = s.String()
+			}
+		}
+	}
+	if !strings.HasPrefix(dacl, "D:P(") || strings.Count(dacl, "(") != 1 || trustee != sid {
 		t.Fatalf("DACL %q, want only an allow entry for %s", dacl, sid)
 	}
 	// A second first instance fails while ours exists.

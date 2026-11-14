@@ -1,6 +1,7 @@
 package text_test
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/tangoui/tango/ui/text"
@@ -17,6 +18,9 @@ func TestVariableWeightsMeasureDifferently(t *testing.T) {
 		regular := text.Shape("Hello World", text.Style{Size: 16, Weight: text.Regular}, text.Options{}).Width
 		bold := text.Shape("Hello World", text.Style{Size: 16, Weight: text.Bold}, text.Options{}).Width
 		text.UseSystemEngine(prev)
+		if runtime.GOOS != "darwin" && light == regular && regular < bold {
+			continue // the default sans has no Light face here (DejaVu Sans on Linux)
+		}
 		if !(light < regular && regular < bold) {
 			t.Errorf("system engine %v: widths light=%.2f regular=%.2f bold=%.2f, want strictly increasing (the default sans is variable on macOS; elsewhere skip if the font has a single weight)", eng, light, regular, bold)
 		}

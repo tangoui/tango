@@ -59,8 +59,9 @@ func TestMoreRichTextWrapAndKinsoku(t *testing.T) {
 				t.Fatalf("width %v: line %v overflows", wd, ln.w)
 			}
 		}
-		// Latin words are never split when they fit.
-		if strings.Contains(strings.Join(moreRunsText(lay), "|"), "Eng|lish") {
+		// Latin words are never split when they fit (at 40 the word may
+		// be wider than the line with wide fonts such as DejaVu Sans).
+		if fits := text.Shape("English", w.styleOf(2), text.Options{NoWrap: true}).Width <= wd; fits && strings.Contains(strings.Join(moreRunsText(lay), "|"), "Eng|lish") {
 			t.Fatalf("word split at %v", wd)
 		}
 	}

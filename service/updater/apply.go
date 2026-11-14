@@ -75,7 +75,9 @@ func (u *Updater) apply(p *Payload) error {
 	if err != nil {
 		return err
 	}
-	if rel.Format == FormatDir {
+	// Only when the app runs from target: otherwise launch[0] is a guess by
+	// name (launchCommand), not the executable the app is.
+	if rel.Format == FormatDir && runsFrom(target) {
 		if err := checkDirLaunch(st.repl, target, launch[0]); err != nil {
 			os.RemoveAll(st.work)
 			return err
@@ -404,6 +406,22 @@ func checkDirLaunch(tree, target, exe string) error {
 		return fmt.Errorf("updater: the release has no executable %s, which the app runs as", filepath.ToSlash(rel))
 	}
 	return nil
+}
+
+// runsFrom reports whether the running executable is inside dir.
+func runsFrom(dir string) bool {
+	exe, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	if e, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = e
+	}
+	if d, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = d
+	}
+	r, err := filepath.Rel(dir, exe)
+	return err == nil && filepath.IsLocal(r)
 }
 
 // copyTree copies the directory src to dst (symlinks as symlinks).

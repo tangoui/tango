@@ -436,7 +436,9 @@ func TestIOSWriterContentLength(t *testing.T) {
 	if got := f.head.Get("Content-Length"); got != strconv.Itoa(len(body)) {
 		t.Fatalf("Content-Length %q, want %d", got, len(body))
 	}
-	if got := f.head.Get("Content-Type"); !strings.HasPrefix(got, "text/javascript") {
+	// mime reads the host's tables: Windows registries may say
+	// application/javascript (iOS itself uses Go's built-in text/javascript).
+	if got := f.head.Get("Content-Type"); !strings.HasPrefix(got, "text/javascript") && !strings.HasPrefix(got, "application/javascript") {
 		t.Fatalf("Content-Type %q", got)
 	}
 	want := []string{"respond 200", "data 5000", "finish"}
