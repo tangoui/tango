@@ -612,19 +612,14 @@ func TestViewA11y(t *testing.T) {
 func TestTrackEviction(t *testing.T) {
 	v := vt.New(vt.Options{Cols: 10, Rows: 3, Scrollback: 2})
 	var vs viewState
-	take := func() {
-		n := v.TakeScroll()
-		_, all := v.TakeDirty()
-		vs.trackEviction(v.Screen(), n, all)
-	}
 	v.Write([]byte("a\r\nb\r\nc\r\nd")) // "a" scrolls into the scrollback
-	take()
-	if vs.evicted != 0 || vs.prevSb != 1 {
-		t.Fatalf("growing scrollback: evicted %d sb %d", vs.evicted, vs.prevSb)
+	vs.trackEviction(v.Screen())
+	if vs.evicted != 0 {
+		t.Fatalf("growing scrollback: evicted %d", vs.evicted)
 	}
 	vs.sel = selection{anchor: selPos{1, 0}, head: selPos{1, 1}, on: true} // "b"
 	v.Write([]byte("\r\ne\r\nf"))                                          // scrollback full: "a" is dropped
-	take()
+	vs.trackEviction(v.Screen())
 	if vs.evicted != 1 {
 		t.Fatalf("evicted %d, want 1", vs.evicted)
 	}
@@ -633,9 +628,153 @@ func TestTrackEviction(t *testing.T) {
 	if got := w.selectedText(v.Screen()); got != "b" {
 		t.Fatalf("selection %q after eviction, want \"b\"", got)
 	}
-	v.Screen().ClearScrollback()
-	take()
+	v.Write([]byte("\r\ng\r\nh")) // "b" is dropped too
+	vs.trackEviction(v.Screen())
 	if vs.sel.on {
-		t.Error("clearing the scrollback kept the selection")
+		t.Error("a selection whose lines were all dropped was kept")
+	}
+}
+
+// newSmallRig is a rig whose Terminal keeps only sb scrollback lines.
+func newSmallRig(t *testing.T, sb int) *viewRig {
+	g := newViewRig(t, 400, 200, nil)
+	g.term.Close()
+	g.conn.inR.Close()
+	<-g.end
+	g2 := &viewRig{t: t, conn: newPipeConn(), end: make(chan struct{})}
+	g2.term = New(Options{Conn: g2.conn, Scrollback: sb})
+	go func() {
+		defer close(g2.end)
+		buf := make([]byte, 4096)
+		for {
+			n, err := g2.conn.inR.Read(buf)
+			g2.mu.Lock()
+			g2.in.Write(buf[:n])
+			g2.mu.Unlock()
+			if err != nil {
+				return
+			}
+		}
+	}()
+	g2.d = ui.NewDriver(func(c *ui.Context) { g2.vw = View(c, g2.term) }, ui.DriverOptions{Width: 400, Height: 200})
+	t.Cleanup(func() {
+		g2.term.Close()
+		g2.conn.inR.Close()
+		<-g2.end
+	})
+	g2.d.Settle()
+	return g2
+}
+
+// selectionFills returns the selection fills of the last frame.
+func selectionFills(g *viewRig, sel theme.Color) []geom.Rect {
+	var out []geom.Rect
+	for _, op := range g.d.Runner().List().Ops {
+		if f, ok := op.(paint.FillRect); ok && f.Color == sel {
+			out = append(out, f.Rect)
+		}
+	}
+	return out
+}
+
+// TestViewSelectionWhileScrolledUpAndEvicting: with the view scrolled up
+// and the scrollback full, new output drops the oldest lines while the
+// view keeps showing the same text; the selection stays on it (highlight
+// and copied text), and is cleared once its lines are dropped.
+func TestViewSelectionWhileScrolledUpAndEvicting(t *testing.T) {
+	g := newSmallRig(t, 20)
+	g.fill(40) // scrollback full
+	g.focus()
+	_, lh := cellSize()
+	g.d.Scroll(g.vw.Box().Rect().Center(), -10*lh)
+	if viewOffset(g) != 10 {
+		t.Fatalf("offset %d, want 10", viewOffset(g))
+	}
+	v := g.term.Lock()
+	top := viewRowText(v, 0)
+	g.term.Unlock()
+	r := g.vw.Box().Rect()
+	cw, _ := cellSize()
+	g.d.Advance(time.Second)
+	g.d.Drag(geom.Pt(r.X+1, r.Y+lh/2), geom.Pt(r.X+float32(len(top))*cw+1, r.Y+lh/2))
+	sel := g.d.Runner().Context().ThemeFor(theme.CompTerminal).Components.Terminal.Selection
+	before := selectionFills(g, sel)
+	if len(before) != 1 {
+		t.Fatalf("selection fills %v", before)
+	}
+	// Three more lines: the viewport keeps its text (offset 13).
+	g.output("x1\r\nx2\r\nx3\r\n", func(v *vt.Terminal) bool { return v.Screen().ViewOffset() == 13 })
+	g.d.Settle()
+	v = g.term.Lock()
+	still := viewRowText(v, 0)
+	g.term.Unlock()
+	if still != top {
+		t.Fatalf("viewport top %q, want %q", still, top)
+	}
+	if after := selectionFills(g, sel); len(after) != 1 || after[0] != before[0] {
+		t.Fatalf("highlight moved: %v, want %v", after, before)
+	}
+	g.d.Key(input.KeyC, copyMods())
+	if got := g.d.Clipboard(); got != top {
+		t.Fatalf("copied %q, want %q", got, top)
+	}
+	// Enough output to drop the selected line: the selection goes.
+	g.fill(30)
+	g.d.SetClipboard("")
+	g.d.Key(input.KeyC, copyMods())
+	if got := g.d.Clipboard(); got != "" {
+		t.Fatalf("copied %q after the selected line was dropped", got)
+	}
+}
+
+// viewRowText returns the text of viewport row y, trailing blanks trimmed.
+func viewRowText(v *vt.Terminal, y int) string {
+	var sb strings.Builder
+	for _, c := range v.Screen().ViewLine(y).Cells {
+		switch {
+		case c.Width == 0:
+		case c.Rune == 0:
+			sb.WriteByte(' ')
+		default:
+			sb.WriteRune(c.Rune)
+		}
+	}
+	return strings.TrimRight(sb.String(), " ")
+}
+
+func TestViewPasteDoesNotBlock(t *testing.T) {
+	g := newViewRig(t, 400, 200, nil)
+	g.focus()
+	// Nobody reads the program's input during the paste.
+	g.mu.Lock()
+	big := strings.Repeat("p", 64<<10)
+	g.d.SetClipboard(big)
+	start := time.Now()
+	g.d.Key(input.KeyV, copyMods())
+	d := time.Since(start)
+	g.mu.Unlock()
+	if d > 2*time.Second {
+		t.Fatalf("paste frame took %v", d)
+	}
+	g.waitInput(big)
+}
+
+// TestViewClearThenSelectAll: Cmd+K then Cmd+A in one frame selects the
+// cleared screen, and the selection survives the next frame.
+func TestViewClearThenSelectAll(t *testing.T) {
+	g := newViewRig(t, 400, 200, nil)
+	g.fill(30)
+	g.output("$ ", func(v *vt.Terminal) bool {
+		_, rows := v.Screen().Size()
+		return rowText(v, rows-1) == "$"
+	})
+	g.focus()
+	m := copyMods()
+	g.inject(input.KeyEvent{Key: input.KeyK, Down: true, Mods: m}, input.KeyEvent{Key: input.KeyK, Mods: m},
+		input.KeyEvent{Key: input.KeyA, Down: true, Mods: m}, input.KeyEvent{Key: input.KeyA, Mods: m})
+	g.d.Frame()
+	g.d.Key(input.KeyC, m)
+	if got := g.d.Clipboard(); got != "$" {
+		t.Fatalf("copied %q after Cmd+K, Cmd+A, want \"$\"", got)
 	}
 }

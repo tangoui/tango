@@ -3,6 +3,7 @@ package terminal
 import (
 	"math"
 	"runtime"
+	"slices"
 	"strconv"
 	"time"
 
@@ -54,8 +55,8 @@ const (
 // Show a Terminal in at most one view: the view takes the emulator's
 // redraw records (TakeDirty, TakeScroll) each frame.
 //
-// Sending runs on the UI thread: if the program stops reading its input,
-// [Terminal.Send] blocks the frame until it reads again (M1).
+// Input is queued asynchronously; if the program stops reading its input,
+// [Terminal.Send] blocks the frame until it reads again (the bounded queue drops whole sends over 8 MB).
 type ViewW struct {
 	c   *ui.Context
 	t   *Terminal
@@ -105,12 +106,11 @@ type viewState struct {
 	lastResize time.Time
 
 	sel selection
-	// evicted counts the lines dropped from the top of the scrollback
-	// that the view noticed, so selections keep pointing at their lines
-	// (see selPos); prevSb is the scrollback length of the last frame.
-	evicted, prevSb int
-	wheelAcc        float32
-	bar             barState
+	// evicted is the screen's Evicted count this frame, the base of the
+	// stable line numbers of selections (see selPos).
+	evicted  int
+	wheelAcc float32
+	bar      barState
 
 	cache *segCache
 
@@ -283,7 +283,7 @@ var isMac = runtime.GOOS == "darwin"
 // program; the caller sends them after unlocking the emulator, so a
 // program that is slow to read its input never holds up the read loop.
 // v is locked.
-func (w *ViewW) applyInput(v *vt.Terminal, r geom.Rect) [][]byte {
+func (w *ViewW) applyInput(v *vt.Terminal, r geom.Rect) []effect {
 	if w.done {
 		return nil
 	}
@@ -301,19 +301,57 @@ func (w *ViewW) applyInput(v *vt.Terminal, r geom.Rect) [][]byte {
 	}
 	out := w.keyInput(v, p.events)
 	if exited, _ := w.t.Exited(); exited {
-		return nil // nobody reads the input any more
+		// Nobody reads the input any more: keep only the copies.
+		out = slices.DeleteFunc(out, func(e effect) bool { return !e.isCopy })
+		return out
 	}
-	if len(out) > 0 {
-		v.Screen().SetViewOffset(0)
-		vs.sel.clear()
+	for _, e := range out {
+		if !e.isCopy {
+			v.Screen().SetViewOffset(0)
+			vs.sel.clear()
+			break
+		}
 	}
 	return out
 }
 
+// effect is one result of the frame's input, carried out in order after
+// the emulator is unlocked (runEffects): bytes for the program, a paste
+// of the clipboard, or a copy to the clipboard.
+type effect struct {
+	send   []byte
+	paste  bool
+	modes  vt.Modes // the modes the paste is encoded for
+	isCopy bool
+	copy   string
+}
+
+// runEffects carries out the effects; the emulator is not locked, so
+// neither the clipboard nor a slow program holds up the read loop.
+func (w *ViewW) runEffects(out []effect) {
+	win := w.c.Window()
+	for _, e := range out {
+		switch {
+		case e.isCopy:
+			if win != nil {
+				win.WriteClipboard(e.copy)
+			}
+		case e.paste:
+			if win != nil {
+				if txt := win.ReadClipboard(); txt != "" {
+					w.t.Send(vt.EncodePaste(txt, e.modes))
+				}
+			}
+		default:
+			w.t.Send(e.send)
+		}
+	}
+}
+
 // keyInput turns the frame's keys and committed text into bytes for the
 // program, running application shortcuts on the way. v is locked.
-func (w *ViewW) keyInput(v *vt.Terminal, evs []input.Event) [][]byte {
-	var out [][]byte
+func (w *ViewW) keyInput(v *vt.Terminal, evs []input.Event) []effect {
+	var out []effect
 	modes := v.Modes()
 	// swallow drops the text the host generates for a key press that was
 	// encoded with Ctrl or Alt (or taken as a shortcut), so it is not sent
@@ -348,7 +386,7 @@ func (w *ViewW) keyInput(v *vt.Terminal, evs []input.Event) [][]byte {
 				i+1 < len(evs) && isText(evs[i+1]) {
 				continue
 			}
-			out = append(out, b)
+			out = append(out, effect{send: b})
 			swallow = ev.Mods&(input.ModCtrl|input.ModAlt) != 0
 		case input.TextInput:
 			if swallow {
@@ -358,7 +396,7 @@ func (w *ViewW) keyInput(v *vt.Terminal, evs []input.Event) [][]byte {
 			if !isText(e) {
 				continue // control characters arrive as keys
 			}
-			out = append(out, vt.EncodeText(e.Text))
+			out = append(out, effect{send: vt.EncodeText(e.Text)})
 		}
 	}
 	return out
@@ -375,8 +413,8 @@ func isText(e input.Event) bool {
 }
 
 // shortcut runs the application shortcut of key press e, if it is one,
-// appending any bytes for the program to out. v is locked.
-func (w *ViewW) shortcut(v *vt.Terminal, e input.KeyEvent, out *[][]byte) bool {
+// appending its effects to out. v is locked.
+func (w *ViewW) shortcut(v *vt.Terminal, e input.KeyEvent, out *[]effect) bool {
 	mods := e.Mods & (input.ModShift | input.ModCtrl | input.ModAlt | input.ModMeta)
 	appMods := input.ModCtrl | input.ModShift
 	if isMac {
@@ -403,23 +441,19 @@ func (w *ViewW) shortcut(v *vt.Terminal, e input.KeyEvent, out *[][]byte) bool {
 	default:
 		return false
 	}
-	win := w.c.Window()
 	switch action {
 	case "copy":
-		if txt := w.selectedText(s); txt != "" && win != nil {
-			win.WriteClipboard(txt)
+		if txt := w.selectedText(s); txt != "" {
+			*out = append(*out, effect{isCopy: true, copy: txt})
 		}
 	case "paste":
-		if win != nil {
-			if txt := win.ReadClipboard(); txt != "" {
-				*out = append(*out, vt.EncodePaste(txt, v.Modes()))
-			}
-		}
+		*out = append(*out, effect{paste: true, modes: v.Modes()})
 	case "selectAll":
 		w.selectAll(v)
 	case "clear":
 		clearScreen(v)
 		w.vs.sel.clear()
+		w.vs.trackEviction(s) // ClearScrollback dropped lines: renumber now
 		w.vs.needFull = true
 	}
 	return true

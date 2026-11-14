@@ -27,6 +27,7 @@ pkg github.com/tangoui/tango/ui/terminal/vt, method (*Params) Len() int
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Params) Sub(int) []int
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Parser) Write([]byte)
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) ClearScrollback()
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) Evicted() uint64
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) Line(int) *Line
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) ScrollDown(int, int)
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) ScrollUp(int, int)

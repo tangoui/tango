@@ -347,9 +347,10 @@ func TestTerminalCloseBlockedWriter(t *testing.T) {
 	c := newPipeConn()
 	exited := make(chan error, 1)
 	term := New(Options{Conn: c, OnExit: func(err error) { exited <- err }})
+	term.qlimit = 64
 	term.Start(10, 3, func() {})
 
-	flood := []byte(strings.Repeat("\x1b[6n", 4*replyQueue))
+	flood := []byte(strings.Repeat("\x1b[6n", 64))
 	go func() {
 		for {
 			if _, err := c.outW.Write(flood); err != nil {
@@ -360,7 +361,9 @@ func TestTerminalCloseBlockedWriter(t *testing.T) {
 	// Wait until the reply queue is full: the read loop is then blocked
 	// enqueueing and the writer is blocked in Write.
 	waitFor(t, 5*time.Second, "reply queue to fill", func() bool {
-		return len(term.replies) == replyQueue
+		term.qmu.Lock()
+		defer term.qmu.Unlock()
+		return term.qbytes+len("\x1b[1;1R") > term.qlimit
 	})
 	closeWithin(t, term, 5*time.Second)
 	if err := <-exited; err != nil {
@@ -380,7 +383,7 @@ func TestTerminalSendRacingClose(t *testing.T) {
 		var wg sync.WaitGroup
 		for range 4 {
 			wg.Add(1)
-			go func() { // nobody reads: Send blocks until Close
+			go func() { // nobody reads: Send queues and returns
 				defer wg.Done()
 				term.Send([]byte("x"))
 			}()
@@ -516,4 +519,114 @@ func TestTerminalReadError(t *testing.T) {
 	if ex, err := term.Exited(); !ex || err != want {
 		t.Errorf("Exited after Close = %v, %v, want true, %v", ex, err, want)
 	}
+}
+
+// gateConn is a pipeConn whose Write blocks until the gate opens (a
+// program that is not reading its input).
+type gateConn struct {
+	*pipeConn
+	gate   chan struct{}
+	closed chan struct{}
+	once   sync.Once
+}
+
+func newGateConn() *gateConn {
+	return &gateConn{pipeConn: newPipeConn(), gate: make(chan struct{}), closed: make(chan struct{})}
+}
+
+func (c *gateConn) Write(b []byte) (int, error) {
+	select {
+	case <-c.gate:
+	case <-c.closed:
+		return 0, io.ErrClosedPipe
+	}
+	return c.pipeConn.Write(b)
+}
+
+func (c *gateConn) Close() error {
+	c.once.Do(func() { close(c.closed) })
+	return c.pipeConn.Close()
+}
+
+func queueLen(term *Terminal) int {
+	term.qmu.Lock()
+	defer term.qmu.Unlock()
+	return len(term.queue)
+}
+
+// TestTerminalSendQueued: Send returns while the program is not reading,
+// and replies and input reach it in the order they were made.
+func TestTerminalSendQueued(t *testing.T) {
+	c := newGateConn()
+	term := New(Options{Conn: c})
+	defer term.Close()
+	term.Start(10, 3, func() {})
+
+	term.Send([]byte("k1"))
+	waitFor(t, 5*time.Second, "writer to take k1", func() bool { return queueLen(term) == 0 })
+	if _, err := c.outW.Write([]byte("\x1b[6n")); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, 5*time.Second, "reply queued", func() bool { return queueLen(term) == 1 })
+	paste := bytes.Repeat([]byte("p"), 64<<10)
+	start := time.Now()
+	term.Send([]byte("k2"))
+	term.Send(paste)
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("Send blocked for %v", d)
+	}
+	want := "k1" + "\x1b[1;1R" + "k2" + string(paste)
+	got := make(chan string, 1)
+	go func() {
+		buf := make([]byte, len(want))
+		io.ReadFull(c.inR, buf)
+		got <- string(buf)
+	}()
+	close(c.gate)
+	select {
+	case s := <-got:
+		if s != want {
+			t.Fatalf("program read %q..., want %q...", s[:min(len(s), 20)], want[:20])
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("queued bytes not written")
+	}
+}
+
+func TestTerminalSendOverLimitDropped(t *testing.T) {
+	c := newGateConn()
+	term := New(Options{Conn: c})
+	term.qlimit = 8
+	term.Send([]byte("12345"))
+	term.Send([]byte("6789")) // 9 bytes > 8: dropped whole
+	term.Send([]byte("678"))
+	term.qmu.Lock()
+	n, drops, q := term.qbytes, term.sendDrops, len(term.queue)
+	term.qmu.Unlock()
+	if n != 8 || q != 2 || drops != 1 {
+		t.Fatalf("queued %d bytes in %d items, %d drops; want 8, 2, 1", n, q, drops)
+	}
+	term.Close()
+}
+
+func TestTerminalCloseFullQueue(t *testing.T) {
+	base := runtime.NumGoroutine()
+	c := newGateConn()
+	term := New(Options{Conn: c})
+	term.qlimit = 1 << 10
+	term.Start(10, 3, func() {})
+	for range 100 {
+		term.Send(bytes.Repeat([]byte("x"), 100))
+	}
+	closeWithin(t, term, 5*time.Second)
+	term.qmu.Lock()
+	q := len(term.queue)
+	term.qmu.Unlock()
+	if q != 0 {
+		t.Errorf("%d items still queued after Close", q)
+	}
+	term.Send([]byte("y")) // after Close: dropped
+	c.outW.Close()
+	c.inR.Close()
+	waitGoroutines(t, base)
 }

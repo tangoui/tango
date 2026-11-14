@@ -12,13 +12,13 @@ import (
 // Selection.
 //
 // A selection runs from anchor to head, each a column boundary (0..cols)
-// on a line. Lines are numbered stably: the number of lines the view saw
-// dropped from the top of the scrollback (viewState.evicted) plus the
-// line's position in the screen, 0 being the oldest scrollback line. So
-// a selection stays on its text while output scrolls the screen and the
-// view scrolls the scrollback. When the view cannot tell how many lines
-// were dropped (a full redraw of the screen without scrollback growth,
-// the scrollback cleared, a resize), it clears the selection instead.
+// on a line. Lines are numbered stably: the number of lines dropped from
+// the top of the screen's history (vt.Screen.Evicted) plus the line's
+// position in the screen, 0 being the oldest scrollback line. So a
+// selection stays on its text while output scrolls the screen, a full
+// scrollback drops lines (also while the view is scrolled up) and the
+// view scrolls the scrollback. A selection whose lines were all dropped
+// is cleared; one partly dropped keeps the rest. A resize clears it.
 //
 // A press starts a selection, a double click selects a word (separators:
 // white space and ()[]{}'"`,;|), a triple click the line; dragging after
@@ -97,20 +97,13 @@ func absLine(s *vt.Screen, abs int) *vt.Line {
 // line returns the line with stable number row, or nil.
 func (w *ViewW) line(s *vt.Screen, row int) *vt.Line { return absLine(s, row-w.vs.evicted) }
 
-// trackEviction updates the stable numbering after output: n is the
-// frame's TakeScroll, all its TakeDirty full redraw flag. s is locked.
-func (vs *viewState) trackEviction(s *vt.Screen, n int, all bool) {
-	sb := s.ScrollbackLen()
-	grew := sb - vs.prevSb
-	switch {
-	case grew < 0:
-		vs.sel.clear() // the scrollback was cleared or a resize took lines back
-	case n > grew:
-		vs.evicted += n - grew // a full scrollback dropped its oldest lines
-	case all && grew == 0:
-		vs.sel.clear() // the screen changed as a whole: lines may have been dropped
+// trackEviction updates the stable numbering from the screen's eviction
+// count and clears a selection whose lines were all dropped. s is locked.
+func (vs *viewState) trackEviction(s *vt.Screen) {
+	vs.evicted = int(s.Evicted())
+	if _, b, ok := vs.sel.bounds(); ok && b.row < vs.evicted {
+		vs.sel.clear()
 	}
-	vs.prevSb = sb
 }
 
 // cellAt returns the view row and column boundary nearest p in the grid
@@ -301,8 +294,11 @@ var eol = func() string {
 // s is locked.
 func (w *ViewW) selectedText(s *vt.Screen) string {
 	a, b, ok := w.vs.sel.bounds()
-	if !ok {
+	if !ok || b.row < w.vs.evicted {
 		return ""
+	}
+	if a.row < w.vs.evicted {
+		a = selPos{w.vs.evicted, 0} // its first lines were dropped
 	}
 	var out, line strings.Builder
 	for row := a.row; row <= b.row; row++ {

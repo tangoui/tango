@@ -561,3 +561,36 @@ func BenchmarkInternFullLiveTable(b *testing.B) {
 		i++
 	}
 }
+
+func TestScreenEvicted(t *testing.T) {
+	s := NewScreen(4, 2, 2)
+	s.ScrollUp(0, 1)
+	s.ScrollUp(0, 1) // scrollback full (2 lines)
+	if got := s.Evicted(); got != 0 {
+		t.Fatalf("filling the scrollback: Evicted %d", got)
+	}
+	s.SetViewOffset(1)
+	s.ScrollUp(0, 1) // drops the oldest line, also while scrolled up
+	if got := s.Evicted(); got != 1 {
+		t.Fatalf("after one eviction: Evicted %d", got)
+	}
+	s.ScrollUp(1, 1) // a region below row 0 drops nothing
+	if got := s.Evicted(); got != 1 {
+		t.Fatalf("region scroll: Evicted %d", got)
+	}
+	s.ClearScrollback()
+	if got := s.Evicted(); got != 3 {
+		t.Fatalf("after ClearScrollback: Evicted %d, want 3", got)
+	}
+	s.ScrollUp(0, 1)
+	s.ScrollUp(0, 1)
+	s.resize(4, 1, 1) // pushes a row into the full scrollback
+	if got := s.Evicted(); got != 4 {
+		t.Fatalf("after shrinking: Evicted %d, want 4", got)
+	}
+	n := NewScreen(4, 2, 0)
+	n.ScrollUp(0, 1)
+	if got := n.Evicted(); got != 1 {
+		t.Fatalf("no scrollback: Evicted %d, want 1", got)
+	}
+}

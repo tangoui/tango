@@ -18,6 +18,8 @@ type Screen struct {
 	head   int    // ring index of the oldest line (scrollback or row 0)
 	sbLen  int    // lines in the scrollback
 	offset int    // viewport offset from the bottom, in [0, sbLen]
+	// dropped counts the lines removed from the top (see Evicted).
+	dropped uint64
 
 	styles StyleTable
 }
@@ -46,6 +48,16 @@ func (s *Screen) Styles() *StyleTable { return &s.styles }
 
 // ScrollbackLen returns the number of lines in the scrollback.
 func (s *Screen) ScrollbackLen() int { return s.sbLen }
+
+// Evicted returns how many lines have been removed from the top of the
+// screen's history (the oldest scrollback line, or row 0 of a screen
+// without scrollback) since the screen was made: lines a full scrollback
+// dropped, lines ClearScrollback dropped and lines a resize pushed out of
+// the scrollback. It never decreases. Evicted plus a line's position (0
+// the oldest scrollback line, ScrollbackLen the first active row) is
+// therefore a number that stays with the line while it is kept, which a
+// view uses to keep a selection on its text.
+func (s *Screen) Evicted() uint64 { return s.dropped }
 
 // at returns the line at absolute position i, where 0 is the oldest
 // scrollback line and sbLen is active row 0.
@@ -96,6 +108,9 @@ func (s *Screen) ScrollUp(top, bottom int) {
 		return
 	}
 	if top > 0 || s.scrollback == 0 {
+		if top == 0 {
+			s.dropped++ // row 0 is discarded
+		}
 		s.rotateUp(top, bottom)
 		return
 	}
@@ -110,6 +125,7 @@ func (s *Screen) ScrollUp(top, bottom int) {
 		}
 	} else {
 		s.head++ // evict the oldest line; its slot becomes the new last row
+		s.dropped++
 		s.styles.evicted++
 		if s.head == len(s.ring) {
 			s.head = 0
@@ -211,6 +227,7 @@ func (s *Screen) ClearScrollback() {
 		return
 	}
 	all := s.lines()
+	s.dropped += uint64(s.sbLen)
 	s.setLines(all[s.sbLen:], 0)
 	s.offset = 0
 	s.styles.resetBackoff()
@@ -261,6 +278,7 @@ func (s *Screen) resize(cols, rows, cursorY int) int {
 		}
 	}
 	if sb > s.scrollback {
+		s.dropped += uint64(sb - s.scrollback)
 		all = all[sb-s.scrollback:]
 		sb = s.scrollback
 	}
