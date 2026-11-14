@@ -19,6 +19,7 @@ type CPU struct {
 	stack []layer
 	cur   *image.RGBA
 	clip  image.Rectangle
+	frame image.Rectangle // the frame's device pixels (a BackdropBlur's edges)
 	// cmask is the coverage of the active rounded clips (their product),
 	// origin 0,0, placed at cmaskAt; nil when none is active. It covers
 	// clip. Every drawing op multiplies its own coverage by it, exactly as
@@ -97,6 +98,7 @@ func (r *CPU) Render(l *List, size geom.Size, scale float32) error {
 	draw.Draw(r.img, r.img.Rect, image.NewUniform(l.Background), image.Point{}, draw.Src)
 	r.cur = r.img
 	r.clip = r.img.Rect
+	r.frame = r.img.Rect
 	r.cmask = nil
 	r.stack = r.stack[:0]
 	r.m, r.ident = geom.Identity(), true
@@ -177,8 +179,8 @@ func (r *CPU) RenderRegion(ops []Op, region image.Rectangle, scale float32) *ima
 	r.prepare(scale)
 	dst := image.NewRGBA(region)
 	saveCur, saveClip, saveStack, saveMask, saveMaskAt := r.cur, r.clip, r.stack, r.cmask, r.cmaskAt
-	saveM, saveIdent := r.m, r.ident
-	r.cur, r.clip, r.stack, r.cmask = dst, region, nil, nil
+	saveM, saveIdent, saveFrame := r.m, r.ident, r.frame
+	r.cur, r.clip, r.stack, r.cmask, r.frame = dst, region, nil, nil, region
 	r.m, r.ident = geom.Identity(), true
 	for _, op := range ops {
 		r.exec(op)
@@ -187,7 +189,7 @@ func (r *CPU) RenderRegion(ops []Op, region image.Rectangle, scale float32) *ima
 		r.pop()
 	}
 	r.cur, r.clip, r.stack, r.cmask, r.cmaskAt = saveCur, saveClip, saveStack, saveMask, saveMaskAt
-	r.m, r.ident = saveM, saveIdent
+	r.m, r.ident, r.frame = saveM, saveIdent, saveFrame
 	return dst
 }
 
@@ -257,6 +259,8 @@ func (r *CPU) exec(op Op) {
 		r.text(o)
 	case Image:
 		r.image(o)
+	case BackdropBlur:
+		r.backdropBlur(o)
 	case PushClip:
 		// A rectangular clip only narrows clip. A rounded one also
 		// multiplies its RRectCoverage into cmask; nested rounded clips

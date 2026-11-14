@@ -15,6 +15,7 @@ import (
 
 	"github.com/tangoui/tango/internal/render/gpu"
 	"github.com/tangoui/tango/internal/render/gpu/gen"
+	"github.com/tangoui/tango/internal/render/gpu/internal/devkit"
 	"github.com/tangoui/tango/internal/render/gpu/shaders"
 	"github.com/tangoui/tango/internal/render/shader/sl"
 )
@@ -72,6 +73,18 @@ import (
 // Execute starts a render pass wherever the target changes (or a batch has
 // Uploads): a layer's first pass clears it to transparent, the frame
 // target's first pass clears it to Frame.Clear, later passes load.
+//
+// Backdrop grabs (gpu.Batch.Grab, the source of a paint.BackdropBlur).
+// A grab batch ends the open render pass and encodes a blit of the grab
+// layer's Bounds from its Target (the frame's target or a layer texture)
+// into the grab layer's texture at (0, 0); Metal's hazard tracking orders
+// it after the draws before it and before the blur passes that sample it.
+// A source nothing drew into yet is first cleared by an empty pass (the
+// frame's target: its dirty rectangles in a partial frame). The grab
+// layer takes its pooled texture at the grab, like a layer at its first
+// draw, and is freed after its last sampling. The blur passes are ordinary
+// layer batches; their instances sample the layer like composites and are
+// rescaled with them for a larger pooled texture.
 //
 // Partial frames (gpu.Frame.Dirty). The target persists between frames,
 // so the device is a gpu.Retainer. A partial frame is refused with
@@ -422,6 +435,28 @@ func (d *Device) Execute(f *gpu.Frame) error {
 			d.blit(cb, ups[:len(b.Uploads)])
 			ups = ups[len(b.Uploads):]
 		}
+		if b.Grab != 0 {
+			// A backdrop copy: end the pass (Metal orders the blit after
+			// the draws encoded before it), blit; the next batch starts a
+			// pass with loadAction=load.
+			if enc != 0 {
+				enc.Send(sel("endEncoding"))
+				enc = 0
+			}
+			if !started[b.Target] {
+				// Nothing drew into the source yet: clear it first (in a
+				// partial frame, the target's dirty rectangles), so the
+				// copy reads what an executed frame holds there.
+				e := d.beginPass(cb, f, b.Target, !(partial && b.Target == 0))
+				if partial && b.Target == 0 {
+					d.clearDirty(e, f, uint64(nInst)*instanceSize)
+				}
+				e.Send(sel("endEncoding"))
+				started[b.Target] = true
+			}
+			d.grab(cb, f, b)
+			continue
+		}
 		if enc == 0 || b.Target != cur {
 			if enc != 0 {
 				enc.Send(sel("endEncoding"))
@@ -492,6 +527,23 @@ func (d *Device) Execute(f *gpu.Frame) error {
 	d.hasFrame = true
 	clear(d.staged)
 	return nil
+}
+
+// grab encodes the grab batch b (gpu.Batch.Grab; its source was started
+// by Execute): an empty pass clearing the grab layer's texture to
+// transparent, then a blit of its Bounds from b's target to (0, 0).
+func (d *Device) grab(cb id, f *gpu.Frame, b *gpu.Batch) {
+	src := d.target
+	if b.Target != 0 {
+		src = d.layerTex[b.Target]
+	}
+	// The layer starts transparent (texels the copy does not reach
+	// included: a pooled texture holds an earlier layer's pixels).
+	d.beginPass(cb, f, b.Grab, true).Send(sel("endEncoding"))
+	r := devkit.GrabRect(f, b)
+	enc := cb.Send(sel("blitCommandEncoder"))
+	copyTextureToTexture(enc, src, mtlOrigin{uint64(r.Min.X), uint64(r.Min.Y), 0}, mtlSize{uint64(r.Dx()), uint64(r.Dy()), 1}, d.layerTex[b.Grab], mtlOrigin{})
+	enc.Send(sel("endEncoding"))
 }
 
 // beginPass starts a render pass on target (0: the frame's target, n:
@@ -670,7 +722,7 @@ func (d *Device) assignLayers(f *gpu.Frame) error {
 		last := make([]int, len(f.Layers)+1)
 		for i := range f.Batches {
 			b := &f.Batches[i]
-			for _, n := range [2]int{b.Target, b.Layer} {
+			for _, n := range [3]int{b.Target, b.Layer, b.Grab} {
 				if n < 0 || n > len(f.Layers) {
 					return fmt.Errorf("metal: batch %d names layer %d of %d", i, n, len(f.Layers))
 				}
@@ -679,9 +731,20 @@ func (d *Device) assignLayers(f *gpu.Frame) error {
 			if b.Target != 0 && b.Target == b.Layer {
 				return fmt.Errorf("metal: batch %d samples the layer it draws into", i)
 			}
+			if err := devkit.CheckGrab(f, i); err != nil {
+				return fmt.Errorf("metal: %w", err)
+			}
 		}
 		for i := range f.Batches {
 			b := &f.Batches[i]
+			if n := b.Grab; n != 0 && d.layerTex[n] == 0 {
+				t, size, err := d.takeLayer(f.Layers[n-1].Size)
+				if err != nil {
+					d.freeLayers()
+					return d.syncFailed(err)
+				}
+				d.layerTex[n], d.layerSize[n] = t, size
+			}
 			if n := b.Target; n != 0 && d.layerTex[n] == 0 {
 				ld := f.Layers[n-1]
 				if ld.Size.X <= 0 || ld.Size.Y <= 0 || ld.Bounds.Dx() > ld.Size.X || ld.Bounds.Dy() > ld.Size.Y {
@@ -699,7 +762,7 @@ func (d *Device) assignLayers(f *gpu.Frame) error {
 				d.freeLayers()
 				return fmt.Errorf("metal: batch %d samples layer %d before any batch drew into it", i, n)
 			}
-			for _, n := range [2]int{b.Target, b.Layer} {
+			for _, n := range [3]int{b.Target, b.Layer, b.Grab} {
 				if n != 0 && last[n] == i {
 					d.putLayer(d.layerTex[n])
 				}

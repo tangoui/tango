@@ -285,6 +285,19 @@ func TestImage() image.Image {
 	return img
 }
 
+// stripes is a white list with blue and translucent red stripes over the
+// whole scene (a busy backdrop for the blur scenes).
+func stripes() *paint.List {
+	l := &paint.List{Background: White}
+	for x := float32(0); x < SceneSize.W; x += 6 {
+		l.Fill(geom.R(x, 0, 3, SceneSize.H), geom.Radii{}, Blue)
+	}
+	for y := float32(1); y < SceneSize.H; y += 7.5 {
+		l.Fill(geom.R(0, y, SceneSize.W, 2), geom.Radii{}, color.NRGBA{0xf5, 0x22, 0x2d, 160})
+	}
+	return l
+}
+
 // Scene is a display list compared between paint.CPU and a GPU backend.
 type Scene struct {
 	Name string
@@ -522,6 +535,41 @@ var Scenes = []Scene{
 		l.Pop()
 		return l
 	}},
+	{Name: "backdrop", Thr: 2, Make: func(t testing.TB) *paint.List {
+		// Backdrop blurs: a frosted bar over stripes, a gradient and a
+		// checkerboard (downsampled: sigma 5-10 device pixels), a small blur at
+		// full resolution under a rounded clip, and one along the frame's
+		// bottom and right edges (edge pixels repeat).
+		l := stripes()
+		l.LinearStops(geom.R(40, 4, 50, 20), geom.Rad(4), geom.Pt(40, 0), geom.Pt(90, 0),
+			paint.Stop{Offset: 0, Color: Red}, paint.Stop{Offset: 1, Color: Green})
+		l.Checker(geom.R(8, 30, 24, 20), geom.Radii{}, 3, Ink, White)
+		l.BackdropBlur(geom.R(4.5, 18.25, 70, 22), geom.Rad(8), 5)
+		l.Fill(geom.R(4.5, 18.25, 70, 22), geom.Rad(8), color.NRGBA{255, 255, 255, 120})
+		l.Clip(geom.R(50, 2, 40, 14), geom.Rad(5))
+		l.BackdropBlur(geom.R(40, 0, 56, 30), geom.Radii{}, 1.25)
+		l.Pop()
+		l.BackdropBlur(geom.R(70, 44, 26, 12), geom.Radii{TL: 6}, 3)
+		return l
+	}},
+	{Name: "backdropgroup", Thr: 2, Make: func(t testing.TB) *paint.List {
+		// Inside an opacity group a blur sees only the group's content
+		// (transparent around it); under a translate + uniform scale its
+		// rect, radii and radius are mapped; a group of its own after it.
+		l := stripes()
+		l.Opacity(0.7)
+		l.Fill(geom.R(20, 10, 30, 30), geom.Rad(6), Red)
+		l.Fill(geom.R(36, 24, 30, 20), geom.Radii{}, Blue)
+		l.BackdropBlur(geom.R(10, 5, 60, 40), geom.Rad(10), 2.5)
+		l.Pop()
+		l.Transform(geom.Translate(60, 8).Mul(geom.Scale(0.5, 0.5)))
+		l.BackdropBlur(geom.R(0, 0, 60, 80), geom.Rad(12), 8)
+		l.Pop()
+		l.Opacity(0.5)
+		l.Fill(geom.R(2, 44, 40, 10), geom.Radii{}, Green)
+		l.Pop()
+		return l
+	}},
 	{Name: "paths", Thr: 2, Make: func(t testing.TB) *paint.List {
 		l := &paint.List{Background: White}
 		l.Path(paint.NewPath().MoveTo(4.3, 3.7).LineTo(40, 10).LineTo(12, 30.5).Close(), Blue)
@@ -641,4 +689,16 @@ func SceneNamed(name string) Scene {
 		}
 	}
 	panic("gputest: no scene " + name)
+}
+
+// HasBlur reports whether l holds a paint.BackdropBlur: a partial redraw
+// then grows its dirty rectangles to the blur's whole source, so tests
+// that count them make an exception.
+func HasBlur(l *paint.List) bool {
+	for _, op := range l.Ops {
+		if _, ok := op.(paint.BackdropBlur); ok {
+			return true
+		}
+	}
+	return false
 }

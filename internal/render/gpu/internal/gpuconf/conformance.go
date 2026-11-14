@@ -70,6 +70,7 @@ func Conformance(t *testing.T, open func(t *testing.T) gpu.Device, opts ...Optio
 	c.run(t, "LayerPoolReuse", c.layerPoolReuse)
 	c.run(t, "ImageCache", c.imageCache)
 	c.run(t, "GradientRampRows", c.gradientRampRows)
+	c.run(t, "BackdropBlurPrecision", c.backdropBlurPrecision)
 	c.run(t, "Partial", func(t *testing.T) {
 		if _, ok := c.device(t).(gpu.Retainer); !ok {
 			t.Skip("device is not a gpu.Retainer: no partial frames")
@@ -80,6 +81,7 @@ func Conformance(t *testing.T, open func(t *testing.T) gpu.Device, opts ...Optio
 		c.run(t, "NotRetained", c.notRetained)
 		c.run(t, "SubpixelScroll", c.subpixelScroll)
 		c.run(t, "VerifyFractionalScroll", c.verifyFractionalScroll)
+		c.run(t, "BackdropBlur", c.backdropBlurPartial)
 	})
 }
 
@@ -622,7 +624,7 @@ func (c *suite) partialScenes(t *testing.T) {
 				if err := r.Render(l2, gputest.SceneSize, scale); err != nil {
 					t.Fatal(err)
 				}
-				if lf.Dirty != 2 {
+				if lf.Dirty != 2 && !gputest.HasBlur(l) {
 					t.Fatalf("%d dirty rectangles, want 2", lf.Dirty)
 				}
 				ref := paint.NewCPU()
@@ -829,5 +831,111 @@ func (c *suite) verifyFractionalScroll(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// FrostedFooter is a frosted bar (paint.BackdropBlur under a translucent
+// fill) over the bottom of the scroll scene's viewport, drawn after it.
+var FrostedFooter = geom.R(0, 176, 320, 40)
+
+// frostedScroll is ScrollList with the frosted footer over the rows;
+// extra adds hints.
+func frostedScroll(t testing.TB, off float32, extra func(*paint.List)) *paint.List {
+	return ScrollList(t, off, func(l *paint.List) {
+		l.BackdropBlur(FrostedFooter, geom.Radii{TL: 8, TR: 8}, 8)
+		l.Fill(FrostedFooter, geom.Radii{TL: 8, TR: 8}, color.NRGBA{255, 255, 255, 140})
+		if extra != nil {
+			extra(l)
+		}
+	})
+}
+
+// backdropBlurPartial: rows scrolling under a frosted footer, and a
+// damaged row under it, pass strict verify mode on the device (the
+// blur's whole source is redrawn, the copy still made for the rest of the
+// viewport); without verify mode the frame matches paint.CPU.
+func (c *suite) backdropBlurPartial(t *testing.T) {
+	for _, scale := range []float32{1, 2} {
+		c.run(t, fmt.Sprint(scale), func(t *testing.T) {
+			d := c.device(t)
+			lf := &LastFrame{Device: d}
+			r := gpu.NewRenderer(lf)
+			r.SetVerify(true)
+			r.SetVerifyStrict(true)
+			offs := []float32{0, 24, 72, 60, 0}
+			if err := r.Render(frostedScroll(t, 0, nil), ScrollSize, scale); err != nil {
+				t.Fatal(err)
+			}
+			for k := 1; k < len(offs); k++ {
+				dy := offs[k-1] - offs[k]
+				l := frostedScroll(t, offs[k], func(l *paint.List) { l.Scroll(ScrollViewport, geom.Pt(0, dy)) })
+				if err := r.Render(l, ScrollSize, scale); err != nil {
+					t.Fatalf("scroll %v: %v", dy, err)
+				}
+			}
+			// A damaged row under the footer's reach.
+			l := frostedScroll(t, 0, func(l *paint.List) {
+				l.Fill(geom.R(0, 168, 320, 24), geom.Radii{}, Pink)
+				l.Damage(geom.R(0, 168, 320, 24))
+			})
+			if err := r.Render(l, ScrollSize, scale); err != nil {
+				t.Fatalf("damage: %v", err)
+			}
+			// The copy itself, without verify mode's full frame after it.
+			r.SetVerify(false)
+			if err := r.Render(frostedScroll(t, 0, nil), ScrollSize, scale); err != nil {
+				t.Fatal(err)
+			}
+			l = frostedScroll(t, 24, func(l *paint.List) { l.Scroll(ScrollViewport, geom.Pt(0, -24)) })
+			if err := r.Render(l, ScrollSize, scale); err != nil {
+				t.Fatal(err)
+			}
+			if len(lf.Copies) != 1 || lf.Dirty == 0 {
+				t.Fatalf("copies %v, %d dirty; want one copy and dirty rectangles", lf.Copies, lf.Dirty)
+			}
+			ref := paint.NewCPU()
+			if err := ref.Render(l, ScrollSize, scale); err != nil {
+				t.Fatal(err)
+			}
+			gputest.Check(t, "frosted scroll", l, scale, ref.Image(), readPixels(t, d), 4)
+		})
+	}
+}
+
+// Pink is a color for changed content in the partial-frame checks.
+var Pink = color.NRGBA{0xff, 0x85, 0xc0, 255}
+
+// BlurPrecisionList is an opaque checkerboard (exact 8-bit colors in
+// every renderer) under a square backdrop blur of radius.
+func BlurPrecisionList(radius float32) *paint.List {
+	l := &paint.List{Background: gputest.White}
+	l.Checker(geom.R(0, 0, 96, 56), geom.Radii{}, 3, color.NRGBA{20, 120, 240, 255}, color.NRGBA{250, 30, 60, 255})
+	l.BackdropBlur(geom.R(10, 10, 70, 30), geom.Radii{}, radius)
+	return l
+}
+
+// backdropBlurPrecision: over an exact backdrop the device's blur equals
+// paint.CPU's within one level on every pixel (the passes round to whole
+// levels themselves; only a weight sum landing within float error of a
+// half level may round apart), at full resolution and downsampled.
+func (c *suite) backdropBlurPrecision(t *testing.T) {
+	d := c.device(t)
+	r := gpu.NewRenderer(d)
+	for _, scale := range gputest.Scales {
+		for _, radius := range []float32{0.7, 2, 5, 12} {
+			l := BlurPrecisionList(radius)
+			ref := paint.NewCPU()
+			if err := ref.Render(l, gputest.SceneSize, scale); err != nil {
+				t.Fatal(err)
+			}
+			if err := r.Render(l, gputest.SceneSize, scale); err != nil {
+				t.Fatal(err)
+			}
+			res := gputest.Compare(readPixels(t, d), ref.Image(), 1)
+			t.Logf("radius %v scale %v: max diff %d, %d pixels over 1", radius, scale, res.MaxDiff, res.Over)
+			if res.Over > 0 {
+				t.Errorf("radius %v scale %v: %d pixels differ by more than 1 (max %d)", radius, scale, res.Over, res.MaxDiff)
+			}
+		}
 	}
 }

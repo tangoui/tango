@@ -79,6 +79,7 @@ pkg github.com/tangoui/tango, method (*App) HandleArgs([]string, string)
 pkg github.com/tangoui/tango, method (*App) ID() string
 pkg github.com/tangoui/tango, method (*App) Name() string
 pkg github.com/tangoui/tango, method (*App) NewSurface(SurfaceOptions) (*Surface, error)
+pkg github.com/tangoui/tango, method (*App) OnBinary(func(*Surface, uint64, []byte))
 pkg github.com/tangoui/tango, method (*App) OnDownloadEvent(func(*Surface, DownloadEvent))
 pkg github.com/tangoui/tango, method (*App) OnEvent(func(AppEvent))
 pkg github.com/tangoui/tango, method (*App) OnEventKind(AppEventKind, func(AppEvent))
@@ -104,6 +105,8 @@ pkg github.com/tangoui/tango, method (*App) SetPermissionPolicy(WebPermission, P
 pkg github.com/tangoui/tango, method (*App) Surfaces() []*Surface
 pkg github.com/tangoui/tango, method (*Surface) App() *App
 pkg github.com/tangoui/tango, method (*Surface) Appearance() Appearance
+pkg github.com/tangoui/tango, method (*Surface) BinaryMinSize() int
+pkg github.com/tangoui/tango, method (*Surface) BinarySession() (uint64, ipc.BinaryConn)
 pkg github.com/tangoui/tango, method (*Surface) Bounds() Rect
 pkg github.com/tangoui/tango, method (*Surface) CancelDownload(uint64) error
 pkg github.com/tangoui/tango, method (*Surface) Center() error
@@ -113,6 +116,7 @@ pkg github.com/tangoui/tango, method (*Surface) Close()
 pkg github.com/tangoui/tango, method (*Surface) Cookies(string) ([]*net/http.Cookie, error)
 pkg github.com/tangoui/tango, method (*Surface) DeleteCookie(*net/http.Cookie) error
 pkg github.com/tangoui/tango, method (*Surface) DragFiles([]string, []byte, func(DragOperation)) error
+pkg github.com/tangoui/tango, method (*Surface) DropBinarySession()
 pkg github.com/tangoui/tango, method (*Surface) Eval(string)
 pkg github.com/tangoui/tango, method (*Surface) Find(string, FindOptions) (FindResult, error)
 pkg github.com/tangoui/tango, method (*Surface) FindNext() (FindResult, error)
@@ -123,6 +127,7 @@ pkg github.com/tangoui/tango, method (*Surface) Hide()
 pkg github.com/tangoui/tango, method (*Surface) ID() internal/platform.SurfaceID
 pkg github.com/tangoui/tango, method (*Surface) IsFocused() bool
 pkg github.com/tangoui/tango, method (*Surface) IsVisible() bool
+pkg github.com/tangoui/tango, method (*Surface) LaneHello() encoding/json.RawMessage
 pkg github.com/tangoui/tango, method (*Surface) Maximize() error
 pkg github.com/tangoui/tango, method (*Surface) Minimize() error
 pkg github.com/tangoui/tango, method (*Surface) Native() uintptr
@@ -146,6 +151,7 @@ pkg github.com/tangoui/tango, method (*Surface) Reload() error
 pkg github.com/tangoui/tango, method (*Surface) Restore() error
 pkg github.com/tangoui/tango, method (*Surface) Screenshot() ([]byte, error)
 pkg github.com/tangoui/tango, method (*Surface) Send(string)
+pkg github.com/tangoui/tango, method (*Surface) SendBinary([]byte) bool
 pkg github.com/tangoui/tango, method (*Surface) SetAppearance(Appearance) error
 pkg github.com/tangoui/tango, method (*Surface) SetAuthHandler(func(AuthChallenge) AuthResponse)
 pkg github.com/tangoui/tango, method (*Surface) SetBounds(Rect) error
@@ -262,6 +268,7 @@ pkg github.com/tangoui/tango, type NewWindowRequest struct, Width int
 pkg github.com/tangoui/tango, type Options struct
 pkg github.com/tangoui/tango, type Options struct, AllowCrossOriginAssets bool
 pkg github.com/tangoui/tango, type Options struct, Assets net/http.Handler
+pkg github.com/tangoui/tango, type Options struct, DisableFastLanes bool
 pkg github.com/tangoui/tango, type Options struct, ID string
 pkg github.com/tangoui/tango, type Options struct, Name string
 pkg github.com/tangoui/tango, type Options struct, OnPanic func(Panic) bool

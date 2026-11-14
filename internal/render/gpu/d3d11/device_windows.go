@@ -12,6 +12,7 @@ import (
 
 	"github.com/tangoui/tango/internal/render/gpu"
 	"github.com/tangoui/tango/internal/render/gpu/gen"
+	"github.com/tangoui/tango/internal/render/gpu/internal/devkit"
 	"github.com/tangoui/tango/internal/render/gpu/shaders"
 	"github.com/tangoui/tango/internal/render/shader/sl"
 )
@@ -64,6 +65,10 @@ import (
 // a layer run with ViewSize its texture's size and Origin its
 // Bounds.Min; composites sampling a larger pooled texture get their UVs
 // rescaled (rescaleComposites).
+//
+// Backdrop grabs (gpu.Batch.Grab) are a CopySubresourceRegion from the
+// source target into the grab layer's texture, with every render target
+// and the image and layer slots unbound first (grab).
 //
 // Partial frames (gpu.Frame.Dirty). The target persists between frames,
 // so the device is a gpu.Retainer. A partial frame is refused with
@@ -356,6 +361,11 @@ func (d *Device) encode(f *gpu.Frame, instOff, nInst int) {
 		n := len(b.Instances)
 		off := base
 		base += n * gen.QuadInstanceStride
+		if b.Grab != 0 {
+			d.grab(f, b)
+			cur = -1 // the next batch binds its target again
+			continue
+		}
 		if b.Target != cur {
 			d.bindTarget(f, b.Target)
 			cur = b.Target
@@ -401,6 +411,36 @@ func (d *Device) encode(f *gpu.Frame, instOff, nInst int) {
 		scissor(sc)
 		draw(n)
 	}
+}
+
+// grab issues the grab batch b (gpu.Batch.Grab): a source layer nothing
+// drew into yet is cleared to transparent first, then every render target
+// and the image and layer slots are unbound (neither texture may be bound
+// while a copy writes or reads it under the debug layer's hazard rules)
+// and the grab layer's Bounds are copied with CopySubresourceRegion from
+// the source to texel (0, 0) of the layer's texture. The immediate
+// context runs the copy after the draws issued before it.
+func (d *Device) grab(f *gpu.Frame, b *gpu.Batch) {
+	ctx := d.ctx
+	if !d.started[b.Target] {
+		var transparent [4]float32 // the frame's target is always started
+		comCall(ctx, ctxClearRenderTargetView, d.layers.Tex[b.Target].rtv, uintptr(unsafe.Pointer(&transparent)))
+		d.started[b.Target] = true
+	}
+	none := [2]uintptr{d.placeholder.srv, d.placeholder.srv}
+	comCall(ctx, ctxPSSetShaderResources, gpu.TexImage, 2, uintptr(unsafe.Pointer(&none[0])))
+	comCall(ctx, ctxOMSetRenderTargets, 0, 0, 0)
+	src := d.target.tex
+	if b.Target != 0 {
+		src = d.layers.Tex[b.Target].tex
+	}
+	// The layer starts transparent (texels the copy does not reach
+	// included: a pooled texture holds an earlier layer's pixels).
+	var clearTo [4]float32
+	comCall(ctx, ctxClearRenderTargetView, d.layers.Tex[b.Grab].rtv, uintptr(unsafe.Pointer(&clearTo)))
+	r := devkit.GrabRect(f, b)
+	bx := box{Left: uint32(r.Min.X), Top: uint32(r.Min.Y), Front: 0, Right: uint32(r.Max.X), Bottom: uint32(r.Max.Y), Back: 1}
+	d.copyRegion(d.layers.Tex[b.Grab].tex, 0, 0, src, &bx)
 }
 
 // bindTarget makes target (0: the frame's target, n: layer n) the render

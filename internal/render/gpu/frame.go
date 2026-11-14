@@ -99,6 +99,21 @@ type Batch struct {
 	// rejects a frame whose batch samples a layer nothing drew into
 	// (Execute returns an error).
 	Layer int
+	// Grab, when n > 0, makes the batch a backdrop copy instead of a draw
+	// (a backdrop blur reads the target as drawn so far; see
+	// paint.BackdropBlur): after every earlier batch has been drawn, layer n
+	// is cleared to transparent (all of its texture) and the
+	// device copies the pixels of Frame.Layers[n-1].Bounds (main-target
+	// coordinates) from the batch's Target — the frame's target, or the
+	// layer Target names — into layer n, whose texel (0, 0) receives
+	// Bounds.Min. Bounds lies inside what the Target holds (the frame, or
+	// the Target layer's Bounds); Grab never equals Target. The copy counts
+	// as drawing into layer n (a later batch may sample it), and a frame's
+	// partial-redraw scissors do not apply to it: in a partial frame it
+	// copies the target's current pixels, retained ones included. A grab
+	// batch has no Instances, Uploads, Scissor, Image or Layer. The
+	// Renderer emits one before the blur passes of each BackdropBlur.
+	Grab int
 }
 
 // Frame is everything a Device needs to draw one frame. The Renderer

@@ -84,7 +84,7 @@ func (d *Device) newLayerPool() *layerPool {
 	}}
 }
 
-// assign is devkit.LayerPool.Assign with the invalid-frame errors
+// assign is devkit.LayerPool.Assign (backdrop grabs included) with the invalid-frame errors
 // prefixed "gl: "; an allocError is returned as is.
 func (p *layerPool) assign(f *gpu.Frame) error {
 	err := p.Assign(f)

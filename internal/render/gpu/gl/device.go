@@ -82,6 +82,10 @@ import (
 // get their UVs rescaled (devkit.RescaleComposites). The frame's target
 // is never bound for sampling.
 //
+// Backdrop grabs (gpu.Batch.Grab) are a glBlitFramebuffer (GL_NEAREST,
+// equal sizes) from the source target's framebuffer into the grab layer's,
+// with the image and layer units on the placeholder (grab, device.go).
+//
 // Partial frames (gpu.Frame.Dirty). The target persists between frames,
 // so the device is a gpu.Retainer. A partial frame is refused with
 // gpu.ErrNotRetained unless the target holds the last frame (not
@@ -449,6 +453,11 @@ func (d *Device) encode(fr *gpu.Frame, ins [][]shaders.Instance, n int) {
 		k := len(ins[i])
 		at := off
 		off += k * gen.QuadInstanceStride
+		if b.Grab != 0 {
+			d.grab(fr, b)
+			cur = -1 // the next batch binds its target again
+			continue
+		}
 		if b.Target != cur {
 			d.bindTarget(fr, b.Target)
 			cur = b.Target
@@ -492,6 +501,38 @@ func (d *Device) encode(fr *gpu.Frame, ins [][]shaders.Instance, n int) {
 		scissor(sc)
 		f.DrawArraysInstanced(glTRIANGLE_STRIP, 0, 4, int32(k))
 	}
+}
+
+// grab issues the grab batch b (gpu.Batch.Grab): its source target is
+// cleared first if nothing drew into it yet (a layer starts transparent),
+// the grab layer is cleared to transparent, then its Bounds are blitted (GL_NEAREST, equal sizes: an
+// exact copy) from the source's framebuffer to texel (0, 0) of the
+// layer's. The image and layer units hold the placeholder meanwhile, so
+// the layer is not bound for sampling while it is drawn into; GL orders
+// the blit after the draws issued before it and before the ones after.
+func (d *Device) grab(fr *gpu.Frame, b *gpu.Batch) {
+	f := d.f
+	if !d.started[b.Target] {
+		d.bindTarget(fr, b.Target)
+		clearBound(f, transparent) // the frame's target is always started
+		d.started[b.Target] = true
+	}
+	d.bindSampled(d.placeholder.tex, d.placeholder.tex)
+	src := d.fbo
+	if b.Target != 0 {
+		src = d.layers.Tex[b.Target].fbo
+	}
+	r := devkit.GrabRect(fr, b)
+	// The layer starts transparent (texels the copy does not reach
+	// included: a pooled texture holds an earlier layer's pixels).
+	d.bindTarget(fr, b.Grab)
+	clearBound(f, transparent)
+	f.Disable(glSCISSOR_TEST)
+	f.BindFramebuffer(glREAD_FRAMEBUFFER, src)
+	f.BindFramebuffer(glDRAW_FRAMEBUFFER, d.layers.Tex[b.Grab].fbo)
+	f.BlitFramebuffer(int32(r.Min.X), int32(r.Min.Y), int32(r.Max.X), int32(r.Max.Y),
+		0, 0, int32(r.Dx()), int32(r.Dy()), glCOLOR_BUFFER_BIT, glNEAREST)
+	f.Enable(glSCISSOR_TEST)
 }
 
 // bindSampled binds textures img and layer to the image and layer units.

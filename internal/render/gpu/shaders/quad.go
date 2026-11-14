@@ -16,7 +16,8 @@ const (
 	KindMask  = 1 // R8 mask (glyph) tinted with Color
 	// KindPatch is a premultiplied RGBA texture multiplied by Color: the
 	// patch page (Color), or with Kind.W = 1 an offscreen layer (Layer),
-	// which composites an opacity group.
+	// which composites an opacity group. With Kind.W >= 2 it is a pass of
+	// a backdrop blur sampling a layer (BlurPass, blur.go).
 	KindPatch = 2
 	// KindStroke is a border inside the rounded rectangle (StrokeCoverage)
 	// in Color: Params.X is the width, Params.Y the dash phase, Dash the
@@ -76,7 +77,9 @@ type Instance struct {
 	// sampling never reaches a neighbouring atlas entry. For KindGradient
 	// Kind.Y is the gradient kind and Kind.W is 1 for a Path-shaped
 	// gradient (0 otherwise); for KindPatch it is 1 for a layer composite
-	// (sampling Layer instead of Color). Kind.W is unused by the other kinds.
+	// (sampling Layer instead of Color) and BlurDown … BlurComposite for a
+	// backdrop blur pass (also sampling Layer). Kind.W is unused by the
+	// other kinds.
 	Kind sl.Vec4 `sl:"loc=6"`
 	// Params.X is KindStroke's stroke width and Params.Y its dash phase;
 	// for KindShadow X is sigma and Y the shadow's reach beyond Rect
@@ -257,6 +260,10 @@ func FS(in Varyings) sl.Vec4 {
 			cov = cov * m.X
 		}
 		return DitherPremul(c, Dither4x4(pc.X-0.5, pc.Y-0.5)).Scale(cov)
+	}
+	if in.Kind.X > KindMask+0.5 && in.Kind.W > 1.5 {
+		// A backdrop blur pass (KindPatch with Kind.W >= 2; blur.go).
+		return BlurPass(pc, in.UV, in.Kind, in.Params, in.Dash, cov)
 	}
 	// Map the pixel to the texture sub-rectangle, then clamp the sample point
 	// to the centers of the sub-rectangle's edge texels (Kind.YZ is half a

@@ -160,7 +160,7 @@ func (d *Device) Execute(f *gpu.Frame) error {
 	// dropped after their last use (drawn into or sampled).
 	last := make([]int, len(f.Layers)+1)
 	for i, b := range f.Batches {
-		for _, n := range []int{b.Target, b.Layer} {
+		for _, n := range []int{b.Target, b.Layer, b.Grab} {
 			if n < 0 || n > len(f.Layers) {
 				return fmt.Errorf("batch %d: layer %d of %d", i, n, len(f.Layers))
 			}
@@ -168,6 +168,9 @@ func (d *Device) Execute(f *gpu.Frame) error {
 		}
 		if b.Target != 0 && b.Target == b.Layer {
 			return fmt.Errorf("batch %d samples its own target", i)
+		}
+		if b.Grab != 0 && (b.Grab == b.Target || len(b.Instances) > 0 || len(b.Uploads) > 0 || b.Layer != 0) {
+			return fmt.Errorf("batch %d: bad grab into layer %d", i, b.Grab)
 		}
 	}
 	layers := make([]*image.RGBA, len(f.Layers)+1)
@@ -177,6 +180,12 @@ func (d *Device) Execute(f *gpu.Frame) error {
 			return err
 		}
 		d.batchUploads += len(b.Uploads)
+		if b.Grab != 0 {
+			if err := d.grab(f, &b, layers, &last, i); err != nil {
+				return err
+			}
+			continue
+		}
 		target, origin := d.img, image.Point{}
 		if b.Target != 0 {
 			ld := f.Layers[b.Target-1]
@@ -260,6 +269,63 @@ func (d *Device) Execute(f *gpu.Frame) error {
 	cp.ImageFrees = append([]int(nil), f.ImageFrees...)
 	d.last = &cp
 	return nil
+}
+
+// grab executes the grab batch b (index i; see gpu.Batch.Grab): it copies
+// the grab layer's Bounds from b's target into the layer, creating the
+// layer image if needed, and releases layers after their last use.
+func (d *Device) grab(f *gpu.Frame, b *gpu.Batch, layers []*image.RGBA, last *[]int, i int) error {
+	gd := f.Layers[b.Grab-1]
+	if !gd.Bounds.Size().In(image.Rectangle{Max: gd.Size.Add(image.Pt(1, 1))}) {
+		return fmt.Errorf("layer %d: bounds %v larger than size %v", b.Grab, gd.Bounds, gd.Size)
+	}
+	src, origin := d.img, image.Point{}
+	held := image.Rectangle{Max: f.Size}
+	if b.Target != 0 {
+		ld := f.Layers[b.Target-1]
+		if layers[b.Target] == nil {
+			layers[b.Target] = image.NewRGBA(image.Rectangle{Max: ld.Size})
+			d.liveLayers++
+		}
+		src, origin, held = layers[b.Target], ld.Bounds.Min, ld.Bounds
+	}
+	if !gd.Bounds.In(held) {
+		return fmt.Errorf("grab of %v outside its source %v", gd.Bounds, held)
+	}
+	if layers[b.Grab] == nil {
+		layers[b.Grab] = image.NewRGBA(image.Rectangle{Max: gd.Size})
+		d.liveLayers++
+	} else {
+		clear(layers[b.Grab].Pix) // the layer starts transparent
+	}
+	CopyBetween(layers[b.Grab], image.Point{}, src, gd.Bounds.Sub(origin))
+	for _, n := range []int{b.Target, b.Grab} {
+		if n != 0 && (*last)[n] == i && layers[n] != nil {
+			layers[n] = nil
+			d.liveLayers--
+		}
+	}
+	return nil
+}
+
+// CopyBetween copies the pixels of r in src to dst at at (both clipped to
+// their images).
+func CopyBetween(dst *image.RGBA, at image.Point, src *image.RGBA, r image.Rectangle) {
+	r = r.Intersect(src.Rect)
+	for y := r.Min.Y; y < r.Max.Y; y++ {
+		dy := at.Y + y - r.Min.Y
+		if dy < dst.Rect.Min.Y || dy >= dst.Rect.Max.Y {
+			continue
+		}
+		for x := r.Min.X; x < r.Max.X; x++ {
+			dx := at.X + x - r.Min.X
+			if dx < dst.Rect.Min.X || dx >= dst.Rect.Max.X {
+				continue
+			}
+			si, di := src.PixOffset(x, y), dst.PixOffset(dx, dy)
+			copy(dst.Pix[di:di+4], src.Pix[si:si+4])
+		}
+	}
 }
 
 // Retained implements gpu.Retainer: the target persists between frames

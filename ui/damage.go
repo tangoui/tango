@@ -323,7 +323,72 @@ func (r *Runner) collectDamage(scale float32) []image.Rectangle {
 	for _, d := range mergeDamage(dam, view) {
 		r.list.Damage(d)
 	}
+	addBlurDamage(&r.list, scale)
 	return dirtyRects(&r.list, scale, c.size)
+}
+
+// addBlurDamage appends a Damage hint for every backdrop blur of l
+// (paint.BackdropBlur) whose reach (its rect grown by
+// paint.BackdropBlurReach) a hint of the frame — a Damage or a
+// ScrollRegion, or the damage of another blur added here — touches: a
+// blur shows what is painted under it, so a change there (or a copy
+// moving it) changes the blur's pixels although no fingerprint of its
+// node changed. Rects go through the transform stack as dirtyRects maps
+// them; blurs under a transform that is not a translate and uniform scale
+// draw nothing and are skipped. A partial GPU frame redraws each damaged
+// blur's whole source on top of this (internal/render/gpu's planPartial);
+// the damage here is what a presenter must update.
+func addBlurDamage(l *paint.List, scale float32) {
+	type blur struct {
+		out, reach geom.Rect
+		done       bool
+	}
+	var blurs []blur
+	var hints []geom.Rect
+	stack := []geom.Affine{geom.Identity()}
+	for _, op := range l.Ops {
+		m := stack[len(stack)-1]
+		switch o := op.(type) {
+		case paint.PushTransform:
+			stack = append(stack, m.Mul(o.M))
+		case paint.PushClip, paint.PushOpacity:
+			stack = append(stack, m)
+		case paint.Pop:
+			if len(stack) > 1 {
+				stack = stack[:len(stack)-1]
+			}
+		case paint.Damage:
+			hints = append(hints, m.Bounds(o.Rect))
+		case paint.ScrollRegion:
+			hints = append(hints, m.Bounds(o.Rect))
+		case paint.BackdropBlur:
+			if !m.AxisAligned() || m.A != m.D {
+				continue
+			}
+			out := m.Bounds(o.Rect)
+			reach := paint.BackdropBlurReach(o.Radius*abs32(m.A), scale)
+			if reach > 0 && !out.Empty() {
+				blurs = append(blurs, blur{out: out, reach: out.Expand(reach)})
+			}
+		}
+	}
+	for grew := len(blurs) > 0; grew; {
+		grew = false
+		for i := range blurs {
+			b := &blurs[i]
+			if b.done {
+				continue
+			}
+			for _, h := range hints {
+				if !h.Intersect(b.reach).Empty() {
+					b.done, grew = true, true
+					hints = append(hints, b.out)
+					l.Damage(b.out)
+					break
+				}
+			}
+		}
+	}
 }
 
 // layoutShiftDamage appends to dam, padded by damagePadNode, the old and

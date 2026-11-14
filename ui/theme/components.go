@@ -94,6 +94,7 @@ const (
 	CompMenubar
 	CompItem
 	CompTerminal
+	CompFooterToolbar
 	// numComps counts the Comp values. Internally Comp(i) indexes the
 	// i-th field of Components, so both lists only ever grow at the end.
 	numComps
@@ -102,63 +103,64 @@ const (
 // Components holds the token struct of every component. New components
 // are appended at the end (see Comp).
 type Components struct {
-	Button       ButtonToken
-	Input        InputToken
-	Select       SelectToken
-	Checkbox     CheckboxToken
-	Radio        RadioToken
-	Switch       SwitchToken
-	Slider       SliderToken
-	Tag          TagToken
-	Tabs         TabsToken
-	Menu         MenuToken
-	Table        TableToken
-	Card         CardToken
-	Modal        ModalToken
-	Drawer       DrawerToken
-	Tooltip      TooltipToken
-	Popover      PopoverToken
-	Notification NotificationToken
-	Message      MessageToken
-	Pagination   PaginationToken
-	Segmented    SegmentedToken
-	Avatar       AvatarToken
-	Skeleton     SkeletonToken
-	Layout       LayoutToken
-	Tree         TreeToken
-	Cascader     CascaderToken
-	DatePicker   DatePickerToken
-	Calendar     CalendarToken
-	Steps        StepsToken
-	Timeline     TimelineToken
-	Descriptions DescriptionsToken
-	List         ListToken
-	Badge        BadgeToken
-	Progress     ProgressToken
-	Upload       UploadToken
-	Transfer     TransferToken
-	Collapse     CollapseToken
-	Alert        AlertToken
-	Breadcrumb   BreadcrumbToken
-	Dropdown     DropdownToken
-	Rate         RateToken
-	InputNumber  InputNumberToken
-	Statistic    StatisticToken
-	Divider      DividerToken
-	Typography   TypographyToken
-	Image        ImageToken
-	Carousel     CarouselToken
-	ColorPicker  ColorPickerToken
-	Tour         TourToken
-	Splitter     SplitterToken
-	Result       ResultToken
-	Empty        EmptyToken
-	FloatButton  FloatButtonToken
-	Anchor       AnchorToken
-	Form         FormToken
-	Menubar      MenubarToken
-	Item         ItemToken
-	Terminal     TerminalToken
+	Button        ButtonToken
+	Input         InputToken
+	Select        SelectToken
+	Checkbox      CheckboxToken
+	Radio         RadioToken
+	Switch        SwitchToken
+	Slider        SliderToken
+	Tag           TagToken
+	Tabs          TabsToken
+	Menu          MenuToken
+	Table         TableToken
+	Card          CardToken
+	Modal         ModalToken
+	Drawer        DrawerToken
+	Tooltip       TooltipToken
+	Popover       PopoverToken
+	Notification  NotificationToken
+	Message       MessageToken
+	Pagination    PaginationToken
+	Segmented     SegmentedToken
+	Avatar        AvatarToken
+	Skeleton      SkeletonToken
+	Layout        LayoutToken
+	Tree          TreeToken
+	Cascader      CascaderToken
+	DatePicker    DatePickerToken
+	Calendar      CalendarToken
+	Steps         StepsToken
+	Timeline      TimelineToken
+	Descriptions  DescriptionsToken
+	List          ListToken
+	Badge         BadgeToken
+	Progress      ProgressToken
+	Upload        UploadToken
+	Transfer      TransferToken
+	Collapse      CollapseToken
+	Alert         AlertToken
+	Breadcrumb    BreadcrumbToken
+	Dropdown      DropdownToken
+	Rate          RateToken
+	InputNumber   InputNumberToken
+	Statistic     StatisticToken
+	Divider       DividerToken
+	Typography    TypographyToken
+	Image         ImageToken
+	Carousel      CarouselToken
+	ColorPicker   ColorPickerToken
+	Tour          TourToken
+	Splitter      SplitterToken
+	Result        ResultToken
+	Empty         EmptyToken
+	FloatButton   FloatButtonToken
+	Anchor        AnchorToken
+	Form          FormToken
+	Menubar       MenubarToken
+	Item          ItemToken
+	Terminal      TerminalToken
+	FooterToolbar FooterToolbarToken
 }
 
 // Alias is the subset of global tokens a component may override for itself
@@ -420,6 +422,8 @@ func deriveComp(t *Theme, k Comp) any {
 		return deriveItem(t)
 	case CompTerminal:
 		return deriveTerminal(t)
+	case CompFooterToolbar:
+		return deriveFooterToolbar(t)
 	}
 	panic("theme: unknown component")
 }
