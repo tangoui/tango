@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -27,12 +28,12 @@ type testWindow struct {
 	size  geom.Size
 	scale float32
 	clip  string
-	inval int
+	inval atomic.Int32 // Invalidate runs on the diff's goroutine too
 }
 
 func (w *testWindow) Size() geom.Size              { return w.size }
 func (w *testWindow) Scale() float32               { return w.scale }
-func (w *testWindow) Invalidate()                  { w.inval++ }
+func (w *testWindow) Invalidate()                  { w.inval.Add(1) }
 func (w *testWindow) InvalidateAt(time.Time)       {}
 func (w *testWindow) SetCursor(input.Cursor)       {}
 func (w *testWindow) ReadClipboard() string        { return w.clip }
