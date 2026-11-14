@@ -97,6 +97,7 @@
   - Timeline：Ant 圆点描边 3 → 2；Pending / Loading 段的虚线规则按 v6；默认 mode `"left"` 改为同义的 `"start"`。
   - Image 预览：Ant 缩放范围 0.25–8 → 1–50、双击 ×2 → ×1.5、关闭按钮距角 32 → 12、按钮 42、工具栏颜色 .65 / .85、方向键到首尾不再循环（shadcn 同 Ant）；Element 缩放 0.2–7、每步 ×1.2、双击不缩放、「复位」切换适应 / 原始尺寸。
   - Carousel：Ant 箭头 28 → 16px、距边 16 → 8、透明度 .6 → .4、到头隐藏，指示点透明度 .3 → .2；Element 悬停指示点即切换；`Current` 越界夹到范围内。
+  - 间接受影响的页面：PageContainer 页头（Descriptions、Tag）、ProLayout / GridContent 头像、Segmented 选中项、chat 气泡与 graph 节点（`ShadowTertiary`）、FooterToolbar 示例里的 Skeleton 等随上述组件变化。
   - QRCode：默认提升纠错级别（同一内容的码图会变）、边框色改 Split、无边框去掉内边距、空字符串不画码。Watermark：排布改为 antd 算法，图片标记随角度旋转、默认不透明度 .2 → 1。
 - **IPC 线协议升级到 v2，不兼容旧版 runtime-js**：握手带 `proto:2`，Go 拒绝其他版本（回 `runtime-js protocol mismatch` 并记 `slog.Warn`）。`@tangoui/runtime` 必须与 Go 模块同版本；自己实现协议的客户端需要按 `ipc` 包注释更新。流的背压从按条数改为按字节计的信用窗口（默认 1 MiB，每帧计负载 + 64 字节），`ack` 改为带归还字节数 `b`；单帧负载上限 16 MiB，超过时这次写入返回 `bad_args`。
 - **macOS/iOS 的资源处理函数改在主线程之外运行**：`tango://` 协议处理器改为异步，`Options.Assets` 的处理函数每个请求在自己的 goroutine 里运行（请求可能并发处理），不再在主线程上同步执行。大文件、SSE 等大的或长时间不结束的响应不再卡住界面；WebKit 取消请求时 `r.Context()` 被取消，阻塞中的写入返回 `context.Canceled`。处理函数里若直接访问只能在主线程用的状态，改用 `app.Post` 投递到主线程或加锁；`tango.Await` 也可以，但它会一直阻塞到主线程执行完，这个请求的响应也跟着等（平台契约一直允许在任意线程调用处理函数）。

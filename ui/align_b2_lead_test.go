@@ -176,3 +176,17 @@ func TestSliderDisabledMidDragNoComplete(t *testing.T) {
 		t.Fatalf("%d ChangeComplete after a drag cut short by Disabled", completes)
 	}
 }
+
+// TestTagPlainDefaultReadable: a plain default tag keeps a readable label
+// in every theme (shadcn's default Badge label is primary-foreground,
+// which vanishes on the container background).
+func TestTagPlainDefaultReadable(t *testing.T) {
+	for _, th := range []*theme.Theme{theme.AntDesign(), theme.ElementPlus(), theme.Shadcn(), theme.Shadcn(theme.Dark())} {
+		var tg *TagW
+		NewDriver(func(c *Context) { tg = Tag(c, "plain").Effect("plain") }, DriverOptions{Theme: th}).Frame()
+		bg, _, fg := tg.colors()
+		if r := theme.ContrastRatio(fg, theme.Over(bg, th.BgContainer)); r < 3 {
+			t.Errorf("%v dark=%v: plain default tag label contrast %.2f", th.Flavor, th.Dark, r)
+		}
+	}
+}

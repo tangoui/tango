@@ -586,6 +586,15 @@ func (t *TagW) colors() (bg, border, fg theme.Color) {
 			}
 		}
 		bg = th.BgContainer
+		// A tint whose label was chosen for a solid fill (shadcn's default
+		// Badge: primary-foreground on primary) would vanish on the
+		// container: use body text and the plain border then.
+		if theme.ContrastRatio(fg, bg) < 3 {
+			fg = th.Text
+			if border.A == 0 || theme.ContrastRatio(border, bg) < 1.1 {
+				border = th.Border
+			}
+		}
 	}
 	if t.isDisabled() {
 		bg, fg = tk.DisabledBg, tk.DisabledColor
