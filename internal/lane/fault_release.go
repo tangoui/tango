@@ -1,4 +1,4 @@
-//go:build !tango_dev
+//go:build !tango_dev && !tango_selftest
 
 package lane
 

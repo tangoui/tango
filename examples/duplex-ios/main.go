@@ -23,7 +23,8 @@
 // nothing) and the lane scenarios of
 // examples/duplex/services/lanetests.js ("selftest: {...}";
 // scripts/smoke.sh ios-selftest judges it). With TANGO_IPC_LANE_FAULT set
-// too (a tango_dev build: TANGO_IPC_LANE_FAULT=up:post:3) the page opens as
+// too (a tango_dev or tango_selftest build, scripts/smoke.sh ios-lanefault:
+// TANGO_IPC_LANE_FAULT=up:post:3) the page opens as
 // index.html?selftest&lanefault and runs only the lane fault scenario
 // ("lanefault: {...}"). With TANGO_DUPLEX_BENCH=1 the page opens as
 // index.html?bench whatever the other variables say (it is checked first)

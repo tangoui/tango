@@ -176,7 +176,6 @@ Go 运行时在 `TangoStart` 之前就已由 c-archive 的加载初始化启动�
 
 - 真机只在一台 iPhone 12 Pro（iOS 27）上验证过，范围见上文"真机验证"；其他机型、iPad 与 App Store 发布流程未验证。
 - 异步协议处理器和 `up:post` 通道只在 iPhone 18 Pro 模拟器（iOS 27.2）上测过，真机上未测。
-- `up:post` 的"通道中途坏掉"场景（`TANGO_IPC_LANE_FAULT`）在 iOS 上没有自动化测试：故障注入只在 `tango_dev` 构建里生效，而 `tan dev` 不能单独产出 `tango_dev` 的 .app。回退路径与平台无关（核心与运行时共用），已在 macOS 的真实 WebKit 上验证。
 - 资源响应若是 3xx 重定向，WKURLSchemeHandler 不会跟随，页面空白。典型坑：`http.FileServer` 会把 `/index.html` 重定向到 `./`，所以 URL 用 `/` 而不是 `/index.html`（macOS 后端同样如此）。
 - 冷启动：iPhone 18 Pro 模拟器上从进程创建到首页 `didFinishNavigation` 约 1.2 s（8 次中位数；优化前 2.9 s）。两处优化：① `main` 之前的框架加载是主要瓶颈（PhotosUI 约 +2.5 s、StoreKit 约 +2 s、Photos/AVFoundation 各 +0.3–0.4 s），这些框架不再链接，`mobile.m`/`mobile2.m` 首次使用时 `dlopen`（StoreKit 在后台线程加载）；② `TangoStart` 时预热首个页面的 `WKWebView`（加载空文档，提前拉起 WebContent/Networking 进程），`tg_surface_new` 直接接管——页面级的 `WKWebViewConfiguration` 设置因此都要写在 `bridge.m` 的 `pageWebView()` 里。`TANGO_TRACE_STARTUP=1` 输出各阶段耗时（`TangoStart`、首次 Drain、WebView 创建、首个 `tango://` 请求、`didFinish`），`TANGO_NO_PREWARM=1` 关闭预热以便对比。
 - `tango://` 是自定义 scheme，WebKit 不为它保存 cookie，`Set-Cookie` 不生效、请求不带 `Cookie`；`tg_task_respond` 的响应头同名只保留最后一个。需要会话时用 JS 桥或 `Authorization` 头。

@@ -13,7 +13,7 @@ Tango 只有一个构建开关：`tango_dev` 构建标签。
 | `i18n` 缺失 key 警告、`env.Info().Debug` | 关闭 / `false` | 打开 / `true` |
 | GPU 渲染校验（`internal/render/gpu` verify 模式）默认值 | 见 `internal/render/gpu/verify_release.go` | 打开 |
 | IPC 快速通道的测试开关（`TANGO_IPC_LANE_FAULT`；macOS/iOS 另有 `TANGO_SCHEME_PROBE` 的探测路由和通道计数器、`TANGO_IPC_LANES_DARWIN=all`） | 无效（`all` 等同默认的开启值） | 生效 |
-| iOS 模拟器自测钩子（`TANGO_SCHEME_PROBE`、`TANGO_IPC_LANES_DARWIN=all`、`TANGO_CANVAS_IME_SELFTEST`、`TANGO_CANVAS_A11Y_SELFTEST`） | 无效；`-tags tango_selftest` 时生效（见下文） | 生效 |
+| iOS 模拟器自测钩子（`TANGO_SCHEME_PROBE`、`TANGO_IPC_LANES_DARWIN=all`、`TANGO_CANVAS_IME_SELFTEST`、`TANGO_CANVAS_A11Y_SELFTEST`）和通道故障注入 `TANGO_IPC_LANE_FAULT`（所有平台） | 无效；`-tags tango_selftest` 时生效（见下文） | 生效 |
 
 **直接 `go run .` 或 `go build` 得到的就是生产行为。** 热加载、自动化、前端开发代理这些开发功能只能通过 `tan dev` 或手动加 `-tags tango_dev` 使用。
 

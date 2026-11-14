@@ -1,4 +1,4 @@
-//go:build tango_dev
+//go:build tango_dev || tango_selftest
 
 package lane
 
@@ -9,7 +9,9 @@ import (
 	"strings"
 )
 
-// Fault injection for development builds: TANGO_IPC_LANE_FAULT=<lane>:<N>
+// Fault injection for development builds (-tags tango_dev) and self-test
+// builds (-tags tango_selftest, e.g. the iOS simulator selftest, which tan
+// build cannot give tango_dev): TANGO_IPC_LANE_FAULT=<lane>:<N>
 // makes the lane fail after N data packets in each generation (sent for a
 // downstream lane, received for an upstream one; empty packets, count 0,
 // such as down:scheme's leading [0,0] and the up:post start probe, are not

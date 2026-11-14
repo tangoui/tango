@@ -253,7 +253,7 @@ tango.lanes(); // macOS 默认：{down: "fallback", up: "up:post"}；没有快�
 
 ### 故障注入（仅开发构建）
 
-开发构建（`-tags tango_dev`，`tan dev` 和 `automation.Launch` 自动加）里，环境变量 `TANGO_IPC_LANE_FAULT=<通道名>:<N>` 让该通道在每个页面世代里成功发送（下行）或接收（上行）N 个数据包之后进入故障（空包不计，比如 `up:post` 启动时的探测）：之后的包被拒绝或丢弃，按「通道坏掉」处理。例如 `TANGO_IPC_LANE_FAULT=down:scheme:3`。格式不对时记一条警告并忽略；生产构建不读这个变量。用来验证应用在通道中途坏掉时的表现。
+开发构建（`-tags tango_dev`，`tan dev` 和 `automation.Launch` 自动加）和自测构建（`-tags tango_selftest`，`tan build` 会保留它，iOS 模拟器自测用）里，环境变量 `TANGO_IPC_LANE_FAULT=<通道名>:<N>` 让该通道在每个页面世代里成功发送（下行）或接收（上行）N 个数据包之后进入故障（空包不计，比如 `up:post` 启动时的探测）：之后的包被拒绝或丢弃，按「通道坏掉」处理。例如 `TANGO_IPC_LANE_FAULT=down:scheme:3`。格式不对时记一条警告并忽略；生产构建不读这个变量。用来验证应用在通道中途坏掉时的表现。
 
 ## TypeScript 绑定生成
 
