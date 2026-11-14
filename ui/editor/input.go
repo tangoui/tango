@@ -334,6 +334,9 @@ func (w *ViewW) finish() {
 	} else if p.drag && !rail {
 		w.drag(p.dragPos)
 	}
+	if !rail {
+		w.zonePointer(p) // releases and moves over view zones (zones.go)
+	}
 	if p.release && !rail {
 		if l := vs.placeholderPress; l >= 0 && w.placeholderAt(p.relPos) == l {
 			st.toggleFoldAt(l, false)
@@ -580,6 +583,9 @@ func (w *ViewW) press(p pending) {
 	if w.foldControlPress(p) {
 		return
 	}
+	if w.zonePress(p) {
+		return // a view zone that keeps the caret (zones.go)
+	}
 	if w.swatchPress(p) {
 		return // opened the color picker (colors.go)
 	}
@@ -674,7 +680,7 @@ func (w *ViewW) placeholderAt(pt geom.Point) int {
 		return -1
 	}
 	line, row := st.lines().find(r)
-	if st.fold.foldAt(line) < 0 {
+	if st.fold.foldAt(line) < 0 || row < 0 || row >= st.vl.rowsOf(line) {
 		return -1
 	}
 	snap := st.Snapshot()
@@ -848,6 +854,14 @@ func (w *ViewW) hitSide(snap buffer.Snapshot, p geom.Point) (off int, up, right 
 		return snap.Len(), false, false
 	}
 	line, row := w.st.lines().find(r)
+	if row < 0 || row >= w.st.vl.rowsOf(line) {
+		// A view zone: the end of the line above it or the start of the
+		// line below, by the half of the zone (zones.go).
+		if h, ok := w.zoneUnder(geom.Pt(vs.text.X, p.Y)); ok {
+			return w.zoneCaret(snap, h), false, false
+		}
+		return lineEnd(snap, line), false, false
+	}
 	lv := w.rowAt(snap, line, row)
 	col, right := w.colAtXSide(&lv, p.X-vs.text.X+v.ScrollX)
 	return snap.LineStart(line) + col, !lv.last() && col == lv.b1, right

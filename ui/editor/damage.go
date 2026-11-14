@@ -37,6 +37,11 @@ import (
 //     backgrounds and line number colors; decorations.go). Colored
 //     brackets and control characters are run colors; whitespace marks
 //     follow from the text, the options and the selections.
+//     A view zone's row (zones.go) has instead the zone's owner, ID,
+//     Version, size and the row in it (with the horizontal scroll for a
+//     Fixed zone); a zone without a Version has the fingerprint of the
+//     drawing commands its callbacks emitted this frame (zone_fp.go), and a
+//     drawing it cannot describe redraws the whole view.
 //     A row whose fingerprint changed, or that is drawn in only one of the
 //     two paints, is damaged across the whole view (gutter and text) at its
 //     place in this paint, padded by rowPad for glyphs and strokes reaching
@@ -68,7 +73,9 @@ import (
 //     gutter, so its rectangle may not change), focus (selection colors),
 //     the first paint after a frame that did not paint the view, and a
 //     change of the folded regions (folding or unfolding hides or shows
-//     lines: the mapping changes everywhere below them; folding.go).
+//     lines: the mapping changes everywhere below them; folding.go), of an
+//     owner's hidden areas (hidareas.go) or of the view zones' layout (a
+//     zone added, removed, moved or resized by SetViewZones; zones.go).
 //     The hidden lines moving with an edit are row changes like any other;
 //     with hidden lines, as while wrapping, the last paint's top is
 //     located through its anchor.
@@ -90,6 +97,8 @@ type damageGlobal struct {
 	numW               float32 // width of the line numbers
 	foldGen            uint64  // foldState.gen: changes of the folded regions
 	hidGen             uint64  // State.hidGen: changes of the hidden areas (hidareas.go)
+	zoneGen            uint64  // State.zgen: zone layout changes (zones.go)
+	zoneOpaque         uint64  // frames with zone drawings the fingerprint cannot describe
 }
 
 // damageRec is what the View drew in its last paint.
@@ -155,6 +164,12 @@ func (w *ViewW) rowHashes(pf *paintFrame, dst []uint64) []uint64 {
 		h.Reset()
 		num(lv.i)
 		num(lv.row)
+		if lv.zone != nil {
+			// A view zone's row: the zone and its drawing (zones.go).
+			w.zoneHash(lv.zone, pf.scrollX, num, func(s string) { h.WriteString(s) })
+			dst = append(dst, h.Sum64())
+			continue
+		}
 		if lv.i == pf.caretLine {
 			num(1) // the active line number color
 		}
@@ -332,7 +347,7 @@ func (w *ViewW) declareDamage(pf *paintFrame) {
 	// The last paint's top and first row in this paint's view lines.
 	ptop, plo := prev.topLine, prev.lo
 	if vl := &w.st.vl; g.wrap.on() || vl.mapped() {
-		if prev.aLine >= vl.n || prev.aRow >= vl.rowsOf(prev.aLine) {
+		if prev.aLine >= vl.n || prev.aRow < vl.minRow(prev.aLine) || prev.aRow >= vl.blockRows(prev.aLine) {
 			c.Damage(g.rect)
 			return
 		}

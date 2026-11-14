@@ -111,6 +111,7 @@ func (s *State) applyHidden() {
 	vl := s.lines()
 	line, row := vl.find(s.Viewport.TopLine)
 	vl.setHidden(s.hiddenLines(vl.n))
+	s.syncZones()
 	s.anchorTop(line, row)
 	s.clampViewport()
 }
@@ -118,8 +119,8 @@ func (s *State) applyHidden() {
 // --- tracking ---
 
 // tracks reports whether the view has anything following the text through
-// the Model's changes (Model.tracked): hidden areas.
-func (s *State) tracks() bool { return s.hasHidAreas() }
+// the Model's changes (Model.tracked): hidden areas or view zones.
+func (s *State) tracks() bool { return s.hasHidAreas() || s.hasZones() }
 
 // track registers the view with its Model for tracking when it has
 // something to track, and unregisters it when it has nothing left.
@@ -134,10 +135,13 @@ func (s *State) track() {
 	}
 }
 
-// trackEdits moves the view's hidden areas through a change of its Model
-// (t, into ns).
+// trackEdits moves the view's hidden areas and zones through a change of
+// its Model (t, into ns).
 func (s *State) trackEdits(t *buffer.Tracker, ns buffer.Snapshot) {
 	if s.hid != nil {
 		s.hid.apply(t, ns)
+	}
+	if s.zones != nil {
+		s.zones.apply(t, ns)
 	}
 }

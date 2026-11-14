@@ -617,6 +617,9 @@ func (w *ViewW) rowBracketGuides(rows []lineView, pairs []guidePair, colW float3
 		lv := &rows[k]
 		r := &out[k]
 		r.line, r.row = lv.i, lv.row
+		if lv.zone != nil {
+			continue // no guides on a view zone's rows
+		}
 		for _, p := range pairs {
 			if lv.i < p.oL || lv.i > p.cL {
 				continue

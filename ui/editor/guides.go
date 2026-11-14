@@ -335,12 +335,19 @@ func (w *ViewW) guidesFor(snap buffer.Snapshot, rows []lineView, caretLine int) 
 			out[k].level = 0
 		}
 	}
+	// The rows of view zones have no guides (Monaco's guides stop at a
+	// zone).
+	for k := range rows {
+		if rows[k].zone != nil {
+			out[k].level = 0
+		}
+	}
 	if w.opts.Guides.HighlightActiveIndentation {
 		lo, hi := rows[0].i, rows[len(rows)-1].i
 		s, e, lv := w.activeGuide(g, caretLine, lo, hi)
 		if lv > 0 {
 			for k := range rows {
-				if i := rows[k].i; s <= i && i <= e && out[k].level >= lv {
+				if i := rows[k].i; s <= i && i <= e && out[k].level >= lv && rows[k].zone == nil {
 					out[k].active = lv
 				}
 			}

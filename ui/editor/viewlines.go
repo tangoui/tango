@@ -63,8 +63,15 @@ type viewLines struct {
 	total int
 
 	// hid are the hidden model lines (sorted, disjoint, in the synced
-	// text): the folded regions' bodies (folding.go).
+	// text): the folded regions' bodies (folding.go) and the owners'
+	// hidden areas (hidareas.go).
 	hid []lineSpan
+	// View zones (zones.go): zr are the zone rows after visible model
+	// lines (sorted by line, one entry per line), lead the zone rows
+	// before the first line. A line's block is its text rows then its
+	// zone rows; the tree counts both.
+	zr   []zoneLineRows
+	lead int
 
 	// breaks of recently measured lines, by model line; cleared when the
 	// text or the configuration changes.
@@ -90,16 +97,52 @@ const breaksCacheMax = 4096
 // on reports whether lines wrap.
 func (vl *viewLines) on() bool { return vl.cfg.on() }
 
-// mapped reports whether the mapping is not the identity: lines wrap or
-// some are hidden.
-func (vl *viewLines) mapped() bool { return vl.cfg.on() || len(vl.hid) > 0 }
+// mapped reports whether the mapping is not the identity: lines wrap,
+// some are hidden or there are view zones.
+func (vl *viewLines) mapped() bool {
+	return vl.cfg.on() || len(vl.hid) > 0 || len(vl.zr) > 0 || vl.lead > 0
+}
 
 // Count returns the number of view lines (see viewLines on estimates).
 func (vl *viewLines) Count() int {
 	if !vl.mapped() {
 		return vl.n
 	}
-	return vl.n + vl.total
+	return vl.n + vl.total + vl.lead
+}
+
+// zoneRows returns the zone rows after model line l (0 for none; the
+// lines in zr are visible).
+func (vl *viewLines) zoneRows(l int) int {
+	zr := vl.zr
+	if len(zr) == 0 || l < zr[0].line || l > zr[len(zr)-1].line {
+		return 0
+	}
+	if i, ok := slices.BinarySearchFunc(zr, l, func(z zoneLineRows, l int) int { return z.line - l }); ok {
+		return zr[i].rows
+	}
+	return 0
+}
+
+// blockRows returns the rows of model line l's block: its text rows and
+// the zone rows after it (0 when hidden).
+func (vl *viewLines) blockRows(l int) int {
+	if l < 0 || l >= vl.n || vl.hidden(l) {
+		return 0
+	}
+	return int(vl.wrapExtra(l)) + 1 + vl.zoneRows(l)
+}
+
+// firstVisible returns the first shown model line.
+func (vl *viewLines) firstVisible() int { return min(vl.nextVisible(-1), max(vl.n-1, 0)) }
+
+// minRow returns the smallest row of model line l in find's terms: minus
+// the zone rows before the first line for the first shown line, else 0.
+func (vl *viewLines) minRow(l int) int {
+	if vl.lead > 0 && l == vl.firstVisible() {
+		return -vl.lead
+	}
+	return 0
 }
 
 // hiddenAt returns the index in hid of the range holding model line l, -1
@@ -128,10 +171,14 @@ func (vl *viewLines) hiddenAt(l int) int {
 func (vl *viewLines) hidden(l int) bool { return vl.hiddenAt(l) >= 0 }
 
 // visibleLine returns l, or for a hidden line the visible line before its
-// hidden range (a folded region's start line).
+// hidden range (a folded region's start line; the one after it when the
+// range starts the document: an owner's hidden area).
 func (vl *viewLines) visibleLine(l int) (int, bool) {
 	if i := vl.hiddenAt(l); i >= 0 {
-		return max(0, vl.hid[i].a-1), true
+		if a := vl.hid[i].a; a > 0 {
+			return a - 1, true
+		}
+		return min(vl.hid[i].b+1, max(vl.n-1, 0)), true
 	}
 	return l, false
 }
@@ -166,12 +213,18 @@ func (vl *viewLines) wrapExtra(l int) int32 {
 }
 
 // extra returns the extra rows of model line l in the tree: -1 for a
-// hidden line, else wrapExtra.
+// hidden line, else visExtra.
 func (vl *viewLines) extra(l int) int32 {
 	if vl.hidden(l) {
 		return -1
 	}
-	return vl.wrapExtra(l)
+	return vl.visExtra(l)
+}
+
+// visExtra returns the extra rows of model line l when shown: wrapExtra
+// and its zone rows.
+func (vl *viewLines) visExtra(l int) int32 {
+	return vl.wrapExtra(l) + int32(vl.zoneRows(l))
 }
 
 // rowsOf returns the row count of model line l: 0 when hidden, 1 when
@@ -219,12 +272,19 @@ func (vl *viewLines) rebuild() {
 	}
 	vl.total = 0
 	h := 0 // next range of hid
+	z := 0 // next entry of zr
 	for i := 1; i <= n; i++ {
 		l := i - 1
 		for h < len(vl.hid) && vl.hid[h].b < l {
 			h++
 		}
 		e := vl.wrapExtra(l)
+		for z < len(vl.zr) && vl.zr[z].line < l {
+			z++
+		}
+		if z < len(vl.zr) && vl.zr[z].line == l {
+			e += int32(vl.zr[z].rows)
+		}
 		if h < len(vl.hid) && vl.hid[h].a <= l {
 			e = -1
 		}
@@ -257,14 +317,43 @@ func (vl *viewLines) setHidden(h []lineSpan) {
 	// Incrementally: show the old ranges, hide the new ones.
 	for _, r := range vl.hid {
 		for l := r.a; l <= r.b; l++ {
-			vl.add(l, vl.wrapExtra(l)+1)
+			vl.add(l, vl.visExtra(l)+1)
 		}
 	}
 	vl.hid = h
 	for _, r := range h {
 		for l := r.a; l <= r.b; l++ {
-			vl.add(l, -vl.wrapExtra(l)-1)
+			vl.add(l, -vl.visExtra(l)-1)
 		}
+	}
+}
+
+// setZones sets the zone rows (see viewLines.zr; lines within the synced
+// text), updating the tree. A zone row entry on a hidden line counts
+// nothing (extra), as the State never places one there.
+func (vl *viewLines) setZones(lead int, zr []zoneLineRows) {
+	if lead == vl.lead && slices.Equal(zr, vl.zr) {
+		return
+	}
+	wasMapped := vl.mapped()
+	if len(vl.tree) != vl.n+1 || !wasMapped || len(vl.zr)+len(zr) > vl.n/16 {
+		vl.lead, vl.zr = lead, zr
+		vl.rebuild()
+		return
+	}
+	for _, z := range vl.zr {
+		if !vl.hidden(z.line) {
+			vl.add(z.line, -int32(z.rows))
+		}
+	}
+	vl.lead, vl.zr = lead, zr
+	for _, z := range zr {
+		if !vl.hidden(z.line) {
+			vl.add(z.line, int32(z.rows))
+		}
+	}
+	if !vl.mapped() {
+		vl.rebuild() // the identity: free the tree
 	}
 }
 
@@ -275,16 +364,23 @@ func (vl *viewLines) viewOf(l int) int {
 	if !vl.mapped() {
 		return l
 	}
-	return l + vl.prefix(l)
+	return vl.lead + l + vl.prefix(l)
 }
 
 // find returns the model line showing view line v and the row of v in it
-// (v clamped to the view lines). The line is never hidden.
+// (v clamped to the view lines): viewOf(line)+row == v. The line is never
+// hidden. A row at or past the line's text rows is one of the zone rows
+// after it; a negative row is one of the zone rows before the first line
+// (the line is then the first shown one).
 func (vl *viewLines) find(v int) (line, row int) {
 	v = max(0, min(v, vl.Count()-1))
 	if !vl.mapped() {
 		return v, 0
 	}
+	if v < vl.lead {
+		return vl.firstVisible(), v - vl.lead
+	}
+	v -= vl.lead
 	// The largest pos with sum(rows[0:pos]) <= v: the line holding v
 	// (rows are >= 0, so hidden lines before it are skipped).
 	pos, rem := 0, v
@@ -299,7 +395,7 @@ func (vl *viewLines) find(v int) (line, row int) {
 		if vl.hidden(l) {
 			l = max(0, vl.prevVisible(l))
 		}
-		return l, max(0, vl.rowsOf(l)-1)
+		return l, max(0, vl.blockRows(l)-1)
 	}
 	return pos, rem
 }
@@ -314,7 +410,11 @@ func (vl *viewLines) locate(snap buffer.Snapshot, l, col int, up bool, breaks fu
 		return l, l, col
 	}
 	if vis, hidden := vl.visibleLine(l); hidden {
-		l, col, up = vis, len(snap.Line(vis)), false
+		col, up = len(snap.Line(vis)), false
+		if vis > l {
+			col = 0 // the hidden lines start the document
+		}
+		l = vis
 	}
 	v := vl.viewOf(l)
 	if !vl.on() {
@@ -346,9 +446,13 @@ func (vl *viewLines) reset(n int) {
 	vl.rebuild()
 }
 
-// dropHidden forgets the hidden lines before the text changes under them
-// (the State hides the lines of the new text afterwards: State.lines).
+// dropHidden forgets the hidden lines and the zones before the text
+// changes under them (the State hides the lines of the new text and
+// places its zones afterwards: State.lines).
 func (vl *viewLines) dropHidden() {
+	if len(vl.zr) > 0 || vl.lead > 0 {
+		vl.setZones(0, nil)
+	}
 	if len(vl.hid) == 0 {
 		return
 	}
@@ -645,6 +749,14 @@ func (vl *viewLines) ModelToView(line, col int) (vline int, x float32) {
 func (vl *viewLines) ViewToModel(vline int, x float32) (line, col int) {
 	snap, tab := vl.snap, max(vl.cfg.tab, 1)
 	line, row := vl.find(vline)
+	if row < 0 || row >= vl.rowsOf(line) {
+		// A zone row: the start of the line after the zones before the
+		// first line, the end of the line before the others.
+		if row < 0 {
+			return line, 0
+		}
+		return line, lineEnd(snap, line) - snap.LineStart(line)
+	}
 	s := vl.line(snap, line)
 	goal := func(x float32) int {
 		if vl.colW > 0 {
@@ -728,12 +840,14 @@ func (s *State) anchorTop(line, row int) {
 	if vis, hidden := vl.visibleLine(line); hidden {
 		line, row = vis, 0
 	}
-	if !vl.on() {
-		s.Viewport.TopLine = vl.viewOf(line)
-		return
+	// The row stays in the line's block: its text rows and zone rows
+	// (and those before the first line).
+	text := 1
+	if vl.on() {
+		lb, _ := vl.breaksOf(s.Snapshot(), line)
+		text = lb.rows()
 	}
-	lb, _ := vl.breaksOf(s.Snapshot(), line)
-	s.Viewport.TopLine = vl.viewOf(line) + max(0, min(row, lb.rows()-1))
+	s.Viewport.TopLine = vl.viewOf(line) + max(vl.minRow(line), min(row, text+vl.zoneRows(line)-1))
 }
 
 // topAnchor returns the model line and row at the top of the viewport.

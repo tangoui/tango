@@ -176,6 +176,15 @@ type viewState struct {
 	udIn  []inlineSpan
 	signs map[signKey]*text.Layout
 	udOv  udOverview
+
+	// View zones (zones.go): this frame's fingerprints of the drawings of
+	// the zones without a Version, a count of frames with drawings the
+	// fingerprint does not describe (damageGlobal), the zone pressed and
+	// the pointer position last seen by the zones.
+	zfp        map[*ViewZone]uint64
+	zoneOpaque uint64
+	zonePress  *ViewZone
+	zonePtr    geom.Point
 }
 
 func newViewState() viewState {
@@ -215,6 +224,11 @@ func View(c *ui.Context, st *State) *ViewW {
 	}
 	if w.linkHover() {
 		cur = input.CursorPointer // over a link with the trigger modifier (links.go)
+	}
+	if p, in := c.Pointer(); in {
+		if zc, ok := w.zoneCursor(p); ok {
+			cur = zc // over a view zone (zones.go)
+		}
 	}
 	w.ia = w.box.Focusable(cur)
 	w.collect()

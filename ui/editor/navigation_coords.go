@@ -42,7 +42,7 @@ func (w *ViewW) jumpViewRow(row int) {
 	line, part := vl.find(row)
 	col := 0
 	if lb := vl.breaks[line]; lb != nil {
-		col, _ = lb.rowRange(part, lineEnd(st.Snapshot(), line)-st.Snapshot().LineStart(line))
+		col, _ = lb.rowRange(max(0, min(part, lb.rows()-1)), lineEnd(st.Snapshot(), line)-st.Snapshot().LineStart(line))
 	}
 	st.MoveCaret(st.Snapshot().LineStart(line)+col, false)
 	// Input may measure the target, but paint's mapping is never changed here.

@@ -384,6 +384,9 @@ func (w *ViewW) userDecos(snap buffer.Snapshot, lines []lineView) []udRow {
 	}
 	lo, hi := -1, -1
 	for k := range lines {
+		if lines[k].zone != nil {
+			continue
+		}
 		if lo < 0 {
 			lo = lines[k].i
 		}
@@ -403,6 +406,9 @@ func (w *ViewW) userDecos(snap buffer.Snapshot, lines []lineView) []udRow {
 	var row udRow
 	for k := range lines {
 		lv := &lines[k]
+		if lv.zone != nil {
+			continue
+		}
 		if lv.i != cur {
 			cur = lv.i
 			ls := snap.LineStart(lv.i)

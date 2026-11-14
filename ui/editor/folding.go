@@ -199,6 +199,7 @@ func (s *State) foldRangesFresh() bool { return s.fold.rsOK && s.fold.rsKey == s
 func (s *State) syncFolds() {
 	s.resolveFolds()
 	s.vl.setHidden(s.hiddenLines(s.vl.n))
+	s.syncZones()
 }
 
 // resolveFolds moves the folded regions to the current text.
@@ -342,6 +343,7 @@ func (s *State) applyFolds() {
 	vl := s.lines()
 	line, row := vl.find(s.Viewport.TopLine)
 	vl.setHidden(s.hiddenLines(vl.n))
+	s.syncZones()
 	s.anchorTop(line, row)
 	s.clampViewport()
 	s.fold.gen++

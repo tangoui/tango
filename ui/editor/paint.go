@@ -82,6 +82,11 @@ type lineView struct {
 	endX   float32     // content x of the row end
 	colors []colorSpan // the model line's color literals (lineColors)
 	inj    []injection // the injected gaps of the row (injected.go)
+	// zone is the view zone shown on this row instead of text (zones.go),
+	// nil for a text row. A zone row has no text: i is the line the zone
+	// follows (the first shown line for the zones before it), row is past
+	// its text rows (negative before the first line).
+	zone *zoneRow
 }
 
 // last reports whether lv is its model line's last row.
@@ -208,6 +213,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	lines := w.layoutRows(snap, lo, hi, hl, th, colW)
 	vs.arena = false
 	fold := w.foldCodes(lines, showAll, showFolded)
+	vs.maxW = max(vs.maxW, zoneMinWidth(lines))
 	for k := range lines {
 		vs.maxW = max(vs.maxW, lines[k].endX)
 		if fold[k]&foldPlaceholder != 0 {
@@ -332,6 +338,9 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		}
 		for k := range lines {
 			lv := &lines[k]
+			if lv.zone != nil {
+				continue
+			}
 			ls := snap.LineStart(lv.i)
 			le := ls + len(lv.text)
 			if b < ls || a > le {
@@ -377,7 +386,9 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	matchRows := paintMatch(l, snap, lines, match, tx, lh, lineY, defaultColor(th, "editorBracketMatch.background"), defaultColor(th, "editorBracketMatch.border"))
 	if w.opts.RenderControlCharacters {
 		for k := range lines {
-			w.paintControlBackgrounds(l, &lines[k], tx, lineY(lines[k].vi), lh)
+			if lines[k].zone == nil {
+				w.paintControlBackgrounds(l, &lines[k], tx, lineY(lines[k].vi), lh)
+			}
 		}
 	}
 
@@ -385,6 +396,9 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	wsColor := defaultColor(th, "editorWhitespace.foreground")
 	for k := range lines {
 		lv := &lines[k]
+		if lv.zone != nil {
+			continue
+		}
 		y := lineY(lv.vi)
 		vs.udIn = inlineSpans(snap, lv, ud, k, vs.udIn[:0])
 		for _, sg := range lv.segs {
@@ -397,6 +411,9 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	}
 	// Links' underlines and the color swatches.
 	w.paintDecoOver(l, snap, lines, decos, tx, colW, lh, lineY)
+	// The view zones' text area parts (zones.go).
+	clear(vs.zfp)
+	w.paintZones(l, lines, lineY, false)
 
 	// 5. Composition and caret.
 	if cmp.on {
@@ -448,6 +465,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		vs.foldX = w.foldControlX(vs.gutter.X, dg, n)
 		paintFoldControls(l, vs.foldX, lines, fold, lineY, lh, defaultColor(th, "editorGutter.foldingControlForeground"))
 	}
+	w.paintZones(l, lines, lineY, true)
 	l.Pop()
 
 	vs.navPaint = vs.navPaint[:0]
@@ -458,7 +476,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	aLine, aRow := vl.find(v.TopLine)
 	w.declareDamage(&paintFrame{
 		g: damageGlobal{rect: r, gutter: vs.gutter, text: vs.text, colW: colW, lh: lh, theme: th, opts: w.opts,
-			tab: w.tabs(), focused: focused, wrap: wcfg, numW: w.numbersWidth(dg, n), foldGen: st.fold.gen, hidGen: st.hidGen},
+			tab: w.tabs(), focused: focused, wrap: wcfg, numW: w.numbersWidth(dg, n), foldGen: st.fold.gen, hidGen: st.hidGen, zoneGen: st.zgen, zoneOpaque: vs.zoneOpaque},
 		snap: snap, lines: lines, vis: vis, cur: cur, curG: curG, cmp: cmp, caretLine: caretLine, scrollX: v.ScrollX, marks: marks,
 		aLine: aLine, aRow: aRow, fold: fold, guides: guides, bguides: vs.bgRows, match: matchRows, decos: decoSigs, udecos: ud,
 	})
@@ -662,9 +680,16 @@ func (w *ViewW) layoutRows(snap buffer.Snapshot, lo, hi int, hl *highlight.Highl
 	out := make([]lineView, 0, hi-lo+1)
 	vl := w.st.lines()
 	if !vl.on() {
-		// One row per shown line (folded regions hide some).
+		// One row per shown line (folded regions hide some), and the rows
+		// of the view zones.
 		for v := lo; v <= hi; v++ {
-			i, _ := vl.find(v)
+			i, row := vl.find(v)
+			if row != 0 {
+				if lv, ok := w.zoneView(i, row, v); ok {
+					out = append(out, lv)
+					continue
+				}
+			}
 			lv := w.layoutLine(snap, i, hl, th, colW)
 			lv.vi = v
 			out = append(out, lv)
@@ -673,6 +698,13 @@ func (w *ViewW) layoutRows(snap buffer.Snapshot, lo, hi int, hl *highlight.Highl
 	}
 	for v := lo; v <= hi; {
 		line, row := vl.find(v)
+		if row < 0 || row >= vl.rowsOf(line) {
+			if lv, ok := w.zoneView(line, row, v); ok {
+				out = append(out, lv)
+				v++
+				continue
+			}
+		}
 		k := len(out)
 		out = w.layoutWrapped(out, snap, line, row, row+hi-v, hl, th, colW)
 		if len(out) == k {
@@ -1087,6 +1119,9 @@ func (w *ViewW) foldCodes(rows []lineView, all, folded bool) []uint8 {
 	highlight := w.opts.FoldingHighlight
 	for k := range rows {
 		lv := &rows[k]
+		if lv.zone != nil {
+			continue
+		}
 		isFolded := fs.foldAt(lv.i) >= 0
 		var c uint8
 		if lv.row == 0 {
@@ -1213,6 +1248,9 @@ func (w *ViewW) decorations(snap buffer.Snapshot, lines []lineView, vis []visSel
 	w.vs.decoCount = [decoSwatch + 1]int{}
 	for k := range lines {
 		lv := &lines[k]
+		if lv.zone != nil {
+			continue
+		}
 		if lv.i != curLine {
 			curLine = lv.i
 			cur = w.lineDecos(snap, lv.i, lv.text, lv.colors, vis, df)

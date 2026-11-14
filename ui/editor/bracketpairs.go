@@ -858,6 +858,9 @@ func (w *ViewW) bracketSpans(snap buffer.Snapshot, vl *viewLines, lo, hi, mhi in
 	var wins map[int][][2]int
 	for v := lo; v <= hi; v++ {
 		i, row := vl.find(v)
+		if row < 0 || row >= vl.rowsOf(i) {
+			continue // a view zone's row (zones.go)
+		}
 		if lb := vl.breaks[i]; vl.on() && lb != nil {
 			if n := lineEnd(snap, i) - snap.LineStart(i); n > maxTokenizationLineLength {
 				b0, b1 := lb.rowRange(row, n)

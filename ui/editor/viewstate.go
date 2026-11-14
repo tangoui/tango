@@ -11,7 +11,10 @@ type ViewState struct {
 	// TopLine and OffsetY are the vertical scroll position: TopLine is the
 	// document (model) line at the top, so it stays meaningful when
 	// wrapping or folding changes (Viewport.TopLine is a view line; a top
-	// inside a wrapped line is saved as that line's first row).
+	// inside a wrapped line is saved as that line's first row). A top in
+	// the view zones after the line is saved as the offset from the line's
+	// top: OffsetY then exceeds a line height (restoring clamps it to the
+	// zones there are).
 	TopLine int
 	OffsetY float32
 	// ScrollX is the horizontal scroll in pixels.
@@ -28,9 +31,14 @@ type ViewState struct {
 // SaveViewState returns the editor's scroll position, selections and
 // folded regions.
 func (s *State) SaveViewState() ViewState {
+	line, row := s.topAnchor()
+	off := s.Viewport.OffsetY
+	if row != 0 && (row < 0 || row >= s.vl.rowsOf(line)) {
+		off += float32(row) * s.Viewport.LineHeight // in the zones (zones.go)
+	}
 	return ViewState{
-		TopLine:    s.topModelLine(),
-		OffsetY:    s.Viewport.OffsetY,
+		TopLine:    line,
+		OffsetY:    off,
 		ScrollX:    s.Viewport.ScrollX,
 		Selections: slices.Clone(s.sels()),
 		Folded:     s.foldedStarts(),
@@ -51,6 +59,18 @@ func (s *State) RestoreViewState(v ViewState) {
 	s.restoreFolds(v.Folded)
 	top := max(0, min(v.TopLine, n-1))
 	s.anchorTop(top, 0) // to a view line
+	if lh := vp.LineHeight; lh > 0 && v.OffsetY >= lh && top == v.TopLine {
+		// A top in the zones after the line (zones.go), as far as they go.
+		rows := int(v.OffsetY / lh)
+		if z := s.vl.zoneRows(top); z > 0 && !s.vl.hidden(top) {
+			text := s.vl.rowsOf(top)
+			r := min(text+z-1, rows)
+			if r >= text {
+				s.anchorTop(top, r)
+				v.OffsetY -= float32(r) * lh
+			}
+		}
+	}
 	vp.OffsetY = max(0, v.OffsetY)
 	if top == 0 {
 		vp.OffsetY = max(-vp.PadTop, v.OffsetY) // the top padding

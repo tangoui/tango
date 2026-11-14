@@ -100,6 +100,8 @@ pkg github.com/tangoui/tango/ui/editor, const WrapIndentNone WrappingIndentMode 
 pkg github.com/tangoui/tango/ui/editor, const WrapIndentSame WrappingIndentMode = "same"
 pkg github.com/tangoui/tango/ui/editor, const WrapOff WrapMode = "off"
 pkg github.com/tangoui/tango/ui/editor, const WrapOn WrapMode = "on"
+pkg github.com/tangoui/tango/ui/editor, const ZoneGutter ZoneArea = 1
+pkg github.com/tangoui/tango/ui/editor, const ZoneText ZoneArea = 0
 pkg github.com/tangoui/tango/ui/editor, func AllowLocales(...string) LocaleSet
 pkg github.com/tangoui/tango/ui/editor, func Commands() []Command
 pkg github.com/tangoui/tango/ui/editor, func DecorationFromLSP(ui/editor/buffer.Snapshot, int, int, int, int, *DecorationOptions) Decoration
@@ -180,11 +182,13 @@ pkg github.com/tangoui/tango/ui/editor, method (*State) SetDecorations(string, [
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetHiddenAreas(string, []LineRange)
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetOverviewMarks(string, []OverviewMark)
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetSelections([]Selection)
+pkg github.com/tangoui/tango/ui/editor, method (*State) SetViewZones(string, []ViewZone)
 pkg github.com/tangoui/tango/ui/editor, method (*State) Snapshot() ui/editor/buffer.Snapshot
 pkg github.com/tangoui/tango/ui/editor, method (*State) SyntaxCommandIncomplete() bool
 pkg github.com/tangoui/tango/ui/editor, method (*State) ToggleWordWrap()
 pkg github.com/tangoui/tango/ui/editor, method (*State) Type(string)
 pkg github.com/tangoui/tango/ui/editor, method (*State) Undo() bool
+pkg github.com/tangoui/tango/ui/editor, method (*State) ViewZones(string) []ViewZone
 pkg github.com/tangoui/tango/ui/editor, method (*State) VisibleLines() (int, int)
 pkg github.com/tangoui/tango/ui/editor, method (*State) WordWrap() WrapMode
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Box() *ui.Box
@@ -395,6 +399,21 @@ pkg github.com/tangoui/tango/ui/editor, type ViewState struct, TopLine int
 pkg github.com/tangoui/tango/ui/editor, type ViewState struct, noncomparable
 pkg github.com/tangoui/tango/ui/editor, type ViewW struct
 pkg github.com/tangoui/tango/ui/editor, type ViewW struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct, AfterLine int
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct, Cursor ui/input.Cursor
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct, Fixed bool
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct, ID uint64
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct, Label string
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct, MinWidth float32
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct, OnPointer func(ZonePointer)
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct, Paint func(*ui/paint.List, ZonePaint)
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct, PaintGutter func(*ui/paint.List, ZonePaint)
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct, Rows int
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct, ShowInHidden bool
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct, SuppressMouseDown bool
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct, Version uint64
+pkg github.com/tangoui/tango/ui/editor, type ViewZone struct, noncomparable
 pkg github.com/tangoui/tango/ui/editor, type Viewport struct
 pkg github.com/tangoui/tango/ui/editor, type Viewport struct, ContentWidth float32
 pkg github.com/tangoui/tango/ui/editor, type Viewport struct, Height float32
@@ -407,3 +426,15 @@ pkg github.com/tangoui/tango/ui/editor, type Viewport struct, TopLine int
 pkg github.com/tangoui/tango/ui/editor, type Viewport struct, Width float32
 pkg github.com/tangoui/tango/ui/editor, type WrapMode string
 pkg github.com/tangoui/tango/ui/editor, type WrappingIndentMode string
+pkg github.com/tangoui/tango/ui/editor, type ZoneArea uint8
+pkg github.com/tangoui/tango/ui/editor, type ZonePaint struct
+pkg github.com/tangoui/tango/ui/editor, type ZonePaint struct, FirstRow int
+pkg github.com/tangoui/tango/ui/editor, type ZonePaint struct, OriginX float32
+pkg github.com/tangoui/tango/ui/editor, type ZonePaint struct, Rect ui/geom.Rect
+pkg github.com/tangoui/tango/ui/editor, type ZonePaint struct, RowH float32
+pkg github.com/tangoui/tango/ui/editor, type ZonePaint struct, Theme *ui/editor/theme.Theme
+pkg github.com/tangoui/tango/ui/editor, type ZonePointer struct
+pkg github.com/tangoui/tango/ui/editor, type ZonePointer struct, Area ZoneArea
+pkg github.com/tangoui/tango/ui/editor, type ZonePointer struct, Clicks int
+pkg github.com/tangoui/tango/ui/editor, type ZonePointer struct, Kind ui/input.PointerKind
+pkg github.com/tangoui/tango/ui/editor, type ZonePointer struct, Pos ui/geom.Point
