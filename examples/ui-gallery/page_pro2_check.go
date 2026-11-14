@@ -60,6 +60,25 @@ func pro2CheckCardPage(c *ui.Context) {
 			ui.CheckCard(c, "Large", &s.sizes[2]).Description("大尺寸").Large().Show()
 		}, layout.Gap(16), layout.WrapItems(), layout.AlignItems(layout.AlignStart))
 	})
+	gallery.Demo(c, "非受控与子标题", "nil 绑定由组件保存选择；defaultChecked / defaultValue 只在首次构建时生效。", func() {
+		ui.CheckCard(c, "Managed internally", nil).SubTitle("v3").DefaultChecked(true).Description("Enter / Space toggles selection").Show()
+		ui.CheckCardGroup(c, []ui.CheckCardOption{{Value: "basic", Title: "Basic"}, {Value: "pro", Title: "Pro"}}).DefaultValue("pro").Show()
+	})
+	gallery.Demo(c, "自由组合与嵌套选项", "CheckCardGroup.Body 的卡片通过 Value 归组；嵌套分组标题支持键盘折叠。", func() {
+		ui.CheckCardGroup(c, nil).DefaultValue("local").Body(func() {
+			ui.CheckCard(c, "Local", nil).Value("local").Content(func() { ui.Text(c, "Custom body content") }).Actions(func() { ui.Text(c, "Details") }).Show()
+			ui.CheckCard(c, "Cloud", nil).Value("cloud").Description("Custom composed option").Show()
+		})
+		ui.CheckCardGroup(c, []ui.CheckCardOption{{Value: "region", Title: "Regions", Children: []ui.CheckCardOption{{Value: "east", Title: "East"}, {Value: "west", Title: "West"}}}}).Multiple().DefaultValues("east").Show()
+	})
+	gallery.Demo(c, "加载与封面", "加载占位 4 行，不能切换选择；封面忽略标题和头像。", func() {
+		ui.Row(c, func() {
+			ui.CheckCard(c, "Loading", nil).Loading(true).Show()
+			ui.CheckCard(c, "Cover", nil).Cover(func() {
+				ui.Custom(c, func(_, _ float32) geom.Size { return geom.Size{W: 300, H: 100} }, nil).Bg(c.Theme.Primary.Bg)
+			}).Show()
+		}, layout.Gap(16))
+	})
 }
 
 func init() {

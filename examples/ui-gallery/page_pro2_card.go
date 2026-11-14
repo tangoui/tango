@@ -134,7 +134,7 @@ func pro2StatisticCardPage(c *ui.Context) {
 	})
 	gallery.Demo(c, "指标组与左右图表", "StatisticCardGroup 竖线分隔；图表放在右侧、图标在左侧。", func() {
 		pro2Canvas(c, func() {
-			ui.StatisticCardGroup(c).Body(func() {
+			ui.StatisticCardGroup(c).Split(ui.SplitVertical).Body(func() {
 				ui.StatisticCard(c, "今日UV").Value(79, 0).Desc("较昨日", "8.04%", "up").Show()
 				ui.StatisticCard(c, "冻结金额").Value(112893, 2).Prefix("¥").Desc("较昨日", "2.1%", "down").Show()
 				ui.StatisticCard(c, "信息完整度").Value(92.1, 1).Suffix("%").Show()
