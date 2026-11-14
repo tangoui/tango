@@ -54,7 +54,8 @@ func TestWARPEnv(t *testing.T) {
 }
 
 // TestCreateDeviceDefault creates a device the normal way: hardware if
-// present, otherwise WARP.
+// present, otherwise WARP (WARP unless TANGO_D3D_HARDWARE=1: see
+// TestMain).
 func TestCreateDeviceDefault(t *testing.T) {
 	dev, ctx, level, err := createDevice(false)
 	if err != nil {

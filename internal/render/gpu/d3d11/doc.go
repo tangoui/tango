@@ -12,7 +12,8 @@
 // software rasterizer shipped with Windows, so virtual machines, remote
 // desktop sessions and CI runners get a working device too. Setting the
 // environment variable TANGO_D3D_WARP=1 skips the hardware adapter, to
-// reproduce the software device on a machine with a GPU. Setting
+// reproduce the software device on a machine with a GPU; the package's
+// own tests run on WARP unless TANGO_D3D_HARDWARE=1. Setting
 // TANGO_D3D_DEBUG=1 creates the device with the Direct3D debug layer when
 // it is installed (Windows' optional "Graphics Tools" feature; otherwise
 // the device is created without it and that is logged once) and logs the
