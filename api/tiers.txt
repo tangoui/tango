@@ -45,6 +45,7 @@ ui/theme                split
 uihost                  split
 
 # Experimental.
+service/updater/updateui experimental
 ui/...                  experimental
 ui/chart                experimental
 ui/mobile               experimental

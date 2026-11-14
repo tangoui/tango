@@ -1,0 +1,26 @@
+pkg github.com/tangoui/tango/service/updater/updateui, type Options struct
+pkg github.com/tangoui/tango/service/updater/updateui, type Options struct, Text *Strings
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Cancel string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Checking string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Close string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Downloaded string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Downloading string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Error string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Full string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Install string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, InstallNextLaunch string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Later string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, NewVersion string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Notes string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, OpenDownloadPage string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Patch string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Ready string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Released string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, RestartNow string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Retry string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, RolledBack string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Skip string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Title string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Unsupported string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, UpToDate string
