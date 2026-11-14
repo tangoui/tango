@@ -211,7 +211,8 @@ export default defineConfig({
   // Doc comments mention dev-server URLs such as http://localhost:5173.
   ignoreDeadLinks: "localhostLinks",
   lastUpdated: false,
-  srcExclude: ["tools/**", "README.md", "**/_*.md"],
+  // components/_gen holds the API/example partials the component pages include.
+  srcExclude: ["tools/**", "README.md", "**/_*.md", "components/_gen/**"],
   head: [["link", { rel: "icon", type: "image/svg+xml", href: `${base}logo.svg` }]],
   markdown: { lineNumbers: false },
   themeConfig: {

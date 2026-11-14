@@ -8,6 +8,7 @@ import { gzipSync } from 'node:zlib';
 import { prepareGalleryOverlay } from './playground-sources.mjs';
 import { parseComponentTable, mapComponentCatalog, componentDocPath } from './component-catalog.mjs';
 import { generateComponentPages } from './generate-component-pages.mjs';
+import { extractComponentDocs, generateComponentDocs } from './generate-component-docs.mjs';
 
 const site=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const repo=path.dirname(site);
@@ -22,6 +23,11 @@ for (const entry of catalog.components) entry.doc=componentDocPath(entry,handWri
 mkdirSync(path.join(site,'.vitepress/generated'),{recursive:true});
 for(const file of [path.join(out,'catalog.json'),path.join(site,'.vitepress/generated/components.json')]) writeFileSync(file,JSON.stringify(catalog,null,2)+'\n');
 generateComponentPages(site,catalog);
+// API tables and demo source of every component page (hand-written ones too).
+const docs=extractComponentDocs(repo,catalog);
+writeFileSync(path.join(site,'.vitepress/generated/component-docs.json'),JSON.stringify(docs)+'\n');
+const demoSources=await generateComponentDocs(site,catalog,docs);
+console.log(`component docs: ${docs.components.length} API/example partials, ${demoSources} highlighted demo sources`);
 execFileSync('go',['build',`-overlay=${overlay}`,'-trimpath','-ldflags=-s -w','-o',path.join(out,'playground.wasm'),'./site/tools/playground'],{cwd:repo,env:{...process.env,GOOS:'js',GOARCH:'wasm',CGO_ENABLED:'0'},stdio:'inherit'});
 const packed=gzipSync(readFileSync(path.join(out,'playground.wasm')),{level:9});
 writeFileSync(path.join(out,'playground.wasm.gz'),packed);

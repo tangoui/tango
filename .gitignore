@@ -36,5 +36,6 @@ site/components/screenshots.md
 /site/.vitepress/generated/
 /site/public/playground/catalog.json
 /site/components/catalog/
+/site/components/_gen/
 /site/public/playground/playground.wasm.gz
 /site/public/playground/EDITOR-NOTICES.txt

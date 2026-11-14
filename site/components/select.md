@@ -58,3 +58,11 @@ func page(c *ui.Context) {
 - [组件截图目录](/components/screenshots)
 - [组件总览](/components/)
 - [ui Go API](/reference/api/ui)
+
+## 全部示例代码
+
+<!--@include: ./_gen/select-examples.md-->
+
+## 完整 API
+
+<!--@include: ./_gen/select-api.md-->
