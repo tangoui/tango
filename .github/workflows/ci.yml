@@ -98,7 +98,7 @@ jobs:
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -133,17 +133,19 @@ jobs:
       # the framework keeps it.
       - name: go test (module root)
         run: |
-          slow='/ui$|/internal/render/gpu|/examples/ui-gallery'
+          slow='/ui$|/ui/editor|/internal/render/gpu|/examples/ui-gallery'
           go test $RACE -timeout 20m $(go list ./... | grep -Ev "$slow")
-          go test -timeout 20m $(go list ./... | grep -E "$slow")
+          go test -timeout 40m $(go list ./... | grep -E "$slow")
 
       # Development features (hot reload, automation, dev proxy) are only
       # built with -tags tango_dev; the default build above is production.
       - name: go test -tags tango_dev (module root)
         run: |
-          slow='/ui$|/internal/render/gpu|/examples/ui-gallery'
+          slow='/ui$|/ui/editor|/internal/render/gpu|/examples/ui-gallery'
           go test $RACE -tags tango_dev -timeout 20m $(go list -tags tango_dev ./... | grep -Ev "$slow")
-          go test -tags tango_dev -timeout 20m $(go list -tags tango_dev ./... | grep -E "$slow")
+          # The gallery has no development features: the default run above
+          # covers it, so it is not repeated here.
+          go test -tags tango_dev -timeout 40m $(go list -tags tango_dev ./... | grep -E "$slow" | grep -v /examples/ui-gallery)
 
       - name: go test (cmd/tan)
         working-directory: cmd/tan

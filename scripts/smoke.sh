@@ -72,7 +72,7 @@ annotate() {
 	[[ -n "${GITHUB_ACTIONS:-}" ]] || return 0
 	local log="$out/$1.log" lines=""
 	if [[ -f "$log" ]]; then
-		lines="$(grep -E '(^| )(FAIL|panic:)' "$log" | grep -v -E '^FAIL: ' | head -n 8 |
+		lines="$(grep -E '(^| )(FAIL|panic:)' "$log" | head -n 8 |
 			sed -E 's/^[0-9:. /]+//' | tr '\n' '|')"
 	fi
 	# Workflow commands need %, CR and LF escaped in the message.

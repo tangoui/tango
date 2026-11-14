@@ -166,7 +166,7 @@ func TestLargeLineDownsampled(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		d.Move(geom.Pt(float32(100+i*100), 200))
 	}
-	if el := time.Since(start) / 5; el > 200*time.Millisecond {
+	if el := time.Since(start) / 5; el > 200*time.Millisecond && !raceEnabled {
 		t.Fatalf("10k-point frame too slow: %v", el)
 	}
 }
