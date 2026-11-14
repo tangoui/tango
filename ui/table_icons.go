@@ -2,19 +2,8 @@ package ui
 
 import (
 	"github.com/tangoui/tango/ui/geom"
-	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
-)
-
-// Table-only glyphs (24×24 grid, 1.8 stroke, original path data).
-var (
-	tblIconFunnel  = icon.New("table-filter", "", "M3 4H21L14.2 12.4V19.6L9.8 21.5V12.4Z")
-	tblIconDensity = icon.New("table-density", "M4 4.5H20M4 19.5H20M12 7.5V16.5M9 10L12 7L15 10M9 14L12 17L15 14", "")
-	// Column pinning (column settings): bar at the top / middle / bottom.
-	tblIconPinTop    = icon.New("table-pin-top", "M4 3.5H20M12 21V8M7 12.5L12 7.5L17 12.5", "")
-	tblIconPinMiddle = icon.New("table-pin-middle", "M4 12H20M12 2.5V8.5M9 5.5L12 8.5L15 5.5M12 21.5V15.5M9 18.5L12 15.5L15 18.5", "")
-	tblIconPinBottom = icon.New("table-pin-bottom", "M4 20.5H20M12 3V16M7 11.5L12 16.5L17 11.5", "")
 )
 
 func tblDrawSorter(th *theme.Theme, tk *theme.TableToken, l *paint.List, r geom.Rect, order SortOrder) {

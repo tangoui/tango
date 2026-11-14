@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/tangoui/tango/ui/icon"
 	"time"
 
 	"github.com/tangoui/tango/ui/geom"
@@ -79,63 +80,38 @@ func shad2dEndLine(c *Context, col theme.Color) PaintFunc {
 	return func(l *paint.List, r geom.Rect) { dataVLine(l, c.inline(r).X(r.W-1, 1), r.Y, r.H, col) }
 }
 
-// Small line icons drawn on a 24px grid (lucide-like shapes, own paths).
-
-func shad2dStroke(l *paint.List, p *paint.Path, s float32, col theme.Color) {
-	l.StrokePath(p, paint.StrokeStyle{Width: max(1.2, 2*s), Cap: paint.CapRound}, col)
-}
+// Small line icons of the shadcn layouts: built-in icons, drawn as Lucide
+// icons by the shadcn theme's icon style.
 
 // shad2dIconPanel draws a "panel left" mark (sidebar toggle) in r.
 func shad2dIconPanel(l *paint.List, r geom.Rect, col theme.Color) {
-	s := r.W / 24
-	x, y := r.X, r.Y
-	shad2dStroke(l, paint.NewPath().RRect(geom.Rect{X: x + 3*s, Y: y + 3*s, W: 18 * s, H: 18 * s}, geom.Rad(2*s)), s, col)
-	shad2dStroke(l, paint.NewPath().MoveTo(x+9*s, y+3*s).LineTo(x+9*s, y+21*s), s, col)
+	icon.Draw(l, icon.PanelLeft, r, col, 0)
 }
 
 // shad2dIconPanelDir is shad2dIconPanel with the panel divider on the
 // start side: mirrored in RTL, where the sidebar sits on the right.
 func (c *Context) shad2dIconPanelDir(l *paint.List, r geom.Rect, col theme.Color) {
-	if !c.IsRTL() {
-		shad2dIconPanel(l, r, col)
-		return
-	}
-	s := r.W / 24
-	x, y := r.X, r.Y
-	shad2dStroke(l, paint.NewPath().RRect(geom.Rect{X: x + 3*s, Y: y + 3*s, W: 18 * s, H: 18 * s}, geom.Rad(2*s)), s, col)
-	shad2dStroke(l, paint.NewPath().MoveTo(x+15*s, y+3*s).LineTo(x+15*s, y+21*s), s, col)
+	c.paintIcon(l, icon.PanelLeft, r, col, 0)
 }
 
 // shad2dIconPlusCircle draws a circled plus (facet filter button).
 func shad2dIconPlusCircle(l *paint.List, r geom.Rect, col theme.Color) {
-	s := r.W / 24
-	cx, cy := r.X+12*s, r.Y+12*s
-	shad2dStroke(l, paint.NewPath().Circle(cx, cy, 10*s), s, col)
-	shad2dStroke(l, paint.NewPath().MoveTo(cx-4*s, cy).LineTo(cx+4*s, cy).MoveTo(cx, cy-4*s).LineTo(cx, cy+4*s), s, col)
+	icon.Draw(l, icon.PlusCircle, r, col, 0)
 }
 
 // shad2dIconChevrons draws the up-down chevrons of a menu trigger.
 func shad2dIconChevrons(l *paint.List, r geom.Rect, col theme.Color) {
-	s := r.W / 24
-	x, y := r.X, r.Y
-	shad2dStroke(l, paint.NewPath().MoveTo(x+7*s, y+15*s).LineTo(x+12*s, y+20*s).LineTo(x+17*s, y+15*s), s, col)
-	shad2dStroke(l, paint.NewPath().MoveTo(x+7*s, y+9*s).LineTo(x+12*s, y+4*s).LineTo(x+17*s, y+9*s), s, col)
+	icon.Draw(l, icon.ChevronsUpDown, r, col, 0)
 }
 
 // shad2dIconSliders draws two horizontal sliders (column view toggle).
 func shad2dIconSliders(l *paint.List, r geom.Rect, col theme.Color) {
-	s := r.W / 24
-	x, y := r.X, r.Y
-	shad2dStroke(l, paint.NewPath().MoveTo(x+4*s, y+7*s).LineTo(x+20*s, y+7*s).MoveTo(x+4*s, y+17*s).LineTo(x+20*s, y+17*s), s, col)
-	l.Path(paint.NewPath().Circle(x+15*s, y+7*s, 3*s), col)
-	l.Path(paint.NewPath().Circle(x+9*s, y+17*s, 3*s), col)
+	icon.Draw(l, icon.Sliders, r, col, 0)
 }
 
 // shad2dIconCheck draws a check mark.
 func shad2dIconCheck(l *paint.List, r geom.Rect, col theme.Color) {
-	s := r.W / 24
-	x, y := r.X, r.Y
-	shad2dStroke(l, paint.NewPath().MoveTo(x+5*s, y+12.5*s).LineTo(x+10*s, y+17*s).LineTo(x+19*s, y+7*s), s*1.2, col)
+	icon.Draw(l, icon.Check, r, col, 0)
 }
 
 // shad2dIconFn adapts an icon painter to a fixed-size Custom node.

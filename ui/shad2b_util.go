@@ -9,9 +9,6 @@ import (
 	"github.com/tangoui/tango/ui/theme"
 )
 
-// shad2bIconArrowLeft mirrors icon.ArrowRight (original path data).
-var shad2bIconArrowLeft = icon.New("shad2b-arrow-left", "M20 12H4.5M11 5.5L4.5 12L11 18.5", "")
-
 // Small shared helpers of the shadcn data-display styles (shad2b_*).
 
 // shad2bCalDay is the day button size of the card Calendar: 32 (size-8)
@@ -44,7 +41,7 @@ func shad2bCarouselArrow(l *paint.List, th *theme.Theme, r geom.Rect, ic *icon.I
 	s := float32(16)
 	switch ic {
 	case icon.Left:
-		ic = shad2bIconArrowLeft
+		ic = icon.ArrowLeft
 	case icon.Right:
 		ic = icon.ArrowRight
 	case icon.Up:

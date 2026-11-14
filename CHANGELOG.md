@@ -6,6 +6,10 @@
 
 ### 新增
 
+- **完整图标库**：新增 `ui/icon/element`（Element Plus 293 个）、`ui/icon/antd`（Ant Design 848 个，线框 / 实底 / 双色）、`ui/icon/lucide`（Lucide 2052 个及 300 个旧名别名，shadcn/ui 默认图标），由 `internal/cmd/icongen` 从官方 npm 包生成；图标是静态初始化的变量，程序只链接实际引用到的图标，调用各库的 `Register` 后可用 `icon.ByName("lucide:search")` 按名查找。
+- **主题图标**：`theme.Theme.Icons`（`icon.Style`）让组件画出设计体系自己的图标：Ant Design 主题用 @ant-design/icons，Element Plus 主题用 Element Plus 图标，shadcn 主题用 Lucide 并把线宽改为 2；应用里用到的内置图标也会跟着替换。
+- `ui/icon`：图标改为由多段 `Part`（填充 / 描边、主色 / 辅色）组成，支持任意 viewBox（`Box`）、自定义线宽、双色图标（`DrawOpts.Secondary`）、绘制时覆盖线宽（`DrawOpts.StrokeWidth`）、位图与单色蒙版图标（`FromImage`）、`Register` / `RegisterAs` 注册自定义图标；内置图标从 85 个增加到 136 个（调试、编辑、Git、窗口按钮等常用图标）。
+- `ui/icon/filetype`：按文件名或扩展名解析文件类别并给出图标，三套设计体系各有一组；`filetype.Theme` 按 VS Code 文件图标主题的方式（文件名、扩展名、文件夹名）叠加自定义或插件提供的图标。
 - **公开 API 分层与兼容性检查**：Go 包分为稳定与实验性两层（`ui`、`uihost`、`mobile`、`service/updater` 为实验性）；CI 新增 `API` 工作流，用 `scripts/apidiff.sh`（基于 apidiff）检查稳定包的不兼容变化，需要破坏兼容时给 PR 加 `api-break` 标签。见 [docs/release.md](docs/release.md#api-稳定性)。
 
 - **组件补齐**（对照 Ant Design v6、Element Plus、Pro Components 与 shadcn/ui 的"部分"项，见 [docs/specs/ui-coverage.md](docs/specs/ui-coverage.md)）：
@@ -33,6 +37,10 @@
 - **`theme.NumComps` 改为未导出**（R1：计数常量每加一个组件就变值）。`theme.Comp` 的值只追加，文档不再把它和 `Components` 的字段顺序绑定。
 - **枚举只追加（R1）**：`ui`、`ui/a11y`、`ui/input`、`ui/layout`、`ui/paint`、`ui/theme` 的枚举类型注释写明"只追加、零值不变"，现有常量值不变。
 - **`asset.DevProxy` 恢复单参数（R3）**：`DevProxy(target string) http.Handler`；带选项的用法改为新增的 `DevProxyWith(target string, opts DevProxyOptions) http.Handler`。`DevProxy(url, opts)` 改成 `DevProxyWith(url, opts)`。
+
+### 修复
+
+- `icon.CheckFilled`、`CloseFilled`、`InfoFilled`、`WarningFilled` 原来只画一个实心圆，现在中间的符号是镂空的。
 
 ### 安全
 

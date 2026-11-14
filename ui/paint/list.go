@@ -248,6 +248,11 @@ type List struct {
 	// audit); renderers ignore it. It belongs to the list, so parallel
 	// tests do not see each other's icons. Reset keeps it.
 	IconNote func(name string, directional, mirrored bool, r geom.Rect)
+	// IconStyle is the icon style (a *icon.Style) the icon package applies
+	// to icons drawn into the list: the theme's replacement icons and
+	// stroke width. The ui runner sets it from the theme of the scope
+	// being painted; renderers ignore it. Reset keeps it.
+	IconStyle any
 }
 
 // Reset empties the list for reuse.

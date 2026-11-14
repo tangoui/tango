@@ -15,6 +15,8 @@ func TestDirectionalWhitelist(t *testing.T) {
 		Left: true, Right: true, DoubleLeft: true, DoubleRight: true, ArrowRight: true,
 		MenuFold: true, MenuUnfold: true, Logout: true, Message: true,
 		Profile: true, Form: true, FileText: true,
+		ArrowLeft: true, CaretLeft: true, CaretRight: true, ExternalLink: true, PanelLeft: true,
+		Undo: true, Redo: true, Send: true, Sound: true,
 	}
 	for _, n := range Names() {
 		ic := ByName(n)
@@ -22,7 +24,7 @@ func TestDirectionalWhitelist(t *testing.T) {
 			t.Errorf("%s: directional=%v want %v", n, ic.IsDirectional(), want[ic])
 		}
 	}
-	for _, ic := range []*Icon{Rise, Fall, Up, Down, Clock, Loading, RotateLeft, RotateRight, Swap} {
+	for _, ic := range []*Icon{Rise, Fall, Up, Down, Clock, Loading, RotateLeft, RotateRight, Swap, Play, History, Sync} {
 		if ic.IsDirectional() {
 			t.Errorf("%s must not be directional", ic.Name)
 		}

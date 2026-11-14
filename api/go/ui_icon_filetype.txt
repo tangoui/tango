@@ -1,0 +1,47 @@
+pkg github.com/tangoui/tango/ui/icon/filetype, const Archive Kind = 16
+pkg github.com/tangoui/tango/ui/icon/filetype, const Audio Kind = 14
+pkg github.com/tangoui/tango/ui/icon/filetype, const Code Kind = 2
+pkg github.com/tangoui/tango/ui/icon/filetype, const Config Kind = 9
+pkg github.com/tangoui/tango/ui/icon/filetype, const Data Kind = 8
+pkg github.com/tangoui/tango/ui/icon/filetype, const Database Kind = 15
+pkg github.com/tangoui/tango/ui/icon/filetype, const Document Kind = 0
+pkg github.com/tangoui/tango/ui/icon/filetype, const Excel Kind = 20
+pkg github.com/tangoui/tango/ui/icon/filetype, const Folder Kind = 1
+pkg github.com/tangoui/tango/ui/icon/filetype, const Image Kind = 12
+pkg github.com/tangoui/tango/ui/icon/filetype, const JavaScript Kind = 4
+pkg github.com/tangoui/tango/ui/icon/filetype, const Markdown Kind = 10
+pkg github.com/tangoui/tango/ui/icon/filetype, const Markup Kind = 6
+pkg github.com/tangoui/tango/ui/icon/filetype, const PDF Kind = 18
+pkg github.com/tangoui/tango/ui/icon/filetype, const Slides Kind = 21
+pkg github.com/tangoui/tango/ui/icon/filetype, const Style Kind = 7
+pkg github.com/tangoui/tango/ui/icon/filetype, const Terminal Kind = 17
+pkg github.com/tangoui/tango/ui/icon/filetype, const Text Kind = 11
+pkg github.com/tangoui/tango/ui/icon/filetype, const TypeScript Kind = 3
+pkg github.com/tangoui/tango/ui/icon/filetype, const Video Kind = 13
+pkg github.com/tangoui/tango/ui/icon/filetype, const Vue Kind = 5
+pkg github.com/tangoui/tango/ui/icon/filetype, const Word Kind = 19
+pkg github.com/tangoui/tango/ui/icon/filetype, func ForFlavor(ui/theme.Flavor) *Set
+pkg github.com/tangoui/tango/ui/icon/filetype, func KindOf(string, bool) Kind
+pkg github.com/tangoui/tango/ui/icon/filetype, method (*Set) Icon(string, bool, bool) *ui/icon.Icon
+pkg github.com/tangoui/tango/ui/icon/filetype, method (*Theme) Icon(string, bool, bool) *ui/icon.Icon
+pkg github.com/tangoui/tango/ui/icon/filetype, method (Kind) String() string
+pkg github.com/tangoui/tango/ui/icon/filetype, type Kind uint8
+pkg github.com/tangoui/tango/ui/icon/filetype, type Resolver interface { Icon }
+pkg github.com/tangoui/tango/ui/icon/filetype, type Resolver interface, Icon(string, bool, bool) *ui/icon.Icon
+pkg github.com/tangoui/tango/ui/icon/filetype, type Set struct
+pkg github.com/tangoui/tango/ui/icon/filetype, type Set struct, FolderOpen *ui/icon.Icon
+pkg github.com/tangoui/tango/ui/icon/filetype, type Set struct, Kinds [22]*ui/icon.Icon
+pkg github.com/tangoui/tango/ui/icon/filetype, type Theme struct
+pkg github.com/tangoui/tango/ui/icon/filetype, type Theme struct, Extensions map[string]*ui/icon.Icon
+pkg github.com/tangoui/tango/ui/icon/filetype, type Theme struct, Fallback Resolver
+pkg github.com/tangoui/tango/ui/icon/filetype, type Theme struct, File *ui/icon.Icon
+pkg github.com/tangoui/tango/ui/icon/filetype, type Theme struct, FileNames map[string]*ui/icon.Icon
+pkg github.com/tangoui/tango/ui/icon/filetype, type Theme struct, Folder *ui/icon.Icon
+pkg github.com/tangoui/tango/ui/icon/filetype, type Theme struct, FolderNames map[string]*ui/icon.Icon
+pkg github.com/tangoui/tango/ui/icon/filetype, type Theme struct, FolderNamesOpen map[string]*ui/icon.Icon
+pkg github.com/tangoui/tango/ui/icon/filetype, type Theme struct, FolderOpen *ui/icon.Icon
+pkg github.com/tangoui/tango/ui/icon/filetype, type Theme struct, Kinds map[Kind]*ui/icon.Icon
+pkg github.com/tangoui/tango/ui/icon/filetype, type Theme struct, noncomparable
+pkg github.com/tangoui/tango/ui/icon/filetype, var Ant *Set
+pkg github.com/tangoui/tango/ui/icon/filetype, var Element *Set
+pkg github.com/tangoui/tango/ui/icon/filetype, var Lucide *Set

@@ -77,13 +77,13 @@ func splitterToggleIcon(vertical, start, collapsed bool) *icon.Icon {
 	towardsStart := start != collapsed
 	switch {
 	case vertical && towardsStart:
-		return navIcCaretUp
+		return icon.CaretUp
 	case vertical:
-		return navIcCaretDown
+		return icon.CaretDown
 	case towardsStart:
-		return navIcCaretLeft
+		return icon.CaretLeft
 	}
-	return navIcCaretRight
+	return icon.CaretRight
 }
 
 // Resizable(false) locks the bars next to this pane.
@@ -586,9 +586,9 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 					bg = theme.Fade(tk.CollapseHoverBg, float64(ah))
 				}
 				l.Fill(ar, geom.Rad(tk.CollapseRadius), bg)
-				g := [2]*icon.Icon{navIcCaretLeft, navIcCaretRight}[k]
+				g := [2]*icon.Icon{icon.CaretLeft, icon.CaretRight}[k]
 				if vertical {
-					g = [2]*icon.Icon{navIcCaretUp, navIcCaretDown}[k]
+					g = [2]*icon.Icon{icon.CaretUp, icon.CaretDown}[k]
 				}
 				if tgt >= 0 {
 					g = splitterToggleIcon(vertical, tgt == a, folded(tgt))

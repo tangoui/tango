@@ -75,9 +75,10 @@ func g3HasPath(d *Driver, p *paint.Path) bool {
 	return false
 }
 
-// g3IconPath returns the path icon.DrawWith emits for ic in r.
+// g3IconPath returns the path icon.DrawWith emits for ic in r under the
+// default (Ant Design) theme's icon style.
 func g3IconPath(ic *icon.Icon, r geom.Rect, rtl bool) *paint.Path {
-	var l paint.List
+	l := paint.List{IconStyle: theme.AntDesign().Icons}
 	icon.DrawWith(&l, ic, r, theme.Hex("#000000"), icon.DrawOpts{RTL: rtl})
 	for _, op := range l.Ops {
 		if f, ok := op.(paint.FillPath); ok {

@@ -721,7 +721,7 @@ func (p *ProTableW[T]) toolbarRow() {
 			if ok, _ := p.tool(c.Locale().ProTable.Reload, icon.Reload, false, false); ok {
 				p.Reload()
 			}
-			ok, anchor := p.tool(c.Locale().ProTable.Density, tblIconDensity, st.densOpen, true)
+			ok, anchor := p.tool(c.Locale().ProTable.Density, icon.ColumnHeight, st.densOpen, true)
 			if ok {
 				st.densOpen = !st.densOpen
 				st.densFocus = st.densOpen
@@ -1073,14 +1073,14 @@ func (p *ProTableW[T]) settingItem(col ProColumn[T], group int) ID {
 		unpin := loc.Table.Unpin
 		switch group {
 		case 0:
-			pin("unpin", unpin, tblIconPinMiddle, FixedNone)
-			pin("pin-right", right, tblIconPinBottom, FixedRight)
+			pin("unpin", unpin, icon.VerticalAlignMid, FixedNone)
+			pin("pin-right", right, icon.VerticalAlignBot, FixedRight)
 		case 2:
-			pin("pin-left", left, tblIconPinTop, FixedLeft)
-			pin("unpin", unpin, tblIconPinMiddle, FixedNone)
+			pin("pin-left", left, icon.VerticalAlignTop, FixedLeft)
+			pin("unpin", unpin, icon.VerticalAlignMid, FixedNone)
 		default:
-			pin("pin-left", left, tblIconPinTop, FixedLeft)
-			pin("pin-right", right, tblIconPinBottom, FixedRight)
+			pin("pin-left", left, icon.VerticalAlignTop, FixedLeft)
+			pin("pin-right", right, icon.VerticalAlignBot, FixedRight)
 		}
 	}, layout.PadVH(0, 12), layout.H(itemH), layout.Middle(), layout.Gap(8))
 	if b.Hovered() {

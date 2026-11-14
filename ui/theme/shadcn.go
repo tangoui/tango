@@ -225,7 +225,7 @@ func Shadcn(args ...ShadcnArg) *Theme {
 	v.SidebarPrimary, v.SidebarPrimaryForeground = v.Primary, v.PrimaryForeground
 	v.SidebarRing = v.Ring
 
-	t := &Theme{Name: "shadcn", Flavor: StyleShadcn, Dark: dark, Shadcn: v}
+	t := &Theme{Name: "shadcn", Flavor: StyleShadcn, Dark: dark, Shadcn: v, Icons: LucideIcons()}
 	bg := v.Background
 	t.Primary = shadcnPalette(v.Primary, bg, dark)
 	if o.Primary.A == 0 {

@@ -605,10 +605,6 @@ type NoticeBarW struct {
 	rtl       bool
 }
 
-// iconSound is directional: in RTL it sits at the right and its sound
-// waves face the message on its left.
-var iconSound = icon.New("mobile-sound", "M4 9.5H7.5L12 5.5V18.5L7.5 14.5H4ZM15.5 9C16.5 10 16.5 14 15.5 15M18 6.5C20.5 9 20.5 15 18 17.5", "").Directional()
-
 // NoticeBar adds an announcement bar showing msg (a neutral shadcn Alert
 // strip in the shadcn style).
 //
@@ -717,7 +713,7 @@ func (w *NoticeBarW) paint(l *paint.List, r geom.Rect) {
 	// Laid out left to right; sp mirrors the parts in RTL.
 	sp := spanOf(r, w.rtl)
 	x := r.X + th.PadH
-	sp.icon(l, iconSound, x, r.Y+(r.H-18)/2, 18, fg)
+	sp.icon(l, icon.Sound, x, r.Y+(r.H-18)/2, 18, fg)
 	x += 18 + 8
 	right := r.Right() - th.PadH
 	if w.closeable {
@@ -965,9 +961,9 @@ func (w *ResultW) paint(l *paint.List, r geom.Rect) {
 	ic := icon.Info
 	switch w.status {
 	case "success":
-		col, ic = th.Success, toastCheck
+		col, ic = th.Success, icon.Check
 	case "error":
-		col, ic = th.Danger, toastCross
+		col, ic = th.Danger, icon.Close
 	case "warning":
 		col, ic = th.Warning, icon.Exclamation
 	case "waiting":
@@ -976,7 +972,7 @@ func (w *ResultW) paint(l *paint.List, r geom.Rect) {
 	cx := r.X + r.W/2
 	top := r.Y + 32
 	ir := geom.Rect{X: cx - 32, Y: top, W: 64, H: 64}
-	if ic == toastCheck || ic == toastCross {
+	if ic == icon.Check || ic == icon.Close {
 		l.Fill(ir, geom.Rad(32), col)
 		icon.Draw(l, ic, ir.Inset(geom.All(16)), th.OnSolid, 0)
 	} else {

@@ -140,6 +140,7 @@ pkg github.com/tangoui/tango/ui/paint, type LinearGradient struct, To image/colo
 pkg github.com/tangoui/tango/ui/paint, type List struct
 pkg github.com/tangoui/tango/ui/paint, type List struct, Background image/color.NRGBA
 pkg github.com/tangoui/tango/ui/paint, type List struct, IconNote func(string, bool, bool, ui/geom.Rect)
+pkg github.com/tangoui/tango/ui/paint, type List struct, IconStyle any
 pkg github.com/tangoui/tango/ui/paint, type List struct, Ops []Op
 pkg github.com/tangoui/tango/ui/paint, type List struct, noncomparable
 pkg github.com/tangoui/tango/ui/paint, type Op interface { unexported methods }

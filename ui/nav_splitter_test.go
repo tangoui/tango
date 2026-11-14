@@ -149,14 +149,14 @@ func TestSplitterToggleIcon(t *testing.T) {
 		vertical, start, collapsed bool
 		want                       *icon.Icon
 	}{
-		{false, true, false, navIcCaretLeft},
-		{false, true, true, navIcCaretRight},
-		{false, false, false, navIcCaretRight},
-		{false, false, true, navIcCaretLeft},
-		{true, true, false, navIcCaretUp},
-		{true, true, true, navIcCaretDown},
-		{true, false, false, navIcCaretDown},
-		{true, false, true, navIcCaretUp},
+		{false, true, false, icon.CaretLeft},
+		{false, true, true, icon.CaretRight},
+		{false, false, false, icon.CaretRight},
+		{false, false, true, icon.CaretLeft},
+		{true, true, false, icon.CaretUp},
+		{true, true, true, icon.CaretDown},
+		{true, false, false, icon.CaretDown},
+		{true, false, true, icon.CaretUp},
 	}
 	for _, tc := range cases {
 		if got := splitterToggleIcon(tc.vertical, tc.start, tc.collapsed); got != tc.want {

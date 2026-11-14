@@ -543,9 +543,9 @@ func (b *BackTopW) Show() *BackTopW {
 			return
 		}
 		f := FloatButton(c)
-		f.glyph = navIcToTop
+		f.glyph = icon.VerticalAlignTop
 		if navEl(c) {
-			f.glyph = navIcCaretUp
+			f.glyph = icon.CaretUp
 		}
 		f.n.label = c.Locale().BackTop
 		hit = f.ia

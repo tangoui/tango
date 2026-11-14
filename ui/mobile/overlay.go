@@ -932,10 +932,9 @@ func drawToast(c *ui.Context, th *Theme, id ui.ID, msg, kind string, pos Positio
 	ov.Opacity(v)
 }
 
-var (
-	toastCheck = icon.New("mobile-toast-check", "M4 12.5L9.5 18L20 6.5", "")
-	toastCross = icon.New("mobile-toast-cross", "M5.5 5.5L18.5 18.5M18.5 5.5L5.5 18.5", "")
-)
+// The toast status glyphs (a local "icon" flag shadows the package where
+// they are drawn).
+var toastCheck, toastCross = icon.Check, icon.Close
 
 func drawToastIcon(l *paint.List, r geom.Rect, ic *icon.Icon, col theme.Color) {
 	icon.Draw(l, ic, r, col, 0)

@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
@@ -109,7 +110,7 @@ func (p *PageHeaderW) backButton() {
 			}
 			// Arrow at the start, pointing back (mirrored in RTL), then the label.
 			s := c.inline(r)
-			c.paintIcon(l, navIcBack, s.Rect(0, r.Y+(r.H-16)/2, 16, 16), col, 0)
+			c.paintIcon(l, icon.ArrowLeft, s.Rect(0, r.Y+(r.H-16)/2, 16, 16), col, 0)
 			lay := navLabel(c, label, th.FontSize, text.Medium)
 			l.Glyphs(geom.Pt(s.X(24, lay.Width), r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
 		} else {
@@ -117,7 +118,7 @@ func (p *PageHeaderW) backButton() {
 			if h > 0 {
 				l.Fill(r, geom.Rad(th.RadiusSM), theme.Fade(th.BgTextHover, float64(h)))
 			}
-			c.paintIcon(l, navIcBack, geom.Rect{X: r.X + 4, Y: r.Y + 4, W: 16, H: 16}, col, 0)
+			c.paintIcon(l, icon.ArrowLeft, geom.Rect{X: r.X + 4, Y: r.Y + 4, W: 16, H: 16}, col, 0)
 		}
 		if ia.FocusVisible {
 			l.Stroke(r.Expand(2), geom.Rad(th.RadiusSM), 2, th.FocusRing)

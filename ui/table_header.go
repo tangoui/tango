@@ -306,7 +306,7 @@ func (f *tblFrame) filterTrigger(col *TableColumn, cellW, cellH float32, active 
 				col = th.TextTertiary
 			}
 		}
-		icon.Draw(l, tblIconFunnel, geom.Rect{X: r.X + (r.W-12)/2, Y: r.Y + (r.H-12)/2, W: 12, H: 12}, col, 0)
+		icon.Draw(l, icon.FilterFilled, geom.Rect{X: r.X + (r.W-12)/2, Y: r.Y + (r.H-12)/2, W: 12, H: 12}, col, 0)
 	}
 	if open {
 		f.filterDropdown(col, n.id)

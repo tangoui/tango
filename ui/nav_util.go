@@ -4,27 +4,9 @@ import (
 	"time"
 
 	"github.com/tangoui/tango/ui/geom"
-	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
 	"github.com/tangoui/tango/ui/theme"
-)
-
-// ---------------------------------------------------------------------------
-// Icons private to the navigation components (24×24 grid, original paths).
-
-var (
-	navIcToTop        = icon.New("navIcToTop", "M5 4H19M12 20.5V8.5M6.5 14L12 8.5L17.5 14", "")
-	navIcBack         = icon.New("navIcBack", "M20 12H4.5M10.5 5.5L4 12L10.5 18.5", "").Directional()
-	navIcHeadset      = icon.New("navIcHeadset", "M4.5 15V12C4.5 7.9 7.9 4.5 12 4.5C16.1 4.5 19.5 7.9 19.5 12V15M4.5 13.5H7.5V19H4.5ZM16.5 13.5H19.5V19H16.5ZM19.5 19C19.5 20.4 17.6 21 14.5 21", "")
-	navIcComment      = icon.New("navIcComment", "M4 5H20V16H10.5L6 19.5V16H4Z", "")
-	navIcFullExit     = icon.New("navIcFullExit", "M9 4V9H4M15 4V9H20M20 15H15V20M4 15H9V20", "")
-	navIcFull         = icon.New("navIcFull", "M4 9V4H9M15 4H20V9M20 15V20H15M9 20H4V15", "")
-	navIcCaretLeft    = icon.New("navIcCaretLeft", "", "M9 12L15 6.5V17.5Z").Directional()
-	navIcCaretRight   = icon.New("navIcCaretRight", "", "M15 12L9 6.5V17.5Z").Directional()
-	navIcCaretUp      = icon.New("navIcCaretUp", "", "M12 9L17.5 15H6.5Z")
-	navIcCaretDown    = icon.New("navIcCaretDown", "", "M12 15L6.5 9H17.5Z")
-	navIcQuestionMark = icon.New("navIcQuestionMark", "M8.6 9C8.6 7 10.1 5.6 12 5.6C13.9 5.6 15.4 6.9 15.4 8.7C15.4 11.2 12 11.4 12 14.2M12 18.2V18.3", "")
 )
 
 // ---------------------------------------------------------------------------

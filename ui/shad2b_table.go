@@ -22,9 +22,6 @@ const (
 	shad2bPillPadH   = float32(6)
 )
 
-// shad2bIconSortIdle is a small pair of chevrons (original path data).
-var shad2bIconSortIdle = icon.New("shad2b-sort-idle", "M7.5 9.5L12 5L16.5 9.5M7.5 14.5L12 19L16.5 14.5", "")
-
 // shad2bMetrics sets the shadcn row and header heights.
 // The paddings come from the Table token (metrics): shadcn has one
 // density (p-2) and Small trims the vertical padding.
@@ -60,7 +57,7 @@ func shad2bHeadSort(l *paint.List, th *theme.Theme, tk *theme.TableToken, r geom
 	if focus {
 		drawFocusRing(l, th, pill, rad)
 	}
-	ic, col := shad2bIconSortIdle, tk.SorterIdleColor
+	ic, col := icon.ChevronsUpDown, tk.SorterIdleColor
 	switch order {
 	case SortAsc:
 		ic, col = icon.ArrowUp, th.Text

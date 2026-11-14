@@ -973,9 +973,9 @@ func (m *ModalW) Body(fn func()) *ModalW {
 				}
 				if m.fullToggle {
 					label := loc.Fullscreen
-					g := navIcFull
+					g := icon.Fullscreen
 					if full {
-						label, g = loc.ExitFullscreen, navIcFullExit
+						label, g = loc.ExitFullscreen, icon.FullscreenExit
 					}
 					if navIconButton(c, g, label).Clicked {
 						st.full = !full

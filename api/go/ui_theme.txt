@@ -70,6 +70,7 @@ pkg github.com/tangoui/tango/ui/theme, const StyleAnt Flavor = 0
 pkg github.com/tangoui/tango/ui/theme, const StyleElement Flavor = 1
 pkg github.com/tangoui/tango/ui/theme, const StyleShadcn Flavor = 2
 pkg github.com/tangoui/tango/ui/theme, func AntDesign(...Option) *Theme
+pkg github.com/tangoui/tango/ui/theme, func AntIcons() *ui/icon.Style
 pkg github.com/tangoui/tango/ui/theme, func AntPalette(Color, bool, Color) Palette
 pkg github.com/tangoui/tango/ui/theme, func AntShades(Color, bool, Color) [10]Color
 pkg github.com/tangoui/tango/ui/theme, func BuiltinThemes() []*Theme
@@ -81,6 +82,7 @@ pkg github.com/tangoui/tango/ui/theme, func ContrastIssues(*Theme) []ContrastChe
 pkg github.com/tangoui/tango/ui/theme, func ContrastRatio(Color, Color) float64
 pkg github.com/tangoui/tango/ui/theme, func ContrastReport(...*Theme) string
 pkg github.com/tangoui/tango/ui/theme, func Dark() Option
+pkg github.com/tangoui/tango/ui/theme, func ElementIcons() *ui/icon.Style
 pkg github.com/tangoui/tango/ui/theme, func ElementPalette(Color, bool, Color) Palette
 pkg github.com/tangoui/tango/ui/theme, func ElementPlus(...Option) *Theme
 pkg github.com/tangoui/tango/ui/theme, func EnsureContrast(Color, Color, float64, ...Color) Color
@@ -94,6 +96,7 @@ pkg github.com/tangoui/tango/ui/theme, func Hex(string) Color
 pkg github.com/tangoui/tango/ui/theme, func HexString(Color) string
 pkg github.com/tangoui/tango/ui/theme, func HighContrast(*Theme) *Theme
 pkg github.com/tangoui/tango/ui/theme, func Lerp(Color, Color, float32) Color
+pkg github.com/tangoui/tango/ui/theme, func LucideIcons() *ui/icon.Style
 pkg github.com/tangoui/tango/ui/theme, func Luma(Color) float64
 pkg github.com/tangoui/tango/ui/theme, func Mix(Color, Color, float64) Color
 pkg github.com/tangoui/tango/ui/theme, func Over(Color, Color) Color
@@ -1467,6 +1470,7 @@ pkg github.com/tangoui/tango/ui/theme, type Theme struct, HeaderBg Color
 pkg github.com/tangoui/tango/ui/theme, type Theme struct, HeaderHeight float32
 pkg github.com/tangoui/tango/ui/theme, type Theme struct, Heading [5]float32
 pkg github.com/tangoui/tango/ui/theme, type Theme struct, HighContrast bool
+pkg github.com/tangoui/tango/ui/theme, type Theme struct, Icons *ui/icon.Style
 pkg github.com/tangoui/tango/ui/theme, type Theme struct, Illustration Illustration
 pkg github.com/tangoui/tango/ui/theme, type Theme struct, Info Palette
 pkg github.com/tangoui/tango/ui/theme, type Theme struct, InputShadow []ui/paint.Shadow

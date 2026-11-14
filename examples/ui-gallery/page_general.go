@@ -64,19 +64,7 @@ func init() {
 			ui.Link(c, "链接文本")
 		})
 	}})
-	gallery.Register(gallery.Page{Name: "Icon", Title: "Icon 图标", Group: gallery.General, Order: 3, Render: func(c *ui.Context) {
-		ui.Row(c, func() {
-			for _, ic := range []*icon.Icon{icon.Search, icon.Close, icon.Check, icon.Plus, icon.Minus, icon.Down, icon.Up, icon.Left, icon.Right,
-				icon.Home, icon.User, icon.Team, icon.Setting, icon.Bell, icon.Mail, icon.Lock, icon.Calendar, icon.Clock, icon.Eye, icon.Edit,
-				icon.Delete, icon.Upload, icon.Download, icon.Reload, icon.Filter, icon.Star, icon.Info, icon.CheckCircle, icon.CloseCircle,
-				icon.Exclamation, icon.Question, icon.Warning, icon.Dashboard, icon.Appstore, icon.Table, icon.Form, icon.BarChart, icon.PieChart,
-				icon.Shop, icon.Message, icon.Global, icon.Link, icon.Copy, icon.Smile, icon.Rise, icon.Fall, icon.Inbox, icon.More} {
-				ui.Tooltip(c, ic.Name, func() {
-					ui.Column(c, func() { ui.Icon(c, ic).Size(20) }, layout.Size(40, 40), layout.Center())
-				})
-			}
-		}, layout.WrapItems(), layout.Gap(4))
-	}})
+	gallery.Register(gallery.Page{Name: "Icon", Title: "Icon 图标", Group: gallery.General, Order: 3, Render: renderIconPage})
 	gallery.Register(gallery.Page{Name: "Divider", Title: "Divider 分割线", Group: gallery.General, Order: 4, Render: func(c *ui.Context) {
 		ui.Text(c, "上方内容")
 		ui.Divider(c)

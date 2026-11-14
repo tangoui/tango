@@ -20,6 +20,7 @@ package theme
 import (
 	"time"
 
+	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/paint"
 )
 
@@ -63,6 +64,12 @@ type Theme struct {
 	Dark   bool
 	// HighContrast is set on themes built by the HighContrast function.
 	HighContrast bool
+	// Icons restyles the icons components draw: the design system's own
+	// icons in place of the built-in set (AntIcons, ElementIcons,
+	// LucideIcons) and its stroke width. Nil draws the built-in icons.
+	// It applies to every icon drawn in the theme's scope, including the
+	// app's own icon.Icon uses of built-in icons.
+	Icons *icon.Style
 
 	Primary, Success, Warning, Error, Info Palette
 
@@ -364,7 +371,7 @@ func AntDesign(opts ...Option) *Theme {
 	if o.primary != nil {
 		primary = *o.primary
 	}
-	t := &Theme{Name: "antd", Flavor: Ant, Dark: o.dark}
+	t := &Theme{Name: "antd", Flavor: Ant, Dark: o.dark, Icons: AntIcons()}
 	bgDark := Hex("#141414")
 	t.Primary = AntPalette(primary, o.dark, bgDark)
 	t.Success = AntPalette(Hex("#52c41a"), o.dark, bgDark)
@@ -539,7 +546,7 @@ func ElementPlus(opts ...Option) *Theme {
 	if o.primary != nil {
 		primary = *o.primary
 	}
-	t := &Theme{Name: "element-plus", Flavor: Element, Dark: o.dark}
+	t := &Theme{Name: "element-plus", Flavor: Element, Dark: o.dark, Icons: ElementIcons()}
 	bgDark := Hex("#141414")
 	t.Primary = ElementPalette(primary, o.dark, bgDark)
 	t.Success = ElementPalette(Hex("#67c23a"), o.dark, bgDark)

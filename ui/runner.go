@@ -451,6 +451,7 @@ func (r *Runner) layoutAndPaint() {
 	// The last frame's ops stay with the fingerprints (damage_fp.go).
 	r.list.Ops = c.fp.fpBegin(r.list.Ops)
 	r.list.Background = c.Theme.BgLayout
+	r.list.IconStyle = c.Theme.Icons
 	c.nextHits = c.nextHits[:0]
 	clear(c.nextRects)
 	c.nextFocusOrder.Reset()
@@ -477,6 +478,11 @@ func (c *Context) paintNode(l *paint.List, n *node, ox, oy float32, clip geom.Re
 		// Paint (and the subtree) in the scope the node was built in.
 		prev, prevTh := c.enterEnv(e)
 		defer c.leaveEnv(prev, prevTh)
+		if c.Theme != prevTh {
+			prevStyle := l.IconStyle
+			l.IconStyle = c.Theme.Icons
+			defer func() { l.IconStyle = prevStyle }()
+		}
 	}
 	rr := n.ln.Rect
 	r := geom.Rect{X: rr.X + ox, Y: rr.Y + oy, W: rr.W, H: rr.H}
