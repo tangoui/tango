@@ -34,6 +34,11 @@ type SkeletonW struct {
 	round      bool
 	loading    bool
 	count      int
+
+	throttle      bool // Throttle set
+	leading       time.Duration
+	trailing      time.Duration
+	throttleStart bool
 }
 
 // Skeleton starts a skeleton with a title and paragraph rows: three rows,
@@ -80,6 +85,23 @@ func (s *SkeletonW) Count(n int) *SkeletonW { s.count = max(1, n); return s }
 // Loading switches between the skeleton (true) and the real content.
 func (s *SkeletonW) Loading(on bool) *SkeletonW { s.loading = on; return s }
 
+// Throttle delays the switch (EP throttle): the skeleton appears only
+// after Loading(true) lasted leading and goes away only after
+// Loading(false) lasted trailing (0: at once), so quick loads do not
+// flash. The first frame shows the content unless ThrottleInitial(true).
+func (s *SkeletonW) Throttle(leading, trailing time.Duration) *SkeletonW {
+	s.throttle, s.leading, s.trailing = true, leading, trailing
+	return s
+}
+
+// ThrottleInitial sets what a throttled skeleton shows before its first
+// delay ends: true the skeleton, false (default) the content (EP
+// throttle.initVal).
+func (s *SkeletonW) ThrottleInitial(on bool) *SkeletonW {
+	s.throttle, s.throttleStart = true, on
+	return s
+}
+
 // Show builds the skeleton.
 func (s *SkeletonW) Show() *Box { return s.Body(nil) }
 
@@ -96,6 +118,14 @@ func skelWidth(b *skelW, w float32) {
 // Body builds the skeleton while loading, else fn.
 func (s *SkeletonW) Body(fn func()) *Box {
 	c := s.c
+	if s.throttle {
+		// A stable holder keys the throttle state whichever side shows.
+		b := c.box("skeleton-throttle", layout.Column, nil)
+		s.loading = throttledOn(c, hashID(b.n.id, "throttle"), s.loading, s.leading, s.trailing, s.throttleStart)
+		s.throttle = false
+		b.Body(func() { s.Body(fn) })
+		return b
+	}
 	if !s.loading {
 		return Column(c, fn)
 	}
@@ -223,7 +253,7 @@ func skelToken(c *Context) *theme.SkeletonToken {
 func skelPaint(c *Context, l *paint.List, r geom.Rect, rad geom.Radii, active bool) {
 	tk := skelToken(c)
 	base, hi := tk.GradientFromColor, tk.GradientToColor
-	if active && c.Theme.Flavor == theme.StyleShadcn {
+	if active && tk.Pulse {
 		// shadcn Skeleton is bg-muted animate-pulse: the block fades to
 		// half opacity and back, no sweeping band.
 		l.Fill(r, rad, theme.Fade(base, float64(shadPulse(c))))

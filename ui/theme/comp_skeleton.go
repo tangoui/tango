@@ -14,6 +14,9 @@ type SkeletonToken struct {
 	ParagraphGap             float32 // between paragraph lines
 	TitleMarginTopAvatar     float32 // title offset next to an avatar
 	AvatarSize               float32 // the avatar of Skeleton.Avatar (antd size "large")
+	// Pulse animates Active blocks by fading them to half opacity and
+	// back (shadcn animate-pulse) instead of the sweeping highlight band.
+	Pulse bool
 }
 
 func deriveSkeleton(t *Theme) SkeletonToken {
@@ -32,6 +35,7 @@ func deriveSkeleton(t *Theme) SkeletonToken {
 		k.ParagraphMarginTop, k.ParagraphMarginTopAvatar = 16, 16
 	case StyleShadcn:
 		k.BlockRadius = t.Radius // rounded-md
+		k.Pulse = true           // skeleton.tsx: bg-accent animate-pulse
 	}
 	return k
 }

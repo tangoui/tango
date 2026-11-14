@@ -95,7 +95,14 @@ func (w *ResultW) Body(fn func()) *Box {
 			tt.Size(tk.TitleFontSize).LineHeight(tk.TitleLineHeight)
 		}
 		if w.subTitle != "" {
-			sn := dataCenterText(c, w.subTitle, tk.SubtitleFontSize, tk.SubtitleColor, layout.Margin(geom.Insets{Top: tk.SubtitleMarginTop}))
+			var sn *node
+			if tk.SubtitleLineHeight > 0 {
+				st := Text(c, w.subTitle).Align(AlignCenter).Size(tk.SubtitleFontSize).LineHeight(tk.SubtitleLineHeight).Color(tk.SubtitleColor)
+				st.Layout(layout.Margin(geom.Insets{Top: tk.SubtitleMarginTop}))
+				sn = st.n
+			} else {
+				sn = dataCenterText(c, w.subTitle, tk.SubtitleFontSize, tk.SubtitleColor, layout.Margin(geom.Insets{Top: tk.SubtitleMarginTop}))
+			}
 			sn.setRole(a11y.RoleParagraph)
 		}
 		if w.extra != nil {
@@ -326,7 +333,7 @@ func (e *EmptyW) build() {
 	c := e.c
 	th := c.ThemeFor(theme.CompEmpty)
 	tk := &th.Components.Empty
-	el := th.Flavor == theme.Element && !e.simple
+	el := tk.Picture == theme.EmptyPictureElement && !e.simple
 	pad := geom.VH(tk.PaddingBlock, tk.PaddingInline)
 	if e.simple {
 		pad = geom.VH(8, 8)

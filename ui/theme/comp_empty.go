@@ -1,18 +1,31 @@
 package theme
 
+// EmptyPicture is the default picture of Empty (EmptyToken.Picture).
+// Append-only: never reorder or insert.
+type EmptyPicture int
+
+const (
+	// EmptyPictureAnt is Ant's open box (Simple: the tray).
+	EmptyPictureAnt EmptyPicture = iota
+	// EmptyPictureElement is Element Plus's illustration (Simple still
+	// draws the Ant tray).
+	EmptyPictureElement
+)
+
 // EmptyToken styles Empty. The default pictures take their colors from
 // Theme.Illustration.
 type EmptyToken struct {
 	Alias
-	ImageHeight          float32 // default picture (Element: its illustration)
-	ImageHeightSM        float32 // Simple picture
-	DescriptionColor     Color   `contrast:"text:@Page"`
-	DescriptionColorSM   Color   `contrast:"text:@Page"` // Simple
-	SimpleFill           Color   // Simple tray
-	SimpleLine           Color   // Simple tray outline
-	SimpleShadow         Color   // Simple ground ellipse
-	MediaBg              Color   // shadcn icon tile (zero: the picture is an illustration)
-	MediaColor           Color   `contrast:"nontext:MediaBg"` // its icon
+	ImageHeight          float32      // default picture (Element: its illustration)
+	ImageHeightSM        float32      // Simple picture
+	DescriptionColor     Color        `contrast:"text:@Page"`
+	DescriptionColorSM   Color        `contrast:"text:@Page"` // Simple
+	SimpleFill           Color        // Simple tray
+	SimpleLine           Color        // Simple tray outline
+	SimpleShadow         Color        // Simple ground ellipse
+	Picture              EmptyPicture // default illustration when MediaBg is zero
+	MediaBg              Color        // shadcn icon tile (zero: the picture is an illustration)
+	MediaColor           Color        `contrast:"nontext:MediaBg"` // its icon
 	MediaRadius          float32
 	TitleFontSize        float32 // Title (shadcn EmptyTitle)
 	TitleFontWeight      int     // zero: regular
@@ -38,6 +51,7 @@ func deriveEmpty(t *Theme) EmptyToken {
 		// theme-chalk var.scss $empty: padding 40px 0, image-width 160,
 		// description-margin-top 20, bottom-margin-top 20.
 		k.ImageHeight = 160
+		k.Picture = EmptyPictureElement
 		k.PaddingBlock, k.PaddingInline, k.DescriptionMarginTop, k.FooterMarginTop = 40, 0, 20, 20
 	case StyleShadcn:
 		// new-york-v4 empty.tsx: Empty p-6 gap-6; EmptyMedia variant="icon"
