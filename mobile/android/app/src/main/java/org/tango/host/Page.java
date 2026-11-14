@@ -77,6 +77,14 @@ final class Page extends PageBase {
     private int recoveries;
     private int widthDp = -1, heightDp = -1;
     /**
+     * The reply proxy of the last probe Go accepted on the lane channel
+     * (internal/platform/android/lanes.go): down lane packets go to the page
+     * through it (laneSend). Cleared when a document starts (unless Go says
+     * the new document's own probe came first), when the WebView is replaced
+     * and when the page is destroyed. Main thread.
+     */
+    private JavaScriptReplyProxy laneReply;
+    /**
      * Margins keeping the WebView clear of the system bars, cut-out and
      * keyboard (left, top, right, bottom; px): what the root layout's
      * padding used to do before insets were applied per page.
@@ -146,6 +154,7 @@ final class Page extends PageBase {
             parent.addView(w, idx);
         }
         web = w;
+        laneReply = null;
         removeChannel(dead);
         dead.destroy();
         widthDp = heightDp = -1;
@@ -319,6 +328,17 @@ final class Page extends PageBase {
     }
 
     /**
+     * Posts a down lane packet (an ArrayBuffer of at least 2 bytes) to the
+     * page through the reply proxy of its accepted probe; false if there is
+     * none (Go then drops the packet).
+     */
+    boolean laneSend(byte[] p) {
+        if (closed || laneReply == null) return false;
+        laneReply.postMessage(p);
+        return true;
+    }
+
+    /**
      * Builds the WebResourceResponse for an intercepted request (request
      * thread). body is the whole body, or null when it is streamed from Go
      * through stream.
@@ -338,6 +358,7 @@ final class Page extends PageBase {
     void destroy() {
         if (closed) return;
         closed = true;
+        laneReply = null;
         for (CanvasOverlay o : overlays) o.destroy();
         overlays.clear();
         ViewGroup parent = (ViewGroup) frame.getParent();
@@ -432,11 +453,38 @@ final class Page extends PageBase {
         public void onPostMessage(WebView view, WebMessageCompat message, Uri sourceOrigin,
                 boolean isMainFrame, JavaScriptReplyProxy reply) {
             if (closed || view != web || !isMainFrame || message == null || sourceOrigin == null) return;
+            // Check the type first: getData() throws for an ArrayBuffer.
+            if (message.getType() == WebMessageCompat.TYPE_ARRAY_BUFFER) {
+                lanePacket(message.getArrayBuffer(), sourceOrigin, reply);
+                return;
+            }
             String data = message.getData();
             if (data == null) return;
             String r = Tango.nativeWebMessage(id, sourceOrigin.toString(), data);
             if (r != null) reply.postMessage(r);
         }
+    }
+
+    /**
+     * An upstream lane message (internal/platform/android/lanes.go): Go
+     * checks the token and origin and hands it to the core. A probe the core
+     * accepted makes reply the down lane's proxy and is answered [0]; a
+     * message the core refused is answered [1]; a bad token gets nothing.
+     */
+    private void lanePacket(byte[] b, Uri sourceOrigin, JavaScriptReplyProxy reply) {
+        if (b == null) return;
+        int r = Tango.nativeLanePacket(id, sourceOrigin.toString(), b);
+        if (r == 1 && isProbe(b)) {
+            laneReply = reply;
+            reply.postMessage(new byte[] {0});
+        } else if (r == 2) {
+            reply.postMessage(new byte[] {1});
+        }
+    }
+
+    /** A lane probe: exactly token[16] | gen[8] | 00 00. */
+    private static boolean isProbe(byte[] b) {
+        return b.length == 26 && b[24] == 0 && b[25] == 0;
     }
 
     /**
@@ -517,8 +565,13 @@ final class Page extends PageBase {
             // navigated to, or a response Go could not rewrite) gets it now,
             // with a new token, unless it already has it (restored from
             // history). This may run after the page's own first scripts.
-            // Other origins get nothing.
-            String js = Tango.nativeBeginPage(id, url);
+            // Other origins get nothing. The lane's reply proxy belongs to the
+            // previous document, unless Go says this document's own probe
+            // already came (it can reach the main thread before this).
+            String[] script = new String[1];
+            boolean keepLane = Tango.nativeBeginPage(id, url, script);
+            if (!keepLane) laneReply = null;
+            String js = script[0];
             if (js == null || !trusted(url)) return;
             view.evaluateJavascript("Object.prototype.hasOwnProperty.call(window, '__tangoNative')", has -> {
                 if (!closed && view == web && !"true".equals(has)) view.evaluateJavascript(js, null);

@@ -41,7 +41,7 @@ func TestInlineScript(t *testing.T) {
 }
 
 func TestPageScript(t *testing.T) {
-	s := pageScript("tok", "BRIDGE")
+	s := pageScript("tok", "BRIDGE", false)
 	if !strings.Contains(s, `t = "tok"`) || !strings.HasSuffix(s, "BRIDGE") || !strings.Contains(s, "delete window."+jsInterface) {
 		t.Fatal(s)
 	}

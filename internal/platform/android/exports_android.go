@@ -64,7 +64,8 @@ func Java_org_tango_host_Tango_nativeInit(penv *C.JNIEnv, cls C.jclass) {
 	lookupCanvasA11y(e) // canvas_a11y_android.go
 	hostStarted.Store(true)
 	redirectStdio()
-	applyDevURL() // devurl_android.go
+	applyDevURL()  // devurl_android.go
+	applyTestEnv() // testenv_android.go
 	go func() {
 		mainG.Store(goroutineID())
 		defer withEnv(func(e env) { e.callStaticVoid(mExit) })
@@ -133,21 +134,46 @@ func Java_org_tango_host_Tango_nativeSurfaceEvent(penv *C.JNIEnv, cls C.jclass, 
 
 // nativeBeginPage is called when a main-frame document starts loading
 // (Page.Client.onPageStarted, main thread). The previous document's token
-// stops working. It returns the page script for the host to inject into a
-// trusted document Go did not serve with the script inside, or null.
+// stops working. It stores in script[0] the page script for the host to
+// inject into a trusted document Go did not serve with the script inside,
+// or leaves it null. It returns whether the host keeps its lane reply
+// proxy (beginPage, lanes.go): only when the new document's accepted probe
+// came before this call.
 //
 //export Java_org_tango_host_Tango_nativeBeginPage
-func Java_org_tango_host_Tango_nativeBeginPage(penv *C.JNIEnv, cls C.jclass, id C.jlong, url C.jstring) C.jstring {
+func Java_org_tango_host_Tango_nativeBeginPage(penv *C.JNIEnv, cls C.jclass, id C.jlong, url C.jstring, script C.jobjectArray) C.jboolean {
+	e := env{penv}
+	s := backend.surface(platform.SurfaceID(id))
+	if s == nil {
+		return C.JNI_FALSE
+	}
+	tok, keep := beginPage(s.tokens, s.lanes, e.gostr(url))
+	if tok != "" && script != 0 && C.tg_array_length(e.p, C.jarray(script)) > 0 {
+		js := e.str(pageScript(tok, s.bridge, len(s.laneCaps) > 0))
+		C.tg_array_set(e.p, script, 0, js)
+		e.deleteLocal(js)
+	}
+	if keep {
+		return C.JNI_TRUE
+	}
+	return C.JNI_FALSE
+}
+
+// nativeLanePacket handles an upstream lane message (an ArrayBuffer) from
+// the page's WebMessageListener (main thread; main frame only). It returns
+// 0 to drop it silently (token or origin mismatch, no lanes), 1 when the
+// core took it (for a probe the host keeps the reply proxy and answers
+// [0]) and 2 when the core refused it (the host answers [1]). See
+// handleUp, lanes.go.
+//
+//export Java_org_tango_host_Tango_nativeLanePacket
+func Java_org_tango_host_Tango_nativeLanePacket(penv *C.JNIEnv, cls C.jclass, id C.jlong, sourceOrigin C.jstring, data C.jbyteArray) C.jint {
 	e := env{penv}
 	s := backend.surface(platform.SurfaceID(id))
 	if s == nil {
 		return 0
 	}
-	tok := s.tokens.begin(e.gostr(url))
-	if tok == "" {
-		return 0
-	}
-	return C.jstring(e.str(pageScript(tok, s.bridge)))
+	return C.jint(s.lanePacket(backend.host(), e.gostr(sourceOrigin), e.gobytes(data)))
 }
 
 // nativeTokenOrigin returns the origin of the document token was issued
@@ -276,7 +302,7 @@ func Java_org_tango_host_Tango_nativeServeAsset(penv *C.JNIEnv, cls C.jclass, pa
 	token, script := "", ""
 	if mainFrame != 0 && s != nil {
 		if token = s.tokens.serve(rawURL); token != "" {
-			script = pageScript(token, s.bridge)
+			script = pageScript(token, s.bridge, len(s.laneCaps) > 0)
 		}
 	}
 	var res assetResult

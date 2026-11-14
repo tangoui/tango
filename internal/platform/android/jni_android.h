@@ -25,6 +25,8 @@ void tg_call_static_void(JNIEnv *env, jclass cls, jmethodID m, const jvalue *arg
 jobject tg_call_static_object(JNIEnv *env, jclass cls, jmethodID m, const jvalue *args);
 void tg_call_void(JNIEnv *env, jobject obj, jmethodID m, const jvalue *args);
 jobject tg_call_object(JNIEnv *env, jobject obj, jmethodID m, const jvalue *args);
+jboolean tg_call_boolean(JNIEnv *env, jobject obj, jmethodID m, const jvalue *args);
+jboolean tg_call_static_boolean(JNIEnv *env, jclass cls, jmethodID m, const jvalue *args);
 
 jobject tg_new_global(JNIEnv *env, jobject obj);
 void tg_delete_local(JNIEnv *env, jobject obj);

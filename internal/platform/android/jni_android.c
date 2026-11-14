@@ -77,6 +77,14 @@ jobject tg_call_object(JNIEnv *env, jobject obj, jmethodID m, const jvalue *args
 	return (*env)->CallObjectMethodA(env, obj, m, args);
 }
 
+jboolean tg_call_boolean(JNIEnv *env, jobject obj, jmethodID m, const jvalue *args) {
+	return (*env)->CallBooleanMethodA(env, obj, m, args);
+}
+
+jboolean tg_call_static_boolean(JNIEnv *env, jclass cls, jmethodID m, const jvalue *args) {
+	return (*env)->CallStaticBooleanMethodA(env, cls, m, args);
+}
+
 jobject tg_new_global(JNIEnv *env, jobject obj) { return obj == NULL ? NULL : (*env)->NewGlobalRef(env, obj); }
 void tg_delete_local(JNIEnv *env, jobject obj) { if (obj != NULL) (*env)->DeleteLocalRef(env, obj); }
 void tg_delete_global(JNIEnv *env, jobject obj) { if (obj != NULL) (*env)->DeleteGlobalRef(env, obj); }

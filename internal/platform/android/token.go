@@ -2,6 +2,7 @@ package android
 
 import (
 	"crypto/subtle"
+	"encoding/hex"
 	"net"
 	"net/url"
 	"strings"
@@ -89,21 +90,28 @@ func (d *docTokens) served(token, rawURL string) {
 // Otherwise a trusted document gets a new token, which begin returns for
 // the host to inject; an untrusted one gets nothing.
 func (d *docTokens) begin(rawURL string) string {
+	tok, _ := d.beginDoc(rawURL)
+	return tok
+}
+
+// beginDoc is begin, also returning the pending token it made current
+// ("" if it promoted none), for the lanes (beginPage, lanes.go).
+func (d *docTokens) beginDoc(rawURL string) (inject, promoted string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	p := d.pending
 	d.pending = docToken{}
 	if p.token != "" && p.url == rawURL {
 		d.cur = p
-		return ""
+		return "", p.token
 	}
 	d.cur = docToken{}
 	origin := originOf(rawURL)
 	if !d.trusts(origin) {
-		return ""
+		return "", ""
 	}
 	d.cur = docToken{token: d.gen(), origin: origin, url: rawURL}
-	return d.cur.token
+	return d.cur.token, ""
 }
 
 // origin returns the origin of the document token was issued to, if it is
@@ -116,6 +124,34 @@ func (d *docTokens) origin(token string) (string, bool) {
 	defer d.mu.Unlock()
 	for _, t := range []docToken{d.cur, d.pending} {
 		if t.token != "" && subtle.ConstantTimeCompare([]byte(token), []byte(t.token)) == 1 {
+			return t.origin, true
+		}
+	}
+	return "", false
+}
+
+// rawToken is the 16-byte form of a token (its 32 hex characters decoded),
+// as lane packets carry it (lanes.go); nil if tok is not a token.
+func rawToken(tok string) []byte {
+	if len(tok) != tokenLen {
+		return nil
+	}
+	b, err := hex.DecodeString(tok)
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
+// originRaw is origin for a token in its 16-byte form (rawToken).
+func (d *docTokens) originRaw(raw []byte) (string, bool) {
+	if len(raw) != tokenLen/2 {
+		return "", false
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for _, t := range []docToken{d.cur, d.pending} {
+		if r := rawToken(t.token); r != nil && subtle.ConstantTimeCompare(raw, r) == 1 {
 			return t.origin, true
 		}
 	}

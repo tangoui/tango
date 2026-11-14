@@ -6,6 +6,7 @@ package android
 #cgo LDFLAGS: -llog
 #include <stdlib.h>
 #include "jni_android.h"
+#include "webview_ext_android.h"
 */
 import "C"
 
@@ -44,6 +45,7 @@ var (
 	mClipboardWrite = &jmethod{cls: &tangoClass, static: true, name: "clipboardWrite", sig: "(Ljava/lang/String;)V"}
 	mMessageDialog  = &jmethod{cls: &tangoClass, static: true, name: "messageDialog", sig: "(IILjava/lang/String;Ljava/lang/String;[Ljava/lang/String;)V"}
 	mOpenDocuments  = &jmethod{cls: &tangoClass, static: true, name: "openDocuments", sig: "(ILjava/lang/String;[Ljava/lang/String;Z)V"}
+	mLaneSupported  = &jmethod{cls: &tangoClass, static: true, name: "laneSupported", sig: "()Z"}
 
 	// Page (instance).
 	mShow     = &jmethod{cls: &pageClass, name: "show", sig: "()V"}
@@ -55,11 +57,12 @@ var (
 	mEval     = &jmethod{cls: &pageClass, name: "eval", sig: "(Ljava/lang/String;)V"}
 	mWebView  = &jmethod{cls: &pageClass, name: "webView", sig: "()Landroid/webkit/WebView;"}
 	mRespond  = &jmethod{cls: &pageClass, name: "respond", sig: "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;[BJ)Landroid/webkit/WebResourceResponse;"}
+	mLaneSend = &jmethod{cls: &pageClass, name: "laneSend", sig: "([B)Z"}
 )
 
 var allMethods = []*jmethod{
-	mWake, mQuit, mExit, mNewPage, mClipboardRead, mClipboardWrite, mMessageDialog, mOpenDocuments,
-	mShow, mHide, mClose, mFocus, mSetTitle, mNavigate, mEval, mWebView, mRespond,
+	mWake, mQuit, mExit, mNewPage, mClipboardRead, mClipboardWrite, mMessageDialog, mOpenDocuments, mLaneSupported,
+	mShow, mHide, mClose, mFocus, mSetTitle, mNavigate, mEval, mWebView, mRespond, mLaneSend,
 }
 
 var errJava = errors.New("tango/android: Java call failed (see logcat)")
@@ -217,6 +220,23 @@ func (e env) bytes(b []byte) C.jobject {
 	return C.jobject(C.tg_new_bytes(e.p, p, C.jsize(len(b))))
 }
 
+// gobytes copies a byte[] into a new Go slice; nil for a null array.
+func (e env) gobytes(a C.jbyteArray) []byte {
+	if a == 0 {
+		return nil
+	}
+	n := int(C.tg_array_length(e.p, C.jarray(a)))
+	b := make([]byte, n)
+	if n > 0 {
+		C.tg_get_bytes(e.p, a, C.jsize(n), unsafe.Pointer(&b[0])) // webview_ext_android.c
+	}
+	return b
+}
+
+// deleteLocal frees a local reference before the frame ends (in loops:
+// withEnv's frame holds 32).
+func (e env) deleteLocal(o C.jobject) { C.tg_delete_local(e.p, o) }
+
 // ---- calls ----
 
 func argp(args []C.jvalue) *C.jvalue {
@@ -244,6 +264,25 @@ func (e env) callStaticObject(m *jmethod, args ...C.jvalue) (C.jobject, error) {
 		return 0, err
 	}
 	return o, nil
+}
+
+func (e env) callStaticBoolean(m *jmethod, args ...C.jvalue) (bool, error) {
+	r := C.tg_call_static_boolean(e.p, *m.cls, m.id, argp(args))
+	if err := e.check(); err != nil {
+		return false, err
+	}
+	return r != 0, nil
+}
+
+func (e env) callBoolean(obj C.jobject, m *jmethod, args ...C.jvalue) (bool, error) {
+	if obj == 0 {
+		return false, errJava
+	}
+	r := C.tg_call_boolean(e.p, obj, m.id, argp(args))
+	if err := e.check(); err != nil {
+		return false, err
+	}
+	return r != 0, nil
 }
 
 func (e env) callVoid(obj C.jobject, m *jmethod, args ...C.jvalue) error {

@@ -269,6 +269,23 @@ public final class Mobile {
         return u == null ? "" : u;
     }
 
+    /**
+     * The TANGO_TEST_ENV launch extra, a string array of TANGO_KEY=value
+     * entries (am start ... --esa TANGO_TEST_ENV TANGO_A=1,TANGO_B=2) that Go
+     * builds with the self-test hooks put into the environment
+     * (internal/platform/android/testenv_android.go). Only debuggable APKs
+     * answer; release builds always get an empty array. Called from Go.
+     */
+    static String[] testEnv() {
+        Activity a = Tango.activity;
+        if (a == null || (a.getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
+            return new String[0];
+        }
+        Intent i = a.getIntent();
+        String[] v = i == null ? null : i.getStringArrayExtra("TANGO_TEST_ENV");
+        return v == null ? new String[0] : v;
+    }
+
     // ---- called from Go ----
 
     static String call(int cb, String op, String json) {
