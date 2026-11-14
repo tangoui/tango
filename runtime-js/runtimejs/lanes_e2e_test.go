@@ -24,20 +24,25 @@ import (
 )
 
 // The fast lane end-to-end test: Go's ipc.Router and internal/lane on one
-// side, the real runtime-js (IIFE, up:post module) in node on the other.
-// Messages travel over stdio as in TestEndToEndWithNode; up:post requests
-// are real HTTP requests to an httptest server serving
+// side, the real runtime-js (IIFE, up:post and down:poll modules) in node on
+// the other. Messages travel over stdio as in TestEndToEndWithNode; up:post
+// requests are real HTTP requests to an httptest server serving
 // lane.State.ServeUpSession, as the core serves it on the asset origin.
 // Sizes and byte patterns must match the lane scenarios in
 // testdata/harness.mjs.
 //
-// Only up:post is offered: down:scheme is gone (down:poll, its successor,
-// is the core's and is polled by the page's bridge, not by this harness),
-// so every downstream frame goes as a message. The harness's "lanes" mode
-// still waits for a down lane in lanesUp (5 s, then reports the fallback)
-// and runs laneFailure, for which there is no downstream lane to cut: once
-// armed, Go sends lanefail:tripped after the next downstream byte frame (as
-// a message) instead of cutting it, and checks that every frame arrives.
+// down:poll is the core's: the page's downShim polls the core and hands
+// byte packets to window.__tango._onPacket, where the runtime-js module
+// takes them. The harness stands in for the shim: in the "poll" run Go's
+// lane.State hands down:poll packets (its pollSend) to the stdio queue as
+// {"pkt":"<base64>"} lines, in order with the messages, and the harness's
+// bridge delivers them to its _onPacket subscribers.
+//
+// The "post" run offers up:post only, so every downstream frame goes as a
+// message. It also runs laneFailure, for which there is no downstream lane
+// to cut: once armed, Go sends lanefail:tripped after the next downstream
+// byte frame (as a message) instead of cutting it, and checks that every
+// frame arrives.
 const (
 	laneGapMs     = 300 // harness.mjs LANE_GAP_MS: the page's gap timeout
 	bigTotal      = 8 << 20
@@ -48,8 +53,8 @@ const (
 
 // laneCounts counts stream byte frames per stream id, by the path they
 // took: a lane packet (up: delivered by ServeUpSession to
-// HandleBinarySession; down: always 0, there is no downstream lane) or a
-// "bin" message on the message channel.
+// HandleBinarySession; down: handed to down:poll's pollSend) or a "bin"
+// message on the message channel.
 type laneCounts struct {
 	upLane, downLane, upMsg, downMsg map[uint64]int
 }
@@ -149,11 +154,12 @@ func (p *laneProbe) noteMsg(msg string, down bool) {
 }
 
 // laneConn is a pipeConn with fast lanes: it implements ipc.BinaryConn by
-// delegating to a lane.State offering up:post, as tango.Surface does for a
+// delegating to a lane.State offering caps, as tango.Surface does for a
 // page on the asset origin.
 type laneConn struct {
 	*pipeConn
 	st      *lane.State
+	caps    []string
 	enabled bool
 	probe   *laneProbe
 }
@@ -166,7 +172,32 @@ func (c *laneConn) Send(msg string) {
 }
 
 func (c *laneConn) LaneHello() json.RawMessage {
-	return c.st.Hello([]string{lane.UpPost}, c.enabled)
+	return c.st.Hello(c.caps, c.enabled)
+}
+
+// sendPoll is the lane.State's pollSend: it counts the packet's frames
+// and queues it for the harness's _onPacket after the messages sent
+// before it.
+func (c *laneConn) sendPoll(p []byte) bool {
+	frames, err := ipc.ParsePacket(p)
+	if err != nil {
+		c.probe.problem("down:poll packet: %v", err)
+		return false
+	}
+	c.probe.mu.Lock()
+	for _, f := range frames {
+		c.probe.n.downLane[f.Stream]++
+	}
+	c.probe.mu.Unlock()
+	line, _ := json.Marshal(map[string][]byte{"pkt": p}) // base64
+	c.pipeConn.mu.Lock()
+	defer c.pipeConn.mu.Unlock()
+	if c.pipeConn.closed {
+		return false
+	}
+	c.pipeConn.queue = append(c.pipeConn.queue, append(line, '\n'))
+	c.pipeConn.cond.Signal()
+	return true
 }
 func (c *laneConn) SendBinary(p []byte) bool { return c.st.Send(p) }
 func (c *laneConn) BinaryMinSize() int       { return c.st.MinSize() }
@@ -198,21 +229,23 @@ func TestLanesEndToEnd(t *testing.T) {
 	if err := os.WriteFile(script, []byte(runtimejs.Script), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Run("post", func(t *testing.T) { runLanes(t, node, script, true) })
-	t.Run("disabled", func(t *testing.T) { runLanes(t, node, script, false) })
+	t.Run("post", func(t *testing.T) { runLanes(t, node, script, "lanes") })
+	t.Run("poll", func(t *testing.T) { runLanes(t, node, script, "poll") })
+	t.Run("disabled", func(t *testing.T) { runLanes(t, node, script, "nolanes") })
 }
 
-// runLanes runs the harness's lane scenarios: with enabled, LaneHello
-// offers up:post; without, it returns nil (no lanes field).
-func runLanes(t *testing.T, node, script string, enabled bool) {
+// runLanes runs the harness's lane scenarios in mode: "lanes" offers
+// up:post, "poll" down:poll and up:post, "nolanes" nothing (LaneHello
+// returns nil: no lanes field).
+func runLanes(t *testing.T, node, script, mode string) {
 	probe := &laneProbe{n: newLaneCounts()}
-	st := lane.New(nil, nil)
 	r := ipc.NewRouter()
-
-	mode := "nolanes"
-	if enabled {
-		mode = "lanes"
+	enabled := mode != "nolanes"
+	caps := []string{lane.UpPost}
+	if mode == "poll" {
+		caps = []string{lane.DownPoll, lane.UpPost}
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, node, "testdata/harness.mjs", script, mode) // + server URL below
@@ -220,7 +253,9 @@ func runLanes(t *testing.T, node, script string, enabled bool) {
 	stdin, _ := cmd.StdinPipe()
 	stdout, _ := cmd.StdoutPipe()
 	// Built before the server starts, so its handlers see it.
-	conn := &laneConn{pipeConn: newPipeConn(stdin), st: st, enabled: enabled, probe: probe}
+	conn := &laneConn{pipeConn: newPipeConn(stdin), caps: caps, enabled: enabled, probe: probe}
+	st := lane.New(nil, conn.sendPoll)
+	conn.st = st
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/__tango/lane/up", func(w http.ResponseWriter, req *http.Request) {
@@ -313,9 +348,12 @@ func runLanes(t *testing.T, node, script string, enabled bool) {
 		case strings.HasPrefix(msg, "FAIL "):
 			t.Fatalf("scenario %s: %s", lastStarted, msg)
 		case strings.HasPrefix(msg, "DONE "):
-			if enabled {
+			switch mode {
+			case "lanes":
 				checkPostLane(t, conn, st, probe, results)
-			} else {
+			case "poll":
+				checkPollLane(t, conn, st, probe, results)
+			default:
 				checkLanesDisabled(t, conn, probe, results)
 			}
 			probe.mu.Lock()
@@ -358,8 +396,10 @@ type lanesResult struct {
 
 var hexToken = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
-func checkPostLane(t *testing.T, c *laneConn, st *lane.State, probe *laneProbe, res map[string]laneResult) {
-	// Go's hello reply offers up:post.
+// checkHello checks Go's one hello reply offers list (comma-separated) with
+// a 32 hex digit token, and returns its generation.
+func checkHello(t *testing.T, c *laneConn, list string) uint64 {
+	t.Helper()
 	hellos := c.helloReplies()
 	if len(hellos) != 1 {
 		t.Fatalf("Go hello replies = %q, want one", hellos)
@@ -372,25 +412,38 @@ func checkPostLane(t *testing.T, c *laneConn, st *lane.State, probe *laneProbe, 
 		} `json:"lanes"`
 	}
 	if err := json.Unmarshal([]byte(hellos[0]), &h); err != nil || h.Lanes == nil ||
-		!hexToken.MatchString(h.Lanes.Tok) || strings.Join(h.Lanes.List, ",") != "up:post" {
-		t.Errorf("hello reply %s: want lanes {gen, 32 hex tok, list [up:post]}", hellos[0])
+		!hexToken.MatchString(h.Lanes.Tok) || strings.Join(h.Lanes.List, ",") != list {
+		t.Errorf("hello reply %s: want lanes {gen, 32 hex tok, list [%s]}", hellos[0], list)
 	}
+	if h.Lanes == nil {
+		return 0
+	}
+	return h.Lanes.Gen
+}
+
+// checkReady checks the page told Go each of names is ready in gen.
+func checkReady(t *testing.T, probe *laneProbe, gen uint64, names ...string) {
+	t.Helper()
+	probe.mu.Lock()
+	ctl := append([]string(nil), probe.ctl...)
+	probe.mu.Unlock()
+	for _, name := range names {
+		if want := fmt.Sprintf(`{"op":"ready","lane":%q,"gen":%d}`, name, gen); !containsJSON(ctl, want) {
+			t.Errorf("lane control messages %q: missing %s", ctl, want)
+		}
+	}
+}
+
+func checkPostLane(t *testing.T, c *laneConn, st *lane.State, probe *laneProbe, res map[string]laneResult) {
+	// Go's hello reply offers up:post.
+	gen := checkHello(t, c, "up:post")
 
 	// lanesUp: the page reports up:post ready, and told Go so.
 	var l lanesResult
 	if _, ok := decodeResult(t, res, "lanesUp", &l); ok && (l != lanesResult{"fallback", "up:post"}) {
 		t.Errorf("lanesUp: tango.lanes() = %+v, want {fallback up:post}", l)
 	}
-	probe.mu.Lock()
-	ctl := append([]string(nil), probe.ctl...)
-	probe.mu.Unlock()
-	gen := uint64(0)
-	if h.Lanes != nil {
-		gen = h.Lanes.Gen
-	}
-	if want := fmt.Sprintf(`{"op":"ready","lane":"up:post","gen":%d}`, gen); !containsJSON(ctl, want) {
-		t.Errorf("lane control messages %q: missing %s", ctl, want)
-	}
+	checkReady(t, probe, gen, "up:post")
 
 	// bigBothWays: 8 MiB echoed intact, at least half the frames on up:post,
 	// every echo as a message, and every frame counted exactly once.
@@ -455,6 +508,52 @@ func checkLaneFailure(t *testing.T, st *lane.State, res map[string]laneResult) {
 	}
 	if st.MinSize() != -1 {
 		t.Errorf("laneFailure: BinaryMinSize = %d, want -1 (no downstream lane)", st.MinSize())
+	}
+}
+
+func checkPollLane(t *testing.T, c *laneConn, st *lane.State, probe *laneProbe, res map[string]laneResult) {
+	// Go's hello reply offers down:poll and up:post.
+	gen := checkHello(t, c, "down:poll,up:post")
+
+	// lanesUp: the page reports both ready, and told Go so.
+	var l lanesResult
+	if _, ok := decodeResult(t, res, "lanesUp", &l); ok && (l != lanesResult{"down:poll", "up:post"}) {
+		t.Errorf("lanesUp: tango.lanes() = %+v, want {down:poll up:post}", l)
+	}
+	checkReady(t, probe, gen, "down:poll", "up:post")
+
+	// bigBothWays: 8 MiB echoed intact, at least half the frames on up:post,
+	// every echo on down:poll, and every frame counted exactly once.
+	var big bigResult
+	if d, ok := decodeResult(t, res, "bigBothWays", &big); ok {
+		if (big != bigResult{bigTotal, bigFrames, true}) {
+			t.Errorf("bigBothWays = %+v, want {%d %d true}", big, bigTotal, bigFrames)
+		}
+		if total(d.upLane) < bigFrames/2 {
+			t.Errorf("bigBothWays: %v, want at least %d frames on up:post", d, bigFrames/2)
+		}
+		if total(d.upLane)+total(d.upMsg) != bigFrames || total(d.downLane) != bigFrames || total(d.downMsg) != 0 {
+			t.Errorf("bigBothWays: %v, want %d frames each way, downstream on down:poll", d, bigFrames)
+		}
+	}
+
+	// mixedSizesOrder: upstream as in checkPostLane; downstream every echo,
+	// small or big, on down:poll (BinaryMinSize 0), in order.
+	var mixed struct {
+		Frames  int  `json:"frames"`
+		InOrder bool `json:"inOrder"`
+	}
+	if d, ok := decodeResult(t, res, "mixedSizesOrder", &mixed); ok {
+		if mixed.Frames != mixedFrames || !mixed.InOrder {
+			t.Errorf("mixedSizesOrder = %+v, want %d frames in order", mixed, mixedFrames)
+		}
+		half := mixedFrames / 2
+		if total(d.upLane) != half || total(d.upMsg) != half || total(d.downLane) != mixedFrames || total(d.downMsg) != 0 {
+			t.Errorf("mixedSizesOrder: %v, want %d frames on up:post and %d as messages, all %d echoes on down:poll", d, half, half, mixedFrames)
+		}
+	}
+	if st.MinSize() != 0 {
+		t.Errorf("BinaryMinSize = %d, want 0 (down:poll ready)", st.MinSize())
 	}
 }
 
