@@ -125,6 +125,11 @@ type Locale struct {
 	CodeBlock CodeBlockLocale
 	JSONView  JSONViewLocale
 	LogView   LogViewLocale
+	// Workbench shell (locale_shell.go).
+	StatusBar          StatusBarLocale
+	TitleBar           TitleBarLocale
+	NotificationCenter NotificationCenterLocale
+	HotkeyInput        HotkeyInputLocale
 
 	// Extra holds texts of other components by key ("MyWidget.title", ...).
 	Extra map[string]string

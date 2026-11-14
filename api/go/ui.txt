@@ -279,6 +279,19 @@ pkg github.com/tangoui/tango/ui, const VariantLink ButtonVariant = 4
 pkg github.com/tangoui/tango/ui, const VariantPrimary ButtonVariant = 1
 pkg github.com/tangoui/tango/ui, const VariantSecondary ButtonVariant = 5
 pkg github.com/tangoui/tango/ui, const VariantText ButtonVariant = 3
+pkg github.com/tangoui/tango/ui, const WindowActionClose WindowAction = "close"
+pkg github.com/tangoui/tango/ui, const WindowActionFullscreen WindowAction = "fullscreen"
+pkg github.com/tangoui/tango/ui, const WindowActionMaximize WindowAction = "maximize"
+pkg github.com/tangoui/tango/ui, const WindowActionMinimize WindowAction = "minimize"
+pkg github.com/tangoui/tango/ui, const WindowActionRestore WindowAction = "restore"
+pkg github.com/tangoui/tango/ui, const WindowControlsAuto WindowControlsStyle = 0
+pkg github.com/tangoui/tango/ui, const WindowControlsCaption WindowControlsStyle = 1
+pkg github.com/tangoui/tango/ui, const WindowControlsNone WindowControlsStyle = 3
+pkg github.com/tangoui/tango/ui, const WindowControlsTraffic WindowControlsStyle = 2
+pkg github.com/tangoui/tango/ui, const WindowFullscreen WindowState = 3
+pkg github.com/tangoui/tango/ui, const WindowMaximized WindowState = 2
+pkg github.com/tangoui/tango/ui, const WindowMinimized WindowState = 1
+pkg github.com/tangoui/tango/ui, const WindowNormal WindowState = 0
 pkg github.com/tangoui/tango/ui, const XL Breakpoint = 4
 pkg github.com/tangoui/tango/ui, const XS Breakpoint = 0
 pkg github.com/tangoui/tango/ui, const XXL Breakpoint = 5
@@ -377,6 +390,7 @@ pkg github.com/tangoui/tango/ui, func GoValueSource(any) ValueSource
 pkg github.com/tangoui/tango/ui, func GridContent(*Context) *GridContentW
 pkg github.com/tangoui/tango/ui, func GridRow(*Context) *GridRowW
 pkg github.com/tangoui/tango/ui, func Header(*Context, func(), ...ui/layout.Option) *Box
+pkg github.com/tangoui/tango/ui, func HotkeyInput(*Context, *string) *HotkeyInputW
 pkg github.com/tangoui/tango/ui, func HoverDelay(*Context, ID, bool, time.Duration, time.Duration) bool
 pkg github.com/tangoui/tango/ui, func Icon(*Context, *ui/icon.Icon) *IconW
 pkg github.com/tangoui/tango/ui, func IconButton(*Context, *ui/icon.Icon, string) *IconButtonW
@@ -437,6 +451,7 @@ pkg github.com/tangoui/tango/ui, func NewDriver(func(*Context), DriverOptions) *
 pkg github.com/tangoui/tango/ui, func NewLogBuffer(int) *LogBuffer
 pkg github.com/tangoui/tango/ui, func NewRunner(func(*Context), RunnerOptions) *Runner
 pkg github.com/tangoui/tango/ui, func Notification(*Context, string, string) *NotificationRef
+pkg github.com/tangoui/tango/ui, func NotificationCenter(*Context, *[]NotificationItem) *NotificationCenterW
 pkg github.com/tangoui/tango/ui, func NotificationDestroy(*Context, string)
 pkg github.com/tangoui/tango/ui, func OTP(*Context, *string, int) *OTPW
 pkg github.com/tangoui/tango/ui, func Open(Host, WindowOptions, func(*Context), RunnerOptions) (*Runner, error)
@@ -502,6 +517,8 @@ pkg github.com/tangoui/tango/ui, func SetDefaultDirection(Direction)
 pkg github.com/tangoui/tango/ui, func SetDefaultLocale(*Locale)
 pkg github.com/tangoui/tango/ui, func SetHoverOpen(*Context, ID, bool)
 pkg github.com/tangoui/tango/ui, func SettingDrawer(*Context, *ProSettings) *SettingDrawerW
+pkg github.com/tangoui/tango/ui, func ShortcutKeys(string) []string
+pkg github.com/tangoui/tango/ui, func ShortcutLabel(string) string
 pkg github.com/tangoui/tango/ui, func Sider(*Context, float32, bool, func(), ...ui/layout.Option) *SiderBoxW
 pkg github.com/tangoui/tango/ui, func Skeleton(*Context) *SkeletonW
 pkg github.com/tangoui/tango/ui, func SkeletonAvatar(*Context, float32, bool, bool)
@@ -521,6 +538,8 @@ pkg github.com/tangoui/tango/ui, func Statistic(*Context, string, float64, int) 
 pkg github.com/tangoui/tango/ui, func StatisticCard(*Context, string) *StatisticCardW
 pkg github.com/tangoui/tango/ui, func StatisticCardGroup(*Context) *ProCardW
 pkg github.com/tangoui/tango/ui, func StatisticTimer(*Context, string, TimerType, time.Time) *CountdownW
+pkg github.com/tangoui/tango/ui, func StatusBar(*Context) *StatusBarW
+pkg github.com/tangoui/tango/ui, func StatusBarItem(*Context, string) *StatusBarItemW
 pkg github.com/tangoui/tango/ui, func Steps(*Context, []StepItem) *StepsW
 pkg github.com/tangoui/tango/ui, func StepsForm(*Context, []StepsFormStep) *StepsFormW
 pkg github.com/tangoui/tango/ui, func Switch(*Context, *bool) *SwitchW
@@ -536,6 +555,7 @@ pkg github.com/tangoui/tango/ui, func TimeRangePicker(*Context, *[2]time.Time) *
 pkg github.com/tangoui/tango/ui, func TimeSelect(*Context, *string) *TimeSelectW
 pkg github.com/tangoui/tango/ui, func Timeline(*Context, []TimelineItem) *TimelineW
 pkg github.com/tangoui/tango/ui, func Title(*Context, string, int) *Label
+pkg github.com/tangoui/tango/ui, func TitleBar(*Context) *TitleBarW
 pkg github.com/tangoui/tango/ui, func Toggle(*Context, string, *bool) *ToggleW
 pkg github.com/tangoui/tango/ui, func ToggleGroup(*Context, *[]string, []Option) *ToggleGroupW
 pkg github.com/tangoui/tango/ui, func ToggleMarkdownTask(string, int) string
@@ -552,6 +572,7 @@ pkg github.com/tangoui/tango/ui, func VirtualList(*Context, int, float32, func(i
 pkg github.com/tangoui/tango/ui, func VirtualSelect(*Context, *string, []Option) *VirtualSelectW
 pkg github.com/tangoui/tango/ui, func VirtualTree(*Context, []TreeNode) *VirtualTreeW
 pkg github.com/tangoui/tango/ui, func Watermark(*Context, ...string) *WatermarkW
+pkg github.com/tangoui/tango/ui, func WindowControls(*Context) *WindowControlsW
 pkg github.com/tangoui/tango/ui, method (*ANSIParser) Line(string, []ANSISpan) (string, []ANSISpan)
 pkg github.com/tangoui/tango/ui, method (*ANSIParser) Reset()
 pkg github.com/tangoui/tango/ui, method (*AddonW) A11yLabel(string) *AddonW
@@ -1317,6 +1338,19 @@ pkg github.com/tangoui/tango/ui, method (*GridRowW) Gutter(float32, float32) *Gr
 pkg github.com/tangoui/tango/ui, method (*GridRowW) GutterAt(Breakpoint, float32) *GridRowW
 pkg github.com/tangoui/tango/ui, method (*GridRowW) Justify(ui/layout.Justify) *GridRowW
 pkg github.com/tangoui/tango/ui, method (*GridRowW) NoWrap() *GridRowW
+pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) A11yLabel(string) *HotkeyInputW
+pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) AllowBare(bool) *HotkeyInputW
+pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) Changed() bool
+pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) Conflict(func(string) string) *HotkeyInputW
+pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) ConflictText() string
+pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) Disabled(bool) *HotkeyInputW
+pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) ID() ID
+pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) Literal() *HotkeyInputW
+pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) Placeholder(string) *HotkeyInputW
+pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) Recording() bool
+pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) Size(ControlSize) *HotkeyInputW
+pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) Status(string) *HotkeyInputW
+pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) Width(float32) *HotkeyInputW
 pkg github.com/tangoui/tango/ui, method (*IconButtonW) A11yLabel(string) *IconButtonW
 pkg github.com/tangoui/tango/ui, method (*IconButtonW) Clicked() bool
 pkg github.com/tangoui/tango/ui, method (*IconButtonW) Color(ui/theme.Color) *IconButtonW
@@ -1753,6 +1787,16 @@ pkg github.com/tangoui/tango/ui, method (*NativeViewW) A11yLabel(string) *Native
 pkg github.com/tangoui/tango/ui, method (*NativeViewW) Clicked() bool
 pkg github.com/tangoui/tango/ui, method (*NativeViewW) Focusable(bool) *NativeViewW
 pkg github.com/tangoui/tango/ui, method (*NativeViewW) Focused() bool
+pkg github.com/tangoui/tango/ui, method (*NotificationCenterLocale) Unread(int) string
+pkg github.com/tangoui/tango/ui, method (*NotificationCenterW) Action() (string, string, bool)
+pkg github.com/tangoui/tango/ui, method (*NotificationCenterW) Changed() bool
+pkg github.com/tangoui/tango/ui, method (*NotificationCenterW) Clicked() (string, bool)
+pkg github.com/tangoui/tango/ui, method (*NotificationCenterW) IsOpen() bool
+pkg github.com/tangoui/tango/ui, method (*NotificationCenterW) Open(*bool) *NotificationCenterW
+pkg github.com/tangoui/tango/ui, method (*NotificationCenterW) Placement(string) *NotificationCenterW
+pkg github.com/tangoui/tango/ui, method (*NotificationCenterW) Title(string) *NotificationCenterW
+pkg github.com/tangoui/tango/ui, method (*NotificationCenterW) Unread() int
+pkg github.com/tangoui/tango/ui, method (*NotificationCenterW) Width(float32) *NotificationCenterW
 pkg github.com/tangoui/tango/ui, method (*NotificationRef) Actions(func()) *NotificationRef
 pkg github.com/tangoui/tango/ui, method (*NotificationRef) Description(string) *NotificationRef
 pkg github.com/tangoui/tango/ui, method (*NotificationRef) Duration(time.Duration) *NotificationRef
@@ -2290,6 +2334,25 @@ pkg github.com/tangoui/tango/ui, method (*StatisticW) PrefixIcon(*ui/icon.Icon) 
 pkg github.com/tangoui/tango/ui, method (*StatisticW) Suffix(string) *StatisticW
 pkg github.com/tangoui/tango/ui, method (*StatisticW) Value(string) *StatisticW
 pkg github.com/tangoui/tango/ui, method (*StatisticW) ValueSize(float32) *StatisticW
+pkg github.com/tangoui/tango/ui, method (*StatusBarItemW) A11yLabel(string) *StatusBarItemW
+pkg github.com/tangoui/tango/ui, method (*StatusBarItemW) Badge(int) *StatusBarItemW
+pkg github.com/tangoui/tango/ui, method (*StatusBarItemW) BadgeText(string) *StatusBarItemW
+pkg github.com/tangoui/tango/ui, method (*StatusBarItemW) Clicked() bool
+pkg github.com/tangoui/tango/ui, method (*StatusBarItemW) Disabled(bool) *StatusBarItemW
+pkg github.com/tangoui/tango/ui, method (*StatusBarItemW) Hovered() bool
+pkg github.com/tangoui/tango/ui, method (*StatusBarItemW) ID() ID
+pkg github.com/tangoui/tango/ui, method (*StatusBarItemW) Icon(*ui/icon.Icon) *StatusBarItemW
+pkg github.com/tangoui/tango/ui, method (*StatusBarItemW) Loading(bool) *StatusBarItemW
+pkg github.com/tangoui/tango/ui, method (*StatusBarItemW) Progress(float64) *StatusBarItemW
+pkg github.com/tangoui/tango/ui, method (*StatusBarItemW) Static() *StatusBarItemW
+pkg github.com/tangoui/tango/ui, method (*StatusBarItemW) Status(string) *StatusBarItemW
+pkg github.com/tangoui/tango/ui, method (*StatusBarItemW) Tooltip(string) *StatusBarItemW
+pkg github.com/tangoui/tango/ui, method (*StatusBarW) A11yLabel(string) *StatusBarW
+pkg github.com/tangoui/tango/ui, method (*StatusBarW) ID() ID
+pkg github.com/tangoui/tango/ui, method (*StatusBarW) Layout(...ui/layout.Option) *StatusBarW
+pkg github.com/tangoui/tango/ui, method (*StatusBarW) Left(func()) *StatusBarW
+pkg github.com/tangoui/tango/ui, method (*StatusBarW) Right(func()) *StatusBarW
+pkg github.com/tangoui/tango/ui, method (*StatusBarW) Status(string) *StatusBarW
 pkg github.com/tangoui/tango/ui, method (*StepsFormW) Current() int
 pkg github.com/tangoui/tango/ui, method (*StepsFormW) Finished() bool
 pkg github.com/tangoui/tango/ui, method (*StepsFormW) OnFinish(func(ProValues, func(error))) *StepsFormW
@@ -2513,6 +2576,17 @@ pkg github.com/tangoui/tango/ui, method (*TimelineW) Mode(string) *TimelineW
 pkg github.com/tangoui/tango/ui, method (*TimelineW) Pending(string) *TimelineW
 pkg github.com/tangoui/tango/ui, method (*TimelineW) Reverse() *TimelineW
 pkg github.com/tangoui/tango/ui, method (*TimelineW) Show() *TimelineW
+pkg github.com/tangoui/tango/ui, method (*TitleBarW) Action() WindowAction
+pkg github.com/tangoui/tango/ui, method (*TitleBarW) Center(func()) *TitleBarW
+pkg github.com/tangoui/tango/ui, method (*TitleBarW) Controls(WindowControlsStyle) *TitleBarW
+pkg github.com/tangoui/tango/ui, method (*TitleBarW) Frame(WindowFrame) *TitleBarW
+pkg github.com/tangoui/tango/ui, method (*TitleBarW) ID() ID
+pkg github.com/tangoui/tango/ui, method (*TitleBarW) Icon(*ui/icon.Icon) *TitleBarW
+pkg github.com/tangoui/tango/ui, method (*TitleBarW) Layout(...ui/layout.Option) *TitleBarW
+pkg github.com/tangoui/tango/ui, method (*TitleBarW) Manual() *TitleBarW
+pkg github.com/tangoui/tango/ui, method (*TitleBarW) Menu(func()) *TitleBarW
+pkg github.com/tangoui/tango/ui, method (*TitleBarW) Title(string) *TitleBarW
+pkg github.com/tangoui/tango/ui, method (*TitleBarW) Tools(func()) *TitleBarW
 pkg github.com/tangoui/tango/ui, method (*ToggleGroupW) A11yLabel(string) *ToggleGroupW
 pkg github.com/tangoui/tango/ui, method (*ToggleGroupW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*ToggleGroupW) Icons(map[string]*ui/icon.Icon) *ToggleGroupW
@@ -2719,6 +2793,12 @@ pkg github.com/tangoui/tango/ui, method (*WatermarkW) Layout(...ui/layout.Option
 pkg github.com/tangoui/tango/ui, method (*WatermarkW) Offset(float32, float32) *WatermarkW
 pkg github.com/tangoui/tango/ui, method (*WatermarkW) Rotate(float64) *WatermarkW
 pkg github.com/tangoui/tango/ui, method (*WatermarkW) Weight(ui/text.Weight) *WatermarkW
+pkg github.com/tangoui/tango/ui, method (*WindowControlsW) Action() WindowAction
+pkg github.com/tangoui/tango/ui, method (*WindowControlsW) Frame(WindowFrame) *WindowControlsW
+pkg github.com/tangoui/tango/ui, method (*WindowControlsW) Height(float32) *WindowControlsW
+pkg github.com/tangoui/tango/ui, method (*WindowControlsW) ID() ID
+pkg github.com/tangoui/tango/ui, method (*WindowControlsW) Manual() *WindowControlsW
+pkg github.com/tangoui/tango/ui, method (*WindowControlsW) Style(WindowControlsStyle) *WindowControlsW
 pkg github.com/tangoui/tango/ui, method (AppAPI) Confirm(ConfirmOptions) *ConfirmRef
 pkg github.com/tangoui/tango/ui, method (AppAPI) InApp() bool
 pkg github.com/tangoui/tango/ui, method (AppAPI) Info(ConfirmOptions) *ConfirmRef
@@ -3421,6 +3501,13 @@ pkg github.com/tangoui/tango/ui, type GridRowW struct
 pkg github.com/tangoui/tango/ui, type GridRowW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type Host interface { OpenWindow }
 pkg github.com/tangoui/tango/ui, type Host interface, OpenWindow(WindowOptions, *Runner) (Window, error)
+pkg github.com/tangoui/tango/ui, type HotkeyInputLocale struct
+pkg github.com/tangoui/tango/ui, type HotkeyInputLocale struct, ClearLabel string
+pkg github.com/tangoui/tango/ui, type HotkeyInputLocale struct, Placeholder string
+pkg github.com/tangoui/tango/ui, type HotkeyInputLocale struct, Recording string
+pkg github.com/tangoui/tango/ui, type HotkeyInputLocale struct, noncomparable
+pkg github.com/tangoui/tango/ui, type HotkeyInputW struct
+pkg github.com/tangoui/tango/ui, type HotkeyInputW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ID uint64
 pkg github.com/tangoui/tango/ui, type IconButtonW struct
 pkg github.com/tangoui/tango/ui, type IconButtonW struct, noncomparable
@@ -3565,6 +3652,7 @@ pkg github.com/tangoui/tango/ui, type Locale struct, Form FormLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, Fullscreen string
 pkg github.com/tangoui/tango/ui, type Locale struct, GotIt string
 pkg github.com/tangoui/tango/ui, type Locale struct, Graph GraphLocale
+pkg github.com/tangoui/tango/ui, type Locale struct, HotkeyInput HotkeyInputLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, Image ImageLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, Info string
 pkg github.com/tangoui/tango/ui, type Locale struct, ItemUnit string
@@ -3593,6 +3681,7 @@ pkg github.com/tangoui/tango/ui, type Locale struct, NextYear string
 pkg github.com/tangoui/tango/ui, type Locale struct, NoData string
 pkg github.com/tangoui/tango/ui, type Locale struct, NoMore string
 pkg github.com/tangoui/tango/ui, type Locale struct, NotFound string
+pkg github.com/tangoui/tango/ui, type Locale struct, NotificationCenter NotificationCenterLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, Now string
 pkg github.com/tangoui/tango/ui, type Locale struct, OK string
 pkg github.com/tangoui/tango/ui, type Locale struct, PageContainer PageContainerLocale
@@ -3633,11 +3722,13 @@ pkg github.com/tangoui/tango/ui, type Locale struct, SortAsc string
 pkg github.com/tangoui/tango/ui, type Locale struct, SortDesc string
 pkg github.com/tangoui/tango/ui, type Locale struct, StartDate string
 pkg github.com/tangoui/tango/ui, type Locale struct, StatisticCard StatisticCardLocale
+pkg github.com/tangoui/tango/ui, type Locale struct, StatusBar StatusBarLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, Steps string
 pkg github.com/tangoui/tango/ui, type Locale struct, Success string
 pkg github.com/tangoui/tango/ui, type Locale struct, Table TableLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, Tabs TabsLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, TimePicker TimePickerLocale
+pkg github.com/tangoui/tango/ui, type Locale struct, TitleBar TitleBarLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, Today string
 pkg github.com/tangoui/tango/ui, type Locale struct, TotalFmt string
 pkg github.com/tangoui/tango/ui, type Locale struct, Tour TourLocale
@@ -3809,6 +3900,33 @@ pkg github.com/tangoui/tango/ui, type NativeRegion struct, Rect ui/geom.Rect
 pkg github.com/tangoui/tango/ui, type NativeRegion struct, Visible ui/geom.Rect
 pkg github.com/tangoui/tango/ui, type NativeViewW struct
 pkg github.com/tangoui/tango/ui, type NativeViewW struct, embedded *Box
+pkg github.com/tangoui/tango/ui, type NotificationAction struct
+pkg github.com/tangoui/tango/ui, type NotificationAction struct, Key string
+pkg github.com/tangoui/tango/ui, type NotificationAction struct, Label string
+pkg github.com/tangoui/tango/ui, type NotificationAction struct, Primary bool
+pkg github.com/tangoui/tango/ui, type NotificationCenterLocale struct
+pkg github.com/tangoui/tango/ui, type NotificationCenterLocale struct, ClearAll string
+pkg github.com/tangoui/tango/ui, type NotificationCenterLocale struct, DaysAgoFmt string
+pkg github.com/tangoui/tango/ui, type NotificationCenterLocale struct, Dismiss string
+pkg github.com/tangoui/tango/ui, type NotificationCenterLocale struct, Empty string
+pkg github.com/tangoui/tango/ui, type NotificationCenterLocale struct, HoursAgoFmt string
+pkg github.com/tangoui/tango/ui, type NotificationCenterLocale struct, JustNow string
+pkg github.com/tangoui/tango/ui, type NotificationCenterLocale struct, MarkAllRead string
+pkg github.com/tangoui/tango/ui, type NotificationCenterLocale struct, MinutesAgoFmt string
+pkg github.com/tangoui/tango/ui, type NotificationCenterLocale struct, UnreadFmt string
+pkg github.com/tangoui/tango/ui, type NotificationCenterLocale struct, noncomparable
+pkg github.com/tangoui/tango/ui, type NotificationCenterW struct
+pkg github.com/tangoui/tango/ui, type NotificationCenterW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type NotificationItem struct
+pkg github.com/tangoui/tango/ui, type NotificationItem struct, Actions []NotificationAction
+pkg github.com/tangoui/tango/ui, type NotificationItem struct, Body string
+pkg github.com/tangoui/tango/ui, type NotificationItem struct, Group string
+pkg github.com/tangoui/tango/ui, type NotificationItem struct, Key string
+pkg github.com/tangoui/tango/ui, type NotificationItem struct, Level string
+pkg github.com/tangoui/tango/ui, type NotificationItem struct, Read bool
+pkg github.com/tangoui/tango/ui, type NotificationItem struct, Time time.Time
+pkg github.com/tangoui/tango/ui, type NotificationItem struct, Title string
+pkg github.com/tangoui/tango/ui, type NotificationItem struct, noncomparable
 pkg github.com/tangoui/tango/ui, type NotificationRef struct
 pkg github.com/tangoui/tango/ui, type NotificationRef struct, noncomparable
 pkg github.com/tangoui/tango/ui, type NotifyPlacement uint8
@@ -4211,6 +4329,13 @@ pkg github.com/tangoui/tango/ui, type StatisticCardW struct
 pkg github.com/tangoui/tango/ui, type StatisticCardW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type StatisticW struct
 pkg github.com/tangoui/tango/ui, type StatisticW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type StatusBarItemW struct
+pkg github.com/tangoui/tango/ui, type StatusBarItemW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type StatusBarLocale struct
+pkg github.com/tangoui/tango/ui, type StatusBarLocale struct, Label string
+pkg github.com/tangoui/tango/ui, type StatusBarLocale struct, noncomparable
+pkg github.com/tangoui/tango/ui, type StatusBarW struct
+pkg github.com/tangoui/tango/ui, type StatusBarW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type StepDot struct
 pkg github.com/tangoui/tango/ui, type StepDot struct, Color ui/theme.Color
 pkg github.com/tangoui/tango/ui, type StepDot struct, Default func()
@@ -4361,6 +4486,14 @@ pkg github.com/tangoui/tango/ui, type TimelineItem struct, noncomparable
 pkg github.com/tangoui/tango/ui, type TimelineW struct
 pkg github.com/tangoui/tango/ui, type TimelineW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type TimerType string
+pkg github.com/tangoui/tango/ui, type TitleBarLocale struct
+pkg github.com/tangoui/tango/ui, type TitleBarLocale struct, Maximize string
+pkg github.com/tangoui/tango/ui, type TitleBarLocale struct, Minimize string
+pkg github.com/tangoui/tango/ui, type TitleBarLocale struct, Restore string
+pkg github.com/tangoui/tango/ui, type TitleBarLocale struct, WindowControls string
+pkg github.com/tangoui/tango/ui, type TitleBarLocale struct, noncomparable
+pkg github.com/tangoui/tango/ui, type TitleBarW struct
+pkg github.com/tangoui/tango/ui, type TitleBarW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ToggleGroupW struct
 pkg github.com/tangoui/tango/ui, type ToggleGroupW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ToggleW struct
@@ -4498,6 +4631,23 @@ pkg github.com/tangoui/tango/ui, type Window interface, SetCursor(ui/input.Curso
 pkg github.com/tangoui/tango/ui, type Window interface, SetTextInput(bool, ui/geom.Rect)
 pkg github.com/tangoui/tango/ui, type Window interface, Size() ui/geom.Size
 pkg github.com/tangoui/tango/ui, type Window interface, WriteClipboard(string)
+pkg github.com/tangoui/tango/ui, type WindowAction string
+pkg github.com/tangoui/tango/ui, type WindowControlsStyle uint8
+pkg github.com/tangoui/tango/ui, type WindowControlsW struct
+pkg github.com/tangoui/tango/ui, type WindowControlsW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type WindowFrame interface { CloseWindow, FrameInfo, SetWindowState, StartWindowMove }
+pkg github.com/tangoui/tango/ui, type WindowFrame interface, CloseWindow()
+pkg github.com/tangoui/tango/ui, type WindowFrame interface, FrameInfo() WindowFrameInfo
+pkg github.com/tangoui/tango/ui, type WindowFrame interface, SetWindowState(WindowState)
+pkg github.com/tangoui/tango/ui, type WindowFrame interface, StartWindowMove()
+pkg github.com/tangoui/tango/ui, type WindowFrameInfo struct
+pkg github.com/tangoui/tango/ui, type WindowFrameInfo struct, NoClose bool
+pkg github.com/tangoui/tango/ui, type WindowFrameInfo struct, NoMaximize bool
+pkg github.com/tangoui/tango/ui, type WindowFrameInfo struct, NoMinimize bool
+pkg github.com/tangoui/tango/ui, type WindowFrameInfo struct, State WindowState
+pkg github.com/tangoui/tango/ui, type WindowFrameInfo struct, SystemButtons bool
+pkg github.com/tangoui/tango/ui, type WindowFrameInfo struct, SystemTitleBar bool
+pkg github.com/tangoui/tango/ui, type WindowFrameInfo struct, noncomparable
 pkg github.com/tangoui/tango/ui, type WindowOptions struct
 pkg github.com/tangoui/tango/ui, type WindowOptions struct, BackgroundTransparent bool
 pkg github.com/tangoui/tango/ui, type WindowOptions struct, Height float32
@@ -4507,6 +4657,7 @@ pkg github.com/tangoui/tango/ui, type WindowOptions struct, Resizable bool
 pkg github.com/tangoui/tango/ui, type WindowOptions struct, Title string
 pkg github.com/tangoui/tango/ui, type WindowOptions struct, Width float32
 pkg github.com/tangoui/tango/ui, type WindowOptions struct, noncomparable
+pkg github.com/tangoui/tango/ui, type WindowState uint8
 pkg github.com/tangoui/tango/ui, var ButtonPresetColors []ButtonColor
 pkg github.com/tangoui/tango/ui, var ContextMenuSource func(*Context) (ui/geom.Point, bool)
 pkg github.com/tangoui/tango/ui, var EaseIn func(float64) float64

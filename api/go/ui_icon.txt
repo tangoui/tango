@@ -50,10 +50,12 @@ pkg github.com/tangoui/tango/ui/icon, var CaretLeft *Icon
 pkg github.com/tangoui/tango/ui/icon, var CaretRight *Icon
 pkg github.com/tangoui/tango/ui/icon, var CaretUp *Icon
 pkg github.com/tangoui/tango/ui/icon, var Check *Icon
+pkg github.com/tangoui/tango/ui/icon, var CheckAll *Icon
 pkg github.com/tangoui/tango/ui/icon, var CheckCircle *Icon
 pkg github.com/tangoui/tango/ui/icon, var CheckFilled *Icon
 pkg github.com/tangoui/tango/ui/icon, var CheckSmall *Icon
 pkg github.com/tangoui/tango/ui/icon, var ChevronsUpDown *Icon
+pkg github.com/tangoui/tango/ui/icon, var Clear *Icon
 pkg github.com/tangoui/tango/ui/icon, var Clock *Icon
 pkg github.com/tangoui/tango/ui/icon, var Close *Icon
 pkg github.com/tangoui/tango/ui/icon, var CloseCircle *Icon

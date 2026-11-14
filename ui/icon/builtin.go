@@ -332,3 +332,10 @@ var (
 var (
 	WrapText = def("wrap-text", "M4 6H20M4 12H16.5C18.4 12 20 13.6 20 15.5C20 17.4 18.4 19 16.5 19H12.5M14.5 16.8L12.2 19L14.5 21.2M4 19H9", "")
 )
+
+// Workbench shell (StatusBar, TitleBar, NotificationCenter, HotkeyInput;
+// original path data).
+var (
+	CheckAll = def("check-all", "M2.5 12.5L7 17L16 7M11.5 15.5L13 17L22 7", "")
+	Clear    = def("clear", "M15 3L11.5 9.5M6.5 9.5H16.5L18 13H5ZM5 13L4 20.5H19L18 13M8.5 20.5L9 16.5M12.5 20.5V16.5M15.5 20.5L15 16.5", "")
+)

@@ -265,6 +265,10 @@ func init() {
 | 通用 | `Kbd` | shadcn Kbd / `<kbd>` | shad_kbd.go |
 | 导航 | `Menubar`（`MenubarMenu`、`MenubarItem`：子菜单、勾选项、单选组、分隔线、快捷键提示、禁用；Alt/F10 进入；下拉面板复用 Dropdown 的 `navMenuPopup`） | shadcn Menubar | menubar.go |
 | 布局 | `AspectRatio` | shadcn AspectRatio / CSS aspect-ratio | aspect_ratio.go |
+| 布局 | `StatusBar`、`StatusBarItem`（工作台状态栏：图标、文字、徽标、进度、状态色、提示） | VS Code / JetBrains 状态栏 | statusbar.go |
+| 布局 | `TitleBar`、`WindowControls`（无边框窗口标题栏：拖动区、双击最大化、平台窗口按钮；经 `WindowFrame` 驱动窗口，uihost 窗口已实现） | — | titlebar.go、window_frame.go |
+| 反馈 | `NotificationCenter`（铃铛 + 未读徽标 + 分组通知面板） | — | notification_center.go |
+| 数据录入 | `HotkeyInput`（快捷键录制；`ShortcutKeys`、`ShortcutLabel` 按平台显示加速键） | — | hotkey_input.go |
 | 数据展示 | `Item`、`ItemGroup`（default/outline/muted 变体、default/sm 尺寸、可作链接或按钮、分隔） | shadcn Item | item.go |
 | 数据录入 | `Input` | Input / el-input | input.go |
 | 数据录入 | `TextArea` | Input.TextArea / el-input type=textarea | entry_inputx.go |

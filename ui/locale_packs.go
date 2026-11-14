@@ -109,6 +109,11 @@ var ZhCN = &Locale{
 	CodeBlock: CodeBlockLocale{Code: "代码"},
 	JSONView:  JSONViewLocale{Name: "JSON 查看器", CopyValue: "复制值", CopyPath: "复制路径", ExpandAll: "全部展开", CollapseAll: "全部折叠", ItemsFmt: "%d 项", KeysFmt: "%d 个键", Search: "搜索键或值", PrevMatch: "上一个匹配", NextMatch: "下一个匹配", MatchFmt: "%d/%d", NoMatch: "无匹配", ParseErrorFmt: "JSON 解析失败：%s"},
 	LogView:   LogViewLocale{Name: "日志", Search: "搜索日志", PrevMatch: "上一个匹配", NextMatch: "下一个匹配", MatchFmt: "%d/%d", NoMatch: "无匹配", Wrap: "自动换行", Follow: "跟随最新", Level: "级别", AllLevels: "全部级别", Levels: [5]string{"Trace", "Debug", "Info", "Warn", "Error"}, LinesFmt: "%d 行"},
+	StatusBar: StatusBarLocale{Label: "状态栏"},
+	TitleBar:  TitleBarLocale{Minimize: "最小化", Maximize: "最大化", Restore: "向下还原", WindowControls: "窗口控制"},
+	NotificationCenter: NotificationCenterLocale{MarkAllRead: "全部标为已读", ClearAll: "清空通知", Dismiss: "移除通知",
+		Empty: "暂无通知", UnreadFmt: "%d 条未读", JustNow: "刚刚", MinutesAgoFmt: "%d 分钟前", HoursAgoFmt: "%d 小时前", DaysAgoFmt: "%d 天前"},
+	HotkeyInput: HotkeyInputLocale{Placeholder: "点击录制快捷键", Recording: "请按下组合键，Esc 取消", ClearLabel: "清除快捷键"},
 }
 
 // EnUS is the US English locale. RegisterLocale fills the empty texts of
@@ -213,6 +218,11 @@ var EnUS = &Locale{
 	CodeBlock: CodeBlockLocale{Code: "Code"},
 	JSONView:  JSONViewLocale{Name: "JSON viewer", CopyValue: "Copy value", CopyPath: "Copy path", ExpandAll: "Expand all", CollapseAll: "Collapse all", ItemsFmt: "%d items", KeysFmt: "%d keys", Search: "Search keys or values", PrevMatch: "Previous match", NextMatch: "Next match", MatchFmt: "%d of %d", NoMatch: "No results", ParseErrorFmt: "Invalid JSON: %s"},
 	LogView:   LogViewLocale{Name: "Log", Search: "Search log", PrevMatch: "Previous match", NextMatch: "Next match", MatchFmt: "%d of %d", NoMatch: "No results", Wrap: "Wrap lines", Follow: "Follow output", Level: "Level", AllLevels: "All levels", Levels: [5]string{"Trace", "Debug", "Info", "Warn", "Error"}, LinesFmt: "%d lines"},
+	StatusBar: StatusBarLocale{Label: "Status bar"},
+	TitleBar:  TitleBarLocale{Minimize: "Minimize", Maximize: "Maximize", Restore: "Restore", WindowControls: "Window controls"},
+	NotificationCenter: NotificationCenterLocale{MarkAllRead: "Mark all as read", ClearAll: "Clear all", Dismiss: "Dismiss",
+		Empty: "No notifications", UnreadFmt: "%d unread", JustNow: "Just now", MinutesAgoFmt: "%dm ago", HoursAgoFmt: "%dh ago", DaysAgoFmt: "%dd ago"},
+	HotkeyInput: HotkeyInputLocale{Placeholder: "Click to record a shortcut", Recording: "Press a key combination, Esc to cancel", ClearLabel: "Clear shortcut"},
 }
 
 // ZhTW is the Traditional Chinese locale with Taiwan usage. LocaleByCode
@@ -316,6 +326,11 @@ var ZhTW = &Locale{
 	CodeBlock: CodeBlockLocale{Code: "程式碼"},
 	JSONView:  JSONViewLocale{Name: "JSON 檢視器", CopyValue: "複製值", CopyPath: "複製路徑", ExpandAll: "全部展開", CollapseAll: "全部摺疊", ItemsFmt: "%d 項", KeysFmt: "%d 個鍵", Search: "搜尋鍵或值", PrevMatch: "上一個相符項", NextMatch: "下一個相符項", MatchFmt: "%d/%d", NoMatch: "無相符項", ParseErrorFmt: "JSON 解析失敗：%s"},
 	LogView:   LogViewLocale{Name: "日誌", Search: "搜尋日誌", PrevMatch: "上一個相符項", NextMatch: "下一個相符項", MatchFmt: "%d/%d", NoMatch: "無相符項", Wrap: "自動換行", Follow: "跟隨最新", Level: "等級", AllLevels: "全部等級", Levels: [5]string{"Trace", "Debug", "Info", "Warn", "Error"}, LinesFmt: "%d 行"},
+	StatusBar: StatusBarLocale{Label: "狀態列"},
+	TitleBar:  TitleBarLocale{Minimize: "最小化", Maximize: "最大化", Restore: "還原", WindowControls: "視窗控制"},
+	NotificationCenter: NotificationCenterLocale{MarkAllRead: "全部標為已讀", ClearAll: "清除所有通知", Dismiss: "移除通知",
+		Empty: "沒有通知", UnreadFmt: "%d 則未讀", JustNow: "剛剛", MinutesAgoFmt: "%d 分鐘前", HoursAgoFmt: "%d 小時前", DaysAgoFmt: "%d 天前"},
+	HotkeyInput: HotkeyInputLocale{Placeholder: "按一下以錄製快速鍵", Recording: "請按下組合鍵，Esc 取消", ClearLabel: "清除快速鍵"},
 }
 
 // Ja is the Japanese locale.
@@ -419,4 +434,9 @@ var Ja = &Locale{
 	CodeBlock: CodeBlockLocale{Code: "コード"},
 	JSONView:  JSONViewLocale{Name: "JSON ビューア", CopyValue: "値をコピー", CopyPath: "パスをコピー", ExpandAll: "すべて展開", CollapseAll: "すべて折りたたむ", ItemsFmt: "%d 項目", KeysFmt: "%d 個のキー", Search: "キーまたは値を検索", PrevMatch: "前の一致", NextMatch: "次の一致", MatchFmt: "%d/%d", NoMatch: "一致なし", ParseErrorFmt: "JSON を解析できません: %s"},
 	LogView:   LogViewLocale{Name: "ログ", Search: "ログを検索", PrevMatch: "前の一致", NextMatch: "次の一致", MatchFmt: "%d/%d", NoMatch: "一致なし", Wrap: "折り返し", Follow: "最新を追跡", Level: "レベル", AllLevels: "すべてのレベル", Levels: [5]string{"Trace", "Debug", "Info", "Warn", "Error"}, LinesFmt: "%d 行"},
+	StatusBar: StatusBarLocale{Label: "ステータスバー"},
+	TitleBar:  TitleBarLocale{Minimize: "最小化", Maximize: "最大化", Restore: "元に戻す", WindowControls: "ウィンドウ操作"},
+	NotificationCenter: NotificationCenterLocale{MarkAllRead: "すべて既読にする", ClearAll: "すべてクリア", Dismiss: "通知を削除",
+		Empty: "通知はありません", UnreadFmt: "未読 %d 件", JustNow: "たった今", MinutesAgoFmt: "%d 分前", HoursAgoFmt: "%d 時間前", DaysAgoFmt: "%d 日前"},
+	HotkeyInput: HotkeyInputLocale{Placeholder: "クリックしてショートカットを記録", Recording: "キーの組み合わせを押してください（Esc で取消）", ClearLabel: "ショートカットをクリア"},
 }

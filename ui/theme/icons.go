@@ -71,6 +71,7 @@ func AntIcons() *icon.Style {
 		icon.Scissor: antd.ScissorOutlined, icon.Tag: antd.TagOutlined, icon.Flag: antd.FlagOutlined,
 		icon.Monitor: antd.DesktopOutlined,
 		icon.FitView: antd.ExpandOutlined, icon.AutoLayout: antd.ApartmentOutlined,
+		icon.Clear: antd.ClearOutlined,
 	}}
 }
 
@@ -118,6 +119,7 @@ func ElementIcons() *icon.Style {
 		icon.Sun: element.Sunny, icon.Moon: element.Moon, icon.Sparkles: element.MagicStick,
 		icon.Scissor: element.Scissor, icon.History: element.Timer,
 		icon.FitView: element.FullScreen, icon.AutoLayout: element.Share,
+		icon.CheckAll: element.Finished, icon.Clear: element.Brush,
 	}}
 }
 
@@ -173,5 +175,6 @@ func LucideIcons() *icon.Style {
 		icon.Monitor: lucide.Monitor, icon.Cpu: lucide.Cpu,
 		icon.Minimize: lucide.Minus, icon.Maximize: lucide.Square, icon.Restore: lucide.Copy,
 		icon.FitView: lucide.Scan, icon.AutoLayout: lucide.Network,
+		icon.CheckAll: lucide.CheckCheck, icon.Clear: lucide.BrushCleaning,
 	}}
 }
