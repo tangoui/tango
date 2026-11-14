@@ -87,11 +87,13 @@ func TestGLConformance(t *testing.T) {
 // On "Apple Software Renderer" (macOS's GL without a GPU, as on GitHub's
 // macOS runners) every Partial subtest is skipped: partial redraws there
 // differ from full frames even without copies (solid@1: 116 pixels up to
-// 233 levels), while the same subtests pass on the Apple GPU. macOS draws
+// 233 levels), while the same subtests pass on the Apple GPU; so is the
+// backdrop blur scene, which it blurs differently (7% of pixels, up to
+// 142 levels). macOS draws
 // with Metal; this GL backend serves Linux and Android.
 func llvmpipeSkip(renderer, name string) bool {
 	if appleSoftwareGL(renderer) {
-		return strings.HasPrefix(name, "Partial/")
+		return strings.HasPrefix(name, "Partial/") || strings.HasPrefix(name, "Scenes/backdrop@")
 	}
 	return name == "Partial/VerifyFractionalScroll/1" && strings.Contains(renderer, "llvmpipe")
 }

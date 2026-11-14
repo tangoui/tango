@@ -160,7 +160,7 @@ jobs:
 
       - name: go test (cmd/tan)
         working-directory: cmd/tan
-        run: bash ../scripts/ci-go-test.sh $RACE ./...
+        run: bash ../../scripts/ci-go-test.sh $RACE ./...
 
   # The gallery's full text-contrast sweep renders every page in six themes
   # three times: too slow for every pull request, so it runs on pushes to
