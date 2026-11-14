@@ -11,7 +11,13 @@ import (
 //	window.__tango.post(str)      send a raw message to Go (App.OnMessage)
 //	window.__tango.onMessage(fn)  subscribe to Go's Surface.Send; returns an
 //	                             unsubscribe function
-//	window.__tango._recv(str)     called by the core with Eval
+//	window.__tango._recv(str)     called by the core with Eval (unnumbered;
+//	                             before a generation starts and on backends
+//	                             without sequence numbers)
+//
+// The down:poll members (_open, _recvSeq, _release, _onPacket) come from
+// downShim, which is part of this script so that there is one frozen
+// window.__tango; numbered messages go to the same subscriber queue.
 //
 // Messages that arrive while nobody is subscribed are kept and delivered,
 // in order and asynchronously (a microtask), once a subscriber registers.
@@ -25,10 +31,17 @@ const coreShim = `(function () {
   var subs = [];
   var queue = [];
   var flushing = false;
+  function rethrow(e) { setTimeout(function () { throw e; }, 0); }
+  function postMsg(msg) {
+    if (typeof msg !== "string") throw new TypeError("__tango.post: message must be a string");
+    var p = nativePost || (window.__tangoNative && window.__tangoNative.post.bind(window.__tangoNative));
+    if (!p) throw new Error("__tango.post: native bridge missing");
+    p(msg);
+  }
   function deliver(msg) {
     var list = subs.slice();
     for (var i = 0; i < list.length; i++) {
-      try { list[i](msg); } catch (e) { setTimeout(function () { throw e; }, 0); }
+      try { list[i](msg); } catch (e) { rethrow(e); }
     }
   }
   function flush() {
@@ -40,13 +53,17 @@ const coreShim = `(function () {
     flushing = true;
     Promise.resolve().then(flush);
   }
+  function recv(msg) {
+    if (!subs.length || queue.length) {
+      queue.push(msg);
+      if (subs.length) schedule();
+      return;
+    }
+    deliver(msg);
+  }
+` + downShim + `
   window.__tango = Object.freeze({
-    post: function (msg) {
-      if (typeof msg !== "string") throw new TypeError("__tango.post: message must be a string");
-      var p = nativePost || (window.__tangoNative && window.__tangoNative.post.bind(window.__tangoNative));
-      if (!p) throw new Error("__tango.post: native bridge missing");
-      p(msg);
-    },
+    post: postMsg,
     onMessage: function (fn) {
       if (typeof fn !== "function") throw new TypeError("__tango.onMessage: handler must be a function");
       subs.push(fn);
@@ -56,14 +73,11 @@ const coreShim = `(function () {
         if (i >= 0) subs.splice(i, 1);
       };
     },
-    _recv: function (msg) {
-      if (!subs.length || queue.length) {
-        queue.push(msg);
-        if (subs.length) schedule();
-        return;
-      }
-      deliver(msg);
-    }
+    _recv: recv,
+    _open: downOpen,
+    _recvSeq: downRecvSeq,
+    _release: downRelease,
+    _onPacket: onPacket
   });
 })();
 `
