@@ -56,10 +56,33 @@ func TestCanvasMods(t *testing.T) {
 
 func TestCanvasKeysEvents(t *testing.T) {
 	var s canvasKeys
-	// Back is the system's.
+	// Back is the system's while back handling is off.
 	if _, ok := s.event(true, akBack, 0, 0, 0); ok {
 		t.Error("Back delivered to the canvas")
 	}
+	if _, ok := s.event(false, akBack, 0, 0, 0); ok {
+		t.Error("Back release delivered to the canvas")
+	}
+	// While on (SetBackHandling), Back is Escape marked with Code KeyBack;
+	// its release follows the press even if handling went off in between.
+	s.back = true
+	if ev, ok := s.event(true, akBack, 0, 0, 0); !ok || ev.Key != input.KeyEscape || ev.Code != input.KeyBack || !ev.Down {
+		t.Errorf("Back with handling on = %+v %v", ev, ok)
+	}
+	s.back = false
+	if ev, ok := s.event(false, akBack, 0, 0, 0); !ok || ev.Key != input.KeyEscape || ev.Code != input.KeyBack || ev.Down {
+		t.Errorf("Back release after handling went off = %+v %v", ev, ok)
+	}
+	if _, ok := s.event(true, akBack, 0, 0, 0); ok {
+		t.Error("Back delivered after handling went off")
+	}
+	// A keyboard Escape stays unmarked.
+	s.back = true
+	if ev, _ := s.event(true, akEscape, 0, 0, 0); ev.Key != input.KeyEscape || ev.Code != 0 {
+		t.Errorf("Escape = %+v", ev)
+	}
+	s.event(false, akEscape, 0, 0, 0)
+	s.back = false
 	// A key press repeats; the release reports the Key of the press even
 	// if NumLock changed in between.
 	if ev, ok := s.event(true, akNumpad0+8, '8', akMetaNumLockOn, 0); !ok || ev.Key != input.KeyNumpad8 || !ev.Down || ev.Repeat {

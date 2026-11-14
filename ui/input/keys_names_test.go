@@ -53,3 +53,14 @@ func TestKeyHelpers(t *testing.T) {
 		t.Fatal("Rune")
 	}
 }
+
+// KeyBack marks Android's system Back (Key KeyEscape, Code KeyBack). It was
+// appended after KeyContextMenu and is its own Base.
+func TestKeyBack(t *testing.T) {
+	if KeyBack != KeyContextMenu+1 {
+		t.Fatalf("KeyBack = %d, want %d", KeyBack, KeyContextMenu+1)
+	}
+	if KeyBack.String() != "Back" || KeyBack.Base() != KeyBack || KeyBack.Rune() != 0 {
+		t.Fatalf("KeyBack: %q base %v", KeyBack.String(), KeyBack.Base())
+	}
+}

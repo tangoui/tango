@@ -187,18 +187,25 @@ func canvasKey(code, base, meta int) (key, phys input.Key) {
 // between. Main thread.
 type canvasKeys struct {
 	down map[int][2]input.Key // key code -> Key, Code reported at the press
+	back bool                 // Back is delivered as Escape (SetBackHandling)
 }
 
 // event converts one KeyEvent. ok is false for keys the canvas leaves to
-// the system (Back, volume, unknown codes).
+// the system (Back while back handling is off, volume, unknown codes).
+// While back handling is on, Back (delivered by the Java host's
+// deliverBack) is KeyEscape with Code KeyBack.
 func (s *canvasKeys) event(down bool, code, base, meta, repeat int) (input.KeyEvent, bool) {
-	if code == akBack {
+	prev, held := s.down[code]
+	if code == akBack && !s.back && !held {
 		return input.KeyEvent{}, false
 	}
 	var key, phys input.Key
-	if prev, held := s.down[code]; held {
+	switch {
+	case held:
 		key, phys = prev[0], prev[1]
-	} else {
+	case code == akBack:
+		key, phys = input.KeyEscape, input.KeyBack
+	default:
 		key, phys = canvasKey(code, base, meta)
 	}
 	if key == input.KeyUnknown && phys == input.KeyUnknown {
