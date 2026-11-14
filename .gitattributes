@@ -7,3 +7,6 @@ internal/render/shader/*/testdata/** text eol=lf
 internal/render/gpu/gen/** text eol=lf
 ui/testdata/*.txt text eol=lf
 ui/editor/testdata/*.txt text eol=lf
+# API snapshots and contracts, compared with what the code exports and parsed
+# line by line (jsapi's TestWireContract, internal/cmd/apitxt).
+api/** text eol=lf
