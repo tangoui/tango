@@ -386,28 +386,9 @@ func selSpinner(c *Context, l *paint.List, r geom.Rect) {
 // ---------------------------------------------------------------------------
 // Shared Select-family settings (placement, variant, empty text)
 
-// selPlacement maps a select placement name to an overlay placement:
-// Ant "bottomLeft", "bottomRight", "topLeft", "topRight" and Element
-// "bottom-start", "bottom-end", "top-start", "top-end", "bottom", "top"
-// (centered names open at the start edge, as the dropdown matches the
-// trigger width).
-func selPlacement(s string) (Placement, bool) {
-	switch s {
-	case "bottomLeft", "bottom-start", "bottom":
-		return BottomStart, true
-	case "bottomRight", "bottom-end":
-		return BottomEnd, true
-	case "topLeft", "top-start", "top":
-		return TopStart, true
-	case "topRight", "top-end":
-		return TopEnd, true
-	}
-	return BottomStart, false
-}
-
 // selDefaults reads the ConfigProvider.Defaults of a select-like comp:
-// "variant" (string or FieldVariant) and "placement" (an Ant placement
-// name or a Placement). Nil targets are skipped.
+// "variant" (string or FieldVariant) and "placement" (a placement name
+// or a Placement, see s2cPlacement). Nil targets are skipped.
 func selDefaults(c *Context, comp string, variant *FieldVariant, place *Placement) {
 	if variant != nil {
 		if v, ok := c.ConfigProp(comp, "variant"); ok {
@@ -421,21 +402,19 @@ func selDefaults(c *Context, comp string, variant *FieldVariant, place *Placemen
 	}
 	if place != nil {
 		if v, ok := c.ConfigProp(comp, "placement"); ok {
-			switch x := v.(type) {
-			case Placement:
-				*place = x
-			case string:
-				if p, ok := selPlacement(x); ok {
-					*place = p
-				}
+			// One parser for every placement Defaults key (s2cPlacement):
+			// Ant "bottomLeft" … "topRight", Element "bottom-start" …,
+			// centered "bottom" / "top", case-insensitive, or a Placement.
+			if p, ok := s2cPlacement(v); ok {
+				*place = p
 			}
 		}
 	}
 }
 
-// selPanel is entPanel at place: the dropdown of a select opens below
-// (BottomStart / BottomEnd) or above (TopStart / TopEnd) its trigger and
-// flips when there is no room.
+// selPanel is entPanel at place: the dropdown of a select or picker opens
+// below or above its trigger, flips when there is no room, and slides in
+// from the trigger side. dtPanel is the same without width matching.
 func selPanel(c *Context, anchor ID, p *entPopup, match bool, place Placement, fn func()) *Box {
 	if place == BottomStart {
 		return entPanel(c, anchor, p, match, fn)
@@ -443,7 +422,7 @@ func selPanel(c *Context, anchor ID, p *entPopup, match bool, place Placement, f
 	th := c.Theme
 	a := c.AnimFrom(anchor, "ent-open", 0, 1, th.DurationMid)
 	shift := (1 - a) * -4
-	if place == TopStart || place == TopEnd {
+	if placeAbove(place) {
 		shift = -shift // slide in from the trigger side
 	}
 	ov := Overlay(c, OverlayOptions{Anchor: anchor, Place: place, Offset: 4, MatchWidth: match, Flip: true, ShiftY: shift}, fn)
@@ -452,6 +431,9 @@ func selPanel(c *Context, anchor ID, p *entPopup, match bool, place Placement, f
 	p.panel = ov.n.id
 	return ov
 }
+
+// placeAbove reports whether an overlay at p opens above its anchor.
+func placeAbove(p Placement) bool { return p == Top || p == TopStart || p == TopEnd }
 
 // selEmptyText is the text of an empty dropdown: custom (NotFoundContent)
 // or the Locale's "no data".

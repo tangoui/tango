@@ -26,6 +26,7 @@
 2. **Transfer 右侧顺序**：保持 antd 基线「新移入的在前」；Element 行为用 `TargetOrder("original")`（或 `Defaults("Transfer", Props{"targetOrder": "original"})`）。
 3. **Link 默认颜色**：给 `Link` 单独的颜色令牌，Element 下默认常规文字色（EP 2.14.8 `type="default"` = `--el-text-color-regular`，悬停变 primary），Anchor、Paragraph 展开链接、日期面板「今天」保持链接色。涉及的 `ui/theme/comp_typography.go`、`ui/text.go` 都不归第 2 批任何组，也不归第 3 批的组 → **由主线程在本批做**（Task 0 Step 4），算 CHANGELOG 变更。
 4. **Ant Sider 收起宽度**：保持 64（ProLayout 收起宽度 64 依赖同一个 Sider），作为对 antd `collapsedWidth` 80 的偏离，写在 `ui/theme/comp_layout.go` 注释、`docs/specs/align/1-basic.md` 和 `docs/design-baseline.md`「已记录的偏离」。
+5. **按主题区分行为默认值的口径**（第 1 批复审第 5 条）：§7.1「行为以 antd 为准，Element/shadcn 只有官方行为明显不同且属于该设计语言特征时才用令牌区分」。Transfer 新项在前（见 2）与 Upload `MaxCount(1)` 替换旧文件（antd `maxCount` 为 1 时替换；EP `limit` + `on-exceed` 拒绝）都按 antd 统一，不进令牌；EP 的拒绝写法是 `MaxCount(n)` + 应用处理超出。用户可推翻。
 
 ## 文件归属
 

@@ -52,7 +52,9 @@ func deriveInputNumber(t *Theme) InputNumberToken {
 		// 16+2*11+1.
 		k.SideHandleBg = Color{}
 		k.SideHandleColor = t.Text
-		k.SideHandleWidth, k.SideHandleWidthSM, k.SideHandleWidthLG = 37, 29, 39
+		k.SideHandleWidth = t.FontSize + 2*t.ControlPaddingH + t.LineWidth
+		k.SideHandleWidthSM = t.FontSize + 2*t.ControlPaddingHSM + t.LineWidth
+		k.SideHandleWidthLG = t.FontSizeLG + 2*t.ControlPaddingH + t.LineWidth
 	}
 	switch t.Flavor {
 	case Element:

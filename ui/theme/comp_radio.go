@@ -46,7 +46,8 @@ func deriveRadio(t *Theme) RadioToken {
 		// antd 6 es/radio/style/index.js prepareComponentToken: radioSize
 		// fontSizeLG (16), dotSize radioSize-(4+lineWidth)*2 = 6; hover on a
 		// checked radio: colorPrimaryHover.
-		k.RadioSize, k.DotSize = 16, 6
+		k.RadioSize = t.FontSizeLG
+		k.DotSize = k.RadioSize - (4+t.LineWidth)*2
 		k.DotHoverColor = t.Primary.Hover
 	case Element:
 		// el-radio: a small dot on the brand fill; buttons fill when checked.

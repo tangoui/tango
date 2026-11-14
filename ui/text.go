@@ -483,7 +483,7 @@ func (lw *LinkW) Icon(ic *icon.Icon) *LinkW { lw.ic = ic; return lw }
 func (lw *LinkW) colors(th *theme.Theme, tk *theme.TypographyToken) (base, hover, active theme.Color) {
 	switch lw.status {
 	case "":
-		return tk.LinkTextColor, tk.LinkTextHoverColor, tk.LinkTextActiveColor
+		return linkColorOr(tk.LinkTextColor, tk.LinkColor), linkColorOr(tk.LinkTextHoverColor, tk.LinkHoverColor), linkColorOr(tk.LinkTextActiveColor, tk.LinkActiveColor)
 	case "secondary", "default": // Element type="default": regular text, link color on hover
 		return th.TextSecondary, tk.LinkHoverColor, tk.LinkActiveColor
 	}
@@ -630,4 +630,12 @@ func statusIcon(c *Context, status string, size float32) *node {
 		drawStatusIcon(l, status, r, th.ColorOf(status).Base, th.BgContainer)
 	}
 	return n
+}
+
+// linkColorOr returns c, or def when c is unset (zero alpha).
+func linkColorOr(c, def theme.Color) theme.Color {
+	if c.A == 0 {
+		return def
+	}
+	return c
 }

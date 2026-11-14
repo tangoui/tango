@@ -79,11 +79,11 @@ type SelectW struct {
 	listID      ID
 	a11yName    string // name computed for the combobox (names the listbox)
 
-	place       Placement               // dropdown placement (Ant placement)
-	labelRender func(o Option) string   // text of the selected value (Ant labelRender)
-	notFound    string                  // empty-list text (Ant notFoundContent)
-	wasOpen     bool                    // dropdown state before this build
-	openChange  bool                    // the dropdown opened or closed this frame
+	place       Placement             // dropdown placement (Ant placement)
+	labelRender func(o Option) string // text of the selected value (Ant labelRender)
+	notFound    string                // empty-list text (Ant notFoundContent)
+	wasOpen     bool                  // dropdown state before this build
+	openChange  bool                  // the dropdown opened or closed this frame
 
 	rx      p2bRich         // groups, remote, create, render, virtual (p2b_select.go)
 	eng     *VirtualSelectW // dropdown engine while rx is in use

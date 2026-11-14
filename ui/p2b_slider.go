@@ -471,6 +471,9 @@ func (w *SliderW) finish() {
 		w.numberBox(1)
 	}
 	if w.off() {
+		// A drag cut short by disabling is dropped: no ChangeComplete when
+		// the slider is enabled again.
+		w.st.moved, w.st.grab, w.st.drag = false, -1, -1
 		return
 	}
 	// Rail presses pick the nearest handle and drag it.

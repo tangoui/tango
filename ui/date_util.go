@@ -879,22 +879,8 @@ func dtPlaceDefault(c *Context, comp string, dst *Placement) {
 	}
 }
 
-// dtPanel opens a picker dropdown like entPanel, at place (Ant placement:
-// BottomStart, BottomEnd, TopStart or TopEnd; it still flips when it does
-// not fit). The enter motion slides away from the anchor.
+// dtPanel opens a picker dropdown like entPanel, at place (it still flips
+// when it does not fit): selPanel without width matching.
 func dtPanel(c *Context, anchor ID, p *entPopup, place Placement, fn func()) *Box {
-	if place == BottomStart {
-		return entPanel(c, anchor, p, false, fn)
-	}
-	th := c.Theme
-	a := c.AnimFrom(anchor, "ent-open", 0, 1, th.DurationMid)
-	shift := (1 - a) * -4
-	if place == TopStart || place == TopEnd || place == Top {
-		shift = -shift
-	}
-	ov := Overlay(c, OverlayOptions{Anchor: anchor, Place: place, Offset: 4, Flip: true, ShiftY: shift}, fn)
-	entStylePanel(c, ov)
-	ov.Opacity(a)
-	p.panel = ov.n.id
-	return ov
+	return selPanel(c, anchor, p, false, place, fn)
 }

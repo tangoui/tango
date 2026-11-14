@@ -54,8 +54,17 @@ func (w *CompactW) Block() *CompactW { w.block = true; return w }
 func (w *CompactW) Size(s ControlSize) *CompactW { w.size, w.hasSize = s, true; return w }
 
 // Orientation sets the direction: "horizontal" (default) or "vertical"
-// (antd 6 orientation; Vertical is the shorthand).
-func (w *CompactW) Orientation(o string) *CompactW { w.vertical = o == "vertical"; return w }
+// (antd 6 orientation; Vertical is the shorthand). Other values are
+// ignored.
+func (w *CompactW) Orientation(o string) *CompactW {
+	switch o {
+	case "horizontal":
+		w.vertical = false
+	case "vertical":
+		w.vertical = true
+	}
+	return w
+}
 
 // Layout applies layout options to the group.
 func (w *CompactW) Layout(o ...layout.Option) *CompactW { w.opts = append(w.opts, o...); return w }

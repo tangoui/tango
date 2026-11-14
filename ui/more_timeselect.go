@@ -354,7 +354,7 @@ func (w *TimeSelectW) dropdown() {
 		maxH = 274 - 2*pad
 	}
 	shift := (1 - a) * -4
-	if w.place == TopStart || w.place == TopEnd {
+	if placeAbove(w.place) {
 		shift = -shift
 	}
 	ov := Overlay(c, OverlayOptions{Anchor: w.n.id, Place: w.place, Offset: 4, MatchWidth: true, Flip: true, ShiftY: shift}, func() {

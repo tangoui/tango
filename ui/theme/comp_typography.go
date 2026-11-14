@@ -15,9 +15,10 @@ type TypographyToken struct {
 	LinkHoverColor  Color `contrast:"text:@Page"`
 	LinkActiveColor Color `contrast:"text:@Page"`
 	// LinkTextColor, LinkTextHoverColor and LinkTextActiveColor are the
-	// Link component's own colors at rest, under the pointer and pressed.
-	// LinkColor stays the link color of other links (Paragraph expand,
-	// copy / edit icons): Element's el-link defaults to regular text.
+	// Link component's own colors at rest, under the pointer and pressed
+	// (zero: LinkColor / LinkHoverColor / LinkActiveColor). Only Element
+	// sets them: el-link defaults to regular text, while other links
+	// (Paragraph expand, copy / edit icons) keep the link color.
 	LinkTextColor       Color   `contrast:"text:@Page"`
 	LinkTextHoverColor  Color   `contrast:"text:@Page"`
 	LinkTextActiveColor Color   `contrast:"text:@Page"`
@@ -43,7 +44,6 @@ func deriveTypography(t *Theme) TypographyToken {
 		// underlined (linkDecoration / linkHoverDecoration none).
 		LinkFontWeight: 400,
 	}
-	k.LinkTextColor, k.LinkTextHoverColor, k.LinkTextActiveColor = k.LinkColor, k.LinkHoverColor, k.LinkActiveColor
 	switch t.Flavor {
 	case Element:
 		// el-link: --el-link-font-weight is font-weight-primary (500),

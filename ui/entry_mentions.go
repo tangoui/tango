@@ -81,6 +81,14 @@ func Mentions(c *Context, val *string, opts []Option) *MentionsW {
 	w.split = " "
 	w.configDefaults()
 	selDefaults(c, "Mentions", &w.variant, &w.place) // "top" / "bottom" or a Placement
+	// antd Mentions placement "top" / "bottom": the list opens at the
+	// start edge above or below the input, not centered.
+	switch w.place {
+	case Top:
+		w.place = TopStart
+	case Bottom:
+		w.place = BottomStart
+	}
 	w.z = c.lazy(w.box, w.finish)
 	return w
 }

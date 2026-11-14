@@ -833,12 +833,8 @@ func (w *InputNumberW) applyControls() {
 	if w.controlsHidden() {
 		if w.ctrlPos == "sides" {
 			// antd spinner without actions: the value stays centred.
-			left := w.padL()
-			if w.prefix != nil || w.prefixTxt != "" {
-				left = w.box.ln.Height + 8 // where paintPrefix starts in spinner mode
-			}
 			w.box.kids = []*node{w.ed}
-			w.ed.ln.Margin = geom.Insets{Left: left + w.prefixWidth(), Right: w.padL()}
+			w.ed.ln.Margin = geom.Insets{Left: w.padL() + w.prefixWidth(), Right: w.padL()}
 			return
 		}
 		w.handles.ln.Width = 0
@@ -847,16 +843,8 @@ func (w *InputNumberW) applyControls() {
 		return
 	}
 	if w.ctrlPos == "sides" {
-		sw := w.tk.SideHandleWidth
-		switch w.size {
-		case Small:
-			sw = w.tk.SideHandleWidthSM
-		case Large:
-			sw = w.tk.SideHandleWidthLG
-		}
-		if sw > 0 {
-			w.down.ln.Width, w.up.ln.Width = sw, sw
-		}
+		sw := w.sideW(w.box.ln.Height)
+		w.down.ln.Width, w.up.ln.Width = sw, sw
 	}
 	for _, b := range []struct {
 		n  *node

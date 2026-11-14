@@ -863,8 +863,16 @@ func (g *RadioGroupW) Changed() bool { g.z.run(); return g.changed }
 func (g *RadioGroupW) Vertical() *RadioGroupW { g.vertical = true; return g }
 
 // Orientation sets the direction of the options: "horizontal" (default)
-// or "vertical" (antd 6 orientation).
-func (g *RadioGroupW) Orientation(o string) *RadioGroupW { g.vertical = o == "vertical"; return g }
+// or "vertical" (antd 6 orientation). Other values are ignored.
+func (g *RadioGroupW) Orientation(o string) *RadioGroupW {
+	switch o {
+	case "horizontal":
+		g.vertical = false
+	case "vertical":
+		g.vertical = true
+	}
+	return g
+}
 
 // Block stretches the group to the full width and shares it equally among
 // the options (antd block, typically with Buttons).
@@ -883,10 +891,11 @@ func (g *RadioGroupW) layoutGroup() {
 		n.aState &^= a11y.Horizontal
 	}
 	if g.block {
+		// Full width like Button.Block: stretch across the parent column
+		// (Grow would take the parent's height there).
 		n.ln.NoStretch = false
-		if !g.vertical {
-			n.ln.Grow = 1
-		} else {
+		n.ln.AlignSelf = layout.AlignStretch
+		if g.vertical {
 			n.ln.Align = layout.AlignStretch
 		}
 	}

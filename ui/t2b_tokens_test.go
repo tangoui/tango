@@ -79,7 +79,7 @@ func TestT2bTokenOverridesAreScoped(t *testing.T) {
 				func(c *Context) { Divider(c) }},
 			{"Typography", theme.Components{Typography: theme.TypographyToken{MarkBg: t2bMark}}, k.Typography.MarkBg,
 				func(c *Context) { Text(c, "marked").Mark() }},
-			{"Link", theme.Components{Typography: theme.TypographyToken{LinkColor: t2bMark}}, k.Typography.LinkColor,
+			{"Link", theme.Components{Typography: theme.TypographyToken{LinkTextColor: t2bMark}}, linkColorOr(k.Typography.LinkTextColor, k.Typography.LinkColor),
 				func(c *Context) { Link(c, "link") }},
 			{"Image", theme.Components{Image: theme.ImageToken{PlaceholderBg: t2bMark}}, k.Image.PlaceholderBg,
 				func(c *Context) { Image(c, nil).Size(60, 40) }},
