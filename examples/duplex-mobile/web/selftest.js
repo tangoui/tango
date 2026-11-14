@@ -6,10 +6,26 @@
 // The lanes the page must get depend on the platform (Debug.Platform):
 // Apple platforms fallback / up:post (smoke.sh ios-selftest turns them on);
 // Android down:android / up:android when TANGO_IPC_LANES_ANDROID is on,
-// else fallback / fallback. The up:post scenarios (reload, 8 MiB, mixed,
-// stall) run on Apple platforms; on Android the checks are the scheme
-// parity ones, stop, memory, lanes, echo_ipc and, with the lanes on,
-// lane_echo.
+// else fallback / fallback. The lane scenarios of lanetests.js (reload,
+// 8 MiB, mixed, stall) run whenever the page has an upstream lane (Apple:
+// up:post; Android: up:android); without lanes (Android off, capsOff) the
+// checks are the scheme parity ones, stop, memory, lanes and echo_ipc.
+// Android with the lanes adds lane_echo, reloadSameID and subframe:
+//
+//   index.html?selftest            page A of reloadSameID: before any call
+//                                  or other stream, Source on stream 1 and
+//                                  Sink on stream 3, reload mid-transfer as
+//                                  ...&phase=b&sameA=...
+//   ...&phase=b                    page B: Source on stream 1 and Echo on
+//                                  stream 3 again, every byte its own; then
+//                                  the reload scenario (reloadPhase) with
+//                                  a Source download going as well
+//   ...&reloaded=...               the rest, as on Apple platforms
+//   index.html?selftest&lanefault=down|up
+//                                  laneTests.faultDown / fault("up:android")
+//                                  (TANGO_IPC_LANE_FAULT=down:android:3 /
+//                                  up:android:3; scripts/smoke.sh
+//                                  android-lanefault)
 //
 //   index.html         Echo round trip over an ipc stream ("selftest").
 //   index.html?selftest
@@ -204,19 +220,24 @@ function loadLaneTests() {
 // it is in flight, carrying the idle baseline in the URL
 // (history.replaceState, then location.reload()). Returns only if the page
 // did not reload.
-async function reloadPhase() {
+async function reloadPhase(extra) {
   const lt = await loadLaneTests();
   const r = await lt.reloadStart();
   // Reload once another up:post request has started and one is open now
-  // (upActive, recorded: reloadCheck's "nothing left open" needs it).
+  // (upActive, recorded: reloadCheck's "nothing left open" needs it). On
+  // Android: once more down:android packets arrived (the download is on
+  // its way).
+  const android = r.lanes.up === "up:android";
   let st = null;
   for (const t0 = Date.now(); Date.now() - t0 < 3000; await new Promise(res => setTimeout(res, 2))) {
     st = await tango.call("Debug.Stats");
-    if (st.upRequests > r.mid.upRequests && st.upActive >= 1) break;
+    if (android ? st.downWrites > r.mid.downWrites : st.upRequests > r.mid.upRequests && st.upActive >= 1) break;
   }
-  const base = { goroutines: r.base.goroutines, hellos: r.base.hellos, going: r.going, uploaded: lt.uploaded,
-    upActiveAtReload: st ? st.upActive : 0 };
-  history.replaceState(null, "", location.pathname + location.search + "&reloaded=" + encodeURIComponent(JSON.stringify(base)));
+  const base = { goroutines: r.base.goroutines, hellos: r.base.hellos, lanes: r.lanes, going: r.going, uploaded: lt.uploaded,
+    downloaded: lt.downloaded, upActiveAtReload: st ? st.upActive : 0 };
+  let q = location.search + "&reloaded=" + encodeURIComponent(JSON.stringify(base));
+  if (extra) q += "&sameid=" + encodeURIComponent(JSON.stringify(extra));
+  history.replaceState(null, "", location.pathname + q);
   location.reload();
   await new Promise(res => setTimeout(res, 30000));
   return { ok: false, failed: ["reload"], err: "location.reload() did not reload the page" };
@@ -235,10 +256,11 @@ async function platform() {
   return { ...p, want };
 }
 
-async function runSelftest(reloaded, plat) {
+async function runSelftest(reloaded, plat, sameID) {
   const apple = plat.goos !== "android";
+  const androidLanes = !apple && plat.want.up === "up:android";
   let lt = null, laneReload = null;
-  if (apple) {
+  if (reloaded) {
     // The second half of the reload scenario comes first, before anything
     // else runs on this page: no lane request of the old page still open,
     // goroutines back to its baseline, up:post working again.
@@ -266,9 +288,10 @@ async function runSelftest(reloaded, plat) {
       : echoed && laneEcho.upRequests >= 16 && laneEcho.downWrites >= 16 &&
         laneEcho.after.laneUpProbes >= 1 && laneEcho.after.laneUpBadToken === 0;
   }
-  let laneBig = null, laneMixed = null, laneStall = null;
-  if (apple) {
-    checks.lane_reload = !!reloaded.going && reloaded.upActiveAtReload >= 1 && laneReload.ok === true;
+  let laneBig = null, laneMixed = null, laneStall = null, laneSubframe = null;
+  if (apple || androidLanes) {
+    checks.lane_reload = !!reloaded && !!reloaded.going && (androidLanes || reloaded.upActiveAtReload >= 1) &&
+      !!laneReload && laneReload.ok === true;
     if (checks.lanes) {
       laneBig = await laneScenario(() => lt.bigBothWays());
       laneMixed = await laneScenario(() => lt.mixedOrder());
@@ -278,19 +301,48 @@ async function runSelftest(reloaded, plat) {
     checks.lane_mixed = !!laneMixed && laneMixed.ok === true;
     checks.lane_stall = !!laneStall && laneStall.ok === true;
   }
+  if (androidLanes) {
+    checks.lane_reload_same_id = !!sameID && sameID.ok === true;
+    if (checks.lanes) laneSubframe = await laneScenario(() => lt.subframe());
+    checks.lane_subframe = !!laneSubframe && laneSubframe.ok === true;
+  }
   const echo = await runEcho();
   checks.echo_ipc = !!echo.echo && echo.echo.ping === "selftest";
   const failed = Object.keys(checks).filter(k => !checks[k]);
   return { ok: failed.length === 0, failed, checks, platform: plat, indexSha: parity[0].sha, indexBytes: parity[0].bytes, stop, memory, lanes, laneEcho,
-    laneReload, laneBig, laneMixed, laneStall };
+    laneReload, laneBig, laneMixed, laneStall, laneSameID: sameID || null, laneSubframe };
 }
 
 // runLaneFault is index.html?selftest&lanefault: laneTests.fault only.
-async function runLaneFault() {
+// runLaneFault is index.html?selftest&lanefault[=down|up]: up:post's fault
+// scenario, or on Android faultDown (=down) / fault("up:android") (=up).
+async function runLaneFault(which) {
   const lanes = await runLanes();
   const lt = await loadLaneTests();
-  const fault = await laneScenario(() => lt.fault());
-  return { ok: lanes.up === "up:post" && fault.ok === true, lanes, fault };
+  if (which === "down") {
+    const fault = await laneScenario(() => lt.faultDown());
+    return { ok: lanes.down === "down:android" && fault.ok === true, lanes, fault };
+  }
+  const lane = which === "up" ? "up:android" : "up:post";
+  const fault = await laneScenario(() => lt.fault(lane));
+  return { ok: lanes.up === lane && fault.ok === true, lanes, fault };
+}
+
+// androidLanesUp waits up to 5 s for down:android and up:android, without
+// a call or a stream (reloadSameID needs this page's first stream id).
+async function androidLanesUp() {
+  if (!/Android/.test(navigator.userAgent)) return false;
+  const t0 = Date.now();
+  const on = () => tango.lanes().up === "up:android" && tango.lanes().down === "down:android";
+  while (!on() && Date.now() - t0 < 5000) await new Promise(res => setTimeout(res, 20));
+  return on();
+}
+
+// compact keeps what the final report needs of a scenario result (it rides
+// in the URL across a reload).
+function compact(r) {
+  const { ok, why, gotA, down, up, laneDownDropped, laneUpRefused, lanes } = r;
+  return { ok, why, gotA, down, up, laneDownDropped, laneUpRefused, lanes };
 }
 
 // runLanes waits up to 5 s for the upstream lane to become ready, then
@@ -382,13 +434,29 @@ function runBench() {
   try {
     if (kind === "probe") res = await runProbe();
     else if (kind === "bench") res = await runBench();
-    else if (kind === "lanefault") res = await runLaneFault();
+    else if (kind === "lanefault") res = await runLaneFault(q.get("lanefault"));
     else if (!q.has("selftest")) res = await runEcho();
-    else {
+    else if (q.has("reloaded")) {
+      const sameID = q.has("sameid") ? JSON.parse(q.get("sameid")) : null;
+      res = await runSelftest(JSON.parse(q.get("reloaded")), await platform(), sameID);
+    } else if (q.get("phase") === "b") {
+      // reloadSameID page B, then the reload scenario (reloads the page).
+      await androidLanesUp();
+      const lt = await loadLaneTests();
+      const same = await laneScenario(() => lt.sameIDCheck(JSON.parse(q.get("sameA") || "null")));
+      res = await reloadPhase(compact(same));
+    } else if (await androidLanesUp()) {
+      // reloadSameID page A: reloads the page mid-transfer.
+      const lt = await loadLaneTests();
+      const a = await lt.sameIDStart();
+      history.replaceState(null, "", location.pathname + location.search + "&phase=b&sameA=" + encodeURIComponent(JSON.stringify(a)));
+      location.reload();
+      await new Promise(res => setTimeout(res, 30000));
+      res = { ok: false, failed: ["reload"], err: "location.reload() did not reload the page" };
+    } else {
       const plat = await platform();
       if (plat.goos === "android") res = await runSelftest(null, plat);
-      else if (!q.has("reloaded")) res = await reloadPhase(); // reloads the page
-      else res = await runSelftest(JSON.parse(q.get("reloaded")), plat);
+      else res = await reloadPhase(); // reloads the page
     }
   } catch (e) {
     res = { error: String((e && e.message) || e) };

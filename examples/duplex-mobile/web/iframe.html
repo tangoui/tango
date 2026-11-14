@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>subframe</title>
+</head>
+<body>
+<script>
+// The same-origin iframe of the Android subframe scenario
+// (examples/duplex/services/lanetests.js, laneTests.subframe): it posts
+// ?n= well formed lane packets with guessed tokens through its own
+// window.__tangoAndroid (WebView gives every frame of the asset origin
+// one; only the main frame's page script removes it) and reports to the
+// parent how many it sent. Java drops messages from subframes, so Go must
+// see none of them.
+"use strict";
+(function () {
+  var n = Number(new URLSearchParams(location.search).get("n")) || 50;
+  var bridge = window.__tangoAndroid;
+  var res = { kind: "same", has: typeof bridge, sent: 0, err: "" };
+  try {
+    for (var k = 0; k < n; k++) {
+      // token[16] | gen:u64 LE | count 1 | stream 1 | seq k | len 10 | payload
+      var u8 = new Uint8Array(16 + 8 + 2 + 20 + 10);
+      crypto.getRandomValues(u8.subarray(0, 16));
+      var dv = new DataView(u8.buffer);
+      dv.setUint32(16, k + 1, true);
+      dv.setUint16(24, 1);
+      dv.setUint32(26 + 4, 1);
+      dv.setUint32(26 + 12, k);
+      dv.setUint32(26 + 16, 10);
+      bridge.postMessage(u8.buffer);
+      res.sent++;
+    }
+  } catch (e) {
+    res.err = String((e && e.message) || e);
+  }
+  parent.postMessage(res, "*");
+})();
+</script>
+</body>
+</html>

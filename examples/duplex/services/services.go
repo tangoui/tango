@@ -37,8 +37,10 @@ func SetBenchDone(fn func()) {
 //   - "Upload" (duplex, [name, size]): byte frames go to a temporary file;
 //     {"received":n} every further MiB, {"path":p,"bytes":n} after the end.
 //   - "Sink" (duplex): reads every frame, then replies {"bytes":n}.
-//   - "Source" (stream, [frames, size]): writes frames byte frames of size
-//     bytes each.
+//   - "Source" (stream, [frames, size, mod?, add?]): writes frames byte
+//     frames of size bytes each. Without mod every frame holds byte(i) at
+//     offset i; with mod > 0, byte j of the whole stream (counted across
+//     frames) is (j + add) % mod.
 //   - "Bench.Report" (call): prints its argument as one JSON line on stdout.
 //   - "Debug.Stats" (call), only with TANGO_SCHEME_PROBE=1: Go-side
 //     counters for the platform tests (Stats, testroutes.go).
@@ -145,9 +147,10 @@ func sink(s *ipc.Stream, _ json.RawMessage) error {
 
 // source writes frames byte frames of size bytes each.
 func source(ctx context.Context, args json.RawMessage, w ipc.StreamWriter) error {
-	var frames, size int
-	if err := decodeArgs(args, &frames, &size); err != nil || frames < 0 || size < 0 || size > ipc.MaxFrameBytes {
-		return ipc.NewError(ipc.CodeBadArgs, "Source(frames int, size int)")
+	var frames, size, mod, add int
+	if err := decodeArgs(args, &frames, &size, &mod, &add); err != nil || frames < 0 || size < 0 || size > ipc.MaxFrameBytes ||
+		mod < 0 || mod > 256 || add < 0 {
+		return ipc.NewError(ipc.CodeBadArgs, "Source(frames int, size int, mod int?, add int?)")
 	}
 	// The StreamWriter of a stream from JS is its *ipc.Stream, which also
 	// sends byte frames.
@@ -156,15 +159,34 @@ func source(ctx context.Context, args json.RawMessage, w ipc.StreamWriter) error
 		return ipc.NewError(ipc.CodeInternal, "Source: stream cannot send bytes")
 	}
 	buf := make([]byte, size)
-	for i := range buf {
-		buf[i] = byte(i)
-	}
-	for range frames {
+	fillSource(buf, 0, mod, add)
+	for k := range frames {
+		if k > 0 && mod > 0 {
+			fillSource(buf, k*size, mod, add) // WriteBytes is done with buf
+		}
 		if err := bw.WriteBytes(buf); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// fillSource fills buf, the frame at stream offset off: byte(i) for mod 0,
+// else (off + i + add) % mod.
+func fillSource(buf []byte, off, mod, add int) {
+	if mod == 0 {
+		for i := range buf {
+			buf[i] = byte(i)
+		}
+		return
+	}
+	v := (off + add) % mod
+	for i := range buf {
+		buf[i] = byte(v)
+		if v++; v == mod {
+			v = 0
+		}
+	}
 }
 
 // benchReport prints its argument as one JSON line on stdout, then runs

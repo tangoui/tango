@@ -18,6 +18,9 @@
 #                                         build examples/duplex-mobile (tango_selftest), run
 #                                         its self-test on the device / emulator three times:
 #                                         lanes off, lanes on, lanes on without ArrayBuffer
+#   bash scripts/smoke.sh android-lanefault
+#                                         the same APK, break down:android / up:android
+#                                         midway (TANGO_IPC_LANE_FAULT), one start each
 #   bash scripts/smoke.sh ios-ui          self-drawn examples/mobile-ui in a simulator:
 #                                         first frame, screenshot, self-test taps
 #   bash scripts/smoke.sh android-ui      self-drawn examples/mobile-ui on the device /
@@ -668,13 +671,66 @@ android_result() {
 	fi
 }
 
+# run_android_lanefault runs the Android lane fault scenarios of
+# examples/duplex-mobile (tango_selftest build, lanes on), a fresh start
+# each:
+#   android-lanefault-down  TANGO_IPC_LANE_FAULT=down:android:3: later down
+#                           frames take the message channel, none is lost
+#   android-lanefault-up    TANGO_IPC_LANE_FAULT=up:android:3: the page gets
+#                           [1], up:android falls back within 1 s, the
+#                           stream that lost a frame fails with transport,
+#                           a parallel stream arrives whole
+# Each needs "lanefault: {"ok":true,...}".
+run_android_lanefault() {
+	local wait="${SMOKE_MOBILE_WAIT:-180}" apk="" base="TANGO_SCHEME_PROBE=1,TANGO_SCHEME_SELFTEST=1,TANGO_IPC_LANES_ANDROID=1"
+	local run name env what line i
+	for run in \
+		"android-lanefault-down|$base,TANGO_IPC_LANE_FAULT=down:android:3|down:android broke after 3 packets, frames whole on messages" \
+		"android-lanefault-up|$base,TANGO_IPC_LANE_FAULT=up:android:3|up:android refused packet 4: fallback, lost stream transport, parallel stream whole"; do
+		IFS='|' read -r name env what <<<"$run"
+		if [[ -z "$apk" ]]; then
+			GOFLAGS="${GOFLAGS:+$GOFLAGS }-tags=tango_selftest" android_start "$name" examples/duplex-mobile "" --esa TANGO_TEST_ENV "$env" || return 0
+			apk="$android_apk"
+		else
+			android_start "$name" examples/duplex-mobile "$apk" --esa TANGO_TEST_ENV "$env" || return 0
+		fi
+		say "$name: TANGO_TEST_ENV $env"
+		line=""
+		for ((i = 0; i < wait; i += 2)); do
+			line="$(android_result lanefault)"
+			[[ -n "$line" ]] && break
+			sleep 2
+		done
+		android_log "$name" >/dev/null
+		if [[ -z "$line" ]]; then
+			grep -E ' (Tango|AndroidRuntime) ' "$out/$name.log" | sed 's/^/    /'
+			record "$name" FAIL "no lanefault result within ${wait}s, see $out/$name.log"
+		else
+			printf '%s\n' "$line" >"$out/$name.json"
+			sed 's/^/    /' "$out/$name.json"
+			if grep -q 'FATAL EXCEPTION' "$out/$name.log"; then
+				record "$name" FAIL "Java exception, see $out/$name.log"
+			elif grep -q '^{"ok":true,' <<<"$line"; then
+				record "$name" PASS "$what"
+			else
+				record "$name" FAIL "fault scenario failed, see $out/$name.json"
+			fi
+		fi
+		adb shell am force-stop "$android_id"
+	done
+	return 0
+}
+
 # run_android_selftest runs the self-test of examples/duplex-mobile
 # (tango_selftest build: the TANGO_TEST_ENV launch extra and the lane
 # counters) three times on the device / emulator, each a fresh start with
 # TANGO_SCHEME_PROBE=1,TANGO_SCHEME_SELFTEST=1 and:
 #   android-selftest          lanes off: tango.lanes() fallback / fallback
 #   android-selftest-lanes    TANGO_IPC_LANES_ANDROID=1: down:android /
-#                             up:android, and a 1 MiB Echo through them
+#                             up:android, a 1 MiB Echo through them and the
+#                             lane scenarios (reloadSameID and reload: the
+#                             page reloads itself twice; 8 MiB, mixed,
+#                             6 s stall, subframe)
 #   android-selftest-capsoff  as lanes, plus TANGO_ANDROID_NO_ARRAYBUFFER=1:
 #                             no lanes reported, fallback
 # Each needs a top-level "ok":true (asset parity, stop, memory, lanes,
@@ -724,7 +780,7 @@ run_android_selftest() {
 			elif [[ "$sha" != "$want" || "$bytes" != "$wantBytes" ]]; then
 				record "$name" FAIL "index body: $bytes bytes sha ${sha:-?}, want $wantBytes bytes sha $want"
 			else
-				record "$name" PASS "$what: parity, stop, memory, lanes and echo ok"
+				record "$name" PASS "$what: all checks ok ($(grep -oE '"checks":\{[^}]*\}' <<<"$line" | grep -oE '"[a-z_]+":true' | cut -d'"' -f2 | tr '\n' ' ' | sed 's/ $//'))"
 			fi
 		fi
 		adb shell am force-stop "$android_id"
@@ -837,13 +893,14 @@ ios-selftest) run_ios_selftest ;;
 ios-lanefault) run_ios_lanefault ;;
 android) run_android ;;
 android-selftest) run_android_selftest ;;
+android-lanefault) run_android_lanefault ;;
 android-ui) run_android_ui ;;
 -h | --help | help)
 	sed -n '2,/^set /p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'
 	exit 0
 	;;
 *)
-	echo "smoke.sh: unknown mode '$mode' (desktop, list, ios, ios-ui, ios-probe, ios-selftest, ios-lanefault, android, android-selftest, android-ui)" >&2
+	echo "smoke.sh: unknown mode '$mode' (desktop, list, ios, ios-ui, ios-probe, ios-selftest, ios-lanefault, android, android-selftest, android-lanefault, android-ui)" >&2
 	exit 2
 	;;
 esac
