@@ -363,7 +363,7 @@ func (d *DockW) group(g *DockNode, share float64) {
 		geo.header, geo.hdrN = hdr.n.id, hdr.n
 		var tb *TabsW
 		hdr.Body(func() {
-			tb = Tabs(c, &g.Active, items).Closable().Size(Small).NoMargin().Draggable().
+			tb = dockTabs(c, &g.Active, items).Closable().Size(Small).NoMargin().Draggable().
 				TabBarStyle(layout.Grow(1), layout.MinW(0))
 			tb.drag.hook = &dockHook{d: d, group: gid}
 			tb.drag.dim = tk.HeaderBg

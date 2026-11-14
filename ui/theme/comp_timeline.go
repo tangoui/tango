@@ -26,9 +26,13 @@ type TimelineToken struct {
 }
 
 func deriveTimeline(t *Theme) TimelineToken {
+	// antd 6.7 es/timeline/style/index.js prepareComponentToken: tailWidth
+	// and dotBorderWidth lineWidthBold (2), itemPaddingBottom padding*1.25;
+	// the dot is the Steps dot (es/steps/style/index.js dotCurrentSize =
+	// controlHeightLG/4 = 10).
 	k := TimelineToken{
 		TailColor: t.Split, TailWidth: 2, DotBg: t.BgContainer, DotColor: t.Primary.Base,
-		DotSize: 10, DotSizeLG: 10, DotBorderWidth: 3, DotOffsetTop: 5.5, IconDotSize: 16,
+		DotSize: 10, DotSizeLG: 10, DotBorderWidth: 2, DotOffsetTop: 5.5, IconDotSize: 16,
 		PendingColor: t.Primary.Base, ItemPaddingBottom: 20, ContentGap: 16,
 		ContentColor: t.Text, LabelColor: t.Text, TimeColor: t.TextTertiary, TimeFontSize: t.FontSize,
 		HorizontalGap: 8, HorizontalItemPadding: 8,

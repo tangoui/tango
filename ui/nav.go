@@ -131,10 +131,26 @@ type TabsW struct {
 	extraLeft  func()
 	height     float32
 
+	gutter      float32 // TabBarGutter (0 with gutterSet false: the theme's)
+	gutterSet   bool
+	indSize     float32 // Indicator size (0: the tab's extent)
+	indAlign    string  // Indicator align: "start" | "center" | "end"
+	beforeLeave func(newKey, oldKey string) bool
+	clicked     string // key of the tab clicked this frame
+	stretch     bool   // Stretch: tabs share the bar width
+	variant     string // shadcn TabsList variant: "" / "default" | "line"
+	addIcon     *icon.Icon
+	removeIcon  *icon.Icon
+	moreIcon    *icon.Icon
+	// legacy keeps the pre-batch-2 look and skips ConfigProvider.Defaults
+	// and the unknown-key fallback (Dock's tab strip, dockTabs).
+	legacy bool
+
 	drag tabsDrag // Draggable / OnTearOff (nav_tabs_drag.go)
 }
 
 type tabsState struct {
+	idx    int    // index of the active tab in the last frame (fallback when its key goes away)
 	more   bool   // the tab list overflowed: the more button is shown
 	reveal bool   // scroll the active tab into view once it is laid out
 	last   string // active key of the last frame
@@ -158,8 +174,15 @@ func (st *tabsState) wake(c *Context) {
 //
 // ConfigProvider.Defaults("Tabs", ...) keys: "type" ("line" | "card" |
 // "editable-card" | "border-card"), "size" (ControlSize), "centered"
-// (bool), "placement" / "tabPosition" (Placement or "top" | "bottom" |
-// "left" | "right").
+// (bool), "tabPlacement" (Placement or Ant v6 "top" | "bottom" | "start" |
+// "end"; the deprecated keys "placement" and "tabPosition" take "top" |
+// "bottom" | "left" | "right" too), "stretch" (bool), "tabBarGutter"
+// (px), "variant" ("default" | "line", the shadcn TabsList variant).
+//
+// active may be nil (the Tabs keep the key themselves). When *active is
+// not a key of items, the tab at the last active index (clamped; the
+// first tab at first) becomes active, like Ant's Tabs when the active key
+// goes away; Changed does not report that fallback.
 //
 // Under shadcn/ui every combination is drawn as the segmented TabsList
 // (muted track, background pill with shadow-sm): vertical placements
@@ -167,7 +190,10 @@ func (st *tabsState) wake(c *Context) {
 // ghost + button after the list, Card switches to an outline track and
 // BorderCard puts the list and panel in a bordered card.
 func Tabs(c *Context, active *string, items []TabItem) *TabsW {
-	t := &TabsW{c: c, th: c.ThemeFor(theme.CompTabs), items: items, active: active, size: c.defaultSize(), place: Top, loc: c.Locale()}
+	if active == nil {
+		active = &State[tabsOwnKey](c, c.newID("tabs-key", ""), nil).key
+	}
+	t := newTabs(c, active, items)
 	switch Prop(c, "Tabs", "type", "") {
 	case "card":
 		t.card, t.cardSet = true, true
@@ -182,7 +208,10 @@ func Tabs(c *Context, active *string, items []TabItem) *TabsW {
 		}
 	}
 	t.centered = Prop(c, "Tabs", "centered", false)
-	v, ok := c.ConfigProp("Tabs", "placement")
+	v, ok := c.ConfigProp("Tabs", "tabPlacement")
+	if !ok {
+		v, ok = c.ConfigProp("Tabs", "placement")
+	}
 	if !ok {
 		v, ok = c.ConfigProp("Tabs", "tabPosition")
 	}
@@ -191,10 +220,122 @@ func Tabs(c *Context, active *string, items []TabItem) *TabsW {
 		case Placement:
 			t.Placement(p)
 		case string:
-			t.Placement(map[string]Placement{"bottom": Bottom, "left": Left, "right": Right}[p])
+			t.TabPlacement(p)
 		}
 	}
+	t.stretch = Prop(c, "Tabs", "stretch", false)
+	t.variant = Prop(c, "Tabs", "variant", "")
+	if v, ok := p2bNum(c, "Tabs", "tabBarGutter"); ok {
+		t.TabBarGutter(float32(v))
+	}
 	return t
+}
+
+// newTabs builds a TabsW without reading ConfigProvider.Defaults.
+func newTabs(c *Context, active *string, items []TabItem) *TabsW {
+	return &TabsW{c: c, th: c.ThemeFor(theme.CompTabs), items: items, active: active, size: c.defaultSize(), place: Top, loc: c.Locale()}
+}
+
+// dockTabs builds the tab strip of a Dock group: no Defaults("Tabs", ...)
+// (an app's tab defaults must not restyle the workbench), no fallback of
+// an unknown active key (the layout owns it), and the card size and the
+// shadcn active trigger the strip had before batch 2 (CardHeight and a
+// 16px padding at every size).
+func dockTabs(c *Context, active *string, items []TabItem) *TabsW {
+	t := newTabs(c, active, items)
+	t.legacy = true
+	return t
+}
+
+// tabsOwnKey holds the active key of Tabs created with a nil pointer.
+type tabsOwnKey struct{ key string }
+
+// TabPlacement puts the bar by Ant v6 name: "top" (default), "bottom",
+// "start" or "end" (logical sides: mirrored in RTL); "left" and "right"
+// are accepted as their deprecated aliases. Same as Placement.
+func (t *TabsW) TabPlacement(p string) *TabsW {
+	return t.Placement(map[string]Placement{"bottom": Bottom, "start": Left, "left": Left, "end": Right, "right": Right}[p])
+}
+
+// TabBarGutter sets the space between two tabs (Ant tabBarGutter; the
+// default comes from the theme: Ant 32 for line tabs, 2 for cards).
+func (t *TabsW) TabBarGutter(px float32) *TabsW { t.gutter, t.gutterSet = max(0, px), true; return t }
+
+// Indicator sets the ink bar of line tabs (Ant v6 indicator): size is its
+// length in px (0: the tab's extent; Element: the label's), align places
+// it along the tab: "start", "center" (default) or "end".
+func (t *TabsW) Indicator(size float32, align string) *TabsW {
+	t.indSize, t.indAlign = max(0, size), align
+	return t
+}
+
+// BeforeLeave is asked before the active tab changes (Element
+// before-leave): returning false keeps the current tab.
+func (t *TabsW) BeforeLeave(fn func(newKey, oldKey string) bool) *TabsW { t.beforeLeave = fn; return t }
+
+// TabClicked returns the key of the tab clicked this frame, also when it
+// is already active ("" when none; Ant onTabClick, Element tab-click).
+func (t *TabsW) TabClicked() string { return t.clicked }
+
+// Stretch makes the tabs of a horizontal bar share its width (Element
+// stretch); the bar no longer scrolls.
+func (t *TabsW) Stretch() *TabsW { t.stretch = true; return t }
+
+// Variant picks the shadcn TabsList look: "default" (the muted segmented
+// track) or "line" (transparent list, an underline under the active
+// trigger). Ant and Element bars are line tabs already (Card and
+// BorderCard pick their other types), so it only changes shadcn.
+func (t *TabsW) Variant(v string) *TabsW { t.variant = v; return t }
+
+// AddIcon replaces the + of the add button (Ant addIcon).
+func (t *TabsW) AddIcon(ic *icon.Icon) *TabsW { t.addIcon = ic; return t }
+
+// RemoveIcon replaces the x of the close buttons (Ant removeIcon).
+func (t *TabsW) RemoveIcon(ic *icon.Icon) *TabsW { t.removeIcon = ic; return t }
+
+// MoreIcon replaces the icon of the more button (Ant more.icon).
+func (t *TabsW) MoreIcon(ic *icon.Icon) *TabsW { t.moreIcon = ic; return t }
+
+// activate makes key the active tab unless BeforeLeave refuses; it
+// reports whether the tab is (now) active.
+func (t *TabsW) activate(key string) bool {
+	if *t.active == key {
+		return true
+	}
+	if t.beforeLeave != nil && !t.beforeLeave(key, *t.active) {
+		return false
+	}
+	*t.active = key
+	t.changed = true
+	t.c.invalid = true
+	return true
+}
+
+// shadLine reports the shadcn line variant.
+func (t *TabsW) shadLine() bool { return t.variant == "line" && t.th.Flavor == theme.StyleShadcn }
+
+// fallback makes a tab active when *active is not a key of the items:
+// the one at the last active index (clamped), skipping disabled tabs.
+func (t *TabsW) fallback(st *tabsState) {
+	n := len(t.items)
+	if n == 0 || t.legacy {
+		return
+	}
+	for i, it := range t.items {
+		if it.Key == *t.active {
+			st.idx = i
+			return
+		}
+	}
+	i := max(0, min(st.idx, n-1))
+	for k := 0; k < n; k++ {
+		if j := (i + k) % n; !t.items[j].Disabled {
+			i = j
+			break
+		}
+	}
+	st.idx = i
+	*t.active = t.items[i].Key
 }
 
 func (t *TabsW) Card() *TabsW              { t.card, t.cardSet = true, true; return t }
@@ -228,7 +369,8 @@ func (t *TabsW) Added() bool { return t.added }
 // Placement puts the bar at the Top (default), Bottom, Left or Right of
 // the panel built by Panel. Left and Right are logical: in a right-to-left
 // scope a Left bar sits on the right (the start side), as the layout
-// mirrors the row of bar and panel.
+// mirrors the row of bar and panel. This is Ant v6 tabPlacement
+// (TabPlacement takes its string names; Left = "start", Right = "end").
 func (t *TabsW) Placement(p Placement) *TabsW {
 	switch p {
 	case Bottom, Left, Right:
@@ -376,11 +518,9 @@ func (t *TabsW) keys(nodes []*node, active int) {
 	if to < 0 {
 		return
 	}
-	if *t.active != t.items[to].Key {
-		*t.active = t.items[to].Key
-		t.changed = true
+	if t.activate(t.items[to].Key) {
+		navFocus(c, ids[to])
 	}
-	navFocus(c, ids[to])
 }
 
 // tabSem marks a tab node; the panel relation is filled in once Panel ran.
@@ -431,15 +571,42 @@ func (t *TabsW) tabMetrics() (fs float32, st text.Style, padV float32) {
 	fs, padV = tk.TitleFontSize, tk.HorizontalItemPadding
 	switch t.size {
 	case Large:
-		fs = tk.TitleFontSizeLG
+		fs, padV = tk.TitleFontSizeLG, tk.HorizontalItemPaddingLG
 	case Small:
-		fs, padV = tk.TitleFontSizeSM, min(padV, 8)
+		fs, padV = tk.TitleFontSizeSM, tk.HorizontalItemPaddingSM
 	}
 	st = c.style(fs, text.Regular)
 	if th.Flavor == theme.StyleShadcn {
 		st = c.style(fs, text.Medium)
 	}
 	return
+}
+
+// cardH is the height of a card tab (and of the add button) at the size.
+func (t *TabsW) cardH() float32 {
+	tk := &t.th.Components.Tabs
+	if t.legacy {
+		return tk.CardHeight
+	}
+	switch t.size {
+	case Small:
+		return tk.CardHeightSM
+	case Large:
+		return tk.CardHeightLG
+	}
+	return tk.CardHeight
+}
+
+// cardPadH is the inline padding of a card tab at the size.
+func (t *TabsW) cardPadH() float32 {
+	tk := &t.th.Components.Tabs
+	if t.legacy {
+		return 16
+	}
+	if t.size == Small {
+		return tk.CardPaddingHSM
+	}
+	return tk.CardPaddingH
 }
 
 // shadHeight is the height of a shadcn tab list (h-9; triggers are 6px
@@ -460,6 +627,11 @@ func (t *TabsW) shadHeight() float32 {
 func (t *TabsW) shadTrack(b *Box) {
 	th := t.th
 	b.Radius(th.RadiusLG)
+	if t.shadLine() {
+		b.Radius(0) // data-[variant=line]:rounded-none bg-transparent
+		b.n.ln.NoStretch = true
+		return
+	}
 	if t.cardSet {
 		b.Border(1, th.Border)
 	} else {
@@ -481,6 +653,7 @@ func (t *TabsW) bar() {
 	}
 	outer := c.box("tabs-bar", dir, nil)
 	st := State[tabsState](c, outer.n.id, func() tabsState { return tabsState{reveal: true} })
+	t.fallback(st)
 	if t.active != nil && st.last != *t.active {
 		st.last, st.reveal = *t.active, true
 	}
@@ -517,6 +690,12 @@ func (t *TabsW) bar() {
 			tabs()
 			return
 		}
+		if t.stretch && !vert {
+			// Stretched tabs share the bar: nothing to scroll.
+			tabs()
+			list.n.ln.Grow, list.n.ln.MinW = 1, 0
+			return
+		}
 		if vert {
 			sb = Scroll(c, tabs, layout.MinH(0), layout.Shrink(1))
 		} else {
@@ -545,7 +724,9 @@ func (t *TabsW) bar() {
 		if vert {
 			extraLeft()
 			if shad {
-				t.shadTrack(Column(c, scroller, layout.Pad(3), layout.MinH(0), layout.Shrink(1)))
+				tr := Column(c, scroller, layout.Pad(3), layout.MinH(0), layout.Shrink(1))
+				t.shadTrack(tr)
+				t.shadUnderline(tr, func() *node { return tabsNodeAt(nodes, activeIdx) })
 			} else {
 				scroller()
 			}
@@ -560,7 +741,12 @@ func (t *TabsW) bar() {
 		extraLeft()
 		wrap := Row(c, func() {
 			if shad {
-				t.shadTrack(Row(c, scroller, layout.Pad(3), layout.MinW(0), layout.Shrink(1), layout.Middle()))
+				tr := Row(c, scroller, layout.Pad(3), layout.MinW(0), layout.Shrink(1), layout.Middle())
+				if t.stretch {
+					tr.n.ln.Grow = 1
+				}
+				t.shadTrack(tr)
+				t.shadUnderline(tr, func() *node { return tabsNodeAt(nodes, activeIdx) })
 			} else {
 				scroller()
 			}
@@ -601,6 +787,7 @@ func (t *TabsW) bar() {
 	}
 	t.dragKeys(nodes)
 	t.keys(nodes, activeIdx)
+	st.idx = activeIdx
 	if sb != nil && st.reveal && activeIdx < len(nodes) {
 		if c.ScrollIntoView(sb.n.id, nodes[activeIdx].id) {
 			// Done once the last layout shows the tab inside the viewport;
@@ -668,6 +855,7 @@ func (t *TabsW) bar() {
 			if vert {
 				ay := c.Anim(id, "inky", an.abs.Y-r.Y, th.DurationSlow)
 				ah := c.Anim(id, "inkh", an.abs.H, th.DurationSlow)
+				ay, ah = t.indicator(ay, ah)
 				x := r.Right() - 2
 				if place == Right {
 					x = r.X
@@ -688,6 +876,7 @@ func (t *TabsW) bar() {
 				ax += 20
 				aw -= 40
 			}
+			ax, aw = t.indicator(ax, aw)
 			y := r.Bottom() - 2
 			if place == Bottom {
 				y = r.Y
@@ -730,6 +919,70 @@ func (t *TabsW) bar() {
 	t.dragTabs(outer, nodes)
 }
 
+// indicator applies Indicator to an ink bar at off with length n along
+// the bar (offsets are logical: start is the inline start).
+func (t *TabsW) indicator(off, n float32) (float32, float32) {
+	if t.indSize <= 0 || t.indSize >= n {
+		return off, n
+	}
+	switch t.indAlign {
+	case "start":
+	case "end":
+		off += n - t.indSize
+	default:
+		off += (n - t.indSize) / 2
+	}
+	return off, t.indSize
+}
+
+// tabsNodeAt returns nodes[i] (nil when out of range).
+func tabsNodeAt(nodes []*node, i int) *node {
+	if i < 0 || i >= len(nodes) {
+		return nil
+	}
+	return nodes[i]
+}
+
+// shadUnderline draws the line variant's indicator of the shadcn list:
+// the active trigger's after:h-0.5 bg-foreground, 5px under the trigger
+// (on the track's bottom edge), or 4px past its end in a vertical list.
+func (t *TabsW) shadUnderline(tr *Box, active func() *node) {
+	if !t.shadLine() {
+		return
+	}
+	c, th := t.c, t.th
+	vert := t.vertical()
+	place := t.physPlace()
+	id := tr.n.id
+	tr.PaintOver(func(l *paint.List, r geom.Rect) {
+		an := active()
+		if an == nil {
+			return
+		}
+		col := th.Components.Tabs.InkBarColor
+		if vert {
+			ay := c.Anim(id, "inky", an.abs.Y-r.Y, th.DurationSlow)
+			ah := c.Anim(id, "inkh", an.abs.H, th.DurationSlow)
+			ay, ah = t.indicator(ay, ah)
+			x := r.Right() - 1
+			if place == Right {
+				x = r.X - 1
+			}
+			l.Fill(geom.Rect{X: x, Y: r.Y + ay, W: 2, H: ah}, geom.Radii{}, col)
+			return
+		}
+		s := c.inline(r)
+		off := s.Off(an.abs.X)
+		if s.rtl {
+			off = s.Off(an.abs.Right())
+		}
+		ax := c.Anim(id, "inkx", off, th.DurationSlow)
+		aw := c.Anim(id, "inkw", an.abs.W, th.DurationSlow)
+		ax, aw = t.indicator(ax, aw)
+		l.Fill(geom.Rect{X: s.X(ax, aw), Y: r.Bottom() - 1, W: aw, H: 2}, geom.Radii{}, col)
+	})
+}
+
 // overflow shows the more button (a dropdown of the tabs scrolled out of
 // view) while the tab list is longer than its viewport (wider for a
 // horizontal bar, taller for a vertical one).
@@ -768,10 +1021,8 @@ func (t *TabsW) overflow(st *tabsState, sb *ScrollBox, nodes []*node) {
 	var dd *DropdownW
 	box := Row(c, func() { dd = t.moreMenu(hidden) })
 	box.n.ln.AlignSelf = layout.AlignCenter
-	if k := dd.Clicked(); k != "" && k != *t.active {
-		*t.active = k
-		t.changed, st.reveal = true, true
-		c.invalid = true
+	if k := dd.Clicked(); k != "" && k != *t.active && t.activate(k) {
+		st.reveal = true
 	}
 }
 
@@ -792,7 +1043,11 @@ func (t *TabsW) moreMenu(hidden []MenuItem) *DropdownW {
 		if shad {
 			h = t.shadHeight() - 6
 		}
-		ib := IconButton(c, icon.More, t.loc.Tabs.More).Size(h, 16).NoHoverBg()
+		mi := icon.More
+		if t.moreIcon != nil {
+			mi = t.moreIcon
+		}
+		ib := IconButton(c, mi, t.loc.Tabs.More).Size(h, 16).NoHoverBg()
 		switch {
 		case t.vertical() && shad:
 			ib.n.ln.Margin = geom.Insets{Top: 2}
@@ -834,13 +1089,18 @@ func (t *TabsW) addButton() {
 		n.ln.Margin = geom.Insets{Left: 10, Right: 4}
 		n.ln.AlignSelf = layout.AlignCenter
 	default:
-		n.ln.Width, n.ln.Height = 40, 40
+		h := t.cardH()
+		n.ln.Width, n.ln.Height = h, h
 		n.ln.Margin.Left = 2
 		if t.vertical() {
 			n.ln.Margin = geom.Insets{Top: 2}
 		}
 	}
 	ia := c.interact(n, true, input.CursorPointer)
+	plus := icon.Plus
+	if t.addIcon != nil {
+		plus = t.addIcon
+	}
 	if ia.Clicked {
 		t.added = true
 		c.invalid = true
@@ -860,7 +1120,7 @@ func (t *TabsW) addButton() {
 				l.Fill(r, geom.Rad(th.Radius), theme.Fade(th.ItemHoverBg, float64(hov)))
 			}
 			col = theme.Lerp(th.TextTertiary, th.Text, hov)
-			drawIcon(l, icon.Plus, r.X+(r.W-16)/2, r.Y+(r.H-16)/2, 16, col)
+			drawIcon(l, plus, r.X+(r.W-16)/2, r.Y+(r.H-16)/2, 16, col)
 			if ia.FocusVisible {
 				drawFocusRing(l, th, r, geom.Rad(th.Radius))
 			}
@@ -869,7 +1129,7 @@ func (t *TabsW) addButton() {
 			col = theme.Lerp(th.TextSecondary, th.Primary.Base, hov)
 			rad := geom.Rad(3)
 			l.Stroke(r, rad, 1, theme.Lerp(th.Border, th.Primary.Base, hov))
-			drawIcon(l, icon.Plus, r.X+(r.W-12)/2, r.Y+(r.H-12)/2, 12, col)
+			drawIcon(l, plus, r.X+(r.W-12)/2, r.Y+(r.H-12)/2, 12, col)
 		default:
 			rad := geom.Radii{TL: th.RadiusLG, TR: th.RadiusLG}
 			if vert {
@@ -880,7 +1140,7 @@ func (t *TabsW) addButton() {
 			}
 			l.Fill(r, rad, tk.CardBg)
 			l.Stroke(r, rad, 1, th.BorderSecondary)
-			drawIcon(l, icon.Plus, r.X+(r.W-14)/2, r.Y+(r.H-14)/2, 14, col)
+			drawIcon(l, plus, r.X+(r.W-14)/2, r.Y+(r.H-14)/2, 14, col)
 		}
 		if ia.FocusVisible {
 			drawFocusRing(l, th, r, geom.Rad(th.RadiusSM))
@@ -915,10 +1175,9 @@ func (t *TabsW) tab(i int, it TabItem) *node {
 	if it.Disabled {
 		n.disabled = true
 	}
-	if ia.Clicked && !it.Disabled && *t.active != it.Key {
-		*t.active = it.Key
-		t.changed = true
-		c.invalid = true
+	if ia.Clicked && !it.Disabled {
+		t.clicked = it.Key
+		t.activate(it.Key)
 	}
 	active := it.Key == *t.active
 	closeBtn := t.closable && !it.NoClose
@@ -932,19 +1191,34 @@ func (t *TabsW) tab(i int, it TabItem) *node {
 		case bc:
 			return geom.Size{W: w + 40, H: tk.CardHeight}
 		case vert && t.card:
-			return geom.Size{W: w + 32, H: tk.CardHeight}
+			return geom.Size{W: w + 2*t.cardPadH(), H: t.cardH()}
 		case vert && el:
 			return geom.Size{W: w + 40, H: 40}
 		case vert:
 			return geom.Size{W: w + 48, H: st.LineHeight + 16}
 		case t.card:
-			return geom.Size{W: w + 32, H: tk.CardHeight}
+			return geom.Size{W: w + 2*t.cardPadH(), H: t.cardH()}
 		case el:
 			return geom.Size{W: w + 40, H: 40}
 		}
 		return geom.Size{W: w, H: st.LineHeight + 2*padV}
 	}
+	if t.stretch && !vert {
+		n.ln.Grow = 1
+	}
 	switch {
+	case shad && t.shadLine() && i > 0:
+		if vert {
+			n.ln.Margin.Top = 4 // gap-1
+		} else {
+			n.ln.Margin.Left = 4
+		}
+	case t.gutterSet && !shad && !bc && i > 0:
+		if vert {
+			n.ln.Margin.Top = t.gutter
+		} else {
+			n.ln.Margin.Left = t.gutter
+		}
 	case shad, bc:
 	case vert && t.card && i > 0:
 		n.ln.Margin.Top = 2
@@ -1014,18 +1288,27 @@ func (t *TabsW) tab(i int, it TabItem) *node {
 	place := t.physPlace()
 	card := t.card
 	cardSet := t.cardSet
+	shadLine := t.shadLine()
+	legacy := t.legacy
 	// drawShad paints a shadcn trigger: the active one is a background
 	// pill with shadow-sm (Card: the outline track's muted pill).
 	drawShad := func(l *paint.List, r geom.Rect) {
 		rad := geom.Rad(th.Radius)
 		a := c.Anim(n.id, "on", b2f(active), th.DurationFast)
-		if a > 0 {
+		if a > 0 && !shadLine {
 			l.Opacity(a)
 			if cardSet {
 				l.Fill(r, rad, th.SegmentedBg)
 			} else {
 				l.Shadows(r, rad, th.ShadowTertiary)
-				l.Fill(r, rad, th.SegmentedSelectedBg)
+				bg, border := tk.ItemSelectedBg, tk.ItemSelectedBorder
+				if legacy {
+					bg, border = th.SegmentedSelectedBg, theme.Color{}
+				}
+				l.Fill(r, rad, bg)
+				if border.A > 0 {
+					l.Stroke(r, rad, 1, border)
+				}
 			}
 			l.Pop()
 		}
@@ -1116,7 +1399,7 @@ func (t *TabsW) tab(i int, it TabItem) *node {
 	}
 	// Editable card: [label][close].
 	sz := size()
-	padH := float32(16)
+	padH := t.cardPadH()
 	gap := float32(8)
 	switch {
 	case shad:
@@ -1155,6 +1438,10 @@ func (t *TabsW) tab(i int, it TabItem) *node {
 			c.invalid = true
 		}
 		xid := x.id
+		xic := icon.Close
+		if t.removeIcon != nil {
+			xic = t.removeIcon
+		}
 		x.paint = func(l *paint.List, r geom.Rect) {
 			hov := c.Anim(xid, "hover", b2f(xia.Hovered), th.DurationFast)
 			if shad {
@@ -1166,7 +1453,7 @@ func (t *TabsW) tab(i int, it TabItem) *node {
 				if it.Disabled {
 					col = th.TextDisabled
 				}
-				drawIcon(l, icon.Close, r.X+2, r.Y+2, 12, col)
+				drawIcon(l, xic, r.X+2, r.Y+2, 12, col)
 				return
 			}
 			if el {
@@ -1178,14 +1465,14 @@ func (t *TabsW) tab(i int, it TabItem) *node {
 					l.Path(paint.NewPath().Circle(r.X+r.W/2, r.Y+r.H/2, 7), theme.Fade(th.TextTertiary, float64(hov)))
 				}
 				col := theme.Lerp(labelColor(), th.TextOnSolid, hov)
-				drawIcon(l, icon.Close, r.X+3, r.Y+3, 10, col)
+				drawIcon(l, xic, r.X+3, r.Y+3, 10, col)
 				return
 			}
 			col := theme.Lerp(th.TextTertiary, th.TextHeading, hov)
 			if it.Disabled {
 				col = th.TextDisabled
 			}
-			drawIcon(l, icon.Close, r.X+2, r.Y+2, 12, col)
+			drawIcon(l, xic, r.X+2, r.Y+2, 12, col)
 		}
 	})
 	return n

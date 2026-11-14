@@ -40,6 +40,10 @@ type CarouselW struct {
 	noLoop   bool
 	drag     bool
 	swipe    float32 // fraction of the slide size that commits a swipe
+	dotDur   bool    // DotDuration: the active dot fills over the autoplay interval
+	noPause  bool    // PauseOnHover(false)
+	cardK    float32 // CardScale (0: 0.83)
+	hoverTrg bool    // Trigger("hover"): hovering a dot selects its slide
 	th       *theme.Theme
 	tk       *theme.CarouselToken
 }
@@ -63,8 +67,14 @@ type carouselState struct {
 // Carousel adds a slideshow of n slides; slide(i) builds slide i.
 //
 // ConfigProvider.Defaults("Carousel", ...) keys: "autoplay"
-// (time.Duration), "dots" (bool), "arrows" (string), "dotPosition"
-// (string), "type" ("card"), "effect" ("fade"), "height" (float32).
+// (time.Duration), "dots" (bool), "arrows" (string), "dotPlacement"
+// ("top" | "bottom" | "start" | "end"; the deprecated "dotPosition" also
+// takes "left" | "right" | "outside"), "type" ("card"), "effect"
+// ("fade"), "height" (float32), "trigger" ("click" | "hover"),
+// "pauseOnHover" (bool).
+//
+// The index bound with Current is clamped to [0, n): an index past the
+// ends shows the first or last slide.
 func Carousel(c *Context, n int, slide func(i int)) *CarouselW {
 	w := &CarouselW{c: c, n: n, slide: slide, dots: true, dotPos: "bottom", height: 160, speed: 500 * time.Millisecond, th: c.ThemeFor(theme.CompCarousel)}
 	w.tk = &w.th.Components.Carousel
@@ -76,11 +86,50 @@ func Carousel(c *Context, n int, slide func(i int)) *CarouselW {
 	w.dots = Prop(c, "Carousel", "dots", w.dots)
 	w.arrows = Prop(c, "Carousel", "arrows", w.arrows)
 	w.dotPos = Prop(c, "Carousel", "dotPosition", w.dotPos)
+	if p := Prop(c, "Carousel", "dotPlacement", ""); p != "" {
+		w.DotPlacement(p)
+	}
 	w.height = Prop(c, "Carousel", "height", w.height)
 	w.fade = Prop(c, "Carousel", "effect", "") == "fade"
 	w.card = Prop(c, "Carousel", "type", "") == "card"
+	w.hoverTrg = Prop(c, "Carousel", "trigger", map[bool]string{true: "hover", false: "click"}[w.tk.DotHoverTrigger]) == "hover"
+	w.noPause = !Prop(c, "Carousel", "pauseOnHover", true)
 	return w
 }
+
+// DotPlacement puts the indicators at the "bottom" (default), "top",
+// "start" or "end" (Ant v6 dotPlacement; logical sides, mirrored in RTL).
+// "start" and "end" also make the slides move vertically, as in Ant.
+func (w *CarouselW) DotPlacement(p string) *CarouselW {
+	switch p {
+	case "start", "left":
+		w.dotPos, w.vertical = "left", true
+	case "end", "right":
+		w.dotPos, w.vertical = "right", true
+	case "top":
+		w.dotPos = "top"
+	default:
+		w.dotPos = "bottom"
+	}
+	return w
+}
+
+// DotDuration fills the active indicator over the autoplay interval, as a
+// progress bar (Ant autoplay.dotDuration).
+func (w *CarouselW) DotDuration(on bool) *CarouselW { w.dotDur = on; return w }
+
+// PauseOnHover(false) keeps autoplay running while the pointer is over
+// the carousel (default true; Ant / Element pause-on-hover). Keyboard
+// focus inside still pauses it (WAI-ARIA).
+func (w *CarouselW) PauseOnHover(on bool) *CarouselW { w.noPause = !on; return w }
+
+// CardScale sets the scale of the side cards of Card mode (Element
+// cards-scale, default 0.83).
+func (w *CarouselW) CardScale(k float32) *CarouselW { w.cardK = max(0.1, min(k, 1)); return w }
+
+// Trigger sets how the indicators select a slide: "click" (Ant) or
+// "hover" (Element's default). The theme picks the default.
+func (w *CarouselW) Trigger(t string) *CarouselW { w.hoverTrg = t == "hover"; return w }
 
 // Card shows three slides at once: the current one in the middle and its
 // neighbours scaled down and dimmed at the sides (Element type="card");
@@ -102,10 +151,20 @@ func (w *CarouselW) Vertical() *CarouselW { w.vertical, w.dotPos = true, "right"
 // Dots shows/hides the indicators.
 func (w *CarouselW) Dots(on bool) *CarouselW { w.dots = on; return w }
 
-// DotPosition: bottom, top, left, right, or outside (below the frame).
+// DotPosition: bottom, top, left, right, or outside (below the frame,
+// Element indicator-position="outside").
+//
+// Deprecated: use DotPlacement (and Dots / DotOutside for "outside").
 func (w *CarouselW) DotPosition(p string) *CarouselW { w.dotPos = p; return w }
 
-// Arrows: "always", "hover" or "never".
+// DotOutside puts the indicators under the frame, on the page (Element
+// indicator-position="outside").
+func (w *CarouselW) DotOutside() *CarouselW { w.dotPos = "outside"; return w }
+
+// Arrows: "always", "hover" or "never". The arrows sit ArrowOffset px
+// inside the frame (theme token CarouselToken.ArrowOffset); a negative
+// offset (shadcn's -left-12 is -48) puts them outside, which needs that
+// much free room beside the carousel or they are clipped by the parent.
 func (w *CarouselW) Arrows(mode string) *CarouselW { w.arrows = mode; return w }
 
 // Height sets the frame height.
@@ -157,6 +216,9 @@ func (w *CarouselW) Show() *Box {
 	}
 	if w.noLoop && (st.seq < 0 || st.seq >= w.n) {
 		st.seq = w.mod(st.seq) // without looping seq is the index itself
+	}
+	if w.cur != nil {
+		*w.cur = max(0, min(*w.cur, w.n-1)) // out of range: the nearest end
 	}
 	if w.cur != nil && w.mod(*w.cur) != w.mod(st.seq) {
 		// App changed the index: move the shortest way.
@@ -215,8 +277,13 @@ func (w *CarouselW) Show() *Box {
 	// off with the ReduceMotion preference. NoAnimations alone keeps it:
 	// slides then jump, and the advance is content, not decoration.
 	atEnd := w.noLoop && st.seq >= w.n-1
+	paused := hover && !w.noPause || st.focusIn || st.dragging
+	// dur is the DotDuration state: counting (the active dot fills and
+	// needs frames), or the fill shown when paused (0) or stopped at the
+	// end (1).
+	dur := carouselDur{since: st.since, counting: w.autoplay > 0 && w.n > 1 && !c.reduceMotion && !atEnd && !paused, atEnd: atEnd}
 	if w.autoplay > 0 && w.n > 1 && !c.reduceMotion && !atEnd {
-		if hover || st.focusIn || st.dragging {
+		if paused {
 			st.since = c.now
 		} else if c.now.Sub(st.since) >= w.autoplay {
 			goTo(st.seq + 1)
@@ -288,16 +355,20 @@ func (w *CarouselW) Show() *Box {
 		}
 		cur := w.mod(st.seq)
 		if w.dots && w.dotPos != "outside" {
-			w.indicators(cur, goTo, st.seq)
-		}
-		show := w.arrows == "always" || (w.arrows == "hover" && (hover || st.focusIn))
-		if show && w.n > 1 && !w.card {
-			w.arrow(true, w.noLoop && st.seq <= 0, func() { goTo(st.seq - 1) })
-			w.arrow(false, w.noLoop && st.seq >= w.n-1, func() { goTo(st.seq + 1) })
+			w.indicators(cur, goTo, st.seq, dur)
 		}
 	})
 	if w.dots && w.dotPos == "outside" {
-		c.body(outer.n, func() { w.indicators(w.mod(st.seq), goTo, st.seq) })
+		c.body(outer.n, func() { w.indicators(w.mod(st.seq), goTo, st.seq, dur) })
+	}
+	// The arrows sit in the outer box, so a negative ArrowOffset (shadcn's
+	// -left-12) can put them outside the clipped frame.
+	show := w.arrows == "always" || (w.arrows == "hover" && (hover || st.focusIn))
+	if show && w.n > 1 && !w.card {
+		c.body(outer.n, func() {
+			w.arrow(true, w.noLoop && st.seq <= 0, func() { goTo(st.seq - 1) })
+			w.arrow(false, w.noLoop && st.seq >= w.n-1, func() { goTo(st.seq + 1) })
+		})
 	}
 	if w.cur != nil {
 		*w.cur = w.mod(st.seq)
@@ -388,7 +459,10 @@ func (w *CarouselW) swipeDrag(box *Box, st *carouselState, size float32, goTo fu
 func (w *CarouselW) cards(pos, size float32, seq int, goTo func(int)) {
 	c, tk := w.c, w.tk
 	loc := c.Locale()
-	const k = 0.83 // side card scale
+	k := float32(0.83) // side card scale (Element cards-scale)
+	if w.cardK > 0 {
+		k = w.cardK
+	}
 	cw := size / 2
 	type card struct {
 		i   int
@@ -469,7 +543,13 @@ func (w *CarouselW) cards(pos, size float32, seq int, goTo func(int)) {
 
 // indicators adds the dot/line strip; clicking (Element: hovering also
 // works with trigger=click only) selects a slide.
-func (w *CarouselW) indicators(cur int, goTo func(int), seq int) {
+// carouselDur is the autoplay timer state the DotDuration fill shows.
+type carouselDur struct {
+	since           time.Time
+	counting, atEnd bool
+}
+
+func (w *CarouselW) indicators(cur int, goTo func(int), seq int, dur carouselDur) {
 	c, th, tk := w.c, w.th, w.tk
 	el := th.Flavor == theme.Element
 	vert := w.dotPos == "left" || w.dotPos == "right"
@@ -526,7 +606,7 @@ func (w *CarouselW) indicators(cur int, goTo func(int), seq int) {
 			ia := c.interact(n, true, input.CursorPointer)
 			n.setRole(a11y.RoleTab).setName(loc.Slide(i+1, w.n)).setState(a11y.Selectable).stateIf(active, a11y.Selected|a11y.Current)
 			nodes = append(nodes, n)
-			if ia.Clicked && !active {
+			if (ia.Clicked || w.hoverTrg && ia.Hovered && !n.disabled) && !active {
 				d := i - cur
 				goTo(seq + d)
 			}
@@ -535,6 +615,23 @@ func (w *CarouselW) indicators(cur int, goTo func(int), seq int) {
 			}
 			hov := ia.Hovered
 			outside := w.dotPos == "outside"
+			// DotDuration: the active dot fills over the autoplay interval.
+			prog := float32(-1)
+			if active && w.dotDur && w.autoplay > 0 && w.n > 1 {
+				switch {
+				case dur.atEnd:
+					prog = 1 // stopped on the last slide: full
+				case !dur.counting:
+					prog = 0 // paused (hover, focus, drag, ReduceMotion)
+				default:
+					prog = min(1, float32(c.now.Sub(dur.since).Seconds()/w.autoplay.Seconds()))
+					// Frames only while the fill grows (the autoplay timer
+					// wakes the next page turn).
+					if prog < 1 && !c.still() {
+						c.animating = true
+					}
+				}
+			}
 			n.paint = func(l *paint.List, r geom.Rect) {
 				in := r.Inset(n.ln.Padding)
 				var col theme.Color
@@ -551,7 +648,26 @@ func (w *CarouselW) indicators(cur int, goTo func(int), seq int) {
 					col = tk.DotColor
 				}
 				rad := geom.Rad(min(tk.DotRadius, min(in.W, in.H)/2))
-				l.Fill(in, rad, col)
+				if prog >= 0 {
+					// Track in the idle color, the elapsed part in the active one.
+					idle := tk.DotColor
+					if outside {
+						idle = tk.DotOutsideColor
+					}
+					l.Fill(in, rad, idle)
+					f := in
+					if vert {
+						f.H *= prog
+					} else {
+						f.W *= prog
+						if c.IsRTL() {
+							f.X = in.Right() - f.W
+						}
+					}
+					l.Fill(f, rad, col)
+				} else {
+					l.Fill(in, rad, col)
+				}
 				if !outside {
 					// The dots are light, for photos; the ring keeps them
 					// visible on light slides.
@@ -580,22 +696,22 @@ func (w *CarouselW) arrow(left, disabled bool, fn func()) {
 	c, th, tk := w.c, w.th, w.tk
 	el := th.Flavor == theme.Element
 	n := c.add("carousel-arrow", map[bool]string{true: c.Locale().Carousel.Prev, false: c.Locale().Carousel.Next}[left])
-	size := tk.ArrowSize
+	size, off := tk.ArrowSize, tk.ArrowOffset
 	n.ln.Width, n.ln.Height = size, size
 	if w.vertical {
-		if left {
-			flexbox.Apply(&n.ln.Style, layout.Abs(layout.Unset, 16, layout.Unset, layout.Unset))
-		} else {
-			flexbox.Apply(&n.ln.Style, layout.Abs(layout.Unset, layout.Unset, layout.Unset, 16))
-		}
+		x := float32(0)
 		if r, ok := c.rects[c.cur.id]; ok {
-			n.ln.Pos.Left = (r.W - size) / 2
+			x = (r.W - size) / 2
 		}
-		n.ln.AlignSelf = layout.AlignCenter
+		if left {
+			flexbox.Apply(&n.ln.Style, layout.Abs(x, off, layout.Unset, layout.Unset))
+		} else {
+			flexbox.Apply(&n.ln.Style, layout.Abs(x, w.height-off-size, layout.Unset, layout.Unset))
+		}
 	} else if left {
-		flexbox.Apply(&n.ln.Style, layout.Abs(16, (w.height-size)/2, layout.Unset, layout.Unset))
+		flexbox.Apply(&n.ln.Style, layout.Abs(off, (w.height-size)/2, layout.Unset, layout.Unset))
 	} else {
-		flexbox.Apply(&n.ln.Style, layout.Abs(layout.Unset, (w.height-size)/2, 16, layout.Unset))
+		flexbox.Apply(&n.ln.Style, layout.Abs(layout.Unset, (w.height-size)/2, off, layout.Unset))
 	}
 	n.ln.AlignSelf = layout.AlignCenter
 	if disabled {
@@ -649,6 +765,6 @@ func (w *CarouselW) arrow(left, disabled bool, fn func()) {
 		if bg.A > 0 {
 			l.Path(paint.NewPath().Circle(r.X+r.W/2, r.Y+r.H/2, r.W/2), theme.Fade(bg, float64(op)))
 		}
-		c.paintIcon(l, ic, r.Inset(geom.All(4)), theme.Fade(col, float64(op)), 0)
+		c.paintIcon(l, ic, r.Inset(geom.All(tk.ArrowIconInset)), theme.Fade(col, float64(op)), 0)
 	}
 }

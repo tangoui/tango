@@ -5,8 +5,10 @@ package ui
 // optional virtualization (only items near the viewport are built).
 
 import (
-	"github.com/tangoui/tango/ui/a11y"
+	"slices"
 	"sort"
+
+	"github.com/tangoui/tango/ui/a11y"
 
 	"github.com/tangoui/tango/ui/layout"
 )
@@ -23,6 +25,7 @@ type fillMasonryState struct {
 	top    []float32
 	colH   []float32
 	perCol [][]int32
+	shown  []int // assignment reported by the last Show (LayoutChanged)
 }
 
 type fillMasonryKey struct {
@@ -51,9 +54,10 @@ type MasonryW struct {
 	overscan float32
 	st       *fillMasonryState
 
-	assign []int
-	sb     *ScrollBox
-	built  int
+	assign  []int
+	changed bool
+	sb      *ScrollBox
+	built   int
 }
 
 // Masonry lays out n items built by render(i) in columns, each item going
@@ -117,6 +121,11 @@ func (w *MasonryW) Virtual(height float32) *MasonryW { w.virtual, w.viewH = true
 
 // Assignment returns the column of every item (after Show).
 func (w *MasonryW) Assignment() []int { return w.assign }
+
+// LayoutChanged reports that Show placed some item in another column
+// than the previous Show, or the item count changed (Ant onLayoutChange;
+// read the columns with Assignment).
+func (w *MasonryW) LayoutChanged() bool { return w.changed }
 
 // Built returns how many items were built by Show (virtual mode builds
 // only the visible ones).
@@ -221,6 +230,10 @@ func (w *MasonryW) Show() *MasonryW {
 	}
 	hs, top, colH := st.hs, st.top, st.colH
 	w.assign = st.col
+	if !slices.Equal(st.shown, st.col) {
+		w.changed = st.shown != nil || len(st.col) > 0
+		st.shown = append(st.shown[:0], st.col...)
+	}
 	var lo, hi float64 = -1, -1 // visible content range (virtual)
 	content := func() {
 		Row(c, func() {

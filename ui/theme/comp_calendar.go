@@ -32,6 +32,10 @@ type CalendarToken struct {
 	DayTodayBorder Color `contrast:"nontext:FullBg"` // drawn unless DayTodayBg is set
 	DayTodayBg     Color // zero: none
 	DayOutColor    Color // zero: ItemOutColor
+
+	// Week numbers (Calendar.ShowWeek).
+	WeekColumnWidth float32
+	WeekNumberColor Color `contrast:"text:FullBg"`
 }
 
 func deriveCalendar(t *Theme) CalendarToken {
@@ -44,6 +48,8 @@ func deriveCalendar(t *Theme) CalendarToken {
 		ItemHoverBg: t.ItemHoverBg, ItemDisabledBg: t.BgContainerDisabled, ItemBorderColor: t.Split,
 		DayRadius: t.RadiusSM, DayActiveBg: t.Primary.Base, DayActiveColor: t.TextOnPrimary,
 		DayHoverBg: t.ItemHoverBg, DayTodayBorder: t.Primary.Base,
+		// antd date-picker/style: cellWidth = controlHeightSM*1.5 (36).
+		WeekColumnWidth: t.ControlHeightSM * 1.5, WeekNumberColor: t.TextTertiary,
 	}
 	switch t.Flavor {
 	case Element:

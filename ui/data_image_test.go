@@ -60,8 +60,8 @@ func TestImagePreviewStateMachine(t *testing.T) {
 		t.Fatalf("zoom in: %v", st.scale)
 	}
 	must("缩小")
-	must("缩小")
-	if st.scale >= 1 {
+	must("缩小") // disabled at the minimum (Ant minScale 1)
+	if st.scale != 1 {
 		t.Fatalf("zoom out: %v", st.scale)
 	}
 	must("向右旋转")
@@ -166,6 +166,7 @@ func TestImagePreviewWheelZoomAboutPointer(t *testing.T) {
 	if gx, gy := (p.X-r1.X)/r1.W, (p.Y-r1.Y)/r1.H; math.Abs(float64(gx-fx)) > 0.01 || math.Abs(float64(gy-fy)) > 0.01 {
 		t.Fatalf("zoom not about pointer: %.3f,%.3f vs %.3f,%.3f", gx, gy, fx, fy)
 	}
+	imgMinScale, imgMaxScale, _ := w.scales()
 	for i := 0; i < 40; i++ {
 		d.Scroll(p, -200)
 	}
