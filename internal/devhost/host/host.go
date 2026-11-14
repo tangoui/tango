@@ -228,13 +228,20 @@ func (h *Host) serveConn(c *devhost.Conn) {
 // ---- tan dev control connection ----
 
 func (h *Host) serveCtl(c *devhost.Conn) {
-	if err := c.Send(devhost.Welcome{}); err != nil {
-		c.Close()
-		return
-	}
+	// Register the connection and send the Welcome under ctlMu: tan dev
+	// goes on as soon as it has the Welcome, so a notification sent right
+	// after (Swapped for a worker that was just starting) must find the
+	// connection, and none may precede the Welcome (notify reads h.ctl
+	// under the same lock).
 	h.ctlMu.Lock()
 	if h.ctl != nil {
 		h.ctl.Close()
+	}
+	if err := c.Send(devhost.Welcome{}); err != nil {
+		h.ctl = nil
+		h.ctlMu.Unlock()
+		c.Close()
+		return
 	}
 	h.ctl = c
 	h.ctlMu.Unlock()
