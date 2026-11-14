@@ -48,6 +48,9 @@ var selftest struct {
 }
 
 func init() {
+	if !testHooks { // testhooks_on.go: not in release builds
+		return
+	}
 	v := os.Getenv("TANGO_CANVAS_IME_SELFTEST")
 	if v == "" {
 		return

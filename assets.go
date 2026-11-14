@@ -3,6 +3,7 @@ package tango
 // The asset origin: requests the core serves from Options.Assets.
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -106,6 +107,23 @@ func (c *redirectCatcher) Flush() {
 	if f, ok := c.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
+}
+
+// FlushError lets http.ResponseController.Flush report the wrapped
+// writer's error (for example context.Canceled once WebKit stopped the
+// task): without it the controller would find Flush above first and
+// return nil. Nothing is flushed for a swallowed redirect.
+func (c *redirectCatcher) FlushError() error {
+	if c.next != nil {
+		return nil
+	}
+	err := http.NewResponseController(c.ResponseWriter).Flush()
+	if errors.Is(err, http.ErrNotSupported) {
+		// A writer that cannot flush (e.g. the darwin download sink):
+		// flushing stays a no-op, as with Flush above.
+		return nil
+	}
+	return err
 }
 
 func (c *redirectCatcher) Unwrap() http.ResponseWriter { return c.ResponseWriter }

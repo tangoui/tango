@@ -44,7 +44,7 @@ mux.HandleFunc("/api/thumb", serveThumbnail) // 动态生成的内容
 app := tango.New(tango.Options{Assets: mux})
 ```
 
-注意 `ServeHTTP` 可能在主线程之外的任意线程上被调用，Handler 要并发安全，也不要在里面等主线程。
+注意 `ServeHTTP` 可能在主线程之外的任意线程上被调用（macOS/iOS 上每个请求在自己的 goroutine 里，可能并发），Handler 要并发安全。要访问只能在主线程用的状态，用 `app.Post` 投递过去或加锁；`tango.Await` 也能用，但它阻塞到主线程执行完，这个请求的响应也跟着等，主线程忙时页面加载就慢，所以尽量别在 Handler 里等主线程。
 
 ## 展示用户文件：service/fileserver
 

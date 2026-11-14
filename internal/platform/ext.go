@@ -436,3 +436,37 @@ type ContrastPreference interface {
 // ContrastPreference.HighContrast. Next to AppReduceMotionChanged, outside
 // the desktop (1...) and mobile (100...) ranges.
 const AppContrastChanged AppEventKind = 201
+
+// ---------------------------------------------------------------------------
+// IPC fast lanes (optional on Surface; core Host)
+
+// BinaryLane is implemented by surfaces whose page can use IPC fast lanes:
+// side channels that carry stream byte frames as binary packets next to
+// the message channel (ipc package comment, "Fast lanes"; lane names and
+// state in internal/lane). Both methods are called from any goroutine
+// (ipc's stream writers), never only the main thread, and must be safe
+// there.
+type BinaryLane interface {
+	// LaneCaps returns the lanes the surface's current page can use, by
+	// name: "down:scheme" / "up:post" when the asset scheme handler can
+	// stream responses / read request bodies, platform lanes such as
+	// "down:android" or "down:shm" when the backend has them. Nil or empty
+	// means none. The core offers them to the page only when the page
+	// comes from the asset origin.
+	LaneCaps() []string
+	// SendLanePacket sends one packet to the page on the backend's own
+	// downstream lane (down:android, down:shm; never called for
+	// down:scheme, which the core serves). It must not block: false means
+	// the packet was not taken (the lane is busy or gone) and the frames
+	// go as messages instead. On true the backend owns p; on false it must
+	// neither keep nor modify it.
+	SendLanePacket(p []byte) bool
+}
+
+// LaneHost is implemented by the core's Host. Backends type-assert their
+// Host to LaneHost to deliver packets their upstream lanes (up:android,
+// up:shm) received from surface id's page at origin. OnLanePacket may be
+// called from any goroutine and does not keep p.
+type LaneHost interface {
+	OnLanePacket(id SurfaceID, origin string, p []byte)
+}

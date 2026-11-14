@@ -1,0 +1,9 @@
+{
+  "name": "Tango Duplex",
+  "id": "dev.tango.duplexios",
+  "version": "0.1.0",
+  "frontend": {
+    "dir": "web",
+    "dist": "."
+  }
+}

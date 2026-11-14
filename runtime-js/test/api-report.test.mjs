@@ -62,11 +62,13 @@ test("etc/runtime.api.md is up to date (npm run api:update if the change is inte
 
 test("the report lists namespace members with their signatures", () => {
   const md = readFileSync(join(root, "etc/runtime.api.md"), "utf8");
-  assert.match(md, /declare namespace Window \{\n\s+export \{[^}]*\bsetTitle,/);
+  // API Extractor renames a namespace that shares its name with a global of
+  // the DOM lib (Window, Clipboard, ...) to Name_2 and exports it "as Name".
+  assert.match(md, /declare namespace Window(?:_\d+)? \{\n\s+export \{[^}]*\bsetTitle,/);
   assert.match(md, /^function setTitle\(title: string\): Promise<void>;$/m);
   const index = readFileSync(join(root, "src/index.ts"), "utf8");
   for (const [, ns] of index.matchAll(/^export \* as (\w+) from/gm)) {
-    assert.match(md, new RegExp(`^declare namespace ${ns} \\{`, "m"), `namespace ${ns} missing from the report`);
+    assert.match(md, new RegExp(`^declare namespace ${ns}(?:_\\d+)? \\{`, "m"), `namespace ${ns} missing from the report`);
   }
 });
 

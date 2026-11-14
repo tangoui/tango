@@ -50,6 +50,8 @@ func main() {
 		}
 		r.HandleMessage(s, m)
 	})
+	// Byte frames on IPC fast lanes, when the page gets them.
+	app.OnBinary(func(s *tango.Surface, gen uint64, p []byte) { r.HandleBinarySession(s, gen, p) })
 	jsapi.Install(app, r, jsapi.Options{
 		Allow: jsapi.ClipboardRead | jsapi.ClipboardWrite | jsapi.Dialogs | jsapi.OpenURL | jsapi.AppControl,
 	})

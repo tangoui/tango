@@ -64,21 +64,24 @@ func (f *fakeSink) finish()       { f.ops = append(f.ops, "finish") }
 
 func TestAssetWriterBuffered(t *testing.T) {
 	s := &fakeSink{}
-	w := newAssetWriter(s, "/index.html")
+	w := newAssetWriter(context.Background(), s, inlineExec, "/index.html")
 	io.WriteString(w, "<p>hi</p>")
 	w.finish()
 	want := []string{"respond OK text/html; charset=utf-8 len=9", "data <p>hi</p>", "finish"}
 	if !reflect.DeepEqual(s.ops, want) {
 		t.Fatalf("ops %q, want %q", s.ops, want)
 	}
-	if _, err := w.Write([]byte("x")); !errors.Is(err, errResponseDone) {
+	if _, err := w.Write([]byte("x")); !errors.Is(err, platform.ErrResponseFinished) {
 		t.Fatalf("write after finish: %v", err)
+	}
+	if err := w.FlushError(); !errors.Is(err, platform.ErrResponseFinished) {
+		t.Fatalf("flush after finish: %v", err)
 	}
 }
 
 func TestAssetWriterStreaming(t *testing.T) {
 	s := &fakeSink{}
-	w := newAssetWriter(s, "/s")
+	w := newAssetWriter(context.Background(), s, inlineExec, "/s")
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusAccepted)
 	w.WriteHeader(http.StatusTeapot) // ignored: status already set
@@ -95,7 +98,7 @@ func TestAssetWriterStreaming(t *testing.T) {
 
 func TestAssetWriterLargeWritesStream(t *testing.T) {
 	s := &fakeSink{}
-	w := newAssetWriter(s, "/big.bin")
+	w := newAssetWriter(context.Background(), s, inlineExec, "/big.bin")
 	w.Write(make([]byte, streamChunk+1))
 	if len(s.ops) != 2 {
 		t.Fatalf("expected respond+data before finish, got %d ops", len(s.ops))
@@ -104,7 +107,7 @@ func TestAssetWriterLargeWritesStream(t *testing.T) {
 
 func TestAssetWriterNotFoundAndSniff(t *testing.T) {
 	s := &fakeSink{}
-	w := newAssetWriter(s, "/missing")
+	w := newAssetWriter(context.Background(), s, inlineExec, "/missing")
 	http.NotFound(w, &http.Request{})
 	w.finish()
 	if !strings.HasPrefix(s.ops[0], "respond Not Found text/plain") {
@@ -112,7 +115,7 @@ func TestAssetWriterNotFoundAndSniff(t *testing.T) {
 	}
 
 	s = &fakeSink{}
-	w = newAssetWriter(s, "/noext")
+	w = newAssetWriter(context.Background(), s, inlineExec, "/noext")
 	io.WriteString(w, "<!doctype html><html></html>")
 	w.finish()
 	if !strings.HasPrefix(s.ops[0], "respond OK text/html") {
@@ -120,7 +123,7 @@ func TestAssetWriterNotFoundAndSniff(t *testing.T) {
 	}
 
 	s = &fakeSink{}
-	w = newAssetWriter(s, "/empty")
+	w = newAssetWriter(context.Background(), s, inlineExec, "/empty")
 	w.WriteHeader(http.StatusNoContent)
 	w.finish()
 	if s.ops[0] != "respond No Content  len=" {
@@ -130,7 +133,7 @@ func TestAssetWriterNotFoundAndSniff(t *testing.T) {
 
 func TestAssetWriterStopped(t *testing.T) {
 	s := &fakeSink{}
-	w := newAssetWriter(s, "/x")
+	w := newAssetWriter(context.Background(), s, inlineExec, "/x")
 	io.WriteString(w, "a")
 	w.stop()
 	if _, err := w.Write([]byte("b")); !errors.Is(err, context.Canceled) {

@@ -1,6 +1,8 @@
 package tango
 
 import (
+	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -129,5 +131,79 @@ func TestServePostRedirectBecomesGet(t *testing.T) {
 	serveFollowingRedirects(h, rec, httptest.NewRequest("POST", "tango://app/submit", nil))
 	if rec.Body.String() != "ok" || len(methods) != 2 || methods[1] != "GET" {
 		t.Fatalf("methods=%v body=%q", methods, rec.Body.String())
+	}
+}
+
+// flushErrWriter is a ResponseWriter whose FlushError fails, like the
+// macOS/iOS asset writer after WebKit stopped the task.
+type flushErrWriter struct {
+	*httptest.ResponseRecorder
+	err     error
+	flushed int
+}
+
+func (w *flushErrWriter) FlushError() error { w.flushed++; return w.err }
+
+// A handler behind the redirect follower sees the wrapped writer's flush
+// error through http.ResponseController; the old Flush keeps working, and
+// a swallowed redirect flushes nothing.
+func TestRedirectCatcherFlushError(t *testing.T) {
+	under := &flushErrWriter{ResponseRecorder: httptest.NewRecorder(), err: context.Canceled}
+	var got error
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/old" {
+			http.Redirect(w, r, "/new", http.StatusFound)
+			if err := http.NewResponseController(w).Flush(); err != nil {
+				t.Errorf("flush of a swallowed redirect: %v", err)
+			}
+			return
+		}
+		io.WriteString(w, "chunk")
+		got = http.NewResponseController(w).Flush()
+		w.(http.Flusher).Flush() // the plain Flusher still works
+	})
+	serveFollowingRedirects(h, under, httptest.NewRequest("GET", "tango://app/old", nil))
+	if !errors.Is(got, context.Canceled) {
+		t.Fatalf("ResponseController.Flush = %v, want context.Canceled", got)
+	}
+	if under.flushed != 1 {
+		t.Fatalf("underlying FlushError called %d times, want 1 (not for the swallowed redirect)", under.flushed)
+	}
+	if !under.ResponseRecorder.Flushed {
+		t.Fatal("plain Flush did not reach the underlying writer")
+	}
+}
+
+// plainWriter can neither flush nor unwrap, like the darwin download sink
+// (copyAsset's fileSink).
+type plainWriter struct {
+	h    http.Header
+	body strings.Builder
+}
+
+func (w *plainWriter) Header() http.Header         { return w.h }
+func (w *plainWriter) Write(p []byte) (int, error) { return w.body.Write(p) }
+func (w *plainWriter) WriteHeader(int)             {}
+
+// Behind the redirect follower, flushing a writer that cannot flush stays
+// a no-op: ResponseController.Flush returns nil, not http.ErrNotSupported,
+// so a handler that stops on a flush error does not cut a download short.
+func TestRedirectCatcherFlushUnsupported(t *testing.T) {
+	under := &plainWriter{h: http.Header{}}
+	var got error
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "part1")
+		got = http.NewResponseController(w).Flush()
+		if got != nil {
+			return
+		}
+		io.WriteString(w, "part2")
+	})
+	serveFollowingRedirects(h, under, httptest.NewRequest("GET", "tango://app/file", nil))
+	if got != nil {
+		t.Fatalf("ResponseController.Flush = %v, want nil", got)
+	}
+	if under.body.String() != "part1part2" {
+		t.Fatalf("body %q, want the whole file", under.body.String())
 	}
 }

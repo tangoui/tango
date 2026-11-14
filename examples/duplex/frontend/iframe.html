@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Tango Duplex subframe</title>
+</head>
+<body>
+<!-- A same-origin subframe for internal/platform/darwin's TestLaneSubframeAccess:
+     it runs the script passed in its URL fragment. The runtime is not injected
+     into subframes, so window.tango is undefined here. -->
+<script>
+if (location.hash.length > 1) (0, eval)(decodeURIComponent(location.hash.slice(1)));
+</script>
+</body>
+</html>

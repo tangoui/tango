@@ -1,8 +1,9 @@
 // @tangoui/runtime: calls, events and streams between a Tango page and Go.
 //
-//   import { call, on, emit, stream } from "@tangoui/runtime";
+//   import { call, on, emit, stream, socket } from "@tangoui/runtime";
 //   const greeting = await call<string>("Greeter.Hello", "world");
 //   for await (const line of stream<string>("Logs.Tail")) console.log(line);
+//   const ws = socket("Chat.Join"); ws.onmessage = (e) => console.log(e.data);
 //
 // System capabilities (served by the Go package jsapi) are grouped in
 // namespaces; see docs/runtime-api.md:
@@ -15,16 +16,27 @@
 // package and the injected IIFE (window.tango) can be used together.
 
 import { getClient, type TangoStream, type StreamHandler } from "./client.js";
+import type { TangoSocket } from "./socket.js";
+// Registers the down:scheme and up:post fast lanes. Imports are evaluated
+// before this module's body, so they are registered before the eager
+// getClient() below (and in the IIFE, which bundles this entry).
+import "./lanes/scheme.js";
+
+export { TangoSocket } from "./socket.js";
 
 export {
-  ACK_EVERY,
-  WINDOW,
+  PROTO_VERSION,
+  DEFAULT_WINDOW_BYTES,
+  FRAME_OVERHEAD,
+  MAX_FRAME_BYTES,
+  GAP_TIMEOUT_MS,
   TangoError,
   type ErrorCode,
   createClient,
   getClient,
   type Bridge,
   type Client,
+  type ClientOptions,
   type TangoStream,
   type StreamHandler,
 } from "./client.js";
@@ -62,9 +74,17 @@ export function emit(name: string, data?: unknown): void {
   getClient().emit(name, data);
 }
 
-/** Opens a stream served by Router.HandleStream. */
+/** Opens a stream served by Router.HandleDuplex (both directions) or
+ * Router.HandleStream (Go sends only). */
 export function stream<T = unknown>(method: string, ...args: unknown[]): TangoStream<T> {
   return getClient().stream<T>(method, ...args);
+}
+
+/** Opens a stream served by Router.HandleDuplex (or HandleStream) as a
+ * WebSocket-like TangoSocket (send() while CONNECTING is queued instead of
+ * throwing). */
+export function socket(method: string, ...args: unknown[]): TangoSocket {
+  return getClient().socket(method, ...args);
 }
 
 /** Handles streams Go opens with Router.OpenStream. Returns unregister. */
@@ -80,6 +100,13 @@ export function onRaw(fn: (msg: string) => void): () => void {
 /** Sends a raw message to Go (App.OnMessage). */
 export function postRaw(msg: string): void {
   getClient().postRaw(msg);
+}
+
+/** The fast lanes the page uses: the name of the ready downstream and
+ * upstream lane (e.g. "down:scheme", "up:post"), or "fallback" when byte
+ * frames in that direction go on the message channel. For diagnostics. */
+export function lanes(): { down: string; up: string } {
+  return getClient().lanes();
 }
 
 // Start eagerly inside a Tango surface so the hello handshake and buffered

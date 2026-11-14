@@ -247,8 +247,12 @@ void tg_page_register(TGPage *p) { pages[@(p.sid)] = p; }
 @end
 
 // ---------------------------------------------------------------------------
-// tango:// scheme handler. WebKit calls it on the main thread; the Go side
-// answers synchronously through tg_task_*.
+// tango:// scheme handler. WebKit calls it on the main thread. Go
+// (scheme.go) runs the request's handler on a goroutine; the response is
+// queued in Go and handed to the task on the main thread (tg_task_kick ->
+// tangoIOSTaskDrain -> tg_task_respond / _data / _finish). tasks is touched
+// on the main thread only, so a task WebKit stopped (or that finished) is
+// never called again.
 
 @interface TGSchemeHandler : NSObject <WKURLSchemeHandler>
 @end
@@ -274,6 +278,56 @@ static NSData *requestBody(NSURLRequest *r) {
 	return d;
 }
 
+// Streaming probe (test hook). With TANGO_SCHEME_PROBE=1 in the
+// environment (simctl: SIMCTL_CHILD_TANGO_SCHEME_PROBE=1), GET
+// /__tango/probe/stream is answered here, without Host.ServeAsset: the
+// response head and a first 1 KiB chunk at once, then one more 1 KiB chunk
+// every 200 ms (8 in all), then didFinish. A page that records when each
+// chunk reaches its fetch() ReadableStream shows whether WebKit delivers
+// the didReceiveData: calls incrementally (examples/duplex-ios,
+// scripts/smoke.sh ios-probe). The chunks come from an NSTimer on the main
+// run loop in the common modes, so they are sent on the main thread and
+// also while UIKit tracks a touch or Tango runs a nested run loop. Without
+// the variable nothing here runs.
+
+static BOOL schemeProbe(void) {
+#ifndef TANGO_TEST_HOOKS
+	return NO; // compiled in only with the self-test hooks (testhooks_on.go)
+#else
+	static BOOL on;
+	static dispatch_once_t once;
+	dispatch_once(&once, ^{
+		const char *v = getenv("TANGO_SCHEME_PROBE");
+		on = v && strcmp(v, "1") == 0;
+	});
+	return on;
+#endif
+}
+
+// serveProbe streams the probe response to task h (already in tasks). Once
+// WebKit stopped the task (stopURLSchemeTask: removed it from tasks)
+// nothing more is sent.
+static void serveProbe(uint64_t h) {
+	enum { probeChunks = 8, probeChunk = 1024 };
+	static uint8_t chunk[probeChunk];
+	for (int i = 0; i < probeChunk; i++) chunk[i] = (uint8_t)i;
+	tg_task_respond(h, 200, "Content-Type: application/octet-stream\nCache-Control: no-store\nX-Content-Type-Options: nosniff\n");
+	tg_task_data(h, chunk, probeChunk);
+	__block int sent = 1;
+	NSTimer *timer = [NSTimer timerWithTimeInterval:0.2 repeats:YES block:^(NSTimer *t) {
+		if (!tasks[@(h)]) { // stopped by WebKit
+			[t invalidate];
+			return;
+		}
+		tg_task_data(h, chunk, probeChunk);
+		if (++sent == probeChunks) {
+			[t invalidate];
+			tg_task_finish(h);
+		}
+	}];
+	[NSRunLoop.mainRunLoop addTimer:timer forMode:NSRunLoopCommonModes];
+}
+
 @implementation TGSchemeHandler
 
 - (void)webView:(WKWebView *)webView startURLSchemeTask:(id<WKURLSchemeTask>)task {
@@ -281,6 +335,10 @@ static NSData *requestBody(NSURLRequest *r) {
 	uint64_t h = ++lastTask;
 	tasks[@(h)] = task;
 	[taskIDs setObject:@(h) forKey:task];
+	if (schemeProbe() && [task.request.URL.path isEqualToString:@"/__tango/probe/stream"]) {
+		serveProbe(h);
+		return;
+	}
 
 	uint64_t sid = 0;
 	for (TGPage *p in pages.allValues) {
@@ -319,11 +377,9 @@ static NSData *requestBody(NSURLRequest *r) {
 
 @end
 
-void tg_task_respond(uint64_t h, int status, const char *headers) {
-	id<WKURLSchemeTask> task = tasks[@(h)];
-	if (!task) return;
+static void taskRespond(id<WKURLSchemeTask> task, int status, NSString *headers) {
 	NSMutableDictionary *fields = [NSMutableDictionary dictionary];
-	for (NSString *line in [str(headers) componentsSeparatedByString:@"\n"]) {
+	for (NSString *line in [headers componentsSeparatedByString:@"\n"]) {
 		NSRange c = [line rangeOfString:@": "];
 		if (c.location == NSNotFound) continue;
 		fields[[line substringToIndex:c.location]] = [line substringFromIndex:c.location + 2];
@@ -333,17 +389,49 @@ void tg_task_respond(uint64_t h, int status, const char *headers) {
 	[task didReceiveResponse:resp];
 }
 
+static void taskFinish(uint64_t h, id<WKURLSchemeTask> task) {
+	[task didFinish];
+	[tasks removeObjectForKey:@(h)];
+	[taskIDs removeObjectForKey:task];
+}
+
+void tg_task_respond(uint64_t h, int status, const char *headers) {
+	id<WKURLSchemeTask> task = tasks[@(h)];
+	if (task) taskRespond(task, status, str(headers));
+}
+
 void tg_task_data(uint64_t h, const void *p, size_t n) {
 	id<WKURLSchemeTask> task = tasks[@(h)];
-	if (task && n > 0) [task didReceiveData:[NSData dataWithBytes:p length:n]];
+	if (task && n > 0) [task didReceiveData:[[NSData alloc] initWithBytes:p length:n]];
 }
 
 void tg_task_finish(uint64_t h) {
 	id<WKURLSchemeTask> task = tasks[@(h)];
-	if (!task) return;
-	[task didFinish];
-	[tasks removeObjectForKey:@(h)];
-	[taskIDs removeObjectForKey:task];
+	if (task) taskFinish(h, task);
+}
+
+// tg_task_kick: see bridge.h. The block goes on the main run loop in the
+// common modes, like mobile.m's onMain, so it also runs while UIKit tracks
+// a touch and inside nested run loops (tg_step: AwaitAsync on the main
+// thread) — blocks on the main dispatch queue would stall there, and a
+// wait that needs a tango:// response would never end. The block only says
+// "drain this task": the response's order is kept by the Go writer's own
+// queue (scheme_writer.go), not by the order in which the run loop runs
+// blocks, which is not strict (CFRunLoop detaches its block list for a
+// pass, so a nested run loop started by one block runs later blocks before
+// the rest of that pass). Called on Go threads, which have no autorelease
+// pool of their own; the pool keeps anything autoreleased here from living
+// as long as the thread. No bytes cross this call: the drain hands them
+// to tg_task_data on the main thread, which copies them.
+void tg_task_kick(uint64_t h) {
+	@autoreleasepool {
+		CFRunLoopPerformBlock(CFRunLoopGetMain(), kCFRunLoopCommonModes, ^{
+			@autoreleasepool {
+				tangoIOSTaskDrain(h);
+			}
+		});
+		CFRunLoopWakeUp(CFRunLoopGetMain());
+	}
 }
 
 // ---------------------------------------------------------------------------

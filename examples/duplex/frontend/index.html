@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Tango Duplex</title>
+<style>
+  body { font: 14px -apple-system, "PingFang SC", "Segoe UI", sans-serif; margin: 24px 32px; color: #1f1f1f; }
+  h1 { font-size: 22px; margin: 0 0 16px; }
+  section { border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  button { background: #1677ff; color: #fff; border: 0; border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
+  button:disabled { background: #a0c4ff; cursor: default; }
+  input[type=text] { padding: 5px 8px; border: 1px solid #ccc; border-radius: 6px; width: 260px; }
+  pre { background: #f5f5f5; border-radius: 6px; padding: 8px 10px; min-height: 48px; max-height: 160px; overflow: auto; margin: 8px 0 0; }
+  progress { width: 320px; vertical-align: middle; }
+  .muted { color: #888; }
+  pre.term { background: #1e1e1e; color: #d4d4d4; min-height: 120px; max-height: 240px; white-space: pre-wrap; }
+  #term-in { width: 420px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  /* -panel: the Go-drawn card sits over the right side of the window. */
+  body.with-panel { margin-right: 312px; }
+</style>
+</head>
+<body>
+<h1>Tango Duplex</h1>
+
+<section id="echo">
+  <h2>回显（Echo）</h2>
+  <p>
+    <input type="text" id="echo-text" value="你好，双向流">
+    <button id="echo-json">发 JSON</button>
+    <button id="echo-bytes">发 8 字节</button>
+  </p>
+  <pre id="echo-out"></pre>
+</section>
+
+<section id="upload">
+  <h2>上传（Upload）</h2>
+  <p>
+    <input type="file" id="upload-file">
+    <progress id="upload-progress" max="1" value="0"></progress>
+  </p>
+  <pre id="upload-out"></pre>
+</section>
+
+<section id="terminal">
+  <h2>终端（Terminal）</h2>
+  <p class="muted">Go 的 "Term" 服务在本机启动一个 shell（Unix 是 <code>/bin/sh -i</code>，Windows 是 <code>cmd.exe</code>），
+    经 <code>stream.readable</code> / <code>stream.writable</code> 收发字节。用的是 os/exec 管道，不是 pty：
+    没有作业控制和行编辑，不支持 vi、top 这类全屏程序。</p>
+  <pre id="term-out" class="term"></pre>
+  <p>
+    <input type="text" id="term-in" placeholder="输入命令，回车执行（如 ls）" autocomplete="off" spellcheck="false">
+    <button id="term-restart">重启 shell</button>
+  </p>
+</section>
+
+<section id="bench">
+  <h2>基准（Benchmark）</h2>
+  <p><button id="bench-run">运行基准</button> <span class="muted">64 B 回显 ×1000、分批回显 20×50、64 MiB 上行、64 MiB 下行</span></p>
+  <pre id="bench-out"></pre>
+</section>
+
+<script src="bench.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
