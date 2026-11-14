@@ -288,6 +288,51 @@ func TestTerminalCursorMoves(t *testing.T) {
 	wantCursor(t, term, 8, 0)
 }
 
+func TestTerminalHugeRelativeMoves(t *testing.T) {
+	term := newTerm(10, 5, nil)
+	steps := []struct {
+		in   string
+		x, y int
+	}{
+		{"\x1b[2;3H\x1b[2147483647B", 2, 4},
+		{"\x1b[2147483647A", 2, 0},
+		{"\x1b[2147483647C", 9, 0},
+		{"\x1b[2147483647D", 0, 0},
+		{"\x1b[2147483647E", 0, 4},
+		{"\x1b[2147483647F", 0, 0},
+		{"\x1b[2;3H\x1b[2147483647e", 2, 4},
+		{"\x1b[2147483647a", 9, 4},
+	}
+	for _, s := range steps {
+		write(term, s.in)
+		if x, y, _ := term.Cursor(); x != s.x || y != s.y {
+			t.Fatalf("after %q: cursor (%d,%d), want (%d,%d)", s.in, x, y, s.x, s.y)
+		}
+	}
+}
+
+func TestTerminalResizeSameSize(t *testing.T) {
+	term := newTerm(5, 3, nil)
+	write(term, "abcde")
+	term.TakeDirty()
+	term.Resize(5, 3)
+	if _, all := term.TakeDirty(); all {
+		t.Error("same-size Resize forced a full redraw")
+	}
+	write(term, "f")
+	wantText(t, term, "abcde", "f")
+	if !term.Screen().Line(0).Wrapped {
+		t.Error("row 0 not Wrapped")
+	}
+	// Sizes below 1 clamp to 1, which is a change only once.
+	term.Resize(0, 0)
+	term.TakeDirty()
+	term.Resize(-3, 0)
+	if _, all := term.TakeDirty(); all {
+		t.Error("Resize(-3, 0) on a 1×1 terminal forced a full redraw")
+	}
+}
+
 func TestTerminalSaveRestoreStyle(t *testing.T) {
 	term := newTerm(10, 3, nil)
 	write(term, "\x1b[2;3H\x1b[1;32m\x1b7\x1b[0m\x1b[H\x1b8X")

@@ -1,6 +1,7 @@
 package vt
 
 import (
+	"bytes"
 	"strings"
 	"unicode/utf8"
 )
@@ -126,6 +127,9 @@ func (t *Terminal) Modes() Modes { return t.modes }
 // them back while the cursor is on the last row. The cursor and the saved
 // cursor are clamped to the new size.
 func (t *Terminal) Resize(cols, rows int) {
+	if max(cols, 1) == t.cols && max(rows, 1) == t.rows {
+		return // keep the pending wrap and skip the redraw, as xterm.js
+	}
 	t.cy = t.s.resize(cols, rows, t.cy)
 	t.cols, t.rows = t.s.Size()
 	t.cx = min(t.cx, t.cols-1)
@@ -520,12 +524,15 @@ func (t *Terminal) resetAll() {
 
 // osc handles an operating system command.
 func (t *Terminal) osc(data []byte) {
-	cmd, arg, ok := strings.Cut(string(data), ";")
+	// Look at the command before converting: ignored payloads can be
+	// up to 1 MB.
+	cmd, rest, ok := bytes.Cut(data, []byte(";"))
 	if !ok {
 		return
 	}
-	switch cmd {
+	switch string(cmd) {
 	case "0", "2":
+		arg := string(rest[:min(len(rest), maxTitle+utf8.UTFMax)])
 		if len(arg) > maxTitle {
 			// Cut before the character straddling the limit.
 			i := maxTitle

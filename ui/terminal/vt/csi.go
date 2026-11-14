@@ -30,7 +30,9 @@ func (t *Terminal) csi(p *Params, inter []byte, final, private byte) {
 		return
 	}
 
-	n := p.Get(0, 1) // the count most sequences take
+	// The count most sequences take, clamped so that pos+n cannot
+	// overflow a 32-bit int; no count does more than the screen size.
+	n := min(p.Get(0, 1), max(t.cols, t.rows))
 	switch final {
 	case 'A': // CUU
 		t.moveTo(t.cx, t.cy-n)
