@@ -48,6 +48,7 @@ ui/...                  experimental
 ui/chart                experimental
 ui/mobile               experimental
 ui/editor/...           experimental
+ui/terminal/...         experimental
 
 # Not API.
 examples/...            exclude

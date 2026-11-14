@@ -1,0 +1,16 @@
+pkg github.com/tangoui/tango/ui/terminal/vt, func NewParser(Handler) *Parser
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Params) Get(int, int) int
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Params) Len() int
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Params) Sub(int) []int
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Parser) Write([]byte)
+pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface { CSI, DCS, ESC, Execute, OSC, Print, PrintASCII }
+pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, CSI(*Params, []byte, byte, byte)
+pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, DCS(*Params, []byte, byte, []byte)
+pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, ESC([]byte, byte)
+pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, Execute(byte)
+pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, OSC([]byte)
+pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, Print(rune)
+pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, PrintASCII([]byte)
+pkg github.com/tangoui/tango/ui/terminal/vt, type Params struct
+pkg github.com/tangoui/tango/ui/terminal/vt, type Parser struct
+pkg github.com/tangoui/tango/ui/terminal/vt, type Parser struct, noncomparable
