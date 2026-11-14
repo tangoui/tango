@@ -1,6 +1,10 @@
 // Package vt is the terminal emulator core of ui/terminal: it turns the
-// bytes a program writes into actions and, in later milestones, screen
-// state. It does not depend on any ui package and can be tested on its own.
+// bytes a program writes into screen state. It does not depend on any ui
+// package and can be tested on its own.
+//
+// [Terminal] is the emulator: it feeds output through a [Parser] and
+// applies the result to a [Screen], tracking the cursor, the modes, the
+// title and which rows changed since the view last drew them.
 //
 // [Parser] implements the DEC ANSI parser state machine described by Paul
 // Williams (vt100.net/emu/dec_ansi_parser), extended with UTF-8 decoding,

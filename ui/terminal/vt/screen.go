@@ -144,6 +144,136 @@ func (s *Screen) rotateUp(top, bottom int) {
 	*s.Line(bottom) = free
 }
 
+// shiftRows moves rows top through bottom up n rows (down for negative
+// n), in place and in time proportional to the region. The |n| rows
+// freed at the other end are blanked. 0 < |n| ≤ bottom-top+1.
+func (s *Screen) shiftRows(top, bottom, n int) {
+	reverse := func(a, b int) {
+		for ; a < b; a, b = a+1, b-1 {
+			la, lb := s.Line(a), s.Line(b)
+			*la, *lb = *lb, *la
+		}
+	}
+	// Rotating left by k is three reversals.
+	k := n
+	if n < 0 {
+		k = bottom - top + 1 + n
+	}
+	reverse(top, top+k-1)
+	reverse(top+k, bottom)
+	reverse(top, bottom)
+	for y := top; y <= bottom; y++ {
+		s.Line(y).Dirty = true
+	}
+	if n > 0 {
+		for y := bottom - n + 1; y <= bottom; y++ {
+			s.Line(y).clear(s.cols)
+		}
+	} else {
+		for y := top; y < top-n; y++ {
+			s.Line(y).clear(s.cols)
+		}
+	}
+}
+
+// ScrollDown scrolls active rows top through bottom (inclusive) down one
+// line and blanks row top. Nothing enters or leaves the scrollback. Out
+// of range or empty regions are ignored.
+func (s *Screen) ScrollDown(top, bottom int) {
+	if top < 0 || bottom >= s.rows || top > bottom {
+		return
+	}
+	s.shiftRows(top, bottom, -1)
+}
+
+// setLines replaces the ring with lines, the scrollback first, of which
+// the first sb are scrollback.
+func (s *Screen) setLines(lines []Line, sb int) {
+	ring := make([]Line, len(lines), max(len(lines), s.rows+min(s.scrollback, 1024)))
+	copy(ring, lines)
+	s.ring, s.head, s.sbLen = ring, 0, sb
+	s.offset = min(s.offset, sb)
+}
+
+// lines returns a copy of the line headers in order, scrollback first.
+func (s *Screen) lines() []Line {
+	out := make([]Line, s.sbLen+s.rows)
+	for i := range out {
+		out[i] = *s.at(i)
+	}
+	return out
+}
+
+// ClearScrollback drops every scrollback line and returns the viewport
+// to the bottom.
+func (s *Screen) ClearScrollback() {
+	if s.sbLen == 0 {
+		return
+	}
+	all := s.lines()
+	s.setLines(all[s.sbLen:], 0)
+	s.offset = 0
+	s.styles.resetBackoff()
+}
+
+// reset blanks the screen, drops the scrollback and empties the style
+// table.
+func (s *Screen) reset() {
+	s.ClearScrollback()
+	for y := range s.rows {
+		s.Line(y).clear(s.cols)
+	}
+	s.offset = 0
+	s.styles.reset()
+}
+
+// resize changes the screen to cols×rows and returns the new row of the
+// line the cursor was on (cursorY). Lines are not reflowed: each is
+// truncated or padded with blanks, scrollback included.
+//
+// As in xterm.js, losing rows first drops lines below the cursor and then
+// moves lines from the top into the scrollback, so the cursor's line stays
+// on screen; gaining rows pulls lines back from the scrollback while the
+// cursor is on the last row and otherwise adds blank rows at the bottom.
+func (s *Screen) resize(cols, rows, cursorY int) int {
+	cols, rows = max(cols, 1), max(rows, 1)
+	cursorY = min(max(cursorY, 0), s.rows-1)
+	if cols == s.cols && rows == s.rows {
+		return cursorY
+	}
+	all, sb := s.lines(), s.sbLen
+	for r := s.rows; r > rows; r-- {
+		if len(all)-sb-1 > cursorY {
+			all = all[:len(all)-1]
+		} else {
+			sb++
+			cursorY--
+		}
+	}
+	for r := s.rows; r < rows; r++ {
+		if sb > 0 && cursorY == r-1 {
+			sb--
+			cursorY++
+		} else {
+			var l Line
+			l.clear(cols)
+			all = append(all, l)
+		}
+	}
+	if sb > s.scrollback {
+		all = all[sb-s.scrollback:]
+		sb = s.scrollback
+	}
+	for i := range all {
+		all[i].resize(cols)
+		all[i].Dirty = true
+	}
+	s.cols, s.rows = cols, rows
+	s.setLines(all, sb)
+	s.styles.resetBackoff()
+	return cursorY
+}
+
 // maxStyles is the number of entries a StyleTable holds before it
 // compacts: every uint16 index except 0xFFFF.
 const maxStyles = 0xFFFF
@@ -168,6 +298,10 @@ type StyleTable struct {
 	refused  int  // Intern calls answered 0 since the last compaction
 	evicted  int  // scrollback lines evicted since the last compaction
 	compacts int  // compactions run; read by tests
+
+	// gen changes whenever indexes may have been renumbered, so a cached
+	// index is valid only while gen is the value it was cached with.
+	gen uint32
 }
 
 func (t *StyleTable) init(s *Screen) {
@@ -212,6 +346,25 @@ func (t *StyleTable) Intern(st Style) uint16 {
 	return i
 }
 
+// resetBackoff lets the next Intern on a full table compact at once.
+// Callers use it after freeing many cells in bulk (erasing the screen or
+// the scrollback, resizing), when a compaction is likely to pay off.
+func (t *StyleTable) resetBackoff() {
+	t.backoff = false
+	t.refused, t.evicted = 0, 0
+}
+
+// reset empties the table down to the default style. Only valid when no
+// cell refers to another index.
+func (t *StyleTable) reset() {
+	clear(t.styles[1:])
+	t.styles = t.styles[:1]
+	clear(t.index)
+	t.index[Style{}] = 0
+	t.resetBackoff()
+	t.gen++
+}
+
 // mayCompact reports whether a full table should try compacting now.
 func (t *StyleTable) mayCompact() bool {
 	if !t.backoff {
@@ -226,6 +379,7 @@ func (t *StyleTable) mayCompact() bool {
 // remaining ones, updating the cells. The default style stays at index 0.
 func (t *StyleTable) Compact() {
 	t.compacts++
+	t.gen++
 	before := len(t.styles)
 	defer func() {
 		t.backoff = before-len(t.styles) < max(t.limit/8, 1)

@@ -1,5 +1,7 @@
 package vt
 
+import "slices"
+
 // Color is a foreground or background color. The high 8 bits hold the
 // kind ([ColorKindDefault], [ColorIndexed] or [ColorRGB]); an indexed
 // color keeps its palette index in the low 8 bits and an RGB color its
@@ -80,6 +82,90 @@ type Line struct {
 	Cells   []Cell
 	Wrapped bool // the line continues on the next row (soft wrap)
 	Dirty   bool // changed since the flag was last cleared
+
+	// comb holds the combining marks of cells that have any, sorted by
+	// column. Most lines have none.
+	comb []combMarks
+}
+
+// combMarks are the combining marks that follow the base character in
+// column x.
+type combMarks struct {
+	x int
+	r []rune
+}
+
+// maxCombining bounds the marks kept per cell; further marks are dropped
+// so a stream of them cannot grow a line without limit.
+const maxCombining = 16
+
+// Combining returns the combining marks drawn on the character in column
+// x, in the order they arrived, or nil if there are none. The slice is
+// valid until the line next changes.
+func (l *Line) Combining(x int) []rune {
+	for _, m := range l.comb {
+		if m.x == x {
+			return m.r
+		}
+	}
+	return nil
+}
+
+// addCombining appends mark r to the character in column x.
+func (l *Line) addCombining(x int, r rune) {
+	i := 0
+	for i < len(l.comb) && l.comb[i].x < x {
+		i++
+	}
+	if i < len(l.comb) && l.comb[i].x == x {
+		if len(l.comb[i].r) < maxCombining {
+			l.comb[i].r = append(l.comb[i].r, r)
+		}
+		return
+	}
+	l.comb = append(l.comb, combMarks{})
+	copy(l.comb[i+1:], l.comb[i:])
+	l.comb[i] = combMarks{x: x, r: []rune{r}}
+}
+
+// clearCombining drops the marks of columns x0 through x1-1.
+func (l *Line) clearCombining(x0, x1 int) {
+	if len(l.comb) == 0 {
+		return
+	}
+	l.comb = slices.DeleteFunc(l.comb, func(m combMarks) bool { return m.x >= x0 && m.x < x1 })
+}
+
+// shiftCombining moves the marks of columns x and beyond by d columns,
+// dropping those that end up outside [0, cols).
+func (l *Line) shiftCombining(x, d, cols int) {
+	if len(l.comb) == 0 {
+		return
+	}
+	for i := range l.comb {
+		if l.comb[i].x >= x {
+			l.comb[i].x += d
+		}
+	}
+	l.comb = slices.DeleteFunc(l.comb, func(m combMarks) bool { return m.x < 0 || m.x >= cols })
+}
+
+// resize sets the line's width to cols, truncating or padding with
+// blanks. A wide character cut in half at the new edge becomes a blank.
+func (l *Line) resize(cols int) {
+	n := len(l.Cells)
+	switch {
+	case cols < n:
+		l.Cells = l.Cells[:cols]
+		if l.Cells[cols-1].Width == 2 {
+			l.Cells[cols-1] = Cell{Style: l.Cells[cols-1].Style, Width: 1}
+			l.clearCombining(cols-1, cols)
+		}
+		l.clearCombining(cols, n)
+	case cols > n:
+		l.Cells = slices.Grow(l.Cells, cols-n)[:cols]
+		FillBlank(l.Cells[n:])
+	}
 }
 
 // clear blanks l's cells (resizing them to cols, reusing the backing
@@ -91,6 +177,8 @@ func (l *Line) clear(cols int) {
 		l.Cells = make([]Cell, cols)
 	}
 	FillBlank(l.Cells)
+	clear(l.comb)
+	l.comb = l.comb[:0]
 	l.Wrapped = false
 	l.Dirty = true
 }
