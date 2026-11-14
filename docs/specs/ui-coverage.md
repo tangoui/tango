@@ -327,7 +327,7 @@ ConfigProvider、FooterToolbar 仍是 ⚠️：缺的是功能，不是稳定性
 ### 5.4 无障碍审计（`-audit`，2026-11-14 重跑，HEAD `f3ba799`：693 次页面渲染 × 3 种风格）
 
 - missing-name 0，no-role 0，not-keyboard 0；无名交互节点 0（上次 657 次渲染，同样全为 0；2026-11-13 之前的 12 项 not-keyboard 来自 `CarouselCard`，data_carousel.go 卡片模式给每张卡片设 `aKbd` 后已消失）。
-- 对比度：6 个内置主题 0 项失败；58 项设计默认值低于 WCAG AA（设计规范本身如此，HighContrast 能修正）；24 项豁免（禁用态、装饰性分隔线）；HighContrast 下 0 项失败。与上次相同。
+- 对比度：6 个内置主题 0 项失败；108 项设计默认值低于 WCAG AA（58 项来自各设计规范本身，另有 50 项是终端 ANSI 调色板；HighContrast 能修正）；24 项豁免（禁用态、装饰性分隔线）；HighContrast 下 0 项失败。与上次相同。
 - 运行：`go run ./examples/ui-gallery -audit`，31 秒，退出码 0。
 - 镜像检查：`go run ./examples/ui-gallery -mirror-check`，231 页、16667 个节点（298 个豁免），只有 Mentions 的 2 处（已知项）；方向性图标未镜像 0。
 
