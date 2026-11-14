@@ -83,51 +83,6 @@ hero:
 
 <div class="home-head">
 
-## 实测体积，可复现
-
-[体积测量详情 →](/guide/size)
-
-</div>
-
-<p class="home-lead">2026-11-14 实测：Go 1.27.2，在 Apple M4 上交叉编译，<code>CGO_ENABLED=0</code>，<code>-trimpath -ldflags='-s -w -buildid='</code>。1 MiB = 1,048,576 字节。只统计体积，没有测运行时的内存或 CPU。</p>
-
-<div class="home-grid cols-2">
-<div class="home-card">
-<span class="metric">1.80 <small>MiB</small></span>
-
-### 最小安装包（macOS .dmg）
-
-一个只加载网页的最小 WebView 应用，`tan package` 默认打出的 .dmg（LZMA 压缩，未正式签名）。同一个应用的 Windows NSIS 安装程序是 1.97 MiB，也是默认产物。Linux 安装包这次没有测。
-
-</div>
-<div class="home-card">
-<span class="metric">5.56–5.70 <small>MiB</small></span>
-
-### 最小 WebView 应用的可执行文件
-
-去掉符号后的可执行文件（darwin/arm64、linux/amd64、windows/amd64）。其中大部分是 Go 运行时、`net/http` 和 `crypto/tls`。用 xz -9e 压缩后是 1.75–1.92 MiB。
-
-</div>
-<div class="home-card">
-<span class="metric">9.68–10.09 <small>MiB</small></span>
-
-### 最小自绘 GUI 应用
-
-`uihost.Open` 加一个 `ui.Button`，同样是去掉符号的三平台可执行文件，多出来的是自绘组件和渲染器的代码。gzip -9 后是 3.87–4.08 MiB。
-
-</div>
-<div class="home-card">
-<span class="metric">2.78–5.11 <small>MB</small></span>
-
-### 默认模板的安装包
-
-另一次测量（2026-11-13，十进制 MB）：`tan init` 生成的默认 WebView 和自绘模板，在三个桌面平台上打出的 11 种安装包。详见 [包体积记录](https://github.com/tangoui/tango/blob/main/docs/package-size.md)，其中 dmg 是改用 LZMA 之前测的。
-
-</div>
-</div>
-
-<div class="home-head">
-
 ## 各平台现状
 
 [平台支持详情 →](/guide/platforms)
