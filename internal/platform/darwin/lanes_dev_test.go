@@ -8,12 +8,13 @@ import (
 )
 
 // TestLaneCapsAllDev: development builds honour the experimental
-// TANGO_IPC_LANES_DARWIN=all (both lanes); the kill switch still wins.
+// TANGO_IPC_LANES_DARWIN=all (down:poll and up:post); the kill switch
+// still wins.
 func TestLaneCapsAllDev(t *testing.T) {
 	for _, v := range []string{"all", "ALL", " All "} {
 		env := map[string]string{"TANGO_IPC_LANES_DARWIN": v}
-		if got := laneCapsFromEnv(func(k string) string { return env[k] }); !slices.Equal(got, []string{"down:scheme", "up:post"}) {
-			t.Errorf("DARWIN=%q: caps %q, want down:scheme and up:post", v, got)
+		if got := laneCapsFromEnv(func(k string) string { return env[k] }); !slices.Equal(got, []string{"down:poll", "up:post"}) {
+			t.Errorf("DARWIN=%q: caps %q, want down:poll and up:post", v, got)
 		}
 	}
 	env := map[string]string{"TANGO_IPC_LANES_DARWIN": "all", "TANGO_IPC_LANES": "0"}

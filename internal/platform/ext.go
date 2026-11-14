@@ -448,15 +448,16 @@ const AppContrastChanged AppEventKind = 201
 // there.
 type BinaryLane interface {
 	// LaneCaps returns the lanes the surface's current page can use, by
-	// name: "down:scheme" / "up:post" when the asset scheme handler can
-	// stream responses / read request bodies, platform lanes such as
+	// name: "down:poll" when the asset scheme handler can hold a request
+	// open and answer it later (the core's short polls), "up:post" when it
+	// can read request bodies, platform lanes such as
 	// "down:android" or "down:shm" when the backend has them. Nil or empty
 	// means none. The core offers them to the page only when the page
 	// comes from the asset origin.
 	LaneCaps() []string
 	// SendLanePacket sends one packet to the page on the backend's own
 	// downstream lane (down:android, down:shm; never called for
-	// down:scheme, which the core serves). It must not block: false means
+	// down:poll, which the core serves). It must not block: false means
 	// the packet was not taken (the lane is busy or gone) and the frames
 	// go as messages instead. On true the backend owns p; on false it must
 	// neither keep nor modify it.

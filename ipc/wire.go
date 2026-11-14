@@ -134,7 +134,7 @@
 // BinaryConn.LaneHello JSON verbatim in "lanes"; without lanes the field
 // is absent:
 //
-//	{"tango":"hello","proto":2,"win":1048576,"lanes":{"gen":1,"tok":"…","list":["down:scheme","up:post"]}}
+//	{"tango":"hello","proto":2,"win":1048576,"lanes":{"gen":1,"tok":"…","list":["down:poll","up:post"]}}
 //
 // A lane carries packets, identical on every platform (big endian, not
 // base64):

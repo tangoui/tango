@@ -54,18 +54,18 @@ func ctl(op, lane string, gen uint64) string {
 var hex32 = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 func TestHelloNewGenAndToken(t *testing.T) {
-	s := New(nil)
-	h1 := parseHello(t, s.Hello([]string{DownScheme, UpPost}, true))
+	s := New(nil, nil)
+	h1 := parseHello(t, s.Hello([]string{DownPoll, UpPost}, true))
 	if h1.Gen != 1 || !hex32.MatchString(h1.Tok) {
 		t.Fatalf("first hello = %+v", h1)
 	}
-	if len(h1.List) != 2 || h1.List[0] != DownScheme || h1.List[1] != UpPost {
+	if len(h1.List) != 2 || h1.List[0] != DownPoll || h1.List[1] != UpPost {
 		t.Fatalf("list = %v", h1.List)
 	}
 	if !s.CheckToken(1, h1.Tok) {
 		t.Fatal("current token refused")
 	}
-	h2 := parseHello(t, s.Hello([]string{DownScheme}, true))
+	h2 := parseHello(t, s.Hello([]string{DownPoll}, true))
 	if h2.Gen != 2 || !hex32.MatchString(h2.Tok) || h2.Tok == h1.Tok {
 		t.Fatalf("second hello = %+v (first %+v)", h2, h1)
 	}
@@ -90,14 +90,14 @@ func TestHelloNewGenAndToken(t *testing.T) {
 	if s.CheckToken(2, h2.Tok) {
 		t.Fatal("token valid after Close")
 	}
-	if s.Hello([]string{DownScheme}, true) != nil {
+	if s.Hello([]string{DownPoll}, true) != nil {
 		t.Fatal("Hello after Close returned lanes")
 	}
 }
 
 func TestHelloNilWhenDisabledOrNoCaps(t *testing.T) {
-	s := New(nil)
-	if raw := s.Hello([]string{DownScheme}, false); raw != nil {
+	s := New(nil, nil)
+	if raw := s.Hello([]string{DownPoll}, false); raw != nil {
 		t.Fatalf("disabled: %s", raw)
 	}
 	if raw := s.Hello(nil, true); raw != nil {
@@ -125,7 +125,7 @@ func TestHelloNilWhenDisabledOrNoCaps(t *testing.T) {
 
 func TestControlReadyFail(t *testing.T) {
 	rec := &recorder{}
-	s := New(rec.send)
+	s := New(rec.send, nil)
 	h := parseHello(t, s.Hello([]string{DownAndroid, UpAndroid}, true))
 	if s.MinSize() != -1 || s.Send([]byte{0, 0}) {
 		t.Fatal("lane usable before ready")
@@ -190,87 +190,19 @@ func TestControlReadyFail(t *testing.T) {
 	}
 }
 
-func TestSchemeMinSize(t *testing.T) {
-	rec := &recorder{}
-	s := New(rec.send)
-	h := parseHello(t, s.Hello([]string{DownScheme, UpPost}, true))
-	s.Control(ctl("ready", DownScheme, h.Gen))
-	if s.MinSize() != 4096 {
-		t.Fatalf("MinSize = %d, want 4096", s.MinSize())
-	}
-	if !s.Send([]byte{0, 0}) || rec.n() != 0 {
-		t.Fatal("down:scheme packet not queued (or sent to the platform)")
-	}
-	s.mu.Lock()
-	q := s.down
-	queued := len(q.pkts)
-	s.mu.Unlock()
-	if queued != 1 {
-		t.Fatalf("queued = %d", queued)
-	}
-	select {
-	case <-q.wake:
-	default:
-		t.Fatal("queue not woken by Send")
-	}
-	// A new generation ends the old downlink and drops its queue.
-	s.Hello([]string{DownScheme}, true)
-	select {
-	case <-q.done:
-	default:
-		t.Fatal("old downlink not ended by Hello")
-	}
-	s.mu.Lock()
-	if len(s.down.pkts) != 0 || s.down == q {
-		t.Error("old queue carried into the new generation")
-	}
-	s.mu.Unlock()
-}
-
-func TestSchemeQueueLimit(t *testing.T) {
-	s := New(nil)
-	h := parseHello(t, s.Hello([]string{DownScheme}, true))
-	s.Control(ctl("ready", DownScheme, h.Gen))
-	big := make([]byte, 1<<20)
-	for i := 0; i < maxDownQueue/len(big); i++ {
-		if !s.Send(big) {
-			t.Fatalf("packet %d refused below the limit", i)
-		}
-	}
-	if s.Send([]byte{0, 0, 1}) {
-		t.Fatal("packet accepted over the queue limit")
-	}
-	if s.MinSize() != 4096 {
-		t.Fatal("a full queue failed the lane")
-	}
-	// Failing down:scheme ends its downlink.
-	s.mu.Lock()
-	q := s.down
-	s.mu.Unlock()
-	s.Control(ctl("fail", DownScheme, h.Gen))
-	select {
-	case <-q.done:
-	default:
-		t.Fatal("downlink not ended by fail")
-	}
-	if s.Send([]byte{0, 0}) {
-		t.Fatal("failed down:scheme still queues")
-	}
-}
-
-func TestPlatformLanePreferredOverScheme(t *testing.T) {
-	rec := &recorder{}
-	s := New(rec.send)
-	h := parseHello(t, s.Hello([]string{DownScheme, DownShm}, true))
-	s.Control(ctl("ready", DownScheme, h.Gen))
+func TestPlatformLanePreferredOverPoll(t *testing.T) {
+	rec, poll := &recorder{}, &recorder{}
+	s := New(rec.send, poll.send)
+	h := parseHello(t, s.Hello([]string{DownPoll, DownShm}, true))
+	s.Control(ctl("ready", DownPoll, h.Gen))
 	s.Control(ctl("ready", DownShm, h.Gen))
-	if s.MinSize() != 0 || !s.Send([]byte{0, 0}) || rec.n() != 1 {
+	if s.MinSize() != 0 || !s.Send([]byte{0, 0}) || rec.n() != 1 || poll.n() != 0 {
 		t.Fatal("platform lane not preferred")
 	}
 }
 
 func TestNilPlatformSend(t *testing.T) {
-	s := New(nil)
+	s := New(nil, nil)
 	h := parseHello(t, s.Hello([]string{DownAndroid}, true))
 	s.Control(ctl("ready", DownAndroid, h.Gen))
 	if s.Send([]byte{0, 0}) {
@@ -279,8 +211,8 @@ func TestNilPlatformSend(t *testing.T) {
 }
 
 func TestConcurrentUse(t *testing.T) {
-	rec := &recorder{}
-	s := New(rec.send)
+	rec, poll := &recorder{}, &recorder{}
+	s := New(rec.send, poll.send)
 	var wg sync.WaitGroup
 	for i := 0; i < 4; i++ {
 		wg.Add(1)
@@ -295,10 +227,14 @@ func TestConcurrentUse(t *testing.T) {
 		}()
 	}
 	for j := 0; j < 50; j++ {
-		raw := s.Hello([]string{DownAndroid, DownScheme}, true)
+		raw := s.Hello([]string{DownAndroid, DownPoll}, true)
 		var h helloJSON
 		json.Unmarshal(raw, &h)
 		s.Control(ctl("ready", DownAndroid, h.Gen))
+		s.Control(ctl("ready", DownPoll, h.Gen))
+		if j%2 == 0 {
+			s.Control(ctl("fail", DownAndroid, h.Gen))
+		}
 	}
 	wg.Wait()
 	s.Close()
@@ -306,21 +242,13 @@ func TestConcurrentUse(t *testing.T) {
 
 func TestReset(t *testing.T) {
 	rec := &recorder{}
-	s := New(rec.send)
-	h := parseHello(t, s.Hello([]string{DownAndroid, DownScheme, UpAndroid}, true))
+	s := New(rec.send, nil)
+	h := parseHello(t, s.Hello([]string{DownAndroid, DownPoll, UpAndroid}, true))
 	s.Control(ctl("ready", DownAndroid, h.Gen))
 	s.Control(ctl("ready", UpAndroid, h.Gen))
-	s.mu.Lock()
-	q := s.down
-	s.mu.Unlock()
 	s.Reset()
 	if s.Send([]byte{0, 0}) || rec.n() != 0 || s.MinSize() != -1 || s.UpAllowed() || s.CheckToken(h.Gen, h.Tok) {
 		t.Fatal("lanes usable after Reset")
-	}
-	select {
-	case <-q.done:
-	default:
-		t.Fatal("down:scheme queue not ended by Reset")
 	}
 	s.Control(ctl("ready", DownAndroid, h.Gen))
 	if s.MinSize() != -1 {
@@ -331,30 +259,83 @@ func TestReset(t *testing.T) {
 	}
 }
 
+func TestDownPollOfferedAndReady(t *testing.T) {
+	plat, poll := &recorder{}, &recorder{}
+	s := New(plat.send, poll.send)
+	h := parseHello(t, s.Hello([]string{DownPoll, UpPost}, true))
+	if len(h.List) != 2 || h.List[0] != DownPoll || h.List[1] != UpPost {
+		t.Fatalf("list = %v, want [down:poll up:post]", h.List)
+	}
+	if s.MinSize() != -1 || s.Send([]byte{0, 0}) || poll.n() != 0 {
+		t.Fatal("down:poll usable before ready")
+	}
+	s.Control(ctl("ready", DownPoll, h.Gen))
+	if s.MinSize() != 0 {
+		t.Fatalf("MinSize = %d, want 0", s.MinSize())
+	}
+	p := mkPacket([]byte("x"))
+	if !s.Send(p) || poll.n() != 1 || &poll.got[0][0] != &p[0] || plat.n() != 0 {
+		t.Fatal("Send did not hand the packet to pollSend")
+	}
+	// Failing down:poll stops using it for the generation.
+	s.Control(ctl("fail", DownPoll, h.Gen))
+	if s.MinSize() != -1 || s.Send(p) || poll.n() != 1 {
+		t.Fatal("failed down:poll still used")
+	}
+}
+
+func TestDownPollRefusedFallsBack(t *testing.T) {
+	poll := &recorder{}
+	s := New(nil, poll.send)
+	h := parseHello(t, s.Hello([]string{DownPoll}, true))
+	s.Control(ctl("ready", DownPoll, h.Gen))
+	poll.setFail(true)
+	if s.Send(mkPacket([]byte("x"))) {
+		t.Fatal("Send true although pollSend refused")
+	}
+	if s.MinSize() != 0 {
+		t.Fatal("a refused packet failed down:poll")
+	}
+	poll.setFail(false)
+	if !s.Send(mkPacket([]byte("y"))) || poll.n() != 1 {
+		t.Fatal("down:poll unusable after a refused packet")
+	}
+	// Without a poll sender the lane takes nothing.
+	s2 := New(nil, nil)
+	h2 := parseHello(t, s2.Hello([]string{DownPoll}, true))
+	s2.Control(ctl("ready", DownPoll, h2.Gen))
+	if s2.Send([]byte{0, 0}) {
+		t.Fatal("Send true without a poll sender")
+	}
+}
+
+func TestDownSchemeGone(t *testing.T) {
+	s := New(nil, nil)
+	if raw := s.Hello([]string{"down:scheme"}, true); raw != nil {
+		t.Fatalf("down:scheme still offered: %s", raw)
+	}
+	h := parseHello(t, s.Hello([]string{"down:scheme", UpPost}, true))
+	if len(h.List) != 1 || h.List[0] != UpPost {
+		t.Fatalf("list = %v, want [up:post]", h.List)
+	}
+}
+
 func TestSuspendDown(t *testing.T) {
-	rec := &recorder{}
-	s := New(rec.send)
-	h := parseHello(t, s.Hello([]string{DownAndroid, DownScheme, UpAndroid}, true))
+	rec, poll := &recorder{}, &recorder{}
+	s := New(rec.send, poll.send)
+	h := parseHello(t, s.Hello([]string{DownAndroid, DownPoll, UpAndroid}, true))
 	s.Control(ctl("ready", DownAndroid, h.Gen))
 	s.Control(ctl("ready", UpAndroid, h.Gen))
-	s.mu.Lock()
-	q := s.down
-	s.mu.Unlock()
 	s.SuspendDown()
 	if s.Send([]byte{0, 0}) || rec.n() != 0 || s.MinSize() != -1 {
 		t.Fatal("down lane usable while suspended")
-	}
-	select {
-	case <-q.done:
-	default:
-		t.Fatal("down:scheme response not ended by SuspendDown")
 	}
 	if !s.UpAllowed() || !s.CheckToken(h.Gen, h.Tok) {
 		t.Fatal("SuspendDown touched the uplink or the token")
 	}
 	// A late ready for this generation does not lift the suspension.
-	s.Control(ctl("ready", DownScheme, h.Gen))
-	if s.MinSize() != -1 || s.Send([]byte{0, 0}) {
+	s.Control(ctl("ready", DownPoll, h.Gen))
+	if s.MinSize() != -1 || s.Send([]byte{0, 0}) || poll.n() != 0 {
 		t.Fatal("late ready lifted the suspension")
 	}
 	// The next generation starts unsuspended.
@@ -362,16 +343,5 @@ func TestSuspendDown(t *testing.T) {
 	s.Control(ctl("ready", DownAndroid, h.Gen))
 	if s.MinSize() != 0 || !s.Send([]byte{0, 0}) || rec.n() != 1 {
 		t.Fatal("suspension carried into the next generation")
-	}
-}
-
-func TestQueued(t *testing.T) {
-	s := New(nil)
-	h := parseHello(t, s.Hello([]string{DownScheme}, true))
-	s.Control(ctl("ready", DownScheme, h.Gen))
-	s.Send(make([]byte, 10))
-	s.Send(make([]byte, 5))
-	if n, b := s.Queued(); n != 2 || b != 15 {
-		t.Fatalf("Queued = %d, %d", n, b)
 	}
 }

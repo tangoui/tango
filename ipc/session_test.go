@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,12 +15,36 @@ import (
 type sessionConn struct {
 	*fakeBinConn
 	state   *lane.State
+	polled  *polled // what state's down:poll took
 	entered chan struct{}
 	resume  chan struct{}
 }
 
+// polled is a lane.State pollSend that counts what it takes.
+type polled struct {
+	mu      sync.Mutex
+	n, size int
+}
+
+func (p *polled) send(b []byte) bool {
+	p.mu.Lock()
+	p.n++
+	p.size += len(b)
+	p.mu.Unlock()
+	return true
+}
+
+func (p *polled) count() (n, size int) { p.mu.Lock(); defer p.mu.Unlock(); return p.n, p.size }
+
+// withLane gives c a lane.State whose down:poll counts into c.polled.
+func withLane(c *sessionConn) *sessionConn {
+	c.polled = &polled{}
+	c.state = lane.New(nil, c.polled.send)
+	return c
+}
+
 func (c *sessionConn) LaneHello() json.RawMessage {
-	return c.state.Hello([]string{lane.DownScheme, lane.UpPost}, true)
+	return c.state.Hello([]string{lane.DownPoll, lane.UpPost}, true)
 }
 func (c *sessionConn) BinarySession() (uint64, BinaryConn) {
 	gen := c.state.Generation()
@@ -42,13 +67,13 @@ func (c *sessionTransport) SendBinary(p []byte) bool {
 	return c.state.SendGeneration(c.gen, p)
 }
 func readySession(c *sessionConn) {
-	c.state.Control(`{"op":"ready","lane":"down:scheme","gen":` + fmtUint(c.state.Generation()) + `}`)
+	c.state.Control(`{"op":"ready","lane":"down:poll","gen":` + fmtUint(c.state.Generation()) + `}`)
 }
 func fmtUint(n uint64) string { b, _ := json.Marshal(n); return string(b) }
 
 func TestOldWriterCannotEnterSuccessorQueue(t *testing.T) {
 	r := NewRouter()
-	c := &sessionConn{fakeBinConn: newFakeBin(""), state: lane.New(nil), entered: make(chan struct{}), resume: make(chan struct{})}
+	c := withLane(&sessionConn{fakeBinConn: newFakeBin(""), entered: make(chan struct{}), resume: make(chan struct{})})
 	r.HandleMessage(c, `{"tango":"hello","proto":2}`)
 	c.next(t)
 	readySession(c)
@@ -78,7 +103,7 @@ func TestOldWriterCannotEnterSuccessorQueue(t *testing.T) {
 	}
 	close(c.resume)
 	within(t, done, time.Second, "old writer")
-	if n, b := c.state.Queued(); n != 0 || b != 0 {
+	if n, b := c.polled.count(); n != 0 || b != 0 {
 		t.Fatalf("stale send entered successor: %d/%d", n, b)
 	}
 	r.Drop(c)
@@ -86,7 +111,7 @@ func TestOldWriterCannotEnterSuccessorQueue(t *testing.T) {
 
 func TestDelayedAuthorizedIngressCannotReachSuccessor(t *testing.T) {
 	r := NewRouter()
-	c := &sessionConn{fakeBinConn: newFakeBin(""), state: lane.New(nil)}
+	c := withLane(&sessionConn{fakeBinConn: newFakeBin("")})
 	r.HandleMessage(c, `{"tango":"hello","proto":2}`)
 	c.next(t)
 	oldGen := c.state.Generation()
@@ -149,7 +174,7 @@ func TestHandleBinaryOnSessionConnWarnsOnce(t *testing.T) {
 	defer slog.SetDefault(prev)
 
 	r := NewRouter()
-	c := &sessionConn{fakeBinConn: newFakeBin(""), state: lane.New(nil)}
+	c := withLane(&sessionConn{fakeBinConn: newFakeBin("")})
 	got := make(chan []byte, 4)
 	r.HandleDuplex("Sink", func(s *Stream, _ json.RawMessage) error {
 		for {
@@ -214,7 +239,7 @@ func (c *helloRaceConn) LaneHello() json.RawMessage {
 // not wait forever.
 func TestHelloRaceOrphanIsCanceled(t *testing.T) {
 	r := NewRouter()
-	c := &helloRaceConn{sessionConn: &sessionConn{fakeBinConn: newFakeBin(""), state: lane.New(nil)}, r: r, opened: make(chan *Stream, 1)}
+	c := &helloRaceConn{sessionConn: withLane(&sessionConn{fakeBinConn: newFakeBin("")}), r: r, opened: make(chan *Stream, 1)}
 	opened := c.opened
 	r.HandleMessage(c, `{"tango":"hello","proto":2}`)
 	s := within(t, opened, time.Second, "racing OpenStream")

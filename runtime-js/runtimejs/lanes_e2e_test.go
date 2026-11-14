@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,12 +24,20 @@ import (
 )
 
 // The fast lane end-to-end test: Go's ipc.Router and internal/lane on one
-// side, the real runtime-js (IIFE, down:scheme and up:post modules) in node
-// on the other. Messages travel over stdio as in TestEndToEndWithNode; the
-// scheme lanes are real HTTP requests to an httptest server serving
-// lane.State.ServeDown/ServeUp, as the core serves them on the asset origin.
+// side, the real runtime-js (IIFE, up:post module) in node on the other.
+// Messages travel over stdio as in TestEndToEndWithNode; up:post requests
+// are real HTTP requests to an httptest server serving
+// lane.State.ServeUpSession, as the core serves it on the asset origin.
 // Sizes and byte patterns must match the lane scenarios in
 // testdata/harness.mjs.
+//
+// Only up:post is offered: down:scheme is gone (down:poll, its successor,
+// is the core's and is polled by the page's bridge, not by this harness),
+// so every downstream frame goes as a message. The harness's "lanes" mode
+// still waits for a down lane in lanesUp (5 s, then reports the fallback)
+// and runs laneFailure, for which there is no downstream lane to cut: once
+// armed, Go sends lanefail:tripped after the next downstream byte frame (as
+// a message) instead of cutting it, and checks that every frame arrives.
 const (
 	laneGapMs     = 300 // harness.mjs LANE_GAP_MS: the page's gap timeout
 	bigTotal      = 8 << 20
@@ -40,8 +47,9 @@ const (
 )
 
 // laneCounts counts stream byte frames per stream id, by the path they
-// took: a lane packet (up: delivered by ServeUpSession to HandleBinarySession; down:
-// written by ServeDown) or a "bin" message on the message channel.
+// took: a lane packet (up: delivered by ServeUpSession to
+// HandleBinarySession; down: always 0, there is no downstream lane) or a
+// "bin" message on the message channel.
 type laneCounts struct {
 	upLane, downLane, upMsg, downMsg map[uint64]int
 }
@@ -96,9 +104,8 @@ type laneProbe struct {
 	requests int      // HTTP requests to the lane endpoints
 	ctl      []string // lane control messages from the page
 	problems []string // harness-level failures, reported by the test
-	armed    bool     // cut the down:scheme response at its next packet
-	lost     []ipc.PacketFrame
-	atTrip   *laneCounts
+	armed    bool     // trip after the next downstream byte frame
+	trip     func()   // tells the page lanefail:tripped
 }
 
 func (p *laneProbe) problem(format string, args ...any) {
@@ -128,17 +135,22 @@ func (p *laneProbe) noteMsg(msg string, down bool) {
 		return
 	}
 	p.mu.Lock()
+	trip := false
 	if down {
 		p.n.downMsg[m.ID]++
+		trip, p.armed = p.armed, false
 	} else {
 		p.n.upMsg[m.ID]++
 	}
 	p.mu.Unlock()
+	if trip {
+		go p.trip()
+	}
 }
 
 // laneConn is a pipeConn with fast lanes: it implements ipc.BinaryConn by
-// delegating to a lane.State offering down:scheme and up:post, as
-// tango.Surface does for a page on the asset origin.
+// delegating to a lane.State offering up:post, as tango.Surface does for a
+// page on the asset origin.
 type laneConn struct {
 	*pipeConn
 	st      *lane.State
@@ -154,7 +166,7 @@ func (c *laneConn) Send(msg string) {
 }
 
 func (c *laneConn) LaneHello() json.RawMessage {
-	return c.st.Hello([]string{lane.DownScheme, lane.UpPost}, c.enabled)
+	return c.st.Hello([]string{lane.UpPost}, c.enabled)
 }
 func (c *laneConn) SendBinary(p []byte) bool { return c.st.Send(p) }
 func (c *laneConn) BinaryMinSize() int       { return c.st.MinSize() }
@@ -172,46 +184,6 @@ type laneSession struct {
 
 func (c *laneSession) SendBinary(p []byte) bool { return c.st.SendGeneration(c.gen, p) }
 
-var errDownCut = errors.New("test: down:scheme response cut")
-
-// downWriter is the down:scheme ResponseWriter: it counts the frames of
-// every packet ServeDown writes and, when the probe is armed, refuses the
-// next packet that carries frames. ServeDown then treats the response as
-// broken: the lane fails, the response ends, and that packet plus any
-// queued behind it are lost.
-type downWriter struct {
-	http.ResponseWriter
-	probe *laneProbe
-	trip  func()
-}
-
-// Unwrap lets ServeDown (and http.ResponseController) find the Flusher.
-func (w downWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
-
-func (w downWriter) Write(b []byte) (int, error) {
-	frames, err := ipc.ParsePacket(b)
-	if err != nil {
-		w.probe.problem("ServeDown wrote %d bytes that are not one packet: %v", len(b), err)
-		return w.ResponseWriter.Write(b)
-	}
-	p := w.probe
-	p.mu.Lock()
-	if p.armed && len(frames) > 0 {
-		p.armed = false
-		for _, f := range frames {
-			p.lost = append(p.lost, ipc.PacketFrame{Stream: f.Stream, Seq: f.Seq})
-		}
-		p.mu.Unlock()
-		go w.trip()
-		return 0, errDownCut
-	}
-	for _, f := range frames {
-		p.n.downLane[f.Stream]++
-	}
-	p.mu.Unlock()
-	return w.ResponseWriter.Write(b)
-}
-
 type laneResult struct {
 	data  json.RawMessage
 	delta laneCounts // frames per path while the scenario ran
@@ -226,15 +198,15 @@ func TestLanesEndToEnd(t *testing.T) {
 	if err := os.WriteFile(script, []byte(runtimejs.Script), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Run("scheme", func(t *testing.T) { runLanes(t, node, script, true) })
+	t.Run("post", func(t *testing.T) { runLanes(t, node, script, true) })
 	t.Run("disabled", func(t *testing.T) { runLanes(t, node, script, false) })
 }
 
 // runLanes runs the harness's lane scenarios: with enabled, LaneHello
-// offers down:scheme and up:post; without, it returns nil (no lanes field).
+// offers up:post; without, it returns nil (no lanes field).
 func runLanes(t *testing.T, node, script string, enabled bool) {
 	probe := &laneProbe{n: newLaneCounts()}
-	st := lane.New(nil)
+	st := lane.New(nil, nil)
 	r := ipc.NewRouter()
 
 	mode := "nolanes"
@@ -251,12 +223,6 @@ func runLanes(t *testing.T, node, script string, enabled bool) {
 	conn := &laneConn{pipeConn: newPipeConn(stdin), st: st, enabled: enabled, probe: probe}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/__tango/lane/down", func(w http.ResponseWriter, req *http.Request) {
-		probe.mu.Lock()
-		probe.requests++
-		probe.mu.Unlock()
-		st.ServeDown(downWriter{w, probe, func() { tripped(t, r, conn, st, probe) }}, req)
-	})
 	mux.HandleFunc("/__tango/lane/up", func(w http.ResponseWriter, req *http.Request) {
 		probe.mu.Lock()
 		probe.requests++
@@ -282,7 +248,7 @@ func runLanes(t *testing.T, node, script string, enabled bool) {
 	}
 	defer cmd.Wait()
 	defer srv.Close()
-	defer st.Close()   // ends the down:scheme response, so srv.Close returns
+	defer st.Close()
 	defer conn.close() // closes node's stdin: the harness exits
 
 	r.HandleDuplex("Echo", func(s *ipc.Stream, _ json.RawMessage) error {
@@ -299,6 +265,9 @@ func runLanes(t *testing.T, node, script string, enabled bool) {
 			}
 		}
 	})
+	// No downstream lane to cut (see the file comment): trip after the
+	// next downstream byte frame, A's echo of its frame 2.
+	probe.trip = func() { r.Emit(conn, "lanefail:tripped", nil) }
 	r.On("lanefail:arm", func(c ipc.Conn, _ json.RawMessage) {
 		probe.mu.Lock()
 		probe.armed = true
@@ -345,7 +314,7 @@ func runLanes(t *testing.T, node, script string, enabled bool) {
 			t.Fatalf("scenario %s: %s", lastStarted, msg)
 		case strings.HasPrefix(msg, "DONE "):
 			if enabled {
-				checkSchemeLanes(t, conn, st, probe, results)
+				checkPostLane(t, conn, st, probe, results)
 			} else {
 				checkLanesDisabled(t, conn, probe, results)
 			}
@@ -360,24 +329,6 @@ func runLanes(t *testing.T, node, script string, enabled bool) {
 		}
 	}
 	t.Fatalf("node exited early (last scenario started: %q): %v", lastStarted, sc.Err())
-}
-
-// tripped runs after downWriter refused a packet: once ServeDown has
-// failed down:scheme (MinSize -1: no down lane), it notes the counts and
-// tells the page, which then sends the later frames.
-func tripped(t *testing.T, r *ipc.Router, c *laneConn, st *lane.State, probe *laneProbe) {
-	deadline := time.Now().Add(5 * time.Second)
-	for st.MinSize() != -1 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if st.MinSize() != -1 {
-		probe.problem("down:scheme still usable 5s after its response broke")
-	}
-	probe.mu.Lock()
-	n := probe.n.clone()
-	probe.atTrip = &n
-	probe.mu.Unlock()
-	r.Emit(c, "lanefail:tripped", nil)
 }
 
 func decodeResult(t *testing.T, res map[string]laneResult, name string, v any) (laneCounts, bool) {
@@ -407,8 +358,8 @@ type lanesResult struct {
 
 var hexToken = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
-func checkSchemeLanes(t *testing.T, c *laneConn, st *lane.State, probe *laneProbe, res map[string]laneResult) {
-	// Go's hello reply offers both lanes.
+func checkPostLane(t *testing.T, c *laneConn, st *lane.State, probe *laneProbe, res map[string]laneResult) {
+	// Go's hello reply offers up:post.
 	hellos := c.helloReplies()
 	if len(hellos) != 1 {
 		t.Fatalf("Go hello replies = %q, want one", hellos)
@@ -421,14 +372,14 @@ func checkSchemeLanes(t *testing.T, c *laneConn, st *lane.State, probe *laneProb
 		} `json:"lanes"`
 	}
 	if err := json.Unmarshal([]byte(hellos[0]), &h); err != nil || h.Lanes == nil ||
-		!hexToken.MatchString(h.Lanes.Tok) || strings.Join(h.Lanes.List, ",") != "down:scheme,up:post" {
-		t.Errorf("hello reply %s: want lanes {gen, 32 hex tok, list [down:scheme up:post]}", hellos[0])
+		!hexToken.MatchString(h.Lanes.Tok) || strings.Join(h.Lanes.List, ",") != "up:post" {
+		t.Errorf("hello reply %s: want lanes {gen, 32 hex tok, list [up:post]}", hellos[0])
 	}
 
-	// lanesUp: the page reports both lanes ready, and told Go so.
+	// lanesUp: the page reports up:post ready, and told Go so.
 	var l lanesResult
-	if _, ok := decodeResult(t, res, "lanesUp", &l); ok && (l != lanesResult{"down:scheme", "up:post"}) {
-		t.Errorf("lanesUp: tango.lanes() = %+v, want {down:scheme up:post}", l)
+	if _, ok := decodeResult(t, res, "lanesUp", &l); ok && (l != lanesResult{"fallback", "up:post"}) {
+		t.Errorf("lanesUp: tango.lanes() = %+v, want {fallback up:post}", l)
 	}
 	probe.mu.Lock()
 	ctl := append([]string(nil), probe.ctl...)
@@ -437,34 +388,28 @@ func checkSchemeLanes(t *testing.T, c *laneConn, st *lane.State, probe *laneProb
 	if h.Lanes != nil {
 		gen = h.Lanes.Gen
 	}
-	for _, want := range []string{
-		fmt.Sprintf(`{"op":"ready","lane":"down:scheme","gen":%d}`, gen),
-		fmt.Sprintf(`{"op":"ready","lane":"up:post","gen":%d}`, gen),
-		fmt.Sprintf(`{"op":"fail","lane":"down:scheme","gen":%d}`, gen), // laneFailure
-	} {
-		if !containsJSON(ctl, want) {
-			t.Errorf("lane control messages %q: missing %s", ctl, want)
-		}
+	if want := fmt.Sprintf(`{"op":"ready","lane":"up:post","gen":%d}`, gen); !containsJSON(ctl, want) {
+		t.Errorf("lane control messages %q: missing %s", ctl, want)
 	}
 
-	// bigBothWays: 8 MiB echoed intact, at least half the frames on a lane
-	// each way, and every frame counted exactly once.
+	// bigBothWays: 8 MiB echoed intact, at least half the frames on up:post,
+	// every echo as a message, and every frame counted exactly once.
 	var big bigResult
 	if d, ok := decodeResult(t, res, "bigBothWays", &big); ok {
 		if (big != bigResult{bigTotal, bigFrames, true}) {
 			t.Errorf("bigBothWays = %+v, want {%d %d true}", big, bigTotal, bigFrames)
 		}
-		if total(d.upLane) < bigFrames/2 || total(d.downLane) < bigFrames/2 {
-			t.Errorf("bigBothWays: %v, want at least %d frames on each lane", d, bigFrames/2)
+		if total(d.upLane) < bigFrames/2 {
+			t.Errorf("bigBothWays: %v, want at least %d frames on up:post", d, bigFrames/2)
 		}
-		if total(d.upLane)+total(d.upMsg) != bigFrames || total(d.downLane)+total(d.downMsg) != bigFrames {
-			t.Errorf("bigBothWays: %v, want %d frames each way", d, bigFrames)
+		if total(d.upLane)+total(d.upMsg) != bigFrames || total(d.downLane) != 0 || total(d.downMsg) != bigFrames {
+			t.Errorf("bigBothWays: %v, want %d frames each way, downstream as messages", d, bigFrames)
 		}
 	}
 
-	// mixedSizesOrder: 100 B frames take messages, 64 KiB frames the lanes
-	// (JS sends them after Go's accept; Go is the acceptor), and the echo
-	// keeps the order.
+	// mixedSizesOrder: upstream, 100 B frames take messages and 64 KiB
+	// frames up:post (JS sends them after Go's accept; Go is the acceptor);
+	// every echo is a message, and the echo keeps the order.
 	var mixed struct {
 		Frames  int  `json:"frames"`
 		InOrder bool `json:"inOrder"`
@@ -474,81 +419,42 @@ func checkSchemeLanes(t *testing.T, c *laneConn, st *lane.State, probe *laneProb
 			t.Errorf("mixedSizesOrder = %+v, want %d frames in order", mixed, mixedFrames)
 		}
 		half := mixedFrames / 2
-		if total(d.downLane) != half || total(d.downMsg) != half || total(d.upLane) != half || total(d.upMsg) != half {
-			t.Errorf("mixedSizesOrder: %v, want %d frames on the lane and %d as messages each way", d, half, half)
+		if total(d.upLane) != half || total(d.upMsg) != half || total(d.downLane) != 0 || total(d.downMsg) != mixedFrames {
+			t.Errorf("mixedSizesOrder: %v, want %d frames on up:post and %d as messages, all %d echoes as messages", d, half, half, mixedFrames)
 		}
 	}
 
-	checkLaneFailure(t, st, probe, res)
+	checkLaneFailure(t, st, res)
 }
 
-// checkLaneFailure: A's echo of its frame 2 was handed to down:scheme and
-// lost when the response broke, so A fails with transport within the
-// (300 ms) gap timeout; A's later echoes and all of B's take messages; B,
-// open throughout, gets every frame.
-func checkLaneFailure(t *testing.T, st *lane.State, probe *laneProbe, res map[string]laneResult) {
+// checkLaneFailure: with no downstream lane nothing is cut, so both
+// streams get every frame and end cleanly; the page keeps up:post.
+func checkLaneFailure(t *testing.T, st *lane.State, res map[string]laneResult) {
 	var lf struct {
-		ACode      *string     `json:"aCode"`
-		AReceived  int         `json:"aReceived"`
-		AElapsedMs int         `json:"aElapsedMs"`
-		BOK        bool        `json:"bOk"`
-		BFrames    int         `json:"bFrames"`
-		Lanes      lanesResult `json:"lanes"`
+		ACode     *string     `json:"aCode"`
+		AReceived int         `json:"aReceived"`
+		BOK       bool        `json:"bOk"`
+		BFrames   int         `json:"bFrames"`
+		Lanes     lanesResult `json:"lanes"`
 	}
-	if _, ok := decodeResult(t, res, "laneFailure", &lf); !ok {
+	d, ok := decodeResult(t, res, "laneFailure", &lf)
+	if !ok {
 		return
 	}
-	if lf.ACode == nil || *lf.ACode != ipc.CodeTransport {
-		t.Errorf("laneFailure: stream A ended with code %v, want %q", lf.ACode, ipc.CodeTransport)
-	}
-	if lf.AReceived != 2 {
-		t.Errorf("laneFailure: A received %d frames, want 2 (frame 2 lost)", lf.AReceived)
-	}
-	if lf.AElapsedMs >= 5000 {
-		t.Errorf("laneFailure: A failed %d ms after the cut, want < 5000", lf.AElapsedMs)
+	if lf.ACode != nil || lf.AReceived != 8 {
+		t.Errorf("laneFailure: stream A ended with code %v after %d frames, want no error and 8", lf.ACode, lf.AReceived)
 	}
 	if !lf.BOK || lf.BFrames != 12 {
 		t.Errorf("laneFailure: B ok=%v frames=%d, want all 12 intact and in order", lf.BOK, lf.BFrames)
 	}
 	if (lf.Lanes != lanesResult{"fallback", "up:post"}) {
-		t.Errorf("laneFailure: tango.lanes() after the cut = %+v, want {fallback up:post}", lf.Lanes)
+		t.Errorf("laneFailure: tango.lanes() = %+v, want {fallback up:post}", lf.Lanes)
+	}
+	if total(d.downLane) != 0 {
+		t.Errorf("laneFailure: %v, want no downstream lane frames", d)
 	}
 	if st.MinSize() != -1 {
-		t.Errorf("laneFailure: BinaryMinSize = %d after the cut, want -1", st.MinSize())
-	}
-
-	probe.mu.Lock()
-	lost := append([]ipc.PacketFrame(nil), probe.lost...)
-	atTrip := probe.atTrip
-	now := probe.n.clone()
-	probe.mu.Unlock()
-	if len(lost) != 1 || lost[0].Seq != 2 || atTrip == nil {
-		t.Errorf("laneFailure: lost frames %+v (tripped=%v), want A's echo seq 2", lost, atTrip != nil)
-		return
-	}
-	a := lost[0].Stream
-	b := uint64(0)
-	for id := range now.downLane {
-		if id != a && now.downLane[id] == 4 && (now.downMsg[id]-atTrip.downMsg[id]) > 0 {
-			b = id
-		}
-	}
-	after := now.minus(*atTrip)
-	t.Logf("laneFailure: A=%d B=%d; down lane before the cut A=%d B=%d; after the cut: %v, A msgs=%d B msgs=%d",
-		a, b, atTrip.downLane[a], atTrip.downLane[b], after, after.downMsg[a], after.downMsg[b])
-	if atTrip.downLane[a] != 2 {
-		t.Errorf("laneFailure: A had %d frames on down:scheme before the cut, want 2", atTrip.downLane[a])
-	}
-	if b == 0 {
-		t.Errorf("laneFailure: no stream B with 4 lane frames before the cut and messages after: %v", now)
-	} else if after.downMsg[b] != 8 {
-		t.Errorf("laneFailure: B's 8 later echoes: %d as messages, want 8", after.downMsg[b])
-	}
-	if total(after.downLane) != 0 {
-		t.Errorf("laneFailure: %d frames written on down:scheme after the cut", total(after.downLane))
-	}
-	if after.downMsg[a] < 1 {
-		t.Errorf("laneFailure: none of A's later echoes went as messages")
+		t.Errorf("laneFailure: BinaryMinSize = %d, want -1 (no downstream lane)", st.MinSize())
 	}
 }
 

@@ -138,8 +138,8 @@ func (a *App) addSurface(opts SurfaceOptions, navOrigin string, extrasTaken bool
 	id := a.nextID
 	a.mu.Unlock()
 	s := &Surface{app: a, id: id, navOrigin: navOrigin, title: opts.Title, visible: !opts.Hidden}
+	s.initDown()           // before initLanes: down:poll's sender is s.downq
 	s.initLanes(navOrigin) // outside a.mu: lane.New may log
-	s.initDown()
 	// Registered before the backend call: a backend may emit events for
 	// the surface while creating it.
 	a.mu.Lock()

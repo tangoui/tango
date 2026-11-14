@@ -7,16 +7,16 @@ package darwin
 // /__tango/lane/up, served by the core through Host.ServeAsset). It also
 // streams responses (scheme.go), but WebKit holds back part of a large
 // burst of a streamed response until more data arrives on it (spec §6.2,
-// measured in the Apple lanes plan's Task 4), so down:scheme is not offered:
-// downstream frames stay on the message channel. There is no platform lane
-// of our own.
+// measured in the Apple lanes plan's Task 4), so the downstream lane is the
+// core's down:poll (short polls, GET /__tango/lane/poll) when offered;
+// otherwise downstream frames stay on the message channel. There is no
+// platform lane of our own.
 //
 // Default on (up:post) since the Apple lanes plan's Task 7 benchmark
 // (upload 2.73x, docs/ipc-bench.md): a surface reports up:post unless
 // TANGO_IPC_LANES_DARWIN was 0, false or off when it was created, or
 // TANGO_IPC_LANES=0. In development builds (-tags tango_dev)
-// TANGO_IPC_LANES_DARWIN=all also offers down:scheme, for experiments only
-// (laneCapsFromEnv). runtime-js starts up:post with a
+// TANGO_IPC_LANES_DARWIN=all also offers down:poll (laneCapsFromEnv). runtime-js starts up:post with a
 // probe POST, so a page whose CSP blocks the asset origin simply keeps the
 // message channel. iOS reads the same variable but stays off by default
 // (internal/platform/ios/lanes.go): the two differ on purpose.
@@ -43,10 +43,8 @@ import (
 //   - TANGO_IPC_LANES_DARWIN "0", "false" or "off" (any case, surrounding
 //     spaces ignored): none.
 //   - TANGO_IPC_LANES_DARWIN=all, development builds (-tags tango_dev)
-//     only: down:scheme and up:post. Experimental: WebKit holds back large
-//     down:scheme bursts, see spec §6.2
-//     (docs/specs/2026-11-13-ipc-duplex-streams.md). Production builds
-//     treat "all" like the default.
+//     only: down:poll and up:post. Production builds treat "all" like the
+//     default.
 //   - anything else, unset and empty included: up:post (the default since
 //     the Task 7 benchmark).
 //
@@ -60,7 +58,7 @@ func laneCapsFromEnv(getenv func(string) string) []string {
 		return nil
 	case "all":
 		if devTestHooks {
-			return []string{lane.DownScheme, lane.UpPost}
+			return []string{lane.DownPoll, lane.UpPost}
 		}
 	}
 	return []string{lane.UpPost}
@@ -74,7 +72,7 @@ func envLaneCaps() []string { return laneCapsFromEnv(os.Getenv) }
 func (s *surface) LaneCaps() []string { return slices.Clone(s.laneCaps) }
 
 // SendLanePacket implements platform.BinaryLane: macOS has no platform lane
-// (down:scheme is the core's), so no packet is ever taken. Any goroutine.
+// (down:poll is the core's), so no packet is ever taken. Any goroutine.
 func (s *surface) SendLanePacket([]byte) bool { return false }
 
 // ---------------------------------------------------------------------------

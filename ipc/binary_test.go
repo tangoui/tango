@@ -56,9 +56,9 @@ func openBin(t *testing.T, r *Router, c *fakeBinConn, id uint64, method string) 
 
 func TestHelloIncludesLanes(t *testing.T) {
 	r := NewRouter()
-	c := newFakeBin(`{"gen":1,"tok":"ab","list":["down:scheme"]}`)
+	c := newFakeBin(`{"gen":1,"tok":"ab","list":["down:poll"]}`)
 	send(t, r, c, `{"tango":"hello","proto":2}`)
-	want := `{"tango":"hello","proto":2,"win":1048576,"lanes":{"gen":1,"tok":"ab","list":["down:scheme"]}}`
+	want := `{"tango":"hello","proto":2,"win":1048576,"lanes":{"gen":1,"tok":"ab","list":["down:poll"]}}`
 	if raw := c.nextRaw(t); raw != want {
 		t.Fatalf("reply %s\nwant  %s", raw, want)
 	}

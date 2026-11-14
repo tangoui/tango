@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/tangoui/tango/internal/downq"
 	"github.com/tangoui/tango/internal/lane"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/ipc"
@@ -80,9 +81,12 @@ func normOrigin(origin string) string {
 }
 
 // initLanes sets up s's lane state; navOrigin is the creation URL's
-// origin. Before the native surface exists.
+// origin. Before the native surface exists, after initDown: down:poll
+// hands its packets to s.downq (as downq.Packet items), and only while the
+// page polls; otherwise the frames go as messages, which the downstream
+// queue orders with the rest.
 func (s *Surface) initLanes(navOrigin string) {
-	s.lane = lane.New(s.sendLanePacket)
+	s.lane = lane.New(s.sendLanePacket, s.sendPollPacket)
 	s.lanes.origin = navOrigin
 }
 
@@ -123,6 +127,12 @@ func (s *Surface) laneNative() (platform.BinaryLane, string) {
 func (s *Surface) sendLanePacket(p []byte) bool {
 	bl, _ := s.laneNative()
 	return bl != nil && bl.SendLanePacket(p)
+}
+
+// sendPollPacket is lane.State's pollSend: down:poll takes p only while the
+// page's downstream generation polls (downq.State.Active).
+func (s *Surface) sendPollPacket(p []byte) bool {
+	return s.downq.Active() && s.downq.Push(downq.Packet, p) != 0
 }
 
 // LaneHello implements ipc.BinaryConn: it starts a new lane generation for
@@ -183,18 +193,18 @@ func (a *App) deliverBinary(s *Surface, gen uint64, p []byte) {
 	}
 }
 
-// lanePathPrefix is the asset origin path under which the scheme lanes are
-// served (down:scheme, up:post); host.ServeAsset hands these requests to
-// serveLane instead of Options.Assets.
+// lanePathPrefix is the asset origin path under which the core's HTTP
+// lanes are served (down:poll, up:post); host.ServeAsset hands these
+// requests to serveLane instead of Options.Assets.
 const lanePathPrefix = "/__tango/lane/"
 
-// serveLane serves GET /__tango/lane/down and POST /__tango/lane/up for
-// surface id (lane.State.ServeDown, ServeUp; upstream packets go to the
-// OnBinary handlers). A request whose Origin header names another origin
-// is refused (403) whatever its method and whatever
+// serveLane serves GET /__tango/lane/poll and POST /__tango/lane/up for
+// surface id (downq.State.Serve, lane.State.ServeUpSession; upstream
+// packets go to the OnBinary handlers). A request whose Origin header names
+// another origin is refused (403) whatever its method and whatever
 // Options.AllowCrossOriginAssets says: the lanes are the core's, not the
-// application's. The token check is ServeDown's and ServeUp's; a surface
-// whose page has no lane generation refuses every request. Any thread,
+// application's. The token checks are Serve's and ServeUpSession's; a
+// surface whose page has no generation refuses every request. Any thread,
 // like ServeAsset.
 func (a *App) serveLane(id platform.SurfaceID, w http.ResponseWriter, r *http.Request) {
 	if !a.laneRequestAllowed(r) {
@@ -207,8 +217,6 @@ func (a *App) serveLane(id platform.SurfaceID, w http.ResponseWriter, r *http.Re
 		return
 	}
 	switch r.URL.Path {
-	case lanePathPrefix + "down":
-		s.lane.ServeDown(w, r)
 	case lanePathPrefix + "poll":
 		s.downq.Serve(w, r) // down:poll; downpoll.go
 	case lanePathPrefix + "up":

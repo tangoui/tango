@@ -20,14 +20,11 @@ import (
 //     surrounding spaces ignored): none (off by default on iOS until measured
 //     on a real device; macOS is default-on, internal/platform/darwin/lanes.go,
 //     and differs from this on purpose).
-//   - TANGO_IPC_LANES_DARWIN=all, in a build with the self-test hooks
-//     (testhooks_on.go): down:scheme and up:post. Experimental:
-//     WebKit holds back large down:scheme bursts, see spec §6.2
-//     (docs/specs/2026-11-13-ipc-duplex-streams.md).
-//   - any other value (normally "1"): up:post only.
+//   - any other value (normally "1", "all" included): up:post only. iOS
+//     does not offer down:poll (the core's downstream lane; macOS does).
 //
-// hooks is testHooks (testhooks_on.go): without the self-test hooks, "all"
-// is just another "on" value.
+// hooks is testHooks (testhooks_on.go). It no longer changes anything:
+// with the hooks "all" used to add the removed down:scheme lane.
 func laneCapsFromEnv(getenv func(string) string, hooks bool) []string {
 	if getenv("TANGO_IPC_LANES") == "0" {
 		return nil
@@ -35,8 +32,6 @@ func laneCapsFromEnv(getenv func(string) string, hooks bool) []string {
 	switch v := strings.ToLower(strings.TrimSpace(getenv("TANGO_IPC_LANES_DARWIN"))); {
 	case v == "" || v == "0" || v == "false" || v == "off":
 		return nil
-	case v == "all" && hooks:
-		return []string{lane.DownScheme, lane.UpPost}
 	default:
 		return []string{lane.UpPost}
 	}

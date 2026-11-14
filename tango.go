@@ -213,7 +213,8 @@ func (a *App) shutdown() {
 	a.mu.Unlock()
 	for _, s := range ss {
 		s.closed.Store(true)
-		s.lane.Close() // ends a down:scheme response still open; lanes.go
+		s.downq.Close() // ends a down:poll request still waiting; downpoll.go
+		s.lane.Close()
 	}
 }
 

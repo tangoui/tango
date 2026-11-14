@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/tangoui/tango/internal/corehook"
+	"github.com/tangoui/tango/internal/downq"
 	"github.com/tangoui/tango/internal/lane"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/fake"
@@ -175,7 +175,7 @@ func TestOnLanePacketRouting(t *testing.T) {
 	ch := make(chan got, 8)
 	a.OnBinary(func(s *Surface, gen uint64, p []byte) { ch <- got{s, string(p)} })
 	a.OnBinary(func(s *Surface, gen uint64, p []byte) { ch <- got{s, "second:" + string(p)} })
-	s := laneSurface(t, a, fb, "", lane.DownScheme, lane.UpAndroid)
+	s := laneSurface(t, a, fb, "", lane.DownPoll, lane.UpAndroid)
 	var h laneHelloJSON
 	if err := json.Unmarshal(s.LaneHello(), &h); err != nil {
 		t.Fatal(err)
@@ -348,28 +348,77 @@ func TestRouterOverSurfaceLanes(t *testing.T) {
 	expectLanePacket(t, ps[1], 2, big)
 }
 
-// down:scheme (BinaryMinSize 4096): a 100 B frame goes as a message, a
-// 64 KiB one on the lane (queued for the scheme response, so nothing
-// reaches the platform's SendLanePacket).
-func TestRouterOverSurfaceSchemeLane(t *testing.T) {
-	fb, s, writes := routerLaneApp(t, lane.DownScheme, lane.DownScheme, lane.UpPost)
-	if s.BinaryMinSize() != lane.SchemeMinSize {
+// down:poll (BinaryMinSize 0) while the page polls: every byte frame, small
+// or large, is a packet item of the poll queue (nothing reaches the
+// platform's SendLanePacket), and the stream's JSON close follows it in
+// the same queue.
+func TestRouterOverSurfacePollLane(t *testing.T) {
+	fb, s, writes := routerLaneApp(t, lane.DownPoll, lane.DownPoll, lane.UpPost)
+	if s.BinaryMinSize() != 0 {
 		t.Fatalf("BinaryMinSize = %d", s.BinaryMinSize())
 	}
+	a := s.app
+	o := lastOpen(t, fb.Surface(s.ID()))
+	ch := activate(t, a, s, o)
+	small, big := pattern(100), pattern(64<<10)
+	writes <- small // seq 0: down:poll
+	writes <- big   // seq 1: down:poll
+	close(writes)
+	var pkts [][]byte
+	closed := false
+	for !closed {
+		w := awaitPoll(t, ch)
+		items := batchItems(t, w)
+		var ack uint64
+		for _, it := range items {
+			ack = it.Seq
+			switch it.Kind {
+			case downq.Packet:
+				pkts = append(pkts, it.Data)
+			case downq.Msg:
+				var m map[string]any
+				if json.Unmarshal(it.Data, &m) == nil && m["op"] == "close" {
+					closed = true
+				}
+				if m["op"] == "data" {
+					t.Fatalf("stream data on the message channel: %s", it.Data)
+				}
+			}
+		}
+		if !closed {
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			next := make(chan *httptest.ResponseRecorder, 1)
+			go func() { next <- pollReq(ctx, a, s, o.Gen, o.Tok, ack) }()
+			ch = next
+		}
+	}
+	if len(pkts) != 2 {
+		t.Fatalf("%d packet items, want 2", len(pkts))
+	}
+	expectLanePacket(t, pkts[0], 0, small)
+	expectLanePacket(t, pkts[1], 1, big)
+	if ps := fb.LanePackets(s.ID()); len(ps) != 0 {
+		t.Fatal("down:poll packet sent through the platform lane")
+	}
+}
+
+// down:poll ready but the page not polling (yet, or after it failed):
+// pollSend refuses, so the byte frames go as messages.
+func TestRouterOverSurfacePollLaneNotPolling(t *testing.T) {
+	fb, s, writes := routerLaneApp(t, lane.DownPoll, lane.DownPoll, lane.UpPost)
+	if s.downq.Active() {
+		t.Fatal("poll queue active without a poll")
+	}
 	writes <- pattern(100)      // seq 0: message channel
-	writes <- pattern(64 << 10) // seq 1: down:scheme queue
+	writes <- pattern(64 << 10) // seq 1: message channel
 	close(writes)
 	data := streamData(t, fb, s, 2)
-	if len(data) != 1 || data[0] == nil || data[0]["bin"] == nil {
-		t.Fatalf("message channel data = %v, want only the 100 B frame", data)
+	if len(data) != 2 || data[0]["bin"] == nil || data[1]["bin"] == nil {
+		t.Fatalf("message channel data = %v, want both frames", data)
 	}
 	if ps := fb.LanePackets(s.ID()); len(ps) != 0 {
-		t.Fatalf("down:scheme packet sent through the platform lane")
-	}
-	// The 64 KiB frame is waiting for the scheme response, as a one-frame
-	// packet: 2 + 20 header bytes and the payload.
-	if n, b := s.lane.Queued(); n != 1 || b != 2+20+64<<10 {
-		t.Fatalf("down:scheme queue holds %d packets, %d bytes", n, b)
+		t.Fatal("packet sent through the platform lane")
 	}
 }
 
@@ -513,7 +562,7 @@ func TestServeAssetInterceptsLanePaths(t *testing.T) {
 			var mu sync.Mutex
 			var got []string
 			a.OnBinary(func(_ *Surface, _ uint64, p []byte) { mu.Lock(); got = append(got, string(p)); mu.Unlock() })
-			s := laneSurface(t, a, fb, "", lane.DownScheme, lane.UpPost)
+			s := laneSurface(t, a, fb, "", lane.DownPoll, lane.UpPost)
 			var h laneHelloJSON
 			if err := json.Unmarshal(s.LaneHello(), &h); err != nil {
 				t.Fatal(err)
@@ -543,9 +592,9 @@ func TestServeAssetInterceptsLanePaths(t *testing.T) {
 			}
 			mu.Unlock()
 			// Cross-origin requests are refused whatever the options say,
-			// GETs of the down lane included.
+			// GETs of the poll lane included.
 			for _, m := range []string{"POST", "GET"} {
-				path := map[string]string{"POST": "/__tango/lane/up", "GET": "/__tango/lane/down"}[m]
+				path := map[string]string{"POST": "/__tango/lane/up", "GET": "/__tango/lane/poll"}[m]
 				for _, from := range []string{"http://evil", "null", origin + ".evil"} {
 					if w := serve(s.ID(), m, path+q, from, "bad"); w.Code != http.StatusForbidden {
 						t.Errorf("%s %s from %s: %d, want 403", m, path, from, w.Code)
@@ -571,22 +620,13 @@ func TestServeAssetInterceptsLanePaths(t *testing.T) {
 				t.Fatal("a lane request reached Options.Assets")
 			}
 
-			// The down lane streams through ServeAsset too.
-			s.lane.Control(fmt.Sprintf(`{"op":"ready","lane":%q,"gen":%d}`, lane.DownScheme, h.Gen))
-			ctx, cancel := context.WithCancel(context.Background())
-			r := httptest.NewRequestWithContext(ctx, "GET", origin+"/__tango/lane/down"+q, nil)
-			w := httptest.NewRecorder()
-			done := make(chan struct{})
-			go func() { defer close(done); host{a}.ServeAsset(s.ID(), w, r) }()
-			time.Sleep(20 * time.Millisecond)
-			cancel()
-			select {
-			case <-done:
-			case <-time.After(2 * time.Second):
-				t.Fatal("down response did not end")
+			// down:scheme's endpoint is gone: no lane serves it, and it
+			// does not fall through to Options.Assets either.
+			if w := serve(s.ID(), "GET", "/__tango/lane/down"+q, "", ""); w.Code != http.StatusNotFound {
+				t.Errorf("GET down: %d, want 404", w.Code)
 			}
-			if w.Code != 200 || w.Body.String() != "\x00\x00" {
-				t.Fatalf("down: %d %q", w.Code, w.Body.String())
+			if assetHits != before {
+				t.Fatal("the old down path reached Options.Assets")
 			}
 
 			// A surface with no lane generation serves no lanes.
@@ -596,7 +636,7 @@ func TestServeAssetInterceptsLanePaths(t *testing.T) {
 			}
 
 			// Other paths still go to Options.Assets.
-			w = serve(s.ID(), "GET", "/index.html", "", "")
+			w := serve(s.ID(), "GET", "/index.html", "", "")
 			if tc.opts.Assets == nil {
 				if w.Code != http.StatusNotFound {
 					t.Errorf("/index.html without Assets: %d", w.Code)

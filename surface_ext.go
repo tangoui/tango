@@ -383,9 +383,9 @@ func (s *Surface) handleExtEvent(ev platform.SurfaceEvent) {
 		// The current page is about to go away: hold messages until the
 		// next one has loaded instead of evaluating them in a page that is
 		// unloading.
-		s.pageGone() // downpoll.go: the generation ends
-		// Likewise no fast lane bytes for whatever page comes next until
-		// it says hello (lanes.go).
+		s.pageGone() // downpoll.go: the generation ends, down:poll's too
+		// Likewise no platform lane bytes for whatever page comes next
+		// until it says hello (lanes.go).
 		s.lane.SuspendDown()
 		s.ext.navSeq++
 		fire(s, &s.ext.onNavigating, func(fn func(string)) { fn(ev.URL) })

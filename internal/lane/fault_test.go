@@ -10,7 +10,7 @@ import (
 func TestFaultAfterN(t *testing.T) {
 	t.Setenv("TANGO_IPC_LANE_FAULT", DownAndroid+":2")
 	rec := &recorder{}
-	s := New(rec.send)
+	s := New(rec.send, nil)
 	h := parseHello(t, s.Hello([]string{DownAndroid}, true))
 	s.Control(ctl("ready", DownAndroid, h.Gen))
 	data := mkPacket([]byte("x"))
@@ -38,7 +38,7 @@ func TestFaultAfterN(t *testing.T) {
 func TestFaultSkipsEmptyDownPackets(t *testing.T) {
 	t.Setenv("TANGO_IPC_LANE_FAULT", DownAndroid+":2")
 	rec := &recorder{}
-	s := New(rec.send)
+	s := New(rec.send, nil)
 	h := parseHello(t, s.Hello([]string{DownAndroid}, true))
 	s.Control(ctl("ready", DownAndroid, h.Gen))
 	data := mkPacket([]byte("x"))
@@ -64,8 +64,8 @@ func TestFaultSkipsEmptyDownPackets(t *testing.T) {
 // on a broken lane fails.
 func TestFaultSkipsEmptyUpPackets(t *testing.T) {
 	t.Setenv("TANGO_IPC_LANE_FAULT", UpPost+":2")
-	s := New(nil)
-	h := parseHello(t, s.Hello([]string{DownScheme, UpPost}, true))
+	s := New(nil, nil)
+	h := parseHello(t, s.Hello([]string{DownPoll, UpPost}, true))
 	ls := newLaneServer(t, s)
 	data := mkPacket([]byte("data"))
 	// The probe comes before the page reports up:post ready.
@@ -93,34 +93,16 @@ func TestFaultSkipsEmptyUpPackets(t *testing.T) {
 		t.Fatalf("delivered %d packets, want 7 (5 empty, 2 data)", n)
 	}
 	// A new generation starts counting over; its probe succeeds.
-	h = parseHello(t, s.Hello([]string{DownScheme, UpPost}, true))
+	h = parseHello(t, s.Hello([]string{DownPoll, UpPost}, true))
 	if code := post(t, ls, h.Gen, h.Tok, []byte{0, 0}); code != http.StatusNoContent {
 		t.Fatalf("probe in the next generation: %d, want 204", code)
 	}
 }
 
-func TestFaultSchemeEndsDownlink(t *testing.T) {
-	t.Setenv("TANGO_IPC_LANE_FAULT", DownScheme+":0")
-	s := New(nil)
-	h := parseHello(t, s.Hello([]string{DownScheme}, true))
-	s.Control(ctl("ready", DownScheme, h.Gen))
-	s.mu.Lock()
-	q := s.down
-	s.mu.Unlock()
-	if s.Send(mkPacket([]byte("x"))) {
-		t.Fatal("packet accepted on a lane faulted at 0")
-	}
-	select {
-	case <-q.done:
-	default:
-		t.Fatal("faulted down:scheme downlink not ended")
-	}
-}
-
 func TestFaultUpLane(t *testing.T) {
 	t.Setenv("TANGO_IPC_LANE_FAULT", UpPost+":3")
-	s := New(nil)
-	h := parseHello(t, s.Hello([]string{DownScheme, UpPost}, true))
+	s := New(nil, nil)
+	h := parseHello(t, s.Hello([]string{DownPoll, UpPost}, true))
 	s.Control(ctl("ready", UpPost, h.Gen))
 	for i := 0; i < 3; i++ {
 		if !s.UpAllowed() {
@@ -140,17 +122,58 @@ func TestFaultParse(t *testing.T) {
 		ok   bool
 	}{
 		{"", "", 0, false},
-		{"down:scheme:0", DownScheme, 0, true},
+		{"down:poll:0", DownPoll, 0, true},
+		{"down:poll:2", DownPoll, 2, true},
+		{"down:scheme:0", "", 0, false}, // removed lane
 		{"up:shm:17", UpShm, 17, true},
 		{" down:android:2 ", DownAndroid, 2, true},
-		{"down:scheme", "", 0, false},
-		{"down:scheme:x", "", 0, false},
-		{"down:scheme:-1", "", 0, false},
+		{"down:poll", "", 0, false},
+		{"down:poll:x", "", 0, false},
+		{"down:poll:-1", "", 0, false},
 		{"down:nope:3", "", 0, false},
 	} {
 		name, n, ok := parseFault(c.env)
 		if name != c.name || n != c.n || ok != c.ok {
 			t.Errorf("parseFault(%q) = %q %d %v, want %q %d %v", c.env, name, n, ok, c.name, c.n, c.ok)
 		}
+	}
+}
+
+// TANGO_IPC_LANE_FAULT=down:poll:N fails down:poll at its N+1th data
+// packet: Send refuses it (the frames go as messages) and the lane is
+// failed for the generation.
+func TestDownPollFault(t *testing.T) {
+	t.Setenv("TANGO_IPC_LANE_FAULT", "down:poll:2")
+	poll := &recorder{}
+	s := New(nil, poll.send)
+	h := parseHello(t, s.Hello([]string{DownPoll, UpPost}, true))
+	s.Control(ctl("ready", DownPoll, h.Gen))
+	data := mkPacket([]byte("x"))
+	for i := 0; i < 2; i++ {
+		if !s.Send(data) {
+			t.Fatalf("packet %d refused before the fault", i+1)
+		}
+	}
+	if s.Send(data) || poll.n() != 2 {
+		t.Fatal("third data packet not refused")
+	}
+	if s.MinSize() != -1 || s.Send([]byte{0, 0}) {
+		t.Fatal("faulted down:poll not marked failed")
+	}
+	// A packet pollSend refused does not count towards the fault.
+	h = parseHello(t, s.Hello([]string{DownPoll}, true))
+	s.Control(ctl("ready", DownPoll, h.Gen))
+	poll.setFail(true)
+	if s.Send(data) {
+		t.Fatal("refused packet reported taken")
+	}
+	poll.setFail(false)
+	for i := 0; i < 2; i++ {
+		if !s.Send(data) {
+			t.Fatalf("next generation: packet %d refused before the fault", i+1)
+		}
+	}
+	if s.Send(data) {
+		t.Fatal("next generation: third data packet not refused")
 	}
 }
