@@ -165,13 +165,13 @@ func (d *State) goTo(i int, s diff.Side) {
 // contains the line it is before), -1 for none.
 func (d *State) changeAt(s diff.Side, line int) int {
 	cs := d.res.Changes
-	i := sort.Search(len(cs), func(i int) bool { return rangeOf(cs[i], s).End > line })
+	i := sort.Search(len(cs), func(i int) bool { lr := rangeOf(cs[i], s); return lr.End > line || lr.Start >= line })
 	for ; i < len(cs); i++ {
 		lr := rangeOf(cs[i], s)
 		if lr.Start > line {
 			break
 		}
-		if lr.Contains(line) {
+		if lr.Contains(line) || lr.Empty() && lr.Start == line {
 			return i
 		}
 	}

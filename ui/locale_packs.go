@@ -245,6 +245,24 @@ var EnUS = &Locale{
 		Empty: "No notifications", UnreadFmt: "%d unread", JustNow: "Just now", MinutesAgoFmt: "%dm ago", HoursAgoFmt: "%dh ago", DaysAgoFmt: "%dd ago"},
 	HotkeyInput: HotkeyInputLocale{Placeholder: "Click to record a shortcut", Recording: "Press a key combination, Esc to cancel", ClearLabel: "Clear shortcut"},
 	Dock:        DockLocale{Maximize: "Maximize", Restore: "Restore", Split: "Split right", Empty: "Drag a tab here", Group: "Tab group"},
+	// Texts of ui/editor/diffview (its fallbacks are Simplified Chinese).
+	Extra: map[string]string{
+		"diffview.a11y.change":      "Difference %d of %d: ",
+		"diffview.a11y.removed":     "removed lines %s",
+		"diffview.a11y.inserted":    "added lines %s",
+		"diffview.a11y.sep":         ", ",
+		"diffview.a11y.range":       "%d–%d",
+		"diffview.a11y.none":        "No differences",
+		"diffview.hidden":           "%d hidden lines",
+		"diffview.showAbove":        "Show %d more lines above",
+		"diffview.showBelow":        "Show %d more lines below",
+		"diffview.showAll":          "Show all",
+		"diffview.original":         "Original (read-only) — %s",
+		"diffview.originalEditable": "Original — %s",
+		"diffview.modified":         "Modified — %s",
+		"diffview.revert":           "Revert this change",
+		"diffview.unnamed":          "Untitled",
+	},
 }
 
 // ZhTW is the Traditional Chinese locale with Taiwan usage. LocaleByCode

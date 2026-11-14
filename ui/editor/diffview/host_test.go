@@ -13,6 +13,7 @@ import (
 	"github.com/tangoui/tango/internal/render/gpu"
 	"github.com/tangoui/tango/internal/render/gpu/cpuexec"
 	"github.com/tangoui/tango/ui"
+	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/editor"
 	"github.com/tangoui/tango/ui/editor/diff"
 	"github.com/tangoui/tango/ui/editor/theme"
@@ -39,6 +40,20 @@ func (w *testWindow) WriteClipboard(s string)      { w.clip = s }
 func (w *testWindow) SetTextInput(bool, geom.Rect) {}
 func (w *testWindow) Present(*image.RGBA) error    { return nil }
 
+// a11yWindow is a testWindow with accessibility on; it records the
+// announcements.
+type a11yWindow struct {
+	*testWindow
+	said []string
+}
+
+func (w *a11yWindow) AccessibilityEnabled() bool { return true }
+func (w *a11yWindow) AccessibilityUpdate(t *a11y.Tree, _ []a11y.NodeID) {
+	for _, a := range t.Announcements {
+		w.said = append(w.said, a.Text)
+	}
+}
+
 // host runs a page showing a diff view through a gpu.Renderer on a
 // cpuexec.Device, in strict verify mode when verify is set: every partial
 // frame is compared with a full redraw, and a difference fails the frame.
@@ -51,6 +66,7 @@ type host struct {
 	vw     *ViewW
 	now    time.Time
 	mods   func(*ViewW)
+	aw     *a11yWindow // with accessibility (newA11yHost)
 	frames int
 	parts  int
 }
@@ -70,6 +86,14 @@ func newHost(t testing.TB, d *State, size geom.Size, scale float32, verify bool)
 		}
 	}, ui.RunnerOptions{Renderer: ren, NoAnimations: true, Clock: func() time.Time { return h.now }})
 	h.r.Attach(h.w)
+	return h
+}
+
+// newA11yHost is newHost with accessibility on.
+func newA11yHost(t testing.TB, d *State, size geom.Size) *host {
+	h := newHost(t, d, size, 1, false)
+	h.aw = &a11yWindow{testWindow: h.w}
+	h.r.Attach(h.aw)
 	return h
 }
 
