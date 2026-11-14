@@ -20,6 +20,14 @@ import (
 // last child of a column that fills the window (or PageContainer.Fill) it
 // sits at the bottom; Sticky pins it to the bottom edge of the window (or
 // of Target's scroll box) while the page scrolls under it.
+//
+// Pinned, the bar is frosted: the page under it is blurred
+// (paint.BackdropBlur) and shows through a translucent background
+// (FooterToolbarToken: BlurRadius, FrostedBg per design system). In flow,
+// with a high-contrast theme, or on a renderer without backdrop blur, the
+// bar draws its plain background (FooterToolbarToken.Bg; opaque in high
+// contrast). The blurred region follows the bar's rectangle, in
+// right-to-left layouts too (nothing is mirrored).
 
 // FooterToolbarW builds a FooterToolbar.
 type FooterToolbarW struct {
@@ -31,6 +39,7 @@ type FooterToolbarW struct {
 	target ID
 	opts   []layout.Option
 	box    *Box
+	affix  *AffixW // Sticky: the Affix holding the bar
 }
 
 // FooterToolbar starts a bottom action bar; chain options, then Body with
@@ -77,6 +86,7 @@ func (f *FooterToolbarW) Body(fn func()) *FooterToolbarW {
 	if f.target != 0 {
 		a.Target(f.target)
 	}
+	f.affix = a
 	a.Body(func() { f.bar(fn) })
 	return f
 }
@@ -93,16 +103,14 @@ func (f *FooterToolbarW) bar(fn func()) {
 	b := pro2Box(c, "pro2-footer-toolbar", "", layout.Row, opts)
 	f.box = b
 	b.Semantics(a11y.RoleToolbar, c.Locale().PageContainer.FooterToolbar)
+	f.surface(b)
 	if pro2Shad(c) {
-		// No backdrop blur primitive: shadcn's sticky bars use
-		// bg-background/95 with a top border and no shadow.
-		b.Bg(theme.Fade(th.BgContainer, 0.95)).Paint(shad2dTopLine(th.BorderSecondary))
+		// shadcn's sticky bars: a top border and no shadow.
+		b.Paint(shad2dTopLine(th.BorderSecondary))
 		f.barBody(fn)
 		return
 	}
-	// A slightly translucent surface with an upward shadow, like Pro's
-	// frosted bar.
-	b.Bg(theme.Fade(th.BgContainer, 0.96))
+	// An upward shadow, like Pro's bar.
 	b.Shadow([]paint.Shadow{
 		{Y: -6, Blur: 16, Spread: -8, Color: theme.RGBA(0, 0, 0, .08)},
 		{Y: -9, Blur: 28, Color: theme.RGBA(0, 0, 0, .05)},
@@ -110,6 +118,25 @@ func (f *FooterToolbarW) bar(fn func()) {
 	split := th.Split
 	b.Paint(func(l *paint.List, r geom.Rect) { dataHLine(l, r.X, r.Y, r.W, split) })
 	f.barBody(fn)
+}
+
+// surface sets the bar's background: frosted while pinned (see
+// FooterToolbar), else the plain one.
+func (f *FooterToolbarW) surface(b *Box) {
+	c := f.c
+	th := c.ThemeFor(theme.CompFooterToolbar)
+	tk := &th.Components.FooterToolbar
+	if th.HighContrast {
+		// No translucency: the bar reads against whatever scrolls by.
+		b.Bg(theme.Over(th.BgContainer, theme.Hex("#ffffff")))
+		return
+	}
+	if f.affix != nil && f.affix.Affixed() && tk.BlurRadius > 0 && !c.noBlur {
+		b.Bg(tk.FrostedBg)
+		b.blur = tk.BlurRadius
+		return
+	}
+	b.Bg(tk.Bg)
 }
 
 func (f *FooterToolbarW) barBody(fn func()) {

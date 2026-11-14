@@ -79,7 +79,7 @@ func TestMetalConformanceSkip(t *testing.T) {
 	if dev.frames == 0 {
 		t.Fatal("no scene ran")
 	}
-	if n := len(skipped); n != 13+3*len(imageScenes) {
-		t.Errorf("%d subtests skipped, want 13 groups and %d image scenes: %v", n, 3*len(imageScenes), skipped)
+	if n := len(skipped); n != 14+3*len(imageScenes) {
+		t.Errorf("%d subtests skipped, want 14 groups and %d image scenes: %v", n, 3*len(imageScenes), skipped)
 	}
 }

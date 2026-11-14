@@ -36,6 +36,13 @@ import (
 // depend on each other's order). A Damage under an unknown Push… op makes
 // the frame full.
 //
+// Backdrop blurs (paint.BackdropBlur) read the target as drawn before
+// them, so a partial frame must redraw a blur's whole source region (its
+// plan's Src) whenever it redraws any of it: blurDirty grows the dirty
+// rectangles accordingly, and makes the destination of a copy that would
+// carry last frame's blurred pixels dirty too. Frames without blurs (this
+// one and the last) are planned exactly as before.
+//
 // The dirty rectangles are clipped to the frame, made disjoint (overlapping
 // ones merged) and merged down to maxDirty, the pair whose union adds the
 // least area first; if they then cover more than half the frame, the frame
@@ -82,6 +89,59 @@ type scanGroup struct {
 	native bool
 }
 
+// scanBlur is a BackdropBlur seen by the pre-scan: the pixels it changes
+// and the pixels it reads (paint.BlurPlan's Out and Src).
+type scanBlur struct {
+	out, src image.Rectangle
+}
+
+// blurDirty adds to the dirty rectangles what the frame's backdrop blurs
+// (and the last frame's, prev: their Out rectangles) require, so that a
+// partial frame redraws each blur from a source that equals a full
+// frame's at that point:
+//
+//   - a copy carries the pixels of its source along: where that source
+//     held last frame's blurred pixels, its destination is redrawn (a
+//     blur's look must not move with scrolled content);
+//   - a copy whose destination reaches a blur's source changed what the
+//     blur reads: the blur's whole source is redrawn;
+//   - a dirty rectangle reaching a blur's source likewise makes its whole
+//     source dirty, until no blur's source is reached that is not dirty
+//     (merging the rectangles as mergeDirty does at each step, since
+//     merging grows them).
+//
+// The result is merged (mergeDirty) to at most maxDirty rectangles.
+func blurDirty(dirty []image.Rectangle, copies []CopyRegion, blurs []scanBlur, prev []image.Rectangle) []image.Rectangle {
+	added := make([]bool, len(blurs))
+	for _, c := range copies {
+		d := c.Dst.Min.Sub(c.Src.Min)
+		for _, p := range prev {
+			if g := p.Intersect(c.Src); !g.Empty() {
+				dirty = append(dirty, g.Add(d).Intersect(c.Dst))
+			}
+		}
+		for i, b := range blurs {
+			if !added[i] && c.Dst.Overlaps(b.src) {
+				dirty = append(dirty, b.src)
+				added[i] = true
+			}
+		}
+	}
+	for {
+		dirty = mergeDirty(dirty, maxDirty)
+		grew := false
+		for i, b := range blurs {
+			if !added[i] && overlapsAny(b.src, dirty) {
+				dirty = append(dirty, b.src)
+				added[i], grew = true, true
+			}
+		}
+		if !grew {
+			return dirty
+		}
+	}
+}
+
 // scanScroll is a ScrollRegion seen by the pre-scan.
 type scanScroll struct {
 	o  paint.ScrollRegion
@@ -106,6 +166,7 @@ func (r *Renderer) planPartial(ops []paint.Op, size image.Point, scale float32, 
 	rt, ok := r.dev.(Retainer)
 	if !ok {
 		r.prevClips = r.prevClips[:0]
+		r.prevBlurs = r.prevBlurs[:0]
 		return false
 	}
 	// The scan runs for every frame on a Retainer: the next frame checks
@@ -113,12 +174,19 @@ func (r *Renderer) planPartial(ops []paint.Op, size image.Point, scale float32, 
 	full := image.Rectangle{Max: size}
 	hints, forceFull := false, false
 	clips, groups, scrolls := r.scanClips[:0], r.scanGroups[:0], r.scanScrolls[:0]
+	blurs := r.scanBlurs[:0]
 	prev := r.prevClips
+	prevBlurs := r.prevBlurs
 	defer func() {
 		clear(scrolls) // drop references to the list
-		// This frame's clips become the previous frame's.
+		// This frame's clips and blurs become the previous frame's.
 		r.prevClips, r.scanClips = clips, prev[:0]
 		r.scanGroups, r.scanScrolls = groups[:0], scrolls[:0]
+		r.prevBlurs = r.prevBlurs[:0]
+		for _, b := range blurs {
+			r.prevBlurs = append(r.prevBlurs, b.out)
+		}
+		r.scanBlurs = blurs[:0]
 	}()
 	st := r.scanStack[:0]
 	cur := scanState{m: geom.Identity(), native: true, sc: full}
@@ -170,6 +238,18 @@ func (r *Renderer) planPartial(ops []paint.Op, size image.Point, scale float32, 
 		case paint.ScrollRegion:
 			hints = true
 			scrolls = append(scrolls, scanScroll{o, cur})
+		case paint.BackdropBlur:
+			// What backdropBlur plans for it (drawn only under a native
+			// transform; c.full is the scan's sc).
+			if cur.native {
+				k := float32(math.Abs(float64(cur.m.A)))
+				g := cur.m.Bounds(o.Rect)
+				s := r.scale
+				dr := geom.Rect{X: g.X * s, Y: g.Y * s, W: g.W * s, H: g.H * s}
+				if p, ok := paint.PlanBackdropBlur(dr, paint.BlurSigma(o.Radius*k, s), cur.sc, full); ok {
+					blurs = append(blurs, scanBlur{out: p.Out, src: p.Src})
+				}
+			}
 		default:
 			if op != nil && isPush(op) {
 				st = append(st, cur)
@@ -256,6 +336,9 @@ func (r *Renderer) planPartial(ops []paint.Op, size image.Point, scale float32, 
 		r.dirty = appendDiff(r.dirty, g.outer, dst)
 	}
 
+	if len(blurs) > 0 || len(prevBlurs) > 0 {
+		r.dirty = blurDirty(r.dirty, r.copies, blurs, prevBlurs)
+	}
 	r.dirty = mergeDirty(r.dirty, maxDirty)
 	if len(r.dirty) == 0 {
 		// Every copy leaves a dirty strip, so there is none either; a

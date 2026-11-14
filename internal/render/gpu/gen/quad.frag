@@ -399,6 +399,81 @@ float Dither4x4(float x, float y) {
     return (b + 0.5) * 0.0625;
 }
 
+vec4 blurTexel(float x, float y, vec2 ht, vec2 valid, vec4 dash) {
+    float cx = clamp(x, 0.0, dash.z - 1.0) - dash.x;
+    float cy = clamp(y, 0.0, dash.w - 1.0) - dash.y;
+    if ((((cx < 0.0) || (cy < 0.0)) || (cx > (valid.x - 0.5))) || (cy > (valid.y - 0.5))) {
+        return vec4(0.0, 0.0, 0.0, 0.0);
+    }
+    vec4 t = textureLod(Layer, vec2(((cx + 0.5) * 2.0) * ht.x, ((cy + 0.5) * 2.0) * ht.y), 0.0);
+    return vec4(floor((t.x * 255.0) + 0.5), floor((t.y * 255.0) + 0.5), floor((t.z * 255.0) + 0.5), floor((t.w * 255.0) + 0.5));
+}
+
+vec4 blurQuantize(vec4 v) {
+    return vec4(floor(v.x + 0.5) / 255.0, floor(v.y + 0.5) / 255.0, floor(v.z + 0.5) / 255.0, floor(v.w + 0.5) / 255.0);
+}
+
+vec4 BlurPass(vec2 pc, vec4 uv, vec4 kind, vec4 params, vec4 dash, float cov) {
+    vec2 ht = vec2(kind.y, kind.z);
+    vec2 valid = vec2(uv.z / (2.0 * kind.y), uv.w / (2.0 * kind.z));
+    vec2 o = params.zw;
+    if (kind.w > 4.5) {
+        float d = params.x;
+        float u = ((pc.x - o.x) / d) - 0.5;
+        float v = ((pc.y - o.y) / d) - 0.5;
+        float x0 = floor(u);
+        float y0 = floor(v);
+        float fx = u - x0;
+        float fy = v - y0;
+        vec4 a = blurTexel(x0, y0, ht, valid, dash);
+        vec4 b = blurTexel(x0 + 1.0, y0, ht, valid, dash);
+        vec4 e = blurTexel(x0, y0 + 1.0, ht, valid, dash);
+        vec4 f = blurTexel(x0 + 1.0, y0 + 1.0, ht, valid, dash);
+        vec4 top = mix(a, b, fx);
+        vec4 bot = mix(e, f, fx);
+        return (mix(top, bot, fy) * 0.003921569) * cov;
+    }
+    float i = (pc.x - o.x) - 0.5;
+    float j = (pc.y - o.y) - 0.5;
+    if (kind.w < 2.5) {
+        float d_1 = params.x;
+        vec4 sum = vec4(0.0, 0.0, 0.0, 0.0);
+        for (float vy = 0.0; vy < 32.0; vy = vy + 1.0) {
+            if (vy > (d_1 - 0.5)) {
+                break;
+            }
+            for (float ux = 0.0; ux < 32.0; ux = ux + 1.0) {
+                if (ux > (d_1 - 0.5)) {
+                    break;
+                }
+                sum = sum + blurTexel((i * d_1) + ux, (j * d_1) + vy, ht, valid, dash);
+            }
+        }
+        return blurQuantize(sum * (1.0 / (d_1 * d_1)));
+    }
+    float dx = 1.0;
+    float dy = 0.0;
+    if (kind.w > 3.5) {
+        dx = 0.0;
+        dy = 1.0;
+    }
+    float k = 1.0 / (params.x * 1.4142135);
+    float n = params.y;
+    vec4 acc = vec4(0.0, 0.0, 0.0, 0.0);
+    float ws = 0.0;
+    for (float s = 0.0; s < 49.0; s = s + 1.0) {
+        if (s > ((2.0 * n) + 0.5)) {
+            break;
+        }
+        float t = s - n;
+        float w = sl_erf((t + 0.5) * k) - sl_erf((t - 0.5) * k);
+        vec4 c = blurTexel(i + (t * dx), j + (t * dy), ht, valid, dash);
+        acc = acc + (c * w);
+        ws = ws + w;
+    }
+    return blurQuantize(acc * (1.0 / ws));
+}
+
 float scale8(float c, float m) {
     return floor((floor((c * 255.0) + 0.5) * m) / 255.0) / 255.0;
 }
@@ -452,6 +527,9 @@ vec4 FS(Varyings in_) {
             cov = cov * m.x;
         }
         return DitherPremul(c, Dither4x4(pc.x - 0.5, pc.y - 0.5)) * cov;
+    }
+    if ((in_.Kind.x > 1.5) && (in_.Kind.w > 1.5)) {
+        return BlurPass(pc, in_.UV, in_.Kind, in_.Params, in_.Dash, cov);
     }
     vec2 t_2 = (in_.P - in_.Rect.xy) / in_.Rect.zw;
     vec2 uv = in_.UV.xy + (in_.UV.zw * t_2);

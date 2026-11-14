@@ -48,7 +48,7 @@ func TestComponentOrder(t *testing.T) {
 	}
 	want := []string{"Button", "Input", "Select", "Checkbox", "Radio", "Switch", "Slider", "Tag", "Tabs", "Menu", "Table",
 		"Card", "Modal", "Drawer", "Tooltip", "Popover", "Notification", "Message", "Pagination", "Segmented", "Avatar", "Skeleton", "Layout",
-		"Tree", "Cascader", "DatePicker", "Calendar", "Steps", "Timeline", "Descriptions", "List", "Badge", "Progress", "Upload", "Transfer", "Collapse", "Alert", "Breadcrumb", "Dropdown", "Rate", "InputNumber", "Statistic", "Divider", "Typography", "Image", "Carousel", "ColorPicker", "Tour", "Splitter", "Result", "Empty", "FloatButton", "Anchor", "Form", "Menubar", "Item", "Terminal", "CodeBlock", "JSONView", "LogView", "StatusBar", "TitleBar", "NotificationCenter", "HotkeyInput", "Dock", "Chat"}
+		"Tree", "Cascader", "DatePicker", "Calendar", "Steps", "Timeline", "Descriptions", "List", "Badge", "Progress", "Upload", "Transfer", "Collapse", "Alert", "Breadcrumb", "Dropdown", "Rate", "InputNumber", "Statistic", "Divider", "Typography", "Image", "Carousel", "ColorPicker", "Tour", "Splitter", "Result", "Empty", "FloatButton", "Anchor", "Form", "Menubar", "Item", "Terminal", "CodeBlock", "JSONView", "LogView", "StatusBar", "TitleBar", "NotificationCenter", "HotkeyInput", "Dock", "Chat", "FooterToolbar"}
 	for i, n := range want {
 		if Comp(i).String() != n {
 			t.Errorf("Comp(%d) = %s, want %s", i, Comp(i), n)

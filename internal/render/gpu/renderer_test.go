@@ -991,6 +991,7 @@ var allPaintOps = []paint.Op{
 	paint.Checker{Rect: geom.R(1, 1, 4, 4), Cell: 2},
 	paint.Text{},
 	paint.Image{Rect: geom.R(1, 1, 4, 4), Img: testImage()},
+	paint.BackdropBlur{Rect: geom.R(1, 1, 6, 6), Radius: 2},
 	paint.PushClip{Rect: geom.R(0, 0, 8, 8)},
 	paint.PushOpacity{Alpha: 0.5},
 	paint.PushTransform{M: geom.Scale(2, 2)},

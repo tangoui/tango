@@ -567,7 +567,7 @@ func TestPartialRedrawScenes(t *testing.T) {
 				if err := r.Render(l2, gputest.SceneSize, scale); err != nil {
 					t.Fatal(err)
 				}
-				if len(dev.last.Dirty) != 2 {
+				if len(dev.last.Dirty) != 2 && !gputest.HasBlur(l) {
 					t.Fatalf("Dirty %v", dev.last.Dirty)
 				}
 				mustSame(t, sc.Name, dev.img, fullRender(t, l, gputest.SceneSize, scale))

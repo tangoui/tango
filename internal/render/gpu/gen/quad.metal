@@ -382,6 +382,81 @@ float Dither4x4(float x, float y) {
     return (b + 0.5f) * 0.0625f;
 }
 
+float4 blurTexel(float x, float y, float2 ht, float2 valid, float4 dash, texture2d<float> Layer) {
+    float cx = clamp(x, 0.0f, dash.z - 1.0f) - dash.x;
+    float cy = clamp(y, 0.0f, dash.w - 1.0f) - dash.y;
+    if ((((cx < 0.0f) || (cy < 0.0f)) || (cx > (valid.x - 0.5f))) || (cy > (valid.y - 0.5f))) {
+        return float4(0.0f, 0.0f, 0.0f, 0.0f);
+    }
+    float4 t = Layer.sample(Layer_sampler, float2(((cx + 0.5f) * 2.0f) * ht.x, ((cy + 0.5f) * 2.0f) * ht.y));
+    return float4(floor((t.x * 255.0f) + 0.5f), floor((t.y * 255.0f) + 0.5f), floor((t.z * 255.0f) + 0.5f), floor((t.w * 255.0f) + 0.5f));
+}
+
+float4 blurQuantize(float4 v) {
+    return float4(floor(v.x + 0.5f) / 255.0f, floor(v.y + 0.5f) / 255.0f, floor(v.z + 0.5f) / 255.0f, floor(v.w + 0.5f) / 255.0f);
+}
+
+float4 BlurPass(float2 pc, float4 uv, float4 kind, float4 params, float4 dash, float cov, texture2d<float> Layer) {
+    float2 ht = float2(kind.y, kind.z);
+    float2 valid = float2(uv.z / (2.0f * kind.y), uv.w / (2.0f * kind.z));
+    float2 o = params.zw;
+    if (kind.w > 4.5f) {
+        float d = params.x;
+        float u = ((pc.x - o.x) / d) - 0.5f;
+        float v = ((pc.y - o.y) / d) - 0.5f;
+        float x0 = floor(u);
+        float y0 = floor(v);
+        float fx = u - x0;
+        float fy = v - y0;
+        float4 a = blurTexel(x0, y0, ht, valid, dash, Layer);
+        float4 b = blurTexel(x0 + 1.0f, y0, ht, valid, dash, Layer);
+        float4 e = blurTexel(x0, y0 + 1.0f, ht, valid, dash, Layer);
+        float4 f = blurTexel(x0 + 1.0f, y0 + 1.0f, ht, valid, dash, Layer);
+        float4 top = mix(a, b, float4(fx));
+        float4 bot = mix(e, f, float4(fx));
+        return (mix(top, bot, float4(fy)) * 0.003921569f) * cov;
+    }
+    float i = (pc.x - o.x) - 0.5f;
+    float j = (pc.y - o.y) - 0.5f;
+    if (kind.w < 2.5f) {
+        float d_1 = params.x;
+        float4 sum = float4(0.0f, 0.0f, 0.0f, 0.0f);
+        for (float vy = 0.0f; vy < 32.0f; vy = vy + 1.0f) {
+            if (vy > (d_1 - 0.5f)) {
+                break;
+            }
+            for (float ux = 0.0f; ux < 32.0f; ux = ux + 1.0f) {
+                if (ux > (d_1 - 0.5f)) {
+                    break;
+                }
+                sum = sum + blurTexel((i * d_1) + ux, (j * d_1) + vy, ht, valid, dash, Layer);
+            }
+        }
+        return blurQuantize(sum * (1.0f / (d_1 * d_1)));
+    }
+    float dx = 1.0f;
+    float dy = 0.0f;
+    if (kind.w > 3.5f) {
+        dx = 0.0f;
+        dy = 1.0f;
+    }
+    float k = 1.0f / (params.x * 1.4142135f);
+    float n = params.y;
+    float4 acc = float4(0.0f, 0.0f, 0.0f, 0.0f);
+    float ws = 0.0f;
+    for (float s = 0.0f; s < 49.0f; s = s + 1.0f) {
+        if (s > ((2.0f * n) + 0.5f)) {
+            break;
+        }
+        float t = s - n;
+        float w = sl_erf((t + 0.5f) * k) - sl_erf((t - 0.5f) * k);
+        float4 c = blurTexel(i + (t * dx), j + (t * dy), ht, valid, dash, Layer);
+        acc = acc + (c * w);
+        ws = ws + w;
+    }
+    return blurQuantize(acc * (1.0f / ws));
+}
+
 float scale8(float c, float m) {
     return floor((floor((c * 255.0f) + 0.5f) * m) / 255.0f) / 255.0f;
 }
@@ -466,6 +541,9 @@ fragment float4 fs_main(Varyings in [[stage_in]], texture2d<float> Mask [[textur
             cov = cov * m.x;
         }
         return DitherPremul(c, Dither4x4(pc.x - 0.5f, pc.y - 0.5f)) * cov;
+    }
+    if ((in.Kind.x > 1.5f) && (in.Kind.w > 1.5f)) {
+        return BlurPass(pc, in.UV, in.Kind, in.Params, in.Dash, cov, Layer);
     }
     float2 t_2 = (in.P - in.Rect.xy) / in.Rect.zw;
     float2 uv = in.UV.xy + (in.UV.zw * t_2);

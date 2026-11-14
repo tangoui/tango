@@ -50,7 +50,7 @@ func TestGalleryForcedHintsVerified(t *testing.T) {
 	if testing.Short() {
 		t.Skip("rasterizes every partial frame twice on the CPU")
 	}
-	for _, name := range []string{"Table", "Form", "Tree", "Collapse", "Input", "Select", "Button", "VirtualTree"} {
+	for _, name := range []string{"Table", "Form", "Tree", "Collapse", "Input", "Select", "Button", "VirtualTree", "FooterToolbar"} {
 		t.Run(name, func(t *testing.T) {
 			p, ok := gallery.Find(name)
 			if !ok {
@@ -77,6 +77,19 @@ func TestGalleryForcedHintsVerified(t *testing.T) {
 			}
 			for range 3 {
 				frame("settle")
+			}
+			if name == "FooterToolbar" {
+				// The pinned bar is frosted: a backdrop blur reads what
+				// scrolls under it, which no fingerprint of its own sees.
+				blurs := 0
+				for _, op := range r.List().Ops {
+					if _, ok := op.(paint.BackdropBlur); ok {
+						blurs++
+					}
+				}
+				if blurs == 0 {
+					t.Fatal("the pinned FooterToolbar draws no backdrop blur")
+				}
 			}
 			// Hover across the page.
 			for y := float32(60); y < size.H; y += 140 {

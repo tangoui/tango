@@ -103,6 +103,7 @@ const (
 	CompHotkeyInput
 	CompDock
 	CompChat
+	CompFooterToolbar
 	// numComps counts the Comp values. Internally Comp(i) indexes the
 	// i-th field of Components, so both lists only ever grow at the end.
 	numComps
@@ -178,6 +179,7 @@ type Components struct {
 	HotkeyInput        HotkeyInputToken
 	Dock               DockToken
 	Chat               ChatToken
+	FooterToolbar      FooterToolbarToken
 }
 
 // Alias is the subset of global tokens a component may override for itself
@@ -457,6 +459,8 @@ func deriveComp(t *Theme, k Comp) any {
 		return deriveDock(t)
 	case CompChat:
 		return deriveChat(t)
+	case CompFooterToolbar:
+		return deriveFooterToolbar(t)
 	}
 	panic("theme: unknown component")
 }

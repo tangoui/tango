@@ -2,7 +2,8 @@
 //
 // Components record drawing commands (rounded rectangles, borders, Ant-style
 // layered box shadows, paths, gradients, checkerboards, images, glyph runs,
-// clips, opacity groups and affine transform groups) into a List in logical
+// clips, opacity groups, affine transform groups and backdrop blurs) into
+// a List in logical
 // pixels. A Renderer turns the list into pixels; this
 // package ships a pure-Go CPU rasterizer (CPU, built on x/image/vector) that
 // writes an *image.RGBA at any device scale. The List is deliberately a flat,
@@ -173,6 +174,40 @@ type Image struct {
 	Radii geom.Radii
 }
 
+// BackdropBlur blurs what is already drawn under a rounded rectangle
+// (CSS backdrop-filter: blur()): the pixels of the current target — the
+// window, or inside a PushOpacity group that group's own layer — inside
+// Rect (rounded by Radii, clipped by the active clips) are replaced by a
+// Gaussian blur of the target as drawn so far, and every later op draws
+// over the blurred result. A frosted surface is a BackdropBlur followed by
+// a translucent FillRect of the same shape.
+//
+// Radius is the Gaussian's standard deviation in logical pixels (CSS
+// blur()), scaled like any length by the device scale and a uniform
+// PushTransform; it is clamped to MaxBackdropBlur, and a Radius <= 0 (or
+// NaN) draws nothing. The blur reads up to BackdropBlurReach beyond Rect;
+// pixels beyond the window's edges repeat its edge pixels, pixels a
+// group's layer holds nothing at are transparent. The blurred copy is
+// composited source-over through the rectangle's coverage: where the
+// target is opaque this replaces its pixels, where it is translucent (in a
+// group) the unblurred pixels show through by the copy's transparency.
+//
+// Both renderers compute the same blur (PlanBackdropBlur; see blur.go for
+// the algorithm and its cost). Under a transform that rotates, skews,
+// mirrors one axis or scales non-uniformly the op draws nothing.
+//
+// Redraw hints: a BackdropBlur's pixels depend on everything drawn under
+// it within its reach. Renderers that redraw partially (the GPU renderer)
+// redraw the whole blurred region with its source whenever a hinted
+// change or scroll touches it; the ui Runner damages the region likewise
+// (see ui/damage.go). Code that records Damage hints itself must not rely
+// on a ScrollRegion carrying blurred pixels along.
+type BackdropBlur struct {
+	Rect   geom.Rect
+	Radii  geom.Radii
+	Radius float32
+}
+
 // PushClip restricts subsequent drawing to a (rounded) rectangle until the
 // matching Pop.
 type PushClip struct {
@@ -234,6 +269,7 @@ func (PushTransform) isOp()  {}
 func (Pop) isOp()            {}
 func (Damage) isOp()         {}
 func (ScrollRegion) isOp()   {}
+func (BackdropBlur) isOp()   {}
 
 // List is a recorded frame.
 type List struct {
@@ -345,6 +381,16 @@ func (l *List) DrawImage(img image.Image, r geom.Rect, rad geom.Radii) {
 		return
 	}
 	l.Ops = append(l.Ops, Image{img, r, rad})
+}
+
+// BackdropBlur blurs the pixels already drawn under the rounded rect r
+// with a Gaussian of standard deviation radius (logical pixels; see
+// BackdropBlur). Empty rects and radii <= 0 are dropped.
+func (l *List) BackdropBlur(r geom.Rect, rad geom.Radii, radius float32) {
+	if r.Empty() || !(radius > 0) {
+		return
+	}
+	l.Ops = append(l.Ops, BackdropBlur{Rect: r, Radii: rad, Radius: radius})
 }
 
 // Clip pushes a clip; pair with Pop.

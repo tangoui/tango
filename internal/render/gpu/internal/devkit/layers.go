@@ -117,7 +117,7 @@ func (p *LayerPool[T]) Assign(f *gpu.Frame) error {
 		last := make([]int, n)
 		for i := range f.Batches {
 			b := &f.Batches[i]
-			for _, l := range [2]int{b.Target, b.Layer} {
+			for _, l := range [3]int{b.Target, b.Layer, b.Grab} {
 				if l < 0 || l > len(f.Layers) {
 					return fmt.Errorf("batch %d names layer %d of %d", i, l, len(f.Layers))
 				}
@@ -126,9 +126,21 @@ func (p *LayerPool[T]) Assign(f *gpu.Frame) error {
 			if b.Target != 0 && b.Target == b.Layer {
 				return fmt.Errorf("batch %d samples the layer it draws into", i)
 			}
+			if err := CheckGrab(f, i); err != nil {
+				return err
+			}
 		}
 		for i := range f.Batches {
 			b := &f.Batches[i]
+			if l := b.Grab; l != 0 && !p.Has[l] {
+				ld := f.Layers[l-1]
+				t, size, err := p.Take(ld.Size)
+				if err != nil {
+					p.FreeAll()
+					return &AllocError{err}
+				}
+				p.Tex[l], p.Size[l], p.Has[l] = t, size, true
+			}
 			if l := b.Target; l != 0 && !p.Has[l] {
 				ld := f.Layers[l-1]
 				if ld.Size.X <= 0 || ld.Size.Y <= 0 || ld.Bounds.Dx() > ld.Size.X || ld.Bounds.Dy() > ld.Size.Y {
@@ -146,7 +158,7 @@ func (p *LayerPool[T]) Assign(f *gpu.Frame) error {
 				p.FreeAll()
 				return fmt.Errorf("batch %d samples layer %d before any batch drew into it", i, l)
 			}
-			for _, l := range [2]int{b.Target, b.Layer} {
+			for _, l := range [3]int{b.Target, b.Layer, b.Grab} {
 				if l != 0 && last[l] == i {
 					p.Put(p.Tex[l])
 				}
@@ -254,9 +266,51 @@ func (p *LayerPool[T]) ReleaseAll() {
 	}
 }
 
+// CheckGrab validates batch i of f if it is a grab (gpu.Batch.Grab): a
+// layer of positive Size holding its Bounds, other than the batch's
+// Target, Bounds inside what the Target holds, and nothing else in the
+// batch. Assign calls it for every batch.
+func CheckGrab(f *gpu.Frame, i int) error {
+	b := &f.Batches[i]
+	if b.Grab == 0 {
+		return nil
+	}
+	if b.Grab < 0 || b.Grab > len(f.Layers) || b.Grab == b.Target || b.Target < 0 || b.Target > len(f.Layers) {
+		return fmt.Errorf("batch %d grabs into layer %d from %d", i, b.Grab, b.Target)
+	}
+	if len(b.Instances) > 0 || len(b.Uploads) > 0 || b.Layer != 0 || b.Image != 0 {
+		return fmt.Errorf("batch %d: a grab batch draws nothing", i)
+	}
+	ld := f.Layers[b.Grab-1]
+	if ld.Size.X <= 0 || ld.Size.Y <= 0 || ld.Bounds.Empty() || ld.Bounds.Dx() > ld.Size.X || ld.Bounds.Dy() > ld.Size.Y {
+		return fmt.Errorf("batch %d: grab layer %d of size %v for bounds %v", i, b.Grab, ld.Size, ld.Bounds)
+	}
+	held := image.Rectangle{Max: f.Size}
+	if b.Target != 0 {
+		held = f.Layers[b.Target-1].Bounds
+	}
+	if !ld.Bounds.In(held) {
+		return fmt.Errorf("batch %d: grab of %v outside its source %v", i, ld.Bounds, held)
+	}
+	return nil
+}
+
+// GrabRect returns the texels of the grab batch b's source (its Target:
+// the frame's target, or a layer whose texel (0, 0) is its Bounds.Min)
+// that it copies to texel (0, 0) of layer b.Grab.
+func GrabRect(f *gpu.Frame, b *gpu.Batch) image.Rectangle {
+	r := f.Layers[b.Grab-1].Bounds
+	if b.Target != 0 {
+		r = r.Sub(f.Layers[b.Target-1].Bounds.Min)
+	}
+	return r
+}
+
 // RescaleComposites converts the layer composites among ins, whose UVs
 // and half-texel are normalized by the layer's Size, to the layer's
-// texture of size tex (larger when pooled for a larger layer).
+// texture of size tex (larger when pooled for a larger layer). Backdrop
+// blur passes (KindPatch with Kind.W >= 2) sample their layer the same
+// way and are rescaled alike.
 func RescaleComposites(ins []shaders.Instance, size, tex image.Point) {
 	if size == tex || tex.X <= 0 || tex.Y <= 0 {
 		return

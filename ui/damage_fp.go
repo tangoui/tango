@@ -37,6 +37,10 @@ import (
 //     nodes are damaged where they paint, vanished ones where they painted.
 //     A node inside a ScrollShift's content that moved by exactly the
 //     shift's delta and painted the same thing is left to the copy.
+//   - A node's fingerprint covers its own ops only. A paint.BackdropBlur
+//     also shows what was painted under it, so the Runner damages every
+//     blur a change (or a scroll copy) reaches after the fingerprints
+//     (addBlurDamage in damage.go).
 //   - A node that declared its own damage while painting (Context.Damage,
 //     Box.ScrollShift or paint.List hint ops from its paint or over
 //     function: a code editor) is trusted: its declarations are finer than
@@ -226,6 +230,12 @@ func (s *fpState) scan(rec *fpNode, ops []paint.Op, h uint64, b geom.Rect) (uint
 			// Renderers cache images by value (pointer); in-place pixel
 			// changes need InvalidateImage and a declaration.
 			h = fpRadii(rel(fpMix(fpMix(h, 9), fpIdentity(v.Img)), v.Rect), v.Radii)
+			add(v.Rect)
+		case paint.BackdropBlur:
+			// What it draws depends on what lies under it too: the Runner
+			// damages it whenever a change reaches it (addBlurDamage).
+			h = fpRadii(rel(fpMix(h, 14), v.Rect), v.Radii)
+			h = fpMix(h, uint64(math.Float32bits(v.Radius)))
 			add(v.Rect)
 		case paint.PushClip:
 			h = fpRadii(rel(fpMix(h, 10), v.Rect), v.Radii)

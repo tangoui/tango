@@ -123,6 +123,9 @@ type Context struct {
 	size    geom.Size
 	noAnim  bool
 	running bool
+	// noBlur: the renderer does not draw paint.BackdropBlur (see
+	// rendererBlurs); frosted surfaces fall back to opaque ones.
+	noBlur bool
 
 	root     *node
 	cur      *node
@@ -498,6 +501,7 @@ type Box struct {
 	bw      float32
 	shadows []paint.Shadow
 	dashed  bool
+	blur    float32 // backdrop blur radius under the background (frosted surfaces)
 	ia      *Interaction
 }
 
@@ -513,6 +517,9 @@ func (c *Context) box(kind string, dir layout.Direction, opts []layout.Option) *
 func (b *Box) paintBox(l *paint.List, r geom.Rect) {
 	if len(b.shadows) > 0 {
 		l.Shadows(r, b.n.radii, b.shadows)
+	}
+	if b.blur > 0 {
+		l.BackdropBlur(r, b.n.radii, b.blur)
 	}
 	l.Fill(r, b.n.radii, b.bg)
 	if b.bw > 0 {

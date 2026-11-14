@@ -118,6 +118,15 @@ import (
 //     is ignored (its body draws natively). Every patch drawn under a
 //     native transform (an op the atlas, ramp or image cache does not
 //     take) carries that transform the same way.
+//   - BackdropBlur: run as paint.CPU runs it (paint.PlanBackdropBlur; see
+//     blur.go): a grab batch (Batch.Grab) copies the plan's source pixels
+//     from the current target into a layer, the downsampling pass (when
+//     the plan downsamples) and the horizontal and vertical blur passes
+//     each draw one shaders.BlurPass instance into a layer of the reduced
+//     size, and one composite instance draws the result into the current
+//     target under the current clip. Mapped like an Image under a native
+//     transform; inside a non-native one (a patch) paint.CPU draws
+//     nothing for it.
 //   - Ops this Renderer does not know (added to paint later; see
 //     opHandling) are patches too, over the whole scissor, and an unknown
 //     Push… op's whole group is one patch; hint ops (Damage,
@@ -193,6 +202,9 @@ type Renderer struct {
 	groups     []group // open PushOpacity groups, innermost last
 	layerDrawn []bool  // layerDrawn[n]: an instance went into layer n this frame
 	scratch    []Batch // hoistLayers' reordering buffer
+	// blurSpans are the batch index ranges [grab, composite] of this
+	// frame's backdrop blurs, in order (hoistLayers keeps them in place).
+	blurSpans [][2]int
 
 	// Partial redraw (damage.go).
 	verify bool // verify mode (SetVerify)
@@ -216,6 +228,8 @@ type Renderer struct {
 	prevClips    []scanClip // the clips of the last frame planPartial scanned
 	scanGroups   []scanGroup
 	scanScrolls  []scanScroll
+	scanBlurs    []scanBlur
+	prevBlurs    []image.Rectangle // the Out rectangles of the blurs of the last frame planPartial scanned
 }
 
 // groupKind is how a PushOpacity group is drawn.
@@ -371,6 +385,7 @@ func (r *Renderer) frame1(bg color.NRGBA, ops []paint.Op, fs image.Point, scale 
 	r.misrouted = 0
 	r.target, r.alpha = 0, 1
 	r.groups = r.groups[:0]
+	r.blurSpans = r.blurSpans[:0]
 	r.layerDrawn = append(r.layerDrawn[:0], false)
 	clear(r.pending)
 	r.pending = r.pending[:0]
@@ -419,6 +434,8 @@ func (r *Renderer) frame1(bg color.NRGBA, ops []paint.Op, fs image.Point, scale 
 			r.text(o)
 		case paint.FillPath:
 			r.fillPath(o)
+		case paint.BackdropBlur:
+			r.backdropBlur(o)
 		case paint.PushClip:
 			r.pushClip(o)
 		case paint.Pop:
@@ -608,6 +625,7 @@ var opHandling = map[string]opKind{
 	"Gradient":       opNative, // no ramp row or path mask: a patch (Render's gradient)
 	"Checker":        opNative,
 	"Image":          opNative, // too large or over the upload budget: a patch (Render's image)
+	"BackdropBlur":   opNative, // a grab, blur passes into layers and a composite (blur.go)
 	"Damage":         opHint,
 	"ScrollRegion":   opHint,
 }
@@ -732,6 +750,9 @@ func mapOp(op paint.Op, m geom.Affine) paint.Op {
 	case paint.PushClip:
 		o.Rect, o.Radii = m.Bounds(o.Rect), mrad(o.Radii)
 		return o
+	case paint.BackdropBlur:
+		o.Rect, o.Radii, o.Radius = m.Bounds(o.Rect), mrad(o.Radii), o.Radius*float32(math.Abs(float64(k)))
+		return o
 	}
 	return op
 }
@@ -815,7 +836,7 @@ func (r *Renderer) emitTex(in shaders.Instance, bounds image.Rectangle, img, lay
 			f.Batches = f.Batches[:n+1]
 			b := &f.Batches[n]
 			b.Scissor = sc
-			b.Image, b.Layer, b.Target = 0, 0, r.target
+			b.Image, b.Layer, b.Target, b.Grab = 0, 0, r.target, 0
 			b.Instances = b.Instances[:0]
 		} else {
 			f.Batches = append(f.Batches, Batch{Scissor: sc, Target: r.target})
@@ -1456,6 +1477,8 @@ func (r *Renderer) endGroup() {
 // page it was emitted against. The price: every layer of a run is still
 // to be composited when the target's pass starts, so a device holds all of
 // them at once (it can reuse a texture only after a layer's composite).
+// A backdrop blur's batches (blurSpans) are barriers too, kept in place:
+// its grab reads the target as the batches before it drew it.
 func (r *Renderer) hoistLayers() {
 	f := &r.frame
 	if len(f.Layers) == 0 {
@@ -1463,9 +1486,19 @@ func (r *Renderer) hoistLayers() {
 	}
 	bs := f.Batches
 	out := r.scratch[:0]
+	spans := r.blurSpans
 	for s := 0; s < len(bs); {
+		if len(spans) > 0 && spans[0][0] == s {
+			// A backdrop blur's grab, passes and composite: kept in place
+			// (the grab reads what the batches before it drew).
+			e := spans[0][1] + 1
+			out = append(out, bs[s:e]...)
+			spans = spans[1:]
+			s = e
+			continue
+		}
 		e := s + 1
-		for e < len(bs) && len(bs[e].Uploads) == 0 {
+		for e < len(bs) && len(bs[e].Uploads) == 0 && (len(spans) == 0 || spans[0][0] != e) {
 			e++
 		}
 		start := len(out)
@@ -1667,6 +1700,8 @@ func (r *Renderer) opBoundsIn(op paint.Op, m geom.Affine, xf bool) image.Rectang
 	case paint.Checker:
 		return r.outBounds(rect(o.Rect), 1)
 	case paint.Image:
+		return r.outBounds(o.Rect, 1)
+	case paint.BackdropBlur:
 		return r.outBounds(o.Rect, 1)
 	case paint.FillPath:
 		if o.Path == nil {

@@ -30,7 +30,7 @@
 |---|---|---|---|---|---|
 | Ant Design v6 | 72 | 72 | 0 | 0 | 72：56 / 16 / 0 |
 | Element Plus | 79 | 79 | 0 | 0 | 79：59 / 20 / 0 |
-| Pro Components | 28 | 27 | 1 | 0 | 28：21 / 7 / 0 |
+| Pro Components | 28 | 28 | 0 | 0 | 28：21 / 7 / 0 |
 
 2026-11-14 补齐：剩下的"部分"是 ConfigProvider（`Defaults` 接线，Ant、Element 各一行）和 FooterToolbar（毛玻璃，需要渲染层的背景模糊）。另按 shadcn/ui 新增 Menubar、AspectRatio、Item。同日 groupG 补完 `Defaults` 接线（141 已接线 / 36 不适用 / 0 未接线，见 6.1）并加上 Element 的 button.autoInsertSpace、message.max，ConfigProvider 两行改为 ✅；只剩 FooterToolbar 一项"部分"。
 
@@ -40,7 +40,7 @@
 - 画廊 `-theme all -scale 1` 退出码 0，231 个基础页面在 Ant 亮/暗、Element 亮/暗、shadcn 亮/暗六种渲染下均有截图，无缺页（见 5.2）；抽看 ButtonGroup-element-dark、Menubar-shadcn 正常。
 - `-audit` 全部为 0（见 5.4）；`-mirror-check` 只剩 Mentions 的 2 处已知项。
 
-FooterToolbar 仍是 ⚠️：缺的是功能，不是稳定性问题，补上功能后再标（ConfigProvider 已在 Defaults 接线后标为 ✅）。
+2026-11-14 续：渲染层加了背景模糊原语 `paint.BackdropBlur`（CPU 与 GPU 同一算法），FooterToolbar 吸底时改为毛玻璃，Pro Components 的"部分"清零（见 1.3 FooterToolbar 行）。
 
 ### 1.3 与上次扫描对比
 
@@ -243,7 +243,7 @@ FooterToolbar 仍是 ⚠️：缺的是功能，不是稳定性问题，补上�
 | SettingDrawer | `SettingDrawer`、`ProSettingsProvider`、`ProSettings.Apply` | ✅ | 次要：色弱模式用 `theme.HighContrast` 近似（没有 CSS filter） | pro4_setting.go `SettingDrawerW.Open/NoTrigger/Colors/Changed/Show`；`ProSettings{NavTheme,PrimaryColor,Layout,ContentWidth,FixedHeader,FixSiderbar,ColorWeak,Compact}` |
 | RouteContext / GridContent | `RouteContext`、`GridContent` | ✅ | — | pro4_route.go `RouteInfo{InLayout,Layout,Collapsed,IsMobile,HasSiderMenu,Breadcrumb,PageTitle,Selected,ContentWidth,FixedHeader}`；`GridContentW.ContentWidth/MaxWidth`（Fixed 居中 1200px） |
 | PageContainer | `PageContainer` | ✅ | — | pro2_page.go `Tabs/TabExtra/TabsCard/Extra/Breadcrumb/Back/Tags/SubTitle/Content/ExtraContent/Footer/Loading/Ghost` |
-| FooterToolbar | `FooterToolbar` | ⚠️ | **无毛玻璃**：只有 95%/96% 不透明背景加阴影，没有 backdrop blur（仓库里也没有背景模糊绘制原语） | pro2_page.go 约 95-103 行 `b.Bg(theme.Fade(th.BgContainer, 0.96))`（shadcn 0.95）；`Extra/Sticky/Target` |
+| FooterToolbar | `FooterToolbar` | ✅ | 吸底（Affix 固定）时毛玻璃：`paint.BackdropBlur` + 半透明底色（`FooterToolbarToken.BlurRadius/FrostedBg`，Ant/shadcn 8px + 60%，Element 10px + 72%）；不吸底、HighContrast、渲染器不支持模糊时用 `Bg`（95%/96%，HighContrast 不透明） | pro2_page.go `surface`；theme/comp_footertoolbar.go；`Extra/Sticky/Target` |
 | ProCard | `ProCard` | ✅ | — | pro2_card.go `Actions`（底部等宽操作栏，分隔线，Card 令牌 ActionsBg）、`Split/Direction/Gutter/Wrap/ColSpan/Tabs/Collapsible/HeaderBordered/Ghost/Centered/Loading/Hoverable` |
 | StatisticCard | `StatisticCard`、`StatisticCardGroup` | ✅ | 次要：无独立的 `StatisticCard.Divider`（Group 用 Split 自动加分隔） | pro2_statistic.go `Trend/Chart/ChartPlace/Status/Icon/Desc/Footer`、:303 Group |
 | CheckCard | `CheckCard`、`CheckCardGroup` | ✅ | — | pro2_checkcard.go `Avatar/Disabled/Size/Cover/Loading`；Group `Value/Values` |

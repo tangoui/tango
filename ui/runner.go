@@ -85,7 +85,20 @@ func NewRunner(page func(*Context), o RunnerOptions) *Runner {
 	}
 	r.c.noAnim = o.NoAnimations
 	r.c.reduceMotion = o.ReduceMotion
+	r.c.noBlur = !rendererBlurs(r.renderer)
 	return r
+}
+
+// rendererBlurs reports whether renderer draws paint.BackdropBlur. The
+// paint.Renderer contract requires every drawing op, and paint.CPU and
+// the GPU renderer draw it; a renderer that cannot says so with a method
+// BackdropBlur() bool returning false, and frosted surfaces
+// (FooterToolbar) then draw their opaque background instead.
+func rendererBlurs(renderer paint.Renderer) bool {
+	if b, ok := renderer.(interface{ BackdropBlur() bool }); ok {
+		return b.BackdropBlur()
+	}
+	return true
 }
 
 // SetReduceMotion turns the reduced-motion preference on or off (see

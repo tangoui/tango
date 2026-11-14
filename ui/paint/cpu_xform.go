@@ -83,6 +83,12 @@ func (r *CPU) execTransformed(op Op) (Op, bool) {
 		}
 		r.pushPathClip(NewPath().RRect(o.Rect, o.Radii).Transform(m))
 		return op, true
+	case BackdropBlur:
+		if uni {
+			o.Rect, o.Radii, o.Radius = mr(o.Rect), mrad(o.Radii), o.Radius*abs32(k)
+			return o, false
+		}
+		return op, true // rotated, skewed, mirrored or stretched: nothing (see BackdropBlur)
 	}
 	// LinearGradient, Gradient and Checker sample through the inverse
 	// transform; group ops and Pop are transform independent.

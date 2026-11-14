@@ -23,6 +23,7 @@ pkg github.com/tangoui/tango/ui/theme, const CompDrawer Comp = 13
 pkg github.com/tangoui/tango/ui/theme, const CompDropdown Comp = 38
 pkg github.com/tangoui/tango/ui/theme, const CompEmpty Comp = 50
 pkg github.com/tangoui/tango/ui/theme, const CompFloatButton Comp = 51
+pkg github.com/tangoui/tango/ui/theme, const CompFooterToolbar Comp = 57
 pkg github.com/tangoui/tango/ui/theme, const CompForm Comp = 53
 pkg github.com/tangoui/tango/ui/theme, const CompHotkeyInput Comp = 63
 pkg github.com/tangoui/tango/ui/theme, const CompImage Comp = 44
@@ -576,6 +577,7 @@ pkg github.com/tangoui/tango/ui/theme, type Components struct, Drawer DrawerToke
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Dropdown DropdownToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Empty EmptyToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, FloatButton FloatButtonToken
+pkg github.com/tangoui/tango/ui/theme, type Components struct, FooterToolbar FooterToolbarToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Form FormToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, HotkeyInput HotkeyInputToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Image ImageToken
@@ -831,6 +833,11 @@ pkg github.com/tangoui/tango/ui/theme, type FloatButtonToken struct, Shadow []ui
 pkg github.com/tangoui/tango/ui/theme, type FloatButtonToken struct, Size float32
 pkg github.com/tangoui/tango/ui/theme, type FloatButtonToken struct, embedded Alias
 pkg github.com/tangoui/tango/ui/theme, type FloatButtonToken struct, noncomparable
+pkg github.com/tangoui/tango/ui/theme, type FooterToolbarToken struct
+pkg github.com/tangoui/tango/ui/theme, type FooterToolbarToken struct, Bg Color
+pkg github.com/tangoui/tango/ui/theme, type FooterToolbarToken struct, BlurRadius float32
+pkg github.com/tangoui/tango/ui/theme, type FooterToolbarToken struct, FrostedBg Color
+pkg github.com/tangoui/tango/ui/theme, type FooterToolbarToken struct, embedded Alias
 pkg github.com/tangoui/tango/ui/theme, type FormToken struct
 pkg github.com/tangoui/tango/ui/theme, type FormToken struct, ErrorColor Color `contrast:"text:@Page"`
 pkg github.com/tangoui/tango/ui/theme, type FormToken struct, ExtraMarginTop float32
