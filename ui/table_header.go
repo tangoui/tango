@@ -15,8 +15,8 @@ import (
 )
 
 func (f *tblFrame) headerBg() theme.Color {
-	if f.el && f.depth > 1 {
-		return f.tk.RowHoverBg // Element tints grouped headers
+	if f.depth > 1 {
+		return f.tk.HeaderGroupBg // Element tints grouped headers (thead.is-group)
 	}
 	return f.tk.HeaderBg
 }
@@ -83,6 +83,9 @@ func (f *tblFrame) headCell(hd *tblHead) {
 	n.ln.Dir = layout.Row
 	n.ln.Align = layout.AlignCenter
 	n.ln.Padding = geom.VH(0, f.ph)
+	if hd.kind == tkSelect {
+		n.ln.Padding = geom.VH(0, f.selPad(w))
+	}
 	lastCol := hd.last == len(f.leaves)-1
 	sortable := col != nil && leaf && (col.Sortable || col.Compare != nil)
 	filterable := col != nil && leaf && (len(col.Filters) > 0 || col.FilterPanel != nil)
@@ -100,16 +103,11 @@ func (f *tblFrame) headCell(hd *tblHead) {
 			f.clickSort(col)
 			order = f.sortOf[col.Key]
 		}
-		if ia.Hovered && !f.el {
-			loc := c.Locale()
-			tip := loc.SortAsc
-			switch order {
-			case SortAsc:
-				tip = loc.SortDesc
-			case SortDesc:
-				tip = loc.CancelSort
+		if ia.Hovered {
+			// Next click's direction (SortDirections), ShowSorterTooltip.
+			if tip, ok := f.sorterTip(col); ok {
+				f.tip(n.id, tip, false)
 			}
-			f.tip(n.id, tip, false)
 		}
 	}
 	if c.a11yOn {
@@ -123,7 +121,6 @@ func (f *tblFrame) headCell(hd *tblHead) {
 		n.fill(sem)
 	}
 	special := hd.kind != tkData
-	grouped := f.depth > 1
 	align := AlignStart
 	if col != nil {
 		align = f.logicalAlign(col.Align)
@@ -153,24 +150,42 @@ func (f *tblFrame) headCell(hd *tblHead) {
 			*end = hr
 		}
 	}
+	// antd: the short split sits on leaf cells that are not the last of
+	// their header row (th:not(:last-child):not([colspan])); group cells
+	// above the last row have no bottom border unless bordered (antd
+	// tr:not(:last-child) > th[colspan], EP th.is-leaf).
+	bottomEdge := t.bordered || hd.row+hd.rows == f.depth
+	split := tk.HeaderSplitColor.A > 0 && !t.bordered && !special && hd.first == hd.last && !f.lastInHeadRow(hd)
 	n.paint = func(l *paint.List, r geom.Rect) {
 		bg := f.headerBg()
 		l.Fill(r, rad, bg)
-		if !f.el && (order != SortNone || ia.Hovered) && tk.HeaderSortActiveBg.A > 0 {
-			l.Fill(r, rad, tk.HeaderSortActiveBg)
+		sortBg := theme.Color{}
+		switch {
+		case order != SortNone:
+			sortBg = tk.HeaderSortActiveBg
+		case ia.Hovered:
+			sortBg = tk.HeaderSortHoverBg
+			if sortBg.A == 0 {
+				sortBg = tk.HeaderSortActiveBg
+			}
 		}
-		l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, f.spl)
+		if sortBg.A > 0 {
+			l.Fill(r, rad, sortBg)
+		}
+		if bottomEdge {
+			l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, f.spl)
+		}
 		if ia.FocusVisible && !f.shad {
 			l.Stroke(r.Inset(geom.All(1)), geom.Radii{}, 2, th.Primary.Base)
 		}
 		s := f.inl(r)
 		endX := s.X(r.W-1, 1) // separator on the cell's end edge
 		switch {
-		case t.bordered || (grouped && !f.el):
-			if !lastCol || !t.bordered {
+		case t.bordered:
+			if !lastCol {
 				l.Fill(geom.Rect{X: endX, Y: r.Y, W: 1, H: r.H}, geom.Radii{}, f.spl)
 			}
-		case !f.el && !lastCol && !special && th.Flavor != theme.StyleShadcn:
+		case split && sortBg.A == 0: // the sort tint hides the split (antd ::before transparent)
 			sh := float32(22)
 			l.Fill(geom.Rect{X: endX, Y: r.Y + (r.H-sh)/2, W: 1, H: sh}, geom.Radii{}, tk.HeaderSplitColor)
 		}
@@ -222,7 +237,7 @@ func (f *tblFrame) headCell(hd *tblHead) {
 			if f.el {
 				w = 14
 			}
-			tblDrawSorter(th, tk, l, s.Rect(so, r.Y+(r.H-16)/2, w, 16), order)
+			tblDrawSorter(th, tk, l, s.Rect(so, r.Y+(r.H-16)/2, w, 16), order, ia.Hovered)
 		}
 	}
 	c.body(n, func() {
@@ -245,6 +260,18 @@ func (f *tblFrame) headCell(hd *tblHead) {
 			f.resizeHandle(col, hd.first, w, h)
 		}
 	})
+}
+
+// lastInHeadRow reports whether hd is the last cell of its header row (no
+// head on the same row starts after it).
+func (f *tblFrame) lastInHeadRow(hd *tblHead) bool {
+	for i := range f.heads {
+		o := &f.heads[i]
+		if o.row == hd.row && o.first > hd.last {
+			return false
+		}
+	}
+	return true
 }
 
 // filterTrigger adds the funnel button and its dropdown.
@@ -289,24 +316,24 @@ func (f *tblFrame) filterTrigger(col *TableColumn, cellW, cellH float32, active 
 		if ia.FocusVisible {
 			l.Stroke(r, geom.Rad(th.RadiusSM), 2, th.Primary.Base)
 		}
-		col := f.tk.SorterIdleColor
+		// antd filter.js / EP column-filter-trigger (TableToken.Filter*).
+		tk := f.tk
+		col := tk.FilterIdleColor
+		if ia.Hovered || open {
+			if tk.FilterHoverBg.A > 0 {
+				l.Fill(r, geom.Rad(tk.FilterRadius), tk.FilterHoverBg)
+			}
+			col = tk.FilterHoverColor
+		}
 		if active {
 			col = th.Primary.Base
 		}
-		if f.el {
-			if ia.Hovered {
-				col = th.Primary.Base
-			}
-			icon.Draw(l, icon.Down, geom.Rect{X: r.X + (r.W-12)/2, Y: r.Y + (r.H-12)/2, W: 12, H: 12}, col, 0)
-			return
+		ic := icon.FilterFilled
+		if tk.FilterArrow {
+			ic = icon.Down
 		}
-		if ia.Hovered || open {
-			l.Fill(r, geom.Rad(th.RadiusSM), th.FillSecondary)
-			if !active {
-				col = th.TextTertiary
-			}
-		}
-		icon.Draw(l, icon.FilterFilled, geom.Rect{X: r.X + (r.W-12)/2, Y: r.Y + (r.H-12)/2, W: 12, H: 12}, col, 0)
+		sz := tk.FilterIconSize
+		icon.Draw(l, ic, geom.Rect{X: r.X + (r.W-sz)/2, Y: r.Y + (r.H-sz)/2, W: sz, H: sz}, col, 0)
 	}
 	if open {
 		f.filterDropdown(col, n.id)
@@ -406,9 +433,9 @@ func (f *tblFrame) filterDropdown(col *TableColumn, anchor ID) {
 			}
 		}, layout.PadVH(7, 8), layout.Middle(), layout.Gap(8))
 	})
-	ov.Bg(th.BgElevated).Radius(th.RadiusLG).Shadow(th.Shadow).Opacity(a)
-	if f.el {
-		ov.Radius(th.Radius).Border(1, th.BorderSecondary)
+	ov.Bg(f.tk.FilterDropdownBg).Radius(f.tk.FilterDropdownRadius).Shadow(th.Shadow).Opacity(a)
+	if b := f.tk.FilterDropdownBorder; b.A > 0 {
+		ov.Border(1, b)
 	}
 	// Split line above the footer.
 	ov.PaintOver(func(l *paint.List, r geom.Rect) {
@@ -424,8 +451,9 @@ func (f *tblFrame) filterDropdown(col *TableColumn, anchor ID) {
 		f.applyFilter(col.Key, st.fDraft)
 		st.fOpen = ""
 	case reset:
-		f.applyFilter(col.Key, nil)
-		st.fDraft = nil
+		vals := f.filterResetValues(col) // DefaultFilter with FilterResetToDefault
+		f.applyFilter(col.Key, vals)
+		st.fDraft = vals
 		st.fOpen = ""
 	case c.EscapeAt(st.fPanel):
 		st.fOpen = ""

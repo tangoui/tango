@@ -203,6 +203,8 @@ func tcTable(sel *[]int, strict bool, out **TableW) func(c *Context) {
 			TreeOpenKeys(&[]string{"0", "1"}).Selection(sel)
 		if strict {
 			tb.CheckStrictly()
+		} else {
+			tb.CheckLinked() // linkage is opt-in since Ant Design's checkStrictly defaults to true
 		}
 		*out = tb.Show()
 	}
@@ -212,7 +214,7 @@ func tcTable(sel *[]int, strict bool, out **TableW) func(c *Context) {
 func clickRowCheck(t *testing.T, d *Driver, key string) {
 	t.Helper()
 	r := mustFind(t, d, "row:"+key)
-	d.Click(geom.Pt(r.X+24, r.Y+r.H/2))
+	d.Click(geom.Pt(r.X+16, r.Y+r.H/2))
 }
 
 func TestTableTreeCheckLinked(t *testing.T) {

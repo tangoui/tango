@@ -1147,6 +1147,9 @@ func (p *ProTableW[T]) tableView() {
 		MultiSort(&st.sort).
 		Filters(&st.filters).
 		ServerPagination(&st.page, &st.pageSize, st.total).
+		// ProTable shows the total by default (pro-components
+		// table/utils mergePagination showTotal); Table no longer does.
+		PaginationConfig(func(pg *PaginationW) { pg.ShowTotal() }).
 		Loading(st.loading && !st.silent).
 		Size(p.density()).
 		ColumnState(p.colState()).

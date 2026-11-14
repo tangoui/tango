@@ -4,6 +4,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 // Pure table logic, independent of the widget tree so it can be unit
@@ -770,4 +771,68 @@ func tblTreeHalf(roots []int, kids func(int) []int, sel map[int]bool) map[int]bo
 		walk(r)
 	}
 	return half
+}
+
+// tblNextOrderIn returns the order after cur in dirs (Ant Design
+// useSorter nextSortDirection): unsorted goes to dirs[0], the last
+// direction to unsorted, an order not in dirs to dirs[0]. A SortNone in
+// dirs is an explicit "unsorted" step. Empty dirs: ascending, descending.
+func tblNextOrderIn(dirs []SortOrder, cur SortOrder) SortOrder {
+	if len(dirs) == 0 {
+		return tblNextOrder(cur)
+	}
+	if cur == SortNone {
+		return dirs[0]
+	}
+	for i, d := range dirs {
+		if d == cur {
+			if i+1 < len(dirs) {
+				return dirs[i+1]
+			}
+			return SortNone
+		}
+	}
+	return dirs[0]
+}
+
+// tblEllipsisAll returns cols with Ellipsis on every non-wrapping column,
+// copying header groups so the app's columns are not modified.
+func tblEllipsisAll(cols []TableColumn) []TableColumn {
+	out := make([]TableColumn, len(cols))
+	for i, col := range cols {
+		if len(col.Children) > 0 {
+			col.Children = tblEllipsisAll(col.Children)
+		} else if !col.Wrap {
+			col.Ellipsis = true
+		}
+		out[i] = col
+	}
+	return out
+}
+
+// tblSumTexts sums the numeric texts of a column like Element Plus' default
+// summary method: values that are not numbers are skipped, the sum is
+// rounded to the most decimals of any value and printed like JavaScript's
+// Number (no trailing zeros), and a column without numbers sums to "".
+func tblSumTexts(texts []string) string {
+	sum, prec, any := 0.0, 0, false
+	for _, s := range texts {
+		s = strings.TrimSpace(s)
+		v, err := strconv.ParseFloat(s, 64)
+		if err != nil || math.IsNaN(v) || math.IsInf(v, 0) {
+			continue
+		}
+		any = true
+		sum += v
+		if i := strings.IndexByte(s, '.'); i >= 0 && !strings.ContainsAny(s, "eE") {
+			prec = max(prec, len(s)-i-1)
+		}
+	}
+	if !any {
+		return ""
+	}
+	// EP: Number(sum.toFixed(precision)) — rounded to the most decimals,
+	// trailing zeros dropped ("1.50" + "2" → "3.5").
+	v, _ := strconv.ParseFloat(strconv.FormatFloat(sum, 'f', min(prec, 20), 64), 64)
+	return strconv.FormatFloat(v, 'f', -1, 64)
 }

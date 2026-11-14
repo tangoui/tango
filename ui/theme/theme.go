@@ -468,7 +468,7 @@ func AntDesign(opts ...Option) *Theme {
 		t.HeaderBg = Hex("#141414")
 		t.SiderLightBg = Hex("#141414")
 		t.TableHeaderBg = Hex("#1d1d1d")
-		t.TableRowHoverBg = Hex("#262626")
+		t.TableRowHoverBg = Hex("#1d1d1d") // antd rowHoverBg: colorFillAlter over colorBgContainer (table/style/index.js)
 		t.TextOnPrimary = Hex("#ffffff")
 	}
 	t.ItemSelectedBg = t.Primary.Bg
@@ -509,7 +509,8 @@ func AntDesign(opts ...Option) *Theme {
 	t.AddonBg, t.AddonText = t.FillAlter, t.Text
 	t.MarkBg = Hex("#ffe58f") // gold-3
 	if o.dark {
-		t.TableSorterIdle, t.TableFixedShadowAlpha = t.TextQuaternary, .6
+		// headerIconColor: colorIcon (.45) × opacityLoading (.65) (table/style/index.js).
+		t.TableSorterIdle, t.TableFixedShadowAlpha = RGBA(255, 255, 255, .29), .6
 		t.StatusDefault = t.TextQuaternary
 		t.SkeletonBg, t.SkeletonHighlight = RGBA(255, 255, 255, .12), RGBA(255, 255, 255, .2)
 		t.AddonBg = t.FillQuaternary

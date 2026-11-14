@@ -86,7 +86,9 @@ func (f *tblFrame) keys() {
 		case input.KeySpace:
 			r := f.row(st.actPos)
 			if f.hasSelection() && f.selectable(r) {
+				f.byKey = true
 				f.setSelected(r, t.single || !f.selected(r))
+				f.byKey = false
 			}
 		case input.KeyEnter:
 			r := f.row(st.actPos)

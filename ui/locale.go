@@ -205,6 +205,10 @@ type TableLocale struct {
 	// Selection dropdown next to the header checkbox: its accessible name
 	// and the built-in SelectionPage / SelectionNone items.
 	Selections, SelectPage, SelectNone string
+
+	// SumText is the first cell of ShowSummary's row (Element Plus
+	// sum-text, "合计").
+	SumText string
 }
 
 // ChartLocale holds the accessible names and summaries of ui/chart charts:

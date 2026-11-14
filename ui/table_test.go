@@ -160,7 +160,7 @@ func TestTableSelectionPageAndHalf(t *testing.T) {
 	})
 	// Select one row: header becomes indeterminate.
 	r := mustFind(t, d, "row:k1")
-	d.Click(geom.Pt(r.X+24, r.Y+r.H/2))
+	d.Click(geom.Pt(r.X+16, r.Y+r.H/2))
 	if fmt.Sprint(keys) != "[k7 k1]" {
 		t.Fatalf("keys %v", keys)
 	}
@@ -168,12 +168,12 @@ func TestTableSelectionPageAndHalf(t *testing.T) {
 	_ = f
 	// Header checkbox selects the 4 selectable rows of page 1 (row 3 disabled).
 	hdr := mustFind(t, d, "row:k0")
-	d.Click(geom.Pt(hdr.X+24, hdr.Y-hdr.H/2))
+	d.Click(geom.Pt(hdr.X+16, hdr.Y-hdr.H/2))
 	if len(keys) != 5 || tblHas(keys, "k3") || !tblHas(keys, "k7") {
 		t.Fatalf("select all page: %v", keys)
 	}
 	// Clicking it again clears page 1 but keeps page 2's selection.
-	d.Click(geom.Pt(hdr.X+24, hdr.Y-hdr.H/2))
+	d.Click(geom.Pt(hdr.X+16, hdr.Y-hdr.H/2))
 	if fmt.Sprint(keys) != "[k7]" {
 		t.Fatalf("clear page: %v", keys)
 	}
@@ -186,7 +186,7 @@ func TestTableSelectionPageAndHalf(t *testing.T) {
 	page = 1
 	d.Settle()
 	r = mustFind(t, d, "row:k3")
-	d.Click(geom.Pt(r.X+24, r.Y+r.H/2))
+	d.Click(geom.Pt(r.X+16, r.Y+r.H/2))
 	if tblHas(keys, "k3") {
 		t.Fatal("disabled row selected")
 	}

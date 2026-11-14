@@ -703,7 +703,9 @@ func (e *EditableProTableW[T]) tableView() {
 		t.ScrollX(e.scrollX)
 	}
 	if e.pageSize > 0 {
-		t.Pagination(&st.page, &st.pageSz)
+		// EditableProTable is a ProTable: the total shows by default
+		// (pro-components table/utils mergePagination showTotal).
+		t.Pagination(&st.page, &st.pageSz).PaginationConfig(func(pg *PaginationW) { pg.ShowTotal() })
 	}
 	if e.sortable {
 		t.DragSort(func(from, to int) {
