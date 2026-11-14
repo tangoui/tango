@@ -436,12 +436,35 @@ func (r *CPU) devBounds(p *Path) image.Rectangle {
 		int(math.Ceil(float64(b.Right()*s)))+1, int(math.Ceil(float64(b.Bottom()*s)))+1)
 }
 
+// feedSnap is the grid (per pixel) feed snaps device path coordinates to:
+// x/image/vector's fixed point resolution (ϕ = 9).
+const feedSnap = 512
+
 // feed adds p (logical coords) to the rasterizer, scaled and offset by -o.
-func (r *CPU) feed(p *Path, scale float32, o geom.Point) {
+//
+// snap rounds the offset coordinates to multiples of 1/feedSnap pixel, so
+// that a path drawn again a whole number of pixels away (a scroll copy
+// compared with a fresh render, see ui/gpu's verify mode) feeds the
+// rasterizer exactly the same numbers. Without it the float32 rounding of
+// p·scale, which differs with the magnitude of the coordinates, reaches
+// the rasterizer: x/image/vector's fixed point path truncates each row's
+// x step (dy·dxdy) to its 1/512 grid, so an edge with a slope that is a
+// whole number (a 45° line: dxdy ≈ ±1) truncates one step differently per
+// row depending on a 1e-6 difference, and the error grows along the edge
+// (several coverage levels after a few rows) instead of staying within
+// one level.
+func (r *CPU) feed(p *Path, scale float32, o geom.Point, snap bool) {
 	z := &r.z
 	open := false
 	var first geom.Point
-	tx := func(pt geom.Point) (float32, float32) { return pt.X*scale - o.X, pt.Y*scale - o.Y }
+	tx := func(pt geom.Point) (float32, float32) {
+		x, y := pt.X*scale-o.X, pt.Y*scale-o.Y
+		if snap {
+			x = float32(math.Round(float64(x)*feedSnap) / feedSnap)
+			y = float32(math.Round(float64(y)*feedSnap) / feedSnap)
+		}
+		return x, y
+	}
 	for _, s := range p.Segs {
 		switch s.Op {
 		case SegMove:
@@ -493,7 +516,7 @@ func (r *CPU) fill(p *Path, c color.NRGBA) {
 		return
 	}
 	r.z.Reset(b.Dx(), b.Dy())
-	r.feed(p, r.scale, geom.Pt(float32(b.Min.X), float32(b.Min.Y)))
+	r.feed(p, r.scale, geom.Pt(float32(b.Min.X), float32(b.Min.Y)), true)
 	r.z.DrawOp = draw.Over
 	r.z.Draw(r.cur, b, image.NewUniform(c), image.Point{})
 }
@@ -507,7 +530,7 @@ func (r *CPU) coverage(p *Path, bounds image.Rectangle) (*image.Alpha, image.Poi
 	}
 	m := image.NewAlpha(image.Rect(0, 0, b.Dx(), b.Dy()))
 	r.z.Reset(b.Dx(), b.Dy())
-	r.feed(p, r.scale, geom.Pt(float32(b.Min.X), float32(b.Min.Y)))
+	r.feed(p, r.scale, geom.Pt(float32(b.Min.X), float32(b.Min.Y)), true)
 	r.z.DrawOp = draw.Src
 	r.z.Draw(m, m.Rect, image.Opaque, image.Point{})
 	return m, b.Min
@@ -714,7 +737,7 @@ func (r *CPU) glyph(g Glyph, size float32, sub uint8) *glyphMask {
 	}
 	m := image.NewAlpha(image.Rect(0, 0, w, h))
 	r.z.Reset(w, h)
-	r.feed(p, 1, geom.Pt(float32(x0)-dx, float32(y0)))
+	r.feed(p, 1, geom.Pt(float32(x0)-dx, float32(y0)), false)
 	r.z.DrawOp = draw.Src
 	r.z.Draw(m, m.Rect, image.Opaque, image.Point{})
 	if r.TextGamma != 1 {
