@@ -88,7 +88,7 @@ MinCode 要**彻底摆脱 WebView**，工作台改用 Tango 自绘 UI。现有�
 ### 6.2 分层
 
 ```
-ui/editor            View（编辑器组件）、DiffView、Vim、命令/快捷键/菜单、装饰、provider 接口
+ui/editor            View（编辑器组件）、Vim、命令/快捷键/菜单、装饰、provider 接口
   ├─ editor/buffer   rope 文本 + 不可变快照 + 撤销历史 + 版本号 + 锚点（装饰随编辑移动）
   ├─ editor/monarch  Monarch 解释器（状态栈、@attr 展开、cases、$S/$#、next/@push/@pop、nextEmbedded）
   ├─ editor/regex    混合正则（regexp ⇄ regexp2 自动选择、JS→Go 语法预处理、超时与统计）
@@ -96,6 +96,7 @@ ui/editor            View（编辑器组件）、DiffView、Vim、命令/快捷�
   ├─ editor/theme    Monaco 主题规则解析与 token→样式解析（带缓存）
   ├─ editor/json     JSON 解析/诊断 + JSON Schema 校验/补全/悬停（实现成内置 provider）
   ├─ editor/diff     行级与单词级 diff 算法
+  ├─ editor/diffview DiffView（并排/内联 diff 组件，只用 ui/editor 的公开 API；见 docs/specs/diff-view.md）
   └─ editor/when     when 表达式解析与求值（上下文键）
 ```
 
