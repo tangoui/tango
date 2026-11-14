@@ -516,6 +516,7 @@ ui/editor grammars and themes
 
 The code editor ships data converted from Monaco Editor and other sources.
 Their notices and license texts are in:
+  ui/editor/diff/NOTICE
   ui/editor/langs/NOTICE
   ui/editor/monarch/NOTICE
   ui/editor/theme/NOTICE

@@ -1,0 +1,55 @@
+pkg github.com/tangoui/tango/ui/editor/diff, const DefaultTimeout time.Duration = 5000000000
+pkg github.com/tangoui/tango/ui/editor/diff, const Modified Side = 1
+pkg github.com/tangoui/tango/ui/editor/diff, const Original Side = 0
+pkg github.com/tangoui/tango/ui/editor/diff, func Lines(context.Context, []string, []string, Options) Result
+pkg github.com/tangoui/tango/ui/editor/diff, func Snapshots(context.Context, ui/editor/buffer.Snapshot, ui/editor/buffer.Snapshot, Options) Result
+pkg github.com/tangoui/tango/ui/editor/diff, func SplitLines(string) []string
+pkg github.com/tangoui/tango/ui/editor/diff, func UnchangedRegions([]Change, int, int, int, int) []UnchangedRegion
+pkg github.com/tangoui/tango/ui/editor/diff, method (Change) String() string
+pkg github.com/tangoui/tango/ui/editor/diff, method (LineRange) Contains(int) bool
+pkg github.com/tangoui/tango/ui/editor/diff, method (LineRange) Empty() bool
+pkg github.com/tangoui/tango/ui/editor/diff, method (LineRange) Len() int
+pkg github.com/tangoui/tango/ui/editor/diff, method (LineRange) String() string
+pkg github.com/tangoui/tango/ui/editor/diff, method (Range) Empty() bool
+pkg github.com/tangoui/tango/ui/editor/diff, method (Range) String() string
+pkg github.com/tangoui/tango/ui/editor/diff, method (RangeMapping) String() string
+pkg github.com/tangoui/tango/ui/editor/diff, method (Result) Next(Side, int) (int, bool)
+pkg github.com/tangoui/tango/ui/editor/diff, method (Result) Prev(Side, int) (int, bool)
+pkg github.com/tangoui/tango/ui/editor/diff, method (Result) UnchangedRegions(int, int) []UnchangedRegion
+pkg github.com/tangoui/tango/ui/editor/diff, method (Side) String() string
+pkg github.com/tangoui/tango/ui/editor/diff, type Change struct
+pkg github.com/tangoui/tango/ui/editor/diff, type Change struct, Inner []RangeMapping
+pkg github.com/tangoui/tango/ui/editor/diff, type Change struct, Modified LineRange
+pkg github.com/tangoui/tango/ui/editor/diff, type Change struct, Original LineRange
+pkg github.com/tangoui/tango/ui/editor/diff, type Change struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor/diff, type LineRange struct
+pkg github.com/tangoui/tango/ui/editor/diff, type LineRange struct, End int
+pkg github.com/tangoui/tango/ui/editor/diff, type LineRange struct, Start int
+pkg github.com/tangoui/tango/ui/editor/diff, type Move struct
+pkg github.com/tangoui/tango/ui/editor/diff, type Move struct, Changes []Change
+pkg github.com/tangoui/tango/ui/editor/diff, type Move struct, Modified LineRange
+pkg github.com/tangoui/tango/ui/editor/diff, type Move struct, Original LineRange
+pkg github.com/tangoui/tango/ui/editor/diff, type Move struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor/diff, type Options struct
+pkg github.com/tangoui/tango/ui/editor/diff, type Options struct, ComputeMoves bool
+pkg github.com/tangoui/tango/ui/editor/diff, type Options struct, ExtendToSubwords bool
+pkg github.com/tangoui/tango/ui/editor/diff, type Options struct, IgnoreTrimWhitespace bool
+pkg github.com/tangoui/tango/ui/editor/diff, type Options struct, Timeout time.Duration
+pkg github.com/tangoui/tango/ui/editor/diff, type Range struct
+pkg github.com/tangoui/tango/ui/editor/diff, type Range struct, End ui/editor/buffer.Pos
+pkg github.com/tangoui/tango/ui/editor/diff, type Range struct, Start ui/editor/buffer.Pos
+pkg github.com/tangoui/tango/ui/editor/diff, type RangeMapping struct
+pkg github.com/tangoui/tango/ui/editor/diff, type RangeMapping struct, Modified Range
+pkg github.com/tangoui/tango/ui/editor/diff, type RangeMapping struct, Original Range
+pkg github.com/tangoui/tango/ui/editor/diff, type Result struct
+pkg github.com/tangoui/tango/ui/editor/diff, type Result struct, Changes []Change
+pkg github.com/tangoui/tango/ui/editor/diff, type Result struct, Identical bool
+pkg github.com/tangoui/tango/ui/editor/diff, type Result struct, ModifiedLines int
+pkg github.com/tangoui/tango/ui/editor/diff, type Result struct, Moves []Move
+pkg github.com/tangoui/tango/ui/editor/diff, type Result struct, OriginalLines int
+pkg github.com/tangoui/tango/ui/editor/diff, type Result struct, TimedOut bool
+pkg github.com/tangoui/tango/ui/editor/diff, type Result struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor/diff, type Side uint8
+pkg github.com/tangoui/tango/ui/editor/diff, type UnchangedRegion struct
+pkg github.com/tangoui/tango/ui/editor/diff, type UnchangedRegion struct, Modified LineRange
+pkg github.com/tangoui/tango/ui/editor/diff, type UnchangedRegion struct, Original LineRange
