@@ -305,10 +305,11 @@ func TestHighContrastComponents(t *testing.T) {
 		}
 	}
 	// Normal themes without overrides report no component pair, except
-	// the always-audited (spec-tagged) terminal palette.
+	// the always-audited (spec-tagged) terminal palette and Drawer
+	// dragger (batch 3 group K).
 	for _, th := range BuiltinThemes() {
 		for _, ch := range CheckContrast(th) {
-			if strings.Contains(ch.Token, ".") && !strings.HasPrefix(ch.Token, "Terminal.Palette[") {
+			if strings.Contains(ch.Token, ".") && !strings.HasPrefix(ch.Token, "Terminal.Palette[") && !strings.HasPrefix(ch.Token, "Drawer.ResizeLine") {
 				t.Errorf("unexpected component pair in a stock theme: %s", ch)
 			}
 		}

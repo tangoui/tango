@@ -7,6 +7,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -113,7 +114,8 @@ func popFindID(n *node, id ID) *node {
 // Popover starts a popover; set options then call Body with the trigger.
 //
 // ConfigProvider.Defaults("Popover", ...) keys: "placement", "trigger",
-// "arrow" (bool; default true, false for shadcn whose popover has none),
+// "arrow" (bool; default PopoverToken.Arrow: true, false for shadcn whose
+// popover has none),
 // "mouseEnterDelay", "mouseLeaveDelay" (time.Duration; default the
 // theme's PopoverToken delays: antd 0.1 s / 0.1 s, Element 0 / 0.2 s).
 func Popover(c *Context) *PopoverW {
@@ -122,7 +124,7 @@ func Popover(c *Context) *PopoverW {
 	return &PopoverW{c: c,
 		place:   Prop(c, "Popover", "placement", "top"),
 		trigger: Prop(c, "Popover", "trigger", "hover"),
-		arrow:   Prop(c, "Popover", "arrow", c.Theme.Flavor != theme.StyleShadcn),
+		arrow:   Prop(c, "Popover", "arrow", tk.Arrow),
 		enter:   Prop(c, "Popover", "mouseEnterDelay", tk.MouseEnterDelay),
 		leave:   Prop(c, "Popover", "mouseLeaveDelay", tk.MouseLeaveDelay),
 		th:      th, tk: tk,
@@ -315,12 +317,9 @@ func (p *PopoverW) Body(fn func()) *Box {
 		return b
 	}
 	place, _ := c.popPlacement(p.place)
-	off := float32(4)
+	off := tk.OffsetNoArrow
 	if p.arrow {
-		off = 10
-		if el {
-			off = 12
-		}
+		off = tk.Offset
 	}
 	a := c.AnimFrom(b.n.id, "pop", 0, 1, th.DurationMid)
 	pad := layout.Pad(tk.InnerPadding)
@@ -386,7 +385,7 @@ func (p *PopoverW) Body(fn func()) *Box {
 			if !ok {
 				return
 			}
-			popDrawArrow(l, r, ar, tk.Bg, tk.BorderColor)
+			drawPopupArrow(l, r, ar, tk.Bg, tk.BorderColor)
 		}
 	}
 	return b
@@ -424,41 +423,6 @@ func (p *PopoverW) hoverDebounce(st *popoverState, active bool, enter time.Durat
 	return st.hoverOpen
 }
 
-// popDrawArrow draws a triangular arrow on the side of panel r that faces
-// anchor ar, pointing at the anchor's centre (clamped inside the panel).
-// A non-zero border colour outlines the two outer edges (Element).
-func popDrawArrow(l *paint.List, r, ar geom.Rect, bg, border theme.Color) {
-	const half, h = 7, 7
-	p := paint.NewPath()
-	edge := paint.NewPath()
-	switch {
-	case r.Bottom() <= ar.Y+1: // panel above: arrow at bottom
-		cx := max(r.X+12+half, min(ar.X+ar.W/2, r.Right()-12-half))
-		y := r.Bottom() - 1
-		p.MoveTo(cx-half-1, y).LineTo(cx, y+h).LineTo(cx+half+1, y).Close()
-		edge.MoveTo(cx-half, y+0.5).LineTo(cx, y+h).LineTo(cx+half, y+0.5)
-	case r.Y >= ar.Bottom()-1: // below: arrow at top
-		cx := max(r.X+12+half, min(ar.X+ar.W/2, r.Right()-12-half))
-		y := r.Y + 1
-		p.MoveTo(cx-half-1, y).LineTo(cx, y-h).LineTo(cx+half+1, y).Close()
-		edge.MoveTo(cx-half, y-0.5).LineTo(cx, y-h).LineTo(cx+half, y-0.5)
-	case r.Right() <= ar.X+1: // left of anchor: arrow on the right
-		cy := max(r.Y+12+half, min(ar.Y+ar.H/2, r.Bottom()-12-half))
-		x := r.Right() - 1
-		p.MoveTo(x, cy-half-1).LineTo(x+h, cy).LineTo(x, cy+half+1).Close()
-		edge.MoveTo(x+0.5, cy-half).LineTo(x+h, cy).LineTo(x+0.5, cy+half)
-	default: // right of anchor: arrow on the left
-		cy := max(r.Y+12+half, min(ar.Y+ar.H/2, r.Bottom()-12-half))
-		x := r.X + 1
-		p.MoveTo(x, cy-half-1).LineTo(x-h, cy).LineTo(x, cy+half+1).Close()
-		edge.MoveTo(x-0.5, cy-half).LineTo(x-h, cy).LineTo(x-0.5, cy+half)
-	}
-	l.Path(p, bg)
-	if border.A > 0 {
-		l.StrokePath(edge, paint.StrokeStyle{Width: 1}, border)
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Tour
 
@@ -477,6 +441,9 @@ type TourStep struct {
 	NextText string   // label of the next / finish button ("": Locale)
 	HidePrev bool     // no previous button on this step
 	HideNext bool     // no next / finish button on this step
+	// HideArrow hides the panel arrow on this step (antd steps[].arrow
+	// false).
+	HideArrow bool
 }
 
 // TourMask overrides the tour's mask for one step.
@@ -547,6 +514,14 @@ type TourW struct {
 	reveal   bool
 	dots     func(current, total int)
 	actions  func(a *TourActions)
+
+	keyboard   bool
+	noInteract bool
+	closable   bool
+	maskColor  theme.Color
+	maskSet    bool
+	gapRadius  float32 // < 0: the theme's HoleRadius
+	place      string
 }
 
 // tourState is the retained state of a Tour.
@@ -556,10 +531,39 @@ type tourState struct {
 
 // Tour starts a tour bound to *open and *current; call Show.
 func Tour(c *Context, open *bool, current *int, steps []TourStep) *TourW {
-	t := &TourW{c: c, open: open, cur: current, steps: steps, mask: true, arrow: true, gap: 6, reveal: true, id: c.newID("tour", "")}
+	t := &TourW{c: c, open: open, cur: current, steps: steps, mask: true, arrow: true, gap: 6, reveal: true, id: c.newID("tour", ""),
+		keyboard: true, closable: true, gapRadius: -1}
 	t.configDefaults() // Defaults("Tour", ...): type, mask, arrow
+	t.keyboard = Prop(c, "Tour", "keyboard", t.keyboard)
+	t.noInteract = Prop(c, "Tour", "disabledInteraction", false)
+	t.place = Prop(c, "Tour", "placement", "")
 	return t
 }
+
+// Keyboard sets whether Escape closes the tour and ←/→ move between
+// steps (default true; antd keyboard, Element close-on-press-escape).
+func (t *TourW) Keyboard(on bool) *TourW { t.keyboard = on; return t }
+
+// DisabledInteraction keeps the highlighted target from being clicked
+// (antd disabledInteraction; by default the target stays interactive,
+// Element target-area-clickable).
+func (t *TourW) DisabledInteraction(on bool) *TourW { t.noInteract = on; return t }
+
+// Closable shows or hides the close button; without it Escape does not
+// close the tour either (antd closable null; default shown).
+func (t *TourW) Closable(on bool) *TourW { t.closable = on; return t }
+
+// MaskColor sets the mask color (antd mask.color; default the theme's).
+// A transparent color keeps the mask's pointer blocking without dimming.
+func (t *TourW) MaskColor(col theme.Color) *TourW { t.maskColor, t.maskSet = col, true; return t }
+
+// GapRadius sets the corner radius of the hole around the target (antd /
+// Element gap.radius, default 2).
+func (t *TourW) GapRadius(px float32) *TourW { t.gapRadius = px; return t }
+
+// Placement sets the default panel placement of the steps, as
+// Popover.Placement (default "bottom"); TourStep.Placement overrides it.
+func (t *TourW) Placement(s string) *TourW { t.place = s; return t }
 
 // ScrollIntoView sets whether each step scrolls its target into the view
 // of the scroll container holding it when the step is shown (default on,
@@ -652,7 +656,8 @@ func (t *TourW) NoMask() *TourW { t.mask = false; return t }
 // NoArrow hides the panel arrow.
 func (t *TourW) NoArrow() *TourW { t.arrow = false; return t }
 
-// Gap sets the hole padding around the target.
+// Gap sets the hole padding around the target (antd / Element
+// gap.offset, default 6).
 func (t *TourW) Gap(px float32) *TourW { t.gap = px; return t }
 
 // Finished reports a click on the last step's finish button.
@@ -671,10 +676,15 @@ func (t *TourW) Show() *TourW {
 		t.revealTarget(0, false)
 		return t
 	}
+	if *t.cur < 0 || *t.cur >= len(t.steps) {
+		// Out of range: nothing is shown and *open is kept (rc-tour
+		// mergedOpen is false while current is outside the steps).
+		t.revealTarget(0, false)
+		return t
+	}
 	th := c.ThemeFor(theme.CompTour)
 	tk := &th.Components.Tour
 	el := th.Flavor == theme.Element
-	*t.cur = max(0, min(*t.cur, len(t.steps)-1))
 	step := t.steps[*t.cur]
 	tr, hasTarget := geom.Rect{}, false
 	if step.Target != 0 {
@@ -698,21 +708,43 @@ func (t *TourW) Show() *TourW {
 		primary = false
 	}
 	hole := tr.Expand(t.gap)
-	// Mask layer: swallows pointer input, punches a hole over the target.
-	mask := Overlay(c, OverlayOptions{Place: ScreenFill}, func() {}, layout.Grow(1))
+	holeR := tk.HoleRadius
+	if t.gapRadius >= 0 {
+		holeR = t.gapRadius
+	}
+	maskCol := tk.MaskColor
+	if t.maskSet {
+		maskCol = t.maskColor
+	}
+	// Pointer blocking follows rc-tour's Mask, which is rendered with or
+	// without the dimming: with a mask the page around the target is
+	// blocked (the hole stays clickable unless DisabledInteraction);
+	// without one the page stays interactive when there is a target and
+	// interaction is allowed, else a transparent layer blocks it all.
+	mask := Overlay(c, OverlayOptions{Place: ScreenFill}, func() {
+		hole := hasTarget && !t.noInteract
+		if showMask || !hole {
+			tourBlockers(c, tr.Expand(t.gap), hole)
+		}
+	}, layout.Grow(1))
+	mask.n.hit, mask.n.blocks = false, false
 	mask.n.paint = func(l *paint.List, r geom.Rect) {
 		if !showMask {
 			return
 		}
 		p := paint.NewPath().Rect(r)
 		if hasTarget {
-			p.Append(paint.NewPath().RRect(hole, geom.Rad(tk.HoleRadius)).Reversed())
+			p.Append(paint.NewPath().RRect(hole, geom.Rad(holeR)).Reversed())
 		}
-		l.Path(p, tk.MaskColor)
+		l.Path(p, maskCol)
 	}
 	// Panel.
-	place, _ := c.popPlacement(step.Placement)
-	if step.Placement == "" {
+	stepPlace := step.Placement
+	if stepPlace == "" {
+		stepPlace = t.place
+	}
+	place, _ := c.popPlacement(stepPlace)
+	if stepPlace == "" {
 		place = Bottom
 	}
 	opts := OverlayOptions{Anchor: step.Target, Place: place, Offset: t.gap + 10, Flip: true}
@@ -734,11 +766,11 @@ func (t *TourW) Show() *TourW {
 			if tk.TitleFontWeight != 0 {
 				tt.Weight(text.Weight(tk.TitleFontWeight))
 			}
-			if IconButton(c, icon.Close, loc.Tour.Close).Size(tk.CloseBtnSize, tk.CloseIconSize).Color(fg2).Clicked() {
+			if t.closable && IconButton(c, icon.Close, loc.Tour.Close).Size(tk.CloseBtnSize, tk.CloseIconSize).Color(fg2).Clicked() {
 				*t.open, t.closed = false, true
 				c.invalid = true
 			}
-		}, layout.Middle(), layout.Gap(8), layout.Margin(geom.Insets{Bottom: 8}))
+		}, layout.Middle(), layout.Gap(8), layout.Margin(geom.Insets{Bottom: tk.HeaderMarginBottom}))
 		if step.Description != "" {
 			Text(c, step.Description).Color(fg2)
 		}
@@ -793,8 +825,8 @@ func (t *TourW) Show() *TourW {
 			} else {
 				buttons()
 			}
-		}, layout.Middle(), layout.Gap(8), layout.Margin(geom.Insets{Top: 16}))
-	}, layout.Pad(tk.PanelPadding), layout.W(tk.Width))
+		}, layout.Middle(), layout.Gap(8), layout.Margin(geom.Insets{Top: tk.FooterMarginTop}))
+	}, layout.Pad(tk.PanelPadding), tourWidth(tk))
 	bg := tk.Bg
 	if primary {
 		bg = tk.PrimaryBg
@@ -814,21 +846,87 @@ func (t *TourW) Show() *TourW {
 	if showMask {
 		c.TrapFocus(ov.ID())
 	}
-	if t.arrow && hasTarget {
+	if t.arrow && !step.HideArrow && hasTarget {
 		target := step.Target
 		ov.n.over = func(l *paint.List, r geom.Rect) {
 			ar, ok := c.anchorRect(target)
 			if !ok {
 				return
 			}
-			popDrawArrow(l, r, ar.Expand(t.gap), bg, theme.Color{})
+			drawPopupArrow(l, r, ar.Expand(t.gap), bg, theme.Color{})
 		}
 	}
-	if c.EscapeAt(ov.ID()) {
+	if c.EscapeAt(ov.ID()) && t.keyboard && t.closable {
 		*t.open, t.closed = false, true
 		c.invalid = true
 	}
+	if t.keyboard && *t.open {
+		t.arrowKeys(ov.n)
+	}
 	return t
+}
+
+// arrowKeys moves between steps with ←/→ (rc-tour keyboard) while focus
+// is in the panel (where a masked tour traps it) or nowhere: a focused
+// page widget (the clickable target, Tabs, Slider) keeps its arrow keys,
+// and so does a widget in the panel that handles keys itself.
+func (t *TourW) arrowKeys(panel *node) {
+	c := t.c
+	if c.focus != 0 {
+		f := findFocused(panel, c.focus)
+		if f == nil || f.ownKeys {
+			return
+		}
+	}
+	for _, k := range c.keys {
+		if !k.Down {
+			continue
+		}
+		switch k.Key {
+		case input.KeyLeft:
+			if *t.cur > 0 {
+				t.goTo(*t.cur - 1)
+			}
+		case input.KeyRight:
+			if *t.cur < len(t.steps)-1 {
+				t.goTo(*t.cur + 1)
+			}
+		}
+	}
+}
+
+// tourWidth is the panel width option: a maximum when the panel fits its
+// content (antd width 520 with max-width fit-content), else fixed.
+func tourWidth(tk *theme.TourToken) layout.Option {
+	if tk.FitContent {
+		return layout.MaxW(tk.Width)
+	}
+	return layout.W(tk.Width)
+}
+
+// tourBlockers builds the four pointer-blocking strips of a Tour mask
+// around hole (one full-screen strip when open is false).
+func tourBlockers(c *Context, hole geom.Rect, open bool) {
+	block := func(r geom.Rect) {
+		if r.W <= 0 || r.H <= 0 {
+			return
+		}
+		n := c.add("tour-mask", "")
+		n.aHidden = true
+		n.hit, n.blocks = true, true
+		n.ln.Absolute, n.ln.NoMirror = true, true
+		n.ln.Width, n.ln.Height = r.W, r.H
+		n.ln.Pos = flexbox.Pos{Left: r.X, Top: r.Y, Right: layout.Unset, Bottom: layout.Unset}
+	}
+	w, h := c.size.W, c.size.H
+	if !open {
+		block(geom.Rect{W: w, H: h})
+		return
+	}
+	block(geom.Rect{W: w, H: hole.Y})                                            // above
+	block(geom.Rect{Y: hole.Bottom(), W: w, H: h - hole.Bottom()})               // below
+	block(geom.Rect{Y: hole.Y, W: hole.X, H: hole.H})                            // start side
+	block(geom.Rect{X: hole.Right(), Y: hole.Y, W: w - hole.Right(), H: hole.H}) // end side
 }
 
 func tourDots(c *Context, tk *theme.TourToken, n, cur int, primary bool) {

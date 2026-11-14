@@ -187,16 +187,19 @@ func TestT2aTokenDefaults(t *testing.T) {
 				t.Errorf("%s steps: %+v", name, st)
 			}
 		default:
-			if st.IconSize != 32 || st.IconSizeSM != 24 || st.FinishIconBg != th.Primary.Bg || st.WaitIconBg != th.FillSecondary ||
-				st.TailColor != th.Split || st.HoverColor != th.Primary.Base || st.DotWaitColor != th.TextQuaternary || st.NavBg.A != 0 {
+			if st.IconSize != 32 || st.IconSizeSM != 24 || st.FinishIconBg != th.Primary.Bg || st.WaitIconBg != th.FillTertiary ||
+				st.TailColor != th.Split || st.HoverColor != th.Primary.Hover || st.DotWaitColor != th.TextQuaternary || st.NavBg.A != 0 {
 				t.Errorf("%s steps: %+v", name, st)
 			}
 		}
 		// Breadcrumb.
 		bc := k.Breadcrumb
-		wantItem, wantLast, wantSep := th.TextTertiary, th.Text, th.TextQuaternary
+		wantItem, wantLast, wantSep := th.TextTertiary, th.Text, th.TextTertiary
 		if el {
 			wantItem, wantLast = th.Text, th.TextSecondary
+		}
+		if el {
+			wantSep = th.TextQuaternary
 		}
 		if shad {
 			wantSep = th.TextTertiary
@@ -205,8 +208,23 @@ func TestT2aTokenDefaults(t *testing.T) {
 			t.Errorf("%s breadcrumb: %+v", name, bc)
 		}
 		// Splitter.
-		if sp := k.Splitter; sp.SplitTriggerSize != 6 || sp.BarColor != th.Split || sp.HandleActiveColor != th.Primary.Base {
+		wantBar := th.FillTertiary
+		if el {
+			wantBar = th.Split
+		} else if shad {
+			wantBar = th.Border
+		}
+		if sp := k.Splitter; sp.SplitTriggerSize != 6 || sp.BarColor != wantBar {
 			t.Errorf("%s splitter: %+v", name, sp)
+		}
+		wantHandle := th.Fill
+		if el {
+			wantHandle = theme.Color{}
+		} else if shad {
+			wantHandle = th.Primary.Base
+		}
+		if k.Splitter.HandleActiveColor != wantHandle {
+			t.Errorf("%s splitter handle: %+v", name, k.Splitter)
 		}
 		// FloatButton.
 		fb := k.FloatButton
