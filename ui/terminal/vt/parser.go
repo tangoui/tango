@@ -100,7 +100,12 @@ func (p *Params) add(c byte) {
 			return
 		}
 		v := &p.v[i][p.n[i]-1]
-		*v = min(*v*10+int(c-'0'), maxParamVal)
+		// Clamp before multiplying so *v*10 cannot overflow a 32-bit int.
+		if *v > (maxParamVal-9)/10 {
+			*v = maxParamVal
+		} else {
+			*v = min(*v*10+int(c-'0'), maxParamVal)
+		}
 	}
 }
 

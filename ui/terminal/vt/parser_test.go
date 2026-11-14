@@ -123,7 +123,7 @@ func runCases(t *testing.T, names ...string) {
 func TestParserPrintFastPath(t *testing.T) {
 	r := &recorder{}
 	NewParser(r).Write([]byte("hello"))
-	// One call, not merged by the recorder.
+	// The recorder merges adjacent PrintASCII calls, so count calls directly.
 	if !slices.Equal(r.out, []string{"A(hello)"}) {
 		t.Fatalf("got %q", r.out)
 	}
@@ -186,9 +186,12 @@ func TestParserParamLimits(t *testing.T) {
 	if !slices.Equal(subs, []int{1, 2, 3, 4, 5, 6, 7, 8}) {
 		t.Errorf("Sub(0) = %v, want first 8", subs)
 	}
-	pr.Write([]byte("\x1b[99999999999999999999m"))
-	if last <= 0 {
-		t.Errorf("huge param overflowed to %d", last)
+	// Values clamp at 2^31-1 on every GOARCH, including 32-bit int.
+	for _, in := range []string{"2147483647", "2147483648", "99999999999", "99999999999999999999"} {
+		pr.Write([]byte("\x1b[" + in + "m"))
+		if last != maxParamVal {
+			t.Errorf("param %s = %d, want %d", in, last, maxParamVal)
+		}
 	}
 }
 
