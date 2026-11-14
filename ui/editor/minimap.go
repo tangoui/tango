@@ -262,15 +262,21 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 		if part > 0 {
 			key = -vr - 1
 		}
-		from := 0
-		if lb := w.st.vl.breaks[line]; lb != nil {
-			from, _ = lb.rowRange(part, lineEnd(snap, line)-snap.LineStart(line))
-		}
 		y := r.Y + (float32(vr)-offset)*unit
 		h := unit
 		if unit < 1 {
 			y = r.Y + pos
 			h = min(1, extent-pos)
+		}
+		if part < 0 || part >= w.st.vl.rowsOf(line) {
+			// A view zone's row (zones.go): blank, as Monaco's minimap
+			// leaves its view zones.
+			vs.miniRows = append(vs.miniRows, miniRow{line: line, vrow: vr, key: miniZoneKey, y: y, h: h})
+			continue
+		}
+		from := 0
+		if lb := w.st.vl.breaks[line]; lb != nil {
+			from, _ = lb.rowRange(part, lineEnd(snap, line)-snap.LineStart(line))
 		}
 		vs.miniRows = append(vs.miniRows, miniRow{line: line, vrow: vr, key: key, y: y, h: h})
 		keep[key] = true
@@ -321,6 +327,10 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 	height := max(0, min(extent-sy, (bottom-scroll)*unit))
 	vs.minimapSlider = geom.Rect{X: r.X, Y: r.Y + sy, W: r.W, H: height}
 }
+
+// miniZoneKey is the cache key of a view zone's minimap rows: no line
+// is cached under it, so they draw nothing.
+const miniZoneKey = math.MinInt
 
 type miniRow struct {
 	line, vrow, key int

@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"fmt"
 	"image/color"
 	"strings"
 	"testing"
@@ -166,5 +167,39 @@ func TestMinimapIncremental(t *testing.T) {
 	d.Frame()
 	if (*vw).vs.mini.rebuilt == before {
 		t.Fatal("theme failed to invalidate")
+	}
+}
+
+// TestMinimapViewZones: a view zone's rows are blank in the minimap (both
+// as blocks and as characters) and take their place there: the rows after
+// the zone are drawn after its rows.
+func TestMinimapViewZones(t *testing.T) {
+	for _, chars := range []bool{false, true} {
+		t.Run(fmt.Sprintf("chars=%v", chars), func(t *testing.T) {
+			goText(t)
+			st := NewState(manyLines(200), "a.txt", theme.Base("vs"))
+			defer st.Close()
+			st.Options.Minimap.RenderCharacters = chars
+			st.SetViewZones("t", []ViewZone{{ID: 1, AfterLine: 3, Rows: 5}, {ID: 2, AfterLine: -1, Rows: 2}})
+			d, vw := viewDriver(st, 640, 300, nil)
+			d.Frame()
+			d.Frame()
+			rows := (*vw).vs.miniRows
+			if len(rows) < 20 {
+				t.Fatalf("%d minimap rows", len(rows))
+			}
+			for k, row := range rows[:12] {
+				zone := k < 2 || k >= 6 && k < 11
+				if zone != (row.key == miniZoneKey) {
+					t.Fatalf("minimap row %d (line %d): zone %v, key %d", k, row.line, zone, row.key)
+				}
+				if ln := (*vw).vs.mini.cache[row.key]; zone && ln != nil {
+					t.Fatalf("zone row %d has a miniature", k)
+				}
+			}
+			if rows[11].line != 4 || rows[11].key != 4 {
+				t.Fatalf("row after the zone: line %d key %d, want line 4", rows[11].line, rows[11].key)
+			}
+		})
 	}
 }
