@@ -1,0 +1,239 @@
+package vt
+
+// Screen is a grid of rows lines plus up to scrollback lines that have
+// scrolled off its top. Lines live in a ring buffer, so scrolling moves
+// an index instead of copying, and a line evicted from a full scrollback
+// is reused, cells and all, as the new bottom row.
+//
+// The active area is rows 0 to rows-1, read with [Screen.Line]. The
+// viewport is what a view shows: rows lines ending ViewOffset lines
+// above the bottom of the active area, read with [Screen.ViewLine].
+//
+// A Screen is not safe for concurrent use.
+type Screen struct {
+	cols, rows int
+	scrollback int // capacity of the scrollback, in lines
+
+	ring   []Line // len rows+scrollback; grows lazily up to that
+	head   int    // ring index of the oldest line (scrollback or row 0)
+	sbLen  int    // lines in the scrollback
+	offset int    // viewport offset from the bottom, in [0, sbLen]
+
+	styles StyleTable
+}
+
+// NewScreen returns a blank screen of cols×rows cells keeping up to
+// scrollback lines of history. A screen with scrollback 0, such as the
+// alternate screen, drops lines that scroll off the top. cols and rows
+// are raised to at least 1 and scrollback to at least 0.
+func NewScreen(cols, rows, scrollback int) *Screen {
+	cols, rows, scrollback = max(cols, 1), max(rows, 1), max(scrollback, 0)
+	s := &Screen{cols: cols, rows: rows, scrollback: scrollback}
+	// Scrollback lines are allocated as they are first needed.
+	s.ring = make([]Line, rows, rows+min(scrollback, 1024))
+	for i := range s.ring {
+		s.ring[i].clear(cols)
+	}
+	s.styles.init(s)
+	return s
+}
+
+// Size returns the screen's size in cells.
+func (s *Screen) Size() (cols, rows int) { return s.cols, s.rows }
+
+// Styles returns the table that cells' Style fields index.
+func (s *Screen) Styles() *StyleTable { return &s.styles }
+
+// ScrollbackLen returns the number of lines in the scrollback.
+func (s *Screen) ScrollbackLen() int { return s.sbLen }
+
+// at returns the line at absolute position i, where 0 is the oldest
+// scrollback line and sbLen is active row 0.
+func (s *Screen) at(i int) *Line {
+	i += s.head
+	if i >= len(s.ring) {
+		i -= len(s.ring)
+	}
+	return &s.ring[i]
+}
+
+// Line returns active row y, 0 ≤ y < rows. It panics if y is out of range.
+// The pointer is valid until the next scroll, which moves lines between
+// rows.
+func (s *Screen) Line(y int) *Line {
+	if uint(y) >= uint(s.rows) {
+		panic("vt: Screen.Line row out of range")
+	}
+	return s.at(s.sbLen + y)
+}
+
+// ViewLine returns row y of the viewport, 0 ≤ y < rows. It panics if y is
+// out of range. As with [Screen.Line], the pointer is valid until the
+// next scroll.
+func (s *Screen) ViewLine(y int) *Line {
+	if uint(y) >= uint(s.rows) {
+		panic("vt: Screen.ViewLine row out of range")
+	}
+	return s.at(s.sbLen - s.offset + y)
+}
+
+// ViewOffset returns how many lines the viewport is scrolled up from the
+// bottom; 0 means it shows the active area.
+func (s *Screen) ViewOffset() int { return s.offset }
+
+// SetViewOffset scrolls the viewport n lines up from the bottom, clamped
+// to [0, ScrollbackLen].
+func (s *Screen) SetViewOffset(n int) { s.offset = min(max(n, 0), s.sbLen) }
+
+// ScrollUp scrolls active rows top through bottom (inclusive) up one line
+// and blanks row bottom. If top is 0 and the screen keeps scrollback, the
+// line scrolled off goes into the scrollback (evicting the oldest line
+// when it is full) and a viewport scrolled up keeps showing the same
+// content; otherwise it is discarded. Rows outside the region do not
+// move. Out-of-range or empty regions are ignored.
+func (s *Screen) ScrollUp(top, bottom int) {
+	if top < 0 || bottom >= s.rows || top > bottom {
+		return
+	}
+	if top > 0 || s.scrollback == 0 {
+		s.rotateUp(top, bottom)
+		return
+	}
+
+	// Row 0 joins the scrollback by advancing the active area one slot.
+	if s.sbLen < s.scrollback {
+		s.sbLen++
+		if s.sbLen+s.rows > len(s.ring) {
+			// The slot is new: grow the ring. Until the ring is full,
+			// head is 0, so appending keeps the order.
+			s.ring = append(s.ring, Line{})
+		}
+	} else {
+		s.head++ // evict the oldest line; its slot becomes the new last row
+		if s.head == len(s.ring) {
+			s.head = 0
+		}
+	}
+	if s.offset > 0 {
+		s.offset = min(s.offset+1, s.sbLen)
+	}
+	// The slot now at the last row is free. Rows below the region keep
+	// their place, so move the free slot up to row bottom.
+	free := *s.Line(s.rows - 1)
+	for y := s.rows - 1; y > bottom; y-- {
+		*s.Line(y) = *s.Line(y - 1)
+		s.Line(y).Dirty = true
+	}
+	free.clear(s.cols)
+	*s.Line(bottom) = free
+	for y := 0; y < bottom; y++ {
+		s.Line(y).Dirty = true
+	}
+}
+
+// rotateUp moves rows top+1..bottom up one row and reuses row top's line
+// as a blank row bottom.
+func (s *Screen) rotateUp(top, bottom int) {
+	free := *s.Line(top)
+	for y := top; y < bottom; y++ {
+		*s.Line(y) = *s.Line(y + 1)
+		s.Line(y).Dirty = true
+	}
+	free.clear(s.cols)
+	*s.Line(bottom) = free
+}
+
+// maxStyles is the number of entries a StyleTable holds before it
+// compacts: every uint16 index except 0xFFFF.
+const maxStyles = 0xFFFF
+
+// StyleTable stores each distinct [Style] once and hands out 16-bit
+// indexes for cells to refer to. Index 0 is always the default style.
+// When the table is full, interning a new style first drops the entries
+// no cell of the owning screen uses, renumbering the cells that remain.
+type StyleTable struct {
+	styles []Style
+	index  map[Style]uint16
+	limit  int     // capacity; maxStyles except in tests
+	screen *Screen // whose cells to scan when compacting
+}
+
+func (t *StyleTable) init(s *Screen) {
+	t.styles = []Style{{}}
+	t.index = map[Style]uint16{{}: 0}
+	t.limit = maxStyles
+	t.screen = s
+}
+
+// Len returns the number of styles in the table, including the default.
+func (t *StyleTable) Len() int { return len(t.styles) }
+
+// Get returns the style at index i. An index the table does not hold
+// returns the default style.
+func (t *StyleTable) Get(i uint16) Style {
+	if int(i) < len(t.styles) {
+		return t.styles[i]
+	}
+	return Style{}
+}
+
+// Intern returns st's index, adding it if needed. Adding to a full table
+// compacts it first, which renumbers the screen's cells; indexes obtained
+// earlier and not stored in a cell are then invalid. If every entry is in
+// use, Intern returns 0 (the default style).
+func (t *StyleTable) Intern(st Style) uint16 {
+	if i, ok := t.index[st]; ok {
+		return i
+	}
+	if len(t.styles) >= t.limit {
+		t.Compact()
+		if len(t.styles) >= t.limit {
+			return 0
+		}
+	}
+	i := uint16(len(t.styles))
+	t.styles = append(t.styles, st)
+	t.index[st] = i
+	return i
+}
+
+// Compact removes the styles no cell of the screen uses and renumbers the
+// remaining ones, updating the cells. The default style stays at index 0.
+func (t *StyleTable) Compact() {
+	used := make([]bool, len(t.styles))
+	used[0] = true
+	s := t.screen
+	n := s.sbLen + s.rows
+	for i := range n {
+		for _, c := range s.at(i).Cells {
+			if int(c.Style) < len(used) {
+				used[c.Style] = true
+			}
+		}
+	}
+	remap := make([]uint16, len(t.styles))
+	kept := t.styles[:1]
+	clear(t.index)
+	t.index[Style{}] = 0
+	for i := 1; i < len(t.styles); i++ {
+		if !used[i] {
+			continue
+		}
+		remap[i] = uint16(len(kept))
+		t.index[t.styles[i]] = uint16(len(kept))
+		kept = append(kept, t.styles[i])
+	}
+	if len(kept) == len(t.styles) {
+		return
+	}
+	clear(t.styles[len(kept):])
+	t.styles = kept
+	for i := range n {
+		cells := s.at(i).Cells
+		for j := range cells {
+			if int(cells[j].Style) < len(remap) {
+				cells[j].Style = remap[cells[j].Style]
+			}
+		}
+	}
+}

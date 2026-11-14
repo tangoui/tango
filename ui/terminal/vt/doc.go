@@ -7,6 +7,12 @@
 // ':' sub-parameters and BEL-terminated OSC strings. Runs of printable ASCII
 // bypass the state machine and reach [Handler.PrintASCII] in one call.
 //
+// [Screen] holds the cell grid: the active rows plus a bounded scrollback,
+// kept in one ring buffer of [Line] values so scrolling never copies
+// cells. Each [Cell] stores a code point, a width and a 16-bit index into
+// the screen's [StyleTable]. [Width] gives a character's cell width using
+// xterm.js's rules and tables generated from the Unicode data files.
+//
 // Experimental: this package's API may change in any 0.x release (see
 // docs/release.md, "API 稳定性").
 package vt

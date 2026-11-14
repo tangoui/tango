@@ -1,8 +1,45 @@
+pkg github.com/tangoui/tango/ui/terminal/vt, const AttrBlink Attr = 16
+pkg github.com/tangoui/tango/ui/terminal/vt, const AttrBold Attr = 1
+pkg github.com/tangoui/tango/ui/terminal/vt, const AttrFaint Attr = 2
+pkg github.com/tangoui/tango/ui/terminal/vt, const AttrInverse Attr = 32
+pkg github.com/tangoui/tango/ui/terminal/vt, const AttrInvisible Attr = 64
+pkg github.com/tangoui/tango/ui/terminal/vt, const AttrItalic Attr = 4
+pkg github.com/tangoui/tango/ui/terminal/vt, const AttrStrike Attr = 128
+pkg github.com/tangoui/tango/ui/terminal/vt, const AttrUnderline Attr = 8
+pkg github.com/tangoui/tango/ui/terminal/vt, const ColorDefault Color = 0
+pkg github.com/tangoui/tango/ui/terminal/vt, const ColorIndexed untyped int = 1
+pkg github.com/tangoui/tango/ui/terminal/vt, const ColorKindDefault untyped int = 0
+pkg github.com/tangoui/tango/ui/terminal/vt, const ColorRGB untyped int = 2
+pkg github.com/tangoui/tango/ui/terminal/vt, func IndexedColor(uint8) Color
 pkg github.com/tangoui/tango/ui/terminal/vt, func NewParser(Handler) *Parser
+pkg github.com/tangoui/tango/ui/terminal/vt, func NewScreen(int, int, int) *Screen
+pkg github.com/tangoui/tango/ui/terminal/vt, func RGBColor(uint8, uint8, uint8) Color
+pkg github.com/tangoui/tango/ui/terminal/vt, func Width(rune) int
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Params) Get(int, int) int
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Params) Len() int
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Params) Sub(int) []int
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Parser) Write([]byte)
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) Line(int) *Line
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) ScrollUp(int, int)
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) ScrollbackLen() int
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) SetViewOffset(int)
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) Size() (int, int)
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) Styles() *StyleTable
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) ViewLine(int) *Line
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) ViewOffset() int
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*StyleTable) Compact()
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*StyleTable) Get(uint16) Style
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*StyleTable) Intern(Style) uint16
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*StyleTable) Len() int
+pkg github.com/tangoui/tango/ui/terminal/vt, method (Color) Index() uint8
+pkg github.com/tangoui/tango/ui/terminal/vt, method (Color) Kind() int
+pkg github.com/tangoui/tango/ui/terminal/vt, method (Color) RGB() (uint8, uint8, uint8)
+pkg github.com/tangoui/tango/ui/terminal/vt, type Attr uint16
+pkg github.com/tangoui/tango/ui/terminal/vt, type Cell struct
+pkg github.com/tangoui/tango/ui/terminal/vt, type Cell struct, Rune rune
+pkg github.com/tangoui/tango/ui/terminal/vt, type Cell struct, Style uint16
+pkg github.com/tangoui/tango/ui/terminal/vt, type Cell struct, Width uint8
+pkg github.com/tangoui/tango/ui/terminal/vt, type Color uint32
 pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface { CSI, DCS, ESC, Execute, OSC, Print, PrintASCII }
 pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, CSI(*Params, []byte, byte, byte)
 pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, DCS(*Params, []byte, byte, []byte)
@@ -11,6 +48,19 @@ pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, Execute(byt
 pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, OSC([]byte)
 pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, Print(rune)
 pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, PrintASCII([]byte)
+pkg github.com/tangoui/tango/ui/terminal/vt, type Line struct
+pkg github.com/tangoui/tango/ui/terminal/vt, type Line struct, Cells []Cell
+pkg github.com/tangoui/tango/ui/terminal/vt, type Line struct, Dirty bool
+pkg github.com/tangoui/tango/ui/terminal/vt, type Line struct, Wrapped bool
+pkg github.com/tangoui/tango/ui/terminal/vt, type Line struct, noncomparable
 pkg github.com/tangoui/tango/ui/terminal/vt, type Params struct
 pkg github.com/tangoui/tango/ui/terminal/vt, type Parser struct
 pkg github.com/tangoui/tango/ui/terminal/vt, type Parser struct, noncomparable
+pkg github.com/tangoui/tango/ui/terminal/vt, type Screen struct
+pkg github.com/tangoui/tango/ui/terminal/vt, type Screen struct, noncomparable
+pkg github.com/tangoui/tango/ui/terminal/vt, type Style struct
+pkg github.com/tangoui/tango/ui/terminal/vt, type Style struct, Attr Attr
+pkg github.com/tangoui/tango/ui/terminal/vt, type Style struct, Bg Color
+pkg github.com/tangoui/tango/ui/terminal/vt, type Style struct, Fg Color
+pkg github.com/tangoui/tango/ui/terminal/vt, type StyleTable struct
+pkg github.com/tangoui/tango/ui/terminal/vt, type StyleTable struct, noncomparable
