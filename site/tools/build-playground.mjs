@@ -19,7 +19,15 @@ const raw=execFileSync('go',['run',`-overlay=${overlay}`,'./site/tools/playgroun
 const catalog=mapComponentCatalog(parseComponentTable(readFileSync(path.join(repo,'ui/AUTHORING.md'),'utf8')),JSON.parse(raw));
 // Hand-written component docs (components/<slug>.md) replace the generated page.
 const handWritten=new Set(readdirSync(path.join(site,'components')).filter(f=>f.endsWith('.md')).map(f=>f.slice(0,-3)));
-for (const entry of catalog.components) entry.doc=componentDocPath(entry,handWritten);
+for (const entry of catalog.components) {
+  entry.doc=componentDocPath(entry,handWritten);
+  // A hand-written page names its component: its frontmatter title is the
+  // label of the sidebar entry, the overview card and the screenshot list.
+  if (handWritten.has(entry.slug)) {
+    const title=readFileSync(path.join(site,'components',entry.slug+'.md'),'utf8').match(/^---\n[\s\S]*?^title:\s*"?([^"\n]+)"?\s*$/m);
+    if (title) entry.label=title[1].trim();
+  }
+}
 mkdirSync(path.join(site,'.vitepress/generated'),{recursive:true});
 for(const file of [path.join(out,'catalog.json'),path.join(site,'.vitepress/generated/components.json')]) writeFileSync(file,JSON.stringify(catalog,null,2)+'\n');
 generateComponentPages(site,catalog);
