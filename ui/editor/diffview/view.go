@@ -33,6 +33,9 @@ func View(c *ui.Context, d *State) *ViewW {
 	defer func() { d.inBuild = false }()
 
 	d.take()
+	if r, ok := c.RectOf(d.boxID); ok {
+		d.width = r.W // the last frame's layout
+	}
 	ly := &d.lay
 	ly.rtl = c.IsRTL()
 	ly.texts = textsOf(c.Locale())
@@ -92,7 +95,7 @@ func View(c *ui.Context, d *State) *ViewW {
 		d.needSync = false
 	}
 	d.announce(c, mode)
-	d.width = w.box.Rect().W
+	d.boxID = w.box.ID()
 	return w
 }
 
@@ -137,8 +140,11 @@ func contextKeys(key string) (any, bool) {
 // Options.Mode, switched to Inline while the view is narrower than
 // InlineBreakpoint (UseInlineWhenSpaceIsLimited).
 func (d *State) modeFor(c *ui.Context) Mode {
-	if d.modeOver != nil {
-		return *d.modeOver
+	if m := d.modeOver; m != nil {
+		// Set by the last frame's (or pass's) Mode; a frame that does not
+		// call Mode again goes back to the options.
+		d.modeOver = nil
+		return *m
 	}
 	m := d.Options.Mode
 	if m == SideBySide && d.Options.UseInlineWhenSpaceIsLimited && d.width > 0 && d.width < d.Options.InlineBreakpoint {

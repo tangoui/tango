@@ -94,6 +94,7 @@ type zoneSig struct {
 // by all decorations, as Monaco registers them once).
 type decoOptions struct {
 	line, text [2]*editor.DecorationOptions
+	lineInline *editor.DecorationOptions // inline: inserted lines, with an overview mark
 	ovRemoved  *editor.DecorationOptions // inline: deleted lines' overview mark
 }
 
@@ -112,6 +113,9 @@ func (d *State) makeDecoOptions(c colors, indicators bool) decoOptions {
 		o.line[s] = lo
 		o.text[s] = &editor.DecorationOptions{Description: "diff-char", Stickiness: editor.NeverGrowsWhenTypingAtEdges, Background: textBg[s], Border: border[s]}
 	}
+	li := *o.line[1]
+	li.Overview = &editor.OverviewStyle{Color: c.overviewInserted, Lane: 4}
+	o.lineInline = &li
 	o.ovRemoved = &editor.DecorationOptions{Description: "diff-deleted", Overview: &editor.OverviewStyle{Color: c.overviewRemoved, Lane: 1}}
 	return o
 }
@@ -207,7 +211,11 @@ func (d *State) decorations(s diff.Side, mode Mode) []editor.Decoration {
 			lr = c.Modified
 		}
 		if !lr.Empty() && lr.Start < n {
-			ds = append(ds, editor.LineDecoration(snap, lr.Start, min(lr.End, n)-1, o.line[s]))
+			lo := o.line[s]
+			if mode == Inline {
+				lo = o.lineInline
+			}
+			ds = append(ds, editor.LineDecoration(snap, lr.Start, min(lr.End, n)-1, lo))
 		}
 		for _, in := range c.Inner {
 			r := in.Original

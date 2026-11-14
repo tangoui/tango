@@ -1,6 +1,7 @@
 package diffview
 
 import (
+	"github.com/tangoui/tango/ui"
 	"slices"
 	"sync/atomic"
 	"time"
@@ -138,6 +139,7 @@ type State struct {
 	labels    [2]string
 	lanes     int     // the Modified's overview ruler lanes before New took them
 	width     float32 // the view's width in the last frame
+	boxID     ui.ID
 	km        *keymap.Keymap
 	focusReq  *diff.Side
 }
