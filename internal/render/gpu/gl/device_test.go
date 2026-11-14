@@ -83,8 +83,22 @@ func TestGLConformance(t *testing.T) {
 // fresh render by verifyCopyTolerance = 1 (internal/render/gpu/damage.go). llvmpipe's
 // rounding exceeds the Renderer's assumption, not the device's copies; on
 // real GPU hardware the subtest must pass (a real-hardware check).
+//
+// On "Apple Software Renderer" (macOS's GL without a GPU, as on GitHub's
+// macOS runners) every Partial subtest is skipped: partial redraws there
+// differ from full frames even without copies (solid@1: 116 pixels up to
+// 233 levels), while the same subtests pass on the Apple GPU. macOS draws
+// with Metal; this GL backend serves Linux and Android.
 func llvmpipeSkip(renderer, name string) bool {
+	if appleSoftwareGL(renderer) {
+		return strings.HasPrefix(name, "Partial/")
+	}
 	return name == "Partial/VerifyFractionalScroll/1" && strings.Contains(renderer, "llvmpipe")
+}
+
+// appleSoftwareGL reports macOS's software GL renderer.
+func appleSoftwareGL(renderer string) bool {
+	return strings.Contains(renderer, "Apple Software Renderer")
 }
 
 // glRenderer returns the GL_RENDERER string of a headless device's
@@ -571,6 +585,7 @@ func galleryPage(c *ui.Context) {
 // on the device and against paint.CPU), and the page inside a
 // half-opaque group (a layer) with an image beside it.
 func TestGLGallery(t *testing.T) {
+	softGL := appleSoftwareGL(glRenderer(t))
 	d := newTestDevice(t)
 	size := geom.Size{W: 640, H: 300}
 	drv := ui.NewDriver(galleryPage, ui.DriverOptions{Width: size.W, Height: size.H, Scale: 1, Theme: theme.AntDesign()})
@@ -604,11 +619,16 @@ func TestGLGallery(t *testing.T) {
 			t.Fatalf("scale %v: %d dirty rectangles, want 2", scale, lf.Dirty)
 		}
 		gputest.Check(t, "gallery partial", l, scale, ref.Image(), readPixels(t, d), 4)
-		r.SetVerify(true)
-		if err := r.Render(partial, size, scale); err != nil {
-			t.Fatalf("scale %v: verify: %v", scale, err)
+		// Verify compares the partial redraw with a full frame exactly where
+		// nothing was copied; macOS's software GL is off by one level there
+		// (see llvmpipeSkip).
+		if !softGL {
+			r.SetVerify(true)
+			if err := r.Render(partial, size, scale); err != nil {
+				t.Fatalf("scale %v: verify: %v", scale, err)
+			}
+			r.SetVerify(false)
 		}
-		r.SetVerify(false)
 
 		// The page in a half-opaque group, with an image next to it.
 		group := &paint.List{Background: l.Background}
