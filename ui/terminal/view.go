@@ -55,8 +55,9 @@ const (
 // Show a Terminal in at most one view: the view takes the emulator's
 // redraw records (TakeDirty, TakeScroll) each frame.
 //
-// Input is queued asynchronously; if the program stops reading its input,
-// [Terminal.Send] blocks the frame until it reads again (the bounded queue drops whole sends over 8 MB).
+// Input is queued and the frame never waits for the program; while it is
+// not reading, sends that would exceed the 8 MB queue are dropped whole
+// (see [Terminal.Send]).
 type ViewW struct {
 	c   *ui.Context
 	t   *Terminal
@@ -67,7 +68,8 @@ type ViewW struct {
 	fontSize     float32
 	optionAsMeta bool
 	scheme       *Scheme
-	done         bool // input applied (applyInput)
+	done         bool   // input applied (applyInput)
+	clip         string // the clipboard, read for a paste (readPaste)
 }
 
 // pending is the input collected while the view is built, applied once
@@ -316,12 +318,10 @@ func (w *ViewW) applyInput(v *vt.Terminal, r geom.Rect) []effect {
 }
 
 // effect is one result of the frame's input, carried out in order after
-// the emulator is unlocked (runEffects): bytes for the program, a paste
-// of the clipboard, or a copy to the clipboard.
+// the emulator is unlocked (runEffects): bytes for the program or a copy
+// to the clipboard.
 type effect struct {
 	send   []byte
-	paste  bool
-	modes  vt.Modes // the modes the paste is encoded for
 	isCopy bool
 	copy   string
 }
@@ -335,12 +335,6 @@ func (w *ViewW) runEffects(out []effect) {
 		case e.isCopy:
 			if win != nil {
 				win.WriteClipboard(e.copy)
-			}
-		case e.paste:
-			if win != nil {
-				if txt := win.ReadClipboard(); txt != "" {
-					w.t.Send(vt.EncodePaste(txt, e.modes))
-				}
 			}
 		default:
 			w.t.Send(e.send)
@@ -412,42 +406,69 @@ func isText(e input.Event) bool {
 	return !(len(t.Text) == 1 && (t.Text[0] < 0x20 || t.Text[0] == 0x7f))
 }
 
-// shortcut runs the application shortcut of key press e, if it is one,
-// appending its effects to out. v is locked.
-func (w *ViewW) shortcut(v *vt.Terminal, e input.KeyEvent, out *[]effect) bool {
+// shortcutAction names the application shortcut of key press e, or "".
+func shortcutAction(e input.KeyEvent) string {
 	mods := e.Mods & (input.ModShift | input.ModCtrl | input.ModAlt | input.ModMeta)
 	appMods := input.ModCtrl | input.ModShift
 	if isMac {
 		appMods = input.ModMeta
 	}
-	s := v.Screen()
-	_, rows := s.Size()
-	action := ""
 	switch {
 	case mods == appMods && e.Key == input.KeyC, !isMac && mods == input.ModCtrl && e.Key == input.KeyInsert:
-		action = "copy"
+		return "copy"
 	case mods == appMods && e.Key == input.KeyV, !isMac && mods == input.ModShift && e.Key == input.KeyInsert:
-		action = "paste"
+		return "paste"
 	case mods == appMods && e.Key == input.KeyA:
-		action = "selectAll"
+		return "selectAll"
 	case mods == appMods && e.Key == input.KeyK:
-		action = "clear"
+		return "clear"
 	case mods == input.ModShift && e.Key == input.KeyPageUp:
-		s.SetViewOffset(s.ViewOffset() + max(rows-1, 1))
-		return true
+		return "pageUp"
 	case mods == input.ModShift && e.Key == input.KeyPageDown:
-		s.SetViewOffset(s.ViewOffset() - max(rows-1, 1))
-		return true
-	default:
-		return false
+		return "pageDown"
 	}
+	return ""
+}
+
+// readPaste reads the clipboard, before the emulator is locked, when
+// this frame's input holds a paste shortcut.
+func (w *ViewW) readPaste() {
+	w.clip = ""
+	win := w.c.Window()
+	if win == nil {
+		return
+	}
+	for _, e := range w.vs.pend.events {
+		if k, ok := e.(input.KeyEvent); ok && k.Down && shortcutAction(k) == "paste" {
+			w.clip = win.ReadClipboard()
+			return
+		}
+	}
+}
+
+// shortcut runs the application shortcut of key press e, if it is one,
+// appending its effects to out. v is locked.
+func (w *ViewW) shortcut(v *vt.Terminal, e input.KeyEvent, out *[]effect) bool {
+	s := v.Screen()
+	_, rows := s.Size()
+	action := shortcutAction(e)
 	switch action {
+	case "":
+		return false
+	case "pageUp":
+		s.SetViewOffset(s.ViewOffset() + max(rows-1, 1))
+	case "pageDown":
+		s.SetViewOffset(s.ViewOffset() - max(rows-1, 1))
 	case "copy":
 		if txt := w.selectedText(s); txt != "" {
 			*out = append(*out, effect{isCopy: true, copy: txt})
 		}
 	case "paste":
-		*out = append(*out, effect{paste: true, modes: v.Modes()})
+		// The clipboard was read before the lock (readPaste); an empty
+		// one pastes nothing, so it neither scrolls nor clears.
+		if w.clip != "" {
+			*out = append(*out, effect{send: vt.EncodePaste(w.clip, v.Modes())})
+		}
 	case "selectAll":
 		w.selectAll(v)
 	case "clear":

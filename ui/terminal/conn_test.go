@@ -347,7 +347,7 @@ func TestTerminalCloseBlockedWriter(t *testing.T) {
 	c := newPipeConn()
 	exited := make(chan error, 1)
 	term := New(Options{Conn: c, OnExit: func(err error) { exited <- err }})
-	term.qlimit = 64
+	term.rlimit = 64
 	term.Start(10, 3, func() {})
 
 	flood := []byte(strings.Repeat("\x1b[6n", 64))
@@ -363,7 +363,7 @@ func TestTerminalCloseBlockedWriter(t *testing.T) {
 	waitFor(t, 5*time.Second, "reply queue to fill", func() bool {
 		term.qmu.Lock()
 		defer term.qmu.Unlock()
-		return term.qbytes+len("\x1b[1;1R") > term.qlimit
+		return term.rbytes+len("\x1b[1;1R") > term.rlimit
 	})
 	closeWithin(t, term, 5*time.Second)
 	if err := <-exited; err != nil {
@@ -629,4 +629,57 @@ func TestTerminalCloseFullQueue(t *testing.T) {
 	c.outW.Close()
 	c.inR.Close()
 	waitGoroutines(t, base)
+}
+
+// TestTerminalReplyNotStalledBySends: input fills its queue to one byte
+// below the limit while the program is not reading; the program's query
+// is still answered (queued), the read loop keeps feeding output to the
+// emulator, and the reply reaches the program in FIFO position.
+func TestTerminalReplyNotStalledBySends(t *testing.T) {
+	c := newGateConn()
+	term := New(Options{Conn: c})
+	defer term.Close()
+	term.qlimit = 1 << 10
+	term.Start(10, 3, func() {})
+
+	term.Send([]byte("k")) // the writer takes it and blocks in Write
+	waitFor(t, 5*time.Second, "writer to block", func() bool { return queueLen(term) == 0 })
+	fill := bytes.Repeat([]byte("p"), term.qlimit-1)
+	term.Send(fill)
+	if _, err := c.outW.Write([]byte("\x1b[6n")); err != nil {
+		t.Fatal(err)
+	}
+	// The read loop is not blocked: further output reaches the emulator.
+	done := make(chan struct{})
+	go func() {
+		c.outW.Write([]byte("after"))
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("read loop stalled behind queued input")
+	}
+	waitFor(t, 5*time.Second, "output after the query", func() bool {
+		v := term.Lock()
+		defer term.Unlock()
+		return rowText(v, 0) == "after"
+	})
+	term.Send([]byte("z"))
+	want := "k" + string(fill) + "\x1b[1;1R" + "z"
+	got := make(chan string, 1)
+	go func() {
+		buf := make([]byte, len(want))
+		io.ReadFull(c.inR, buf)
+		got <- string(buf)
+	}()
+	close(c.gate)
+	select {
+	case s := <-got:
+		if s != want {
+			t.Fatalf("program read ...%q, want ...%q", s[max(0, len(s)-12):], want[len(want)-12:])
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("queued bytes not written")
+	}
 }
