@@ -319,3 +319,23 @@ func TestCheckNowDuringStop(t *testing.T) {
 		t.Fatal("the old stop undid the new session's OnEvent wrapper")
 	}
 }
+
+// The update window is auxiliary (tango.SurfaceOptions.Auxiliary): with
+// QuitOnLastClose, closing the app's main window quits the app even while
+// the update window is open.
+func TestUpdateWindowDoesNotKeepAppRunning(t *testing.T) {
+	yes := true
+	a, fb := faketest.NewApp(tango.Options{QuitOnLastClose: &yes})
+	faketest.Start(t, a, fb)
+	s := newReleaseServer(t)
+	s.publish("1.2.0")
+	u := s.updater(t, "1.2.0")
+	main, err := a.NewSurface(tango.SurfaceOptions{Title: "Main"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	CheckNow(a, u, en)
+	waitFor(t, "the update window", func() bool { return len(updateWindows(fb)) == 1 })
+	tango.Await(a, func() bool { return fb.RequestClose(main.ID()) })
+	waitFor(t, "the app to quit", func() bool { return fb.Quits() > 0 })
+}

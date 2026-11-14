@@ -198,7 +198,7 @@ menu.SetAppMenu(a, m)
 - 同一个 `*updater.Updater` 不要同时交给 `updateui` 和 jsapi 的 `InstallUpdater`：Updater 不能并发使用，两者都会包装 `OnEvent`。`updateui` 会先调用应用自己设的 `OnEvent`，再更新界面。
 - 需要"自检通过后再确认"的应用不要用 `Start`（它会立刻 `Confirm`），用 `CheckNow` 加自己的定时器。
 - 检查、下载或安装进行时，后台检查跳过，`CheckNow` 只把窗口拉到前面显示当前进度。
-- 更新窗口和应用的其他窗口一样计入"最后一个窗口"：更新窗口开着时用户关掉主窗口，应用不会退出（`QuitOnLastClose` 要等所有窗口都关掉），用户关掉更新窗口后才退出。这样正在进行的下载不会被打断；想让主窗口关闭时一并结束，在主窗口的关闭回调里调用 `stop()`（关闭更新窗口、停止后台检查）。
+- 更新窗口是辅助窗口（`tango.SurfaceOptions.Auxiliary`），不算作"最后一个窗口"：在 `QuitOnLastClose` 下用户关掉应用的最后一个其他窗口时，应用照常退出，更新窗口随之关闭，进行中的下载也随之结束。
 - `stop()` 把 `u.OnEvent` 还原为 `Start` 时的值；`Start` 之后应用自己改过的 `OnEvent` 会被覆盖。
 
 完整例子见 `examples/update-demo`：不带参数运行时它在本地发布一个签了名的假版本 9.9.9，窗口马上弹出（`go run` 不是从安装包运行，所以安装那一步会提示无法自更新）。

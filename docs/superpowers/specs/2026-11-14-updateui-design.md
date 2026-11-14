@@ -96,7 +96,7 @@ func CheckNow(app *tango.App, u *updater.Updater, opts Options)
 - **线程**（我的决定，代码已有现成做法）：界面状态放在加锁的结构里，`OnEvent`（下载 goroutine）更新后调 `Runner.Invalidate`（`ui/runner.go:134-142`，任意 goroutine 可调）；打开窗口、聚焦已有窗口经 `app.Post`（`loop.go:174`）切到主线程，`uihost.Open` 要求主线程（`uihost.go:74-77`）。同一 `App` 只有一个更新窗口，已存在时 `Surface.Show`/`Focus`（`surface.go:202-204`）。
 - **配置缺失 / 错误**（我的决定）：`Start` 校验配置，缺失时返回错误。运行中，后台检查出错只记录、不弹窗；`CheckNow` 时显示错误。
 - **安装按钮的平台限制**（我的决定）：`Apply` 是否支持只有调用时才知道（`apply.go:46-48`）。只在 `GOOS` 为 darwin / windows / linux 时显示"下载并安装"；在这些平台上 `Apply` 返回 `ErrUnsupported`（例如不是从 .app / AppImage / 安装目录运行）时，界面说明原因并提供"打开下载页面"（若 `Release` 有可用链接；否则只关闭）。
-- **窗口与应用退出**（终审后更正）：原先写的"关掉主窗口后应用退出、更新窗口随之关闭"不对。`uihost` 打开的窗口登记在 `a.surfaces` 里（`surface.go:129`），`afterSurfaceClosed` 只要还有窗口就不退出（`lifecycle.go:213-216`）。所以更新窗口开着时关掉主窗口，应用不退出，等用户关掉更新窗口才退出。代码不改：这样不打断正在进行的下载；需要主窗口关闭时一并结束的应用在主窗口关闭回调里调用 `stop()`，文档已写明。若要"辅助窗口不计数"，需要框架层新增选项，另议。
+- **窗口与应用退出**（终审后更正，用户决定）：原先写的"关掉主窗口后应用退出、更新窗口随之关闭"在原框架里不成立：`uihost` 打开的窗口登记在 `a.surfaces` 里（`surface.go`），`afterSurfaceClosed` 只要还有窗口就不退出（`lifecycle.go`）。用户决定在框架加选项：根包 `tango.SurfaceOptions.Auxiliary`（零值 = 原行为），辅助窗口不计入"最后一个窗口"。updateui 的窗口总是辅助窗口，所以关掉主窗口时应用照常退出，更新窗口随之关闭，进行中的下载也随之结束。
 
 ## 留给实现者
 

@@ -40,6 +40,9 @@ func (s *session) show(manual bool) {
 		if opts.Surface.Width == 0 && opts.Surface.Height == 0 {
 			opts.Surface.Width, opts.Surface.Height = windowWidth, windowHeight
 		}
+		// The update window does not keep the app running: closing the
+		// app's last other window quits as if it were not open.
+		opts.Surface.Auxiliary = true
 		r, surf, err := uihost.Open(s.app, opts, page(s.m, s.strings, s.actions()), ui.RunnerOptions{})
 		if err != nil {
 			log.Printf("updateui: opening the window: %v", err)

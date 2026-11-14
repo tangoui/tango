@@ -25,7 +25,8 @@ type Options struct {
 	FirstDelay time.Duration
 	// Window sets the window's theme, design flavor and locale like for
 	// uihost.Open; the title and size are updateui's unless Surface sets
-	// them.
+	// them. The window is always auxiliary (Surface.Auxiliary): it does
+	// not keep the app running when the app's other windows close.
 	Window uihost.Options
 	// Text replaces every text of the window; nil uses the built-in
 	// English, Simplified Chinese, Traditional Chinese or Japanese texts
