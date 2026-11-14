@@ -11,6 +11,9 @@ pkg github.com/tangoui/tango/ui/terminal/vt, const ColorIndexed untyped int = 1
 pkg github.com/tangoui/tango/ui/terminal/vt, const ColorKindDefault untyped int = 0
 pkg github.com/tangoui/tango/ui/terminal/vt, const ColorRGB untyped int = 2
 pkg github.com/tangoui/tango/ui/terminal/vt, const DefaultScrollback untyped int = 10000
+pkg github.com/tangoui/tango/ui/terminal/vt, func EncodeKey(ui/input.KeyEvent, Modes) ([]byte, bool)
+pkg github.com/tangoui/tango/ui/terminal/vt, func EncodePaste(string, Modes) []byte
+pkg github.com/tangoui/tango/ui/terminal/vt, func EncodeText(string) []byte
 pkg github.com/tangoui/tango/ui/terminal/vt, func FillBlank([]Cell)
 pkg github.com/tangoui/tango/ui/terminal/vt, func IndexedColor(uint8) Color
 pkg github.com/tangoui/tango/ui/terminal/vt, func New(Options) *Terminal

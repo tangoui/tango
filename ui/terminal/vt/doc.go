@@ -1,6 +1,7 @@
 // Package vt is the terminal emulator core of ui/terminal: it turns the
-// bytes a program writes into screen state. It does not depend on any ui
-// package and can be tested on its own.
+// bytes a program writes into screen state, and the keys and text the
+// user types into the bytes the program reads. Of the ui packages it only
+// uses ui/input, for key events, and it can be tested on its own.
 //
 // [Terminal] is the emulator: it feeds output through a [Parser] and
 // applies the result to a [Screen], tracking the cursor, the modes, the
@@ -16,6 +17,9 @@
 // cells. Each [Cell] stores a code point, a width and a 16-bit index into
 // the screen's [StyleTable]. [Width] gives a character's cell width using
 // xterm.js's rules and tables generated from the Unicode data files.
+//
+// [EncodeKey], [EncodeText] and [EncodePaste] encode keyboard input the
+// way xterm.js does (legacy xterm sequences, bracketed paste).
 //
 // Experimental: this package's API may change in any 0.x release (see
 // docs/release.md, "API 稳定性").
