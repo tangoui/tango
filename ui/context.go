@@ -232,6 +232,8 @@ type Context struct {
 	// Soft keyboard and input-method state (keyboard.go, textstate.go).
 	kb  kbState
 	ime imeState
+
+	natives nativeState // native views of the latest build (native_view.go)
 }
 
 func newContext(th *theme.Theme) *Context {

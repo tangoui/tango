@@ -105,6 +105,7 @@ func Open(app *tango.App, opts Options, page func(*ui.Context), ropts ui.RunnerO
 	h.sc = newShortcuts(app, s) // shortcuts.go
 	h.ax = newA11y(app, cv, r, ropts)
 	h.win = &window{app: app, cv: cv, id: h.id, gpu: h.gpu, sc: h.sc, ax: h.ax}
+	h.win.emb = newEmbeds(h, s) // embedded WebViews (webview.go)
 	r.Attach(h.win)
 	if h.gpu != nil {
 		renderers.Store(r, h.gpu)
@@ -155,6 +156,7 @@ func (h *host) CanvasFrame() {
 	} else {
 		h.lastErr = ""
 	}
+	h.win.emb.sync() // place embedded WebViews on this frame's layout (webview.go)
 	if h.r.Animating() {
 		h.cv.Invalidate()
 	}
@@ -204,6 +206,9 @@ func (h *host) close() {
 	}
 	h.closed = true
 	h.ax.close()
+	if h.win != nil {
+		h.win.emb.close()
+	}
 	if h.r != nil {
 		h.r.Close()
 		renderers.Delete(h.r)
@@ -225,6 +230,7 @@ type window struct {
 	sc  *shortcuts   // nil: no window shortcuts
 	ax  *a11yBridge  // accessibility (a11y.go)
 	dmg damageState  // partial presentation of CPU frames (damage.go)
+	emb *embeds      // embedded WebViews (webview.go); nil: not supported here
 }
 
 func (w *window) Size() geom.Size {

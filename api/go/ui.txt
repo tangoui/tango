@@ -391,6 +391,7 @@ pkg github.com/tangoui/tango/ui, func ModalForm(*Context, *bool, string, []ProFi
 pkg github.com/tangoui/tango/ui, func MultiDatePicker(*Context, *[]time.Time) *MultiDatePickerW
 pkg github.com/tangoui/tango/ui, func MultiSelect(*Context, *[]string, []Option) *MultiSelectW
 pkg github.com/tangoui/tango/ui, func MustBeTrue(string) RuleOf[bool]
+pkg github.com/tangoui/tango/ui, func NativeView(*Context, string, ...ui/layout.Option) *NativeViewW
 pkg github.com/tangoui/tango/ui, func NewDriver(func(*Context), DriverOptions) *Driver
 pkg github.com/tangoui/tango/ui, func NewRunner(func(*Context), RunnerOptions) *Runner
 pkg github.com/tangoui/tango/ui, func Notification(*Context, string, string) *NotificationRef
@@ -1644,6 +1645,10 @@ pkg github.com/tangoui/tango/ui, method (*MultiSelectW) SuffixIcon(*ui/icon.Icon
 pkg github.com/tangoui/tango/ui, method (*MultiSelectW) Variant(FieldVariant) *MultiSelectW
 pkg github.com/tangoui/tango/ui, method (*MultiSelectW) Virtual(bool) *MultiSelectW
 pkg github.com/tangoui/tango/ui, method (*MultiSelectW) Width(float32) *MultiSelectW
+pkg github.com/tangoui/tango/ui, method (*NativeViewW) A11yLabel(string) *NativeViewW
+pkg github.com/tangoui/tango/ui, method (*NativeViewW) Clicked() bool
+pkg github.com/tangoui/tango/ui, method (*NativeViewW) Focusable(bool) *NativeViewW
+pkg github.com/tangoui/tango/ui, method (*NativeViewW) Focused() bool
 pkg github.com/tangoui/tango/ui, method (*NotificationRef) Actions(func()) *NotificationRef
 pkg github.com/tangoui/tango/ui, method (*NotificationRef) Description(string) *NotificationRef
 pkg github.com/tangoui/tango/ui, method (*NotificationRef) Duration(time.Duration) *NotificationRef
@@ -2005,6 +2010,7 @@ pkg github.com/tangoui/tango/ui, method (*Runner) Frame() error
 pkg github.com/tangoui/tango/ui, method (*Runner) HandleEvent(ui/input.Event)
 pkg github.com/tangoui/tango/ui, method (*Runner) Invalidate()
 pkg github.com/tangoui/tango/ui, method (*Runner) List() *ui/paint.List
+pkg github.com/tangoui/tango/ui, method (*Runner) NativeRegions() []NativeRegion
 pkg github.com/tangoui/tango/ui, method (*Runner) NextWake() time.Time
 pkg github.com/tangoui/tango/ui, method (*Runner) PerformAction(ui/a11y.NodeID, ui/a11y.Action, string) error
 pkg github.com/tangoui/tango/ui, method (*Runner) PointerPos() (ui/geom.Point, bool)
@@ -3602,6 +3608,14 @@ pkg github.com/tangoui/tango/ui, type MultiDatePickerW struct
 pkg github.com/tangoui/tango/ui, type MultiDatePickerW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type MultiSelectW struct
 pkg github.com/tangoui/tango/ui, type MultiSelectW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type NativeRegion struct
+pkg github.com/tangoui/tango/ui, type NativeRegion struct, Covered bool
+pkg github.com/tangoui/tango/ui, type NativeRegion struct, Focused bool
+pkg github.com/tangoui/tango/ui, type NativeRegion struct, ID ID
+pkg github.com/tangoui/tango/ui, type NativeRegion struct, Rect ui/geom.Rect
+pkg github.com/tangoui/tango/ui, type NativeRegion struct, Visible ui/geom.Rect
+pkg github.com/tangoui/tango/ui, type NativeViewW struct
+pkg github.com/tangoui/tango/ui, type NativeViewW struct, embedded *Box
 pkg github.com/tangoui/tango/ui, type NotificationRef struct
 pkg github.com/tangoui/tango/ui, type NotificationRef struct, noncomparable
 pkg github.com/tangoui/tango/ui, type NotifyPlacement uint8
