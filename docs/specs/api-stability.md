@@ -1,6 +1,6 @@
 # Tango 公开 API 稳定化方案
 
-> 状态：草案（2026-11-14）
+> 状态：已批准（2026-11-14，§7 全部按建议）；Phase 0、Phase 1 已完成
 > 范围：Go 模块 `github.com/tangoui/tango`、CLI 模块 `cmd/tan`（`tan` 命令行参数与 `tan.json`）、npm 包 `@tangoui/runtime`（`runtime-js`）
 > 目标（用户原话）："API 必须稳定；内部怎么大改都不应影响 API。"
 
@@ -377,7 +377,7 @@ pkg github.com/tangoui/tango/ui/theme, const NumComps untyped int = 49
   1. `go run ./internal/cmd/apitxt -check`（黄金文件最新、无泄漏、分层完整、无退役路径）
   2. `bash scripts/apidiff.sh "$BASE"`
   3. 若 `api/go/**` 有变化而 `CHANGELOG.md` 没变化就失败，可用标签 `no-changelog` 豁免。
-- `.github/CODEOWNERS`：`/api/` 和 `/docs/release.md` 指给 API 审查人（团队名待定，例如 `tangoui/api-reviewers`，不要写成 @ 提及）。
+- `.github/CODEOWNERS`：`/api/`、`/docs/release.md`、`scripts/apidiff.sh`、`internal/cmd/apitxt/`、`internal/apitest/` 指给 API 审查人 `tangoui`（已决定）。
 - `release.yml`：打标签前加一个 job，运行 `bash scripts/apidiff.sh <上一个标签>`，生成兼容性报告附到草稿 Release。
 - `ci.yml` 的 lint 作业加 staticcheck SA1019（R6）。
 
@@ -528,7 +528,7 @@ pkg github.com/tangoui/tango/ui/theme, const NumComps untyped int = 49
 9. **JS 侧是否接受 api-extractor 依赖？** **建议接受**（只是 devDependency）；否则用 d.ts 黄金文件代替。
 10. **IPC hello 加协议版本**：**建议加**，由 ipc-duplex 会话一并实现。
 11. **`asset.DevProxy` 恢复单参数并新增 `DevProxyWith`？** **建议恢复**，趁还没发布。
-12. **CODEOWNERS 的 API 审查人**：需要你指定。
+12. **CODEOWNERS 的 API 审查人**：已定为 `tangoui`。
 
 ---
 

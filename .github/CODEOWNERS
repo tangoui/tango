@@ -1,0 +1,8 @@
+# Public API review (docs/release.md "API 稳定性", docs/specs/api-stability.md).
+# Changes to the golden API files, the tier and allowlist configuration and
+# the stability rules need a review from the API owner.
+/api/                     @tangoui
+/docs/release.md          @tangoui
+/scripts/apidiff.sh       @tangoui
+/internal/cmd/apitxt/     @tangoui
+/internal/apitest/        @tangoui
