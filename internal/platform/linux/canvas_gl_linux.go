@@ -137,6 +137,7 @@ func (c *canvas) UseGLArea() (uintptr, error) {
 		return 0
 	})
 	f.overlayAddOverlay(c.glOverlay, a)
+	embedLowerGL(c.glOverlay, a) // below embedded web views (webembed_linux.go)
 	f.overlaySetPassThrough(c.glOverlay, a, true)
 	f.widgetShow(a)
 	// Realizing it realizes the overlay and the toplevel first if needed

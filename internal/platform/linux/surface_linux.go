@@ -64,33 +64,12 @@ func (b *backend) newSurface(id platform.SurfaceID, o platform.SurfaceOptions, e
 		return nil, err
 	}
 
-	// The web view. The user content manager carries the shim + bridge and
-	// the "tango" script message handler.
-	s.ucm = webkitUserContentManagerNew()
-	s.bridge = o.BridgeScript
-	s.installScript(s.gate.init())
-	webkitUserContentManagerRegisterHandler(s.ucm, messageHandlerName)
-	s.msgHandler = connect(s.ucm, "script-message-received::"+messageHandlerName, 1, s.onScriptMessage)
-
-	s.web = webkitWebViewNewWithUserContentManager(s.ucm)
-	if s.web == 0 {
+	if err := s.createWeb(o); err != nil {
 		gtkWidgetDestroy(s.win)
-		gObjectUnref(s.ucm)
-		webkitUserScriptUnref(s.script)
-		return nil, errors.New("tango/linux: webkit_web_view_new failed")
-	}
-	if o.Debug {
-		webkitSettingsSetEnableDeveloperExtras(webkitWebViewGetSettings(s.web), true)
-	}
-	if webkitSettingsSetEnablePageCache != nil {
-		// A document restored from the back/forward cache runs no
-		// document-start script, so it would keep a token the gate has
-		// already revoked (msggate.go): back and forward reload instead.
-		webkitSettingsSetEnablePageCache(webkitWebViewGetSettings(s.web), false)
+		return nil, err
 	}
 	s.packWeb() // canvas_attach_linux.go: box -> GtkOverlay -> web view
-	connect(s.web, "load-changed", 1, s.onLoadChanged)
-	s.initWebExt() // webview_ext_linux.go; before finishSurface and the first load
+	s.wireWeb()
 	s.content = s.web
 	b.byWeb[s.web] = s
 	b.finishSurface(s, ex)
@@ -104,6 +83,67 @@ func (b *backend) newSurface(id platform.SurfaceID, o platform.SurfaceOptions, e
 		gtkWindowPresent(s.win)
 	}
 	return s, nil
+}
+
+// createWeb creates the web view of s (not packed anywhere yet) and its
+// user content manager, which carries the shim + bridge and the "tango"
+// script message handler. Shared by WebView surfaces and embedded web
+// views (webembed_linux.go). On failure nothing is left behind.
+func (s *surface) createWeb(o platform.SurfaceOptions) error {
+	s.ucm = webkitUserContentManagerNew()
+	s.bridge = o.BridgeScript
+	s.installScript(s.gate.init())
+	webkitUserContentManagerRegisterHandler(s.ucm, messageHandlerName)
+	s.msgHandler = connect(s.ucm, "script-message-received::"+messageHandlerName, 1, s.onScriptMessage)
+
+	s.web = webkitWebViewNewWithUserContentManager(s.ucm)
+	if s.web == 0 {
+		gSignalHandlerDisconnect(s.ucm, s.msgHandler)
+		s.msgHandler = 0
+		gObjectUnref(s.ucm)
+		s.ucm = 0
+		webkitUserScriptUnref(s.script)
+		s.script = 0
+		return errors.New("tango/linux: webkit_web_view_new failed")
+	}
+	if o.Debug {
+		webkitSettingsSetEnableDeveloperExtras(webkitWebViewGetSettings(s.web), true)
+	}
+	if webkitSettingsSetEnablePageCache != nil {
+		// A document restored from the back/forward cache runs no
+		// document-start script, so it would keep a token the gate has
+		// already revoked (msggate.go): back and forward reload instead.
+		webkitSettingsSetEnablePageCache(webkitWebViewGetSettings(s.web), false)
+	}
+	return nil
+}
+
+// wireWeb connects the web view's load tracking and the WebView
+// extensions, once it is packed and before its first load.
+func (s *surface) wireWeb() {
+	connect(s.web, "load-changed", 1, s.onLoadChanged)
+	s.initWebExt() // webview_ext_linux.go; before initExt and the first load
+}
+
+// releaseWeb drops what createWeb set up besides the widget itself
+// (destroyed with its container), when the surface goes away.
+func (s *surface) releaseWeb() {
+	if s.msgHandler != 0 {
+		gSignalHandlerDisconnect(s.ucm, s.msgHandler)
+		s.msgHandler = 0
+	}
+	if s.ucm != 0 {
+		webkitUserContentManagerUnregisterHandler(s.ucm, messageHandlerName)
+		gObjectUnref(s.ucm) // the web view holds its own reference
+		s.ucm = 0
+	}
+	if s.script != 0 {
+		webkitUserScriptUnref(s.script)
+		s.script = 0
+	}
+	if s.web != 0 {
+		delete(s.b.byWeb, s.web)
+	}
 }
 
 // newWindow creates the GtkWindow of a surface and its vertical content
@@ -187,27 +227,14 @@ func (s *surface) onDestroy(_, _ ptr) ptr {
 	}
 	s.closed = true
 	b := s.b
+	s.closeEmbedded() // webembed_linux.go: embedded web views first, each reporting SurfaceClosed
 	if s.canvas != nil {
 		s.canvas.destroy() // before SurfaceClosed: the sink sees nothing more
 	}
 	s.destroyAttached() // canvas_attach_linux.go: likewise for attached canvases
-	if s.msgHandler != 0 {
-		gSignalHandlerDisconnect(s.ucm, s.msgHandler)
-		s.msgHandler = 0
-	}
-	if s.ucm != 0 {
-		webkitUserContentManagerUnregisterHandler(s.ucm, messageHandlerName)
-		gObjectUnref(s.ucm) // the web view holds its own reference
-	}
-	if s.script != 0 {
-		webkitUserScriptUnref(s.script)
-		s.script = 0
-	}
+	s.releaseWeb()
 	gObjectUnref(s.accel)
 	delete(b.surfaces, s.id)
-	if s.web != 0 {
-		delete(b.byWeb, s.web)
-	}
 	b.focusOut(s.id)
 	b.host.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceClosed})
 	return 0
