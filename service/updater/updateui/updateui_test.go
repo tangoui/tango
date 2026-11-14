@@ -339,3 +339,44 @@ func TestUpdateWindowDoesNotKeepAppRunning(t *testing.T) {
 	tango.Await(a, func() bool { return fb.RequestClose(main.ID()) })
 	waitFor(t, "the app to quit", func() bool { return fb.Quits() > 0 })
 }
+
+// Review: a release downloaded through a CheckNow before Start stays on
+// offer, and its files stay, even when Start finds one kept from an
+// earlier launch.
+func TestStartKeepsCheckNowDownload(t *testing.T) {
+	a, fb := runApp(t)
+	s := newReleaseServer(t)
+	s.publish("1.4.0")
+	u := s.updater(t, "1.2.0")
+	kept := filepath.Join(downloadsOf(u), "1.3.0", "new.AppImage")
+	os.MkdirAll(filepath.Dir(kept), 0o700)
+	os.WriteFile(kept, []byte("x"), 0o600)
+	pay := &updater.Payload{Release: &updater.Release{Version: "1.3.0"}, Path: kept}
+	if err := saveState(u, persisted{Pending: newPending(pay)}); err != nil {
+		t.Fatal(err)
+	}
+	CheckNow(a, u, en)
+	waitFor(t, "the offer", func() bool { m := sessionModel(u); return m != nil && m.snapshot().phase == phaseAvailable })
+	sessionsMu.Lock()
+	sess := sessions[u]
+	sessionsMu.Unlock()
+	sess.f.download()
+	waitFor(t, "the download", func() bool { return sess.m.snapshot().phase == phaseReady })
+	sess.f.mu.Lock()
+	got := sess.f.payload.Path
+	sess.f.mu.Unlock()
+	stop, err := Start(a, u, en)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+	if v := sess.m.snapshot(); v.phase != phaseReady || v.rel.Version != "1.4.0" {
+		t.Fatalf("Start replaced the 1.4.0 download: %+v", v)
+	}
+	for _, f := range []string{got, kept} {
+		if _, err := os.Stat(f); err != nil {
+			t.Fatalf("Start removed %s: %v", f, err)
+		}
+	}
+	_ = fb
+}

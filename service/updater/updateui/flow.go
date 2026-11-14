@@ -51,7 +51,12 @@ func newFlow(u *updater.Updater, m *model) *flow {
 // begin claims the Updater for one operation; false while another runs or
 // after halt. running is added under the same lock halt sets stopped
 // under, so halt's Wait never races an Add.
-func (f *flow) begin() bool {
+func (f *flow) begin() bool { return f.beginWith(nil) }
+
+// beginWith is begin running claimed (when non-nil) under the same lock
+// once the claim is taken: a download sets its cancel there, so a halt
+// that sees the claim also sees the cancel.
+func (f *flow) beginWith(claimed func()) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.busy || f.stopped {
@@ -59,6 +64,9 @@ func (f *flow) begin() bool {
 	}
 	f.busy = true
 	f.running.Add(1)
+	if claimed != nil {
+		claimed()
+	}
 	return true
 }
 
@@ -150,9 +158,10 @@ func (f *flow) check(ctx context.Context, manual bool) {
 	skipped := rel != nil && (rel.Version == f.st.Skipped || rel.Version == f.laterThisRun)
 	kept := f.payload
 	f.mu.Unlock()
-	if err == nil && kept != nil && kept.Release != nil && (rel == nil || !newer(rel.Version, kept.Release.Version)) {
-		// Nothing newer than the release already downloaded (only a
-		// manual check gets here): keep offering the restart.
+	if kept != nil && kept.Release != nil && (err != nil || rel == nil || !newer(rel.Version, kept.Release.Version)) {
+		// Nothing newer than the release already downloaded, or the check
+		// failed (only a manual check gets here): keep offering the
+		// restart.
 		f.m.set(func(m *model) { m.phase, m.rel, m.err, m.unsupported = phaseReady, kept.Release, nil, false })
 		return
 	}
@@ -189,14 +198,17 @@ func (f *flow) check(ctx context.Context, manual bool) {
 // otherwise.
 func (f *flow) download() {
 	rel := f.m.snapshot().rel
-	if rel == nil || !f.begin() {
+	if rel == nil {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	f.mu.Lock()
-	f.cancel = cancel
-	f.payload = nil // its files may be the ones downloadDir empties
-	f.mu.Unlock()
+	if !f.beginWith(func() {
+		f.cancel = cancel
+		f.payload = nil // its files may be the ones downloadDir empties
+	}) {
+		cancel()
+		return
+	}
 	f.downloading.Store(true)
 	f.m.set(func(m *model) { m.phase, m.done, m.total, m.err = phaseDownloading, 0, -1, nil })
 	go func() {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -175,16 +176,20 @@ func downloadDir(u *updater.Updater, version string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(sd, downloadsDir, safeName(version))
+	name := safeName(version)
+	if name == "" || name == "." || name == ".." {
+		return "", fmt.Errorf("updateui: version %q cannot name a directory", version)
+	}
+	dir := filepath.Join(sd, downloadsDir, name)
 	if err := os.RemoveAll(dir); err != nil {
 		return "", fmt.Errorf("updateui: %w", err)
 	}
 	return dir, nil
 }
 
-// pruneDownloads removes every download except the version directory
-// holding keep ("" keeps none).
-func pruneDownloads(u *updater.Updater, keep string) {
+// pruneDownloads removes every download except the version directories
+// holding the paths in keep.
+func pruneDownloads(u *updater.Updater, keep ...string) {
 	sd, err := stateDir(u)
 	if err != nil {
 		return
@@ -196,9 +201,8 @@ func pruneDownloads(u *updater.Updater, keep string) {
 	}
 	for _, e := range entries {
 		dir := filepath.Join(root, e.Name())
-		if keep != "" && strings.HasPrefix(keep, dir+string(filepath.Separator)) {
-			continue
+		if !slices.ContainsFunc(keep, func(k string) bool { return strings.HasPrefix(k, dir+string(filepath.Separator)) }) {
+			os.RemoveAll(dir)
 		}
-		os.RemoveAll(dir)
 	}
 }

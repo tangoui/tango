@@ -100,10 +100,22 @@ func (s *releaseServer) publish(v string) {
 }
 
 func (s *releaseServer) updater(t *testing.T, version string) *updater.Updater {
-	return &updater.Updater{
+	u := &updater.Updater{
 		ManifestURL: s.srv.URL + "/latest.json", PublicKey: s.pub, Version: version,
 		AppID: "com.example.test", Platform: testPlatform, StateDir: t.TempDir(),
 	}
+	// Registered after TempDir, so it runs first: a session a test left
+	// running (CheckNow has no stop) must not write to the state
+	// directory while it is removed.
+	t.Cleanup(func() {
+		sessionsMu.Lock()
+		sess := sessions[u]
+		sessionsMu.Unlock()
+		if sess != nil {
+			sess.stopFn()
+		}
+	})
+	return u
 }
 
 // testFlow is a flow over s whose show and quit calls are recorded.
@@ -477,7 +489,10 @@ func TestDownloadFilesKeptOrRemoved(t *testing.T) {
 	s.hold = make(chan struct{})
 	s.mu.Unlock()
 	tf.download()
-	waitFor(t, "downloading", func() bool { return tf.m.snapshot().phase == phaseDownloading })
+	waitFor(t, "the download directory", func() bool {
+		_, err := os.Stat(filepath.Join(downloadsOf(u), "1.3.0"))
+		return err == nil
+	})
 	tf.cancelDownload()
 	waitFor(t, "the cancel", func() bool { return !tf.isBusy() })
 	if _, err := os.Stat(filepath.Join(downloadsOf(u), "1.3.0")); !os.IsNotExist(err) {
@@ -587,5 +602,33 @@ func TestSavesDoNotLoseInstallNextLaunch(t *testing.T) {
 	<-done
 	if loadState(u).Pending == nil {
 		t.Fatal("the check's save lost Install on Next Launch")
+	}
+}
+
+// Review: a manual check that fails with a release downloaded keeps
+// offering the restart (offline is no reason to lose it).
+func TestManualCheckErrorKeepsDownloaded(t *testing.T) {
+	s, _, tf := readyFlow(t)
+	s.mu.Lock()
+	s.status = http.StatusInternalServerError
+	s.mu.Unlock()
+	tf.check(context.Background(), true)
+	if v := tf.m.snapshot(); v.phase != phaseReady || v.rel == nil || v.rel.Version != "1.3.0" {
+		t.Fatalf("failed manual check with 1.3.0 downloaded: %+v", v)
+	}
+}
+
+// Review: a version that would name the downloads directory itself, or
+// its parent, is refused before anything is removed.
+func TestDownloadDirRefusesDotVersions(t *testing.T) {
+	s := newReleaseServer(t)
+	u := s.updater(t, "1.2.0")
+	for _, v := range []string{"", ".", ".."} {
+		if dir, err := downloadDir(u, v); err == nil {
+			t.Errorf("version %q: got %s", v, dir)
+		}
+	}
+	if _, err := os.Stat(u.StateDir); err != nil {
+		t.Fatalf("state directory: %v", err)
 	}
 }

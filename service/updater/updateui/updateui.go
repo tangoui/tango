@@ -30,7 +30,7 @@ type session struct {
 
 	mu       sync.Mutex
 	started  bool
-	stopFn   func()
+	stopFn   func() // s.stop, once; set at creation
 	i18nStop func()
 
 	win window // main thread only
@@ -67,6 +67,7 @@ func sessionFor(app *tango.App, u *updater.Updater, opts Options) *session {
 	}
 	s := &session{app: app, u: u, opts: opts, m: &model{current: u.Version}, done: make(chan struct{})}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
+	s.stopFn = sync.OnceFunc(s.stop)
 	s.f = newFlow(u, s.m)
 	s.f.show = s.show
 	s.f.quit = app.Quit
@@ -94,6 +95,11 @@ func (s *session) strings() *Strings { return stringsFor(s.opts) }
 // closes the window and gives u back its own OnEvent; calling Start again
 // for the same Updater returns the same stop. A Start while an earlier
 // stop of the same Updater is still running waits for it to finish.
+//
+// stop waits for a running check, download or install to end (a check
+// and a download are cancelled; an install, which is short, is not). So
+// while Start or stop runs on the main thread, the app's own u.OnEvent
+// must not wait for the main thread (tango.Await): neither would return.
 func Start(app *tango.App, u *updater.Updater, opts Options) (stop func(), err error) {
 	switch {
 	case app == nil || u == nil:
@@ -113,7 +119,6 @@ func Start(app *tango.App, u *updater.Updater, opts Options) (stop func(), err e
 	}
 	s.started = true
 	s.opts = opts
-	s.stopFn = sync.OnceFunc(s.stop)
 
 	if out, err := u.Confirm(); err != nil {
 		log.Printf("updateui: confirm: %v", err)
@@ -129,15 +134,23 @@ func Start(app *tango.App, u *updater.Updater, opts Options) (stop func(), err e
 	if hadPending && pp == nil {
 		f.saveLocked() // the kept update is gone or stale: forget it
 	}
-	if pp != nil {
+	// A CheckNow before Start may be downloading, or have downloaded: then
+	// that stays on offer, and its files stay.
+	if f.busy || f.payload != nil {
+		pp = nil
+	} else if pp != nil {
 		f.payload = pp.payload()
 	}
-	if !f.busy { // a CheckNow before Start may be downloading
-		keep := ""
+	if !f.busy {
+		var keep []string
 		if f.payload != nil {
-			keep = f.payload.Path
+			keep = append(keep, f.payload.Path)
 		}
-		pruneDownloads(u, keep)
+		if f.st.Pending != nil {
+			keep = append(keep, f.st.Pending.Path)
+		}
+		// Under f.mu, so no download starts meanwhile and is pruned.
+		pruneDownloads(u, keep...)
 	}
 	f.mu.Unlock()
 	if pp != nil {
