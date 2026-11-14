@@ -304,10 +304,11 @@ func TestHighContrastComponents(t *testing.T) {
 			}
 		}
 	}
-	// Normal themes without overrides report no component pair.
+	// Normal themes without overrides report no component pair, except
+	// the always-audited (spec-tagged) terminal palette.
 	for _, th := range BuiltinThemes() {
 		for _, ch := range CheckContrast(th) {
-			if strings.Contains(ch.Token, ".") {
+			if strings.Contains(ch.Token, ".") && !strings.HasPrefix(ch.Token, "Terminal.Palette[") {
 				t.Errorf("unexpected component pair in a stock theme: %s", ch)
 			}
 		}

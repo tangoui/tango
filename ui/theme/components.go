@@ -198,7 +198,8 @@ var (
 const Instant = time.Nanosecond
 
 // WithComponents sets component token overrides. Repeated options layer:
-// later non-zero fields win. It is also accepted by Shadcn.
+// later non-zero fields win. Array fields merge element by element; a zero
+// element inherits. It is also accepted by Shadcn.
 func WithComponents(c Components) Option {
 	return func(o *options) { o.components = mergeOverrides(o.components, c) }
 }
