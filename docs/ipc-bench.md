@@ -25,6 +25,8 @@ Go 侧把它原样打印成一行 JSON 到 stdout，然后退出。基准代码�
 | 分批延迟 | 新开一条 `Echo` 流，20 批 × 50 次 64 字节往返，每批整体计时 | `latencyBatchMeansMs`（每批耗时 / 50）；`latencyBatchP50Ms`、`latencyBatchP99Ms`（20 个批均值的 p50/p99；20 个样本的 p99 就是最慢的一批） |
 | 吞吐 JS→Go | `Sink` 收 1024 帧 × 64 KiB = 64 MiB，计时到 Go 回 `{"bytes":n}` | `upMBps` |
 | 吞吐 Go→JS | `Source` 发 1024 帧 × 64 KiB，计时到流结束 | `downMBps` |
+| 下行小帧（终端形态） | `Source` 发 20000 帧 × 1 KiB 字节帧，计时到流结束，校验帧数和字节数 | `downSmallFps`（帧/秒）、`downSmallMBps` |
+| 下行 JSON（AI / 数据库分块形态） | `SourceJSON` 发 10000 个 JSON 帧，每帧 `{"seq":i,"kind":"rows","rows":[20 行 × 5 列字符串]}`，序列化约 2.3 KB（与 `ipc-bench/tango` 的 `jsonChunk` 完全相同，可与已测的 Wails 数据对比），校验每帧 `rows.length === 20` | `downJsonFps`（帧/秒） |
 
 - 设了 `TANGO_SCHEME_PROBE=1` 时结果多一个 `upMain`（macOS 的协议处理器计数器只编进开发构建，要
   `TANGO_SCHEME_PROBE=1 go run -tags tango_dev ./examples/duplex -bench`；普通构建里这些计数恒为 0）：上行期间 `up:post` 请求数、请求体字节数，

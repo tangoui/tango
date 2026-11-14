@@ -87,6 +87,35 @@
     return mbps(n, ms);
   }
 
+  /** Go → JS, terminal-like: 20000 byte frames of 1 KiB from Source.
+   * Frames per second and MB/s. */
+  async function downSmall(frames = 20000, size = 1024) {
+    const t0 = performance.now();
+    let n = 0;
+    let count = 0;
+    for await (const b of tango.stream("Source", frames, size)) {
+      n += b.length;
+      count++;
+    }
+    const ms = performance.now() - t0;
+    if (count !== frames || n !== frames * size) throw new Error("small source sent " + count + " frames, " + n + " bytes");
+    return { fps: Math.round(frames / (ms / 1000)), MBps: mbps(n, ms) };
+  }
+
+  /** Go → JS, AI / database chunk-like: 10000 JSON frames of about 2.3 KB
+   * (20 rows × 5 strings) from SourceJSON. Frames per second. */
+  async function downJSON(frames = 10000) {
+    const t0 = performance.now();
+    let count = 0;
+    for await (const v of tango.stream("SourceJSON", frames)) {
+      if (!v || !Array.isArray(v.rows) || v.rows.length !== 20) throw new Error("bad json frame at " + count);
+      count++;
+    }
+    const ms = performance.now() - t0;
+    if (count !== frames) throw new Error("json source sent " + count);
+    return { fps: Math.round(frames / (ms / 1000)) };
+  }
+
   /** Debug.Stats when the test hooks are on (TANGO_SCHEME_PROBE=1), else
    * null. */
   async function stats() {
@@ -113,6 +142,12 @@
     log("下行（Go→JS）…");
     const downMBps = await down();
     log(`  ${downMBps} MB/s`);
+    log("下行小帧（20000 × 1 KiB）…");
+    const small = await downSmall();
+    log(`  ${small.fps} 帧/s, ${small.MBps} MB/s`);
+    log("下行 JSON（10000 × ~2.3 KB）…");
+    const js = await downJSON();
+    log(`  ${js.fps} 帧/s`);
     // The fast lanes the page used: {down, up}, each a lane name such as
     // "up:post" or "fallback" (byte frames on the message channel). Read
     // after the run, so a lane that failed midway shows as fallback.
@@ -129,6 +164,9 @@
       latencyBatchMeansMs: batch.means,
       upMBps,
       downMBps,
+      downSmallFps: small.fps,
+      downSmallMBps: small.MBps,
+      downJsonFps: js.fps,
     };
     if (s0 && s1) {
       // The upload's up:post requests and the main-thread time the macOS
@@ -146,5 +184,5 @@
     return res;
   }
 
-  window.duplexBench = { latency, latencyBatches, up, down, run };
+  window.duplexBench = { latency, latencyBatches, up, down, downSmall, downJSON, run };
 })();
