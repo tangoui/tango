@@ -154,8 +154,9 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	n := v.TakeScroll()
 	dirty, all := v.TakeDirty()
 	dirty = append(vs.dirty[:0], dirty...) // TakeDirty reuses its slice
-	vs.trackEviction(s, n, all)
+	vs.trackEviction(s)
 	out := w.applyInput(v, r)
+	vs.trackEviction(s) // input may have dropped lines (Cmd+K)
 	// Input may have scrolled the viewport or written to the screen
 	// (Cmd+K): take those changes too.
 	if n2 := v.TakeScroll(); n2 > 0 {
@@ -202,9 +203,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	vs.dmg = rec
 	vs.needFull = false
 
-	for _, b := range out {
-		w.t.Send(b)
-	}
+	w.runEffects(out)
 }
 
 // colors returns the foreground and background of style st.
