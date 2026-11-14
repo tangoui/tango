@@ -176,7 +176,7 @@ func (s *StepsW) prepare() {
 					st = "error"
 				}
 			}
-			disp = append(disp, StepItem{Icon: icon.More, Status: st, Disabled: true})
+			disp = append(disp, StepItem{Title: s.c.Locale().More, Icon: icon.More, Status: st, Disabled: true})
 			s.origin = append(s.origin, -1)
 		}
 		disp = append(disp, items[i])
@@ -489,7 +489,7 @@ func (s *StepsW) stepSem(n *node, i int, it StepItem) {
 		n.setState(a11y.Invalid)
 	}
 	if s.cur != nil {
-		n.setRole(a11y.RoleButton)
+		n.setRole(a11y.RoleButton).setName(it.Title)
 		if it.Disabled {
 			n.disabled = true
 		}
@@ -551,6 +551,7 @@ func (s *StepsW) navItem(i int) {
 			s.pick(i)
 		}
 	}
+	n.setName(it.Title)
 	contentW := func() float32 {
 		w := text.Width(it.Title, tst)
 		if it.SubTitle != "" {
@@ -719,6 +720,7 @@ func (s *StepsW) item(i int) {
 			s.pick(i)
 		}
 	}
+	n.setName(it.Title)
 	descMaxW := tk.DescriptionMaxWidth
 	if s.vertical {
 		n.ln.Measure = func(maxW, _ float32) geom.Size {
