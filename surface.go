@@ -42,8 +42,9 @@ type SurfaceOptions struct {
 	// Auxiliary marks a window that does not keep the app running, such
 	// as an update window or a tool palette: under Options.QuitOnLastClose
 	// the app quits when the last window that is not auxiliary closes,
-	// closing the auxiliary ones with it. False (the default) counts the
-	// window like any other.
+	// closing the auxiliary ones with it, and closing an auxiliary window
+	// never quits it. False (the default) counts the window like any
+	// other.
 	Auxiliary bool
 
 	// WebView settings: user agent and extra request headers (webview.go).

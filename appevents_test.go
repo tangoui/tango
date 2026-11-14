@@ -194,20 +194,30 @@ func TestQuitOnLastClose(t *testing.T) {
 }
 
 // An Auxiliary surface (an update window, a palette) does not keep the
-// app running: closing the last ordinary surface quits it and closes the
-// auxiliary ones, and closing an auxiliary surface never quits while an
-// ordinary one is open.
+// app running: closing the last ordinary surface quits it. Nor does
+// closing one ever quit the app, even when no ordinary surface is open
+// (a background app showing only an update prompt).
 func TestQuitOnLastCloseIgnoresAuxiliary(t *testing.T) {
 	yes := true
 	fb := fake.New()
 	a := newWithBackend(Options{Name: "T", QuitOnLastClose: &yes}, fb)
 	runApp(t, a)
-	main, err := a.NewSurface(SurfaceOptions{})
-	if err != nil {
-		t.Fatal(err)
+	newSurface := func(o SurfaceOptions) *Surface {
+		t.Helper()
+		s, err := a.NewSurface(o)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
 	}
-	aux1, _ := a.NewSurface(SurfaceOptions{Auxiliary: true})
-	aux2, _ := a.NewSurface(SurfaceOptions{Auxiliary: true})
+	lone := newSurface(SurfaceOptions{Auxiliary: true})
+	fb.RequestClose(lone.ID())
+	if fb.Quits() != 0 {
+		t.Fatal("closing the only, auxiliary, surface quit the app")
+	}
+	main := newSurface(SurfaceOptions{})
+	aux1 := newSurface(SurfaceOptions{Auxiliary: true})
+	newSurface(SurfaceOptions{Auxiliary: true})
 	fb.RequestClose(aux1.ID())
 	if fb.Quits() != 0 {
 		t.Fatal("closing an auxiliary surface quit with the main one open")
@@ -216,7 +226,6 @@ func TestQuitOnLastCloseIgnoresAuxiliary(t *testing.T) {
 	if fb.Quits() == 0 {
 		t.Fatal("an auxiliary surface kept the app running")
 	}
-	_ = aux2
 }
 
 // A framework listener (jsapi) registering before the app's own OnOpenURL

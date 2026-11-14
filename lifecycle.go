@@ -196,14 +196,16 @@ func (a *App) quitOnLastClose() bool {
 	return true
 }
 
-// afterSurfaceClosed runs on the main thread after a surface closed. When
-// it was the last one that is not Auxiliary and the policy says so, the
-// app quits (closing the auxiliary ones). Like App.Quit
+// afterSurfaceClosed runs on the main thread after surface closed. When it
+// was the last one that is not Auxiliary and the policy says so, the app
+// quits (closing the auxiliary ones). Closing an auxiliary surface never
+// quits: with no ordinary surface open (a background app showing only an
+// update prompt) the app keeps running as it did before the prompt. Like App.Quit
 // this does not ask OnQuitRequest: closing the window already went through
 // Surface.OnClose, and a cancelled quit would leave a windowless app with
 // no way back on Windows and Linux.
-func (a *App) afterSurfaceClosed() {
-	if a.state.Load() == stateClosed || !a.quitOnLastClose() {
+func (a *App) afterSurfaceClosed(closed *Surface) {
+	if closed.auxiliary || a.state.Load() == stateClosed || !a.quitOnLastClose() {
 		return
 	}
 	switch runtime.GOOS {

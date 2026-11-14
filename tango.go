@@ -372,7 +372,7 @@ func (h host) OnSurfaceEvent(id platform.SurfaceID, ev platform.SurfaceEvent) {
 	switch ev.Kind {
 	case platform.SurfaceClosed:
 		s.handleClosed()
-		h.a.afterSurfaceClosed()
+		h.a.afterSurfaceClosed(s)
 	case platform.SurfaceLoaded:
 		s.handleLoaded(ev.URL)
 	case platform.SurfaceFocused, platform.SurfaceBlurred:

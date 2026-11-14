@@ -33,7 +33,7 @@ app.OnQuitRequest(func() bool {
 
 `Options.QuitOnLastClose`：`nil` 时 macOS 不退出、Windows 和 Linux 退出；移动端忽略。带托盘的应用通常设为 `false`，见 [菜单与托盘](/guide/menu-tray)。
 
-辅助窗口不算在内：用 `SurfaceOptions{Auxiliary: true}` 创建的窗口（更新窗口、工具面板这类）不会让应用继续运行，最后一个普通窗口关闭时应用照常退出，辅助窗口随之关闭。`updateui` 的更新窗口就是辅助窗口。
+辅助窗口不算在内：用 `SurfaceOptions{Auxiliary: true}` 创建的窗口（更新窗口、工具面板这类）不会让应用继续运行，最后一个普通窗口关闭时应用照常退出，辅助窗口随之关闭；关掉辅助窗口本身从不让应用退出（例如没有普通窗口的后台应用只弹出了更新提示）。`updateui` 的更新窗口就是辅助窗口。
 
 ## 应用事件
 
