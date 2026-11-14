@@ -394,6 +394,8 @@ Go 侧调用 Java 时，方法 ID 在 `nativeInit`（主线程）里一次查好
 - **流式响应**：请求线程等到响应提交（`WriteHeader`、第一次 `Write` 或 `Flush`）或 handler 返回。已返回的整体交给 WebView；还在写的经 `InputStream`（`Page.GoStream` → `nativeStreamRead`）边写边读，所以 SSE 之类长响应可用。写在前面最多缓冲 256 KiB，之后 `Write` 等读取。WebView 关闭流时请求的 `Context` 被取消，`Write` 返回错误。
 - **请求体**：Android 的 `WebResourceRequest` 不提供请求体，所以注入的引导脚本（`body.go` 的 `bodyScript`，在 shim 的闭包里）包装了 `fetch` 与 `XMLHttpRequest`：目标是资源 origin（`https://tango.localhost`）、方法不是 GET/HEAD 且有 body 的请求，先把 body 序列化（`fetch` 用 `new Request(...).clone().arrayBuffer()`，所以文本、JSON、`URLSearchParams`、`FormData`（含文件，multipart 边界与 `Content-Type` 一致）、`Blob`、`ArrayBuffer`/TypedArray 都按浏览器规则编码；XHR 的字符串/`URLSearchParams`/`ArrayBuffer` 同步编码，`Blob`/`FormData` 经 `new Response(body)` 异步读出后再 `send`），base64 后交给 Go 暂存（`nativeStashBody`，校验页面 token；WebMessageListener 通道上是一条 `b<token><id>…` 消息，等 Go 回复 `b1<id>`/`b0<id>` 后再继续，JavascriptInterface 通道上是同步的 `__tangoAndroid.body(token, id, contentType, data)`），然后带 `X-Tango-Body: <随机 id>` 头、空 body 发出请求；`shouldInterceptRequest` 时 Go 按 id 取回 body（`takeBody`），去掉该头，用暂存的 `Content-Type` 覆盖 WebView 为空 body 生成的那个。限制：单个 body 64 MiB、待取合计 128 MiB、1 分钟未取即丢弃，超限时退回原请求（body 为空）；同步 XHR 的 `Blob`/`FormData`、`navigator.sendBeacon`、HTML `<form method=post>` 导航、ReadableStream body 不覆盖（仍为空）。307/308 同源重定向会带着 body 重发。
 - **状态码**：`WebResourceResponse` 拒绝 3xx。同源重定向在 Go 侧内部跟随（最多 5 次，307/308 保留方法），所以 `http.FileServer` 把 `/index.html` 重定向到 `./` 也能正常显示；跨源重定向返回 502。条件请求头（`If-None-Match`、`If-Modified-Since`）不转发，避免 304。
+- `Content-Length`：不放进头映射。WebView 会按响应体 `InputStream` 开始读取时的 `available()` 自己加一个 `Content-Length`，再放一个就成了两个（`585, 585`；边写边读的响应是 `0, 3145728`）。所以 Go 把 handler 的长度单独交给 `Page.respond`，由 `SizedStream` 在第一次读取前从 `available()` 报告；HEAD 响应体为空，报告的是 GET 的长度。handler 没给长度时用流本身的 `available()`（整体响应是准确值，流式响应是 0）。
+- handler panic（还没提交响应时）：500，`text/plain`，正文 `tango: asset handler panic: <原因>`，丢掉 handler 已设的头，与 macOS/iOS 后端一致。
 - 响应头：`WebResourceResponse` 的头映射每个名字只有一个值，同名多值按 RFC 9110 §5.3 用 `, ` 合并。`Set-Cookie` 例外（值里可以有逗号）：Go 用换行连接各值，`Page.java` 在把响应交给 WebView 之前逐条 `CookieManager.setCookie(url, …)` 并移除该头（WebView 本来就忽略拦截响应里的 Set-Cookie）；`HttpOnly` 有效（`document.cookie` 看不到，请求会带）。反方向，拦截到的请求本身不带 Cookie，宿主从 `CookieManager.getCookie(url)` 补上 `Cookie` 头，所以基于 cookie 的会话在 Go handler 里可用。
 
 ### JS 桥
@@ -405,6 +407,17 @@ Go 侧调用 Java 时，方法 ID 在 `nativeInit`（主线程）里一次查好
   1. `tango.localhost` 的主框架 HTML 响应：Go 把 shim + BridgeScript 作为内联 `<script>` 插到 `<head>` 开头（没有 `<head>` 时插在 `<html>`/doctype 之后），先于页面任何脚本执行。脚本先转成纯 ASCII（`\uXXXX`），并转义 `</script` 与 `<!--`，任何字符集的页面都安全。插入后去掉 `Content-Length`。
   2. 其他 origin（开发服务器等）或无法改写的响应（`Content-Encoding` 压缩过的 HTML）：`onPageStarted` 时 `evaluateJavascript` 注入（先检查 `window.__tangoNative` 避免重复），**可能晚于页面自己的早期脚本**。开发时可以在 `Assets` 里用 `httputil.ReverseProxy` 代理开发服务器，让页面走 `tango.localhost` 以获得第 1 种注入。
   3. 页面 CSP 禁止内联脚本时第 1 种会被拦截：给 CSP 加 `'unsafe-inline'` 或相应 hash/nonce。
+
+### IPC 快速通道
+
+快速通道的整体说明见 [IPC：快速通道](../site/guide/concepts/ipc.md#快速通道)。Android 提供 `down:android` / `up:android`，**默认关闭**（只在模拟器上测过；默认是否开启待基准结果和决定，见 [docs/ipc-bench.md](ipc-bench.md)）。
+
+- **通道**：流的字节帧以 `ArrayBuffer` 走页面已有的 `WebMessageListener` 通道（`window.__tangoAndroid`），不经过字符串消息、JSON 和 base64。上行：JS `postMessage(ArrayBuffer)` → `Page.java` 的 listener（先按 `getType()` 分支，ArrayBuffer 消息调 `getData()` 会抛异常）→ JNI `nativeLanePacket` → 核心。下行：Go 把包放进每个页面的队列（未交出的最多 8 MiB，超出时这一帧改走消息通道），主线程经保存的 `JavaScriptReplyProxy.postMessage(byte[])` 发给页面。`BinaryMinSize` 为 0：所有字节帧都走通道（它本来就是消息通道，没有额外延迟）。每个包跨进程拷贝一次，另有一次 JNI 拷贝。
+- **条件**（全部满足才报告两条通道）：WebView 支持 `WEB_MESSAGE_LISTENER` 和 `WEB_MESSAGE_ARRAY_BUFFER`（WebView 116 及以上）；页面走 `WebMessageListener`（退回 `JavascriptInterface` 时没有通道）；开关打开；以及所有平台共同的条件（注册了 `OnBinary`、页面在资源来源上、没有被 `TANGO_IPC_LANES=0` / `Options.DisableFastLanes` 关闭）。
+- **开关**：环境变量 `TANGO_IPC_LANES_ANDROID`，每个页面创建时读一次（任何构建都读；去掉首尾空白、不分大小写）：未设置、空、`0`、`false`、`off` 为关闭，其他值（通常是 `1`）为开启。Android 应用没法从外部拿到环境变量：在 Go 里、创建第一个页面之前调用 `os.Setenv("TANGO_IPC_LANES_ANDROID", "1")`。开启后 `tango.lanes()` 返回 `{down: "down:android", up: "up:android"}`。
+- **包格式与世代**：上行包是 `token[16] | gen:u64(LE) | 公共包`。`token` 是当前文档的页面 token（16 字节形式），只在页面脚本的闭包里，`__tangoNative.lane.post` 发送时写入、发完立刻清零；Go 校验 token、listener 报告的来源和主框架，不符的包静默丢弃。`gen` 是握手给的通道世代，由核心在同一把锁里校验，旧文档或旧世代的包无论在哪一段延迟都进不了新世代。页面每个世代先发一个探测包（`token | gen | 00 00`），核心接受时 Java 保存这条消息的回复代理并回 `[0]`，下行包只发给同一世代保存的代理；被核心拒绝的探测或上行包回 `[1]`，页面立即停用 `up:android`、改走消息通道（丢掉的帧按缺口超时以 `transport` 失败）。
+- **iframe**：WebView 在资源来源的每个 frame 里都放 `__tangoAndroid`，页面脚本只在主框架删除它。Java 丢弃所有子框架消息，所以同源 iframe 用自己的 `__tangoAndroid` 发包、猜 token，Go 一个包都看不到；不透明来源的 iframe（沙箱 `srcdoc`）没有这个对象。模拟器上实测（`lane_subframe`）。同源 iframe 能调用 `parent.__tangoNative.lane`，与它本来就能调用 `parent.__tangoNative.post` 一样，属于应用代码。
+- **测试**：`bash scripts/smoke.sh android-selftest`（`examples/duplex-mobile`，三次启动：通道关、通道开、没有 ArrayBuffer）和 `android-lanefault`（下行/上行中途坏掉）。测试钩子（通道计数、`TANGO_ANDROID_NO_ARRAYBUFFER`、启动参数 `TANGO_TEST_ENV`）只编进 `-tags tango_dev` / `-tags tango_selftest` 构建，见 [开发功能与生产构建](dev-builds.md)。
 
 ### 能力
 
@@ -430,7 +443,7 @@ Android 36（`system-images;android-36;default;arm64-v8a`，emulator 37.2.13，A
 
 ### 已知限制
 
-- 未在真机上运行过（模拟器结果见 Android 节末尾的"模拟器验证"）。
+- 未在真机上运行过（模拟器结果见 Android 节末尾的"模拟器验证"）；IPC 快速通道同样只在模拟器（tango36，API 36，WebView 133）上测过。
 - 单 Activity、单任务；多窗口模式下仍是一个页面栈。
 - `log` 包与 `fmt.Print*` 的输出经管道转到 logcat（`Tango` 标签），按行。
 

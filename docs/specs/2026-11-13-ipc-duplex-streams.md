@@ -389,6 +389,11 @@ OnLanePacket(id SurfaceID, origin string, gen uint64, p []byte) bool
 - 回复（都是 `ArrayBuffer`）：长度 1 的 `[0]` = 探测确认，`[1]` = 上行包或探测被核心拒绝（`OnLanePacket` 返回 false）；长度 ≥ 2 = 下行公共包。
 - `BinaryMinSize`：0（全部字节帧走快速通道；它本来就是消息通道，没有额外延迟）。
 - 各方向各拷贝一次（跨进程），可以接受。
+- **实测（2026-11-14，模拟器 tango36：API 36，WebView 133，arm64 镜像跑在 Apple M4 上；Android 计划 Task 2–6）**：
+  - 回复标记 `[0]` / `[1]` 以长度 1 的 `ArrayBuffer` 到达页面；探测确认、旧世代探测拒绝、数据包按世代交给 `OnBinary` 都符合设计。
+  - 自测（`scripts/smoke.sh android-selftest` / `android-lanefault`，连续 3 次、每次全新安装都通过）：8 MiB 双向逐字节正确；大小交替的 40 帧全部走 `up:android`、顺序正确；重载后通道恢复、goroutine 回到基线、下行队列清空；`reloadSameID`（旧页面的 stream 1/3 与新页面的 stream 1/3 同号）两个方向都没有串流；主线程忙 6 s 不报 `transport`；同源 iframe 经自己的 `__tangoAndroid` 发的 50 个伪造包 Go 一个都没收到，不透明来源 iframe 没有该对象；`down:android:3` 故障后帧改走消息通道、不丢；`up:android:3` 故障后页面收到 `[1]` 在 12 ms 内回退，丢帧的流约 5 s 报 `transport`，并行的流完整；没有 ArrayBuffer 能力（测试钩子）时不报告通道。
+  - 基准（[docs/ipc-bench.md](../ipc-bench.md)「第二期 Android」）：64 KiB 帧 JS→Go 6.11×、Go→JS 4.39×，分批 p99 0.16（过 §6.3 判定）；分批 p50 慢约 24%（每帧一次 ArrayBuffer 消息 + 一次 JNI 拷贝）。默认是否开启由用户决定，在此之前默认关闭。
+  - 顺带修正（与通道无关）：Android 资源响应原先有两个 `Content-Length`（WebView 按 `InputStream.available()` 自己加一个），改为把长度经 `available()` 报告、不再放进头；资源处理函数 panic 的正文与 Apple 一致。
 
 #### Windows：SharedBuffer 环形缓冲区（上下行）
 
