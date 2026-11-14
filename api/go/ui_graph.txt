@@ -1,0 +1,239 @@
+pkg github.com/tangoui/tango/ui/graph, const ArrowBoth Arrow = 3
+pkg github.com/tangoui/tango/ui/graph, const ArrowEnd Arrow = 0
+pkg github.com/tangoui/tango/ui/graph, const ArrowNone Arrow = 1
+pkg github.com/tangoui/tango/ui/graph, const ArrowStart Arrow = 2
+pkg github.com/tangoui/tango/ui/graph, const BottomUp Direction = 2
+pkg github.com/tangoui/tango/ui/graph, const ColAll GitColumns = 7
+pkg github.com/tangoui/tango/ui/graph, const ColAuthor GitColumns = 1
+pkg github.com/tangoui/tango/ui/graph, const ColDate GitColumns = 2
+pkg github.com/tangoui/tango/ui/graph, const ColHash GitColumns = 4
+pkg github.com/tangoui/tango/ui/graph, const EdgeBezier EdgeKind = 1
+pkg github.com/tangoui/tango/ui/graph, const EdgeDefault EdgeKind = 0
+pkg github.com/tangoui/tango/ui/graph, const EdgeOrthogonal EdgeKind = 3
+pkg github.com/tangoui/tango/ui/graph, const EdgeStraight EdgeKind = 2
+pkg github.com/tangoui/tango/ui/graph, const LeftRight Direction = 1
+pkg github.com/tangoui/tango/ui/graph, const LineIn LinePart = 1
+pkg github.com/tangoui/tango/ui/graph, const LineOut LinePart = 2
+pkg github.com/tangoui/tango/ui/graph, const LineThrough LinePart = 0
+pkg github.com/tangoui/tango/ui/graph, const RefBranch RefKind = 0
+pkg github.com/tangoui/tango/ui/graph, const RefHead RefKind = 3
+pkg github.com/tangoui/tango/ui/graph, const RefRemote RefKind = 1
+pkg github.com/tangoui/tango/ui/graph, const RefTag RefKind = 2
+pkg github.com/tangoui/tango/ui/graph, const RightLeft Direction = 3
+pkg github.com/tangoui/tango/ui/graph, const ShapeDiamond Shape = 3
+pkg github.com/tangoui/tango/ui/graph, const ShapeEllipse Shape = 2
+pkg github.com/tangoui/tango/ui/graph, const ShapePill Shape = 1
+pkg github.com/tangoui/tango/ui/graph, const ShapeRect Shape = 0
+pkg github.com/tangoui/tango/ui/graph, const SideAuto Side = 0
+pkg github.com/tangoui/tango/ui/graph, const SideBottom Side = 3
+pkg github.com/tangoui/tango/ui/graph, const SideHorizontal Side = 5
+pkg github.com/tangoui/tango/ui/graph, const SideLeft Side = 4
+pkg github.com/tangoui/tango/ui/graph, const SideRight Side = 2
+pkg github.com/tangoui/tango/ui/graph, const SideTop Side = 1
+pkg github.com/tangoui/tango/ui/graph, const SideVertical Side = 6
+pkg github.com/tangoui/tango/ui/graph, const TopDown Direction = 0
+pkg github.com/tangoui/tango/ui/graph, func Diagram(*ui.Context, *Graph) *DiagramW
+pkg github.com/tangoui/tango/ui/graph, func ER(*ui.Context, []Table, []Relation) *DiagramW
+pkg github.com/tangoui/tango/ui/graph, func GitGraph(*ui.Context, []Commit) *GitGraphW
+pkg github.com/tangoui/tango/ui/graph, func Layout(*Graph, LayoutOptions)
+pkg github.com/tangoui/tango/ui/graph, func LayoutCommits([]Commit) *GitLayout
+pkg github.com/tangoui/tango/ui/graph, func StyleOf(*ui/theme.Theme) *Style
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) CenterOn(string)
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) Clicked() (string, bool)
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) ContextMenu() (string, ui/geom.Point, bool)
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) DeleteRequested() bool
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) DoubleClicked() (string, bool)
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) EdgeClicked() (int, bool)
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) FitView()
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) Hovered() (string, bool)
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) HoveredEdge() (int, bool)
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) Moved() bool
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) ScreenRect(string) (ui/geom.Rect, bool)
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) Select(...string)
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) Selected() []string
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) SelectedEdges() []int
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) Zoom() float32
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramView) ZoomTo(float32)
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) A11yLabel(string) *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) AutoLayout(LayoutOptions) *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) Edges(EdgeKind) *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) Grid(float32) *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) Height(float32) *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) Key(any) *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) Layout(...ui/layout.Option) *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) MarqueeDrag() *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) MiniMap() *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) NoToolbar() *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) ReadOnly() *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) Selection(*[]string) *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) Show() *DiagramView
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) Sides(Side) *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) Snap() *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) Style(func(*Style)) *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*DiagramW) ZoomRange(float32, float32) *DiagramW
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphView) Clicked() (Commit, bool)
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphView) DoubleClicked() (Commit, bool)
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphView) Hovered() (Commit, bool)
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphView) Layout() *GitLayout
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphView) ScrollTo(string)
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphW) A11yLabel(string) *GitGraphW
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphW) Columns(GitColumns) *GitGraphW
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphW) Height(float32) *GitGraphW
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphW) Key(any) *GitGraphW
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphW) LaneWidth(float32, int) *GitGraphW
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphW) Layout(...ui/layout.Option) *GitGraphW
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphW) RowHeight(float32) *GitGraphW
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphW) Selected(*string) *GitGraphW
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphW) Show() *GitGraphView
+pkg github.com/tangoui/tango/ui/graph, method (*GitGraphW) Style(func(*Style)) *GitGraphW
+pkg github.com/tangoui/tango/ui/graph, method (*Graph) Bounds() ui/geom.Rect
+pkg github.com/tangoui/tango/ui/graph, method (*Graph) Index(string) (int, bool)
+pkg github.com/tangoui/tango/ui/graph, method (*Graph) Node(string) *Node
+pkg github.com/tangoui/tango/ui/graph, method (*Node) Center() ui/geom.Point
+pkg github.com/tangoui/tango/ui/graph, method (*Node) Rect() ui/geom.Rect
+pkg github.com/tangoui/tango/ui/graph, type Arrow uint8
+pkg github.com/tangoui/tango/ui/graph, type Column struct
+pkg github.com/tangoui/tango/ui/graph, type Column struct, FK bool
+pkg github.com/tangoui/tango/ui/graph, type Column struct, Name string
+pkg github.com/tangoui/tango/ui/graph, type Column struct, PK bool
+pkg github.com/tangoui/tango/ui/graph, type Column struct, Type string
+pkg github.com/tangoui/tango/ui/graph, type Commit struct
+pkg github.com/tangoui/tango/ui/graph, type Commit struct, Author string
+pkg github.com/tangoui/tango/ui/graph, type Commit struct, Hash string
+pkg github.com/tangoui/tango/ui/graph, type Commit struct, Parents []string
+pkg github.com/tangoui/tango/ui/graph, type Commit struct, Refs []Ref
+pkg github.com/tangoui/tango/ui/graph, type Commit struct, Subject string
+pkg github.com/tangoui/tango/ui/graph, type Commit struct, Time time.Time
+pkg github.com/tangoui/tango/ui/graph, type Commit struct, noncomparable
+pkg github.com/tangoui/tango/ui/graph, type DiagramView struct
+pkg github.com/tangoui/tango/ui/graph, type DiagramView struct, embedded *ui.Box
+pkg github.com/tangoui/tango/ui/graph, type DiagramW struct
+pkg github.com/tangoui/tango/ui/graph, type DiagramW struct, noncomparable
+pkg github.com/tangoui/tango/ui/graph, type Direction uint8
+pkg github.com/tangoui/tango/ui/graph, type Edge struct
+pkg github.com/tangoui/tango/ui/graph, type Edge struct, Arrow Arrow
+pkg github.com/tangoui/tango/ui/graph, type Edge struct, Bends []ui/geom.Point
+pkg github.com/tangoui/tango/ui/graph, type Edge struct, Dashed bool
+pkg github.com/tangoui/tango/ui/graph, type Edge struct, Data any
+pkg github.com/tangoui/tango/ui/graph, type Edge struct, From string
+pkg github.com/tangoui/tango/ui/graph, type Edge struct, FromPort string
+pkg github.com/tangoui/tango/ui/graph, type Edge struct, ID string
+pkg github.com/tangoui/tango/ui/graph, type Edge struct, Kind EdgeKind
+pkg github.com/tangoui/tango/ui/graph, type Edge struct, Label string
+pkg github.com/tangoui/tango/ui/graph, type Edge struct, Status string
+pkg github.com/tangoui/tango/ui/graph, type Edge struct, To string
+pkg github.com/tangoui/tango/ui/graph, type Edge struct, ToPort string
+pkg github.com/tangoui/tango/ui/graph, type Edge struct, noncomparable
+pkg github.com/tangoui/tango/ui/graph, type EdgeKind uint8
+pkg github.com/tangoui/tango/ui/graph, type GitColumns uint8
+pkg github.com/tangoui/tango/ui/graph, type GitGraphView struct
+pkg github.com/tangoui/tango/ui/graph, type GitGraphView struct, embedded *ui.Box
+pkg github.com/tangoui/tango/ui/graph, type GitGraphView struct, noncomparable
+pkg github.com/tangoui/tango/ui/graph, type GitGraphW struct
+pkg github.com/tangoui/tango/ui/graph, type GitGraphW struct, noncomparable
+pkg github.com/tangoui/tango/ui/graph, type GitLayout struct
+pkg github.com/tangoui/tango/ui/graph, type GitLayout struct, Lanes int
+pkg github.com/tangoui/tango/ui/graph, type GitLayout struct, Rows []GitRow
+pkg github.com/tangoui/tango/ui/graph, type GitLayout struct, noncomparable
+pkg github.com/tangoui/tango/ui/graph, type GitLine struct
+pkg github.com/tangoui/tango/ui/graph, type GitLine struct, Color int
+pkg github.com/tangoui/tango/ui/graph, type GitLine struct, From int
+pkg github.com/tangoui/tango/ui/graph, type GitLine struct, Part LinePart
+pkg github.com/tangoui/tango/ui/graph, type GitLine struct, To int
+pkg github.com/tangoui/tango/ui/graph, type GitRow struct
+pkg github.com/tangoui/tango/ui/graph, type GitRow struct, Color int
+pkg github.com/tangoui/tango/ui/graph, type GitRow struct, Lane int
+pkg github.com/tangoui/tango/ui/graph, type GitRow struct, Lines []GitLine
+pkg github.com/tangoui/tango/ui/graph, type GitRow struct, Merge bool
+pkg github.com/tangoui/tango/ui/graph, type GitRow struct, noncomparable
+pkg github.com/tangoui/tango/ui/graph, type Graph struct
+pkg github.com/tangoui/tango/ui/graph, type Graph struct, Edges []Edge
+pkg github.com/tangoui/tango/ui/graph, type Graph struct, Nodes []Node
+pkg github.com/tangoui/tango/ui/graph, type Graph struct, noncomparable
+pkg github.com/tangoui/tango/ui/graph, type LayoutOptions struct
+pkg github.com/tangoui/tango/ui/graph, type LayoutOptions struct, DefaultSize ui/geom.Size
+pkg github.com/tangoui/tango/ui/graph, type LayoutOptions struct, Direction Direction
+pkg github.com/tangoui/tango/ui/graph, type LayoutOptions struct, NodeSep float32
+pkg github.com/tangoui/tango/ui/graph, type LayoutOptions struct, RankSep float32
+pkg github.com/tangoui/tango/ui/graph, type LayoutOptions struct, Sweeps int
+pkg github.com/tangoui/tango/ui/graph, type LinePart uint8
+pkg github.com/tangoui/tango/ui/graph, type Node struct
+pkg github.com/tangoui/tango/ui/graph, type Node struct, Data any
+pkg github.com/tangoui/tango/ui/graph, type Node struct, Detail string
+pkg github.com/tangoui/tango/ui/graph, type Node struct, Draw NodePainter
+pkg github.com/tangoui/tango/ui/graph, type Node struct, Fixed bool
+pkg github.com/tangoui/tango/ui/graph, type Node struct, ID string
+pkg github.com/tangoui/tango/ui/graph, type Node struct, Icon *ui/icon.Icon
+pkg github.com/tangoui/tango/ui/graph, type Node struct, Label string
+pkg github.com/tangoui/tango/ui/graph, type Node struct, Ports []Port
+pkg github.com/tangoui/tango/ui/graph, type Node struct, Pos ui/geom.Point
+pkg github.com/tangoui/tango/ui/graph, type Node struct, Shape Shape
+pkg github.com/tangoui/tango/ui/graph, type Node struct, Size ui/geom.Size
+pkg github.com/tangoui/tango/ui/graph, type Node struct, Status string
+pkg github.com/tangoui/tango/ui/graph, type Node struct, noncomparable
+pkg github.com/tangoui/tango/ui/graph, type NodePainter func(*ui/paint.List, ui/geom.Rect, NodeState)
+pkg github.com/tangoui/tango/ui/graph, type NodeState struct
+pkg github.com/tangoui/tango/ui/graph, type NodeState struct, Hovered bool
+pkg github.com/tangoui/tango/ui/graph, type NodeState struct, Selected bool
+pkg github.com/tangoui/tango/ui/graph, type NodeState struct, Style *Style
+pkg github.com/tangoui/tango/ui/graph, type NodeState struct, Theme *ui/theme.Theme
+pkg github.com/tangoui/tango/ui/graph, type NodeState struct, Zoom float32
+pkg github.com/tangoui/tango/ui/graph, type Port struct
+pkg github.com/tangoui/tango/ui/graph, type Port struct, ID string
+pkg github.com/tangoui/tango/ui/graph, type Port struct, Offset float32
+pkg github.com/tangoui/tango/ui/graph, type Port struct, Side Side
+pkg github.com/tangoui/tango/ui/graph, type Ref struct
+pkg github.com/tangoui/tango/ui/graph, type Ref struct, Kind RefKind
+pkg github.com/tangoui/tango/ui/graph, type Ref struct, Name string
+pkg github.com/tangoui/tango/ui/graph, type RefKind uint8
+pkg github.com/tangoui/tango/ui/graph, type Relation struct
+pkg github.com/tangoui/tango/ui/graph, type Relation struct, From string
+pkg github.com/tangoui/tango/ui/graph, type Relation struct, FromColumn string
+pkg github.com/tangoui/tango/ui/graph, type Relation struct, Label string
+pkg github.com/tangoui/tango/ui/graph, type Relation struct, To string
+pkg github.com/tangoui/tango/ui/graph, type Relation struct, ToColumn string
+pkg github.com/tangoui/tango/ui/graph, type Shape uint8
+pkg github.com/tangoui/tango/ui/graph, type Side uint8
+pkg github.com/tangoui/tango/ui/graph, type Style struct
+pkg github.com/tangoui/tango/ui/graph, type Style struct, Canvas ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, Edge ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, EdgeWidth float32
+pkg github.com/tangoui/tango/ui/graph, type Style struct, Font float32
+pkg github.com/tangoui/tango/ui/graph, type Style struct, FontSM float32
+pkg github.com/tangoui/tango/ui/graph, type Style struct, GridDot ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, Hash ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, HeaderBg ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, HeaderText ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, Hover ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, KeyFK ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, KeyPK ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, LabelBg ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, LabelText ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, Lanes []ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, Marquee ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, MarqueeBorder ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, Meta ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, MiniBg ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, MiniBorder ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, MiniNode ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, MiniView ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, MiniViewBorder ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, NodeBg ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, NodeBorder ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, NodeDetail ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, NodeRadius float32
+pkg github.com/tangoui/tango/ui/graph, type Style struct, NodeShadow []ui/paint.Shadow
+pkg github.com/tangoui/tango/ui/graph, type Style struct, NodeText ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, RowHover ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, RowSel ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, RowSelText ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, Selection ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, Subject ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, ToolbarBg ui/theme.Color
+pkg github.com/tangoui/tango/ui/graph, type Style struct, ToolbarShadow []ui/paint.Shadow
+pkg github.com/tangoui/tango/ui/graph, type Style struct, noncomparable
+pkg github.com/tangoui/tango/ui/graph, type Table struct
+pkg github.com/tangoui/tango/ui/graph, type Table struct, Columns []Column
+pkg github.com/tangoui/tango/ui/graph, type Table struct, Comment string
+pkg github.com/tangoui/tango/ui/graph, type Table struct, Name string
+pkg github.com/tangoui/tango/ui/graph, type Table struct, noncomparable

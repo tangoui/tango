@@ -370,6 +370,9 @@ func init() {
 | 图表 | `chart.DualAxes` | DualAxes（柱 + 线）/ ECharts 双 yAxis | chart/dual.go |
 | 图表 | `chart.TinyLine`、`chart.TinyArea`、`chart.TinyColumn`、`chart.TinyProgress` | Tiny 系列 / ECharts sparkline 写法 | chart/tiny.go |
 | 图表 | `chart.Liquid` | Liquid / echarts-liquidfill | chart/liquid.go |
+| 图形 | `graph.Diagram`（节点模板/自定义绘制、直线/正交/贝塞尔连线、端口、平移缩放、框选、拖动吸附、小地图）、`graph.Layout`（分层布局） | React Flow / X6 / G6 思路 | graph/diagram.go、graph/layered.go |
+| 图形 | `graph.ER`（表节点、字段行外键连线） | — | graph/er.go |
+| 图形 | `graph.GitGraph`、`graph.LayoutCommits`（泳道布局、虚拟列表） | — | graph/gitgraph.go、graph/gitlayout.go |
 | 移动端 | `mobile.Provider`、`mobile.ThemeOf`、`mobile.NewTheme`（Ant Design Mobile / Vant 两套令牌，暗色随 ui 主题；ui 主题为 `theme.HighContrast` 时文字抬到 4.5:1、箭头/分隔线/开关轨道抬到 3:1） | ConfigProvider / van-config-provider | mobile/theme.go |
 | 移动端 | `mobile.Area`、`mobile.Within`、`mobile.Touchable`（手势仲裁：点按、长按、滑动、拖拽；双指捏合来自 `input.TouchEvent`；起点在普通控件上的拖动经 `TakePointer` 交给手势区） | — / @vant/use useTouch | mobile/arena.go、mobile/recognizer.go |
 | 移动端 | `mobile.Scroller`、`mobile.Decay`、`mobile.Spring`、`mobile.Rubber`（惯性、回弹、吸附） | — | mobile/physics.go |
