@@ -11,7 +11,7 @@
 // are about the upstream direction (Debug.Stats upFrames: frames that
 // reached Go on the upstream lane). Downstream frames travel on the
 // message channel; they are checked for being complete and in order only.
-// On Android (examples/duplex-mobile with TANGO_IPC_LANES_ANDROID=1) the
+// On Android (examples/duplex-mobile; on by default) the
 // lanes are down:android and up:android: every byte frame takes them
 // (minimum size 0), and Debug.Stats also counts lane messages each way
 // (upRequests, downWrites) and the Android lane counters (lane*). The

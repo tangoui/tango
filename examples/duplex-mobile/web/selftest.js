@@ -5,10 +5,10 @@
 //
 // The lanes the page must get depend on the platform (Debug.Platform):
 // Apple platforms fallback / up:post (smoke.sh ios-selftest turns them on);
-// Android down:android / up:android when TANGO_IPC_LANES_ANDROID is on,
-// else fallback / fallback. The lane scenarios of lanetests.js (reload,
-// 8 MiB, mixed, stall) run whenever the page has an upstream lane (Apple:
-// up:post; Android: up:android); without lanes (Android off, capsOff) the
+// Android down:android / up:android (the default), fallback / fallback with
+// TANGO_IPC_LANES_ANDROID=0 or the capsOff hook. The lane scenarios of
+// lanetests.js (reload, 8 MiB, mixed, stall) run whenever the page has an
+// upstream lane (Apple: up:post; Android: up:android); without lanes (Android off, capsOff) the
 // checks are the scheme parity ones, stop, memory, lanes and echo_ipc.
 // Android with the lanes adds lane_echo, reloadSameID and subframe:
 //

@@ -410,14 +410,14 @@ Go 侧调用 Java 时，方法 ID 在 `nativeInit`（主线程）里一次查好
 
 ### IPC 快速通道
 
-快速通道的整体说明见 [IPC：快速通道](../site/guide/concepts/ipc.md#快速通道)。Android 提供 `down:android` / `up:android`，**默认关闭**（只在模拟器上测过；默认是否开启待基准结果和决定，见 [docs/ipc-bench.md](ipc-bench.md)）。
+快速通道的整体说明见 [IPC：快速通道](../site/guide/concepts/ipc.md#快速通道)。Android 提供 `down:android` / `up:android`，**默认开启**（基准见 [docs/ipc-bench.md](ipc-bench.md)「第二期 Android」；只在模拟器上测过，没有真机数据）。
 
 - **通道**：流的字节帧以 `ArrayBuffer` 走页面已有的 `WebMessageListener` 通道（`window.__tangoAndroid`），不经过字符串消息、JSON 和 base64。上行：JS `postMessage(ArrayBuffer)` → `Page.java` 的 listener（先按 `getType()` 分支，ArrayBuffer 消息调 `getData()` 会抛异常）→ JNI `nativeLanePacket` → 核心。下行：Go 把包放进每个页面的队列（未交出的最多 8 MiB，超出时这一帧改走消息通道），主线程经保存的 `JavaScriptReplyProxy.postMessage(byte[])` 发给页面。`BinaryMinSize` 为 0：所有字节帧都走通道（它本来就是消息通道，没有额外延迟）。每个包跨进程拷贝一次，另有一次 JNI 拷贝。
 - **条件**（全部满足才报告两条通道）：WebView 支持 `WEB_MESSAGE_LISTENER` 和 `WEB_MESSAGE_ARRAY_BUFFER`（WebView 116 及以上）；页面走 `WebMessageListener`（退回 `JavascriptInterface` 时没有通道）；开关打开；以及所有平台共同的条件（注册了 `OnBinary`、页面在资源来源上、没有被 `TANGO_IPC_LANES=0` / `Options.DisableFastLanes` 关闭）。
-- **开关**：环境变量 `TANGO_IPC_LANES_ANDROID`，每个页面创建时读一次（任何构建都读；去掉首尾空白、不分大小写）：未设置、空、`0`、`false`、`off` 为关闭，其他值（通常是 `1`）为开启。Android 应用没法从外部拿到环境变量：在 Go 里、创建第一个页面之前调用 `os.Setenv("TANGO_IPC_LANES_ANDROID", "1")`。开启后 `tango.lanes()` 返回 `{down: "down:android", up: "up:android"}`。
+- **开关**：环境变量 `TANGO_IPC_LANES_ANDROID`，每个页面创建时读一次（任何构建都读；去掉首尾空白、不分大小写）：`0`、`false`、`off` 为关闭，未设置、空和其他值为开启（默认）。Android 应用没法从外部拿到环境变量：要关闭就在 Go 里、创建第一个页面之前调用 `os.Setenv("TANGO_IPC_LANES_ANDROID", "0")`（或用 `TANGO_IPC_LANES=0` / `Options.DisableFastLanes` 关掉所有平台的通道）。开启时 `tango.lanes()` 返回 `{down: "down:android", up: "up:android"}`。
 - **包格式与世代**：上行包是 `token[16] | gen:u64(LE) | 公共包`。`token` 是当前文档的页面 token（16 字节形式），只在页面脚本的闭包里，`__tangoNative.lane.post` 发送时写入、发完立刻清零；Go 校验 token、listener 报告的来源和主框架，不符的包静默丢弃。`gen` 是握手给的通道世代，由核心在同一把锁里校验，旧文档或旧世代的包无论在哪一段延迟都进不了新世代。页面每个世代先发一个探测包（`token | gen | 00 00`），核心接受时 Java 保存这条消息的回复代理并回 `[0]`，下行包只发给同一世代保存的代理；被核心拒绝的探测或上行包回 `[1]`，页面立即停用 `up:android`、改走消息通道（丢掉的帧按缺口超时以 `transport` 失败）。
 - **iframe**：WebView 在资源来源的每个 frame 里都放 `__tangoAndroid`，页面脚本只在主框架删除它。Java 丢弃所有子框架消息，所以同源 iframe 用自己的 `__tangoAndroid` 发包、猜 token，Go 一个包都看不到；不透明来源的 iframe（沙箱 `srcdoc`）没有这个对象。模拟器上实测（`lane_subframe`）。同源 iframe 能调用 `parent.__tangoNative.lane`，与它本来就能调用 `parent.__tangoNative.post` 一样，属于应用代码。
-- **测试**：`bash scripts/smoke.sh android-selftest`（`examples/duplex-mobile`，三次启动：通道关、通道开、没有 ArrayBuffer）和 `android-lanefault`（下行/上行中途坏掉）。测试钩子（通道计数、`TANGO_ANDROID_NO_ARRAYBUFFER`、启动参数 `TANGO_TEST_ENV`）只编进 `-tags tango_dev` / `-tags tango_selftest` 构建，见 [开发功能与生产构建](dev-builds.md)。
+- **测试**：`bash scripts/smoke.sh android-selftest`（`examples/duplex-mobile`，三次启动：`TANGO_IPC_LANES_ANDROID=0`、默认（通道开）、没有 ArrayBuffer）和 `android-lanefault`（下行/上行中途坏掉）。测试钩子（通道计数、`TANGO_ANDROID_NO_ARRAYBUFFER`、启动参数 `TANGO_TEST_ENV`）只编进 `-tags tango_dev` / `-tags tango_selftest` 构建，见 [开发功能与生产构建](dev-builds.md)。
 
 ### 能力
 

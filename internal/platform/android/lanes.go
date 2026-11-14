@@ -45,17 +45,18 @@ const (
 
 // laneCapsFromEnv returns the lanes a new page reports: down:android and
 // up:android when the WebView can carry ArrayBuffers over a
-// WebMessageListener (supported: Tango.laneSupported) and
-// TANGO_IPC_LANES_ANDROID, read through getenv, is on. Unset, empty, "0",
-// "false" and "off" (any case, surrounding spaces ignored) are off; any
-// other value is on. TANGO_IPC_LANES=0 and Options.DisableFastLanes are
-// the core's.
+// WebMessageListener (supported: Tango.laneSupported), unless
+// TANGO_IPC_LANES_ANDROID, read through getenv, turns them off. On by
+// default (docs/ipc-bench.md, phase two Android): unset, empty and any
+// value other than "0", "false" and "off" (any case, surrounding spaces
+// ignored) are on. TANGO_IPC_LANES=0 and Options.DisableFastLanes are the
+// core's and always win.
 func laneCapsFromEnv(getenv func(string) string, supported bool) []string {
 	if !supported {
 		return nil
 	}
 	switch strings.ToLower(strings.TrimSpace(getenv(laneSwitchEnv))) {
-	case "", "0", "false", "off":
+	case "0", "false", "off":
 		return nil
 	}
 	return []string{lane.DownAndroid, lane.UpAndroid}

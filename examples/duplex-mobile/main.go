@@ -10,8 +10,8 @@
 // On Android the variables below come from the launch extra TANGO_TEST_ENV
 // (tango_selftest builds, debuggable APK: am start ... --esa TANGO_TEST_ENV
 // TANGO_SCHEME_PROBE=1,TANGO_SCHEME_SELFTEST=1; scripts/smoke.sh
-// android-selftest), and TANGO_IPC_LANES_ANDROID=1 turns the Android lanes
-// on (down:android, up:android; off by default).
+// android-selftest). The Android lanes (down:android, up:android) are on
+// by default; TANGO_IPC_LANES_ANDROID=0 turns them off.
 //
 // With TANGO_SCHEME_PROBE=1 (simctl launch: SIMCTL_CHILD_TANGO_SCHEME_PROBE=1)
 // the page opens as index.html?probe and runs the WebKit streaming probe
@@ -81,12 +81,13 @@ func main() {
 		})
 	}
 	// The platform the page runs on, for the lanes it should expect:
-	// {"goos", "androidLanes"}. androidLanes: TANGO_IPC_LANES_ANDROID is on
+	// {"goos", "androidLanes"}. androidLanes: TANGO_IPC_LANES_ANDROID is not
+	// off (on by default)
 	// (read as internal/platform/android does) and the test hook
 	// TANGO_ANDROID_NO_ARRAYBUFFER, which makes the backend treat the
 	// WebView as one without ArrayBuffer messages, is not.
 	r.Handle("Debug.Platform", func(context.Context, json.RawMessage) (any, error) {
-		on := switchOn(os.Getenv("TANGO_IPC_LANES_ANDROID")) && !switchOn(os.Getenv("TANGO_ANDROID_NO_ARRAYBUFFER"))
+		on := !switchOff(os.Getenv("TANGO_IPC_LANES_ANDROID")) && !switchOn(os.Getenv("TANGO_ANDROID_NO_ARRAYBUFFER"))
 		return map[string]any{"goos": runtime.GOOS, "androidLanes": on}, nil
 	})
 	// The page's self-test results: one log line each ("probe: {...}",
@@ -172,7 +173,18 @@ func report(kind, line string) {
 	log.Printf("%s#end", kind)
 }
 
-// switchOn reads an on/off variable as the platform backends do: unset,
+// switchOff reports whether v is an "off" value: "0", "false" or "off"
+// (any case, surrounding spaces ignored), as the platform backends read
+// TANGO_IPC_LANES_ANDROID (unset is on).
+func switchOff(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "0", "false", "off":
+		return true
+	}
+	return false
+}
+
+// switchOn reads an opt-in variable (TANGO_ANDROID_NO_ARRAYBUFFER): unset,
 // empty, "0", "false" and "off" (any case, surrounding spaces ignored) are
 // off.
 func switchOn(v string) bool {

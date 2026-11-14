@@ -672,7 +672,7 @@ android_result() {
 }
 
 # run_android_lanefault runs the Android lane fault scenarios of
-# examples/duplex-mobile (tango_selftest build, lanes on), a fresh start
+# examples/duplex-mobile (tango_selftest build, lanes on by default), a fresh start
 # each:
 #   android-lanefault-down  TANGO_IPC_LANE_FAULT=down:android:3: later down
 #                           frames take the message channel, none is lost
@@ -682,7 +682,7 @@ android_result() {
 #                           a parallel stream arrives whole
 # Each needs "lanefault: {"ok":true,...}".
 run_android_lanefault() {
-	local wait="${SMOKE_MOBILE_WAIT:-180}" apk="" base="TANGO_SCHEME_PROBE=1,TANGO_SCHEME_SELFTEST=1,TANGO_IPC_LANES_ANDROID=1"
+	local wait="${SMOKE_MOBILE_WAIT:-180}" apk="" base="TANGO_SCHEME_PROBE=1,TANGO_SCHEME_SELFTEST=1"
 	local run name env what line i
 	for run in \
 		"android-lanefault-down|$base,TANGO_IPC_LANE_FAULT=down:android:3|down:android broke after 3 packets, frames whole on messages" \
@@ -725,8 +725,9 @@ run_android_lanefault() {
 # (tango_selftest build: the TANGO_TEST_ENV launch extra and the lane
 # counters) three times on the device / emulator, each a fresh start with
 # TANGO_SCHEME_PROBE=1,TANGO_SCHEME_SELFTEST=1 and:
-#   android-selftest          lanes off: tango.lanes() fallback / fallback
-#   android-selftest-lanes    TANGO_IPC_LANES_ANDROID=1: down:android /
+#   android-selftest          TANGO_IPC_LANES_ANDROID=0, lanes off:
+#                             tango.lanes() fallback / fallback
+#   android-selftest-lanes    the default (lanes on): down:android /
 #                             up:android, a 1 MiB Echo through them and the
 #                             lane scenarios (reloadSameID and reload: the
 #                             page reloads itself twice; 8 MiB, mixed,
@@ -742,9 +743,9 @@ run_android_selftest() {
 	want="$(shasum -a 256 examples/duplex-mobile/web/index.html | cut -d' ' -f1)"
 	wantBytes="$(wc -c <examples/duplex-mobile/web/index.html | tr -d ' ')"
 	local runs=(
-		"android-selftest|$base|lanes off"
-		"android-selftest-lanes|$base,TANGO_IPC_LANES_ANDROID=1|down:android / up:android"
-		"android-selftest-capsoff|$base,TANGO_IPC_LANES_ANDROID=1,TANGO_ANDROID_NO_ARRAYBUFFER=1|no ArrayBuffer: fallback"
+		"android-selftest|$base,TANGO_IPC_LANES_ANDROID=0|lanes off"
+		"android-selftest-lanes|$base|default, down:android / up:android"
+		"android-selftest-capsoff|$base,TANGO_ANDROID_NO_ARRAYBUFFER=1|no ArrayBuffer: fallback"
 	)
 	local run name env what line sha bytes bad i
 	for run in "${runs[@]}"; do

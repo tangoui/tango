@@ -225,4 +225,4 @@ up:post 组再加 `SIMCTL_CHILD_TANGO_IPC_LANES_DARWIN=1`），交替各 5 次�
 - 分批 p99 呈两档：通道组 7 次里 5 次在 1 ms 左右，第 6、7 次约 7 ms（与兜底同档）；兜底组 7 次里 6 次在 7～13 ms。中位数明显更好，但不是每次都更好。
 - **小帧的中位延迟略差**：分批 p50 慢约 24%（0.648 对 0.522 ms），1000 次往返的平均慢约 43%。64 B 帧在通道上每帧要走一次 ArrayBuffer `postMessage`、一次 JNI 拷贝，下行还要排队等主线程 `drain`；兜底的字符串消息只有一次跨进程。§6.3 只要求 p99，这一点不影响判定，但如果应用大量收发很小的字节帧，打开通道的收益主要在吞吐和尾延迟上。没有做攒批（计划 Task 3：每帧一包）。
 
-是否默认开启由用户决定；在那之前 `TANGO_IPC_LANES_ANDROID` 未设置时仍为关闭。
+**结论：Android 默认开启 `down:android` / `up:android`**（用户 2026-11-14 根据上面的数据决定）。`TANGO_IPC_LANES_ANDROID=0`（或 `false`、`off`）关闭，`TANGO_IPC_LANES=0` / `Options.DisableFastLanes` 关闭所有平台的通道。真机数据仍待补。

@@ -392,7 +392,7 @@ OnLanePacket(id SurfaceID, origin string, gen uint64, p []byte) bool
 - **实测（2026-11-14，模拟器 tango36：API 36，WebView 133，arm64 镜像跑在 Apple M4 上；Android 计划 Task 2–6）**：
   - 回复标记 `[0]` / `[1]` 以长度 1 的 `ArrayBuffer` 到达页面；探测确认、旧世代探测拒绝、数据包按世代交给 `OnBinary` 都符合设计。
   - 自测（`scripts/smoke.sh android-selftest` / `android-lanefault`，连续 3 次、每次全新安装都通过）：8 MiB 双向逐字节正确；大小交替的 40 帧全部走 `up:android`、顺序正确；重载后通道恢复、goroutine 回到基线、下行队列清空；`reloadSameID`（旧页面的 stream 1/3 与新页面的 stream 1/3 同号）两个方向都没有串流；主线程忙 6 s 不报 `transport`；同源 iframe 经自己的 `__tangoAndroid` 发的 50 个伪造包 Go 一个都没收到，不透明来源 iframe 没有该对象；`down:android:3` 故障后帧改走消息通道、不丢；`up:android:3` 故障后页面收到 `[1]` 在 12 ms 内回退，丢帧的流约 5 s 报 `transport`，并行的流完整；没有 ArrayBuffer 能力（测试钩子）时不报告通道。
-  - 基准（[docs/ipc-bench.md](../ipc-bench.md)「第二期 Android」）：64 KiB 帧 JS→Go 6.11×、Go→JS 4.39×，分批 p99 0.16（过 §6.3 判定）；分批 p50 慢约 24%（每帧一次 ArrayBuffer 消息 + 一次 JNI 拷贝）。默认是否开启由用户决定，在此之前默认关闭。
+  - 基准（[docs/ipc-bench.md](../ipc-bench.md)「第二期 Android」）：64 KiB 帧 JS→Go 6.11×、Go→JS 4.39×，分批 p99 0.16（过 §6.3 判定）；分批 p50 慢约 24%（每帧一次 ArrayBuffer 消息 + 一次 JNI 拷贝）。用户据此决定**默认开启**，`TANGO_IPC_LANES_ANDROID=0` 关闭。
   - 顺带修正（与通道无关）：Android 资源响应原先有两个 `Content-Length`（WebView 按 `InputStream.available()` 自己加一个），改为把长度经 `available()` 报告、不再放进头；资源处理函数 panic 的正文与 Apple 一致。
 
 #### Windows：SharedBuffer 环形缓冲区（上下行）
@@ -447,7 +447,7 @@ OnLanePacket(id SurfaceID, origin string, gen uint64, p []byte) bool
   - 64 KiB 帧吞吐至少是兜底传输的 2 倍；
   - 64 B 帧的 p99 延迟不比兜底差。
   - 不满足的通道保留代码但默认关闭，文档里写明原因和数据。
-  - **状态（2026-11-14）**：macOS `up:post` 达标（上传 2.73×；64 B 帧在两种配置下都走消息通道，p99 只说明没有变差），**默认开启**，`TANGO_IPC_LANES_DARWIN=0` 关闭。iOS `up:post` 只有模拟器数据（2.26×，参考），**默认关闭**，等真机。Apple 上的 `down:scheme` 不达标（WebKit 扣住大块突发，§6.2），只能 `TANGO_IPC_LANES_DARWIN=all` 实验性开启。数据见 [docs/ipc-bench.md](../ipc-bench.md)。
+  - **状态（2026-11-14）**：macOS `up:post` 达标（上传 2.73×；64 B 帧在两种配置下都走消息通道，p99 只说明没有变差），**默认开启**，`TANGO_IPC_LANES_DARWIN=0` 关闭。iOS `up:post` 只有模拟器数据（2.26×，参考），**默认关闭**，等真机。Apple 上的 `down:scheme` 不达标（WebKit 扣住大块突发，§6.2），只能 `TANGO_IPC_LANES_DARWIN=all` 实验性开启。Android `down:android` / `up:android` 达标（模拟器：上行 6.11×、下行 4.39×，分批 p99 0.16），**默认开启**，`TANGO_IPC_LANES_ANDROID=0` 关闭；没有真机数据。数据见 [docs/ipc-bench.md](../ipc-bench.md)。
 - 每个平台都要有"通道中途坏掉"的测试：强制让通道失败，验证后续帧自动走消息通道、丢帧的流报 `transport` 错误、其他流不受影响。
 - 提供关闭快速通道的开关（`tango.Options` 或环境变量），方便排查问题。
 

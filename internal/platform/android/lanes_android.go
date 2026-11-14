@@ -6,14 +6,14 @@ package android
 // the page's WebMessageListener channel. The protocol and the state are in
 // lanes.go; this file has the surface methods and the JNI side.
 //
-// Default off: a page reports the lanes only when the WebView supports
+// Default on: a page reports the lanes when the WebView supports
 // WebMessageListener and ArrayBuffer messages (Tango.laneSupported,
-// WebView 116 and later) and TANGO_IPC_LANES_ANDROID was set to an "on"
-// value when the page was created (laneCapsFromEnv).
+// WebView 116 and later), unless TANGO_IPC_LANES_ANDROID was "0", "false"
+// or "off" when the page was created (laneCapsFromEnv).
 //
-// Threads and locks: SendLanePacket runs on any goroutine, under the
-// core's lane lock: it takes only the queue's lock and calls Wake after
-// releasing it. The main thread's drain posts the queue (flushLanes) and
+// Threads and locks: SendLanePacket runs on any goroutine (the core calls
+// it outside its lane lock, with the packet's generation): it takes only
+// the queue's lock and calls Wake after releasing it. The main thread's drain posts the queue (flushLanes) and
 // Tango.nativeLanePacket hands upstream packets to the core; neither holds
 // the queue's lock while calling the core or Java.
 

@@ -26,12 +26,16 @@ func TestLaneCapsConditions(t *testing.T) {
 	if c := laneCapsFromEnv(env("1"), false); c != nil {
 		t.Fatalf("unsupported WebView: %v", c)
 	}
-	for _, v := range []string{"", "0", " OFF ", "false", "False"} {
+	if c := laneCapsFromEnv(env(""), false); c != nil {
+		t.Fatalf("unsupported WebView, default: %v", c)
+	}
+	for _, v := range []string{"0", " OFF ", "false", "False", " off\t"} {
 		if c := laneCapsFromEnv(env(v), true); c != nil {
 			t.Fatalf("%q: %v", v, c)
 		}
 	}
-	for _, v := range []string{"1", "on", " yes "} {
+	// On by default: unset and empty are on, as is any other value.
+	for _, v := range []string{"", "  ", "1", "on", " yes "} {
 		if c := laneCapsFromEnv(env(v), true); !slices.Equal(c, []string{lane.DownAndroid, lane.UpAndroid}) {
 			t.Fatalf("%q: %v", v, c)
 		}

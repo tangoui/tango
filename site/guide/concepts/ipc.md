@@ -207,8 +207,8 @@ defer s.Close()
 3. 平台后端报告了支持的通道（页面的 CSP 还得允许 `connect-src` 到资源来源，见下文「macOS / iOS」）。
 4. 没有被关掉：`tango.Options{DisableFastLanes: true}`，或环境变量 `TANGO_IPC_LANES=0`（任何构建都生效，排查问题用）。
 
-::: warning 目前只有 macOS 默认开启
-公共设施（协议、核心、`@tangoui/runtime` 的通道模块）已经就绪。**macOS 默认报告 `up:post`**（上行字节帧走快速通道）；iOS 和 Android 可以用环境变量试用，默认关闭（见下文「macOS / iOS」「Android」）；Windows、Linux 仍然全部走消息通道，通过基准对比后才会逐个默认开启。现在就把 `OnBinary` 接上，到时候无需改代码。
+::: warning 目前只有 macOS 和 Android 默认开启
+公共设施（协议、核心、`@tangoui/runtime` 的通道模块）已经就绪。**macOS 默认报告 `up:post`**（上行字节帧走快速通道），**Android 默认报告 `down:android` / `up:android`**（两个方向）；iOS 可以用环境变量试用，默认关闭（见下文「macOS / iOS」「Android」）；Windows、Linux 仍然全部走消息通道，通过基准对比后才会逐个默认开启。现在就把 `OnBinary` 接上，到时候无需改代码。
 :::
 
 `OnBinary` 的处理函数在收到包的 goroutine 上调用，不在主线程；包只在调用期间有效。`r.HandleBinarySession` 满足这两点。`gen` 是包通过校验时所属的页面世代，原样交给 `HandleBinarySession`，旧页面的包就不会进新页面的流。不要用 `r.HandleBinary`：它只给不复用页面的简单连接用，对 `*tango.Surface` 会丢掉所有包（并记一条警告）。一个 surface 只接一个 `Router`：每次握手都会换通道世代，两个 Router 会互相作废，不支持。
@@ -240,7 +240,7 @@ defer s.Close()
 ### Android
 
 - **提供 `down:android` 和 `up:android`**：两个方向的字节帧都以 `ArrayBuffer` 走页面已有的 `WebMessageListener` 通道，不做 JSON 和 base64。没有最小帧大小，所有字节帧都走通道。
-- **默认关闭**（只在模拟器上测过）。条件：WebView 116 及以上（支持 `WebMessageListener` 的 ArrayBuffer 消息），且环境变量 `TANGO_IPC_LANES_ANDROID` 打开：每个页面创建时读一次，去掉首尾空白、不分大小写，未设置、空、`0`、`false`、`off` 为关闭，其他值（通常是 `1`）为开启。`TANGO_IPC_LANES=0` 或 `DisableFastLanes` 始终优先关闭。Android 应用没法从外部拿到环境变量：在 Go 里、创建第一个页面之前调用 `os.Setenv("TANGO_IPC_LANES_ANDROID", "1")`。开启后 `tango.lanes()` 返回 `{down: "down:android", up: "up:android"}`。
+- **默认开启**（模拟器上 64 KiB 帧吞吐上行约 6.1 倍、下行约 4.4 倍；64 B 帧中位延迟略慢，见 [docs/ipc-bench.md](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)）。条件：WebView 116 及以上（支持 `WebMessageListener` 的 ArrayBuffer 消息），更旧的 WebView 照旧走消息通道。环境变量 `TANGO_IPC_LANES_ANDROID` 每个页面创建时读一次，去掉首尾空白、不分大小写，`0`、`false`、`off` 为关闭，未设置和其他值为开启。`TANGO_IPC_LANES=0` 或 `DisableFastLanes` 始终优先关闭。Android 应用没法从外部拿到环境变量：要关闭就在 Go 里、创建第一个页面之前调用 `os.Setenv("TANGO_IPC_LANES_ANDROID", "0")`。开启时 `tango.lanes()` 返回 `{down: "down:android", up: "up:android"}`。
 - 每个包都带页面 token 和通道世代，旧页面、旧世代的包两个方向都进不了新页面。Go 拒收的上行包会让页面立即停用 `up:android`，之后的帧改走消息通道。
 - iframe：子框架的消息全部被丢弃（模拟器上实测：同源 iframe 用自己的 `__tangoAndroid` 伪造的包 Go 一个都收不到，不透明来源的 iframe 没有这个对象）。同源 iframe 能调用 `parent.__tangoNative`，那是应用代码。
 - 已知限制：只在模拟器上测过，没有真机数据；每个包跨进程拷贝一次、JNI 拷贝一次。详见 [docs/mobile.md](https://github.com/tangoui/tango/blob/main/docs/mobile.md)。
