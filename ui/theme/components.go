@@ -94,6 +94,9 @@ const (
 	CompMenubar
 	CompItem
 	CompTerminal
+	CompCodeBlock
+	CompJSONView
+	CompLogView
 	// numComps counts the Comp values. Internally Comp(i) indexes the
 	// i-th field of Components, so both lists only ever grow at the end.
 	numComps
@@ -159,6 +162,9 @@ type Components struct {
 	Menubar      MenubarToken
 	Item         ItemToken
 	Terminal     TerminalToken
+	CodeBlock    CodeBlockToken
+	JSONView     JSONViewToken
+	LogView      LogViewToken
 }
 
 // Alias is the subset of global tokens a component may override for itself
@@ -420,6 +426,12 @@ func deriveComp(t *Theme, k Comp) any {
 		return deriveItem(t)
 	case CompTerminal:
 		return deriveTerminal(t)
+	case CompCodeBlock:
+		return deriveCodeBlock(t)
+	case CompJSONView:
+		return deriveJSONView(t)
+	case CompLogView:
+		return deriveLogView(t)
 	}
 	panic("theme: unknown component")
 }

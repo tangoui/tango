@@ -319,6 +319,31 @@ func i18nCases() []i18nCase {
 				Markdown(c, "```go\nx := 1\n```\n")
 			},
 			texts: func(l *Locale) []string { return []string{l.Markdown.CopyCode} }},
+		i18nCase{name: "CodeBlock",
+			page: func(c *Context, ids i18nIDs) {
+				CodeBlock(c, "x := 1").Title("a.go")
+			},
+			texts: func(l *Locale) []string { return []string{l.Markdown.CopyCode} }},
+		i18nCase{name: "LogView",
+			page: func(c *Context, ids i18nIDs) {
+				buf := NewLogBuffer(0)
+				buf.Append("INFO one", "ERROR two")
+				q := "zzz"
+				LogView(c, buf).Height(200).Query(&q)
+			},
+			texts: func(l *Locale) []string {
+				v := l.LogView
+				return []string{v.PrevMatch, v.NextMatch, v.NoMatch, v.Lines(2), l.Clear} // Wrap / Follow name icon-only toggles
+			}},
+		i18nCase{name: "JSONView",
+			page: func(c *Context, ids i18nIDs) {
+				q := "zzz"
+				JSONView(c, []byte(`{"a": [1, 2], "b": {"c": true}}`)).Height(200).Query(&q).ExpandDepth(2)
+			},
+			texts: func(l *Locale) []string {
+				v := l.JSONView
+				return []string{v.ExpandAll, v.CollapseAll, v.PrevMatch, v.NextMatch, v.NoMatch}
+			}},
 		i18nCase{name: "ProLayout",
 			page: func(c *Context, ids i18nIDs) {
 				collapsed := false

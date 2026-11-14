@@ -106,6 +106,9 @@ var ZhCN = &Locale{
 		ContentWidth: "内容区域宽度", Fluid: "流式", Fixed: "定宽",
 		FixedHeader: "固定顶栏", FixSiderbar: "固定侧边菜单", ColorWeak: "色弱模式",
 		Other: "其他设置", Compact: "紧凑模式", ColorFmt: "主题色 %s"},
+	CodeBlock: CodeBlockLocale{Code: "代码"},
+	JSONView:  JSONViewLocale{Name: "JSON 查看器", CopyValue: "复制值", CopyPath: "复制路径", ExpandAll: "全部展开", CollapseAll: "全部折叠", ItemsFmt: "%d 项", KeysFmt: "%d 个键", Search: "搜索键或值", PrevMatch: "上一个匹配", NextMatch: "下一个匹配", MatchFmt: "%d/%d", NoMatch: "无匹配", ParseErrorFmt: "JSON 解析失败：%s"},
+	LogView:   LogViewLocale{Name: "日志", Search: "搜索日志", PrevMatch: "上一个匹配", NextMatch: "下一个匹配", MatchFmt: "%d/%d", NoMatch: "无匹配", Wrap: "自动换行", Follow: "跟随最新", Level: "级别", AllLevels: "全部级别", Levels: [5]string{"Trace", "Debug", "Info", "Warn", "Error"}, LinesFmt: "%d 行"},
 }
 
 // EnUS is the US English locale. RegisterLocale fills the empty texts of
@@ -207,6 +210,9 @@ var EnUS = &Locale{
 		ContentWidth: "Content width", Fluid: "Fluid", Fixed: "Fixed",
 		FixedHeader: "Fixed header", FixSiderbar: "Fixed side menu", ColorWeak: "Color weak mode",
 		Other: "Other settings", Compact: "Compact", ColorFmt: "Theme color %s"},
+	CodeBlock: CodeBlockLocale{Code: "Code"},
+	JSONView:  JSONViewLocale{Name: "JSON viewer", CopyValue: "Copy value", CopyPath: "Copy path", ExpandAll: "Expand all", CollapseAll: "Collapse all", ItemsFmt: "%d items", KeysFmt: "%d keys", Search: "Search keys or values", PrevMatch: "Previous match", NextMatch: "Next match", MatchFmt: "%d of %d", NoMatch: "No results", ParseErrorFmt: "Invalid JSON: %s"},
+	LogView:   LogViewLocale{Name: "Log", Search: "Search log", PrevMatch: "Previous match", NextMatch: "Next match", MatchFmt: "%d of %d", NoMatch: "No results", Wrap: "Wrap lines", Follow: "Follow output", Level: "Level", AllLevels: "All levels", Levels: [5]string{"Trace", "Debug", "Info", "Warn", "Error"}, LinesFmt: "%d lines"},
 }
 
 // ZhTW is the Traditional Chinese locale with Taiwan usage. LocaleByCode
@@ -307,6 +313,9 @@ var ZhTW = &Locale{
 		ContentWidth: "內容區域寬度", Fluid: "流式", Fixed: "定寬",
 		FixedHeader: "固定頂欄", FixSiderbar: "固定側邊選單", ColorWeak: "色弱模式",
 		Other: "其他設定", Compact: "緊湊模式", ColorFmt: "主題色 %s"},
+	CodeBlock: CodeBlockLocale{Code: "程式碼"},
+	JSONView:  JSONViewLocale{Name: "JSON 檢視器", CopyValue: "複製值", CopyPath: "複製路徑", ExpandAll: "全部展開", CollapseAll: "全部摺疊", ItemsFmt: "%d 項", KeysFmt: "%d 個鍵", Search: "搜尋鍵或值", PrevMatch: "上一個相符項", NextMatch: "下一個相符項", MatchFmt: "%d/%d", NoMatch: "無相符項", ParseErrorFmt: "JSON 解析失敗：%s"},
+	LogView:   LogViewLocale{Name: "日誌", Search: "搜尋日誌", PrevMatch: "上一個相符項", NextMatch: "下一個相符項", MatchFmt: "%d/%d", NoMatch: "無相符項", Wrap: "自動換行", Follow: "跟隨最新", Level: "等級", AllLevels: "全部等級", Levels: [5]string{"Trace", "Debug", "Info", "Warn", "Error"}, LinesFmt: "%d 行"},
 }
 
 // Ja is the Japanese locale.
@@ -407,4 +416,7 @@ var Ja = &Locale{
 		ContentWidth: "コンテンツ幅", Fluid: "可変", Fixed: "固定",
 		FixedHeader: "ヘッダーを固定", FixSiderbar: "サイドメニューを固定", ColorWeak: "色覚サポート",
 		Other: "その他の設定", Compact: "コンパクト", ColorFmt: "テーマカラー %s"},
+	CodeBlock: CodeBlockLocale{Code: "コード"},
+	JSONView:  JSONViewLocale{Name: "JSON ビューア", CopyValue: "値をコピー", CopyPath: "パスをコピー", ExpandAll: "すべて展開", CollapseAll: "すべて折りたたむ", ItemsFmt: "%d 項目", KeysFmt: "%d 個のキー", Search: "キーまたは値を検索", PrevMatch: "前の一致", NextMatch: "次の一致", MatchFmt: "%d/%d", NoMatch: "一致なし", ParseErrorFmt: "JSON を解析できません: %s"},
+	LogView:   LogViewLocale{Name: "ログ", Search: "ログを検索", PrevMatch: "前の一致", NextMatch: "次の一致", MatchFmt: "%d/%d", NoMatch: "一致なし", Wrap: "折り返し", Follow: "最新を追跡", Level: "レベル", AllLevels: "すべてのレベル", Levels: [5]string{"Trace", "Debug", "Info", "Warn", "Error"}, LinesFmt: "%d 行"},
 }

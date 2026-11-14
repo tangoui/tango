@@ -170,5 +170,6 @@ pkg github.com/tangoui/tango/ui/icon, var VerticalAlignMid *Icon
 pkg github.com/tangoui/tango/ui/icon, var VerticalAlignTop *Icon
 pkg github.com/tangoui/tango/ui/icon, var Warning *Icon
 pkg github.com/tangoui/tango/ui/icon, var WarningFilled *Icon
+pkg github.com/tangoui/tango/ui/icon, var WrapText *Icon
 pkg github.com/tangoui/tango/ui/icon, var ZoomIn *Icon
 pkg github.com/tangoui/tango/ui/icon, var ZoomOut *Icon

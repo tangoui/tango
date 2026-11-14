@@ -120,6 +120,12 @@ type Locale struct {
 	LoginForm       LoginFormLocale
 	SettingDrawer   SettingDrawerLocale
 
+	// Groups of the data viewers (types in codeblock.go, jsonview.go,
+	// logview.go).
+	CodeBlock CodeBlockLocale
+	JSONView  JSONViewLocale
+	LogView   LogViewLocale
+
 	// Extra holds texts of other components by key ("MyWidget.title", ...).
 	Extra map[string]string
 }

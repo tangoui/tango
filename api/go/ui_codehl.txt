@@ -1,0 +1,8 @@
+pkg github.com/tangoui/tango/ui/codehl, func Install()
+pkg github.com/tangoui/tango/ui/codehl, func Kind(string) ui.CodeTokenKind
+pkg github.com/tangoui/tango/ui/codehl, func LanguageID(string) string
+pkg github.com/tangoui/tango/ui/codehl, func New() *Highlighter
+pkg github.com/tangoui/tango/ui/codehl, func NewWithRegistry(*ui/editor/monarch.Registry) *Highlighter
+pkg github.com/tangoui/tango/ui/codehl, method (*Highlighter) Document(string, string) ui.CodeDocument
+pkg github.com/tangoui/tango/ui/codehl, type Highlighter struct
+pkg github.com/tangoui/tango/ui/codehl, type Highlighter struct, noncomparable
