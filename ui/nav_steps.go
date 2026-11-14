@@ -484,7 +484,7 @@ func (s *StepsW) Show() *StepsW {
 // stepSem marks step node n (shared by both step styles).
 func (s *StepsW) stepSem(n *node, i int, it StepItem) {
 	c := s.c
-	n.setRole(a11y.RoleListItem).stateIf(i == s.current, a11y.Current)
+	n.setRole(a11y.RoleListItem).setName(it.Title).stateIf(i == s.current, a11y.Current)
 	if s.statusOf(i) == "error" {
 		n.setState(a11y.Invalid)
 	}
