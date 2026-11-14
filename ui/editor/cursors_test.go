@@ -2,7 +2,9 @@ package editor
 
 import (
 	"fmt"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -543,10 +545,15 @@ func manyCursorDoc(n int) (string, []Selection) {
 	return b.String(), sels
 }
 
-// gateLimit is a timing gate, relaxed under the race detector.
+// gateLimit is a timing gate, relaxed under the race detector and on
+// shared CI runners (TANGO_SMOKE_TIMEOUT_SCALE, which CI sets). The gates
+// catch superlinear regressions, which miss them by far more.
 func gateLimit(d time.Duration) time.Duration {
 	if raceEnabled {
-		return 20 * d
+		d *= 20
+	}
+	if f, err := strconv.ParseFloat(os.Getenv("TANGO_SMOKE_TIMEOUT_SCALE"), 64); err == nil && f > 1 {
+		d = time.Duration(float64(d) * f)
 	}
 	return d
 }
@@ -627,10 +634,7 @@ func TestManyCursorsTyping(t *testing.T) {
 		start := time.Now()
 		st.Insert("x")
 		d := time.Since(start)
-		limit := 50 * time.Millisecond
-		if raceEnabled {
-			limit *= 20
-		}
+		limit := gateLimit(50 * time.Millisecond)
 		t.Logf("%s: typed at %d cursors in %v", file, n, d)
 		if d > limit {
 			t.Errorf("%s: typing at %d cursors took %v, want ≤ %v", file, n, d, limit)
