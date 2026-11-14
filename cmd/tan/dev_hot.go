@@ -37,11 +37,9 @@ func hasDevHost(path string) bool {
 	return err == nil && bytes.Contains(data, []byte(devhost.Marker))
 }
 
-// attachSymbol is uihost.AttachWith's name in a binary's function table
-// (NUL-terminated there). Attach calls it, so it is linked exactly when the
-// app attaches canvases to WebView windows, which the dev host cannot
-// show: such apps are restarted on changes instead of hot-reloaded.
-const attachSymbol = "github.com/tangoui/tango/uihost.AttachWith\x00"
+// attachSymbol is devhost.AttachSymbol as it appears in a binary's function
+// table (NUL-terminated there).
+const attachSymbol = devhost.AttachSymbol + "\x00"
 
 // usesAttach reports whether the binary at path links uihost.Attach(With).
 func usesAttach(path string) bool {
