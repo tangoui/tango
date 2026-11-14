@@ -25,14 +25,23 @@ import (
 // *Box, so code using the returned box keeps working.
 //
 // ConfigProvider.Defaults("Divider", ...) keys: "dashed" (bool),
-// "orientation" ("left" | "right" | "center"), "plain" (bool).
+// "variant" ("solid" | "dashed" | "dotted"), "orientation"
+// ("horizontal" | "vertical"; a title placement is still accepted),
+// "vertical" (bool), "titlePlacement" ("start" | "end" | "left" | "right"
+// | "center"), "plain" (bool), "size" (ControlSize).
 type DividerW struct {
 	_ [0]func()
 
 	*Box
-	dashed bool
-	orient string
-	plain  bool
+	c        *Context
+	tk       *theme.DividerToken
+	variant  string // "solid" | "dashed" | "dotted"
+	orient   string // title placement
+	plain    bool
+	vertical bool
+	size     ControlSize
+	sizeSet  bool
+	titled   bool
 }
 
 // Divider draws a horizontal rule, optionally with a title.
@@ -41,42 +50,58 @@ func Divider(c *Context, title ...string) *DividerW {
 	tk := &th.Components.Divider
 	label := strings.Join(title, " ")
 	b := c.box("divider", layout.Column, nil)
-	d := &DividerW{Box: b, dashed: Prop(c, "Divider", "dashed", false), orient: Prop(c, "Divider", "orientation", "center"), plain: Prop(c, "Divider", "plain", false)}
-	if Prop(c, "Divider", "variant", "") == "dashed" {
-		d.dashed = true
-	}
+	d := &DividerW{Box: b, c: c, tk: tk, variant: "solid", orient: "center", titled: label != "",
+		plain: Prop(c, "Divider", "plain", false)}
 	b.n.setRole(a11y.RoleSeparator).setState(a11y.Horizontal).setName(label)
-	b.n.ln.Margin = geom.Insets{Top: tk.MarginBlock, Bottom: tk.MarginBlock}
-	if label != "" {
-		b.n.ln.Margin = geom.Insets{Top: tk.TextMarginBlock, Bottom: tk.TextMarginBlock}
+	if Prop(c, "Divider", "dashed", false) {
+		d.variant = "dashed"
 	}
-	font := func() text.Style {
-		w := text.Weight(tk.TextFontWeight)
-		if d.plain {
-			w = text.Regular
+	if v := Prop(c, "Divider", "variant", ""); v != "" {
+		d.Variant(v)
+	}
+	d.Orientation(Prop(c, "Divider", "orientation", ""))
+	d.TitlePlacement(Prop(c, "Divider", "titlePlacement", ""))
+	if s, ok := c.ComponentSize(); ok { // Ant: the ConfigProvider size applies
+		d.size, d.sizeSet = s, true
+	}
+	if s, ok := c.ConfigProp("Divider", "size"); ok {
+		if sz, ok := shad2aParseSize(s); ok { // ControlSize or "small" / "middle" / "large"
+			d.Size(sz)
 		}
-		return text.Style{Size: tk.FontSize, Weight: w, LineHeight: th.LineHeightFor(tk.FontSize)}
+	}
+	if Prop(c, "Divider", "vertical", false) {
+		d.Vertical()
+	}
+	d.margins()
+	font := func() text.Style {
+		size, w := tk.TextFontSize, text.Weight(tk.TextFontWeight)
+		if d.plain {
+			size, w = tk.FontSize, text.Regular
+		}
+		return text.Style{Size: size, Weight: w, LineHeight: th.LineHeightFor(size)}
 	}
 	pad := tk.TextPaddingInline
 	b.n.ln.Measure = func(_, _ float32) geom.Size {
+		if d.vertical {
+			return geom.Size{W: tk.LineWidth, H: tk.VerticalHeight}
+		}
 		if label == "" {
 			return geom.Size{H: tk.LineWidth}
 		}
-		return geom.Size{W: text.Width(label, font()) + 2*pad, H: 22}
+		f := font()
+		return geom.Size{W: text.Width(label, f) + 2*pad, H: f.LineHeight}
 	}
 	b.n.paint = func(l *paint.List, r geom.Rect) {
-		cy := r.Y + r.H/2
 		lw := tk.LineWidth
+		if d.vertical {
+			d.rule(l, r.X+r.W/2, r.Y, r.X+r.W/2, r.Bottom(), lw)
+			return
+		}
+		cy := r.Y + r.H/2
 		line := func(x0, x1 float32) {
-			if x1 <= x0 {
-				return
+			if x1 > x0 {
+				d.rule(l, x0, cy, x1, cy, lw)
 			}
-			if d.dashed {
-				p := paint.NewPath().MoveTo(x0, cy).LineTo(x1, cy)
-				l.StrokePath(p, paint.StrokeStyle{Width: lw, Dash: []float32{4, 3}}, tk.Color)
-				return
-			}
-			l.Fill(geom.Rect{X: x0, Y: cy - lw/2, W: x1 - x0, H: lw}, geom.Radii{}, tk.Color)
 		}
 		if label == "" {
 			line(r.X, r.Right())
@@ -84,12 +109,12 @@ func Divider(c *Context, title ...string) *DividerW {
 		}
 		lay := text.Shape(label, font(), c.textOpts(text.Options{NoWrap: true}))
 		tx := r.X + (r.W-lay.Width)/2
-		// Ant orientationMargin: the short side is 5% of the width. "left"
-		// and "right" are logical (start / end) like Ant in RTL.
-		switch d.orient {
-		case "left", "start":
+		// Ant orientationMargin: the short side is 5% of the width. "start"
+		// and "end" are logical; "left" and "right" physical (Ant v6).
+		switch d.placement() {
+		case "start":
 			tx = r.X + r.W*tk.OrientationMargin + pad
-		case "right", "end":
+		case "end":
 			tx = r.Right() - r.W*tk.OrientationMargin - pad - lay.Width
 		}
 		if c.IsRTL() {
@@ -101,17 +126,140 @@ func Divider(c *Context, title ...string) *DividerW {
 		if d.plain {
 			col = tk.PlainTextColor
 		}
-		l.Glyphs(geom.Pt(tx, r.Y), lay.Glyphs, col)
+		l.Glyphs(geom.Pt(tx, r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
 	}
 	return d
 }
 
-// Dashed draws a dashed line.
-func (d *DividerW) Dashed() *DividerW { d.dashed = true; return d }
+// rule draws one solid, dashed or dotted line from (x0, y0) to (x1, y1).
+func (d *DividerW) rule(l *paint.List, x0, y0, x1, y1, lw float32) {
+	col := d.tk.Color
+	switch d.variant {
+	case "dashed":
+		p := paint.NewPath().MoveTo(x0, y0).LineTo(x1, y1)
+		l.StrokePath(p, paint.StrokeStyle{Width: lw, Dash: []float32{4, 3}}, col)
+	case "dotted":
+		p := paint.NewPath().MoveTo(x0, y0).LineTo(x1, y1)
+		l.StrokePath(p, paint.StrokeStyle{Width: lw, Dash: []float32{lw, lw}}, col)
+	default:
+		r := geom.Rect{X: x0, Y: y0 - lw/2, W: x1 - x0, H: lw}
+		if x0 == x1 {
+			r = geom.Rect{X: x0 - lw/2, Y: y0, W: lw, H: y1 - y0}
+		}
+		l.Fill(r, geom.Radii{}, col)
+	}
+}
 
-// Orientation places the title: "left", "right" or "center" (default;
-// Ant titlePlacement / Element content-position).
-func (d *DividerW) Orientation(s string) *DividerW { d.orient = s; return d }
+// placement resolves the title placement to "start", "end" or "center":
+// "left" and "right" are physical sides (Ant v6 titlePlacement).
+func (d *DividerW) placement() string {
+	rtl := d.c.IsRTL()
+	switch d.orient {
+	case "left":
+		if rtl {
+			return "end"
+		}
+		return "start"
+	case "right":
+		if rtl {
+			return "start"
+		}
+		return "end"
+	case "start", "end":
+		return d.orient
+	}
+	return "center"
+}
+
+// margins sets the block (horizontal rule) or inline (vertical) margins.
+func (d *DividerW) margins() {
+	tk, ln := d.tk, &d.Box.n.ln
+	if d.vertical {
+		ln.Margin = geom.Insets{Left: tk.VerticalMarginInline, Right: tk.VerticalMarginInline}
+		return
+	}
+	m := tk.MarginBlock
+	if d.titled {
+		m = tk.TextMarginBlock
+	}
+	if d.sizeSet { // Ant size: small 8, middle 16 (large keeps the default)
+		switch d.size {
+		case Small:
+			m = tk.MarginBlockSM
+		case Middle:
+			m = tk.MarginBlockMD
+		}
+	}
+	ln.Margin = geom.Insets{Top: m, Bottom: m}
+}
+
+// Dashed draws a dashed line (Variant("dashed")).
+func (d *DividerW) Dashed() *DividerW { d.variant = "dashed"; return d }
+
+// Variant sets the line style: "solid" (default), "dashed" or "dotted"
+// (Ant variant, Element border-style). Other values are ignored.
+func (d *DividerW) Variant(v string) *DividerW {
+	switch v {
+	case "solid", "dashed", "dotted":
+		d.variant = v
+	}
+	return d
+}
+
+// Orientation sets the direction: "horizontal" (default) or "vertical"
+// (Ant v6 orientation). A title placement ("left", "right", "center",
+// "start", "end") is still accepted here and sets TitlePlacement, as Ant
+// does for the pre-v6 meaning; new code sets the title placement with
+// TitlePlacement.
+func (d *DividerW) Orientation(s string) *DividerW {
+	switch s {
+	case "horizontal":
+		return d
+	case "vertical":
+		return d.Vertical()
+	}
+	return d.TitlePlacement(s)
+}
+
+// TitlePlacement places the title: "start", "end" (logical), "left",
+// "right" (physical) or "center" (default; Ant titlePlacement, Element
+// content-position). Other values are ignored.
+func (d *DividerW) TitlePlacement(s string) *DividerW {
+	switch s {
+	case "left", "right", "center", "start", "end":
+		d.orient = s
+	}
+	return d
+}
+
+// Vertical turns the divider into an inline vertical separator like
+// VDivider (Ant vertical / orientation="vertical", Element
+// direction="vertical"); a title is not shown.
+func (d *DividerW) Vertical() *DividerW {
+	if d.vertical {
+		return d
+	}
+	d.vertical = true
+	n := d.Box.n
+	n.aState &^= a11y.Horizontal
+	n.setState(a11y.Vertical)
+	n.ln.NoStretch = true
+	n.ln.AlignSelf = layout.AlignCenter
+	if d.tk.VerticalHeight == 0 { // shadcn: h-full
+		n.ln.NoStretch = false
+		n.ln.AlignSelf = layout.AlignStretch
+	}
+	d.margins()
+	return d
+}
+
+// Size sets the block margin of a horizontal divider (Ant size): Small
+// 8px, Middle 16px; Large keeps the default.
+func (d *DividerW) Size(s ControlSize) *DividerW {
+	d.size, d.sizeSet = s, true
+	d.margins()
+	return d
+}
 
 // Plain shows the title in the normal text style (Ant plain).
 func (d *DividerW) Plain() *DividerW { d.plain = true; return d }
@@ -124,6 +272,10 @@ func VDivider(c *Context) {
 	n.ln.Width, n.ln.Height = tk.LineWidth, tk.VerticalHeight
 	n.ln.Margin = geom.Insets{Left: tk.VerticalMarginInline, Right: tk.VerticalMarginInline}
 	n.ln.AlignSelf = layout.AlignCenter
+	if tk.VerticalHeight == 0 { // shadcn Separator vertical: h-full
+		n.ln.Height = 0
+		n.ln.AlignSelf = layout.AlignStretch
+	}
 	n.paint = func(l *paint.List, r geom.Rect) { l.Fill(r, geom.Radii{}, tk.Color) }
 }
 

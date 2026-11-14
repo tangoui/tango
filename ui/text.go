@@ -356,25 +356,38 @@ type LinkW struct {
 	status string      // Type: "" = link colors
 	ccol   theme.Color // Color: one color for every state
 	ccolOn bool
+	ic     *icon.Icon
+	tk     *theme.TypographyToken
+	// underline: "" = the theme's (Typography LinkUnderline /
+	// LinkHoverUnderline), else "always" | "hover" | "never".
+	underline string
 }
 
+// linkIconGap is the space between a Link icon and its text (Element
+// el-link: the span after the icon has margin-left 5px).
+const linkIconGap = 5
+
 // Link adds a hyperlink-styled text button.
+//
+// ConfigProvider.Defaults("Link", ...) keys: "underline" ("always" |
+// "hover" | "never"; Element underline).
 func Link(c *Context, s string) *LinkW {
 	t := newLabel(c, "link", s, c.Theme.FontSize, text.Regular)
 	t.n.setRole(a11y.RoleLink)
-	lw := &LinkW{Label: t}
+	lw := &LinkW{Label: t, underline: Prop(c, "Link", "underline", "")}
 	t.n.fill(lw)
 	lw.ia = c.interact(t.n, true, input.CursorPointer)
 	th := c.Theme
 	tk := &c.ThemeFor(theme.CompTypography).Components.Typography
-	if th.Flavor == theme.StyleShadcn {
-		// shadcn typography: font-medium underline underline-offset-4.
-		t.under = true
-		t.st.Weight = text.Medium
-	}
+	// Ant: inherits 400; Element --el-link-font-weight 500; shadcn
+	// font-medium.
+	t.st.Weight = themeWeight(tk.LinkFontWeight)
+	t.n.ln.Measure = lw.measure
+	lw.tk = tk
 	id := t.n.id
 	t.n.paint = func(l *paint.List, r geom.Rect) {
 		var col theme.Color
+		hover := float32(0)
 		switch {
 		case t.disabled || t.n.disabled:
 			col = th.TextDisabled
@@ -383,15 +396,25 @@ func Link(c *Context, s string) *LinkW {
 		case t.colSet: // Label-level color (Tertiary ...)
 			col = t.col
 		default:
-			base, hover, active := lw.colors(th, tk)
+			base, hoverCol, active := lw.colors(th, tk)
 			if lw.ia.Pressed {
 				col = active
 			} else {
-				h := c.Anim(id, "hover", b2f(lw.ia.Hovered), th.DurationMid)
-				col = theme.Lerp(base, hover, h)
+				hover = c.Anim(id, "hover", b2f(lw.ia.Hovered), th.DurationMid)
+				col = theme.Lerp(base, hoverCol, hover)
 			}
 		}
-		t.paintCol(l, r, col)
+		tr := r
+		if lw.ic != nil {
+			is := t.st.Size
+			s := c.inline(r)
+			c.paintIcon(l, lw.ic, s.Rect(0, r.Y+(r.H-is)/2, is, is), col, 0)
+			tr = s.Rect(is+linkIconGap, r.Y, max(0, r.W-is-linkIconGap), r.H)
+		}
+		under := t.under
+		t.under = t.under || lw.shownUnderline()
+		t.paintCol(l, tr, col)
+		t.under = under
 		if lw.ia.FocusVisible {
 			if th.Flavor == theme.StyleShadcn {
 				drawFocusRing(l, th, r, geom.Rad(th.RadiusSM))
@@ -403,12 +426,65 @@ func Link(c *Context, s string) *LinkW {
 	return lw
 }
 
+// measure is the label size plus the icon.
+func (lw *LinkW) measure(maxW, maxH float32) geom.Size {
+	if lw.ic == nil {
+		return lw.Label.measure(maxW, maxH)
+	}
+	extra := lw.st.Size + linkIconGap
+	sz := lw.Label.measure(max(0, maxW-extra), maxH)
+	sz.W += extra
+	sz.H = max(sz.H, lw.st.Size)
+	return sz
+}
+
+// underlined reports whether the text is underlined in the current state.
+func (lw *LinkW) underlined(tk *theme.TypographyToken, hovered bool) bool {
+	switch lw.underline {
+	case "always":
+		return true
+	case "hover":
+		return hovered
+	case "never":
+		return false
+	}
+	if hovered {
+		return tk.LinkHoverUnderline > 0
+	}
+	return tk.LinkUnderline > 0
+}
+
+// shownUnderline reports whether the link is underlined now: never on
+// hover when disabled (Element is-hover-underline needs !disabled).
+func (lw *LinkW) shownUnderline() bool {
+	hovered := (lw.ia.Hovered || lw.ia.Pressed) && !lw.disabled && !lw.n.disabled
+	return lw.underlined(lw.tk, hovered)
+}
+
+// UnderlineMode sets when the link is underlined: "always", "hover" or
+// "never" (Element underline; the default follows the theme: never for
+// Ant, on hover for Element, always for shadcn). Other values restore the
+// theme's.
+func (lw *LinkW) UnderlineMode(mode string) *LinkW {
+	switch mode {
+	case "always", "hover", "never":
+		lw.underline = mode
+	default:
+		lw.underline = ""
+	}
+	return lw
+}
+
+// Icon puts an icon before the text in the link color (Element el-link
+// icon).
+func (lw *LinkW) Icon(ic *icon.Icon) *LinkW { lw.ic = ic; return lw }
+
 // colors returns the idle, hover and pressed colors of the link's Type.
 func (lw *LinkW) colors(th *theme.Theme, tk *theme.TypographyToken) (base, hover, active theme.Color) {
 	switch lw.status {
 	case "":
 		return tk.LinkColor, tk.LinkHoverColor, tk.LinkActiveColor
-	case "secondary":
+	case "secondary", "default": // Element type="default": regular text, link color on hover
 		return th.TextSecondary, tk.LinkHoverColor, tk.LinkActiveColor
 	}
 	p := th.ColorOf(lw.status)
@@ -417,8 +493,9 @@ func (lw *LinkW) colors(th *theme.Theme, tk *theme.TypographyToken) (base, hover
 
 // Type colors the link by status: "success", "warning", "danger" /
 // "error", "info" use that palette (hover and pressed shades follow);
-// "secondary" starts in the secondary text color and turns link-colored
-// on hover. "" restores the link colors.
+// "secondary" (or Element's "default") starts in the secondary text color
+// and turns link-colored on hover; "primary" is the primary palette. ""
+// restores the link colors.
 func (lw *LinkW) Type(status string) *LinkW { lw.status = status; return lw }
 
 // Color draws the link in col in every state (disabled still greys out).

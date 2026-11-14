@@ -335,6 +335,10 @@ func TestComponentCSSVars(t *testing.T) {
 			if ft.Field(j).Type.Kind() == reflect.Array {
 				n += ft.Field(j).Type.Len() - 1
 			}
+			// Behaviour switches (Button.AutoInsertSpace) have no CSS form.
+			if ft.Field(j).Type.Kind() == reflect.Bool {
+				n--
+			}
 		}
 	}
 	if len(comp) != n {

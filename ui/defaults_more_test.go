@@ -158,9 +158,9 @@ func TestDefaultsWiring(t *testing.T) {
 			}, "true true"},
 		{"ButtonGroup unknown type", "ButtonGroup", Props{"type": "nope", "size": "small"},
 			func(c *Context) any { g := ButtonGroup(c); return defSp(g.sizeSet, g.varSet) }, "true false", nil, nil},
-		{"Button autoInsertSpace", "Button", Props{"autoInsertSpace": true},
-			func(c *Context) any { return Button(c, "确定").shownLabel() }, "确 定",
-			func(c *Context) any { return Button(c, "确定").AutoInsertSpace(false).shownLabel() }, "确定"},
+		{"Button autoInsertSpace", "Button", Props{"autoInsertSpace": false},
+			func(c *Context) any { return Button(c, "确定").shownLabel() }, "确定",
+			func(c *Context) any { return Button(c, "确定").AutoInsertSpace(true).shownLabel() }, "确 定"},
 		// Already wired entries that are new since the last count.
 		{"SwitchValue", "Switch", Props{"size": "small"},
 			func(c *Context) any { v := "off"; return SwitchValue(c, &v, "on", "off").small }, true,
@@ -211,7 +211,7 @@ func TestButtonAutoInsertSpaceRules(t *testing.T) {
 	d := NewDriver(func(c *Context) {
 		got = got[:0]
 		b = Button(c, "提交").AutoInsertSpace(true)
-		plain = Button(c, "提交")
+		plain = Button(c, "提交").AutoInsertSpace(false)
 		got = append(got,
 			b.shownLabel(),
 			Button(c, "确定吗").AutoInsertSpace(true).shownLabel(),
@@ -220,7 +220,7 @@ func TestButtonAutoInsertSpaceRules(t *testing.T) {
 			Button(c, "链接").AutoInsertSpace(true).Link().shownLabel(),
 			Button(c, "文字").AutoInsertSpace(true).Text().shownLabel(),
 			Button(c, "主要").AutoInsertSpace(true).Primary().shownLabel(),
-			Button(c, "默认").shownLabel(),
+			Button(c, "默认").AutoInsertSpace(false).shownLabel(),
 		)
 	}, DriverOptions{Width: 600, Height: 200})
 	d.EnableAccessibility()

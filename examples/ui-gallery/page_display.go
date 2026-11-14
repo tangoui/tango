@@ -91,7 +91,7 @@ func spacePage(c *ui.Context) {
 		}, layout.Gap(48))
 	})
 	navDemo(c, "分隔符 / 换行", "Split 在相邻两项之间插入分隔符；Wrap 自动换行。", func() {
-		ui.Space(c).Split(func() { ui.VDivider(c) }).Body(func() {
+		ui.Space(c).Separator(func() { ui.VDivider(c) }).Body(func() {
 			ui.Link(c, "链接一")
 			ui.Link(c, "链接二")
 			ui.Link(c, "链接三")

@@ -49,6 +49,15 @@ func deriveLayout(t *Theme) LayoutToken {
 		// Site header (h-14, bg-background, border-b) and footer.
 		k.BodyBg, k.HeaderBg, k.HeaderColor, k.HeaderHeight, k.HeaderPaddingInline = t.BgContainer, t.HeaderBg, t.Text, t.HeaderHeight, t.Padding
 		k.FooterPadding, k.FooterPaddingInline = t.Padding, t.PaddingLG
+	default:
+		// antd layout/style/index.js: triggerBg is the literal '#002140'
+		// beside siderBg '#001529' in both algorithms. Tango's dark Ant
+		// sider is not #001529 (SiderBg follows the dark palette), so the
+		// dark trigger keeps deriving from SiderSubmenuBg to sit on it;
+		// the light theme's dark sider is antd's and takes antd's value.
+		if !t.Dark {
+			k.TriggerBg = Hex("#002140")
+		}
 	}
 	return k
 }

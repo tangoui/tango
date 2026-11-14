@@ -29,6 +29,10 @@ type ToggleW struct {
 	ia       Interaction
 	z        *lazy
 	radio    bool // member of a single-choice ToggleGroup: a radio
+	// grouped: a ToggleGroup item (px-3, no min-width, no shadow when
+	// the items touch).
+	grouped  bool
+	noShadow bool
 }
 
 // Toggle adds a toggle button bound to *on. label may be "" for an
@@ -84,6 +88,18 @@ func (w *ToggleW) IconOnly(ic *icon.Icon) *ToggleW { w.ic = ic; w.label = ""; re
 // Outline adds the input border and shadow (shadcn variant="outline").
 func (w *ToggleW) Outline() *ToggleW { w.outline = true; return w }
 
+// Variant sets the shadcn variant: "default" (transparent) or "outline".
+// Other values are ignored.
+func (w *ToggleW) Variant(v string) *ToggleW {
+	switch v {
+	case "default":
+		w.outline = false
+	case "outline":
+		w.outline = true
+	}
+	return w
+}
+
 // Size sets the control size.
 func (w *ToggleW) Size(s ControlSize) *ToggleW { w.size = s; return w }
 
@@ -107,12 +123,23 @@ func (w *ToggleW) font() text.Style {
 	return st
 }
 
+// padX is the inline padding: toggle.tsx px-1.5 / px-2 / px-2.5 for sm /
+// default / lg; toggle-group items px-3.
+func (w *ToggleW) padX() float32 {
+	switch {
+	case w.grouped:
+		return 12
+	case w.size == Small:
+		return 6
+	case w.size == Large:
+		return 10
+	}
+	return 8
+}
+
 func (w *ToggleW) measure(_, _ float32) geom.Size {
 	h := w.c.controlHeight(w.size)
-	pad := float32(8)
-	if w.size == Large {
-		pad = 10
-	}
+	pad := w.padX()
 	cw := float32(0)
 	if w.label != "" {
 		cw = text.Width(w.label, w.font())
@@ -123,7 +150,11 @@ func (w *ToggleW) measure(_, _ float32) geom.Size {
 		}
 		cw += 16
 	}
-	return geom.Size{W: max(h, cw+2*pad), H: h}
+	minW := h // min-w-9 / min-w-8 / min-w-10; group items min-w-0
+	if w.grouped {
+		minW = 0
+	}
+	return geom.Size{W: max(minW, cw+2*pad), H: h}
 }
 
 func (w *ToggleW) paint(l *paint.List, r geom.Rect) {
@@ -144,7 +175,7 @@ func (w *ToggleW) paint(l *paint.List, r geom.Rect) {
 	bg = theme.Lerp(bg, th.ItemSelectedBg, on)
 	fg = theme.Lerp(fg, th.ItemSelected, on)
 	if w.outline {
-		if len(th.InputShadow) > 0 {
+		if len(th.InputShadow) > 0 && !w.noShadow {
 			l.Shadows(r, rad, th.InputShadow)
 		}
 		if bg.A < 255 {
@@ -195,15 +226,21 @@ type ToggleGroupW struct {
 	single  bool
 	outline bool
 	size    ControlSize
+	spacing int
 	changed bool
 	z       *lazy
 	nodes   []*node
 }
 
 // ToggleGroup adds one toggle per option bound to the selected values
-// (multiple selection; Single keeps at most one).
+// (multiple selection; Single keeps at most one). The toggles touch, with
+// only the outer corners rounded, unless Spacing separates them.
+//
+// ConfigProvider.Defaults("ToggleGroup", ...) keys: "size", "variant"
+// ("default" | "outline"), "spacing" (int).
 func ToggleGroup(c *Context, selected *[]string, opts []Option) *ToggleGroupW {
-	g := &ToggleGroupW{c: c, sel: selected, opts: opts, size: c.defaultSize(), outline: Prop(c, "ToggleGroup", "variant", "") == "outline"}
+	g := &ToggleGroupW{c: c, sel: selected, opts: opts, size: c.defaultSize(), outline: Prop(c, "ToggleGroup", "variant", "") == "outline",
+		spacing: Prop(c, "ToggleGroup", "spacing", 0)}
 	if sz, ok := s2cSize(c, "ToggleGroup"); ok { // ConfigProvider.Defaults("ToggleGroup", ...): size, variant
 		g.size = sz
 	}
@@ -224,6 +261,25 @@ func (g *ToggleGroupW) Single() *ToggleGroupW { g.single = true; return g }
 // Outline joins the toggles into one bordered strip.
 func (g *ToggleGroupW) Outline() *ToggleGroupW { g.outline = true; return g }
 
+// Variant sets the variant of every toggle: "default" or "outline".
+// Other values are ignored.
+func (g *ToggleGroupW) Variant(v string) *ToggleGroupW {
+	switch v {
+	case "default":
+		g.outline = false
+	case "outline":
+		g.outline = true
+	}
+	return g
+}
+
+// Spacing sets the gap between the toggles in Tailwind spacing units of
+// 4px (shadcn toggle-group spacing, default 0). With 0 the toggles touch
+// and only the group's outer corners are rounded; otherwise every toggle
+// is rounded (and bordered when outlined) on its own. Negative values are
+// treated as 0.
+func (g *ToggleGroupW) Spacing(n int) *ToggleGroupW { g.spacing = max(0, n); return g }
+
 // Size sets the size of every toggle.
 func (g *ToggleGroupW) Size(s ControlSize) *ToggleGroupW { g.size = s; return g }
 
@@ -235,9 +291,8 @@ func (g *ToggleGroupW) Changed() bool { g.z.run(); return g.changed }
 
 func (g *ToggleGroupW) build() {
 	c := g.c
-	if !g.outline {
-		g.n.ln.Gap = 4
-	}
+	joined := g.spacing <= 0
+	g.n.ln.Gap = float32(max(0, g.spacing)) * 4
 	rad := c.controlRadius(g.size)
 	// A single-choice group is a radio group, a multiple one a toolbar;
 	// either way it is one Tab stop and the arrow keys move between the
@@ -253,6 +308,7 @@ func (g *ToggleGroupW) build() {
 	for i, o := range g.opts {
 		on := contains(*g.sel, o.Value)
 		t := Toggle(c, o.Label, &on).Size(g.size).Disabled(o.Disabled)
+		t.grouped = true
 		g.nodes = append(g.nodes, t.n)
 		if on && cur < 0 {
 			cur = i
@@ -266,7 +322,12 @@ func (g *ToggleGroupW) build() {
 		}
 		if g.outline {
 			t.Outline()
-			// Round the group's outer (inline start / end) corners.
+		}
+		if joined {
+			// rounded-none, first:rounded-l-md last:rounded-r-md (the
+			// inline start / end), shadow-none; outlined items share
+			// their borders (border-l-0).
+			t.noShadow = true
 			var r geom.Radii
 			left, right := i == 0, i == len(g.opts)-1
 			if c.IsRTL() {
@@ -279,7 +340,7 @@ func (g *ToggleGroupW) build() {
 				r.TR, r.BR = rad, rad
 			}
 			t.radii = &r
-			if i > 0 {
+			if g.outline && i > 0 {
 				t.n.ln.Margin.Left = -1
 			}
 		}

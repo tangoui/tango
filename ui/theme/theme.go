@@ -304,7 +304,7 @@ type Theme struct {
 	SiderCollapsed  float32
 	SiderText       Color // menu text on dark sider
 	SiderTextActive Color
-	// Deprecated: use Components.Menu.DarkSubMenuItemBg / Components.Layout.TriggerBg (the field remains the source of the derived default).
+	// Deprecated: use Components.Menu.DarkSubMenuItemBg / Components.Layout.TriggerBg (the field remains the source of the derived default of Components.Menu.DarkSubMenuItemBg, and of Layout.TriggerBg except in the light Ant theme, which uses antd's #002140).
 	SiderSubmenuBg   Color
 	SiderItemHoverBg Color
 	// Deprecated: use Components.Menu.ItemHeight (the field remains the source of the derived default).

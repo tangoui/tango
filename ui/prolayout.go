@@ -309,8 +309,10 @@ func Content(c *Context, fn func(), opts ...layout.Option) *Box {
 	return layoutRegion(c, contentTag, layout.Column, def, opts, fn)
 }
 
-// Footer is the bottom bar (Ant: centred, 24px/50px padding; Element: 60px
-// high, 20px padding).
+// Footer is the bottom bar (Ant: 24px/50px padding on the layout
+// background; Element: 60px high, 20px padding). Its content starts at the
+// inline start like Ant's and Element's footers (neither centres it; pass
+// layout.Center() for the centred footer of the Ant demos).
 func Footer(c *Context, fn func(), opts ...layout.Option) *Box {
 	tk := &c.ThemeFor(theme.CompLayout).Components.Layout
 	pad := layout.PadVH(tk.FooterPadding, tk.FooterPaddingInline)
@@ -318,10 +320,10 @@ func Footer(c *Context, fn func(), opts ...layout.Option) *Box {
 		return layoutRegion(c, footerTag, layout.Row, []layout.Option{layout.H(60), pad, layout.Middle()}, opts, fn)
 	}
 	if shad2d(c) {
-		b := layoutRegion(c, footerTag, layout.Row, []layout.Option{pad, layout.Center(), layout.Gap(8)}, opts, fn)
+		b := layoutRegion(c, footerTag, layout.Row, []layout.Option{pad, layout.Middle(), layout.Gap(8)}, opts, fn)
 		return b.Paint(shad2dTopLine(c.Theme.BorderSecondary))
 	}
-	return layoutRegion(c, footerTag, layout.Row, []layout.Option{pad, layout.Center()}, opts, fn)
+	return layoutRegion(c, footerTag, layout.Row, []layout.Option{pad, layout.Middle()}, opts, fn)
 }
 
 // ProLayoutConfig configures the admin shell.
