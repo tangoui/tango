@@ -1,4 +1,4 @@
-//go:build !darwin && !android || !cgo
+//go:build (!darwin && !android) || !cgo
 
 package main
 

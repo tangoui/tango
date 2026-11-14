@@ -2,7 +2,9 @@ package buffer
 
 import (
 	"math/rand/v2"
+	"os"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -126,6 +128,11 @@ func TestComposeLinear(t *testing.T) {
 	limit := 100 * time.Millisecond
 	if raceEnabled {
 		limit *= 10
+	}
+	// Shared CI runners (TANGO_SMOKE_TIMEOUT_SCALE, which CI sets) vary by
+	// 2x and more; a quadratic compose misses the gate by far more.
+	if f, err := strconv.ParseFloat(os.Getenv("TANGO_SMOKE_TIMEOUT_SCALE"), 64); err == nil && f > 1 {
+		limit = time.Duration(float64(limit) * 2 * f)
 	}
 	if d := time.Since(start); d > limit {
 		t.Errorf("30 composes of %d spans took %v, want ≤ %v", n, d, limit)

@@ -221,8 +221,8 @@ type assetResult struct {
 	// header: Android WebView adds a Content-Length of its own, the
 	// InputStream's available() at the start, so a header would make two.
 	// Page.respond reports Length through available() instead.
-	Length int64
-	Body     []byte   // whole body when Stream is nil
+	Length   int64
+	Body     []byte // whole body when Stream is nil
 	Stream   *assetWriter
 	Injected bool // the bridge script was inserted into this HTML
 	cancel   context.CancelFunc
