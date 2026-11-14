@@ -123,7 +123,7 @@ func (w *RangePickerW) timeArea() {
 						t.Color(th.TextSecondary)
 					}
 					dt := w.disabledTimes(st.draft[i], i)
-					TimePanel(c, &st.draft[i]).Format(tf).Height(colH).A11yLabel(labels[i]).
+					timePanel(c, &st.draft[i]).Format(tf).Height(colH).A11yLabel(labels[i]).
 						DisabledHours(dt.Hours).DisabledMinutes(dt.Minutes).DisabledSeconds(dt.Seconds)
 				}, layout.W(dtPanelWidth(th)), layout.PadVH(8, 12), layout.Gap(4), layout.Middle())
 				if i == 0 {

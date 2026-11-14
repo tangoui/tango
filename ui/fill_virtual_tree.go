@@ -123,6 +123,7 @@ func VirtualTree(c *Context, nodes []TreeNode) *VirtualTreeW {
 	})
 	w := &VirtualTreeW{c: c, nodes: nodes, st: st, height: 200}
 	w.expanded, w.checked, w.current = &st.expandedKeys, &st.checkedKeys, &st.currentKey
+	w.configDefaults() // Defaults("VirtualTree", ...): checkStrictly, expandOnClickNode, checkOnClickNode
 	return w
 }
 

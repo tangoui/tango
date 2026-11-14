@@ -28,11 +28,11 @@
 
 | 对标 | 总数 | ✅ 完整 | ⚠️ 部分 | ❌ 缺失 | 补齐前（2026-11-13 复核） |
 |---|---|---|---|---|---|
-| Ant Design v6 | 72 | 71 | 1 | 0 | 72：56 / 16 / 0 |
-| Element Plus | 79 | 78 | 1 | 0 | 79：59 / 20 / 0 |
+| Ant Design v6 | 72 | 72 | 0 | 0 | 72：56 / 16 / 0 |
+| Element Plus | 79 | 79 | 0 | 0 | 79：59 / 20 / 0 |
 | Pro Components | 28 | 27 | 1 | 0 | 28：21 / 7 / 0 |
 
-2026-11-14 补齐：剩下的"部分"是 ConfigProvider（`Defaults` 接线，Ant、Element 各一行）和 FooterToolbar（毛玻璃，需要渲染层的背景模糊）。另按 shadcn/ui 新增 Menubar、AspectRatio、Item。
+2026-11-14 补齐：剩下的"部分"是 ConfigProvider（`Defaults` 接线，Ant、Element 各一行）和 FooterToolbar（毛玻璃，需要渲染层的背景模糊）。另按 shadcn/ui 新增 Menubar、AspectRatio、Item。同日 groupG 补完 `Defaults` 接线（141 已接线 / 36 不适用 / 0 未接线，见 6.1）并加上 Element 的 button.autoInsertSpace、message.max，ConfigProvider 两行改为 ✅；只剩 FooterToolbar 一项"部分"。
 
 **稳定性验证（2026-11-14，HEAD `f3ba799`，Windows）**：上表全部 ✅ 组件（含当天补齐的 Button/ButtonGroup、Steps、Segmented、Timeline、DatePicker/MultiDatePicker、ColorPicker 渐变、Statistic/StatisticTimer、Switch、Checkbox/Radio、AutoComplete、Mentions、Select、Cascader、TreeSelect、Upload、Card、Tour、Message、Pro 系列，以及 Menubar、AspectRatio、Item）判定为**稳定**：
 
@@ -138,7 +138,7 @@ ConfigProvider、FooterToolbar 仍是 ⚠️：缺的是功能，不是稳定性
 | Affix | `Affix` | ✅ | — | nav_affix.go `OffsetTop/OffsetBottom/Target` |
 | App | `App`、`UseApp` | ✅ | 次要：不做基础文本样式重置（Text 本来就取主题色和字体） | pro4_app.go `AppW.Message(AppMessageConfig{Duration,MaxCount})/Notification(AppNotificationConfig{Placement,Duration,MaxCount,ShowProgress})/Body`；`UseApp` 返回 `AppAPI.Message/Notification/Confirm/Info` |
 | BorderBeam | `BorderBeam` | ✅ | — | fill_border_beam.go |
-| ConfigProvider | `ConfigProvider` | ⚠️ | `Components`（组件令牌）与 `Direction`（RTL）已接入（见 rtl-and-component-tokens.md）；`Defaults` 接线到 106/164 个公开组件（见第 6 节） | nav_config.go `Size/Locale/Defaults/ComponentDisabled/Theme/Flavor/Dark/PrimaryColor/Compact/HighContrast` |
+| ConfigProvider | `ConfigProvider` | ✅ | `Components`（组件令牌）与 `Direction`（RTL）已接入（见 rtl-and-component-tokens.md）；`Defaults` 接线 141/177 个公开入口，其余 36 个逐个说明为不适用，未接线 0（见 6.1）；全局 `button.autoInsertSpace` 对应 `Defaults("Button", {"autoInsertSpace"})` / `ButtonW.AutoInsertSpace` | nav_config.go `Size/Locale/Defaults/ComponentDisabled/Theme/Flavor/Dark/PrimaryColor/Compact/HighContrast`；ui/defaults_more.go；ui/defaults_more_test.go |
 
 ## 3. Element Plus（79）
 
@@ -157,7 +157,7 @@ ConfigProvider、FooterToolbar 仍是 ⚠️：缺的是功能，不是稳定性
 | Space | `Space` | ✅ | — | nav_space.go `Split/Wrap/Size` |
 | Splitter | `Splitter` | ✅ | — | nav_splitter.go `Lazy`、`CollapseToggle`（单方向折叠） |
 | **Configuration** | | | | |
-| Config Provider | `ConfigProvider` | ⚠️ | 同 Ant 那一行；Element 的 button.autoInsertSpace、message.max 等无对应 | nav_config.go |
+| Config Provider | `ConfigProvider` | ✅ | 同 Ant 那一行；Element 的 button.autoInsertSpace → `Defaults("Button", {"autoInsertSpace": true})`（Element 默认 false，本仓库默认也关）或 `ButtonW.AutoInsertSpace`；message.max → `Defaults("Message", {"maxCount": n})` | nav_config.go；ui/defaults_more.go `messageMaxCount`；button.go `shownLabel`；ui/defaults_more_test.go `TestButtonAutoInsertSpaceRules`、`TestMessageMaxCount` |
 | **Form** | | | | |
 | Autocomplete | `AutoComplete` | ✅ | — | entry_autocomplete.go `TriggerOnFocus()`（异步取数用 `Remote/Debounce/Loading`，聚焦时立即调用一次） |
 | Cascader | `Cascader`、`CascaderPanel` | ✅ | — | entry_cascader.go `FilterMethod`（filter-method）、`DisplayRender`（覆盖 show-all-levels/separator）；entry_cascader_panel.go `CascaderPanel`（内嵌面板，`Multiple/LoadData/ShowCheckedStrategy/StrategyValue/Height/Border`）；懒加载与勾选策略见 Ant 那一行 |
@@ -284,7 +284,7 @@ ConfigProvider、FooterToolbar 仍是 ⚠️：缺的是功能，不是稳定性
 - `-theme all` = antd，再加 antd-dark、element（亮 + 暗）、shadcn（亮 + 暗）三轮，每个非变体页面都出这六种图。
 - 画廊首页 `gallery.Home` 能在 Ant / Element / shadcn 与暗色之间切换。
 - shadcn 是**主题轮次**，不是逐页手写的变体。全仓只有 `page_shadcn.go` 一个 shadcn 专属页（ShadcnDashboard，以及 Command/Toggle/Kbd 等）。
-- 对标 shadcn 新增（groupF，2026-11-14）：`Menubar`（✅ menubar.go，下拉面板复用 nav_dropdown.go `navMenuPopup` + `navMarks` 勾选/单选指示；页面 page_menubar.go）、`AspectRatio`（✅ aspect_ratio.go；page_aspect_ratio.go）、`Item`/`ItemGroup`（✅ item.go；page_item.go）。三者在 Ant / Element / shadcn 亮暗下均有截图；令牌 `Components.Menubar` / `Components.Item`。未接 `ConfigProvider.Defaults`。
+- 对标 shadcn 新增（groupF，2026-11-14）：`Menubar`（✅ menubar.go，下拉面板复用 nav_dropdown.go `navMenuPopup` + `navMarks` 勾选/单选指示；页面 page_menubar.go）、`AspectRatio`（✅ aspect_ratio.go；page_aspect_ratio.go）、`Item`/`ItemGroup`（✅ item.go；page_item.go）。三者在 Ant / Element / shadcn 亮暗下均有截图；令牌 `Components.Menubar` / `Components.Item`。`ConfigProvider.Defaults`：Item（variant/size）、ItemGroup（split/bordered）已接线（groupG）；Menubar、AspectRatio 记为不适用（见 6.1）。
 
 ### 5.2 本次渲染结果（2026-11-14 重跑，HEAD `f3ba799`，Windows，`-theme all -scale 1`）
 
@@ -337,8 +337,8 @@ ConfigProvider、FooterToolbar 仍是 ⚠️：缺的是功能，不是稳定性
 |---|---|---|
 | RTL | ✅ | 基础层与组件层均已完成（2026-11-13）：`ConfigProvider.Direction`/Locale 推断、布局镜像（`layout.Physical()` 逃生口）、逻辑滚动、逻辑浮层位置、方向性图标镜像、`TextAlign` Start/End、方向键换向；全部组件已迁移（输入/选择/日期/滑块/导航/菜单/表格/树/反馈/表单/编辑器 RTL 行对齐）。时间列、数字输入、代码固定 LTR。`Driver.MirrorCheck` 与 gallery `-dir rtl`、`-mirror-check` 用于回归。原遗留项均已完成：混排文本视觉光标移动（Q12 第二期，ui/editor.go `visualStep`）；a11y 方向标记（`a11y.Node.RTL`/`Tree.RTL`，Linux AT-SPI 文本属性 `direction` 已实现，Windows UIA / macOS NSAccessibility 无对应元素属性、记为不适用，见 docs/accessibility.md）；图标未镜像检查（`paint.List.IconNote` + `Driver.MirrorCheck`/`Audit`，ui/icon_dir.go）；mobile/chart 子包 RTL（A4，ui/mobile、ui/chart 的 rtl_test.go）。 |
 | 组件级主题令牌（类似 `theme.components`） | ✅ | `theme.Components` 共 54 个组件令牌类型（`theme.NumComps`，Button … Form，ui/theme/comp_*.go），全部有派生默认值，对应组件均已改读令牌，零值继承与哨兵、组件 Alias 重派生、HighContrast 覆盖组件令牌、`CSSVarsWith`；`ConfigProvider.Components/Theme/Dark…` 嵌套局部生效；默认值与原绘制逐像素一致。共享下拉面板 `entStylePanel` 读 Select 令牌（含 `PopupRadius/PopupShadow`）；Menu 弹出子菜单读 Menu 令牌自己的 `Popup*` 字段，不受 Dropdown 覆盖影响；TimeSelect 选项读 Select 令牌的 Option 字段。`Theme` 上已有组件令牌对应的扁平组件字段标注 `Deprecated:`（仍作为派生来源保留）。 |
-| ConfigProvider.Defaults 接线 | ⚠️ 106/164 ≈ 65% | 见 6.1 |
-| 全局尺寸 | ⚠️ | `ConfigProvider.Size` → `c.ComponentSize()` / `defaultSize()` / `sizeOr()`，约 25 个文件读取：button、choice、data_card、data_collapse、data_list、date、entry_color、entry_datepanel、entry_daterange、entry_inputx、entry_mentions、entry_otp、entry_segmented、fill_color_panel、input、more_timeselect、nav、nav_dropdown、nav_steps、p2a_time_range、pro2_card、pro2_checkcard、pro3_lightfilter、select、selector、shad_toggle、table、feedback。另有大量组件读 `Defaults` 里的 "size"：Tag/Tabs/Pagination/Steps/Space/Form，以及 shad2a_defaults.go `shad2aSize`（Button、RadioGroup、Input 系、选择器等）、shad2a_tree.go `shad2aTreeSize`（Cascader、TreeSelect）、shad2c_defaults.go `s2cSize`（Spin、Steps、Toggle、ToggleGroup）、shad2d_util.go `proPropSize`（Pro 组件）。没读的有 Slider、Checkbox（本身也没有 Size）。 |
+| ConfigProvider.Defaults 接线 | ✅ 141/177，其余 36 不适用 | 见 6.1 |
+| 全局尺寸 | ⚠️ | `ConfigProvider.Size` → `c.ComponentSize()` / `defaultSize()` / `sizeOr()`，约 25 个文件读取：button、choice、data_card、data_collapse、data_list、date、entry_color、entry_datepanel、entry_daterange、entry_inputx、entry_mentions、entry_otp、entry_segmented、fill_color_panel、input、more_timeselect、nav、nav_dropdown、nav_steps、p2a_time_range、pro2_card、pro2_checkcard、pro3_lightfilter、select、selector、shad_toggle、table、feedback。另有大量组件读 `Defaults` 里的 "size"：Tag/Tabs/Pagination/Steps/Space/Form，以及 shad2a_defaults.go `shad2aSize`（Button、RadioGroup、Input 系、选择器等）、shad2a_tree.go `shad2aTreeSize`（Cascader、TreeSelect）、shad2c_defaults.go `s2cSize`（Spin、Steps、Toggle、ToggleGroup）、shad2d_util.go `proPropSize`（Pro 组件）。没读的有 Slider（本身没有 Size）。Checkbox/Radio 另读 `Defaults("Checkbox"/"Radio", {"size"})`（ui/defaults_more.go）。 |
 | 主题 / 设计语言 | ✅ | `theme.AntDesign`、`theme.ElementPlus`、`theme.Shadcn`；`ConfigProvider.Flavor/PrimaryColor`；图表用 `chart.RegisterStyle` 按风格注册。 |
 | 暗色 | ✅ | `theme.Dark()`、`ConfigProvider.Dark` |
 | 紧凑 | ✅ | `theme.Compact()`、`ConfigProvider.Compact` |
@@ -350,27 +350,58 @@ ConfigProvider、FooterToolbar 仍是 ⚠️：缺的是功能，不是稳定性
 
 ### 6.1 ConfigProvider.Defaults 接线清单
 
-- **统计方法**：grep `ConfigProp(`、`Prop(c, "X"`、`propString/propBool/propFloat/propInt64`、`p2bBool/p2bNum/p2bStr/p2bDur`、`p2bSelectDefaults`、p2a_date.go 的 `p.comp`，复核时另加 `proPropInt/proPropSize/proPropPageSize`（shad2d_util.go）、`shad2aSize/shad2aTreeSize`、`s2cSize/messageDuration`（shad2c_defaults.go）、`dataPropCols/dataPropSize`（data_util.go）、`formPropSize`，以及以组件名为参数的 `sizeDefaults("Input")`、`shadDefaults("InputTag")`、`ModalFormW.defaults("ModalForm")` 等，取出读取到的组件名。入口直接调用另一个已接线入口、或读别的组件键的，也算接线（与 MultiSelect 读 "Select" 键同一口径）。
-- **分母**：164 个公开入口。即 `func Xxx(c *Context…)`（含 ProTable/EditableProTable/ProList 这类泛型入口），去掉 Row/Column/Div/StackBox/Custom/Spacer/Gap/Key/Disabled/Overlay/HoverDelay/SetHoverOpen/ScreenBreakpoint/OpenDialogs/MessageDestroy/NotificationDestroy/ConfigProvider 这些基础件；复核时新出现的入口里，再去掉工具函数和取值钩子 Prop/State/UseApp/RouteContext/CloseContextMenu/ContextMenuOpen/ProSettingsProvider/ProFormItems，以及 ContextMenuAt 的选项变体 ContextMenuAtWith。比上次多出的 6 个是 App、CascaderPanel、ContextMenuAt、GridContent、ProFormGroup、SettingDrawer。`FormList[T]`（读 "ProFormList" 键）的第一个参数是 `*FormW` 不是 `*Context`，不计入分母。
+- **统计方法**：grep `ConfigProp(`、`Prop(c, "X"`、`propString/propBool/propFloat/propInt64`、`p2bBool/p2bNum/p2bStr/p2bDur`、`p2bSelectDefaults`、p2a_date.go 的 `p.comp`，复核时另加 `proPropInt/proPropSize/proPropPageSize`（shad2d_util.go）、`shad2aSize/shad2aTreeSize`、`s2cSize/messageDuration`（shad2c_defaults.go）、`dataPropCols/dataPropSize`（data_util.go）、`formPropSize`，以及以组件名为参数的 `sizeDefaults("Input")`、`shadDefaults("InputTag")`、`ModalFormW.defaults("ModalForm")` 等，取出读取到的组件名。入口直接调用另一个已接线入口、或读别的组件键的，也算接线（与 MultiSelect 读 "Select" 键同一口径）。2026-11-14 补的接线集中在 ui/defaults_more.go（各构造函数里一行 `configDefaults()`），新键一律用常量组件名和键名调用 `Prop` / `c.ConfigProp`，因此都进了 api/go/ui.txt 的 prop 行（R11）。
+- **分母**：177 个公开入口。即 `func Xxx(c *Context…)`（含 ProTable/EditableProTable/ProList 这类泛型入口），去掉 Row/Column/Div/StackBox/Custom/Spacer/Gap/Key/Disabled/Overlay/HoverDelay/SetHoverOpen/ScreenBreakpoint/OpenDialogs/MessageDestroy/NotificationDestroy/ConfigProvider 这些基础件，以及工具函数和取值钩子 Prop/State/UseApp/RouteContext/CloseContextMenu/ContextMenuOpen/ProSettingsProvider/ProFormItems 和 ContextMenuAt 的选项变体 ContextMenuAtWith。比 164 多出的 13 个是 AspectRatio、ButtonGroup、ColorPickerGradient、ColorPickerPanelGradient、DefaultFooter、Item、ItemGroup、Menubar、MultiDatePicker、ProFieldOf、SchemaForm、StatisticTimer、SwitchValue。`FormList[T]`（读 "ProFormList" 键）的第一个参数是 `*FormW` 不是 `*Context`，不计入分母。
+- **结果**：已接线 141，不适用 36，未接线 0。
 
-**已接线（106）**
+**已接线（141）**
 
-Affix、Alert、Anchor、App、AutoComplete、Avatar、Badge、Breadcrumb、BreadcrumbItems（读 "Breadcrumb" 键）、Button、Calendar、Card、Carousel、Cascader、CheckCard、CheckCardGroup（读 "CheckCard" 键）、Collapse、CollapsibleSider（读 "Sider" 键）、ColorPicker、Confirm、DatePicker、DateTimePicker、Descriptions、Divider、Drawer、DrawerForm、Dropdown、EditableProTable、Empty、FloatButton、FooterToolbar、Form、GridContent、GridRow、Header、Image、Input、InputNumber、InputTag、LightFilter、List、LoginForm、LoginFormPage、Masonry、Mentions、Menu、Message、MessageBox（读 "Confirm"/"Modal" 键）、Modal、ModalForm、MultiSelect（读 "Select" 键）、Notification、OTP、PageContainer、PageHeader、Pagination、Popconfirm、Popover、ProCard、ProDescriptions、ProForm、ProFormFieldSet、ProFormGroup、Progress、ProLayout、ProList、Prompt（读 "Confirm"/"Modal" 键）、ProSkeleton、ProTable、QRCode、QueryFilter、RadioGroup（读 "Radio" 键）、RangePicker、Rate、Search、Segmented、Select、SettingDrawer、Sider、Skeleton、Slider、SliderRange（直接调用 Slider）、Space、Spin、Splitter、StatisticCard、StatisticCardGroup（直接调用 ProCard）、Steps、StepsForm、Switch、Table、Tabs、Tag、TextArea、Timeline、TimePicker、TimeRangePicker、TimeSelect、Toggle、ToggleGroup、Tooltip、Transfer、Tree、TreeSelect、Upload、VirtualSelect（读 "Select" 键）。
+Addon、Affix、Alert、Anchor、App、AutoComplete、Avatar、AvatarGroup、BackTop、Badge、BadgeRibbon、Breadcrumb、BreadcrumbItems（读 "Breadcrumb" 键）、Button、ButtonGroup、Calendar、Card、Carousel、Cascader、CascaderPanel（读 "Cascader" 键）、CheckAll（直接调用 Checkbox/CheckboxGroup）、Checkbox、CheckboxGroup（读 "Checkbox" 键）、CheckCard、CheckCardGroup（读 "CheckCard" 键）、Collapse、CollapsibleSider（读 "Sider" 键）、ColorPicker、ColorPickerGradient（直接调用 ColorPicker）、ColorPickerPanel（读 "ColorPicker" 键）、ColorPickerPanelGradient（直接调用 ColorPickerPanel）、Command、Compact、Confirm、Countdown、DatePicker、DatePickerPanel（读 "DatePicker" 键）、DateTimePicker、Descriptions、Divider、Drawer、DrawerForm、Dropdown、EditableProTable、Empty、FieldSet（直接调用 ProFormFieldSet）、Flex、FloatButton、FloatButtonGroup、FooterToolbar、Form、GridContent、GridRow、Header、Image、InfiniteScroll、Input、InputNumber、InputTag、Item、ItemGroup、LightFilter、List、Listy、Loading（读 "Spin" 键）、LoginForm、LoginFormPage、MarkdownEditor、Masonry、Mentions、Menu、Message、MessageBox（读 "Confirm"/"Modal" 键）、Modal、ModalForm、MultiDatePicker（读 "DatePicker" 键）、MultiSelect（读 "Select" 键）、Notification、OTP、PageContainer、PageHeader、Pagination、Popconfirm、Popover、ProCard、ProDescriptions、ProFieldOf（读 "ProField" 键）、ProForm、ProFormFieldSet、ProFormGroup、Progress、ProLayout、ProList、Prompt（读 "Confirm"/"Modal" 键）、ProSkeleton、ProTable、QRCode、QueryFilter、Radio、RadioGroup（读 "Radio" 键）、RangePicker、Rate、SchemaForm、Search、Segmented、Select、SettingDrawer、Sider、Skeleton、Slider、SliderRange（直接调用 Slider）、Space、Spin、Splitter、SplitterPanel、StatisticCard、StatisticCardGroup（直接调用 ProCard）、StatisticTimer（读 "Countdown" 键）、Steps、StepsForm、Switch、SwitchValue（直接调用 Switch）、Table、Tabs、Tag、TextArea、Timeline、TimePanel（读 "TimePicker" 键）、TimePicker、TimeRangePicker、TimeSelect、Toggle、ToggleGroup、Tooltip、Tour、Transfer、Tree、TreeSelect、Upload、VirtualSelect（读 "Select" 键）、VirtualTree。
 
-**未接线（58）**
+**2026-11-14 新增的键**（测试：ui/defaults_more_test.go `TestDefaultsWiring` 表驱动，每项断言默认值生效、显式调用优先；另有 `TestButtonAutoInsertSpaceRules`、`TestMessageMaxCount`、`TestFieldSetDefaults`、`TestTimeRangePanelsIgnoreTimePickerDefaults`）
 
-- 通用 / 布局：Addon、BackTop、BorderBeam、Col、Compact、Content、Flex、FloatButtonGroup、Footer、Icon、IconButton、Kbd、Layout、Scroll、ScrollH、SplitterPanel、VDivider。
-- 导航：AnchorSection、Command、ContextMenuAt。
-- 录入：CascaderPanel、CheckAll、Checkbox、CheckboxGroup、ColorPickerPanel、DatePickerPanel、DropZone、Radio、TimePanel、MarkdownEditor。
-- 展示：AvatarGroup、BadgeRibbon、CardAction、CardMeta、CheckableTag、Countdown、InfiniteScroll、Link、ListActions、ListItemMeta、Listy、Markdown、Paragraph、Result、RichText、SkeletonAvatar、SkeletonButton、SkeletonImage、SkeletonInput、Statistic、Text、Title、Tour、VirtualList、VirtualTree、Watermark。
-- 反馈：Loading。
-- Pro：FieldSet。
+| 组件键 | 键 | 值类型 | 读取方 |
+|---|---|---|---|
+| Addon | size | ControlSize 或 "small"/"middle"/"large" | Addon |
+| BackTop | visibilityHeight、duration | 数字（px）；time.Duration 或毫秒数 | BackTop |
+| Compact | block | bool | Compact |
+| Flex | gap | ControlSize、尺寸名或 px 数字 | Flex |
+| FloatButtonGroup | shape（"square"）、trigger（"click"/"hover"）、type（"primary"） | string | FloatButtonGroup |
+| SplitterPanel | collapsible、resizable | bool | SplitterPanel |
+| Command | placeholder、emptyText | string | Command |
+| Checkbox | size | 同 Addon | Checkbox、CheckboxGroup（CheckAll 经由二者） |
+| Radio | size（原来只有 RadioGroup 读） | 同 Addon | Radio |
+| MarkdownEditor | mode（"edit"/"split"/"preview"）、placeholder | string | MarkdownEditor |
+| AvatarGroup | maxCount | 数字 | AvatarGroup |
+| BadgeRibbon | placement（"start"/"end"，参数为 "" 时生效） | string | BadgeRibbon |
+| Countdown | format | string | Countdown、StatisticTimer |
+| InfiniteScroll | distance | 数字（px） | InfiniteScroll |
+| Listy | split、rowHoverable | bool | Listy |
+| Tour | type（"primary"）、mask、arrow | string / bool | Tour |
+| VirtualTree | checkStrictly、expandOnClickNode、checkOnClickNode | bool | VirtualTree |
+| Item | variant、size | ItemVariant / ItemSize 或其字符串 | Item |
+| ItemGroup | split、bordered | bool | ItemGroup |
+| ButtonGroup | size、type（Button 的 type/variant 名） | 同 Addon / string | ButtonGroup |
+| Button | autoInsertSpace | bool | Button（另有 `ButtonW.AutoInsertSpace(on)`） |
+| Message | maxCount | 数字（0 不限） | Message |
+
+复用已有键（不新增 API）：CascaderPanel 读 "Cascader" 的 expandTrigger/changeOnSelect/showCheckedStrategy/strategyValue；ColorPickerPanel 读 "ColorPicker" 的 size/allowClear/disabledAlpha/format；DatePickerPanel 读 "DatePicker" 的 picker；TimePanel 读 "TimePicker" 的 format/use12Hours/hourStep/minuteStep/secondStep/hideDisabledOptions（TimeRangePicker 内部的时间列改用不读默认值的 `timePanel`，行为不变）；MultiDatePicker 读 "DatePicker" 的 format/placeholder/picker/allowClear/width/size；Loading 读 "Spin" 的 size/tip。
+
+**不适用（36）**——没有值得在作用域里统一设默认值的行为/结构属性，不硬凑：
+
+- 纯布局容器：Col（span/offset 等只对单个格子有意义）、Content、Footer、Layout（只有 layout.Option）、Scroll、ScrollH（滚动容器，Both/Always 是单实例的滚动区设置）、AspectRatio（比例是构造参数，Radius/MaxWidth 是视觉数值）。
+- 只有视觉数值（应走组件令牌）：BorderBeam（颜色/渐变/时长/线宽/尺寸）、Icon（尺寸/颜色/旋转）、IconButton（尺寸/颜色/去悬停底色）、Watermark（旋转/间距/字号/颜色/图片）、VDivider（无参数，尺寸来自 Divider 令牌）、DropZone（只有高亮开关）、Kbd（无选项）、Markdown、RichText（字号/颜色/对齐；NoSelect/NoCopy 是针对某段内容的设置）。
+- 内容由参数或子件决定、没有选项：AnchorSection（Anchor 的目标区块）、CardAction、CardMeta（Card 的子件）、ListActions、ListItemMeta（List 的子件）、Menubar（只有 A11yLabel）、Result（status/title 是参数，其余是内容插槽）、DefaultFooter（链接与版权是页面内容）、ContextMenuAt（一次性打开的菜单，唯一选项 NoAutoSelect 是给编辑器用的单次设置）。
+- 排版：Text、Title、Paragraph（Type/Strong/Ellipsis 等逐段决定，Ant ConfigProvider 的 typography 也只有 className/style）、Link（Type 是颜色语义；且日期面板"今天/此刻"、可编辑表格的保存/取消等内部都用 Link，默认 type 会串进这些组件）、CheckableTag（只有颜色 type、图标和禁用）。
+- 参数已全部显式：SkeletonAvatar、SkeletonButton、SkeletonImage、SkeletonInput（size/shape/active 都是必填参数，没有"未设置"状态，不改签名就无法套默认值；整体骨架屏用 Skeleton 的 "active"/"round"）、Statistic（precision 是参数，千分位随 Locale）。
+- 单实例数值：VirtualList（itemHeight 是参数，Height/Overscan 依赖具体列表）。
 
 **说明**
 
-- 未接线的组件里，有些通过全局 Size 间接受 ConfigProvider 影响，例如 Checkbox/Radio（choice.go）、ColorPickerPanel（fill_color_panel.go 用 `c.defaultSize()`）。
-- 单个 `Radio` 不读 "Radio" 键（只有 `RadioGroupW.configDefaults` 读），所以 Radio 计为未接线、RadioGroup 计为已接线。
-- **最值得补的**：Checkbox/CheckboxGroup 与单个 Radio；Panel 类（CascaderPanel/ColorPickerPanel/DatePickerPanel）复用对应选择器的键。
+- Checkbox/Radio 只接 "size"，不接 border 一类外观键：Table、Tree、Transfer、ProList 等 20 多处内部直接复用 Checkbox/Radio，外观默认值会串进去；"size" 与全局 `ConfigProvider.Size` 原本就会影响这些内部复选框，口径一致。
+- 只有"打开"方法、没有"关闭"方法的开关（Compact.block、Tour 的 mask/arrow、ItemGroup 的 split/bordered），默认值设成另一侧后无法逐个改回，与 Button "block" 等已有键相同。
+- `button.autoInsertSpace`：Element 文档默认 false，Ant 默认 true。本仓库三套风格默认都关（保持现有渲染），Ant 应用需要时用 `Defaults("Button", Props{"autoInsertSpace": true})` 打开；只对两个汉字、无图标、非 text/link 外观的按钮生效，无障碍名称保持原文。
+- `message.max`：键名按 Ant 的 `maxCount`（Element 叫 `max`），作用于普通 `Message` 调用；超出时关闭最早的消息。App 的 `AppMessageConfig.MaxCount` 仍只作用于 `UseApp` 句柄。
 
 ### 6.2 子包简述（不计入三家对标）
 
@@ -401,7 +432,7 @@ Affix、Alert、Anchor、App、AutoComplete、Avatar、Badge、Breadcrumb、Brea
 | P1 | ProDescriptions、ProList、QueryFilter 的列数跟随断点（Descriptions `ColumnAt`、List `GridAt` 已完成，可复用 data_util.go `dataRespCols`） | 小 | 已有断点基础设施 |
 | P1 | Form 按字段校验、清除（validateFields(names)/clearValidate）；RulesFunc 支持 reset；表单级 Disabled | 中 | 已完成（复核：p2d_form.go `ValidateFields/ClearValidate/Disabled/OnReset`） |
 | P1 | TreeSelect 受控展开；勾选策略改为真正影响绑定值（Cascader 同理）；Cascader 懒加载父节点不再按叶子处理 | 中 | 已完成（复核：p2b_treeselect.go `ExpandedKeys/StrategyValue`、p2b_cascader.go `StrategyValue`、entry_cascader.go `leaves`） |
-| P1 | ConfigProvider：给 Checkbox/CheckboxGroup、单个 Radio、各 Panel 补 Defaults 接线（Button/Table/Card/Drawer/Message/Notification/Switch/Empty/ProTable 与 HighContrast 开关已完成） | 小 | 接线率已到 106/164 ≈ 65% |
+| P1 | ConfigProvider：给 Checkbox/CheckboxGroup、单个 Radio、各 Panel 补 Defaults 接线（Button/Table/Card/Drawer/Message/Notification/Switch/Empty/ProTable 与 HighContrast 开关已完成） | 小 | 已完成（2026-11-14，141 已接线 / 36 不适用，见 6.1） |
 | P1 | ProTable：外部 params、polling、可自定义批量操作栏、受控/持久化 columnsState | 中 | 已完成（复核：table_pro.go `Params/Polling/TableAlertRender/ColumnsState/PersistColumnsState`） |
 | P1 | Slider 范围柄可交叉/pushable；WithInput 支持范围与竖向 | 小 | 已完成（复核：p2b_slider.go `AllowCross/Pushable/WithInput`） |
 | P1 | Variant（filled/borderless/underlined）推广到 Select/Cascader/TreeSelect/AutoComplete/Mentions/TextArea | 中 | v6 的统一外观能力；现在 Input/InputNumber 和日期时间类（DatePicker/RangePicker/DateTimePicker/TimePicker/TimeRangePicker/TimeSelect 的 `Variant`）有 |

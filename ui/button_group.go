@@ -43,7 +43,14 @@ type btnGroupLink struct {
 }
 
 // ButtonGroup starts a button group; chain options, then Body.
-func ButtonGroup(c *Context) *ButtonGroupW { return &ButtonGroupW{c: c} }
+//
+// ConfigProvider.Defaults("ButtonGroup", ...) keys: "size", "type" (a
+// Button type / variant name such as "primary").
+func ButtonGroup(c *Context) *ButtonGroupW {
+	g := &ButtonGroupW{c: c}
+	g.configDefaults()
+	return g
+}
 
 // Size sets the size of every button.
 func (g *ButtonGroupW) Size(s ControlSize) *ButtonGroupW { g.size, g.sizeSet = s, true; return g }

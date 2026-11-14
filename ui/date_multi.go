@@ -54,6 +54,7 @@ func MultiDatePicker(c *Context, vals *[]time.Time) *MultiDatePickerW {
 	w.box.allowClear = true
 	w.box.arrowIcon = icon.Calendar
 	w.st = State[mdpState](c, hashID(w.box.n.id, "mdp"), nil)
+	w.configDefaults() // Defaults("DatePicker", ...): format, placeholder, picker, allowClear, width, size
 	w.z = c.lazy(w.box.n, w.finish)
 	return w
 }

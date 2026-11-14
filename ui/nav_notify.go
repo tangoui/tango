@@ -118,6 +118,7 @@ func Message(c *Context, status, content string) *MessageRef {
 	t.seq++
 	m := &toast{id: hashID("msg-key", "auto-"+strconv.Itoa(t.seq)), status: status, title: content, start: c.now, dur: messageDuration(c, "Message", MessageDuration), env: c.env}
 	t.msgs = append(t.msgs, m)
+	messageMaxCount(c, t) // Defaults("Message", ...): maxCount
 	c.invalid = true
 	return &MessageRef{t: t, m: m, now: c.now}
 }

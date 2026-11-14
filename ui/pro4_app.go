@@ -25,7 +25,9 @@ import (
 // configuration container: its Message / Notification settings become the
 // "Message" / "Notification" defaults of everything built inside, and
 // UseApp returns handles that apply them (including MaxCount, which the
-// plain calls do not know). Text already takes the theme's color and font
+// plain calls do not take from App; a plain Message follows the
+// "Message" maxCount default of ConfigProvider.Defaults instead). Text
+// already takes the theme's color and font
 // everywhere, so there is no style reset to do; App only adds a column
 // that fills its parent.
 

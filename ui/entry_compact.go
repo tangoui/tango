@@ -32,7 +32,13 @@ type CompactW struct {
 // Compact starts a compact group; chain options, then Body.
 //
 //	ui.Compact(c).Body(func() { ui.Input(c, &v); ui.Button(c, "提交").Primary() })
-func Compact(c *Context) *CompactW { return &CompactW{c: c} }
+//
+// ConfigProvider.Defaults("Compact", ...) keys: "block" (bool).
+func Compact(c *Context) *CompactW {
+	w := &CompactW{c: c}
+	w.configDefaults()
+	return w
+}
 
 // Vertical stacks the controls (joined top/bottom edges).
 func (w *CompactW) Vertical() *CompactW { w.vertical = true; return w }
@@ -199,6 +205,7 @@ type AddonW struct {
 // Addon adds an addon box with a label.
 func Addon(c *Context, label string) *AddonW {
 	a := &AddonW{c: c, label: label}
+	a.configDefaults() // Defaults("Addon", ...): size
 	a.n = c.add("addon", label)
 	a.n.ln.NoStretch = true
 	a.n.ln.Measure = a.measure

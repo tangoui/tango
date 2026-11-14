@@ -43,7 +43,8 @@ func shad2aSize(c *Context, comp string, dst *ControlSize) {
 // buttonDefaults: size, type ("primary"|"dashed"|"text"|"link"|"default"),
 // variant (Ant "solid"|"outlined"|"dashed"|"filled"|"text"|"link", shadcn
 // "default"|"secondary"|"outline"|"ghost"|"link"|"destructive"), shape
-// ("round"|"circle"), danger, ghost, block.
+// ("round"|"circle"), danger, ghost, block, autoInsertSpace (see
+// ButtonW.AutoInsertSpace).
 func (b *ButtonW) configDefaults() {
 	c := b.c
 	shad2aSize(c, "Button", &b.size)
@@ -69,6 +70,7 @@ func (b *ButtonW) configDefaults() {
 	if v, ok := p2bBool(c, "Button", "block"); ok && v {
 		b.Block()
 	}
+	b.autoSpace = Prop(c, "Button", "autoInsertSpace", b.autoSpace)
 }
 
 // buttonVariantOf maps an Ant type / variant or shadcn variant name.

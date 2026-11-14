@@ -70,6 +70,7 @@ type ItemW struct {
 // build).
 func Item(c *Context, title string) *ItemW {
 	w := &ItemW{c: c, title: title, variant: ItemVariantDefault, size: ItemSizeDefault}
+	w.configDefaults() // Defaults("Item", ...): variant, size
 	w.th = c.ThemeFor(theme.CompItem)
 	w.tk = &w.th.Components.Item
 	w.inGroup = c.cur != nil && c.cur.role == a11y.RoleList
@@ -277,7 +278,9 @@ type ItemGroupW struct {
 //		ui.Item(c, "隐私").Description("…")
 //	})
 func ItemGroup(c *Context) *ItemGroupW {
-	return &ItemGroupW{c: c, tk: &c.ThemeFor(theme.CompItem).Components.Item}
+	g := &ItemGroupW{c: c, tk: &c.ThemeFor(theme.CompItem).Components.Item}
+	g.configDefaults() // Defaults("ItemGroup", ...): split, bordered
+	return g
 }
 
 // Separated draws a rule between consecutive items.

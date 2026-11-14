@@ -36,6 +36,7 @@ func ColorPickerPanel(c *Context, val *theme.Color) *ColorPickerPanelW {
 	cp.cpTheme(c)
 	cp.presetName = cp.loc.ColorPicker.Presets
 	cp.st = State(c, hashID(w.box.n.id, "fill-cp"), func() cpState { return cpState{format: "hex"} })
+	cp.configDefaults() // Defaults("ColorPicker", ...): size, allowClear, disabledAlpha, format
 	w.cp = cp
 	w.z = c.lazy(w.box.n, w.build)
 	return w

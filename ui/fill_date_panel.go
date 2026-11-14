@@ -84,6 +84,7 @@ type DatePickerPanelW struct {
 //	ui.DatePickerPanel(c, &from).Range(&to).Picker(ui.PickerMonth)
 func DatePickerPanel(c *Context, val *time.Time) *DatePickerPanelW {
 	w := &DatePickerPanelW{c: c, val: val, border: true}
+	w.configDefaults() // Defaults("DatePicker", ...): picker
 	w.n = c.add("fill-datepanel", "")
 	w.n.ln.Dir = layout.Column
 	w.n.ln.NoStretch = true

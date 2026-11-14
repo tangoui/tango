@@ -125,6 +125,7 @@ const (
 // Checkbox adds a checkbox bound to *val.
 func Checkbox(c *Context, label string, val *bool) *CheckboxW {
 	w := &CheckboxW{c: c, label: label, val: val, status: c.itemStatus, size: c.defaultSize(), first: true, last: true}
+	w.configDefaults() // Defaults("Checkbox", ...): size
 	w.n = c.add("checkbox", label)
 	w.n.setRole(a11y.RoleCheckbox).setState(a11y.Checkable).fill(w)
 	w.n.ln.NoStretch = true
@@ -510,6 +511,7 @@ type CheckboxGroupW struct {
 // also takes Disabled, Min/Max, Border, Buttons and Size.
 func CheckboxGroup(c *Context, selected *[]string, opts []Option) *CheckboxGroupW {
 	g := &CheckboxGroupW{c: c, sel: selected, opts: opts, size: c.defaultSize()}
+	g.configDefaults() // Defaults("Checkbox", ...): size
 	g.n = c.add("checkboxgroup", "")
 	g.n.setRole(a11y.RoleGroup)
 	g.n.ln.Dir = layout.Row
@@ -660,6 +662,7 @@ type RadioW struct {
 // Radio adds a radio button; it reports Clicked so the caller can select it.
 func Radio(c *Context, label string, checked bool) *RadioW {
 	w := &RadioW{c: c, label: label, checked: checked, status: c.itemStatus, size: c.defaultSize()}
+	w.configDefaults() // Defaults("Radio", ...): size
 	w.n = c.add("radio", label)
 	w.n.setRole(a11y.RoleRadio).setState(a11y.Checkable).stateIf(checked, a11y.Checked)
 	w.n.ln.NoStretch = true

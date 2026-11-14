@@ -61,6 +61,7 @@ func Command(c *Context, items []CommandItem) *CommandW {
 	th := c.Theme
 	loc := c.Locale()
 	w := &CommandW{c: c, items: items, place: loc.Command.Placeholder, empty: loc.Command.Empty, maxH: 300}
+	w.configDefaults() // Defaults("Command", ...): placeholder, emptyText
 	w.box = Div(c, layout.MinW(0))
 	w.box.Bg(th.BgElevated).Radius(th.RadiusLG).Border(1, th.Split).Clip()
 	w.st = State[commandState](c, hashID(w.box.n.id, "cmd"), nil)

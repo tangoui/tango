@@ -452,7 +452,18 @@ func (k dtClock) apply(cfg *dtTimeCfg, loc *Locale) {
 
 // TimePanel adds hour/minute(/second) scroll columns bound to *val. It is
 // focusable: Up/Down change the active column, Left/Right switch columns.
+//
+// ConfigProvider.Defaults("TimePicker", ...) keys "format", "use12Hours",
+// "hourStep", "minuteStep", "secondStep" and "hideDisabledOptions" apply.
 func TimePanel(c *Context, val *time.Time) *TimePanelW {
+	w := timePanel(c, val)
+	w.configDefaults()
+	return w
+}
+
+// timePanel is TimePanel without the ConfigProvider defaults (the panels
+// of TimeRangePicker, which has its own keys).
+func timePanel(c *Context, val *time.Time) *TimePanelW {
 	w := &TimePanelW{c: c, val: val, format: "15:04:05", loc: c.Locale()}
 	w.n = c.add("timepanel", "")
 	w.n.ln.NoStretch = true
