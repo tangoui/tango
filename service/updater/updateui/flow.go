@@ -147,9 +147,16 @@ func (f *flow) check(ctx context.Context, manual bool) {
 	f.st.LastCheck = time.Now()
 	st := f.st
 	skipped := rel != nil && (rel.Version == f.st.Skipped || rel.Version == f.laterThisRun)
+	kept := f.payload
 	f.mu.Unlock()
 	if err := saveState(f.u, st); err != nil {
 		log.Printf("updateui: %v", err)
+	}
+	if err == nil && kept != nil && kept.Release != nil && (rel == nil || !newer(rel.Version, kept.Release.Version)) {
+		// Nothing newer than the release already downloaded (only a
+		// manual check gets here): keep offering the restart.
+		f.m.set(func(m *model) { m.phase, m.rel, m.err, m.unsupported = phaseReady, kept.Release, nil, false })
+		return
 	}
 
 	switch {

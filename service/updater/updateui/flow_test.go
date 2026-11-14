@@ -548,3 +548,19 @@ func TestDownloadFailureShowsError(t *testing.T) {
 		t.Fatalf("failed download: %+v", v)
 	}
 }
+
+// Final review I5: "Check for Updates…" with a release downloaded keeps
+// offering the restart instead of offering the same release for download
+// again; a newer release than the downloaded one is offered.
+func TestManualCheckKeepsDownloaded(t *testing.T) {
+	s, _, tf := readyFlow(t)
+	tf.check(context.Background(), true)
+	if v := tf.m.snapshot(); v.phase != phaseReady || v.rel == nil || v.rel.Version != "1.3.0" {
+		t.Fatalf("manual check with 1.3.0 downloaded: %+v", v)
+	}
+	s.publish("1.4.0")
+	tf.check(context.Background(), true)
+	if v := tf.m.snapshot(); v.phase != phaseAvailable || v.rel == nil || v.rel.Version != "1.4.0" {
+		t.Fatalf("manual check with 1.4.0 out: %+v", v)
+	}
+}
