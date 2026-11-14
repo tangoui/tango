@@ -46,9 +46,15 @@ func page(c *ui.Context) {
 
 使用 Tab 聚焦后，Enter 或空格可以触发按钮。异步操作开始后可使用 Loading(true) 阻止重复提交。
 
+## 更多场景
+
+官方 gallery 里这个组件的全部示例（基础、进阶与组合场景），可切换场景、主题和深浅色。
+
+<GalleryPreview component="Button" />
+
 ## 实现与更多示例
 
 - [源码](https://github.com/tangoui/tango/blob/main/ui/button.go)
-- [完整组件截图目录](/guide/components)
-- [GUI 组件在线体验总览](/components/)
+- [组件截图目录](/components/screenshots)
+- [组件总览](/components/)
 - [ui Go API](/reference/api/ui)

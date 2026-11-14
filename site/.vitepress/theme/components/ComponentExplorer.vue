@@ -27,7 +27,7 @@ const scene = computed(() => selected.value.kind === 'scenes' ? catalog.demos.fi
       <p v-if="!visible.length" role="status">没有匹配的组件，请换一个关键词。</p>
     </nav>
     <section class="catalog-detail" aria-label="组件效果预览">
-      <template v-if="component"><h2>{{ component.names.slice(0,3).join(' · ') }}</h2><p class="catalog-component-apis">{{ component.names.join(' / ') }}</p><a :href="withBase(`/components/catalog/${component.slug}`)">用法、场景和源码 →</a><GalleryPreview :component="component.id" /></template>
+      <template v-if="component"><h2>{{ component.names.slice(0,3).join(' · ') }}</h2><p class="catalog-component-apis">{{ component.names.join(' / ') }}</p><a :href="withBase(component.doc ?? `/components/catalog/${component.slug}`)">组件文档 →</a><GalleryPreview :component="component.id" /></template>
       <template v-else-if="scene"><h2>{{ scene.title }}</h2><GalleryPreview :scene="scene.name" /></template>
     </section>
   </div>

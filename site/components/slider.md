@@ -45,9 +45,15 @@ func page(c *ui.Context) {
 
 范围选择使用 ui.SliderRange(c, &lo, &hi, min, max)。键盘方向键可细调数值，精确输入可使用 WithInput。
 
+## 更多场景
+
+官方 gallery 里这个组件的全部示例（基础、进阶与组合场景），可切换场景、主题和深浅色。
+
+<GalleryPreview component="Slider" />
+
 ## 实现与更多示例
 
 - [源码](https://github.com/tangoui/tango/blob/main/ui/p2b_slider.go)
-- [完整组件截图目录](/guide/components)
-- [GUI 组件在线体验总览](/components/)
+- [组件截图目录](/components/screenshots)
+- [组件总览](/components/)
 - [ui Go API](/reference/api/ui)

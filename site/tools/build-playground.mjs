@@ -1,12 +1,12 @@
 // Compile the real gallery source with the docs host; generated Go overlay
 // paths are local build artifacts, not duplicated source files in the repo.
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { prepareGalleryOverlay } from './playground-sources.mjs';
-import { parseComponentTable, mapComponentCatalog } from './component-catalog.mjs';
+import { parseComponentTable, mapComponentCatalog, componentDocPath } from './component-catalog.mjs';
 import { generateComponentPages } from './generate-component-pages.mjs';
 
 const site=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
@@ -16,6 +16,9 @@ const overlay=prepareGalleryOverlay(repo,path.join(site,'.playground'));
 mkdirSync(out,{recursive:true});
 const raw=execFileSync('go',['run',`-overlay=${overlay}`,'./site/tools/playground','-catalog'],{cwd:repo,encoding:'utf8',maxBuffer:8*1024*1024});
 const catalog=mapComponentCatalog(parseComponentTable(readFileSync(path.join(repo,'ui/AUTHORING.md'),'utf8')),JSON.parse(raw));
+// Hand-written component docs (components/<slug>.md) replace the generated page.
+const handWritten=new Set(readdirSync(path.join(site,'components')).filter(f=>f.endsWith('.md')).map(f=>f.slice(0,-3)));
+for (const entry of catalog.components) entry.doc=componentDocPath(entry,handWritten);
 mkdirSync(path.join(site,'.vitepress/generated'),{recursive:true});
 for(const file of [path.join(out,'catalog.json'),path.join(site,'.vitepress/generated/components.json')]) writeFileSync(file,JSON.stringify(catalog,null,2)+'\n');
 generateComponentPages(site,catalog);

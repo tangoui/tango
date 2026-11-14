@@ -36,15 +36,38 @@ const aliases = {
   'mobile.IndexBar':['MobileIndexbar'],
 };
 
+// componentDocPath returns the documentation page of a catalog entry: the
+// hand-written components/<slug>.md when it exists (it then embeds the
+// gallery scenes itself), else the generated components/catalog/<slug>.
+export function componentDocPath(entry, handWritten) {
+  return handWritten.has(entry.slug) ? `/components/${entry.slug}` : `/components/catalog/${entry.slug}`;
+}
+
 export function mapComponentCatalog(rows, pages) {
   const demos=pages.filter(page=>!page.variant);
   const known=new Set(demos.map(page=>page.name));
   const missing=[];
+  const entryIDs=new Set(rows.map(row=>row.names[0]));
+  const borrowed=new Set();
   const components=rows.map(row=>{
     const targets=[...new Set([...(aliases[row.names[0]]??[]),...row.names.filter(name=>known.has(name))])];
     if (!targets.length || targets.some(name=>!known.has(name))) missing.push(row.names[0]);
     for (const page of demos) if (targets.includes(page.parent) && !targets.includes(page.name)) targets.push(page.name);
-    return {...row,id:row.names[0],slug:row.names[0].replaceAll('.','-').toLowerCase(),demos:targets};
+    // label: the title, up to its first " / ", of the component's own
+    // gallery page, else of its first demo unless that demo is another
+    // entry's own page (Kbd is shown on Toggle's: it keeps its API name).
+    // A borrowed title goes to the first entry (table order) using that
+    // demo; later ones keep their API name, so no two entries share a
+    // label. The "Mobile · " prefix is dropped: those entries sit in the
+    // 移动端 group. Sidebar and overview show it ("Button 按钮",
+    // "Text" → "Typography 排版").
+    let own=demos.find(page=>page.name===row.names[0]);
+    if (!own) {
+      own=demos.find(page=>page.name===targets[0]&&!entryIDs.has(page.name)&&!borrowed.has(page.name));
+      if (own) borrowed.add(own.name);
+    }
+    const label=own?.title ? own.title.split(' / ')[0].replace(/^Mobile · /,'') : row.names[0];
+    return {...row,id:row.names[0],slug:row.names[0].replaceAll('.','-').toLowerCase(),label,demos:targets};
   });
   if (missing.length) throw new Error(`Components without a registered live demo: ${missing.join(', ')}`);
   return {groups:catalogGroups,components,demos};

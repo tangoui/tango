@@ -60,3 +60,9 @@ a.home-stat:hover{background:var(--vp-c-bg-elv)}
 .home-footer a:hover{color:var(--vp-c-brand-1)!important}
 @media (max-width:960px){.home-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.home-stat:nth-child(3){border-left:0}.home-stat:nth-child(n+3){border-top:1px solid var(--vp-c-divider)}.home-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.home-footer{grid-template-columns:1fr 1fr}}
 @media (max-width:640px){.home-stats,.home-grid,.home-grid.cols-2{grid-template-columns:1fr}.home-stat{border-left:0;border-top:1px solid var(--vp-c-divider)}.home-stat:first-child{border-top:0}.home-stat-value{font-size:30px}}
+/* Component overview (/components/): a filter and one card grid per group, as on Ant Design's overview. */
+.overview-filter{display:flex;align-items:center;gap:12px;margin:20px 0 8px}.overview-filter input{flex:1;min-width:0;border:1px solid var(--vp-c-divider);border-radius:8px;background:var(--vp-c-bg);color:var(--vp-c-text-1);padding:8px 12px;font:inherit}.overview-filter input:focus-visible{outline:2px solid var(--vp-c-brand-1);outline-offset:2px}.overview-filter span{color:var(--vp-c-text-2);font-size:13px;white-space:nowrap}
+.overview-group h2 small{color:var(--vp-c-text-3);font-size:14px;font-weight:400;margin-left:6px}
+.overview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:12px}
+.overview-card{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid var(--vp-c-divider);border-radius:8px;color:var(--vp-c-text-1);text-decoration:none!important;transition:border-color .2s,box-shadow .2s}.overview-card:hover{border-color:var(--vp-c-brand-1);box-shadow:0 2px 8px rgba(0,0,0,.08)}.overview-card strong{font-size:14px}.overview-card span{color:var(--vp-c-text-2);font-size:12px;overflow-wrap:anywhere}
+.overview-card:focus-visible{outline:2px solid var(--vp-c-brand-1);outline-offset:2px}

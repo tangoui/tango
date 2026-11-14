@@ -22,7 +22,7 @@ site/.vitepress/dist/
 site/reference/api/
 site/reference/_cli-flags.md
 site/public/schema/
-site/guide/components.md
+site/components/screenshots.md
 /examples/ui-gallery/ui-gallery
 /ui-gallery
 /mobile-ui

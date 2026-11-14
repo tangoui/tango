@@ -45,9 +45,15 @@ func page(c *ui.Context) {
 
 值必须保存在页面函数外，或通过 ui.State 持有，避免每帧重置。网页输入通过浏览器输入法桥接，支持组合输入；预览已内置中文演示字形，更多字符可以导入本地字体。
 
+## 更多场景
+
+官方 gallery 里这个组件的全部示例（基础、进阶与组合场景），可切换场景、主题和深浅色。
+
+<GalleryPreview component="Input" />
+
 ## 实现与更多示例
 
 - [源码](https://github.com/tangoui/tango/blob/main/ui/input.go)
-- [完整组件截图目录](/guide/components)
-- [GUI 组件在线体验总览](/components/)
+- [组件截图目录](/components/screenshots)
+- [组件总览](/components/)
 - [ui Go API](/reference/api/ui)

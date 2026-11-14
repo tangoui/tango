@@ -48,16 +48,35 @@ function apiItems(): DefaultTheme.SidebarItem[] {
     }));
 }
 
+// Component docs: an overview group, then one group per category of the
+// component table (ui/AUTHORING.md §14), like Ant Design's site. Entries
+// link to the hand-written page when there is one, else to the generated
+// page (tools/build-playground.mjs writes generated/components.json).
+type CatalogEntry = { group: string; names: string[]; slug: string; label?: string; doc?: string };
 function componentSidebar(): DefaultTheme.SidebarItem[] {
-  const file=path.join(here,"generated/components.json");
-  if (!fs.existsSync(file)) return [{text:"GUI 组件",items:[{text:"完整在线目录",link:"/components/"}]}];
-  const catalog=JSON.parse(fs.readFileSync(file,"utf8"));
+  const overview: DefaultTheme.SidebarItem = {
+    text: "开始",
+    items: [
+      { text: "组件总览", link: "/components/" },
+      { text: "在线演练场", link: "/components/playground" },
+      { text: "代码编辑器", link: "/components/code-editor" },
+      { text: "组件截图目录", link: "/components/screenshots" },
+    ],
+  };
+  const file = path.join(here, "generated/components.json");
+  if (!fs.existsSync(file)) return [overview];
+  const catalog = JSON.parse(fs.readFileSync(file, "utf8"));
   return [
-    {text:"GUI 组件",items:[{text:"全部组件与场景",link:"/components/"},{text:"代码编辑器在线演示",link:"/components/code-editor"},{text:"静态截图目录",link:"/guide/components"}]},
-    ...catalog.groups.map((group: string)=>({
-      text:group,collapsed:true,
-      items:catalog.components.filter((entry: {group:string})=>entry.group===group)
-        .map((entry: {names:string[];slug:string})=>({text:entry.names.slice(0,2).join(" · "),link:`/components/catalog/${entry.slug}`})),
+    overview,
+    ...catalog.groups.map((group: string) => ({
+      text: group,
+      collapsed: false,
+      items: catalog.components
+        .filter((entry: CatalogEntry) => entry.group === group)
+        .map((entry: CatalogEntry) => ({
+          text: entry.label ?? entry.names.slice(0, 2).join(" · "),
+          link: entry.doc ?? `/components/catalog/${entry.slug}`,
+        })),
     })),
   ];
 }
@@ -88,7 +107,7 @@ const zhSidebar: DefaultTheme.Sidebar = {
         { text: "窗口与外观", link: "/guide/window" },
         { text: "菜单与托盘", link: "/guide/menu-tray" },
         { text: "自绘 UI", link: "/guide/ui" },
-        { text: "组件目录", link: "/guide/components" },
+        { text: "组件文档", link: "/components/" },
         { text: "移动端", link: "/guide/mobile" },
         { text: "多语言", link: "/guide/i18n" },
         {

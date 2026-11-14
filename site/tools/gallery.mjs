@@ -18,7 +18,7 @@ const repo = path.resolve(site, "..");
 const srcDir = path.join(repo, "build", "ui-gallery");
 const shotsDir = path.join(srcDir, "components");
 const outImg = path.join(site, "public", "gallery");
-const outPage = path.join(site, "guide", "components.md");
+const outPage = path.join(site, "components", "screenshots.md");
 
 // ---- Parse the table ---------------------------------------------------------
 const authoring = fs.readFileSync(path.join(repo, "ui", "AUTHORING.md"), "utf8");
@@ -67,14 +67,14 @@ const label = (v) => {
 };
 const esc = (s) => s.replace(/\{\{/g, "{ {");
 let md = `---
-title: 组件目录
+title: 组件截图目录
 outline: [2, 2]
 editLink: false
 ---
 
-# 组件目录
+# 组件截图目录
 
-想直接点击、输入、拖动组件？打开 [完整 GUI 组件在线体验](/components/)，按分类浏览全部组件、图表、移动端与进阶场景。
+每个组件在默认主题下的静态截图，另有深色与 Element 风格变体。想直接点击、输入、拖动组件，从左侧选择组件，或打开 [在线演练场](/components/playground)。
 
 <!-- 本页由 site/tools/gallery.mjs 生成，请勿手改；改 ui/AUTHORING.md 第 14 节的组件总表。 -->
 
@@ -102,7 +102,8 @@ for (const row of rows) {
   }
   const title = row.names.slice(0, 3).join(" · ");
   md += `\n### ${title}\n\n`;
-  md += `- [在线操作与场景源码](/components/catalog/${row.names[0].replaceAll(".","-").toLowerCase()})\n- 公开入口：${esc(row.comps)}\n- 参考设计：${esc(row.ref)}\n- 源文件：\`ui/\` 下 ${esc(row.file)}\n`;
+  const live = liveCatalog.components.find((entry) => entry.id === row.names[0]);
+  md += `- [组件文档与在线演示](${live?.doc ?? "/components/catalog/" + row.names[0].replaceAll(".","-").toLowerCase()})\n- 公开入口：${esc(row.comps)}\n- 参考设计：${esc(row.ref)}\n- 源文件：\`ui/\` 下 ${esc(row.file)}\n`;
   const s = shotsFor(row);
   if (s) {
     copy(s.base);
