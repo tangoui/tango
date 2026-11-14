@@ -12,7 +12,8 @@ import (
 // Home/End, Insert/Delete/PageUp/PageDown, F1–F12) send CSI 1;m X or
 // CSI n;m ~ when a modifier is held, with m = 1 + Shift 1 + Alt 2 +
 // Ctrl 4 + Meta 8, as xterm and xterm.js do. All other keys have no
-// modifier parameter: Alt sends ESC before the key's encoding, and Meta
+// modifier parameter: Alt sends ESC before the key's encoding (except
+// on Tab, which xterm.js sends unchanged), and Meta
 // (Command on macOS, Super/Windows elsewhere) makes the key an
 // application shortcut, so EncodeKey reports ok=false.
 
@@ -70,6 +71,15 @@ var ctrlKeys = map[input.Key]byte{
 	input.Key8:            0x7f,
 }
 
+// shiftedUS maps the character a digit or punctuation key gives on the
+// US layout to the one it gives with Shift.
+var shiftedUS = map[rune]byte{
+	'1': '!', '2': '@', '3': '#', '4': '$', '5': '%',
+	'6': '^', '7': '&', '8': '*', '9': '(', '0': ')',
+	',': '<', '.': '>', '/': '?', '-': '_', '=': '+',
+	';': ':', '\'': '"', '`': '~', '[': '{', ']': '}', '\\': '|',
+}
+
 // EncodeKey returns the bytes a key press sends to the program; ok=false
 // means the terminal does not handle the key and the caller may treat it
 // as an application shortcut or ignore it.
@@ -85,14 +95,14 @@ var ctrlKeys = map[input.Key]byte{
 // F1–F12, Ctrl+letter 0x01–0x1A, Ctrl+[ \ ] ^ _ and Ctrl+Space. Keys
 // with a modifier parameter send "\x1b[1;{m}A" or "\x1b[3;{m}~" when a
 // modifier is held, with m = 1 + Shift 1 + Alt 2 + Ctrl 4 + Meta 8, and
-// ignore AppCursor then. On other keys Alt sends ESC followed by the
-// key's encoding (Alt+x "\x1bx"), and Meta (Command, Super) is not
-// encoded: such a key returns ok=false. Whether Option on macOS counts
-// as Alt is the caller's choice: it clears [input.ModAlt] to let Option
-// compose characters instead.
-//
-// Alt+Shift with a digit or punctuation key returns ok=false because the
-// shifted character depends on the keyboard layout.
+// ignore AppCursor then. On other keys except Tab (as in xterm.js) Alt
+// sends ESC followed by the key's encoding: Alt+x "\x1bx", Alt+Shift+x
+// "\x1bX", and Alt+Shift with a digit or punctuation key ESC followed by
+// the symbol it gives on the US layout (Alt+Shift+. "\x1b>", readline's
+// M->). Meta (Command, Super) is not encoded: such a key returns
+// ok=false. Whether Option on macOS counts as Alt is the caller's
+// choice: it clears [input.ModAlt] to let Option compose characters
+// instead.
 //
 // Each call returns a new slice.
 func EncodeKey(ev input.KeyEvent, m Modes) (b []byte, ok bool) {
@@ -118,11 +128,11 @@ func EncodeKey(ev input.KeyEvent, m Modes) (b []byte, ok bool) {
 			c = []byte{0x7f}
 		}
 	case input.KeyTab:
+		// No ESC prefix for Alt, as in xterm.js.
 		if shift {
-			c = []byte("\x1b[Z")
-		} else {
-			c = []byte{'\t'}
+			return []byte("\x1b[Z"), true
 		}
+		return []byte{'\t'}, true
 	case input.KeyEscape:
 		c = []byte{0x1b}
 	default:
@@ -144,7 +154,11 @@ func EncodeKey(ev input.KeyEvent, m Modes) (b []byte, ok bool) {
 		case shift && isLetter:
 			c = []byte{byte(r - 'a' + 'A')}
 		case shift:
-			return nil, false // shifted symbol depends on the layout
+			if v, found := shiftedUS[r]; found {
+				c = []byte{v}
+			} else {
+				c = []byte{byte(r)} // Space
+			}
 		default:
 			c = []byte{byte(r)}
 		}

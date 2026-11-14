@@ -127,6 +127,28 @@ func TestEncodeKeyLegacy(t *testing.T) {
 		{input.KeySpace, alt, "\x1b "},
 		{input.KeyPeriod, alt, "\x1b."},
 		{input.KeySpace, ctrl | alt, "\x1b\x00"},
+		// Alt+Shift+digit/punctuation: ESC + the US-layout shifted symbol
+		// (readline M-< M-> M-? M-! M-% M-{ ...).
+		{input.KeyComma, alt | shift, "\x1b<"},
+		{input.KeyPeriod, alt | shift, "\x1b>"},
+		{input.KeySlash, alt | shift, "\x1b?"},
+		{input.Key1, alt | shift, "\x1b!"},
+		{input.Key5, alt | shift, "\x1b%"},
+		{input.KeyBracketLeft, alt | shift, "\x1b{"},
+		{input.KeyBracketRight, alt | shift, "\x1b}"},
+		{input.KeyBackquote, alt | shift, "\x1b~"},
+		{input.Key0, alt | shift, "\x1b)"},
+		{input.Key2, alt | shift, "\x1b@"},
+		{input.Key9, alt | shift, "\x1b("},
+		{input.KeyMinus, alt | shift, "\x1b_"},
+		{input.KeyEqual, alt | shift, "\x1b+"},
+		{input.KeySemicolon, alt | shift, "\x1b:"},
+		{input.KeyQuote, alt | shift, "\x1b\""},
+		{input.KeyBackslash, alt | shift, "\x1b|"},
+		{input.KeySpace, alt | shift, "\x1b "},
+		// Tab takes no ESC prefix (xterm.js).
+		{input.KeyTab, alt, "\t"},
+		{input.KeyTab, alt | shift, "\x1b[Z"},
 
 		// Not handled by EncodeKey.
 		{input.KeyA, 0, ""},     // printable: sent by TextInput
@@ -135,7 +157,6 @@ func TestEncodeKeyLegacy(t *testing.T) {
 		{input.KeySpace, 0, ""},
 		{input.KeySpace, shift, ""},
 		{input.KeyPeriod, 0, ""},
-		{input.Key1, alt | shift, ""}, // shifted symbol depends on the layout
 		{input.Key1, ctrl, ""},
 		{input.KeyQuote, ctrl, ""},
 		{input.KeyA, meta, ""}, // Cmd/Super shortcut
