@@ -235,7 +235,7 @@ defer s.Close()
   - iframe 拿不到通道令牌。协议处理器看不到请求来自哪个 frame，安全性靠"令牌只经主框架的消息桥下发"；macOS 实测不透明来源的 frame（沙箱 `srcdoc`、`data:`）和同源 frame 发出的通道请求全部被拒（iOS 未单独测）。同源 frame 本来就能访问 `parent.tango`，那是应用自己的代码。
   - WebKit 不把 `tango://` 请求的 Blob 请求体交给处理器，所以 `up:post` 只用 ArrayBuffer。这条限制同样适用于应用自己的 fetch：iOS 有把 Blob/FormData 转成 ArrayBuffer 的注入脚本（见 [docs/mobile.md](https://github.com/tangoui/tango/blob/main/docs/mobile.md)），macOS 上请自己用 ArrayBuffer 或字符串作请求体（macOS 上 Blob 请求体没有单独测过，按 WebKit 的已知问题处理）。
   - WebKit 的 `tango://` 请求不带 `Origin`，Tango 用主文档的来源补上；所以应用页面里嵌的跨源 iframe 发往资源来源的请求能通过资源 CSRF 检查（原有行为；通道请求仍受每世代令牌保护）。不要在资源页面里嵌不可信的 frame。
-  - iOS 只在模拟器上测过，未在真机上测；iOS 上"通道中途坏掉"的场景没有自动化测试（回退逻辑与平台无关，已在 macOS 上验证）。
+  - iOS 只在模拟器上测过，未在真机上测。"通道中途坏掉"在 iOS 模拟器上有自动化测试：`bash scripts/smoke.sh ios-lanefault`（`up:post` 在第 3 个数据包后故障：丢帧的流报 `transport`，并行的流完整，之后的帧走消息通道）；Android 对应的是 `android-lanefault`。
 
 ### Android
 
