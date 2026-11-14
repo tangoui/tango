@@ -10,6 +10,8 @@
 #                                         whether WebKit streams scheme responses
 #   bash scripts/smoke.sh ios-selftest    build examples/duplex-ios, run its tango://
 #                                         scheme-handler self-test in a simulator
+#   bash scripts/smoke.sh ios-lanefault   build examples/duplex-ios, break up:post midway
+#                                         (TANGO_IPC_LANE_FAULT) in a simulator
 #   bash scripts/smoke.sh android         install the mobile-hello APK on the connected
 #                                         device / emulator and run it
 #   bash scripts/smoke.sh ios-ui          self-drawn examples/mobile-ui in a simulator:
@@ -522,6 +524,71 @@ run_ios_selftest() {
 	return 0
 }
 
+# run_ios_lanefault builds examples/duplex-ios with -tags tango_selftest
+# (fault injection included) and runs only the lane fault scenario in a
+# simulator: TANGO_IPC_LANE_FAULT=up:post:3 breaks up:post after 3 data
+# packets; the stream that lost frames must fail with "transport", a parallel
+# stream must arrive whole, and later frames must use the message channel.
+run_ios_lanefault() {
+	local wait="${SMOKE_MOBILE_WAIT:-180}" log="$out/ios-lanefault.log" app udid booted=0
+	say "build examples/duplex-ios (tango_selftest) for the iOS simulator"
+	if ! app="$(GOFLAGS="${GOFLAGS:+$GOFLAGS }-tags=tango_selftest" TANGO_IOS_OUT="$out/ios-lanefault" bash mobile/ios/build.sh examples/duplex-ios simulator 2>"$out/ios-lanefault.build.log" | tail -n 1)" || [[ ! -d "$app" ]]; then
+		sed 's/^/    /' "$out/ios-lanefault.build.log"
+		record ios-lanefault FAIL "build failed, see $out/ios-lanefault.build.log"
+		return
+	fi
+	local id
+	id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")"
+	udid="${SMOKE_IOS_DEVICE:-}"
+	if [[ -z "$udid" ]]; then
+		udid="$(xcrun simctl list devices available | grep -E '^ +iPhone' | head -n 1 | grep -oE '[0-9A-F-]{36}')"
+	elif [[ ! "$udid" =~ ^[0-9A-F-]{36}$ ]]; then
+		udid="$(xcrun simctl list devices available | grep -F "    $udid (" | head -n 1 | grep -oE '[0-9A-F-]{36}')"
+	fi
+	if [[ -z "$udid" ]]; then
+		record ios-lanefault FAIL "no iPhone simulator available"
+		return
+	fi
+	if ! xcrun simctl list devices | grep -q "$udid) (Booted)"; then
+		say "boot simulator $udid"
+		xcrun simctl boot "$udid" && booted=1
+	fi
+	xcrun simctl bootstatus "$udid" -b >/dev/null
+	say "install and launch $id with TANGO_IPC_LANE_FAULT=up:post:3"
+	xcrun simctl terminate "$udid" "$id" >/dev/null 2>&1
+	if ! xcrun simctl install "$udid" "$app"; then
+		record ios-lanefault FAIL "simctl install failed"
+		((booted)) && xcrun simctl shutdown "$udid" >/dev/null 2>&1
+		return
+	fi
+	: >"$log"
+	SIMCTL_CHILD_TANGO_SCHEME_PROBE=1 SIMCTL_CHILD_TANGO_SCHEME_SELFTEST=1 SIMCTL_CHILD_TANGO_IPC_LANES_DARWIN=1 \
+		SIMCTL_CHILD_TANGO_IPC_LANE_FAULT=up:post:3 \
+		xcrun simctl launch --console-pty --terminate-running-process "$udid" "$id" </dev/null >"$log" 2>&1 &
+	local launcher=$!
+	if wait_for_log "$log" 'lanefault: ' "$wait"; then
+		sleep 1
+		local line
+		line="$(grep -m 1 -oE 'lanefault: \{.*\}' "$log")"
+		if grep -q 'NSInternalInconsistencyException' "$log"; then
+			record ios-lanefault FAIL "WebKit exception, see $log"
+		elif grep -q '^lanefault: {"ok":true,' <<<"$line"; then
+			record ios-lanefault PASS "up:post broke after 3 packets: lost stream failed with transport, parallel stream whole, fallback to messages"
+		else
+			record ios-lanefault FAIL "fault scenario failed, see $log"
+		fi
+	else
+		record ios-lanefault FAIL "no lanefault result within ${wait}s, see $log"
+	fi
+	sed 's/^/    /' "$log"
+	xcrun simctl terminate "$udid" "$id" >/dev/null 2>&1
+	sleep 1
+	kill "$launcher" 2>/dev/null
+	wait "$launcher" 2>/dev/null
+	((booted)) && xcrun simctl shutdown "$udid" >/dev/null 2>&1
+	return 0
+}
+
 # adb runs the SDK's adb: from PATH, else $ANDROID_HOME / $ANDROID_SDK_ROOT
 # / the default macOS SDK location.
 adb() {
@@ -679,6 +746,7 @@ ios) run_ios ;;
 ios-ui) run_ios_ui ;;
 ios-probe) run_ios_probe ;;
 ios-selftest) run_ios_selftest ;;
+ios-lanefault) run_ios_lanefault ;;
 android) run_android ;;
 android-ui) run_android_ui ;;
 -h | --help | help)
@@ -686,7 +754,7 @@ android-ui) run_android_ui ;;
 	exit 0
 	;;
 *)
-	echo "smoke.sh: unknown mode '$mode' (desktop, list, ios, ios-ui, ios-probe, ios-selftest, android, android-ui)" >&2
+	echo "smoke.sh: unknown mode '$mode' (desktop, list, ios, ios-ui, ios-probe, ios-selftest, ios-lanefault, android, android-ui)" >&2
 	exit 2
 	;;
 esac
