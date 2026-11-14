@@ -552,6 +552,7 @@ func (s *Surface) Close() {
 	}
 	s.closed, s.visible = true, false
 	s.mu.Unlock()
+	s.b.closeEmbedded(s.id) // webembed.go: children first
 	s.b.h.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceClosed})
 }
 

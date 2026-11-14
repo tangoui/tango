@@ -81,8 +81,9 @@ type Surface struct {
 	ext surfaceExt // round-2 window state and handlers; surface_ext.go
 	web surfaceWeb // round-4 WebView state and handlers; webview.go
 
-	lane  *lane.State  // IPC fast lanes (any goroutine); lanes.go
-	lanes surfaceLanes // their wiring to the native surface; lanes.go
+	lane    *lane.State  // IPC fast lanes (any goroutine); lanes.go
+	lanes   surfaceLanes // their wiring to the native surface; lanes.go
+	embedIn *Surface     // embedded WebViews: the surface it lives in (webembed.go); set before creation
 }
 
 // NewSurface creates a surface. Safe from any goroutine once the app runs;
