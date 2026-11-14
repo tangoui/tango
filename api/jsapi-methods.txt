@@ -1,0 +1,125 @@
+# Wire contract of the Tango runtime API: Go package jsapi <-> runtime-js
+# (@tangoui/runtime). Every name below is part of the public API: renaming
+# or removing one breaks pages, and every change shows up in review.
+#
+# Generated; do not edit by hand.
+#   kind, name, cap: go test ./jsapi -run TestWireContract -update
+#                    (jsapi/contract_test.go, from the registration code)
+#   js=:             cd runtime-js && npm run contract:update
+#                    (runtime-js/test/contract.test.mjs, from src/api/*.ts)
+#
+# Lines:
+#   error <code> js=<ErrorCode|->        error codes a runtime API call can
+#                                        reject with; js=ErrorCode when the
+#                                        TS ErrorCode union names it
+#   method tango:<module>.<fn> cap=<Cap> js=<Namespace.function,...|->
+#   event tango:<module>.<event> js=<Namespace.function,...|->
+# js=- means runtime-js has no wrapper (pages use call()/on() directly).
+#
+# Not covered here (see docs/runtime-api.md "API 稳定性"): app-defined
+# names (call/on/emit/stream, Events.*), methods other packages register
+# with API.Handle, the uivars page global and DOM event used by
+# Theme.vars/onVarsChange, and argument/result JSON shapes.
+
+error bad_args js=ErrorCode
+error busy js=-
+error canceled js=ErrorCode
+error forbidden js=ErrorCode
+error internal js=ErrorCode
+error not_found js=ErrorCode
+error not_running js=ErrorCode
+error unsupported js=ErrorCode
+
+method tango:app.hide cap=AppControl js=App.hide
+method tango:app.quit cap=AppControl js=App.quit
+method tango:app.requestAttention cap=AppControl js=App.requestAttention
+method tango:app.setBadge cap=AppControl js=App.setBadge
+method tango:app.setProgress cap=AppControl js=App.setProgress
+method tango:app.show cap=AppControl js=App.show
+method tango:app.takePending cap=Info js=App.onOpenFiles,App.onOpenURL,App.onReopen
+method tango:clipboard.readFiles cap=ClipboardRead js=Clipboard.readFiles
+method tango:clipboard.readImage cap=ClipboardRead js=Clipboard.readImage
+method tango:clipboard.readText cap=ClipboardRead js=Clipboard.readText
+method tango:clipboard.writeFiles cap=ClipboardWrite js=Clipboard.writeFiles
+method tango:clipboard.writeImage cap=ClipboardWrite js=Clipboard.writeImage
+method tango:clipboard.writeText cap=ClipboardWrite js=Clipboard.writeText
+method tango:dialog.message cap=Dialogs js=Dialog.message
+method tango:dialog.open cap=Dialogs js=Dialog.open
+method tango:dialog.save cap=Dialogs js=Dialog.save
+method tango:env.info cap=Info js=App.info
+method tango:hotkey.register cap=Hotkeys js=Hotkey.register
+method tango:hotkey.unregister cap=Hotkeys js=Hotkey.register
+method tango:menu.popup cap=Menu js=Menu.bindContextMenu,Menu.popup
+method tango:notify.requestPermission cap=Notify js=Notify.requestPermission
+method tango:notify.send cap=Notify js=Notify.send
+method tango:screens.all cap=Info js=Screens.all
+method tango:screens.current cap=Info js=Screens.current
+method tango:screens.primary cap=Info js=Screens.primary
+method tango:shell.openPath cap=OpenPath js=Shell.openPath
+method tango:shell.openURL cap=OpenURL js=Shell.openURL
+method tango:shell.revealPath cap=OpenPath js=Shell.revealPath
+method tango:theme.get cap=Info js=Theme.get
+method tango:updater.check cap=Updates js=-
+method tango:updater.download cap=Updates js=-
+method tango:updater.restart cap=Updates js=-
+method tango:web.cancelDownload cap=WebDownloads js=Web.cancelDownload
+method tango:web.clearCookies cap=WebCookies js=Web.clearCookies
+method tango:web.clearData cap=WebCookies js=Web.clearData
+method tango:web.cookies cap=WebCookies js=Web.cookies
+method tango:web.deleteCookie cap=WebCookies js=Web.deleteCookie
+method tango:web.find cap=WebFind js=Web.find
+method tango:web.findNext cap=WebFind js=Web.findNext
+method tango:web.findPrevious cap=WebFind js=Web.findPrevious
+method tango:web.printToPDF cap=WebCapture js=Web.printToPDF
+method tango:web.screenshot cap=WebCapture js=Web.screenshot
+method tango:web.setCookie cap=WebCookies js=Web.setCookie
+method tango:web.setUserAgent cap=WebControl js=Web.setUserAgent
+method tango:web.stopFind cap=WebFind js=Web.stopFind
+method tango:window.alwaysOnTop cap=Window js=Window.isAlwaysOnTop
+method tango:window.bounds cap=Window js=Window.bounds
+method tango:window.center cap=Window js=Window.center
+method tango:window.close cap=Window js=Window.close
+method tango:window.focus cap=Window js=Window.focus
+method tango:window.fullscreen cap=Window js=Window.fullscreen
+method tango:window.hide cap=Window js=Window.hide
+method tango:window.id cap=Window js=Window.id
+method tango:window.isFocused cap=Window js=Window.isFocused
+method tango:window.isVisible cap=Window js=Window.isVisible
+method tango:window.maximize cap=Window js=Window.maximize
+method tango:window.minimize cap=Window js=Window.minimize
+method tango:window.openDevTools cap=Window js=Window.openDevTools
+method tango:window.position cap=Window js=Window.position
+method tango:window.print cap=Window js=Window.print
+method tango:window.reload cap=Window js=Window.reload
+method tango:window.restore cap=Window js=Window.restore
+method tango:window.setAlwaysOnTop cap=Window js=Window.setAlwaysOnTop
+method tango:window.setBounds cap=Window js=Window.setBounds
+method tango:window.setPosition cap=Window js=Window.setPosition
+method tango:window.setSize cap=Window js=Window.setSize
+method tango:window.setSizeLimits cap=Window js=Window.setSizeLimits
+method tango:window.setState cap=Window js=Window.setState
+method tango:window.setTitle cap=Window js=Window.setTitle
+method tango:window.setZoom cap=Window js=Window.setZoom
+method tango:window.show cap=Window js=Window.show
+method tango:window.size cap=Window js=Window.size
+method tango:window.state cap=Window js=Window.state
+method tango:window.title cap=Window js=Window.title
+method tango:window.toggleMaximize cap=Window js=Window.toggleMaximize
+method tango:window.zoom cap=Window js=Window.zoom
+
+event tango:app.openFiles js=App.onOpenFiles
+event tango:app.openURL js=App.onOpenURL
+event tango:app.reopen js=App.onReopen
+event tango:app.secondInstance js=App.onSecondInstance
+event tango:hotkey.fire js=Hotkey.register
+event tango:notify.click js=Notify.onClick
+event tango:screens.change js=Screens.onChange
+event tango:theme.change js=Theme.onChange
+event tango:updater.event js=-
+event tango:web.download js=Web.onDownload
+event tango:window.blur js=Window.onBlur
+event tango:window.filesDropped js=Window.onFilesDropped
+event tango:window.focus js=Window.onFocus
+event tango:window.move js=Window.onMove
+event tango:window.resize js=Window.onResize
+event tango:window.state js=Window.onStateChange

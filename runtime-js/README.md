@@ -29,6 +29,29 @@ The package talks to Go through `window.__tango`, which only exists inside a Tan
 
 The package version matches the Tango Go module version it was released with.
 
+## Local development
+
+Inside the Tango repository the sources are in `runtime-js/src`.
+
+```bash
+cd runtime-js
+npm ci
+npm run build   # dist/ (ESM, IIFE, .d.ts) and runtimejs/tango.iife.js
+npm test        # build, unit tests, API report and wire contract checks
+```
+
+- **Injected script** (`runtimejs.Script`): it is `runtimejs/tango.iife.js` embedded with `go:embed`, so after `npm run build` the Go program must be rebuilt and the app restarted; reloading the page is not enough. Commit the regenerated `runtimejs/tango.iife.js` with the source change.
+- **npm frontend**: point the dependency at the checkout, relative to the frontend's `package.json`. For `examples/<app>/frontend/package.json` in the repository: `"@tangoui/runtime": "file:../../../runtime-js"`. The package entry is the git-ignored `dist/`, so run `npm run build` first and again after each change. `tan init -local <tango checkout>` writes such a `file:` dependency for projects outside the repository.
+
+## API stability
+
+The exported names and type signatures, every namespace member (`Window.setTitle`, ...), the `TangoError` codes, and the wire names (`tango:<module>.<function>` methods, `tango:<module>.<event>` events) with their JSON shapes are public API. Two committed files make changes visible in review:
+
+- `etc/runtime.api.md`: the API Extractor report of `dist/index.d.ts`, namespaces expanded member by member. `npm run api:update` rewrites it; `npm run api:check` (CI) fails when it is stale.
+- `../api/jsapi-methods.txt`: every error code, method and event of the Go `jsapi` package and the functions here that use them. `npm run contract:update` rewrites the `js=` column, `npm run contract:check` checks it; the Go columns come from `go test ./jsapi -run TestWireContract -update`.
+
+These checks are structural: they catch renamed, removed or re-typed exports and wire names, not behaviour changes or changes to the JSON exchanged with Go. See "API 稳定性" in `docs/runtime-api.md` for the full policy and limits.
+
 - Documentation: <https://tangoui.github.io/tango/> (Chinese, with English pages in progress)
 - API overview: [JS runtime API](https://tangoui.github.io/tango/reference/js-api)
 - License: MIT

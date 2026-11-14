@@ -41,6 +41,7 @@ try {
   | `not_found` | 方法不存在；或调用方不是本应用的窗口（窗口类方法） |
   | `not_running` | 应用正在退出 |
   | `internal` | 其它 Go 侧错误 |
+  | `busy` | 只有 `tango:updater.*`（`API.InstallUpdater`）：已有一次检查或下载在进行；TS 的 `ErrorCode` 联合类型没有列出它（靠 `string & {}` 兜底） |
 
 - **事件订阅**：所有 `onXxx` 返回取消函数。
 - **页面生命周期**：页面重新加载（运行时重新 hello）或窗口关闭时，该页面注册的全局快捷键自动注销。
@@ -225,6 +226,64 @@ try {
 | `emit(name, data?)` | `Router.On` |
 
 这是应用自己的事件（名字由应用定），和顶层的 `tango.on` / `tango.emit` 是同一个通道。
+
+## 本地开发
+
+源码在 `runtime-js/src`（`index.ts` 是包入口，`api/*.ts` 是各命名空间，`client.ts` 是调用、事件与流的客户端）。改完后：
+
+```bash
+cd runtime-js
+npm ci            # 第一次
+npm run build     # 生成 dist/（ESM、IIFE、.d.ts），并重写 runtimejs/tango.iife.js
+npm test          # 构建 + 单元测试 + API 报告与线上契约检查
+```
+
+页面拿到新代码的方式取决于它怎么引入运行时：
+
+- **Go 注入的脚本**（`app.AddBridgeScript(runtimejs.Script)`，页面里的全局 `tango`）：`runtimejs.Script` 是用 `go:embed` 嵌进 Go 二进制的 `runtime-js/runtimejs/tango.iife.js`。改了 `src` 之后要先 `npm run build` 重新生成这个文件，再重新编译并重启应用（例如重新 `go run ./examples/runtime-demo`）；刷新页面不会生效。`runtimejs/tango.iife.js` 要随源码一起提交，CI 会检查它是否与源码一致。
+- **npm 前端**（`import ... from "@tangoui/runtime"`）：把依赖指向本地目录。以仓库里的 `examples/<应用>/frontend/package.json` 为例：
+
+  ```json
+  { "dependencies": { "@tangoui/runtime": "file:../../../runtime-js" } }
+  ```
+
+  路径相对于该 `package.json` 所在目录。npm 会建一个指向 `runtime-js` 的链接，而包的入口是 `dist/`（已被 gitignore），所以先在 `runtime-js` 里 `npm run build`，之后每次改源码都要重新 build，前端开发服务器才能拿到新代码。仓库外的项目可以用 `tan init -local <Tango 检出目录>`，它会写入指向该检出的 `runtime-js` 的绝对 `file:` 路径。
+
+## API 稳定性
+
+`@tangoui/runtime` 与 Go 侧 `jsapi` 一样是稳定 API（`docs/specs/api-stability.md` §6.1）。下面这些都是契约，改动即 API 变化，需要在 `CHANGELOG.md` 的「未发布」里写明，不兼容的改动按 [release.md 的「API 稳定性」](release.md#api-稳定性) 走 `api-break` 流程：
+
+- 包入口导出的名字与类型签名：`call`、`on`、`emit`、`stream`、`onStream`、`onRaw`、`postRaw`、`createClient`、`getClient`、`TangoError`、`ErrorCode`、`ACK_EVERY`、`WINDOW` 及各类型。
+- 命名空间（`Window`、`App`……`Web`）里每个成员的名字与签名，以及命名空间本身的名字。
+- 错误：`TangoError` 的 `code` 取值（上面的错误码表、`ErrorCode` 联合类型、`jsapi.Code*` 与 `ipc.Code*`）。
+- 线上名字：`tango:<模块>.<函数>` 方法名、`tango:<模块>.<事件>` 事件名、`jsapi.Cap` 的位值，以及参数与结果、事件数据的 JSON 形状（字段名、类型、取值）。
+
+两份提交进仓库的黄金文件让这些变化出现在 diff 里：
+
+| 文件 | 内容 | 生成 / 检查 |
+|---|---|---|
+| `runtime-js/etc/runtime.api.md` | API Extractor 从 `dist/index.d.ts` 生成的公开 API 报告；命名空间按成员展开，每个成员带完整签名（同名成员会被改名为 `hide_2` 这样，命名空间块里写明 `hide_2 as hide`） | `npm run api:update`（本地，重写报告）；`npm run api:check`（CI，报告与源码不一致就失败） |
+| `api/jsapi-methods.txt` | 错误码、全部 `tango:*` 方法（带所需 `Cap`）与事件，以及 runtime-js 里用到每个名字的函数（`js=`；`js=-` 表示没有封装，例如 `updater.*`） | `go test ./jsapi -run TestWireContract -update` 重写 Go 侧各列（从 `api.Handle`/`Emit`/`Broadcast` 的注册代码提取，并用真实的 `Install` 交叉核对）；`npm run contract:update` 重写 `js=` 列（从 `src/api/*.ts` 的 `invoke`/`listen` 调用提取）；`npm run contract:check` 与 `go test ./jsapi -run TestWireContract` 只检查 |
+
+改 API 时的流程：
+
+```bash
+cd runtime-js
+npm run api:update        # 改了导出或签名
+cd .. && go test ./jsapi -run TestWireContract -update   # 改了 jsapi 的方法/事件/错误码
+cd runtime-js && npm run contract:update                 # 改了 src/api 用到的名字，或上一步之后
+npm test                  # 含 API 报告是否最新、契约是否一致，以及故意制造漂移的自检
+git diff ../api/jsapi-methods.txt etc/runtime.api.md     # 审查时看这两份 diff
+```
+
+TS 封装调用了 Go 没有注册的方法（或把方法当事件用）、Go 删掉了封装还在用的名字、名字不是常量字符串、`src/api` 里绕过 `invoke`/`listen` 直接写 `"tango:..."`、`ErrorCode` 或上面的错误码表与实际错误码不一致，都会让检查失败。
+
+**这些检查的边界**：它们只比较结构，不保证兼容。
+
+- API 报告只看名字和 TypeScript 类型。实现行为变了、默认值变了、`Promise` 何时 resolve 变了，报告都不会变。返回类型写成 `Promise<T>` 而 Go 实际返回的 JSON 换了字段，报告也看不出来。
+- 线上契约只核对名字（以及方法所需的 `Cap`）。参数个数与顺序、参数和结果的 JSON 形状、事件数据的字段，由 `jsapi` 与 `runtime-js` 各自的单元测试覆盖，没有统一的黄金文件；IPC 消息本身也还没有协议版本号。
+- 不在契约文件里的动态名字：应用自己的方法与事件（`call`/`on`/`emit`/`stream`、`Events.*`，名字由应用定）；其他包通过 `API.Handle` 注册的方法（`Cap` 第 32 位以上，目前仓库里没有）；`Theme.vars`/`onVarsChange` 读的页面全局变量 `__tangoUIVarsState` 和 DOM 事件 `tangouivars`（由 `sys/theme/uivars` 注入，不走 `jsapi`）。
+- 已知差异：`busy`（只有 `tango:updater.*` 会返回）不在 `ErrorCode` 联合类型里，靠 `(string & {})` 兜底；`updater.*` 方法与 `updater.event` 事件在 runtime-js 里没有封装。
 
 ## 已知缺口
 

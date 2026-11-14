@@ -1,7 +1,9 @@
-# Go API checks for github.com/tangoui/tango: golden files and tiers
-# (internal/cmd/apitxt), incompatible changes (scripts/apidiff.sh) and a
-# CHANGELOG entry for API changes. A separate workflow so that
-# adding or removing the api-break label re-runs only this check.
+# API checks: Go golden files and tiers (internal/cmd/apitxt), incompatible
+# Go changes (scripts/apidiff.sh), the JS runtime API report
+# (runtime-js/etc/runtime.api.md) and the jsapi wire contract
+# (api/jsapi-methods.txt), and a CHANGELOG entry for API changes. A
+# separate workflow so that adding or removing the api-break label re-runs
+# only this check.
 # See docs/ci.md and docs/release.md ("API 稳定性").
 name: API
 
@@ -39,6 +41,12 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: "**/go.sum"
 
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: runtime-js/package-lock.json
+
       - name: Resolve the base commit
         env:
           # PR: the base branch tip (the checkout is the merge commit, so this
@@ -65,6 +73,27 @@ jobs:
       - name: Check API golden files and tiers
         run: go run ./internal/cmd/apitxt -check
 
+      # @tangoui/runtime: api:check builds dist/ and runs API Extractor in
+      # CI mode, failing when etc/runtime.api.md differs from the sources
+      # (update locally with npm run api:update). contract:check and the
+      # two test files compare src/api/*.ts, the ErrorCode union and the
+      # docs error table with api/jsapi-methods.txt, and prove both checks
+      # catch deliberate drift on temp copies. See docs/runtime-api.md
+      # ("API 稳定性").
+      - name: Check JS runtime API report and wire contract
+        working-directory: runtime-js
+        run: |
+          npm ci
+          npm run api:check
+          npm run contract:check
+          node --test test/api-report.test.mjs test/contract.test.mjs
+
+      # The Go side of api/jsapi-methods.txt: methods, events and error
+      # codes extracted from jsapi's registration code and cross-checked
+      # with a real Install.
+      - name: Check jsapi wire contract
+        run: go test ./jsapi -run '^TestWireContract' -count=1
+
       - name: Check API compatibility
         if: env.API_BASE != ''
         env:
@@ -78,11 +107,16 @@ jobs:
         run: |
           # TODO(2026-11-21): one week after this check landed, turn the
           # warning into a failure (exit 1), as docs/release.md describes.
+          # Golden files whose change means a public API change: Go
+          # (api/go/), the JS runtime (runtime-js/etc/runtime.api.md) and
+          # the jsapi wire names (api/jsapi-methods.txt).
           changed="$(git diff --name-only "$API_BASE" HEAD)"
-          if grep -q '^api/go/' <<<"$changed" && ! grep -qx 'CHANGELOG.md' <<<"$changed"; then
+          api_files="$(grep -E '^(api/go/|api/jsapi-methods\.txt$|runtime-js/etc/runtime\.api\.md$)' <<<"$changed" || true)"
+          if [ -n "$api_files" ] && ! grep -qx 'CHANGELOG.md' <<<"$changed"; then
+            list="$(tr '\n' ' ' <<<"$api_files")"
             if [ "$NO_CHANGELOG" = 1 ]; then
-              echo "::notice::api/go changed without a CHANGELOG.md entry (no-changelog label)"
+              echo "::notice::API golden files changed without a CHANGELOG.md entry (no-changelog label): $list"
             else
-              echo "::warning::api/go changed but CHANGELOG.md did not: describe the API change under 未发布 in CHANGELOG.md, or label the PR no-changelog"
+              echo "::warning::API golden files changed but CHANGELOG.md did not ($list): describe the API change under 未发布 in CHANGELOG.md, or label the PR no-changelog"
             fi
           fi

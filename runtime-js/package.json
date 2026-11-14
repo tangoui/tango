@@ -49,9 +49,14 @@
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node build.mjs && node --test test/*.test.mjs",
+    "api:update": "node build.mjs && api-extractor run --local",
+    "api:check": "node build.mjs && api-extractor run",
+    "contract:check": "node tools/contract.mjs",
+    "contract:update": "node tools/contract.mjs --update",
     "prepublishOnly": "npm test"
   },
   "devDependencies": {
+    "@microsoft/api-extractor": "7.60.1",
     "esbuild": "0.25.10",
     "typescript": "5.9.3"
   }

@@ -6,6 +6,8 @@
 
 ### 新增
 
+- JS 运行时的 API 兼容检查：`runtime-js/etc/runtime.api.md`（API Extractor 报告，含各命名空间成员）与 `api/jsapi-methods.txt`（Go `jsapi` 与 TS 封装的方法名、事件名、错误码对账），CI 在漂移时失败；文档补充本地修改 runtime 的流程。
+
 - **完整图标库**：新增 `ui/icon/element`（Element Plus 293 个）、`ui/icon/antd`（Ant Design 848 个，线框 / 实底 / 双色）、`ui/icon/lucide`（Lucide 2052 个及 300 个旧名别名，shadcn/ui 默认图标），由 `internal/cmd/icongen` 从官方 npm 包生成；图标是静态初始化的变量，程序只链接实际引用到的图标，调用各库的 `Register` 后可用 `icon.ByName("lucide:search")` 按名查找。
 - **主题图标**：`theme.Theme.Icons`（`icon.Style`）让组件画出设计体系自己的图标：Ant Design 主题用 @ant-design/icons，Element Plus 主题用 Element Plus 图标，shadcn 主题用 Lucide 并把线宽改为 2；应用里用到的内置图标也会跟着替换。
 - `ui/icon`：图标改为由多段 `Part`（填充 / 描边、主色 / 辅色）组成，支持任意 viewBox（`Box`）、自定义线宽、双色图标（`DrawOpts.Secondary`）、绘制时覆盖线宽（`DrawOpts.StrokeWidth`）、位图与单色蒙版图标（`FromImage`）、`Register` / `RegisterAs` 注册自定义图标；内置图标从 85 个增加到 136 个（调试、编辑、Git、窗口按钮等常用图标）。
