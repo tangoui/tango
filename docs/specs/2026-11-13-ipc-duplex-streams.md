@@ -341,11 +341,11 @@ type SessionBinaryConn interface {
 ```go
 // internal/platform：Surface 可选接口，按 ext.go 的约定用类型断言发现
 type BinaryLane interface {
-	LaneCaps() []string            // 本页面当前可用的平台通道（down:android、down:shm……）
-	SendLanePacket(p []byte) bool  // 下行（平台通道）
+	LaneCaps() []string                       // 本页面当前可用的平台通道（down:android、down:shm……）
+	SendLanePacket(gen uint64, p []byte) bool // 下行（平台通道）；gen 为包所属世代
 }
-// HostEx 扩展：后端把上行包交给核心
-OnLanePacket(id SurfaceID, origin string, p []byte)
+// HostEx 扩展：后端把上行包交给核心；返回是否交给了 OnBinary
+OnLanePacket(id SurfaceID, origin string, gen uint64, p []byte) bool
 ```
 
 `down:scheme`/`up:post` 不经过 `BinaryLane`：它们是 `tango://` 请求，由核心在 `host.ServeAsset` 里先拦截 `/__tango/lane/` 路径（在交给 `opts.Assets` 之前），校验 `gen` 和 `tok` 后处理。下行端点是一个长期不结束的响应，所以依赖 §6.2 里 darwin/iOS 协议处理器的异步化；Linux 2.36+ 已经是异步的。
@@ -373,14 +373,20 @@ OnLanePacket(id SurfaceID, origin string, p []byte)
   - **复查第二轮 N3**：Go 分配的流 id 在同一 (Router, Conn) 上跨 `hello` 单调递增、不复用（连接状态替换时带上最后的 id），被回收流的 `cancel` 不会命中新文档的流；`Router.Drop`（页面关闭）忘掉它，Router 不为已关闭的 Conn 留任何东西。
 - `down:scheme` 一次只从队列分离即将尝试写出的**一个包**；其余未尝试尾部始终留在队列最前面。连接替换不重发已尝试包、不丢尾部；后来准入的包排在尾部之后。在途包直到 Write 和 Flush 结算仍计入 8 MiB 队列额度。Reset/fail/结束世代丢弃尾部而不跨世代搬运。实际 Write/Flush 的阻塞解除仍是 §6.2 后端能力启用前提。
 - 通道模块可继续请求内部相对路径，但生产 fetch 适配器只相对该世代捕获的 `location.href`（真实文档位置，**不是 document.baseURI**）解析，并校验协议+host、拒绝 credentials 和任意外部目的地。设置 `redirect:"error"`，并拒绝 redirected 响应。自定义 scheme 的 `origin` 可能为 `"null"`，不能仅比较 origin 字符串。Node 注入 fetch 仍支持相对路径。
+- **实施裁定（Android 计划 Task 1，平台通道按世代绑定）**：
+  - 平台上行包带世代：后端把页面随包发来的 `gen` 传给 `OnLanePacket(id, origin, gen, p)`，核心用 `lane.State.AllowUpGen(gen, p)` 在同一把锁里校验 `gen` 是当前世代且上行可用，再交给 `OnBinary`。取代原来在包到达时读取"当前"世代的 `AllowUpSession()`：延迟到达的旧世代包不会被算进新世代。
+  - 平台下行包带世代：`platformSend(gen, p)` / `SendLanePacket(gen, p)` 仍在 State 锁外调用（避免锁顺序问题），`gen` 是包被准入时的世代；后端只在该世代的页面通道仍有效时投递，否则丢弃，并且不得回调 `lane.State`。
+  - `OnLanePacket` 返回是否交给了 `OnBinary`：false 表示丢弃（页面已关、来源不符、`AllowUpGen` 拒绝），后端据此告诉页面上行被拒。
+  - 平台上行的空包（count 0，例如 `up:android` 的探测包）检查可用性但不计入故障计数，与下行及 `up:post` 一致；通道故障后空包同样被拒。
 
 ### 6.2 各平台通道
 
 #### Android：WebMessageListener 的 ArrayBuffer 消息（上下行）
 
 - 条件：androidx.webkit 的 `WebViewFeature.isFeatureSupported(WEB_MESSAGE_ARRAY_BUFFER)` 为真（WebView ≥ 116），且页面走的是 `WebMessageListener` 而不是 `JavascriptInterface` 兜底。
-- 上行：JS `postMessage(ArrayBuffer)`，`Page.java` 的 listener 收到 `TYPE_ARRAY_BUFFER` 后，经 JNI 交给 `OnLanePacket`。现有的字符串消息带页面 token；二进制消息改用 listener 提供的 `sourceOrigin` 和 `isMainFrame` 校验，并且包首加 16 字节 token（与字符串消息的 token 相同），不匹配就丢弃。
-- 下行：`replyProxy.postMessage(byte[])`。`replyProxy` 来自 JS 的每条消息；`Page.java` 现在没有保存它，要在收到 `hello` 时保存（每个世代更新一次）。在主线程调用。
+- 上行：JS `postMessage(ArrayBuffer)`，`Page.java` 的 listener 收到 `TYPE_ARRAY_BUFFER` 后，经 JNI 交给 `OnLanePacket`。现有的字符串消息带页面 token；二进制消息改用 listener 提供的 `sourceOrigin` 和 `isMainFrame` 校验。包格式为 `token[16] | gen:u64(LE) | 公共包`：`token` 与字符串消息的页面 token 相同，不匹配就丢弃；`gen` 是 hello 给的通道世代，交给 `OnLanePacket` 由核心校验（§6.1 实施裁定）。
+- 下行：`replyProxy.postMessage(byte[])`。`replyProxy` 来自 JS 的每条消息；Java 不解析 ipc 消息，所以不在 `hello` 时保存，而是在**合法探测包**（`token | gen | 00 00`）被核心接受时连同它的 `gen` 保存，之后的新探测替换它。核心交来的下行包只发给同一世代保存的 `replyProxy`，其他世代的丢弃。在主线程调用。
+- 回复（都是 `ArrayBuffer`）：长度 1 的 `[0]` = 探测确认，`[1]` = 上行包或探测被核心拒绝（`OnLanePacket` 返回 false）；长度 ≥ 2 = 下行公共包。
 - `BinaryMinSize`：0（全部字节帧走快速通道；它本来就是消息通道，没有额外延迟）。
 - 各方向各拷贝一次（跨进程），可以接受。
 

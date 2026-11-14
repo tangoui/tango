@@ -30,16 +30,18 @@ func parseHello(t *testing.T, raw json.RawMessage) helloJSON {
 type recorder struct {
 	mu   sync.Mutex
 	got  [][]byte
+	gens []uint64 // generation of each packet in got
 	fail bool
 }
 
-func (r *recorder) send(p []byte) bool {
+func (r *recorder) send(gen uint64, p []byte) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.fail {
 		return false
 	}
 	r.got = append(r.got, p)
+	r.gens = append(r.gens, gen)
 	return true
 }
 
@@ -373,5 +375,91 @@ func TestQueued(t *testing.T) {
 	s.Send(make([]byte, 5))
 	if n, b := s.Queued(); n != 2 || b != 15 {
 		t.Fatalf("Queued = %d, %d", n, b)
+	}
+}
+
+// A platform upstream packet carries the generation it was sent in; the
+// core checks it against the current one atomically with the lane's
+// usability, so a delayed packet of an old generation never counts for a
+// new one.
+func TestAllowUpGenRejectsOldGeneration(t *testing.T) {
+	s := New(nil)
+	pkt := mkPacket([]byte("x"))
+	g1 := parseHello(t, s.Hello([]string{UpAndroid}, true)).Gen
+	if !s.AllowUpGen(g1, pkt) {
+		t.Fatal("current generation's packet refused")
+	}
+	g2 := parseHello(t, s.Hello([]string{UpAndroid}, true)).Gen
+	if g2 == g1 {
+		t.Fatal("second hello kept the generation")
+	}
+	if s.AllowUpGen(g1, pkt) {
+		t.Fatal("old generation's packet allowed")
+	}
+	if !s.AllowUpGen(g2, pkt) {
+		t.Fatal("new generation's packet refused")
+	}
+	if s.AllowUpGen(g2+1, pkt) {
+		t.Fatal("future generation's packet allowed")
+	}
+	s.Reset()
+	if s.AllowUpGen(g1, pkt) || s.AllowUpGen(g2, pkt) || s.AllowUpGen(g2+1, pkt) {
+		t.Fatal("packet allowed after Reset")
+	}
+}
+
+// Empty packets (count 0, such as the up:android probe) are checked but
+// not counted for fault injection; once the lane has faulted they are
+// refused too. The fault fields are set directly so the test runs in every
+// build.
+func TestAllowUpGenSkipsEmptyForFault(t *testing.T) {
+	s := New(nil)
+	s.faultLane, s.faultN = UpAndroid, 2 // as TANGO_IPC_LANE_FAULT=up:android:2
+	g := parseHello(t, s.Hello([]string{UpAndroid}, true)).Gen
+	empty := []byte{0, 0}
+	data := mkPacket([]byte("x"))
+	for i := 0; i < 3; i++ {
+		if !s.AllowUpGen(g, empty) {
+			t.Fatalf("empty packet %d refused", i+1)
+		}
+	}
+	for i := 0; i < 2; i++ {
+		if !s.AllowUpGen(g, data) {
+			t.Fatalf("data packet %d refused before the fault (empty packets counted?)", i+1)
+		}
+	}
+	if s.AllowUpGen(g, data) {
+		t.Fatal("third data packet allowed after the fault")
+	}
+	if s.AllowUpGen(g, empty) {
+		t.Fatal("empty packet allowed on a faulted lane")
+	}
+}
+
+// The platform downstream lane is handed each packet with the generation
+// it was admitted in; after a new hello the old lane is not ready and the
+// backend is not called.
+func TestSendLanePacketCarriesGeneration(t *testing.T) {
+	rec := &recorder{}
+	s := New(rec.send)
+	g1 := parseHello(t, s.Hello([]string{DownAndroid}, true)).Gen
+	s.Control(ctl("ready", DownAndroid, g1))
+	pkt := mkPacket([]byte("x"))
+	if !s.Send(pkt) {
+		t.Fatal("Send refused on a ready lane")
+	}
+	rec.mu.Lock()
+	if len(rec.got) != 1 || &rec.got[0][0] != &pkt[0] || rec.gens[0] != g1 {
+		gens := rec.gens
+		rec.mu.Unlock()
+		t.Fatalf("platformSend got gens %v, want one packet in generation %d", gens, g1)
+	}
+	rec.mu.Unlock()
+	parseHello(t, s.Hello([]string{DownAndroid}, true))
+	if s.Send(pkt) {
+		t.Fatal("Send true before the new generation's lane is ready")
+	}
+	if rec.n() != 1 {
+		t.Fatal("platformSend called after a new hello")
 	}
 }

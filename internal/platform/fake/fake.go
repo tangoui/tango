@@ -536,6 +536,7 @@ type Surface struct {
 	devtools int
 	laneCaps []string // SetLaneCaps
 	lanePkts [][]byte // SendLanePacket
+	laneGens []uint64 // SendLanePacket: generation of each lanePkts entry
 }
 
 func (s *Surface) Show() { s.b.mustMain("Show"); s.mu.Lock(); s.visible = true; s.mu.Unlock() }
@@ -654,14 +655,28 @@ func (b *Backend) LanePackets(id platform.SurfaceID) [][]byte {
 	return out
 }
 
-// LaneUp simulates surface id's page at origin sending p on a platform
-// upstream lane: it calls the host's OnLanePacket on the calling goroutine,
-// as a backend's lane thread would. It does nothing if the host is not a
-// platform.LaneHost.
-func (b *Backend) LaneUp(id platform.SurfaceID, origin string, p []byte) {
-	if lh, ok := b.h.(platform.LaneHost); ok {
-		lh.OnLanePacket(id, origin, p)
+// LanePacketGens returns the lane generation of each packet LanePackets
+// returns, in the same order.
+func (b *Backend) LanePacketGens(id platform.SurfaceID) []uint64 {
+	s := b.Surface(id)
+	if s == nil {
+		return nil
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.laneGens)
+}
+
+// LaneUp simulates surface id's page at origin sending p, in lane
+// generation gen, on a platform upstream lane: it calls the host's
+// OnLanePacket on the calling goroutine, as a backend's lane thread would,
+// and returns its result. It returns false if the host is not a
+// platform.LaneHost.
+func (b *Backend) LaneUp(id platform.SurfaceID, origin string, gen uint64, p []byte) bool {
+	if lh, ok := b.h.(platform.LaneHost); ok {
+		return lh.OnLanePacket(id, origin, gen, p)
+	}
+	return false
 }
 
 // LaneCaps implements platform.BinaryLane (any goroutine).
@@ -672,13 +687,14 @@ func (s *Surface) LaneCaps() []string {
 }
 
 // SendLanePacket implements platform.BinaryLane (any goroutine): it records
-// p, refusing it once the surface is closed.
-func (s *Surface) SendLanePacket(p []byte) bool {
+// p and its generation, refusing it once the surface is closed.
+func (s *Surface) SendLanePacket(gen uint64, p []byte) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return false
 	}
 	s.lanePkts = append(s.lanePkts, p)
+	s.laneGens = append(s.laneGens, gen)
 	return true
 }

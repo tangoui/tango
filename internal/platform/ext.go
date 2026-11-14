@@ -460,13 +460,23 @@ type BinaryLane interface {
 	// the packet was not taken (the lane is busy or gone) and the frames
 	// go as messages instead. On true the backend owns p; on false it must
 	// neither keep nor modify it.
-	SendLanePacket(p []byte) bool
+	//
+	// gen is the lane generation (the page's hello) p was sent in. The
+	// call is made without the core's lane lock, so the generation may
+	// have ended by now: the backend delivers p only while the page lane
+	// of generation gen is still valid, and drops it otherwise. It must
+	// not call back into the core's lane state.
+	SendLanePacket(gen uint64, p []byte) bool
 }
 
 // LaneHost is implemented by the core's Host. Backends type-assert their
 // Host to LaneHost to deliver packets their upstream lanes (up:android,
-// up:shm) received from surface id's page at origin. OnLanePacket may be
-// called from any goroutine and does not keep p.
+// up:shm) received from surface id's page at origin, sent in lane
+// generation gen. OnLanePacket may be called from any goroutine and does
+// not keep p. It reports whether p was handed to the OnBinary handlers;
+// false means it was dropped (the surface is gone, origin is not the asset
+// origin, gen is not the current generation or the upstream lane is not
+// usable), and the backend may tell the page its upstream lane refused.
 type LaneHost interface {
-	OnLanePacket(id SurfaceID, origin string, p []byte)
+	OnLanePacket(id SurfaceID, origin string, gen uint64, p []byte) bool
 }

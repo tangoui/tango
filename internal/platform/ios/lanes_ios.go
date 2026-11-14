@@ -40,7 +40,7 @@ func (s *surface) LaneCaps() []string { return slices.Clone(s.laneCaps) }
 
 // SendLanePacket implements platform.BinaryLane: iOS has no platform lane
 // (down:scheme is the core's), so no packet is ever taken. Any goroutine.
-func (s *surface) SendLanePacket([]byte) bool { return false }
+func (s *surface) SendLanePacket(uint64, []byte) bool { return false }
 
 // envLaneCaps returns the lanes of a WebView surface created now.
 func envLaneCaps() []string { return laneCapsFromEnv(os.Getenv, testHooks) }
