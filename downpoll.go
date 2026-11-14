@@ -142,7 +142,7 @@ func (s *Surface) sendDown(msg string) {
 	}
 	s.downq.Push(downq.Msg, []byte(msg))
 	d.sendMu.Unlock()
-	if s.app.isMain() {
+	if d.outboxed() && s.app.isMain() {
 		s.drainDown()
 	}
 }
@@ -170,7 +170,7 @@ func (s *Surface) evalDown(js string) {
 		d.mu.Unlock()
 		s.downq.Push(downq.Barrier, binary.BigEndian.AppendUint64(nil, id))
 		d.sendMu.Unlock()
-		if s.app.isMain() {
+		if d.outboxed() && s.app.isMain() {
 			s.drainDown()
 		}
 		return
@@ -180,6 +180,16 @@ func (s *Surface) evalDown(js string) {
 	if s.app.isMain() {
 		s.drainDown()
 	}
+}
+
+// outboxed reports whether the outbox holds batches. Send and Eval drain
+// it on the main thread only then: an item the poll lane queued needs no
+// main thread, and isMain (a goroutine id lookup) costs microseconds,
+// several times the rest of a Send.
+func (d *surfaceDown) outboxed() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return len(d.out) > 0
 }
 
 // downFallback is downq's fallback. downq's lock is held and the caller
