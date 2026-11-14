@@ -131,6 +131,7 @@ type Locale struct {
 	TitleBar           TitleBarLocale
 	NotificationCenter NotificationCenterLocale
 	HotkeyInput        HotkeyInputLocale
+	Chat               ChatLocale // AI chat components (chat_locale.go)
 
 	// Extra holds texts of other components by key ("MyWidget.title", ...).
 	Extra map[string]string

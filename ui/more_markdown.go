@@ -844,6 +844,7 @@ type MarkdownW struct {
 	noSelect bool
 	hl       CodeHighlighter
 	hlSet    bool
+	col      theme.Color // body text color (zero: theme Text)
 }
 
 type mdCache struct {
@@ -881,6 +882,11 @@ func (m *MarkdownW) NoCopy() *MarkdownW { m.copyable = false; return m }
 // language (default DefaultCodeHighlighter; nil: plain text).
 func (m *MarkdownW) Highlighter(h CodeHighlighter) *MarkdownW { m.hl, m.hlSet = h, true; return m }
 
+// Color sets the color of body text and headings (default theme Text and
+// TextHeading), for documents on a colored background such as a chat
+// bubble.
+func (m *MarkdownW) Color(col theme.Color) *MarkdownW { m.col = col; return m }
+
 // ClickedLink returns the URL of a link clicked this frame ("" if none).
 func (m *MarkdownW) ClickedLink() string { m.z.run(); return m.clicked }
 
@@ -898,7 +904,7 @@ func (m *MarkdownW) build() {
 		p := &mdParser{}
 		st.blocks, st.src = p.parse(strings.Split(src, "\n")), m.src
 	}
-	m.blocks(st.blocks, Span{}, true)
+	m.blocks(st.blocks, Span{Color: m.col}, true)
 }
 
 func (m *MarkdownW) fontSize() float32 {
@@ -944,6 +950,9 @@ func (m *MarkdownW) blocks(bs []*mdBlock, base Span, top bool) {
 				}
 				spans := mdInline(b.text, Span{Bold: true}, m.c.Locale().Markdown.ImagePrefix)
 				col := th.TextHeading
+				if base.Color.A > 0 {
+					col = base.Color
+				}
 				w := m.rich(mdMerge(spans), size, col)
 				w.n.setRole(a11y.RoleHeading)
 				if lv := min(b.level, 6); c.a11yOn {

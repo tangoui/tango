@@ -344,3 +344,10 @@ var (
 var (
 	SplitPane = def("split-pane", "M3.5 4.5H20.5V19.5H3.5ZM12 4.5V19.5", "")
 )
+
+// AI chat components (Bubble, ToolCall, Prompts); original path data.
+var (
+	Robot = def("robot", "M5 9H19V19H5ZM12 9V6.5M9.5 13V14M14.5 13V14M9.5 16.5H14.5M3 12.5V15.5M21 12.5V15.5"+circle(12, 5, 1.5), "")
+	Tool  = def("tool", "M15.9 4.1V8.1H19.9A5 5 0 1 1 15.9 4.1ZM11.6 12.4L4.5 19.5", "")
+	Bulb  = def("bulb", "M9.5 18H14.5M10.5 21H13.5M8.8 15C7.1 13.8 6 11.8 6 9.5A6 6 0 0 1 18 9.5C18 11.8 16.9 13.8 15.2 15V15.5H8.8Z", "")
+)

@@ -44,6 +44,7 @@ pkg github.com/tangoui/tango/ui/icon, var Bell *Icon
 pkg github.com/tangoui/tango/ui/icon, var Bookmark *Icon
 pkg github.com/tangoui/tango/ui/icon, var Branch *Icon
 pkg github.com/tangoui/tango/ui/icon, var Bug *Icon
+pkg github.com/tangoui/tango/ui/icon, var Bulb *Icon
 pkg github.com/tangoui/tango/ui/icon, var Calendar *Icon
 pkg github.com/tangoui/tango/ui/icon, var CaretDown *Icon
 pkg github.com/tangoui/tango/ui/icon, var CaretLeft *Icon
@@ -138,6 +139,7 @@ pkg github.com/tangoui/tango/ui/icon, var Reload *Icon
 pkg github.com/tangoui/tango/ui/icon, var Restore *Icon
 pkg github.com/tangoui/tango/ui/icon, var Right *Icon
 pkg github.com/tangoui/tango/ui/icon, var Rise *Icon
+pkg github.com/tangoui/tango/ui/icon, var Robot *Icon
 pkg github.com/tangoui/tango/ui/icon, var RotateLeft *Icon
 pkg github.com/tangoui/tango/ui/icon, var RotateRight *Icon
 pkg github.com/tangoui/tango/ui/icon, var Save *Icon
@@ -163,6 +165,7 @@ pkg github.com/tangoui/tango/ui/icon, var Table *Icon
 pkg github.com/tangoui/tango/ui/icon, var Tag *Icon
 pkg github.com/tangoui/tango/ui/icon, var Team *Icon
 pkg github.com/tangoui/tango/ui/icon, var Terminal *Icon
+pkg github.com/tangoui/tango/ui/icon, var Tool *Icon
 pkg github.com/tangoui/tango/ui/icon, var Undo *Icon
 pkg github.com/tangoui/tango/ui/icon, var Unlock *Icon
 pkg github.com/tangoui/tango/ui/icon, var Up *Icon

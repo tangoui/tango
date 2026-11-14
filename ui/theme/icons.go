@@ -73,6 +73,7 @@ func AntIcons() *icon.Style {
 		icon.FitView: antd.ExpandOutlined, icon.AutoLayout: antd.ApartmentOutlined,
 		icon.Clear:     antd.ClearOutlined,
 		icon.SplitPane: antd.SplitCellsOutlined,
+		icon.Robot:     antd.RobotOutlined, icon.Tool: antd.ToolOutlined, icon.Bulb: antd.BulbOutlined,
 	}}
 }
 
@@ -122,6 +123,8 @@ func ElementIcons() *icon.Style {
 		icon.FitView: element.FullScreen, icon.AutoLayout: element.Share,
 		icon.CheckAll: element.Finished, icon.Clear: element.Brush,
 		// icon.SplitPane: Element Plus has no split icon; the built-in shape stays.
+		// Element Plus has no robot icon: icon.Robot keeps its built-in shape.
+		icon.Tool: element.Tools, icon.Bulb: element.Opportunity,
 	}}
 }
 
@@ -179,5 +182,6 @@ func LucideIcons() *icon.Style {
 		icon.FitView: lucide.Scan, icon.AutoLayout: lucide.Network,
 		icon.CheckAll: lucide.CheckCheck, icon.Clear: lucide.BrushCleaning,
 		icon.SplitPane: lucide.Columns2,
+		icon.Robot:     lucide.Bot, icon.Tool: lucide.Wrench, icon.Bulb: lucide.Lightbulb,
 	}}
 }

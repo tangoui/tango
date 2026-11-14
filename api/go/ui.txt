@@ -1683,6 +1683,7 @@ pkg github.com/tangoui/tango/ui, method (*MarkdownEditorW) Layout(...ui/layout.O
 pkg github.com/tangoui/tango/ui, method (*MarkdownEditorW) Mode(string) *MarkdownEditorW
 pkg github.com/tangoui/tango/ui, method (*MarkdownEditorW) Placeholder(string) *MarkdownEditorW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) ClickedLink() string
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) Color(ui/theme.Color) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Highlighter(CodeHighlighter) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Images(func(string) image.Image) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) NoCopy() *MarkdownW
@@ -3268,6 +3269,52 @@ pkg github.com/tangoui/tango/ui, type ChartLocale struct, ValueFmt string
 pkg github.com/tangoui/tango/ui, type ChartLocale struct, XRangeFmt string
 pkg github.com/tangoui/tango/ui, type ChartLocale struct, YRangeFmt string
 pkg github.com/tangoui/tango/ui, type ChartLocale struct, noncomparable
+pkg github.com/tangoui/tango/ui, type ChatLocale struct
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, AllowAlways string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, AllowOnce string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, AllowSession string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Allowed string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, ApprovalTitle string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Arguments string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Assistant string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Attach string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Conversations string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Denied string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Deny string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Done string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Earlier string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, EditPlaceholder string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Error string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Failed string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, FeedbackPlaceholder string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Generating string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Last30Days string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Last7Days string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Messages string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, MinutesFmt string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Pending string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Placeholder string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Prompts string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Rename string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Result string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, RiskDanger string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, RiskWarning string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Running string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, ScrollToBottom string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, SecondsFmt string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Send string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, StepsFmt string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Stop string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Suggestions string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, System string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Thinking string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Today string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, ToolCall string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Untitled string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Uploading string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, User string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, Yesterday string
+pkg github.com/tangoui/tango/ui, type ChatLocale struct, noncomparable
 pkg github.com/tangoui/tango/ui, type CheckAllW struct
 pkg github.com/tangoui/tango/ui, type CheckAllW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type CheckCardGroupW struct
@@ -3677,6 +3724,7 @@ pkg github.com/tangoui/tango/ui, type Locale struct, Cancel string
 pkg github.com/tangoui/tango/ui, type Locale struct, CancelSort string
 pkg github.com/tangoui/tango/ui, type Locale struct, Carousel CarouselLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, Chart ChartLocale
+pkg github.com/tangoui/tango/ui, type Locale struct, Chat ChatLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, Clear string
 pkg github.com/tangoui/tango/ui, type Locale struct, Close string
 pkg github.com/tangoui/tango/ui, type Locale struct, CloseAll string

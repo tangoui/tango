@@ -102,6 +102,7 @@ const (
 	CompNotificationCenter
 	CompHotkeyInput
 	CompDock
+	CompChat
 	// numComps counts the Comp values. Internally Comp(i) indexes the
 	// i-th field of Components, so both lists only ever grow at the end.
 	numComps
@@ -176,6 +177,7 @@ type Components struct {
 	NotificationCenter NotificationCenterToken
 	HotkeyInput        HotkeyInputToken
 	Dock               DockToken
+	Chat               ChatToken
 }
 
 // Alias is the subset of global tokens a component may override for itself
@@ -453,6 +455,8 @@ func deriveComp(t *Theme, k Comp) any {
 		return deriveHotkeyInput(t)
 	case CompDock:
 		return deriveDock(t)
+	case CompChat:
+		return deriveChat(t)
 	}
 	panic("theme: unknown component")
 }
