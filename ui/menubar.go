@@ -220,7 +220,7 @@ func (m *MenubarW) build() {
 	// moves (panel() ends it then).
 	hoverOK := !st.popup.kbd || c.pointer != st.popup.ptr
 	font := c.style(tk.TriggerFontSize, themeWeight(tk.TriggerFontWeight))
-	shad := th.Flavor == theme.StyleShadcn
+	focusFill := tk.TriggerFocusBg.A > 0
 	var ias []Interaction
 	for i, mn := range m.menus {
 		key := m.menuKey(i)
@@ -247,19 +247,22 @@ func (m *MenubarW) build() {
 		id := t.id
 		t.paint = func(l *paint.List, r geom.Rect) {
 			o := c.Anim(id, "open", b2f(open), th.DurationFast)
-			h := c.Anim(id, "hover", b2f((ia.Hovered || shad && ia.FocusVisible) && !disabled), th.DurationFast)
+			h := c.Anim(id, "hover", b2f(ia.Hovered && !disabled), th.DurationFast)
+			f := c.Anim(id, "focus", b2f(focusFill && ia.FocusVisible && !disabled), th.DurationFast)
 			rad := geom.Rad(tk.TriggerRadius)
 			bg := theme.Fade(tk.TriggerHoverBg, float64(h))
+			bg = theme.Lerp(bg, tk.TriggerFocusBg, f)
 			bg = theme.Lerp(bg, tk.TriggerOpenBg, o)
 			l.Fill(r, rad, bg)
 			col := theme.Lerp(tk.TriggerColor, tk.TriggerHoverColor, h)
+			col = theme.Lerp(col, tk.TriggerFocusColor, f)
 			col = theme.Lerp(col, tk.TriggerOpenColor, o)
 			if disabled {
 				col = th.TextDisabled
 			}
 			lay := text.Shape(label, font, c.textOpts(text.Options{NoWrap: true}))
 			l.Glyphs(geom.Pt(c.inline(r).X(tk.TriggerPaddingInline, lay.Width), r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
-			if ia.FocusVisible && !shad && !disabled {
+			if ia.FocusVisible && !focusFill && !disabled {
 				drawFocusRing(l, th, r, rad)
 			}
 		}
@@ -474,17 +477,14 @@ func (m *MenubarW) popups() {
 		}}
 	el := navEl(c)
 	a := c.AnimFrom(hashID(m.n.id, "pop", st.open), "open", 0, 1, th.DurationMid)
-	pop := &navMenuPopup{c: c, th: th, tk: &th.Components.Dropdown, st: &st.popup, element: el, opacity: a, marks: marks, minW: 180}
+	pop := &navMenuPopup{c: c, th: th, tk: &th.Components.Dropdown, st: &st.popup, element: el, opacity: a, marks: marks,
+		minW: tk.PopupMinWidth, alignOffset: tk.PopupAlignOffset}
 	pop.side = func(dir int) {
 		if j := m.step(i, dir); j >= 0 && j != i {
 			m.openMenu(j, true)
 		}
 	}
-	off := float32(4)
-	if el {
-		off = 2
-	}
-	pop.panel(items, 0, m.trig[i].id, BottomStart, off, nil)
+	pop.panel(items, 0, m.trig[i].id, BottomStart, tk.PopupOffset, nil)
 	st.panels = pop.panels
 	if pop.clicked != "" {
 		if src := idx[pop.clicked]; src != nil {

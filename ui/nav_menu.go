@@ -63,6 +63,19 @@ type MenuW struct {
 	clicked   string
 	id        ID
 
+	openKeys    *[]string // bound inline open keys (nil: internal state)
+	openChanged bool
+	selectable  bool
+	tooltip     bool
+	indent      float32 // per-level inline indent (0: the token)
+	openDelay   time.Duration
+	closeDelay  time.Duration
+	clickSub    bool       // submenus pop out on click (triggerSubMenuAction)
+	expandIcon  *icon.Icon // nil: the theme chevron
+	moreIcon    *icon.Icon // nil: icon.More
+	noEllipsis  bool
+	panels      map[string]func()
+
 	ents   []navEntry
 	nodes  []*node // item nodes, parallel to ents (roving Tab stop)
 	act    int
@@ -72,13 +85,85 @@ type MenuW struct {
 // Menu starts a menu bound to the selected key; chain options, then Show.
 //
 // ConfigProvider.Defaults("Menu", ...) keys: "mode" (MenuMode), "theme"
-// ("dark" | "light"), "accordion", "inlineCollapsed" (bool).
+// ("dark" | "light"), "accordion", "inlineCollapsed", "selectable",
+// "tooltip", "ellipsis" (bool), "inlineIndent" (float32 px),
+// "subMenuOpenDelay" / "subMenuCloseDelay" (time.Duration; default the
+// Menu token: Ant 100 / 100 ms, Element 300 / 300 ms, shadcn 200 / 150 ms),
+// "triggerSubMenuAction" ("hover" | "click").
 func Menu(c *Context, items []MenuItem, selected *string) *MenuW {
 	m := &MenuW{c: c, th: c.ThemeFor(theme.CompMenu), items: items, sel: selected, act: -1}
+	tk := &m.th.Components.Menu
 	m.mode = Prop(c, "Menu", "mode", MenuInline)
 	m.dark = Prop(c, "Menu", "theme", "light") == "dark"
 	m.accordion = Prop(c, "Menu", "accordion", false)
 	m.collapsed = Prop(c, "Menu", "inlineCollapsed", false)
+	m.selectable = Prop(c, "Menu", "selectable", true)
+	m.tooltip = Prop(c, "Menu", "tooltip", true)
+	m.noEllipsis = !Prop(c, "Menu", "ellipsis", true)
+	m.indent = Prop(c, "Menu", "inlineIndent", float32(0))
+	m.openDelay = Prop(c, "Menu", "subMenuOpenDelay", tk.SubMenuOpenDelay)
+	m.closeDelay = Prop(c, "Menu", "subMenuCloseDelay", tk.SubMenuCloseDelay)
+	m.clickSub = Prop(c, "Menu", "triggerSubMenuAction", "hover") == "click"
+	return m
+}
+
+// OpenKeys binds the keys of the open inline submenus (antd openKeys /
+// onOpenChange, Element default-openeds): the menu reads and writes
+// *keys; OpenChanged reports a change. Keys that are not submenus of the
+// menu are ignored.
+func (m *MenuW) OpenKeys(keys *[]string) *MenuW { m.openKeys = keys; return m }
+
+// OpenChanged reports that the user opened or closed an inline submenu
+// this frame.
+func (m *MenuW) OpenChanged() bool { return m.openChanged }
+
+// Selectable(false) leaves the selected key alone when a leaf is clicked
+// (antd selectable; Clicked still reports it).
+func (m *MenuW) Selectable(on bool) *MenuW { m.selectable = on; return m }
+
+// Tooltip(false) turns off the tooltip of a collapsed menu's root items
+// (antd tooltip={false}).
+func (m *MenuW) Tooltip(on bool) *MenuW { m.tooltip = on; return m }
+
+// InlineIndent sets the indent per inline level (antd inlineIndent 24,
+// Element --el-menu-level-padding 20; default the Menu token).
+func (m *MenuW) InlineIndent(px float32) *MenuW { m.indent = px; return m }
+
+// SubMenuOpenDelay waits d before a hovered pop-out submenu opens (antd
+// subMenuOpenDelay, Element show-timeout).
+func (m *MenuW) SubMenuOpenDelay(d time.Duration) *MenuW { m.openDelay = d; return m }
+
+// SubMenuCloseDelay waits d before a pop-out submenu closes once the
+// pointer left it (antd subMenuCloseDelay, Element hide-timeout).
+func (m *MenuW) SubMenuCloseDelay(d time.Duration) *MenuW { m.closeDelay = d; return m }
+
+// TriggerSubMenuAction selects how pop-out submenus open: TriggerHover
+// (default) or TriggerClick (antd triggerSubMenuAction, Element
+// menu-trigger); a click popup stays until a choice, Escape or a press
+// outside.
+func (m *MenuW) TriggerSubMenuAction(t Trigger) *MenuW { m.clickSub = t == TriggerClick; return m }
+
+// ExpandIcon replaces the submenu chevron (antd expandIcon).
+func (m *MenuW) ExpandIcon(ic *icon.Icon) *MenuW { m.expandIcon = ic; return m }
+
+// OverflowedIndicator replaces the icon of the "…" item that collects the
+// items a horizontal bar cannot fit (antd overflowedIndicator, Element
+// ellipsis-icon).
+func (m *MenuW) OverflowedIndicator(ic *icon.Icon) *MenuW { m.moreIcon = ic; return m }
+
+// Ellipsis(false) keeps every root item of a horizontal bar instead of
+// folding the overflow into "…" (Element ellipsis).
+func (m *MenuW) Ellipsis(on bool) *MenuW { m.noEllipsis = !on; return m }
+
+// ItemPanel shows fn in the drop-down panel of the root item keyed key of
+// a horizontal menu instead of its children (shadcn NavigationMenuContent):
+// hovering or focusing the item opens the panel, Escape or leaving it
+// closes it. The item gets a chevron like a submenu.
+func (m *MenuW) ItemPanel(key string, fn func()) *MenuW {
+	if m.panels == nil {
+		m.panels = map[string]func(){}
+	}
+	m.panels[key] = fn
 	return m
 }
 
@@ -116,7 +201,7 @@ func (m *MenuW) el() bool { return navEl(m.c) }
 // ignored there.
 func (m *MenuW) colors() (bg, fg, fgActive, hoverBg, selBg, selFg, subBg theme.Color) {
 	tk := &m.th.Components.Menu
-	if !m.dark || m.th.Flavor == theme.StyleShadcn {
+	if !m.darkLook() {
 		return tk.ItemBg, tk.ItemColor, tk.ItemSelectedColor, tk.ItemHoverBg, tk.ItemSelectedBg, tk.ItemSelectedColor, tk.SubMenuItemBg
 	}
 	return tk.DarkItemBg, tk.DarkItemColor, tk.DarkItemHoverColor, tk.DarkItemHoverBg, tk.DarkItemSelectedBg, tk.DarkItemSelectedColor, tk.DarkSubMenuItemBg
@@ -144,6 +229,13 @@ func (m *MenuW) Show() *MenuW {
 		}
 		return st
 	})
+	if m.openKeys != nil {
+		// Controlled open keys: the bound slice is the truth each frame.
+		clear(m.st.open)
+		for _, k := range *m.openKeys {
+			m.st.open[k] = true
+		}
+	}
 	if c.pointer != m.st.ptr {
 		m.st.ptr = c.pointer
 		m.st.kbd = false
@@ -158,6 +250,9 @@ func (m *MenuW) Show() *MenuW {
 			m.st.woke = true
 			c.WakeAt(c.now)
 		}
+		if m.noEllipsis {
+			w = 0
+		}
 		m.items = m.fitHorizontal(w)
 		b.n.ln.MinW, b.n.ln.Shrink = 0, 1
 		if n := len(m.items); n > 0 && m.items[n-1].Key == menuMoreKey {
@@ -170,25 +265,21 @@ func (m *MenuW) Show() *MenuW {
 	} else {
 		b.n.setRole(a11y.RoleMenu).setState(a11y.Vertical)
 	}
+	tk := &th.Components.Menu
 	if m.mode == MenuHorizontal {
-		h := float32(46)
-		if m.el() {
-			h = 60
-		}
-		b.n.ln.Height = h
+		b.n.ln.Height = tk.HorizontalHeight
 		b.n.ln.Align = layout.AlignStretch
-		if th.Flavor == theme.StyleShadcn {
-			b.Bg(th.BgContainer)
-		} else if !m.dark {
-			b.Paint(func(l *paint.List, r geom.Rect) { navHLine(l, r.X, r.Bottom()-1, r.W, th.Split) })
+		b.n.ln.Gap = tk.HorizontalItemGap
+		if hb := tk.HorizontalBg; hb.A > 0 && !m.dark {
+			b.Bg(hb) // shadcn NavigationMenu sits on the page (no sidebar colors)
+		}
+		if bc := tk.HorizontalBorderColor; !m.dark && bc.A > 0 {
+			b.Paint(func(l *paint.List, r geom.Rect) { navHLine(l, r.X, r.Bottom()-1, r.W, bc) })
 		}
 	} else {
 		w := m.width
 		if m.collapsed {
-			w = th.SiderCollapsed
-			if !m.el() {
-				w = 80
-			}
+			w = tk.CollapsedWidth
 		}
 		if w > 0 {
 			b.n.ln.Width = c.Anim(b.n.id, "w", w, th.DurationMid)
@@ -277,47 +368,44 @@ func (m *MenuW) list(items []MenuItem, level, parent int) {
 				stateIf(open || m.popupMode() && level == 0 && m.st.pop == it.Key, a11y.Expanded)
 		}
 		n.ln.Height = tk.ItemHeight
-		shad := th.Flavor == theme.StyleShadcn
-		if mi := tk.ItemMarginInline; shad {
-			n.ln.Margin = geom.Insets{Top: 1, Bottom: 1, Left: mi, Right: mi}
-		} else if !el {
-			n.ln.Margin = geom.Insets{Top: 4, Bottom: 4, Left: mi, Right: mi}
+		if h := tk.SubMenuItemHeight; level > 0 && !m.popupMode() && h > 0 {
+			n.ln.Height = h
 		}
+		mi, mb := tk.ItemMarginInline, tk.ItemMarginBlock
+		n.ln.Margin = geom.Insets{Top: mb, Bottom: mb, Left: mi, Right: mi}
+		disabled := it.Disabled || n.disabled
 		ia := c.interact(n, true, input.CursorPointer)
-		if it.Disabled {
+		if disabled {
 			n.disabled, n.focus, n.cursor = true, false, input.CursorNotAllowed
+			n.setState(a11y.Disabled)
 		}
 		if level == 0 {
 			m.st.items = append(m.st.items, n.id)
 		}
-		idx := m.record(n, navEntry{id: n.id, key: it.Key, level: level, kids: hasKids, open: open, disabled: it.Disabled, parent: parent})
+		idx := m.record(n, navEntry{id: n.id, key: it.Key, level: level, kids: hasKids, open: open, disabled: disabled, parent: parent})
 		popOpen := m.popupMode() && level == 0 && m.st.pop == it.Key
-		if level == 0 && m.popupMode() && ia.Hovered && !it.Disabled && m.st.pop != it.Key && !m.st.kbd {
+		// A click trigger only stops hover from opening submenus; a
+		// collapsed leaf still shows its tooltip on hover.
+		if level == 0 && m.popupMode() && ia.Hovered && !disabled && m.st.pop != it.Key && !m.st.kbd && (!m.clickOpen() || !hasKids && !m.clickPopOpen()) {
 			m.st.pop = it.Key
 			m.st.popup.path = nil
 			c.invalid = true
 		}
-		if ia.Clicked && !it.Disabled {
+		if ia.Clicked && !disabled {
 			switch {
 			case hasKids && !m.popupMode():
 				m.toggle(it, !open)
 			case hasKids:
 				m.a11yPop(n.id, it.Key)
 			default:
-				if m.sel != nil {
-					*m.sel = it.Key
-				}
-				m.clicked = it.Key
+				m.choose(it.Key)
 				m.st.pop = ""
 			}
 			c.invalid = true
 		}
-		indent := float32(24 + level*24)
-		if el {
-			indent = float32(20 + level*20)
-		}
-		if shad {
-			indent = 8 // nesting comes from the sub column's margin
+		indent := m.levelIndent(level)
+		if ci := tk.ItemContentInset; ci > 0 {
+			indent = ci // nesting comes from the submenu guide column
 		}
 		icononly := m.collapsed && level == 0
 		id := n.id
@@ -325,7 +413,7 @@ func (m *MenuW) list(items []MenuItem, level, parent int) {
 		n.paint = func(l *paint.List, r geom.Rect) {
 			rad := geom.Rad(tk.ItemBorderRadius)
 			s := c.inline(r)
-			hov := c.Anim(id, "hover", b2f((ia.Hovered || popOpen) && !it.Disabled), th.DurationMid)
+			hov := c.Anim(id, "hover", b2f((ia.Hovered || popOpen) && !disabled), th.DurationMid)
 			col := fg
 			if selected || childSel {
 				col = selFg
@@ -333,21 +421,36 @@ func (m *MenuW) list(items []MenuItem, level, parent int) {
 					col = fgActive
 				}
 			}
-			if selected && !hasKids && selBg.A > 0 {
-				l.Fill(r, rad, selBg)
-			} else if childSel && icononly && selBg.A > 0 {
-				l.Fill(r, rad, selBg)
+			danger := it.Danger
+			dcol, dsel := tk.DangerItemColor, tk.DangerItemSelectedBg
+			if m.darkLook() {
+				dcol, dsel = tk.DarkDangerItemColor, tk.DarkDangerItemSelectedBg
+			}
+			if danger {
+				col = dcol
+				if selected && m.darkLook() {
+					col = selFg // antd darkDangerItemSelectedColor: light solid
+				}
+			}
+			sb := selBg
+			if danger && dsel.A > 0 {
+				sb = dsel
+			}
+			if selected && !hasKids && sb.A > 0 {
+				l.Fill(r, rad, sb)
+			} else if childSel && icononly && sb.A > 0 {
+				l.Fill(r, rad, sb)
 			} else if hov > 0 {
 				if hoverBg.A > 0 {
 					l.Fill(r, rad, theme.Fade(hoverBg, float64(hov)))
 				}
-				if m.dark && !el {
+				if m.dark && !el && !danger {
 					col = theme.Lerp(col, fgActive, hov)
-				} else if !m.dark && !selected && !childSel && tk.ItemHoverColor != fg {
+				} else if !m.dark && !selected && !childSel && !danger && tk.ItemHoverColor != fg {
 					col = theme.Lerp(col, tk.ItemHoverColor, hov)
 				}
 			}
-			if it.Disabled {
+			if disabled {
 				col = th.TextDisabled
 			}
 			if el && selected && !hasKids && !m.dark && icononly {
@@ -358,15 +461,12 @@ func (m *MenuW) list(items []MenuItem, level, parent int) {
 			is := tk.IconSize
 			x := indent
 			if icononly {
-				is = 16
+				is = tk.CollapsedIconSize
 				x = (r.W - is) / 2
 			}
 			if it.Icon != nil {
 				c.drawIconAt(l, it.Icon, s.X(x, is), r.Y+(r.H-is)/2, is, col)
-				x += is + 10
-				if shad {
-					x -= 2
-				}
+				x += is + tk.IconGap
 			} else if icononly {
 				// No icon: show the first character.
 				lay := navLabel(c, string([]rune(it.Label)[:1]), th.FontSize, text.Regular)
@@ -374,20 +474,36 @@ func (m *MenuW) list(items []MenuItem, level, parent int) {
 			}
 			if !icononly {
 				st := c.style(th.FontSize, text.Regular)
-				if shad && selected {
-					st.Weight = text.Medium
+				if w := tk.ItemSelectedFontWeight; selected && w > 0 {
+					st.Weight = themeWeight(w)
 				}
 				end := r.W - 16
 				if hasKids {
 					end -= 20
 				}
+				var ex *text.Layout
+				if it.Shortcut != "" && !hasKids {
+					// The extra column (antd item extra) at the end.
+					ex = text.Shape(it.Shortcut, c.style(tk.ExtraFontSize, text.Regular), text.Options{NoWrap: true})
+					ec := tk.ExtraColor
+					if disabled {
+						ec = th.TextDisabled
+					} else if m.dark {
+						ec = theme.Fade(fg, .65)
+					}
+					l.Glyphs(geom.Pt(s.X(end-ex.Width, ex.Width), r.Y+(r.H-ex.Height)/2), ex.Glyphs, ec)
+					end -= ex.Width + 16
+				}
 				lay := text.Shape(it.Label, st, c.textOpts(text.Options{NoWrap: true, Ellipsis: true, MaxWidth: max(0, end-x)}))
 				l.Glyphs(geom.Pt(s.X(x, lay.Width), r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
 				if hasKids {
 					ar := s.Rect(r.W-26, r.Y+(r.H-10)/2, 10, 10)
-					if m.popupMode() {
+					switch {
+					case m.expandIcon != nil:
+						c.paintIcon(l, m.expandIcon, ar, col, 0)
+					case m.popupMode():
 						c.paintIcon(l, icon.Right, ar, col, 0)
-					} else {
+					default:
 						icon.Draw(l, icon.Down, ar, col, float64(arrow)*math.Pi)
 					}
 				}
@@ -396,13 +512,21 @@ func (m *MenuW) list(items []MenuItem, level, parent int) {
 				l.Stroke(r, rad, 2, th.FocusRing)
 			}
 		}
-		if hasKids && open && shad {
-			// shadcn SidebarMenuSub: children hang off a guide line on the
-			// start side.
+		if gi := tk.SubMenuGuideInset; hasKids && open && gi > 0 {
+			// Children hang off a guide line on the start side (shadcn
+			// SidebarMenuSub); the column's margin takes back the items'
+			// own inline margin so they start SubMenuItemInset from the
+			// menu edge.
 			sub := Column(c, func() { m.list(it.Children, level+1, idx) })
 			m.subSem(n, sub, it.Label)
-			sub.n.ln.Margin = geom.Insets{Left: 14}
-			sub.Paint(func(l *paint.List, r geom.Rect) { navVLine(l, c.inline(r).X(8, 1), r.Y+2, r.H-4, th.Split) })
+			in := tk.SubMenuItemInset - mi
+			pb := tk.SubMenuPaddingBlock
+			sub.n.ln.Margin = geom.Insets{Left: in, Right: in}
+			sub.n.ln.Padding = geom.Insets{Top: pb, Bottom: pb}
+			guide := tk.SubMenuGuideColor
+			sub.Paint(func(l *paint.List, r geom.Rect) {
+				navVLine(l, c.inline(r).X(gi-in, 1), r.Y+pb, r.H-2*pb, guide)
+			})
 			continue
 		}
 		if hasKids && open {
@@ -415,32 +539,50 @@ func (m *MenuW) list(items []MenuItem, level, parent int) {
 	}
 }
 
+// levelIndent returns the start inset of an inline item's content at
+// level (antd inlineIndent per level, Element base-level + level padding).
+func (m *MenuW) levelIndent(level int) float32 {
+	step := m.indent
+	if step <= 0 {
+		step = m.th.Components.Menu.InlineIndent
+	}
+	return step * float32(level+1)
+}
+
+// choose handles a click on leaf key: it selects the key (unless
+// Selectable(false)) and reports it.
+func (m *MenuW) choose(key string) {
+	if m.sel != nil && m.selectable {
+		*m.sel = key
+	}
+	m.clicked = key
+}
+
 // group builds a titled item group (Ant type="group"): the title, then
 // the children at the same level, inside a group landmark.
 func (m *MenuW) group(it MenuItem, level, parent int) {
 	c, th := m.c, m.th
-	el := m.el()
+	tk := &th.Components.Menu
 	_, fg, _, _, _, _, _ := m.colors()
 	g := Column(c, func() {
 		if !(m.collapsed && level == 0) {
 			t := c.add("menu-group-title", it.Label)
 			t.aHidden = true // the group carries the name
-			fs := th.FontSize
-			h := float32(38)
-			col := th.TextTertiary
-			x := float32(16 + level*24)
-			switch {
-			case el:
-				fs, h, col, x = th.FontSizeSM, 30, th.TextSecondary, float32(20+level*20)
-			case th.Flavor == theme.StyleShadcn:
-				fs, h, x = th.FontSizeSM, 32, 16
+			fs, h, col := tk.GroupTitleFontSize, tk.GroupTitleHeight, tk.GroupTitleColor
+			x := tk.GroupTitlePaddingInline
+			if level > 0 && tk.GroupTitleNested {
+				x += m.levelIndent(level) - m.levelIndent(0)
 			}
-			if m.dark {
-				col = theme.Fade(fg, .7)
+			wt := themeWeight(tk.GroupTitleFontWeight)
+			if m.darkLook() {
+				col = tk.DarkGroupTitleColor
+				if col.A == 0 {
+					col = theme.Fade(fg, .7)
+				}
 			}
 			t.ln.Height = h
 			t.paint = func(l *paint.List, r geom.Rect) {
-				lay := text.Shape(it.Label, c.style(fs, text.Regular), c.textOpts(text.Options{NoWrap: true, Ellipsis: true, MaxWidth: max(0, r.W-x-8)}))
+				lay := text.Shape(it.Label, c.style(fs, wt), c.textOpts(text.Options{NoWrap: true, Ellipsis: true, MaxWidth: max(0, r.W-x-8)}))
 				l.Glyphs(geom.Pt(c.inline(r).X(x, lay.Width), r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
 			}
 		}
@@ -471,17 +613,25 @@ const menuMoreKey = "\x00menu-more"
 // menuHItemWidth is the width of a horizontal menu item (as measured).
 func (m *MenuW) hItemWidth(it MenuItem) float32 {
 	c, th := m.c, m.th
+	tk := &th.Components.Menu
+	gap := tk.HorizontalItemGap
 	if it.Key == menuMoreKey {
-		return 56
+		return 56 + gap
 	}
-	w := text.Width(it.Label, c.style(th.FontSize, text.Regular)) + 40
+	w := text.Width(it.Label, c.style(th.FontSize, themeWeight(tk.HorizontalFontWeight))) + 2*tk.HorizontalItemPaddingInline + gap
 	if it.Icon != nil {
 		w += 24
 	}
-	if len(it.Children) > 0 && m.el() {
-		w += 18
+	if m.hasHPanel(it) && tk.HorizontalArrowSize > 0 {
+		w += tk.HorizontalArrowSize + tk.HorizontalArrowGap
 	}
 	return w
+}
+
+// hasHPanel reports whether a root item of a horizontal menu opens a
+// panel (children or an ItemPanel).
+func (m *MenuW) hasHPanel(it MenuItem) bool {
+	return len(it.Children) > 0 || m.panels[it.Key] != nil
 }
 
 // fitHorizontal returns the root items of a horizontal menu: those that
@@ -507,7 +657,7 @@ func (m *MenuW) fitHorizontal(width float32) []MenuItem {
 			total += m.hItemWidth(it)
 		}
 	}
-	if total <= width+0.5 {
+	if total <= width+m.th.Components.Menu.HorizontalItemGap+0.5 {
 		return items
 	}
 	avail := width - m.hItemWidth(MenuItem{Key: menuMoreKey})
@@ -548,6 +698,8 @@ func (m *MenuW) a11yPop(id ID, key string) {
 		m.closePop(true)
 	case ok:
 		m.openPop(key)
+	case m.clickSub:
+		m.clickToggle(key)
 	default:
 		m.st.pop = key
 	}
@@ -563,116 +715,202 @@ func (m *MenuW) toggle(it MenuItem, open bool) {
 		}
 	}
 	m.st.open[it.Key] = open
+	m.syncOpen()
+}
+
+// setOpen opens or closes the inline submenu key from the keyboard.
+func (m *MenuW) setOpen(key string, open bool) {
+	m.st.open[key] = open
+	m.syncOpen()
+}
+
+// syncOpen reports a change of the open inline submenus and writes them
+// to the bound OpenKeys (in item order).
+func (m *MenuW) syncOpen() {
+	m.openChanged = true
 	m.c.invalid = true
+	if m.openKeys == nil {
+		return
+	}
+	keys := []string{}
+	var walk func(items []MenuItem)
+	walk = func(items []MenuItem) {
+		for _, it := range items {
+			if len(it.Children) == 0 {
+				continue
+			}
+			if !it.Group && m.st.open[it.Key] {
+				keys = append(keys, it.Key)
+			}
+			walk(it.Children)
+		}
+	}
+	walk(m.items)
+	*m.openKeys = keys
 }
 
 func (m *MenuW) horizontal() {
 	c, th := m.c, m.th
+	tk := &th.Components.Menu
 	el := m.el()
 	_, fg, fgActive, _, selBg, selFg, _ := m.colors()
+	wt := themeWeight(tk.HorizontalFontWeight)
 	for _, it := range m.items {
 		it := it
 		if it.Divider {
 			continue
 		}
 		n := c.add("menu-h", it.Label)
-		hasKids := len(it.Children) > 0
+		hasKids := m.hasHPanel(it)
 		n.setRole(a11y.RoleMenuItem)
 		if hasKids {
 			n.setState(a11y.Expandable|a11y.HasPopup).stateIf(m.st.pop == it.Key, a11y.Expanded)
 		}
-		n.ln.Measure = func(_, maxH float32) geom.Size { return geom.Size{W: m.hItemWidth(it), H: 0} }
+		n.ln.Measure = func(_, maxH float32) geom.Size { return geom.Size{W: m.hItemWidth(it) - tk.HorizontalItemGap, H: 0} }
+		disabled := it.Disabled || n.disabled
 		ia := c.interact(n, true, input.CursorPointer)
-		if it.Disabled {
+		if disabled {
 			n.disabled, n.focus, n.cursor = true, false, input.CursorNotAllowed
+			n.setState(a11y.Disabled)
 		}
 		m.st.items = append(m.st.items, n.id)
-		m.record(n, navEntry{id: n.id, key: it.Key, kids: hasKids, disabled: it.Disabled, parent: -1})
-		if hasKids && ia.Hovered && !it.Disabled && m.st.pop != it.Key && !m.st.kbd {
+		m.record(n, navEntry{id: n.id, key: it.Key, kids: hasKids, disabled: disabled, parent: -1})
+		if hasKids && ia.Hovered && !disabled && m.st.pop != it.Key && !m.st.kbd && !m.clickOpen() {
 			m.st.pop = it.Key
 			m.st.popup.path = nil
 			c.invalid = true
 		}
-		if !hasKids && ia.Hovered && m.st.pop != "" && !m.st.kbd {
+		if !hasKids && ia.Hovered && m.st.pop != "" && !m.st.kbd && !m.clickOpen() {
 			m.st.pop = ""
 		}
-		if ia.Clicked && !it.Disabled && !hasKids {
-			if m.sel != nil {
-				*m.sel = it.Key
-			}
-			m.clicked = it.Key
+		if ia.Clicked && !disabled && !hasKids {
+			m.choose(it.Key)
 			c.invalid = true
 		}
-		if _, _, ok := c.A11yAction(n.id); ok && ia.Clicked && hasKids && !it.Disabled {
+		if _, _, ok := c.A11yAction(n.id); ok && ia.Clicked && hasKids && !disabled {
 			m.a11yPop(n.id, it.Key)
+		} else if ia.Clicked && hasKids && !disabled && m.clickSub && !navNonPointer(c, n.id) {
+			m.clickToggle(it.Key)
 		}
 		selected := m.sel != nil && (*m.sel == it.Key || containsKey(it.Children, *m.sel))
 		n.stateIf(selected, a11y.Selected|a11y.Current)
 		popOpen := m.st.pop == it.Key
 		id := n.id
+		turn := c.Anim(id, "arrow", b2f(popOpen), th.DurationSlow)
 		n.paint = func(l *paint.List, r geom.Rect) {
-			hov := c.Anim(id, "hover", b2f((ia.Hovered || popOpen) && !it.Disabled), th.DurationMid)
+			hov := c.Anim(id, "hover", b2f((ia.Hovered || popOpen) && !disabled), th.DurationMid)
 			col := theme.Lerp(fg, fgActive, hov)
 			if selected {
 				col = fgActive
 			}
-			if th.Flavor == theme.StyleShadcn {
-				// NavigationMenu: ghost triggers, accent pill on hover / active.
-				pill := r.Inset(geom.Insets{Top: 6, Bottom: 6, Left: 4, Right: 4})
-				a := float64(hov)
-				if selected {
-					a = 1
+			pill := tk.HorizontalItemHoverBg.A > 0 && tk.HorizontalItemRadius > 0
+			switch {
+			case pill:
+				// shadcn NavigationMenuTrigger: ghost pill, accent on hover,
+				// accent/50 while its panel is open, accent when active.
+				col = fg
+				rad := geom.Rad(tk.HorizontalItemRadius)
+				switch {
+				case ia.Hovered && !disabled:
+					l.Fill(r, rad, tk.HorizontalItemHoverBg)
+				case selected && tk.HorizontalItemSelectedBg.A > 0:
+					l.Fill(r, rad, tk.HorizontalItemSelectedBg)
+				case popOpen && tk.HorizontalItemOpenBg.A > 0:
+					l.Fill(r, rad, tk.HorizontalItemOpenBg)
 				}
-				if a > 0 {
-					l.Fill(pill, geom.Rad(th.Radius), theme.Fade(th.ItemHoverBg, a))
-				}
-			} else if m.dark && !el {
+			case m.dark && !el:
 				if selected {
 					l.Fill(r, geom.Radii{}, selBg)
 					col = selFg
 				}
-			} else {
+			default:
 				a := float64(hov)
 				if selected {
 					a = 1
 				}
-				if a > 0 {
-					bx, bw := r.X+20, r.W-40
-					if el {
-						bx, bw = r.X, r.W
-					}
-					l.Fill(geom.Rect{X: bx, Y: r.Bottom() - 2, W: bw, H: 2}, geom.Radii{}, theme.Fade(fgActive, a))
+				if bh := tk.HorizontalActiveBarHeight; a > 0 && bh > 0 {
+					in := tk.HorizontalActiveBarInset
+					l.Fill(geom.Rect{X: r.X + in, Y: r.Bottom() - bh, W: r.W - 2*in, H: bh}, geom.Radii{}, theme.Fade(fgActive, a))
 				}
-				if el && hov > 0 && !selected {
-					l.Fill(r.Inset(geom.Insets{Bottom: 2}), geom.Radii{}, theme.Fade(th.ItemHoverBg, a))
+				if hb := tk.HorizontalItemHoverBg; hb.A > 0 && hov > 0 && !selected {
+					l.Fill(r.Inset(geom.Insets{Bottom: tk.HorizontalActiveBarHeight}), geom.Radii{}, theme.Fade(hb, a))
 				}
 			}
-			if it.Disabled {
+			if it.Danger {
+				col = tk.DangerItemColor
+				if m.darkLook() {
+					col = tk.DarkDangerItemColor
+				}
+			}
+			if disabled {
 				col = th.TextDisabled
 			}
 			if it.Key == menuMoreKey {
-				c.drawIconAt(l, icon.More, r.X+(r.W-16)/2, r.Y+(r.H-16)/2, 16, col)
+				ic := m.moreIcon
+				if ic == nil {
+					ic = icon.More
+				}
+				c.drawIconAt(l, ic, r.X+(r.W-16)/2, r.Y+(r.H-16)/2, 16, col)
 				if ia.FocusVisible {
 					l.Stroke(r.Inset(geom.Insets{Top: 2, Bottom: 2}), geom.Rad(th.RadiusSM), 2, th.FocusRing)
 				}
 				return
 			}
 			s := c.inline(r)
-			x := float32(20)
+			x := tk.HorizontalItemPaddingInline
 			if it.Icon != nil {
 				c.drawIconAt(l, it.Icon, s.X(x, 14), r.Y+(r.H-14)/2, 14, col)
 				x += 24
 			}
-			lay := navLabel(c, it.Label, th.FontSize, text.Regular)
+			lay := navLabel(c, it.Label, th.FontSize, wt)
 			l.Glyphs(geom.Pt(s.X(x, lay.Width), r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
-			if hasKids && el {
-				icon.Draw(l, icon.Down, s.Rect(x+lay.Width+6, r.Y+(r.H-12)/2, 12, 12), col, 0)
+			if as := tk.HorizontalArrowSize; hasKids && as > 0 {
+				ic := m.expandIcon
+				if ic == nil {
+					ic = icon.Down
+				}
+				// The chevron turns over while the panel is open (shadcn
+				// rotate-180) when the token asks for it.
+				rot := 0.0
+				if tk.HorizontalArrowTurn {
+					rot = float64(turn) * math.Pi
+				}
+				icon.Draw(l, ic, s.Rect(x+lay.Width+tk.HorizontalArrowGap, r.Y+(r.H-as)/2, as, as), col, rot)
 			}
 			if ia.FocusVisible {
 				l.Stroke(r.Inset(geom.Insets{Top: 2, Bottom: 2}), geom.Rad(th.RadiusSM), 2, th.FocusRing)
 			}
 		}
 	}
+}
+
+// clickOpen reports click-triggered pop-out submenus
+// (TriggerSubMenuAction(TriggerClick)): hovering does not open them.
+func (m *MenuW) clickOpen() bool { return m.clickSub }
+
+// clickPopOpen reports a click-opened submenu currently shown (a
+// collapsed leaf's hover tooltip does not replace it).
+func (m *MenuW) clickPopOpen() bool {
+	if !m.clickSub || m.st.pop == "" {
+		return false
+	}
+	it, ok := menuRootItem(m.items, m.st.pop)
+	return ok && len(it.Children) > 0
+}
+
+// darkLook reports the dark sider colors in use (MenuToken.DarkTheme:
+// shadcn ignores Dark).
+func (m *MenuW) darkLook() bool { return m.dark && m.th.Components.Menu.DarkTheme }
+
+// clickToggle opens or closes the pop-out submenu of root key on a click.
+func (m *MenuW) clickToggle(key string) {
+	if m.st.pop == key {
+		m.st.pop = ""
+	} else {
+		m.st.pop = key
+	}
+	m.st.popup.path = nil
+	m.c.invalid = true
 }
 
 // openPop opens the pop-out submenu of a root item from the keyboard and
@@ -760,8 +998,7 @@ func (m *MenuW) keyNav() {
 				m.openPop(e.key)
 			}
 		case !e.open:
-			m.st.open[e.key] = true
-			c.invalid = true
+			m.setOpen(e.key, true)
 		case m.act+1 < len(m.ents) && m.ents[m.act+1].parent == m.act:
 			if j := navStep(m.ents, m.act, 1, nil); j >= 0 {
 				navFocus(c, m.ents[j].id)
@@ -770,8 +1007,7 @@ func (m *MenuW) keyNav() {
 	case input.KeyLeft:
 		switch {
 		case e.kids && e.open:
-			m.st.open[e.key] = false
-			c.invalid = true
+			m.setOpen(e.key, false)
 		case e.parent >= 0:
 			navFocus(c, m.ents[e.parent].id)
 		}
@@ -795,8 +1031,9 @@ func (m *MenuW) popups() {
 		return
 	}
 	over := c.pointerOver(append(append([]ID{}, m.st.items...), m.st.panels...)...)
-	if (!HoverDelay(c, hashID(m.id, "pop"), over, 0, 300*time.Millisecond) && !m.st.kbd) || m.st.pop == "" {
-		if m.st.pop != "" && !over {
+	shown := HoverDelay(c, hashID(m.id, "pop"), over, m.openDelay, m.closeDelay) || m.st.kbd || m.clickPopOpen()
+	if !shown || m.st.pop == "" {
+		if m.st.pop != "" && !over && !m.clickPopOpen() {
 			m.st.pop = ""
 			m.st.popup.path = nil
 		}
@@ -818,16 +1055,20 @@ func (m *MenuW) popups() {
 	if !found || anchor == 0 {
 		return
 	}
+	mk := &m.th.Components.Menu
+	if fn := m.panels[item.Key]; fn != nil && m.mode == MenuHorizontal {
+		m.itemPanel(fn, anchor, mk)
+		return
+	}
 	if len(item.Children) == 0 {
-		if m.collapsed {
+		if m.collapsed && m.tooltip {
 			navTooltipBubble(c, anchor, item.Label, InlineEnd)
 		}
 		m.st.panels = nil
 		return
 	}
 	a := c.AnimFrom(hashID(m.id, "pop", item.Key), "open", 0, 1, c.Theme.DurationMid)
-	mk := &m.th.Components.Menu
-	pop := &navMenuPopup{c: c, th: m.th, tk: menuPopupToken(mk), menu: mk, st: &m.st.popup, dark: m.dark, element: m.el(), opacity: a}
+	pop := &navMenuPopup{c: c, th: m.th, tk: menuPopupToken(mk), menu: mk, st: &m.st.popup, dark: m.darkLook(), element: m.el(), opacity: a}
 	if m.sel != nil {
 		pop.selected = *m.sel
 	}
@@ -853,21 +1094,42 @@ func (m *MenuW) popups() {
 			}
 		}
 	}
-	place, off := InlineEndTop, float32(4)
+	place, off := InlineEndTop, mk.PopupOffset
 	if m.mode == MenuHorizontal {
-		place, off = BottomStart, 4
-		if m.el() {
-			off = 0
-		}
+		place, off = BottomStart, mk.HorizontalPopupOffset
 	}
 	pop.panel(item.Children, 0, anchor, place, off, nil)
 	m.st.panels = pop.panels
 	if pop.clicked != "" {
-		if m.sel != nil {
-			*m.sel = pop.clicked
-		}
-		m.clicked = pop.clicked
+		m.choose(pop.clicked)
 		m.closePop(pop.hasFocus())
+	}
+}
+
+// itemPanel shows the ItemPanel content of the open root item: a panel
+// under it in the pop-out look (shadcn NavigationMenuContent mt-1.5
+// rounded-md border bg-popover shadow p-2 pr-2.5).
+func (m *MenuW) itemPanel(fn func(), anchor ID, mk *theme.MenuToken) {
+	c := m.c
+	a := c.AnimFrom(hashID(m.id, "pop", m.st.pop), "open", 0, 1, c.Theme.DurationMid)
+	ov := Overlay(c, OverlayOptions{Anchor: anchor, Place: BottomStart, Offset: mk.HorizontalPopupOffset, Flip: true}, fn,
+		layout.Pad(8))
+	ov.Bg(mk.PopupBg).Radius(mk.PopupRadius).Shadow(mk.PopupShadow).Opacity(a)
+	if mk.PopupBorderColor.A > 0 {
+		ov.Border(1, mk.PopupBorderColor)
+	}
+	ov.n.setRole(a11y.RoleGroup)
+	if it, ok := menuRootItem(m.items, m.st.pop); ok {
+		ov.n.setName(it.Label)
+	}
+	m.st.popup.layer = ov.n.id
+	m.st.panels = []ID{ov.n.id}
+	if m.st.popup.focus > 0 {
+		// Opened from the keyboard: move into the panel.
+		m.st.popup.focus = 0
+		if f := navFirstFocusable(ov.n); f != 0 {
+			navFocus(c, f)
+		}
 	}
 }
 
@@ -884,8 +1146,8 @@ func menuPopupToken(k *theme.MenuToken) *theme.DropdownToken {
 		ItemSelectedBg: k.PopupItemSelectedBg, ItemSelectedColor: k.PopupItemSelectedColor,
 		ItemIconColor: k.PopupItemIconColor, IconSize: k.PopupIconSize,
 		DangerColor: k.PopupDangerColor, DangerHoverBg: k.PopupDangerHoverBg, DangerHoverColor: k.PopupDangerHoverColor,
-		SubmenuArrowColor: k.PopupArrowColor,
-		GroupTitleHeight:  k.PopupGroupTitleHeight, GroupTitleFontSize: k.PopupGroupTitleFontSize,
+		SubmenuArrowColor: k.PopupArrowColor, SubmenuArrowSize: k.PopupArrowSize, SubmenuArrowInset: k.PopupArrowInset,
+		GroupTitleHeight: k.PopupGroupTitleHeight, GroupTitleFontSize: k.PopupGroupTitleFontSize,
 		GroupTitleFontWeight: k.PopupGroupTitleFontWeight, GroupTitleColor: k.PopupGroupTitleColor,
 		DividerColor:  k.PopupDividerColor,
 		ShortcutColor: k.PopupShortcutColor, ShortcutFontSize: k.PopupShortcutFontSize,
