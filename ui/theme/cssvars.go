@@ -354,16 +354,25 @@ func (t *Theme) componentVars(out, global map[string]string) {
 					walk(f)
 					continue
 				}
+				name := sf.Tag.Get("css")
+				if name == "" {
+					name = kebab(sf.Name)
+				}
+				if f.Kind() == reflect.Array {
+					// One variable per element: palette-0 … palette-15.
+					for j := range f.Len() {
+						if val, ok := cssValue(f.Index(j)); ok {
+							out[prefix+name+"-"+strconv.Itoa(j)] = val
+						}
+					}
+					continue
+				}
 				val, ok := cssValue(f)
 				if !ok {
 					continue
 				}
 				if ref := sf.Tag.Get("ref"); ref != "" && global != nil && global[CSSPrefix+ref] == val {
 					val = "var(" + CSSPrefix + ref + ")"
-				}
-				name := sf.Tag.Get("css")
-				if name == "" {
-					name = kebab(sf.Name)
 				}
 				out[prefix+name] = val
 			}

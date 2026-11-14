@@ -48,7 +48,7 @@ func TestComponentOrder(t *testing.T) {
 	}
 	want := []string{"Button", "Input", "Select", "Checkbox", "Radio", "Switch", "Slider", "Tag", "Tabs", "Menu", "Table",
 		"Card", "Modal", "Drawer", "Tooltip", "Popover", "Notification", "Message", "Pagination", "Segmented", "Avatar", "Skeleton", "Layout",
-		"Tree", "Cascader", "DatePicker", "Calendar", "Steps", "Timeline", "Descriptions", "List", "Badge", "Progress", "Upload", "Transfer", "Collapse", "Alert", "Breadcrumb", "Dropdown", "Rate", "InputNumber", "Statistic", "Divider", "Typography", "Image", "Carousel", "ColorPicker", "Tour", "Splitter", "Result", "Empty", "FloatButton", "Anchor", "Form", "Menubar", "Item"}
+		"Tree", "Cascader", "DatePicker", "Calendar", "Steps", "Timeline", "Descriptions", "List", "Badge", "Progress", "Upload", "Transfer", "Collapse", "Alert", "Breadcrumb", "Dropdown", "Rate", "InputNumber", "Statistic", "Divider", "Typography", "Image", "Carousel", "ColorPicker", "Tour", "Splitter", "Result", "Empty", "FloatButton", "Anchor", "Form", "Menubar", "Item", "Terminal"}
 	for i, n := range want {
 		if Comp(i).String() != n {
 			t.Errorf("Comp(%d) = %s, want %s", i, Comp(i), n)
@@ -324,11 +324,17 @@ func TestComponentCSSVars(t *testing.T) {
 	all := th.CSSVarsWith(CSSOptions{Components: true})
 	comp := map[string]string{}
 	th.componentVars(comp, nil)
-	// Complete: one variable per field (Alias fields included) per component.
+	// Complete: one variable per field (Alias fields included) per
+	// component, one per element of an array field (the terminal palette).
 	n := 0
 	for i := range int(numComps) {
 		ft := componentsType.Field(i).Type
 		n += ft.NumField() - 1 + aliasType.NumField()
+		for j := range ft.NumField() {
+			if ft.Field(j).Type.Kind() == reflect.Array {
+				n += ft.Field(j).Type.Len() - 1
+			}
+		}
 	}
 	if len(comp) != n {
 		t.Errorf("%d component variables, want %d", len(comp), n)

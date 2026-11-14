@@ -93,6 +93,7 @@ const (
 	CompForm
 	CompMenubar
 	CompItem
+	CompTerminal
 	// numComps counts the Comp values. Internally Comp(i) indexes the
 	// i-th field of Components, so both lists only ever grow at the end.
 	numComps
@@ -157,6 +158,7 @@ type Components struct {
 	Form         FormToken
 	Menubar      MenubarToken
 	Item         ItemToken
+	Terminal     TerminalToken
 }
 
 // Alias is the subset of global tokens a component may override for itself
@@ -415,6 +417,8 @@ func deriveComp(t *Theme, k Comp) any {
 		return deriveMenubar(t)
 	case CompItem:
 		return deriveItem(t)
+	case CompTerminal:
+		return deriveTerminal(t)
 	}
 	panic("theme: unknown component")
 }
@@ -468,6 +472,12 @@ func overlay(dst, u reflect.Value, keep bool) {
 		}
 		for i := range u.NumField() {
 			overlay(dst.Field(i), u.Field(i), keep)
+		}
+	case reflect.Array:
+		// Element by element: an override of one palette entry keeps
+		// the others.
+		for i := range u.Len() {
+			overlay(dst.Index(i), u.Index(i), keep)
 		}
 	case reflect.Float32, reflect.Float64:
 		f := u.Float()
@@ -759,6 +769,10 @@ func (c Components) Hash() uint64 {
 		case reflect.Struct:
 			for i := range v.NumField() {
 				walk(v.Field(i))
+			}
+		case reflect.Array:
+			for i := range v.Len() {
+				walk(v.Index(i))
 			}
 		case reflect.Float32, reflect.Float64:
 			put(math.Float64bits(v.Float()))
