@@ -348,6 +348,9 @@ func init() {
 | 数据展示 | `Watermark` | Watermark / el-watermark | data_watermark.go |
 | 数据展示 | `Markdown` | — | more_markdown.go |
 | 数据展示 | `RichText` | — | more_richtext.go |
+| 数据展示 | `CodeBlock`（只读代码、行号、复制、横向滚动/换行、选择复制；高亮经 `SetCodeHighlighter` 钩子，`ui/codehl` 用编辑器语法实现，Markdown 代码块共用） | — | codeblock.go、code_highlight.go、viewer_text.go |
+| 数据展示 | `LogView`、`LogBuffer`（百万行虚拟滚动、ANSI SGR `ParseANSI`、级别过滤、搜索、跟随底部、换行） | — | logview.go、logview_buffer.go、ansi.go |
+| 数据展示 | `JSONView`、`JSONViewValue`、`JSONViewSource`（`ValueSource` 懒加载值树、100 项分组、复制值/路径、搜索） | — | jsonview.go、jsonview_source.go |
 | 反馈 | `Alert` | Alert / el-alert | feedback.go |
 | 反馈 | `Modal` | Modal / el-dialog | feedback.go |
 | 反馈 | `Drawer` | Drawer / el-drawer | feedback.go |
