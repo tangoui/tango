@@ -38,17 +38,23 @@ func defaultIllustration(dark bool, pr Palette, border, borderSecondary Color) I
 
 // ShadcnOptions configures Shadcn.
 type ShadcnOptions struct {
-	// Base is the neutral color family: "neutral" (default), "zinc",
-	// "slate", "stone" or "gray".
+	// Base is the shadcn/ui v4 base color: "neutral" (default), "stone",
+	// "zinc", "mauve", "olive", "mist" or "taupe". "slate" and "gray" left
+	// shadcn/ui in v4 and keep their v3 colors.
 	Base string
-	// Radius is shadcn's --radius in px (default 8, i.e. 0.5rem). Cards and
-	// dialogs use it, buttons and inputs Radius-2, small parts Radius-4.
+	// Radius is shadcn's --radius in px (default 10, i.e. 0.625rem). Cards
+	// use Radius+4, dialogs Radius, buttons and inputs Radius-2, small
+	// parts Radius-4.
 	Radius float32
 	// Primary replaces the near-black (near-white in dark mode) primary
 	// with a brand color; the focus ring follows it.
 	Primary Color
 	Dark    bool
 	Compact bool
+	// Color layers a shadcn/ui v4 color theme ("blue", "amber" …, see
+	// ShadcnColors) over the base: primary, secondary, charts and the
+	// sidebar primary. Unknown names are ignored; Primary wins over it.
+	Color string
 }
 
 // ShadcnArg is accepted by Shadcn: a ShadcnOptions value or a generic
@@ -64,6 +70,9 @@ func (o ShadcnOptions) applyShadcn(dst *ShadcnOptions) {
 	}
 	if o.Primary.A > 0 {
 		dst.Primary = o.Primary
+	}
+	if o.Color != "" {
+		dst.Color = o.Color
 	}
 	dst.Dark = dst.Dark || o.Dark
 	dst.Compact = dst.Compact || o.Compact
@@ -104,16 +113,130 @@ type ShadcnVars struct {
 }
 
 // ShadcnBases lists the base colors Shadcn accepts.
-var ShadcnBases = []string{"neutral", "zinc", "slate", "stone", "gray"}
+// The first five keep their order; "slate" and "gray" are the legacy v3
+// bases.
+var ShadcnBases = []string{"neutral", "zinc", "slate", "stone", "gray", "mauve", "olive", "mist", "taupe"}
 
-// tailwindScales are the Tailwind CSS gray families (50, 100 … 900, 950)
-// that shadcn/ui's base colors are built from.
-var tailwindScales = map[string][11]string{
-	"neutral": {"#fafafa", "#f5f5f5", "#e5e5e5", "#d4d4d4", "#a3a3a3", "#737373", "#525252", "#404040", "#262626", "#171717", "#0a0a0a"},
-	"zinc":    {"#fafafa", "#f4f4f5", "#e4e4e7", "#d4d4d8", "#a1a1aa", "#71717a", "#52525b", "#3f3f46", "#27272a", "#18181b", "#09090b"},
-	"slate":   {"#f8fafc", "#f1f5f9", "#e2e8f0", "#cbd5e1", "#94a3b8", "#64748b", "#475569", "#334155", "#1e293b", "#0f172a", "#020617"},
-	"stone":   {"#fafaf9", "#f5f5f4", "#e7e5e4", "#d6d3d1", "#a8a29e", "#78716c", "#57534e", "#44403c", "#292524", "#1c1917", "#0c0a09"},
-	"gray":    {"#f9fafb", "#f3f4f6", "#e5e7eb", "#d1d5db", "#9ca3af", "#6b7280", "#4b5563", "#374151", "#1f2937", "#111827", "#030712"},
+// ShadcnColors lists the shadcn/ui v4 color themes ShadcnOptions.Color
+// accepts.
+var ShadcnColors = append([]string(nil), shadcnColorNames...)
+
+// legacyScales are the Tailwind CSS v3 gray families (50, 100 … 900, 950)
+// of the bases shadcn/ui v4 dropped.
+var legacyScales = map[string][11]string{
+	"slate": {"#f8fafc", "#f1f5f9", "#e2e8f0", "#cbd5e1", "#94a3b8", "#64748b", "#475569", "#334155", "#1e293b", "#0f172a", "#020617"},
+	"gray":  {"#f9fafb", "#f3f4f6", "#e5e7eb", "#d1d5db", "#9ca3af", "#6b7280", "#4b5563", "#374151", "#1f2937", "#111827", "#030712"},
+}
+
+func isShadcnBase(name string) bool {
+	for _, b := range shadcnBaseNames {
+		if b == name {
+			return true
+		}
+	}
+	return false
+}
+
+func mustOKLCH(s string) Color {
+	c, err := ParseColor(s)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}
+
+// shadcnV4Vars reads a v4 base theme, with an optional color theme over it.
+func shadcnV4Vars(base, colorName string, dark bool) *ShadcnVars {
+	pick := func(name string) map[string]string {
+		if dark {
+			return shadcnThemeVars[name].dark
+		}
+		return shadcnThemeVars[name].light
+	}
+	m := map[string]string{}
+	for k, val := range pick(base) {
+		m[k] = val
+	}
+	if colorName != "" {
+		for k, val := range pick(colorName) {
+			m[k] = val
+		}
+	}
+	c := func(k string) Color { return mustOKLCH(m[k]) }
+	v := &ShadcnVars{
+		Background: c("background"), Foreground: c("foreground"),
+		Card: c("card"), CardForeground: c("card-foreground"),
+		Popover: c("popover"), PopoverForeground: c("popover-foreground"),
+		Primary: c("primary"), PrimaryForeground: c("primary-foreground"),
+		Secondary: c("secondary"), SecondaryForeground: c("secondary-foreground"),
+		Muted: c("muted"), MutedForeground: c("muted-foreground"),
+		Accent: c("accent"), AccentForeground: c("accent-foreground"),
+		// v4 dropped --destructive-foreground: destructive buttons use text-white.
+		Destructive: c("destructive"), DestructiveForeground: Hex("#ffffff"),
+		Border: c("border"), Input: c("input"), Ring: c("ring"),
+		Sidebar: c("sidebar"), SidebarForeground: c("sidebar-foreground"),
+		SidebarPrimary: c("sidebar-primary"), SidebarPrimaryForeground: c("sidebar-primary-foreground"),
+		SidebarAccent: c("sidebar-accent"), SidebarAccentForeground: c("sidebar-accent-foreground"),
+		SidebarBorder: c("sidebar-border"), SidebarRing: c("sidebar-ring"),
+	}
+	for i := range v.Chart {
+		v.Chart[i] = c("chart-" + string(rune('1'+i)))
+	}
+	return v
+}
+
+// shadcnLegacyVars derives the v3 variables of the slate and gray bases
+// from their Tailwind v3 scale.
+func shadcnLegacyVars(s scale, dark bool) *ShadcnVars {
+	white := Hex("#ffffff")
+	v := &ShadcnVars{}
+	if !dark {
+		v.Background, v.Foreground = white, s.at(950)
+		v.Card, v.CardForeground = white, s.at(950)
+		v.Popover, v.PopoverForeground = white, s.at(950)
+		v.Primary, v.PrimaryForeground = s.at(900), s.at(50)
+		v.Secondary, v.SecondaryForeground = s.at(100), s.at(900)
+		v.Muted, v.MutedForeground = s.at(100), s.at(500)
+		v.Accent, v.AccentForeground = s.at(100), s.at(900)
+		v.Border, v.Input, v.Ring = s.at(200), s.at(200), s.at(400)
+		v.Chart = [5]Color{Hex("#e76e50"), Hex("#2a9d90"), Hex("#274754"), Hex("#e8c468"), Hex("#f4a462")}
+		v.Sidebar, v.SidebarForeground = s.at(50), s.at(700)
+		v.SidebarAccent, v.SidebarAccentForeground = s.at(100), s.at(900)
+		v.SidebarBorder = s.at(200)
+	} else {
+		v.Background, v.Foreground = s.at(950), s.at(50)
+		v.Card, v.CardForeground = s.at(950), s.at(50)
+		v.Popover, v.PopoverForeground = s.at(950), s.at(50)
+		v.Primary, v.PrimaryForeground = s.at(50), s.at(900)
+		v.Secondary, v.SecondaryForeground = s.at(800), s.at(50)
+		v.Muted, v.MutedForeground = s.at(800), s.at(400)
+		v.Accent, v.AccentForeground = s.at(800), s.at(50)
+		v.Border, v.Input, v.Ring = s.at(800), s.at(800), s.at(300)
+		v.Chart = [5]Color{Hex("#2662d9"), Hex("#2eb88a"), Hex("#e88c30"), Hex("#af57db"), Hex("#e23670")}
+		v.Sidebar, v.SidebarForeground = s.at(900), s.at(100)
+		v.SidebarAccent, v.SidebarAccentForeground = s.at(800), s.at(100)
+		v.SidebarBorder = s.at(800)
+	}
+	v.Destructive, v.DestructiveForeground = Hex("#ef4444"), s.at(50)
+	v.SidebarPrimary, v.SidebarPrimaryForeground = v.Primary, v.PrimaryForeground
+	v.SidebarRing = v.Ring
+	return v
+}
+
+// opaque returns a copy whose translucent colors (v4 dark border, input,
+// sidebar-border) are composited over their surface, for deriving the
+// opaque Theme tokens.
+func (s ShadcnVars) opaque() *ShadcnVars {
+	on := func(c, bg Color) Color {
+		if c.A == 255 {
+			return c
+		}
+		return Over(c, bg)
+	}
+	bg := s.Background
+	s.Border, s.Input, s.Ring = on(s.Border, bg), on(s.Input, bg), on(s.Ring, bg)
+	s.SidebarBorder, s.SidebarRing = on(s.SidebarBorder, s.Sidebar), on(s.SidebarRing, s.Sidebar)
+	return &s
 }
 
 // scale indexes a Tailwind family by its step name (50, 100, … 950).
@@ -167,65 +290,56 @@ func shTW(y, blur, spread float32, a float64) paint.Shadow {
 // chart-1..5); th.Shadcn keeps them and CSSVars exports them under the
 // same names.
 func Shadcn(args ...ShadcnArg) *Theme {
-	o := ShadcnOptions{Base: "neutral", Radius: 8}
+	o := ShadcnOptions{Base: "neutral", Radius: 10}
 	for _, a := range args {
 		if a != nil {
 			a.applyShadcn(&o)
 		}
 	}
-	o.Base = strings.ToLower(o.Base)
-	hexes, ok := tailwindScales[o.Base]
-	if !ok {
-		o.Base = "neutral"
-		hexes = tailwindScales["neutral"]
-	}
-	var s scale
-	for i, h := range hexes {
-		s[i] = Hex(h)
+	o.Base, o.Color = strings.ToLower(o.Base), strings.ToLower(o.Color)
+	if _, ok := shadcnThemeVars[o.Color]; !ok || isShadcnBase(o.Color) {
+		o.Color = ""
 	}
 	dark := o.Dark
-	white := Hex("#ffffff")
-	v := &ShadcnVars{Radius: o.Radius, Options: o}
-	if !dark {
-		v.Background, v.Foreground = white, s.at(950)
-		v.Card, v.CardForeground = white, s.at(950)
-		v.Popover, v.PopoverForeground = white, s.at(950)
-		v.Primary, v.PrimaryForeground = s.at(900), s.at(50)
-		v.Secondary, v.SecondaryForeground = s.at(100), s.at(900)
-		v.Muted, v.MutedForeground = s.at(100), s.at(500)
-		v.Accent, v.AccentForeground = s.at(100), s.at(900)
-		v.Border, v.Input, v.Ring = s.at(200), s.at(200), s.at(400)
-		v.Chart = [5]Color{Hex("#e76e50"), Hex("#2a9d90"), Hex("#274754"), Hex("#e8c468"), Hex("#f4a462")}
-		v.Sidebar, v.SidebarForeground = s.at(50), s.at(700)
-		v.SidebarAccent, v.SidebarAccentForeground = s.at(100), s.at(900)
-		v.SidebarBorder = s.at(200)
-	} else {
-		v.Background, v.Foreground = s.at(950), s.at(50)
-		v.Card, v.CardForeground = s.at(950), s.at(50)
-		v.Popover, v.PopoverForeground = s.at(950), s.at(50)
-		v.Primary, v.PrimaryForeground = s.at(50), s.at(900)
-		v.Secondary, v.SecondaryForeground = s.at(800), s.at(50)
-		v.Muted, v.MutedForeground = s.at(800), s.at(400)
-		v.Accent, v.AccentForeground = s.at(800), s.at(50)
-		v.Border, v.Input, v.Ring = s.at(800), s.at(800), s.at(300)
-		v.Chart = [5]Color{Hex("#2662d9"), Hex("#2eb88a"), Hex("#e88c30"), Hex("#af57db"), Hex("#e23670")}
-		v.Sidebar, v.SidebarForeground = s.at(900), s.at(100)
-		v.SidebarAccent, v.SidebarAccentForeground = s.at(800), s.at(100)
-		v.SidebarBorder = s.at(800)
-	}
-	v.Destructive, v.DestructiveForeground = Hex("#ef4444"), s.at(50)
-	if o.Primary.A > 0 {
-		v.Primary = o.Primary
-		v.PrimaryForeground = s.at(50)
-		if Luma(o.Primary) > 0.6 {
-			v.PrimaryForeground = s.at(900)
+	var s scale
+	var raw *ShadcnVars
+	if hexes, legacy := legacyScales[o.Base]; legacy {
+		for i, h := range hexes {
+			s[i] = Hex(h)
 		}
-		v.Ring = o.Primary
+		raw = shadcnLegacyVars(s, dark)
+		if o.Color != "" {
+			c := shadcnV4Vars("neutral", o.Color, dark)
+			raw.Primary, raw.PrimaryForeground = c.Primary, c.PrimaryForeground
+			raw.Secondary, raw.SecondaryForeground = c.Secondary, c.SecondaryForeground
+			raw.Chart = c.Chart
+			raw.SidebarPrimary, raw.SidebarPrimaryForeground = c.SidebarPrimary, c.SidebarPrimaryForeground
+		}
+	} else {
+		if !isShadcnBase(o.Base) {
+			o.Base = "neutral"
+		}
+		for i, h := range tailwindV4Scales[o.Base] {
+			s[i] = mustOKLCH(h)
+		}
+		raw = shadcnV4Vars(o.Base, o.Color, dark)
 	}
-	v.SidebarPrimary, v.SidebarPrimaryForeground = v.Primary, v.PrimaryForeground
-	v.SidebarRing = v.Ring
+	if o.Primary.A > 0 {
+		raw.Primary = o.Primary
+		raw.PrimaryForeground = s.at(50)
+		if Luma(o.Primary) > 0.6 {
+			raw.PrimaryForeground = s.at(900)
+		}
+		raw.Ring = o.Primary
+		raw.SidebarPrimary, raw.SidebarPrimaryForeground = raw.Primary, raw.PrimaryForeground
+		raw.SidebarRing = raw.Ring
+	}
+	raw.Radius, raw.Options = o.Radius, o
+	// Theme tokens are opaque; th.Shadcn keeps the published (possibly
+	// translucent) values.
+	v := raw.opaque()
 
-	t := &Theme{Name: "shadcn", Flavor: StyleShadcn, Dark: dark, Shadcn: v, Icons: LucideIcons()}
+	t := &Theme{Name: "shadcn", Flavor: StyleShadcn, Dark: dark, Shadcn: raw, Icons: LucideIcons()}
 	bg := v.Background
 	t.Primary = shadcnPalette(v.Primary, bg, dark)
 	if o.Primary.A == 0 {

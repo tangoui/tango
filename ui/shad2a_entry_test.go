@@ -213,8 +213,8 @@ func TestShad2aInputInvalidAndDisabled(t *testing.T) {
 }
 
 func TestShad2aSelectPopupRadius(t *testing.T) {
-	if r := theme.Shadcn().Components.Select.PopupRadius; r != 6 {
-		t.Errorf("shadcn select panel radius %v, want rounded-md 6", r)
+	if r := theme.Shadcn().Components.Select.PopupRadius; r != 8 { // rounded-md = --radius (10) - 2
+		t.Errorf("shadcn select panel radius %v, want rounded-md 8", r)
 	}
 	if r := theme.AntDesign().Components.Select.PopupRadius; r != 8 {
 		t.Errorf("Ant select panel radius changed: %v", r)
