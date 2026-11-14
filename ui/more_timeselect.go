@@ -37,7 +37,9 @@ type TimeSelectW struct {
 	ia          Interaction
 	z           *lazy
 	items       []Option
-	optIDs      []ID // option nodes of the open list (ActiveDescendant)
+	optIDs      []ID      // option nodes of the open list (ActiveDescendant)
+	includeEnd  bool      // IncludeEndTime
+	place       Placement // popup placement
 }
 
 type moreTimeSelState struct {
@@ -69,6 +71,8 @@ func TimeSelect(c *Context, val *string) *TimeSelectW {
 	def.size(&w.size)
 	def.px("width", &w.n.ln.Width)
 	def.str("variant", &w.variant)
+	def.flag("includeEndTime", &w.includeEnd)
+	dtPlaceDefault(c, "TimeSelect", &w.place)
 	w.n.ln.NoStretch = true
 	w.n.ownKeys = true
 	w.n.paint = w.paint
@@ -110,6 +114,14 @@ func (w *TimeSelectW) Step(s string) *TimeSelectW  { w.step = s; return w }
 func (w *TimeSelectW) MinTime(s string) *TimeSelectW { w.minT = s; return w }
 func (w *TimeSelectW) MaxTime(s string) *TimeSelectW { w.maxT = s; return w }
 
+// IncludeEndTime adds End as the last option when the steps skip it,
+// e.g. 09:00–17:45 every 00:30 ends with 17:45 (Element include-end-time).
+func (w *TimeSelectW) IncludeEndTime(on bool) *TimeSelectW { w.includeEnd = on; return w }
+
+// Placement sets where the list opens: BottomStart (default), BottomEnd,
+// TopStart or TopEnd (Element placement); it flips when there is no room.
+func (w *TimeSelectW) Placement(p Placement) *TimeSelectW { w.place = p; return w }
+
 func (w *TimeSelectW) Placeholder(s string) *TimeSelectW { w.placeholder = s; return w }
 
 // Clearable shows the clear icon on hover (default on).
@@ -149,7 +161,21 @@ func (w *TimeSelectW) Changed() bool { w.z.run(); return w.changed }
 
 // Options returns the generated items (Disabled marks MinTime/MaxTime).
 func (w *TimeSelectW) Options() []Option {
-	return moreTimeItems(w.start, w.end, w.step, w.minT, w.maxT)
+	items := moreTimeItems(w.start, w.end, w.step, w.minT, w.maxT)
+	if w.includeEnd {
+		items = moreWithEnd(items, w.end, w.minT, w.maxT)
+	}
+	return items
+}
+
+// moreWithEnd appends end when the generated items stop short of it
+// (Element include-end-time; the item keeps the MinTime / MaxTime rule).
+func moreWithEnd(items []Option, end, minT, maxT string) []Option {
+	b := dtParseHM(end)
+	if b < 0 || (len(items) > 0 && dtParseHM(items[len(items)-1].Value) == b) {
+		return items
+	}
+	return append(items, moreTimeItems(end, end, "00:01", minT, maxT)...)
 }
 
 func moreTimeItems(start, end, step, minT, maxT string) []Option {
@@ -219,7 +245,7 @@ func (w *TimeSelectW) height() float32 { return w.c.controlHeight(w.size) }
 func (w *TimeSelectW) finish() {
 	c, th := w.c, w.c.Theme
 	st := w.st
-	w.items = moreTimeItems(w.start, w.end, w.step, w.minT, w.maxT)
+	w.items = w.Options()
 	w.n.ln.Height = w.height()
 	if w.n.ln.Width == 0 {
 		w.n.ln.Width = 160
@@ -327,7 +353,11 @@ func (w *TimeSelectW) dropdown() {
 	if el {
 		maxH = 274 - 2*pad
 	}
-	ov := Overlay(c, OverlayOptions{Anchor: w.n.id, Place: BottomStart, Offset: 4, MatchWidth: true, Flip: true, ShiftY: (1 - a) * -4}, func() {
+	shift := (1 - a) * -4
+	if w.place == TopStart || w.place == TopEnd {
+		shift = -shift
+	}
+	ov := Overlay(c, OverlayOptions{Anchor: w.n.id, Place: w.place, Offset: 4, MatchWidth: true, Flip: true, ShiftY: shift}, func() {
 		if len(w.items) == 0 {
 			Empty(c).Simple().Description(c.Locale().NoData)
 			return

@@ -577,6 +577,9 @@ type TimePickerW struct {
 	changed   bool
 	forced    bool
 	z         *lazy
+	place     Placement // popup placement (Ant placement)
+	showNow   bool      // the Now footer link (Ant showNow)
+	noConfirm bool      // NeedConfirm(false): column picks apply at once
 }
 
 // TimePicker adds a time input bound to *val (zero = empty). The date part
@@ -584,9 +587,10 @@ type TimePickerW struct {
 //
 // ConfigProvider.Defaults("TimePicker", ...) keys: "format",
 // "placeholder", "use12Hours", "hourStep", "minuteStep", "secondStep",
-// "allowClear", "width", "size", "variant", "hideDisabledOptions".
+// "allowClear", "width", "size", "variant", "hideDisabledOptions",
+// "placement", "showNow", "needConfirm".
 func TimePicker(c *Context, val *time.Time) *TimePickerW {
-	w := &TimePickerW{c: c, val: val, format: "15:04:05", loc: c.Locale()}
+	w := &TimePickerW{c: c, val: val, format: "15:04:05", loc: c.Locale(), showNow: true}
 	w.f = dtNewField(c, "timepicker", icon.Clock)
 	w.st = State[dtTimePickerState](c, w.f.n.id, nil)
 	w.f.st = &w.st.field
@@ -604,9 +608,29 @@ func TimePicker(c *Context, val *time.Time) *TimePickerW {
 	def.size(&w.f.size)
 	def.str("variant", &w.f.variant)
 	def.flag("hideDisabledOptions", &w.clock.hide)
+	def.flag("showNow", &w.showNow)
+	confirm := true
+	def.flag("needConfirm", &confirm)
+	w.noConfirm = !confirm
+	dtPlaceDefault(c, "TimePicker", &w.place)
 	w.z = c.lazy(w.f.n, w.finish)
 	return w
 }
+
+// Placement sets where the columns open: BottomStart (default),
+// BottomEnd, TopStart or TopEnd (Ant placement); they flip when there is
+// no room.
+func (w *TimePickerW) Placement(p Placement) *TimePickerW { w.place = p; return w }
+
+// ShowNow toggles the Now link in the footer (Ant showNow, on by
+// default).
+func (w *TimePickerW) ShowNow(on bool) *TimePickerW { w.showNow = on; return w }
+
+// NeedConfirm keeps column picks as a draft until OK or Enter (Ant
+// needConfirm; on by default for time pickers). With NeedConfirm(false)
+// every pick in the columns (or arrow key step) sets the value at once,
+// the panel stays open and the OK button is left out.
+func (w *TimePickerW) NeedConfirm(on bool) *TimePickerW { w.noConfirm = !on; return w }
 
 func (w *TimePickerW) Placeholder(s string) *TimePickerW { w.f.ph = s; return w }
 
@@ -700,6 +724,17 @@ func (w *TimePickerW) cfg() dtTimeCfg {
 	return cfg
 }
 
+// apply stores t without closing (NeedConfirm(false)) unless its clock
+// is disabled.
+func (w *TimePickerW) apply(t time.Time) {
+	if t.IsZero() || w.cfg().disabled(t) || t.Equal(*w.val) {
+		return
+	}
+	*w.val = t
+	w.changed = true
+	w.c.invalid = true
+}
+
 // commit stores t unless its clock is disabled.
 func (w *TimePickerW) commit(t time.Time) {
 	if w.cfg().disabled(t) {
@@ -780,6 +815,9 @@ func (w *TimePickerW) finish() {
 		default:
 			if dtTimeKey(&st.draft, cfg, &st.ts, k.Key) {
 				f.setText(show(st.draft))
+				if w.noConfirm {
+					w.apply(st.draft)
+				}
 			}
 		}
 	}
@@ -789,10 +827,13 @@ func (w *TimePickerW) finish() {
 	}
 	th := c.Theme
 	defer func() { f.ctl, f.act = st.ts.active() }()
-	dtStylePanel(c, entPanel(c, f.n.id, &st.field.pop, false, func() {
+	dtStylePanel(c, dtPanel(c, f.n.id, &st.field.pop, w.place, func() {
 		Column(c, func() {
 			if dtTimeColumns(c, &st.draft, cfg, &st.ts) {
 				f.setText(show(st.draft))
+				if w.noConfirm {
+					w.apply(st.draft)
+				}
 			}
 			bad := st.draft.IsZero() || cfg.disabled(st.draft)
 			if th.Flavor == theme.Element {
@@ -802,7 +843,7 @@ func (w *TimePickerW) finish() {
 						st.field.pop.open = false
 						c.invalid = true
 					}
-					if dtTextBtn(c, loc.OK, true) {
+					if !w.noConfirm && dtTextBtn(c, loc.OK, true) {
 						w.commit(st.draft)
 					}
 				}, layout.H(36), layout.PadVH(0, 5), layout.Middle(), layout.Gap(4)).Paint(func(l *paint.List, r geom.Rect) {
@@ -810,16 +851,19 @@ func (w *TimePickerW) finish() {
 				})
 				return
 			}
+			if !w.showNow && w.noConfirm {
+				return // nothing for the footer (rc-picker Footer renders null)
+			}
 			dtFooter(c, func() {
 				now := c.now.Truncate(time.Second)
 				if cfg.cols < 3 {
 					now = now.Truncate(time.Minute)
 				}
-				if !cfg.disabled(now) && dtLink(c, loc.Now) {
+				if w.showNow && !cfg.disabled(now) && dtLink(c, loc.Now) {
 					w.commit(now)
 				}
 				Spacer(c)
-				if Button(c, loc.OK).Primary().Small().Disabled(bad).Clicked() {
+				if !w.noConfirm && Button(c, loc.OK).Primary().Small().Disabled(bad).Clicked() {
 					w.commit(st.draft)
 				}
 			})

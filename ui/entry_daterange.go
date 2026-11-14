@@ -68,6 +68,9 @@ type RangePickerW struct {
 	ia         Interaction
 	z          *lazy
 	ids        dtGridIDs // first grid and cursor day of the open panels (semantics)
+	place      Placement // popup placement (Ant placement)
+	bounds     dtBounds  // MinDate / MaxDate
+	noOrder    bool      // Order(false): keep the picked order
 }
 
 // RangePicker adds a date range input bound to *val ([start, end], zero =
@@ -81,7 +84,7 @@ func RangePicker(c *Context, val *[2]time.Time) *RangePickerW {
 	w.n = c.add("rangepicker", "")
 	// ConfigProvider.Defaults("RangePicker", ...): "format", "separator",
 	// "allowClear", "showTime", "width", "size", "variant", "picker"
-	// (PickerType), "placeholder" ([2]string).
+	// (PickerType), "placeholder" ([2]string), "placement", "order".
 	def := p2aDefaults(c, "RangePicker")
 	if v, ok := c.ConfigProp("RangePicker", "picker"); ok {
 		if p, ok := v.(PickerType); ok {
@@ -100,6 +103,10 @@ func RangePicker(c *Context, val *[2]time.Time) *RangePickerW {
 	def.flag("showTime", &w.showTime)
 	def.px("width", &w.n.ln.Width)
 	def.size(&w.size)
+	dtPlaceDefault(c, "RangePicker", &w.place)
+	order := true
+	def.flag("order", &order)
+	w.noOrder = !order
 	w.n.ln.NoStretch = true
 	w.n.ownKeys = true
 	w.st = State[dtRangeState](c, w.n.id, nil)
@@ -145,6 +152,26 @@ func (w *RangePickerW) Size(s ControlSize) *RangePickerW      { w.size = s; retu
 func (w *RangePickerW) Width(px float32) *RangePickerW        { w.n.ln.Width = px; return w }
 func (w *RangePickerW) AllowClear(on bool) *RangePickerW      { w.allowClear = on; return w }
 func (w *RangePickerW) Presets(p ...DatePreset) *RangePickerW { w.presets = p; return w }
+
+// Separator sets the text between the two ends (Ant separator; default
+// the Locale's RangeSeparator).
+func (w *RangePickerW) Separator(s string) *RangePickerW { w.sep = s; return w }
+
+// Placement sets where the panels open: BottomStart (default), BottomEnd,
+// TopStart or TopEnd (Ant placement); they flip when there is no room.
+func (w *RangePickerW) Placement(p Placement) *RangePickerW { w.place = p; return w }
+
+// MinDate limits the pickable dates (Ant minDate): periods wholly before t
+// cannot be picked or typed, and the panel arrows stop at t's page.
+func (w *RangePickerW) MinDate(t time.Time) *RangePickerW { w.bounds.lo = t; return w }
+
+// MaxDate limits the pickable dates (Ant maxDate), like MinDate.
+func (w *RangePickerW) MaxDate(t time.Time) *RangePickerW { w.bounds.hi = t; return w }
+
+// Order toggles sorting the two ends (Ant order, on by default). With
+// Order(false) the first pick is the start and the second the end, even
+// when the end comes earlier.
+func (w *RangePickerW) Order(on bool) *RangePickerW { w.noOrder = !on; return w }
 
 // Variant sets the frame look: "outlined" (default), "filled",
 // "borderless" or "underlined".
@@ -261,7 +288,10 @@ func (w *RangePickerW) typed(d time.Time) {
 	other := w.shown()[1-i]
 	if !other.IsZero() {
 		a, b := d, other
-		if b.Before(a) {
+		if i == 1 {
+			a, b = other, d
+		}
+		if b.Before(a) && !w.noOrder {
 			a, b = b, a
 		}
 		w.set([2]time.Time{a, b})
@@ -291,7 +321,8 @@ func (w *RangePickerW) follow(d time.Time) {
 // core returns the period panel engine (Picker) over the picker state.
 func (w *RangePickerW) core() *DatePickerPanelW {
 	return &DatePickerPanelW{c: w.c, val: &w.val[0], end: &w.val[1], ranged: true, picker: w.picker,
-		disabled: w.disabledFn, st: &w.st.fp, ids: &w.ids, onRange: func(a, b time.Time) { w.set([2]time.Time{a, b}) }}
+		disabled: w.disabledFn, st: &w.st.fp, ids: &w.ids, bounds: w.bounds, noOrder: w.noOrder,
+		onRange: func(a, b time.Time) { w.set([2]time.Time{a, b}) }}
 }
 
 // DisabledDate marks days that cannot be picked.
@@ -389,7 +420,7 @@ func (w *RangePickerW) pickDay(d time.Time) {
 		return
 	}
 	a, b := st.a, d
-	if b.Before(a) {
+	if b.Before(a) && !w.noOrder {
 		a, b = b, a
 	}
 	w.set([2]time.Time{a, b})
@@ -409,6 +440,8 @@ func (w *RangePickerW) set(v [2]time.Time) {
 func (w *RangePickerW) finish() {
 	c, st := w.c, w.st
 	th := c.Theme
+	// MinDate / MaxDate act like DisabledDate at the picker's granularity.
+	w.disabledFn = w.bounds.limit(w.disabledFn, w.picker, w.loc.WeekStart)
 	w.n.ln.Height = c.controlHeight(w.size)
 	if w.n.ln.Width == 0 {
 		w.n.ln.Width = 260
@@ -530,7 +563,7 @@ func (w *RangePickerW) finish() {
 func (w *RangePickerW) periodPanel(core *DatePickerPanelW) {
 	c, st := w.c, w.st
 	w.ids = dtGridIDs{}
-	dtStylePanel(c, entPanel(c, w.n.id, &st.pop, false, func() {
+	dtStylePanel(c, dtPanel(c, w.n.id, &st.pop, w.place, func() {
 		Row(c, func() {
 			if len(w.presets) > 0 {
 				w.presetList()
@@ -547,7 +580,7 @@ func (w *RangePickerW) panel() {
 	today := dtDay(c.now)
 	hover := time.Time{}
 	w.ids = dtGridIDs{}
-	dtStylePanel(c, entPanel(c, w.n.id, &st.pop, false, func() {
+	dtStylePanel(c, dtPanel(c, w.n.id, &st.pop, w.place, func() {
 		Row(c, func() {
 			if len(w.presets) > 0 {
 				w.presetList()
@@ -575,7 +608,7 @@ func (w *RangePickerW) panel() {
 								view: dtAddMonths(st.view, i), today: today,
 								selA: selA, selB: selB, prevA: prevA, prevB: prevB,
 								cursor: st.cursor, disabled: w.disabledFn, hideOut: true,
-								navPrev: i == 0, navNext: i == 1, onNav: nav, hover: &hover, ids: &w.ids,
+								navPrev: i == 0, navNext: i == 1, onNav: nav, hover: &hover, ids: &w.ids, bounds: w.bounds,
 							}
 							b := Column(c, func() {
 								if d, ok := dtMonthPanel(c, m); ok {

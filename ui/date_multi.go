@@ -40,6 +40,8 @@ type MultiDatePickerW struct {
 	forced      bool
 	z           *lazy
 	ids         dtGridIDs
+	place       Placement // popup placement (Ant placement)
+	bounds      dtBounds  // MinDate / MaxDate
 }
 
 // MultiDatePicker adds a multiple date input bound to *vals (Ant
@@ -109,6 +111,18 @@ func (w *MultiDatePickerW) Disabled(on bool) *MultiDatePickerW {
 	return w
 }
 
+// Placement sets where the panel opens: BottomStart (default),
+// BottomEnd, TopStart or TopEnd (Ant placement); it flips when there is
+// no room.
+func (w *MultiDatePickerW) Placement(p Placement) *MultiDatePickerW { w.place = p; return w }
+
+// MinDate limits the pickable dates (Ant minDate): periods wholly before t
+// cannot be toggled and the panel arrows stop at t's page.
+func (w *MultiDatePickerW) MinDate(t time.Time) *MultiDatePickerW { w.bounds.lo = t; return w }
+
+// MaxDate limits the pickable dates (Ant maxDate), like MinDate.
+func (w *MultiDatePickerW) MaxDate(t time.Time) *MultiDatePickerW { w.bounds.hi = t; return w }
+
 // Open forces the panel open (screenshots, tests).
 func (w *MultiDatePickerW) Open() *MultiDatePickerW { w.forced = true; return w }
 
@@ -177,6 +191,8 @@ func (w *MultiDatePickerW) toggle(p time.Time) {
 
 func (w *MultiDatePickerW) finish() {
 	c, b, st := w.c, w.box, w.st
+	// MinDate / MaxDate act like DisabledDate at the picker's granularity.
+	w.disabledFn = w.bounds.limit(w.disabledFn, w.picker, w.loc.WeekStart)
 	if b.n.ln.Width == 0 {
 		b.n.ln.Width = 260
 	}
@@ -253,7 +269,7 @@ func (w *MultiDatePickerW) finish() {
 		return
 	}
 	w.ids = dtGridIDs{}
-	dtStylePanel(c, entPanel(c, b.n.id, &st.pop, false, func() {
+	dtStylePanel(c, dtPanel(c, b.n.id, &st.pop, w.place, func() {
 		Column(c, func() {
 			core.content()
 			if w.needConfirm {
@@ -284,7 +300,7 @@ func (w *MultiDatePickerW) core() *DatePickerPanelW {
 		sel = append(sel, fillPeriodStart(t, w.picker, ws))
 	}
 	return &DatePickerPanelW{c: w.c, val: &w.st.anchor, picker: w.picker, disabled: w.disabledFn,
-		st: &w.st.fp, ids: &w.ids, multi: sel, onPick: w.toggle}
+		st: &w.st.fp, ids: &w.ids, multi: sel, onPick: w.toggle, bounds: w.bounds}
 }
 
 // footer is the NeedConfirm footer with the OK button.

@@ -295,7 +295,11 @@ func dtTextBtn(c *Context, label string, primary bool) bool {
 	}
 	n.ln.Measure = func(_, _ float32) geom.Size { return geom.Size{W: entTextW(c, label, fs, wt) + 10, H: 28} }
 	n.setRole(a11y.RoleButton)
-	ia := c.interact(n, true, input.CursorPointer)
+	cur := input.CursorPointer
+	if n.disabled {
+		cur = input.CursorNotAllowed
+	}
+	ia := c.interact(n, true, cur)
 	n.paint = func(l *paint.List, r geom.Rect) {
 		col := th.Text
 		if primary {
@@ -303,6 +307,9 @@ func dtTextBtn(c *Context, label string, primary bool) bool {
 		}
 		if ia.Hovered {
 			col = th.Primary.Hover
+		}
+		if n.disabled {
+			col = th.TextDisabled
 		}
 		entText(c, l, label, r.X+5, r, fs, wt, col, 0)
 		if ia.FocusVisible {
