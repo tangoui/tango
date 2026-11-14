@@ -43,6 +43,7 @@ try {
   | `not_running` | 应用正在退出 |
   | `internal` | 其它 Go 侧错误 |
   | `busy` | 只有 `tango:updater.*`（`API.InstallUpdater`）：已有一次检查或下载在进行 |
+  | `transport` | 只有流：快速通道上丢帧或通道中途故障，流被关闭（见 `ipc.CodeTransport`） |
 
 - **事件订阅**：所有 `onXxx` 返回取消函数。
 - **页面生命周期**：页面重新加载（运行时重新 hello）或窗口关闭时，该页面注册的全局快捷键自动注销。
