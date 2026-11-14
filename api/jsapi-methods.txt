@@ -22,7 +22,7 @@
 # Theme.vars/onVarsChange, and argument/result JSON shapes.
 
 error bad_args js=ErrorCode
-error busy js=-
+error busy js=ErrorCode
 error canceled js=ErrorCode
 error forbidden js=ErrorCode
 error internal js=ErrorCode

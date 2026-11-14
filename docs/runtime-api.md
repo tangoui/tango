@@ -41,7 +41,7 @@ try {
   | `not_found` | 方法不存在；或调用方不是本应用的窗口（窗口类方法） |
   | `not_running` | 应用正在退出 |
   | `internal` | 其它 Go 侧错误 |
-  | `busy` | 只有 `tango:updater.*`（`API.InstallUpdater`）：已有一次检查或下载在进行；TS 的 `ErrorCode` 联合类型没有列出它（靠 `string & {}` 兜底） |
+  | `busy` | 只有 `tango:updater.*`（`API.InstallUpdater`）：已有一次检查或下载在进行 |
 
 - **事件订阅**：所有 `onXxx` 返回取消函数。
 - **页面生命周期**：页面重新加载（运行时重新 hello）或窗口关闭时，该页面注册的全局快捷键自动注销。
@@ -283,7 +283,7 @@ TS 封装调用了 Go 没有注册的方法（或把方法当事件用）、Go �
 - API 报告只看名字和 TypeScript 类型。实现行为变了、默认值变了、`Promise` 何时 resolve 变了，报告都不会变。返回类型写成 `Promise<T>` 而 Go 实际返回的 JSON 换了字段，报告也看不出来。
 - 线上契约只核对名字（以及方法所需的 `Cap`）。参数个数与顺序、参数和结果的 JSON 形状、事件数据的字段，由 `jsapi` 与 `runtime-js` 各自的单元测试覆盖，没有统一的黄金文件；IPC 消息本身也还没有协议版本号。
 - 不在契约文件里的动态名字：应用自己的方法与事件（`call`/`on`/`emit`/`stream`、`Events.*`，名字由应用定）；其他包通过 `API.Handle` 注册的方法（`Cap` 第 32 位以上，目前仓库里没有）；`Theme.vars`/`onVarsChange` 读的页面全局变量 `__tangoUIVarsState` 和 DOM 事件 `tangouivars`（由 `sys/theme/uivars` 注入，不走 `jsapi`）。
-- 已知差异：`busy`（只有 `tango:updater.*` 会返回）不在 `ErrorCode` 联合类型里，靠 `(string & {})` 兜底；`updater.*` 方法与 `updater.event` 事件在 runtime-js 里没有封装。
+- 已知差异：`updater.*` 方法与 `updater.event` 事件在 runtime-js 里没有封装。
 
 ## 已知缺口
 

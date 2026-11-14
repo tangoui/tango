@@ -15,7 +15,8 @@ export interface Bridge {
  * - canceled: the user dismissed a dialog, or the call/stream was canceled
  * - forbidden: the capability is not enabled in jsapi.Options (runtime API)
  * - unsupported: the platform cannot do it
- * - not_running: the app is quitting */
+ * - not_running: the app is quitting
+ * - busy: an update check or download is already running (updater methods) */
 export type ErrorCode =
   | "not_found"
   | "bad_args"
@@ -24,6 +25,7 @@ export type ErrorCode =
   | "forbidden"
   | "unsupported"
   | "not_running"
+  | "busy"
   | (string & {});
 
 /** Error raised for failed calls and streams; see ErrorCode. */
