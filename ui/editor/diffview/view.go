@@ -39,7 +39,7 @@ func View(c *ui.Context, d *State) *ViewW {
 	ly := &d.lay
 	ly.rtl = c.IsRTL()
 	ly.texts = textsOf(c.Locale())
-	ly.cols = resolveColors(d.Modified.Theme, tokensOf(c))
+	ly.cols = resolveColors(d.Modified.Theme, tokensOf(c, d.Modified.Theme))
 	mode := d.modeFor(c)
 	w.mode, d.frameMode = mode, mode
 	d.applyOptions(mode)

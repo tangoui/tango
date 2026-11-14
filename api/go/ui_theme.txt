@@ -17,6 +17,7 @@ pkg github.com/tangoui/tango/ui/theme, const CompCollapse Comp = 35
 pkg github.com/tangoui/tango/ui/theme, const CompColorPicker Comp = 46
 pkg github.com/tangoui/tango/ui/theme, const CompDatePicker Comp = 25
 pkg github.com/tangoui/tango/ui/theme, const CompDescriptions Comp = 29
+pkg github.com/tangoui/tango/ui/theme, const CompDiffView Comp = 67
 pkg github.com/tangoui/tango/ui/theme, const CompDivider Comp = 42
 pkg github.com/tangoui/tango/ui/theme, const CompDock Comp = 64
 pkg github.com/tangoui/tango/ui/theme, const CompDrawer Comp = 13
@@ -571,6 +572,7 @@ pkg github.com/tangoui/tango/ui/theme, type Components struct, Collapse Collapse
 pkg github.com/tangoui/tango/ui/theme, type Components struct, ColorPicker ColorPickerToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, DatePicker DatePickerToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Descriptions DescriptionsToken
+pkg github.com/tangoui/tango/ui/theme, type Components struct, DiffView DiffViewToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Divider DividerToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Dock DockToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Drawer DrawerToken
@@ -714,6 +716,19 @@ pkg github.com/tangoui/tango/ui/theme, type DescriptionsToken struct, TitleColor
 pkg github.com/tangoui/tango/ui/theme, type DescriptionsToken struct, TitleFontSize float32
 pkg github.com/tangoui/tango/ui/theme, type DescriptionsToken struct, TitleMarginBottom float32
 pkg github.com/tangoui/tango/ui/theme, type DescriptionsToken struct, embedded Alias
+pkg github.com/tangoui/tango/ui/theme, type DiffViewToken struct
+pkg github.com/tangoui/tango/ui/theme, type DiffViewToken struct, DiagonalFill Color
+pkg github.com/tangoui/tango/ui/theme, type DiffViewToken struct, InsertedLineBg Color
+pkg github.com/tangoui/tango/ui/theme, type DiffViewToken struct, InsertedTextBg Color
+pkg github.com/tangoui/tango/ui/theme, type DiffViewToken struct, LinkColor Color `contrast:"text:RegionBg"`
+pkg github.com/tangoui/tango/ui/theme, type DiffViewToken struct, LinkHoverColor Color `contrast:"text:RegionBg"`
+pkg github.com/tangoui/tango/ui/theme, type DiffViewToken struct, OverviewInserted Color
+pkg github.com/tangoui/tango/ui/theme, type DiffViewToken struct, OverviewRemoved Color
+pkg github.com/tangoui/tango/ui/theme, type DiffViewToken struct, RegionBg Color
+pkg github.com/tangoui/tango/ui/theme, type DiffViewToken struct, RegionColor Color `contrast:"text:RegionBg"`
+pkg github.com/tangoui/tango/ui/theme, type DiffViewToken struct, RemovedLineBg Color
+pkg github.com/tangoui/tango/ui/theme, type DiffViewToken struct, RemovedTextBg Color
+pkg github.com/tangoui/tango/ui/theme, type DiffViewToken struct, embedded Alias
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, Color Color
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, MarginBlock float32
