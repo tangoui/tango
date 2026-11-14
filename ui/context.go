@@ -169,24 +169,31 @@ type Context struct {
 	focusOrder     input.FocusOrder[ID]
 	nextFocusOrder input.FocusOrder[ID]
 	keys           []input.KeyEvent
-	text           []string
-	compose        *input.Composition
-	composing      string
-	composeCursor  int
-	escape         bool
-	scrollQ        []input.Scroll
-	wantText       bool
-	textCaret      geom.Rect
-	cursorShape    input.Cursor
-	invalid        bool
-	animating      bool
-	wakeAt         time.Time
-	disabledDepth  int
-	deferred       []func()
-	contentSize    geom.Size
-	itemStatus     string // validation status of the enclosing FormItem
-	scrollTargets  []scrollTarget
-	prevScroll     []scrollTarget
+	// frameKeys are the key events of this frame, never consumed (KeysFor
+	// empties keys): for window-wide shortcuts handled by widgets built
+	// after the focused one (Menubar's Alt / F10). keySeq counts the
+	// frames that delivered input, so a handler reading frameKeys can
+	// skip the rebuilds of the same frame.
+	frameKeys     []input.KeyEvent
+	keySeq        uint64
+	text          []string
+	compose       *input.Composition
+	composing     string
+	composeCursor int
+	escape        bool
+	scrollQ       []input.Scroll
+	wantText      bool
+	textCaret     geom.Rect
+	cursorShape   input.Cursor
+	invalid       bool
+	animating     bool
+	wakeAt        time.Time
+	disabledDepth int
+	deferred      []func()
+	contentSize   geom.Size
+	itemStatus    string // validation status of the enclosing FormItem
+	scrollTargets []scrollTarget
+	prevScroll    []scrollTarget
 
 	// Layer stack (see layers.go).
 	curOverlay       ID         // overlay whose content is being built (0 = page)

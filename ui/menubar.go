@@ -59,8 +59,9 @@ type menubarState struct {
 	cur      int    // trigger that is the Tab stop
 	popup    navPopupState
 	panels   []ID
-	altArmed bool // Alt went down with no other key since
-	back     ID   // focus before Alt / F10 moved it into the bar
+	altArmed bool   // Alt went down with no other key since
+	back     ID     // focus before Alt / F10 moved it into the bar
+	keySeq   uint64 // c.keySeq of the last frame whose hotkeys were handled
 }
 
 // MenubarW is an application menu bar inside the window (shadcn/ui
@@ -80,6 +81,8 @@ type MenubarW struct {
 	clicked string
 	changed bool
 	hot     bool // hotkey pressed this frame (Alt / F10)
+	// openLast makes the next keyboard openMenu focus the last item.
+	openLast bool
 }
 
 // Menubar adds a menu bar with the given top-level menus:
@@ -142,12 +145,24 @@ func (m *MenubarW) menuKey(i int) string {
 }
 
 // hotkeys handles Alt (alone) and F10: they move focus into the bar, or
-// out of it again (closing an open menu).
+// out of it again (closing an open menu). It reads the frame's keys
+// before any widget consumed them (c.frameKeys), so the bar answers even
+// when the focused widget is built before it, and handles each frame's
+// keys once whatever the number of build passes. F10 is also removed
+// from the keys still unconsumed.
 func (m *MenubarW) hotkeys() {
 	c, st := m.c, m.st
-	var rest []input.KeyEvent
-	taken := false
-	for _, k := range c.keys {
+	for i, k := range c.keys {
+		if k.Key == input.KeyF10 && k.Mods&(input.ModShift|input.ModCtrl|input.ModAlt|input.ModMeta) == 0 {
+			c.keys = append(c.keys[:i:i], c.keys[i+1:]...) // F10 belongs to the bar
+			break
+		}
+	}
+	if st.keySeq == c.keySeq {
+		return // a rebuild of the same frame: its hotkeys already acted
+	}
+	st.keySeq = c.keySeq
+	for _, k := range c.frameKeys {
 		hit := false
 		switch {
 		case k.Key == input.KeyAltLeft || k.Key == input.KeyAltRight:
@@ -162,8 +177,6 @@ func (m *MenubarW) hotkeys() {
 			if k.Down {
 				m.hot = !m.hot
 			}
-			taken = true
-			continue // F10 belongs to the bar
 		default:
 			if k.Down {
 				st.altArmed = false
@@ -172,10 +185,6 @@ func (m *MenubarW) hotkeys() {
 		if hit {
 			m.hot = !m.hot
 		}
-		rest = append(rest, k)
-	}
-	if taken {
-		c.keys = rest
 	}
 	if m.hot {
 		c.invalid = true
@@ -322,7 +331,8 @@ func (m *MenubarW) step(i, d int) int {
 	return -1
 }
 
-// openMenu opens menu i; kbd moves focus to its first item.
+// openMenu opens menu i; kbd moves focus to its first item, or its last
+// when m.openLast is set (Up on a trigger).
 func (m *MenubarW) openMenu(i int, kbd bool) {
 	c, st := m.c, m.st
 	key := m.menuKey(i)
@@ -334,6 +344,8 @@ func (m *MenubarW) openMenu(i int, kbd bool) {
 	st.cur = i
 	if kbd {
 		st.popup.focus = 1
+		st.popup.last = m.openLast
+		m.openLast = false
 		st.popup.keyboard(c)
 	} else {
 		st.popup.kbd = false
@@ -403,6 +415,7 @@ func (m *MenubarW) triggerKeys(i int) {
 				st.cur = j
 			}
 		case input.KeyDown, input.KeyUp:
+			m.openLast = key == input.KeyUp
 			m.openMenu(i, true)
 		case input.KeyEnter, input.KeySpace:
 			// The implicit click opened the menu (navNonPointer).
