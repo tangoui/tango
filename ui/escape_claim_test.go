@@ -211,3 +211,43 @@ func TestBackKeepsCode(t *testing.T) {
 		t.Fatalf("codes %v, want [Back]", codes)
 	}
 }
+
+// Back's release follows its press away from a widget that claims Esc: the
+// claimer sees no KeyBack event at all, while a keyboard Esc reaches it
+// both down and up.
+func TestClaimEscapeDropsBackRelease(t *testing.T) {
+	open := true
+	var id ID
+	var keys, evs []input.KeyEvent
+	d := NewDriver(func(c *Context) {
+		Modal(c, &open, "对话框").Body(func() {
+			b := Div(c, layout.Size(200, 40))
+			b.Focusable(input.CursorText)
+			id = b.ID()
+			c.ClaimEscape(id)
+			keys = append(keys, c.KeysFor(id)...)
+			for _, e := range c.EventsFor(id) {
+				if k, ok := e.(input.KeyEvent); ok {
+					evs = append(evs, k)
+				}
+			}
+		})
+	}, DriverOptions{Width: 800, Height: 600})
+	d.Settle()
+	d.r.c.SetFocus(id)
+	d.Settle()
+	d.Key(input.KeyEscape, 0)
+	if !open || len(keys) != 2 || !keys[0].Down || keys[1].Down || len(evs) != 2 {
+		t.Fatalf("keyboard Esc: open=%v keys %+v evs %+v, want press and release", open, keys, evs)
+	}
+	keys, evs = nil, nil
+	back(d)
+	if open {
+		t.Fatal("Back did not close the modal")
+	}
+	for _, k := range append(keys, evs...) {
+		if k.Code == input.KeyBack {
+			t.Fatalf("claimer saw a Back event: %+v", k)
+		}
+	}
+}
