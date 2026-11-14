@@ -3,6 +3,7 @@ package updateui
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -47,7 +48,8 @@ func TestStateRoundTrip(t *testing.T) {
 		out.Pending.Release.Notes != "n" {
 		t.Fatalf("round trip: %+v (pending %+v)", out, out.Pending)
 	}
-	if fi, err := os.Stat(filepath.Join(u.StateDir, stateFile)); err != nil || fi.Mode().Perm()&0o077 != 0 {
+	// Windows reports 0666 for any writable file: no owner-only bits to check.
+	if fi, err := os.Stat(filepath.Join(u.StateDir, stateFile)); err != nil || runtime.GOOS != "windows" && fi.Mode().Perm()&0o077 != 0 {
 		t.Fatalf("state file mode: %v %v", fi, err)
 	}
 }
