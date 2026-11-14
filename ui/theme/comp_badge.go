@@ -25,8 +25,12 @@ type BadgeToken struct {
 }
 
 func deriveBadge(t *Theme) BadgeToken {
+	// antd 6.7 es/badge/style/index.js prepareComponentToken:
+	// indicatorHeight round(fontSize × lineHeight) − 2 × lineWidth = 20,
+	// indicatorHeightSM fontSize = 14, dotSize fontSizeSM / 2 = 6,
+	// multiple-words paddingInline paddingXS = 8 (both sizes).
 	k := BadgeToken{
-		IndicatorHeight: 20, IndicatorHeightSM: 14, IndicatorPaddingInline: 6, IndicatorPaddingInlineSM: 4,
+		IndicatorHeight: 20, IndicatorHeightSM: 14, IndicatorPaddingInline: 8, IndicatorPaddingInlineSM: 8,
 		DotSize: 6, TextFontSize: t.FontSizeSM, TextFontSizeSM: t.FontSizeSM,
 		CountBg: t.Error.Base, TextColor: t.TextOnSolid, RingColor: t.BgContainer,
 		StatusSize: 6, StatusDefaultColor: t.StatusDefault, StatusTextColor: t.Text,
@@ -34,9 +38,14 @@ func deriveBadge(t *Theme) BadgeToken {
 	}
 	switch t.Flavor {
 	case Element:
+		// theme-chalk var.scss $badge: size 18, padding 6; is-dot 8.
 		k.IndicatorHeight, k.DotSize = 18, 8
+		k.IndicatorPaddingInline, k.IndicatorPaddingInlineSM = 6, 4
 	case StyleShadcn:
+		// No shadcn counterpart for the count bubble: keep the earlier
+		// 6 / 4 side padding.
 		k.TextFontWeight = 600 // font-semibold
+		k.IndicatorPaddingInline, k.IndicatorPaddingInlineSM = 6, 4
 	}
 	return k
 }

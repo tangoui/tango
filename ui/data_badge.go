@@ -36,6 +36,8 @@ type BadgeW struct {
 	status   string
 	label    string
 	wrapped  bool
+	hidden   bool
+	title    string
 	th       *theme.Theme
 	tk       *theme.BadgeToken
 }
@@ -68,8 +70,16 @@ func Badge(c *Context) *BadgeW {
 	return b
 }
 
-// Count sets the number (<= 0 hides the bubble unless ShowZero).
+// Count sets the number. Zero hides the bubble unless ShowZero; negative
+// numbers are shown as they are (antd, Element).
 func (b *BadgeW) Count(n int) *BadgeW { b.count = n; return b }
+
+// Hidden hides the bubble or dot (Element hidden).
+func (b *BadgeW) Hidden(on bool) *BadgeW { b.hidden = on; return b }
+
+// Title sets the text announced for the bubble instead of the count
+// (antd title).
+func (b *BadgeW) Title(s string) *BadgeW { b.title = s; return b }
 
 // Text shows a word instead of a number (Element value="new").
 func (b *BadgeW) Text(s string) *BadgeW { b.text = s; return b }
@@ -135,10 +145,13 @@ func (b *BadgeW) bubbleColor() theme.Color {
 }
 
 func (b *BadgeW) content() (string, bool) {
+	if b.hidden {
+		return "", false
+	}
 	if b.text != "" {
 		return b.text, true
 	}
-	if b.count <= 0 && !b.showZero {
+	if b.count == 0 && !b.showZero {
 		return "", false
 	}
 	if b.count > b.overflow {
@@ -173,6 +186,9 @@ func (b *BadgeW) paintBubble(l *paint.List, cx, cy float32) {
 	th, tk := b.th, b.tk
 	col := b.bubbleColor()
 	ring := tk.RingColor
+	if b.hidden {
+		return
+	}
 	if b.dot {
 		d := tk.DotSize
 		r := geom.Rect{X: cx - d/2, Y: cy - d/2, W: d, H: d}
@@ -216,7 +232,13 @@ func (b *BadgeW) Body(fn func()) *Box {
 	}
 	// The count is announced with the content it decorates (an avatar, a
 	// bell button); without a semantic child the badge itself carries it.
-	desc := func() string { s, _ := b.content(); return s }
+	desc := func() string {
+		if b.title != "" && !b.hidden {
+			return b.title
+		}
+		s, _ := b.content()
+		return s
+	}
 	if !dataDescribe(c, b.n, desc) {
 		b.n.setRole(a11y.RoleGroup)
 		b.n.fill(semFunc(func(s *a11y.Node) { addDescription(s, desc()) }))
@@ -235,6 +257,9 @@ func (b *BadgeW) finish() {
 	}
 	n := b.n
 	if s, ok := b.content(); ok && !b.dot {
+		if b.title != "" {
+			s = b.title
+		}
 		n.setRole(a11y.RoleText).setName(s)
 	}
 	n.ln.AlignSelf = layout.AlignCenter
@@ -377,23 +402,43 @@ type AvatarGroupW struct {
 	size    float32
 	overlap float32
 	moreBg  theme.Color
+	noPop   bool
+	place   string
+	trigger string
 }
 
 // AvatarGroup starts a group; call Body with the avatars.
+//
+// ConfigProvider.Defaults("AvatarGroup", ...) keys: "maxCount" (int).
 func AvatarGroup(c *Context) *AvatarGroupW {
-	g := &AvatarGroupW{c: c, overlap: -c.ThemeFor(theme.CompAvatar).Components.Avatar.GroupOverlapping}
+	g := &AvatarGroupW{c: c, overlap: -c.ThemeFor(theme.CompAvatar).Components.Avatar.GroupOverlapping, place: "top", trigger: "hover"}
 	g.configDefaults() // Defaults("AvatarGroup", ...): maxCount
 	return g
 }
 
-// Max folds avatars beyond n into a "+k" avatar.
+// Max folds avatars beyond n into a "+k" avatar; hovering it shows the
+// folded avatars in a popover (antd max.count / max.popover).
 func (g *AvatarGroupW) Max(n int) *AvatarGroupW { g.max = n; return g }
 
 // Size sets the size of the "+k" avatar (match your avatars; default 32).
 func (g *AvatarGroupW) Size(px float32) *AvatarGroupW { g.size = px; return g }
 
-// MoreBg sets the background of the "+k" avatar.
+// MoreBg sets the background of the "+k" avatar (antd max.style).
 func (g *AvatarGroupW) MoreBg(col theme.Color) *AvatarGroupW { g.moreBg = col; return g }
+
+// MaxPopover shows (default) or hides the popover listing the folded
+// avatars; placement and trigger as in Popover (default "top", "hover").
+// Element's collapse-avatars-tooltip is MaxPopover(true, "top", "hover").
+func (g *AvatarGroupW) MaxPopover(on bool, placement, trigger string) *AvatarGroupW {
+	g.noPop = !on
+	if placement != "" {
+		g.place = placement
+	}
+	if trigger != "" {
+		g.trigger = trigger
+	}
+	return g
+}
 
 // Body builds the avatars.
 func (g *AvatarGroupW) Body(fn func()) *Box {
@@ -402,51 +447,58 @@ func (g *AvatarGroupW) Body(fn func()) *Box {
 	box := c.box("avatar-group", layout.Row, []layout.Option{layout.Middle()})
 	box.n.setRole(a11y.RoleGroup)
 	box.n.ln.NoStretch = true
+	ringed := func(k *node) {
+		prev := k.paint
+		if prev == nil {
+			return
+		}
+		ring := tk.GroupBorderColor
+		k.paint = func(l *paint.List, r geom.Rect) {
+			l.Path(paint.NewPath().Circle(r.X+r.W/2, r.Y+r.H/2, r.W/2+1.5), ring)
+			prev(l, r)
+		}
+	}
 	box.Body(func() {
 		fn()
 		kids := box.n.kids
+		var folded []*node
 		if g.max > 0 && len(kids) > g.max {
 			extra := len(kids) - g.max
-			box.n.kids = kids[:g.max]
-			bg := g.moreBg
-			if bg.A == 0 {
-				bg = theme.Hex("#fde3cf")
-				if th.Flavor == theme.Element {
-					bg = th.Info.Shades[2]
-				}
-			}
+			folded = append([]*node(nil), kids[g.max:]...)
+			box.n.kids = kids[:g.max:g.max]
 			size := g.size
 			if size == 0 {
 				size = tk.ContainerSize
 			}
-			a := Avatar(c, "+"+strconv.Itoa(extra)).Size(size)
-			if th.Flavor != theme.StyleShadcn || g.moreBg.A > 0 {
-				a.Bg(bg) // shadcn keeps the muted fallback avatar
-			}
-			if th.Flavor == theme.Ant {
-				// Ant's default "+N" avatar uses orange text on peach.
-				prev := a.n.paint
-				fg := theme.Hex("#f56a00")
-				a.n.paint = func(l *paint.List, r geom.Rect) {
-					l.Fill(r, geom.Rad(r.W/2), bg)
-					lay := text.Shape("+"+strconv.Itoa(extra), c.style(14, text.Regular), text.Options{NoWrap: true})
-					l.Glyphs(geom.Pt(r.X+(r.W-lay.Width)/2, r.Y+(r.H-lay.Height)/2), lay.Glyphs, fg)
+			// The "+k" avatar is a regular avatar (antd and Element give it
+			// the default avatar colors; shadcn AvatarGroupCount bg-muted).
+			more := func() {
+				a := Avatar(c, "+"+strconv.Itoa(extra)).Size(size)
+				if g.moreBg.A > 0 {
+					a.Bg(g.moreBg)
 				}
-				_ = prev
+				ringed(a.n)
+			}
+			if g.noPop {
+				more()
+			} else {
+				pop := Popover(c).Placement(g.place).Trigger(g.trigger)
+				pop.autoWidth = true // antd max.popover fits the avatars
+				pop.Content(func() {
+					row := Row(c, func() {}, layout.Gap(tk.GroupSpace), layout.Middle())
+					for _, k := range folded {
+						k.parent = row.n
+						row.n.kids = append(row.n.kids, k)
+					}
+				}).Body(more)
 			}
 		}
 		for i, k := range box.n.kids {
 			if i > 0 {
 				k.ln.Margin.Left = -g.overlap
 			}
-			prev := k.paint
-			if prev == nil {
-				continue
-			}
-			ring := tk.GroupBorderColor
-			k.paint = func(l *paint.List, r geom.Rect) {
-				l.Path(paint.NewPath().Circle(r.X+r.W/2, r.Y+r.H/2, r.W/2+1.5), ring)
-				prev(l, r)
+			if i < g.max || g.max <= 0 {
+				ringed(k)
 			}
 		}
 	})

@@ -32,6 +32,9 @@ type PopoverW struct {
 	changed   bool
 	isOpen    bool
 	noPadding bool
+	enter     time.Duration
+	leave     time.Duration
+	autoWidth bool // ignore the theme's default width (AvatarGroup's "+N" list)
 	th        *theme.Theme
 	tk        *theme.PopoverToken
 }
@@ -39,8 +42,11 @@ type PopoverW struct {
 type popoverState struct {
 	open      bool
 	panel     ID
-	lastHover time.Time
-	escShut   bool // Escape closed a focus-opened hover popover
+	hoverWant bool      // the hover trigger's debounced wish last frame
+	hovering  bool      // pointer / focus on the trigger or panel
+	since     time.Time // when hovering last changed
+	hoverOpen bool      // debounced hover state
+	escShut   bool      // Escape closed a focus-opened hover popover
 }
 
 // popFocusable returns the first keyboard-focusable node in n's subtree
@@ -107,16 +113,32 @@ func popFindID(n *node, id ID) *node {
 // Popover starts a popover; set options then call Body with the trigger.
 //
 // ConfigProvider.Defaults("Popover", ...) keys: "placement", "trigger",
-// "arrow" (bool; default true, false for shadcn whose popover has none).
+// "arrow" (bool; default true, false for shadcn whose popover has none),
+// "mouseEnterDelay", "mouseLeaveDelay" (time.Duration; default the
+// theme's PopoverToken delays: antd 0.1 s / 0.1 s, Element 0 / 0.2 s).
 func Popover(c *Context) *PopoverW {
 	th := c.ThemeFor(theme.CompPopover)
+	tk := &th.Components.Popover
 	return &PopoverW{c: c,
 		place:   Prop(c, "Popover", "placement", "top"),
 		trigger: Prop(c, "Popover", "trigger", "hover"),
 		arrow:   Prop(c, "Popover", "arrow", c.Theme.Flavor != theme.StyleShadcn),
-		th:      th, tk: &th.Components.Popover,
+		enter:   Prop(c, "Popover", "mouseEnterDelay", tk.MouseEnterDelay),
+		leave:   Prop(c, "Popover", "mouseLeaveDelay", tk.MouseLeaveDelay),
+		th:      th, tk: tk,
 	}
 }
+
+// MouseEnterDelay waits d before a hover popover opens (antd
+// mouseEnterDelay, Element show-after).
+func (p *PopoverW) MouseEnterDelay(d time.Duration) *PopoverW { p.enter = d; return p }
+
+// MouseLeaveDelay keeps a hover popover open for d after the pointer left
+// the trigger and the panel (antd mouseLeaveDelay, Element hide-after).
+func (p *PopoverW) MouseLeaveDelay(d time.Duration) *PopoverW { p.leave = d; return p }
+
+// Arrow shows or hides the arrow (antd arrow; NoArrow is Arrow(false)).
+func (p *PopoverW) Arrow(on bool) *PopoverW { p.arrow = on; return p }
 
 // Title sets the bold heading.
 func (p *PopoverW) Title(s string) *PopoverW { p.title = s; return p }
@@ -255,16 +277,15 @@ func (p *PopoverW) Body(fn func()) *Box {
 			st.escShut = false
 		}
 		kbd := within && c.focusVisible && !st.escShut
-		if ia.Hovered || (*open && c.hovered(st.panel)) || kbd {
-			st.lastHover = c.now
-			*open = true
-		} else if *open {
-			// Keep the panel for 100ms so the pointer can travel to it.
-			if c.now.Sub(st.lastHover) >= 100*time.Millisecond {
-				*open = false
-			} else {
-				c.WakeAt(st.lastHover.Add(100 * time.Millisecond))
-			}
+		active := ia.Hovered || (*open && c.hovered(st.panel)) || kbd
+		enter := p.enter
+		if kbd {
+			enter = 0 // keyboard focus opens at once
+		}
+		want := p.hoverDebounce(st, active, enter)
+		if want != st.hoverWant {
+			st.hoverWant = want
+			*open = want
 		}
 	case "click":
 		if ia.Clicked || c.clickedWithin(b.n) || (trig != b.n && c.popKbdActivated(b.n)) {
@@ -326,8 +347,11 @@ func (p *PopoverW) Body(fn func()) *Box {
 		minW = tk.TitleMinWidth // Element keeps its min-width without a title
 	}
 	ov.n.ln.MinW = minW
-	if p.width > 0 {
-		ov.n.ln.Width = p.width
+	if w := p.width; w > 0 {
+		ov.n.ln.Width = w
+	} else if tk.Width > 0 && !p.noPadding && !p.autoWidth {
+		// Element width 150, shadcn w-72: a fixed default width.
+		ov.n.ln.Width = tk.Width
 	}
 	ov.Bg(tk.Bg).Radius(tk.Radius).Opacity(a).Shadow(tk.Shadow)
 	if tk.BorderColor.A > 0 {
@@ -366,6 +390,38 @@ func (p *PopoverW) Body(fn func()) *Box {
 		}
 	}
 	return b
+}
+
+// hoverDebounce applies the hover delays. The leave delay is at least
+// 100ms, also without animations (where it is exactly 100ms), so the
+// pointer can cross the gap to the panel; the enter delay is skipped
+// without animations, as in HoverDelay.
+func (p *PopoverW) hoverDebounce(st *popoverState, active bool, enter time.Duration) bool {
+	c := p.c
+	if active != st.hovering {
+		st.hovering, st.since = active, c.now
+	}
+	if active == st.hoverOpen {
+		return st.hoverOpen
+	}
+	const grace = 100 * time.Millisecond
+	d := max(p.leave, grace)
+	if c.noAnim {
+		d = grace
+	}
+	if active {
+		d = enter
+		if c.noAnim {
+			d = 0
+		}
+	}
+	if d <= 0 || c.now.Sub(st.since) >= d {
+		st.hoverOpen = active
+		c.invalid = true
+	} else {
+		c.WakeAt(st.since.Add(d))
+	}
+	return st.hoverOpen
 }
 
 // popDrawArrow draws a triangular arrow on the side of panel r that faces

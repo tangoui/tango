@@ -21,21 +21,27 @@ import (
 type SkeletonW struct {
 	_ [0]func()
 
-	c       *Context
-	active  bool
-	avatar  bool
-	square  bool
-	title   bool
-	rows    int
-	round   bool
-	loading bool
+	c          *Context
+	active     bool
+	avatar     bool
+	square     bool
+	avatarSize float32
+	title      bool
+	titleW     float32
+	rows       int
+	rowsSet    bool
+	paraW      []float32
+	round      bool
+	loading    bool
+	count      int
 }
 
-// Skeleton starts a skeleton with a title and three paragraph rows.
+// Skeleton starts a skeleton with a title and paragraph rows: three rows,
+// or two next to an avatar or without a title (antd).
 //
 // ConfigProvider.Defaults("Skeleton", ...) keys: "active", "round" (bool).
 func Skeleton(c *Context) *SkeletonW {
-	return &SkeletonW{c: c, title: true, rows: 3, loading: true,
+	return &SkeletonW{c: c, title: true, rows: 3, loading: true, count: 1,
 		active: Prop(c, "Skeleton", "active", false), round: Prop(c, "Skeleton", "round", false)}
 }
 
@@ -45,20 +51,47 @@ func (s *SkeletonW) Active() *SkeletonW { s.active = true; return s }
 // Avatar adds a round avatar placeholder (square=true for square).
 func (s *SkeletonW) Avatar(square bool) *SkeletonW { s.avatar, s.square = true, square; return s }
 
+// AvatarSize sets the avatar placeholder size in px (antd avatar.size;
+// default the large control height, 40).
+func (s *SkeletonW) AvatarSize(px float32) *SkeletonW { s.avatar, s.avatarSize = true, px; return s }
+
 // Rows sets the paragraph rows (0 hides the paragraph).
-func (s *SkeletonW) Rows(n int) *SkeletonW { s.rows = n; return s }
+func (s *SkeletonW) Rows(n int) *SkeletonW { s.rows, s.rowsSet = n, true; return s }
 
 // NoTitle hides the title bar.
 func (s *SkeletonW) NoTitle() *SkeletonW { s.title = false; return s }
 
+// TitleWidth sets the title bar width (antd title.width): a fraction of
+// the row when 0 < w <= 1, else px. The default is 38%, 50% next to an
+// avatar, full width without a paragraph.
+func (s *SkeletonW) TitleWidth(w float32) *SkeletonW { s.titleW = w; return s }
+
+// ParagraphWidth sets the paragraph line widths (antd paragraph.width):
+// one value sets the last line, several set the lines in order;
+// fractions when 0 < w <= 1, else px. The default last line is 61%.
+func (s *SkeletonW) ParagraphWidth(w ...float32) *SkeletonW { s.paraW = w; return s }
+
 // Round uses pill-shaped bars.
 func (s *SkeletonW) Round() *SkeletonW { s.round = true; return s }
+
+// Count repeats the skeleton n times (Element count).
+func (s *SkeletonW) Count(n int) *SkeletonW { s.count = max(1, n); return s }
 
 // Loading switches between the skeleton (true) and the real content.
 func (s *SkeletonW) Loading(on bool) *SkeletonW { s.loading = on; return s }
 
 // Show builds the skeleton.
 func (s *SkeletonW) Show() *Box { return s.Body(nil) }
+
+// skelWidth applies a TitleWidth / ParagraphWidth value to a bar.
+func skelWidth(b *skelW, w float32) {
+	switch {
+	case w > 1:
+		b.n.ln.Width, b.widthPct = w, 0
+	case w > 0:
+		b.widthPct = w
+	}
+}
 
 // Body builds the skeleton while loading, else fn.
 func (s *SkeletonW) Body(fn func()) *Box {
@@ -67,39 +100,81 @@ func (s *SkeletonW) Body(fn func()) *Box {
 		return Column(c, fn)
 	}
 	tk := &c.ThemeFor(theme.CompSkeleton).Components.Skeleton
-	row := Row(c, func() {
-		if s.avatar {
-			// Margin.Right is the inline end: the avatar leads in RTL too.
-			skelBlock(c, s.active, 32, 32, s.square, true, layout.Margin(geom.Insets{Right: 16}))
-		}
-		Column(c, func() {
-			rad := false
-			if s.title {
-				w := skelBlock(c, s.active, 0, tk.TitleHeight, s.round, false, layout.Margin(geom.Insets{Top: 4}))
-				w.n.ln.Width = 0
-				w.widthPct = 0.38
-				if s.avatar {
-					w.widthPct = 0.5
-				}
+	rows := s.rows
+	if !s.rowsSet && (s.avatar || !s.title) {
+		rows = 2 // antd getParagraphBasicProps
+	}
+	asz := s.avatarSize
+	if asz == 0 {
+		asz = tk.AvatarSize
+	}
+	one := func() *Box {
+		return Row(c, func() {
+			if s.avatar {
+				// Margin.Right is the inline end: the avatar leads in RTL too.
+				skelBlock(c, s.active, asz, asz, false, !s.square, layout.Margin(geom.Insets{Right: 16}))
 			}
-			for i := 0; i < s.rows; i++ {
-				mt := tk.ParagraphGap
-				if i == 0 && s.title {
-					mt = tk.ParagraphMarginTop
+			Column(c, func() {
+				if s.title {
+					top := float32(4)
 					if s.avatar {
-						mt = tk.ParagraphMarginTopAvatar
+						top = tk.TitleMarginTopAvatar
+					}
+					w := skelBlock(c, s.active, 0, tk.TitleHeight, s.round, false, layout.Margin(geom.Insets{Top: top}))
+					w.n.ln.Width = 0
+					switch {
+					case rows > 0 && s.avatar:
+						w.widthPct = 0.5
+					case rows > 0:
+						w.widthPct = 0.38
+					}
+					skelWidth(w, s.titleW)
+				}
+				// The last line is 61% wide unless there are both an avatar
+				// and a title, where antd's CSS narrows it from three lines.
+				lastPct := float32(0.61)
+				if s.avatar && s.title && rows < 3 {
+					lastPct = 0
+				}
+				for i := 0; i < rows; i++ {
+					mt := tk.ParagraphGap
+					if i == 0 && s.title {
+						mt = tk.ParagraphMarginTop
+						if s.avatar {
+							mt = tk.ParagraphMarginTopAvatar
+						}
+					}
+					if i == 0 && !s.title {
+						mt = 0
+					}
+					b := skelBlock(c, s.active, 0, tk.ParagraphLiHeight, s.round, false, layout.Margin(geom.Insets{Top: mt}))
+					switch {
+					case len(s.paraW) > 1:
+						if i < len(s.paraW) {
+							skelWidth(b, s.paraW[i])
+						}
+					case i == rows-1 && len(s.paraW) == 1:
+						skelWidth(b, s.paraW[0])
+					case i == rows-1:
+						b.widthPct = lastPct
 					}
 				}
-				b := skelBlock(c, s.active, 0, tk.ParagraphLiHeight, s.round || rad, false, layout.Margin(geom.Insets{Top: mt}))
-				if i == s.rows-1 && s.rows > 1 {
-					b.widthPct = 0.61
-				}
+			}, layout.Grow(1))
+		}, layout.AlignItems(layout.AlignStart))
+	}
+	var box *Box
+	if s.count > 1 {
+		box = Column(c, func() {
+			for range s.count {
+				one()
 			}
-		}, layout.Grow(1))
-	}, layout.AlignItems(layout.AlignStart))
+		}, layout.Gap(16))
+	} else {
+		box = one()
+	}
 	// The bars are decoration: expose one busy "loading" group.
-	row.n.setRole(a11y.RoleGroup).setName(c.Locale().Loading).setState(a11y.Busy)
-	return row
+	box.n.setRole(a11y.RoleGroup).setName(c.Locale().Loading).setState(a11y.Busy)
+	return box
 }
 
 type skelW struct {
@@ -112,6 +187,7 @@ type skelW struct {
 func skelBlock(c *Context, active bool, w, h float32, round, circle bool, opts ...layout.Option) *skelW {
 	b := &skelW{c: c}
 	b.n = c.add("skeleton", "")
+	b.n.aHidden = true // decoration: the skeleton group says "loading"
 	flexbox.Apply(&b.n.ln.Style, opts...)
 	b.n.ln.Width, b.n.ln.Height = w, h
 	b.n.ln.Measure = func(maxW, _ float32) geom.Size {
@@ -515,9 +591,9 @@ func (s *StatisticW) Loading(on bool) *StatisticW {
 // the slow duration ×4 the first time the statistic appears.
 func (s *StatisticW) CountUp(v float64, precision int) *StatisticW {
 	a := s.c.AnimFrom(s.n.id, "countup", 0, 1, 4*s.c.Theme.DurationSlow)
-	s.value = FormatNumber(v*float64(a), precision)
+	s.value = statisticFormat(v*float64(a), precision, s.group, s.dec)
 	if a >= 1 {
-		s.value = FormatNumber(v, precision)
+		s.value = statisticFormat(v, precision, s.group, s.dec)
 	}
 	_ = math.Abs
 	return s

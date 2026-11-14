@@ -24,12 +24,14 @@ type ProgressToken struct {
 }
 
 func deriveProgress(t *Theme) ProgressToken {
+	// antd 6.7 es/progress/utils.js getSize: line 8 / small 6; steps 14 / small
+	// 2 wide, 8 high; circle 120 / small 60.
 	k := ProgressToken{
 		DefaultColor: t.Primary.Base, RemainingColor: t.FillSecondary,
 		SuccessColor: t.Success.Base, ExceptionColor: t.Error.Base, WarningColor: t.Warning.Base,
 		TextColor: t.Text, InnerTextColor: Hex("#ffffff"),
 		LineHeight: 8, LineHeightSM: 6, InnerLineHeight: 20, StepsHeight: 8,
-		StepsWidth: 14, StepsWidthSM: 2, StepsGap: 2, CircleSize: 120, CircleSizeSM: 80,
+		StepsWidth: 14, StepsWidthSM: 2, StepsGap: 2, CircleSize: 120, CircleSizeSM: 60,
 		InnerFontSize: t.FontSizeSM,
 	}
 	switch t.Flavor {

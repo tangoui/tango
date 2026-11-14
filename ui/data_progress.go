@@ -37,6 +37,12 @@ type ProgressW struct {
 	flow       bool
 	indeterm   bool
 	gapDeg     float64
+	gapSet     bool   // GapDegree called (a circle gets the gap too)
+	gapPlace   string // "" (bottom) / top / bottom / start / end
+	infoAlign  string // PercentPosition align: start / center / end (default)
+	infoInner  bool   // PercentPosition type inner
+	stepsGap   float32
+	colFn      func(percent float64) theme.Color
 	col, trail theme.Color
 	grad       [2]theme.Color
 	hasGrad    bool
@@ -91,7 +97,14 @@ func (p *ProgressW) semantics(s *a11y.Node) {
 	}
 }
 
-func clampPct(v float64) float64 { return math.Max(0, math.Min(100, v)) }
+// clampPct clamps a percentage to 0..100; NaN counts as 0 (antd
+// validProgress).
+func clampPct(v float64) float64 {
+	if math.IsNaN(v) {
+		return 0
+	}
+	return math.Max(0, math.Min(100, v))
+}
 
 // Type selects "line", "circle" or "dashboard".
 func (p *ProgressW) Type(t string) *ProgressW { p.kind = t; return p }
@@ -102,8 +115,40 @@ func (p *ProgressW) Circle(size float32) *ProgressW { p.kind, p.size = "circle",
 // Dashboard is Type("dashboard") with a diameter.
 func (p *ProgressW) Dashboard(size float32) *ProgressW { p.kind, p.size = "dashboard", size; return p }
 
-// GapDegree sets the dashboard opening (default 75°).
-func (p *ProgressW) GapDegree(d float64) *ProgressW { p.gapDeg = d; return p }
+// GapDegree sets the ring opening in degrees (dashboard default 75°; a
+// circle with GapDegree opens too, like antd).
+func (p *ProgressW) GapDegree(d float64) *ProgressW { p.gapDeg, p.gapSet = d, true; return p }
+
+// GapPlacement sets where the ring opening sits: "bottom" (default),
+// "top", "start" or "end" (logical: mirrored in RTL). antd 6 gapPlacement
+// (gapPosition is deprecated there).
+func (p *ProgressW) GapPlacement(s string) *ProgressW { p.gapPlace = s; return p }
+
+// PercentPosition places the info text of a line bar (antd 6
+// percentPosition): align "start", "center" or "end" (default); typ
+// "outer" (default; center puts it under the bar) or "inner" (inside the
+// filled part, like Element text-inside).
+func (p *ProgressW) PercentPosition(align, typ string) *ProgressW {
+	p.infoAlign, p.infoInner = align, typ == "inner"
+	if p.infoInner {
+		p.inside = true
+	}
+	return p
+}
+
+// RailColor sets the color of the unfilled rail (antd railColor).
+func (p *ProgressW) RailColor(col theme.Color) *ProgressW { p.trail = col; return p }
+
+// ColorFunc picks the bar color from the percentage (Element color
+// function; a color array is a ColorFunc with thresholds).
+func (p *ProgressW) ColorFunc(fn func(percent float64) theme.Color) *ProgressW {
+	p.colFn = fn
+	return p
+}
+
+// StepsGap sets the gap between step segments in px (antd steps.gap;
+// default 2).
+func (p *ProgressW) StepsGap(px float32) *ProgressW { p.stepsGap = px; return p }
 
 // Status: "active" (Ant shimmer), "success", "exception", "warning".
 func (p *ProgressW) Status(s string) *ProgressW { p.status = s; return p }
@@ -155,6 +200,8 @@ func (p *ProgressW) Gradient(a, b theme.Color) *ProgressW {
 }
 
 // TrailColor sets the rail color.
+//
+// Deprecated: use RailColor (antd 6 renamed trailColor to railColor).
 func (p *ProgressW) TrailColor(col theme.Color) *ProgressW { p.trail = col; return p }
 
 // Success shows the first pct percent in the success color (Ant success).
@@ -190,6 +237,9 @@ func (p *ProgressW) barColor() theme.Color {
 		return tk.ExceptionColor
 	case "warning":
 		return tk.WarningColor
+	}
+	if p.colFn != nil {
+		return p.colFn(p.percent)
 	}
 	if p.col.A > 0 {
 		return p.col
@@ -239,10 +289,23 @@ func (p *ProgressW) lineStroke() float32 {
 }
 
 func (p *ProgressW) infoWidth() float32 {
-	if !p.lineInfo() || p.inside || p.indeterm {
+	if !p.lineInfo() || p.inside || p.indeterm || p.infoBelow() {
 		return 0
 	}
 	return 8 + max(text.Width(p.label(), p.font()), text.Width("100%", p.font()))
+}
+
+// infoBelow reports PercentPosition("center", "outer"): the text sits
+// under the bar (antd body-layout-bottom, gap marginXXS 4).
+func (p *ProgressW) infoBelow() bool {
+	return p.infoAlign == "center" && !p.infoInner && p.lineInfo() && !p.inside && !p.indeterm
+}
+
+func (p *ProgressW) gap() float32 {
+	if p.stepsGap > 0 {
+		return p.stepsGap
+	}
+	return p.tk.StepsGap
 }
 
 func (p *ProgressW) diameter() float32 {
@@ -261,8 +324,11 @@ func (p *ProgressW) measure(maxW, _ float32) geom.Size {
 		return geom.Size{W: d, H: d}
 	}
 	h := max(p.lineStroke(), p.font().LineHeight)
+	if p.infoBelow() {
+		h = p.lineStroke() + 4 + p.font().LineHeight
+	}
 	if p.steps > 0 {
-		sw, gap := p.tk.StepsWidth, p.tk.StepsGap
+		sw, gap := p.tk.StepsWidth, p.gap()
 		if p.small {
 			sw = p.tk.StepsWidthSM
 		}
@@ -371,15 +437,16 @@ func (p *ProgressW) paintLine(l *paint.List, r geom.Rect) {
 	// Geometry is computed left to right and mirrored inside r in RTL, so
 	// the bar fills from the inline start and the info sits at the end.
 	rtl := p.c.IsRTL()
+	full := r // mirror inside the whole rect even when the bar is narrowed
 	mr := func(x geom.Rect) geom.Rect {
 		if rtl {
-			return mirrorRect(x, r)
+			return mirrorRect(x, full)
 		}
 		return x
 	}
 	mx := func(x float32) float32 {
 		if rtl {
-			return 2*r.X + r.W - x
+			return 2*full.X + full.W - x
 		}
 		return x
 	}
@@ -387,12 +454,30 @@ func (p *ProgressW) paintLine(l *paint.List, r geom.Rect) {
 	col := p.barColor()
 	info := p.infoWidth()
 	y := r.Y + (r.H-h)/2
+	below := p.infoBelow()
+	if below {
+		y = r.Y
+	}
+	// PercentPosition("start", "outer") puts the text before the bar.
+	if p.infoAlign == "start" && info > 0 {
+		p.paintInfo(l, mx(r.X), r, col)
+		r.X += info
+		r.W -= info
+		info = 0
+	}
+	if below {
+		defer func() {
+			lay := text.Shape(p.label(), p.font(), text.Options{NoWrap: true})
+			rr := geom.Rect{X: r.X, Y: y + h + 4, W: r.W, H: p.font().LineHeight}
+			p.paintInfo(l, mx(rr.X+(rr.W-lay.Width)/2), rr, col)
+		}()
+	}
 	rad := geom.Rad(h / 2)
 	if !p.round {
 		rad = geom.Radii{}
 	}
 	if p.steps > 0 {
-		gap := tk.StepsGap
+		gap := p.gap()
 		sw := (r.W - info + gap) / float32(p.steps)
 		done := int(math.Round(p.percent / 100 * float64(p.steps)))
 		for i := 0; i < p.steps; i++ {
@@ -452,7 +537,16 @@ func (p *ProgressW) paintLine(l *paint.List, r geom.Rect) {
 		fs := text.Style{Size: tk.InnerFontSize, Weight: text.Regular, LineHeight: p.th.LineHeightFor(tk.InnerFontSize)}
 		lay := text.Shape(p.label(), fs, text.Options{NoWrap: true})
 		if lay.Width+10 < fw {
-			lr := mr(geom.Rect{X: fill.Right() - lay.Width - 10, W: lay.Width})
+			// PercentPosition inner align: end (default), start or center
+			// inside the filled part (antd paddingInline paddingXXS 4).
+			x := fill.Right() - lay.Width - 10
+			switch p.infoAlign {
+			case "start":
+				x = fill.X + 4
+			case "center":
+				x = fill.X + (fw-lay.Width)/2
+			}
+			lr := mr(geom.Rect{X: x, W: lay.Width})
 			l.Glyphs(geom.Pt(lr.X, y+(h-lay.Height)/2), lay.Glyphs, p.th.TextOn(col, tk.InnerTextColor))
 		}
 	}
@@ -473,16 +567,46 @@ func (p *ProgressW) paintCircle(l *paint.List, r geom.Rect) {
 		}
 	}
 	rad := d/2 - sw/2
-	start, total := -math.Pi/2, 2*math.Pi
-	if p.kind == "dashboard" {
-		g := p.gapDeg * math.Pi / 180
-		start, total = math.Pi/2+g/2, 2*math.Pi-g
-	}
+	start, total := p.ringArc()
 	capS := paint.CapRound
 	if !p.round {
 		capS = paint.CapButt
 	}
 	col := p.barColor()
+	p.paintRing(l, cx, cy, rad, sw, start, total, capS, col, d)
+}
+
+// ringArc returns the start angle and sweep (radians, clockwise from the
+// x axis) of a circle or dashboard ring.
+func (p *ProgressW) ringArc() (start, total float64) {
+	start, total = -math.Pi/2, 2*math.Pi
+	if p.kind == "dashboard" || (p.gapSet && p.gapDeg > 0) {
+		// The opening is centred on the gap placement (bottom by default;
+		// start / end follow the direction, antd Circle.js).
+		g := p.gapDeg * math.Pi / 180
+		mid := math.Pi / 2
+		rtl := p.c.IsRTL()
+		switch p.gapPlace {
+		case "top":
+			mid = -math.Pi / 2
+		case "start", "left":
+			mid = math.Pi
+			if rtl && p.gapPlace == "start" {
+				mid = 0
+			}
+		case "end", "right":
+			mid = 0
+			if rtl && p.gapPlace == "end" {
+				mid = math.Pi
+			}
+		}
+		start, total = mid+g/2, 2*math.Pi-g
+	}
+	return
+}
+
+func (p *ProgressW) paintRing(l *paint.List, cx, cy, rad, sw float32, start, total float64, capS paint.Cap, col theme.Color, d float32) {
+	tk := p.tk
 	if p.steps > 0 {
 		gap := 2 * math.Pi / 180 * 2
 		seg := (total - gap*float64(p.steps)) / float64(p.steps)
