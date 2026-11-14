@@ -344,8 +344,13 @@ func (r *Runner) processEvents() bool {
 				}
 				c.tabEscaped() // the next Tab moves focus even out of a Tab-capturing widget
 				c.escape = true
-				c.events = append(c.events, ev) // ordered stream only: Esc stays an overlay key
+				if !c.backClaimedAway(ev) { // escape_claim.go: an Esc claimer sees no Back
+					c.events = append(c.events, ev) // ordered stream only: Esc stays an overlay key
+				}
 				continue
+			}
+			if !ev.Down && c.backClaimedAway(ev) {
+				continue // escape_claim.go: Back's press went to the overlays, so does its release
 			}
 			if ev.Down {
 				c.tabCap.escaped = false

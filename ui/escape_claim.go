@@ -11,7 +11,8 @@ import "github.com/tangoui/tango/ui/input"
 //
 // The system Back of phones also arrives as Esc, marked with Code
 // input.KeyBack (back.go). A claim never takes it: Back still closes the
-// top-most overlay or reaches ClaimBack, and WantBack is unchanged.
+// top-most overlay or reaches ClaimBack, and WantBack is unchanged. Neither
+// its press nor its release reaches the claimer (not even in EventsFor).
 //
 // Keyboard users leave such a widget with Ctrl+Tab (tab_capture.go). Esc
 // then Tab does not move focus out of it, because the widget took the Esc.
@@ -33,4 +34,13 @@ func (c *Context) ClaimEscape(id ID) {
 // escapeClaimed reports whether the Esc event goes to the focused widget.
 func (c *Context) escapeClaimed(ev input.KeyEvent) bool {
 	return ev.Code != input.KeyBack && c.escClaim.cur != 0 && c.escClaim.cur == c.focus
+}
+
+// backClaimedAway reports whether ev is Back (press or release) while a
+// widget holds the Esc claim. Back bypasses the claim and goes to the
+// overlays (c.escape), so the claimer gets neither half of it: not the
+// press in EventsFor, not an unpaired release in KeysFor / EventsFor.
+// Without a claim Back flows as before.
+func (c *Context) backClaimedAway(ev input.KeyEvent) bool {
+	return ev.Code == input.KeyBack && c.escClaim.cur != 0 && c.escClaim.cur == c.focus
 }
