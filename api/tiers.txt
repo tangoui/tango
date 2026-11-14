@@ -29,6 +29,7 @@ ipc                     stable
 jsapi                   stable
 runtime-js/runtimejs    stable
 service/...             stable
+sys/pty                 experimental
 sys/...                 stable
 ui/a11y                 stable
 ui/geom                 stable

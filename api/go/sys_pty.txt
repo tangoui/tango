@@ -1,0 +1,18 @@
+pkg github.com/tangoui/tango/sys/pty, func DefaultShell() (string, []string)
+pkg github.com/tangoui/tango/sys/pty, func Start(Options) (*PTY, error)
+pkg github.com/tangoui/tango/sys/pty, method (*PTY) Close() error
+pkg github.com/tangoui/tango/sys/pty, method (*PTY) Pid() int
+pkg github.com/tangoui/tango/sys/pty, method (*PTY) Read([]byte) (int, error)
+pkg github.com/tangoui/tango/sys/pty, method (*PTY) Resize(int, int, int, int) error
+pkg github.com/tangoui/tango/sys/pty, method (*PTY) Wait() (int, error)
+pkg github.com/tangoui/tango/sys/pty, method (*PTY) Write([]byte) (int, error)
+pkg github.com/tangoui/tango/sys/pty, type Options struct
+pkg github.com/tangoui/tango/sys/pty, type Options struct, Args []string
+pkg github.com/tangoui/tango/sys/pty, type Options struct, Cols int
+pkg github.com/tangoui/tango/sys/pty, type Options struct, Dir string
+pkg github.com/tangoui/tango/sys/pty, type Options struct, Env []string
+pkg github.com/tangoui/tango/sys/pty, type Options struct, Path string
+pkg github.com/tangoui/tango/sys/pty, type Options struct, Rows int
+pkg github.com/tangoui/tango/sys/pty, type Options struct, noncomparable
+pkg github.com/tangoui/tango/sys/pty, type PTY struct
+pkg github.com/tangoui/tango/sys/pty, var ErrUnsupported error
