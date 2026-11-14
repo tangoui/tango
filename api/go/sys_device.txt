@@ -1,0 +1,21 @@
+pkg github.com/tangoui/tango/sys/device, const StatusBarDark StatusBarStyle = 2
+pkg github.com/tangoui/tango/sys/device, const StatusBarDefault StatusBarStyle = 0
+pkg github.com/tangoui/tango/sys/device, const StatusBarLight StatusBarStyle = 1
+pkg github.com/tangoui/tango/sys/device, func Brightness(*tango.App) (float64, error)
+pkg github.com/tangoui/tango/sys/device, func HideKeyboard(*tango.App) error
+pkg github.com/tangoui/tango/sys/device, func KeepScreenOn(*tango.App, bool) error
+pkg github.com/tangoui/tango/sys/device, func KeyboardHeight(*tango.App) (float64, error)
+pkg github.com/tangoui/tango/sys/device, func OnKeyboard(*tango.App, func(float64))
+pkg github.com/tangoui/tango/sys/device, func OpenSettings(*tango.App) error
+pkg github.com/tangoui/tango/sys/device, func RequestReview(*tango.App) error
+pkg github.com/tangoui/tango/sys/device, func ResetBrightness(*tango.App) error
+pkg github.com/tangoui/tango/sys/device, func SetBrightness(*tango.App, float64) error
+pkg github.com/tangoui/tango/sys/device, func SetStatusBar(*tango.App, StatusBar) error
+pkg github.com/tangoui/tango/sys/device, type StatusBar = internal/platform.StatusBar
+pkg github.com/tangoui/tango/sys/device, type StatusBar struct
+pkg github.com/tangoui/tango/sys/device, type StatusBar struct, Color string
+pkg github.com/tangoui/tango/sys/device, type StatusBar struct, Hidden bool
+pkg github.com/tangoui/tango/sys/device, type StatusBar struct, Style StatusBarStyle
+pkg github.com/tangoui/tango/sys/device, type StatusBarStyle = internal/platform.StatusBarStyle
+pkg github.com/tangoui/tango/sys/device, type StatusBarStyle int
+pkg github.com/tangoui/tango/sys/device, var ErrUnsupported error

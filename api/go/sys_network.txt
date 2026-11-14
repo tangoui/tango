@@ -1,0 +1,18 @@
+pkg github.com/tangoui/tango/sys/network, const Cellular Kind = 4
+pkg github.com/tangoui/tango/sys/network, const None Kind = 1
+pkg github.com/tangoui/tango/sys/network, const Other Kind = 5
+pkg github.com/tangoui/tango/sys/network, const Unknown Kind = 0
+pkg github.com/tangoui/tango/sys/network, const WiFi Kind = 3
+pkg github.com/tangoui/tango/sys/network, const Wired Kind = 2
+pkg github.com/tangoui/tango/sys/network, func Get(*tango.App) (Status, error)
+pkg github.com/tangoui/tango/sys/network, func KindString(Kind) string
+pkg github.com/tangoui/tango/sys/network, func OnChange(*tango.App, func(Status))
+pkg github.com/tangoui/tango/sys/network, type Kind = internal/platform.NetworkKind
+pkg github.com/tangoui/tango/sys/network, type Kind int
+pkg github.com/tangoui/tango/sys/network, type Status = internal/platform.NetworkStatus
+pkg github.com/tangoui/tango/sys/network, type Status struct
+pkg github.com/tangoui/tango/sys/network, type Status struct, Constrained bool
+pkg github.com/tangoui/tango/sys/network, type Status struct, Kind Kind
+pkg github.com/tangoui/tango/sys/network, type Status struct, Metered bool
+pkg github.com/tangoui/tango/sys/network, type Status struct, Online bool
+pkg github.com/tangoui/tango/sys/network, var ErrUnsupported error

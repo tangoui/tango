@@ -1,0 +1,5 @@
+pkg github.com/tangoui/tango/ui/shader/glsl, const ES300 Dialect = 1
+pkg github.com/tangoui/tango/ui/shader/glsl, const GLSL330 Dialect = 0
+pkg github.com/tangoui/tango/ui/shader/glsl, func Generate(*ui/shader/ir.Module, Dialect) (string, string, error)
+pkg github.com/tangoui/tango/ui/shader/glsl, method (Dialect) String() string
+pkg github.com/tangoui/tango/ui/shader/glsl, type Dialect int

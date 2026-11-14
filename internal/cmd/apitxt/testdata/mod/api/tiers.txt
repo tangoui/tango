@@ -1,0 +1,6 @@
+# Test tiers.
+.            stable
+plat         stable
+ui           split
+exp          experimental
+examples/... exclude

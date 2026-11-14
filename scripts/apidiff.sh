@@ -11,13 +11,18 @@
 # linux, darwin and windows (CGO_ENABLED=0) so platform-specific files are
 # covered. Internal packages are ignored by apidiff.
 #
-# Packages are split into two tiers (docs/release.md, "API 稳定性"):
-#   experimental  ui, uihost, mobile, service/updater, examples: incompatible
-#                 changes are reported as warnings only
-#   stable        everything else: an incompatible change fails the check
+# Tiers come from api/tiers.txt and the allowlists api/stable/<pkg>.txt of
+# the working tree (docs/release.md, "API 稳定性"); internal/cmd/apitxt
+# -classify applies them to each reported change:
+#   stable        a change in a stable package, or of an allowlisted symbol
+#                 of a split package: fails the check
+#   experimental  everything else (experimental and excluded packages,
+#                 non-allowlisted symbols of split packages): warning only
+# A package missing from api/tiers.txt (for example one that was removed)
+# counts as stable.
 #
-# Exit status: 0 no incompatible change in stable packages (or allowed),
-# 1 incompatible change in stable packages, 2 setup error.
+# Exit status: 0 no incompatible stable change (or allowed), 1 incompatible
+# stable change, 2 setup error.
 #
 # Environment (all optional):
 #   ALLOW_API_BREAK=1   report stable breaks but exit 0 (CI sets it for PRs
@@ -28,7 +33,6 @@ set -euo pipefail
 
 MODULE=github.com/tangoui/tango
 APIDIFF_VERSION=v0.0.0-20261112173441-d10d3b464990   # golang.org/x/exp
-EXPERIMENTAL_RE='^- \./(ui|uihost|mobile|service/updater|examples)([./:]|$)'
 
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
@@ -51,6 +55,12 @@ if [ -z "$apidiff" ]; then
   # Build for the host: GOOS below only applies to loading the module.
   GOBIN="$tmp/bin" GOOS= GOARCH= GOWORK=off go install "golang.org/x/exp/cmd/apidiff@$APIDIFF_VERSION"
   apidiff="$tmp/bin/apidiff"
+fi
+
+# The tier classifier is built from the working tree.
+if ! GOOS= GOARCH= GOWORK=off go build -o "$tmp/bin/apitxt" ./internal/cmd/apitxt; then
+  echo "apidiff: building internal/cmd/apitxt failed" >&2
+  exit 2
 fi
 
 git worktree add --quiet --detach "$tmp/base" "$base_sha"
@@ -82,8 +92,17 @@ merged="$(awk '
   END { for (i = 1; i <= n; i++) { k = order[i]; print k "  [" p[k] "]" } }
 ' "$tmp/all.txt")"
 
-stable="$(printf '%s\n' "$merged" | grep -Ev "$EXPERIMENTAL_RE" | grep . || true)"
-experimental="$(printf '%s\n' "$merged" | grep -E "$EXPERIMENTAL_RE" || true)"
+# Prefix every change with its tier ("stable<TAB>- ./ui.Button: ...").
+if ! classified="$(printf '%s\n' "$merged" | "$tmp/bin/apitxt" -classify -C "$root")"; then
+  echo "apidiff: classifying the changes failed (api/tiers.txt, api/stable)" >&2
+  exit 2
+fi
+pick() {
+  printf '%s\n' "$classified" | awk -v tier="$1" '
+    { i = index($0, "\t"); if (i > 0 && substr($0, 1, i - 1) == tier) print substr($0, i + 1) }'
+}
+stable="$(pick stable)"
+experimental="$(pick experimental)"
 
 short="$(git rev-parse --short "$base_sha")"
 report="$tmp/report.md"
@@ -91,16 +110,16 @@ report="$tmp/report.md"
   echo "## Go API 兼容性（对比 ${short}）"
   echo
   if [ -n "$stable" ]; then
-    echo "### 稳定包的不兼容变化"
+    echo "### 稳定层的不兼容变化"
     echo '```'
     printf '%s\n' "$stable"
     echo '```'
   else
-    echo "稳定包没有不兼容变化。"
+    echo "稳定层没有不兼容变化。"
   fi
   if [ -n "$experimental" ]; then
     echo
-    echo "### 实验性包的不兼容变化（仅提示）"
+    echo "### 实验层的不兼容变化（仅提示）"
     echo '```'
     printf '%s\n' "$experimental"
     echo '```'
@@ -113,19 +132,19 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
 fi
 
 if [ -n "$experimental" ] && [ -n "${GITHUB_ACTIONS:-}" ]; then
-  echo "::warning::experimental packages have incompatible API changes (see job summary)"
+  echo "::warning::the experimental API has incompatible changes (see job summary)"
 fi
 
 if [ -n "$stable" ]; then
   if [ "${ALLOW_API_BREAK:-}" = 1 ]; then
-    [ -n "${GITHUB_ACTIONS:-}" ] && echo "::warning::incompatible API changes in stable packages (allowed by api-break)"
+    [ -n "${GITHUB_ACTIONS:-}" ] && echo "::warning::incompatible changes in the stable API (allowed by api-break)"
     echo
     echo "ALLOW_API_BREAK=1: allowed. Describe the change and the migration in CHANGELOG.md."
     exit 0
   fi
-  [ -n "${GITHUB_ACTIONS:-}" ] && echo "::error::incompatible API changes in stable packages (see job summary)"
+  [ -n "${GITHUB_ACTIONS:-}" ] && echo "::error::incompatible changes in the stable API (see job summary)"
   echo
-  echo "Incompatible changes in stable packages. Keep the old API (add new"
+  echo "Incompatible changes in the stable API. Keep the old API (add new"
   echo "functions/options instead), or if the break is intended: label the PR"
   echo "api-break (or put [api-break] in the commit message) and describe the"
   echo "migration in CHANGELOG.md."

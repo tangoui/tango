@@ -1,0 +1,14 @@
+pkg github.com/tangoui/tango/ui/gpu/gl/nativewindow, func Lookup(uintptr) *Holder
+pkg github.com/tangoui/tango/ui/gpu/gl/nativewindow, func New() *Holder
+pkg github.com/tangoui/tango/ui/gpu/gl/nativewindow, method (*Holder) CPU() bool
+pkg github.com/tangoui/tango/ui/gpu/gl/nativewindow, method (*Holder) ClearWindow()
+pkg github.com/tangoui/tango/ui/gpu/gl/nativewindow, method (*Holder) Close()
+pkg github.com/tangoui/tango/ui/gpu/gl/nativewindow, method (*Holder) Closed() bool
+pkg github.com/tangoui/tango/ui/gpu/gl/nativewindow, method (*Holder) Handle() uintptr
+pkg github.com/tangoui/tango/ui/gpu/gl/nativewindow, method (*Holder) SetUser(User)
+pkg github.com/tangoui/tango/ui/gpu/gl/nativewindow, method (*Holder) SetWindow(uintptr, int, int)
+pkg github.com/tangoui/tango/ui/gpu/gl/nativewindow, method (*Holder) UseCPU() bool
+pkg github.com/tangoui/tango/ui/gpu/gl/nativewindow, method (*Holder) Window() (uintptr, int, int, uint64)
+pkg github.com/tangoui/tango/ui/gpu/gl/nativewindow, type Holder struct
+pkg github.com/tangoui/tango/ui/gpu/gl/nativewindow, type User interface { DetachWindow }
+pkg github.com/tangoui/tango/ui/gpu/gl/nativewindow, type User interface, DetachWindow()

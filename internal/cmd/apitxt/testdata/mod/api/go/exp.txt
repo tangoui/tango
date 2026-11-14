@@ -1,0 +1,1 @@
+pkg example.com/m/exp, func F()

@@ -1,0 +1,23 @@
+pkg github.com/tangoui/tango/sys/orientation, const All Mask = 15
+pkg github.com/tangoui/tango/sys/orientation, const Landscape Mask = 12
+pkg github.com/tangoui/tango/sys/orientation, const LandscapeLeft Orientation = 3
+pkg github.com/tangoui/tango/sys/orientation, const LandscapeRight Orientation = 4
+pkg github.com/tangoui/tango/sys/orientation, const MaskLandscapeLeft Mask = 4
+pkg github.com/tangoui/tango/sys/orientation, const MaskLandscapeRight Mask = 8
+pkg github.com/tangoui/tango/sys/orientation, const MaskPortrait Mask = 1
+pkg github.com/tangoui/tango/sys/orientation, const MaskPortraitUpsideDown Mask = 2
+pkg github.com/tangoui/tango/sys/orientation, const Portrait Orientation = 1
+pkg github.com/tangoui/tango/sys/orientation, const PortraitOnly Mask = 1
+pkg github.com/tangoui/tango/sys/orientation, const PortraitUpsideDown Orientation = 2
+pkg github.com/tangoui/tango/sys/orientation, const Unknown Orientation = 0
+pkg github.com/tangoui/tango/sys/orientation, func Get(*tango.App) (Orientation, error)
+pkg github.com/tangoui/tango/sys/orientation, func IsLandscape(Orientation) bool
+pkg github.com/tangoui/tango/sys/orientation, func Lock(*tango.App, Mask) error
+pkg github.com/tangoui/tango/sys/orientation, func OnChange(*tango.App, func(Orientation))
+pkg github.com/tangoui/tango/sys/orientation, func String(Orientation) string
+pkg github.com/tangoui/tango/sys/orientation, func Unlock(*tango.App) error
+pkg github.com/tangoui/tango/sys/orientation, type Mask = internal/platform.OrientationMask
+pkg github.com/tangoui/tango/sys/orientation, type Mask int
+pkg github.com/tangoui/tango/sys/orientation, type Orientation = internal/platform.Orientation
+pkg github.com/tangoui/tango/sys/orientation, type Orientation int
+pkg github.com/tangoui/tango/sys/orientation, var ErrUnsupported error

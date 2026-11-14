@@ -1,0 +1,22 @@
+pkg github.com/tangoui/tango/ui/editor/monarch, const LineBudget time.Duration = 50000000
+pkg github.com/tangoui/tango/ui/editor/monarch, const MaxLineLength untyped int = 20000
+pkg github.com/tangoui/tango/ui/editor/monarch, func NewRegistry() *Registry
+pkg github.com/tangoui/tango/ui/editor/monarch, func Stats() (int64, int64, int64)
+pkg github.com/tangoui/tango/ui/editor/monarch, method (*Lexer) ID() string
+pkg github.com/tangoui/tango/ui/editor/monarch, method (*Lexer) Initial() State
+pkg github.com/tangoui/tango/ui/editor/monarch, method (*Lexer) TokenizeLine(string, State, []Token) ([]Token, State)
+pkg github.com/tangoui/tango/ui/editor/monarch, method (*Lexer) TokenizeLineInfo(string, State, []Token) ([]Token, State, LineInfo)
+pkg github.com/tangoui/tango/ui/editor/monarch, method (*Lexer) Warnings() []string
+pkg github.com/tangoui/tango/ui/editor/monarch, method (*Registry) Add(string, encoding/json.RawMessage) error
+pkg github.com/tangoui/tango/ui/editor/monarch, method (*Registry) Lexer(string) (*Lexer, error)
+pkg github.com/tangoui/tango/ui/editor/monarch, type Lexer struct
+pkg github.com/tangoui/tango/ui/editor/monarch, type Lexer struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor/monarch, type LineInfo struct
+pkg github.com/tangoui/tango/ui/editor/monarch, type LineInfo struct, Degraded bool
+pkg github.com/tangoui/tango/ui/editor/monarch, type Registry struct
+pkg github.com/tangoui/tango/ui/editor/monarch, type Registry struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor/monarch, type State uint32
+pkg github.com/tangoui/tango/ui/editor/monarch, type Token struct
+pkg github.com/tangoui/tango/ui/editor/monarch, type Token struct, ByteStart int
+pkg github.com/tangoui/tango/ui/editor/monarch, type Token struct, Start int
+pkg github.com/tangoui/tango/ui/editor/monarch, type Token struct, Type string

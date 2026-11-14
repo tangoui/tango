@@ -1,0 +1,10 @@
+pkg github.com/tangoui/tango/service/kv, func New(string) (*Store, error)
+pkg github.com/tangoui/tango/service/kv, func WriteFileAtomic(string, []byte, io/fs.FileMode) error
+pkg github.com/tangoui/tango/service/kv, method (*Store) Clear() error
+pkg github.com/tangoui/tango/service/kv, method (*Store) Delete(string) error
+pkg github.com/tangoui/tango/service/kv, method (*Store) Get(string) any
+pkg github.com/tangoui/tango/service/kv, method (*Store) Has(string) bool
+pkg github.com/tangoui/tango/service/kv, method (*Store) Keys() []string
+pkg github.com/tangoui/tango/service/kv, method (*Store) Set(string, any) error
+pkg github.com/tangoui/tango/service/kv, type Store struct
+pkg github.com/tangoui/tango/service/kv, type Store struct, noncomparable

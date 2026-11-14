@@ -1,0 +1,9 @@
+pkg github.com/tangoui/tango/sys/env, func Info(*tango.App) Environment
+pkg github.com/tangoui/tango/sys/env, type Environment struct
+pkg github.com/tangoui/tango/sys/env, type Environment struct, Arch string
+pkg github.com/tangoui/tango/sys/env, type Environment struct, Debug bool
+pkg github.com/tangoui/tango/sys/env, type Environment struct, OS string
+pkg github.com/tangoui/tango/sys/env, type Environment struct, OSName string
+pkg github.com/tangoui/tango/sys/env, type Environment struct, OSVersion string
+pkg github.com/tangoui/tango/sys/env, type Environment struct, WebView string
+pkg github.com/tangoui/tango/sys/env, type Environment struct, WebViewVersion string

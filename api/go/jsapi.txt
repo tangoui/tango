@@ -1,0 +1,41 @@
+pkg github.com/tangoui/tango/jsapi, const All Cap = 32507903
+pkg github.com/tangoui/tango/jsapi, const AppControl Cap = 8
+pkg github.com/tangoui/tango/jsapi, const ClipboardRead Cap = 16
+pkg github.com/tangoui/tango/jsapi, const ClipboardWrite Cap = 32
+pkg github.com/tangoui/tango/jsapi, const CodeForbidden untyped string = "forbidden"
+pkg github.com/tangoui/tango/jsapi, const CodeNotRunning untyped string = "not_running"
+pkg github.com/tangoui/tango/jsapi, const CodeUnsupported untyped string = "unsupported"
+pkg github.com/tangoui/tango/jsapi, const Defaults Cap = 7
+pkg github.com/tangoui/tango/jsapi, const Dialogs Cap = 64
+pkg github.com/tangoui/tango/jsapi, const Hotkeys Cap = 1024
+pkg github.com/tangoui/tango/jsapi, const Info Cap = 4
+pkg github.com/tangoui/tango/jsapi, const Menu Cap = 2
+pkg github.com/tangoui/tango/jsapi, const Notify Cap = 128
+pkg github.com/tangoui/tango/jsapi, const OpenPath Cap = 512
+pkg github.com/tangoui/tango/jsapi, const OpenURL Cap = 256
+pkg github.com/tangoui/tango/jsapi, const Prefix untyped string = "tango:"
+pkg github.com/tangoui/tango/jsapi, const Updates Cap = 1073741824
+pkg github.com/tangoui/tango/jsapi, const WebAll Cap = 32505856
+pkg github.com/tangoui/tango/jsapi, const WebCapture Cap = 2097152
+pkg github.com/tangoui/tango/jsapi, const WebControl Cap = 16777216
+pkg github.com/tangoui/tango/jsapi, const WebCookies Cap = 4194304
+pkg github.com/tangoui/tango/jsapi, const WebDownloads Cap = 8388608
+pkg github.com/tangoui/tango/jsapi, const WebFind Cap = 1048576
+pkg github.com/tangoui/tango/jsapi, const Window Cap = 1
+pkg github.com/tangoui/tango/jsapi, func Install(*tango.App, *ipc.Router, Options) *API
+pkg github.com/tangoui/tango/jsapi, method (*API) Allowed(Cap) bool
+pkg github.com/tangoui/tango/jsapi, method (*API) Broadcast(string, any)
+pkg github.com/tangoui/tango/jsapi, method (*API) Emit(*tango.Surface, string, any)
+pkg github.com/tangoui/tango/jsapi, method (*API) Handle(Cap, string, Handler)
+pkg github.com/tangoui/tango/jsapi, method (*API) InstallUpdater(*service/updater.Updater, UpdaterOptions)
+pkg github.com/tangoui/tango/jsapi, type API struct
+pkg github.com/tangoui/tango/jsapi, type API struct, noncomparable
+pkg github.com/tangoui/tango/jsapi, type Cap uint64
+pkg github.com/tangoui/tango/jsapi, type Handler func(context.Context, *tango.Surface, encoding/json.RawMessage) (any, error)
+pkg github.com/tangoui/tango/jsapi, type Options struct
+pkg github.com/tangoui/tango/jsapi, type Options struct, Allow Cap
+pkg github.com/tangoui/tango/jsapi, type Options struct, Deny Cap
+pkg github.com/tangoui/tango/jsapi, type UpdaterOptions struct
+pkg github.com/tangoui/tango/jsapi, type UpdaterOptions struct, AllowRestart bool
+pkg github.com/tangoui/tango/jsapi, type UpdaterOptions struct, OnDownloaded func(*service/updater.Payload)
+pkg github.com/tangoui/tango/jsapi, type UpdaterOptions struct, noncomparable

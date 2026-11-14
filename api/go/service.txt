@@ -1,0 +1,9 @@
+pkg github.com/tangoui/tango/service, func Bind(*tango.App, *ipc.Router, string, Service) error
+pkg github.com/tangoui/tango/service, func Err(*tango.App) error
+pkg github.com/tangoui/tango/service, func Register(*tango.App, ...Service)
+pkg github.com/tangoui/tango/service, func Shutdown(*tango.App) error
+pkg github.com/tangoui/tango/service, type Service interface {  }
+pkg github.com/tangoui/tango/service, type Starter interface { Startup }
+pkg github.com/tangoui/tango/service, type Starter interface, Startup(context.Context) error
+pkg github.com/tangoui/tango/service, type Stopper interface { Shutdown }
+pkg github.com/tangoui/tango/service, type Stopper interface, Shutdown() error

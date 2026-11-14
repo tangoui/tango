@@ -1,0 +1,233 @@
+pkg github.com/tangoui/tango/ui/input, const ButtonLeft Button = 0
+pkg github.com/tangoui/tango/ui/input, const ButtonMiddle Button = 2
+pkg github.com/tangoui/tango/ui/input, const ButtonRight Button = 1
+pkg github.com/tangoui/tango/ui/input, const Cancel PointerKind = 4
+pkg github.com/tangoui/tango/ui/input, const CapitalizeNone Capitalize = 0
+pkg github.com/tangoui/tango/ui/input, const CapitalizeSentences Capitalize = 2
+pkg github.com/tangoui/tango/ui/input, const CapitalizeWords Capitalize = 1
+pkg github.com/tangoui/tango/ui/input, const CursorCopy Cursor = 9
+pkg github.com/tangoui/tango/ui/input, const CursorDefault Cursor = 0
+pkg github.com/tangoui/tango/ui/input, const CursorGrab Cursor = 6
+pkg github.com/tangoui/tango/ui/input, const CursorGrabbing Cursor = 7
+pkg github.com/tangoui/tango/ui/input, const CursorMove Cursor = 8
+pkg github.com/tangoui/tango/ui/input, const CursorNotAllowed Cursor = 3
+pkg github.com/tangoui/tango/ui/input, const CursorPointer Cursor = 1
+pkg github.com/tangoui/tango/ui/input, const CursorResizeEW Cursor = 4
+pkg github.com/tangoui/tango/ui/input, const CursorResizeNS Cursor = 5
+pkg github.com/tangoui/tango/ui/input, const CursorText Cursor = 2
+pkg github.com/tangoui/tango/ui/input, const EnterDefault EnterKey = 0
+pkg github.com/tangoui/tango/ui/input, const EnterDone EnterKey = 1
+pkg github.com/tangoui/tango/ui/input, const EnterGo EnterKey = 2
+pkg github.com/tangoui/tango/ui/input, const EnterNewline EnterKey = 6
+pkg github.com/tangoui/tango/ui/input, const EnterNext EnterKey = 3
+pkg github.com/tangoui/tango/ui/input, const EnterSearch EnterKey = 4
+pkg github.com/tangoui/tango/ui/input, const EnterSend EnterKey = 5
+pkg github.com/tangoui/tango/ui/input, const Key0 Key = 41
+pkg github.com/tangoui/tango/ui/input, const Key1 Key = 42
+pkg github.com/tangoui/tango/ui/input, const Key2 Key = 43
+pkg github.com/tangoui/tango/ui/input, const Key3 Key = 44
+pkg github.com/tangoui/tango/ui/input, const Key4 Key = 45
+pkg github.com/tangoui/tango/ui/input, const Key5 Key = 46
+pkg github.com/tangoui/tango/ui/input, const Key6 Key = 47
+pkg github.com/tangoui/tango/ui/input, const Key7 Key = 48
+pkg github.com/tangoui/tango/ui/input, const Key8 Key = 49
+pkg github.com/tangoui/tango/ui/input, const Key9 Key = 50
+pkg github.com/tangoui/tango/ui/input, const KeyA Key = 15
+pkg github.com/tangoui/tango/ui/input, const KeyAltLeft Key = 67
+pkg github.com/tangoui/tango/ui/input, const KeyAltRight Key = 68
+pkg github.com/tangoui/tango/ui/input, const KeyB Key = 21
+pkg github.com/tangoui/tango/ui/input, const KeyBackquote Key = 81
+pkg github.com/tangoui/tango/ui/input, const KeyBackslash Key = 75
+pkg github.com/tangoui/tango/ui/input, const KeyBackspace Key = 4
+pkg github.com/tangoui/tango/ui/input, const KeyBracketLeft Key = 73
+pkg github.com/tangoui/tango/ui/input, const KeyBracketRight Key = 74
+pkg github.com/tangoui/tango/ui/input, const KeyC Key = 16
+pkg github.com/tangoui/tango/ui/input, const KeyCapsLock Key = 99
+pkg github.com/tangoui/tango/ui/input, const KeyComma Key = 78
+pkg github.com/tangoui/tango/ui/input, const KeyContextMenu Key = 100
+pkg github.com/tangoui/tango/ui/input, const KeyCtrlLeft Key = 65
+pkg github.com/tangoui/tango/ui/input, const KeyCtrlRight Key = 66
+pkg github.com/tangoui/tango/ui/input, const KeyD Key = 22
+pkg github.com/tangoui/tango/ui/input, const KeyDelete Key = 5
+pkg github.com/tangoui/tango/ui/input, const KeyDown Key = 9
+pkg github.com/tangoui/tango/ui/input, const KeyE Key = 23
+pkg github.com/tangoui/tango/ui/input, const KeyEnd Key = 11
+pkg github.com/tangoui/tango/ui/input, const KeyEnter Key = 1
+pkg github.com/tangoui/tango/ui/input, const KeyEqual Key = 72
+pkg github.com/tangoui/tango/ui/input, const KeyEscape Key = 3
+pkg github.com/tangoui/tango/ui/input, const KeyF Key = 24
+pkg github.com/tangoui/tango/ui/input, const KeyF1 Key = 51
+pkg github.com/tangoui/tango/ui/input, const KeyF10 Key = 60
+pkg github.com/tangoui/tango/ui/input, const KeyF11 Key = 61
+pkg github.com/tangoui/tango/ui/input, const KeyF12 Key = 62
+pkg github.com/tangoui/tango/ui/input, const KeyF2 Key = 52
+pkg github.com/tangoui/tango/ui/input, const KeyF3 Key = 53
+pkg github.com/tangoui/tango/ui/input, const KeyF4 Key = 54
+pkg github.com/tangoui/tango/ui/input, const KeyF5 Key = 55
+pkg github.com/tangoui/tango/ui/input, const KeyF6 Key = 56
+pkg github.com/tangoui/tango/ui/input, const KeyF7 Key = 57
+pkg github.com/tangoui/tango/ui/input, const KeyF8 Key = 58
+pkg github.com/tangoui/tango/ui/input, const KeyF9 Key = 59
+pkg github.com/tangoui/tango/ui/input, const KeyG Key = 25
+pkg github.com/tangoui/tango/ui/input, const KeyH Key = 26
+pkg github.com/tangoui/tango/ui/input, const KeyHome Key = 10
+pkg github.com/tangoui/tango/ui/input, const KeyI Key = 27
+pkg github.com/tangoui/tango/ui/input, const KeyInsert Key = 98
+pkg github.com/tangoui/tango/ui/input, const KeyJ Key = 28
+pkg github.com/tangoui/tango/ui/input, const KeyK Key = 29
+pkg github.com/tangoui/tango/ui/input, const KeyL Key = 30
+pkg github.com/tangoui/tango/ui/input, const KeyLeft Key = 6
+pkg github.com/tangoui/tango/ui/input, const KeyM Key = 31
+pkg github.com/tangoui/tango/ui/input, const KeyMetaLeft Key = 69
+pkg github.com/tangoui/tango/ui/input, const KeyMetaRight Key = 70
+pkg github.com/tangoui/tango/ui/input, const KeyMinus Key = 71
+pkg github.com/tangoui/tango/ui/input, const KeyN Key = 32
+pkg github.com/tangoui/tango/ui/input, const KeyNumpad0 Key = 82
+pkg github.com/tangoui/tango/ui/input, const KeyNumpad1 Key = 83
+pkg github.com/tangoui/tango/ui/input, const KeyNumpad2 Key = 84
+pkg github.com/tangoui/tango/ui/input, const KeyNumpad3 Key = 85
+pkg github.com/tangoui/tango/ui/input, const KeyNumpad4 Key = 86
+pkg github.com/tangoui/tango/ui/input, const KeyNumpad5 Key = 87
+pkg github.com/tangoui/tango/ui/input, const KeyNumpad6 Key = 88
+pkg github.com/tangoui/tango/ui/input, const KeyNumpad7 Key = 89
+pkg github.com/tangoui/tango/ui/input, const KeyNumpad8 Key = 90
+pkg github.com/tangoui/tango/ui/input, const KeyNumpad9 Key = 91
+pkg github.com/tangoui/tango/ui/input, const KeyNumpadAdd Key = 92
+pkg github.com/tangoui/tango/ui/input, const KeyNumpadDecimal Key = 96
+pkg github.com/tangoui/tango/ui/input, const KeyNumpadDivide Key = 95
+pkg github.com/tangoui/tango/ui/input, const KeyNumpadEnter Key = 97
+pkg github.com/tangoui/tango/ui/input, const KeyNumpadMultiply Key = 94
+pkg github.com/tangoui/tango/ui/input, const KeyNumpadSubtract Key = 93
+pkg github.com/tangoui/tango/ui/input, const KeyO Key = 33
+pkg github.com/tangoui/tango/ui/input, const KeyP Key = 34
+pkg github.com/tangoui/tango/ui/input, const KeyPageDown Key = 13
+pkg github.com/tangoui/tango/ui/input, const KeyPageUp Key = 12
+pkg github.com/tangoui/tango/ui/input, const KeyPeriod Key = 79
+pkg github.com/tangoui/tango/ui/input, const KeyQ Key = 35
+pkg github.com/tangoui/tango/ui/input, const KeyQuote Key = 77
+pkg github.com/tangoui/tango/ui/input, const KeyR Key = 36
+pkg github.com/tangoui/tango/ui/input, const KeyRight Key = 7
+pkg github.com/tangoui/tango/ui/input, const KeyS Key = 37
+pkg github.com/tangoui/tango/ui/input, const KeySemicolon Key = 76
+pkg github.com/tangoui/tango/ui/input, const KeyShiftLeft Key = 63
+pkg github.com/tangoui/tango/ui/input, const KeyShiftRight Key = 64
+pkg github.com/tangoui/tango/ui/input, const KeySlash Key = 80
+pkg github.com/tangoui/tango/ui/input, const KeySpace Key = 14
+pkg github.com/tangoui/tango/ui/input, const KeyT Key = 38
+pkg github.com/tangoui/tango/ui/input, const KeyTab Key = 2
+pkg github.com/tangoui/tango/ui/input, const KeyU Key = 39
+pkg github.com/tangoui/tango/ui/input, const KeyUnknown Key = 0
+pkg github.com/tangoui/tango/ui/input, const KeyUp Key = 8
+pkg github.com/tangoui/tango/ui/input, const KeyV Key = 17
+pkg github.com/tangoui/tango/ui/input, const KeyW Key = 40
+pkg github.com/tangoui/tango/ui/input, const KeyX Key = 18
+pkg github.com/tangoui/tango/ui/input, const KeyY Key = 20
+pkg github.com/tangoui/tango/ui/input, const KeyZ Key = 19
+pkg github.com/tangoui/tango/ui/input, const Leave PointerKind = 3
+pkg github.com/tangoui/tango/ui/input, const ModAlt Modifiers = 4
+pkg github.com/tangoui/tango/ui/input, const ModCtrl Modifiers = 2
+pkg github.com/tangoui/tango/ui/input, const ModMeta Modifiers = 8
+pkg github.com/tangoui/tango/ui/input, const ModShift Modifiers = 1
+pkg github.com/tangoui/tango/ui/input, const Move PointerKind = 0
+pkg github.com/tangoui/tango/ui/input, const Press PointerKind = 1
+pkg github.com/tangoui/tango/ui/input, const Release PointerKind = 2
+pkg github.com/tangoui/tango/ui/input, const SourceMouse PointerSource = 0
+pkg github.com/tangoui/tango/ui/input, const SourceTouch PointerSource = 1
+pkg github.com/tangoui/tango/ui/input, const TextDecimal TextKind = 2
+pkg github.com/tangoui/tango/ui/input, const TextEmail TextKind = 4
+pkg github.com/tangoui/tango/ui/input, const TextNumber TextKind = 1
+pkg github.com/tangoui/tango/ui/input, const TextPassword TextKind = 6
+pkg github.com/tangoui/tango/ui/input, const TextPhone TextKind = 3
+pkg github.com/tangoui/tango/ui/input, const TextPlain TextKind = 0
+pkg github.com/tangoui/tango/ui/input, const TextSearch TextKind = 7
+pkg github.com/tangoui/tango/ui/input, const TextStateWindow untyped int = 256
+pkg github.com/tangoui/tango/ui/input, const TextURL TextKind = 5
+pkg github.com/tangoui/tango/ui/input, const TouchBegan TouchPhase = 0
+pkg github.com/tangoui/tango/ui/input, const TouchCancelled TouchPhase = 3
+pkg github.com/tangoui/tango/ui/input, const TouchEnded TouchPhase = 2
+pkg github.com/tangoui/tango/ui/input, const TouchMoved TouchPhase = 1
+pkg github.com/tangoui/tango/ui/input, func KeyForRune(rune) Key
+pkg github.com/tangoui/tango/ui/input, func KeyNamed(string) (Key, bool)
+pkg github.com/tangoui/tango/ui/input, method (*FocusOrder[ID]) Add(ID)
+pkg github.com/tangoui/tango/ui/input, method (*FocusOrder[ID]) AddNoTab(ID)
+pkg github.com/tangoui/tango/ui/input, method (*FocusOrder[ID]) Contains(ID) bool
+pkg github.com/tangoui/tango/ui/input, method (*FocusOrder[ID]) Len() int
+pkg github.com/tangoui/tango/ui/input, method (*FocusOrder[ID]) Next(ID, bool) (ID, bool)
+pkg github.com/tangoui/tango/ui/input, method (*FocusOrder[ID]) Reset()
+pkg github.com/tangoui/tango/ui/input, method (EnterKey) String() string
+pkg github.com/tangoui/tango/ui/input, method (Key) Base() Key
+pkg github.com/tangoui/tango/ui/input, method (Key) Modifier() Modifiers
+pkg github.com/tangoui/tango/ui/input, method (Key) Rune() rune
+pkg github.com/tangoui/tango/ui/input, method (Key) String() string
+pkg github.com/tangoui/tango/ui/input, method (Modifiers) Has(Modifiers) bool
+pkg github.com/tangoui/tango/ui/input, method (Modifiers) Shortcut() bool
+pkg github.com/tangoui/tango/ui/input, method (TextHints) Autocorrect() bool
+pkg github.com/tangoui/tango/ui/input, method (TextInputState) HasComposition() bool
+pkg github.com/tangoui/tango/ui/input, method (TextKind) String() string
+pkg github.com/tangoui/tango/ui/input, method (TouchEvent) Done() bool
+pkg github.com/tangoui/tango/ui/input, method (TouchPhase) String() string
+pkg github.com/tangoui/tango/ui/input, type Button uint8
+pkg github.com/tangoui/tango/ui/input, type Capitalize uint8
+pkg github.com/tangoui/tango/ui/input, type Composition struct
+pkg github.com/tangoui/tango/ui/input, type Composition struct, Cursor int
+pkg github.com/tangoui/tango/ui/input, type Composition struct, Text string
+pkg github.com/tangoui/tango/ui/input, type Cursor uint8
+pkg github.com/tangoui/tango/ui/input, type EnterKey uint8
+pkg github.com/tangoui/tango/ui/input, type Event interface { unexported methods }
+pkg github.com/tangoui/tango/ui/input, type FocusOrder struct, noncomparable
+pkg github.com/tangoui/tango/ui/input, type FocusOrder[ID comparable] struct
+pkg github.com/tangoui/tango/ui/input, type Key uint16
+pkg github.com/tangoui/tango/ui/input, type KeyEvent struct
+pkg github.com/tangoui/tango/ui/input, type KeyEvent struct, Code Key
+pkg github.com/tangoui/tango/ui/input, type KeyEvent struct, Down bool
+pkg github.com/tangoui/tango/ui/input, type KeyEvent struct, Key Key
+pkg github.com/tangoui/tango/ui/input, type KeyEvent struct, Mods Modifiers
+pkg github.com/tangoui/tango/ui/input, type KeyEvent struct, Repeat bool
+pkg github.com/tangoui/tango/ui/input, type Modifiers uint8
+pkg github.com/tangoui/tango/ui/input, type Pointer struct
+pkg github.com/tangoui/tango/ui/input, type Pointer struct, Button Button
+pkg github.com/tangoui/tango/ui/input, type Pointer struct, Clicks int
+pkg github.com/tangoui/tango/ui/input, type Pointer struct, Kind PointerKind
+pkg github.com/tangoui/tango/ui/input, type Pointer struct, Mods Modifiers
+pkg github.com/tangoui/tango/ui/input, type Pointer struct, Pos ui/geom.Point
+pkg github.com/tangoui/tango/ui/input, type Pointer struct, Source PointerSource
+pkg github.com/tangoui/tango/ui/input, type PointerKind uint8
+pkg github.com/tangoui/tango/ui/input, type PointerSource uint8
+pkg github.com/tangoui/tango/ui/input, type Scroll struct
+pkg github.com/tangoui/tango/ui/input, type Scroll struct, DX float32
+pkg github.com/tangoui/tango/ui/input, type Scroll struct, DY float32
+pkg github.com/tangoui/tango/ui/input, type Scroll struct, Mods Modifiers
+pkg github.com/tangoui/tango/ui/input, type Scroll struct, Pos ui/geom.Point
+pkg github.com/tangoui/tango/ui/input, type SelectionChange struct
+pkg github.com/tangoui/tango/ui/input, type SelectionChange struct, End int
+pkg github.com/tangoui/tango/ui/input, type SelectionChange struct, Start int
+pkg github.com/tangoui/tango/ui/input, type TextEdit struct
+pkg github.com/tangoui/tango/ui/input, type TextEdit struct, End int
+pkg github.com/tangoui/tango/ui/input, type TextEdit struct, Start int
+pkg github.com/tangoui/tango/ui/input, type TextEdit struct, Text string
+pkg github.com/tangoui/tango/ui/input, type TextHints struct
+pkg github.com/tangoui/tango/ui/input, type TextHints struct, Capitalize Capitalize
+pkg github.com/tangoui/tango/ui/input, type TextHints struct, Enter EnterKey
+pkg github.com/tangoui/tango/ui/input, type TextHints struct, Kind TextKind
+pkg github.com/tangoui/tango/ui/input, type TextHints struct, Multiline bool
+pkg github.com/tangoui/tango/ui/input, type TextHints struct, NoAutocorrect bool
+pkg github.com/tangoui/tango/ui/input, type TextInput struct
+pkg github.com/tangoui/tango/ui/input, type TextInput struct, Text string
+pkg github.com/tangoui/tango/ui/input, type TextInputState struct
+pkg github.com/tangoui/tango/ui/input, type TextInputState struct, CompEnd int
+pkg github.com/tangoui/tango/ui/input, type TextInputState struct, CompStart int
+pkg github.com/tangoui/tango/ui/input, type TextInputState struct, Hints TextHints
+pkg github.com/tangoui/tango/ui/input, type TextInputState struct, Offset int
+pkg github.com/tangoui/tango/ui/input, type TextInputState struct, SelEnd int
+pkg github.com/tangoui/tango/ui/input, type TextInputState struct, SelStart int
+pkg github.com/tangoui/tango/ui/input, type TextInputState struct, Text string
+pkg github.com/tangoui/tango/ui/input, type TextKind uint8
+pkg github.com/tangoui/tango/ui/input, type TouchEvent struct
+pkg github.com/tangoui/tango/ui/input, type TouchEvent struct, ID int64
+pkg github.com/tangoui/tango/ui/input, type TouchEvent struct, Phase TouchPhase
+pkg github.com/tangoui/tango/ui/input, type TouchEvent struct, Pos ui/geom.Point
+pkg github.com/tangoui/tango/ui/input, type TouchEvent struct, Pressure float32
+pkg github.com/tangoui/tango/ui/input, type TouchEvent struct, Time time.Time
+pkg github.com/tangoui/tango/ui/input, type TouchPhase uint8
+pkg github.com/tangoui/tango/ui/input, type WindowFocus struct
+pkg github.com/tangoui/tango/ui/input, type WindowFocus struct, Focused bool

@@ -1,0 +1,7 @@
+pkg github.com/tangoui/tango/ui/shader/front, func Load(string) (*ui/shader/ir.Module, error)
+pkg github.com/tangoui/tango/ui/shader/front, method (Error) Error() string
+pkg github.com/tangoui/tango/ui/shader/front, method (ErrorList) Error() string
+pkg github.com/tangoui/tango/ui/shader/front, type Error struct
+pkg github.com/tangoui/tango/ui/shader/front, type Error struct, Msg string
+pkg github.com/tangoui/tango/ui/shader/front, type Error struct, Pos go/token.Position
+pkg github.com/tangoui/tango/ui/shader/front, type ErrorList []Error

@@ -1,0 +1,180 @@
+pkg github.com/tangoui/tango/ui/a11y, const Busy State = 524288
+pkg github.com/tangoui/tango/ui/a11y, const Checkable State = 8
+pkg github.com/tangoui/tango/ui/a11y, const Checked State = 16
+pkg github.com/tangoui/tango/ui/a11y, const Collapse Action = 16
+pkg github.com/tangoui/tango/ui/a11y, const Current State = 2097152
+pkg github.com/tangoui/tango/ui/a11y, const Decrement Action = 4
+pkg github.com/tangoui/tango/ui/a11y, const Disabled State = 1
+pkg github.com/tangoui/tango/ui/a11y, const Dismiss Action = 256
+pkg github.com/tangoui/tango/ui/a11y, const Editable State = 67108864
+pkg github.com/tangoui/tango/ui/a11y, const Expand Action = 8
+pkg github.com/tangoui/tango/ui/a11y, const Expandable State = 256
+pkg github.com/tangoui/tango/ui/a11y, const Expanded State = 512
+pkg github.com/tangoui/tango/ui/a11y, const Focus Action = 64
+pkg github.com/tangoui/tango/ui/a11y, const Focusable State = 2
+pkg github.com/tangoui/tango/ui/a11y, const Focused State = 4
+pkg github.com/tangoui/tango/ui/a11y, const HasPopup State = 4194304
+pkg github.com/tangoui/tango/ui/a11y, const Horizontal State = 33554432
+pkg github.com/tangoui/tango/ui/a11y, const Increment Action = 2
+pkg github.com/tangoui/tango/ui/a11y, const Invalid State = 8192
+pkg github.com/tangoui/tango/ui/a11y, const LiveAssertive Live = 2
+pkg github.com/tangoui/tango/ui/a11y, const LiveOff Live = 0
+pkg github.com/tangoui/tango/ui/a11y, const LivePolite Live = 1
+pkg github.com/tangoui/tango/ui/a11y, const Mixed State = 32
+pkg github.com/tangoui/tango/ui/a11y, const Modal State = 131072
+pkg github.com/tangoui/tango/ui/a11y, const Multiline State = 32768
+pkg github.com/tangoui/tango/ui/a11y, const Multiselectable State = 262144
+pkg github.com/tangoui/tango/ui/a11y, const Offscreen State = 1048576
+pkg github.com/tangoui/tango/ui/a11y, const Press Action = 1
+pkg github.com/tangoui/tango/ui/a11y, const Pressed State = 2048
+pkg github.com/tangoui/tango/ui/a11y, const Protected State = 65536
+pkg github.com/tangoui/tango/ui/a11y, const ReadOnly State = 16384
+pkg github.com/tangoui/tango/ui/a11y, const Required State = 4096
+pkg github.com/tangoui/tango/ui/a11y, const RoleAlert Role = 26
+pkg github.com/tangoui/tango/ui/a11y, const RoleAlertDialog Role = 25
+pkg github.com/tangoui/tango/ui/a11y, const RoleButton Role = 7
+pkg github.com/tangoui/tango/ui/a11y, const RoleCell Role = 34
+pkg github.com/tangoui/tango/ui/a11y, const RoleCheckbox Role = 8
+pkg github.com/tangoui/tango/ui/a11y, const RoleColumnHeader Role = 35
+pkg github.com/tangoui/tango/ui/a11y, const RoleCombobox Role = 15
+pkg github.com/tangoui/tango/ui/a11y, const RoleDialog Role = 24
+pkg github.com/tangoui/tango/ui/a11y, const RoleFigure Role = 47
+pkg github.com/tangoui/tango/ui/a11y, const RoleForm Role = 46
+pkg github.com/tangoui/tango/ui/a11y, const RoleGrid Role = 32
+pkg github.com/tangoui/tango/ui/a11y, const RoleGroup Role = 2
+pkg github.com/tangoui/tango/ui/a11y, const RoleHeading Role = 4
+pkg github.com/tangoui/tango/ui/a11y, const RoleImage Role = 41
+pkg github.com/tangoui/tango/ui/a11y, const RoleLink Role = 6
+pkg github.com/tangoui/tango/ui/a11y, const RoleList Role = 39
+pkg github.com/tangoui/tango/ui/a11y, const RoleListItem Role = 40
+pkg github.com/tangoui/tango/ui/a11y, const RoleListbox Role = 16
+pkg github.com/tangoui/tango/ui/a11y, const RoleMenu Role = 18
+pkg github.com/tangoui/tango/ui/a11y, const RoleMenuBar Role = 19
+pkg github.com/tangoui/tango/ui/a11y, const RoleMenuItem Role = 20
+pkg github.com/tangoui/tango/ui/a11y, const RoleMeter Role = 49
+pkg github.com/tangoui/tango/ui/a11y, const RoleNavigation Role = 42
+pkg github.com/tangoui/tango/ui/a11y, const RoleNone Role = 0
+pkg github.com/tangoui/tango/ui/a11y, const RoleOption Role = 17
+pkg github.com/tangoui/tango/ui/a11y, const RoleParagraph Role = 5
+pkg github.com/tangoui/tango/ui/a11y, const RoleProgressBar Role = 30
+pkg github.com/tangoui/tango/ui/a11y, const RoleRadio Role = 9
+pkg github.com/tangoui/tango/ui/a11y, const RoleRadioGroup Role = 10
+pkg github.com/tangoui/tango/ui/a11y, const RoleRow Role = 33
+pkg github.com/tangoui/tango/ui/a11y, const RoleRowHeader Role = 36
+pkg github.com/tangoui/tango/ui/a11y, const RoleScrollArea Role = 45
+pkg github.com/tangoui/tango/ui/a11y, const RoleSearchbox Role = 13
+pkg github.com/tangoui/tango/ui/a11y, const RoleSeparator Role = 44
+pkg github.com/tangoui/tango/ui/a11y, const RoleSlider Role = 29
+pkg github.com/tangoui/tango/ui/a11y, const RoleSpinButton Role = 14
+pkg github.com/tangoui/tango/ui/a11y, const RoleStatus Role = 27
+pkg github.com/tangoui/tango/ui/a11y, const RoleSwitch Role = 11
+pkg github.com/tangoui/tango/ui/a11y, const RoleTab Role = 21
+pkg github.com/tangoui/tango/ui/a11y, const RoleTabList Role = 22
+pkg github.com/tangoui/tango/ui/a11y, const RoleTabPanel Role = 23
+pkg github.com/tangoui/tango/ui/a11y, const RoleTable Role = 31
+pkg github.com/tangoui/tango/ui/a11y, const RoleText Role = 3
+pkg github.com/tangoui/tango/ui/a11y, const RoleTextbox Role = 12
+pkg github.com/tangoui/tango/ui/a11y, const RoleTimer Role = 48
+pkg github.com/tangoui/tango/ui/a11y, const RoleToolbar Role = 43
+pkg github.com/tangoui/tango/ui/a11y, const RoleTooltip Role = 28
+pkg github.com/tangoui/tango/ui/a11y, const RoleTree Role = 37
+pkg github.com/tangoui/tango/ui/a11y, const RoleTreeItem Role = 38
+pkg github.com/tangoui/tango/ui/a11y, const RoleWindow Role = 1
+pkg github.com/tangoui/tango/ui/a11y, const ScrollIntoView Action = 128
+pkg github.com/tangoui/tango/ui/a11y, const Selectable State = 64
+pkg github.com/tangoui/tango/ui/a11y, const Selected State = 128
+pkg github.com/tangoui/tango/ui/a11y, const SetValue Action = 32
+pkg github.com/tangoui/tango/ui/a11y, const SortAscending Sort = 1
+pkg github.com/tangoui/tango/ui/a11y, const SortDescending Sort = 2
+pkg github.com/tangoui/tango/ui/a11y, const SortNone Sort = 0
+pkg github.com/tangoui/tango/ui/a11y, const Toggleable State = 1024
+pkg github.com/tangoui/tango/ui/a11y, const Vertical State = 16777216
+pkg github.com/tangoui/tango/ui/a11y, const Visited State = 8388608
+pkg github.com/tangoui/tango/ui/a11y, func Diff(*Tree, *Tree) []NodeID
+pkg github.com/tangoui/tango/ui/a11y, func NewTree(NodeID) *Tree
+pkg github.com/tangoui/tango/ui/a11y, func ParseRole(string) (Role, bool)
+pkg github.com/tangoui/tango/ui/a11y, func Roles() []Role
+pkg github.com/tangoui/tango/ui/a11y, method (*Node) Equal(*Node) bool
+pkg github.com/tangoui/tango/ui/a11y, method (*Node) String() string
+pkg github.com/tangoui/tango/ui/a11y, method (*Tree) Add(*Node)
+pkg github.com/tangoui/tango/ui/a11y, method (*Tree) Ancestor(NodeID, Role) *Node
+pkg github.com/tangoui/tango/ui/a11y, method (*Tree) Dump() string
+pkg github.com/tangoui/tango/ui/a11y, method (*Tree) Find(Role, string) *Node
+pkg github.com/tangoui/tango/ui/a11y, method (*Tree) FindAll(Role, string) []*Node
+pkg github.com/tangoui/tango/ui/a11y, method (*Tree) Len() int
+pkg github.com/tangoui/tango/ui/a11y, method (*Tree) Node(NodeID) *Node
+pkg github.com/tangoui/tango/ui/a11y, method (*Tree) Nodes() []*Node
+pkg github.com/tangoui/tango/ui/a11y, method (*Tree) Remove(NodeID)
+pkg github.com/tangoui/tango/ui/a11y, method (*Tree) Text(NodeID) string
+pkg github.com/tangoui/tango/ui/a11y, method (*Tree) Walk(func(*Node, int) bool)
+pkg github.com/tangoui/tango/ui/a11y, method (Action) Has(Action) bool
+pkg github.com/tangoui/tango/ui/a11y, method (Action) String() string
+pkg github.com/tangoui/tango/ui/a11y, method (Live) String() string
+pkg github.com/tangoui/tango/ui/a11y, method (Role) Atomic() bool
+pkg github.com/tangoui/tango/ui/a11y, method (Role) Interactive() bool
+pkg github.com/tangoui/tango/ui/a11y, method (Role) NameFromContent() bool
+pkg github.com/tangoui/tango/ui/a11y, method (Role) String() string
+pkg github.com/tangoui/tango/ui/a11y, method (Sort) String() string
+pkg github.com/tangoui/tango/ui/a11y, method (State) Has(State) bool
+pkg github.com/tangoui/tango/ui/a11y, method (State) String() string
+pkg github.com/tangoui/tango/ui/a11y, type Action uint16
+pkg github.com/tangoui/tango/ui/a11y, type Announcement struct
+pkg github.com/tangoui/tango/ui/a11y, type Announcement struct, Live Live
+pkg github.com/tangoui/tango/ui/a11y, type Announcement struct, Text string
+pkg github.com/tangoui/tango/ui/a11y, type Live uint8
+pkg github.com/tangoui/tango/ui/a11y, type Node struct
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Actions Action
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, ActiveDescendant NodeID
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Bounds Rect
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Children []NodeID
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, ColCount int
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, ColIndex int
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Controls NodeID
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, DescribedBy NodeID
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Description string
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, HasRange bool
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, ID NodeID
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, LabelledBy NodeID
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Level int
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Live Live
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Name string
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Parent NodeID
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Placeholder string
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, PosInSet int
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, RTL bool
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Role Role
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, RoleDescription string
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, RowCount int
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, RowIndex int
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, SetSize int
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Shortcut string
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Sort Sort
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, States State
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Step float64
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, Value string
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, ValueMax float64
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, ValueMin float64
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, ValueNow float64
+pkg github.com/tangoui/tango/ui/a11y, type Node struct, noncomparable
+pkg github.com/tangoui/tango/ui/a11y, type NodeID uint64
+pkg github.com/tangoui/tango/ui/a11y, type Platform struct
+pkg github.com/tangoui/tango/ui/a11y, type Platform struct, ATSPI string
+pkg github.com/tangoui/tango/ui/a11y, type Platform struct, Android string
+pkg github.com/tangoui/tango/ui/a11y, type Platform struct, IOS string
+pkg github.com/tangoui/tango/ui/a11y, type Platform struct, Mac string
+pkg github.com/tangoui/tango/ui/a11y, type Platform struct, UIA string
+pkg github.com/tangoui/tango/ui/a11y, type Rect struct
+pkg github.com/tangoui/tango/ui/a11y, type Rect struct, H float32
+pkg github.com/tangoui/tango/ui/a11y, type Rect struct, W float32
+pkg github.com/tangoui/tango/ui/a11y, type Rect struct, X float32
+pkg github.com/tangoui/tango/ui/a11y, type Rect struct, Y float32
+pkg github.com/tangoui/tango/ui/a11y, type Role uint8
+pkg github.com/tangoui/tango/ui/a11y, type Sort uint8
+pkg github.com/tangoui/tango/ui/a11y, type State uint32
+pkg github.com/tangoui/tango/ui/a11y, type Tree struct
+pkg github.com/tangoui/tango/ui/a11y, type Tree struct, Announcements []Announcement
+pkg github.com/tangoui/tango/ui/a11y, type Tree struct, Focus NodeID
+pkg github.com/tangoui/tango/ui/a11y, type Tree struct, RTL bool
+pkg github.com/tangoui/tango/ui/a11y, type Tree struct, Root NodeID
+pkg github.com/tangoui/tango/ui/a11y, type Tree struct, noncomparable
+pkg github.com/tangoui/tango/ui/a11y, var Mappings map[Role]Platform

@@ -1,0 +1,10 @@
+pkg example.com/m/ui, func Button(*Context)
+pkg example.com/m/ui, func Prop[T any](*Context, string, string, T) T
+pkg example.com/m/ui, method (*Context) ConfigProp(string, string) (any, bool)
+pkg example.com/m/ui, prop "Button" "ghost" bool
+pkg example.com/m/ui, prop "Button" "size" Size
+pkg example.com/m/ui, prop "Card" "extra" any
+pkg example.com/m/ui, prop "Card" "title" string
+pkg example.com/m/ui, type Context struct
+pkg example.com/m/ui, type Context struct, noncomparable
+pkg example.com/m/ui, type Size int

@@ -1,0 +1,5 @@
+pkg github.com/tangoui/tango/sys/recent, const Max untyped int = 10
+pkg github.com/tangoui/tango/sys/recent, func Add(*tango.App, string) error
+pkg github.com/tangoui/tango/sys/recent, func Clear(*tango.App) error
+pkg github.com/tangoui/tango/sys/recent, func List(*tango.App) ([]string, error)
+pkg github.com/tangoui/tango/sys/recent, func Remove(*tango.App, string) error

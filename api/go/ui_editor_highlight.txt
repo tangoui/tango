@@ -1,0 +1,27 @@
+pkg github.com/tangoui/tango/ui/editor/highlight, const DefaultMaxRetries untyped int = 3
+pkg github.com/tangoui/tango/ui/editor/highlight, const DefaultRetryDelay time.Duration = 1000000000
+pkg github.com/tangoui/tango/ui/editor/highlight, const DefaultTokenWindow untyped int = 2000
+pkg github.com/tangoui/tango/ui/editor/highlight, const DefaultView ViewKey = 0
+pkg github.com/tangoui/tango/ui/editor/highlight, func New(*ui/editor/monarch.Lexer) *Highlighter
+pkg github.com/tangoui/tango/ui/editor/highlight, func NewViewKey() ViewKey
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Done(ui/editor/buffer.Snapshot) bool
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) DropView(ViewKey)
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Edit(ui/editor/buffer.Snapshot, ui/editor/buffer.Snapshot, []ui/editor/buffer.Edit)
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) FinalBefore(ui/editor/buffer.Snapshot, int) bool
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) FinalLines(ui/editor/buffer.Snapshot) int
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Highlight(ui/editor/buffer.Snapshot, int, time.Duration) bool
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) HighlightFor(ViewKey, ui/editor/buffer.Snapshot, int, time.Duration) bool
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Reset(*ui/editor/monarch.Lexer)
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Start(context.Context, <-chan ui/editor/buffer.Snapshot, func())
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Sync(ui/editor/buffer.Snapshot)
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) TokenizeSpan(ui/editor/buffer.Snapshot, int, string, []ui/editor/monarch.Token) []ui/editor/monarch.Token
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Tokens(ui/editor/buffer.Snapshot, int, []ui/editor/monarch.Token) ([]ui/editor/monarch.Token, bool)
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) TokensFor(ViewKey, ui/editor/buffer.Snapshot, int, []ui/editor/monarch.Token) ([]ui/editor/monarch.Token, bool)
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) WindowRange() (int, int)
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) WindowRangeFor(ViewKey) (int, int)
+pkg github.com/tangoui/tango/ui/editor/highlight, type Highlighter struct
+pkg github.com/tangoui/tango/ui/editor/highlight, type Highlighter struct, MaxRetries int
+pkg github.com/tangoui/tango/ui/editor/highlight, type Highlighter struct, RetryDelay time.Duration
+pkg github.com/tangoui/tango/ui/editor/highlight, type Highlighter struct, TokenWindow int
+pkg github.com/tangoui/tango/ui/editor/highlight, type Highlighter struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor/highlight, type ViewKey uint64

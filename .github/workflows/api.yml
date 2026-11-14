@@ -1,5 +1,6 @@
-# Go API compatibility: reports incompatible changes to the public API of
-# github.com/tangoui/tango (scripts/apidiff.sh). A separate workflow so that
+# Go API checks for github.com/tangoui/tango: golden files and tiers
+# (internal/cmd/apitxt), incompatible changes (scripts/apidiff.sh) and a
+# CHANGELOG entry for API changes. A separate workflow so that
 # adding or removing the api-break label re-runs only this check.
 # See docs/ci.md and docs/release.md ("API 稳定性").
 name: API
@@ -38,23 +39,50 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: "**/go.sum"
 
-      - name: Check API compatibility
+      - name: Resolve the base commit
         env:
           # PR: the base branch tip (the checkout is the merge commit, so this
           # is exactly the PR's change). Push: the previous tip of main.
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'workflow_dispatch' && inputs.base || github.event.before }}
-          ALLOW_API_BREAK: ${{ (contains(github.event.pull_request.labels.*.name, 'api-break') || contains(github.event.head_commit.message, '[api-break]')) && '1' || '' }}
         run: |
           if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ]; then
-            echo "::notice::no base commit to compare with; skipped"
-            exit 0
-          fi
-          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] &&
-             git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
+            echo "::notice::no base commit to compare with; apidiff and the CHANGELOG check are skipped"
+            BASE=
+          elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] &&
+               git rev-parse --verify --quiet "origin/$BASE^{commit}" >/dev/null; then
             BASE="origin/$BASE"   # a branch name: use the remote branch
           fi
-          if ! git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
-            echo "::notice::base $BASE is not in the history (force push?); skipped"
-            exit 0
+          if [ -n "$BASE" ] && ! git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
+            echo "::notice::base $BASE is not in the history (force push?); apidiff and the CHANGELOG check are skipped"
+            BASE=
           fi
-          bash scripts/apidiff.sh "$BASE"
+          echo "API_BASE=$BASE" >>"$GITHUB_ENV"
+
+      # Golden files api/go/*.txt up to date, every package in api/tiers.txt,
+      # allowlist entries exist. Missing "Experimental" package docs and
+      # cross-tier references are warnings until Phase 2
+      # (docs/specs/api-stability.md).
+      - name: Check API golden files and tiers
+        run: go run ./internal/cmd/apitxt -check
+
+      - name: Check API compatibility
+        if: env.API_BASE != ''
+        env:
+          ALLOW_API_BREAK: ${{ (contains(github.event.pull_request.labels.*.name, 'api-break') || contains(github.event.head_commit.message, '[api-break]')) && '1' || '' }}
+        run: bash scripts/apidiff.sh "$API_BASE"
+
+      - name: Check CHANGELOG for API changes
+        if: env.API_BASE != ''
+        env:
+          NO_CHANGELOG: ${{ contains(github.event.pull_request.labels.*.name, 'no-changelog') && '1' || '' }}
+        run: |
+          # TODO(2026-11-21): one week after this check landed, turn the
+          # warning into a failure (exit 1), as docs/release.md describes.
+          changed="$(git diff --name-only "$API_BASE" HEAD)"
+          if grep -q '^api/go/' <<<"$changed" && ! grep -qx 'CHANGELOG.md' <<<"$changed"; then
+            if [ "$NO_CHANGELOG" = 1 ]; then
+              echo "::notice::api/go changed without a CHANGELOG.md entry (no-changelog label)"
+            else
+              echo "::warning::api/go changed but CHANGELOG.md did not: describe the API change under 未发布 in CHANGELOG.md, or label the PR no-changelog"
+            fi
+          fi

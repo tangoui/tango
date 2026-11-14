@@ -1,0 +1,19 @@
+pkg github.com/tangoui/tango/sys/permission, const Camera Kind = "camera"
+pkg github.com/tangoui/tango/sys/permission, const Denied Status = "denied"
+pkg github.com/tangoui/tango/sys/permission, const Granted Status = "granted"
+pkg github.com/tangoui/tango/sys/permission, const Limited Status = "limited"
+pkg github.com/tangoui/tango/sys/permission, const Location Kind = "location"
+pkg github.com/tangoui/tango/sys/permission, const LocationAlways Kind = "location-always"
+pkg github.com/tangoui/tango/sys/permission, const Microphone Kind = "microphone"
+pkg github.com/tangoui/tango/sys/permission, const NotDetermined Status = "notDetermined"
+pkg github.com/tangoui/tango/sys/permission, const Notifications Kind = "notifications"
+pkg github.com/tangoui/tango/sys/permission, const Photos Kind = "photos"
+pkg github.com/tangoui/tango/sys/permission, func Check(*tango.App, Kind) (Status, error)
+pkg github.com/tangoui/tango/sys/permission, func Request(*tango.App, Kind) (Status, error)
+pkg github.com/tangoui/tango/sys/permission, type Kind = internal/platform.Permission
+pkg github.com/tangoui/tango/sys/permission, type Kind string
+pkg github.com/tangoui/tango/sys/permission, type Status = internal/platform.PermissionStatus
+pkg github.com/tangoui/tango/sys/permission, type Status string
+pkg github.com/tangoui/tango/sys/permission, var All []Kind
+pkg github.com/tangoui/tango/sys/permission, var ErrNotConfigured error
+pkg github.com/tangoui/tango/sys/permission, var ErrUnsupported error

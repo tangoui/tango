@@ -1,0 +1,71 @@
+pkg github.com/tangoui/tango/ui/geom, func All(float32) Insets
+pkg github.com/tangoui/tango/ui/geom, func Identity() Affine
+pkg github.com/tangoui/tango/ui/geom, func IsInf(float32) bool
+pkg github.com/tangoui/tango/ui/geom, func Pt(float32, float32) Point
+pkg github.com/tangoui/tango/ui/geom, func R(float32, float32, float32, float32) Rect
+pkg github.com/tangoui/tango/ui/geom, func Rad(float32) Radii
+pkg github.com/tangoui/tango/ui/geom, func Rotate(float64) Affine
+pkg github.com/tangoui/tango/ui/geom, func RotateAround(float64, Point) Affine
+pkg github.com/tangoui/tango/ui/geom, func Scale(float32, float32) Affine
+pkg github.com/tangoui/tango/ui/geom, func ScaleAround(float32, float32, Point) Affine
+pkg github.com/tangoui/tango/ui/geom, func Skew(float64, float64) Affine
+pkg github.com/tangoui/tango/ui/geom, func Translate(float32, float32) Affine
+pkg github.com/tangoui/tango/ui/geom, func VH(float32, float32) Insets
+pkg github.com/tangoui/tango/ui/geom, method (Affine) Apply(Point) Point
+pkg github.com/tangoui/tango/ui/geom, method (Affine) AxisAligned() bool
+pkg github.com/tangoui/tango/ui/geom, method (Affine) Bounds(Rect) Rect
+pkg github.com/tangoui/tango/ui/geom, method (Affine) Det() float32
+pkg github.com/tangoui/tango/ui/geom, method (Affine) Invert() (Affine, bool)
+pkg github.com/tangoui/tango/ui/geom, method (Affine) IsIdentity() bool
+pkg github.com/tangoui/tango/ui/geom, method (Affine) MaxScale() float32
+pkg github.com/tangoui/tango/ui/geom, method (Affine) Mul(Affine) Affine
+pkg github.com/tangoui/tango/ui/geom, method (Affine) Then(Affine) Affine
+pkg github.com/tangoui/tango/ui/geom, method (Insets) Add(Insets) Insets
+pkg github.com/tangoui/tango/ui/geom, method (Insets) Horizontal() float32
+pkg github.com/tangoui/tango/ui/geom, method (Insets) Vertical() float32
+pkg github.com/tangoui/tango/ui/geom, method (Point) Add(Point) Point
+pkg github.com/tangoui/tango/ui/geom, method (Point) Sub(Point) Point
+pkg github.com/tangoui/tango/ui/geom, method (Radii) Clamp(float32, float32) Radii
+pkg github.com/tangoui/tango/ui/geom, method (Radii) Grow(float32) Radii
+pkg github.com/tangoui/tango/ui/geom, method (Radii) IsZero() bool
+pkg github.com/tangoui/tango/ui/geom, method (Rect) Bottom() float32
+pkg github.com/tangoui/tango/ui/geom, method (Rect) Center() Point
+pkg github.com/tangoui/tango/ui/geom, method (Rect) Contains(Point) bool
+pkg github.com/tangoui/tango/ui/geom, method (Rect) Empty() bool
+pkg github.com/tangoui/tango/ui/geom, method (Rect) Expand(float32) Rect
+pkg github.com/tangoui/tango/ui/geom, method (Rect) Inset(Insets) Rect
+pkg github.com/tangoui/tango/ui/geom, method (Rect) Intersect(Rect) Rect
+pkg github.com/tangoui/tango/ui/geom, method (Rect) Min() Point
+pkg github.com/tangoui/tango/ui/geom, method (Rect) Offset(float32, float32) Rect
+pkg github.com/tangoui/tango/ui/geom, method (Rect) Right() float32
+pkg github.com/tangoui/tango/ui/geom, method (Rect) Size() Size
+pkg github.com/tangoui/tango/ui/geom, method (Rect) Union(Rect) Rect
+pkg github.com/tangoui/tango/ui/geom, type Affine struct
+pkg github.com/tangoui/tango/ui/geom, type Affine struct, A float32
+pkg github.com/tangoui/tango/ui/geom, type Affine struct, B float32
+pkg github.com/tangoui/tango/ui/geom, type Affine struct, C float32
+pkg github.com/tangoui/tango/ui/geom, type Affine struct, D float32
+pkg github.com/tangoui/tango/ui/geom, type Affine struct, E float32
+pkg github.com/tangoui/tango/ui/geom, type Affine struct, F float32
+pkg github.com/tangoui/tango/ui/geom, type Insets struct
+pkg github.com/tangoui/tango/ui/geom, type Insets struct, Bottom float32
+pkg github.com/tangoui/tango/ui/geom, type Insets struct, Left float32
+pkg github.com/tangoui/tango/ui/geom, type Insets struct, Right float32
+pkg github.com/tangoui/tango/ui/geom, type Insets struct, Top float32
+pkg github.com/tangoui/tango/ui/geom, type Point struct
+pkg github.com/tangoui/tango/ui/geom, type Point struct, X float32
+pkg github.com/tangoui/tango/ui/geom, type Point struct, Y float32
+pkg github.com/tangoui/tango/ui/geom, type Radii struct
+pkg github.com/tangoui/tango/ui/geom, type Radii struct, BL float32
+pkg github.com/tangoui/tango/ui/geom, type Radii struct, BR float32
+pkg github.com/tangoui/tango/ui/geom, type Radii struct, TL float32
+pkg github.com/tangoui/tango/ui/geom, type Radii struct, TR float32
+pkg github.com/tangoui/tango/ui/geom, type Rect struct
+pkg github.com/tangoui/tango/ui/geom, type Rect struct, H float32
+pkg github.com/tangoui/tango/ui/geom, type Rect struct, W float32
+pkg github.com/tangoui/tango/ui/geom, type Rect struct, X float32
+pkg github.com/tangoui/tango/ui/geom, type Rect struct, Y float32
+pkg github.com/tangoui/tango/ui/geom, type Size struct
+pkg github.com/tangoui/tango/ui/geom, type Size struct, H float32
+pkg github.com/tangoui/tango/ui/geom, type Size struct, W float32
+pkg github.com/tangoui/tango/ui/geom, var Inf float32

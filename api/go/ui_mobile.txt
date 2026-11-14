@@ -1,0 +1,560 @@
+pkg github.com/tangoui/tango/ui/mobile, const AntMobile Style = 0
+pkg github.com/tangoui/tango/ui/mobile, const AxisBoth Axis = 3
+pkg github.com/tangoui/tango/ui/mobile, const AxisHorizontal Axis = 1
+pkg github.com/tangoui/tango/ui/mobile, const AxisNone Axis = 0
+pkg github.com/tangoui/tango/ui/mobile, const AxisVertical Axis = 2
+pkg github.com/tangoui/tango/ui/mobile, const Bottom Edge = 1
+pkg github.com/tangoui/tango/ui/mobile, const DecelerationRate untyped float = 0.998
+pkg github.com/tangoui/tango/ui/mobile, const DirDown Direction = 4
+pkg github.com/tangoui/tango/ui/mobile, const DirLeft Direction = 1
+pkg github.com/tangoui/tango/ui/mobile, const DirNone Direction = 0
+pkg github.com/tangoui/tango/ui/mobile, const DirRight Direction = 2
+pkg github.com/tangoui/tango/ui/mobile, const DirUp Direction = 3
+pkg github.com/tangoui/tango/ui/mobile, const Dragging ScrollMode = 1
+pkg github.com/tangoui/tango/ui/mobile, const Flinging ScrollMode = 2
+pkg github.com/tangoui/tango/ui/mobile, const Idle ScrollMode = 0
+pkg github.com/tangoui/tango/ui/mobile, const Large Size = 3
+pkg github.com/tangoui/tango/ui/mobile, const Left Edge = 2
+pkg github.com/tangoui/tango/ui/mobile, const LongPressDelay time.Duration = 500000000
+pkg github.com/tangoui/tango/ui/mobile, const Middle Size = 0
+pkg github.com/tangoui/tango/ui/mobile, const Mini Size = 1
+pkg github.com/tangoui/tango/ui/mobile, const PosBottom Position = 0
+pkg github.com/tangoui/tango/ui/mobile, const PosCenter Position = 2
+pkg github.com/tangoui/tango/ui/mobile, const PosEnd Position = 6
+pkg github.com/tangoui/tango/ui/mobile, const PosLeft Position = 3
+pkg github.com/tangoui/tango/ui/mobile, const PosRight Position = 4
+pkg github.com/tangoui/tango/ui/mobile, const PosStart Position = 5
+pkg github.com/tangoui/tango/ui/mobile, const PosTop Position = 1
+pkg github.com/tangoui/tango/ui/mobile, const PrecisionDay DatePrecision = 2
+pkg github.com/tangoui/tango/ui/mobile, const PrecisionHour DatePrecision = 3
+pkg github.com/tangoui/tango/ui/mobile, const PrecisionMinute DatePrecision = 4
+pkg github.com/tangoui/tango/ui/mobile, const PrecisionMonth DatePrecision = 1
+pkg github.com/tangoui/tango/ui/mobile, const PrecisionYear DatePrecision = 0
+pkg github.com/tangoui/tango/ui/mobile, const RefreshCanRelease RefreshStatus = 2
+pkg github.com/tangoui/tango/ui/mobile, const RefreshComplete RefreshStatus = 4
+pkg github.com/tangoui/tango/ui/mobile, const RefreshIdle RefreshStatus = 0
+pkg github.com/tangoui/tango/ui/mobile, const RefreshPulling RefreshStatus = 1
+pkg github.com/tangoui/tango/ui/mobile, const RefreshRefreshing RefreshStatus = 3
+pkg github.com/tangoui/tango/ui/mobile, const Right Edge = 3
+pkg github.com/tangoui/tango/ui/mobile, const RubberBand untyped float = 0.55
+pkg github.com/tangoui/tango/ui/mobile, const Shadcn Style = 2
+pkg github.com/tangoui/tango/ui/mobile, const Small Size = 2
+pkg github.com/tangoui/tango/ui/mobile, const SpringOmega untyped float = 13
+pkg github.com/tangoui/tango/ui/mobile, const Springing ScrollMode = 3
+pkg github.com/tangoui/tango/ui/mobile, const SwipeMinDistance untyped int = 30
+pkg github.com/tangoui/tango/ui/mobile, const SwipeMinVelocity untyped int = 250
+pkg github.com/tangoui/tango/ui/mobile, const Top Edge = 0
+pkg github.com/tangoui/tango/ui/mobile, const TouchSlop untyped int = 8
+pkg github.com/tangoui/tango/ui/mobile, const Vant Style = 1
+pkg github.com/tangoui/tango/ui/mobile, func ActionSheet(*ui.Context, *bool, []Action) *ActionSheetW
+pkg github.com/tangoui/tango/ui/mobile, func Area(*ui.Context, *ui.Box, Axis, func(Direction) bool) Gesture
+pkg github.com/tangoui/tango/ui/mobile, func Badge(*ui.Context, string, func()) *ui.Box
+pkg github.com/tangoui/tango/ui/mobile, func Button(*ui.Context, string) *ButtonW
+pkg github.com/tangoui/tango/ui/mobile, func CascadePickerView(*ui.Context, []ui.CascaderOption, *[]string) *PickerViewW
+pkg github.com/tangoui/tango/ui/mobile, func Cell(*ui.Context, string) *CellW
+pkg github.com/tangoui/tango/ui/mobile, func ClearToast(*ui.Context)
+pkg github.com/tangoui/tango/ui/mobile, func DatePickerView(*ui.Context, *time.Time, DatePrecision, ...time.Time) *PickerViewW
+pkg github.com/tangoui/tango/ui/mobile, func Decay(float64, float64, float64) (float64, float64)
+pkg github.com/tangoui/tango/ui/mobile, func DecayTarget(float64, float64) float64
+pkg github.com/tangoui/tango/ui/mobile, func Dialog(*ui.Context, *bool, string) *DialogW
+pkg github.com/tangoui/tango/ui/mobile, func DirectionOf(ui/geom.Point) Direction
+pkg github.com/tangoui/tango/ui/mobile, func DrawBadge(*ui/paint.List, *Theme, string, float32, float32)
+pkg github.com/tangoui/tango/ui/mobile, func Empty(*ui.Context) *EmptyW
+pkg github.com/tangoui/tango/ui/mobile, func Field(*ui.Context, *string) *FieldW
+pkg github.com/tangoui/tango/ui/mobile, func FloatingBubble(*ui.Context, *ui/icon.Icon, Axis, bool) *FloatingBubbleW
+pkg github.com/tangoui/tango/ui/mobile, func Form(*ui.Context) *FormW
+pkg github.com/tangoui/tango/ui/mobile, func FormItem(*ui.Context, string) *FormItemW
+pkg github.com/tangoui/tango/ui/mobile, func Grid(*ui.Context, int, []GridItem) *GridW
+pkg github.com/tangoui/tango/ui/mobile, func IndexBar(*ui.Context, []string) *IndexBarW
+pkg github.com/tangoui/tango/ui/mobile, func InfiniteList(*ui.Context, *bool) *ScrollViewW
+pkg github.com/tangoui/tango/ui/mobile, func List(*ui.Context, string) *ListW
+pkg github.com/tangoui/tango/ui/mobile, func NavBar(*ui.Context, string) *NavBarW
+pkg github.com/tangoui/tango/ui/mobile, func NewTheme(*ui/theme.Theme, Style) *Theme
+pkg github.com/tangoui/tango/ui/mobile, func NoticeBar(*ui.Context, string) *NoticeBarW
+pkg github.com/tangoui/tango/ui/mobile, func Picker(*ui.Context, *bool, string) *PickerW
+pkg github.com/tangoui/tango/ui/mobile, func PickerView(*ui.Context, [][]ui.Option, *[]string) *PickerViewW
+pkg github.com/tangoui/tango/ui/mobile, func Popup(*ui.Context, *bool) *PopupW
+pkg github.com/tangoui/tango/ui/mobile, func Provider(*ui.Context, Options, func())
+pkg github.com/tangoui/tango/ui/mobile, func PullToRefresh(*ui.Context, *bool) *ScrollViewW
+pkg github.com/tangoui/tango/ui/mobile, func Result(*ui.Context, string, string) *ResultW
+pkg github.com/tangoui/tango/ui/mobile, func Rubber(float64, float64) float64
+pkg github.com/tangoui/tango/ui/mobile, func RubberInverse(float64, float64) float64
+pkg github.com/tangoui/tango/ui/mobile, func SafeArea(*ui.Context, Edge) *ui.Box
+pkg github.com/tangoui/tango/ui/mobile, func SafeAreaInsets(*ui.Context) ui/geom.Insets
+pkg github.com/tangoui/tango/ui/mobile, func ScrollView(*ui.Context) *ScrollViewW
+pkg github.com/tangoui/tango/ui/mobile, func SearchBar(*ui.Context, *string, string, string) *SearchBarW
+pkg github.com/tangoui/tango/ui/mobile, func ShowToast(*ui.Context, string, ...ToastOptions)
+pkg github.com/tangoui/tango/ui/mobile, func Skeleton(*ui.Context) *SkeletonW
+pkg github.com/tangoui/tango/ui/mobile, func Spring(float64, float64, float64, float64) (float64, float64)
+pkg github.com/tangoui/tango/ui/mobile, func Stepper(*ui.Context, *float64) *StepperW
+pkg github.com/tangoui/tango/ui/mobile, func SwipeCell(*ui.Context) *SwipeCellW
+pkg github.com/tangoui/tango/ui/mobile, func Swiper(*ui.Context, *int) *SwiperW
+pkg github.com/tangoui/tango/ui/mobile, func TabBar(*ui.Context, []TabItem, *string) *TabBarW
+pkg github.com/tangoui/tango/ui/mobile, func Tabs(*ui.Context, []string, *int) *TabsW
+pkg github.com/tangoui/tango/ui/mobile, func Tag(*ui.Context, string) *TagW
+pkg github.com/tangoui/tango/ui/mobile, func ThemeOf(*ui.Context) *Theme
+pkg github.com/tangoui/tango/ui/mobile, func Toast(*ui.Context, *bool, string) *ToastW
+pkg github.com/tangoui/tango/ui/mobile, func Touchable(*ui.Context, *ui.Box) Press
+pkg github.com/tangoui/tango/ui/mobile, func Within(*ui.Context, ui.ID, func())
+pkg github.com/tangoui/tango/ui/mobile, method (*ActionSheetW) Cancel(string) *ActionSheetW
+pkg github.com/tangoui/tango/ui/mobile, method (*ActionSheetW) Cancelled() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*ActionSheetW) Extra(string) *ActionSheetW
+pkg github.com/tangoui/tango/ui/mobile, method (*ActionSheetW) Selected() (int, bool)
+pkg github.com/tangoui/tango/ui/mobile, method (*ActionSheetW) Show() *ActionSheetW
+pkg github.com/tangoui/tango/ui/mobile, method (*ButtonW) A11yLabel(string) *ButtonW
+pkg github.com/tangoui/tango/ui/mobile, method (*ButtonW) Block() *ButtonW
+pkg github.com/tangoui/tango/ui/mobile, method (*ButtonW) Clicked() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*ButtonW) Color(string) *ButtonW
+pkg github.com/tangoui/tango/ui/mobile, method (*ButtonW) Danger() *ButtonW
+pkg github.com/tangoui/tango/ui/mobile, method (*ButtonW) Disabled(bool) *ButtonW
+pkg github.com/tangoui/tango/ui/mobile, method (*ButtonW) Fill(string) *ButtonW
+pkg github.com/tangoui/tango/ui/mobile, method (*ButtonW) ID() ui.ID
+pkg github.com/tangoui/tango/ui/mobile, method (*ButtonW) Icon(*ui/icon.Icon) *ButtonW
+pkg github.com/tangoui/tango/ui/mobile, method (*ButtonW) Layout(...ui/layout.Option) *ButtonW
+pkg github.com/tangoui/tango/ui/mobile, method (*ButtonW) Loading(bool) *ButtonW
+pkg github.com/tangoui/tango/ui/mobile, method (*ButtonW) Primary() *ButtonW
+pkg github.com/tangoui/tango/ui/mobile, method (*ButtonW) Round() *ButtonW
+pkg github.com/tangoui/tango/ui/mobile, method (*ButtonW) Size(Size) *ButtonW
+pkg github.com/tangoui/tango/ui/mobile, method (*CellW) Arrow() *CellW
+pkg github.com/tangoui/tango/ui/mobile, method (*CellW) Changed() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*CellW) Clickable() *CellW
+pkg github.com/tangoui/tango/ui/mobile, method (*CellW) Clicked() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*CellW) Desc(string) *CellW
+pkg github.com/tangoui/tango/ui/mobile, method (*CellW) Disabled(bool) *CellW
+pkg github.com/tangoui/tango/ui/mobile, method (*CellW) Extra(string) *CellW
+pkg github.com/tangoui/tango/ui/mobile, method (*CellW) ID() ui.ID
+pkg github.com/tangoui/tango/ui/mobile, method (*CellW) Icon(*ui/icon.Icon) *CellW
+pkg github.com/tangoui/tango/ui/mobile, method (*CellW) LongPressed() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*CellW) Required() *CellW
+pkg github.com/tangoui/tango/ui/mobile, method (*CellW) Switch(*bool) *CellW
+pkg github.com/tangoui/tango/ui/mobile, method (*DialogW) Cancelled() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*DialogW) CloseOnMask() *DialogW
+pkg github.com/tangoui/tango/ui/mobile, method (*DialogW) Confirm(string, string) *DialogW
+pkg github.com/tangoui/tango/ui/mobile, method (*DialogW) Confirmed() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*DialogW) Content(string) *DialogW
+pkg github.com/tangoui/tango/ui/mobile, method (*DialogW) Custom(func()) *DialogW
+pkg github.com/tangoui/tango/ui/mobile, method (*DialogW) OKText(string) *DialogW
+pkg github.com/tangoui/tango/ui/mobile, method (*DialogW) PanelID() ui.ID
+pkg github.com/tangoui/tango/ui/mobile, method (*DialogW) Show() *DialogW
+pkg github.com/tangoui/tango/ui/mobile, method (*EmptyW) Description(string) *EmptyW
+pkg github.com/tangoui/tango/ui/mobile, method (*FieldW) Changed() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*FieldW) EnterKey(ui/input.EnterKey) *FieldW
+pkg github.com/tangoui/tango/ui/mobile, method (*FieldW) Input() *ui.InputW
+pkg github.com/tangoui/tango/ui/mobile, method (*FieldW) MaxLength(int) *FieldW
+pkg github.com/tangoui/tango/ui/mobile, method (*FieldW) Password() *FieldW
+pkg github.com/tangoui/tango/ui/mobile, method (*FieldW) Placeholder(string) *FieldW
+pkg github.com/tangoui/tango/ui/mobile, method (*FieldW) Submitted() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*FieldW) Type(ui/input.TextKind) *FieldW
+pkg github.com/tangoui/tango/ui/mobile, method (*FloatingBubbleW) A11yLabel(string) *FloatingBubbleW
+pkg github.com/tangoui/tango/ui/mobile, method (*FloatingBubbleW) Clicked() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*FormItemW) Arrow() *FormItemW
+pkg github.com/tangoui/tango/ui/mobile, method (*FormItemW) Body(func()) *FormItemW
+pkg github.com/tangoui/tango/ui/mobile, method (*FormItemW) Clicked() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*FormItemW) Error(string) *FormItemW
+pkg github.com/tangoui/tango/ui/mobile, method (*FormItemW) Help(string) *FormItemW
+pkg github.com/tangoui/tango/ui/mobile, method (*FormItemW) Required() *FormItemW
+pkg github.com/tangoui/tango/ui/mobile, method (*FormW) Body(func())
+pkg github.com/tangoui/tango/ui/mobile, method (*FormW) Card() *FormW
+pkg github.com/tangoui/tango/ui/mobile, method (*FormW) Header(string) *FormW
+pkg github.com/tangoui/tango/ui/mobile, method (*FormW) Vertical() *FormW
+pkg github.com/tangoui/tango/ui/mobile, method (*GridW) Border(bool) *GridW
+pkg github.com/tangoui/tango/ui/mobile, method (*GridW) Clicked() (int, bool)
+pkg github.com/tangoui/tango/ui/mobile, method (*IndexBarW) Body(func(int)) *IndexBarW
+pkg github.com/tangoui/tango/ui/mobile, method (*IndexBarW) Layout(...ui/layout.Option) *IndexBarW
+pkg github.com/tangoui/tango/ui/mobile, method (*ListW) Body(func())
+pkg github.com/tangoui/tango/ui/mobile, method (*ListW) Card() *ListW
+pkg github.com/tangoui/tango/ui/mobile, method (*ListW) Layout(...ui/layout.Option) *ListW
+pkg github.com/tangoui/tango/ui/mobile, method (*NavBarW) Back(string) *NavBarW
+pkg github.com/tangoui/tango/ui/mobile, method (*NavBarW) BackClicked() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*NavBarW) Border(bool) *NavBarW
+pkg github.com/tangoui/tango/ui/mobile, method (*NavBarW) ID() ui.ID
+pkg github.com/tangoui/tango/ui/mobile, method (*NavBarW) Right(string) *NavBarW
+pkg github.com/tangoui/tango/ui/mobile, method (*NavBarW) RightClicked() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*NavBarW) RightIcon(*ui/icon.Icon) *NavBarW
+pkg github.com/tangoui/tango/ui/mobile, method (*NavBarW) RightLabel(string) *NavBarW
+pkg github.com/tangoui/tango/ui/mobile, method (*NoticeBarW) Closeable() *NoticeBarW
+pkg github.com/tangoui/tango/ui/mobile, method (*NoticeBarW) Closed() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*NoticeBarW) Color(string) *NoticeBarW
+pkg github.com/tangoui/tango/ui/mobile, method (*NoticeBarW) Scroll() *NoticeBarW
+pkg github.com/tangoui/tango/ui/mobile, method (*PickerViewW) A11yLabel(string) *PickerViewW
+pkg github.com/tangoui/tango/ui/mobile, method (*PickerViewW) A11yLabels(...string) *PickerViewW
+pkg github.com/tangoui/tango/ui/mobile, method (*PickerViewW) Changed() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*PickerViewW) ID() ui.ID
+pkg github.com/tangoui/tango/ui/mobile, method (*PickerViewW) Show() *PickerViewW
+pkg github.com/tangoui/tango/ui/mobile, method (*PickerViewW) Visible(int) *PickerViewW
+pkg github.com/tangoui/tango/ui/mobile, method (*PickerW) Cancelled() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*PickerW) Cascade([]ui.CascaderOption, *[]string) *PickerW
+pkg github.com/tangoui/tango/ui/mobile, method (*PickerW) Columns([][]ui.Option, *[]string) *PickerW
+pkg github.com/tangoui/tango/ui/mobile, method (*PickerW) Confirmed() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*PickerW) Date(*time.Time, DatePrecision, ...time.Time) *PickerW
+pkg github.com/tangoui/tango/ui/mobile, method (*PickerW) Show() *PickerW
+pkg github.com/tangoui/tango/ui/mobile, method (*PinchRecognizer) Update([]TouchPoint) Pinch
+pkg github.com/tangoui/tango/ui/mobile, method (*PopupW) A11yLabel(string) *PopupW
+pkg github.com/tangoui/tango/ui/mobile, method (*PopupW) Bg(paintColor) *PopupW
+pkg github.com/tangoui/tango/ui/mobile, method (*PopupW) Body(func()) *PopupW
+pkg github.com/tangoui/tango/ui/mobile, method (*PopupW) CloseOnMask(bool) *PopupW
+pkg github.com/tangoui/tango/ui/mobile, method (*PopupW) Closed() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*PopupW) Handle(bool) *PopupW
+pkg github.com/tangoui/tango/ui/mobile, method (*PopupW) Layout(...ui/layout.Option) *PopupW
+pkg github.com/tangoui/tango/ui/mobile, method (*PopupW) Mask(bool) *PopupW
+pkg github.com/tangoui/tango/ui/mobile, method (*PopupW) Position(Position) *PopupW
+pkg github.com/tangoui/tango/ui/mobile, method (*PopupW) Round(bool) *PopupW
+pkg github.com/tangoui/tango/ui/mobile, method (*RefreshMachine) Finish(time.Time)
+pkg github.com/tangoui/tango/ui/mobile, method (*RefreshMachine) Holding() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*RefreshMachine) Pull(float64)
+pkg github.com/tangoui/tango/ui/mobile, method (*RefreshMachine) Release() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*RefreshMachine) Start()
+pkg github.com/tangoui/tango/ui/mobile, method (*RefreshMachine) Tick(time.Time) time.Time
+pkg github.com/tangoui/tango/ui/mobile, method (*ResultW) Description(string) *ResultW
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) Bg(paintColor) *ScrollViewW
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) Body(func()) *ScrollViewW
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) ContentID() ui.ID
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) Failed(*bool) *ScrollViewW
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) Finished(bool) *ScrollViewW
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) ID() ui.ID
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) Infinite(*bool) *ScrollViewW
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) Layout(...ui/layout.Option) *ScrollViewW
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) LoadMore() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) Offset(float32) *ScrollViewW
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) Pull(*bool) *ScrollViewW
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) PullTexts(string, string, string, string) *ScrollViewW
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) Refreshed() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) Rows(int, float32, func(int))
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) ScrollOffset() float64
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) ScrollTo(float64) *ScrollViewW
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) Scrolling() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*ScrollViewW) Status() RefreshStatus
+pkg github.com/tangoui/tango/ui/mobile, method (*Scroller) Active() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*Scroller) BeginDrag()
+pkg github.com/tangoui/tango/ui/mobile, method (*Scroller) DragBy(float64)
+pkg github.com/tangoui/tango/ui/mobile, method (*Scroller) Release(float64, time.Time)
+pkg github.com/tangoui/tango/ui/mobile, method (*Scroller) Settle()
+pkg github.com/tangoui/tango/ui/mobile, method (*Scroller) SnapTo(float64, time.Time)
+pkg github.com/tangoui/tango/ui/mobile, method (*Scroller) Step(time.Time) bool
+pkg github.com/tangoui/tango/ui/mobile, method (*Scroller) Stop()
+pkg github.com/tangoui/tango/ui/mobile, method (*SearchBarW) Cancelled() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*SearchBarW) Changed() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*SearchBarW) Submitted() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*SkeletonW) Animated(bool) *SkeletonW
+pkg github.com/tangoui/tango/ui/mobile, method (*SkeletonW) Avatar() *SkeletonW
+pkg github.com/tangoui/tango/ui/mobile, method (*SkeletonW) Paragraph(int) *SkeletonW
+pkg github.com/tangoui/tango/ui/mobile, method (*SkeletonW) Title() *SkeletonW
+pkg github.com/tangoui/tango/ui/mobile, method (*StepperW) A11yLabel(string) *StepperW
+pkg github.com/tangoui/tango/ui/mobile, method (*StepperW) Changed() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*StepperW) Digits(int) *StepperW
+pkg github.com/tangoui/tango/ui/mobile, method (*StepperW) Disabled(bool) *StepperW
+pkg github.com/tangoui/tango/ui/mobile, method (*StepperW) Max(float64) *StepperW
+pkg github.com/tangoui/tango/ui/mobile, method (*StepperW) Min(float64) *StepperW
+pkg github.com/tangoui/tango/ui/mobile, method (*StepperW) Step(float64) *StepperW
+pkg github.com/tangoui/tango/ui/mobile, method (*SwipeCellW) Action() (int, int, bool)
+pkg github.com/tangoui/tango/ui/mobile, method (*SwipeCellW) ActionKey() string
+pkg github.com/tangoui/tango/ui/mobile, method (*SwipeCellW) Body(func()) *SwipeCellW
+pkg github.com/tangoui/tango/ui/mobile, method (*SwipeCellW) Close() *SwipeCellW
+pkg github.com/tangoui/tango/ui/mobile, method (*SwipeCellW) IsOpen() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*SwipeCellW) KeepOpen() *SwipeCellW
+pkg github.com/tangoui/tango/ui/mobile, method (*SwipeCellW) Left(...SwipeAction) *SwipeCellW
+pkg github.com/tangoui/tango/ui/mobile, method (*SwipeCellW) Open(int) *SwipeCellW
+pkg github.com/tangoui/tango/ui/mobile, method (*SwipeCellW) Right(...SwipeAction) *SwipeCellW
+pkg github.com/tangoui/tango/ui/mobile, method (*SwiperW) Autoplay(time.Duration) *SwiperW
+pkg github.com/tangoui/tango/ui/mobile, method (*SwiperW) Changed() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*SwiperW) Height(float32) *SwiperW
+pkg github.com/tangoui/tango/ui/mobile, method (*SwiperW) Indicator(bool) *SwiperW
+pkg github.com/tangoui/tango/ui/mobile, method (*SwiperW) IndicatorColor(ui/theme.Color, ui/theme.Color) *SwiperW
+pkg github.com/tangoui/tango/ui/mobile, method (*SwiperW) IndicatorWhite() *SwiperW
+pkg github.com/tangoui/tango/ui/mobile, method (*SwiperW) Loop() *SwiperW
+pkg github.com/tangoui/tango/ui/mobile, method (*SwiperW) Radius(float32) *SwiperW
+pkg github.com/tangoui/tango/ui/mobile, method (*SwiperW) Slides(int, func(int)) *SwiperW
+pkg github.com/tangoui/tango/ui/mobile, method (*TabBarW) Border(bool) *TabBarW
+pkg github.com/tangoui/tango/ui/mobile, method (*TabBarW) Changed() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*TabBarW) ID() ui.ID
+pkg github.com/tangoui/tango/ui/mobile, method (*TabsW) Body(func(int)) *TabsW
+pkg github.com/tangoui/tango/ui/mobile, method (*TabsW) Changed() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*TabsW) Header() *TabsW
+pkg github.com/tangoui/tango/ui/mobile, method (*TabsW) Swipeable() *TabsW
+pkg github.com/tangoui/tango/ui/mobile, method (*TagW) Color(string) *TagW
+pkg github.com/tangoui/tango/ui/mobile, method (*TagW) Light() *TagW
+pkg github.com/tangoui/tango/ui/mobile, method (*TagW) Outline() *TagW
+pkg github.com/tangoui/tango/ui/mobile, method (*TagW) Round() *TagW
+pkg github.com/tangoui/tango/ui/mobile, method (*Theme) ColorOf(string) ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, method (*Theme) Font(float32, ui/text.Weight) ui/text.Style
+pkg github.com/tangoui/tango/ui/mobile, method (*ToastW) Duration(time.Duration) *ToastW
+pkg github.com/tangoui/tango/ui/mobile, method (*ToastW) Icon(string) *ToastW
+pkg github.com/tangoui/tango/ui/mobile, method (*ToastW) Position(Position) *ToastW
+pkg github.com/tangoui/tango/ui/mobile, method (*ToastW) Show() *ToastW
+pkg github.com/tangoui/tango/ui/mobile, method (*Track) Begin(Sample)
+pkg github.com/tangoui/tango/ui/mobile, method (*Track) Delta() ui/geom.Point
+pkg github.com/tangoui/tango/ui/mobile, method (*Track) End(Sample)
+pkg github.com/tangoui/tango/ui/mobile, method (*Track) Held(time.Time) time.Duration
+pkg github.com/tangoui/tango/ui/mobile, method (*Track) IsTap() bool
+pkg github.com/tangoui/tango/ui/mobile, method (*Track) Move(Sample) bool
+pkg github.com/tangoui/tango/ui/mobile, method (*Track) Swipe() (Swipe, bool)
+pkg github.com/tangoui/tango/ui/mobile, method (*Track) Velocity() ui/geom.Point
+pkg github.com/tangoui/tango/ui/mobile, method (Direction) Horizontal() bool
+pkg github.com/tangoui/tango/ui/mobile, method (Direction) String() string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.ActionSheet" "cancelText" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.ActionSheet" "closeOnMaskClick" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Button" "block" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Button" "color" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Button" "fill" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Button" "shape" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Button" "size" Size|ui.ControlSize|string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Cell" "arrow" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Cell" "clickable" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Dialog" "cancelText" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Dialog" "closeOnMaskClick" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Dialog" "confirmText" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Empty" "description" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Field" "clearable" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Field" "maxLength" number
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Field" "placeholder" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.FloatingBubble" "size" number
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Form" "layout" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Form" "mode" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Grid" "bordered" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.List" "mode" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.NavBar" "bordered" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.NoticeBar" "closeable" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.NoticeBar" "color" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.NoticeBar" "scroll" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Picker" "closeOnMaskClick" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.PickerView" "visibleItemCount" number
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Popup" "closeOnMaskClick" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Popup" "handle" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Popup" "mask" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Popup" "position" Position|string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Popup" "round" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.SearchBar" "cancelText" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.SearchBar" "placeholder" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.SearchBar" "shape" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Skeleton" "animated" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Skeleton" "avatar" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Skeleton" "rows" number
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Skeleton" "title" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Stepper" "digits" number
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Stepper" "disabled" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Stepper" "max" number
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Stepper" "min" number
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Stepper" "step" number
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.SwipeCell" "closeOnAction" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Swiper" "autoplay" time.Duration|number
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Swiper" "height" number
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Swiper" "indicator" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Swiper" "indicatorColor" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Swiper" "loop" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Swiper" "radius" number
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.TabBar" "bordered" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Tabs" "swipeable" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Tag" "color" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Tag" "fill" string
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Tag" "round" bool
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Toast" "duration" time.Duration|number
+pkg github.com/tangoui/tango/ui/mobile, prop "mobile.Toast" "position" Position|string
+pkg github.com/tangoui/tango/ui/mobile, type Action struct
+pkg github.com/tangoui/tango/ui/mobile, type Action struct, Bold bool
+pkg github.com/tangoui/tango/ui/mobile, type Action struct, Danger bool
+pkg github.com/tangoui/tango/ui/mobile, type Action struct, Description string
+pkg github.com/tangoui/tango/ui/mobile, type Action struct, Disabled bool
+pkg github.com/tangoui/tango/ui/mobile, type Action struct, Key string
+pkg github.com/tangoui/tango/ui/mobile, type Action struct, Text string
+pkg github.com/tangoui/tango/ui/mobile, type ActionSheetW struct
+pkg github.com/tangoui/tango/ui/mobile, type ActionSheetW struct, noncomparable
+pkg github.com/tangoui/tango/ui/mobile, type Axis uint8
+pkg github.com/tangoui/tango/ui/mobile, type ButtonW struct
+pkg github.com/tangoui/tango/ui/mobile, type CellW struct
+pkg github.com/tangoui/tango/ui/mobile, type DatePrecision uint8
+pkg github.com/tangoui/tango/ui/mobile, type DialogW struct
+pkg github.com/tangoui/tango/ui/mobile, type DialogW struct, noncomparable
+pkg github.com/tangoui/tango/ui/mobile, type Direction uint8
+pkg github.com/tangoui/tango/ui/mobile, type Edge uint8
+pkg github.com/tangoui/tango/ui/mobile, type EmptyW struct
+pkg github.com/tangoui/tango/ui/mobile, type FieldW struct
+pkg github.com/tangoui/tango/ui/mobile, type FloatingBubbleW struct
+pkg github.com/tangoui/tango/ui/mobile, type FormItemW struct
+pkg github.com/tangoui/tango/ui/mobile, type FormW struct
+pkg github.com/tangoui/tango/ui/mobile, type Gesture struct
+pkg github.com/tangoui/tango/ui/mobile, type Gesture struct, ID ui.ID
+pkg github.com/tangoui/tango/ui/mobile, type Gesture struct, LongPos ui/geom.Point
+pkg github.com/tangoui/tango/ui/mobile, type Gesture struct, LongPress bool
+pkg github.com/tangoui/tango/ui/mobile, type Gesture struct, Outside bool
+pkg github.com/tangoui/tango/ui/mobile, type Gesture struct, Pan Pan
+pkg github.com/tangoui/tango/ui/mobile, type Gesture struct, Pinch Pinch
+pkg github.com/tangoui/tango/ui/mobile, type Gesture struct, Swipe Swipe
+pkg github.com/tangoui/tango/ui/mobile, type Gesture struct, Swiped bool
+pkg github.com/tangoui/tango/ui/mobile, type Gesture struct, Tap bool
+pkg github.com/tangoui/tango/ui/mobile, type Gesture struct, TapPos ui/geom.Point
+pkg github.com/tangoui/tango/ui/mobile, type Gesture struct, TouchStart bool
+pkg github.com/tangoui/tango/ui/mobile, type GridItem struct
+pkg github.com/tangoui/tango/ui/mobile, type GridItem struct, Badge string
+pkg github.com/tangoui/tango/ui/mobile, type GridItem struct, Icon *ui/icon.Icon
+pkg github.com/tangoui/tango/ui/mobile, type GridItem struct, Text string
+pkg github.com/tangoui/tango/ui/mobile, type GridW struct
+pkg github.com/tangoui/tango/ui/mobile, type GridW struct, noncomparable
+pkg github.com/tangoui/tango/ui/mobile, type IndexBarW struct
+pkg github.com/tangoui/tango/ui/mobile, type IndexBarW struct, noncomparable
+pkg github.com/tangoui/tango/ui/mobile, type ListW struct
+pkg github.com/tangoui/tango/ui/mobile, type ListW struct, noncomparable
+pkg github.com/tangoui/tango/ui/mobile, type NavBarW struct
+pkg github.com/tangoui/tango/ui/mobile, type NoticeBarW struct
+pkg github.com/tangoui/tango/ui/mobile, type Options struct
+pkg github.com/tangoui/tango/ui/mobile, type Options struct, SafeArea *ui/geom.Insets
+pkg github.com/tangoui/tango/ui/mobile, type Options struct, Style Style
+pkg github.com/tangoui/tango/ui/mobile, type Pan struct
+pkg github.com/tangoui/tango/ui/mobile, type Pan struct, Active bool
+pkg github.com/tangoui/tango/ui/mobile, type Pan struct, Began bool
+pkg github.com/tangoui/tango/ui/mobile, type Pan struct, Delta ui/geom.Point
+pkg github.com/tangoui/tango/ui/mobile, type Pan struct, Dir Direction
+pkg github.com/tangoui/tango/ui/mobile, type Pan struct, Ended bool
+pkg github.com/tangoui/tango/ui/mobile, type Pan struct, Velocity ui/geom.Point
+pkg github.com/tangoui/tango/ui/mobile, type PickerViewW struct
+pkg github.com/tangoui/tango/ui/mobile, type PickerViewW struct, noncomparable
+pkg github.com/tangoui/tango/ui/mobile, type PickerW struct
+pkg github.com/tangoui/tango/ui/mobile, type PickerW struct, noncomparable
+pkg github.com/tangoui/tango/ui/mobile, type Pinch struct
+pkg github.com/tangoui/tango/ui/mobile, type Pinch struct, Active bool
+pkg github.com/tangoui/tango/ui/mobile, type Pinch struct, Center ui/geom.Point
+pkg github.com/tangoui/tango/ui/mobile, type Pinch struct, Pan ui/geom.Point
+pkg github.com/tangoui/tango/ui/mobile, type Pinch struct, Rotation float64
+pkg github.com/tangoui/tango/ui/mobile, type Pinch struct, Scale float32
+pkg github.com/tangoui/tango/ui/mobile, type PinchRecognizer struct
+pkg github.com/tangoui/tango/ui/mobile, type PopupW struct
+pkg github.com/tangoui/tango/ui/mobile, type PopupW struct, noncomparable
+pkg github.com/tangoui/tango/ui/mobile, type Position uint8
+pkg github.com/tangoui/tango/ui/mobile, type Press struct
+pkg github.com/tangoui/tango/ui/mobile, type Press struct, KeyTap bool
+pkg github.com/tangoui/tango/ui/mobile, type Press struct, LongPos ui/geom.Point
+pkg github.com/tangoui/tango/ui/mobile, type Press struct, LongPress bool
+pkg github.com/tangoui/tango/ui/mobile, type Press struct, PressPos ui/geom.Point
+pkg github.com/tangoui/tango/ui/mobile, type Press struct, Pressed bool
+pkg github.com/tangoui/tango/ui/mobile, type Press struct, Tap bool
+pkg github.com/tangoui/tango/ui/mobile, type Press struct, TapPos ui/geom.Point
+pkg github.com/tangoui/tango/ui/mobile, type RefreshMachine struct
+pkg github.com/tangoui/tango/ui/mobile, type RefreshMachine struct, Delay time.Duration
+pkg github.com/tangoui/tango/ui/mobile, type RefreshMachine struct, Status RefreshStatus
+pkg github.com/tangoui/tango/ui/mobile, type RefreshMachine struct, Threshold float64
+pkg github.com/tangoui/tango/ui/mobile, type RefreshStatus uint8
+pkg github.com/tangoui/tango/ui/mobile, type ResultW struct
+pkg github.com/tangoui/tango/ui/mobile, type Sample struct
+pkg github.com/tangoui/tango/ui/mobile, type Sample struct, Pos ui/geom.Point
+pkg github.com/tangoui/tango/ui/mobile, type Sample struct, T time.Time
+pkg github.com/tangoui/tango/ui/mobile, type ScrollMode uint8
+pkg github.com/tangoui/tango/ui/mobile, type ScrollViewW struct
+pkg github.com/tangoui/tango/ui/mobile, type Scroller struct
+pkg github.com/tangoui/tango/ui/mobile, type Scroller struct, Dim float64
+pkg github.com/tangoui/tango/ui/mobile, type Scroller struct, Max float64
+pkg github.com/tangoui/tango/ui/mobile, type Scroller struct, Min float64
+pkg github.com/tangoui/tango/ui/mobile, type Scroller struct, Mode ScrollMode
+pkg github.com/tangoui/tango/ui/mobile, type Scroller struct, NoBounce bool
+pkg github.com/tangoui/tango/ui/mobile, type Scroller struct, Pos float64
+pkg github.com/tangoui/tango/ui/mobile, type Scroller struct, Snap float64
+pkg github.com/tangoui/tango/ui/mobile, type SearchBarW struct
+pkg github.com/tangoui/tango/ui/mobile, type Size uint8
+pkg github.com/tangoui/tango/ui/mobile, type SkeletonW struct
+pkg github.com/tangoui/tango/ui/mobile, type StepperW struct
+pkg github.com/tangoui/tango/ui/mobile, type Style uint8
+pkg github.com/tangoui/tango/ui/mobile, type Swipe struct
+pkg github.com/tangoui/tango/ui/mobile, type Swipe struct, Dir Direction
+pkg github.com/tangoui/tango/ui/mobile, type Swipe struct, Distance float32
+pkg github.com/tangoui/tango/ui/mobile, type Swipe struct, Speed float32
+pkg github.com/tangoui/tango/ui/mobile, type Swipe struct, Velocity ui/geom.Point
+pkg github.com/tangoui/tango/ui/mobile, type SwipeAction struct
+pkg github.com/tangoui/tango/ui/mobile, type SwipeAction struct, Color string
+pkg github.com/tangoui/tango/ui/mobile, type SwipeAction struct, Key string
+pkg github.com/tangoui/tango/ui/mobile, type SwipeAction struct, Text string
+pkg github.com/tangoui/tango/ui/mobile, type SwipeCellW struct
+pkg github.com/tangoui/tango/ui/mobile, type SwipeCellW struct, noncomparable
+pkg github.com/tangoui/tango/ui/mobile, type SwiperW struct
+pkg github.com/tangoui/tango/ui/mobile, type TabBarW struct
+pkg github.com/tangoui/tango/ui/mobile, type TabBarW struct, noncomparable
+pkg github.com/tangoui/tango/ui/mobile, type TabItem struct
+pkg github.com/tangoui/tango/ui/mobile, type TabItem struct, Badge string
+pkg github.com/tangoui/tango/ui/mobile, type TabItem struct, Icon *ui/icon.Icon
+pkg github.com/tangoui/tango/ui/mobile, type TabItem struct, Key string
+pkg github.com/tangoui/tango/ui/mobile, type TabItem struct, Title string
+pkg github.com/tangoui/tango/ui/mobile, type TabsW struct
+pkg github.com/tangoui/tango/ui/mobile, type TabsW struct, noncomparable
+pkg github.com/tangoui/tango/ui/mobile, type TagW struct
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, ActionHeight float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, BadgeColor ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Base *ui/theme.Theme
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Border ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Box ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, ButtonFont [4]float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, ButtonHeight [4]float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, ButtonRadius float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, ButtonWeight ui/text.Weight
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, CardBorder ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, CellMinHeight float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, CellPadV float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Danger ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Dark bool
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, DialogWidth float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, DrawerHandle ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Fill ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, FontBody float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, FontLarge float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, FontMain float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, FontSmall float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, FontTiny float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, FontTitle float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, FormLabelWidth float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Mask ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, NavBarHeight float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, NoticeBg ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, NoticeBorder ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, NoticeText ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, OnPrimary ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, OnSolid ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, PadH float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, PageBg ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, PickerItemHeight float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, PickerVisible int
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, PopupRad float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Press ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Primary ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, PrimaryLight ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Radius float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, RadiusLarge float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Ring ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, SearchHeight float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, SearchRadius float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, SegmentThumb ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, StepperHeight float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, StepperInputW float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Style Style
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Success ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, SwitchH float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, SwitchOff ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, SwitchThumb ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, SwitchThumbOn ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, SwitchW float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, TabBarHeight float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, TabsHeight float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, TabsLineHeight float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, TabsLineWidth float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Text ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, TextLight ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, TextSecondary ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, TextWeak ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, TitleWeight ui/text.Weight
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, ToastBg ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, ToastBorder ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, ToastPad float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, ToastText ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, TouchMin float32
+pkg github.com/tangoui/tango/ui/mobile, type Theme struct, Warning ui/theme.Color
+pkg github.com/tangoui/tango/ui/mobile, type ToastOptions struct
+pkg github.com/tangoui/tango/ui/mobile, type ToastOptions struct, Duration time.Duration
+pkg github.com/tangoui/tango/ui/mobile, type ToastOptions struct, Icon string
+pkg github.com/tangoui/tango/ui/mobile, type ToastOptions struct, Position Position
+pkg github.com/tangoui/tango/ui/mobile, type ToastW struct
+pkg github.com/tangoui/tango/ui/mobile, type TouchPoint struct
+pkg github.com/tangoui/tango/ui/mobile, type TouchPoint struct, ID int64
+pkg github.com/tangoui/tango/ui/mobile, type TouchPoint struct, Pos ui/geom.Point
+pkg github.com/tangoui/tango/ui/mobile, type Track struct
+pkg github.com/tangoui/tango/ui/mobile, type Track struct, Ended bool
+pkg github.com/tangoui/tango/ui/mobile, type Track struct, Last Sample
+pkg github.com/tangoui/tango/ui/mobile, type Track struct, LongFired bool
+pkg github.com/tangoui/tango/ui/mobile, type Track struct, Moved bool
+pkg github.com/tangoui/tango/ui/mobile, type Track struct, Start Sample
+pkg github.com/tangoui/tango/ui/mobile, type Track struct, noncomparable

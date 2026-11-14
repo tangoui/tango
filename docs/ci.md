@@ -64,9 +64,9 @@ Android 模拟器步骤目前是 `continue-on-error`（模拟器在共享 runner
 
 ### API 兼容性检查
 
-`.github/workflows/api.yml` 单独成一个工作流，这样加减 `api-break` 标签时只会重跑这一项。触发条件：推送到 `main`、PR（含加减标签）、手动运行（可以指定对比基准）。它的 `apidiff` 作业运行 `bash scripts/apidiff.sh <基准>`：PR 的基准是目标分支的最新提交，推送的基准是推送前的 `main`。脚本按固定版本安装 `golang.org/x/exp/cmd/apidiff`，在 linux、darwin、windows 上（`CGO_ENABLED=0`）各导出一次两边的 API，合并后列出不兼容变化，结果写进作业 Summary。
+`.github/workflows/api.yml` 单独成一个工作流，这样加减 `api-break` 标签时只会重跑这一项。触发条件：推送到 `main`、PR（含加减标签）、手动运行（可以指定对比基准）。它的 `apidiff` 作业先运行 `go run ./internal/cmd/apitxt -check`（黄金文件 `api/go/*.txt` 是否最新、每个包是否在 `api/tiers.txt` 里分了层、白名单条目是否存在），再运行 `bash scripts/apidiff.sh <基准>`，最后检查 `api/go/**` 有变化时 `CHANGELOG.md` 是否也有变化（第一周只警告，PR 可用 `no-changelog` 标签豁免）。apidiff 的基准：PR 的基准是目标分支的最新提交，推送的基准是推送前的 `main`。脚本按固定版本安装 `golang.org/x/exp/cmd/apidiff`，在 linux、darwin、windows 上（`CGO_ENABLED=0`）各导出一次两边的 API，合并后列出不兼容变化，结果写进作业 Summary。
 
-稳定包有不兼容变化时作业失败，实验性包只给警告；分层和 `api-break` 流程见 [release.md 的「API 稳定性」](release.md#api-稳定性)。本地复现：`bash scripts/apidiff.sh origin/main`（对比的是工作区，含未提交的改动）。可选环境变量：`ALLOW_API_BREAK=1`（只报告不失败）、`APIDIFF`（指定 apidiff 可执行文件）、`APIDIFF_GOOS`（要检查的平台，默认 `linux darwin windows`）。
+稳定层（稳定包，以及 split 包里列入 `api/stable/<包>.txt` 白名单的符号）有不兼容变化时作业失败，实验层只给警告；分层和 `api-break` 流程见 [release.md 的「API 稳定性」](release.md#api-稳定性)。本地复现：`bash scripts/apidiff.sh origin/main`（对比的是工作区，含未提交的改动）。可选环境变量：`ALLOW_API_BREAK=1`（只报告不失败）、`APIDIFF`（指定 apidiff 可执行文件）、`APIDIFF_GOOS`（要检查的平台，默认 `linux darwin windows`）。
 
 ## 看失败产物
 

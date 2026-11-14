@@ -1,0 +1,10 @@
+pkg github.com/tangoui/tango/sys/single, func Claim(*tango.App, Options) (bool, error)
+pkg github.com/tangoui/tango/sys/single, func OnSecondInstance(*tango.App, func([]string, string))
+pkg github.com/tangoui/tango/sys/single, type Options struct
+pkg github.com/tangoui/tango/sys/single, type Options struct, Args []string
+pkg github.com/tangoui/tango/sys/single, type Options struct, Key string
+pkg github.com/tangoui/tango/sys/single, type Options struct, NoFocus bool
+pkg github.com/tangoui/tango/sys/single, type Options struct, OnSecondInstance func([]string, string)
+pkg github.com/tangoui/tango/sys/single, type Options struct, Timeout time.Duration
+pkg github.com/tangoui/tango/sys/single, type Options struct, noncomparable
+pkg github.com/tangoui/tango/sys/single, var ErrUnsupported error

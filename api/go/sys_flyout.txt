@@ -1,0 +1,30 @@
+pkg github.com/tangoui/tango/sys/flyout, func New(*tango.App, *sys/tray.Tray, Options) (*Flyout, error)
+pkg github.com/tangoui/tango/sys/flyout, func Place(Rect, bool, Rect, bool, int, int, int, bool) (int, int)
+pkg github.com/tangoui/tango/sys/flyout, method (*Flyout) Close()
+pkg github.com/tangoui/tango/sys/flyout, method (*Flyout) IsOpen() bool
+pkg github.com/tangoui/tango/sys/flyout, method (*Flyout) OnClose(func())
+pkg github.com/tangoui/tango/sys/flyout, method (*Flyout) OnOpen(func())
+pkg github.com/tangoui/tango/sys/flyout, method (*Flyout) Open() error
+pkg github.com/tangoui/tango/sys/flyout, method (*Flyout) OpenAt(Rect, bool) error
+pkg github.com/tangoui/tango/sys/flyout, method (*Flyout) Surface() *tango.Surface
+pkg github.com/tangoui/tango/sys/flyout, method (*Flyout) Toggle()
+pkg github.com/tangoui/tango/sys/flyout, type Flyout struct
+pkg github.com/tangoui/tango/sys/flyout, type Flyout struct, noncomparable
+pkg github.com/tangoui/tango/sys/flyout, type Options struct
+pkg github.com/tangoui/tango/sys/flyout, type Options struct, Debug bool
+pkg github.com/tangoui/tango/sys/flyout, type Options struct, Gap int
+pkg github.com/tangoui/tango/sys/flyout, type Options struct, Height int
+pkg github.com/tangoui/tango/sys/flyout, type Options struct, KeepOnBlur bool
+pkg github.com/tangoui/tango/sys/flyout, type Options struct, Material tango.Material
+pkg github.com/tangoui/tango/sys/flyout, type Options struct, NoToggle bool
+pkg github.com/tangoui/tango/sys/flyout, type Options struct, Surface *tango.Surface
+pkg github.com/tangoui/tango/sys/flyout, type Options struct, Transparent bool
+pkg github.com/tangoui/tango/sys/flyout, type Options struct, URL string
+pkg github.com/tangoui/tango/sys/flyout, type Options struct, Width int
+pkg github.com/tangoui/tango/sys/flyout, type Rect = tango.Rect
+pkg github.com/tangoui/tango/sys/flyout, type Rect struct
+pkg github.com/tangoui/tango/sys/flyout, type Rect struct, Height int
+pkg github.com/tangoui/tango/sys/flyout, type Rect struct, Width int
+pkg github.com/tangoui/tango/sys/flyout, type Rect struct, X int
+pkg github.com/tangoui/tango/sys/flyout, type Rect struct, Y int
+pkg github.com/tangoui/tango/sys/flyout, var ErrClosed error

@@ -1,0 +1,8 @@
+pkg github.com/tangoui/tango/sys/shell, func AllowSchemes(...string)
+pkg github.com/tangoui/tango/sys/shell, func Allowed(string) bool
+pkg github.com/tangoui/tango/sys/shell, func OpenPath(*tango.App, string) error
+pkg github.com/tangoui/tango/sys/shell, func OpenURL(*tango.App, string) error
+pkg github.com/tangoui/tango/sys/shell, func RevealPath(*tango.App, string) error
+pkg github.com/tangoui/tango/sys/shell, var DefaultSchemes []string
+pkg github.com/tangoui/tango/sys/shell, var ErrSchemeNotAllowed error
+pkg github.com/tangoui/tango/sys/shell, var ErrUnsupported error

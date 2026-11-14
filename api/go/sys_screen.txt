@@ -1,0 +1,20 @@
+pkg github.com/tangoui/tango/sys/screen, func All(*tango.App) ([]Display, error)
+pkg github.com/tangoui/tango/sys/screen, func At(*tango.App, int, int) (Display, error)
+pkg github.com/tangoui/tango/sys/screen, func OnChange(*tango.App, func())
+pkg github.com/tangoui/tango/sys/screen, func Primary(*tango.App) (Display, error)
+pkg github.com/tangoui/tango/sys/screen, type Display = internal/platform.Display
+pkg github.com/tangoui/tango/sys/screen, type Display struct
+pkg github.com/tangoui/tango/sys/screen, type Display struct, Bounds Rect
+pkg github.com/tangoui/tango/sys/screen, type Display struct, ID string
+pkg github.com/tangoui/tango/sys/screen, type Display struct, Name string
+pkg github.com/tangoui/tango/sys/screen, type Display struct, Primary bool
+pkg github.com/tangoui/tango/sys/screen, type Display struct, Scale float64
+pkg github.com/tangoui/tango/sys/screen, type Display struct, WorkArea Rect
+pkg github.com/tangoui/tango/sys/screen, type Rect = internal/platform.Rect
+pkg github.com/tangoui/tango/sys/screen, type Rect struct
+pkg github.com/tangoui/tango/sys/screen, type Rect struct, Height int
+pkg github.com/tangoui/tango/sys/screen, type Rect struct, Width int
+pkg github.com/tangoui/tango/sys/screen, type Rect struct, X int
+pkg github.com/tangoui/tango/sys/screen, type Rect struct, Y int
+pkg github.com/tangoui/tango/sys/screen, var ErrNoDisplay error
+pkg github.com/tangoui/tango/sys/screen, var ErrUnsupported error

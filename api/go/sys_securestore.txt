@@ -1,0 +1,7 @@
+pkg github.com/tangoui/tango/sys/securestore, func Delete(*tango.App, string) error
+pkg github.com/tangoui/tango/sys/securestore, func Get(*tango.App, string) ([]byte, error)
+pkg github.com/tangoui/tango/sys/securestore, func GetString(*tango.App, string) (string, error)
+pkg github.com/tangoui/tango/sys/securestore, func Set(*tango.App, string, []byte) error
+pkg github.com/tangoui/tango/sys/securestore, func SetString(*tango.App, string, string) error
+pkg github.com/tangoui/tango/sys/securestore, var ErrNotFound error
+pkg github.com/tangoui/tango/sys/securestore, var ErrUnsupported error

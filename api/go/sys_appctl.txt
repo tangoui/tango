@@ -1,0 +1,14 @@
+pkg github.com/tangoui/tango/sys/appctl, const CtlAttention internal/platform.AppControlOp = 16
+pkg github.com/tangoui/tango/sys/appctl, const CtlBadge internal/platform.AppControlOp = 2
+pkg github.com/tangoui/tango/sys/appctl, const CtlBadgeText internal/platform.AppControlOp = 4
+pkg github.com/tangoui/tango/sys/appctl, const CtlDock internal/platform.AppControlOp = 32
+pkg github.com/tangoui/tango/sys/appctl, const CtlHide internal/platform.AppControlOp = 1
+pkg github.com/tangoui/tango/sys/appctl, const CtlProgress internal/platform.AppControlOp = 8
+pkg github.com/tangoui/tango/sys/appctl, func Hide(*tango.App) error
+pkg github.com/tangoui/tango/sys/appctl, func RequestAttention(*tango.App, bool) error
+pkg github.com/tangoui/tango/sys/appctl, func SetBadge(*tango.App, string) error
+pkg github.com/tangoui/tango/sys/appctl, func SetDockVisible(*tango.App, bool) error
+pkg github.com/tangoui/tango/sys/appctl, func SetProgress(*tango.App, float64) error
+pkg github.com/tangoui/tango/sys/appctl, func Show(*tango.App) error
+pkg github.com/tangoui/tango/sys/appctl, func Supports(*tango.App, internal/platform.AppControlOp) bool
+pkg github.com/tangoui/tango/sys/appctl, var ErrUnsupported error

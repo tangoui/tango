@@ -1,0 +1,10 @@
+pkg github.com/tangoui/tango/service/paths, func Cache(string) (string, error)
+pkg github.com/tangoui/tango/service/paths, func Config(string) (string, error)
+pkg github.com/tangoui/tango/service/paths, func Data(string) (string, error)
+pkg github.com/tangoui/tango/service/paths, func For(string) (Dirs, error)
+pkg github.com/tangoui/tango/service/paths, func Logs(string) (string, error)
+pkg github.com/tangoui/tango/service/paths, type Dirs struct
+pkg github.com/tangoui/tango/service/paths, type Dirs struct, Cache string
+pkg github.com/tangoui/tango/service/paths, type Dirs struct, Config string
+pkg github.com/tangoui/tango/service/paths, type Dirs struct, Data string
+pkg github.com/tangoui/tango/service/paths, type Dirs struct, Logs string

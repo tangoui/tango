@@ -1,0 +1,452 @@
+pkg github.com/tangoui/tango/ui/chart, const Day TimeUnit = 3
+pkg github.com/tangoui/tango/ui/chart, const Hour TimeUnit = 2
+pkg github.com/tangoui/tango/ui/chart, const LegendAuto LegendPos = 0
+pkg github.com/tangoui/tango/ui/chart, const LegendBottom LegendPos = 2
+pkg github.com/tangoui/tango/ui/chart, const LegendLeft LegendPos = 4
+pkg github.com/tangoui/tango/ui/chart, const LegendNone LegendPos = 5
+pkg github.com/tangoui/tango/ui/chart, const LegendRight LegendPos = 3
+pkg github.com/tangoui/tango/ui/chart, const LegendTop LegendPos = 1
+pkg github.com/tangoui/tango/ui/chart, const MarkerCircle Marker = 0
+pkg github.com/tangoui/tango/ui/chart, const MarkerLine Marker = 2
+pkg github.com/tangoui/tango/ui/chart, const MarkerRoundRect Marker = 1
+pkg github.com/tangoui/tango/ui/chart, const MarkerSquare Marker = 3
+pkg github.com/tangoui/tango/ui/chart, const Minute TimeUnit = 1
+pkg github.com/tangoui/tango/ui/chart, const Month TimeUnit = 5
+pkg github.com/tangoui/tango/ui/chart, const Second TimeUnit = 0
+pkg github.com/tangoui/tango/ui/chart, const StepEnd StepMode = 1
+pkg github.com/tangoui/tango/ui/chart, const StepMiddle StepMode = 3
+pkg github.com/tangoui/tango/ui/chart, const StepNone StepMode = 0
+pkg github.com/tangoui/tango/ui/chart, const StepStart StepMode = 2
+pkg github.com/tangoui/tango/ui/chart, const Week TimeUnit = 4
+pkg github.com/tangoui/tango/ui/chart, const Year TimeUnit = 6
+pkg github.com/tangoui/tango/ui/chart, func AntStyle(*ui/theme.Theme) *Style
+pkg github.com/tangoui/tango/ui/chart, func Area(*ui.Context, []Row) *LineW
+pkg github.com/tangoui/tango/ui/chart, func Bar(*ui.Context, []Row) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, func Bubble(*ui.Context, []Row) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, func Column(*ui.Context, []Row) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, func Compact(string) Formatter
+pkg github.com/tangoui/tango/ui/chart, func DataTable(*ui.Context, []Row, ...string) *ui.TableW
+pkg github.com/tangoui/tango/ui/chart, func Donut(*ui.Context, []Row) *PieW
+pkg github.com/tangoui/tango/ui/chart, func DualAxes(*ui.Context, []Row) *DualW
+pkg github.com/tangoui/tango/ui/chart, func EChartsStyle(*ui/theme.Theme) *Style
+pkg github.com/tangoui/tango/ui/chart, func FormatCompact(float64, string) string
+pkg github.com/tangoui/tango/ui/chart, func FormatNumber(float64, int) string
+pkg github.com/tangoui/tango/ui/chart, func Funnel(*ui.Context, []Row) *FunnelW
+pkg github.com/tangoui/tango/ui/chart, func Gauge(*ui.Context, float64) *GaugeW
+pkg github.com/tangoui/tango/ui/chart, func Heatmap(*ui.Context, []Row) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, func LTTB([]float64, []float64, int) []int
+pkg github.com/tangoui/tango/ui/chart, func LabelsOf(*ui.Locale) Labels
+pkg github.com/tangoui/tango/ui/chart, func Line(*ui.Context, []Row) *LineW
+pkg github.com/tangoui/tango/ui/chart, func Liquid(*ui.Context, float64) *LiquidW
+pkg github.com/tangoui/tango/ui/chart, func NewPolar(ui/geom.Rect, float64) Polar
+pkg github.com/tangoui/tango/ui/chart, func NiceDomain(float64, float64, int) (float64, float64, float64)
+pkg github.com/tangoui/tango/ui/chart, func NiceStep(float64, int) float64
+pkg github.com/tangoui/tango/ui/chart, func NiceTicks(float64, float64, int) []float64
+pkg github.com/tangoui/tango/ui/chart, func Num(any) (float64, bool)
+pkg github.com/tangoui/tango/ui/chart, func Percent(int) Formatter
+pkg github.com/tangoui/tango/ui/chart, func Pie(*ui.Context, []Row) *PieW
+pkg github.com/tangoui/tango/ui/chart, func Radar(*ui.Context, []Row) *RadarW
+pkg github.com/tangoui/tango/ui/chart, func RegisterStyle(func(*ui/theme.Theme) bool, StyleFunc)
+pkg github.com/tangoui/tango/ui/chart, func RowsOf[T any]([]T, func(T) Row) []Row
+pkg github.com/tangoui/tango/ui/chart, func Scatter(*ui.Context, []Row) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, func ShadcnStyle(*ui/theme.Theme) *Style
+pkg github.com/tangoui/tango/ui/chart, func Stack([][]float64, []bool, bool) ([][]float64, [][]float64)
+pkg github.com/tangoui/tango/ui/chart, func Str(any) string
+pkg github.com/tangoui/tango/ui/chart, func StyleOf(*ui/theme.Theme) *Style
+pkg github.com/tangoui/tango/ui/chart, func Thousands(int) Formatter
+pkg github.com/tangoui/tango/ui/chart, func TimeInterval(time.Time, time.Time, int) (TimeUnit, int)
+pkg github.com/tangoui/tango/ui/chart, func TimeOf(any) (time.Time, bool)
+pkg github.com/tangoui/tango/ui/chart, func TimeTicks(time.Time, time.Time, int, Labels) []TimeTick
+pkg github.com/tangoui/tango/ui/chart, func TinyArea(*ui.Context, []float64) *TinyW
+pkg github.com/tangoui/tango/ui/chart, func TinyColumn(*ui.Context, []float64) *TinyW
+pkg github.com/tangoui/tango/ui/chart, func TinyLine(*ui.Context, []float64) *TinyW
+pkg github.com/tangoui/tango/ui/chart, func TinyProgress(*ui.Context, float64) *TinyW
+pkg github.com/tangoui/tango/ui/chart, func Unit(string, int) Formatter
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) A11yLabel(string) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Animate(bool) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Colors(...ui/theme.Color) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Format(Formatter) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Height(float32) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Key(any) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Label() *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Layout(...ui/layout.Option) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Legend(LegendPos) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Loading(bool) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) MaxWidth(float32) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Mirror() *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) NoTooltip() *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) NoZero() *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Padding(float64) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Percent() *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Radius(float32) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Series(string) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Show() View
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Stack() *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Style(func(*Style)) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) X(string) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) Y(string) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) YMax(float64) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*ColumnW) YMin(float64) *ColumnW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) A11yLabel(string) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Alias(string, string) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Animate(bool) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Colors(...ui/theme.Color) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Column(...string) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Format(Formatter) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Height(float32) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Key(any) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Label() *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Layout(...ui/layout.Option) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Legend(LegendPos) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Line(...string) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) LineFormat(Formatter) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Loading(bool) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Mirror() *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) NoTooltip() *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Show() View
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Smooth() *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) Style(func(*Style)) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*DualW) X(string) *DualW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) A11yLabel(string) *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) Animate(bool) *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) Colors(...ui/theme.Color) *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) Format(Formatter) *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) Height(float32) *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) Key(any) *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) Label() *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) Layout(...ui/layout.Option) *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) Legend(LegendPos) *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) Loading(bool) *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) Mirror() *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) NoConversion() *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) NoTooltip() *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) Show() View
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) Style(func(*Style)) *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) X(string) *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*FunnelW) Y(string) *FunnelW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) A11yLabel(string) *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Animate(bool) *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Bands([]float64, ...ui/theme.Color) *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Colors(...ui/theme.Color) *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Format(Formatter) *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Height(float32) *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Key(any) *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Label() *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Layout(...ui/layout.Option) *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Legend(LegendPos) *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Loading(bool) *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Mirror() *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) NoTooltip() *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Range(float64, float64) *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Show() View
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Style(func(*Style)) *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*GaugeW) Title(string) *GaugeW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) A11yLabel(string) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Animate(bool) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Colors(...ui/theme.Color) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Format(Formatter) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Height(float32) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Key(any) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Label() *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Layout(...ui/layout.Option) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Legend(LegendPos) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Loading(bool) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Mirror() *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) NoTooltip() *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Ramp(...Color) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Show() View
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Style(func(*Style)) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Value(string) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) X(string) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*HeatmapW) Y(string) *HeatmapW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) A11yLabel(string) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Animate(bool) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Area() *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Colors(...ui/theme.Color) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Format(Formatter) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Height(float32) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Key(any) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Label() *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Layout(...ui/layout.Option) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Legend(LegendPos) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Loading(bool) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Log() *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Mirror() *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) NoTooltip() *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) NoZero() *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Points() *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Series(string) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Show() View
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Smooth() *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Stack() *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Step(...StepMode) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Style(func(*Style)) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) X(string) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) Y(string) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) YMax(float64) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*LineW) YMin(float64) *LineW
+pkg github.com/tangoui/tango/ui/chart, method (*Linear) Nice(int) float64
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) A11yLabel(string) *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) Animate(bool) *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) Colors(...ui/theme.Color) *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) Format(Formatter) *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) Height(float32) *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) Key(any) *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) Label() *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) Layout(...ui/layout.Option) *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) Legend(LegendPos) *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) Loading(bool) *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) Mirror() *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) NoTooltip() *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) Show() View
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) Still() *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) Style(func(*Style)) *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*LiquidW) Title(string) *LiquidW
+pkg github.com/tangoui/tango/ui/chart, method (*Log) Nice()
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) A11yLabel(string) *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Angle(string) *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Animate(bool) *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Center(string, string) *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Color(string) *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Colors(...ui/theme.Color) *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Format(Formatter) *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Height(float32) *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Inner(float64) *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) InnerLabel() *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Key(any) *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Label() *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Layout(...ui/layout.Option) *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Legend(LegendPos) *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Loading(bool) *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Mirror() *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) NoLabel() *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) NoTooltip() *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Show() View
+pkg github.com/tangoui/tango/ui/chart, method (*PieW) Style(func(*Style)) *PieW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) A11yLabel(string) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Animate(bool) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Circle() *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Colors(...ui/theme.Color) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Format(Formatter) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Height(float32) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Key(any) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Label() *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Layout(...ui/layout.Option) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Legend(LegendPos) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Loading(bool) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Mirror() *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) NoArea() *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) NoTooltip() *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) NoZero() *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Series(string) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Show() View
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Style(func(*Style)) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) X(string) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) Y(string) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) YMax(float64) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*RadarW) YMin(float64) *RadarW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) A11yLabel(string) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Animate(bool) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Colors(...ui/theme.Color) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Format(Formatter) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Height(float32) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Key(any) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Label() *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Layout(...ui/layout.Option) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Legend(LegendPos) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Loading(bool) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Mirror() *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) NoTooltip() *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) NoZero() *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Radius(float32, float32) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Series(string) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Show() View
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Size(string) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Style(func(*Style)) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) X(string) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) XFormat(Formatter) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Y(string) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) YMax(float64) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) YMin(float64) *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*ScatterW) Zero() *ScatterW
+pkg github.com/tangoui/tango/ui/chart, method (*Style) Color(int) ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) A11yLabel(string) *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Animate(bool) *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Color(ui/theme.Color) *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Colors(...ui/theme.Color) *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Format(Formatter) *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Height(float32) *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Key(any) *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Label() *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Layout(...ui/layout.Option) *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Legend(LegendPos) *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Loading(bool) *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Mirror() *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Names(...string) *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) NoTooltip() *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Show() View
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Smooth() *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Style(func(*Style)) *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (*TinyW) Target(float64) *TinyW
+pkg github.com/tangoui/tango/ui/chart, method (Band) Bandwidth() float64
+pkg github.com/tangoui/tango/ui/chart, method (Band) Center(int) float64
+pkg github.com/tangoui/tango/ui/chart, method (Band) Index(float64) int
+pkg github.com/tangoui/tango/ui/chart, method (Band) Map(int) float64
+pkg github.com/tangoui/tango/ui/chart, method (Band) Step() float64
+pkg github.com/tangoui/tango/ui/chart, method (Cartesian) At(float64, float64) ui/geom.Point
+pkg github.com/tangoui/tango/ui/chart, method (Cartesian) HX(float64) float32
+pkg github.com/tangoui/tango/ui/chart, method (Cartesian) Norm(ui/geom.Point) (float64, float64)
+pkg github.com/tangoui/tango/ui/chart, method (Cartesian) Rect(float64, float64, float64, float64) ui/geom.Rect
+pkg github.com/tangoui/tango/ui/chart, method (Linear) Invert(float64) float64
+pkg github.com/tangoui/tango/ui/chart, method (Linear) Map(float64) float64
+pkg github.com/tangoui/tango/ui/chart, method (Linear) Ticks(int) []float64
+pkg github.com/tangoui/tango/ui/chart, method (Log) Map(float64) float64
+pkg github.com/tangoui/tango/ui/chart, method (Log) Ticks() []float64
+pkg github.com/tangoui/tango/ui/chart, method (Point) Index(float64) int
+pkg github.com/tangoui/tango/ui/chart, method (Point) Map(int) float64
+pkg github.com/tangoui/tango/ui/chart, method (Polar) Angle(float64) float64
+pkg github.com/tangoui/tango/ui/chart, method (Polar) At(float64, float64) ui/geom.Point
+pkg github.com/tangoui/tango/ui/chart, method (Polar) Locate(ui/geom.Point) (float64, float32)
+pkg github.com/tangoui/tango/ui/chart, method (Polar) Mirrored() Polar
+pkg github.com/tangoui/tango/ui/chart, method (Polar) Radius(float64) float32
+pkg github.com/tangoui/tango/ui/chart, method (TimeScale) Map(time.Time) float64
+pkg github.com/tangoui/tango/ui/chart, method (TimeScale) Ticks(int, Labels) []TimeTick
+pkg github.com/tangoui/tango/ui/chart, method (View) Hidden(string) bool
+pkg github.com/tangoui/tango/ui/chart, method (View) Tooltip() (Tip, bool)
+pkg github.com/tangoui/tango/ui/chart, type Band struct
+pkg github.com/tangoui/tango/ui/chart, type Band struct, N int
+pkg github.com/tangoui/tango/ui/chart, type Band struct, PaddingInner float64
+pkg github.com/tangoui/tango/ui/chart, type Band struct, PaddingOuter float64
+pkg github.com/tangoui/tango/ui/chart, type Band struct, R0 float64
+pkg github.com/tangoui/tango/ui/chart, type Band struct, R1 float64
+pkg github.com/tangoui/tango/ui/chart, type Cartesian struct
+pkg github.com/tangoui/tango/ui/chart, type Cartesian struct, Mirror bool
+pkg github.com/tangoui/tango/ui/chart, type Cartesian struct, Plot ui/geom.Rect
+pkg github.com/tangoui/tango/ui/chart, type Cartesian struct, Transposed bool
+pkg github.com/tangoui/tango/ui/chart, type Color = ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type ColumnW struct
+pkg github.com/tangoui/tango/ui/chart, type ColumnW struct, noncomparable
+pkg github.com/tangoui/tango/ui/chart, type DualW struct
+pkg github.com/tangoui/tango/ui/chart, type DualW struct, noncomparable
+pkg github.com/tangoui/tango/ui/chart, type Formatter func(float64) string
+pkg github.com/tangoui/tango/ui/chart, type FunnelW struct
+pkg github.com/tangoui/tango/ui/chart, type FunnelW struct, noncomparable
+pkg github.com/tangoui/tango/ui/chart, type GaugeW struct
+pkg github.com/tangoui/tango/ui/chart, type GaugeW struct, noncomparable
+pkg github.com/tangoui/tango/ui/chart, type HeatmapW struct
+pkg github.com/tangoui/tango/ui/chart, type HeatmapW struct, noncomparable
+pkg github.com/tangoui/tango/ui/chart, type Labels struct
+pkg github.com/tangoui/tango/ui/chart, type Labels struct, Month func(int) string
+pkg github.com/tangoui/tango/ui/chart, type Labels struct, Year func(int) string
+pkg github.com/tangoui/tango/ui/chart, type Labels struct, noncomparable
+pkg github.com/tangoui/tango/ui/chart, type LegendPos uint8
+pkg github.com/tangoui/tango/ui/chart, type LineW struct
+pkg github.com/tangoui/tango/ui/chart, type LineW struct, noncomparable
+pkg github.com/tangoui/tango/ui/chart, type Linear struct
+pkg github.com/tangoui/tango/ui/chart, type Linear struct, D0 float64
+pkg github.com/tangoui/tango/ui/chart, type Linear struct, D1 float64
+pkg github.com/tangoui/tango/ui/chart, type Linear struct, R0 float64
+pkg github.com/tangoui/tango/ui/chart, type Linear struct, R1 float64
+pkg github.com/tangoui/tango/ui/chart, type LiquidW struct
+pkg github.com/tangoui/tango/ui/chart, type LiquidW struct, noncomparable
+pkg github.com/tangoui/tango/ui/chart, type Log struct
+pkg github.com/tangoui/tango/ui/chart, type Log struct, Base float64
+pkg github.com/tangoui/tango/ui/chart, type Log struct, D0 float64
+pkg github.com/tangoui/tango/ui/chart, type Log struct, D1 float64
+pkg github.com/tangoui/tango/ui/chart, type Log struct, R0 float64
+pkg github.com/tangoui/tango/ui/chart, type Log struct, R1 float64
+pkg github.com/tangoui/tango/ui/chart, type Marker uint8
+pkg github.com/tangoui/tango/ui/chart, type PieW struct
+pkg github.com/tangoui/tango/ui/chart, type PieW struct, noncomparable
+pkg github.com/tangoui/tango/ui/chart, type Point struct
+pkg github.com/tangoui/tango/ui/chart, type Point struct, N int
+pkg github.com/tangoui/tango/ui/chart, type Point struct, Padding float64
+pkg github.com/tangoui/tango/ui/chart, type Point struct, R0 float64
+pkg github.com/tangoui/tango/ui/chart, type Point struct, R1 float64
+pkg github.com/tangoui/tango/ui/chart, type Polar struct
+pkg github.com/tangoui/tango/ui/chart, type Polar struct, Center ui/geom.Point
+pkg github.com/tangoui/tango/ui/chart, type Polar struct, Inner float32
+pkg github.com/tangoui/tango/ui/chart, type Polar struct, Outer float32
+pkg github.com/tangoui/tango/ui/chart, type Polar struct, Start float64
+pkg github.com/tangoui/tango/ui/chart, type Polar struct, Sweep float64
+pkg github.com/tangoui/tango/ui/chart, type RadarW struct
+pkg github.com/tangoui/tango/ui/chart, type RadarW struct, noncomparable
+pkg github.com/tangoui/tango/ui/chart, type Row = map[string]any
+pkg github.com/tangoui/tango/ui/chart, type ScatterW struct
+pkg github.com/tangoui/tango/ui/chart, type ScatterW struct, noncomparable
+pkg github.com/tangoui/tango/ui/chart, type StepMode uint8
+pkg github.com/tangoui/tango/ui/chart, type Style struct
+pkg github.com/tangoui/tango/ui/chart, type Style struct, AreaGrad bool
+pkg github.com/tangoui/tango/ui/chart, type Style struct, AreaOpacity float64
+pkg github.com/tangoui/tango/ui/chart, type Style struct, AxisLine ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, BandHover ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, BarOuter float64
+pkg github.com/tangoui/tango/ui/chart, type Style struct, BarPadding float64
+pkg github.com/tangoui/tango/ui/chart, type Style struct, BarRadius float32
+pkg github.com/tangoui/tango/ui/chart, type Style struct, Colors []ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, Crosshair ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, CrosshairDash []float32
+pkg github.com/tangoui/tango/ui/chart, type Style struct, Font float32
+pkg github.com/tangoui/tango/ui/chart, type Style struct, Grid ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, GridDash []float32
+pkg github.com/tangoui/tango/ui/chart, type Style struct, Label ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, LabelGap float32
+pkg github.com/tangoui/tango/ui/chart, type Style struct, LegendCenter bool
+pkg github.com/tangoui/tango/ui/chart, type Style struct, LegendGap float32
+pkg github.com/tangoui/tango/ui/chart, type Style struct, LegendMarker Marker
+pkg github.com/tangoui/tango/ui/chart, type Style struct, LegendOff ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, LegendPos LegendPos
+pkg github.com/tangoui/tango/ui/chart, type Style struct, LegendText ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, LineWidth float32
+pkg github.com/tangoui/tango/ui/chart, type Style struct, Name string
+pkg github.com/tangoui/tango/ui/chart, type Style struct, Negative ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, PointPad bool
+pkg github.com/tangoui/tango/ui/chart, type Style struct, PointRadius float32
+pkg github.com/tangoui/tango/ui/chart, type Style struct, Positive ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, Sequential []ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, ShowPoints bool
+pkg github.com/tangoui/tango/ui/chart, type Style struct, SliceStroke float32
+pkg github.com/tangoui/tango/ui/chart, type Style struct, Surface ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, Tick ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, TickLen float32
+pkg github.com/tangoui/tango/ui/chart, type Style struct, Title ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, TooltipBg ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, TooltipBold bool
+pkg github.com/tangoui/tango/ui/chart, type Style struct, TooltipFont float32
+pkg github.com/tangoui/tango/ui/chart, type Style struct, TooltipLine float32
+pkg github.com/tangoui/tango/ui/chart, type Style struct, TooltipName ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, TooltipPad float32
+pkg github.com/tangoui/tango/ui/chart, type Style struct, TooltipRadius float32
+pkg github.com/tangoui/tango/ui/chart, type Style struct, TooltipShadow []ui/paint.Shadow
+pkg github.com/tangoui/tango/ui/chart, type Style struct, TooltipTitle ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, TooltipValue ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, Track ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type Style struct, XAxisLine bool
+pkg github.com/tangoui/tango/ui/chart, type Style struct, YAxisLine bool
+pkg github.com/tangoui/tango/ui/chart, type Style struct, noncomparable
+pkg github.com/tangoui/tango/ui/chart, type StyleFunc func(*ui/theme.Theme) *Style
+pkg github.com/tangoui/tango/ui/chart, type TimeScale struct
+pkg github.com/tangoui/tango/ui/chart, type TimeScale struct, D0 time.Time
+pkg github.com/tangoui/tango/ui/chart, type TimeScale struct, D1 time.Time
+pkg github.com/tangoui/tango/ui/chart, type TimeScale struct, R0 float64
+pkg github.com/tangoui/tango/ui/chart, type TimeScale struct, R1 float64
+pkg github.com/tangoui/tango/ui/chart, type TimeTick struct
+pkg github.com/tangoui/tango/ui/chart, type TimeTick struct, Label string
+pkg github.com/tangoui/tango/ui/chart, type TimeTick struct, Major bool
+pkg github.com/tangoui/tango/ui/chart, type TimeTick struct, T time.Time
+pkg github.com/tangoui/tango/ui/chart, type TimeUnit uint8
+pkg github.com/tangoui/tango/ui/chart, type TinyW struct
+pkg github.com/tangoui/tango/ui/chart, type TinyW struct, noncomparable
+pkg github.com/tangoui/tango/ui/chart, type Tip struct
+pkg github.com/tangoui/tango/ui/chart, type Tip struct, Index int
+pkg github.com/tangoui/tango/ui/chart, type Tip struct, Items []TipItem
+pkg github.com/tangoui/tango/ui/chart, type Tip struct, Title string
+pkg github.com/tangoui/tango/ui/chart, type Tip struct, noncomparable
+pkg github.com/tangoui/tango/ui/chart, type TipItem struct
+pkg github.com/tangoui/tango/ui/chart, type TipItem struct, Color ui/theme.Color
+pkg github.com/tangoui/tango/ui/chart, type TipItem struct, Marker Marker
+pkg github.com/tangoui/tango/ui/chart, type TipItem struct, Name string
+pkg github.com/tangoui/tango/ui/chart, type TipItem struct, Value string
+pkg github.com/tangoui/tango/ui/chart, type View struct
+pkg github.com/tangoui/tango/ui/chart, type View struct, embedded *ui.Box
+pkg github.com/tangoui/tango/ui/chart, type View struct, noncomparable

@@ -1,0 +1,279 @@
+pkg github.com/tangoui/tango/ui/editor, const AutoCloseAlways AutoClosingStrategy = "always"
+pkg github.com/tangoui/tango/ui/editor, const AutoCloseBeforeWhitespace AutoClosingStrategy = "beforeWhitespace"
+pkg github.com/tangoui/tango/ui/editor, const AutoCloseLanguageDefined AutoClosingStrategy = "languageDefined"
+pkg github.com/tangoui/tango/ui/editor, const AutoCloseNever AutoClosingStrategy = "never"
+pkg github.com/tangoui/tango/ui/editor, const AutoClosingEditAlways AutoClosingEditStrategy = "always"
+pkg github.com/tangoui/tango/ui/editor, const AutoClosingEditAuto AutoClosingEditStrategy = "auto"
+pkg github.com/tangoui/tango/ui/editor, const AutoClosingEditNever AutoClosingEditStrategy = "never"
+pkg github.com/tangoui/tango/ui/editor, const AutoIndentAdvanced AutoIndentStrategy = "advanced"
+pkg github.com/tangoui/tango/ui/editor, const AutoIndentBrackets AutoIndentStrategy = "brackets"
+pkg github.com/tangoui/tango/ui/editor, const AutoIndentFull AutoIndentStrategy = "full"
+pkg github.com/tangoui/tango/ui/editor, const AutoIndentKeep AutoIndentStrategy = "keep"
+pkg github.com/tangoui/tango/ui/editor, const AutoIndentNone AutoIndentStrategy = "none"
+pkg github.com/tangoui/tango/ui/editor, const AutoSurroundBrackets AutoSurroundStrategy = "brackets"
+pkg github.com/tangoui/tango/ui/editor, const AutoSurroundLanguageDefined AutoSurroundStrategy = "languageDefined"
+pkg github.com/tangoui/tango/ui/editor, const AutoSurroundNever AutoSurroundStrategy = "never"
+pkg github.com/tangoui/tango/ui/editor, const AutoSurroundQuotes AutoSurroundStrategy = "quotes"
+pkg github.com/tangoui/tango/ui/editor, const Backward Direction = 0
+pkg github.com/tangoui/tango/ui/editor, const Char Unit = 0
+pkg github.com/tangoui/tango/ui/editor, const CtxEditorFocus untyped string = "editorFocus"
+pkg github.com/tangoui/tango/ui/editor, const CtxEditorHasMultipleSelections untyped string = "editorHasMultipleSelections"
+pkg github.com/tangoui/tango/ui/editor, const CtxEditorHasSelection untyped string = "editorHasSelection"
+pkg github.com/tangoui/tango/ui/editor, const CtxEditorLangID untyped string = "editorLangId"
+pkg github.com/tangoui/tango/ui/editor, const CtxEditorReadonly untyped string = "editorReadonly"
+pkg github.com/tangoui/tango/ui/editor, const CtxEditorTabMovesFocus untyped string = "editorTabMovesFocus"
+pkg github.com/tangoui/tango/ui/editor, const CtxEditorTextFocus untyped string = "editorTextFocus"
+pkg github.com/tangoui/tango/ui/editor, const CtxFoldingEnabled untyped string = "foldingEnabled"
+pkg github.com/tangoui/tango/ui/editor, const CtxIsLinux untyped string = "isLinux"
+pkg github.com/tangoui/tango/ui/editor, const CtxIsMac untyped string = "isMac"
+pkg github.com/tangoui/tango/ui/editor, const CtxIsWindows untyped string = "isWindows"
+pkg github.com/tangoui/tango/ui/editor, const CtxTextInputFocus untyped string = "textInputFocus"
+pkg github.com/tangoui/tango/ui/editor, const DefaultFontSize untyped int = 14
+pkg github.com/tangoui/tango/ui/editor, const DefaultTabSize untyped int = 4
+pkg github.com/tangoui/tango/ui/editor, const DefaultWordWrapColumn untyped int = 80
+pkg github.com/tangoui/tango/ui/editor, const Doc Unit = 5
+pkg github.com/tangoui/tango/ui/editor, const FoldingAuto FoldingStrategy = "auto"
+pkg github.com/tangoui/tango/ui/editor, const FoldingControlsAlways ShowFoldingControls = "always"
+pkg github.com/tangoui/tango/ui/editor, const FoldingControlsMouseOver ShowFoldingControls = "mouseover"
+pkg github.com/tangoui/tango/ui/editor, const FoldingControlsNever ShowFoldingControls = "never"
+pkg github.com/tangoui/tango/ui/editor, const FoldingIndentation FoldingStrategy = "indentation"
+pkg github.com/tangoui/tango/ui/editor, const FoldingKindComment untyped string = "comment"
+pkg github.com/tangoui/tango/ui/editor, const FoldingKindImports untyped string = "imports"
+pkg github.com/tangoui/tango/ui/editor, const FoldingKindRegion untyped string = "region"
+pkg github.com/tangoui/tango/ui/editor, const Forward Direction = 1
+pkg github.com/tangoui/tango/ui/editor, const LargeFileLines untyped int = 300000
+pkg github.com/tangoui/tango/ui/editor, const LargeFileSize untyped int = 20971520
+pkg github.com/tangoui/tango/ui/editor, const Line Unit = 2
+pkg github.com/tangoui/tango/ui/editor, const LineEdge Unit = 3
+pkg github.com/tangoui/tango/ui/editor, const LineNumbersInterval LineNumbersMode = "interval"
+pkg github.com/tangoui/tango/ui/editor, const LineNumbersOff LineNumbersMode = "off"
+pkg github.com/tangoui/tango/ui/editor, const LineNumbersOn LineNumbersMode = "on"
+pkg github.com/tangoui/tango/ui/editor, const LineNumbersRelative LineNumbersMode = "relative"
+pkg github.com/tangoui/tango/ui/editor, const MatchBracketsAlways MatchBracketsMode = "always"
+pkg github.com/tangoui/tango/ui/editor, const MatchBracketsNear MatchBracketsMode = "near"
+pkg github.com/tangoui/tango/ui/editor, const MatchBracketsNever MatchBracketsMode = "never"
+pkg github.com/tangoui/tango/ui/editor, const MenuEditorContext untyped string = "EditorContext"
+pkg github.com/tangoui/tango/ui/editor, const MenuGroupCommands untyped string = "z_commands"
+pkg github.com/tangoui/tango/ui/editor, const MenuGroupCutCopyPaste untyped string = "9_cutcopypaste"
+pkg github.com/tangoui/tango/ui/editor, const MenuGroupModification untyped string = "1_modification"
+pkg github.com/tangoui/tango/ui/editor, const MenuGroupNavigation untyped string = "navigation"
+pkg github.com/tangoui/tango/ui/editor, const MultiCursorPasteFull MultiCursorPasteMode = "full"
+pkg github.com/tangoui/tango/ui/editor, const MultiCursorPasteSpread MultiCursorPasteMode = "spread"
+pkg github.com/tangoui/tango/ui/editor, const Page Unit = 4
+pkg github.com/tangoui/tango/ui/editor, const PlainText untyped string = "plaintext"
+pkg github.com/tangoui/tango/ui/editor, const RenderLineHighlightAll RenderLineHighlightMode = "all"
+pkg github.com/tangoui/tango/ui/editor, const RenderLineHighlightGutter RenderLineHighlightMode = "gutter"
+pkg github.com/tangoui/tango/ui/editor, const RenderLineHighlightLine RenderLineHighlightMode = "line"
+pkg github.com/tangoui/tango/ui/editor, const RenderLineHighlightNone RenderLineHighlightMode = "none"
+pkg github.com/tangoui/tango/ui/editor, const RenderWhitespaceAll RenderWhitespaceMode = "all"
+pkg github.com/tangoui/tango/ui/editor, const RenderWhitespaceBoundary RenderWhitespaceMode = "boundary"
+pkg github.com/tangoui/tango/ui/editor, const RenderWhitespaceNone RenderWhitespaceMode = "none"
+pkg github.com/tangoui/tango/ui/editor, const RenderWhitespaceSelection RenderWhitespaceMode = "selection"
+pkg github.com/tangoui/tango/ui/editor, const RenderWhitespaceTrailing RenderWhitespaceMode = "trailing"
+pkg github.com/tangoui/tango/ui/editor, const Word Unit = 1
+pkg github.com/tangoui/tango/ui/editor, const WrapBounded WrapMode = "bounded"
+pkg github.com/tangoui/tango/ui/editor, const WrapColumn WrapMode = "wordWrapColumn"
+pkg github.com/tangoui/tango/ui/editor, const WrapIndentDeep WrappingIndentMode = "deepIndent"
+pkg github.com/tangoui/tango/ui/editor, const WrapIndentIndent WrappingIndentMode = "indent"
+pkg github.com/tangoui/tango/ui/editor, const WrapIndentNone WrappingIndentMode = "none"
+pkg github.com/tangoui/tango/ui/editor, const WrapIndentSame WrappingIndentMode = "same"
+pkg github.com/tangoui/tango/ui/editor, const WrapOff WrapMode = "off"
+pkg github.com/tangoui/tango/ui/editor, const WrapOn WrapMode = "on"
+pkg github.com/tangoui/tango/ui/editor, func Commands() []Command
+pkg github.com/tangoui/tango/ui/editor, func DefaultOptions() Options
+pkg github.com/tangoui/tango/ui/editor, func DefaultRegistry() *ui/editor/monarch.Registry
+pkg github.com/tangoui/tango/ui/editor, func LookupCommand(string) (Command, bool)
+pkg github.com/tangoui/tango/ui/editor, func NewModel(string, string, *ui/editor/monarch.Registry) *Model
+pkg github.com/tangoui/tango/ui/editor, func NewModelPool(*ui/editor/monarch.Registry) *ModelPool
+pkg github.com/tangoui/tango/ui/editor, func NewState(string, string, *ui/editor/theme.Theme) *State
+pkg github.com/tangoui/tango/ui/editor, func NewStateWithRegistry(string, string, *ui/editor/theme.Theme, *ui/editor/monarch.Registry) *State
+pkg github.com/tangoui/tango/ui/editor, func NewView(*Model, *ui/editor/theme.Theme) *State
+pkg github.com/tangoui/tango/ui/editor, func RegisterCommand(Command)
+pkg github.com/tangoui/tango/ui/editor, func RegisterMenuItem(string, MenuItem)
+pkg github.com/tangoui/tango/ui/editor, func View(*ui.Context, *State) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*Model) Buffer() *ui/editor/buffer.Buffer
+pkg github.com/tangoui/tango/ui/editor, method (*Model) Conf() *ui/editor/langs.Conf
+pkg github.com/tangoui/tango/ui/editor, method (*Model) EOL() string
+pkg github.com/tangoui/tango/ui/editor, method (*Model) Highlighter() *ui/editor/highlight.Highlighter
+pkg github.com/tangoui/tango/ui/editor, method (*Model) InsertSpaces() bool
+pkg github.com/tangoui/tango/ui/editor, method (*Model) Language() string
+pkg github.com/tangoui/tango/ui/editor, method (*Model) LargeFile() bool
+pkg github.com/tangoui/tango/ui/editor, method (*Model) SetEOL(string)
+pkg github.com/tangoui/tango/ui/editor, method (*Model) SetInsertSpaces(bool)
+pkg github.com/tangoui/tango/ui/editor, method (*Model) SetLanguage(string)
+pkg github.com/tangoui/tango/ui/editor, method (*Model) SetTabSize(int)
+pkg github.com/tangoui/tango/ui/editor, method (*Model) Snapshot() ui/editor/buffer.Snapshot
+pkg github.com/tangoui/tango/ui/editor, method (*Model) Subscribe(func(ModelChange)) func()
+pkg github.com/tangoui/tango/ui/editor, method (*Model) TabSize() int
+pkg github.com/tangoui/tango/ui/editor, method (*Model) URI() string
+pkg github.com/tangoui/tango/ui/editor, method (*ModelPool) Get(string) *Model
+pkg github.com/tangoui/tango/ui/editor, method (*ModelPool) OnCreate(func(*Model)) func()
+pkg github.com/tangoui/tango/ui/editor, method (*ModelPool) OnLanguageChange(func(*Model, string)) func()
+pkg github.com/tangoui/tango/ui/editor, method (*ModelPool) OnWillDispose(func(*Model)) func()
+pkg github.com/tangoui/tango/ui/editor, method (*ModelPool) Open(string, string) *Model
+pkg github.com/tangoui/tango/ui/editor, method (*ModelPool) Release(*Model)
+pkg github.com/tangoui/tango/ui/editor, method (*State) AddCursor(int)
+pkg github.com/tangoui/tango/ui/editor, method (*State) AddSelectionToNextFindMatch() (Selection, bool)
+pkg github.com/tangoui/tango/ui/editor, method (*State) Close()
+pkg github.com/tangoui/tango/ui/editor, method (*State) ColumnSelect(int, int, int, int)
+pkg github.com/tangoui/tango/ui/editor, method (*State) CursorRedo() bool
+pkg github.com/tangoui/tango/ui/editor, method (*State) CursorUndo() bool
+pkg github.com/tangoui/tango/ui/editor, method (*State) Delete(Direction, Unit)
+pkg github.com/tangoui/tango/ui/editor, method (*State) Edit([]ui/editor/buffer.Edit, Selection) error
+pkg github.com/tangoui/tango/ui/editor, method (*State) Execute(string, any) bool
+pkg github.com/tangoui/tango/ui/editor, method (*State) Folded() []FoldingRange
+pkg github.com/tangoui/tango/ui/editor, method (*State) FoldingRanges() []FoldingRange
+pkg github.com/tangoui/tango/ui/editor, method (*State) Highlighter() *ui/editor/highlight.Highlighter
+pkg github.com/tangoui/tango/ui/editor, method (*State) Insert(string)
+pkg github.com/tangoui/tango/ui/editor, method (*State) Move(Direction, Unit, bool)
+pkg github.com/tangoui/tango/ui/editor, method (*State) MoveCaret(int, bool)
+pkg github.com/tangoui/tango/ui/editor, method (*State) Primary() Selection
+pkg github.com/tangoui/tango/ui/editor, method (*State) Redo() bool
+pkg github.com/tangoui/tango/ui/editor, method (*State) RemoveSecondaryCursors() bool
+pkg github.com/tangoui/tango/ui/editor, method (*State) RestoreViewState(ViewState)
+pkg github.com/tangoui/tango/ui/editor, method (*State) RevealCaret()
+pkg github.com/tangoui/tango/ui/editor, method (*State) RevealX(float32, float32)
+pkg github.com/tangoui/tango/ui/editor, method (*State) SaveViewState() ViewState
+pkg github.com/tangoui/tango/ui/editor, method (*State) ScrollBy(float32, float32)
+pkg github.com/tangoui/tango/ui/editor, method (*State) SelectHighlights() bool
+pkg github.com/tangoui/tango/ui/editor, method (*State) SetSelections([]Selection)
+pkg github.com/tangoui/tango/ui/editor, method (*State) Snapshot() ui/editor/buffer.Snapshot
+pkg github.com/tangoui/tango/ui/editor, method (*State) ToggleWordWrap()
+pkg github.com/tangoui/tango/ui/editor, method (*State) Type(string)
+pkg github.com/tangoui/tango/ui/editor, method (*State) Undo() bool
+pkg github.com/tangoui/tango/ui/editor, method (*State) VisibleLines() (int, int)
+pkg github.com/tangoui/tango/ui/editor, method (*State) WordWrap() WrapMode
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Box() *ui.Box
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Changed() bool
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Context(func(string) (any, bool)) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Focused() bool
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) FoldingProvider(FoldingRangeProvider) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) FontSize(float32) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Keymap(*ui/editor/keymap.Keymap) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Layout(...ui/layout.Option) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) LineNumbers(bool) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) MenuItems(...MenuItem) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) ReadOnly(bool) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) TabSize(int) *ViewW
+pkg github.com/tangoui/tango/ui/editor, type AutoClosingEditStrategy string
+pkg github.com/tangoui/tango/ui/editor, type AutoClosingStrategy string
+pkg github.com/tangoui/tango/ui/editor, type AutoIndentStrategy string
+pkg github.com/tangoui/tango/ui/editor, type AutoSurroundStrategy string
+pkg github.com/tangoui/tango/ui/editor, type Command struct
+pkg github.com/tangoui/tango/ui/editor, type Command struct, ID string
+pkg github.com/tangoui/tango/ui/editor, type Command struct, Label string
+pkg github.com/tangoui/tango/ui/editor, type Command struct, Mutates bool
+pkg github.com/tangoui/tango/ui/editor, type Command struct, Precondition string
+pkg github.com/tangoui/tango/ui/editor, type Command struct, Run func(*State, any) bool
+pkg github.com/tangoui/tango/ui/editor, type Command struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor, type CommentsOptions struct
+pkg github.com/tangoui/tango/ui/editor, type CommentsOptions struct, IgnoreEmptyLines bool
+pkg github.com/tangoui/tango/ui/editor, type CommentsOptions struct, InsertSpace bool
+pkg github.com/tangoui/tango/ui/editor, type Direction int
+pkg github.com/tangoui/tango/ui/editor, type FoldingRange struct
+pkg github.com/tangoui/tango/ui/editor, type FoldingRange struct, End int
+pkg github.com/tangoui/tango/ui/editor, type FoldingRange struct, Kind string
+pkg github.com/tangoui/tango/ui/editor, type FoldingRange struct, Start int
+pkg github.com/tangoui/tango/ui/editor, type FoldingRangeProvider interface { FoldingRanges }
+pkg github.com/tangoui/tango/ui/editor, type FoldingRangeProvider interface, FoldingRanges(context.Context, ui/editor/buffer.Snapshot) ([]FoldingRange, error)
+pkg github.com/tangoui/tango/ui/editor, type FoldingStrategy string
+pkg github.com/tangoui/tango/ui/editor, type GuidesOptions struct
+pkg github.com/tangoui/tango/ui/editor, type GuidesOptions struct, BracketPairs bool
+pkg github.com/tangoui/tango/ui/editor, type GuidesOptions struct, HighlightActiveIndentation bool
+pkg github.com/tangoui/tango/ui/editor, type GuidesOptions struct, Indentation bool
+pkg github.com/tangoui/tango/ui/editor, type InsideWordArgs struct
+pkg github.com/tangoui/tango/ui/editor, type InsideWordArgs struct, OnlyWord bool
+pkg github.com/tangoui/tango/ui/editor, type LineNumbersMode string
+pkg github.com/tangoui/tango/ui/editor, type MatchBracketsMode string
+pkg github.com/tangoui/tango/ui/editor, type MenuItem struct
+pkg github.com/tangoui/tango/ui/editor, type MenuItem struct, Args any
+pkg github.com/tangoui/tango/ui/editor, type MenuItem struct, Command string
+pkg github.com/tangoui/tango/ui/editor, type MenuItem struct, Group string
+pkg github.com/tangoui/tango/ui/editor, type MenuItem struct, Label string
+pkg github.com/tangoui/tango/ui/editor, type MenuItem struct, Order float64
+pkg github.com/tangoui/tango/ui/editor, type MenuItem struct, Submenu []MenuItem
+pkg github.com/tangoui/tango/ui/editor, type MenuItem struct, When string
+pkg github.com/tangoui/tango/ui/editor, type MenuItem struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor, type Model struct
+pkg github.com/tangoui/tango/ui/editor, type Model struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor, type ModelChange struct
+pkg github.com/tangoui/tango/ui/editor, type ModelChange struct, EOL bool
+pkg github.com/tangoui/tango/ui/editor, type ModelChange struct, Edits []ui/editor/buffer.Edit
+pkg github.com/tangoui/tango/ui/editor, type ModelChange struct, Language bool
+pkg github.com/tangoui/tango/ui/editor, type ModelChange struct, New ui/editor/buffer.Snapshot
+pkg github.com/tangoui/tango/ui/editor, type ModelChange struct, Old ui/editor/buffer.Snapshot
+pkg github.com/tangoui/tango/ui/editor, type ModelChange struct, Redo bool
+pkg github.com/tangoui/tango/ui/editor, type ModelChange struct, Source *State
+pkg github.com/tangoui/tango/ui/editor, type ModelChange struct, Undo bool
+pkg github.com/tangoui/tango/ui/editor, type ModelChange struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor, type ModelPool struct
+pkg github.com/tangoui/tango/ui/editor, type ModelPool struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor, type MultiCursorPasteMode string
+pkg github.com/tangoui/tango/ui/editor, type Options struct
+pkg github.com/tangoui/tango/ui/editor, type Options struct, AutoClosingBrackets AutoClosingStrategy
+pkg github.com/tangoui/tango/ui/editor, type Options struct, AutoClosingComments AutoClosingStrategy
+pkg github.com/tangoui/tango/ui/editor, type Options struct, AutoClosingDelete AutoClosingEditStrategy
+pkg github.com/tangoui/tango/ui/editor, type Options struct, AutoClosingOvertype AutoClosingEditStrategy
+pkg github.com/tangoui/tango/ui/editor, type Options struct, AutoClosingQuotes AutoClosingStrategy
+pkg github.com/tangoui/tango/ui/editor, type Options struct, AutoIndent AutoIndentStrategy
+pkg github.com/tangoui/tango/ui/editor, type Options struct, AutoSurround AutoSurroundStrategy
+pkg github.com/tangoui/tango/ui/editor, type Options struct, BracketPairColorization bool
+pkg github.com/tangoui/tango/ui/editor, type Options struct, Comments CommentsOptions
+pkg github.com/tangoui/tango/ui/editor, type Options struct, ContextMenu bool
+pkg github.com/tangoui/tango/ui/editor, type Options struct, DragAndDrop bool
+pkg github.com/tangoui/tango/ui/editor, type Options struct, EmptySelectionClipboard bool
+pkg github.com/tangoui/tango/ui/editor, type Options struct, Folding bool
+pkg github.com/tangoui/tango/ui/editor, type Options struct, FoldingHighlight bool
+pkg github.com/tangoui/tango/ui/editor, type Options struct, FoldingStrategy FoldingStrategy
+pkg github.com/tangoui/tango/ui/editor, type Options struct, FontSize float32
+pkg github.com/tangoui/tango/ui/editor, type Options struct, Guides GuidesOptions
+pkg github.com/tangoui/tango/ui/editor, type Options struct, LineNumbers LineNumbersMode
+pkg github.com/tangoui/tango/ui/editor, type Options struct, MatchBrackets MatchBracketsMode
+pkg github.com/tangoui/tango/ui/editor, type Options struct, MultiCursorPaste MultiCursorPasteMode
+pkg github.com/tangoui/tango/ui/editor, type Options struct, Padding PaddingOptions
+pkg github.com/tangoui/tango/ui/editor, type Options struct, ReadOnly bool
+pkg github.com/tangoui/tango/ui/editor, type Options struct, RenderControlCharacters bool
+pkg github.com/tangoui/tango/ui/editor, type Options struct, RenderLineHighlight RenderLineHighlightMode
+pkg github.com/tangoui/tango/ui/editor, type Options struct, RenderWhitespace RenderWhitespaceMode
+pkg github.com/tangoui/tango/ui/editor, type Options struct, ShowFoldingControls ShowFoldingControls
+pkg github.com/tangoui/tango/ui/editor, type Options struct, WordWrap WrapMode
+pkg github.com/tangoui/tango/ui/editor, type Options struct, WordWrapColumn int
+pkg github.com/tangoui/tango/ui/editor, type Options struct, WrappingIndent WrappingIndentMode
+pkg github.com/tangoui/tango/ui/editor, type PaddingOptions struct
+pkg github.com/tangoui/tango/ui/editor, type PaddingOptions struct, Bottom float32
+pkg github.com/tangoui/tango/ui/editor, type PaddingOptions struct, Top float32
+pkg github.com/tangoui/tango/ui/editor, type RenderLineHighlightMode string
+pkg github.com/tangoui/tango/ui/editor, type RenderWhitespaceMode string
+pkg github.com/tangoui/tango/ui/editor, type Selection = ui/editor/buffer.Selection
+pkg github.com/tangoui/tango/ui/editor, type ShowFoldingControls string
+pkg github.com/tangoui/tango/ui/editor, type State struct
+pkg github.com/tangoui/tango/ui/editor, type State struct, Model *Model
+pkg github.com/tangoui/tango/ui/editor, type State struct, Options Options
+pkg github.com/tangoui/tango/ui/editor, type State struct, Sels []Selection
+pkg github.com/tangoui/tango/ui/editor, type State struct, Theme *ui/editor/theme.Theme
+pkg github.com/tangoui/tango/ui/editor, type State struct, Viewport Viewport
+pkg github.com/tangoui/tango/ui/editor, type State struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor, type TypeArgs struct
+pkg github.com/tangoui/tango/ui/editor, type TypeArgs struct, Text string
+pkg github.com/tangoui/tango/ui/editor, type Unit int
+pkg github.com/tangoui/tango/ui/editor, type ViewState struct
+pkg github.com/tangoui/tango/ui/editor, type ViewState struct, Folded []int
+pkg github.com/tangoui/tango/ui/editor, type ViewState struct, OffsetY float32
+pkg github.com/tangoui/tango/ui/editor, type ViewState struct, ScrollX float32
+pkg github.com/tangoui/tango/ui/editor, type ViewState struct, Selections []Selection
+pkg github.com/tangoui/tango/ui/editor, type ViewState struct, TopLine int
+pkg github.com/tangoui/tango/ui/editor, type ViewState struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor, type ViewW struct
+pkg github.com/tangoui/tango/ui/editor, type ViewW struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor, type Viewport struct
+pkg github.com/tangoui/tango/ui/editor, type Viewport struct, ContentWidth float32
+pkg github.com/tangoui/tango/ui/editor, type Viewport struct, Height float32
+pkg github.com/tangoui/tango/ui/editor, type Viewport struct, LineHeight float32
+pkg github.com/tangoui/tango/ui/editor, type Viewport struct, OffsetY float32
+pkg github.com/tangoui/tango/ui/editor, type Viewport struct, PadBottom float32
+pkg github.com/tangoui/tango/ui/editor, type Viewport struct, PadTop float32
+pkg github.com/tangoui/tango/ui/editor, type Viewport struct, ScrollX float32
+pkg github.com/tangoui/tango/ui/editor, type Viewport struct, TopLine int
+pkg github.com/tangoui/tango/ui/editor, type Viewport struct, Width float32
+pkg github.com/tangoui/tango/ui/editor, type WrapMode string
+pkg github.com/tangoui/tango/ui/editor, type WrappingIndentMode string

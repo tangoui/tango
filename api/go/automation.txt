@@ -1,0 +1,121 @@
+pkg github.com/tangoui/tango/automation, const DefaultTimeout time.Duration = 10000000000
+pkg github.com/tangoui/tango/automation, const EnvE2E untyped string = "TANGO_E2E"
+pkg github.com/tangoui/tango/automation, const KindCanvas untyped string = "canvas"
+pkg github.com/tangoui/tango/automation, const KindWebView untyped string = "webview"
+pkg github.com/tangoui/tango/automation, const MatchContains untyped string = "contains"
+pkg github.com/tangoui/tango/automation, const MatchExact untyped string = "exact"
+pkg github.com/tangoui/tango/automation, const MatchRegexp untyped string = "regexp"
+pkg github.com/tangoui/tango/automation, func Connect(testing.TB, string, string) *App
+pkg github.com/tangoui/tango/automation, func Launch(testing.TB, string, ...string) *App
+pkg github.com/tangoui/tango/automation, func LaunchOptions(testing.TB, string, Options) *App
+pkg github.com/tangoui/tango/automation, method (*App) Exited() bool
+pkg github.com/tangoui/tango/automation, method (*App) Output() string
+pkg github.com/tangoui/tango/automation, method (*App) Quit()
+pkg github.com/tangoui/tango/automation, method (*App) SetTimeout(time.Duration)
+pkg github.com/tangoui/tango/automation, method (*App) Timeout() time.Duration
+pkg github.com/tangoui/tango/automation, method (*App) Window(string) *Window
+pkg github.com/tangoui/tango/automation, method (*App) WindowMatching(string, func(WindowInfo) bool) *Window
+pkg github.com/tangoui/tango/automation, method (*App) Windows() []WindowInfo
+pkg github.com/tangoui/tango/automation, method (*Error) Error() string
+pkg github.com/tangoui/tango/automation, method (*Locator) All() []ui/a11y.Node
+pkg github.com/tangoui/tango/automation, method (*Locator) Bounds() ui/a11y.Rect
+pkg github.com/tangoui/tango/automation, method (*Locator) Click()
+pkg github.com/tangoui/tango/automation, method (*Locator) ClickPointer()
+pkg github.com/tangoui/tango/automation, method (*Locator) Collapse()
+pkg github.com/tangoui/tango/automation, method (*Locator) Count() int
+pkg github.com/tangoui/tango/automation, method (*Locator) Decrement()
+pkg github.com/tangoui/tango/automation, method (*Locator) Dismiss()
+pkg github.com/tangoui/tango/automation, method (*Locator) Exists() bool
+pkg github.com/tangoui/tango/automation, method (*Locator) Expand()
+pkg github.com/tangoui/tango/automation, method (*Locator) First() *Locator
+pkg github.com/tangoui/tango/automation, method (*Locator) Focus()
+pkg github.com/tangoui/tango/automation, method (*Locator) Has(ui/a11y.State) bool
+pkg github.com/tangoui/tango/automation, method (*Locator) Increment()
+pkg github.com/tangoui/tango/automation, method (*Locator) Last() *Locator
+pkg github.com/tangoui/tango/automation, method (*Locator) Name() string
+pkg github.com/tangoui/tango/automation, method (*Locator) Node() ui/a11y.Node
+pkg github.com/tangoui/tango/automation, method (*Locator) Nth(int) *Locator
+pkg github.com/tangoui/tango/automation, method (*Locator) Perform(ui/a11y.Action, string) ui/a11y.Node
+pkg github.com/tangoui/tango/automation, method (*Locator) Query() Query
+pkg github.com/tangoui/tango/automation, method (*Locator) ScrollIntoView()
+pkg github.com/tangoui/tango/automation, method (*Locator) SetValue(string)
+pkg github.com/tangoui/tango/automation, method (*Locator) String() string
+pkg github.com/tangoui/tango/automation, method (*Locator) Timeout(time.Duration) *Locator
+pkg github.com/tangoui/tango/automation, method (*Locator) Type(string)
+pkg github.com/tangoui/tango/automation, method (*Locator) Value() string
+pkg github.com/tangoui/tango/automation, method (*Locator) Wait() ui/a11y.Node
+pkg github.com/tangoui/tango/automation, method (*Locator) WaitGone()
+pkg github.com/tangoui/tango/automation, method (*Locator) WaitState(ui/a11y.State) ui/a11y.Node
+pkg github.com/tangoui/tango/automation, method (*Locator) WaitValue(string) ui/a11y.Node
+pkg github.com/tangoui/tango/automation, method (*Locator) WithState(ui/a11y.State) *Locator
+pkg github.com/tangoui/tango/automation, method (*Locator) WithValue(string) *Locator
+pkg github.com/tangoui/tango/automation, method (*Locator) WithoutState(ui/a11y.State) *Locator
+pkg github.com/tangoui/tango/automation, method (*Window) Click(float32, float32)
+pkg github.com/tangoui/tango/automation, method (*Window) ClickSelector(string)
+pkg github.com/tangoui/tango/automation, method (*Window) DoubleClick(float32, float32)
+pkg github.com/tangoui/tango/automation, method (*Window) Drag(float32, float32, float32, float32)
+pkg github.com/tangoui/tango/automation, method (*Window) Dump() string
+pkg github.com/tangoui/tango/automation, method (*Window) Eval(string) encoding/json.RawMessage
+pkg github.com/tangoui/tango/automation, method (*Window) EvalInto(string, any)
+pkg github.com/tangoui/tango/automation, method (*Window) EvalString(string) string
+pkg github.com/tangoui/tango/automation, method (*Window) Fill(string, string)
+pkg github.com/tangoui/tango/automation, method (*Window) Find(ui/a11y.Role, string) *Locator
+pkg github.com/tangoui/tango/automation, method (*Window) FindContains(ui/a11y.Role, string) *Locator
+pkg github.com/tangoui/tango/automation, method (*Window) FindRegexp(ui/a11y.Role, string) *Locator
+pkg github.com/tangoui/tango/automation, method (*Window) ID() uint64
+pkg github.com/tangoui/tango/automation, method (*Window) Info() WindowInfo
+pkg github.com/tangoui/tango/automation, method (*Window) Kind() string
+pkg github.com/tangoui/tango/automation, method (*Window) Locate(Query) *Locator
+pkg github.com/tangoui/tango/automation, method (*Window) Move(float32, float32)
+pkg github.com/tangoui/tango/automation, method (*Window) Nodes() []ui/a11y.Node
+pkg github.com/tangoui/tango/automation, method (*Window) Press(string)
+pkg github.com/tangoui/tango/automation, method (*Window) RightClick(float32, float32)
+pkg github.com/tangoui/tango/automation, method (*Window) SaveScreenshot(string)
+pkg github.com/tangoui/tango/automation, method (*Window) Screenshot() []byte
+pkg github.com/tangoui/tango/automation, method (*Window) Scroll(float32, float32, float32, float32)
+pkg github.com/tangoui/tango/automation, method (*Window) String() string
+pkg github.com/tangoui/tango/automation, method (*Window) TextOf(string) string
+pkg github.com/tangoui/tango/automation, method (*Window) Title() string
+pkg github.com/tangoui/tango/automation, method (*Window) Type(string)
+pkg github.com/tangoui/tango/automation, method (*Window) WaitFor(*Locator) ui/a11y.Node
+pkg github.com/tangoui/tango/automation, method (*Window) WaitGone(*Locator)
+pkg github.com/tangoui/tango/automation, method (*Window) WaitJS(string)
+pkg github.com/tangoui/tango/automation, method (*Window) WaitSelector(string)
+pkg github.com/tangoui/tango/automation, method (Query) Compile() (*internal/automation.Matcher, error)
+pkg github.com/tangoui/tango/automation, method (Query) String() string
+pkg github.com/tangoui/tango/automation, type App struct
+pkg github.com/tangoui/tango/automation, type Error = internal/automation.Error
+pkg github.com/tangoui/tango/automation, type Error struct
+pkg github.com/tangoui/tango/automation, type Error struct, Code string
+pkg github.com/tangoui/tango/automation, type Error struct, Msg string
+pkg github.com/tangoui/tango/automation, type Locator struct
+pkg github.com/tangoui/tango/automation, type Locator struct, noncomparable
+pkg github.com/tangoui/tango/automation, type Options struct
+pkg github.com/tangoui/tango/automation, type Options struct, Addr string
+pkg github.com/tangoui/tango/automation, type Options struct, Args []string
+pkg github.com/tangoui/tango/automation, type Options struct, BuildFlags []string
+pkg github.com/tangoui/tango/automation, type Options struct, Dir string
+pkg github.com/tangoui/tango/automation, type Options struct, Env []string
+pkg github.com/tangoui/tango/automation, type Options struct, Output io.Writer
+pkg github.com/tangoui/tango/automation, type Options struct, StartTimeout time.Duration
+pkg github.com/tangoui/tango/automation, type Options struct, Timeout time.Duration
+pkg github.com/tangoui/tango/automation, type Options struct, noncomparable
+pkg github.com/tangoui/tango/automation, type Query = internal/automation.Query
+pkg github.com/tangoui/tango/automation, type Query struct
+pkg github.com/tangoui/tango/automation, type Query struct, Match string `json:"match,omitempty"`
+pkg github.com/tangoui/tango/automation, type Query struct, Name string `json:"name,omitempty"`
+pkg github.com/tangoui/tango/automation, type Query struct, Nth int `json:"nth,omitempty"`
+pkg github.com/tangoui/tango/automation, type Query struct, Role string `json:"role,omitempty"`
+pkg github.com/tangoui/tango/automation, type Query struct, States []string `json:"states,omitempty"`
+pkg github.com/tangoui/tango/automation, type Query struct, Value *string `json:"value,omitempty"`
+pkg github.com/tangoui/tango/automation, type Query struct, noncomparable
+pkg github.com/tangoui/tango/automation, type Window struct
+pkg github.com/tangoui/tango/automation, type WindowInfo = internal/automation.WindowInfo
+pkg github.com/tangoui/tango/automation, type WindowInfo struct
+pkg github.com/tangoui/tango/automation, type WindowInfo struct, Focused bool `json:"focused"`
+pkg github.com/tangoui/tango/automation, type WindowInfo struct, Height int `json:"height"`
+pkg github.com/tangoui/tango/automation, type WindowInfo struct, ID uint64 `json:"id"`
+pkg github.com/tangoui/tango/automation, type WindowInfo struct, Kind string `json:"kind"`
+pkg github.com/tangoui/tango/automation, type WindowInfo struct, Title string `json:"title"`
+pkg github.com/tangoui/tango/automation, type WindowInfo struct, Visible bool `json:"visible"`
+pkg github.com/tangoui/tango/automation, type WindowInfo struct, Width int `json:"width"`

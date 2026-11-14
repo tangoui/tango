@@ -1,0 +1,15 @@
+pkg github.com/tangoui/tango/sys/jumplist, func Arg(string) string
+pkg github.com/tangoui/tango/sys/jumplist, func Clear(*tango.App) error
+pkg github.com/tangoui/tango/sys/jumplist, func IDFromArgs([]string) (string, bool)
+pkg github.com/tangoui/tango/sys/jumplist, func OnClick(*tango.App, func(string))
+pkg github.com/tangoui/tango/sys/jumplist, func Separator() Item
+pkg github.com/tangoui/tango/sys/jumplist, func Set(*tango.App, []Item) error
+pkg github.com/tangoui/tango/sys/jumplist, type Item struct
+pkg github.com/tangoui/tango/sys/jumplist, type Item struct, Description string
+pkg github.com/tangoui/tango/sys/jumplist, type Item struct, Disabled bool
+pkg github.com/tangoui/tango/sys/jumplist, type Item struct, ID string
+pkg github.com/tangoui/tango/sys/jumplist, type Item struct, Icon string
+pkg github.com/tangoui/tango/sys/jumplist, type Item struct, Label string
+pkg github.com/tangoui/tango/sys/jumplist, type Item struct, Separator bool
+pkg github.com/tangoui/tango/sys/jumplist, var ErrBadItem error
+pkg github.com/tangoui/tango/sys/jumplist, var ErrUnsupported error

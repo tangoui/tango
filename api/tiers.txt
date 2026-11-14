@@ -1,0 +1,57 @@
+# API tiers of the Go module github.com/tangoui/tango (docs/release.md, "API 稳定性").
+#
+# Each line is "<package> <tier>". <package> is relative to the module root
+# ("." is the root package tango); "x/..." covers x and every package below
+# it. An exact line wins over any "/..." line, and the longest "/..." wins
+# among those. Internal packages are never API and are not listed.
+#
+# Tiers:
+#   stable        incompatible changes fail CI (scripts/apidiff.sh) unless
+#                 the change goes through the api-break flow
+#   split         stable symbols are listed in api/stable/<pkg>.txt (path
+#                 with "/" replaced by "_"); everything else in the package
+#                 is experimental. The allowlists start empty in Phase 0, so
+#                 split packages are fully experimental until Phase 2.
+#   experimental  incompatible changes are only warnings
+#   exclude       not API: no golden file, no apidiff report
+#
+# Every public package must match a line: `go run ./internal/cmd/apitxt
+# -check` fails on an unclassified package, so a new package needs a
+# decision here.
+
+# Stable packages.
+.                       stable
+asset                   stable
+automation              stable
+bind                    stable
+i18n                    stable
+ipc                     stable
+jsapi                   stable
+runtime-js/runtimejs    stable
+service/...             stable
+sys/...                 stable
+ui/a11y                 stable
+ui/geom                 stable
+ui/icon                 stable
+
+# Split packages: stable core from the allowlist, the rest experimental.
+ui                      split
+ui/input                split
+ui/layout               split
+ui/paint                split
+ui/text                 split
+ui/theme                split
+uihost                  split
+
+# Experimental.
+service/updater         experimental
+ui/...                  experimental
+ui/chart                experimental
+ui/mobile               experimental
+ui/editor/...           experimental
+ui/gpu/...              experimental
+ui/shader/...           experimental
+
+# Not API.
+examples/...            exclude
+site/...                exclude

@@ -1,0 +1,14 @@
+pkg github.com/tangoui/tango/sys/media, const Images Type = 1
+pkg github.com/tangoui/tango/sys/media, const Videos Type = 2
+pkg github.com/tangoui/tango/sys/media, func Pick(*tango.App, PickOptions) ([]string, error)
+pkg github.com/tangoui/tango/sys/media, func TakePhoto(*tango.App) (string, error)
+pkg github.com/tangoui/tango/sys/media, type PickOptions struct
+pkg github.com/tangoui/tango/sys/media, type PickOptions struct, Limit int
+pkg github.com/tangoui/tango/sys/media, type PickOptions struct, Types Type
+pkg github.com/tangoui/tango/sys/media, type Type = internal/platform.MediaType
+pkg github.com/tangoui/tango/sys/media, type Type int
+pkg github.com/tangoui/tango/sys/media, var ErrCanceled error
+pkg github.com/tangoui/tango/sys/media, var ErrNotAvailable error
+pkg github.com/tangoui/tango/sys/media, var ErrNotConfigured error
+pkg github.com/tangoui/tango/sys/media, var ErrPermissionDenied error
+pkg github.com/tangoui/tango/sys/media, var ErrUnsupported error

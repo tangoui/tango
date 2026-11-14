@@ -1,0 +1,13 @@
+pkg github.com/tangoui/tango/sys/push, func OnOpen(*tango.App, func(Message))
+pkg github.com/tangoui/tango/sys/push, func OnReceive(*tango.App, func(Message))
+pkg github.com/tangoui/tango/sys/push, func OnToken(*tango.App, func(string))
+pkg github.com/tangoui/tango/sys/push, func Register(*tango.App) (string, error)
+pkg github.com/tangoui/tango/sys/push, type Message struct
+pkg github.com/tangoui/tango/sys/push, type Message struct, Action string
+pkg github.com/tangoui/tango/sys/push, type Message struct, Body string
+pkg github.com/tangoui/tango/sys/push, type Message struct, Data map[string]any
+pkg github.com/tangoui/tango/sys/push, type Message struct, ID string
+pkg github.com/tangoui/tango/sys/push, type Message struct, Title string
+pkg github.com/tangoui/tango/sys/push, type Message struct, noncomparable
+pkg github.com/tangoui/tango/sys/push, var ErrPermissionDenied error
+pkg github.com/tangoui/tango/sys/push, var ErrUnsupported error

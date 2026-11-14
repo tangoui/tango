@@ -1,0 +1,13 @@
+pkg github.com/tangoui/tango/sys/autostart, const LoginArg untyped string = "--tango-login"
+pkg github.com/tangoui/tango/sys/autostart, func Disable(Options) error
+pkg github.com/tangoui/tango/sys/autostart, func Enable(Options) error
+pkg github.com/tangoui/tango/sys/autostart, func IsEnabled(Options) (bool, error)
+pkg github.com/tangoui/tango/sys/autostart, func OpenedAtLogin() bool
+pkg github.com/tangoui/tango/sys/autostart, type Options struct
+pkg github.com/tangoui/tango/sys/autostart, type Options struct, Args []string
+pkg github.com/tangoui/tango/sys/autostart, type Options struct, Dir string
+pkg github.com/tangoui/tango/sys/autostart, type Options struct, Exec string
+pkg github.com/tangoui/tango/sys/autostart, type Options struct, ID string
+pkg github.com/tangoui/tango/sys/autostart, type Options struct, Name string
+pkg github.com/tangoui/tango/sys/autostart, type Options struct, noncomparable
+pkg github.com/tangoui/tango/sys/autostart, var ErrUnsupported error

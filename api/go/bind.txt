@@ -1,0 +1,1 @@
+pkg github.com/tangoui/tango/bind, func Register(*ipc.Router, string, any) error

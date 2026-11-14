@@ -1,0 +1,22 @@
+pkg github.com/tangoui/tango/sys/power, const AC Source = 1
+pkg github.com/tangoui/tango/sys/power, const Battery Source = 2
+pkg github.com/tangoui/tango/sys/power, const Unknown Source = 0
+pkg github.com/tangoui/tango/sys/power, func Get(*tango.App) (Status, error)
+pkg github.com/tangoui/tango/sys/power, func KeepAwake(*tango.App, string) (*Block, error)
+pkg github.com/tangoui/tango/sys/power, func KeepDisplayOn(*tango.App, string) (*Block, error)
+pkg github.com/tangoui/tango/sys/power, func OnChange(*tango.App, func(Status))
+pkg github.com/tangoui/tango/sys/power, func OnResume(*tango.App, func())
+pkg github.com/tangoui/tango/sys/power, func OnSuspend(*tango.App, func())
+pkg github.com/tangoui/tango/sys/power, method (*Block) Active() bool
+pkg github.com/tangoui/tango/sys/power, method (*Block) Release()
+pkg github.com/tangoui/tango/sys/power, type Block struct
+pkg github.com/tangoui/tango/sys/power, type Source = internal/platform.PowerSource
+pkg github.com/tangoui/tango/sys/power, type Source int
+pkg github.com/tangoui/tango/sys/power, type Status = internal/platform.PowerStatus
+pkg github.com/tangoui/tango/sys/power, type Status struct
+pkg github.com/tangoui/tango/sys/power, type Status struct, Battery float64
+pkg github.com/tangoui/tango/sys/power, type Status struct, Charging bool
+pkg github.com/tangoui/tango/sys/power, type Status struct, HasBattery bool
+pkg github.com/tangoui/tango/sys/power, type Status struct, LowPower bool
+pkg github.com/tangoui/tango/sys/power, type Status struct, Source Source
+pkg github.com/tangoui/tango/sys/power, var ErrUnsupported error

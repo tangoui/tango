@@ -1,0 +1,34 @@
+pkg github.com/tangoui/tango/sys/tray, const MenuOnDefault MenuTrigger = 0
+pkg github.com/tangoui/tango/sys/tray, const MenuOnPrimary MenuTrigger = 1
+pkg github.com/tangoui/tango/sys/tray, const MenuOnSecondary MenuTrigger = 2
+pkg github.com/tangoui/tango/sys/tray, func New(*tango.App, Options) (*Tray, error)
+pkg github.com/tangoui/tango/sys/tray, method (*Tray) Bounds() (Rect, bool)
+pkg github.com/tangoui/tango/sys/tray, method (*Tray) OnClick(func())
+pkg github.com/tangoui/tango/sys/tray, method (*Tray) OnDoubleClick(func())
+pkg github.com/tangoui/tango/sys/tray, method (*Tray) OnRightClick(func())
+pkg github.com/tangoui/tango/sys/tray, method (*Tray) Remove()
+pkg github.com/tangoui/tango/sys/tray, method (*Tray) SetIcon([]byte, bool)
+pkg github.com/tangoui/tango/sys/tray, method (*Tray) SetMacIcon([]byte)
+pkg github.com/tangoui/tango/sys/tray, method (*Tray) SetMenu(*sys/menu.Menu) error
+pkg github.com/tangoui/tango/sys/tray, method (*Tray) SetMenuOn(MenuTrigger)
+pkg github.com/tangoui/tango/sys/tray, method (*Tray) SetTitle(string)
+pkg github.com/tangoui/tango/sys/tray, method (*Tray) SetTooltip(string)
+pkg github.com/tangoui/tango/sys/tray, type MenuTrigger = internal/platform.TrayMenuTrigger
+pkg github.com/tangoui/tango/sys/tray, type MenuTrigger int
+pkg github.com/tangoui/tango/sys/tray, type Options struct
+pkg github.com/tangoui/tango/sys/tray, type Options struct, Icon []byte
+pkg github.com/tangoui/tango/sys/tray, type Options struct, MacIcon []byte
+pkg github.com/tangoui/tango/sys/tray, type Options struct, MenuOn MenuTrigger
+pkg github.com/tangoui/tango/sys/tray, type Options struct, Template bool
+pkg github.com/tangoui/tango/sys/tray, type Options struct, Title string
+pkg github.com/tangoui/tango/sys/tray, type Options struct, Tooltip string
+pkg github.com/tangoui/tango/sys/tray, type Options struct, noncomparable
+pkg github.com/tangoui/tango/sys/tray, type Rect = internal/platform.Rect
+pkg github.com/tangoui/tango/sys/tray, type Rect struct
+pkg github.com/tangoui/tango/sys/tray, type Rect struct, Height int
+pkg github.com/tangoui/tango/sys/tray, type Rect struct, Width int
+pkg github.com/tangoui/tango/sys/tray, type Rect struct, X int
+pkg github.com/tangoui/tango/sys/tray, type Rect struct, Y int
+pkg github.com/tangoui/tango/sys/tray, type Tray struct
+pkg github.com/tangoui/tango/sys/tray, type Tray struct, noncomparable
+pkg github.com/tangoui/tango/sys/tray, var ErrUnsupported error

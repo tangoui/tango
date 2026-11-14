@@ -1,0 +1,20 @@
+pkg github.com/tangoui/tango/i18n, const DefaultLocale untyped string = "en"
+pkg github.com/tangoui/tango/i18n, func Canonical(string) string
+pkg github.com/tangoui/tango/i18n, func Init(AppBackend)
+pkg github.com/tangoui/tango/i18n, func Load(io/fs.FS, string) error
+pkg github.com/tangoui/tango/i18n, func Locale() string
+pkg github.com/tangoui/tango/i18n, func Match([]string, []string) string
+pkg github.com/tangoui/tango/i18n, func MatchOK([]string, []string) (string, bool)
+pkg github.com/tangoui/tango/i18n, func N(string, int, ...any) string
+pkg github.com/tangoui/tango/i18n, func OnChange(func(string)) func()
+pkg github.com/tangoui/tango/i18n, func PluralCategory(string, int) string
+pkg github.com/tangoui/tango/i18n, func Preferred() []string
+pkg github.com/tangoui/tango/i18n, func Refresh()
+pkg github.com/tangoui/tango/i18n, func RegisterPluralRule(string, PluralRule)
+pkg github.com/tangoui/tango/i18n, func SetLocale(string)
+pkg github.com/tangoui/tango/i18n, func Supported() []string
+pkg github.com/tangoui/tango/i18n, func T(string, ...any) string
+pkg github.com/tangoui/tango/i18n, type AppBackend interface { Backend }
+pkg github.com/tangoui/tango/i18n, type AppBackend interface, Backend() internal/platform.Backend
+pkg github.com/tangoui/tango/i18n, type PluralRule func(int) string
+pkg github.com/tangoui/tango/i18n, var Builtin []string

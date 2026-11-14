@@ -1,0 +1,10 @@
+pkg github.com/tangoui/tango/sys/safearea, func Get(*tango.App) (Insets, error)
+pkg github.com/tangoui/tango/sys/safearea, func OnChange(*tango.App, func(Insets))
+pkg github.com/tangoui/tango/sys/safearea, func SyncPage(*tango.App) error
+pkg github.com/tangoui/tango/sys/safearea, type Insets = internal/platform.Insets
+pkg github.com/tangoui/tango/sys/safearea, type Insets struct
+pkg github.com/tangoui/tango/sys/safearea, type Insets struct, Bottom float64
+pkg github.com/tangoui/tango/sys/safearea, type Insets struct, Left float64
+pkg github.com/tangoui/tango/sys/safearea, type Insets struct, Right float64
+pkg github.com/tangoui/tango/sys/safearea, type Insets struct, Top float64
+pkg github.com/tangoui/tango/sys/safearea, var ErrUnsupported error

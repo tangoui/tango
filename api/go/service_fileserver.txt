@@ -1,0 +1,8 @@
+pkg github.com/tangoui/tango/service/fileserver, func Mount(string, net/http.Handler, net/http.Handler) net/http.Handler
+pkg github.com/tangoui/tango/service/fileserver, func New(string, Options) (*Server, error)
+pkg github.com/tangoui/tango/service/fileserver, method (*Server) Close() error
+pkg github.com/tangoui/tango/service/fileserver, method (*Server) ServeHTTP(net/http.ResponseWriter, *net/http.Request)
+pkg github.com/tangoui/tango/service/fileserver, type Options struct
+pkg github.com/tangoui/tango/service/fileserver, type Options struct, Dotfiles bool
+pkg github.com/tangoui/tango/service/fileserver, type Options struct, List bool
+pkg github.com/tangoui/tango/service/fileserver, type Server struct

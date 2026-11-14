@@ -1,0 +1,5 @@
+pkg github.com/tangoui/tango/sys/theme/uivars, func Default(sys/theme.Theme) *ui/theme.Theme
+pkg github.com/tangoui/tango/sys/theme/uivars, func Refresh(*tango.App)
+pkg github.com/tangoui/tango/sys/theme/uivars, func SyncPage(*tango.App, Gen) error
+pkg github.com/tangoui/tango/sys/theme/uivars, func Vars(*ui/theme.Theme) map[string]string
+pkg github.com/tangoui/tango/sys/theme/uivars, type Gen func(sys/theme.Theme) *ui/theme.Theme

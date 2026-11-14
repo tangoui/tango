@@ -1,0 +1,14 @@
+pkg github.com/tangoui/tango/sys/theme, const AppearanceDark Appearance = "dark"
+pkg github.com/tangoui/tango/sys/theme, const AppearanceLight Appearance = "light"
+pkg github.com/tangoui/tango/sys/theme, const AppearanceSystem Appearance = ""
+pkg github.com/tangoui/tango/sys/theme, func AccentCSS(uint32) string
+pkg github.com/tangoui/tango/sys/theme, func OnChange(*tango.App, func(Theme))
+pkg github.com/tangoui/tango/sys/theme, func SetAppearance(*tango.App, Appearance) error
+pkg github.com/tangoui/tango/sys/theme, func SyncPage(*tango.App) error
+pkg github.com/tangoui/tango/sys/theme, func System(*tango.App) (Theme, error)
+pkg github.com/tangoui/tango/sys/theme, type Appearance string
+pkg github.com/tangoui/tango/sys/theme, type Theme = internal/platform.Theme
+pkg github.com/tangoui/tango/sys/theme, type Theme struct
+pkg github.com/tangoui/tango/sys/theme, type Theme struct, Accent uint32
+pkg github.com/tangoui/tango/sys/theme, type Theme struct, Dark bool
+pkg github.com/tangoui/tango/sys/theme, var ErrUnsupported error

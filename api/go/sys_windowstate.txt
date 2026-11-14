@@ -1,0 +1,18 @@
+pkg github.com/tangoui/tango/sys/windowstate, func DefaultPath(string) (string, error)
+pkg github.com/tangoui/tango/sys/windowstate, func NewFileStore(string) *FileStore
+pkg github.com/tangoui/tango/sys/windowstate, func Track(*tango.Surface, string, Store) error
+pkg github.com/tangoui/tango/sys/windowstate, method (*FileStore) Load(string) (State, bool)
+pkg github.com/tangoui/tango/sys/windowstate, method (*FileStore) Path() string
+pkg github.com/tangoui/tango/sys/windowstate, method (*FileStore) Save(string, State) error
+pkg github.com/tangoui/tango/sys/windowstate, type FileStore struct
+pkg github.com/tangoui/tango/sys/windowstate, type FileStore struct, noncomparable
+pkg github.com/tangoui/tango/sys/windowstate, type State struct
+pkg github.com/tangoui/tango/sys/windowstate, type State struct, Height int `json:"height"`
+pkg github.com/tangoui/tango/sys/windowstate, type State struct, Maximized bool `json:"maximized,omitempty"`
+pkg github.com/tangoui/tango/sys/windowstate, type State struct, Width int `json:"width"`
+pkg github.com/tangoui/tango/sys/windowstate, type State struct, X int `json:"x"`
+pkg github.com/tangoui/tango/sys/windowstate, type State struct, Y int `json:"y"`
+pkg github.com/tangoui/tango/sys/windowstate, type Store interface { Load, Save }
+pkg github.com/tangoui/tango/sys/windowstate, type Store interface, Load(string) (State, bool)
+pkg github.com/tangoui/tango/sys/windowstate, type Store interface, Save(string, State) error
+pkg github.com/tangoui/tango/sys/windowstate, var SaveDelay time.Duration

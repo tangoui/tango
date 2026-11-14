@@ -1,0 +1,22 @@
+pkg github.com/tangoui/tango/sys/hotkey, func Bind(*tango.Surface, string, func()) (*Binding, error)
+pkg github.com/tangoui/tango/sys/hotkey, func Parse(string) (Spec, error)
+pkg github.com/tangoui/tango/sys/hotkey, func Register(*tango.App, string, func()) (*Hotkey, error)
+pkg github.com/tangoui/tango/sys/hotkey, func Unregister(*Hotkey) error
+pkg github.com/tangoui/tango/sys/hotkey, func Validate(string) error
+pkg github.com/tangoui/tango/sys/hotkey, method (*Binding) Accelerator() string
+pkg github.com/tangoui/tango/sys/hotkey, method (*Binding) Unbind()
+pkg github.com/tangoui/tango/sys/hotkey, method (*Hotkey) Accelerator() string
+pkg github.com/tangoui/tango/sys/hotkey, method (*Hotkey) Unregister() error
+pkg github.com/tangoui/tango/sys/hotkey, type Binding struct
+pkg github.com/tangoui/tango/sys/hotkey, type Binding struct, noncomparable
+pkg github.com/tangoui/tango/sys/hotkey, type Hotkey struct
+pkg github.com/tangoui/tango/sys/hotkey, type Spec struct
+pkg github.com/tangoui/tango/sys/hotkey, type Spec struct, Alt bool
+pkg github.com/tangoui/tango/sys/hotkey, type Spec struct, Code string
+pkg github.com/tangoui/tango/sys/hotkey, type Spec struct, Ctrl bool
+pkg github.com/tangoui/tango/sys/hotkey, type Spec struct, Key string
+pkg github.com/tangoui/tango/sys/hotkey, type Spec struct, Meta bool
+pkg github.com/tangoui/tango/sys/hotkey, type Spec struct, Shift bool
+pkg github.com/tangoui/tango/sys/hotkey, var ErrBadAccelerator error
+pkg github.com/tangoui/tango/sys/hotkey, var ErrUnregistered error
+pkg github.com/tangoui/tango/sys/hotkey, var ErrUnsupported error

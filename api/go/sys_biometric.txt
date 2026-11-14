@@ -1,0 +1,22 @@
+pkg github.com/tangoui/tango/sys/biometric, const FaceID Kind = 2
+pkg github.com/tangoui/tango/sys/biometric, const None Kind = 0
+pkg github.com/tangoui/tango/sys/biometric, const OpticID Kind = 3
+pkg github.com/tangoui/tango/sys/biometric, const Other Kind = 4
+pkg github.com/tangoui/tango/sys/biometric, const TouchID Kind = 1
+pkg github.com/tangoui/tango/sys/biometric, func Authenticate(*tango.App, Options) error
+pkg github.com/tangoui/tango/sys/biometric, func Available(*tango.App) (Kind, error)
+pkg github.com/tangoui/tango/sys/biometric, func String(Kind) string
+pkg github.com/tangoui/tango/sys/biometric, type Kind = internal/platform.BiometryKind
+pkg github.com/tangoui/tango/sys/biometric, type Kind int
+pkg github.com/tangoui/tango/sys/biometric, type Options struct
+pkg github.com/tangoui/tango/sys/biometric, type Options struct, AllowPasscode bool
+pkg github.com/tangoui/tango/sys/biometric, type Options struct, CancelTitle string
+pkg github.com/tangoui/tango/sys/biometric, type Options struct, Reason string
+pkg github.com/tangoui/tango/sys/biometric, type Options struct, Title string
+pkg github.com/tangoui/tango/sys/biometric, var ErrCanceled error
+pkg github.com/tangoui/tango/sys/biometric, var ErrFailed error
+pkg github.com/tangoui/tango/sys/biometric, var ErrLockedOut error
+pkg github.com/tangoui/tango/sys/biometric, var ErrNotAvailable error
+pkg github.com/tangoui/tango/sys/biometric, var ErrNotConfigured error
+pkg github.com/tangoui/tango/sys/biometric, var ErrNotEnrolled error
+pkg github.com/tangoui/tango/sys/biometric, var ErrUnsupported error

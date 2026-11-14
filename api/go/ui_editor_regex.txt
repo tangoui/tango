@@ -1,0 +1,16 @@
+pkg github.com/tangoui/tango/ui/editor/regex, const Backtrack Engine = 1
+pkg github.com/tangoui/tango/ui/editor/regex, const MatchTimeout time.Duration = 100000000
+pkg github.com/tangoui/tango/ui/editor/regex, const Std Engine = 0
+pkg github.com/tangoui/tango/ui/editor/regex, func Compile(string, string) (Regexp, error)
+pkg github.com/tangoui/tango/ui/editor/regex, func Stats() (int64, int64, int64)
+pkg github.com/tangoui/tango/ui/editor/regex, func Translate(string, string) (string, bool)
+pkg github.com/tangoui/tango/ui/editor/regex, method (Engine) String() string
+pkg github.com/tangoui/tango/ui/editor/regex, type Engine int
+pkg github.com/tangoui/tango/ui/editor/regex, type Regexp interface { Engine, MatchStart, MatchStartRunes, NumGroups, Source, TryMatchStart }
+pkg github.com/tangoui/tango/ui/editor/regex, type Regexp interface, Engine() Engine
+pkg github.com/tangoui/tango/ui/editor/regex, type Regexp interface, MatchStart(string) []int
+pkg github.com/tangoui/tango/ui/editor/regex, type Regexp interface, MatchStartRunes(string, []rune) []int
+pkg github.com/tangoui/tango/ui/editor/regex, type Regexp interface, NumGroups() int
+pkg github.com/tangoui/tango/ui/editor/regex, type Regexp interface, Source() string
+pkg github.com/tangoui/tango/ui/editor/regex, type Regexp interface, TryMatchStart(string, []rune) ([]int, error)
+pkg github.com/tangoui/tango/ui/editor/regex, var ErrTimeout error

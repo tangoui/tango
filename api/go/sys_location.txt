@@ -1,0 +1,24 @@
+pkg github.com/tangoui/tango/sys/location, const Balanced Accuracy = 0
+pkg github.com/tangoui/tango/sys/location, const High Accuracy = 1
+pkg github.com/tangoui/tango/sys/location, const Low Accuracy = 2
+pkg github.com/tangoui/tango/sys/location, func Current(*tango.App, Options) (Location, error)
+pkg github.com/tangoui/tango/sys/location, func Watch(*tango.App, Options, func(Location, error)) (func(), error)
+pkg github.com/tangoui/tango/sys/location, type Accuracy = internal/platform.LocationAccuracy
+pkg github.com/tangoui/tango/sys/location, type Accuracy int
+pkg github.com/tangoui/tango/sys/location, type Location = internal/platform.Location
+pkg github.com/tangoui/tango/sys/location, type Location struct
+pkg github.com/tangoui/tango/sys/location, type Location struct, Accuracy float64
+pkg github.com/tangoui/tango/sys/location, type Location struct, Altitude float64
+pkg github.com/tangoui/tango/sys/location, type Location struct, AltitudeAccuracy float64
+pkg github.com/tangoui/tango/sys/location, type Location struct, Heading float64
+pkg github.com/tangoui/tango/sys/location, type Location struct, Latitude float64
+pkg github.com/tangoui/tango/sys/location, type Location struct, Longitude float64
+pkg github.com/tangoui/tango/sys/location, type Location struct, Speed float64
+pkg github.com/tangoui/tango/sys/location, type Location struct, Time time.Time
+pkg github.com/tangoui/tango/sys/location, type Options struct
+pkg github.com/tangoui/tango/sys/location, type Options struct, Accuracy Accuracy
+pkg github.com/tangoui/tango/sys/location, type Options struct, DistanceFilter float64
+pkg github.com/tangoui/tango/sys/location, var ErrNotAvailable error
+pkg github.com/tangoui/tango/sys/location, var ErrNotConfigured error
+pkg github.com/tangoui/tango/sys/location, var ErrPermissionDenied error
+pkg github.com/tangoui/tango/sys/location, var ErrUnsupported error

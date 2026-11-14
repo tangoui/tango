@@ -1,0 +1,22 @@
+pkg github.com/tangoui/tango/service/log, const DefaultFile untyped string = "app.log"
+pkg github.com/tangoui/tango/service/log, const DefaultKeep untyped int = 3
+pkg github.com/tangoui/tango/service/log, const DefaultMaxSize untyped int = 5242880
+pkg github.com/tangoui/tango/service/log, const Method untyped string = "Log.Write"
+pkg github.com/tangoui/tango/service/log, func Handler(*ipc.Router, *log/slog.Logger)
+pkg github.com/tangoui/tango/service/log, func New(Options) (*Logger, error)
+pkg github.com/tangoui/tango/service/log, func OpenRotating(string, int64, int) (*RotatingFile, error)
+pkg github.com/tangoui/tango/service/log, method (*Logger) Path() string
+pkg github.com/tangoui/tango/service/log, method (*Logger) Shutdown() error
+pkg github.com/tangoui/tango/service/log, method (*RotatingFile) Close() error
+pkg github.com/tangoui/tango/service/log, method (*RotatingFile) Write([]byte) (int, error)
+pkg github.com/tangoui/tango/service/log, type Logger struct
+pkg github.com/tangoui/tango/service/log, type Logger struct, embedded *log/slog.Logger
+pkg github.com/tangoui/tango/service/log, type Options struct
+pkg github.com/tangoui/tango/service/log, type Options struct, AppID string
+pkg github.com/tangoui/tango/service/log, type Options struct, Console io.Writer
+pkg github.com/tangoui/tango/service/log, type Options struct, Dir string
+pkg github.com/tangoui/tango/service/log, type Options struct, File string
+pkg github.com/tangoui/tango/service/log, type Options struct, Keep int
+pkg github.com/tangoui/tango/service/log, type Options struct, Level log/slog.Leveler
+pkg github.com/tangoui/tango/service/log, type Options struct, MaxSize int64
+pkg github.com/tangoui/tango/service/log, type RotatingFile struct

@@ -1,0 +1,101 @@
+pkg github.com/tangoui/tango/ui/icon, const StrokeWidth untyped float = 1.8
+pkg github.com/tangoui/tango/ui/icon, func ByName(string) *Icon
+pkg github.com/tangoui/tango/ui/icon, func Draw(*ui/paint.List, *Icon, ui/geom.Rect, image/color.NRGBA, float64)
+pkg github.com/tangoui/tango/ui/icon, func DrawWith(*ui/paint.List, *Icon, ui/geom.Rect, image/color.NRGBA, DrawOpts)
+pkg github.com/tangoui/tango/ui/icon, func Names() []string
+pkg github.com/tangoui/tango/ui/icon, func New(string, string, string) *Icon
+pkg github.com/tangoui/tango/ui/icon, method (*Icon) Directional() *Icon
+pkg github.com/tangoui/tango/ui/icon, method (*Icon) IsDirectional() bool
+pkg github.com/tangoui/tango/ui/icon, method (DrawOpts) Mirrored(*Icon) bool
+pkg github.com/tangoui/tango/ui/icon, type DrawOpts struct
+pkg github.com/tangoui/tango/ui/icon, type DrawOpts struct, Angle float64
+pkg github.com/tangoui/tango/ui/icon, type DrawOpts struct, Mirror bool
+pkg github.com/tangoui/tango/ui/icon, type DrawOpts struct, RTL bool
+pkg github.com/tangoui/tango/ui/icon, type Icon struct
+pkg github.com/tangoui/tango/ui/icon, type Icon struct, Name string
+pkg github.com/tangoui/tango/ui/icon, type Icon struct, noncomparable
+pkg github.com/tangoui/tango/ui/icon, var Appstore *Icon
+pkg github.com/tangoui/tango/ui/icon, var ArrowDown *Icon
+pkg github.com/tangoui/tango/ui/icon, var ArrowRight *Icon
+pkg github.com/tangoui/tango/ui/icon, var ArrowUp *Icon
+pkg github.com/tangoui/tango/ui/icon, var BarChart *Icon
+pkg github.com/tangoui/tango/ui/icon, var Bell *Icon
+pkg github.com/tangoui/tango/ui/icon, var Calendar *Icon
+pkg github.com/tangoui/tango/ui/icon, var CaretDown *Icon
+pkg github.com/tangoui/tango/ui/icon, var CaretUp *Icon
+pkg github.com/tangoui/tango/ui/icon, var Check *Icon
+pkg github.com/tangoui/tango/ui/icon, var CheckCircle *Icon
+pkg github.com/tangoui/tango/ui/icon, var CheckFilled *Icon
+pkg github.com/tangoui/tango/ui/icon, var CheckSmall *Icon
+pkg github.com/tangoui/tango/ui/icon, var Clock *Icon
+pkg github.com/tangoui/tango/ui/icon, var Close *Icon
+pkg github.com/tangoui/tango/ui/icon, var CloseCircle *Icon
+pkg github.com/tangoui/tango/ui/icon, var CloseFilled *Icon
+pkg github.com/tangoui/tango/ui/icon, var CloudUpload *Icon
+pkg github.com/tangoui/tango/ui/icon, var Copy *Icon
+pkg github.com/tangoui/tango/ui/icon, var Dashboard *Icon
+pkg github.com/tangoui/tango/ui/icon, var Delete *Icon
+pkg github.com/tangoui/tango/ui/icon, var DoubleLeft *Icon
+pkg github.com/tangoui/tango/ui/icon, var DoubleRight *Icon
+pkg github.com/tangoui/tango/ui/icon, var Down *Icon
+pkg github.com/tangoui/tango/ui/icon, var Download *Icon
+pkg github.com/tangoui/tango/ui/icon, var Edit *Icon
+pkg github.com/tangoui/tango/ui/icon, var Exclamation *Icon
+pkg github.com/tangoui/tango/ui/icon, var Eye *Icon
+pkg github.com/tangoui/tango/ui/icon, var EyeInvisible *Icon
+pkg github.com/tangoui/tango/ui/icon, var Fall *Icon
+pkg github.com/tangoui/tango/ui/icon, var File *Icon
+pkg github.com/tangoui/tango/ui/icon, var FileText *Icon
+pkg github.com/tangoui/tango/ui/icon, var Filter *Icon
+pkg github.com/tangoui/tango/ui/icon, var Folder *Icon
+pkg github.com/tangoui/tango/ui/icon, var FolderOpen *Icon
+pkg github.com/tangoui/tango/ui/icon, var Form *Icon
+pkg github.com/tangoui/tango/ui/icon, var Fullscreen *Icon
+pkg github.com/tangoui/tango/ui/icon, var FullscreenExit *Icon
+pkg github.com/tangoui/tango/ui/icon, var Global *Icon
+pkg github.com/tangoui/tango/ui/icon, var Holder *Icon
+pkg github.com/tangoui/tango/ui/icon, var Home *Icon
+pkg github.com/tangoui/tango/ui/icon, var Inbox *Icon
+pkg github.com/tangoui/tango/ui/icon, var Info *Icon
+pkg github.com/tangoui/tango/ui/icon, var InfoFilled *Icon
+pkg github.com/tangoui/tango/ui/icon, var Left *Icon
+pkg github.com/tangoui/tango/ui/icon, var Like *Icon
+pkg github.com/tangoui/tango/ui/icon, var Link *Icon
+pkg github.com/tangoui/tango/ui/icon, var Loading *Icon
+pkg github.com/tangoui/tango/ui/icon, var Lock *Icon
+pkg github.com/tangoui/tango/ui/icon, var Logout *Icon
+pkg github.com/tangoui/tango/ui/icon, var Mail *Icon
+pkg github.com/tangoui/tango/ui/icon, var MenuFold *Icon
+pkg github.com/tangoui/tango/ui/icon, var MenuUnfold *Icon
+pkg github.com/tangoui/tango/ui/icon, var Message *Icon
+pkg github.com/tangoui/tango/ui/icon, var Minus *Icon
+pkg github.com/tangoui/tango/ui/icon, var More *Icon
+pkg github.com/tangoui/tango/ui/icon, var Paperclip *Icon
+pkg github.com/tangoui/tango/ui/icon, var Picture *Icon
+pkg github.com/tangoui/tango/ui/icon, var PictureOff *Icon
+pkg github.com/tangoui/tango/ui/icon, var PieChart *Icon
+pkg github.com/tangoui/tango/ui/icon, var Plus *Icon
+pkg github.com/tangoui/tango/ui/icon, var Profile *Icon
+pkg github.com/tangoui/tango/ui/icon, var Question *Icon
+pkg github.com/tangoui/tango/ui/icon, var Reload *Icon
+pkg github.com/tangoui/tango/ui/icon, var Right *Icon
+pkg github.com/tangoui/tango/ui/icon, var Rise *Icon
+pkg github.com/tangoui/tango/ui/icon, var RotateLeft *Icon
+pkg github.com/tangoui/tango/ui/icon, var RotateRight *Icon
+pkg github.com/tangoui/tango/ui/icon, var Search *Icon
+pkg github.com/tangoui/tango/ui/icon, var Setting *Icon
+pkg github.com/tangoui/tango/ui/icon, var Shop *Icon
+pkg github.com/tangoui/tango/ui/icon, var Smile *Icon
+pkg github.com/tangoui/tango/ui/icon, var Star *Icon
+pkg github.com/tangoui/tango/ui/icon, var StarFilled *Icon
+pkg github.com/tangoui/tango/ui/icon, var Swap *Icon
+pkg github.com/tangoui/tango/ui/icon, var SwapVertical *Icon
+pkg github.com/tangoui/tango/ui/icon, var Table *Icon
+pkg github.com/tangoui/tango/ui/icon, var Team *Icon
+pkg github.com/tangoui/tango/ui/icon, var Up *Icon
+pkg github.com/tangoui/tango/ui/icon, var Upload *Icon
+pkg github.com/tangoui/tango/ui/icon, var User *Icon
+pkg github.com/tangoui/tango/ui/icon, var Warning *Icon
+pkg github.com/tangoui/tango/ui/icon, var WarningFilled *Icon
+pkg github.com/tangoui/tango/ui/icon, var ZoomIn *Icon
+pkg github.com/tangoui/tango/ui/icon, var ZoomOut *Icon

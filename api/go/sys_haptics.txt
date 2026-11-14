@@ -1,0 +1,11 @@
+pkg github.com/tangoui/tango/sys/haptics, const Error Kind = 7
+pkg github.com/tangoui/tango/sys/haptics, const Heavy Kind = 3
+pkg github.com/tangoui/tango/sys/haptics, const Light Kind = 1
+pkg github.com/tangoui/tango/sys/haptics, const Medium Kind = 2
+pkg github.com/tangoui/tango/sys/haptics, const Selection Kind = 4
+pkg github.com/tangoui/tango/sys/haptics, const Success Kind = 5
+pkg github.com/tangoui/tango/sys/haptics, const Warning Kind = 6
+pkg github.com/tangoui/tango/sys/haptics, func Play(*tango.App, Kind) error
+pkg github.com/tangoui/tango/sys/haptics, type Kind = internal/platform.HapticKind
+pkg github.com/tangoui/tango/sys/haptics, type Kind int
+pkg github.com/tangoui/tango/sys/haptics, var ErrUnsupported error

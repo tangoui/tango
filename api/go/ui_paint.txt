@@ -1,0 +1,209 @@
+pkg github.com/tangoui/tango/ui/paint, const CapButt Cap = 0
+pkg github.com/tangoui/tango/ui/paint, const CapRound Cap = 1
+pkg github.com/tangoui/tango/ui/paint, const CapSquare Cap = 2
+pkg github.com/tangoui/tango/ui/paint, const GradientConic GradientKind = 2
+pkg github.com/tangoui/tango/ui/paint, const GradientLinear GradientKind = 0
+pkg github.com/tangoui/tango/ui/paint, const GradientRadial GradientKind = 1
+pkg github.com/tangoui/tango/ui/paint, const RampWidth untyped int = 256
+pkg github.com/tangoui/tango/ui/paint, const SegClose SegOp = 4
+pkg github.com/tangoui/tango/ui/paint, const SegCubic SegOp = 3
+pkg github.com/tangoui/tango/ui/paint, const SegLine SegOp = 1
+pkg github.com/tangoui/tango/ui/paint, const SegMove SegOp = 0
+pkg github.com/tangoui/tango/ui/paint, const SegQuad SegOp = 2
+pkg github.com/tangoui/tango/ui/paint, func CatmullRomWeights(float32) [4]float32
+pkg github.com/tangoui/tango/ui/paint, func CheckerColors(Checker) (image/color.NRGBA, image/color.NRGBA)
+pkg github.com/tangoui/tango/ui/paint, func CheckerSelect(ui/geom.Point, ui/geom.Point, float32) float32
+pkg github.com/tangoui/tango/ui/paint, func DecodeImage(io.Reader) (image.Image, error)
+pkg github.com/tangoui/tango/ui/paint, func Dither4x4(int, int) float32
+pkg github.com/tangoui/tango/ui/paint, func DitherPremul([4]float32, float32) [4]float32
+pkg github.com/tangoui/tango/ui/paint, func GlyphPlacement(ui/geom.Point, Glyph, float32) (int, int, uint8)
+pkg github.com/tangoui/tango/ui/paint, func GradientDrawable(Gradient) bool
+pkg github.com/tangoui/tango/ui/paint, func GradientRamp([]Stop) [256]image/color.NRGBA64
+pkg github.com/tangoui/tango/ui/paint, func GradientT(GradientKind, ui/geom.Point, ui/geom.Point, ui/geom.Point) float32
+pkg github.com/tangoui/tango/ui/paint, func ImageDrawable(Image) bool
+pkg github.com/tangoui/tango/ui/paint, func ImageReduction(image.Rectangle, float32, float32) (int, int)
+pkg github.com/tangoui/tango/ui/paint, func MustSVGPath(string) *Path
+pkg github.com/tangoui/tango/ui/paint, func NewCPU() *CPU
+pkg github.com/tangoui/tango/ui/paint, func NewPath() *Path
+pkg github.com/tangoui/tango/ui/paint, func Orient(image.Image, int, bool, bool) *image.RGBA
+pkg github.com/tangoui/tango/ui/paint, func ParseSVGPath(string) (*Path, error)
+pkg github.com/tangoui/tango/ui/paint, func PathDeviceBounds(*Path, float32) image.Rectangle
+pkg github.com/tangoui/tango/ui/paint, func PrepareImage(image.Image, int, int) *image.RGBA
+pkg github.com/tangoui/tango/ui/paint, func RRectCoverage(float32, float32, ui/geom.Rect, ui/geom.Radii) float32
+pkg github.com/tangoui/tango/ui/paint, func RampPremul(*[256]image/color.NRGBA64) [1024]uint16
+pkg github.com/tangoui/tango/ui/paint, func RampSample(*[1024]uint16, float32) [4]float32
+pkg github.com/tangoui/tango/ui/paint, func Resample(image.Image, float64, float64, float64, float64, int, int) *image.RGBA
+pkg github.com/tangoui/tango/ui/paint, func ResizeBilinear(image.Image, int, int) *image.RGBA
+pkg github.com/tangoui/tango/ui/paint, func SampleCatmullRom(*image.RGBA, float32, float32) image/color.RGBA
+pkg github.com/tangoui/tango/ui/paint, func SampleCatmullRomF(*image.RGBA, float32, float32) [4]float32
+pkg github.com/tangoui/tango/ui/paint, func ShadowCoverage(float32, float32, ui/geom.Rect, ui/geom.Radii, float32) float32
+pkg github.com/tangoui/tango/ui/paint, func ShadowPlacement(ShadowRect, float32) (ShadowGeom, bool)
+pkg github.com/tangoui/tango/ui/paint, func StrokeCoverage(float32, float32, ui/geom.Rect, ui/geom.Radii, float32, []float32, float32) float32
+pkg github.com/tangoui/tango/ui/paint, func StrokeToFill(*Path, StrokeStyle) *Path
+pkg github.com/tangoui/tango/ui/paint, func ToRGBA(image.Image) *image.RGBA
+pkg github.com/tangoui/tango/ui/paint, method (*CPU) BeginFrame(float32)
+pkg github.com/tangoui/tango/ui/paint, method (*CPU) GlyphMask(Glyph, float32, uint8) (*image.Alpha, image.Point)
+pkg github.com/tangoui/tango/ui/paint, method (*CPU) Image() *image.RGBA
+pkg github.com/tangoui/tango/ui/paint, method (*CPU) InvalidateImage(image.Image)
+pkg github.com/tangoui/tango/ui/paint, method (*CPU) PathMask(*Path) (*image.Alpha, image.Point)
+pkg github.com/tangoui/tango/ui/paint, method (*CPU) Render(*List, ui/geom.Size, float32) error
+pkg github.com/tangoui/tango/ui/paint, method (*CPU) RenderRegion([]Op, image.Rectangle, float32) *image.RGBA
+pkg github.com/tangoui/tango/ui/paint, method (*List) Add(Op)
+pkg github.com/tangoui/tango/ui/paint, method (*List) Checker(ui/geom.Rect, ui/geom.Radii, float32, image/color.NRGBA, image/color.NRGBA)
+pkg github.com/tangoui/tango/ui/paint, method (*List) Clip(ui/geom.Rect, ui/geom.Radii)
+pkg github.com/tangoui/tango/ui/paint, method (*List) Damage(ui/geom.Rect)
+pkg github.com/tangoui/tango/ui/paint, method (*List) DrawImage(image.Image, ui/geom.Rect, ui/geom.Radii)
+pkg github.com/tangoui/tango/ui/paint, method (*List) Fill(ui/geom.Rect, ui/geom.Radii, image/color.NRGBA)
+pkg github.com/tangoui/tango/ui/paint, method (*List) Glyphs(ui/geom.Point, []Glyph, image/color.NRGBA)
+pkg github.com/tangoui/tango/ui/paint, method (*List) Gradient(Gradient)
+pkg github.com/tangoui/tango/ui/paint, method (*List) Line(ui/geom.Point, ui/geom.Point, float32, image/color.NRGBA)
+pkg github.com/tangoui/tango/ui/paint, method (*List) LinearStops(ui/geom.Rect, ui/geom.Radii, ui/geom.Point, ui/geom.Point, ...Stop)
+pkg github.com/tangoui/tango/ui/paint, method (*List) Opacity(float32)
+pkg github.com/tangoui/tango/ui/paint, method (*List) Path(*Path, image/color.NRGBA)
+pkg github.com/tangoui/tango/ui/paint, method (*List) Pop()
+pkg github.com/tangoui/tango/ui/paint, method (*List) Reset()
+pkg github.com/tangoui/tango/ui/paint, method (*List) Scroll(ui/geom.Rect, ui/geom.Point)
+pkg github.com/tangoui/tango/ui/paint, method (*List) Shadows(ui/geom.Rect, ui/geom.Radii, []Shadow)
+pkg github.com/tangoui/tango/ui/paint, method (*List) Stroke(ui/geom.Rect, ui/geom.Radii, float32, image/color.NRGBA)
+pkg github.com/tangoui/tango/ui/paint, method (*List) StrokeDashed(ui/geom.Rect, ui/geom.Radii, float32, image/color.NRGBA, []float32)
+pkg github.com/tangoui/tango/ui/paint, method (*List) StrokePath(*Path, StrokeStyle, image/color.NRGBA)
+pkg github.com/tangoui/tango/ui/paint, method (*List) Transform(ui/geom.Affine)
+pkg github.com/tangoui/tango/ui/paint, method (*Path) Append(*Path) *Path
+pkg github.com/tangoui/tango/ui/paint, method (*Path) Arc(float32, float32, float32, float64, float64) *Path
+pkg github.com/tangoui/tango/ui/paint, method (*Path) Bounds() ui/geom.Rect
+pkg github.com/tangoui/tango/ui/paint, method (*Path) Circle(float32, float32, float32) *Path
+pkg github.com/tangoui/tango/ui/paint, method (*Path) Close() *Path
+pkg github.com/tangoui/tango/ui/paint, method (*Path) CubeTo(float32, float32, float32, float32, float32, float32) *Path
+pkg github.com/tangoui/tango/ui/paint, method (*Path) Current() ui/geom.Point
+pkg github.com/tangoui/tango/ui/paint, method (*Path) Flatten(float32) []Polyline
+pkg github.com/tangoui/tango/ui/paint, method (*Path) LineTo(float32, float32) *Path
+pkg github.com/tangoui/tango/ui/paint, method (*Path) MoveTo(float32, float32) *Path
+pkg github.com/tangoui/tango/ui/paint, method (*Path) QuadTo(float32, float32, float32, float32) *Path
+pkg github.com/tangoui/tango/ui/paint, method (*Path) RRect(ui/geom.Rect, ui/geom.Radii) *Path
+pkg github.com/tangoui/tango/ui/paint, method (*Path) Rect(ui/geom.Rect) *Path
+pkg github.com/tangoui/tango/ui/paint, method (*Path) Reversed() *Path
+pkg github.com/tangoui/tango/ui/paint, method (*Path) Rotated(float64, float32, float32) *Path
+pkg github.com/tangoui/tango/ui/paint, method (*Path) Skewed(float32) *Path
+pkg github.com/tangoui/tango/ui/paint, method (*Path) Transform(ui/geom.Affine) *Path
+pkg github.com/tangoui/tango/ui/paint, method (*Path) Transformed(float32, float32, float32) *Path
+pkg github.com/tangoui/tango/ui/paint, type CPU struct
+pkg github.com/tangoui/tango/ui/paint, type CPU struct, TextGamma float64
+pkg github.com/tangoui/tango/ui/paint, type CPU struct, noncomparable
+pkg github.com/tangoui/tango/ui/paint, type Cap uint8
+pkg github.com/tangoui/tango/ui/paint, type Checker struct
+pkg github.com/tangoui/tango/ui/paint, type Checker struct, A image/color.NRGBA
+pkg github.com/tangoui/tango/ui/paint, type Checker struct, B image/color.NRGBA
+pkg github.com/tangoui/tango/ui/paint, type Checker struct, Cell float32
+pkg github.com/tangoui/tango/ui/paint, type Checker struct, Radii ui/geom.Radii
+pkg github.com/tangoui/tango/ui/paint, type Checker struct, Rect ui/geom.Rect
+pkg github.com/tangoui/tango/ui/paint, type Damage struct
+pkg github.com/tangoui/tango/ui/paint, type Damage struct, Rect ui/geom.Rect
+pkg github.com/tangoui/tango/ui/paint, type FillPath struct
+pkg github.com/tangoui/tango/ui/paint, type FillPath struct, Color image/color.NRGBA
+pkg github.com/tangoui/tango/ui/paint, type FillPath struct, Path *Path
+pkg github.com/tangoui/tango/ui/paint, type FillRect struct
+pkg github.com/tangoui/tango/ui/paint, type FillRect struct, Color image/color.NRGBA
+pkg github.com/tangoui/tango/ui/paint, type FillRect struct, Radii ui/geom.Radii
+pkg github.com/tangoui/tango/ui/paint, type FillRect struct, Rect ui/geom.Rect
+pkg github.com/tangoui/tango/ui/paint, type Glyph struct
+pkg github.com/tangoui/tango/ui/paint, type Glyph struct, ID uint32
+pkg github.com/tangoui/tango/ui/paint, type Glyph struct, Size float32
+pkg github.com/tangoui/tango/ui/paint, type Glyph struct, Skew float32
+pkg github.com/tangoui/tango/ui/paint, type Glyph struct, Src GlyphSource
+pkg github.com/tangoui/tango/ui/paint, type Glyph struct, X float32
+pkg github.com/tangoui/tango/ui/paint, type Glyph struct, Y float32
+pkg github.com/tangoui/tango/ui/paint, type GlyphRasterizer interface { RasterGlyph }
+pkg github.com/tangoui/tango/ui/paint, type GlyphRasterizer interface, RasterGlyph(uint32, float32, uint8, float32) (*image.Alpha, image.Point, bool)
+pkg github.com/tangoui/tango/ui/paint, type GlyphSource interface { GlyphPath }
+pkg github.com/tangoui/tango/ui/paint, type GlyphSource interface, GlyphPath(uint32, float32) *Path
+pkg github.com/tangoui/tango/ui/paint, type Gradient struct
+pkg github.com/tangoui/tango/ui/paint, type Gradient struct, End ui/geom.Point
+pkg github.com/tangoui/tango/ui/paint, type Gradient struct, Kind GradientKind
+pkg github.com/tangoui/tango/ui/paint, type Gradient struct, Path *Path
+pkg github.com/tangoui/tango/ui/paint, type Gradient struct, Radii ui/geom.Radii
+pkg github.com/tangoui/tango/ui/paint, type Gradient struct, Rect ui/geom.Rect
+pkg github.com/tangoui/tango/ui/paint, type Gradient struct, Start ui/geom.Point
+pkg github.com/tangoui/tango/ui/paint, type Gradient struct, Stops []Stop
+pkg github.com/tangoui/tango/ui/paint, type Gradient struct, noncomparable
+pkg github.com/tangoui/tango/ui/paint, type GradientKind uint8
+pkg github.com/tangoui/tango/ui/paint, type Image struct
+pkg github.com/tangoui/tango/ui/paint, type Image struct, Img image.Image
+pkg github.com/tangoui/tango/ui/paint, type Image struct, Radii ui/geom.Radii
+pkg github.com/tangoui/tango/ui/paint, type Image struct, Rect ui/geom.Rect
+pkg github.com/tangoui/tango/ui/paint, type LinearGradient struct
+pkg github.com/tangoui/tango/ui/paint, type LinearGradient struct, From image/color.NRGBA
+pkg github.com/tangoui/tango/ui/paint, type LinearGradient struct, P0 ui/geom.Point
+pkg github.com/tangoui/tango/ui/paint, type LinearGradient struct, P1 ui/geom.Point
+pkg github.com/tangoui/tango/ui/paint, type LinearGradient struct, Radii ui/geom.Radii
+pkg github.com/tangoui/tango/ui/paint, type LinearGradient struct, Rect ui/geom.Rect
+pkg github.com/tangoui/tango/ui/paint, type LinearGradient struct, To image/color.NRGBA
+pkg github.com/tangoui/tango/ui/paint, type List struct
+pkg github.com/tangoui/tango/ui/paint, type List struct, Background image/color.NRGBA
+pkg github.com/tangoui/tango/ui/paint, type List struct, IconNote func(string, bool, bool, ui/geom.Rect)
+pkg github.com/tangoui/tango/ui/paint, type List struct, Ops []Op
+pkg github.com/tangoui/tango/ui/paint, type List struct, noncomparable
+pkg github.com/tangoui/tango/ui/paint, type Op interface { unexported methods }
+pkg github.com/tangoui/tango/ui/paint, type Path struct
+pkg github.com/tangoui/tango/ui/paint, type Path struct, Segs []Seg
+pkg github.com/tangoui/tango/ui/paint, type Path struct, noncomparable
+pkg github.com/tangoui/tango/ui/paint, type Polyline struct
+pkg github.com/tangoui/tango/ui/paint, type Polyline struct, Closed bool
+pkg github.com/tangoui/tango/ui/paint, type Polyline struct, Pts []ui/geom.Point
+pkg github.com/tangoui/tango/ui/paint, type Polyline struct, noncomparable
+pkg github.com/tangoui/tango/ui/paint, type Pop struct
+pkg github.com/tangoui/tango/ui/paint, type PushClip struct
+pkg github.com/tangoui/tango/ui/paint, type PushClip struct, Radii ui/geom.Radii
+pkg github.com/tangoui/tango/ui/paint, type PushClip struct, Rect ui/geom.Rect
+pkg github.com/tangoui/tango/ui/paint, type PushOpacity struct
+pkg github.com/tangoui/tango/ui/paint, type PushOpacity struct, Alpha float32
+pkg github.com/tangoui/tango/ui/paint, type PushTransform struct
+pkg github.com/tangoui/tango/ui/paint, type PushTransform struct, M ui/geom.Affine
+pkg github.com/tangoui/tango/ui/paint, type Renderer interface { Render }
+pkg github.com/tangoui/tango/ui/paint, type Renderer interface, Render(*List, ui/geom.Size, float32) error
+pkg github.com/tangoui/tango/ui/paint, type ScrollRegion struct
+pkg github.com/tangoui/tango/ui/paint, type ScrollRegion struct, Delta ui/geom.Point
+pkg github.com/tangoui/tango/ui/paint, type ScrollRegion struct, Rect ui/geom.Rect
+pkg github.com/tangoui/tango/ui/paint, type Seg struct
+pkg github.com/tangoui/tango/ui/paint, type Seg struct, Op SegOp
+pkg github.com/tangoui/tango/ui/paint, type Seg struct, P [3]ui/geom.Point
+pkg github.com/tangoui/tango/ui/paint, type SegOp uint8
+pkg github.com/tangoui/tango/ui/paint, type Shadow struct
+pkg github.com/tangoui/tango/ui/paint, type Shadow struct, Blur float32
+pkg github.com/tangoui/tango/ui/paint, type Shadow struct, Color image/color.NRGBA
+pkg github.com/tangoui/tango/ui/paint, type Shadow struct, Spread float32
+pkg github.com/tangoui/tango/ui/paint, type Shadow struct, X float32
+pkg github.com/tangoui/tango/ui/paint, type Shadow struct, Y float32
+pkg github.com/tangoui/tango/ui/paint, type ShadowGeom struct
+pkg github.com/tangoui/tango/ui/paint, type ShadowGeom struct, Margin int
+pkg github.com/tangoui/tango/ui/paint, type ShadowGeom struct, Radii ui/geom.Radii
+pkg github.com/tangoui/tango/ui/paint, type ShadowGeom struct, Rect image.Rectangle
+pkg github.com/tangoui/tango/ui/paint, type ShadowGeom struct, Shape ui/geom.Rect
+pkg github.com/tangoui/tango/ui/paint, type ShadowGeom struct, ShapeRadii ui/geom.Radii
+pkg github.com/tangoui/tango/ui/paint, type ShadowGeom struct, Sigma float32
+pkg github.com/tangoui/tango/ui/paint, type ShadowRect struct
+pkg github.com/tangoui/tango/ui/paint, type ShadowRect struct, Radii ui/geom.Radii
+pkg github.com/tangoui/tango/ui/paint, type ShadowRect struct, Rect ui/geom.Rect
+pkg github.com/tangoui/tango/ui/paint, type ShadowRect struct, Shadow Shadow
+pkg github.com/tangoui/tango/ui/paint, type Stop struct
+pkg github.com/tangoui/tango/ui/paint, type Stop struct, Color image/color.NRGBA
+pkg github.com/tangoui/tango/ui/paint, type Stop struct, Offset float32
+pkg github.com/tangoui/tango/ui/paint, type StrokeRect struct
+pkg github.com/tangoui/tango/ui/paint, type StrokeRect struct, Color image/color.NRGBA
+pkg github.com/tangoui/tango/ui/paint, type StrokeRect struct, Dash []float32
+pkg github.com/tangoui/tango/ui/paint, type StrokeRect struct, Radii ui/geom.Radii
+pkg github.com/tangoui/tango/ui/paint, type StrokeRect struct, Rect ui/geom.Rect
+pkg github.com/tangoui/tango/ui/paint, type StrokeRect struct, Width float32
+pkg github.com/tangoui/tango/ui/paint, type StrokeRect struct, noncomparable
+pkg github.com/tangoui/tango/ui/paint, type StrokeStyle struct
+pkg github.com/tangoui/tango/ui/paint, type StrokeStyle struct, Cap Cap
+pkg github.com/tangoui/tango/ui/paint, type StrokeStyle struct, Dash []float32
+pkg github.com/tangoui/tango/ui/paint, type StrokeStyle struct, Width float32
+pkg github.com/tangoui/tango/ui/paint, type StrokeStyle struct, noncomparable
+pkg github.com/tangoui/tango/ui/paint, type Text struct
+pkg github.com/tangoui/tango/ui/paint, type Text struct, Color image/color.NRGBA
+pkg github.com/tangoui/tango/ui/paint, type Text struct, Glyphs []Glyph
+pkg github.com/tangoui/tango/ui/paint, type Text struct, Origin ui/geom.Point
+pkg github.com/tangoui/tango/ui/paint, type Text struct, noncomparable
+pkg github.com/tangoui/tango/ui/paint, var CheckerDark image/color.NRGBA
+pkg github.com/tangoui/tango/ui/paint, var CheckerLight image/color.NRGBA
+pkg github.com/tangoui/tango/ui/paint, var ErrImageFormat error

@@ -1,0 +1,60 @@
+pkg github.com/tangoui/tango/uihost, const AnchorBottomLeft Anchor = 2
+pkg github.com/tangoui/tango/uihost, const AnchorBottomRight Anchor = 3
+pkg github.com/tangoui/tango/uihost, const AnchorCenter Anchor = 4
+pkg github.com/tangoui/tango/uihost, const AnchorTopLeft Anchor = 0
+pkg github.com/tangoui/tango/uihost, const AnchorTopRight Anchor = 1
+pkg github.com/tangoui/tango/uihost, const ContrastHigh ContrastMode = 2
+pkg github.com/tangoui/tango/uihost, const ContrastStandard ContrastMode = 1
+pkg github.com/tangoui/tango/uihost, const ContrastSystem ContrastMode = 0
+pkg github.com/tangoui/tango/uihost, const LocaleFixed LocaleMode = 1
+pkg github.com/tangoui/tango/uihost, const LocaleSystem LocaleMode = 0
+pkg github.com/tangoui/tango/uihost, const ThemeDark ThemeMode = 2
+pkg github.com/tangoui/tango/uihost, const ThemeFixed ThemeMode = 3
+pkg github.com/tangoui/tango/uihost, const ThemeLight ThemeMode = 1
+pkg github.com/tangoui/tango/uihost, const ThemeSystem ThemeMode = 0
+pkg github.com/tangoui/tango/uihost, func AcceptDrops(*ui.Runner, *tango.Surface)
+pkg github.com/tangoui/tango/uihost, func Attach(*tango.Surface, Layer, func(*ui.Context), ui.RunnerOptions) (*ui.Runner, *Attached, error)
+pkg github.com/tangoui/tango/uihost, func AttachWith(*tango.Surface, Layer, Options, func(*ui.Context), ui.RunnerOptions) (*ui.Runner, *Attached, error)
+pkg github.com/tangoui/tango/uihost, func FilePicker(*tango.App) func(string, bool, bool) ([]string, error)
+pkg github.com/tangoui/tango/uihost, func FilePickerWith(*tango.App, sys/dialog.FileOptions) func(string, bool, bool) ([]string, error)
+pkg github.com/tangoui/tango/uihost, func FollowSystemTheme(*ui.Runner, bool)
+pkg github.com/tangoui/tango/uihost, func FollowingSystemTheme(*ui.Runner) bool
+pkg github.com/tangoui/tango/uihost, func Open(*tango.App, Options, func(*ui.Context), ui.RunnerOptions) (*ui.Runner, *tango.Surface, error)
+pkg github.com/tangoui/tango/uihost, func Persist(any)
+pkg github.com/tangoui/tango/uihost, func Renderer(*ui.Runner) string
+pkg github.com/tangoui/tango/uihost, func Shortcut(*tango.Surface, string, func()) (func(), error)
+pkg github.com/tangoui/tango/uihost, func ShortcutWith(*tango.Surface, string, ShortcutOptions, func()) (func(), error)
+pkg github.com/tangoui/tango/uihost, func SystemHighContrast(*tango.App) (bool, bool)
+pkg github.com/tangoui/tango/uihost, method (*Attached) Detach()
+pkg github.com/tangoui/tango/uihost, method (*Attached) Detached() bool
+pkg github.com/tangoui/tango/uihost, method (*Attached) Layer() Layer
+pkg github.com/tangoui/tango/uihost, method (*Attached) SetLayer(Layer) error
+pkg github.com/tangoui/tango/uihost, method (*Attached) Size() (float32, float32, float32)
+pkg github.com/tangoui/tango/uihost, method (*Attached) Surface() *tango.Surface
+pkg github.com/tangoui/tango/uihost, method (Options) ThemeFor(sys/theme.Theme) *ui/theme.Theme
+pkg github.com/tangoui/tango/uihost, method (Options) ThemeForContrast(sys/theme.Theme, bool) *ui/theme.Theme
+pkg github.com/tangoui/tango/uihost, type Anchor uint8
+pkg github.com/tangoui/tango/uihost, type Attached struct
+pkg github.com/tangoui/tango/uihost, type Attached struct, noncomparable
+pkg github.com/tangoui/tango/uihost, type ContrastMode int
+pkg github.com/tangoui/tango/uihost, type Layer struct
+pkg github.com/tangoui/tango/uihost, type Layer struct, Above bool
+pkg github.com/tangoui/tango/uihost, type Layer struct, Anchor Anchor
+pkg github.com/tangoui/tango/uihost, type Layer struct, Bounds tango.Rect
+pkg github.com/tangoui/tango/uihost, type Layer struct, HitAlpha uint8
+pkg github.com/tangoui/tango/uihost, type Layer struct, PassThrough bool
+pkg github.com/tangoui/tango/uihost, type LocaleMode int
+pkg github.com/tangoui/tango/uihost, type Options struct
+pkg github.com/tangoui/tango/uihost, type Options struct, AccentFromSystem bool
+pkg github.com/tangoui/tango/uihost, type Options struct, Contrast ContrastMode
+pkg github.com/tangoui/tango/uihost, type Options struct, Customize func(*ui/theme.Theme)
+pkg github.com/tangoui/tango/uihost, type Options struct, Flavor func(bool, *ui/theme.Color) *ui/theme.Theme
+pkg github.com/tangoui/tango/uihost, type Options struct, Locale LocaleMode
+pkg github.com/tangoui/tango/uihost, type Options struct, Surface tango.SurfaceOptions
+pkg github.com/tangoui/tango/uihost, type Options struct, Theme ThemeMode
+pkg github.com/tangoui/tango/uihost, type Options struct, noncomparable
+pkg github.com/tangoui/tango/uihost, type ShortcutOptions struct
+pkg github.com/tangoui/tango/uihost, type ShortcutOptions struct, InTextInput bool
+pkg github.com/tangoui/tango/uihost, type ThemeMode int
+pkg github.com/tangoui/tango/uihost, var ErrDetached error
+pkg github.com/tangoui/tango/uihost, var ErrNotUI error

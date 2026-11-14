@@ -1,0 +1,43 @@
+pkg github.com/tangoui/tango/sys/purchase, const Consumable ProductKind = 1
+pkg github.com/tangoui/tango/sys/purchase, const Deferred State = 5
+pkg github.com/tangoui/tango/sys/purchase, const Failed State = 3
+pkg github.com/tangoui/tango/sys/purchase, const NonConsumable ProductKind = 2
+pkg github.com/tangoui/tango/sys/purchase, const Purchased State = 2
+pkg github.com/tangoui/tango/sys/purchase, const Purchasing State = 1
+pkg github.com/tangoui/tango/sys/purchase, const Restored State = 4
+pkg github.com/tangoui/tango/sys/purchase, const Subscription ProductKind = 3
+pkg github.com/tangoui/tango/sys/purchase, func Buy(*tango.App, string) (Transaction, error)
+pkg github.com/tangoui/tango/sys/purchase, func BuyQuantity(*tango.App, string, int) (Transaction, error)
+pkg github.com/tangoui/tango/sys/purchase, func CanMakePayments(*tango.App) bool
+pkg github.com/tangoui/tango/sys/purchase, func Finish(*tango.App, Transaction) error
+pkg github.com/tangoui/tango/sys/purchase, func OnUpdate(*tango.App, func(Transaction))
+pkg github.com/tangoui/tango/sys/purchase, func Products(*tango.App, ...string) ([]Product, []string, error)
+pkg github.com/tangoui/tango/sys/purchase, func Receipt(*tango.App) ([]byte, error)
+pkg github.com/tangoui/tango/sys/purchase, func Restore(*tango.App) error
+pkg github.com/tangoui/tango/sys/purchase, type Product = internal/platform.Product
+pkg github.com/tangoui/tango/sys/purchase, type Product struct
+pkg github.com/tangoui/tango/sys/purchase, type Product struct, Currency string
+pkg github.com/tangoui/tango/sys/purchase, type Product struct, Description string
+pkg github.com/tangoui/tango/sys/purchase, type Product struct, ID string
+pkg github.com/tangoui/tango/sys/purchase, type Product struct, Kind ProductKind
+pkg github.com/tangoui/tango/sys/purchase, type Product struct, Price string
+pkg github.com/tangoui/tango/sys/purchase, type Product struct, PriceValue float64
+pkg github.com/tangoui/tango/sys/purchase, type Product struct, Title string
+pkg github.com/tangoui/tango/sys/purchase, type ProductKind = internal/platform.ProductKind
+pkg github.com/tangoui/tango/sys/purchase, type ProductKind int
+pkg github.com/tangoui/tango/sys/purchase, type State = internal/platform.TransactionState
+pkg github.com/tangoui/tango/sys/purchase, type State int
+pkg github.com/tangoui/tango/sys/purchase, type Transaction = internal/platform.Transaction
+pkg github.com/tangoui/tango/sys/purchase, type Transaction struct
+pkg github.com/tangoui/tango/sys/purchase, type Transaction struct, Canceled bool
+pkg github.com/tangoui/tango/sys/purchase, type Transaction struct, Error string
+pkg github.com/tangoui/tango/sys/purchase, type Transaction struct, ID string
+pkg github.com/tangoui/tango/sys/purchase, type Transaction struct, OriginalID string
+pkg github.com/tangoui/tango/sys/purchase, type Transaction struct, ProductID string
+pkg github.com/tangoui/tango/sys/purchase, type Transaction struct, Quantity int
+pkg github.com/tangoui/tango/sys/purchase, type Transaction struct, State State
+pkg github.com/tangoui/tango/sys/purchase, type Transaction struct, Time time.Time
+pkg github.com/tangoui/tango/sys/purchase, var ErrCanceled error
+pkg github.com/tangoui/tango/sys/purchase, var ErrNotAvailable error
+pkg github.com/tangoui/tango/sys/purchase, var ErrNotFound error
+pkg github.com/tangoui/tango/sys/purchase, var ErrUnsupported error

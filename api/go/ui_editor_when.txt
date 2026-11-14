@@ -1,0 +1,13 @@
+pkg github.com/tangoui/tango/ui/editor/when, const MaxLength untyped int = 512
+pkg github.com/tangoui/tango/ui/editor/when, func Eval(string, Context) bool
+pkg github.com/tangoui/tango/ui/editor/when, func Implies(Expr, Expr) bool
+pkg github.com/tangoui/tango/ui/editor/when, func Parse(string) (Expr, error)
+pkg github.com/tangoui/tango/ui/editor/when, method (ContextFunc) Value(string) (any, bool)
+pkg github.com/tangoui/tango/ui/editor/when, method (MapContext) Value(string) (any, bool)
+pkg github.com/tangoui/tango/ui/editor/when, type Context interface { Value }
+pkg github.com/tangoui/tango/ui/editor/when, type Context interface, Value(string) (any, bool)
+pkg github.com/tangoui/tango/ui/editor/when, type ContextFunc func(string) (any, bool)
+pkg github.com/tangoui/tango/ui/editor/when, type Expr interface { Eval, String }
+pkg github.com/tangoui/tango/ui/editor/when, type Expr interface, Eval(Context) bool
+pkg github.com/tangoui/tango/ui/editor/when, type Expr interface, String() string
+pkg github.com/tangoui/tango/ui/editor/when, type MapContext map[string]any

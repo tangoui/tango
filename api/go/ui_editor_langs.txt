@@ -1,0 +1,51 @@
+pkg github.com/tangoui/tango/ui/editor/langs, func BaseThemes() map[string]encoding/json.RawMessage
+pkg github.com/tangoui/tango/ui/editor/langs, func Builtin() []*Language
+pkg github.com/tangoui/tango/ui/editor/langs, func ByID(string) *Language
+pkg github.com/tangoui/tango/ui/editor/langs, func ForFilename(string) *Language
+pkg github.com/tangoui/tango/ui/editor/langs, method (*Conf) UnmarshalJSON([]byte) error
+pkg github.com/tangoui/tango/ui/editor/langs, method (*OnEnterRule) UnmarshalJSON([]byte) error
+pkg github.com/tangoui/tango/ui/editor/langs, method (*Pair) UnmarshalJSON([]byte) error
+pkg github.com/tangoui/tango/ui/editor/langs, method (*RegexSpec) UnmarshalJSON([]byte) error
+pkg github.com/tangoui/tango/ui/editor/langs, method (RegexSpec) MarshalJSON() ([]byte, error)
+pkg github.com/tangoui/tango/ui/editor/langs, type Conf struct
+pkg github.com/tangoui/tango/ui/editor/langs, type Conf struct, AutoCloseBefore string
+pkg github.com/tangoui/tango/ui/editor/langs, type Conf struct, AutoClosingPairs []Pair
+pkg github.com/tangoui/tango/ui/editor/langs, type Conf struct, BlockComment [2]string
+pkg github.com/tangoui/tango/ui/editor/langs, type Conf struct, Brackets [][2]string
+pkg github.com/tangoui/tango/ui/editor/langs, type Conf struct, ColorizedBracketPairs [][2]string
+pkg github.com/tangoui/tango/ui/editor/langs, type Conf struct, Folding struct{OffSide bool; Start *RegexSpec; End *RegexSpec}
+pkg github.com/tangoui/tango/ui/editor/langs, type Conf struct, Indentation struct{Increase *RegexSpec; Decrease *RegexSpec; IndentNextLine *RegexSpec; Unindented *RegexSpec}
+pkg github.com/tangoui/tango/ui/editor/langs, type Conf struct, LineComment string
+pkg github.com/tangoui/tango/ui/editor/langs, type Conf struct, OnEnterRules []OnEnterRule
+pkg github.com/tangoui/tango/ui/editor/langs, type Conf struct, SurroundingPairs []Pair
+pkg github.com/tangoui/tango/ui/editor/langs, type Conf struct, WordPattern *RegexSpec
+pkg github.com/tangoui/tango/ui/editor/langs, type Conf struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor/langs, type EnterAction struct
+pkg github.com/tangoui/tango/ui/editor/langs, type EnterAction struct, AppendText string
+pkg github.com/tangoui/tango/ui/editor/langs, type EnterAction struct, Indent string
+pkg github.com/tangoui/tango/ui/editor/langs, type EnterAction struct, RemoveText int
+pkg github.com/tangoui/tango/ui/editor/langs, type Language struct
+pkg github.com/tangoui/tango/ui/editor/langs, type Language struct, Aliases []string
+pkg github.com/tangoui/tango/ui/editor/langs, type Language struct, Conf Conf
+pkg github.com/tangoui/tango/ui/editor/langs, type Language struct, ConfRaw encoding/json.RawMessage
+pkg github.com/tangoui/tango/ui/editor/langs, type Language struct, Extensions []string
+pkg github.com/tangoui/tango/ui/editor/langs, type Language struct, FilenamePatterns []string
+pkg github.com/tangoui/tango/ui/editor/langs, type Language struct, Filenames []string
+pkg github.com/tangoui/tango/ui/editor/langs, type Language struct, FirstLine string
+pkg github.com/tangoui/tango/ui/editor/langs, type Language struct, Grammar encoding/json.RawMessage
+pkg github.com/tangoui/tango/ui/editor/langs, type Language struct, ID string
+pkg github.com/tangoui/tango/ui/editor/langs, type Language struct, MimeTypes []string
+pkg github.com/tangoui/tango/ui/editor/langs, type Language struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor/langs, type OnEnterRule struct
+pkg github.com/tangoui/tango/ui/editor/langs, type OnEnterRule struct, Action EnterAction
+pkg github.com/tangoui/tango/ui/editor/langs, type OnEnterRule struct, AfterText *RegexSpec
+pkg github.com/tangoui/tango/ui/editor/langs, type OnEnterRule struct, BeforeText *RegexSpec
+pkg github.com/tangoui/tango/ui/editor/langs, type OnEnterRule struct, PreviousLineText *RegexSpec
+pkg github.com/tangoui/tango/ui/editor/langs, type Pair struct
+pkg github.com/tangoui/tango/ui/editor/langs, type Pair struct, Close string
+pkg github.com/tangoui/tango/ui/editor/langs, type Pair struct, NotIn []string
+pkg github.com/tangoui/tango/ui/editor/langs, type Pair struct, Open string
+pkg github.com/tangoui/tango/ui/editor/langs, type Pair struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor/langs, type RegexSpec struct
+pkg github.com/tangoui/tango/ui/editor/langs, type RegexSpec struct, Flags string
+pkg github.com/tangoui/tango/ui/editor/langs, type RegexSpec struct, Source string

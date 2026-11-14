@@ -1,0 +1,13 @@
+pkg github.com/tangoui/tango/sys/print, func File(*tango.App, string, Options) error
+pkg github.com/tangoui/tango/sys/print, func Image(*tango.App, image.Image, Options) error
+pkg github.com/tangoui/tango/sys/print, func ImagePDF(...image.Image) ([]byte, error)
+pkg github.com/tangoui/tango/sys/print, func IsPDF([]byte) bool
+pkg github.com/tangoui/tango/sys/print, func PDF(*tango.App, []byte, Options) error
+pkg github.com/tangoui/tango/sys/print, func Page(*tango.Surface, Options) error
+pkg github.com/tangoui/tango/sys/print, func SavePDF(*tango.Surface, string) error
+pkg github.com/tangoui/tango/sys/print, type Options struct
+pkg github.com/tangoui/tango/sys/print, type Options struct, Copies int
+pkg github.com/tangoui/tango/sys/print, type Options struct, Parent *tango.Surface
+pkg github.com/tangoui/tango/sys/print, type Options struct, Title string
+pkg github.com/tangoui/tango/sys/print, var ErrCanceled error
+pkg github.com/tangoui/tango/sys/print, var ErrUnsupported error

@@ -1,0 +1,117 @@
+pkg github.com/tangoui/tango/service/updater, const DefaultClockSkew time.Duration = 600000000000
+pkg github.com/tangoui/tango/service/updater, const DefaultConfirmTimeout time.Duration = 60000000000
+pkg github.com/tangoui/tango/service/updater, const EventAvailable EventKind = "available"
+pkg github.com/tangoui/tango/service/updater, const EventChecking EventKind = "checking"
+pkg github.com/tangoui/tango/service/updater, const EventDownloading EventKind = "downloading"
+pkg github.com/tangoui/tango/service/updater, const EventError EventKind = "error"
+pkg github.com/tangoui/tango/service/updater, const EventPatchFailed EventKind = "patch-failed"
+pkg github.com/tangoui/tango/service/updater, const EventProgress EventKind = "progress"
+pkg github.com/tangoui/tango/service/updater, const EventReady EventKind = "ready"
+pkg github.com/tangoui/tango/service/updater, const EventUpToDate EventKind = "up-to-date"
+pkg github.com/tangoui/tango/service/updater, const EventVerified EventKind = "verified"
+pkg github.com/tangoui/tango/service/updater, const FormatApp untyped string = "app"
+pkg github.com/tangoui/tango/service/updater, const FormatAppImage untyped string = "appimage"
+pkg github.com/tangoui/tango/service/updater, const FormatDir untyped string = "dir"
+pkg github.com/tangoui/tango/service/updater, const FormatExe untyped string = "exe"
+pkg github.com/tangoui/tango/service/updater, const FormatMSI untyped string = "msi"
+pkg github.com/tangoui/tango/service/updater, const FormatNSIS untyped string = "nsis"
+pkg github.com/tangoui/tango/service/updater, const StatusNone Status = "none"
+pkg github.com/tangoui/tango/service/updater, const StatusPending Status = "pending"
+pkg github.com/tangoui/tango/service/updater, const StatusRolledBack Status = "rolled_back"
+pkg github.com/tangoui/tango/service/updater, const StatusUpdated Status = "updated"
+pkg github.com/tangoui/tango/service/updater, func CompareVersions(string, string) (int, error)
+pkg github.com/tangoui/tango/service/updater, func Diff([]byte, []byte) ([]byte, error)
+pkg github.com/tangoui/tango/service/updater, func DiffTree(string, string, io.Writer) error
+pkg github.com/tangoui/tango/service/updater, func FileInfo(string, string) (File, error)
+pkg github.com/tangoui/tango/service/updater, func GenerateKey() (string, string, error)
+pkg github.com/tangoui/tango/service/updater, func PackTree(string, string) error
+pkg github.com/tangoui/tango/service/updater, func ParseManifest([]byte) (*Manifest, error)
+pkg github.com/tangoui/tango/service/updater, func Patch([]byte, []byte) ([]byte, error)
+pkg github.com/tangoui/tango/service/updater, func PatchMax([]byte, []byte, int64) ([]byte, error)
+pkg github.com/tangoui/tango/service/updater, func PatchTree(string, io.Reader, string) (string, error)
+pkg github.com/tangoui/tango/service/updater, func PublicKeyOf(string) (string, error)
+pkg github.com/tangoui/tango/service/updater, func SignManifest(string, *Manifest) ([]byte, error)
+pkg github.com/tangoui/tango/service/updater, func TreeDigest(string) (string, error)
+pkg github.com/tangoui/tango/service/updater, func Unpack(string, string) (string, error)
+pkg github.com/tangoui/tango/service/updater, func VerifyManifest([]byte, ...string) (*Manifest, error)
+pkg github.com/tangoui/tango/service/updater, method (*Manifest) Validate() error
+pkg github.com/tangoui/tango/service/updater, method (*Updater) Apply(*Payload) error
+pkg github.com/tangoui/tango/service/updater, method (*Updater) Check(context.Context) (*Release, error)
+pkg github.com/tangoui/tango/service/updater, method (*Updater) Confirm() (Outcome, error)
+pkg github.com/tangoui/tango/service/updater, method (*Updater) Download(context.Context, *Release, string) (*Payload, error)
+pkg github.com/tangoui/tango/service/updater, method (*Updater) Rollback() error
+pkg github.com/tangoui/tango/service/updater, method (*Updater) Update(context.Context) (*Release, error)
+pkg github.com/tangoui/tango/service/updater, type Asset struct
+pkg github.com/tangoui/tango/service/updater, type Asset struct, Format string `json:"format"`
+pkg github.com/tangoui/tango/service/updater, type Asset struct, Patches []PatchAsset `json:"patches,omitempty"`
+pkg github.com/tangoui/tango/service/updater, type Asset struct, TreeSHA256 string `json:"tree_sha256,omitempty"`
+pkg github.com/tangoui/tango/service/updater, type Asset struct, embedded File
+pkg github.com/tangoui/tango/service/updater, type Asset struct, noncomparable
+pkg github.com/tangoui/tango/service/updater, type Event struct
+pkg github.com/tangoui/tango/service/updater, type Event struct, Done int64 `json:"done,omitempty"`
+pkg github.com/tangoui/tango/service/updater, type Event struct, Error string `json:"error,omitempty"`
+pkg github.com/tangoui/tango/service/updater, type Event struct, Kind EventKind `json:"kind"`
+pkg github.com/tangoui/tango/service/updater, type Event struct, Patch bool `json:"patch,omitempty"`
+pkg github.com/tangoui/tango/service/updater, type Event struct, Release *Release `json:"release,omitempty"`
+pkg github.com/tangoui/tango/service/updater, type Event struct, Total int64 `json:"total,omitempty"`
+pkg github.com/tangoui/tango/service/updater, type EventKind string
+pkg github.com/tangoui/tango/service/updater, type File struct
+pkg github.com/tangoui/tango/service/updater, type File struct, SHA256 string `json:"sha256"`
+pkg github.com/tangoui/tango/service/updater, type File struct, Size int64 `json:"size"`
+pkg github.com/tangoui/tango/service/updater, type File struct, URL string `json:"url"`
+pkg github.com/tangoui/tango/service/updater, type Manifest struct
+pkg github.com/tangoui/tango/service/updater, type Manifest struct, App string `json:"app,omitempty"`
+pkg github.com/tangoui/tango/service/updater, type Manifest struct, Expires time.Time `json:"expires,omitzero"`
+pkg github.com/tangoui/tango/service/updater, type Manifest struct, Notes string `json:"notes,omitempty"`
+pkg github.com/tangoui/tango/service/updater, type Manifest struct, Platforms map[string]Asset `json:"platforms"`
+pkg github.com/tangoui/tango/service/updater, type Manifest struct, PubDate time.Time `json:"pub_date"`
+pkg github.com/tangoui/tango/service/updater, type Manifest struct, Version string `json:"version"`
+pkg github.com/tangoui/tango/service/updater, type Manifest struct, noncomparable
+pkg github.com/tangoui/tango/service/updater, type Outcome struct
+pkg github.com/tangoui/tango/service/updater, type Outcome struct, From string `json:"from,omitempty"`
+pkg github.com/tangoui/tango/service/updater, type Outcome struct, Reason string `json:"reason,omitempty"`
+pkg github.com/tangoui/tango/service/updater, type Outcome struct, Status Status `json:"status"`
+pkg github.com/tangoui/tango/service/updater, type Outcome struct, To string `json:"to,omitempty"`
+pkg github.com/tangoui/tango/service/updater, type PatchAsset struct
+pkg github.com/tangoui/tango/service/updater, type PatchAsset struct, From string `json:"from"`
+pkg github.com/tangoui/tango/service/updater, type PatchAsset struct, embedded File
+pkg github.com/tangoui/tango/service/updater, type Payload struct
+pkg github.com/tangoui/tango/service/updater, type Payload struct, Patched bool
+pkg github.com/tangoui/tango/service/updater, type Payload struct, Path string
+pkg github.com/tangoui/tango/service/updater, type Payload struct, Release *Release
+pkg github.com/tangoui/tango/service/updater, type Release struct
+pkg github.com/tangoui/tango/service/updater, type Release struct, Format string `json:"format"`
+pkg github.com/tangoui/tango/service/updater, type Release struct, Full File `json:"full"`
+pkg github.com/tangoui/tango/service/updater, type Release struct, Notes string `json:"notes,omitempty"`
+pkg github.com/tangoui/tango/service/updater, type Release struct, Patch *File `json:"patch,omitempty"`
+pkg github.com/tangoui/tango/service/updater, type Release struct, PubDate time.Time `json:"pubDate"`
+pkg github.com/tangoui/tango/service/updater, type Release struct, TreeSHA256 string `json:"-"`
+pkg github.com/tangoui/tango/service/updater, type Release struct, Version string `json:"version"`
+pkg github.com/tangoui/tango/service/updater, type SignedManifest struct
+pkg github.com/tangoui/tango/service/updater, type SignedManifest struct, Manifest encoding/json.RawMessage `json:"manifest"`
+pkg github.com/tangoui/tango/service/updater, type SignedManifest struct, Signature string `json:"signature"`
+pkg github.com/tangoui/tango/service/updater, type SignedManifest struct, noncomparable
+pkg github.com/tangoui/tango/service/updater, type Status string
+pkg github.com/tangoui/tango/service/updater, type Updater struct
+pkg github.com/tangoui/tango/service/updater, type Updater struct, AppID string
+pkg github.com/tangoui/tango/service/updater, type Updater struct, Client *net/http.Client
+pkg github.com/tangoui/tango/service/updater, type Updater struct, ClockSkew time.Duration
+pkg github.com/tangoui/tango/service/updater, type Updater struct, ConfirmTimeout time.Duration
+pkg github.com/tangoui/tango/service/updater, type Updater struct, InstallerArgs []string
+pkg github.com/tangoui/tango/service/updater, type Updater struct, ManifestURL string
+pkg github.com/tangoui/tango/service/updater, type Updater struct, MinVersion string
+pkg github.com/tangoui/tango/service/updater, type Updater struct, OnEvent func(Event)
+pkg github.com/tangoui/tango/service/updater, type Updater struct, Platform string
+pkg github.com/tangoui/tango/service/updater, type Updater struct, PublicKey string
+pkg github.com/tangoui/tango/service/updater, type Updater struct, PublicKeys []string
+pkg github.com/tangoui/tango/service/updater, type Updater struct, RequireExpiry bool
+pkg github.com/tangoui/tango/service/updater, type Updater struct, StateDir string
+pkg github.com/tangoui/tango/service/updater, type Updater struct, Target string
+pkg github.com/tangoui/tango/service/updater, type Updater struct, Version string
+pkg github.com/tangoui/tango/service/updater, type Updater struct, noncomparable
+pkg github.com/tangoui/tango/service/updater, var ErrBadSignature error
+pkg github.com/tangoui/tango/service/updater, var ErrDowngrade error
+pkg github.com/tangoui/tango/service/updater, var ErrExpired error
+pkg github.com/tangoui/tango/service/updater, var ErrNotWritable error
+pkg github.com/tangoui/tango/service/updater, var ErrPatchBase error
+pkg github.com/tangoui/tango/service/updater, var ErrUnsupported error

@@ -1,0 +1,9 @@
+pkg github.com/tangoui/tango/sys/clipboard, func ReadFiles(*tango.App) ([]string, error)
+pkg github.com/tangoui/tango/sys/clipboard, func ReadImage(*tango.App) ([]byte, error)
+pkg github.com/tangoui/tango/sys/clipboard, func ReadText(*tango.App) (string, error)
+pkg github.com/tangoui/tango/sys/clipboard, func WriteFiles(*tango.App, []string) error
+pkg github.com/tangoui/tango/sys/clipboard, func WriteImage(*tango.App, []byte) error
+pkg github.com/tangoui/tango/sys/clipboard, func WriteText(*tango.App, string) error
+pkg github.com/tangoui/tango/sys/clipboard, var ErrNotAbsolute error
+pkg github.com/tangoui/tango/sys/clipboard, var ErrNotPNG error
+pkg github.com/tangoui/tango/sys/clipboard, var ErrUnsupported error

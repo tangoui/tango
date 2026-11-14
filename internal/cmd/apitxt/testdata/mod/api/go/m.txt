@@ -1,0 +1,34 @@
+pkg example.com/m, const Big untyped int = 1099511627776
+pkg example.com/m, const KindNone Kind = 0
+pkg example.com/m, const KindOpen Kind = 1
+pkg example.com/m, const Name untyped string = "m"
+pkg example.com/m, const PlaceLeft Placement = 1
+pkg example.com/m, const PlaceRight Placement = 0
+pkg example.com/m, const PlaceTop Placement = 3
+pkg example.com/m, const Ratio untyped float = 1.5
+pkg example.com/m, func Keys[K comparable, V any](map[K]V) []K
+pkg example.com/m, func New(Options, ...string) *App
+pkg example.com/m, func UseUI(*ui.Context)
+pkg example.com/m, method (*App) Close() error
+pkg example.com/m, method (*App) Name() string
+pkg example.com/m, method (Event) String() string
+pkg example.com/m, type App struct
+pkg example.com/m, type App struct, ID int
+pkg example.com/m, type App struct, embedded internal/impl.Base
+pkg example.com/m, type Event = internal/impl.Event
+pkg example.com/m, type Event struct
+pkg example.com/m, type Event struct, Kind Kind
+pkg example.com/m, type Event struct, URL string
+pkg example.com/m, type Kind = internal/impl.Kind
+pkg example.com/m, type Kind int
+pkg example.com/m, type Options struct
+pkg example.com/m, type Options struct, Tags []string
+pkg example.com/m, type Options struct, Title string `json:"title"`
+pkg example.com/m, type Options struct, noncomparable
+pkg example.com/m, type Placement uint8
+pkg example.com/m, type Point struct
+pkg example.com/m, type Point struct, X int
+pkg example.com/m, type Point struct, Y int
+pkg example.com/m, type Sealed interface { Do, unexported methods }
+pkg example.com/m, type Sealed interface, Do(int) (string, error)
+pkg example.com/m, var Default *App

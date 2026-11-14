@@ -1,0 +1,16 @@
+pkg github.com/tangoui/tango/ui/gpu/gen, const QuadInstanceStride untyped int = 144
+pkg github.com/tangoui/tango/ui/gpu/gen, const QuadPSEntry untyped string = "ps_main"
+pkg github.com/tangoui/tango/ui/gpu/gen, const QuadPSTarget untyped string = "ps_5_0"
+pkg github.com/tangoui/tango/ui/gpu/gen, const QuadPSTargetSM4 untyped string = "ps_4_0"
+pkg github.com/tangoui/tango/ui/gpu/gen, const QuadVSEntry untyped string = "vs_main"
+pkg github.com/tangoui/tango/ui/gpu/gen, const QuadVSTarget untyped string = "vs_5_0"
+pkg github.com/tangoui/tango/ui/gpu/gen, const QuadVSTargetSM4 untyped string = "vs_4_0"
+pkg github.com/tangoui/tango/ui/gpu/gen, type TextureDesc struct
+pkg github.com/tangoui/tango/ui/gpu/gen, type TextureDesc struct, Binding int
+pkg github.com/tangoui/tango/ui/gpu/gen, type TextureDesc struct, Filter string
+pkg github.com/tangoui/tango/ui/gpu/gen, var QuadGLSLFragment string
+pkg github.com/tangoui/tango/ui/gpu/gen, var QuadGLSLVertex string
+pkg github.com/tangoui/tango/ui/gpu/gen, var QuadHLSL string
+pkg github.com/tangoui/tango/ui/gpu/gen, var QuadInstanceAttrs [9]struct{Location int; Offset int; Kind string; N int}
+pkg github.com/tangoui/tango/ui/gpu/gen, var QuadMSL string
+pkg github.com/tangoui/tango/ui/gpu/gen, var QuadTextures []TextureDesc

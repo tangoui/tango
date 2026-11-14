@@ -1,0 +1,34 @@
+pkg github.com/tangoui/tango/sys/dialog, const Error Kind = 2
+pkg github.com/tangoui/tango/sys/dialog, const Info Kind = 0
+pkg github.com/tangoui/tango/sys/dialog, const Question Kind = 3
+pkg github.com/tangoui/tango/sys/dialog, const Warning Kind = 1
+pkg github.com/tangoui/tango/sys/dialog, func Message(*tango.App, MessageOptions) (int, error)
+pkg github.com/tangoui/tango/sys/dialog, func Open(*tango.App, FileOptions) ([]string, error)
+pkg github.com/tangoui/tango/sys/dialog, func Save(*tango.App, FileOptions) (string, error)
+pkg github.com/tangoui/tango/sys/dialog, type FileFilter = internal/platform.FileFilter
+pkg github.com/tangoui/tango/sys/dialog, type FileFilter struct
+pkg github.com/tangoui/tango/sys/dialog, type FileFilter struct, Name string
+pkg github.com/tangoui/tango/sys/dialog, type FileFilter struct, Patterns []string
+pkg github.com/tangoui/tango/sys/dialog, type FileFilter struct, noncomparable
+pkg github.com/tangoui/tango/sys/dialog, type FileOptions struct
+pkg github.com/tangoui/tango/sys/dialog, type FileOptions struct, CanCreateDirs bool
+pkg github.com/tangoui/tango/sys/dialog, type FileOptions struct, Directory string
+pkg github.com/tangoui/tango/sys/dialog, type FileOptions struct, Filename string
+pkg github.com/tangoui/tango/sys/dialog, type FileOptions struct, Filters []FileFilter
+pkg github.com/tangoui/tango/sys/dialog, type FileOptions struct, Multiple bool
+pkg github.com/tangoui/tango/sys/dialog, type FileOptions struct, Parent *tango.Surface
+pkg github.com/tangoui/tango/sys/dialog, type FileOptions struct, PickFolders bool
+pkg github.com/tangoui/tango/sys/dialog, type FileOptions struct, ShowHidden bool
+pkg github.com/tangoui/tango/sys/dialog, type FileOptions struct, Title string
+pkg github.com/tangoui/tango/sys/dialog, type FileOptions struct, noncomparable
+pkg github.com/tangoui/tango/sys/dialog, type Kind = internal/platform.MessageKind
+pkg github.com/tangoui/tango/sys/dialog, type Kind int
+pkg github.com/tangoui/tango/sys/dialog, type MessageOptions struct
+pkg github.com/tangoui/tango/sys/dialog, type MessageOptions struct, Buttons []string
+pkg github.com/tangoui/tango/sys/dialog, type MessageOptions struct, Kind Kind
+pkg github.com/tangoui/tango/sys/dialog, type MessageOptions struct, Message string
+pkg github.com/tangoui/tango/sys/dialog, type MessageOptions struct, Parent *tango.Surface
+pkg github.com/tangoui/tango/sys/dialog, type MessageOptions struct, Title string
+pkg github.com/tangoui/tango/sys/dialog, type MessageOptions struct, noncomparable
+pkg github.com/tangoui/tango/sys/dialog, var ErrCanceled error
+pkg github.com/tangoui/tango/sys/dialog, var ErrUnsupported error

@@ -1,0 +1,91 @@
+pkg github.com/tangoui/tango/ui/layout, const AlignAuto Align = 0
+pkg github.com/tangoui/tango/ui/layout, const AlignCenter Align = 3
+pkg github.com/tangoui/tango/ui/layout, const AlignEnd Align = 4
+pkg github.com/tangoui/tango/ui/layout, const AlignStart Align = 2
+pkg github.com/tangoui/tango/ui/layout, const AlignStretch Align = 1
+pkg github.com/tangoui/tango/ui/layout, const Column Direction = 0
+pkg github.com/tangoui/tango/ui/layout, const JustifyCenter Justify = 1
+pkg github.com/tangoui/tango/ui/layout, const JustifyEnd Justify = 2
+pkg github.com/tangoui/tango/ui/layout, const JustifySpaceAround Justify = 4
+pkg github.com/tangoui/tango/ui/layout, const JustifySpaceBetween Justify = 3
+pkg github.com/tangoui/tango/ui/layout, const JustifySpaceEvenly Justify = 5
+pkg github.com/tangoui/tango/ui/layout, const JustifyStart Justify = 0
+pkg github.com/tangoui/tango/ui/layout, const Row Direction = 1
+pkg github.com/tangoui/tango/ui/layout, const Stack Direction = 2
+pkg github.com/tangoui/tango/ui/layout, func Abs(float32, float32, float32, float32) Option
+pkg github.com/tangoui/tango/ui/layout, func AlignItems(Align) Option
+pkg github.com/tangoui/tango/ui/layout, func Basis(float32) Option
+pkg github.com/tangoui/tango/ui/layout, func Between() Option
+pkg github.com/tangoui/tango/ui/layout, func Center() Option
+pkg github.com/tangoui/tango/ui/layout, func Dir(Direction) Option
+pkg github.com/tangoui/tango/ui/layout, func End() Option
+pkg github.com/tangoui/tango/ui/layout, func Fill() Option
+pkg github.com/tangoui/tango/ui/layout, func Gap(float32) Option
+pkg github.com/tangoui/tango/ui/layout, func GapXY(float32, float32) Option
+pkg github.com/tangoui/tango/ui/layout, func Grow(float32) Option
+pkg github.com/tangoui/tango/ui/layout, func H(float32) Option
+pkg github.com/tangoui/tango/ui/layout, func JustifyContent(Justify) Option
+pkg github.com/tangoui/tango/ui/layout, func Margin(ui/geom.Insets) Option
+pkg github.com/tangoui/tango/ui/layout, func MaxH(float32) Option
+pkg github.com/tangoui/tango/ui/layout, func MaxW(float32) Option
+pkg github.com/tangoui/tango/ui/layout, func Middle() Option
+pkg github.com/tangoui/tango/ui/layout, func MinH(float32) Option
+pkg github.com/tangoui/tango/ui/layout, func MinW(float32) Option
+pkg github.com/tangoui/tango/ui/layout, func Pad(float32) Option
+pkg github.com/tangoui/tango/ui/layout, func PadSE(float32, float32, float32) Option
+pkg github.com/tangoui/tango/ui/layout, func PadVH(float32, float32) Option
+pkg github.com/tangoui/tango/ui/layout, func Padding(ui/geom.Insets) Option
+pkg github.com/tangoui/tango/ui/layout, func Physical() Option
+pkg github.com/tangoui/tango/ui/layout, func Self(Align) Option
+pkg github.com/tangoui/tango/ui/layout, func Shrink(float32) Option
+pkg github.com/tangoui/tango/ui/layout, func Size(float32, float32) Option
+pkg github.com/tangoui/tango/ui/layout, func Solve(*Node, float32, float32)
+pkg github.com/tangoui/tango/ui/layout, func SolveAt(*Node, float32, float32, bool, bool) ui/geom.Size
+pkg github.com/tangoui/tango/ui/layout, func W(float32) Option
+pkg github.com/tangoui/tango/ui/layout, func WrapItems() Option
+pkg github.com/tangoui/tango/ui/layout, method (*Style) Apply(...Option)
+pkg github.com/tangoui/tango/ui/layout, type Align uint8
+pkg github.com/tangoui/tango/ui/layout, type Direction uint8
+pkg github.com/tangoui/tango/ui/layout, type Justify uint8
+pkg github.com/tangoui/tango/ui/layout, type Node struct
+pkg github.com/tangoui/tango/ui/layout, type Node struct, Children []*Node
+pkg github.com/tangoui/tango/ui/layout, type Node struct, Content ui/geom.Size
+pkg github.com/tangoui/tango/ui/layout, type Node struct, Measure func(float32, float32) ui/geom.Size
+pkg github.com/tangoui/tango/ui/layout, type Node struct, Rect ui/geom.Rect
+pkg github.com/tangoui/tango/ui/layout, type Node struct, Ref any
+pkg github.com/tangoui/tango/ui/layout, type Node struct, embedded Style
+pkg github.com/tangoui/tango/ui/layout, type Node struct, noncomparable
+pkg github.com/tangoui/tango/ui/layout, type Option func(*Style)
+pkg github.com/tangoui/tango/ui/layout, type Pos struct
+pkg github.com/tangoui/tango/ui/layout, type Pos struct, Bottom float32
+pkg github.com/tangoui/tango/ui/layout, type Pos struct, Left float32
+pkg github.com/tangoui/tango/ui/layout, type Pos struct, Right float32
+pkg github.com/tangoui/tango/ui/layout, type Pos struct, Top float32
+pkg github.com/tangoui/tango/ui/layout, type Style struct
+pkg github.com/tangoui/tango/ui/layout, type Style struct, Absolute bool
+pkg github.com/tangoui/tango/ui/layout, type Style struct, Align Align
+pkg github.com/tangoui/tango/ui/layout, type Style struct, AlignSelf Align
+pkg github.com/tangoui/tango/ui/layout, type Style struct, Basis float32
+pkg github.com/tangoui/tango/ui/layout, type Style struct, Dir Direction
+pkg github.com/tangoui/tango/ui/layout, type Style struct, Gap float32
+pkg github.com/tangoui/tango/ui/layout, type Style struct, Grow float32
+pkg github.com/tangoui/tango/ui/layout, type Style struct, HasBasis bool
+pkg github.com/tangoui/tango/ui/layout, type Style struct, Height float32
+pkg github.com/tangoui/tango/ui/layout, type Style struct, Justify Justify
+pkg github.com/tangoui/tango/ui/layout, type Style struct, LineGap float32
+pkg github.com/tangoui/tango/ui/layout, type Style struct, Margin ui/geom.Insets
+pkg github.com/tangoui/tango/ui/layout, type Style struct, MaxH float32
+pkg github.com/tangoui/tango/ui/layout, type Style struct, MaxW float32
+pkg github.com/tangoui/tango/ui/layout, type Style struct, MinH float32
+pkg github.com/tangoui/tango/ui/layout, type Style struct, MinW float32
+pkg github.com/tangoui/tango/ui/layout, type Style struct, NoMirror bool
+pkg github.com/tangoui/tango/ui/layout, type Style struct, NoStretch bool
+pkg github.com/tangoui/tango/ui/layout, type Style struct, Padding ui/geom.Insets
+pkg github.com/tangoui/tango/ui/layout, type Style struct, Pos Pos
+pkg github.com/tangoui/tango/ui/layout, type Style struct, RTL bool
+pkg github.com/tangoui/tango/ui/layout, type Style struct, ScrollX bool
+pkg github.com/tangoui/tango/ui/layout, type Style struct, ScrollY bool
+pkg github.com/tangoui/tango/ui/layout, type Style struct, Shrink float32
+pkg github.com/tangoui/tango/ui/layout, type Style struct, Width float32
+pkg github.com/tangoui/tango/ui/layout, type Style struct, Wrap bool
+pkg github.com/tangoui/tango/ui/layout, var Unset float32

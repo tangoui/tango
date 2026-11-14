@@ -1,0 +1,47 @@
+pkg github.com/tangoui/tango/ui/editor/keymap, const DoubleTapMaxGap time.Duration = 400000000
+pkg github.com/tangoui/tango/ui/editor/keymap, const DoubleTapMaxPress time.Duration = 300000000
+pkg github.com/tangoui/tango/ui/editor/keymap, const Linux Platform = 2
+pkg github.com/tangoui/tango/ui/editor/keymap, const Mac Platform = 0
+pkg github.com/tangoui/tango/ui/editor/keymap, const MaxChords untyped int = 2
+pkg github.com/tangoui/tango/ui/editor/keymap, const MaxKeyTextLength untyped int = 64
+pkg github.com/tangoui/tango/ui/editor/keymap, const Windows Platform = 1
+pkg github.com/tangoui/tango/ui/editor/keymap, func ChordOf(ui/input.KeyEvent) (Chord, bool)
+pkg github.com/tangoui/tango/ui/editor/keymap, func Current() Platform
+pkg github.com/tangoui/tango/ui/editor/keymap, func DefaultRules(Platform) []Rule
+pkg github.com/tangoui/tango/ui/editor/keymap, func EventForText(string) (ui/input.KeyEvent, bool)
+pkg github.com/tangoui/tango/ui/editor/keymap, func Label(string, Platform) string
+pkg github.com/tangoui/tango/ui/editor/keymap, func MustParseKey(string, Platform) Sequence
+pkg github.com/tangoui/tango/ui/editor/keymap, func New(Platform, ...[]Rule) *Keymap
+pkg github.com/tangoui/tango/ui/editor/keymap, func ParseKey(string, Platform) (Sequence, error)
+pkg github.com/tangoui/tango/ui/editor/keymap, func PlatformFrom(string) Platform
+pkg github.com/tangoui/tango/ui/editor/keymap, method (*Keymap) ClearPending()
+pkg github.com/tangoui/tango/ui/editor/keymap, method (*Keymap) Clone() *Keymap
+pkg github.com/tangoui/tango/ui/editor/keymap, method (*Keymap) Errors() []error
+pkg github.com/tangoui/tango/ui/editor/keymap, method (*Keymap) Keys(string, ui/editor/when.Context) []Sequence
+pkg github.com/tangoui/tango/ui/editor/keymap, method (*Keymap) Pending() bool
+pkg github.com/tangoui/tango/ui/editor/keymap, method (*Keymap) Platform() Platform
+pkg github.com/tangoui/tango/ui/editor/keymap, method (*Keymap) ResetTap()
+pkg github.com/tangoui/tango/ui/editor/keymap, method (*Keymap) Resolve(ui/input.KeyEvent, ui/editor/when.Context) (string, any, bool)
+pkg github.com/tangoui/tango/ui/editor/keymap, method (*Keymap) ResolveEnabled(ui/input.KeyEvent, ui/editor/when.Context, func(string) bool) (string, any, bool)
+pkg github.com/tangoui/tango/ui/editor/keymap, method (*Keymap) SetClock(func() time.Time)
+pkg github.com/tangoui/tango/ui/editor/keymap, method (Chord) Label(Platform) string
+pkg github.com/tangoui/tango/ui/editor/keymap, method (Chord) String() string
+pkg github.com/tangoui/tango/ui/editor/keymap, method (Platform) String() string
+pkg github.com/tangoui/tango/ui/editor/keymap, method (Sequence) Equal(Sequence) bool
+pkg github.com/tangoui/tango/ui/editor/keymap, method (Sequence) Label(Platform) string
+pkg github.com/tangoui/tango/ui/editor/keymap, method (Sequence) String() string
+pkg github.com/tangoui/tango/ui/editor/keymap, type Chord struct
+pkg github.com/tangoui/tango/ui/editor/keymap, type Chord struct, Key ui/input.Key
+pkg github.com/tangoui/tango/ui/editor/keymap, type Chord struct, Mods ui/input.Modifiers
+pkg github.com/tangoui/tango/ui/editor/keymap, type Keymap struct
+pkg github.com/tangoui/tango/ui/editor/keymap, type Keymap struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor/keymap, type Platform int
+pkg github.com/tangoui/tango/ui/editor/keymap, type Rule struct
+pkg github.com/tangoui/tango/ui/editor/keymap, type Rule struct, Args any
+pkg github.com/tangoui/tango/ui/editor/keymap, type Rule struct, Command string
+pkg github.com/tangoui/tango/ui/editor/keymap, type Rule struct, Key string
+pkg github.com/tangoui/tango/ui/editor/keymap, type Rule struct, When string
+pkg github.com/tangoui/tango/ui/editor/keymap, type Sequence struct
+pkg github.com/tangoui/tango/ui/editor/keymap, type Sequence struct, Chords []Chord
+pkg github.com/tangoui/tango/ui/editor/keymap, type Sequence struct, Double ui/input.Modifiers
+pkg github.com/tangoui/tango/ui/editor/keymap, type Sequence struct, noncomparable

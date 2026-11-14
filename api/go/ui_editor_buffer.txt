@@ -1,0 +1,54 @@
+pkg github.com/tangoui/tango/ui/editor/buffer, const Left Bias = 0
+pkg github.com/tangoui/tango/ui/editor/buffer, const Right Bias = 1
+pkg github.com/tangoui/tango/ui/editor/buffer, func New(string) *Buffer
+pkg github.com/tangoui/tango/ui/editor/buffer, func NewSnapshot(string) Snapshot
+pkg github.com/tangoui/tango/ui/editor/buffer, func NewTracker([]Edit) *Tracker
+pkg github.com/tangoui/tango/ui/editor/buffer, method (*Buffer) AltVersion() uint64
+pkg github.com/tangoui/tango/ui/editor/buffer, method (*Buffer) Anchor(int, Bias) Anchor
+pkg github.com/tangoui/tango/ui/editor/buffer, method (*Buffer) Edit([]Edit, []Selection, []Selection) (Snapshot, error)
+pkg github.com/tangoui/tango/ui/editor/buffer, method (*Buffer) LastChange() (Snapshot, []Edit)
+pkg github.com/tangoui/tango/ui/editor/buffer, method (*Buffer) PushUndoStop()
+pkg github.com/tangoui/tango/ui/editor/buffer, method (*Buffer) Redo() (Snapshot, []Selection, bool)
+pkg github.com/tangoui/tango/ui/editor/buffer, method (*Buffer) Resolve(Anchor) int
+pkg github.com/tangoui/tango/ui/editor/buffer, method (*Buffer) SetEOL(string, []Selection) (Snapshot, bool)
+pkg github.com/tangoui/tango/ui/editor/buffer, method (*Buffer) Snapshot() Snapshot
+pkg github.com/tangoui/tango/ui/editor/buffer, method (*Buffer) Undo() (Snapshot, []Selection, bool)
+pkg github.com/tangoui/tango/ui/editor/buffer, method (*Tracker) Map(int, Bias) int
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Anchor) Bias() Bias
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Bias) String() string
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) Apply([]Edit) (Snapshot, error)
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) ByteCol(int, int) int
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) EOL() string
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) Len() int
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) Line(int) string
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) LineCount() int
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) LineOf(int) int
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) LineStart(int) int
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) OffsetOf(Pos) int
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) PosOf(int) Pos
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) Slice(int, int) string
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) String() string
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) TextWithEOL() string
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) UTF16Col(int, int) int
+pkg github.com/tangoui/tango/ui/editor/buffer, method (Snapshot) Version() uint64
+pkg github.com/tangoui/tango/ui/editor/buffer, type Anchor struct
+pkg github.com/tangoui/tango/ui/editor/buffer, type Bias int
+pkg github.com/tangoui/tango/ui/editor/buffer, type Buffer struct
+pkg github.com/tangoui/tango/ui/editor/buffer, type Buffer struct, Now func() time.Time
+pkg github.com/tangoui/tango/ui/editor/buffer, type Buffer struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor/buffer, type Edit struct
+pkg github.com/tangoui/tango/ui/editor/buffer, type Edit struct, End int
+pkg github.com/tangoui/tango/ui/editor/buffer, type Edit struct, Start int
+pkg github.com/tangoui/tango/ui/editor/buffer, type Edit struct, Text string
+pkg github.com/tangoui/tango/ui/editor/buffer, type Pos struct
+pkg github.com/tangoui/tango/ui/editor/buffer, type Pos struct, Col int
+pkg github.com/tangoui/tango/ui/editor/buffer, type Pos struct, Line int
+pkg github.com/tangoui/tango/ui/editor/buffer, type Selection struct
+pkg github.com/tangoui/tango/ui/editor/buffer, type Selection struct, Anchor int
+pkg github.com/tangoui/tango/ui/editor/buffer, type Selection struct, Head int
+pkg github.com/tangoui/tango/ui/editor/buffer, type Snapshot struct
+pkg github.com/tangoui/tango/ui/editor/buffer, type Tracker struct
+pkg github.com/tangoui/tango/ui/editor/buffer, type Tracker struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor/buffer, var ErrEditOrder error
+pkg github.com/tangoui/tango/ui/editor/buffer, var ErrEditRange error
+pkg github.com/tangoui/tango/ui/editor/buffer, var ErrSplitRune error

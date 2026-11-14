@@ -1,0 +1,9 @@
+pkg github.com/tangoui/tango/sys/share, func Share(*tango.App, Options) error
+pkg github.com/tangoui/tango/sys/share, type Options struct
+pkg github.com/tangoui/tango/sys/share, type Options struct, Files []string
+pkg github.com/tangoui/tango/sys/share, type Options struct, Text string
+pkg github.com/tangoui/tango/sys/share, type Options struct, Title string
+pkg github.com/tangoui/tango/sys/share, type Options struct, URL string
+pkg github.com/tangoui/tango/sys/share, type Options struct, noncomparable
+pkg github.com/tangoui/tango/sys/share, var ErrCanceled error
+pkg github.com/tangoui/tango/sys/share, var ErrUnsupported error

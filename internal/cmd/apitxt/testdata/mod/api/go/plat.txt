@@ -1,0 +1,5 @@
+pkg example.com/m/plat, const Sep untyped string = "/" [darwin,linux]
+pkg example.com/m/plat, const Sep untyped string = "\\" [windows]
+pkg example.com/m/plat, func Common()
+pkg example.com/m/plat, func OnlyLinux() [linux]
+pkg example.com/m/plat, func Unix() [darwin,linux]

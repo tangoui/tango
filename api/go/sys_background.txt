@@ -1,0 +1,18 @@
+pkg github.com/tangoui/tango/sys/background, const Processing Kind = 2
+pkg github.com/tangoui/tango/sys/background, const Refresh Kind = 1
+pkg github.com/tangoui/tango/sys/background, func Cancel(*tango.App, Kind) error
+pkg github.com/tangoui/tango/sys/background, func OnTask(*tango.App, func(context.Context, Task) error)
+pkg github.com/tangoui/tango/sys/background, func Schedule(*tango.App, Request) error
+pkg github.com/tangoui/tango/sys/background, type Kind = internal/platform.BackgroundKind
+pkg github.com/tangoui/tango/sys/background, type Kind int
+pkg github.com/tangoui/tango/sys/background, type Request = internal/platform.BackgroundRequest
+pkg github.com/tangoui/tango/sys/background, type Request struct
+pkg github.com/tangoui/tango/sys/background, type Request struct, Earliest time.Duration
+pkg github.com/tangoui/tango/sys/background, type Request struct, Kind Kind
+pkg github.com/tangoui/tango/sys/background, type Request struct, RequiresCharging bool
+pkg github.com/tangoui/tango/sys/background, type Request struct, RequiresNetwork bool
+pkg github.com/tangoui/tango/sys/background, type Task struct
+pkg github.com/tangoui/tango/sys/background, type Task struct, Deadline time.Time
+pkg github.com/tangoui/tango/sys/background, type Task struct, Kind Kind
+pkg github.com/tangoui/tango/sys/background, var ErrNotConfigured error
+pkg github.com/tangoui/tango/sys/background, var ErrUnsupported error

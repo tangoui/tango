@@ -1,0 +1,90 @@
+pkg github.com/tangoui/tango/ui/text, const Bold Weight = 700
+pkg github.com/tangoui/tango/ui/text, const DirAuto Direction = 0
+pkg github.com/tangoui/tango/ui/text, const DirLTR Direction = 1
+pkg github.com/tangoui/tango/ui/text, const DirRTL Direction = 2
+pkg github.com/tangoui/tango/ui/text, const ItalicSkew untyped float = 0.2
+pkg github.com/tangoui/tango/ui/text, const Light Weight = 300
+pkg github.com/tangoui/tango/ui/text, const Medium Weight = 500
+pkg github.com/tangoui/tango/ui/text, const Regular Weight = 400
+pkg github.com/tangoui/tango/ui/text, const Semibold Weight = 600
+pkg github.com/tangoui/tango/ui/text, func DefaultLang() string
+pkg github.com/tangoui/tango/ui/text, func Engine() string
+pkg github.com/tangoui/tango/ui/text, func Families() []string
+pkg github.com/tangoui/tango/ui/text, func LineHeightOf(Style) float32
+pkg github.com/tangoui/tango/ui/text, func Measure(string, Style, Options) ui/geom.Size
+pkg github.com/tangoui/tango/ui/text, func NewLineCache(int) *LineCache
+pkg github.com/tangoui/tango/ui/text, func RegisterFont(string, []byte) error
+pkg github.com/tangoui/tango/ui/text, func SetDefaultLang(string)
+pkg github.com/tangoui/tango/ui/text, func Shape(string, Style, Options) *Layout
+pkg github.com/tangoui/tango/ui/text, func ShapeRuns(string, []Run, Options) *Layout
+pkg github.com/tangoui/tango/ui/text, func TrimCaches()
+pkg github.com/tangoui/tango/ui/text, func TrimSpaceRight(string) string
+pkg github.com/tangoui/tango/ui/text, func UseSystemEngine(bool) bool
+pkg github.com/tangoui/tango/ui/text, func UseSystemFonts(bool)
+pkg github.com/tangoui/tango/ui/text, func Width(string, Style) float32
+pkg github.com/tangoui/tango/ui/text, method (*Face) GlyphPath(uint32, float32) *ui/paint.Path
+pkg github.com/tangoui/tango/ui/text, method (*Face) HasRune(rune) bool
+pkg github.com/tangoui/tango/ui/text, method (*Face) Metrics(float32) (float32, float32)
+pkg github.com/tangoui/tango/ui/text, method (*Face) RasterGlyph(uint32, float32, uint8, float32) (*image.Alpha, image.Point, bool)
+pkg github.com/tangoui/tango/ui/text, method (*Face) SystemRasterized() bool
+pkg github.com/tangoui/tango/ui/text, method (*Layout) Caret(int) (float32, float32, float32)
+pkg github.com/tangoui/tango/ui/text, method (*Layout) IndexAt(float32, float32) int
+pkg github.com/tangoui/tango/ui/text, method (*Layout) LineOf(int) int
+pkg github.com/tangoui/tango/ui/text, method (*Layout) SelectionRects(int, int) []ui/geom.Rect
+pkg github.com/tangoui/tango/ui/text, method (*Layout) Size() ui/geom.Size
+pkg github.com/tangoui/tango/ui/text, method (*LineCache) Len() int
+pkg github.com/tangoui/tango/ui/text, method (*LineCache) Reset()
+pkg github.com/tangoui/tango/ui/text, method (*LineCache) Shape(string, []Run, LineOptions) *Layout
+pkg github.com/tangoui/tango/ui/text, type Direction uint8
+pkg github.com/tangoui/tango/ui/text, type Face struct
+pkg github.com/tangoui/tango/ui/text, type Face struct, Family string
+pkg github.com/tangoui/tango/ui/text, type Face struct, Italic bool
+pkg github.com/tangoui/tango/ui/text, type Face struct, Weight Weight
+pkg github.com/tangoui/tango/ui/text, type Face struct, noncomparable
+pkg github.com/tangoui/tango/ui/text, type Layout struct
+pkg github.com/tangoui/tango/ui/text, type Layout struct, Ascent float32
+pkg github.com/tangoui/tango/ui/text, type Layout struct, GlyphCluster []int32
+pkg github.com/tangoui/tango/ui/text, type Layout struct, GlyphRun []int32
+pkg github.com/tangoui/tango/ui/text, type Layout struct, Glyphs []ui/paint.Glyph
+pkg github.com/tangoui/tango/ui/text, type Layout struct, Height float32
+pkg github.com/tangoui/tango/ui/text, type Layout struct, LineHeight float32
+pkg github.com/tangoui/tango/ui/text, type Layout struct, Lines []Line
+pkg github.com/tangoui/tango/ui/text, type Layout struct, Runes []rune
+pkg github.com/tangoui/tango/ui/text, type Layout struct, Style Style
+pkg github.com/tangoui/tango/ui/text, type Layout struct, Text string
+pkg github.com/tangoui/tango/ui/text, type Layout struct, Truncated bool
+pkg github.com/tangoui/tango/ui/text, type Layout struct, Width float32
+pkg github.com/tangoui/tango/ui/text, type Layout struct, noncomparable
+pkg github.com/tangoui/tango/ui/text, type Line struct
+pkg github.com/tangoui/tango/ui/text, type Line struct, Baseline float32
+pkg github.com/tangoui/tango/ui/text, type Line struct, End int
+pkg github.com/tangoui/tango/ui/text, type Line struct, RTL bool
+pkg github.com/tangoui/tango/ui/text, type Line struct, Start int
+pkg github.com/tangoui/tango/ui/text, type Line struct, Top float32
+pkg github.com/tangoui/tango/ui/text, type Line struct, Width float32
+pkg github.com/tangoui/tango/ui/text, type Line struct, noncomparable
+pkg github.com/tangoui/tango/ui/text, type LineCache struct
+pkg github.com/tangoui/tango/ui/text, type LineCache struct, noncomparable
+pkg github.com/tangoui/tango/ui/text, type LineOptions struct
+pkg github.com/tangoui/tango/ui/text, type LineOptions struct, Direction Direction
+pkg github.com/tangoui/tango/ui/text, type LineOptions struct, Lang string
+pkg github.com/tangoui/tango/ui/text, type LineOptions struct, Ligatures bool
+pkg github.com/tangoui/tango/ui/text, type LineOptions struct, TabSize int
+pkg github.com/tangoui/tango/ui/text, type Options struct
+pkg github.com/tangoui/tango/ui/text, type Options struct, Direction Direction
+pkg github.com/tangoui/tango/ui/text, type Options struct, Ellipsis bool
+pkg github.com/tangoui/tango/ui/text, type Options struct, MaxLines int
+pkg github.com/tangoui/tango/ui/text, type Options struct, MaxWidth float32
+pkg github.com/tangoui/tango/ui/text, type Options struct, NoWrap bool
+pkg github.com/tangoui/tango/ui/text, type Run struct
+pkg github.com/tangoui/tango/ui/text, type Run struct, End int
+pkg github.com/tangoui/tango/ui/text, type Run struct, Start int
+pkg github.com/tangoui/tango/ui/text, type Run struct, Style Style
+pkg github.com/tangoui/tango/ui/text, type Style struct
+pkg github.com/tangoui/tango/ui/text, type Style struct, Italic bool
+pkg github.com/tangoui/tango/ui/text, type Style struct, Lang string
+pkg github.com/tangoui/tango/ui/text, type Style struct, LineHeight float32
+pkg github.com/tangoui/tango/ui/text, type Style struct, Mono bool
+pkg github.com/tangoui/tango/ui/text, type Style struct, Size float32
+pkg github.com/tangoui/tango/ui/text, type Style struct, Weight Weight
+pkg github.com/tangoui/tango/ui/text, type Weight int

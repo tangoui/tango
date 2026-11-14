@@ -1,0 +1,38 @@
+pkg github.com/tangoui/tango/ipc, const CodeBadArgs untyped string = "bad_args"
+pkg github.com/tangoui/tango/ipc, const CodeCanceled untyped string = "canceled"
+pkg github.com/tangoui/tango/ipc, const CodeInternal untyped string = "internal"
+pkg github.com/tangoui/tango/ipc, const CodeNotFound untyped string = "not_found"
+pkg github.com/tangoui/tango/ipc, const DefaultWindow untyped int = 64
+pkg github.com/tangoui/tango/ipc, func ConnFrom(context.Context) (Conn, bool)
+pkg github.com/tangoui/tango/ipc, func NewError(string, string) *Error
+pkg github.com/tangoui/tango/ipc, func NewRouter() *Router
+pkg github.com/tangoui/tango/ipc, method (*Error) Error() string
+pkg github.com/tangoui/tango/ipc, method (*Router) Drop(Conn)
+pkg github.com/tangoui/tango/ipc, method (*Router) Emit(Conn, string, any) error
+pkg github.com/tangoui/tango/ipc, method (*Router) Handle(string, HandlerFunc)
+pkg github.com/tangoui/tango/ipc, method (*Router) HandleMessage(Conn, string) bool
+pkg github.com/tangoui/tango/ipc, method (*Router) HandleStream(string, StreamFunc)
+pkg github.com/tangoui/tango/ipc, method (*Router) Has(string) bool
+pkg github.com/tangoui/tango/ipc, method (*Router) On(string, EventFunc) func()
+pkg github.com/tangoui/tango/ipc, method (*Router) OnPanic(func(Conn, string, any, []byte))
+pkg github.com/tangoui/tango/ipc, method (*Router) OpenStream(Conn, string, ...any) (*Stream, error)
+pkg github.com/tangoui/tango/ipc, method (*Stream) Close() error
+pkg github.com/tangoui/tango/ipc, method (*Stream) CloseWithError(error) error
+pkg github.com/tangoui/tango/ipc, method (*Stream) Context() context.Context
+pkg github.com/tangoui/tango/ipc, method (*Stream) ID() uint64
+pkg github.com/tangoui/tango/ipc, method (*Stream) Write(any) error
+pkg github.com/tangoui/tango/ipc, type Conn interface { Send }
+pkg github.com/tangoui/tango/ipc, type Conn interface, Send(string)
+pkg github.com/tangoui/tango/ipc, type Error struct
+pkg github.com/tangoui/tango/ipc, type Error struct, Code string `json:"code,omitempty"`
+pkg github.com/tangoui/tango/ipc, type Error struct, Message string `json:"message"`
+pkg github.com/tangoui/tango/ipc, type EventFunc func(Conn, encoding/json.RawMessage)
+pkg github.com/tangoui/tango/ipc, type HandlerFunc func(context.Context, encoding/json.RawMessage) (any, error)
+pkg github.com/tangoui/tango/ipc, type Router struct
+pkg github.com/tangoui/tango/ipc, type Router struct, noncomparable
+pkg github.com/tangoui/tango/ipc, type Stream struct
+pkg github.com/tangoui/tango/ipc, type Stream struct, noncomparable
+pkg github.com/tangoui/tango/ipc, type StreamFunc func(context.Context, encoding/json.RawMessage, StreamWriter) error
+pkg github.com/tangoui/tango/ipc, type StreamWriter interface { Context, Write }
+pkg github.com/tangoui/tango/ipc, type StreamWriter interface, Context() context.Context
+pkg github.com/tangoui/tango/ipc, type StreamWriter interface, Write(any) error

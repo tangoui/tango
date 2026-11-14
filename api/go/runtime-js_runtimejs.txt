@@ -1,0 +1,1 @@
+pkg github.com/tangoui/tango/runtime-js/runtimejs, var Script string

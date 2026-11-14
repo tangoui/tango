@@ -1,0 +1,338 @@
+pkg github.com/tangoui/tango, const AuthCancel AuthAction = 2
+pkg github.com/tangoui/tango, const AuthCredentials AuthAction = 1
+pkg github.com/tangoui/tango, const AuthDefault AuthAction = 0
+pkg github.com/tangoui/tango, const Background Lifecycle = 3
+pkg github.com/tangoui/tango, const DataAll BrowsingData = 7
+pkg github.com/tangoui/tango, const DataCache BrowsingData = 2
+pkg github.com/tangoui/tango, const DataCookies BrowsingData = 1
+pkg github.com/tangoui/tango, const DataStorage BrowsingData = 4
+pkg github.com/tangoui/tango, const DownloadCanceled DownloadState = 4
+pkg github.com/tangoui/tango, const DownloadDone DownloadState = 2
+pkg github.com/tangoui/tango, const DownloadFailed DownloadState = 3
+pkg github.com/tangoui/tango, const DownloadProgress DownloadState = 1
+pkg github.com/tangoui/tango, const DragCopy DragOperation = 1
+pkg github.com/tangoui/tango, const DragLink DragOperation = 3
+pkg github.com/tangoui/tango, const DragMove DragOperation = 2
+pkg github.com/tangoui/tango, const DragNone DragOperation = 0
+pkg github.com/tangoui/tango, const EventDisplaysChanged AppEventKind = 4
+pkg github.com/tangoui/tango, const EventMemoryWarning AppEventKind = 203
+pkg github.com/tangoui/tango, const EventNotificationOpened AppEventKind = 6
+pkg github.com/tangoui/tango, const EventOpenFiles AppEventKind = 2
+pkg github.com/tangoui/tango, const EventOpenURL AppEventKind = 1
+pkg github.com/tangoui/tango, const EventOrientationChanged AppEventKind = 101
+pkg github.com/tangoui/tango, const EventPushOpened AppEventKind = 104
+pkg github.com/tangoui/tango, const EventPushReceived AppEventKind = 103
+pkg github.com/tangoui/tango, const EventPushToken AppEventKind = 102
+pkg github.com/tangoui/tango, const EventReopen AppEventKind = 5
+pkg github.com/tangoui/tango, const EventSafeAreaChanged AppEventKind = 100
+pkg github.com/tangoui/tango, const EventThemeChanged AppEventKind = 3
+pkg github.com/tangoui/tango, const EventWebViewRestored AppEventKind = 105
+pkg github.com/tangoui/tango, const Foreground Lifecycle = 2
+pkg github.com/tangoui/tango, const HeadersAll HeaderScope = 1
+pkg github.com/tangoui/tango, const HeadersAssets HeaderScope = 0
+pkg github.com/tangoui/tango, const KindModal SurfaceKind = 2
+pkg github.com/tangoui/tango, const KindPanel SurfaceKind = 1
+pkg github.com/tangoui/tango, const KindSheet SurfaceKind = 3
+pkg github.com/tangoui/tango, const KindWindow SurfaceKind = 0
+pkg github.com/tangoui/tango, const MaterialBlur Material = 1
+pkg github.com/tangoui/tango, const MaterialMica Material = 2
+pkg github.com/tangoui/tango, const MaterialNone Material = 0
+pkg github.com/tangoui/tango, const NewWindowBrowser NewWindowAction = 1
+pkg github.com/tangoui/tango, const NewWindowCurrent NewWindowAction = 3
+pkg github.com/tangoui/tango, const NewWindowDefault NewWindowAction = 0
+pkg github.com/tangoui/tango, const NewWindowDeny NewWindowAction = 4
+pkg github.com/tangoui/tango, const NewWindowSurface NewWindowAction = 2
+pkg github.com/tangoui/tango, const PermissionAllow PermissionDecision = 2
+pkg github.com/tangoui/tango, const PermissionDefault PermissionDecision = 0
+pkg github.com/tangoui/tango, const PermissionDeny PermissionDecision = 3
+pkg github.com/tangoui/tango, const PermissionPrompt PermissionDecision = 1
+pkg github.com/tangoui/tango, const Started Lifecycle = 1
+pkg github.com/tangoui/tango, const StateFullscreen WindowState = 3
+pkg github.com/tangoui/tango, const StateMaximized WindowState = 2
+pkg github.com/tangoui/tango, const StateMinimized WindowState = 1
+pkg github.com/tangoui/tango, const StateNormal WindowState = 0
+pkg github.com/tangoui/tango, const Terminating Lifecycle = 4
+pkg github.com/tangoui/tango, const TitleBarDefault TitleBar = 0
+pkg github.com/tangoui/tango, const TitleBarHidden TitleBar = 1
+pkg github.com/tangoui/tango, const TitleBarNone TitleBar = 2
+pkg github.com/tangoui/tango, const WebPermCamera WebPermission = "camera"
+pkg github.com/tangoui/tango, const WebPermClipboardRead WebPermission = "clipboard-read"
+pkg github.com/tangoui/tango, const WebPermGeolocation WebPermission = "geolocation"
+pkg github.com/tangoui/tango, const WebPermMIDI WebPermission = "midi"
+pkg github.com/tangoui/tango, const WebPermMedia WebPermission = "protected-media"
+pkg github.com/tangoui/tango, const WebPermMicrophone WebPermission = "microphone"
+pkg github.com/tangoui/tango, const WebPermMotion WebPermission = "device-motion"
+pkg github.com/tangoui/tango, const WebPermNotifications WebPermission = "notifications"
+pkg github.com/tangoui/tango, const WebPermOther WebPermission = "other"
+pkg github.com/tangoui/tango, const WebPermScreen WebPermission = "screen"
+pkg github.com/tangoui/tango, const WebPermStorage WebPermission = "storage-access"
+pkg github.com/tangoui/tango, func AwaitAsync[T any](*App, func(func(T))) T
+pkg github.com/tangoui/tango, func Await[T any](*App, func() T) T
+pkg github.com/tangoui/tango, func New(Options) *App
+pkg github.com/tangoui/tango, func TryAwaitAsync[T any](*App, func(func(T))) (T, error)
+pkg github.com/tangoui/tango, method (*App) AddBridgeScript(string)
+pkg github.com/tangoui/tango, method (*App) Backend() internal/platform.Backend
+pkg github.com/tangoui/tango, method (*App) DownloadDir() string
+pkg github.com/tangoui/tango, method (*App) DownloadPath(DownloadRequest) string
+pkg github.com/tangoui/tango, method (*App) Go(func())
+pkg github.com/tangoui/tango, method (*App) HandleArgs([]string, string)
+pkg github.com/tangoui/tango, method (*App) ID() string
+pkg github.com/tangoui/tango, method (*App) Name() string
+pkg github.com/tangoui/tango, method (*App) NewSurface(SurfaceOptions) (*Surface, error)
+pkg github.com/tangoui/tango, method (*App) OnDownloadEvent(func(*Surface, DownloadEvent))
+pkg github.com/tangoui/tango, method (*App) OnEvent(func(AppEvent))
+pkg github.com/tangoui/tango, method (*App) OnEventKind(AppEventKind, func(AppEvent))
+pkg github.com/tangoui/tango, method (*App) OnLifecycle(func(Lifecycle))
+pkg github.com/tangoui/tango, method (*App) OnMessage(func(*Surface, string))
+pkg github.com/tangoui/tango, method (*App) OnOpenFiles(func([]string))
+pkg github.com/tangoui/tango, method (*App) OnOpenURL(func(string))
+pkg github.com/tangoui/tango, method (*App) OnQuitRequest(func() bool)
+pkg github.com/tangoui/tango, method (*App) OnReady(func())
+pkg github.com/tangoui/tango, method (*App) OnSurfaceCreated(func(*Surface))
+pkg github.com/tangoui/tango, method (*App) OnWebViewRestored(func(*Surface, string))
+pkg github.com/tangoui/tango, method (*App) ParseArgs([]string, string) []AppEvent
+pkg github.com/tangoui/tango, method (*App) Post(func())
+pkg github.com/tangoui/tango, method (*App) Quit()
+pkg github.com/tangoui/tango, method (*App) Run() error
+pkg github.com/tangoui/tango, method (*App) SetAuthHandler(func(*Surface, AuthChallenge) AuthResponse)
+pkg github.com/tangoui/tango, method (*App) SetDownloadDir(string)
+pkg github.com/tangoui/tango, method (*App) SetDownloadHandler(func(*Surface, DownloadRequest) string)
+pkg github.com/tangoui/tango, method (*App) SetNavigationPolicy(func(*Surface, NavigationRequest) bool)
+pkg github.com/tangoui/tango, method (*App) SetNewWindowHandler(func(*Surface, NewWindowRequest) NewWindowAction)
+pkg github.com/tangoui/tango, method (*App) SetPermissionHandler(func(*Surface, PermissionRequest) PermissionDecision)
+pkg github.com/tangoui/tango, method (*App) SetPermissionPolicy(WebPermission, PermissionDecision)
+pkg github.com/tangoui/tango, method (*App) Surfaces() []*Surface
+pkg github.com/tangoui/tango, method (*Surface) App() *App
+pkg github.com/tangoui/tango, method (*Surface) Appearance() Appearance
+pkg github.com/tangoui/tango, method (*Surface) Bounds() Rect
+pkg github.com/tangoui/tango, method (*Surface) CancelDownload(uint64) error
+pkg github.com/tangoui/tango, method (*Surface) Center() error
+pkg github.com/tangoui/tango, method (*Surface) ClearBrowsingData(BrowsingData) error
+pkg github.com/tangoui/tango, method (*Surface) ClearCookies(string) error
+pkg github.com/tangoui/tango, method (*Surface) Close()
+pkg github.com/tangoui/tango, method (*Surface) Cookies(string) ([]*net/http.Cookie, error)
+pkg github.com/tangoui/tango, method (*Surface) DeleteCookie(*net/http.Cookie) error
+pkg github.com/tangoui/tango, method (*Surface) DragFiles([]string, []byte, func(DragOperation)) error
+pkg github.com/tangoui/tango, method (*Surface) Eval(string)
+pkg github.com/tangoui/tango, method (*Surface) Find(string, FindOptions) (FindResult, error)
+pkg github.com/tangoui/tango, method (*Surface) FindNext() (FindResult, error)
+pkg github.com/tangoui/tango, method (*Surface) FindPrevious() (FindResult, error)
+pkg github.com/tangoui/tango, method (*Surface) Focus()
+pkg github.com/tangoui/tango, method (*Surface) Fullscreen() error
+pkg github.com/tangoui/tango, method (*Surface) Hide()
+pkg github.com/tangoui/tango, method (*Surface) ID() internal/platform.SurfaceID
+pkg github.com/tangoui/tango, method (*Surface) IsFocused() bool
+pkg github.com/tangoui/tango, method (*Surface) IsVisible() bool
+pkg github.com/tangoui/tango, method (*Surface) Maximize() error
+pkg github.com/tangoui/tango, method (*Surface) Minimize() error
+pkg github.com/tangoui/tango, method (*Surface) Native() uintptr
+pkg github.com/tangoui/tango, method (*Surface) Navigate(string)
+pkg github.com/tangoui/tango, method (*Surface) OnBlurred(func())
+pkg github.com/tangoui/tango, method (*Surface) OnClose(func() bool)
+pkg github.com/tangoui/tango, method (*Surface) OnClosed(func())
+pkg github.com/tangoui/tango, method (*Surface) OnDownloadEvent(func(DownloadEvent))
+pkg github.com/tangoui/tango, method (*Surface) OnFilesDropped(func([]string, int, int))
+pkg github.com/tangoui/tango, method (*Surface) OnFocused(func())
+pkg github.com/tangoui/tango, method (*Surface) OnLoadFailed(func(string, string))
+pkg github.com/tangoui/tango, method (*Surface) OnLoaded(func())
+pkg github.com/tangoui/tango, method (*Surface) OnMoved(func(int, int))
+pkg github.com/tangoui/tango, method (*Surface) OnNavigating(func(string))
+pkg github.com/tangoui/tango, method (*Surface) OnResized(func(int, int))
+pkg github.com/tangoui/tango, method (*Surface) OnStateChanged(func(WindowState))
+pkg github.com/tangoui/tango, method (*Surface) OpenDevTools()
+pkg github.com/tangoui/tango, method (*Surface) Print() error
+pkg github.com/tangoui/tango, method (*Surface) PrintToPDF(PDFOptions) ([]byte, error)
+pkg github.com/tangoui/tango, method (*Surface) Reload() error
+pkg github.com/tangoui/tango, method (*Surface) Restore() error
+pkg github.com/tangoui/tango, method (*Surface) Screenshot() ([]byte, error)
+pkg github.com/tangoui/tango, method (*Surface) Send(string)
+pkg github.com/tangoui/tango, method (*Surface) SetAppearance(Appearance) error
+pkg github.com/tangoui/tango, method (*Surface) SetAuthHandler(func(AuthChallenge) AuthResponse)
+pkg github.com/tangoui/tango, method (*Surface) SetBounds(Rect) error
+pkg github.com/tangoui/tango, method (*Surface) SetCookie(*net/http.Cookie) error
+pkg github.com/tangoui/tango, method (*Surface) SetDownloadHandler(func(DownloadRequest) string)
+pkg github.com/tangoui/tango, method (*Surface) SetExtraHeaders(net/http.Header, HeaderScope) error
+pkg github.com/tangoui/tango, method (*Surface) SetNavigationPolicy(func(NavigationRequest) bool)
+pkg github.com/tangoui/tango, method (*Surface) SetNewWindowHandler(func(NewWindowRequest) NewWindowAction)
+pkg github.com/tangoui/tango, method (*Surface) SetPermissionHandler(func(PermissionRequest) PermissionDecision)
+pkg github.com/tangoui/tango, method (*Surface) SetSize(int, int)
+pkg github.com/tangoui/tango, method (*Surface) SetSizeLimits(int, int, int, int) error
+pkg github.com/tangoui/tango, method (*Surface) SetState(WindowState) error
+pkg github.com/tangoui/tango, method (*Surface) SetTitle(string)
+pkg github.com/tangoui/tango, method (*Surface) SetUserAgent(string) error
+pkg github.com/tangoui/tango, method (*Surface) SetZoom(float64) error
+pkg github.com/tangoui/tango, method (*Surface) Show()
+pkg github.com/tangoui/tango, method (*Surface) Size() (int, int)
+pkg github.com/tangoui/tango, method (*Surface) State() WindowState
+pkg github.com/tangoui/tango, method (*Surface) StopFind() error
+pkg github.com/tangoui/tango, method (*Surface) Title() string
+pkg github.com/tangoui/tango, method (*Surface) UserAgent() string
+pkg github.com/tangoui/tango, method (*Surface) Zoom() float64
+pkg github.com/tangoui/tango, type App struct
+pkg github.com/tangoui/tango, type App struct, noncomparable
+pkg github.com/tangoui/tango, type AppEvent = internal/platform.AppEvent
+pkg github.com/tangoui/tango, type AppEvent struct
+pkg github.com/tangoui/tango, type AppEvent struct, Insets internal/platform.Insets
+pkg github.com/tangoui/tango, type AppEvent struct, Kind AppEventKind
+pkg github.com/tangoui/tango, type AppEvent struct, Notification string
+pkg github.com/tangoui/tango, type AppEvent struct, Orientation internal/platform.Orientation
+pkg github.com/tangoui/tango, type AppEvent struct, Paths []string
+pkg github.com/tangoui/tango, type AppEvent struct, Push internal/platform.PushEvent
+pkg github.com/tangoui/tango, type AppEvent struct, Surface internal/platform.SurfaceID
+pkg github.com/tangoui/tango, type AppEvent struct, Theme internal/platform.Theme
+pkg github.com/tangoui/tango, type AppEvent struct, URL string
+pkg github.com/tangoui/tango, type AppEvent struct, noncomparable
+pkg github.com/tangoui/tango, type AppEventKind = internal/platform.AppEventKind
+pkg github.com/tangoui/tango, type AppEventKind int
+pkg github.com/tangoui/tango, type Appearance = internal/platform.Appearance
+pkg github.com/tangoui/tango, type Appearance struct
+pkg github.com/tangoui/tango, type Appearance struct, AlwaysOnTop bool
+pkg github.com/tangoui/tango, type Appearance struct, Background uint32
+pkg github.com/tangoui/tango, type Appearance struct, Material Material
+pkg github.com/tangoui/tango, type Appearance struct, NoClose bool
+pkg github.com/tangoui/tango, type Appearance struct, NoMaximize bool
+pkg github.com/tangoui/tango, type Appearance struct, NoMinimize bool
+pkg github.com/tangoui/tango, type Appearance struct, NoShadow bool
+pkg github.com/tangoui/tango, type Appearance struct, Opacity float64
+pkg github.com/tangoui/tango, type Appearance struct, TitleBar TitleBar
+pkg github.com/tangoui/tango, type Appearance struct, Transparent bool
+pkg github.com/tangoui/tango, type AuthAction = internal/platform.AuthAction
+pkg github.com/tangoui/tango, type AuthAction int
+pkg github.com/tangoui/tango, type AuthChallenge = internal/platform.AuthChallenge
+pkg github.com/tangoui/tango, type AuthChallenge struct
+pkg github.com/tangoui/tango, type AuthChallenge struct, Host string
+pkg github.com/tangoui/tango, type AuthChallenge struct, Port int
+pkg github.com/tangoui/tango, type AuthChallenge struct, Proxy bool
+pkg github.com/tangoui/tango, type AuthChallenge struct, Realm string
+pkg github.com/tangoui/tango, type AuthChallenge struct, Retry int
+pkg github.com/tangoui/tango, type AuthChallenge struct, Scheme string
+pkg github.com/tangoui/tango, type AuthChallenge struct, URL string
+pkg github.com/tangoui/tango, type AuthResponse = internal/platform.AuthResponse
+pkg github.com/tangoui/tango, type AuthResponse struct
+pkg github.com/tangoui/tango, type AuthResponse struct, Action AuthAction
+pkg github.com/tangoui/tango, type AuthResponse struct, Password string
+pkg github.com/tangoui/tango, type AuthResponse struct, User string
+pkg github.com/tangoui/tango, type BrowsingData = internal/platform.BrowsingData
+pkg github.com/tangoui/tango, type BrowsingData uint32
+pkg github.com/tangoui/tango, type DownloadEvent = internal/platform.DownloadEvent
+pkg github.com/tangoui/tango, type DownloadEvent struct
+pkg github.com/tangoui/tango, type DownloadEvent struct, Error string
+pkg github.com/tangoui/tango, type DownloadEvent struct, ID uint64
+pkg github.com/tangoui/tango, type DownloadEvent struct, Path string
+pkg github.com/tangoui/tango, type DownloadEvent struct, Received int64
+pkg github.com/tangoui/tango, type DownloadEvent struct, State DownloadState
+pkg github.com/tangoui/tango, type DownloadEvent struct, Total int64
+pkg github.com/tangoui/tango, type DownloadRequest = internal/platform.DownloadRequest
+pkg github.com/tangoui/tango, type DownloadRequest struct
+pkg github.com/tangoui/tango, type DownloadRequest struct, Filename string
+pkg github.com/tangoui/tango, type DownloadRequest struct, ID uint64
+pkg github.com/tangoui/tango, type DownloadRequest struct, MIME string
+pkg github.com/tangoui/tango, type DownloadRequest struct, Size int64
+pkg github.com/tangoui/tango, type DownloadRequest struct, URL string
+pkg github.com/tangoui/tango, type DownloadState = internal/platform.DownloadState
+pkg github.com/tangoui/tango, type DownloadState int
+pkg github.com/tangoui/tango, type DragOperation = internal/platform.DragOperation
+pkg github.com/tangoui/tango, type DragOperation int
+pkg github.com/tangoui/tango, type FindOptions = internal/platform.FindOptions
+pkg github.com/tangoui/tango, type FindOptions struct
+pkg github.com/tangoui/tango, type FindOptions struct, Backward bool
+pkg github.com/tangoui/tango, type FindOptions struct, MatchCase bool
+pkg github.com/tangoui/tango, type FindOptions struct, NoWrap bool
+pkg github.com/tangoui/tango, type FindResult = internal/platform.FindResult
+pkg github.com/tangoui/tango, type FindResult struct
+pkg github.com/tangoui/tango, type FindResult struct, Active int
+pkg github.com/tangoui/tango, type FindResult struct, Found bool
+pkg github.com/tangoui/tango, type FindResult struct, Matches int
+pkg github.com/tangoui/tango, type HeaderScope int
+pkg github.com/tangoui/tango, type Lifecycle = internal/platform.LifecycleEvent
+pkg github.com/tangoui/tango, type Lifecycle int
+pkg github.com/tangoui/tango, type Material = internal/platform.Material
+pkg github.com/tangoui/tango, type Material int
+pkg github.com/tangoui/tango, type NavigationRequest = internal/platform.NavigationRequest
+pkg github.com/tangoui/tango, type NavigationRequest struct
+pkg github.com/tangoui/tango, type NavigationRequest struct, URL string
+pkg github.com/tangoui/tango, type NavigationRequest struct, UserInitiated bool
+pkg github.com/tangoui/tango, type NewWindowAction int
+pkg github.com/tangoui/tango, type NewWindowRequest = internal/platform.NewWindowRequest
+pkg github.com/tangoui/tango, type NewWindowRequest struct
+pkg github.com/tangoui/tango, type NewWindowRequest struct, Height int
+pkg github.com/tangoui/tango, type NewWindowRequest struct, URL string
+pkg github.com/tangoui/tango, type NewWindowRequest struct, UserInitiated bool
+pkg github.com/tangoui/tango, type NewWindowRequest struct, Width int
+pkg github.com/tangoui/tango, type Options struct
+pkg github.com/tangoui/tango, type Options struct, AllowCrossOriginAssets bool
+pkg github.com/tangoui/tango, type Options struct, Assets net/http.Handler
+pkg github.com/tangoui/tango, type Options struct, ID string
+pkg github.com/tangoui/tango, type Options struct, Name string
+pkg github.com/tangoui/tango, type Options struct, OnPanic func(Panic) bool
+pkg github.com/tangoui/tango, type Options struct, QuitOnLastClose *bool
+pkg github.com/tangoui/tango, type Options struct, URLSchemes []string
+pkg github.com/tangoui/tango, type Options struct, noncomparable
+pkg github.com/tangoui/tango, type PDFOptions = internal/platform.PDFOptions
+pkg github.com/tangoui/tango, type PDFOptions struct
+pkg github.com/tangoui/tango, type PDFOptions struct, Landscape bool
+pkg github.com/tangoui/tango, type PDFOptions struct, NoBackground bool
+pkg github.com/tangoui/tango, type PDFOptions struct, PageHeight float64
+pkg github.com/tangoui/tango, type PDFOptions struct, PageWidth float64
+pkg github.com/tangoui/tango, type Panic struct
+pkg github.com/tangoui/tango, type Panic struct, Stack []byte
+pkg github.com/tangoui/tango, type Panic struct, Value any
+pkg github.com/tangoui/tango, type Panic struct, Where string
+pkg github.com/tangoui/tango, type Panic struct, noncomparable
+pkg github.com/tangoui/tango, type PermissionDecision = internal/platform.PermissionDecision
+pkg github.com/tangoui/tango, type PermissionDecision int
+pkg github.com/tangoui/tango, type PermissionRequest = internal/platform.PermissionRequest
+pkg github.com/tangoui/tango, type PermissionRequest struct
+pkg github.com/tangoui/tango, type PermissionRequest struct, Kinds []WebPermission
+pkg github.com/tangoui/tango, type PermissionRequest struct, Origin string
+pkg github.com/tangoui/tango, type PermissionRequest struct, noncomparable
+pkg github.com/tangoui/tango, type Rect = internal/platform.Rect
+pkg github.com/tangoui/tango, type Rect struct
+pkg github.com/tangoui/tango, type Rect struct, Height int
+pkg github.com/tangoui/tango, type Rect struct, Width int
+pkg github.com/tangoui/tango, type Rect struct, X int
+pkg github.com/tangoui/tango, type Rect struct, Y int
+pkg github.com/tangoui/tango, type Surface struct
+pkg github.com/tangoui/tango, type Surface struct, noncomparable
+pkg github.com/tangoui/tango, type SurfaceKind = internal/platform.SurfaceKind
+pkg github.com/tangoui/tango, type SurfaceKind int
+pkg github.com/tangoui/tango, type SurfaceOptions struct
+pkg github.com/tangoui/tango, type SurfaceOptions struct, AcceptFiles bool
+pkg github.com/tangoui/tango, type SurfaceOptions struct, Appearance Appearance
+pkg github.com/tangoui/tango, type SurfaceOptions struct, Centered bool
+pkg github.com/tangoui/tango, type SurfaceOptions struct, Debug bool
+pkg github.com/tangoui/tango, type SurfaceOptions struct, Height int
+pkg github.com/tangoui/tango, type SurfaceOptions struct, Hidden bool
+pkg github.com/tangoui/tango, type SurfaceOptions struct, Kind SurfaceKind
+pkg github.com/tangoui/tango, type SurfaceOptions struct, MaxHeight int
+pkg github.com/tangoui/tango, type SurfaceOptions struct, MaxWidth int
+pkg github.com/tangoui/tango, type SurfaceOptions struct, MinHeight int
+pkg github.com/tangoui/tango, type SurfaceOptions struct, MinWidth int
+pkg github.com/tangoui/tango, type SurfaceOptions struct, Parent *Surface
+pkg github.com/tangoui/tango, type SurfaceOptions struct, Resizable bool
+pkg github.com/tangoui/tango, type SurfaceOptions struct, State WindowState
+pkg github.com/tangoui/tango, type SurfaceOptions struct, Title string
+pkg github.com/tangoui/tango, type SurfaceOptions struct, URL string
+pkg github.com/tangoui/tango, type SurfaceOptions struct, WebView WebViewOptions
+pkg github.com/tangoui/tango, type SurfaceOptions struct, Width int
+pkg github.com/tangoui/tango, type SurfaceOptions struct, X int
+pkg github.com/tangoui/tango, type SurfaceOptions struct, Y int
+pkg github.com/tangoui/tango, type SurfaceOptions struct, noncomparable
+pkg github.com/tangoui/tango, type TitleBar = internal/platform.TitleBar
+pkg github.com/tangoui/tango, type TitleBar int
+pkg github.com/tangoui/tango, type WebPermission = internal/platform.WebPermission
+pkg github.com/tangoui/tango, type WebPermission string
+pkg github.com/tangoui/tango, type WebViewOptions struct
+pkg github.com/tangoui/tango, type WebViewOptions struct, HeaderScope HeaderScope
+pkg github.com/tangoui/tango, type WebViewOptions struct, Headers net/http.Header
+pkg github.com/tangoui/tango, type WebViewOptions struct, UserAgent string
+pkg github.com/tangoui/tango, type WebViewOptions struct, noncomparable
+pkg github.com/tangoui/tango, type WindowState = internal/platform.WindowState
+pkg github.com/tangoui/tango, type WindowState int
+pkg github.com/tangoui/tango, var ErrNestedWait error
+pkg github.com/tangoui/tango, var ErrNoBackend error
+pkg github.com/tangoui/tango, var ErrNoFiles error
+pkg github.com/tangoui/tango, var ErrNotRunning error
+pkg github.com/tangoui/tango, var ErrPanicked error
+pkg github.com/tangoui/tango, var ErrSurfaceClosed error
+pkg github.com/tangoui/tango, var ErrUnsupported error

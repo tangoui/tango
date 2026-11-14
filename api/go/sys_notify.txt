@@ -1,0 +1,9 @@
+pkg github.com/tangoui/tango/sys/notify, func OnClick(*tango.App, func(string))
+pkg github.com/tangoui/tango/sys/notify, func RequestPermission(*tango.App) (bool, error)
+pkg github.com/tangoui/tango/sys/notify, func Send(*tango.App, Message) (string, error)
+pkg github.com/tangoui/tango/sys/notify, type Message struct
+pkg github.com/tangoui/tango/sys/notify, type Message struct, Body string
+pkg github.com/tangoui/tango/sys/notify, type Message struct, Silent bool
+pkg github.com/tangoui/tango/sys/notify, type Message struct, Subtitle string
+pkg github.com/tangoui/tango/sys/notify, type Message struct, Title string
+pkg github.com/tangoui/tango/sys/notify, var ErrUnsupported error

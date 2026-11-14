@@ -1,0 +1,16 @@
+pkg github.com/tangoui/tango/ui/editor/theme, func Base(string) *Theme
+pkg github.com/tangoui/tango/ui/editor/theme, func Parse([]byte) (*Theme, error)
+pkg github.com/tangoui/tango/ui/editor/theme, method (*Theme) BaseName() string
+pkg github.com/tangoui/tango/ui/editor/theme, method (*Theme) Color(string) (image/color.NRGBA, bool)
+pkg github.com/tangoui/tango/ui/editor/theme, method (*Theme) OwnColor(string) (image/color.NRGBA, bool)
+pkg github.com/tangoui/tango/ui/editor/theme, method (*Theme) Style(string) Style
+pkg github.com/tangoui/tango/ui/editor/theme, method (*Theme) Warnings() []string
+pkg github.com/tangoui/tango/ui/editor/theme, type Style struct
+pkg github.com/tangoui/tango/ui/editor/theme, type Style struct, Background image/color.NRGBA
+pkg github.com/tangoui/tango/ui/editor/theme, type Style struct, Bold bool
+pkg github.com/tangoui/tango/ui/editor/theme, type Style struct, Foreground image/color.NRGBA
+pkg github.com/tangoui/tango/ui/editor/theme, type Style struct, Italic bool
+pkg github.com/tangoui/tango/ui/editor/theme, type Style struct, Strikethrough bool
+pkg github.com/tangoui/tango/ui/editor/theme, type Style struct, Underline bool
+pkg github.com/tangoui/tango/ui/editor/theme, type Theme struct
+pkg github.com/tangoui/tango/ui/editor/theme, type Theme struct, noncomparable

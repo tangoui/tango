@@ -1,0 +1,7 @@
+pkg github.com/tangoui/tango/sys/widget, func Update(*tango.App, Content) error
+pkg github.com/tangoui/tango/sys/widget, type Content = internal/platform.WidgetContent
+pkg github.com/tangoui/tango/sys/widget, type Content struct
+pkg github.com/tangoui/tango/sys/widget, type Content struct, Text string
+pkg github.com/tangoui/tango/sys/widget, type Content struct, Title string
+pkg github.com/tangoui/tango/sys/widget, var ErrNotConfigured error
+pkg github.com/tangoui/tango/sys/widget, var ErrUnsupported error

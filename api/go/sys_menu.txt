@@ -1,0 +1,56 @@
+pkg github.com/tangoui/tango/sys/menu, const About Role = "about"
+pkg github.com/tangoui/tango/sys/menu, const AppMenu Role = "appMenu"
+pkg github.com/tangoui/tango/sys/menu, const Close Role = "close"
+pkg github.com/tangoui/tango/sys/menu, const Copy Role = "copy"
+pkg github.com/tangoui/tango/sys/menu, const Cut Role = "cut"
+pkg github.com/tangoui/tango/sys/menu, const EditMenu Role = "editMenu"
+pkg github.com/tangoui/tango/sys/menu, const Hide Role = "hide"
+pkg github.com/tangoui/tango/sys/menu, const Minimize Role = "minimize"
+pkg github.com/tangoui/tango/sys/menu, const Paste Role = "paste"
+pkg github.com/tangoui/tango/sys/menu, const Quit Role = "quit"
+pkg github.com/tangoui/tango/sys/menu, const Redo Role = "redo"
+pkg github.com/tangoui/tango/sys/menu, const SelectAll Role = "selectAll"
+pkg github.com/tangoui/tango/sys/menu, const Undo Role = "undo"
+pkg github.com/tangoui/tango/sys/menu, const WindowMenu Role = "windowMenu"
+pkg github.com/tangoui/tango/sys/menu, func New() *Menu
+pkg github.com/tangoui/tango/sys/menu, func Popup(*tango.Surface, int, int, *Menu) error
+pkg github.com/tangoui/tango/sys/menu, func RegisterContext(*tango.App, string, *Menu) error
+pkg github.com/tangoui/tango/sys/menu, func RegisterContextFunc(*tango.App, string, func(Context) *Menu) error
+pkg github.com/tangoui/tango/sys/menu, func SetAppMenu(*tango.App, *Menu) error
+pkg github.com/tangoui/tango/sys/menu, func SetSurfaceMenu(*tango.App, *tango.Surface, *Menu) error
+pkg github.com/tangoui/tango/sys/menu, method (*Item) IsChecked() bool
+pkg github.com/tangoui/tango/sys/menu, method (*Item) SetChecked(bool)
+pkg github.com/tangoui/tango/sys/menu, method (*Item) SetDisabled(bool)
+pkg github.com/tangoui/tango/sys/menu, method (*Item) SetIcon([]byte)
+pkg github.com/tangoui/tango/sys/menu, method (*Item) SetLabel(string)
+pkg github.com/tangoui/tango/sys/menu, method (*Menu) Add(string, func()) *Item
+pkg github.com/tangoui/tango/sys/menu, method (*Menu) Check(string, bool, func()) *Item
+pkg github.com/tangoui/tango/sys/menu, method (*Menu) Radio(string, string, bool, func()) *Item
+pkg github.com/tangoui/tango/sys/menu, method (*Menu) Role(Role) *Item
+pkg github.com/tangoui/tango/sys/menu, method (*Menu) Separator() *Item
+pkg github.com/tangoui/tango/sys/menu, method (*Menu) Submenu(string) *Menu
+pkg github.com/tangoui/tango/sys/menu, method (*Menu) Update() error
+pkg github.com/tangoui/tango/sys/menu, type Context struct
+pkg github.com/tangoui/tango/sys/menu, type Context struct, Data string
+pkg github.com/tangoui/tango/sys/menu, type Context struct, Name string
+pkg github.com/tangoui/tango/sys/menu, type Context struct, Surface *tango.Surface
+pkg github.com/tangoui/tango/sys/menu, type Context struct, X int
+pkg github.com/tangoui/tango/sys/menu, type Context struct, Y int
+pkg github.com/tangoui/tango/sys/menu, type Item struct
+pkg github.com/tangoui/tango/sys/menu, type Item struct, Accelerator string
+pkg github.com/tangoui/tango/sys/menu, type Item struct, Checkable bool
+pkg github.com/tangoui/tango/sys/menu, type Item struct, Checked bool
+pkg github.com/tangoui/tango/sys/menu, type Item struct, Disabled bool
+pkg github.com/tangoui/tango/sys/menu, type Item struct, Icon []byte
+pkg github.com/tangoui/tango/sys/menu, type Item struct, Label string
+pkg github.com/tangoui/tango/sys/menu, type Item struct, OnClick func()
+pkg github.com/tangoui/tango/sys/menu, type Item struct, RadioGroup string
+pkg github.com/tangoui/tango/sys/menu, type Item struct, Role Role
+pkg github.com/tangoui/tango/sys/menu, type Item struct, Separator bool
+pkg github.com/tangoui/tango/sys/menu, type Item struct, Submenu *Menu
+pkg github.com/tangoui/tango/sys/menu, type Item struct, noncomparable
+pkg github.com/tangoui/tango/sys/menu, type Menu struct
+pkg github.com/tangoui/tango/sys/menu, type Menu struct, Items []*Item
+pkg github.com/tangoui/tango/sys/menu, type Menu struct, noncomparable
+pkg github.com/tangoui/tango/sys/menu, type Role string
+pkg github.com/tangoui/tango/sys/menu, var ErrUnsupported error
