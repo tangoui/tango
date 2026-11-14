@@ -23,6 +23,9 @@
 // Every edit, undo and redo is passed to the Model's Highlighter as edits
 // (buffer.Buffer.LastChange for undo and redo), so it never has to
 // re-tokenize the whole document after an undo.
+//
+// Experimental: this package's API may change in any 0.x release (see
+// docs/release.md, "API 稳定性").
 package editor
 
 import (

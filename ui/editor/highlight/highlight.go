@@ -44,6 +44,9 @@
 //   - Tokens that are not final are a display hint: they tokenize the current
 //     line text from a guessed start state (the stored state of the line
 //     above), so their offsets always match the text, but types may be stale.
+//
+// Experimental: this package's API may change in any 0.x release (see
+// docs/release.md, "API 稳定性").
 package highlight
 
 import (

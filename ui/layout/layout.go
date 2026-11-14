@@ -8,6 +8,12 @@
 // Deliberate difference from Viva's solver: an item with Grow > 0 and no
 // explicit Basis is distributed from a basis of 0 (CSS `flex: 1`) on both
 // axes, so equal Grow factors give equal sizes even in a Column.
+//
+// API tiers: only the symbols listed in api/stable/ui_layout.txt are covered
+// by the compatibility promise of docs/release.md ("API 稳定性"); every
+// other exported symbol is Experimental and may change in any 0.x
+// release. The API reference on the documentation site marks the
+// experimental symbols.
 package layout
 
 import (

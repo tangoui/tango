@@ -10,8 +10,8 @@
 #                 the change goes through the api-break flow
 #   split         stable symbols are listed in api/stable/<pkg>.txt (path
 #                 with "/" replaced by "_"); everything else in the package
-#                 is experimental. The allowlists start empty in Phase 0, so
-#                 split packages are fully experimental until Phase 2.
+#                 is experimental. A stable symbol may only reference
+#                 stable symbols (apitxt -check reports cross-tier leaks).
 #   experimental  incompatible changes are only warnings
 #   exclude       not API: no golden file, no apidiff report
 #
@@ -44,7 +44,6 @@ ui/theme                split
 uihost                  split
 
 # Experimental.
-service/updater         experimental
 ui/...                  experimental
 ui/chart                experimental
 ui/mobile               experimental

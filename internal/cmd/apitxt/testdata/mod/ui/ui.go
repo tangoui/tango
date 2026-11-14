@@ -37,3 +37,9 @@ func Button(c *Context) {
 	_ = Prop(c, comp, "skipped", 1)
 	c.ConfigProp("Card", "extra")
 }
+
+// Option is a functional option over an unexported type; users cannot name
+// options, so it is not a cross-tier reference.
+type Option func(*options)
+
+type options struct{ dark bool }

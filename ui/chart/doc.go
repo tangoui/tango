@@ -32,4 +32,7 @@
 // formatting (FormatNumber, FormatCompact), stacking (Stack), downsampling
 // (LTTB), coordinates (Cartesian, Polar) and the theme-aware Style with its
 // palette registry (RegisterStyle).
+//
+// Experimental: this package's API may change in any 0.x release (see
+// docs/release.md, "API 稳定性").
 package chart

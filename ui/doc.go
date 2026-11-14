@@ -53,4 +53,10 @@
 // (theme.CheckContrast) complete the picture; docs/accessibility.md maps
 // every role to NSAccessibility, UI Automation, AT-SPI, UIAccessibility
 // and AccessibilityNodeInfo.
+//
+// API tiers: only the symbols listed in api/stable/ui.txt are covered
+// by the compatibility promise of docs/release.md ("API 稳定性"); every
+// other exported symbol is Experimental and may change in any 0.x
+// release. The API reference on the documentation site marks the
+// experimental symbols.
 package ui

@@ -1,4 +1,24 @@
-# Stable symbols of this package (docs/release.md, "API 稳定性").
+# Stable symbols of package ui/text (docs/release.md, "API 稳定性").
 # One per line: a top-level name (a type covers all its fields and methods)
-# or Type.Member. Everything not listed is experimental. Empty until Phase 2
-# of docs/specs/api-stability.md defines the stable core.
+# or Type.Member. Everything not listed is experimental.
+# Shaping, layout, line caches and engines stay experimental.
+
+Style
+Weight
+Light
+Regular
+Medium
+Semibold
+Bold
+Direction
+DirAuto
+DirLTR
+DirRTL
+Options
+Measure
+Width
+RegisterFont
+Families
+UseSystemFonts
+DefaultLang
+SetDefaultLang

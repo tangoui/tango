@@ -6,6 +6,9 @@
 // (see gen/README.md and NOTICE); nothing here depends on JavaScript at run
 // time. Regular expressions are stored as {"$regex": source, "flags": flags}
 // and decode to RegexSpec.
+//
+// Experimental: this package's API may change in any 0.x release (see
+// docs/release.md, "API 稳定性").
 package langs
 
 import (

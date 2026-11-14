@@ -1,6 +1,6 @@
 # Tango 公开 API 稳定化方案
 
-> 状态：已批准（2026-11-14，§7 全部按建议）；Phase 0、Phase 1 已完成
+> 状态：已批准（2026-11-14，§7 全部按建议；另把 `service/updater` 升为稳定）；Phase 0、Phase 1、Phase 2 已完成
 > 范围：Go 模块 `github.com/tangoui/tango`、CLI 模块 `cmd/tan`（`tan` 命令行参数与 `tan.json`）、npm 包 `@tangoui/runtime`（`runtime-js`）
 > 目标（用户原话）："API 必须稳定；内部怎么大改都不应影响 API。"
 
@@ -47,7 +47,7 @@
 | `jsapi` | 13 / 5 | 2 个 example | 稳定 | `Cap` 的位值也是 API（JS 侧文档列出） |
 | `runtime-js/runtimejs` | 1 / 0 | example、模板 | 稳定 | `Script` |
 | `service`、`service/{fileserver,kv,log,paths}` | 7 / 0 等 | example | 稳定 | |
-| `service/updater` | 38 / 7 | **cmd/tan**（`sign.go`、`release.go`） | 实验性（维持） | 清单格式与签名格式是 CLI 与运行时之间的契约，见 §6 |
+| `service/updater` | 38 / 7 | **cmd/tan**（`sign.go`、`release.go`） | **稳定**（2026-11-14 决定，原建议维持实验性） | 清单格式与签名格式是 CLI 与运行时之间的契约，见 §6；`jsapi.API`、`jsapi.UpdaterOptions` 引用了 `Updater`、`Payload`，升级后跨层泄漏清零 |
 | `sys/*`（40 个包） | 各 2–14 | example、jsapi | 稳定 | 普遍有到 `internal/platform` 的别名（biometric、orientation、permission、purchase 各 12 行） |
 | `sys/theme/uivars` | 5 / 0 | — | 稳定 | **跨层泄漏**：`Default`、`Vars`、`Gen` 暴露 `*ui/theme.Theme`，所以 theme 核心必须稳定 |
 | `site/tools/apigen`、`site/tools/playground` | 0 / 0 | — | 排除（main 包） | 加入 tiers 的排除列表 |
@@ -432,6 +432,8 @@ pkg github.com/tangoui/tango/ui/theme, const NumComps untyped int = 49
 - `ui/paint` 拆分（光栅化辅助移到 `internal/render/raster`）放在同一阶段的第二个提交里，约 0.5 天。调用方都在渲染器内和 `ui`、`ui/icon`、`ui/text`、`uihost` 中。
 
 ### Phase 2：定义稳定核心（2–3 天，不改 `ui/*.go`）
+
+> 已完成（2026-11-14）：`ui` 白名单 588 行（98 个类型，函数与方法 913 个，连同字段、常量约 1390 个标识符；`Locale` 及 8 个子 locale 的字段约占 200 个）；`apitxt -check` 的包文档与跨层泄漏检查改为失败。
 
 - 生成并人工审定 `api/stable/ui.txt`（约 50 个类型，§2.3）。
 - 同时审定 `ui/theme`、`ui/text`、`ui/input`、`ui/layout`、`uihost`、`ui/paint` 的白名单。

@@ -38,6 +38,9 @@
 // that do not depend on the layout. Fixing it needs the platform layer to
 // fill Code from the hardware keyCode and to offer key events to the
 // keymap before interpretKeyEvents / the IM filter.
+//
+// Experimental: this package's API may change in any 0.x release (see
+// docs/release.md, "API 稳定性").
 package keymap
 
 import (

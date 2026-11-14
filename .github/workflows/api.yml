@@ -59,9 +59,9 @@ jobs:
           echo "API_BASE=$BASE" >>"$GITHUB_ENV"
 
       # Golden files api/go/*.txt up to date, every package in api/tiers.txt,
-      # allowlist entries exist. Missing "Experimental" package docs and
-      # cross-tier references are warnings until Phase 2
-      # (docs/specs/api-stability.md).
+      # allowlist entries exist, experimental and split packages say so in
+      # their package doc, and stable symbols reference only stable ones
+      # (docs/specs/api-stability.md §4.3). Every problem fails the job.
       - name: Check API golden files and tiers
         run: go run ./internal/cmd/apitxt -check
 

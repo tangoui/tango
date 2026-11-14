@@ -12,6 +12,9 @@
 //     码点（rune）匹配，增补平面字符（如 emoji）整体被一个 . 吃掉。孤立代理永不匹配。
 //   - 不支持 \p{XID_Start} 等 RE2 与 regexp2 都没有的 Unicode 属性。
 //   - 回溯引擎超时依赖进程级 regexp2.SetTimeoutCheckPeriod（见 init）。
+//
+// Experimental: this package's API may change in any 0.x release (see
+// docs/release.md, "API 稳定性").
 package regex
 
 import (

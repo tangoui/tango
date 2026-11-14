@@ -19,6 +19,9 @@
 //     every edit since the anchor was made, so its cost is linear in that
 //     number; long-lived anchors (breakpoints, diagnostics, bookmarks) should
 //     be re-anchored at their resolved offset as the history grows.
+//
+// Experimental: this package's API may change in any 0.x release (see
+// docs/release.md, "API 稳定性").
 package buffer
 
 import (

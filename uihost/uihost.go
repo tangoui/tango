@@ -5,6 +5,12 @@
 //
 // The UI thread is the app's main thread: the page function, Runner
 // methods and the returned Runner's callbacks all run there.
+//
+// API tiers: only the symbols listed in api/stable/uihost.txt are covered
+// by the compatibility promise of docs/release.md ("API 稳定性"); every
+// other exported symbol is Experimental and may change in any 0.x
+// release. The API reference on the documentation site marks the
+// experimental symbols.
 package uihost
 
 import (

@@ -20,6 +20,9 @@
 // supports/tokenization.ts) and StandaloneTheme (vs/editor/standalone/browser/
 // standaloneThemeService.ts), Copyright (c) Microsoft Corporation, MIT License.
 // See NOTICE in this directory.
+//
+// Experimental: this package's API may change in any 0.x release (see
+// docs/release.md, "API 稳定性").
 package theme
 
 import (

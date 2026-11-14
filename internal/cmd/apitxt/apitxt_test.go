@@ -146,19 +146,25 @@ func TestCheck(t *testing.T) {
 	if !strings.Contains(out.String(), "up to date") {
 		t.Errorf("stdout = %q", out)
 	}
-	// Phase 0 warnings: printed, not fatal.
+	// A package doc without the tier marker and a reference from a stable
+	// symbol to a non-allowlisted one are errors.
+	os.WriteFile(filepath.Join(root, "exp", "exp.go"), []byte("// Package exp lacks the marker.\npackage exp\n\n// F does nothing.\nfunc F() {}\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "api", "stable", "ui.txt"), []byte("Prop\nOption\n"), 0o644)
+	cfg, _, errOut = testConfig(root)
+	if code := run(cfg, false); code != 1 {
+		t.Errorf("check with a missing marker and leaks: exit %d, want 1\n%s", code, errOut)
+	}
 	for _, s := range []string{
 		"exp (experimental)",
 		"m.UseUI -> ui.Context (not in api/stable/ui.txt)",
 		"ui.Prop -> ui.Context (not in api/stable/ui.txt)",
 	} {
 		if !strings.Contains(errOut.String(), s) {
-			t.Errorf("warnings lack %q:\n%s", s, errOut)
+			t.Errorf("errors lack %q:\n%s", s, errOut)
 		}
 	}
-	cfg.strict = true
-	if code := run(cfg, false); code != 1 {
-		t.Errorf("-strict with warnings: exit %d, want 1", code)
+	if strings.Contains(errOut.String(), "ui.options") {
+		t.Errorf("an unexported type was reported as a leak:\n%s", errOut)
 	}
 }
 

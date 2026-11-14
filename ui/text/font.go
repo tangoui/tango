@@ -15,6 +15,12 @@
 // bundled. On platforms with no discoverable fonts (js/wasm) text is
 // measured with approximate metrics and not drawn until the app registers
 // a font.
+//
+// API tiers: only the symbols listed in api/stable/ui_text.txt are covered
+// by the compatibility promise of docs/release.md ("API 稳定性"); every
+// other exported symbol is Experimental and may change in any 0.x
+// release. The API reference on the documentation site marks the
+// experimental symbols.
 package text
 
 import (

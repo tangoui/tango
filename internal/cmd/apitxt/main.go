@@ -34,12 +34,11 @@ func main() {
 	write := flag.Bool("w", false, "rewrite the golden files")
 	check := flag.Bool("check", false, "exit 1 when the golden files are out of date or a check fails")
 	classify := flag.Bool("classify", false, "read apidiff output on stdin and prefix each change with its tier")
-	strict := flag.Bool("strict", false, "treat warnings (missing Experimental doc, cross-tier leaks) as failures")
 	root := flag.String("C", ".", "module root directory")
 	goosList := flag.String("goos", "linux,darwin,windows", "comma-separated platforms to merge")
-	verbose := flag.Bool("v", false, "list every warning instead of a summary")
+	verbose := flag.Bool("v", false, "list every cross-tier reference instead of the first 40")
 	flag.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: apitxt -w | -check | -classify [-C dir] [-goos list] [-strict] [-v]")
+		fmt.Fprintln(os.Stderr, "usage: apitxt -w | -check | -classify [-C dir] [-goos list] [-v]")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -56,7 +55,6 @@ func main() {
 	cfg := config{
 		root:    *root,
 		goos:    strings.Split(*goosList, ","),
-		strict:  *strict,
 		verbose: *verbose,
 		out:     os.Stdout,
 		errOut:  os.Stderr,
@@ -76,7 +74,6 @@ func main() {
 type config struct {
 	root    string
 	goos    []string
-	strict  bool
 	verbose bool
 	out     io.Writer
 	errOut  io.Writer

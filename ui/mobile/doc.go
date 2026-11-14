@@ -37,4 +37,7 @@
 //		mobile.ScrollView(c).Layout(layout.Grow(1)).Body(func() { ... })
 //		mobile.TabBar(c, tabs, &active)
 //	})
+//
+// Experimental: this package's API may change in any 0.x release (see
+// docs/release.md, "API 稳定性").
 package mobile

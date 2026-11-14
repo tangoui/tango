@@ -33,4 +33,7 @@
 //     attributes, @attr expansion beyond 64 KiB, a panic in the
 //     compiler) makes Registry.Lexer return an error; the result is cached.
 //     Compilation happens outside the Registry lock.
+//
+// Experimental: this package's API may change in any 0.x release (see
+// docs/release.md, "API 稳定性").
 package monarch

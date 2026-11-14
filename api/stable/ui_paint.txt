@@ -1,4 +1,62 @@
-# Stable symbols of this package (docs/release.md, "API 稳定性").
+# Stable symbols of package ui/paint (docs/release.md, "API 稳定性").
 # One per line: a top-level name (a type covers all its fields and methods)
-# or Type.Member. Everything not listed is experimental. Empty until Phase 2
-# of docs/specs/api-stability.md defines the stable core.
+# or Type.Member. Everything not listed is experimental.
+# The display-list recording API is stable. The CPU rasterizer, Renderer,
+# glyph plumbing (Glyph, GlyphSource, GlyphRasterizer, Text) and the
+# rasterization helpers are experimental and move to internal/render/raster
+# (docs/specs/api-stability.md §1.3).
+
+List.Background
+List.Add
+List.Reset
+List.Fill
+List.Stroke
+List.StrokeDashed
+List.Line
+List.Path
+List.StrokePath
+List.Gradient
+List.LinearStops
+List.Shadows
+List.Checker
+List.DrawImage
+List.Clip
+List.Opacity
+List.Transform
+List.Pop
+Op
+FillRect
+FillPath
+StrokeRect
+PushClip
+PushOpacity
+PushTransform
+Pop
+Image
+LinearGradient
+Gradient
+GradientKind
+GradientLinear
+GradientRadial
+GradientConic
+Checker
+Stop
+Shadow
+Path
+NewPath
+ParseSVGPath
+MustSVGPath
+StrokeToFill
+Seg
+SegOp
+SegMove
+SegLine
+SegQuad
+SegCubic
+SegClose
+Polyline
+StrokeStyle
+Cap
+CapButt
+CapRound
+CapSquare

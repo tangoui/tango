@@ -5,17 +5,16 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
-	"os"
 	"sort"
 	"strings"
 )
 
 // checkResult collects the static checks of docs/specs/api-stability.md
-// §4.3. Errors always fail; warnings fail only with -strict (Phase 0 keeps
-// the doc and leak checks as warnings until Phase 2 cleans them up).
+// §4.3. Every problem fails the check. The doc and leak checks were
+// warnings in Phase 0 and became errors in Phase 2, once both were clean.
 type checkResult struct {
 	errors      []string
-	docWarnings []string // packages whose doc lacks "Experimental"/"实验性"
+	docProblems []string // packages whose doc lacks "Experimental"/"实验性"
 	leaks       []string // stable symbols that reference non-stable ones
 }
 
@@ -52,7 +51,7 @@ func runChecks(m *module, tiers *tierSet, allow *allowlists) checkResult {
 		}
 		doc := packageDoc(m, p)
 		if !strings.Contains(doc, "Experimental") && !strings.Contains(doc, "实验性") {
-			res.docWarnings = append(res.docWarnings, fmt.Sprintf("%s (%s)", displayRel(p.rel), t))
+			res.docProblems = append(res.docProblems, fmt.Sprintf("%s (%s)", displayRel(p.rel), t))
 		}
 	}
 
@@ -66,18 +65,12 @@ func (r checkResult) report(cfg config) bool {
 	for _, e := range r.errors {
 		fmt.Fprintln(w, "apitxt: error:", e)
 	}
-	failed := len(r.errors) > 0
-	level := "warning"
-	if cfg.strict {
-		level = "error"
-		failed = failed || len(r.docWarnings) > 0 || len(r.leaks) > 0
-	}
-	if n := len(r.docWarnings); n > 0 {
-		fmt.Fprintf(w, "apitxt: %s: %d experimental/split packages lack \"Experimental\" or \"实验性\" in the package doc:\n", level, n)
-		fmt.Fprintf(w, "  %s\n", strings.Join(r.docWarnings, ", "))
+	if n := len(r.docProblems); n > 0 {
+		fmt.Fprintf(w, "apitxt: error: %d experimental/split packages lack \"Experimental\" or \"实验性\" in the package doc (docs/release.md, \"API 稳定性\"):\n", n)
+		fmt.Fprintf(w, "  %s\n", strings.Join(r.docProblems, ", "))
 	}
 	if n := len(r.leaks); n > 0 {
-		fmt.Fprintf(w, "apitxt: %s: %d cross-tier references from stable symbols:\n", level, n)
+		fmt.Fprintf(w, "apitxt: error: %d cross-tier references from stable symbols (add the referenced symbol to its allowlist, or keep the referencing one experimental):\n", n)
 		const maxShown = 40
 		for i, l := range r.leaks {
 			if i == maxShown && !cfg.verbose {
@@ -87,13 +80,7 @@ func (r checkResult) report(cfg config) bool {
 			fmt.Fprintln(w, " ", l)
 		}
 	}
-	if !cfg.strict && (len(r.docWarnings) > 0 || len(r.leaks) > 0) {
-		fmt.Fprintln(w, "apitxt: warnings do not fail the check yet (Phase 0); -strict turns them into errors")
-		if os.Getenv("GITHUB_ACTIONS") != "" {
-			fmt.Fprintf(w, "::warning::apitxt: %d packages lack an Experimental package doc, %d cross-tier references (see the log)\n", len(r.docWarnings), len(r.leaks))
-		}
-	}
-	return failed
+	return len(r.errors) > 0 || len(r.docProblems) > 0 || len(r.leaks) > 0
 }
 
 // symbolExists reports whether "Name" or "Type.Member" is an exported
@@ -335,6 +322,12 @@ func (w *leakWalker) typ(t types.Type) {
 func (w *leakWalker) ref(obj *types.TypeName) {
 	pkg := obj.Pkg()
 	if pkg == nil || !w.m.isAPIPkg(pkg.Path()) {
+		return
+	}
+	if !obj.Exported() {
+		// An unexported type (theme.Option is func(*options)) cannot be
+		// named outside its package; it is part of the referencing
+		// symbol's surface, not a symbol of its own.
 		return
 	}
 	rel := relPath(w.m.path, pkg.Path())

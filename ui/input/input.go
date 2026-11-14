@@ -4,6 +4,12 @@
 // focus/Tab-order bookkeeping shared by focusable widgets.
 //
 // All coordinates are logical pixels relative to the window's content area.
+//
+// API tiers: only the symbols listed in api/stable/ui_input.txt are covered
+// by the compatibility promise of docs/release.md ("API 稳定性"); every
+// other exported symbol is Experimental and may change in any 0.x
+// release. The API reference on the documentation site marks the
+// experimental symbols.
 package input
 
 import (

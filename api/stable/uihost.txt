@@ -1,4 +1,38 @@
-# Stable symbols of this package (docs/release.md, "API 稳定性").
+# Stable symbols of package uihost (docs/release.md, "API 稳定性").
 # One per line: a top-level name (a type covers all its fields and methods)
-# or Type.Member. Everything not listed is experimental. Empty until Phase 2
-# of docs/specs/api-stability.md defines the stable core.
+# or Type.Member. Everything not listed is experimental.
+# Shortcuts and system high-contrast probing stay experimental.
+
+Open
+Attach
+AttachWith
+Attached
+Options
+ThemeMode
+ThemeSystem
+ThemeLight
+ThemeDark
+ThemeFixed
+ContrastMode
+ContrastSystem
+ContrastStandard
+ContrastHigh
+LocaleMode
+LocaleSystem
+LocaleFixed
+Layer
+Anchor
+AnchorTopLeft
+AnchorTopRight
+AnchorBottomLeft
+AnchorBottomRight
+AnchorCenter
+Persist
+FilePicker
+FilePickerWith
+AcceptDrops
+FollowSystemTheme
+FollowingSystemTheme
+Renderer
+ErrDetached
+ErrNotUI

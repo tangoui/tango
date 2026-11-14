@@ -70,5 +70,6 @@ func (a *App) Name() string { return a.name }
 // Keys is generic.
 func Keys[K comparable, V any](m map[K]V) []K { return nil }
 
-// UseUI leaks a non-allowlisted ui type into the stable root package.
+// UseUI references ui.Context, which is stable through its allowlisted
+// ConfigProp member; TestCheck removes that entry to make it a leak.
 func UseUI(c *ui.Context) {}

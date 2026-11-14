@@ -1,4 +1,56 @@
-# Stable symbols of this package (docs/release.md, "API 稳定性").
+# Stable symbols of package ui/layout (docs/release.md, "API 稳定性").
 # One per line: a top-level name (a type covers all its fields and methods)
-# or Type.Member. Everything not listed is experimental. Empty until Phase 2
-# of docs/specs/api-stability.md defines the stable core.
+# or Type.Member. Everything not listed is experimental.
+# Only the Option constructors and the enums they take are stable. Option is
+# still func(*Style): Style is listed through its Apply method so the name is
+# covered, but its fields, Node, Pos, Solve and SolveAt are experimental and
+# become internal in Phase 3 (docs/specs/api-stability.md §5).
+
+Option
+Style.Apply
+Abs
+AlignItems
+Basis
+Between
+Center
+Dir
+End
+Fill
+Gap
+GapXY
+Grow
+H
+JustifyContent
+Margin
+MaxH
+MaxW
+Middle
+MinH
+MinW
+Pad
+PadSE
+PadVH
+Padding
+Physical
+Self
+Shrink
+Size
+W
+WrapItems
+Align
+AlignAuto
+AlignStretch
+AlignStart
+AlignCenter
+AlignEnd
+Justify
+JustifyStart
+JustifyCenter
+JustifyEnd
+JustifySpaceBetween
+JustifySpaceAround
+JustifySpaceEvenly
+Direction
+Column
+Row
+Stack

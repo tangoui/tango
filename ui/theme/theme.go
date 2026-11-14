@@ -9,6 +9,12 @@
 // the few structural differences. Semantic colors are derived from one base
 // color with each system's own algorithm (see palette.go, shadcn.go), and
 // every constructor accepts Dark() to build the dark variant.
+//
+// API tiers: only the symbols listed in api/stable/ui_theme.txt are covered
+// by the compatibility promise of docs/release.md ("API 稳定性"); every
+// other exported symbol is Experimental and may change in any 0.x
+// release. The API reference on the documentation site marks the
+// experimental symbols.
 package theme
 
 import (

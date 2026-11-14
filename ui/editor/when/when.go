@@ -58,6 +58,9 @@
 //   - Monaco's normalizations (constant folding, distributing && over ||)
 //     are not applied; Implies compares flattened, order-independent
 //     && / || terms instead.
+//
+// Experimental: this package's API may change in any 0.x release (see
+// docs/release.md, "API 稳定性").
 package when
 
 import (

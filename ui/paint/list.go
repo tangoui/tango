@@ -8,6 +8,12 @@
 // writes an *image.RGBA at any device scale. The List is deliberately a flat,
 // backend-neutral value so a GPU renderer can consume the same commands later
 // without changes to components.
+//
+// API tiers: only the symbols listed in api/stable/ui_paint.txt are covered
+// by the compatibility promise of docs/release.md ("API 稳定性"); every
+// other exported symbol is Experimental and may change in any 0.x
+// release. The API reference on the documentation site marks the
+// experimental symbols.
 package paint
 
 import (

@@ -31,15 +31,17 @@ Go 模块的每个非 internal 包在 [`api/tiers.txt`](../api/tiers.txt) 里有
 
 | 层 | 含义 | 当前的包 |
 |---|---|---|
-| `stable` | 不兼容变化默认不允许，走下面的 `api-break` 流程 | 根包 `tango`、`asset`、`automation`、`bind`、`i18n`、`ipc`、`jsapi`、`runtime-js/runtimejs`、`service/...`（`service/updater` 除外）、`sys/...`、`ui/a11y`、`ui/geom`、`ui/icon` |
+| `stable` | 不兼容变化默认不允许，走下面的 `api-break` 流程 | 根包 `tango`、`asset`、`automation`、`bind`、`i18n`、`ipc`、`jsapi`、`runtime-js/runtimejs`、`service/...`（含 `service/updater`）、`sys/...`、`ui/a11y`、`ui/geom`、`ui/icon` |
 | `split` | 包内分层：[`api/stable/<包>.txt`](../api/stable) 白名单里的符号是稳定层，其余是实验层 | `ui`、`ui/input`、`ui/layout`、`ui/paint`、`ui/text`、`ui/theme`、`uihost` |
-| `experimental` | 允许不兼容变化，CI 只警告；仍要在 CHANGELOG 写一句 | `service/updater`、`ui/chart`、`ui/mobile`、`ui/editor/...` 及其余 `ui/*` |
+| `experimental` | 允许不兼容变化，CI 只警告；仍要在 CHANGELOG 写一句 | `ui/chart`、`ui/mobile`、`ui/editor/...` 及其余 `ui/*` |
 | `exclude` | 不是 API | `examples/...`、`site/...` |
 
 - 白名单每行一个符号：顶层名（`Button`；类型包含它的全部字段和方法）或 `类型.成员`（`Label.Color`）。不支持"稳定类型上的实验性方法"。
-- **白名单默认不承诺**：新写的符号自动是实验层，升为稳定是一次可审查的 diff。目前（Phase 0）白名单全部为空，所以 split 包整包仍是实验层；Phase 2 会填入稳定核心。
+- **白名单默认不承诺**：新写的符号自动是实验层，升为稳定是一次可审查的 diff。`api/stable/ui.txt` 是 `ui` 的稳定核心（框架、纯容器和约 45 个基础组件，见 [api-stability.md §2.3](specs/api-stability.md)）；`Context`、`Box`、`Runner`、`Driver`、`TableW`、`Locale` 这类只有部分成员是核心的类型，白名单逐个列出稳定成员。
+- **稳定符号只能引用稳定符号**：签名、字段、方法里出现的类型必须来自标准库、稳定包或白名单。把一个符号升为稳定时，它引用的符号要一起升级，或者把引用它的成员留在实验层（例如 `ConfigProviderW.Components` 引用 `theme.Components`，所以留在实验层）。
+- 参考站（`site/tools/apigen` 生成）读取 `api/tiers.txt` 和白名单，给实验性的包和符号加「实验性」徽标。
 - 新增的包必须先在 `api/tiers.txt` 里分层，否则 CI 失败。
-- 实验性包、split 包的包文档要写明 "Experimental" 或「实验性」（以及分层规则）。
+- 实验性包、split 包的包文档要写明 "Experimental" 或「实验性」；split 包还要说明只有白名单里的符号受兼容性承诺约束。
 
 ### 设计规则
 
@@ -134,7 +136,7 @@ go run ./internal/cmd/apitxt -w        # 改了公开 API 后重写 api/go，和
 go run ./internal/cmd/apitxt -check    # CI：不一致、分层缺失、白名单条目不存在时退出 1
 ```
 
-`-check` 还会对两类问题给出**警告**（Phase 0 不失败，Phase 2 清零后改为失败，`-strict` 可提前开启）：实验性包和 split 包的包文档缺少 "Experimental"/「实验性」；稳定符号引用了实验层或未列入白名单的符号（跨层泄漏）。另外 `internal/apitest/retired_test.go` 守卫已经迁走的旧包路径，旧路径下再出现 `.go` 文件就失败。
+`-check` 还检查两类问题，都会失败：实验性包和 split 包的包文档缺少 "Experimental"/「实验性」；稳定符号引用了实验层或未列入白名单的符号（跨层泄漏，`-v` 列出全部）。另外 `internal/apitest/retired_test.go` 守卫已经迁走的旧包路径，旧路径下再出现 `.go` 文件就失败。
 
 并行分支在黄金文件上冲突时，不要手工合并，rebase 后重新运行 `-w`。
 

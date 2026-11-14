@@ -7,4 +7,5 @@ pkg example.com/m/ui, prop "Card" "extra" any
 pkg example.com/m/ui, prop "Card" "title" string
 pkg example.com/m/ui, type Context struct
 pkg example.com/m/ui, type Context struct, noncomparable
+pkg example.com/m/ui, type Option func(*options)
 pkg example.com/m/ui, type Size int
