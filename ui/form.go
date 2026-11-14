@@ -45,6 +45,7 @@ type FormW struct {
 	hiddenKeys []string
 	disabled   bool // Disabled: every control in the form
 	noStar     bool // RequiredMark(false): hide the required asterisk
+	optional   bool // RequiredMarkOptional: "(optional)" after optional labels
 }
 
 // Form adds a form container; build items with Item(...).Body.
@@ -57,8 +58,18 @@ func Form(c *Context) *FormW {
 	})
 	f.st.ensure()
 	f.configDefaults()
+	if v, ok := c.ConfigProp("Form", "requiredMark"); ok && v == "optional" {
+		f.RequiredMarkOptional()
+	}
 	return f
 }
+
+// RequiredMarkOptional marks the optional items instead of the required
+// ones (antd requiredMark="optional"): no asterisk, and the labels of items
+// that are not Required end with Locale().Form.Optional in the secondary
+// text color. ConfigProvider Defaults("Form", {"requiredMark": "optional"})
+// sets it too.
+func (f *FormW) RequiredMarkOptional() *FormW { f.noStar, f.optional = true, true; return f }
 
 func (f *FormW) Vertical() *FormW              { f.layout = FormVertical; return f }
 func (f *FormW) Inline() *FormW                { f.layout = FormInline; return f }
@@ -544,15 +555,22 @@ func (it *FormItemW) Body(fn func()) {
 			if it.tooltip != "" && !it.noLabel && s != "" {
 				tipW = formTipGap + formTipSize
 			}
+			// antd: [text][tooltip][optional][colon]; the optional mark
+			// is marginInlineStart marginXXS (4) in colorTextDescription.
+			opt, optW := "", float32(0)
+			if f.optional && !it.required && !it.noLabel && s != "" {
+				opt = c.Locale().Form.Optional
+				optW = formOptGap + text.Width(opt, st)
+			}
 			label.ln.Measure = func(_, _ float32) geom.Size {
-				w := text.Width(s+colon, st) + tipW
+				w := text.Width(s+colon, st) + tipW + optW
 				if it.star() {
 					w += 11
 				}
 				return geom.Size{W: w + 8, H: 22}
 			}
 			if tipW > 0 {
-				it.labelTip(s, colon, st, lw)
+				it.labelTip(s, colon, st, lw, optW)
 			}
 			label.paint = func(l *paint.List, r geom.Rect) {
 				if it.noLabel {
@@ -560,7 +578,7 @@ func (it *FormItemW) Body(fn func()) {
 				}
 				lay := text.Shape(s, st, c.textOpts(text.Options{NoWrap: true}))
 				cl := text.Shape(colon, st, c.textOpts(text.Options{NoWrap: true}))
-				w := lay.Width + tipW + cl.Width
+				w := lay.Width + tipW + optW + cl.Width
 				if it.star() {
 					w += 11
 				}
@@ -593,8 +611,12 @@ func (it *FormItemW) Body(fn func()) {
 					col = tk.LabelErrorColor // shadcn FormLabel turns destructive on error
 				}
 				l.Glyphs(geom.Pt(sp.X(off, lay.Width), y), lay.Glyphs, col)
+				if opt != "" {
+					ol := text.Shape(opt, st, c.textOpts(text.Options{NoWrap: true}))
+					l.Glyphs(geom.Pt(sp.X(off+lay.Width+tipW+formOptGap, ol.Width), y), ol.Glyphs, tk.LabelOptionalColor)
+				}
 				if colon != "" {
-					l.Glyphs(geom.Pt(sp.X(off+lay.Width+tipW, cl.Width), y), cl.Glyphs, col)
+					l.Glyphs(geom.Pt(sp.X(off+lay.Width+tipW+optW, cl.Width), y), cl.Glyphs, col)
 				}
 			}
 		}
@@ -632,6 +654,10 @@ func (it *FormItemW) Body(fn func()) {
 	})
 	it.trackBlur(trig)
 }
+
+// formOptGap separates the optional mark from the label (antd
+// .ant-form-item-optional marginInlineStart: marginXXS).
+const formOptGap = 4
 
 // formMessageText applies the token message size to a help / error /
 // Extra line.

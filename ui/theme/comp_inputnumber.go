@@ -14,11 +14,22 @@ type InputNumberToken struct {
 	HandleDisabledColor Color // at a limit or disabled
 	HandleBorderColor   Color // dividers of the step buttons
 
-	// ControlsPosition("sides"): − and + buttons at both ends.
+	// ControlsPosition("sides") / Mode("spinner"): − and + buttons at
+	// both ends. SideHandleBg zero: transparent (antd spinner actions).
 	SideHandleBg         Color
 	SideHandleColor      Color `contrast:"nontext:SideHandleBg"`
 	SideHandleHoverColor Color
 	SideHandleFontSize   float32
+	// SideHandleWidth* is the width of each side button per size; zero:
+	// as wide as the control is high (Element).
+	SideHandleWidth   float32
+	SideHandleWidthSM float32
+	SideHandleWidthLG float32
+
+	// HideControlsInactive is 1 when a disabled or read-only field leaves
+	// out its step buttons (antd), 0 when it keeps them, inactive
+	// (Element). An int, so it is also a CSS variable.
+	HideControlsInactive int
 }
 
 func deriveInputNumber(t *Theme) InputNumberToken {
@@ -29,6 +40,19 @@ func deriveInputNumber(t *Theme) InputNumberToken {
 		HandleBorderColor: t.Border,
 		SideHandleBg:      t.FillTertiary, SideHandleColor: t.TextSecondary, SideHandleHoverColor: t.Primary.Base,
 		SideHandleFontSize: 14,
+		// antd/input-number/index.js: mergedControls = controls &&
+		// !mergedDisabled && !readOnly.
+		HideControlsInactive: 1,
+	}
+	if t.Flavor == Ant {
+		// antd 6 mode="spinner" (es/input-number/style/index.js "Spinner
+		// Mode"): transparent actions in colorText, colorPrimary on hover;
+		// each is the inherited font size wide plus paddingInline on both
+		// sides and a 1px divider: 14+2*11+1, small 14+2*7+1, large
+		// 16+2*11+1.
+		k.SideHandleBg = Color{}
+		k.SideHandleColor = t.Text
+		k.SideHandleWidth, k.SideHandleWidthSM, k.SideHandleWidthLG = 37, 29, 39
 	}
 	switch t.Flavor {
 	case Element:
@@ -39,6 +63,11 @@ func deriveInputNumber(t *Theme) InputNumberToken {
 		// --el-text-color-regular, primary on hover (input-number.scss).
 		k.ControlWidth, k.HandleWidth = 150, 32
 		k.HandleBg, k.HandleColor, k.HandleHoverColor = t.FillTertiary, t.TextSecondary, t.Primary.Base
+		// el-input-number__increase / __decrease: font-size 13px.
+		k.SideHandleFontSize = 13
+		// el-input-number keeps − / + when disabled or readonly
+		// (is-disabled, no response).
+		k.HideControlsInactive = 0
 	case StyleShadcn:
 		// Always visible lucide chevrons that turn foreground on an
 		// accent background under the pointer.

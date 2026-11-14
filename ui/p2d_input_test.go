@@ -209,7 +209,7 @@ func TestP2DInputNumberSidesWheel(t *testing.T) {
 		d.EnableAccessibility()
 		d.Settle()
 		br, up, dn := d.r.c.rects[w.box.id], d.r.c.rects[w.up.id], d.r.c.rects[w.down.id]
-		if br.W != 150 || dn.X != br.X || up.Right() != br.Right() || up.W != br.H {
+		if br.W != 150 || dn.X != br.X || up.Right() != br.Right() || up.W != sideW(th, br.H) {
 			t.Fatalf("sides layout: box %v up %v down %v", br, up, dn)
 		}
 		d.Click(up.Center())
@@ -342,4 +342,13 @@ func TestP2DInputNumberConfigDefaults(t *testing.T) {
 	if w.ctrlPos != "sides" || !w.wheel {
 		t.Fatalf("defaults: %q %v", w.ctrlPos, w.wheel)
 	}
+}
+
+// sideW is the expected width of a sides step button: the
+// SideHandleWidth token, or the field height when it is zero.
+func sideW(th *theme.Theme, h float32) float32 {
+	if w := th.Components.InputNumber.SideHandleWidth; w != 0 {
+		return w
+	}
+	return h
 }

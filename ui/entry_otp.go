@@ -32,6 +32,11 @@ type OTPW struct {
 	changed   bool
 	completed bool
 	z         *lazy
+
+	sep      func(i int) string // Separator / SeparatorFunc
+	seps     []*node            // one slot between each pair of cells
+	variant  string             // Variant
+	readOnly bool               // ReadOnly
 }
 
 type otpState struct {
@@ -44,6 +49,8 @@ func OTP(c *Context, val *string, n int) *OTPW {
 	n = max(1, n)
 	w := &OTPW{c: c, val: val, status: c.itemStatus, size: c.defaultSize()}
 	w.configDefaults()
+	// antd useVariant('otp', …, 'input'): "OTP" key, then "Input".
+	w.variant = propString(c, "OTP", "variant", propString(c, "Input", "variant", ""))
 	w.n = c.add("otp", "")
 	w.n.ln.Dir = layout.Row
 	w.n.ln.Gap = 8
@@ -74,6 +81,10 @@ func OTP(c *Context, val *string, n int) *OTPW {
 					if w.mask != "" {
 						s.States |= a11y.Protected
 					}
+					if w.readOnly {
+						s.States |= a11y.ReadOnly
+						s.Actions &^= a11y.SetValue
+					}
 					if w.status == "error" {
 						s.States |= a11y.Invalid
 					}
@@ -86,6 +97,9 @@ func OTP(c *Context, val *string, n int) *OTPW {
 			cell.paint = func(l *paint.List, r geom.Rect) { w.paintCell(l, r, i) }
 			w.cells = append(w.cells, cell)
 			w.ias[i] = c.interact(cell, true, input.CursorText)
+			if i < n-1 {
+				w.seps = append(w.seps, w.sepNode(i))
+			}
 		}
 	})
 	w.z = c.lazy(w.n, w.finish)
@@ -129,6 +143,66 @@ func (w *OTPW) Disabled(on bool) *OTPW {
 	return w
 }
 
+// Separator shows s between every two boxes (antd / Element separator,
+// shadcn InputOTPSeparator); "" shows none.
+func (w *OTPW) Separator(s string) *OTPW {
+	if s == "" {
+		w.sep = nil
+		return w
+	}
+	return w.SeparatorFunc(func(int) string { return s })
+}
+
+// SeparatorFunc shows fn(i) between box i and box i+1 (antd separator as a
+// function of the index); "" leaves that gap empty, e.g. a "-" only after
+// the third box of six.
+func (w *OTPW) SeparatorFunc(fn func(i int) string) *OTPW { w.sep = fn; return w }
+
+// Variant sets the look of the boxes like InputW.Variant: "outlined"
+// (default), "filled", "borderless" or "underlined" (antd variant,
+// Element type).
+func (w *OTPW) Variant(v string) *OTPW { w.variant = v; return w }
+
+// ReadOnly shows the code without letting it change; the boxes can still
+// be focused and walked with the arrow keys (Element readonly).
+func (w *OTPW) ReadOnly() *OTPW { w.readOnly = true; return w }
+
+// sepNode adds the (initially empty) separator slot after box i; finish
+// fills it once the chained options are known.
+func (w *OTPW) sepNode(i int) *node {
+	c := w.c
+	n := c.add("otp-sep", "")
+	n.aHidden = true // decorative, like antd's span / shadcn's role=separator icon
+	n.ln.Measure = func(_, _ float32) geom.Size {
+		s := w.sepText(i)
+		if s == "" {
+			return geom.Size{}
+		}
+		return geom.Size{W: text.Width(s, c.style(c.controlFont(w.size), text.Regular)), H: c.controlHeight(w.size)}
+	}
+	n.paint = func(l *paint.List, r geom.Rect) {
+		s := w.sepText(i)
+		if s == "" {
+			return
+		}
+		col := c.Theme.Text
+		if w.disabled {
+			col = c.Theme.TextDisabled
+		}
+		lay := text.Shape(s, c.style(c.controlFont(w.size), text.Regular), text.Options{NoWrap: true})
+		l.Glyphs(geom.Pt(r.X+(r.W-lay.Width)/2, r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
+	}
+	return n
+}
+
+// sepText is the separator after box i ("" for none).
+func (w *OTPW) sepText(i int) string {
+	if w.sep == nil {
+		return ""
+	}
+	return w.sep(i)
+}
+
 // Changed reports an edit this frame.
 func (w *OTPW) Changed() bool { w.z.run(); return w.changed }
 
@@ -169,11 +243,25 @@ func (w *OTPW) finish() {
 	c := w.c
 	if w.joined() {
 		for i, cell := range w.cells {
-			if i > 0 {
+			if !w.groupStart(i) {
 				cell.ln.Margin.Left = -1 // share the border with the left slot
 			}
 		}
+		// shadcn InputOTP: gap-2 around a separator between two groups.
+		for i, sn := range w.seps {
+			if w.sepText(i) != "" {
+				sn.ln.Margin = geom.Insets{Left: 8, Right: 8}
+			}
+		}
 		w.n.over = w.paintGroupFocus
+	}
+	if w.n.ln.Gap > 0 {
+		// The row gap would double around an empty separator slot.
+		for i, sn := range w.seps {
+			if w.sepText(i) == "" {
+				sn.ln.Margin.Left = -w.n.ln.Gap
+			}
+		}
 	}
 	w.sync()
 	cells := w.st.cells
@@ -181,6 +269,7 @@ func (w *OTPW) finish() {
 	if w.disabled || w.n.disabled {
 		return
 	}
+	ro := w.readOnly
 	edited := false
 	focusTo := -1
 	put := func(from int, s string) int {
@@ -199,7 +288,7 @@ func (w *OTPW) finish() {
 		return p
 	}
 	for i, cell := range w.cells {
-		if v, ok := c.takeSetValue(cell.id); ok {
+		if v, ok := c.takeSetValue(cell.id); ok && !ro {
 			// Assistive technology replaces the code from this box on.
 			for j := i; j < n; j++ {
 				cells[j] = ""
@@ -213,6 +302,9 @@ func (w *OTPW) finish() {
 			continue
 		}
 		for _, t := range c.TextFor(cell.id) {
+			if ro {
+				break
+			}
 			p := put(i, t)
 			if p > i {
 				focusTo = min(p, n-1)
@@ -220,6 +312,9 @@ func (w *OTPW) finish() {
 		}
 		for _, k := range c.KeysFor(cell.id) {
 			if !k.Down {
+				continue
+			}
+			if ro && (k.Key == input.KeyBackspace || k.Key == input.KeyDelete || k.Key == input.KeyV) {
 				continue
 			}
 			switch k.Key {
@@ -278,14 +373,22 @@ func (w *OTPW) finish() {
 	}
 }
 
-// slotRadii rounds only the outer corners of the first and last slot.
+// groupStart reports whether box i starts a group of joined slots (the
+// first box, or one after a separator).
+func (w *OTPW) groupStart(i int) bool { return i == 0 || w.sepText(i-1) != "" }
+
+// groupEnd reports whether box i ends a group of joined slots.
+func (w *OTPW) groupEnd(i int) bool { return i == len(w.cells)-1 || w.sepText(i) != "" }
+
+// slotRadii rounds only the outer corners of the first and last slot of
+// each group.
 func (w *OTPW) slotRadii(i int) geom.Radii {
 	r := w.c.controlRadius(w.size)
 	var out geom.Radii
-	if i == 0 {
+	if w.groupStart(i) {
 		out.TL, out.BL = r, r
 	}
-	if i == len(w.cells)-1 {
+	if w.groupEnd(i) {
 		out.TR, out.BR = r, r
 	}
 	return out
@@ -319,13 +422,16 @@ func (w *OTPW) paintCell(l *paint.List, r geom.Rect, i int) {
 	dis := w.disabled || cell.disabled
 	focused := c.focus == cell.id
 	rad := geom.Rad(c.controlRadius(w.size))
+	if w.variant == "underlined" {
+		rad = geom.Radii{}
+	}
 	if w.joined() {
 		rad = w.slotRadii(i)
 		// The focus halo is drawn over the whole group (paintGroupFocus) so
 		// the next slot does not cover it.
-		c.paintFrame(l, r, rad, cell.id, frameState{disabled: dis, status: w.status})
+		c.paintFrame(l, r, rad, cell.id, frameState{disabled: dis, status: w.status, variant: w.variant})
 	} else {
-		c.paintFrame(l, r, rad, cell.id, frameState{hover: w.ias[i].Hovered, focus: focused, disabled: dis, status: w.status})
+		c.paintFrame(l, r, rad, cell.id, frameState{hover: w.ias[i].Hovered, focus: focused, disabled: dis, status: w.status, variant: w.variant})
 	}
 	fs := c.controlFont(w.size)
 	st := c.style(fs, text.Regular)

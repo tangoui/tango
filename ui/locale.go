@@ -258,6 +258,7 @@ type FormLocale struct {
 	RequiredInputFmt, RequiredSelectFmt string // default required message, arg: field label
 	Submit, Query, PrevStep, NextStep   string
 	MoveUp, MoveDown, AddRow            string // FormList actions
+	Optional                            string // label suffix of optional items (Form.RequiredMarkOptional)
 }
 
 // TransferLocale holds the Transfer defaults.

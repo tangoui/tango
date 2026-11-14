@@ -27,6 +27,8 @@ type CompactW struct {
 	vertical bool
 	block    bool
 	opts     []layout.Option
+	size     ControlSize // Size
+	hasSize  bool
 }
 
 // Compact starts a compact group; chain options, then Body.
@@ -46,6 +48,15 @@ func (w *CompactW) Vertical() *CompactW { w.vertical = true; return w }
 // Block stretches the group to the container width.
 func (w *CompactW) Block() *CompactW { w.block = true; return w }
 
+// Size sets the size of the controls in the group that do not set their
+// own (antd Space.Compact size): it scopes the component size like
+// ConfigProvider.Size.
+func (w *CompactW) Size(s ControlSize) *CompactW { w.size, w.hasSize = s, true; return w }
+
+// Orientation sets the direction: "horizontal" (default) or "vertical"
+// (antd 6 orientation; Vertical is the shorthand).
+func (w *CompactW) Orientation(o string) *CompactW { w.vertical = o == "vertical"; return w }
+
 // Layout applies layout options to the group.
 func (w *CompactW) Layout(o ...layout.Option) *CompactW { w.opts = append(w.opts, o...); return w }
 
@@ -59,6 +70,10 @@ func (w *CompactW) Body(fn func()) *Box {
 	b := c.box("compact", dir, w.opts)
 	b.n.ln.NoStretch = !w.block
 	b.n.ln.Align = layout.AlignStretch
+	if w.hasSize {
+		inner := fn
+		fn = func() { ConfigProvider(c).Size(w.size).Body(inner) }
+	}
 	b.Body(fn)
 	n := b.n
 	// Children may finish (and attach painters) in deferred passes; wrap

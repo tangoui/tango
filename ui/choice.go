@@ -657,6 +657,7 @@ type RadioW struct {
 	size     ControlSize
 	border   bool
 	ia       Interaction
+	center   bool // RadioGroup.Block: content centred in a wider box
 }
 
 // Radio adds a radio button; it reports Clicked so the caller can select it.
@@ -713,6 +714,12 @@ func (w *RadioW) paint(l *paint.List, r geom.Rect) {
 	tk := &th.Components.Radio
 	dis := w.disabled || w.n.disabled
 	focusDot := w.ia.FocusVisible
+	if w.center && !w.border {
+		// antd .ant-radio-wrapper-block: flex 1, justify-content center.
+		if cw := w.measure(0, 0).W; cw < r.W {
+			r = c.inline(r).Rect((r.W-cw)/2, r.Y, cw, r.H)
+		}
+	}
 	if w.border {
 		drawChoiceFrame(l, th, r, w.size, w.checked, dis, w.ia.Hovered && !dis, w.ia.FocusVisible, tk.BorderedCheckedColor)
 		focusDot = false
@@ -753,12 +760,16 @@ func (w *RadioW) paint(l *paint.List, r geom.Rect) {
 		l.Path(outer, tk.BorderColor)
 		l.Path(inner, th.BgContainerDisabled)
 		if w.checked {
-			l.Path(paint.NewPath().Circle(cx, cy, bs/4), th.TextDisabled)
+			// antd: the dotSize dot in dotColorDisabled (colorTextDisabled).
+			l.Path(paint.NewPath().Circle(cx, cy, tk.DotSize/2), th.TextDisabled)
 		}
 	} else {
 		// Ant / Element: the circle fills with DotColor around a
 		// background-colored dot.
 		on := tk.DotColor
+		if hov {
+			on = tk.DotHoverColor
+		}
 		l.Path(outer, theme.Lerp(border, on, t))
 		l.Path(inner, theme.Lerp(th.BgContainer, on, t))
 		if t > 0 {
@@ -766,7 +777,7 @@ func (w *RadioW) paint(l *paint.List, r geom.Rect) {
 			if th.Flavor == theme.Ant {
 				dot = tk.DotSize / 2 * float32(math.Max(0.4, float64(t)))
 			}
-			l.Path(paint.NewPath().Circle(cx, cy, dot), th.BgContainer)
+			l.Path(paint.NewPath().Circle(cx, cy, dot), tk.DotInnerColor)
 		}
 	}
 	if focusDot {
@@ -809,6 +820,9 @@ type RadioGroupW struct {
 	border   bool
 	changed  bool
 	z        *lazy
+
+	vertical bool // Vertical / Orientation("vertical")
+	block    bool // Block
 }
 
 // RadioGroup adds radio options bound to *val.
@@ -844,6 +858,65 @@ func (g *RadioGroupW) Border() *RadioGroupW { g.border = true; return g }
 // Changed reports a selection change this frame.
 func (g *RadioGroupW) Changed() bool { g.z.run(); return g.changed }
 
+// Vertical stacks the options in a column (antd 6 vertical); buttons join
+// top to bottom.
+func (g *RadioGroupW) Vertical() *RadioGroupW { g.vertical = true; return g }
+
+// Orientation sets the direction of the options: "horizontal" (default)
+// or "vertical" (antd 6 orientation).
+func (g *RadioGroupW) Orientation(o string) *RadioGroupW { g.vertical = o == "vertical"; return g }
+
+// Block stretches the group to the full width and shares it equally among
+// the options (antd block, typically with Buttons).
+func (g *RadioGroupW) Block() *RadioGroupW { g.block = true; return g }
+
+// layoutGroup applies Vertical / Block to the group row.
+func (g *RadioGroupW) layoutGroup() {
+	n := g.n
+	if g.vertical {
+		n.ln.Dir = layout.Column
+		n.ln.Align = layout.AlignStart
+		if g.buttons {
+			n.ln.Align = layout.AlignStretch // antd: flex column, equal widths
+		}
+		n.setState(a11y.Vertical)
+		n.aState &^= a11y.Horizontal
+	}
+	if g.block {
+		n.ln.NoStretch = false
+		if !g.vertical {
+			n.ln.Grow = 1
+		} else {
+			n.ln.Align = layout.AlignStretch
+		}
+	}
+}
+
+// blockItem lets option node k share the group width (Block).
+func (g *RadioGroupW) blockItem(k *node) {
+	if !g.block || g.vertical {
+		if g.block {
+			k.ln.NoStretch = false
+		}
+		return
+	}
+	k.ln.Grow, k.ln.HasBasis, k.ln.Basis = 1, true, 0
+}
+
+// vRadii rounds the top corners of the first button of a vertical group
+// and the bottom corners of the last one.
+func vRadii(th *theme.Theme, size ControlSize, first, last bool) geom.Radii {
+	rad := controlRadiusOf(th, size)
+	var r geom.Radii
+	if first {
+		r.TL, r.TR = rad, rad
+	}
+	if last {
+		r.BL, r.BR = rad, rad
+	}
+	return r
+}
+
 // A11yLabel names the group for screen readers (inside a FormItem the
 // item label is used).
 func (g *RadioGroupW) A11yLabel(s string) *RadioGroupW { g.n.setName(s); return g }
@@ -877,21 +950,25 @@ func (g *RadioGroupW) build() {
 		c.disabledDepth++
 		defer func() { c.disabledDepth-- }()
 	}
+	g.layoutGroup()
 	if !g.buttons {
 		g.n.ln.Gap = 8
-		if c.Theme.Flavor == theme.Element {
+		if c.Theme.Flavor == theme.Element && !g.vertical {
 			g.n.ln.Gap = 30
 			if g.border {
 				g.n.ln.Gap = 10
 			}
 		}
-		g.n.ln.Wrap = true
+		// antd vertical group: rowGap marginXS (8).
+		g.n.ln.Wrap = !g.vertical
 		nodes := make([]*node, len(g.opts))
 		for i, o := range g.opts {
 			r := Radio(c, o.Label, *g.val == o.Value).Disabled(o.Disabled).Size(g.size)
 			if g.border {
 				r.Border()
 			}
+			g.blockItem(r.n)
+			r.center = g.block && !g.vertical
 			nodes[i] = r.n
 			if r.Clicked() && *g.val != o.Value {
 				*g.val = o.Value
@@ -906,7 +983,12 @@ func (g *RadioGroupW) build() {
 	tk := &th.Components.Radio
 	// Logical end radii: the first button rounds its inline-start corners,
 	// the last its inline-end ones.
-	ends := func(first, last bool) geom.Radii { return segRadii(c, th, g.size, first, last) }
+	ends := func(first, last bool) geom.Radii {
+		if g.vertical {
+			return vRadii(th, g.size, first, last)
+		}
+		return segRadii(c, th, g.size, first, last)
+	}
 	nodes := make([]*node, 0, len(g.opts))
 	for i, o := range g.opts {
 		i, o := i, o
@@ -921,9 +1003,14 @@ func (g *RadioGroupW) build() {
 			}
 			return geom.Size{W: text.Width(o.Label, c.style(controlFontOf(th, g.size), text.Regular)) + 2*pad, H: controlHeightOf(th, g.size)}
 		}
-		if !first {
+		switch {
+		case first:
+		case g.vertical:
+			n.ln.Margin.Top = -1
+		default:
 			n.ln.Margin.Left = -1
 		}
+		g.blockItem(n)
 		ia := c.interact(n, true, input.CursorPointer)
 		if o.Disabled {
 			n.disabled = true
@@ -993,8 +1080,10 @@ type SwitchW struct {
 	offText  string
 	onIcon   *icon.Icon
 	offIcon  *icon.Icon
-	outerOn  string // OuterTexts: label after the track
-	outerOff string // OuterTexts: label before the track
+	onAct    *icon.Icon // ActionIcons: icon on the thumb when on
+	offAct   *icon.Icon // ActionIcons: icon on the thumb when off
+	outerOn  string     // OuterTexts: label after the track
+	outerOff string     // OuterTexts: label before the track
 	set      func(on bool)
 	before   func(next bool) bool
 	beforeAs func(next bool, done func(ok bool))
@@ -1071,6 +1160,11 @@ func (w *SwitchW) Texts(on, off string) *SwitchW { w.onText, w.offText = on, off
 // Icons shows on / off icons inside the track (Element inline-prompt with
 // active-icon / inactive-icon). Either may be nil.
 func (w *SwitchW) Icons(on, off *icon.Icon) *SwitchW { w.onIcon, w.offIcon = on, off; return w }
+
+// ActionIcons shows an icon on the thumb (Element active-action-icon /
+// inactive-action-icon), in the track color of the state. Either may be
+// nil.
+func (w *SwitchW) ActionIcons(on, off *icon.Icon) *SwitchW { w.onAct, w.offAct = on, off; return w }
 
 // OuterTexts shows labels beside the track (Element active-text /
 // inactive-text): off before it, on after it; the label of the current
@@ -1302,6 +1396,17 @@ func (w *SwitchW) paint(l *paint.List, r geom.Rect) {
 	l.Fill(hr, geom.Rad(hs/2), theme.Lerp(tk.HandleOffBg, tk.HandleBg, t))
 	if w.busy() {
 		drawIconRot(l, hr.Expand(-3), th.Primary.Base, spinAngle(c))
+	} else if act := w.offAct; act != nil || w.onAct != nil {
+		col := off
+		if *w.val {
+			act, col = w.onAct, on
+		}
+		if act != nil {
+			// el-switch__action: the icon fills the thumb's font box
+			// (12px at the default size), centred.
+			is := min(hs-4, w.innerFont().Size)
+			c.paintIcon(l, act, geom.Rect{X: hr.X + (hs-is)/2, Y: hr.Y + (hs-is)/2, W: is, H: is}, col, 0)
+		}
 	}
 	label, ic := w.offText, w.offIcon
 	if *w.val {
