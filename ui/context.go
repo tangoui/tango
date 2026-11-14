@@ -155,6 +155,7 @@ type Context struct {
 	lastClickID    ID
 	clickCount     int
 	tabCap         tabCapture    // CaptureTab declarations (tab_capture.go)
+	escClaim       escapeClaim   // ClaimEscape declarations (escape_claim.go)
 	events         []input.Event // ordered key / text / composition events of this frame (events_for.go)
 	winBlurred     bool          // the window lost key focus (WindowFocused)
 	dir            dirState      // resolved layout direction of the current scope (direction.go)

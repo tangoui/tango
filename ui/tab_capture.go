@@ -9,7 +9,8 @@ import "github.com/tangoui/tango/ui/input"
 //
 // Keyboard users must still be able to leave it (WCAG 2.1.2 No Keyboard
 // Trap): Ctrl+Tab and Ctrl+Shift+Tab always move focus, and after Esc the
-// next Tab moves focus once.
+// next Tab moves focus once, unless the widget also claims Esc
+// (ClaimEscape, escape_claim.go); then only Ctrl+Tab leaves it.
 
 type tabCapture struct {
 	cur, next ID   // declared during the last / this build
