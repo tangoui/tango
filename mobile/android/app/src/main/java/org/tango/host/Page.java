@@ -341,13 +341,17 @@ final class Page extends PageBase {
     /**
      * Builds the WebResourceResponse for an intercepted request (request
      * thread). body is the whole body, or null when it is streamed from Go
-     * through stream.
+     * through stream. length is the handler's Content-Length, or -1; Go
+     * leaves it out of headers because WebView sets Content-Length itself,
+     * from the body stream's available() when it starts reading (a header
+     * would make two). So the stream reports length there.
      */
     WebResourceResponse respond(int status, String reason, String mime, String encoding,
-            String[] headers, byte[] body, long stream) {
+            String[] headers, byte[] body, long stream, long length) {
         Map<String, String> h = new HashMap<>();
         for (int i = 0; i + 1 < headers.length; i += 2) h.put(headers[i], headers[i + 1]);
         InputStream in = body != null ? new java.io.ByteArrayInputStream(body) : new GoStream(stream);
+        if (length >= 0) in = new SizedStream(in, length);
         return new WebResourceResponse(mime, encoding, status, reason, h, in);
     }
 
@@ -597,6 +601,46 @@ final class Page extends PageBase {
             // WebView cannot be reused: replace it and reload.
             recover(view);
             return true;
+        }
+    }
+
+    /**
+     * A body whose available() is its declared length until the first read
+     * (WebView takes it as the Content-Length; see respond), then the
+     * wrapped stream's. HEAD answers have an empty body and the length of
+     * the GET.
+     */
+    private static final class SizedStream extends java.io.FilterInputStream {
+        private final long length;
+        private volatile boolean started;
+
+        SizedStream(InputStream in, long length) {
+            super(in);
+            this.length = length;
+        }
+
+        @Override
+        public int available() throws IOException {
+            if (!started) return (int) Math.min(length, Integer.MAX_VALUE);
+            return super.available();
+        }
+
+        @Override
+        public int read() throws IOException {
+            started = true;
+            return super.read();
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            started = true;
+            return super.read(b, off, len);
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            started = true;
+            return super.skip(n);
         }
     }
 

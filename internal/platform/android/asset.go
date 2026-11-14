@@ -216,7 +216,12 @@ type assetResult struct {
 	Reason   string
 	MIME     string   // e.g. "text/html"; never empty
 	Encoding string   // charset, or ""
-	Headers  []string // flat name, value list, without Content-Type
+	Headers  []string // flat name, value list, without Content-Type and Content-Length
+	// Length is the handler's Content-Length, or -1. It is not passed as a
+	// header: Android WebView adds a Content-Length of its own, the
+	// InputStream's available() at the start, so a header would make two.
+	// Page.respond reports Length through available() instead.
+	Length int64
 	Body     []byte   // whole body when Stream is nil
 	Stream   *assetWriter
 	Injected bool // the bridge script was inserted into this HTML
@@ -280,15 +285,16 @@ func serveAsset(serve serveFunc, r *http.Request, cancel context.CancelFunc, scr
 		}
 
 		mt, enc := splitContentType(h.Get("Content-Type"))
-		res := assetResult{Status: status, Reason: reason(status), MIME: mt, Encoding: enc, cancel: cancel}
+		res := assetResult{Status: status, Reason: reason(status), MIME: mt, Encoding: enc, Length: contentLength(h), cancel: cancel}
 		inject := script != "" && mt == "text/html" && h.Get("Content-Encoding") == ""
 		h = h.Clone()
 		h.Del("Content-Type")
+		h.Del("Content-Length")
 		if inject {
 			<-w.doneCh
 			res.Body = injectHTML(w.body(), script)
 			res.Injected = true
-			h.Del("Content-Length")
+			res.Length = -1 // the body's own length (WebView: available())
 			h.Del("Content-Md5")
 		}
 		res.Headers = flatHeader(h)
@@ -320,7 +326,13 @@ func runHandler(serve serveFunc, w *assetWriter, r *http.Request) {
 			fresh := w.status == 0
 			w.mu.Unlock()
 			if fresh {
-				http.Error(w, "tango: asset handler panicked", http.StatusInternalServerError)
+				// As the darwin and iOS backends answer: the handler's
+				// headers are dropped, the cause is in the body.
+				w.mu.Lock()
+				w.header = http.Header{"Content-Type": {"text/plain; charset=utf-8"}}
+				w.mu.Unlock()
+				w.WriteHeader(http.StatusInternalServerError)
+				fmt.Fprintf(w, "tango: asset handler panic: %v", err)
 			}
 			logf(logError, "asset handler for %s panicked: %v", r.URL, err)
 		}
@@ -345,7 +357,28 @@ func errorResult(status int, msg string) assetResult {
 		MIME:     "text/plain",
 		Encoding: "utf-8",
 		Body:     []byte(msg + "\n"),
+		Length:   -1,
 	}
+}
+
+// contentLength is h's Content-Length: a single non-negative decimal
+// (repeated equal values allowed, as net/http does), else -1.
+func contentLength(h http.Header) int64 {
+	vs := h.Values("Content-Length")
+	if len(vs) == 0 {
+		return -1
+	}
+	n := int64(-1)
+	for _, v := range vs {
+		for _, f := range strings.Split(v, ",") {
+			m, err := strconv.ParseInt(strings.TrimSpace(f), 10, 64)
+			if err != nil || m < 0 || (n >= 0 && m != n) {
+				return -1
+			}
+			n = m
+		}
+	}
+	return n
 }
 
 // reason is the non-empty ASCII reason phrase WebResourceResponse requires.

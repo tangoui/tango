@@ -112,9 +112,113 @@ func TestServeAssetWhole(t *testing.T) {
 		t.Fatalf("%+v", res)
 	}
 
-	res = serveReq(t, func(w http.ResponseWriter, r *http.Request) { panic("boom") }, "https://tango.localhost/p", "")
-	if res.Status != 500 {
+	res = serveReq(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Before", "1")
+		panic("boom")
+	}, "https://tango.localhost/p", "")
+	// The same answer as the darwin and iOS backends (the body may still
+	// be on its way: a stream).
+	body = res.Body
+	if res.Stream != nil {
+		body = readAll(res.Stream)
+	}
+	if res.Status != 500 || res.MIME != "text/plain" || string(body) != "tango: asset handler panic: boom" || len(res.Headers) != 0 {
+		t.Fatalf("%+v %q", res, body)
+	}
+}
+
+// Content-Length goes to Java as Length, never as a header: WebView adds its
+// own (the body stream's available()), and two make "585, 585".
+func TestServeAssetContentLength(t *testing.T) {
+	body := func(res assetResult) []byte {
+		if res.Stream != nil {
+			return readAll(res.Stream)
+		}
+		return res.Body
+	}
+	noHeader := func(t *testing.T, res assetResult) {
+		t.Helper()
+		for i := 0; i+1 < len(res.Headers); i += 2 {
+			if http.CanonicalHeaderKey(res.Headers[i]) == "Content-Length" {
+				t.Fatalf("Content-Length passed as a header: %v", res.Headers)
+			}
+		}
+	}
+
+	// Whole body with a length.
+	res := serveReq(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "5")
+		io.WriteString(w, "hello")
+	}, "https://tango.localhost/w", "")
+	noHeader(t, res)
+	if res.Length != 5 || string(body(res)) != "hello" {
 		t.Fatalf("%+v", res)
+	}
+
+	// Streamed body with a length: the handler is still writing.
+	release := make(chan struct{})
+	res = serveReq(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "6")
+		io.WriteString(w, "abc")
+		w.(http.Flusher).Flush()
+		<-release
+		io.WriteString(w, "def")
+	}, "https://tango.localhost/s", "")
+	noHeader(t, res)
+	if res.Stream == nil || res.Length != 6 {
+		t.Fatalf("want a stream of length 6: %+v", res)
+	}
+	close(release)
+	if got := string(body(res)); got != "abcdef" {
+		t.Fatal(got)
+	}
+
+	// HEAD: no body, the GET's length.
+	ctx, cancel := context.WithCancel(context.Background())
+	r, err := newAssetRequest(ctx, "HEAD", "https://tango.localhost/h", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res = serveAsset(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "585")
+		w.WriteHeader(200)
+	}, r, cancel, "")
+	noHeader(t, res)
+	if res.Length != 585 || len(body(res)) != 0 {
+		t.Fatalf("%+v", res)
+	}
+
+	// No length; an injected page's length is its new body's.
+	res = serveReq(t, func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "x") }, "https://tango.localhost/n", "")
+	if res.Length != -1 {
+		t.Fatalf("%+v", res)
+	}
+	res = serveReq(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "26")
+		io.WriteString(w, "<html><head></head></html>")
+	}, "https://tango.localhost/", "S")
+	noHeader(t, res)
+	if !res.Injected || res.Length != -1 {
+		t.Fatalf("%+v", res)
+	}
+}
+
+func TestContentLength(t *testing.T) {
+	for _, c := range []struct {
+		vs   []string
+		want int64
+	}{
+		{nil, -1}, {[]string{"0"}, 0}, {[]string{"3145728"}, 3145728}, {[]string{" 7 "}, 7},
+		{[]string{"5", "5"}, 5}, {[]string{"5, 5"}, 5}, {[]string{"5", "6"}, -1},
+		{[]string{"-1"}, -1}, {[]string{"x"}, -1}, {[]string{""}, -1},
+	} {
+		h := http.Header{}
+		for _, v := range c.vs {
+			h.Add("Content-Length", v)
+		}
+		if got := contentLength(h); got != c.want {
+			t.Errorf("%q: %d, want %d", c.vs, got, c.want)
+		}
 	}
 }
 

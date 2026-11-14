@@ -332,7 +332,7 @@ func Java_org_tango_host_Tango_nativeServeAsset(penv *C.JNIEnv, cls C.jclass, pa
 	}
 	resp, err := e.callObject(page, mRespond,
 		jvInt(res.Status), jvObj(e.str(res.Reason)), jvObj(e.str(res.MIME)), jvObj(e.strOrNull(res.Encoding)),
-		jvObj(e.strs(res.Headers)), jvObj(e.bytes(nonNil(res.Body, res.Stream == nil))), jvLong(handle))
+		jvObj(e.strs(res.Headers)), jvObj(e.bytes(nonNil(res.Body, res.Stream == nil))), jvLong(handle), jvLong(res.Length))
 	if err != nil {
 		if handle != 0 {
 			closeStream(handle)

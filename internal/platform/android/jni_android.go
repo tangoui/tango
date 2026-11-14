@@ -56,7 +56,7 @@ var (
 	mNavigate = &jmethod{cls: &pageClass, name: "navigate", sig: "(Ljava/lang/String;)V"}
 	mEval     = &jmethod{cls: &pageClass, name: "eval", sig: "(Ljava/lang/String;)V"}
 	mWebView  = &jmethod{cls: &pageClass, name: "webView", sig: "()Landroid/webkit/WebView;"}
-	mRespond  = &jmethod{cls: &pageClass, name: "respond", sig: "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;[BJ)Landroid/webkit/WebResourceResponse;"}
+	mRespond  = &jmethod{cls: &pageClass, name: "respond", sig: "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;[BJJ)Landroid/webkit/WebResourceResponse;"}
 	mLaneSend = &jmethod{cls: &pageClass, name: "laneSend", sig: "([B)Z"}
 )
 
