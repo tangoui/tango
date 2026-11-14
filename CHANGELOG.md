@@ -6,6 +6,14 @@
 
 ### 新增
 
+- **IDE 工作台组件**（均为实验性 API）：
+  - `Dock` 停靠分屏：可嵌套分割树、标签拖到组边缘拆分 / 中间合并（带落点预览）、分割条调整、组最大化，布局模型 `DockLayout` 可 JSON 保存与恢复；`Tabs` 新增 `Draggable` 拖拽排序与 `OnTearOff` 拖出窗口回调（示例 `examples/dock-demo`）。
+  - `StatusBar` 状态栏、`TitleBar` 自绘标题栏与 `WindowControls` 窗口按钮（经新接口 `ui.WindowFrame` 控制真实窗口与拖动）、`NotificationCenter` 通知中心、`HotkeyInput` 快捷键录制框。
+  - AI 对话组件：`Bubble` / `BubbleList`（流式打字、虚拟化、贴底跟随）、`Sender`（附件、@ 与 / 建议、发送 / 停止、输入法安全）、`ThoughtChain`、`ToolCall`、`Approval`、`Conversations`、`Prompts`。
+  - 查看器：`CodeBlock` 只读代码块、`LogView` / `LogBuffer`（百万行、ANSI 颜色、级别过滤、搜索、跟随）、`JSONView`（懒加载值树、分组、复制值 / 路径、搜索）；代码高亮钩子 `SetCodeHighlighter`，`ui/codehl` 用编辑器语法实现，`Markdown` 代码块随之着色（新增 `Markdown.Highlighter`、`Markdown.Color`）。
+  - `ui/graph`：关系图画布 `Diagram`（节点、连线、平移缩放、框选、小地图、分层自动布局）、ER 图 `ER`、Git 提交图 `GitGraph`（泳道布局 + 虚拟列表）。
+  - `uihost.WebView` / `ui.NativeView`：在自绘布局里嵌入原生 WebView 区域，跟随布局与裁剪，被自绘浮层遮挡时冻结成截图；macOS 实机验证，Windows / Linux 未实机验证（示例 `examples/webview-embed`）。
+  - `ui/editor/diff`：行级与字符级 diff 算法（对齐 Monaco 0.56 的结果，含移动块检测、未改动区域与差异导航），Diff 视图待后续。
 - **IPC 双向流**（`ipc`、`@tangoui/runtime`）：流改为全双工，两个方向都能传 JSON 帧和字节帧，任一端都可以打开。
   - Go：`Router.HandleDuplex` 注册双向处理函数（类型 `ipc.DuplexFunc`）；`*ipc.Stream` 新增 `WriteBytes`、`Receive`（返回新类型 `ipc.Message`：`Binary`、`Bytes`、`JSON`）、`ReceiveBytes`、`ReceiveJSON`、`CloseSend`（半关闭）、`ReadWriter`（`io.ReadWriteCloser` 视图，可直接 `io.Copy`）；`Router.Open`、`Router.Call` 让同进程的 Go 代码（自绘界面）不经过页面直接使用同一批服务；`Router.SetStreamWindow` 设置 Go 的接收窗口；新增常量 `ProtoVersion`、`DefaultWindowBytes`、`FrameOverhead`、`MaxFrameBytes` 和错误码 `CodeTransport`（快速通道上丢帧时使用，见下）。
   - JS：`TangoStream` 新增 `accepted`、`send`、`sendBytes`、`end`、`bufferedAmount` 和 Web Streams 视图 `readable`/`writable`，迭代时字节帧产出 `Uint8Array`；新增 WebSocket 风格的 `socket()` / `TangoSocket`（`close()` 写完排队的消息后发 `close`，随即以 1000 关闭，不等 Go）；新增常量 `PROTO_VERSION`、`DEFAULT_WINDOW_BYTES`、`FRAME_OVERHEAD`、`MAX_FRAME_BYTES`。
