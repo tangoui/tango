@@ -51,6 +51,8 @@ type surface struct {
 	closed   bool
 
 	ext surfaceExt // round-2 window state; surface_ext.go
+
+	laneCaps []string // fast lanes of a WebView surface, fixed at creation (lanes.go)
 }
 
 func (b *backend) NewSurface(sid platform.SurfaceID, opts platform.SurfaceOptions) (platform.Surface, error) {
@@ -62,6 +64,7 @@ func (b *backend) NewSurface(sid platform.SurfaceID, opts platform.SurfaceOption
 // finishSurface and put a canvas view where the WebView would go.
 func (b *backend) newSurface(sid platform.SurfaceID, opts platform.SurfaceOptions, ex *platform.SurfaceExtras) (platform.Surface, error) {
 	s, rect := b.newWindow(sid, opts, ex)
+	s.laneCaps = envLaneCaps() // read once, before the core can ask
 	withPool(func() {
 		cfg := s.webConfiguration(opts)
 		s.web = msgInitRectID(send(class("TangoWebView"), "alloc"), sel("initWithFrame:configuration:"), rect, cfg)

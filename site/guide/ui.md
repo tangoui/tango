@@ -149,6 +149,105 @@ att.Detach()
 
 适合在 Web 界面上叠一个高频刷新的自绘部件（图表、编辑器、画布），或反过来在自绘界面里嵌一块 Web 内容。示例：`examples/webview-overlay`。
 
+## 后台数据与线程
+
+自绘界面和后端在同一个进程里：直接调用 Go 函数、读 Go 结构体就行，不需要序列化，也不需要 IPC。要注意的只有线程。
+
+**线程规则**
+
+- 界面状态只在 UI 线程上读写。页面函数运行在 UI 线程（也就是应用主线程）上。
+- 耗时或会阻塞的操作（文件、网络、子进程、`ipc` 的流）放到 goroutine 里做，不要在页面函数里做，否则整个窗口卡住。
+- 结果用 `app.Post` 交回 UI 线程，在那里写进状态，再调用 `Runner.Invalidate()` 请求重绘。`Invalidate` 在任何 goroutine 上调用都安全，真正的帧仍在 UI 线程上运行。
+
+**流式数据**用 Go 原生的手段：channel、`io.Reader`/`io.Writer`、回调。阻塞读写本身就是背压：goroutine 读得慢，生产者就会被挡住。比如一个终端面板：goroutine 读 shell 的输出，交回 UI 线程追加到缓冲区并 `Invalidate`；按键在事件处理里写给 shell。写本地管道一般很快，但它也可能阻塞，写入可能等待的目标（比如下面的 `ipc` 流，要等信用）应当经 channel 交给一个专门写的 goroutine。
+
+**高频数据要合并。**每来一块数据就 `app.Post` 一次，数据比帧来得快时任务会在 UI 线程上越堆越多。`examples/duplex/panel.go` 的做法：goroutine 把数据追加到加锁的缓冲区，只在"还没有待处理的刷新"时才唤醒 UI 线程一次；页面函数一次取走全部数据，并清掉标记。
+
+```go
+// push buffers item. It may be called on any goroutine and never blocks
+// on the UI thread.
+func (c *coalescer) push(item string) {
+	c.mu.Lock()
+	c.items = append(c.items, item)
+	first := !c.pending
+	c.pending = true
+	c.mu.Unlock()
+	if first {
+		c.wake() // outside the lock: wake may even call drain
+	}
+}
+
+// drain takes every buffered item and clears the pending flag, so the
+// next push wakes the UI thread again. Call it on the UI thread.
+func (c *coalescer) drain() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	items := c.items
+	c.items, c.pending = nil, false
+	return items
+}
+```
+
+唤醒函数让 UI 线程出一帧，页面函数在那一帧里 `drain`，状态（`p.recent`）只在 UI 线程上改：
+
+```go
+p.echoes = newCoalescer(func() { app.Post(runner.Invalidate) })
+```
+
+```go
+func (p *echoPanel) page(c *ui.Context) {
+	p.recent = append(p.recent, p.echoes.drain()...)
+	if n := len(p.recent); n > recentEchoes {
+		p.recent = p.recent[n-recentEchoes:]
+	}
+	// ……画出 p.recent
+}
+```
+
+**复用 WebView 的服务。**已经用 `Handle`、`HandleStream`、`HandleDuplex` 注册给页面的服务，Go 界面用 `r.Call(ctx, method, args...)` 和 `r.Open(ctx, method, args...)` 在进程内直接调用，语义与页面完全一样，但不经过 JSON 消息和 base64（见 [IPC：进程内调用](/guide/concepts/ipc#进程内调用)）。混合界面里页面和 Go 面板因此共用同一个服务实例。这些调用都会阻塞，按上面的线程规则放进 goroutine。`examples/duplex -panel` 的 Go 面板就这样接页面也在用的 `Echo` 服务：
+
+```go
+// run sends {"t": time} on an Echo stream every second and pushes each
+// echo to the panel. Open, Write and Receive block, so this runs on its
+// own goroutine, never on the UI thread.
+func (p *echoPanel) run(ctx context.Context, r *ipc.Router) {
+	s, err := r.Open(ctx, "Echo")
+	if err != nil {
+		p.echoes.push("Open: " + err.Error())
+		return
+	}
+	defer s.Close()
+
+	go func() {
+		tick := time.NewTicker(time.Second)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case now := <-tick.C:
+				if s.Write(map[string]string{"t": now.Format("15:04:05")}) != nil {
+					return
+				}
+			}
+		}
+	}()
+
+	for {
+		var m struct {
+			T string `json:"t"`
+		}
+		if err := s.ReceiveJSON(&m); err != nil {
+			p.echoes.push("closed: " + err.Error())
+			return
+		}
+		p.echoes.push("← " + m.T)
+	}
+}
+```
+
+`r.Open` 打开的流不属于任何页面，页面关闭时 `Drop` 不会结束它：用完要 `Close`（上面的 `defer s.Close()`）或取消 `ctx`（示例在窗口关闭时取消），否则服务端处理函数的 goroutine 不会退出。服务端想把 shell 这类字节流接到流上，用 `s.ReadWriter()` 配合 `io.Copy`，见 `examples/duplex/term.go`。以上代码都摘自 `examples/duplex`，在那里能编译、有测试。
+
 ## 用 Driver 测试
 
 `ui.NewDriver` 无窗口地运行页面，时间是模拟的、默认关闭动画，结果确定：

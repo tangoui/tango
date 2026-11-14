@@ -8,17 +8,21 @@ package darwin
 // WKURLSchemeHandler / WKURLSchemeTask reference). The task is answered with
 // exactly one didReceiveResponse:, any number of didReceiveData:, and one
 // didFinish — and must not be touched at all once WebKit has sent
-// webView:stopURLSchemeTask:. Everything here runs on the main thread, which is
-// where WebKit calls the handler. The http.Handler plumbing itself is in
-// asset.go.
+// webView:stopURLSchemeTask:. WebKit calls the handler on the main thread,
+// and every WKURLSchemeTask call is made there too. Host.ServeAsset runs on
+// its own goroutine (the platform contract allows any thread and prefers
+// one off the main thread), so slow and long-lived responses never block
+// the UI; its writer (assetWriter, asset.go) hands the response to the
+// main thread in order, with backpressure, and is cancelled by
+// webView:stopURLSchemeTask:.
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
@@ -44,7 +48,12 @@ func schemeHandler() id {
 
 func registerSchemeHandler() {
 	start := func(_ id, _ objc.SEL, webView, task id) {
-		withPool(func() { serveSchemeTask(webView, task) })
+		withPool(func() {
+			if schemeProbe() && serveProbe(task) {
+				return
+			}
+			serveSchemeTask(webView, task)
+		})
 	}
 	stop := func(_ id, _ objc.SEL, _, task id) {
 		if t, ok := assetBridge.inFlight[task]; ok {
@@ -58,11 +67,12 @@ func registerSchemeHandler() {
 }
 
 // schemeTask adapts one WKURLSchemeTask to the taskSink interface used by
-// assetWriter.
+// assetWriter. Main thread only.
 type schemeTask struct {
 	native id // retained WKURLSchemeTask; zero once closed
 	w      *assetWriter
 	cancel context.CancelFunc
+	lane   *laneTrack // lane request counters (test hook, lanes_dev.go); nil in production builds
 }
 
 func (t *schemeTask) open() bool { return t.native != 0 }
@@ -74,6 +84,7 @@ func (t *schemeTask) close() {
 	}
 	native := t.native
 	t.native = 0
+	t.lane.done()
 	t.cancel()
 	delete(assetBridge.inFlight, native)
 	release(native)
@@ -88,12 +99,20 @@ func (t *schemeTask) abandon() {
 	t.close()
 }
 
+// serveSchemeTask starts serving one task. Main thread: it retains the task,
+// builds the *http.Request (reading the body) and registers the task in
+// assetBridge.inFlight, then runs Host.ServeAsset on a goroutine. The writer
+// queues the WKURLSchemeTask calls for the main thread (postMain); the
+// final didFinish closes the task.
 func serveSchemeTask(webView, native id) {
+	var start time.Time // the up:post main-thread cost (test hook only)
+	if schemeProbe() {
+		start = time.Now()
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t := &schemeTask{native: retain(native), cancel: cancel}
 	assetBridge.inFlight[native] = t
-	t.w = newAssetWriter(t, "")
-	defer t.close()
+	t.w = newAssetWriter(ctx, t, postMain, "")
 
 	req, err := buildRequest(ctx, requestFromNative(send(native, "request")))
 	if err != nil {
@@ -101,38 +120,19 @@ func serveSchemeTask(webView, native id) {
 		t.w.finish()
 		return
 	}
-	t.w.path = req.URL.Path
+	t.w.path = req.URL.Path // before the handler goroutine starts
+	t.lane = laneTrackFor(req.URL.Path)
+	if t.lane != nil {
+		t.lane.mainTime(time.Since(start), req.ContentLength)
+	}
 
 	b := theBackend
 	var sid platform.SurfaceID
 	if s, ok := b.byWebView[webView]; ok && s != nil {
 		sid = s.id
 	}
-	if crash := callAssetHandler(b.h, sid, t.w, req); crash != nil {
-		t.w.replaceWithError(crash)
-	}
-	t.w.finish()
-}
-
-// callAssetHandler runs the app's handler and converts a panic into a value,
-// so one bad asset cannot take down the UI thread.
-func callAssetHandler(h platform.Host, sid platform.SurfaceID, w *assetWriter, req *http.Request) (crash any) {
-	defer func() { crash = recover() }()
-	h.ServeAsset(sid, w, req)
-	return nil
-}
-
-// replaceWithError discards whatever the handler buffered and turns the
-// response into a 500, unless headers already reached WebKit (then the
-// truncated body is all we can do).
-func (w *assetWriter) replaceWithError(cause any) {
-	if w.sent {
-		return
-	}
-	w.header, w.status = http.Header{}, 0
-	w.buf.Reset()
-	w.WriteHeader(http.StatusInternalServerError)
-	fmt.Fprintf(w, "tango: asset handler panic: %v", cause)
+	h, w := b.h, t.w
+	go runAssetHandler(w, func() { h.ServeAsset(sid, w, req) })
 }
 
 // requestFromNative copies the parts of an NSURLRequest the Go side needs.
@@ -214,6 +214,7 @@ func (t *schemeTask) respond(status int, header http.Header) {
 		send(t.native, "didReceiveResponse:", uintptr(head))
 		release(head)
 	})
+	t.lane.respond(status)
 }
 
 // headerDictionary builds an NSDictionary from parallel key / value arrays.
@@ -233,8 +234,10 @@ func (t *schemeTask) data(p []byte) {
 		chunk := nsData(p)
 		send(t.native, "didReceiveData:", uintptr(chunk))
 	})
+	t.lane.data()
 }
 
+// finish ends the response and closes the task: the writer's last action.
 func (t *schemeTask) finish() {
 	if !t.open() {
 		return

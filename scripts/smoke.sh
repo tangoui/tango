@@ -6,6 +6,10 @@
 #   bash scripts/smoke.sh desktop NAME..  only the named programs
 #   bash scripts/smoke.sh list            print the desktop program names
 #   bash scripts/smoke.sh ios             build examples/mobile-hello, run it in a simulator
+#   bash scripts/smoke.sh ios-probe       build examples/duplex-ios, measure in a simulator
+#                                         whether WebKit streams scheme responses
+#   bash scripts/smoke.sh ios-selftest    build examples/duplex-ios, run its tango://
+#                                         scheme-handler self-test in a simulator
 #   bash scripts/smoke.sh android         install the mobile-hello APK on the connected
 #                                         device / emulator and run it
 #   bash scripts/smoke.sh ios-ui          self-drawn examples/mobile-ui in a simulator:
@@ -29,7 +33,7 @@
 #   TANGO_SMOKE_TIMEOUT_SCALE  stretches the programs' own timeouts (CI uses 3)
 #   TANGO_SMOKE_SKIP           check groups notify-demo skips (e.g. notify)
 #   SMOKE_IOS_DEVICE           simulator name or UDID (default: first available iPhone)
-#   SMOKE_MOBILE_WAIT          seconds to wait for the mobile page (default 90)
+#   SMOKE_MOBILE_WAIT          seconds to wait for the mobile page (default 90; ios-selftest 180)
 #   TANGO_APP_ID               Android applicationId for "android" (default: "id" in
 #                              examples/mobile-hello/tan.json)
 #   SMOKE_APK                  APK to install for "android" (default: build it with
@@ -355,6 +359,169 @@ run_ios_ui() {
 	ios_done "$log"
 }
 
+# run_ios_probe measures whether WKWebView hands a WKURLSchemeTask's
+# separate didReceiveData: calls to the page's fetch() ReadableStream as
+# they happen. examples/duplex-ios runs with TANGO_SCHEME_PROBE=1: the iOS
+# backend answers /__tango/probe/stream itself with 8 chunks of 1 KiB, 200 ms
+# apart, and the page logs "probe: {...}" with each chunk's arrival time.
+# PASS (incremental delivery) needs status 200, all 8192 bytes, at least 4
+# chunks (WebKit may merge neighbours), and the first chunk more than
+# 1000 ms before the last.
+run_ios_probe() {
+	local wait="${SMOKE_MOBILE_WAIT:-90}" log="$out/ios-probe.log" app udid booted=0
+	say "build examples/duplex-ios for the iOS simulator"
+	if ! app="$(GOFLAGS="${GOFLAGS:+$GOFLAGS }-tags=tango_selftest" TANGO_IOS_OUT="$out/ios-probe" bash mobile/ios/build.sh examples/duplex-ios simulator 2>"$out/ios-probe.build.log" | tail -n 1)" || [[ ! -d "$app" ]]; then
+		sed 's/^/    /' "$out/ios-probe.build.log"
+		record ios-probe FAIL "build failed, see $out/ios-probe.build.log"
+		return
+	fi
+	local id
+	id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")"
+	udid="${SMOKE_IOS_DEVICE:-}"
+	if [[ -z "$udid" ]]; then
+		udid="$(xcrun simctl list devices available | grep -E '^ +iPhone' | head -n 1 | grep -oE '[0-9A-F-]{36}')"
+	elif [[ ! "$udid" =~ ^[0-9A-F-]{36}$ ]]; then
+		udid="$(xcrun simctl list devices available | grep -F "    $udid (" | head -n 1 | grep -oE '[0-9A-F-]{36}')"
+	fi
+	if [[ -z "$udid" ]]; then
+		xcrun simctl list devices available
+		record ios-probe FAIL "no iPhone simulator available"
+		return
+	fi
+	if ! xcrun simctl list devices | grep -q "$udid) (Booted)"; then
+		say "boot simulator $udid"
+		xcrun simctl boot "$udid" && booted=1
+	fi
+	xcrun simctl bootstatus "$udid" -b >/dev/null
+	say "install and launch $id with TANGO_SCHEME_PROBE=1"
+	xcrun simctl terminate "$udid" "$id" >/dev/null 2>&1
+	if ! xcrun simctl install "$udid" "$app"; then
+		record ios-probe FAIL "simctl install failed"
+		((booted)) && xcrun simctl shutdown "$udid" >/dev/null 2>&1
+		return
+	fi
+	: >"$log"
+	# simctl passes SIMCTL_CHILD_X=v to the app as X=v.
+	SIMCTL_CHILD_TANGO_SCHEME_PROBE=1 xcrun simctl launch --console-pty --terminate-running-process "$udid" "$id" </dev/null >"$log" 2>&1 &
+	local launcher=$!
+	if wait_for_log "$log" 'probe: ' "$wait"; then
+		sleep 1
+		local line ts n first last bytes status
+		line="$(grep -m 1 -oE 'probe: \{.*\}' "$log")"
+		ts="$(grep -oE '"t":[0-9]+' <<<"$line" | cut -d: -f2)"
+		n="$(grep -c . <<<"$ts")"
+		first="$(head -n 1 <<<"$ts")"
+		last="$(tail -n 1 <<<"$ts")"
+		bytes="$(grep -oE '"bytes":[0-9]+' <<<"$line" | cut -d: -f2)"
+		status="$(grep -oE '"status":[0-9]+' <<<"$line" | cut -d: -f2)"
+		if [[ "$status" != 200 || "$bytes" != 8192 ]]; then
+			record ios-probe FAIL "probe fetch: status ${status:-?}, ${bytes:-?} bytes"
+		elif ((n >= 4 && first < last - 1000)); then
+			record ios-probe PASS "incremental: $n chunks, first at $first ms, last at $last ms"
+		else
+			record ios-probe FAIL "not incremental: $n chunks, first at ${first:-?} ms, last at ${last:-?} ms"
+		fi
+	else
+		record ios-probe FAIL "no probe result within ${wait}s, see $log"
+	fi
+	xcrun simctl io "$udid" screenshot "$out/ios-probe.png" >/dev/null 2>&1
+	sed 's/^/    /' "$log"
+	xcrun simctl terminate "$udid" "$id" >/dev/null 2>&1
+	sleep 1
+	kill "$launcher" 2>/dev/null
+	wait "$launcher" 2>/dev/null
+	((booted)) && xcrun simctl shutdown "$udid" >/dev/null 2>&1
+	return 0
+}
+
+# run_ios_selftest runs the tango:// scheme-handler self-test of
+# examples/duplex-ios (TANGO_SCHEME_PROBE=1 for the /__test routes and
+# Debug.Stats, TANGO_SCHEME_SELFTEST=1 for index.html?selftest): the request
+# sequence of the macOS parity test (index, 3 MiB, 302, HEAD, 64 KiB POST
+# echo, panic) checked against the expected answers, an aborted
+# never-ending stream whose Go handler must return, the fast lanes the page
+# got (TANGO_IPC_LANES_DARWIN=1, needed on iOS where lanes are off by
+# default: tango.lanes() must be fallback / up:post,
+# and a 1 MiB Echo must use up:post), the lane scenarios of
+# examples/duplex/services/lanetests.js (a reload during an up:post upload
+# with no leak, 8 MiB both ways, mixed sizes in order, a 6 s main-thread
+# stall; the page reloads itself once for the first), and an ipc Echo. The
+# page logs "selftest: {...}". PASS needs a top-level "ok":true, the index
+# body equal to web/index.html, and no WebKit exception in the log. The lane
+# fault scenario needs a tango_dev build, which tan build does not make; it
+# is not run here. (The other hooks work without tango_dev because the iOS
+# backend honours TANGO_SCHEME_PROBE in release builds on purpose; on macOS
+# they need -tags tango_dev. See docs/dev-builds.md.)
+run_ios_selftest() {
+	local wait="${SMOKE_MOBILE_WAIT:-180}" log="$out/ios-selftest.log" app udid booted=0
+	say "build examples/duplex-ios for the iOS simulator"
+	if ! app="$(GOFLAGS="${GOFLAGS:+$GOFLAGS }-tags=tango_selftest" TANGO_IOS_OUT="$out/ios-selftest" bash mobile/ios/build.sh examples/duplex-ios simulator 2>"$out/ios-selftest.build.log" | tail -n 1)" || [[ ! -d "$app" ]]; then
+		sed 's/^/    /' "$out/ios-selftest.build.log"
+		record ios-selftest FAIL "build failed, see $out/ios-selftest.build.log"
+		return
+	fi
+	local id
+	id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")"
+	udid="${SMOKE_IOS_DEVICE:-}"
+	if [[ -z "$udid" ]]; then
+		udid="$(xcrun simctl list devices available | grep -E '^ +iPhone' | head -n 1 | grep -oE '[0-9A-F-]{36}')"
+	elif [[ ! "$udid" =~ ^[0-9A-F-]{36}$ ]]; then
+		udid="$(xcrun simctl list devices available | grep -F "    $udid (" | head -n 1 | grep -oE '[0-9A-F-]{36}')"
+	fi
+	if [[ -z "$udid" ]]; then
+		xcrun simctl list devices available
+		record ios-selftest FAIL "no iPhone simulator available"
+		return
+	fi
+	if ! xcrun simctl list devices | grep -q "$udid) (Booted)"; then
+		say "boot simulator $udid"
+		xcrun simctl boot "$udid" && booted=1
+	fi
+	xcrun simctl bootstatus "$udid" -b >/dev/null
+	say "install and launch $id with TANGO_SCHEME_PROBE=1 TANGO_SCHEME_SELFTEST=1 TANGO_IPC_LANES_DARWIN=1"
+	xcrun simctl terminate "$udid" "$id" >/dev/null 2>&1
+	if ! xcrun simctl install "$udid" "$app"; then
+		record ios-selftest FAIL "simctl install failed"
+		((booted)) && xcrun simctl shutdown "$udid" >/dev/null 2>&1
+		return
+	fi
+	: >"$log"
+	# simctl passes SIMCTL_CHILD_X=v to the app as X=v.
+	SIMCTL_CHILD_TANGO_SCHEME_PROBE=1 SIMCTL_CHILD_TANGO_SCHEME_SELFTEST=1 SIMCTL_CHILD_TANGO_IPC_LANES_DARWIN=1 \
+		xcrun simctl launch --console-pty --terminate-running-process "$udid" "$id" </dev/null >"$log" 2>&1 &
+	local launcher=$!
+	if wait_for_log "$log" 'selftest: ' "$wait"; then
+		sleep 1
+		local line sha want bytes wantBytes failed stopWait
+		line="$(grep -m 1 -oE 'selftest: \{.*\}' "$log")"
+		sha="$(grep -oE '"indexSha":"[0-9a-f]+"' <<<"$line" | cut -d'"' -f4)"
+		bytes="$(grep -oE '"indexBytes":[0-9]+' <<<"$line" | cut -d: -f2)"
+		want="$(shasum -a 256 examples/duplex-ios/web/index.html | cut -d' ' -f1)"
+		wantBytes="$(wc -c <examples/duplex-ios/web/index.html | tr -d ' ')"
+		failed="$(grep -oE '"failed":\[[^]]*\]' <<<"$line")"
+		stopWait="$(grep -oE '"wait":[0-9]+' <<<"$line" | cut -d: -f2)"
+		if grep -q 'NSInternalInconsistencyException' "$log"; then
+			record ios-selftest FAIL "WebKit exception, see $log"
+		elif ! grep -q '^selftest: {"ok":true,' <<<"$line"; then
+			record ios-selftest FAIL "checks failed: ${failed:-?}"
+		elif [[ "$sha" != "$want" || "$bytes" != "$wantBytes" ]]; then
+			record ios-selftest FAIL "index body: $bytes bytes sha ${sha:-?}, want $wantBytes bytes sha $want"
+		else
+			record ios-selftest PASS "parity, stop (handler returned ${stopWait:-?} ms after abort), lanes (up:post echo), lane scenarios (reload, 8 MiB, mixed, stall) and echo ok"
+		fi
+	else
+		record ios-selftest FAIL "no selftest result within ${wait}s, see $log"
+	fi
+	xcrun simctl io "$udid" screenshot "$out/ios-selftest.png" >/dev/null 2>&1
+	sed 's/^/    /' "$log"
+	xcrun simctl terminate "$udid" "$id" >/dev/null 2>&1
+	sleep 1
+	kill "$launcher" 2>/dev/null
+	wait "$launcher" 2>/dev/null
+	((booted)) && xcrun simctl shutdown "$udid" >/dev/null 2>&1
+	return 0
+}
+
 # adb runs the SDK's adb: from PATH, else $ANDROID_HOME / $ANDROID_SDK_ROOT
 # / the default macOS SDK location.
 adb() {
@@ -510,6 +677,8 @@ list)
 	;;
 ios) run_ios ;;
 ios-ui) run_ios_ui ;;
+ios-probe) run_ios_probe ;;
+ios-selftest) run_ios_selftest ;;
 android) run_android ;;
 android-ui) run_android_ui ;;
 -h | --help | help)
@@ -517,7 +686,7 @@ android-ui) run_android_ui ;;
 	exit 0
 	;;
 *)
-	echo "smoke.sh: unknown mode '$mode' (desktop, list, ios, ios-ui, android, android-ui)" >&2
+	echo "smoke.sh: unknown mode '$mode' (desktop, list, ios, ios-ui, ios-probe, ios-selftest, android, android-ui)" >&2
 	exit 2
 	;;
 esac

@@ -6,6 +6,7 @@
 r := ipc.NewRouter()
 app.AddBridgeScript(runtimejs.Script)
 app.OnMessage(func(s *tango.Surface, m string) { r.HandleMessage(s, m) })
+app.OnBinary(func(s *tango.Surface, gen uint64, p []byte) { r.HandleBinarySession(s, gen, p) }) // 流的快速通道，见 site/guide/concepts/ipc.md
 jsapi.Install(app, r, jsapi.Options{Allow: jsapi.ClipboardWrite | jsapi.Dialogs})
 // 可选：单实例。jsapi 已用 single.OnSecondInstance 自动把第二实例的参数转给页面
 single.Claim(app, single.Options{})

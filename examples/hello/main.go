@@ -68,6 +68,8 @@ func main() {
 		}
 		r.HandleMessage(s, m)
 	})
+	// Byte frames on IPC fast lanes, when the page gets them.
+	app.OnBinary(func(s *tango.Surface, gen uint64, p []byte) { r.HandleBinarySession(s, gen, p) })
 
 	r.On("done", func(c ipc.Conn, data json.RawMessage) {
 		log.Printf("page finished: %s", data)

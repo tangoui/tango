@@ -111,11 +111,16 @@ func (s *Surface) Native() uintptr
 3. `AddBridgeScript` 追加的脚本（如 ipc 运行时）放在核心 shim 之后。
 4. 页面调用系统能力（窗口、剪贴板、对话框……）走 `jsapi` 包 + `@tangoui/runtime` 的 `Window`/`App`/... 模块，见 [runtime-api.md](runtime-api.md)。
 
-## IPC 线上协议（ipc + runtime-js 子 agent 实现，两端一致）
+## IPC 线上协议（v2，ipc + runtime-js 两端一致）
 
-建立在原始消息之上。是 JSON 对象且含 `"tango"` 字段的消息归 ipc；其余都是用户原始消息，ipc 不碰。
+建立在原始消息之上。是 JSON 对象且含 `"tango"` 字段的消息归 ipc；其余都是用户原始消息，ipc 不碰。权威说明在 `ipc/wire.go` 的包注释，设计取舍见 [specs/2026-11-13-ipc-duplex-streams.md](specs/2026-11-13-ipc-duplex-streams.md)。
 
 ```jsonc
+// 握手：runtime-js 启动时发 hello；Go Drop 该连接的旧状态，回自己的接收窗口（字节）
+{"tango":"hello","proto":2}
+{"tango":"hello","proto":2,"win":1048576}
+// proto 不是 2：Go 回错误并 slog.Warn，不兼容 v1
+{"tango":"hello","error":{"code":"bad_args","message":"runtime-js protocol mismatch"}}
 // JS→Go 调用
 {"tango":"call","id":1,"method":"Greeter.Hello","args":["world"]}
 // Go→JS 返回
@@ -123,16 +128,42 @@ func (s *Surface) Native() uintptr
 {"tango":"ret","id":1,"error":{"message":"boom","code":"internal"}}
 // 事件（双向）
 {"tango":"event","name":"progress","data":{"pct":42}}
-// 流（任一端发起；id 由发起方分配，JS 用奇数，Go 用偶数）
-{"tango":"stream","id":3,"op":"open","method":"Logs.Tail","args":[]}
-{"tango":"stream","id":3,"op":"data","data":"line"}
-{"tango":"stream","id":3,"op":"ack","n":16}   // 接收方确认，发送方按窗口背压（默认窗口 64）
-{"tango":"stream","id":3,"op":"end"}
-{"tango":"stream","id":3,"op":"error","error":{"message":"..."}}
+// 流（全双工；任一端发起，id 由发起方分配，JS 用奇数，Go 用偶数；open 以外的消息两个方向都有）
+{"tango":"stream","id":3,"op":"open","method":"Term.Attach","args":[]}
+{"tango":"stream","id":3,"op":"accept","in":true}                        // in:false = HandleStream（只发）
+{"tango":"stream","id":3,"op":"data","seq":0,"c":75,"data":{"cols":80}}  // JSON 负载
+{"tango":"stream","id":3,"op":"data","seq":1,"c":69,"bin":"aGVsbG8="}    // 字节负载（标准 base64，带填充）
+{"tango":"stream","id":3,"op":"ack","b":65536}                           // 归还的信用字节数
+{"tango":"stream","id":3,"op":"end","seq":2}                             // 半关闭
+{"tango":"stream","id":3,"op":"close","seq":2}                           // 优雅全关闭
+{"tango":"stream","id":3,"op":"error","seq":2,"error":{"message":"...","code":"internal"}}
 {"tango":"stream","id":3,"op":"cancel"}
 ```
 
-错误 code：`not_found`、`bad_args`、`internal`、`canceled`。
+- **帧**：一帧就是应用的一条消息，不拆不并。`data` 与 `bin` 二选一（`"bin":""` 是空字节帧，不同于没有 `bin`）；`seq` 按方向从 0 递增，接收方按序交付；`end`/`close`/`error` 的 `seq` 是本方向已发帧数，收齐之前的帧才处理。
+- **背压**（按字节计的信用窗口）：每帧计费 `c` = 负载字节数 + 64（`FrameOverhead`），由发送方算好写进帧里（JSON 按发送方编码后的长度，字节按原始长度）。窗口是接收方通告的：Go 在 `hello` 里给出 `win`（`Router.SetStreamWindow`，默认 `DefaultWindowBytes` = 1 MiB），JS 侧固定 1 MiB。在途 + 本帧 > 窗口时发送方阻塞，在途为 0 时单帧可以超窗。接收方在应用读走一帧后累计归还，累计到半个窗口时发 `ack`；读走后接收队列已空也立即全部归还。单帧原始负载上限 `MaxFrameBytes` = 16 MiB，超过时发送调用返回 `bad_args`，流不受影响。
+- **结束**：双方都 `end` 为正常完成；`close` = `end` 加"不再接收"，之后对方的写返回"stream closed by peer"，对方在这条流上不再发任何消息；`error` 让两端都失败；`cancel` 立即放弃并丢弃未读数据。Go 处理函数返回 nil 时发 `close`，返回错误时发 `error`。
+- `accept` 之前打开方就可以发数据；收到 `in:false` 时本地发送失败（`bad_args`），对方丢弃已收到的数据并照常 `ack`。找不到处理函数回 `error`（`not_found`），不发 `accept`。未知 `op` 忽略。
+- **进程内客户端**：`Router.Call`、`Router.Open` 让同进程的 Go 代码（自绘界面）使用同一批处理函数，走同一套流状态机，但不经过线协议（不编码 JSON 消息，不做 base64）。
+
+错误 code：`not_found`、`bad_args`、`internal`、`canceled`、`transport`（快速通道上丢帧，见下）。
+
+### 快速通道（IPC fast lanes）
+
+规格见 [specs/2026-11-13-ipc-duplex-streams.md](specs/2026-11-13-ipc-duplex-streams.md) §6.1，包格式和协议规则写在 `ipc` 包注释的 "Fast lanes" 一节。
+
+- **是什么**：挨着消息通道的二进制旁路，只承载流的**字节数据帧**（不做 JSON、不做 base64）；JSON 帧、全部控制消息、握手仍走消息通道。两个方向分别协商。同一条流的帧可以分走两条路，接收方按 `seq` 重排，语义不变。包格式 `count:u16 | (streamID:u64 | seq:u64 | len:u32 | payload)*count`（大端），快速通道上的帧不带 `c`，计费固定为 `len + 64`。
+- **通道名**：`down:scheme` / `up:post`（核心在资源来源的 `/__tango/lane/down`、`/__tango/lane/up` 上服务：GET 长响应、POST 一包一请求，`gen` + `tok` 校验，Origin 不是资源来源一律 403），`down:android` / `up:android`、`down:shm` / `up:shm`（平台后端经 `platform.BinaryLane` / `platform.LaneHost` 实现）。`BinaryMinSize`：`down:scheme` 4096，平台通道 0；`up:post` 只接 16 KiB 以上、包不超过 1 MiB 的帧，攒 16 KiB 或 4 ms 发一次，同一页面同时只有一个 POST 在途。
+- **分层**：`ipc.Router` 只管协议（`BinaryConn`：`LaneHello` / `SendBinary` / `BinaryMinSize`；可复用文档的连接另实现 `SessionBinaryConn`，上行入口 `Router.HandleBinarySession`），不知道平台；它不自己管理世代，只在发布连接状态时记下 `SessionBinaryConn.BinarySession()` 给出的世代和发送句柄，上行包按授权时捕获的世代匹配，旧世代的包不进新文档的流。`Router.HandleBinary` 只用于不复用文档的简单连接，对 `SessionBinaryConn`（如 `*tango.Surface`）丢包并按 Router 记一次 `slog.Warn`。一个 surface 只接一个 Router（每次 `hello` 都换通道世代，两个 Router 会互相作废，不支持）。`*tango.Surface`（根包 `lanes.go`）实现 `SessionBinaryConn`，包着 `internal/lane.State`——每页面世代号、每世代令牌（同一世代内的每个通道请求都用它，换世代才换）、每条通道的状态，是通道状态的唯一拥有者；平台后端只报告能力（`LaneCaps`）、发下行包、交上行包。runtime-js 的 `lanes.ts` 是通道模块注册表，`lanes/scheme.ts` 是 `down:scheme` / `up:post` 模块。
+- **开启条件**（每次握手由 `Surface.LaneHello` 判断，四个都满足才在 `hello` 回复里带 `lanes` 字段）：应用注册了至少一个 `App.OnBinary` 处理函数（应用接线 `app.OnBinary(func(s *tango.Surface, gen uint64, p []byte){ r.HandleBinarySession(s, gen, p) })`，处理函数在收包的 goroutine 上跑，不在主线程）；页面来自资源来源（直接从开发服务器加载的页面永远没有，`tan dev` 经 `asset.FromEnv` 代理的页面有）；后端报告了能力；没有被 `Options.DisableFastLanes` 或 `TANGO_IPC_LANES=0`（任何构建）关掉。**macOS 后端默认报告 `up:post`**（`TANGO_IPC_LANES_DARWIN=0`/`false`/`off` 关闭，`all` 另报 `down:scheme`、仅供实验，macOS 上只在 `tango_dev` 构建生效）；**iOS 后端默认不报告**，需 `TANGO_IPC_LANES_DARWIN=1`；其他平台后端还不报告能力，走消息通道，直到各平台计划落地。runtime-js 的 `up:post` 启动时先 POST 一个空包（`count=0`，Go 回 204），收到 204 才报告 `ready`，所以页面 CSP 挡住资源来源时通道在启动时就失败、不会有帧丢在上面。
+- **控制消息**：JS 在核心内部频道上报告通道就绪/失败：`"\x00tango-int:lane:"` + `{"op":"ready"|"fail","lane":"<名>","gen":<n>}`，由 `App.dispatchInternal` 交给 `lane.State.Control`，不进 Router 和 `OnMessage`；`gen` 不是当前世代的丢弃。Go 只在 `ready` 之后往该通道发。JS 每个方向按 `list` 顺序一次启动一个模块，前一个失败才试下一个。
+- **打开方等 `accept`**：流的打开方收到 `accept` 之前不把字节帧放上快速通道（否则包可能先于 `open` 到达、被当成未知流丢掉）；接收方可以立即用。Go、JS 规则相同。
+- **导航**：`SurfaceNavigating` 时暂停下行通道（`SendBinary` false、`BinaryMinSize` -1、结束 `down:scheme` 响应）直到下次 `hello`，上行保留；核心导航到、或页面加载完成于资源来源以外时整个世代作废（`lane.State.Reset`）。上行包（`OnLanePacket`、`up:post`）只接受资源来源。
+- **丢帧**：通道一出错，该方向立即停用，后续帧走消息通道。接收方有乱序帧缓存（或 `end`/`close`/`error` 在等之前的帧）而期待的那一帧连续 5 秒（`ipc.GapTimeout` / JS `GAP_TIMEOUT_MS`）没到，该流以 `transport` 失败，照常通知对端。不重传。
+- **边界（`boundary`）**：每个通道帧发出后，发送方在消息通道上发 `boundary`（`seq` = 该帧序号 + 1），所以即使双工流丢的是最后一帧、之后没有数据也没有 `end`，接收方也能发现；只有接收序号确实没补齐的流在 5 秒后失败，其他流不受牵连。JS 在帧**真正发出**时才发 `boundary`（`up:post`：所在批次交给 `fetch` 时，不是排进队列时），同一条流之后经消息通道发的帧（JSON 或字节数据、`end`、`close`）也等它之前的通道帧发出后才发，页面主线程卡住时 Go 不会因为还排在页面里的帧提前开始计时。JS 的缺口计时器和 `up:post` 的请求计时器若晚触发超过 1 秒（主线程卡顿），用完整超时重新计时一次，第二次到期照常失败。中止路径（writable abort、被拒的写入、`cancel()`、本地出错，`_close`）的 `close`/`error` 仍立即发出，卡顿超过 5 秒时 Go 可能报 `transport` 而不是中止原因。
+- **请求约束**：通道交付绑定文档会话（世代）。`up:post` 每个请求 4 秒超时（低于 5 秒的缺口超时：卡住的 POST 先让通道失败、后续帧回退）；连同在途包在内保留的编码字节最多 8 MiB，超出的帧不改 seq 和信用、直接走消息通道。请求只相对文档的真实位置解析（不受 HTML `<base>` 影响），拒绝重定向。
+- **故障注入**（只在 `tango_dev` 构建）：`TANGO_IPC_LANE_FAULT=<通道名>:<N>`，该通道在每个世代成功发送（下行）/接收（上行）N 个数据包后进入故障（空包 `count=0` 不计：`down:scheme` 开头的 `[0,0]`、`up:post` 的启动探测；故障后的通道照样拒绝空包，探测因此失败），之后的包被拒绝/丢弃，按通道坏掉处理；格式不对时 `slog.Warn` 后忽略。各平台计划的"通道中途坏掉"验收用它。
+- **诊断**：页面里 `tango.lanes()` 返回 `{down, up}`，没有通道的方向是 `"fallback"`；`examples/duplex -bench` 的 `lane` 字段就是它。
 
 ## 能力包
 

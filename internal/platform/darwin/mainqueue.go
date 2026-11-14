@@ -26,6 +26,13 @@ func runOnMain(fn func()) {
 		withPool(fn)
 		return
 	}
+	postMain(fn)
+}
+
+// postMain queues fn for the next turn of the main run loop, even when
+// called on the main thread (unlike runOnMain). Functions run in the order
+// they were posted. Any thread.
+func postMain(fn func()) {
 	mainQueue.mu.Lock()
 	mainQueue.fns = append(mainQueue.fns, fn)
 	mainQueue.mu.Unlock()

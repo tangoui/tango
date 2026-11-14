@@ -48,7 +48,7 @@
 
   <section id="stream">
     <h2>流</h2>
-    <p class="hint"><code>for await</code> 消费 Go 产生的 <code>Showcase.Ticker</code>：每条是 Go 运行时的堆大小和 goroutine 数。发送方按 64 条窗口背压；跳出循环会在 Go 侧取消。</p>
+    <p class="hint"><code>for await</code> 消费 Go 产生的 <code>Showcase.Ticker</code>：每条是 Go 运行时的堆大小和 goroutine 数。背压按字节计：每个方向一个信用窗口（默认 1 MiB，每条计负载加 64 字节），页面读走才归还，Go 的 <code>Write</code> 等信用；跳出循环会在 Go 侧取消。</p>
     <div class="row">
       <button id="st-start">开始</button>
       <button id="st-stop" class="ghost" disabled>停止（取消）</button>

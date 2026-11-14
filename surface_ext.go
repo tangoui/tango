@@ -384,6 +384,9 @@ func (s *Surface) handleExtEvent(ev platform.SurfaceEvent) {
 		// next one has loaded instead of evaluating them in a page that is
 		// unloading.
 		s.loaded = false
+		// Likewise no fast lane bytes for whatever page comes next until
+		// it says hello (lanes.go).
+		s.lane.SuspendDown()
 		s.ext.navSeq++
 		fire(s, &s.ext.onNavigating, func(fn func(string)) { fn(ev.URL) })
 	case platform.SurfaceLoadFailed:

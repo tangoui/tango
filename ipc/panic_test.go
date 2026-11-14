@@ -31,7 +31,7 @@ func TestHandlerPanicReported(t *testing.T) {
 		t.Fatalf("report = %+v", p)
 	}
 
-	send(t, r, c, `{"tango":"stream","id":3,"op":"open","method":"Svc.Flow","args":[]}`)
+	openJS(t, r, c, 3, "Svc.Flow")
 	if o := c.next(t); o.Op != "error" || o.Error == nil || o.Error.Message != "panic: flow" {
 		t.Fatalf("stream reply = %+v", o)
 	}

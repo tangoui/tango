@@ -534,6 +534,8 @@ type Surface struct {
 	evals    []string
 	focuses  int
 	devtools int
+	laneCaps []string // SetLaneCaps
+	lanePkts [][]byte // SendLanePacket
 }
 
 func (s *Surface) Show() { s.b.mustMain("Show"); s.mu.Lock(); s.visible = true; s.mu.Unlock() }
@@ -621,3 +623,61 @@ func (s *Surface) Navigations() []string {
 
 // Evals returns every script passed to Eval, in order.
 func (s *Surface) Evals() []string { s.mu.Lock(); defer s.mu.Unlock(); return slices.Clone(s.evals) }
+
+// ---- IPC fast lanes (platform.BinaryLane, platform.LaneHost) ----
+
+var _ platform.BinaryLane = (*Surface)(nil)
+
+// SetLaneCaps sets what surface id's LaneCaps reports. Any goroutine.
+func (b *Backend) SetLaneCaps(id platform.SurfaceID, caps []string) {
+	if s := b.Surface(id); s != nil {
+		s.mu.Lock()
+		s.laneCaps = slices.Clone(caps)
+		s.mu.Unlock()
+	}
+}
+
+// LanePackets returns copies of the packets the core sent on surface id's
+// platform lane (SendLanePacket), in order.
+func (b *Backend) LanePackets(id platform.SurfaceID) [][]byte {
+	s := b.Surface(id)
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([][]byte, len(s.lanePkts))
+	for i, p := range s.lanePkts {
+		out[i] = slices.Clone(p)
+	}
+	return out
+}
+
+// LaneUp simulates surface id's page at origin sending p on a platform
+// upstream lane: it calls the host's OnLanePacket on the calling goroutine,
+// as a backend's lane thread would. It does nothing if the host is not a
+// platform.LaneHost.
+func (b *Backend) LaneUp(id platform.SurfaceID, origin string, p []byte) {
+	if lh, ok := b.h.(platform.LaneHost); ok {
+		lh.OnLanePacket(id, origin, p)
+	}
+}
+
+// LaneCaps implements platform.BinaryLane (any goroutine).
+func (s *Surface) LaneCaps() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.laneCaps)
+}
+
+// SendLanePacket implements platform.BinaryLane (any goroutine): it records
+// p, refusing it once the surface is closed.
+func (s *Surface) SendLanePacket(p []byte) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return false
+	}
+	s.lanePkts = append(s.lanePkts, p)
+	return true
+}

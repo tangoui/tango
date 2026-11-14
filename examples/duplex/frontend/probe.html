@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tango Duplex</title>
+<style>
+  body { font: 14px -apple-system, "Segoe UI", sans-serif; margin: 24px 32px; }
+  pre { background: #f5f5f5; border-radius: 6px; padding: 8px 10px; }
+</style>
+</head>
+<body>
+<h1>WebKit streaming probe</h1>
+<p>Fetches <code>/__tango/probe/stream</code> (answered by the backend itself
+when the app runs with <code>TANGO_SCHEME_PROBE=1</code>: 8 chunks of 1 KiB,
+200 ms apart) and records when each chunk reaches the page's
+<code>ReadableStream</code>. The result is <code>window.__probe</code>.</p>
+<pre id="out">running…</pre>
+<script>
+// Kept in step with examples/duplex-ios/web/selftest.js (runProbe).
+(async () => {
+  const p = { chunks: [], done: false };
+  window.__probe = p;
+  const t0 = performance.now();
+  try {
+    const res = await fetch("/__tango/probe/stream", { cache: "no-store" });
+    p.status = res.status;
+    p.head = Math.round(performance.now() - t0); // response head reached the page
+    const reader = res.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      p.chunks.push({ t: Math.round(performance.now() - t0), n: value.byteLength });
+    }
+  } catch (e) {
+    p.error = String(e && e.message || e);
+  }
+  p.bytes = p.chunks.reduce((a, c) => a + c.n, 0);
+  p.done = true;
+  document.getElementById("out").textContent = JSON.stringify(p, null, 1);
+})();
+</script>
+</body>
+</html>

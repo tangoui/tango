@@ -37,9 +37,16 @@ void tg_surface_eval(uint64_t sid, const char *js);
 uintptr_t tg_surface_native(uint64_t sid);
 
 // Asset scheme tasks (tango://). task is the handle given to tangoIOSTaskStart.
+// Main thread; each copies what it is given before it returns, and does
+// nothing once WebKit stopped the task or it finished.
 void tg_task_respond(uint64_t task, int status, const char *headers); // "Key: value\n" lines
 void tg_task_data(uint64_t task, const void *p, size_t n);
 void tg_task_finish(uint64_t task);
+
+// tg_task_kick (any thread, never blocks) queues a block on the main run
+// loop in the common modes that calls tangoIOSTaskDrain(task) (Go), which
+// makes the task's queued tg_task_respond / _data / _finish calls in order.
+void tg_task_kick(uint64_t task);
 
 // Clipboard.
 char *tg_clipboard_read(void); // NULL when the pasteboard holds no text

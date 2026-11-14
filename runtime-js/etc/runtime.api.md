@@ -5,9 +5,6 @@
 ```ts
 
 // @public
-export const ACK_EVERY = 16;
-
-// @public
 function all(): Promise<Display[]>;
 
 declare namespace App {
@@ -62,17 +59,27 @@ export interface Client {
     call<T = unknown>(method: string, ...args: unknown[]): Promise<T>;
     // (undocumented)
     emit(name: string, data?: unknown): void;
+    lanes(): {
+        down: string;
+        up: string;
+    };
     // (undocumented)
     on(name: string, fn: (data: any) => void): () => void;
     onRaw(fn: (msg: string) => void): () => void;
     onStream(name: string, fn: StreamHandler): () => void;
     // (undocumented)
     postRaw(msg: string): void;
+    socket(method: string, ...args: unknown[]): TangoSocket;
     // (undocumented)
     stream<T = unknown>(method: string, ...args: unknown[]): TangoStream<T>;
 }
 
-declare namespace Clipboard {
+// @public
+export interface ClientOptions {
+    gapTimeoutMs?: number;
+}
+
+declare namespace Clipboard_2 {
     export {
         readText,
         writeText,
@@ -84,7 +91,7 @@ declare namespace Clipboard {
 }
 
 // @public
-function close(): Promise<void>;
+function close_2(): Promise<void>;
 
 // @public (undocumented)
 interface Cookie {
@@ -108,7 +115,7 @@ interface Cookie {
 function cookies(url?: string): Promise<Cookie[]>;
 
 // @public
-export function createClient(bridge: Bridge): Client;
+export function createClient(bridge: Bridge, opts?: ClientOptions): Client;
 
 // @public
 function current(): Promise<Display>;
@@ -117,12 +124,15 @@ function current(): Promise<Display>;
 type DataKind = "cookies" | "cache" | "storage" | "all";
 
 // @public
+export const DEFAULT_WINDOW_BYTES = 1048576;
+
+// @public
 function deleteCookie(cookie: Pick<Cookie, "name" | "domain" | "path">): Promise<void>;
 
 declare namespace Dialog {
     export {
         message,
-        open,
+        open_2 as open,
         save,
         MessageKind,
         MessageOptions,
@@ -255,10 +265,16 @@ interface FindResult {
 }
 
 // @public
-function focus(): Promise<void>;
+function focus_2(): Promise<void>;
+
+// @public
+export const FRAME_OVERHEAD = 64;
 
 // @public
 function fullscreen(): Promise<void>;
+
+// @public
+export const GAP_TIMEOUT_MS = 5000;
 
 // @public
 function get(): Promise<Theme_2>;
@@ -292,6 +308,15 @@ function isFocused(): Promise<boolean>;
 
 // @public
 function isVisible(): Promise<boolean>;
+
+// @public
+export function lanes(): {
+    down: string;
+    up: string;
+};
+
+// @public
+export const MAX_FRAME_BYTES = 16777216;
 
 // @public
 function maximize(): Promise<void>;
@@ -361,7 +386,7 @@ function minimize(): Promise<void>;
 function next<T = any>(name: string): Promise<T>;
 
 // @public (undocumented)
-interface Notification {
+interface Notification_2 {
     // (undocumented)
     body?: string;
     silent?: boolean;
@@ -375,7 +400,7 @@ declare namespace Notify {
         requestPermission,
         send,
         onClick,
-        Notification
+        Notification_2 as Notification
     }
 }
 
@@ -440,7 +465,7 @@ export function onStream(name: string, fn: StreamHandler): () => void;
 function onVarsChange(fn: (vars: Vars) => void): () => void;
 
 // @public
-function open(opts?: OpenOptions): Promise<string[]>;
+function open_2(opts?: OpenOptions): Promise<string[]>;
 
 // @public
 function openDevTools(): Promise<void>;
@@ -489,10 +514,13 @@ export function postRaw(msg: string): void;
 function primary(): Promise<Display>;
 
 // @public
-function print(): Promise<void>;
+function print_2(): Promise<void>;
 
 // @public
 function printToPDF(options?: PDFOptions): Promise<string>;
+
+// @public
+export const PROTO_VERSION = 2;
 
 // @public
 function quit(): Promise<void>;
@@ -566,7 +594,7 @@ interface SecondInstance {
 }
 
 // @public
-function send(n: Notification): Promise<string>;
+function send(n: Notification_2): Promise<string>;
 
 // @public
 function setAlwaysOnTop(on: boolean): Promise<void>;
@@ -642,6 +670,9 @@ interface SizeLimits {
 }
 
 // @public
+export function socket(method: string, ...args: unknown[]): TangoSocket;
+
+// @public
 function state(): Promise<WindowState>;
 
 // @public
@@ -660,12 +691,64 @@ export class TangoError extends Error {
     readonly code: ErrorCode;
 }
 
+// Warning: (ae-forgotten-export) The symbol "Base" needs to be exported by the entry point index.d.ts
+//
 // @public
-export interface TangoStream<T = unknown> extends AsyncIterable<T> {
+export class TangoSocket extends Base {
+    constructor(method: string, open: () => TangoStream<unknown>);
+    // (undocumented)
+    get binaryType(): "arraybuffer" | "blob";
+    set binaryType(v: "arraybuffer" | "blob");
+    // (undocumented)
+    get bufferedAmount(): number;
+    close(code?: number, reason?: string): void;
+    // (undocumented)
+    static readonly CLOSED = 3;
+    // (undocumented)
+    readonly CLOSED = 3;
+    // (undocumented)
+    static readonly CLOSING = 2;
+    // (undocumented)
+    readonly CLOSING = 2;
+    // (undocumented)
+    static readonly CONNECTING = 0;
+    // (undocumented)
+    readonly CONNECTING = 0;
+    // (undocumented)
+    onclose: ((e: CloseEvent) => void) | null;
+    // (undocumented)
+    onerror: ((e: Event) => void) | null;
+    // (undocumented)
+    onmessage: ((e: MessageEvent) => void) | null;
+    // (undocumented)
+    onopen: ((e: Event) => void) | null;
+    // (undocumented)
+    static readonly OPEN = 1;
+    // (undocumented)
+    readonly OPEN = 1;
+    // (undocumented)
+    get readyState(): number;
+    // (undocumented)
+    send(data: string | ArrayBuffer | ArrayBufferView | Blob): void;
+    // (undocumented)
+    readonly url: string;
+}
+
+// @public
+export interface TangoStream<T = unknown> extends AsyncIterable<T | Uint8Array> {
+    readonly accepted: Promise<{
+        in: boolean;
+    }>;
+    readonly bufferedAmount: number;
     // (undocumented)
     cancel(): void;
+    end(): void;
     // (undocumented)
     readonly id: number;
+    readonly readable: ReadableStream<T | Uint8Array>;
+    send(v: unknown): Promise<void>;
+    sendBytes(b: Uint8Array | ArrayBuffer | ArrayBufferView): Promise<void>;
+    readonly writable: WritableStream<unknown>;
 }
 
 declare namespace Theme {
@@ -723,10 +806,7 @@ declare namespace Web {
     }
 }
 
-// @public
-export const WINDOW = 64;
-
-declare namespace Window {
+declare namespace Window_2 {
     export {
         id,
         setTitle,
@@ -749,12 +829,12 @@ declare namespace Window {
         isAlwaysOnTop,
         show,
         hide,
-        focus,
-        close,
+        focus_2 as focus,
+        close_2 as close,
         zoom,
         setZoom,
         reload,
-        print,
+        print_2 as print,
         openDevTools,
         title,
         isVisible,

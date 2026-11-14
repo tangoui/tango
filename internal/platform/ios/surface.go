@@ -29,6 +29,7 @@ type surface struct {
 	cv     *canvas // canvas pages (canvas.go): no web view; nil for WebView pages
 
 	overlays []*overlay // canvases attached to the WebView page (canvas_attach.go)
+	laneCaps []string   // fast lanes of a WebView page, fixed at creation (lanes_ios.go)
 }
 
 func (b *backend) newSurface(id platform.SurfaceID, opts platform.SurfaceOptions) (*surface, error) {
@@ -38,7 +39,7 @@ func (b *backend) newSurface(id platform.SurfaceID, opts platform.SurfaceOptions
 // newSurfaceUA is newSurface with a custom User-Agent set before the first
 // request ("" keeps WebKit's); see NewSurfaceWeb in webview_ext.go.
 func (b *backend) newSurfaceUA(id platform.SurfaceID, opts platform.SurfaceOptions, ua string) (*surface, error) {
-	s := &surface{b: b, id: id}
+	s := &surface{b: b, id: id, laneCaps: envLaneCaps()} // read once, before the core can ask
 	shim, f1 := cstring(nativeShim + bodyShim)
 	defer f1()
 	bridge, f2 := cstring(opts.BridgeScript)

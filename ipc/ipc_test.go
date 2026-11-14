@@ -28,6 +28,13 @@ type out struct {
 	Error  *Error          `json:"error"`
 	Name   string          `json:"name"`
 	Data   json.RawMessage `json:"data"`
+	Proto  int             `json:"proto"`
+	Win    int             `json:"win"`
+	Seq    uint64          `json:"seq"`
+	C      int             `json:"c"`
+	Bin    *string         `json:"bin"`
+	B      int             `json:"b"`
+	In     *bool           `json:"in"`
 }
 
 func (f *fakeConn) next(t *testing.T) out {
@@ -185,7 +192,10 @@ func TestHelloResetsConnection(t *testing.T) {
 	r.Handle("Ping", func(context.Context, json.RawMessage) (any, error) { return "pong", nil })
 	send(t, r, c, `{"tango":"call","id":1,"method":"Wait"}`)
 	<-started
-	send(t, r, c, `{"tango":"hello"}`)
+	send(t, r, c, `{"tango":"hello","proto":2}`)
+	if o := c.next(t); o.Tango != "hello" || o.Proto != ProtoVersion || o.Error != nil {
+		t.Fatalf("hello reply %+v", o)
+	}
 	send(t, r, c, `{"tango":"call","id":1,"method":"Ping"}`)
 	if o := c.next(t); string(o.Result) != `"pong"` {
 		t.Fatalf("got %+v", o)
@@ -224,55 +234,19 @@ func TestEvents(t *testing.T) {
 	}
 }
 
-func TestStreamBackpressure(t *testing.T) {
-	r := NewRouter()
-	c := newFake()
-	const total = 200
-	progress := make(chan int, total)
-	r.HandleStream("Count", func(ctx context.Context, args json.RawMessage, w StreamWriter) error {
-		for i := 0; i < total; i++ {
-			if err := w.Write(i); err != nil {
-				return err
-			}
-			progress <- i
-		}
-		return nil
-	})
-	send(t, r, c, `{"tango":"stream","id":3,"op":"open","method":"Count","args":[]}`)
-
-	recv := 0
-	readData := func(n int) {
-		for i := 0; i < n; i++ {
-			o := c.next(t)
-			if o.Op != "data" || o.ID != 3 || string(o.Data) != fmt.Sprint(recv) {
-				t.Fatalf("at %d got %+v", recv, o)
-			}
-			recv++
+// drainData reads n data messages for stream id.
+func drainData(t *testing.T, c *fakeConn, id uint64, n int) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		if o := c.next(t); o.Op != "data" || o.ID != id || o.Seq != uint64(i) {
+			t.Fatalf("frame %d: got %+v", i, o)
 		}
 	}
-	readData(DefaultWindow)
-	c.none(t, 50*time.Millisecond) // window full: producer blocked
-	if len(progress) != DefaultWindow {
-		t.Fatalf("producer wrote %d, want %d", len(progress), DefaultWindow)
-	}
-	send(t, r, c, `{"tango":"stream","id":3,"op":"ack","n":16}`)
-	readData(16)
-	c.none(t, 50*time.Millisecond)
-	for recv < total {
-		send(t, r, c, `{"tango":"stream","id":3,"op":"ack","n":16}`)
-		n := min(16, total-recv)
-		readData(n)
-	}
-	if o := c.next(t); o.Op != "end" || o.ID != 3 {
-		t.Fatalf("got %+v", o)
-	}
-	// Late acks for a finished stream are ignored.
-	send(t, r, c, `{"tango":"stream","id":3,"op":"ack","n":16}`)
-	c.none(t, 20*time.Millisecond)
 }
 
 func TestStreamCancel(t *testing.T) {
 	r := NewRouter()
+	setJSSendWindow(r, 4096)
 	c := newFake()
 	result := make(chan error, 1)
 	r.HandleStream("Forever", func(ctx context.Context, _ json.RawMessage, w StreamWriter) error {
@@ -283,10 +257,9 @@ func TestStreamCancel(t *testing.T) {
 			}
 		}
 	})
-	send(t, r, c, `{"tango":"stream","id":5,"op":"open","method":"Forever"}`)
-	for i := 0; i < DefaultWindow; i++ {
-		c.next(t)
-	}
+	openJS(t, r, c, 5, "Forever")
+	drainData(t, c, 5, 4096/67) // `"x"` costs 3+64 = 67
+	c.none(t, 50*time.Millisecond)
 	send(t, r, c, `{"tango":"stream","id":5,"op":"cancel"}`)
 	select {
 	case err := <-result:
@@ -297,11 +270,12 @@ func TestStreamCancel(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("blocked Write not released by cancel")
 	}
-	c.none(t, 50*time.Millisecond) // no end/error after cancel
+	c.none(t, 50*time.Millisecond) // no close/error after cancel
 }
 
 func TestStreamDropReleasesWriter(t *testing.T) {
 	r := NewRouter()
+	setJSSendWindow(r, 4096)
 	c := newFake()
 	result := make(chan error, 1)
 	r.HandleStream("Forever", func(ctx context.Context, _ json.RawMessage, w StreamWriter) error {
@@ -312,9 +286,13 @@ func TestStreamDropReleasesWriter(t *testing.T) {
 			}
 		}
 	})
-	send(t, r, c, `{"tango":"stream","id":7,"op":"open","method":"Forever"}`)
-	for i := 0; i < DefaultWindow; i++ {
-		c.next(t)
+	openJS(t, r, c, 7, "Forever")
+	drainData(t, c, 7, 4096/65)
+	c.none(t, 50*time.Millisecond) // the writer is blocked on credit
+	select {
+	case err := <-result:
+		t.Fatalf("Write returned before Drop: %v", err)
+	default:
 	}
 	r.Drop(c)
 	select {
@@ -332,21 +310,24 @@ func TestStreamErrorsAndNotFound(t *testing.T) {
 		w.Write("a")
 		return NewError(CodeBadArgs, "bad")
 	})
-	send(t, r, c, `{"tango":"stream","id":9,"op":"open","method":"Fail","args":[]}`)
+	openJS(t, r, c, 9, "Fail")
 	if o := c.next(t); o.Op != "data" {
 		t.Fatalf("got %+v", o)
 	}
-	if o := c.next(t); o.Op != "error" || o.Error == nil || o.Error.Code != CodeBadArgs {
+	if o := c.next(t); o.Op != "error" || o.Seq != 1 || o.Error == nil || o.Error.Code != CodeBadArgs {
 		t.Fatalf("got %+v", o)
 	}
+	// Not found: error without accept.
 	send(t, r, c, `{"tango":"stream","id":11,"op":"open","method":"Nope"}`)
 	if o := c.next(t); o.ID != 11 || o.Op != "error" || o.Error.Code != CodeNotFound {
 		t.Fatalf("got %+v", o)
 	}
+	c.none(t, 20*time.Millisecond)
 }
 
 func TestGoOpenedStream(t *testing.T) {
 	r := NewRouter()
+	setJSSendWindow(r, 4096)
 	c := newFake()
 	s, err := r.OpenStream(c, "news", "sports", 3)
 	if err != nil {
@@ -361,28 +342,33 @@ func TestGoOpenedStream(t *testing.T) {
 		t.Fatalf("second id/args: %+v", o)
 	}
 
-	for i := 0; i < DefaultWindow; i++ {
-		if err := s.Write(i); err != nil {
+	// Three 1064-byte frames fit in 4096; the fourth must wait.
+	for i := uint64(0); i < 3; i++ {
+		if err := s.WriteBytes(make([]byte, 1000)); err != nil {
 			t.Fatal(err)
 		}
-		c.next(t)
+		expectData(t, c, 2, i, 1064)
 	}
 	blocked := make(chan error, 1)
-	go func() { blocked <- s.Write("over") }()
-	select {
-	case <-blocked:
-		t.Fatal("Write did not block at window")
-	case <-time.After(50 * time.Millisecond):
+	go func() { blocked <- s.WriteBytes(make([]byte, 1000)) }()
+	waitBlocked := func(why string) {
+		t.Helper()
+		select {
+		case err := <-blocked:
+			t.Fatalf("Write did not block (%s): %v", why, err)
+		case <-time.After(50 * time.Millisecond):
+		}
 	}
-	send(t, r, c, `{"tango":"stream","id":2,"op":"ack","n":1}`)
+	waitBlocked("window full")
+	send(t, r, c, `{"tango":"stream","id":2,"op":"ack","b":1}`) // in flight 3191: 3191+1064 > 4096
+	waitBlocked("ack too small")
+	send(t, r, c, `{"tango":"stream","id":2,"op":"ack","b":159}`) // in flight 3032: exact fit
 	if err := <-blocked; err != nil {
 		t.Fatal(err)
 	}
-	if o := c.next(t); string(o.Data) != `"over"` {
-		t.Fatalf("got %+v", o)
-	}
+	expectData(t, c, 2, 3, 1064)
 	s.Close()
-	if o := c.next(t); o.Op != "end" || o.ID != 2 {
+	if o := c.next(t); o.Op != "close" || o.ID != 2 || o.Seq != 4 {
 		t.Fatalf("got %+v", o)
 	}
 	if err := s.Write(1); err == nil {

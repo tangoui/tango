@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/tangoui/tango/internal/lane"
 	"github.com/tangoui/tango/internal/platform"
 )
 
@@ -70,6 +71,9 @@ type Surface struct {
 
 	ext surfaceExt // round-2 window state and handlers; surface_ext.go
 	web surfaceWeb // round-4 WebView state and handlers; webview.go
+
+	lane  *lane.State  // IPC fast lanes (any goroutine); lanes.go
+	lanes surfaceLanes // their wiring to the native surface; lanes.go
 }
 
 // NewSurface creates a surface. Safe from any goroutine once the app runs;
@@ -123,9 +127,13 @@ func (a *App) createSurface(opts SurfaceOptions) (*Surface, error) {
 func (a *App) addSurface(opts SurfaceOptions, navOrigin string, extrasTaken bool, create func(s *Surface) (platform.Surface, error)) (*Surface, error) {
 	a.mu.Lock()
 	a.nextID++
-	s := &Surface{app: a, id: a.nextID, navOrigin: navOrigin, title: opts.Title, visible: !opts.Hidden}
+	id := a.nextID
+	a.mu.Unlock()
+	s := &Surface{app: a, id: id, navOrigin: navOrigin, title: opts.Title, visible: !opts.Hidden}
+	s.initLanes(navOrigin) // outside a.mu: lane.New may log
 	// Registered before the backend call: a backend may emit events for
 	// the surface while creating it.
+	a.mu.Lock()
 	a.surfaces[s.id] = s
 	a.mu.Unlock()
 	ns, err := create(s)
@@ -140,6 +148,7 @@ func (a *App) addSurface(opts SurfaceOptions, navOrigin string, extrasTaken bool
 		return s, nil
 	}
 	s.ns = ns
+	s.setLaneNative(ns)
 	s.afterCreate(opts, extrasTaken)
 	s.flush()
 	a.surfaceCreated(s)
@@ -279,6 +288,7 @@ func (s *Surface) Navigate(u string) {
 		s.loaded = false
 		s.navOrigin = originOf(abs)
 		s.noteCoreNav(abs)
+		s.lanesLeaving(s.navOrigin) // lanes.go
 		s.ns.Navigate(abs)
 	})
 }
@@ -396,6 +406,8 @@ func (s *Surface) handleClosed() {
 	}
 	s.pending = nil
 	s.loaded = false
+	s.lane.Close()
+	s.setLaneNative(nil)
 	a := s.app
 	a.mu.Lock()
 	delete(a.surfaces, s.id)
@@ -420,6 +432,8 @@ func (s *Surface) handleLoaded(u string) {
 	// elsewhere) gets no messages; they wait for a trusted page.
 	s.loaded = u == "" || s.trusts(originOf(u))
 	s.notePageLoaded(u) // webview.go: source of downloads and permission requests
+	s.noteLaneOrigin(s.web.pageOrigin)
+	s.lanesLeaving(s.web.pageOrigin) // lanes.go
 	s.onLoadedExt()
 	s.flush()
 	s.mu.Lock()

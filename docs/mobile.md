@@ -101,8 +101,26 @@ Go 运行时在 `TangoStart` 之前就已由 c-archive 的加载初始化启动�
 ### JS 桥与资源
 
 - 文档开始时注入 `window.__tangoNative={post:s=>webkit.messageHandlers.tango.postMessage(String(s))}`，随后注入核心的 BridgeScript。只接受主框架的消息，origin 取自 `WKSecurityOrigin`。
-- 资源 origin 为 `tango://app`，`WKURLSchemeHandler` 在主线程同步调用 `Host.ServeAsset`；响应体每 64 KiB 或 `Flush` 时交给 WebKit，handler 返回即结束。WebKit 取消任务时请求的 `Context` 被取消。
+- 资源 origin 为 `tango://app`。`WKURLSchemeHandler` 是**异步**的（与 macOS 后端相同）：`startURLSchemeTask` 在主线程读出请求（含请求体）后，`Host.ServeAsset`（即应用的 `Options.Assets`）在独立的 goroutine 里运行（每个请求一个，可能并发），不在主线程。所以慢的、大的或长时间不结束的响应（SSE、大文件）不会卡住界面。响应体每 64 KiB 或 `Flush` 时交给 WebKit，handler 返回即结束。写出端（`scheme_writer.go`）把响应排进每个任务自己的队列，经 `tg_task_kick`（主 run loop common modes 上的 block，不用主 dispatch 队列）在主线程按序调用 `WKURLSchemeTask`；主线程跟不上时 `Write`/`Flush` 会阻塞（背压）。WebKit 取消任务（`webView:stopURLSchemeTask:`）时，请求的 `r.Context()` 被取消，阻塞中的 `Write`/`Flush` 返回 `context.Canceled`，之后不再碰这个任务。
 - `didFinishNavigation` → `SurfaceLoaded`。
+
+### IPC 快速通道
+
+快速通道的整体说明见 [IPC：快速通道](../site/guide/concepts/ipc.md#快速通道)。iOS 与 macOS 提供的通道和取值含义相同，**但默认不同**：macOS 默认开启 `up:post`，iOS 默认关闭（只在模拟器上测过，等真机数据）。下面写的是 iOS：
+
+- **只提供 `up:post`**：流的上行字节帧以 `POST tango://app/__tango/lane/up`（ArrayBuffer 请求体）交给 Go。**下行仍走消息通道**：`down:scheme` 的小块确实逐块交付，但 WebKit 会扣住大块突发的一部分，直到同一响应上有新数据才交出（实测见 [规格 §6.2](specs/2026-11-13-ipc-duplex-streams.md)），所以不报告。
+- **iOS 默认关闭**，由环境变量 `TANGO_IPC_LANES_DARWIN` 控制，每个页面创建时读一次（任何构建都读；去掉首尾空白、不分大小写）：
+  - 未设置、空、`0`、`false`、`off`：关闭（iOS 默认，等真机测量；macOS 上未设置/空是开启）；
+  - `all`：`down:scheme` + `up:post`，**仅供实验**，大块下行会出现上述扣留，流可能以 `transport` 失败；
+  - 其他值（通常是 `1`）：`up:post`。
+  - `TANGO_IPC_LANES=0`（或 `tango.Options{DisableFastLanes: true}`）始终优先关闭。
+  - 模拟器上用 `SIMCTL_CHILD_TANGO_IPC_LANES_DARWIN=1 xcrun simctl launch …` 传给应用。
+  - 真机上没法从外部给应用传环境变量：在 Go 里、创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "1")`（每个页面创建时读一次，之后再改只影响新页面）。
+  - `all` 和测试钩子 `TANGO_SCHEME_PROBE` 只在带 `-tags tango_dev`（`tan dev`）或 `-tags tango_selftest`（`GOFLAGS=-tags=tango_selftest bash mobile/ios/build.sh …`，模拟器自测用）的构建里生效；生产构建里 `all` 等同 `1`，探测路由不编译进去。见 [开发功能与生产构建](dev-builds.md)。
+- iframe 拿不到通道令牌：`WKURLSchemeTask` 不提供发起请求的 frame，后端无法按 frame 拒绝，安全性依赖"令牌只经主框架的消息桥下发"（运行时只注入主框架，子框架的消息被丢弃）。macOS 上实测：沙箱 `srcdoc`、`data:` 等不透明来源的 frame 和同源 frame 发出的通道请求全部被拒，Go 侧没有收到任何包。同源 frame 本来就能访问 `parent.tango`，那是应用代码，不在此列。
+- WebKit 的 `tango://` 请求不带 `Origin`，后端用主文档的来源补上；所以应用页面里嵌的跨源 iframe 发往 `tango://app` 的请求能通过资源 CSRF 检查（原有行为，与通道无关；通道请求仍受每世代令牌保护）。不要在资源页面里嵌不可信的 frame。
+- `up:post` 只用 ArrayBuffer 作请求体，因为 WebKit 不交付 Blob 请求体（WebKit bug 197237）；`bodyshim.go` 对应用请求的 Blob/FormData 转换不受影响。
+- CSP：`up:post` 启动时先 POST 一个空包，收到 204 才就绪；页面 CSP 不允许 `connect-src` 到 `tango://app` 时探测被拒，这个页面不开通道，字节帧走消息通道，不报错。
 
 ### 生命周期
 
@@ -157,6 +175,8 @@ Go 运行时在 `TangoStart` 之前就已由 c-archive 的加载初始化启动�
 ### 已知限制
 
 - 真机只在一台 iPhone 12 Pro（iOS 27）上验证过，范围见上文"真机验证"；其他机型、iPad 与 App Store 发布流程未验证。
+- 异步协议处理器和 `up:post` 通道只在 iPhone 18 Pro 模拟器（iOS 27.2）上测过，真机上未测。
+- `up:post` 的"通道中途坏掉"场景（`TANGO_IPC_LANE_FAULT`）在 iOS 上没有自动化测试：故障注入只在 `tango_dev` 构建里生效，而 `tan dev` 不能单独产出 `tango_dev` 的 .app。回退路径与平台无关（核心与运行时共用），已在 macOS 的真实 WebKit 上验证。
 - 资源响应若是 3xx 重定向，WKURLSchemeHandler 不会跟随，页面空白。典型坑：`http.FileServer` 会把 `/index.html` 重定向到 `./`，所以 URL 用 `/` 而不是 `/index.html`（macOS 后端同样如此）。
 - 冷启动：iPhone 18 Pro 模拟器上从进程创建到首页 `didFinishNavigation` 约 1.2 s（8 次中位数；优化前 2.9 s）。两处优化：① `main` 之前的框架加载是主要瓶颈（PhotosUI 约 +2.5 s、StoreKit 约 +2 s、Photos/AVFoundation 各 +0.3–0.4 s），这些框架不再链接，`mobile.m`/`mobile2.m` 首次使用时 `dlopen`（StoreKit 在后台线程加载）；② `TangoStart` 时预热首个页面的 `WKWebView`（加载空文档，提前拉起 WebContent/Networking 进程），`tg_surface_new` 直接接管——页面级的 `WKWebViewConfiguration` 设置因此都要写在 `bridge.m` 的 `pageWebView()` 里。`TANGO_TRACE_STARTUP=1` 输出各阶段耗时（`TangoStart`、首次 Drain、WebView 创建、首个 `tango://` 请求、`didFinish`），`TANGO_NO_PREWARM=1` 关闭预热以便对比。
 - `tango://` 是自定义 scheme，WebKit 不为它保存 cookie，`Set-Cookie` 不生效、请求不带 `Cookie`；`tg_task_respond` 的响应头同名只保留最后一个。需要会话时用 JS 桥或 `Authorization` 头。

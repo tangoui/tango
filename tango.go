@@ -82,6 +82,12 @@ type Options struct {
 	// builds (-tags tango_dev), and in production builds (the default)
 	// show an error dialog and exit with status 2.
 	OnPanic func(p Panic) (keepRunning bool)
+
+	// DisableFastLanes turns IPC fast lanes off: stream byte frames always
+	// go on the message channel, as when the backend has no lanes. The
+	// environment variable TANGO_IPC_LANES=0 does the same in any build,
+	// for troubleshooting. See App.OnBinary.
+	DisableFastLanes bool
 }
 
 // Lifecycle is an application lifecycle event.
@@ -118,6 +124,7 @@ type App struct {
 	onReady  []func()
 	onLife   []func(Lifecycle)
 	onMsg    []func(*Surface, string)
+	onBin    []func(*Surface, uint64, []byte) // fast lane packets; lanes.go
 	onNew    []func(*Surface)
 	onPrep   []func(*SurfaceOptions) // internal: adjust options before a surface is created (hooks.go)
 	scripts  []string
@@ -151,6 +158,8 @@ func newWithBackend(opts Options, b platform.Backend) *App {
 		surfaces: map[platform.SurfaceID]*Surface{},
 	}
 	a.loop.app = a
+	// Fast lane control messages from runtime-js; lanes.go.
+	a.handleInternal(laneChannel, func(s *Surface, p string) { s.lane.Control(p) })
 	devfeat.AttachWindowState(a) // tan dev window placement; internal/devfeat
 	devfeat.AttachAutomation(a)  // TANGO_AUTOMATION control channel; internal/devfeat
 	return a
@@ -202,6 +211,7 @@ func (a *App) shutdown() {
 	a.mu.Unlock()
 	for _, s := range ss {
 		s.closed.Store(true)
+		s.lane.Close() // ends a down:scheme response still open; lanes.go
 	}
 }
 
@@ -378,6 +388,7 @@ func (h host) OnMessage(id platform.SurfaceID, origin, msg string) {
 	if s == nil || !s.trusts(origin) {
 		return
 	}
+	s.noteLaneOrigin(origin) // the page a hello comes from; lanes.go
 	if a.dispatchInternal(s, msg) {
 		return
 	}
@@ -392,6 +403,10 @@ func (h host) OnMessage(id platform.SurfaceID, origin, msg string) {
 // ServeAsset may run on any thread (contract round 2), so it must not claim
 // the main thread via enterMain.
 func (h host) ServeAsset(id platform.SurfaceID, w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, lanePathPrefix) {
+		h.a.serveLane(id, w, r) // lanes.go
+		return
+	}
 	if h.a.opts.Assets == nil {
 		http.NotFound(w, r)
 		return

@@ -100,6 +100,8 @@ func main() {
 		}
 		r.HandleMessage(s, m)
 	})
+	// Byte frames on IPC fast lanes, when the page gets them.
+	app.OnBinary(func(s *tango.Surface, gen uint64, p []byte) { r.HandleBinarySession(s, gen, p) })
 	// Everything that leaves the window is off by default; turn on what
 	// the demo shows. Hotkeys and OpenPath stay off on purpose, so the page
 	// can show what a forbidden capability looks like.
@@ -348,8 +350,9 @@ func (s *Showcase) Canceled() int {
 func (s *Showcase) Notify() { s.sh.sendNotification("页面调用 Go") }
 
 // ticker is the Showcase.Ticker stream: count samples of the Go runtime,
-// one every intervalMs. Write blocks once 64 samples are unacknowledged, so
-// a slow page slows the producer down instead of piling up messages.
+// one every intervalMs. Write blocks while the stream's byte-credit window
+// (1 MiB by default, each sample charged its size plus 64 bytes) is full,
+// so a slow page slows the producer down instead of piling up messages.
 func (s *Showcase) ticker(ctx context.Context, args json.RawMessage, w ipc.StreamWriter) error {
 	var a []int
 	if err := json.Unmarshal(args, &a); err != nil || len(a) != 2 || a[0] < 1 || a[1] < 0 {
