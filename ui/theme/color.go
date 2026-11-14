@@ -179,8 +179,8 @@ func ParseHSB(s string) (HSVA, error) {
 }
 
 // ParseColor accepts any form a user may type into a color field: hex
-// (see ParseHex), CSS rgb()/rgba(), hsb()/hsv() (see ParseHSB), plus
-// "transparent".
+// (see ParseHex), CSS rgb()/rgba(), oklch() (see ParseOKLCH), hsb()/hsv()
+// (see ParseHSB), plus "transparent".
 func ParseColor(s string) (Color, error) {
 	t := strings.TrimSpace(s)
 	if strings.EqualFold(t, "transparent") {
@@ -188,6 +188,9 @@ func ParseColor(s string) (Color, error) {
 	}
 	if strings.HasPrefix(strings.ToLower(t), "rgb") {
 		return ParseRGB(t)
+	}
+	if strings.HasPrefix(strings.ToLower(t), "oklch") {
+		return ParseOKLCH(t)
 	}
 	if lt := strings.ToLower(t); strings.HasPrefix(lt, "hsb") || strings.HasPrefix(lt, "hsv") {
 		h, err := ParseHSB(t)
