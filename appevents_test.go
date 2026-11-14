@@ -193,6 +193,32 @@ func TestQuitOnLastClose(t *testing.T) {
 	}
 }
 
+// An Auxiliary surface (an update window, a palette) does not keep the
+// app running: closing the last ordinary surface quits it and closes the
+// auxiliary ones, and closing an auxiliary surface never quits while an
+// ordinary one is open.
+func TestQuitOnLastCloseIgnoresAuxiliary(t *testing.T) {
+	yes := true
+	fb := fake.New()
+	a := newWithBackend(Options{Name: "T", QuitOnLastClose: &yes}, fb)
+	runApp(t, a)
+	main, err := a.NewSurface(SurfaceOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	aux1, _ := a.NewSurface(SurfaceOptions{Auxiliary: true})
+	aux2, _ := a.NewSurface(SurfaceOptions{Auxiliary: true})
+	fb.RequestClose(aux1.ID())
+	if fb.Quits() != 0 {
+		t.Fatal("closing an auxiliary surface quit with the main one open")
+	}
+	fb.RequestClose(main.ID())
+	if fb.Quits() == 0 {
+		t.Fatal("an auxiliary surface kept the app running")
+	}
+	_ = aux2
+}
+
 // A framework listener (jsapi) registering before the app's own OnOpenURL
 // must not swallow the launch deep link: every listener registered during
 // launch sees it once, later listeners don't get it again.

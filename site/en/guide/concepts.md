@@ -120,7 +120,7 @@ app.OnOpenURL(func(u string) { route(u) })         // deep links
 app.OnOpenFiles(func(paths []string) { open(paths) })
 ```
 
-App-level notifications arrive through `App.OnEvent`: open URL, open files, theme changed, displays changed, reopen (macOS Dock click), notification opened, and on mobile safe area, orientation, push and WebView-restored events. The deep link that launched the app is kept until a listener is registered. `sys/single` forwards a second launch's arguments to the running instance. `Options.QuitOnLastClose` decides whether closing the last window quits (default: no on macOS, yes on Windows and Linux).
+App-level notifications arrive through `App.OnEvent`: open URL, open files, theme changed, displays changed, reopen (macOS Dock click), notification opened, and on mobile safe area, orientation, push and WebView-restored events. The deep link that launched the app is kept until a listener is registered. `sys/single` forwards a second launch's arguments to the running instance. `Options.QuitOnLastClose` decides whether closing the last window quits (default: no on macOS, yes on Windows and Linux); windows created with `SurfaceOptions{Auxiliary: true}` (an update window, a tool palette) do not count.
 
 ## Security model
 

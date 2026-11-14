@@ -197,7 +197,8 @@ func (a *App) quitOnLastClose() bool {
 }
 
 // afterSurfaceClosed runs on the main thread after a surface closed. When
-// it was the last one and the policy says so, the app quits. Like App.Quit
+// it was the last one that is not Auxiliary and the policy says so, the
+// app quits (closing the auxiliary ones). Like App.Quit
 // this does not ask OnQuitRequest: closing the window already went through
 // Surface.OnClose, and a cancelled quit would leave a windowless app with
 // no way back on Windows and Linux.
@@ -210,7 +211,12 @@ func (a *App) afterSurfaceClosed() {
 		return
 	}
 	a.mu.Lock()
-	n := len(a.surfaces)
+	n := 0
+	for _, s := range a.surfaces {
+		if !s.auxiliary {
+			n++
+		}
+	}
 	a.mu.Unlock()
 	if n > 0 {
 		return

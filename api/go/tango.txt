@@ -306,6 +306,7 @@ pkg github.com/tangoui/tango, type SurfaceKind int
 pkg github.com/tangoui/tango, type SurfaceOptions struct
 pkg github.com/tangoui/tango, type SurfaceOptions struct, AcceptFiles bool
 pkg github.com/tangoui/tango, type SurfaceOptions struct, Appearance Appearance
+pkg github.com/tangoui/tango, type SurfaceOptions struct, Auxiliary bool
 pkg github.com/tangoui/tango, type SurfaceOptions struct, Centered bool
 pkg github.com/tangoui/tango, type SurfaceOptions struct, Debug bool
 pkg github.com/tangoui/tango, type SurfaceOptions struct, Height int
