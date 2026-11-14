@@ -2,6 +2,7 @@
 
 > 扫描日期：2026-11-13
 > 复核：2026-11-13 晚，按当前代码逐行更新（Splitter/Dropdown/Menu/Tabs/Form/Slider/TimePicker/Transfer/Carousel/Descriptions/List/Tree/Drawer 等缺口已补，App、SettingDrawer、RouteContext/GridContent、ProFormGroup、CascaderPanel 已有实现，ProTable 补齐 params/polling/columnsState/alert 自定义，货币改为 ISO 代码；Defaults 接线重算为 106/164；计数见 1.2）
+> 稳定性验证：2026-11-14，HEAD `f3ba799`，Windows 实机；测试、截图、无障碍与镜像检查全部通过（见 1.2 末尾与第 5 节）
 > 范围：`ui/` 包，以及 `ui/chart`、`ui/mobile`、`ui/editor` 子包
 > 对标：Ant Design v6、Element Plus、Ant Design Pro Components
 
@@ -32,6 +33,14 @@
 | Pro Components | 28 | 27 | 1 | 0 | 28：21 / 7 / 0 |
 
 2026-11-14 补齐：剩下的"部分"是 ConfigProvider（`Defaults` 接线，Ant、Element 各一行）和 FooterToolbar（毛玻璃，需要渲染层的背景模糊）。另按 shadcn/ui 新增 Menubar、AspectRatio、Item。
+
+**稳定性验证（2026-11-14，HEAD `f3ba799`，Windows）**：上表全部 ✅ 组件（含当天补齐的 Button/ButtonGroup、Steps、Segmented、Timeline、DatePicker/MultiDatePicker、ColorPicker 渐变、Statistic/StatisticTimer、Switch、Checkbox/Radio、AutoComplete、Mentions、Select、Cascader、TreeSelect、Upload、Card、Tour、Message、Pro 系列，以及 Menubar、AspectRatio、Item）判定为**稳定**：
+
+- `go test -count=1 ./ui/...` 连跑 3 轮，0 失败（无抖动）。
+- 画廊 `-theme all -scale 1` 退出码 0，231 个基础页面在 Ant 亮/暗、Element 亮/暗、shadcn 亮/暗六种渲染下均有截图，无缺页（见 5.2）；抽看 ButtonGroup-element-dark、Menubar-shadcn 正常。
+- `-audit` 全部为 0（见 5.4）；`-mirror-check` 只剩 Mentions 的 2 处已知项。
+
+ConfigProvider、FooterToolbar 仍是 ⚠️：缺的是功能，不是稳定性问题，补上功能后再标。
 
 ### 1.3 与上次扫描对比
 
@@ -272,32 +281,28 @@
 - `-theme antd`（默认）：每个页面出 Ant 亮色图，加上页面自带的 `-Element` / `-Dark` 变体（变体页 `Page.Variant = true`）。
 - `-theme shadcn`：把**每个非变体页面**再以 shadcn 亮/暗各渲染一次，输出 `<Name>-shadcn.png` 和 `<Name>-shadcn-dark.png`。
 - `-theme hc`：仪表盘、Form、Switch、Checkbox 在各风格下的默认版与 HighContrast 版对照。
-- `-theme all` = antd + shadcn。
+- `-theme all` = antd，再加 antd-dark、element（亮 + 暗）、shadcn（亮 + 暗）三轮，每个非变体页面都出这六种图。
 - 画廊首页 `gallery.Home` 能在 Ant / Element / shadcn 与暗色之间切换。
 - shadcn 是**主题轮次**，不是逐页手写的变体。全仓只有 `page_shadcn.go` 一个 shadcn 专属页（ShadcnDashboard，以及 Command/Toggle/Kbd 等）。
 - 对标 shadcn 新增（groupF，2026-11-14）：`Menubar`（✅ menubar.go，下拉面板复用 nav_dropdown.go `navMenuPopup` + `navMarks` 勾选/单选指示；页面 page_menubar.go）、`AspectRatio`（✅ aspect_ratio.go；page_aspect_ratio.go）、`Item`/`ItemGroup`（✅ item.go；page_item.go）。三者在 Ant / Element / shadcn 亮暗下均有截图；令牌 `Components.Menubar` / `Components.Item`。未接 `ConfigProvider.Defaults`。
 
-### 5.2 本次渲染结果（2026-11-13 晚重跑，HEAD `22a1c1a`，`-theme all -scale 1`）
+### 5.2 本次渲染结果（2026-11-14 重跑，HEAD `f3ba799`，Windows，`-theme all -scale 1`）
 
-- 全部成功，退出码 0，耗时 4 分 25 秒；`components/` 下 1085 张，`mobile/` 下 66 张，另有首页、总览、仪表盘、浮层图。
-- 基础页面（非变体）共 219 个（上次 201）。
+- 全部成功，退出码 0，耗时 3 分 30 秒；`components/` 下 1590 张，`mobile/` 下 66 张，另有首页、总览、仪表盘、浮层图（各六种风格）。
+- 基础页面（非变体）共 231 个（上次 219，新增 Menubar、AspectRatio、Item、ButtonGroup 等）。
 
-| 维度 | 有截图的页面 | 缺的页面 | 上次 |
+| 维度 | 有截图的页面 | 缺的页面 | 上次（2026-11-13 晚，`22a1c1a`） |
 |---|---|---|---|
-| Ant 亮色 | 219 / 219 | 0 | 201 / 201 |
-| shadcn 亮 + 暗 | 219 / 219（各 219 张） | 0 | 201 / 201 |
-| Element 变体（`-Element`/`-element`） | 196 / 219 | 23 | 158（缺 43） |
-| 暗色变体（`-Dark`/`-dark`） | 196 / 219 | 23 | 132（缺 69） |
-| Element 暗色（`-element-dark`） | 40 张 | — | 34 |
-| 移动端（`mobile/`） | 66 张 | — | 44 |
+| Ant 亮色 | 231 / 231 | 0 | 219 / 219 |
+| Ant 暗色（`-antd-dark`） | 231 / 231 | 0 | 196 / 219（`-Dark` 变体，缺 23） |
+| Element 亮色（`-element`） | 231 / 231 | 0 | 196 / 219（`-Element` 变体，缺 23） |
+| Element 暗色（`-element-dark`） | 231 / 231 | 0 | 40 张 |
+| shadcn 亮 + 暗 | 231 / 231（各 231 张） | 0 | 219 / 219 |
+| 移动端（`mobile/`） | 66 张 | — | 66 |
 
-**没有 Element 与暗色变体的页面（23，两者是同一批；2026-11-13 夜补上了下面"其余 5 页"，数字按补后计）**
+上次缺 Element 与暗色的 23 页（移动端 13 页、`ConfigProvider-{en-US,ja-JP,zh-TW}-{Data,Date,Modal}` 9 页、ShadcnDashboard）现在由 `-theme all` 的 antd-dark / element 两轮补齐。页面自带的 `-Element` / `-Dark` 手写变体仍然保留，作为额外对照图。
 
-- 移动端页（13）：`Mobile` 与 `Mobile*`，用 antd/vant 两套令牌，本来就不按 Element 出图。
-- 多语言子页（9）：`ConfigProvider-{en-US,ja-JP,zh-TW}-{Data,Date,Modal}`。
-- shadcn 专属页：ShadcnDashboard。
-- ~~其余 5 页：CodeEditor、CodeEditorLarge、DescriptionsResponsive、Icon、TreeVirtual~~：已在 `page_shad2c_variants.go` 补注册 `-Element` / `-Dark`（代码编辑器宽 1100，暗色下用 vs-dark）。注意 DescriptionsResponsive-Element 在 960 宽下是 Element 的 sm 断点（≥768 且 <992），列表单列，这是 Element Plus 断点与 Ant 不同的正常结果。
-- 上次只缺暗色的 26 页（BorderBeam、Confirm、Listy、Radio、VirtualTree 等）现在都有暗色图。
+**上次（2026-11-13 晚）的记录**：219 个基础页面，`components/` 下 1085 张；移动端页用 antd/vant 两套令牌，本来就不按 Element 出图；CodeEditor、CodeEditorLarge、DescriptionsResponsive、Icon、TreeVirtual 在 `page_shad2c_variants.go` 补注册了 `-Element` / `-Dark`（代码编辑器宽 1100，暗色下用 vs-dark；DescriptionsResponsive-Element 在 960 宽下是 Element 的 sm 断点，列表单列，属正常）。
 
 **Pro2 组件的 shadcn 检查**：之前记为"未截图检查"，本次已渲染并抽查了 ProCard、StatisticCard、PageContainer（含 FooterToolbar）、CheckCard、ProSkeleton（shadcn-dark），结果见 5.3，这个缺口可以关闭。
 
@@ -319,11 +324,12 @@
 | ProSkeleton-shadcn-dark | 能用。页头区块是一整块浅灰，层次比 Ant 暗色更"反"（外层比卡片亮），属于 shadcn 暗色令牌本身的特点。 |
 | Table-shadcn-dark | 能用。排序列有整列底色高亮（这是 Ant 的行为，shadcn 原版没有）；未勾选复选框的边框在暗色下很淡。两点都是轻微问题。 |
 
-### 5.4 无障碍审计（`-audit`，2026-11-13 晚重跑：657 次页面渲染 × 3 种风格）
+### 5.4 无障碍审计（`-audit`，2026-11-14 重跑，HEAD `f3ba799`：693 次页面渲染 × 3 种风格）
 
-- missing-name 0，no-role 0，**not-keyboard 0**（上次 12，全部来自 `CarouselCard`；data_carousel.go 卡片模式给每张卡片设 `aKbd` 后已消失）；无名交互节点 0。
-- 对比度：6 个内置主题 0 项失败；58 项设计默认值低于 WCAG AA（上次记 35 项；设计规范本身如此，HighContrast 能修正）；24 项豁免（禁用态、装饰性分隔线）；HighContrast 下 0 项失败。
-- 运行：`go run ./examples/ui-gallery -audit`，16 秒，退出码 0。
+- missing-name 0，no-role 0，not-keyboard 0；无名交互节点 0（上次 657 次渲染，同样全为 0；2026-11-13 之前的 12 项 not-keyboard 来自 `CarouselCard`，data_carousel.go 卡片模式给每张卡片设 `aKbd` 后已消失）。
+- 对比度：6 个内置主题 0 项失败；58 项设计默认值低于 WCAG AA（设计规范本身如此，HighContrast 能修正）；24 项豁免（禁用态、装饰性分隔线）；HighContrast 下 0 项失败。与上次相同。
+- 运行：`go run ./examples/ui-gallery -audit`，31 秒，退出码 0。
+- 镜像检查：`go run ./examples/ui-gallery -mirror-check`，231 页、16667 个节点（298 个豁免），只有 Mentions 的 2 处（已知项）；方向性图标未镜像 0。
 
 ## 6. 非组件能力
 
