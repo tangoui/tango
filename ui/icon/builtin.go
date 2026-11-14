@@ -321,3 +321,9 @@ var (
 	Maximize  = def("window-maximize", "M5 5H19V19H5Z", "")
 	Restore   = def("window-restore", "M5 9H15V19H5ZM9 9V5H19V15H15", "")
 )
+
+// Graph widgets (ui/graph): diagram toolbar (original path data).
+var (
+	FitView    = def("fit-view", "M4 8.5V4H8.5M15.5 4H20V8.5M20 15.5V20H15.5M8.5 20H4V15.5M9 9H15V15H9Z", "")
+	AutoLayout = def("auto-layout", "M9.5 3.5H14.5V8H9.5ZM3.5 16H8.5V20.5H3.5ZM15.5 16H20.5V20.5H15.5ZM12 8V12M6 16V12H18V16", "")
+)

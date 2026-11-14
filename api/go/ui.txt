@@ -3260,6 +3260,20 @@ pkg github.com/tangoui/tango/ui, type FormLocale struct, noncomparable
 pkg github.com/tangoui/tango/ui, type FormTrigger uint8
 pkg github.com/tangoui/tango/ui, type FormW struct
 pkg github.com/tangoui/tango/ui, type FormW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type GraphLocale struct
+pkg github.com/tangoui/tango/ui, type GraphLocale struct, AutoLayout string
+pkg github.com/tangoui/tango/ui, type GraphLocale struct, CommitsFmt string
+pkg github.com/tangoui/tango/ui, type GraphLocale struct, Diagram string
+pkg github.com/tangoui/tango/ui, type GraphLocale struct, ER string
+pkg github.com/tangoui/tango/ui, type GraphLocale struct, FitView string
+pkg github.com/tangoui/tango/ui, type GraphLocale struct, ForeignKey string
+pkg github.com/tangoui/tango/ui, type GraphLocale struct, GitGraph string
+pkg github.com/tangoui/tango/ui, type GraphLocale struct, MiniMap string
+pkg github.com/tangoui/tango/ui, type GraphLocale struct, PrimaryKey string
+pkg github.com/tangoui/tango/ui, type GraphLocale struct, SummaryFmt string
+pkg github.com/tangoui/tango/ui, type GraphLocale struct, ZoomIn string
+pkg github.com/tangoui/tango/ui, type GraphLocale struct, ZoomOut string
+pkg github.com/tangoui/tango/ui, type GraphLocale struct, noncomparable
 pkg github.com/tangoui/tango/ui, type GridColW struct
 pkg github.com/tangoui/tango/ui, type GridColW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type GridContentW struct
@@ -3393,6 +3407,7 @@ pkg github.com/tangoui/tango/ui, type Locale struct, FilterReset string
 pkg github.com/tangoui/tango/ui, type Locale struct, Form FormLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, Fullscreen string
 pkg github.com/tangoui/tango/ui, type Locale struct, GotIt string
+pkg github.com/tangoui/tango/ui, type Locale struct, Graph GraphLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, Image ImageLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, Info string
 pkg github.com/tangoui/tango/ui, type Locale struct, ItemUnit string

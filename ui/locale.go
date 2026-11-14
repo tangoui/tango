@@ -101,6 +101,7 @@ type Locale struct {
 	A11y           A11yLocale
 	Chart          ChartLocale
 	Mobile         MobileLocale
+	Graph          GraphLocale
 
 	// Groups of the Pro / entry components added later.
 	DatePicker      DatePickerLocale
@@ -205,6 +206,17 @@ type ChartLocale struct {
 	ValueFmt                                                                                                 string // single-value charts, args: kind, value ("%s：%s")
 	Total                                                                                                    string // pie / donut centre title ("总计")
 	Conversion                                                                                               string // funnel conversion-rate label ("转化率")
+}
+
+// GraphLocale holds the texts of ui/graph widgets (Diagram, ER, GitGraph).
+type GraphLocale struct {
+	_ [0]func()
+
+	Diagram, ER, GitGraph                         string // accessible names of the canvases / list
+	ZoomIn, ZoomOut, FitView, AutoLayout, MiniMap string // toolbar buttons and the minimap
+	PrimaryKey, ForeignKey                        string // ER column marks
+	SummaryFmt                                    string // diagram description, args: node count, edge count ("%[1]d 个节点，%[2]d 条连线")
+	CommitsFmt                                    string // commit list description, arg: commit count ("%d 个提交")
 }
 
 // MobileLocale holds the texts of ui/mobile components.

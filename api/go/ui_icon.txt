@@ -38,6 +38,7 @@ pkg github.com/tangoui/tango/ui/icon, var ArrowDown *Icon
 pkg github.com/tangoui/tango/ui/icon, var ArrowLeft *Icon
 pkg github.com/tangoui/tango/ui/icon, var ArrowRight *Icon
 pkg github.com/tangoui/tango/ui/icon, var ArrowUp *Icon
+pkg github.com/tangoui/tango/ui/icon, var AutoLayout *Icon
 pkg github.com/tangoui/tango/ui/icon, var BarChart *Icon
 pkg github.com/tangoui/tango/ui/icon, var Bell *Icon
 pkg github.com/tangoui/tango/ui/icon, var Bookmark *Icon
@@ -82,6 +83,7 @@ pkg github.com/tangoui/tango/ui/icon, var FileAdd *Icon
 pkg github.com/tangoui/tango/ui/icon, var FileText *Icon
 pkg github.com/tangoui/tango/ui/icon, var Filter *Icon
 pkg github.com/tangoui/tango/ui/icon, var FilterFilled *Icon
+pkg github.com/tangoui/tango/ui/icon, var FitView *Icon
 pkg github.com/tangoui/tango/ui/icon, var Flag *Icon
 pkg github.com/tangoui/tango/ui/icon, var Folder *Icon
 pkg github.com/tangoui/tango/ui/icon, var FolderAdd *Icon
