@@ -232,9 +232,10 @@ func (s *Surface) drainDown() {
 	if s.closed.Load() || s.ns == nil {
 		return
 	}
-	// The batches of one round between scripts go in one Eval: the
-	// fallback's calls of a generation come in increasing sequence order
-	// (with gaps where the poll lane carries items; the page fills them).
+	// The batches of one round between scripts go together (in Evals of
+	// at most recvSeqMaxBytes, evalRecvSeq): the fallback's calls of a
+	// generation come in increasing sequence order (with gaps where the
+	// poll lane carries items; the page fills them).
 	var items []downq.Item
 	for _, b := range out {
 		if b.script {
@@ -250,10 +251,10 @@ func (s *Surface) drainDown() {
 	s.recvSeq(gen, items)
 }
 
-// recvSeq delivers fallback items of generation gen: one Eval of
-// _recvSeq, except that a barrier whose script has not run yet runs at its
-// place, in an Eval of its own (so that a script that throws or does not
-// parse leaves the items around it alone). Main thread, s.ns set.
+// recvSeq delivers fallback items of generation gen by _recvSeq
+// (evalRecvSeq), except that a barrier whose script has not run yet runs
+// at its place, in an Eval of its own (so that a script that throws or
+// does not parse leaves the items around it alone). Main thread, s.ns set.
 func (s *Surface) recvSeq(gen uint64, items []downq.Item) {
 	start := 0
 	for i, it := range items {
@@ -264,15 +265,37 @@ func (s *Surface) recvSeq(gen uint64, items []downq.Item) {
 		if !ok {
 			continue
 		}
-		if i > start {
-			s.ns.Eval(recvSeqJS(gen, items[start:i]))
-		}
+		s.evalRecvSeq(gen, items[start:i])
 		s.ns.Eval(js)
 		start = i // the barrier item itself goes next: the page advances past it
 	}
-	if start < len(items) {
-		s.ns.Eval(recvSeqJS(gen, items[start:]))
+	s.evalRecvSeq(gen, items[start:])
+}
+
+// evalRecvSeq hands items of generation gen to the page in Evals of
+// _recvSeq of at most recvSeqMaxBytes of items each, in order: each Eval's
+// items are contiguous and the page buffers a gap, so splitting is safe.
+// Nothing for no items. Main thread, s.ns set.
+func (s *Surface) evalRecvSeq(gen uint64, items []downq.Item) {
+	var list []byte
+	flush := func() {
+		if len(list) > 0 {
+			s.ns.Eval(recvSeqScript(gen, list))
+			list = list[:0]
+		}
 	}
+	var enc []byte
+	for _, it := range items {
+		enc = appendRecvSeqItem(enc[:0], it)
+		if len(list) > 0 && len(list)+1+len(enc) > recvSeqMaxBytes {
+			flush()
+		}
+		if len(list) > 0 {
+			list = append(list, ',')
+		}
+		list = append(list, enc...)
+	}
+	flush()
 }
 
 // takeBarrier returns the script of barrier id for running it and forgets
@@ -294,38 +317,59 @@ func barrierID(p []byte) uint64 {
 	return binary.BigEndian.Uint64(p)
 }
 
+// recvSeqMaxBytes caps the items of one _recvSeq Eval (their encoded
+// bytes): a stalled main thread and a busy producer must not make a script
+// of many megabytes (WebView2 ExecuteScript, Android evaluateJavascript and
+// WebKitGTK take it whole, in UTF-16). An item over the cap goes alone.
+// A variable for tests.
+var recvSeqMaxBytes = 1 << 20
+
 // recvSeqJS returns the script handing items of generation gen to the
-// page's __tango._recvSeq: [seq, kind, data] with data the message (a JSON
-// string literal, jsString), the packet in base64, or the
-// barrier id.
+// page's __tango._recvSeq, all in one Eval (evalRecvSeq splits).
 func recvSeqJS(gen uint64, items []downq.Item) string {
+	var list []byte
+	for i, it := range items {
+		if i > 0 {
+			list = append(list, ',')
+		}
+		list = appendRecvSeqItem(list, it)
+	}
+	return recvSeqScript(gen, list)
+}
+
+// recvSeqScript wraps list, comma-separated encoded items, in the call of
+// __tango._recvSeq for generation gen.
+func recvSeqScript(gen uint64, list []byte) string {
 	var b strings.Builder
+	b.Grow(len(list) + 48)
 	b.WriteString("window.__tango._recvSeq(")
 	b.WriteString(strconv.FormatUint(gen, 10))
 	b.WriteString(",[")
-	for i, it := range items {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		b.WriteByte('[')
-		b.WriteString(strconv.FormatUint(it.Seq, 10))
-		b.WriteByte(',')
-		b.WriteString(strconv.Itoa(int(it.Kind)))
-		b.WriteByte(',')
-		switch it.Kind {
-		case downq.Msg:
-			b.WriteString(jsString(string(it.Data)))
-		case downq.Packet:
-			b.WriteByte('"')
-			b.WriteString(base64.StdEncoding.EncodeToString(it.Data))
-			b.WriteByte('"')
-		default:
-			b.WriteString(strconv.FormatUint(barrierID(it.Data), 10))
-		}
-		b.WriteByte(']')
-	}
+	b.Write(list)
 	b.WriteString("])")
 	return b.String()
+}
+
+// appendRecvSeqItem appends it as [seq, kind, data] with data the message
+// (a JSON string literal, jsString), the packet in base64, or the barrier
+// id.
+func appendRecvSeqItem(b []byte, it downq.Item) []byte {
+	b = append(b, '[')
+	b = strconv.AppendUint(b, it.Seq, 10)
+	b = append(b, ',')
+	b = strconv.AppendInt(b, int64(it.Kind), 10)
+	b = append(b, ',')
+	switch it.Kind {
+	case downq.Msg:
+		b = append(b, jsString(string(it.Data))...)
+	case downq.Packet:
+		b = append(b, '"')
+		b = base64.StdEncoding.AppendEncode(b, it.Data)
+		b = append(b, '"')
+	default:
+		b = strconv.AppendUint(b, barrierID(it.Data), 10)
+	}
+	return append(b, ']')
 }
 
 // downReport is an internal message of downChannel.

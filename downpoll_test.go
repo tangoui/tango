@@ -594,6 +594,64 @@ func TestSendOrderFromGoroutine(t *testing.T) {
 	}
 }
 
+// TestFallbackEvalSizeCap: one round of the fallback holding ~3 MiB of
+// small messages goes in several _recvSeq Evals of at most recvSeqMaxBytes
+// of items each (an item over the cap goes alone), seqs contiguous and in
+// order across them.
+func TestFallbackEvalSizeCap(t *testing.T) {
+	const total, size = 3000, 1 << 10
+	a, fb, s, ns := downApp(t, Options{}, "/", lane.DownPoll)
+	fb.Load(s.ID())
+	o := lastOpen(t, ns)
+	n := len(ns.Evals())
+	msg := strings.Repeat("x", size)
+	release := blockMain(a)
+	for range total {
+		s.Send(msg)
+	}
+	big := strings.Repeat("y", recvSeqMaxBytes+1)
+	s.Send(big)
+	s.Send("tail")
+	release()
+	sync0(a)
+	var seqs []uint64
+	calls := 0
+	for _, e := range ns.Evals()[n:] {
+		m := recvSeqRE.FindStringSubmatch(e)
+		if m == nil {
+			t.Fatalf("eval %.80q", e)
+		}
+		if m[1] != strconv.FormatUint(o.Gen, 10) {
+			t.Fatalf("eval of generation %s", m[1])
+		}
+		calls++
+		var list [][]any
+		if err := json.Unmarshal([]byte(m[2]), &list); err != nil {
+			t.Fatal(err)
+		}
+		if len(m[2]) > recvSeqMaxBytes+len("[]") && len(list) > 1 {
+			t.Fatalf("eval of %d bytes holds %d items", len(m[2]), len(list))
+		}
+		for _, it := range list {
+			seqs = append(seqs, uint64(it[0].(float64)))
+		}
+	}
+	if calls < 4 {
+		t.Fatalf("%d evals, want at least 4", calls)
+	}
+	if len(seqs) != total+2 {
+		t.Fatalf("%d items, want %d", len(seqs), total+2)
+	}
+	for i, seq := range seqs {
+		if seq != uint64(i+1) {
+			t.Fatalf("item %d: seq %d", i, seq)
+		}
+	}
+	if got := sentMsgs(t, ns.Evals()[n:]); got[total] != big || got[total+1] != "tail" {
+		t.Fatal("big or tail message wrong")
+	}
+}
+
 // sentMsgs returns the messages the fallback delivered by Eval
 // (_recvSeq kind 0 items), in order.
 func sentMsgs(t *testing.T, evals []string) []string {
