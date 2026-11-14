@@ -19,7 +19,7 @@
 | destroyOnHidden / forceRender | antd `destroyOnHidden`、`items[].forceRender` | `Panel` 只构建当前项，其它项的 `State` 约 300 帧后回收 | 等价写法：即时模式下“隐藏面板”就是不构建；需要保留输入时把状态放在应用里 |
 | size | antd `size`；`cardHeightSM/LG`、`horizontalItemPaddingSM/LG`、`cardPaddingSM` | 大尺寸只改字号，卡片高度固定 40 | 已补齐（规范修正）：令牌 `CardHeightSM 32 / LG 48`、`HorizontalItemPaddingSM 8 / LG 16`、`CardPaddingH 16 / SM 8`（TestTabsSizes、TestAlignB2HTabsTokens） |
 | centered / tabBarExtraContent / tabBarStyle | antd | `Centered`、`Extra`/`ExtraLeft`、`TabBarStyle` | 已对齐 |
-| tabBarGutter | antd `tabBarGutter`（TabNavList marginInlineStart / marginTop） | 只有主题值 | 已补齐：`TabBarGutter(px)`，Defaults `"tabBarGutter"`（TestTabsStretchGutter） |
+| tabBarGutter | antd `tabBarGutter`（TabNavList marginInlineStart / marginTop） | 只有主题值 | 已补齐：`TabBarGutter(px)`，Defaults `"tabBarGutter"`，对所有类型生效（含 shadcn 列表与 BorderCard；第 2 批复审修正，TestTabsStretchGutter、TestTabsGutterAllTypes） |
 | addIcon / removeIcon / more.icon | antd | 固定图标 | 已补齐：`AddIcon`、`RemoveIcon`、`MoreIcon` |
 | hideAdd / onEdit | antd editable-card 默认显示 + | `OnAdd` 才显示 +；`Closed`/`Added` | 等价写法：不调 `OnAdd` = hideAdd |
 | more.trigger / popupRender | antd MoreProps | 点击下拉 | 暂不做（先无需求） |
@@ -33,7 +33,7 @@
 | 禁用 | antd 无整体 disabled；ComponentDisabled 作用域 | 作用域下节点禁用 | 已对齐：标签、关闭、新增均不响应（TestTabsDisabledScope） |
 | a11y | tab / tablist / tabpanel | `tabSem`、`Panel` | 已对齐（TestTabsA11yKeys） |
 | 令牌 | antd prepareComponentToken：cardHeight 40、titleFontSize 14/16、inkBarColor primary、horizontalItemGutter 32、horizontalItemPadding 12、cardGutter 2、verticalItemPadding 8 24、verticalItemMargin 16 | theme/comp_tabs.go | 已对齐（新增尺寸令牌见上） |
-| shadcn TabsList variant | tabs.tsx `variant: default \| line`；line：`bg-transparent gap-1 rounded-none`，选中项 `after:h-0.5 bg-foreground bottom-[-5px]`（竖向 `-right-1 w-0.5`） | 只有分段外观 | 已补齐：`Variant("line")`，Defaults `"variant"`；Ant / Element 本来就是线条（TestTabsShadcnLine） |
+| shadcn TabsList variant | tabs.tsx `variant: default \| line`；line：`bg-transparent gap-1 rounded-none`，选中项 `after:h-0.5 bg-foreground bottom-[-5px]`（竖向 `-right-1 w-0.5`） | 只有分段外观 | 已补齐：`Variant("line")`，Defaults `"variant"`，所有主题可用：由令牌 `TabsToken.SegmentedList` 决定默认是否为分段轨道（shadcn），Ant / Element 默认即线条，`line` 外观相同；组件不按 Flavor 判断（第 2 批复审修正，TestTabsShadcnLine、TestTabsVariantLineNoFlavor） |
 | shadcn 暗色选中项 | tabs.tsx `dark:data-[state=active]:border-input dark:bg-input/30` | 用 `SegmentedSelectedBg` | 已补齐（规范修正）：令牌 `ItemSelectedBg`、`ItemSelectedBorder`；暗色 = `Over(Fade(input,.3), muted)` + `input` 描边（TestAlignB2HTabsTokens） |
 | shadcn orientation / 尺寸 | `h-9 rounded-lg p-[3px] bg-muted`，trigger `h-[calc(100%-1px)] px-2 py-1 font-medium` | 已有 | 已对齐 |
 | 拖拽排序 / 撕出、Dock | Tango 扩展 | nav_tabs_drag.go；Dock 改用私有构造 nav.go:`dockTabs`（dock.go 只改这一处） | 已对齐：Dock 标签条不读 `Defaults("Tabs", …)`、不做未知 key 回落，卡片保持 CardHeight + 16px 内边距与旧的 shadcn 选中底色——与 HEAD 截图逐字节相同（Dock、DockDrop × 三套主题 × 明暗）（TestTabsDockLegacy） |

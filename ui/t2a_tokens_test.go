@@ -225,8 +225,10 @@ func TestT2aTokenDefaults(t *testing.T) {
 		// Tour.
 		tr := k.Tour
 		// el-tour is 520px wide with 12px padding ($tour in Element Plus
-		// theme-chalk var.scss); Ant's panel is 320 / 16.
-		wantW, wantPad := float32(320), float32(16)
+		// theme-chalk var.scss); Ant's panel is at most 520 (fit-content)
+		// with 16 padding (antd 6.7 es/tour/style/index.js; batch 3 group
+		// K: 320 -> 520).
+		wantW, wantPad := float32(520), float32(16)
 		if el {
 			wantW, wantPad = 520, 12
 		}

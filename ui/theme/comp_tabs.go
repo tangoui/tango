@@ -30,6 +30,12 @@ type TabsToken struct {
 	// the shadcn segmented list (zero border: none).
 	ItemSelectedBg     Color
 	ItemSelectedBorder Color
+
+	// SegmentedList draws the default bar as a segmented track (the
+	// shadcn TabsList); Variant("line") then switches to line tabs.
+	// Without it the default bar is already line tabs, so "line" changes
+	// nothing.
+	SegmentedList bool
 }
 
 func deriveTabs(t *Theme) TabsToken {
@@ -54,6 +60,7 @@ func deriveTabs(t *Theme) TabsToken {
 	case StyleShadcn:
 		k.ItemColor, k.ItemHoverColor, k.ItemSelectedColor, k.ItemActiveColor = t.TextTertiary, t.Text, t.Text, t.Text
 		k.InkBarColor, k.CardHeight, k.HorizontalItemGutter, k.HorizontalItemPadding = t.Text, 36, 4, 4
+		k.SegmentedList = true
 		k.CardHeightSM, k.CardHeightLG = 36, 36
 		k.HorizontalItemPaddingSM, k.HorizontalItemPaddingLG = 4, 4
 		// tabs.tsx TabsTrigger: data-[state=active]:bg-background;

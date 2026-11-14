@@ -331,6 +331,9 @@ type TabsLocale struct {
 type PaginationLocale struct {
 	_             [0]func()
 	Jump, Current string
+	// Confirm is the quick jumper's go button (antd jump_to_confirm);
+	// Prev3 / Next3 name the ••• jumps of ShowLessItems.
+	Confirm, Prev3, Next3 string
 }
 
 // SliderLocale holds the accessible names of the two SliderRange handles.

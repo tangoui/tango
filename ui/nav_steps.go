@@ -18,9 +18,13 @@ import (
 type StepItem struct {
 	_ [0]func()
 
-	Title       string
-	SubTitle    string
+	Title    string
+	SubTitle string
+	// Description is the text under the title.
+	//
+	// Deprecated: use Content (antd 6 items[].content).
 	Description string
+	Content     string     // text under the title (antd 6 content); wins over Description
 	Icon        *icon.Icon // custom icon replaces the numbered circle
 	Status      string     // override: "wait", "process", "finish", "error"
 	Disabled    bool       // not clickable
@@ -49,6 +53,11 @@ type StepsW struct {
 	dotFn     func(l *paint.List, d StepDot)
 	th        *theme.Theme      // c.ThemeFor(theme.CompSteps), set by Show
 	tk        *theme.StepsToken // &th.Components.Steps
+	src       []StepItem        // the items as given (items holds the displayed ones)
+	initial   int               // Initial: number of the first step - 1
+	maxCount  int               // MaxCount (>= 3; 0: all)
+	origin    []int             // display index -> index in src (-1: ellipsis); nil: identity
+	outlined  bool              // Variant("outlined")
 }
 
 // Steps starts a step bar; chain options, then Show:
@@ -56,10 +65,17 @@ type StepsW struct {
 //	ui.Steps(c, items).Current(1).Status("error").Show()
 //
 // ConfigProvider.Defaults("Steps", ...) keys: "type" ("default" |
-// "navigation"), "size" (ControlSize or "small"), "labelPlacement"
-// ("vertical"), "direction" ("vertical"), "progressDot" (bool).
+// "navigation" | "inline" | "panel" | "dot"), "size" (ControlSize or
+// "small"), "orientation" / "direction" ("vertical"), "titlePlacement" /
+// "labelPlacement" ("vertical"), "variant" ("filled" | "outlined"),
+// "progressDot" (bool), "maxCount" (int). The antd 6 names (orientation,
+// titlePlacement, type "dot", items[].content) win over the deprecated
+// ones.
+//
+// Out-of-range Current values are kept: below 0 every step waits, past
+// the last one every step is finished (antd).
 func Steps(c *Context, items []StepItem) *StepsW {
-	s := &StepsW{c: c, items: items, finish: "finish", percent: -1}
+	s := &StepsW{c: c, items: items, src: items, finish: "finish", percent: -1}
 	s.Type(Prop(c, "Steps", "type", ""))
 	if v, ok := c.ConfigProp("Steps", "size"); ok {
 		if sz, ok := v.(ControlSize); ok {
@@ -70,7 +86,129 @@ func Steps(c *Context, items []StepItem) *StepsW {
 		s.labelVert = true
 	}
 	s.defaults() // size names, direction, progressDot
+	if v := Prop(c, "Steps", "orientation", ""); v != "" {
+		s.Orientation(v)
+	}
+	if v := Prop(c, "Steps", "titlePlacement", ""); v != "" {
+		s.TitlePlacement(v)
+	}
+	s.Variant(Prop(c, "Steps", "variant", ""))
+	s.MaxCount(Prop(c, "Steps", "maxCount", 0))
 	return s
+}
+
+// Orientation lays the steps out "horizontal" (default) or "vertical"
+// (antd 6 orientation; direction is its deprecated name).
+func (s *StepsW) Orientation(o string) *StepsW { s.vertical = o == "vertical"; return s }
+
+// TitlePlacement puts the titles beside the icons ("horizontal", default)
+// or under them ("vertical"; antd 6 titlePlacement, labelPlacement
+// deprecated). Dot steps always put them under.
+func (s *StepsW) TitlePlacement(p string) *StepsW {
+	s.labelVert = p == "vertical" || s.dot
+	return s
+}
+
+// Variant picks "filled" (default) or "outlined" icons (antd 6 variant:
+// outlined icons are rings in the status color on the container
+// background, the current one on a light primary fill).
+func (s *StepsW) Variant(v string) *StepsW { s.outlined = v == "outlined"; return s }
+
+// Initial numbers the steps from initial+1; Current, Clickable and the
+// bound value count from it too (antd initial).
+func (s *StepsW) Initial(n int) *StepsW { s.initial = n; return s }
+
+// MaxCount shows at most n steps (n >= 3; antd 6.7 maxCount): the first,
+// the last and the current step stay, the nearest ones fill the other
+// slots and each hidden range becomes a disabled ellipsis step whose
+// status sums it up (error if any hidden step failed, finish if all are
+// done).
+func (s *StepsW) MaxCount(n int) *StepsW {
+	s.maxCount = 0
+	if n >= 3 {
+		s.maxCount = n
+	}
+	return s
+}
+
+// prepare maps the given items to the displayed ones (Content, MaxCount)
+// and the current value to a display index.
+func (s *StepsW) prepare() {
+	rel := s.current - s.initial
+	items := make([]StepItem, len(s.src))
+	for i, it := range s.src {
+		items[i] = it
+		if it.Content != "" {
+			items[i].Description = it.Content
+		}
+	}
+	s.items, s.origin, s.current = items, nil, rel
+	n := len(items)
+	if s.maxCount < 3 || n <= s.maxCount {
+		return
+	}
+	// antd steps/useDisplaySteps.js getCollapsedIndexes.
+	safe := max(0, min(rel, n-1))
+	keep := map[int]bool{0: true, safe: true, n - 1: true}
+	for d := 1; len(keep) < s.maxCount && d < n; d++ {
+		for _, i := range []int{safe - d, safe + d, d, n - 1 - d} {
+			if len(keep) >= s.maxCount {
+				break
+			}
+			if i >= 0 && i < n {
+				keep[i] = true
+			}
+		}
+	}
+	var disp []StepItem
+	prev := -1
+	for i := 0; i < n; i++ {
+		if !keep[i] {
+			continue
+		}
+		if prev >= 0 && i-prev > 1 {
+			st := "wait"
+			if i-1 < rel {
+				st = "finish"
+			}
+			for _, h := range s.src[prev+1 : i] {
+				if h.Status == "error" {
+					st = "error"
+				}
+			}
+			disp = append(disp, StepItem{Icon: icon.More, Status: st, Disabled: true})
+			s.origin = append(s.origin, -1)
+		}
+		disp = append(disp, items[i])
+		s.origin = append(s.origin, i)
+		prev = i
+	}
+	s.items, s.current = disp, rel
+	for d, o := range s.origin {
+		if o == rel {
+			s.current = d
+		}
+	}
+}
+
+// num is the number shown in display step i.
+func (s *StepsW) num(i int) string {
+	if s.origin != nil {
+		i = s.origin[i]
+	}
+	return strconv.Itoa(s.initial + i + 1)
+}
+
+// pick moves the bound current step to display step i (a click).
+func (s *StepsW) pick(i int) {
+	if s.origin != nil {
+		i = s.origin[i]
+	}
+	if v := s.initial + i; *s.cur != v {
+		*s.cur = v
+		s.changed = true
+		s.c.invalid = true
+	}
 }
 
 // Type selects "default", "navigation" (Ant type="navigation": steps as
@@ -82,6 +220,9 @@ func (s *StepsW) Type(t string) *StepsW {
 	s.kind = ""
 	if t == "inline" || t == "panel" {
 		s.kind = t
+	}
+	if t == "dot" {
+		s.Dot()
 	}
 	return s
 }
@@ -146,9 +287,13 @@ func (s *StepsW) Status(st string) *StepsW { s.status = st; return s }
 func (s *StepsW) FinishStatus(st string) *StepsW { s.finish = st; return s }
 
 // Vertical stacks the steps.
+//
+// Deprecated: use Orientation("vertical") (antd 6 orientation).
 func (s *StepsW) Vertical() *StepsW { s.vertical = true; return s }
 
 // Dot uses the dot style (labels under the dots).
+//
+// Deprecated: use Type("dot") (antd 6 type="dot", progressDot deprecated).
 func (s *StepsW) Dot() *StepsW { s.dot = true; s.labelVert = true; return s }
 
 // Small uses the small size.
@@ -158,6 +303,8 @@ func (s *StepsW) Small() *StepsW { s.size, s.sizeSet = Small, true; return s }
 func (s *StepsW) Size(sz ControlSize) *StepsW { s.size, s.sizeSet = sz, true; return s }
 
 // LabelVertical puts titles under the icons.
+//
+// Deprecated: use TitlePlacement("vertical").
 func (s *StepsW) LabelVertical() *StepsW { s.labelVert = true; return s }
 
 // Changed reports a click on another step.
@@ -200,7 +347,34 @@ func (s *StepsW) colors(st string, hover bool) stepColors {
 	default:
 		k = stepColors{tk.WaitIconBg, tk.WaitIconColor, tk.WaitIconBorderColor, tk.WaitTitleColor, tk.WaitDescriptionColor, tk.TailColor}
 	}
+	outlined := s.outlined && tk.OutlinedIconBg.A > 0
+	if outlined {
+		// antd outlined variant (themes whose icons are rings already
+		// leave OutlinedIconBg zero).
+		col := s.dotColor(st)
+		if st == "success" {
+			col = tk.SuccessIconColor
+		}
+		k.iconBg, k.iconFg, k.iconBorder = tk.OutlinedIconBg, col, col
+		if st == "process" {
+			k.iconBg = tk.OutlinedActiveIconBg
+		}
+	}
 	if !hover || st == "process" {
+		return k
+	}
+	if outlined {
+		// antd status.js outlined hover: colorPrimaryHover ring and glyph
+		// (colorErrorHover for a failed step), texts colorPrimaryHover.
+		hc := tk.OutlinedHoverColor
+		if st == "error" {
+			hc = tk.OutlinedErrorHoverColor
+		}
+		k.iconFg, k.iconBorder = hc, hc
+		k.title, k.desc = tk.HoverColor, tk.HoverColor
+		if st == "error" {
+			k.title, k.desc = hc, hc
+		}
 		return k
 	}
 	// Which parts of a clickable step follow the pointer differs by design
@@ -220,7 +394,11 @@ func (s *StepsW) colors(st string, hover bool) stepColors {
 	default:
 		k.title, k.desc = tk.HoverColor, tk.HoverColor
 		if st == "wait" {
-			k.iconFg, k.iconBorder = tk.HoverColor, tk.HoverIconBorderColor
+			// antd filled: colorPrimary glyph, transparent border.
+			k.iconFg, k.iconBorder = tk.FinishIconColor, tk.HoverIconBorderColor
+		}
+		if tk.HoverIconBg.A > 0 && (st == "wait" || st == "finish") {
+			k.iconBg = tk.HoverIconBg
 		}
 	}
 	return k
@@ -248,6 +426,7 @@ func (s *StepsW) Show() *StepsW {
 	if s.cur != nil {
 		s.current = *s.cur
 	}
+	s.prepare()
 	s.th = c.ThemeFor(theme.CompSteps)
 	s.tk = &s.th.Components.Steps
 	dir := layout.Row
@@ -368,10 +547,8 @@ func (s *StepsW) navItem(i int) {
 	var ia Interaction
 	if clickable {
 		ia = c.interact(n, true, input.CursorPointer)
-		if ia.Clicked && *s.cur != i {
-			*s.cur = i
-			s.changed = true
-			c.invalid = true
+		if ia.Clicked {
+			s.pick(i)
 		}
 	}
 	contentW := func() float32 {
@@ -433,7 +610,7 @@ func (s *StepsW) navItem(i int) {
 			case "error":
 				icon.Draw(l, icon.Close, ir.Expand(-3), k.iconFg, 0)
 			default:
-				lay := navLabel(c, strconv.Itoa(i+1), nfs, text.Regular)
+				lay := navLabel(c, s.num(i), nfs, text.Regular)
 				l.Glyphs(geom.Pt(ir.X+(ir.W-lay.Width)/2, ir.Y+(ir.H-lay.Height)/2), lay.Glyphs, k.iconFg)
 			}
 		default:
@@ -444,7 +621,7 @@ func (s *StepsW) navItem(i int) {
 			case "error":
 				icon.Draw(l, icon.Close, ir.Expand(-is*0.27), k.iconFg, 0)
 			default:
-				lay := navLabel(c, strconv.Itoa(i+1), nfs, text.Regular)
+				lay := navLabel(c, s.num(i), nfs, text.Regular)
 				l.Glyphs(geom.Pt(ir.X+(ir.W-lay.Width)/2, ir.Y+(ir.H-lay.Height)/2), lay.Glyphs, k.iconFg)
 			}
 		}
@@ -538,10 +715,8 @@ func (s *StepsW) item(i int) {
 	s.stepSem(n, i, it)
 	if clickable {
 		ia = c.interact(n, true, input.CursorPointer)
-		if ia.Clicked && *s.cur != i {
-			*s.cur = i
-			s.changed = true
-			c.invalid = true
+		if ia.Clicked {
+			s.pick(i)
 		}
 	}
 	descMaxW := tk.DescriptionMaxWidth
@@ -699,7 +874,7 @@ func (s *StepsW) item(i int) {
 			case "error":
 				icon.Draw(l, icon.Close, ir.Expand(-6), k.iconFg, 0)
 			default:
-				lay := navLabel(c, strconv.Itoa(i+1), nfs, text.Semibold)
+				lay := navLabel(c, s.num(i), nfs, text.Semibold)
 				l.Glyphs(geom.Pt(ir.X+(ir.W-lay.Width)/2, ir.Y+(ir.H-lay.Height)/2), lay.Glyphs, k.iconFg)
 			}
 		default:
@@ -716,7 +891,7 @@ func (s *StepsW) item(i int) {
 			case "error":
 				icon.Draw(l, icon.Close, ir.Expand(-is*0.27), k.iconFg, 0)
 			default:
-				lay := navLabel(c, strconv.Itoa(i+1), nfs, text.Regular)
+				lay := navLabel(c, s.num(i), nfs, text.Regular)
 				l.Glyphs(geom.Pt(ir.X+(ir.W-lay.Width)/2, ir.Y+(ir.H-lay.Height)/2), lay.Glyphs, k.iconFg)
 			}
 		}
@@ -826,10 +1001,8 @@ func (s *StepsW) stepClick(n *node, i int, it StepItem) (Interaction, bool) {
 		return Interaction{}, false
 	}
 	ia := s.c.interact(n, true, input.CursorPointer)
-	if ia.Clicked && *s.cur != i {
-		*s.cur = i
-		s.changed = true
-		s.c.invalid = true
+	if ia.Clicked {
+		s.pick(i)
 	}
 	return ia, true
 }
@@ -1020,7 +1193,7 @@ func (s *StepsW) panelIcon(l *paint.List, ir geom.Rect, i int, st string, k step
 	case "error":
 		icon.Draw(l, icon.Close, ir.Expand(-is*0.27), k.iconFg, 0)
 	default:
-		lay := navLabel(c, strconv.Itoa(i+1), tk.IconFontSizeSM, text.Regular)
+		lay := navLabel(c, s.num(i), tk.IconFontSizeSM, text.Regular)
 		l.Glyphs(geom.Pt(ir.X+(ir.W-lay.Width)/2, ir.Y+(ir.H-lay.Height)/2), lay.Glyphs, k.iconFg)
 	}
 }

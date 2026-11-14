@@ -281,10 +281,12 @@ func (t *TabsW) TabClicked() string { return t.clicked }
 // stretch); the bar no longer scrolls.
 func (t *TabsW) Stretch() *TabsW { t.stretch = true; return t }
 
-// Variant picks the shadcn TabsList look: "default" (the muted segmented
-// track) or "line" (transparent list, an underline under the active
-// trigger). Ant and Element bars are line tabs already (Card and
-// BorderCard pick their other types), so it only changes shadcn.
+// Variant picks the list look in every theme: "default" or "line" (line
+// tabs: a transparent list with an underline under the active tab).
+// Where the default bar is a segmented track (TabsToken.SegmentedList:
+// the shadcn TabsList) "line" switches to line tabs; where the default is
+// line tabs already (Ant, Element) it is the same look. Card and
+// BorderCard pick their own types.
 func (t *TabsW) Variant(v string) *TabsW { t.variant = v; return t }
 
 // AddIcon replaces the + of the add button (Ant addIcon).
@@ -311,8 +313,11 @@ func (t *TabsW) activate(key string) bool {
 	return true
 }
 
-// shadLine reports the shadcn line variant.
-func (t *TabsW) shadLine() bool { return t.variant == "line" && t.th.Flavor == theme.StyleShadcn }
+// shadLine reports the line variant of a segmented list (theme token
+// SegmentedList; other themes draw line tabs by default).
+func (t *TabsW) shadLine() bool {
+	return t.variant == "line" && t.th.Components.Tabs.SegmentedList
+}
 
 // fallback makes a tab active when *active is not a key of the items:
 // the one at the last active index (clamped), skipping disabled tabs.
@@ -1207,17 +1212,19 @@ func (t *TabsW) tab(i int, it TabItem) *node {
 		n.ln.Grow = 1
 	}
 	switch {
+	case t.gutterSet && i > 0:
+		// antd tabBarGutter applies to every type (also the segmented
+		// list and the border card).
+		if vert {
+			n.ln.Margin.Top = t.gutter
+		} else {
+			n.ln.Margin.Left = t.gutter
+		}
 	case shad && t.shadLine() && i > 0:
 		if vert {
 			n.ln.Margin.Top = 4 // gap-1
 		} else {
 			n.ln.Margin.Left = 4
-		}
-	case t.gutterSet && !shad && !bc && i > 0:
-		if vert {
-			n.ln.Margin.Top = t.gutter
-		} else {
-			n.ln.Margin.Left = t.gutter
 		}
 	case shad, bc:
 	case vert && t.card && i > 0:
@@ -1488,6 +1495,9 @@ type BreadcrumbItem struct {
 	Href    string     // reported by ClickedHref; the app navigates
 	OnClick func()     // runs when the item is clicked
 	Menu    []MenuItem // dropdown menu on the item (read MenuClicked)
+	// Separator replaces the separator after this item (antd items[]
+	// {type: "separator", separator}); "" keeps the breadcrumb's.
+	Separator string
 }
 
 // BreadcrumbW is a breadcrumb with structured items: icons, dropdown
@@ -1499,6 +1509,7 @@ type BreadcrumbW struct {
 	items   []BreadcrumbItem
 	sep     string
 	sepIcon *icon.Icon
+	ddIcon  *icon.Icon // DropdownIcon
 	clicked int
 	menuKey string
 	th      *theme.Theme           // c.ThemeFor(theme.CompBreadcrumb), set by Show
@@ -1531,6 +1542,10 @@ func (b *BreadcrumbW) Separator(s string) *BreadcrumbW { b.sep = s; return b }
 // SeparatorIcon uses an icon between items (Element separator-icon).
 func (b *BreadcrumbW) SeparatorIcon(ic *icon.Icon) *BreadcrumbW { b.sepIcon = ic; return b }
 
+// DropdownIcon replaces the down arrow of items with a Menu (antd
+// dropdownIcon).
+func (b *BreadcrumbW) DropdownIcon(ic *icon.Icon) *BreadcrumbW { b.ddIcon = ic; return b }
+
 // Clicked returns the index of the item clicked this frame, or -1.
 func (b *BreadcrumbW) Clicked() int { return b.clicked }
 
@@ -1557,7 +1572,11 @@ func (b *BreadcrumbW) Show() *BreadcrumbW {
 			last := i == len(b.items)-1
 			b.item(i, it, last)
 			if !last {
-				b.separator()
+				// A plain current page has no link padding: give the
+				// separator before it the padding a link would have
+				// (antd: separatorMargin 8 around the text).
+				next := b.items[i+1]
+				b.separator(it.Separator, i+1 == len(b.items)-1 && len(next.Menu) == 0)
 			}
 		}
 	}, layout.Middle(), layout.Gap(gap)).Semantics(a11y.RoleNavigation, c.Locale().A11y.Breadcrumb)
@@ -1565,19 +1584,26 @@ func (b *BreadcrumbW) Show() *BreadcrumbW {
 }
 
 // separator adds the separator after an item.
-func (b *BreadcrumbW) separator() {
+func (b *BreadcrumbW) separator(own string, beforePlain bool) {
 	c, th, tk := b.c, b.th, b.tk
 	shad := th.Flavor == theme.StyleShadcn
 	ic := b.sepIcon
 	if ic == nil && b.sep == "" && shad {
 		ic = icon.Right
 	}
+	if own != "" {
+		ic = nil
+	}
+	endPad := float32(0)
+	if beforePlain {
+		endPad = tk.LinkPaddingInline
+	}
 	if ic != nil {
 		sep := c.add("crumbsep", "")
 		sep.aHidden = true
 		sz := tk.IconFontSize
 		sep.ln.Measure = func(_, _ float32) geom.Size { return geom.Size{W: sz, H: sz} }
-		sep.ln.Margin = geom.Insets{Left: tk.IconSeparatorMargin, Right: tk.IconSeparatorMargin}
+		sep.ln.Margin = geom.Insets{Left: tk.IconSeparatorMargin, Right: tk.IconSeparatorMargin + endPad}
 		col := tk.SeparatorColor
 		// A directional icon (the default chevron) mirrors in RTL; a text
 		// separator such as "/" does not.
@@ -1585,11 +1611,14 @@ func (b *BreadcrumbW) separator() {
 		return
 	}
 	s := b.sep
+	if own != "" {
+		s = own
+	}
 	if s == "" {
 		s = "/"
 	}
 	t := Text(c, s).Size(tk.FontSize).Color(tk.SeparatorColor).NoWrap()
-	t.Layout(layout.Margin(geom.Insets{Left: tk.SeparatorMargin, Right: tk.SeparatorMargin}))
+	t.Layout(layout.Margin(geom.Insets{Left: tk.SeparatorMargin, Right: tk.SeparatorMargin + endPad}))
 	t.n.aHidden = true
 }
 
@@ -1679,7 +1708,11 @@ func (b *BreadcrumbW) item(i int, it BreadcrumbItem, last bool) {
 			}
 			l.Glyphs(geom.Pt(sp.X(x, lay.Width), ty), lay.Glyphs, col)
 			if menu {
-				drawIcon(l, icon.Down, sp.X(x+lay.Width+4, 12), r.Y+(r.H-12)/2, 12, col)
+				dic := icon.Down
+				if b.ddIcon != nil {
+					dic = b.ddIcon
+				}
+				drawIcon(l, dic, sp.X(x+lay.Width+4, 12), r.Y+(r.H-12)/2, 12, col)
 			}
 			if ia.FocusVisible {
 				drawFocusRing(l, th, r, geom.Rad(th.RadiusSM))
@@ -1724,6 +1757,17 @@ type PaginationW struct {
 	readOnly   bool
 	parts      []PaginationPart // Layout; nil: the flags decide
 	pagerCount int              // PagerCount; 0: Ant's window
+	large      bool             // Size(Large)
+	align      string           // Align: "" | "start" | "center" | "end"
+	less       bool             // ShowLessItems
+	totalFn    func(total, from, to int) string
+	goButton   bool   // ShowQuickJumper go button
+	goText     string // its label ("": Locale)
+	sizeList   []int  // PageSizeOptions
+	prevText   string // Element prev-text
+	nextText   string
+	prevIcon   *icon.Icon
+	nextIcon   *icon.Icon
 }
 
 // PaginationPart is one part of a Pagination arranged by
@@ -1750,23 +1794,43 @@ type pagerState struct {
 // Pagination adds a pager bound to *page (1-based).
 //
 // ConfigProvider.Defaults("Pagination", ...) keys: "showQuickJumper",
-// "showTotal", "simple", "hideOnSinglePage", "background", "disabled"
-// (bool), "size" (ControlSize or "small" | "default"; Small is the small
-// pager).
+// "showTotal", "simple", "hideOnSinglePage", "background", "disabled",
+// "showLessItems" (bool), "size" (ControlSize or "small" | "default" |
+// "large"), "align" ("start" | "center" | "end"), "pageSizeOptions"
+// ([]int), "pagerCount" (int).
+//
+// The page buttons follow @rc-component/pagination: every page up to 7
+// pages (5 with ShowLessItems), else the first, the last, the pages
+// around the current one and ••• jumps of 5 (3) pages. The Element theme
+// uses PagerCount(7) by default (el-pagination pager-count), Background
+// on, and page sizes 10/20/30/40/50/100 (PaginationToken). With total 0
+// a single disabled page 1 shows, like antd.
 //
 // Under shadcn/ui page links are ghost buttons, the current page an
 // outline button and Previous / Next carry their label next to the
 // chevron (icon only in the small and simple pagers).
 func Pagination(c *Context, page *int, total, pageSize int) *PaginationW {
-	p := &PaginationW{c: c, th: c.ThemeFor(theme.CompPagination), page: page, total: total, pageSize: max(1, pageSize), small: c.defaultSize() == Small}
-	p.bg = c.Theme.Flavor == theme.Element
+	p := &PaginationW{c: c, th: c.ThemeFor(theme.CompPagination), page: page, total: max(0, total), pageSize: max(1, pageSize)}
+	tk := &p.th.Components.Pagination
+	p.Size(c.defaultSize())
+	p.bg = tk.Background
 	if v, ok := c.ConfigProp("Pagination", "size"); ok {
 		switch s := v.(type) {
 		case ControlSize:
-			p.small = s == Small
+			p.Size(s)
 		case string:
-			p.small = s == "small"
+			p.Size(map[string]ControlSize{"small": Small, "large": Large}[s])
 		}
+	}
+	p.align = Prop(c, "Pagination", "align", "")
+	p.less = Prop(c, "Pagination", "showLessItems", false)
+	def := []int{10, 20, 50, 100} // @rc-component/pagination Options.js
+	if tk.PageSizesByTen {
+		def = []int{10, 20, 30, 40, 50, 100}
+	}
+	p.sizeList = Prop(c, "Pagination", "pageSizeOptions", def)
+	if n := Prop(c, "Pagination", "pagerCount", tk.PagerCount); n > 0 {
+		p.PagerCount(n)
 	}
 	p.disabled = Prop(c, "Pagination", "disabled", false)
 	p.jumper = Prop(c, "Pagination", "showQuickJumper", false)
@@ -1780,11 +1844,57 @@ func Pagination(c *Context, page *int, total, pageSize int) *PaginationW {
 }
 
 func (p *PaginationW) ShowTotal() *PaginationW { p.showTotal = true; return p }
-func (p *PaginationW) Small() *PaginationW     { p.small = true; return p }
+func (p *PaginationW) Small() *PaginationW     { p.small, p.large = true, false; return p }
 
-// Size picks the small pager (Small) or the default one; Small with Simple
-// is the narrow pager for list and transfer footers.
-func (p *PaginationW) Size(s ControlSize) *PaginationW { p.small = s == Small; return p }
+// Size picks the small pager (Small), the default one or the large one
+// (Large: 40px buttons, antd 6 size="large", Element size="large"); Small
+// with Simple is the narrow pager for list and transfer footers.
+func (p *PaginationW) Size(s ControlSize) *PaginationW {
+	p.small, p.large = s == Small, s == Large
+	return p
+}
+
+// ShowTotalFunc shows the text fn returns before the pager (antd
+// showTotal(total, range)): from and to are the 1-based items of the
+// current page (0, 0 when total is 0).
+func (p *PaginationW) ShowTotalFunc(fn func(total, from, to int) string) *PaginationW {
+	p.totalFn, p.showTotal = fn, fn != nil
+	return p
+}
+
+// Align places the pager in its row: "start", "center" or "end" (antd
+// align); "" leaves it at its natural width.
+func (p *PaginationW) Align(a string) *PaginationW { p.align = a; return p }
+
+// ShowLessItems shows fewer page buttons: one page on each side of the
+// current one and ••• jumps of 3 pages (antd showLessItems).
+func (p *PaginationW) ShowLessItems() *PaginationW { p.less = true; return p }
+
+// GoButton adds a confirm button after the quick jumper input (antd
+// showQuickJumper.goButton) and turns the jumper on; label "" uses
+// Locale().Pagination.Confirm.
+func (p *PaginationW) GoButton(label string) *PaginationW {
+	p.jumper, p.goButton, p.goText = true, true, label
+	return p
+}
+
+// PageSizeOptions sets the choices of the size changer (antd
+// pageSizeOptions, default 10/20/50/100; Element page-sizes, default
+// 10/20/30/40/50/100).
+func (p *PaginationW) PageSizeOptions(sizes ...int) *PaginationW {
+	p.sizeList = append([]int(nil), sizes...)
+	return p
+}
+
+// PrevText / NextText show a text instead of the chevron in the previous /
+// next buttons (Element prev-text / next-text).
+func (p *PaginationW) PrevText(s string) *PaginationW { p.prevText = s; return p }
+func (p *PaginationW) NextText(s string) *PaginationW { p.nextText = s; return p }
+
+// PrevIcon / NextIcon replace the chevrons (Element prev-icon / next-icon,
+// antd itemRender for prev / next).
+func (p *PaginationW) PrevIcon(ic *icon.Icon) *PaginationW { p.prevIcon = ic; return p }
+func (p *PaginationW) NextIcon(ic *icon.Icon) *PaginationW { p.nextIcon = ic; return p }
 
 // ReadOnly shows the current page of a Simple pager as text instead of an
 // input ("< 2 / 5 >", Ant simple.readOnly): the narrowest pager, for
@@ -1860,19 +1970,22 @@ func (p *PaginationW) goTo(n, pages int) {
 func (p *PaginationW) Show() *PaginationW {
 	c, th := p.c, p.th
 	tk := &th.Components.Pagination
-	el := th.Flavor == theme.Element
 	pages := max(1, (p.total+p.pageSize-1)/p.pageSize)
+	empty := p.total == 0 // antd: one disabled page "1"
 	*p.page = max(1, min(*p.page, pages))
 	if p.hideSingle && pages <= 1 {
 		return p
 	}
-	sz := tk.ItemSize
-	if p.small {
-		sz = tk.ItemSizeSM
+	sz, gap := tk.ItemSize, tk.ItemSpacing
+	switch {
+	case p.small:
+		sz, gap = tk.ItemSizeSM, tk.ItemSpacingSM
+	case p.large:
+		sz, gap = tk.ItemSizeLG, tk.ItemSpacingLG
 	}
 	shad := th.Flavor == theme.StyleShadcn
 	loc := c.Locale()
-	allOff := p.disabled
+	allOff := p.disabled || c.disabledDepth > 0 // ConfigProvider.ComponentDisabled
 	filled := p.bg && !shad && (!p.simple || p.bgSet)
 	item := func(label, name string, ic *icon.Icon, target int, active, disabled bool) {
 		disabled = disabled || allOff
@@ -1885,7 +1998,9 @@ func (p *PaginationW) Show() *PaginationW {
 		if shad {
 			st.Weight = text.Medium
 		}
-		labelled := shad && ic != nil && !p.small && !p.simple // shadcn PaginationPrevious / Next
+		jump := label == "•••"
+		prevBtn := name == loc.PrevPage
+		labelled := shad && ic != nil && !jump && !p.small && !p.simple // shadcn PaginationPrevious / Next
 		n.ln.Measure = func(_, _ float32) geom.Size {
 			if labelled {
 				return geom.Size{W: 16 + 4 + text.Width(label, st) + 20, H: sz}
@@ -1932,17 +2047,17 @@ func (p *PaginationW) Show() *PaginationW {
 					lay := text.Shape(label, st, c.textOpts(text.Options{NoWrap: true}))
 					sp := c.inline(r)
 					x := float32(10)
-					if ic == icon.Left {
+					if prevBtn {
 						c.drawIconAt(l, ic, sp.X(x, 16), r.Y+(r.H-16)/2, 16, col)
 						l.Glyphs(geom.Pt(sp.X(x+20, lay.Width), r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
 					} else {
 						l.Glyphs(geom.Pt(sp.X(x, lay.Width), r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
 						c.drawIconAt(l, ic, sp.X(x+lay.Width+4, 16), r.Y+(r.H-16)/2, 16, col)
 					}
+				} else if jump {
+					drawIcon(l, icon.More, r.X+(r.W-16)/2, r.Y+(r.H-16)/2, 16, tk.EllipsisColor)
 				} else if ic != nil {
 					c.drawIconAt(l, ic, r.X+(r.W-16)/2, r.Y+(r.H-16)/2, 16, col)
-				} else if label == "•••" {
-					drawIcon(l, icon.More, r.X+(r.W-16)/2, r.Y+(r.H-16)/2, 16, col)
 				} else {
 					lay := text.Shape(label, st, text.Options{NoWrap: true})
 					l.Glyphs(geom.Pt(r.X+(r.W-lay.Width)/2, r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
@@ -1979,16 +2094,25 @@ func (p *PaginationW) Show() *PaginationW {
 				if active {
 					if allOff {
 						if tk.ItemActiveBgDisabled.A > 0 {
+							// antd: itemActiveBgDisabled with a colorBorder outline.
 							l.Fill(r, rad, tk.ItemActiveBgDisabled)
+							l.Stroke(r, rad, 1, th.Border)
 						}
 					} else {
+						hov := ia.Hovered
 						if tk.ItemActiveBg.A > 0 {
 							l.Fill(r, rad, tk.ItemActiveBg)
 						}
-						if tk.ItemActiveBorderColor.A > 0 {
-							l.Stroke(r, rad, 1, tk.ItemActiveBorderColor)
+						if bc := tk.ItemActiveBorderColor; bc.A > 0 {
+							if hov && tk.ItemActiveBorderHover.A > 0 {
+								bc = tk.ItemActiveBorderHover
+							}
+							l.Stroke(r, rad, 1, bc)
 						}
 						col = tk.ItemActiveColor
+						if hov && tk.ItemActiveColorHover.A > 0 {
+							col = tk.ItemActiveColorHover
+						}
 					}
 				} else {
 					if tk.ItemBg.A > 0 {
@@ -2005,6 +2129,20 @@ func (p *PaginationW) Show() *PaginationW {
 			if disabled {
 				col = th.TextDisabled
 			}
+			if jump {
+				// antd jump-prev / jump-next: the ellipsis, swapped for a
+				// double chevron while hovered or focused.
+				if tk.JumpHoverArrow && !disabled && (ia.Hovered || ia.FocusVisible) {
+					c.drawIconAt(l, ic, r.X+(r.W-12)/2, r.Y+(r.H-12)/2, 12, tk.JumpArrowColor)
+					return
+				}
+				ec := tk.EllipsisColor
+				if disabled {
+					ec = th.TextDisabled
+				}
+				drawIcon(l, icon.More, r.X+(r.W-16)/2, r.Y+(r.H-16)/2, 16, ec)
+				return
+			}
 			if ic != nil {
 				// Previous / next chevrons mirror in RTL (the row order
 				// mirrors through the layout).
@@ -2015,21 +2153,19 @@ func (p *PaginationW) Show() *PaginationW {
 			l.Glyphs(geom.Pt(r.X+(r.W-lay.Width)/2, r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
 		}
 	}
-	gap := float32(8)
-	if p.small {
-		gap = 2
-	}
-	if el {
-		gap = 8
-	}
-	if shad {
-		gap = 4
-	}
 	custom := p.parts != nil
 	total := func() {
-		t := Text(c, loc.Total(p.total)).NoWrap()
-		if !custom {
-			t.Layout(layout.Margin(geom.Insets{Right: 8}))
+		s := loc.Total(p.total)
+		if p.totalFn != nil {
+			from, to := (*p.page-1)*p.pageSize+1, min(p.total, *p.page*p.pageSize)
+			if empty {
+				from, to = 0, 0
+			}
+			s = p.totalFn(p.total, from, to)
+		}
+		t := Text(c, s).NoWrap()
+		if !custom && tk.TotalMarginEnd > 0 {
+			t.Layout(layout.Margin(geom.Insets{Right: tk.TotalMarginEnd}))
 		}
 		if allOff {
 			t.Color(th.TextDisabled)
@@ -2040,18 +2176,26 @@ func (p *PaginationW) Show() *PaginationW {
 			p.simplePager(pages)
 			return
 		}
-		list := pageList(*p.page, pages)
+		if empty {
+			item("1", loc.Page(1), nil, 1, false, true)
+			return
+		}
+		list := pageList(*p.page, pages, p.less)
+		jump, prevName, nextName := 5, loc.Prev5, loc.Next5
+		if p.less {
+			jump, prevName, nextName = 3, loc.Pagination.Prev3, loc.Pagination.Next3
+		}
 		if p.pagerCount > 0 {
 			list = pageListN(*p.page, pages, p.pagerCount)
+			jump, prevName, nextName = max(5, p.pagerCount-2), loc.Prev5, loc.Next5
 		}
-		jump := max(5, p.pagerCount-2)
 		for _, pg := range list {
 			if pg < 0 {
-				target, name := max(1, *p.page-jump), loc.Prev5
+				target, name, ic := max(1, *p.page-jump), prevName, icon.DoubleLeft
 				if pg == -2 {
-					target, name = min(pages, *p.page+jump), loc.Next5
+					target, name, ic = min(pages, *p.page+jump), nextName, icon.DoubleRight
 				}
-				item("•••", name, nil, target, false, false)
+				item("•••", name, ic, target, false, false)
 				continue
 			}
 			item(strconv.Itoa(pg), loc.Page(pg), nil, pg, pg == *p.page, false)
@@ -2064,12 +2208,16 @@ func (p *PaginationW) Show() *PaginationW {
 		v := strconv.Itoa(*p.ps)
 		var opts []Option
 		selW := float32(110)
-		for _, n := range []int{10, 20, 50, 100} {
+		list := p.sizeList
+		if len(list) == 0 {
+			list = []int{10, 20, 50, 100}
+		}
+		for _, n := range list {
 			lb := loc.PageSizeLabel(n)
 			opts = append(opts, Option{Label: lb, Value: strconv.Itoa(n)})
 			selW = max(selW, entTextW(c, lb, c.Theme.FontSize, text.Regular)+48) // longer translations
 		}
-		sel := Select(c, &v, opts).Width(selW).Size(map[bool]ControlSize{true: Small, false: Middle}[p.small]).A11yLabel(loc.A11y.PageSize)
+		sel := Select(c, &v, opts).Width(selW).Size(p.ctlSize()).A11yLabel(loc.A11y.PageSize)
 		if allOff {
 			sel.Disabled(true)
 		}
@@ -2100,11 +2248,25 @@ func (p *PaginationW) Show() *PaginationW {
 			case PaginationTotal:
 				total()
 			case PaginationPrev:
-				item(loc.PrevPage, loc.PrevPage, icon.Left, *p.page-1, false, *p.page <= 1)
+				lb, ic := loc.PrevPage, p.prevIcon
+				if ic == nil {
+					ic = icon.Left
+				}
+				if p.prevText != "" {
+					lb, ic = p.prevText, nil
+				}
+				item(lb, loc.PrevPage, ic, *p.page-1, false, *p.page <= 1)
 			case PaginationPager:
 				pager()
 			case PaginationNext:
-				item(loc.NextPage, loc.NextPage, icon.Right, *p.page+1, false, *p.page >= pages)
+				lb, ic := loc.NextPage, p.nextIcon
+				if ic == nil {
+					ic = icon.Right
+				}
+				if p.nextText != "" {
+					lb, ic = p.nextText, nil
+				}
+				item(lb, loc.NextPage, ic, *p.page+1, false, *p.page >= pages)
 			case PaginationSizes:
 				sizes()
 			case PaginationJumper:
@@ -2115,19 +2277,44 @@ func (p *PaginationW) Show() *PaginationW {
 				Spacer(c)
 			}
 		}
-	}, layout.Gap(gap), layout.Middle())
+	}, p.rowOpts(gap)...)
 	nav.Semantics(a11y.RoleNavigation, loc.A11y.Pagination)
 	return p
+}
+
+// rowOpts lays out the pager row; Align stretches it across a column and
+// places the parts (antd justify-content start / center / end).
+func (p *PaginationW) rowOpts(gap float32) []layout.Option {
+	opts := []layout.Option{layout.Gap(gap), layout.Middle()}
+	switch p.align {
+	case "start":
+		opts = append(opts, layout.Self(layout.AlignStretch))
+	case "center":
+		opts = append(opts, layout.Self(layout.AlignStretch), layout.JustifyContent(layout.JustifyCenter))
+	case "end":
+		opts = append(opts, layout.Self(layout.AlignStretch), layout.End())
+	}
+	return opts
+}
+
+// ctlSize is the size of the inputs, select and button inside the pager.
+func (p *PaginationW) ctlSize() ControlSize {
+	switch {
+	case p.small:
+		return Small
+	case p.large:
+		return Large
+	}
+	return Middle
 }
 
 // pagerInput is the page number box of the quick jumper and the simple
 // pager: Enter (or leaving it) jumps to the typed page.
 func (p *PaginationW) pagerInput(st *pagerState, pages int, width float32, name string) bool {
 	c := p.c
-	in := Input(c, &st.jump).Width(width).A11yLabel(name)
+	in := Input(c, &st.jump).Width(width).A11yLabel(name).Size(p.ctlSize())
 	m := float32(8)
 	if p.small {
-		in.Size(Small)
 		m = 4
 	}
 	if p.disabled {
@@ -2162,10 +2349,32 @@ func (p *PaginationW) quickJumper(pages int) {
 			col = th.TextDisabled
 		}
 		Text(c, loc.JumpTo).NoWrap().Color(col)
-		if p.pagerInput(st, pages, 50, c.Locale().Pagination.Jump) {
+		tk := &th.Components.Pagination
+		w := tk.QuickJumperInputWidth
+		if p.small {
+			w = tk.QuickJumperInputWidthSM
+		}
+		if p.pagerInput(st, pages, w, c.Locale().Pagination.Jump) {
 			st.jump = "" // the box clears after jumping
 		}
 		Text(c, loc.PageSuffix).NoWrap().Color(col)
+		if p.goButton {
+			// antd goButton: a confirm button that jumps to the typed page.
+			lb := p.goText
+			if lb == "" {
+				lb = loc.Pagination.Confirm
+			}
+			b := Button(c, lb).Size(p.ctlSize()).Layout(layout.Margin(geom.Insets{Left: 8}))
+			if p.disabled || c.disabledDepth > 0 {
+				b.Disabled(true)
+			}
+			if b.Clicked() {
+				if n, err := strconv.Atoi(strings.TrimSpace(st.jump)); err == nil {
+					p.goTo(n, pages)
+				}
+				st.jump, st.dirty = "", false
+			}
+		}
 	}, layout.Middle(), layout.Margin(geom.Insets{Left: 8}))
 }
 
@@ -2188,9 +2397,10 @@ func (p *PaginationW) simplePager(pages int) {
 		if !st.focused && (st.shown != *p.page || st.jump == "") {
 			st.jump, st.shown = strconv.Itoa(*p.page), *p.page
 		}
-		w := float32(48)
+		tk := &th.Components.Pagination
+		w := tk.QuickJumperInputWidth // antd simple-pager input: quickJumperInputWidth
 		if p.small {
-			w = 40
+			w = tk.QuickJumperInputWidthSM
 		}
 		if p.pagerInput(st, pages, w, c.Locale().Pagination.Current) || !st.focused {
 			st.jump, st.shown = strconv.Itoa(*p.page), *p.page
@@ -2235,31 +2445,53 @@ func pageListN(cur, pages, count int) []int {
 	return append(out, pages)
 }
 
-// pageList returns page numbers with -1 / -2 for the left/right ellipsis.
-func pageList(cur, pages int) []int {
-	if pages <= 9 {
+// pageList returns page numbers with -1 / -2 for the left / right •••
+// jump, ported from @rc-component/pagination 1.7 Pagination.js: every page
+// up to 3+2*buffer pages, else the first and last pages and buffer pages
+// on each side of cur (one fewer next to a jump unless less); buffer is 2,
+// 1 with showLessItems.
+func pageList(cur, pages int, less bool) []int {
+	buf := 2
+	if less {
+		buf = 1
+	}
+	if pages <= 3+buf*2 {
 		out := make([]int, pages)
 		for i := range out {
 			out[i] = i + 1
 		}
 		return out
 	}
-	out := []int{1}
-	lo, hi := max(2, cur-2), min(pages-1, cur+2)
-	if cur <= 4 {
-		lo, hi = 2, 5
+	left, right := max(1, cur-buf), min(cur+buf, pages)
+	if cur-1 <= buf {
+		right = 1 + buf*2
 	}
-	if cur >= pages-3 {
-		lo, hi = pages-4, pages-1
+	if pages-cur <= buf {
+		left = pages - buf*2
 	}
-	if lo > 2 {
+	jumpPrev := cur-1 >= buf*2 && cur != 1+2
+	jumpNext := pages-cur >= buf*2 && cur != pages-2
+	if !less && jumpPrev && right != pages {
+		left++
+	}
+	if !less && jumpNext && left != 1 {
+		right--
+	}
+	var out []int
+	if left != 1 {
+		out = append(out, 1)
+	}
+	if jumpPrev {
 		out = append(out, -1)
 	}
-	for i := lo; i <= hi; i++ {
+	for i := left; i <= right; i++ {
 		out = append(out, i)
 	}
-	if hi < pages-1 {
+	if jumpNext {
 		out = append(out, -2)
 	}
-	return append(out, pages)
+	if right != pages {
+		out = append(out, pages)
+	}
+	return out
 }
