@@ -356,6 +356,12 @@ func init() {
 | 数据展示 | `CodeBlock`（只读代码、行号、复制、横向滚动/换行、选择复制；高亮经 `SetCodeHighlighter` 钩子，`ui/codehl` 用编辑器语法实现，Markdown 代码块共用） | — | codeblock.go、code_highlight.go、viewer_text.go |
 | 数据展示 | `LogView`、`LogBuffer`（百万行虚拟滚动、ANSI SGR `ParseANSI`、级别过滤、搜索、跟随底部、换行） | — | logview.go、logview_buffer.go、ansi.go |
 | 数据展示 | `JSONView`、`JSONViewValue`、`JSONViewSource`（`ValueSource` 懒加载值树、100 项分组、复制值/路径、搜索） | — | jsonview.go、jsonview_source.go |
+| AI 对话 | `Bubble`、`BubbleList`（虚拟化、贴底跟随、回到底部） | Ant Design X Bubble、Bubble.List | chat_bubble.go、chat_bubble_list.go |
+| AI 对话 | `Sender`（附件条、@ / 命令建议、发送/停止） | Ant Design X Sender、Attachments、Suggestion | chat_sender.go |
+| AI 对话 | `ThoughtChain`、`ToolCall` | Ant Design X ThoughtChain | chat_chain.go |
+| AI 对话 | `Approval`（工具权限确认） | — | chat_approval.go |
+| AI 对话 | `Conversations` | Ant Design X Conversations | chat_conversations.go |
+| AI 对话 | `Prompts`（提示词卡片，不同于对话框 `Prompt`） | Ant Design X Prompts | chat_prompts.go |
 | 反馈 | `Alert` | Alert / el-alert | feedback.go |
 | 反馈 | `Modal` | Modal / el-dialog | feedback.go |
 | 反馈 | `Drawer` | Drawer / el-drawer | feedback.go |
