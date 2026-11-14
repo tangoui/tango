@@ -21,8 +21,8 @@ import (
 
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/mobilecanvas"
+	"github.com/tangoui/tango/internal/render/gpu/gl/nativewindow"
 	"github.com/tangoui/tango/ui/geom"
-	"github.com/tangoui/tango/ui/gpu/gl/nativewindow"
 	"github.com/tangoui/tango/ui/input"
 )
 

@@ -12,7 +12,7 @@ import (
 // dashPhase. All values are in the same (device) units.
 //
 // It is the single stroke definition shared by paint.CPU and the GPU quad
-// shader (ui/gpu/shaders.StrokeCoverage computes exactly the same float32
+// shader (internal/render/gpu/shaders.StrokeCoverage computes exactly the same float32
 // formula; a test keeps them equal):
 //
 //   - The ring is RRectCoverage(r, radii) minus the RRectCoverage of r

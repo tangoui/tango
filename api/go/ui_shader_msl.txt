@@ -1,3 +1,0 @@
-pkg github.com/tangoui/tango/ui/shader/msl, const FragmentEntry untyped string = "fs_main"
-pkg github.com/tangoui/tango/ui/shader/msl, const VertexEntry untyped string = "vs_main"
-pkg github.com/tangoui/tango/ui/shader/msl, func Generate(*ui/shader/ir.Module) (string, error)

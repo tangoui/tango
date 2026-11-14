@@ -9,7 +9,7 @@ package uihost
 
 import (
 	"github.com/tangoui/tango/internal/platform"
-	"github.com/tangoui/tango/ui/gpu/d3d11"
+	"github.com/tangoui/tango/internal/render/gpu/d3d11"
 )
 
 var (

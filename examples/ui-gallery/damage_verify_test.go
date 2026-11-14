@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/tangoui/tango/examples/ui-gallery/gallery"
+	"github.com/tangoui/tango/internal/render/gpu"
+	"github.com/tangoui/tango/internal/render/gpu/cpuexec"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
-	"github.com/tangoui/tango/ui/gpu"
-	"github.com/tangoui/tango/ui/gpu/cpuexec"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/paint"
 )

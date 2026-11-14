@@ -21,7 +21,7 @@ import (
 	"unsafe"
 
 	"github.com/tangoui/tango/internal/platform"
-	"github.com/tangoui/tango/ui/gpu/gl/nativewindow"
+	"github.com/tangoui/tango/internal/render/gpu/gl/nativewindow"
 )
 
 // GPU presentation of canvas pages (docs/specs/mobile-canvas.md §1.3.5,

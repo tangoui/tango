@@ -49,8 +49,6 @@ ui/...                  experimental
 ui/chart                experimental
 ui/mobile               experimental
 ui/editor/...           experimental
-ui/gpu/...              experimental
-ui/shader/...           experimental
 
 # Not API.
 examples/...            exclude

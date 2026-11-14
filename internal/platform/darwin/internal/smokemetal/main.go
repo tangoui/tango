@@ -6,7 +6,7 @@
 // layer's next drawable, clears it to a colour that changes per frame,
 // blits a white marker into the top-left quarter (width/2 × height/4) and
 // presents it. The Metal code here is only a test double for the real
-// presenter in ui/gpu/metal.
+// presenter in internal/render/gpu/metal.
 //
 //	go run ./internal/platform/darwin/internal/smokemetal          # interactive
 //	go run ./internal/platform/darwin/internal/smokemetal -smoke   # self-check, exits 0 on PASS

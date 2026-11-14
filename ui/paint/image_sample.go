@@ -9,7 +9,7 @@ import (
 // This file holds the image filter both renderers share: paint.CPU draws
 // images with SampleCatmullRomF and the GPU renderer's KindImage instances
 // run shaders.SampleCatmullRom, the same formula operation by operation
-// (ui/gpu/shaders TestPaintCatmullRomMatchesShader keeps them equal).
+// (internal/render/gpu/shaders TestPaintCatmullRomMatchesShader keeps them equal).
 
 // CatmullRomWeights returns the weights of the four texels around a sample
 // point whose fractional position past the second texel's center is f

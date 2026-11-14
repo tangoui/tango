@@ -11,7 +11,7 @@ Tango 只有一个构建开关：`tango_dev` 构建标签。
 | 窗口位置恢复（`TANGO_DEV_WINDOW_STATE`） | 无效 | `tan dev` 重启应用后恢复窗口位置 |
 | 未处理的 panic（`Options.OnPanic` 为 nil） | 弹错误框后以退出码 2 退出 | 记日志、继续运行 |
 | `i18n` 缺失 key 警告、`env.Info().Debug` | 关闭 / `false` | 打开 / `true` |
-| GPU 渲染校验（`ui/gpu` verify 模式）默认值 | 见 `ui/gpu/verify_release.go` | 打开 |
+| GPU 渲染校验（`internal/render/gpu` verify 模式）默认值 | 见 `internal/render/gpu/verify_release.go` | 打开 |
 
 **直接 `go run .` 或 `go build` 得到的就是生产行为。** 热加载、自动化、前端开发代理这些开发功能只能通过 `tan dev` 或手动加 `-tags tango_dev` 使用。
 

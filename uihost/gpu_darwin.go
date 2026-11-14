@@ -7,7 +7,7 @@ package uihost
 
 import (
 	"github.com/tangoui/tango/internal/platform"
-	"github.com/tangoui/tango/ui/gpu/metal"
+	"github.com/tangoui/tango/internal/render/gpu/metal"
 )
 
 var (

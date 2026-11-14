@@ -13,9 +13,9 @@ import (
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/platform/fake"
 	"github.com/tangoui/tango/internal/platform/fake/faketest"
+	"github.com/tangoui/tango/internal/render/gpu"
+	"github.com/tangoui/tango/internal/render/gpu/d3d11"
 	"github.com/tangoui/tango/ui"
-	"github.com/tangoui/tango/ui/gpu"
-	"github.com/tangoui/tango/ui/gpu/d3d11"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/uihost"
 )

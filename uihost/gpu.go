@@ -44,9 +44,9 @@ import (
 	"sync"
 
 	"github.com/tangoui/tango/internal/platform"
+	"github.com/tangoui/tango/internal/render/gpu"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/geom"
-	"github.com/tangoui/tango/ui/gpu"
 	"github.com/tangoui/tango/ui/paint"
 )
 

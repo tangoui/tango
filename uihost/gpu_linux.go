@@ -10,7 +10,7 @@ package uihost
 // canvas gives the GLArea back (glAreaRelease) and the window stays on
 // the plain cairo path.
 
-import "github.com/tangoui/tango/ui/gpu/gl"
+import "github.com/tangoui/tango/internal/render/gpu/gl"
 
 var (
 	platformGPUTarget    = glAreaTarget

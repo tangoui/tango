@@ -11,7 +11,7 @@ import (
 // are in the same (device) units.
 //
 // It is the single coverage definition shared by paint.CPU and the GPU
-// quad shader (ui/gpu/shaders.RRectCoverage computes exactly the same
+// quad shader (internal/render/gpu/shaders.RRectCoverage computes exactly the same
 // float32 formula; a test keeps them equal):
 //
 //   - Away from rounded corners it is the exact area overlap of the unit

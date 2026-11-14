@@ -15,7 +15,10 @@ import (
 // Phase 1). A rebased branch can recreate a file at the old path and
 // silently bring the public package back; this guard fails instead. An
 // entry ending in "/..." covers the directory and everything below it.
-var retired = []string{}
+var retired = []string{
+	"ui/gpu/...",    // moved to internal/render/gpu (Phase 1)
+	"ui/shader/...", // moved to internal/render/shader (Phase 1)
+}
 
 // moduleRoot returns the repository root (two levels above this file).
 func moduleRoot(t *testing.T) string {

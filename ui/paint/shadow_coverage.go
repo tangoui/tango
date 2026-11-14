@@ -15,7 +15,7 @@ import (
 // already applied to r and radii.
 //
 // It is the single shadow definition shared by paint.CPU and the GPU quad
-// shader (ui/gpu/shaders.ShadowCoverage computes exactly the same float32
+// shader (internal/render/gpu/shaders.ShadowCoverage computes exactly the same float32
 // formula; a test keeps them equal), a closed-form approximation of the
 // true Gaussian blur (within 0.02 of it for sigma >= 0.25):
 //

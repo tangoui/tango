@@ -80,7 +80,7 @@ func clampPx(f float64) int {
 // blendPremulF composites the premultiplied color c (0..1) with coverage
 // cov "source over" onto dst's pixel (x, y), rounding the result to 8 bits
 // once: the arithmetic of the GPU's float blend into an 8-bit target (and
-// of ui/gpu/cpuexec).
+// of internal/render/gpu/cpuexec).
 func blendPremulF(dst *image.RGBA, x, y int, c [4]float32, cov float32) {
 	if !(image.Point{x, y}.In(dst.Rect)) {
 		return

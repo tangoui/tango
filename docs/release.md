@@ -33,7 +33,7 @@ Go 模块的每个非 internal 包在 [`api/tiers.txt`](../api/tiers.txt) 里有
 |---|---|---|
 | `stable` | 不兼容变化默认不允许，走下面的 `api-break` 流程 | 根包 `tango`、`asset`、`automation`、`bind`、`i18n`、`ipc`、`jsapi`、`runtime-js/runtimejs`、`service/...`（`service/updater` 除外）、`sys/...`、`ui/a11y`、`ui/geom`、`ui/icon` |
 | `split` | 包内分层：[`api/stable/<包>.txt`](../api/stable) 白名单里的符号是稳定层，其余是实验层 | `ui`、`ui/input`、`ui/layout`、`ui/paint`、`ui/text`、`ui/theme`、`uihost` |
-| `experimental` | 允许不兼容变化，CI 只警告；仍要在 CHANGELOG 写一句 | `service/updater`、`ui/chart`、`ui/mobile`、`ui/editor/...`、`ui/gpu/...`、`ui/shader/...` 及其余 `ui/*` |
+| `experimental` | 允许不兼容变化，CI 只警告；仍要在 CHANGELOG 写一句 | `service/updater`、`ui/chart`、`ui/mobile`、`ui/editor/...` 及其余 `ui/*` |
 | `exclude` | 不是 API | `examples/...`、`site/...` |
 
 - 白名单每行一个符号：顶层名（`Button`；类型包含它的全部字段和方法）或 `类型.成员`（`Label.Color`）。不支持"稳定类型上的实验性方法"。
@@ -122,7 +122,7 @@ pkg github.com/tangoui/tango/ui, const DrawerRight DrawerPlacement = 1
 pkg github.com/tangoui/tango/ui, method (*TooltipW) Placement(Placement) *TooltipW
 pkg github.com/tangoui/tango/ui, type AlertW struct, noncomparable
 pkg github.com/tangoui/tango/ui, prop "Card" "bordered" bool
-pkg github.com/tangoui/tango/ui/gpu/metal, type Device struct, noncomparable [darwin]
+pkg github.com/tangoui/tango/<pkg>, func DarwinOnly() [darwin]
 ```
 
 - 常量带值，枚举移位直接改动行；`noncomparable` 让 R4 可见；只在部分平台存在的行带 `[darwin]` 这样的后缀（合并 linux、darwin、windows，`CGO_ENABLED=0`）。

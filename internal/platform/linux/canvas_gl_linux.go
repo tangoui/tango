@@ -7,7 +7,7 @@ package linux
 // re-parenting the drawing area later would unrealize it and drop focus
 // and the IM client window). UseGLArea adds a GtkGLArea as the overlay's
 // only overlay child, above the drawing area, and hands it to the caller
-// (ui/gpu/gl.NewPresenter), which connects its "render" signal and blits
+// (internal/render/gpu/gl.NewPresenter), which connects its "render" signal and blits
 // its frames into it. The drawing area keeps everything else: input, IME,
 // cursor, focus, AT-SPI, frame scheduling. Only drawing changes:
 //

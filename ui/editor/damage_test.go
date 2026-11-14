@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tangoui/tango/internal/render/gpu"
+	"github.com/tangoui/tango/internal/render/gpu/cpuexec"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/editor/theme"
 	"github.com/tangoui/tango/ui/geom"
-	"github.com/tangoui/tango/ui/gpu"
-	"github.com/tangoui/tango/ui/gpu/cpuexec"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/paint"
 )

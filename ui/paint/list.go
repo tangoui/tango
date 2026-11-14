@@ -195,7 +195,7 @@ type Pop struct{}
 // completely; once a frame carries any hint, everything that changed is
 // covered by the union of its Damage rects and ScrollRegions. Renderers
 // that do not do partial redraws ignore both ops (paint.CPU does; the GPU
-// renderer in ui/gpu redraws only the hinted region when its device keeps
+// renderer in internal/render/gpu redraws only the hinted region when its device keeps
 // the previous frame).
 type Damage struct{ Rect geom.Rect }
 

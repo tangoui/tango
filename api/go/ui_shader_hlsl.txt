@@ -1,7 +1,0 @@
-pkg github.com/tangoui/tango/ui/shader/hlsl, const FragmentEntry untyped string = "ps_main"
-pkg github.com/tangoui/tango/ui/shader/hlsl, const FragmentTarget untyped string = "ps_5_0"
-pkg github.com/tangoui/tango/ui/shader/hlsl, const FragmentTargetSM4 untyped string = "ps_4_0"
-pkg github.com/tangoui/tango/ui/shader/hlsl, const VertexEntry untyped string = "vs_main"
-pkg github.com/tangoui/tango/ui/shader/hlsl, const VertexTarget untyped string = "vs_5_0"
-pkg github.com/tangoui/tango/ui/shader/hlsl, const VertexTargetSM4 untyped string = "vs_4_0"
-pkg github.com/tangoui/tango/ui/shader/hlsl, func Generate(*ui/shader/ir.Module) (string, error)
