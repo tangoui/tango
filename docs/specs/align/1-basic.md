@@ -166,7 +166,7 @@
 | 超小控件档 | Button（shadcn `xs`、`icon-xs` h-6） | `ControlSize` 追加 XSmall 档，主题核心新增 `ControlHeightXS`（及 `controlHeightOf` 等辅助） | 暂不做，等主线程决定 |
 | xxxl 断点 | Grid、Masonry、数据组件按断点取列数 | `Breakpoint` 追加 `XXXL`（Ant 1920），`BreakpointMins` 与 data_util.go / fill_masonry.go 的 `[6]` 数组扩成 7 | 暂不做，归属外 |
 | Space 组件令牌 | Space（Element small/default/large = 8/12/16） | theme 核心新增 `CompSpace` + `SpaceToken{GapSM, Gap, GapLG}` | 暂不做，等主线程 |
-| 布尔组件令牌的 CSS 变量 | Button `AutoInsertSpace` | `TestComponentCSSVars` 跳过非 CSS 字段（主线程已定） | 合并前该测试失败（少 1 个变量） |
+| 布尔组件令牌的 CSS 变量 | Button `AutoInsertSpace` | `TestComponentCSSVars` 跳过非 CSS 字段（主线程已定） | 已解决（主线程在 TestComponentCSSVars 里跳过布尔字段） |
 
 ## CHANGELOG 草稿
 
