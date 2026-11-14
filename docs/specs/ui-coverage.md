@@ -40,7 +40,7 @@
 - 画廊 `-theme all -scale 1` 退出码 0，231 个基础页面在 Ant 亮/暗、Element 亮/暗、shadcn 亮/暗六种渲染下均有截图，无缺页（见 5.2）；抽看 ButtonGroup-element-dark、Menubar-shadcn 正常。
 - `-audit` 全部为 0（见 5.4）；`-mirror-check` 只剩 Mentions 的 2 处已知项。
 
-ConfigProvider、FooterToolbar 仍是 ⚠️：缺的是功能，不是稳定性问题，补上功能后再标。
+FooterToolbar 仍是 ⚠️：缺的是功能，不是稳定性问题，补上功能后再标（ConfigProvider 已在 Defaults 接线后标为 ✅）。
 
 ### 1.3 与上次扫描对比
 
