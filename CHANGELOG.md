@@ -37,6 +37,7 @@
 - **shadcn/ui v4 主题**：`theme.ShadcnOptions.Color` 叠加 v4 的 17 个彩色主题（`theme.ShadcnColors`：amber、blue、cyan……yellow），覆盖主色、次要色、图表色和侧栏主色；`theme.ShadcnBases` 增加 v4 的 mauve、olive、mist、taupe。
 - `theme.ParseOKLCH` / `theme.OKLCH`：解析和转换 CSS `oklch()` 颜色（支持百分比亮度、`none` 色相和 `/ alpha`，色域外分量裁剪）；`theme.ParseColor` 也接受 `oklch()`。
 - `internal/cmd/shadcngen`：从 shadcn/ui 的 `apps/v4/registry/themes.ts` 和 Tailwind CSS v4 的 `theme.css` 生成 `ui/theme/shadcn_data.go`。
+- **默认更新界面** `service/updater/updateui`（实验性）：`updateui.Start(app, u, …)` 一行接上现成的更新窗口：后台定时检查、更新说明、下载进度（补丁优先）、立即重启或下次启动时安装、跳过此版本；`CheckNow` 给"检查更新…"菜单用。WebView 与自绘应用都能用，跟随主题与语言。见 [docs/updates.md](docs/updates.md#默认更新界面updateui)，示例 `examples/update-demo`。
 
 ### 变更
 
