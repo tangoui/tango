@@ -230,19 +230,11 @@ func TestLaneClosedSurface(t *testing.T) {
 }
 
 // ipcReplies decodes the ipc messages the fake surface received through
-// Eval (window.__tango._recv(...)).
+// Eval (window.__tango._recvSeq(...)).
 func ipcReplies(t *testing.T, fb *fake.Backend, s *Surface) []map[string]any {
 	t.Helper()
 	var out []map[string]any
-	for _, e := range fb.Surface(s.ID()).Evals() {
-		lit, ok := strings.CutPrefix(e, "window.__tango._recv(")
-		if !ok {
-			continue
-		}
-		var msg string
-		if err := json.Unmarshal([]byte(strings.TrimSuffix(lit, ")")), &msg); err != nil {
-			t.Fatalf("eval %q: %v", e, err)
-		}
+	for _, msg := range sentMsgs(t, fb.Surface(s.ID()).Evals()) {
 		var m map[string]any
 		if err := json.Unmarshal([]byte(msg), &m); err != nil {
 			continue

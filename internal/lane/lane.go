@@ -29,6 +29,9 @@ const (
 	UpAndroid   = "up:android"
 	DownShm     = "down:shm" // WebView2 shared buffers
 	UpShm       = "up:shm"
+	// DownPoll is the core's downstream transport: GET /__tango/lane/poll
+	// on the asset origin (the root package and internal/downq).
+	DownPoll = "down:poll"
 )
 
 const (

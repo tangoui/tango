@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/tangoui/tango/internal/downq"
 	"github.com/tangoui/tango/internal/lane"
 	"github.com/tangoui/tango/internal/platform"
 )
@@ -53,14 +54,18 @@ type Surface struct {
 	id     platform.SurfaceID
 	closed atomic.Bool
 
+	// loaded: a trusted page has loaded and Send pushes to its
+	// downstream generation. Written under down.sendMu (downpoll.go),
+	// read from any goroutine.
+	loaded atomic.Bool
+
 	// Main thread only.
-	ns        platform.Surface
-	loaded    bool
-	pending   []string // Send messages waiting for Loaded
-	navOrigin string   // origin of the URL the core last navigated to
-	title     string   // last title set (creation or SetTitle)
-	visible   bool     // bookkeeping for surfaces without platform.SurfaceStatus
-	focused   bool     // likewise, from SurfaceFocused / SurfaceBlurred
+	ns         platform.Surface
+	readyEarly bool   // a trusted page loaded before ns was set
+	navOrigin  string // origin of the URL the core last navigated to
+	title      string // last title set (creation or SetTitle)
+	visible    bool   // bookkeeping for surfaces without platform.SurfaceStatus
+	focused    bool   // likewise, from SurfaceFocused / SurfaceBlurred
 
 	mu        sync.Mutex // guards the handlers
 	onClose   []func() bool
@@ -74,6 +79,9 @@ type Surface struct {
 
 	lane  *lane.State  // IPC fast lanes (any goroutine); lanes.go
 	lanes surfaceLanes // their wiring to the native surface; lanes.go
+
+	downq *downq.State // downstream queue (any goroutine); downpoll.go
+	down  surfaceDown  // Send, Eval and the fallback; downpoll.go
 }
 
 // NewSurface creates a surface. Safe from any goroutine once the app runs;
@@ -131,6 +139,7 @@ func (a *App) addSurface(opts SurfaceOptions, navOrigin string, extrasTaken bool
 	a.mu.Unlock()
 	s := &Surface{app: a, id: id, navOrigin: navOrigin, title: opts.Title, visible: !opts.Hidden}
 	s.initLanes(navOrigin) // outside a.mu: lane.New may log
+	s.initDown()
 	// Registered before the backend call: a backend may emit events for
 	// the surface while creating it.
 	a.mu.Lock()
@@ -150,7 +159,10 @@ func (a *App) addSurface(opts SurfaceOptions, navOrigin string, extrasTaken bool
 	s.ns = ns
 	s.setLaneNative(ns)
 	s.afterCreate(opts, extrasTaken)
-	s.flush()
+	if s.readyEarly {
+		s.readyEarly = false
+		s.pageReady()
+	}
 	a.surfaceCreated(s)
 	return s, nil
 }
@@ -285,7 +297,7 @@ func (s *Surface) Navigate(u string) {
 			return
 		}
 		abs := s.app.resolveURL(u)
-		s.loaded = false
+		s.pageGone() // downpoll.go
 		s.navOrigin = originOf(abs)
 		s.noteCoreNav(abs)
 		s.lanesLeaving(s.navOrigin) // lanes.go
@@ -293,45 +305,27 @@ func (s *Surface) Navigate(u string) {
 	})
 }
 
-// Eval runs js in the page, fire-and-forget, in order with Send.
+// Eval runs js in the page, fire-and-forget, in order with Send: after
+// the messages sent before it (from the same goroutine) and before those
+// sent after it. While the page polls (down:poll) js runs once the page
+// has delivered the messages before it; otherwise on the main thread.
 func (s *Surface) Eval(js string) {
 	if s.closed.Load() {
 		return
 	}
-	s.app.run(func() {
-		if !s.closed.Load() && s.ns != nil {
-			s.ns.Eval(js)
-		}
-	})
+	s.evalDown(js) // downpoll.go
 }
 
 // Send delivers msg to the page's window.__tango.onMessage subscribers.
-// Before the page has loaded (and after Navigate until it loads again)
-// messages are kept and delivered in order on Loaded.
+// It does not wait for the main thread. Messages sent from one goroutine
+// are delivered in call order. Before the page has loaded (and after
+// Navigate until it loads again) messages are kept and delivered in order
+// on Loaded.
 func (s *Surface) Send(msg string) {
 	if s.closed.Load() {
 		return
 	}
-	s.app.run(func() {
-		if s.closed.Load() {
-			return
-		}
-		s.pending = append(s.pending, msg)
-		s.flush()
-	})
-}
-
-// flush delivers pending messages if the page is ready. Main thread.
-func (s *Surface) flush() {
-	for s.loaded && s.ns != nil && !s.closed.Load() && len(s.pending) > 0 {
-		msg := s.pending[0]
-		s.pending[0] = ""
-		s.pending = s.pending[1:]
-		s.ns.Eval(recvJS(msg))
-	}
-	if len(s.pending) == 0 {
-		s.pending = nil
-	}
+	s.sendDown(msg) // downpoll.go
 }
 
 // OnClose registers fn to be asked when the user tries to close the
@@ -404,8 +398,8 @@ func (s *Surface) handleClosed() {
 	if s.closed.Swap(true) {
 		return
 	}
-	s.pending = nil
-	s.loaded = false
+	s.downq.Close()
+	s.pageGone()
 	s.lane.Close()
 	s.setLaneNative(nil)
 	a := s.app
@@ -430,12 +424,16 @@ func (s *Surface) handleLoaded(u string) {
 	}
 	// A page the core did not navigate to (the user followed a link
 	// elsewhere) gets no messages; they wait for a trusted page.
-	s.loaded = u == "" || s.trusts(originOf(u))
+	trusted := u == "" || s.trusts(originOf(u))
 	s.notePageLoaded(u) // webview.go: source of downloads and permission requests
 	s.noteLaneOrigin(s.web.pageOrigin)
 	s.lanesLeaving(s.web.pageOrigin) // lanes.go
 	s.onLoadedExt()
-	s.flush()
+	if trusted {
+		s.pageReady() // downpoll.go: a new generation, then pending messages
+	} else {
+		s.pageGone()
+	}
 	s.mu.Lock()
 	fns := slices.Clone(s.onLoaded)
 	s.mu.Unlock()

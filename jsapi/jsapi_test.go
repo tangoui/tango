@@ -73,17 +73,26 @@ func (p *page) post(msg string) { p.e.fb.Message(p.s.ID(), msg) }
 func (p *page) received() []map[string]json.RawMessage {
 	var out []map[string]json.RawMessage
 	for _, ev := range p.fs.Evals() {
-		lit, ok := strings.CutPrefix(ev, "window.__tango._recv(")
+		// window.__tango._recvSeq(gen,[[seq,kind,data],...]); kind 0 is a
+		// message.
+		lit, ok := strings.CutPrefix(ev, "window.__tango._recvSeq(")
 		if !ok {
 			continue
 		}
-		var msg string
-		if json.Unmarshal([]byte(strings.TrimSuffix(lit, ")")), &msg) != nil {
+		_, lit, _ = strings.Cut(lit, ",")
+		var items [][]json.RawMessage
+		if json.Unmarshal([]byte(strings.TrimSuffix(lit, ")")), &items) != nil {
 			continue
 		}
-		var m map[string]json.RawMessage
-		if json.Unmarshal([]byte(msg), &m) == nil {
-			out = append(out, m)
+		for _, it := range items {
+			var msg string
+			if len(it) != 3 || string(it[1]) != "0" || json.Unmarshal(it[2], &msg) != nil {
+				continue
+			}
+			var m map[string]json.RawMessage
+			if json.Unmarshal([]byte(msg), &m) == nil {
+				out = append(out, m)
+			}
 		}
 	}
 	return out

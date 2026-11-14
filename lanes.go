@@ -209,6 +209,8 @@ func (a *App) serveLane(id platform.SurfaceID, w http.ResponseWriter, r *http.Re
 	switch r.URL.Path {
 	case lanePathPrefix + "down":
 		s.lane.ServeDown(w, r)
+	case lanePathPrefix + "poll":
+		s.downq.Serve(w, r) // down:poll; downpoll.go
 	case lanePathPrefix + "up":
 		s.lane.ServeUpSession(w, r, func(gen uint64, p []byte) {
 			if !s.closed.Load() {

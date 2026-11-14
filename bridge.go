@@ -1,7 +1,6 @@
 package tango
 
 import (
-	"encoding/json"
 	"strings"
 )
 
@@ -11,9 +10,9 @@ import (
 //	window.__tango.post(str)      send a raw message to Go (App.OnMessage)
 //	window.__tango.onMessage(fn)  subscribe to Go's Surface.Send; returns an
 //	                             unsubscribe function
-//	window.__tango._recv(str)     called by the core with Eval (unnumbered;
-//	                             before a generation starts and on backends
-//	                             without sequence numbers)
+//	window.__tango._recv(str)     unnumbered delivery to the subscribers
+//	                             (the core sends numbered items with
+//	                             _recvSeq; see downpoll.go)
 //
 // The down:poll members (_open, _recvSeq, _release, _onPacket) come from
 // downShim, which is part of this script so that there is one frozen
@@ -83,14 +82,3 @@ const coreShim = `(function () {
 `
 
 var lineSepEscaper = strings.NewReplacer("\u2028", `\u2028`, "\u2029", `\u2029`)
-
-// recvJS returns the script delivering msg to the page's __tango._recv.
-// encoding/json escapes U+2028 and U+2029 (line terminators in pre-ES2019
-// JavaScript string literals) and <, >, & (so "</script>" cannot break out
-// of an inline script); the explicit replacements below keep that true even
-// if the encoder ever changes.
-func recvJS(msg string) string {
-	b, _ := json.Marshal(msg) // a string never fails to marshal
-	lit := lineSepEscaper.Replace(string(b))
-	return "window.__tango._recv(" + lit + ")"
-}
