@@ -27,6 +27,8 @@
 
 ### 变更
 
+- `tan package` 生成的 macOS `.dmg` 改用 LZMA 压缩（`hdiutil -format ULMO`，原为 UDZO/zlib），体积约小四分之一：最小 WebView 应用从 2.32 MiB 降到 1.80 MiB。需要 macOS 10.15 以上挂载，低于 tan 写入的最低系统版本 11.0。
+
 冻结 API 前的一次性不兼容调整（[docs/specs/api-stability.md](docs/specs/api-stability.md) Phase 3，规则见 [docs/release.md](docs/release.md#api-稳定性)）。
 
 - **结构体不可比较（R4）**：下列结构体的第一个字段改为 `_ [0]func()`，不能再用 `==` 比较，也不能写无键字面量（`T{a, b}` 改成 `T{Field: a, ...}`）。以后给它们加字段不再算破坏兼容。

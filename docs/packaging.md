@@ -170,7 +170,7 @@ tan **不用 AppleScript 驱动 Finder**。那种做法需要图形会话，在 
 - 文件头是 `Bud1` 伙伴分配器：info 块记录块地址表、目录（`DSDB`）和 32 条空闲链表；所有块按 2 的幂分配，并且整个 2³¹ 地址空间要么属于某个块，要么在空闲链表上。
 - `DSDB` 是 B 树头。B 树只有一个叶子节点，记录按文件名（不区分大小写）和属性码排序。
 - `.` 的 `bwsp`（窗口：位置尺寸、隐藏工具栏、侧栏、状态栏）和 `icvp`（图标视图：图标大小、不自动排列、背景）是二进制 plist（bplist00，tan 自己编码）；每个图标的位置是一条 `Iloc` 记录。
-- 背景图由 `icvp` 中的 `backgroundImageAlias` 引用。这是 Alias Manager 第 2 版记录，需要卷名、卷创建日期、文件及其父目录的 catalog id。所以流程是：`hdiutil create -format UDRW` → `hdiutil attach -nobrowse`（不在 Finder 中出现）→ 读取挂载后文件的 id 和日期，写入 `.DS_Store`，设置卷图标标志（`com.apple.FinderInfo` 中的 `kHasCustomIcon`），删除 `.fseventsd` → `hdiutil detach` → `hdiutil convert -format UDZO`。
+- 背景图由 `icvp` 中的 `backgroundImageAlias` 引用。这是 Alias Manager 第 2 版记录，需要卷名、卷创建日期、文件及其父目录的 catalog id。所以流程是：`hdiutil create -format UDRW` → `hdiutil attach -nobrowse`（不在 Finder 中出现）→ 读取挂载后文件的 id 和日期，写入 `.DS_Store`，设置卷图标标志（`com.apple.FinderInfo` 中的 `kHasCustomIcon`），删除 `.fseventsd` → `hdiutil detach` → `hdiutil convert -format ULMO`（LZMA 压缩，macOS 10.15 起可挂载）。
 
 alias 固定字段中的日期使用本地时间，与 Finder 一致；另有 UTC 高精度日期标签。生成的 alias 已逐字节对照 Finder 本机写出的版本，同一卷同一文件下，只差 Finder 额外附带的"磁盘映像文件自身的 alias"（tag 20）。
 
