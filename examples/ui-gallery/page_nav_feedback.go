@@ -200,31 +200,31 @@ func spinPage(c *ui.Context) {
 			ui.Spin(c).Size(ui.Small)
 			ui.Spin(c)
 			ui.Spin(c).Size(ui.Large)
-			ui.Spin(c).Tip("加载中")
+			ui.Spin(c).Description("加载中")
 			ui.Spin(c).Size(ui.Large).Percent(spinPct)
 			ui.Spin(c).Delay(500 * time.Millisecond)
 		}, layout.Gap(48), layout.Middle())
 	})
 	navDemo(c, "嵌套：包裹的内容半透明", "Spin(c).Spinning(on).Wrap(fn)", func() {
-		ui.Spin(c).Tip("加载中…").Wrap(func() {
-			ui.Alert(c, "info", "被嵌套的内容").Description("容器加载时内容半透明，指示器居中显示。").Show()
+		ui.Spin(c).Description("加载中…").Wrap(func() {
+			ui.Alert(c, "info", "被嵌套的内容").ShowIcon(true).Description("容器加载时内容半透明，指示器居中显示。").Show()
 		})
 	})
 }
 
 func loadingPage(c *ui.Context) {
-	navDemo(c, "区域加载", "Loading(c, on).Tip(...).Body(fn) 用遮罩覆盖区域（Element v-loading）。", func() {
+	navDemo(c, "区域加载", "Loading(c, on).Text(...).Body(fn) 用遮罩覆盖区域（Element v-loading）。", func() {
 		ui.Switch(c, &fb2.region).A11yLabel("区域加载")
 		ui.Gap(c, 12)
-		ui.Loading(c, fb2.region).Tip("拼命加载中").Body(func() {
-			ui.Alert(c, "success", "区域加载").Description("加载时遮罩挡住下层内容的交互。").Show()
+		ui.Loading(c, fb2.region).Text("拼命加载中").Body(func() {
+			ui.Alert(c, "success", "区域加载").ShowIcon(true).Description("加载时遮罩挡住下层内容的交互。").Show()
 		})
 	})
 	navDemo(c, "全屏加载", "Loading(c, on).Fullscreen() 覆盖整个窗口。", func() {
 		if ui.Button(c, "全屏加载").Icon(icon.Loading).Clicked() {
 			fb2.loading = true
 		}
-		ui.Loading(c, fb2.loading).Tip("加载中").Fullscreen()
+		ui.Loading(c, fb2.loading).Text("加载中").Fullscreen()
 	})
 }
 

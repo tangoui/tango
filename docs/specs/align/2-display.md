@@ -92,7 +92,7 @@
 | 规范项 | 官方定义（来源，日期） | Tango 现状 | 结论 |
 |---|---|---|---|
 | image / description / children | antd `image`（默认 / PRESENTED_IMAGE_SIMPLE）、`description`、children（antd/empty/index.d.ts） | data_result.go `Image(fn)`、`Simple()`、`Description`、`Body(actions)` | 已对齐 |
-| 尺寸与间距 | antd 图高 controlHeightLG × 2.5 = 100、simple 40；marginInline 8、图下 8、footer 16（antd/empty/style/index.js）；EP padding 40px 0、image-width 160、description-margin-top 20、bottom-margin-top 20（var.scss `$empty`） | 写在组件里按 Flavor 分支 | 已补齐（TestAlignB2GEmptyTokens）：令牌 `PaddingBlock/PaddingInline/DescriptionMarginTop/FooterMarginTop`，去掉 Flavor 分支；Ant / Element 外观不变 |
+| 尺寸与间距 | antd 图高 controlHeightLG × 2.5 = 100、simple 40；marginInline 8、图下 8、footer 16（antd/empty/style/index.js）；EP padding 40px 0、image-width 160、description-margin-top 20、bottom-margin-top 20（var.scss `$empty`） | 写在组件里按 Flavor 分支 | 已补齐（TestAlignB2GEmptyTokens）：令牌 `PaddingBlock/PaddingInline/DescriptionMarginTop/FooterMarginTop`，去掉间距的 Flavor 分支；Ant / Element 外观不变。默认插画的选择在第 2 批仍按 Flavor 判断，第 3 批（组 L，见 3-feedback.md）改为令牌 `EmptyToken.Picture`（TestAlignB3LEmptyPictureToken） |
 | Simple 外边距 | antd simple 图（`-normal`）marginBlock 32；Select 等的 `-small` marginBlock 8、图高 35（config-provider/defaultRenderEmpty.js） | Simple 统一 8 | 暂不做（改 Simple 会改 Select/Table/List 等别组组件的空态，需统一决定是否拆 normal/small 两档） |
 | styles.image / imageStyle | antd（imageStyle 已弃用） | `ImageSize(px)` | 等价写法 |
 | EP image / image-size | EP | `Image(fn)`、`ImageSize(px)` | 已对齐 |
@@ -115,7 +115,7 @@
 | EP throttle | EP `throttle`（显示延迟） | — | 暂不做（需要按 loading 变化计时的保留状态，下批与 Spin delay 一起做） |
 | Skeleton.Node | antd `Skeleton.Node`（自定义内容的占位块） | — | 暂不做（`SkeletonImage` 覆盖常见用法；自定义内容块价值低） |
 | Button / Input / Avatar / Image | antd 元素宽 controlHeight × 2、× 5、头像 controlHeight 各档 | `SkeletonButton/Input/Avatar/Image` | 已对齐 |
-| shadcn | `animate-pulse rounded-md bg-accent`（shadcn/skeleton.tsx） | shadcn 走脉冲、bg = accent | 已对齐 |
+| shadcn | `animate-pulse rounded-md bg-accent`（shadcn/skeleton.tsx） | shadcn 走脉冲、bg = accent | 已对齐（第 3 批起脉冲由令牌 `SkeletonToken.Pulse` 决定，不再按 Flavor 判断，TestAlignB3LSkeletonPulse） |
 | a11y | 装饰 | 组 role group + Busy；各条 aHidden | 已对齐 |
 
 ## Progress

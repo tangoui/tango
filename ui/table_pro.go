@@ -645,7 +645,7 @@ func (p *ProTableW[T]) content() {
 		if st.err != nil {
 			Row(c, func() {
 				a := Alert(c, "error", locFmt(c.Locale().ProTable.LoadErrorFmt, st.err.Error()))
-				a.Show()
+				a.ShowIcon(true).Show()
 			}, layout.Margin(geom.Insets{Bottom: 16}))
 			Row(c, func() {
 				if Button(c, c.Locale().Retry).Small().Icon(icon.Reload).Clicked() {

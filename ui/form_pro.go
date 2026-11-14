@@ -297,7 +297,7 @@ func (p *ProFormW) content(vals ProValues) {
 		}
 		if st.err != nil {
 			Row(c, func() {
-				Alert(c, "error", st.err.Error()).Show()
+				Alert(c, "error", st.err.Error()).ShowIcon(true).Show()
 			}, layout.Margin(geom.Insets{Bottom: 16}))
 		}
 		if p.noSubmit || p.readonly {

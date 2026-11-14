@@ -251,8 +251,8 @@ func TestAlignB2E1SelectAllCentred(t *testing.T) {
 			d.Settle()
 			row := mustFind(t, d, "row:a")
 			w := th.Components.Table.SelectionColumnWidth
-			if bordered && th.Flavor != theme.Element {
-				w += 16 // antd selection.js: bordered + 2 × paddingXS
+			if bordered {
+				w += th.Components.Table.SelectionBorderedExtra
 			}
 			// Body checkbox centred in its cell.
 			d.Click(geom.Pt(row.X+w/2, row.Y+row.H/2))

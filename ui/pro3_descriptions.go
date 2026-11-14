@@ -227,7 +227,7 @@ func (p *ProDescriptionsW) Show() *ProDescriptionsW {
 	}
 	root.Body(func() {
 		if st.err != nil {
-			Row(c, func() { Alert(c, "error", st.err.Error()).Show() }, layout.Margin(geom.Insets{Bottom: 16}))
+			Row(c, func() { Alert(c, "error", st.err.Error()).ShowIcon(true).Show() }, layout.Margin(geom.Insets{Bottom: 16}))
 		}
 		Loading(c, st.loading).Body(func() { p.list(vals) })
 	})

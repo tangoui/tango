@@ -431,7 +431,7 @@ func (w *JSONViewW) build() {
 	}
 	w.b.n.ln.MinH = 80
 	if w.err != nil {
-		Alert(c, "error", loc.ParseError(w.err.Error())).Show()
+		Alert(c, "error", loc.ParseError(w.err.Error())).ShowIcon(true).Show()
 		return
 	}
 	if w.toolbar {

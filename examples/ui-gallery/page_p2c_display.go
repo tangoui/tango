@@ -122,8 +122,8 @@ func p2cDividerPage(c *ui.Context) {
 func p2cAlertPage(c *ui.Context) {
 	navDemo(c, "操作区 Action", "", func() {
 		ui.Column(c, func() {
-			ui.Alert(c, "success", "已保存草稿").Closable().Action(func() { ui.Button(c, "撤销").Small() }).Show()
-			ui.Alert(c, "info", "有新版本可用").Description("新版本修复了若干问题，建议更新。").Action(func() {
+			ui.Alert(c, "success", "已保存草稿").ShowIcon(true).Closable().Action(func() { ui.Button(c, "撤销").Small() }).Show()
+			ui.Alert(c, "info", "有新版本可用").ShowIcon(true).Description("新版本修复了若干问题，建议更新。").Action(func() {
 				ui.Column(c, func() {
 					ui.Button(c, "立即更新").Small().Primary()
 					ui.Button(c, "稍后").Small()

@@ -28,7 +28,7 @@ func configPage(c *ui.Context) {
 			}, layout.Gap(8), layout.Middle())
 			ui.Steps(c, []ui.StepItem{{Title: loc.Success}, {Title: loc.Loading}, {Title: loc.Confirm}}).Current(1).Small().Show()
 			ui.Text(c, fmt.Sprintf("%s · %s · %s · %s", loc.NoData, loc.Total(85), loc.PageSizeLabel(10), loc.BackTop)).Secondary()
-			ui.Spin(c).Tip(loc.Loading)
+			ui.Spin(c).Description(loc.Loading)
 		}, layout.Gap(12))
 	}
 	navDemo(c, "全局尺寸 small / middle / large", "ConfigProvider.Size 影响内部未显式指定尺寸的组件。", func() {

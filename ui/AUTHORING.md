@@ -249,18 +249,18 @@ func init() {
 | 布局 | `Flex` | Flex | nav_space.go |
 | 布局 | `Space` | Space / el-space | nav_space.go |
 | 布局 | `Compact`、`Addon` | Space.Compact、Input.Group / el-input-group | entry_compact.go |
-| 布局 | `Splitter`、`SplitterPanel` | Splitter / el-splitter | nav_splitter.go |
+| 布局 | `Splitter`、`SplitterPanel` | Splitter / el-splitter；shadcn Resizable = `Splitter`（`WithHandle`） | nav_splitter.go |
 | 布局 | `Dock`（`DockLayout`/`DockNode` 分割树与标签组，JSON 保存、`ParseDockLayout` 恢复；标签拖放拆分/合并、分割条、最大化、撕出） | IDE 工作台编辑器分组（VS Code / JetBrains） | dock.go、dock_layout.go |
 | 布局 | `Scroll`、`ScrollH` | （滚动容器）/ el-scrollbar | scroll.go、reveal.go |
-| 导航 | `Menu` | Menu / el-menu | nav_menu.go |
+| 导航 | `Menu` | Menu / el-menu；shadcn NavigationMenu = `Menu(MenuHorizontal)` + `ItemPanel`，Sidebar = `Sider/CollapsibleSider` + `Menu` | nav_menu.go |
 | 导航 | `Tabs`（`Draggable` 拖拽排序、`OnTearOff` 拖出窗口撕出；`TabPlacement`、`Stretch`、`BeforeLeave`、shadcn `Variant("line")`） | Tabs / el-tabs；shadcn Tabs | nav.go、nav_tabs_drag.go |
 | 导航 | `Breadcrumb`、`BreadcrumbItems`（items 写法、下拉、分隔符） | Breadcrumb / el-breadcrumb | nav.go |
-| 导航 | `Pagination` | Pagination / el-pagination | nav.go |
-| 导航 | `Dropdown` | Dropdown、Dropdown.Button / el-dropdown；`ContextMenuAt` 无触发器右键菜单 | nav_dropdown.go、nav_contextmenu.go |
-| 导航 | `Steps` | Steps / el-steps | nav_steps.go |
+| 导航 | `Pagination` | Pagination / el-pagination；`Size(Large)`、`Align`、`ShowLessItems`、`GoButton`、`ShowTotalFunc`、`PageSizeOptions` | nav.go |
+| 导航 | `Dropdown` | Dropdown、Dropdown.Button（弃用，用 Compact + Button + Dropdown）/ el-dropdown；Check/Radio/PopupRender；`ContextMenuAt` 无触发器右键菜单 | nav_dropdown.go、nav_contextmenu.go |
+| 导航 | `Steps` | Steps / el-steps；`Orientation`、`TitlePlacement`、`Variant`、`Initial`、`MaxCount` | nav_steps.go |
 | 导航 | `Anchor`、`AnchorSection` | Anchor / el-anchor | nav_affix.go |
 | 导航 | `Affix` | Affix / el-affix | nav_affix.go |
-| 导航 | `PageHeader` | PageHeader / el-page-header | nav_pageheader.go |
+| 导航 | `PageHeader` | Pro Components v3 PageHeader / el-page-header | nav_pageheader.go |
 | 导航 | `Command`（`CommandItem`：分组、图标、快捷键、关键词、禁用） | shadcn Command | shad_command.go |
 | 通用 | `Toggle`、`ToggleGroup` | shadcn Toggle / ToggleGroup | shad_toggle.go |
 | 通用 | `Kbd` | shadcn Kbd / `<kbd>` | shad_kbd.go |
@@ -362,17 +362,17 @@ func init() {
 | AI 对话 | `Approval`（工具权限确认） | — | chat_approval.go |
 | AI 对话 | `Conversations` | Ant Design X Conversations | chat_conversations.go |
 | AI 对话 | `Prompts`（提示词卡片，不同于对话框 `Prompt`） | Ant Design X Prompts | chat_prompts.go |
-| 反馈 | `Alert` | Alert / el-alert | feedback.go |
-| 反馈 | `Modal` | Modal / el-dialog | feedback.go |
-| 反馈 | `Drawer` | Drawer / el-drawer | feedback.go |
-| 反馈 | `Confirm` | Modal.confirm / ElMessageBox.confirm | more_confirm.go |
+| 反馈 | `Alert` | Alert / el-alert；`ShowIcon`、`Icon`、`Variant`、`CloseIcon`、`CloseText`、`CloseDisabled` | feedback.go |
+| 反馈 | `Modal` | Modal / el-dialog；shadcn Dialog = `Modal`；`Keyboard`、`Loading`、`AfterOpenChanged` | feedback.go |
+| 反馈 | `Drawer` | Drawer / el-drawer；shadcn Sheet/Drawer = `Drawer`；`ClosablePlacement`、`Keyboard`、`Loading`、`Push`、`AfterOpenChanged` | feedback.go |
+| 反馈 | `Confirm` | Modal.confirm / ElMessageBox.confirm；shadcn AlertDialog = `Confirm`；`AutoFocusButton`、`NoKeyboard` | more_confirm.go |
 | 反馈 | `MessageBox` | Modal.info/success… / ElMessageBox.alert | more_confirm.go |
 | 反馈 | `Prompt`、`OpenDialogs`（打开中的 Confirm/MessageBox/Prompt 数） | — / ElMessageBox.prompt | more_confirm.go |
 | 反馈 | `Popconfirm` | Popconfirm / el-popconfirm | feedback.go |
 | 反馈 | `Message`、`MessageDestroy` | message / ElMessage | nav_notify.go |
 | 反馈 | `Notification`、`NotificationDestroy` | notification / ElNotification | nav_notify.go |
-| 反馈 | `Spin` | Spin | feedback.go |
-| 反馈 | `Loading` | Spin 包裹 / v-loading | feedback.go |
+| 反馈 | `Spin` | Spin；shadcn Spinner = `Spin`（`SpinToken.Indicator = SpinIcon`） | feedback.go |
+| 反馈 | `Loading` | Spin 包裹 / v-loading；EP v-loading / ElLoading.service = `Loading`（Text、Spinner、Background、Fullscreen） | feedback.go |
 | 图表 | `chart.Line`、`chart.Area`（平滑、阶梯、面积、堆叠、对数轴、LTTB 降采样） | Line、Area / ECharts line | chart/line.go |
 | 图表 | `chart.Column`、`chart.Bar`（分组、堆叠、百分比堆叠） | Column、Bar / ECharts bar | chart/column.go |
 | 图表 | `chart.Pie`、`chart.Donut`（引导线标签、内部标签、中心统计） | Pie / ECharts pie | chart/pie.go |

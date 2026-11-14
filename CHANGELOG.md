@@ -104,11 +104,14 @@
     - Table：选择列宽规则变了。shadcn 选择列 48 → 32；带边框时只有 Ant 再加 16（令牌 `TableToken.SelectionBorderedExtra`），原先 shadcn 带边框也加。选择下拉箭头的预留宽度在所有主题下 18 → 16，Element 带 `Selections` 时列宽 66 → 64。带边框表格的 Title 只描上、左、右三条边，Footer 只描左、右、下三条边，不再出现 2px 线和 #fafafa 色线。Ant Footer 不论是否带边框，底角都改为圆角（`HeaderBorderRadius`）；有 Footer 时表体不再画圆底角。Element 展开列图标盒 17 → 16（读 `ExpandIconSize`）。Shift 区间勾选后的锚点改为这次点击的行。
     - List：分页放在上方时，末项也保留分隔线。
     - Tabs：拖拽激活标签时也经过 `BeforeLeave`。
+    - Tabs：`Variant("line")` 不再按主题判断是否生效，改读新令牌 `TabsToken.SegmentedList`（shadcn true：默认是分段轨道，`line` 切成线条标签；Ant / Element false：默认就是线条标签，`line` 外观相同）。`TabBarGutter` 对所有类型生效：shadcn 分段 / 线条列表和 BorderCard 下原先被忽略（antd tabBarGutter）。Ant 默认外观不变。
     - Carousel：首帧遇到越界的 `Current` 时，直接显示夹值后的那一张，不再播一次动画。
     - Calendar：Element `ControllerType("select")` 的头部补上小号「今天」按钮。
     - Tree：禁用的树（`Disabled`、`ComponentDisabled`）不能再拖放；`DefaultExpandAll` 首帧不再让 `ExpandChanged()` 返回 true。VirtualTree 的 Ant / shadcn 缩进令牌在主题推导时取 `IndentSize`（数值不变；只覆盖 `Tree.IndentSize` 的组件令牌不会带动它）。
     - Descriptions：`DescriptionsToken.LabelColor` / `ContentColor` 现在只作用于无边框列表；带边框列表读新令牌 `BorderedLabelColor` / `BorderedContentColor`。只覆盖了 `LabelColor` 的旧代码，在带边框列表上不再生效。Element `LabelColor` 默认 TextSecondary → Text。
     - 主题默认值改由令牌给出（默认外观不变）：`TimelineToken.DotOutlined` / `BusyTailDashed`、`ProgressToken.ShowInfo`、`TableToken.SorterTooltip`。
+    - 提示与状态：Alert 默认 `ShowIcon` 改为 false（Banner 仍显示，框架内部错误提示显式保留图标）；Spin/Loading 的 description、delay、percent、遮罩与 shadcn 尺寸按规范；Message 悬停暂停、Grouping 后执行 maxCount；Notification 的 actions、关闭按钮、role 与进度条令牌化；Result 副标题间距；Skeleton throttle 与 Empty 的插画默认改由主题令牌决定。
+    - 浮层与对话框：Modal/Drawer/Popconfirm/Tour 的关闭按钮、间距、遮罩、焦点与目标交互按 antd/EP 对齐；Popover/Popconfirm 箭头与偏移改由令牌决定（Ant 有箭头 10 → 12）；shadcn Sheet 512–640 宽度断点和上下方向自适应高度暂不做。
   - 间接受影响的页面：PageContainer 页头（Descriptions、Tag）、ProLayout / GridContent 头像、Segmented 选中项、chat 气泡与 graph 节点（`ShadowTertiary`）、FooterToolbar 示例里的 Skeleton 等随上述组件变化。
   - QRCode：默认提升纠错级别（同一内容的码图会变）、边框色改 Split、无边框去掉内边距、空字符串不画码。Watermark：排布改为 antd 算法，图片标记随角度旋转、默认不透明度 .2 → 1。
 - **IPC 线协议升级到 v2，不兼容旧版 runtime-js**：握手带 `proto:2`，Go 拒绝其他版本（回 `runtime-js protocol mismatch` 并记 `slog.Warn`）。`@tangoui/runtime` 必须与 Go 模块同版本；自己实现协议的客户端需要按 `ipc` 包注释更新。流的背压从按条数改为按字节计的信用窗口（默认 1 MiB，每帧计负载 + 64 字节），`ack` 改为带归还字节数 `b`；单帧负载上限 16 MiB，超过时这次写入返回 `bad_args`。

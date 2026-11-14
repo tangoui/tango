@@ -308,7 +308,7 @@ func (w *LoginFormW) build() {
 			}, layout.Center(), layout.Margin(geom.Insets{Bottom: 8}))
 		}
 		if st.err != nil {
-			Row(c, func() { Alert(c, "error", st.err.Error()).Show() }, layout.Margin(geom.Insets{Bottom: 24}))
+			Row(c, func() { Alert(c, "error", st.err.Error()).ShowIcon(true).Show() }, layout.Margin(geom.Insets{Bottom: 24}))
 		}
 		w.fields()
 	})
