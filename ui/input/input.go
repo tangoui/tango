@@ -222,6 +222,10 @@ const (
 	KeyCapsLock
 	KeyContextMenu
 
+	// KeyBack is never a Key of its own: it is the Code of the Escape event
+	// that stands for Android's system Back (see KeyEvent).
+	KeyBack
+
 	keyCount // sentinel, keep last
 )
 
@@ -430,6 +434,7 @@ var keyNames = [...]string{
 	KeyInsert:         "Insert",
 	KeyCapsLock:       "CapsLock",
 	KeyContextMenu:    "ContextMenu",
+	KeyBack:           "Back",
 }
 
 // String returns the key name ("A", "7", "F5", "ShiftLeft", "Minus",
@@ -482,6 +487,11 @@ func KeyNamed(name string) (Key, bool) {
 // Before components see an event, the runner sets Code to the reported key
 // and folds Key with Key.Base(), so NumpadEnter arrives as KeyEnter and
 // Numpad digits as digits; use Code to tell them apart.
+//
+// Android's system Back (button or gesture), while the UI takes it
+// (ui.BackWindow), is reported as Key KeyEscape with Code KeyBack: it
+// closes overlays like Escape, and widgets that claim Escape for
+// themselves (ui.Context.ClaimEscape) can tell it from a keyboard Esc.
 //
 // For a modifier key's own event, Mods includes that modifier while it is
 // down and excludes it on release, unless the same modifier on the other

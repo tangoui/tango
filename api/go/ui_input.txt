@@ -36,6 +36,7 @@ pkg github.com/tangoui/tango/ui/input, const KeyA Key = 15
 pkg github.com/tangoui/tango/ui/input, const KeyAltLeft Key = 67
 pkg github.com/tangoui/tango/ui/input, const KeyAltRight Key = 68
 pkg github.com/tangoui/tango/ui/input, const KeyB Key = 21
+pkg github.com/tangoui/tango/ui/input, const KeyBack Key = 101
 pkg github.com/tangoui/tango/ui/input, const KeyBackquote Key = 81
 pkg github.com/tangoui/tango/ui/input, const KeyBackslash Key = 75
 pkg github.com/tangoui/tango/ui/input, const KeyBackspace Key = 4

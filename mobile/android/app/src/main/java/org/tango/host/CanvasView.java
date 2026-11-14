@@ -276,11 +276,16 @@ final class CanvasView extends FrameLayout
 
     // ---- Back (CanvasHost.setBackHandling) ----
 
-    /** Delivers the system Back action as Escape, down then up, through the key path. */
+    /**
+     * Delivers the system Back action, down then up, as KEYCODE_BACK through
+     * the key path; Go reports it as Escape marked with Code KeyBack while
+     * back handling is on. The only path Back takes into the canvas: key()
+     * leaves KEYCODE_BACK to the Activity, which calls this.
+     */
     void deliverBack() {
         if (released) return;
-        TangoCanvas.nativeKey(id, true, KeyEvent.KEYCODE_ESCAPE, 0, 0, 0, 0);
-        if (!released) TangoCanvas.nativeKey(id, false, KeyEvent.KEYCODE_ESCAPE, 0, 0, 0, 0);
+        TangoCanvas.nativeKey(id, true, KeyEvent.KEYCODE_BACK, 0, 0, 0, 0);
+        if (!released) TangoCanvas.nativeKey(id, false, KeyEvent.KEYCODE_BACK, 0, 0, 0, 0);
     }
 
     // ---- pass-through (overlays) ----

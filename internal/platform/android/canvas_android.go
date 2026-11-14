@@ -183,7 +183,6 @@ type canvas struct {
 	cursor  input.Cursor
 	closed  bool
 	inFrame bool // inside CanvasFrame
-	back    bool // Back is delivered as Escape (SetBackHandling)
 	// closedInFrame: the page closed during a frame (a button that closes
 	// it); that frame's Present is dropped quietly.
 	closedInFrame bool
@@ -354,12 +353,13 @@ var _ platform.CanvasBackHandler = (*canvas)(nil)
 // SetBackHandling implements platform.CanvasBackHandler: while on, the
 // Java host takes Back (the button and the back gesture) from the page
 // stack whenever this canvas is the top-most visible one asking for it, and
-// delivers it as KEYCODE_ESCAPE down and up through nativeKey. Main thread.
+// delivers it as KEYCODE_BACK down and up through nativeKey, which reports
+// it as KeyEscape with Code KeyBack (canvasKeys.event). Main thread.
 func (c *canvas) SetBackHandling(on bool) {
-	if c.closed || on == c.back {
+	if c.closed || on == c.keys.back {
 		return
 	}
-	c.back = on
+	c.keys.back = on
 	if canvasDebug > 0 {
 		logf(logInfo, "canvas %d: back handling %v", c.id, on)
 	}
