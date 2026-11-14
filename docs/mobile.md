@@ -139,11 +139,24 @@ Go 运行时在 `TangoStart` 之前就已由 c-archive 的加载初始化启动�
 - **叠放层**（M5，`canvas_attach.{go,m}`）：`uihost.Attach` 把自绘层（`TGCanvasOverlay`，也是 `TGCanvasView`）插在页面的 `WKWebView` 上方或下方，随页面显示、隐藏、旋转和关闭；按 alpha 决定是否穿透触摸。叠放层只走 CPU。
 - **iPad 指针与触控板**（M5，`canvas_pointer.{go,m}`）：悬停、触控板与滚轮滚动、指针形状（`UIPointerInteraction`）；点击仍按触摸处理。
 - **内存警告**（M5）：系统内存警告变成 `tango.EventMemoryWarning`，uihost 裁剪 GPU 图集、图片纹理与排版缓存（`uihost/memory.go`）。
-- M5 部分只有单测，本节没有模拟器实测记录。
+- M5 部分（叠放层、iPad 指针、内存警告）只有单测，没有模拟器或真机实测记录。
+- **文本框与旁白**：UIAccessibility 没有公开的"文本栏"特征（`UITextField` 的 traits 也是 0），所以可编辑的输入框另行标记（`a11ybridge.IOSEditable`）：iOS 18.1 起元素把画布视图（实现 UITextInput）设为 `accessibilityTextInputResponder`；iOS 17–18.0 在 hint 末尾加 "Text field. Double tap to edit."。最低版本仍是 17.0。
+
+### 真机验证（2026-11-14，iPhone 12 Pro，iOS 27.0.1）
+
+用 `tan build -xcode` 生成的工程签名后装机（免费开发者账号；包名临时改为 `com.f3verify.*`，`permissions` 去掉了免费账号签不了的推送、后台、小组件），日志在会话记录里。
+
+| 示例 | 结果 |
+|---|---|
+| mobile-hello（WebView） | 冷启动到首页 `didFinishNavigation` 约 0.33 s；页面与 Go 消息往返；生命周期事件；`caps` 页的设备信息、安全存储、文件选择（取消返回 `canceled`）、评分、键盘、状态栏、亮度。后台任务按预期被拒（权限已去掉） |
+| mobile-ui（自绘） | Metal 渲染（`renderer "gpu"`）与 `TANGO_RENDERER=cpu` 都正常；首帧 390×844，安全区上 47 / 下 34；自检触摸（点按、开关、拖动列表、切换标签）；`TANGO_CANVAS_IME_SELFTEST` 输入法全流程：键盘弹出（inset 373）、拼音组字提交"中"、输入、退格、自动纠错 `teh`→`the`（`TextEdit`）、移动光标后插入，最终 `>中ab the` |
+| 无障碍 | 桥接自检（`TANGO_CANVAS_A11Y_SELFTEST`）与 XCUITest：控件名称、值、角色（开关、按钮、标题、标签栏）、激活、滚动；设置页屏幕外的计数器与滑块可找到并可调节（修复 `986d675` 之后）；表单输入框带文本输入标记、激活后弹出键盘（`3caefd6`） |
+
+未覆盖：真人用 VoiceOver 实际操作（只用了桥接自检和 XCUITest，它们读同一套无障碍信息）、真人在真实键盘和第三方输入法上输入、WebView 叠放层、iPad、推送 / 后台任务 / 小组件 / 通用链接（需要付费账号）、其他机型。
 
 ### 已知限制
 
-- 未在真机上验证（模拟器已验证，真机 SDK 能编译）。
+- 真机只在一台 iPhone 12 Pro（iOS 27）上验证过，范围见上文"真机验证"；其他机型、iPad 与 App Store 发布流程未验证。
 - 资源响应若是 3xx 重定向，WKURLSchemeHandler 不会跟随，页面空白。典型坑：`http.FileServer` 会把 `/index.html` 重定向到 `./`，所以 URL 用 `/` 而不是 `/index.html`（macOS 后端同样如此）。
 - 冷启动：iPhone 18 Pro 模拟器上从进程创建到首页 `didFinishNavigation` 约 1.2 s（8 次中位数；优化前 2.9 s）。两处优化：① `main` 之前的框架加载是主要瓶颈（PhotosUI 约 +2.5 s、StoreKit 约 +2 s、Photos/AVFoundation 各 +0.3–0.4 s），这些框架不再链接，`mobile.m`/`mobile2.m` 首次使用时 `dlopen`（StoreKit 在后台线程加载）；② `TangoStart` 时预热首个页面的 `WKWebView`（加载空文档，提前拉起 WebContent/Networking 进程），`tg_surface_new` 直接接管——页面级的 `WKWebViewConfiguration` 设置因此都要写在 `bridge.m` 的 `pageWebView()` 里。`TANGO_TRACE_STARTUP=1` 输出各阶段耗时（`TangoStart`、首次 Drain、WebView 创建、首个 `tango://` 请求、`didFinish`），`TANGO_NO_PREWARM=1` 关闭预热以便对比。
 - `tango://` 是自定义 scheme，WebKit 不为它保存 cookie，`Set-Cookie` 不生效、请求不带 `Cookie`；`tg_task_respond` 的响应头同名只保留最后一个。需要会话时用 JS 桥或 `Authorization` 头。

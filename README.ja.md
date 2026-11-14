@@ -139,7 +139,7 @@ const message = await window.tango.call("Greeter.Hello", "Tango");
 | **macOS** | システム WebView · Go 描画 UI · ハイブリッド | macOS 実機で検証済み。 |
 | **Windows** | システム WebView · Go 描画 UI · ハイブリッド | 実装済み。クロスコンパイルと CI スモークテストに対応。体系的な実機検証は未完了。 |
 | **Linux** | システム WebView · Go 描画 UI · ハイブリッド | 実装済み。クロスコンパイルと CI スモークテストに対応。体系的な実機検証は未完了。 |
-| **iOS** | システム WebView | 実験的。シミュレータで検証済み。実機検証は未完了。 |
+| **iOS** | システム WebView · Go 描画 UI | 実験的。シミュレータで検証済み。加えて実機 1 台（iPhone 12 Pro、iOS 27）で WebView と Go 描画のサンプルを確認：タッチ、入力メソッド、Metal と CPU 描画、アクセシビリティ。より広い実機検証は未完了。 |
 | **Android** | システム WebView | 実験的。エミュレータで検証済み。実機検証は未完了。 |
 
 機能はプラットフォームによって異なります。[WebView 対応表](docs/webview.md)、[モバイル機能](docs/mobile.md)、[ランタイム API](docs/runtime-api.md)をご確認ください。これらの詳細資料は中国語です。Android プッシュ通知にはアプリ側の FCM 統合が必要です。Play Billing と iOS Widget は内蔵していません。
