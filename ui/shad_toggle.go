@@ -14,6 +14,8 @@ import (
 // ToggleW is a two-state button (shadcn/ui Toggle): transparent when off,
 // accent-filled when on.
 type ToggleW struct {
+	_ [0]func()
+
 	c        *Context
 	n        *node
 	label    string
@@ -183,6 +185,8 @@ func (w *ToggleW) paint(l *paint.List, r geom.Rect) {
 
 // ToggleGroupW is a set of toggles (shadcn/ui ToggleGroup).
 type ToggleGroupW struct {
+	_ [0]func()
+
 	c       *Context
 	n       *node
 	sel     *[]string

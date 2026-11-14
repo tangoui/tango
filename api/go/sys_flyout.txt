@@ -21,6 +21,7 @@ pkg github.com/tangoui/tango/sys/flyout, type Options struct, Surface *tango.Sur
 pkg github.com/tangoui/tango/sys/flyout, type Options struct, Transparent bool
 pkg github.com/tangoui/tango/sys/flyout, type Options struct, URL string
 pkg github.com/tangoui/tango/sys/flyout, type Options struct, Width int
+pkg github.com/tangoui/tango/sys/flyout, type Options struct, noncomparable
 pkg github.com/tangoui/tango/sys/flyout, type Rect = tango.Rect
 pkg github.com/tangoui/tango/sys/flyout, type Rect struct
 pkg github.com/tangoui/tango/sys/flyout, type Rect struct, Height int

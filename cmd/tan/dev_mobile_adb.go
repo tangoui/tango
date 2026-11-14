@@ -52,7 +52,7 @@ func (a *androidDev) prepare(ctx context.Context, url string) error {
 		}
 		a.port = port
 	} else if url != "" {
-		warnf("%s is not on this machine's localhost: asset.FromEnv only proxies to loopback addresses, so the app will not use it (call asset.DevProxy with AllowRemote yourself if you must)", url)
+		warnf("%s is not on this machine's localhost: asset.FromEnv only proxies to loopback addresses, so the app will not use it (call asset.DevProxyWith with AllowRemote yourself if you must)", url)
 	}
 	return nil
 }

@@ -5,6 +5,7 @@ pkg github.com/tangoui/tango/sys/media, func TakePhoto(*tango.App) (string, erro
 pkg github.com/tangoui/tango/sys/media, type PickOptions struct
 pkg github.com/tangoui/tango/sys/media, type PickOptions struct, Limit int
 pkg github.com/tangoui/tango/sys/media, type PickOptions struct, Types Type
+pkg github.com/tangoui/tango/sys/media, type PickOptions struct, noncomparable
 pkg github.com/tangoui/tango/sys/media, type Type = internal/platform.MediaType
 pkg github.com/tangoui/tango/sys/media, type Type int
 pkg github.com/tangoui/tango/sys/media, var ErrCanceled error

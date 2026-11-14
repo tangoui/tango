@@ -20,6 +20,8 @@ import (
 //				Body(func() { ui.Input(c, &row.Value.Name) })
 //		})
 type FormListW[T any] struct {
+	_ [0]func()
+
 	f         *FormW
 	label     string
 	items     *[]T

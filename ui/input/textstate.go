@@ -9,6 +9,8 @@ package input
 // change back as TextEdit or SelectionChange.
 
 // TextKind selects the soft keyboard layout of a text field.
+//
+// Append-only: never reorder or insert; the zero value stays TextPlain.
 type TextKind uint8
 
 const (
@@ -46,6 +48,8 @@ func (k TextKind) String() string {
 
 // EnterKey is the label of the soft keyboard's return key. Pressing it
 // still arrives as a KeyEnter key event.
+//
+// Append-only: never reorder or insert; the zero value stays EnterDefault.
 type EnterKey uint8
 
 const (
@@ -79,6 +83,8 @@ func (k EnterKey) String() string {
 }
 
 // Capitalize is the automatic capitalization a soft keyboard applies.
+//
+// Append-only: never reorder or insert; the zero value stays CapitalizeNone.
 type Capitalize uint8
 
 const (

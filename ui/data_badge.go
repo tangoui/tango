@@ -7,6 +7,7 @@ import (
 
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -20,6 +21,8 @@ import (
 // preset or custom color, offset, small size, standalone use and the
 // status form with the "processing" ripple.
 type BadgeW struct {
+	_ [0]func()
+
 	c        *Context
 	n        *node
 	count    int
@@ -101,7 +104,7 @@ func (b *BadgeW) Status(status, label string) *BadgeW {
 }
 
 // Layout applies layout options to the badge.
-func (b *BadgeW) Layout(o ...layout.Option) *BadgeW { b.n.ln.Style.Apply(o...); return b }
+func (b *BadgeW) Layout(o ...layout.Option) *BadgeW { flexbox.Apply(&b.n.ln.Style, o...); return b }
 
 // antPreset maps Ant's preset color names to base colors.
 var antPreset = map[string]string{
@@ -304,10 +307,18 @@ func (b *BadgeW) showStatus() {
 // ---------------------------------------------------------------------------
 // Badge.Ribbon
 
+// BadgeRibbonW is the ribbon wrapper BadgeRibbon returns; it embeds the
+// wrapper's Box.
+type BadgeRibbonW struct {
+	_ [0]func()
+
+	*Box
+}
+
 // BadgeRibbon wraps fn's content (usually a card) with a corner ribbon.
 // placement is "end" (default) or "start" (logical: mirrored in RTL);
 // color as in Badge.Color.
-func BadgeRibbon(c *Context, label, color, placement string, fn func()) *Box {
+func BadgeRibbon(c *Context, label, color, placement string, fn func()) *BadgeRibbonW {
 	th := c.ThemeFor(theme.CompBadge)
 	tk := &th.Components.Badge
 	bx := &BadgeW{c: c, color: color, th: th, tk: tk}
@@ -349,7 +360,7 @@ func BadgeRibbon(c *Context, label, color, placement string, fn func()) *Box {
 		l.Path(p, dark)
 		l.Glyphs(geom.Pt(x+8, y+(h-lay.Height)/2), lay.Glyphs, th.TextOn(col, tk.RibbonColor))
 	}
-	return box
+	return &BadgeRibbonW{Box: box}
 }
 
 // ---------------------------------------------------------------------------
@@ -357,6 +368,8 @@ func BadgeRibbon(c *Context, label, color, placement string, fn func()) *Box {
 
 // AvatarGroupW stacks avatars with overlap.
 type AvatarGroupW struct {
+	_ [0]func()
+
 	c       *Context
 	max     int
 	size    float32

@@ -28,6 +28,8 @@ type TimelineItem struct {
 
 // TimelineW shows events along a vertical axis.
 type TimelineW struct {
+	_ [0]func()
+
 	c       *Context
 	items   []TimelineItem
 	mode    string

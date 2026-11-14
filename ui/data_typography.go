@@ -7,6 +7,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -64,10 +65,10 @@ func (t *Label) typoButton(st *typoState, key, name string, r geom.Rect) (*node,
 			x = pr.W - x - r.W // Abs left is the parent's inline start (its right edge)
 		}
 		y := lr.Y - pr.Y + r.Y - st.origin.Y
-		n.ln.Style.Apply(layout.Abs(x, y, layout.Unset, layout.Unset))
+		flexbox.Apply(&n.ln.Style, layout.Abs(x, y, layout.Unset, layout.Unset))
 		n.ln.Width, n.ln.Height = r.W, r.H
 	} else {
-		n.ln.Style.Apply(layout.Abs(0, 0, layout.Unset, layout.Unset))
+		flexbox.Apply(&n.ln.Style, layout.Abs(0, 0, layout.Unset, layout.Unset))
 		n.ln.Width, n.ln.Height = 1, 1
 		c.animating = true // geometry known after the first paint
 	}

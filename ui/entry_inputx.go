@@ -9,6 +9,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -21,6 +22,8 @@ import (
 // SearchW is an input with a search button (Ant Input.Search, Element input
 // with an append search button).
 type SearchW struct {
+	_ [0]func()
+
 	c           *Context
 	n           *node
 	val         *string
@@ -66,7 +69,7 @@ func (w *SearchW) Status(s string) *SearchW    { w.status = s; return w }
 func (w *SearchW) Size(s ControlSize) *SearchW { w.size = s; return w }
 func (w *SearchW) Width(px float32) *SearchW   { w.n.ln.Width = px; return w }
 func (w *SearchW) Layout(o ...layout.Option) *SearchW {
-	w.n.ln.Style.Apply(o...)
+	flexbox.Apply(&w.n.ln.Style, o...)
 	return w
 }
 func (w *SearchW) Disabled(on bool) *SearchW {
@@ -215,6 +218,8 @@ func ixSearchButton(c *Context, size ControlSize, loading, disabled bool) bool {
 // TextAreaW is a multi-line input with character count, auto-size, clear
 // button and wheel scrolling (Ant Input.TextArea, Element type=textarea).
 type TextAreaW struct {
+	_ [0]func()
+
 	c           *Context
 	n, box, ed  *node
 	sb          *ScrollBox
@@ -318,7 +323,10 @@ func (w *TextAreaW) Width(px float32) *TextAreaW {
 	w.n.ln.Width = px
 	return w
 }
-func (w *TextAreaW) Layout(o ...layout.Option) *TextAreaW { w.n.ln.Style.Apply(o...); return w }
+func (w *TextAreaW) Layout(o ...layout.Option) *TextAreaW {
+	flexbox.Apply(&w.n.ln.Style, o...)
+	return w
+}
 func (w *TextAreaW) Disabled(on bool) *TextAreaW {
 	if on {
 		w.disabled = true

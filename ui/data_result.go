@@ -18,6 +18,8 @@ import (
 // ResultW is a result page: a status icon or illustration, a title, a
 // subtitle, actions (Extra) and optional content (Body).
 type ResultW struct {
+	_ [0]func()
+
 	c        *Context
 	status   string // success | error | info | warning | 403 | 404 | 500
 	title    string
@@ -260,6 +262,8 @@ func drawResultIllustration(c *Context, l *paint.List, r geom.Rect, status strin
 // EmptyW is an empty state: Ant's default/simple pictures or Element's
 // illustration, custom image, size, description and actions.
 type EmptyW struct {
+	_ [0]func()
+
 	c       *Context
 	b       *Box
 	desc    string

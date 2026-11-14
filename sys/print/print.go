@@ -43,6 +43,8 @@ var (
 // Options are the initial values of the print dialog; the user can change
 // them there. Fields a platform cannot preset are ignored.
 type Options struct {
+	_ [0]func()
+
 	// Title names the print job; "" keeps the page title or app name.
 	Title string
 	// Copies is the initial number of copies; 0 keeps the system default.

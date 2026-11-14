@@ -9,6 +9,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -135,6 +136,8 @@ func paintOutlineWith(l *paint.List, w, off float32, r geom.Rect, rad geom.Radii
 
 // InputW is a single-line text input.
 type InputW struct {
+	_ [0]func()
+
 	c           *Context
 	th          *theme.Theme      // Input theme (its Alias applied)
 	tk          *theme.InputToken // &th.Components.Input
@@ -262,7 +265,10 @@ func (w *InputW) MaxLength(n int) *InputW { w.maxLen = n; return w }
 func (w *InputW) Width(px float32) *InputW { w.box.ln.Width = px; return w }
 
 // Layout applies layout options to the outer frame.
-func (w *InputW) Layout(opts ...layout.Option) *InputW { w.box.ln.Style.Apply(opts...); return w }
+func (w *InputW) Layout(opts ...layout.Option) *InputW {
+	flexbox.Apply(&w.box.ln.Style, opts...)
+	return w
+}
 
 // Changed reports whether the value was edited this frame.
 func (w *InputW) Changed() bool { w.finish(); return w.res.changed || w.cleared }
@@ -401,7 +407,7 @@ func (w *InputW) parts() {
 	part := func(key, name string, focusable bool) (Interaction, *node) {
 		n := &node{id: hashID(w.box.id, key), parent: w.box, label: key}
 		n.ln.Ref = n
-		n.ln.Style.Apply(layout.Abs(layout.Unset, top-3, right-3, layout.Unset))
+		flexbox.Apply(&n.ln.Style, layout.Abs(layout.Unset, top-3, right-3, layout.Unset))
 		n.ln.Width, n.ln.Height = is+6, is+6
 		n.setRole(a11y.RoleButton).setName(name)
 		w.box.kids = append(w.box.kids, n)
@@ -527,6 +533,8 @@ func (w *InputW) paintText(l *paint.List, r geom.Rect) {
 
 // InputNumberW is a numeric input with step controls.
 type InputNumberW struct {
+	_ [0]func()
+
 	c          *Context
 	th         *theme.Theme // Input theme (its Alias applied)
 	nth        *theme.Theme // InputNumber theme (its Alias applied)

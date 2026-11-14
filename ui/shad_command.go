@@ -28,6 +28,8 @@ type CommandItem struct {
 // a search field over a filtered, grouped list navigated with the arrow
 // keys. It renders in every design system with the active theme's tokens.
 type CommandW struct {
+	_ [0]func()
+
 	c       *Context
 	box     *Box
 	items   []CommandItem

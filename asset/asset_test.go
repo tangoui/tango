@@ -207,7 +207,7 @@ func TestDevProxyLoopbackOnly(t *testing.T) {
 		}
 	}
 	// AllowRemote lifts the restriction (the target is then just unreachable).
-	if w := get(t, DevProxy("http://192.0.2.1:9", DevProxyOptions{AllowRemote: true}), "GET", "/"); strings.Contains(w.Body.String(), "loopback") {
+	if w := get(t, DevProxyWith("http://192.0.2.1:9", DevProxyOptions{AllowRemote: true}), "GET", "/"); strings.Contains(w.Body.String(), "loopback") {
 		t.Errorf("AllowRemote: %q", w.Body.String())
 	}
 }

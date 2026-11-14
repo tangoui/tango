@@ -56,6 +56,8 @@ type treeState struct {
 
 // TreeW is a hierarchical list with expand, select, check, drag and search.
 type TreeW struct {
+	_ [0]func()
+
 	c         *Context
 	th        *theme.Theme     // ThemeFor(CompTree)
 	tk        *theme.TreeToken // &th.Components.Tree

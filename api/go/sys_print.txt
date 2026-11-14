@@ -9,5 +9,6 @@ pkg github.com/tangoui/tango/sys/print, type Options struct
 pkg github.com/tangoui/tango/sys/print, type Options struct, Copies int
 pkg github.com/tangoui/tango/sys/print, type Options struct, Parent *tango.Surface
 pkg github.com/tangoui/tango/sys/print, type Options struct, Title string
+pkg github.com/tangoui/tango/sys/print, type Options struct, noncomparable
 pkg github.com/tangoui/tango/sys/print, var ErrCanceled error
 pkg github.com/tangoui/tango/sys/print, var ErrUnsupported error

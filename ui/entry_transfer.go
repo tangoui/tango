@@ -15,6 +15,8 @@ import (
 
 // TransferItem is an entry of a Transfer.
 type TransferItem struct {
+	_ [0]func()
+
 	Key, Title string
 	Disabled   bool
 }
@@ -37,6 +39,8 @@ type tfState struct {
 // TransferW is a two-list shuttle: items move between the source (left)
 // and the target (right) list.
 type TransferW struct {
+	_ [0]func()
+
 	c        *Context
 	th       *theme.Theme         // ThemeFor(CompTransfer)
 	tk       *theme.TransferToken // &th.Components.Transfer

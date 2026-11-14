@@ -14,6 +14,8 @@ import (
 
 // ColorPickerPanelW is an inline color panel bound to a color.
 type ColorPickerPanelW struct {
+	_ [0]func()
+
 	c      *Context
 	cp     *ColorPickerW
 	box    *Box

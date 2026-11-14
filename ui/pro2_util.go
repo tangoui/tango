@@ -2,6 +2,7 @@ package ui
 
 import (
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
@@ -22,7 +23,7 @@ func pro2Shad(c *Context) bool { return c.Theme.Flavor == theme.StyleShadcn }
 func pro2Box(c *Context, kind, label string, dir layout.Direction, opts []layout.Option) *Box {
 	n := c.add(kind, label)
 	n.ln.Dir = dir
-	n.ln.Style.Apply(opts...)
+	flexbox.Apply(&n.ln.Style, opts...)
 	b := &Box{c: c, n: n}
 	n.paint = b.paintBox
 	return b

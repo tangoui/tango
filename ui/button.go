@@ -5,6 +5,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -12,6 +13,8 @@ import (
 )
 
 // ControlSize is the size variant of form controls.
+//
+// Append-only: never reorder or insert; the zero value stays Middle.
 type ControlSize uint8
 
 const (
@@ -78,6 +81,8 @@ func controlFontOf(th *theme.Theme, s ControlSize) float32 {
 }
 
 // ButtonVariant is the visual type of a button.
+//
+// Append-only: never reorder or insert; the zero value stays VariantDefault.
 type ButtonVariant uint8
 
 const (
@@ -93,6 +98,8 @@ const (
 
 // ButtonW is a button under construction; chain modifiers then query.
 type ButtonW struct {
+	_ [0]func()
+
 	c        *Context
 	n        *node
 	th       *theme.Theme       // Button theme (its Alias applied)
@@ -182,7 +189,10 @@ func (b *ButtonW) Loading(on bool) *ButtonW { b.loading = on; b.n.stateIf(on, a1
 func (b *ButtonW) A11yLabel(s string) *ButtonW { b.n.setName(s); return b }
 
 // Layout applies layout options.
-func (b *ButtonW) Layout(opts ...layout.Option) *ButtonW { b.n.ln.Style.Apply(opts...); return b }
+func (b *ButtonW) Layout(opts ...layout.Option) *ButtonW {
+	flexbox.Apply(&b.n.ln.Style, opts...)
+	return b
+}
 
 // Clicked reports activation (never when disabled or loading).
 func (b *ButtonW) Clicked() bool { return b.ia.Clicked && !b.isDisabled() && !b.loading }
@@ -531,6 +541,8 @@ func drawFocusRing(l *paint.List, th *theme.Theme, r geom.Rect, rad geom.Radii) 
 // IconButtonW is a borderless square icon button (close buttons, toolbar
 // toggles, calendar navigation).
 type IconButtonW struct {
+	_ [0]func()
+
 	c      *Context
 	n      *node
 	ic     *icon.Icon

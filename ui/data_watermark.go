@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -14,6 +15,8 @@ import (
 // WatermarkW tiles rotated text (or an image) over its content. The marks
 // are painted above the children but never take pointer input.
 type WatermarkW struct {
+	_ [0]func()
+
 	c        *Context
 	b        *Box
 	lines    []string
@@ -76,7 +79,10 @@ func (w *WatermarkW) ImageOpacity(a float32) *WatermarkW { w.imgAlpha = a; retur
 func (w *WatermarkW) Grid() *WatermarkW { w.stagger = false; return w }
 
 // Layout applies layout options to the container.
-func (w *WatermarkW) Layout(o ...layout.Option) *WatermarkW { w.b.n.ln.Style.Apply(o...); return w }
+func (w *WatermarkW) Layout(o ...layout.Option) *WatermarkW {
+	flexbox.Apply(&w.b.n.ln.Style, o...)
+	return w
+}
 
 // Body builds the watermarked content.
 func (w *WatermarkW) Body(fn func()) *WatermarkW {

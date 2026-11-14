@@ -1,9 +1,10 @@
-package layout
+package flexbox
 
 import (
 	"testing"
 
 	"github.com/tangoui/tango/ui/geom"
+	. "github.com/tangoui/tango/ui/layout"
 )
 
 func box(w, h float32) *Node { return &Node{Style: Style{Width: w, Height: h}} }

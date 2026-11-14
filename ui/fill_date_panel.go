@@ -23,6 +23,8 @@ import (
 
 // PickerType is the granularity of a DatePickerPanel (Ant picker,
 // Element type).
+//
+// Append-only: never reorder or insert; the zero value stays PickerDate.
 type PickerType uint8
 
 const (
@@ -46,6 +48,8 @@ type fillDPState struct {
 
 // DatePickerPanelW is an inline date panel.
 type DatePickerPanelW struct {
+	_ [0]func()
+
 	c        *Context
 	val      *time.Time
 	end      *time.Time

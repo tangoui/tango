@@ -37,6 +37,8 @@ type ProDescItem struct {
 //		Editable(func(key string, v any, all ui.ProValues, done func(error)) { go save(key, v, done) }).
 //		Show()
 type ProDescriptionsW struct {
+	_ [0]func()
+
 	c        *Context
 	items    []ProDescItem
 	title    string

@@ -5,11 +5,14 @@ import (
 
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 )
 
 // InputTagW is a text field that turns entries into tags (Enter or comma).
 type InputTagW struct {
+	_ [0]func()
+
 	c       *Context
 	box     *selector
 	val     *[]string
@@ -49,13 +52,16 @@ func (w *InputTagW) semantics(s *a11y.Node) {
 	}
 }
 
-func (w *InputTagW) Placeholder(s string) *InputTagW      { w.box.placeholder = s; return w }
-func (w *InputTagW) AllowClear() *InputTagW               { w.box.allowClear = true; return w }
-func (w *InputTagW) Status(s string) *InputTagW           { w.box.status = s; return w }
-func (w *InputTagW) Size(s ControlSize) *InputTagW        { w.box.size = s; return w }
-func (w *InputTagW) Width(px float32) *InputTagW          { w.box.n.ln.Width = px; return w }
-func (w *InputTagW) Layout(o ...layout.Option) *InputTagW { w.box.n.ln.Style.Apply(o...); return w }
-func (w *InputTagW) MaxTagCount(n int) *InputTagW         { w.box.maxCount = n; return w }
+func (w *InputTagW) Placeholder(s string) *InputTagW { w.box.placeholder = s; return w }
+func (w *InputTagW) AllowClear() *InputTagW          { w.box.allowClear = true; return w }
+func (w *InputTagW) Status(s string) *InputTagW      { w.box.status = s; return w }
+func (w *InputTagW) Size(s ControlSize) *InputTagW   { w.box.size = s; return w }
+func (w *InputTagW) Width(px float32) *InputTagW     { w.box.n.ln.Width = px; return w }
+func (w *InputTagW) Layout(o ...layout.Option) *InputTagW {
+	flexbox.Apply(&w.box.n.ln.Style, o...)
+	return w
+}
+func (w *InputTagW) MaxTagCount(n int) *InputTagW { w.box.maxCount = n; return w }
 func (w *InputTagW) Disabled(on bool) *InputTagW {
 	if on {
 		w.box.disabled = true

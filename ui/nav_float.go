@@ -8,6 +8,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -31,6 +32,8 @@ func (c *Context) floatGroup() *[]*floatGroupCtx {
 
 // FloatButtonW is a button floating above the page at a window corner.
 type FloatButtonW struct {
+	_ [0]func()
+
 	c       *Context
 	n       *node
 	ic      *icon.Icon
@@ -55,7 +58,7 @@ func (c *Context) floatLayer(right, bottom float32, fn func()) *node {
 	ov := Overlay(c, OverlayOptions{Place: ScreenFill}, func() {
 		holder = c.add("float-holder", "")
 		holder.ln.Absolute = true
-		holder.ln.Pos = layout.Pos{Left: layout.Unset, Top: layout.Unset, Right: right, Bottom: bottom}
+		holder.ln.Pos = flexbox.Pos{Left: layout.Unset, Top: layout.Unset, Right: right, Bottom: bottom}
 		holder.ln.Align = layout.AlignEnd
 		c.body(holder, fn)
 	})
@@ -288,6 +291,8 @@ type floatGroupState struct {
 // FloatButtonGroupW stacks float buttons; with a trigger it collapses
 // them behind a menu button.
 type FloatButtonGroupW struct {
+	_ [0]func()
+
 	c       *Context
 	square  bool
 	trigger string
@@ -469,6 +474,8 @@ func navNonPointer(c *Context, id ID) bool {
 
 // BackTopW is the "back to top" floating button of a scroll container.
 type BackTopW struct {
+	_ [0]func()
+
 	c       *Context
 	target  ID
 	visible float32

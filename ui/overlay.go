@@ -2,6 +2,7 @@ package ui
 
 import (
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 )
 
@@ -13,6 +14,8 @@ import (
 // LeftEnd and ScreenLeft/ScreenRight/ScreenTopRight/ScreenTopLeft are
 // physical and never mirror. The overlay's direction is that of the scope
 // that built it; see Resolve.
+//
+// Append-only: never reorder or insert; the zero value stays BottomStart.
 type Placement uint8
 
 const (
@@ -107,6 +110,8 @@ var mirrorPlace = map[Placement]Placement{
 
 // OverlayOptions configure an overlay layer.
 type OverlayOptions struct {
+	_ [0]func()
+
 	Anchor     ID // widget to attach to (anchored placements)
 	Place      Placement
 	Offset     float32 // gap between anchor and overlay
@@ -135,7 +140,7 @@ func Overlay(c *Context, o OverlayOptions, fn func(), opts ...layout.Option) *Bo
 	prev, prevScope, prevOv := c.cur, c.scope, c.curOverlay
 	root := &node{id: c.newID("overlay", ""), disabled: false}
 	root.ln.Ref = root
-	root.ln.Style.Apply(opts...)
+	flexbox.Apply(&root.ln.Style, opts...)
 	root.hit = true
 	root.blocks = true
 	c.stampEnv(root) // overlay roots skip c.add: record the scope's theme, locale and direction
@@ -172,11 +177,11 @@ func (c *Context) placeOverlay(o *overlay) {
 	phys := o.opts.Place.Resolve(o.rtl)
 	switch phys {
 	case ScreenFill:
-		layout.Solve(ln, vw, vh)
+		flexbox.Solve(ln, vw, vh)
 		ln.Rect.X, ln.Rect.Y = 0, 0
 		return
 	case ScreenRight, ScreenLeft:
-		sz := layout.SolveAt(ln, vw, vh, false, true)
+		sz := flexbox.SolveAt(ln, vw, vh, false, true)
 		ln.Rect.Y = 0
 		if phys == ScreenRight {
 			ln.Rect.X = vw - sz.W
@@ -185,7 +190,7 @@ func (c *Context) placeOverlay(o *overlay) {
 		}
 		return
 	case ScreenCenter, ScreenTop, ScreenTopRight, ScreenTopLeft, ScreenTopCenter:
-		sz := layout.SolveAt(ln, vw-2*m, vh-2*m, false, false)
+		sz := flexbox.SolveAt(ln, vw-2*m, vh-2*m, false, false)
 		switch phys {
 		case ScreenCenter:
 			ln.Rect.X, ln.Rect.Y = (vw-sz.W)/2, (vh-sz.H)/2
@@ -207,7 +212,7 @@ func (c *Context) placeOverlay(o *overlay) {
 	if o.opts.MatchWidth && ln.Width == 0 {
 		ln.MinW = a.W
 	}
-	sz := layout.SolveAt(ln, vw, vh, false, false)
+	sz := flexbox.SolveAt(ln, vw, vh, false, false)
 	off := o.opts.Offset
 	var x, y float32
 	place := phys

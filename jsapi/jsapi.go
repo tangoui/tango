@@ -109,6 +109,8 @@ const All = Window | Menu | Info | AppControl | ClipboardRead | ClipboardWrite |
 
 // Options configures Install.
 type Options struct {
+	_ [0]func()
+
 	// Allow adds capabilities to Defaults.
 	Allow Cap
 	// Deny removes capabilities (from Defaults or Allow).

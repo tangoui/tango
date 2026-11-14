@@ -8,6 +8,7 @@ import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
@@ -51,7 +52,7 @@ func hashID(parts ...any) ID {
 type PaintFunc func(l *paint.List, r geom.Rect)
 
 type node struct {
-	ln       layout.Node
+	ln       flexbox.Node
 	id       ID
 	label    string
 	parent   *node
@@ -112,6 +113,8 @@ type stateEntry struct {
 // and answers interaction queries. It is only valid on the UI goroutine
 // during a frame.
 type Context struct {
+	_ [0]func()
+
 	Theme *theme.Theme
 
 	win     Window
@@ -482,6 +485,8 @@ func (c *Context) Dragging(id ID) bool { return c.active == id }
 
 // Box is a styled layout container.
 type Box struct {
+	_ [0]func()
+
 	c *Context
 	n *node
 
@@ -496,7 +501,7 @@ type Box struct {
 func (c *Context) box(kind string, dir layout.Direction, opts []layout.Option) *Box {
 	n := c.add(kind, "")
 	n.ln.Dir = dir
-	n.ln.Style.Apply(opts...)
+	flexbox.Apply(&n.ln.Style, opts...)
 	b := &Box{c: c, n: n}
 	n.paint = b.paintBox
 	return b
@@ -585,7 +590,7 @@ func (b *Box) Scale(k float32) *Box {
 }
 
 // Style tweaks layout after creation.
-func (b *Box) Style(opts ...layout.Option) *Box { b.n.ln.Style.Apply(opts...); return b }
+func (b *Box) Style(opts ...layout.Option) *Box { flexbox.Apply(&b.n.ln.Style, opts...); return b }
 
 // Paint adds a custom painter drawn above the background, below children.
 func (b *Box) Paint(fn PaintFunc) *Box {

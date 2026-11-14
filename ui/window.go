@@ -61,6 +61,8 @@ type DamagePresenter interface {
 
 // WindowOptions describe a window to open.
 type WindowOptions struct {
+	_ [0]func()
+
 	Title                 string
 	Width, Height         float32 // logical
 	MinWidth, MinHeight   float32

@@ -32,6 +32,8 @@ import (
 // AppMessageConfig configures the messages opened inside an App (Ant
 // App message prop).
 type AppMessageConfig struct {
+	_ [0]func()
+
 	Duration time.Duration // default display time (0: MessageDuration)
 	MaxCount int           // most messages on screen; the oldest close first (0: no limit)
 }
@@ -39,6 +41,8 @@ type AppMessageConfig struct {
 // AppNotificationConfig configures the notifications opened inside an App
 // (Ant App notification prop).
 type AppNotificationConfig struct {
+	_ [0]func()
+
 	Placement    NotifyPlacement
 	PlacementSet bool          // Placement given (NotifyTopEnd is the zero value)
 	Duration     time.Duration // 0: the default
@@ -48,6 +52,8 @@ type AppNotificationConfig struct {
 
 // AppW builds an App.
 type AppW struct {
+	_ [0]func()
+
 	c    *Context
 	msg  AppMessageConfig
 	note AppNotificationConfig
@@ -119,6 +125,8 @@ func (a *AppW) Body(fn func()) *Box {
 // AppAPI opens messages, notifications and confirm boxes with the
 // configuration of the enclosing App (Ant App.useApp()).
 type AppAPI struct {
+	_ [0]func()
+
 	c    *Context
 	msg  AppMessageConfig
 	note AppNotificationConfig

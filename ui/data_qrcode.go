@@ -22,6 +22,8 @@ import (
 )
 
 // QRLevel is the error-correction level.
+//
+// Append-only: never reorder or insert; the zero value stays QRLevelL.
 type QRLevel uint8
 
 const (
@@ -622,6 +624,8 @@ func encodeQR(s string, level QRLevel, forceMask int) (*QRMatrix, error) {
 // QRCodeW renders a QR code (Ant Design QRCode / Element has none; the
 // Element flavor keeps the same component with Element tokens).
 type QRCodeW struct {
+	_ [0]func()
+
 	c        *Context
 	n        *node
 	value    string

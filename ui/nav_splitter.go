@@ -7,6 +7,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
@@ -17,6 +18,8 @@ import (
 
 // SplitterPanelW is one pane of a Splitter.
 type SplitterPanelW struct {
+	_ [0]func()
+
 	c           *Context
 	size        float32 // default size in px (0 = share)
 	percent     float32 // default size as fraction 0..1
@@ -104,6 +107,8 @@ type splitterState struct {
 
 // SplitterW lays panes side by side with draggable bars.
 type SplitterW struct {
+	_ [0]func()
+
 	c        *Context
 	vertical bool
 	opts     []layout.Option
@@ -335,9 +340,9 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 				}
 				an.ln.Width, an.ln.Height = w, h
 				if s.vertical {
-					an.ln.Pos = layout.Pos{Left: 0, Top: barW/2 - h/2, Right: layout.Unset, Bottom: layout.Unset}
+					an.ln.Pos = flexbox.Pos{Left: 0, Top: barW/2 - h/2, Right: layout.Unset, Bottom: layout.Unset}
 				} else {
-					an.ln.Pos = layout.Pos{Left: barW/2 - w/2, Top: layout.Unset, Right: layout.Unset, Bottom: layout.Unset}
+					an.ln.Pos = flexbox.Pos{Left: barW/2 - w/2, Top: layout.Unset, Right: layout.Unset, Bottom: layout.Unset}
 				}
 				arrows[k] = c.interact(an, false, input.CursorPointer)
 				arrowNodes[k] = an

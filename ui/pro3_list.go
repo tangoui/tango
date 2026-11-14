@@ -33,6 +33,8 @@ type ProListMetas[T any] struct {
 //	ui.ProList(c, rows, metas).HeaderTitle("Projects").RowKey(key).
 //		Selection(&sel).Pagination(5).Show()
 type ProListW[T any] struct {
+	_ [0]func()
+
 	c        *Context
 	rows     []T
 	metas    ProListMetas[T]

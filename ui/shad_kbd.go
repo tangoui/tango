@@ -8,9 +8,16 @@ import (
 	"github.com/tangoui/tango/ui/theme"
 )
 
+// KbdW is the key cap Kbd returns; it embeds the widget's Box.
+type KbdW struct {
+	_ [0]func()
+
+	*Box
+}
+
 // Kbd shows a keyboard key or shortcut (shadcn/ui Kbd): small muted
 // rounded box in the text font.
-func Kbd(c *Context, keys string) *Box {
+func Kbd(c *Context, keys string) *KbdW {
 	th := c.Theme
 	st := c.style(th.FontSizeSM, text.Regular)
 	st.Weight = text.Medium
@@ -29,5 +36,5 @@ func Kbd(c *Context, keys string) *Box {
 	b.n.label = keys
 	b.n.setRole(a11y.RoleText) // the key names are read as text
 	b.n.ln.NoStretch = true
-	return b
+	return &KbdW{Box: b}
 }

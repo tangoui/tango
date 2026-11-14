@@ -5,6 +5,7 @@ import (
 
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
@@ -46,7 +47,7 @@ type scrollState struct {
 	// container's layout node of the current build (nil for containers
 	// that manage their own columns, such as Table); rtl and scrollX cache
 	// its flags at the last frame for input handled before the next paint.
-	ln      *layout.Node
+	ln      *flexbox.Node
 	rtl     bool
 	scrollX bool
 
@@ -312,6 +313,8 @@ func (w *wheelState) prune(pass uint64) {
 // on hover; drag a thumb to scroll, click the track to jump there, wheel or
 // trackpad anywhere inside.
 type ScrollBox struct {
+	_ [0]func()
+
 	*Box
 	s *scrollState
 }
@@ -342,7 +345,7 @@ func (c *Context) finishScroll(b *Box, fn func()) *ScrollBox {
 	c.touchScroll(b, s) // scroll_touch.go
 	b.n.over = func(l *paint.List, r geom.Rect) { c.paintScrollbars(l, id, s, r) }
 	b.Body(fn)
-	return &ScrollBox{b, s}
+	return &ScrollBox{Box: b, s: s}
 }
 
 // Both scrolls on both axes.

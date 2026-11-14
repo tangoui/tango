@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/tangoui/tango/ui/a11y"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 )
 
@@ -14,6 +15,8 @@ import (
 // only builds the rows inside the viewport (plus a small overscan), so it
 // stays cheap for hundreds of thousands of items.
 type VirtualListW struct {
+	_ [0]func()
+
 	c          *Context
 	sb         *ScrollBox
 	count      int
@@ -51,7 +54,7 @@ func (w *VirtualListW) Height(px float32) *VirtualListW { w.sb.n.ln.Height = px;
 
 // Layout applies layout options to the viewport.
 func (w *VirtualListW) Layout(opts ...layout.Option) *VirtualListW {
-	w.sb.n.ln.Style.Apply(opts...)
+	flexbox.Apply(&w.sb.n.ln.Style, opts...)
 	return w
 }
 

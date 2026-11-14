@@ -7,6 +7,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -16,6 +17,8 @@ import (
 // TextAlign aligns text inside its box. Start and End are logical: they
 // resolve per line, so a right-to-left line (Arabic, Hebrew, or any line
 // of an RTL scope) starts at the right edge.
+//
+// Append-only: never reorder or insert; the zero value stays AlignStart.
 type TextAlign uint8
 
 const (
@@ -46,6 +49,8 @@ const (
 
 // Label is a run of text (Typography.Text).
 type Label struct {
+	_ [0]func()
+
 	c        *Context
 	n        *node
 	s        string
@@ -329,7 +334,7 @@ func (t *Label) Code() *Label      { t.code = true; t.st.Mono = true; return t }
 func (t *Label) Mark() *Label      { t.mark = true; return t }
 
 // Layout applies layout options to the text node.
-func (t *Label) Layout(opts ...layout.Option) *Label { t.n.ln.Style.Apply(opts...); return t }
+func (t *Label) Layout(opts ...layout.Option) *Label { flexbox.Apply(&t.n.ln.Style, opts...); return t }
 
 // ID returns the node ID.
 func (t *Label) ID() ID { return t.n.id }
@@ -344,6 +349,8 @@ func Paragraph(c *Context, s string) *Label {
 
 // LinkW is a clickable text link.
 type LinkW struct {
+	_ [0]func()
+
 	*Label
 	ia     Interaction
 	status string      // Type: "" = link colors
@@ -438,6 +445,8 @@ func (lw *LinkW) Hovered() bool { return lw.ia.Hovered }
 
 // IconW is an icon leaf.
 type IconW struct {
+	_ [0]func()
+
 	c      *Context
 	n      *node
 	ic     *icon.Icon

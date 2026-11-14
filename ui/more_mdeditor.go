@@ -7,6 +7,7 @@ import (
 
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
@@ -18,6 +19,8 @@ import (
 
 // MarkdownEditorW is a Markdown editor bound to *src.
 type MarkdownEditorW struct {
+	_ [0]func()
+
 	c           *Context
 	b           *Box
 	src         *string
@@ -60,7 +63,7 @@ func (w *MarkdownEditorW) Placeholder(s string) *MarkdownEditorW { w.placeholder
 
 // Layout applies layout options to the outer frame.
 func (w *MarkdownEditorW) Layout(opts ...layout.Option) *MarkdownEditorW {
-	w.b.n.ln.Style.Apply(opts...)
+	flexbox.Apply(&w.b.n.ln.Style, opts...)
 	return w
 }
 

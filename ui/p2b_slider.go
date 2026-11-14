@@ -21,6 +21,7 @@ import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -37,6 +38,8 @@ type sliderState struct {
 
 // SliderW is a slider; chain modifiers after Slider / SliderRange.
 type SliderW struct {
+	_ [0]func()
+
 	c        *Context
 	n        *node // the slider row / column
 	track    *node
@@ -192,7 +195,10 @@ func (w *SliderW) Changed() bool { w.z.run(); return w.changed }
 func (w *SliderW) A11yLabel(s string) *SliderW { w.aName = s; return w }
 
 // Layout applies layout options to the slider row.
-func (w *SliderW) Layout(opts ...layout.Option) *SliderW { w.n.ln.Style.Apply(opts...); return w }
+func (w *SliderW) Layout(opts ...layout.Option) *SliderW {
+	flexbox.Apply(&w.n.ln.Style, opts...)
+	return w
+}
 
 func (w *SliderW) off() bool { return w.disabled || w.n.disabled }
 

@@ -64,7 +64,6 @@ pkg github.com/tangoui/tango/ui/theme, const ContrastStatusPass ContrastStatus =
 pkg github.com/tangoui/tango/ui/theme, const ContrastText ContrastKind = 0
 pkg github.com/tangoui/tango/ui/theme, const Element Flavor = 1
 pkg github.com/tangoui/tango/ui/theme, const Instant time.Duration = 1
-pkg github.com/tangoui/tango/ui/theme, const NumComps int = 54
 pkg github.com/tangoui/tango/ui/theme, const StyleAnt Flavor = 0
 pkg github.com/tangoui/tango/ui/theme, const StyleElement Flavor = 1
 pkg github.com/tangoui/tango/ui/theme, const StyleShadcn Flavor = 2

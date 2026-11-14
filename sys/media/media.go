@@ -44,6 +44,8 @@ const (
 
 // PickOptions configures Pick.
 type PickOptions struct {
+	_ [0]func()
+
 	Types Type // Images, Videos or both; 0 means Images
 	Limit int  // most items the user may choose; 0 or 1 = one
 }

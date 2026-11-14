@@ -47,6 +47,8 @@ const (
 
 // Options configures a request.
 type Options struct {
+	_ [0]func()
+
 	Accuracy Accuracy
 	// DistanceFilter (metres): Watch only reports moves at least this far;
 	// 0 reports every update.

@@ -5,6 +5,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -42,8 +43,8 @@ const (
 func layoutRegion(c *Context, tag string, dir layout.Direction, def, opts []layout.Option, fn func()) *Box {
 	b := c.box(tag, dir, nil)
 	b.n.label = tag
-	b.n.ln.Style.Apply(def...)
-	b.n.ln.Style.Apply(opts...)
+	flexbox.Apply(&b.n.ln.Style, def...)
+	flexbox.Apply(&b.n.ln.Style, opts...)
 	return b.Body(fn)
 }
 
@@ -54,7 +55,7 @@ func Layout(c *Context, fn func(), opts ...layout.Option) *Box {
 	b.n.label = layoutTag
 	b.n.ln.Grow = 1
 	b.n.ln.MinW = 0
-	b.n.ln.Style.Apply(opts...)
+	flexbox.Apply(&b.n.ln.Style, opts...)
 	b.Body(fn)
 	for _, k := range b.n.kids {
 		if k.label == siderTag {
@@ -94,10 +95,17 @@ func Header(c *Context, fn func(), opts ...layout.Option) *Box {
 	return b
 }
 
+// SiderBoxW is the side column Sider returns; it embeds the column's Box.
+type SiderBoxW struct {
+	_ [0]func()
+
+	*Box
+}
+
 // Sider is a side column of fixed width (the theme's collapsed width when
 // collapsed, animated). CollapsibleSider adds the collapse trigger and
 // breakpoint collapsing.
-func Sider(c *Context, width float32, collapsed bool, fn func(), opts ...layout.Option) *Box {
+func Sider(c *Context, width float32, collapsed bool, fn func(), opts ...layout.Option) *SiderBoxW {
 	cw := c.ThemeFor(theme.CompLayout).Components.Layout.SiderCollapsedWidth
 	if v, ok := p2bNum(c, "Sider", "collapsedWidth"); ok {
 		cw = float32(v)
@@ -107,7 +115,7 @@ func Sider(c *Context, width float32, collapsed bool, fn func(), opts ...layout.
 		_, border, _, _, _, _ := shad2dSidebar(c.Theme)
 		b.Paint(shad2dEndLine(c, border)) // sidebar border-r (border-l in RTL)
 	}
-	return b
+	return &SiderBoxW{Box: b}
 }
 
 func siderBox(c *Context, width float32, collapsed bool, collapsedW float32, fn func(), opts []layout.Option) *Box {
@@ -135,6 +143,8 @@ func siderBox(c *Context, width float32, collapsed bool, collapsedW float32, fn 
 // ConfigProvider.Defaults("Sider", ...) keys: "breakpoint" (Breakpoint),
 // "collapsedWidth" (float32), "theme" ("light" | "dark").
 type SiderW struct {
+	_ [0]func()
+
 	c          *Context
 	th         *theme.Theme // Layout tokens (c.ThemeFor(theme.CompLayout))
 	width      float32

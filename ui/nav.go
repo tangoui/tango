@@ -9,6 +9,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -90,6 +91,8 @@ func containsKey(items []MenuItem, key string) bool {
 
 // TabItem is a tab.
 type TabItem struct {
+	_ [0]func()
+
 	Key, Label string
 	Icon       *icon.Icon
 	Disabled   bool
@@ -100,6 +103,8 @@ type TabItem struct {
 // buttons), top / bottom / left / right placement, centered tabs and a
 // scrolling tab list with a "more" dropdown for the tabs that do not fit.
 type TabsW struct {
+	_ [0]func()
+
 	c        *Context
 	th       *theme.Theme // Tabs tokens (c.ThemeFor(theme.CompTabs))
 	items    []TabItem
@@ -718,7 +723,7 @@ func (t *TabsW) bar() {
 	if t.noMargin {
 		outer.n.ln.Margin = geom.Insets{}
 	}
-	outer.n.ln.Style.Apply(t.barOpts...)
+	flexbox.Apply(&outer.n.ln.Style, t.barOpts...)
 }
 
 // overflow shows the more button (a dropdown of the tabs scrolled out of
@@ -1197,6 +1202,8 @@ type BreadcrumbItem struct {
 // BreadcrumbW is a breadcrumb with structured items: icons, dropdown
 // menus, click handlers and a custom separator.
 type BreadcrumbW struct {
+	_ [0]func()
+
 	c       *Context
 	items   []BreadcrumbItem
 	sep     string
@@ -1207,14 +1214,15 @@ type BreadcrumbW struct {
 	tk      *theme.BreadcrumbToken // &th.Components.Breadcrumb
 }
 
-// Breadcrumb shows a path; returns the index of a clicked item or -1.
-// BreadcrumbItems builds the structured form.
-func Breadcrumb(c *Context, items ...string) int {
+// Breadcrumb shows a path of plain labels; Clicked on the result returns
+// the index of the item clicked this frame, or -1. BreadcrumbItems builds
+// the structured form.
+func Breadcrumb(c *Context, items ...string) *BreadcrumbW {
 	its := make([]BreadcrumbItem, len(items))
 	for i, s := range items {
 		its[i].Label = s
 	}
-	return BreadcrumbItems(c, its).Show().Clicked()
+	return BreadcrumbItems(c, its).Show()
 }
 
 // BreadcrumbItems starts a breadcrumb of structured items; chain options,
@@ -1404,6 +1412,8 @@ func (b *BreadcrumbW) item(i int, it BreadcrumbItem, last bool) {
 // text, size changer, quick jumper, simple mode, hide on a single page,
 // disabled state and Element's background (filled) style.
 type PaginationW struct {
+	_ [0]func()
+
 	c          *Context
 	th         *theme.Theme // Pagination tokens (c.ThemeFor(theme.CompPagination))
 	page       *int

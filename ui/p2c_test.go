@@ -387,7 +387,7 @@ func TestP2CBreadcrumbItems(t *testing.T) {
 				menu = k
 			}
 			Gap(c, 24)
-			if i := Breadcrumb(c, "Root", "Leaf"); i >= 0 {
+			if i := Breadcrumb(c, "Root", "Leaf").Clicked(); i >= 0 {
 				oldIdx = i
 			}
 		})

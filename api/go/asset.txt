@@ -1,10 +1,12 @@
 pkg github.com/tangoui/tango/asset, const DevURLEnv untyped string = "TANGO_DEV_URL"
 pkg github.com/tangoui/tango/asset, func ContentType(string) string
-pkg github.com/tangoui/tango/asset, func DevProxy(string, ...DevProxyOptions) net/http.Handler
+pkg github.com/tangoui/tango/asset, func DevProxy(string) net/http.Handler
+pkg github.com/tangoui/tango/asset, func DevProxyWith(string, DevProxyOptions) net/http.Handler
 pkg github.com/tangoui/tango/asset, func FS(io/fs.FS, Options) net/http.Handler
 pkg github.com/tangoui/tango/asset, func FromEnv(io/fs.FS, ...Options) net/http.Handler
 pkg github.com/tangoui/tango/asset, type DevProxyOptions struct
 pkg github.com/tangoui/tango/asset, type DevProxyOptions struct, AllowRemote bool
+pkg github.com/tangoui/tango/asset, type DevProxyOptions struct, noncomparable
 pkg github.com/tangoui/tango/asset, type Options struct
 pkg github.com/tangoui/tango/asset, type Options struct, Headers net/http.Header
 pkg github.com/tangoui/tango/asset, type Options struct, Index string

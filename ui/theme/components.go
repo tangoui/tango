@@ -28,8 +28,12 @@ import (
 // regenerates the palette with the design system's own algorithm); read the
 // result through Theme.For.
 
-// Comp names a component with its own tokens; Comp(i) is the i-th field of
-// Components.
+// Comp names a component with its own tokens (its field in Components;
+// String returns the field name).
+//
+// Append-only: never reorder or insert; the zero value stays CompButton. A
+// new component takes the next value and its token field goes at the end
+// of Components.
 type Comp uint8
 
 const (
@@ -87,14 +91,13 @@ const (
 	CompFloatButton
 	CompAnchor
 	CompForm
+	// numComps counts the Comp values. Internally Comp(i) indexes the
+	// i-th field of Components, so both lists only ever grow at the end.
 	numComps
 )
 
-// NumComps is the number of Comp values (CompButton … CompForm).
-const NumComps = int(numComps)
-
-// Components holds the token struct of every component. The field order
-// matches the Comp constants.
+// Components holds the token struct of every component. New components
+// are appended at the end (see Comp).
 type Components struct {
 	Button       ButtonToken
 	Input        InputToken

@@ -14,6 +14,7 @@ import (
 
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -89,6 +90,8 @@ type fillVSState struct {
 // and value handling run when a query method is called or at the end of
 // the build.
 type VirtualSelectW struct {
+	_ [0]func()
+
 	c        *Context
 	box      *selector
 	val      *string
@@ -255,7 +258,7 @@ func (w *VirtualSelectW) Width(px float32) *VirtualSelectW { w.box.n.ln.Width = 
 
 // Layout applies layout options to the control.
 func (w *VirtualSelectW) Layout(o ...layout.Option) *VirtualSelectW {
-	w.box.n.ln.Style.Apply(o...)
+	flexbox.Apply(&w.box.n.ln.Style, o...)
 	return w
 }
 

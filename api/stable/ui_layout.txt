@@ -1,56 +1,54 @@
 # Stable symbols of package ui/layout (docs/release.md, "API 稳定性").
 # One per line: a top-level name (a type covers all its fields and methods)
 # or Type.Member. Everything not listed is experimental.
-# Only the Option constructors and the enums they take are stable. Option is
-# still func(*Style): Style is listed through its Apply method so the name is
-# covered, but its fields, Node, Pos, Solve and SolveAt are experimental and
-# become internal in Phase 3 (docs/specs/api-stability.md §5).
-
-Option
-Style.Apply
+# Only the opaque Option, its constructors, the enums they take and Unset
+# are stable. The solver (node style, Node, Solve) is internal
+# (ui/internal/flexbox).
 Abs
+Align
+AlignAuto
+AlignCenter
+AlignEnd
 AlignItems
+AlignStart
+AlignStretch
 Basis
 Between
 Center
+Column
 Dir
+Direction
 End
 Fill
 Gap
 GapXY
 Grow
 H
+Justify
+JustifyCenter
 JustifyContent
+JustifyEnd
+JustifySpaceAround
+JustifySpaceBetween
+JustifySpaceEvenly
+JustifyStart
 Margin
 MaxH
 MaxW
 Middle
 MinH
 MinW
+Option
 Pad
 PadSE
 PadVH
 Padding
 Physical
+Row
 Self
 Shrink
 Size
+Stack
+Unset
 W
 WrapItems
-Align
-AlignAuto
-AlignStretch
-AlignStart
-AlignCenter
-AlignEnd
-Justify
-JustifyStart
-JustifyCenter
-JustifyEnd
-JustifySpaceBetween
-JustifySpaceAround
-JustifySpaceEvenly
-Direction
-Column
-Row
-Stack

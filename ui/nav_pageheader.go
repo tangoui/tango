@@ -13,6 +13,8 @@ import (
 // PageHeaderW is the page title bar: back action, breadcrumb, title,
 // subtitle, tags, extra actions, content and footer (tabs).
 type PageHeaderW struct {
+	_ [0]func()
+
 	c          *Context
 	title      string
 	sub        string
@@ -136,7 +138,7 @@ func (p *PageHeaderW) Show() *PageHeaderW {
 	}
 	b := Column(c, func() {
 		if len(p.crumbs) > 0 {
-			ci := Breadcrumb(c, p.crumbs...)
+			ci := Breadcrumb(c, p.crumbs...).Clicked()
 			if ci >= 0 {
 				p.crumbClick = ci
 			}

@@ -4,11 +4,22 @@ import (
 	"github.com/tangoui/tango/ui/layout"
 )
 
+// CheckAllW is the select-all group CheckAll returns.
+type CheckAllW struct {
+	_ [0]func()
+
+	changed bool
+}
+
+// Changed reports whether the selection changed this frame.
+func (w *CheckAllW) Changed() bool { return w.changed }
+
 // CheckAll renders a "全选" checkbox (indeterminate when only part of the
 // options is selected) above a checkbox group bound to *selected. Disabled
-// options keep their state. It reports whether the selection changed.
-func CheckAll(c *Context, selected *[]string, opts []Option) bool {
-	return checkAll(c, c.Locale().SelectAll, selected, opts)
+// options keep their state. Changed on the result reports a selection
+// change.
+func CheckAll(c *Context, selected *[]string, opts []Option) *CheckAllW {
+	return &CheckAllW{changed: checkAll(c, c.Locale().SelectAll, selected, opts)}
 }
 
 func checkAll(c *Context, label string, selected *[]string, opts []Option) bool {
@@ -30,7 +41,7 @@ func checkAll(c *Context, label string, selected *[]string, opts []Option) bool 
 			changed = true
 			*selected = caSetAll(*selected, opts, !all)
 		}
-		if CheckboxGroup(c, selected, opts) {
+		if CheckboxGroup(c, selected, opts).Changed() {
 			changed = true
 		}
 	}, layout.Gap(8))

@@ -88,6 +88,8 @@ func cpFormatOK(f string) bool { return f == "hex" || f == "rgb" || f == "hsb" |
 
 // ColorPickerW is a color input with a picker panel.
 type ColorPickerW struct {
+	_ [0]func()
+
 	c          *Context
 	n          *node
 	val        *theme.Color

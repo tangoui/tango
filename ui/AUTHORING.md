@@ -24,7 +24,7 @@
   build：调用页面函数，组件创建节点、读取交互、改写应用状态
          → c.deferred 里的延迟处理（链式修饰器都已生效）
   若本帧处理过事件或有人调用 c.Invalidate()，再 build 一次（最多 3 次）
-  layout.Solve → paint（显示列表）→ Renderer → Window.Present
+  flexbox.Solve → paint（显示列表）→ Renderer → Window.Present
 ```
 
 要点：
@@ -43,7 +43,7 @@
 
 ## 4. 布局
 
-`n.ln` 是 `layout.Node`，常用字段/选项：
+`n.ln` 是 `flexbox.Node`（内部求解器 `ui/internal/flexbox`；公开的只有不透明的 `layout.Option` 及其构造函数），常用字段/选项：
 
 | 需求 | 写法 |
 |---|---|

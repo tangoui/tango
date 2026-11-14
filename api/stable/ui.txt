@@ -394,6 +394,7 @@ SelectW.Width
 Checkbox
 CheckboxW
 CheckboxGroup
+CheckboxGroupW
 Radio
 RadioW
 RadioGroup
@@ -609,6 +610,7 @@ XXL
 Layout
 Header
 Sider
+SiderBoxW
 Content
 Footer
 ConfigProvider

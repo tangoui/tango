@@ -8,6 +8,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -43,6 +44,8 @@ const navForever = 100 * 365 * 24 * time.Hour
 // MessageRef configures a message opened by Message. Use it in the same
 // call chain; it does not need to be kept.
 type MessageRef struct {
+	_ [0]func()
+
 	t   *toasts
 	m   *toast
 	now time.Time
@@ -226,6 +229,8 @@ func messageRow(c *Context, m *toast) {
 // (the zero value and default), NotifyTopStart, NotifyBottomEnd and
 // NotifyBottomStart are logical: in RTL the end is the left side. The
 // Right / Left placements are always that physical side.
+//
+// Append-only: never reorder or insert; the zero value stays NotifyTopEnd.
 type NotifyPlacement uint8
 
 const (
@@ -317,6 +322,8 @@ var NotifyStackThreshold = 3
 // NotificationRef configures a notification opened by Notification.
 // Use it in the same call chain; it does not need to be kept.
 type NotificationRef struct {
+	_ [0]func()
+
 	ns  *navNotes
 	n   *navNote
 	now time.Time
@@ -527,7 +534,7 @@ func renderNoteGroup(c *Context, ns *navNotes, pl NotifyPlacement, group []*navN
 			}
 		})
 		b.n.ln.Absolute = true
-		b.n.ln.Pos = layout.Pos{Left: 0, Top: 0, Right: layout.Unset, Bottom: layout.Unset}
+		b.n.ln.Pos = flexbox.Pos{Left: 0, Top: 0, Right: layout.Unset, Bottom: layout.Unset}
 		b.n.ln.Width = width
 		b.n.hit, b.n.blocks = true, false
 		b.Semantics(a11y.RoleGroup, c.Locale().A11y.Notifications)
@@ -851,7 +858,7 @@ func sonnerStack(c *Context, key ID, pl NotifyPlacement, cards []sonnerCard, sty
 			})
 		}
 		b.n.ln.Absolute = true
-		b.n.ln.Pos = layout.Pos{Left: 0, Top: 0, Right: layout.Unset, Bottom: layout.Unset}
+		b.n.ln.Pos = flexbox.Pos{Left: 0, Top: 0, Right: layout.Unset, Bottom: layout.Unset}
 		b.n.ln.Width = width
 		b.n.hit, b.n.blocks = true, false
 		b.Semantics(a11y.RoleGroup, c.Locale().A11y.Notifications)

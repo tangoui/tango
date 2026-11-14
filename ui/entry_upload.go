@@ -8,6 +8,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -42,6 +43,8 @@ const (
 // opens a file dialog itself: OnPick (or Picked) tells the host to show one
 // (e.g. with the dialog package) and append the chosen files to the list.
 type UploadW struct {
+	_ [0]func()
+
 	c         *Context
 	n         *node
 	files     *[]UploadFile
@@ -358,7 +361,7 @@ func (w *UploadW) listItem(i int) {
 func (w *UploadW) upAction(key, name string, pos layout.Option, wd, ht float32) Interaction {
 	c := w.c
 	n := c.add(key, name)
-	n.ln.Style.Apply(pos)
+	flexbox.Apply(&n.ln.Style, pos)
 	n.ln.Width, n.ln.Height = wd, ht
 	n.setRole(a11y.RoleButton)
 	ia := c.interact(n, true, input.CursorPointer)

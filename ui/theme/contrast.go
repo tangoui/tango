@@ -38,6 +38,8 @@ func ContrastRatio(fg, bg Color) float64 {
 }
 
 // ContrastKind is the WCAG requirement a token pair is held to.
+//
+// Append-only: never reorder or insert; the zero value stays ContrastText.
 type ContrastKind uint8
 
 const (
@@ -70,6 +72,8 @@ func (k ContrastKind) String() string {
 }
 
 // ContrastStatus classifies a measured pair for reports and audit gates.
+//
+// Append-only: never reorder or insert; the zero value stays ContrastStatusPass.
 type ContrastStatus uint8
 
 const (

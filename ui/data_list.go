@@ -11,6 +11,8 @@ import (
 
 // ListW renders a list of n items (Ant Design List).
 type ListW struct {
+	_ [0]func()
+
 	c        *Context
 	n        int
 	header   func()
@@ -244,11 +246,19 @@ func (w *ListW) itemSem(n *node, i int) {
 	}
 }
 
+// ListItemMetaW is the block ListItemMeta returns; it embeds the row's
+// Box.
+type ListItemMetaW struct {
+	_ [0]func()
+
+	*Box
+}
+
 // ListItemMeta is the avatar + title + description block of a list item.
 // avatar may be nil. It grows to take the row's free space.
-func ListItemMeta(c *Context, avatar func(), title, desc string) *Box {
+func ListItemMeta(c *Context, avatar func(), title, desc string) *ListItemMetaW {
 	tk := &c.ThemeFor(theme.CompList).Components.List
-	return Row(c, func() {
+	b := Row(c, func() {
 		if avatar != nil {
 			Row(c, avatar, layout.Margin(geom.Insets{Right: tk.AvatarMarginInlineEnd}))
 		}
@@ -267,11 +277,20 @@ func ListItemMeta(c *Context, avatar func(), title, desc string) *Box {
 			}
 		}, layout.Grow(1), layout.MinW(0))
 	}, layout.Grow(1), layout.MinW(0), layout.AlignItems(layout.AlignStart))
+	return &ListItemMetaW{Box: b}
+}
+
+// ListActionsW is the action row ListActions returns; it embeds the row's
+// Box.
+type ListActionsW struct {
+	_ [0]func()
+
+	*Box
 }
 
 // ListActions lays out item actions at the end of a list row, separated by
 // short vertical bars (Ant's actions).
-func ListActions(c *Context, fn func()) *Box {
+func ListActions(c *Context, fn func()) *ListActionsW {
 	tk := &c.ThemeFor(theme.CompList).Components.List
 	b := Row(c, fn, layout.Gap(17), layout.Middle(), layout.Margin(geom.Insets{Left: tk.ActionsMarginInlineStart}))
 	b.n.ln.Shrink = 0
@@ -286,5 +305,5 @@ func ListActions(c *Context, fn func()) *Box {
 			dataVLine(l, x, r.Y+(r.H-14)/2, 14, tk.ActionsSplitColor)
 		}
 	})
-	return b
+	return &ListActionsW{Box: b}
 }

@@ -19,6 +19,8 @@ import (
 // PopoverW is a floating card attached to a trigger: title, content and
 // an arrow, in twelve placements, opened by hover, click or focus.
 type PopoverW struct {
+	_ [0]func()
+
 	c         *Context
 	title     string
 	content   func()
@@ -416,6 +418,8 @@ type TourStep struct {
 // TourW is a guided tour: a mask with a hole around the current target
 // and a panel with step indicators and prev/next buttons.
 type TourW struct {
+	_ [0]func()
+
 	c        *Context
 	open     *bool
 	cur      *int

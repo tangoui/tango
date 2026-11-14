@@ -7,6 +7,7 @@ import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
@@ -18,6 +19,8 @@ import (
 // SkeletonW is a loading placeholder: optional avatar, a title bar and
 // paragraph lines, with an optional shimmer ("active").
 type SkeletonW struct {
+	_ [0]func()
+
 	c       *Context
 	active  bool
 	avatar  bool
@@ -109,7 +112,7 @@ type skelW struct {
 func skelBlock(c *Context, active bool, w, h float32, round, circle bool, opts ...layout.Option) *skelW {
 	b := &skelW{c: c}
 	b.n = c.add("skeleton", "")
-	b.n.ln.Style.Apply(opts...)
+	flexbox.Apply(&b.n.ln.Style, opts...)
 	b.n.ln.Width, b.n.ln.Height = w, h
 	b.n.ln.Measure = func(maxW, _ float32) geom.Size {
 		if w > 0 {
@@ -226,6 +229,8 @@ func SkeletonImage(c *Context, w, h float32, active bool) {
 
 // CountdownW counts down to a deadline (Statistic.Countdown / el-countdown).
 type CountdownW struct {
+	_ [0]func()
+
 	c        *Context
 	n        *node
 	title    string

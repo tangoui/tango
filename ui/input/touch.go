@@ -7,6 +7,8 @@ import (
 )
 
 // TouchPhase is the stage of one finger's contact.
+//
+// Append-only: never reorder or insert; the zero value stays TouchBegan.
 type TouchPhase uint8
 
 const (

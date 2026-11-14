@@ -20,6 +20,8 @@ func navGapOf(s ControlSize) float32 {
 
 // FlexW is a flex container with design-token gaps (Ant Flex).
 type FlexW struct {
+	_ [0]func()
+
 	c   *Context
 	b   *Box
 	dir layout.Direction
@@ -64,6 +66,8 @@ func (f *FlexW) Body(fn func()) *Box { return f.b.Body(fn) }
 
 // SpaceW sets the spacing between inline items (Ant Space).
 type SpaceW struct {
+	_ [0]func()
+
 	c       *Context
 	b       *Box
 	split   func()

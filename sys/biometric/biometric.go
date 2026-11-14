@@ -59,6 +59,8 @@ func String(k Kind) string {
 
 // Options configures the prompt.
 type Options struct {
+	_ [0]func()
+
 	Reason        string // why the app asks; required on iOS/macOS
 	Title         string // Android prompt title (default: the app name)
 	CancelTitle   string // cancel button label; "" = system default

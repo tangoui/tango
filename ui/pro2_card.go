@@ -5,6 +5,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -40,6 +41,8 @@ type ProCardTab struct {
 
 // ProCardW builds a ProCard.
 type ProCardW struct {
+	_ [0]func()
+
 	c              *Context
 	title, sub     string
 	tip            string
@@ -409,7 +412,7 @@ func (w *ProCardW) header(pad geom.Insets, folded bool) bool {
 	}
 	if pro2Shad(c) {
 		if w.sub != "" {
-			hd.n.ln.Style.Apply(layout.AlignItems(layout.AlignStart))
+			flexbox.Apply(&hd.n.ln.Style, layout.AlignItems(layout.AlignStart))
 		}
 		hd.Body(func() { w.shadHeader(hd, folded) })
 		return folded

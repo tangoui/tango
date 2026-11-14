@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -15,6 +16,8 @@ import (
 // InfiniteScrollW is a scrolling column that asks for more content when the
 // user nears its bottom.
 type InfiniteScrollW struct {
+	_ [0]func()
+
 	c           *Context
 	sb          *ScrollBox
 	st          *moreInfState
@@ -52,7 +55,7 @@ func (w *InfiniteScrollW) Height(px float32) *InfiniteScrollW { w.sb.n.ln.Height
 
 // Layout applies layout options to the viewport.
 func (w *InfiniteScrollW) Layout(opts ...layout.Option) *InfiniteScrollW {
-	w.sb.n.ln.Style.Apply(opts...)
+	flexbox.Apply(&w.sb.n.ln.Style, opts...)
 	return w
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -81,6 +82,8 @@ func imgPlace(fit string, r geom.Rect, iw, ih float64) (dst geom.Rect, sx, sy, s
 // ImageW displays a bitmap with loading placeholder, error fallback and an
 // optional full-screen preview (Ant Design Image / Element Plus el-image).
 type ImageW struct {
+	_ [0]func()
+
 	c        *Context
 	n        *node
 	img      image.Image
@@ -211,7 +214,7 @@ func (w *ImageW) PreviewGroup(imgs []image.Image, index int) *ImageW {
 }
 
 // Layout applies layout options.
-func (w *ImageW) Layout(o ...layout.Option) *ImageW { w.n.ln.Style.Apply(o...); return w }
+func (w *ImageW) Layout(o ...layout.Option) *ImageW { flexbox.Apply(&w.n.ln.Style, o...); return w }
 
 // Rotate turns the open preview by deg degrees (clockwise, any angle;
 // relative to its current rotation). Call it once per action, e.g. from a
@@ -393,7 +396,7 @@ func (w *ImageW) previewOverlay() {
 		pan.setRole(a11y.RoleImage).setName(w.altText())
 		pan.aKbd = true
 		st.overlayPan = pan.id
-		pan.ln.Style.Apply(layout.Abs(0, 0, 0, 0))
+		flexbox.Apply(&pan.ln.Style, layout.Abs(0, 0, 0, 0))
 		ia := c.interact(pan, false, input.CursorDefault)
 		if ia.PressedNow {
 			st.last = c.pointer
@@ -449,7 +452,7 @@ func (w *ImageW) previewOverlay() {
 		btn := func(label string, ic *icon.Icon, std *icon.Icon, disabled bool, place layout.Option, size, iconSize float32, round bool) bool {
 			n := c.add("img-op", label)
 			n.ln.Width, n.ln.Height = size, size
-			n.ln.Style.Apply(place)
+			flexbox.Apply(&n.ln.Style, place)
 			n.disabled = disabled
 			n.setRole(a11y.RoleButton)
 			bia := c.interact(n, true, input.CursorPointer)
@@ -517,21 +520,21 @@ func (w *ImageW) previewOverlay() {
 		}
 		if el {
 			Row(c, func() {
-				if btn(loc.Image.ZoomOut, icon.ZoomOut, nil, st.scale <= imgMinScale, nil, 23, 23, false) {
+				if btn(loc.Image.ZoomOut, icon.ZoomOut, nil, st.scale <= imgMinScale, layout.Option{}, 23, 23, false) {
 					zoomOut()
 				}
-				if btn(loc.Image.ZoomIn, icon.ZoomIn, nil, st.scale >= imgMaxScale, nil, 23, 23, false) {
+				if btn(loc.Image.ZoomIn, icon.ZoomIn, nil, st.scale >= imgMaxScale, layout.Option{}, 23, 23, false) {
 					zoomIn()
 				}
 				imgSep(c, tk)
-				if btn(loc.Reset, nil, icon.Fullscreen, false, nil, 23, 23, false) {
+				if btn(loc.Reset, nil, icon.Fullscreen, false, layout.Option{}, 23, 23, false) {
 					st.scale, st.angle, st.pan, st.flipX, st.flipY = 1, 0, geom.Point{}, false, false
 				}
 				imgSep(c, tk)
-				if btn(loc.Image.RotateLeft, icon.RotateLeft, nil, false, nil, 23, 23, false) {
+				if btn(loc.Image.RotateLeft, icon.RotateLeft, nil, false, layout.Option{}, 23, 23, false) {
 					st.angle -= 90
 				}
-				if btn(loc.Image.RotateRight, icon.RotateRight, nil, false, nil, 23, 23, false) {
+				if btn(loc.Image.RotateRight, icon.RotateRight, nil, false, layout.Option{}, 23, 23, false) {
 					st.angle += 90
 				}
 			}, layout.Abs(c.size.W/2-140, U, U, 30), layout.W(280), layout.H(44), layout.Middle(),
@@ -539,22 +542,22 @@ func (w *ImageW) previewOverlay() {
 		} else {
 			tw := float32(6*44 + 24)
 			bar := Row(c, func() {
-				if btn(loc.Image.FlipVertical, icon.SwapVertical, nil, false, nil, 44, 18, false) {
+				if btn(loc.Image.FlipVertical, icon.SwapVertical, nil, false, layout.Option{}, 44, 18, false) {
 					st.flipY = !st.flipY
 				}
-				if btn(loc.Image.FlipHorizontal, icon.Swap, nil, false, nil, 44, 18, false) {
+				if btn(loc.Image.FlipHorizontal, icon.Swap, nil, false, layout.Option{}, 44, 18, false) {
 					st.flipX = !st.flipX
 				}
-				if btn(loc.Image.RotateLeft, icon.RotateLeft, nil, false, nil, 44, 18, false) {
+				if btn(loc.Image.RotateLeft, icon.RotateLeft, nil, false, layout.Option{}, 44, 18, false) {
 					st.angle -= 90
 				}
-				if btn(loc.Image.RotateRight, icon.RotateRight, nil, false, nil, 44, 18, false) {
+				if btn(loc.Image.RotateRight, icon.RotateRight, nil, false, layout.Option{}, 44, 18, false) {
 					st.angle += 90
 				}
-				if btn(loc.Image.ZoomOut, icon.ZoomOut, nil, st.scale <= imgMinScale, nil, 44, 18, false) {
+				if btn(loc.Image.ZoomOut, icon.ZoomOut, nil, st.scale <= imgMinScale, layout.Option{}, 44, 18, false) {
 					zoomOut()
 				}
-				if btn(loc.Image.ZoomIn, icon.ZoomIn, nil, st.scale >= imgMaxScale, nil, 44, 18, false) {
+				if btn(loc.Image.ZoomIn, icon.ZoomIn, nil, st.scale >= imgMaxScale, layout.Option{}, 44, 18, false) {
 					zoomIn()
 				}
 			}, layout.Abs(c.size.W/2-tw/2, U, U, 32), layout.W(tw), layout.H(44), layout.Middle(), layout.PadVH(0, 12))
@@ -563,7 +566,7 @@ func (w *ImageW) previewOverlay() {
 				s := fmt.Sprintf("%d / %d", st.idx+1, len(imgs))
 				n := c.add("img-count", "")
 				n.setRole(a11y.RoleText).setName(s)
-				n.ln.Style.Apply(layout.Abs(0, U, 0, 32+44+12), layout.H(22))
+				flexbox.Apply(&n.ln.Style, layout.Abs(0, U, 0, 32+44+12), layout.H(22))
 				n.paint = func(l *paint.List, r geom.Rect) {
 					lay := c.dataShape(s, th.FontSize, text.Regular)
 					dataText(l, lay, r.X+(r.W-lay.Width)/2, r.Y, tk.PreviewOperationColor)

@@ -6,7 +6,7 @@ import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
-	"github.com/tangoui/tango/ui/layout"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
 )
@@ -34,6 +34,8 @@ type RunnerOptions struct {
 // out, paints and presents. All methods except Invalidate must be called on
 // the UI thread; Invalidate is safe from any goroutine.
 type Runner struct {
+	_ [0]func()
+
 	c         *Context
 	page      func(*Context)
 	win       Window
@@ -454,7 +456,7 @@ func (r *Runner) layoutAndPaint() {
 	c.nextFocusOrder.Reset()
 	c.nextFocus = c.nextFocus[:0]
 	link(c.root)
-	layout.Solve(&c.root.ln, c.size.W, c.size.H)
+	flexbox.Solve(&c.root.ln, c.size.W, c.size.H)
 	view := geom.Rect{W: c.size.W, H: c.size.H}
 	c.contentSize = geom.Size{}
 	for _, k := range c.root.kids {

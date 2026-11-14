@@ -23,6 +23,8 @@ const (
 
 // ProSkeletonW builds a page skeleton.
 type ProSkeletonW struct {
+	_ [0]func()
+
 	c          *Context
 	kind       string
 	active     bool

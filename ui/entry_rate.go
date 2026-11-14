@@ -15,6 +15,8 @@ import (
 
 // RateW is a star rating (Ant Rate / Element el-rate).
 type RateW struct {
+	_ [0]func()
+
 	c          *Context
 	n          *node
 	val        *float64

@@ -18,6 +18,8 @@ import (
 //	lf := ui.LightFilter(c, fields).Values(&filter).Show()
 //	if lf.Changed() { reload(lf.Params()) }
 type LightFilterW struct {
+	_ [0]func()
+
 	c        *Context
 	fields   []ProField
 	vals     *ProValues

@@ -6,6 +6,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -24,6 +25,8 @@ type dtDateTimeState struct {
 // DateTimePickerW is an input whose dropdown combines a month calendar with
 // time columns; the value is committed with "确定" or Enter.
 type DateTimePickerW struct {
+	_ [0]func()
+
 	c       *Context
 	f       *dtField
 	val     *time.Time
@@ -75,7 +78,7 @@ func (w *DateTimePickerW) AllowClear(on bool) *DateTimePickerW { w.f.allowClear 
 // "borderless" or "underlined".
 func (w *DateTimePickerW) Variant(v string) *DateTimePickerW { w.f.variant = v; return w }
 func (w *DateTimePickerW) Layout(o ...layout.Option) *DateTimePickerW {
-	w.f.n.ln.Style.Apply(o...)
+	flexbox.Apply(&w.f.n.ln.Style, o...)
 	return w
 }
 

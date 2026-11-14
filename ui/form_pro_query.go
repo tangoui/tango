@@ -17,6 +17,8 @@ import (
 //	q := ui.QueryFilter(c, fields).Values(&query).Show()
 //	if q.Searched() { reload(q.Params()) }
 type QueryFilterW struct {
+	_ [0]func()
+
 	c          *Context
 	fields     []ProField
 	vals       *ProValues

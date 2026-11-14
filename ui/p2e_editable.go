@@ -23,6 +23,8 @@ import (
 //		OnSave(func(r Row, i int, done func(error)) { go save(r, done) }).
 //		Show()
 type EditableProTableW[T any] struct {
+	_ [0]func()
+
 	c        *Context
 	cols     []ProColumn[T]
 	rows     *[]T

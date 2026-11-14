@@ -31,6 +31,8 @@ const (
 
 // Options configures New. The zero value of each field picks a default.
 type Options struct {
+	_ [0]func()
+
 	// AppID picks the default Dir: paths.Logs(AppID). Required if Dir is
 	// empty.
 	AppID string

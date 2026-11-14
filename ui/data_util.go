@@ -7,6 +7,7 @@ package ui
 import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -55,7 +56,7 @@ func dataEndX(c *Context, r geom.Rect) float32 {
 func dataCenterText(c *Context, s string, size float32, col theme.Color, opts ...layout.Option) *node {
 	st := c.style(size, text.Regular)
 	n := c.add("text", s)
-	n.ln.Style.Apply(opts...)
+	flexbox.Apply(&n.ln.Style, opts...)
 	n.ln.Measure = func(maxW, _ float32) geom.Size {
 		return text.Shape(s, st, c.textOpts(text.Options{MaxWidth: maxW})).Size()
 	}

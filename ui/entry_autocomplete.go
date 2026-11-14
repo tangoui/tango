@@ -23,6 +23,8 @@ type acState struct {
 
 // AutoCompleteW is a text input with a suggestion dropdown.
 type AutoCompleteW struct {
+	_ [0]func()
+
 	c         *Context
 	in        *InputW
 	val       *string

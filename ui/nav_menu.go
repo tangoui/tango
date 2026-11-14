@@ -15,6 +15,8 @@ import (
 )
 
 // MenuMode selects how Menu shows submenus.
+//
+// Append-only: never reorder or insert; the zero value stays MenuInline.
 type MenuMode uint8
 
 const (
@@ -45,6 +47,8 @@ type menuState struct {
 // horizontal mode Left/Right move along the bar and Down or Enter opens the
 // dropdown. Enter/Space choose a leaf and Escape closes a pop-out submenu.
 type MenuW struct {
+	_ [0]func()
+
 	c         *Context
 	th        *theme.Theme // Menu tokens (c.ThemeFor(theme.CompMenu))
 	items     []MenuItem

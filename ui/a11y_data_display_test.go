@@ -322,7 +322,7 @@ func TestA11yCardDescriptions(t *testing.T) {
 	hits := 0
 	pg := func(c *Context) {
 		Card(c, "Profile").Actions(func() {
-			if CardAction(c, icon.Edit, "Edit") {
+			if CardAction(c, icon.Edit, "Edit").Clicked() {
 				clicks++
 			}
 		}).Body(func() { Text(c, "Hello") })

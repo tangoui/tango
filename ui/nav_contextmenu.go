@@ -34,6 +34,8 @@ func init() { globalLayers = append(globalLayers, renderContextMenu) }
 
 // ContextMenuOptions configure ContextMenuAtWith.
 type ContextMenuOptions struct {
+	_ [0]func()
+
 	// NoAutoSelect opens the menu with no item highlighted, like the
 	// context menus of code editors: keyboard focus moves to the menu
 	// panel itself (role menu, not a Tab stop), Down/Home highlight the

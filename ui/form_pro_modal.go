@@ -9,6 +9,8 @@ import (
 // dialog's OK button submits (spinning while OnFinish runs) and the dialog
 // closes once the values are saved.
 type ModalFormW struct {
+	_ [0]func()
+
 	c        *Context
 	open     *bool
 	title    string

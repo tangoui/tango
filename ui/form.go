@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -15,6 +16,8 @@ import (
 )
 
 // FormLayout arranges labels and controls.
+//
+// Append-only: never reorder or insert; the zero value stays FormHorizontal.
 type FormLayout uint8
 
 const (
@@ -25,6 +28,8 @@ const (
 
 // FormW groups FormItems with shared label settings.
 type FormW struct {
+	_ [0]func()
+
 	c          *Context
 	n          *node
 	st         *formState
@@ -61,7 +66,7 @@ func (f *FormW) LabelWidth(px float32) *FormW  { f.labelWidth = px; return f }
 func (f *FormW) LabelAlign(a TextAlign) *FormW { f.labelAlign = a; return f }
 func (f *FormW) Colon(on bool) *FormW          { f.colon = on; return f }
 func (f *FormW) Layout(o ...layout.Option) *FormW {
-	f.n.ln.Style.Apply(o...)
+	flexbox.Apply(&f.n.ln.Style, o...)
 	return f
 }
 
@@ -199,6 +204,8 @@ func (f *FormW) Value(name string) string { return f.st.last[name] }
 
 // FormItemW is one labelled form row.
 type FormItemW struct {
+	_ [0]func()
+
 	f        *FormW
 	value    func() string
 	rules    []Rule

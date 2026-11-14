@@ -104,6 +104,8 @@ type ProResult[T any] struct {
 // (refresh, density, column settings, fullscreen) and a table fed by an
 // asynchronous request function.
 type ProTableW[T any] struct {
+	_ [0]func()
+
 	c         *Context
 	cols      []ProColumn[T]
 	title     string

@@ -18,6 +18,7 @@ pkg github.com/tangoui/tango/sys/location, type Location struct, Time time.Time
 pkg github.com/tangoui/tango/sys/location, type Options struct
 pkg github.com/tangoui/tango/sys/location, type Options struct, Accuracy Accuracy
 pkg github.com/tangoui/tango/sys/location, type Options struct, DistanceFilter float64
+pkg github.com/tangoui/tango/sys/location, type Options struct, noncomparable
 pkg github.com/tangoui/tango/sys/location, var ErrNotAvailable error
 pkg github.com/tangoui/tango/sys/location, var ErrNotConfigured error
 pkg github.com/tangoui/tango/sys/location, var ErrPermissionDenied error

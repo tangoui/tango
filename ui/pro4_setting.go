@@ -38,6 +38,8 @@ import (
 
 // ProSettings are the shell settings edited by SettingDrawer.
 type ProSettings struct {
+	_ [0]func()
+
 	NavTheme     string      // "light", "dark" (default) or "realDark"
 	PrimaryColor theme.Color // zero: the theme's brand color
 	Layout       string      // "side" (default), "top" or "mix"
@@ -108,6 +110,8 @@ func ProSettingsProvider(c *Context, s *ProSettings, fn func()) {
 
 // SettingDrawerW builds a SettingDrawer.
 type SettingDrawerW struct {
+	_ [0]func()
+
 	c         *Context
 	s         *ProSettings
 	open      *bool

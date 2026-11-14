@@ -100,6 +100,8 @@ type Stop struct {
 }
 
 // GradientKind selects the gradient geometry.
+//
+// Append-only: never reorder or insert; the zero value stays GradientLinear.
 type GradientKind uint8
 
 const (

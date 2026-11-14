@@ -19,4 +19,5 @@ pkg github.com/tangoui/tango/service/log, type Options struct, File string
 pkg github.com/tangoui/tango/service/log, type Options struct, Keep int
 pkg github.com/tangoui/tango/service/log, type Options struct, Level log/slog.Leveler
 pkg github.com/tangoui/tango/service/log, type Options struct, MaxSize int64
+pkg github.com/tangoui/tango/service/log, type Options struct, noncomparable
 pkg github.com/tangoui/tango/service/log, type RotatingFile struct

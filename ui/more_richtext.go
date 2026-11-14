@@ -7,6 +7,7 @@ import (
 
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -39,6 +40,8 @@ type Span struct {
 
 // RichTextW is a paragraph of spans.
 type RichTextW struct {
+	_ [0]func()
+
 	c       *Context
 	n       *node
 	spans   []Span
@@ -233,7 +236,7 @@ func (w *RichTextW) linkNodes() {
 		if st.rtl {
 			off = st.width - off - l.r.W // Abs left is the start edge in RTL
 		}
-		k.ln.Style.Apply(layout.Abs(off, l.r.Y-st.origin.Y, layout.Unset, layout.Unset))
+		flexbox.Apply(&k.ln.Style, layout.Abs(off, l.r.Y-st.origin.Y, layout.Unset, layout.Unset))
 		k.ln.Width, k.ln.Height = l.r.W, l.r.H
 		k.setRole(a11y.RoleLink)
 		w.n.kids = append(w.n.kids, k)
@@ -267,7 +270,7 @@ func (w *RichTextW) Align(a TextAlign) *RichTextW { w.align = a; return w }
 
 // Layout applies layout options.
 func (w *RichTextW) Layout(opts ...layout.Option) *RichTextW {
-	w.n.ln.Style.Apply(opts...)
+	flexbox.Apply(&w.n.ln.Style, opts...)
 	return w
 }
 

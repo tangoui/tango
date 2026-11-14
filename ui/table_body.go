@@ -12,6 +12,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -645,7 +646,7 @@ func (f *tblFrame) cell(r tblRow, pos int, ce tblCell, top float32, rv *tblRowVi
 		f.actID = n.id
 	}
 	n.ln.Absolute = true
-	n.ln.Pos = layout.Pos{Left: f.cx(ce.col), Top: top, Right: layout.Unset, Bottom: layout.Unset}
+	n.ln.Pos = flexbox.Pos{Left: f.cx(ce.col), Top: top, Right: layout.Unset, Bottom: layout.Unset}
 	n.ln.Width, n.ln.Height = w, h
 	n.ln.Dir = layout.Row
 	n.ln.Align = layout.AlignCenter
@@ -1069,10 +1070,10 @@ func (f *tblFrame) scrollThumbs() {
 		n.aHidden = true // the grid scrolls with the keyboard (arrows, PageUp/PageDown)
 		n.ln.Absolute = true
 		if vertical {
-			n.ln.Pos = layout.Pos{Left: f.sx + vw - 10, Top: f.ry + pos, Right: layout.Unset, Bottom: layout.Unset}
+			n.ln.Pos = flexbox.Pos{Left: f.sx + vw - 10, Top: f.ry + pos, Right: layout.Unset, Bottom: layout.Unset}
 			n.ln.Width, n.ln.Height = 10, size
 		} else {
-			n.ln.Pos = layout.Pos{Left: f.sx + pos, Top: f.ry + vh - 10, Right: layout.Unset, Bottom: layout.Unset}
+			n.ln.Pos = flexbox.Pos{Left: f.sx + pos, Top: f.ry + vh - 10, Right: layout.Unset, Bottom: layout.Unset}
 			n.ln.Width, n.ln.Height = size, 10
 		}
 		ia := c.interact(n, false, input.CursorDefault)
@@ -1168,7 +1169,7 @@ func (f *tblFrame) summaryBar() {
 						n.fill(tblSem{row: f.depth + f.n + si + 1, col: li + 1})
 					}
 					n.ln.Absolute = true
-					n.ln.Pos = layout.Pos{Left: f.cx(li) - f.sx, Top: 0, Right: layout.Unset, Bottom: layout.Unset}
+					n.ln.Pos = flexbox.Pos{Left: f.cx(li) - f.sx, Top: 0, Right: layout.Unset, Bottom: layout.Unset}
 					n.ln.Width, n.ln.Height = lf.w, f.rh
 					n.paint = func(l *paint.List, rr geom.Rect) {
 						// Opaque: fixed cells cover the scrolled ones.

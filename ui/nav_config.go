@@ -103,6 +103,8 @@ func Prop[T any](c *Context, component, key string, def T) T {
 // ConfigProviderW configures every component built inside its Body:
 // size, locale, component default properties, disabled state and theme.
 type ConfigProviderW struct {
+	_ [0]func()
+
 	c       *Context
 	cfg     navConfig
 	th      *theme.Theme

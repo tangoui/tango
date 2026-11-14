@@ -35,6 +35,7 @@ pkg github.com/tangoui/tango/jsapi, type Handler func(context.Context, *tango.Su
 pkg github.com/tangoui/tango/jsapi, type Options struct
 pkg github.com/tangoui/tango/jsapi, type Options struct, Allow Cap
 pkg github.com/tangoui/tango/jsapi, type Options struct, Deny Cap
+pkg github.com/tangoui/tango/jsapi, type Options struct, noncomparable
 pkg github.com/tangoui/tango/jsapi, type UpdaterOptions struct
 pkg github.com/tangoui/tango/jsapi, type UpdaterOptions struct, AllowRestart bool
 pkg github.com/tangoui/tango/jsapi, type UpdaterOptions struct, OnDownloaded func(*service/updater.Payload)

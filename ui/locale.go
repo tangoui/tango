@@ -31,6 +31,8 @@ import (
 // texts of third-party components go to Extra and are read with
 // Locale.T(key, fallback).
 type Locale struct {
+	_ [0]func()
+
 	Code string // BCP 47 tag, e.g. "zh-CN"
 	Name string // native display name, e.g. "简体中文"
 
@@ -122,36 +124,57 @@ type Locale struct {
 }
 
 // CalendarLocale holds the Calendar mode switch.
-type CalendarLocale struct{ Month, Year string }
+type CalendarLocale struct {
+	_           [0]func()
+	Month, Year string
+}
 
 // CarouselLocale holds the accessible names of the Carousel arrows.
-type CarouselLocale struct{ Prev, Next string }
+type CarouselLocale struct {
+	_          [0]func()
+	Prev, Next string
+}
 
 // ImageLocale holds the Image placeholder and preview toolbar texts.
 type ImageLocale struct {
+	_ [0]func()
+
 	Preview, PreviewLabel, ClosePreview, Prev, Next                        string
 	ZoomIn, ZoomOut, RotateLeft, RotateRight, FlipHorizontal, FlipVertical string
 }
 
 // ColorPickerLocale holds the ColorPicker panel texts.
 type ColorPickerLocale struct {
+	_ [0]func()
+
 	Presets, None, ClearColor, Clear, Saturation, Hue, Alpha string
 	Format                                                   string // accessible name of the HEX / RGB format select
 	Value                                                    string // accessible name of the value input of ColorPickerPanel ("颜色值")
 }
 
 // CommandLocale holds the Command palette texts.
-type CommandLocale struct{ Placeholder, Empty string }
+type CommandLocale struct {
+	_                  [0]func()
+	Placeholder, Empty string
+}
 
 // TourLocale holds the Tour buttons.
-type TourLocale struct{ Close, Prev, Next, Finish string }
+type TourLocale struct {
+	_                         [0]func()
+	Close, Prev, Next, Finish string
+}
 
 // QRCodeLocale holds the QRCode status masks.
-type QRCodeLocale struct{ Expired, Refresh, Scanned string }
+type QRCodeLocale struct {
+	_                         [0]func()
+	Expired, Refresh, Scanned string
+}
 
 // TableLocale holds the Table filter dropdown texts not covered by the
 // common Filter* fields.
 type TableLocale struct {
+	_ [0]func()
+
 	FilterSearch string // search box placeholder
 	FilterAll    string // "all" entry of single-choice filters
 	Filter       string // Element's apply button ("筛选")
@@ -171,6 +194,8 @@ type TableLocale struct {
 // ChartLocale holds the accessible names and summaries of ui/chart charts:
 // the chart kinds (default names) and the summary read as the description.
 type ChartLocale struct {
+	_ [0]func()
+
 	Line, Area, Column, Bar, Pie, Donut, Scatter, Radar, Gauge, Funnel, Heatmap, DualAxes, Liquid, Sparkline string
 	SummaryFmt                                                                                               string // args: kind, series count, point count ("%[1]s，%[2]d 个系列，%[3]d 个数据点")
 	XRangeFmt                                                                                                string // appended to the summary, args: first, last x ("；横轴从 %s 到 %s")
@@ -182,6 +207,8 @@ type ChartLocale struct {
 
 // MobileLocale holds the texts of ui/mobile components.
 type MobileLocale struct {
+	_ [0]func()
+
 	PullToRefresh, ReleaseToRefresh, Refreshed string // pull-to-refresh states (the loading state uses Loading)
 	TapToRetry                                 string // appended to LoadFailed in infinite lists ("，点击重试")
 	DayFmt, HourFmt, MinuteFmt                 string // date-time picker columns, arg: number ("%d日", "%02d时", "%02d分")
@@ -189,6 +216,8 @@ type MobileLocale struct {
 
 // ProTableLocale holds the ProTable search form and toolbar texts.
 type ProTableLocale struct {
+	_ [0]func()
+
 	Query, Reload, Density, DensityDefault, DensityMiddle, DensityCompact string
 	ColumnSetting, ColumnDisplay, ClearSelection                          string
 	LoadErrorFmt                                                          string // alert text, arg: error message
@@ -196,6 +225,8 @@ type ProTableLocale struct {
 
 // FormLocale holds the Form / ProForm texts.
 type FormLocale struct {
+	_ [0]func()
+
 	Validating                          string // help text while an async rule runs
 	RequiredInputFmt, RequiredSelectFmt string // default required message, arg: field label
 	Submit, Query, PrevStep, NextStep   string
@@ -203,11 +234,16 @@ type FormLocale struct {
 }
 
 // TransferLocale holds the Transfer defaults.
-type TransferLocale struct{ Source, Target, SearchPlaceholder string }
+type TransferLocale struct {
+	_                                 [0]func()
+	Source, Target, SearchPlaceholder string
+}
 
 // UploadLocale holds the Upload texts. The dragger has no default hint
 // line; set one with DragText.
 type UploadLocale struct {
+	_ [0]func()
+
 	Trigger    string // picture-card add tile ("上传")
 	Uploading  string // progress text of a file ("文件上传中")
 	Remove     string // remove action of a file
@@ -228,6 +264,8 @@ type UploadLocale struct {
 // DatePickerLocale holds the texts of the week / month / quarter / year
 // pickers and DatePickerPanel.
 type DatePickerLocale struct {
+	_ [0]func()
+
 	SelectWeek, SelectMonth, SelectQuarter, SelectYear string // placeholders by granularity
 	// RangePicker placeholders by granularity (date ranges use the
 	// top-level StartDate / EndDate).
@@ -243,47 +281,72 @@ type DatePickerLocale struct {
 
 // TimePickerLocale holds the TimePicker / TimeRangePicker texts.
 type TimePickerLocale struct {
+	_ [0]func()
+
 	StartTime, EndTime string // range placeholders
 	AM, PM             string // 12-hour clock words
 	Meridiem           string // accessible name of the AM / PM column
 }
 
 // TabsLocale holds the accessible names of the Tabs overflow and add buttons.
-type TabsLocale struct{ More, Add string }
+type TabsLocale struct {
+	_         [0]func()
+	More, Add string
+}
 
 // PaginationLocale holds the accessible names of the Pagination inputs
 // (quick jumper, simple mode current page).
-type PaginationLocale struct{ Jump, Current string }
+type PaginationLocale struct {
+	_             [0]func()
+	Jump, Current string
+}
 
 // SliderLocale holds the accessible names of the two SliderRange handles.
-type SliderLocale struct{ Min, Max string }
+type SliderLocale struct {
+	_        [0]func()
+	Min, Max string
+}
 
 // DropZoneLocale holds the DropZone accessible name and drag-over
 // announcement.
-type DropZoneLocale struct{ Name, Release string }
+type DropZoneLocale struct {
+	_             [0]func()
+	Name, Release string
+}
 
 // EditableTableLocale holds the EditableProTable texts.
 type EditableTableLocale struct {
+	_ [0]func()
+
 	Actions       string // title of the action column
 	DeleteConfirm string // Popconfirm of the delete action
 }
 
 // PageContainerLocale holds the PageContainer / FooterToolbar texts.
 type PageContainerLocale struct {
+	_ [0]func()
+
 	FooterToolbar string // accessible name of the FooterToolbar ("页面操作")
 }
 
 // ProCardLocale holds the ProCard / StatisticCard texts.
 type ProCardLocale struct {
+	_ [0]func()
+
 	MoreInfo string // accessible name of the title tooltip icon
 }
 
 // StatisticCardLocale holds the accessible names of the trend marks.
-type StatisticCardLocale struct{ Up, Down string }
+type StatisticCardLocale struct {
+	_        [0]func()
+	Up, Down string
+}
 
 // ProFieldLocale holds texts of ProField / ProColumn value types (editors
 // and read-only views).
 type ProFieldLocale struct {
+	_ [0]func()
+
 	On, Off          string // switch value text
 	StartFmt, EndFmt string // time range ends, arg: field label ("%s开始")
 	Min, Max         string // digit range placeholders
@@ -292,11 +355,15 @@ type ProFieldLocale struct {
 
 // ProDescriptionsLocale holds the ProDescriptions texts.
 type ProDescriptionsLocale struct {
+	_ [0]func()
+
 	EditFmt string // inline edit button, arg: item label ("编辑%s")
 }
 
 // LightFilterLocale holds the LightFilter texts.
 type LightFilterLocale struct {
+	_ [0]func()
+
 	Name     string // accessible name of the toolbar
 	ClearFmt string // clear button of a field, arg: field label ("清除%s")
 	PillFmt  string // accessible name of a field pill, args: label, value ("%s：%s")
@@ -306,6 +373,8 @@ type LightFilterLocale struct {
 
 // LoginFormLocale holds the LoginForm / LoginFormPage texts.
 type LoginFormLocale struct {
+	_ [0]func()
+
 	AccountTab, MobileTab      string
 	Username, UsernameRequired string
 	Password, PasswordRequired string
@@ -323,6 +392,8 @@ type LoginFormLocale struct {
 
 // SettingDrawerLocale holds the ProLayout SettingDrawer texts.
 type SettingDrawerLocale struct {
+	_ [0]func()
+
 	Open, Title                         string // trigger (accessible name, tooltip) and drawer title
 	NavTheme, Light, Dark, RealDark     string // menu style section and its choices
 	PrimaryColor                        string
@@ -335,6 +406,8 @@ type SettingDrawerLocale struct {
 
 // MarkdownLocale holds the Markdown viewer texts.
 type MarkdownLocale struct {
+	_ [0]func()
+
 	ImagePrefix string // shown before the alt text of an image ("[图片] ")
 	CopyCode    string
 	Copied      string
@@ -343,6 +416,8 @@ type MarkdownLocale struct {
 // MarkdownEditorLocale holds the MarkdownEditor toolbar, samples inserted
 // by the toolbar and the view mode switch.
 type MarkdownEditorLocale struct {
+	_ [0]func()
+
 	Placeholder                                                        string
 	Heading, Bold, Italic, Strike, Code, Link, Quote                   string
 	BulletList, OrderedList, Task, CodeBlock, Table, Divider           string
@@ -353,6 +428,8 @@ type MarkdownEditorLocale struct {
 // A11yLocale holds accessible names and descriptions that are read by
 // screen readers but not shown (icon-only controls, regions, summaries).
 type A11yLocale struct {
+	_ [0]func()
+
 	Navigation, Breadcrumb, Pagination, Notifications, Toolbar, Menu string
 	PageFmt                                                          string // pagination item, arg: page number ("第 %d 页")
 	MoreActions, OpenMenu, Remove, DragHandle, Resize, Splitter      string

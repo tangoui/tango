@@ -11,6 +11,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -26,6 +27,8 @@ import (
 // ConfigProvider.Defaults("Divider", ...) keys: "dashed" (bool),
 // "orientation" ("left" | "right" | "center"), "plain" (bool).
 type DividerW struct {
+	_ [0]func()
+
 	*Box
 	dashed bool
 	orient string
@@ -129,6 +132,8 @@ func VDivider(c *Context) {
 
 // TagW is a small label.
 type TagW struct {
+	_ [0]func()
+
 	c        *Context
 	n        *node
 	label    string
@@ -362,6 +367,8 @@ func (t *TagW) paint(l *paint.List, r geom.Rect) {
 
 // AvatarW is a round user avatar.
 type AvatarW struct {
+	_ [0]func()
+
 	n      *node
 	size   float32
 	square bool
@@ -447,6 +454,8 @@ func (a *AvatarW) A11yLabel(s string) *AvatarW { a.n.setName(s); return a }
 
 // StatisticW shows a labelled number.
 type StatisticW struct {
+	_ [0]func()
+
 	c      *Context
 	n      *node
 	title  string
@@ -549,7 +558,10 @@ func (s *StatisticW) semantics(n *a11y.Node) {
 }
 
 // Layout applies layout options.
-func (s *StatisticW) Layout(o ...layout.Option) *StatisticW { s.n.ln.Style.Apply(o...); return s }
+func (s *StatisticW) Layout(o ...layout.Option) *StatisticW {
+	flexbox.Apply(&s.n.ln.Style, o...)
+	return s
+}
 
 // FormatNumber formats v with thousands separators.
 func FormatNumber(v float64, precision int) string {
@@ -585,6 +597,8 @@ func FormatNumber(v float64, precision int) string {
 // "color", "effect" (string), "arrow" (bool), "mouseEnterDelay",
 // "mouseLeaveDelay" (time.Duration).
 type TooltipW struct {
+	_ [0]func()
+
 	*Box
 	c       *Context
 	tip     string

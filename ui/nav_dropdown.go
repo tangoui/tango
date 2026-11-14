@@ -8,6 +8,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -15,6 +16,8 @@ import (
 )
 
 // Trigger selects how a popup opens.
+//
+// Append-only: never reorder or insert; the zero value stays TriggerHover.
 type Trigger uint8
 
 const (
@@ -208,7 +211,7 @@ func (p *navMenuPopup) panel(items []MenuItem, level int, anchor ID, place Place
 		holder := Overlay(c, OverlayOptions{Place: ScreenFill}, func() {
 			inner = Column(c, body)
 			inner.n.ln.Absolute = true
-			inner.n.ln.Pos = layout.Pos{Left: at.X, Top: at.Y, Right: layout.Unset, Bottom: layout.Unset}
+			inner.n.ln.Pos = flexbox.Pos{Left: at.X, Top: at.Y, Right: layout.Unset, Bottom: layout.Unset}
 			inner.n.hit, inner.n.blocks = true, true
 		})
 		holder.n.hit, holder.n.blocks = false, false
@@ -828,6 +831,8 @@ type dropdownState struct {
 // triggers, nested submenus, placements, arrow, selected key, keyboard
 // navigation, and the split-button form (Button).
 type DropdownW struct {
+	_ [0]func()
+
 	c        *Context
 	th       *theme.Theme         // ThemeFor(CompDropdown)
 	tk       *theme.DropdownToken // &th.Components.Dropdown

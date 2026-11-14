@@ -29,7 +29,7 @@ Assets: asset.FromEnv(site, asset.Options{SPA: true})
 
 默认构建（普通 `go build`/`go run .`、`tan build`）**不读** `TANGO_DEV_URL`，始终服务嵌入的文件：否则同用户的其他进程设置这个变量就能让已签名的应用加载任意页面。不用 `tan dev` 时手动调试：`TANGO_DEV_URL=http://localhost:5173 go run -tags tango_dev .`。
 
-`DevProxy` 只接受回环目标（`localhost`、`127.0.0.0/8`、`::1`；Android `adb reverse` 和 iOS 模拟器都满足）。要代理到局域网里的 dev server，自己调用 `asset.DevProxy(url, asset.DevProxyOptions{AllowRemote: true})`。
+`DevProxy` 只接受回环目标（`localhost`、`127.0.0.0/8`、`::1`；Android `adb reverse` 和 iOS 模拟器都满足）。要代理到局域网里的 dev server，自己调用 `asset.DevProxyWith(url, asset.DevProxyOptions{AllowRemote: true})`。
 
 资源源上 GET/HEAD 以外的请求，`Origin` 不是资源源本身时核心直接回 403，不会到达你的 Handler（防外站表单 POST 到 `/api`）；需要跨源写请求时设置 `tango.Options.AllowCrossOriginAssets`。
 

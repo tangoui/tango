@@ -40,6 +40,8 @@ type Rect = tango.Rect
 
 // Options configures a flyout.
 type Options struct {
+	_ [0]func()
+
 	Width, Height int    // panel size; default 320x400
 	URL           string // page of the panel (relative to the asset origin); ignored with Surface
 	Debug         bool   // allow the inspector

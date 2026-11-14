@@ -15,6 +15,8 @@ import "github.com/tangoui/tango/ui/theme"
 //	table_pro.go     ProTable: query form, toolbar, value types, requests
 
 // SortOrder is a column sort direction.
+//
+// Append-only: never reorder or insert; the zero value stays SortNone.
 type SortOrder uint8
 
 const (
@@ -140,6 +142,8 @@ const FixedNone = "none"
 
 // TableFilterPanel is passed to custom filter panels.
 type TableFilterPanel struct {
+	_ [0]func()
+
 	c       *Context
 	Values  *[]string // draft values; Confirm applies them
 	confirm bool
@@ -167,6 +171,8 @@ func (p *TableFilterPanel) Close() { p.close = true }
 // column callbacks receive that index, so local sorting and filtering never
 // change what a callback sees.
 type TableW struct {
+	_ [0]func()
+
 	c    *Context
 	cols []TableColumn
 	rows int
@@ -258,6 +264,7 @@ func Table(c *Context, cols []TableColumn, rows int) *TableW {
 // RowStyle styles one body row (RowClass). Zero fields keep the default
 // look; hover, selection and the current-row highlight still win over Bg.
 type RowStyle struct {
+
 	// Status tints the row with a palette background ("success",
 	// "warning", "error", "info", "processing"), like Element Plus'
 	// success-row / warning-row classes.

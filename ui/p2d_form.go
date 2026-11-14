@@ -7,6 +7,7 @@ import (
 
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -14,6 +15,8 @@ import (
 )
 
 // FormTrigger says when a form item validates its value.
+//
+// Append-only: never reorder or insert; the zero value stays ValidateInherit.
 type FormTrigger uint8
 
 const (
@@ -311,7 +314,7 @@ func (it *FormItemW) labelTip(s, colon string, st text.Style, lw float32) {
 			drawIcon(l, icon.Question, r.X, r.Y, r.W, tk.LabelTooltipColor)
 		}
 	})
-	b.n.ln.Style.Apply(layout.Abs(left, top, layout.Unset, layout.Unset))
+	flexbox.Apply(&b.n.ln.Style, layout.Abs(left, top, layout.Unset, layout.Unset))
 	it.tipID = b.n.id
 }
 

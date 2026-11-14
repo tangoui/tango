@@ -85,7 +85,7 @@ func Button(c *ui.Context, label string) *ButtonW {
 		w.color = v
 	}
 	w.b = ui.Custom(c, w.measure, w.paint)
-	w.b.Style(func(s *layoutStyle) { s.NoStretch = true })
+	w.b.Style(layout.NoStretch())
 	w.b.Semantics(a11y.RoleButton, label)
 	w.pr = Touchable(c, w.b)
 	if v, ok := cfgBool(c, "Button", "block"); ok && v {
@@ -119,7 +119,7 @@ func (w *ButtonW) Size(s Size) *ButtonW { w.size = s; return w }
 // Block stretches the button to the full width.
 func (w *ButtonW) Block() *ButtonW {
 	w.block = true
-	w.b.Style(func(s *layoutStyle) { s.NoStretch = false; s.AlignSelf = layout.AlignStretch })
+	w.b.Style(layout.Stretch())
 	return w
 }
 
@@ -272,7 +272,7 @@ func (w *ButtonW) paint(l *paint.List, r geom.Rect) {
 func Badge(c *ui.Context, content string, fn func()) *ui.Box {
 	th := ThemeOf(c)
 	b := ui.StackBox(c, fn)
-	b.Style(func(s *layoutStyle) { s.NoStretch = true })
+	b.Style(layout.NoStretch())
 	if content == "" {
 		return b
 	}
@@ -321,7 +321,7 @@ func Tag(c *ui.Context, label string) *TagW {
 	if v, ok := cfgBool(c, "Tag", "round"); ok {
 		w.round = v
 	}
-	ui.Custom(c, w.measure, w.paint).Style(func(s *layoutStyle) { s.NoStretch = true; s.AlignSelf = layout.AlignCenter }).
+	ui.Custom(c, w.measure, w.paint).Style(layout.NoStretch(), layout.Self(layout.AlignCenter)).
 		Semantics(a11y.RoleText, label)
 	return w
 }

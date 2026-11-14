@@ -7,6 +7,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -36,7 +37,7 @@ func (f *tblFrame) header() {
 	hdr.n.clip = true
 	if f.t.sticky {
 		hdr.n.ln.Absolute = true
-		hdr.n.ln.Pos = layout.Pos{Left: 0, Top: f.headY, Right: 0, Bottom: layout.Unset}
+		hdr.n.ln.Pos = flexbox.Pos{Left: 0, Top: f.headY, Right: 0, Bottom: layout.Unset}
 		hdr.n.hit = true // covers the rows scrolled under it
 	}
 	// Ant rounds the header's top corners. Nothing clips to the rounded
@@ -77,7 +78,7 @@ func (f *tblFrame) headCell(hd *tblHead) {
 	leaf := hd.first == hd.last && hd.kind == tkData && hd.rows+hd.row == f.depth
 	n := c.add("th", title)
 	n.ln.Absolute = true
-	n.ln.Pos = layout.Pos{Left: x, Top: y, Right: layout.Unset, Bottom: layout.Unset}
+	n.ln.Pos = flexbox.Pos{Left: x, Top: y, Right: layout.Unset, Bottom: layout.Unset}
 	n.ln.Width, n.ln.Height = w, h
 	n.ln.Dir = layout.Row
 	n.ln.Align = layout.AlignCenter
@@ -266,7 +267,7 @@ func (f *tblFrame) filterTrigger(col *TableColumn, cellW, cellH float32, active 
 			left = cellW - f.ph - 18
 		}
 	}
-	n.ln.Pos = layout.Pos{Left: left, Top: (cellH - thh) / 2, Right: layout.Unset, Bottom: layout.Unset}
+	n.ln.Pos = flexbox.Pos{Left: left, Top: (cellH - thh) / 2, Right: layout.Unset, Bottom: layout.Unset}
 	n.ln.Width, n.ln.Height = tw, thh
 	ia := c.interact(n, true, input.CursorPointer)
 	open := st.fOpen == col.Key
@@ -532,7 +533,7 @@ func (f *tblFrame) resizeHandle(col *TableColumn, li int, w, h float32) {
 	c, th, st, t := f.c, f.th, f.st, f.t
 	n := c.add("col-resize", col.Key)
 	n.ln.Absolute = true
-	n.ln.Pos = layout.Pos{Left: w - 5, Top: 0, Right: layout.Unset, Bottom: layout.Unset}
+	n.ln.Pos = flexbox.Pos{Left: w - 5, Top: 0, Right: layout.Unset, Bottom: layout.Unset}
 	n.ln.Width, n.ln.Height = 10, h
 	// A focusable separator: Left / Down narrow the column, Right / Up
 	// widen it (10px per press).

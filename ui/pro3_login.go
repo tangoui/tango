@@ -33,6 +33,8 @@ const (
 //		OnFinish(func(v ui.ProValues, done func(error)) { go login(v, done) }).
 //		Show()
 type LoginFormW struct {
+	_ [0]func()
+
 	c          *Context
 	logo       func()
 	title      string

@@ -7,6 +7,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -32,6 +33,8 @@ type casState struct {
 
 // CascaderW selects a path in a tree through cascading menus.
 type CascaderW struct {
+	_ [0]func()
+
 	c              *Context
 	th             *theme.Theme         // ThemeFor(CompCascader)
 	tk             *theme.CascaderToken // &th.Components.Cascader
@@ -76,12 +79,15 @@ func (w *CascaderW) Placeholder(s string) *CascaderW { w.box.placeholder = s; re
 
 // A11yLabel sets the accessible name (inside a FormItem the item label is
 // used; the placeholder is the last resort).
-func (w *CascaderW) A11yLabel(s string) *CascaderW        { w.box.n.setName(s); return w }
-func (w *CascaderW) AllowClear() *CascaderW               { w.box.allowClear = true; return w }
-func (w *CascaderW) Status(s string) *CascaderW           { w.box.status = s; return w }
-func (w *CascaderW) Size(s ControlSize) *CascaderW        { w.box.size = s; return w }
-func (w *CascaderW) Width(px float32) *CascaderW          { w.box.n.ln.Width = px; return w }
-func (w *CascaderW) Layout(o ...layout.Option) *CascaderW { w.box.n.ln.Style.Apply(o...); return w }
+func (w *CascaderW) A11yLabel(s string) *CascaderW { w.box.n.setName(s); return w }
+func (w *CascaderW) AllowClear() *CascaderW        { w.box.allowClear = true; return w }
+func (w *CascaderW) Status(s string) *CascaderW    { w.box.status = s; return w }
+func (w *CascaderW) Size(s ControlSize) *CascaderW { w.box.size = s; return w }
+func (w *CascaderW) Width(px float32) *CascaderW   { w.box.n.ln.Width = px; return w }
+func (w *CascaderW) Layout(o ...layout.Option) *CascaderW {
+	flexbox.Apply(&w.box.n.ln.Style, o...)
+	return w
+}
 func (w *CascaderW) MaxTagCount(n int) *CascaderW         { w.box.maxCount = n; return w }
 func (w *CascaderW) Searchable() *CascaderW               { w.box.search = true; return w }
 func (w *CascaderW) ChangeOnSelect() *CascaderW           { w.changeOnSelect = true; return w }

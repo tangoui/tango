@@ -23,6 +23,8 @@ import (
 
 // FooterToolbarW builds a FooterToolbar.
 type FooterToolbarW struct {
+	_ [0]func()
+
 	c      *Context
 	extra  func()
 	sticky bool
@@ -140,6 +142,8 @@ func (f *FooterToolbarW) barBody(fn func()) {
 
 // PageContainerW builds a PageContainer.
 type PageContainerW struct {
+	_ [0]func()
+
 	c           *Context
 	title, sub  string
 	crumbs      []string

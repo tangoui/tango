@@ -31,6 +31,8 @@ import (
 const DragSlop = 8
 
 // PanAxis is a set of drag directions.
+//
+// Append-only: never reorder or insert; existing values never change.
 type PanAxis uint8
 
 const (

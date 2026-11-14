@@ -5,6 +5,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -27,6 +28,8 @@ type selectState struct {
 
 // SelectW is a dropdown select.
 type SelectW struct {
+	_ [0]func()
+
 	c           *Context
 	th          *theme.Theme // Select theme (its Alias applied)
 	n           *node
@@ -109,7 +112,7 @@ func (w *SelectW) AllowClear() *SelectW               { w.allowClear = true; ret
 func (w *SelectW) Status(s string) *SelectW           { w.status = s; return w }
 func (w *SelectW) Size(s ControlSize) *SelectW        { w.size = s; return w }
 func (w *SelectW) Width(px float32) *SelectW          { w.n.ln.Width = px; return w }
-func (w *SelectW) Layout(o ...layout.Option) *SelectW { w.n.ln.Style.Apply(o...); return w }
+func (w *SelectW) Layout(o ...layout.Option) *SelectW { flexbox.Apply(&w.n.ln.Style, o...); return w }
 func (w *SelectW) Disabled(on bool) *SelectW {
 	if on {
 		w.disabled, w.n.disabled, w.n.focus, w.n.cursor = true, true, false, input.CursorNotAllowed

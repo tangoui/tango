@@ -9,6 +9,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -417,6 +418,8 @@ type dtTimePanelState struct{ ts dtTimeState }
 
 // TimePanelW is a standalone set of hour/minute/second columns.
 type TimePanelW struct {
+	_ [0]func()
+
 	c       *Context
 	n       *node
 	val     *time.Time
@@ -549,6 +552,8 @@ type dtTimePickerState struct {
 
 // TimePickerW is an input with a dropdown of time columns.
 type TimePickerW struct {
+	_ [0]func()
+
 	c         *Context
 	f         *dtField
 	val       *time.Time
@@ -651,7 +656,7 @@ func (w *TimePickerW) Disabled(on bool) *TimePickerW {
 
 // Layout applies layout options to the input frame.
 func (w *TimePickerW) Layout(o ...layout.Option) *TimePickerW {
-	w.f.n.ln.Style.Apply(o...)
+	flexbox.Apply(&w.f.n.ln.Style, o...)
 	return w
 }
 

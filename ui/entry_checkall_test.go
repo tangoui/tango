@@ -7,7 +7,7 @@ func TestEntryCheckAllToggleAndIndeterminate(t *testing.T) {
 	sel := []string{"c"}
 	changes := 0
 	d := driver(func(c *Context) {
-		if CheckAll(c, &sel, opts) {
+		if CheckAll(c, &sel, opts).Changed() {
 			changes++
 		}
 	})

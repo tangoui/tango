@@ -26,6 +26,8 @@ type BeamStop struct {
 
 // BorderBeamW decorates its body with moving border beams.
 type BorderBeamW struct {
+	_ [0]func()
+
 	c      *Context
 	stops  []BeamStop
 	dur    time.Duration

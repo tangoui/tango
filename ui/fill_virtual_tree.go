@@ -73,6 +73,8 @@ type fillVTState struct {
 // VirtualTreeW is a virtualized tree. Configure it with modifiers and
 // call Show.
 type VirtualTreeW struct {
+	_ [0]func()
+
 	c         *Context
 	nodes     []TreeNode
 	st        *fillVTState

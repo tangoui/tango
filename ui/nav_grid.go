@@ -10,6 +10,8 @@ import (
 // Responsive breakpoints
 
 // Breakpoint names a window width range.
+//
+// Append-only: never reorder or insert; the zero value stays XS.
 type Breakpoint uint8
 
 const (
@@ -62,6 +64,8 @@ type gridSpan struct {
 
 // GridColW is a column of a GridRow.
 type GridColW struct {
+	_ [0]func()
+
 	c      *Context
 	base   gridSpan
 	resp   [6]gridSpan
@@ -83,6 +87,8 @@ var gridRowKey = hashID("grid-row-ctx")
 
 // GridRowW is a 24-column grid row (Ant Row / Element el-row).
 type GridRowW struct {
+	_ [0]func()
+
 	c       *Context
 	gh, gv  float32
 	respG   map[Breakpoint]float32

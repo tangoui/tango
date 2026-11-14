@@ -5,4 +5,6 @@ pkg github.com/tangoui/tango/service/fileserver, method (*Server) ServeHTTP(net/
 pkg github.com/tangoui/tango/service/fileserver, type Options struct
 pkg github.com/tangoui/tango/service/fileserver, type Options struct, Dotfiles bool
 pkg github.com/tangoui/tango/service/fileserver, type Options struct, List bool
+pkg github.com/tangoui/tango/service/fileserver, type Options struct, noncomparable
 pkg github.com/tangoui/tango/service/fileserver, type Server struct
+pkg github.com/tangoui/tango/service/fileserver, type Server struct, noncomparable

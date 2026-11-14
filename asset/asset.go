@@ -25,6 +25,8 @@ const DevURLEnv = "TANGO_DEV_URL"
 
 // Options configures FS.
 type Options struct {
+	_ [0]func()
+
 	// Index is the file served for directory paths. Default "index.html".
 	Index string
 	// SPA serves the root index for unknown paths whose last segment has no
@@ -197,8 +199,10 @@ func ContentType(name string) string {
 	return mime.TypeByExtension(ext)
 }
 
-// DevProxyOptions configures DevProxy.
+// DevProxyOptions configures DevProxyWith.
 type DevProxyOptions struct {
+	_ [0]func()
+
 	// AllowRemote lets the target be any host. By default only loopback
 	// targets are accepted: localhost, 127.0.0.0/8 and ::1. (Android's adb
 	// reverse and the iOS Simulator both reach the dev machine through
@@ -209,14 +213,15 @@ type DevProxyOptions struct {
 // DevProxy returns a reverse proxy to a dev server such as Vite
 // (e.g. "http://localhost:5173"). WebSocket upgrades (HMR) are forwarded.
 // The Host header is rewritten to the target so dev-server host checks pass.
-// The target must be a loopback address unless opts sets AllowRemote; a
-// rejected target answers every request with 502. opts is optional; at
-// most one is used.
-func DevProxy(target string, opts ...DevProxyOptions) http.Handler {
-	var o DevProxyOptions
-	if len(opts) > 0 {
-		o = opts[0]
-	}
+// The target must be a loopback address (DevProxyWith can allow remote
+// targets); a rejected target answers every request with 502.
+func DevProxy(target string) http.Handler {
+	return DevProxyWith(target, DevProxyOptions{})
+}
+
+// DevProxyWith is DevProxy with options. The zero DevProxyOptions behaves
+// like DevProxy.
+func DevProxyWith(target string, o DevProxyOptions) http.Handler {
 	u, err := url.Parse(target)
 	if err == nil && (u.Scheme != "http" && u.Scheme != "https" || u.Host == "") {
 		err = errors.New("target must be an absolute http(s) URL")

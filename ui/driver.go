@@ -21,6 +21,8 @@ import (
 // and the ui-gallery example. Time is simulated: it only advances through
 // Advance / Settle, so output is deterministic.
 type Driver struct {
+	_ [0]func()
+
 	r   *Runner
 	w   *driverWindow
 	img *image.RGBA
@@ -28,6 +30,8 @@ type Driver struct {
 
 // DriverOptions configure a Driver.
 type DriverOptions struct {
+	_ [0]func()
+
 	Width, Height float32 // logical size, default 1024×768
 	Scale         float32 // default 1
 	Theme         *theme.Theme

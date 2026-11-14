@@ -18,6 +18,8 @@ import (
 
 // Options configures New.
 type Options struct {
+	_ [0]func()
+
 	// List enables directory listings. Without it a directory is served
 	// only through its index.html.
 	List bool

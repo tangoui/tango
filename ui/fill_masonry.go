@@ -34,6 +34,8 @@ type fillMasonryKey struct {
 
 // MasonryW is a masonry (waterfall) layout. Configure it and call Show.
 type MasonryW struct {
+	_ [0]func()
+
 	c        *Context
 	count    int
 	render   func(i int)

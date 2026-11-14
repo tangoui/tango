@@ -18,6 +18,8 @@ import (
 //		OnFinish(func(v ui.ProValues, done func(error)) { go save(v, done) }).
 //		Show()
 type ProFormW struct {
+	_ [0]func()
+
 	c          *Context
 	fields     []ProField
 	vals       *ProValues
@@ -42,6 +44,8 @@ type ProFormW struct {
 
 // ProSubmitter is passed to a custom submitter.
 type ProSubmitter struct {
+	_ [0]func()
+
 	c *Context
 	p *ProFormW
 }

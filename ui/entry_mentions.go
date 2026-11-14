@@ -8,6 +8,7 @@ import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -26,6 +27,8 @@ type mtState struct {
 // MentionsW is a multi-line input that suggests options after a trigger
 // character such as '@'.
 type MentionsW struct {
+	_ [0]func()
+
 	c           *Context
 	box, ed     *node
 	val         *string
@@ -93,12 +96,15 @@ func (w *MentionsW) semantics(s *a11y.Node) {
 	}
 }
 
-func (w *MentionsW) Placeholder(s string) *MentionsW      { w.placeholder = s; return w }
-func (w *MentionsW) Status(s string) *MentionsW           { w.status = s; return w }
-func (w *MentionsW) Size(s ControlSize) *MentionsW        { w.size = s; return w }
-func (w *MentionsW) Rows(n int) *MentionsW                { w.rows = max(1, n); return w }
-func (w *MentionsW) Width(px float32) *MentionsW          { w.box.ln.Width = px; return w }
-func (w *MentionsW) Layout(o ...layout.Option) *MentionsW { w.box.ln.Style.Apply(o...); return w }
+func (w *MentionsW) Placeholder(s string) *MentionsW { w.placeholder = s; return w }
+func (w *MentionsW) Status(s string) *MentionsW      { w.status = s; return w }
+func (w *MentionsW) Size(s ControlSize) *MentionsW   { w.size = s; return w }
+func (w *MentionsW) Rows(n int) *MentionsW           { w.rows = max(1, n); return w }
+func (w *MentionsW) Width(px float32) *MentionsW     { w.box.ln.Width = px; return w }
+func (w *MentionsW) Layout(o ...layout.Option) *MentionsW {
+	flexbox.Apply(&w.box.ln.Style, o...)
+	return w
+}
 
 // Prefix sets the trigger characters (default "@").
 func (w *MentionsW) Prefix(p ...string) *MentionsW { w.prefixes = p; return w }

@@ -30,6 +30,8 @@ const (
 
 // StatisticCardW builds a StatisticCard.
 type StatisticCardW struct {
+	_ [0]func()
+
 	c          *Context
 	title      string
 	value      string

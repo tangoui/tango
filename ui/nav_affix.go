@@ -4,6 +4,7 @@ import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -37,6 +38,8 @@ type affixState struct {
 // AffixW pins its content to the viewport (or to a scroll container) once
 // it would scroll past OffsetTop / OffsetBottom.
 type AffixW struct {
+	_ [0]func()
+
 	c         *Context
 	top       float32
 	bottom    float32
@@ -126,12 +129,12 @@ func (a *AffixW) Body(fn func()) *AffixW {
 	var clip, inner *node
 	ov := Overlay(c, OverlayOptions{Place: ScreenFill}, func() {
 		clip = c.add("affix-clip", "")
-		clip.ln.Absolute, clip.ln.Pos = true, layout.Pos{Left: 0, Top: 0, Right: layout.Unset, Bottom: layout.Unset}
+		clip.ln.Absolute, clip.ln.Pos = true, flexbox.Pos{Left: 0, Top: 0, Right: layout.Unset, Bottom: layout.Unset}
 		clip.ln.Width, clip.ln.Height = 1, 1
 		clip.clip = true
 		c.body(clip, func() {
 			inner = c.add("affix-inner", "")
-			inner.ln.Absolute, inner.ln.Pos = true, layout.Pos{Left: 0, Top: 0, Right: layout.Unset, Bottom: layout.Unset}
+			inner.ln.Absolute, inner.ln.Pos = true, flexbox.Pos{Left: 0, Top: 0, Right: layout.Unset, Bottom: layout.Unset}
 			navBodyScoped(c, inner, ph.id, fn)
 		})
 	})
@@ -139,7 +142,7 @@ func (a *AffixW) Body(fn func()) *AffixW {
 	ph.ln.Measure = func(maxW, maxH float32) geom.Size {
 		link(inner)
 		fw := maxW < geom.Inf
-		sz := layout.SolveAt(&inner.ln, maxW, geom.Inf, fw, false)
+		sz := flexbox.SolveAt(&inner.ln, maxW, geom.Inf, fw, false)
 		return sz
 	}
 	ov.n.paint = func(l *paint.List, _ geom.Rect) {
@@ -154,7 +157,7 @@ func (a *AffixW) Body(fn func()) *AffixW {
 			v = geom.Rect{W: c.size.W, H: c.size.H}
 		}
 		clip.ln.Rect = v
-		layout.Solve(&inner.ln, r.W, r.H)
+		flexbox.Solve(&inner.ln, r.W, r.H)
 		inner.ln.Rect.X, inner.ln.Rect.Y = r.X-v.X, y-v.Y
 	}
 	a.changed = prev != a.st.affixed
@@ -181,12 +184,20 @@ func (c *Context) anchorReg() *anchorRegistry {
 	return r
 }
 
+// AnchorSectionW is the section AnchorSection returns; it embeds the
+// section's Box.
+type AnchorSectionW struct {
+	_ [0]func()
+
+	*Box
+}
+
 // AnchorSection wraps a block of page content that an Anchor link with the
 // same key scrolls to and highlights.
-func AnchorSection(c *Context, key string, fn func(), opts ...layout.Option) *Box {
+func AnchorSection(c *Context, key string, fn func(), opts ...layout.Option) *AnchorSectionW {
 	b := c.box("anchor-section", layout.Column, opts)
 	c.anchorReg().ids[key] = b.n.id
-	return b.Body(fn)
+	return &AnchorSectionW{Box: b.Body(fn)}
 }
 
 type anchorState struct {
@@ -196,6 +207,8 @@ type anchorState struct {
 
 // AnchorW is an in-page table of contents that follows scrolling.
 type AnchorW struct {
+	_ [0]func()
+
 	c          *Context
 	items      []AnchorItem
 	target     ID

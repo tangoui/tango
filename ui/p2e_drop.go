@@ -143,6 +143,8 @@ func (d *Driver) DropFiles(p geom.Point, paths ...string) {
 //
 // Nested zones: the innermost (last built) zone under the drag wins.
 type DropZoneW struct {
+	_ [0]func()
+
 	c         *Context
 	box       *Box
 	st        *fileDragState

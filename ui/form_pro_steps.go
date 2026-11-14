@@ -18,6 +18,8 @@ type StepsFormStep struct {
 // current step's fields validate before moving on; the last step submits
 // the values of all steps.
 type StepsFormW struct {
+	_ [0]func()
+
 	c        *Context
 	steps    []StepsFormStep
 	vals     *ProValues

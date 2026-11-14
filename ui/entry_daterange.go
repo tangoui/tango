@@ -7,6 +7,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -16,6 +17,8 @@ import (
 // DatePreset is a named value shown beside the picker panels: Range for
 // RangePicker, Value for DatePicker (Range[0] when Value is zero).
 type DatePreset struct {
+	_ [0]func()
+
 	Label string
 	Range [2]time.Time
 	Value time.Time
@@ -38,6 +41,8 @@ type dtRangeState struct {
 
 // RangePickerW selects a date range in two adjacent month panels.
 type RangePickerW struct {
+	_ [0]func()
+
 	c          *Context
 	n          *node
 	val        *[2]time.Time
@@ -295,7 +300,7 @@ func (w *RangePickerW) DisabledDate(fn func(time.Time) bool) *RangePickerW {
 }
 
 func (w *RangePickerW) Layout(o ...layout.Option) *RangePickerW {
-	w.n.ln.Style.Apply(o...)
+	flexbox.Apply(&w.n.ln.Style, o...)
 	return w
 }
 

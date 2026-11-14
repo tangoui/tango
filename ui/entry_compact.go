@@ -5,6 +5,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -20,6 +21,8 @@ import (
 // corners by repainting the joined edge columns with a widened rectangle,
 // so it works with any control without changing it.
 type CompactW struct {
+	_ [0]func()
+
 	c        *Context
 	vertical bool
 	block    bool
@@ -181,6 +184,8 @@ func cmpPaintEdge(l *paint.List, r geom.Rect, orig PaintFunc, leftSide bool) {
 // AddonW is a static (or clickable) label attached before/after an input
 // inside Compact (Ant addonBefore/addonAfter, Element prepend/append).
 type AddonW struct {
+	_ [0]func()
+
 	c        *Context
 	n        *node
 	label    string
@@ -209,7 +214,7 @@ func (a *AddonW) A11yLabel(s string) *AddonW { a.n.setName(s); return a }
 // Icon shows an icon before (or instead of) the label.
 func (a *AddonW) Icon(ic *icon.Icon) *AddonW        { a.ic = ic; return a }
 func (a *AddonW) Size(s ControlSize) *AddonW        { a.size = s; return a }
-func (a *AddonW) Layout(o ...layout.Option) *AddonW { a.n.ln.Style.Apply(o...); return a }
+func (a *AddonW) Layout(o ...layout.Option) *AddonW { flexbox.Apply(&a.n.ln.Style, o...); return a }
 func (a *AddonW) Disabled(on bool) *AddonW {
 	if on {
 		a.disabled, a.n.disabled = true, true

@@ -8,10 +8,27 @@
 
 - **公开 API 分层与兼容性检查**：Go 包分为稳定与实验性两层（`ui`、`uihost`、`mobile`、`service/updater` 为实验性）；CI 新增 `API` 工作流，用 `scripts/apidiff.sh`（基于 apidiff）检查稳定包的不兼容变化，需要破坏兼容时给 PR 加 `api-break` 标签。见 [docs/release.md](docs/release.md#api-稳定性)。
 
+### 变更
+
+冻结 API 前的一次性不兼容调整（[docs/specs/api-stability.md](docs/specs/api-stability.md) Phase 3，规则见 [docs/release.md](docs/release.md#api-稳定性)）。
+
+- **结构体不可比较（R4）**：下列结构体的第一个字段改为 `_ [0]func()`，不能再用 `==` 比较，也不能写无键字面量（`T{a, b}` 改成 `T{Field: a, ...}`）。以后给它们加字段不再算破坏兼容。
+  - 稳定层的 Options：`tango.SurfaceOptions`、`tango.WebViewOptions`、`asset.Options`、`asset.DevProxyOptions`、`jsapi.Options`、`service/fileserver.Options`、`service/log.Options`、`sys/biometric.Options`、`sys/flyout.Options`、`sys/location.Options`、`sys/media.PickOptions`、`sys/print.Options`（含有 `Options` 字段的 `service/fileserver.Server` 也随之不可比较）。
+  - `ui` 的全部 `*W` 构建器与句柄（`Box`、`Context`、`Runner`、`Driver`、`Label`、`ScrollBox`、`AppAPI`、`ProSubmitter`、`TableFilterPanel`、`MessageRef`、`NotificationRef`）、`Locale` 及全部 `*Locale` 子结构，以及 `DriverOptions`、`WindowOptions`、`OverlayOptions`、`ContextMenuOptions`、`AppMessageConfig`、`AppNotificationConfig`、`ProSettings`、`Option`、`TabItem`、`StepItem`、`TransferItem`、`DatePreset`、`CheckCardOption`。
+- **`ui` 构造函数返回专属类型（R2）**：
+  - `Breadcrumb` 返回 `*BreadcrumbW`（原来返回 `int`）：`i := ui.Breadcrumb(c, ...)` 改成 `i := ui.Breadcrumb(c, ...).Clicked()`。
+  - `CheckboxGroup` 返回 `*CheckboxGroupW`，`CheckAll` 返回 `*CheckAllW`（原来返回 `bool`）：`if ui.CheckboxGroup(...)` 改成 `if ui.CheckboxGroup(...).Changed()`。
+  - `CardAction` 返回 `*CardActionW`（原来返回 `bool`），改用 `.Clicked()`；`CardMeta` 返回 `*CardMetaW`（原来无返回值）。
+  - `Sider` 返回 `*SiderBoxW`，`Kbd`、`BadgeRibbon`、`ListItemMeta`、`ListActions`、`AnchorSection` 分别返回 `*KbdW`、`*BadgeRibbonW`、`*ListItemMetaW`、`*ListActionsW`、`*AnchorSectionW`（原来都返回 `*Box`）。这些类型内嵌 `*Box`，链式调用 `.Bg(...)` 等照常可用；需要 `*Box` 值时取 `.Box` 字段。
+- **`layout.Option` 改为不透明类型**：原来是 `func(*layout.Style)`，现在是结构体，只能用 `layout` 包的构造函数（`Grow`、`W`、`H`、`Pad`、`Gap`、`Abs`……）得到，构造函数名称和签名不变。`layout.Style`、`Node`、`Pos`、`Solve`、`SolveAt` 移到内部包 `ui/internal/flexbox`。自己写的 `func(s *layout.Style){...}` 选项改用构造函数；新增 `layout.ScrollX/ScrollY/NoStretch/Stretch`（实验性）覆盖 `ui/mobile` 原来直接改字段的用法。传 `nil` 作为选项的地方改成 `layout.Option{}`。
+- **`theme.NumComps` 改为未导出**（R1：计数常量每加一个组件就变值）。`theme.Comp` 的值只追加，文档不再把它和 `Components` 的字段顺序绑定。
+- **枚举只追加（R1）**：`ui`、`ui/a11y`、`ui/input`、`ui/layout`、`ui/paint`、`ui/theme` 的枚举类型注释写明"只追加、零值不变"，现有常量值不变。
+- **`asset.DevProxy` 恢复单参数（R3）**：`DevProxy(target string) http.Handler`；带选项的用法改为新增的 `DevProxyWith(target string, opts DevProxyOptions) http.Handler`。`DevProxy(url, opts)` 改成 `DevProxyWith(url, opts)`。
+
 ### 安全
 
 - **开发功能改为编译期开关 `tango_dev`**：默认构建（普通 `go build`/`go run`、goreleaser、`tan build` 含 `-debug`）即生产构建，不再响应 `TANGO_DEV_URL`、`TANGO_AUTOMATION*`、`TANGO_DEV_ROLE`、`TANGO_DEV_WINDOW_STATE` 等开发用环境变量，热加载宿主、自动化通道、开发代理不链接进二进制；未处理的 panic 默认弹框退出。`tan dev` 自动加 `-tags tango_dev`；`automation.Launch` 构建被测程序时也加。`tango_release` 标签不再起作用，仅作兼容保留。见 [docs/dev-builds.md](docs/dev-builds.md)。
-- `asset.DevProxy` 默认只接受回环目标（`DevProxyOptions.AllowRemote` 放开）。签名变为 `DevProxy(target string, opts ...DevProxyOptions)`，原有调用不用改；把它当作 `func(string) http.Handler` 类型的值使用的代码需要包一层。
+- `asset.DevProxy` 默认只接受回环目标；要代理到其他主机用 `asset.DevProxyWith(target, asset.DevProxyOptions{AllowRemote: true})`。
 - 资源源上 GET/HEAD 以外的跨源请求回 403（`Options.AllowCrossOriginAssets` 关闭）；macOS/iOS 后端用主文档 URL 补上 WebKit 缺失的 `Origin`。
 - `tan dev` 热加载控制通道要求会话 token（`TANGO_DEV_TOKEN`），unix socket 权限 0600。
 

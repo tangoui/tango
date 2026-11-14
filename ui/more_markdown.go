@@ -826,6 +826,8 @@ func ToggleMarkdownTask(src string, index int) string {
 
 // MarkdownW renders a Markdown document.
 type MarkdownW struct {
+	_ [0]func()
+
 	c        *Context
 	b        *Box
 	src      string

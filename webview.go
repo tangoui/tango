@@ -156,6 +156,8 @@ const (
 // WebViewOptions are WebView settings of a new surface
 // (SurfaceOptions.WebView).
 type WebViewOptions struct {
+	_ [0]func()
+
 	// UserAgent replaces the platform's User-Agent; "" keeps it.
 	UserAgent string
 	// Headers are extra request headers for the requests HeaderScope

@@ -16,6 +16,8 @@ import (
 
 // StepItem is one entry of Steps.
 type StepItem struct {
+	_ [0]func()
+
 	Title       string
 	SubTitle    string
 	Description string
@@ -27,6 +29,8 @@ type StepItem struct {
 // StepsW shows progress through a sequence: horizontal / vertical, dot
 // style, small size, label placement, custom icons and clickable steps.
 type StepsW struct {
+	_ [0]func()
+
 	c         *Context
 	items     []StepItem
 	current   int

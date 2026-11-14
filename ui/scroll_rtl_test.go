@@ -5,6 +5,7 @@ import (
 
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 )
@@ -117,7 +118,7 @@ func TestScrollRTLVerticalBarOnLeft(t *testing.T) {
 }
 
 func TestScrollStateRTLMath(t *testing.T) {
-	ln := &layout.Node{}
+	ln := &flexbox.Node{}
 	ln.RTL, ln.ScrollX = true, true
 	s := &scrollState{ln: ln}
 	view := geom.Size{W: 100, H: 50}
@@ -155,7 +156,7 @@ func TestScrollStateRTLMath(t *testing.T) {
 }
 
 func TestScrollRTLRevealX(t *testing.T) {
-	ln := &layout.Node{}
+	ln := &flexbox.Node{}
 	ln.RTL, ln.ScrollX = true, true
 	s := &scrollState{ln: ln}
 	s.frame(geom.Size{W: 100, H: 50}, geom.Size{W: 400, H: 50})

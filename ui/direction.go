@@ -3,6 +3,8 @@ package ui
 // Direction is the inline (horizontal) layout direction of a scope:
 // left-to-right or right-to-left. It is unrelated to layout.Direction
 // (Row / Column) and text.Direction (paragraph base direction).
+//
+// Append-only: never reorder or insert; the zero value stays DirAuto.
 type Direction uint8
 
 const (

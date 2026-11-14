@@ -106,6 +106,8 @@ func p2bSelectDefaults(c *Context, b *selector, listH *float32, debounce *time.D
 // CheckedStrategy chooses which checked nodes of a tree-shaped multiple
 // selection (Cascader, TreeSelect) are shown as tags and returned by
 // Checked (Ant showCheckedStrategy).
+//
+// Append-only: never reorder or insert; the zero value stays ShowChild.
 type CheckedStrategy int
 
 const (

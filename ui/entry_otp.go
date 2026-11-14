@@ -16,6 +16,8 @@ import (
 
 // OTPW is a one-time-password input: one box per character.
 type OTPW struct {
+	_ [0]func()
+
 	c         *Context
 	n         *node
 	cells     []*node

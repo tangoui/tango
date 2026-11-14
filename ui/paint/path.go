@@ -7,6 +7,8 @@ import (
 )
 
 // SegOp is a path segment verb.
+//
+// Append-only: never reorder or insert; the zero value stays SegMove.
 type SegOp uint8
 
 const (

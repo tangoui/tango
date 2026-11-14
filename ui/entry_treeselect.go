@@ -7,6 +7,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -47,6 +48,8 @@ type tsRow struct {
 
 // TreeSelectW is a select whose options form a tree.
 type TreeSelectW struct {
+	_ [0]func()
+
 	c         *Context
 	th        *theme.Theme     // ThemeFor(CompTree): the panel's tree rows
 	tk        *theme.TreeToken // &th.Components.Tree
@@ -103,15 +106,18 @@ func (w *TreeSelectW) Placeholder(s string) *TreeSelectW { w.box.placeholder = s
 
 // A11yLabel sets the accessible name (inside a FormItem the item label is
 // used; the placeholder is the last resort).
-func (w *TreeSelectW) A11yLabel(s string) *TreeSelectW        { w.n.setName(s); return w }
-func (w *TreeSelectW) Searchable() *TreeSelectW               { w.box.search = true; return w }
-func (w *TreeSelectW) AllowClear() *TreeSelectW               { w.box.allowClear = true; return w }
-func (w *TreeSelectW) DefaultExpandAll() *TreeSelectW         { w.expandAll = true; return w }
-func (w *TreeSelectW) MaxTagCount(n int) *TreeSelectW         { w.box.maxCount = n; return w }
-func (w *TreeSelectW) Status(s string) *TreeSelectW           { w.box.status = s; return w }
-func (w *TreeSelectW) Size(s ControlSize) *TreeSelectW        { w.box.size = s; return w }
-func (w *TreeSelectW) Width(px float32) *TreeSelectW          { w.n.ln.Width = px; return w }
-func (w *TreeSelectW) Layout(o ...layout.Option) *TreeSelectW { w.n.ln.Style.Apply(o...); return w }
+func (w *TreeSelectW) A11yLabel(s string) *TreeSelectW { w.n.setName(s); return w }
+func (w *TreeSelectW) Searchable() *TreeSelectW        { w.box.search = true; return w }
+func (w *TreeSelectW) AllowClear() *TreeSelectW        { w.box.allowClear = true; return w }
+func (w *TreeSelectW) DefaultExpandAll() *TreeSelectW  { w.expandAll = true; return w }
+func (w *TreeSelectW) MaxTagCount(n int) *TreeSelectW  { w.box.maxCount = n; return w }
+func (w *TreeSelectW) Status(s string) *TreeSelectW    { w.box.status = s; return w }
+func (w *TreeSelectW) Size(s ControlSize) *TreeSelectW { w.box.size = s; return w }
+func (w *TreeSelectW) Width(px float32) *TreeSelectW   { w.n.ln.Width = px; return w }
+func (w *TreeSelectW) Layout(o ...layout.Option) *TreeSelectW {
+	flexbox.Apply(&w.n.ln.Style, o...)
+	return w
+}
 
 // Disabled disables the control.
 func (w *TreeSelectW) Disabled(on bool) *TreeSelectW {

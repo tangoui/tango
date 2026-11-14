@@ -3,6 +3,7 @@ package mobile
 import (
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/text"
 	"github.com/tangoui/tango/ui/theme"
 )
@@ -391,9 +392,9 @@ func SafeArea(c *ui.Context, edge Edge) *ui.Box {
 	}
 	b := ui.Div(c)
 	if edge == Left || edge == Right {
-		b.Style(func(s *layoutStyle) { s.Width = v })
+		b.Style(layout.W(v))
 	} else {
-		b.Style(func(s *layoutStyle) { s.Height = v })
+		b.Style(layout.H(v))
 	}
 	_ = th
 	return b

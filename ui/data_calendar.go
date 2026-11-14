@@ -23,6 +23,8 @@ import (
 
 // CalendarW is a calendar.
 type CalendarW struct {
+	_ [0]func()
+
 	c          *Context
 	b          *Box
 	z          *lazy

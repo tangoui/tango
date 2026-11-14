@@ -9,6 +9,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
@@ -20,6 +21,8 @@ import (
 // CarouselW is a slideshow: scroll or fade transitions, autoplay with
 // pause on hover, indicator dots/lines and arrows.
 type CarouselW struct {
+	_ [0]func()
+
 	c        *Context
 	n        int
 	slide    func(i int)
@@ -581,18 +584,18 @@ func (w *CarouselW) arrow(left, disabled bool, fn func()) {
 	n.ln.Width, n.ln.Height = size, size
 	if w.vertical {
 		if left {
-			n.ln.Style.Apply(layout.Abs(layout.Unset, 16, layout.Unset, layout.Unset))
+			flexbox.Apply(&n.ln.Style, layout.Abs(layout.Unset, 16, layout.Unset, layout.Unset))
 		} else {
-			n.ln.Style.Apply(layout.Abs(layout.Unset, layout.Unset, layout.Unset, 16))
+			flexbox.Apply(&n.ln.Style, layout.Abs(layout.Unset, layout.Unset, layout.Unset, 16))
 		}
 		if r, ok := c.rects[c.cur.id]; ok {
 			n.ln.Pos.Left = (r.W - size) / 2
 		}
 		n.ln.AlignSelf = layout.AlignCenter
 	} else if left {
-		n.ln.Style.Apply(layout.Abs(16, (w.height-size)/2, layout.Unset, layout.Unset))
+		flexbox.Apply(&n.ln.Style, layout.Abs(16, (w.height-size)/2, layout.Unset, layout.Unset))
 	} else {
-		n.ln.Style.Apply(layout.Abs(layout.Unset, (w.height-size)/2, 16, layout.Unset))
+		flexbox.Apply(&n.ln.Style, layout.Abs(layout.Unset, (w.height-size)/2, 16, layout.Unset))
 	}
 	n.ln.AlignSelf = layout.AlignCenter
 	if disabled {

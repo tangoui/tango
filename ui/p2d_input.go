@@ -5,6 +5,7 @@ import (
 
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -64,7 +65,7 @@ func (w *InputW) countNode() {
 	s := w.countText()
 	n := &node{id: hashID(w.box.id, "count"), parent: w.box, label: s}
 	n.ln.Ref = n
-	n.ln.Style.Apply(layout.Abs(layout.Unset, 0, w.padX(), 0))
+	flexbox.Apply(&n.ln.Style, layout.Abs(layout.Unset, 0, w.padX(), 0))
 	n.ln.Width = text.Width(s, w.countFont())
 	n.setRole(a11y.RoleStatus).setName(s)
 	w.box.kids = append(w.box.kids, n)

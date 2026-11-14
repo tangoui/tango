@@ -17,6 +17,8 @@ import (
 // CardW is a bordered container: cover, header with extra, body, action
 // bar, footer, loading skeleton, inner type, hover/always/never shadow.
 type CardW struct {
+	_ [0]func()
+
 	c         *Context
 	title     string
 	extra     func()
@@ -233,10 +235,21 @@ func (w *CardW) Body(fn func()) *CardW {
 	return w
 }
 
+// CardActionW is the action slot CardAction returns.
+type CardActionW struct {
+	_ [0]func()
+
+	clicked bool
+}
+
+// Clicked reports whether the action was activated this frame.
+func (a *CardActionW) Clicked() bool { return a.clicked }
+
 // CardAction is a convenience action slot: a clickable icon (e.g.
 // icon.Setting, icon.Edit, icon.More, icon.Like) in the secondary text
-// color that turns primary on hover.
-func CardAction(c *Context, ic *icon.Icon, label string) bool {
+// color that turns primary on hover. Clicked on the result reports an
+// activation.
+func CardAction(c *Context, ic *icon.Icon, label string) *CardActionW {
 	th := c.Theme
 	n := c.add("card-action", label)
 	n.setRole(a11y.RoleButton)
@@ -249,13 +262,21 @@ func CardAction(c *Context, ic *icon.Icon, label string) bool {
 			drawFocusRing(l, th, r, geom.Rad(th.RadiusSM))
 		}
 	}
-	return ia.Clicked
+	return &CardActionW{clicked: ia.Clicked}
+}
+
+// CardMetaW is the Card.Meta block CardMeta returns; it embeds the row's
+// Box.
+type CardMetaW struct {
+	_ [0]func()
+
+	*Box
 }
 
 // CardMeta lays out Card.Meta: avatar on the left, title and description.
-func CardMeta(c *Context, avatar func(), title, desc string) {
+func CardMeta(c *Context, avatar func(), title, desc string) *CardMetaW {
 	th := c.Theme
-	Row(c, func() {
+	b := Row(c, func() {
 		if avatar != nil {
 			Column(c, avatar, layout.Margin(geom.Insets{Right: 16}))
 		}
@@ -270,6 +291,7 @@ func CardMeta(c *Context, avatar func(), title, desc string) {
 			}
 		}, layout.Grow(1))
 	}, layout.AlignItems(layout.AlignStart))
+	return &CardMetaW{Box: b}
 }
 
 // ---------------------------------------------------------------------------
@@ -286,6 +308,8 @@ type DescItem struct {
 // DescriptionsW is a description list: title, extra, columns, bordered,
 // sizes, vertical layout, label width, per-item span and custom render.
 type DescriptionsW struct {
+	_ [0]func()
+
 	c        *Context
 	b        *Box
 	title    string

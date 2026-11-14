@@ -13,6 +13,8 @@ import (
 
 // SegmentedW is a segmented control (Ant Segmented / Element el-segmented).
 type SegmentedW struct {
+	_ [0]func()
+
 	c        *Context
 	th       *theme.Theme          // Segmented theme (its Alias applied)
 	tk       *theme.SegmentedToken // &th.Components.Segmented

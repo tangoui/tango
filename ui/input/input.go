@@ -22,6 +22,8 @@ import (
 type Event interface{ isEvent() }
 
 // PointerKind is the pointer action.
+//
+// Append-only: never reorder or insert; the zero value stays Move.
 type PointerKind uint8
 
 const (
@@ -33,6 +35,8 @@ const (
 )
 
 // Button is a mouse button.
+//
+// Append-only: never reorder or insert; the zero value stays ButtonLeft.
 type Button uint8
 
 const (
@@ -42,6 +46,9 @@ const (
 )
 
 // Modifiers is a set of held modifier keys.
+//
+// Append-only: a new flag takes the next free bit; existing bits never
+// change.
 type Modifiers uint8
 
 const (
@@ -79,6 +86,8 @@ type Pointer struct {
 }
 
 // PointerSource tells mouse-made pointer events from touch-made ones.
+//
+// Append-only: never reorder or insert; the zero value stays SourceMouse.
 type PointerSource uint8
 
 const (
@@ -95,6 +104,8 @@ type Scroll struct {
 }
 
 // Key identifies a physical/logical key.
+//
+// Append-only: never reorder or insert; the zero value stays KeyUnknown.
 type Key uint16
 
 const (
@@ -505,6 +516,8 @@ func (Composition) isEvent() {}
 func (WindowFocus) isEvent() {}
 
 // Cursor is a pointer shape requested by the UI.
+//
+// Append-only: never reorder or insert; the zero value stays CursorDefault.
 type Cursor uint8
 
 const (

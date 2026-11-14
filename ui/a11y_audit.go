@@ -12,6 +12,8 @@ import (
 )
 
 // AuditKind classifies an accessibility audit finding.
+//
+// Append-only: never reorder or insert; the zero value stays AuditMissingName.
 type AuditKind uint8
 
 const (

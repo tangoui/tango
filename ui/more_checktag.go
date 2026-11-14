@@ -16,6 +16,8 @@ import (
 
 // CheckableTagW is a tag that toggles between checked and unchecked.
 type CheckableTagW struct {
+	_ [0]func()
+
 	c        *Context
 	n        *node
 	label    string

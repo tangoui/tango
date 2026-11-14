@@ -35,7 +35,7 @@ var ctors = []ctor{
 
 func TestComponentOrder(t *testing.T) {
 	// A token field must not shadow a promoted Alias field.
-	for i := range NumComps {
+	for i := range int(numComps) {
 		ft := componentsType.Field(i).Type
 		for j := range aliasType.NumField() {
 			if f, _ := ft.FieldByName(aliasType.Field(j).Name); len(f.Index) != 2 {
@@ -43,8 +43,8 @@ func TestComponentOrder(t *testing.T) {
 			}
 		}
 	}
-	if componentsType.NumField() != NumComps {
-		t.Fatalf("Components has %d fields, %d Comp values", componentsType.NumField(), NumComps)
+	if componentsType.NumField() != int(numComps) {
+		t.Fatalf("Components has %d fields, %d Comp values", componentsType.NumField(), int(numComps))
 	}
 	want := []string{"Button", "Input", "Select", "Checkbox", "Radio", "Switch", "Slider", "Tag", "Tabs", "Menu", "Table",
 		"Card", "Modal", "Drawer", "Tooltip", "Popover", "Notification", "Message", "Pagination", "Segmented", "Avatar", "Skeleton", "Layout",
@@ -98,7 +98,7 @@ func TestZeroValueInheritance(t *testing.T) {
 			if k.Button.Alias != aliasOf(a) || k.Layout.Alias != aliasOf(a) {
 				t.Errorf("%s: resolved Alias", c.name)
 			}
-			for i := range NumComps {
+			for i := range int(numComps) {
 				if a.For(Comp(i)) != a {
 					t.Errorf("%s: For(%s) without Alias must return the theme", c.name, Comp(i))
 				}
@@ -326,7 +326,7 @@ func TestComponentCSSVars(t *testing.T) {
 	th.componentVars(comp, nil)
 	// Complete: one variable per field (Alias fields included) per component.
 	n := 0
-	for i := range NumComps {
+	for i := range int(numComps) {
 		ft := componentsType.Field(i).Type
 		n += ft.NumField() - 1 + aliasType.NumField()
 	}

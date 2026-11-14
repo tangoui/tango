@@ -18,6 +18,8 @@ import (
 // dropdowns (Ant OptGroup, Element el-option-group); options of one group
 // are listed together in order of the group's first appearance.
 type Option struct {
+	_ [0]func()
+
 	Label, Value string
 	Disabled     bool
 	Group        string
@@ -90,6 +92,8 @@ func (z *lazy) run() {
 
 // CheckboxW is a checkbox with a label.
 type CheckboxW struct {
+	_ [0]func()
+
 	c             *Context
 	n             *node
 	label         string
@@ -299,15 +303,26 @@ func drawCheckbox(c *Context, l *paint.List, box geom.Rect, s checkLook) {
 	}
 }
 
+// CheckboxGroupW is the checkbox group CheckboxGroup returns.
+type CheckboxGroupW struct {
+	_ [0]func()
+
+	box     *Box
+	changed bool
+}
+
+// Changed reports whether the selection changed this frame.
+func (g *CheckboxGroupW) Changed() bool { return g.changed }
+
 // CheckboxGroup renders one checkbox per option bound to the selected
-// values. It returns true when the selection changed.
-func CheckboxGroup(c *Context, selected *[]string, opts []Option) bool {
+// values. Changed on the result reports a selection change.
+func CheckboxGroup(c *Context, selected *[]string, opts []Option) *CheckboxGroupW {
 	changed := false
 	gap := float32(8)
 	if c.Theme.Flavor == theme.Element {
 		gap = 30
 	}
-	Row(c, func() {
+	b := Row(c, func() {
 		for _, o := range opts {
 			on := contains(*selected, o.Value)
 			if Checkbox(c, o.Label, &on).Disabled(o.Disabled).Changed() {
@@ -320,7 +335,7 @@ func CheckboxGroup(c *Context, selected *[]string, opts []Option) bool {
 			}
 		}
 	}, layout.Gap(gap), layout.WrapItems(), layout.Middle())
-	return changed
+	return &CheckboxGroupW{box: b, changed: changed}
 }
 
 func contains(s []string, v string) bool {
@@ -347,6 +362,8 @@ func remove(s []string, v string) []string {
 
 // RadioW is a single radio button.
 type RadioW struct {
+	_ [0]func()
+
 	c        *Context
 	n        *node
 	label    string
@@ -466,6 +483,8 @@ func (w *RadioW) paint(l *paint.List, r geom.Rect) {
 
 // RadioGroupW is a group of mutually exclusive options.
 type RadioGroupW struct {
+	_ [0]func()
+
 	c       *Context
 	n       *node
 	val     *string
@@ -673,6 +692,8 @@ func (g *RadioGroupW) selectedLabel() string {
 
 // SwitchW is a toggle switch.
 type SwitchW struct {
+	_ [0]func()
+
 	c        *Context
 	n        *node
 	val      *bool

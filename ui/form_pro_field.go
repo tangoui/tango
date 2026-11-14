@@ -396,7 +396,7 @@ func proFieldControl(c *Context, fd *ProField, vals ProValues) {
 	case ValueCheckbox:
 		s := append([]string(nil), vals.Strings(k)...)
 		Row(c, func() {
-			if CheckboxGroup(c, &s, proEnumOptions(proOptions(fd, vals))) {
+			if CheckboxGroup(c, &s, proEnumOptions(proOptions(fd, vals))).Changed() {
 				vals[k] = s
 			}
 		}, layout.MinH(c.Theme.ControlHeight), layout.Middle())

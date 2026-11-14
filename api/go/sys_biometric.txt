@@ -13,6 +13,7 @@ pkg github.com/tangoui/tango/sys/biometric, type Options struct, AllowPasscode b
 pkg github.com/tangoui/tango/sys/biometric, type Options struct, CancelTitle string
 pkg github.com/tangoui/tango/sys/biometric, type Options struct, Reason string
 pkg github.com/tangoui/tango/sys/biometric, type Options struct, Title string
+pkg github.com/tangoui/tango/sys/biometric, type Options struct, noncomparable
 pkg github.com/tangoui/tango/sys/biometric, var ErrCanceled error
 pkg github.com/tangoui/tango/sys/biometric, var ErrFailed error
 pkg github.com/tangoui/tango/sys/biometric, var ErrLockedOut error

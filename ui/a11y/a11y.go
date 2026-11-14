@@ -26,6 +26,8 @@ import (
 type NodeID uint64
 
 // Role is the semantic type of a node (WAI-ARIA vocabulary).
+//
+// Append-only: never reorder or insert; the zero value stays RoleNone.
 type Role uint8
 
 const (
@@ -162,6 +164,9 @@ func (r Role) Atomic() bool {
 }
 
 // State is a set of boolean node states.
+//
+// Append-only: a new flag takes the next free bit; existing bits never
+// change.
 type State uint32
 
 const (
@@ -215,6 +220,9 @@ func (s State) String() string {
 
 // Action is a set of operations a host may ask a node to perform
 // (ui.Runner.PerformAction).
+//
+// Append-only: a new flag takes the next free bit; existing bits never
+// change.
 type Action uint16
 
 const (
@@ -248,6 +256,8 @@ func (a Action) String() string {
 
 // Live is the politeness of a live region: how a screen reader announces
 // changes of its content.
+//
+// Append-only: never reorder or insert; the zero value stays LiveOff.
 type Live uint8
 
 const (
@@ -267,6 +277,8 @@ func (l Live) String() string {
 }
 
 // Sort is the sort direction of a column header.
+//
+// Append-only: never reorder or insert; the zero value stays SortNone.
 type Sort uint8
 
 const (

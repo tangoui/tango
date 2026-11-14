@@ -7,6 +7,8 @@ import (
 )
 
 // Cap is a stroke end style.
+//
+// Append-only: never reorder or insert; the zero value stays CapButt.
 type Cap uint8
 
 const (

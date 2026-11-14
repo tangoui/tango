@@ -30,6 +30,8 @@ import (
 
 // ProFormGroupW builds a ProFormGroup.
 type ProFormGroupW struct {
+	_ [0]func()
+
 	c            *Context
 	title        string
 	desc         string

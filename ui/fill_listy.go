@@ -70,6 +70,8 @@ type fillListyScroll struct {
 
 // ListyW is a Listy list. Configure it and call Show.
 type ListyW struct {
+	_ [0]func()
+
 	c         *Context
 	count     int
 	item      func(i int)

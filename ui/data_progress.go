@@ -7,6 +7,7 @@ import (
 
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -17,6 +18,8 @@ import (
 // types, steps, gradients, success segment, inside text, stripes and
 // indeterminate motion.
 type ProgressW struct {
+	_ [0]func()
+
 	c          *Context
 	n          *node
 	percent    float64
@@ -164,7 +167,10 @@ func (p *ProgressW) Format(f func(percent float64) string) *ProgressW { p.format
 func (p *ProgressW) Square() *ProgressW { p.round = false; return p }
 
 // Layout applies layout options.
-func (p *ProgressW) Layout(o ...layout.Option) *ProgressW { p.n.ln.Style.Apply(o...); return p }
+func (p *ProgressW) Layout(o ...layout.Option) *ProgressW {
+	flexbox.Apply(&p.n.ln.Style, o...)
+	return p
+}
 
 func (p *ProgressW) el() bool { return p.th.Flavor == theme.Element }
 

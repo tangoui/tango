@@ -4,6 +4,7 @@ import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -38,6 +39,8 @@ type msState struct {
 
 // MultiSelectW is a select with multiple values shown as closable tags.
 type MultiSelectW struct {
+	_ [0]func()
+
 	c       *Context
 	box     *selector
 	val     *[]string
@@ -80,7 +83,7 @@ func (w *MultiSelectW) Status(s string) *MultiSelectW    { w.box.status = s; ret
 func (w *MultiSelectW) Size(s ControlSize) *MultiSelectW { w.box.size = s; return w }
 func (w *MultiSelectW) Width(px float32) *MultiSelectW   { w.box.n.ln.Width = px; return w }
 func (w *MultiSelectW) Layout(o ...layout.Option) *MultiSelectW {
-	w.box.n.ln.Style.Apply(o...)
+	flexbox.Apply(&w.box.n.ln.Style, o...)
 	return w
 }
 

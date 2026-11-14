@@ -12,6 +12,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
@@ -29,6 +30,8 @@ type dtTimeRangeState struct {
 
 // TimeRangePickerW selects a start and an end time.
 type TimeRangePickerW struct {
+	_ [0]func()
+
 	c          *Context
 	n          *node
 	val        *[2]time.Time
@@ -174,7 +177,7 @@ func (w *TimeRangePickerW) Disabled(on bool) *TimeRangePickerW {
 }
 
 func (w *TimeRangePickerW) Layout(o ...layout.Option) *TimeRangePickerW {
-	w.n.ln.Style.Apply(o...)
+	flexbox.Apply(&w.n.ln.Style, o...)
 	return w
 }
 

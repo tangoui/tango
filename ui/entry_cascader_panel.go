@@ -21,6 +21,8 @@ type casPanelState struct {
 
 // CascaderPanelW is an inline cascader; chain options, read Changed.
 type CascaderPanelW struct {
+	_ [0]func()
+
 	c        *Context
 	cas      *CascaderW
 	box      *Box

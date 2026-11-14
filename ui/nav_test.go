@@ -329,7 +329,7 @@ func TestLayoutDirection(t *testing.T) {
 		outer = Layout(c, func() {
 			Header(c, func() {})
 			inner = Layout(c, func() {
-				side = Sider(c, 200, false, func() {})
+				side = Sider(c, 200, false, func() {}).Box
 				content = Content(c, func() {})
 			})
 			Footer(c, func() {})

@@ -8,6 +8,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -47,7 +48,7 @@ func collMotion(c *Context, kind string, open bool, fn func(), opts ...layout.Op
 func collNamedBox(c *Context, kind, label string, dir layout.Direction, opts ...layout.Option) *Box {
 	n := c.add(kind, label)
 	n.ln.Dir = dir
-	n.ln.Style.Apply(opts...)
+	flexbox.Apply(&n.ln.Style, opts...)
 	b := &Box{c: c, n: n}
 	n.paint = b.paintBox
 	return b
@@ -74,6 +75,8 @@ type CollapseItem struct {
 
 // CollapseW is an accordion / collapse panel group.
 type CollapseW struct {
+	_ [0]func()
+
 	c          *Context
 	active     *[]string
 	items      []CollapseItem

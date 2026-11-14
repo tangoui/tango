@@ -7,6 +7,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -16,6 +17,8 @@ import (
 // DatePickerW is an input that opens a date panel (days, or weeks,
 // months, quarters or years with Picker).
 type DatePickerW struct {
+	_ [0]func()
+
 	c           *Context
 	n           *node
 	val         *time.Time
@@ -143,7 +146,7 @@ func (w *DatePickerW) Width(px float32) *DatePickerW { w.n.ln.Width = px; return
 
 // Layout applies layout options to the input.
 func (w *DatePickerW) Layout(o ...layout.Option) *DatePickerW {
-	w.n.ln.Style.Apply(o...)
+	flexbox.Apply(&w.n.ln.Style, o...)
 	return w
 }
 

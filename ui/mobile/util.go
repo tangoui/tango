@@ -15,15 +15,13 @@ import (
 	"github.com/tangoui/tango/ui/theme"
 )
 
-type layoutStyle = layout.Style
-
 type paintColor = theme.Color
 
 // scrollY lets content overflow a box vertically (we move it ourselves).
-func scrollY(s *layout.Style) { s.ScrollY = true }
+var scrollY = layout.ScrollY()
 
 // scrollX lets content overflow a box horizontally.
-func scrollX(s *layout.Style) { s.ScrollX = true }
+var scrollX = layout.ScrollX()
 
 // or returns s, or def when s is empty.
 func or(s, def string) string {

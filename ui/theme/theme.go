@@ -24,6 +24,8 @@ import (
 )
 
 // Flavor names the design system a theme imitates.
+//
+// Append-only: never reorder or insert; the zero value stays Ant.
 type Flavor int
 
 const (

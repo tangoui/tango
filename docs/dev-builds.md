@@ -41,7 +41,7 @@ Tango 只有一个构建开关：`tango_dev` 构建标签。
 
 ## 开发构建里仍有的限制
 
-- `asset.DevProxy` 默认只接受回环目标：`localhost`（及 `*.localhost`）、`127.0.0.0/8`、`::1`。Android 的 `adb reverse` 与 iOS 模拟器访问宿主都是 localhost，满足这个限制。要代理到局域网里的 dev server，在自己的代码里用 `asset.DevProxy(url, asset.DevProxyOptions{AllowRemote: true})`；`FromEnv` 不提供这个选项。
+- `asset.DevProxy` 默认只接受回环目标：`localhost`（及 `*.localhost`）、`127.0.0.0/8`、`::1`。Android 的 `adb reverse` 与 iOS 模拟器访问宿主都是 localhost，满足这个限制。要代理到局域网里的 dev server，在自己的代码里用 `asset.DevProxyWith(url, asset.DevProxyOptions{AllowRemote: true})`；`FromEnv` 不提供这个选项。
 - `tan dev` 热加载的控制通道（Windows 上是 `127.0.0.1` 的 TCP 端口，其他平台是 0700 目录里 0600 的 unix socket）要求每个连接在第一帧带上本次会话的随机 token（`TANGO_DEV_TOKEN`，常量时间比较），其他本机用户连不进来。
 
 ## 与生产构建都有关的：资源源的跨源写请求

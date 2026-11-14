@@ -1,4 +1,4 @@
-package layout
+package flexbox
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/tangoui/tango/ui/geom"
+	. "github.com/tangoui/tango/ui/layout"
 )
 
 // rtlCase builds a fresh tree for one configuration; rtl only toggles the
@@ -38,9 +39,9 @@ func (c rtlCase) build(rtl bool) *Node {
 	}
 	if c.abs {
 		kids = append(kids,
-			&Node{Style: Style{Absolute: true, Width: 25, Height: 12, Pos: Pos{8, 4, Unset, Unset}}},
-			&Node{Style: Style{Absolute: true, Width: 25, Height: 12, Pos: Pos{Unset, Unset, 6, 9}}},
-			&Node{Style: Style{Absolute: true, Height: 12, Pos: Pos{10, Unset, 30, 2}}},
+			&Node{Style: Style{Absolute: true, Width: 25, Height: 12, Pos: Pos{Left: 8, Top: 4, Right: Unset, Bottom: Unset}}},
+			&Node{Style: Style{Absolute: true, Width: 25, Height: 12, Pos: Pos{Left: Unset, Top: Unset, Right: 6, Bottom: 9}}},
+			&Node{Style: Style{Absolute: true, Height: 12, Pos: Pos{Left: 10, Top: Unset, Right: 30, Bottom: 2}}},
 		)
 	}
 	return &Node{Style: Style{
@@ -119,8 +120,8 @@ func TestRTLExamples(t *testing.T) {
 	eq(t, "b", b.Rect, geom.R(200-5-50-10-30, 0, 30, 10))
 
 	// Abs(left=8) becomes 8 from the right; Physical keeps it on the left.
-	p := &Node{Style: Style{Absolute: true, Width: 20, Height: 20, Pos: Pos{8, 0, Unset, Unset}}}
-	q := &Node{Style: Style{Absolute: true, Width: 20, Height: 20, Pos: Pos{8, 0, Unset, Unset}, NoMirror: true}}
+	p := &Node{Style: Style{Absolute: true, Width: 20, Height: 20, Pos: Pos{Left: 8, Top: 0, Right: Unset, Bottom: Unset}}}
+	q := &Node{Style: Style{Absolute: true, Width: 20, Height: 20, Pos: Pos{Left: 8, Top: 0, Right: Unset, Bottom: Unset}, NoMirror: true}}
 	root = &Node{Style: Style{RTL: true}, Children: []*Node{p, q}}
 	Solve(root, 100, 100)
 	eq(t, "abs", p.Rect, geom.R(72, 0, 20, 20))
@@ -145,7 +146,7 @@ func TestRTLExamples(t *testing.T) {
 
 func TestPhysicalOption(t *testing.T) {
 	var s Style
-	s.Apply(Physical(), PadSE(1, 2, 3))
+	Apply(&s, Physical(), PadSE(1, 2, 3))
 	if !s.NoMirror || s.Padding != (geom.Insets{Top: 1, Right: 3, Bottom: 1, Left: 2}) {
 		t.Fatalf("%+v", s)
 	}

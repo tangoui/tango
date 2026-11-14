@@ -12,6 +12,8 @@ import (
 
 // SurfaceOptions configures a new Surface.
 type SurfaceOptions struct {
+	_ [0]func()
+
 	Title               string
 	Width, Height       int // logical pixels; 0 means the backend default
 	MinWidth, MinHeight int

@@ -76,7 +76,7 @@ type PopupW struct {
 // safe area, or the soft keyboard when it is taller.
 func bottomInset(c *ui.Context) *ui.Box {
 	h := max(SafeAreaInsets(c).Bottom, c.KeyboardInset().Bottom)
-	return ui.Div(c).Style(func(s *layoutStyle) { s.Height = h })
+	return ui.Div(c).Style(layout.H(h))
 }
 
 // Popup creates a popup bound to *open (bottom sheet by default); set
@@ -239,7 +239,7 @@ func (w *PopupW) Body(fn func()) *PopupW {
 			if pos == PosBottom && !w.ownBottom {
 				// Lift the sheet's content above the soft keyboard.
 				if kb := c.KeyboardInset().Bottom; kb > 0 {
-					ui.Div(c).Style(func(s *layoutStyle) { s.Height = kb })
+					ui.Div(c).Style(layout.H(kb))
 				}
 			}
 		})

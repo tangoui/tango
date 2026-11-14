@@ -45,6 +45,8 @@ const GridContentFixedWidth = 1200
 
 // GridContentW builds a GridContent.
 type GridContentW struct {
+	_ [0]func()
+
 	c     *Context
 	width string
 	max   float32

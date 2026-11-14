@@ -20,6 +20,8 @@ import (
 
 // CheckCardW builds a checkable card.
 type CheckCardW struct {
+	_ [0]func()
+
 	c        *Context
 	title    string
 	checked  *bool
@@ -276,6 +278,8 @@ func (w *CheckCardW) avatarBox(disabled bool) {
 
 // CheckCardOption is one card of a CheckCardGroup.
 type CheckCardOption struct {
+	_ [0]func()
+
 	Value       string
 	Title       string
 	Description string
@@ -287,6 +291,8 @@ type CheckCardOption struct {
 // CheckCardGroupW builds a group of CheckCards with single or multiple
 // choice.
 type CheckCardGroupW struct {
+	_ [0]func()
+
 	c        *Context
 	opts     []CheckCardOption
 	value    *string

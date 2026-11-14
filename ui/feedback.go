@@ -8,6 +8,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -69,6 +70,8 @@ type spinState struct {
 // SpinW is a loading indicator: sizes, tip, delayed show, progress percent
 // and a nested mode (Wrap) that dims the wrapped content.
 type SpinW struct {
+	_ [0]func()
+
 	c        *Context
 	n        *node
 	z        *lazy
@@ -277,6 +280,8 @@ func (s *SpinW) Wrap(fn func()) *Box {
 
 // LoadingW covers a region or the window while loading.
 type LoadingW struct {
+	_ [0]func()
+
 	c       *Context
 	on      bool
 	tip     string
@@ -361,6 +366,8 @@ func (m *LoadingW) Fullscreen() *LoadingW {
 
 // AlertW is an inline status banner.
 type AlertW struct {
+	_ [0]func()
+
 	c        *Context
 	status   string
 	title    string
@@ -716,6 +723,8 @@ type modalState struct {
 // ModalW is a dialog over a mask: centered or top placement, draggable,
 // fullscreen, custom footer and close options.
 type ModalW struct {
+	_ [0]func()
+
 	c          *Context
 	open       *bool
 	title      string
@@ -991,6 +1000,8 @@ func navIconButton(c *Context, g *icon.Icon, label string) Interaction {
 // DrawerPlacement selects the edge a Drawer slides from. DrawerEnd (the
 // zero value and default) and DrawerStart are logical: in RTL the end is
 // the left edge. DrawerRight and DrawerLeft always mean that physical edge.
+//
+// Append-only: never reorder or insert; the zero value stays DrawerEnd.
 type DrawerPlacement uint8
 
 const (
@@ -1029,6 +1040,8 @@ var drawerStackKey = hashID("drawer-stack")
 // DrawerW is a panel sliding from a window edge: four placements, nested
 // drawers push their parent aside, header extra, footer, sizes.
 type DrawerW struct {
+	_ [0]func()
+
 	c         *Context
 	open      *bool
 	title     string
@@ -1233,25 +1246,25 @@ func (d *DrawerW) Body(fn func()) *DrawerW {
 	switch place {
 	case DrawerRight:
 		ln.Width = size
-		ln.Pos = layout.Pos{Left: layout.Unset, Top: 0, Right: 0, Bottom: 0}
+		ln.Pos = flexbox.Pos{Left: layout.Unset, Top: 0, Right: 0, Bottom: 0}
 		if rtl {
 			ln.Pos.Left, ln.Pos.Right = 0, layout.Unset
 		}
 		dx = shift
 	case DrawerLeft:
 		ln.Width = size
-		ln.Pos = layout.Pos{Left: 0, Top: 0, Right: layout.Unset, Bottom: 0}
+		ln.Pos = flexbox.Pos{Left: 0, Top: 0, Right: layout.Unset, Bottom: 0}
 		if rtl {
 			ln.Pos.Left, ln.Pos.Right = layout.Unset, 0
 		}
 		dx = -shift
 	case DrawerTop:
 		ln.Height = size
-		ln.Pos = layout.Pos{Left: 0, Top: 0, Right: 0, Bottom: layout.Unset}
+		ln.Pos = flexbox.Pos{Left: 0, Top: 0, Right: 0, Bottom: layout.Unset}
 		dy = -shift
 	case DrawerBottom:
 		ln.Height = size
-		ln.Pos = layout.Pos{Left: 0, Top: layout.Unset, Right: 0, Bottom: 0}
+		ln.Pos = flexbox.Pos{Left: 0, Top: layout.Unset, Right: 0, Bottom: 0}
 		dy = shift
 	}
 	if dx != 0 || dy != 0 {
@@ -1287,13 +1300,13 @@ func (d *DrawerW) resizeHandle(rs *drawerResize, place DrawerPlacement, size flo
 	// physical (the panel itself is placed by physical edge).
 	switch place {
 	case DrawerRight:
-		n.ln.Width, n.ln.Pos = hw, layout.Pos{Left: 0, Top: 0, Right: u, Bottom: 0}
+		n.ln.Width, n.ln.Pos = hw, flexbox.Pos{Left: 0, Top: 0, Right: u, Bottom: 0}
 	case DrawerLeft:
-		n.ln.Width, n.ln.Pos = hw, layout.Pos{Left: u, Top: 0, Right: 0, Bottom: 0}
+		n.ln.Width, n.ln.Pos = hw, flexbox.Pos{Left: u, Top: 0, Right: 0, Bottom: 0}
 	case DrawerTop:
-		n.ln.Height, n.ln.Pos = hw, layout.Pos{Left: 0, Top: u, Right: 0, Bottom: 0}
+		n.ln.Height, n.ln.Pos = hw, flexbox.Pos{Left: 0, Top: u, Right: 0, Bottom: 0}
 	default:
-		n.ln.Height, n.ln.Pos = hw, layout.Pos{Left: 0, Top: 0, Right: 0, Bottom: u}
+		n.ln.Height, n.ln.Pos = hw, flexbox.Pos{Left: 0, Top: 0, Right: 0, Bottom: u}
 	}
 	n.ln.NoMirror = true
 	cur := input.CursorResizeEW
@@ -1489,6 +1502,8 @@ type popState struct {
 // ConfigProvider.Defaults("Popconfirm", ...) keys: "okText", "cancelText",
 // "placement" (string), "showCancel" (bool).
 type PopconfirmW struct {
+	_ [0]func()
+
 	c                    *Context
 	b                    *Box
 	title, desc          string
