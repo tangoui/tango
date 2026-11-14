@@ -53,6 +53,9 @@ const ConfigFile = "tan.json"
 //	  }
 //	}
 type Config struct {
+	// Schema is the URL of tan.json's JSON Schema, which editors use for
+	// completion and checks; tan ignores it.
+	Schema    string `json:"$schema,omitempty"`
 	Name      string `json:"name"`           // display name; also names the executable (see Exe)
 	ID        string `json:"id"`             // reverse-DNS identifier, e.g. com.example.hello
 	Version   string `json:"version"`        // x.y.z
@@ -220,13 +223,21 @@ var (
 	keyAliasPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 )
 
+// SchemaURL is where the JSON Schema of tan.json (tan.schema.json, kept in
+// sync by TestConfigSchema) is published; tan init writes it as "$schema".
+const SchemaURL = "https://tangoui.github.io/tango/schema/tan.schema.json"
+
 // ParseConfig decodes and validates tan.json. Unknown fields are errors so
-// typos do not pass silently.
+// typos do not pass silently; a field added by a later tan is one too, and
+// the error says so.
 func ParseConfig(data []byte) (*Config, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	var c Config
 	if err := dec.Decode(&c); err != nil {
+		if strings.Contains(err.Error(), "unknown field") {
+			return nil, fmt.Errorf("%s: %w (a typo, or a field from a newer tan than this one, %s)", ConfigFile, err, cliVersion())
+		}
 		return nil, fmt.Errorf("%s: %w", ConfigFile, err)
 	}
 	if err := c.validate(); err != nil {

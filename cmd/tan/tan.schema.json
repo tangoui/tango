@@ -1,0 +1,534 @@
+{
+  "$defs": {
+    "Android": {
+      "additionalProperties": false,
+      "description": "Android holds Android-only settings.",
+      "properties": {
+        "keyAlias": {
+          "type": "string"
+        },
+        "keystore": {
+          "description": "Release signing. The passwords come from $TANGO_ANDROID_KEYSTORE_PASSWORD and $TANGO_ANDROID_KEY_PASSWORD (default: the keystore password).",
+          "type": "string"
+        },
+        "minSdk": {
+          "description": "default 24 (the lowest the host supports)",
+          "type": "integer"
+        },
+        "targetSdk": {
+          "description": "default 36",
+          "type": "integer"
+        },
+        "versionCode": {
+          "description": "default derived from version: 1.2.3 → 10203",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "AndroidIcon": {
+      "additionalProperties": false,
+      "description": "AndroidIcon is the adaptive launcher icon (API 26+). Layers are 108 dp squares of which the launcher shows the centre 72 dp (the inner 66 dp is always visible, whatever the mask).",
+      "properties": {
+        "background": {
+          "description": "Background is a PNG or a colour \"#RRGGBB\". Default: the colour of the master icon's border.",
+          "type": "string"
+        },
+        "foreground": {
+          "description": "Foreground PNG with transparency, ideally 432×432; keep the artwork inside the centre 66/108. Default: the master icon fitted to the visible 72 dp.",
+          "type": "string"
+        },
+        "monochrome": {
+          "description": "Monochrome PNG for Android 13 themed icons (alpha only, same layout as Foreground). Default: none (themed icons are skipped).",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "DMGLayout": {
+      "additionalProperties": false,
+      "description": "DMGLayout is the Finder window a disk image opens in. Sizes and positions are in points; positions are icon centres from the window's top left corner.",
+      "properties": {
+        "appPosition": {
+          "description": "default [140, 190]",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "applicationsPosition": {
+          "description": "default [400, 190]",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "background": {
+          "description": "Background is a PNG, JPEG or TIFF drawn at the top left of the window at its size in points (a 72 dpi image: pixels; a file named x@2x.png next to x.png makes a Retina background).",
+          "type": "string"
+        },
+        "iconSize": {
+          "description": "default 128",
+          "type": "integer"
+        },
+        "title": {
+          "description": "volume name; default the app name",
+          "type": "string"
+        },
+        "windowSize": {
+          "description": "[width, height]; default [540, 380]",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "FileAssociation": {
+      "additionalProperties": false,
+      "description": "FileAssociation registers the app for files with an extension.",
+      "properties": {
+        "ext": {
+          "description": "extension without the dot, e.g. \"md\"",
+          "type": "string"
+        },
+        "mime": {
+          "description": "default application/x-\u003cexe\u003e-\u003cext\u003e",
+          "type": "string"
+        },
+        "name": {
+          "description": "shown by the system, e.g. \"Markdown document\"",
+          "type": "string"
+        },
+        "role": {
+          "description": "\"editor\" (default) or \"viewer\"",
+          "enum": [
+            "editor",
+            "viewer"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "ext",
+        "name"
+      ],
+      "type": "object"
+    },
+    "Flatpak": {
+      "additionalProperties": false,
+      "description": "Flatpak holds the settings of the Flatpak manifest.",
+      "properties": {
+        "finishArgs": {
+          "description": "FinishArgs are sandbox permissions added to the defaults (IPC, Wayland, X11 fallback, GPU, network), e.g. \"--socket=pulseaudio\" or \"--filesystem=xdg-documents\".",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "runtimeVersion": {
+          "description": "org.gnome.Platform branch; default defaultFlatpakRuntime",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Frontend": {
+      "additionalProperties": false,
+      "description": "Frontend says where the front end lives and how to run it.",
+      "properties": {
+        "build": {
+          "description": "production build command",
+          "type": "string"
+        },
+        "dev": {
+          "description": "dev server command; its first printed http URL is used",
+          "type": "string"
+        },
+        "devURL": {
+          "description": "dev server URL, when it cannot be read from the output",
+          "type": "string"
+        },
+        "dir": {
+          "description": "front-end root; commands run here",
+          "type": "string"
+        },
+        "dist": {
+          "description": "build output, relative to Dir (\".\" when the sources are served as is)",
+          "type": "string"
+        },
+        "install": {
+          "description": "run when Dir has package.json but no node_modules; default \"npm install\"",
+          "type": "string"
+        }
+      },
+      "required": [
+        "dir",
+        "dist"
+      ],
+      "type": "object"
+    },
+    "IOS": {
+      "additionalProperties": false,
+      "description": "IOS holds iOS-only settings.",
+      "properties": {
+        "build": {
+          "description": "CFBundleVersion; default the version without its suffix",
+          "type": "string"
+        },
+        "entitlements": {
+          "type": "string"
+        },
+        "minVersion": {
+          "description": "MinimumOSVersion; default 17.0",
+          "type": "string"
+        },
+        "provisioningProfile": {
+          "type": "string"
+        },
+        "signIdentity": {
+          "description": "Device builds: the codesign identity (or $TANGO_IOS_SIGN_IDENTITY), the provisioning profile, and entitlements (default: the ones the profile grants).",
+          "type": "string"
+        },
+        "usageDescriptions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "UsageDescriptions overrides the text iOS shows when it asks for a permission, by permission name (\"camera\": \"Scan receipts\").",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "IOSIcons": {
+      "additionalProperties": false,
+      "description": "IOSIcons are the iOS 18 appearance variants of the app icon (1024 PNG).",
+      "properties": {
+        "dark": {
+          "description": "dark appearance: artwork on a transparent or dark background",
+          "type": "string"
+        },
+        "tinted": {
+          "description": "tinted appearance: grayscale artwork the system colours",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Icons": {
+      "additionalProperties": false,
+      "description": "Icons overrides the icon per platform. Every field is optional: what is not set is derived from Config.Icon, the master icon. The master icon is square artwork that fills the whole canvas (no transparent margin, no rounded corners), ideally 1024×1024 PNG. That is what iOS and Android expect, since they apply their own mask. Desktop systems expect the icon to carry its own shape, so tan derives one: a rounded square with the platform's margin and a soft shadow (macOS grid, also used for Windows and Linux). Give a platform its own file when the derived one is not good enough.",
+      "properties": {
+        "android": {
+          "$ref": "#/$defs/AndroidIcon"
+        },
+        "ios": {
+          "$ref": "#/$defs/IOSIcons"
+        },
+        "linux": {
+          "$ref": "#/$defs/LinuxIcons"
+        },
+        "macos": {
+          "description": "MacOS is used as is: 1024×1024 PNG already in the macOS shape (the rounded square on an 824 px grid with transparent margin).",
+          "type": "string"
+        },
+        "notification": {
+          "description": "Notification is the Android status-bar icon: white shapes on a transparent background (Android draws it as a mask), ideally 96×96. Without it push notifications use a white silhouette of the app icon.",
+          "type": "string"
+        },
+        "windows": {
+          "description": "Windows is a PNG (shaped, transparent background; 256 px or more) or an .ico file used as is.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Installer": {
+      "additionalProperties": false,
+      "description": "Installer is the \"installer\" section of tan.json: how tan package dresses its installers. Every field is optional. See docs/packaging.md.",
+      "properties": {
+        "macos": {
+          "$ref": "#/$defs/MacInstaller"
+        },
+        "windows": {
+          "$ref": "#/$defs/NSISInstaller"
+        }
+      },
+      "type": "object"
+    },
+    "Linux": {
+      "additionalProperties": false,
+      "description": "Linux holds the settings of the Linux packages tan package makes with -format deb, rpm or flatpak. See docs/linux-packaging.md.",
+      "properties": {
+        "depends": {
+          "description": "Depends and RPMRequires are added to the defaults: GTK 3 and WebKitGTK 4.1, which the Tango runtime loads (libgtk-3-0 and libwebkit2gtk-4.1-0 for deb, their sonames for rpm).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "description": {
+          "description": "Description: the first line is the one-line summary, the rest the long description. Default the app name.",
+          "type": "string"
+        },
+        "flatpak": {
+          "$ref": "#/$defs/Flatpak"
+        },
+        "homepage": {
+          "type": "string"
+        },
+        "license": {
+          "description": "rpm License; default \"Proprietary\"",
+          "type": "string"
+        },
+        "maintainer": {
+          "description": "Maintainer is the Debian Maintainer and rpm Packager, \"Name \u003cemail\u003e\".",
+          "type": "string"
+        },
+        "package": {
+          "description": "Package is the deb and rpm package name; default the name in lower case with words joined by '-' (\"My App\" → \"my-app\").",
+          "type": "string"
+        },
+        "rpmRequires": {
+          "description": "e.g. \"xdg-utils\"",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "LinuxIcons": {
+      "additionalProperties": false,
+      "description": "LinuxIcons are the freedesktop icons.",
+      "properties": {
+        "app": {
+          "description": "PNG used instead of the derived shape",
+          "type": "string"
+        },
+        "symbolic": {
+          "description": "monochrome SVG for panels (\u003cexe\u003e-symbolic.svg)",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "MacInstaller": {
+      "additionalProperties": false,
+      "description": "MacInstaller customises the macOS disk image (package_dmg.go).",
+      "properties": {
+        "dmg": {
+          "$ref": "#/$defs/DMGLayout"
+        }
+      },
+      "type": "object"
+    },
+    "MacOS": {
+      "additionalProperties": false,
+      "description": "MacOS holds macOS-only settings.",
+      "properties": {
+        "entitlements": {
+          "description": "plist used by tan sign",
+          "type": "string"
+        },
+        "minVersion": {
+          "description": "LSMinimumSystemVersion; default 11.0",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "NSISInstaller": {
+      "additionalProperties": false,
+      "description": "NSISInstaller customises the Windows NSIS installer (package_nsis.go).",
+      "properties": {
+        "desktopShortcut": {
+          "description": "DesktopShortcut is \"ask\" (default: a check box on the finish page), \"always\" or \"never\".",
+          "enum": [
+            "ask",
+            "always",
+            "never"
+          ],
+          "type": "string"
+        },
+        "headerImage": {
+          "type": "string"
+        },
+        "include": {
+          "description": "Include is an NSIS file included in the script; the macros it defines named customInit, customInstall and customUnInstall run in .onInit, at the end of the install section and at the start of the uninstall section.",
+          "type": "string"
+        },
+        "languageDialog": {
+          "description": "LanguageDialog asks for the installer language at start; by default the installer follows the Windows display language.",
+          "type": "boolean"
+        },
+        "license": {
+          "description": "License is a .txt or .rtf file shown on a licence page the user must accept.",
+          "type": "string"
+        },
+        "runAfterInstall": {
+          "description": "RunAfterInstall offers \"Run \u003capp\u003e\" on the finish page; default true for a per-user installer, false for scope \"machine\" (an elevated installer). Turned on there, the app is started through Explorer so it does not inherit the installer's administrator token.",
+          "type": "boolean"
+        },
+        "scope": {
+          "description": "Scope is \"user\" (default: %LOCALAPPDATA%\\Programs, HKCU, no UAC prompt, and the app can update itself) or \"machine\" (Program Files, HKLM, asks for administrator rights).",
+          "enum": [
+            "user",
+            "machine"
+          ],
+          "type": "string"
+        },
+        "sidebarImage": {
+          "description": "SidebarImage is the welcome and finish pages' left image (164×314, .bmp, or .png that tan converts); HeaderImage the banner on the other pages (150×57). Default: NSIS's own.",
+          "type": "string"
+        },
+        "template": {
+          "description": "Template is a Go text/template file that replaces the whole generated script (variables: docs/packaging.md).",
+          "type": "string"
+        },
+        "welcome": {
+          "description": "Welcome shows the welcome page; default true.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "Windows": {
+      "additionalProperties": false,
+      "description": "Windows holds Windows-only settings. See docs/windows.md.",
+      "properties": {
+        "certificate": {
+          "description": "Code signing (tan sign, tan package): a PKCS#12 (.pfx) file, unless -cert or $TANGO_WINDOWS_CERT names another. The password is never read from tan.json: it comes from $TANGO_WINDOWS_CERT_PASSWORD.",
+          "type": "string"
+        },
+        "publisher": {
+          "description": "Publisher is the certificate's subject, e.g. \"CN=Example Ltd, O=Example Ltd, C=US\"; MSIX packages need it (it must match the signing certificate).",
+          "type": "string"
+        },
+        "timestampURL": {
+          "description": "RFC 3161 server; default http://timestamp.digicert.com",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "https://tangoui.github.io/tango/schema/tan.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Config is tan.json. Paths are relative to the project directory.",
+  "properties": {
+    "$schema": {
+      "description": "Schema is the URL of tan.json's JSON Schema, which editors use for completion and checks; tan ignores it.",
+      "type": "string"
+    },
+    "android": {
+      "$ref": "#/$defs/Android"
+    },
+    "appLinkPaths": {
+      "description": "AppLinkPaths limits AppLinks to these path prefixes (\"/open/\"); default every path.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "appLinks": {
+      "description": "AppLinks are the web domains (\"example.com\", \"*.example.com\") whose https links open the app: iOS Universal Links (associated-domains entitlement) and Android App Links (autoVerify intent filters). The site proves the link with the files tan applinks writes (applinks.go).",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "copyright": {
+      "type": "string"
+    },
+    "fileAssociations": {
+      "description": "FileAssociations are the document types the app opens.",
+      "items": {
+        "$ref": "#/$defs/FileAssociation"
+      },
+      "type": "array"
+    },
+    "frontend": {
+      "$ref": "#/$defs/Frontend",
+      "description": "omit for a self-drawn UI app"
+    },
+    "icon": {
+      "description": "master icon: square, full-bleed PNG, ideally 1024×1024 (see Icons)",
+      "type": "string"
+    },
+    "icons": {
+      "$ref": "#/$defs/Icons",
+      "description": "per-platform overrides; see icons_config.go"
+    },
+    "id": {
+      "description": "reverse-DNS identifier, e.g. com.example.hello",
+      "type": "string"
+    },
+    "installer": {
+      "$ref": "#/$defs/Installer",
+      "description": "Installer customises the installers tan package makes: the NSIS setup.exe and the macOS disk image. See docs/packaging.md."
+    },
+    "ios": {
+      "$ref": "#/$defs/IOS"
+    },
+    "linux": {
+      "$ref": "#/$defs/Linux"
+    },
+    "localizations": {
+      "description": "Localizations are the languages the app declares to Apple platforms (CFBundleLocalizations); system-provided menu items and dialogs are localized only into these. Default: en, zh-Hans, zh-Hant, ja (the languages Tango's built-in strings ship).",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "macos": {
+      "$ref": "#/$defs/MacOS"
+    },
+    "name": {
+      "description": "display name; also names the executable (see Exe)",
+      "type": "string"
+    },
+    "permissions": {
+      "description": "Permissions are the mobile capabilities the app uses (\"camera\", \"location\", ...; see permissions.go). tan build declares them: iOS usage descriptions in Info.plist, Android \u003cuses-permission\u003e entries.",
+      "items": {
+        "enum": [
+          "background",
+          "biometric",
+          "camera",
+          "location",
+          "location-always",
+          "microphone",
+          "notifications",
+          "photos",
+          "widget"
+        ],
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "urlSchemes": {
+      "description": "URLSchemes are the deep-link schemes the app opens (myapp for myapp://...); the app declares the same list in tango.Options.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "version": {
+      "description": "x.y.z",
+      "type": "string"
+    },
+    "windows": {
+      "$ref": "#/$defs/Windows"
+    }
+  },
+  "required": [
+    "name",
+    "id",
+    "version"
+  ],
+  "title": "tan.json",
+  "type": "object"
+}

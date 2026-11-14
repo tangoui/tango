@@ -5,7 +5,8 @@
 #   tan      tan binaries for darwin/linux/windows × amd64/arm64 + checksums
 #   npm      npm publish --provenance of @tangoui/runtime (skipped without
 #            the NPM_TOKEN secret)
-#   release  GitHub release (draft) with the binaries and release notes
+#   release  GitHub release (draft) with the binaries, release notes and the
+#            API compatibility report against the previous tag
 #   docs     builds the documentation site and deploys it to GitHub Pages
 #
 # Tags of the cmd/tan module (cmd/tan/v0.1.0) do not match "v*" and do not
@@ -190,18 +191,48 @@ jobs:
     name: GitHub release
     needs: [verify, tan]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ env.TAG }}
+          fetch-depth: 0 # the previous tag, for the API report
 
       - uses: actions/download-artifact@v8.0.2
         with:
           name: tan-binaries
           path: dist
+
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: "**/go.sum"
+
+      - name: API compatibility report
+        run: |
+          set -euo pipefail
+          # Against the previous version tag (docs/release.md, "API 稳定性");
+          # the first tag has none. Breaks are reported, never fatal here:
+          # the API workflow already gated them on main.
+          git fetch --quiet --tags origin
+          prev="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "$TAG^" 2>/dev/null || true)"
+          : > api-report.md
+          if [ -n "$prev" ]; then
+            out="$(ALLOW_API_BREAK=1 bash scripts/apidiff.sh "$prev" 2>&1 || true)"
+            {
+              echo
+              echo "<details><summary>API 兼容性报告 / API compatibility report (vs $prev)</summary>"
+              echo
+              echo '```text'
+              echo "$out"
+              echo '```'
+              echo
+              echo "</details>"
+            } > api-report.md
+          fi
+          cat api-report.md
 
       - name: Release notes
         env:
@@ -227,6 +258,7 @@ jobs:
 
           Desktop backends are verified on macOS; Windows and Linux are implemented but not yet verified on hardware. Mobile (iOS, Android) is experimental.
           EOF
+          cat api-report.md >> notes.md
           cat notes.md
 
       - name: Create or update the release

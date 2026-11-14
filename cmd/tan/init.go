@@ -192,6 +192,7 @@ func createProject(o initOptions) error {
 		o.Module = s
 	}
 	cfg := &Config{
+		Schema:   SchemaURL,
 		Name:     o.Name,
 		ID:       o.ID,
 		Version:  "0.1.0",

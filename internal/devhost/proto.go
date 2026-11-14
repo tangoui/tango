@@ -37,6 +37,13 @@ const ProtoVersion = 2
 // it links the dev host (package uihost built with tango_dev).
 const Marker = "tango-devhost-protocol-v1"
 
+// AttachSymbol is uihost.AttachWith's name in a binary's function table.
+// uihost.Attach calls AttachWith, so the symbol is linked exactly when an
+// app attaches canvases to WebView windows; tan dev restarts such apps on
+// changes instead of hot-reloading them. A uihost test pins the name, so
+// moving or renaming AttachWith fails there rather than silently in tan.
+const AttachSymbol = "github.com/tangoui/tango/uihost.AttachWith"
+
 // Environment variables set by tan dev.
 const (
 	EnvRole = "TANGO_DEV_ROLE" // "host" or "worker"

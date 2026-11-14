@@ -1,6 +1,6 @@
 # Tango 公开 API 稳定化方案
 
-> 状态：已批准（2026-11-14，§7 全部按建议；另把 `service/updater` 升为稳定）；Phase 0、Phase 1、Phase 2 已完成；Phase 3 第 1–7 项已完成（第 8 项 CLI 符号契约未做）
+> 状态：已批准（2026-11-14，§7 全部按建议；另把 `service/updater` 升为稳定）；Phase 0–3 已完成；Phase 4 已完成（2026-11-14 打 v0.1.0 基线；§6.2 的 CLI 参数黄金与 `tan.json` Schema 一并完成）
 > 范围：Go 模块 `github.com/tangoui/tango`、CLI 模块 `cmd/tan`（`tan` 命令行参数与 `tan.json`）、npm 包 `@tangoui/runtime`（`runtime-js`）
 > 目标（用户原话）："API 必须稳定；内部怎么大改都不应影响 API。"
 

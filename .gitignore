@@ -21,6 +21,7 @@ site/.vitepress/cache/
 site/.vitepress/dist/
 site/reference/api/
 site/reference/_cli-flags.md
+site/public/schema/
 site/guide/components.md
 /examples/ui-gallery/ui-gallery
 /ui-gallery

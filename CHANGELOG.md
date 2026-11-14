@@ -4,8 +4,31 @@
 
 ## [未发布]
 
+## [0.1.0] - 2026-11-14
+
+首个公开版本。0.x 期间公开 API 可能有不兼容的变化。
+
+**验证状态**：桌面端只在 macOS 实机验证；Windows、Linux 后端已实现，通过交叉编译与 CI 冒烟，尚未在实机上系统验证。iOS、Android 为实验性：iOS 已在真机（iPhone 12 Pro）上运行验证，Android 只在模拟器上验证。自绘 UI 为实验性，只在 macOS 上实机验证。
+
+**API 基线**：这是第一个打标签的版本，也是兼容性检查的基线。Go 包按 `api/tiers.txt` 分为稳定与实验性两层，规则见 [docs/release.md](docs/release.md#api-稳定性)；之后稳定层的不兼容变化只进下一个 `0.MINOR.0` 并写明迁移方法。
+
 ### 新增
 
+- **核心运行时**（根包 `tango`）：`App` / `Surface`，主线程队列与 `Post`、`Await`、`AwaitAsync`、`TryAwaitAsync`；生命周期事件、统一的应用事件（深链、打开文件、主题与显示器变化、Dock 重新打开、通知点击）、用户退出拦截、关闭最后一个窗口时的平台默认行为。
+- **桌面后端**：macOS（AppKit + WKWebView）、Windows（Win32 + WebView2）、Linux（GTK 3 + WebKitGTK 4.1），均不需要 cgo；资源通过自定义 scheme 提供，不开本地端口。
+- **窗口**：位置、尺寸限制、状态、居中、外观（隐藏标题栏 / 无边框、透明、毛玻璃与 Mica、置顶、不透明度）、面板 / 模态 / 表单窗口、无边框拖动区域、文件拖入与拖出、缩放、打印与导出 PDF、截图、页内查找、Cookie 与网站数据、User-Agent 与请求头。
+- **WebView 策略**：导航策略、页面权限请求、新窗口请求、下载、HTTP 认证的处理函数。
+- **IPC**（`ipc`、`bind`）：调用、双向事件、可取消且带背压的流（JS 打开或 Go 打开），反射绑定；`tan generate bindings` 生成 TypeScript 客户端。
+- **前端运行时** `@tangoui/runtime`：`call` / `on` / `emit` / `stream`，以及 `Window`、`App`、`Theme`、`Screens`、`Clipboard`、`Dialog`、`Notify`、`Shell`、`Menu`、`Hotkey`、`Events` 模块；Go 侧 `jsapi` 按能力白名单开放，默认只开窗口自身、右键菜单和只读信息。
+- **安全**：只接受资源 origin 与核心导航目标 origin 的消息；`shell` 协议白名单；`service/fileserver` 限制在目录内。
+- **系统能力**（`sys/`）：剪贴板（文本、图片、文件）、对话框、菜单（应用、窗口、右键）、托盘、通知、全局与窗口快捷键、显示器、系统主题与页面同步、打开 URL 与文件、应用控制（徽标、进度、请求注意、Dock 图标）、开机启动、运行环境、最近文档、单实例、窗口状态记忆。
+- **移动端**（实验性）：iOS（c-archive + 原生宿主）与 Android（c-shared + Java 宿主），用户代码零改动；权限、分享、触感、安全区、屏幕方向、生物识别、安全存储、相册与拍照、定位、远程推送（APNs；FCM 需自行接入）。
+- **服务**（`service/`）：服务生命周期、应用目录、键值存储、日志、文件服务；签名的自动更新（`service/updater`：防降级、二进制补丁、启动确认与回滚，实验性）。
+- **多语言**（`i18n`）：系统语言、语言匹配（简繁分流）、带具名参数与 CLDR 复数的文案目录；原生菜单标准项和对话框按钮支持 en、zh-CN、zh-TW、ja。
+- **自绘 UI**（实验性，`ui`、`uihost`）：即时模式 API、Ant Design 与 Element Plus 两套主题令牌、约 90 个组件、无头 `Driver` 测试、`tan dev` 热加载；macOS 上 WebView 与自绘同窗（`uihost.Attach`）。
+- **命令行 `tan`**：`init`（多种模板）、`dev`、`build`（桌面、iOS、Android）、`run`、`package`（dmg、NSIS、MSIX、tar.gz、AppImage）、`sign`（macOS 签名与公证、Windows Authenticode）、`keygen`、`release-manifest`、`sign-update`（更新清单与签名）、`generate bindings`、`doctor`。
+- **示例**：`hello`、`runtime-demo`、`showcase`（IPC、流、系统能力、托盘、菜单、通知、主题跟随，带 `-smoke` 自检）等。
+- **工程**：CI（lint、三平台测试与真实窗口冒烟、iOS 模拟器与 Android 模拟器冒烟）、文档站（VitePress，中文为主、英文首页与核心页面）。
 - `@tangoui/runtime` 的 `ErrorCode` 加入 `busy`（更新器在已有检查或下载进行时返回）。
 
 - JS 运行时的 API 兼容检查：`runtime-js/etc/runtime.api.md`（API Extractor 报告，含各命名空间成员）与 `api/jsapi-methods.txt`（Go `jsapi` 与 TS 封装的方法名、事件名、错误码对账），CI 在漂移时失败；文档补充本地修改 runtime 的流程。
@@ -24,8 +47,12 @@
   - AutoComplete/Mentions/Select/Cascader 的 `Variant`（`FieldVariant`）；Select 前缀与后缀图标；AutoComplete 聚焦触发；Mentions 清除与整体删除；Cascader 自定义搜索与显示；TreeSelect 父子不联动与自定义搜索。
   - Upload 图片列表与手动提交；Card 内页签；Countdown `OnChange`；Tour 每步遮罩/类型/按钮与自定义指示器、操作区，切步自动滚到目标；Alert 深色效果与居中；Message 位置、偏移、关闭按钮与朴素样式；MessageBox 区分取消与关闭、居中、可拖动、自定义图标；Pagination 自由排序（`Layout`）与页码数量。
   - ProForm 只读模式；ProField 单独渲染与读写切换；新增 13 种 valueType；SchemaForm `layoutType` 与列表字段；ProLayout 自动面包屑与各渲染钩子、页脚链接、固定侧栏；ProCard 底部操作栏。
+- **CLI 契约**：`cmd/tan/testdata/cli.golden` 固定 `tan help` 与各子命令的参数（`TestCLIGolden`），参考站的参数列表由它生成；`tan.json` 的 JSON Schema `cmd/tan/tan.schema.json`（`TestConfigSchema` 保持同步）发布在 <https://tangoui.github.io/tango/schema/tan.schema.json>，`tan init` 在新项目的 `tan.json` 里写入 `"$schema"`，编辑器可据此补全和检查；`tan.json` 接受 `"$schema"` 键，遇到未知字段时提示可能需要更新的 tan。
+- `tan dev` 判断应用是否用了 `uihost.Attach` 的符号名移到 `internal/devhost.AttachSymbol`，`uihost` 的测试固定它，改名或移动 `AttachWith` 会在测试里失败，而不是让热加载悄悄误判。
 
 ### 变更
+
+以下只影响此前用伪版本跟踪 `main` 的用户。
 
 - `tan package` 生成的 macOS `.dmg` 改用 LZMA 压缩（`hdiutil -format ULMO`，原为 UDZO/zlib），体积约小四分之一：最小 WebView 应用从 2.32 MiB 降到 1.80 MiB。需要 macOS 10.15 以上挂载，低于 tan 写入的最低系统版本 11.0。
 
@@ -60,30 +87,6 @@
 - `asset.DevProxy` 默认只接受回环目标；要代理到其他主机用 `asset.DevProxyWith(target, asset.DevProxyOptions{AllowRemote: true})`。
 - 资源源上 GET/HEAD 以外的跨源请求回 403（`Options.AllowCrossOriginAssets` 关闭）；macOS/iOS 后端用主文档 URL 补上 WebKit 缺失的 `Origin`。
 - `tan dev` 热加载控制通道要求会话 token（`TANGO_DEV_TOKEN`），unix socket 权限 0600。
-
-## [0.1.0] - 未发布
-
-首个公开版本。0.x 期间公开 API 可能有不兼容的变化。
-
-**验证状态**：桌面端只在 macOS 实机验证；Windows、Linux 后端已实现，通过交叉编译与 CI 冒烟，尚未在实机上系统验证。iOS、Android 为实验性，只在模拟器上验证。自绘 UI 为实验性，只在 macOS 上实机验证。
-
-### 新增
-
-- **核心运行时**（根包 `tango`）：`App` / `Surface`，主线程队列与 `Post`、`Await`、`AwaitAsync`、`TryAwaitAsync`；生命周期事件、统一的应用事件（深链、打开文件、主题与显示器变化、Dock 重新打开、通知点击）、用户退出拦截、关闭最后一个窗口时的平台默认行为。
-- **桌面后端**：macOS（AppKit + WKWebView）、Windows（Win32 + WebView2）、Linux（GTK 3 + WebKitGTK 4.1），均不需要 cgo；资源通过自定义 scheme 提供，不开本地端口。
-- **窗口**：位置、尺寸限制、状态、居中、外观（隐藏标题栏 / 无边框、透明、毛玻璃与 Mica、置顶、不透明度）、面板 / 模态 / 表单窗口、无边框拖动区域、文件拖入与拖出、缩放、打印与导出 PDF、截图、页内查找、Cookie 与网站数据、User-Agent 与请求头。
-- **WebView 策略**：导航策略、页面权限请求、新窗口请求、下载、HTTP 认证的处理函数。
-- **IPC**（`ipc`、`bind`）：调用、双向事件、可取消且带背压的流（JS 打开或 Go 打开），反射绑定；`tan generate bindings` 生成 TypeScript 客户端。
-- **前端运行时** `@tangoui/runtime`：`call` / `on` / `emit` / `stream`，以及 `Window`、`App`、`Theme`、`Screens`、`Clipboard`、`Dialog`、`Notify`、`Shell`、`Menu`、`Hotkey`、`Events` 模块；Go 侧 `jsapi` 按能力白名单开放，默认只开窗口自身、右键菜单和只读信息。
-- **安全**：只接受资源 origin 与核心导航目标 origin 的消息；`shell` 协议白名单；`service/fileserver` 限制在目录内。
-- **系统能力**（`sys/`）：剪贴板（文本、图片、文件）、对话框、菜单（应用、窗口、右键）、托盘、通知、全局与窗口快捷键、显示器、系统主题与页面同步、打开 URL 与文件、应用控制（徽标、进度、请求注意、Dock 图标）、开机启动、运行环境、最近文档、单实例、窗口状态记忆。
-- **移动端**（实验性）：iOS（c-archive + 原生宿主）与 Android（c-shared + Java 宿主），用户代码零改动；权限、分享、触感、安全区、屏幕方向、生物识别、安全存储、相册与拍照、定位、远程推送（APNs；FCM 需自行接入）。
-- **服务**（`service/`）：服务生命周期、应用目录、键值存储、日志、文件服务；签名的自动更新（`service/updater`：防降级、二进制补丁、启动确认与回滚，实验性）。
-- **多语言**（`i18n`）：系统语言、语言匹配（简繁分流）、带具名参数与 CLDR 复数的文案目录；原生菜单标准项和对话框按钮支持 en、zh-CN、zh-TW、ja。
-- **自绘 UI**（实验性，`ui`、`uihost`）：即时模式 API、Ant Design 与 Element Plus 两套主题令牌、约 90 个组件、无头 `Driver` 测试、`tan dev` 热加载；macOS 上 WebView 与自绘同窗（`uihost.Attach`）。
-- **命令行 `tan`**：`init`（多种模板）、`dev`、`build`（桌面、iOS、Android）、`run`、`package`（dmg、NSIS、MSIX、tar.gz、AppImage）、`sign`（macOS 签名与公证、Windows Authenticode）、`keygen`、`release-manifest`、`sign-update`（更新清单与签名）、`generate bindings`、`doctor`。
-- **示例**：`hello`、`runtime-demo`、`showcase`（IPC、流、系统能力、托盘、菜单、通知、主题跟随，带 `-smoke` 自检）等。
-- **工程**：CI（lint、三平台测试与真实窗口冒烟、iOS 模拟器与 Android 模拟器冒烟）、文档站（VitePress，中文为主、英文首页与核心页面）。
 
 [未发布]: https://github.com/tangoui/tango/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/tangoui/tango/releases/tag/v0.1.0
