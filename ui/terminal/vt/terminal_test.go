@@ -382,7 +382,16 @@ func TestTerminalSGR(t *testing.T) {
 		{"38;2;300;0;0;1", Style{Attr: AttrBold}},
 		{"58;2;1;2;3;1", Style{Attr: AttrBold}},
 		{"58;5;3;3", Style{Attr: AttrItalic}},
-		{"38;5", Style{}},
+		{"38;5", Style{Fg: IndexedColor(0)}}, // missing values are 0, as xterm.js
+		{"38;2;1;2", Style{Fg: RGBColor(1, 2, 0)}},
+		{"38:5", Style{Fg: IndexedColor(0)}},
+		{"38:2:1:2", Style{Fg: RGBColor(2, 0, 0)}}, // color space 1, r 2
+		{"38:2:0:1:2:3:9", Style{Fg: RGBColor(1, 2, 3)}},
+		{"38;5;;4", Style{Fg: IndexedColor(0), Attr: AttrUnderline}},
+		{"38;3;4;1;31", Style{}}, // unknown kind: the rest is ignored
+		{"1;38;0;4", Style{Attr: AttrBold}},
+		{"38", Style{}},
+		{"38;5;300;1", Style{Attr: AttrBold}}, // out of range: ignored
 		{"", Style{}},
 		{"1;;3", Style{Attr: AttrItalic}},
 	}
@@ -597,6 +606,26 @@ func TestTerminalDirty(t *testing.T) {
 	if rows, _ := term.TakeDirty(); !slices.Equal(rows, []int{2}) {
 		t.Errorf("TakeDirty scrolled back by 2 = %v, want [2]", rows)
 	}
+}
+
+func TestTerminalResizePendingWrap(t *testing.T) {
+	// Gaining columns with a wrap pending puts the cursor just past the
+	// old last column, as in xterm.js.
+	term := newTerm(5, 3, nil)
+	write(term, "abcde\x1b7")
+	term.Resize(7, 3)
+	wantCursor(t, term, 5, 0)
+	write(term, "f")
+	wantText(t, term, "abcdef")
+	write(term, "\x1b8g")
+	wantText(t, term, "abcdeg")
+	// Changing only the rows cancels the pending wrap: the next
+	// character overwrites the last column.
+	term = newTerm(5, 3, nil)
+	write(term, "abcde")
+	term.Resize(5, 4)
+	write(term, "f")
+	wantText(t, term, "abcdf")
 }
 
 func TestTerminalResizeClampsCursor(t *testing.T) {

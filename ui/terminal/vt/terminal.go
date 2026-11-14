@@ -125,10 +125,20 @@ func (t *Terminal) Modes() Modes { return t.modes }
 // are truncated or padded, not reflowed. Losing rows keeps the cursor's
 // line on screen by moving lines into the scrollback; gaining rows brings
 // them back while the cursor is on the last row. The cursor and the saved
-// cursor are clamped to the new size.
+// cursor are clamped to the new size; as in xterm.js, a pending wrap
+// counts as a cursor just past the last column, so gaining columns moves
+// the cursor there and otherwise the wrap is cancelled.
 func (t *Terminal) Resize(cols, rows int) {
 	if max(cols, 1) == t.cols && max(rows, 1) == t.rows {
 		return // keep the pending wrap and skip the redraw, as xterm.js
+	}
+	// As in xterm.js, a pending wrap counts as being just past the last
+	// column: gaining columns puts the cursor there.
+	if t.pending {
+		t.cx++
+	}
+	if t.saved.pending {
+		t.saved.x++
 	}
 	t.cy = t.s.resize(cols, rows, t.cy)
 	t.cols, t.rows = t.s.Size()

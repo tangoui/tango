@@ -1,0 +1,1 @@
+[{"write": "abcdefgh中\r\n0123\u001b[1;3H"}, {"resize": [14, 4]}, {"write": "X\u001b[2;13HY"}]

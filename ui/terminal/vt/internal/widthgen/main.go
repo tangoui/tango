@@ -18,11 +18,16 @@
 // The width rules follow xterm.js's unicode11 addon:
 //
 //   - General_Category Mn, Me or Cf, and a fixed list of zero-width code
-//     points (ZWSP and friends, BOM, Hangul jungseong/jongseong): 0.
-//   - East_Asian_Width W or F, or Emoji_Presentation=Yes: 2.
+//     points (ZWSP and friends, BOM, Hangul jungseong/jongseong): 0,
+//     except U+00AD SOFT HYPHEN, which xterm.js draws in one cell.
+//   - East_Asian_Width W or F, or Emoji_Presentation=Yes: 2, except the
+//     regional indicators U+1F1E6–U+1F1FF, which xterm.js gives one cell
+//     each (a flag, a pair of them, takes two).
 //   - Everything else: 1.
 //
 // Zero width wins over wide. C0/C1 controls are handled by Width itself.
+// The exceptions were found by comparing against headless xterm.js (see
+// ../refgen and ../../testdata/replay/DIFFERENCES.md).
 package main
 
 import (
@@ -49,9 +54,17 @@ const (
 var extraZero = [][2]rune{
 	{0x1160, 0x11FF}, // Hangul jungseong and jongseong
 	{0x200B, 0x200F},
-	{0x2028, 0x202E},
-	{0x2060, 0x206F},
+	{0x202A, 0x202E}, // bidi embedding controls; U+2028/2029 are width 1
+	{0x2060, 0x2064},
+	{0x2066, 0x206F},
 	{0xFEFF, 0xFEFF},
+}
+
+// narrow lists code points that get width 1 whatever their category or
+// presentation, as in xterm.js.
+var narrow = [][2]rune{
+	{0x00AD, 0x00AD},   // soft hyphen (Cf)
+	{0x1F1E6, 0x1F1FF}, // regional indicators (Emoji_Presentation)
 }
 
 // extraWide lists the ranges EastAsianWidth.txt's header says default to
@@ -104,6 +117,12 @@ func main() {
 	}
 	for r := range zero {
 		delete(wide, r)
+	}
+	for _, rg := range narrow {
+		for r := rg[0]; r <= rg[1]; r++ {
+			delete(zero, r)
+			delete(wide, r)
+		}
 	}
 
 	var buf bytes.Buffer

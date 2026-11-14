@@ -21,11 +21,17 @@ func TestWidth(t *testing.T) {
 		{0x1B, 0},
 		{0x7F, 0},
 		{0x9F, 0},
-		{0x00AD, 0}, // soft hyphen (Cf)
+		{0x00AD, 1}, // soft hyphen (Cf), one cell as in xterm.js
 		{0x200B, 0}, // zero width space
 		{0x200D, 0}, // zero width joiner
-		{0x2028, 0},
+		{0x2028, 1}, // line separator (Zl), as in xterm.js
+		{0x202A, 0}, // left-to-right embedding (Cf)
 		{0x2060, 0},
+		{0x2065, 1},  // unassigned, as in xterm.js
+		{0x1F1E6, 1}, // regional indicator A, as in xterm.js
+		{0x1F1FF, 1},
+		{0x1F1E5, 1},
+		{0x1F200, 2}, // square hiragana hoka (W)
 		{0xFEFF, 0},
 		{0x1100, 2}, // Hangul choseong (W)
 		{0x1160, 0}, // Hangul jungseong

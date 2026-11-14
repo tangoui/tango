@@ -1,0 +1,13 @@
+{
+  "name": "tango-terminal-vt-refgen",
+  "private": true,
+  "description": "Dev-time tool: replays ui/terminal/vt/testdata/replay samples through headless xterm.js and writes reference screen snapshots (.json).",
+  "type": "module",
+  "scripts": {
+    "gen": "./samples.sh && node refgen.mjs ../../testdata/replay/*.vt ../../testdata/replay/*.ops"
+  },
+  "devDependencies": {
+    "@xterm/addon-unicode-graphemes": "0.4.0",
+    "@xterm/headless": "6.0.0"
+  }
+}

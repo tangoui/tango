@@ -382,38 +382,46 @@ func (t *Terminal) sgr(p *Params) {
 // as the following parameters (38;5;n, 38;2;r;g;b). used is how many
 // following parameters it consumed; ok is false for a malformed or out
 // of range color.
+//
+// As in xterm.js, missing values count as 0 (38;5 is color 0, 38;2;1;2
+// is 1,2,0), and an unknown kind (38;3;…) makes the rest of the sequence
+// ignored. Unlike xterm.js, a value above 255 makes the color ignored
+// rather than wrapped, and 38:2:r:g:b (exactly three values) is read as
+// r:g:b rather than as color space r with blue missing; see
+// testdata/replay/DIFFERENCES.md.
 func extendedColor(p *Params, i int) (c Color, used int, ok bool) {
-	var buf [4]int
-	a := buf[:0] // the kind and its values
+	var a [4]int // the kind and its values; missing values stay 0
 	if sub := p.Sub(i); len(sub) > 1 {
-		a = append(a, sub[1:min(len(sub), 5)]...)
-		if a[0] == 2 && len(sub) >= 6 {
+		a[0] = sub[1]
+		vals := sub[2:]
+		if a[0] == 2 && len(sub) != 5 && len(vals) > 0 {
 			// 38:2:cs:r:g:b; the color space id is ignored.
-			a = append(a[:1], sub[3:6]...)
+			vals = vals[1:]
 		}
+		copy(a[1:], vals)
 	} else {
 		if i+1 >= p.Len() {
 			return 0, 0, false
 		}
 		var want int
-		switch p.Sub(i + 1)[0] {
+		switch a[0] = p.Sub(i + 1)[0]; a[0] {
 		case 5:
 			want = 2
 		case 2:
 			want = 4
 		default:
-			return 0, 1, false
+			return 0, p.Len() - 1 - i, false
 		}
 		used = min(want, p.Len()-1-i)
-		for j := 1; j <= used; j++ {
-			a = append(a, p.Sub(i + j)[0])
+		for j := 2; j <= used; j++ {
+			a[j-1] = p.Sub(i + j)[0]
 		}
 	}
 	inByte := func(v int) bool { return v >= 0 && v <= 255 }
 	switch {
-	case a[0] == 5 && len(a) >= 2 && inByte(a[1]):
+	case a[0] == 5 && inByte(a[1]):
 		return IndexedColor(uint8(a[1])), used, true
-	case a[0] == 2 && len(a) == 4 && inByte(a[1]) && inByte(a[2]) && inByte(a[3]):
+	case a[0] == 2 && inByte(a[1]) && inByte(a[2]) && inByte(a[3]):
 		return RGBColor(uint8(a[1]), uint8(a[2]), uint8(a[3])), used, true
 	}
 	return 0, used, false

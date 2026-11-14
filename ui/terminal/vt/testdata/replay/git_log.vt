@@ -1,0 +1,30 @@
+[33m6563709[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m fix(terminal): clamp relative cursor counts; no-op same-size resize
+[33m9a218fc[m feat(terminal): emulator core (print, cursor, erase, SGR)
+[33m428046a[m fix(terminal): rate-limit style table compaction
+[33m0660c9e[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mworktree-agent-aeb634a41b860437a[m[33m, [m[1;32mworktree-agent-aeabeb5c3cbbdaf8c[m[33m, [m[1;32mworktree-agent-aa6245942815d8b35[m[33m, [m[1;32mworktree-agent-a779a94c823bdc227[m[33m, [m[1;32mworktree-agent-a63eb1fd1c806a74a[m[33m, [m[1;32mworktree-agent-a5766693c2b4de41f[m[33m, [m[1;32mworktree-agent-a0ec7cdef39b271a5[m[33m)[m feat(terminal): cells, screen and scrollback
+[33m55f35cd[m fix(terminal): clamp VT params without 32-bit overflow
+[33m31cca19[m feat(terminal): VT parser
+[33m23a982b[m docs: terminal M1 implementation plan
+[33md7e53ab[m chore(api): stable allowlists and tier notes (phase 2)
+[33m0fac34e[m fix(ui): keep text readable on light fills in every theme
+[33me4de15b[m chore(api): CODEOWNERS for the public API files; record approved decisions
+[33m96c79b8[m refactor: move the GPU renderer and shader compiler to internal/render
+[33mff9fca2[m chore(api): API stability rules and golden API files (phase 0)
+[33m4378e60[m test(editor): keep tokenizer timeout tests stable under load
+[33md1b238d[m fix(editor): stop scheduler pauses from degrading normal lines
+[33me5c9c27[m fix(android): keep overlay pass-through in step with the screen
+[33m3e85de6[m feat(mobile): system capabilities, ui/mobile audit fixes, mobile tooling
+[33m992a0b2[m fix(windows): make the Windows test job pass
+[33m64fecef[m fix(ui): finish remaining three-style visual parity gaps
+[33maa54edd[m docs: mark mobile canvas M5 and Linux GPU implemented
+[33m84ee3bb[m chore(ui-gallery): add Element and dark variants of the last five pages
+[33m172aca8[m fix(ui): give shadcn the same look across sibling widgets
+[33ma5d875a[m fix(theme): align Element component sizes with Element Plus
+[33m3087fa6[m fix(single): Windows Close waits until the pipe is released
+[33m0ef80e4[m docs: record the macOS real-window checks for GPU M2 and editor M1
+[33mb469e56[m fix(examples): let the ui-window and ledger pages scroll
+[33m7d5fe40[m test(gpu): fix two tests that could not pass off macOS
+[33m4c54811[m docs: update UI coverage screenshots and audit from a fresh run
+[33m22a1c1a[m feat(editor): add bracket pair colorization, guides and whitespace rendering
+[33m9cf2151[m docs: refresh UI component coverage against current code
+[33mf7bf82b[m test(uihost): keep the fake app alive after the last surface closes
