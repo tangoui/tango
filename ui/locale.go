@@ -119,6 +119,7 @@ type Locale struct {
 	LightFilter     LightFilterLocale
 	LoginForm       LoginFormLocale
 	SettingDrawer   SettingDrawerLocale
+	Dock            DockLocale
 
 	// Groups of the data viewers (types in codeblock.go, jsonview.go,
 	// logview.go).
@@ -433,6 +434,16 @@ type SettingDrawerLocale struct {
 	FixedHeader, FixSiderbar, ColorWeak string
 	Other, Compact                      string
 	ColorFmt                            string // swatch name, arg: hex ("主题色 %s")
+}
+
+// DockLocale holds the Dock texts: the group header buttons, the hint of
+// an empty group and the accessible name of a group.
+type DockLocale struct {
+	_ [0]func()
+
+	Maximize, Restore, Split string // header buttons (accessible names, tooltips)
+	Empty                    string // hint shown in a group without tabs
+	Group                    string // accessible name of a tab group
 }
 
 // MarkdownLocale holds the Markdown viewer texts.

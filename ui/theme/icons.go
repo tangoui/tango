@@ -71,7 +71,8 @@ func AntIcons() *icon.Style {
 		icon.Scissor: antd.ScissorOutlined, icon.Tag: antd.TagOutlined, icon.Flag: antd.FlagOutlined,
 		icon.Monitor: antd.DesktopOutlined,
 		icon.FitView: antd.ExpandOutlined, icon.AutoLayout: antd.ApartmentOutlined,
-		icon.Clear: antd.ClearOutlined,
+		icon.Clear:     antd.ClearOutlined,
+		icon.SplitPane: antd.SplitCellsOutlined,
 	}}
 }
 
@@ -120,6 +121,7 @@ func ElementIcons() *icon.Style {
 		icon.Scissor: element.Scissor, icon.History: element.Timer,
 		icon.FitView: element.FullScreen, icon.AutoLayout: element.Share,
 		icon.CheckAll: element.Finished, icon.Clear: element.Brush,
+		// icon.SplitPane: Element Plus has no split icon; the built-in shape stays.
 	}}
 }
 
@@ -176,5 +178,6 @@ func LucideIcons() *icon.Style {
 		icon.Minimize: lucide.Minus, icon.Maximize: lucide.Square, icon.Restore: lucide.Copy,
 		icon.FitView: lucide.Scan, icon.AutoLayout: lucide.Network,
 		icon.CheckAll: lucide.CheckCheck, icon.Clear: lucide.BrushCleaning,
+		icon.SplitPane: lucide.Columns2,
 	}}
 }

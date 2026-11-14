@@ -250,9 +250,10 @@ func init() {
 | 布局 | `Space` | Space / el-space | nav_space.go |
 | 布局 | `Compact`、`Addon` | Space.Compact、Input.Group / el-input-group | entry_compact.go |
 | 布局 | `Splitter`、`SplitterPanel` | Splitter / el-splitter | nav_splitter.go |
+| 布局 | `Dock`（`DockLayout`/`DockNode` 分割树与标签组，JSON 保存、`ParseDockLayout` 恢复；标签拖放拆分/合并、分割条、最大化、撕出） | IDE 工作台编辑器分组（VS Code / JetBrains） | dock.go、dock_layout.go |
 | 布局 | `Scroll`、`ScrollH` | （滚动容器）/ el-scrollbar | scroll.go、reveal.go |
 | 导航 | `Menu` | Menu / el-menu | nav_menu.go |
-| 导航 | `Tabs` | Tabs / el-tabs | nav.go |
+| 导航 | `Tabs`（`Draggable` 拖拽排序、`OnTearOff` 拖出窗口撕出） | Tabs / el-tabs | nav.go、nav_tabs_drag.go |
 | 导航 | `Breadcrumb`、`BreadcrumbItems`（items 写法、下拉、分隔符） | Breadcrumb / el-breadcrumb | nav.go |
 | 导航 | `Pagination` | Pagination / el-pagination | nav.go |
 | 导航 | `Dropdown` | Dropdown、Dropdown.Button / el-dropdown；`ContextMenuAt` 无触发器右键菜单 | nav_dropdown.go、nav_contextmenu.go |

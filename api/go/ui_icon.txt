@@ -151,6 +151,7 @@ pkg github.com/tangoui/tango/ui/icon, var Sliders *Icon
 pkg github.com/tangoui/tango/ui/icon, var Smile *Icon
 pkg github.com/tangoui/tango/ui/icon, var Sound *Icon
 pkg github.com/tangoui/tango/ui/icon, var Sparkles *Icon
+pkg github.com/tangoui/tango/ui/icon, var SplitPane *Icon
 pkg github.com/tangoui/tango/ui/icon, var Star *Icon
 pkg github.com/tangoui/tango/ui/icon, var StarFilled *Icon
 pkg github.com/tangoui/tango/ui/icon, var Stop *Icon

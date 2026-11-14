@@ -114,6 +114,7 @@ var ZhCN = &Locale{
 	NotificationCenter: NotificationCenterLocale{MarkAllRead: "全部标为已读", ClearAll: "清空通知", Dismiss: "移除通知",
 		Empty: "暂无通知", UnreadFmt: "%d 条未读", JustNow: "刚刚", MinutesAgoFmt: "%d 分钟前", HoursAgoFmt: "%d 小时前", DaysAgoFmt: "%d 天前"},
 	HotkeyInput: HotkeyInputLocale{Placeholder: "点击录制快捷键", Recording: "请按下组合键，Esc 取消", ClearLabel: "清除快捷键"},
+	Dock:        DockLocale{Maximize: "最大化", Restore: "还原", Split: "向右拆分", Empty: "将标签页拖到这里", Group: "标签组"},
 }
 
 // EnUS is the US English locale. RegisterLocale fills the empty texts of
@@ -223,6 +224,7 @@ var EnUS = &Locale{
 	NotificationCenter: NotificationCenterLocale{MarkAllRead: "Mark all as read", ClearAll: "Clear all", Dismiss: "Dismiss",
 		Empty: "No notifications", UnreadFmt: "%d unread", JustNow: "Just now", MinutesAgoFmt: "%dm ago", HoursAgoFmt: "%dh ago", DaysAgoFmt: "%dd ago"},
 	HotkeyInput: HotkeyInputLocale{Placeholder: "Click to record a shortcut", Recording: "Press a key combination, Esc to cancel", ClearLabel: "Clear shortcut"},
+	Dock:        DockLocale{Maximize: "Maximize", Restore: "Restore", Split: "Split right", Empty: "Drag a tab here", Group: "Tab group"},
 }
 
 // ZhTW is the Traditional Chinese locale with Taiwan usage. LocaleByCode
@@ -331,6 +333,7 @@ var ZhTW = &Locale{
 	NotificationCenter: NotificationCenterLocale{MarkAllRead: "全部標為已讀", ClearAll: "清除所有通知", Dismiss: "移除通知",
 		Empty: "沒有通知", UnreadFmt: "%d 則未讀", JustNow: "剛剛", MinutesAgoFmt: "%d 分鐘前", HoursAgoFmt: "%d 小時前", DaysAgoFmt: "%d 天前"},
 	HotkeyInput: HotkeyInputLocale{Placeholder: "按一下以錄製快速鍵", Recording: "請按下組合鍵，Esc 取消", ClearLabel: "清除快速鍵"},
+	Dock:        DockLocale{Maximize: "最大化", Restore: "還原", Split: "向右分割", Empty: "將分頁拖曳到這裡", Group: "分頁群組"},
 }
 
 // Ja is the Japanese locale.
@@ -439,4 +442,5 @@ var Ja = &Locale{
 	NotificationCenter: NotificationCenterLocale{MarkAllRead: "すべて既読にする", ClearAll: "すべてクリア", Dismiss: "通知を削除",
 		Empty: "通知はありません", UnreadFmt: "未読 %d 件", JustNow: "たった今", MinutesAgoFmt: "%d 分前", HoursAgoFmt: "%d 時間前", DaysAgoFmt: "%d 日前"},
 	HotkeyInput: HotkeyInputLocale{Placeholder: "クリックしてショートカットを記録", Recording: "キーの組み合わせを押してください（Esc で取消）", ClearLabel: "ショートカットをクリア"},
+	Dock:        DockLocale{Maximize: "最大化", Restore: "元に戻す", Split: "右に分割", Empty: "ここにタブをドラッグ", Group: "タブグループ"},
 }

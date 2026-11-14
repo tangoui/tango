@@ -17,12 +17,13 @@ pkg github.com/tangoui/tango/ui/theme, const CompColorPicker Comp = 46
 pkg github.com/tangoui/tango/ui/theme, const CompDatePicker Comp = 25
 pkg github.com/tangoui/tango/ui/theme, const CompDescriptions Comp = 29
 pkg github.com/tangoui/tango/ui/theme, const CompDivider Comp = 42
+pkg github.com/tangoui/tango/ui/theme, const CompDock Comp = 64
 pkg github.com/tangoui/tango/ui/theme, const CompDrawer Comp = 13
 pkg github.com/tangoui/tango/ui/theme, const CompDropdown Comp = 38
 pkg github.com/tangoui/tango/ui/theme, const CompEmpty Comp = 50
 pkg github.com/tangoui/tango/ui/theme, const CompFloatButton Comp = 51
 pkg github.com/tangoui/tango/ui/theme, const CompForm Comp = 53
-pkg github.com/tangoui/tango/ui/theme, const CompHotkeyInput Comp = 62
+pkg github.com/tangoui/tango/ui/theme, const CompHotkeyInput Comp = 63
 pkg github.com/tangoui/tango/ui/theme, const CompImage Comp = 44
 pkg github.com/tangoui/tango/ui/theme, const CompInput Comp = 1
 pkg github.com/tangoui/tango/ui/theme, const CompInputNumber Comp = 40
@@ -36,7 +37,7 @@ pkg github.com/tangoui/tango/ui/theme, const CompMenubar Comp = 54
 pkg github.com/tangoui/tango/ui/theme, const CompMessage Comp = 17
 pkg github.com/tangoui/tango/ui/theme, const CompModal Comp = 12
 pkg github.com/tangoui/tango/ui/theme, const CompNotification Comp = 16
-pkg github.com/tangoui/tango/ui/theme, const CompNotificationCenter Comp = 61
+pkg github.com/tangoui/tango/ui/theme, const CompNotificationCenter Comp = 62
 pkg github.com/tangoui/tango/ui/theme, const CompPagination Comp = 18
 pkg github.com/tangoui/tango/ui/theme, const CompPopover Comp = 15
 pkg github.com/tangoui/tango/ui/theme, const CompProgress Comp = 32
@@ -49,7 +50,7 @@ pkg github.com/tangoui/tango/ui/theme, const CompSkeleton Comp = 21
 pkg github.com/tangoui/tango/ui/theme, const CompSlider Comp = 6
 pkg github.com/tangoui/tango/ui/theme, const CompSplitter Comp = 48
 pkg github.com/tangoui/tango/ui/theme, const CompStatistic Comp = 41
-pkg github.com/tangoui/tango/ui/theme, const CompStatusBar Comp = 59
+pkg github.com/tangoui/tango/ui/theme, const CompStatusBar Comp = 60
 pkg github.com/tangoui/tango/ui/theme, const CompSteps Comp = 27
 pkg github.com/tangoui/tango/ui/theme, const CompSwitch Comp = 5
 pkg github.com/tangoui/tango/ui/theme, const CompTable Comp = 10
@@ -57,7 +58,7 @@ pkg github.com/tangoui/tango/ui/theme, const CompTabs Comp = 8
 pkg github.com/tangoui/tango/ui/theme, const CompTag Comp = 7
 pkg github.com/tangoui/tango/ui/theme, const CompTerminal Comp = 56
 pkg github.com/tangoui/tango/ui/theme, const CompTimeline Comp = 28
-pkg github.com/tangoui/tango/ui/theme, const CompTitleBar Comp = 60
+pkg github.com/tangoui/tango/ui/theme, const CompTitleBar Comp = 61
 pkg github.com/tangoui/tango/ui/theme, const CompTooltip Comp = 14
 pkg github.com/tangoui/tango/ui/theme, const CompTour Comp = 47
 pkg github.com/tangoui/tango/ui/theme, const CompTransfer Comp = 34
@@ -502,6 +503,7 @@ pkg github.com/tangoui/tango/ui/theme, type Components struct, ColorPicker Color
 pkg github.com/tangoui/tango/ui/theme, type Components struct, DatePicker DatePickerToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Descriptions DescriptionsToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Divider DividerToken
+pkg github.com/tangoui/tango/ui/theme, type Components struct, Dock DockToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Drawer DrawerToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Dropdown DropdownToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Empty EmptyToken
@@ -654,6 +656,23 @@ pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, TextPaddingInli
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, VerticalHeight float32
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, VerticalMarginInline float32
 pkg github.com/tangoui/tango/ui/theme, type DividerToken struct, embedded Alias
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, ActionBoxSize float32
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, ActiveBorder Color `contrast:"nontext:HeaderBg"`
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, Bg Color
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, DropBg Color
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, DropBorder Color `contrast:"nontext:@Page"`
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, DropRadius float32
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, EmptyText Color `contrast:"text:GroupBg"`
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, GhostBg Color
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, GhostRadius float32
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, GhostText Color `contrast:"text:GhostBg"`
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, GroupBg Color
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, GutterSize float32
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, HeaderBg Color
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, HeaderBorder Color
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, MinPaneSize float32
+pkg github.com/tangoui/tango/ui/theme, type DockToken struct, embedded Alias
 pkg github.com/tangoui/tango/ui/theme, type DrawerToken struct
 pkg github.com/tangoui/tango/ui/theme, type DrawerToken struct, Bg Color
 pkg github.com/tangoui/tango/ui/theme, type DrawerToken struct, BodyPaddingTop float32

@@ -130,6 +130,8 @@ type TabsW struct {
 	borderCard bool
 	extraLeft  func()
 	height     float32
+
+	drag tabsDrag // Draggable / OnTearOff (nav_tabs_drag.go)
 }
 
 type tabsState struct {
@@ -597,6 +599,7 @@ func (t *TabsW) bar() {
 	} else {
 		list.n.setState(a11y.Horizontal)
 	}
+	t.dragKeys(nodes)
 	t.keys(nodes, activeIdx)
 	if sb != nil && st.reveal && activeIdx < len(nodes) {
 		if c.ScrollIntoView(sb.n.id, nodes[activeIdx].id) {
@@ -724,6 +727,7 @@ func (t *TabsW) bar() {
 		outer.n.ln.Margin = geom.Insets{}
 	}
 	flexbox.Apply(&outer.n.ln.Style, t.barOpts...)
+	t.dragTabs(outer, nodes)
 }
 
 // overflow shows the more button (a dropdown of the tabs scrolled out of

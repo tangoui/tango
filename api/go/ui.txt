@@ -70,6 +70,13 @@ pkg github.com/tangoui/tango/ui, const ConfirmActionCancel ConfirmAction = "canc
 pkg github.com/tangoui/tango/ui, const ConfirmActionClose ConfirmAction = "close"
 pkg github.com/tangoui/tango/ui, const ConfirmActionConfirm ConfirmAction = "confirm"
 pkg github.com/tangoui/tango/ui, const DirAuto Direction = 0
+pkg github.com/tangoui/tango/ui, const DockBottom DockSide = 4
+pkg github.com/tangoui/tango/ui, const DockCenter DockSide = 0
+pkg github.com/tangoui/tango/ui, const DockColumn DockAxis = "column"
+pkg github.com/tangoui/tango/ui, const DockLeft DockSide = 1
+pkg github.com/tangoui/tango/ui, const DockRight DockSide = 2
+pkg github.com/tangoui/tango/ui, const DockRow DockAxis = "row"
+pkg github.com/tangoui/tango/ui, const DockTop DockSide = 3
 pkg github.com/tangoui/tango/ui, const DragSlop untyped int = 8
 pkg github.com/tangoui/tango/ui, const DrawerBottom DrawerPlacement = 4
 pkg github.com/tangoui/tango/ui, const DrawerEnd DrawerPlacement = 0
@@ -364,6 +371,7 @@ pkg github.com/tangoui/tango/ui, func DetectLogLevel(string) LogLevel
 pkg github.com/tangoui/tango/ui, func Disabled(*Context, bool, func())
 pkg github.com/tangoui/tango/ui, func Div(*Context, ...ui/layout.Option) *Box
 pkg github.com/tangoui/tango/ui, func Divider(*Context, ...string) *DividerW
+pkg github.com/tangoui/tango/ui, func Dock(*Context, *DockLayout) *DockW
 pkg github.com/tangoui/tango/ui, func Drawer(*Context, *bool, string) *DrawerW
 pkg github.com/tangoui/tango/ui, func DrawerForm(*Context, *bool, string, []ProField) *ModalFormW
 pkg github.com/tangoui/tango/ui, func DropZone(*Context, func(bool)) *DropZoneW
@@ -447,6 +455,7 @@ pkg github.com/tangoui/tango/ui, func MultiDatePicker(*Context, *[]time.Time) *M
 pkg github.com/tangoui/tango/ui, func MultiSelect(*Context, *[]string, []Option) *MultiSelectW
 pkg github.com/tangoui/tango/ui, func MustBeTrue(string) RuleOf[bool]
 pkg github.com/tangoui/tango/ui, func NativeView(*Context, string, ...ui/layout.Option) *NativeViewW
+pkg github.com/tangoui/tango/ui, func NewDockLayout(...string) *DockLayout
 pkg github.com/tangoui/tango/ui, func NewDriver(func(*Context), DriverOptions) *Driver
 pkg github.com/tangoui/tango/ui, func NewLogBuffer(int) *LogBuffer
 pkg github.com/tangoui/tango/ui, func NewRunner(func(*Context), RunnerOptions) *Runner
@@ -463,6 +472,7 @@ pkg github.com/tangoui/tango/ui, func PageHeader(*Context, string) *PageHeaderW
 pkg github.com/tangoui/tango/ui, func Pagination(*Context, *int, int, int) *PaginationW
 pkg github.com/tangoui/tango/ui, func Paragraph(*Context, string) *Label
 pkg github.com/tangoui/tango/ui, func ParseANSI(string) (string, []ANSISpan)
+pkg github.com/tangoui/tango/ui, func ParseDockLayout([]byte) (*DockLayout, error)
 pkg github.com/tangoui/tango/ui, func ParseMarkdownInline(string) []Span
 pkg github.com/tangoui/tango/ui, func ParseQRLevel(string) QRLevel
 pkg github.com/tangoui/tango/ui, func Pattern(string, string) Rule
@@ -1096,6 +1106,26 @@ pkg github.com/tangoui/tango/ui, method (*DescriptionsW) Vertical() *Description
 pkg github.com/tangoui/tango/ui, method (*DividerW) Dashed() *DividerW
 pkg github.com/tangoui/tango/ui, method (*DividerW) Orientation(string) *DividerW
 pkg github.com/tangoui/tango/ui, method (*DividerW) Plain() *DividerW
+pkg github.com/tangoui/tango/ui, method (*DockLayout) Activate(string) bool
+pkg github.com/tangoui/tango/ui, method (*DockLayout) AddTab(string, string)
+pkg github.com/tangoui/tango/ui, method (*DockLayout) FocusGroup() *DockNode
+pkg github.com/tangoui/tango/ui, method (*DockLayout) Group(string) *DockNode
+pkg github.com/tangoui/tango/ui, method (*DockLayout) GroupOf(string) *DockNode
+pkg github.com/tangoui/tango/ui, method (*DockLayout) Groups() []*DockNode
+pkg github.com/tangoui/tango/ui, method (*DockLayout) MoveTab(string, string, int) bool
+pkg github.com/tangoui/tango/ui, method (*DockLayout) Normalize()
+pkg github.com/tangoui/tango/ui, method (*DockLayout) RemoveTab(string) bool
+pkg github.com/tangoui/tango/ui, method (*DockLayout) SplitTab(string, string, DockSide) (string, bool)
+pkg github.com/tangoui/tango/ui, method (*DockNode) IsGroup() bool
+pkg github.com/tangoui/tango/ui, method (*DockW) BeforeClose(func(string) bool) *DockW
+pkg github.com/tangoui/tango/ui, method (*DockW) Changed() bool
+pkg github.com/tangoui/tango/ui, method (*DockW) Closed() string
+pkg github.com/tangoui/tango/ui, method (*DockW) Content(func(string)) *DockW
+pkg github.com/tangoui/tango/ui, method (*DockW) OnTearOff(func(string, ui/geom.Point)) *DockW
+pkg github.com/tangoui/tango/ui, method (*DockW) Show() *DockW
+pkg github.com/tangoui/tango/ui, method (*DockW) Style(...ui/layout.Option) *DockW
+pkg github.com/tangoui/tango/ui, method (*DockW) Tab(func(string) TabItem) *DockW
+pkg github.com/tangoui/tango/ui, method (*DockW) TornOff() (string, ui/geom.Point, bool)
 pkg github.com/tangoui/tango/ui, method (*DrawerW) BindSize(*float32) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Body(func()) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Closable(bool) *DrawerW
@@ -2467,16 +2497,20 @@ pkg github.com/tangoui/tango/ui, method (*TabsW) Centered() *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*TabsW) Closable() *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Closed() string
+pkg github.com/tangoui/tango/ui, method (*TabsW) Draggable() *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Extra(func()) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) ExtraLeft(func()) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Height(float32) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) NoMargin() *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) OnAdd(func()) *TabsW
+pkg github.com/tangoui/tango/ui, method (*TabsW) OnTearOff(func(string, ui/geom.Point)) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Panel(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*TabsW) Placement(Placement) *TabsW
+pkg github.com/tangoui/tango/ui, method (*TabsW) Reordered() []TabItem
 pkg github.com/tangoui/tango/ui, method (*TabsW) Show() *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Size(ControlSize) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) TabBarStyle(...ui/layout.Option) *TabsW
+pkg github.com/tangoui/tango/ui, method (*TabsW) TornOff() (string, ui/geom.Point, bool)
 pkg github.com/tangoui/tango/ui, method (*TagW) Borderless() *TagW
 pkg github.com/tangoui/tango/ui, method (*TagW) Closable() *TagW
 pkg github.com/tangoui/tango/ui, method (*TagW) Closed() bool
@@ -3410,6 +3444,30 @@ pkg github.com/tangoui/tango/ui, type DisabledTimes struct, noncomparable
 pkg github.com/tangoui/tango/ui, type DividerW struct
 pkg github.com/tangoui/tango/ui, type DividerW struct, embedded *Box
 pkg github.com/tangoui/tango/ui, type DividerW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type DockAxis string
+pkg github.com/tangoui/tango/ui, type DockLayout struct
+pkg github.com/tangoui/tango/ui, type DockLayout struct, Focus string `json:"focus,omitempty"`
+pkg github.com/tangoui/tango/ui, type DockLayout struct, Maximized string `json:"maximized,omitempty"`
+pkg github.com/tangoui/tango/ui, type DockLayout struct, Root *DockNode `json:"root"`
+pkg github.com/tangoui/tango/ui, type DockLayout struct, noncomparable
+pkg github.com/tangoui/tango/ui, type DockLocale struct
+pkg github.com/tangoui/tango/ui, type DockLocale struct, Empty string
+pkg github.com/tangoui/tango/ui, type DockLocale struct, Group string
+pkg github.com/tangoui/tango/ui, type DockLocale struct, Maximize string
+pkg github.com/tangoui/tango/ui, type DockLocale struct, Restore string
+pkg github.com/tangoui/tango/ui, type DockLocale struct, Split string
+pkg github.com/tangoui/tango/ui, type DockLocale struct, noncomparable
+pkg github.com/tangoui/tango/ui, type DockNode struct
+pkg github.com/tangoui/tango/ui, type DockNode struct, Active string `json:"active,omitempty"`
+pkg github.com/tangoui/tango/ui, type DockNode struct, Axis DockAxis `json:"axis,omitempty"`
+pkg github.com/tangoui/tango/ui, type DockNode struct, Children []*DockNode `json:"children,omitempty"`
+pkg github.com/tangoui/tango/ui, type DockNode struct, ID string `json:"id,omitempty"`
+pkg github.com/tangoui/tango/ui, type DockNode struct, Sizes []float64 `json:"sizes,omitempty"`
+pkg github.com/tangoui/tango/ui, type DockNode struct, Tabs []string `json:"tabs,omitempty"`
+pkg github.com/tangoui/tango/ui, type DockNode struct, noncomparable
+pkg github.com/tangoui/tango/ui, type DockSide uint8
+pkg github.com/tangoui/tango/ui, type DockW struct
+pkg github.com/tangoui/tango/ui, type DockW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type DrawerPlacement uint8
 pkg github.com/tangoui/tango/ui, type DrawerW struct
 pkg github.com/tangoui/tango/ui, type DrawerW struct, noncomparable
@@ -3636,6 +3694,7 @@ pkg github.com/tangoui/tango/ui, type Locale struct, Currency string
 pkg github.com/tangoui/tango/ui, type Locale struct, DatePicker DatePickerLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, Delete string
 pkg github.com/tangoui/tango/ui, type Locale struct, Dir Direction
+pkg github.com/tangoui/tango/ui, type Locale struct, Dock DockLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, DropZone DropZoneLocale
 pkg github.com/tangoui/tango/ui, type Locale struct, Edit string
 pkg github.com/tangoui/tango/ui, type Locale struct, EditableTable EditableTableLocale

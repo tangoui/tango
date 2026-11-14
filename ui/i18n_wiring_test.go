@@ -475,6 +475,17 @@ func i18nProCases() []i18nCase {
 				i18nA11y(t, l, d, a11y.RoleSlider, func(o *Locale) string { return o.Slider.Min })
 				i18nA11y(t, l, d, a11y.RoleSlider, func(o *Locale) string { return o.Slider.Max })
 			}},
+		{name: "Dock",
+			page: func(c *Context, ids i18nIDs) {
+				l := NewDockLayout("a", "b", "c")
+				l.SplitTab("c", "g1", DockRight)
+				Dock(c, l).Style(layout.H(200)).Show()
+				Dock(c, NewDockLayout()).Style(layout.H(120)).Show()
+			},
+			texts: func(l *Locale) []string { return []string{l.Dock.Empty, l.Dock.Split, l.Dock.Maximize} },
+			check: func(t *testing.T, l *Locale, d *Driver, ids i18nIDs) {
+				i18nA11y(t, l, d, a11y.RoleGroup, func(o *Locale) string { return o.Dock.Group })
+			}},
 		{name: "ProCards",
 			page: func(c *Context, ids i18nIDs) {
 				PageContainer(c, "Page").Body(func() {

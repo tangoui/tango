@@ -339,3 +339,8 @@ var (
 	CheckAll = def("check-all", "M2.5 12.5L7 17L16 7M11.5 15.5L13 17L22 7", "")
 	Clear    = def("clear", "M15 3L11.5 9.5M6.5 9.5H16.5L18 13H5ZM5 13L4 20.5H19L18 13M8.5 20.5L9 16.5M12.5 20.5V16.5M15.5 20.5L15 16.5", "")
 )
+
+// Docking layouts (original path data): the split action of a Dock group.
+var (
+	SplitPane = def("split-pane", "M3.5 4.5H20.5V19.5H3.5ZM12 4.5V19.5", "")
+)
