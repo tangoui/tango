@@ -88,6 +88,10 @@ pkg github.com/tangoui/tango/ui/editor, const RenderWhitespaceBoundary RenderWhi
 pkg github.com/tangoui/tango/ui/editor, const RenderWhitespaceNone RenderWhitespaceMode = "none"
 pkg github.com/tangoui/tango/ui/editor, const RenderWhitespaceSelection RenderWhitespaceMode = "selection"
 pkg github.com/tangoui/tango/ui/editor, const RenderWhitespaceTrailing RenderWhitespaceMode = "trailing"
+pkg github.com/tangoui/tango/ui/editor, const RevealCenter RevealWhere = 1
+pkg github.com/tangoui/tango/ui/editor, const RevealCenterIfOutside RevealWhere = 2
+pkg github.com/tangoui/tango/ui/editor, const RevealNearest RevealWhere = 0
+pkg github.com/tangoui/tango/ui/editor, const RevealTop RevealWhere = 3
 pkg github.com/tangoui/tango/ui/editor, const UnicodeHighlightFalse UnicodeHighlightSetting = "false"
 pkg github.com/tangoui/tango/ui/editor, const UnicodeHighlightInUntrustedWorkspace UnicodeHighlightSetting = "inUntrustedWorkspace"
 pkg github.com/tangoui/tango/ui/editor, const UnicodeHighlightTrue UnicodeHighlightSetting = "true"
@@ -167,20 +171,33 @@ pkg github.com/tangoui/tango/ui/editor, method (*State) HiddenAreas(string) []Li
 pkg github.com/tangoui/tango/ui/editor, method (*State) Highlighter() *ui/editor/highlight.Highlighter
 pkg github.com/tangoui/tango/ui/editor, method (*State) Insert(string)
 pkg github.com/tangoui/tango/ui/editor, method (*State) LargeFile() bool
+pkg github.com/tangoui/tango/ui/editor, method (*State) LineAtTop() (int, float32)
+pkg github.com/tangoui/tango/ui/editor, method (*State) LineBlock(int) (float64, int, int)
+pkg github.com/tangoui/tango/ui/editor, method (*State) LineTop(int) float64
 pkg github.com/tangoui/tango/ui/editor, method (*State) Move(Direction, Unit, bool)
 pkg github.com/tangoui/tango/ui/editor, method (*State) MoveCaret(int, bool)
+pkg github.com/tangoui/tango/ui/editor, method (*State) OnDidScroll(func(ScrollEvent)) func()
 pkg github.com/tangoui/tango/ui/editor, method (*State) Primary() Selection
 pkg github.com/tangoui/tango/ui/editor, method (*State) Redo() bool
 pkg github.com/tangoui/tango/ui/editor, method (*State) RemoveSecondaryCursors() bool
 pkg github.com/tangoui/tango/ui/editor, method (*State) RestoreViewState(ViewState)
 pkg github.com/tangoui/tango/ui/editor, method (*State) RevealCaret()
+pkg github.com/tangoui/tango/ui/editor, method (*State) RevealLine(int, RevealWhere)
+pkg github.com/tangoui/tango/ui/editor, method (*State) RevealRange(int, int, RevealWhere)
 pkg github.com/tangoui/tango/ui/editor, method (*State) RevealX(float32, float32)
+pkg github.com/tangoui/tango/ui/editor, method (*State) RowsOf(int) int
 pkg github.com/tangoui/tango/ui/editor, method (*State) SaveViewState() ViewState
 pkg github.com/tangoui/tango/ui/editor, method (*State) ScrollBy(float32, float32)
+pkg github.com/tangoui/tango/ui/editor, method (*State) ScrollHeight() float64
+pkg github.com/tangoui/tango/ui/editor, method (*State) ScrollLeft() float32
+pkg github.com/tangoui/tango/ui/editor, method (*State) ScrollTop() float64
 pkg github.com/tangoui/tango/ui/editor, method (*State) SelectHighlights() bool
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetDecorations(string, []Decoration)
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetHiddenAreas(string, []LineRange)
+pkg github.com/tangoui/tango/ui/editor, method (*State) SetLineAtTop(int, float32)
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetOverviewMarks(string, []OverviewMark)
+pkg github.com/tangoui/tango/ui/editor, method (*State) SetScrollLeft(float32)
+pkg github.com/tangoui/tango/ui/editor, method (*State) SetScrollTop(float64)
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetSelections([]Selection)
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetViewZones(string, []ViewZone)
 pkg github.com/tangoui/tango/ui/editor, method (*State) Snapshot() ui/editor/buffer.Snapshot
@@ -365,6 +382,14 @@ pkg github.com/tangoui/tango/ui/editor, type PaddingOptions struct, Bottom float
 pkg github.com/tangoui/tango/ui/editor, type PaddingOptions struct, Top float32
 pkg github.com/tangoui/tango/ui/editor, type RenderLineHighlightMode string
 pkg github.com/tangoui/tango/ui/editor, type RenderWhitespaceMode string
+pkg github.com/tangoui/tango/ui/editor, type RevealWhere uint8
+pkg github.com/tangoui/tango/ui/editor, type ScrollEvent struct
+pkg github.com/tangoui/tango/ui/editor, type ScrollEvent struct, LeftChanged bool
+pkg github.com/tangoui/tango/ui/editor, type ScrollEvent struct, Line int
+pkg github.com/tangoui/tango/ui/editor, type ScrollEvent struct, Offset float32
+pkg github.com/tangoui/tango/ui/editor, type ScrollEvent struct, ScrollLeft float64
+pkg github.com/tangoui/tango/ui/editor, type ScrollEvent struct, ScrollTop float64
+pkg github.com/tangoui/tango/ui/editor, type ScrollEvent struct, TopChanged bool
 pkg github.com/tangoui/tango/ui/editor, type Selection = ui/editor/buffer.Selection
 pkg github.com/tangoui/tango/ui/editor, type ShowFoldingControls string
 pkg github.com/tangoui/tango/ui/editor, type State struct

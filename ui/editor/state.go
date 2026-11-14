@@ -52,6 +52,7 @@ type State struct {
 	zones    *zoneStore[ViewZone]      // view zones per owner, nil for none (zones.go)
 	zgen     uint64                    // counts the zone layout changes of SetViewZones (damage.go)
 	zplaced  []zonePlaced              // the zones as placed in the view lines (syncZones)
+	scroll   scrollWatch               // OnDidScroll (scroll.go)
 	overview map[string][]OverviewMark // per-view owner markers (overview.go)
 
 	goals    []int // goal columns of vertical moves, one per selection; nil when unset

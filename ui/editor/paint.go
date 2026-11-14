@@ -480,6 +480,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		snap: snap, lines: lines, vis: vis, cur: cur, curG: curG, cmp: cmp, caretLine: caretLine, scrollX: v.ScrollX, marks: marks,
 		aLine: aLine, aRow: aRow, fold: fold, guides: guides, bguides: vs.bgRows, match: matchRows, decos: decoSigs, udecos: ud,
 	})
+	st.checkScroll() // what paint itself scrolled (scroll.go)
 }
 
 // wrapConfig returns the wrapping in effect for a text area textW wide.

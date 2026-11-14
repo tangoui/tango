@@ -240,7 +240,8 @@ func View(c *ui.Context, st *State) *ViewW {
 		}
 	}
 	w.contextMenu(wheel)
-	w.colorPicker() // the color picker opened from a swatch (colors.go)
+	w.colorPicker()  // the color picker opened from a swatch (colors.go)
+	st.checkScroll() // the wheel (scroll.go)
 	return w
 }
 

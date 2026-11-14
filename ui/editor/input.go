@@ -358,6 +358,7 @@ func (w *ViewW) finish() {
 	// these.
 	m := &vs.menu
 	m.ro, m.on, m.seen, m.km, m.ctxFn = w.opts.ReadOnly, w.opts.ContextMenu, true, w.keymap(), w.ctxFn
+	st.checkScroll() // keys, clicks and reveals (scroll.go)
 }
 
 // applyEvents applies keys and committed text in order: the one consumer
