@@ -12,6 +12,8 @@ go run ./examples/duplex -bench
 
 macOS 上 `up:post` 默认开启，这样跑测的就是 up:post 配置；测兜底传输（全部走消息通道）要加
 `TANGO_IPC_LANES_DARWIN=0`（iOS 相反：默认兜底，`TANGO_IPC_LANES_DARWIN=1` 才是 up:post）。
+macOS 的下行通道 `down:poll` 默认关闭，`TANGO_IPC_LANES_DARWIN=1`（或 `all`）同时开 `down:poll` 和
+`up:post`（见下文「down:poll」一节）。
 
 程序打开窗口，加载 `index.html?bench`，页面跑完下面几项后把结果交给 `Bench.Report`，
 Go 侧把它原样打印成一行 JSON 到 stdout，然后退出。基准代码在
@@ -35,7 +37,7 @@ Go 侧把它原样打印成一行 JSON 到 stdout，然后退出。基准代码�
   `maxUs` 不是差值，是整个进程到那时为止最长的一次（包括上行之前的请求，比如 `up:post` 启动时的空包探测）。
   iOS 上为 0（没有计）。
 - `MB/s` 按 10^6 字节/秒算，只计负载，不计 base64 和消息外壳。
-- `lane` 是跑完后页面 `tango.lanes()` 的值：`{"down":…,"up":…}`，各方向是快速通道名（如 `"down:scheme"`、`"up:post"`），或 `"fallback"`（字符串消息通道，字节帧走 base64）。第一期的基线数据（下表）是改成对象之前跑的，当时只有兜底传输，字段是字符串 `"fallback"`。
+- `lane` 是跑完后页面 `tango.lanes()` 的值：`{"down":…,"up":…}`，各方向是快速通道名（如 `"down:poll"`、`"up:post"`），或 `"fallback"`（字符串消息通道，字节帧走 base64）。第一期的基线数据（下表）是改成对象之前跑的，当时只有兜底传输，字段是字符串 `"fallback"`。
 - **计时精度**：macOS 的 WKWebView 在页面没有跨源隔离时把 `performance.now()` 截到 1 ms
   （实测最小增量 1 ms，`crossOriginIsolated` 为 false，加 COOP/COEP 响应头也不生效）。
   所以 macOS 上单次往返的 p50/p99 只能读成 0 或 1 ms，看 `latencyMeanMs` 和分批延迟更有意义
@@ -151,7 +153,8 @@ macOS 原始输出（2026-11-13，连续三次，表里取第三次）：
 
 ### 参考：`TANGO_IPC_LANES_DARWIN=all`（实验，不计入判定）
 
-（macOS 上 `=all` 只在开发构建里生效，要 `go run -tags tango_dev ./examples/duplex -bench`；普通构建把它当默认值。）
+（历史记录。当时 `=all` 只在开发构建里生效、开的是 `down:scheme`；`down:scheme` 已删除，现在 `all` 与 `1`
+相同，在任何构建里都开 `down:poll` + `up:post`，见下一节。）
 
 同时开 `down:scheme` 和 `up:post`，3 次：第 1 次 JS→Go 798.92 MB/s、**Go→JS 1100.15 MB/s**；
 第 2、3 次失败，页面报 `frames lost on a fast lane`（下行大段数据被 WebKit 扣住，与 Task 4 的发现一致）。
@@ -188,3 +191,124 @@ up:post 组再加 `SIMCTL_CHILD_TANGO_IPC_LANES_DARWIN=1`），交替各 5 次�
 （0.20～0.40 对 0.22～0.50）大面积重叠，1000 次往返的平均反而 up:post 略快（0.205 对 0.213）。
 这更像模拟器上的噪声，而不是 up:post 拖慢了小帧；但模拟器不能代替真机，iOS 的判定要等真机数据。
 注意 iOS 上 `upMain` 没有计（主线程读请求体在 `bridge.m` 里）。
+
+## down:poll（macOS 下行轮询通道）
+
+2026-11-15 测。`down:poll` 取代了 `down:scheme`（设计见
+`docs/superpowers/specs/2026-11-14-down-poll-design.md`）：页面始终挂一个 `GET /__tango/lane/poll`，
+Go 有消息时用一批消息（字符串消息、字节包、`Eval` 栅栏）结束这次响应，页面立即再发下一个请求；
+每条 `Surface.Send` 都走它，不只是流的字节帧。门槛是设计第 6 节：
+
+- 下行三项（64 KiB 字节帧、1 KiB 小帧、约 2.3 KB JSON 帧）的中位数都不低于 Wails v3.1.0；
+- 64 B 平均延迟和分批 p99 不比改造前的 Tango 差超过 10%；上行吞吐不下降；
+- Task 8 的真实 WebKit 场景全部通过。
+
+**判定：未达标，`down:poll` 在 macOS 上保持默认关闭**，`TANGO_IPC_LANES_DARWIN=1`（或 `all`、`down`）打开。
+
+### 方法
+
+- 机器：`Mac16,10`（Apple M4，10 核），macOS 26.6（25G72），WKWebView。
+- 三种配置交替各 5 次（A、B、C、A、B、C……），脚本 `/Users/admin/min/ipc-bench/run-downpoll.sh`
+  （开跑前等 1 分钟负载 < 5），汇总 `summarize-downpoll.py`，原始数据
+  `ipc-bench/results/downpoll-20261115-003757.jsonl`：
+  - **A 改造前**：`main` 的 `e215b91` 加上 Task 7 的基准补丁（小帧、JSON 两项，`5310d1b`），
+    `go build ./examples/duplex`，默认配置（下行走消息通道 + `up:post`）；
+  - **B down:poll**：本分支（`feat/down-poll`，含下文三个优化），`TANGO_IPC_LANES_DARWIN=1`
+    （`down:poll` + `up:post`）；
+  - **C Wails v3.1.0 Streams**：`ipc-bench/wails`（`-tags production` 构建，同样六项）。
+- 15 次的负载（跑前 1 分钟值）：2.86～3.85，全部 < 5。
+
+### 结果（5 次中位数，括号内为范围）
+
+| 项目 | A 改造前 | B down:poll | C Wails | B / A | B / C |
+| --- | --- | --- | --- | --- | --- |
+| 64 B 平均延迟 (ms) | 0.127（0.123～0.133） | 0.139（0.124～0.147） | 0.254（0.244～0.274） | +9.4% | — |
+| 分批 p99 (ms) | 0.14（0.12～0.14） | 0.14（0.14～0.20） | 0.28（0.28～0.28） | +0% | — |
+| 上行 64 KiB (MB/s) | 860（839～883） | 818（809～860） | 147（146～153） | −4.9% | — |
+| 下行 64 KiB (MB/s) | 306（292～314） | 1017（895～1082） | 1766（1678～1917） | 3.3× | **0.58** |
+| 下行 1 KiB 小帧 (帧/s) | 4.5 万（4.3～4.8 万） | 50.0 万（42.6～51.3 万） | 62.5 万（60.6～69.0 万） | 11.2× | **0.80** |
+| 下行 2.3 KB JSON (帧/s) | 3.4 万（3.1～3.5 万） | 11.1 万（8.5～11.9 万） | 10.8 万（3.3～15.9 万） | 3.3× | 1.03 |
+
+| 门槛 | 结果 |
+| --- | --- |
+| 下行 64 KiB ≥ Wails | 1017 对 1766 MB/s，**未达标**（范围不重叠） |
+| 下行小帧 ≥ Wails | 50.0 万对 62.5 万帧/s，**未达标**（范围不重叠） |
+| 下行 JSON ≥ Wails | 11.1 万对 10.8 万帧/s，达标（Wails 的范围很宽） |
+| 平均延迟 ≤ A × 1.1 | 0.139 对 0.140（0.127 × 1.1），达标，余量很小 |
+| 分批 p99 ≤ A × 1.1 | 0.14 对 0.14，达标 |
+| 上行不下降 | 818 对 860 MB/s（−4.9%，范围 809～860 对 839～883 部分重叠），按字面**未达标** |
+| Task 8 真实 WebKit 场景 | 全部通过（见设计文档状态） |
+
+注意 Wails 这次的下行数字比 2026-11-14 那份对比（负载 12～14：64 KiB 919 MB/s、小帧 39.2 万帧/s）
+高得多：负载低时 Wails 的下行快很多，门槛是按这次交替测量的中位数判的。
+
+### 为什么字节帧下行追不上 Wails
+
+**流控窗口**。ipc 的流有按字节计的信用窗口（`DefaultWindowBytes` 1 MiB，读走半个窗口才归还一次信用，
+规格 §5.3），一条流最多 1 MiB 在途；Wails 的流没有流控，Go 把帧全部排进队列。64 KiB 帧的下行实测是
+每批正好半个窗口（约 8 帧，64 MiB 用约 128 次轮询），每轮"页面读完 → 归还信用 → Go 写出 → 轮询响应
+到达"约 450 µs，所以吞吐被"窗口 / 往返"封顶。诊断实验（不提交）：把两端窗口临时改成 8 MiB，同一台机器
+（负载约 9）下行 64 KiB 到 1400～1560 MB/s、小帧 53～57 万帧/s，轮询次数从约 128 降到 18。窗口大小和
+归还规则是协议的一部分（runtime-js 不通告接收窗口，两端都按 1 MiB 算），本项目不改协议，所以停在这里。
+
+小帧也受同样的限制（1 MiB 约 1000 帧），另外每个走通道的字节帧都要再发一条 `boundary` 控制消息
+（规格 §6.1 的丢帧检测），页面上的条目数是帧数的两倍。
+
+### 优化过程（都在 B 里）
+
+先测了每次轮询带多少条、时间花在哪（页面侧临时计时 + Go 侧 pprof，结束后都已删除）：
+
+1. **`Surface.Send` 不再每次查主线程**（`perf(core): Send skips the main-thread check…`）。
+   pprof：小帧下行时写帧的 goroutine 约 90% 的 CPU 花在 `isMain` 里——它用 `runtime.Stack` 取
+   goroutine id，每次约 10 µs，限制了 Go 每秒能排进队列的帧数，每次轮询只带约 14 帧（1424 次轮询 / 2 万帧）。
+   改为只有兜底路径真的有待送内容时才查。之后每次轮询带约 900 帧（43 次），小帧 7 万 → 约 50 万帧/s，
+   JSON 5.1 万 → 约 11 万帧/s。
+2. **空闲时小消息走 Eval**（设计第 6 节的延迟退路，`perf(downq): small items on an idle lane go by Eval`）。
+   优化 1 之后 64 B 平均延迟仍是 0.16～0.19 ms（A 约 0.13）。测得一次轮询响应在 Go 里：从入队到挂起的请求被
+   唤醒约 8 µs，到主线程开始回 WebKit 约 11 µs；之后 WebKit 还要三次调用（响应头、数据、结束）和页面
+   `fetch`、`arrayBuffer` 两次异步跳转，整体比一次 `evaluateJavaScript` 多约 40 µs。规则：有轮询请求挂着、
+   没有待送也没有未确认的条目时，≤ 1 KiB 的条目改走兜底（Eval），每轮主线程最多 8 条
+   （`downq.IdleEvalBytes`、`IdleEvalItems`），超出的照常排队等轮询，所以流量大时仍走通道。之后平均延迟
+   约 0.13 ms，下行吞吐不变。
+3. **页面按序批次直接交付**（`perf(core): downShim delivers an in-order poll batch directly`）：批次从下一个
+   序号开始、没有缓存的乱序条目时不经过重排表；小帧一轮的页面处理时间 11～15 ms → 5～7 ms。
+   在总时间里占比小，基准上看不出明显差别。
+
+试过但没保留：轮询请求延后到页面处理完再发（延迟无变化）；Go 被唤醒后多等 20～200 µs 攒批（每批本来就
+是半个窗口，无变化）；大负载分段写出省一次拷贝（WebKit 收到多次 `didReceiveData`，反而变慢）。
+
+### `Eval` 栅栏往返
+
+专门测了一次（临时代码，不提交）：页面调用一个 ipc 方法，Go 在处理函数里 `s.Eval("…__evalPong()")`，
+页面等到这段脚本运行；另测只调用不 Eval 的往返作对照。每项 1000 次取平均，各 3 次：
+
+| 配置 | 调用往返 (ms) | 调用 + Eval 脚本运行 (ms) |
+| --- | --- | --- |
+| A 改造前 | 0.089～0.098 | 0.086～0.090 |
+| B down:poll（空闲规则生效，Eval 走兜底） | 0.088～0.093 | 0.088～0.105 |
+| B 关掉空闲规则（`IdleEvalItems=0`，Eval 是轮询通道上的栅栏） | 0.137～0.142 | 0.202～0.206 |
+
+通道空闲时 `Eval` 走兜底，和改造前一样快；通道忙（有排队的条目）时 `Eval` 成为栅栏，比轮询送达的
+消息多一次页面 → Go 往返，约 +0.06 ms。
+
+### 原始数据
+
+```json
+{"cfg":"A","round":1,"load":2.86,"r":{"lane":{"down":"fallback","up":"up:post"},"platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.123,"latencyBatchP50Ms":0.12,"latencyBatchP99Ms":0.14,"latencyBatchMeansMs":[0.12,0.12,0.12,0.14,0.1,0.1,0.12,0.12,0.1,0.1,0.12,0.1,0.12,0.12,0.1,0.12,0.1,0.12,0.12,0.12],"upMBps":860.37,"downMBps":306.43,"downSmallFps":44543,"downSmallMBps":45.61,"downJsonFps":35088}}
+{"cfg":"B","round":1,"load":3.03,"r":{"lane":{"down":"down:poll","up":"up:post"},"platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.146,"latencyBatchP50Ms":0.14,"latencyBatchP99Ms":0.2,"latencyBatchMeansMs":[0.2,0.14,0.16,0.12,0.14,0.14,0.16,0.14,0.12,0.16,0.1,0.18,0.2,0.18,0.14,0.16,0.14,0.18,0.16,0.14],"upMBps":818.4,"downMBps":894.78,"downSmallFps":425532,"downSmallMBps":435.74,"downJsonFps":85470}}
+{"cfg":"C","round":1,"load":3.43,"r":{"downSmallFps":645161,"downSmallMBps":660.65,"downJsonFps":43478,"impl":"wails-3.1.0-streams","platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) wails.io","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.274,"latencyBatchP50Ms":0.24,"latencyBatchP99Ms":0.28,"latencyBatchMeansMs":[0.28,0.26,0.26,0.26,0.24,0.26,0.26,0.24,0.24,0.26,0.24,0.24,0.26,0.22,0.26,0.24,0.24,0.26,0.22,0.24],"upMBps":146.53,"downMBps":1720.74}}
+{"cfg":"A","round":2,"load":3.43,"r":{"lane":{"down":"fallback","up":"up:post"},"platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.133,"latencyBatchP50Ms":0.12,"latencyBatchP99Ms":0.14,"latencyBatchMeansMs":[0.14,0.1,0.12,0.14,0.12,0.1,0.12,0.12,0.12,0.12,0.1,0.12,0.12,0.1,0.12,0.12,0.12,0.1,0.12,0.12],"upMBps":838.86,"downMBps":291.78,"downSmallFps":43197,"downSmallMBps":44.23,"downJsonFps":31646}}
+{"cfg":"B","round":2,"load":3.64,"r":{"lane":{"down":"down:poll","up":"up:post"},"platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.147,"latencyBatchP50Ms":0.12,"latencyBatchP99Ms":0.14,"latencyBatchMeansMs":[0.12,0.12,0.1,0.12,0.12,0.1,0.14,0.12,0.1,0.12,0.12,0.14,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.12],"upMBps":818.4,"downMBps":1001.62,"downSmallFps":500000,"downSmallMBps":512,"downJsonFps":111111}}
+{"cfg":"C","round":2,"load":3.42,"r":{"downSmallFps":625000,"downSmallMBps":640,"downJsonFps":107527,"impl":"wails-3.1.0-streams","platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) wails.io","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.244,"latencyBatchP50Ms":0.24,"latencyBatchP99Ms":0.28,"latencyBatchMeansMs":[0.26,0.22,0.24,0.24,0.24,0.28,0.26,0.26,0.28,0.26,0.24,0.24,0.24,0.24,0.22,0.22,0.24,0.24,0.22,0.24],"upMBps":146.21,"downMBps":1766.02}}
+{"cfg":"A","round":3,"load":3.42,"r":{"lane":{"down":"fallback","up":"up:post"},"platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.128,"latencyBatchP50Ms":0.1,"latencyBatchP99Ms":0.12,"latencyBatchMeansMs":[0.12,0.12,0.12,0.1,0.1,0.1,0.12,0.12,0.1,0.12,0.1,0.1,0.12,0.1,0.12,0.1,0.1,0.1,0.1,0.1],"upMBps":871.54,"downMBps":313.59,"downSmallFps":47847,"downSmallMBps":49,"downJsonFps":33557}}
+{"cfg":"B","round":3,"load":3.55,"r":{"lane":{"down":"down:poll","up":"up:post"},"platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.124,"latencyBatchP50Ms":0.12,"latencyBatchP99Ms":0.14,"latencyBatchMeansMs":[0.14,0.12,0.12,0.12,0.12,0.1,0.12,0.1,0.12,0.12,0.1,0.12,0.1,0.12,0.1,0.12,0.14,0.1,0.12,0.12],"upMBps":860.37,"downMBps":1082.4,"downSmallFps":512821,"downSmallMBps":525.13,"downJsonFps":119048}}
+{"cfg":"C","round":3,"load":3.43,"r":{"downSmallFps":606061,"downSmallMBps":620.61,"downJsonFps":32895,"impl":"wails-3.1.0-streams","platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) wails.io","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.264,"latencyBatchP50Ms":0.24,"latencyBatchP99Ms":0.28,"latencyBatchMeansMs":[0.26,0.24,0.28,0.24,0.24,0.26,0.24,0.24,0.26,0.24,0.22,0.26,0.24,0.24,0.24,0.22,0.24,0.24,0.24,0.26],"upMBps":146.53,"downMBps":1677.72}}
+{"cfg":"A","round":4,"load":3.43,"r":{"lane":{"down":"fallback","up":"up:post"},"platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.123,"latencyBatchP50Ms":0.1,"latencyBatchP99Ms":0.12,"latencyBatchMeansMs":[0.12,0.12,0.1,0.12,0.1,0.1,0.12,0.1,0.1,0.12,0.1,0.12,0.1,0.12,0.12,0.1,0.1,0.12,0.1,0.12],"upMBps":883.01,"downMBps":312.13,"downSmallFps":46404,"downSmallMBps":47.52,"downJsonFps":34247}}
+{"cfg":"B","round":4,"load":3.63,"r":{"lane":{"down":"down:poll","up":"up:post"},"platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.139,"latencyBatchP50Ms":0.12,"latencyBatchP99Ms":0.16,"latencyBatchMeansMs":[0.12,0.12,0.16,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.14,0.12,0.1,0.14,0.12],"upMBps":808.54,"downMBps":1016.8,"downSmallFps":476190,"downSmallMBps":487.62,"downJsonFps":106383}}
+{"cfg":"C","round":4,"load":3.66,"r":{"downSmallFps":625000,"downSmallMBps":640,"downJsonFps":120482,"impl":"wails-3.1.0-streams","platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) wails.io","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.253,"latencyBatchP50Ms":0.24,"latencyBatchP99Ms":0.28,"latencyBatchMeansMs":[0.24,0.26,0.28,0.24,0.24,0.22,0.24,0.24,0.24,0.22,0.24,0.22,0.24,0.24,0.22,0.24,0.26,0.28,0.24,0.24],"upMBps":150.47,"downMBps":1766.02}}
+{"cfg":"A","round":5,"load":3.66,"r":{"lane":{"down":"fallback","up":"up:post"},"platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.127,"latencyBatchP50Ms":0.12,"latencyBatchP99Ms":0.14,"latencyBatchMeansMs":[0.12,0.12,0.12,0.12,0.1,0.12,0.12,0.1,0.12,0.12,0.12,0.12,0.1,0.1,0.12,0.12,0.1,0.12,0.14,0.1],"upMBps":860.37,"downMBps":296.94,"downSmallFps":42827,"downSmallMBps":43.85,"downJsonFps":30960}}
+{"cfg":"B","round":5,"load":3.85,"r":{"lane":{"down":"down:poll","up":"up:post"},"platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.13,"latencyBatchP50Ms":0.12,"latencyBatchP99Ms":0.14,"latencyBatchMeansMs":[0.14,0.12,0.12,0.14,0.1,0.12,0.12,0.12,0.12,0.12,0.1,0.14,0.12,0.12,0.12,0.14,0.12,0.12,0.12,0.14],"upMBps":849.48,"downMBps":1048.58,"downSmallFps":500000,"downSmallMBps":512,"downJsonFps":116279}}
+{"cfg":"C","round":5,"load":3.78,"r":{"downSmallFps":689655,"downSmallMBps":706.21,"downJsonFps":158730,"impl":"wails-3.1.0-streams","platform":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) wails.io","latencyP50Ms":0,"latencyP99Ms":1,"latencyMeanMs":0.254,"latencyBatchP50Ms":0.24,"latencyBatchP99Ms":0.28,"latencyBatchMeansMs":[0.28,0.24,0.26,0.24,0.24,0.24,0.24,0.24,0.22,0.24,0.24,0.22,0.24,0.26,0.22,0.24,0.22,0.26,0.22,0.24],"upMBps":153.22,"downMBps":1917.4}}
+```
+
+`cfg`：A 改造前、B down:poll、C Wails；`load` 是跑前的 1 分钟负载。

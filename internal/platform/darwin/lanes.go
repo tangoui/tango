@@ -12,10 +12,11 @@ package darwin
 //   - down:poll: the page polls GET /__tango/lane/poll and the core answers
 //     with batches of queued downstream items (messages, byte packets, Eval
 //     barriers). It replaces down:scheme, a streamed response that WebKit
-//     held back part of a large burst of (spec §6.2). Off by default until
-//     it meets the down:poll design's §6 thresholds (downPollDefault,
-//     flipped by Task 9 of that plan); without it downstream frames stay on the
-//     message channel (sequenced Eval).
+//     held back part of a large burst of (spec §6.2). Off by default: it
+//     did not meet the down:poll design's §6 thresholds (2026-11-15, its
+//     64 KiB and small-frame throughput stayed below Wails v3.1.0,
+//     docs/ipc-bench.md); without it downstream messages stay on sequenced
+//     Eval.
 //
 // Which lanes a surface reports is fixed when it is created, from
 // TANGO_IPC_LANES_DARWIN (any case, surrounding spaces ignored; every
@@ -46,9 +47,9 @@ import (
 
 // downPollDefault says whether a surface created with
 // TANGO_IPC_LANES_DARWIN unset (or set to a value not listed in
-// laneCapsFromEnv) reports down:poll. False until down:poll
-// meets the design's §6 thresholds (Task 9 of the down-poll plan flips
-// it); tests may change it.
+// laneCapsFromEnv) reports down:poll. False: down:poll did not meet the
+// design's §6 thresholds when measured (docs/ipc-bench.md); tests may
+// change it.
 var downPollDefault = false
 
 // laneCapsFromEnv returns the lanes a new surface reports, from the

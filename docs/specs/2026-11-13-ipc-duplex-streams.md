@@ -301,13 +301,13 @@ frame  := streamID:u64 | seq:u64 | len:u32 | payload[len]
 **能力协商**
 
 - JS 发 `hello` 后，Router 在回复里放入 `conn.(BinaryConn).LaneHello()` 返回的 JSON（不实现 `BinaryConn` 就不放）。Router 只是原样转发，不解析。由 `*tango.Surface` 生成，例如：
-  `"lanes":{"gen":7,"tok":"…","list":["down:scheme","up:post"]}`。
-  `list` 里可能有：`down:android`/`up:android`、`down:shm`/`up:shm`、`down:scheme`/`up:post`。
-- JS 按 `list` 初始化对应的通道模块，成功后在核心内部频道上发 `"\x00tango-int:lane:"` + `{"op":"ready","lane":"down:scheme","gen":7}`，失败发 `"op":"fail"`。**Go 只在收到 `ready` 之后才往该通道发数据**；在此之前和失败之后，一律走消息通道。
+  `"lanes":{"gen":7,"tok":"…","list":["down:poll","up:post"]}`。
+  `list` 里可能有：`down:android`/`up:android`、`down:shm`/`up:shm`、`down:poll`/`up:post`（`down:poll` 取代了已删除的 `down:scheme`，见 §6.2）。
+- JS 按 `list` 初始化对应的通道模块，成功后在核心内部频道上发 `"\x00tango-int:lane:"` + `{"op":"ready","lane":"down:poll","gen":7}`，失败发 `"op":"fail"`。**Go 只在收到 `ready` 之后才往该通道发数据**；在此之前和失败之后，一律走消息通道。
 - 通道控制消息走核心内部频道（`corehook.InternalPrefix` + `"lane:"` + JSON，JSON 为 `{"op":"ready"|"fail","lane":"<名>","gen":<uint>}`），由核心在 `App.dispatchInternal` 里处理，不进 Router，也不交给应用的 `OnMessage`。`gen` 不是当前世代的消息直接丢弃。（**实施裁定**：原文写的是 `{"tango":…}` 形式的 `lane` 消息（`"op"` 为 `ready`/`fail`/`wake`）；但 `App.dispatchInternal` 按内部前缀分发，`{"tango":...}` 开头的消息会被 Router 认领后丢弃，到不了核心，所以改走内部频道。）
-- JS 每个方向按 `list` 的顺序一次只启动一个通道模块，前一个失败才试下一个；每个方向最多一个通道就绪。所以每个模块的启动都必须自己超时（`down:scheme` 5 秒内没有响应即失败）。（**实施裁定**：避免同时建立多条连接。）
+- JS 每个方向按 `list` 的顺序一次只启动一个通道模块，前一个失败才试下一个；每个方向最多一个通道就绪。所以每个模块的启动都必须自己超时（原 `down:scheme` 5 秒内没有响应即失败；`down:poll` 的 JS 模块只订阅核心的包入口，启动不发请求）。（**实施裁定**：避免同时建立多条连接。）
 - **打开方等 `accept`**：流的打开方在收到对方的 `accept` 之前，不把这条流的字节帧放上快速通道（先走消息通道）；接收方（发 `accept` 的一方）可以立即使用。原因：快速通道上的包可能跑到 `open` 消息前面，到达一个还不认识这条流的对端，被当作未知流丢弃，之后该流因缺口超时报 `transport`。Go 和 JS 两端规则相同。（**实施裁定**：审查中发现的竞态。代价：新流的头几帧走消息通道。）
-- **导航**：页面开始导航时（`SurfaceNavigating`），核心立即暂停**下行**通道（`SendBinary` 返回 false、`BinaryMinSize` 为 -1、结束 `down:scheme` 响应），直到下一次 `hello`；上行通道保留（有令牌保护，在新页面加载完成前仍是旧文档；导航可能是下载或失败，不会替换页面）。页面加载完成（`SurfaceLoaded`）或核心发起导航时，如果目标不在资源来源，整个世代立即作废（令牌失效、所有通道停用）。资源来源的页面加载不作废世代，因为新页面的 `hello` 可能先于加载事件到达。（**实施裁定**：防止快速通道在页面离开资源来源后，绕过核心对不受信页面的消息拦截把应用数据送出去。代价：导航失败后下行回落到消息通道，直到页面重新加载。）
+- **导航**：页面开始导航时（`SurfaceNavigating`），核心立即暂停**下行**通道（`SendBinary` 返回 false、`BinaryMinSize` 为 -1；`down:poll` 在导航开始时结束当前下行世代，挂起的轮询请求以 410 结束），直到下一次 `hello`；上行通道保留（有令牌保护，在新页面加载完成前仍是旧文档；导航可能是下载或失败，不会替换页面）。页面加载完成（`SurfaceLoaded`）或核心发起导航时，如果目标不在资源来源，整个世代立即作废（令牌失效、所有通道停用）。资源来源的页面加载不作废世代，因为新页面的 `hello` 可能先于加载事件到达。（**实施裁定**：防止快速通道在页面离开资源来源后，绕过核心对不受信页面的消息拦截把应用数据送出去。代价：导航失败后下行回落到消息通道，直到页面重新加载。）
 - 平台、WebView 版本、特性检测都在各自的后端里做。
 
 **Go 侧接口**
@@ -348,7 +348,7 @@ type BinaryLane interface {
 OnLanePacket(id SurfaceID, origin string, p []byte)
 ```
 
-`down:scheme`/`up:post` 不经过 `BinaryLane`：它们是 `tango://` 请求，由核心在 `host.ServeAsset` 里先拦截 `/__tango/lane/` 路径（在交给 `opts.Assets` 之前），校验 `gen` 和 `tok` 后处理。下行端点是一个长期不结束的响应，所以依赖 §6.2 里 darwin/iOS 协议处理器的异步化；Linux 2.36+ 已经是异步的。
+`down:poll`/`up:post` 不经过 `BinaryLane`：它们是 `tango://` 请求，由核心在 `host.ServeAsset` 里先拦截 `/__tango/lane/` 路径（在交给 `opts.Assets` 之前），校验 `gen` 和 `tok` 后处理。下行轮询请求最多挂起 25 s，所以依赖 §6.2 里 darwin/iOS 协议处理器的异步化；Linux 2.36+ 已经是异步的。
 
 **应用侧接线**：和 `OnMessage` 一样由应用自己接，新增 `app.OnBinary(func(s *tango.Surface, gen uint64, p []byte){ r.HandleBinarySession(s, gen, p) })`。核心只在注册了至少一个 `OnBinary` 处理函数时才让 `LaneHello` 返回非空，没人接收就不开通道。所有示例（`examples/hello`、`runtime-demo`、`showcase`）和文档里的接线代码一并更新。jsapi 不负责接线，保持现状。
 
@@ -371,7 +371,7 @@ OnLanePacket(id SurfaceID, origin string, p []byte)
   - JS 的 `boundary` 不在上行通道**接收**帧（`send()` 返回 true）时发，而在该帧**真正发出**时发：上行模块通过 `LaneContext.dispatched(stream, seq)` 报告（`up:post`：装着这帧的批次交给 `fetch` 时；可能在 `send()` 内同步调用），客户端随即发 `boundary`，`seq` 仍是"最后一个已发出的通道帧序号加一"。同一条流之后的每条消息通道发送——数据帧（JSON 和字节）、`end`、队列中的 `close` 标记——都等到它之前所有通道帧都发出后才发（复查第二轮 N1：否则更大的 seq 同样会让 Go 开始缺口计时）；通道帧本身不受阻挡（通道保持顺序）。`send()`/`sendBytes()` 的 promise 仍在通道接收时 resolve（信用语义不变）。上行通道停用/失败时，接收了却没发出的帧按丢失处理：客户端为它们补发 `boundary`、放行被扣住的 `end`/`close`，由 Go 的缺口计时照常判定 `transport`。在发出前已经结束的流忽略晚到的 dispatched。发出时 `boundary` 发送抛错：与原规则相同，帧保留 seq 和信用、不经消息通道重放，流以 `transport` 失败，队列里的发送全部 reject。中止路径（`_close`：writable abort、本地错误）的 `close`/`error` 仍立即发出。线路格式不变（没有新增 op 或字段）。Go 发送方在 `SendBinary` 接受包后发 `boundary`，不变（Go 的发送不受页面主线程影响）。
   - JS 的缺口计时器若比预定时间晚超过 1000 ms 才触发（页面主线程卡住，缺的帧可能就在通道缓冲里没被读），用完整超时重新计时一次；第二次到期照常失败。Go 侧不做对应处理（Go 计时器不随页面卡顿）。`up:post` 的 4 秒请求计时器用同样规则（复查第二轮 N2）：晚触发超过 1000 ms 重新计时一次，第二次到期让通道失败。
   - **复查第二轮 N3**：Go 分配的流 id 在同一 (Router, Conn) 上跨 `hello` 单调递增、不复用（连接状态替换时带上最后的 id），被回收流的 `cancel` 不会命中新文档的流；`Router.Drop`（页面关闭）忘掉它，Router 不为已关闭的 Conn 留任何东西。
-- `down:scheme` 一次只从队列分离即将尝试写出的**一个包**；其余未尝试尾部始终留在队列最前面。连接替换不重发已尝试包、不丢尾部；后来准入的包排在尾部之后。在途包直到 Write 和 Flush 结算仍计入 8 MiB 队列额度。Reset/fail/结束世代丢弃尾部而不跨世代搬运。实际 Write/Flush 的阻塞解除仍是 §6.2 后端能力启用前提。
+- （已随 `down:scheme` 删除）`down:scheme` 一次只从队列分离即将尝试写出的**一个包**；其余未尝试尾部始终留在队列最前面。连接替换不重发已尝试包、不丢尾部；后来准入的包排在尾部之后。在途包直到 Write 和 Flush 结算仍计入 8 MiB 队列额度。Reset/fail/结束世代丢弃尾部而不跨世代搬运。实际 Write/Flush 的阻塞解除仍是 §6.2 后端能力启用前提。
 - 通道模块可继续请求内部相对路径，但生产 fetch 适配器只相对该世代捕获的 `location.href`（真实文档位置，**不是 document.baseURI**）解析，并校验协议+host、拒绝 credentials 和任意外部目的地。设置 `redirect:"error"`，并拒绝 redirected 响应。自定义 scheme 的 `origin` 可能为 `"null"`，不能仅比较 origin 字符串。Node 注入 fetch 仍支持相对路径。
 
 ### 6.2 各平台通道
@@ -394,7 +394,18 @@ OnLanePacket(id SurfaceID, origin string, p []byte)
 - 重载/导航：旧世代的环在 Go 侧 `Close()`，JS 侧 `releaseBuffer`；新世代重新创建。
 - `BinaryMinSize`：0。门铃合并之后，小帧也不比消息通道慢；如果基准不支持这一点，改成按基准结果设阈值。
 
-#### macOS / iOS / Linux：下行走 `tango://` 流式响应
+#### macOS：下行走 `down:poll`（轮询，取代 `down:scheme`）
+
+- **2026-11-15 起**，`down:scheme`（下面一节，单个长流式响应）删除，由 `down:poll` 取代（设计 `docs/superpowers/specs/2026-11-14-down-poll-design.md`）。它不只运字节帧：核心的下行传输整体换掉，`Surface.Send` 的每条消息（ipc 的 JSON 帧和控制消息、调用回复、jsapi 事件、应用直接用 `__tango.onMessage` 收的消息）、ipc 的字节包和 `Surface.Eval` 的栅栏都按同一个序列走它。
+- 做法：页面加载完成后核心用 `Eval` 给主 frame 下发世代号和令牌（iframe 拿不到）；页面始终挂一个 `GET tango://app/__tango/lane/poll?gen=&tok=&ack=`，Go 有条目时用一批条目**结束**这次响应（`batch := firstSeq:u64 | count:u32 | (kind:u8 | len:u32 | payload)*count`，kind 0 字符串消息、1 字节包、2 栅栏；每批最多 4 MiB 或 4096 条），页面立即发下一个请求，没有条目时最多挂起 25 s。每个响应都会结束，避开了 WebKit 扣住流式响应数据的问题（§6.2 下一节的实测补充）。
+- 序号从每个页面世代的 1 开始，页面按序号交付；轮询失败（网络错误、非 200、解码失败、CSP 拦截）、页面 1 s 没来取（看门狗）、通道关闭时，条目带序号改走 `Eval`（同一轮多条合成一次），不丢、不重、不乱序。`Surface.Eval` 在轮询时成为栅栏：页面交付到它时停下，Go 执行脚本后放行，所以 `Eval` 仍与 `Send` 保序。导航开始时当前世代结束，未写出和未确认的条目丢弃（与改造前"Eval 给即将离开的页面"一致）；所以别的 goroutine 上与用户导航赛跑的 `Send` 会在世代结束处被丢弃。
+- 空闲规则（设计第 6 节的延迟退路）：有轮询请求挂着、没有待送也没有未确认的条目时，≤ 1 KiB 的条目改走 `Eval`，每轮主线程最多 8 条，其余照常排队；一次轮询响应在 WKWebView 上比一次 `evaluateJavaScript` 多约 40 µs。
+- `BinaryMinSize`：0（字节帧全部走它，不做 base64）。
+- **状态（2026-11-15）：macOS 默认关闭**，`TANGO_IPC_LANES_DARWIN=1`/`all`（两条都开）或 `down`（只开它）打开；iOS、Windows、Linux、Android 不报告。§6.3 式的交替测量（改造前 Tango、`down:poll`、Wails v3.1.0 各 5 次，负载 < 4，[docs/ipc-bench.md](../ipc-bench.md)）：下行 64 KiB 1017 MB/s（改造前 306，Wails 1766），1 KiB 小帧 50.0 万帧/s（4.5 万，Wails 62.5 万），2.3 KB JSON 11.1 万帧/s（3.4 万，Wails 10.8 万）；64 B 平均延迟 0.139 ms（改造前 0.127，+9.4%），分批 p99 0.14 ms（持平），上行 818 MB/s（860，−4.9%）。设计第 6 节的门槛里，64 KiB 和小帧没有达到 Wails，上行按字面略低，所以不默认开启。字节帧的瓶颈是 §5.3 的 1 MiB 信用窗口：每次轮询正好带半个窗口，吞吐被"窗口 / 往返"封顶（临时把窗口改成 8 MiB 时 64 KiB 到 1400～1560 MB/s）；窗口和归还规则属于协议，没有改。真实 WebKit 场景（重载不泄漏、页面卡住 6 s、窗口最小化、CSP 拦截退回、iframe 拿不到令牌、故障注入后退回不丢帧、64 MiB 连续下行 5 次、`Eval` 与 `Send` 保序）全部通过（`TANGO_E2E=1 go test ./internal/platform/darwin -run 'Poll|Lanes|Lane|EvalOrdered'`）。
+
+#### macOS / iOS / Linux：下行走 `tango://` 流式响应（`down:scheme`，已删除）
+
+（历史记录：下面是 `down:scheme` 的原设计与 Apple 平台上的实测，结论是在 Apple 上不可用；2026-11-15 起由上一节的 `down:poll` 取代，服务端与 runtime-js 模块都已删除，Linux 将来接入时也走 `down:poll`。）
 
 - 条件：
   - macOS/iOS：**先写一个实测用例**，确认 `didReceiveData` 的每一块都会被页面 `fetch` 的 `ReadableStream` 单独读到（而不是攒到 `finish`）。确认之前这条通道默认关闭。
@@ -417,7 +428,7 @@ OnLanePacket(id SurfaceID, origin string, p []byte)
 #### macOS / iOS / Linux：上行走 POST
 
 - 条件：macOS/iOS 都可用（ArrayBuffer 请求体能到达）；Linux 需要 WebKitGTK ≥ 2.40（`webkit_uri_scheme_request_get_http_body`）。
-- **状态（2026-11-14）**：macOS/iOS 已接入，是 Apple 平台上唯一报告的通道。**macOS 默认开启**（§6.3 基准，Apple 通道计划 Task 7：上传 64 KiB 帧吞吐 2.73 倍，64 B 帧 p99 两种配置走的都是消息通道，见 [docs/ipc-bench.md](../ipc-bench.md)）；`TANGO_IPC_LANES_DARWIN=0`/`false`/`off` 关闭，`all` 另报 `down:scheme`（仅供实验）。**iOS 默认关闭**，等真机测量，`TANGO_IPC_LANES_DARWIN=1` 开启（两个平台的取值见 `internal/platform/darwin/lanes.go`、`internal/platform/ios/lanes.go`）。runtime-js 的 `up:post` 启动时先 POST 空包（`count=0`），收到 204 才就绪：页面 CSP 不允许 `connect-src` 到资源来源时通道在启动时失败、帧全部走消息通道，不会丢帧（`TestLaneCSPBlocked`）。实测（macOS 26.6、iOS 27.2 模拟器）：8 MiB 双向回显、大小帧交替、页面卡住 6 s、页面重新加载均通过；iframe 拿不到令牌（macOS 实测：不透明来源与同源 frame 的通道请求全部被拒；iOS 未单独测）；iOS 真机与 iOS 上的通道故障场景未测。
+- **状态（2026-11-14）**：macOS/iOS 已接入，是 Apple 平台上唯一报告的通道。**macOS 默认开启**（§6.3 基准，Apple 通道计划 Task 7：上传 64 KiB 帧吞吐 2.73 倍，64 B 帧 p99 两种配置走的都是消息通道，见 [docs/ipc-bench.md](../ipc-bench.md)）；`TANGO_IPC_LANES_DARWIN=0`/`false`/`off` 关闭，`1`/`all` 另开 `down:poll`（默认关闭，见 §6.2 `down:poll`）。**iOS 默认关闭**，等真机测量，`TANGO_IPC_LANES_DARWIN=1` 开启（两个平台的取值见 `internal/platform/darwin/lanes.go`、`internal/platform/ios/lanes.go`）。runtime-js 的 `up:post` 启动时先 POST 空包（`count=0`），收到 204 才就绪：页面 CSP 不允许 `connect-src` 到资源来源时通道在启动时失败、帧全部走消息通道，不会丢帧（`TestLaneCSPBlocked`）。实测（macOS 26.6、iOS 27.2 模拟器）：8 MiB 双向回显、大小帧交替、页面卡住 6 s、页面重新加载均通过；iframe 拿不到令牌（macOS 实测：不透明来源与同源 frame 的通道请求全部被拒；iOS 未单独测）；iOS 真机与 iOS 上的通道故障场景未测。
 - JS 把待发的字节帧攒成包，`fetch("tango://app/__tango/lane/up?gen=N&tok=…", {method:"POST", body: arrayBuffer})`。**必须用 ArrayBuffer 作为 body，不能用 Blob**（WebKit bug 197237）。iOS 现有的 `bodyshim` 只处理 Blob/File/FormData，ArrayBuffer 不受影响。
 - 同一时刻每个页面只有一个上行 POST 在途；在途期间新帧继续攒进下一个包。包大小上限 1 MiB。
 - 只有攒够 `BinaryMinSize`（初始 16 KiB）或者已经攒了 4 ms 才发包；小帧（例如按键）直接走消息通道，延迟不受影响。
@@ -436,7 +447,7 @@ OnLanePacket(id SurfaceID, origin string, p []byte)
   - 64 KiB 帧吞吐至少是兜底传输的 2 倍；
   - 64 B 帧的 p99 延迟不比兜底差。
   - 不满足的通道保留代码但默认关闭，文档里写明原因和数据。
-  - **状态（2026-11-14）**：macOS `up:post` 达标（上传 2.73×；64 B 帧在两种配置下都走消息通道，p99 只说明没有变差），**默认开启**，`TANGO_IPC_LANES_DARWIN=0` 关闭。iOS `up:post` 只有模拟器数据（2.26×，参考），**默认关闭**，等真机。Apple 上的 `down:scheme` 不达标（WebKit 扣住大块突发，§6.2），只能 `TANGO_IPC_LANES_DARWIN=all` 实验性开启。数据见 [docs/ipc-bench.md](../ipc-bench.md)。
+  - **状态（2026-11-14）**：macOS `up:post` 达标（上传 2.73×；64 B 帧在两种配置下都走消息通道，p99 只说明没有变差），**默认开启**，`TANGO_IPC_LANES_DARWIN=0` 关闭。iOS `up:post` 只有模拟器数据（2.26×，参考），**默认关闭**，等真机。Apple 上的 `down:scheme` 不达标（WebKit 扣住大块突发，§6.2），已删除；取代它的 `down:poll`（**状态 2026-11-15**）按设计第 6 节的门槛（下行三项不低于 Wails v3.1.0，延迟不比改造前差 10% 以上，上行不降）测量：下行比改造前快 3.3～11 倍、延迟在 10% 以内，但 64 KiB 和 1 KiB 小帧低于 Wails（流控窗口所限），**默认关闭**，`TANGO_IPC_LANES_DARWIN=1` 开启。数据见 [docs/ipc-bench.md](../ipc-bench.md)。
 - 每个平台都要有"通道中途坏掉"的测试：强制让通道失败，验证后续帧自动走消息通道、丢帧的流报 `transport` 错误、其他流不受影响。
 - 提供关闭快速通道的开关（`tango.Options` 或环境变量），方便排查问题。
 

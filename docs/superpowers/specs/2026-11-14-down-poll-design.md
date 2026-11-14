@@ -1,6 +1,6 @@
 # 下行轮询通道（down:poll）设计
 
-状态：设计稿，待审 · 2026-11-14
+状态：已实现（macOS）· 2026-11-15。判定：未达到第 6 节门槛，`down:poll` 默认关闭，`TANGO_IPC_LANES_DARWIN=1` 开启（见第 8 节）
 
 ## 1. 意图
 
@@ -158,3 +158,22 @@ kind  := 0 字符串消息（UTF-8，即原来 Send 的 msg）
 - 页面侧解码放在 `coreShim` 还是 runtime-js：字符串消息必须在 `coreShim` 里交付（应用可能不用 runtime-js），字节包交给 runtime-js 的入口。
 - 基准程序：在 `examples/duplex` 增加小帧与 JSON 两项下行测试，使 `docs/ipc-bench.md` 能直接复现本设计的门槛。
 - 文档：`docs/ipc-bench.md`、规格 `2026-11-13-ipc-duplex-streams.md` §6、`CHANGELOG.md`、`docs/runtime-api.md`（如对外行为有变化）。
+
+## 8. 实现结果与判定（2026-11-15）
+
+- 已实现第 5 节全部内容（`internal/downq`、根包 `downpoll.go` / `downshim.go`、`lane.State` 的 `down:poll`、runtime-js `lanes/poll.ts`、macOS `TANGO_IPC_LANES_DARWIN` 取值表），`down:scheme` 删除。世代号与 `lane.State` 各自独立（5.2）；挂起上限 25 s、每批 4 MiB / 4096 条、看门狗 1 s 保持建议值（7）。
+- 第 6 节的延迟退路已实现：有轮询请求挂着、没有待送也没有未确认的条目时，≤ 1 KiB 的条目改走 Eval，每轮主线程最多 8 条（`downq.IdleEvalBytes`、`IdleEvalItems`）。
+- 测量（macOS 26.6，Apple M4，改造前 Tango / `down:poll` / Wails v3.1.0 交替各 5 次，负载 2.9～3.9；中位数）：
+
+  | 项目 | 改造前 | down:poll | Wails | 门槛 |
+  | --- | --- | --- | --- | --- |
+  | 下行 64 KiB (MB/s) | 306 | 1017 | 1766 | ≥ Wails：**未达** |
+  | 下行 1 KiB 小帧 (帧/s) | 4.5 万 | 50.0 万 | 62.5 万 | ≥ Wails：**未达** |
+  | 下行 2.3 KB JSON (帧/s) | 3.4 万 | 11.1 万 | 10.8 万 | ≥ Wails：达到 |
+  | 64 B 平均延迟 (ms) | 0.127 | 0.139 | 0.254 | ≤ +10%：达到（+9.4%） |
+  | 分批 p99 (ms) | 0.14 | 0.14 | 0.28 | ≤ +10%：达到 |
+  | 上行 64 KiB (MB/s) | 860 | 818 | 147 | 不下降：按字面**未达**（−4.9%，范围部分重叠） |
+
+  真实 WebKit 场景（Task 8 全套，含 64 MiB 连续下行 5 次、页面卡住 6 s、窗口最小化、重载不泄漏、CSP 拦截、iframe、故障注入、`Eval` 与 `Send` 保序）全部通过。`Eval` 栅栏：通道空闲时走 Eval，调用 + 脚本运行 0.088～0.105 ms（改造前 0.086～0.090）；通道忙时是轮询通道上的栅栏，0.20 ms（同条件下不带 Eval 的调用 0.14 ms）。
+- **判定：不默认开启**（`downPollDefault = false`）。字节帧下行受 ipc 的 1 MiB 信用窗口限制（半窗归还一次信用，每次轮询正好带半个窗口），Wails 的流没有流控；把窗口临时放大到 8 MiB 时 64 KiB 到 1400～1560 MB/s，但窗口与归还规则属于协议，本项目不改（第 2 节非目标）。要默认开启，需要先在协议层讨论更大的或可协商的接收窗口。
+- 数据、方法和优化过程见 `docs/ipc-bench.md`「down:poll」一节。

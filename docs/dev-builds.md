@@ -12,8 +12,8 @@ Tango 只有一个构建开关：`tango_dev` 构建标签。
 | 未处理的 panic（`Options.OnPanic` 为 nil） | 弹错误框后以退出码 2 退出 | 记日志、继续运行 |
 | `i18n` 缺失 key 警告、`env.Info().Debug` | 关闭 / `false` | 打开 / `true` |
 | GPU 渲染校验（`internal/render/gpu` verify 模式）默认值 | 见 `internal/render/gpu/verify_release.go` | 打开 |
-| IPC 快速通道的测试开关（`TANGO_IPC_LANE_FAULT`；macOS/iOS 另有 `TANGO_SCHEME_PROBE` 的探测路由和通道计数器、`TANGO_IPC_LANES_DARWIN=all`） | 无效（`all` 等同默认的开启值） | 生效 |
-| iOS 模拟器自测钩子（`TANGO_SCHEME_PROBE`、`TANGO_IPC_LANES_DARWIN=all`、`TANGO_CANVAS_IME_SELFTEST`、`TANGO_CANVAS_A11Y_SELFTEST`）和通道故障注入 `TANGO_IPC_LANE_FAULT`（所有平台） | 无效；`-tags tango_selftest` 时生效（见下文） | 生效 |
+| IPC 快速通道的测试开关（`TANGO_IPC_LANE_FAULT`；macOS/iOS 另有 `TANGO_SCHEME_PROBE` 的探测路由和通道计数器） | 无效 | 生效 |
+| iOS 模拟器自测钩子（`TANGO_SCHEME_PROBE`、`TANGO_CANVAS_IME_SELFTEST`、`TANGO_CANVAS_A11Y_SELFTEST`）和通道故障注入 `TANGO_IPC_LANE_FAULT`（所有平台） | 无效；`-tags tango_selftest` 时生效（见下文） | 生效 |
 
 **直接 `go run .` 或 `go build` 得到的就是生产行为。** 热加载、自动化、前端开发代理这些开发功能只能通过 `tan dev` 或手动加 `-tags tango_dev` 使用。
 
@@ -23,7 +23,7 @@ Tango 只有一个构建开关：`tango_dev` 构建标签。
 
 默认构建仍会读取几个面向用户排障的变量：`TANGO_RENDERER`（自绘窗口渲染器）、`TANGO_TEXT_ENGINE`（文字引擎）、`TANGO_LINUX_TRAY`、`TANGO_ATSPI_EMBED`、`TANGO_WINDOWS_TOAST=0`（Windows 通知回退到气泡）。它们只在已有实现之间切换，不会加载外部代码或打开通道。
 
-iOS 模拟器自测要用这些钩子，但 `tan build`（`mobile/ios/build.sh` 也走它）会去掉 `tango_dev`。所以 iOS 另有一个只编进测试钩子的标签 `tango_selftest`：`tan build` 保留 `GOFLAGS` 里除 `tango_dev` 以外的标签，`GOFLAGS=-tags=tango_selftest bash mobile/ios/build.sh <应用> simulator` 构建出带钩子的 .app（`scripts/smoke.sh ios-probe`、`ios-selftest` 就这样构建）。`tango_selftest` 不链接自动化通道、热加载或开发代理，只打开上表那几个自测钩子。不带这两个标签的 iOS 构建不读这些变量，桥接代码里的探测路由也不编译进去。快速通道的关闭开关（`TANGO_IPC_LANES_DARWIN=0`/`false`/`off`、`TANGO_IPC_LANES=0`）在所有构建里都生效。
+iOS 模拟器自测要用这些钩子，但 `tan build`（`mobile/ios/build.sh` 也走它）会去掉 `tango_dev`。所以 iOS 另有一个只编进测试钩子的标签 `tango_selftest`：`tan build` 保留 `GOFLAGS` 里除 `tango_dev` 以外的标签，`GOFLAGS=-tags=tango_selftest bash mobile/ios/build.sh <应用> simulator` 构建出带钩子的 .app（`scripts/smoke.sh ios-probe`、`ios-selftest` 就这样构建）。`tango_selftest` 不链接自动化通道、热加载或开发代理，只打开上表那几个自测钩子。不带这两个标签的 iOS 构建不读这些变量，桥接代码里的探测路由也不编译进去。`TANGO_IPC_LANES_DARWIN` 的所有取值（macOS：`1`/`all` 开 `down:poll` + `up:post`，`up`、`down` 只开其一，`0`/`false`/`off` 关闭；iOS：非空且不是关闭值时开 `up:post`）和 `TANGO_IPC_LANES=0` 在所有构建里都生效，不再是开发构建专属的测试开关（`all` 以前只在开发构建里开 `down:scheme`，该通道已删除）。
 
 ## `tango_release` 已废弃
 
