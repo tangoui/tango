@@ -253,16 +253,31 @@ func (e *embedded) BlurWeb() {
 var (
 	webSuperOnce sync.Once
 	msgWebSuper  func(sup *objcSuper, s objc.SEL) uintptr
+	msgWebSuper1 func(sup *objcSuper, s objc.SEL, a id) uintptr
 )
+
+func webSuperInit() {
+	webSuperOnce.Do(func() {
+		fn := mustDlsym(libObjC, "objc_msgSendSuper2")
+		purego.RegisterFunc(&msgWebSuper, fn)
+		purego.RegisterFunc(&msgWebSuper1, fn)
+	})
+}
+
+// webSuperArg sends a one-argument message (the drag and drop methods) to
+// TangoWebView's superclass implementation, naming the class explicitly
+// for the same reason as webSuperBool.
+func webSuperArg(self id, name string, arg id) id {
+	webSuperInit()
+	return id(msgWebSuper1(&objcSuper{receiver: self, class: class("TangoWebView")}, sel(name), arg))
+}
 
 // webSuperBool sends a BOOL message to TangoWebView's superclass
 // implementation. The class is named explicitly: WebKit observes its web
 // views with KVO, whose dynamic subclass would make the object's own
 // class (objc.ID.SendSuper) dispatch back into TangoWebView.
 func webSuperBool(self id, name string) bool {
-	webSuperOnce.Do(func() {
-		purego.RegisterFunc(&msgWebSuper, mustDlsym(libObjC, "objc_msgSendSuper2"))
-	})
+	webSuperInit()
 	return byte(msgWebSuper(&objcSuper{receiver: self, class: class("TangoWebView")}, sel(name))) != 0
 }
 
