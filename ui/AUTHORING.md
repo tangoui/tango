@@ -1,5 +1,7 @@
 # Tango UI 组件编写指南
 
+> **设计基线**：Ant Design 6.7（`antd@6.7.0`）+ Ant Design Pro v6（Pro Components v3）。组件语义、默认值、令牌和交互状态都以它为准，详见 [docs/design-baseline.md](../docs/design-baseline.md)。
+
 本文面向给 `ui/` 补组件的开发者。读完即可按统一风格新增组件，**不需要修改基础层**（theme / paint / text / layout / input / Context / Runner / Driver）。如果确实缺基础能力，先在 PR 描述里说明，不要在组件里绕开基础层私自实现。
 
 ## 1. 文件与命名
