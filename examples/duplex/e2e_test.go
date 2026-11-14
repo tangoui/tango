@@ -136,17 +136,44 @@ func TestE2EPanel(t *testing.T) {
 		t.Fatalf("page echo %q", got)
 	}
 
+	// The Go panel draws its echoes: Panel.Stats counts the frames it drew
+	// and the echoes it showed (one a second); both must move.
+	stats := func() (frames, echoes int64) {
+		var st struct{ Frames, Echoes int64 }
+		win.EvalInto(`tango.call("Panel.Stats")`, &st)
+		return st.Frames, st.Echoes
+	}
+	f0, e0 := stats()
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(200 * time.Millisecond) {
+		f, e := stats()
+		if f > f0 && e > e0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the Go panel did not show a new echo within 5s (frames %d -> %d, echoes %d -> %d)", f0, f, e0, e)
+		}
+	}
+
 	// The panel is not in the automation tree (uihost.Attach does not
 	// register attached canvases) and the WebView screenshot shows only
 	// the page, so on macOS capture the window itself (screencapture -l:
 	// this window's pixels only, canvases included) and watch the panel's
-	// corner: its echo list changes once a second.
+	// corner: its echo list changes once a second. That needs the Screen
+	// Recording permission for the process running the test (the terminal):
+	// without it macOS hides other apps' window titles and screencapture
+	// gets no window content, so the pixel check is skipped then (logged).
 	shot := os.Getenv("TANGO_E2E_SHOT")
 	if shot != "" {
 		win.SaveScreenshot(strings.TrimSuffix(shot, ".png") + "-page.png") // the page only
 	}
 	if runtime.GOOS != "darwin" {
 		t.Log("panel pixels not checked: the window capture is macOS only")
+		app.Quit()
+		return
+	}
+	if !screenCaptureAllowed(t) {
+		t.Log("panel pixels not checked: this process has no Screen Recording permission " +
+			"(System Settings > Privacy & Security > Screen Recording, for the terminal running go test)")
 		app.Quit()
 		return
 	}
@@ -166,6 +193,22 @@ func TestE2EPanel(t *testing.T) {
 		}
 	}
 	app.Quit()
+}
+
+// screenCaptureAllowed reports whether this process (and so the swift and
+// screencapture tools it starts) may capture other apps' windows: macOS's
+// Screen Recording permission (CGPreflightScreenCaptureAccess).
+func screenCaptureAllowed(t *testing.T) bool {
+	t.Helper()
+	f := filepath.Join(t.TempDir(), "access.swift")
+	if err := os.WriteFile(f, []byte("import CoreGraphics\nprint(CGPreflightScreenCaptureAccess())\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command("swift", f).Output()
+	if err != nil {
+		t.Fatalf("swift: %v %s", err, out)
+	}
+	return strings.TrimSpace(string(out)) == "true"
 }
 
 // cgWindowID returns the CoreGraphics id of the newest on-screen window
