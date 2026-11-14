@@ -2,6 +2,7 @@ package theme
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -14,8 +15,13 @@ import (
 // transparent one means the control shows the page), or @Page
 // (BgContainer), @Elevated (BgElevated), @Spotlight (BgSpotlight),
 // @Primary (Primary.Base) or @Error (Error.Base) of the component's theme
-// (Theme.For). HighContrast lifts every tagged field to its minimum and
-// CheckContrast reports the tagged pairs an override touched.
+// (Theme.For). A [N]Color field is checked element by element ("Palette[3]")
+// with the same rules. HighContrast lifts every tagged field to its minimum
+// and CheckContrast reports the tagged pairs an override touched.
+//
+// A field that also carries spec:"<source>" is always audited: its pairs
+// are reported for stock themes too, and a derived value below its minimum
+// is a DesignDefault citing <source> (an override below it still fails).
 
 // contrastTag is one parsed contrast tag.
 type contrastTag struct {
@@ -23,6 +29,30 @@ type contrastTag struct {
 	name  string
 	kind  ContrastKind
 	on    string
+	n     int    // > 0: the field is a [n]Color, checked element by element
+	spec  string // spec tag: always audited, DesignDefault when derived
+}
+
+// each calls f for every checked color of the tag in the token value tok
+// (the field itself, or each array element) with its name and index (-1
+// for a plain field).
+func (tg contrastTag) each(tok reflect.Value, f func(name string, i int, c reflect.Value)) {
+	v := tok.Field(tg.field)
+	if tg.n == 0 {
+		f(tg.name, -1, v)
+		return
+	}
+	for i := range tg.n {
+		f(tg.name+"["+strconv.Itoa(i)+"]", i, v.Index(i))
+	}
+}
+
+// elem returns the checked color i of the tag's field in tok (as each).
+func (tg contrastTag) elem(tok reflect.Value, i int) reflect.Value {
+	if i < 0 {
+		return tok.Field(tg.field)
+	}
+	return tok.Field(tg.field).Index(i)
 }
 
 // tokenTags returns the contrast tags of a token struct type, non-text
@@ -32,15 +62,24 @@ func tokenTags(t reflect.Type) []contrastTag {
 	for i := range t.NumField() {
 		f := t.Field(i)
 		tag, ok := f.Tag.Lookup("contrast")
-		if !ok || f.Type != colorType {
+		n := 0
+		if f.Type.Kind() == reflect.Array && f.Type.Elem() == colorType {
+			n = f.Type.Len()
+		} else if f.Type != colorType {
+			ok = false
+		}
+		if !ok {
 			continue
 		}
 		kind, on, _ := strings.Cut(tag, ":")
+		ct := contrastTag{field: i, name: f.Name, on: on, n: n, spec: f.Tag.Get("spec")}
 		switch kind {
 		case "text":
-			text = append(text, contrastTag{i, f.Name, ContrastText, on})
+			ct.kind = ContrastText
+			text = append(text, ct)
 		case "nontext":
-			non = append(non, contrastTag{i, f.Name, ContrastNonText, on})
+			ct.kind = ContrastNonText
+			non = append(non, ct)
 		default:
 			panic("theme: bad contrast tag on " + t.Name() + "." + f.Name)
 		}
@@ -115,26 +154,27 @@ func (h *Theme) contrastComponents(src *Theme) {
 		tok := rv.Field(int(k))
 		remapToken(tok, moves, page)
 		for _, tg := range compTags[k] {
-			f := tok.Field(tg.field)
-			fg := f.Interface().(Color)
-			if fg.A == 0 {
-				continue // not drawn
-			}
-			bg := contrastBg(tg.on, tok, ctx)
-			min := tg.kind.Min()
-			orig := fg
-			if chromatic(fg) {
-				fg = reach(fg, bg, min, away(fg, bg))
-			} else {
-				fg = reach(fg, bg, min, flatOr(ctx.Text, bg), away(fg, bg))
-			}
-			if ContrastRatio(fg, bg) < min {
-				// A label on a mid-tone fill (dark-mode danger) cannot get
-				// there in its own direction: flip it the way solidFill
-				// flips TextOnSolid.
-				fg = reach(orig, bg, min, flipLabel(away(orig, bg), page)...)
-			}
-			f.Set(reflect.ValueOf(fg))
+			tg.each(tok, func(_ string, _ int, f reflect.Value) {
+				fg := f.Interface().(Color)
+				if fg.A == 0 {
+					return // not drawn
+				}
+				bg := contrastBg(tg.on, tok, ctx)
+				min := tg.kind.Min()
+				orig := fg
+				if chromatic(fg) {
+					fg = reach(fg, bg, min, away(fg, bg))
+				} else {
+					fg = reach(fg, bg, min, flatOr(ctx.Text, bg), away(fg, bg))
+				}
+				if ContrastRatio(fg, bg) < min {
+					// A label on a mid-tone fill (dark-mode danger) cannot get
+					// there in its own direction: flip it the way solidFill
+					// flips TextOnSolid.
+					fg = reach(orig, bg, min, flipLabel(away(orig, bg), page)...)
+				}
+				f.Set(reflect.ValueOf(fg))
+			})
 		}
 		tok.Field(0).Set(reflect.ValueOf(aliasOf(ctx)))
 	}
@@ -170,41 +210,58 @@ func remapToken(v reflect.Value, moves map[Color]Color, page Color) {
 	}
 }
 
+// componentPair is a measured component pair and the spec of its field
+// when the pair is a design default candidate (derived, not touched by an
+// override, in a normal theme).
+type componentPair struct {
+	ContrastCheck
+	spec string
+}
+
 // componentPairs measures the tagged component pairs of t: all of them, or
-// (all false) only those an override touched — the component's Alias, the
-// foreground or a background field set by the app. Pairs whose foreground
-// is not drawn (zero alpha) are skipped.
-func componentPairs(t *Theme, all bool) []ContrastCheck {
+// (all false) those an override touched — the component's Alias, the
+// foreground or a background field set by the app — plus every pair of a
+// spec-tagged field. Pairs whose foreground is not drawn (zero alpha) are
+// skipped.
+func componentPairs(t *Theme, all bool) []componentPair {
 	if t.comp == nil {
 		return nil
 	}
 	name := themeLabel(t)
 	rv := reflect.ValueOf(t.Components)
 	uv := reflect.ValueOf(t.comp.user)
-	var out []ContrastCheck
+	var out []componentPair
 	for k := range numComps {
 		tok, user := rv.Field(int(k)), uv.Field(int(k))
 		aliased := t.comp.alias[k] != nil
 		ctx := t.For(k)
 		for _, tg := range compTags[k] {
-			if !all && !aliased && isUnset(user.Field(tg.field)) {
-				if f := user.FieldByName(tg.on); !f.IsValid() || isUnset(f) {
-					continue
+			tg.each(tok, func(fname string, i int, f reflect.Value) {
+				touched := aliased || !isUnset(tg.elem(user, i))
+				if b := user.FieldByName(tg.on); b.IsValid() && !isUnset(b) {
+					touched = true
 				}
-			}
-			fg := tok.Field(tg.field).Interface().(Color)
-			if fg.A == 0 {
-				continue
-			}
-			bg := contrastBg(tg.on, tok, ctx)
-			comp := Comp(k).String()
-			on := tg.on
-			if !strings.HasPrefix(on, "@") {
-				on = comp + "." + on
-			}
-			out = append(out, ContrastCheck{
-				Theme: name, Token: comp + "." + tg.name, On: on, Use: comp + " component token",
-				FG: fg, BG: bg, Kind: tg.kind, Ratio: ContrastRatio(fg, bg),
+				if !all && !touched && tg.spec == "" {
+					return
+				}
+				fg := f.Interface().(Color)
+				if fg.A == 0 {
+					return
+				}
+				bg := contrastBg(tg.on, tok, ctx)
+				comp := Comp(k).String()
+				on := tg.on
+				if !strings.HasPrefix(on, "@") {
+					on = comp + "." + on
+				}
+				p := componentPair{ContrastCheck: ContrastCheck{
+					Theme: name, Token: comp + "." + fname, On: on, Use: comp + " component token",
+					FG: fg, BG: bg, Kind: tg.kind, Ratio: ContrastRatio(fg, bg),
+				}}
+				if !touched && !t.HighContrast {
+					p.spec = tg.spec
+				}
+				out = append(out, p)
 			})
 		}
 	}
@@ -212,23 +269,29 @@ func componentPairs(t *Theme, all bool) []ContrastCheck {
 }
 
 // componentChecks classifies componentPairs for CheckContrast: in a
-// HighContrast theme every tagged pair is required; otherwise only pairs an
-// override touched are reported, and below their minimum they fail (an
-// override is the app's choice, never a design-system default).
+// HighContrast theme every tagged pair is required; otherwise the pairs an
+// override touched and those of spec-tagged fields are reported. Below
+// their minimum they fail (an override is the app's choice), except the
+// derived values of a spec-tagged field, which are DesignDefault.
 func componentChecks(t *Theme) []ContrastCheck {
-	out := componentPairs(t, t.HighContrast)
+	pairs := componentPairs(t, t.HighContrast)
+	out := make([]ContrastCheck, len(pairs))
 	var hc map[[2]string]ContrastCheck
-	for i := range out {
+	for i, p := range pairs {
 		c := &out[i]
+		*c = p.ContrastCheck
 		if c.Pass() {
 			c.Status = ContrastStatusPass
 			continue
 		}
 		c.Status = ContrastStatusFail
+		if p.spec != "" {
+			c.Status, c.Spec = ContrastStatusDesignDefault, p.spec
+		}
 		if hc == nil {
 			hc = map[[2]string]ContrastCheck{}
 			for _, s := range componentPairs(HighContrast(t), true) {
-				hc[[2]string{s.Token, s.On}] = s
+				hc[[2]string{s.Token, s.On}] = s.ContrastCheck
 			}
 		}
 		if s, ok := hc[[2]string{c.Token, c.On}]; ok {

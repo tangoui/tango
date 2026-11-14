@@ -11,19 +11,19 @@ type TerminalToken struct {
 	CursorText Color `contrast:"text:Cursor"` // the character under a block cursor
 	Selection  Color // selected cells
 	// Palette holds the 16 ANSI colors (0–7 normal, 8–15 bright); indexed
-	// colors 16–255 follow the xterm formula.
-	Palette         [16]Color
-	ScrollbarThumb  Color   // the overlay scrollback scrollbar
-	ContentFontSize float32 // monospace font size of the cells
+	// colors 16–255 follow the xterm formula. The xterm.js values below
+	// 4.5:1 on Background are design defaults; HighContrast lifts them.
+	Palette         [16]Color `contrast:"text:Background" spec:"xterm.js default ANSI palette"`
+	ScrollbarThumb  Color     // the overlay scrollback scrollbar
+	ContentFontSize float32   // monospace font size of the cells
 }
 
-// xtermANSI is the default ANSI palette of xterm.js 6
-// (DEFAULT_ANSI_COLORS in src/browser/services/ThemeService.ts, the Tango
-// desktop palette). xterm.js has a single default theme (white on black);
-// light themes use the same 16 colors with dark text on the page. The same
-// values are terminal.SchemeLight / SchemeDark; the other built-in schemes
-// (Solarized from Ethan Schoonover's official values, Dracula from the
-// official spec at draculatheme.com/spec) live in ui/terminal.
+// xtermANSI is the default ANSI palette of xterm.js 6 (DEFAULT_ANSI_COLORS,
+// src/browser/Types.ts; the colors are the Tango Desktop Project palette,
+// unrelated to this repository). Light and dark themes share it; the same
+// values are terminal.SchemeLight / SchemeDark. The other built-in schemes
+// (Solarized: Ethan Schoonover's official values; Dracula: the official
+// spec, draculatheme.com/spec) live in ui/terminal.
 var xtermANSI = [16]Color{
 	Hex("#2e3436"), Hex("#cc0000"), Hex("#4e9a06"), Hex("#c4a000"),
 	Hex("#3465a4"), Hex("#75507b"), Hex("#06989a"), Hex("#d3d7cf"),

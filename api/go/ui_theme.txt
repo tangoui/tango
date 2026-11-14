@@ -1412,7 +1412,7 @@ pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, ContentFontSiz
 pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, Cursor Color `contrast:"nontext:Background"`
 pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, CursorText Color `contrast:"text:Cursor"`
 pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, Foreground Color `contrast:"text:Background"`
-pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, Palette [16]Color
+pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, Palette [16]Color `contrast:"text:Background" spec:"xterm.js default ANSI palette"`
 pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, ScrollbarThumb Color
 pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, Selection Color
 pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, embedded Alias

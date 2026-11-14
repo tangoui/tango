@@ -16,9 +16,10 @@ type Scheme struct {
 	Palette                [16]theme.Color
 }
 
-// xtermANSI is the default ANSI palette of xterm.js 6
-// (DEFAULT_ANSI_COLORS in src/browser/services/ThemeService.ts); the
-// terminal token (theme.TerminalToken) uses the same values.
+// xtermANSI is the default ANSI palette of xterm.js 6 (DEFAULT_ANSI_COLORS,
+// src/browser/Types.ts; the colors are the Tango Desktop Project palette,
+// unrelated to this repository). The terminal token (theme.TerminalToken)
+// uses the same values.
 var xtermANSI = [16]theme.Color{
 	theme.Hex("#2e3436"), theme.Hex("#cc0000"), theme.Hex("#4e9a06"), theme.Hex("#c4a000"),
 	theme.Hex("#3465a4"), theme.Hex("#75507b"), theme.Hex("#06989a"), theme.Hex("#d3d7cf"),
@@ -48,7 +49,8 @@ var (
 // Built-in schemes.
 var (
 	// SchemeDark is xterm.js 6's default theme: white on black, a 30%
-	// white selection and the default ANSI palette.
+	// white selection (the defaults in src/browser/services/ThemeService.ts)
+	// and the default ANSI palette.
 	SchemeDark = Scheme{
 		Background: theme.Hex("#000000"), Foreground: theme.Hex("#ffffff"),
 		Cursor: theme.Hex("#ffffff"), CursorText: theme.Hex("#000000"),
