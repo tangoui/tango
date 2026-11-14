@@ -78,12 +78,19 @@ typedef struct {
 	int rows, cols;     // table size (data table containers)
 	const uint64_t *kids;
 	int nkids;
+	// editable: an editable text input (a11ybridge.IOSEditable). From iOS
+	// 18.1 its element names the canvas view, the UITextInput that edits
+	// it, as accessibilityTextInputResponder.
+	int editable;
 } tga_node;
 
 // Installs the VoiceOver / Switch Control observers once.
 void tga_install(void);
 // 1: VoiceOver or Switch Control is running.
 int tga_assistive(void);
+// 1: elements can name a text input responder (iOS 18.1+), so editable
+// fields need no "double tap to edit" hint.
+int tga_text_responder(void);
 
 // An update: tga_begin, then tga_set / tga_remove for each changed node,
 // then tga_end. reset drops every element first (a new tree). tga_end

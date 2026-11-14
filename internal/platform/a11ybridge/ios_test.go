@@ -134,6 +134,50 @@ func TestIOSStrings(t *testing.T) {
 	}
 }
 
+// Editable text inputs are marked so the iOS bridge can hand them to
+// UIKit as text (accessibilityTextInputResponder, iOS 18.1+) or, on older
+// systems, tell VoiceOver users they can edit them.
+func TestIOSEditable(t *testing.T) {
+	cases := []struct {
+		n    a11y.Node
+		want bool
+	}{
+		{a11y.Node{Role: a11y.RoleTextbox, Actions: a11y.SetValue | a11y.Focus}, true},
+		{a11y.Node{Role: a11y.RoleSearchbox, Actions: a11y.SetValue | a11y.Focus}, true},
+		{a11y.Node{Role: a11y.RoleTextbox, Actions: a11y.SetValue | a11y.Focus, States: a11y.Protected}, true},
+		{a11y.Node{Role: a11y.RoleTextbox, Actions: a11y.SetValue | a11y.Focus, States: a11y.Multiline}, true},
+		{a11y.Node{Role: a11y.RoleCombobox, Actions: a11y.SetValue | a11y.Focus, States: a11y.Editable}, true},
+		{a11y.Node{Role: a11y.RoleTextbox, Actions: a11y.Focus, States: a11y.Disabled}, false},
+		{a11y.Node{Role: a11y.RoleTextbox, Actions: a11y.Focus, States: a11y.ReadOnly}, false},
+		{a11y.Node{Role: a11y.RoleCombobox, Actions: a11y.Press}, false},
+		{a11y.Node{Role: a11y.RoleSpinButton, Actions: a11y.Increment | a11y.Decrement | a11y.SetValue}, false},
+		{a11y.Node{Role: a11y.RoleButton, Actions: a11y.Press}, false},
+	}
+	for _, c := range cases {
+		if got := IOSEditable(&c.n); got != c.want {
+			t.Errorf("%s: editable %v, want %v", c.n.String(), got, c.want)
+		}
+	}
+	// Without the iOS 18.1 text responder the hint says how to edit, after
+	// the node's own description; with it UIKit speaks the field as text
+	// and the hint stays as it was.
+	n := &a11y.Node{Role: a11y.RoleTextbox, Name: "Mail", Description: "Work address", Actions: a11y.SetValue | a11y.Focus}
+	if got := IOSEditHint(IOSStrings(n).Hint, n, false); got != "Work address, "+IOSPhrases.EditHint {
+		t.Errorf("legacy hint %q", got)
+	}
+	if got := IOSEditHint(IOSStrings(n).Hint, n, true); got != "Work address" {
+		t.Errorf("hint with text responder %q", got)
+	}
+	plain := &a11y.Node{Role: a11y.RoleTextbox, Actions: a11y.SetValue | a11y.Focus}
+	if got := IOSEditHint("", plain, false); got != IOSPhrases.EditHint {
+		t.Errorf("legacy hint without description %q", got)
+	}
+	btn := &a11y.Node{Role: a11y.RoleButton, Description: "Adds one", Actions: a11y.Press}
+	if got := IOSEditHint("Adds one", btn, false); got != "Adds one" {
+		t.Errorf("button hint changed: %q", got)
+	}
+}
+
 func TestIOSActions(t *testing.T) {
 	btn := IOSActions(&a11y.Node{Role: a11y.RoleButton, Actions: a11y.Press | a11y.Focus})
 	if btn.Activate != a11y.Press || len(btn.Custom) != 1 || btn.Custom[0].Act != a11y.Focus {

@@ -325,6 +325,11 @@ int tga_assistive(void) {
 	return UIAccessibilityIsVoiceOverRunning() || UIAccessibilityIsSwitchControlRunning();
 }
 
+int tga_text_responder(void) {
+	if (@available(iOS 18.1, *)) return 1;
+	return 0;
+}
+
 void tga_watch(uintptr_t h, int on) {
 	TGAXState *s = stateFor(h);
 	if (!s) return;
@@ -382,6 +387,14 @@ static void fill(TGAXElement *e, const tga_node *n) {
 	e.col = n->col;
 	e.rows = n->rows;
 	e.cols = n->cols;
+	if (@available(iOS 18.1, *)) {
+		// An editable field's text is edited by the canvas view (canvas_text.m,
+		// UITextInput) once the field has focus: naming it as the text input
+		// responder lets VoiceOver treat the element as editable text. Weak,
+		// as UIKit declares it; the view outlives its elements.
+		id<UITextInput> r = n->editable ? (id<UITextInput>)e.canvas : nil;
+		if (e.accessibilityTextInputResponder != r) e.accessibilityTextInputResponder = r;
+	}
 	NSString *custom = str(n->custom);
 	if (!custom) {
 		e.accessibilityCustomActions = nil;
@@ -602,6 +615,9 @@ static void dumpInto(NSMutableString *out, id e, int depth) {
 		traitNames([e accessibilityTraits]), f.origin.x, f.origin.y, f.size.width, f.size.height];
 	if (container) [out appendFormat:@" type=%ld", (long)[e accessibilityContainerType]];
 	if ([e accessibilityViewIsModal]) [out appendString:@" modal"];
+	if (@available(iOS 18.1, *)) {
+		if ([e accessibilityTextInputResponder]) [out appendString:@" textInput"];
+	}
 	if ([e accessibilityCustomActions].count) {
 		NSMutableArray *n = [NSMutableArray array];
 		for (UIAccessibilityCustomAction *a in [e accessibilityCustomActions]) [n addObject:a.name];
