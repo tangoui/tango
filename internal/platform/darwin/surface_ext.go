@@ -562,6 +562,21 @@ func registerExtClasses() {
 	}
 	super := func(self id, name string, info id) id { return objc.ID(self).SendSuper(sel(name), info) }
 	classDef("TangoWebView", "WKWebView", nil, []objc.MethodDef{
+		// Embedded web views report keyboard focus (webembed.go).
+		method("becomeFirstResponder", func(self id, _ objc.SEL) bool {
+			ok := webSuperBool(self, "becomeFirstResponder")
+			if ok {
+				webFirstResponder(self, true)
+			}
+			return ok
+		}),
+		method("resignFirstResponder", func(self id, _ objc.SEL) bool {
+			ok := webSuperBool(self, "resignFirstResponder")
+			if ok {
+				webFirstResponder(self, false)
+			}
+			return ok
+		}),
 		method("draggingEntered:", func(self id, _ objc.SEL, info id) uint {
 			s := of(self)
 			if taking(s, info) {

@@ -317,6 +317,7 @@ func (s *surface) destroy() {
 	if sheet := send(s.win, "attachedSheet"); sheet != 0 {
 		send(s.win, "endSheet:returnCode:", uintptr(sheet), nsModalResponseCancel)
 	}
+	s.destroyEmbeds() // webembed.go
 	if s.web != 0 {
 		s.detachWebView()
 	}
