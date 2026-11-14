@@ -29,6 +29,11 @@ E=$(printf '\033')
 	printf '%s[44mbluebg%s[K%s[m\r\n' "$E" "$E" "$E"
 	printf '%s[41;1mwxyz%s[2D%s[X%s[m\r\n' "$E" "$E" "$E" "$E"
 	printf '%s[7;32minverse green%s[0;8minvisible%s[0;1;2mbold+faint%s[0m\r\n' "$E" "$E" "$E" "$E"
+	# Unknown color kinds skip the kind and four more parameters (five
+	# for kind 0); values above 255 wrap.
+	printf '%s[38;3;1;2;3;4;5;3mk3%s[m %s[38;0;1;2;3;4;5;3mk0%s[m %s[38;3;1;2;3;4;1mk3b%s[m ' "$E" "$E" "$E" "$E" "$E" "$E"
+	printf '%s[48;7;1;2;3;4;5;4mk7%s[m %s[38:3:1;1mc3%s[m ' "$E" "$E" "$E" "$E"
+	printf '%s[38;5;300mi300%s[48;5;99999mb99999%s[38;2;256;257;511mrgb%s[38:2::256:1:2mcolon%s[38:5:300mc300%s[m\r\n' "$E" "$E" "$E" "$E" "$E" "$E"
 } > sgr.vt
 
 # wide: wide characters, single-code-point emoji and combining marks,
@@ -52,6 +57,22 @@ E=$(printf '\033')
 	printf '%s[19;1Hstart\314\201 \314\201' "$E"
 	printf '%s[20;1H\357\273\277bom\302\255shy' "$E"
 } > wide.vt
+
+# marks: zero-width code points join the character printed just before
+# them; after anything else (a control, an escape or control sequence,
+# cursor movement) they take a cell of their own, the emoji presentation
+# selector two. A byte order mark is dropped.
+{
+	printf '\314\201a\314\201\314\202\r\n'
+	printf 'ab%s[31m\314\201c%s[m\r\n' "$E" "$E"
+	printf 'ab\a\314\201c\r\n'
+	printf 'abc%s[2D\314\201\r\n' "$E"
+	printf '%s[10G\342\200\213x%s[20G\342\200\215y%s[30G\357\270\217z\r\n' "$E" "$E" "$E"
+	printf 'a\357\273\277b\357\273\277\r\n'
+	printf '%s[6;80Hz\314\201w\r\n' "$E"
+	printf '%s[8;80Hz\r\n\314\201v' "$E"
+	printf '%s[10;80H%s[m\357\270\217' "$E" "$E"
+} > marks.vt
 
 # cursor: cursor movement, erasing, insertion and deletion over a filled
 # screen.

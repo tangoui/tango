@@ -160,10 +160,24 @@ func TestTerminalCombining(t *testing.T) {
 	if got := term.Screen().Line(0).Combining(0); got != nil {
 		t.Errorf("Combining(0) after overwrite = %U", got)
 	}
-	// A mark at column 0 has no base and is dropped.
-	write(term, "\r̄")
-	if got := term.Screen().Line(0).Combining(0); got != nil {
-		t.Errorf("Combining(0) without base = %U", got)
+	// A mark with nothing printed just before it takes a cell of its
+	// own, as in xterm.js: at column 0, and after a control or a
+	// control sequence; further marks join it.
+	write(term, "\r\u0304\u0301")
+	if c := term.Screen().Line(0).Cells[0]; c.Rune != 0x304 || c.Width != 1 {
+		t.Errorf("mark without base: cell %+v, want U+0304 width 1", c)
+	}
+	if got := term.Screen().Line(0).Combining(0); !slices.Equal(got, []rune{0x301}) {
+		t.Errorf("Combining(0) of the lone mark = %U", got)
+	}
+	wantCursor(t, term, 1, 0)
+	write(term, "\x1b[2;1Hab\x1b[31m\u0301")
+	if c := term.Screen().Line(1).Cells[2]; c.Rune != 0x301 {
+		t.Errorf("mark after SGR: cell %+v, want U+0301", c)
+	}
+	write(term, "\x1b[0m\x1b[2;1Ha\x07\u0301")
+	if c := term.Screen().Line(1).Cells[1]; c.Rune != 0x301 {
+		t.Errorf("mark after BEL: cell %+v, want U+0301", c)
 	}
 	// C1 code points are not printed.
 	write(term, "\x1b[2J\x1b[H\u0085\u009b")
@@ -379,7 +393,7 @@ func TestTerminalSGR(t *testing.T) {
 		{"38:2::1:2:3", Style{Fg: RGBColor(1, 2, 3)}},
 		{"48:2:0:4:5:6", Style{Bg: RGBColor(4, 5, 6)}},
 		{"48:5:9", Style{Bg: IndexedColor(9)}},
-		{"38;2;300;0;0;1", Style{Attr: AttrBold}},
+		{"38;2;300;0;0;1", Style{Fg: RGBColor(44, 0, 0), Attr: AttrBold}},
 		{"58;2;1;2;3;1", Style{Attr: AttrBold}},
 		{"58;5;3;3", Style{Attr: AttrItalic}},
 		{"38;5", Style{Fg: IndexedColor(0)}}, // missing values are 0, as xterm.js
@@ -388,10 +402,17 @@ func TestTerminalSGR(t *testing.T) {
 		{"38:2:1:2", Style{Fg: RGBColor(2, 0, 0)}}, // color space 1, r 2
 		{"38:2:0:1:2:3:9", Style{Fg: RGBColor(1, 2, 3)}},
 		{"38;5;;4", Style{Fg: IndexedColor(0), Attr: AttrUnderline}},
-		{"38;3;4;1;31", Style{}}, // unknown kind: the rest is ignored
+		{"38;3;4;1;31", Style{}}, // unknown kind: skips it and four more
+		{"38;3;1;2;3;4;5;3", Style{Attr: AttrBlink | AttrItalic}},
+		{"38;0;1;2;3;4;5;3", Style{Attr: AttrItalic}}, // kind 0: five more
+		{"38;3;1;2;3;4;1", Style{Attr: AttrBold}},
+		{"38:3:1;1", Style{Attr: AttrBold}},
 		{"1;38;0;4", Style{Attr: AttrBold}},
 		{"38", Style{}},
-		{"38;5;300;1", Style{Attr: AttrBold}}, // out of range: ignored
+		{"38;5;300;1", Style{Fg: IndexedColor(44), Attr: AttrBold}}, // wraps, as xterm.js
+		{"38;2;256;257;511", Style{Fg: RGBColor(0, 1, 255)}},
+		{"38:2::256:1:2", Style{Fg: RGBColor(0, 1, 2)}},
+		{"38;5;2147483647", Style{Fg: IndexedColor(255)}},
 		{"", Style{}},
 		{"1;;3", Style{Attr: AttrItalic}},
 	}

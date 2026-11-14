@@ -384,10 +384,11 @@ func (t *Terminal) sgr(p *Params) {
 // of range color.
 //
 // As in xterm.js, missing values count as 0 (38;5 is color 0, 38;2;1;2
-// is 1,2,0), and an unknown kind (38;3;…) makes the rest of the sequence
-// ignored. Unlike xterm.js, a value above 255 makes the color ignored
-// rather than wrapped, and 38:2:r:g:b (exactly three values) is read as
-// r:g:b rather than as color space r with blue missing; see
+// is 1,2,0), values above 255 wrap modulo 256 (38;5;300 is color 44),
+// and an unknown kind in the ';' form skips the kind and the next four
+// parameters (38;3;1;2;3;4;5 leaves 5), or the next five for kind 0.
+// Unlike xterm.js, 38:2:r:g:b (exactly three values) is read as r:g:b
+// rather than as color space r with blue missing; see
 // testdata/replay/DIFFERENCES.md.
 func extendedColor(p *Params, i int) (c Color, used int, ok bool) {
 	var a [4]int // the kind and its values; missing values stay 0
@@ -409,19 +410,21 @@ func extendedColor(p *Params, i int) (c Color, used int, ok bool) {
 			want = 2
 		case 2:
 			want = 4
+		case 0:
+			return 0, min(6, p.Len()-1-i), false
 		default:
-			return 0, p.Len() - 1 - i, false
+			return 0, min(5, p.Len()-1-i), false
 		}
 		used = min(want, p.Len()-1-i)
 		for j := 2; j <= used; j++ {
 			a[j-1] = p.Sub(i + j)[0]
 		}
 	}
-	inByte := func(v int) bool { return v >= 0 && v <= 255 }
-	switch {
-	case a[0] == 5 && inByte(a[1]):
+	// Parameters are never negative; larger values wrap.
+	switch a[0] {
+	case 5:
 		return IndexedColor(uint8(a[1])), used, true
-	case a[0] == 2 && inByte(a[1]) && inByte(a[2]) && inByte(a[3]):
+	case 2:
 		return RGBColor(uint8(a[1]), uint8(a[2]), uint8(a[3])), used, true
 	}
 	return 0, used, false

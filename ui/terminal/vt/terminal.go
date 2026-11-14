@@ -59,6 +59,10 @@ type Terminal struct {
 	// column was just written and cx stays on it until the next
 	// printable character wraps.
 	pending bool
+	// joinable is set while the last input was a printed character, so
+	// a zero-width code point joins it; any control, escape or control
+	// sequence clears it, as in xterm.js.
+	joinable bool
 
 	// pen is the style new characters get. penIdx caches its index in
 	// the style table while penOK is set and the table's generation is
@@ -397,6 +401,7 @@ func (t *Terminal) printASCII(b []byte) {
 			t.dirty[vy] = true
 		}
 		b = b[n:]
+		t.joinable = true
 		if x+n >= t.cols {
 			t.cx = t.cols - 1
 			t.pending = true
@@ -411,14 +416,25 @@ func (t *Terminal) print(r rune) {
 	if r >= 0x80 && r <= 0x9F {
 		return // C1 controls are not printable
 	}
+	if r == 0xFEFF {
+		return // a byte order mark is dropped, as in xterm.js
+	}
 	w := Width(r)
 	if w == 0 {
-		t.combine(r)
-		return
+		if t.combine(r) {
+			return
+		}
+		// Nothing to join: as xterm.js, the mark takes a cell of its
+		// own, two for the emoji presentation selector.
+		w = 1
+		if r == 0xFE0F {
+			w = 2
+		}
 	}
 	if !t.startPrint(w) {
 		return
 	}
+	t.joinable = true
 	st := t.penIndex()
 	l := t.s.Line(t.cy)
 	x := t.cx
@@ -437,9 +453,15 @@ func (t *Terminal) print(r rune) {
 	}
 }
 
-// combine attaches a zero-width code point to the character before the
-// cursor. With no character before it on the line, it is dropped.
-func (t *Terminal) combine(r rune) {
+// combine attaches a zero-width code point to the character printed
+// just before it and reports whether it did. It does not when anything
+// but printing came in between (a control, escape or control sequence,
+// including cursor movement), or there is no character before the
+// cursor.
+func (t *Terminal) combine(r rune) bool {
+	if !t.joinable {
+		return false
+	}
 	x := t.cx - 1
 	if t.pending {
 		x = t.cx
@@ -449,10 +471,11 @@ func (t *Terminal) combine(r rune) {
 		x--
 	}
 	if x < 0 {
-		return
+		return false
 	}
 	l.addCombining(x, r)
 	t.markRow(t.cy)
+	return true
 }
 
 // sendReply sends b to the program.
@@ -561,12 +584,20 @@ type handler Terminal
 
 func (h *handler) Print(r rune)        { (*Terminal)(h).print(r) }
 func (h *handler) PrintASCII(b []byte) { (*Terminal)(h).printASCII(b) }
-func (h *handler) Execute(b byte)      { (*Terminal)(h).execute(b) }
+func (h *handler) Execute(b byte) {
+	h.joinable = false
+	(*Terminal)(h).execute(b)
+}
 func (h *handler) ESC(inter []byte, final byte) {
+	h.joinable = false
 	(*Terminal)(h).esc(inter, final)
 }
-func (h *handler) OSC(data []byte) { (*Terminal)(h).osc(data) }
+func (h *handler) OSC(data []byte) {
+	h.joinable = false
+	(*Terminal)(h).osc(data)
+}
 func (h *handler) CSI(p *Params, inter []byte, final, private byte) {
+	h.joinable = false
 	(*Terminal)(h).csi(p, inter, final, private)
 }
-func (h *handler) DCS(*Params, []byte, byte, []byte) {}
+func (h *handler) DCS(*Params, []byte, byte, []byte) { h.joinable = false }

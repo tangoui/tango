@@ -272,7 +272,7 @@ func columns(l replayLine, cols int) []replayCol {
 		}
 	}
 	for _, s := range l.Cells {
-		for x := s[0]; x < s[0]+s[1] && int(x) < cols; x++ {
+		for x := s[0]; x < s[0]+s[1] && x < uint32(cols); x++ {
 			out[x].fg, out[x].bg, out[x].at = s[2], s[3], s[4]
 		}
 	}
@@ -284,6 +284,12 @@ func columns(l replayLine, cols int) []replayCol {
 func diffSnap(want, got replaySnap) string {
 	if want.Cols != got.Cols || want.Rows != got.Rows {
 		return fmt.Sprintf("size: got %dx%d, want %dx%d", got.Cols, got.Rows, want.Cols, want.Rows)
+	}
+	if len(want.Lines) != want.Rows {
+		return fmt.Sprintf("reference has %d lines for %d rows (truncated or stale JSON? regenerate with internal/refgen)", len(want.Lines), want.Rows)
+	}
+	if len(got.Lines) != got.Rows {
+		return fmt.Sprintf("snapshot has %d lines for %d rows", len(got.Lines), got.Rows)
 	}
 	for y := range want.Rows {
 		w, g := want.Lines[y], got.Lines[y]
