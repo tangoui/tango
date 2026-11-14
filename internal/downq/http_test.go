@@ -53,6 +53,7 @@ func newState(t *testing.T) (*State, *recorder) {
 	t.Helper()
 	setVar(t, &HoldMax, time.Minute)
 	setVar(t, &WatchdogAfter, time.Minute)
+	setVar(t, &IdleEvalItems, 0) // TestIdleRule turns it on
 	rec := &recorder{}
 	s := New(rec.fallback)
 	t.Cleanup(s.Close)

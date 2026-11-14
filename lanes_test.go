@@ -29,6 +29,9 @@ type laneHelloJSON struct {
 // laneApp runs an app on a fresh fake backend with opts.
 func laneApp(t *testing.T, opts Options) (*App, *fake.Backend) {
 	t.Helper()
+	// Items take the poll lane even while it idles; TestSendIdleRule
+	// turns the latency rule back on.
+	setDownVar(t, &downq.IdleEvalItems, 0)
 	fb := fake.New()
 	a := newWithBackend(opts, fb)
 	runApp(t, a)

@@ -6,10 +6,11 @@ package tango
 // (/__tango/lane/poll, the down:poll lane), messages wait there for its
 // poll requests and an Eval script becomes a barrier item; otherwise
 // (before the first poll, after a failure, when the watchdog fires, or
-// when down:poll is off) the queue hands the items to the fallback, which
-// delivers them with one Eval of window.__tango._recvSeq per batch. Every
-// item carries a sequence number, so the page delivers them in Send order
-// whichever way they came (downShim, downshim.go).
+// when down:poll is off), and for a small item while the lane is idle (the
+// latency rule, downq.IdleEvalBytes), the queue hands the items to the
+// fallback, which delivers them with one Eval of window.__tango._recvSeq
+// per batch. Every item carries a sequence number, so the page delivers
+// them in Send order whichever way they came (downShim, downshim.go).
 
 import (
 	"encoding/base64"
@@ -227,11 +228,13 @@ func (s *Surface) drainDown() {
 	d.posted = false
 	gen := d.gen
 	d.mu.Unlock()
+	s.downq.Taken() // idle items after this go in the next round
 	if s.closed.Load() || s.ns == nil {
 		return
 	}
 	// The batches of one round between scripts go in one Eval: the
-	// fallback's calls of a generation are contiguous in sequence.
+	// fallback's calls of a generation come in increasing sequence order
+	// (with gaps where the poll lane carries items; the page fills them).
 	var items []downq.Item
 	for _, b := range out {
 		if b.script {

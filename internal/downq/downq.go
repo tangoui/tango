@@ -57,6 +57,16 @@ var (
 	// WatchdogAfter is how long items may wait with no poll request in
 	// progress before they go to the fallback instead.
 	WatchdogAfter = time.Second
+	// IdleEvalBytes and IdleEvalItems are the latency rule of the design's
+	// §6: while a poll request waits on an idle lane (nothing pending or
+	// unacknowledged), an item of at most IdleEvalBytes goes to fallback
+	// instead, since one Eval reaches the page sooner than a poll response
+	// (measured on WKWebView: about 40 µs less per round trip). At most
+	// IdleEvalItems items go that way until the core takes them (Taken);
+	// later ones queue for the poll, so a busy stream stays on the lane.
+	// IdleEvalItems 0 turns the rule off.
+	IdleEvalBytes = 1024
+	IdleEvalItems = 8
 )
 
 // State is the downstream queue of one page. Create it with New.
@@ -75,6 +85,7 @@ type State struct {
 	queue       []Item // pending: not yet written to a response
 	unacked     []Item // written to a response, not acknowledged; before queue
 	reqs        int    // poll requests in progress (Serve)
+	idleEval    int    // items the idle rule gave fallback since Taken
 	wake        chan struct{}
 	done        chan struct{} // closed when the generation ends or fails
 	dog         *time.Timer   // the armed watchdog, nil when off
@@ -122,6 +133,7 @@ func (s *State) Start(enabled bool) (gen uint64, tok string) {
 	s.gen++
 	s.seq = 0
 	s.ended, s.active, s.failed, s.watchdogged = false, false, false, false
+	s.idleEval = 0
 	s.faultPackets, s.faulted = 0, false
 	s.done = make(chan struct{})
 	s.tok = ""
@@ -162,8 +174,9 @@ func (s *State) endLocked() {
 
 // Push gives the next sequence number of the generation to an item of
 // kind with payload data and returns it. While the generation polls
-// (Active) the item waits for a poll request and wakes a waiting one;
-// otherwise it goes to fallback before Push returns. After End, and before
+// (Active) the item waits for a poll request and wakes a waiting one,
+// unless the idle rule (IdleEvalBytes) gives it to fallback; otherwise it
+// goes to fallback before Push returns. After End, and before
 // the first Start, the item is dropped and Push returns 0. Push keeps
 // data: the caller must not change it afterwards.
 func (s *State) Push(kind Kind, data []byte) (seq uint64) {
@@ -174,7 +187,7 @@ func (s *State) Push(kind Kind, data []byte) (seq uint64) {
 	}
 	s.seq++
 	it := Item{Seq: s.seq, Kind: kind, Data: data}
-	if !s.pollingLocked() {
+	if !s.pollingLocked() || s.idleLocked(len(data)) {
 		s.fallback([]Item{it})
 		return it.Seq
 	}
@@ -185,6 +198,26 @@ func (s *State) Push(kind Kind, data []byte) (seq uint64) {
 		s.armDogLocked()
 	}
 	return it.Seq
+}
+
+// idleLocked applies the idle rule (IdleEvalBytes) to an item of n bytes
+// of a polling generation, counting it when it goes to fallback. s.mu
+// held.
+func (s *State) idleLocked(n int) bool {
+	if s.reqs == 0 || len(s.queue) > 0 || len(s.unacked) > 0 ||
+		n > IdleEvalBytes || s.idleEval >= IdleEvalItems {
+		return false
+	}
+	s.idleEval++
+	return true
+}
+
+// Taken tells the queue that the core took the items fallback got so far
+// for delivery: the idle rule may hand IdleEvalItems more to fallback.
+func (s *State) Taken() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.idleEval = 0
 }
 
 // Active reports whether Push now queues items for polling: the

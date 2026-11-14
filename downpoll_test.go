@@ -186,6 +186,36 @@ func TestSendUsesPollWhenActive(t *testing.T) {
 	}
 }
 
+// TestSendIdleRule: while the page's poll request waits on an idle lane, a
+// small Send and an Eval take the fallback (one Eval of _recvSeq; the
+// barrier's script runs at its place, with no page round trip) until
+// IdleEvalItems are waiting for the main thread; Sends past the cap take
+// the poll (the size limit: internal/downq's TestIdleRule).
+func TestSendIdleRule(t *testing.T) {
+	a, fb, s, ns := downApp(t, Options{}, "/", lane.DownPoll)
+	setDownVar(t, &downq.IdleEvalItems, 2)
+	fb.Load(s.ID())
+	o := lastOpen(t, ns)
+	ch := activate(t, a, s, o)
+	n := len(ns.Evals())
+	release := blockMain(a)
+	s.Send("a")
+	s.Eval("doThing()")
+	s.Send("b") // the cap is reached: it ends the poll
+	items := batchItems(t, awaitPoll(t, ch))
+	release()
+	sync0(a)
+	if len(items) != 1 || items[0].Seq != 3 || string(items[0].Data) != "b" {
+		t.Fatalf("batch %+v", items)
+	}
+	id := lastBarrier(s)
+	want := []string{wantRecvSeq(o.Gen, `[[1,0,"a"]]`), "doThing()", wantRecvSeq(o.Gen, fmt.Sprintf(`[[2,2,%d]]`, id))}
+	if ev := ns.Evals()[n:]; !slices.Equal(ev, want) {
+		t.Fatalf("evals %q, want %q", ev, want)
+	}
+
+}
+
 // expectNoDown checks that the loaded surface's page got no _open and that
 // Send goes by _recvSeq.
 func expectNoDown(t *testing.T, a *App, s *Surface, ns *fake.Surface) {

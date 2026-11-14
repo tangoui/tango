@@ -228,3 +228,50 @@ func TestWatchdogFallsBack(t *testing.T) {
 		t.Fatalf("fallback got %v", got)
 	}
 }
+
+func TestIdleRule(t *testing.T) {
+	s, rec := newState(t)
+	setVar(t, &IdleEvalItems, 2)
+	gen, tok := s.Start(true)
+	activate(t, s, gen, tok)
+
+	// No poll request waiting: small items queue.
+	s.Push(Msg, []byte("q"))
+	wantBatch(t, poll(context.Background(), s, gen, tok, 0), 1, 1)
+	if got := rec.seqs(); len(got) != 0 {
+		t.Fatalf("fallback got %v with no request waiting", got)
+	}
+
+	// A request waits on an idle lane (its ack covers seq 1): up to
+	// IdleEvalItems small items go to fallback, then they queue.
+	ch := goPoll(s, gen, tok, 1)
+	waitHeld(t, s, 1)
+	s.Push(Msg, []byte("a"))
+	s.Push(Packet, []byte{1})
+	if got := rec.seqs(); !slices.Equal(got, []uint64{2, 3}) {
+		t.Fatalf("fallback got %v, want [2 3]", got)
+	}
+	s.Push(Msg, []byte("b")) // the cap is reached: it queues
+	wantBatch(t, await(t, ch), 4, 1)
+
+	// Taken lifts the cap, but unacknowledged items keep the lane busy.
+	s.Taken()
+	ch = goPoll(s, gen, tok, 3) // seq 4 not acknowledged: sent again
+	wantBatch(t, await(t, ch), 4, 1)
+	ch = goPoll(s, gen, tok, 4)
+	waitHeld(t, s, 1)
+	s.Push(Msg, make([]byte, IdleEvalBytes+1)) // too large for the rule
+	wantBatch(t, await(t, ch), 5, 1)
+	ch = goPoll(s, gen, tok, 5)
+	waitHeld(t, s, 1)
+	s.Push(Barrier, []byte{0, 0, 0, 0, 0, 0, 0, 9})
+	if got := rec.seqs(); !slices.Equal(got, []uint64{2, 3, 6}) {
+		t.Fatalf("fallback got %v, want [2 3 6]", got)
+	}
+	s.Push(Msg, []byte("c")) // within the cap: fallback too
+	s.Push(Msg, []byte("d")) // cap reached again
+	wantBatch(t, await(t, ch), 8, 1)
+	if got := rec.seqs(); !slices.Equal(got, []uint64{2, 3, 6, 7}) {
+		t.Fatalf("fallback got %v, want [2 3 6 7]", got)
+	}
+}
