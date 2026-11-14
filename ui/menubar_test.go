@@ -297,3 +297,46 @@ func TestMenubarTokens(t *testing.T) {
 		t.Fatal("override not merged")
 	}
 }
+
+// TestMenubarHotkeysAfterFocusedWidget: Alt and F10 reach the bar even when
+// the focused widget is built before it and consumes the frame's keys
+// (a focused button above a menubar placed lower on the page).
+func TestMenubarHotkeysAfterFocusedWidget(t *testing.T) {
+	f := &menubarFixture{zoom: "100"}
+	d := navDriver(func(c *Context) {
+		Column(c, func() {
+			Button(c, "搜索")
+			c.KeysFor(c.Focused()) // like a focused text widget: takes the frame's keys
+			mb := Menubar(c, f.menus()).A11yLabel("应用菜单")
+			f.open = mb.OpenMenu()
+		})
+	})
+	d.Frame()
+	press(d, input.KeyTab) // the button is the first tab stop
+	wantFocus(t, d, "搜索")
+	press(d, input.KeyF10)
+	wantFocus(t, d, "文件")
+	press(d, input.KeyF10)
+	wantFocus(t, d, "搜索")
+	press(d, input.KeyAltLeft)
+	wantFocus(t, d, "文件")
+}
+
+// TestMenubarUpOpensAtLastItem: Up on a trigger opens its menu with the
+// last enabled item focused (Down: the first).
+func TestMenubarUpOpensAtLastItem(t *testing.T) {
+	f := &menubarFixture{}
+	d := menubarDriver(f)
+	d.Frame()
+	press(d, input.KeyTab)
+	wantFocus(t, d, "文件")
+	press(d, input.KeyUp)
+	if f.open != "文件" {
+		t.Fatalf("Up did not open: %q", f.open)
+	}
+	wantFocus(t, d, "共享") // 打印 is disabled
+	press(d, input.KeyEscape)
+	wantFocus(t, d, "文件")
+	press(d, input.KeyDown)
+	wantFocus(t, d, "新建")
+}

@@ -132,6 +132,7 @@
   - `CardAction` 返回 `*CardActionW`（原来返回 `bool`），改用 `.Clicked()`；`CardMeta` 返回 `*CardMetaW`（原来无返回值）。
   - `Sider` 返回 `*SiderBoxW`，`Kbd`、`BadgeRibbon`、`ListItemMeta`、`ListActions`、`AnchorSection` 分别返回 `*KbdW`、`*BadgeRibbonW`、`*ListItemMetaW`、`*ListActionsW`、`*AnchorSectionW`（原来都返回 `*Box`）。这些类型内嵌 `*Box`，链式调用 `.Bg(...)` 等照常可用；需要 `*Box` 值时取 `.Box` 字段。
 - **`layout.Option` 改为不透明类型**：原来是 `func(*layout.Style)`，现在是结构体，只能用 `layout` 包的构造函数（`Grow`、`W`、`H`、`Pad`、`Gap`、`Abs`……）得到，构造函数名称和签名不变。`layout.Style`、`Node`、`Pos`、`Solve`、`SolveAt` 移到内部包 `ui/internal/flexbox`。自己写的 `func(s *layout.Style){...}` 选项改用构造函数；新增 `layout.ScrollX/ScrollY/NoStretch/Stretch`（实验性）覆盖 `ui/mobile` 原来直接改字段的用法。传 `nil` 作为选项的地方改成 `layout.Option{}`。
+- **`ProSettings.Apply` 应用 `FixSiderbar`**：以前这个字段被忽略、侧栏总是固定；现在 `FixSiderbar: false` 会让侧栏随页面滚动（`ProLayoutConfig.NoFixSiderbar`），与 `FixedHeader` 的处理一致。只填部分字段的 `ProSettings{...}` 请从 `DefaultProSettings()` 出发，否则侧栏和顶栏都不再固定。
 - **`theme.NumComps` 改为未导出**（R1：计数常量每加一个组件就变值）。`theme.Comp` 的值只追加，文档不再把它和 `Components` 的字段顺序绑定。
 - **枚举只追加（R1）**：`ui`、`ui/a11y`、`ui/input`、`ui/layout`、`ui/paint`、`ui/theme` 的枚举类型注释写明"只追加、零值不变"，现有常量值不变。
 - **`asset.DevProxy` 恢复单参数（R3）**：`DevProxy(target string) http.Handler`；带选项的用法改为新增的 `DevProxyWith(target string, opts DevProxyOptions) http.Handler`。`DevProxy(url, opts)` 改成 `DevProxyWith(url, opts)`。

@@ -244,6 +244,8 @@ func (r *Runner) clearFrameInput() {
 	c.pressedAny = false
 	c.ctxPressed = false
 	c.keys = c.keys[:0]
+	c.frameKeys = c.frameKeys[:0]
+	c.keySeq++
 	c.text = c.text[:0]
 	clear(c.events)
 	c.events = c.events[:0]
@@ -376,6 +378,7 @@ func (r *Runner) processEvents() bool {
 			}
 			ev.Key = ev.Key.Base()
 			c.keys = append(c.keys, ev)
+			c.frameKeys = append(c.frameKeys, ev)
 			c.events = append(c.events, ev)
 		case input.TextInput:
 			c.text = append(c.text, ev.Text)

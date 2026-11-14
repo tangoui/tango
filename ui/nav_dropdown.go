@@ -38,6 +38,7 @@ const (
 type navPopupState struct {
 	path   []string // open submenu key per level
 	focus  int      // >0: focus the first item of level focus-1 once built
+	last   bool     // with focus: the last enabled item instead of the first
 	kbd    bool     // keyboard navigation active
 	ptr    geom.Point
 	ids    []ID // item IDs of all panels (this build)
@@ -657,7 +658,12 @@ func (p *navMenuPopup) items(items []MenuItem, level int, parent ID) {
 	}
 	if p.st.focus == level+1 {
 		p.st.focus = 0
-		if j := navStep(ents, -1, 1, nil); j >= 0 {
+		j := navStep(ents, -1, 1, nil)
+		if p.st.last {
+			p.st.last = false
+			j = navStep(ents, 0, -1, nil)
+		}
+		if j >= 0 {
 			navFocus(c, ents[j].id)
 		}
 	}
