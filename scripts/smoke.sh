@@ -82,7 +82,7 @@ annotate() {
 			sed -E 's/^[0-9:. /]+//' | tr '\n' '|')"
 	fi
 	# Workflow commands need %, CR and LF escaped in the message.
-	lines="${lines//'%'/'%25'}"
+	lines="${lines//%/%25}"
 	echo "::error title=smoke $1 $2::$3 ${lines:+-- $lines}"
 }
 

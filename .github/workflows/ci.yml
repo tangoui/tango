@@ -142,25 +142,25 @@ jobs:
       - name: go test (module root)
         run: |
           slow='/ui$|/ui/editor|/ui/chart|/internal/render/gpu|/examples/ui-gallery'
-          go test $RACE -timeout 20m $(go list ./... | grep -Ev "$slow")
-          go test -timeout 40m $(go list ./... | grep -E "$slow" | grep -v /examples/ui-gallery)
+          bash scripts/ci-go-test.sh $RACE -timeout 20m $(go list ./... | grep -Ev "$slow")
+          bash scripts/ci-go-test.sh -timeout 40m $(go list ./... | grep -E "$slow" | grep -v /examples/ui-gallery)
           # The gallery's full text-contrast sweep (every page x six themes,
           # three times) has its own job below; -short skips it here.
-          go test -short -timeout 40m ./examples/ui-gallery/...
+          bash scripts/ci-go-test.sh -short -timeout 40m ./examples/ui-gallery/...
 
       # Development features (hot reload, automation, dev proxy) are only
       # built with -tags tango_dev; the default build above is production.
       - name: go test -tags tango_dev (module root)
         run: |
           slow='/ui$|/ui/editor|/ui/chart|/internal/render/gpu|/examples/ui-gallery'
-          go test $RACE -tags tango_dev -timeout 20m $(go list -tags tango_dev ./... | grep -Ev "$slow")
+          bash scripts/ci-go-test.sh $RACE -tags tango_dev -timeout 20m $(go list -tags tango_dev ./... | grep -Ev "$slow")
           # The gallery has no development features: the default run above
           # covers it, so it is not repeated here.
-          go test -tags tango_dev -timeout 40m $(go list -tags tango_dev ./... | grep -E "$slow" | grep -v /examples/ui-gallery)
+          bash scripts/ci-go-test.sh -tags tango_dev -timeout 40m $(go list -tags tango_dev ./... | grep -E "$slow" | grep -v /examples/ui-gallery)
 
       - name: go test (cmd/tan)
         working-directory: cmd/tan
-        run: go test $RACE ./...
+        run: bash ../scripts/ci-go-test.sh $RACE ./...
 
   # The gallery's full text-contrast sweep renders every page in six themes
   # three times: too slow for every pull request, so it runs on pushes to
