@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -189,12 +190,21 @@ func (f *flow) download() {
 	ctx, cancel := context.WithCancel(context.Background())
 	f.mu.Lock()
 	f.cancel = cancel
+	f.payload = nil // its files may be the ones downloadDir empties
 	f.mu.Unlock()
 	f.downloading.Store(true)
 	f.m.set(func(m *model) { m.phase, m.done, m.total, m.err = phaseDownloading, 0, -1, nil })
 	go func() {
 		defer f.end()
-		p, err := f.u.Download(ctx, rel, "")
+		dir, err := downloadDir(f.u, rel.Version)
+		if err != nil {
+			log.Printf("updateui: %v; downloading to a temporary directory", err)
+			dir = "" // Download makes one
+		}
+		p, err := f.u.Download(ctx, rel, dir)
+		if err != nil && dir != "" {
+			os.RemoveAll(dir) // cancelled or failed: nothing to keep
+		}
 		f.downloading.Store(false)
 		f.mu.Lock()
 		f.cancel = nil
@@ -202,11 +212,12 @@ func (f *flow) download() {
 			f.payload = p
 		}
 		f.mu.Unlock()
+		cancelled := ctx.Err() != nil // read before cancel() below sets it
 		cancel()
 		switch {
 		case err == nil:
 			f.m.set(func(m *model) { m.phase, m.patch = phaseReady, p.Patched })
-		case ctx.Err() != nil:
+		case cancelled:
 			f.m.set(func(m *model) { m.phase = phaseAvailable })
 		default:
 			f.m.set(func(m *model) { m.phase, m.err = phaseError, err })

@@ -6,6 +6,9 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -454,5 +457,94 @@ func TestHaltStopsChecks(t *testing.T) {
 	}
 	if n := len(tf.showCalls()); n != 1 {
 		t.Fatalf("window asked for %d times (want once, when the first check began)", n)
+	}
+}
+
+// downloadsOf is u's download directory (Updater.StateDir is set in tests).
+func downloadsOf(u *updater.Updater) string { return filepath.Join(u.StateDir, downloadsDir) }
+
+// Final review I4: the release is downloaded into the state directory
+// (kept across reboots, unlike $TMPDIR, for "Install on Next Launch"),
+// and a cancelled or failed download leaves nothing behind.
+func TestDownloadFilesKeptOrRemoved(t *testing.T) {
+	s := newReleaseServer(t)
+	s.publish("1.3.0")
+	u := s.updater(t, "1.2.0")
+	tf := newTestFlow(t, u)
+	tf.check(context.Background(), false)
+
+	s.mu.Lock()
+	s.hold = make(chan struct{})
+	s.mu.Unlock()
+	tf.download()
+	waitFor(t, "downloading", func() bool { return tf.m.snapshot().phase == phaseDownloading })
+	tf.cancelDownload()
+	waitFor(t, "the cancel", func() bool { return !tf.isBusy() })
+	if _, err := os.Stat(filepath.Join(downloadsOf(u), "1.3.0")); !os.IsNotExist(err) {
+		t.Fatalf("cancelled download left files: %v", err)
+	}
+
+	s.mu.Lock()
+	s.hold = nil
+	s.file = []byte("not what the manifest signed")
+	s.mu.Unlock()
+	tf.download()
+	waitFor(t, "the failure", func() bool { return tf.m.snapshot().phase == phaseError })
+	if _, err := os.Stat(filepath.Join(downloadsOf(u), "1.3.0")); !os.IsNotExist(err) {
+		t.Fatalf("failed download left files: %v", err)
+	}
+
+	tf.m.set(func(m *model) { m.phase = phaseAvailable })
+	s.mu.Lock()
+	s.file = []byte("new release bytes")
+	s.mu.Unlock()
+	tf.download()
+	waitFor(t, "the download", func() bool { return tf.m.snapshot().phase == phaseReady })
+	tf.flow.mu.Lock()
+	p := tf.payload
+	tf.flow.mu.Unlock()
+	if !strings.HasPrefix(p.Path, downloadsOf(u)+string(filepath.Separator)) {
+		t.Fatalf("downloaded to %s, not under %s", p.Path, downloadsOf(u))
+	}
+}
+
+// Final review I4: a new session removes downloads nothing refers to any
+// more, and keeps the one kept for "Install on Next Launch".
+func TestPruneDownloads(t *testing.T) {
+	s := newReleaseServer(t)
+	u := s.updater(t, "1.2.0")
+	stale := filepath.Join(downloadsOf(u), "1.1.0", "old.AppImage")
+	kept := filepath.Join(downloadsOf(u), "1.3.0", "new.AppImage")
+	for _, f := range []string{stale, kept} {
+		os.MkdirAll(filepath.Dir(f), 0o700)
+		os.WriteFile(f, []byte("x"), 0o600)
+	}
+	pruneDownloads(u, kept)
+	if _, err := os.Stat(filepath.Dir(stale)); !os.IsNotExist(err) {
+		t.Fatalf("stale download kept: %v", err)
+	}
+	if _, err := os.Stat(kept); err != nil {
+		t.Fatalf("kept download removed: %v", err)
+	}
+	pruneDownloads(u, "")
+	if _, err := os.Stat(filepath.Dir(kept)); !os.IsNotExist(err) {
+		t.Fatalf("unreferenced download kept: %v", err)
+	}
+}
+
+// A download that fails (here: the file does not match the signed
+// digest) shows the error; only a cancelled one goes back to the offer.
+func TestDownloadFailureShowsError(t *testing.T) {
+	s := newReleaseServer(t)
+	s.publish("1.3.0")
+	tf := newTestFlow(t, s.updater(t, "1.2.0"))
+	tf.check(context.Background(), false)
+	s.mu.Lock()
+	s.file = []byte("not what the manifest signed")
+	s.mu.Unlock()
+	tf.download()
+	waitFor(t, "the failure", func() bool { return !tf.isBusy() && tf.m.snapshot().phase != phaseDownloading })
+	if v := tf.m.snapshot(); v.phase != phaseError || v.errText == "" {
+		t.Fatalf("failed download: %+v", v)
 	}
 }

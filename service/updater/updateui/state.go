@@ -16,6 +16,11 @@ import (
 // (and distinct from) the updater's own state files.
 const stateFile = "updateui.json"
 
+// downloadsDir, in the state directory, holds downloaded releases, one
+// directory per version. Not $TMPDIR: a release kept for "Install on Next
+// Launch" must survive a reboot, which may empty the temporary directory.
+const downloadsDir = "updateui-downloads"
+
 // persisted is what updateui remembers across launches.
 type persisted struct {
 	Skipped   string          `json:"skipped,omitempty"`  // "Skip This Version"
@@ -161,4 +166,38 @@ func (p *persisted) usablePending(current string) *pendingPayload {
 func newer(a, b string) bool {
 	c, err := updater.CompareVersions(a, b)
 	return err == nil && c > 0
+}
+
+// downloadDir returns a fresh (emptied) directory for downloading version.
+func downloadDir(u *updater.Updater, version string) (string, error) {
+	sd, err := stateDir(u)
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(sd, downloadsDir, safeName(version))
+	if err := os.RemoveAll(dir); err != nil {
+		return "", fmt.Errorf("updateui: %w", err)
+	}
+	return dir, nil
+}
+
+// pruneDownloads removes every download except the version directory
+// holding keep ("" keeps none).
+func pruneDownloads(u *updater.Updater, keep string) {
+	sd, err := stateDir(u)
+	if err != nil {
+		return
+	}
+	root := filepath.Join(sd, downloadsDir)
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		dir := filepath.Join(root, e.Name())
+		if keep != "" && strings.HasPrefix(keep, dir+string(filepath.Separator)) {
+			continue
+		}
+		os.RemoveAll(dir)
+	}
 }

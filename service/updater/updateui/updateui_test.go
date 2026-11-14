@@ -152,6 +152,35 @@ func TestStartOffersDownloadedUpdate(t *testing.T) {
 	}
 }
 
+// Final review I4: Start removes leftover downloads but keeps the one it
+// offers.
+func TestStartPrunesDownloads(t *testing.T) {
+	a, fb := runApp(t)
+	s := newReleaseServer(t)
+	u := s.updater(t, "1.2.0")
+	stale := filepath.Join(downloadsOf(u), "1.1.0")
+	file := filepath.Join(downloadsOf(u), "1.3.0", "new.AppImage")
+	os.MkdirAll(stale, 0o700)
+	os.MkdirAll(filepath.Dir(file), 0o700)
+	os.WriteFile(file, []byte("x"), 0o600)
+	pay := &updater.Payload{Release: &updater.Release{Version: "1.3.0"}, Path: file}
+	if err := saveState(u, persisted{Pending: newPending(pay)}); err != nil {
+		t.Fatal(err)
+	}
+	stop, err := Start(a, u, en)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+	waitFor(t, "the downloaded-update window", func() bool { return len(updateWindows(fb)) == 1 })
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Fatalf("leftover download kept: %v", err)
+	}
+	if _, err := os.Stat(file); err != nil {
+		t.Fatalf("offered download removed: %v", err)
+	}
+}
+
 func TestStartReportsRolledBack(t *testing.T) {
 	a, fb := runApp(t)
 	s := newReleaseServer(t)

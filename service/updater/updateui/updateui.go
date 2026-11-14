@@ -130,6 +130,13 @@ func Start(app *tango.App, u *updater.Updater, opts Options) (stop func(), err e
 	if pp != nil {
 		f.payload = pp.payload()
 	}
+	if !f.busy { // a CheckNow before Start may be downloading
+		keep := ""
+		if f.payload != nil {
+			keep = f.payload.Path
+		}
+		pruneDownloads(u, keep)
+	}
 	f.mu.Unlock()
 	switch {
 	case pp != nil:
