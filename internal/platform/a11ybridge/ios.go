@@ -190,6 +190,10 @@ type IOSWords struct {
 	Mixed                   string // value of a mixed checkbox
 	Required                string // hint suffix
 	Invalid                 string // value suffix (the hint holds the message)
+	// EditHint is the hint suffix of an editable text input where UIKit
+	// cannot be given the canvas as the field's text responder (before
+	// iOS 18.1), so VoiceOver does not announce it as a text field.
+	EditHint string
 }
 
 // IOSPhrases is the vocabulary IOSStrings and IOSActions use.
@@ -197,6 +201,34 @@ var IOSPhrases = IOSWords{
 	Expand: "Expand", Collapse: "Collapse", Focus: "Focus",
 	Expanded: "expanded", Collapsed: "collapsed", Mixed: "mixed",
 	Required: "required", Invalid: "invalid",
+	EditHint: "Text field. Double tap to edit.",
+}
+
+// IOSEditable reports an enabled, editable text input: a text box, search
+// box or editable combobox that takes typing (spin buttons adjust
+// instead). UIAccessibility has no public text-field trait, so the bridge
+// marks these for UIKit another way: from iOS 18.1 the element names the
+// canvas view (a UITextInput) as its accessibilityTextInputResponder,
+// which makes VoiceOver treat it as editable text; before that its hint
+// says how to edit it (IOSEditHint).
+func IOSEditable(n *a11y.Node) bool {
+	if n.Role == a11y.RoleSpinButton || !isTextInput(n) {
+		return false
+	}
+	return !n.States.Has(a11y.Disabled) && !n.States.Has(a11y.ReadOnly)
+}
+
+// IOSEditHint returns hint (IOSStrings' hint of n) with IOSPhrases.EditHint
+// appended for an editable text input when responder is false (no text
+// responder: before iOS 18.1); otherwise hint unchanged.
+func IOSEditHint(hint string, n *a11y.Node, responder bool) string {
+	if responder || !IOSEditable(n) {
+		return hint
+	}
+	if hint == "" {
+		return IOSPhrases.EditHint
+	}
+	return hint + ", " + IOSPhrases.EditHint
 }
 
 // IOSText is the accessibilityLabel, accessibilityValue and

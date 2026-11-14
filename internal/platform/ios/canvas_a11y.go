@@ -26,6 +26,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -36,6 +37,10 @@ import (
 )
 
 var _ platform.CanvasAccessible = (*canvas)(nil)
+
+// textResponder reports whether elements can name a text input responder
+// (iOS 18.1+); fixed for the process, so asked once.
+var textResponder = sync.OnceValue(func() bool { return C.tga_text_responder() != 0 })
 
 // The header's trait, shape and container values are a11ybridge's:
 // indexing a one-element array with a non-zero constant fails to compile.
@@ -217,7 +222,12 @@ func (c *canvas) a11yPush(tree *a11y.Tree, n *a11y.Node) {
 		frees = append(frees, unsafe.Pointer(p))
 		return p
 	}
-	cn.label, cn.value, cn.hint = cstr(txt.Label), cstr(txt.Value), cstr(txt.Hint)
+	cn.label, cn.value = cstr(txt.Label), cstr(txt.Value)
+	// Editable fields: the element names the canvas as its text responder
+	// (iOS 18.1+), else its hint says how to edit (a11ybridge.IOSEditHint).
+	editable := shape == a11ybridge.IOSElement && a11ybridge.IOSEditable(n)
+	cn.editable = cbool(editable)
+	cn.hint = cstr(a11ybridge.IOSEditHint(txt.Hint, n, textResponder()))
 	cn.ident = cstr(a11yIDPrefix + strconv.FormatUint(uint64(n.ID), 10))
 	if acts.Activate != 0 {
 		cn.actions |= C.TGA_ACT_ACTIVATE
