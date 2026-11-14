@@ -564,3 +564,28 @@ func TestManualCheckKeepsDownloaded(t *testing.T) {
 		t.Fatalf("manual check with 1.4.0 out: %+v", v)
 	}
 }
+
+// Final review M3: a check saving its LastCheck must not overwrite the
+// state "Install on Next Launch" saved meanwhile (each save writes the
+// state as it is when written, under the flow's lock).
+func TestSavesDoNotLoseInstallNextLaunch(t *testing.T) {
+	_, u, tf := readyFlow(t)
+	defer func(f func(*updater.Updater, persisted) error) { save = f }(save)
+	checkSaving := make(chan struct{})
+	var once sync.Once
+	save = func(u *updater.Updater, p persisted) error {
+		if p.Pending == nil { // the check's save
+			once.Do(func() { close(checkSaving) })
+			time.Sleep(50 * time.Millisecond) // installNextLaunch runs now
+		}
+		return saveState(u, p)
+	}
+	done := make(chan struct{})
+	go func() { tf.check(context.Background(), true); close(done) }()
+	<-checkSaving
+	tf.installNextLaunch()
+	<-done
+	if loadState(u).Pending == nil {
+		t.Fatal("the check's save lost Install on Next Launch")
+	}
+}

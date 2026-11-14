@@ -133,10 +133,11 @@ func saveState(u *updater.Updater, p persisted) error {
 	}
 	tmp := f.Name()
 	_, werr := f.Write(b)
+	serr := f.Sync() // on disk before the rename makes it the state file
 	cerr := f.Close()
-	if werr != nil || cerr != nil {
+	if werr != nil || serr != nil || cerr != nil {
 		os.Remove(tmp)
-		return fmt.Errorf("updateui: writing state: %w", errors.Join(werr, cerr))
+		return fmt.Errorf("updateui: writing state: %w", errors.Join(werr, serr, cerr))
 	}
 	if err := os.Rename(tmp, filepath.Join(dir, stateFile)); err != nil {
 		os.Remove(tmp)

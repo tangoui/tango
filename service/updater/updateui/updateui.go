@@ -126,7 +126,9 @@ func Start(app *tango.App, u *updater.Updater, opts Options) (stop func(), err e
 	f.mu.Lock()
 	hadPending := f.st.Pending != nil
 	pp := f.st.usablePending(u.Version)
-	st := f.st
+	if hadPending && pp == nil {
+		f.saveLocked() // the kept update is gone or stale: forget it
+	}
 	if pp != nil {
 		f.payload = pp.payload()
 	}
@@ -138,15 +140,10 @@ func Start(app *tango.App, u *updater.Updater, opts Options) (stop func(), err e
 		pruneDownloads(u, keep)
 	}
 	f.mu.Unlock()
-	switch {
-	case pp != nil:
+	if pp != nil {
 		rel := f.payload.Release
 		s.m.set(func(m *model) { m.phase, m.rel = phaseDownloaded, rel })
 		s.show(false)
-	case hadPending:
-		if err := saveState(u, st); err != nil {
-			log.Printf("updateui: %v", err)
-		}
 	}
 
 	f.schedule(s.ctx, opts.interval(), opts.firstDelay())

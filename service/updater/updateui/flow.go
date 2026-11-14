@@ -16,6 +16,7 @@ import (
 var (
 	apply = (*updater.Updater).Apply
 	after = time.After
+	save  = saveState
 )
 
 // flow drives one *updater.Updater for the window: checks (background or
@@ -145,13 +146,10 @@ func (f *flow) check(ctx context.Context, manual bool) {
 
 	f.mu.Lock()
 	f.st.LastCheck = time.Now()
-	st := f.st
+	f.saveLocked()
 	skipped := rel != nil && (rel.Version == f.st.Skipped || rel.Version == f.laterThisRun)
 	kept := f.payload
 	f.mu.Unlock()
-	if err := saveState(f.u, st); err != nil {
-		log.Printf("updateui: %v", err)
-	}
 	if err == nil && kept != nil && kept.Release != nil && (rel == nil || !newer(rel.Version, kept.Release.Version)) {
 		// Nothing newer than the release already downloaded (only a
 		// manual check gets here): keep offering the restart.
@@ -250,11 +248,8 @@ func (f *flow) skip() {
 	}
 	f.mu.Lock()
 	f.st.Skipped = rel.Version
-	st := f.st
+	f.saveLocked()
 	f.mu.Unlock()
-	if err := saveState(f.u, st); err != nil {
-		log.Printf("updateui: %v", err)
-	}
 }
 
 // later puts the release on offer off for this run ("Remind Me Later").
@@ -293,11 +288,8 @@ func (f *flow) restartNow() error {
 	}
 	f.mu.Lock()
 	f.st.Pending = nil
-	st := f.st
+	f.saveLocked()
 	f.mu.Unlock()
-	if err := saveState(f.u, st); err != nil {
-		log.Printf("updateui: %v", err)
-	}
 	f.quit()
 	return nil
 }
@@ -310,9 +302,14 @@ func (f *flow) installNextLaunch() {
 		return
 	}
 	f.st.Pending = newPending(f.payload)
-	st := f.st
+	f.saveLocked()
 	f.mu.Unlock()
-	if err := saveState(f.u, st); err != nil {
+}
+
+// saveLocked writes the state file; f.mu is held, so saves are written in
+// the order the state changed and none overwrites a newer one.
+func (f *flow) saveLocked() {
+	if err := save(f.u, f.st); err != nil {
 		log.Printf("updateui: %v", err)
 	}
 }
