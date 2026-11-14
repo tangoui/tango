@@ -34,6 +34,12 @@ type session struct {
 	i18nStop func()
 
 	win window // main thread only
+
+	// stopping and done: stop has begun (set under sessionsMu) and has
+	// finished (closed). The session stays in sessions until done, so a
+	// new one never wraps u.OnEvent before the old stop restores it.
+	stopping bool
+	done     chan struct{}
 }
 
 var (
@@ -42,14 +48,24 @@ var (
 )
 
 // sessionFor returns u's session, creating it (and wrapping u.OnEvent)
-// the first time.
+// the first time. While an earlier session of u is stopping it waits for
+// that stop to finish.
 func sessionFor(app *tango.App, u *updater.Updater, opts Options) *session {
 	sessionsMu.Lock()
 	defer sessionsMu.Unlock()
-	if s := sessions[u]; s != nil {
-		return s
+	for {
+		s := sessions[u]
+		if s == nil {
+			break
+		}
+		if !s.stopping {
+			return s
+		}
+		sessionsMu.Unlock()
+		<-s.done
+		sessionsMu.Lock()
 	}
-	s := &session{app: app, u: u, opts: opts, m: &model{current: u.Version}}
+	s := &session{app: app, u: u, opts: opts, m: &model{current: u.Version}, done: make(chan struct{})}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.f = newFlow(u, s.m)
 	s.f.show = s.show
@@ -76,7 +92,8 @@ func (s *session) strings() *Strings { return stringsFor(s.opts) }
 // later). It returns an error, and changes nothing, when u lacks
 // ManifestURL, Version or a public key. stop ends the background checks,
 // closes the window and gives u back its own OnEvent; calling Start again
-// for the same Updater returns the same stop.
+// for the same Updater returns the same stop. A Start while an earlier
+// stop of the same Updater is still running waits for it to finish.
 func Start(app *tango.App, u *updater.Updater, opts Options) (stop func(), err error) {
 	switch {
 	case app == nil || u == nil:
@@ -133,12 +150,15 @@ func Start(app *tango.App, u *updater.Updater, opts Options) (stop func(), err e
 // CheckNow checks for an update right away and shows the result in the
 // window, including "up to date" and errors (for a "Check for Updates…"
 // menu item). While a check or download runs it just shows the window.
+// It returns at once; the check runs on its own goroutine.
 func CheckNow(app *tango.App, u *updater.Updater, opts Options) {
 	if app == nil || u == nil {
 		return
 	}
-	s := sessionFor(app, u, opts)
-	go s.f.check(s.ctx, true)
+	go func() {
+		s := sessionFor(app, u, opts) // may wait for a stop in progress
+		s.f.check(s.ctx, true)
+	}()
 }
 
 // stop ends the session (run once, through stopFn). It cancels a running
@@ -147,9 +167,7 @@ func CheckNow(app *tango.App, u *updater.Updater, opts Options) {
 // concurrent use.
 func (s *session) stop() {
 	sessionsMu.Lock()
-	if sessions[s.u] == s {
-		delete(sessions, s.u) // a later Start or CheckNow starts afresh
-	}
+	s.stopping = true // a Start or CheckNow from now on waits for done
 	sessionsMu.Unlock()
 	s.cancel()
 	s.mu.Lock()
@@ -160,4 +178,10 @@ func (s *session) stop() {
 	s.f.halt()
 	s.u.OnEvent = s.origOnEvent
 	s.app.Post(s.closeWindow)
+	sessionsMu.Lock()
+	if sessions[s.u] == s {
+		delete(sessions, s.u) // a later Start or CheckNow starts afresh
+	}
+	sessionsMu.Unlock()
+	close(s.done)
 }

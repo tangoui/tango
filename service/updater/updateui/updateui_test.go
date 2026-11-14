@@ -252,3 +252,41 @@ func TestNoWindowAfterStop(t *testing.T) {
 		t.Fatalf("%d update windows after stop", n)
 	}
 }
+
+// Final review I2: a CheckNow while an earlier stop still waits for a
+// running operation gets a fresh session once that stop is done, and the
+// stop's restore of u.OnEvent does not undo the new session's wrapper.
+func TestCheckNowDuringStop(t *testing.T) {
+	a, fb := runApp(t)
+	s := newReleaseServer(t)
+	s.publish("1.2.0")
+	u := s.updater(t, "1.2.0")
+	stop, err := Start(a, u, en)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionsMu.Lock()
+	old := sessions[u]
+	sessionsMu.Unlock()
+	if !old.f.begin() { // an operation stop must wait for
+		t.Fatal("flow busy")
+	}
+	stopped := make(chan struct{})
+	go func() { stop(); close(stopped) }()
+	waitFor(t, "stop to halt the flow", old.f.isStopped)
+	CheckNow(a, u, en)
+	time.Sleep(50 * time.Millisecond)
+	if n := s.hits.Load(); n != 0 {
+		t.Fatalf("checked beside the stopping session: %d requests", n)
+	}
+	old.f.end()
+	<-stopped
+	waitFor(t, "the new session's check", func() bool { return s.hits.Load() == 1 })
+	waitFor(t, "its window", func() bool { return len(updateWindows(fb)) == 1 })
+	if m := sessionModel(u); m == nil || m == old.m {
+		t.Fatal("no fresh session")
+	}
+	if u.OnEvent == nil {
+		t.Fatal("the old stop undid the new session's OnEvent wrapper")
+	}
+}
