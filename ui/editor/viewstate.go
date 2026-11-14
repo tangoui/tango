@@ -68,6 +68,8 @@ func (s *State) RestoreViewState(v ViewState) {
 		sels = v.Selections
 	}
 	s.Sels, _ = mergeSels(clampSels(snap, slices.Clone(sels), true))
+	s.ups = caretAffinity{}    // wrap-boundary sides of the replaced carets
+	s.rights = caretAffinity{} // injected-gap sides of the replaced carets
 	s.lastAdded = len(s.Sels) - 1
 	s.goals = nil
 	s.lastKind = kindNone

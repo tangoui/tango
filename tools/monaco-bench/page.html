@@ -1,0 +1,307 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Monaco bench</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #fff; }
+  #host { position: absolute; inset: 0; }
+</style>
+</head>
+<body>
+<div id="host"></div>
+<script src="/monaco/vs/loader.js"></script>
+<script>
+// Driven by bench.mjs over CDP. Everything is local: Monaco's AMD build
+// (min/vs) from /monaco/vs, documents from /data. editor.main installs its
+// own MonacoEnvironment.getWorker (blob workers importScripts()ing the
+// same-origin worker files).
+//
+// Timing conventions (performance.now(), page clock):
+// - frameDone(): the next requestAnimationFrame callback, then a
+//   MessageChannel task posted from it; that task runs after the frame's
+//   main-thread rendering (style, layout, paint record, commit). Raster and
+//   GPU composition run off the main thread and are NOT included.
+'use strict';
+window.benchErrors = [];
+window.addEventListener('error', (e) => window.benchErrors.push(String(e.message)));
+window.addEventListener('unhandledrejection', (e) => window.benchErrors.push(String(e.reason)));
+
+const B = (window.bench = {});
+B.ready = new Promise((resolve, reject) => {
+  require.config({ paths: { vs: '/monaco/vs' } });
+  require(['vs/editor/editor.main'], async () => {
+    try {
+      const pkg = await (await fetch('/monaco/package.json')).json();
+      window.monacoVersion = pkg.version;
+      window.benchReady = true;
+      resolve(pkg.version);
+    } catch (e) { reject(e); }
+  }, reject);
+});
+
+// afterFrame resolves after the next frame's main-thread rendering.
+function afterFrame() {
+  return new Promise((resolve) => {
+    requestAnimationFrame((rafT) => {
+      const ch = new MessageChannel();
+      ch.port1.onmessage = () => resolve({ raf: rafT, after: performance.now() });
+      ch.port2.postMessage(0);
+    });
+  });
+}
+B.afterFrame = afterFrame;
+
+// selfTest creates a tiny editor and reports the version and that it rendered.
+B.selfTest = async () => {
+  const v = await B.ready;
+  const ed = monaco.editor.create(document.getElementById('host'), { value: 'const x = 1;\n', language: 'typescript' });
+  await afterFrame(); await afterFrame();
+  const lines = document.querySelectorAll('.view-lines .view-line').length;
+  ed.getModel().dispose(); ed.dispose();
+  return { isolated: window.crossOriginIsolated, viewport: [innerWidth, innerHeight, devicePixelRatio], version: v, hasCreate: typeof monaco.editor.create === 'function', renderedLines: lines, errors: window.benchErrors };
+};
+
+// fetchText loads /data/<name> into memory (B.text); not part of open timing.
+B.fetchText = async (name) => {
+  const t0 = performance.now();
+  const r = await fetch('/data/' + name);
+  if (!r.ok) throw new Error('fetch ' + name + ': ' + r.status);
+  B.text = await r.text();
+  return { ms: performance.now() - t0, chars: B.text.length };
+};
+
+function visibleLineRange(ed) {
+  const rs = ed.getVisibleRanges();
+  if (!rs.length) return null;
+  return [rs[0].startLineNumber, rs[rs.length - 1].endLineNumber];
+}
+
+function renderedLineCount() {
+  return document.querySelectorAll('.view-lines .view-line').length;
+}
+
+// visibleTokensFinal: every visible line has accurate tokens and the DOM
+// shows more than one token class (mtk1 alone means "no tokens").
+function visibleTokensFinal(ed, model) {
+  const r = visibleLineRange(ed);
+  if (!r) return false;
+  for (let l = r[0]; l <= r[1]; l++) {
+    if (!model.tokenization.hasAccurateTokensForLine(l)) return false;
+  }
+  const classes = new Set();
+  document.querySelectorAll('.view-lines .view-line span span').forEach((s) => classes.add(s.className));
+  return classes.size > 1;
+}
+
+function degradeState(ed, model) {
+  const EO = monaco.editor.EditorOption;
+  const opt = (k) => { try { return ed.getOption(EO[k]); } catch { return undefined; } };
+  return {
+    lineCount: model.getLineCount(),
+    isTooLargeForTokenization: model.isTooLargeForTokenization(),
+    isTooLargeForSyncing: model.isTooLargeForSyncing(),
+    isTooLargeForHeapOperation: typeof model.isTooLargeForHeapOperation === 'function' ? model.isTooLargeForHeapOperation() : undefined,
+    hasTokens: model.tokenization.hasTokens,
+    backgroundTokenizationState: model.tokenization.backgroundTokenizationState,
+    maxTokenizationLineLength: opt('maxTokenizationLineLength'),
+    stopRenderingLineAfter: opt('stopRenderingLineAfter'),
+    minimapEnabled: (opt('minimap') || {}).enabled,
+    folding: opt('folding'),
+    wordWrap: opt('wordWrap'),
+    occurrencesHighlight: opt('occurrencesHighlight'),
+    bracketPairColorization: (opt('bracketPairColorization') || {}).enabled,
+    guidesIndentation: (opt('guides') || {}).indentation,
+  };
+}
+
+B.dispose = () => {
+  if (B.ed) { B.ed.dispose(); B.ed = null; }
+  if (B.model) { B.model.dispose(); B.model = null; }
+};
+
+// open creates the model and editor from B.text and times:
+//   editableMs: to the end of the first frame whose view lines are in the
+//               DOM (the editor is editable from then on)
+//   tokensMs:   to the end of the first frame whose visible lines all have
+//               accurate tokens (null when tokenization is off / timed out)
+// opts: { language, largeFileOptimizations (undefined = Monaco default),
+//         tokenTimeoutMs, keepText }
+B.open = async (opts = {}) => {
+  await B.ready;
+  B.dispose();
+  const text = B.text;
+  if (!opts.keepText) B.text = null;
+  const edOpts = { language: opts.language || 'typescript', automaticLayout: false };
+  if (opts.largeFileOptimizations !== undefined) edOpts.largeFileOptimizations = opts.largeFileOptimizations;
+  if (opts.largeFileOptimizations !== undefined) {
+    // largeFileOptimizations is read by the model service when a model is
+    // created, from the standalone configuration that editor.create() updates
+    // from its options: create (and drop) a tiny editor first so the
+    // following createModel sees the value.
+    const tmp = monaco.editor.create(document.createElement('div'), { largeFileOptimizations: opts.largeFileOptimizations });
+    tmp.dispose();
+  }
+  const t0 = performance.now();
+  const model = monaco.editor.createModel(text, edOpts.language, monaco.Uri.parse('file:///bench/' + (opts.name || 'doc') + '.ts'));
+  const tModel = performance.now();
+  const ed = monaco.editor.create(document.getElementById('host'), { ...edOpts, model });
+  const tEditor = performance.now();
+  B.ed = ed; B.model = model;
+  let editableMs = null, tokensMs = null, frames = 0;
+  const tokenTimeout = opts.tokenTimeoutMs ?? 5000;
+  const tooLarge = model.isTooLargeForTokenization();
+  for (;;) {
+    const f = await afterFrame();
+    frames++;
+    if (editableMs === null && renderedLineCount() > 0) editableMs = f.after - t0;
+    if (editableMs !== null) {
+      if (!tooLarge && visibleTokensFinal(ed, model)) { tokensMs = f.after - t0; break; }
+      if (tooLarge || f.after - t0 > tokenTimeout) break;
+    }
+    if (f.after - t0 > 60000) break;
+  }
+  return {
+    createModelMs: tModel - t0,
+    createEditorMs: tEditor - tModel,
+    editableMs, tokensMs, frames,
+    lineHeight: ed.getOption(monaco.editor.EditorOption.lineHeight),
+    layout: ed.getLayoutInfo ? { w: ed.getLayoutInfo().width, h: ed.getLayoutInfo().height } : null,
+    dpr: window.devicePixelRatio,
+    degrade: { largeFileOptimizations: opts.largeFileOptimizations === undefined ? 'default (true)' : opts.largeFileOptimizations, ...degradeState(ed, model) },
+  };
+};
+
+// ---- typing -------------------------------------------------------------
+// prepareType puts the caret at the start of `line`, reveals and focuses it
+// and installs the listeners; every keydown (capture, on window, so before
+// Monaco) starts a sample, the model change marks it, and the end of the
+// frame after the change ends it.
+B.prepareType = async (line) => {
+  const ed = B.ed, model = B.model;
+  ed.setPosition({ lineNumber: line, column: 1 });
+  ed.revealLineInCenter(line);
+  ed.focus();
+  await afterFrame(); await afterFrame();
+  B.samples = [];
+  B.pending = null;
+  if (!B.keyListener) {
+    B.keyListener = (e) => {
+      if (e.key === 'x' || e.key === 'Enter') B.pending = { key: e.key, t0: performance.now() };
+    };
+    window.addEventListener('keydown', B.keyListener, true);
+  }
+  if (B.changeSub) B.changeSub.dispose();
+  B.changeSub = model.onDidChangeContent(() => {
+    const p = B.pending;
+    if (!p || p.tChange !== undefined) return;
+    p.tChange = performance.now();
+    afterFrame().then((f) => {
+      p.raf = f.raf; p.after = f.after;
+      // workMs leaves out the wait for the frame tick (keydown handled →
+      // frame start): key handling + the frame's main-thread work.
+      B.samples.push({ key: p.key, changeMs: p.tChange - p.t0, rafMs: f.raf - p.t0, ms: f.after - p.t0, workMs: (p.tChange - p.t0) + (f.after - Math.max(f.raf, p.tChange)) });
+      B.pending = null;
+    });
+  });
+  return { focused: ed.hasTextFocus(), position: ed.getPosition(), lineCount: model.getLineCount() };
+};
+
+// waitSamples resolves when n samples exist (or after timeoutMs).
+B.waitSamples = (n, timeoutMs = 5000) => new Promise((resolve) => {
+  const t0 = performance.now();
+  const poll = () => {
+    if (B.samples.length >= n || performance.now() - t0 > timeoutMs) resolve(B.samples.length);
+    else setTimeout(poll, 0);
+  };
+  poll();
+});
+
+B.typeResult = () => ({ samples: B.samples, lineCount: B.model.getLineCount(), position: B.ed.getPosition(), focused: B.ed.hasTextFocus() });
+
+// ---- scrolling ----------------------------------------------------------
+// idleFrames measures the rAF interval of an idle page (frame-rate cap check).
+B.idleFrames = async (n = 120) => {
+  const ts = [];
+  for (let i = 0; i < n; i++) ts.push((await afterFrame()).raf);
+  const d = [];
+  for (let i = 1; i < ts.length; i++) d.push(ts[i] - ts[i - 1]);
+  return d;
+};
+
+// scroll moves the view down 2 lines per frame for `frames` frames starting
+// with `startLine` at the top (caret placed there, editor focused). Each
+// rAF callback calls setScrollTop; returns the rAF-to-rAF intervals and the
+// per-frame main-thread time (rAF start to the end of that frame's
+// rendering, MessageChannel task).
+B.scroll = async (startLine, frames = 300, lines = 2) => {
+  const ed = B.ed;
+  const lh = ed.getOption(monaco.editor.EditorOption.lineHeight);
+  ed.setPosition({ lineNumber: startLine, column: 1 });
+  ed.setScrollTop((startLine - 1) * lh);
+  ed.focus();
+  for (let i = 0; i < 5; i++) await afterFrame();
+  const top0 = ed.getScrollTop();
+  const rafs = [], work = [], firstLine = [];
+  await new Promise((resolve) => {
+    let i = 0;
+    const step = (t) => {
+      rafs.push(t);
+      ed.setScrollTop(ed.getScrollTop() + lines * lh);
+      const ch = new MessageChannel();
+      ch.port1.onmessage = () => {
+        work.push(performance.now() - t);
+        const r = visibleLineRange(ed);
+        firstLine.push(r ? r[0] : -1);
+      };
+      ch.port2.postMessage(0);
+      if (++i < frames) requestAnimationFrame(step);
+      else requestAnimationFrame((t2) => { rafs.push(t2); setTimeout(resolve, 0); });
+    };
+    requestAnimationFrame(step);
+  });
+  const intervals = [];
+  for (let k = 1; k < rafs.length; k++) intervals.push(rafs[k] - rafs[k - 1]);
+  // DOM check: the view lines really show the scrolled-to text.
+  const r = visibleLineRange(ed);
+  const domFirst = document.querySelector('.view-lines .view-line') ? true : false;
+  return { lineHeight: lh, top0, top1: ed.getScrollTop(), intervals, work, firstVisible: r ? r[0] : null, startLine, domFirst, lastFirstLines: firstLine.slice(-3) };
+};
+
+// ---- TS 20k tokenization ------------------------------------------------
+// forceTokenizeDetached: synchronous model.tokenization.forceTokenization(lineCount)
+// on the open model (fresh, nothing tokenized beyond the first screen).
+// The model is created from B.text without an editor (so Monaco's
+// background tokenizer, which only runs for attached models, never starts).
+B.forceTokenizeDetached = (language = 'typescript') => {
+  const m = monaco.editor.createModel(B.text, language, monaco.Uri.parse('file:///bench/force-' + Math.random().toString(36).slice(2) + '.ts'));
+  const n = m.getLineCount();
+  const before = m.tokenization.hasAccurateTokensForLine(n);
+  const t0 = performance.now();
+  m.tokenization.forceTokenization(n);
+  const ms = performance.now() - t0;
+  const res = { ms, lineCount: n, lastAccurateBefore: before, lastAccurate: m.tokenization.hasAccurateTokensForLine(n), tooLarge: m.isTooLargeForTokenization() };
+  m.dispose();
+  return res;
+};
+
+// bgStart marks the start of background tokenization timing (right after
+// open, the editor attached: Monaco's DefaultBackgroundTokenizer runs in
+// requestIdleCallback slices).
+B.bgDone = () => {
+  const m = B.model;
+  return m.tokenization.backgroundTokenizationState === 2 || m.tokenization.hasAccurateTokensForLine(m.getLineCount());
+};
+B.waitBgDone = (timeoutMs = 60000) => new Promise((resolve) => {
+  const t0 = performance.now();
+  const poll = () => {
+    if (B.bgDone()) resolve({ ms: performance.now() - t0, done: true });
+    else if (performance.now() - t0 > timeoutMs) resolve({ ms: performance.now() - t0, done: false });
+    else setTimeout(poll, 5);
+  };
+  poll();
+});
+B.now = () => performance.now();
+</script>
+</body>
+</html>

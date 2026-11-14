@@ -87,7 +87,7 @@ func (w *ViewW) paintControlBackgrounds(l *paint.List, lv *lineView, tx, y, lh f
 		r := sg.r0
 		for _, ch := range s {
 			if ch < utf8.RuneSelf && isControlByte(byte(ch)) {
-				for _, sr := range sg.lay.SelectionRects(r-sg.r0, r-sg.r0+1) {
+				for _, sr := range sg.lay.SelectionRects(sg.local(r), sg.local(r)+1) {
 					l.Fill(rectXYWH(tx+sg.x0+sr.X, y, sr.W, lh), geom.Radii{}, controlBG)
 				}
 			}
@@ -216,7 +216,7 @@ func (w *ViewW) paintWhitespace(l *paint.List, snap buffer.Snapshot, lv *lineVie
 			at := marked[m]
 			r += utf8.RuneCountInString(lv.text[pos:at])
 			pos = at
-			x, _, _ := sg.lay.Caret(r - sg.r0)
+			x, _, _ := sg.lay.Caret(sg.local(r))
 			g := mk.dot
 			if lv.text[at] == '\t' {
 				g = mk.arrow

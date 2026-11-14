@@ -60,8 +60,10 @@ func (w *ViewW) compose(snap buffer.Snapshot, lv *lineView, a, b, head int, comp
 	}
 	n := utf8.RuneCountInString(comp)
 	cc = max(0, min(cc, n))
-	if lv.long != nil || lv.rows > 1 {
-		x, ok := lv.caretX(lv.runeAt(cs))
+	if lv.long != nil || lv.rows > 1 || len(lv.inj) > 0 {
+		// Over the line: also on a line with injected gaps (injected.go),
+		// whose pieces a reshaped line would lose.
+		x, ok := lv.caretXSide(lv.runeAt(cs), ls+cs == head && w.st.caretRight())
 		if !ok {
 			x = float32(w.st.viewColumn(snap, ls+cs, false)) * w.vs.colW
 		}
@@ -167,7 +169,7 @@ func (w *ViewW) paintCaret(l *paint.List, snap buffer.Snapshot, lv *lineView, he
 		case cmp.on:
 			x, ok = lv.caretX(cmp.caret)
 		default:
-			x, ok = lv.caretX(lv.runeAt(head - snap.LineStart(lv.i)))
+			x, ok = lv.caretXSide(lv.runeAt(head-snap.LineStart(lv.i)), w.st.caretRight())
 		}
 	}
 	switch {

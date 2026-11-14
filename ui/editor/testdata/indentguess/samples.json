@@ -1,0 +1,1082 @@
+[
+ {
+  "name": "tabs",
+  "text": "function f() {\n\tif (a1) {\n\t\tif (a2) {\n\t\t\tif (a3) {\n\t\t\t\tcall();\n\t\t\t}\n\t\t}\n\t}\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": false
+   }
+  ]
+ },
+ {
+  "name": "spaces2",
+  "text": "function f() {\n  if (a1) {\n    if (a2) {\n      if (a3) {\n        call();\n      }\n    }\n  }\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "spaces4",
+  "text": "function f() {\n    if (a1) {\n        if (a2) {\n            if (a3) {\n                call();\n            }\n        }\n    }\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "spaces8",
+  "text": "function f() {\n        if (a1) {\n                if (a2) {\n                        call();\n                }\n        }\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 8,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "spaces3",
+  "text": "function f() {\n   if (a1) {\n      if (a2) {\n         if (a3) {\n            call();\n         }\n      }\n   }\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 3,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 3,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 3,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 3,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "spaces6",
+  "text": "function f() {\n      if (a1) {\n            if (a2) {\n                  call();\n            }\n      }\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 6,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 6,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 6,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 6,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "mixed_tabs_majority",
+  "text": "function f() {\n\tif (a1) {\n\t\tif (a2) {\n\t\t\tif (a3) {\n\t\t\t\tcall();\n\t\t\t}\n\t\t}\n\t}\n}\nfunction f() {\n  if (a1) {\n    call();\n  }\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": false
+   }
+  ]
+ },
+ {
+  "name": "mixed_spaces_majority",
+  "text": "function f() {\n    if (a1) {\n        if (a2) {\n            if (a3) {\n                call();\n            }\n        }\n    }\n}\nfunction f() {\n\tif (a1) {\n\t\tcall();\n\t}\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "mixed_equal_lines",
+  "text": "a\n\tb\nc\n    d\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "comments_only",
+  "text": "// first\n// second\n/* third */\n# fourth\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "empty",
+  "text": "",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "whitespace_only",
+  "text": "   \n\t\n  \n\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "over_10000_lines_tabs_then_spaces",
+  "text": "a\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\na\n\tb\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": false
+   }
+  ]
+ },
+ {
+  "name": "over_10000_lines_flat_then_spaces",
+  "text": "x\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\nc\n  d\n    e\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "crlf_spaces2",
+  "text": "function f() {\r\n  if (a1) {\r\n    if (a2) {\r\n      if (a3) {\r\n        call();\r\n      }\r\n    }\r\n  }\r\n}\r\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "crlf_tabs",
+  "text": "function f() {\r\n\tif (a1) {\r\n\t\tif (a2) {\r\n\t\t\tcall();\r\n\t\t}\r\n\t}\r\n}\r\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": false
+   }
+  ]
+ },
+ {
+  "name": "lone_cr_spaces4",
+  "text": "function f() {\r    if (a1) {\r        if (a2) {\r            call();\r        }\r    }\r}\r",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "jsdoc_spaces4",
+  "text": "class A {\n    /**\n     * Doc line.\n     * @param x\n     */\n    m(x) {\n        return x;\n    }\n\n    /**\n     * More.\n     */\n    n() {}\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "jsdoc_spaces2",
+  "text": "class A {\n  /**\n   * Doc line.\n   * @param x\n   */\n  m(x) {\n    return x;\n  }\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "jsdoc_tabs",
+  "text": "class A {\n\t/**\n\t * Doc line.\n\t * @param x\n\t */\n\tm(x) {\n\t\treturn x;\n\t}\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": false
+   }
+  ]
+ },
+ {
+  "name": "one_space_alignment",
+  "text": "a\n b\n  c\n   d\n    e\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "comma_alignment",
+  "text": "const a = 1,\n      b = 2;\nlet c = 3,\n    d = 4;\nfunction g() {\n  x();\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "comma_alignment_eq_default",
+  "text": "foo(a,\n    b);\nbar(c,\n    d);\nif (x) {\n  y();\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "yaml_2_beats_4",
+  "text": "a:\n  b:\n    c: 1\n  d:\n    e:\n        f: 1\n    g: 2\nh:\n  i: 1\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "four_predominant_some_2",
+  "text": "a {\n    b {\n        c;\n    }\n    d {\n        e;\n    }\n    f {\n      g;\n    }\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "tab_plus_spaces_lines",
+  "text": "a\n\t    b\n\t    c\n\td\n\t\te\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": false
+   }
+  ]
+ },
+ {
+  "name": "tab_then_tab_spaces",
+  "text": "\tfoo\n\t    bar\n\tbaz\n\t    qux\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": false
+   }
+  ]
+ },
+ {
+  "name": "tabs_vs_spaces_diff_multiple",
+  "text": "a\n\t\tb\nc\n        d\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "single_space_lines",
+  "text": "a\n b\n c\n d\n\te\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": false
+   }
+  ]
+ },
+ {
+  "name": "python_spaces4_blank_lines",
+  "text": "def f():\n    x = 1\n\n    if x:\n\n        return x\n\n\nclass C:\n    pass\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "jump_over_8",
+  "text": "a\n            b\nc\n            d\ne\n  f\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "long_line_indented",
+  "text": "  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\nfoo\n  bar\n    baz\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "unicode_alignment_bmp",
+  "text": "é b,\n  x;\né b,\n  x;\né b,\n  x;\né b,\n  x;\né b,\n  x;\nif (q) {\n    y();\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "unicode_alignment_astral",
+  "text": "😀 b,\n   x;\n😀 b,\n   x;\n😀 b,\n   x;\n😀 b,\n   x;\n😀 b,\n   x;\nif (q) {\n    y();\n}\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "html_nested_2",
+  "text": "<html>\n  <body>\n    <div>\n      <p>x</p>\n    </div>\n  </body>\n</html>\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": true
+   }
+  ]
+ },
+ {
+  "name": "makefile_tabs_with_space_vars",
+  "text": "VAR = a \\\n      b\nall:\n\tgo build\n\tgo test\n",
+  "results": [
+   {
+    "defaultTabSize": 4,
+    "defaultInsertSpaces": true,
+    "tabSize": 4,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": false,
+    "tabSize": 2,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 8,
+    "defaultInsertSpaces": true,
+    "tabSize": 8,
+    "insertSpaces": false
+   },
+   {
+    "defaultTabSize": 2,
+    "defaultInsertSpaces": true,
+    "tabSize": 2,
+    "insertSpaces": false
+   }
+  ]
+ }
+]

@@ -146,6 +146,7 @@ type pending struct {
 	clicks   int
 	shift    bool
 	alt      bool
+	trigger  bool // the link trigger modifier (links.go)
 	drag     bool
 	dragPos  geom.Point
 	// ptr is the pointer position after the frame's last pointer event;
@@ -289,6 +290,7 @@ func (w *ViewW) collect() {
 		p.press, p.pressPos, p.clicks = true, pos, (c.PressCount()-1)%3+1
 		p.shift = c.PressMods().Has(input.ModShift)
 		p.alt = c.PressMods().Has(input.ModAlt)
+		p.trigger = w.triggerMods(c.PressMods())
 	}
 	if c.Dragging(id) {
 		p.drag, p.dragPos = true, pos
@@ -317,8 +319,11 @@ func (w *ViewW) finish() {
 	}
 	vs.hadFocus = active
 	ver := st.Snapshot().Version()
+	w.commitPicker()
 	sel := selsKey(st.Sels)
-	if p.press {
+	rail := w.railInput(p)
+	if p.press && !rail {
+		w.linkPress(p)
 		w.press(p)
 	}
 	// A drag of text sees the pointer before this frame's keys: a
@@ -326,14 +331,15 @@ func (w *ViewW) finish() {
 	// (keys and pointer are not ordered against each other in a frame).
 	if vs.dnd != nil {
 		w.dndInput(p)
-	} else if p.drag {
+	} else if p.drag && !rail {
 		w.drag(p.dragPos)
 	}
-	if p.release {
+	if p.release && !rail {
 		if l := vs.placeholderPress; l >= 0 && w.placeholderAt(p.relPos) == l {
 			st.toggleFoldAt(l, false)
 		}
 		vs.placeholderPress = -1
+		w.linkRelease(p)
 	}
 	if r := p.menu; r != nil {
 		st.execute(r.cmd, r.args, w.keyContext())
@@ -553,6 +559,8 @@ func (w *ViewW) vertical(d Direction, n int, page, extend bool) {
 	if toUp {
 		st.setCaretUp(true)
 	}
+	// Down arrives right of an injected gap, Up left of it (injected.go).
+	st.setCaretRight(d == Forward)
 	if page {
 		dy := float32(n) * st.Viewport.LineHeight
 		if d == Backward {
@@ -572,12 +580,15 @@ func (w *ViewW) press(p pending) {
 	if w.foldControlPress(p) {
 		return
 	}
+	if w.swatchPress(p) {
+		return // opened the color picker (colors.go)
+	}
 	// A click on a folded line's placeholder unfolds it when released on
 	// the same placeholder (Monaco's FoldingController.onEditorMouseDown /
 	// onEditorMouseUp), so a drag starting there only selects.
 	vs.placeholderPress = w.placeholderAt(p.pressPos)
 	snap := st.Snapshot()
-	off, up := w.hitAt(snap, p.pressPos)
+	off, up, right := w.hitSide(snap, p.pressPos)
 	vs.dragMode, vs.dragBase = dragPrimary, nil
 	if w.dndStart(p, snap, off) {
 		return // picked up the selection (dnd.go)
@@ -592,6 +603,7 @@ func (w *ViewW) press(p pending) {
 	case p.shift && p.clicks == 1:
 		st.MoveCaret(off, true)
 		st.setCaretUp(up)
+		st.setCaretRight(right)
 		a := st.Primary().Anchor
 		vs.dragUnit, vs.dragA, vs.dragB = unitChar, a, a
 		return
@@ -607,7 +619,7 @@ func (w *ViewW) press(p pending) {
 				return
 			}
 		} else {
-			st.setSels(append(slices.Clone(st.sels()), Selection{Anchor: a, Head: b}), nil)
+			st.addRemoveSels(append(slices.Clone(st.sels()), Selection{Anchor: a, Head: b}), nil)
 		}
 		vs.dragMode, vs.dragBase = dragAdded, slices.Clone(st.Sels)
 		// The added cursor is the last one unless it merged.
@@ -623,6 +635,7 @@ func (w *ViewW) press(p pending) {
 	vs.dragA, vs.dragB = a, b
 	w.setSel(a, b)
 	st.setCaretUp(up && a == b)
+	st.setCaretRight(right && a == b && b == off)
 }
 
 // foldControlPress handles a press on a folding control in the gutter:
@@ -685,8 +698,13 @@ func (w *ViewW) placeholderAt(pt geom.Point) int {
 func (w *ViewW) visualAt(snap buffer.Snapshot, p geom.Point) (line, col int) {
 	vs, v := w.vs, w.st.Viewport
 	x := p.X - vs.text.X + v.ScrollX
-	col = max(0, int(math.Round(float64(x/vs.colW))))
 	line, row := w.st.lines().find(w.pointRow(p))
+	if w.st.vl.cfg.inj.on() {
+		// Without the injected gaps before x (injected.go).
+		lv := w.rowAt(snap, line, row)
+		x = lv.gridX(x)
+	}
+	col = max(0, int(math.Round(float64(x/vs.colW))))
 	if w.st.lines().on() {
 		text := snap.Line(line)
 		b0, _, ind := w.st.rowText(line, row, text)
@@ -719,14 +737,14 @@ func (w *ViewW) drag(p geom.Point) {
 		}
 		return
 	}
-	off, up := w.hitAt(snap, p)
+	off, up, right := w.hitSide(snap, p)
 	a, b := w.unitRange(snap, off, vs.dragUnit)
 	sel := Selection{Anchor: vs.dragA, Head: max(b, vs.dragB)}
 	if a < vs.dragA {
 		sel = Selection{Anchor: vs.dragB, Head: a}
 	}
 	if vs.dragMode == dragAdded {
-		st.setSels(append(slices.Clone(vs.dragBase), sel), nil)
+		st.addRemoveSels(append(slices.Clone(vs.dragBase), sel), nil)
 		if !vs.text.Contains(p) {
 			w.revealOff(sel.Head)
 		}
@@ -734,6 +752,7 @@ func (w *ViewW) drag(p geom.Point) {
 	}
 	w.setSel(sel.Anchor, sel.Head)
 	st.setCaretUp(up && sel.Head == off)
+	st.setCaretRight(right && sel.Head == off)
 	if !vs.text.Contains(p) {
 		w.reveal() // dragging past an edge scrolls
 	}
@@ -812,18 +831,26 @@ func (w *ViewW) offsetAt(snap buffer.Snapshot, p geom.Point) int {
 // that continues on the next one (the offset is that row's end: see
 // State.caretUp).
 func (w *ViewW) hitAt(snap buffer.Snapshot, p geom.Point) (off int, up bool) {
+	off, up, _ = w.hitSide(snap, p)
+	return off, up
+}
+
+// hitSide is hitAt, also reporting whether p is on the right half of an
+// injected gap (the offset is the gap's column, the caret drawn right of
+// it: injected.go).
+func (w *ViewW) hitSide(snap buffer.Snapshot, p geom.Point) (off int, up, right bool) {
 	vs, v := w.vs, w.st.Viewport
 	r := w.pointRow(p)
 	switch {
 	case r < 0:
-		return 0, false
+		return 0, false, false
 	case r >= w.st.viewCount():
-		return snap.Len(), false
+		return snap.Len(), false, false
 	}
 	line, row := w.st.lines().find(r)
 	lv := w.rowAt(snap, line, row)
-	col := w.colAtX(&lv, p.X-vs.text.X+v.ScrollX)
-	return snap.LineStart(line) + col, !lv.last() && col == lv.b1
+	col, right := w.colAtXSide(&lv, p.X-vs.text.X+v.ScrollX)
+	return snap.LineStart(line) + col, !lv.last() && col == lv.b1, right
 }
 
 // rowAt lays out row of model line i as paint does (through the same
@@ -863,7 +890,8 @@ func (w *ViewW) contentXUp(snap buffer.Snapshot, off int, up bool) (float32, boo
 	off = clampOff(snap, off)
 	l, row := w.st.rowPos(off, up)
 	lv := w.rowAt(snap, l, row)
-	if x, ok := lv.caretX(lv.runeAt(off - snap.LineStart(l))); ok {
+	right := off == clampOff(snap, w.st.Primary().Head) && w.st.caretRight()
+	if x, ok := lv.caretXSide(lv.runeAt(off-snap.LineStart(l)), right); ok {
 		return x, true
 	}
 	return float32(w.st.viewColumn(snap, off, up)) * w.vs.colW, true
@@ -872,34 +900,52 @@ func (w *ViewW) contentXUp(snap buffer.Snapshot, off int, up bool) (float32, boo
 // colAtX returns the byte column of lv nearest content x, on a grapheme
 // cluster boundary.
 func (w *ViewW) colAtX(lv *lineView, x float32) int {
+	col, _ := w.colAtXSide(lv, x)
+	return col
+}
+
+// colAtXSide is colAtX, also reporting whether x is on the right half of
+// an injected gap: the column is the gap's, on its right side (the left
+// half gives the same column on its left side; injected.go).
+func (w *ViewW) colAtXSide(lv *lineView, x float32) (int, bool) {
 	colW := w.vs.colW
 	grid := func() int { // column grid (unshaped parts of long lines)
 		return w.st.offsetForColumn(lv.text, int(math.Round(float64(x/colW))))
 	}
 	if len(lv.segs) == 0 {
 		if lv.long != nil {
-			return grid()
+			return grid(), false
 		}
-		return 0
+		return 0, false
+	}
+	// The seg under x: a long line's chunk from its origin; a piece of a
+	// row split at injected gaps from the middle of the gap before it.
+	from := func(k int) float32 {
+		if sg := &lv.segs[k]; sg.piece && k-1 < len(lv.inj) {
+			return sg.startX() - lv.inj[k-1].w/2
+		}
+		return lv.segs[k].x0
 	}
 	k := 0
-	for k+1 < len(lv.segs) && x >= lv.segs[k+1].x0 {
+	for k+1 < len(lv.segs) && x >= from(k+1) {
 		k++
 	}
 	sg := lv.segs[k]
 	if lv.long != nil && ((k == 0 && x < sg.x0 && sg.r0 > 0) ||
 		(k == len(lv.segs)-1 && x > sg.x0+sg.lay.Width && sg.r1 < lv.runes)) {
-		return grid()
+		return grid(), false
 	}
 	s := lv.text[sg.b0:sg.b1]
 	lx := x - sg.x0
 	ri := sg.lay.IndexAt(lx, sg.lay.LineHeight/2)
+	ri = max(0, min(ri-sg.lr, sg.r1-sg.r0)) // within the piece
 	col := byteOfRune(s, ri)
 	xAt := func(c int) float32 {
-		cx, _, _ := sg.lay.Caret(utf8.RuneCountInString(s[:c]))
+		cx, _, _ := sg.lay.Caret(sg.lr + utf8.RuneCountInString(s[:c]))
 		return cx
 	}
-	return sg.b0 + snapCluster(s, col, lx, xAt)
+	col = snapCluster(s, col, lx, xAt)
+	return sg.b0 + col, sg.piece && k > 0 && col == 0
 }
 
 // byteOfRune returns the byte offset of rune index ri of s.

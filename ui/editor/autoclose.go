@@ -428,6 +428,14 @@ func (s *State) isAutoClosedAt(off int) bool {
 // line break ("\r\n" and "\r" count as one). Use Insert to insert text as
 // is (paste, programmatic edits).
 func (s *State) Type(text string) {
+	if m := s.Model; m.notifying {
+		sels := slices.Clone(s.sels())
+		m.enqueue(func(since [][]buffer.Edit) {
+			s.SetSelections(mapSelsSince(sels, since))
+			s.Type(text)
+		})
+		return
+	}
 	text = strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
 	for i := 0; i < len(text); {
 		j := nextGrapheme(text, i)
@@ -438,6 +446,7 @@ func (s *State) Type(text string) {
 
 // typeChar types one character (Monaco's typeWithInterceptors).
 func (s *State) typeChar(ch string) {
+	defer s.Model.command()()
 	s.gate = nil // each character gets its own tokenization budget
 	s.normalize()
 	s.clampedSels(s.Snapshot())

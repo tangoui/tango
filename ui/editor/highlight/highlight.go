@@ -104,6 +104,7 @@ type Highlighter struct {
 	snap    buffer.Snapshot
 	have    bool   // snap is set
 	gen     uint64 // see package doc, "Background and versions"
+	grammar uint64 // Reset identity, independent of text changes
 	st      store
 	scratch []monarch.Token // foreground tokens for lines outside the window
 	regs    []region        // Edit's scratch buffer
@@ -132,10 +133,19 @@ func (h *Highlighter) Reset(lx *monarch.Lexer) {
 	defer h.mu.Unlock()
 	h.lx = lx
 	h.gen++
+	h.grammar++
 	if h.have {
 		h.st.reset(h.snap.LineCount())
 	}
 	h.signal()
+}
+
+// GrammarGeneration changes on every Reset, including Reset with the same
+// lexer. It is safe to read while the background tokenizer is running.
+func (h *Highlighter) GrammarGeneration() uint64 {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.grammar
 }
 
 // Sync makes snap the current snapshot without tokenizing anything or
@@ -314,6 +324,20 @@ func (h *Highlighter) FinalLines(snap buffer.Snapshot) int {
 		return 0
 	}
 	return min(h.st.nextDirty(), h.st.minPending(), h.st.n())
+}
+
+// StartState returns the stored start state of line of snap: the end
+// state of the line above as last tokenized (final when line is below
+// FinalLines). It reports false for a snapshot the Highlighter has not
+// seen, a line out of range or no lexer. The editor's bracket pairs use it
+// to notice token changes that edits do not (an opened comment).
+func (h *Highlighter) StartState(snap buffer.Snapshot, line int) (monarch.State, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.lx == nil || !h.have || snap.Version() != h.snap.Version() || line < 0 || line >= h.st.n() {
+		return 0, false
+	}
+	return h.startState(line), true
 }
 
 // WindowRange returns the lines [lo, hi) whose token slices DefaultView's

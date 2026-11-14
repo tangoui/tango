@@ -126,7 +126,7 @@ func TestIndentationOptionsShared(t *testing.T) {
 // a focused view.
 func TestLineOpsKeys(t *testing.T) {
 	goText(t)
-	st := NewState("a\n  b\nc", "a.go", theme.Base("vs"))
+	st := newTestState("a\n  b\nc", "a.go", theme.Base("vs")) // tab size 4, not the detected 2
 	ed := newEditDriver(st, 400, 200, pinMac)
 	ed.focus(t)
 	text := func() string { return st.Snapshot().String() }

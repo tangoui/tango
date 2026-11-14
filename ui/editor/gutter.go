@@ -132,6 +132,11 @@ func (o *Options) lineNumber(i, caretLine, n int) (num int, show, left bool) {
 		}
 		return max(i-caretLine, caretLine-i), true, false
 	case LineNumbersInterval:
+		// Deviation: Monaco compares with the view model's getLineCount(),
+		// the count of view lines (a folded line counts 0, each row of a
+		// wrapped line 1), so with folds or wrapping its "last line" test
+		// rarely hits the document's last line. Tango deliberately uses
+		// the document's line count n: the last line shows its number.
 		if i == caretLine || (i+1)%10 == 0 || i+1 == n {
 			return i + 1, true, false
 		}

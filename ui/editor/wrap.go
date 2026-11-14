@@ -2,6 +2,7 @@ package editor
 
 import (
 	"math"
+	"sort"
 	"strings"
 	"unicode/utf8"
 )
@@ -125,11 +126,13 @@ func canBreak(prev uint8, r rune, cur uint8) bool {
 }
 
 // wrapConfig is how lines wrap: col is the wrapping column (<= 0: no
-// wrapping), tab the tab size, indent the wrappingIndent.
+// wrapping), tab the tab size, indent the wrappingIndent, inj the injected
+// gaps' columns (injected.go).
 type wrapConfig struct {
 	col    int
 	tab    int
 	indent WrappingIndentMode
+	inj    injectCfg
 }
 
 func (c wrapConfig) on() bool { return c.col > 0 }
@@ -137,9 +140,13 @@ func (c wrapConfig) on() bool { return c.col > 0 }
 // lineBreaks are the rows of a wrapped model line: starts are the byte
 // offsets where rows 1.. start (empty: one row) and runes their rune
 // indexes, indent the columns of the continuation rows' indentation.
+// reach[k] bounds the bytes the decision of break k read: the rows up to
+// and including the one ending at starts[k] are a function of s[:reach[k]]
+// (and the gaps there) alone, which rewrapEdit relies on.
 type lineBreaks struct {
 	starts []int
 	runes  []int
+	reach  []int
 	indent int
 }
 
@@ -232,39 +239,86 @@ func wrapIndentMode(m WrappingIndentMode) WrappingIndentMode {
 	return WrapIndentSame
 }
 
+// wrapEps absorbs float error when a row's columns plus its gaps exactly
+// fill the wrapping column.
+const wrapEps = 1e-6
+
 // computeBreaks returns the rows of line s wrapped at cfg (see the top of
-// the file).
+// the file). It is a function of s and cfg only (cfg.inj finds the line's
+// injected gaps), so measuring a line again always gives the same rows.
 func computeBreaks(s string, cfg wrapConfig) lineBreaks {
-	var lb lineBreaks
 	if !cfg.on() || len(s) <= 1 {
-		return lb
+		return lineBreaks{}
 	}
+	var buf [8]injection
+	return breaksWith(s, cfg, cfg.inj.injections(s, buf[:0]))
+}
+
+// breaksWith is computeBreaks with the injected gaps inj (sorted byte
+// columns of s), each cfg.inj.w pixels (cfg.inj.cols() columns, a
+// fraction) wide and glued to the character after it: a row's columns
+// plus its gaps never exceed the wrapping column. Tab stops stay on the
+// model column grid: the gaps only add to a row's width.
+func breaksWith(s string, cfg wrapConfig, inj []injection) lineBreaks {
+	var lb lineBreaks
+	lb.indent = wrappedIndent(s, max(cfg.tab, 1), cfg.col, cfg.indent)
+	wrapScan(&lb, s, cfg, inj, 0, 0, nil)
+	return lb
+}
+
+// wrapScan appends to lb (lb.indent set) the breaks of s after the row
+// starting at byte rowStart, rune ri: 0, or a break of s. The scan's state
+// at a row start is a function of the position alone (columns, gaps and
+// break point counted from the row start, the limit that of a first or a
+// continuation row): the class of the character before the row start is
+// never read, since no break point is taken before a row's first
+// character and that character's class replaces it. After appending break
+// i it calls stop(i), if not nil, and returns when that reports true. It
+// returns the rune index past the last character it read.
+func wrapScan(lb *lineBreaks, s string, cfg wrapConfig, inj []injection, rowStart, ri int, stop func(i int) bool) int {
 	tab := max(cfg.tab, 1)
-	lb.indent = wrappedIndent(s, tab, cfg.col, cfg.indent)
 	cont := cfg.col - lb.indent // columns of a continuation row
 	limit := cfg.col
-	rowStart := 0
-	vc := 0               // columns from the row start
-	bo, boVC := -1, 0     // last break point in the row
-	boRI := 0             // its rune index
-	ri := 0               // rune index of p
-	prev := uint8(wcNone) // class of the previous character
-	for p := 0; p < len(s); {
+	if rowStart > 0 {
+		limit = cont
+	}
+	prev := uint8(wcNone) // class of the previous character in the row
+	gapCols := cfg.inj.cols()
+	vc := 0                // columns from the row start
+	bo, boVC := -1, 0      // last break point in the row
+	boRI := 0              // its rune index
+	ext, boExt := 0.0, 0.0 // gap columns in the row (before the break point), fractional
+	k := 0                 // next injection
+	hi := ri               // rune index past the characters read
+	for p := rowStart; p < len(s); {
 		q := nextGrapheme(s, p)
 		g := s[p:q]
 		r, _ := utf8.DecodeRuneInString(g)
 		cls := wrapClass(r)
+		n := 1 // runes in g
+		if len(g) > 1 {
+			n = utf8.RuneCountInString(g)
+		}
+		hi = max(hi, ri+n)
+		gap := 0.0
+		for k < len(inj) && inj[k].col < p {
+			k++
+		}
+		if k < len(inj) && inj[k].col == p {
+			gap = gapCols
+		}
 		next := advanceCol(vc, g, tab)
 		if p > rowStart && canBreak(prev, r, cls) {
-			bo, boVC, boRI = p, vc, ri
+			bo, boVC, boRI, boExt = p, vc, ri, ext
 		}
-		if next > limit {
+		// Pixels on the column grid plus the gaps' (wrapEps: float error).
+		if w := float64(next) + ext + gap; w > float64(limit)+wrapEps {
 			at, atRI := bo, boRI
-			if at < 0 || next-boVC > cont {
+			if at < 0 || w-float64(boVC)-boExt > float64(cont)+wrapEps {
 				at, atRI = p, ri // break at the column
 				if p == rowStart {
 					// A character wider than the row: a row of its own.
-					at, atRI = q, ri+utf8.RuneCountInString(g)
+					at, atRI = q, ri+n
 				}
 			}
 			if at >= len(s) {
@@ -272,20 +326,131 @@ func computeBreaks(s string, cfg wrapConfig) lineBreaks {
 			}
 			lb.starts = append(lb.starts, at)
 			lb.runes = append(lb.runes, atRI)
+			// The decision read s[:q] and nextGrapheme the rune at q
+			// (kept non-decreasing for rewrapEdit's search).
+			reach := q + utf8.UTFMax
+			if n := len(lb.reach); n > 0 {
+				reach = max(reach, lb.reach[n-1])
+			}
+			lb.reach = append(lb.reach, reach)
+			if stop != nil && stop(len(lb.starts)-1) {
+				return hi
+			}
 			// Continue from the new row's start.
-			rowStart, limit, vc, bo = at, cont, 0, -1
-			lr, _ := utf8.DecodeLastRuneInString(s[:at])
-			prev = wrapClass(lr)
+			rowStart, limit, vc, bo, ext = at, cont, 0, -1, 0
 			p, ri = at, atRI
+			for k > 0 && inj[k-1].col >= at {
+				k--
+			}
 			continue
 		}
 		vc = next
+		ext += gap
 		lr, _ := utf8.DecodeLastRuneInString(g)
 		prev = wrapClass(lr)
-		ri += utf8.RuneCountInString(g)
+		ri += n
 		p = q
 	}
-	return lb
+	return hi
+}
+
+// rewrapEdit returns computeBreaks(newText, cfg) given old, the breaks of
+// oldText, where newText is oldText with the oldLen bytes at editAt
+// replaced by newLen bytes, without scanning the whole line: it keeps the
+// breaks whose decisions read only bytes before the first changed one
+// (lineBreaks.reach), scans from the last of them, and stops at the first
+// new break past the change that is an old break (shifted): the scan's
+// state at a row start is its position alone (wrapScan) and the text and
+// the gaps after it are the old ones, so the old breaks after it follow,
+// shifted. The result is built in dst's slices (their capacity reused;
+// they must not be old's), so a keystroke allocates nothing once dst has
+// grown.
+// The first changed byte is editAt or an earlier gap that the edit added
+// or removed; the change ends at editAt+newLen or a later such gap. An
+// edit that changes the continuation rows' indentation (the leading
+// whitespace) rewraps the whole line. scanned is the number of runes
+// scanned (tests).
+func rewrapEdit(dst lineBreaks, old lineBreaks, oldText, newText string, editAt, oldLen, newLen int, cfg wrapConfig) (lb lineBreaks, scanned int) {
+	full := func() (lineBreaks, int) {
+		return computeBreaks(newText, cfg), utf8.RuneCountInString(newText)
+	}
+	if !cfg.on() || len(oldText) <= 1 || len(newText) <= 1 || editAt < 0 || oldLen < 0 || newLen < 0 ||
+		editAt+oldLen > len(oldText) || len(newText) != len(oldText)-oldLen+newLen || len(old.reach) != len(old.starts) {
+		return full()
+	}
+	tab := max(cfg.tab, 1)
+	if wrappedIndent(newText, tab, cfg.col, cfg.indent) != old.indent {
+		return full()
+	}
+	delta := newLen - oldLen
+	lo, hi := editAt, editAt+newLen // changed bytes of newText: [lo, hi)
+	var ob, nb [8]injection
+	oi := cfg.inj.injections(oldText, ob[:0])
+	ni := cfg.inj.injections(newText, nb[:0])
+	if len(oi) > 0 || len(ni) > 0 {
+		// The gaps the edit added, removed or moved (in newText's
+		// columns) widen the change.
+		diff := func(c int) { lo, hi = min(lo, c), max(hi, c+1) }
+		i, j := 0, 0
+		for i < len(oi) || j < len(ni) {
+			c := -1
+			if i < len(oi) {
+				c = oi[i].col
+				if c >= editAt+oldLen {
+					c += delta
+				} else if c >= editAt {
+					i++ // removed with the replaced text
+					continue
+				}
+			}
+			switch {
+			case j >= len(ni) || (c >= 0 && c < ni[j].col):
+				diff(c)
+				i++
+			case c < 0 || ni[j].col < c:
+				diff(ni[j].col)
+				j++
+			default:
+				i++
+				j++
+			}
+		}
+	}
+	// The last kept break: its decision read only bytes before lo.
+	keep := sort.Search(len(old.reach), func(i int) bool { return old.reach[i] > lo })
+	lb.indent = old.indent
+	lb.starts = append(dst.starts[:0], old.starts[:keep]...)
+	lb.runes = append(dst.runes[:0], old.runes[:keep]...)
+	lb.reach = append(dst.reach[:0], old.reach[:keep]...)
+	rowStart, ri := 0, 0
+	if keep > 0 {
+		rowStart, ri = old.starts[keep-1], old.runes[keep-1]
+	}
+	m, conv := keep, -1 // m: the first old break that may match
+	end := wrapScan(&lb, newText, cfg, ni, rowStart, ri, func(i int) bool {
+		at := lb.starts[i]
+		if at < hi {
+			return false
+		}
+		oat := at - delta
+		for m < len(old.starts) && old.starts[m] < oat {
+			m++
+		}
+		if m == len(old.starts) || old.starts[m] != oat {
+			return false
+		}
+		conv = m
+		return true
+	})
+	if conv >= 0 {
+		rd := lb.runes[len(lb.runes)-1] - old.runes[conv]
+		for k := conv + 1; k < len(old.starts); k++ {
+			lb.starts = append(lb.starts, old.starts[k]+delta)
+			lb.runes = append(lb.runes, old.runes[k]+rd)
+			lb.reach = append(lb.reach, old.reach[k]+delta)
+		}
+	}
+	return lb, end - ri
 }
 
 // wrapColumn returns the wrapping column for mode in a text area textW
@@ -312,8 +477,12 @@ func wrapColumn(mode WrapMode, column int, textW, colW float32) int {
 }
 
 // WordWrap returns the word wrap mode in effect: the one
-// ToggleWordWrap set, else Options.WordWrap.
+// ToggleWordWrap set, else Options.WordWrap. Large files never wrap
+// (Monaco's ViewModelLinesFromModelAsIs; largefile.go).
 func (s *State) WordWrap() WrapMode {
+	if s.LargeFile() && !s.wrapLarge {
+		return WrapOff
+	}
 	if s.wrapToggle != "" {
 		return s.wrapToggle
 	}

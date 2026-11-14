@@ -213,6 +213,7 @@ func (s *State) runOpsKind(cmds []opCmd, kind editKind) bool {
 // (parallel to Sels, in the new text), merged as Monaco merges cursors. It
 // reports whether the text changed.
 func (s *State) applyOps(edits []buffer.Edit, after []Selection, kind editKind) bool {
+	defer s.Model.command()()
 	if len(edits) == 0 {
 		return false
 	}
@@ -825,19 +826,24 @@ func foldCase(s string) string { return strings.ToLower(s) }
 // language's lexer (lineTokens). The cursors keep their place, all of them
 // (Monaco's command keeps only the primary).
 func (s *State) trimTrailingWhitespace() bool {
+	s.syntaxIncomplete = false
 	snap := s.Snapshot()
 	sels := s.clampedSels(snap)
 	lt := s.newLineTokens(snap)
+	defer func() { s.syntaxIncomplete = lt.failed }()
 	var edits []buffer.Edit
 	for i := range snap.LineCount() {
 		text := snap.Line(i)
-		toks := lt.tokens(i) // every line, to carry the lexer state
 		if text == "" {
 			continue
 		}
 		j := lastNonBlank(text) + 1
 		if j == len(text) {
-			continue
+			continue // a text-only O(n) pass must not force syntax work
+		}
+		toks := lt.tokens(i)
+		if lt.failed {
+			break // state is unknown here and below; preserve those blanks
 		}
 		// Monaco looks up the token at fromColumn used as an offset: one
 		// past the first trailing blank.

@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/langs"
@@ -383,39 +384,64 @@ func stdType(typ string) string {
 	return m
 }
 
-// lineTokens tokenizes the document's lines in order with the language's
-// Monarch lexer, synchronously and from the first line, so the tokens are
-// accurate (the Highlighter's may still be catching up). Without a lexer
-// (plain text, a language without a grammar) lines have no tokens.
+// lineTokens classifies from the first line, never treating dirty/degraded
+// highlighter tokens as definitive. One command has a shared work/time budget.
+// The deadline is checked before each atomic lexer call: a call may overshoot
+// by Monarch's line budget (including its two full 100ms regex attempts),
+// but no later line gets another allowance after exhaustion.
+const syntaxCommandLines = 128
+const syntaxCommandBytes = 32 * 1024
+const syntaxCommandBudget = 4 * time.Millisecond
+
 type lineTokens struct {
-	snap  buffer.Snapshot
-	lx    *monarch.Lexer
-	state monarch.State
-	next  int // the next line to tokenize
-	toks  []monarch.Token
+	snap     buffer.Snapshot
+	lx       *monarch.Lexer
+	state    monarch.State
+	next     int
+	toks     []monarch.Token
+	bytes    int
+	deadline time.Time
+	failed   bool
 }
 
-// newLineTokens returns a lineTokens for the State's document.
 func (s *State) newLineTokens(snap buffer.Snapshot) *lineTokens {
-	lt := &lineTokens{snap: snap}
-	if m := s.Model; m.reg != nil && !m.plain {
-		if lx, err := m.reg.Lexer(m.lang); err == nil {
-			lt.lx, lt.state = lx, lx.Initial()
+	lt := &lineTokens{snap: snap, deadline: time.Now().Add(syntaxCommandBudget)}
+	if !s.Model.plain {
+		lt.lx = s.Model.hl.LexerIdentity()
+		if lt.lx != nil {
+			lt.state = lt.lx.Initial()
 		}
 	}
 	return lt
 }
 
-// tokens returns line i's tokens, nil without a lexer. Lines must be asked
-// for in increasing order (asking for the same line again is free); the
-// result is valid until the next call.
+// tokens returns nil with failed set if accurate classification is unavailable.
+// Plain text has no lexer and is definitive without any syntax work.
 func (lt *lineTokens) tokens(i int) []monarch.Token {
-	if lt.lx == nil {
+	if lt.lx == nil || lt.failed {
 		return nil
 	}
 	for lt.next <= i {
-		lt.toks, lt.state = lt.lx.TokenizeLine(lt.snap.Line(lt.next), lt.state, lt.toks[:0])
+		if lt.next >= syntaxCommandLines || time.Now().After(lt.deadline) {
+			lt.failed = true
+			return nil
+		}
+		// Check byte length before materializing a potentially enormous line.
+		// UTF-8 bytes are a conservative bound for Monarch's UTF-16 limit;
+		// never use a truncated token/state to authorize destructive edits.
+		n := lineEnd(lt.snap, lt.next) - lt.snap.LineStart(lt.next)
+		if n >= monarch.MaxLineLength || lt.bytes+n > syntaxCommandBytes {
+			lt.failed = true
+			return nil
+		}
+		var info monarch.LineInfo
+		lt.toks, lt.state, info = lt.lx.TokenizeLineInfo(lt.snap.Line(lt.next), lt.state, lt.toks[:0])
 		lt.next++
+		lt.bytes += n
+		if info.Degraded {
+			lt.failed = true
+			return nil
+		}
 	}
 	return lt.toks
 }
@@ -557,7 +583,15 @@ func processBrackets(text string, toks []monarch.Token, brackets *regexp.Regexp,
 // change it for the others. Lines starting inside a string are left alone.
 // The indentation is written in the Model's InsertSpaces style. A language without
 // indentation rules does nothing.
+// SyntaxCommandIncomplete reports whether the last trimTrailingWhitespace or
+// reindentLines command could not classify all required lines within its
+// syntax budget. Trim keeps unclassified whitespace; reindent makes no changes.
+// This is not a promise that a command completed within one frame: scanning
+// the text is O(n), and one atomic lexer call can overshoot the shared budget.
+func (s *State) SyntaxCommandIncomplete() bool { return s.syntaxIncomplete }
+
 func (s *State) reindentLines() bool {
+	s.syntaxIncomplete = false
 	rules := rulesFor(s.Model.Conf())
 	snap := s.Snapshot()
 	if rules == nil || snap.Len() == 0 {
@@ -566,6 +600,7 @@ func (s *State) reindentLines() bool {
 	sels := s.clampedSels(snap)
 	ts, spaces := s.indentSize(), s.insertSpaces()
 	il := &indentLines{lineTokens: *s.newLineTokens(snap), rules: rules}
+	defer func() { s.syntaxIncomplete = il.failed }()
 	shift := func(ind string) string { return shiftIndent(indentColumn(ind, ts), ts, spaces) }
 	unshift := func(ind string) string { return unshiftIndent(indentColumn(ind, ts), ts, spaces) }
 	withIndent := func(text, ind string) string { return ind + text[len(leadingBlanks(text)):] }
@@ -582,6 +617,9 @@ func (s *State) reindentLines() bool {
 		return false
 	}
 	first, _ := il.line(start)
+	if il.failed {
+		return false
+	}
 	global := leadingBlanks(snap.Line(start))
 	ideal := global
 	if test(rules.increase, first) {
@@ -593,6 +631,9 @@ func (s *State) reindentLines() bool {
 	edited := map[int]bool{}
 	for l := start + 1; l < n; l++ {
 		proc, inString := il.line(l)
+		if il.failed {
+			return false // never apply a prefix with an unknown indentation state
+		}
 		if inString {
 			continue
 		}

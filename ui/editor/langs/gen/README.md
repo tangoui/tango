@@ -13,12 +13,38 @@ cd ../../../.. && go test ./ui/editor/langs/
 ```
 
 另有 `export_colors.mjs`：导出 Monaco 颜色注册表的默认颜色，生成
-`ui/editor/theme/colors_gen.go`（不需要联网）：
+`ui/editor/theme/colors_gen.go`；同时导出 `base/common/strings.js` 的
+可疑字符表（`AmbiguousCharacters` 的全部键：`_common`、`_default` 与各区域表，以及
+`InvisibleCharacters`），生成 `ui/editor/unicode_gen.go`，并把 Monaco
+`AmbiguousCharacters.getInstance` 对若干区域组合的结果写到
+`../../testdata/unicode/locales.json`，供 `TestUnicodeLocaleTables` 比对（不需要联网）：
 
 ```sh
 cd ui/editor/langs/gen
-node export_colors.mjs   # 打印计数与抽查值，写 ../../theme/colors_gen.go 并 gofmt
-cd ../../../.. && go test ./ui/editor/theme/
+node export_colors.mjs   # 打印计数与抽查值，写 ../../theme/colors_gen.go、../../unicode_gen.go 并 gofmt
+cd ../../../.. && go test ./ui/editor/theme/ ./ui/editor/
+```
+
+另有 `export_minimap.mjs`：导出 Monaco 小地图预烘焙字形（`minimapPreBaked.js` 的 1x 与 2x
+alpha 数据），生成 `ui/editor/minimap_chars_gen.go`；并用 Monaco 自己的
+`MinimapCharRenderer.renderChar` 渲染几行，写 `../../testdata/minimap/render.json`，供
+`TestMinimapCharacters` 比对（不需要联网）：
+
+```sh
+cd ui/editor/langs/gen
+node export_minimap.mjs
+cd ../../../.. && go test ./ui/editor/ -run MinimapChar
+```
+
+另有 `export_indentguess.mjs`：用 Monaco 0.56 的 `guessIndentation`
+（`indentationGuesser.js`，无依赖，直接 ESM 导入）对手写样本求缩进检测结果，写
+`../../testdata/indentguess/samples.json`，供 `TestGuessIndentationMonacoParity`
+比对（不需要联网）：
+
+```sh
+cd ui/editor/langs/gen
+node export_indentguess.mjs   # 打印每个样本在各组默认值下的结果
+cd ../../../.. && go test ./ui/editor/ -run GuessIndentation
 ```
 
 ## 产物

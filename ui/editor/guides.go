@@ -3,6 +3,7 @@ package editor
 import (
 	"image/color"
 	"math"
+	"strings"
 
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/theme"
@@ -48,15 +49,60 @@ type guideCtx struct {
 	offSide      bool
 	ind          map[int]int
 	above, below map[int]int // contentAbove / contentBelow results
+	up, down     lineRun     // runs of lines read (line)
 }
 
 func (g *guideCtx) indent(i int) int {
 	if v, ok := g.ind[i]; ok {
 		return v
 	}
-	v := indentOf(g.snap.Line(i), g.tab)
+	v := indentOf(g.line(i), g.tab)
 	g.ind[i] = v
 	return v
+}
+
+// line returns line i, reading runs of lines (a long search for the
+// nearest non-blank line or the active block would otherwise walk the
+// rope once per line). Two runs are kept, one read downwards and one
+// upwards: active alternates lines above and below the caret, which one
+// run would re-read on every access once the search is half a run away.
+func (g *guideCtx) line(i int) string {
+	if s, ok := g.down.get(i); ok {
+		return s
+	}
+	if s, ok := g.up.get(i); ok {
+		return s
+	}
+	const run = 256
+	if g.down.lines == nil || i >= g.down.lo {
+		g.down.read(g.snap, i, min(i+run, g.snap.LineCount())) // searching downwards
+		return g.down.lines[0]
+	}
+	lo := max(0, i-run+1) // searching upwards
+	g.up.read(g.snap, lo, i+1)
+	return g.up.lines[i-lo]
+}
+
+// lineRun is lines lo.. of a snapshot, read at once.
+type lineRun struct {
+	lo    int
+	lines []string
+}
+
+func (r *lineRun) get(i int) (string, bool) {
+	if r.lines != nil && i >= r.lo && i < r.lo+len(r.lines) {
+		return r.lines[i-r.lo], true
+	}
+	return "", false
+}
+
+// read reads lines lo..hi-1 of snap.
+func (r *lineRun) read(snap buffer.Snapshot, lo, hi int) {
+	end := snap.Len()
+	if hi < snap.LineCount() {
+		end = snap.LineStart(hi) - 1
+	}
+	r.lo, r.lines = lo, strings.Split(snap.Slice(snap.LineStart(lo), end), "\n")
 }
 
 func ceilDiv(a, b int) int { return (a + b - 1) / b }
@@ -197,6 +243,39 @@ func (g *guideCtx) active(line, lo, hi int) (start, end, level int) {
 	return start, end, level
 }
 
+// activeKey is what the active guide of a caret outside the view
+// depends on.
+type activeKey struct {
+	buf      *buffer.Buffer
+	ver      uint64
+	line     int
+	tab      int
+	offSide  bool
+	valid    bool
+	s, e, lv int
+}
+
+// activeGuide is guideCtx.active for the rows lo..hi. With the caret
+// among them the search is bounded by them. With the caret outside, the
+// search would run from the caret to the view on every frame (a long
+// function scrolled away from the caret): the block is computed whole
+// instead (bounded by Monaco's 50 000 lines), once per text and caret,
+// and only its part on the rows is drawn, as Monaco's search stopping at
+// the view gives.
+func (w *ViewW) activeGuide(g *guideCtx, line, lo, hi int) (s, e, lv int) {
+	if line >= lo && line <= hi {
+		return g.active(line, lo, hi)
+	}
+	c := &w.vs.guideActive
+	k := activeKey{buf: w.st.Model.Buffer(), ver: g.snap.Version(), line: line, tab: g.tab, offSide: g.offSide, valid: true}
+	if c.valid && c.buf == k.buf && c.ver == k.ver && c.line == k.line && c.tab == k.tab && c.offSide == k.offSide {
+		return c.s, c.e, c.lv
+	}
+	k.s, k.e, k.lv = g.active(line, 0, g.snap.LineCount()-1)
+	*c = k
+	return k.s, k.e, k.lv
+}
+
 // guideColors are the inactive and active guide colors of the levels
 // whose colors are both opaque enough to draw (Monaco skips transparent
 // ones).
@@ -247,9 +326,18 @@ func (w *ViewW) guidesFor(snap buffer.Snapshot, rows []lineView, caretLine int) 
 		}
 		out[k].level = v
 	}
+	// Continuation rows that start at column 0 have no guides (Monaco's
+	// BlockSubsequent indent guides, viewModelLines.js): wrappingIndent
+	// "none", or an indent the wrapping column leaves no room for; the
+	// others repeat their line's.
+	for k := range rows {
+		if lv := &rows[k]; lv.row > 0 && len(lv.segs) > 0 && lv.segs[0].x0 == 0 {
+			out[k].level = 0
+		}
+	}
 	if w.opts.Guides.HighlightActiveIndentation {
 		lo, hi := rows[0].i, rows[len(rows)-1].i
-		s, e, lv := g.active(caretLine, lo, hi)
+		s, e, lv := w.activeGuide(g, caretLine, lo, hi)
 		if lv > 0 {
 			for k := range rows {
 				if i := rows[k].i; s <= i && i <= e && out[k].level >= lv {
@@ -261,27 +349,71 @@ func (w *ViewW) guidesFor(snap buffer.Snapshot, rows []lineView, caretLine int) 
 	return out
 }
 
-// paintGuides draws the indentation guides of the laid out rows; maxX is
-// the wrapping column's x while wrapping (0: none).
-func paintGuides(l *paint.List, rows []lineView, guides []rowGuides, gc guideColors, tx, colW, lh float32, tab int, maxX float32, lineY func(int) float32) {
-	if len(gc.bg) == 0 {
-		return
-	}
+// paintGuides draws the indentation guides and the bracket pair guides
+// (br, nil when off; bracketguides.go) of the laid out rows; maxX is the
+// wrapping column's x while wrapping (0: none). On a row with bracket
+// guides an indentation guide at a vertical bracket guide's column is left
+// out and the active indentation guide is not highlighted (Monaco's
+// IndentGuidesOverlay.getGuidesByLine).
+func paintGuides(l *paint.List, rows []lineView, guides []rowGuides, gc guideColors, br []bgRow, bc bracketGuideColors, tx, colW, lh float32, tab int, maxX float32, lineY func(int) float32) {
+	px := func(x float32) float32 { return float32(math.Round(float64(tx + x))) }
 	for k := range rows {
-		gd := guides[k]
 		y := lineY(rows[k].vi)
-		for lvl := 1; lvl <= gd.level; lvl++ {
-			x := float32((lvl-1)*tab) * colW
-			if maxX > 0 && x > maxX {
-				break
+		var bg []bracketGuide
+		if k < len(br) {
+			bg = br[k].g
+		}
+		if len(gc.bg) > 0 && k < len(guides) {
+			gd := guides[k]
+			if len(bg) > 0 {
+				gd.active = 0
 			}
-			c := gc.bg[(lvl-1)%len(gc.bg)]
-			if lvl == gd.active {
-				c = gc.active[(lvl-1)%len(gc.active)]
+		levels:
+			for lvl := 1; lvl <= gd.level; lvl++ {
+				col := (lvl - 1) * tab
+				x := float32(col) * colW
+				if maxX > 0 && x > maxX {
+					break
+				}
+				for _, g := range bg {
+					if g.kind == bgVertical && g.col == col {
+						continue levels
+					}
+				}
+				c := gc.bg[(lvl-1)%len(gc.bg)]
+				if lvl == gd.active {
+					c = gc.active[(lvl-1)%len(gc.active)]
+				}
+				// On whole pixels, as a browser lays out Monaco's guide boxes.
+				l.Fill(geom.Rect{X: px(x), Y: y, W: 1, H: lh}, geom.Radii{}, c)
 			}
-			// On whole pixels, as a browser lays out Monaco's guide boxes.
-			gx := float32(math.Round(float64(tx + x)))
-			l.Fill(geom.Rect{X: gx, Y: y, W: 1, H: lh}, geom.Radii{}, c)
+		}
+		if len(bc.bg) == 0 {
+			continue
+		}
+		for _, g := range bg {
+			if maxX > 0 && g.x0 > maxX {
+				continue
+			}
+			c := bc.bg[g.level%len(bc.bg)]
+			if g.hl {
+				c = bc.active[g.level%len(bc.active)]
+			}
+			x0 := px(g.x0)
+			switch g.kind {
+			case bgVertical:
+				l.Fill(geom.Rect{X: x0, Y: y, W: 1, H: lh}, geom.Radii{}, c)
+			case bgTop, bgBottom:
+				x1 := px(g.x1)
+				if x1 <= x0 {
+					continue
+				}
+				gy := y
+				if g.kind == bgBottom {
+					gy = y + lh - 1
+				}
+				l.Fill(geom.Rect{X: x0, Y: gy, W: x1 - x0, H: 1}, geom.Radii{}, c)
+			}
 		}
 	}
 }

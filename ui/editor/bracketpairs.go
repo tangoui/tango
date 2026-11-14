@@ -2,6 +2,7 @@ package editor
 
 import (
 	"image/color"
+	"slices"
 	"time"
 
 	"github.com/tangoui/tango/ui"
@@ -22,6 +23,11 @@ import (
 // (Monaco gives its searches 20 ms, off the typing path; here they run in
 // the frame).
 const bracketBudget = 3 * time.Millisecond
+
+// bracketCommandBudget bounds a bracket command (jumpToBracket,
+// selectToBracket), which tokenizes and scans the lines it needs: a key
+// press the user waits for, unlike the frame's work.
+const bracketCommandBudget = 100 * time.Millisecond
 
 // maxMatchSelections: with more selections no brackets are matched
 // (Monaco's limit of 100).
@@ -47,6 +53,22 @@ func (s modelBrackets) tokens(snap buffer.Snapshot, line int, text string, dst [
 	return hl.TokenizeSpan(snap, line, text, dst)
 }
 
+func (s modelBrackets) startState(snap buffer.Snapshot, line int) monarch.State {
+	if hl := s.m.Highlighter(); hl != nil {
+		st, _ := hl.StartState(snap, line)
+		return st
+	}
+	return 0
+}
+
+// advance tokenizes with the Highlighter's default view, so the views'
+// own token windows stay where they are.
+func (s modelBrackets) advance(snap buffer.Snapshot, upTo int, deadline time.Time) {
+	if hl := s.m.Highlighter(); hl != nil {
+		hl.Highlight(snap, upTo, time.Until(deadline))
+	}
+}
+
 func (s modelBrackets) finalLines(snap buffer.Snapshot) int {
 	if hl := s.m.Highlighter(); hl != nil {
 		return hl.FinalLines(snap)
@@ -62,7 +84,9 @@ func (m *Model) brackets() *bracketTree {
 		m.brk = nil
 		return nil
 	}
-	if m.brk == nil {
+	gen := m.hl.GrammarGeneration()
+	if m.brk == nil || m.brGrammar != gen {
+		m.brGrammar = gen
 		m.brk = newBracketTree(bracketConfOf(m.conf), snap)
 	} else if m.brk.snap.Version() != snap.Version() {
 		m.brk.reset(snap) // a change that bypassed edit (not expected)
@@ -75,20 +99,22 @@ func (m *Model) bracketsEdited(old, ns buffer.Snapshot, edits []buffer.Edit) {
 	if m.brk != nil {
 		m.brk.edit(old, ns, edits)
 	}
+	m.ind.edit(old, ns, edits) // the bracket guides' indentation index
 }
 
 // bracketTreeFor returns the tree with the lines up to line known when
-// they can be within deadline (the Highlighter is first asked to tokenize
-// them), else nil.
+// they can be within deadline, else nil. Queries (matching and the
+// bracket commands) tokenize the lines they need themselves, within
+// deadline (tree.tokenize): the default View starts no background
+// Highlighter, so the lines past the visible ones may never be tokenized
+// otherwise.
 func (s *State) bracketTreeFor(line int, deadline time.Time) *bracketTree {
 	t := s.Model.brackets()
 	if t == nil {
 		return nil
 	}
+	t.tokenize = true
 	if t.known() <= line {
-		if hl := s.Highlighter(); hl != nil {
-			hl.HighlightFor(s.hlKey, s.Snapshot(), line+1, time.Until(deadline))
-		}
 		t.ensure(modelBrackets{s.Model}, line+1, deadline)
 	}
 	if t.known() <= line {
@@ -119,7 +145,10 @@ func (s *State) matchBracket(off int, deadline time.Time) (bracketPair, bool) {
 	}
 	src := modelBrackets{s.Model}
 	col := off - snap.LineStart(L)
-	evs := t.lineEvents(src, L, nil)
+	// The brackets touching col (of a long line, only those: the scan
+	// starts at the checkpoint before them).
+	le := t.eventsIn(src, L, col-t.conf.maxLen, col+1, s.Model.line(snap, L))
+	evs := le.evs
 	var best bracketPair
 	bestAt, found := -1, false
 	for k, e := range evs {
@@ -130,10 +159,10 @@ func (s *State) matchBracket(off int, deadline time.Time) (bracketPair, bool) {
 		ok := false
 		if e.kind == evOpen {
 			p.open = evRange(snap, L, e)
-			p.close, ok = closeRange(t, src, snap, L, evs[k+1:], e.node, deadline)
+			p.close, ok = closeRange(t, src, snap, L, evs[k+1:], e.node, deadline, &le)
 		} else {
 			p.close = evRange(snap, L, e)
-			p.open, ok = openRange(t, src, snap, L, evs[:k], e.node)
+			p.open, ok = openRange(t, src, snap, L, evs[:k], e.node, &le)
 		}
 		if ok && e.b0 >= bestAt {
 			best, bestAt, found = p, e.b0, true
@@ -150,8 +179,10 @@ const (
 )
 
 // pairClose finds the closing bracket of stack entry n (open after the
-// events before rest on line L): on that line, or on a later one.
-func pairClose(t *bracketTree, src bracketSource, snap buffer.Snapshot, L int, rest []bracketEvent, n *bnode, deadline time.Time) (int, brange) {
+// events before rest on line L): on that line, or on a later one. le, when
+// not nil, is where rest comes from: a long line's scan paused before its
+// end goes on in the line (closeInLine).
+func pairClose(t *bracketTree, src bracketSource, snap buffer.Snapshot, L int, rest []bracketEvent, n *bnode, deadline time.Time, le *lineEvs) (int, brange) {
 	for _, e := range rest {
 		if e.node == n && (e.kind == evClose || e.kind == evUnclosed) {
 			if e.kind == evUnclosed {
@@ -159,6 +190,12 @@ func pairClose(t *bracketTree, src bracketSource, snap buffer.Snapshot, L int, r
 			}
 			return pairClosed, evRange(snap, L, e)
 		}
+	}
+	if e, ok := t.closeInLine(le, n.depth); ok {
+		if e.kind == evUnclosed {
+			return pairUnclosed, brange{}
+		}
+		return pairClosed, evRange(snap, L, e)
 	}
 	j, e, found, never := t.closeOf(src, L, n.depth, deadline)
 	switch {
@@ -171,18 +208,23 @@ func pairClose(t *bracketTree, src bracketSource, snap buffer.Snapshot, L int, r
 }
 
 // closeRange is pairClose for a closed pair.
-func closeRange(t *bracketTree, src bracketSource, snap buffer.Snapshot, L int, rest []bracketEvent, n *bnode, deadline time.Time) (brange, bool) {
-	st, r := pairClose(t, src, snap, L, rest, n, deadline)
+func closeRange(t *bracketTree, src bracketSource, snap buffer.Snapshot, L int, rest []bracketEvent, n *bnode, deadline time.Time, le *lineEvs) (brange, bool) {
+	st, r := pairClose(t, src, snap, L, rest, n, deadline, le)
 	return r, st == pairClosed
 }
 
 // openRange finds the opening bracket of stack entry n, open before the
-// events after before on line L.
-func openRange(t *bracketTree, src bracketSource, snap buffer.Snapshot, L int, before []bracketEvent, n *bnode) (brange, bool) {
+// events after before on line L. le, when not nil, is where before comes
+// from: a long line's scan from a checkpoint goes back in the line
+// (openInLine).
+func openRange(t *bracketTree, src bracketSource, snap buffer.Snapshot, L int, before []bracketEvent, n *bnode, le *lineEvs) (brange, bool) {
 	for k := len(before) - 1; k >= 0; k-- {
 		if e := before[k]; e.kind == evOpen && e.node == n {
 			return evRange(snap, L, e), true
 		}
+	}
+	if e, ok := t.openInLine(le, n.depth); ok {
+		return evRange(snap, L, e), true
 	}
 	k, e, ok := t.openOf(src, L, n.depth)
 	if !ok {
@@ -194,6 +236,13 @@ func openRange(t *bracketTree, src bracketSource, snap buffer.Snapshot, L int, b
 // enclosingBrackets returns the innermost pair (with both brackets) whose
 // range strictly contains off (Monaco's findEnclosingBrackets).
 func (s *State) enclosingBrackets(off int, deadline time.Time) (bracketPair, bool) {
+	return s.enclosing(off, deadline, false)
+}
+
+// enclosing is enclosingBrackets; with unclosedStops an unclosed pair
+// innermost around off gives none (Monaco's active bracket pair guide:
+// the innermost pair, closed or not, must be closed; bracketguides.go).
+func (s *State) enclosing(off int, deadline time.Time, unclosedStops bool) (bracketPair, bool) {
 	snap := s.Snapshot()
 	L := snap.LineOf(off)
 	t := s.bracketTreeFor(L, deadline)
@@ -205,9 +254,10 @@ func (s *State) enclosingBrackets(off int, deadline time.Time) (bracketPair, boo
 	}
 	src := modelBrackets{s.Model}
 	col := off - snap.LineStart(L)
-	evs := t.lineEvents(src, L, nil)
+	le := t.eventsIn(src, L, col-t.conf.maxLen, col+1, s.Model.line(snap, L))
+	evs := le.evs
 	// The stack at off: the brackets that end before it.
-	st := t.start[L]
+	st := le.s0
 	k := 0
 	for ; k < len(evs) && evs[k].b1 <= col; k++ {
 		switch e := evs[k]; e.kind {
@@ -218,14 +268,17 @@ func (s *State) enclosingBrackets(off int, deadline time.Time) (bracketPair, boo
 		}
 	}
 	for y := st; y != nil; y = y.parent {
-		state, cl := pairClose(t, src, snap, L, evs[k:], y, deadline)
+		state, cl := pairClose(t, src, snap, L, evs[k:], y, deadline, &le)
 		if state == pairUnclosed {
+			if unclosedStops {
+				return bracketPair{}, false
+			}
 			continue // the pair below
 		}
 		if state == pairUnknown {
 			return bracketPair{}, false
 		}
-		op, ok := openRange(t, src, snap, L, evs[:k], y)
+		op, ok := openRange(t, src, snap, L, evs[:k], y, &le)
 		if !ok {
 			return bracketPair{}, false
 		}
@@ -244,8 +297,8 @@ func (s *State) nextBracket(off int, deadline time.Time) (brange, bool) {
 	col := off - snap.LineStart(L)
 	var toks []monarch.Token
 	for j := L; j < snap.LineCount(); j++ {
-		if hl := s.Highlighter(); hl != nil && src.finalLines(snap) <= j {
-			hl.HighlightFor(s.hlKey, snap, j+1, time.Until(deadline))
+		if src.finalLines(snap) <= j {
+			src.advance(snap, j+64, deadline)
 		}
 		text := snap.Line(j)
 		toks = src.tokens(snap, j, text, toks[:0])
@@ -425,11 +478,29 @@ func init() {
 	}})
 }
 
+// beginBracketCommand starts a bracket command's work (its own budget).
+func (s *State) beginBracketCommand() {
+	if t := s.Model.brackets(); t != nil {
+		t.beginFrame()
+	}
+}
+
+// beginBracketFrame starts a paint's bracket work: matching the carets'
+// brackets and coloring the lines' share the frame's one overrun (and its
+// budget). A tree made later in the frame starts without one.
+func (m *Model) beginBracketFrame() {
+	if m.brk != nil {
+		m.brk.beginFrame()
+	}
+	m.ind.beginFrame()
+}
+
 // jumpToBracket moves each caret to the bracket matching the one it
 // touches, else to the closing bracket of the enclosing pair, else to the
 // next bracket (Monaco's jumpToBracket).
 func (s *State) jumpToBracket() {
-	deadline := time.Now().Add(20 * time.Millisecond)
+	s.beginBracketCommand()
+	deadline := time.Now().Add(bracketCommandBudget)
 	snap := s.Snapshot()
 	sels := s.sels()
 	out := make([]Selection, len(sels))
@@ -458,7 +529,8 @@ func (s *State) jumpToBracket() {
 // closing bracket, including them when sel (Monaco's selectToBracket with
 // selectBrackets).
 func (s *State) selectToBracket(sel bool) {
-	deadline := time.Now().Add(20 * time.Millisecond)
+	s.beginBracketCommand()
+	deadline := time.Now().Add(bracketCommandBudget)
 	snap := s.Snapshot()
 	var out []Selection
 	for _, x := range s.sels() {
@@ -495,25 +567,91 @@ func (s *State) selectToBracket(sel bool) {
 // enclosing pair (Monaco's _recomputeBrackets); none with more than
 // maxMatchSelections selections.
 func (s *State) matchedBrackets(mode MatchBracketsMode, deadline time.Time) []brange {
+	res := make([]caretMatch, len(s.sels()))
+	s.matchCarets(mode, deadline, 0, res)
+	return matchRanges(res)
+}
+
+// caretMatch is the match of one selection: decided once its pair, or
+// that it has none, is known (a selection that is not a caret has none).
+type caretMatch struct {
+	done bool
+	ok   bool
+	p    bracketPair
+}
+
+// matchRanges returns the brackets of the decided matches of res, in
+// selection order.
+func matchRanges(res []caretMatch) []brange {
+	var out []brange
+	for _, m := range res {
+		if m.done && m.ok {
+			out = append(out, m.p.open, m.p.close)
+		}
+	}
+	return out
+}
+
+// matchCarets decides the undecided matches of res (one per selection),
+// querying from selection from on, round, until deadline: a frame whose
+// budget runs out before every caret is decided keeps what it decided, and
+// the next frame (the same text and selections) resumes at the first
+// caret left undecided, which it returns (-1: all are decided). So carets
+// with far pairs do not starve the others, and the decided ones are not
+// queried again.
+func (s *State) matchCarets(mode MatchBracketsMode, deadline time.Time, from int, res []caretMatch) (unsure int) {
 	if mode == MatchBracketsNever || len(s.Sels) > maxMatchSelections {
-		return nil
+		for i := range res {
+			res[i] = caretMatch{done: true}
+		}
+		return -1
 	}
 	snap := s.Snapshot()
-	var out []brange
-	for _, x := range s.sels() {
-		if x.Anchor != x.Head {
+	t := s.Model.brackets()
+	sels := s.sels()
+	queried := 0
+	for k := range sels {
+		i := (from + k) % len(sels)
+		x := sels[i]
+		if res[i].done {
 			continue
+		}
+		if x.Anchor != x.Head {
+			res[i] = caretMatch{done: true}
+			continue
+		}
+		if t != nil && queried > 0 && t.pastDeadline(deadline) {
+			// The budget is spent (the first caret queried may use the
+			// frame's overrun): this caret and the rest wait for the next
+			// frame.
+			break
+		}
+		queried++
+		was := false
+		if t != nil {
+			was, t.unsure = t.unsure, false
 		}
 		pos := clampOff(snap, x.Head)
 		p, ok := s.matchBracket(pos, deadline)
 		if !ok && mode == MatchBracketsAlways {
 			p, ok = s.enclosingBrackets(pos, deadline)
 		}
-		if ok {
-			out = append(out, p.open, p.close)
+		if t == nil || !t.unsure {
+			res[i] = caretMatch{done: true, ok: ok, p: p}
+		}
+		if t != nil {
+			t.unsure = t.unsure || was
 		}
 	}
-	return out
+	for k := range sels {
+		if i := (from + k) % len(sels); !res[i].done {
+			if t != nil {
+				t.unsure = true
+			}
+			return i
+		}
+	}
+	return -1
 }
 
 // Bracket pair colorization.
@@ -553,64 +691,124 @@ func (p bracketPalette) level(l int32) (color.NRGBA, bool) {
 // bracketColors returns the colored brackets of model lines lines (in
 // order), and whether every opening bracket's state was known (else a
 // later frame may color them differently). Lines whose start stack is not
-// known yet get none.
-func (s *State) bracketColors(t *bracketTree, lines []int, pal bracketPalette, deadline time.Time) (map[int][]brSpan, bool) {
+// known yet get none. done, when not nil, receives each line whose
+// colors are final for this text (every opening bracket's state known),
+// to be cached.
+func (s *State) bracketColors(t *bracketTree, lines []int, pal bracketPalette, deadline time.Time, done func(line int, spans []brSpan)) (map[int][]brSpan, bool) {
+	return s.bracketColorsIn(t, lines, nil, pal, deadline, done)
+}
+
+// bracketColorsIn is bracketColors where the long lines (no tokens) in
+// wins only need the brackets in their byte ranges wins[i] (the rows in
+// view, a sticky header's chunks; each scanned on its own): those are
+// scanned from the line's checkpoint before them, their
+// pairs followed by the line's checkpoints (brackets_long.go), and none of
+// them goes to done (the colors of a part of a line).
+func (s *State) bracketColorsIn(t *bracketTree, lines []int, wins map[int][][2]int, pal bracketPalette, deadline time.Time, done func(line int, spans []brSpan)) (map[int][]brSpan, bool) {
 	src := modelBrackets{s.Model}
+	snap := s.Snapshot()
+	hl := s.Highlighter()
 	out := map[int][]brSpan{}
 	sure := true
 	var evs []bracketEvent
+	var toks []monarch.Token
 	for _, i := range lines {
 		if i >= t.known() {
 			sure = false
 			continue
 		}
-		evs = t.lineEvents(src, i, evs[:0])
+		// The line's tokens are final (it is known): those of the view's
+		// token window, which layout uses too.
+		text := s.Model.line(snap, i)
+		toks = toks[:0]
+		if hl != nil && len(text) <= maxTokenizationLineLength {
+			toks, _ = hl.TokensFor(s.hlKey, snap, i, toks)
+		}
+		lineSure := true
 		var spans []brSpan
-		for k, e := range evs {
-			switch e.kind {
-			case evUnexpected:
-				spans = append(spans, brSpan{e.b0, e.b1, pal.invalid})
-			case evClose:
-				if c, ok := pal.level(e.node.level - 1); ok && e.def.closesColorized(int(e.node.open)) {
-					spans = append(spans, brSpan{e.b0, e.b1, c})
+		// color appends the spans of the brackets of evs (from le, nil for
+		// the whole line) inside win (when part).
+		color := func(evs []bracketEvent, le *lineEvs, win [2]int, part bool) {
+			for k, e := range evs {
+				if part && (e.b1 <= win[0] || e.b0 >= win[1]) {
+					continue
 				}
-			case evOpen:
-				colorized := t.conf.colorized[e.node.open]
-				// Closed? On this line, else on a later one.
-				state := 0 // 0 closed, 1 unclosed, 2 unknown
-				inLine := false
-				for _, x := range evs[k+1:] {
-					if x.node == e.node && (x.kind == evClose || x.kind == evUnclosed) {
-						inLine = true
-						if x.kind == evUnclosed {
+				switch e.kind {
+				case evUnexpected:
+					spans = append(spans, brSpan{e.b0, e.b1, pal.invalid})
+				case evClose:
+					if c, ok := pal.level(e.node.level - 1); ok && e.def.closesColorized(int(e.node.open)) {
+						spans = append(spans, brSpan{e.b0, e.b1, c})
+					}
+				case evOpen:
+					colorized := t.conf.colorized[e.node.open]
+					// Closed? On this line, else on a later one.
+					state := 0 // 0 closed, 1 unclosed, 2 unknown
+					inLine := false
+					for _, x := range evs[k+1:] {
+						if x.node == e.node && (x.kind == evClose || x.kind == evUnclosed) {
+							inLine = true
+							if x.kind == evUnclosed {
+								state = 1
+							} else if !x.def.closesColorized(int(e.node.open)) {
+								colorized = false
+							}
+							break
+						}
+					}
+					if !inLine {
+						if ce, ok := t.closeInLine(le, e.node.depth); ok {
+							inLine = true
+							if ce.kind == evUnclosed {
+								state = 1
+							} else if !ce.def.closesColorized(int(e.node.open)) {
+								colorized = false
+							}
+						}
+					}
+					if !inLine {
+						_, ce, found, never := t.closeOf(src, i, e.node.depth, deadline)
+						switch {
+						case found && ce.kind == evUnclosed, !found && never:
 							state = 1
-						} else if !x.def.closesColorized(int(e.node.open)) {
+						case !found:
+							state = 2
+							sure, lineSure = false, false
+						case !ce.def.closesColorized(int(e.node.open)):
 							colorized = false
 						}
-						break
 					}
-				}
-				if !inLine {
-					_, ce, found, never := t.closeOf(src, i, e.node.depth, deadline)
-					switch {
-					case found && ce.kind == evUnclosed, !found && never:
-						state = 1
-					case !found:
-						state = 2
-						sure = false
-					case !ce.def.closesColorized(int(e.node.open)):
-						colorized = false
+					if state == 1 {
+						spans = append(spans, brSpan{e.b0, e.b1, pal.invalid})
+					} else if c, ok := pal.level(e.node.level - 1); ok && colorized {
+						spans = append(spans, brSpan{e.b0, e.b1, c})
 					}
-				}
-				if state == 1 {
-					spans = append(spans, brSpan{e.b0, e.b1, pal.invalid})
-				} else if c, ok := pal.level(e.node.level - 1); ok && colorized {
-					spans = append(spans, brSpan{e.b0, e.b1, c})
 				}
 			}
 		}
+		ws, part := wins[i]
+		if part && len(text) > maxTokenizationLineLength && t.longIndex(i) != nil {
+			// Each window scanned on its own (a sticky header's chunks and
+			// the rows in view may be far apart: never the bytes between).
+			for _, win := range ws {
+				x := t.eventsIn(src, i, win[0]-t.conf.maxLen, win[1], text)
+				color(x.evs, &x, win, true)
+			}
+			if len(ws) > 1 {
+				slices.SortFunc(spans, func(a, b brSpan) int { return a.b0 - b.b0 })
+				spans = slices.CompactFunc(spans, func(a, b brSpan) bool { return a.b0 == b.b0 })
+			}
+		} else {
+			part = false
+			evs = evs[:0]
+			t.conf.scanLine(t.start[i], text, toks, func(e bracketEvent) { evs = append(evs, e) })
+			color(evs, nil, [2]int{}, false)
+		}
 		if len(spans) > 0 {
 			out[i] = spans
+		}
+		if lineSure && done != nil && !part {
+			done(i, spans)
 		}
 	}
 	return out, sure
@@ -618,44 +816,133 @@ func (s *State) bracketColors(t *bracketTree, lines []int, pal bracketPalette, d
 
 // View side.
 
+// bracketFrameBudget bounds the bracket work of one frame: scanning the
+// tree for the colors and matching the carets' brackets share it, so an
+// edit that unbalances the brackets below costs each frame at most this
+// until the tree has caught up.
+var bracketFrameBudget = 1500 * time.Microsecond // a variable for tests
+
+// brCache holds the final bracket colors of lines of one text and theme.
+type brCache struct {
+	tree  *bracketTree // a language change makes a new tree
+	buf   *buffer.Buffer
+	ver   uint64
+	th    *theme.Theme
+	lines map[int][]brSpan
+}
+
 // bracketSpans returns the colored brackets of the model lines of view
 // lines lo..hi (mhi is the last one's model line), nil when bracket pair
-// colorization is off for the document (Options, Model.LargeFile, too
-// large for a tree). It scans the tree up to the lines within the frame's
-// budget; when brackets stay undecided and the tree can go on (more final
-// lines), the next frame is requested.
-func (w *ViewW) bracketSpans(snap buffer.Snapshot, vl *viewLines, lo, hi, mhi int, th *theme.Theme) map[int][]brSpan {
-	st := w.st
-	if !w.opts.BracketPairColorization || st.Model.LargeFile() {
+// colorization is off for the document (Options, too
+// large for a tree). It scans the tree up to the lines until deadline;
+// lines whose colors are final are cached until the text or the theme
+// changes. When brackets stay undecided and the tree can go on (more
+// final lines), the next frame is requested.
+func (w *ViewW) bracketSpans(snap buffer.Snapshot, vl *viewLines, lo, hi, mhi int, th *theme.Theme, deadline time.Time) map[int][]brSpan {
+	st, vs := w.st, w.vs
+	if !w.opts.BracketPairColorization {
 		return nil
 	}
 	t := st.Model.brackets()
 	if t == nil || len(t.conf.defs) == 0 {
 		return nil
 	}
-	deadline := time.Now().Add(bracketBudget)
-	src := modelBrackets{st.Model}
-	t.ensure(src, mhi+1, deadline)
+	c := &vs.brc
+	if c.tree != t || c.buf != st.Model.Buffer() || c.ver != snap.Version() || c.th != th || c.lines == nil {
+		*c = brCache{tree: t, buf: st.Model.Buffer(), ver: snap.Version(), th: th, lines: map[int][]brSpan{}}
+	}
+	out := map[int][]brSpan{}
 	var lines []int
+	// The bytes of the rows in view of the wrapped long lines: only their
+	// brackets are colored (bracketColorsIn).
+	var wins map[int][][2]int
 	for v := lo; v <= hi; v++ {
-		if i, _ := vl.find(v); len(lines) == 0 || lines[len(lines)-1] != i {
+		i, row := vl.find(v)
+		if lb := vl.breaks[i]; vl.on() && lb != nil {
+			if n := lineEnd(snap, i) - snap.LineStart(i); n > maxTokenizationLineLength {
+				b0, b1 := lb.rowRange(row, n)
+				if wins == nil {
+					wins = map[int][][2]int{}
+				}
+				// The rows in view are contiguous: one window.
+				if r, ok := wins[i]; ok {
+					b0, b1 = min(b0, r[0][0]), max(b1, r[0][1])
+				}
+				wins[i] = [][2]int{{b0, b1}}
+			}
+		}
+		if len(lines) > 0 && lines[len(lines)-1] == i {
+			continue
+		}
+		if sp, ok := c.lines[i]; ok {
+			if len(sp) > 0 {
+				out[i] = sp
+			}
+			continue
+		}
+		lines = append(lines, i)
+	}
+	// The sticky headers (prepareSticky) are colored too, a long one in
+	// the chunks it draws (layoutSticky: layoutChunks from the horizontal
+	// scroll), whether or not its line is in view.
+	for _, i := range vs.stickyLines {
+		inList := slices.Contains(lines, i)
+		if sp, ok := c.lines[i]; ok && !inList {
+			if len(sp) > 0 {
+				out[i] = sp
+			}
+			continue
+		}
+		if s := st.Model.line(snap, i); len(s) > maxTokenizationLineLength && isLong(s) {
+			if r, windowed := wins[i]; windowed || !inList {
+				// The chunks as a window of their own: merged with the rows
+				// in view, the window would span the bytes between them
+				// (the line's start to the rows), as long as the line.
+				ll := w.longLineOf(snap, i, s)
+				win := [2]int{} // none drawn
+				if k0, k1 := w.chunkWindow(ll, vs.colW); k0 >= 0 {
+					win = [2]int{ll.bytes[k0], ll.bytes[k1+1]}
+				}
+				if wins == nil {
+					wins = map[int][][2]int{}
+				}
+				wins[i] = append(r, win)
+			}
+		}
+		if !inList {
 			lines = append(lines, i)
 		}
 	}
-	spans, sure := st.bracketColors(t, lines, paletteOf(th), deadline)
+	if len(lines) == 0 {
+		return out
+	}
+	src := modelBrackets{st.Model}
+	t.tokenize = false // colors follow the Highlighter (bracketTreeFor)
+	t.ensure(src, mhi+1, deadline)
+	spans, sure := st.bracketColorsIn(t, lines, wins, paletteOf(th), deadline, func(i int, sp []brSpan) { c.lines[i] = sp })
+	for i, sp := range spans {
+		out[i] = sp
+	}
 	if !sure && !t.complete() && t.known() < src.finalLines(snap) {
 		ui.Invalidate(w.c.Window())
 	}
-	return spans
+	return out
 }
 
 // matchKey is what the matched brackets of a frame depend on.
 type matchKey struct {
-	buf  *buffer.Buffer
-	ver  uint64
-	mode MatchBracketsMode
-	sels string
+	grammar uint64       // invalidates even cached definitive negative matches
+	conf    *bracketConf // the language's brackets
+	buf     *buffer.Buffer
+	ver     uint64
+	mode    MatchBracketsMode
+	sels    string
 }
+
+// maxMatchFrames bounds the frames one match (a text and its carets)
+// requests while the tree catches up: at bracketFrameBudget each, about
+// 1.5 s of work.
+const maxMatchFrames = 1000
 
 // matchDelay is how long the text must stay unchanged after an edit
 // before its brackets are matched in a document too large for a bracket
@@ -670,7 +957,7 @@ const matchDelay = 50 * time.Millisecond
 // drawn meanwhile; Monaco keeps its decorations through edits until it
 // recomputes them), waking the view then when a caret is in view
 // (caretShown).
-func (w *ViewW) matched(caretShown bool) []brange {
+func (w *ViewW) matched(caretShown bool, deadline time.Time) []brange {
 	st, vs := w.st, w.vs
 	mode := w.opts.matchBrackets()
 	if mode == MatchBracketsNever {
@@ -680,7 +967,7 @@ func (w *ViewW) matched(caretShown bool) []brange {
 	for _, x := range st.sels() {
 		sb = binaryAppend(sb, x.Anchor, x.Head)
 	}
-	k := matchKey{st.Model.Buffer(), st.Snapshot().Version(), mode, string(sb)}
+	k := matchKey{st.Model.hl.GrammarGeneration(), bracketConfOf(st.Model.Conf()), st.Model.Buffer(), st.Snapshot().Version(), mode, string(sb)}
 	if vs.matchOK && vs.matchKey == k {
 		return vs.match
 	}
@@ -699,16 +986,37 @@ func (w *ViewW) matched(caretShown bool) []brange {
 			return nil
 		}
 	}
+	if len(st.Sels) > maxMatchSelections {
+		vs.match, vs.matchKey, vs.matchOK = nil, k, true
+		return nil
+	}
+	if vs.matchKey != k {
+		// Another text or selections: the matches start over.
+		vs.matchKey, vs.matchOK, vs.matchTries, vs.matchFrom = k, false, 0, 0
+		vs.matchRes = vs.matchRes[:0]
+	}
+	if n := len(st.sels()); len(vs.matchRes) != n {
+		vs.matchRes = append(vs.matchRes[:0], make([]caretMatch, n)...)
+	}
 	if t != nil {
 		t.unsure = false
+	} else {
+		// The local search, debounced above, has a budget of its own.
+		deadline = time.Now().Add(bracketBudget)
 	}
-	vs.match = st.matchedBrackets(mode, time.Now().Add(bracketBudget))
-	vs.matchKey, vs.matchOK = k, true
-	if t != nil && t.unsure {
-		// The tree did not reach the pairs yet: ask again next frame,
-		// when it can go on.
-		vs.matchOK = false
-		if t.known() < (modelBrackets{st.Model}).finalLines(st.Snapshot()) {
+	unsure := st.matchCarets(mode, deadline, vs.matchFrom, vs.matchRes)
+	// Only decided matches are shown, and they stay decided for the key:
+	// the shown set grows frame by frame until every caret is decided.
+	vs.match = matchRanges(vs.matchRes)
+	if unsure < 0 {
+		vs.matchOK = true
+	} else {
+		// Some caret's pair is not decided yet (the tree or the
+		// tokenization did not reach it, or the budget ran out): ask again
+		// next frame, starting with that caret, for at most
+		// maxMatchFrames frames.
+		vs.matchFrom = unsure
+		if vs.matchTries++; vs.matchTries <= maxMatchFrames {
 			ui.Invalidate(w.c.Window())
 		}
 	}
@@ -757,7 +1065,7 @@ func paintMatch(l *paint.List, snap buffer.Snapshot, rows []lineView, match []br
 				if p0 >= p1 {
 					continue
 				}
-				for _, sr := range sg.lay.SelectionRects(p0-sg.r0, p1-sg.r0) {
+				for _, sr := range sg.lay.SelectionRects(sg.local(p0), sg.local(p1)) {
 					box := rectXYWH(tx+sg.x0+sr.X, lineY(lv.vi), sr.W, lh)
 					l.Fill(box, geom.Radii{}, bg)
 					l.Stroke(geom.Rect{X: box.X + 0.5, Y: box.Y + 0.5, W: box.W - 1, H: box.H - 1}, geom.Radii{}, 1, border)

@@ -69,6 +69,13 @@ type viewLines struct {
 	// breaks of recently measured lines, by model line; cleared when the
 	// text or the configuration changes.
 	breaks map[int]*lineBreaks
+	// spare holds the slices of the rows an edit last replaced (the
+	// line's rows before the edit, dropped from breaks): the next
+	// incremental rewrap builds its rows in them (rewrapped), so typing in
+	// a long line does not allocate rows of the line's size per key.
+	spare lineBreaks
+	// memo is the Model's memo of long lines (State.lines sets it).
+	memo *lineMemo
 
 	// computed counts the lines whose breaks were computed (tests).
 	computed int
@@ -324,6 +331,7 @@ func (vl *viewLines) locate(snap buffer.Snapshot, l, col int, up bool, breaks fu
 func (vl *viewLines) reset(n int) {
 	vl.n = n
 	clear(vl.breaks)
+	vl.spare = lineBreaks{} // no rows to rewrap: let the slices go
 	if !vl.on() {
 		vl.rows = nil
 		vl.rebuild()
@@ -362,14 +370,24 @@ func (vl *viewLines) sync(b *buffer.Buffer, snap buffer.Snapshot) {
 		vl.rebuild()
 		return
 	}
-	clear(vl.breaks)
 	if same {
 		// Incrementally when the buffer's last change is the only one
 		// since the synced version.
-		if old, edits := b.LastChange(); old.Version() == prev && old.LineCount() == vl.n && vl.applied(old, edits, snap) {
-			return
+		if old, edits := b.LastChange(); old.Version() == prev && old.LineCount() == vl.n {
+			l, lb := vl.rewrapped(old, edits, snap)
+			if lb == nil {
+				vl.spare = lineBreaks{} // not a long line typed in
+			}
+			clear(vl.breaks)
+			if vl.applied(old, edits, snap) {
+				if lb != nil {
+					vl.setBreaks(l, lb)
+				}
+				return
+			}
 		}
 	}
+	clear(vl.breaks)
 	vl.reset(snap.LineCount())
 }
 
@@ -382,9 +400,81 @@ func (vl *viewLines) syncEdits(b *buffer.Buffer, old buffer.Snapshot, edits []bu
 	}
 	vl.dropHidden()
 	vl.ver, vl.snap = snap.Version(), snap
+	l, lb := vl.rewrapped(old, edits, snap)
+	if lb == nil {
+		vl.spare = lineBreaks{} // not a long line typed in
+	}
 	clear(vl.breaks)
 	if !vl.applied(old, edits, snap) {
 		vl.reset(snap.LineCount())
+		return
+	}
+	if lb != nil {
+		vl.setBreaks(l, lb)
+	}
+}
+
+// rewrapped returns the new rows of the line that edits (from old to snap)
+// change, when they all fall inside one line, insert no line break and the
+// line's old rows are known: rewrapEdit rescans only around the change (a
+// long line is not wrapped again whole on every keystroke). It returns nil
+// otherwise.
+func (vl *viewLines) rewrapped(old buffer.Snapshot, edits []buffer.Edit, snap buffer.Snapshot) (int, *lineBreaks) {
+	if len(edits) == 0 || snap.LineCount() != old.LineCount() {
+		return 0, nil
+	}
+	first, last := edits[0], edits[len(edits)-1]
+	if first.Start < 0 || last.End > old.Len() || first.Start > first.End {
+		return 0, nil
+	}
+	l := old.LineOf(first.Start)
+	ob := vl.breaks[l]
+	if ob == nil || old.LineOf(last.End) != l {
+		return 0, nil
+	}
+	delta := 0
+	for _, e := range edits {
+		if e.Start > e.End || lineBreakCount(e.Text) > 0 {
+			return 0, nil
+		}
+		delta += len(e.Text) - (e.End - e.Start)
+	}
+	ls := old.LineStart(l)
+	if snap.LineStart(l) != ls {
+		return 0, nil
+	}
+	oldText, newText := vl.line(old, l), vl.line(snap, l)
+	// The edits as one: [first.Start, last.End) replaced.
+	at, oldLen := first.Start-ls, last.End-first.Start
+	newLen := oldLen + delta
+	if len(newText) != len(oldText)+delta || newLen < 0 {
+		return 0, nil
+	}
+	lb, _ := rewrapEdit(vl.spare, *ob, oldText, newText, at, oldLen, newLen, vl.cfg)
+	// The old rows leave breaks with this edit (sync, syncEdits): their
+	// slices become the spare ones. Nothing keeps a line's rows across an
+	// edit (breaks is the only owner).
+	vl.spare, *ob = *ob, lineBreaks{}
+	if c := cap(vl.spare.starts); c > 64 && c > 4*len(lb.starts) {
+		// The line got much shorter (or short): keep no slices of its
+		// old size.
+		vl.spare = lineBreaks{}
+	}
+	vl.computed++
+	return l, &lb
+}
+
+// setBreaks caches lb as the rows of model line l (not hidden), updating
+// its row count.
+func (vl *viewLines) setBreaks(l int, lb *lineBreaks) {
+	if vl.breaks == nil || len(vl.breaks) >= breaksCacheMax {
+		vl.breaks = make(map[int]*lineBreaks)
+	}
+	vl.breaks[l] = lb
+	old := vl.extra(l)
+	vl.rows[l] = int32(lb.rows())
+	if d := vl.extra(l) - old; d != 0 {
+		vl.add(l, d)
 	}
 }
 
@@ -497,7 +587,7 @@ func (vl *viewLines) breaksOf(snap buffer.Snapshot, l int) (*lineBreaks, bool) {
 	if lb := vl.breaks[l]; lb != nil {
 		return lb, false
 	}
-	return vl.measureText(l, snap.Line(l))
+	return vl.measureText(l, vl.line(snap, l))
 }
 
 // measureText is breaksOf for line l whose text is s.
@@ -525,24 +615,26 @@ func (vl *viewLines) measureText(l int, s string) (*lineBreaks, bool) {
 }
 
 // ModelToView returns the view line and the content x (on the column
-// grid) of byte column col of model line line, in the synced text. A
-// column at a row boundary is at the start of the later row; a column on a
-// hidden line is at the end of the visible line before it.
+// grid, plus the injected gaps before the column: injected.go) of byte
+// column col of model line line, in the synced text. A column at a row
+// boundary is at the start of the later row; a column on a hidden line is
+// at the end of the visible line before it; a gap's column is on the gap's
+// left side.
 func (vl *viewLines) ModelToView(line, col int) (vline int, x float32) {
 	snap, tab := vl.snap, max(vl.cfg.tab, 1)
 	line = max(0, min(line, snap.LineCount()-1))
-	col = max(0, min(col, len(snap.Line(line))))
+	col = max(0, min(col, lineEnd(snap, line)-snap.LineStart(line)))
 	measure := func(l int) *lineBreaks { lb, _ := vl.breaksOf(snap, l); return lb }
 	vline, line, col = vl.locate(snap, line, col, false, measure)
-	s := snap.Line(line)
+	s := vl.line(snap, line)
 	if !vl.on() {
-		return vline, float32(lineColumnTab(s, col, tab)) * vl.colW
+		return vline, float32(lineColumnTab(s, col, tab))*vl.colW + vl.gapsBefore(s, 0, col)
 	}
 	lb := measure(line)
 	k := lb.rowOf(col, false)
 	b0, _ := lb.rowRange(k, len(s))
 	c := lb.rowIndent(k) + lineColumnTab(s[b0:col], col-b0, tab)
-	return vline, float32(c) * vl.colW
+	return vline, float32(c)*vl.colW + vl.gapsBefore(s, b0, col)
 }
 
 // ViewToModel returns the model line and the byte column (a grapheme
@@ -553,18 +645,21 @@ func (vl *viewLines) ModelToView(line, col int) (vline int, x float32) {
 func (vl *viewLines) ViewToModel(vline int, x float32) (line, col int) {
 	snap, tab := vl.snap, max(vl.cfg.tab, 1)
 	line, row := vl.find(vline)
-	s := snap.Line(line)
-	goal := 0
-	if vl.colW > 0 {
-		goal = int(math.Round(float64(x / vl.colW)))
+	s := vl.line(snap, line)
+	goal := func(x float32) int {
+		if vl.colW > 0 {
+			return int(math.Round(float64(x / vl.colW)))
+		}
+		return 0
 	}
 	if !vl.on() {
-		return line, nearestColumn(s, goal, tab)
+		return line, nearestColumn(s, goal(vl.gapGridX(s, 0, len(s), 0, x)), tab)
 	}
 	lb, _ := vl.breaksOf(snap, line)
 	row = min(row, lb.rows()-1)
 	b0, b1 := lb.rowRange(row, len(s))
-	return line, b0 + nearestColumn(s[b0:b1], max(0, goal-lb.rowIndent(row)), tab)
+	ind := lb.rowIndent(row)
+	return line, b0 + nearestColumn(s[b0:b1], max(0, goal(vl.gapGridX(s, b0, b1, ind, x))-ind), tab)
 }
 
 // lineColumnTab returns the visual column of byte end of s with tab stops
@@ -604,6 +699,7 @@ func nearestColumn(s string, goal, tab int) int {
 // (see viewLines).
 func (s *State) lines() *viewLines {
 	vl := &s.vl
+	vl.memo = &s.Model.lines
 	snap := s.Snapshot()
 	b := s.Model.Buffer()
 	if vl.buf == b && vl.ver == snap.Version() {
@@ -925,7 +1021,7 @@ func (s *State) peekViewColumn(snap buffer.Snapshot, off int, up bool) int {
 // it. up reports that it is the end of a row that continues on the next
 // one (the caret drawn there: headUp).
 func (s *State) offsetInRow(snap buffer.Snapshot, l, row, goal int) (off int, up bool) {
-	text := snap.Line(l)
+	text := s.Model.line(snap, l)
 	b0, b1, ind := s.rowText(l, row, text)
 	rt := text[b0:b1]
 	c := s.offsetForColumn(rt, max(0, goal-ind))
@@ -958,7 +1054,7 @@ func (s *State) lineEdgeTarget(dir Direction, off int, up bool) (to int, toUp, o
 		return 0, false, false
 	}
 	ls := snap.LineStart(l)
-	text := snap.Line(l)
+	text := s.Model.line(snap, l)
 	col := off - ls
 	row := lb.rowOf(col, up)
 	b0, b1 := lb.rowRange(row, len(text))

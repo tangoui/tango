@@ -69,6 +69,9 @@ type ModelChange struct {
 	// Undo and Redo mark undo and redo; Language a SetLanguage (Old and
 	// New are then the same snapshot); EOL a SetEOL or the undo or redo of
 	// one.
+	// OldLanguage and NewLanguage are set for a language notification,
+	// including a same-language grammar refresh.
+	OldLanguage, NewLanguage  string
 	Undo, Redo, Language, EOL bool
 }
 
@@ -104,13 +107,19 @@ type Model struct {
 	// large: the text was too large for folding when the Model was
 	// created (LargeFile).
 	large bool
+	// syncLarge: the text was larger than modelSyncLimit when the Model
+	// was created (Monaco's isTooLargeForSyncing; largefile.go).
+	syncLarge bool
 
-	lang   string
-	conf   *langs.Conf
-	wordRe *regexp.Regexp         // nil: Unicode letters, digits, marks and '_'
-	hl     *highlight.Highlighter // never nil; its lexer is nil for plain text
-	plain  bool                   // no grammar: hl is not fed edits
-	brk    *bracketTree           // bracket pairs, built on first use (bracketpairs.go)
+	lang      string
+	conf      *langs.Conf
+	wordRe    *regexp.Regexp         // nil: Unicode letters, digits, marks and '_'
+	hl        *highlight.Highlighter // never nil; its lexer is nil for plain text
+	plain     bool                   // no grammar: hl is not fed edits
+	brk       *bracketTree           // bracket pairs, built on first use (bracketpairs.go)
+	brGrammar uint64                 // Highlighter grammar generation of brk
+	ind       indentIndexes          // smallest indentations, for the bracket guides (bracketguides.go)
+	lines     lineMemo               // the last long lines read (longwork.go)
 
 	subs listeners[func(ModelChange)]
 
@@ -118,6 +127,9 @@ type Model struct {
 	// insertSpaces), shared by every view.
 	tabSize      int
 	insertSpaces bool
+	// opts are the creation options; DetectIndentation starts from their
+	// tab size and insertSpaces (Monaco's getCreationOptions).
+	opts ModelOptions
 
 	// lastSource is the view that made the last edit: an edit from
 	// another view starts a new undo step.
@@ -127,10 +139,14 @@ type Model struct {
 
 	// Changes requested from inside a subscriber run after the
 	// notification; see Subscribe.
-	notifying bool
-	draining  bool
-	queue     []queued
-	log       [][]buffer.Edit // edits of the changes made while draining
+	// commandDepth keeps queued subscriber work behind source-command
+	// bookkeeping (undo stops, auto-closed ranges and picker literals).
+	commandDepth int
+	droppedEdits uint64
+	notifying    bool
+	draining     bool
+	queue        []queued
+	log          [][]buffer.Edit // edits of the changes made while draining
 }
 
 // queued is a change requested during a notification. run gets the edits
@@ -140,15 +156,55 @@ type queued struct {
 	mark int // len(log) when queued
 }
 
+// ModelOptions are a Model's creation options (Monaco's
+// ITextModelCreationOptions): the tab size and insertSpaces it starts
+// with, and whether to detect them from the text instead.
+type ModelOptions struct {
+	// TabSize is the tab width (tabSize: 4); values <= 0 mean
+	// DefaultTabSize (and leave DetectIndentation as it is: the zero
+	// ModelOptions is tab size 4, tabs, no detection, unlike a ModelPool's
+	// zero Options). With DetectIndentation it is the fallback when the
+	// text does not tell.
+	TabSize int
+	// InsertSpaces is whether to indent with spaces (insertSpaces: true);
+	// the fallback likewise.
+	InsertSpaces bool
+	// DetectIndentation sets the tab size and insertSpaces from the text
+	// when the Model is created (detectIndentation: true; see
+	// GuessIndentation). Only creation and editor.action.detectIndentation
+	// detect: SetTabSize and SetInsertSpaces are never overridden later.
+	DetectIndentation bool
+}
+
+// DefaultModelOptions returns Monaco 0.56's defaults: tab size 4,
+// insertSpaces and detectIndentation on.
+func DefaultModelOptions() ModelOptions {
+	return ModelOptions{TabSize: DefaultTabSize, InsertSpaces: true, DetectIndentation: true}
+}
+
 // NewModel returns a Model holding text, with the language chosen from the
 // file name in uri (langs.ForFilename; for a URI with a scheme, such as
 // "file:///src/main.go", its path) and grammars from reg. An unknown
 // language is PlainText; a language without a Monarch grammar, or a nil
-// reg, shows no highlighting (Highlighter returns nil).
+// reg, shows no highlighting (Highlighter returns nil). It is
+// NewModelWithOptions with DefaultModelOptions, so the indentation is
+// detected from text.
 func NewModel(uri, text string, reg *monarch.Registry) *Model {
-	m := &Model{uri: uri, buf: buffer.New(text), reg: reg, hl: highlight.New(nil), tabSize: DefaultTabSize, insertSpaces: true}
+	return NewModelWithOptions(uri, text, reg, DefaultModelOptions())
+}
+
+// NewModelWithOptions is NewModel with the creation options o.
+func NewModelWithOptions(uri, text string, reg *monarch.Registry, o ModelOptions) *Model {
+	if o.TabSize <= 0 {
+		o.TabSize = DefaultTabSize
+	}
+	m := &Model{uri: uri, buf: buffer.New(text), reg: reg, hl: highlight.New(nil), tabSize: o.TabSize, insertSpaces: o.InsertSpaces, opts: o}
 	snap := m.buf.Snapshot()
+	if o.DetectIndentation {
+		m.tabSize, m.insertSpaces = GuessIndentation(snap, o.TabSize, o.InsertSpaces)
+	}
 	m.large = snap.Len() > LargeFileSize || snap.LineCount() > LargeFileLines
+	m.syncLarge = snap.Len() > modelSyncLimit
 	id := PlainText
 	if l := langs.ForFilename(uriPath(uri)); l != nil {
 		id = l.ID
@@ -226,8 +282,9 @@ func (m *Model) Highlighter() *highlight.Highlighter {
 // "go"; anything else is PlainText): the configuration, the word pattern
 // and the Highlighter follow, every line is re-tokenized, and subscribers
 // and the pool's OnLanguageChange listeners are told. Setting the current
-// language does nothing. Called from a subscriber, it runs after the
-// notification (see Subscribe).
+// language refreshes a replaced registry grammar, but does nothing when its
+// lexer is unchanged. The Highlighter instance (and its once-started worker)
+// is retained. Called from a subscriber, it runs after the notification.
 func (m *Model) SetLanguage(id string) {
 	if m.notifying {
 		m.enqueue(func([][]buffer.Edit) { m.SetLanguage(id) })
@@ -237,15 +294,18 @@ func (m *Model) SetLanguage(id string) {
 		id = PlainText
 	}
 	if id == m.lang {
-		return
+		var lx *monarch.Lexer
+		if m.reg != nil {
+			lx, _ = m.reg.Lexer(id)
+		}
+		if lx == m.hl.LexerIdentity() {
+			return
+		}
 	}
 	old := m.lang
 	m.setLanguage(id)
 	s := m.buf.Snapshot()
-	m.notify(ModelChange{Old: s, New: s, Language: true})
-	if m.pool != nil {
-		m.pool.langChanged(m, old)
-	}
+	m.notify(ModelChange{Old: s, New: s, Language: true, OldLanguage: old, NewLanguage: m.lang})
 }
 
 func (m *Model) setLanguage(id string) {
@@ -273,9 +333,10 @@ func (m *Model) setLanguage(id string) {
 }
 
 // TabSize returns the document's tab width in columns (Monaco's model
-// option tabSize; DefaultTabSize for a new Model). Every view of the Model
-// uses it for tab stops, Tab, outdent and re-indenting; a View's TabSize
-// modifier overrides it for drawing and caret movement for one frame.
+// option tabSize; detected or from ModelOptions for a new Model). Every
+// view of the Model uses it for tab stops, Tab, outdent and re-indenting;
+// a View's TabSize modifier overrides it for drawing and caret movement
+// for one frame.
 func (m *Model) TabSize() int { return m.tabSize }
 
 // SetTabSize sets the tab width (Monaco's updateOptions({tabSize})); n <= 0
@@ -289,12 +350,26 @@ func (m *Model) SetTabSize(n int) {
 
 // InsertSpaces reports whether Tab and the indentation commands indent
 // with spaces rather than tab characters (Monaco's model option
-// insertSpaces; true for a new Model).
+// insertSpaces; detected or from ModelOptions for a new Model).
 func (m *Model) InsertSpaces() bool { return m.insertSpaces }
 
 // SetInsertSpaces sets InsertSpaces (Monaco's updateOptions({insertSpaces}));
 // editor.action.indentationToSpaces / ToTabs set it too.
 func (m *Model) SetInsertSpaces(on bool) { m.insertSpaces = on }
+
+// DetectIndentation sets the tab size and InsertSpaces from the current
+// text (GuessIndentation), falling back to the creation options' values
+// (Monaco's TextModel.detectIndentation as editor.action.detectIndentation
+// calls it). It is the editor.action.detectIndentation command.
+//
+// The fallback values are fixed when the Model is created; Monaco's
+// command reads the current creation options from the configuration for
+// the model's language and URI (modelService.getCreationOptions) each
+// time. An application that changes its defaults later sets the tab size
+// and insertSpaces itself.
+func (m *Model) DetectIndentation() {
+	m.tabSize, m.insertSpaces = GuessIndentation(m.buf.Snapshot(), m.opts.TabSize, m.opts.InsertSpaces)
+}
 
 // EOL returns the line ending the document is saved with, "\n" or "\r\n"
 // (see buffer.Snapshot.TextWithEOL).
@@ -336,16 +411,40 @@ func (m *Model) SetEOL(eol string) {
 func (m *Model) Subscribe(fn func(ModelChange)) (cancel func()) { return m.subs.add(fn) }
 
 func (m *Model) notify(ch ModelChange) {
-	if m.draining {
+	if m.draining || len(m.queue) > 0 {
 		m.log = append(m.log, ch.Edits)
 	}
 	m.notifying = true
 	m.subs.each(func(fn func(ModelChange)) { fn(ch) })
+	// Pool observers are part of the same ordered notification, not a
+	// second notification after the queue has already run.
+	if ch.Language && m.pool != nil {
+		m.pool.langChanged(m, ch.OldLanguage)
+	}
 	m.notifying = false
-	if !m.draining && len(m.queue) > 0 {
+	m.drainReady()
+}
+
+// command opens a nestable UI-thread transaction. Notifications still see
+// each change synchronously; their mutations wait until the source has
+// committed all of its metadata. Always defer the returned function.
+func (m *Model) command() func() {
+	m.commandDepth++
+	return func() {
+		m.commandDepth--
+		m.drainReady()
+	}
+}
+
+func (m *Model) drainReady() {
+	if m.commandDepth == 0 && !m.notifying && !m.draining && len(m.queue) > 0 {
 		m.drain()
 	}
 }
+
+// DroppedEdits counts queued edits rejected after rebasing (for example,
+// overlapping replacements). Like Model it must be read on the UI thread.
+func (m *Model) DroppedEdits() uint64 { return m.droppedEdits }
 
 // enqueue queues a change requested during a notification.
 func (m *Model) enqueue(run func(since [][]buffer.Edit)) {
@@ -375,6 +474,41 @@ func mapEdits(edits []buffer.Edit, since [][]buffer.Edit) []buffer.Edit {
 			e.End = max(e.End, e.Start)
 		}
 		out[i] = e
+	}
+	return out
+}
+
+// rebaseAfter transports positions in edits' OUTPUT to rebased's output.
+// Positions in inserted/replacement text keep their relative byte offsets;
+// other positions go back to the common input, through since, then rebased.
+// Applying since directly to after would mix two different coordinate spaces.
+func rebaseAfter(edits, rebased []buffer.Edit, after []Selection, since [][]buffer.Edit) []Selection {
+	if len(since) == 0 {
+		return after
+	}
+	position := func(off int) int {
+		delta, newDelta := 0, 0
+		for i, e := range edits {
+			n := storedLen(e.Text)
+			start := e.Start + delta
+			if off < start {
+				break
+			}
+			if off <= start+n {
+				return rebased[i].Start + newDelta + off - start
+			}
+			delta += n - (e.End - e.Start)
+			newDelta += n - (rebased[i].End - rebased[i].Start)
+		}
+		off -= delta
+		for _, c := range since {
+			off = mapOffset(c, off)
+		}
+		return mapOffset(rebased, off)
+	}
+	out := make([]Selection, len(after))
+	for i, sel := range after {
+		out[i] = Selection{Anchor: position(sel.Anchor), Head: position(sel.Head)}
 	}
 	return out
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/when"
 )
 
@@ -113,6 +114,15 @@ func (s *State) execute(id string, args any, ctx when.Context) bool {
 	if c.Mutates && s.readOnly() {
 		return false
 	}
+	if s.Model.notifying {
+		sels := slices.Clone(s.sels())
+		s.Model.enqueue(func(since [][]buffer.Edit) {
+			s.SetSelections(mapSelsSince(sels, since))
+			s.execute(id, args, ctx)
+		})
+		return true
+	}
+	defer s.Model.command()()
 	s.gate = nil // each command gets its own synchronous tokenization budget
 	return c.Run(s, args)
 }

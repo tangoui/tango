@@ -247,13 +247,18 @@ type perfHost struct {
 // newPerfHost shows st at scale (1 or 2) through a new Renderer on dev
 // (the device and so its pipelines are shared; the glyph atlas is the
 // Renderer's).
+// Both hosts first turn off the features named by $TANGO_EDITOR_PERF_OFF
+// (perfApplyOff; ui/editor/perfab/run.sh).
 func newPerfHost(tb testing.TB, st *State, scale float32) *perfHost {
 	tb.Helper()
+	perfApplyOffEnv(tb, st)
 	h := &perfHost{st: st, w: &perfWindow{size: perfSize, scale: scale}}
 	h.dev = &syncDevice{d: metalDevice(tb)}
+	ren := gpu.NewRenderer(h.dev)
+	ren.SetVerify(false) // acceptance timings must never include test-default verification
 	h.r = ui.NewRunner(func(c *ui.Context) {
 		h.vw = View(c, st)
-	}, ui.RunnerOptions{Renderer: gpu.NewRenderer(h.dev), NoAnimations: true})
+	}, ui.RunnerOptions{Renderer: ren, NoAnimations: true})
 	h.r.Attach(h.w)
 	return h
 }
@@ -263,6 +268,7 @@ func newPerfHost(tb testing.TB, st *State, scale float32) *perfHost {
 // leaves the bottom row of the window to the background (see syncDevice).
 func newPartialPerfHost(tb testing.TB, st *State, scale float32) *perfHost {
 	tb.Helper()
+	perfApplyOffEnv(tb, st)
 	h := &perfHost{st: st, w: &perfWindow{size: perfSize, scale: scale}}
 	h.dev = &syncDevice{d: metalDevice(tb), keep: true}
 	ren := gpu.NewRenderer(retainDevice{h.dev})
@@ -426,7 +432,7 @@ func sysctlLoad() (string, error) {
 }
 
 func logLoad(b *testing.B) {
-	b.Logf("load average: %s, GOMAXPROCS %d", loadAvg(), runtime.GOMAXPROCS(0))
+	b.Logf("load average: %s, GOMAXPROCS %d, %s=%q", loadAvg(), runtime.GOMAXPROCS(0), perfOffEnv, os.Getenv(perfOffEnv))
 }
 
 // openFile is what an application does to open path: read it, make the
@@ -436,7 +442,9 @@ func openFile(tb testing.TB, path string, scale float32) *perfHost {
 	if err != nil {
 		tb.Fatal(err)
 	}
-	st := NewState(string(data), path, theme.Base("vs"))
+	// NewState, with the creation options of $TANGO_EDITOR_PERF_OFF
+	// (detectindent; perf_ab_test.go).
+	st := NewView(NewModelWithOptions(path, string(data), DefaultRegistry(), perfModelOptions()), theme.Base("vs"))
 	return newPerfHost(tb, st, scale)
 }
 
@@ -454,6 +462,7 @@ func BenchmarkOpen100MB(b *testing.B) {
 	logLoad(b)
 	b.Logf("file: %.1f MB, 1000000 lines", float64(fi.Size())/1e6)
 	var open, hl durations
+	var cpu, wait durations
 	for b.Loop() {
 		runtime.GC()
 		start := time.Now()
@@ -467,10 +476,71 @@ func BenchmarkOpen100MB(b *testing.B) {
 			h.frame(b)
 		}
 		hl = append(hl, time.Since(start))
+		cpu, wait = append(cpu, h.cpuT), append(wait, h.waitT)
 	}
+	b.ReportMetric(ms(cpu.mean()), "cpu-ms")
+	b.ReportMetric(ms(wait.mean()), "gpuwait-ms")
+	b.ReportMetric(ms(open.pct(.95)), "open-p95-ms")
 	b.ReportMetric(ms(open.mean()), "open-ms")
 	b.ReportMetric(ms(open.pct(1)), "open-max-ms")
 	b.ReportMetric(ms(hl.mean()), "hl-ms")
+}
+
+// BenchmarkM2ColdOpen100MB must run as 1x in a fresh test process. It
+// includes the first Metal device/pipeline creation, unlike Open100MB.
+// OS file cache is not purged: this is process-cold, not disk-cold.
+func BenchmarkM2ColdOpen100MB(b *testing.B) {
+	path := perfFile(b, 1_000_000)
+	logLoad(b)
+	for b.Loop() {
+		start := time.Now()
+		h := openFile(b, path, 2)
+		h.frame(b)
+		b.ReportMetric(ms(time.Since(start)), "open-ms")
+		b.ReportMetric(ms(h.cpuT), "cpu-ms")
+		b.ReportMetric(ms(h.waitT), "gpuwait-ms")
+		b.ReportMetric(ms(time.Since(start)), "first-hl-ms")
+		if !h.visibleFinal() {
+			b.Fatal("first screen not finally highlighted")
+		}
+	}
+}
+
+// BenchmarkM2SingleLineEdit measures the retained partial path with all
+// default layers active (20k lines is below large-file thresholds).
+func BenchmarkM2SingleLineEdit(b *testing.B) {
+	path := perfFile(b, 20_000)
+	logLoad(b)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		b.Fatal(err)
+	}
+	h := newPartialPerfHost(b, NewState(string(data), path, theme.Base("vs-dark")), 2)
+	h.frame(b)
+	h.focus(b)
+	h.caretTo(b, 2) // comment: typing does not alter bracket nesting
+	for range 5 {
+		h.frame(b)
+	}
+	f0, p0 := h.dev.frames, h.dev.partial
+	h.resetSplit()
+	var d durations
+	for b.Loop() {
+		start := time.Now()
+		h.typeKey("x")
+		h.frame(b)
+		d = append(d, time.Since(start))
+	}
+	b.ReportMetric(ms(d.pct(.5)), "p50-ms")
+	b.ReportMetric(ms(d.pct(.95)), "p95-ms")
+	b.ReportMetric(ms(d.pct(.99)), "p99-ms")
+	h.reportSplit(b)
+	if n := h.dev.frames - f0; n > 0 {
+		b.ReportMetric(float64(h.dev.partial-p0)/float64(n), "partial")
+		if h.dev.partial == p0 {
+			b.Fatal("no actual partial frames executed")
+		}
+	}
 }
 
 // BenchmarkOpen100MBWrap is BenchmarkOpen100MB with word wrap on: the
@@ -490,6 +560,7 @@ func BenchmarkOpen100MBWrap(b *testing.B) {
 		}
 		st := NewState(string(data), path, theme.Base("vs"))
 		st.Options.WordWrap = WrapOn
+		st.wrapLarge = true // a large file: force wrapping (Monaco never wraps one)
 		h := newPerfHost(b, st, 2)
 		h.frame(b)
 		open = append(open, time.Since(start))
@@ -742,6 +813,7 @@ func BenchmarkTypeAt1MLines(b *testing.B) {
 			h := openFile(b, path, 2)
 			if c.wrap {
 				h.st.Options.WordWrap = WrapOn
+				h.st.wrapLarge = true // a large file: force wrapping
 			}
 			h.frame(b)
 			if c.full {
@@ -825,6 +897,7 @@ func BenchmarkScroll(b *testing.B) {
 			st := NewState(text, path, theme.Base("vs"))
 			if c.wrap {
 				st.Options.WordWrap = WrapOn
+				st.wrapLarge = true // a large file: force wrapping
 			}
 			h := newPerfHost(b, st, scale)
 			h.frame(b)
@@ -936,11 +1009,14 @@ func BenchmarkHighlightTS20kBackground(b *testing.B) {
 	metalDevice(b)
 	logLoad(b)
 	var bgT, during, after durations
+	var cpu, wait time.Duration
+	var frames int
 	for b.Loop() {
 		h := openFile(b, path, 2)
 		h.frame(b)
 		h.focus(b)
 		h.caretTo(b, 10)
+		h.resetSplit()
 		hl := h.st.Highlighter()
 		var ready atomic.Int32
 		ctx, cancel := context.WithCancel(context.Background())
@@ -977,7 +1053,12 @@ func BenchmarkHighlightTS20kBackground(b *testing.B) {
 			after = append(after, time.Since(t))
 		}
 		cancel()
+		cpu, wait, frames = cpu+h.cpuT, wait+h.waitT, frames+h.frames
 		b.Logf("background ready callbacks %d, keys typed during highlight %d", ready.Load(), i)
+	}
+	if frames > 0 {
+		b.ReportMetric(ms(cpu/time.Duration(frames)), "cpu-ms")
+		b.ReportMetric(ms(wait/time.Duration(frames)), "gpuwait-ms")
 	}
 	b.ReportMetric(ms(bgT.mean()), "bg-ms")
 	b.ReportMetric(ms(during.pct(0.5)), "p50-ms")
@@ -1047,5 +1128,80 @@ func TestPerfHostRenders(t *testing.T) {
 		if err := savePNG(p, img); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// bracketDoc returns n lines of TypeScript with nested brackets, about 30
+// bytes a line: 150 000 lines are 4.5 MB, under maxBracketTreeLen and
+// LargeFileLines, so the bracket tree and bracket pair colorization are
+// both on.
+func bracketDoc(n int) string {
+	tpl := [...]string{
+		"function fn%07d(alpha, beta) {",
+		"    if (alpha[%d] > beta) {",
+		"        call(alpha, [beta, %d]);",
+		"    }",
+		"    return { x: alpha, n: %d };",
+		"}",
+	}
+	var sb strings.Builder
+	for i := range n {
+		t := tpl[i%len(tpl)]
+		if strings.Contains(t, "%") {
+			fmt.Fprintf(&sb, t, i)
+		} else {
+			sb.WriteString(t)
+		}
+		sb.WriteByte('\n')
+	}
+	return sb.String()
+}
+
+// BenchmarkTypeBrackets types in a 150 000-line, 4.5 MB TypeScript file:
+// the bracket tree's path (colorization, matching). "balanced" types the
+// usual keys (keyAt) at line 75 000; "unbalanced" types "{" without
+// auto-closing, so every key changes the depth of every line below and
+// the tree rescans them within the frame budget. The document is fully
+// highlighted first, so the tree may scan it all.
+func BenchmarkTypeBrackets(b *testing.B) {
+	metalDevice(b)
+	logLoad(b)
+	text := bracketDoc(150_000)
+	b.Logf("file: %.1f MB, 150000 lines", float64(len(text))/1e6)
+	for _, unbalanced := range []bool{false, true} {
+		name := "balanced"
+		if unbalanced {
+			name = "unbalanced"
+		}
+		b.Run(name, func(b *testing.B) {
+			st := NewState(text, "gen.ts", theme.Base("vs"))
+			st.Options.AutoClosingBrackets = AutoCloseNever
+			h := newPerfHost(b, st, 2)
+			h.frame(b)
+			highlightAllBackground(b, st)
+			h.focus(b)
+			h.caretTo(b, 75_000)
+			if st.Model.brackets() == nil {
+				b.Fatal("no bracket tree")
+			}
+			var d durations
+			i := 0
+			h.resetSplit()
+			for b.Loop() {
+				key := keyAt(i)
+				if unbalanced {
+					key = "{"
+				}
+				start := time.Now()
+				h.typeKey(key)
+				h.frame(b)
+				d = append(d, time.Since(start))
+				i++
+			}
+			b.ReportMetric(ms(d.pct(0.5)), "p50-ms")
+			b.ReportMetric(ms(d.pct(0.95)), "p95-ms")
+			b.ReportMetric(ms(d.pct(1)), "max-ms")
+			h.reportSplit(b)
+		})
 	}
 }

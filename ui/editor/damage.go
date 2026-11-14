@@ -26,7 +26,12 @@ import (
 //     the relative and interval modes, its alignment, its color), its
 //     folding decorations (the folding control shown, the placeholder and
 //     background of a folded line), its indentation guides (their count
-//     and the active one) and the matched brackets' boxes on it. Colored
+//     and the active one), its bracket pair guides (their kinds, places,
+//     levels and whether they are in the active color; the active pair
+//     follows the primary caret), the matched brackets' boxes on it and its
+//     display decorations (the occurrences of the word at the caret, the
+//     selection's matches, suspicious characters, links, color swatches:
+//     their kinds, places and swatch colors; paint.go). Colored
 //     brackets and control characters are run colors; whitespace marks
 //     follow from the text, the options and the selections.
 //     A row whose fingerprint changed, or that is drawn in only one of the
@@ -95,6 +100,8 @@ type damageRec struct {
 	lo          int      // first row, -1 for none
 	rows        []uint64 // fingerprints of rows lo, lo+1, ...
 	marks       []geom.Rect
+	sticky      geom.Rect // fixed header in this paint, never carried by ScrollShift
+	fixed       []fixedPaint
 }
 
 // paintFrame is what paint drew this frame, for declareDamage.
@@ -113,7 +120,9 @@ type paintFrame struct {
 	aLine, aRow int
 	fold        []uint8 // folding decorations per row (foldCtlExpanded ...)
 	guides      []rowGuides
+	bguides     []bgRow // bracket pair guides (nil: off)
 	match       []matchRow
+	decos       []uint64 // fingerprints of the rows' decorations (nil: none)
 }
 
 // rowPad is how far, in logical pixels, a row's damage reaches past its
@@ -189,6 +198,9 @@ func (w *ViewW) rowHashes(pf *paintFrame, dst []uint64) []uint64 {
 				num(3)
 				num(s0)
 				num(s1)
+				if vsl.right {
+					num(5) // the head drawn right of a gap (injected.go)
+				}
 			}
 			if lv.breakSelected(bb, le, n) {
 				num(4)
@@ -202,12 +214,28 @@ func (w *ViewW) rowHashes(pf *paintFrame, dst []uint64) []uint64 {
 			num(pf.guides[k].level)
 			num(pf.guides[k].active)
 		}
+		if k < len(pf.bguides) {
+			for _, g := range pf.bguides[k].g {
+				num(11)
+				num(g.kind)
+				f32(g.x0)
+				f32(g.x1)
+				num(g.level)
+				if g.hl {
+					num(1)
+				}
+			}
+		}
 		for _, m := range pf.match {
 			if m.k == k {
 				num(7)
 				num(m.r0)
 				num(m.r1)
 			}
+		}
+		if k < len(pf.decos) && pf.decos[k] != 0 {
+			num(10)
+			h.Write(binary.LittleEndian.AppendUint64(b[:0], pf.decos[k]))
 		}
 		if k < len(pf.fold) && pf.fold[k] != 0 {
 			num(6)
@@ -236,8 +264,45 @@ func (w *ViewW) declareDamage(pf *paintFrame) {
 	v := w.st.Viewport
 	// cur reuses the buffers of the paint before last.
 	cur := damageRec{ok: true, g: pf.g, topLine: v.TopLine, aLine: pf.aLine, aRow: pf.aRow, offsetY: v.OffsetY, scrollX: v.ScrollX, lo: -1,
-		rows:  w.rowHashes(pf, vs.dmgSpare.rows),
-		marks: append(vs.dmgSpare.marks[:0], pf.marks...)}
+		rows:   w.rowHashes(pf, vs.dmgSpare.rows),
+		sticky: vs.stickyRect,
+		marks:  append(vs.dmgSpare.marks[:0], pf.marks...),
+		fixed:  append(vs.dmgSpare.fixed[:0], vs.navPaint...)}
+	// Fixed decorations are compared in screen space, independently of
+	// scrolling rows. Blink-only frames must still damage only the caret.
+	var fixedDirty [3]geom.Rect
+	dirtyFixed := func(r geom.Rect) {
+		k := 2
+		if !r.Intersect(vs.minimapRect).Empty() {
+			k = 0
+		} else if !r.Intersect(vs.overviewRect).Empty() {
+			k = 1
+		}
+		if fixedDirty[k].Empty() {
+			fixedDirty[k] = r
+		} else {
+			fixedDirty[k] = fixedDirty[k].Union(r)
+		}
+	}
+	oldFixed := make(map[fixedPaint]bool, len(prev.fixed))
+	newFixed := make(map[fixedPaint]bool, len(cur.fixed))
+	for _, p := range prev.fixed {
+		oldFixed[p] = true
+	}
+	for _, p := range cur.fixed {
+		newFixed[p] = true
+		if !oldFixed[p] {
+			dirtyFixed(p.rect)
+		}
+	}
+	for _, p := range prev.fixed {
+		if !newFixed[p] {
+			dirtyFixed(p.rect)
+		}
+	}
+	for _, r := range fixedDirty {
+		c.Damage(r)
+	}
 	if len(pf.lines) > 0 {
 		cur.lo = pf.lines[0].vi
 	}
@@ -275,10 +340,24 @@ func (w *ViewW) declareDamage(pf *paintFrame) {
 		return
 	case dy != 0:
 		shift = geom.Pt(0, -dy)
-		w.box.ScrollShift(g.rect, shift)
+		body := geom.Rect{X: g.gutter.X, Y: g.rect.Y, W: g.gutter.W + g.text.W, H: g.rect.H}
+		top := max(body.Y, prev.sticky.Bottom(), cur.sticky.Bottom())
+		body.H = max(0, body.Bottom()-top)
+		body.Y = top
+		w.box.ScrollShift(body, shift)
 	case dx != 0:
 		shift = geom.Pt(-dx, 0)
-		w.box.ScrollShift(g.text, shift)
+		body := g.text
+		top := max(body.Y, prev.sticky.Bottom(), cur.sticky.Bottom())
+		body.H = max(0, body.Bottom()-top)
+		body.Y = top
+		w.box.ScrollShift(body, shift)
+	}
+
+	if !prev.sticky.Empty() && shift != (geom.Point{}) {
+		c.Damage(prev.sticky.Offset(shift.X, shift.Y).Intersect(g.rect))
+		c.Damage(cur.sticky)
+		c.Damage(prev.sticky)
 	}
 
 	// Rows, at their place in this paint; runs of adjacent rows are
@@ -299,7 +378,7 @@ func (w *ViewW) declareDamage(pf *paintFrame) {
 		}
 		y0 := ty + float32(run0-v.TopLine)*lh - pad
 		y1 := ty + float32(run1+1-v.TopLine)*lh + pad
-		r := geom.Rect{X: g.rect.X, Y: y0, W: g.rect.W, H: y1 - y0}.Intersect(g.rect)
+		r := geom.Rect{X: g.gutter.X, Y: y0, W: g.gutter.W + g.text.W, H: y1 - y0}.Intersect(g.rect)
 		if r.Empty() {
 			run0, run1 = 0, -1
 			return

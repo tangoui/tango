@@ -106,7 +106,7 @@ func runCases(t *testing.T, cases []opCase) {
 				file = "a.txt"
 			}
 			text, sels := parseMarked(t, c.in)
-			st := NewState(text, file, theme.Base("vs"))
+			st := newTestState(text, file, theme.Base("vs"))
 			if c.opts != nil {
 				c.opts(st)
 			}

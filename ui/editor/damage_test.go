@@ -38,14 +38,15 @@ func (w *hintWindow) Present(*image.RGBA) error    { return nil }
 // cpuexec.Device in strict verify mode: every partial frame is compared
 // with a full redraw, and a difference fails the frame.
 type hintHost struct {
-	t   *testing.T
-	st  *State
-	w   *hintWindow
-	r   *ui.Runner
-	ren *gpu.Renderer
-	dev *cpuexec.Device
-	vw  *ViewW
-	now time.Time
+	t     *testing.T
+	st    *State
+	w     *hintWindow
+	r     *ui.Runner
+	ren   *gpu.Renderer
+	dev   *cpuexec.Device
+	trace *navTraceDevice
+	vw    *ViewW
+	now   time.Time
 
 	frames, partial int // counted frames and the partial ones among them
 }
@@ -55,7 +56,8 @@ func newHintHost(t *testing.T, st *State, size geom.Size, scale float32) *hintHo
 	h := &hintHost{t: t, st: st, w: &hintWindow{size: size, scale: scale}, dev: cpuexec.NewDevice(),
 		now: time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC)}
 	h.dev.SampledOnly = true // same pixels, much faster (see cpuexec.Device)
-	h.ren = gpu.NewRenderer(h.dev)
+	h.trace = &navTraceDevice{Device: h.dev}
+	h.ren = gpu.NewRenderer(h.trace)
 	h.ren.SetVerify(true)
 	h.ren.SetVerifyStrict(true)
 	h.r = ui.NewRunner(func(c *ui.Context) {
@@ -79,10 +81,15 @@ func (h *hintHost) frame() bool {
 func (h *hintHost) step(what string) {
 	h.t.Helper()
 	h.frames++
+	calls := h.dev.Stats().Calls
 	if h.frame() {
 		h.partial++
 	} else if testing.Verbose() {
-		h.t.Logf("full frame: %s", what)
+		if h.dev.Stats().Calls == calls {
+			h.t.Logf("no draw: %s", what)
+		} else {
+			h.t.Logf("full frame: %s", what)
+		}
 	}
 }
 
@@ -165,6 +172,19 @@ func TestViewDamageVerified(t *testing.T) {
 			h.key(input.KeyEnter, 0)
 			h.step("enter")
 
+			// Settle first: the minimap's rows share the frame's
+			// tokenization deadline (minimap.go prepareMinimap) and, when
+			// the frame ran out of it (CPU contention), wait for the next
+			// frame without requesting one — the first blink frame would
+			// draw them. Uncounted frames at the same instant until one
+			// declares no damage.
+			for range 50 {
+				h.frame()
+				if dam, sc := h.lineHints(); len(dam) == 0 && len(sc) == 0 {
+					break
+				}
+			}
+
 			// The caret blinks: the host wakes the runner at NextWake.
 			for range 3 {
 				next := h.r.NextWake()
@@ -239,6 +259,89 @@ func TestViewDamageVerified(t *testing.T) {
 	t.Run("recolour", damageRecolour)
 	t.Run("otherView", damageOtherView)
 	t.Run("brackets", damageBrackets)
+	t.Run("decorations", damageDecorations)
+	t.Run("bracketGuides", damageBracketGuides)
+	t.Run("docScan", damageDocScan)
+	t.Run("minimapChars", damageMinimapChars) // minimap_chars_test.go
+}
+
+// damageDecorations runs the display decorations of Task 13 through the
+// verifier: the occurrences of the word at the caret appearing after the
+// delay (a damaged wake-up) and going away on another word or on typing,
+// selection matches, a link turning active under the pointer with the
+// trigger modifier, color swatches and unicode marks scrolling, and the
+// zoom level changing.
+func damageDecorations(t *testing.T) {
+	t.Cleanup(func() { SetZoomLevel(0) })
+	th := theme.Base("vs-dark")
+	var sb strings.Builder
+	sb.WriteString("package main\n\n")
+	for i := range 40 {
+		fmt.Fprintf(&sb, "func f%d(a%d int) int { // see https://example.com/%d \"#%02x80ff\"\n\treturn a%d + vаlue%d\n}\n", i, i, i, i*5, i, i)
+	}
+	st := NewState(sb.String(), "main.go", th)
+	st.Options.MouseWheelZoom = true
+	h := newHintHost(t, st, geom.Size{W: 560, H: 360}, 1.25)
+	h.focusAt(4)
+	snap := st.Snapshot()
+	delay := occDebounce + time.Duration(DefaultOccurrencesHighlightDelay)*time.Millisecond
+	// wake runs the frame of the occurrences' timer (counted: it must be
+	// drawn partially).
+	wake := func(what string) {
+		next := h.r.NextWake()
+		if !next.After(h.now) || next.After(h.now.Add(delay)) {
+			t.Fatalf("%s: NextWake %v", what, next.Sub(h.now))
+		}
+		h.now = next
+		h.step(what)
+	}
+	word := snap.LineStart(5) + strings.Index(snap.Line(5), "a1")
+	st.MoveCaret(word+1, false)
+	h.step("caret on a1")
+	wake("occurrences appear")
+	if h.vw.vs.decoCount[decoOcc] == 0 {
+		t.Fatal("no occurrences")
+	}
+	st.MoveCaret(snap.LineStart(5)+strings.Index(snap.Line(5), "int")+1, false)
+	h.step("occurrences go")
+	wake("other occurrences appear")
+	h.typeText("x")
+	h.step("typing removes them")
+	h.key(input.KeyBackspace, 0)
+	h.step("backspace")
+	// Selection matches.
+	st.SetSelections([]Selection{{Anchor: word, Head: word + 2}})
+	h.step("select a1")
+	h.key(input.KeyRight, 0)
+	h.step("collapse")
+	h.now = h.now.Add(delay)
+	h.frame()
+	// An active link: the pointer over it with the trigger modifier.
+	if len(h.vw.vs.linkHits) == 0 {
+		t.Fatal("no links drawn")
+	}
+	lr := h.vw.vs.linkHits[0].r
+	lp := geom.Pt(lr.X+lr.W/2, lr.Y+lr.H/2)
+	h.r.HandleEvent(input.Pointer{Kind: input.Move, Pos: lp})
+	h.frame() // nothing changes: no hints, a full frame
+	h.r.HandleEvent(input.Pointer{Kind: input.Move, Pos: lp, Mods: shortcutMod()})
+	h.step("link active")
+	h.r.HandleEvent(input.Pointer{Kind: input.Move, Pos: geom.Pt(lp.X, lp.Y+40)})
+	h.step("link inactive")
+	// Scrolling the swatches, links and marks.
+	p := geom.Pt(280, 180)
+	for _, dy := range []float32{8, 24, -12, 40} {
+		h.r.HandleEvent(input.Scroll{Pos: p, DY: dy})
+		h.step(fmt.Sprintf("scroll %v", dy))
+	}
+	// Zoom (a full frame; verified all the same).
+	h.now = h.now.Add(2 * zoomGestureGap)
+	h.r.HandleEvent(input.Scroll{Pos: p, DY: -zoomWheelPx, Mods: shortcutMod()})
+	h.frame()
+	if ZoomLevel() != 1 {
+		t.Fatalf("zoom level %v", ZoomLevel())
+	}
+	h.verified()
 }
 
 // damageBrackets runs the display decorations of Task 12 through the
@@ -339,6 +442,7 @@ func damageWrapScript(t *testing.T, scale float32) {
 		th = theme.Base("vs")
 	}
 	st := NewState(hintDoc(160), "main.go", th)
+	st.wrapLarge = true // allow wrapping even when the script uses a large document
 	st.Options.WordWrap = WrapOn
 	h := newHintHost(t, st, geom.Size{W: 480, H: 360}, scale)
 	h.focusAt(10)

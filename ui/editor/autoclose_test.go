@@ -51,7 +51,7 @@ func seqState(t *testing.T, file, in string, opts func(*State)) *State {
 		file = "a.txt"
 	}
 	text, sels := parseMarked(t, in)
-	st := NewState(text, file, theme.Base("vs"))
+	st := newTestState(text, file, theme.Base("vs"))
 	if opts != nil {
 		opts(st)
 	}

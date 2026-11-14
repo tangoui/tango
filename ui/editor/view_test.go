@@ -454,6 +454,18 @@ func TestViewGolden(t *testing.T) {
 			st.MoveCaret(snap.LineStart(4)+strings.Index(snap.Line(4), "{")+1, false)
 			checkGolden(t, d.Frame(), "view_"+strings.ReplaceAll(name, "-", "_")+"_decorations.png")
 		})
+		// Bracket pair guides for every pair, the caret's pair (the if
+		// block) highlighted with its horizontal lines.
+		t.Run(name+"/bracketguides", func(t *testing.T) {
+			st := NewState(goldenDecoSource, "demo.go", theme.Base(name))
+			st.Options.Guides.BracketPairs = BracketGuidesOn
+			d, _ := viewDriver(st, 520, 300, nil)
+			d.Frame()
+			d.Click(geom.Pt(400, 280)) // focus
+			snap := st.Snapshot()
+			st.MoveCaret(snap.LineStart(6)+3, false) // in the if block
+			checkGolden(t, d.Frame(), "view_"+strings.ReplaceAll(name, "-", "_")+"_bracketguides.png")
+		})
 	}
 }
 
