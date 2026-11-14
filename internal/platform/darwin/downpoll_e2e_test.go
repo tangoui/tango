@@ -128,9 +128,21 @@ func TestPollAdvertised(t *testing.T) {
 // thread) makes 200 rounds of Send("a:i"), Eval(script pushing "b:i"),
 // Send("c:i"); the script of round 50 throws after it pushed. The page sees
 // exactly a0 b0 c0 a1 b1 c1 ...: every Eval ran at its place between the
-// messages (design 5.9 barriers), and the throw held nothing up. The Evals
-// were barriers of the poll lane: poll requests were answered meanwhile.
+// messages (design 5.9 barriers), and the throw held nothing up. It runs
+// twice: as is, when the small items mostly take Eval by down:poll's idle
+// rule (internal/downq IdleEvalBytes), and with a 4 KiB filler message
+// before every round, which keeps the poll lane busy: then the Evals are
+// barriers of the poll lane and poll requests are answered meanwhile.
 func TestEvalOrderedWithSend(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		pad  int
+	}{{"idle", 0}, {"busy", 4096}} {
+		t.Run(c.name, func(t *testing.T) { evalOrderedWithSend(t, c.pad) })
+	}
+}
+
+func evalOrderedWithSend(t *testing.T, pad int) {
 	app, win := launchPoll(t)
 	waitPolling(t, win)
 	settledLanes(t, win)
@@ -140,7 +152,7 @@ func TestEvalOrderedWithSend(t *testing.T) {
 	win.EvalInto(`(async () => {
 	  window.__dbgLog = [];
 	  __tango.onMessage((m) => { if (/^[ac]:/.test(m)) __dbgLog.push(m); });
-	  await tango.call("Debug.SendEval", `+strconv.Itoa(rounds)+`, `+strconv.Itoa(throwAt)+`);
+	  await tango.call("Debug.SendEval", `+strconv.Itoa(rounds)+`, `+strconv.Itoa(throwAt)+`, `+strconv.Itoa(pad)+`);
 	  for (const t0 = Date.now(); __dbgLog.length < `+strconv.Itoa(3*rounds)+` && Date.now() - t0 < `+
 		strconv.Itoa(int(scaled(30*time.Second)/time.Millisecond))+`; ) await new Promise((r) => setTimeout(r, 20));
 	  return __dbgLog;
@@ -159,10 +171,11 @@ func TestEvalOrderedWithSend(t *testing.T) {
 			t.Fatalf("entry %d is %q, want %q; around it: %v", i, log[i], want[i], log[max(0, i-4):min(len(log), i+5)])
 		}
 	}
-	if d := statDelta(before, after, "downConns"); d < 1 {
-		t.Errorf("no poll request answered during the rounds (downConns +%d): the Evals did not ride the poll lane", d)
+	conns := statDelta(before, after, "downConns")
+	if pad > 0 && conns < 1 {
+		t.Errorf("no poll request answered during the rounds (downConns +%d): the Evals did not ride the poll lane", conns)
 	}
-	t.Logf("poll requests answered during the rounds: %d", statDelta(before, after, "downConns"))
+	t.Logf("poll requests answered during the rounds: %d", conns)
 	if got := win.EvalString(`window.duplex.echoOnce("after")`); got != "after" {
 		t.Errorf("echo after the rounds: %q", got)
 	}

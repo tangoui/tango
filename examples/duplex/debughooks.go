@@ -4,10 +4,13 @@ package main
 // of internal/platform/darwin (downpoll_e2e_test.go). Registered only with
 // TANGO_SCHEME_PROBE=1 (services.Probe), like Debug.Stats.
 //
-//   - "Debug.SendEval" [rounds, throwAt]: for i in 0..rounds-1, from the
-//     handler's goroutine, Send("a:i"), Eval(a script that pushes "b:i" to
-//     window.__dbgLog, and throws in round throwAt), Send("c:i"). Replies
-//     {} after the last call.
+//   - "Debug.SendEval" [rounds, throwAt, pad]: for i in 0..rounds-1, from
+//     the handler's goroutine, Send("a:i"), Eval(a script that pushes "b:i"
+//     to window.__dbgLog, and throws in round throwAt), Send("c:i"). With
+//     pad > 0 every round starts with Send("f:" + pad bytes), a message too
+//     large for down:poll's idle rule (internal/downq IdleEvalBytes), which
+//     keeps the poll lane busy so that the rest queue there and the Evals
+//     become barriers. Replies {} after the last call.
 //   - "Debug.Burst" [n, prefix]: Send(prefix + i) for i in 0..n-1; replies
 //     {"t0": ms} with the wall clock (Unix ms) before the first Send.
 //   - "Debug.OccludedBurst" [n, waitMs, restoreMs]: minimizes the window,
@@ -24,6 +27,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/tangoui/tango"
@@ -86,16 +90,20 @@ func debugArgs(args json.RawMessage, dst ...any) error {
 }
 
 func debugSendEval(ctx context.Context, args json.RawMessage) (any, error) {
-	rounds, throwAt := 0, -1
-	if err := debugArgs(args, &rounds, &throwAt); err != nil {
+	rounds, throwAt, pad := 0, -1, 0
+	if err := debugArgs(args, &rounds, &throwAt, &pad); err != nil {
 		return nil, err
 	}
+	filler := "f:" + strings.Repeat("x", max(pad, 0))
 	s, err := debugConn(ctx)
 	if err != nil {
 		return nil, err
 	}
 	for i := range rounds {
 		n := strconv.Itoa(i)
+		if pad > 0 {
+			s.Send(filler)
+		}
 		s.Send("a:" + n)
 		js := `(window.__dbgLog = window.__dbgLog || []).push("b:` + n + `")`
 		if i == throwAt {
