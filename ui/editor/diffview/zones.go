@@ -222,6 +222,7 @@ type actionBar struct {
 	actions      []HunkAction
 	hover, press int
 	btn          [][2]float32
+	x            float32 // the bar's left edge in the window, last paint
 }
 
 func (b *actionBar) zone(d *State, id uint64, after int) editor.ViewZone {
@@ -247,6 +248,7 @@ func (b *actionBar) zone(d *State, id uint64, after int) editor.ViewZone {
 	z.Label = acts[0].Label
 	z.Paint = func(l *paint.List, zp editor.ZonePaint) {
 		r := zp.Rect
+		b.x = r.X
 		fs := fontSize(zp.RowH) - 1
 		const pad, gap = 8, 12
 		x := float32(pad)
