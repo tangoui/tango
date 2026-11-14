@@ -72,7 +72,7 @@ const zhSidebar: DefaultTheme.Sidebar = {
       ],
     },
     {
-      text: "核心概念",
+      text: "概念",
       items: [
         { text: "App 与 Surface", link: "/guide/concepts/app-surface" },
         { text: "线程模型", link: "/guide/concepts/threading" },
@@ -87,22 +87,33 @@ const zhSidebar: DefaultTheme.Sidebar = {
       items: [
         { text: "窗口与外观", link: "/guide/window" },
         { text: "菜单与托盘", link: "/guide/menu-tray" },
-        { text: "移动端", link: "/guide/mobile" },
         { text: "自绘 UI", link: "/guide/ui" },
-        { text: "组件在线体验", link: "/components/" },
         { text: "组件目录", link: "/guide/components" },
+        { text: "移动端", link: "/guide/mobile" },
         { text: "多语言", link: "/guide/i18n" },
+        {
+          text: "系统能力",
+          collapsed: true,
+          items: [
+            { text: "总览", link: "/guide/system/" },
+            { text: "桌面", collapsed: true, items: sysItems(sysDesktop) },
+            { text: "移动端", collapsed: true, items: sysItems(sysMobile) },
+          ],
+        },
+      ],
+    },
+    {
+      text: "构建与发布",
+      items: [
         { text: "打包、签名与自动更新", link: "/guide/packaging" },
         { text: "CI 与冒烟测试", link: "/guide/ci" },
       ],
     },
     {
-      text: "系统能力",
-      collapsed: false,
+      text: "更多",
       items: [
-        { text: "总览", link: "/guide/system/" },
-        { text: "桌面", collapsed: true, items: sysItems(sysDesktop) },
-        { text: "移动端", collapsed: true, items: sysItems(sysMobile) },
+        { text: "平台支持", link: "/guide/platforms" },
+        { text: "性能与体积", link: "/guide/size" },
       ],
     },
   ],
@@ -138,8 +149,20 @@ const enSidebar: DefaultTheme.Sidebar = {
         { text: "Mobile", link: "/en/guide/mobile" },
         { text: "Self-drawn UI", link: "/en/guide/ui" },
         { text: "Internationalization", link: "/en/guide/i18n" },
+      ],
+    },
+    {
+      text: "Build & release",
+      items: [
         { text: "Packaging & updates", link: "/en/guide/packaging" },
         { text: "CI", link: "/en/guide/ci" },
+      ],
+    },
+    {
+      text: "More",
+      items: [
+        { text: "Platform support", link: "/en/guide/platforms" },
+        { text: "Performance & size", link: "/en/guide/size" },
       ],
     },
     {
@@ -176,10 +199,9 @@ export default defineConfig({
       description: "一套 Go 代码跑桌面和手机，WebView 与 Go 自绘界面可在同一窗口混用",
       themeConfig: {
         nav: [
-          { text: "指南", link: "/guide/getting-started", activeMatch: "^/guide/" },
-          { text: "参考", link: "/reference/cli", activeMatch: "^/reference/" },
-          { text: "GUI 组件", link: "/components/" },
-          { text: "代码编辑器", link: "/components/code-editor" },
+          { text: "文档", link: "/guide/getting-started", activeMatch: "^/guide/" },
+          { text: "组件", link: "/components/", activeMatch: "^/components/" },
+          { text: "API", link: "/reference/api/", activeMatch: "^/reference/" },
           { text: "更新日志", link: `${repo}/blob/main/CHANGELOG.md` },
         ],
         sidebar: zhSidebar,
@@ -200,10 +222,9 @@ export default defineConfig({
       description: "One Go codebase for desktop and mobile; WebView and Go-drawn UI side by side in one window",
       themeConfig: {
         nav: [
-          { text: "Guide", link: "/en/guide/getting-started", activeMatch: "^/en/guide/" },
-          { text: "Reference", link: "/en/reference/cli", activeMatch: "^/en/reference/" },
-          { text: "Live GUI demos", link: "/components/" },
-          { text: "Code editor", link: "/components/code-editor" },
+          { text: "Docs", link: "/en/guide/getting-started", activeMatch: "^/en/guide/" },
+          { text: "Components", link: "/components/" },
+          { text: "API", link: "/en/reference/api", activeMatch: "^/en/reference/" },
           { text: "Changelog", link: `${repo}/blob/main/CHANGELOG.md` },
         ],
         sidebar: enSidebar,

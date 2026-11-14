@@ -3,6 +3,7 @@ import type { Theme } from 'vitepress';
 import ComponentPreview from './components/ComponentPreview.vue';
 import ComponentExplorer from './components/ComponentExplorer.vue';
 import GalleryPreview from './components/GalleryPreview.vue';
+import HomeStats from './components/HomeStats.vue';
 import './custom.css';
 
 export default {
@@ -11,5 +12,6 @@ export default {
     app.component('ComponentPreview', ComponentPreview);
     app.component('ComponentExplorer', ComponentExplorer);
     app.component('GalleryPreview', GalleryPreview);
+    app.component('HomeStats', HomeStats);
   },
 } satisfies Theme;
