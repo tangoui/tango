@@ -36,7 +36,7 @@ jobs:
   verify:
     name: verify tag
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     outputs:
       version: ${{ steps.v.outputs.version }}
       prerelease: ${{ steps.v.outputs.prerelease }}
@@ -85,7 +85,13 @@ jobs:
       - name: Vet and test
         run: |
           go vet ./... && go vet -tags tango_dev ./... && (cd cmd/tan && go vet ./...)
-          go test ./... && go test -tags tango_dev ./... && (cd cmd/tan && go test ./...)
+          # Like ci.yml: the gallery's full text-contrast sweep runs longer
+          # than Go's default 10-minute test timeout (its own CI job covers
+          # it), so the gallery runs with -short here, and only once.
+          go test -timeout 40m $(go list ./... | grep -v /examples/ui-gallery)
+          go test -short -timeout 40m ./examples/ui-gallery/...
+          go test -tags tango_dev -timeout 40m $(go list -tags tango_dev ./... | grep -v /examples/ui-gallery)
+          (cd cmd/tan && go test -timeout 20m ./...)
 
       - name: Test the JS runtime
         working-directory: runtime-js
