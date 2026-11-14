@@ -487,6 +487,11 @@ func (c *Context) paintNode(l *paint.List, n *node, ox, oy float32, clip geom.Re
 	c.nextRects[n.id] = c.screenRect(r)
 	vis := r.Intersect(clip)
 	if vis.Empty() && !n.ln.Absolute {
+		// Not painted, but the subtree's boxes are still recorded: the
+		// semantics tree is built from them, so content nested inside a
+		// box scrolled or clipped out of view stays reachable (Offscreen)
+		// for screen readers, not only the box's direct children.
+		c.recordRects(n, r)
 		return
 	}
 	n.drawn, n.scr = c.pass, c.screenRect(r)
@@ -590,6 +595,43 @@ func (c *Context) screenRect(r geom.Rect) geom.Rect {
 		return r
 	}
 	return c.paintXf.Bounds(r)
+}
+
+// recordRects records the screen boxes of n's descendants (n's own box r
+// is recorded by the caller) without painting them, hit testing them or
+// touching scroll state, for a subtree that paint culls because it lies
+// outside the clip. Child positions follow paintNode: scroll containers
+// shift their children by the current offset (scrollState.shift, which
+// does not clamp or record it) and transforms map through the matrix.
+func (c *Context) recordRects(n *node, r geom.Rect) {
+	var sx, sy float32
+	if s := n.scroll; s != nil {
+		sx, sy = s.shift(r.Size(), n.ln.Content)
+	}
+	for _, k := range n.kids {
+		kr := k.ln.Rect
+		kr = geom.Rect{X: kr.X + r.X - sx, Y: kr.Y + r.Y - sy, W: kr.W, H: kr.H}
+		k.abs = kr
+		if k.xf != nil {
+			if xf := k.xf(kr); !xf.IsIdentity() {
+				if _, ok := xf.Invert(); !ok {
+					continue // collapsed: paint skips it too
+				}
+				prevXf, prevOn := c.paintXf, c.paintXfOn
+				if prevOn {
+					c.paintXf = prevXf.Mul(xf)
+				} else {
+					c.paintXf, c.paintXfOn = xf, true
+				}
+				c.nextRects[k.id] = c.screenRect(kr)
+				c.recordRects(k, kr)
+				c.paintXf, c.paintXfOn = prevXf, prevOn
+				continue
+			}
+		}
+		c.nextRects[k.id] = c.screenRect(kr)
+		c.recordRects(k, kr)
+	}
 }
 
 func (r *Runner) afterFrame() {

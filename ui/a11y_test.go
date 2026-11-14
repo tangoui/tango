@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tangoui/tango/ui/a11y"
+	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
 )
@@ -559,5 +560,61 @@ func TestA11yOffscreenClippedByAncestor(t *testing.T) {
 	}
 	if n := mustNode(t, d, a11y.RoleButton, "S1"); !n.States.Has(a11y.Offscreen) {
 		t.Errorf("S1 not offscreen at %+v", n.Bounds)
+	}
+}
+
+// Content nested several levels deep stays in the tree when it is scrolled
+// or clipped out of view (a slider in a form item in a form below the
+// fold), not only the direct children of the clipping box: a screen
+// reader must be able to reach it, and showing it scrolls it in. Covers a
+// clipping box, a translated content box (mobile.ScrollView) and Scroll.
+func TestA11yOffscreenNestedContent(t *testing.T) {
+	deep := func(c *Context, name string) {
+		Column(c, func() { // form
+			Column(c, func() { // form item
+				Row(c, func() {
+					Div(c, layout.Size(200, 40)).Semantics(a11y.RoleButton, name)
+				})
+			})
+		})
+	}
+	for _, mode := range []string{"clip", "translate", "scroll"} {
+		t.Run(mode, func(t *testing.T) {
+			var pos float32
+			page := func(c *Context) {
+				body := func() {
+					Div(c, layout.H(800))
+					deep(c, "Deep")
+				}
+				switch mode {
+				case "clip":
+					Div(c, layout.H(600)).Clip().Body(body)
+				case "translate":
+					Div(c, layout.H(600)).Clip().Body(func() {
+						Div(c).Transform(geom.Translate(0, -pos)).Body(body)
+					})
+				case "scroll":
+					Scroll(c, body, layout.H(600))
+				}
+			}
+			d := NewDriver(page, DriverOptions{Width: 400, Height: 600, Accessibility: true})
+			d.Settle()
+			n := mustNode(t, d, a11y.RoleButton, "Deep")
+			if !n.States.Has(a11y.Offscreen) {
+				t.Errorf("nested node below the fold not offscreen: %+v %s", n.Bounds, n.States)
+			}
+			if n.Bounds.Y < 800 || n.Bounds.H != 40 {
+				t.Errorf("nested node bounds %+v, want its laid-out box at y 800", n.Bounds)
+			}
+			if mode != "scroll" {
+				return
+			}
+			if err := d.A11yPerform(a11y.RoleButton, "Deep", a11y.ScrollIntoView, ""); err != nil {
+				t.Fatal(err)
+			}
+			if n := mustNode(t, d, a11y.RoleButton, "Deep"); n.States.Has(a11y.Offscreen) {
+				t.Errorf("Deep still offscreen after ScrollIntoView: %+v", n.Bounds)
+			}
+		})
 	}
 }

@@ -81,10 +81,17 @@ func TestSettingsAdjustable(t *testing.T) {
 	qty0, vol0 := qty, volume
 	defer func() { qty, volume = qty0, vol0 }()
 	d := phone(t, "settings")
-	// The group starts below the fold, where only its outer node is in
-	// the tree (content entirely outside the scroll view is not painted,
-	// so it has no rectangles): a screen reader moving to it shows it
-	// first.
+	// The group starts below the fold. Its controls are in the tree all
+	// the same (Offscreen), so a screen reader reaches them by swiping;
+	// moving to one shows its group.
+	for _, c := range []struct {
+		role a11y.Role
+		name string
+	}{{a11y.RoleSpinButton, "数量"}, {a11y.RoleSlider, "音量"}} {
+		if n := node(t, d, c.role, c.name); !n.States.Has(a11y.Offscreen) || !n.Actions.Has(a11y.Increment|a11y.Decrement) {
+			t.Fatalf("%s %q below the fold: %+v %s %s", c.role, c.name, n.Bounds, n.States, n.Actions)
+		}
+	}
 	if err := d.A11yPerform(a11y.RoleForm, "调节 Adjust", a11y.ScrollIntoView, ""); err != nil {
 		t.Fatal(err)
 	}
