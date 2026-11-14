@@ -198,6 +198,14 @@ const enSidebar: DefaultTheme.Sidebar = {
 
 export default defineConfig({
   base,
+  // Component docs use the whole width for their live previews: no
+  // right-hand outline ("本页内容") on any /components/ page, hand-written
+  // or generated.
+  transformPageData(pageData) {
+    if (pageData.relativePath.startsWith("components/")) {
+      pageData.frontmatter.aside = false;
+    }
+  },
   title: "Tango",
   cleanUrls: true,
   // Doc comments mention dev-server URLs such as http://localhost:5173.
