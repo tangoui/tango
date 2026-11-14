@@ -52,6 +52,9 @@ type MultiSelectW struct {
 	z       *lazy
 	optIDs  []ID // option nodes of the open list
 
+	wasOpen    bool // dropdown state before this build
+	openChange bool // the dropdown opened or closed this frame
+
 	rx      p2bRich         // groups, remote, create, render, limit, virtual (p2b_select.go)
 	eng     *VirtualSelectW // dropdown engine while rx is in use
 	created string
@@ -63,8 +66,13 @@ func MultiSelect(c *Context, val *[]string, opts []Option) *MultiSelectW {
 	w := &MultiSelectW{c: c, val: val, opts: opts}
 	w.box = newSelector(c, "multiselect")
 	w.st = State[msState](c, hashID(w.box.n.id, "ms"), nil)
+	w.wasOpen = w.st.pop.open
 	w.rx.defaults(c)
 	p2bSelectDefaults(c, w.box, nil, nil, nil)
+	selDefaults(c, "Select", &w.box.variant, &w.box.place)
+	if v, ok := p2bNum(c, "Select", "maxTagTextLength"); ok {
+		w.box.tagText = int(v)
+	}
 	w.z = c.lazy(w.box.n, w.finish)
 	return w
 }
@@ -103,6 +111,30 @@ func (w *MultiSelectW) SuffixIcon(ic *icon.Icon) *MultiSelectW { w.box.arrowIcon
 
 // MaxTagCount collapses tags after n into a "+ N ..." tag.
 func (w *MultiSelectW) MaxTagCount(n int) *MultiSelectW { w.box.maxCount = n; return w }
+
+// MaxTagPlaceholder builds the text of the collapsed tag from the labels
+// MaxTagCount hides (Ant maxTagPlaceholder; default "+ N ...").
+func (w *MultiSelectW) MaxTagPlaceholder(fn func(omitted []string) string) *MultiSelectW {
+	w.box.tagRest = fn
+	return w
+}
+
+// MaxTagTextLength cuts tag labels longer than n runes to n runes plus
+// "..." (Ant maxTagTextLength); the accessible names keep the full label.
+func (w *MultiSelectW) MaxTagTextLength(n int) *MultiSelectW { w.box.tagText = n; return w }
+
+// Placement sets where the dropdown opens: BottomStart (default),
+// BottomEnd, TopStart or TopEnd (Ant placement, Element placement); it
+// flips when there is no room.
+func (w *MultiSelectW) Placement(p Placement) *MultiSelectW { w.box.place = p; return w }
+
+// NotFoundContent sets the text of an empty dropdown (Ant
+// notFoundContent, Element no-data-text).
+func (w *MultiSelectW) NotFoundContent(s string) *MultiSelectW { w.box.notFound = s; return w }
+
+// OpenChanged reports that the dropdown opened or closed this frame (Ant
+// onOpenChange, Element visible-change).
+func (w *MultiSelectW) OpenChanged() bool { w.z.run(); return w.openChange }
 
 func (w *MultiSelectW) Disabled(on bool) *MultiSelectW {
 	if on {
@@ -158,6 +190,8 @@ func msWithout(s []string, v string) []string {
 }
 
 func (w *MultiSelectW) finish() {
+	w.box.loading = w.rx.loading
+	defer func() { w.openChange = w.st.pop.open != w.wasOpen }()
 	if w.rx.on(w.opts) {
 		w.finishRich()
 		return
@@ -315,9 +349,9 @@ func msOptionList(c *Context, n int, labels func(i int) (key, label string, disa
 
 func (w *MultiSelectW) dropdown(opts []Option) {
 	c, st := w.c, w.st
-	ov := entPanel(c, w.box.n.id, &st.pop, true, func() {
+	ov := selPanel(c, w.box.n.id, &st.pop, true, w.box.place, func() {
 		if len(opts) == 0 {
-			Empty(c).Simple().Description(c.Locale().NoData)
+			Empty(c).Simple().Description(selEmptyText(c, w.box.notFound))
 			return
 		}
 		msOptionList(c, len(opts), func(i int) (string, string, bool) {

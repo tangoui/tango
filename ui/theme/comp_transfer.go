@@ -26,7 +26,9 @@ type TransferToken struct {
 
 func deriveTransfer(t *Theme) TransferToken {
 	k := TransferToken{
-		ListWidth: 200, ListHeight: 240, ListBorderRadius: t.RadiusLG, ListBg: t.BgContainer,
+		// antd es/transfer/style/index.js prepareComponentToken:
+		// listWidth 180, listHeight 200 (the whole section).
+		ListWidth: 180, ListHeight: 200, ListBorderRadius: t.RadiusLG, ListBg: t.BgContainer,
 		BorderColor: t.Border, HeaderHeight: 40, DividerColor: t.BorderSecondary,
 		ItemHeight: 32, ItemPaddingInline: 12,
 		ItemColor: t.Text, ItemHoverBg: t.ItemHoverBg,
@@ -36,7 +38,9 @@ func deriveTransfer(t *Theme) TransferToken {
 	case Element:
 		// el-transfer-panel: filled header, no item fills; the label turns
 		// brand-colored under the pointer.
-		k.ListHeight, k.ListBorderRadius, k.BorderColor = 280, t.Radius, t.BorderSecondary
+		// --el-transfer-panel-width 200px; header 40px + body 278px.
+		k.ListWidth = 200
+		k.ListHeight, k.ListBorderRadius, k.BorderColor = 40+278, t.Radius, t.BorderSecondary
 		k.HeaderBg = t.FillTertiary
 		k.ItemHeight, k.ItemPaddingInline = 30, 15
 		k.ItemColor, k.ItemHoverColor = t.TextSecondary, t.Primary.Base

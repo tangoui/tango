@@ -262,7 +262,7 @@ func TestP2BTransferTreeSource(t *testing.T) {
 			t.Fatalf("checked %v", got)
 		}
 		d.ClickLabel("R")
-		if len(target) != 2 || target[1] != "vue" {
+		if len(target) != 2 || target[0] != "vue" {
 			t.Fatalf("target %v", target)
 		}
 		// Moved leaves stay in the tree, checked and disabled; the right

@@ -197,7 +197,7 @@ func TestT1aTokenDefaults(t *testing.T) {
 		case el:
 			if tr.TitleHeight != 26 || tr.NodeGap != 0 || tr.IndentSize != 18 || tr.NodeSelectedBg != th.Primary.Bg || tr.SwitcherColor != th.TextQuaternary ||
 				cs.ColumnWidth != 180 || cs.OptionHeight != 34 || cs.OptionSelectedColor != th.Primary.Base || cs.OptionSelectedBg.A != 0 ||
-				tf.ItemHeight != 30 || tf.ListHeight != 280 || tf.HeaderBg != th.FillTertiary || tf.ItemHoverBg.A != 0 ||
+				tf.ItemHeight != 30 || tf.ListHeight != 318 || tf.HeaderBg != th.FillTertiary || tf.ItemHoverBg.A != 0 ||
 				dd.PopupBorderColor != th.BorderSecondary || dd.ItemPaddingInline != 16 || dd.ItemSelectedBg.A != 0 || dd.DangerHoverBg.A != 0 {
 				t.Errorf("element dark=%v: %+v %+v %+v %+v", th.Dark, tr, cs, tf, dd)
 			}

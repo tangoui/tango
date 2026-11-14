@@ -55,6 +55,8 @@ type CascaderW struct {
 	stratVal       bool // the bound value follows the checked strategy
 	filter         func(query string, path []CascaderOption) bool
 	display        func(labels []string, path []CascaderOption) string
+	sep            string // path label separator (when sepSet)
+	sepSet         bool
 
 	// Set while building the columns (columnsView): the first column's
 	// listbox and the option on the keyboard column's expanded path.
@@ -73,6 +75,7 @@ func Cascader(c *Context, val *[]string, opts []CascaderOption) *CascaderW {
 	w.box = newSelector(c, "cascader")
 	w.st = State[casState](c, hashID(w.box.n.id, "cas"), nil)
 	w.cascaderDefaults()
+	selDefaults(c, "Cascader", &w.box.variant, &w.box.place)
 	w.z = c.lazy(w.box.n, w.finish)
 	return w
 }
@@ -103,6 +106,35 @@ func (w *CascaderW) Disabled(on bool) *CascaderW {
 	if on {
 		w.box.disabled = true
 	}
+	return w
+}
+
+// Separator sets the text between path labels in the selected value,
+// tags and search results (Element separator; default " / " as Ant's
+// displayRender). "" joins the labels directly.
+func (w *CascaderW) Separator(s string) *CascaderW { w.sep, w.sepSet = s, true; return w }
+
+func (w *CascaderW) separator() string {
+	if !w.sepSet {
+		return " / "
+	}
+	return w.sep
+}
+
+// Placement sets where the menus open: BottomStart (default), BottomEnd,
+// TopStart or TopEnd (Ant placement, Element placement); they flip when
+// there is no room. ConfigProvider.Defaults("Cascader", "placement")
+// takes the Ant names.
+func (w *CascaderW) Placement(p Placement) *CascaderW { w.box.place = p; return w }
+
+// NotFoundContent sets the text shown when a search finds nothing (Ant
+// notFoundContent, Element empty slot).
+func (w *CascaderW) NotFoundContent(s string) *CascaderW { w.box.notFound = s; return w }
+
+// MaxTagPlaceholder builds the text of the collapsed tag of multiple mode
+// from the hidden labels (Ant maxTagPlaceholder; default "+ N ...").
+func (w *CascaderW) MaxTagPlaceholder(fn func(omitted []string) string) *CascaderW {
+	w.box.tagRest = fn
 	return w
 }
 
@@ -172,7 +204,7 @@ func (w *CascaderW) displayText() string {
 	if w.display != nil && len(*w.val) > 0 {
 		return w.display(labels, w.optionsOf(*w.val))
 	}
-	return strings.Join(labels, " / ")
+	return strings.Join(labels, w.separator())
 }
 
 // casFind returns the option with value v in opts.
@@ -311,7 +343,7 @@ func (w *CascaderW) chips() (labels []string, paths [][]string) {
 			case all && some:
 				lb := o.Label
 				if el {
-					lb = strings.Join(w.labelsOf(p), " / ")
+					lb = strings.Join(w.labelsOf(p), w.separator())
 				}
 				labels = append(labels, lb)
 				paths = append(paths, p)
@@ -350,7 +382,7 @@ func (w *CascaderW) searchResults(q string) []casHit {
 				if w.filter != nil {
 					ok = w.filter(raw, append([]CascaderOption(nil), ops...))
 				} else {
-					ok = strings.Contains(strings.ToLower(strings.Join(lb, " / ")), q)
+					ok = strings.Contains(strings.ToLower(strings.Join(lb, w.separator())), q)
 				}
 				if ok {
 					oo := o
@@ -598,14 +630,14 @@ func (w *CascaderW) dropdown() {
 	c, b, st := w.c, w.box, w.st
 	if b.search && b.st.query != "" {
 		hits := w.searchResults(b.st.query)
-		ov := entPanel(c, b.n.id, &st.pop, true, func() {
+		ov := selPanel(c, b.n.id, &st.pop, true, b.place, func() {
 			if len(hits) == 0 {
-				Empty(c).Simple().Description(c.Locale().NoData)
+				Empty(c).Simple().Description(selEmptyText(c, b.notFound))
 				return
 			}
 			set := w.checked()
 			msOptionList(c, len(hits), func(i int) (string, string, bool) {
-				return casKey(hits[i].path), strings.Join(hits[i].labels, " / "), hits[i].opt.Disabled
+				return casKey(hits[i].path), strings.Join(hits[i].labels, w.separator()), hits[i].opt.Disabled
 			}, &st.sactive, func(i int) bool {
 				if w.multi != nil {
 					all, _ := w.checkState(hits[i].opt, hits[i].path, set)
@@ -619,7 +651,7 @@ func (w *CascaderW) dropdown() {
 					sel, _ = w.checkState(h.opt, h.path, set)
 				}
 				entPaintOption(c, l, r, "", entOptState{selected: sel, active: st.sactive == i, disabled: h.opt.Disabled, check: w.multi != nil})
-				acPaintMatch(c, l, r, strings.Join(h.labels, " / "), b.st.query, h.opt.Disabled)
+				acPaintMatch(c, l, r, strings.Join(h.labels, w.separator()), b.st.query, h.opt.Disabled)
 			}, func(i int) { w.pickHit(hits[i]); c.SetFocus(b.ed.id) })
 		})
 		ov.Style(layout.Padding(entListPad(c)))
@@ -635,7 +667,7 @@ func (w *CascaderW) dropdown() {
 	if b.ed != nil {
 		w.focusID = b.ed.id
 	}
-	entPanel(c, b.n.id, &st.pop, false, func() { w.columnsView(b.popupName()) })
+	selPanel(c, b.n.id, &st.pop, false, b.place, func() { w.columnsView(b.popupName()) })
 	b.listID, b.activeID = w.listID, w.activeID
 }
 
