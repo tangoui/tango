@@ -169,8 +169,8 @@ func (p *ProgressW) Small() *ProgressW { p.small = true; return p }
 func (p *ProgressW) HideInfo() *ProgressW { p.showInfo, p.infoSet = false, true; return p }
 
 // ShowInfo shows the percentage text / status icon. It is the default,
-// except for a shadcn line bar, which (like shadcn/ui's Progress) shows
-// only the bar unless asked.
+// except for a line bar under a theme whose ProgressToken.ShowInfo is
+// false (shadcn: like shadcn/ui's Progress, only the bar unless asked).
 func (p *ProgressW) ShowInfo() *ProgressW { p.showInfo, p.infoSet = true, true; return p }
 
 // lineInfo reports whether a line bar shows its text (see ShowInfo).
@@ -178,7 +178,7 @@ func (p *ProgressW) lineInfo() bool {
 	if p.infoSet || p.inside {
 		return p.showInfo
 	}
-	return p.showInfo && p.th.Flavor != theme.StyleShadcn
+	return p.showInfo && p.tk.ShowInfo
 }
 
 // TextInside draws the percentage inside the bar (Element text-inside).

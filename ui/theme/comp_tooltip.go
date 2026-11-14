@@ -28,8 +28,10 @@ func deriveTooltip(t *Theme) TooltipToken {
 		Bg: t.BgSpotlight, Color: t.TextOnSpotlight, ContentFontSize: t.FontSize, MaxWidth: 250,
 		PaddingBlock: 6, PaddingInline: 8, MinHeight: 32, Radius: t.Radius, Shadow: t.Shadow,
 		// antd 6.7 es/tooltip/index.js: mouseEnterDelay / mouseLeaveDelay
-		// default 0.1 s; arrow sizePopupArrow / 2 = 8 from the trigger.
-		Offset: 8, MouseEnterDelay: 100 * time.Millisecond, MouseLeaveDelay: 100 * time.Millisecond,
+		// default 0.1 s; getPlacements offset marginXXS with arrowWidth
+		// sizePopupArrow: _util/placements.js halfArrowWidth + offset =
+		// 16/2 + 4 = 12 from the trigger (4 without the arrow).
+		Offset: 12, MouseEnterDelay: 100 * time.Millisecond, MouseLeaveDelay: 100 * time.Millisecond,
 	}
 	switch t.Flavor {
 	case Element:
@@ -42,6 +44,7 @@ func deriveTooltip(t *Theme) TooltipToken {
 		k.ContentFontSize, k.PaddingBlock, k.PaddingInline, k.MinHeight, k.Shadow = t.FontSizeSM, 6, 12, 0, t.TooltipShadow
 		// tooltip.tsx: delayDuration 0; Radix closes at once.
 		k.MouseEnterDelay, k.MouseLeaveDelay = 0, 0
+		k.Offset = 8 // kept from before (not yet checked against Radix sideOffset + arrow)
 	}
 	return k
 }

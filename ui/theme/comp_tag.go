@@ -33,6 +33,11 @@ type TagToken struct {
 	// DestructiveBg is the shadcn destructive badge (Color("destructive")):
 	// bg-destructive, dark:bg-destructive/60 like the destructive button.
 	DestructiveBg Color
+	// PlainColor and PlainBorderColor are the label and outline of a tag
+	// without a color under Effect("plain") (Ant colorText, Element
+	// primary, shadcn foreground; the theme's plain border).
+	PlainColor       Color `contrast:"text:@Page"`
+	PlainBorderColor Color
 }
 
 func deriveTag(t *Theme) TagToken {
@@ -45,6 +50,7 @@ func deriveTag(t *Theme) TagToken {
 		Height: 22, HeightSM: 20, HeightLG: 28, PaddingInline: 7, PaddingInlineSM: 5, PaddingInlineLG: 10,
 		DisabledBg: Over(t.BgContainerDisabled, t.BgContainer), DisabledColor: t.TextDisabled, DisabledBorderColor: t.Border,
 		DestructiveBg: t.Error.Base,
+		PlainColor:    t.Text, PlainBorderColor: t.Border,
 	}
 	solid := t.Text
 	solid.A = 255
@@ -60,6 +66,8 @@ func deriveTag(t *Theme) TagToken {
 		k.Height, k.HeightLG, k.PaddingInline = 24, 32, 9
 		k.Outlined = true
 		k.SolidBg = t.Primary.Base // effect="dark" with the default type primary
+		// el-tag--plain: primary label, light-5 border.
+		k.PlainColor, k.PlainBorderColor = t.Primary.Base, t.Primary.Border
 	case StyleShadcn:
 		// new-york-v4 badge.tsx: rounded-full border border-transparent
 		// px-2 py-0.5 text-xs font-medium; default variant bg-primary;

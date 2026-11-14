@@ -27,7 +27,7 @@
 | onTabClick / tab-click | antd / EP | 只有 `Changed` | 已补齐：`TabClicked()`（点已选中项也报告）（TestTabsBeforeLeave） |
 | activeKey 不在 items | rc-tabs Tabs.js：退到上次索引（夹到范围） | 没有项被选中 | 已补齐：回落到上次索引、跳过禁用项，不报 `Changed`；`active` 可传 nil；空 items 不 panic（TestTabsEmptyUnknownKey） |
 | EP stretch | EP `stretch` | — | 已补齐：`Stretch()`，Defaults `"stretch"`（TestTabsStretchGutter） |
-| EP before-leave | EP `beforeLeave(new, old)` | — | 已补齐：`BeforeLeave(fn)`，点击、方向键、更多菜单都经过它（TestTabsBeforeLeave） |
+| EP before-leave | EP `beforeLeave(new, old)` | — | 已补齐：`BeforeLeave(fn)`，点击、方向键、更多菜单、拖拽激活都经过它（TestTabsBeforeLeave、TestTabsDragBeforeLeave）；复审修正：拖拽原先直接写 active 绕过钩子 |
 | EP addable / editable / closable | EP | `OnAdd`、`Closable` | 已对齐 |
 | 键盘 | rc-tabs onKeyDown：←/→/↑/↓、Home、End、Delete/Backspace 关闭 | `rovingStep`、Delete 关闭 | 已对齐（TestTabsA11yKeys） |
 | 禁用 | antd 无整体 disabled；ComponentDisabled 作用域 | 作用域下节点禁用 | 已对齐：标签、关闭、新增均不响应（TestTabsDisabledScope） |
@@ -45,13 +45,13 @@
 |---|---|---|---|
 | mode | antd `start \| alternate \| end`（left/right 弃用，Timeline.js mergedMode 默认 start）；EP 另有 `alternate-reverse` | data_timeline.go:`Mode`，默认 `"left"` | 已补齐：默认值改为 `"start"`（行为不变），新增 `"alternate-reverse"`（TestTimelineModeStartEnd、TestTimelineAlternateReverse） |
 | orientation | antd `orientation: vertical \| horizontal` | `Horizontal()` | 已补齐：`Orientation(string)`，Defaults `"orientation"`（TestTimelineLoadingOrientation） |
-| variant | antd `variant: filled \| outlined`，默认 outlined（useVariant） | Ant 空心圈，Element/shadcn 实心 | 已补齐：`Variant(string)`，Defaults `"variant"`；空串 = 主题默认 |
+| variant | antd `variant: filled \| outlined`，默认 outlined（useVariant） | Ant 空心圈，Element/shadcn 实心 | 已补齐：`Variant(string)`，Defaults `"variant"`；空串 = 主题默认，由令牌 `TimelineToken.DotOutlined` 决定（Ant true），组件里不再按 Flavor 判断 |
 | titleSpan | antd `titleSpan`（非 alternate 时生效，默认 12/24） | 标题列与内容列等宽 | 已补齐：`TitleSpan(span)`（TestTimelineTitleSpan）；百分比字符串写法等价（传 24 分之几） |
 | items[].title / content | antd v6（label / children 弃用） | `Label` / `Content` | 已补齐：`TimelineItem.Title`，`Label` 标 Deprecated（TestTimelineTitleSpan） |
 | items[].placement | antd v6（position 弃用） | — | 已补齐：`TimelineItem.Placement`（TestTimelineModeStartEnd） |
-| items[].loading | antd v6：LoadingOutlined 图标、status process，其 rail 为 dotted | — | 已补齐：`TimelineItem.Loading`（Busy 状态，之后的轴线为点线）（TestTimelineLoadingOrientation） |
+| items[].loading | antd v6：LoadingOutlined 图标、status process，其 rail 为 dotted | — | 已补齐：`TimelineItem.Loading`（Busy 状态；进入该项的一段轴线为点线，`Reverse` 时为离开该项的一段，与 antd 一致）（TestTimelineLoadingOrientation、TestTimelinePendingTailDashed） |
 | items[].icon / color | antd `icon`、`color: blue\|red\|green\|gray`（gray = colorTextDisabled） | `DotIcon`/`Dot`、`Color`（gray 用 TextQuaternary） | 已对齐（gray 改读 `TextDisabled`，Ant 下数值相同） |
-| pending / reverse | antd（pending 弃用但保留）、EP `reverse` | `Pending`、`Reverse` | 已对齐；v6 下普通项到 pending 的一段为实线、离开忙碌项的一段为点线（见变更） |
+| pending / reverse | antd（pending 弃用但保留）、EP `reverse` | `Pending`、`Reverse` | 已对齐；按 rc-steps（Step.js:147 `railFollowPrevStatus ? status : nextStatus`，Timeline.js:104 `railFollowPrevStatus: reverse`），不 reverse 时进入忙碌项（Pending / Loading）的一段为点线，reverse 时离开忙碌项的一段为点线；横向同理。Element 不画点线。按主题由令牌 `TimelineToken.BusyTailDashed` 决定（TestTimelinePendingTailDashed） |
 | EP timestamp / placement / hide-timestamp | EP timeline-item | `Time`、`TimeTop`；不设 `Time` 即隐藏 | 已对齐 / 等价写法 |
 | EP center | EP `center` | — | 已补齐：`TimelineItem.Center`；轴线改为每项各画上下两段，居中点也能连上 |
 | EP type / color / size / icon / hollow | EP | `Color`、`Large`、`DotIcon`、`Hollow` | 已对齐 |
@@ -92,7 +92,7 @@
 | autoplay.dotDuration | antd：当前指示点随间隔填满 | — | 已补齐：`DotDuration(bool)` |
 | speed / effect / arrows / dots / draggable / infinite | antd 500 / scrollx / false / true / false / true | `Fade`、`Arrows`、`Dots`、`Draggable`、`Loop` | 已对齐 |
 | waitForAnimate / adaptiveHeight | antd | — | 不需要（goTo 随时改目标）/ 暂不做（先无需求） |
-| goTo / next / prev / initialSlide | antd ref | `Current(&i)` | 等价写法；越界值夹到范围（TestCarouselOutOfRange） |
+| goTo / next / prev / initialSlide | antd ref | `Current(&i)` | 等价写法；越界值夹到范围，首帧先夹值不播一次错误动画（TestCarouselOutOfRange、TestCarouselOutOfRangeNoAnim）；复审修正 |
 | EP trigger | EP `trigger: hover\|click`，默认 hover | 只能点击 | 已补齐：`Trigger(string)`、Defaults `"trigger"`、令牌 `DotHoverTrigger`（Element 默认 hover）（TestCarouselHoverTriggerPause） |
 | EP autoplay 默认 true | EP `autoplay: true`、`interval: 3000` | 默认不播放 | 暂不做（所有 Element 轮播默认自动翻页属行为变更，需用户定） |
 | EP pause-on-hover | EP / react-slick 默认 true | 总是暂停 | 已补齐：`PauseOnHover(bool)`、Defaults `"pauseOnHover"`（TestCarouselHoverTriggerPause） |
@@ -118,7 +118,7 @@
 | cellRender / fullCellRender / headerRender | antd | `CellRender`、`MonthCellRender`、`NoHeader` | 等价写法：`NoHeader` + 应用自建头部（持有 `Mode`/值指针）；`fullCellRender` 暂不做（单元格整体自定义钩子待设计） |
 | yearControlWidth / monthControlWidth | antd minWidth 80 / 70 | 固定 100 / 80（卡片 92 / 68） | 等价写法：Tango Select 不随内容伸缩，固定宽度取中文“2026年”所需宽度，不小于 antd 的 minWidth |
 | EP range | EP `range` | `Range` | 已对齐 |
-| EP controller-type | EP `button \| select` | 只有按钮 | 已补齐：`ControllerType("select")`、Defaults `"controllerType"`（TestCalendarShowWeekSelect） |
+| EP controller-type | EP `button \| select` | 只有按钮 | 已补齐：`ControllerType("select")`、Defaults `"controllerType"`，头部补 Element 小号 `Today` 按钮并使用已有 Locale（TestCalendarShowWeekSelect、TestCalendarSelectToday） |
 | EP formatter | EP select 标签格式化 | — | 已补齐：`Formatter(fn(v, kind))` |
 | shadcn | calendar.tsx：`--cell-size` 2rem、今天 `bg-accent`、选中 `bg-primary`、外月 muted | 令牌既有 | 已对齐（未改） |
 | 键盘 | 方向键、Home/End、PageUp/Down | `calDayKeys` | 已对齐 |

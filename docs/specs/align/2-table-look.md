@@ -45,7 +45,7 @@
 | size small / middle / large | antd size.js：padding 与 font 取 MD / SM 令牌 | metrics 在 table_show.go | 已对齐（令牌已全） |
 | 空态 | antd 占位行 colorTextDisabled、悬停不变色（empty.js），内容为 Empty simple | `Empty(c).Simple()` | 已对齐 |
 | 汇总行 | antd summary 底 tableBg、每格下边线（summary.js） | `FooterBg` = BgContainer | 已对齐；字重令牌 `FooterFontWeight`（Ant 400） |
-| 排序提示（E2 请求） | antd `showSorterTooltip`，文字按下一次点击方向（locale triggerAsc/triggerDesc/cancelSort） | 表头按固定循环写死 | 已补齐（TestAlignB2E1SorterTooltip）：改调 E2 的 `f.sorterTip(col)`；`ShowSorterTooltip(false)` 生效 |
+| 排序提示（E2 请求） | antd `showSorterTooltip`，文字按下一次点击方向（locale triggerAsc/triggerDesc/cancelSort） | 表头按固定循环写死 | 已补齐（TestAlignB2E1SorterTooltip、TestTableSorterTooltipToken）：改调 E2 的 `f.sorterTip(col)`；`ShowSorterTooltip(false)` 生效；主题默认读令牌 `SorterTooltip`（Element false） |
 | 筛选重置（E2 请求） | antd `filterResetToDefaultFilteredValue` | 重置一律清空 | 已补齐（TestAlignB2E1FilterResetToDefault）：改调 `f.filterResetValues(col)` |
 | indentSize 令牌（E2 请求） | antd `expandable.indentSize` 15；EP `indent` 16（ep/es/components/table/src/table/defaults.mjs:147-150） | table.go 写死 15 | 已补齐令牌 `IndentSize`（Ant/shadcn 15、Element 16）；默认值接入在 table.go（共享请求 6） |
 | 行右键 / 单元格点击（E2 请求，可选） | EP row-contextmenu、cell-click | — | 暂不做（需要 table.go 新查询方法，API 形状由 E2 定；本组只做外观） |
@@ -65,7 +65,7 @@
 | 排序 caret | 见上表 | | 已补齐 |
 | 筛选触发 | `__column-filter-trigger i` color-info、14px，无悬停变色（table.scss:620-630） | 箭头 12px、idle placeholder 色、悬停主色 | 已补齐：Element 令牌 14 / #909399 / 不变色；**变更** |
 | 筛选面板 | `.el-table-filter` border-color-lighter、radius 2px（table-column.scss:15-20） | Radius 4 | 已补齐：`FilterDropdownRadius` 2、`FilterDropdownBorder`；**变更** |
-| 展开图标 | `__expand-icon` text-color-regular 12px，无悬停色，展开旋转 90°（table.scss:82-101） | 悬停变主色 | 已补齐：`ExpandIconArrow`、`ExpandIconColor/HoverColor`；**变更**：悬停不再变主色 |
+| 展开图标 | `__expand-icon` text-color-regular 12px，无悬停色，展开旋转 90°（table.scss:82-101） | 悬停变主色 | 已补齐：`ExpandIconArrow`、`ExpandIconColor/HoverColor`；**变更**：悬停不再变主色；复审后展开列的图标盒也读 `ExpandIconSize`（与树形开关一致），Element 17 → 16 |
 | 展开单元格 | `__expanded-cell` 底 fill-color-blank、padding 20px 50px（table.scss:104-114） | 同（Flavor 分支） | 已补齐：令牌 |
 | 滚动条 | $scrollbar text-color-secondary opacity .3 / hover .5，6px（var.scss:1375-1378；scrollbar.scss） | TextTertiary × .5 / .75 | 已补齐：`StickyScrollBar*`；**变更** |
 | el-table-v2 高度 | row-height 50、header-height 50（es/components/table-v2 默认） | — | 已补齐令牌 `VirtualRowHeight/VirtualHeaderHeight`（Element 50，其余 0）；接到 `Virtual()` 在 E2 文件（共享请求 3） |
@@ -100,7 +100,7 @@
 
 ### 新增
 
-- Table 外观令牌（`theme.TableToken`）：`HeaderSortHoverBg`、`HeaderGroupBg`、`RowExpandedBg`、`BottomRadius`、`FooterFontWeight`、`FooterAreaBg`、`FooterAreaColor`、`SorterHoverColor`、`SorterArrowWidth/Height`、`SorterGap`、`FilterIconSize`、`FilterIdleColor`、`FilterHoverColor`、`FilterHoverBg`、`FilterRadius`、`FilterArrow`、`FilterDropdownBg/Radius/Border`、`ExpandIconSize/Scale/Radius/Bg/Border/Color/HoverColor`、`ExpandIconArrow`、`ExpandedPaddingBlock/Inline`、`SelectionColumnWidth`、`ExpandColumnWidth`、`StickyScrollBarBg/HoverBg/Size`、`CellFontSizeMD`、`CellLineHeight`、`IndentSize`、`SelectionPaddingInline`、`VirtualRowHeight/VirtualHeaderHeight`（数值取自 antd 6.7 / Element Plus 2.14.8 / shadcn v4 源码）。
+- Table 外观令牌（`theme.TableToken`）：`HeaderSortHoverBg`、`HeaderGroupBg`、`RowExpandedBg`、`BottomRadius`、`FooterFontWeight`、`FooterAreaBg`、`FooterAreaColor`、`SorterHoverColor`、`SorterArrowWidth/Height`、`SorterGap`、`FilterIconSize`、`FilterIdleColor`、`FilterHoverColor`、`FilterHoverBg`、`FilterRadius`、`FilterArrow`、`FilterDropdownBg/Radius/Border`、`ExpandIconSize/Scale/Radius/Bg/Border/Color/HoverColor`、`ExpandIconArrow`、`ExpandedPaddingBlock/Inline`、`SelectionColumnWidth`、`SelectionBorderedExtra`、`SorterTooltip`、`ExpandColumnWidth`、`StickyScrollBarBg/HoverBg/Size`、`CellFontSizeMD`、`CellLineHeight`、`IndentSize`、`SelectionPaddingInline`、`VirtualRowHeight/VirtualHeaderHeight`（数值取自 antd 6.7 / Element Plus 2.14.8 / shadcn v4 源码）。
 
 ### 变更
 
@@ -120,6 +120,6 @@
 1. **（已合并）`ui/theme/theme.go`（Ant 暗色）**：`TableRowHoverBg` #262626 → #1d1d1d（antd rowHoverBg = colorFillAlter 叠 colorBgContainer，table/style/index.js:203）；`TableSorterIdle` 暗色 `t.TextQuaternary` → `RGBA(255,255,255,.29)`（headerIconColor = colorIcon .45 × opacityLoading .65，index.js:230）。合并后可在 `ui/theme/align_b2e1_test.go` 的 `TestAlignB2E1AntDarkTableTokens` 加 `tk.RowHoverBg == Hex("#1d1d1d")`、`tk.SorterIdleColor == RGBA(255,255,255,.29)`。CHANGELOG 变更加一条「Ant 暗色表格行悬停 #262626 → #1d1d1d、排序图标 .25 → .29」。
 2. **`ui/table_show.go`（E2）外框圆角**：`frame.Radius(rad)`（带边框时四角）改为 `frame.Radii(geom.Radii{TL: rad, TR: rad, BL: tk.BottomRadius, BR: tk.BottomRadius})`，底部圆角条 `if t.bordered && rad > 0` 改用 `tk.BottomRadius`，`l.Stroke(r, geom.Rad(rad), …)` 改用同一 Radii；loading 遮罩同。否则 Ant 带边框表格外框仍是四角圆，而表体（本组）已改为方角。
 3. **`ui/table_show.go`（E2）metrics / columns**：行高 `f.lh` 改读 `tk.CellLineHeight`（Ant 22 / Element 23 / shadcn 20，可删 shad2b_table.go 里的 `f.lh = 20`）；Middle 尺寸字号读 `tk.CellFontSizeMD`；选择列宽 `max(48, 16+2*f.ph)` / Element 48 改读 `tk.SelectionColumnWidth`（antd 32，带下拉 +16、bordered +16；`SelectionColumnWidth(px)` 覆盖优先）；展开列宽 48 读 `tk.ExpandColumnWidth`；`Virtual()` 时 `tk.VirtualRowHeight/VirtualHeaderHeight` > 0 则作为默认行高 / 表头高（EP el-table-v2 50/50，`RowHeight()`/`HeaderHeight()` 优先）。注意 Ant 选择列 48 → 32 是 Ant 外观变更，需写 CHANGELOG。
-4. **E2 的 `Title()` / `Footer()` 区**：底色 `tk.FooterAreaBg`（Ant #fafafa，Element / shadcn 无）、文字 `tk.FooterAreaColor`（Ant colorTextHeading、Element text-color-regular、shadcn caption muted-foreground），padding 同单元格；Ant 带边框时 footer 四边框 + 底圆角（bordered.js、radius.js `&-footer`）。
+4. **E2 的 `Title()` / `Footer()` 区**：底色 `tk.FooterAreaBg`（Ant #fafafa，Element / shadcn 无）、文字 `tk.FooterAreaColor`（Ant colorTextHeading、Element text-color-regular、shadcn caption muted-foreground），padding 同单元格；Ant 带边框时 footer 无上边框（三条边），底圆角不论是否带边框都是 `HeaderBorderRadius`（bordered.js、radius.js `&-footer`）。复审后已按此实现（TestTableTitleFooterBorders、TestTableFooterRadius）。
 5. **（已合并）`ui/g6_tokens_test.go`（主线程）**：`TestG6TableTokenDefaults` 断言 `k.RowStripedBg != th.FillAlter` 对 Element 暗色不再成立（EP 斑马纹是 fill-color-lighter #1d1d1d，Tango FillAlter 暗色是 extra-light #191919）。改成 `(!el && k.RowStripedBg != th.FillAlter)`，Element 由 `TestAlignB2E1ElementTableTokens` 覆盖。**合并前该用例失败。**
 6. **`ui/table.go`（E2）indentSize 默认**：`propFloat(c, "Table", "indentSize", 15)` 的默认值改为 `c.ThemeFor(theme.CompTable).Components.Table.IndentSize`（Element 16，EP el-table `indent` 默认 16）；构造处 `indent: 15` 同。Element 树形表格缩进 15 → 16 写 CHANGELOG 变更。

@@ -293,14 +293,13 @@ func (f *tblFrame) columns() {
 	if t.selection != nil || t.selKeys != nil {
 		// antd selection.js: selectionColumnWidth (32), + fontSizeIcon +
 		// padding/4 (16) with the selections dropdown, + 2 × paddingXS
-		// (16) in a bordered table. Element Plus' selection column stays
-		// 48 whatever the border (structural, kept as before).
+		// (SelectionBorderedExtra) in a bordered table.
 		w := f.tk.SelectionColumnWidth
 		if t.selMenu && !t.single && !t.hideAll {
 			w += 16 // the selections menu arrow
 		}
-		if t.bordered && !f.el {
-			w += 16
+		if t.bordered {
+			w += f.tk.SelectionBorderedExtra
 		}
 		if t.selColW > 0 {
 			w = t.selColW
@@ -1378,11 +1377,10 @@ func (f *tblFrame) nextOrder(col *TableColumn) SortOrder {
 
 // sorterTip returns the tooltip of a sortable header: the action of the
 // next click (Ant Design triggerAsc / triggerDesc / cancelSort) and
-// whether it shows (ShowSorterTooltip; Element Plus draws none — a
-// structural difference kept from before until the table token has a
-// switch).
+// whether it shows (ShowSorterTooltip over TableToken.SorterTooltip;
+// Element Plus draws none).
 func (f *tblFrame) sorterTip(col *TableColumn) (string, bool) {
-	if !f.t.sortTip || f.el {
+	if !f.t.sortTip || !f.tk.SorterTooltip {
 		return "", false
 	}
 	loc := f.c.Locale()
@@ -1486,6 +1484,7 @@ func (f *tblFrame) rangeSelect(r tblRow) bool {
 	if a > b {
 		a, b = b, a
 	}
+	was := f.selected(r)
 	var rows []tblRow
 	on := false
 	for i := a; i <= b; i++ {
@@ -1499,9 +1498,12 @@ func (f *tblFrame) rangeSelect(r tblRow) bool {
 		}
 	}
 	f.setRows(rows, on)
+	// antd useSelection.js: the anchor becomes the clicked row when it
+	// was unchecked, none when it was checked (overriding
+	// useMultipleSelect's range end).
 	st.lastSel = ""
-	if on {
-		st.lastSel = f.row(b).key
+	if !was {
+		st.lastSel = r.key
 	}
 	return true
 }
@@ -1665,22 +1667,23 @@ func (f *tblFrame) titleBar(fn func(), footer bool) {
 	rad := tk.HeaderBorderRadius
 	radii := geom.Radii{TL: rad, TR: rad}
 	if footer {
-		radii = geom.Radii{}
-		if t.bordered {
-			radii = geom.Radii{BL: tk.BottomRadius, BR: tk.BottomRadius}
-		}
+		// antd radius.js: &-footer 0 0 tableRadius tableRadius, bordered
+		// or not.
+		radii = geom.Radii{BL: rad, BR: rad}
 	}
 	b.Radii(radii)
 	if t.bordered {
 		// antd bordered.js: the title has no bottom border and the footer
-		// no top border (the table frame draws that edge).
+		// no top border (the table frame draws that edge): stroke a box
+		// one pixel taller with that edge clipped off.
 		b.PaintOver(func(l *paint.List, r geom.Rect) {
-			l.Stroke(r, radii, 1, f.spl)
-			edge := r.Y
-			if !footer {
-				edge = r.Bottom() - 1
+			box := geom.Rect{X: r.X, Y: r.Y, W: r.W, H: r.H + 1}
+			if footer {
+				box.Y--
 			}
-			l.Fill(geom.Rect{X: r.X + 1, Y: edge, W: r.W - 2, H: 1}, geom.Radii{}, tk.FooterAreaBg)
+			l.Clip(r, geom.Radii{})
+			l.Stroke(box, radii, 1, f.spl)
+			l.Pop()
 		})
 	}
 	// The bar's text color (antd footerColor / colorTextHeading, Element

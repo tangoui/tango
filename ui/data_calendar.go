@@ -258,7 +258,7 @@ func (w *CalendarW) build() {
 		} else if el && w.controller != "select" {
 			w.elHeader(st, nav, pick)
 		} else if el {
-			w.elSelectHeader(st, nav)
+			w.elSelectHeader(st, nav, pick)
 		} else {
 			w.antHeader(st, mode, nav)
 		}
@@ -342,12 +342,20 @@ func (w *CalendarW) ymSelects(st *calViewState, nav func(time.Time), size Contro
 
 // elSelectHeader is the Element header with controller-type="select":
 // the month title and the year and month selects.
-func (w *CalendarW) elSelectHeader(st *calViewState, nav func(time.Time)) {
+func (w *CalendarW) elSelectHeader(st *calViewState, nav func(time.Time), pick func(time.Time)) {
 	c, th, tk := w.c, w.th, w.tk
 	loc := c.Locale()
 	Row(c, func() {
 		Text(c, dtMonthTitle(loc, st.view)).Color(th.Text).Layout(layout.Grow(1))
-		Row(c, func() { w.ymSelects(st, nav, Small, true) }, layout.Middle(), layout.Gap(8))
+		Row(c, func() {
+			w.ymSelects(st, nav, Small, true)
+			// select-controller.vue: a small "Today" button after the
+			// selects.
+			if Button(c, loc.Today).Small().Disabled(!w.valid(c.now)).Clicked() {
+				nav(c.now)
+				pick(dtDayUTC(c.now))
+			}
+		}, layout.Middle(), layout.Gap(8))
 	}, layout.PadVH(12, 20), layout.Middle()).Paint(func(l *paint.List, r geom.Rect) {
 		dataHLine(l, r.X, r.Bottom()-1, r.W, tk.HeaderBorderColor)
 	})

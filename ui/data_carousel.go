@@ -208,6 +208,11 @@ func (w *CarouselW) Show() *Box {
 		return outer
 	}
 	st := State[carouselState](c, box.n.id, nil)
+	if w.cur != nil {
+		// Out of range: the nearest end (before the first frame reads it,
+		// so it does not animate there).
+		*w.cur = max(0, min(*w.cur, w.n-1))
+	}
 	if !st.started {
 		st.started, st.since = true, c.now
 		if w.cur != nil {
@@ -216,9 +221,6 @@ func (w *CarouselW) Show() *Box {
 	}
 	if w.noLoop && (st.seq < 0 || st.seq >= w.n) {
 		st.seq = w.mod(st.seq) // without looping seq is the index itself
-	}
-	if w.cur != nil {
-		*w.cur = max(0, min(*w.cur, w.n-1)) // out of range: the nearest end
 	}
 	if w.cur != nil && w.mod(*w.cur) != w.mod(st.seq) {
 		// App changed the index: move the shortest way.

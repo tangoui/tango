@@ -184,8 +184,9 @@ func (w *ListW) Item(fn func(i int)) *ListW {
 	pagerTop := showPager && (w.pagerPos == "top" || w.pagerPos == "both")
 	pagerBottom := showPager && w.pagerPos != "top"
 	// antd .ant-list-something-after-last-item: the last item keeps its
-	// rule when a footer, load-more or pager follows.
-	after := w.footer != nil || (w.more != "" && w.n > 0) || pagerBottom
+	// rule when a footer, load-more or pager is there (list/index.js:91: any
+	// pagination, top or bottom).
+	after := w.footer != nil || (w.more != "" && w.n > 0) || showPager
 	pager := func(top bool) {
 		m := geom.Insets{Top: tk.PaginationMarginTop}
 		if w.bordered {

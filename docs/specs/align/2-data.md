@@ -66,11 +66,11 @@
 | bordered / EP border | antd `bordered`；EP `border` | `Bordered`、Defaults | 已对齐 |
 | size | antd `size?: SizeType \| 'default'`；EP `size` | `Size`、Defaults（Ant "default" = Large） | 已对齐 |
 | 默认尺寸（Element） | EP 默认 `default`（bordered 8 11） | 旧：Element 也用 Large 档（12 15） → 令牌 `DescriptionsToken.DefaultMiddle` | 已补齐（TestAlignB2FDescriptionsTokens） |
-| colon | antd `colon` 默认 true；style `&::after { content: ':', marginInline: colonMarginLeft(1) colonMarginRight(8) }`，`no-colon` 仍保留 margin；EP 无冒号 | 旧：`WithColon` 直接拼进标签、无间距；Element 按 Flavor 分支 → 冒号单独一段（`Locale.LabelColon`，前 2px）+ 标签后 8px（无冒号时 10px），令牌 `ShowColon`、`ColonMarginInlineStart`、`LabelMarginInlineEnd(SM)` | 已补齐（TestDescriptionsLastRowPadding、TestDescriptionsNoColonGap、TestAlignB2FDescriptionsTokens）；冒号字符随 Locale（中文「：」），antd 固定 ":"，等价写法 |
+| colon | antd `colon` 默认 true；style `&::after { content: ':', marginInline: colonMarginLeft colonMarginRight }`，colonMarginLeft = marginXXS / 2 = 2、colonMarginRight = marginXS = 8（antd/descriptions/style/index.js:194-195），`no-colon` 仍保留 margin；EP 无冒号 | 旧：`WithColon` 直接拼进标签、无间距；Element 按 Flavor 分支 → 冒号单独一段（`Locale.LabelColon`，前 2px）+ 标签后 8px（无冒号时 10px），令牌 `ShowColon`、`ColonMarginInlineStart`、`LabelMarginInlineEnd(SM)` | 已补齐（TestDescriptionsLastRowPadding、TestDescriptionsNoColonGap、TestAlignB2FDescriptionsTokens）；冒号字符随 Locale（中文「：」），antd 固定 ":"，等价写法 |
 | 竖排标签冒号 | Row.js 竖排标签行仍用 Cell（带 colon） | 旧：竖排无冒号 → 有（Element 无） | 已补齐（gallery DescriptionsAlign） |
 | 无边框行距 | style `itemPaddingBottom` 16、`&-medium` 12、`&-small` 8；最后一行 0；`itemPaddingEnd` 16（行末 0）；EP 16/12/8 | 旧：所有尺寸 16（Element 12）、最后一行也有、单元格右侧 ph/2 → 按尺寸、最后一行 0、单元格间 16（Element 0，标签间距 16/12） | 已补齐（TestDescriptionsLastRowPadding） |
 | 竖排标签下距 | antd 同 itemPaddingBottom；EP vertical-label padding-bottom 8/6/4 | 旧：固定 4 → 令牌 `VerticalLabelPaddingBottom*` | 已补齐（TestAlignB2FDescriptionsTokens） |
-| 颜色 | antd labelColor colorTextTertiary、bordered label colorTextSecondary、contentColor colorText、边框 colorSplit；EP 无边框 label primary / content regular，bordered label regular（bold）/ content primary，`descriptions-table-border` border-lighter | 旧：Ant bordered 标签 tertiary、边框 colorBorderSecondary；Element 无边框标签 regular、内容 primary → 新令牌 `BorderedLabelColor`、`BorderedContentColor`，Ant 边框 Split | 已补齐（TestAlignB2FDescriptionsTokens） |
+| 颜色 | antd labelColor colorTextTertiary、bordered label colorTextSecondary、contentColor colorText、边框 colorSplit；EP 无边框 label primary / content regular，bordered label regular（bold）/ content primary，`descriptions-table-border` border-lighter | 旧：Ant bordered 标签 tertiary、边框 colorBorderSecondary；Element 无边框标签 regular、内容 primary → 新令牌 `BorderedLabelColor`、`BorderedContentColor`，Ant 边框 Split | 已补齐（TestAlignB2FDescriptionsTokens）；**令牌含义变化**：`LabelColor` / `ContentColor` 从此只管无边框列表，带边框列表读 `Bordered*`（antd descriptions/style/index.js:37-38、129）；只覆盖了 `LabelColor` 的旧代码在带边框列表上不再生效；Element `LabelColor` 默认 TextSecondary → Text。没有加「只覆盖 LabelColor 时 Bordered 回落」：合并后的令牌分不出哪些字段是用户覆盖的，要做得在 ConfigProvider 合并层加记录，不简单，故只在字段文档和 CHANGELOG 说明 |
 | 标题 | antd titleMarginBottom = fontSizeSM×lineHeightSM(20)、fontSizeLG strong；EP header margin 20/16/12、title 16/16/14 bold | 令牌 `TitleMarginBottom(MD/SM)`、`TitleFontSizeSM` | 已补齐（TestAlignB2FDescriptionsTokens） |
 | bordered 内边距 | antd `padding paddingLG` / medium `paddingSM paddingLG` / small `paddingXS padding`；EP 12 15 / 8 11 / 4 7 | comp_descriptions.go | 已对齐 |
 | labelStyle / contentStyle / EP label-width / width / min-width / class | antd、EP | `LabelWidth`、`LabelBg`、`Render` | 等价写法 |
@@ -89,7 +89,7 @@
 | Item extra | Item.d.ts `extra` | 新 `ItemExtra(func(i))` | 已补齐（TestListItemLayoutVertical） |
 | size | antd style `.ant-list-sm .ant-list-item {padding: itemPaddingSM(8 16)}`、`-lg` 16 24（无边框也生效）；header/footer `paddingBlock: paddingSM` | 旧：无边框时条目横向 0、头尾随条目 → 按 antd | 已补齐（TestListSmallPadding） |
 | bordered | style genBorderedStyle：colorBorder、radiusLG、头尾/条目 paddingInline 24；sm/lg 头尾同条目；pagination `margin 16 24`（在框内） | 旧：分页在框外 → 框内 16 24 | 已补齐（gallery ListAlign） |
-| split | style `-split .item { borderBlockEnd }`、`-split .header`、`-split.-empty .footer { borderTop }`、`something-after-last-item`（footer / loadMore / pagination）最后一项保留分隔 | 旧：bordered 也画头部线、分页不算「后面有东西」、bordered footer 总画上边线 → 按 antd | 已补齐（gallery ListAlign） |
+| split | style `-split .item { borderBlockEnd }`、`-split .header`、`-split.-empty .footer { borderTop }`、`something-after-last-item`（footer / loadMore / pagination）最后一项保留分隔 | 旧：bordered 也画头部线、分页不算「后面有东西」、bordered footer 总画上边线 → 按 antd；分页不论放在上方还是下方都算（list/index.js:91） | 已补齐（gallery ListAlign、TestListTopPagerLastRule）；复审修正：原先只有分页在下方时才算 |
 | 条目对齐 | style `.ant-list-item {display: flex; alignItems: center; justifyContent: space-between}`（无 gap） | 旧：`Gap(16)` → space-between | 已补齐（gallery List/ListAlign） |
 | actions | style `-item-action`：marginInlineStart 48、li padding 0 8（首项起始 0，末项保留末端 8）、分隔线高 fontHeight-8 | 旧：间距 17、末端无余量 → 16、末端 8（令牌 `ActionsGap`） | 已补齐（TestAlignB2FListTokens） |
 | grid | antd `grid {gutter, column, xs…}`；`.ant-col > .ant-list-item {marginBlockEnd: margin}`（gutter 只管横向） | 旧：行距 = gap → 行距固定 16（`GridItemMarginBottom`），列距 = gap | 已补齐（TestAlignB2FListTokens） |
@@ -134,8 +134,8 @@
 | expandedKeys / selectedKeys / checkedKeys | Tree.d.ts | `Expanded`、`Selected`、`Checkable(&keys)`、`HalfChecked` | 已对齐 |
 | checkStrictly | Tree.d.ts | `CheckStrictly` | 已对齐 |
 | selectable | Tree.d.ts `selectable`（默认 true） | 旧：无 → `Selectable(on)`、Defaults `selectable`；关闭时树项不再报告 Selectable | 已补齐（TestTreeSelectableFalse、TestTreeA11yUnselectable） |
-| disabled | Tree.d.ts `disabled` | 旧：只能用 `ui.Disabled` 包，且行仍按可用绘制 → `Disabled(on)`；作用域禁用时行也按禁用绘制 | 已补齐（TestTreeDisabled） |
-| defaultExpandAll / EP default-expand-all | Tree.d.ts；ep/tree/src/tree.d.ts:20 | 新 `DefaultExpandAll()`（只在第一次显示时）、Defaults | 已补齐（TestTreeDefaultExpandAll） |
+| disabled | Tree.d.ts `disabled` | 旧：只能用 `ui.Disabled` 包，且行仍按可用绘制 → `Disabled(on)`；作用域禁用时行也按禁用绘制；禁用时也不能拖放 | 已补齐（TestTreeDisabled、TestTreeDisabledDrag）；复审修正：原先 `Draggable` 的禁用树仍会报告 `Dropped()` |
+| defaultExpandAll / EP default-expand-all | Tree.d.ts；ep/tree/src/tree.d.ts:20 | 新 `DefaultExpandAll()`（只在第一次显示时）、Defaults；它是初始状态，`ExpandChanged()` 不因它变 true（rc-tree 不触发 onExpand） | 已补齐（TestTreeDefaultExpandAll、TestTreeDefaultExpandAllNoChange） |
 | autoExpandParent / defaultExpandParent | Tree.d.ts | — | 暂不做（低优先；`Search` 已自动展开匹配项父节点） |
 | multiple / blockNode / showIcon / icon | Tree.d.ts | `Multiple`、`BlockNode`、`ShowIcon`、`TreeNode.Icon` | 已对齐 |
 | showLine {showLeafIcon} | Tree.d.ts `showLine?: boolean \| {showLeafIcon}` | `ShowLine`（叶子不画图标 = showLeafIcon false 默认） | 已对齐；showLeafIcon 自定义图标暂不做（低优先） |
@@ -166,7 +166,7 @@
 | 规范项 | 官方定义（来源，日期） | Tango 现状 | 结论 |
 |---|---|---|---|
 | height 200 / item-size 26 | ep/tree-v2/src/virtual-tree.mjs:25-41 | `Height`（默认 200）、行高取 Tree 令牌（Element 26） | 已对齐 |
-| indent | 同上 `indent` 默认 **16**（el-tree 为 18） | 旧：用 Tree 的 18 → 令牌 `TreeToken.VirtualIndentSize`（Element 16，其余同 IndentSize） | 已补齐（TestAlignB2FTreeTokens） |
+| indent | 同上 `indent` 默认 **16**（el-tree 为 18） | 旧：用 Tree 的 18 → 令牌 `TreeToken.VirtualIndentSize`（Element 16，其余同 IndentSize） | 已补齐（TestAlignB2FTreeTokens、TestAlignB2FixTokens）；复审修正：Ant / shadcn 原先写死数值，现在推导时在 Flavor 分支之后取 `IndentSize`（数值不变）。组件令牌覆盖只改 `Tree.IndentSize` 时，VirtualTree 不会跟着变（推导值已非零）。要真正跟随，得把推导值改为 0、读取时回落，这会改动 CSS 变量和现有令牌测试，暂不做 |
 | show-checkbox / check-strictly / default-checked-keys | 同上 | `Checkable`、`CheckStrictly` | 已对齐 |
 | expand-on-click-node / check-on-click-node | 同上（expand 默认 true） | `ExpandOnClick`、`CheckOnClick` | 已对齐 |
 | check-on-click-leaf | 同上默认 true；useTree.mjs:122 | 新 `CheckOnClickLeaf(on)`、Defaults；默认关（同 Tree，以 antd 为准） | 已补齐（TestVirtualTreeAccordionLeafCheck） |

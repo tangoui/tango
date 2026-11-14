@@ -300,6 +300,7 @@ type TagW struct {
 	size      ControlSize
 	effect    string // "" / "light", "dark", "plain"
 	variant   string // "" (theme default) / "filled", "solid", "outlined"
+	varSet    bool   // variant came from Variant (not Defaults): it beats "-inverse"
 	disabled  bool
 	round     bool
 	th        *theme.Theme
@@ -307,9 +308,10 @@ type TagW struct {
 }
 
 // Tag adds a tag. color may be "success", "processing", "error",
-// "warning", "default", an Ant preset ("blue", "magenta" ...), a shadcn
-// Badge variant ("primary", "secondary", "destructive", "outline",
-// "ghost", "link") or a hex color.
+// "warning", "default", an Ant preset ("blue", "magenta" ...; with the
+// suffix "-inverse", e.g. "blue-inverse", the preset solid unless a
+// Variant is set, like antd), a shadcn Badge variant ("primary",
+// "secondary", "destructive", "outline", "ghost", "link") or a hex color.
 //
 // ConfigProvider.Defaults("Tag", ...) keys: "size" (ControlSize), "effect",
 // "variant", "color" (string), "bordered" (bool; deprecated, false =
@@ -343,7 +345,7 @@ func (t *TagW) Borderless() *TagW { t.bordered = false; return t }
 // Variant sets the antd 6 variant: "filled" (tinted, no border; the
 // default outside Element), "solid" (saturated color, light text) or
 // "outlined" (tinted with a border; Element's default light effect).
-func (t *TagW) Variant(v string) *TagW { t.variant = v; return t }
+func (t *TagW) Variant(v string) *TagW { t.variant, t.varSet = v, v != ""; return t }
 
 // Size sets small (20px), middle (default) or large (Element 32px) tags.
 func (t *TagW) Size(sz ControlSize) *TagW { t.size = sz; return t }
@@ -466,11 +468,19 @@ func (t *TagW) measure(_, _ float32) geom.Size {
 	return geom.Size{W: w + 2*pad + 2, H: h}
 }
 
-// effVariant resolves the variant: Variant, then Effect, then the
-// deprecated Borderless, then the theme default.
+// effVariant resolves the variant: Variant, then an "-inverse" color
+// (solid), then the Defaults variant, then Effect, then the deprecated
+// Borderless, then the theme default (antd useColor: variant prop, inverse,
+// context variant).
 func (t *TagW) effVariant() string {
-	switch t.variant {
-	case "filled", "solid", "outlined":
+	valid := t.variant == "filled" || t.variant == "solid" || t.variant == "outlined"
+	if valid && t.varSet {
+		return t.variant
+	}
+	if strings.HasSuffix(t.color, "-inverse") {
+		return "solid"
+	}
+	if valid {
 		return t.variant
 	}
 	switch t.effect {
@@ -515,7 +525,7 @@ func (t *TagW) tint() (bg, border, fg, solid theme.Color) {
 		}
 		return p.Bg, p.Border, p.Base, p.Base
 	}
-	hx := t.color
+	hx := strings.TrimSuffix(t.color, "-inverse")
 	if p, ok := antPreset[hx]; ok {
 		hx = p
 	}
@@ -579,21 +589,18 @@ func (t *TagW) colors() (bg, border, fg theme.Color) {
 		if th.Flavor == theme.Element {
 			// Element plain: light-5 border.
 			switch t.color {
-			case "", "default", "processing":
+			case "processing": // "" and default: TagToken.PlainBorderColor below
 				border = th.Primary.Border
 			case "success", "warning", "error", "danger", "info", "primary":
 				border = th.ColorOf(t.color).Border
 			}
 		}
 		bg = th.BgContainer
-		// A tint whose label was chosen for a solid fill (shadcn's default
-		// Badge: primary-foreground on primary) would vanish on the
-		// container: use body text and the plain border then.
-		if theme.ContrastRatio(fg, bg) < 3 {
-			fg = th.Text
-			if border.A == 0 || theme.ContrastRatio(border, bg) < 1.1 {
-				border = th.Border
-			}
+		if t.color == "" || t.color == "default" {
+			// The default tint's label may be meant for a filled badge
+			// (shadcn primary-foreground on primary): the theme says what a
+			// plain tag uses.
+			fg, border = tk.PlainColor, tk.PlainBorderColor
 		}
 	}
 	if t.isDisabled() {

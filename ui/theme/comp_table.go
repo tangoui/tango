@@ -84,6 +84,14 @@ type TableToken struct {
 	// Column widths of the selection and expand columns.
 	SelectionColumnWidth float32
 	ExpandColumnWidth    float32
+	// SelectionBorderedExtra widens the selection column of a bordered
+	// table (antd selection.js: + 2 × paddingXS = 16; Element and shadcn
+	// 0).
+	SelectionBorderedExtra float32
+	// SorterTooltip shows the next sort action over a sortable header
+	// unless ShowSorterTooltip(false) (antd showSorterTooltip default
+	// true; Element Plus has none).
+	SorterTooltip bool
 	// Scroll thumbs of a bounded table (opacity included).
 	StickyScrollBarBg      Color
 	StickyScrollBarHoverBg Color
@@ -135,6 +143,7 @@ func deriveTable(t *Theme) TableToken {
 		ExpandIconBg: t.BgContainer, ExpandIconBorder: t.BorderSecondary,
 		ExpandIconColor: t.Text, ExpandIconHoverColor: t.TextLinkHover,
 		SelectionColumnWidth: 32, SelectionPaddingInline: 8, ExpandColumnWidth: 48, IndentSize: 15,
+		SelectionBorderedExtra: 16, SorterTooltip: true,
 		// index.js:55 scrollbarColor tableScrollThumbBg = stickyScrollBarBg
 		// (colorTextPlaceholder) on a scroll.y body; size
 		// tableScrollThumbSize 8. The native bar has no hover color: the
@@ -177,12 +186,15 @@ func deriveTable(t *Theme) TableToken {
 		k.FilterHoverBg, k.FilterRadius, k.FilterArrow = Color{}, 0, true
 		// .el-table-filter: border-color-lighter, radius 2px.
 		k.FilterDropdownRadius, k.FilterDropdownBorder = 2, t.BorderSecondary
-		k.FilterDropdownBg = t.BgElevated // el-popper: bg-color-overlay
+		// theme-chalk table-column.scss:18 .el-table-filter: #fff, the
+		// overlay surface (BgElevated) also in dark mode.
+		k.FilterDropdownBg = t.BgElevated
 		k.ExpandIconArrow = true
 		k.ExpandIconSize, k.ExpandIconScale = 16, 1
 		k.ExpandIconColor, k.ExpandIconHoverColor = t.TextSecondary, t.TextSecondary // __expand-icon: text-color-regular
 		k.ExpandedPaddingBlock, k.ExpandedPaddingInline = 20, 50                     // __expanded-cell padding 20px 50px
 		k.SelectionColumnWidth, k.SelectionPaddingInline = 48, 14
+		k.SelectionBorderedExtra, k.SorterTooltip = 0, false
 		k.IndentSize = 16 // el-table indent
 		// $scrollbar: text-color-secondary at .3, hover .5; bar 6px.
 		k.StickyScrollBarBg, k.StickyScrollBarHoverBg, k.StickyScrollBarSize = Fade(t.TextTertiary, .3), Fade(t.TextTertiary, .5), 6
@@ -213,6 +225,7 @@ func deriveTable(t *Theme) TableToken {
 		// No shadcn expand control: keep the unscaled 17px box with the
 		// small radius (the Ant metric scaled would read as a circle).
 		k.ExpandIconScale, k.ExpandIconRadius = 1, t.RadiusSM
+		k.SelectionBorderedExtra = 0                                        // one density: a border adds no padding
 		k.FilterDropdownBg, k.FilterDropdownRadius = t.BgElevated, t.Radius // popover: bg-popover rounded-md
 		// scroll-area: w-2.5 − border-l − p-px × 2 = 7px, bg-border.
 		k.StickyScrollBarBg, k.StickyScrollBarHoverBg, k.StickyScrollBarSize = t.BorderSecondary, t.BorderSecondary, 7

@@ -178,10 +178,12 @@ func TestSliderDisabledMidDragNoComplete(t *testing.T) {
 }
 
 // TestTagPlainDefaultReadable: a plain default tag keeps a readable label
-// in every theme (shadcn's default Badge label is primary-foreground,
-// which vanishes on the container background).
+// (shadcn's default Badge label is primary-foreground, which vanishes on
+// the container background; TagToken.PlainColor is foreground). Element is
+// left out: el-tag--plain uses the primary color (2.78 on white), like
+// Element Plus (TestAlignB2FixTagPlainColors).
 func TestTagPlainDefaultReadable(t *testing.T) {
-	for _, th := range []*theme.Theme{theme.AntDesign(), theme.ElementPlus(), theme.Shadcn(), theme.Shadcn(theme.Dark())} {
+	for _, th := range []*theme.Theme{theme.AntDesign(), theme.Shadcn(), theme.Shadcn(theme.Dark())} {
 		var tg *TagW
 		NewDriver(func(c *Context) { tg = Tag(c, "plain").Effect("plain") }, DriverOptions{Theme: th}).Frame()
 		bg, _, fg := tg.colors()

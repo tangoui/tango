@@ -689,7 +689,8 @@ func (w *TreeW) show() *TreeW {
 					*w.expanded = append(*w.expanded, n.Key)
 				}
 			})
-			w.expCh = true
+			// rc-tree: defaultExpandAll is the initial state, not an
+			// onExpand: ExpandChanged stays false.
 		}
 	}
 	_, tk := w.look()
@@ -1277,7 +1278,10 @@ func (w *TreeW) paintLines(l *paint.List, r geom.Rect, nd *TreeNode, depth int, 
 func (w *TreeW) dragSuppress() bool { return w.st.drag.active || w.dropped }
 
 func (w *TreeW) dragBegin() {
-	if !w.draggable {
+	// A disabled tree (Disabled, ComponentDisabled or an enclosing
+	// Disabled scope) does not drag.
+	if !w.draggable || w.disabled || w.c.disabledDepth > 0 {
+		w.st.drag = treeDrag{}
 		return
 	}
 	c, st := w.c, w.st

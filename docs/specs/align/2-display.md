@@ -166,6 +166,15 @@
 | shadcn HoverCard 延迟 | Radix HoverCard openDelay 700 / closeDelay 300 | Popover hover | 暂不做（第 3 批 HoverCard 一起定） |
 | a11y | hover = tooltip、click = dialog | 同 | 已对齐 |
 
+## 第 2 批复审修正与已知偏离
+
+- Tag plain：新增令牌 `TagToken.PlainColor` / `PlainBorderColor`，无色 `Effect("plain")` 标签读它们（Ant Text / Border，Element Primary.Base / Primary.Border，shadcn Text / Border）。去掉 c04a878 的对比度判断：那段把 Element 的 plain 状态色（#409eff 2.78、success 2.24 等）和 Ant success / warning、gold-7 / lime-7 / yellow-7 预设色的 plain 标签都改成了正文色。现在 Element 状态色 plain 恢复为 c04a878 之前的类型色 + light-5 边框（TestAlignB2FixTagPlainColors）。
+- Tag `Color("<preset>-inverse")`：去掉后缀并强制 solid；优先级与 antd useColor.js:15,21-23 一致：`Variant` 方法 > inverse > `Defaults` 的 variant（TestAlignB2FixTagInverse）。
+- Tag plain：无色 plain 标签不再读 `DefaultColor` / `BorderColor`，对它们的覆盖不再作用于 plain 标签（实验层令牌含义变化，已写 CHANGELOG）。
+- Progress：shadcn 默认隐藏 line 百分比原先是 `data_progress.go` 里的 Flavor 分支，现改读令牌 `ProgressToken.ShowInfo`（shadcn false，其余 true）（TestAlignB2FixProgressShowInfoToken）。
+- Tooltip offset：antd 是 `halfArrowWidth + marginXXS` = 16/2 + 4 = 12（tooltip/index.js:115-117、_util/placements.js:113,137、seed.js:56），不是 sizePopupArrow / 2 = 8。Ant `TooltipToken.Offset` 8 → 12。气泡与触发器的距离一致（12）。小偏离：Tango 箭头高 6（display.go tipArrow），antd 可见三角高约 8（roundedArrow.js unitWidth = sizePopupArrow/2），所以箭头尖到触发器 Tango 是 6、antd 约 4。shadcn 保持 8，未逐项核对 Radix。Popover 的偏移和箭头不在本次修正范围内，由主线程处理。
+- 已知偏离：下列 Flavor 分支只决定外观（结构、绘制细节），不决定功能是否可用或 API 默认值，本批不做令牌化：`ui/display.go:430/513/559/579`（Tag 字号 / 尺寸、Element 状态色描边、shadcn Badge 变体、Element plain 描边）；`ui/data_badge.go:195,221`；`ui/more_checktag.go:91,94,119,166,169`。行号是复审时 c04a878 中的行号。
+
 ## 基础能力缺口
 
 | 缺口 | 影响的组件 | 需要的基础能力 | 现状 |
@@ -193,7 +202,7 @@
 ### 变更
 
 - Tag：`ConfigProvider.ComponentDisabled` 下不可关闭的标签也标 a11y Disabled。
-- Tag：Ant 默认变体改为 filled（无边框），默认底色 #fafafa → #f5f5f5（antd 6.7 defaultBg = colorFillTertiary，useColor 默认 filled）；状态色 / 预设色标签同样去掉描边；`Effect("plain"|"outlined")` 的 outlined 保留浅色底（antd outlined），plain 仍为容器底；无色 solid 标签 TextSecondary → colorBgSolid（亮色黑、暗色 95% 白）。Element 外观不变（令牌 `Outlined`）。
+- Tag：Ant 默认变体改为 filled（无边框），默认底色 #fafafa → #f5f5f5（antd 6.7 defaultBg = colorFillTertiary，useColor 默认 filled）；状态色 / 预设色标签同样去掉描边；`Effect("plain"|"outlined")` 的 outlined 保留浅色底（antd outlined），plain 仍为容器底（无色 plain 的文字和边框读 `TagToken.PlainColor/PlainBorderColor`）；无色 solid 标签 TextSecondary → colorBgSolid（亮色黑、暗色 95% 白）。Element 外观不变（令牌 `Outlined`）。
 - Tag（shadcn）：Badge 改为 v4 外观 rounded-md → rounded-full、font-semibold → font-medium、左右内边距 9 → 7；暗色 destructive 背景 destructive → destructive/60（badge.tsx:15，用户定，与 Button 一致；白字对比 2.89 → ≥ 4.5）。
 - CheckableTag：Ant 未选中悬停加 colorFillSecondary 底（antd `&-checkable`）。
 - Badge：负数计数改为显示（原先 ≤ 0 一律隐藏；antd Badge.js:63、EP 同）；Ant 多位数气泡左右内边距 6 → 8，小号 4 → 8（antd paddingInline = paddingXS）；Element 6/4、shadcn 6/4 不变（shadcn 无对应组件）。

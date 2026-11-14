@@ -597,8 +597,8 @@ func (t *TableW) tableDefaults() {
 func (t *TableW) SortDirections(dirs ...SortOrder) *TableW { t.sortDirs = dirs; return t }
 
 // ShowSorterTooltip shows or hides the "click to sort" tooltip of sortable
-// headers (Ant Design showSorterTooltip, default true; Element Plus has
-// none).
+// headers (Ant Design showSorterTooltip, default true). A theme whose
+// TableToken.SorterTooltip is false (Element Plus) shows none.
 func (t *TableW) ShowSorterTooltip(on bool) *TableW { t.sortTip = on; return t }
 
 // PreserveSelectedRowKeys keeps selected keys whose rows are no longer in

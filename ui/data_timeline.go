@@ -32,7 +32,8 @@ type TimelineItem struct {
 	// overriding the Mode (Ant v6 items[].placement).
 	Placement string
 	// Loading shows a spinning dot (Ant v6 items[].loading); the axis
-	// after it is dotted.
+	// entering it (leaving it under Reverse) is dotted where the theme's
+	// TimelineToken.BusyTailDashed says so.
 	Loading bool
 	// Center centers the dot vertically on the item (Element center).
 	Center bool
@@ -84,7 +85,8 @@ func (w *TimelineW) Mode(m string) *TimelineW { w.mode = m; return w }
 func (w *TimelineW) Orientation(o string) *TimelineW { w.horiz = o == "horizontal"; return w }
 
 // Variant sets the dots: "outlined" (a ring, Ant's default) or "filled"
-// (a solid dot, the Element and shadcn default). Empty keeps the theme's.
+// (a solid dot, the Element and shadcn default). Empty keeps the theme's
+// (TimelineToken.DotOutlined).
 func (w *TimelineW) Variant(v string) *TimelineW { w.variant = v; return w }
 
 // TitleSpan sets the share of the width, in 24ths, taken by the titles of
@@ -210,14 +212,15 @@ func (w *TimelineW) Show() *TimelineW {
 			e := e
 			last := i == len(entries)-1
 			prevBusy := i > 0 && entries[i-1].busy()
-			Key(c, i, func() { w.item(e, i, last, labelled, prevBusy) })
+			nextBusy := !last && entries[i+1].busy()
+			Key(c, i, func() { w.item(e, i, last, labelled, prevBusy, nextBusy) })
 		}
 	})
 	w.box.n.setRole(a11y.RoleList)
 	return w
 }
 
-func (w *TimelineW) item(e tlEntry, idx int, last, labelled, prevBusy bool) {
+func (w *TimelineW) item(e tlEntry, idx int, last, labelled, prevBusy, nextBusy bool) {
 	c, th, tk := w.c, w.th, w.tk
 	el := th.Flavor == theme.Element
 	shad := th.Flavor == theme.StyleShadcn // inferred: 1px border axis, filled size-2.5 dots, medium titles
@@ -287,14 +290,14 @@ func (w *TimelineW) item(e tlEntry, idx int, last, labelled, prevBusy bool) {
 		ax.Paint(func(l *paint.List, r geom.Rect) {
 			cx := r.X + r.W/2
 			tc, lw := tk.TailColor, tk.TailWidth
-			// seg draws the axis from y0 to y1; the axis leaving a busy
-			// item (Loading, Pending) is dotted (antd v6: the rail of a
-			// "process" step).
+			// seg draws the axis from y0 to y1, dotted next to a busy item
+			// (Loading, Pending) when the theme says so (antd v6: a rail
+			// with the "process" status).
 			seg := func(y0, y1 float32, dotted bool) {
 				if y1 <= y0 {
 					return
 				}
-				if dotted && !el {
+				if dotted && tk.BusyTailDashed {
 					p := paint.NewPath().MoveTo(cx, y0).LineTo(cx, y1)
 					l.StrokePath(p, paint.StrokeStyle{Width: lw, Dash: []float32{4, 3}}, tc)
 					return
@@ -304,11 +307,19 @@ func (w *TimelineW) item(e tlEntry, idx int, last, labelled, prevBusy bool) {
 			cy := dotY(r)
 			// From the previous item down to this dot, then on to the next
 			// item: each item draws its share, so centred dots join up.
+			// rc-steps colours a rail with the next step's status, or with
+			// its own under railFollowPrevStatus (antd Timeline: reverse):
+			// the segment entering a busy item is dotted, or the one
+			// leaving it when reversed.
+			in, out := e.busy(), nextBusy
+			if w.reverse {
+				in, out = prevBusy, e.busy()
+			}
 			if idx > 0 {
-				seg(r.Y, cy, prevBusy)
+				seg(r.Y, cy, in)
 			}
 			if !last {
-				seg(cy, r.Bottom()+padBottom, e.busy())
+				seg(cy, r.Bottom()+padBottom, out)
 			}
 		})
 		ax.n.over = func(l *paint.List, r geom.Rect) {
@@ -378,7 +389,7 @@ func (w *TimelineW) drawDot(l *paint.List, cx, cy float32, e tlEntry, dotD float
 	c, th, tk := w.c, w.th, w.tk
 	el := th.Flavor == theme.Element
 	shad := th.Flavor == theme.StyleShadcn
-	outlined := w.variant == "outlined" || w.variant == "" && !el && !shad
+	outlined := w.variant == "outlined" || w.variant == "" && tk.DotOutlined
 	switch {
 	case e.busy():
 		s := float32(14)
@@ -476,7 +487,13 @@ func (w *TimelineW) showHorizontal(entries []tlEntry, labelled bool) {
 		}
 		Row(c, func() {
 			for i, e := range entries {
-				Key(c, i, func() { w.hAxis(e, i, i == n-1) })
+				// The tail from i to i+1 is dotted when it enters a busy
+				// event, or (reverse) leaves one; see item.
+				busyTail := i < n-1 && entries[i+1].busy()
+				if w.reverse {
+					busyTail = e.busy()
+				}
+				Key(c, i, func() { w.hAxis(e, i, i == n-1, busyTail) })
 			}
 		})
 		if hasBottom {
@@ -510,15 +527,14 @@ func (w *TimelineW) hContent(e tlEntry, labelled bool) {
 // hAxis builds the axis cell of entry i: its dot in the middle and the
 // tail towards the next dot (into the next cell, which has the same
 // width).
-func (w *TimelineW) hAxis(e tlEntry, i int, last bool) {
-	c, th, tk := w.c, w.th, w.tk
+func (w *TimelineW) hAxis(e tlEntry, i int, last, busyTail bool) {
+	c, tk := w.c, w.tk
 	dotD, col := w.dotLook(e)
 	h := max(tk.DotSize, tk.DotSizeLG, tk.IconDotSize, 14)
 	ax := c.box("timeline-axis", layout.Column, []layout.Option{layout.Grow(1), layout.Basis(0), layout.MinW(0), layout.H(h),
 		layout.AlignItems(layout.AlignCenter), layout.JustifyContent(layout.JustifyCenter)})
 	ax.n.aHidden = true // dots and tail are decoration
-	// The axis leaving a busy event (Loading, Pending) is dotted (Ant v6).
-	dashed := th.Flavor != theme.Element && e.busy()
+	dashed := tk.BusyTailDashed && busyTail
 	ax.Paint(func(l *paint.List, r geom.Rect) {
 		if last {
 			return

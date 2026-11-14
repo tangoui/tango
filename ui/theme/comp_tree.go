@@ -41,7 +41,7 @@ func deriveTree(t *Theme) TreeToken {
 		SwitcherColor:          t.Text, LineColor: t.Border,
 		SearchHighlightColor: Hex("#ff5500"), FilterHighlightColor: t.Warning.Base,
 		DropIndicatorColor: t.Primary.Base, DraggingNodeBg: Fade(t.Primary.Bg, 0.9),
-		VirtualIndentSize: 24, SwitcherIconSize: 10, EmptyTextColor: t.TextSecondary,
+		SwitcherIconSize: 10, EmptyTextColor: t.TextSecondary,
 	}
 	switch t.Flavor {
 	case Element:
@@ -58,12 +58,14 @@ func deriveTree(t *Theme) TreeToken {
 		// chevron column; the active item in medium weight; a soft mark
 		// behind search matches.
 		k.TitleHeight, k.NodeGap, k.DropdownNodeHeight, k.IndentSize, k.SwitcherSize = 28, 2, 32, 16, 20
-		k.VirtualIndentSize = 16
 		k.NodeBorderRadius = t.Radius
 		k.NodeSelectedFontWeight = 500
 		k.SwitcherColor = t.TextTertiary
 		k.SearchHighlightColor, k.SearchHighlightBg = Color{}, t.Warning.Border
 		k.FilterHighlightColor = t.Primary.Base
+	}
+	if k.VirtualIndentSize == 0 {
+		k.VirtualIndentSize = k.IndentSize // VirtualTree indents like Tree but under Element
 	}
 	return k
 }

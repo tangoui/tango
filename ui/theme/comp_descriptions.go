@@ -7,7 +7,12 @@ package theme
 // is "small" in both.
 type DescriptionsToken struct {
 	Alias
-	LabelBg              Color // label cells of a bordered list
+	LabelBg Color // label cells of a bordered list
+	// LabelColor and ContentColor color a borderless list only (antd
+	// labelColor / contentColor). After 0.1.0 a bordered list reads
+	// BorderedLabelColor and BorderedContentColor instead (antd: bordered
+	// labels are colorTextSecondary whatever labelColor says); an override
+	// of LabelColor alone no longer changes bordered labels.
 	LabelColor           Color `contrast:"text:@Page"`   // borderless label
 	ContentColor         Color `contrast:"text:@Page"`   // borderless content
 	BorderedLabelColor   Color `contrast:"text:LabelBg"` // bordered label cell

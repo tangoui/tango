@@ -21,6 +21,9 @@ type ProgressToken struct {
 	CircleSizeSM      float32
 	CircleStrokeWidth float32 // zero: 6% of the diameter
 	InnerFontSize     float32
+	// ShowInfo makes a line bar show its percentage unless HideInfo is
+	// called; false shows only the bar unless ShowInfo is (shadcn).
+	ShowInfo bool
 }
 
 func deriveProgress(t *Theme) ProgressToken {
@@ -32,7 +35,7 @@ func deriveProgress(t *Theme) ProgressToken {
 		TextColor: t.Text, InnerTextColor: Hex("#ffffff"),
 		LineHeight: 8, LineHeightSM: 6, InnerLineHeight: 20, StepsHeight: 8,
 		StepsWidth: 14, StepsWidthSM: 2, StepsGap: 2, CircleSize: 120, CircleSizeSM: 60,
-		InnerFontSize: t.FontSizeSM,
+		InnerFontSize: t.FontSizeSM, ShowInfo: true,
 	}
 	switch t.Flavor {
 	case Element:
@@ -40,6 +43,7 @@ func deriveProgress(t *Theme) ProgressToken {
 		k.LineHeight, k.CircleSize, k.CircleStrokeWidth = 6, 126, 6
 	case StyleShadcn:
 		k.RemainingColor = Color{} // follows the bar color
+		k.ShowInfo = false         // progress.tsx has no label
 	}
 	return k
 }

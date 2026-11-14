@@ -356,7 +356,7 @@ func (f *tblFrame) body() {
 	// node so scroll.go maps the logical offset in RTL (offset 0 shows the
 	// right end, wheel and scrollbar deltas flip).
 	f.scroll.ln = &b.n.ln
-	if br := f.tk.BottomRadius; t.bordered && br > 0 && len(t.summary) == 0 {
+	if br := f.tk.BottomRadius; t.bordered && br > 0 && len(t.summary) == 0 && t.footer == nil {
 		b.n.radii = geom.Radii{BL: br, BR: br}
 	}
 	f.rowPaint = t.span == nil
@@ -832,7 +832,7 @@ func (f *tblFrame) expandCell(r tblRow) {
 	}
 	open := f.expSet[r.key]
 	n := c.add("expand-icon", "expand:"+r.key)
-	n.ln.Width, n.ln.Height = 17, 17
+	n.ln.Width, n.ln.Height = f.tk.ExpandIconSize, f.tk.ExpandIconSize
 	ia := c.interact(n, false, input.CursorPointer)
 	if ia.Clicked {
 		ks := f.expKeys()

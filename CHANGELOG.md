@@ -61,6 +61,7 @@
   - 标签、徽标与状态：Tag `Variant("filled"|"solid"|"outlined")`（`Borderless` 弃用）、`Disabled`、`CloseIcon`、`Round`、Ant 预设色名、shadcn Badge 变体 `ghost`/`link`；`CheckableTagGroup`；Badge `Hidden`、`Title`；Avatar `Small`、`Large`、`Shape`、`Gap`，AvatarGroup `MaxPopover`；Statistic `GroupSeparator`、`DecimalSeparator`、`Formatter`；Empty `Title`；Skeleton `AvatarSize`、`TitleWidth`、`ParagraphWidth`、`Count`；Progress `GapPlacement`、`PercentPosition`、`RailColor`（`TrailColor` 弃用）、`ColorFunc`、`StepsGap`；Tooltip `Open`、`OpenChanged`、`Disabled`；Popover `MouseEnterDelay`、`MouseLeaveDelay`、`Arrow`；对应令牌（`AvatarToken.TextAutoScale` 等）。
   - 标签页、时间线与媒体：Tabs `TabPlacement`、`Indicator`、`TabBarGutter`、`Stretch`、`BeforeLeave`、`TabClicked`、`Variant("line")`（shadcn）、`AddIcon`/`RemoveIcon`/`MoreIcon`，`Tabs(c, nil, items)` 允许 nil；Timeline `Orientation`、`Variant`、`TitleSpan`、Mode `"alternate-reverse"`，`TimelineItem.Title`（`Label` 弃用）、`Placement`、`Loading`、`Center`；Image 预览 `OpenPreview`、`PreviewSrc`、`MinScale`/`MaxScale`/`ScaleStep`、`Movable`、`MaskClosable`、`Infinite`、`ShowProgress`、`CloseOnEscape`；Carousel `DotPlacement`（`DotPosition` 弃用）、`DotOutside`、`DotDuration`、`PauseOnHover`、`CardScale`、`Trigger`；Calendar `ValidRange`、`ShowWeek`、`ControllerType`、`Formatter`；QRCode `BoostLevel`、`MarginSize`；Watermark `MarkSize`、`FontStyle`；Masonry `LayoutChanged`；对应 Defaults 键与令牌。
   - Link 自己的颜色令牌 `TypographyToken.LinkTextColor/LinkTextHoverColor/LinkTextActiveColor`（零值回落到 `LinkColor*`）。
+  - 第 2 批复审新增的实验层令牌：`TimelineToken.DotOutlined`、`BusyTailDashed`；`TagToken.PlainColor`、`PlainBorderColor`；`ProgressToken.ShowInfo`；`TableToken.SelectionBorderedExtra`、`SorterTooltip`。
 
 ### 变更
 
@@ -92,11 +93,22 @@
   - Tag：Ant 默认 filled（无边框）、底色 #fafafa → #f5f5f5，状态色 / 预设色标签去描边，无色 solid 用 colorBgSolid；shadcn Badge 改为 v4（rounded-full、font-medium、左右 7），暗色 destructive 底改为 destructive/60（白字对比 2.89 → ≥ 4.5）；CheckableTag Ant 未选中悬停加底色。
   - Badge：负数照常显示；Ant 多位数气泡左右内边距 6 → 8。Avatar：Ant 各尺寸文字 14、超宽文字按 gap 缩小（Element 不缩）、图标 18/24/14、方形圆角 4/6/8；shadcn 文字 muted-foreground；AvatarGroup「+N」不再用示例桃色。
   - Statistic：精度改为截断；NaN / ±Inf 正常显示。Empty：shadcn 内边距和间距按 v4。Skeleton：带头像或无标题时默认 2 行、头像 32 → 40、Ant 段落间距按 antd、`NoTitle()` 首行无上边距、方形头像修正。Progress：小号环形 80 → 60，NaN 按 0。
-  - Tooltip / Popover：悬停延迟按主题（Ant 0.1 s / 0.1 s，Element 0 / 0.2 s）；Element 提示距离 8 → 12；Popover 默认宽度 Element 150、shadcn 288（AvatarGroup 弹层仍自适应）。
+  - Tooltip / Popover：悬停延迟按主题（Ant 0.1 s / 0.1 s，Element 0 / 0.2 s）；Tooltip 与触发器的距离 Ant、Element 8 → 12；Popover 默认宽度 Element 150、shadcn 288（AvatarGroup 弹层仍自适应）。
   - Tabs：Ant Large 线条标签上下内边距 12 → 16、Small 卡片高 40 → 32、Large 卡片高 40 → 48；shadcn 暗色选中项 input/30 加描边；`*active` 不在 items 里（含空串）时回落到上次索引或第一个标签。Dock 的标签条不受影响。
-  - Timeline：Ant 圆点描边 3 → 2；Pending / Loading 段的虚线规则按 v6；默认 mode `"left"` 改为同义的 `"start"`。
+  - Timeline：Ant 圆点描边 3 → 2；默认 mode `"left"` 改为同义的 `"start"`。Pending / Loading 的点线轴保持 antd 规则：不 `Reverse` 时是进入忙碌项的一段，`Reverse` 时是离开它的一段（横向同理，Element 不画点线）。
   - Image 预览：Ant 缩放范围 0.25–8 → 1–50、双击 ×2 → ×1.5、关闭按钮距角 32 → 12、按钮 42、工具栏颜色 .65 / .85、方向键到首尾不再循环（shadcn 同 Ant）；Element 缩放 0.2–7、每步 ×1.2、双击不缩放、「复位」切换适应 / 原始尺寸。
   - Carousel：Ant 箭头 28 → 16px、距边 16 → 8、透明度 .6 → .4、到头隐藏，指示点透明度 .3 → .2；Element 悬停指示点即切换；`Current` 越界夹到范围内。
+  - 第 2 批复审修正：
+    - Timeline：`Pending` / `Loading` 的点线段改回 antd 方向。上一版把方向写反了，普通 `Pending` 的点线尾巴变成了实线。
+    - Tag：c04a878 让 Element 的 plain 状态色标签、Ant success / warning 和部分预设色的 plain 标签变成了正文色，现在恢复为类型色；无色 plain 标签改读新令牌 `TagToken.PlainColor` / `PlainBorderColor`（Ant 正文色、Element 主色、shadcn foreground），不再读 `DefaultColor` / `BorderColor`，对这两个令牌的覆盖不再作用于 plain 标签。`Color("blue-inverse")` 这类 antd 反色名改为实心预设色（原先是灰色）；只有 `Variant` 方法能改掉它，`Defaults("Tag", …)` 的 `variant` 不行（与 antd 优先级一致）。
+    - Table：选择列宽规则变了。shadcn 选择列 48 → 32；带边框时只有 Ant 再加 16（令牌 `TableToken.SelectionBorderedExtra`），原先 shadcn 带边框也加。选择下拉箭头的预留宽度在所有主题下 18 → 16，Element 带 `Selections` 时列宽 66 → 64。带边框表格的 Title 只描上、左、右三条边，Footer 只描左、右、下三条边，不再出现 2px 线和 #fafafa 色线。Ant Footer 不论是否带边框，底角都改为圆角（`HeaderBorderRadius`）；有 Footer 时表体不再画圆底角。Element 展开列图标盒 17 → 16（读 `ExpandIconSize`）。Shift 区间勾选后的锚点改为这次点击的行。
+    - List：分页放在上方时，末项也保留分隔线。
+    - Tabs：拖拽激活标签时也经过 `BeforeLeave`。
+    - Carousel：首帧遇到越界的 `Current` 时，直接显示夹值后的那一张，不再播一次动画。
+    - Calendar：Element `ControllerType("select")` 的头部补上小号「今天」按钮。
+    - Tree：禁用的树（`Disabled`、`ComponentDisabled`）不能再拖放；`DefaultExpandAll` 首帧不再让 `ExpandChanged()` 返回 true。VirtualTree 的 Ant / shadcn 缩进令牌在主题推导时取 `IndentSize`（数值不变；只覆盖 `Tree.IndentSize` 的组件令牌不会带动它）。
+    - Descriptions：`DescriptionsToken.LabelColor` / `ContentColor` 现在只作用于无边框列表；带边框列表读新令牌 `BorderedLabelColor` / `BorderedContentColor`。只覆盖了 `LabelColor` 的旧代码，在带边框列表上不再生效。Element `LabelColor` 默认 TextSecondary → Text。
+    - 主题默认值改由令牌给出（默认外观不变）：`TimelineToken.DotOutlined` / `BusyTailDashed`、`ProgressToken.ShowInfo`、`TableToken.SorterTooltip`。
   - 间接受影响的页面：PageContainer 页头（Descriptions、Tag）、ProLayout / GridContent 头像、Segmented 选中项、chat 气泡与 graph 节点（`ShadowTertiary`）、FooterToolbar 示例里的 Skeleton 等随上述组件变化。
   - QRCode：默认提升纠错级别（同一内容的码图会变）、边框色改 Split、无边框去掉内边距、空字符串不画码。Watermark：排布改为 antd 算法，图片标记随角度旋转、默认不透明度 .2 → 1。
 - **IPC 线协议升级到 v2，不兼容旧版 runtime-js**：握手带 `proto:2`，Go 拒绝其他版本（回 `runtime-js protocol mismatch` 并记 `slog.Warn`）。`@tangoui/runtime` 必须与 Go 模块同版本；自己实现协议的客户端需要按 `ipc` 包注释更新。流的背压从按条数改为按字节计的信用窗口（默认 1 MiB，每帧计负载 + 64 字节），`ack` 改为带归还字节数 `b`；单帧负载上限 16 MiB，超过时这次写入返回 `bad_args`。
