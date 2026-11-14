@@ -19,6 +19,7 @@ type colors struct {
 	regionBg, regionFg, regionShadow                     color.NRGBA
 	sign, lineNumber, link, linkHover                    color.NRGBA
 	slider, sliderHover, revert, revertHover, border     color.NRGBA
+	background                                           color.NRGBA // editor.background
 	hash                                                 uint64
 }
 
@@ -76,11 +77,12 @@ func resolveColors(th *theme.Theme, tk *tokenColors) colors {
 	c.revert = alpha(fg, 0x99)
 	c.revertHover = fg
 	c.border = or(key("editorOverviewRuler.border"), alpha(fg, 0x20))
+	c.background = key("editor.background")
 	c.hash = hashOf(
 		pack(c.insertedLine), pack(c.insertedText), pack(c.removedLine), pack(c.removedText),
 		pack(c.insertedBorder), pack(c.removedBorder), pack(c.gutterInserted), pack(c.gutterRemoved),
 		pack(c.overviewInserted), pack(c.overviewRemoved), pack(c.diagonal), pack(c.regionBg),
-		pack(c.regionFg), pack(c.regionShadow), pack(c.sign), pack(c.lineNumber), pack(c.link), pack(c.linkHover))
+		pack(c.regionFg), pack(c.regionShadow), pack(c.sign), pack(c.lineNumber), pack(c.link), pack(c.linkHover), pack(c.background))
 	return c
 }
 

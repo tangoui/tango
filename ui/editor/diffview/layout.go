@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"math"
 	"slices"
+	"sync"
 
 	"github.com/tangoui/tango/ui/editor"
 	"github.com/tangoui/tango/ui/editor/diff"
@@ -398,24 +399,44 @@ func (d *State) padZone(s diff.Side, id uint64, after, rows int) editor.ViewZone
 
 // paintDiagonal fills the visible rows of a zone with diagonal stripes
 // (diffEditor.diagonalFill, Monaco's 8px linear-gradient pattern),
-// anchored at the zone's corner so that scrolling moves them with it.
+// anchored at the zone's corner so that scrolling moves them with it. The
+// stripes are one tile path drawn translated (its mask is rasterized once
+// and reused by the renderer, see diagonalTile), clipped to each tile.
 func paintDiagonal(l *paint.List, z editor.ZonePaint, viewH float32, col color.NRGBA) {
 	if col.A == 0 {
 		return
 	}
-	const step = 8
 	r := z.Rect
 	y0 := r.Y + float32(z.FirstRow)*z.RowH
 	y1 := min(r.Bottom(), y0+viewH+z.RowH)
-	ya, yb := y0-step, y1+step
-	k0 := int(math.Floor(float64(ya-r.Y) / step))
-	k1 := int(math.Ceil(float64(r.W+yb-r.Y) / step))
-	for k := k0; k <= k1; k++ {
-		c := float32(k) * step
-		// The stripe x - r.X + y - r.Y = c.
-		l.Line(geom.Pt(r.X+c-(ya-r.Y), ya), geom.Pt(r.X+c-(yb-r.Y), yb), 1, col)
+	tile := diagonalTile()
+	k0 := int(math.Floor(float64(y0-r.Y) / tileSize))
+	for ty := r.Y + float32(k0)*tileSize; ty < y1; ty += tileSize {
+		for tx := r.X; tx < r.Right(); tx += tileSize {
+			l.Clip(geom.Rect{X: tx, Y: ty, W: tileSize, H: tileSize}, geom.Radii{})
+			l.Transform(geom.Translate(tx, ty))
+			l.Path(tile, col)
+			l.Pop()
+			l.Pop()
+		}
 	}
 }
+
+// tileSize is the side of the diagonal fill's tile, a multiple of the
+// stripes' period (8) so that tiles join seamlessly.
+const tileSize = 64
+
+// diagonalTile returns the stripes of a tileSize square: parallelograms
+// along x + y = 8k, 1.5 pixels wide, overhanging the square (each tile is
+// clipped to its square).
+var diagonalTile = sync.OnceValue(func() *paint.Path {
+	const step, w = 8, 1.5
+	p := paint.NewPath()
+	for c := float32(0); c <= 2*tileSize+step; c += step {
+		p.MoveTo(c, 0).LineTo(c+w, 0).LineTo(c+w-tileSize-step, tileSize+step).LineTo(c-tileSize-step, tileSize+step).Close()
+	}
+	return p
+})
 
 var seed = maphash.MakeSeed()
 

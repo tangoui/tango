@@ -118,6 +118,9 @@ func (w *ViewW) revertColumn() {
 		cols := &d.lay.cols
 		lh := d.Modified.Viewport.LineHeight
 		hover := d.lay.revertHover
+		if cols.background.A > 0 {
+			l.Fill(r, geom.Radii{}, cols.background)
+		}
 		l.Clip(r, geom.Radii{})
 		d.visibleChanges(func(i int, y float32) {
 			col := cols.revert
@@ -206,6 +209,9 @@ type overviewMarks struct {
 
 func (d *State) paintOverview(l *paint.List, r geom.Rect, hover bool) {
 	cols := &d.lay.cols
+	if cols.background.A > 0 {
+		l.Fill(r, geom.Radii{}, cols.background)
+	}
 	l.Fill(geom.Rect{X: r.X, Y: r.Y, W: 1, H: r.H}, geom.Radii{}, cols.border)
 	if !d.hasRes {
 		return

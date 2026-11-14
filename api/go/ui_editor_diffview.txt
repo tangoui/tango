@@ -21,6 +21,7 @@ pkg github.com/tangoui/tango/ui/editor/diffview, method (*State) Revert(int) err
 pkg github.com/tangoui/tango/ui/editor/diffview, method (*State) ShowAllUnchanged()
 pkg github.com/tangoui/tango/ui/editor/diffview, method (*ViewW) Box() *ui.Box
 pkg github.com/tangoui/tango/ui/editor/diffview, method (*ViewW) Changed() bool
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*ViewW) Editors() (*ui/editor.ViewW, *ui/editor.ViewW)
 pkg github.com/tangoui/tango/ui/editor/diffview, method (*ViewW) HunkActions(func(int, ui/editor/diff.Change) []HunkAction) *ViewW
 pkg github.com/tangoui/tango/ui/editor/diffview, method (*ViewW) Labels(string, string) *ViewW
 pkg github.com/tangoui/tango/ui/editor/diffview, method (*ViewW) Layout(...ui/layout.Option) *ViewW

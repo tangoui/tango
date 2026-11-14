@@ -222,6 +222,14 @@ func (w *ViewW) HunkActions(fn func(i int, ch diff.Change) []HunkAction) *ViewW 
 	return w
 }
 
+// Editors returns this frame's editor views (original is nil in Inline
+// mode), for the host's focus and per-frame modifiers. Their input was
+// applied in View already: modifiers that change it (ReadOnly, Keymap)
+// take effect from the next frame.
+func (w *ViewW) Editors() (original, modified *editor.ViewW) {
+	return w.ed[diff.Original], w.ed[diff.Modified]
+}
+
 // Changed reports whether either side's text was edited through the view
 // this frame.
 func (w *ViewW) Changed() bool { return w.changed }
