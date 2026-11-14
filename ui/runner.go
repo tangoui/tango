@@ -333,9 +333,17 @@ func (r *Runner) processEvents() bool {
 				continue
 			}
 			if ev.Down && ev.Key == input.KeyEscape {
+				if ev.Code == 0 {
+					ev.Code = ev.Key // a set Code stays: input.KeyBack marks the system Back
+				}
+				if c.escapeClaimed(ev) {
+					c.tabCap.escaped = false // escape_claim.go: the widget took Esc, Tab stays captured
+					c.keys = append(c.keys, ev)
+					c.events = append(c.events, ev)
+					continue
+				}
 				c.tabEscaped() // the next Tab moves focus even out of a Tab-capturing widget
 				c.escape = true
-				ev.Code = ev.Key
 				c.events = append(c.events, ev) // ordered stream only: Esc stays an overlay key
 				continue
 			}
@@ -648,7 +656,8 @@ func (r *Runner) afterFrame() {
 	c.prevScroll, c.scrollTargets = c.scrollTargets, c.prevScroll[:0]
 	c.overlayLayer, c.nextOverlayLayer = c.nextOverlayLayer, c.overlayLayer
 	c.swapRegions()
-	c.tabCap.cur, c.tabCap.next = c.tabCap.next, 0 // tab_capture.go
+	c.tabCap.cur, c.tabCap.next = c.tabCap.next, 0       // tab_capture.go
+	c.escClaim.cur, c.escClaim.next = c.escClaim.next, 0 // escape_claim.go
 	for _, id := range c.escPending {
 		if l, ok := c.overlayLayer[id]; ok && l > c.escNext {
 			c.escNext = l

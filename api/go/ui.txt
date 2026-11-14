@@ -884,6 +884,7 @@ pkg github.com/tangoui/tango/ui, method (*Context) AnimFrom(ID, string, float32,
 pkg github.com/tangoui/tango/ui, method (*Context) Announce(string, ui/a11y.Live)
 pkg github.com/tangoui/tango/ui, method (*Context) CaptureTab(ID)
 pkg github.com/tangoui/tango/ui, method (*Context) ClaimBack()
+pkg github.com/tangoui/tango/ui, method (*Context) ClaimEscape(ID)
 pkg github.com/tangoui/tango/ui, method (*Context) ClaimKeyboardReveal()
 pkg github.com/tangoui/tango/ui, method (*Context) ComponentSize() (ControlSize, bool)
 pkg github.com/tangoui/tango/ui, method (*Context) CompositionFor(ID) (string, int)
