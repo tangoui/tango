@@ -31,7 +31,10 @@ import (
 //     follows the primary caret), the matched brackets' boxes on it and its
 //     display decorations (the occurrences of the word at the caret, the
 //     selection's matches, suspicious characters, links, color swatches:
-//     their kinds, places and swatch colors; paint.go). Colored
+//     their kinds, places and swatch colors; paint.go), and the Model's
+//     decorations touching its line (their options' fingerprints and
+//     places: the backgrounds, inline styles, gutter marks, margin
+//     backgrounds and line number colors; decorations.go). Colored
 //     brackets and control characters are run colors; whitespace marks
 //     follow from the text, the options and the selections.
 //     A row whose fingerprint changed, or that is drawn in only one of the
@@ -123,6 +126,7 @@ type paintFrame struct {
 	bguides     []bgRow // bracket pair guides (nil: off)
 	match       []matchRow
 	decos       []uint64 // fingerprints of the rows' decorations (nil: none)
+	udecos      []udRow  // the Model's decorations of the rows (nil: none; decorations.go)
 }
 
 // rowPad is how far, in logical pixels, a row's damage reaches past its
@@ -236,6 +240,12 @@ func (w *ViewW) rowHashes(pf *paintFrame, dst []uint64) []uint64 {
 		if k < len(pf.decos) && pf.decos[k] != 0 {
 			num(10)
 			h.Write(binary.LittleEndian.AppendUint64(b[:0], pf.decos[k]))
+		}
+		if k < len(pf.udecos) && pf.udecos[k].sig != 0 {
+			// The Model's decorations of the row's line: their styles and
+			// places (the text, gutter and margin layers alike).
+			num(13)
+			h.Write(binary.LittleEndian.AppendUint64(b[:0], pf.udecos[k].sig))
 		}
 		if k < len(pf.fold) && pf.fold[k] != 0 {
 			num(6)

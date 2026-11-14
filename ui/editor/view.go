@@ -169,6 +169,13 @@ type viewState struct {
 	pickerID   ui.ID
 	zoomG      zoomGestureState
 	decoCount  [decoSwatch + 1]int // decorations of the laid out lines, per kind (tests)
+
+	// The Model's decorations (decorations.go): the query and inline
+	// scratch, the shaped gutter signs and the overview ruler's marks.
+	udq   []decorationEntryOf
+	udIn  []inlineSpan
+	signs map[signKey]*text.Layout
+	udOv  udOverview
 }
 
 func newViewState() viewState {

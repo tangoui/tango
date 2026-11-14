@@ -59,6 +59,19 @@ func (w *ViewW) paintOverview(l *paint.List, th *theme.Theme) {
 			}
 		}
 	}
+	// The Model's decorations (decorations.go).
+	lh, navH := w.st.Viewport.LineHeight, w.navigationHeight()
+	w.paintOverviewDecos(func(line int) float32 {
+		return r.Y + (float32(w.navigationRow(line))*lh+w.st.Viewport.PadTop)/navH*r.H
+	}, func(y0, y1 float32, c color.NRGBA, lane int) {
+		for k := 0; k < 3; k++ {
+			if lane&(1<<k) != 0 {
+				col := min(lanes-1, k*lanes/3)
+				width := (r.W - 1) / float32(lanes)
+				w.navigationFill(l, geom.Rect{X: r.X + 1 + float32(col)*width, Y: y0, W: width, H: y1 - y0}, c)
+			}
+		}
+	})
 	// Stable owner order makes overlapping markers deterministic.
 	owners := make([]string, 0, len(w.st.overview))
 	for owner := range w.st.overview {

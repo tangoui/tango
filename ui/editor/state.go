@@ -132,6 +132,9 @@ func (s *State) Close() {
 		s.cancel()
 		s.cancel = nil
 		s.Model.hl.DropView(s.hlKey)
+		if d := s.Model.decos; d != nil {
+			d.dropView(s)
+		}
 	}
 	s.view = nil
 }

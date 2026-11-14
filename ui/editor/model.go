@@ -121,6 +121,10 @@ type Model struct {
 	ind       indentIndexes          // smallest indentations, for the bracket guides (bracketguides.go)
 	lines     lineMemo               // the last long lines read (longwork.go)
 
+	// decos are the decorations (decorations.go), nil until the first is
+	// set.
+	decos *decorationStore[decorationStyle]
+
 	subs listeners[func(ModelChange)]
 
 	// Indentation options (Monaco's model options tabSize and
@@ -534,6 +538,7 @@ func (m *Model) edit(src *State, edits []buffer.Edit, before, after []Selection,
 		m.hl.Edit(old, ns, edits)
 	}
 	m.bracketsEdited(old, ns, edits)
+	m.tracked(ns, edits)
 	m.lastSource = src
 	done(ns)
 	m.notify(ModelChange{Old: old, New: ns, Edits: edits, Source: src})
@@ -557,6 +562,7 @@ func (m *Model) history(src *State, redo bool, done func(buffer.Snapshot, []Sele
 		m.hl.Edit(old, ns, edits)
 	}
 	m.bracketsEdited(old, ns, edits)
+	m.tracked(ns, edits)
 	m.lastSource = nil
 	done(ns, sels)
 	m.notify(ModelChange{Old: old, New: ns, Edits: edits, Source: src, Undo: !redo, Redo: redo, EOL: ns.EOL() != eol})

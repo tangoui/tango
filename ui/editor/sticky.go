@@ -175,7 +175,7 @@ func (w *ViewW) paintSticky(l *paint.List, rows []lineView, th *theme.Theme) {
 		}
 		l.Pop()
 		l.Clip(vs.gutter.Intersect(clip), geom.Radii{})
-		w.paintGutter(l, vs.gutter.X, vs.gutter.W, []lineView{lv}, func(int) float32 { return vs.stickyY[k] }, w.st.Snapshot().LineCount(), pf.caretLine, digitsOf(w.monoStyle()), bg, nil, color.NRGBA{}, false, color.NRGBA{})
+		w.paintGutter(l, vs.gutter.X, vs.gutter.W, []lineView{lv}, nil, func(int) float32 { return vs.stickyY[k] }, w.st.Snapshot().LineCount(), pf.caretLine, digitsOf(w.monoStyle()), bg, nil, color.NRGBA{}, false, color.NRGBA{})
 		l.Pop()
 		l.Pop()
 	}

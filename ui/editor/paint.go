@@ -318,6 +318,11 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		}
 	}
 
+	// The decorations of the Model (decorations.go): whole-line
+	// backgrounds over the current line, under the selections.
+	ud := w.userDecos(snap, lines)
+	w.paintWholeLineDecos(l, lines, ud, lineY, lh)
+
 	// 3. Selections (the primary hidden while composing: the composition
 	// replaces it).
 	for _, vsl := range vis {
@@ -345,6 +350,10 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 			}
 		}
 	}
+
+	// The decorations' range backgrounds, over the selections (Monaco's
+	// decorations overlay).
+	w.paintRangeDecos(l, snap, lines, ud, tx, lineY, lh)
 
 	// Indentation and bracket pair guides (guides.go, bracketguides.go),
 	// the matched brackets' boxes and the control characters' backgrounds
@@ -377,8 +386,9 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	for k := range lines {
 		lv := &lines[k]
 		y := lineY(lv.vi)
+		vs.udIn = inlineSpans(snap, lv, ud, k, vs.udIn[:0])
 		for _, sg := range lv.segs {
-			drawSeg(l, sg, tx, y)
+			drawSegInline(l, sg, tx, y, vs.udIn)
 		}
 		w.paintWhitespace(l, snap, lv, vis, tx, y, wsColor)
 		if fold[k]&foldPlaceholder != 0 {
@@ -432,7 +442,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	// below the visible ones stay inside the view).
 	gbg := defaultColor(th, "editorGutter.background")
 	l.Clip(vs.gutter, geom.Radii{})
-	w.paintGutter(l, vs.gutter.X, vs.gutter.W, lines, lineY, n, caretLine, dg, gbg, curG, fill, isFill, border)
+	w.paintGutter(l, vs.gutter.X, vs.gutter.W, lines, ud, lineY, n, caretLine, dg, gbg, curG, fill, isFill, border)
 	vs.foldX = -1
 	if w.foldControlsShown() {
 		vs.foldX = w.foldControlX(vs.gutter.X, dg, n)
@@ -450,7 +460,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		g: damageGlobal{rect: r, gutter: vs.gutter, text: vs.text, colW: colW, lh: lh, theme: th, opts: w.opts,
 			tab: w.tabs(), focused: focused, wrap: wcfg, numW: w.numbersWidth(dg, n), foldGen: st.fold.gen},
 		snap: snap, lines: lines, vis: vis, cur: cur, curG: curG, cmp: cmp, caretLine: caretLine, scrollX: v.ScrollX, marks: marks,
-		aLine: aLine, aRow: aRow, fold: fold, guides: guides, bguides: vs.bgRows, match: matchRows, decos: decoSigs,
+		aLine: aLine, aRow: aRow, fold: fold, guides: guides, bguides: vs.bgRows, match: matchRows, decos: decoSigs, udecos: ud,
 	})
 }
 
