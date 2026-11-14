@@ -100,11 +100,13 @@ pkg github.com/tangoui/tango/ui/theme, func Lerp(Color, Color, float32) Color
 pkg github.com/tangoui/tango/ui/theme, func LucideIcons() *ui/icon.Style
 pkg github.com/tangoui/tango/ui/theme, func Luma(Color) float64
 pkg github.com/tangoui/tango/ui/theme, func Mix(Color, Color, float64) Color
+pkg github.com/tangoui/tango/ui/theme, func OKLCH(float64, float64, float64, float64) Color
 pkg github.com/tangoui/tango/ui/theme, func Over(Color, Color) Color
 pkg github.com/tangoui/tango/ui/theme, func ParseColor(string) (Color, error)
 pkg github.com/tangoui/tango/ui/theme, func ParseGradient(string) (Gradient, error)
 pkg github.com/tangoui/tango/ui/theme, func ParseHSB(string) (HSVA, error)
 pkg github.com/tangoui/tango/ui/theme, func ParseHex(string) (Color, error)
+pkg github.com/tangoui/tango/ui/theme, func ParseOKLCH(string) (Color, error)
 pkg github.com/tangoui/tango/ui/theme, func ParseRGB(string) (Color, error)
 pkg github.com/tangoui/tango/ui/theme, func RGBA(uint8, uint8, uint8, float64) Color
 pkg github.com/tangoui/tango/ui/theme, func RGBString(Color) string
@@ -1156,6 +1158,7 @@ pkg github.com/tangoui/tango/ui/theme, type SelectToken struct, noncomparable
 pkg github.com/tangoui/tango/ui/theme, type ShadcnArg interface { unexported methods }
 pkg github.com/tangoui/tango/ui/theme, type ShadcnOptions struct
 pkg github.com/tangoui/tango/ui/theme, type ShadcnOptions struct, Base string
+pkg github.com/tangoui/tango/ui/theme, type ShadcnOptions struct, Color string
 pkg github.com/tangoui/tango/ui/theme, type ShadcnOptions struct, Compact bool
 pkg github.com/tangoui/tango/ui/theme, type ShadcnOptions struct, Dark bool
 pkg github.com/tangoui/tango/ui/theme, type ShadcnOptions struct, Primary Color
@@ -1735,5 +1738,6 @@ pkg github.com/tangoui/tango/ui/theme, type UploadToken struct, TriggerHoverBord
 pkg github.com/tangoui/tango/ui/theme, type UploadToken struct, embedded Alias
 pkg github.com/tangoui/tango/ui/theme, var NoShadow []ui/paint.Shadow
 pkg github.com/tangoui/tango/ui/theme, var ShadcnBases []string
+pkg github.com/tangoui/tango/ui/theme, var ShadcnColors []string
 pkg github.com/tangoui/tango/ui/theme, var Transparent Color
 pkg github.com/tangoui/tango/ui/theme, var ZeroPx float32

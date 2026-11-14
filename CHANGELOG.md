@@ -34,12 +34,16 @@
 - `ui`：`Context.ClaimEscape`：获得键盘焦点的组件（例如终端）在构建时声明后，键盘 Esc 交给它，而不是关闭浮层；Android 系统返回键不受影响，照常关闭浮层。
 - `ui/input`：`KeyBack`，Android 系统返回键的 `Code`（`Key` 仍是 `KeyEscape`，所以已有的 Esc 处理照常工作；返回键的抬起不会送给占用了 Esc 的组件）。
 - `ui`：`ConfigProvider.Defaults` 覆盖所有组件，按组件名和属性名设置默认值（新增 `Button.AutoInsertSpace` 及一批可通过 `Defaults` 设置的属性，见 `api/go/ui.txt`）。
+- **shadcn/ui v4 主题**：`theme.ShadcnOptions.Color` 叠加 v4 的 17 个彩色主题（`theme.ShadcnColors`：amber、blue、cyan……yellow），覆盖主色、次要色、图表色和侧栏主色；`theme.ShadcnBases` 增加 v4 的 mauve、olive、mist、taupe。
+- `theme.ParseOKLCH` / `theme.OKLCH`：解析和转换 CSS `oklch()` 颜色（支持百分比亮度、`none` 色相和 `/ alpha`，色域外分量裁剪）；`theme.ParseColor` 也接受 `oklch()`。
+- `internal/cmd/shadcngen`：从 shadcn/ui 的 `apps/v4/registry/themes.ts` 和 Tailwind CSS v4 的 `theme.css` 生成 `ui/theme/shadcn_data.go`。
 
 ### 变更
 
 - **IPC 线协议升级到 v2，不兼容旧版 runtime-js**：握手带 `proto:2`，Go 拒绝其他版本（回 `runtime-js protocol mismatch` 并记 `slog.Warn`）。`@tangoui/runtime` 必须与 Go 模块同版本；自己实现协议的客户端需要按 `ipc` 包注释更新。流的背压从按条数改为按字节计的信用窗口（默认 1 MiB，每帧计负载 + 64 字节），`ack` 改为带归还字节数 `b`；单帧负载上限 16 MiB，超过时这次写入返回 `bad_args`。
 - **macOS/iOS 的资源处理函数改在主线程之外运行**：`tango://` 协议处理器改为异步，`Options.Assets` 的处理函数每个请求在自己的 goroutine 里运行（请求可能并发处理），不再在主线程上同步执行。大文件、SSE 等大的或长时间不结束的响应不再卡住界面；WebKit 取消请求时 `r.Context()` 被取消，阻塞中的写入返回 `context.Canceled`。处理函数里若直接访问只能在主线程用的状态，改用 `app.Post` 投递到主线程或加锁；`tango.Await` 也可以，但它会一直阻塞到主线程执行完，这个请求的响应也跟着等（平台契约一直允许在任意线程调用处理函数）。
 - **`Stream.Close` 语义改为优雅全关闭**：本方结束发送并不再接收，对方之后的写入返回 "stream closed by peer"。只想结束本方发送、继续读的用新增的 `CloseSend`。处理函数返回 nil 时 Router 发的就是这个 `close`。
+- **shadcn 主题改为 shadcn/ui v4**（对照 `shadcn-ui/ui@e62c943` 与 `tailwindcss@4.3.5`，见 [docs/design-baseline.md](docs/design-baseline.md)）：颜色改用 v4 发布的 oklch 变量值；默认圆角从 8px（0.5rem）改为 10px（0.625rem），按钮和输入框随之为 8px、卡片 14px；暗色下的边框和输入框是半透明白色（`th.Shadcn.Border` 等保留半透明值，`CSSVars` 导出 `rgba()`，不透明的主题令牌按背景合成）；暗色侧栏主色为蓝色；`--destructive-foreground` 在 v4 中已删除，危险色上的文字固定为白色。`slate`、`gray` 两个底色 v4 已不再提供，作为旧名保留 v3 的颜色。要回到旧圆角可以传 `theme.ShadcnOptions{Radius: 8}`。
 
 ### 移除
 
@@ -49,6 +53,7 @@
 ### 修复
 
 - `sys/pty`（Windows）：关闭 ConPTY 前先读完剩余输出，不再丢掉最后一段；文档说明 Windows 上的 EOF 行为。
+- **水波图文字**：`chart.Liquid` 水位过半时，数值和标题的颜色按合成后的水色明暗选白色或深色，不再固定为白色（shadcn/ui v4 neutral 的 chart-1 是浅灰，白字看不清）。
 
 ### 安全
 
