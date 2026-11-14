@@ -45,6 +45,9 @@ func SetBenchDone(fn func()) {
 //   - "Bench.Report" (call): prints its argument as one JSON line on stdout.
 //   - "Debug.Stats" (call), only with TANGO_SCHEME_PROBE=1: Go-side
 //     counters for the platform tests (Stats, testroutes.go).
+//   - "Debug.Sample" [ms, stepMs] and "Debug.Samples" (calls), only with
+//     TANGO_SCHEME_PROBE=1: sample goroutines and open poll requests in
+//     the background (testroutes.go), across page reloads.
 func Register(r *ipc.Router) {
 	r.HandleDuplex("Echo", echo)
 	r.HandleDuplex("Upload", upload)
@@ -54,6 +57,8 @@ func Register(r *ipc.Router) {
 	r.Handle("Bench.Report", benchReport)
 	if Probe() {
 		r.Handle("Debug.Stats", debugStats)
+		r.Handle("Debug.Sample", debugSample)
+		r.Handle("Debug.Samples", debugSamples)
 	}
 }
 

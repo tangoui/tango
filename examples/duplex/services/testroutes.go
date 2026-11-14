@@ -90,6 +90,52 @@ func debugStats(context.Context, json.RawMessage) (any, error) {
 	return st, nil
 }
 
+// Sample is one Debug.Sample measurement.
+type Sample struct {
+	At         int64 `json:"at"` // wall clock, Unix ms
+	Goroutines int   `json:"goroutines"`
+	DownOpen   int64 `json:"downOpen"`
+}
+
+var (
+	samplesMu sync.Mutex
+	samples   []Sample
+)
+
+// debugSample ([ms, stepMs]) starts sampling runtime.NumGoroutine and
+// the open poll requests every stepMs for ms on a goroutine of its own
+// (counted in the samples), replacing earlier samples; Debug.Samples
+// returns them. It outlives the page that asked, so a test can see what
+// happens across a reload.
+func debugSample(_ context.Context, args json.RawMessage) (any, error) {
+	ms, step := 0, 10
+	if err := decodeArgs(args, &ms, &step); err != nil || ms <= 0 || step <= 0 {
+		return nil, ipc.NewError(ipc.CodeBadArgs, "Debug.Sample(ms int, stepMs int)")
+	}
+	samplesMu.Lock()
+	samples = nil
+	samplesMu.Unlock()
+	go func() {
+		end := time.Now().Add(time.Duration(ms) * time.Millisecond)
+		for t := time.Now(); t.Before(end); t = time.Now() {
+			var st Stats
+			backendLaneStats(&st)
+			s := Sample{At: t.UnixMilli(), Goroutines: runtime.NumGoroutine(), DownOpen: st.DownOpen}
+			samplesMu.Lock()
+			samples = append(samples, s)
+			samplesMu.Unlock()
+			time.Sleep(time.Duration(step) * time.Millisecond)
+		}
+	}()
+	return struct{}{}, nil
+}
+
+func debugSamples(context.Context, json.RawMessage) (any, error) {
+	samplesMu.Lock()
+	defer samplesMu.Unlock()
+	return append([]Sample{}, samples...), nil
+}
+
 // CountMessage counts m in Debug.Stats if it is a runtime hello. The
 // duplex examples call it from OnMessage; it does nothing unless the test
 // hooks are on.
