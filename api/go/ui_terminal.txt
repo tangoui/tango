@@ -1,0 +1,20 @@
+pkg github.com/tangoui/tango/ui/terminal, func New(Options) *Terminal
+pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Close() error
+pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Exited() (bool, error)
+pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Lock() *ui/terminal/vt.Terminal
+pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Resize(int, int, int, int)
+pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Send([]byte)
+pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Start(int, int, func())
+pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Unlock()
+pkg github.com/tangoui/tango/ui/terminal, type Conn interface { Close, Read, Resize, Write }
+pkg github.com/tangoui/tango/ui/terminal, type Conn interface, Close() error
+pkg github.com/tangoui/tango/ui/terminal, type Conn interface, Read([]byte) (int, error)
+pkg github.com/tangoui/tango/ui/terminal, type Conn interface, Resize(int, int, int, int) error
+pkg github.com/tangoui/tango/ui/terminal, type Conn interface, Write([]byte) (int, error)
+pkg github.com/tangoui/tango/ui/terminal, type Options struct
+pkg github.com/tangoui/tango/ui/terminal, type Options struct, Conn Conn
+pkg github.com/tangoui/tango/ui/terminal, type Options struct, OnExit func(error)
+pkg github.com/tangoui/tango/ui/terminal, type Options struct, Scrollback int
+pkg github.com/tangoui/tango/ui/terminal, type Options struct, noncomparable
+pkg github.com/tangoui/tango/ui/terminal, type Terminal struct
+pkg github.com/tangoui/tango/ui/terminal, type Terminal struct, noncomparable
