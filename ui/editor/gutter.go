@@ -115,6 +115,9 @@ func paintFoldControls(l *paint.List, x float32, rows []lineView, codes []uint8,
 
 func (w *ViewW) numbersWidth(d digitGlyphs, n int) float32 {
 	digits := max(len(strconv.Itoa(max(n, 1))), lineNumbersMinChars)
+	if w.lnFn != nil {
+		digits = max(w.lnChars, lineNumbersMinChars) // LineNumbersFunc
+	}
 	return float32(math.Ceil(float64(float32(digits) * d.adv)))
 }
 
@@ -193,20 +196,40 @@ func (w *ViewW) paintGutter(l *paint.List, gx, gw float32, rows []lineView, ud [
 		if lv.row != 0 || lv.i >= n {
 			continue
 		}
-		num, show, leftAlign := w.opts.lineNumber(lv.i, caretLine, n)
-		if !show {
-			continue
+		var s []byte
+		leftAlign := false
+		if w.lnFn != nil {
+			label, ok := w.lnFn(lv.i)
+			if !ok || label == "" {
+				continue
+			}
+			s = append(buf[:0], label...)
+		} else {
+			num, show, la := w.opts.lineNumber(lv.i, caretLine, n)
+			if !show {
+				continue
+			}
+			s, leftAlign = strconv.AppendInt(buf[:0], int64(num), 10), la
 		}
-		s := strconv.AppendInt(buf[:0], int64(num), 10)
 		gl = gl[:0]
-		x := right - float32(len(s))*d.adv
-		if leftAlign {
-			x = left
-		}
-		for k, ch := range s {
-			g := d.g[ch-'0']
-			g.X += x + float32(k)*d.adv
-			gl = append(gl, g)
+		if !allDigits(s) {
+			// A label of other characters (LineNumbersFunc): shaped, right
+			// aligned.
+			lay := w.sign(string(s))
+			for _, g := range lay.Glyphs {
+				g.X += right - lay.Width
+				gl = append(gl, g)
+			}
+		} else {
+			x := right - float32(len(s))*d.adv
+			if leftAlign {
+				x = left
+			}
+			for k, ch := range s {
+				g := d.g[ch-'0']
+				g.X += x + float32(k)*d.adv
+				gl = append(gl, g)
+			}
 		}
 		col := fg
 		if lv.i == caretLine {
@@ -289,4 +312,35 @@ func (w *ViewW) paintGutterMarks(l *paint.List, gx, gw float32, rows []lineView,
 			}
 		}
 	}
+}
+
+// allDigits reports whether s is ASCII digits only.
+func allDigits(s []byte) bool {
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// LineNumberFunc returns the line number label of model line line
+// (zero-based); ok false (or an empty label) shows none.
+//
+// Experimental: part of the diff view's editor API (docs/specs/diff-view.md).
+type LineNumberFunc func(line int) (label string, ok bool)
+
+// LineNumbersFunc shows fn's labels instead of the line numbers this
+// frame, while line numbers are shown (Options.LineNumbers not off): right
+// aligned, the caret's line in the active color (the relative and
+// interval modes do not apply). The numbers' column is maxChars digits
+// wide (at least lineNumbersMinChars, 5); gen tells the View that the
+// labels changed: increment it whenever fn would return other labels for
+// the same lines (the whole view is redrawn then). nil fn restores the
+// numbers.
+//
+// Experimental: part of the diff view's editor API (docs/specs/diff-view.md).
+func (w *ViewW) LineNumbersFunc(fn LineNumberFunc, maxChars int, gen uint64) *ViewW {
+	w.lnFn, w.lnChars, w.lnGen = fn, maxChars, gen
+	return w
 }

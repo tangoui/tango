@@ -217,6 +217,7 @@ pkg github.com/tangoui/tango/ui/editor, method (*ViewW) FontSize(float32) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Keymap(*ui/editor/keymap.Keymap) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Layout(...ui/layout.Option) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) LineNumbers(bool) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) LineNumbersFunc(LineNumberFunc, int, uint64) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) MenuItems(...MenuItem) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OnOpenLink(func(string)) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) ReadOnly(bool) *ViewW
@@ -281,6 +282,7 @@ pkg github.com/tangoui/tango/ui/editor, type InlineStyle struct, Strikethrough b
 pkg github.com/tangoui/tango/ui/editor, type InlineStyle struct, Underline bool
 pkg github.com/tangoui/tango/ui/editor, type InsideWordArgs struct
 pkg github.com/tangoui/tango/ui/editor, type InsideWordArgs struct, OnlyWord bool
+pkg github.com/tangoui/tango/ui/editor, type LineNumberFunc func(int) (string, bool)
 pkg github.com/tangoui/tango/ui/editor, type LineNumbersMode string
 pkg github.com/tangoui/tango/ui/editor, type LineRange struct
 pkg github.com/tangoui/tango/ui/editor, type LineRange struct, End int

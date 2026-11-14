@@ -99,6 +99,8 @@ type damageGlobal struct {
 	hidGen             uint64  // State.hidGen: changes of the hidden areas (hidareas.go)
 	zoneGen            uint64  // State.zgen: zone layout changes (zones.go)
 	zoneOpaque         uint64  // frames with zone drawings the fingerprint cannot describe
+	lnFn               bool    // a LineNumbersFunc labels the lines (gutter.go)
+	lnGen              uint64  // its generation
 }
 
 // damageRec is what the View drew in its last paint.
@@ -173,7 +175,13 @@ func (w *ViewW) rowHashes(pf *paintFrame, dst []uint64) []uint64 {
 		if lv.i == pf.caretLine {
 			num(1) // the active line number color
 		}
-		if v, show, left := pf.g.opts.lineNumber(lv.i, pf.caretLine, n); show && lv.row == 0 {
+		if w.lnFn != nil {
+			if lv.row == 0 && pf.g.opts.lineNumbers() {
+				if label, ok := w.lnFn(lv.i); ok {
+					h.WriteString(label)
+				}
+			}
+		} else if v, show, left := pf.g.opts.lineNumber(lv.i, pf.caretLine, n); show && lv.row == 0 {
 			num(v)
 			if left {
 				num(1)
