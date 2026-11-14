@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"unicode"
+
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
@@ -120,6 +122,8 @@ type ButtonW struct {
 	color    ButtonColor      // "" = from variant / danger
 	appear   ButtonAppearance // "" = from variant
 	grp      *ButtonGroupW    // enclosing ButtonGroup (direct child), nil otherwise
+	// autoSpace: AutoInsertSpace (Defaults "autoInsertSpace").
+	autoSpace bool
 }
 
 // Button adds a button.
@@ -186,6 +190,30 @@ func (b *ButtonW) Plain() *ButtonW { b.appear = ButtonPlain; return b }
 
 // Size sets the control size.
 func (b *ButtonW) Size(s ControlSize) *ButtonW { b.size = s; return b }
+
+// AutoInsertSpace sets whether a label of exactly two Chinese characters
+// is drawn with a space between them ("确定" shows as "确 定"; Ant / Element
+// ConfigProvider button.autoInsertSpace). It applies only to buttons
+// without an icon whose appearance is not text or link; the accessible
+// name keeps the label as given. Off by default in every design system
+// (Element's default); Defaults("Button", Props{"autoInsertSpace": true})
+// turns it on for a scope, as Ant does by default.
+func (b *ButtonW) AutoInsertSpace(on bool) *ButtonW { b.autoSpace = on; return b }
+
+// shownLabel is the label as drawn (AutoInsertSpace applied).
+func (b *ButtonW) shownLabel() string {
+	if !b.autoSpace || b.ic != nil {
+		return b.label
+	}
+	if a := b.appearance(); a == ButtonText || a == ButtonLink {
+		return b.label
+	}
+	r := []rune(b.label)
+	if len(r) == 2 && unicode.Is(unicode.Han, r[0]) && unicode.Is(unicode.Han, r[1]) {
+		return string(r[0]) + " " + string(r[1])
+	}
+	return b.label
+}
 
 // Circle makes an icon-only round button.
 func (b *ButtonW) Circle() *ButtonW { b.circle = true; return b }
@@ -288,7 +316,7 @@ func (b *ButtonW) measure(_, _ float32) geom.Size {
 	if b.circle || (b.label == "" && b.ic != nil) {
 		return geom.Size{W: h, H: h}
 	}
-	w := text.Width(b.label, b.font())
+	w := text.Width(b.shownLabel(), b.font())
 	if b.ic != nil || b.loading {
 		w += b.iconSize() + b.gap()
 	}
@@ -516,7 +544,7 @@ func (b *ButtonW) paint(l *paint.List, r geom.Rect) {
 		b.grp.divider(l, b, r, lk)
 	}
 	st := b.font()
-	lay := text.Shape(b.label, st, b.c.textOpts(text.Options{NoWrap: true}))
+	lay := text.Shape(b.shownLabel(), st, b.c.textOpts(text.Options{NoWrap: true}))
 	is := b.iconSize()
 	ic := b.ic
 	if b.loading {

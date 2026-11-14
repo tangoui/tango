@@ -31,6 +31,7 @@ type FlexW struct {
 func Flex(c *Context) *FlexW {
 	f := &FlexW{c: c, dir: layout.Row}
 	f.b = c.box("flex", layout.Row, nil)
+	f.configDefaults() // Defaults("Flex", ...): gap
 	return f
 }
 

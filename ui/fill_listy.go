@@ -111,7 +111,9 @@ func Listy(c *Context, n int, item func(i int)) *ListyW {
 	st := State(c, id, func() fillListyState {
 		return fillListyState{heights: map[any]float32{}, hIdx: map[int32]float32{}, ids: map[any]ID{}}
 	})
-	return &ListyW{c: c, count: max(0, n), item: item, est: 46, hoverable: true, split: true, st: st, clicked: -1}
+	w := &ListyW{c: c, count: max(0, n), item: item, est: 46, hoverable: true, split: true, st: st, clicked: -1}
+	w.configDefaults() // Defaults("Listy", ...): split, rowHoverable
+	return w
 }
 
 // RowKey gives rows stable identities (default: the index).

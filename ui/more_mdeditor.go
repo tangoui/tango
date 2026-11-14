@@ -46,6 +46,7 @@ type moreMDEState struct {
 //	ui.MarkdownEditor(c, &doc).Height(480)
 func MarkdownEditor(c *Context, src *string) *MarkdownEditorW {
 	w := &MarkdownEditorW{c: c, src: src, height: 400, mode: "split", placeholder: c.Locale().MarkdownEditor.Placeholder}
+	w.configDefaults() // Defaults("MarkdownEditor", ...): mode, placeholder
 	w.b = c.box("mdeditor", layout.Column, nil)
 	w.z = c.lazy(w.b.n, w.build)
 	return w

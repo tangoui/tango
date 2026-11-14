@@ -317,8 +317,10 @@ type BadgeRibbonW struct {
 
 // BadgeRibbon wraps fn's content (usually a card) with a corner ribbon.
 // placement is "end" (default) or "start" (logical: mirrored in RTL);
-// color as in Badge.Color.
+// color as in Badge.Color. With placement "", the "placement" key of
+// ConfigProvider.Defaults("BadgeRibbon", ...) applies.
 func BadgeRibbon(c *Context, label, color, placement string, fn func()) *BadgeRibbonW {
+	placement = badgeRibbonPlacement(c, placement)
 	th := c.ThemeFor(theme.CompBadge)
 	tk := &th.Components.Badge
 	bx := &BadgeW{c: c, color: color, th: th, tk: tk}
@@ -379,7 +381,9 @@ type AvatarGroupW struct {
 
 // AvatarGroup starts a group; call Body with the avatars.
 func AvatarGroup(c *Context) *AvatarGroupW {
-	return &AvatarGroupW{c: c, overlap: -c.ThemeFor(theme.CompAvatar).Components.Avatar.GroupOverlapping}
+	g := &AvatarGroupW{c: c, overlap: -c.ThemeFor(theme.CompAvatar).Components.Avatar.GroupOverlapping}
+	g.configDefaults() // Defaults("AvatarGroup", ...): maxCount
+	return g
 }
 
 // Max folds avatars beyond n into a "+k" avatar.

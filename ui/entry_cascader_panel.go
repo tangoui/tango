@@ -47,6 +47,7 @@ func CascaderPanel(c *Context, val *[]string, opts []CascaderOption) *CascaderPa
 	w.th = c.ThemeFor(theme.CompCascader)
 	w.tk = &w.th.Components.Cascader
 	p := &CascaderPanelW{c: c, cas: w, border: true}
+	p.configDefaults() // the column keys of Defaults("Cascader", ...)
 	p.box = c.box("cascader-panel", layout.Row, nil)
 	p.box.n.ln.NoStretch = true
 	w.st = State[casState](c, hashID(p.box.n.id, "cas"), nil)

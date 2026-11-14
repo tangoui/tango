@@ -500,7 +500,9 @@ type tourState struct {
 
 // Tour starts a tour bound to *open and *current; call Show.
 func Tour(c *Context, open *bool, current *int, steps []TourStep) *TourW {
-	return &TourW{c: c, open: open, cur: current, steps: steps, mask: true, arrow: true, gap: 6, reveal: true, id: c.newID("tour", "")}
+	t := &TourW{c: c, open: open, cur: current, steps: steps, mask: true, arrow: true, gap: 6, reveal: true, id: c.newID("tour", "")}
+	t.configDefaults() // Defaults("Tour", ...): type, mask, arrow
+	return t
 }
 
 // ScrollIntoView sets whether each step scrolls its target into the view

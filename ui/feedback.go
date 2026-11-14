@@ -297,7 +297,13 @@ type LoadingW struct {
 //
 //	ui.Loading(c, busy).Tip("加载中").Body(func() { ... })
 //	ui.Loading(c, busy).Fullscreen()
-func Loading(c *Context, on bool) *LoadingW { return &LoadingW{c: c, on: on} }
+//
+// ConfigProvider.Defaults("Spin", ...) "size" and "tip" apply.
+func Loading(c *Context, on bool) *LoadingW {
+	m := &LoadingW{c: c, on: on}
+	m.configDefaults()
+	return m
+}
 
 // Tip shows a caption under the spinner.
 func (m *LoadingW) Tip(s string) *LoadingW { m.tip = s; return m }

@@ -39,6 +39,7 @@ var splitterKey = hashID("splitter-ctx")
 // SplitterPanel adds a pane; call it inside Splitter.Body.
 func SplitterPanel(c *Context) *SplitterPanelW {
 	p := &SplitterPanelW{c: c}
+	p.configDefaults() // Defaults("SplitterPanel", ...): collapsible, resizable
 	if st := State[[]*splitterCtx](c, splitterKey, nil); len(*st) > 0 {
 		s := (*st)[len(*st)-1]
 		s.panels = append(s.panels, p)

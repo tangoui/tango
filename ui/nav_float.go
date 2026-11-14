@@ -308,7 +308,9 @@ type FloatButtonGroupW struct {
 // FloatButtonGroup starts a group; chain options, then Body with
 // FloatButton calls.
 func FloatButtonGroup(c *Context) *FloatButtonGroupW {
-	return &FloatButtonGroupW{c: c, right: 24, bottom: 48}
+	g := &FloatButtonGroupW{c: c, right: 24, bottom: 48}
+	g.configDefaults() // Defaults("FloatButtonGroup", ...): shape, trigger, type
+	return g
 }
 
 // Square joins the buttons in one rounded card with separators.
@@ -494,6 +496,7 @@ func BackTop(c *Context, target ID) *BackTopW {
 	if !navEl(c) {
 		b.right, b.bottom = 24, 48
 	}
+	b.configDefaults() // Defaults("BackTop", ...): visibilityHeight, duration
 	return b
 }
 

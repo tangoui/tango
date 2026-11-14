@@ -281,6 +281,7 @@ func StatisticTimer(c *Context, title string, typ TimerType, at time.Time) *Coun
 // newTimer builds a countdown to at, or with up a count up from at.
 func newTimer(c *Context, title string, at time.Time, up bool) *CountdownW {
 	w := &CountdownW{c: c, title: title, deadline: at, format: "HH:mm:ss"}
+	w.configDefaults() // Defaults("Countdown", ...): format
 	th := c.Theme
 	w.color = th.TextHeading
 	w.n = c.add("countdown", title)

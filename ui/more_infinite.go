@@ -44,6 +44,7 @@ type moreInfState struct {
 //	if inf.NeedMore() { loading = true; go fetch() }
 func InfiniteScroll(c *Context, fn func(), opts ...layout.Option) *InfiniteScrollW {
 	w := &InfiniteScrollW{c: c, distance: 0, loadingText: c.Locale().Loading + "...", doneText: c.Locale().NoMore}
+	w.configDefaults() // Defaults("InfiniteScroll", ...): distance
 	w.sb = Scroll(c, fn, opts...)
 	w.st = State[moreInfState](c, hashID(w.sb.n.id, "more-inf"), func() moreInfState { return moreInfState{firedH: -1} })
 	w.z = c.lazy(w.sb.n, w.finish)
