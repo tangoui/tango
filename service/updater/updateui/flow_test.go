@@ -420,3 +420,39 @@ func TestRestartNowSerialized(t *testing.T) {
 		t.Fatalf("applies %d quits %d", applies.Load(), tf.quitCount())
 	}
 }
+
+// Final review I1: once halted, nothing starts, and a check cancelled by
+// the stop does not report "context canceled" or show the window again.
+func TestHaltStopsChecks(t *testing.T) {
+	s := newReleaseServer(t)
+	s.publish("1.3.0")
+	hold := make(chan struct{})
+	t.Cleanup(func() { close(hold) })
+	s.mu.Lock()
+	s.hold = hold
+	s.mu.Unlock()
+	u := s.updater(t, "1.2.0")
+	tf := newTestFlow(t, u)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { tf.check(ctx, true); close(done) }()
+	waitFor(t, "the check to reach the server", func() bool { return s.hits.Load() == 1 })
+	cancel()
+	tf.halt()
+	<-done
+	if v := tf.m.snapshot(); v.phase == phaseError {
+		t.Fatalf("a cancelled check reported an error: %+v", v)
+	}
+	if !loadState(u).LastCheck.IsZero() {
+		t.Fatal("a cancelled check counted as a check")
+	}
+	tf.check(context.Background(), true)
+	tf.check(context.Background(), false)
+	tf.download()
+	if n := s.hits.Load(); n != 1 {
+		t.Fatalf("checks after halt: %d manifest requests", n)
+	}
+	if n := len(tf.showCalls()); n != 1 {
+		t.Fatalf("window asked for %d times (want once, when the first check began)", n)
+	}
+}

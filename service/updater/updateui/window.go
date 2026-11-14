@@ -22,9 +22,12 @@ type window struct {
 }
 
 // show opens the window, or brings it forward when it is open. Safe from
-// any goroutine.
+// any goroutine. After stop it does nothing, even when queued before it.
 func (s *session) show(manual bool) {
 	s.app.Post(func() {
+		if s.f.isStopped() {
+			return
+		}
 		if s.win.surf != nil {
 			s.win.surf.Show()
 			s.win.surf.Focus()

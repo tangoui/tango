@@ -229,3 +229,26 @@ func TestStopWaitsForRunningCheck(t *testing.T) {
 		t.Fatal("OnEvent not restored to the app's (nil) after stop")
 	}
 }
+
+// Final review I1: a show queued by a check that ends as the session stops
+// must not open the window again after stop.
+func TestNoWindowAfterStop(t *testing.T) {
+	a, fb := runApp(t)
+	s := newReleaseServer(t)
+	u := s.updater(t, "1.2.0")
+	stop, err := Start(a, u, en)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionsMu.Lock()
+	sess := sessions[u]
+	sessionsMu.Unlock()
+	stop()
+	sess.show(true)
+	done := make(chan struct{})
+	a.Post(func() { close(done) }) // runs after show's callback
+	<-done
+	if n := len(updateWindows(fb)); n != 0 {
+		t.Fatalf("%d update windows after stop", n)
+	}
+}

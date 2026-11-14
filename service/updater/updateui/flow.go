@@ -138,6 +138,9 @@ func (f *flow) check(ctx context.Context, manual bool) {
 		f.show(true)
 	}
 	rel, err := f.u.Check(ctx)
+	if ctx.Err() != nil {
+		return // the session stopped: not a check, nothing to show
+	}
 
 	f.mu.Lock()
 	f.st.LastCheck = time.Now()
