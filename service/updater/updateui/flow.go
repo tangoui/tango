@@ -19,16 +19,18 @@ var (
 
 // flow drives one *updater.Updater for the window: checks (background or
 // asked for), the download, and installing. The Updater is not safe for
-// concurrent use, so at most one check or download runs at a time (busy).
+// concurrent use, so at most one of those runs at a time: each claims the
+// flow with begin and releases it with end.
 type flow struct {
 	u *updater.Updater
 	m *model
 
-	busy        atomic.Bool
 	downloading atomic.Bool    // OnEvent download events go to the model
-	running     sync.WaitGroup // checks and downloads in progress (stop waits)
+	running     sync.WaitGroup // the claimed operation (halt waits for it)
 
 	mu           sync.Mutex
+	busy         bool // an operation holds the Updater
+	stopped      bool // halt ran: nothing starts any more
 	st           persisted
 	laterThisRun string           // "Remind Me Later" for this run
 	payload      *updater.Payload // downloaded and verified
@@ -42,6 +44,56 @@ type flow struct {
 
 func newFlow(u *updater.Updater, m *model) *flow {
 	return &flow{u: u, m: m, st: loadState(u)}
+}
+
+// begin claims the Updater for one operation; false while another runs or
+// after halt. running is added under the same lock halt sets stopped
+// under, so halt's Wait never races an Add.
+func (f *flow) begin() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.busy || f.stopped {
+		return false
+	}
+	f.busy = true
+	f.running.Add(1)
+	return true
+}
+
+// end releases the claim taken by begin.
+func (f *flow) end() {
+	f.mu.Lock()
+	f.busy = false
+	f.mu.Unlock()
+	f.running.Done()
+}
+
+// isBusy reports a claimed operation.
+func (f *flow) isBusy() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.busy
+}
+
+// isStopped reports whether halt ran.
+func (f *flow) isStopped() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.stopped
+}
+
+// halt stops the flow for good: nothing new starts, a running download is
+// cancelled, and it returns once the claimed operation has ended. (A check
+// ends through its context, which the session cancels first.)
+func (f *flow) halt() {
+	f.mu.Lock()
+	f.stopped = true
+	c := f.cancel
+	f.mu.Unlock()
+	if c != nil {
+		c()
+	}
+	f.running.Wait()
 }
 
 // onEvent takes the updater's download events while a download runs; the
@@ -71,18 +123,16 @@ func (f *flow) check(ctx context.Context, manual bool) {
 			return // an update is downloaded: keep offering it
 		}
 	}
-	if !f.busy.CompareAndSwap(false, true) {
-		if manual {
+	if !f.begin() {
+		if manual && !f.isStopped() {
 			f.show(true)
 		}
 		return
 	}
-	defer f.busy.Store(false)
+	defer f.end()
 	if ctx.Err() != nil {
 		return // the session stopped
 	}
-	f.running.Add(1)
-	defer f.running.Done()
 	if manual {
 		f.m.set(func(m *model) { m.phase, m.manual, m.err, m.unsupported = phaseChecking, true, nil, false })
 		f.show(true)
@@ -130,7 +180,7 @@ func (f *flow) check(ctx context.Context, manual bool) {
 // otherwise.
 func (f *flow) download() {
 	rel := f.m.snapshot().rel
-	if rel == nil || !f.busy.CompareAndSwap(false, true) {
+	if rel == nil || !f.begin() {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -139,10 +189,8 @@ func (f *flow) download() {
 	f.mu.Unlock()
 	f.downloading.Store(true)
 	f.m.set(func(m *model) { m.phase, m.done, m.total, m.err = phaseDownloading, 0, -1, nil })
-	f.running.Add(1)
 	go func() {
-		defer f.running.Done()
-		defer f.busy.Store(false)
+		defer f.end()
 		p, err := f.u.Download(ctx, rel, "")
 		f.downloading.Store(false)
 		f.mu.Lock()
@@ -197,7 +245,13 @@ func (f *flow) later() {
 	}
 }
 
-// restartNow installs the downloaded release and quits the app.
+// errBusy is restartNow's answer while another operation holds the
+// Updater (a second click, a check) or after halt.
+var errBusy = errors.New("updateui: busy")
+
+// restartNow installs the downloaded release and quits the app. It claims
+// the Updater like a check or a download, and shows phaseInstalling (no
+// buttons) while Apply stages the release.
 func (f *flow) restartNow() error {
 	f.mu.Lock()
 	p := f.payload
@@ -205,6 +259,11 @@ func (f *flow) restartNow() error {
 	if p == nil {
 		return errors.New("updateui: nothing downloaded")
 	}
+	if !f.begin() {
+		return errBusy
+	}
+	defer f.end()
+	f.m.set(func(m *model) { m.phase = phaseInstalling })
 	if err := apply(f.u, p); err != nil {
 		f.m.set(func(m *model) {
 			m.phase, m.err, m.unsupported = phaseError, err, errors.Is(err, updater.ErrUnsupported)

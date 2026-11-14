@@ -70,6 +70,8 @@ func body(c *ui.Context, v view, t *Strings) {
 		})
 	case phaseReady:
 		grow(func() { ui.Text(c, t.Ready) })
+	case phaseInstalling:
+		grow(func() { ui.Spin(c).Tip(t.Installing) })
 	case phaseDownloaded:
 		grow(func() { ui.Text(c, t.Downloaded) })
 	case phaseError:
@@ -118,6 +120,8 @@ func buttons(c *ui.Context, v view, t *Strings, a actions) {
 	case phaseDownloaded:
 		btn(t.Later, a.later, false)
 		btn(t.RestartNow, a.restartNow, true)
+	case phaseInstalling:
+		// Apply is running: nothing to click until it ends.
 	case phaseError:
 		btn(t.Close, a.close, false)
 		switch {

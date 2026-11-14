@@ -27,6 +27,7 @@ type Strings struct {
 	RestartNow  string
 	// InstallNextLaunch keeps the download and asks again at the next launch.
 	InstallNextLaunch string
+	Installing        string // Apply is preparing the new version
 	Downloaded        string // offered at launch: an update was downloaded earlier
 	Error             string
 	Retry             string
@@ -54,6 +55,7 @@ var (
 		Ready:             "The update is ready. Restart to finish installing it.",
 		RestartNow:        "Restart Now",
 		InstallNextLaunch: "Install on Next Launch",
+		Installing:        "Preparing the new version…",
 		Downloaded:        "An update was downloaded earlier. Restart now to install it?",
 		Error:             "The update failed.",
 		Retry:             "Try Again",
@@ -79,6 +81,7 @@ var (
 		Ready:             "更新已准备好，重启后完成安装。",
 		RestartNow:        "立即重启",
 		InstallNextLaunch: "下次启动时安装",
+		Installing:        "正在准备新版本…",
 		Downloaded:        "之前已下载好一个更新，现在重启安装吗？",
 		Error:             "更新失败。",
 		Retry:             "重试",
@@ -104,6 +107,7 @@ var (
 		Ready:             "更新已準備好，重新啟動後完成安裝。",
 		RestartNow:        "立即重新啟動",
 		InstallNextLaunch: "下次啟動時安裝",
+		Installing:        "正在準備新版本…",
 		Downloaded:        "先前已下載一個更新，現在重新啟動並安裝嗎？",
 		Error:             "更新失敗。",
 		Retry:             "重試",
@@ -129,6 +133,7 @@ var (
 		Ready:             "アップデートの準備ができました。再起動するとインストールが完了します。",
 		RestartNow:        "今すぐ再起動",
 		InstallNextLaunch: "次回起動時にインストール",
+		Installing:        "新しいバージョンを準備しています…",
 		Downloaded:        "以前にダウンロードしたアップデートがあります。今すぐ再起動してインストールしますか？",
 		Error:             "アップデートに失敗しました。",
 		Retry:             "再試行",

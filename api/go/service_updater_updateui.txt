@@ -18,6 +18,7 @@ pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Erro
 pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Full string
 pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Install string
 pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, InstallNextLaunch string
+pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Installing string
 pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Later string
 pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, NewVersion string
 pkg github.com/tangoui/tango/service/updater/updateui, type Strings struct, Notes string

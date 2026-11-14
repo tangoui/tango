@@ -250,7 +250,7 @@ func TestDownloadReady(t *testing.T) {
 	tf.check(context.Background(), false)
 	tf.download()
 	waitFor(t, "the download", func() bool { return tf.m.snapshot().phase == phaseReady })
-	if tf.busy.Load() {
+	if tf.isBusy() {
 		t.Fatal("still busy after the download")
 	}
 	tf.flow.mu.Lock()
@@ -272,7 +272,7 @@ func TestCancelDownload(t *testing.T) {
 	tf.download()
 	waitFor(t, "downloading", func() bool { return tf.m.snapshot().phase == phaseDownloading })
 	tf.cancelDownload()
-	waitFor(t, "the cancel", func() bool { return !tf.busy.Load() })
+	waitFor(t, "the cancel", func() bool { return !tf.isBusy() })
 	if v := tf.m.snapshot(); v.phase != phaseAvailable {
 		t.Fatalf("after cancel: %+v", v)
 	}
@@ -364,5 +364,59 @@ func TestScheduleRespectsLastCheck(t *testing.T) {
 	}
 	if _, ok := first(time.Time{}, -1); ok {
 		t.Fatal("negative interval scheduled a check")
+	}
+}
+
+func (tf *testFlow) quitCount() int {
+	tf.mu.Lock()
+	defer tf.mu.Unlock()
+	return tf.quits
+}
+
+// readyFlow is a flow with a downloaded release (version 1.3.0).
+func readyFlow(t *testing.T) (*releaseServer, *updater.Updater, *testFlow) {
+	t.Helper()
+	s := newReleaseServer(t)
+	s.publish("1.3.0")
+	u := s.updater(t, "1.2.0")
+	tf := newTestFlow(t, u)
+	tf.check(context.Background(), false)
+	tf.download()
+	waitFor(t, "the download", func() bool { return tf.m.snapshot().phase == phaseReady })
+	return s, u, tf
+}
+
+// Final review C1: installing claims the Updater like a check or a
+// download: a second Restart Now, a check, or stop must not run beside it.
+func TestRestartNowSerialized(t *testing.T) {
+	s, _, tf := readyFlow(t)
+	defer func(f func(*updater.Updater, *updater.Payload) error) { apply = f }(apply)
+	release := make(chan struct{})
+	var applies atomic.Int32
+	apply = func(*updater.Updater, *updater.Payload) error {
+		applies.Add(1)
+		<-release
+		return nil
+	}
+	first := make(chan error, 1)
+	go func() { first <- tf.restartNow() }()
+	waitFor(t, "the install to start", func() bool { return applies.Load() == 1 })
+	if v := tf.m.snapshot(); v.phase != phaseInstalling {
+		t.Fatalf("while installing: %+v", v)
+	}
+	if err := tf.restartNow(); err == nil {
+		t.Fatal("a second Restart Now ran beside the first")
+	}
+	hits := s.hits.Load()
+	tf.check(context.Background(), true)
+	if s.hits.Load() != hits {
+		t.Fatal("a check ran during the install")
+	}
+	close(release)
+	if err := <-first; err != nil {
+		t.Fatal(err)
+	}
+	if applies.Load() != 1 || tf.quitCount() != 1 {
+		t.Fatalf("applies %d quits %d", applies.Load(), tf.quitCount())
 	}
 }

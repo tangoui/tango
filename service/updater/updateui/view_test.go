@@ -168,3 +168,15 @@ func TestViewStringsSwitchLive(t *testing.T) {
 		t.Fatal("texts did not follow the locale change")
 	}
 }
+
+// Final review C1: while Apply runs the window shows a spinner and offers
+// nothing to click (a second Restart Now would run Apply twice).
+func TestViewInstalling(t *testing.T) {
+	d, _ := viewDriver(t, &model{phase: phaseInstalling, rel: &updater.Release{Version: "1.3.0"}}, zh)
+	mustText(t, d, stringsZhCN.Installing)
+	for _, l := range []string{stringsZhCN.RestartNow, stringsZhCN.InstallNextLaunch, stringsZhCN.Later, stringsZhCN.Close} {
+		if _, ok := d.Find(l); ok {
+			t.Fatalf("button %q offered while installing", l)
+		}
+	}
+}

@@ -157,8 +157,7 @@ func (s *session) stop() {
 		s.i18nStop()
 	}
 	s.mu.Unlock()
-	s.f.cancelDownload()
-	s.f.running.Wait()
+	s.f.halt()
 	s.u.OnEvent = s.origOnEvent
 	s.app.Post(s.closeWindow)
 }

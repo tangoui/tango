@@ -20,6 +20,7 @@ const (
 	phaseError             // a step failed: retry, close
 	phaseUpToDate          // no newer release (shown only when asked)
 	phaseRolledBack        // the last update did not start and was undone
+	phaseInstalling        // Apply is staging the release (no buttons)
 )
 
 // model is the window's state. The flow and the updater's OnEvent write
