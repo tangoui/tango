@@ -141,7 +141,7 @@ Use `tan generate bindings` for a typed TypeScript client. The runnable [hello e
 | **macOS** | System WebView · Go-drawn UI · hybrid | Verified on macOS hardware. |
 | **Windows** | System WebView · Go-drawn UI · hybrid | Implemented; cross-compilation and CI smoke coverage. Systematic hardware validation is pending. |
 | **Linux** | System WebView · Go-drawn UI · hybrid | Implemented; cross-compilation and CI smoke coverage. Systematic hardware validation is pending. |
-| **iOS** | System WebView | Experimental; simulator validation. Hardware validation is pending. |
+| **iOS** | System WebView · Go-drawn UI | Experimental; simulator validation, plus one hardware run (iPhone 12 Pro, iOS 27): WebView and Go-drawn example apps, touch, input method, Metal and CPU rendering, accessibility. Broader hardware validation is pending. |
 | **Android** | System WebView | Experimental; emulator validation. Hardware validation is pending. |
 
 Capabilities differ by platform. Check [WebView support](docs/webview.md), [mobile capabilities](docs/mobile.md) and [runtime APIs](docs/runtime-api.md) before relying on a feature. Android push requires app-provided FCM integration; Play Billing and iOS widgets are not built in.

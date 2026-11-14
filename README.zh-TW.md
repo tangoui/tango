@@ -139,7 +139,7 @@ const message = await window.tango.call("Greeter.Hello", "Tango");
 | **macOS** | 系統 WebView · Go 自繪 · 混合介面 | 已在 macOS 實機驗證。 |
 | **Windows** | 系統 WebView · Go 自繪 · 混合介面 | 已有實作，具備交叉編譯與 CI 冒煙測試；系統性的實機驗證尚待完成。 |
 | **Linux** | 系統 WebView · Go 自繪 · 混合介面 | 已有實作，具備交叉編譯與 CI 冒煙測試；系統性的實機驗證尚待完成。 |
-| **iOS** | 系統 WebView | 實驗性，已進行模擬器驗證；實機驗證尚待完成。 |
+| **iOS** | 系統 WebView · Go 自繪介面 | 實驗性，已進行模擬器驗證，另在一台實機（iPhone 12 Pro，iOS 27）上跑通 WebView 與自繪範例：觸控、輸入法、Metal 與 CPU 繪製、無障礙。更多機型的實機驗證尚待完成。 |
 | **Android** | 系統 WebView | 實驗性，已進行模擬器驗證；實機驗證尚待完成。 |
 
 不同平台的功能有差異，使用前請參閱 [WebView 支援矩陣](docs/webview.md)、[行動平台功能](docs/mobile.md)與[執行階段 API](docs/runtime-api.md)。Android 推播需要應用程式自行整合 FCM；目前未內建 Play Billing 與 iOS Widget。

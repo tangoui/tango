@@ -45,6 +45,12 @@
 ### 修复
 
 - `icon.CheckFilled`、`CloseFilled`、`InfoFilled`、`WarningFilled` 原来只画一个实心圆，现在中间的符号是镂空的。
+- **无障碍**：滚动或裁剪出视野、嵌套超过一层的内容（例如表单项里的滑块）不再从语义树里消失，读屏软件能找到它们并滚动显示（`ui/runner.go` `recordRects`）。所有平台的屏幕阅读器都受影响，在 iOS 真机上发现。
+- **iOS 无障碍**：自绘界面的可编辑输入框对 VoiceOver 标记为文本输入：iOS 18.1 起用 `accessibilityTextInputResponder`，iOS 17–18.0 在提示里说明双击编辑。最低版本仍是 iOS 17。
+
+### 验证
+
+- iOS 首次真机运行（iPhone 12 Pro，iOS 27）：WebView 与自绘示例、触摸、输入法、Metal 与 CPU 渲染、无障碍，范围见 [docs/mobile.md](docs/mobile.md)。
 
 ### 安全
 
