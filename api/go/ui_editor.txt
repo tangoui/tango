@@ -160,6 +160,8 @@ pkg github.com/tangoui/tango/ui/editor, method (*State) Edit([]ui/editor/buffer.
 pkg github.com/tangoui/tango/ui/editor, method (*State) Execute(string, any) bool
 pkg github.com/tangoui/tango/ui/editor, method (*State) Folded() []FoldingRange
 pkg github.com/tangoui/tango/ui/editor, method (*State) FoldingRanges() []FoldingRange
+pkg github.com/tangoui/tango/ui/editor, method (*State) HiddenAreaAt(int) (string, bool)
+pkg github.com/tangoui/tango/ui/editor, method (*State) HiddenAreas(string) []LineRange
 pkg github.com/tangoui/tango/ui/editor, method (*State) Highlighter() *ui/editor/highlight.Highlighter
 pkg github.com/tangoui/tango/ui/editor, method (*State) Insert(string)
 pkg github.com/tangoui/tango/ui/editor, method (*State) LargeFile() bool
@@ -175,6 +177,7 @@ pkg github.com/tangoui/tango/ui/editor, method (*State) SaveViewState() ViewStat
 pkg github.com/tangoui/tango/ui/editor, method (*State) ScrollBy(float32, float32)
 pkg github.com/tangoui/tango/ui/editor, method (*State) SelectHighlights() bool
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetDecorations(string, []Decoration)
+pkg github.com/tangoui/tango/ui/editor, method (*State) SetHiddenAreas(string, []LineRange)
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetOverviewMarks(string, []OverviewMark)
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetSelections([]Selection)
 pkg github.com/tangoui/tango/ui/editor, method (*State) Snapshot() ui/editor/buffer.Snapshot
@@ -258,6 +261,9 @@ pkg github.com/tangoui/tango/ui/editor, type InlineStyle struct, Underline bool
 pkg github.com/tangoui/tango/ui/editor, type InsideWordArgs struct
 pkg github.com/tangoui/tango/ui/editor, type InsideWordArgs struct, OnlyWord bool
 pkg github.com/tangoui/tango/ui/editor, type LineNumbersMode string
+pkg github.com/tangoui/tango/ui/editor, type LineRange struct
+pkg github.com/tangoui/tango/ui/editor, type LineRange struct, End int
+pkg github.com/tangoui/tango/ui/editor, type LineRange struct, Start int
 pkg github.com/tangoui/tango/ui/editor, type LocaleSet struct
 pkg github.com/tangoui/tango/ui/editor, type MatchBracketsMode string
 pkg github.com/tangoui/tango/ui/editor, type MenuItem struct

@@ -705,7 +705,7 @@ func (s *State) lines() *viewLines {
 	if vl.buf == b && vl.ver == snap.Version() {
 		return vl
 	}
-	if !vl.mapped() && len(s.fold.folds) == 0 {
+	if !vl.mapped() && len(s.fold.folds) == 0 && !s.tracks() {
 		vl.sync(b, snap)
 		return vl
 	}

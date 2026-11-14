@@ -458,7 +458,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	aLine, aRow := vl.find(v.TopLine)
 	w.declareDamage(&paintFrame{
 		g: damageGlobal{rect: r, gutter: vs.gutter, text: vs.text, colW: colW, lh: lh, theme: th, opts: w.opts,
-			tab: w.tabs(), focused: focused, wrap: wcfg, numW: w.numbersWidth(dg, n), foldGen: st.fold.gen},
+			tab: w.tabs(), focused: focused, wrap: wcfg, numW: w.numbersWidth(dg, n), foldGen: st.fold.gen, hidGen: st.hidGen},
 		snap: snap, lines: lines, vis: vis, cur: cur, curG: curG, cmp: cmp, caretLine: caretLine, scrollX: v.ScrollX, marks: marks,
 		aLine: aLine, aRow: aRow, fold: fold, guides: guides, bguides: vs.bgRows, match: matchRows, decos: decoSigs, udecos: ud,
 	})

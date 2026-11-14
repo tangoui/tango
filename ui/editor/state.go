@@ -47,6 +47,8 @@ type State struct {
 	wrapLarge bool
 
 	fold     foldState                 // folded regions and folding ranges (folding.go)
+	hid      *hidAreaStore             // hidden areas per owner, nil for none (hidareas.go)
+	hidGen   uint64                    // counts SetHiddenAreas calls (damage.go)
 	overview map[string][]OverviewMark // per-view owner markers (overview.go)
 
 	goals    []int // goal columns of vertical moves, one per selection; nil when unset
@@ -135,6 +137,7 @@ func (s *State) Close() {
 		if d := s.Model.decos; d != nil {
 			d.dropView(s)
 		}
+		s.track() // no longer subscribed: unregistered
 	}
 	s.view = nil
 }
@@ -170,7 +173,7 @@ func (s *State) modelChanged(ch ModelChange) {
 		vl.syncEdits(s.Model.Buffer(), ch.Old, ch.Edits, ch.New)
 		s.syncFolds()
 		s.anchorTop(mapTop(line), row)
-	case vl.mapped() || len(s.fold.folds) > 0:
+	case vl.mapped() || len(s.fold.folds) > 0 || s.tracks():
 		line, row := s.topAnchor()
 		s.anchorTop(mapTop(line), row)
 	default:

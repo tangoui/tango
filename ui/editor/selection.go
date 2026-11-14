@@ -167,7 +167,11 @@ func (s *State) overFolds(snap buffer.Snapshot, dir Direction, off, to int) int 
 		}
 		return snap.LineStart(nx)
 	}
-	return lineEnd(snap, max(0, vl.prevVisible(l)))
+	p := vl.prevVisible(l)
+	if p < 0 {
+		return off // hidden lines start the document (an owner's hidden area)
+	}
+	return lineEnd(snap, p)
 }
 
 // selRange returns the primary selection as an ordered, clamped range.

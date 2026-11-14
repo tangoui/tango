@@ -351,11 +351,17 @@ func (m *Model) tracked(ns buffer.Snapshot, edits []buffer.Edit) {
 	if len(edits) == 0 {
 		return
 	}
-	if !m.hasDecorations() {
+	deco := m.hasDecorations()
+	if !deco && len(m.trackers) == 0 {
 		return
 	}
 	t := buffer.NewTracker(edits)
-	m.decos.apply(edits, t, ns)
+	if deco {
+		m.decos.apply(edits, t, ns)
+	}
+	for _, s := range m.trackers {
+		s.trackEdits(t, ns)
+	}
 }
 
 // --- frame ---

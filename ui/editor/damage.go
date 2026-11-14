@@ -89,6 +89,7 @@ type damageGlobal struct {
 	wrap               wrapConfig
 	numW               float32 // width of the line numbers
 	foldGen            uint64  // foldState.gen: changes of the folded regions
+	hidGen             uint64  // State.hidGen: changes of the hidden areas (hidareas.go)
 }
 
 // damageRec is what the View drew in its last paint.

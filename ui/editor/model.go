@@ -124,6 +124,9 @@ type Model struct {
 	// decos are the decorations (decorations.go), nil until the first is
 	// set.
 	decos *decorationStore[decorationStyle]
+	// trackers are the views with hidden areas or view zones to move
+	// through each change (Model.tracked).
+	trackers []*State
 
 	subs listeners[func(ModelChange)]
 
