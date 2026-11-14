@@ -195,3 +195,14 @@ func (r *runner) close() {
 
 // wait blocks until no computation goroutine is running.
 func (r *runner) wait() { r.wg.Wait() }
+
+// configure changes the debounce delay and the computation of the next
+// schedules.
+func (r *runner) configure(debounce time.Duration, compute computeFunc) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.debounce = debounce
+	if compute != nil {
+		r.compute = compute
+	}
+}

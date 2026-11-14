@@ -1,0 +1,58 @@
+pkg github.com/tangoui/tango/ui/editor/diffview, const CmdCollapseAll untyped string = "diffEditor.collapseAllUnchangedRegions"
+pkg github.com/tangoui/tango/ui/editor/diffview, const CmdNext untyped string = "editor.action.diffReview.next"
+pkg github.com/tangoui/tango/ui/editor/diffview, const CmdPrev untyped string = "editor.action.diffReview.prev"
+pkg github.com/tangoui/tango/ui/editor/diffview, const CmdRevert untyped string = "diffEditor.revert"
+pkg github.com/tangoui/tango/ui/editor/diffview, const CmdShowAll untyped string = "diffEditor.showAllUnchangedRegions"
+pkg github.com/tangoui/tango/ui/editor/diffview, const CmdSwitchSide untyped string = "diffEditor.switchSide"
+pkg github.com/tangoui/tango/ui/editor/diffview, const CmdToggleUnchanged untyped string = "diffEditor.toggleCollapseUnchangedRegions"
+pkg github.com/tangoui/tango/ui/editor/diffview, const Inline Mode = 1
+pkg github.com/tangoui/tango/ui/editor/diffview, const SideBySide Mode = 0
+pkg github.com/tangoui/tango/ui/editor/diffview, func DefaultOptions() Options
+pkg github.com/tangoui/tango/ui/editor/diffview, func New(*ui/editor.Model, *ui/editor.Model, *ui/editor/theme.Theme) *State
+pkg github.com/tangoui/tango/ui/editor/diffview, func View(*ui.Context, *State) *ViewW
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*State) Close()
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*State) CollapseAllUnchanged()
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*State) GoTo(int)
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*State) Next() bool
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*State) OnDidUpdateDiff(func(ui/editor/diff.Result)) func()
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*State) Prev() bool
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*State) Result() (ui/editor/diff.Result, bool)
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*State) Revert(int) error
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*State) ShowAllUnchanged()
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*ViewW) Box() *ui.Box
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*ViewW) Changed() bool
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*ViewW) HunkActions(func(int, ui/editor/diff.Change) []HunkAction) *ViewW
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*ViewW) Labels(string, string) *ViewW
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*ViewW) Layout(...ui/layout.Option) *ViewW
+pkg github.com/tangoui/tango/ui/editor/diffview, method (*ViewW) Mode(Mode) *ViewW
+pkg github.com/tangoui/tango/ui/editor/diffview, type HunkAction struct
+pkg github.com/tangoui/tango/ui/editor/diffview, type HunkAction struct, Label string
+pkg github.com/tangoui/tango/ui/editor/diffview, type HunkAction struct, Run func()
+pkg github.com/tangoui/tango/ui/editor/diffview, type HunkAction struct, Tooltip string
+pkg github.com/tangoui/tango/ui/editor/diffview, type HunkAction struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor/diffview, type Mode uint8
+pkg github.com/tangoui/tango/ui/editor/diffview, type Options struct
+pkg github.com/tangoui/tango/ui/editor/diffview, type Options struct, ComputeMoves bool
+pkg github.com/tangoui/tango/ui/editor/diffview, type Options struct, Debounce time.Duration
+pkg github.com/tangoui/tango/ui/editor/diffview, type Options struct, DiffWordWrap ui/editor.WrapMode
+pkg github.com/tangoui/tango/ui/editor/diffview, type Options struct, HideUnchangedRegions UnchangedRegionsOptions
+pkg github.com/tangoui/tango/ui/editor/diffview, type Options struct, IgnoreTrimWhitespace bool
+pkg github.com/tangoui/tango/ui/editor/diffview, type Options struct, InlineBreakpoint float32
+pkg github.com/tangoui/tango/ui/editor/diffview, type Options struct, MaxComputationTime time.Duration
+pkg github.com/tangoui/tango/ui/editor/diffview, type Options struct, Mode Mode
+pkg github.com/tangoui/tango/ui/editor/diffview, type Options struct, OriginalEditable bool
+pkg github.com/tangoui/tango/ui/editor/diffview, type Options struct, RenderIndicators bool
+pkg github.com/tangoui/tango/ui/editor/diffview, type Options struct, RenderMarginRevertIcon bool
+pkg github.com/tangoui/tango/ui/editor/diffview, type Options struct, RenderOverviewRuler bool
+pkg github.com/tangoui/tango/ui/editor/diffview, type Options struct, UseInlineWhenSpaceIsLimited bool
+pkg github.com/tangoui/tango/ui/editor/diffview, type State struct
+pkg github.com/tangoui/tango/ui/editor/diffview, type State struct, Modified *ui/editor.State
+pkg github.com/tangoui/tango/ui/editor/diffview, type State struct, Options Options
+pkg github.com/tangoui/tango/ui/editor/diffview, type State struct, Original *ui/editor.State
+pkg github.com/tangoui/tango/ui/editor/diffview, type State struct, noncomparable
+pkg github.com/tangoui/tango/ui/editor/diffview, type UnchangedRegionsOptions struct
+pkg github.com/tangoui/tango/ui/editor/diffview, type UnchangedRegionsOptions struct, ContextLineCount int
+pkg github.com/tangoui/tango/ui/editor/diffview, type UnchangedRegionsOptions struct, Enabled bool
+pkg github.com/tangoui/tango/ui/editor/diffview, type UnchangedRegionsOptions struct, MinimumLineCount int
+pkg github.com/tangoui/tango/ui/editor/diffview, type UnchangedRegionsOptions struct, RevealLineCount int
+pkg github.com/tangoui/tango/ui/editor/diffview, type ViewW struct
