@@ -36,7 +36,7 @@ jobs:
 
       - uses: actions/setup-node@v7.1.0
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
           cache-dependency-path: runtime-js/package-lock.json
 
@@ -133,15 +133,18 @@ jobs:
       # the framework keeps it.
       - name: go test (module root)
         run: |
-          slow='/ui$|/ui/editor|/internal/render/gpu|/examples/ui-gallery'
+          slow='/ui$|/ui/editor|/ui/chart|/internal/render/gpu|/examples/ui-gallery'
           go test $RACE -timeout 20m $(go list ./... | grep -Ev "$slow")
-          go test -timeout 40m $(go list ./... | grep -E "$slow")
+          go test -timeout 40m $(go list ./... | grep -E "$slow" | grep -v /examples/ui-gallery)
+          # The gallery's full text-contrast sweep (every page x six themes,
+          # three times) has its own job below; -short skips it here.
+          go test -short -timeout 40m ./examples/ui-gallery/...
 
       # Development features (hot reload, automation, dev proxy) are only
       # built with -tags tango_dev; the default build above is production.
       - name: go test -tags tango_dev (module root)
         run: |
-          slow='/ui$|/ui/editor|/internal/render/gpu|/examples/ui-gallery'
+          slow='/ui$|/ui/editor|/ui/chart|/internal/render/gpu|/examples/ui-gallery'
           go test $RACE -tags tango_dev -timeout 20m $(go list -tags tango_dev ./... | grep -Ev "$slow")
           # The gallery has no development features: the default run above
           # covers it, so it is not repeated here.
@@ -150,6 +153,25 @@ jobs:
       - name: go test (cmd/tan)
         working-directory: cmd/tan
         run: go test $RACE ./...
+
+  # The gallery's full text-contrast sweep renders every page in six themes
+  # three times: too slow for every pull request, so it runs on pushes to
+  # main (and on demand) with its own budget.
+  gallery-contrast:
+    name: gallery contrast
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: "**/go.sum"
+
+      - name: Text contrast on every gallery page
+        run: go test -run TestGalleryTextContrast -timeout 80m ./examples/ui-gallery/
 
   smoke:
     name: smoke (${{ matrix.os }})

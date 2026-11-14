@@ -52,7 +52,7 @@ jobs:
 
       - uses: actions/setup-node@v7.1.0
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Check versions
         id: v
@@ -166,7 +166,7 @@ jobs:
       - uses: actions/setup-node@v7.1.0
         if: steps.token.outputs.skip != 'true'
         with:
-          node-version: "22"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
       - name: Publish
@@ -302,7 +302,7 @@ jobs:
 
       - uses: actions/setup-node@v7.1.0
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Component screenshots
         continue-on-error: true # the catalog page explains how to produce them if this fails
