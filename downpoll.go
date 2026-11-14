@@ -10,7 +10,9 @@ package tango
 // latency rule, downq.IdleEvalBytes), the queue hands the items to the
 // fallback, which delivers them with one Eval of window.__tango._recvSeq
 // per batch. Every item carries a sequence number, so the page delivers
-// them in Send order whichever way they came (downShim, downshim.go).
+// them in Send order whichever way they came (downShim, downshim.go). In a
+// generation without down:poll an Eval is no item: its script is one plain
+// Eval, in the outbox between the fallback's batches in call order.
 
 import (
 	"encoding/base64"
@@ -39,6 +41,10 @@ const downChannel = "down"
 type surfaceDown struct {
 	sendMu  sync.Mutex
 	pending []string // Send messages waiting for a trusted page; sendMu
+	// polls: the loaded page's generation has down:poll enabled (Start
+	// gave a token), even before its first poll. Only such a generation
+	// sequences Eval as a barrier. sendMu.
+	polls bool
 
 	mu     sync.Mutex
 	gen    uint64      // the generation started last; 0 once it ended
@@ -52,7 +58,8 @@ type surfaceDown struct {
 }
 
 // downBatch is one entry of the outbox: a fallback call's items of
-// generation gen, or (script) the js of an Eval that is not a barrier.
+// generation gen, or (script) the js of an Eval that is not a barrier,
+// queued in generation gen (0: no page loaded).
 type downBatch struct {
 	gen    uint64
 	items  []downq.Item
@@ -92,6 +99,7 @@ func (s *Surface) pageReady() {
 	d.sendMu.Lock()
 	enabled := s.downEnabled()
 	gen, tok := s.downq.Start(enabled)
+	d.polls = tok != ""
 	d.mu.Lock()
 	d.gen = gen
 	d.barrier = nil
@@ -121,6 +129,7 @@ func (s *Surface) pageGone() {
 	d := &s.down
 	d.sendMu.Lock()
 	s.loaded.Store(false)
+	d.polls = false
 	s.downq.End()
 	d.mu.Lock()
 	d.gen = 0 // drainDown drops the outbox's items of the ended generation
@@ -148,18 +157,21 @@ func (s *Surface) sendDown(msg string) {
 	}
 }
 
-// evalDown is Eval: any goroutine. While a page is loaded js always
-// becomes a barrier item with a sequence number (design 5.9): while the
-// page polls it runs when the page reaches it (handleDown) or when the
-// fallback takes it over; otherwise the item goes to the fallback at once
-// and the script runs at its place there, so the page cannot deliver a
-// later message before it even if polling starts meanwhile. With no page
-// loaded js joins the outbox as is. On the main thread it has run by the
-// time evalDown returns, as Eval always did there (unless the page polls).
+// evalDown is Eval: any goroutine. While a page whose generation has
+// down:poll enabled is loaded, js becomes a barrier item with a sequence
+// number (design 5.9): while the page polls it runs when the page reaches
+// it (handleDown) or when the fallback takes it over; otherwise the item
+// goes to the fallback at once and the script runs at its place there, so
+// the page cannot deliver a later message before it even if polling starts
+// meanwhile. Otherwise (no page loaded, or a generation that never polls)
+// js joins the outbox as is: one Eval, still in order with Send, whose
+// items join the same outbox in call order. On the main thread it has run
+// by the time evalDown returns, as Eval always did there (unless the page
+// polls).
 func (s *Surface) evalDown(js string) {
 	d := &s.down
 	d.sendMu.Lock()
-	if s.loaded.Load() {
+	if s.loaded.Load() && d.polls {
 		d.mu.Lock()
 		d.nextID++
 		id := d.nextID
@@ -218,8 +230,8 @@ func (s *Surface) toOutbox(b downBatch) {
 	}
 }
 
-// drainDown delivers the outbox in order (recvSeq): items of an ended
-// generation are dropped; scripts run. Main thread.
+// drainDown delivers the outbox in order (recvSeq): items and scripts of
+// an ended generation are dropped; other scripts run. Main thread.
 func (s *Surface) drainDown() {
 	d := &s.down
 	d.mu.Lock()
@@ -241,7 +253,13 @@ func (s *Surface) drainDown() {
 		if b.script {
 			s.recvSeq(gen, items)
 			items = items[:0]
-			s.ns.Eval(b.js) // whatever the page: Eval never waited for one
+			// A script queued while a page was loaded (a generation that
+			// does not poll, evalDown) goes with that page, as a barrier
+			// would; one queued with no page loaded runs whatever the
+			// page: Eval never waited for one.
+			if b.gen == 0 || b.gen == gen {
+				s.ns.Eval(b.js)
+			}
 			continue
 		}
 		if b.gen == gen && gen != 0 {

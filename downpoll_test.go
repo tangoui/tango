@@ -324,6 +324,68 @@ func TestEvalSequencedWhenInactive(t *testing.T) {
 	}
 }
 
+// A generation that does not poll (no down:poll cap) sequences no Eval:
+// each script is one plain Eval, from any goroutine, and stays ordered
+// with Send since both go through the outbox in call order.
+func TestEvalPlainWhenNotPolling(t *testing.T) {
+	a, fb, s, ns := downApp(t, Options{}, "/", lane.UpPost)
+	fb.Load(s.ID())
+	if o := opens(t, ns.Evals()); len(o) != 0 {
+		t.Fatalf("_open sent: %+v", o)
+	}
+	// Off the main thread.
+	n := len(ns.Evals())
+	s.Eval("plain()")
+	sync0(a)
+	if ev := ns.Evals()[n:]; !slices.Equal(ev, []string{"plain()"}) {
+		t.Fatalf("evals %q, want [plain()]", ev)
+	}
+	// On the main thread: run by the time Eval returns.
+	n = len(ns.Evals())
+	if ev := Await(a, func() []string { s.Eval("now()"); return ns.Evals()[n:] }); !slices.Equal(ev, []string{"now()"}) {
+		t.Fatalf("evals %q, want [now()]", ev)
+	}
+	sync0(a)
+	if ev := ns.Evals()[n:]; !slices.Equal(ev, []string{"now()"}) {
+		t.Fatalf("evals %q, want [now()]", ev)
+	}
+	// Send, Eval, Send in one round: a, b, c in order, the messages
+	// numbered without a gap.
+	n = len(ns.Evals())
+	release := blockMain(a)
+	s.Send("a")
+	s.Eval("b()")
+	s.Send("c")
+	release()
+	sync0(a)
+	want := []string{wantRecvSeq(1, `[[1,0,"a"]]`), "b()", wantRecvSeq(1, `[[2,0,"c"]]`)}
+	if ev := ns.Evals()[n:]; !slices.Equal(ev, want) {
+		t.Fatalf("evals %q, want %q", ev, want)
+	}
+	// The same on the main thread.
+	n = len(ns.Evals())
+	Await(a, func() int { s.Send("d"); s.Eval("e()"); s.Send("f"); return 0 })
+	sync0(a)
+	want = []string{wantRecvSeq(1, `[[3,0,"d"]]`), "e()", wantRecvSeq(1, `[[4,0,"f"]]`)}
+	if ev := ns.Evals()[n:]; !slices.Equal(ev, want) {
+		t.Fatalf("evals %q, want %q", ev, want)
+	}
+	// Like a barrier, a script queued for the generation is dropped when
+	// the page goes before the main thread runs it; one queued after
+	// that runs on whatever page is there.
+	n = len(ns.Evals())
+	release = blockMain(a)
+	s.Send("g")
+	s.Eval("stale()")
+	s.pageGone()
+	s.Eval("later()")
+	release()
+	sync0(a)
+	if ev := ns.Evals()[n:]; !slices.Equal(ev, []string{"later()"}) {
+		t.Fatalf("evals %q, want [later()]", ev)
+	}
+}
+
 // An Eval off the main thread before the first poll, then a Send that the
 // poll carries: the page gets the script's barrier at seq 1 (by Eval, with
 // the script run there) and the message at seq 2, so js runs first even if
