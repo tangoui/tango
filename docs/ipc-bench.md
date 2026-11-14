@@ -70,7 +70,8 @@ macOS 原始输出（2026-11-13，连续三次，表里取第三次）：
 ## 第二期 macOS/iOS（up:post）
 
 2026-11-14 测。Apple 平台只提供 `up:post`（WebKit 会扣住大段 `down:scheme` 数据，见规格 §6.2），
-所以对比的是两种配置：**兜底**（测量时 `TANGO_IPC_LANES_DARWIN` 未设，当时默认关闭）和 **up:post**
+所以对比的是两种配置（历史记录：这是当时的情况；`down:scheme` 已删除，macOS 现在另可开 `down:poll`，
+见后文）：**兜底**（测量时 `TANGO_IPC_LANES_DARWIN` 未设，当时默认关闭）和 **up:post**
 （`TANGO_IPC_LANES_DARWIN=1`）。根据下面的结果 macOS 现在默认开启 `up:post`：现在重跑兜底配置要设
 `TANGO_IPC_LANES_DARWIN=0`，up:post 配置不设也一样。下行在两种配置下都走消息通道，应当持平。
 

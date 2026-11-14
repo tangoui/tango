@@ -225,7 +225,11 @@ func (s *State) faultLocked(name string, count bool) bool {
 // neither kept nor modified (ipc.BinaryConn.SendBinary).
 func (s *State) Send(packet []byte) bool { return s.send(0, false, packet) }
 
-// SendGeneration atomically validates session identity with queue admission.
+// SendGeneration is Send for the session of generation gen: false when
+// gen is not the current generation. The check is made under s.mu but the
+// lane's send (platformSend, pollSend) runs after it is released, so a new
+// Hello in between does not stop the packet; the lane's own generation
+// (down:poll's page generation, a platform lane's) is what drops it then.
 func (s *State) SendGeneration(gen uint64, packet []byte) bool { return s.send(gen, true, packet) }
 
 func (s *State) send(genID uint64, scoped bool, packet []byte) bool {

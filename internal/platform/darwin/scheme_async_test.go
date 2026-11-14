@@ -379,7 +379,8 @@ func TestAsyncWriterContentLength(t *testing.T) {
 	}
 }
 
-// The writer satisfies what internal/lane's ServeDown needs.
+// The writer streams: it is an http.Flusher with FlushError, as a
+// streaming Options.Assets response (SSE, a long download) needs.
 func TestAsyncWriterFlushInterfaces(t *testing.T) {
 	ex := &manualExec{}
 	w := newAssetWriter(context.Background(), &recSink{}, ex.post, "/")

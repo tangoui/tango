@@ -309,6 +309,14 @@ func (s *Surface) Navigate(u string) {
 // the messages sent before it (from the same goroutine) and before those
 // sent after it. While the page polls (down:poll) js runs once the page
 // has delivered the messages before it; otherwise on the main thread.
+//
+// While a page is loaded js joins that page's generation at the call, as
+// Send does: if the page starts navigating (SurfaceNavigating, Navigate)
+// before js has been handed to it, js is dropped, not run in the next
+// page. A call from the main thread has been handed over by the time Eval
+// returns, unless the page polls. Run a script meant for the new page from
+// OnLoaded. Before a page has loaded (and after Navigate until it loads)
+// js runs on the main thread in whatever page is there.
 func (s *Surface) Eval(js string) {
 	if s.closed.Load() {
 		return

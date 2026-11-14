@@ -296,7 +296,7 @@ func itemBarrierID(it downq.Item) uint64 {
 	return id
 }
 
-func TestEvalDirectWhenInactive(t *testing.T) {
+func TestEvalSequencedWhenInactive(t *testing.T) {
 	a, fb, s, ns := downApp(t, Options{}, "/", lane.DownPoll)
 	fb.Load(s.ID())
 	o := lastOpen(t, ns)

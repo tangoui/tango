@@ -232,7 +232,7 @@ defer s.Close()
   | `down` | `down:poll`（排查问题用） | `up:post` |
   | `0`、`false`、`off` | 关闭 | 关闭 |
 
-  iOS 上除了未设置、空和关闭值，其他取值都是 `up:post`。`TANGO_IPC_LANES=0` 或 `DisableFastLanes` 始终优先关闭。iOS 真机上没法从外部传环境变量，要试用就在 Go 里、创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "1")`。macOS 默认时 `tango.lanes()` 返回 `{down: "fallback", up: "up:post"}`，`TANGO_IPC_LANES_DARWIN=1` 时返回 `{down: "down:poll", up: "up:post"}`。macOS 上传 64 MiB 的吞吐约为消息通道的 2.73 倍，见 [docs/ipc-bench.md](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)。
+  iOS 上除了未设置、空和关闭值，其他取值都是 `up:post`。`TANGO_IPC_LANES=0` 或 `DisableFastLanes` 始终优先关闭。iOS 真机上没法从外部传环境变量，要试用就在 Go 里、创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "up")`（不用 `1`：同一份代码在 macOS 上 `1` 还会打开实验性的 `down:poll`）。macOS 默认时 `tango.lanes()` 返回 `{down: "fallback", up: "up:post"}`，`TANGO_IPC_LANES_DARWIN=1` 时返回 `{down: "down:poll", up: "up:post"}`。macOS 上传 64 MiB 的吞吐约为消息通道的 2.73 倍，见 [docs/ipc-bench.md](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)。
 - **CSP**：`up:post` 启动时先向 `/__tango/lane/up` POST 一个空包，收到 204 才算就绪。页面的 CSP 若不允许 `connect-src` 到资源来源（比如 `connect-src https://api.example.com`，或者不含 `'self'` 的 `default-src`），探测被拒，这个页面就不开快速通道，字节帧照常走消息通道，不会报错。想用快速通道，就在 `connect-src` 里加上 `'self'`。
 - 已知限制：
   - iframe 拿不到通道令牌。协议处理器看不到请求来自哪个 frame，安全性靠"令牌只经主框架的消息桥下发"；macOS 实测不透明来源的 frame（沙箱 `srcdoc`、`data:`）和同源 frame 发出的通道请求全部被拒（iOS 未单独测）。同源 frame 本来就能访问 `parent.tango`，那是应用自己的代码。
