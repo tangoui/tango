@@ -24,7 +24,8 @@ type surface struct {
 	closed  bool
 	shown   bool
 
-	canvas *canvas // canvas surfaces only (canvas_windows.go); no WebView then
+	canvas *canvas   // canvas surfaces only (canvas_windows.go); no WebView then
+	embed  *embedded // the WebView part of an embedded view (webembed_windows.go); hwnd is its container
 
 	controller uintptr // ICoreWebView2Controller
 	webview    uintptr // ICoreWebView2
@@ -253,9 +254,14 @@ func (s *surface) setUp(controller uintptr) {
 	add(controller, ctlAddAcceleratorKeyPressed, s.acceleratorKeyPressed)
 	s.initWebExt() // WebHost events, user agent, extra headers: before the first navigation
 
-	comCall(controller, ctlPutIsVisible, 1)
-	s.resizeWebView()
+	if s.embed != nil {
+		s.embed.webReady() // webembed_windows.go: bounds and visibility from the placement
+	} else {
+		comCall(controller, ctlPutIsVisible, 1)
+		s.resizeWebView()
+	}
 	s.attachedWebReady() // canvas_attach_windows.go: stacking and background
+	s.restackEmbedded()  // webembed_windows.go: embedded views above the new WebView window
 	if active, _, _ := procGetActiveWindow.Call(); active == s.hwnd {
 		s.focusWebView()
 	}
@@ -433,7 +439,8 @@ func requestHeaders(req uintptr) http.Header {
 // are marked handled and run from a posted WM_COMMAND, outside the WebView2
 // callback.
 func (s *surface) acceleratorKeyPressed(_, args uintptr) {
-	if s.spec == nil || len(s.spec.plan.Accels) == 0 {
+	m := s.menuOwner() // an embedded view runs its parent window's menu
+	if m.spec == nil || len(m.spec.plan.Accels) == 0 {
 		return
 	}
 	switch kind, _ := comOut[int32](args, accelGetKeyEventKind); kind {
@@ -442,12 +449,12 @@ func (s *surface) acceleratorKeyPressed(_, args uintptr) {
 		return // key up, or a character message
 	}
 	vk, _ := comOut[uint32](args, accelGetVirtualKey)
-	cmd, ok := matchAccel(s.spec.plan.Accels, uint16(vk), currentModifiers())
+	cmd, ok := matchAccel(m.spec.plan.Accels, uint16(vk), currentModifiers())
 	if !ok {
 		return
 	}
 	comCall(args, accelPutHandled, 1)
-	postMessage(s.hwnd, wmCommand, uintptr(cmd)|1<<16, 0)
+	postMessage(m.hwnd, wmCommand, uintptr(cmd)|1<<16, 0)
 }
 
 func (s *surface) resizeWebView() {
@@ -466,6 +473,9 @@ func (s *surface) focusWebView() {
 // focusContent gives keyboard focus to the content: the canvas or the
 // WebView.
 func (s *surface) focusContent() {
+	if s.focusEmbedded() { // an embedded view had focus (webembed_windows.go)
+		return
+	}
 	if s.focusAttached() { // an attached canvas had focus (canvas_attach_windows.go)
 		return
 	}
@@ -509,6 +519,7 @@ func (s *surface) message(m uint32, wp, lp uintptr) (uintptr, bool) {
 		if s.controller != 0 {
 			comCall(s.controller, ctlNotifyParentWindowPositionChanged)
 		}
+		s.movedEmbedded() // webembed_windows.go
 		if m == wmMove {
 			s.moved()
 		}
@@ -570,6 +581,7 @@ func (s *surface) destroyed() {
 		return
 	}
 	s.closed = true
+	s.destroyEmbedded() // webembed_windows.go: each reports SurfaceClosed first
 	s.pending = nil
 	s.closeWebExt()
 	if s.canvas != nil {

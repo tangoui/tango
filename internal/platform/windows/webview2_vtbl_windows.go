@@ -211,6 +211,8 @@ const (
 	ctlPutIsVisible                      = int(unsafe.Offsetof(vtICoreWebView2Controller{}.PutIsVisible) / slotSize)
 	ctlPutBounds                         = int(unsafe.Offsetof(vtICoreWebView2Controller{}.PutBounds) / slotSize)
 	ctlMoveFocus                         = int(unsafe.Offsetof(vtICoreWebView2Controller{}.MoveFocus) / slotSize)
+	ctlAddGotFocus                       = int(unsafe.Offsetof(vtICoreWebView2Controller{}.AddGotFocus) / slotSize)
+	ctlAddLostFocus                      = int(unsafe.Offsetof(vtICoreWebView2Controller{}.AddLostFocus) / slotSize)
 	ctlAddAcceleratorKeyPressed          = int(unsafe.Offsetof(vtICoreWebView2Controller{}.AddAcceleratorKeyPressed) / slotSize)
 	ctlNotifyParentWindowPositionChanged = int(unsafe.Offsetof(vtICoreWebView2Controller{}.NotifyParentWindowPositionChanged) / slotSize)
 	ctlClose                             = int(unsafe.Offsetof(vtICoreWebView2Controller{}.Close) / slotSize)
