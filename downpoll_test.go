@@ -144,12 +144,24 @@ func wantRelease(gen, id uint64) string {
 	return fmt.Sprintf("window.__tango._release(%d,%d)", gen, id)
 }
 
+// blockMain occupies the main thread until the returned function is called.
+func blockMain(a *App) (release func()) {
+	in, out := make(chan struct{}), make(chan struct{})
+	a.Post(func() { close(in); <-out })
+	<-in
+	return func() { close(out) }
+}
+
 func TestSendFallsBackBeforePoll(t *testing.T) {
 	a, fb, s, ns := downApp(t, Options{}, "/", lane.DownPoll)
 	fb.Load(s.ID())
 	o := lastOpen(t, ns)
 	n := len(ns.Evals())
-	Await(a, func() int { s.Send("a"); s.Send("b"); return 0 })
+	// Off the main thread, one round of Sends makes one Eval.
+	release := blockMain(a)
+	s.Send("a")
+	s.Send("b")
+	release()
 	sync0(a)
 	ev := ns.Evals()[n:]
 	if want := wantRecvSeq(o.Gen, `[[1,0,"a"],[2,0,"b"]]`); len(ev) != 1 || ev[0] != want {
@@ -257,11 +269,65 @@ func itemBarrierID(it downq.Item) uint64 {
 func TestEvalDirectWhenInactive(t *testing.T) {
 	a, fb, s, ns := downApp(t, Options{}, "/", lane.DownPoll)
 	fb.Load(s.ID())
-	lastOpen(t, ns)
+	o := lastOpen(t, ns)
 	n := len(ns.Evals())
 	s.Eval("plain()")
 	sync0(a)
-	if ev := ns.Evals()[n:]; !slices.Equal(ev, []string{"plain()"}) {
+	// Sequenced: the script runs at its place, then the page moves past
+	// its barrier item.
+	id := lastBarrier(s)
+	if ev, want := ns.Evals()[n:], []string{"plain()", wantRecvSeq(o.Gen, fmt.Sprintf("[[1,2,%d]]", id))}; !slices.Equal(ev, want) {
+		t.Fatalf("evals %q, want %q", ev, want)
+	}
+	// On the main thread it has run when Eval returns.
+	n = len(ns.Evals())
+	if ev := Await(a, func() []string { s.Eval("now()"); return ns.Evals()[n:] }); len(ev) == 0 || ev[0] != "now()" {
+		t.Fatalf("evals %q", ev)
+	}
+	// Before a page has loaded it runs as is.
+	s.Navigate("/next.html")
+	n = len(ns.Evals())
+	s.Eval("early()")
+	sync0(a)
+	if ev := ns.Evals()[n:]; !slices.Equal(ev, []string{"early()"}) {
+		t.Fatalf("evals %q", ev)
+	}
+}
+
+// An Eval off the main thread before the first poll, then a Send that the
+// poll carries: the page gets the script's barrier at seq 1 (by Eval, with
+// the script run there) and the message at seq 2, so js runs first even if
+// the poll response is handled before the Eval.
+func TestEvalBeforeSwitchStaysFirst(t *testing.T) {
+	a, fb, s, ns := downApp(t, Options{}, "/", lane.DownPoll)
+	fb.Load(s.ID())
+	o := lastOpen(t, ns)
+	n := len(ns.Evals())
+	release := blockMain(a)
+	s.Eval("first()")
+	ch := activate(t, a, s, o)
+	s.Send("m")
+	items := batchItems(t, awaitPoll(t, ch))
+	release()
+	sync0(a)
+	if len(items) != 1 || items[0].Seq != 2 || string(items[0].Data) != "m" {
+		t.Fatalf("batch %+v", items)
+	}
+	id := lastBarrier(s)
+	if ev, want := ns.Evals()[n:], []string{"first()", wantRecvSeq(o.Gen, fmt.Sprintf("[[1,2,%d]]", id))}; !slices.Equal(ev, want) {
+		t.Fatalf("evals %q, want %q", ev, want)
+	}
+}
+
+// A Send on the main thread reaches the page before a Navigate that
+// follows it.
+func TestMainThreadSendBeforeNavigate(t *testing.T) {
+	a, fb, s, ns := downApp(t, Options{}, "/", lane.DownPoll)
+	fb.Load(s.ID())
+	o := lastOpen(t, ns)
+	Await(a, func() int { s.Send("m"); s.Navigate("/next.html"); return 0 })
+	sync0(a)
+	if ev := ns.Evals(); !slices.Contains(ev, wantRecvSeq(o.Gen, `[[1,0,"m"]]`)) {
 		t.Fatalf("evals %q", ev)
 	}
 }
@@ -317,7 +383,9 @@ func TestFailInternalMessage(t *testing.T) {
 	o := lastOpen(t, ns)
 	ch := activate(t, a, s, o)
 	Await(a, func() int { s.Send("a"); s.Send("b"); return 0 })
-	if items := batchItems(t, awaitPoll(t, ch)); len(items) != 2 {
+	awaitPoll(t, ch) // may end after "a" alone
+	// The page polls again without acknowledging: both are written.
+	if items := batchItems(t, pollReq(context.Background(), a, s, o.Gen, o.Tok, 0)); len(items) != 2 {
 		t.Fatalf("batch %+v", items)
 	}
 	n := len(ns.Evals())
@@ -517,6 +585,13 @@ func sentMsgs(t *testing.T, evals []string) []string {
 		}
 	}
 	return out
+}
+
+// lastBarrier returns the last barrier id given out.
+func lastBarrier(s *Surface) uint64 {
+	s.down.mu.Lock()
+	defer s.down.mu.Unlock()
+	return s.down.nextID
 }
 
 func setDownVar[T any](t *testing.T, p *T, v T) {

@@ -129,29 +129,36 @@ func (s *Surface) pageGone() {
 }
 
 // sendDown is Send: any goroutine. Messages pushed here are delivered in
-// the order of the calls that pushed them.
+// the order of the calls that pushed them. On the main thread a message
+// that goes to the fallback is evaluated before sendDown returns, as Send
+// always did there (a Navigate right after it must not drop it).
 func (s *Surface) sendDown(msg string) {
 	d := &s.down
 	d.sendMu.Lock()
-	if s.loaded.Load() {
-		s.downq.Push(downq.Msg, []byte(msg))
+	if !s.loaded.Load() {
+		d.pending = append(d.pending, msg)
 		d.sendMu.Unlock()
 		return
 	}
-	d.pending = append(d.pending, msg)
+	s.downq.Push(downq.Msg, []byte(msg))
 	d.sendMu.Unlock()
+	if s.app.isMain() {
+		s.drainDown()
+	}
 }
 
-// evalDown is Eval: any goroutine. While the page polls, js becomes a
-// barrier item (run when the page reaches it, handleDown, or inline by the
-// fallback). Otherwise every item pushed before is in the outbox already
-// (downq hands everything over before Active turns false), so js joins
-// the outbox behind them; on the main thread it runs before evalDown
-// returns, as Eval always did there.
+// evalDown is Eval: any goroutine. While a page is loaded js always
+// becomes a barrier item with a sequence number (design 5.9): while the
+// page polls it runs when the page reaches it (handleDown) or when the
+// fallback takes it over; otherwise the item goes to the fallback at once
+// and the script runs at its place there, so the page cannot deliver a
+// later message before it even if polling starts meanwhile. With no page
+// loaded js joins the outbox as is. On the main thread it has run by the
+// time evalDown returns, as Eval always did there (unless the page polls).
 func (s *Surface) evalDown(js string) {
 	d := &s.down
 	d.sendMu.Lock()
-	if s.loaded.Load() && s.downq.Active() {
+	if s.loaded.Load() {
 		d.mu.Lock()
 		d.nextID++
 		id := d.nextID
@@ -163,6 +170,9 @@ func (s *Surface) evalDown(js string) {
 		d.mu.Unlock()
 		s.downq.Push(downq.Barrier, binary.BigEndian.AppendUint64(nil, id))
 		d.sendMu.Unlock()
+		if s.app.isMain() {
+			s.drainDown()
+		}
 		return
 	}
 	s.toOutbox(downBatch{script: true, js: js})
