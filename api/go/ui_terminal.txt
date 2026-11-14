@@ -1,4 +1,5 @@
 pkg github.com/tangoui/tango/ui/terminal, func New(Options) *Terminal
+pkg github.com/tangoui/tango/ui/terminal, func ResolveColor(ui/terminal/vt.Color, *Scheme, bool) ui/theme.Color
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Close() error
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Exited() (bool, error)
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Lock() *ui/terminal/vt.Terminal
@@ -16,5 +17,17 @@ pkg github.com/tangoui/tango/ui/terminal, type Options struct, Conn Conn
 pkg github.com/tangoui/tango/ui/terminal, type Options struct, OnExit func(error)
 pkg github.com/tangoui/tango/ui/terminal, type Options struct, Scrollback int
 pkg github.com/tangoui/tango/ui/terminal, type Options struct, noncomparable
+pkg github.com/tangoui/tango/ui/terminal, type Scheme struct
+pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, Background ui/theme.Color
+pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, Cursor ui/theme.Color
+pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, CursorText ui/theme.Color
+pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, Foreground ui/theme.Color
+pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, Palette [16]ui/theme.Color
+pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, Selection ui/theme.Color
 pkg github.com/tangoui/tango/ui/terminal, type Terminal struct
 pkg github.com/tangoui/tango/ui/terminal, type Terminal struct, noncomparable
+pkg github.com/tangoui/tango/ui/terminal, var SchemeDark Scheme
+pkg github.com/tangoui/tango/ui/terminal, var SchemeDracula Scheme
+pkg github.com/tangoui/tango/ui/terminal, var SchemeLight Scheme
+pkg github.com/tangoui/tango/ui/terminal, var SchemeSolarizedDark Scheme
+pkg github.com/tangoui/tango/ui/terminal, var SchemeSolarizedLight Scheme

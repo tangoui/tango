@@ -49,6 +49,7 @@ pkg github.com/tangoui/tango/ui/theme, const CompSwitch Comp = 5
 pkg github.com/tangoui/tango/ui/theme, const CompTable Comp = 10
 pkg github.com/tangoui/tango/ui/theme, const CompTabs Comp = 8
 pkg github.com/tangoui/tango/ui/theme, const CompTag Comp = 7
+pkg github.com/tangoui/tango/ui/theme, const CompTerminal Comp = 56
 pkg github.com/tangoui/tango/ui/theme, const CompTimeline Comp = 28
 pkg github.com/tangoui/tango/ui/theme, const CompTooltip Comp = 14
 pkg github.com/tangoui/tango/ui/theme, const CompTour Comp = 47
@@ -492,6 +493,7 @@ pkg github.com/tangoui/tango/ui/theme, type Components struct, Switch SwitchToke
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Table TableToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Tabs TabsToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Tag TagToken
+pkg github.com/tangoui/tango/ui/theme, type Components struct, Terminal TerminalToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Timeline TimelineToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Tooltip TooltipToken
 pkg github.com/tangoui/tango/ui/theme, type Components struct, Tour TourToken
@@ -1404,6 +1406,16 @@ pkg github.com/tangoui/tango/ui/theme, type TagToken struct, PaddingInlineSM flo
 pkg github.com/tangoui/tango/ui/theme, type TagToken struct, Radius float32
 pkg github.com/tangoui/tango/ui/theme, type TagToken struct, SolidTextColor Color
 pkg github.com/tangoui/tango/ui/theme, type TagToken struct, embedded Alias
+pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct
+pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, Background Color
+pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, ContentFontSize float32
+pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, Cursor Color `contrast:"nontext:Background"`
+pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, CursorText Color `contrast:"text:Cursor"`
+pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, Foreground Color `contrast:"text:Background"`
+pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, Palette [16]Color
+pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, ScrollbarThumb Color
+pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, Selection Color
+pkg github.com/tangoui/tango/ui/theme, type TerminalToken struct, embedded Alias
 pkg github.com/tangoui/tango/ui/theme, type Theme struct
 pkg github.com/tangoui/tango/ui/theme, type Theme struct, AddonBg Color
 pkg github.com/tangoui/tango/ui/theme, type Theme struct, AddonText Color
