@@ -116,6 +116,7 @@ pkg github.com/tangoui/tango/ui/editor, func GuessIndentation(ui/editor/buffer.S
 pkg github.com/tangoui/tango/ui/editor, func LineDecoration(ui/editor/buffer.Snapshot, int, int, *DecorationOptions) Decoration
 pkg github.com/tangoui/tango/ui/editor, func LocaleSetOf(map[string]bool) LocaleSet
 pkg github.com/tangoui/tango/ui/editor, func LookupCommand(string) (Command, bool)
+pkg github.com/tangoui/tango/ui/editor, func ModelLines(*Model, int, int, []Decoration) (func(*ui/paint.List, ZonePaint), uint64)
 pkg github.com/tangoui/tango/ui/editor, func NewModel(string, string, *ui/editor/monarch.Registry) *Model
 pkg github.com/tangoui/tango/ui/editor, func NewModelPool(*ui/editor/monarch.Registry) *ModelPool
 pkg github.com/tangoui/tango/ui/editor, func NewModelWithOptions(string, string, *ui/editor/monarch.Registry, ModelOptions) *Model

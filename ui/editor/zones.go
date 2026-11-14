@@ -99,6 +99,8 @@ type ZonePaint struct {
 	// are scrolled above the top).
 	FirstRow int
 	Theme    *theme.Theme
+
+	view *ViewW // the View painting the zone (ModelLines)
 }
 
 // ZoneArea is the part of a zone a pointer event is in.
@@ -345,7 +347,7 @@ func (w *ViewW) paintZones(l *paint.List, lines []lineView, lineY func(int) floa
 		}
 		l.Clip(clip, geom.Radii{})
 		at := len(l.Ops)
-		fn(l, ZonePaint{Rect: r, OriginX: origin, RowH: lh, FirstRow: first, Theme: th})
+		fn(l, ZonePaint{Rect: r, OriginX: origin, RowH: lh, FirstRow: first, Theme: th, view: w})
 		if z.Version == 0 {
 			// Relative to content x 0 and the zone's top: a drawing that
 			// moves with the text is unchanged by scrolling (the scroll

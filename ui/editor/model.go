@@ -127,6 +127,10 @@ type Model struct {
 	// trackers are the views with hidden areas or view zones to move
 	// through each change (Model.tracked).
 	trackers []*State
+	// linesKeyID is the Highlighter token window of ModelLines drawings of
+	// this Model (modellines.go), allocated on first use.
+	linesKeyID highlight.ViewKey
+	linesKeyOK bool
 
 	subs listeners[func(ModelChange)]
 
