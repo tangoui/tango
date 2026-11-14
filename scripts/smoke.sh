@@ -498,18 +498,18 @@ run_ios_selftest() {
 	local launcher=$!
 	if wait_for_log "$log" 'selftest: ' "$wait"; then
 		sleep 1
-		local line sha want bytes wantBytes failed stopWait
+		local line sha want bytes wantBytes bad stopWait
 		line="$(grep -m 1 -oE 'selftest: \{.*\}' "$log")"
 		sha="$(grep -oE '"indexSha":"[0-9a-f]+"' <<<"$line" | cut -d'"' -f4)"
 		bytes="$(grep -oE '"indexBytes":[0-9]+' <<<"$line" | cut -d: -f2)"
 		want="$(shasum -a 256 examples/duplex-mobile/web/index.html | cut -d' ' -f1)"
 		wantBytes="$(wc -c <examples/duplex-mobile/web/index.html | tr -d ' ')"
-		failed="$(grep -oE '"failed":\[[^]]*\]' <<<"$line")"
+		bad="$(grep -oE '"failed":\[[^]]*\]' <<<"$line")"
 		stopWait="$(grep -oE '"wait":[0-9]+' <<<"$line" | cut -d: -f2)"
 		if grep -q 'NSInternalInconsistencyException' "$log"; then
 			record ios-selftest FAIL "WebKit exception, see $log"
 		elif ! grep -q '^selftest: {"ok":true,' <<<"$line"; then
-			record ios-selftest FAIL "checks failed: ${failed:-?}"
+			record ios-selftest FAIL "checks failed: ${bad:-?}"
 		elif [[ "$sha" != "$want" || "$bytes" != "$wantBytes" ]]; then
 			record ios-selftest FAIL "index body: $bytes bytes sha ${sha:-?}, want $wantBytes bytes sha $want"
 		else
