@@ -139,41 +139,21 @@ func TestFaultParse(t *testing.T) {
 	}
 }
 
-// TANGO_IPC_LANE_FAULT=down:poll:N fails down:poll at its N+1th data
-// packet: Send refuses it (the frames go as messages) and the lane is
-// failed for the generation.
-func TestDownPollFault(t *testing.T) {
+// TANGO_IPC_LANE_FAULT=down:poll:N is internal/downq's (it cuts a poll
+// response off): lane.State keeps handing every packet to pollSend.
+func TestDownPollFaultIsDownqs(t *testing.T) {
 	t.Setenv("TANGO_IPC_LANE_FAULT", "down:poll:2")
 	poll := &recorder{}
 	s := New(nil, poll.send)
 	h := parseHello(t, s.Hello([]string{DownPoll, UpPost}, true))
 	s.Control(ctl("ready", DownPoll, h.Gen))
 	data := mkPacket([]byte("x"))
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 5; i++ {
 		if !s.Send(data) {
-			t.Fatalf("packet %d refused before the fault", i+1)
+			t.Fatalf("packet %d refused: lane.State injected a down:poll fault", i+1)
 		}
 	}
-	if s.Send(data) || poll.n() != 2 {
-		t.Fatal("third data packet not refused")
-	}
-	if s.MinSize() != -1 || s.Send([]byte{0, 0}) {
-		t.Fatal("faulted down:poll not marked failed")
-	}
-	// A packet pollSend refused does not count towards the fault.
-	h = parseHello(t, s.Hello([]string{DownPoll}, true))
-	s.Control(ctl("ready", DownPoll, h.Gen))
-	poll.setFail(true)
-	if s.Send(data) {
-		t.Fatal("refused packet reported taken")
-	}
-	poll.setFail(false)
-	for i := 0; i < 2; i++ {
-		if !s.Send(data) {
-			t.Fatalf("next generation: packet %d refused before the fault", i+1)
-		}
-	}
-	if s.Send(data) {
-		t.Fatal("next generation: third data packet not refused")
+	if poll.n() != 5 || s.MinSize() != 0 {
+		t.Fatalf("pollSend got %d packets, MinSize %d", poll.n(), s.MinSize())
 	}
 }

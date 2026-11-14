@@ -78,6 +78,13 @@ type State struct {
 	wake        chan struct{}
 	done        chan struct{} // closed when the generation ends or fails
 	dog         *time.Timer   // the armed watchdog, nil when off
+
+	// Fault injection (fault.go, development builds only): cut the
+	// response carrying the generation's faultN+1th byte packet.
+	faultOn      bool
+	faultN       int
+	faultPackets int  // byte packets written in this generation
+	faulted      bool // this generation's cut was made
 }
 
 // New returns the queue of a page. fallback receives the items that do not
@@ -94,6 +101,7 @@ func New(fallback func(items []Item)) *State {
 		wake:     make(chan struct{}),
 		done:     make(chan struct{}),
 	}
+	s.faultN, s.faultOn = loadFault()
 	close(s.done)
 	return s
 }
@@ -114,6 +122,7 @@ func (s *State) Start(enabled bool) (gen uint64, tok string) {
 	s.gen++
 	s.seq = 0
 	s.ended, s.active, s.failed, s.watchdogged = false, false, false, false
+	s.faultPackets, s.faulted = 0, false
 	s.done = make(chan struct{})
 	s.tok = ""
 	if enabled {
@@ -274,6 +283,27 @@ func (s *State) takeLocked() (first uint64, items []Item) {
 		return s.seq + 1, nil
 	}
 	return items[0].Seq, items
+}
+
+// faultCutLocked returns the index of the item of the batch items at
+// which an injected fault cuts the response off, or -1 (always -1 unless
+// fault injection is on; fault.go). s.mu held.
+func (s *State) faultCutLocked(items []Item) int {
+	if !s.faultOn || s.faulted {
+		return -1
+	}
+	for i, it := range items {
+		if it.Kind != Packet {
+			continue
+		}
+		if s.faultPackets >= s.faultN {
+			s.faulted = true
+			noteFault(s.gen, it.Seq)
+			return i
+		}
+		s.faultPackets++
+	}
+	return -1
 }
 
 // armDogLocked starts the watchdog unless it runs. s.mu held.

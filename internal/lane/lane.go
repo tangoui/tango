@@ -98,7 +98,9 @@ type State struct {
 // takes nothing). TANGO_IPC_LANE_FAULT is read here.
 func New(platformSend, pollSend func([]byte) bool) *State {
 	s := &State{platformSend: platformSend, pollSend: pollSend}
-	if name, n, ok := loadFault(); ok {
+	// down:poll's faults are injected where its responses are written
+	// (internal/downq's fault.go), so that they exercise the real recovery.
+	if name, n, ok := loadFault(); ok && name != DownPoll {
 		s.faultLane, s.faultN = name, n
 	}
 	return s

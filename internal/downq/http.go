@@ -83,8 +83,13 @@ func (s *State) Serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		first, items := s.takeLocked()
+		cut := s.faultCutLocked(items)
 		wake := s.wake
 		s.mu.Unlock()
+		if cut >= 0 {
+			writeCutBatch(w, first, items, cut)
+			return
+		}
 		if len(items) > 0 || expired {
 			writeBatch(w, first, items)
 			return
@@ -127,6 +132,25 @@ func writeBatch(w http.ResponseWriter, first uint64, items []Item) {
 	h.Set("Content-Length", strconv.Itoa(len(body)))
 	w.WriteHeader(http.StatusOK)
 	w.Write(body) // a failed write leaves the items unacknowledged
+}
+
+// writeCutBatch is writeBatch cut off in the middle of items[cut] (fault
+// injection, fault.go): the head announces the whole batch, the body ends
+// early. The items stay unacknowledged.
+func writeCutBatch(w http.ResponseWriter, first uint64, items []Item, cut int) {
+	body := EncodeBatch(first, items)
+	n := batchHeader
+	for _, it := range items[:cut] {
+		n += itemHeader + len(it.Data)
+	}
+	n += itemHeader + len(items[cut].Data)/2
+	h := w.Header()
+	h.Set("Content-Type", "application/octet-stream")
+	h.Set("Cache-Control", "no-store")
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Content-Length", strconv.Itoa(len(body)))
+	w.WriteHeader(http.StatusOK)
+	w.Write(body[:n])
 }
 
 // EncodeBatch returns the batch of items whose first item has sequence

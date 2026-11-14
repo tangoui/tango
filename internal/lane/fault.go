@@ -17,9 +17,11 @@ import (
 // such as the up:post start probe, are not counted, though a faulted lane
 // refuses them too; a packet the lane's sender refused is not counted
 // either): later downstream packets are refused (Send returns false and the
-// lane is marked failed, so for down:poll byte frames go as messages), later
-// upstream packets are dropped (UpAllowed returns false). Platform plans use
-// it to test a lane breaking mid-stream; down:poll:N works the same way.
+// lane is marked failed), later upstream packets are dropped (UpAllowed
+// returns false). Platform plans use it to test a lane breaking mid-stream.
+// down:poll:N is parsed here but not acted on: internal/downq injects it
+// (its fault.go cuts a poll response off), so that the page sees a real
+// failure and the core resends what it had not acknowledged.
 
 func loadFault() (string, int, bool) {
 	v := os.Getenv("TANGO_IPC_LANE_FAULT")
