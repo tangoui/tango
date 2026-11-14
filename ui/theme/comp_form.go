@@ -23,6 +23,10 @@ type FormToken struct {
 	MessageFontSize           float32 // help, error and Extra lines (zero: the text default)
 	MessageLineHeight         float32 // zero: the text default
 	ExtraMarginTop            float32
+	// Pro v3 form/layouts/LoginForm/style.js (2026-11-15).
+	LoginLogoGap                 float32
+	LoginTitleFontWeight         int
+	LoginDescriptionMarginBottom float32
 }
 
 func deriveForm(t *Theme) FormToken {
@@ -36,6 +40,7 @@ func deriveForm(t *Theme) FormToken {
 		ItemMarginBottom: 24, InlineItemMarginBottom: 24,
 		ErrorColor: t.Error.Base, WarningColor: t.Warning.Base, HelpColor: t.TextTertiary,
 		ExtraMarginTop: 2,
+		LoginLogoGap:   16, LoginTitleFontWeight: 600, LoginDescriptionMarginBottom: 40,
 	}
 	switch t.Flavor {
 	case Element:

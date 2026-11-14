@@ -70,12 +70,9 @@ type pro3LoginState struct {
 	mobile, captcha    string
 	remember           bool
 	remInit            bool
-	codeUntil          time.Time
-	counting           bool // countdown announced as started, not yet as ended
-	sending            bool
+	code               proCaptcha // the "get code" button (shared with ProField captcha)
 	submitting         bool
 	err                error
-	codeRes            pro3Async[error]
 	subRes             pro3Async[error]
 }
 
@@ -208,7 +205,7 @@ func (w *LoginFormW) Countdown() int {
 	if w.st == nil {
 		return 0
 	}
-	return pro3Remain(w.st.codeUntil, w.c.Now())
+	return w.st.code.remain(w.c.Now())
 }
 
 // Submit validates and submits the form.
@@ -250,19 +247,12 @@ func (w *LoginFormW) Show() *LoginFormW {
 
 func (w *LoginFormW) poll() {
 	st := w.st
-	for {
-		err, ok := st.codeRes.poll()
-		if !ok {
-			break
-		}
-		st.sending = false
+	if got, err := st.code.poll(w.c, w.interval); got {
 		if err != nil {
 			st.err = err
 		} else {
-			st.codeUntil = w.c.Now().Add(time.Duration(w.interval) * time.Second)
 			w.sentNow = true
 		}
-		w.c.invalid = true
 	}
 	for {
 		err, ok := st.subRes.poll()
@@ -323,12 +313,6 @@ func (w *LoginFormW) build() {
 		}
 		c.invalid = true
 	}
-	if n := pro3Remain(st.codeUntil, c.Now()); n > 0 {
-		// Wake at the next whole second of the countdown.
-		left := st.codeUntil.Sub(c.Now())
-		step := left - time.Duration(n-1)*time.Second
-		c.WakeAt(c.Now().Add(step))
-	}
 }
 
 // header is the logo, title and subtitle.
@@ -348,15 +332,15 @@ func (w *LoginFormW) header() {
 					Row(c, w.logo, layout.H(44), layout.Middle())
 				}
 				if w.title != "" {
-					Text(c, w.title).Size(33).Weight(text.Medium).Color(th.TextHeading).NoWrap()
+					Text(c, w.title).Size(33).Weight(text.Weight(th.Components.Form.LoginTitleFontWeight)).Color(th.TextHeading).NoWrap()
 				}
-			}, layout.Gap(12), layout.Middle(), layout.Center())
+			}, layout.Gap(th.Components.Form.LoginLogoGap), layout.Middle(), layout.Center())
 		}
 		if w.subTitle != "" {
 			Text(c, w.subTitle).Color(th.TextSecondary).Align(AlignCenter).
 				Layout(layout.Margin(geom.Insets{Top: 12}))
 		}
-	}, layout.AlignItems(layout.AlignCenter), layout.Margin(geom.Insets{Bottom: 32}))
+	}, layout.AlignItems(layout.AlignCenter), layout.Margin(geom.Insets{Bottom: th.Components.Form.LoginDescriptionMarginBottom}))
 }
 
 // fields builds the inputs of the active tab, the options row and the
@@ -449,27 +433,11 @@ func (w *LoginFormW) fields() {
 	}
 }
 
-// codeButton is the "get code" button with its countdown.
+// codeButton is the "get code" button with its countdown; the mobile
+// number is validated before a code is sent (Pro ProFormCaptcha phoneName).
 func (w *LoginFormW) codeButton(f *FormW, rules []Rule, size ControlSize) {
 	c, st := w.c, w.st
-	loc := c.Locale()
-	n := pro3Remain(st.codeUntil, c.Now())
-	label := loc.LoginForm.GetCode
-	if n > 0 {
-		label = locFmt(loc.LoginForm.ResendFmt, n)
-	}
-	b := Button(c, label).Size(size).Disabled(n > 0).Loading(st.sending).Layout(layout.MinW(120))
-	// The countdown is announced when it starts and when it ends, not
-	// every second (the label still counts down for sighted users).
-	switch {
-	case n > 0 && !st.counting:
-		st.counting = true
-		c.Announce(locFmt(loc.LoginForm.CodeSentFmt, n), a11y.LivePolite)
-	case n == 0 && st.counting:
-		st.counting = false
-		c.Announce(loc.LoginForm.CodeReady, a11y.LivePolite)
-	}
-	if !b.Clicked() {
+	if !st.code.button(c, w.interval, size, nil, nil) {
 		return
 	}
 	if msg := pro3Check(rules, st.mobile); msg != "" {
@@ -478,16 +446,14 @@ func (w *LoginFormW) codeButton(f *FormW, rules []Rule, size ControlSize) {
 		return
 	}
 	if w.onSendCode == nil {
-		st.codeUntil = c.Now().Add(time.Duration(w.interval) * time.Second)
+		st.code.start(c, w.interval)
 		w.sentNow = true
-		c.invalid = true
 		return
 	}
-	st.sending, st.err = true, nil
-	ch, inv := st.codeRes.chInit(), c.Invalidator()
-	w.onSendCode(st.mobile, func(err error) { ch <- err; inv() })
+	st.err = nil
+	mobile := st.mobile
+	st.code.send(c, func(done func(error)) { w.onSendCode(mobile, done) })
 	w.poll()
-	c.invalid = true
 }
 
 // showPage wraps the form in a full page with a background.

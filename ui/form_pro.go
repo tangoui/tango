@@ -321,11 +321,11 @@ func (p *ProFormW) content(vals ProValues) {
 				if rst == "" {
 					rst = loc.Reset
 				}
-				if Button(c, sub).Primary().Loading(p.Submitting()).Clicked() {
-					p.Submit()
-				}
 				if !p.noReset && Button(c, rst).Disabled(p.Submitting()).Clicked() {
 					p.Reset()
+				}
+				if Button(c, sub).Primary().Loading(p.Submitting()).Clicked() {
+					p.Submit()
 				}
 			}, layout.Gap(8), layout.Middle())
 		})

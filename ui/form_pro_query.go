@@ -103,11 +103,11 @@ func queryPerRow(w float32) int {
 	switch {
 	case w <= 0:
 		return 3
-	case w < 560:
+	case w < 576:
 		return 1
-	case w < 900:
+	case w < 768:
 		return 2
-	case w >= 1500:
+	case w >= 1600:
 		return 4
 	}
 	return 3
@@ -141,7 +141,7 @@ func (q *QueryFilterW) Show() *QueryFilterW {
 	shown := items
 	collapsible := len(items) > per-1
 	if !st.open && collapsible {
-		shown = items[:max(0, per-1)]
+		shown = items[:max(1, per-1)]
 	}
 	rows := (len(shown) + per) / per
 	gap := float32(24)

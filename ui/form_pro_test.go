@@ -487,11 +487,11 @@ func TestModalFormClosesAfterSubmit(t *testing.T) {
 	if open || finished != 1 {
 		t.Fatalf("modal form: open %v finished %d", open, finished)
 	}
-	// Reopening starts with fresh values.
+	// Pro v3 preserves values unless destroyOnHidden is enabled.
 	d.ClickLabel("打开")
 	d.Settle()
-	if vals.String("name") != "" {
-		t.Fatalf("values kept: %v", vals)
+	if vals.String("name") != "x" {
+		t.Fatalf("values not kept: %v", vals)
 	}
 }
 

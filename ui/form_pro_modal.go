@@ -26,9 +26,11 @@ type ModalFormW struct {
 }
 
 type modalFormState struct {
-	busy    bool
-	submit  bool
-	wasOpen bool
+	busy        bool
+	submit      bool
+	wasOpen     bool
+	initialized bool
+	initial     ProValues
 }
 
 // ModalForm starts a dialog form bound to open; chain options, then Show.
@@ -36,7 +38,7 @@ type modalFormState struct {
 // ConfigProvider.Defaults("ModalForm" / "DrawerForm", ...) keys: "width",
 // "columns" (number).
 func ModalForm(c *Context, open *bool, title string, fields []ProField) *ModalFormW {
-	return (&ModalFormW{c: c, open: open, title: title, fields: fields, cols: 1}).defaults("ModalForm")
+	return (&ModalFormW{c: c, open: open, title: title, fields: fields, cols: 1, width: 800, keep: true}).defaults("ModalForm")
 }
 
 func (m *ModalFormW) defaults(comp string) *ModalFormW {
@@ -52,7 +54,7 @@ func (m *ModalFormW) defaults(comp string) *ModalFormW {
 // DrawerForm is ModalForm in a right-side drawer (Ant Design Pro
 // DrawerForm).
 func DrawerForm(c *Context, open *bool, title string, fields []ProField) *ModalFormW {
-	return (&ModalFormW{c: c, open: open, title: title, fields: fields, cols: 1, drawer: true}).defaults("DrawerForm")
+	return (&ModalFormW{c: c, open: open, title: title, fields: fields, cols: 1, drawer: true, width: 800, keep: true}).defaults("DrawerForm")
 }
 
 // Values binds the values.
@@ -71,8 +73,12 @@ func (m *ModalFormW) Width(px float32) *ModalFormW { m.width = px; return m }
 // Columns lays the fields out in n grid columns.
 func (m *ModalFormW) Columns(n int) *ModalFormW { m.cols = max(1, n); return m }
 
-// KeepValues keeps the values after closing (default: reset on open).
+// KeepValues keeps the values after closing (the default, as in Pro v3).
 func (m *ModalFormW) KeepValues() *ModalFormW { m.keep = true; return m }
+
+// DestroyOnHidden resets the field values when the form is opened again
+// (Pro modalProps/drawerProps.destroyOnHidden). By default values survive.
+func (m *ModalFormW) DestroyOnHidden(on bool) *ModalFormW { m.keep = !on; return m }
 
 // Readonly shows the values read-only (a details dialog): the drawer
 // drops its OK button and the modal's OK just closes it.
@@ -89,8 +95,16 @@ func (m *ModalFormW) Show() *ModalFormW {
 	if m.vals == nil {
 		m.vals = State[ProValues](c, hashID(c.scope, "modal-form-vals", m.title), func() ProValues { return ProValues{} })
 	}
-	if *m.open && !st.wasOpen && !m.keep {
-		*m.vals = ProValues{}
+	if *m.open && !st.initialized {
+		st.initialized = true
+		if *m.vals == nil {
+			*m.vals = ProValues{}
+		}
+		proInitial(m.fields, *m.vals)
+		st.initial = (*m.vals).Clone()
+	}
+	if !*m.open && st.wasOpen && !m.keep {
+		*m.vals = st.initial.Clone()
 	}
 	st.wasOpen = *m.open
 	var pf *ProFormW

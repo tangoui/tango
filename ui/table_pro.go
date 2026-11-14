@@ -27,6 +27,10 @@ type ProEnum struct {
 	Status, Color string
 	// Children nests options for the cascader and treeSelect value types.
 	Children []ProEnum
+	// Disabled marks an option that can't be picked (Pro valueEnum
+	// disabled, es/field/components/Select/index.js
+	// proFieldParsingValueEnumToArray).
+	Disabled bool
 }
 
 // Value types of ProColumn.ValueType.

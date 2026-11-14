@@ -204,6 +204,12 @@ type ProField struct {
 	// CaptchaSeconds (default 60).
 	OnCaptcha      func(vals ProValues, done func(error))
 	CaptchaSeconds int
+	// Captcha configures the phone key, button text and timing callback.
+	Captcha *ProFieldCaptcha
+	// Segmented configures the ValueSegmented editor (custom item content,
+	// direction, size, icons, etc.) before it is built.
+	Segmented     func(w *SegmentedW)
+	beforeCaptcha func() (bool, bool) // enclosing form's phone validation
 	// List gives the row fields of a formList field.
 	List *ProFieldList
 }
@@ -220,7 +226,7 @@ func proRangeEnd(f float64) string {
 func proEnumOptions(es []ProEnum) []Option {
 	out := make([]Option, len(es))
 	for i, e := range es {
-		out[i] = Option{Label: e.Label, Value: e.Value}
+		out[i] = Option{Label: e.Label, Value: e.Value, Disabled: e.Disabled}
 	}
 	return out
 }
@@ -332,7 +338,22 @@ func proFieldItemAs(c *Context, f *FormW, fd *ProField, vals ProValues, name str
 	if fd.Disable != nil {
 		it.Disabled(fd.Disable(vals))
 	}
-	it.Body(func() { proFieldControl(c, fd, vals) })
+	it.Body(func() {
+		view := *fd
+		if fd.Captcha != nil && fd.Captcha.PhoneKey != "" {
+			view.beforeCaptcha = func() (bool, bool) {
+				key := fd.Captcha.PhoneKey
+				for _, phone := range f.items {
+					if phone.key() == key {
+						ok := f.ValidateFields(key)
+						return ok, phone.pending
+					}
+				}
+				return false, false
+			}
+		}
+		proFieldControl(c, &view, vals)
+	})
 }
 
 // proDropStale clears a choice value the refreshed options no longer offer.
@@ -476,7 +497,14 @@ func proFieldControl(c *Context, fd *ProField, vals ProValues) {
 		}, layout.MinH(c.Theme.ControlHeight), layout.Middle())
 	case ValueSegmented:
 		s := vals.String(k)
-		if Segmented(c, &s, proEnumOptions(proOptions(fd, vals))).Changed() {
+		w := Segmented(c, &s, proEnumOptions(proOptions(fd, vals)))
+		if fd.Label != "" {
+			w.A11yLabel(fd.Label)
+		}
+		if fd.Segmented != nil {
+			fd.Segmented(w)
+		}
+		if w.Changed() {
 			vals[k] = s
 		}
 	case ValueSwitch:
