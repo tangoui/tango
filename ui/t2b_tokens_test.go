@@ -72,7 +72,7 @@ func TestT2bTokenOverridesAreScoped(t *testing.T) {
 			{"Progress", theme.Components{Progress: theme.ProgressToken{DefaultColor: t2bMark}}, k.Progress.DefaultColor,
 				func(c *Context) { Progress(c, 40) }},
 			{"Alert", theme.Components{Alert: theme.AlertToken{InfoIconColor: t2bMark}}, k.Alert.InfoIconColor,
-				func(c *Context) { Alert(c, "info", "note").Show() }},
+				func(c *Context) { Alert(c, "info", "note").ShowIcon(true).Show() }},
 			{"Statistic", theme.Components{Statistic: theme.StatisticToken{ContentColor: t2bMark}}, k.Statistic.ContentColor,
 				func(c *Context) { Statistic(c, "Users", 42, 0) }},
 			{"Divider", theme.Components{Divider: theme.DividerToken{Color: t2bMark}}, k.Divider.Color,
