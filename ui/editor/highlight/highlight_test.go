@@ -260,7 +260,14 @@ func TestHighlightBudget(t *testing.T) {
 	if ready {
 		t.Fatal("2ms budget reported all 20k lines ready")
 	}
-	if limit := budget + 5*time.Millisecond*raceFactor; d > limit {
+	limit := budget + 5*time.Millisecond*raceFactor
+	// Shared CI runners (TANGO_SMOKE_TIMEOUT_SCALE, which CI sets) get
+	// descheduled for tens of milliseconds; an unbudgeted pass over 20k
+	// lines still misses this gate by far more.
+	if f, err := strconv.ParseFloat(os.Getenv("TANGO_SMOKE_TIMEOUT_SCALE"), 64); err == nil && f > 1 {
+		limit = time.Duration(float64(limit) * 4 * f)
+	}
+	if d > limit {
 		t.Fatalf("Highlight took %v, budget %v (limit %v)", d, budget, limit)
 	}
 	if _, final := h.Tokens(s, s.LineCount()-1, nil); final {

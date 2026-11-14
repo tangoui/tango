@@ -125,9 +125,10 @@ func main() {
 	fmt.Printf("PASS: all %d checks\n", len(want))
 }
 
-// waitStep waits for a step with the given prefix, skipping others.
+// waitStep waits for a step with the given prefix, skipping others, for at
+// most d stretched by TANGO_SMOKE_TIMEOUT_SCALE (shared CI runners).
 func waitStep(steps <-chan string, prefix string, d time.Duration) (string, bool) {
-	deadline := time.After(d)
+	deadline := time.After(scaled(d))
 	for {
 		select {
 		case s := <-steps:
@@ -142,7 +143,7 @@ func waitStep(steps <-chan string, prefix string, d time.Duration) (string, bool
 
 func script(app *tango.App, sp **tango.Surface, steps chan string) {
 	s := *sp
-	if _, ok := waitStep(steps, "msg:ready:", scaled(2*time.Second)); !ok {
+	if _, ok := waitStep(steps, "msg:ready:", 2*time.Second); !ok {
 		fail("normal-created", "page never became ready")
 		return
 	}
