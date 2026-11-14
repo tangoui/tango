@@ -778,3 +778,30 @@ func TestViewClearThenSelectAll(t *testing.T) {
 		t.Fatalf("copied %q after Cmd+K, Cmd+A, want \"$\"", got)
 	}
 }
+
+// TestViewEmptyPasteKeepsSelection: pasting an empty clipboard sends
+// nothing, keeps the selection and does not scroll to the bottom.
+func TestViewEmptyPasteKeepsSelection(t *testing.T) {
+	g := newViewRig(t, 400, 200, nil)
+	g.fill(40)
+	g.output("word", func(v *vt.Terminal) bool {
+		_, rows := v.Screen().Size()
+		return rowText(v, rows-1) == "word"
+	})
+	g.focus()
+	_, lh := cellSize()
+	g.d.Scroll(g.vw.Box().Rect().Center(), -2*lh)
+	g.d.Key(input.KeyA, copyMods())
+	g.d.SetClipboard("")
+	g.d.Key(input.KeyV, copyMods())
+	if got := viewOffset(g); got != 2 {
+		t.Errorf("offset %d after an empty paste, want 2", got)
+	}
+	g.d.Key(input.KeyC, copyMods())
+	if got := g.d.Clipboard(); !strings.HasSuffix(got, "word") {
+		t.Errorf("selection lost: copied %q", got)
+	}
+	if got := g.input(); got != "" {
+		t.Errorf("empty paste sent %q", got)
+	}
+}

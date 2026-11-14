@@ -39,9 +39,14 @@ const (
 	// maxLockBytes bounds how much output the read loop feeds the
 	// emulator in one hold of the lock, so the UI never waits long.
 	maxLockBytes = 256 << 10
-	// sendQueueBytes bounds the bytes queued for the program (replies
-	// and Send) while it is not reading its input.
+	// sendQueueBytes bounds the input (Send) queued for the program
+	// while it is not reading it.
 	sendQueueBytes = 8 << 20
+	// replyQueueBytes bounds the replies queued for the program. Replies
+	// have their own allowance, so queued input never stalls the read
+	// loop: a program blocked writing output (echoing a paste) while its
+	// input queue is full must still have its output read.
+	replyQueueBytes = 64 << 10
 )
 
 // Size of the emulator before [Terminal.Start].
@@ -70,12 +75,16 @@ type Terminal struct {
 
 	// The write queue (see Send). qmu guards it; wake tells the writer
 	// that the queue is not empty, space tells a waiting reply that the
-	// writer took something. qclosed: the writer is gone (the read loop
-	// ended or Close), queued and new bytes are dropped.
+	// writer took a reply. qclosed: the writer is gone (the read loop
+	// ended or Close), queued and new bytes are dropped. Input and
+	// replies share the FIFO but are counted against separate limits:
+	// qbytes/qlimit for input, rbytes/rlimit for replies.
 	qmu       sync.Mutex
-	queue     [][]byte
+	queue     []queued
 	qbytes    int
 	qlimit    int // sendQueueBytes; tests lower it
+	rbytes    int
+	rlimit    int // replyQueueBytes; tests lower it
 	qclosed   bool
 	readEnded bool
 	sendDrops int // Sends dropped because the queue was full
@@ -104,6 +113,7 @@ func New(o Options) *Terminal {
 		onExit: o.OnExit,
 		done:   make(chan struct{}),
 		qlimit: sendQueueBytes,
+		rlimit: replyQueueBytes,
 		wake:   make(chan struct{}, 1),
 		space:  make(chan struct{}, 1),
 	}
@@ -211,12 +221,19 @@ func (t *Terminal) isClosing() bool {
 	}
 }
 
+// queued is an entry of the write queue.
+type queued struct {
+	b     []byte
+	reply bool // counted in rbytes, else in qbytes
+}
+
 // feed writes b to the emulator, holding mu for at most maxLockBytes at
 // a time, then queues the replies it produced for the writer. A reply
-// that does not fit in the queue makes the read loop wait for space,
-// never with mu held, so a program that floods queries without reading
-// its input is slowed down rather than growing the queue. After Close,
-// replies are dropped instead.
+// that does not fit in the reply allowance makes the read loop wait for
+// the writer to take queued replies, never with mu held, so a program
+// that floods queries without reading its input is slowed down rather
+// than growing the queue. Queued input does not count against the
+// allowance. After Close, replies are dropped instead.
 func (t *Terminal) feed(b []byte) {
 	for len(b) > 0 {
 		n := min(len(b), maxLockBytes)
@@ -242,8 +259,8 @@ func signal(ch chan struct{}) {
 	}
 }
 
-// queueReply queues reply r, waiting while the queue is full. It reports
-// false once the writer is gone.
+// queueReply queues reply r, waiting while the reply allowance is used
+// up. It reports false once the writer is gone.
 func (t *Terminal) queueReply(r []byte) bool {
 	for {
 		t.qmu.Lock()
@@ -251,9 +268,9 @@ func (t *Terminal) queueReply(r []byte) bool {
 			t.qmu.Unlock()
 			return false
 		}
-		if t.qbytes == 0 || t.qbytes+len(r) <= t.qlimit {
-			t.queue = append(t.queue, r)
-			t.qbytes += len(r)
+		if t.rbytes == 0 || t.rbytes+len(r) <= t.rlimit {
+			t.queue = append(t.queue, queued{b: r, reply: true})
+			t.rbytes += len(r)
 			t.qmu.Unlock()
 			signal(t.wake)
 			return true
@@ -289,18 +306,24 @@ func (t *Terminal) writeLoop() {
 				return
 			}
 		}
-		b := t.queue[0]
-		t.queue[0] = nil
+		e := t.queue[0]
+		t.queue[0] = queued{}
 		t.queue = t.queue[1:]
-		t.qbytes -= len(b)
+		if e.reply {
+			t.rbytes -= len(e.b)
+		} else {
+			t.qbytes -= len(e.b)
+		}
 		t.qmu.Unlock()
-		signal(t.space)
+		if e.reply {
+			signal(t.space)
+		}
 		select {
 		case <-t.done:
 			return
 		default:
 		}
-		t.conn.Write(b)
+		t.conn.Write(e.b)
 	}
 }
 
@@ -316,10 +339,11 @@ func (t *Terminal) Unlock() { t.mu.Unlock() }
 
 // Send queues b, encoded input such as keys or a paste, for the
 // program and returns at once; the writer goroutine writes it after the
-// replies and input queued before it. b is copied. The queue holds at
-// most 8 MB: while the program is not reading its input, a Send that
+// replies and input queued before it. b is copied. At most 8 MB of input
+// is queued: while the program is not reading its input, a Send that
 // does not fit is dropped whole (never split, so no escape sequence is
-// cut). Input sent before Start waits for it; input sent after Close, or
+// cut). Replies have an allowance of their own, so queued input never
+// keeps the program's output from being read. Input sent before Start waits for it; input sent after Close, or
 // after the program's output has ended, is dropped.
 func (t *Terminal) Send(b []byte) {
 	if len(b) == 0 || t.isClosing() {
@@ -333,7 +357,7 @@ func (t *Terminal) Send(b []byte) {
 		t.qmu.Unlock()
 		return
 	}
-	t.queue = append(t.queue, append([]byte(nil), b...))
+	t.queue = append(t.queue, queued{b: append([]byte(nil), b...)})
 	t.qbytes += len(b)
 	t.qmu.Unlock()
 	signal(t.wake)
@@ -379,7 +403,7 @@ func (t *Terminal) Close() error {
 		t.closeErr = t.conn.Close()
 		t.wg.Wait()
 		t.qmu.Lock()
-		t.qclosed, t.queue, t.qbytes = true, nil, 0
+		t.qclosed, t.queue, t.qbytes, t.rbytes = true, nil, 0, 0
 		t.qmu.Unlock()
 	})
 	return t.closeErr

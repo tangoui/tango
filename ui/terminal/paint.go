@@ -149,6 +149,9 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	exited, _ := w.t.Exited()
 	focused := w.ia.Focused && c.WindowFocused()
 
+	if !w.done {
+		w.readPaste() // the clipboard is read outside the emulator lock
+	}
 	v := w.t.Lock()
 	s := v.Screen()
 	n := v.TakeScroll()
