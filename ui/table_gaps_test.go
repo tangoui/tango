@@ -70,7 +70,9 @@ func TestTableWrapRowsGrow(t *testing.T) {
 		t.Fatal("row 0 missing")
 	}
 	tall := mustFind(t, d, "row:1")
-	if tall.H < short.H*2 {
+	// At least one more line (how many depends on the CJK font: Linux CI
+	// has none and wraps the fallback glyphs into two lines).
+	if tall.H < short.H*1.5 {
 		t.Fatalf("wrapped row not taller: %v vs %v", tall.H, short.H)
 	}
 	if r2 := mustFind(t, d, "row:2"); math.Abs(float64(r2.Y-tall.Bottom())) > 0.5 || r2.H != short.H {

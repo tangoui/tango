@@ -114,6 +114,14 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: "**/go.sum"
 
+      # The GL backend's tests need EGL, libepoxy and Mesa (llvmpipe); newer Ubuntu
+      # runner images no longer ship libEGL.
+      - name: Install EGL (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libegl1 libepoxy0 libgl1 libopengl0 libgl1-mesa-dri libgles2
+
       - name: Pick race detector
         run: |
           # -race needs cgo. Linux and macOS runners have a C compiler;

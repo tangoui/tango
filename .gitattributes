@@ -10,3 +10,6 @@ ui/editor/testdata/*.txt text eol=lf
 # API snapshots and contracts, compared with what the code exports and parsed
 # line by line (jsapi's TestWireContract, internal/cmd/apitxt).
 api/** text eol=lf
+# tan's CLI golden and tan.json schema (cmd/tan TestCLIGolden, TestConfigSchema).
+cmd/tan/testdata/** text eol=lf
+cmd/tan/tan.schema.json text eol=lf

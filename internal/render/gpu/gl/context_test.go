@@ -17,7 +17,8 @@ func newTestContext(t *testing.T) *headless {
 	t.Helper()
 	ctx, err := newHeadlessContext()
 	if err != nil {
-		t.Fatalf("newHeadlessContext: %v", err)
+		// Like newTestDevice: machines without GL (no libEGL) skip.
+		t.Skipf("newHeadlessContext: %v", err)
 	}
 	t.Cleanup(ctx.close)
 	return ctx
@@ -318,9 +319,9 @@ func TestThreadGoexit(t *testing.T) {
 
 // TestHeadlessGoexit: a context whose thread died closes without hanging.
 func TestHeadlessGoexit(t *testing.T) {
-	ctx, err := newHeadlessContext()
+	ctx, err := newHeadlessContext() // closed by the test itself
 	if err != nil {
-		t.Fatal(err)
+		t.Skipf("newHeadlessContext: %v", err)
 	}
 	done := make(chan struct{})
 	go func() {

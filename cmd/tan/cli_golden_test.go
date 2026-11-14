@@ -17,6 +17,7 @@ var updateGolden = flag.Bool("update", false, "rewrite testdata golden files")
 // "tan help" and "tan <command> -h" print it.
 func cliHelp(t *testing.T) string {
 	t.Helper()
+	t.Setenv("TANGO_HOTRELOAD", "") // tan dev -hot's default reads it
 	var b strings.Builder
 	capture := func(args ...string) {
 		out := captureStd(t, func() {
@@ -81,7 +82,8 @@ func TestCLIGolden(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v (run go test -run TestCLIGolden -update)", err)
 	}
-	if !bytes.Equal(bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n")), []byte(got)) {
+	want = bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n"))
+	if !bytes.Equal(want, []byte(got)) {
 		t.Errorf("tan help changed; if intended, run go test -run TestCLIGolden -update, review the diff and note it in CHANGELOG.md\n%s", lineDiff(string(want), got))
 	}
 }

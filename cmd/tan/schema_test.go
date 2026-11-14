@@ -32,7 +32,8 @@ func TestConfigSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v (run go test -run TestConfigSchema -update)", err)
 	}
-	if !bytes.Equal(bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n")), got) {
+	want = bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n"))
+	if !bytes.Equal(want, got) {
 		t.Errorf("tan.schema.json is stale: run go test -run TestConfigSchema -update and review the diff\n%s", lineDiff(string(want), string(got)))
 	}
 }

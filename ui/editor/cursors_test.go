@@ -546,14 +546,15 @@ func manyCursorDoc(n int) (string, []Selection) {
 }
 
 // gateLimit is a timing gate, relaxed under the race detector and on
-// shared CI runners (TANGO_SMOKE_TIMEOUT_SCALE, which CI sets). The gates
+// shared CI runners (2 × TANGO_SMOKE_TIMEOUT_SCALE, which CI sets). The gates
 // catch superlinear regressions, which miss them by far more.
 func gateLimit(d time.Duration) time.Duration {
 	if raceEnabled {
 		d *= 20
 	}
 	if f, err := strconv.ParseFloat(os.Getenv("TANGO_SMOKE_TIMEOUT_SCALE"), 64); err == nil && f > 1 {
-		d = time.Duration(float64(d) * f)
+		// Shared runners also vary by 2x and more from run to run.
+		d = time.Duration(float64(d) * 2 * f)
 	}
 	return d
 }
