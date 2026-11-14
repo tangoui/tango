@@ -48,6 +48,7 @@ const downShim = `
   var downGen = 0;        // current generation; 0: none yet
   var downNext = 1;       // the sequence number to deliver next
   var downHeld = {};      // seq -> [kind, data, polled], ahead of downNext
+  var downHeldN = 0;      // entries in downHeld
   var downWait = null;    // {id} of the polled barrier delivery waits on
   var downOpened = false; // _open seen for downGen (the loop runs at most once)
   var downLoop = 0;       // generation of the running poll loop; 0: none
@@ -94,6 +95,7 @@ const downShim = `
       downGen = gen;
       downNext = 1;
       downHeld = {};
+      downHeldN = 0;
       downWait = null;
       downOpened = false;
       downLoop = 0;
@@ -110,6 +112,7 @@ const downShim = `
     }
     var h = downHeld[seq];
     if (h && !(kind === 2 && !polled)) return; // a fallback barrier replaces a polled one
+    if (!h) downHeldN++;
     downHeld[seq] = [kind, data, polled];
   }
   // downDrain delivers in order until a gap or a polled barrier.
@@ -118,14 +121,33 @@ const downShim = `
       var h = downHeld[downNext];
       if (!h) return;
       delete downHeld[downNext];
-      var seq = downNext++;
-      if (h[0] === 0) recv(h[1]);
-      else if (h[0] === 1) recvPkt(h[1]);
-      else if (h[2]) {
-        downWait = { id: h[1] };
-        downPost({ op: "barrier", gen: downGen, id: h[1] });
+      downHeldN--;
+      downNext++;
+      downDeliver(h[0], h[1], h[2]);
+    }
+  }
+  // downDeliver delivers the item at downNext - 1.
+  function downDeliver(kind, data, polled) {
+    if (kind === 0) recv(data);
+    else if (kind === 1) recvPkt(data);
+    else if (polled) {
+      downWait = { id: data };
+      downPost({ op: "barrier", gen: downGen, id: data });
+    }
+  }
+  // downBatch takes a decoded poll batch: in order with nothing held it
+  // is delivered as it is, otherwise through downPut and downDrain.
+  function downBatch(b) {
+    var i = 0, n = b.kinds.length;
+    if (downHeldN === 0) {
+      while (i < n && !downWait && b.first + i === downNext) {
+        downNext++;
+        downDeliver(b.kinds[i], b.datas[i], true);
+        i++;
       }
     }
+    for (; i < n; i++) downPut(b.first + i, b.kinds[i], b.datas[i], true);
+    downDrain();
   }
   function downRelease(gen, id) {
     if (gen !== downGen || !downWait || downWait.id !== id) return;
@@ -141,7 +163,7 @@ const downShim = `
     var v = new DataView(buf), n = buf.byteLength;
     if (n < 12) throw new Error("batch header cut short");
     var first = v.getUint32(0) * 4294967296 + v.getUint32(4);
-    var count = v.getUint32(8), off = 12, out = [];
+    var count = v.getUint32(8), off = 12, kinds = [], datas = [];
     for (var i = 0; i < count; i++) {
       if (n - off < 5) throw new Error("item header cut short");
       var kind = v.getUint8(off), len = v.getUint32(off + 1), data;
@@ -151,11 +173,12 @@ const downShim = `
       else if (kind === 1) data = new Uint8Array(buf, off, len);
       else if (kind === 2 && len === 8) data = v.getUint32(off) * 4294967296 + v.getUint32(off + 4);
       else throw new Error("bad item kind " + kind);
-      out.push([first + i, kind, data]);
+      kinds.push(kind);
+      datas.push(data);
       off += len;
     }
     if (off !== n) throw new Error("trailing bytes after the batch");
-    return out;
+    return { first: first, kinds: kinds, datas: datas };
   }
   function downPoll(gen, tok, path) {
     var live = function () { return downGen === gen && downLoop === gen; };
@@ -179,9 +202,7 @@ const downShim = `
         if (r.status !== 200) { fail(); return; }
         return r.arrayBuffer().then(function (buf) {
           if (!live()) return;
-          var items = downDecode(buf);
-          for (var i = 0; i < items.length; i++) downPut(items[i][0], items[i][1], items[i][2], true);
-          downDrain();
+          downBatch(downDecode(buf));
           next();
         });
       }).catch(fail);
