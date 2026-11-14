@@ -85,8 +85,10 @@ type decorationStore[O any] struct {
 	free   []uint16
 
 	// version changes whenever any range or set changes (for caches such
-	// as the overview ruler's).
+	// as the overview ruler's); sets only when a set changes (not when the
+	// ranges move with an edit).
 	version uint64
+	sets    uint64
 }
 
 func newDecorationStore[O any]() *decorationStore[O] {
@@ -107,6 +109,7 @@ func (st *decorationStore[O]) set(name string, view *State, ds []decorationSpec[
 		st.removeOwner(id)
 	}
 	st.version++
+	st.sets++
 	if len(ds) == 0 {
 		if ok {
 			delete(st.ids, key)

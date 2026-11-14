@@ -400,3 +400,35 @@ func TestDecorationsDamageVerified(t *testing.T) {
 		})
 	}
 }
+
+// TestDecorationsOverviewDelay: the overview marks follow a new set at
+// once, and the edits that move the decorations at most every
+// overviewDecoDelay (a wake-up then draws them in place).
+func TestDecorationsOverviewDelay(t *testing.T) {
+	st := NewState(manyLines(200), "a.txt", theme.Base("vs"))
+	h := decoHost(t, st, geom.Size{W: 480, H: 240})
+	o := &DecorationOptions{Overview: &OverviewStyle{Color: decoTeal, Lane: 4}}
+	st.Model.SetDecorations("t", []Decoration{LineDecoration(st.Snapshot(), 100, 100, o)})
+	h.frame()
+	y0 := fillsOf(h.r.List().Ops, decoTeal)
+	if len(y0) != 1 {
+		t.Fatalf("marks %v", y0)
+	}
+	st.MoveCaret(0, false)
+	st.Insert(strings.Repeat("\n", 60))
+	h.frame()
+	// Still line 100's mark (the ruler's scale changed with the line count).
+	y1 := fillsOf(h.r.List().Ops, decoTeal)
+	if len(y1) != 1 || y1[0].Y >= y0[0].Y {
+		t.Fatalf("marks right after typing %v, want line 100's (above %v)", y1, y0)
+	}
+	next := h.r.NextWake()
+	if next.After(h.now.Add(overviewDecoDelay)) {
+		t.Fatalf("no wake-up for the marks: next %v", next.Sub(h.now))
+	}
+	h.now = h.now.Add(overviewDecoDelay)
+	h.frame()
+	if y := fillsOf(h.r.List().Ops, decoTeal); len(y) != 1 || y[0].Y <= y1[0].Y+10 {
+		t.Fatalf("marks after the delay %v, want line 160's (below %v)", y, y1)
+	}
+}

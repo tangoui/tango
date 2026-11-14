@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"math"
 	"slices"
+	"time"
 
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/geom"
@@ -715,6 +716,8 @@ type udKey struct {
 type udOverview struct {
 	st          *State
 	store, snap uint64
+	sets        uint64    // the store's sets when built
+	built       time.Time // when built
 	ok          bool
 	marks       []udMark
 	keys        []udKey
@@ -738,7 +741,19 @@ func (w *ViewW) overviewDecos() *udOverview {
 	if c.ok && c.st == st && c.store == m.decos.version && c.snap == snap.Version() {
 		return c
 	}
-	*c = udOverview{st: st, store: m.decos.version, snap: snap.Version(), ok: true, marks: c.marks[:0], keys: c.keys[:0], runs: c.runs}
+	// The ranges only moved with edits: typing rebuilds the marks (a
+	// LineOf per decoration) at most every overviewDecoDelay; the marks
+	// meanwhile are those before the edits (the ruler is a coarse
+	// picture; its redraw hints compare what is drawn).
+	now := w.c.Now()
+	if c.ok && c.st == st && c.sets == m.decos.sets {
+		if due := c.built.Add(overviewDecoDelay); now.Before(due) {
+			w.c.WakeAt(due)
+			return c
+		}
+	}
+	*c = udOverview{st: st, store: m.decos.version, snap: snap.Version(), sets: m.decos.sets, built: now, ok: true,
+		marks: c.marks[:0], keys: c.keys[:0], runs: c.runs}
 	idx := map[udKey]int{}
 	add := func(es []decorationEntryOf) {
 		for i := range es {
@@ -763,6 +778,10 @@ func (w *ViewW) overviewDecos() *udOverview {
 	c.marks = slices.Compact(c.marks)
 	return c
 }
+
+// overviewDecoDelay is how often typing rebuilds the decorations' overview
+// ruler marks (overviewDecos).
+const overviewDecoDelay = 250 * time.Millisecond
 
 // paintOverviewDecos draws the decorations' overview marks with draw
 // (lines l0..l1 in color c on lanes lane), merging the marks of one color
