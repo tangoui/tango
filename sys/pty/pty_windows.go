@@ -6,9 +6,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 	"unicode/utf16"
 	"unsafe"
 
@@ -42,6 +44,7 @@ type sysPTY struct {
 
 	closed   atomic.Bool
 	rmu, wmu sync.RWMutex
+	lastOut  atomic.Int64 // UnixNano of the last output read, 0 if none
 }
 
 // Start starts the program described by o on a new pseudo console.
@@ -55,6 +58,8 @@ func Start(o Options) (*PTY, error) {
 	if err != nil {
 		return nil, err
 	}
+	o.Path = resolvePath(o.Path, o.Dir)
+	o.Env = addSystemRoot(o.Env, os.Getenv("SYSTEMROOT"))
 
 	// The console reads input from inR and writes output to outW; it
 	// keeps its own copies, so ours are closed once it exists.
@@ -134,8 +139,9 @@ func createProcess(o Options, hpc windows.Handle) (*windows.ProcessInformation, 
 }
 
 // reap waits for the program, records its exit status for Wait and
-// closes the console: a pseudo console outlives the programs attached
-// to it, and Read reaches EOF only once it is closed.
+// closes the console once its output has gone quiet: a pseudo console
+// outlives the programs attached to it, and Read reaches EOF only once
+// it is closed.
 func (p *PTY) reap(process windows.Handle) {
 	var code uint32
 	_, err := windows.WaitForSingleObject(process, windows.INFINITE)
@@ -148,7 +154,24 @@ func (p *PTY) reap(process windows.Handle) {
 		p.code, p.waitErr = -1, os.NewSyscallError("GetExitCodeProcess", err)
 	}
 	close(p.done)
+	p.sys.linger(time.Now())
 	p.sys.closeConsole()
+}
+
+// linger waits, after the program exited at exit, for the console's
+// output to go quiet (see lingerDelay), or until Close.
+func (s *sysPTY) linger(exit time.Time) {
+	for !s.closed.Load() {
+		var last time.Time
+		if ns := s.lastOut.Load(); ns != 0 {
+			last = time.Unix(0, ns)
+		}
+		d := lingerDelay(exit, last, time.Now())
+		if d <= 0 {
+			return
+		}
+		time.Sleep(min(d, 20*time.Millisecond))
+	}
 }
 
 func (s *sysPTY) read(b []byte) (int, error) {
@@ -172,6 +195,7 @@ func (s *sysPTY) read(b []byte) (int, error) {
 			}
 			return int(n), &os.PathError{Op: "read", Path: "conpty", Err: err}
 		case n > 0:
+			s.lastOut.Store(time.Now().UnixNano())
 			return int(n), nil
 		}
 		// A zero-byte read is a zero-byte write on the other end.
@@ -294,8 +318,8 @@ func closeHandles(hs ...windows.Handle) {
 }
 
 // DefaultShell returns the first of pwsh, powershell and cmd found in
-// PATH (cmd.exe from %ComSpec% if none is), with the arguments to pass
-// as Options.Args.
+// PATH, else %ComSpec%, else cmd.exe in the system directory, with the
+// arguments to pass as Options.Args.
 func DefaultShell() (path string, args []string) {
 	for _, name := range []string{"pwsh", "powershell", "cmd"} {
 		if p, err := exec.LookPath(name + ".exe"); err == nil {
@@ -305,5 +329,9 @@ func DefaultShell() (path string, args []string) {
 	if p := os.Getenv("ComSpec"); p != "" {
 		return p, []string{"cmd"}
 	}
-	return `C:\Windows\System32\cmd.exe`, []string{"cmd"}
+	dir, err := windows.GetSystemDirectory()
+	if err != nil {
+		dir = `C:\Windows\System32`
+	}
+	return filepath.Join(dir, "cmd.exe"), []string{"cmd"}
 }
