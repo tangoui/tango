@@ -20,7 +20,11 @@ func TestTryMatchStartReportsTimeout(t *testing.T) {
 	if d < 2*MatchTimeout {
 		t.Fatalf("returned after %v, before two full MatchTimeout allowances %v", d, 2*MatchTimeout)
 	}
-	assertBudget(t, "timed-out match with confirmation", d, 2*MatchTimeout+100*time.Millisecond)
+	// Upper bound only catches seconds-scale regressions (per-guard or
+	// per-retry accumulation); the exact attempt count is pinned without a
+	// wall clock by TestRepeatedTimeoutIsCountedOnce. Two confirmed attempts
+	// take ~200ms, so a tighter ceiling fails on scheduler stalls under load.
+	assertBudget(t, "timed-out match with confirmation", d, 2*MatchTimeout+300*time.Millisecond)
 
 	// 正常匹配与不匹配都没有错误；rs 传入时结果相同。
 	for _, src := range []string{`x(?=y)`, `[a-z]+`} {

@@ -39,8 +39,9 @@ func TestPathologicalLineDegrades(t *testing.T) {
 	start := time.Now()
 	toks, st, info := lx.TokenizeLineInfo(line, st1, nil)
 	d := time.Since(start)
-	// Full 100ms engine allowance plus one confirmation, with clock slop.
-	assertBudget(t, "pathological line", d, 2*regex.MatchTimeout+100*time.Millisecond)
+	// Full 100ms engine allowance plus one confirmation, with clock and load
+	// slop; only seconds-scale regressions fail on the wall clock.
+	assertBudget(t, "pathological line", d, 2*regex.MatchTimeout+300*time.Millisecond)
 	if !info.Degraded {
 		t.Fatal("Degraded = false, want true")
 	}

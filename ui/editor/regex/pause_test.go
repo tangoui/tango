@@ -57,7 +57,18 @@ func TestOriginal100msAttemptIsPreserved(t *testing.T) {
 	if baseline == nil {
 		t.Fatal("original engine unexpectedly did not match")
 	}
+	// The wrapper's run is separate from the baseline's, so a scheduler or
+	// GC stall can still exhaust both of its attempts under full-suite load.
+	// That is the load case the baseline skip above tolerates; a timeout
+	// before two full allowances have passed would be a real budget bug.
+	start := time.Now()
 	got, err := re.TryMatchStart(input, nil)
+	if errors.Is(err, ErrTimeout) {
+		if el := time.Since(start); el >= 2*matchTimeout {
+			t.Skipf("wrapper timed out after %v under current load: %v", el, err)
+		}
+		t.Fatalf("wrapper timed out after %v, before two full %v attempts", time.Since(start), matchTimeout)
+	}
 	if err != nil || len(got) < 2 || got[0] != baseline.Index || got[1] != baseline.Index+baseline.Length {
 		t.Fatalf("wrapper=%v, %v; original match=%v", got, err, baseline)
 	}

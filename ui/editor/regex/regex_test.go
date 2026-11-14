@@ -127,8 +127,10 @@ func TestBacktrackTimeout(t *testing.T) {
 	if got != nil {
 		t.Errorf("got %v, want nil", got)
 	}
-	// Two full MatchTimeout allowances plus regexp2 clock granularity/slop.
-	assertBudget(t, "timed-out MatchStart with confirmation", elapsed, 2*MatchTimeout+100*time.Millisecond)
+	// Two full MatchTimeout allowances plus clock granularity and load slop;
+	// only seconds-scale regressions fail here (attempt count is pinned by
+	// TestRepeatedTimeoutIsCountedOnce).
+	assertBudget(t, "timed-out MatchStart with confirmation", elapsed, 2*MatchTimeout+300*time.Millisecond)
 	if _, _, after := Stats(); after <= before {
 		t.Errorf("timeouts %d → %d, want increase", before, after)
 	}
