@@ -284,7 +284,7 @@ static NSData *requestBody(NSURLRequest *r) {
 // response head and a first 1 KiB chunk at once, then one more 1 KiB chunk
 // every 200 ms (8 in all), then didFinish. A page that records when each
 // chunk reaches its fetch() ReadableStream shows whether WebKit delivers
-// the didReceiveData: calls incrementally (examples/duplex-ios,
+// the didReceiveData: calls incrementally (examples/duplex-mobile,
 // scripts/smoke.sh ios-probe). The chunks come from an NSTimer on the main
 // run loop in the common modes, so they are sent on the main thread and
 // also while UIKit tracks a touch or Tango runs a nested run loop. Without

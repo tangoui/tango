@@ -1,5 +1,5 @@
 // Package services holds the ipc services shared by the duplex examples
-// (examples/duplex on the desktop, examples/duplex-ios on iOS).
+// (examples/duplex on the desktop, examples/duplex-mobile on iOS).
 package services
 
 import (
@@ -31,7 +31,7 @@ func SetBenchDone(fn func()) {
 
 // Register registers the platform-independent services of the duplex
 // examples on r. examples/duplex adds its local shell ("Term") on top;
-// examples/duplex-ios uses these as they are:
+// examples/duplex-mobile uses these as they are:
 //
 //   - "Echo" (duplex): writes back every frame as received, JSON or bytes.
 //   - "Upload" (duplex, [name, size]): byte frames go to a temporary file;

@@ -6,14 +6,18 @@
 #   bash scripts/smoke.sh desktop NAME..  only the named programs
 #   bash scripts/smoke.sh list            print the desktop program names
 #   bash scripts/smoke.sh ios             build examples/mobile-hello, run it in a simulator
-#   bash scripts/smoke.sh ios-probe       build examples/duplex-ios, measure in a simulator
+#   bash scripts/smoke.sh ios-probe       build examples/duplex-mobile, measure in a simulator
 #                                         whether WebKit streams scheme responses
-#   bash scripts/smoke.sh ios-selftest    build examples/duplex-ios, run its tango://
+#   bash scripts/smoke.sh ios-selftest    build examples/duplex-mobile, run its tango://
 #                                         scheme-handler self-test in a simulator
-#   bash scripts/smoke.sh ios-lanefault   build examples/duplex-ios, break up:post midway
+#   bash scripts/smoke.sh ios-lanefault   build examples/duplex-mobile, break up:post midway
 #                                         (TANGO_IPC_LANE_FAULT) in a simulator
 #   bash scripts/smoke.sh android         install the mobile-hello APK on the connected
 #                                         device / emulator and run it
+#   bash scripts/smoke.sh android-selftest
+#                                         build examples/duplex-mobile (tango_selftest), run
+#                                         its self-test on the device / emulator three times:
+#                                         lanes off, lanes on, lanes on without ArrayBuffer
 #   bash scripts/smoke.sh ios-ui          self-drawn examples/mobile-ui in a simulator:
 #                                         first frame, screenshot, self-test taps
 #   bash scripts/smoke.sh android-ui      self-drawn examples/mobile-ui on the device /
@@ -363,7 +367,7 @@ run_ios_ui() {
 
 # run_ios_probe measures whether WKWebView hands a WKURLSchemeTask's
 # separate didReceiveData: calls to the page's fetch() ReadableStream as
-# they happen. examples/duplex-ios runs with TANGO_SCHEME_PROBE=1: the iOS
+# they happen. examples/duplex-mobile runs with TANGO_SCHEME_PROBE=1: the iOS
 # backend answers /__tango/probe/stream itself with 8 chunks of 1 KiB, 200 ms
 # apart, and the page logs "probe: {...}" with each chunk's arrival time.
 # PASS (incremental delivery) needs status 200, all 8192 bytes, at least 4
@@ -371,8 +375,8 @@ run_ios_ui() {
 # 1000 ms before the last.
 run_ios_probe() {
 	local wait="${SMOKE_MOBILE_WAIT:-90}" log="$out/ios-probe.log" app udid booted=0
-	say "build examples/duplex-ios for the iOS simulator"
-	if ! app="$(GOFLAGS="${GOFLAGS:+$GOFLAGS }-tags=tango_selftest" TANGO_IOS_OUT="$out/ios-probe" bash mobile/ios/build.sh examples/duplex-ios simulator 2>"$out/ios-probe.build.log" | tail -n 1)" || [[ ! -d "$app" ]]; then
+	say "build examples/duplex-mobile for the iOS simulator"
+	if ! app="$(GOFLAGS="${GOFLAGS:+$GOFLAGS }-tags=tango_selftest" TANGO_IOS_OUT="$out/ios-probe" bash mobile/ios/build.sh examples/duplex-mobile simulator 2>"$out/ios-probe.build.log" | tail -n 1)" || [[ ! -d "$app" ]]; then
 		sed 's/^/    /' "$out/ios-probe.build.log"
 		record ios-probe FAIL "build failed, see $out/ios-probe.build.log"
 		return
@@ -437,7 +441,7 @@ run_ios_probe() {
 }
 
 # run_ios_selftest runs the tango:// scheme-handler self-test of
-# examples/duplex-ios (TANGO_SCHEME_PROBE=1 for the /__test routes and
+# examples/duplex-mobile (TANGO_SCHEME_PROBE=1 for the /__test routes and
 # Debug.Stats, TANGO_SCHEME_SELFTEST=1 for index.html?selftest): the request
 # sequence of the macOS parity test (index, 3 MiB, 302, HEAD, 64 KiB POST
 # echo, panic) checked against the expected answers, an aborted
@@ -456,8 +460,8 @@ run_ios_probe() {
 # they need -tags tango_dev. See docs/dev-builds.md.)
 run_ios_selftest() {
 	local wait="${SMOKE_MOBILE_WAIT:-180}" log="$out/ios-selftest.log" app udid booted=0
-	say "build examples/duplex-ios for the iOS simulator"
-	if ! app="$(GOFLAGS="${GOFLAGS:+$GOFLAGS }-tags=tango_selftest" TANGO_IOS_OUT="$out/ios-selftest" bash mobile/ios/build.sh examples/duplex-ios simulator 2>"$out/ios-selftest.build.log" | tail -n 1)" || [[ ! -d "$app" ]]; then
+	say "build examples/duplex-mobile for the iOS simulator"
+	if ! app="$(GOFLAGS="${GOFLAGS:+$GOFLAGS }-tags=tango_selftest" TANGO_IOS_OUT="$out/ios-selftest" bash mobile/ios/build.sh examples/duplex-mobile simulator 2>"$out/ios-selftest.build.log" | tail -n 1)" || [[ ! -d "$app" ]]; then
 		sed 's/^/    /' "$out/ios-selftest.build.log"
 		record ios-selftest FAIL "build failed, see $out/ios-selftest.build.log"
 		return
@@ -498,8 +502,8 @@ run_ios_selftest() {
 		line="$(grep -m 1 -oE 'selftest: \{.*\}' "$log")"
 		sha="$(grep -oE '"indexSha":"[0-9a-f]+"' <<<"$line" | cut -d'"' -f4)"
 		bytes="$(grep -oE '"indexBytes":[0-9]+' <<<"$line" | cut -d: -f2)"
-		want="$(shasum -a 256 examples/duplex-ios/web/index.html | cut -d' ' -f1)"
-		wantBytes="$(wc -c <examples/duplex-ios/web/index.html | tr -d ' ')"
+		want="$(shasum -a 256 examples/duplex-mobile/web/index.html | cut -d' ' -f1)"
+		wantBytes="$(wc -c <examples/duplex-mobile/web/index.html | tr -d ' ')"
 		failed="$(grep -oE '"failed":\[[^]]*\]' <<<"$line")"
 		stopWait="$(grep -oE '"wait":[0-9]+' <<<"$line" | cut -d: -f2)"
 		if grep -q 'NSInternalInconsistencyException' "$log"; then
@@ -524,15 +528,15 @@ run_ios_selftest() {
 	return 0
 }
 
-# run_ios_lanefault builds examples/duplex-ios with -tags tango_selftest
+# run_ios_lanefault builds examples/duplex-mobile with -tags tango_selftest
 # (fault injection included) and runs only the lane fault scenario in a
 # simulator: TANGO_IPC_LANE_FAULT=up:post:3 breaks up:post after 3 data
 # packets; the stream that lost frames must fail with "transport", a parallel
 # stream must arrive whole, and later frames must use the message channel.
 run_ios_lanefault() {
 	local wait="${SMOKE_MOBILE_WAIT:-180}" log="$out/ios-lanefault.log" app udid booted=0
-	say "build examples/duplex-ios (tango_selftest) for the iOS simulator"
-	if ! app="$(GOFLAGS="${GOFLAGS:+$GOFLAGS }-tags=tango_selftest" TANGO_IOS_OUT="$out/ios-lanefault" bash mobile/ios/build.sh examples/duplex-ios simulator 2>"$out/ios-lanefault.build.log" | tail -n 1)" || [[ ! -d "$app" ]]; then
+	say "build examples/duplex-mobile (tango_selftest) for the iOS simulator"
+	if ! app="$(GOFLAGS="${GOFLAGS:+$GOFLAGS }-tags=tango_selftest" TANGO_IOS_OUT="$out/ios-lanefault" bash mobile/ios/build.sh examples/duplex-mobile simulator 2>"$out/ios-lanefault.build.log" | tail -n 1)" || [[ ! -d "$app" ]]; then
 		sed 's/^/    /' "$out/ios-lanefault.build.log"
 		record ios-lanefault FAIL "build failed, see $out/ios-lanefault.build.log"
 		return
@@ -609,11 +613,16 @@ adb() {
 	"$bin" "$@"
 }
 
-# android_start NAME APP_DIR [APK]: builds APP_DIR's APK into $out/bin/NAME
-# (unless APK is given), installs it and starts its launcher activity with
-# a clear logcat. Sets android_id (the applicationId).
+# android_start NAME APP_DIR [APK [AM_ARGS...]]: builds APP_DIR's APK into
+# $out/bin/NAME (unless APK is given; "" builds), installs it and starts its
+# launcher activity with a clear logcat, passing AM_ARGS to am start (e.g.
+# --esa TANGO_TEST_ENV TANGO_A=1,TANGO_B=2). Sets android_id (the
+# applicationId) and android_apk.
 android_start() {
 	local name="$1" app="$2" apk="${3:-}"
+	shift 2
+	[[ $# -gt 0 ]] && shift
+
 	android_id="${TANGO_APP_ID:-}"
 	if [[ -z "$android_id" || "$name" != android ]]; then # applicationId is the "id" in tan.json
 		android_id="$(sed -n 's/^  "id": *"\([^"]*\)".*/\1/p' "$app/tan.json" | head -n 1)"
@@ -627,6 +636,7 @@ android_start() {
 		fi
 		apk="$(sed -n 's/^APK: //p' "$out/$name.build.log" | tail -n 1)"
 	fi
+	android_apk="$apk"
 	adb wait-for-device
 	say "install $apk ($android_id)"
 	adb install -r "$apk" || {
@@ -641,7 +651,85 @@ android_start() {
 	local activity
 	activity="$(adb shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER "$android_id" 2>/dev/null | tr -d '\r' | tail -n 1)"
 	[[ "$activity" == */* ]] || activity="$android_id/org.tango.host.TangoActivity"
-	adb shell am start -n "$activity" >/dev/null
+	adb shell am start -n "$activity" "$@" >/dev/null
+}
+
+# android_result KIND: prints the self-test result KIND logged by
+# examples/duplex-mobile ("KIND: {...}", or "KIND#1: ..." to "KIND#n: ..."
+# and "KIND#end" for long ones, joined), or nothing.
+android_result() {
+	local log
+	log="$(adb logcat -d -s Tango:V 2>/dev/null | tr -d '\r')"
+	if grep -q "$1#end" <<<"$log"; then
+		grep -E " $1#[0-9]+: " <<<"$log" | sed -E "s/.* $1#[0-9]+: //" | tr -d '\n'
+		echo
+	else
+		grep -m 1 -E " $1: \{" <<<"$log" | sed -E "s/.* $1: //"
+	fi
+}
+
+# run_android_selftest runs the self-test of examples/duplex-mobile
+# (tango_selftest build: the TANGO_TEST_ENV launch extra and the lane
+# counters) three times on the device / emulator, each a fresh start with
+# TANGO_SCHEME_PROBE=1,TANGO_SCHEME_SELFTEST=1 and:
+#   android-selftest          lanes off: tango.lanes() fallback / fallback
+#   android-selftest-lanes    TANGO_IPC_LANES_ANDROID=1: down:android /
+#                             up:android, and a 1 MiB Echo through them
+#   android-selftest-capsoff  as lanes, plus TANGO_ANDROID_NO_ARRAYBUFFER=1:
+#                             no lanes reported, fallback
+# Each needs a top-level "ok":true (asset parity, stop, memory, lanes,
+# echo_ipc; lane_echo with the lanes on) and the index body equal to
+# web/index.html.
+run_android_selftest() {
+	local wait="${SMOKE_MOBILE_WAIT:-180}" apk="" base="TANGO_SCHEME_PROBE=1,TANGO_SCHEME_SELFTEST=1"
+	local want wantBytes
+	want="$(shasum -a 256 examples/duplex-mobile/web/index.html | cut -d' ' -f1)"
+	wantBytes="$(wc -c <examples/duplex-mobile/web/index.html | tr -d ' ')"
+	local runs=(
+		"android-selftest|$base|lanes off"
+		"android-selftest-lanes|$base,TANGO_IPC_LANES_ANDROID=1|down:android / up:android"
+		"android-selftest-capsoff|$base,TANGO_IPC_LANES_ANDROID=1,TANGO_ANDROID_NO_ARRAYBUFFER=1|no ArrayBuffer: fallback"
+	)
+	local run name env what line sha bytes bad i
+	for run in "${runs[@]}"; do
+		IFS='|' read -r name env what <<<"$run"
+		if [[ -z "$apk" ]]; then
+			GOFLAGS="${GOFLAGS:+$GOFLAGS }-tags=tango_selftest" android_start "$name" examples/duplex-mobile "" --esa TANGO_TEST_ENV "$env" || return 0
+			apk="$android_apk"
+		else
+			android_start "$name" examples/duplex-mobile "$apk" --esa TANGO_TEST_ENV "$env" || return 0
+		fi
+		say "$name: TANGO_TEST_ENV $env"
+		line=""
+		for ((i = 0; i < wait; i += 2)); do
+			line="$(android_result selftest)"
+			[[ -n "$line" ]] && break
+			sleep 2
+		done
+		android_log "$name" >/dev/null
+		adb exec-out screencap -p >"$out/$name.png" 2>/dev/null
+		if [[ -z "$line" ]]; then
+			grep -E ' (Tango|AndroidRuntime) ' "$out/$name.log" | sed 's/^/    /'
+			record "$name" FAIL "no selftest result within ${wait}s, see $out/$name.log"
+		else
+			printf '%s\n' "$line" >"$out/$name.json"
+			sed 's/^/    /' "$out/$name.json"
+			sha="$(grep -oE '"indexSha":"[0-9a-f]+"' <<<"$line" | cut -d'"' -f4)"
+			bytes="$(grep -oE '"indexBytes":[0-9]+' <<<"$line" | cut -d: -f2)"
+			bad="$(grep -oE '"failed":\[[^]]*\]' <<<"$line")"
+			if grep -q 'FATAL EXCEPTION' "$out/$name.log"; then
+				record "$name" FAIL "Java exception, see $out/$name.log"
+			elif ! grep -q '^{"ok":true,' <<<"$line"; then
+				record "$name" FAIL "checks failed: ${bad:-?} ($what), see $out/$name.json"
+			elif [[ "$sha" != "$want" || "$bytes" != "$wantBytes" ]]; then
+				record "$name" FAIL "index body: $bytes bytes sha ${sha:-?}, want $wantBytes bytes sha $want"
+			else
+				record "$name" PASS "$what: parity, stop, memory, lanes and echo ok"
+			fi
+		fi
+		adb shell am force-stop "$android_id"
+	done
+	return 0
 }
 
 # android_wait PATTERN SECONDS: waits for PATTERN in the Tango log.
@@ -748,13 +836,14 @@ ios-probe) run_ios_probe ;;
 ios-selftest) run_ios_selftest ;;
 ios-lanefault) run_ios_lanefault ;;
 android) run_android ;;
+android-selftest) run_android_selftest ;;
 android-ui) run_android_ui ;;
 -h | --help | help)
 	sed -n '2,/^set /p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'
 	exit 0
 	;;
 *)
-	echo "smoke.sh: unknown mode '$mode' (desktop, list, ios, ios-ui, ios-probe, ios-selftest, ios-lanefault, android, android-ui)" >&2
+	echo "smoke.sh: unknown mode '$mode' (desktop, list, ios, ios-ui, ios-probe, ios-selftest, ios-lanefault, android, android-selftest, android-ui)" >&2
 	exit 2
 	;;
 esac

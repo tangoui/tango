@@ -1,7 +1,7 @@
-//go:build !darwin
+//go:build !darwin && !android
 
 package services
 
-// backendLaneStats leaves the scheme handler counters zero: only the
-// macOS and iOS backends count them.
+// backendLaneStats leaves the backend lane counters zero: only the
+// macOS, iOS and Android backends count them.
 func backendLaneStats(*Stats) {}

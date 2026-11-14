@@ -16,7 +16,7 @@ macOS 上 `up:post` 默认开启，这样跑测的就是 up:post 配置；测兜
 程序打开窗口，加载 `index.html?bench`，页面跑完下面几项后把结果交给 `Bench.Report`，
 Go 侧把它原样打印成一行 JSON 到 stdout，然后退出。基准代码在
 `examples/duplex/services/bench.js`（`window.duplexBench`，由 `services.BenchRoute` 以
-`/bench.js` 提供），iOS 自测示例 `examples/duplex-ios` 用同一份（启动时设
+`/bench.js` 提供），iOS 自测示例 `examples/duplex-mobile` 用同一份（启动时设
 `TANGO_DUPLEX_BENCH=1`，页面打开 `index.html?bench`，结果记成一行 `bench: {...}` 日志）：
 
 | 项目 | 做法 | 字段 |
@@ -157,7 +157,7 @@ macOS 原始输出（2026-11-13，连续三次，表里取第三次）：
 
 ### iOS 模拟器（仅作参考）
 
-iPhone 17 模拟器，iOS 27.2，`examples/duplex-ios`（`SIMCTL_CHILD_TANGO_DUPLEX_BENCH=1`，
+iPhone 17 模拟器，iOS 27.2，`examples/duplex-mobile`（`SIMCTL_CHILD_TANGO_DUPLEX_BENCH=1`，
 up:post 组再加 `SIMCTL_CHILD_TANGO_IPC_LANES_DARWIN=1`），交替各 5 次，全部在负载 < 5 时开始：
 
 | 次 | 配置 | 负载（前 → 后） | JS→Go | Go→JS | 分批 p50 | 分批 p99 | 平均 |

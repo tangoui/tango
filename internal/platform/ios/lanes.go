@@ -45,7 +45,7 @@ func laneCapsFromEnv(getenv func(string) string, hooks bool) []string {
 // ---------------------------------------------------------------------------
 // Lane counters (test hook). With TANGO_SCHEME_PROBE=1 the scheme handler
 // counts the lane requests it sees and how they were answered, for the
-// platform tests (examples/duplex-ios's Debug.Stats reads LaneDownStats).
+// platform tests (examples/duplex-mobile's Debug.Stats reads LaneDownStats).
 // Without the variable nothing is counted.
 //
 // These hooks, the streaming probe in bridge.m and TANGO_IPC_LANES_DARWIN=all

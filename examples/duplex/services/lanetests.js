@@ -1,6 +1,6 @@
 // IPC fast lane scenarios on a real WebView, shared by the macOS lane tests
 // (internal/platform/darwin/lanes_flow_e2e_test.go, driving
-// examples/duplex) and the iOS simulator self-test (examples/duplex-ios
+// examples/duplex) and the iOS simulator self-test (examples/duplex-mobile
 // web/selftest.js). TestRoutes serves this file as /__test/lanetests.js
 // (TANGO_SCHEME_PROBE=1); a page loads it with loadLaneTests below or a
 // <script> tag and gets window.laneTests.

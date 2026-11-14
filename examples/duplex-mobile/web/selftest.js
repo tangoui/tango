@@ -1,5 +1,15 @@
-// Self-test of examples/duplex-ios. Every result goes to Go through
-// Selftest.Report(kind, result), which logs "kind: {json}".
+// Self-test of examples/duplex-mobile (iOS simulator, Android emulator;
+// also runs on the desktop). Every result goes to Go through
+// Selftest.Report(kind, result), which logs "kind: {json}" (on Android
+// long results in "kind#n:" pieces, see main.go).
+//
+// The lanes the page must get depend on the platform (Debug.Platform):
+// Apple platforms fallback / up:post (smoke.sh ios-selftest turns them on);
+// Android down:android / up:android when TANGO_IPC_LANES_ANDROID is on,
+// else fallback / fallback. The up:post scenarios (reload, 8 MiB, mixed,
+// stall) run on Apple platforms; on Android the checks are the scheme
+// parity ones, stop, memory, lanes, echo_ipc and, with the lanes on,
+// lane_echo.
 //
 //   index.html         Echo round trip over an ipc stream ("selftest").
 //   index.html?selftest
@@ -217,14 +227,26 @@ async function laneScenario(fn) {
   try { return await fn(); } catch (e) { return { ok: false, why: ["threw: " + String((e && e.message) || e)] }; }
 }
 
-async function runSelftest(reloaded) {
-  // The second half of the reload scenario comes first, before anything
-  // else runs on this page: no lane request of the old page still open,
-  // goroutines back to its baseline, up:post working again.
-  await runLanes();
-  const lt = await loadLaneTests();
-  const laneReload = await laneScenario(() => lt.reloadCheck(reloaded, 20000));
-  laneReload.before = reloaded;
+// platform returns Debug.Platform and the lanes the page must get.
+async function platform() {
+  const p = await tango.call("Debug.Platform");
+  let want = { down: "fallback", up: "up:post" };
+  if (p.goos === "android") want = p.androidLanes ? { down: "down:android", up: "up:android" } : { down: "fallback", up: "fallback" };
+  return { ...p, want };
+}
+
+async function runSelftest(reloaded, plat) {
+  const apple = plat.goos !== "android";
+  let lt = null, laneReload = null;
+  if (apple) {
+    // The second half of the reload scenario comes first, before anything
+    // else runs on this page: no lane request of the old page still open,
+    // goroutines back to its baseline, up:post working again.
+    await runLanes();
+    lt = await loadLaneTests();
+    laneReload = await laneScenario(() => lt.reloadCheck(reloaded, 20000));
+    laneReload.before = reloaded;
+  }
   const parity = await runParity();
   // The raw results first, in case a later step hangs.
   try { await tango.call("Selftest.Report", "parity", parity.map(r => ({ ...r, text: undefined }))); } catch (e) {}
@@ -233,23 +255,33 @@ async function runSelftest(reloaded) {
   const memory = await runMemory();
   checks.memory = !memory.err && memory.before > 0 && memory.growth < memoryLimit;
   const lanes = await runLanes();
-  checks.lanes = lanes.down === "fallback" && lanes.up === "up:post";
-  const laneEcho = checks.lanes ? await runLaneEcho() : null;
-  checks.lane_echo = !!laneEcho && !laneEcho.err && laneEcho.frames === 16 && laneEcho.bad === 0 && laneEcho.upFrames >= 8;
-  checks.lane_reload = !!reloaded.going && reloaded.upActiveAtReload >= 1 && laneReload.ok === true;
-  let laneBig = null, laneMixed = null, laneStall = null;
-  if (checks.lanes) {
-    laneBig = await laneScenario(() => lt.bigBothWays());
-    laneMixed = await laneScenario(() => lt.mixedOrder());
-    laneStall = await laneScenario(() => lt.stall(6000));
+  checks.lanes = lanes.down === plat.want.down && lanes.up === plat.want.up;
+  const withLanes = plat.want.up !== "fallback";
+  const laneEcho = checks.lanes && withLanes ? await runLaneEcho() : null;
+  if (withLanes) {
+    const echoed = !!laneEcho && !laneEcho.err && laneEcho.frames === 16 && laneEcho.bad === 0;
+    checks.lane_echo = apple ? echoed && laneEcho.upFrames >= 8
+      // Android: every frame on up:android, every echo frame on
+      // down:android (upRequests, downWrites: lane messages each way).
+      : echoed && laneEcho.upRequests >= 16 && laneEcho.downWrites >= 16 &&
+        laneEcho.after.laneUpProbes >= 1 && laneEcho.after.laneUpBadToken === 0;
   }
-  checks.lane_big = !!laneBig && laneBig.ok === true;
-  checks.lane_mixed = !!laneMixed && laneMixed.ok === true;
-  checks.lane_stall = !!laneStall && laneStall.ok === true;
+  let laneBig = null, laneMixed = null, laneStall = null;
+  if (apple) {
+    checks.lane_reload = !!reloaded.going && reloaded.upActiveAtReload >= 1 && laneReload.ok === true;
+    if (checks.lanes) {
+      laneBig = await laneScenario(() => lt.bigBothWays());
+      laneMixed = await laneScenario(() => lt.mixedOrder());
+      laneStall = await laneScenario(() => lt.stall(6000));
+    }
+    checks.lane_big = !!laneBig && laneBig.ok === true;
+    checks.lane_mixed = !!laneMixed && laneMixed.ok === true;
+    checks.lane_stall = !!laneStall && laneStall.ok === true;
+  }
   const echo = await runEcho();
   checks.echo_ipc = !!echo.echo && echo.echo.ping === "selftest";
   const failed = Object.keys(checks).filter(k => !checks[k]);
-  return { ok: failed.length === 0, failed, checks, indexSha: parity[0].sha, indexBytes: parity[0].bytes, stop, memory, lanes, laneEcho,
+  return { ok: failed.length === 0, failed, checks, platform: plat, indexSha: parity[0].sha, indexBytes: parity[0].bytes, stop, memory, lanes, laneEcho,
     laneReload, laneBig, laneMixed, laneStall };
 }
 
@@ -297,7 +329,8 @@ async function runLaneEcho() {
   } catch (e) { err = String((e && e.message) || e); }
   const after = await tango.call("Debug.Stats");
   const d = (f) => after[f] - before[f];
-  return { frames: k, bad, err, ms: Date.now() - t0, upFrames: d("upFrames"), downWrites: d("downWrites") };
+  return { frames: k, bad, err, ms: Date.now() - t0, upFrames: d("upFrames"), downWrites: d("downWrites"),
+    upRequests: d("upRequests"), after: { laneUpProbes: after.laneUpProbes, laneUpBadToken: after.laneUpBadToken } };
 }
 
 // runMemory streams memoryRounds × 3 MiB (/__test/big) through the scheme
@@ -351,8 +384,12 @@ function runBench() {
     else if (kind === "bench") res = await runBench();
     else if (kind === "lanefault") res = await runLaneFault();
     else if (!q.has("selftest")) res = await runEcho();
-    else if (!q.has("reloaded")) res = await reloadPhase(); // reloads the page
-    else res = await runSelftest(JSON.parse(q.get("reloaded")));
+    else {
+      const plat = await platform();
+      if (plat.goos === "android") res = await runSelftest(null, plat);
+      else if (!q.has("reloaded")) res = await reloadPhase(); // reloads the page
+      else res = await runSelftest(JSON.parse(q.get("reloaded")), plat);
+    }
   } catch (e) {
     res = { error: String((e && e.message) || e) };
   }
