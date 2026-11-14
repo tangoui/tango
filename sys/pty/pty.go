@@ -27,6 +27,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 )
 
 // ErrUnsupported is returned by [Start] on platforms without local
@@ -36,15 +37,21 @@ var ErrUnsupported = errors.New("pty: not supported on this platform")
 // Options configures the program [Start] runs.
 type Options struct {
 	// Path is the program to run. A name without a path separator is
-	// looked up in the current process's PATH, as exec.Command does.
+	// looked up in the current process's PATH, as exec.Command does; a
+	// relative path with a separator is relative to Dir.
 	Path string
 	// Args are the program's arguments, starting with the program name
-	// (argv[0]). Empty means {Path}.
+	// (argv[0]). Empty means {Path}. On Windows they are joined into one
+	// command line quoted by the MSVCRT rules, which cmd.exe and
+	// PowerShell do not follow: never embed untrusted strings in a
+	// "cmd /c" or "pwsh -Command" line.
 	Args []string
 	// Dir is the working directory; empty means the current one.
 	Dir string
 	// Env is the environment, as "key=value" strings; nil means
-	// os.Environ(). TERM and COLORTERM are replaced either way.
+	// os.Environ(). TERM and COLORTERM are replaced either way. On
+	// Windows SYSTEMROOT is added from the current environment if Env
+	// lacks it, as os/exec does.
 	Env []string
 	// Cols and Rows are the initial terminal size in cells; 0 means
 	// 80×24.
@@ -72,10 +79,16 @@ type PTY struct {
 	closeErr  error
 }
 
-// Read reads the program's output. It returns io.EOF once the program
-// and every other process using the terminal have exited and their
-// output has been read. After Close it returns an error wrapping
-// os.ErrClosed.
+// Read reads the program's output. After Close it returns an error
+// wrapping os.ErrClosed.
+//
+// On Unix Read returns io.EOF once the program and every other process
+// using the terminal (such as a job it left in the background) have
+// exited and their output has been read. On Windows it returns io.EOF
+// once the started program has exited: the pseudo console is then
+// closed, after its output has been quiet for 100 ms (at most 1 s
+// after the exit), and closing it ends any other process still
+// attached to it.
 func (p *PTY) Read(b []byte) (int, error) { return p.sys.read(b) }
 
 // Write sends input to the program, as typed keys. After Close it
@@ -104,7 +117,9 @@ func (p *PTY) Close() error {
 // program is reaped in the background whether or not Wait is called,
 // and Wait may be called more than once. A program killed by a signal
 // has exit code -1 and err describes the signal; err is also set if
-// the exit status could not be obtained.
+// the exit status could not be obtained. Wait waits only for the
+// started program; on Windows its exit also closes the pseudo console,
+// ending any other process attached to it (see [PTY.Read]).
 func (p *PTY) Wait() (exitCode int, err error) {
 	<-p.done
 	return p.code, p.waitErr
@@ -167,3 +182,53 @@ func isTermKey(key string) bool {
 
 // clamp limits a size to the 16-bit range the platforms take.
 func clamp(n int) int { return max(0, min(n, 0x7fff)) }
+
+// resolvePath returns path relative to dir when it is a relative path
+// with a separator, as the child's chdir before exec makes it on Unix.
+// Windows resolves the program before the child starts, so it needs
+// this explicitly. Rooted paths (/x, \x, C:x, C:\x) are left alone.
+func resolvePath(path, dir string) string {
+	if dir == "" || filepath.IsAbs(path) || filepath.VolumeName(path) != "" ||
+		strings.HasPrefix(path, "/") || strings.HasPrefix(path, string(filepath.Separator)) {
+		return path
+	}
+	return filepath.Join(dir, path)
+}
+
+// addSystemRoot returns env with SYSTEMROOT=root appended if env has no
+// SYSTEMROOT (keys compared case-insensitively) and root is not empty.
+// Many Windows DLLs fail to load without it.
+func addSystemRoot(env []string, root string) []string {
+	for _, kv := range env {
+		if k, _, _ := strings.Cut(kv, "="); strings.EqualFold(k, "SYSTEMROOT") {
+			return env
+		}
+	}
+	if root == "" {
+		return env
+	}
+	return append(env, "SYSTEMROOT="+root)
+}
+
+// How long the Windows pseudo console is kept open after the program
+// exits: until its output has been quiet for quietTime, at most
+// maxLinger. conhost renders on a timer, so closing it right at the
+// exit can lose the last frame.
+const (
+	quietTime = 100 * time.Millisecond
+	maxLinger = time.Second
+)
+
+// lingerDelay returns how much longer to wait, after the program exited
+// at exit and the last output was read at last (zero if none), before
+// closing the console at now; 0 or less means close now.
+func lingerDelay(exit, last, now time.Time) time.Duration {
+	if last.Before(exit) {
+		last = exit
+	}
+	until := last.Add(quietTime)
+	if limit := exit.Add(maxLinger); until.After(limit) {
+		until = limit
+	}
+	return until.Sub(now)
+}
