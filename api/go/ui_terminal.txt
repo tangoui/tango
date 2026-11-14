@@ -1,5 +1,6 @@
 pkg github.com/tangoui/tango/ui/terminal, func New(Options) *Terminal
 pkg github.com/tangoui/tango/ui/terminal, func ResolveColor(ui/terminal/vt.Color, *Scheme, bool) ui/theme.Color
+pkg github.com/tangoui/tango/ui/terminal, func View(*ui.Context, *Terminal) *ViewW
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Close() error
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Exited() (bool, error)
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Lock() *ui/terminal/vt.Terminal
@@ -7,6 +8,12 @@ pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Resize(int, int, in
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Send([]byte)
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Start(int, int, func())
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Unlock()
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Box() *ui.Box
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) FontSize(float32) *ViewW
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Layout(...ui/layout.Option) *ViewW
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) OnOpenLink(func(string)) *ViewW
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) OptionAsMeta(bool) *ViewW
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Scheme(Scheme) *ViewW
 pkg github.com/tangoui/tango/ui/terminal, type Conn interface { Close, Read, Resize, Write }
 pkg github.com/tangoui/tango/ui/terminal, type Conn interface, Close() error
 pkg github.com/tangoui/tango/ui/terminal, type Conn interface, Read([]byte) (int, error)
@@ -26,6 +33,7 @@ pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, Palette [16]ui/the
 pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, Selection ui/theme.Color
 pkg github.com/tangoui/tango/ui/terminal, type Terminal struct
 pkg github.com/tangoui/tango/ui/terminal, type Terminal struct, noncomparable
+pkg github.com/tangoui/tango/ui/terminal, type ViewW struct
 pkg github.com/tangoui/tango/ui/terminal, var SchemeDark Scheme
 pkg github.com/tangoui/tango/ui/terminal, var SchemeDracula Scheme
 pkg github.com/tangoui/tango/ui/terminal, var SchemeLight Scheme
