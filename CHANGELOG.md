@@ -4,6 +4,56 @@
 
 ## [未发布]
 
+### 新增
+
+- **IPC 双向流**（`ipc`、`@tangoui/runtime`）：流改为全双工，两个方向都能传 JSON 帧和字节帧，任一端都可以打开。
+  - Go：`Router.HandleDuplex` 注册双向处理函数（类型 `ipc.DuplexFunc`）；`*ipc.Stream` 新增 `WriteBytes`、`Receive`（返回新类型 `ipc.Message`：`Binary`、`Bytes`、`JSON`）、`ReceiveBytes`、`ReceiveJSON`、`CloseSend`（半关闭）、`ReadWriter`（`io.ReadWriteCloser` 视图，可直接 `io.Copy`）；`Router.Open`、`Router.Call` 让同进程的 Go 代码（自绘界面）不经过页面直接使用同一批服务；`Router.SetStreamWindow` 设置 Go 的接收窗口；新增常量 `ProtoVersion`、`DefaultWindowBytes`、`FrameOverhead`、`MaxFrameBytes` 和错误码 `CodeTransport`（快速通道上丢帧时使用，见下）。
+  - JS：`TangoStream` 新增 `accepted`、`send`、`sendBytes`、`end`、`bufferedAmount` 和 Web Streams 视图 `readable`/`writable`，迭代时字节帧产出 `Uint8Array`；新增 WebSocket 风格的 `socket()` / `TangoSocket`（`close()` 写完排队的消息后发 `close`，随即以 1000 关闭，不等 Go）；新增常量 `PROTO_VERSION`、`DEFAULT_WINDOW_BYTES`、`FRAME_OVERHEAD`、`MAX_FRAME_BYTES`。
+  - 示例与基准：`examples/duplex`（回显、文件上传、小终端、`-panel` 进程内 Go 面板、`-bench` 基准），基线数据见 [docs/ipc-bench.md](docs/ipc-bench.md)。
+- **IPC 快速通道（公共设施）**：流的字节帧可以走挨着消息通道的二进制旁路，不做 JSON 和 base64；JSON 帧、控制消息和握手仍走消息通道，语义不变。**macOS 默认开启 `up:post`（上行）；其他平台仍走消息通道**，各平台后端接入并通过基准对比后逐个开启。
+  - Go：`App.OnBinary` 注册上行包处理函数，应用接线 `app.OnBinary(func(s *tango.Surface, gen uint64, p []byte) { r.HandleBinarySession(s, gen, p) })`；`ipc.BinaryConn` 和 `ipc.SessionBinaryConn`（`*tango.Surface` 实现，后者把发送和上行投递绑定到页面世代）、`Router.HandleBinarySession`（`OnBinary` 用它，带授权时的世代）、`Router.HandleBinary`（只给不复用页面的简单 `BinaryConn`；对 `SessionBinaryConn` 丢包并记一次 `slog.Warn`）、`ipc.GapTimeout`；一个 surface 只接一个 `Router`；`Options.DisableFastLanes` 和环境变量 `TANGO_IPC_LANES=0` 关闭快速通道；开发构建里 `TANGO_IPC_LANE_FAULT=<通道名>:<N>` 让某条通道在 N 个数据包后故障（空包不计，比如 `up:post` 的启动探测），用来测通道中途坏掉。
+  - 开启条件：注册了 `OnBinary`、页面来自资源来源（直接从开发服务器加载的页面没有快速通道）、后端报告了能力、没有被关闭。
+  - 丢帧：某帧缺了 5 秒仍没到的流以 `transport` 错误失败（两端都看到）。
+  - JS：`lanes()` 返回当前用的通道（`{down, up}`，没有时为 `"fallback"`）；新增常量 `GAP_TIMEOUT_MS` 和 `createClient` 的第二个参数 `ClientOptions`（`gapTimeoutMs`）；内置 `down:scheme` / `up:post` 通道模块；`ErrorCode` 补上 `transport`。
+  - 示例：`hello`、`runtime-demo`、`showcase`、`duplex` 接上 `OnBinary`；`examples/duplex -bench` 的 `lane` 字段改为 `lanes()` 的值（`{"down":…,"up":…}`）。
+- **macOS 默认开启 `up:post`；iOS 试用（默认关闭）**：WKWebView 后端接入 `up:post`（上行字节帧经 `tango://` POST，ArrayBuffer 请求体）。macOS 上传 64 MiB 吞吐约为消息通道的 2.73 倍（[docs/ipc-bench.md](docs/ipc-bench.md)）。下行仍走消息通道，因为 WebKit 会扣住 `tango://` 流式响应里大块突发的一部分（见规格 [§6.2](docs/specs/2026-11-13-ipc-duplex-streams.md)）。环境变量 `TANGO_IPC_LANES_DARWIN`（窗口/页面创建时读一次；取值去掉首尾空白、不区分大小写；关闭值在任何构建都生效，macOS 上 `all` 只在开发构建生效）：
+
+  | 取值 | macOS | iOS |
+  |---|---|---|
+  | 未设置、空 | `up:post`（默认开启） | 关闭（默认） |
+  | `0`、`false`、`off` | 关闭 | 关闭 |
+  | `all` | 开发构建（`-tags tango_dev`）：`down:scheme` + `up:post`（仅供实验）；生产构建：同默认（`up:post`） | `down:scheme` + `up:post`（仅供实验，任何构建，见「安全」） |
+  | 其他值（如 `1`） | `up:post` | `up:post` |
+
+  `TANGO_IPC_LANES=0` 和 `Options.DisableFastLanes` 在两个平台上都始终优先关闭。iOS 真机上没法从外部传环境变量，要试用就在创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "1")`。
+  - CSP：`up:post` 启动时先 POST 一个空包，收到 204 才算就绪。页面的 CSP 若不允许 `connect-src` 到资源来源（例如 `connect-src https://api.example.com`，或不含 `'self'` 的 `default-src`），这次探测被拒，通道不开启，字节帧照常走消息通道，不报错；想用快速通道就在 `connect-src` 里允许 `'self'`。
+  - 已知限制：iframe 拿不到通道令牌（macOS 实测：不透明来源和同源 frame 的通道请求全部被拒；iOS 未单独测；同源 frame 能访问 `parent.tango`，那是应用代码）；WebKit 的 `tango://` 请求不带 `Origin`，后端用主文档的来源补上，所以应用页面里嵌的跨源 iframe 发往资源来源的请求能通过资源 CSRF 检查（原有行为；通道请求仍受每世代令牌保护），不要在资源页面里嵌不可信的 frame；WebKit 不交付 Blob 请求体；iOS 只在模拟器上测过；iOS 上通道中途坏掉的场景没有自动化测试。见 [docs/mobile.md](docs/mobile.md)。
+
+- **终端视图**（`ui/terminal`）：`terminal.View` 把 `Terminal` 画成可交互的自绘终端（选择、滚动、链接 `OnOpenLink`、`OptionAsMeta`、`FontSize`）；配色 `Scheme` 和内置的 `SchemeDark`、`SchemeLight`、`SchemeDracula`、`SchemeSolarizedDark`、`SchemeSolarizedLight`，`ResolveColor` 把 `vt.Color` 解析成主题色；`vt.Screen.Evicted` 报告被挤出回滚区的行数。
+- `ui/theme`：组件令牌 `TerminalToken`（`Components.Terminal`、`CompTerminal`），默认取 xterm.js 的 ANSI 调色板；HighContrast 会把对比度不够的调色板颜色调亮，对比度检查支持数组字段。
+- `ui`：`Context.ClaimEscape`：获得键盘焦点的组件（例如终端）在构建时声明后，键盘 Esc 交给它，而不是关闭浮层；Android 系统返回键不受影响，照常关闭浮层。
+- `ui/input`：`KeyBack`，Android 系统返回键的 `Code`（`Key` 仍是 `KeyEscape`，所以已有的 Esc 处理照常工作；返回键的抬起不会送给占用了 Esc 的组件）。
+- `ui`：`ConfigProvider.Defaults` 覆盖所有组件，按组件名和属性名设置默认值（新增 `Button.AutoInsertSpace` 及一批可通过 `Defaults` 设置的属性，见 `api/go/ui.txt`）。
+
+### 变更
+
+- **IPC 线协议升级到 v2，不兼容旧版 runtime-js**：握手带 `proto:2`，Go 拒绝其他版本（回 `runtime-js protocol mismatch` 并记 `slog.Warn`）。`@tangoui/runtime` 必须与 Go 模块同版本；自己实现协议的客户端需要按 `ipc` 包注释更新。流的背压从按条数改为按字节计的信用窗口（默认 1 MiB，每帧计负载 + 64 字节），`ack` 改为带归还字节数 `b`；单帧负载上限 16 MiB，超过时这次写入返回 `bad_args`。
+- **macOS/iOS 的资源处理函数改在主线程之外运行**：`tango://` 协议处理器改为异步，`Options.Assets` 的处理函数每个请求在自己的 goroutine 里运行（请求可能并发处理），不再在主线程上同步执行。大文件、SSE 等大的或长时间不结束的响应不再卡住界面；WebKit 取消请求时 `r.Context()` 被取消，阻塞中的写入返回 `context.Canceled`。处理函数里若直接访问只能在主线程用的状态，改用 `app.Post` 投递到主线程或加锁；`tango.Await` 也可以，但它会一直阻塞到主线程执行完，这个请求的响应也跟着等（平台契约一直允许在任意线程调用处理函数）。
+- **`Stream.Close` 语义改为优雅全关闭**：本方结束发送并不再接收，对方之后的写入返回 "stream closed by peer"。只想结束本方发送、继续读的用新增的 `CloseSend`。处理函数返回 nil 时 Router 发的就是这个 `close`。
+
+### 移除
+
+- Go：`ipc.DefaultWindow`（按条数的窗口），由 `ipc.DefaultWindowBytes` 取代。
+- JS：`WINDOW`、`ACK_EVERY` 导出，由 `DEFAULT_WINDOW_BYTES` 取代。
+
+### 修复
+
+- `sys/pty`（Windows）：关闭 ConPTY 前先读完剩余输出，不再丢掉最后一段；文档说明 Windows 上的 EOF 行为。
+
+### 安全
+
+- **快速通道的测试开关**：macOS 上流式探测路由（`TANGO_SCHEME_PROBE=1` 时的 `/__tango/probe/stream`）、协议处理器的通道计数器和 `TANGO_IPC_LANES_DARWIN=all` 只编进开发构建（`-tags tango_dev`），生产构建忽略它们（`all` 等同默认）。iOS 上这些钩子和更早就有的画布自测开关（`TANGO_CANVAS_IME_SELFTEST`、`TANGO_CANVAS_A11Y_SELFTEST`）只编进带 `-tags tango_dev` 或新标签 `-tags tango_selftest` 的构建：`tan build` 会去掉 `tango_dev` 但保留 `GOFLAGS` 里的其他标签，模拟器自测用 `GOFLAGS=-tags=tango_selftest bash mobile/ios/build.sh …` 构建（`scripts/smoke.sh ios-probe`、`ios-selftest` 已改）。`tango_selftest` 构建也带通道故障注入 `TANGO_IPC_LANE_FAULT`，新增 `scripts/smoke.sh ios-lanefault` 在模拟器上测 `up:post` 中途坏掉。**不兼容**：以前直接用普通 iOS 构建跑画布自测的，要加这个标签（`TANGO_SCHEME_SELFTEST` 只由 `examples/duplex-ios` 读，框架不读）。关闭开关（`TANGO_IPC_LANES_DARWIN=0`/`false`/`off`、`TANGO_IPC_LANES=0`）在所有平台的所有构建里都生效。
+
 ## [0.1.0] - 2026-11-14
 
 首个公开版本。0.x 期间公开 API 可能有不兼容的变化。
@@ -38,39 +88,6 @@
 - `ui/icon`：图标改为由多段 `Part`（填充 / 描边、主色 / 辅色）组成，支持任意 viewBox（`Box`）、自定义线宽、双色图标（`DrawOpts.Secondary`）、绘制时覆盖线宽（`DrawOpts.StrokeWidth`）、位图与单色蒙版图标（`FromImage`）、`Register` / `RegisterAs` 注册自定义图标；内置图标从 85 个增加到 136 个（调试、编辑、Git、窗口按钮等常用图标）。
 - `ui/icon/filetype`：按文件名或扩展名解析文件类别并给出图标，三套设计体系各有一组；`filetype.Theme` 按 VS Code 文件图标主题的方式（文件名、扩展名、文件夹名）叠加自定义或插件提供的图标。
 - **公开 API 分层与兼容性检查**：Go 包分为稳定与实验性两层（`ui`、`uihost`、`mobile`、`service/updater` 为实验性）；CI 新增 `API` 工作流，用 `scripts/apidiff.sh`（基于 apidiff）检查稳定包的不兼容变化，需要破坏兼容时给 PR 加 `api-break` 标签。见 [docs/release.md](docs/release.md#api-稳定性)。
-- **IPC 双向流**（`ipc`、`@tangoui/runtime`）：流改为全双工，两个方向都能传 JSON 帧和字节帧，任一端都可以打开。
-  - Go：`Router.HandleDuplex` 注册双向处理函数（类型 `ipc.DuplexFunc`）；`*ipc.Stream` 新增 `WriteBytes`、`Receive`（返回新类型 `ipc.Message`：`Binary`、`Bytes`、`JSON`）、`ReceiveBytes`、`ReceiveJSON`、`CloseSend`（半关闭）、`ReadWriter`（`io.ReadWriteCloser` 视图，可直接 `io.Copy`）；`Router.Open`、`Router.Call` 让同进程的 Go 代码（自绘界面）不经过页面直接使用同一批服务；`Router.SetStreamWindow` 设置 Go 的接收窗口；新增常量 `ProtoVersion`、`DefaultWindowBytes`、`FrameOverhead`、`MaxFrameBytes` 和错误码 `CodeTransport`（快速通道上丢帧时使用，见下）。
-  - JS：`TangoStream` 新增 `accepted`、`send`、`sendBytes`、`end`、`bufferedAmount` 和 Web Streams 视图 `readable`/`writable`，迭代时字节帧产出 `Uint8Array`；新增 WebSocket 风格的 `socket()` / `TangoSocket`（`close()` 写完排队的消息后发 `close`，随即以 1000 关闭，不等 Go）；新增常量 `PROTO_VERSION`、`DEFAULT_WINDOW_BYTES`、`FRAME_OVERHEAD`、`MAX_FRAME_BYTES`。
-  - 示例与基准：`examples/duplex`（回显、文件上传、小终端、`-panel` 进程内 Go 面板、`-bench` 基准），基线数据见 [docs/ipc-bench.md](docs/ipc-bench.md)。
-- **IPC 快速通道（公共设施）**：流的字节帧可以走挨着消息通道的二进制旁路，不做 JSON 和 base64；JSON 帧、控制消息和握手仍走消息通道，语义不变。**macOS 默认开启 `up:post`（上行）；其他平台仍走消息通道**，各平台后端接入并通过基准对比后逐个开启。
-  - Go：`App.OnBinary` 注册上行包处理函数，应用接线 `app.OnBinary(func(s *tango.Surface, gen uint64, p []byte) { r.HandleBinarySession(s, gen, p) })`；`ipc.BinaryConn` 和 `ipc.SessionBinaryConn`（`*tango.Surface` 实现，后者把发送和上行投递绑定到页面世代）、`Router.HandleBinarySession`（`OnBinary` 用它，带授权时的世代）、`Router.HandleBinary`（只给不复用页面的简单 `BinaryConn`；对 `SessionBinaryConn` 丢包并记一次 `slog.Warn`）、`ipc.GapTimeout`；一个 surface 只接一个 `Router`；`Options.DisableFastLanes` 和环境变量 `TANGO_IPC_LANES=0` 关闭快速通道；开发构建里 `TANGO_IPC_LANE_FAULT=<通道名>:<N>` 让某条通道在 N 个数据包后故障（空包不计，比如 `up:post` 的启动探测），用来测通道中途坏掉。
-  - 开启条件：注册了 `OnBinary`、页面来自资源来源（直接从开发服务器加载的页面没有快速通道）、后端报告了能力、没有被关闭。
-  - 丢帧：某帧缺了 5 秒仍没到的流以 `transport` 错误失败（两端都看到）。
-  - JS：`lanes()` 返回当前用的通道（`{down, up}`，没有时为 `"fallback"`）；新增常量 `GAP_TIMEOUT_MS` 和 `createClient` 的第二个参数 `ClientOptions`（`gapTimeoutMs`）；内置 `down:scheme` / `up:post` 通道模块；`ErrorCode` 补上 `transport`。
-  - 示例：`hello`、`runtime-demo`、`showcase`、`duplex` 接上 `OnBinary`；`examples/duplex -bench` 的 `lane` 字段改为 `lanes()` 的值（`{"down":…,"up":…}`）。
-- **macOS 默认开启 `up:post`；iOS 试用（默认关闭）**：WKWebView 后端接入 `up:post`（上行字节帧经 `tango://` POST，ArrayBuffer 请求体）。macOS 上传 64 MiB 吞吐约为消息通道的 2.73 倍（[docs/ipc-bench.md](docs/ipc-bench.md)）。下行仍走消息通道，因为 WebKit 会扣住 `tango://` 流式响应里大块突发的一部分（见规格 [§6.2](docs/specs/2026-11-13-ipc-duplex-streams.md)）。环境变量 `TANGO_IPC_LANES_DARWIN`（窗口/页面创建时读一次；取值去掉首尾空白、不区分大小写；关闭值在任何构建都生效，macOS 上 `all` 只在开发构建生效）：
-
-  | 取值 | macOS | iOS |
-  |---|---|---|
-  | 未设置、空 | `up:post`（默认开启） | 关闭（默认） |
-  | `0`、`false`、`off` | 关闭 | 关闭 |
-  | `all` | 开发构建（`-tags tango_dev`）：`down:scheme` + `up:post`（仅供实验）；生产构建：同默认（`up:post`） | `down:scheme` + `up:post`（仅供实验，任何构建，见「安全」） |
-  | 其他值（如 `1`） | `up:post` | `up:post` |
-
-  `TANGO_IPC_LANES=0` 和 `Options.DisableFastLanes` 在两个平台上都始终优先关闭。iOS 真机上没法从外部传环境变量，要试用就在创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "1")`。
-  - CSP：`up:post` 启动时先 POST 一个空包，收到 204 才算就绪。页面的 CSP 若不允许 `connect-src` 到资源来源（例如 `connect-src https://api.example.com`，或不含 `'self'` 的 `default-src`），这次探测被拒，通道不开启，字节帧照常走消息通道，不报错；想用快速通道就在 `connect-src` 里允许 `'self'`。
-  - 已知限制：iframe 拿不到通道令牌（macOS 实测：不透明来源和同源 frame 的通道请求全部被拒；iOS 未单独测；同源 frame 能访问 `parent.tango`，那是应用代码）；WebKit 的 `tango://` 请求不带 `Origin`，后端用主文档的来源补上，所以应用页面里嵌的跨源 iframe 发往资源来源的请求能通过资源 CSRF 检查（原有行为；通道请求仍受每世代令牌保护），不要在资源页面里嵌不可信的 frame；WebKit 不交付 Blob 请求体；iOS 只在模拟器上测过；iOS 上通道中途坏掉的场景没有自动化测试。见 [docs/mobile.md](docs/mobile.md)。
-
-### 变更
-
-- **IPC 线协议升级到 v2，不兼容旧版 runtime-js**：握手带 `proto:2`，Go 拒绝其他版本（回 `runtime-js protocol mismatch` 并记 `slog.Warn`）。`@tangoui/runtime` 必须与 Go 模块同版本；自己实现协议的客户端需要按 `ipc` 包注释更新。流的背压从按条数改为按字节计的信用窗口（默认 1 MiB，每帧计负载 + 64 字节），`ack` 改为带归还字节数 `b`；单帧负载上限 16 MiB，超过时这次写入返回 `bad_args`。
-- **macOS/iOS 的资源处理函数改在主线程之外运行**：`tango://` 协议处理器改为异步，`Options.Assets` 的处理函数每个请求在自己的 goroutine 里运行（请求可能并发处理），不再在主线程上同步执行。大文件、SSE 等大的或长时间不结束的响应不再卡住界面；WebKit 取消请求时 `r.Context()` 被取消，阻塞中的写入返回 `context.Canceled`。处理函数里若直接访问只能在主线程用的状态，改用 `app.Post` 投递到主线程或加锁；`tango.Await` 也可以，但它会一直阻塞到主线程执行完，这个请求的响应也跟着等（平台契约一直允许在任意线程调用处理函数）。
-- **`Stream.Close` 语义改为优雅全关闭**：本方结束发送并不再接收，对方之后的写入返回 "stream closed by peer"。只想结束本方发送、继续读的用新增的 `CloseSend`。处理函数返回 nil 时 Router 发的就是这个 `close`。
-
-### 移除
-
-- Go：`ipc.DefaultWindow`（按条数的窗口），由 `ipc.DefaultWindowBytes` 取代。
-- JS：`WINDOW`、`ACK_EVERY` 导出，由 `DEFAULT_WINDOW_BYTES` 取代。
 
 - **组件补齐**（对照 Ant Design v6、Element Plus、Pro Components 与 shadcn/ui 的"部分"项，见 [docs/specs/ui-coverage.md](docs/specs/ui-coverage.md)）：
   - 新组件 `Menubar`（应用菜单栏）、`AspectRatio`、`Item`/`ItemGroup`、`ButtonGroup`、`MultiDatePicker`、`ColorPickerGradient`/`ColorPickerPanelGradient`、`StatisticTimer`、`ProFieldOf`。
@@ -119,7 +136,6 @@
 - **开发功能改为编译期开关 `tango_dev`**：默认构建（普通 `go build`/`go run`、goreleaser、`tan build` 含 `-debug`）即生产构建，不再响应 `TANGO_DEV_URL`、`TANGO_AUTOMATION*`、`TANGO_DEV_ROLE`、`TANGO_DEV_WINDOW_STATE` 等开发用环境变量，热加载宿主、自动化通道、开发代理不链接进二进制；未处理的 panic 默认弹框退出。`tan dev` 自动加 `-tags tango_dev`；`automation.Launch` 构建被测程序时也加。`tango_release` 标签不再起作用，仅作兼容保留。见 [docs/dev-builds.md](docs/dev-builds.md)。
 - `asset.DevProxy` 默认只接受回环目标；要代理到其他主机用 `asset.DevProxyWith(target, asset.DevProxyOptions{AllowRemote: true})`。
 - 资源源上 GET/HEAD 以外的跨源请求回 403（`Options.AllowCrossOriginAssets` 关闭）；macOS/iOS 后端用主文档 URL 补上 WebKit 缺失的 `Origin`。
-- **快速通道的测试开关**：macOS 上流式探测路由（`TANGO_SCHEME_PROBE=1` 时的 `/__tango/probe/stream`）、协议处理器的通道计数器和 `TANGO_IPC_LANES_DARWIN=all` 只编进开发构建（`-tags tango_dev`），生产构建忽略它们（`all` 等同默认）。iOS 上这些钩子和更早就有的画布自测开关（`TANGO_CANVAS_IME_SELFTEST`、`TANGO_CANVAS_A11Y_SELFTEST`）只编进带 `-tags tango_dev` 或新标签 `-tags tango_selftest` 的构建：`tan build` 会去掉 `tango_dev` 但保留 `GOFLAGS` 里的其他标签，模拟器自测用 `GOFLAGS=-tags=tango_selftest bash mobile/ios/build.sh …` 构建（`scripts/smoke.sh ios-probe`、`ios-selftest` 已改）。`tango_selftest` 构建也带通道故障注入 `TANGO_IPC_LANE_FAULT`，新增 `scripts/smoke.sh ios-lanefault` 在模拟器上测 `up:post` 中途坏掉。**不兼容**：以前直接用普通 iOS 构建跑画布自测的，要加这个标签（`TANGO_SCHEME_SELFTEST` 只由 `examples/duplex-ios` 读，框架不读）。关闭开关（`TANGO_IPC_LANES_DARWIN=0`/`false`/`off`、`TANGO_IPC_LANES=0`）在所有平台的所有构建里都生效。
 - `tan dev` 热加载控制通道要求会话 token（`TANGO_DEV_TOKEN`），unix socket 权限 0600。
 
 [未发布]: https://github.com/tangoui/tango/compare/v0.1.0...HEAD
