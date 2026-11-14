@@ -29,6 +29,7 @@ type RouteInfo struct {
 	Selected     string // selected menu key
 	ContentWidth string // "Fluid" or "Fixed"
 	FixedHeader  bool
+	FixSiderbar  bool // the sider stays while the content scrolls
 }
 
 // RouteContext returns the state of the innermost ProLayout being built

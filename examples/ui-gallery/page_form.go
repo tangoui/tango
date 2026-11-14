@@ -24,6 +24,20 @@ type formDemo struct {
 	validated                bool
 }
 
+// choiceFill holds the demo state of the Checkbox / Radio / Switch
+// additions (border, buttons, min/max, any-value switch...).
+var choiceFill = struct {
+	bord1, bord2, bord3 bool
+	btnCities, minMax   []string
+	locked              []string
+	radioBord, radioDis string
+	mode                string
+	level               int
+	large, wide, ic     bool
+	outer, guard, async bool
+}{bord1: true, btnCities: []string{"上海"}, minMax: []string{"Go", "Rust"}, locked: []string{"Go"},
+	radioBord: "B", radioDis: "A", mode: "auto", large: true, wide: true, outer: true}
+
 var fd = &formDemo{a: "Tango", d: "无效输入", pwd: "secret123", num: 3, ck2: true, group: []string{"Go"}, radio: "B", radio2: "上海", sw1: true, slider: 40, sel2: "杭州",
 	date: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)}
 
@@ -62,6 +76,16 @@ func init() {
 	}})
 	gallery.Register(gallery.Page{Name: "Select", Title: "Select 选择器", Group: gallery.Form, Order: 3, Render: func(c *ui.Context) {
 		ui.Row(c, func() {
+			// Variant: the four frame looks; Prefix / SuffixIcon decorate
+			// the frame.
+			ui.Select(c, &fd.sel2, ui.Opts("北京", "上海", "杭州")).Prefix(icon.Global).PrefixText("城市").SuffixIcon(icon.Search).Width(200).A11yLabel("城市（前缀）")
+			ui.Select(c, &fd.sel2, ui.Opts("北京", "上海", "杭州")).Variant(ui.FieldOutlined).Width(130).A11yLabel("outlined")
+			ui.Select(c, &fd.sel2, ui.Opts("北京", "上海", "杭州")).Variant(ui.FieldFilled).Width(130).A11yLabel("filled")
+			ui.Select(c, &fd.sel2, ui.Opts("北京", "上海", "杭州")).Variant(ui.FieldBorderless).Width(130).A11yLabel("borderless")
+			ui.Select(c, &fd.sel2, ui.Opts("北京", "上海", "杭州")).Variant(ui.FieldUnderlined).Width(130).A11yLabel("underlined")
+		}, layout.Gap(12), layout.WrapItems())
+		ui.Gap(c, 12)
+		ui.Row(c, func() {
 			ui.Select(c, &fd.sel, ui.Opts("北京", "上海", "杭州", "深圳")).Placeholder("请选择城市").Width(180)
 			ui.Select(c, &fd.sel2, ui.Opts("北京", "上海", "杭州", "深圳")).Searchable().AllowClear().Width(180).A11yLabel("城市（可搜索）")
 			ui.Select(c, &fd.sel, ui.Opts("A")).Placeholder("禁用").Disabled(true).Width(140)
@@ -70,7 +94,7 @@ func init() {
 				long.Open()
 			}
 		}, layout.Gap(12), layout.WrapItems())
-	}, Height: 420, Setup: func(d *ui.Driver) {
+	}, Height: 480, Setup: func(d *ui.Driver) {
 		// Open the long list with a value far down: the list scrolls inside
 		// its 256px height to show the selected option.
 		selLong, selLongOpen = "16", true
@@ -85,11 +109,35 @@ func init() {
 		})
 		ui.CheckboxGroup(c, &fd.group, ui.Opts("Go", "Rust", "TypeScript", "Swift"))
 		ui.Column(c, func() {}, layout.H(12))
+		cf := &choiceFill
+		row(c, func() {
+			ui.Checkbox(c, "带边框", &cf.bord1).Border()
+			ui.Checkbox(c, "带边框未选", &cf.bord2).Border()
+			ui.Checkbox(c, "小号边框", &cf.bord3).Border().Size(ui.Small)
+			ui.Checkbox(c, "禁用边框", &cf.bord1).Border().Disabled(true)
+		})
+		row(c, func() {
+			ui.CheckboxGroup(c, &cf.btnCities, ui.Opts("北京", "上海", "广州", "深圳")).Buttons().A11yLabel("城市（按钮样式）")
+			ui.CheckboxGroup(c, &cf.btnCities, ui.Opts("北京", "上海", "广州")).Buttons().Size(ui.Small).A11yLabel("城市（小号按钮）")
+		})
+		row(c, func() {
+			ui.Text(c, "至少 1 项、至多 2 项：").Secondary()
+			ui.CheckboxGroup(c, &cf.minMax, ui.Opts("Go", "Rust", "Zig", "C")).Min(1).Max(2).A11yLabel("语言（1–2 项）")
+		})
+		row(c, func() {
+			ui.Text(c, "整组禁用：").Secondary()
+			ui.CheckboxGroup(c, &cf.locked, ui.Opts("Go", "Rust")).Disabled(true).A11yLabel("语言（禁用）")
+		})
 		ui.RadioGroup(c, &fd.radio, []ui.Option{{Label: "选项 A", Value: "A"}, {Label: "选项 B", Value: "B"}, {Label: "选项 C", Value: "C"}, {Label: "禁用", Value: "D", Disabled: true}})
 		ui.Column(c, func() {}, layout.H(12))
 		row(c, func() {
 			ui.RadioGroup(c, &fd.radio2, ui.Opts("北京", "上海", "广州", "深圳")).Buttons()
 			ui.RadioGroup(c, &fd.radio2, ui.Opts("北京", "上海", "广州")).Solid()
+		})
+		row(c, func() {
+			ui.RadioGroup(c, &cf.radioBord, []ui.Option{{Label: "选项 A", Value: "A"}, {Label: "选项 B", Value: "B"}, {Label: "禁用", Value: "C", Disabled: true}}).Border().A11yLabel("带边框单选")
+			ui.RadioGroup(c, &cf.radioDis, ui.Opts("A", "B")).Disabled(true).A11yLabel("整组禁用")
+			ui.RadioGroup(c, &cf.radioDis, ui.Opts("A", "B")).Buttons().Disabled(true).A11yLabel("整组禁用（按钮）")
 		})
 	}})
 	gallery.Register(gallery.Page{Name: "Switch", Title: "Switch 开关 / Slider 滑动输入条", Group: gallery.Form, Order: 5, Render: func(c *ui.Context) {
@@ -100,6 +148,25 @@ func init() {
 			ui.Switch(c, &fd.sw1).Small().A11yLabel("通知（小号）")
 			ui.Switch(c, &fd.sw1).Loading(true).A11yLabel("同步")
 			ui.Switch(c, &fd.sw2).Disabled(true).A11yLabel("自动更新（禁用）")
+		})
+		cf := &choiceFill
+		row(c, func() {
+			ui.Switch(c, &cf.large).Large().A11yLabel("通知（大号）")
+			ui.Switch(c, &cf.large).Large().Texts("开启", "关闭").A11yLabel("通知（大号带文字）")
+			ui.Switch(c, &cf.wide).Width(72).A11yLabel("通知（宽 72）")
+			ui.Switch(c, &cf.ic).Icons(icon.Check, icon.Close).A11yLabel("通知（图标）")
+			ui.Switch(c, &cf.outer).OuterTexts("按年付费", "按月付费").A11yLabel("付费周期")
+		})
+		row(c, func() {
+			ui.SwitchValue(c, &cf.mode, "manual", "auto").A11yLabel("模式")
+			ui.Text(c, "值："+cf.mode).Secondary()
+			ui.SwitchValue(c, &cf.level, 100, 0).A11yLabel("级别")
+			ui.Text(c, fmt.Sprintf("值：%d", cf.level)).Secondary()
+			ui.Switch(c, &cf.guard).BeforeChange(func(next bool) bool { return !next }).A11yLabel("只能关闭")
+			// The async check runs elsewhere; the switch shows loading until done.
+			ui.Switch(c, &cf.async).BeforeChangeAsync(func(next bool, done func(bool)) {
+				go func() { time.Sleep(time.Second); done(true) }()
+			}).A11yLabel("确认后切换")
 		})
 		ui.Slider(c, &fd.slider, 0, 100).Layout(layout.MaxW(360)).A11yLabel("音量")
 	}})

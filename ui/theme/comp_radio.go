@@ -18,6 +18,12 @@ type RadioToken struct {
 	ButtonPaddingInlineSM   float32
 	ButtonSolidCheckedBg    Color
 	ButtonSolidCheckedColor Color `contrast:"text:ButtonSolidCheckedBg"`
+
+	// Bordered radio (Border): inline padding before the circle and after
+	// the label, and the frame color of a checked one.
+	BorderedPaddingStart float32
+	BorderedPaddingEnd   float32
+	BorderedCheckedColor Color `contrast:"nontext:@Page"`
 }
 
 func deriveRadio(t *Theme) RadioToken {
@@ -26,6 +32,7 @@ func deriveRadio(t *Theme) RadioToken {
 		ButtonBg: t.BgContainer, ButtonCheckedBg: t.BgContainer, ButtonColor: t.Text, ButtonCheckedColor: t.Primary.Base,
 		ButtonPaddingInline: 15, ButtonPaddingInlineSM: 7,
 		ButtonSolidCheckedBg: t.Primary.Base, ButtonSolidCheckedColor: t.TextOnPrimary,
+		BorderedPaddingStart: 9, BorderedPaddingEnd: 15, BorderedCheckedColor: t.Primary.Base,
 	}
 	switch t.Flavor {
 	case Element:
@@ -35,6 +42,7 @@ func deriveRadio(t *Theme) RadioToken {
 		k.ButtonCheckedBg, k.ButtonCheckedColor = t.Primary.Base, t.TextOnPrimary
 	case StyleShadcn:
 		k.DotSize = 8
+		k.BorderedPaddingStart, k.BorderedPaddingEnd = 12, 12
 		k.ButtonCheckedBg, k.ButtonCheckedColor = t.ItemSelectedBg, t.ItemSelected
 	}
 	return k

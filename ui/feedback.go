@@ -376,10 +376,24 @@ type AlertW struct {
 	closable bool
 	banner   bool
 	closed   bool
+	center   bool
+	effect   AlertEffect
 	action   func()
 	th       *theme.Theme
 	tk       *theme.AlertToken
 }
+
+// AlertEffect selects how an Alert is filled (Element's effect).
+type AlertEffect string
+
+const (
+	// AlertEffectLight tints the box with the light status background
+	// (the default).
+	AlertEffectLight AlertEffect = "light"
+	// AlertEffectDark fills the box with the solid status color and
+	// draws the text and icon on it in a contrasting color.
+	AlertEffectDark AlertEffect = "dark"
+)
 
 // Alert adds a banner; call Show after options. status: success, info,
 // warning, error.
@@ -402,6 +416,9 @@ type alertLook struct{ bg, border, icon theme.Color }
 // take the theme palette of that name).
 func (a *AlertW) look() alertLook {
 	tk := a.tk
+	if a.effect == AlertEffectDark {
+		return a.darkLook()
+	}
 	switch a.status {
 	case "success":
 		return alertLook{tk.SuccessBg, tk.SuccessBorderColor, tk.SuccessIconColor}
@@ -420,6 +437,26 @@ func (a *AlertW) look() alertLook {
 		lk.border = theme.Color{}
 	}
 	return lk
+}
+
+// darkLook returns the dark effect colors: the solid status fill, no
+// border, and the contrasting text color as the icon (and text) color.
+func (a *AlertW) darkLook() alertLook {
+	tk := a.tk
+	var bg theme.Color
+	switch a.status {
+	case "success":
+		bg = tk.SuccessDarkBg
+	case "info":
+		bg = tk.InfoDarkBg
+	case "warning":
+		bg = tk.WarningDarkBg
+	case "error", "danger":
+		bg = tk.ErrorDarkBg
+	default:
+		bg = a.th.ColorOf(a.status).Base
+	}
+	return alertLook{bg: bg, icon: a.th.TextOn(bg, tk.DarkTextColor)}
 }
 
 // alertIcon adds the filled status circle of size px in col.
@@ -450,6 +487,73 @@ func (a *AlertW) NoIcon() *AlertW              { a.showIcon = false; return a }
 func (a *AlertW) Closable() *AlertW            { a.closable = true; return a }
 func (a *AlertW) Banner() *AlertW              { a.banner = true; return a }
 
+// Effect selects the fill: AlertEffectLight (default) or AlertEffectDark,
+// the solid status color with contrasting text (Element effect="dark").
+func (a *AlertW) Effect(e AlertEffect) *AlertW { a.effect = e; return a }
+
+// Center centers the icon and text horizontally (Element center); the
+// close button stays at the end.
+func (a *AlertW) Center() *AlertW { a.center = true; return a }
+
+// darkText returns the text color under the dark effect, and ok false
+// for the light effect.
+func (a *AlertW) darkText(lk alertLook) (theme.Color, bool) {
+	if a.effect != AlertEffectDark {
+		return theme.Color{}, false
+	}
+	return lk.icon, true
+}
+
+// leadSpacer opens a centered alert: a growing spacer, plus room matching
+// the close button so the content stays centered on the box.
+func (a *AlertW) leadSpacer() {
+	if !a.center {
+		return
+	}
+	Spacer(a.c)
+	if a.closable {
+		Div(a.c, layout.W(16))
+	}
+}
+
+// trailSpacer closes a centered alert before the action and close button.
+func (a *AlertW) trailSpacer() {
+	if a.center {
+		Spacer(a.c)
+	}
+}
+
+// closeButton adds the close icon button, in fg under the dark effect.
+func (a *AlertW) closeButton(lk alertLook) {
+	if !a.closable {
+		return
+	}
+	ib := IconButton(a.c, icon.Close, a.c.Locale().Close).Size(16, 12).NoHoverBg()
+	if fg, ok := a.darkText(lk); ok {
+		ib.Color(fg)
+	}
+	if ib.Clicked() {
+		a.closed = true
+	}
+}
+
+// grow is the text column's main-axis option: it fills the row unless the
+// alert is centered.
+func (a *AlertW) grow() layout.Option {
+	if a.center {
+		return layout.Grow(0)
+	}
+	return layout.Grow(1)
+}
+
+// textAlign is the alignment of title and description.
+func (a *AlertW) textAlign() TextAlign {
+	if a.center {
+		return AlignCenter
+	}
+	return AlignStart
+}
+
 // Closed reports a click on the close button.
 func (a *AlertW) Closed() bool { return a.closed }
 
@@ -462,43 +566,52 @@ func (a *AlertW) Show() *AlertW {
 	}
 	el := th.Flavor == theme.Element
 	big := a.desc != ""
+	fg, dark := a.darkText(lk)
 	pad := geom.VH(tk.DefaultPaddingBlock, tk.DefaultPaddingInline)
 	if big {
 		pad = geom.VH(tk.WithDescriptionPaddingBlock, tk.WithDescriptionPaddingInline)
 	}
 	b := Row(c, func() {
+		a.leadSpacer()
 		if a.showIcon {
 			is, mr := tk.IconSize, tk.IconMarginInlineEnd
 			if big {
 				is, mr = tk.WithDescriptionIconSize, tk.WithDescriptionIconMarginEnd
 			}
-			n := alertIcon(c, a.status, is, lk.icon, th.BgContainer)
+			glyph := th.BgContainer
+			if dark {
+				glyph = lk.bg
+			}
+			n := alertIcon(c, a.status, is, lk.icon, glyph)
 			n.ln.Margin.Right = mr
 			if !big {
 				n.ln.AlignSelf = layout.AlignCenter
 			}
 		}
 		Column(c, func() {
-			t := Text(c, a.title)
+			t := Text(c, a.title).Align(a.textAlign())
 			if big {
 				t.Size(tk.TitleFontSize).Weight(text.Weight(tk.TitleFontWeight))
-				Text(c, a.desc).Size(tk.DescriptionFontSize).Color(tk.DescriptionColor)
+				d := Text(c, a.desc).Size(tk.DescriptionFontSize).Color(tk.DescriptionColor).Align(a.textAlign())
+				if dark {
+					d.Color(fg)
+				}
 				if !el {
 					t.Layout(layout.Margin(geom.Insets{Bottom: tk.TitleMarginBottom}))
 				}
 			}
-			if tk.TitleColor.A > 0 {
+			switch {
+			case dark:
+				t.Color(fg)
+			case tk.TitleColor.A > 0:
 				t.Color(tk.TitleColor)
-			} else {
+			default:
 				t.Color(lk.icon)
 			}
-		}, layout.Grow(1))
+		}, a.grow())
+		a.trailSpacer()
 		a.actionArea()
-		if a.closable {
-			if IconButton(c, icon.Close, c.Locale().Close).Size(16, 12).NoHoverBg().Clicked() {
-				a.closed = true
-			}
-		}
+		a.closeButton(lk)
 	}, layout.Padding(pad), layout.AlignItems(layout.AlignStart))
 	a.annotate(b)
 	b.Bg(lk.bg).Radius(tk.Radius)
@@ -528,12 +641,14 @@ func (a *AlertW) annotate(b *Box) {
 func (a *AlertW) showShadcn(lk alertLook) *AlertW {
 	c, tk := a.c, a.tk
 	danger := a.status == "error" || a.status == "danger"
+	fg, dark := a.darkText(lk)
 	big := a.desc != ""
 	pad := geom.VH(tk.DefaultPaddingBlock, tk.DefaultPaddingInline)
 	if big {
 		pad = geom.VH(tk.WithDescriptionPaddingBlock, tk.WithDescriptionPaddingInline)
 	}
 	b := Row(c, func() {
+		a.leadSpacer()
 		if a.showIcon {
 			is, mr := tk.IconSize, tk.IconMarginInlineEnd
 			if big {
@@ -543,23 +658,26 @@ func (a *AlertW) showShadcn(lk alertLook) *AlertW {
 			n.ln.Margin = geom.Insets{Right: mr, Top: 2}
 		}
 		Column(c, func() {
-			t := Text(c, a.title).Size(tk.TitleFontSize).Weight(text.Weight(tk.TitleFontWeight)).Color(tk.TitleColor)
-			if danger {
+			t := Text(c, a.title).Size(tk.TitleFontSize).Weight(text.Weight(tk.TitleFontWeight)).Color(tk.TitleColor).Align(a.textAlign())
+			switch {
+			case dark:
+				t.Color(fg)
+			case danger:
 				t.Color(lk.icon)
 			}
 			if big {
-				d := Text(c, a.desc).Size(tk.DescriptionFontSize).Color(tk.DescriptionColor)
-				if danger {
+				d := Text(c, a.desc).Size(tk.DescriptionFontSize).Color(tk.DescriptionColor).Align(a.textAlign())
+				switch {
+				case dark:
+					d.Color(theme.Fade(fg, .9))
+				case danger:
 					d.Color(theme.Fade(lk.icon, .9))
 				}
 			}
-		}, layout.Grow(1), layout.Gap(tk.TitleMarginBottom))
+		}, a.grow(), layout.Gap(tk.TitleMarginBottom))
+		a.trailSpacer()
 		a.actionArea()
-		if a.closable {
-			if IconButton(c, icon.Close, c.Locale().Close).Size(16, 12).NoHoverBg().Clicked() {
-				a.closed = true
-			}
-		}
+		a.closeButton(lk)
 	}, layout.Padding(pad), layout.AlignItems(layout.AlignStart))
 	a.annotate(b)
 	b.Bg(lk.bg).Radius(tk.Radius)

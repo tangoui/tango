@@ -117,6 +117,9 @@ type ButtonW struct {
 	round    bool
 	circle   bool
 	ia       Interaction
+	color    ButtonColor      // "" = from variant / danger
+	appear   ButtonAppearance // "" = from variant
+	grp      *ButtonGroupW    // enclosing ButtonGroup (direct child), nil otherwise
 }
 
 // Button adds a button.
@@ -131,6 +134,7 @@ func Button(c *Context, label string) *ButtonW {
 	b.n.paint = b.paint
 	b.ia = c.interact(b.n, true, input.CursorPointer)
 	b.configDefaults()
+	b.joinGroup()
 	return b
 }
 
@@ -150,6 +154,35 @@ func (b *ButtonW) Secondary() *ButtonW { b.variant = VariantSecondary; return b 
 
 // Variant sets the variant explicitly.
 func (b *ButtonW) Variant(v ButtonVariant) *ButtonW { b.variant = v; return b }
+
+// Color sets the button color (Ant v6 color): a role, an Ant preset or a
+// hex color ("#13c2c2"). Combine it with Appearance, or with the variant
+// modifiers: Primary is solid, Dashed dashed, Text text, Link link,
+// Secondary filled. With neither, the success / warning / info colors are
+// solid (Element type="success") and the other colors outlined.
+//
+//	ui.Button(c, "紫色").Color(ui.ButtonColorPurple).Appearance(ui.ButtonFilled)
+func (b *ButtonW) Color(col ButtonColor) *ButtonW { b.color = col; return b }
+
+// Appearance sets how the button wears its color (Ant v6 variant, plus
+// Element's plain).
+func (b *ButtonW) Appearance(a ButtonAppearance) *ButtonW { b.appear = a; return b }
+
+// Success makes a solid success button (Element type="success"); add
+// Plain for the plain style.
+func (b *ButtonW) Success() *ButtonW { b.color = ButtonColorSuccess; return b }
+
+// Warning makes a solid warning button (Element type="warning").
+func (b *ButtonW) Warning() *ButtonW { b.color = ButtonColorWarning; return b }
+
+// Info makes a solid info button (Element type="info").
+func (b *ButtonW) Info() *ButtonW { b.color = ButtonColorInfo; return b }
+
+// Plain uses Element's plain style: a light tint of the color with a
+// tinted border, filled with the color under the pointer. It combines with
+// every color: Plain() alone, Primary().Plain(), Success().Plain(),
+// Danger().Plain(), Color(ui.ButtonColorPurple).Plain() …
+func (b *ButtonW) Plain() *ButtonW { b.appear = ButtonPlain; return b }
 
 // Size sets the control size.
 func (b *ButtonW) Size(s ControlSize) *ButtonW { b.size = s; return b }
@@ -260,7 +293,7 @@ func (b *ButtonW) measure(_, _ float32) geom.Size {
 		w += b.iconSize() + b.gap()
 	}
 	pad := b.padX()
-	if b.variant == VariantLink && b.th.Flavor == theme.Element {
+	if b.th.Flavor == theme.Element && b.appearance() == ButtonLink {
 		pad = 0
 	}
 	if (b.ic != nil || b.loading) && b.label != "" && b.shad() {
@@ -278,9 +311,19 @@ type btnLook struct {
 }
 
 func (b *ButtonW) look() btnLook {
+	v, danger, ok := b.legacy()
+	if !ok {
+		return b.lookPalette()
+	}
+	return b.lookFor(v, danger)
+}
+
+// lookFor is the original look of variant v (with Danger when danger):
+// Primary / Dashed / Text / Link / Secondary / default, Danger and Ghost.
+func (b *ButtonW) lookFor(variant ButtonVariant, danger bool) btnLook {
 	c, th, tk := b.c, b.th, b.tk
 	pal := th.Primary
-	if b.danger {
+	if danger {
 		pal = th.Error
 	}
 	el := th.Flavor == theme.Element
@@ -294,37 +337,37 @@ func (b *ButtonW) look() btnLook {
 		return theme.Lerp(a, h, hover)
 	}
 	if th.Flavor == theme.StyleShadcn {
-		return b.lookShadcn(pal, hover)
+		return b.lookShadcn(variant, danger, pal, hover)
 	}
-	if b.variant == VariantSecondary {
+	if variant == VariantSecondary {
 		if b.isDisabled() {
 			lk.bg, lk.fg = th.BgContainerDisabled, th.TextDisabled
 			return lk
 		}
 		lk.bg, lk.fg = mix(tk.SecondaryBg, tk.SecondaryHoverBg, tk.SecondaryHoverBg), tk.SecondaryColor
-		if b.danger {
+		if danger {
 			lk.bg, lk.fg = mix(pal.Bg, pal.BgHover, pal.BgHover), pal.Base
 		}
 		return lk
 	}
 	if b.isDisabled() {
 		switch {
-		case b.variant == VariantText || b.variant == VariantLink:
+		case variant == VariantText || variant == VariantLink:
 			lk.fg = th.TextDisabled
-		case el && b.variant == VariantPrimary:
+		case el && variant == VariantPrimary:
 			lk.bg, lk.border, lk.fg = pal.Shades[3], pal.Shades[3], th.TextOnPrimary
 		case el:
 			lk.bg, lk.border, lk.fg = th.BgContainer, th.BorderSecondary, th.TextDisabled
 		default:
 			lk.bg, lk.border, lk.fg = th.BgContainerDisabled, th.Border, th.TextDisabled
 		}
-		lk.dashed = b.variant == VariantDashed
+		lk.dashed = variant == VariantDashed
 		return lk
 	}
-	switch b.variant {
+	switch variant {
 	case VariantPrimary:
 		base, fg, sh := pal.Base, tk.PrimaryColor, tk.PrimaryShadow
-		if b.danger {
+		if danger {
 			base, fg, sh = tk.DangerBg, tk.DangerColor, tk.DangerShadow
 		}
 		lk.bg = mix(base, pal.Hover, pal.Active)
@@ -337,15 +380,15 @@ func (b *ButtonW) look() btnLook {
 		lk.shadow = sh
 	case VariantText:
 		fg := th.Text
-		if b.danger {
+		if danger {
 			fg = pal.Base
 		}
 		lk.fg = fg
-		if el && !b.danger {
+		if el && !danger {
 			lk.fg = mix(th.Text, pal.Base, pal.Active)
 		}
 		lk.bg = mix(theme.Color{}, tk.TextHoverBg, th.BgTextActive)
-		if b.danger && !el {
+		if danger && !el {
 			lk.bg = mix(theme.Color{}, pal.Bg, pal.BgHover)
 		}
 	case VariantLink:
@@ -354,18 +397,18 @@ func (b *ButtonW) look() btnLook {
 			lk.fg = mix(pal.Base, pal.Shades[4], pal.Active)
 		}
 	default: // default and dashed
-		lk.dashed = b.variant == VariantDashed
+		lk.dashed = variant == VariantDashed
 		if el {
 			lk.fg = mix(tk.DefaultColor, tk.DefaultHoverColor, pal.Active)
 			lk.border = mix(tk.DefaultBorderColor, tk.DefaultHoverBorderColor, pal.Active)
 			lk.bg = mix(tk.DefaultBg, tk.DefaultHoverBg, tk.DefaultHoverBg)
-			if b.danger {
+			if danger {
 				lk.bg = mix(pal.Bg, pal.Base, pal.Active)
 				lk.border = mix(pal.Border, pal.Base, pal.Active)
 				lk.fg = mix(pal.Base, th.TextOnPrimary, th.TextOnPrimary)
 			}
 		} else {
-			if b.danger {
+			if danger {
 				lk.fg = mix(pal.Base, pal.Hover, pal.Active)
 				lk.border = lk.fg
 				lk.shadow = tk.DangerShadow
@@ -387,17 +430,17 @@ func (b *ButtonW) look() btnLook {
 // secondary, outline (the default button), ghost (Text), link and
 // destructive (Danger). Hover darkens or tints; disabled fades the whole
 // button to 50%.
-func (b *ButtonW) lookShadcn(pal theme.Palette, hover float32) btnLook {
+func (b *ButtonW) lookShadcn(variant ButtonVariant, danger bool, pal theme.Palette, hover float32) btnLook {
 	th, tk := b.th, b.tk
 	if b.isDisabled() {
 		hover = 0
 	}
 	var lk btnLook
-	switch b.variant {
+	switch variant {
 	case VariantPrimary:
 		lk.bg, lk.fg = theme.Lerp(pal.Base, pal.Hover, hover), tk.PrimaryColor
 		lk.shadow = tk.PrimaryShadow
-		if b.danger {
+		if danger {
 			// destructive: bg-destructive (dark /60), hover /90.
 			base := tk.DangerBg
 			lk.bg = theme.Lerp(base, theme.Over(theme.Fade(base, .9), th.BgContainer), hover)
@@ -408,27 +451,27 @@ func (b *ButtonW) lookShadcn(pal theme.Palette, hover float32) btnLook {
 		}
 	case VariantSecondary:
 		lk.bg, lk.fg = theme.Lerp(tk.SecondaryBg, tk.SecondaryHoverBg, hover), tk.SecondaryColor
-		if b.danger {
+		if danger {
 			lk.bg, lk.fg = theme.Lerp(pal.Bg, pal.BgHover, hover), pal.Base
 		}
 	case VariantText:
 		lk.fg = th.Text
 		lk.bg = theme.Lerp(theme.Color{}, tk.TextHoverBg, hover)
-		if b.danger {
+		if danger {
 			lk.fg, lk.bg = pal.Base, theme.Lerp(theme.Color{}, pal.Bg, hover)
 		}
 	case VariantLink:
 		lk.fg = th.TextLink
-		if b.danger {
+		if danger {
 			lk.fg = pal.Base
 		}
 		lk.underline = hover > 0.5
 	default: // outline, dashed
-		lk.dashed = b.variant == VariantDashed
+		lk.dashed = variant == VariantDashed
 		lk.border, lk.fg = tk.DefaultBorderColor, theme.Lerp(tk.DefaultColor, tk.DefaultHoverColor, hover)
 		lk.bg = theme.Lerp(tk.DefaultBg, tk.DefaultHoverBg, hover)
 		lk.shadow = tk.DefaultShadow
-		if b.danger {
+		if danger {
 			lk.fg = pal.Base
 			lk.bg = theme.Lerp(tk.DefaultBg, pal.Bg, hover)
 		}
@@ -444,14 +487,17 @@ func (b *ButtonW) lookShadcn(pal theme.Palette, hover float32) btnLook {
 }
 
 func (b *ButtonW) radius(r geom.Rect) geom.Radii {
+	rad := geom.Rad(controlRadiusOf(b.th, b.size))
 	if b.circle || b.round {
-		return geom.Rad(r.H / 2)
+		rad = geom.Rad(r.H / 2)
 	}
-	return geom.Rad(controlRadiusOf(b.th, b.size))
+	if b.grp != nil {
+		rad = b.grp.corners(b, rad)
+	}
+	return rad
 }
 
 func (b *ButtonW) paint(l *paint.List, r geom.Rect) {
-	th := b.th
 	lk := b.look()
 	rad := b.radius(r)
 	if b.loading {
@@ -465,12 +511,9 @@ func (b *ButtonW) paint(l *paint.List, r geom.Rect) {
 		l.Shadows(r, rad, lk.shadow)
 	}
 	l.Fill(r, rad, lk.bg)
-	if lk.border.A > 0 {
-		if lk.dashed {
-			l.StrokeDashed(r, rad, 1, lk.border, []float32{3.5, 2.5})
-		} else {
-			l.Stroke(r, rad, 1, lk.border)
-		}
+	b.strokeBorder(l, r, rad, lk)
+	if b.grp != nil {
+		b.grp.divider(l, b, r, lk)
 	}
 	st := b.font()
 	lay := text.Shape(b.label, st, b.c.textOpts(text.Options{NoWrap: true}))
@@ -521,12 +564,33 @@ func (b *ButtonW) paint(l *paint.List, r geom.Rect) {
 	if b.loading {
 		l.Pop()
 	}
-	if b.ia.FocusVisible && !b.isDisabled() {
-		if th.Flavor == theme.StyleShadcn {
-			shadFocusRing(l, th, r, rad, b.danger && b.variant == VariantPrimary)
-		} else {
-			drawFocusRing(l, th, r, rad)
-		}
+	if b.grp == nil { // a group raises the ring above the neighbours
+		b.focusRing(l, r, rad)
+	}
+}
+
+// strokeBorder draws the 1px border of lk (dashed for dashed buttons).
+func (b *ButtonW) strokeBorder(l *paint.List, r geom.Rect, rad geom.Radii, lk btnLook) {
+	if lk.border.A == 0 {
+		return
+	}
+	if lk.dashed {
+		l.StrokeDashed(r, rad, 1, lk.border, []float32{3.5, 2.5})
+	} else {
+		l.Stroke(r, rad, 1, lk.border)
+	}
+}
+
+// focusRing draws the :focus-visible ring when the button shows one.
+func (b *ButtonW) focusRing(l *paint.List, r geom.Rect, rad geom.Radii) {
+	if !b.ia.FocusVisible || b.isDisabled() {
+		return
+	}
+	if b.th.Flavor == theme.StyleShadcn {
+		v, danger, _ := b.legacy()
+		shadFocusRing(l, b.th, r, rad, danger && v == VariantPrimary)
+	} else {
+		drawFocusRing(l, b.th, r, rad)
 	}
 }
 
@@ -597,3 +661,305 @@ func (b *IconButtonW) Clicked() bool { return b.ia.Clicked }
 
 // Hovered reports hover.
 func (b *IconButtonW) Hovered() bool { return b.ia.Hovered }
+
+// ---------------------------------------------------------------------------
+// Color × appearance (Ant v6 color / variant, Element type / plain)
+
+// ButtonColor names a button color: a role (default, primary, danger,
+// success, warning, info), an Ant Design preset (blue … gold) or a hex
+// color such as "#13c2c2". The set is open; unknown names fall back to
+// primary.
+type ButtonColor string
+
+const (
+	ButtonColorDefault ButtonColor = "default"
+	ButtonColorPrimary ButtonColor = "primary"
+	ButtonColorDanger  ButtonColor = "danger"
+	ButtonColorSuccess ButtonColor = "success" // Element type="success"
+	ButtonColorWarning ButtonColor = "warning" // Element type="warning"
+	ButtonColorInfo    ButtonColor = "info"    // Element type="info"
+
+	ButtonColorBlue     ButtonColor = "blue"
+	ButtonColorPurple   ButtonColor = "purple"
+	ButtonColorCyan     ButtonColor = "cyan"
+	ButtonColorGreen    ButtonColor = "green"
+	ButtonColorMagenta  ButtonColor = "magenta"
+	ButtonColorPink     ButtonColor = "pink"
+	ButtonColorRed      ButtonColor = "red"
+	ButtonColorOrange   ButtonColor = "orange"
+	ButtonColorYellow   ButtonColor = "yellow"
+	ButtonColorVolcano  ButtonColor = "volcano"
+	ButtonColorGeekblue ButtonColor = "geekblue"
+	ButtonColorLime     ButtonColor = "lime"
+	ButtonColorGold     ButtonColor = "gold"
+)
+
+// ButtonPresetColors lists the Ant Design preset colors in display order.
+var ButtonPresetColors = []ButtonColor{
+	ButtonColorBlue, ButtonColorPurple, ButtonColorCyan, ButtonColorGreen, ButtonColorMagenta,
+	ButtonColorPink, ButtonColorRed, ButtonColorOrange, ButtonColorYellow, ButtonColorVolcano,
+	ButtonColorGeekblue, ButtonColorLime, ButtonColorGold,
+}
+
+// ButtonAppearance is how a button wears its color (Ant v6 variant, plus
+// Element's plain).
+type ButtonAppearance string
+
+const (
+	ButtonSolid    ButtonAppearance = "solid"    // filled with the color
+	ButtonOutlined ButtonAppearance = "outlined" // colored border and label
+	ButtonDashed   ButtonAppearance = "dashed"   // outlined with a dashed border
+	ButtonFilled   ButtonAppearance = "filled"   // light tint, no border
+	ButtonText     ButtonAppearance = "text"     // label only, tint under the pointer
+	ButtonLink     ButtonAppearance = "link"     // link-styled label
+	ButtonPlain    ButtonAppearance = "plain"    // Element plain: tint + tinted border, solid on hover
+)
+
+// combo resolves the color and appearance of a button that set either;
+// ok is false for buttons using only the variant modifiers.
+func (b *ButtonW) combo() (col ButtonColor, ap ButtonAppearance, ok bool) {
+	if b.color == "" && b.appear == "" {
+		return "", "", false
+	}
+	col = b.color
+	if col == "" {
+		switch {
+		case b.danger:
+			col = ButtonColorDanger
+		case b.variant == VariantPrimary:
+			col = ButtonColorPrimary
+		default:
+			col = ButtonColorDefault
+		}
+	}
+	ap = b.appear
+	if ap == "" {
+		ap = appearanceOfVariant(b.variant)
+		if b.variant == VariantDefault && (col == ButtonColorSuccess || col == ButtonColorWarning || col == ButtonColorInfo) {
+			ap = ButtonSolid // Element types are solid
+		}
+	}
+	return col, ap, true
+}
+
+// appearance is the effective appearance of b.
+func (b *ButtonW) appearance() ButtonAppearance {
+	if _, ap, ok := b.combo(); ok {
+		return ap
+	}
+	return appearanceOfVariant(b.variant)
+}
+
+func appearanceOfVariant(v ButtonVariant) ButtonAppearance {
+	switch v {
+	case VariantPrimary:
+		return ButtonSolid
+	case VariantDashed:
+		return ButtonDashed
+	case VariantText:
+		return ButtonText
+	case VariantLink:
+		return ButtonLink
+	case VariantSecondary:
+		return ButtonFilled
+	}
+	return ButtonOutlined
+}
+
+func variantOfAppearance(a ButtonAppearance) ButtonVariant {
+	switch a {
+	case ButtonSolid:
+		return VariantPrimary
+	case ButtonDashed:
+		return VariantDashed
+	case ButtonText:
+		return VariantText
+	case ButtonLink:
+		return VariantLink
+	case ButtonFilled:
+		return VariantSecondary
+	}
+	return VariantDefault
+}
+
+// legacy returns the variant and danger flag that draw b with the original
+// looks; ok is false when its color × appearance needs lookPalette. The
+// default and danger colors (except default solid and plain) and the solid
+// primary keep the exact look of the variant modifiers.
+func (b *ButtonW) legacy() (v ButtonVariant, danger, ok bool) {
+	col, ap, set := b.combo()
+	if !set {
+		return b.variant, b.danger, true
+	}
+	if ap == ButtonPlain {
+		return 0, false, false
+	}
+	switch col {
+	case ButtonColorDefault:
+		if ap == ButtonSolid {
+			return 0, false, false
+		}
+		return variantOfAppearance(ap), false, true
+	case ButtonColorDanger:
+		return variantOfAppearance(ap), true, true
+	case ButtonColorPrimary:
+		if ap == ButtonSolid {
+			return VariantPrimary, false, true
+		}
+	}
+	return 0, false, false
+}
+
+// palette returns the palette of a non-default color and whether it is a
+// preset or hex color (labels drawn in it get PresetTextContrast).
+func (b *ButtonW) palette(col ButtonColor) (theme.Palette, bool) {
+	th := b.th
+	switch col {
+	case ButtonColorPrimary, ButtonColorDefault:
+		return th.Primary, false
+	case ButtonColorDanger:
+		return th.Error, false
+	case ButtonColorSuccess:
+		return th.Success, false
+	case ButtonColorWarning:
+		return th.Warning, false
+	case ButtonColorInfo:
+		return th.Info, false
+	}
+	hx := string(col)
+	if p, ok := antPreset[hx]; ok {
+		hx = p
+	}
+	base, err := theme.ParseHex(hx)
+	if err != nil {
+		return th.Primary, false
+	}
+	return th.ButtonPalette(base), true
+}
+
+// lookPalette draws the color × appearance combinations the variant
+// modifiers do not cover, from the color's palette.
+func (b *ButtonW) lookPalette() btnLook {
+	col, ap, _ := b.combo()
+	th, tk := b.th, b.tk
+	dis := b.isDisabled()
+	shad := th.Flavor == theme.StyleShadcn
+	if dis && !shad {
+		return b.lookPaletteDisabled(col, ap)
+	}
+	hover := b.c.Anim(b.n.id, "hover", b2f(b.ia.Hovered && !dis), th.DurationMid)
+	press := b.ia.Pressed && !dis && !shad // shadcn has no pressed shade
+	mix := func(a, h, p theme.Color) theme.Color {
+		if press {
+			return p
+		}
+		return theme.Lerp(a, h, hover)
+	}
+	var lk btnLook
+	page := tk.DefaultBg
+	switch {
+	case col == ButtonColorDefault && ap == ButtonSolid:
+		lk.bg = mix(tk.DefaultSolidBg, tk.DefaultSolidHoverBg, tk.DefaultSolidActiveBg)
+		lk.border, lk.fg = lk.bg, tk.DefaultSolidColor
+		if b.ghost {
+			lk.bg, lk.fg = theme.Color{}, lk.border
+		}
+	case col == ButtonColorDefault: // plain
+		pal := th.Primary
+		lk.bg = tk.DefaultBg
+		lk.border = mix(tk.DefaultBorderColor, pal.Base, pal.Active)
+		lk.fg = mix(tk.DefaultColor, pal.Base, pal.Active)
+		if shad { // the neutral primary: outline that darkens
+			lk.border, lk.fg = tk.DefaultBorderColor, mix(tk.DefaultColor, tk.DefaultHoverColor, tk.DefaultHoverColor)
+			lk.bg = mix(tk.DefaultBg, tk.DefaultHoverBg, tk.DefaultHoverBg)
+		}
+	default:
+		pal, preset := b.palette(col)
+		readable := func(fg, bg theme.Color) theme.Color {
+			if preset && tk.PresetTextContrast > 0 {
+				return theme.EnsureContrast(fg, theme.Over(bg, page), float64(tk.PresetTextContrast), th.Text)
+			}
+			return fg
+		}
+		onSolid := th.TextOn(pal.Base, th.TextOnSolid)
+		switch ap {
+		case ButtonSolid:
+			lk.bg = mix(pal.Base, pal.Hover, pal.Active)
+			lk.border, lk.fg = lk.bg, onSolid
+			if col == ButtonColorPrimary {
+				lk.fg, lk.shadow = tk.PrimaryColor, tk.PrimaryShadow
+			}
+			if b.ghost {
+				lk.bg, lk.fg = theme.Color{}, readable(lk.border, page)
+			}
+		case ButtonOutlined, ButtonDashed:
+			lk.dashed = ap == ButtonDashed
+			lk.border = mix(pal.Base, pal.Hover, pal.Active)
+			lk.bg = tk.DefaultBg
+			if shad {
+				lk.bg = theme.Lerp(tk.DefaultBg, pal.Bg, hover)
+			}
+			if b.ghost {
+				lk.bg = theme.Color{}
+			}
+			lk.fg = readable(lk.border, page)
+		case ButtonFilled:
+			lk.bg = mix(pal.Bg, pal.BgHover, pal.Border)
+			lk.fg = readable(pal.Base, lk.bg)
+		case ButtonText:
+			lk.bg = mix(theme.Color{}, pal.Bg, pal.BgHover)
+			lk.fg = readable(mix(pal.Base, pal.Hover, pal.Active), page)
+		case ButtonLink:
+			lk.fg = readable(mix(pal.Base, pal.Hover, pal.Active), page)
+			if shad {
+				lk.fg, lk.underline = readable(pal.Base, page), hover > 0.5
+			}
+		default: // plain
+			lk.bg = mix(pal.Bg, pal.Base, pal.Active)
+			lk.border = mix(pal.Border, pal.Base, pal.Active)
+			lk.fg = mix(readable(pal.Base, pal.Bg), onSolid, onSolid)
+		}
+	}
+	if dis {
+		lk.opacity, lk.shadow = 0.5, nil
+	}
+	return lk
+}
+
+// lookPaletteDisabled is the disabled look of lookPalette (Ant and
+// Element; shadcn fades the normal look).
+func (b *ButtonW) lookPaletteDisabled(col ButtonColor, ap ButtonAppearance) btnLook {
+	th := b.th
+	el := th.Flavor == theme.Element
+	var lk btnLook
+	lk.dashed = ap == ButtonDashed
+	if el && col != ButtonColorDefault {
+		// el-button disabled: the light-5 / light-8 / light-9 steps.
+		pal, _ := b.palette(col)
+		faint := pal.Shades[3]
+		switch ap {
+		case ButtonSolid:
+			lk.bg, lk.border, lk.fg = faint, faint, th.TextOn(faint, th.TextOnSolid) // white on light-5 would read below 1.6:1
+		case ButtonPlain:
+			lk.bg, lk.border, lk.fg = pal.Bg, pal.Shades[1], faint
+		case ButtonFilled:
+			lk.bg, lk.fg = pal.Bg, faint
+		case ButtonText, ButtonLink:
+			lk.fg = faint
+		default:
+			lk.bg, lk.border, lk.fg = th.BgContainer, pal.Shades[2], faint
+		}
+		return lk
+	}
+	switch {
+	case ap == ButtonText || ap == ButtonLink:
+		lk.fg = th.TextDisabled
+	case ap == ButtonFilled:
+		lk.bg, lk.fg = th.BgContainerDisabled, th.TextDisabled
+	case el:
+		lk.bg, lk.border, lk.fg = th.BgContainer, th.BorderSecondary, th.TextDisabled
+	default:
+		lk.bg, lk.border, lk.fg = th.BgContainerDisabled, th.Border, th.TextDisabled
+	}
+	return lk
+}

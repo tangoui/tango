@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/tangoui/tango/examples/ui-gallery/gallery"
@@ -96,8 +97,9 @@ func init() {
 		}, layout.Gap(8))
 		ui.Divider(c)
 		ui.Text(c, "Tour 用遮罩挖洞高亮目标，面板带箭头指向目标，底部为步骤指示与上一步/下一步。").Tertiary()
+		ui.Text(c, "每步可单独设置 Mask / Type / 按钮文字；IndicatorsRender、ActionsRender 自定义指示与操作区；切换步骤时目标自动滚入可见区。").Tertiary()
 		steps := []ui.TourStep{
-			{Target: dataTourTarget[0], Title: "上传文件", Description: "把文件放在这里。"},
+			{Target: dataTourTarget[0], Title: "上传文件", Description: "把文件放在这里。", NextText: "知道了，下一步"},
 			{Target: dataTourTarget[1], Title: "保存", Description: "保存你的修改，支持快捷键 Ctrl+S。", Cover: func() {
 				ui.Custom(c, func(maxW, _ float32) geom.Size { return geom.Size{W: maxW, H: 120} }, func(l *paint.List, r geom.Rect) {
 					l.Clip(r, geom.Rad(6))
@@ -105,9 +107,19 @@ func init() {
 					l.Pop()
 				})
 			}},
-			{Target: dataTourTarget[2], Title: "其他操作", Description: "点击查看更多操作。", Placement: "right"},
+			{Target: dataTourTarget[2], Title: "其他操作", Description: "这一步是主色面板、没有遮罩。", Placement: "right",
+				Type: ui.TourTypePrimary, Mask: ui.TourMaskOff, PrevText: "返回"},
 		}
-		ui.Tour(c, &dataTourOpen, &dataTourCur, steps).Show()
+		ui.Tour(c, &dataTourOpen, &dataTourCur, steps).
+			IndicatorsRender(func(cur, total int) {
+				ui.Text(c, fmt.Sprintf("第 %d 步，共 %d 步", cur+1, total)).Size(12).Tertiary()
+			}).
+			ActionsRender(func(a *ui.TourActions) {
+				if a.Current < a.Total-1 && ui.Button(c, "跳过").Small().Text().Clicked() {
+					a.Close()
+				}
+				a.Default()
+			}).Show()
 	}})
 
 	dataPage(gallery.Page{Name: "Carousel", Title: "Carousel 走马灯", Order: 69, Render: func(c *ui.Context) {

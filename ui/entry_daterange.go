@@ -62,6 +62,7 @@ type RangePickerW struct {
 	allowClear bool
 	presets    []DatePreset
 	disabledFn func(time.Time) bool
+	disTime    func(day time.Time, end bool) DisabledTimes
 	changed    bool
 	forced     bool
 	ia         Interaction
@@ -296,6 +297,15 @@ func (w *RangePickerW) core() *DatePickerPanelW {
 // DisabledDate marks days that cannot be picked.
 func (w *RangePickerW) DisabledDate(fn func(time.Time) bool) *RangePickerW {
 	w.disabledFn = fn
+	return w
+}
+
+// DisabledTime disables hours, minutes and seconds per day in the ShowTime
+// columns (Ant disabledTime with type "start" / "end"): fn receives the
+// drafted day of an end (UTC midnight) and end=false for the start, true
+// for the end. A range with a disabled clock cannot be confirmed.
+func (w *RangePickerW) DisabledTime(fn func(day time.Time, end bool) DisabledTimes) *RangePickerW {
+	w.disTime = fn
 	return w
 }
 

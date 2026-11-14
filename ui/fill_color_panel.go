@@ -41,6 +41,19 @@ func ColorPickerPanel(c *Context, val *theme.Color) *ColorPickerPanelW {
 	return w
 }
 
+// ColorPickerPanelGradient adds an inline panel bound to a linear
+// gradient: the stop bar and angle input of ColorPickerGradient above the
+// editors of the selected stop's color. ColorPickerPanel (single color)
+// is unchanged.
+//
+//	ui.ColorPickerPanelGradient(c, &g).NoAlpha()
+func ColorPickerPanelGradient(c *Context, val *theme.Gradient) *ColorPickerPanelW {
+	w := ColorPickerPanel(c, new(theme.Color))
+	w.cp.grad = val
+	w.cp.gradLoad()
+	return w
+}
+
 // Presets adds preset swatches (Element predefine, Ant presets).
 func (w *ColorPickerPanelW) Presets(cols ...theme.Color) *ColorPickerPanelW {
 	w.cp.presets = cols
@@ -86,6 +99,9 @@ func (w *ColorPickerPanelW) ID() ID { return w.box.n.id }
 
 func (w *ColorPickerPanelW) build() {
 	c, th, cp := w.c, w.cp.th, w.cp
+	if cp.grad != nil {
+		cp.gradLoad()
+	}
 	cp.sync(false)
 	h0 := cp.st.hsva
 	el := th.Flavor == theme.Element
@@ -117,6 +133,9 @@ func (w *ColorPickerPanelW) build() {
 		}
 		cp.st.synced = *cp.val
 	}
+	if cp.grad != nil {
+		cp.gradStore()
+	}
 }
 
 // element lays out Element's panel: square + vertical hue, alpha bar,
@@ -124,6 +143,9 @@ func (w *ColorPickerPanelW) build() {
 func (w *ColorPickerPanelW) element() {
 	c, cp := w.c, w.cp
 	st := cp.st
+	if cp.grad != nil {
+		cp.gradientEditor()
+	}
 	cp.elPalette()
 	if !cp.noAlpha {
 		cp.bar("alpha", false, 0, cp.tk.BarHeight)

@@ -19,6 +19,8 @@ type acState struct {
 	pop    entPopup
 	active int
 	remote remoteSearch // debounce of Remote calls
+	// hadFocus: the editor had focus at the last build (TriggerOnFocus).
+	hadFocus bool
 }
 
 // AutoCompleteW is a text input with a suggestion dropdown.
@@ -37,6 +39,7 @@ type AutoCompleteW struct {
 	st        *acState
 	keys      []input.KeyEvent
 	highlight bool
+	onFocus   bool // TriggerOnFocus
 	forced    bool
 	changed   bool
 	selected  string
@@ -85,6 +88,11 @@ func (w *AutoCompleteW) semantics(s *a11y.Node) {
 func (w *AutoCompleteW) Placeholder(s string) *AutoCompleteW { w.in.Placeholder(s); return w }
 func (w *AutoCompleteW) AllowClear() *AutoCompleteW          { w.in.AllowClear(); return w }
 func (w *AutoCompleteW) Status(s string) *AutoCompleteW      { w.in.Status(s); return w }
+
+// Variant sets the frame look (FieldOutlined by default; the inner
+// Input's Variant).
+func (w *AutoCompleteW) Variant(v FieldVariant) *AutoCompleteW { w.in.Variant(string(v)); return w }
+
 func (w *AutoCompleteW) Size(s ControlSize) *AutoCompleteW   { w.in.Size(s); return w }
 func (w *AutoCompleteW) Width(px float32) *AutoCompleteW     { w.in.Width(px); return w }
 func (w *AutoCompleteW) Prefix(ic *icon.Icon) *AutoCompleteW { w.in.Prefix(ic); return w }
@@ -114,6 +122,12 @@ func (w *AutoCompleteW) Debounce(d time.Duration) *AutoCompleteW { w.debounce = 
 // Loading shows a spinner and the loading text in the dropdown (in place
 // of the suggestions with Remote, or when there are none).
 func (w *AutoCompleteW) Loading(on bool) *AutoCompleteW { w.loading = on; return w }
+
+// TriggerOnFocus opens the suggestions as soon as the input gains focus
+// (Element trigger-on-focus), before anything is typed: the options (or
+// Source's result) for the current text, all of them when it is empty.
+// With Remote the callback runs at once for the current text.
+func (w *AutoCompleteW) TriggerOnFocus() *AutoCompleteW { w.onFocus = true; return w }
 
 // Highlight emphasises the matched part of each suggestion.
 func (w *AutoCompleteW) Highlight() *AutoCompleteW { w.highlight = true; return w }
@@ -186,6 +200,18 @@ func (w *AutoCompleteW) finish() {
 		st.pop.open = true
 		st.active = 0
 	}
+	focused := c.focus == w.in.ed.id
+	if w.onFocus && focused && !st.hadFocus && !typed {
+		if w.remote != nil && !st.remote.pending {
+			w.remote(*w.val)
+			c.invalid = true
+		}
+		if len(opts) > 0 || w.keepOpen() {
+			st.pop.open = true
+			st.active = 0
+		}
+	}
+	st.hadFocus = focused
 	if c.focus != w.in.ed.id && c.focus != 0 && !w.forced {
 		st.pop.open = false
 	}

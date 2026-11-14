@@ -108,6 +108,8 @@ func init() {
 	}})
 
 	deadline := time.Date(2026, 1, 3, 13, 30, 12, 0, time.UTC)
+	var statTicks int
+	cardTab, cardTab2 := "app", "a"
 	dataPage(gallery.Page{Name: "Statistic", Title: "Statistic 统计数值 / Countdown 倒计时", Order: 6, Render: func(c *ui.Context) {
 		th := c.Theme
 		ui.Row(c, func() {
@@ -126,6 +128,13 @@ func init() {
 			ui.Statistic(c, "活跃用户", 0, 0).CountUp(112893, 0)
 			ui.Statistic(c, "加载中", 0, 0).Loading(true)
 			ui.Statistic(c, "反馈", 1128, 0).PrefixIcon(icon.Message)
+		}, layout.Gap(56), layout.Margin(geom.Insets{Bottom: 32}))
+		// Statistic.Timer：正计时 / 倒计时，OnChange 每次显示值变化时回调
+		ui.Row(c, func() {
+			ui.StatisticTimer(c, "已运行（正计时）", ui.TimerCountup, deadline.Add(-80*time.Hour)).Format("D 天 HH:mm:ss")
+			ui.StatisticTimer(c, "倒计时（Timer）", ui.TimerCountdown, deadline).
+				OnChange(func(left time.Duration) { statTicks++ })
+			ui.Statistic(c, "OnChange 次数", float64(statTicks), 0)
 		}, layout.Gap(56))
 	}})
 
@@ -224,6 +233,17 @@ func init() {
 					ui.Card(c, "内部卡片").Inner().Small().Extra(func() { ui.Link(c, "More") }).Body(func() { ui.Text(c, "Inner Card content") })
 				})
 			}, layout.Grow(1), layout.Gap(16))
+		}, layout.Gap(16), layout.AlignItems(layout.AlignStart), layout.Margin(geom.Insets{Bottom: 24}))
+		// 卡片内页签（Ant tabList / tabBarExtraContent）
+		ui.Row(c, func() {
+			tabs := []ui.TabItem{{Key: "article", Label: "文章"}, {Key: "app", Label: "应用"}, {Key: "project", Label: "项目"}}
+			ui.Card(c, "带页签的卡片").Extra(func() { ui.Link(c, "更多") }).Tabs(&cardTab, tabs).Layout(layout.Grow(1)).Body(func() {
+				ui.Text(c, map[string]string{"article": "文章列表内容", "app": "应用列表内容", "project": "项目列表内容"}[cardTab])
+			})
+			ui.Card(c, "").Tabs(&cardTab2, []ui.TabItem{{Key: "a", Label: "动态"}, {Key: "b", Label: "通知"}}).
+				TabBarExtra(func() { ui.Link(c, "全部") }).Layout(layout.Grow(1)).Body(func() {
+				ui.Text(c, "没有标题时页签就是卡片头部："+cardTab2)
+			})
 		}, layout.Gap(16), layout.AlignItems(layout.AlignStart))
 	}})
 

@@ -52,9 +52,32 @@ func (w *RangePickerW) draftReady() bool {
 	return !w.st.draft[0].IsZero() && !w.st.draft[1].IsZero()
 }
 
+// disabledTimes returns the DisabledTime options of end i for day t.
+func (w *RangePickerW) disabledTimes(t time.Time, i int) DisabledTimes {
+	if w.disTime == nil || t.IsZero() {
+		return DisabledTimes{}
+	}
+	return w.disTime(dtDayUTC(t), i == 1)
+}
+
+// draftBlocked reports a drafted end whose clock DisabledTime rejects.
+func (w *RangePickerW) draftBlocked() bool {
+	if w.disTime == nil {
+		return false
+	}
+	for i, t := range w.st.draft {
+		cfg := dtTimeCfg{cols: dtTimeCols(w.timeLayout())}
+		w.disabledTimes(t, i).apply(&cfg)
+		if cfg.disabled(t) {
+			return true
+		}
+	}
+	return false
+}
+
 // commitDraft commits the drafts (ordered) and closes.
 func (w *RangePickerW) commitDraft() {
-	if !w.draftReady() {
+	if !w.draftReady() || w.draftBlocked() {
 		return
 	}
 	a, b := w.st.draft[0], w.st.draft[1]
@@ -99,7 +122,9 @@ func (w *RangePickerW) timeArea() {
 					} else {
 						t.Color(th.TextSecondary)
 					}
-					TimePanel(c, &st.draft[i]).Format(tf).Height(colH).A11yLabel(labels[i])
+					dt := w.disabledTimes(st.draft[i], i)
+					TimePanel(c, &st.draft[i]).Format(tf).Height(colH).A11yLabel(labels[i]).
+						DisabledHours(dt.Hours).DisabledMinutes(dt.Minutes).DisabledSeconds(dt.Seconds)
 				}, layout.W(dtPanelWidth(th)), layout.PadVH(8, 12), layout.Gap(4), layout.Middle())
 				if i == 0 {
 					col.Paint(func(l *paint.List, r geom.Rect) { dtEndDivider(c, l, r, th) })
@@ -117,13 +142,13 @@ func (w *RangePickerW) timeArea() {
 				c.invalid = true
 			}
 			Spacer(c)
-			if dtPlainBtn(c, loc.OK) {
+			if Button(c, loc.OK).Small().Disabled(w.draftBlocked()).Clicked() {
 				w.commitDraft()
 			}
 			return
 		}
 		Spacer(c)
-		if Button(c, loc.OK).Primary().Small().Disabled(!w.draftReady()).Clicked() {
+		if Button(c, loc.OK).Primary().Small().Disabled(!w.draftReady() || w.draftBlocked()).Clicked() {
 			w.commitDraft()
 		}
 	})

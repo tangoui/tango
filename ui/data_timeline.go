@@ -35,6 +35,7 @@ type TimelineW struct {
 	mode    string
 	pending string
 	reverse bool
+	horiz   bool
 	box     *Box
 	th      *theme.Theme
 	tk      *theme.TimelineToken
@@ -56,6 +57,14 @@ func Timeline(c *Context, items []TimelineItem) *TimelineW {
 // center the axis. The sides are logical: in RTL "left" puts the axis at
 // the right.
 func (w *TimelineW) Mode(m string) *TimelineW { w.mode = m; return w }
+
+// Horizontal lays the events out along a horizontal axis (Ant v6
+// orientation="horizontal"): every event takes an equal share of the
+// width with its dot on the axis. Mode keeps its meaning with the axis
+// turned: "left" / "start" puts the content under the axis, "right" /
+// "end" above it, "alternate" alternates (first under); a Label goes to
+// the opposite side. In RTL the events run from the right.
+func (w *TimelineW) Horizontal() *TimelineW { w.horiz = true; return w }
 
 // Pending appends a "still in progress" item with a spinning dot.
 func (w *TimelineW) Pending(label string) *TimelineW { w.pending = label; return w }
@@ -126,6 +135,10 @@ func (w *TimelineW) Show() *TimelineW {
 			labelled = true
 		}
 	}
+	if w.horiz {
+		w.showHorizontal(entries, labelled)
+		return w
+	}
 	w.box = Column(c, func() {
 		for i, e := range entries {
 			e := e
@@ -155,15 +168,8 @@ func (w *TimelineW) item(e tlEntry, idx int, last, labelled bool) {
 	axisW := tk.DotSize
 	gap := tk.ContentGap       // axis → content
 	headTop := tk.DotOffsetTop // dot top inside the first line
-	dotD := axisW              // drawn dot diameter; the axis column keeps its width
-	if (e.Large || e.DotIcon != nil) && el {
-		dotD = tk.DotSizeLG
-	}
 	pendingDot := e.pending
-	col := w.dotColor(e)
-	if el && e.DotIcon != nil && e.Color == "" {
-		col = th.Primary.Base
-	}
+	dotD, col := w.dotLook(e)
 	textCol := tk.ContentColor
 
 	content := func(align TextAlign) {
@@ -222,43 +228,10 @@ func (w *TimelineW) item(e tlEntry, idx int, last, labelled bool) {
 			}
 		})
 		ax.n.over = func(l *paint.List, r geom.Rect) {
-			cx := r.X + r.W/2
-			cy := r.Y + headTop + axisW/2
 			if e.Dot != nil {
 				return
 			}
-			switch {
-			case pendingDot:
-				s := float32(14)
-				icon.Draw(l, icon.Loading, geom.Rect{X: cx - s/2, Y: cy - s/2, W: s, H: s}, tk.PendingColor, spinAngle(c))
-			case e.DotIcon != nil:
-				s := tk.IconDotSize
-				if el {
-					l.Path(paint.NewPath().Circle(cx, cy, dotD/2), col)
-					c.paintIcon(l, e.DotIcon, geom.Rect{X: cx - 5, Y: cy - 5, W: 10, H: 10}, theme.Hex("#ffffff"), 0)
-					return
-				}
-				l.Fill(geom.Rect{X: cx - s/2, Y: cy - s/2, W: s, H: s}, geom.Radii{}, tk.DotBg)
-				c.paintIcon(l, e.DotIcon, geom.Rect{X: cx - s/2, Y: cy - s/2, W: s, H: s}, col, 0)
-			case el:
-				rad := dotD / 2
-				if e.Hollow {
-					bw := tk.DotBorderWidth
-					l.Path(paint.NewPath().Circle(cx, cy, rad), tk.DotBg)
-					l.StrokePath(paint.NewPath().Circle(cx, cy, rad-bw/2), paint.StrokeStyle{Width: bw}, col)
-				} else {
-					l.Path(paint.NewPath().Circle(cx, cy, rad), col)
-				}
-			case shad:
-				// size-2.5 rounded-full with a ring-4 of the background
-				// that cuts the axis around the dot.
-				l.Path(paint.NewPath().Circle(cx, cy, dotD/2+2), tk.DotBg)
-				l.Path(paint.NewPath().Circle(cx, cy, dotD/2), col)
-			default:
-				bw := tk.DotBorderWidth
-				l.Path(paint.NewPath().Circle(cx, cy, dotD/2), tk.DotBg)
-				l.StrokePath(paint.NewPath().Circle(cx, cy, dotD/2-bw/2), paint.StrokeStyle{Width: bw}, col)
-			}
+			w.drawDot(l, r.X+r.W/2, r.Y+headTop+axisW/2, e, dotD, col)
 		}
 		if e.Dot != nil {
 			ax.Body(func() {
@@ -298,4 +271,192 @@ func (w *TimelineW) item(e tlEntry, idx int, last, labelled bool) {
 		}
 	}, layout.Padding(geom.Insets{Bottom: padBottom}), layout.MinH(minH))
 	it.n.setRole(a11y.RoleListItem).stateIf(e.pending, a11y.Busy)
+}
+
+// dotD is the drawn dot diameter of e; col its color.
+func (w *TimelineW) dotLook(e tlEntry) (dotD float32, col theme.Color) {
+	th, tk := w.th, w.tk
+	el := th.Flavor == theme.Element
+	dotD = tk.DotSize
+	if (e.Large || e.DotIcon != nil) && el {
+		dotD = tk.DotSizeLG
+	}
+	col = w.dotColor(e)
+	if el && e.DotIcon != nil && e.Color == "" {
+		col = th.Primary.Base
+	}
+	return dotD, col
+}
+
+// drawDot paints the dot of e centered at (cx, cy): the pending spinner,
+// an icon, or the design system's circle.
+func (w *TimelineW) drawDot(l *paint.List, cx, cy float32, e tlEntry, dotD float32, col theme.Color) {
+	c, th, tk := w.c, w.th, w.tk
+	el := th.Flavor == theme.Element
+	shad := th.Flavor == theme.StyleShadcn
+	switch {
+	case e.pending:
+		s := float32(14)
+		icon.Draw(l, icon.Loading, geom.Rect{X: cx - s/2, Y: cy - s/2, W: s, H: s}, tk.PendingColor, spinAngle(c))
+	case e.DotIcon != nil:
+		s := tk.IconDotSize
+		if el {
+			l.Path(paint.NewPath().Circle(cx, cy, dotD/2), col)
+			c.paintIcon(l, e.DotIcon, geom.Rect{X: cx - 5, Y: cy - 5, W: 10, H: 10}, theme.Hex("#ffffff"), 0)
+			return
+		}
+		l.Fill(geom.Rect{X: cx - s/2, Y: cy - s/2, W: s, H: s}, geom.Radii{}, tk.DotBg)
+		c.paintIcon(l, e.DotIcon, geom.Rect{X: cx - s/2, Y: cy - s/2, W: s, H: s}, col, 0)
+	case el:
+		rad := dotD / 2
+		if e.Hollow {
+			bw := tk.DotBorderWidth
+			l.Path(paint.NewPath().Circle(cx, cy, rad), tk.DotBg)
+			l.StrokePath(paint.NewPath().Circle(cx, cy, rad-bw/2), paint.StrokeStyle{Width: bw}, col)
+		} else {
+			l.Path(paint.NewPath().Circle(cx, cy, rad), col)
+		}
+	case shad:
+		// size-2.5 rounded-full with a ring-4 of the background
+		// that cuts the axis around the dot.
+		l.Path(paint.NewPath().Circle(cx, cy, dotD/2+2), tk.DotBg)
+		l.Path(paint.NewPath().Circle(cx, cy, dotD/2), col)
+	default:
+		bw := tk.DotBorderWidth
+		l.Path(paint.NewPath().Circle(cx, cy, dotD/2), tk.DotBg)
+		l.StrokePath(paint.NewPath().Circle(cx, cy, dotD/2-bw/2), paint.StrokeStyle{Width: bw}, col)
+	}
+}
+
+// showHorizontal builds the horizontal timeline: up to three rows of
+// equal cells (content or label above the axis, the axis with the dots,
+// content or label under it), so the axis stays straight however tall the
+// texts are.
+func (w *TimelineW) showHorizontal(entries []tlEntry, labelled bool) {
+	c, tk := w.c, w.tk
+	n := len(entries)
+	below := func(i int) bool { // content under the axis
+		switch w.mode {
+		case "right", "end":
+			return false
+		case "alternate":
+			return i%2 == 0
+		}
+		return true
+	}
+	hasTop, hasBottom := false, false
+	for i := range entries {
+		if below(i) {
+			hasBottom = true
+			hasTop = hasTop || labelled
+		} else {
+			hasTop = true
+			hasBottom = hasBottom || labelled
+		}
+	}
+	cellOpts := func(top bool) []layout.Option {
+		pad := geom.Insets{Left: tk.HorizontalItemPadding, Right: tk.HorizontalItemPadding}
+		o := []layout.Option{layout.Grow(1), layout.Basis(0), layout.MinW(0)}
+		if top {
+			pad.Bottom = tk.HorizontalGap
+			o = append(o, layout.JustifyContent(layout.JustifyEnd))
+		} else {
+			pad.Top = tk.HorizontalGap
+		}
+		return append(o, layout.Padding(pad))
+	}
+	// cell builds the content (listitem) or the label of entry i.
+	cell := func(i int, top bool) {
+		e := entries[i]
+		isContent := below(i) != top
+		col := Column(c, func() {
+			switch {
+			case isContent:
+				w.hContent(e, labelled)
+			case e.Label != "":
+				Text(c, e.Label).Color(tk.LabelColor).Align(AlignCenter)
+			}
+		}, cellOpts(top)...)
+		if isContent {
+			col.n.setRole(a11y.RoleListItem).stateIf(e.pending, a11y.Busy)
+		}
+	}
+	row := func(top bool) {
+		Row(c, func() {
+			for i := range entries {
+				Key(c, i, func() { cell(i, top) })
+			}
+		}, layout.AlignItems(layout.AlignStretch))
+	}
+	w.box = Column(c, func() {
+		if hasTop {
+			row(true)
+		}
+		Row(c, func() {
+			for i, e := range entries {
+				Key(c, i, func() { w.hAxis(e, i, i == n-1) })
+			}
+		})
+		if hasBottom {
+			row(false)
+		}
+	})
+	w.box.n.setRole(a11y.RoleList).setState(a11y.Horizontal)
+}
+
+// hContent builds the texts (or Body) of a horizontal timeline event,
+// centered under / over its dot.
+func (w *TimelineW) hContent(e tlEntry, labelled bool) {
+	c, th, tk := w.c, w.th, w.tk
+	el := th.Flavor == theme.Element
+	if el && e.Time != "" && e.TimeTop {
+		Text(c, e.Time).Size(tk.TimeFontSize).Color(tk.TimeColor).Align(AlignCenter).Layout(layout.Margin(geom.Insets{Bottom: 4}))
+	}
+	if e.Body != nil {
+		e.Body()
+	} else {
+		t := Text(c, e.Content).Color(tk.ContentColor).Align(AlignCenter)
+		if th.Flavor == theme.StyleShadcn && e.Time != "" && !labelled {
+			t.Weight(text.Medium)
+		}
+	}
+	if e.Time != "" && !(el && e.TimeTop) && (el || !labelled) {
+		Text(c, e.Time).Size(tk.TimeFontSize).Color(tk.TimeColor).Align(AlignCenter).Layout(layout.Margin(geom.Insets{Top: 4}))
+	}
+}
+
+// hAxis builds the axis cell of entry i: its dot in the middle and the
+// tail towards the next dot (into the next cell, which has the same
+// width).
+func (w *TimelineW) hAxis(e tlEntry, i int, last bool) {
+	c, th, tk := w.c, w.th, w.tk
+	dotD, col := w.dotLook(e)
+	h := max(tk.DotSize, tk.DotSizeLG, tk.IconDotSize, 14)
+	ax := c.box("timeline-axis", layout.Column, []layout.Option{layout.Grow(1), layout.Basis(0), layout.MinW(0), layout.H(h),
+		layout.AlignItems(layout.AlignCenter), layout.JustifyContent(layout.JustifyCenter)})
+	ax.n.aHidden = true // dots and tail are decoration
+	// The tail to a pending event is dashed (Ant).
+	dashed := th.Flavor != theme.Element && w.pending != "" &&
+		((!w.reverse && i == len(w.items)-1) || (w.reverse && e.pending))
+	ax.Paint(func(l *paint.List, r geom.Rect) {
+		if last {
+			return
+		}
+		s := c.inline(r)
+		cy := r.Y + r.H/2
+		lw := tk.TailWidth
+		if dashed {
+			x0, x1 := s.X(r.W/2, 0), s.X(r.W*1.5, 0)
+			l.StrokePath(paint.NewPath().MoveTo(x0, cy).LineTo(x1, cy), paint.StrokeStyle{Width: lw, Dash: []float32{4, 3}}, tk.TailColor)
+			return
+		}
+		l.Fill(s.Rect(r.W/2, cy-lw/2, r.W, lw), geom.Radii{}, tk.TailColor)
+	})
+	if e.Dot != nil {
+		ax.Body(e.Dot)
+		return
+	}
+	ax.PaintOver(func(l *paint.List, r geom.Rect) {
+		w.drawDot(l, r.X+r.W/2, r.Y+r.H/2, e, dotD, col)
+	})
 }

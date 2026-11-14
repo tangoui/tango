@@ -5,6 +5,7 @@ import (
 
 	"github.com/tangoui/tango/examples/ui-gallery/gallery"
 	"github.com/tangoui/tango/ui"
+	"github.com/tangoui/tango/ui/icon"
 )
 
 var moreConfirmDemo struct {
@@ -43,6 +44,21 @@ func moreConfirmButtons(c *ui.Context) {
 			}
 		})
 	})
+	gallery.Demo(c, "区分取消与关闭、居中、拖动、自定义图标", "DistinguishCancelAndClose 让关闭按钮 / Esc / 遮罩走 OnClose；Center 居中；Draggable 可拖动标题；Icon 换掉状态图标。", func() {
+		moreRow(c, func() {
+			if ui.Button(c, "区分取消与关闭").Clicked() {
+				ui.Confirm(c, ui.ConfirmOptions{Title: "未保存的修改", Content: "离开前是否保存？", DistinguishCancelAndClose: true,
+					OkText: "保存", CancelText: "放弃修改",
+					OnOk:     func(*ui.ConfirmRef) { s.result = "已保存" },
+					OnCancel: func() { s.result = "放弃修改" },
+					OnClose:  func() { s.result = "留在此页" }})
+			}
+			if ui.Button(c, "居中可拖动").Clicked() {
+				ui.MessageBox(c, ui.ConfirmOptions{Title: "收藏成功", Content: "可以拖动标题移动对话框。", Status: "success",
+					Center: true, Draggable: true, Icon: icon.StarFilled})
+			}
+		})
+	})
 	gallery.Demo(c, "输入框", "ui.Prompt：带输入框与校验，回车提交。", func() {
 		moreRow(c, func() {
 			if ui.Button(c, "修改邮箱").Clicked() {
@@ -68,7 +84,7 @@ func init() {
 	morePage(gallery.Page{Name: "Confirm", Title: "Confirm 确认框", Group: gallery.Feedback, Order: 6, Height: 640,
 		Render: moreConfirmButtons, Setup: func(d *ui.Driver) { d.ClickLabel("确认对话框") }}, moreConfirmReset)
 	morePage(gallery.Page{Name: "MessageBox", Title: "MessageBox 信息提示", Group: gallery.Feedback, Order: 7, Height: 640,
-		Render: moreConfirmButtons, Setup: func(d *ui.Driver) { d.ClickLabel("成功") }}, moreConfirmReset)
+		Render: moreConfirmButtons, Setup: func(d *ui.Driver) { d.ClickLabel("居中可拖动") }}, moreConfirmReset)
 	morePage(gallery.Page{Name: "Prompt", Title: "Prompt 输入框", Group: gallery.Feedback, Order: 8, Height: 640,
 		Render: moreConfirmButtons, Setup: func(d *ui.Driver) {
 			d.ClickLabel("修改邮箱")

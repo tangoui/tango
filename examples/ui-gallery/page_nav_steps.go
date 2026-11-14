@@ -5,9 +5,10 @@ import (
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/layout"
+	"github.com/tangoui/tango/ui/paint"
 )
 
-var stepsState = struct{ cur, vcur int }{cur: 1, vcur: 1}
+var stepsState = struct{ cur, vcur, icur, pcur int }{cur: 1, vcur: 1, icur: 1, pcur: 1}
 
 func stepsPage(c *ui.Context) {
 	three := []ui.StepItem{{Title: "已完成", Description: "这是一段描述"}, {Title: "进行中", SubTitle: "剩余 00:00:08", Description: "这是一段描述"}, {Title: "待处理", Description: "这是一段描述"}}
@@ -36,6 +37,22 @@ func stepsPage(c *ui.Context) {
 		}, func() {
 			ui.Steps(c, three).Vertical().Dot().Current(1).Show()
 		})
+	})
+	navDemo(c, "内联 / 面板 / 自定义点", "Inline 为紧凑的点状步骤，适合放进列表行；Panel 为箭头面板；DotRender 回调拿到序号与状态自绘节点。", func() {
+		order := []ui.StepItem{{Title: "填写信息", Description: "姓名与地址"}, {Title: "确认订单", Description: "核对商品"}, {Title: "完成支付", Description: "选择支付方式"}}
+		ui.Steps(c, order).Inline().Clickable(&stepsState.icur).Show()
+		ui.Gap(c, 24)
+		ui.Steps(c, order).Panel().Clickable(&stepsState.pcur).Show()
+		ui.Gap(c, 24)
+		ui.Steps(c, []ui.StepItem{{Title: "提交"}, {Title: "审核", Description: "审核未通过"}, {Title: "完成"}}).Panel().Current(1).Status("error").Show()
+		ui.Gap(c, 24)
+		ui.Steps(c, order).Current(1).DotRender(func(l *paint.List, d ui.StepDot) {
+			d.Default()
+			if d.Status == "process" { // a ring around the current dot
+				p := d.Rect.Center()
+				l.StrokePath(paint.NewPath().Circle(p.X, p.Y, 8), paint.StrokeStyle{Width: 1.5}, d.Color)
+			}
+		}).Show()
 	})
 }
 
@@ -71,6 +88,6 @@ func init() {
 			if r, ok := d.Find("待处理"); ok {
 				d.Move(r.Center())
 			}
-		}}, func() { stepsState.cur, stepsState.vcur = 1, 1 })
+		}}, func() { stepsState.cur, stepsState.vcur, stepsState.icur, stepsState.pcur = 1, 1, 1, 1 })
 	navPage(gallery.Page{Name: "PageHeader", Title: "PageHeader 页头", Group: gallery.Navigation, Order: 22, Render: pageHeaderPage}, nil)
 }

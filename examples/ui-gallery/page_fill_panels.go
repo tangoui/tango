@@ -5,7 +5,9 @@ import (
 
 	"github.com/tangoui/tango/examples/ui-gallery/gallery"
 	"github.com/tangoui/tango/ui"
+	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/layout"
+	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
 )
 
@@ -73,12 +75,15 @@ func init() {
 
 var fillCPDemo struct {
 	a, b, c theme.Color
+	g       theme.Gradient
 }
 
 func fillCPReset() {
 	fillCPDemo.a = theme.Hex("#1677ff")
 	fillCPDemo.b = theme.RGBA(64, 158, 255, 0.6)
 	fillCPDemo.c = theme.Hex("#67c23a")
+	fillCPDemo.g = theme.Gradient{Angle: 90, Stops: []theme.GradientStop{
+		{Offset: 0, Color: theme.Hex("#409eff")}, {Offset: 0.6, Color: theme.Hex("#67c23a")}, {Offset: 1, Color: theme.Hex("#e6a23c")}}}
 }
 
 func init() {
@@ -99,6 +104,23 @@ func init() {
 							}
 						}, layout.Gap(8))
 					}, layout.Gap(12))
+				}, layout.Gap(16), layout.WrapItems())
+			})
+			gallery.Demo(c, "渐变面板", "ColorPickerPanelGradient 绑定 theme.Gradient：色标条与角度在上，编辑选中色标的颜色；ColorPickerPanel 单色用法不变。", func() {
+				ui.Row(c, func() {
+					ui.ColorPickerPanelGradient(c, &d.g)
+					ui.Column(c, func() {
+						ui.Div(c, layout.Size(160, 48)).Radius(6).Paint(func(l *paint.List, r geom.Rect) {
+							// Preview: the gradient painted left to right.
+							s := d.g.Sorted().Stops
+							stops := make([]paint.Stop, len(s))
+							for i, st := range s {
+								stops[i] = paint.Stop{Offset: float32(st.Offset), Color: st.Color}
+							}
+							l.LinearStops(r, geom.Rad(6), geom.Pt(r.X, r.Y), geom.Pt(r.Right(), r.Y), stops...)
+						})
+						ui.Text(c, d.g.CSS()).Secondary().Size(12).Layout(layout.W(220))
+					}, layout.Gap(8))
 				}, layout.Gap(16), layout.WrapItems())
 			})
 		},

@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -90,6 +91,12 @@ func (v ProValues) Clone() ProValues {
 			x = append([]string(nil), s...)
 		case []UploadFile:
 			x = append([]UploadFile(nil), s...)
+		case []ProValues:
+			rows := make([]ProValues, len(s))
+			for i, r := range s {
+				rows[i] = r.Clone()
+			}
+			x = rows
 		}
 		out[k] = x
 	}
@@ -135,6 +142,11 @@ func proValueText(x any) string {
 		return a + "~" + b
 	case float64:
 		return strconv.FormatFloat(t, 'f', -1, 64)
+	case []ProValues:
+		if len(t) == 0 {
+			return ""
+		}
+		return strconv.Itoa(len(t))
 	}
 	return fmt.Sprint(x)
 }
@@ -183,6 +195,17 @@ type ProField struct {
 
 	// Render replaces the built-in control (bind it to vals[Key]).
 	Render func(c *Context, vals ProValues)
+
+	// Readonly shows the value as read-only text (ProFormW.Readonly does
+	// it for every field); a read-only field is not validated.
+	Readonly bool
+	// OnCaptcha sends the code of a captcha field (call done from any
+	// goroutine; nil starts the countdown); the button then counts down
+	// CaptchaSeconds (default 60).
+	OnCaptcha      func(vals ProValues, done func(error))
+	CaptchaSeconds int
+	// List gives the row fields of a formList field.
+	List *ProFieldList
 }
 
 // proRangeEnd formats one end of a digit range ("" when empty).
@@ -218,8 +241,11 @@ func proFieldFromColumn[T any](col ProColumn[T]) ProField {
 		fd.ValueType = ValueSelect
 	case ValueDate, ValueDateTime:
 		fd.ValueType = ValueDate
-	case ValueDateRange, ValueCascader, ValueTreeSelect, ValueTime, ValueTimeRange, ValueDigitRange, ValueColor:
+	case ValueDateRange, ValueCascader, ValueTreeSelect, ValueTime, ValueTimeRange, ValueDigitRange, ValueColor,
+		ValueDateWeek, ValueDateMonth, ValueDateQuarter, ValueDateYear, ValueDateTimeRange:
 		fd.ValueType = col.ValueType
+	case ValueFromNow:
+		fd.ValueType = ValueDate
 	}
 	return fd
 }
@@ -234,13 +260,26 @@ func proFieldRules(c *Context, fd *ProField, vals ProValues) []Rule {
 			switch fd.ValueType {
 			case ValueSelect, ValueMultiSelect, ValueRadio, ValueRadioButton, ValueCheckbox, ValueStatus, ValueTag,
 				ValueDate, ValueDateTime, ValueDateRange, ValueSegmented,
-				ValueCascader, ValueTreeSelect, ValueUpload, ValueTime, ValueTimeRange, ValueColor:
+				ValueCascader, ValueTreeSelect, ValueUpload, ValueTime, ValueTimeRange, ValueColor,
+				ValueDateWeek, ValueDateMonth, ValueDateQuarter, ValueDateYear, ValueDateTimeRange, ValueFromNow,
+				ValueImage, ValueAvatar:
 				msg = locFmt(c.Locale().Form.RequiredSelectFmt, fd.Label)
 			}
 		}
 		rules = append(rules, Required(msg))
 	}
 	rules = append(rules, fd.Rules...)
+	if fd.ValueType == ValueJSONCode {
+		bad := c.Locale().ProField.InvalidJSON
+		rules = append(rules, Check(func(string) string {
+			if v := vals[fd.Key]; v != nil && proValueText(v) != "" {
+				if _, ok := proJSONText(v); !ok {
+					return bad
+				}
+			}
+			return ""
+		}))
+	}
 	if fd.Validate != nil {
 		v := fd.Validate
 		rules = append(rules, Check(func(string) string { return v(vals[fd.Key], vals) }))
@@ -255,11 +294,35 @@ func proFieldRules(c *Context, fd *ProField, vals ProValues) []Rule {
 // proFieldItem builds a labelled field inside form f. It handles hide,
 // disable, dependencies and option refresh.
 func proFieldItem(c *Context, f *FormW, fd *ProField, vals ProValues) {
+	proFieldItemAs(c, f, fd, vals, fd.Key, false)
+}
+
+// proFieldItemAs is proFieldItem with the form item name (a FormList row
+// prefixes it) and the form's read-only mode.
+func proFieldItemAs(c *Context, f *FormW, fd *ProField, vals ProValues, name string, readonly bool) {
 	if fd.Hide != nil && fd.Hide(vals) {
-		f.Item(fd.Label).Name(fd.Key).Hidden(true).Body(nil)
+		f.Item(fd.Label).Name(name).Hidden(true).Body(nil)
 		return
 	}
-	it := f.Item(fd.Label).Name(fd.Key).RulesFunc(func() string { return proValueText(vals[fd.Key]) }, proFieldRules(c, fd, vals)...)
+	if readonly || fd.Readonly {
+		// Read-only: the formatted value, no rules (Ant ProForm readonly).
+		it := f.Item(fd.Label)
+		if fd.Help != "" {
+			it.Help(fd.Help)
+		}
+		view := *fd
+		view.ValueEnum = proOptions(fd, vals) // linked options (Options) label the value too
+		it.Body(func() {
+			Row(c, func() { proFieldView(c, &view, vals[fd.Key], 48) },
+				layout.MinH(c.Theme.ControlHeight), layout.Middle(), layout.Grow(1), layout.MinW(0))
+		})
+		return
+	}
+	if fd.ValueType == ValueFormList && fd.List != nil {
+		proFormListItem(c, f, fd, vals)
+		return
+	}
+	it := f.Item(fd.Label).Name(name).RulesFunc(func() string { return proValueText(vals[fd.Key]) }, proFieldRules(c, fd, vals)...)
 	if fd.Help != "" {
 		it.Help(fd.Help)
 	}
@@ -338,7 +401,7 @@ func proFieldControl(c *Context, fd *ProField, vals ProValues) {
 		if TextArea(c, &s).Placeholder(inp()).Rows(3).Layout(grow...).Changed() {
 			vals[k] = s
 		}
-	case ValueMoney, ValueDigit, ValuePercent, ValueProgress:
+	case ValueMoney, ValueDigit, ValuePercent, ValueProgress, ValueSecond, ValueIndex:
 		v, ok := proNumber(vals[k])
 		empty := !ok
 		w := InputNumber(c, &v).Placeholder(inp()).Empty(&empty)
@@ -441,6 +504,9 @@ func proFieldControl(c *Context, fd *ProField, vals ProValues) {
 		}
 	case ValueCascader, ValueTreeSelect, ValueUpload, ValueTime, ValueTimeRange, ValueColor, ValueDigitRange:
 		p2eFieldControl(c, fd, vals, sel(), grow)
+	case ValueDateWeek, ValueDateMonth, ValueDateQuarter, ValueDateYear, ValueDateTimeRange,
+		ValueImage, ValueAvatar, ValueCode, ValueJSONCode, ValueFromNow, ValueCaptcha:
+		proTypesControl(c, fd, vals, sel(), inp(), grow)
 	default:
 		s := vals.String(k)
 		if Input(c, &s).Placeholder(inp()).AllowClear().Layout(grow...).Changed() {
@@ -490,4 +556,89 @@ func proParams(vals ProValues) map[string]string {
 		}
 	}
 	return out
+}
+
+// ProFieldMode selects how ProFieldOf shows its value.
+type ProFieldMode string
+
+// Modes of ProFieldOf.
+const (
+	ProFieldRead ProFieldMode = "read" // formatted read-only value (default)
+	ProFieldEdit ProFieldMode = "edit" // the value type's editor
+)
+
+// ProFieldW renders a single value outside a form (Ant Design ProField):
+// the same value types as ProForm, ProTable and ProDescriptions, read-only
+// or as the editor, switched with Mode.
+//
+//	var price any = 12800.0
+//	mode := ui.ProFieldRead
+//	ui.ProFieldOf(c, ui.ProField{Label: "价格", ValueType: ui.ValueMoney}, &price).Mode(mode).Show()
+type ProFieldW struct {
+	_       [0]func()
+	c       *Context
+	fd      ProField
+	val     *any
+	mode    ProFieldMode
+	changed bool
+	id      ID
+}
+
+// ProFieldOf starts a standalone field over *val described by fd (its
+// Label names the editor for assistive technologies; Key may be empty);
+// chain options, then Show. The Go type of *val follows the value type,
+// as in ProValues.
+//
+// ConfigProvider.Defaults("ProField", ...) keys: "mode" ("read" | "edit").
+func ProFieldOf(c *Context, fd ProField, val *any) *ProFieldW {
+	w := &ProFieldW{c: c, fd: fd, val: val, mode: ProFieldRead}
+	if Prop(c, "ProField", "mode", "") == string(ProFieldEdit) {
+		w.mode = ProFieldEdit
+	}
+	return w
+}
+
+// Mode switches between the read-only view and the editor.
+func (w *ProFieldW) Mode(m ProFieldMode) *ProFieldW { w.mode = m; return w }
+
+// Changed reports an edit of the value in the last Show.
+func (w *ProFieldW) Changed() bool { return w.changed }
+
+// ID returns the widget ID (valid after Show).
+func (w *ProFieldW) ID() ID { return w.id }
+
+// Show builds the field.
+func (w *ProFieldW) Show() *ProFieldW {
+	c := w.c
+	fd := &w.fd
+	if fd.Key == "" {
+		fd.Key = "value"
+	}
+	var dummy any
+	if w.val == nil {
+		w.val = &dummy
+	}
+	vals := ProValues{}
+	if *w.val != nil {
+		vals[fd.Key] = *w.val
+	}
+	before := vals[fd.Key]
+	root := c.box("pro-field", layout.Row, []layout.Option{layout.Middle(), layout.MinW(0)})
+	w.id = root.n.id
+	root.Body(func() {
+		if w.mode != ProFieldEdit || fd.Readonly {
+			proFieldView(c, fd, vals[fd.Key], 48)
+			return
+		}
+		ed := Row(c, func() { proFieldControl(c, fd, vals) }, layout.Grow(1), layout.MinW(0), layout.Middle())
+		if fd.Label != "" {
+			ed.n.fill(qfField{label: fd.Label}) // the label names the editor
+		}
+	})
+	after := vals[fd.Key]
+	if !reflect.DeepEqual(before, after) {
+		*w.val = after
+		w.changed = true
+	}
+	return w
 }

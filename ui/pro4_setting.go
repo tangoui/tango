@@ -32,9 +32,8 @@ import (
 //
 // Differences from Pro: there is no CSS filter, so the color weak mode
 // switches to the high-contrast variant of the theme (theme.HighContrast)
-// instead of desaturating the page; the sider of a Tango ProLayout always
-// stays fixed (it fills the window height), so FixSiderbar is kept for
-// round-tripping Pro settings and reported through RouteContext only.
+// instead of desaturating the page. FixSiderbar maps to
+// ProLayoutConfig.NoFixSiderbar (off: sider and content scroll together).
 
 // ProSettings are the shell settings edited by SettingDrawer.
 type ProSettings struct {
@@ -66,6 +65,7 @@ func (s ProSettings) Apply(cfg *ProLayoutConfig) {
 		cfg.ContentWidth = s.ContentWidth
 	}
 	cfg.NoFixedHeader = !s.FixedHeader
+	cfg.NoFixSiderbar = !s.FixSiderbar
 }
 
 // ProSettingsPresetColors are the theme colors offered by SettingDrawer

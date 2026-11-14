@@ -21,6 +21,13 @@ type UploadToken struct {
 	ProgressColor      Color // filled part of the upload progress bar
 	ProgressTrailColor Color
 
+	// Picture list (listType picture): bordered rows with a thumbnail.
+	PictureItemHeight      float32
+	PictureThumbSize       float32
+	PictureItemPadding     float32
+	PictureItemRadius      float32
+	PictureItemBorderColor Color `contrast:"nontext:@Page"`
+
 	// Picture cards.
 	PictureCardSize    float32
 	CardRadius         float32 // picture cards, card trigger and dragger
@@ -64,7 +71,9 @@ func deriveUpload(t *Theme) UploadToken {
 		DraggerBg:     t.FillQuaternary, DraggerBorderColor: t.Border,
 		DraggerHoverBorderColor: t.Primary.Hover, DraggerDragBorderColor: t.Primary.Hover,
 		DraggerIconColor: t.Primary.Base, DraggerTitleColor: t.Text, DraggerHintColor: t.TextTertiary,
-		DisabledBg: t.BgContainerDisabled,
+		DisabledBg:        t.BgContainerDisabled,
+		PictureItemHeight: 66, PictureThumbSize: 48, PictureItemPadding: 8,
+		PictureItemRadius: t.RadiusLG, PictureItemBorderColor: t.Border,
 	}
 	switch t.Flavor {
 	case Element:
@@ -83,6 +92,7 @@ func deriveUpload(t *Theme) UploadToken {
 		k.DraggerBg = t.BgContainer
 		k.DraggerHoverBorderColor, k.DraggerDragBorderColor = t.Primary.Base, t.Primary.Base
 		k.DraggerIconColor, k.DraggerTitleColor = t.TextQuaternary, t.TextSecondary
+		k.PictureItemHeight, k.PictureThumbSize, k.PictureItemPadding, k.PictureItemRadius = 92, 70, 10, 6
 	case StyleShadcn:
 		// No shadcn Upload: bordered rounded-md rows, ghost actions,
 		// dashed drop areas that turn bg-muted/50 under the pointer.
@@ -94,6 +104,7 @@ func deriveUpload(t *Theme) UploadToken {
 		k.DraggerHoverBorderColor, k.DraggerDragBorderColor = t.BorderHover, t.FocusOutline
 		k.DraggerIconColor = t.TextTertiary
 		k.DisabledBg = Color{}
+		k.PictureItemRadius, k.PictureItemBorderColor = t.Radius, t.BorderSecondary
 	}
 	return k
 }

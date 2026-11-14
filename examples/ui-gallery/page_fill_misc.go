@@ -77,6 +77,15 @@ func init() {
 				})
 				ui.Gap(c, 12)
 				moreRow(c, func() {
+					for _, p := range []struct{ label, v string }{{"月付", "pro"}, {"年付", "ent"}} {
+						if ui.Radio(c, p.label+"（带边框）", d.plan == p.v).Border().Clicked() {
+							d.plan = p.v
+						}
+					}
+					ui.Radio(c, "小号边框", d.plan == "free").Border().Size(ui.Small)
+				})
+				ui.Gap(c, 12)
+				moreRow(c, func() {
 					for _, p := range []struct{ label, v string }{{"免费版", "free"}, {"专业版", "pro"}, {"企业版", "ent"}} {
 						if ui.Radio(c, p.label, d.plan == p.v).Clicked() {
 							d.plan = p.v

@@ -71,6 +71,23 @@ func pro2CardPage(c *ui.Context) {
 			}, layout.Gap(16), layout.AlignItems(layout.AlignStart))
 		})
 	})
+	gallery.Demo(c, "底部操作栏 actions", "Actions 在卡片底部放等宽操作位，之间有分隔线；CardAction 是图标操作，也可放文字按钮。", func() {
+		pro2Canvas(c, func() {
+			ui.Row(c, func() {
+				ui.ProCard(c, "项目概览").Bordered().Layout(layout.Grow(1), layout.Basis(0)).
+					Actions(
+						func() { ui.CardAction(c, icon.Setting, "设置") },
+						func() { ui.CardAction(c, icon.Edit, "编辑") },
+						func() { ui.CardAction(c, icon.More, "更多") },
+					).Body(func() { ui.Text(c, "图标操作位等分底栏。") })
+				ui.ProCard(c, "发布计划").SubTitle("v0.3.1").Bordered().Layout(layout.Grow(1), layout.Basis(0)).
+					Actions(
+						func() { ui.Button(c, "查看详情").Link() },
+						func() { ui.Button(c, "立即发布").Link() },
+					).Body(func() { ui.Text(c, "文字按钮同样可以作为操作位。") })
+			}, layout.Gap(16), layout.AlignItems(layout.AlignStart))
+		})
+	})
 }
 
 var pro2Sales = []float64{264, 417, 438, 887, 309, 397, 550, 575, 563, 430, 525, 592, 492, 467, 513, 546, 983, 340, 539, 243, 226, 192}

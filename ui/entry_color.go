@@ -4,6 +4,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
@@ -74,6 +75,14 @@ type cpState struct {
 	// groupFlip marks preset groups the user toggled away from their
 	// ColorPresetGroup.Closed default.
 	groupFlip map[int]bool
+	// Gradient mode: the selected stop and whether a press on the stop
+	// bar is dragging it.
+	gsel  int
+	gdrag bool
+	// hoverOpen: the panel was opened by hovering (Trigger(TriggerHover))
+	// and closes when the pointer leaves.
+	hoverOpen  bool
+	hoverBlock bool // closed by click / Escape while hovered: no reopen until the pointer leaves
 }
 
 // ColorPresetGroup is a titled group of preset swatches (PresetGroups).
@@ -110,6 +119,11 @@ type ColorPickerW struct {
 	z          *lazy
 	th         *theme.Theme // ColorPicker Alias applied
 	tk         *theme.ColorPickerToken
+	// Gradient mode (ColorPickerGradient): the bound gradient; val then
+	// points at gcol, the color of the selected stop the editors change.
+	grad      *theme.Gradient
+	gcol      theme.Color
+	hoverTrig bool // Trigger(TriggerHover)
 }
 
 // cpTheme captures the ColorPicker theme and tokens at build.
@@ -216,6 +230,9 @@ func (w *ColorPickerW) Cleared() bool { w.z.run(); return w.cleared }
 func (w *ColorPickerW) el() bool { return w.c.Theme.Flavor == theme.Element }
 
 func (w *ColorPickerW) text() string {
+	if w.grad != nil {
+		return w.grad.CSS()
+	}
 	if *w.val == (theme.Color{}) {
 		return ""
 	}
@@ -247,7 +264,11 @@ func (w *ColorPickerW) measure(_, _ float32) geom.Size {
 	if s == "" {
 		s = w.loc.ColorPicker.None
 	}
-	return geom.Size{W: h + entTextW(c, s, c.controlFont(w.size), text.Regular) + 6, H: h}
+	tw := entTextW(c, s, c.controlFont(w.size), text.Regular)
+	if w.grad != nil {
+		tw = min(tw, cpGradTextW) // the CSS text is long: ellipsized
+	}
+	return geom.Size{W: h + tw + 6, H: h}
 }
 
 func (w *ColorPickerW) sync(force bool) {
@@ -279,7 +300,7 @@ func (w *ColorPickerW) apply(h theme.HSVA) {
 		h.A = 1
 	}
 	w.st.hsva = h
-	if !w.el() {
+	if !w.el() || w.grad != nil { // a gradient stop changes at once
 		col := theme.FromHSVA(h)
 		if col != *w.val {
 			*w.val = col
@@ -301,19 +322,41 @@ func (w *ColorPickerW) applyColor(col theme.Color) {
 func (w *ColorPickerW) finish() {
 	c := w.c
 	st := w.st
+	if w.grad != nil {
+		w.gradLoad()
+	}
 	if w.disabled || w.n.disabled {
 		st.pop.open = false
 		w.sync(false)
 		return
 	}
+	if w.hoverTrig {
+		w.hoverOpen()
+	}
 	if w.ia.Clicked {
-		st.pop.open = !st.pop.open
+		switch {
+		case w.hoverTrig && st.pop.open && st.hoverOpen:
+			st.hoverOpen = false // a click pins the hover-opened panel
+		default:
+			st.pop.open = !st.pop.open
+			st.hoverOpen = false
+			st.hoverBlock = !st.pop.open
+		}
+		if w.hoverTrig {
+			SetHoverOpen(c, w.n.id, st.pop.open)
+		}
 		c.invalid = true
 	}
-	st.pop.dismiss(c, w.n.id, st.selPop)
+	if st.pop.dismiss(c, w.n.id, st.selPop) {
+		st.hoverOpen = false
+		st.hoverBlock = true
+		if w.hoverTrig {
+			SetHoverOpen(c, w.n.id, false)
+		}
+	}
 	if st.pop.open && !st.wasOpen {
 		w.sync(true) // Element: start the draft from the value
-	} else if !w.el() || !st.pop.open {
+	} else if !w.el() || !st.pop.open || w.grad != nil {
 		w.sync(false)
 	}
 	st.wasOpen = st.pop.open
@@ -321,6 +364,39 @@ func (w *ColorPickerW) finish() {
 		return
 	}
 	entPanel(c, w.n.id, &st.pop, false, w.panel)
+	if w.grad != nil {
+		w.gradStore()
+	}
+}
+
+// Trigger chooses what opens the panel: TriggerClick (default) or
+// TriggerHover (Ant trigger="hover"): the panel opens when the pointer
+// rests on the swatch and closes shortly after it leaves both; a click
+// (or Enter / Space) pins it open until an outside press or Escape.
+// TriggerContextMenu is treated as TriggerClick.
+func (w *ColorPickerW) Trigger(t Trigger) *ColorPickerW { w.hoverTrig = t == TriggerHover; return w }
+
+// hoverOpen opens / closes the panel by hover intent (Trigger).
+func (w *ColorPickerW) hoverOpen() {
+	c, st := w.c, w.st
+	over := c.pointerOver(w.n.id, st.pop.panel, st.selPop)
+	if st.pop.open && c.active != 0 {
+		over = true // dragging a handle out of the panel keeps it
+	}
+	if !over {
+		st.hoverBlock = false
+	} else if st.hoverBlock {
+		over = false // closed by a click / Escape: wait for the pointer to leave
+	}
+	want := HoverDelay(c, w.n.id, over, 100*time.Millisecond, 150*time.Millisecond)
+	switch {
+	case want && !st.pop.open:
+		st.pop.open, st.hoverOpen = true, true
+		c.invalid = true
+	case !want && st.pop.open && st.hoverOpen:
+		st.pop.open, st.hoverOpen = false, false
+		c.invalid = true
+	}
 }
 
 func (w *ColorPickerW) panel() {
@@ -340,6 +416,9 @@ func (w *ColorPickerW) panel() {
 func (w *ColorPickerW) panelAnt() {
 	c, th, tk := w.c, w.th, w.tk
 	st := w.st
+	if w.grad != nil {
+		w.gradientEditor()
+	}
 	if w.allowClear {
 		Row(c, func() {
 			Spacer(c)
@@ -569,6 +648,9 @@ func (w *ColorPickerW) inputsHSB() {
 func (w *ColorPickerW) panelElement() {
 	c, tk := w.c, w.tk
 	st := w.st
+	if w.grad != nil {
+		w.gradientEditor()
+	}
 	w.elPalette()
 	if !w.noAlpha {
 		w.bar("alpha", false, 0, tk.BarHeight)
@@ -603,6 +685,10 @@ func (w *ColorPickerW) panelElement() {
 }
 
 func (w *ColorPickerW) clear(close bool) {
+	if w.grad != nil && len(w.grad.Stops) > 0 {
+		w.grad.Stops = nil // the gradient keeps its angle
+		w.changed = true
+	}
 	if *w.val != (theme.Color{}) {
 		*w.val = theme.Color{}
 		w.changed = true
@@ -930,6 +1016,9 @@ func (w *ColorPickerW) paint(l *paint.List, r geom.Rect) {
 	rtl := c.IsRTL()
 	block := dtMirrorRect(rtl, geom.Rect{X: r.X + 4, Y: r.Y + 4, W: h - 8, H: h - 8}, r)
 	empty := *w.val == (theme.Color{})
+	if w.grad != nil {
+		empty = len(w.grad.Stops) == 0
+	}
 	if dis {
 		l.Opacity(0.5)
 	}
@@ -940,10 +1029,10 @@ func (w *ColorPickerW) paint(l *paint.List, r geom.Rect) {
 			l.Stroke(block, bRad, 1, tk.TriggerSwatchBorder)
 			drawIcon(l, icon.Close, block.X+(block.W-12)/2, block.Y+(block.H-12)/2, 12, th.TextTertiary)
 		} else {
-			cpSwatch(l, in, geom.Rad(1), *w.val)
+			w.triggerSwatch(l, in, geom.Rad(1))
 			l.Stroke(block, bRad, 1, tk.TriggerSwatchBorder)
 			mark := theme.Hex("#ffffff")
-			if theme.Luma(*w.val) > 0.8 || w.val.A < 100 {
+			if mc := w.markColor(); theme.Luma(mc) > 0.8 || mc.A < 100 {
 				mark = th.TextSecondary
 			}
 			drawIcon(l, icon.Down, block.X+(block.W-12)/2, block.Y+(block.H-12)/2, 12, mark)
@@ -953,7 +1042,7 @@ func (w *ColorPickerW) paint(l *paint.List, r geom.Rect) {
 		if empty {
 			cpEmpty(l, block, bRad, tk.ClearColor)
 		} else {
-			cpSwatch(l, block, bRad, *w.val)
+			w.triggerSwatch(l, block, bRad)
 		}
 		l.Stroke(block, bRad, 1, tk.TriggerSwatchBorder)
 	}
@@ -969,13 +1058,361 @@ func (w *ColorPickerW) paint(l *paint.List, r geom.Rect) {
 		if dis {
 			col = th.TextDisabled
 		}
+		maxW := float32(0)
+		tw := entTextW(c, s, c.controlFont(w.size), text.Regular)
+		if w.grad != nil {
+			maxW = max(1, r.W-h-6-4)
+			tw = min(tw, maxW)
+		}
 		x := block.Right() + 6
 		if rtl {
-			x = block.X - 6 - entTextW(c, s, c.controlFont(w.size), text.Regular)
+			x = block.X - 6 - tw
 		}
-		entText(c, l, s, x, r, c.controlFont(w.size), text.Regular, col, 0)
+		entText(c, l, s, x, r, c.controlFont(w.size), text.Regular, col, maxW)
 	}
 	if w.ia.FocusVisible {
 		entFocusRing(c, l, r, rad.TL)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Gradient (ColorPickerGradient / ColorPickerPanelGradient)
+
+// cpGradTextW caps the width ShowText gives the CSS text of a gradient.
+const cpGradTextW = 220
+
+// ColorPickerGradient adds a color picker bound to a linear gradient
+// (Ant mode="gradient"): the trigger shows the gradient, and the panel
+// adds a stop bar and an angle input above the usual editors, which edit
+// the color of the selected stop. On the stop bar a press on empty rail
+// adds a stop (with the gradient's color there), dragging a handle moves
+// it and dragging it away from the bar removes it (at least two stops
+// stay); from the keyboard Left / Right move the selected stop, Up / Down
+// select the previous / next one, Enter or Insert adds one after it and
+// Delete / Backspace removes it. Changes apply at once in every design
+// system. The zero Gradient means "no color"; editing a color then
+// creates two stops of that color. The single-color ColorPicker is
+// unchanged.
+//
+//	g := theme.Gradient{Angle: 90, Stops: []theme.GradientStop{{0, theme.Hex("#1677ff")}, {1, theme.Hex("#722ed1")}}}
+//	ui.ColorPickerGradient(c, &g).ShowText()
+func ColorPickerGradient(c *Context, val *theme.Gradient) *ColorPickerW {
+	w := ColorPicker(c, new(theme.Color))
+	w.grad = val
+	w.gradLoad()
+	return w
+}
+
+// gradLoad points the color editors at the selected stop of the bound
+// gradient (the zero Color without stops).
+func (w *ColorPickerW) gradLoad() {
+	g, st := w.grad, w.st
+	if len(g.Stops) == 0 {
+		st.gsel, w.gcol = 0, theme.Color{}
+	} else {
+		st.gsel = clampIdx(st.gsel, len(g.Stops)-1)
+		w.gcol = g.Stops[st.gsel].Color
+	}
+	w.val = &w.gcol
+}
+
+// gradStore writes the edited color back to the selected stop (creating
+// a two-stop gradient when there was none).
+func (w *ColorPickerW) gradStore() {
+	g, st := w.grad, w.st
+	if len(g.Stops) == 0 {
+		if w.gcol == (theme.Color{}) {
+			return
+		}
+		g.Stops = []theme.GradientStop{{Offset: 0, Color: w.gcol}, {Offset: 1, Color: w.gcol}}
+		st.gsel = 0
+		w.changed = true
+		return
+	}
+	if i := st.gsel; g.Stops[i].Color != w.gcol {
+		col := w.gcol
+		w.gradEdit(func(s []theme.GradientStop) []theme.GradientStop { s[i].Color = col; return s })
+	}
+}
+
+// gradEdit replaces the stops with fn applied to a copy (the application's
+// slice is never modified in place) and reports a change.
+func (w *ColorPickerW) gradEdit(fn func(s []theme.GradientStop) []theme.GradientStop) {
+	s := append([]theme.GradientStop(nil), w.grad.Stops...)
+	w.grad.Stops = fn(s)
+	w.changed = true
+	w.c.invalid = true
+}
+
+// gradSelect makes stop i the one the editors change.
+func (w *ColorPickerW) gradSelect(i int) {
+	w.st.gsel = i
+	w.gcol = w.grad.Stops[i].Color
+	w.sync(false)
+	w.c.invalid = true
+}
+
+// gradAdd inserts a stop at offset t with the gradient's color there and
+// selects it.
+func (w *ColorPickerW) gradAdd(t float64) {
+	g := w.grad
+	t = cpClamp01(t)
+	if len(g.Stops) == 0 {
+		// No gradient yet: two stops of the panel's color, the one at the
+		// press selected.
+		col := theme.FromHSVA(w.st.hsva)
+		w.gradEdit(func([]theme.GradientStop) []theme.GradientStop {
+			return []theme.GradientStop{{Offset: 0, Color: col}, {Offset: 1, Color: col}}
+		})
+		w.gradSelect(cpNearestStop(g.Stops, t, -1))
+		return
+	}
+	col := g.At(t)
+	w.gradEdit(func(s []theme.GradientStop) []theme.GradientStop {
+		return append(s, theme.GradientStop{Offset: t, Color: col})
+	})
+	w.gradSelect(len(g.Stops) - 1)
+}
+
+// gradRemove deletes the selected stop (two stay at least) and selects
+// the stop nearest to it.
+func (w *ColorPickerW) gradRemove() {
+	if len(w.grad.Stops) <= 2 {
+		return
+	}
+	i := w.st.gsel
+	at := w.grad.Stops[i].Offset
+	w.gradEdit(func(s []theme.GradientStop) []theme.GradientStop { return append(s[:i], s[i+1:]...) })
+	w.gradSelect(cpNearestStop(w.grad.Stops, at, -1))
+	w.st.gdrag = false
+}
+
+// cpNearestStop returns the index of the stop closest to offset t (not
+// skip), or -1 when there is none.
+func cpNearestStop(s []theme.GradientStop, t float64, skip int) int {
+	best, bd := -1, math.Inf(1)
+	for i, st := range s {
+		if i == skip {
+			continue
+		}
+		if d := math.Abs(st.Offset - t); d < bd {
+			best, bd = i, d
+		}
+	}
+	return best
+}
+
+// cpSortedIdx returns the stop indices ordered by offset (stable).
+func cpSortedIdx(s []theme.GradientStop) []int {
+	idx := make([]int, len(s))
+	for i := range idx {
+		idx[i] = i
+	}
+	for i := 1; i < len(idx); i++ {
+		for j := i; j > 0 && s[idx[j]].Offset < s[idx[j-1]].Offset; j-- {
+			idx[j], idx[j-1] = idx[j-1], idx[j]
+		}
+	}
+	return idx
+}
+
+// cpGradientLine returns the CSS gradient line of angle deg in r: through
+// the centre, long enough that the corners get the end colors.
+func cpGradientLine(r geom.Rect, deg float64) (geom.Point, geom.Point) {
+	a := deg * math.Pi / 180
+	dx, dy := math.Sin(a), -math.Cos(a)
+	half := (math.Abs(float64(r.W)*dx) + math.Abs(float64(r.H)*dy)) / 2
+	cx, cy := float64(r.X+r.W/2), float64(r.Y+r.H/2)
+	return geom.Pt(float32(cx-dx*half), float32(cy-dy*half)), geom.Pt(float32(cx+dx*half), float32(cy+dy*half))
+}
+
+// cpPaintGradient fills r with g along the line from p0 to p1 (a
+// checkerboard below translucent stops).
+func cpPaintGradient(l *paint.List, r geom.Rect, rad geom.Radii, g theme.Gradient, p0, p1 geom.Point) {
+	s := g.Sorted().Stops
+	if len(s) == 0 {
+		return
+	}
+	stops := make([]paint.Stop, len(s))
+	translucent := false
+	for i, st := range s {
+		stops[i] = paint.Stop{Offset: float32(st.Offset), Color: st.Color}
+		translucent = translucent || st.Color.A < 255
+	}
+	if translucent {
+		l.Checker(r, rad, max(3, min(r.W, r.H)/4), theme.Color{}, theme.Color{})
+	}
+	if len(stops) == 1 {
+		l.Fill(r, rad, stops[0].Color)
+		return
+	}
+	l.LinearStops(r, rad, p0, p1, stops...)
+}
+
+// triggerSwatch fills the trigger's swatch with the value (the gradient
+// at its angle in gradient mode).
+func (w *ColorPickerW) triggerSwatch(l *paint.List, r geom.Rect, rad geom.Radii) {
+	if w.grad == nil {
+		cpSwatch(l, r, rad, *w.val)
+		return
+	}
+	p0, p1 := cpGradientLine(r, w.grad.Angle)
+	cpPaintGradient(l, r, rad, *w.grad, p0, p1)
+}
+
+// markColor is the color the Element trigger's arrow is drawn on.
+func (w *ColorPickerW) markColor() theme.Color {
+	if w.grad != nil {
+		return w.grad.At(0.5)
+	}
+	return *w.val
+}
+
+// gradientEditor adds the stop bar and the angle input (top of the panel).
+func (w *ColorPickerW) gradientEditor() {
+	c, th := w.c, w.th
+	w.gradBar()
+	Row(c, func() {
+		Text(c, w.loc.ColorPicker.Angle).Size(th.FontSizeSM).Color(th.TextSecondary)
+		a := w.grad.Angle
+		if InputNumber(c, &a).Min(0).Max(360).Step(1).Size(Small).Width(84).A11yLabel(w.loc.ColorPicker.Angle).Changed() && a != w.grad.Angle {
+			w.grad.Angle = a
+			w.changed = true
+			c.invalid = true
+		}
+	}, layout.Gap(8), layout.Middle())
+}
+
+// gradBar adds the stop bar: the gradient left to right (offsets are
+// physical, as in CSS, also in RTL) with a handle per stop.
+func (w *ColorPickerW) gradBar() {
+	c, tk := w.c, w.tk
+	st, g := w.st, w.grad
+	n := c.add("cp-grad", w.loc.ColorPicker.Gradient)
+	n.ln.Height = tk.GradientBarHeight
+	n.ownKeys = true
+	ia := c.interact(n, true, input.CursorPointer)
+	n.setRole(a11y.RoleSlider).setState(a11y.Horizontal)
+	if c.a11yOn {
+		n.fill(semFunc(func(s *a11y.Node) {
+			if len(g.Stops) == 0 {
+				return
+			}
+			now := math.Round(g.Stops[st.gsel].Offset * 100)
+			rangeSem(s, now, 0, 100, 1)
+			s.Actions |= a11y.SetValue
+			s.Value = strconv.Itoa(st.gsel+1) + "/" + strconv.Itoa(len(g.Stops)) + ", " + strconv.Itoa(int(now)) + "%"
+		}))
+	}
+	inset := tk.HandleSize / 2
+	r, ok := c.rects[n.id]
+	toT := func(px float32) float64 {
+		if r.W <= 2*inset {
+			return 0
+		}
+		return cpClamp01(float64((px - r.X - inset) / (r.W - 2*inset)))
+	}
+	move := func(t float64) {
+		if len(g.Stops) == 0 {
+			return
+		}
+		i := st.gsel
+		t = cpClamp01(t)
+		if g.Stops[i].Offset != t {
+			w.gradEdit(func(s []theme.GradientStop) []theme.GradientStop { s[i].Offset = t; return s })
+		}
+	}
+	if v, ok := c.takeSetNumber(n.id); ok {
+		move(v / 100)
+	}
+	if ok && ia.PressedNow {
+		hit := -1
+		for _, i := range cpSortedIdx(g.Stops) { // the topmost (last drawn) wins
+			x := r.X + inset + float32(g.Stops[i].Offset)*(r.W-2*inset)
+			if math.Abs(float64(c.pointer.X-x)) <= float64(inset)+1 {
+				hit = i
+			}
+		}
+		if hit < 0 {
+			w.gradAdd(toT(c.pointer.X))
+		} else {
+			w.gradSelect(hit)
+		}
+		st.gdrag = true
+	} else if ok && st.gdrag && c.Dragging(n.id) {
+		if math.Abs(float64(c.pointer.Y-(r.Y+r.H/2))) > 32 && len(g.Stops) > 2 {
+			w.gradRemove() // dragged away from the bar
+		} else {
+			move(toT(c.pointer.X))
+		}
+	} else if !c.Dragging(n.id) {
+		st.gdrag = false
+	}
+	for _, k := range c.KeysFor(n.id) {
+		if !k.Down || len(g.Stops) == 0 {
+			continue
+		}
+		order := cpSortedIdx(g.Stops)
+		pos := 0
+		for p, i := range order {
+			if i == st.gsel {
+				pos = p
+			}
+		}
+		switch k.Key {
+		case input.KeyLeft:
+			move(g.Stops[st.gsel].Offset - 0.01)
+		case input.KeyRight:
+			move(g.Stops[st.gsel].Offset + 0.01)
+		case input.KeyUp:
+			w.gradSelect(order[max(0, pos-1)])
+		case input.KeyDown:
+			w.gradSelect(order[min(len(order)-1, pos+1)])
+		case input.KeyHome:
+			move(0)
+		case input.KeyEnd:
+			move(1)
+		case input.KeyEnter, input.KeyInsert:
+			a := g.Stops[st.gsel].Offset
+			b := 1.0
+			if pos+1 < len(order) {
+				b = g.Stops[order[pos+1]].Offset
+			} else if pos > 0 {
+				b = g.Stops[order[pos-1]].Offset
+			}
+			w.gradAdd((a + b) / 2)
+		case input.KeyDelete, input.KeyBackspace:
+			w.gradRemove()
+		}
+	}
+	el := w.el()
+	n.paint = func(l *paint.List, r geom.Rect) {
+		rail := geom.Rect{X: r.X, Y: r.Y + (r.H-tk.RailHeight)/2, W: r.W, H: tk.RailHeight}
+		rad := geom.Rad(rail.H / 2)
+		if el {
+			rad = geom.Rad(2)
+		}
+		if len(g.Stops) == 0 {
+			l.Checker(rail, rad, 4, theme.Color{}, theme.Color{})
+		} else {
+			cpPaintGradient(l, rail, rad, *g, geom.Pt(rail.X+inset, rail.Y), geom.Pt(rail.Right()-inset, rail.Y))
+		}
+		l.Stroke(rail, rad, 1, tk.BorderColor)
+		cy := r.Y + r.H/2
+		for _, i := range cpSortedIdx(g.Stops) {
+			if i == st.gsel {
+				continue
+			}
+			x := r.X + inset + float32(g.Stops[i].Offset)*(r.W-2*inset)
+			cpHandle(l, tk, x, cy, g.Stops[i].Color)
+		}
+		if len(g.Stops) > 0 {
+			x := r.X + inset + float32(g.Stops[st.gsel].Offset)*(r.W-2*inset)
+			l.StrokePath(paint.NewPath().Circle(x, cy, tk.HandleSize/2+1.5), paint.StrokeStyle{Width: 2}, tk.GradientActiveRing)
+			cpHandle(l, tk, x, cy, g.Stops[st.gsel].Color)
+		}
+		if ia.FocusVisible {
+			entFocusRing(c, l, rail, rad.TL)
+		}
 	}
 }

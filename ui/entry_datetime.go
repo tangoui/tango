@@ -13,6 +13,21 @@ import (
 	"github.com/tangoui/tango/ui/theme"
 )
 
+// DisabledTimes lists the clock options that cannot be picked on one day
+// (the result of a DisabledTime callback: Ant disabledTime). Nil fields
+// disable nothing; values are 24-hour.
+type DisabledTimes struct {
+	_       [0]func()
+	Hours   func(h int) bool
+	Minutes func(h, m int) bool
+	Seconds func(h, m, s int) bool
+}
+
+// apply copies the disabled options into a column configuration.
+func (d DisabledTimes) apply(cfg *dtTimeCfg) {
+	cfg.disH, cfg.disM, cfg.disS = d.Hours, d.Minutes, d.Seconds
+}
+
 type dtDateTimeState struct {
 	field    dtFieldState
 	draft    time.Time
@@ -36,6 +51,10 @@ type DateTimePickerW struct {
 	changed bool
 	forced  bool
 	z       *lazy
+	// DisabledDate / DisabledTime / Presets.
+	disabledFn func(time.Time) bool
+	disTime    func(day time.Time) DisabledTimes
+	presets    []DatePreset
 }
 
 // DateTimePicker adds a date-time input bound to *val (zero = empty).
@@ -82,6 +101,26 @@ func (w *DateTimePickerW) Layout(o ...layout.Option) *DateTimePickerW {
 	return w
 }
 
+// DisabledDate marks days that cannot be picked (called with UTC
+// midnights); typed or preset values on such a day are not committed.
+func (w *DateTimePickerW) DisabledDate(fn func(time.Time) bool) *DateTimePickerW {
+	w.disabledFn = fn
+	return w
+}
+
+// DisabledTime disables hours, minutes and seconds per day (Ant
+// disabledTime): fn receives the drafted day (UTC midnight) and returns the
+// options to grey out in the time columns. A value whose clock is disabled
+// cannot be confirmed.
+func (w *DateTimePickerW) DisabledTime(fn func(day time.Time) DisabledTimes) *DateTimePickerW {
+	w.disTime = fn
+	return w
+}
+
+// Presets adds a side list of named date-times (DatePreset.Value, else
+// Range[0]) that commit immediately.
+func (w *DateTimePickerW) Presets(p ...DatePreset) *DateTimePickerW { w.presets = p; return w }
+
 // Disabled disables the picker.
 func (w *DateTimePickerW) Disabled(on bool) *DateTimePickerW {
 	if on {
@@ -110,7 +149,29 @@ func (w *DateTimePickerW) loc() *time.Location {
 	return w.c.now.Location()
 }
 
+// timeCfg applies the DisabledTime options of t's day to cfg.
+func (w *DateTimePickerW) timeCfg(cfg dtTimeCfg, t time.Time) dtTimeCfg {
+	if w.disTime != nil && !t.IsZero() {
+		w.disTime(dtDayUTC(t)).apply(&cfg)
+	}
+	return cfg
+}
+
+// blocked reports a value on a disabled day or at a disabled clock.
+func (w *DateTimePickerW) blocked(t time.Time) bool {
+	if t.IsZero() {
+		return false
+	}
+	if w.disabledFn != nil && w.disabledFn(dtDayUTC(t)) {
+		return true
+	}
+	return w.timeCfg(dtTimeCfg{cols: dtTimeCols(w.format)}, t).disabled(t)
+}
+
 func (w *DateTimePickerW) commit(t time.Time) {
+	if w.blocked(t) {
+		return
+	}
 	if !t.IsZero() && !t.Equal(*w.val) {
 		*w.val = t
 		w.changed = true
@@ -122,7 +183,6 @@ func (w *DateTimePickerW) commit(t time.Time) {
 
 func (w *DateTimePickerW) finish() {
 	c, st, f := w.c, w.st, w.f
-	loc := c.Locale()
 	th := c.Theme
 	if f.n.ln.Width == 0 {
 		f.n.ln.Width = 200
@@ -175,7 +235,7 @@ func (w *DateTimePickerW) finish() {
 	}
 	hh := th.Components.DatePicker.HeaderHeight
 	colH := dtPanelHeight(th) - (hh + 4) // the month panel height minus the time header and 4px pad
-	cfg := dtTimeCfg{cols: dtTimeCols(w.format), steps: w.steps, colH: colH, base: base}
+	cfg := w.timeCfg(dtTimeCfg{cols: dtTimeCols(w.format), steps: w.steps, colH: colH, base: base}, base)
 	for _, k := range nav {
 		if k.Key == input.KeyEnter {
 			t := st.draft
@@ -197,72 +257,86 @@ func (w *DateTimePickerW) finish() {
 	// the date is picked with the pointer or typed into the field.
 	defer func() { f.ctl, f.act = st.ts.active() }()
 	dtStylePanel(c, entPanel(c, f.n.id, &st.field.pop, false, func() {
-		Column(c, func() {
-			Row(c, func() {
-				if d, ok := dtDatePanel(c, &st.panel, st.date, nil, false, nil); ok {
-					st.date = d
-					clock := st.draft
-					st.draft = time.Date(d.Year(), d.Month(), d.Day(), clock.Hour(), clock.Minute(), clock.Second(), 0, w.loc())
+		Row(c, func() {
+			if len(w.presets) > 0 {
+				dtPresetList(c, w.presets, func(v time.Time) { w.commit(v) })
+			}
+			w.panel(cfg, hh)
+		})
+	}))
+}
+
+// panel builds the month panel, the time columns and the footer.
+func (w *DateTimePickerW) panel(cfg dtTimeCfg, hh float32) {
+	c, st, f := w.c, w.st, w.f
+	loc := c.Locale()
+	th := c.Theme
+	Column(c, func() {
+		Row(c, func() {
+			if d, ok := dtDatePanel(c, &st.panel, st.date, w.disabledFn, false, nil); ok {
+				st.date = d
+				clock := st.draft
+				st.draft = time.Date(d.Year(), d.Month(), d.Day(), clock.Hour(), clock.Minute(), clock.Second(), 0, w.loc())
+				f.setText(dtFormat(st.draft, w.format))
+				c.invalid = true
+			}
+			Column(c, func() {
+				tf := "15:04:05"
+				if cfg.cols < 3 {
+					tf = "15:04"
+				}
+				s := dtFormat(st.draft, tf)
+				hn := c.add("dt-time-head", s)
+				hn.ln.Height = hh
+				hn.paint = func(l *paint.List, r geom.Rect) {
+					l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, th.Components.DatePicker.SplitColor)
+					if s == "" {
+						return
+					}
+					wt := text.Weight(th.FontWeightStrong)
+					tw := entTextW(c, s, th.FontSize, wt)
+					entText(c, l, s, r.X+(r.W-tw)/2, r, th.FontSize, wt, th.Text, 0)
+				}
+				cfg := w.timeCfg(cfg, st.draft) // the day may have changed above
+				if dtTimeColumns(c, &st.draft, cfg, &st.ts) {
 					f.setText(dtFormat(st.draft, w.format))
-					c.invalid = true
+					if st.date.IsZero() {
+						st.date = dtDayUTC(st.draft)
+					}
 				}
-				Column(c, func() {
-					tf := "15:04:05"
-					if cfg.cols < 3 {
-						tf = "15:04"
-					}
-					s := dtFormat(st.draft, tf)
-					hn := c.add("dt-time-head", s)
-					hn.ln.Height = hh
-					hn.paint = func(l *paint.List, r geom.Rect) {
-						l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, th.Components.DatePicker.SplitColor)
-						if s == "" {
-							return
-						}
-						wt := text.Weight(th.FontWeightStrong)
-						tw := entTextW(c, s, th.FontSize, wt)
-						entText(c, l, s, r.X+(r.W-tw)/2, r, th.FontSize, wt, th.Text, 0)
-					}
-					if dtTimeColumns(c, &st.draft, cfg, &st.ts) {
-						f.setText(dtFormat(st.draft, w.format))
-						if st.date.IsZero() {
-							st.date = dtDayUTC(st.draft)
-						}
-					}
-				}).Paint(func(l *paint.List, r geom.Rect) {
-					x := r.X // divider on the inline-start edge, next to the days
-					if c.IsRTL() {
-						x = r.Right() - 1
-					}
-					l.Fill(geom.Rect{X: x, Y: r.Y, W: 1, H: r.H}, geom.Radii{}, th.Components.DatePicker.SplitColor)
-				})
+			}).Paint(func(l *paint.List, r geom.Rect) {
+				x := r.X // divider on the inline-start edge, next to the days
+				if c.IsRTL() {
+					x = r.Right() - 1
+				}
+				l.Fill(geom.Rect{X: x, Y: r.Y, W: 1, H: r.H}, geom.Radii{}, th.Components.DatePicker.SplitColor)
 			})
-			dtFooter(c, func() {
-				now := func() time.Time {
-					n := c.now.Truncate(time.Second)
-					if cfg.cols < 3 {
-						n = n.Truncate(time.Minute)
-					}
-					return n
+		})
+		dtFooter(c, func() {
+			now := func() time.Time {
+				n := c.now.Truncate(time.Second)
+				if cfg.cols < 3 {
+					n = n.Truncate(time.Minute)
 				}
-				if th.Flavor == theme.Element {
-					if dtTextBtn(c, loc.Now, true) {
-						w.commit(now())
-					}
-					Spacer(c)
-					if dtPlainBtn(c, loc.OK) {
-						w.commit(st.draft)
-					}
-					return
-				}
-				if dtLink(c, loc.Now) {
+				return n
+			}
+			if th.Flavor == theme.Element {
+				if dtTextBtn(c, loc.Now, true) {
 					w.commit(now())
 				}
 				Spacer(c)
-				if Button(c, loc.OK).Primary().Small().Disabled(st.draft.IsZero()).Clicked() {
+				if Button(c, loc.OK).Small().Disabled(w.blocked(st.draft)).Clicked() {
 					w.commit(st.draft)
 				}
-			})
+				return
+			}
+			if dtLink(c, loc.Now) {
+				w.commit(now())
+			}
+			Spacer(c)
+			if Button(c, loc.OK).Primary().Small().Disabled(st.draft.IsZero() || w.blocked(st.draft)).Clicked() {
+				w.commit(st.draft)
+			}
 		})
-	}))
+	})
 }

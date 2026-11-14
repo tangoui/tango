@@ -13,21 +13,37 @@ type MessageToken struct {
 	Radius        float32
 	BorderColor   Color // zero: none (Element: the status border)
 	Shadow        []paint.Shadow
+	// Top is the default distance from the window edge to the stack
+	// (MessageRef.Offset overrides it); MarginInline the distance from
+	// the side for the start / end placements.
+	Top          float32
+	MarginInline float32
+	CloseColor   Color // close button of ShowClose
+	// Plain style (Element plain): neutral background, only the icon
+	// in the status color.
+	PlainBg          Color
+	PlainColor       Color `contrast:"text:PlainBg"`
+	PlainBorderColor Color // zero: none
+	PlainShadow      []paint.Shadow
 }
 
 func deriveMessage(t *Theme) MessageToken {
 	k := MessageToken{
 		ContentBg: t.BgElevated, Color: t.Text, PaddingBlock: 9, PaddingInline: 12,
 		Radius: t.RadiusLG, Shadow: t.Shadow,
+		Top: 8, MarginInline: 16, CloseColor: t.TextTertiary,
+		PlainBg: t.BgElevated, PlainColor: t.Text, PlainShadow: t.Shadow,
 	}
 	switch t.Flavor {
 	case Element:
 		k.ContentBg, k.Color, k.Shadow = Color{}, Color{}, nil
 		k.PaddingBlock, k.PaddingInline, k.Radius = 11, 15, t.Radius
+		k.PlainBorderColor = t.BorderSecondary
 	case StyleShadcn:
 		// Sonner: 356px cards, p-4, border, shadow-lg.
 		k.PaddingBlock, k.PaddingInline, k.Width = 16, 16, 356
 		k.BorderColor, k.Shadow = t.PopupBorder, t.ShadowSecondary
+		k.PlainBorderColor, k.PlainShadow = t.PopupBorder, t.ShadowSecondary
 	}
 	return k
 }

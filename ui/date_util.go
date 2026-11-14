@@ -63,6 +63,16 @@ func dtBetween(d, a, b time.Time) bool {
 	return !d.Before(a) && !d.After(b)
 }
 
+// dtInSet reports whether the calendar date of d is one of days.
+func dtInSet(d time.Time, days []time.Time) bool {
+	for _, x := range days {
+		if dtSameDay(d, x) {
+			return true
+		}
+	}
+	return false
+}
+
 // dtWeekStart is the first weekday of the grid (Locale.WeekStart: Sunday
 // for every built-in pack; an app can register a Monday-first locale).
 func dtWeekStart(c *Context) time.Weekday { return c.Locale().WeekStart }
@@ -119,9 +129,10 @@ func dtParse(s, layout string, loc *time.Location) (time.Time, bool) {
 type dtMonth struct {
 	view         time.Time // first day of the shown month
 	today        time.Time
-	selA, selB   time.Time // selected endpoints (selB zero for single)
-	prevA, prevB time.Time // hover preview range (zero = none)
-	cursor       time.Time // keyboard cursor
+	selA, selB   time.Time   // selected endpoints (selB zero for single)
+	sels         []time.Time // selected days of a multiple picker
+	prevA, prevB time.Time   // hover preview range (zero = none)
+	cursor       time.Time   // keyboard cursor
 	disabled     func(time.Time) bool
 	hideOut      bool // leave days of adjacent months blank (range panels)
 	navPrev      bool // show « ‹
@@ -315,6 +326,9 @@ func dtDayCell(c *Context, m dtMonth, day time.Time, inMonth bool, cw, ch float3
 	}
 	clicked := ia.Clicked && !dis
 	isA, isB := dtSameDay(day, m.selA), dtSameDay(day, m.selB)
+	if !isA && dtInSet(day, m.sels) {
+		isA = true // a day of a multiple selection looks like a picked end
+	}
 	inSel := dtBetween(day, m.selA, m.selB)
 	inPrev := dtBetween(day, m.prevA, m.prevB)
 	isToday := dtSameDay(day, m.today)

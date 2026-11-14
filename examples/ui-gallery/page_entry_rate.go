@@ -11,8 +11,8 @@ import (
 var rateDemo = struct {
 	a, b, c, d, e, f float64
 	seg1, seg2, seg3 string
-	seg4, seg5       string
-}{a: 3, b: 2.5, c: 4, d: 3, e: 2, f: 3.5, seg1: "每周", seg2: "列表", seg3: "中", seg4: "Kanban", seg5: "每月"}
+	seg4, seg5, seg6 string
+}{a: 3, b: 2.5, c: 4, d: 3, e: 2, f: 3.5, seg1: "每周", seg2: "列表", seg3: "中", seg4: "Kanban", seg5: "每月", seg6: "看板"}
 
 func init() {
 	entryPage(gallery.Page{Name: "Rate", Title: "Rate 评分", Order: 20, Render: func(c *ui.Context) {
@@ -58,6 +58,17 @@ func init() {
 				ui.Segmented(c, &d.seg2, ui.Opts("列表", "看板")).Icons(icon.Table, icon.Appstore)
 				ui.Segmented(c, &d.seg2, []ui.Option{{Value: "列表"}, {Value: "看板"}}).Icons(icon.Table, icon.Appstore)
 			}, layout.AlignItems(layout.AlignStart))
+		})
+		gallery.Demo(c, "竖向与胶囊形", "Vertical() 竖向排列（上下键切换）；Shape(SegmentedShapeRound) 胶囊形。", func() {
+			ui.Row(c, func() {
+				ui.Segmented(c, &d.seg6, ui.Opts("列表", "看板", "日历视图")).Vertical()
+				ui.Segmented(c, &d.seg6, ui.Opts("列表", "看板", "日历视图")).Icons(icon.Table, icon.Appstore, icon.Calendar).Vertical().Shape(ui.SegmentedShapeRound)
+				entryCol(c, func() {
+					ui.Segmented(c, &d.seg5, ui.Opts("每日", "每周", "每月")).Shape(ui.SegmentedShapeRound)
+					ui.Segmented(c, &d.seg3, ui.Opts("小", "中", "大")).Shape(ui.SegmentedShapeRound).Size(ui.Small)
+					ui.Segmented(c, &d.seg3, ui.Opts("小", "中", "大")).Shape(ui.SegmentedShapeRound).Size(ui.Large)
+				}, layout.AlignItems(layout.AlignStart))
+			}, layout.Gap(24), layout.AlignItems(layout.AlignStart))
 		})
 	}})
 }

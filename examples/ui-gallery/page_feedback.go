@@ -15,6 +15,12 @@ func init() {
 			ui.Alert(c, "error", "错误提示的文案").Show()
 			ui.Alert(c, "success", "成功提示的文案").Description("成功提示的辅助性文字介绍，成功提示的辅助性文字介绍。").Show()
 			ui.Alert(c, "error", "错误").Description("错误提示的辅助性文字介绍。").Show()
+			// Element effect="dark" 与 center
+			ui.Alert(c, "success", "深色主题的成功提示").Effect(ui.AlertEffectDark).Show()
+			ui.Alert(c, "info", "深色主题的消息提示").Effect(ui.AlertEffectDark).Closable().Show()
+			ui.Alert(c, "warning", "深色、居中的警告提示").Effect(ui.AlertEffectDark).Center().Show()
+			ui.Alert(c, "error", "深色错误").Effect(ui.AlertEffectDark).Description("深色背景上的辅助性文字介绍。").Show()
+			ui.Alert(c, "info", "居中的消息提示").Center().Closable().Show()
 		}, layout.Gap(16))
 	}})
 	gallery.Register(gallery.Page{Name: "Popconfirm", Title: "Popconfirm 气泡确认框", Group: gallery.Feedback, Order: 5, Height: 300,

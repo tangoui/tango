@@ -41,11 +41,16 @@ type MentionsW struct {
 	rows        int
 	placeholder string
 	status      string
+	variant     FieldVariant
 	size        ControlSize
 	disabled    bool
 	forced      bool
 	changed     bool
+	cleared     bool
 	selected    string
+	allowClear  bool
+	whole       bool
+	wholeCheck  func(prefix, value string) bool
 	boxIA, edIA Interaction
 	z           *lazy
 	optIDs      []ID // suggestion nodes (ActiveDescendant)
@@ -103,6 +108,33 @@ func (w *MentionsW) Rows(n int) *MentionsW           { w.rows = max(1, n); retur
 func (w *MentionsW) Width(px float32) *MentionsW     { w.box.ln.Width = px; return w }
 func (w *MentionsW) Layout(o ...layout.Option) *MentionsW {
 	flexbox.Apply(&w.box.ln.Style, o...)
+	return w
+}
+
+// Variant sets the frame look (FieldOutlined by default).
+func (w *MentionsW) Variant(v FieldVariant) *MentionsW { w.variant = v; return w }
+
+// AllowClear shows a clear button at the inline end of the first line
+// while the input has text (Ant allowClear).
+func (w *MentionsW) AllowClear() *MentionsW { w.allowClear = true; return w }
+
+// Cleared reports that the clear button emptied the input this frame.
+func (w *MentionsW) Cleared() bool { w.z.run(); return w.cleared }
+
+// Whole makes Backspace delete a mention as one unit (Element whole):
+// with the caret right after a mention ("@name", or "@name " as inserted
+// by a pick), one Backspace removes the whole mention. A mention is a
+// trigger prefix at the start of a word followed by non-space text; see
+// WholeCheck to restrict which ones count.
+func (w *MentionsW) Whole() *MentionsW { w.whole = true; return w }
+
+// WholeCheck decides which mentions Whole deletes as a unit (Element
+// check-is-whole): fn receives the trigger prefix and the text after it.
+// Implies Whole.
+//
+//	ui.Mentions(c, &msg, users).WholeCheck(func(p, v string) bool { return known[v] })
+func (w *MentionsW) WholeCheck(fn func(prefix, value string) bool) *MentionsW {
+	w.whole, w.wholeCheck = true, fn
 	return w
 }
 
@@ -212,9 +244,15 @@ func (w *MentionsW) finish() {
 		w.box.ln.Padding = geom.VH(pv, 7)
 	}
 	w.box.ln.Height = float32(w.rows)*lh + 2*pv
+	if w.allowClear {
+		w.box.ln.Padding.Right += c.controlFont(w.size) + 4
+	}
 	if w.disabled || w.box.disabled {
 		st.pop.open = false
 		return
+	}
+	if w.allowClear && *w.val != "" {
+		w.clearPart(pv, lh)
 	}
 	if w.boxIA.PressedNow && !w.edIA.PressedNow {
 		c.SetFocus(w.ed.id)
@@ -235,6 +273,9 @@ func (w *MentionsW) finish() {
 				}
 			}
 		}
+	}
+	if w.whole && w.wholeDelete() {
+		w.changed = true
 	}
 	res := c.processEdit(w.ed.id, &st.edit, w.val, editConfig{multiline: true}, w.edIA)
 	prevPos := pos
@@ -272,6 +313,99 @@ func (w *MentionsW) finish() {
 	if st.pop.open {
 		w.dropdown(pos, opts, busy)
 	}
+}
+
+// clearPart adds the clear button over the inline end of the first line
+// (not a Tab stop, as Input's: select-all + Delete is the keyboard way).
+// The current parent is the frame (lazy finish).
+func (w *MentionsW) clearPart(pv, lh float32) {
+	c := w.c
+	is := c.controlFont(w.size)
+	pad := float32(11)
+	if w.size == Small {
+		pad = 7
+	}
+	b := c.box("mt-clear", layout.Row, []layout.Option{
+		layout.Abs(layout.Unset, pv+(lh-is)/2-3, pad-3, layout.Unset), layout.W(is + 6), layout.H(is + 6)})
+	n := b.n
+	n.label = "clear" // test locator, as Input's clear part
+	n.setRole(a11y.RoleButton).setName(c.Locale().Clear)
+	n.aKbd = true
+	ia := c.interact(n, false, input.CursorPointer)
+	n.paint = func(l *paint.List, r geom.Rect) {
+		if ia.Hovered || w.boxIA.Hovered || w.edIA.Hovered || c.focus == w.ed.id {
+			entClearIcon(c, l, r.Expand(-3))
+		}
+	}
+	if ia.Clicked {
+		*w.val = ""
+		w.st.edit.cur, w.st.edit.anc = 0, 0
+		w.st.pop.open = false
+		w.changed, w.cleared = true, true
+		c.SetFocus(w.ed.id)
+		c.invalid = true
+	}
+}
+
+// wholeAt returns the rune range [start, end) Backspace deletes as one
+// mention with the caret at cur: a mention ending at cur, or ending one
+// space before it (the space a pick inserts goes with it). ok is false
+// when there is none.
+func (w *MentionsW) wholeAt(rs []rune, cur int) (start, end int, ok bool) {
+	if cur <= 0 || cur > len(rs) {
+		return 0, 0, false
+	}
+	te := cur
+	if unicode.IsSpace(rs[te-1]) {
+		te--
+	}
+	i := te
+	for i > 0 && !unicode.IsSpace(rs[i-1]) {
+		i--
+	}
+	if te-i < 2 { // a prefix and at least one character
+		return 0, 0, false
+	}
+	p := string(rs[i])
+	for _, pf := range w.prefixes {
+		if p != pf {
+			continue
+		}
+		if w.wholeCheck != nil && !w.wholeCheck(p, string(rs[i+1:te])) {
+			return 0, 0, false
+		}
+		return i, cur, true
+	}
+	return 0, 0, false
+}
+
+// wholeDelete takes a Backspace that sits right after a mention from the
+// editor's input and deletes the mention (Whole). It reports a change.
+func (w *MentionsW) wholeDelete() bool {
+	c, st := w.c, w.st
+	if st.edit.hasSel() {
+		return false
+	}
+	rs := []rune(*w.val)
+	a, b, ok := w.wholeAt(rs, clampIdx(st.edit.cur, len(rs)))
+	if !ok {
+		return false
+	}
+	taken := false
+	keys := msTakeKeys(c, w.ed.id, func(k input.KeyEvent) bool {
+		if taken || k.Key != input.KeyBackspace || k.Mods != 0 {
+			return false
+		}
+		taken = true
+		return true
+	})
+	if len(keys) == 0 {
+		return false
+	}
+	*w.val = string(append(append([]rune(nil), rs[:a]...), rs[b:]...))
+	st.edit.cur, st.edit.anc = a, a
+	c.invalid = true
+	return true
 }
 
 // busy reports whether the loading row replaces the suggestions.
@@ -359,8 +493,9 @@ func (w *MentionsW) dropdown(pos int, opts []Option, busy bool) {
 func (w *MentionsW) paintBox(l *paint.List, r geom.Rect) {
 	c := w.c
 	dis := w.disabled || w.box.disabled
-	c.paintFrame(l, r, geom.Rad(controlRadiusOf(c.ThemeFor(theme.CompInput), w.size)), w.box.id, frameState{
-		hover: w.boxIA.Hovered || w.edIA.Hovered, focus: c.focus == w.ed.id, disabled: dis, status: w.status})
+	rad := w.variant.frameRadii(geom.Rad(controlRadiusOf(c.ThemeFor(theme.CompInput), w.size)))
+	c.paintFrame(l, r, rad, w.box.id, frameState{
+		hover: w.boxIA.Hovered || w.edIA.Hovered, focus: c.focus == w.ed.id, disabled: dis, status: w.status, variant: string(w.variant)})
 }
 
 func (w *MentionsW) paintText(l *paint.List, r geom.Rect) {

@@ -312,11 +312,6 @@ func dtTextBtn(c *Context, label string, primary bool) bool {
 	return ia.Clicked
 }
 
-// dtPlainBtn is Element's small plain button ("确定" in date-time footers).
-func dtPlainBtn(c *Context, label string) bool {
-	return Button(c, label).Small().Clicked()
-}
-
 // ---------------------------------------------------------------------------
 // Typing into a picker trigger that keeps the keyboard on its own node
 // (DatePicker, RangePicker, TimeRangePicker).

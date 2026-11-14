@@ -38,6 +38,8 @@ type CalendarW struct {
 	changed    bool
 	panelCh    bool
 	cellH      float32
+	rangeA     time.Time // Range: first and last shown day (zero = none)
+	rangeB     time.Time
 	th         *theme.Theme // Calendar Alias applied
 	tk         *theme.CalendarToken
 }
@@ -96,6 +98,33 @@ func (w *CalendarW) DisabledDate(fn func(d time.Time) bool) *CalendarW {
 // CellHeight overrides the fullscreen cell height.
 func (w *CalendarW) CellHeight(px float32) *CalendarW { w.cellH = px; return w }
 
+// Range shows only the weeks from start to end (Element range): the
+// grid starts with start's week and ends with end's week, the header shows
+// the range instead of the month navigation, days outside [start, end] are
+// greyed out and cannot be picked, and the year view is off. Element asks
+// for a start on the first day of a week and an end on the last day, at
+// most two months apart; other ranges are padded to whole weeks.
+func (w *CalendarW) Range(start, end time.Time) *CalendarW {
+	a, b := dtDayUTC(start), dtDayUTC(end)
+	if b.Before(a) {
+		a, b = b, a
+	}
+	w.rangeA, w.rangeB = a, b
+	return w
+}
+
+// ranged reports whether Range is set.
+func (w *CalendarW) ranged() bool { return !w.rangeA.IsZero() }
+
+// inRange reports whether d is inside the Range (always true without one).
+func (w *CalendarW) inRange(d time.Time) bool {
+	if !w.ranged() {
+		return true
+	}
+	d = dtDayUTC(d)
+	return !d.Before(w.rangeA) && !d.After(w.rangeB)
+}
+
 // NoHeader hides the header.
 func (w *CalendarW) NoHeader() *CalendarW { w.header = false; return w }
 
@@ -127,18 +156,24 @@ func (w *CalendarW) build() {
 		}
 		mode = w.mode
 	}
+	if w.ranged() {
+		// The range fixes the view: its first month, month mode only.
+		st.view = dtMonthUTC(w.rangeA)
+		rm := "month"
+		mode = &rm
+	}
 	nav := func(t time.Time) {
 		st.view = dtMonthUTC(t)
 		w.panelCh = true
 		c.invalid = true
 	}
 	pick := func(d time.Time) {
-		if w.disabled != nil && w.disabled(d) {
+		if (w.disabled != nil && w.disabled(d)) || !w.inRange(d) {
 			return
 		}
 		*w.val = d
 		w.changed = true
-		if d.Month() != st.view.Month() || d.Year() != st.view.Year() {
+		if !w.ranged() && (d.Month() != st.view.Month() || d.Year() != st.view.Year()) {
 			st.view = dtMonthUTC(d)
 			w.panelCh = true
 		}
@@ -149,7 +184,9 @@ func (w *CalendarW) build() {
 	}
 	outer.Bg(tk.FullBg)
 	if w.header {
-		if el {
+		if w.ranged() {
+			w.rangeHeader()
+		} else if el {
 			w.elHeader(st, nav, pick)
 		} else {
 			w.antHeader(st, mode, nav)
@@ -211,6 +248,26 @@ func (w *CalendarW) antHeader(st *calViewState, mode *string, nav func(time.Time
 	}
 }
 
+// rangeHeader shows the Range ("2026-03-02 – 2026-04-12") instead of the
+// month navigation.
+func (w *CalendarW) rangeHeader() {
+	c, th, tk := w.c, w.th, w.tk
+	loc := c.Locale()
+	title := loc.Date(w.rangeA.Year(), int(w.rangeA.Month()), w.rangeA.Day()) + " " + loc.RangeSeparator + " " +
+		loc.Date(w.rangeB.Year(), int(w.rangeB.Month()), w.rangeB.Day())
+	pad := layout.PadVH(12, 20)
+	if th.Flavor != theme.Element {
+		pad = layout.PadVH(12, 8)
+	}
+	b := Row(c, func() {
+		t := Text(c, title).Color(th.Text).Layout(layout.Grow(1))
+		t.n.setRole(a11y.RoleHeading)
+	}, pad, layout.Middle())
+	if th.Flavor == theme.Element || !w.full {
+		b.Paint(func(l *paint.List, r geom.Rect) { dataHLine(l, r.X, r.Bottom()-1, r.W, tk.HeaderBorderColor) })
+	}
+}
+
 func (w *CalendarW) elHeader(st *calViewState, nav func(time.Time), pick func(time.Time)) {
 	c, th, tk := w.c, w.th, w.tk
 	loc := c.Locale()
@@ -250,7 +307,11 @@ func (w *CalendarW) monthGrid(st *calViewState, pick func(time.Time)) {
 		}
 	}
 	rows := 6
-	if el {
+	if w.ranged() {
+		// Whole weeks from the range start's week to the range end's.
+		gridStart = dtGridStart(w.rangeA, ws)
+		rows = int(w.rangeB.Sub(gridStart).Hours()/24)/7 + 1
+	} else if el {
 		// Element shows only the weeks that contain days of the month.
 		last := start.AddDate(0, 1, -1)
 		rows = (off + last.Day() + 6) / 7
@@ -265,8 +326,16 @@ func (w *CalendarW) monthGrid(st *calViewState, pick func(time.Time)) {
 	// The roving Tab stop: the date last moved to with the keyboard, else
 	// the selected date, today or the 1st of the shown month.
 	st.grid = start
-	inView := func(d time.Time) bool { return d.Year() == start.Year() && d.Month() == start.Month() }
+	inView := func(d time.Time) bool {
+		if w.ranged() {
+			return !d.IsZero() && w.inRange(d)
+		}
+		return d.Year() == start.Year() && d.Month() == start.Month()
+	}
 	active := start
+	if w.ranged() {
+		active = w.rangeA
+	}
 	switch {
 	case inView(st.kbd):
 		active = st.kbd
@@ -355,9 +424,13 @@ func (w *CalendarW) dayCell(day time.Time, st *calViewState, cellH float32, pick
 	c, th, tk := w.c, w.th, w.tk
 	el := th.Flavor == theme.Element && w.full // Element grid style
 	inMonth := day.Month() == st.view.Month()
+	out := !w.inRange(day) // outside the Range: greyed and blocked
+	if w.ranged() {
+		inMonth = !out
+	}
 	sel := dtSameDay(*w.val, day)
 	isToday := dtSameDay(day, c.now)
-	dis := w.disabled != nil && w.disabled(day)
+	dis := (w.disabled != nil && w.disabled(day)) || out
 	label := strconv.Itoa(day.Day())
 	if w.full && !el {
 		label = fmt.Sprintf("%02d", day.Day())
@@ -395,8 +468,16 @@ func (w *CalendarW) dayCell(day time.Time, st *calViewState, cellH float32, pick
 	}
 	if ia.Focused {
 		if to, ok := calDayKeys(c, cell.n.id, day, dtWeekStart(c)); ok {
+			if w.ranged() {
+				// Keep the keyboard inside the range.
+				if to.Before(w.rangeA) {
+					to = w.rangeA
+				} else if to.After(w.rangeB) {
+					to = w.rangeB
+				}
+			}
 			st.kbd, st.pending = to, true
-			if to.Month() != st.view.Month() || to.Year() != st.view.Year() {
+			if !w.ranged() && (to.Month() != st.view.Month() || to.Year() != st.view.Year()) {
 				st.view = dtMonthUTC(to)
 				w.panelCh = true
 			}

@@ -12,12 +12,14 @@ import (
 
 var p2cLay = struct {
 	sel, sel2, tab string
+	sel3           string
 	collapsed      bool
 	mixCollapsed   bool
 }{}
 
 func p2cLayReset() {
 	p2cLay.sel, p2cLay.sel2, p2cLay.tab = "list", "list", "all"
+	p2cLay.sel3 = "table-list"
 	p2cLay.collapsed, p2cLay.mixCollapsed = false, false
 }
 
@@ -51,6 +53,31 @@ func p2cProLayoutPage(c *ui.Context) {
 				UserName: "曲丽丽", Layout: "mix", Breakpoint: ui.MD}, func() { p2cPage(c) })
 		})
 	})
+	navDemo(c, "自动面包屑 · 渲染钩子 · DefaultFooter · NoFixSiderbar",
+		"AutoBreadcrumb 按选中菜单的路径生成面包屑；MenuItemRender 改写菜单项，MenuFooterRender 在菜单下方加内容；FooterLinks + Footer 组成默认页脚（链接行 + 版权行）；NoFixSiderbar 让侧栏与内容一起滚动（默认侧栏固定、内容区单独滚动）。", func() {
+			frame(func() {
+				ui.ProLayout(c, ui.ProLayoutConfig{Title: "Tango Pro", Menu: proMenu[:5], Selected: &p2cLay.sel3, LightSider: true,
+					UserName: "曲丽丽", AutoBreadcrumb: true, NoFixSiderbar: true,
+					MenuItemRender: func(it ui.MenuItem) ui.MenuItem {
+						if it.Key == "form" {
+							it.Label += "（新）"
+						}
+						return it
+					},
+					MenuFooterRender: func(collapsed bool) {
+						if !collapsed {
+							ui.Row(c, func() { ui.Text(c, "版本 0.3.1").Secondary() }, layout.Pad(16))
+						}
+					},
+					FooterLinks: []ui.FooterLink{{Key: "docs", Title: "文档"}, {Key: "github", Title: "GitHub"}, {Key: "help", Title: "帮助"}},
+					Footer:      "© 2026 Tango UI",
+				}, func() {
+					ui.Card(c, "查询表格").Body(func() {
+						ui.Text(c, "面包屑由菜单路径“列表页 / 查询表格”自动生成。").Secondary()
+					})
+				})
+			})
+		})
 }
 
 func p2cSiderPage(c *ui.Context) {

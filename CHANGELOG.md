@@ -8,6 +8,15 @@
 
 - **公开 API 分层与兼容性检查**：Go 包分为稳定与实验性两层（`ui`、`uihost`、`mobile`、`service/updater` 为实验性）；CI 新增 `API` 工作流，用 `scripts/apidiff.sh`（基于 apidiff）检查稳定包的不兼容变化，需要破坏兼容时给 PR 加 `api-break` 标签。见 [docs/release.md](docs/release.md#api-稳定性)。
 
+- **组件补齐**（对照 Ant Design v6、Element Plus、Pro Components 与 shadcn/ui 的"部分"项，见 [docs/specs/ui-coverage.md](docs/specs/ui-coverage.md)）：
+  - 新组件 `Menubar`（应用菜单栏）、`AspectRatio`、`Item`/`ItemGroup`、`ButtonGroup`、`MultiDatePicker`、`ColorPickerGradient`/`ColorPickerPanelGradient`、`StatisticTimer`、`ProFieldOf`。
+  - Button 颜色 × 样式（`Color`/`Appearance`，13 个预设色）与 Element 的 success/warning/info/plain；Steps inline/panel 与自定义进度点；Segmented 竖向与胶囊形；Timeline 横向。
+  - DatePicker `NeedConfirm`、按日期禁用时间（`DisabledTimes`）；DateTimePicker 禁用日期与快捷选项；Calendar `Range`。
+  - Switch 任意值（`SwitchValue`）、切换前确认（同步/异步）、内嵌图标、外侧文字、大号与宽度；Checkbox/Radio 边框与按钮样式、尺寸，CheckboxGroup 最少/最多与整组禁用；InputTag 自定义分隔符、拖动排序、失焦保存。
+  - AutoComplete/Mentions/Select/Cascader 的 `Variant`（`FieldVariant`）；Select 前缀与后缀图标；AutoComplete 聚焦触发；Mentions 清除与整体删除；Cascader 自定义搜索与显示；TreeSelect 父子不联动与自定义搜索。
+  - Upload 图片列表与手动提交；Card 内页签；Countdown `OnChange`；Tour 每步遮罩/类型/按钮与自定义指示器、操作区，切步自动滚到目标；Alert 深色效果与居中；Message 位置、偏移、关闭按钮与朴素样式；MessageBox 区分取消与关闭、居中、可拖动、自定义图标；Pagination 自由排序（`Layout`）与页码数量。
+  - ProForm 只读模式；ProField 单独渲染与读写切换；新增 13 种 valueType；SchemaForm `layoutType` 与列表字段；ProLayout 自动面包屑与各渲染钩子、页脚链接、固定侧栏；ProCard 底部操作栏。
+
 ### 变更
 
 冻结 API 前的一次性不兼容调整（[docs/specs/api-stability.md](docs/specs/api-stability.md) Phase 3，规则见 [docs/release.md](docs/release.md#api-稳定性)）。

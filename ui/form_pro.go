@@ -35,6 +35,7 @@ type ProFormW struct {
 	submitter  func(s *ProSubmitter)
 	children   func(f *FormW)
 	gutter     float32
+	readonly   bool
 	id         ID
 
 	st       *proFormState
@@ -147,6 +148,11 @@ func (p *ProFormW) Submitter(fn func(s *ProSubmitter)) *ProFormW { p.submitter =
 
 // Children builds extra items after the fields (FormList, custom items).
 func (p *ProFormW) Children(fn func(f *FormW)) *ProFormW { p.children = fn; return p }
+
+// Readonly shows every field as its formatted read-only value (Ant
+// ProForm readonly) and hides the submit / reset buttons; ProField.Readonly
+// does it for one field. Read-only fields are not validated.
+func (p *ProFormW) Readonly(on bool) *ProFormW { p.readonly = on; return p }
 
 // Gutter sets the horizontal gap between grid columns (default 24).
 func (p *ProFormW) Gutter(px float32) *ProFormW { p.gutter = px; return p }
@@ -294,7 +300,7 @@ func (p *ProFormW) content(vals ProValues) {
 				Alert(c, "error", st.err.Error()).Show()
 			}, layout.Margin(geom.Insets{Bottom: 16}))
 		}
-		if p.noSubmit {
+		if p.noSubmit || p.readonly {
 			return
 		}
 		it := f.Item("")
@@ -376,12 +382,12 @@ func (p *ProFormW) fieldsRun(f *FormW, fields []ProField, vals ProValues) {
 			fd := &fields[i]
 			if fd.Span > 0 && fd.Span < 24 {
 				Row(c, func() {
-					Column(c, func() { proFieldItem(c, f, fd, vals) }, layout.Grow(float32(fd.Span)), layout.Basis(0), layout.MinW(0))
+					Column(c, func() { proFieldItemAs(c, f, fd, vals, fd.Key, p.readonly) }, layout.Grow(float32(fd.Span)), layout.Basis(0), layout.MinW(0))
 					Div(c, layout.Grow(float32(24-fd.Span)), layout.Basis(0))
 				})
 				continue
 			}
-			proFieldItem(c, f, fd, vals)
+			proFieldItemAs(c, f, fd, vals, fd.Key, p.readonly)
 		}
 		return
 	}
@@ -397,7 +403,7 @@ func (p *ProFormW) fieldsRun(f *FormW, fields []ProField, vals ProValues) {
 			if fd.Span > 0 {
 				s = fd.Span
 			}
-			Col(c, s).Body(func() { proFieldItem(c, f, fd, vals) })
+			Col(c, s).Body(func() { proFieldItemAs(c, f, fd, vals, fd.Key, p.readonly) })
 		}
 	})
 }

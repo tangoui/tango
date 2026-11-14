@@ -18,8 +18,15 @@ var inx = struct {
 	q1, q2, q3, q4, q5               string
 	ta1, ta2, ta3, ta4, ta5          string
 	otp1, otp2, otp3, otp4, otp5     string
+	grad1, grad2                     theme.Gradient
+	colHover                         theme.Color
 }{
-	col1: theme.Hex("#1677ff"), col2: theme.RGBA(245, 34, 45, .6), col3: theme.Hex("#52c41a"), col4: theme.Hex("#722ed1"),
+	grad1: theme.Gradient{Angle: 90, Stops: []theme.GradientStop{
+		{Offset: 0, Color: theme.Hex("#1677ff")}, {Offset: 1, Color: theme.Hex("#722ed1")}}},
+	grad2: theme.Gradient{Angle: 135, Stops: []theme.GradientStop{
+		{Offset: 0, Color: theme.Hex("#fa8c16")}, {Offset: 0.5, Color: theme.Hex("#f5222d")}, {Offset: 1, Color: theme.RGBA(114, 46, 209, .6)}}},
+	colHover: theme.Hex("#13c2c2"),
+	col1:     theme.Hex("#1677ff"), col2: theme.RGBA(245, 34, 45, .6), col3: theme.Hex("#52c41a"), col4: theme.Hex("#722ed1"),
 	colHSB: theme.Hex("#3366cc"), colGroups: theme.Hex("#13c2c2"),
 	url: "tango-ui", site: "mysite", sel: "https://", city: "杭州", numVal: 42,
 	q2: "Tango", q4: "关键字",
@@ -46,7 +53,7 @@ func inxLabel(c *ui.Context, s string) {
 }
 
 func init() {
-	entryPage(gallery.Page{Name: "ColorPicker", Title: "ColorPicker 颜色选择器", Order: 80, Height: 1500,
+	entryPage(gallery.Page{Name: "ColorPicker", Title: "ColorPicker 颜色选择器", Order: 80, Height: 2300,
 		Render: func(c *ui.Context) {
 			gallery.Demo(c, "基本用法与状态", "触发器：色块 / 带文字 / 透明色 / 空值 / 校验 / 禁用", func() {
 				entryRow(c, func() {
@@ -66,9 +73,21 @@ func init() {
 					ui.ColorPickerPanel(c, &inx.colGroups).Format("hsb").PresetGroups(inxPresetGroups...)
 				})
 			})
+			gallery.Demo(c, "渐变色与悬停触发", "ColorPickerGradient 绑定 theme.Gradient（线性渐变）：色标条上点击添加、拖动移动、拖离删除，下方编辑选中色标的颜色；Trigger(TriggerHover) 悬停即弹出", func() {
+				entryRow(c, func() {
+					ui.ColorPickerGradient(c, &inx.grad1).ShowText()
+					ui.ColorPickerGradient(c, &inx.grad2)
+					ui.ColorPicker(c, &inx.colHover).Trigger(ui.TriggerHover).ShowText()
+				})
+			})
 			gallery.Demo(c, "展开的面板", "饱和度面板、色相 / 透明度条、HEX 输入与预设色", func() {
 				ui.ColorPicker(c, &inx.col2).ShowText().Presets(inxPresets...).AllowClear().Open()
 			})
+			ui.Gap(c, 420)
+			gallery.Demo(c, "展开的渐变面板", "色标条（选中色标带描边）与角度输入在上，其余与单色面板相同", func() {
+				ui.ColorPickerGradient(c, &inx.grad2).ShowText().Open()
+			})
+			ui.Gap(c, 480)
 		}})
 
 	entryPage(gallery.Page{Name: "Compact", Title: "Compact 紧凑组合（Space.Compact / Input.Group）", Order: 81,

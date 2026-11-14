@@ -79,6 +79,49 @@ type navMenuPopup struct {
 	// menu: its inline-start top corner at the point (top-right in RTL),
 	// flipped to the other side of the point when it does not fit.
 	edge bool
+	// marks gives items a checked state (Menubar check and radio items);
+	// nil: none.
+	marks *navMarks
+}
+
+// navMarks describes the checkable items of popup panels: of returns an
+// item's state; a panel holding a checkable item reserves an indicator
+// column width wide at the items' inline start and draws a check mark
+// (or a radio dot) size large in color in it.
+type navMarks struct {
+	of    func(it MenuItem) (kind navMarkKind, on bool)
+	color theme.Color
+	size  float32
+	width float32
+}
+
+// navMarkKind is the kind of a popup item's checked state.
+type navMarkKind uint8
+
+const (
+	navMarkNone navMarkKind = iota
+	navMarkCheck
+	navMarkRadio
+)
+
+// markInset returns the indicator column of a panel listing items: the
+// marks' width when one of them (or of their groups) is checkable.
+func (p *navMenuPopup) markInset(items []MenuItem) float32 {
+	if p.marks == nil {
+		return 0
+	}
+	for _, it := range items {
+		if it.Group {
+			if p.markInset(it.Children) > 0 {
+				return p.marks.width
+			}
+			continue
+		}
+		if k, _ := p.marks.of(it); k != navMarkNone {
+			return p.marks.width
+		}
+	}
+	return 0
 }
 
 // navEntry is a keyboard-navigable item recorded while building a list.
@@ -356,6 +399,7 @@ func (p *navMenuPopup) group(it MenuItem, i int, items []MenuItem, add func(Menu
 		p.divider()
 	}
 	h, fs, w, col, x := p.groupTitle()
+	x += p.markInset(items) // line titles up with labels past an indicator column
 	g := Column(c, func() {
 		if it.Label != "" {
 			t := c.add("menu-group-title", it.Label)
@@ -401,6 +445,7 @@ func (p *navMenuPopup) items(items []MenuItem, level int, parent ID) {
 	_, fg, hoverBg, hoverFg, selBg, selFg := p.colors()
 	var ents []navEntry
 	act, actKey, actMods := -1, input.Key(0), input.Modifiers(0)
+	inset := p.markInset(items)
 	var add func(it MenuItem)
 	add = func(it MenuItem) {
 		if it.Divider {
@@ -418,7 +463,7 @@ func (p *navMenuPopup) items(items []MenuItem, level int, parent ID) {
 			h = 50
 		}
 		n.ln.Measure = func(_, _ float32) geom.Size {
-			w := text.Width(it.Label, st) + 2*tk.ItemPaddingInline
+			w := text.Width(it.Label, st) + 2*tk.ItemPaddingInline + inset
 			if it.Icon != nil {
 				w += 22
 			}
@@ -466,6 +511,13 @@ func (p *navMenuPopup) items(items []MenuItem, level int, parent ID) {
 		}
 		if hasKids {
 			n.setState(a11y.HasPopup|a11y.Expandable).stateIf(open, a11y.Expanded)
+		}
+		mark, marked := navMarkNone, false
+		if p.marks != nil && !hasKids {
+			mark, marked = p.marks.of(it)
+			if mark != navMarkNone {
+				n.setState(a11y.Checkable).stateIf(marked, a11y.Checked)
+			}
 		}
 		if ia.Hovered && !it.Disabled && !p.st.kbd {
 			want := append([]string(nil), p.st.path[:min(level, len(p.st.path))]...)
@@ -530,6 +582,21 @@ func (p *navMenuPopup) items(items []MenuItem, level int, parent ID) {
 			if p.dark && !shad {
 				x = 16
 			}
+			if mark != navMarkNone && marked {
+				m := p.marks
+				mc := m.color
+				if it.Disabled {
+					mc = th.TextDisabled
+				}
+				if mark == navMarkCheck {
+					c.drawIconAt(l, icon.Check, s.X(x, m.size), r.Y+(r.H-m.size)/2, m.size, mc)
+				} else {
+					d := m.size / 2
+					cx := s.X(x+(m.size-d)/2, d) + d/2
+					l.Path(paint.NewPath().Circle(cx, r.Y+r.H/2, d/2), mc)
+				}
+			}
+			x += inset
 			if it.Icon != nil {
 				is, ic := tk.IconSize, col
 				if tk.ItemIconColor.A > 0 && !it.Danger && !it.Disabled {

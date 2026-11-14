@@ -19,6 +19,10 @@ type TimelineToken struct {
 	LabelColor        Color   `contrast:"text:@Page"` // Ant label on the opposite side
 	TimeColor         Color   `contrast:"text:@Page"` // timestamp
 	TimeFontSize      float32
+
+	// Horizontal timelines (Timeline.Horizontal).
+	HorizontalGap         float32 // axis to the content / label above and below
+	HorizontalItemPadding float32 // inline padding of every event's texts
 }
 
 func deriveTimeline(t *Theme) TimelineToken {
@@ -27,6 +31,7 @@ func deriveTimeline(t *Theme) TimelineToken {
 		DotSize: 10, DotSizeLG: 10, DotBorderWidth: 3, DotOffsetTop: 5.5, IconDotSize: 16,
 		PendingColor: t.Primary.Base, ItemPaddingBottom: 20, ContentGap: 16,
 		ContentColor: t.Text, LabelColor: t.Text, TimeColor: t.TextTertiary, TimeFontSize: t.FontSize,
+		HorizontalGap: 8, HorizontalItemPadding: 8,
 	}
 	switch t.Flavor {
 	case Element:

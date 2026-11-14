@@ -215,3 +215,57 @@ func (l *FormListW[T]) swap(st *formListState, i, j int) {
 }
 
 var _ = geom.Pt
+
+// proFormListItem builds a formList field (ProField.List): a Form.List
+// whose rows are ProValues, each row's items being the List fields bound
+// to that row. Fields without a Width get 180px (row items are inline).
+func proFormListItem(c *Context, f *FormW, fd *ProField, vals ProValues) {
+	cfg := fd.List
+	fields := make([]ProField, len(cfg.Fields))
+	copy(fields, cfg.Fields)
+	for i := range fields {
+		if fields[i].Width == 0 {
+			fields[i].Width = 180
+		}
+	}
+	rows, _ := vals[fd.Key].([]ProValues)
+	// The list's label prefixes the row item names ("label.row.field").
+	l := FormList(f, fd.Label, &rows).Creator(func() ProValues {
+		v := ProValues{}
+		proInitial(fields, v)
+		return v
+	})
+	if cfg.Min > 0 {
+		l.Min(cfg.Min)
+	}
+	if cfg.Max > 0 {
+		l.Max(cfg.Max)
+	}
+	if cfg.AddText != "" {
+		l.AddText(cfg.AddText)
+	}
+	if fd.Required {
+		msg := locFmt(c.Locale().Form.RequiredInputFmt, fd.Label)
+		l.Rule(func(n int) string {
+			if n == 0 {
+				return msg
+			}
+			return ""
+		})
+	}
+	l.Body(func(row *FormListRow[ProValues]) {
+		if *row.Value == nil {
+			*row.Value = ProValues{}
+		}
+		rv := *row.Value
+		for i := range fields {
+			sub := &fields[i]
+			Key(c, sub.Key, func() { proFieldItemAs(c, f, sub, rv, row.Name(sub.Key), false) })
+		}
+	})
+	if len(rows) == 0 {
+		delete(vals, fd.Key)
+	} else {
+		vals[fd.Key] = rows
+	}
+}

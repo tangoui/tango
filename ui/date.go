@@ -31,6 +31,7 @@ type DatePickerW struct {
 	picker      PickerType
 	disabledFn  func(time.Time) bool
 	presets     []DatePreset
+	needConfirm bool
 	allowClear  bool
 	status      string
 	changed     bool
@@ -48,6 +49,7 @@ type dpState struct {
 	fp     fillDPState // panel views (shared with DatePickerPanel)
 	clearR geom.Rect   // clear button of the last paint
 	ty     dtTyping    // typed text (committed only when it parses)
+	draft  time.Time   // NeedConfirm: the picked date until OK
 }
 
 // DatePicker adds a date input bound to *val. Picked values are UTC
@@ -99,7 +101,7 @@ func (w *DatePickerW) A11yLabel(s string) *DatePickerW { w.n.setName(s); return 
 func (w *DatePickerW) semantics(s *a11y.Node) {
 	ph := w.ph()
 	s.Placeholder = ph
-	if !w.val.IsZero() {
+	if !w.shown().IsZero() {
 		s.Value = w.display()
 	}
 	if s.Name == "" {
@@ -131,6 +133,12 @@ func (w *DatePickerW) Picker(p PickerType) *DatePickerW { w.picker = p; return w
 // immediately.
 func (w *DatePickerW) Presets(p ...DatePreset) *DatePickerW { w.presets = p; return w }
 
+// NeedConfirm keeps a picked date as a draft until the footer's OK button
+// (or Enter on the picked cell, or Enter after typing) commits it (Ant
+// needConfirm); closing the panel otherwise drops the draft. Presets still
+// commit immediately.
+func (w *DatePickerW) NeedConfirm(on bool) *DatePickerW { w.needConfirm = on; return w }
+
 // AllowClear toggles the clear button shown on hover (on by default).
 func (w *DatePickerW) AllowClear(on bool) *DatePickerW { w.allowClear = on; return w }
 
@@ -157,6 +165,7 @@ func (w *DatePickerW) Open() *DatePickerW {
 	if !w.st.open {
 		w.st.open = true
 		w.st.fp.has = false
+		w.st.draft = *w.val
 	}
 	return w
 }
@@ -193,14 +202,27 @@ func (w *DatePickerW) layout() string {
 	return p2aPickerLayout(w.picker)
 }
 
+// shown is the value the input shows: the draft while a NeedConfirm
+// panel is open.
+func (w *DatePickerW) shown() time.Time {
+	if w.needConfirm && w.st.open {
+		return w.st.draft
+	}
+	return *w.val
+}
+
 // display formats the value for the input.
 func (w *DatePickerW) display() string {
-	return p2aFormatPeriod(w.loc, *w.val, w.picker, w.layout(), w.loc.WeekStart)
+	return p2aFormatPeriod(w.loc, w.shown(), w.picker, w.layout(), w.loc.WeekStart)
 }
 
 // core returns the panel engine of DatePickerPanel over the picker state.
 func (w *DatePickerW) core(pick func(time.Time)) *DatePickerPanelW {
-	return &DatePickerPanelW{c: w.c, val: w.val, picker: w.picker, disabled: w.disabledFn, st: &w.st.fp, ids: &w.ids, onPick: pick}
+	val := w.val
+	if w.needConfirm {
+		val = &w.st.draft
+	}
+	return &DatePickerPanelW{c: w.c, val: val, picker: w.picker, disabled: w.disabledFn, st: &w.st.fp, ids: &w.ids, onPick: pick}
 }
 
 func (w *DatePickerW) finish() {
@@ -212,11 +234,12 @@ func (w *DatePickerW) finish() {
 	setOpen := func(on bool) {
 		if on && !st.open {
 			st.fp.has = false
+			st.draft = *w.val
 		}
 		st.open = on
 		c.invalid = true
 	}
-	if w.ia.Clicked && w.allowClear && !w.val.IsZero() && st.clearR.Expand(3).Contains(c.pointer) {
+	if w.ia.Clicked && w.allowClear && !w.val.IsZero() && !(w.needConfirm && st.open) && st.clearR.Expand(3).Contains(c.pointer) {
 		*w.val = time.Time{}
 		w.changed = true
 		st.open = false
@@ -230,8 +253,8 @@ func (w *DatePickerW) finish() {
 		// Clicks inside the panel keep the keyboard on the picker.
 		c.SetFocus(w.n.id)
 	}
-	pick := func(d time.Time) {
-		if w.disabledFn != nil && w.disabledFn(d) {
+	commit := func(d time.Time) {
+		if d.IsZero() || (w.disabledFn != nil && w.disabledFn(d)) {
 			return
 		}
 		if !d.Equal(*w.val) {
@@ -240,6 +263,18 @@ func (w *DatePickerW) finish() {
 		}
 		st.ty.on = false
 		setOpen(false)
+	}
+	pick := commit
+	if w.needConfirm {
+		// A pick only drafts; OK (or Enter again) commits.
+		pick = func(d time.Time) {
+			if w.disabledFn != nil && w.disabledFn(d) {
+				return
+			}
+			st.draft = d
+			st.ty.on = false
+			c.invalid = true
+		}
 	}
 	core := w.core(pick)
 	parse := func() (time.Time, bool) {
@@ -251,7 +286,7 @@ func (w *DatePickerW) finish() {
 	}
 	ev := dtTypeInput(c, w.n.id, &st.ty, w.display)
 	if ev.blurred {
-		if d, ok := parse(); ok && !d.Equal(*w.val) {
+		if d, ok := parse(); ok && !w.needConfirm && !d.Equal(*w.val) {
 			*w.val = d
 			w.changed = true
 		}
@@ -278,7 +313,7 @@ func (w *DatePickerW) finish() {
 		if st.ty.on {
 			if k.Key == input.KeyEnter {
 				if d, ok := parse(); ok {
-					pick(d)
+					commit(d) // Enter confirms typed text, also with NeedConfirm
 				}
 				continue
 			}
@@ -290,6 +325,14 @@ func (w *DatePickerW) finish() {
 		case !st.open:
 			if k.Key == input.KeyEnter || k.Key == input.KeySpace || k.Key == input.KeyDown {
 				setOpen(true)
+			}
+		case w.needConfirm && (k.Key == input.KeyEnter || k.Key == input.KeySpace) && st.fp.mode == fillViewLevel(w.picker) &&
+			(st.fp.cursor.IsZero() || st.fp.cursor.Equal(st.draft)):
+			// Enter on the drafted cell (or without moving) confirms.
+			if st.draft.IsZero() {
+				setOpen(false)
+			} else {
+				commit(st.draft)
 			}
 		case (k.Key == input.KeyEnter || k.Key == input.KeySpace) && st.fp.cursor.IsZero() && st.fp.mode == fillViewLevel(w.picker):
 			// Enter without moving the cursor keeps the value.
@@ -311,11 +354,14 @@ func (w *DatePickerW) finish() {
 	ov := Overlay(c, OverlayOptions{Anchor: w.n.id, Place: BottomStart, Offset: 4, Flip: true}, func() {
 		Row(c, func() {
 			if len(w.presets) > 0 {
-				w.presetList(pick)
+				w.presetList(commit)
 			}
 			Column(c, func() {
 				core.content()
-				if w.picker == PickerDate && dtFooterLink(c, loc.Today) {
+				switch {
+				case w.needConfirm:
+					w.confirmFooter(pick, commit)
+				case w.picker == PickerDate && dtFooterLink(c, loc.Today):
 					pick(dtDayUTC(c.now))
 				}
 			})
@@ -326,12 +372,44 @@ func (w *DatePickerW) finish() {
 	st.panel = ov.n.id
 }
 
+// confirmFooter is the NeedConfirm footer: Today (date picker) drafts
+// today, OK commits the draft.
+func (w *DatePickerW) confirmFooter(pick, commit func(time.Time)) {
+	c, st := w.c, w.st
+	loc := c.Locale()
+	el := c.Theme.Flavor == theme.Element
+	dtFooter(c, func() {
+		if w.picker == PickerDate {
+			today := false
+			if el {
+				today = dtTextBtn(c, loc.Today, true)
+			} else {
+				today = dtLink(c, loc.Today)
+			}
+			if today {
+				pick(dtDayUTC(c.now))
+			}
+		}
+		Spacer(c)
+		ok := Button(c, loc.OK).Small().Disabled(st.draft.IsZero())
+		if !el {
+			ok.Primary()
+		}
+		if ok.Clicked() {
+			commit(st.draft)
+		}
+	})
+}
+
 // presetList builds the side list of preset dates.
-func (w *DatePickerW) presetList(pick func(time.Time)) {
-	c := w.c
+func (w *DatePickerW) presetList(pick func(time.Time)) { dtPresetList(w.c, w.presets, pick) }
+
+// dtPresetList builds the side list of preset values (DatePicker,
+// DateTimePicker): Value, else Range[0].
+func dtPresetList(c *Context, presets []DatePreset, pick func(time.Time)) {
 	th, tk := dtTheme(c)
 	b := Column(c, func() {
-		for _, p := range w.presets {
+		for _, p := range presets {
 			v := p.Value
 			if v.IsZero() {
 				v = p.Range[0]
@@ -357,7 +435,7 @@ func (w *DatePickerW) paint(l *paint.List, r geom.Rect) {
 	c.paintFrame(l, r, rad, w.n.id, frameState{hover: w.ia.Hovered, focus: w.st.open || w.ia.Focused, disabled: dis, status: w.status, variant: w.variant})
 	st := c.style(c.controlFont(w.size), text.Regular)
 	s, col := w.ph(), th.TextQuaternary
-	if !w.val.IsZero() {
+	if !w.shown().IsZero() {
 		s, col = w.display(), th.Text
 	}
 	if dis {
@@ -369,7 +447,7 @@ func (w *DatePickerW) paint(l *paint.List, r geom.Rect) {
 	if dis {
 		iconCol = th.TextDisabled
 	}
-	showClear := w.allowClear && !dis && w.ia.Hovered && !w.val.IsZero()
+	showClear := w.allowClear && !dis && w.ia.Hovered && !w.val.IsZero() && !(w.needConfirm && w.st.open)
 	// Positions are computed in LTR terms and mirrored in RTL: the
 	// calendar icon / clear button sit at the logical ends of the field.
 	rtl := c.IsRTL()

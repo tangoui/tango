@@ -413,7 +413,63 @@ type TourStep struct {
 	Description string
 	Cover       func() // optional picture above the title
 	Placement   string // as Popover.Placement; default "bottom"
+
+	// Per-step overrides of the tour's options.
+	Mask     TourMask // TourMaskOn / TourMaskOff; zero: the tour's setting
+	Type     TourType // TourTypeDefault / TourTypePrimary; "": the tour's setting
+	PrevText string   // label of the previous button ("": Locale)
+	NextText string   // label of the next / finish button ("": Locale)
+	HidePrev bool     // no previous button on this step
+	HideNext bool     // no next / finish button on this step
 }
+
+// TourMask overrides the tour's mask for one step.
+type TourMask uint8
+
+const (
+	TourMaskInherit TourMask = iota // the tour's setting (NoMask)
+	TourMaskOn                      // dim the page around the target
+	TourMaskOff                     // no mask on this step
+)
+
+// TourType is the panel style of a tour step.
+type TourType string
+
+const (
+	TourTypeDefault TourType = "default" // the container-colored panel
+	TourTypePrimary TourType = "primary" // the brand-colored panel
+)
+
+// TourActions is what an ActionsRender function gets: the step position
+// and the operations of the default buttons.
+type TourActions struct {
+	_       [0]func()
+	Current int // 0-based index of the shown step
+	Total   int
+	t       *TourW
+	def     func()
+}
+
+// Prev moves to the previous step.
+func (a *TourActions) Prev() { a.GoTo(a.Current - 1) }
+
+// Next moves to the next step, or finishes the tour on the last one.
+func (a *TourActions) Next() {
+	if a.Current >= a.Total-1 {
+		a.t.finish()
+		return
+	}
+	a.GoTo(a.Current + 1)
+}
+
+// GoTo moves to step i (clamped).
+func (a *TourActions) GoTo(i int) { a.t.goTo(i) }
+
+// Close dismisses the tour (Closed reports it).
+func (a *TourActions) Close() { a.t.close() }
+
+// Default builds the default buttons (previous, next / finish) in place.
+func (a *TourActions) Default() { a.def() }
 
 // TourW is a guided tour: a mask with a hole around the current target
 // and a panel with step indicators and prev/next buttons.
@@ -431,11 +487,102 @@ type TourW struct {
 	finished bool
 	closed   bool
 	changed  bool
+	id       ID // retained state (scroll into view)
+	reveal   bool
+	dots     func(current, total int)
+	actions  func(a *TourActions)
+}
+
+// tourState is the retained state of a Tour.
+type tourState struct {
+	revealed int // 1 + the step whose target was scrolled into view (0: none)
 }
 
 // Tour starts a tour bound to *open and *current; call Show.
 func Tour(c *Context, open *bool, current *int, steps []TourStep) *TourW {
-	return &TourW{c: c, open: open, cur: current, steps: steps, mask: true, arrow: true, gap: 6}
+	return &TourW{c: c, open: open, cur: current, steps: steps, mask: true, arrow: true, gap: 6, reveal: true, id: c.newID("tour", "")}
+}
+
+// ScrollIntoView sets whether each step scrolls its target into the view
+// of the scroll container holding it when the step is shown (default on,
+// Ant scrollIntoViewOptions).
+func (t *TourW) ScrollIntoView(on bool) *TourW { t.reveal = on; return t }
+
+// IndicatorsRender replaces the step indicators (dots; Element: "1 / 3")
+// with the content fn builds (Ant indicatorsRender). current is 0-based.
+func (t *TourW) IndicatorsRender(fn func(current, total int)) *TourW { t.dots = fn; return t }
+
+// ActionsRender replaces the previous / next buttons with the content fn
+// builds (Ant actionsRender); a.Default() builds the default buttons and
+// a.Prev / Next / GoTo / Close drive the tour.
+func (t *TourW) ActionsRender(fn func(a *TourActions)) *TourW { t.actions = fn; return t }
+
+// goTo shows step i (clamped).
+func (t *TourW) goTo(i int) {
+	i = max(0, min(i, len(t.steps)-1))
+	if i != *t.cur {
+		*t.cur = i
+		t.changed = true
+		t.c.invalid = true
+	}
+}
+
+// finish closes the tour from its last step.
+func (t *TourW) finish() {
+	*t.open, t.finished = false, true
+	t.c.invalid = true
+}
+
+// close dismisses the tour.
+func (t *TourW) close() {
+	*t.open, t.closed = false, true
+	t.c.invalid = true
+}
+
+// revealTarget scrolls the step's target into view once per shown step.
+func (t *TourW) revealTarget(target ID, hasTarget bool) {
+	c := t.c
+	st := State[tourState](c, t.id, nil)
+	if !*t.open {
+		st.revealed = 0
+		return
+	}
+	want := *t.cur + 1
+	if !t.reveal || st.revealed == want || target == 0 {
+		return
+	}
+	if !hasTarget {
+		return // not laid out yet: try next frame
+	}
+	// After the build, when the target's node exists wherever it was
+	// built relative to the tour.
+	c.deferred = append(c.deferred, func() {
+		n := tourFind(c.root, target)
+		if n == nil {
+			return
+		}
+		if p := scrollAncestor(n); p != nil && !c.ScrollIntoView(p.id, target) {
+			c.animating = true // container not painted yet
+			return
+		}
+		st.revealed = want
+	})
+}
+
+// tourFind returns the node with id in the tree under n, or nil.
+func tourFind(n *node, id ID) *node {
+	if n == nil {
+		return nil
+	}
+	if n.id == id {
+		return n
+	}
+	for _, k := range n.kids {
+		if f := tourFind(k, id); f != nil {
+			return f
+		}
+	}
+	return nil
 }
 
 // Primary uses the brand-coloured panel.
@@ -463,6 +610,7 @@ func (t *TourW) Changed() bool { return t.changed }
 func (t *TourW) Show() *TourW {
 	c := t.c
 	if !*t.open || len(t.steps) == 0 {
+		t.revealTarget(0, false)
 		return t
 	}
 	th := c.ThemeFor(theme.CompTour)
@@ -477,11 +625,25 @@ func (t *TourW) Show() *TourW {
 			c.animating = true // target geometry is known next frame
 		}
 	}
+	t.revealTarget(step.Target, hasTarget)
+	showMask, primary := t.mask, t.primary
+	switch step.Mask {
+	case TourMaskOn:
+		showMask = true
+	case TourMaskOff:
+		showMask = false
+	}
+	switch step.Type {
+	case TourTypePrimary:
+		primary = true
+	case TourTypeDefault:
+		primary = false
+	}
 	hole := tr.Expand(t.gap)
 	// Mask layer: swallows pointer input, punches a hole over the target.
 	mask := Overlay(c, OverlayOptions{Place: ScreenFill}, func() {}, layout.Grow(1))
 	mask.n.paint = func(l *paint.List, r geom.Rect) {
-		if !t.mask {
+		if !showMask {
 			return
 		}
 		p := paint.NewPath().Rect(r)
@@ -500,7 +662,7 @@ func (t *TourW) Show() *TourW {
 		opts = OverlayOptions{Place: ScreenCenter}
 	}
 	fg, fg2 := tk.TitleColor, tk.DescriptionColor
-	if t.primary {
+	if primary {
 		fg, fg2 = tk.PrimaryColor, tk.PrimaryDescriptionColor
 	}
 	n := len(t.steps)
@@ -523,49 +685,65 @@ func (t *TourW) Show() *TourW {
 			Text(c, step.Description).Color(fg2)
 		}
 		Row(c, func() {
-			if el {
+			switch {
+			case t.dots != nil:
+				t.dots(*t.cur, n)
+			case el:
 				Text(c, itoa64(int64(*t.cur+1))+" / "+itoa64(int64(n))).Color(fg2).Size(tk.CounterFontSize)
-			} else {
-				tourDots(c, tk, n, *t.cur, t.primary)
+			default:
+				tourDots(c, tk, n, *t.cur, primary)
 			}
 			Spacer(c)
-			if *t.cur > 0 {
-				b := Button(c, loc.Tour.Prev).Small()
-				if t.primary {
-					b.Ghost()
+			buttons := func() {
+				if *t.cur > 0 && !step.HidePrev {
+					label := step.PrevText
+					if label == "" {
+						label = loc.Tour.Prev
+					}
+					b := Button(c, label).Small()
+					if primary {
+						b.Ghost()
+					}
+					if b.Clicked() {
+						t.goTo(*t.cur - 1)
+					}
 				}
-				if b.Clicked() {
-					*t.cur--
-					t.changed = true
-					c.invalid = true
+				if step.HideNext {
+					return
 				}
-			}
-			label := loc.Tour.Next
-			if *t.cur == n-1 {
-				label = loc.Tour.Finish
-			}
-			nb := Button(c, label).Small().Primary()
-			if t.primary {
-				nb = nb.Variant(VariantDefault)
-			}
-			if nb.Clicked() {
+				label := loc.Tour.Next
 				if *t.cur == n-1 {
-					*t.open, t.finished = false, true
-				} else {
-					*t.cur++
-					t.changed = true
+					label = loc.Tour.Finish
 				}
-				c.invalid = true
+				if step.NextText != "" {
+					label = step.NextText
+				}
+				nb := Button(c, label).Small().Primary()
+				if primary {
+					nb = nb.Variant(VariantDefault)
+				}
+				if nb.Clicked() {
+					if *t.cur == n-1 {
+						t.finish()
+					} else {
+						t.goTo(*t.cur + 1)
+					}
+				}
+			}
+			if t.actions != nil {
+				t.actions(&TourActions{Current: *t.cur, Total: n, t: t, def: buttons})
+			} else {
+				buttons()
 			}
 		}, layout.Middle(), layout.Gap(8), layout.Margin(geom.Insets{Top: 16}))
 	}, layout.Pad(tk.PanelPadding), layout.W(tk.Width))
 	bg := tk.Bg
-	if t.primary {
+	if primary {
 		bg = tk.PrimaryBg
 	}
 	a := c.AnimFrom(mask.n.id, "tour", 0, 1, th.DurationMid)
 	ov.Bg(bg).Radius(tk.Radius).Shadow(tk.Shadow).Opacity(a)
-	ov.n.setRole(a11y.RoleDialog).setName(step.Title).stateIf(t.mask, a11y.Modal)
+	ov.n.setRole(a11y.RoleDialog).setName(step.Title).stateIf(showMask, a11y.Modal)
 	if c.a11yOn {
 		desc := step.Description
 		ov.n.fill(semFunc(func(s *a11y.Node) {
@@ -575,7 +753,7 @@ func (t *TourW) Show() *TourW {
 			}
 		}))
 	}
-	if t.mask {
+	if showMask {
 		c.TrapFocus(ov.ID())
 	}
 	if t.arrow && hasTarget {

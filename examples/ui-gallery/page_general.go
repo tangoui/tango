@@ -41,6 +41,7 @@ func init() {
 			ui.Button(c, "小号").Primary().Small()
 			ui.Button(c, "小号默认").Small()
 		})
+		buttonComboRows(c)
 	}})
 	gallery.Register(gallery.Page{Name: "Typography", Title: "Typography 排版", Group: gallery.General, Order: 2, Render: func(c *ui.Context) {
 		ui.Title(c, "h1. Tango 设计语言", 1)

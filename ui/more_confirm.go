@@ -6,6 +6,7 @@ import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
+	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/theme"
 )
@@ -39,6 +40,20 @@ type ConfirmOptions struct {
 	OnOk func(d *ConfirmRef)
 	// OnCancel runs on Cancel, the close button, Escape or a mask click.
 	OnCancel func()
+	// DistinguishCancelAndClose tells the close button, Escape and a
+	// mask click apart from Cancel: they run OnClose (not OnCancel) and
+	// ConfirmRef.Action reports ConfirmActionClose.
+	DistinguishCancelAndClose bool
+	// OnClose runs when the dialog is closed without Cancel or OK
+	// (close button, Escape, mask) and DistinguishCancelAndClose is set.
+	OnClose func()
+	// Center centers the icon, title, content and buttons.
+	Center bool
+	// Draggable lets the user move the dialog by dragging its title.
+	Draggable bool
+	// Icon replaces the status icon; it is drawn in the status color
+	// (the primary color for Status "none").
+	Icon *icon.Icon
 
 	// Prompt only.
 	InputValue       string
@@ -64,7 +79,26 @@ type ConfirmRef struct {
 	win     Window  // to wake the UI after Close/Loading from another goroutine
 	loc     *Locale // locale active where the box was opened (rendered in a global layer)
 	env     *env    // scope the box was opened in (theme, direction)
+	action  ConfirmAction
+	// Draggable: the drag handle built this frame and the drag offset.
+	handle         *node
+	off, from, at0 geom.Point
 }
+
+// ConfirmAction is how a Confirm / MessageBox / Prompt dialog was closed.
+type ConfirmAction string
+
+const (
+	// ConfirmActionConfirm: the OK button (or Enter in a Prompt).
+	ConfirmActionConfirm ConfirmAction = "confirm"
+	// ConfirmActionCancel: the Cancel button, or with
+	// DistinguishCancelAndClose unset also the close button, Escape and
+	// a mask click.
+	ConfirmActionCancel ConfirmAction = "cancel"
+	// ConfirmActionClose: the close button, Escape or a mask click when
+	// DistinguishCancelAndClose is set.
+	ConfirmActionClose ConfirmAction = "close"
+)
 
 const (
 	moreBoxConfirm = iota
@@ -133,6 +167,10 @@ func (d *ConfirmRef) IsOpen() bool { return !d.closed.Load() }
 // Value returns the Prompt input.
 func (d *ConfirmRef) Value() string { return d.value }
 
+// Action reports how the dialog was closed by the user ("" while open or
+// after Close).
+func (d *ConfirmRef) Action() ConfirmAction { return d.action }
+
 // OpenDialogs returns how many Confirm/MessageBox/Prompt dialogs are open.
 func OpenDialogs(c *Context) int {
 	bs := State[moreBoxes](c, moreBoxesKey, nil)
@@ -192,6 +230,7 @@ func (d *ConfirmRef) ok(c *Context) {
 			return
 		}
 	}
+	d.action = ConfirmActionConfirm
 	if d.o.OnOk != nil {
 		d.o.OnOk(d)
 	}
@@ -201,12 +240,22 @@ func (d *ConfirmRef) ok(c *Context) {
 	c.invalid = true
 }
 
-func (d *ConfirmRef) cancel(c *Context) {
+// cancel closes the dialog through Cancel (viaClose false) or the close
+// button, Escape or the mask (viaClose true).
+func (d *ConfirmRef) cancel(c *Context, viaClose bool) {
 	if !d.closed.CompareAndSwap(false, true) {
 		return // already closed (possibly by Close from another goroutine)
 	}
-	if d.o.OnCancel != nil {
-		d.o.OnCancel()
+	if viaClose && d.o.DistinguishCancelAndClose {
+		d.action = ConfirmActionClose
+		if d.o.OnClose != nil {
+			d.o.OnClose()
+		}
+	} else {
+		d.action = ConfirmActionCancel
+		if d.o.OnCancel != nil {
+			d.o.OnCancel()
+		}
 	}
 	c.invalid = true
 }
@@ -228,7 +277,7 @@ func moreRenderBoxIn(c *Context, d *ConfirmRef, top bool) {
 	mask := Overlay(c, OverlayOptions{Place: ScreenFill}, func() {})
 	mask.Bg(theme.Fade(tk.MaskBg, mo.mask()))
 	if !mo.leaving && d.o.MaskClosable && c.clicked[mask.n.id] > 0 {
-		d.cancel(c)
+		d.cancel(c, true)
 		return
 	}
 	width := d.o.Width
@@ -254,7 +303,7 @@ func moreRenderBoxIn(c *Context, d *ConfirmRef, top bool) {
 	}
 	status := d.status()
 	var focusID ID
-	var okClicked, cancelClicked bool
+	var okClicked, cancelClicked, closeClicked bool
 	buttons := func() {
 		if d.kind != moreBoxAlert {
 			if Button(c, cancelText).Clicked() {
@@ -298,10 +347,11 @@ func moreRenderBoxIn(c *Context, d *ConfirmRef, top bool) {
 	} else {
 		place, margin = ScreenTopCenter, 100
 	}
-	dlg := Overlay(c, mo.place(OverlayOptions{Place: place, Margin: margin}), func() {
+	d.handle = nil
+	dlg := Overlay(c, mo.place(OverlayOptions{Place: place, Margin: margin, ShiftX: d.off.X, ShiftY: d.off.Y}), func() {
 		switch {
 		case el:
-			moreElementBox(c, d, status, buttons, input, &cancelClicked)
+			moreElementBox(c, d, status, buttons, input, &closeClicked)
 		case th.Flavor == theme.StyleShadcn:
 			shad2cConfirmBox(c, d, status, buttons, input)
 		default:
@@ -335,6 +385,7 @@ func moreRenderBoxIn(c *Context, d *ConfirmRef, top bool) {
 	if top {
 		c.TrapFocus(dlg.n.id)
 	}
+	d.drag(c, dlg.n.id)
 	if !d.focused && focusID != 0 {
 		d.focused = true
 		if !d.retSet {
@@ -343,17 +394,93 @@ func moreRenderBoxIn(c *Context, d *ConfirmRef, top bool) {
 		c.SetFocus(focusID)
 	}
 	if top && c.EscapeAt(dlg.n.id) {
-		cancelClicked = true
+		closeClicked = true
 	}
 	switch {
 	case okClicked:
 		d.ok(c)
 	case cancelClicked:
-		d.cancel(c)
+		d.cancel(c, false)
+	case closeClicked:
+		d.cancel(c, true)
 	}
 	if d.closed.Load() {
 		d.restoreFocus(c)
 	}
+}
+
+// drag moves a Draggable dialog (panel dlg) by its title: the handle the
+// box builder recorded this frame follows the pointer, kept inside the
+// window so the title stays reachable.
+func (d *ConfirmRef) drag(c *Context, dlg ID) {
+	h := d.handle
+	d.handle = nil
+	if !d.o.Draggable || h == nil {
+		return
+	}
+	ia := c.interact(h, false, input.CursorMove)
+	if ia.PressedNow {
+		d.from, d.at0 = d.off, c.pointer
+	}
+	if !c.Dragging(h.id) {
+		return
+	}
+	nx := d.from.X + c.pointer.X - d.at0.X
+	ny := d.from.Y + c.pointer.Y - d.at0.Y
+	if r, ok := c.rects[dlg]; ok {
+		baseX, baseY := r.X-d.off.X, r.Y-d.off.Y
+		nx = max(-baseX, min(nx, c.size.W-baseX-r.W))
+		ny = max(-baseY, min(ny, c.size.H-baseY-40))
+	}
+	if nx != d.off.X || ny != d.off.Y {
+		d.off = geom.Point{X: nx, Y: ny}
+		c.invalid = true
+	}
+}
+
+// leadIcon adds the leading icon of size px: the custom Icon in the status
+// color, else the status icon; nil for status "none" without Icon.
+func (d *ConfirmRef) leadIcon(c *Context, status string, size float32) *node {
+	if d.o.Icon != nil {
+		col := c.Theme.Primary.Base
+		if status != "none" {
+			col = c.Theme.ColorOf(status).Base
+		}
+		return Icon(c, d.o.Icon).Size(size).Color(col).n
+	}
+	if status == "none" {
+		return nil
+	}
+	return statusIcon(c, status, size)
+}
+
+// justify is the main-axis option of the title, content and button rows:
+// centered with Center, else start (end for buttons).
+func (d *ConfirmRef) justify(buttons bool) layout.Option {
+	switch {
+	case d.o.Center:
+		return layout.JustifyContent(layout.JustifyCenter)
+	case buttons:
+		return layout.End()
+	}
+	return layout.JustifyContent(layout.JustifyStart)
+}
+
+// textAlign is the alignment of the title and content.
+func (d *ConfirmRef) textAlign() TextAlign {
+	if d.o.Center {
+		return AlignCenter
+	}
+	return AlignStart
+}
+
+// grow is the text column's main-axis option: it fills its row unless the
+// box is centered.
+func (d *ConfirmRef) grow() layout.Option {
+	if d.o.Center {
+		return layout.Grow(0)
+	}
+	return layout.Grow(1)
 }
 
 // restoreFocus gives keyboard focus back to the widget focused when the
@@ -368,47 +495,76 @@ func (d *ConfirmRef) restoreFocus(c *Context) {
 func moreAntBox(c *Context, d *ConfirmRef, status string, buttons, input func()) {
 	th := c.Theme
 	Column(c, func() {
-		Row(c, func() {
-			if status != "none" {
-				ic := statusIcon(c, status, 22)
-				ic.ln.Margin = geom.Insets{Top: 1, Right: 12}
+		texts := func() {
+			if d.o.Title != "" {
+				Text(c, d.o.Title).Size(th.FontSizeLG).LineHeight(24).Strong().Color(th.TextHeading).Align(d.textAlign())
 			}
-			Column(c, func() {
-				if d.o.Title != "" {
-					Text(c, d.o.Title).Size(th.FontSizeLG).LineHeight(24).Strong().Color(th.TextHeading)
+			if d.o.Content != "" {
+				Text(c, d.o.Content).Align(d.textAlign())
+			}
+			if d.kind == moreBoxPrompt {
+				Column(c, input, layout.Gap(4), layout.Margin(geom.Insets{Top: 4}), layout.Self(layout.AlignStretch))
+			}
+		}
+		var head *Box
+		if d.o.Center {
+			// Centered: the icon sits above the centered title.
+			head = Column(c, func() {
+				d.leadIcon(c, status, 32)
+				texts()
+			}, layout.AlignItems(layout.AlignCenter), layout.Gap(8))
+		} else {
+			head = Row(c, func() {
+				if ic := d.leadIcon(c, status, 22); ic != nil {
+					ic.ln.Margin = geom.Insets{Top: 1, Right: 12}
 				}
-				if d.o.Content != "" {
-					Text(c, d.o.Content)
-				}
-				if d.kind == moreBoxPrompt {
-					Column(c, input, layout.Gap(4), layout.Margin(geom.Insets{Top: 4}))
-				}
-			}, layout.Grow(1), layout.Gap(8))
-		}, layout.AlignItems(layout.AlignStart))
-		Row(c, buttons, layout.End(), layout.Gap(8), layout.Margin(geom.Insets{Top: 24}))
+				Column(c, texts, layout.Grow(1), layout.Gap(8))
+			}, layout.AlignItems(layout.AlignStart))
+		}
+		d.handle = head.n
+		Row(c, buttons, d.justify(true), layout.Gap(8), layout.Margin(geom.Insets{Top: 24}))
 	}, layout.PadVH(20, 24))
 }
 
-func moreElementBox(c *Context, d *ConfirmRef, status string, buttons, input func(), cancel *bool) {
+// moreElementBox is the Element ElMessageBox body. close reports the
+// close button.
+func moreElementBox(c *Context, d *ConfirmRef, status string, buttons, input func(), close *bool) {
 	th := c.Theme
+	center := d.o.Center
 	Column(c, func() {
-		Row(c, func() {
-			Text(c, d.o.Title).Size(18).LineHeight(24).Color(th.TextHeading).Layout(layout.Grow(1))
+		head := Row(c, func() {
+			if center {
+				// Balance the close button so the title stays centered.
+				Spacer(c)
+				Div(c, layout.W(24))
+				if ic := d.leadIcon(c, status, 24); ic != nil {
+					ic.ln.Margin.Right = 8
+				}
+			}
+			t := Text(c, d.o.Title).Size(18).LineHeight(24).Color(th.TextHeading)
+			if center {
+				Spacer(c)
+			} else {
+				t.Layout(layout.Grow(1))
+			}
 			if IconButton(c, icon.Close, c.Locale().Close).Size(24, 16).NoHoverBg().Color(th.TextTertiary).Clicked() {
-				*cancel = true
+				*close = true
 			}
 		}, layout.Middle(), layout.Margin(geom.Insets{Bottom: 12}))
+		d.handle = head.n
 		Row(c, func() {
-			if status != "none" {
-				statusIcon(c, status, 24).ln.Margin.Right = 12
+			if !center {
+				if ic := d.leadIcon(c, status, 24); ic != nil {
+					ic.ln.Margin.Right = 12
+				}
 			}
 			if d.o.Content != "" {
-				Text(c, d.o.Content).Color(th.TextSecondary).LineHeight(24).Layout(layout.Grow(1))
+				Text(c, d.o.Content).Color(th.TextSecondary).LineHeight(24).Align(d.textAlign()).Layout(d.grow())
 			}
-		}, layout.Middle())
+		}, layout.Middle(), d.justify(false))
 		if d.kind == moreBoxPrompt {
 			Column(c, input, layout.Margin(geom.Insets{Top: 12}))
 		}
-		Row(c, buttons, layout.End(), layout.Gap(12), layout.Margin(geom.Insets{Top: 12}))
+		Row(c, buttons, d.justify(true), layout.Gap(12), layout.Margin(geom.Insets{Top: 12}))
 	}, layout.Pad(12))
 }

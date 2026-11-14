@@ -53,6 +53,8 @@ type CascaderW struct {
 	loadData       func(path []string, done func([]CascaderOption))
 	strategy       CheckedStrategy
 	stratVal       bool // the bound value follows the checked strategy
+	filter         func(query string, path []CascaderOption) bool
+	display        func(labels []string, path []CascaderOption) string
 
 	// Set while building the columns (columnsView): the first column's
 	// listbox and the option on the keyboard column's expanded path.
@@ -82,6 +84,10 @@ func (w *CascaderW) Placeholder(s string) *CascaderW { w.box.placeholder = s; re
 func (w *CascaderW) A11yLabel(s string) *CascaderW { w.box.n.setName(s); return w }
 func (w *CascaderW) AllowClear() *CascaderW        { w.box.allowClear = true; return w }
 func (w *CascaderW) Status(s string) *CascaderW    { w.box.status = s; return w }
+
+// Variant sets the frame look (FieldOutlined by default).
+func (w *CascaderW) Variant(v FieldVariant) *CascaderW { w.box.variant = v; return w }
+
 func (w *CascaderW) Size(s ControlSize) *CascaderW { w.box.size = s; return w }
 func (w *CascaderW) Width(px float32) *CascaderW   { w.box.n.ln.Width = px; return w }
 func (w *CascaderW) Layout(o ...layout.Option) *CascaderW {
@@ -115,6 +121,59 @@ func (w *CascaderW) IsOpen() bool { w.z.run(); return w.st.pop.open }
 
 // Changed reports a new selection this frame.
 func (w *CascaderW) Changed() bool { w.z.run(); return w.changed }
+
+// FilterMethod replaces the search match (by default the "a / b / c"
+// label path containing the typed text, case-insensitively) with fn: it
+// receives the typed text and the options along a candidate path, root
+// first (Ant showSearch.filter, Element filter-method). Implies
+// Searchable.
+//
+//	ui.Cascader(c, &v, opts).FilterMethod(func(q string, p []ui.CascaderOption) bool {
+//		return strings.HasPrefix(p[len(p)-1].Value, q)
+//	})
+func (w *CascaderW) FilterMethod(fn func(query string, path []CascaderOption) bool) *CascaderW {
+	w.filter, w.box.search = fn, true
+	return w
+}
+
+// DisplayRender sets the text shown for the selected path (single
+// selection; default the labels joined by " / "): fn receives the labels
+// and the options of the path, root first (Ant displayRender, Element
+// show-all-levels / separator). A value no longer in the tree shows as an
+// option whose Label and Value are the stored value.
+//
+//	ui.Cascader(c, &v, opts).DisplayRender(func(ls []string, _ []ui.CascaderOption) string { return ls[len(ls)-1] })
+func (w *CascaderW) DisplayRender(fn func(labels []string, path []CascaderOption) string) *CascaderW {
+	w.display = fn
+	return w
+}
+
+// optionsOf maps a value path to its options (a value not found becomes
+// an option labelled with the value).
+func (w *CascaderW) optionsOf(path []string) []CascaderOption {
+	out := make([]CascaderOption, 0, len(path))
+	opts := w.opts
+	for k, v := range path {
+		o, i := casFind(opts, v)
+		if i < 0 {
+			o = CascaderOption{Label: v, Value: v}
+			opts = nil
+		} else {
+			opts = w.kids(o, path[:k+1])
+		}
+		out = append(out, o)
+	}
+	return out
+}
+
+// displayText is the text of the single selected path.
+func (w *CascaderW) displayText() string {
+	labels := w.labelsOf(*w.val)
+	if w.display != nil && len(*w.val) > 0 {
+		return w.display(labels, w.optionsOf(*w.val))
+	}
+	return strings.Join(labels, " / ")
+}
 
 // casFind returns the option with value v in opts.
 func casFind(opts []CascaderOption, v string) (CascaderOption, int) {
@@ -273,9 +332,11 @@ type casHit struct {
 
 // searchResults flattens the tree into paths matching the query.
 func (w *CascaderW) searchResults(q string) []casHit {
+	raw := q
 	q = strings.ToLower(q)
 	var out []casHit
 	var walk func(opts []CascaderOption, path, labels []string, dis bool)
+	var ops []CascaderOption // options along the walked path
 	walk = func(opts []CascaderOption, path, labels []string, dis bool) {
 		for _, o := range opts {
 			p := append(append([]string(nil), path...), o.Value)
@@ -283,12 +344,22 @@ func (w *CascaderW) searchResults(q string) []casHit {
 			d := dis || o.Disabled
 			ks := w.kids(o, p)
 			leaf := len(ks) == 0 && !w.pendingLazy(o, p) // an unloaded parent is not a leaf
-			if (leaf || w.changeOnSelect) && strings.Contains(strings.ToLower(strings.Join(lb, " / ")), q) {
-				oo := o
-				oo.Disabled = d
-				out = append(out, casHit{p, lb, oo})
+			ops = append(ops, o)
+			if leaf || w.changeOnSelect {
+				var ok bool
+				if w.filter != nil {
+					ok = w.filter(raw, append([]CascaderOption(nil), ops...))
+				} else {
+					ok = strings.Contains(strings.ToLower(strings.Join(lb, " / ")), q)
+				}
+				if ok {
+					oo := o
+					oo.Disabled = d
+					out = append(out, casHit{p, lb, oo})
+				}
 			}
 			walk(ks, p, lb, d)
+			ops = ops[:len(ops)-1]
 		}
 	}
 	walk(w.opts, nil, nil, false)
@@ -344,7 +415,7 @@ func (w *CascaderW) build() {
 	if w.multi != nil {
 		labels, w.chipPaths = w.chips()
 	} else {
-		b.single = strings.Join(w.labelsOf(*w.val), " / ")
+		b.single = w.displayText()
 	}
 	b.open = st.pop.open
 	b.build(labels)

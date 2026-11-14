@@ -57,6 +57,28 @@ func messagePage(c *ui.Context) {
 			}
 		}, layout.Gap(8))
 	})
+	navDemo(c, "位置、偏移、关闭按钮、朴素样式", "Placement 选顶部/底部的起点、居中、终点；Offset 设离窗口边缘的距离；ShowClose 显示关闭按钮；Plain 用中性底色。", func() {
+		ui.Row(c, func() {
+			for _, p := range []struct {
+				label string
+				pl    ui.MessagePlacement
+			}{{"顶部起点", ui.MessageTopStart}, {"顶部终点", ui.MessageTopEnd}, {"底部起点", ui.MessageBottomStart},
+				{"底部居中", ui.MessageBottom}, {"底部终点", ui.MessageBottomEnd}} {
+				if ui.Button(c, p.label).Clicked() {
+					ui.Message(c, "info", "消息出现在"+p.label).Placement(p.pl)
+				}
+			}
+			if ui.Button(c, "偏移 80").Clicked() {
+				ui.Message(c, "success", "离顶部 80 像素").Offset(80)
+			}
+			if ui.Button(c, "可关闭").Clicked() {
+				ui.Message(c, "warning", "带关闭按钮，不会自动消失").ShowClose().Duration(0)
+			}
+			if ui.Button(c, "朴素样式").Clicked() {
+				ui.Message(c, "success", "朴素样式的成功提示").Plain()
+			}
+		}, layout.Gap(8), layout.WrapItems())
+	})
 	ui.Gap(c, 80)
 }
 
@@ -212,6 +234,9 @@ func init() {
 			d.ClickLabel("成功")
 			d.ClickLabel("错误")
 			d.ClickLabel("加载中")
+			d.ClickLabel("可关闭")
+			d.ClickLabel("朴素样式")
+			d.ClickLabel("底部终点")
 			d.Settle()
 		}}, nil)
 	navPage(gallery.Page{Name: "Notification", Title: "Notification 通知提醒框", Group: gallery.Feedback, Order: 7, Height: 620, Render: notifyPage,

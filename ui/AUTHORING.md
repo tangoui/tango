@@ -260,6 +260,9 @@ func init() {
 | 导航 | `Command`（`CommandItem`：分组、图标、快捷键、关键词、禁用） | shadcn Command | shad_command.go |
 | 通用 | `Toggle`、`ToggleGroup` | shadcn Toggle / ToggleGroup | shad_toggle.go |
 | 通用 | `Kbd` | shadcn Kbd / `<kbd>` | shad_kbd.go |
+| 导航 | `Menubar`（`MenubarMenu`、`MenubarItem`：子菜单、勾选项、单选组、分隔线、快捷键提示、禁用；Alt/F10 进入；下拉面板复用 Dropdown 的 `navMenuPopup`） | shadcn Menubar | menubar.go |
+| 布局 | `AspectRatio` | shadcn AspectRatio / CSS aspect-ratio | aspect_ratio.go |
+| 数据展示 | `Item`、`ItemGroup`（default/outline/muted 变体、default/sm 尺寸、可作链接或按钮、分隔） | shadcn Item | item.go |
 | 数据录入 | `Input` | Input / el-input | input.go |
 | 数据录入 | `TextArea` | Input.TextArea / el-input type=textarea | entry_inputx.go |
 | 数据录入 | `Search` | Input.Search | entry_inputx.go |

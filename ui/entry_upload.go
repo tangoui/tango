@@ -37,6 +37,21 @@ const (
 	upText = iota
 	upCard
 	upDrag
+	upPicture
+)
+
+// UploadListType selects how an Upload lists its files (Ant listType).
+type UploadListType string
+
+const (
+	// UploadListText lists file names under a button (the default).
+	UploadListText UploadListType = "text"
+	// UploadListPicture lists bordered rows with a thumbnail, the name
+	// and the upload progress under a button.
+	UploadListPicture UploadListType = "picture"
+	// UploadListPictureCard shows thumbnail cards with a "+" card
+	// trigger (PictureCard).
+	UploadListPictureCard UploadListType = "picture-card"
 )
 
 // UploadW shows an upload trigger and the file list. The UI layer never
@@ -73,6 +88,7 @@ type UploadW struct {
 	req      upRequest                                                 // Action, Headers ...
 	st       *upState
 	added    []UploadFile
+	manual   bool         // AutoUpload(false): added files wait for Submit
 	th       *theme.Theme // Upload Alias applied
 	tk       *theme.UploadToken
 }
@@ -96,6 +112,26 @@ func Upload(c *Context, files *[]UploadFile) *UploadW {
 
 // PictureCard shows files as thumbnail cards with a "+" card trigger.
 func (w *UploadW) PictureCard() *UploadW { w.kind = upCard; return w }
+
+// PictureList lists the files as bordered rows with a thumbnail (the
+// file's Thumb, else a picture glyph), the name and the progress bar, under
+// the button trigger (Ant listType="picture", Element list-type="picture").
+// Clicking a thumbnail reports it through Previewed.
+func (w *UploadW) PictureList() *UploadW { w.kind = upPicture; return w }
+
+// ListType selects the file list: UploadListText (default),
+// UploadListPicture (PictureList) or UploadListPictureCard (PictureCard).
+func (w *UploadW) ListType(t UploadListType) *UploadW {
+	switch t {
+	case UploadListPicture:
+		w.kind = upPicture
+	case UploadListPictureCard:
+		w.kind = upCard
+	case UploadListText:
+		w.kind = upText
+	}
+	return w
+}
 
 // Dragger shows a large dashed drop area as the trigger.
 func (w *UploadW) Dragger() *UploadW { w.kind = upDrag; return w }
@@ -216,6 +252,10 @@ func (w *UploadW) build() {
 		Column(c, func() {
 			for i := range *w.files {
 				i := i
+				if w.kind == upPicture {
+					Key(c, i, func() { w.pictureItem(i) })
+					continue
+				}
 				Key(c, i, func() { w.listItem(i) })
 			}
 		}, layout.Gap(0), layout.Margin(geom.Insets{Top: 8}), layout.MinW(260)).Semantics(a11y.RoleList, "")
@@ -351,6 +391,127 @@ func (w *UploadW) listItem(i int) {
 				pr.Y -= 2
 			}
 			upBar(l, tk, mr(pr), f.Percent, rtl)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Picture list
+
+// pictureItem builds file i as a picture-list row: thumbnail (a preview
+// button), name with the progress bar under it, retry and remove buttons.
+func (w *UploadW) pictureItem(i int) {
+	c, th, tk := w.c, w.th, w.tk
+	el := th.Flavor == theme.Element
+	f := (*w.files)[i]
+	n := c.add("up-pic", f.Name)
+	h, ts, pad := tk.PictureItemHeight, tk.PictureThumbSize, tk.PictureItemPadding
+	n.ln.Height = h
+	if i > 0 {
+		n.ln.Margin.Top = 8
+	}
+	n.setRole(a11y.RoleListItem)
+	w.upItemSem(n, f)
+	ia := c.interact(n, false, input.CursorDefault)
+	n.aKbd = true // its preview / remove buttons are focusable
+	const act = 26
+	var del, retry, prev Interaction
+	canRetry := w.canRetry(f) && !w.isDisabled()
+	c.body(n, func() {
+		prev = w.upAction("up-preview", w.loc.Upload.Preview, layout.Abs(pad, (h-ts)/2, layout.Unset, layout.Unset), ts, ts)
+		if canRetry {
+			retry = w.upAction("up-retry", w.loc.Retry, layout.Abs(layout.Unset, (h-act)/2, pad+act, layout.Unset), act, act)
+		}
+		if !w.isDisabled() {
+			del = w.upAction("up-remove", w.loc.RemoveItem(f.Name), layout.Abs(layout.Unset, (h-act)/2, pad, layout.Unset), act, act)
+		}
+	})
+	if del.Clicked {
+		w.remove(i)
+	}
+	if retry.Clicked {
+		w.retry(i)
+	}
+	if prev.Clicked {
+		w.previewed = i
+		c.invalid = true
+	}
+	n.paint = func(l *paint.List, r geom.Rect) {
+		sp := c.inline(r) // thumbnail and name from the inline start, actions at the end
+		rad := geom.Rad(tk.PictureItemRadius)
+		border := tk.PictureItemBorderColor
+		col := tk.ItemColor
+		if f.Status == "error" {
+			border, col = tk.ErrorColor, tk.ErrorColor
+		}
+		hov := (ia.Hovered || del.Hovered || del.FocusVisible || prev.Hovered) && !w.isDisabled()
+		if hov {
+			l.Fill(r, rad, tk.ItemHoverBg)
+			if tk.ItemHoverColor.A > 0 && f.Status != "error" {
+				col = tk.ItemHoverColor
+			}
+		}
+		l.Stroke(r, rad, 1, border)
+		tr := sp.Rect(pad, r.Y+(r.H-ts)/2, ts, ts)
+		trad := geom.Rad(th.RadiusSM)
+		switch {
+		case f.Status == "uploading":
+			l.Fill(tr, trad, tk.PictureCardInnerBg)
+			is := ts * 0.4
+			drawIconRot(l, geom.Rect{X: tr.X + (tr.W-is)/2, Y: tr.Y + (tr.H-is)/2, W: is, H: is}, tk.ItemIconColor, spinAngle(c))
+		case f.Thumb != nil:
+			l.DrawImage(f.Thumb, tr, trad)
+		default:
+			l.Fill(tr, trad, tk.PictureCardInnerBg)
+			gc := th.TextQuaternary
+			if f.Status == "error" {
+				gc = tk.ErrorColor
+			}
+			gs := ts * 0.5
+			icon.Draw(l, icon.Picture, geom.Rect{X: tr.X + (tr.W-gs)/2, Y: tr.Y + (tr.H-gs)/2, W: gs, H: gs}, gc, 0)
+		}
+		if prev.FocusVisible {
+			entFocusRing(c, l, tr, trad.TL)
+		}
+		x := pad + ts + 8
+		end := pad + act
+		if canRetry {
+			end += act
+		}
+		nameW := r.W - x - end - 8
+		lineH := float32(22)
+		ny := r.Y + (r.H-lineH)/2
+		if f.Status == "uploading" {
+			ny -= 6
+		}
+		tw := min(entTextW(c, f.Name, th.FontSize, text.Regular), max(nameW, 0))
+		entText(c, l, f.Name, sp.X(x, tw), geom.Rect{Y: ny, H: lineH}, th.FontSize, text.Regular, col, nameW)
+		if f.Status == "uploading" {
+			upBar(l, tk, sp.Rect(x, ny+lineH+4, max(0, nameW), 2), f.Percent, c.IsRTL())
+		}
+		ay := r.Y + (r.H-act)/2
+		if canRetry {
+			rr := sp.Rect(r.W-pad-2*act, ay, act, act)
+			rc := tk.ErrorColor
+			if retry.Hovered {
+				rc = tk.ErrorHoverColor
+			}
+			drawIcon(l, icon.Reload, rr.X+(rr.W-14)/2, rr.Y+(rr.H-14)/2, 14, rc)
+		}
+		dr := sp.Rect(r.W-pad-act, ay, act, act)
+		switch {
+		case el && f.Status == "done" && !hov:
+			drawStatusIcon(l, "success", geom.Rect{X: dr.X + (dr.W-14)/2, Y: dr.Y + (dr.H-14)/2, W: 14, H: 14}, tk.SuccessColor, th.BgContainer)
+		case !w.isDisabled():
+			dc := tk.ActionsColor
+			if f.Status == "error" {
+				dc = tk.ErrorColor
+			}
+			ic := icon.Delete
+			if el {
+				ic = icon.Close
+			}
+			drawIcon(l, ic, dr.X+(dr.W-14)/2, dr.Y+(dr.H-14)/2, 14, dc)
 		}
 	}
 }

@@ -150,6 +150,8 @@ type ColorPickerLocale struct {
 	Presets, None, ClearColor, Clear, Saturation, Hue, Alpha string
 	Format                                                   string // accessible name of the HEX / RGB format select
 	Value                                                    string // accessible name of the value input of ColorPickerPanel ("颜色值")
+	Gradient                                                 string // the gradient stop bar of ColorPickerGradient ("渐变色标")
+	Angle                                                    string // the gradient angle input ("角度")
 }
 
 // CommandLocale holds the Command palette texts.
@@ -351,6 +353,12 @@ type ProFieldLocale struct {
 	StartFmt, EndFmt string // time range ends, arg: field label ("%s开始")
 	Min, Max         string // digit range placeholders
 	RangeEndFmt      string // accessible name of a digit range end, args: field label, Min / Max ("%s：%s")
+	// fromNow and second value types: JustNow for under a minute, AgoFmt /
+	// LaterFmt wrap an amount ("%s前"), the unit formats take a count
+	// ("%d 分钟"); second joins the day … second amounts.
+	JustNow, AgoFmt, LaterFmt                                string
+	SecondFmt, MinuteFmt, HourFmt, DayFmt, MonthFmt, YearFmt string
+	InvalidJSON                                              string // jsonCode validation message
 }
 
 // ProDescriptionsLocale holds the ProDescriptions texts.

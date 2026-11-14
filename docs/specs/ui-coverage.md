@@ -25,11 +25,13 @@
 
 ### 1.2 计数
 
-| 对标 | 总数 | ✅ 完整 | ⚠️ 部分 | ❌ 缺失 | 上次扫描（复核前） |
+| 对标 | 总数 | ✅ 完整 | ⚠️ 部分 | ❌ 缺失 | 补齐前（2026-11-13 复核） |
 |---|---|---|---|---|---|
-| Ant Design v6 | 72 | 56 | 16 | 0 | 72：42 / 29 / 1 |
-| Element Plus | 79 | 59 | 20 | 0 | 79：44 / 35 / 0 |
-| Pro Components | 28 | 21 | 7 | 0 | 28：17 / 8 / 3 |
+| Ant Design v6 | 72 | 71 | 1 | 0 | 72：56 / 16 / 0 |
+| Element Plus | 79 | 78 | 1 | 0 | 79：59 / 20 / 0 |
+| Pro Components | 28 | 27 | 1 | 0 | 28：21 / 7 / 0 |
+
+2026-11-14 补齐：剩下的"部分"是 ConfigProvider（`Defaults` 接线，Ant、Element 各一行）和 FooterToolbar（毛玻璃，需要渲染层的背景模糊）。另按 shadcn/ui 新增 Menubar、AspectRatio、Item。
 
 ### 1.3 与上次扫描对比
 
@@ -50,7 +52,7 @@
 | 组件 | Tango 入口 | 状态 | 缺的能力 / 次要缺口 | 代码证据 |
 |---|---|---|---|---|
 | **通用** | | | | |
-| Button | `Button`、`IconButton` | ⚠️ | 缺 v6 的 `color` 预设色 × `variant`（solid/outlined/filled/text/link）组合，只有 Primary/Dashed/Text/Link/Secondary + Danger/Ghost | button.go `Primary/Dashed/Text/Link/Secondary/Danger/Ghost/Round/Circle/Loading/Block/Icon/IconRight` |
+| Button | `Button`、`IconButton`、`ButtonGroup` | ✅ | — | button.go `Color(ButtonColor)` × `Appearance(ButtonAppearance)`：default/primary/danger/success/warning/info + 13 个预设色（及 hex）× solid/outlined/dashed/filled/text/link/plain，原 `Primary/Dashed/Text/Link/Secondary/Danger/Ghost` 映射到同一组合且外观不变；button_group.go `ButtonGroup`（`Size/Color/Appearance/Variant/Vertical`） |
 | FloatButton | `FloatButton`、`FloatButtonGroup`、`BackTop` | ✅ | — | nav_float.go `Badge/Tooltip/Square/Description`；Group 有 `Trigger/Open` |
 | Icon | `Icon` | ✅ | — | text.go `IconW.Spin/Rotate/Color`；icon/icon.go `icon.New` |
 | Typography | `Text`、`Title`、`Paragraph`、`Link` | ✅ | 省略时悬停显示全文未确认 | data_typography.go `Copyable/CopyText/Editable/Expandable`；text.go `Ellipsis/Lines` |
@@ -67,33 +69,33 @@
 | Breadcrumb | `Breadcrumb`、`BreadcrumbItems` | ✅ | — | nav.go `BreadcrumbItem.Menu/Href/Icon`、`SeparatorIcon` |
 | Dropdown | `Dropdown` | ✅ | — | nav_dropdown.go `navMenuPopup.items` 对 `it.Group` 调 `group`：画分组标题（`groupTitle`，按 Ant/Element/shadcn 取样式）、按风格加分隔线（`groupSeps`），分组是带名字的 group 节点；`estimate` 也计入标题高度 |
 | Menu | `Menu` | ✅ | 次要：横向菜单根层与"…"溢出项里的分组仍被拍平成 Divider（`menuFlatGroups`） | 弹出子菜单与折叠态复用 `navMenuPopup`（nav_menu.go `pop := &navMenuPopup{…}`），分组有标题；inline 标题见 nav_menu.go `menu-group-title`；nav.go `menuFlatGroups` 只用于 `fitHorizontal` |
-| Pagination | `Pagination` | ✅ | 次要：无 `itemRender` | nav.go `ShowTotal/ShowQuickJumper/Simple/SizeChanger/HideOnSinglePage` |
-| Steps | `Steps` | ⚠️ | 无 `type=inline` / `panel`；progressDot 不能自定义渲染 | nav_steps.go `Type` 只认 navigation/simple；有 `Percent/Dot/LabelVertical` |
+| Pagination | `Pagination` | ✅ | 次要：无 `itemRender` | nav.go `ShowTotal/ShowQuickJumper/Simple/SizeChanger/HideOnSinglePage`；`Layout(PaginationPart...)` 自由排序、`PagerCount(n)`（groupD 补） |
+| Steps | `Steps` | ✅ | — | nav_steps.go `Type("inline"/"panel")`、`Inline()/Panel()`；`DotRender(func(*paint.List, StepDot))` 自定义点（拿到 `Index/Status/Rect/Color/Default`）；另有 `Percent/Dot/LabelVertical` |
 | Tabs | `Tabs` | ✅ | 次要：不能拖拽排序；竖向 Tabs 不设 `Height` 时随标签增高，不出"…" | nav.go `bar` 里 shadcn 横竖向都走 `shadTrack`（Card 为描边轨道），`addButton`/`tab` 有 shadcn 分支；`scroller` 横向与设了 `Height` 的竖向都调 `overflow/moreMenu`；`ExtraLeft`（左侧 extra）、`BorderCard`、`Centered`、`TabBarStyle` |
 | **数据录入** | | | | |
-| AutoComplete | `AutoComplete` | ⚠️ | 无 Variant | entry_autocomplete.go `Source(func(q) []Option)`、`Remote/Debounce/Loading`（异步远程搜索，与 Select 共用 remote_search.go）、`AllowClear/Status/Prefix/Highlight` |
-| Cascader | `Cascader` | ⚠️ | 无自定义 filter、displayRender、Variant | entry_cascader.go `leaves` 注释：未加载的懒节点代表整棵子树，加载后把勾选交给子节点；p2b_cascader.go `LoadData`（`done(nil)` 才标为叶子）、`ShowCheckedStrategy`、`StrategyValue`（绑定值随策略）、`Searchable` |
-| Checkbox | `Checkbox`、`CheckboxGroup`、`CheckAll` | ✅ | 次要：`CheckboxGroup` 是返回 bool 的函数，不能整组 Disabled 或链式配置 | choice.go:304 `func CheckboxGroup(...) bool`；`Indeterminate/Disabled` |
-| ColorPicker | `ColorPicker`、`ColorPickerPanel` | ⚠️ | **无渐变**；无 hover 触发 | entry_color.go `cpFormatOK` 接受 hex/rgb/hsb/hsv，`Format` 注释写明 hsb 面板；`PresetGroups`（多组带标题、可折叠）；grep `gradient` 为 0 |
-| DatePicker | `DatePicker`、`DateTimePicker`、`RangePicker`、`DatePickerPanel` | ⚠️ | 无 multiple、needConfirm、disabledTime；DateTimePicker 无 DisabledDate/Presets | entry_daterange.go `RangePickerW.Picker`（周/月/季/年）、`Variant`；可键盘输入：date.go `dtTyping`、entry_daterange.go `typed`、p2a_date.go `p2aParsePeriod`；`DateTimePickerW` 无 `DisabledDate/Presets` |
+| AutoComplete | `AutoComplete` | ✅ | — | entry_autocomplete.go `Variant(FieldVariant)`（四种变体，复用 Input.Variant）、`TriggerOnFocus`、`Source(func(q) []Option)`、`Remote/Debounce/Loading`（异步远程搜索，与 Select 共用 remote_search.go）、`AllowClear/Status/Prefix/Highlight` |
+| Cascader | `Cascader` | ✅ | — | entry_cascader.go `Variant`、`FilterMethod(func(q string, path []CascaderOption) bool)`、`DisplayRender(func(labels []string, path []CascaderOption) string)`；`leaves` 注释：未加载的懒节点代表整棵子树，加载后把勾选交给子节点；p2b_cascader.go `LoadData`（`done(nil)` 才标为叶子）、`ShowCheckedStrategy`、`StrategyValue`（绑定值随策略）、`Searchable` |
+| Checkbox | `Checkbox`、`CheckboxGroup`、`CheckAll` | ✅ | — | choice.go `Indeterminate/Disabled/Size/Border/Button`；`CheckboxGroup` 返回 `*CheckboxGroupW`（`Changed/Disabled/Min/Max/Border/Buttons/Size/A11yLabel`） |
+| ColorPicker | `ColorPicker`、`ColorPickerPanel`、`ColorPickerGradient`、`ColorPickerPanelGradient` | ✅ | 次要：单色与渐变是两个入口，面板内没有 single/gradient 模式切换 | entry_color.go `ColorPickerGradient(c, *theme.Gradient)`（色标条：点击添加、拖动移动、拖离或 Delete 删除；角度输入；下方编辑选中色标）、`Trigger(TriggerHover)`；fill_color_panel.go `ColorPickerPanelGradient`；theme/color.go `Gradient/GradientStop/ParseGradient/CSS/At/Sorted`；`cpFormatOK` 接受 hex/rgb/hsb/hsv；`PresetGroups` |
+| DatePicker | `DatePicker`、`MultiDatePicker`、`DateTimePicker`、`RangePicker`、`DatePickerPanel` | ✅ | 次要：MultiDatePicker 无 Variant、不可键盘输入 | multiple：date_multi.go `MultiDatePicker`（标签显示、`MaxTagCount`、`NeedConfirm`）；needConfirm：date.go `DatePickerW.NeedConfirm`；disabledTime：entry_datetime.go `DateTimePickerW.DisabledTime`、`DisabledTimes`，entry_daterange.go `RangePickerW.DisabledTime`（ShowTime 列）；entry_datetime.go `DateTimePickerW.DisabledDate/Presets`；entry_daterange.go `Picker`（周/月/季/年）、`Variant`；可键盘输入：date.go `dtTyping`、entry_daterange.go `typed`、p2a_date.go `p2aParsePeriod`；测试 date_more_test.go |
 | Form | `Form`/`FormItem`、`FormList` | ✅ | 次要：无 labelCol/wrapperCol（只有 LabelWidth） | p2d_form.go `ValidateFields(names…)`、`ClearValidate(names…)`、`Disabled`（表单级）、`RequiredMark`、`ResetFields(names…)`、`FormItemW.OnReset`（RulesFunc 项由回调重置）；form.go `Validate/ResetValidation/ScrollToFirstError` |
 | Input | `Input`、`TextArea`、`Search`、`OTP` | ✅ | 次要：TextArea/Search/OTP 无 Variant；OTP 无 separator/formatter | input.go `AllowClear/Password/Prefix/Suffix/ShowCount/MaxLength/Status`；p2d_input.go `Variant`（4 种） |
 | InputNumber | `InputNumber` | ✅ | 次要：无 suffix；不能隐藏控制按钮 | input.go `ControlsPosition`（right/sides）、`Variant`、`Wheel` |
-| Mentions | `Mentions` | ⚠️ | 无 AllowClear、Variant | entry_mentions.go `Remote(func(prefix, query))/Debounce/Loading`、`Query()`、`Prefix/Rows/Selected…` |
-| Radio | `Radio`、`RadioGroup` | ✅ | 次要：整组不能 Disabled | choice.go `Buttons/Solid/Size/Changed` |
+| Mentions | `Mentions` | ✅ | — | entry_mentions.go `Variant`、`AllowClear/Cleared`、`Whole/WholeCheck`、`Remote(func(prefix, query))/Debounce/Loading`、`Query()`、`Prefix/Rows/Selected…` |
+| Radio | `Radio`、`RadioGroup` | ✅ | — | choice.go `Buttons/Solid/Size/Changed/Disabled/Border`；`Radio.Border/Size` |
 | Rate | `Rate` | ✅ | — | entry_rate.go `AllowHalf/AllowClear/Character/Count/Texts` |
-| Select | `Select`、`MultiSelect`、`InputTag`、`VirtualSelect` | ⚠️ | 无 Variant、prefix/suffixIcon | p2b_select.go `Remote/FilterMethod/AllowCreate/Virtual/MaxCount`；fill_virtual_select.go `FilterMethod` |
+| Select | `Select`、`MultiSelect`、`InputTag`、`VirtualSelect` | ✅ | 次要：VirtualSelect / InputTag 未加 Variant | select.go `FieldVariant`、`SelectW.Variant/Prefix/PrefixText/SuffixIcon`；entry_multiselect.go 同名方法（selector.go 外壳）；p2b_select.go `Remote/FilterMethod/AllowCreate/Virtual/MaxCount`；fill_virtual_select.go `FilterMethod` |
 | Slider | `Slider`、`SliderRange` | ✅ | 次要：无 reverse/included | p2b_slider.go `AllowCross`（默认可交叉）、`Pushable(gap)`；`WithInput` 支持范围与竖向（注释写明各输入框位置） |
-| Switch | `Switch` | ✅ | — | choice.go `Small/Loading/Texts` |
+| Switch | `Switch`、`SwitchValue` | ✅ | — | choice.go `Small/Large/Size/Width/Loading/Texts/Icons/OuterTexts/BeforeChange/BeforeChangeAsync` |
 | TimePicker | `TimePicker`、`TimePanel`、`TimeRangePicker` | ✅ | 次要：无 needConfirm | p2a_time_range.go `TimeRangePicker` 注释"Each end can also be typed"、`typed`；`HideDisabledOptions`（TimePicker、TimeRangePicker、TimePanel 都有） |
 | Transfer | `Transfer` | ✅ | 次要：无自定义 filterOption、footer | p2b_transfer.go `pager` 改用 `Pagination(...).Simple().Small()`；`Render/OneWay/TreeSource/Virtual` |
-| TreeSelect | `TreeSelect` | ⚠️ | 无 treeCheckStrictly、filterTreeNode | p2b_treeselect.go `ExpandedKeys(*[]string)`（受控展开）/`ExpandChanged`、`StrategyValue`（绑定值随勾选策略）、`LoadData`、`Virtual` |
-| Upload | `Upload`、`DropZone` | ⚠️ | 无 listType=picture；无手动 submit | entry_upload.go `upText/upCard/upDrag` 三种；照片墙已有重试（`upCardIconRow` 预览/重试/删除）；p2d_upload.go `CustomRequest`、`BeforeUpload/Action/Retries` |
+| TreeSelect | `TreeSelect` | ✅ | — | entry_treeselect.go `CheckStrictly()`、`FilterTreeNode(func(q string, n TreeSelectNode) bool)`、`Variant`；p2b_treeselect.go `ExpandedKeys(*[]string)`（受控展开）/`ExpandChanged`、`StrategyValue`（绑定值随勾选策略）、`LoadData`、`Virtual` |
+| Upload | `Upload`、`DropZone` | ✅ | — | entry_upload.go `upText/upCard/upDrag/upPicture`；`PictureList()`/`ListType(UploadListPicture)` 带缩略图列表（`pictureItem`，令牌 `PictureItem*`）；p2d_upload.go `AutoUpload(false)` 排队为 "ready"、`Submit()` 上传；`CustomRequest`、`BeforeUpload/Action/Retries`；测试 groupd_upload_test.go |
 | **数据展示** | | | | |
 | Avatar | `Avatar`、`AvatarGroup` | ✅ | — | display.go `Size/Square/Image/Icon`；data_badge.go `AvatarGroupW.Max` |
 | Badge | `Badge`、`BadgeRibbon` | ✅ | — | data_badge.go `Count/Dot/Max/ShowZero/Status/Offset` |
 | Calendar | `Calendar` | ✅ | 次要：无 headerRender、validRange | data_calendar.go `Card/Mode/CellRender/MonthCellRender/NoHeader` |
-| Card | `Card`、`CardMeta`、`CardAction` | ⚠️ | 无 `tabList`（卡片内页签） | data_card.go `Extra/Cover/Actions/Inner/Loading`；grep `tabList` 为 0 |
+| Card | `Card`、`CardMeta`、`CardAction` | ✅ | — | data_card.go `Extra/Cover/Actions/Inner/Loading`；`Tabs(&active, items)` 标题栏下方页签（正文作为 tabpanel）、`TabBarExtra`、`TabChanged`；测试 groupd_card_test.go |
 | Carousel | `Carousel` | ✅ | 次要：无 dot 进度条 | data_carousel.go `Draggable`（拖拽/滑动翻页）、`SwipeThreshold`、`Loop(false)`；`Fade/Vertical/DotPosition/Autoplay` |
 | Collapse | `Collapse` | ✅ | 次要：无 `collapsible="header"/"icon"` | data_collapse.go `Accordion`、`CollapseItem{Disabled,NoArrow,Extra}` |
 | Descriptions | `Descriptions` | ✅ | — | data_card.go `ColumnAt(bp, n)`、`Columns(map[Breakpoint]int)`，按 data_util.go `dataRespCols.resolve` 取断点 |
@@ -103,19 +105,19 @@
 | Listy | `Listy` | ✅ | — | fill_listy.go `Virtual/Group/Sticky/ScrollToKey/ScrollToGroup/EndReached` |
 | Popover | `Popover` | ✅ | — | data_popover.go `Title/Content/Trigger/Placement/Open` |
 | QRCode | `QRCode` | ✅ | — | data_qrcode.go `Level/Icon/Status/Refreshed/Bordered` |
-| Segmented | `Segmented` | ⚠️ | 无 v6 的 `orientation="vertical"`、`shape="round"` | entry_segmented.go 只有 `Icons/Block/Size/Disabled` |
-| Statistic | `Statistic`、`Countdown` | ⚠️ | 无 `Statistic.Timer type=countup`；Countdown 无 onChange | display.go `Statistic`；data_skeleton.go `CountdownW.Format/Prefix/Suffix/Finished`；`CountUp` 只是入场动画 |
-| Table | `Table`（及 `ProTable`、`EditableProTable`） | ✅ | 次要：列虚拟化未确认；汇总格只能返回字符串 | table*.go `Sortable/MultiSort/Filters/FilterPanel/Fixed/ScrollY/Sticky/Expandable/Tree/TreeLazy/Selection/CheckStrictly/Span/Summary/Virtual/Resizable/TableEditor/ServerPagination/Children/DragSort/Wrap` |
+| Segmented | `Segmented` | ✅ | — | entry_segmented.go `Vertical()`（上下键切换）、`Shape(SegmentedShapeRound)`；另有 `Icons/Block/Size/Disabled` |
+| Statistic | `Statistic`、`Countdown`、`StatisticTimer` | ✅ | — | display.go `Statistic`；data_skeleton.go `StatisticTimer(c, title, TimerCountdown/TimerCountup, at)`（正计时）、`CountdownW.OnChange`、`Format/Prefix/Suffix/Finished`；测试 groupd_timer_test.go |
+| Table | `Table`（及 `ProTable`、`EditableProTable`） | ✅ | 次要：汇总格只能返回字符串 | table*.go `Sortable/MultiSort/Filters/FilterPanel/Fixed/ScrollY/Sticky/Expandable/Tree/TreeLazy/Selection/CheckStrictly/Span/Summary/Virtual/Resizable/TableEditor/ServerPagination/Children/DragSort/Wrap`；列虚拟化已确认（table_show.go `culled`，table_colvirt_test.go） |
 | Tag | `Tag`、`CheckableTag` | ✅ | — | display.go `Closable/Color/Icon/Borderless`；more_checktag.go |
-| Timeline | `Timeline` | ⚠️ | 无 v6 的 `orientation="horizontal"` | data_timeline.go:46 `Mode` 只有 left/right/alternate |
+| Timeline | `Timeline` | ✅ | — | data_timeline.go `Horizontal()`，`Mode` left/right/alternate 在横向下表示轴下/轴上/交替，Label 在对侧 |
 | Tooltip | `Tooltip` | ✅ | — | display.go `Color/Arrow/MouseEnterDelay/Trigger` |
-| Tour | `Tour` | ⚠️ | 每步不能单独设置 mask/type/按钮；无 indicatorsRender/actionsRender；是否自动把目标滚进可见区未确认 | data_popover.go:408 `TourStep{Target,Title,Description,Cover,Placement}`；`TourW.Primary/NoMask/NoArrow/Gap` |
+| Tour | `Tour` | ✅ | — | data_popover.go `TourStep{…,Mask,Type,PrevText,NextText,HidePrev,HideNext}`；`TourW.IndicatorsRender/ActionsRender(TourActions)`；切换步骤时自动把目标滚进可见区（`ScrollIntoView(bool)`，默认开；原先没有）；`Primary/NoMask/NoArrow/Gap`；测试 groupd_tour_test.go |
 | Tree | `Tree`（另有 `VirtualTree`） | ✅ | 次要：无 titleRender、allowDrop | data_tree.go `Height(px)`：注释"builds only the rows in view (Ant height / virtual)"；`Draggable/Dropped/LoadData/Search/Filter/CheckStrictly` |
 | **反馈** | | | | |
 | Alert | `Alert` | ✅ | 次要：不能自定义图标 | feedback.go `Action/Description/NoIcon/Closable/Banner` |
 | Drawer | `Drawer` | ✅ | — | feedback.go `Resizable`（边缘可拖，也是可聚焦的分隔条）、`SizeLimits/BindSize/Resized`；嵌套 Drawer 推开父级（`push` 动画，注释"pushes the parent aside"） |
-| Message | `Message`、`MessageDestroy` | ✅ | 次要：只能在顶部，无 top 偏移；maxCount 只在 `App` 内（`UseApp().Message`）生效 | nav_notify.go:166 `Place: ScreenTop`；`MessageRef.Key/Duration`；pro4_app.go `AppMessageConfig.MaxCount` |
-| Modal | `Modal`、`Confirm`、`MessageBox`、`Prompt` | ✅ | 次要：即时模式下用不上 useModal；ConfirmOptions 不能自定义 icon/footer | feedback.go `Draggable/Fullscreen/ConfirmLoading/Centered`；more_confirm.go `ConfirmOptions` |
+| Message | `Message`、`MessageDestroy` | ✅ | 次要：maxCount 只在 `App` 内（`UseApp().Message`）生效 | nav_notify.go `MessageRef.Placement(MessagePlacement)`（顶部/底部 × 起点/居中/终点）、`Offset`、`ShowClose`、`Plain`、`Key/Duration`；pro4_app.go `AppMessageConfig.MaxCount` |
+| Modal | `Modal`、`Confirm`、`MessageBox`、`Prompt` | ✅ | 次要：即时模式下用不上 useModal；ConfirmOptions 不能自定义 footer | feedback.go `Draggable/Fullscreen/ConfirmLoading/Centered`；more_confirm.go `ConfirmOptions{…,Icon,Center,Draggable,DistinguishCancelAndClose,OnClose}` |
 | Notification | `Notification`、`NotificationDestroy` | ✅ | 次要：maxCount 只在 `App` 内生效；stack 阈值只能用全局变量 | nav_notify.go 六个方位；`NotifyStackThreshold`；pro4_app.go `AppNotificationConfig.MaxCount` |
 | Popconfirm | `Popconfirm` | ✅ | — | feedback.go `OkDanger/ShowCancel/Icon/Description` |
 | Progress | `Progress` | ✅ | — | data_progress.go `Circle/Dashboard/Steps/Gradient/Success/Format` |
@@ -136,7 +138,7 @@
 | 组件 | Tango 入口 | 状态 | 缺的能力 / 次要缺口 | 代码证据 |
 |---|---|---|---|---|
 | **Basic** | | | | |
-| Button | `Button` | ⚠️ | 无 type=success/warning/info、`plain` 全套、`ButtonGroup` | button.go 只有 Primary/Dashed/Text/Link/Secondary/Danger；grep `ButtonGroup` 为 0 |
+| Button | `Button`、`ButtonGroup` | ✅ | — | button.go `Success/Warning/Info()`、`Plain()`（可与所有颜色组合）；button_group.go `ButtonGroup`（统一 `Size`/`Variant`/`Color`，`Vertical`） |
 | Layout Container | `Layout/Header/Sider/Content/Footer` | ✅ | — | prolayout.go |
 | Icon | `Icon` | ✅ | — | text.go `IconW` |
 | Layout（row/col） | `GridRow`、`Col` | ✅ | — | nav_grid.go |
@@ -148,35 +150,35 @@
 | **Configuration** | | | | |
 | Config Provider | `ConfigProvider` | ⚠️ | 同 Ant 那一行；Element 的 button.autoInsertSpace、message.max 等无对应 | nav_config.go |
 | **Form** | | | | |
-| Autocomplete | `AutoComplete` | ⚠️ | 无 trigger-on-focus（异步取数用 `Remote/Debounce/Loading`） | entry_autocomplete.go |
-| Cascader | `Cascader`、`CascaderPanel` | ✅ | 次要：无 show-all-levels/separator、filter-method | entry_cascader_panel.go `CascaderPanel`（内嵌面板，`Multiple/LoadData/ShowCheckedStrategy/StrategyValue/Height/Border`）；懒加载与勾选策略见 Ant 那一行 |
-| Checkbox | `Checkbox`、`CheckboxGroup` | ⚠️ | 无 checkbox-button、border 样式；Group 无 min/max；无 size | choice.go:304 `CheckboxGroup` |
+| Autocomplete | `AutoComplete` | ✅ | — | entry_autocomplete.go `TriggerOnFocus()`（异步取数用 `Remote/Debounce/Loading`，聚焦时立即调用一次） |
+| Cascader | `Cascader`、`CascaderPanel` | ✅ | — | entry_cascader.go `FilterMethod`（filter-method）、`DisplayRender`（覆盖 show-all-levels/separator）；entry_cascader_panel.go `CascaderPanel`（内嵌面板，`Multiple/LoadData/ShowCheckedStrategy/StrategyValue/Height/Border`）；懒加载与勾选策略见 Ant 那一行 |
+| Checkbox | `Checkbox`、`CheckboxGroup` | ✅ | — | choice.go `CheckboxW.Button`（checkbox-button）、`Border`、`Size`；`CheckboxGroup(...).Min/Max/Disabled/Buttons/Border/Size`；choice_test.go `TestCheckboxGroupMinMax/TestCheckboxBorderButtonSize` |
 | Color Picker Panel | `ColorPickerPanel` | ✅ | — | fill_color_panel.go `Presets/PresetGroups/Format/NoAlpha/AllowClear/Border` |
 | Color Picker | `ColorPicker` | ✅ | 次要：无 hsl 格式 | entry_color.go `cpFormatOK`（hex/rgb/hsb/hsv） |
 | Date Picker Panel | `DatePickerPanel` | ✅ | — | fill_date_panel.go `PickerType`（日/周/月/季/年）、`Range` |
-| Date Picker | `DatePicker`、`RangePicker` | ⚠️ | 无 dates/months 多选 | entry_daterange.go `Picker`（monthrange/yearrange）；可键盘输入，同 Ant DatePicker 那一行 |
-| DateTime Picker | `DateTimePicker`、`RangePicker.ShowTime` | ⚠️ | 无 disabled-date、shortcuts | `DateTimePickerW` 无 `DisabledDate/Presets`；entry_daterange.go:158 `ShowTime` |
+| Date Picker | `DatePicker`、`MultiDatePicker`、`RangePicker` | ✅ | — | type=dates/months/years：date_multi.go `MultiDatePicker(...).Picker(PickerMonth/PickerYear)`；entry_daterange.go `Picker`（monthrange/yearrange）；可键盘输入，同 Ant DatePicker 那一行 |
+| DateTime Picker | `DateTimePicker`、`RangePicker.ShowTime` | ✅ | — | entry_datetime.go `DateTimePickerW.DisabledDate/Presets/DisabledTime`；entry_daterange.go `ShowTime`、`DisabledTime` |
 | Form | `Form` | ✅ | 次要：只有校验失败时滚动（`ScrollToFirstError`），无按字段 scrollToField | p2d_form.go `ValidateFields/ClearValidate/RequiredMark/Disabled/ResetFields`、`FormItemW.OnReset` |
 | Input | `Input`、`TextArea` | ✅ | — | input.go、entry_inputx.go |
 | Input Number | `InputNumber` | ✅ | 次要：不能 `controls=false` | input.go:719 `ControlsPosition` |
-| Input Tag | `InputTag` | ⚠️ | 分隔符固定为英文/中文逗号；无 draggable、save-on-blur | entry_inputtag.go:124 |
+| Input Tag | `InputTag` | ✅ | 次要：拖动排序只支持指针，没有键盘替代 | entry_inputtag.go `Separators`（delimiter，可多个）、`Draggable`、`SaveOnBlur`；entry_inputtag_test.go `TestEntryInputTagSeparators/DragSort/SaveOnBlur` |
 | Input OTP | `OTP` | ✅ | 次要：无 separator、formatter | entry_otp.go `Mask/Numeric/Status/Size/Gap` |
-| Mention | `Mentions` | ⚠️ | 无 whole 整体删除 | entry_mentions.go（`Remote/Loading` 对应 search/loading） |
-| Radio | `Radio`、`RadioGroup` | ⚠️ | 无 border 样式；整组不能 disabled（radio-button 由 `Buttons` 提供） | choice.go:481-494 |
+| Mention | `Mentions` | ✅ | — | entry_mentions.go `Whole()/WholeCheck(fn)`（whole / check-is-whole；`Remote/Loading` 对应 search/loading） |
+| Radio | `Radio`、`RadioGroup` | ✅ | — | choice.go `RadioW.Border/Size`、`RadioGroupW.Border/Disabled`（radio-button 由 `Buttons` 提供）；choice_test.go `TestRadioGroupDisabledAndBorder` |
 | Rate | `Rate` | ✅ | 次要：无 low/high 阈值分段配色 | entry_rate.go `Color(theme.Color)` |
-| Select | `Select`、`MultiSelect` | ✅ | 次要：无 prefix | p2b_select.go `SelectW.FilterMethod`、`MultiSelectW.FilterMethod` |
+| Select | `Select`、`MultiSelect` | ✅ | — | select.go `Prefix/PrefixText/SuffixIcon`；p2b_select.go `SelectW.FilterMethod`、`MultiSelectW.FilterMethod` |
 | Virtualized Select | `VirtualSelect` | ✅ | — | fill_virtual_select.go `Filterable/FilterMethod/Remote/Multiple/MaxTagCount` |
 | Slider | `Slider`、`SliderRange` | ✅ | — | p2b_slider.go `WithInput`（范围与竖向都可带输入框）、`AllowCross/Pushable` |
-| Switch | `Switch` | ⚠️ | 无 active-value/inactive-value、before-change、inline-prompt、large 尺寸、width | choice.go `Small/Loading/Texts` |
+| Switch | `Switch`、`SwitchValue` | ✅ | — | choice.go `SwitchValue[T]`（active-value/inactive-value）、`BeforeChange/BeforeChangeAsync`（异步期间 loading）、`Texts/Icons`（inline-prompt）、`OuterTexts`（active-text/inactive-text 在外侧）、`Large/Size`、`Width`；choice_test.go `TestSwitch*` |
 | Time Picker | `TimePicker`、`TimeRangePicker` | ✅ | — | p2a_time_range.go `typed`（范围版可键盘输入） |
 | Time Select | `TimeSelect` | ✅ | — | more_timeselect.go `Start/End/Step/MinTime/MaxTime/Clearable` |
 | Transfer | `Transfer` | ✅ | 次要：无 filter-method、target-order、format | p2b_transfer.go `pager` 复用 `Pagination`；`Render/OneWay/TreeSource/Virtual` |
-| TreeSelect | `TreeSelect` | ⚠️ | 无 check-strictly、filter-node-method | p2b_treeselect.go `ExpandedKeys`（覆盖 default-expanded-keys，且可受控）；entry_treeselect.go `DefaultExpandAll/Searchable` |
-| Upload | `Upload` | ⚠️ | 无 auto-upload=false + submit()、list-type=picture | p2d_upload.go `CustomRequest`（对应 http-request）；照片墙已有重试（entry_upload.go `upCardIconRow`） |
+| TreeSelect | `TreeSelect` | ✅ | — | entry_treeselect.go `CheckStrictly`（check-strictly）、`FilterTreeNode`（filter-node-method）；p2b_treeselect.go `ExpandedKeys`（覆盖 default-expanded-keys，且可受控）；entry_treeselect.go `DefaultExpandAll/Searchable` |
+| Upload | `Upload` | ✅ | — | p2d_upload.go `AutoUpload(false)` + `Submit()`、`CustomRequest`（对应 http-request）；entry_upload.go `ListType(UploadListPicture)`；照片墙已有重试（`upCardIconRow`） |
 | **Data** | | | | |
 | Avatar | `Avatar` | ✅ | — | display.go |
 | Badge | `Badge` | ✅ | — | data_badge.go |
-| Calendar | `Calendar` | ⚠️ | 无 `range` | data_calendar.go `elHeader` |
+| Calendar | `Calendar` | ✅ | — | data_calendar.go `CalendarW.Range`（只显示范围所在的周，标题显示范围，范围外日期不可选）、`elHeader` |
 | Card | `Card` | ✅ | — | data_card.go `Shadow/Footer` |
 | Carousel | `Carousel` | ✅ | 次要：无 motion-blur | data_carousel.go `Draggable/SwipeThreshold`、`Card/Vertical` |
 | Collapse | `Collapse` | ✅ | — | data_collapse.go `Accordion/IconEnd/IconStart` |
@@ -184,19 +186,19 @@
 | Empty | `Empty` | ✅ | — | data_result.go |
 | Image | `Image` | ✅ | 次要：无视口懒加载（`c.lazy` 只是延迟构建） | data_image.go |
 | Infinite Scroll | `InfiniteScroll` | ✅ | — | more_infinite.go `Distance/Loading/Done/Disabled` |
-| Pagination | `Pagination` | ⚠️ | 无 `layout` 自由排序、`pager-count` | nav.go（grep 为 0） |
+| Pagination | `Pagination` | ✅ | — | nav.go `Layout(PaginationPrev, PaginationPager, PaginationNext, PaginationJumper, PaginationSizes, PaginationTotal, PaginationSpacer)`（"->" 即 `PaginationSpacer`）、`PagerCount(n)`（5–21 奇数） |
 | Progress | `Progress` | ✅ | — | data_progress.go |
 | Result | `Result` | ✅ | — | data_result.go |
 | Skeleton | `Skeleton` | ✅ | — | data_skeleton.go |
 | Table | `Table` | ✅ | — | table*.go，另有 `HighlightCurrentRow`、`Ellipsis` |
-| Virtualized Table | `Table.Virtual`、`VirtualList`、`Listy` | ⚠️ | 有行虚拟化；列虚拟化未确认 | table.go:377 `Virtual`；more_virtual.go |
+| Virtualized Table | `Table.Virtual`、`VirtualList`、`Listy` | ✅ | — | table.go `Virtual`；行虚拟化 + 列虚拟化（table_show.go `culled`：只建可见列的表头/单元格/汇总格，固定列照常；table_colvirt_test.go）；more_virtual.go |
 | Tag | `Tag`、`CheckableTag` | ✅ | — | display.go、more_checktag.go |
 | Timeline | `Timeline` | ✅ | — | data_timeline.go `TimelineItem{Time,TimeTop,Hollow,Large}` |
-| Tour | `Tour` | ⚠️ | 同 Ant 那一行 | data_popover.go |
+| Tour | `Tour` | ✅ | — | 同 Ant 那一行 |
 | Tree | `Tree` | ✅ | 次要：无 render-content、allow-drop、accordion | data_tree.go `Height`（虚拟滚动）、`Filter`（filter-node-method） |
 | Virtualized Tree | `VirtualTree` | ✅ | — | fill_virtual_tree.go `Height/NodeRender/Range` |
-| Statistic | `Statistic`、`Countdown` | ✅ | — | display.go、data_skeleton.go:236 |
-| Segmented | `Segmented` | ⚠️ | 无 direction=vertical | entry_segmented.go |
+| Statistic | `Statistic`、`Countdown` | ✅ | — | display.go、data_skeleton.go `Countdown/StatisticTimer`、`OnChange` |
+| Segmented | `Segmented` | ✅ | — | entry_segmented.go `Vertical()` |
 | **Navigation** | | | | |
 | Affix | `Affix` | ✅ | — | nav_affix.go |
 | Anchor | `Anchor` | ✅ | — | nav_affix.go |
@@ -208,12 +210,12 @@
 | Steps | `Steps` | ✅ | — | nav_steps.go `Type("simple")/FinishStatus` |
 | Tabs | `Tabs` | ✅ | — | nav.go `BorderCard`（type="border-card"）；竖向设 `Height` 后溢出有"…"；shadcn 统一画法（同 Ant 那一行） |
 | **Feedback** | | | | |
-| Alert | `Alert` | ⚠️ | 无 `effect="dark"`、`center` | feedback.go:385-411 |
+| Alert | `Alert` | ✅ | — | feedback.go `Effect(AlertEffectDark)`（令牌 `*DarkBg/DarkTextColor`）、`Center()` |
 | Dialog | `Modal` | ✅ | before-close 靠应用控制 `open` 实现 | feedback.go |
 | Drawer | `Drawer` | ✅ | before-close 同 Dialog，靠应用控制 `open` | feedback.go `Resizable/SizeLimits/BindSize` |
 | Loading | `Loading` | ✅ | — | feedback.go:295 `Tip/Background/Fullscreen` |
-| Message | `Message` | ⚠️ | 无 showClose、placement（只在顶部）、offset、plain；grouping 用 `Key` 原地更新代替 | nav_notify.go:69/166 |
-| Message Box | `Confirm`、`MessageBox`、`Prompt` | ⚠️ | 无 distinguishCancelAndClose、center、draggable、自定义 icon | more_confirm.go:23 |
+| Message | `Message` | ✅ | 次要：grouping 用 `Key` 原地更新代替 | nav_notify.go `ShowClose/Placement/Offset/Plain`（令牌 `Top/MarginInline/CloseColor/Plain*`） |
+| Message Box | `Confirm`、`MessageBox`、`Prompt` | ✅ | — | more_confirm.go `ConfirmOptions.DistinguishCancelAndClose/OnClose`、`ConfirmRef.Action()`、`Center`、`Draggable`、`Icon` |
 | Notification | `Notification` | ✅ | — | nav_notify.go（四角加上下两个方位，Duration≤0 常驻） |
 | Popconfirm | `Popconfirm` | ✅ | — | feedback.go |
 | Popover | `Popover` | ✅ | — | data_popover.go |
@@ -228,21 +230,21 @@
 
 | 组件 | Tango 入口 | 状态 | 缺的能力 / 次要缺口 | 代码证据 |
 |---|---|---|---|---|
-| ProLayout | `ProLayout(c, ProLayoutConfig, fn)` | ⚠️ | 面包屑只能静态传入，不会按路由自动生成；无 menuHeaderRender/headerRender 等钩子；DefaultFooter 只有一行文字（无 links/copyright 结构）；sider 总是固定（fixSiderbar 只做透传） | prolayout.go `ProLayoutConfig{Layout side/top/mix, Menu, Selected, Collapsed, LightSider, Breadcrumb []string, Actions, Footer string, Breakpoint, SiderWidth, ContentWidth Fluid/Fixed, NoFixedHeader, NoPadding}` |
+| ProLayout | `ProLayout(c, ProLayoutConfig, fn)`、`DefaultFooter`、`MenuPath` | ✅ | 次要：MenuItemRender 只能改写菜单项数据（Menu 自己绘制，不能换成任意 UI）；NoFixSiderbar 时侧栏布局下顶栏随页面一起滚动 | prolayout.go `ProLayoutConfig{Layout side/top/mix, Menu, Selected, Collapsed, LightSider, Breadcrumb, AutoBreadcrumb, BreadcrumbRender, MenuHeaderRender, MenuFooterRender, HeaderRender, HeaderContentRender, MenuItemRender, FooterRender, FooterLinks, Footer, NoFixSiderbar, Breakpoint, SiderWidth, ContentWidth, NoFixedHeader, NoPadding}`；`DefaultFooterW.Links/Copyright/Clicked`；`ProSettings.Apply` 写 `NoFixSiderbar`，`RouteInfo.FixSiderbar` |
 | SettingDrawer | `SettingDrawer`、`ProSettingsProvider`、`ProSettings.Apply` | ✅ | 次要：色弱模式用 `theme.HighContrast` 近似（没有 CSS filter） | pro4_setting.go `SettingDrawerW.Open/NoTrigger/Colors/Changed/Show`；`ProSettings{NavTheme,PrimaryColor,Layout,ContentWidth,FixedHeader,FixSiderbar,ColorWeak,Compact}` |
 | RouteContext / GridContent | `RouteContext`、`GridContent` | ✅ | — | pro4_route.go `RouteInfo{InLayout,Layout,Collapsed,IsMobile,HasSiderMenu,Breadcrumb,PageTitle,Selected,ContentWidth,FixedHeader}`；`GridContentW.ContentWidth/MaxWidth`（Fixed 居中 1200px） |
 | PageContainer | `PageContainer` | ✅ | — | pro2_page.go `Tabs/TabExtra/TabsCard/Extra/Breadcrumb/Back/Tags/SubTitle/Content/ExtraContent/Footer/Loading/Ghost` |
 | FooterToolbar | `FooterToolbar` | ⚠️ | **无毛玻璃**：只有 95%/96% 不透明背景加阴影，没有 backdrop blur（仓库里也没有背景模糊绘制原语） | pro2_page.go 约 95-103 行 `b.Bg(theme.Fade(th.BgContainer, 0.96))`（shadcn 0.95）；`Extra/Sticky/Target` |
-| ProCard | `ProCard` | ⚠️ | 无 `actions` 底部操作栏（`Extra` 放在头部右侧） | pro2_card.go `Split/Direction/Gutter/Wrap/ColSpan/Tabs/Collapsible/HeaderBordered/Ghost/Centered/Loading/Hoverable` |
+| ProCard | `ProCard` | ✅ | — | pro2_card.go `Actions`（底部等宽操作栏，分隔线，Card 令牌 ActionsBg）、`Split/Direction/Gutter/Wrap/ColSpan/Tabs/Collapsible/HeaderBordered/Ghost/Centered/Loading/Hoverable` |
 | StatisticCard | `StatisticCard`、`StatisticCardGroup` | ✅ | 次要：无独立的 `StatisticCard.Divider`（Group 用 Split 自动加分隔） | pro2_statistic.go `Trend/Chart/ChartPlace/Status/Icon/Desc/Footer`、:303 Group |
 | CheckCard | `CheckCard`、`CheckCardGroup` | ✅ | — | pro2_checkcard.go `Avatar/Disabled/Size/Cover/Loading`；Group `Value/Values` |
 | WaterMark | `Watermark` | ✅ | 次要：zIndex/fontFamily 未确认 | data_watermark.go |
-| ProTable | `ProTable[T]` | ✅ | 次要：列 valueType 只有 11 种 | table_pro.go `Params`（外部参数，变化回第 1 页）、`Polling/PausePolling/ResumePolling`、`ColumnsState/OnColumnsStateChange/PersistColumnsState`、`TableAlertRender/TableAlertOptionRender/NoTableAlert`；`Request/ProColumn{ValueType,HideInSearch,HideInTable,Fixed}/ToolBar/NoSearch`，选项区有刷新/密度/列设置/全屏 |
+| ProTable | `ProTable[T]` | ✅ | —（列 valueType 与 ProField 共用，含 index/image/avatar/code/second/fromNow 等） | table_pro.go `Params`（外部参数，变化回第 1 页）、`Polling/PausePolling/ResumePolling`、`ColumnsState/OnColumnsStateChange/PersistColumnsState`、`TableAlertRender/TableAlertOptionRender/NoTableAlert`；`Request/ProColumn{ValueType,HideInSearch,HideInTable,Fixed}/ToolBar/NoSearch`，选项区有刷新/密度/列设置/全屏 |
 | EditableProTable | `EditableProTable[T]` | ✅ | — | p2e_editable.go `NewRow/AddAtTop/MaxLength/EditableKeys/Multiple/RowEditable/OnSave/OnDelete` |
 | DragSortTable | `ProTable.DragSort`、`EditableProTable.DragSort` | ✅ | 以方法形式提供，没有独立入口；自定义拖拽把手未确认 | table_pro.go:364（注释 "Ant Design Pro DragSortTable"）；p2e_editable.go:173 |
 | ProList | `ProList[T]` | ✅ | — | pro3_list.go `ProListMetas{Title,SubTitle,Description,Avatar,Content,Actions,Extra}/Selection/Expandable/Grid/Request/Pagination` |
 | ProDescriptions | `ProDescriptions` | ✅ | — | pro3_descriptions.go `Request/Editable/ProDescItem{ValueType,ValueEnum,Span,Render}` |
-| ProForm | `ProForm(c, []ProField)` | ⚠️ | 无 `readonly` 只读模式 | form_pro.go `Columns/Horizontal/Request/OnFinish/Submitter/Children/Gutter` |
+| ProForm | `ProForm(c, []ProField)` | ✅ | — | form_pro.go `Readonly`（整表只读，隐藏按钮、不校验）、`ProField.Readonly`（单字段）、`Columns/Horizontal/Request/OnFinish/Submitter/Children/Gutter`；`ModalFormW.Readonly` |
 | ModalForm / DrawerForm | `ModalForm`、`DrawerForm` | ✅ | — | form_pro_modal.go:35/51 |
 | QueryFilter | `QueryFilter` | ✅ | — | form_pro_query.go `DefaultExpanded/Searched/Params` |
 | LightFilter | `LightFilter` | ✅ | — | pro3_lightfilter.go `Collapse/Bordered/Size/Params` |
@@ -252,9 +254,9 @@
 | ProFormFieldSet | `ProFormFieldSet`、`FieldSet` | ✅ | — | pro3_fieldset.go:36/60 |
 | ProFormDependency | `ProField.Dependencies` + `Hide/Disable/Options` 闭包 | ✅ | 等价实现，不是组件形式 | form_pro_field.go:167-170 |
 | ProFormGroup | `ProFormGroup`、`ProField.Group` | ✅ | — | pro4_group.go `ProFormGroupW.Description/Extra/Collapsible/DefaultCollapsed/Collapsed/Columns/Gutter/Body`、`ProFormItems`；form_pro_field.go `ProField.Group`（连续同组字段自动包成 ProFormGroup） |
-| SchemaForm（BetaSchemaForm） | 把 `[]ProField` 传给各表单入口 | ⚠️ | 本身就是 schema 驱动，但没有 `layoutType` 统一入口；schema 里写不了 FormList（分组已可用 `ProField.Group`） | ProForm/ModalForm/StepsForm/QueryFilter 都接收 `[]ProField` |
-| ProForm 字段组件（ProFormText/Select…） | `ProField.ValueType` | ⚠️ | 没有独立字段组件；缺 dateWeek/Month/Quarter/Year、dateTimeRange、image、avatar、code/jsonCode、fromNow、second、index、captcha 等 valueType | form_pro_field.go:19-37（19 种）；table_pro.go:34-44（11 种） |
-| ProField | `ProField` 结构体、`ProFormat()`/`ProFormatLocale()` | ⚠️ | 无可单独渲染的组件、无 mode=read/edit 切换 | form_pro_field.go:144；table_pro.go:1298 `ProFormat`、:1304 `ProFormatLocale`（货币见下） |
+| SchemaForm（BetaSchemaForm） | `SchemaForm(c, []ProField)` | ✅ | 次要：StepsForm 按 `ProField.Group` 分步（无单独的 steps 配置） | form_pro_schema.go `LayoutType(SchemaLayoutForm/ModalForm/DrawerForm/StepsForm/QueryFilter/LightFilter)/Values/OnFinish/Columns/Readonly/Open/Title/Width/Finished/Searched/Params`；schema 里 `ValueType: ValueFormList` + `ProField.List *ProFieldList{Fields,Min,Max,AddText}` |
+| ProForm 字段组件（ProFormText/Select…） | `ProField.ValueType` | ✅ | 次要：没有一个 valueType 一个的独立字段组件（用 `ProFieldOf` 单独渲染）；image 只读值是 image.Image（不加载 URL） | form_pro_types.go `ValueDateWeek/DateMonth/DateQuarter/DateYear/DateTimeRange/Image/Avatar/Code/JSONCode/FromNow/Second/Index/Captcha/FormList`；`ProField.OnCaptcha/CaptchaSeconds/List` |
+| ProField | `ProFieldOf(c, ProField, *any)`、`ProFormat()`/`ProFormatLocale()` | ✅ | — | form_pro_field.go `ProFieldW.Mode(ProFieldRead/ProFieldEdit)/Changed/Show`；只读视图与 ProDescriptions/ProTable 共用 |
 | ProSkeleton | `ProSkeleton(c, kind)` | ✅ | — | pro2_skeleton.go `SkeletonList/SkeletonResult/SkeletonDescriptions` |
 
 **货币符号（复核：已改为 ISO 代码加地区规则）**
@@ -273,6 +275,7 @@
 - `-theme all` = antd + shadcn。
 - 画廊首页 `gallery.Home` 能在 Ant / Element / shadcn 与暗色之间切换。
 - shadcn 是**主题轮次**，不是逐页手写的变体。全仓只有 `page_shadcn.go` 一个 shadcn 专属页（ShadcnDashboard，以及 Command/Toggle/Kbd 等）。
+- 对标 shadcn 新增（groupF，2026-11-14）：`Menubar`（✅ menubar.go，下拉面板复用 nav_dropdown.go `navMenuPopup` + `navMarks` 勾选/单选指示；页面 page_menubar.go）、`AspectRatio`（✅ aspect_ratio.go；page_aspect_ratio.go）、`Item`/`ItemGroup`（✅ item.go；page_item.go）。三者在 Ant / Element / shadcn 亮暗下均有截图；令牌 `Components.Menubar` / `Components.Item`。未接 `ConfigProvider.Defaults`。
 
 ### 5.2 本次渲染结果（2026-11-13 晚重跑，HEAD `22a1c1a`，`-theme all -scale 1`）
 

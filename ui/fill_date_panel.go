@@ -71,6 +71,9 @@ type DatePickerPanelW struct {
 	// onRange replaces the write to *val / *end of a completed range
 	// (the popup of a RangePicker with Picker).
 	onRange func(a, b time.Time)
+	// multi lists the selected period starts of a MultiDatePicker popup
+	// (drawn as selected; picks go to onPick, which toggles them).
+	multi []time.Time
 }
 
 // DatePickerPanel adds an inline date panel bound to *val. Picked values
@@ -665,6 +668,19 @@ func (w *DatePickerPanelW) dayPanel(month time.Time, prev, next bool, hover *tim
 	m := dtMonth{view: month, today: c.now, cursor: st.cursor, disabled: w.disabled, hideOut: w.ranged, hover: hover, ids: w.ids}
 	if st.mode == fillViewLevel(w.picker) {
 		m.selA, m.selB = a, b
+		if w.multi != nil {
+			m.selA, m.selB = time.Time{}, time.Time{}
+			for _, s := range w.multi {
+				if week {
+					for i := 0; i < 7; i++ {
+						m.sels = append(m.sels, s.AddDate(0, 0, i))
+					}
+				} else {
+					m.sels = append(m.sels, s)
+				}
+			}
+			a = time.Time{}
+		}
 		if week && !a.IsZero() {
 			if b.IsZero() {
 				m.selB = fillPeriodLast(a, PickerWeek)
@@ -850,7 +866,9 @@ func (w *DatePickerPanelW) gridPanel(anchor time.Time, prev, next bool, hover *t
 							cursor:  ce.start.Equal(st.cursor),
 							first:   k == 0, last: k == cols-1 || i == len(cells)-1,
 						}
-						if base {
+						if base && w.multi != nil {
+							look.selected = dtInSet(ce.start, w.multi)
+						} else if base {
 							look.selected = (!a.IsZero() && ce.start.Equal(a)) || (!b.IsZero() && ce.start.Equal(b))
 							if !a.IsZero() && !b.IsZero() {
 								look.inRange = !ce.start.Before(a) && !ce.start.After(b) && !a.Equal(b)

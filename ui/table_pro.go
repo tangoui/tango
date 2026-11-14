@@ -667,7 +667,11 @@ func (p *ProTableW[T]) hasSearch() bool {
 }
 
 func (p *ProTableW[T]) searchable(col ProColumn[T]) bool {
-	return !col.HideInSearch && col.ValueType != ValueOption && col.Key != ""
+	switch col.ValueType {
+	case ValueOption, ValueIndex, ValueImage, ValueAvatar, ValueCode, ValueJSONCode, ValueCaptcha, ValueFormList:
+		return false // nothing to search by
+	}
+	return !col.HideInSearch && col.Key != ""
 }
 
 // queryFilter is the search form: a QueryFilter over the searchable
@@ -1189,7 +1193,7 @@ func (p *ProTableW[T]) tableColumn(pc ProColumn[T], rows []T) TableColumn {
 	col := TableColumn{Key: pc.Key, Title: pc.Title, Width: pc.Width, MinWidth: pc.MinWidth, Fixed: pc.Fixed,
 		Align: pc.Align, Ellipsis: pc.Ellipsis, Hidden: pc.Hidden, Sortable: pc.Sortable}
 	switch pc.ValueType {
-	case ValueMoney, ValueDigit, ValuePercent:
+	case ValueMoney, ValueDigit, ValuePercent, ValueSecond:
 		if pc.Align == AlignStart {
 			col.Align = AlignEnd // numbers line up at the end (left in RTL)
 		}
@@ -1241,6 +1245,15 @@ func (p *ProTableW[T]) tableColumn(pc ProColumn[T], rows []T) TableColumn {
 		}
 	case ValueColor:
 		col.Render = func(i int) { p2eColorView(c, val(i)) }
+	case ValueIndex:
+		// The 1-based row number on the current page (the value is ignored).
+		col.Text = func(i int) string { return strconv.Itoa(i + 1) }
+	case ValueImage, ValueAvatar, ValueCode, ValueJSONCode:
+		col.Render = func(i int) {
+			if !proTypesView(c, pc.ValueType, val(i), 32, pc.Title) {
+				Text(c, "-")
+			}
+		}
 	default:
 		col.Text = func(i int) string { return pro3ValueText(c, pc.ValueType, pc.ValueEnum, val(i)) }
 		if pc.ValueType == ValueMoney {

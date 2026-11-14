@@ -227,40 +227,80 @@ func SkeletonImage(c *Context, w, h float32, active bool) {
 // ---------------------------------------------------------------------------
 // Countdown
 
-// CountdownW counts down to a deadline (Statistic.Countdown / el-countdown).
+// CountdownW counts down to a deadline (Statistic.Countdown / el-countdown)
+// or, made by StatisticTimer with TimerCountup, counts up from a start time
+// (Ant Statistic.Timer).
 type CountdownW struct {
 	_ [0]func()
 
 	c        *Context
 	n        *node
+	st       *countdownState
 	title    string
 	deadline time.Time
+	left     time.Duration // the shown duration: time left, or elapsed (count up)
 	format   string
 	prefix   string
 	suffix   string
 	finished bool
 	color    theme.Color
+	onChange func(time.Duration)
 }
+
+// countdownState is the retained state of a Countdown / StatisticTimer.
+type countdownState struct {
+	done  bool   // the deadline has been reported
+	shown string // value displayed last frame (OnChange)
+	seen  bool   // shown is set
+}
+
+// TimerType selects the direction of a StatisticTimer.
+type TimerType string
+
+const (
+	// TimerCountdown counts down to the given deadline (as Countdown).
+	TimerCountdown TimerType = "countdown"
+	// TimerCountup counts up from the given start time.
+	TimerCountup TimerType = "countup"
+)
 
 // Countdown adds a countdown to deadline. Format tokens: D, HH, mm, ss, SSS
 // (default "HH:mm:ss"); text in [brackets] is literal.
 func Countdown(c *Context, title string, deadline time.Time) *CountdownW {
-	w := &CountdownW{c: c, title: title, deadline: deadline, format: "HH:mm:ss"}
+	return newTimer(c, title, deadline, false)
+}
+
+// StatisticTimer adds a timer statistic (Ant Statistic.Timer): with
+// TimerCountdown it counts down to at like Countdown; with TimerCountup it
+// shows the time elapsed since at (zero before at) and never finishes.
+// Format, Prefix, Suffix, Color and OnChange apply to both.
+func StatisticTimer(c *Context, title string, typ TimerType, at time.Time) *CountdownW {
+	return newTimer(c, title, at, typ == TimerCountup)
+}
+
+// newTimer builds a countdown to at, or with up a count up from at.
+func newTimer(c *Context, title string, at time.Time, up bool) *CountdownW {
+	w := &CountdownW{c: c, title: title, deadline: at, format: "HH:mm:ss"}
 	th := c.Theme
 	w.color = th.TextHeading
 	w.n = c.add("countdown", title)
 	w.n.setRole(a11y.RoleTimer)
-	st := State[struct{ done bool }](c, w.n.id, nil)
-	left := deadline.Sub(c.now)
-	if left <= 0 {
+	st := State[countdownState](c, w.n.id, nil)
+	w.st = st
+	left := at.Sub(c.now)
+	switch {
+	case up:
+		left = max(0, -left)
+	case left <= 0:
 		left = 0
 		if !st.done {
 			st.done = true
 			w.finished = true
 		}
-	} else {
+	default:
 		st.done = false
 	}
+	w.left = left
 	// Title and value as Statistic's (its token: Element 12 / 20 px,
 	// shadcn font-medium label and font-bold number).
 	stk := &c.ThemeFor(theme.CompStatistic).Components.Statistic
@@ -296,20 +336,39 @@ func Countdown(c *Context, title string, deadline time.Time) *CountdownW {
 		lay := c.dataShape(w.prefix+value()+w.suffix, vst.Size, vw)
 		dataText(l, lay, sp.X(0, lay.Width), y+(vst.LineHeight-lay.Height)/2, w.color)
 	}
-	if left > 0 {
+	if left > 0 || up {
 		// Wake at the next visible change of the display.
 		step := time.Second
 		if containsToken(w.format, "SSS") {
 			step = 33 * time.Millisecond
 		}
 		rem := left % step
+		if up {
+			rem = step - rem // counting up: the next whole step
+		}
 		if rem == 0 {
 			rem = step
 		}
 		c.WakeAt(c.now.Add(rem))
 	}
+	c.deferred = append(c.deferred, w.finish)
 	return w
 }
+
+// finish runs after the chain: OnChange sees the final format.
+func (w *CountdownW) finish() {
+	v := FormatDuration(w.left, w.format)
+	changed := w.st.seen && v != w.st.shown
+	w.st.shown, w.st.seen = v, true
+	if changed && w.onChange != nil {
+		w.onChange(w.left)
+	}
+}
+
+// OnChange runs fn with the time left (counting up: the time elapsed)
+// whenever the displayed value changes, e.g. every second with the
+// default format. It does not run on the first frame.
+func (w *CountdownW) OnChange(fn func(d time.Duration)) *CountdownW { w.onChange = fn; return w }
 
 // Format sets the display format (see Countdown).
 func (w *CountdownW) Format(f string) *CountdownW { w.format = f; return w }

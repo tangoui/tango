@@ -25,6 +25,10 @@ type ColorPickerToken struct {
 	// Trigger.
 	TriggerSwatchRadius float32
 	TriggerSwatchBorder Color
+
+	// Gradient stop bar (ColorPickerGradient).
+	GradientBarHeight  float32 // the slider box; its rail is RailHeight (Element: the whole box)
+	GradientActiveRing Color   // ring around the selected stop's handle
 }
 
 func deriveColorPicker(t *Theme) ColorPickerToken {
@@ -37,6 +41,7 @@ func deriveColorPicker(t *Theme) ColorPickerToken {
 		SwatchActiveBorder: t.Primary.Base, SwatchHoverBorder: RGBA(0, 0, 0, .15),
 		BorderColor: t.Split, ClearColor: t.Error.Base,
 		TriggerSwatchRadius: t.RadiusSM, TriggerSwatchBorder: t.Split,
+		GradientBarHeight: 20, GradientActiveRing: t.Primary.Base,
 	}
 	if t.Flavor == Element {
 		// el-color-picker: square palette, 12px bars with a white thumb,

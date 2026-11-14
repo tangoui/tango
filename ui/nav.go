@@ -1431,7 +1431,23 @@ type PaginationW struct {
 	bg         bool
 	bgSet      bool // Background given (modifier or Defaults)
 	readOnly   bool
+	parts      []PaginationPart // Layout; nil: the flags decide
+	pagerCount int              // PagerCount; 0: Ant's window
 }
+
+// PaginationPart is one part of a Pagination arranged by
+// PaginationW.Layout (Element's layout).
+type PaginationPart string
+
+const (
+	PaginationPrev   PaginationPart = "prev"   // previous-page button
+	PaginationPager  PaginationPart = "pager"  // page buttons (the editable page in Simple)
+	PaginationNext   PaginationPart = "next"   // next-page button
+	PaginationJumper PaginationPart = "jumper" // "go to [ ] page"
+	PaginationSizes  PaginationPart = "sizes"  // page-size select (needs SizeChanger)
+	PaginationTotal  PaginationPart = "total"  // "total N items"
+	PaginationSpacer PaginationPart = "->"     // pushes the following parts to the end
+)
 
 type pagerState struct {
 	jump    string // quick jumper / simple pager input
@@ -1510,6 +1526,34 @@ func (p *PaginationW) SizeChanger(size *int) *PaginationW {
 	return p
 }
 func (p *PaginationW) Changed() bool { return p.changed }
+
+// Layout arranges the pager from parts in the given order (Element's
+// layout "total, prev, pager, next, sizes, jumper"); only the listed parts
+// show, whatever ShowTotal / ShowQuickJumper say. PaginationSizes needs
+// SizeChanger. PaginationSpacer pushes the parts after it to the end of
+// the row.
+func (p *PaginationW) Layout(parts ...PaginationPart) *PaginationW {
+	p.parts = append(p.parts[:0], parts...)
+	if p.parts == nil {
+		p.parts = []PaginationPart{}
+	}
+	return p
+}
+
+// PagerCount sets how many page-number buttons the pager shows at most
+// (Element pager-count: an odd number from 5 to 21, others are rounded up
+// to the next odd number in range). The first and last pages always show;
+// the rest are a window around the current page with ••• jumps. Without
+// it the pager follows Ant: every page up to 9 pages, else the first, the
+// last and five around the current page.
+func (p *PaginationW) PagerCount(n int) *PaginationW {
+	n = max(5, min(n, 21))
+	if n%2 == 0 {
+		n++
+	}
+	p.pagerCount = n
+	return p
+}
 
 // goTo moves to page n (clamped).
 func (p *PaginationW) goTo(n, pages int) {
@@ -1690,52 +1734,95 @@ func (p *PaginationW) Show() *PaginationW {
 	if shad {
 		gap = 4
 	}
-	nav := Row(c, func() {
-		if p.showTotal {
-			t := Text(c, loc.Total(p.total)).NoWrap().Layout(layout.Margin(geom.Insets{Right: 8}))
-			if allOff {
-				t.Color(th.TextDisabled)
-			}
+	custom := p.parts != nil
+	total := func() {
+		t := Text(c, loc.Total(p.total)).NoWrap()
+		if !custom {
+			t.Layout(layout.Margin(geom.Insets{Right: 8}))
 		}
-		item(loc.PrevPage, loc.PrevPage, icon.Left, *p.page-1, false, *p.page <= 1)
+		if allOff {
+			t.Color(th.TextDisabled)
+		}
+	}
+	pager := func() {
 		if p.simple {
 			p.simplePager(pages)
-		} else {
-			for _, pg := range pageList(*p.page, pages) {
-				if pg < 0 {
-					target, name := max(1, *p.page-5), loc.Prev5
-					if pg == -2 {
-						target, name = min(pages, *p.page+5), loc.Next5
-					}
-					item("•••", name, nil, target, false, false)
-					continue
+			return
+		}
+		list := pageList(*p.page, pages)
+		if p.pagerCount > 0 {
+			list = pageListN(*p.page, pages, p.pagerCount)
+		}
+		jump := max(5, p.pagerCount-2)
+		for _, pg := range list {
+			if pg < 0 {
+				target, name := max(1, *p.page-jump), loc.Prev5
+				if pg == -2 {
+					target, name = min(pages, *p.page+jump), loc.Next5
 				}
-				item(strconv.Itoa(pg), loc.Page(pg), nil, pg, pg == *p.page, false)
+				item("•••", name, nil, target, false, false)
+				continue
 			}
+			item(strconv.Itoa(pg), loc.Page(pg), nil, pg, pg == *p.page, false)
 		}
-		item(loc.NextPage, loc.NextPage, icon.Right, *p.page+1, false, *p.page >= pages)
-		if p.sizeOpts && !p.simple {
-			v := strconv.Itoa(*p.ps)
-			var opts []Option
-			selW := float32(110)
-			for _, n := range []int{10, 20, 50, 100} {
-				lb := loc.PageSizeLabel(n)
-				opts = append(opts, Option{Label: lb, Value: strconv.Itoa(n)})
-				selW = max(selW, entTextW(c, lb, c.Theme.FontSize, text.Regular)+48) // longer translations
-			}
-			sel := Select(c, &v, opts).Width(selW).Size(map[bool]ControlSize{true: Small, false: Middle}[p.small]).A11yLabel(loc.A11y.PageSize)
-			if allOff {
-				sel.Disabled(true)
-			}
-			if sel.Changed() {
-				n, _ := strconv.Atoi(v)
-				*p.ps = n
-				*p.page = 1
-				p.changed = true
-			}
+	}
+	sizes := func() {
+		if p.ps == nil || p.simple {
+			return
 		}
-		if p.jumper && !p.simple {
-			p.quickJumper(pages)
+		v := strconv.Itoa(*p.ps)
+		var opts []Option
+		selW := float32(110)
+		for _, n := range []int{10, 20, 50, 100} {
+			lb := loc.PageSizeLabel(n)
+			opts = append(opts, Option{Label: lb, Value: strconv.Itoa(n)})
+			selW = max(selW, entTextW(c, lb, c.Theme.FontSize, text.Regular)+48) // longer translations
+		}
+		sel := Select(c, &v, opts).Width(selW).Size(map[bool]ControlSize{true: Small, false: Middle}[p.small]).A11yLabel(loc.A11y.PageSize)
+		if allOff {
+			sel.Disabled(true)
+		}
+		if sel.Changed() {
+			n, _ := strconv.Atoi(v)
+			*p.ps = n
+			*p.page = 1
+			p.changed = true
+		}
+	}
+	parts := p.parts
+	if !custom {
+		parts = make([]PaginationPart, 0, 6)
+		if p.showTotal {
+			parts = append(parts, PaginationTotal)
+		}
+		parts = append(parts, PaginationPrev, PaginationPager, PaginationNext)
+		if p.sizeOpts {
+			parts = append(parts, PaginationSizes)
+		}
+		if p.jumper {
+			parts = append(parts, PaginationJumper)
+		}
+	}
+	nav := Row(c, func() {
+		for _, part := range parts {
+			switch part {
+			case PaginationTotal:
+				total()
+			case PaginationPrev:
+				item(loc.PrevPage, loc.PrevPage, icon.Left, *p.page-1, false, *p.page <= 1)
+			case PaginationPager:
+				pager()
+			case PaginationNext:
+				item(loc.NextPage, loc.NextPage, icon.Right, *p.page+1, false, *p.page >= pages)
+			case PaginationSizes:
+				sizes()
+			case PaginationJumper:
+				if !p.simple {
+					p.quickJumper(pages)
+				}
+			case PaginationSpacer:
+				Spacer(c)
+			}
 		}
 	}, layout.Gap(gap), layout.Middle())
 	nav.Semantics(a11y.RoleNavigation, loc.A11y.Pagination)
@@ -1820,6 +1907,41 @@ func (p *PaginationW) simplePager(pages int) {
 		Text(c, "/").NoWrap().Color(col).Layout(layout.Margin(geom.Insets{Right: map[bool]float32{true: 4, false: 8}[p.small]})).n.aHidden = true
 		Text(c, strconv.Itoa(pages)).NoWrap().Color(col)
 	}, layout.Middle())
+}
+
+// pageListN returns at most count page numbers (odd, >= 5) with -1 / -2
+// for the left / right ellipsis: the first and last pages and a window
+// around cur (Element's pager-count).
+func pageListN(cur, pages, count int) []int {
+	if pages <= count {
+		out := make([]int, pages)
+		for i := range out {
+			out[i] = i + 1
+		}
+		return out
+	}
+	half := (count - 1) / 2
+	prevMore := cur > count-half
+	nextMore := cur < pages-half
+	lo, hi := 2, count-1
+	switch {
+	case prevMore && !nextMore:
+		lo, hi = pages-(count-2), pages-1
+	case prevMore && nextMore:
+		off := count/2 - 1
+		lo, hi = cur-off, cur+off
+	}
+	out := []int{1}
+	if prevMore {
+		out = append(out, -1)
+	}
+	for i := lo; i <= hi; i++ {
+		out = append(out, i)
+	}
+	if nextMore {
+		out = append(out, -2)
+	}
+	return append(out, pages)
 }
 
 // pageList returns page numbers with -1 / -2 for the left/right ellipsis.

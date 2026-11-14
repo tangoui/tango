@@ -91,6 +91,8 @@ const (
 	CompFloatButton
 	CompAnchor
 	CompForm
+	CompMenubar
+	CompItem
 	// numComps counts the Comp values. Internally Comp(i) indexes the
 	// i-th field of Components, so both lists only ever grow at the end.
 	numComps
@@ -153,6 +155,8 @@ type Components struct {
 	FloatButton  FloatButtonToken
 	Anchor       AnchorToken
 	Form         FormToken
+	Menubar      MenubarToken
+	Item         ItemToken
 }
 
 // Alias is the subset of global tokens a component may override for itself
@@ -407,6 +411,10 @@ func deriveComp(t *Theme, k Comp) any {
 		return deriveAnchor(t)
 	case CompForm:
 		return deriveForm(t)
+	case CompMenubar:
+		return deriveMenubar(t)
+	case CompItem:
+		return deriveItem(t)
 	}
 	panic("theme: unknown component")
 }

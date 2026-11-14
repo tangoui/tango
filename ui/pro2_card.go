@@ -9,6 +9,7 @@ import (
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
+	"github.com/tangoui/tango/ui/theme"
 )
 
 // ---------------------------------------------------------------------------
@@ -70,6 +71,7 @@ type ProCardW struct {
 	tabActive      *string
 	tabsCard       bool
 	tabExtra       func()
+	actions        []func()
 
 	box     *Box
 	toggled bool
@@ -127,6 +129,11 @@ func (w *ProCardW) Tooltip(tip string) *ProCardW { w.tip = tip; return w }
 
 // Extra builds the actions at the right of the header.
 func (w *ProCardW) Extra(fn func()) *ProCardW { w.extra = fn; return w }
+
+// Actions adds the bottom action bar (Ant ProCard actions): each fn builds
+// one equal-width slot, separated by dividers (CardAction makes an icon
+// action). The bar is hidden while the card is folded.
+func (w *ProCardW) Actions(fns ...func()) *ProCardW { w.actions = fns; return w }
 
 // Split lays the child ProCards out on one surface separated by dividers
 // (SplitVertical or SplitHorizontal).
@@ -347,6 +354,9 @@ func (w *ProCardW) Body(fn func()) *ProCardW {
 		headPad.Bottom = headPad.Top
 	}
 
+	if len(w.actions) > 0 && w.inSplit == "" && !w.ghost {
+		b.Clip() // the action bar follows the rounded corners
+	}
 	b.Body(func() {
 		if hasHead {
 			folded = w.header(headPad, folded)
@@ -354,17 +364,41 @@ func (w *ProCardW) Body(fn func()) *ProCardW {
 		if folded {
 			return
 		}
-		if len(w.tabs) > 0 && w.tabActive != nil {
+		switch {
+		case len(w.tabs) > 0 && w.tabActive != nil:
 			w.tabsBody(fn, bodyPad)
-			return
-		}
-		if w.loading {
+		case w.loading:
 			Column(c, func() { pro2CardLoading(c) }, layout.Padding(bodyPad))
-			return
+		default:
+			w.content(fn, bodyPad)
 		}
-		w.content(fn, bodyPad)
+		if len(w.actions) > 0 {
+			w.actionBar(border)
+		}
 	})
 	return w
+}
+
+// actionBar is the bottom row of equal action slots with dividers, on
+// the Card token's actions background.
+func (w *ProCardW) actionBar(border theme.Color) {
+	c := w.c
+	tk := &c.ThemeFor(theme.CompCard).Components.Card
+	n := len(w.actions)
+	bar := Row(c, func() {
+		for i, a := range w.actions {
+			cell := Row(c, a, layout.Grow(1), layout.Basis(0), layout.MinW(0), layout.Center(), layout.Gap(6), layout.MinH(22))
+			if i < n-1 {
+				cell.Paint(func(l *paint.List, r geom.Rect) {
+					dataVLine(l, c.inline(r).End(), r.Y, r.H, border)
+				})
+			}
+		}
+	}, layout.PadVH(12, 0))
+	bar.Bg(tk.ActionsBg).Paint(func(l *paint.List, r geom.Rect) {
+		dataHLine(l, r.X, r.Y, r.W, border)
+	})
+	bar.Semantics(a11y.RoleToolbar, c.Locale().A11y.Toolbar)
 }
 
 // header builds the title row; it returns the (possibly toggled) folded

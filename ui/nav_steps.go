@@ -42,9 +42,11 @@ type StepsW struct {
 	sizeSet   bool
 	labelVert bool
 	changed   bool
-	finish    string            // Element finish-status ("finish" or "success")
-	nav       bool              // navigation type (Element simple)
-	percent   float64           // progress of the current step (<0: none)
+	finish    string  // Element finish-status ("finish" or "success")
+	nav       bool    // navigation type (Element simple)
+	percent   float64 // progress of the current step (<0: none)
+	kind      string  // "inline" or "panel"; "" for the default and navigation types
+	dotFn     func(l *paint.List, d StepDot)
 	th        *theme.Theme      // c.ThemeFor(theme.CompSteps), set by Show
 	tk        *theme.StepsToken // &th.Components.Steps
 }
@@ -71,10 +73,60 @@ func Steps(c *Context, items []StepItem) *StepsW {
 	return s
 }
 
-// Type selects "default" or "navigation" (Ant type="navigation": steps as
+// Type selects "default", "navigation" (Ant type="navigation": steps as
 // tabs with chevrons, the current one underlined; Element's simple steps
-// look the same way in the Element theme; "simple" is accepted too).
-func (s *StepsW) Type(t string) *StepsW { s.nav = t == "navigation" || t == "simple"; return s }
+// look the same way in the Element theme; "simple" is accepted too),
+// "inline" (see Inline) or "panel" (see Panel).
+func (s *StepsW) Type(t string) *StepsW {
+	s.nav = t == "navigation" || t == "simple"
+	s.kind = ""
+	if t == "inline" || t == "panel" {
+		s.kind = t
+	}
+	return s
+}
+
+// Inline uses the inline type (Ant type="inline"): a compact row of small
+// dots on a line with the titles under them, sized to its content so it
+// fits inside list rows and cards. Descriptions are not drawn; they stay
+// in the accessible description.
+func (s *StepsW) Inline() *StepsW { return s.Type("inline") }
+
+// Panel uses the panel type (Ant type="panel"): every step is an
+// arrow-shaped panel sharing the row, the current one highlighted.
+func (s *StepsW) Panel() *StepsW { return s.Type("panel") }
+
+// StepDot describes one dot to a custom dot renderer (DotRender).
+type StepDot struct {
+	_      [0]func()
+	Index  int         // 0-based step index
+	Status string      // "wait", "process", "finish", "error" or the finish status ("success")
+	Title  string      // the step's title
+	Rect   geom.Rect   // the area of the default dot; draw around its center
+	Color  theme.Color // the default dot color for Status
+	// Default draws the standard dot, so a renderer can decorate it.
+	Default func()
+}
+
+// DotRender uses the dot style with dots drawn by fn (Ant progressDot as a
+// function). fn gets the step index and status with the dot's rectangle,
+// and may call d.Default to draw the standard dot first. It also draws
+// the dots of the inline type.
+//
+//	ui.Steps(c, items).Current(1).DotRender(func(l *paint.List, d ui.StepDot) {
+//		d.Default()
+//		if d.Status == "process" {
+//			p := d.Rect.Center()
+//			l.StrokePath(paint.NewPath().Circle(p.X, p.Y, 8), paint.StrokeStyle{Width: 1}, d.Color)
+//		}
+//	})
+func (s *StepsW) DotRender(fn func(l *paint.List, d StepDot)) *StepsW {
+	s.dotFn = fn
+	if s.kind != "inline" {
+		s.Dot()
+	}
+	return s
+}
 
 // Percent shows the progress (0..100) of the current step as a ring
 // around its icon (Ant percent).
@@ -213,6 +265,13 @@ func (s *StepsW) Show() *StepsW {
 	if s.vertical {
 		b.n.ln.Align = layout.AlignStretch
 	}
+	switch {
+	case s.vertical:
+	case s.kind == "inline":
+		b.Style(layout.Self(layout.AlignStart)) // sized to the content (inline-flex)
+	case s.kind == "panel":
+		b.Style(layout.AlignItems(layout.AlignStretch), layout.Gap(s.tk.PanelGap))
+	}
 	if s.nav && !s.vertical {
 		b.n.ln.Align = layout.AlignStretch
 		if navEl(c) {
@@ -226,11 +285,18 @@ func (s *StepsW) Show() *StepsW {
 	}
 	b.Body(func() {
 		for i := range s.items {
-			if s.nav && !s.vertical {
+			switch {
+			case s.vertical:
+				s.item(i)
+			case s.kind == "inline":
+				s.inlineItem(i)
+			case s.kind == "panel":
+				s.panelItem(i)
+			case s.nav:
 				s.navItem(i)
-				continue
+			default:
+				s.item(i)
 			}
-			s.item(i)
 		}
 	})
 	return s
@@ -613,12 +679,11 @@ func (s *StepsW) item(i int) {
 			if st == "process" {
 				d = tk.DotCurrentSize
 			}
-			cx, cy := ir.X+ir.W/2, ir.Y+ir.H/2
 			col := k.iconFg
 			if !el {
 				col = s.dotColor(st)
 			}
-			l.Path(paint.NewPath().Circle(cx, cy, d/2), col)
+			s.paintDot(l, ir, d, col, i, st)
 		case it.Icon != nil:
 			col := k.iconFg
 			if !el {
@@ -729,5 +794,233 @@ func (s *StepsW) item(i int) {
 		if clickable && ia.FocusVisible {
 			l.Stroke(r.Expand(2), geom.Rad(th.RadiusSM), 2, th.FocusRing)
 		}
+	}
+}
+
+// paintDot draws the dot of step i centered in ir: the custom renderer
+// when one is set, else a d-wide circle in col.
+func (s *StepsW) paintDot(l *paint.List, ir geom.Rect, d float32, col theme.Color, i int, st string) {
+	def := func() {
+		l.Path(paint.NewPath().Circle(ir.X+ir.W/2, ir.Y+ir.H/2, d/2), col)
+	}
+	if s.dotFn == nil {
+		def()
+		return
+	}
+	s.dotFn(l, StepDot{Index: i, Status: st, Title: s.items[i].Title, Rect: ir, Color: col, Default: def})
+}
+
+// markColor is the dot color of a step: the status color of the icon in
+// Element, the dot tokens elsewhere.
+func (s *StepsW) markColor(st string, k stepColors) theme.Color {
+	if s.th.Flavor == theme.Element {
+		return k.iconFg
+	}
+	return s.dotColor(st)
+}
+
+// stepClick makes step node n clickable when the steps are and returns its
+// interaction.
+func (s *StepsW) stepClick(n *node, i int, it StepItem) (Interaction, bool) {
+	if s.cur == nil || it.Disabled {
+		return Interaction{}, false
+	}
+	ia := s.c.interact(n, true, input.CursorPointer)
+	if ia.Clicked && *s.cur != i {
+		*s.cur = i
+		s.changed = true
+		s.c.invalid = true
+	}
+	return ia, true
+}
+
+// tailColor is the color of the connector leaving step i.
+func (s *StepsW) tailColor(i int) theme.Color {
+	switch s.statusOf(i) {
+	case "finish":
+		return s.tk.FinishTailColor
+	case "success":
+		return s.tk.SuccessTailColor
+	}
+	return s.tk.TailColor
+}
+
+// inlineItem builds a step of the inline type: a small dot on a line
+// running through the row, the title centered under it.
+func (s *StepsW) inlineItem(i int) {
+	c, th, tk := s.c, s.th, s.tk
+	it := s.items[i]
+	last := i == len(s.items)-1
+	n := c.add("step", it.Title)
+	s.stepSem(n, i, it)
+	ia, clickable := s.stepClick(n, i, it)
+	tst := c.style(tk.InlineTitleFontSize, text.Regular)
+	dotRow := max(tk.InlineDotSize, tk.InlineDotCurrentSize) + 4
+	n.ln.Measure = func(_, _ float32) geom.Size {
+		w := max(text.Width(it.Title, tst), dotRow)
+		return geom.Size{W: w + 2*tk.InlinePaddingX, H: 2*tk.InlinePaddingY + dotRow + 2 + tst.LineHeight}
+	}
+	n.paint = func(l *paint.List, r geom.Rect) {
+		st := s.statusOf(i)
+		hov := clickable && ia.Hovered && i != s.current
+		k := s.colors(st, hov)
+		under := th.BgContainer
+		if hov {
+			l.Fill(r, geom.Rad(tk.InlineRadius), tk.InlineHoverBg)
+			under = theme.Over(tk.InlineHoverBg, th.BgContainer)
+		}
+		cy := r.Y + tk.InlinePaddingY + dotRow/2
+		sp := c.inline(r)
+		lw := tk.TailWidth
+		// The line runs through the whole row: the half towards the
+		// previous step continues its connector, the other half leaves
+		// this one (logical halves; mirrored in RTL).
+		if i > 0 {
+			l.Fill(sp.Rect(0, cy-lw/2, r.W/2, lw), geom.Radii{}, s.tailColor(i-1))
+		}
+		if !last {
+			l.Fill(sp.Rect(r.W/2, cy-lw/2, r.W/2, lw), geom.Radii{}, s.tailColor(i))
+		}
+		d := tk.InlineDotSize
+		if st == "process" {
+			d = tk.InlineDotCurrentSize
+		}
+		cx := r.X + r.W/2
+		ir := geom.Rect{X: cx - dotRow/2, Y: cy - dotRow/2, W: dotRow, H: dotRow}
+		// A ring of the background separates the dot from the line.
+		l.Path(paint.NewPath().Circle(cx, cy, d/2+2), under)
+		s.paintDot(l, ir, d, s.markColor(st, k), i, st)
+		tl := text.Shape(it.Title, tst, c.textOpts(text.Options{NoWrap: true, Ellipsis: true, MaxWidth: max(0, r.W-2*tk.InlinePaddingX)}))
+		l.Glyphs(geom.Pt(r.X+(r.W-tl.Width)/2, cy+dotRow/2+2), tl.Glyphs, k.title)
+		if clickable && ia.FocusVisible {
+			drawFocusRing(l, th, r, geom.Rad(tk.InlineRadius))
+		}
+	}
+}
+
+// panelItem builds a step of the panel type: an arrow-shaped panel with
+// the icon, title and description; the current step is highlighted.
+func (s *StepsW) panelItem(i int) {
+	c, th, tk := s.c, s.th, s.tk
+	el := th.Flavor == theme.Element
+	it := s.items[i]
+	first, last := i == 0, i == len(s.items)-1
+	n := c.add("step", it.Title)
+	s.stepSem(n, i, it)
+	ia, clickable := s.stepClick(n, i, it)
+	tst := c.style(th.FontSize, text.Regular)
+	dst := c.style(tk.DescriptionFontSize, text.Regular)
+	is := tk.PanelIconSize
+	aw := tk.PanelArrowWidth
+	// Content starts after the notch of the previous panel and ends before
+	// this panel's own point.
+	lead, trail := tk.PanelPaddingX, tk.PanelPaddingX
+	if !first {
+		lead += aw
+	}
+	if !last {
+		trail += aw
+	}
+	n.ln.Measure = func(_, _ float32) geom.Size {
+		w := text.Width(it.Title, tst)
+		h := tst.LineHeight
+		if it.Description != "" {
+			w = max(w, text.Width(it.Description, dst))
+			h += dst.LineHeight
+		}
+		return geom.Size{W: lead + is + 8 + w + trail, H: 2*tk.PanelPaddingY + max(is, h)}
+	}
+	n.ln.Grow, n.ln.Shrink, n.ln.MinW = 1, 1, 0
+	n.paint = func(l *paint.List, r geom.Rect) {
+		st := s.statusOf(i)
+		hov := clickable && ia.Hovered && i != s.current
+		k := s.colors(st, hov)
+		bg := tk.PanelBg
+		switch {
+		case i == s.current && st == "error":
+			bg = tk.PanelErrorBg
+		case i == s.current:
+			bg = tk.PanelActiveBg
+		case hov:
+			bg = tk.PanelHoverBg
+		}
+		// Shape, worked out left to right and mirrored in RTL: a notch
+		// where the previous panel's point enters, a point into the next.
+		px, _ := stepsMirror(c, r)
+		top, bot, mid := r.Y, r.Bottom(), r.Y+r.H/2
+		x0, x1 := r.X, r.Right()
+		p := paint.NewPath().MoveTo(px(x0, 0), top)
+		if last {
+			p.LineTo(px(x1, 0), top).LineTo(px(x1, 0), bot)
+		} else {
+			p.LineTo(px(x1-aw, 0), top).LineTo(px(x1, 0), mid).LineTo(px(x1-aw, 0), bot)
+		}
+		p.LineTo(px(x0, 0), bot)
+		if !first {
+			p.LineTo(px(x0+aw, 0), mid)
+		}
+		p.Close()
+		// Only the outer corners of the row are rounded.
+		rad := geom.Radii{}
+		if first {
+			rad.TL, rad.BL = tk.PanelRadius, tk.PanelRadius
+		}
+		if last {
+			rad.TR, rad.BR = tk.PanelRadius, tk.PanelRadius
+		}
+		if c.IsRTL() {
+			rad = geom.Radii{TL: rad.TR, TR: rad.TL, BR: rad.BL, BL: rad.BR}
+		}
+		l.Clip(r, rad)
+		l.Path(p, bg)
+		l.Pop()
+		// Icon, title and description from the inline start.
+		sp := c.inline(r)
+		ch := tst.LineHeight
+		if it.Description != "" {
+			ch += dst.LineHeight
+		}
+		s.panelIcon(l, sp.Rect(lead, r.Y+(r.H-is)/2, is, is), i, st, k, el)
+		tx := lead + is + 8
+		maxW := max(0, r.W-tx-trail)
+		ty := r.Y + (r.H-ch)/2
+		tl := text.Shape(it.Title, tst, c.textOpts(text.Options{NoWrap: true, Ellipsis: true, MaxWidth: maxW}))
+		l.Glyphs(geom.Pt(sp.X(tx, tl.Width), ty), tl.Glyphs, k.title)
+		if it.Description != "" {
+			dl := text.Shape(it.Description, dst, c.textOpts(text.Options{NoWrap: true, Ellipsis: true, MaxWidth: maxW}))
+			l.Glyphs(geom.Pt(sp.X(tx, dl.Width), ty+tst.LineHeight), dl.Glyphs, k.desc)
+		}
+		if clickable && ia.FocusVisible {
+			drawFocusRing(l, th, r, rad)
+		}
+	}
+}
+
+// panelIcon draws the numbered (or check / cross / custom) icon of a panel
+// step in ir.
+func (s *StepsW) panelIcon(l *paint.List, ir geom.Rect, i int, st string, k stepColors, el bool) {
+	c, tk := s.c, s.tk
+	it := s.items[i]
+	is := ir.W
+	if it.Icon != nil {
+		c.paintIcon(l, it.Icon, ir.Expand(-2), s.markColor(st, k), 0)
+		return
+	}
+	l.Fill(ir, geom.Rad(is/2), k.iconBg)
+	if k.iconBorder.A > 0 {
+		bw := float32(1)
+		if el {
+			bw = tk.TailWidth
+		}
+		l.Stroke(ir, geom.Rad(is/2), bw, k.iconBorder)
+	}
+	switch st {
+	case "finish", "success":
+		icon.Draw(l, icon.Check, ir.Expand(-is*0.27), k.iconFg, 0)
+	case "error":
+		icon.Draw(l, icon.Close, ir.Expand(-is*0.27), k.iconFg, 0)
+	default:
+		lay := navLabel(c, strconv.Itoa(i+1), tk.IconFontSizeSM, text.Regular)
+		l.Glyphs(geom.Pt(ir.X+(ir.W-lay.Width)/2, ir.Y+(ir.H-lay.Height)/2), lay.Glyphs, k.iconFg)
 	}
 }

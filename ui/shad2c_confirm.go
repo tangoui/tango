@@ -13,26 +13,30 @@ import (
 // the outlined (lucide-style) glyph before the title.
 func shad2cConfirmBox(c *Context, d *ConfirmRef, status string, buttons, input func()) {
 	th := c.Theme
-	showIcon := status != "none" && (d.kind == moreBoxAlert || d.o.Status != "")
+	showIcon := d.o.Icon != nil || status != "none" && (d.kind == moreBoxAlert || d.o.Status != "")
 	Column(c, func() {
 		Column(c, func() {
 			if d.o.Title != "" || showIcon {
-				Row(c, func() {
-					if showIcon {
+				head := Row(c, func() {
+					switch {
+					case d.o.Icon != nil:
+						d.leadIcon(c, status, 20)
+					case showIcon:
 						shad2cStatusNode(c, status, 20)
 					}
 					if d.o.Title != "" {
-						Text(c, d.o.Title).Size(th.FontSizeLG + 2).Weight(text.Semibold).Color(th.TextHeading).Layout(layout.Grow(1))
+						Text(c, d.o.Title).Size(th.FontSizeLG + 2).Weight(text.Semibold).Color(th.TextHeading).Align(d.textAlign()).Layout(d.grow())
 					}
-				}, layout.Gap(8), layout.Middle())
+				}, layout.Gap(8), layout.Middle(), d.justify(false))
+				d.handle = head.n
 			}
 			if d.o.Content != "" {
-				Text(c, d.o.Content).Color(th.TextTertiary)
+				Text(c, d.o.Content).Color(th.TextTertiary).Align(d.textAlign())
 			}
 			if d.kind == moreBoxPrompt {
 				Column(c, input, layout.Gap(4), layout.Margin(geom.Insets{Top: 4}))
 			}
 		}, layout.Gap(8))
-		Row(c, buttons, layout.End(), layout.Gap(8), layout.Margin(geom.Insets{Top: 16}))
+		Row(c, buttons, d.justify(true), layout.Gap(8), layout.Margin(geom.Insets{Top: 16}))
 	}, layout.Pad(24))
 }

@@ -22,6 +22,7 @@ type ModalFormW struct {
 	drawer   bool
 	finished bool
 	keep     bool
+	readonly bool
 }
 
 type modalFormState struct {
@@ -73,6 +74,10 @@ func (m *ModalFormW) Columns(n int) *ModalFormW { m.cols = max(1, n); return m }
 // KeepValues keeps the values after closing (default: reset on open).
 func (m *ModalFormW) KeepValues() *ModalFormW { m.keep = true; return m }
 
+// Readonly shows the values read-only (a details dialog): the drawer
+// drops its OK button and the modal's OK just closes it.
+func (m *ModalFormW) Readonly(on bool) *ModalFormW { m.readonly = on; return m }
+
 // Finished reports a completed submit (the dialog just closed), once.
 func (m *ModalFormW) Finished() bool { return m.finished }
 
@@ -90,7 +95,7 @@ func (m *ModalFormW) Show() *ModalFormW {
 	st.wasOpen = *m.open
 	var pf *ProFormW
 	form := func() {
-		pf = ProForm(c, m.fields).Values(m.vals).Columns(m.cols).NoSubmitter()
+		pf = ProForm(c, m.fields).Values(m.vals).Columns(m.cols).NoSubmitter().Readonly(m.readonly)
 		if m.onFinish != nil {
 			pf.OnFinish(m.onFinish)
 		}
@@ -116,7 +121,7 @@ func (m *ModalFormW) Show() *ModalFormW {
 				*m.open = false
 				c.invalid = true
 			}
-			if Button(c, loc.OK).Primary().Loading(st.busy).Clicked() {
+			if !m.readonly && Button(c, loc.OK).Primary().Loading(st.busy).Clicked() {
 				st.submit = true
 				c.invalid = true
 			}
@@ -130,7 +135,11 @@ func (m *ModalFormW) Show() *ModalFormW {
 	}
 	md.Body(func() { Column(c, form, layout.Padding(geom.Insets{Top: 12})) })
 	if md.Ok() {
-		st.submit = true
+		if m.readonly {
+			*m.open = false
+		} else {
+			st.submit = true
+		}
 		c.invalid = true
 	}
 	return m

@@ -59,6 +59,9 @@ func pro3ValueText(c *Context, valueType string, enum []ProEnum, v any) string {
 	if s, ok := p2eValueText(c, valueType, enum, v); ok {
 		return s
 	}
+	if s, ok := proTypesText(c, valueType, v); ok {
+		return s
+	}
 	switch valueType {
 	case ValueMoney:
 		if f, ok := proNumber(v); ok {
@@ -107,6 +110,9 @@ func pro3ValueText(c *Context, valueType string, enum []ProEnum, v any) string {
 // pro3ValueView renders a read-only value by its value type: badges for
 // status, tags, a progress bar, a rate, otherwise the formatted text.
 func pro3ValueView(c *Context, valueType string, enum []ProEnum, v any) {
+	if proTypesView(c, valueType, v, 48, "") {
+		return
+	}
 	switch valueType {
 	case ValueStatus:
 		if v == nil || fmt.Sprint(v) == "" {

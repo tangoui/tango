@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/tangoui/tango/ui/a11y"
 	"math"
+	"sync/atomic"
 
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
@@ -102,13 +103,28 @@ type CheckboxW struct {
 	disabled      bool
 	changed       bool
 	status        string // "error": invalid (shadcn destructive border)
-	ia            Interaction
-	z             *lazy
+	size          ControlSize
+	look          choiceLook
+	// first / last: a button-style checkbox rounds its inline-start /
+	// inline-end corners (both when standalone; the group clears the
+	// inner ones).
+	first, last bool
+	ia          Interaction
+	z           *lazy
 }
+
+// choiceLook is the frame style of a Checkbox / Radio.
+type choiceLook uint8
+
+const (
+	lookPlain  choiceLook = iota
+	lookBorder            // a bordered box around control and label
+	lookButton            // a segmented button (checkbox button)
+)
 
 // Checkbox adds a checkbox bound to *val.
 func Checkbox(c *Context, label string, val *bool) *CheckboxW {
-	w := &CheckboxW{c: c, label: label, val: val, status: c.itemStatus}
+	w := &CheckboxW{c: c, label: label, val: val, status: c.itemStatus, size: c.defaultSize(), first: true, last: true}
 	w.n = c.add("checkbox", label)
 	w.n.setRole(a11y.RoleCheckbox).setState(a11y.Checkable).fill(w)
 	w.n.ln.NoStretch = true
@@ -120,6 +136,19 @@ func Checkbox(c *Context, label string, val *bool) *CheckboxW {
 }
 
 func (w *CheckboxW) Indeterminate(on bool) *CheckboxW { w.indeterminate = on; return w }
+
+// Size sets the checkbox size: the label font, the box (Element shrinks
+// it when small) and the height of the Border / Button styles.
+func (w *CheckboxW) Size(s ControlSize) *CheckboxW { w.size = s; return w }
+
+// Border draws a frame around the box and the label (Element
+// el-checkbox border); a checked one gets a brand-colored frame.
+func (w *CheckboxW) Border() *CheckboxW { w.look = lookBorder; return w }
+
+// Button renders the checkbox as a toggle button without a box (Element
+// el-checkbox-button); checked buttons take the brand color. Inside
+// CheckboxGroup(...).Buttons() the buttons join into a segmented row.
+func (w *CheckboxW) Button() *CheckboxW { w.look = lookButton; return w }
 
 // Status sets the validation status ("error" marks the box invalid; inside
 // a failing FormItem it is set automatically).
@@ -159,26 +188,184 @@ func (c *Context) boxSize() float32 {
 	return c.ThemeFor(theme.CompCheckbox).Components.Checkbox.ControlInteractiveSize
 }
 
-func (w *CheckboxW) measure(_, _ float32) geom.Size {
-	bs := w.c.boxSize()
-	if w.label == "" {
-		return geom.Size{W: bs, H: 22}
+// boxSizeOf is the checkbox square of a checkbox of size s.
+func (c *Context) boxSizeOf(s ControlSize) float32 {
+	tk := &c.ThemeFor(theme.CompCheckbox).Components.Checkbox
+	if s == Small {
+		return tk.ControlInteractiveSizeSM
 	}
-	return geom.Size{W: bs + 8 + text.Width(w.label, w.c.choiceFont()), H: 22}
+	return tk.ControlInteractiveSize
 }
 
-func (c *Context) choiceFont() text.Style {
+func (w *CheckboxW) measure(_, _ float32) geom.Size {
+	c := w.c
 	th := c.ThemeFor(theme.CompCheckbox)
-	st := c.style(th.FontSize, text.Regular)
+	tk := &th.Components.Checkbox
+	switch w.look {
+	case lookButton:
+		pad := tk.ButtonPaddingInline
+		if w.size == Small {
+			pad = tk.ButtonPaddingInlineSM
+		}
+		return geom.Size{W: text.Width(w.label, c.style(controlFontOf(th, w.size), text.Regular)) + 2*pad, H: controlHeightOf(th, w.size)}
+	case lookBorder:
+		sz := choiceContentSize(c, w.label, c.boxSizeOf(w.size), w.size)
+		return geom.Size{W: tk.BorderedPaddingStart + sz.W + tk.BorderedPaddingEnd, H: controlHeightOf(th, w.size)}
+	}
+	return choiceContentSize(c, w.label, c.boxSizeOf(w.size), w.size)
+}
+
+// choiceContentSize is a control mark of size bs followed by an optional
+// label (plain Checkbox / Radio).
+func choiceContentSize(c *Context, label string, bs float32, s ControlSize) geom.Size {
+	if label == "" {
+		return geom.Size{W: bs, H: 22}
+	}
+	return geom.Size{W: bs + 8 + text.Width(label, c.choiceFontOf(s)), H: 22}
+}
+
+func (c *Context) choiceFont() text.Style { return c.choiceFontOf(Middle) }
+
+// choiceFontOf is the label font of a Checkbox / Radio of size s.
+func (c *Context) choiceFontOf(s ControlSize) text.Style {
+	th := c.ThemeFor(theme.CompCheckbox)
+	fs := th.FontSize
+	if s == Small {
+		fs = th.FontSizeSM
+	}
+	st := c.style(fs, text.Regular)
 	st.Weight = themeWeight(th.Components.Checkbox.LabelFontWeight)
 	return st
+}
+
+// drawChoiceFrame paints the frame of a bordered Checkbox / Radio (r is
+// the whole control) and, when focused, the focus ring around it.
+func drawChoiceFrame(l *paint.List, th *theme.Theme, r geom.Rect, size ControlSize, checked, disabled, hovered, focused bool, checkedCol theme.Color) {
+	rad := geom.Rad(controlRadiusOf(th, size))
+	shad := th.Flavor == theme.StyleShadcn
+	bc := th.Border
+	switch {
+	case disabled && !shad:
+		l.Fill(r, rad, th.BgContainerDisabled)
+		bc = th.BorderSecondary
+	case checked:
+		bc = checkedCol
+	case hovered && !shad:
+		bc = th.Primary.Base
+	}
+	if disabled && shad {
+		l.Opacity(0.5)
+		defer l.Pop()
+	}
+	l.Stroke(r, rad, 1, bc)
+	if focused {
+		if shad {
+			shadFocusRing(l, th, r, rad, false)
+		} else {
+			l.Stroke(r.Expand(2), rad.Grow(2), 2, th.FocusRing)
+		}
+	}
+}
+
+// segRadii are the corner radii of a button in a segmented row: the first
+// button rounds its inline-start corners, the last its inline-end ones.
+func segRadii(c *Context, th *theme.Theme, size ControlSize, first, last bool) geom.Radii {
+	rad := controlRadiusOf(th, size)
+	left, right := first, last
+	if c.IsRTL() {
+		left, right = last, first
+	}
+	var radii geom.Radii
+	if left {
+		radii.TL, radii.BL = rad, rad
+	}
+	if right {
+		radii.TR, radii.BR = rad, rad
+	}
+	return radii
+}
+
+// segLook is the state of a segmented choice button.
+type segLook struct {
+	selected, disabled, solid bool
+	hover                     float32 // hover animation 0..1
+	focused                   bool
+}
+
+// segColors are the token colors of a segmented choice button.
+type segColors struct {
+	bg, checkedBg, fg, checkedFg, solidBg, solidFg theme.Color
+	filledChecked                                  bool // checkedFg on a brand fill (Element)
+}
+
+// drawSegButton paints a radio / checkbox button with its label centered.
+func drawSegButton(c *Context, l *paint.List, th *theme.Theme, r geom.Rect, radii geom.Radii, label string, font text.Style, s segLook, k segColors) {
+	hov := s.hover
+	bg, border, fg := k.bg, th.Border, k.fg
+	shad := th.Flavor == theme.StyleShadcn
+	switch {
+	case shad && s.disabled:
+		fg = th.TextDisabled
+		if s.selected {
+			bg = k.checkedBg
+		}
+	case shad && s.selected && s.solid:
+		bg, border, fg = k.solidBg, k.solidBg, k.solidFg
+	case shad && s.selected:
+		bg, fg = k.checkedBg, k.checkedFg
+	case shad:
+		bg = theme.Lerp(k.bg, th.ItemHoverBg, hov)
+	case s.disabled:
+		bg, fg = th.BgContainerDisabled, th.TextDisabled
+	case s.selected && s.solid:
+		bg = theme.Lerp(k.solidBg, th.Primary.Hover, hov)
+		border, fg = bg, k.solidFg
+	case s.selected:
+		border = theme.Lerp(th.Primary.Base, th.Primary.Hover, hov)
+		bg, fg = k.checkedBg, border
+		if k.filledChecked {
+			fg = k.checkedFg // white on the brand fill
+		}
+	default:
+		fg = theme.Lerp(k.fg, th.Primary.Base, hov)
+	}
+	l.Fill(r, radii, bg)
+	if s.disabled && s.selected && !shad {
+		l.Fill(r, radii, th.FillSecondary) // a disabled selection stays visible
+	}
+	l.Stroke(r, radii, 1, border)
+	lay := text.Shape(label, font, c.textOpts(text.Options{NoWrap: true}))
+	l.Glyphs(geom.Pt(r.X+(r.W-lay.Width)/2, r.Y+(r.H-lay.Height)/2), lay.Glyphs, fg)
+	if s.focused {
+		if shad {
+			shadFocusRing(l, th, r, radii, false)
+		} else {
+			l.Stroke(r.Expand(2), radii.Grow(2), 2, th.FocusRing)
+		}
+	}
 }
 
 // The box sits at the inline start, the label after it.
 func (w *CheckboxW) paint(l *paint.List, r geom.Rect) {
 	c, th := w.c, w.c.ThemeFor(theme.CompCheckbox)
+	tk := &th.Components.Checkbox
 	dis := w.disabled || w.n.disabled
-	bs := c.boxSize()
+	if w.look == lookButton {
+		k := segColors{bg: tk.ButtonBg, checkedBg: tk.ButtonCheckedBg, fg: tk.ButtonColor, checkedFg: tk.ButtonCheckedColor,
+			solidBg: tk.ButtonCheckedBg, solidFg: tk.ButtonCheckedColor, filledChecked: th.Flavor == theme.Element}
+		drawSegButton(c, l, th, r, segRadii(c, th, w.size, w.first, w.last), w.label, c.style(controlFontOf(th, w.size), text.Regular), segLook{
+			selected: *w.val, disabled: dis, focused: w.ia.FocusVisible,
+			hover: c.Anim(w.n.id, "hover", b2f(w.ia.Hovered && !dis), th.DurationMid),
+		}, k)
+		return
+	}
+	focusBox := w.ia.FocusVisible
+	if w.look == lookBorder {
+		drawChoiceFrame(l, th, r, w.size, *w.val, dis, w.ia.Hovered && !dis, w.ia.FocusVisible, tk.BorderedCheckedColor)
+		focusBox = false
+		r = c.inline(r).Rect(tk.BorderedPaddingStart, r.Y, r.W-tk.BorderedPaddingStart, r.H)
+	}
+	bs := c.boxSizeOf(w.size)
 	s := c.inline(r)
 	box := s.Rect(0, r.Y+(r.H-bs)/2, bs, bs)
 	drawCheckbox(c, l, box, checkLook{
@@ -186,12 +373,12 @@ func (w *CheckboxW) paint(l *paint.List, r geom.Rect) {
 		indeterminate: w.indeterminate,
 		disabled:      dis,
 		hovered:       w.ia.Hovered && !dis,
-		focused:       w.ia.FocusVisible,
+		focused:       focusBox,
 		invalid:       w.status == "error",
 		t:             c.Anim(w.n.id, "check", b2f(*w.val), th.DurationMid),
 	})
 	if w.label != "" {
-		st := c.choiceFont()
+		st := c.choiceFontOf(w.size)
 		lay := text.Shape(w.label, st, c.textOpts(text.Options{NoWrap: true}))
 		col := th.Text
 		if th.Flavor == theme.Element {
@@ -305,37 +492,132 @@ func drawCheckbox(c *Context, l *paint.List, box geom.Rect, s checkLook) {
 
 // CheckboxGroupW is the checkbox group CheckboxGroup returns.
 type CheckboxGroupW struct {
-	_ [0]func()
-
-	box     *Box
-	changed bool
+	_        [0]func()
+	c        *Context
+	n        *node
+	sel      *[]string
+	opts     []Option
+	disabled bool
+	min, max int
+	look     choiceLook
+	size     ControlSize
+	changed  bool
+	z        *lazy
 }
 
-// Changed reports whether the selection changed this frame.
-func (g *CheckboxGroupW) Changed() bool { return g.changed }
-
 // CheckboxGroup renders one checkbox per option bound to the selected
-// values. Changed on the result reports a selection change.
+// values. Changed on the result reports a selection change; the builder
+// also takes Disabled, Min/Max, Border, Buttons and Size.
 func CheckboxGroup(c *Context, selected *[]string, opts []Option) *CheckboxGroupW {
-	changed := false
-	gap := float32(8)
-	if c.Theme.Flavor == theme.Element {
-		gap = 30
+	g := &CheckboxGroupW{c: c, sel: selected, opts: opts, size: c.defaultSize()}
+	g.n = c.add("checkboxgroup", "")
+	g.n.setRole(a11y.RoleGroup)
+	g.n.ln.Dir = layout.Row
+	g.n.ln.Align = layout.AlignCenter
+	g.n.ln.NoStretch = true
+	g.z = c.lazy(g.n, g.build)
+	return g
+}
+
+// Disabled disables every checkbox of the group.
+func (g *CheckboxGroupW) Disabled(on bool) *CheckboxGroupW { g.disabled = on; return g }
+
+// Min keeps at least n values selected: while only n are checked they
+// cannot be unchecked (0 = no minimum).
+func (g *CheckboxGroupW) Min(n int) *CheckboxGroupW { g.min = n; return g }
+
+// Max allows at most n selected values: once n are checked the others are
+// disabled (0 = no maximum).
+func (g *CheckboxGroupW) Max(n int) *CheckboxGroupW { g.max = n; return g }
+
+// Border draws every checkbox with a frame (see CheckboxW.Border).
+func (g *CheckboxGroupW) Border() *CheckboxGroupW { g.look = lookBorder; return g }
+
+// Buttons renders the options as a row of joined toggle buttons (Element
+// el-checkbox-button).
+func (g *CheckboxGroupW) Buttons() *CheckboxGroupW { g.look = lookButton; return g }
+
+// Size sets the size of the checkboxes.
+func (g *CheckboxGroupW) Size(s ControlSize) *CheckboxGroupW { g.size = s; return g }
+
+// A11yLabel names the group for screen readers.
+func (g *CheckboxGroupW) A11yLabel(s string) *CheckboxGroupW { g.n.setName(s); return g }
+
+// Changed reports a selection change this frame.
+func (g *CheckboxGroupW) Changed() bool { g.z.run(); return g.changed }
+
+func (g *CheckboxGroupW) build() {
+	c := g.c
+	if g.disabled || g.n.disabled {
+		c.disabledDepth++
+		defer func() { c.disabledDepth-- }()
 	}
-	b := Row(c, func() {
-		for _, o := range opts {
-			on := contains(*selected, o.Value)
-			if Checkbox(c, o.Label, &on).Disabled(o.Disabled).Changed() {
-				changed = true
-				if on {
-					*selected = append(*selected, o.Value)
-				} else {
-					*selected = remove(*selected, o.Value)
-				}
+	switch {
+	case g.look == lookButton:
+		g.n.ln.Gap = 0
+	case g.look == lookBorder:
+		g.n.ln.Gap, g.n.ln.Wrap = 8, true
+		if c.Theme.Flavor == theme.Element {
+			g.n.ln.Gap = 10
+		}
+	default:
+		g.n.ln.Gap, g.n.ln.Wrap = 8, true
+		if c.Theme.Flavor == theme.Element {
+			g.n.ln.Gap = 30
+		}
+	}
+	count := 0
+	for _, o := range g.opts {
+		if contains(*g.sel, o.Value) {
+			count++
+		}
+	}
+	boxes := make([]*CheckboxW, len(g.opts))
+	for i, o := range g.opts {
+		on := contains(*g.sel, o.Value)
+		dis := o.Disabled || (g.max > 0 && !on && count >= g.max) || (g.min > 0 && on && count <= g.min)
+		cb := Checkbox(c, o.Label, &on).Disabled(dis).Size(g.size)
+		boxes[i] = cb
+		switch g.look {
+		case lookBorder:
+			cb.Border()
+		case lookButton:
+			cb.Button()
+			cb.first, cb.last = i == 0, i == len(g.opts)-1
+			if i > 0 {
+				cb.n.ln.Margin.Left = -1
 			}
 		}
-	}, layout.Gap(gap), layout.WrapItems(), layout.Middle())
-	return &CheckboxGroupW{box: b, changed: changed}
+		if cb.Changed() {
+			g.changed = true
+			if on {
+				*g.sel = append(*g.sel, o.Value)
+			} else {
+				*g.sel = remove(*g.sel, o.Value)
+			}
+		}
+	}
+	if g.look != lookButton {
+		return
+	}
+	// Checked buttons' borders must sit above their neighbours' (they
+	// overlap by 1px), so redraw them after all children.
+	g.n.over = func(l *paint.List, _ geom.Rect) {
+		th := c.ThemeFor(theme.CompCheckbox)
+		if th.Flavor == theme.StyleShadcn {
+			return // shadcn marks the selection with a fill
+		}
+		for i, cb := range boxes {
+			if !*cb.val || cb.disabled || cb.n.disabled {
+				continue
+			}
+			col := th.Components.Checkbox.ButtonCheckedBorder
+			if c.hovered(cb.n.id) {
+				col = th.Primary.Hover
+			}
+			l.Stroke(cb.n.abs, segRadii(c, th, g.size, i == 0, i == len(boxes)-1), 1, col)
+		}
+	}
 }
 
 func contains(s []string, v string) bool {
@@ -370,23 +652,44 @@ type RadioW struct {
 	checked  bool
 	disabled bool
 	status   string // "error": invalid (shadcn destructive border)
+	size     ControlSize
+	border   bool
 	ia       Interaction
 }
 
 // Radio adds a radio button; it reports Clicked so the caller can select it.
 func Radio(c *Context, label string, checked bool) *RadioW {
-	w := &RadioW{c: c, label: label, checked: checked, status: c.itemStatus}
+	w := &RadioW{c: c, label: label, checked: checked, status: c.itemStatus, size: c.defaultSize()}
 	w.n = c.add("radio", label)
 	w.n.setRole(a11y.RoleRadio).setState(a11y.Checkable).stateIf(checked, a11y.Checked)
 	w.n.ln.NoStretch = true
-	w.n.ln.Measure = func(_, _ float32) geom.Size {
-		bs := c.ThemeFor(theme.CompRadio).Components.Radio.RadioSize
-		return geom.Size{W: bs + 8 + text.Width(label, c.choiceFont()), H: 22}
-	}
+	w.n.ln.Measure = w.measure
 	w.n.paint = w.paint
 	w.ia = c.interact(w.n, true, input.CursorPointer)
 	return w
 }
+
+func (w *RadioW) measure(_, _ float32) geom.Size {
+	c := w.c
+	th := c.ThemeFor(theme.CompRadio)
+	tk := &th.Components.Radio
+	if w.label == "" && !w.border {
+		return geom.Size{W: tk.RadioSize, H: 22}
+	}
+	sz := geom.Size{W: tk.RadioSize + 8 + text.Width(w.label, c.choiceFontOf(w.size)), H: 22}
+	if w.border {
+		sz = geom.Size{W: tk.BorderedPaddingStart + sz.W + tk.BorderedPaddingEnd, H: controlHeightOf(th, w.size)}
+	}
+	return sz
+}
+
+// Size sets the radio size: the label font and the height of the Border
+// style.
+func (w *RadioW) Size(s ControlSize) *RadioW { w.size = s; return w }
+
+// Border draws a frame around the circle and the label (Element el-radio
+// border); a checked one gets a brand-colored frame.
+func (w *RadioW) Border() *RadioW { w.border = true; return w }
 
 func (w *RadioW) Disabled(on bool) *RadioW {
 	if on {
@@ -406,6 +709,12 @@ func (w *RadioW) paint(l *paint.List, r geom.Rect) {
 	c, th := w.c, w.c.ThemeFor(theme.CompRadio)
 	tk := &th.Components.Radio
 	dis := w.disabled || w.n.disabled
+	focusDot := w.ia.FocusVisible
+	if w.border {
+		drawChoiceFrame(l, th, r, w.size, w.checked, dis, w.ia.Hovered && !dis, w.ia.FocusVisible, tk.BorderedCheckedColor)
+		focusDot = false
+		r = c.inline(r).Rect(tk.BorderedPaddingStart, r.Y, r.W-tk.BorderedPaddingStart, r.H)
+	}
 	bs := tk.RadioSize
 	s := c.inline(r)
 	cx, cy := s.X(0, bs)+bs/2, r.Y+r.H/2
@@ -457,7 +766,7 @@ func (w *RadioW) paint(l *paint.List, r geom.Rect) {
 			l.Path(paint.NewPath().Circle(cx, cy, dot), th.BgContainer)
 		}
 	}
-	if w.ia.FocusVisible {
+	if focusDot {
 		if th.Flavor == theme.StyleShadcn {
 			box := geom.Rect{X: cx - bs/2, Y: cy - bs/2, W: bs, H: bs}
 			shadFocusRing(l, th, box, geom.Rad(bs/2), w.status == "error")
@@ -466,7 +775,7 @@ func (w *RadioW) paint(l *paint.List, r geom.Rect) {
 		}
 	}
 	if w.label != "" {
-		lay := text.Shape(w.label, c.choiceFont(), c.textOpts(text.Options{NoWrap: true}))
+		lay := text.Shape(w.label, c.choiceFontOf(w.size), c.textOpts(text.Options{NoWrap: true}))
 		col := th.Text
 		if th.Flavor == theme.Element {
 			col = th.TextSecondary
@@ -492,8 +801,11 @@ type RadioGroupW struct {
 	buttons bool
 	solid   bool
 	size    ControlSize
-	changed bool
-	z       *lazy
+	// disabled disables the whole group; border frames plain radios.
+	disabled bool
+	border   bool
+	changed  bool
+	z        *lazy
 }
 
 // RadioGroup adds radio options bound to *val.
@@ -515,8 +827,16 @@ func (g *RadioGroupW) Buttons() *RadioGroupW { g.buttons = true; return g }
 // Solid fills the selected button with the primary color.
 func (g *RadioGroupW) Solid() *RadioGroupW { g.buttons, g.solid = true, true; return g }
 
-// Size sets the button size.
+// Size sets the size of the buttons (and of the radios: label font and
+// Border height).
 func (g *RadioGroupW) Size(s ControlSize) *RadioGroupW { g.size = s; return g }
+
+// Disabled disables every option of the group (radios or buttons).
+func (g *RadioGroupW) Disabled(on bool) *RadioGroupW { g.disabled = on; return g }
+
+// Border draws each radio with a frame (see RadioW.Border); it has no
+// effect on the button style.
+func (g *RadioGroupW) Border() *RadioGroupW { g.border = true; return g }
 
 // Changed reports a selection change this frame.
 func (g *RadioGroupW) Changed() bool { g.z.run(); return g.changed }
@@ -550,15 +870,25 @@ func (g *RadioGroupW) keys(nodes []*node) {
 
 func (g *RadioGroupW) build() {
 	c := g.c
+	if g.disabled || g.n.disabled {
+		c.disabledDepth++
+		defer func() { c.disabledDepth-- }()
+	}
 	if !g.buttons {
 		g.n.ln.Gap = 8
 		if c.Theme.Flavor == theme.Element {
 			g.n.ln.Gap = 30
+			if g.border {
+				g.n.ln.Gap = 10
+			}
 		}
 		g.n.ln.Wrap = true
 		nodes := make([]*node, len(g.opts))
 		for i, o := range g.opts {
-			r := Radio(c, o.Label, *g.val == o.Value).Disabled(o.Disabled)
+			r := Radio(c, o.Label, *g.val == o.Value).Disabled(o.Disabled).Size(g.size)
+			if g.border {
+				r.Border()
+			}
 			nodes[i] = r.n
 			if r.Clicked() && *g.val != o.Value {
 				*g.val = o.Value
@@ -573,21 +903,7 @@ func (g *RadioGroupW) build() {
 	tk := &th.Components.Radio
 	// Logical end radii: the first button rounds its inline-start corners,
 	// the last its inline-end ones.
-	ends := func(first, last bool) geom.Radii {
-		rad := controlRadiusOf(th, g.size)
-		left, right := first, last
-		if c.IsRTL() {
-			left, right = last, first
-		}
-		var radii geom.Radii
-		if left {
-			radii.TL, radii.BL = rad, rad
-		}
-		if right {
-			radii.TR, radii.BR = rad, rad
-		}
-		return radii
-	}
+	ends := func(first, last bool) geom.Radii { return segRadii(c, th, g.size, first, last) }
 	nodes := make([]*node, 0, len(g.opts))
 	for i, o := range g.opts {
 		i, o := i, o
@@ -617,44 +933,12 @@ func (g *RadioGroupW) build() {
 			sel = true
 		}
 		n.paint = func(l *paint.List, r geom.Rect) {
-			radii := ends(first, last)
-			hov := c.Anim(n.id, "hover", b2f(ia.Hovered && !n.disabled), th.DurationMid)
-			bg, border, fg := tk.ButtonBg, th.Border, tk.ButtonColor
-			shad := th.Flavor == theme.StyleShadcn
-			switch {
-			case shad && n.disabled:
-				fg = th.TextDisabled
-			case shad && sel && g.solid:
-				bg, border, fg = tk.ButtonSolidCheckedBg, tk.ButtonSolidCheckedBg, tk.ButtonSolidCheckedColor
-			case shad && sel:
-				bg, fg = tk.ButtonCheckedBg, tk.ButtonCheckedColor
-			case shad:
-				bg = theme.Lerp(tk.ButtonBg, th.ItemHoverBg, hov)
-			case n.disabled:
-				bg, fg = th.BgContainerDisabled, th.TextDisabled
-			case sel && g.solid:
-				bg = theme.Lerp(tk.ButtonSolidCheckedBg, th.Primary.Hover, hov)
-				border, fg = bg, tk.ButtonSolidCheckedColor
-			case sel:
-				border = theme.Lerp(th.Primary.Base, th.Primary.Hover, hov)
-				bg, fg = tk.ButtonCheckedBg, border
-				if th.Flavor == theme.Element {
-					fg = tk.ButtonCheckedColor // white on the brand fill
-				}
-			default:
-				fg = theme.Lerp(tk.ButtonColor, th.Primary.Base, hov)
-			}
-			l.Fill(r, radii, bg)
-			l.Stroke(r, radii, 1, border)
-			lay := text.Shape(o.Label, c.style(controlFontOf(th, g.size), text.Regular), c.textOpts(text.Options{NoWrap: true}))
-			l.Glyphs(geom.Pt(r.X+(r.W-lay.Width)/2, r.Y+(r.H-lay.Height)/2), lay.Glyphs, fg)
-			if ia.FocusVisible {
-				if shad {
-					shadFocusRing(l, th, r, radii, false)
-				} else {
-					l.Stroke(r.Expand(2), radii.Grow(2), 2, th.FocusRing)
-				}
-			}
+			k := segColors{bg: tk.ButtonBg, checkedBg: tk.ButtonCheckedBg, fg: tk.ButtonColor, checkedFg: tk.ButtonCheckedColor,
+				solidBg: tk.ButtonSolidCheckedBg, solidFg: tk.ButtonSolidCheckedColor, filledChecked: th.Flavor == theme.Element}
+			drawSegButton(c, l, th, r, ends(first, last), o.Label, c.style(controlFontOf(th, g.size), text.Regular), segLook{
+				selected: sel, disabled: n.disabled, solid: g.solid, focused: ia.FocusVisible,
+				hover: c.Anim(n.id, "hover", b2f(ia.Hovered && !n.disabled), th.DurationMid),
+			}, k)
 		}
 	}
 	g.keys(nodes)
@@ -700,16 +984,40 @@ type SwitchW struct {
 	disabled bool
 	loading  bool
 	small    bool
+	large    bool
+	width    float32 // track width (0 = minimum width / fit the texts)
 	onText   string
 	offText  string
+	onIcon   *icon.Icon
+	offIcon  *icon.Icon
+	outerOn  string // OuterTexts: label after the track
+	outerOff string // OuterTexts: label before the track
+	set      func(on bool)
+	before   func(next bool) bool
+	beforeAs func(next bool, done func(ok bool))
+	pending  bool // an async BeforeChange is running
 	changed  bool
 	ia       Interaction
 	z        *lazy
 }
 
+// switchBefore is the state of an asynchronous BeforeChange.
+type switchBefore struct {
+	res  atomic.Int32 // switchIdle / switchWaiting / switchAccepted / switchRejected
+	next bool
+}
+
+const (
+	switchIdle int32 = iota
+	switchWaiting
+	switchAccepted
+	switchRejected
+)
+
 // Switch adds a switch bound to *val.
 func Switch(c *Context, val *bool) *SwitchW {
-	w := &SwitchW{c: c, val: val, small: c.defaultSize() == Small}
+	s := c.defaultSize()
+	w := &SwitchW{c: c, val: val, small: s == Small, large: s == Large}
 	w.configDefaults()
 	w.n = c.add("switch", "")
 	w.n.setRole(a11y.RoleSwitch).setState(a11y.Checkable).fill(w)
@@ -718,19 +1026,66 @@ func Switch(c *Context, val *bool) *SwitchW {
 	w.n.ln.Measure = w.measure
 	w.n.paint = w.paint
 	w.ia = c.interact(w.n, true, input.CursorPointer)
-	w.z = c.lazy(w.n, func() {
-		if w.ia.Clicked && !w.disabled && !w.loading && !w.n.disabled {
-			*w.val = !*w.val
-			w.changed = true
-			c.invalid = true
-		}
-	})
+	w.z = c.lazy(w.n, w.finish)
 	return w
 }
 
-func (w *SwitchW) Small() *SwitchW               { w.small = true; return w }
-func (w *SwitchW) Loading(on bool) *SwitchW      { w.loading = on; return w }
+// SwitchValue adds a switch bound to an arbitrary value (Element
+// active-value / inactive-value): it is on while *val == on, and toggling
+// writes on or off into *val. Any other value shows the switch off.
+func SwitchValue[T comparable](c *Context, val *T, on, off T) *SwitchW {
+	b := new(bool)
+	*b = *val == on
+	w := Switch(c, b)
+	w.set = func(v bool) {
+		if v {
+			*val = on
+		} else {
+			*val = off
+		}
+	}
+	return w
+}
+
+func (w *SwitchW) Small() *SwitchW { w.small, w.large = true, false; return w }
+
+// Large selects the large switch.
+func (w *SwitchW) Large() *SwitchW { w.small, w.large = false, true; return w }
+
+// Size sets the switch size (Small, Middle or Large).
+func (w *SwitchW) Size(s ControlSize) *SwitchW { w.small, w.large = s == Small, s == Large; return w }
+
+// Width sets the track width in px (Element width); by default the track
+// has the theme's minimum width and grows to fit the inline texts.
+func (w *SwitchW) Width(px float32) *SwitchW { w.width = px; return w }
+
+func (w *SwitchW) Loading(on bool) *SwitchW { w.loading = on; return w }
+
+// Texts shows on / off text inside the track (Ant checkedChildren, Element
+// inline-prompt).
 func (w *SwitchW) Texts(on, off string) *SwitchW { w.onText, w.offText = on, off; return w }
+
+// Icons shows on / off icons inside the track (Element inline-prompt with
+// active-icon / inactive-icon). Either may be nil.
+func (w *SwitchW) Icons(on, off *icon.Icon) *SwitchW { w.onIcon, w.offIcon = on, off; return w }
+
+// OuterTexts shows labels beside the track (Element active-text /
+// inactive-text): off before it, on after it; the label of the current
+// state takes the brand color. Clicking a label toggles the switch.
+func (w *SwitchW) OuterTexts(on, off string) *SwitchW { w.outerOn, w.outerOff = on, off; return w }
+
+// BeforeChange is asked before every toggle with the value the switch
+// would take; returning false keeps the current value.
+func (w *SwitchW) BeforeChange(fn func(next bool) bool) *SwitchW { w.before = fn; return w }
+
+// BeforeChangeAsync asks fn before every toggle; the switch shows loading
+// and ignores clicks until fn calls done (from any goroutine, once): with
+// true the switch takes next, with false it stays. done wakes the window.
+func (w *SwitchW) BeforeChangeAsync(fn func(next bool, done func(ok bool))) *SwitchW {
+	w.beforeAs = fn
+	return w
+}
+
 func (w *SwitchW) Disabled(on bool) *SwitchW {
 	if on {
 		w.disabled, w.n.focus, w.n.cursor = true, false, input.CursorNotAllowed
@@ -743,50 +1098,169 @@ func (w *SwitchW) Changed() bool { w.z.run(); return w.changed }
 // a FormItem the item label is used).
 func (w *SwitchW) A11yLabel(s string) *SwitchW { w.n.setName(s); return w }
 
+func (w *SwitchW) busy() bool { return w.loading || w.pending }
+
+func (w *SwitchW) apply(next bool) {
+	*w.val = next
+	if w.set != nil {
+		w.set(next)
+	}
+	w.changed = true
+	w.c.invalid = true
+}
+
+func (w *SwitchW) finish() {
+	c := w.c
+	var st *switchBefore
+	if w.beforeAs != nil {
+		st = State[switchBefore](c, hashID(w.n.id, "sw-before"), nil)
+		switch st.res.Load() {
+		case switchWaiting:
+			w.pending = true
+		case switchAccepted:
+			st.res.Store(switchIdle)
+			w.apply(st.next)
+		case switchRejected:
+			st.res.Store(switchIdle)
+		}
+	}
+	if !w.ia.Clicked || w.disabled || w.busy() || w.n.disabled {
+		return
+	}
+	next := !*w.val
+	if w.before != nil && !w.before(next) {
+		return
+	}
+	if st == nil {
+		w.apply(next)
+		return
+	}
+	st.next = next
+	st.res.Store(switchWaiting)
+	wake := c.Invalidator()
+	w.beforeAs(next, func(ok bool) {
+		v := switchRejected
+		if ok {
+			v = switchAccepted
+		}
+		if st.res.CompareAndSwap(switchWaiting, v) {
+			wake()
+		}
+	})
+	// done may have run synchronously.
+	switch st.res.Load() {
+	case switchWaiting:
+		w.pending = true
+	case switchAccepted:
+		st.res.Store(switchIdle)
+		w.apply(next)
+	default:
+		st.res.Store(switchIdle)
+	}
+}
+
 func (w *SwitchW) semantics(s *a11y.Node) {
 	if *w.val {
 		s.States |= a11y.Checked
 		s.Value = w.onText
+		if s.Value == "" {
+			s.Value = w.outerOn
+		}
 	} else {
 		s.Value = w.offText
+		if s.Value == "" {
+			s.Value = w.outerOff
+		}
 	}
-	if w.loading {
+	if w.busy() {
 		s.States |= a11y.Busy
 	}
 }
 
 func (w *SwitchW) dims() (h, minW, handle float32) {
 	tk := &w.c.ThemeFor(theme.CompSwitch).Components.Switch
-	if w.small {
+	switch {
+	case w.small:
 		return tk.TrackHeightSM, tk.TrackMinWidthSM, tk.HandleSizeSM
+	case w.large:
+		return tk.TrackHeightLG, tk.TrackMinWidthLG, tk.HandleSizeLG
 	}
 	return tk.TrackHeight, tk.TrackMinWidth, tk.HandleSize
 }
 
-func (w *SwitchW) measure(_, _ float32) geom.Size {
-	h, mw, hs := w.dims()
-	tw := float32(0)
-	st := w.c.style(12, text.Regular)
-	if w.onText != "" || w.offText != "" {
-		tw = max(text.Width(w.onText, st), text.Width(w.offText, st)) + hs + 2 + 9 + 6
+// innerFont is the font of the inline texts.
+func (w *SwitchW) innerFont() text.Style {
+	tk := &w.c.ThemeFor(theme.CompSwitch).Components.Switch
+	if w.large {
+		return w.c.style(tk.InnerFontSizeLG, text.Regular)
 	}
-	return geom.Size{W: max(mw, tw), H: h}
+	return w.c.style(tk.InnerFontSize, text.Regular)
+}
+
+// outerFont is the font of the OuterTexts labels.
+func (w *SwitchW) outerFont() text.Style {
+	return w.c.style(w.c.ThemeFor(theme.CompSwitch).Components.Switch.LabelFontSize, text.Regular)
+}
+
+// trackW is the track width: Width, else the minimum width grown to fit
+// the inline texts / icons.
+func (w *SwitchW) trackW() float32 {
+	h, mw, hs := w.dims()
+	if w.width > 0 {
+		return max(w.width, h)
+	}
+	st := w.innerFont()
+	cw := max(text.Width(w.onText, st), text.Width(w.offText, st))
+	if w.onIcon != nil || w.offIcon != nil {
+		cw = max(cw, st.Size+2)
+	}
+	if cw == 0 {
+		return mw
+	}
+	return max(mw, cw+hs+2+9+6)
+}
+
+// outerW returns the widths of the off (before) and on (after) labels,
+// each including its gap to the track (0 when absent).
+func (w *SwitchW) outerW() (before, after float32) {
+	tk := &w.c.ThemeFor(theme.CompSwitch).Components.Switch
+	st := w.outerFont()
+	if w.outerOff != "" {
+		before = text.Width(w.outerOff, st) + tk.LabelGap
+	}
+	if w.outerOn != "" {
+		after = text.Width(w.outerOn, st) + tk.LabelGap
+	}
+	return before, after
+}
+
+func (w *SwitchW) measure(_, _ float32) geom.Size {
+	h, _, _ := w.dims()
+	b, a := w.outerW()
+	if b > 0 || a > 0 {
+		h = max(h, 22)
+	}
+	return geom.Size{W: b + w.trackW() + a, H: h}
 }
 
 // The thumb rests at the inline start when off and moves to the end when
-// on (to the left in RTL); the on/off text sits on the other side.
+// on (to the left in RTL); the inline text or icon sits on the other side.
+// OuterTexts put the off label before the track and the on label after it.
 func (w *SwitchW) paint(l *paint.List, r geom.Rect) {
 	c, th := w.c, w.c.ThemeFor(theme.CompSwitch)
 	tk := &th.Components.Switch
 	h, _, hs := w.dims()
 	t := c.Anim(w.n.id, "on", b2f(*w.val), th.DurationMid)
+	dis := w.disabled || w.n.disabled
 	hov := w.ia.Hovered && !w.disabled
 	off, on := tk.OffBg, tk.OnBg
 	if hov {
 		off, on = tk.OffHoverBg, tk.OnHoverBg
 	}
-	track := geom.Rect{X: r.X, Y: r.Y + (r.H-h)/2, W: r.W, H: h}
-	if w.disabled || w.n.disabled || w.loading {
+	before, after := w.outerW()
+	rs := c.inline(r)
+	track := rs.Rect(before, r.Y+(r.H-h)/2, w.trackW(), h)
+	if dis || w.busy() {
 		op := float32(0.65)
 		if th.Flavor == theme.StyleShadcn {
 			op = 0.5
@@ -794,10 +1268,27 @@ func (w *SwitchW) paint(l *paint.List, r geom.Rect) {
 		l.Opacity(op)
 		defer l.Pop()
 	}
+	if before > 0 || after > 0 {
+		st := w.outerFont()
+		label := func(s string, off float32, active bool) {
+			if s == "" {
+				return
+			}
+			lay := text.Shape(s, st, c.textOpts(text.Options{NoWrap: true}))
+			col := th.Text
+			if active {
+				col = th.Primary.Base
+			}
+			l.Glyphs(geom.Pt(rs.X(off, lay.Width), r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
+		}
+		label(w.outerOff, 0, !*w.val)
+		label(w.outerOn, before+track.W+tk.LabelGap, *w.val)
+	}
 	if len(tk.TrackShadow) > 0 {
 		l.Shadows(track, geom.Rad(h/2), tk.TrackShadow)
 	}
-	l.Fill(track, geom.Rad(h/2), theme.Lerp(off, on, t))
+	bg := theme.Lerp(off, on, t)
+	l.Fill(track, geom.Rad(h/2), bg)
 	pad := (h - hs) / 2
 	s := c.inline(track)
 	hr := s.Rect(pad+(track.W-2*pad-hs)*t, track.Y+pad, hs, hs)
@@ -806,20 +1297,24 @@ func (w *SwitchW) paint(l *paint.List, r geom.Rect) {
 	}
 	// shadcn dark: foreground thumb when off.
 	l.Fill(hr, geom.Rad(hs/2), theme.Lerp(tk.HandleOffBg, tk.HandleBg, t))
-	if w.loading {
+	if w.busy() {
 		drawIconRot(l, hr.Expand(-3), th.Primary.Base, spinAngle(c))
 	}
-	label := w.offText
+	label, ic := w.offText, w.offIcon
 	if *w.val {
-		label = w.onText
+		label, ic = w.onText, w.onIcon
+	}
+	fg := th.TextOn(bg, th.TextOnPrimary)
+	lo := hs + pad + 6
+	if *w.val {
+		lo = 9
 	}
 	if label != "" {
-		lay := text.Shape(label, c.style(12, text.Regular), c.textOpts(text.Options{NoWrap: true}))
-		lo := hs + pad + 6
-		if *w.val {
-			lo = 9
-		}
-		l.Glyphs(geom.Pt(s.X(lo, lay.Width), track.Y+(h-lay.Height)/2), lay.Glyphs, th.TextOnPrimary)
+		lay := text.Shape(label, w.innerFont(), c.textOpts(text.Options{NoWrap: true}))
+		l.Glyphs(geom.Pt(s.X(lo, lay.Width), track.Y+(h-lay.Height)/2), lay.Glyphs, fg)
+	} else if ic != nil {
+		is := min(w.innerFont().Size+2, h-4)
+		c.paintIcon(l, ic, s.Rect(lo, track.Y+(h-is)/2, is, is), fg, 0)
 	}
 	if w.ia.FocusVisible {
 		if th.Flavor == theme.StyleShadcn {

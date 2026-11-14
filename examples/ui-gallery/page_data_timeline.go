@@ -42,5 +42,28 @@ func init() {
 				}).Mode("alternate").Show().Layout(layout.Grow(1))
 			}, layout.Gap(24))
 		})
+		gallery.Demo(c, "横向时间轴", "Horizontal() 沿横轴排列；Mode 仍可用：left 内容在轴下、right 在轴上、alternate 上下交替，Label 在对侧。", func() {
+			ui.Timeline(c, []ui.TimelineItem{
+				{Content: "Create a services site", Time: "2015-09-01"},
+				{Content: "Solve initial network problems", Time: "2015-09-01", Color: "success"},
+				{Content: "Technical testing", Time: "2015-09-01", DotIcon: icon.Clock},
+				{Content: "Network problems being solved", Time: "2015-09-01", Color: "error"},
+			}).Horizontal().Pending("Recording...").Show()
+			ui.Gap(c, 24)
+			ui.Timeline(c, []ui.TimelineItem{
+				{Content: "Create a services site", Label: "2015-09-01"},
+				{Content: "Solve initial network problems", Label: "2015-09-01"},
+				{Content: "Technical testing", Label: "2015-09-01"},
+				{Content: "Network problems being solved", Label: "2015-09-01"},
+			}).Horizontal().Show()
+			ui.Gap(c, 24)
+			ui.Timeline(c, []ui.TimelineItem{
+				{Content: "Create a services site"},
+				{Content: "Solve initial network problems", Color: "success"},
+				{Content: "Technical testing", Color: "warning"},
+				{Content: "Network problems being solved", Color: "error"},
+				{Content: "Released"},
+			}).Horizontal().Mode("alternate").Show()
+		})
 	}})
 }

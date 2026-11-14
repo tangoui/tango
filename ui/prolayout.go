@@ -356,6 +356,151 @@ type ProLayoutConfig struct {
 	// NoFixedHeader lets the header scroll away with the content (Ant
 	// fixedHeader=false); by default it stays on top.
 	NoFixedHeader bool
+	// NoFixSiderbar lets the sider scroll with the page (Ant
+	// fixSiderbar=false): sider and content share one scroll, so a long
+	// menu is reached by scrolling the page. By default the sider stays
+	// fixed and only the content area scrolls (side and mix layouts; in the
+	// side layout the header then scrolls with the page too).
+	NoFixSiderbar bool
+
+	// AutoBreadcrumb derives the breadcrumb from the menu path of
+	// *Selected (parent submenus, then the item) when Breadcrumb is empty;
+	// clicking an ancestor that is a menu item selects it. MenuPath gives
+	// the same path to the page (e.g. for PageContainer.Breadcrumb).
+	AutoBreadcrumb bool
+	// BreadcrumbRender adjusts the breadcrumb items (static or automatic)
+	// before they are shown; returning none hides the breadcrumb.
+	BreadcrumbRender func(items []BreadcrumbItem) []BreadcrumbItem
+
+	// Render hooks (Ant menuHeaderRender, headerRender ...). def builds the
+	// default part, so a hook can wrap or replace it.
+	//
+	// MenuHeaderRender builds the logo and title area (top of the sider;
+	// the start of the header in the top and mix layouts).
+	MenuHeaderRender func(def func(), collapsed bool)
+	// MenuFooterRender builds content under the sider menu (side layout).
+	MenuFooterRender func(collapsed bool)
+	// HeaderRender builds the whole header bar.
+	HeaderRender func(def func())
+	// HeaderContentRender builds the middle of the header: in the side
+	// layout it replaces the breadcrumb, in the top layout the horizontal
+	// menu, in the mix layout it follows the logo.
+	HeaderContentRender func()
+	// MenuItemRender rewrites every menu item (children first) before the
+	// menu is built: change labels, icons, Disabled, add Shortcut text.
+	// The menu draws the items itself, so the hook returns data, not UI.
+	MenuItemRender func(item MenuItem) MenuItem
+	// FooterRender builds the footer at the end of the content area in
+	// place of the default one (DefaultFooter with FooterLinks and Footer).
+	FooterRender func()
+	// FooterLinks are the links of the default footer, above the Footer
+	// text (Ant DefaultFooter links); read DefaultFooterW.Clicked through
+	// FooterRender to react, or give each link an OnClick.
+	FooterLinks []FooterLink
+}
+
+// FooterLink is one link of DefaultFooter.
+type FooterLink struct {
+	_       [0]func()
+	Key     string
+	Title   string
+	Icon    *icon.Icon // shown alone when Title is ""
+	OnClick func()
+}
+
+// DefaultFooterW is the Pro page footer: a row of links above a
+// copyright line, centred (Ant Design Pro DefaultFooter).
+//
+//	ui.DefaultFooter(c).Links(links).Copyright("© 2026 Tango").Show()
+type DefaultFooterW struct {
+	_         [0]func()
+	c         *Context
+	links     []FooterLink
+	copyright string
+	clicked   string
+}
+
+// DefaultFooter starts a footer; chain options, then Show.
+func DefaultFooter(c *Context) *DefaultFooterW { return &DefaultFooterW{c: c} }
+
+// Links sets the link row.
+func (f *DefaultFooterW) Links(links []FooterLink) *DefaultFooterW { f.links = links; return f }
+
+// Copyright sets the line under the links (shown as given, so include the
+// © sign yourself).
+func (f *DefaultFooterW) Copyright(s string) *DefaultFooterW { f.copyright = s; return f }
+
+// Clicked returns the Key of the link clicked in the last Show ("" if
+// none).
+func (f *DefaultFooterW) Clicked() string { return f.clicked }
+
+// Show builds the footer.
+func (f *DefaultFooterW) Show() *DefaultFooterW {
+	c := f.c
+	if len(f.links) == 0 && f.copyright == "" {
+		return f
+	}
+	Column(c, func() {
+		if len(f.links) > 0 {
+			Row(c, func() {
+				for i := range f.links {
+					lk := &f.links[i]
+					Key(c, i, func() {
+						clicked := false
+						if lk.Title == "" && lk.Icon != nil {
+							clicked = IconButton(c, lk.Icon, lk.Key).Size(24, 16).Color(c.Theme.TextSecondary).Clicked()
+						} else {
+							clicked = Link(c, lk.Title).Secondary().Clicked()
+						}
+						if clicked {
+							f.clicked = lk.Key
+							if lk.OnClick != nil {
+								lk.OnClick()
+							}
+						}
+					})
+				}
+			}, layout.Gap(40), layout.Center(), layout.Middle(), layout.WrapItems())
+		}
+		if f.copyright != "" {
+			Text(c, f.copyright).Tertiary()
+		}
+	}, layout.PadVH(24, 0), layout.Gap(8), layout.AlignItems(layout.AlignCenter))
+	return f
+}
+
+// MenuPath returns the items from the root to the item with key (parent
+// submenus first), or nil when key is not in items.
+func MenuPath(items []MenuItem, key string) []MenuItem {
+	for _, it := range items {
+		if it.Divider {
+			continue
+		}
+		if it.Key == key && !it.Group && key != "" {
+			return []MenuItem{it}
+		}
+		if len(it.Children) > 0 {
+			if sub := MenuPath(it.Children, key); sub != nil {
+				if it.Group {
+					return sub // groups are titles, not levels
+				}
+				return append([]MenuItem{it}, sub...)
+			}
+		}
+	}
+	return nil
+}
+
+// proMapMenu applies fn to every item, children first.
+func proMapMenu(items []MenuItem, fn func(MenuItem) MenuItem) []MenuItem {
+	out := make([]MenuItem, len(items))
+	for i, it := range items {
+		if len(it.Children) > 0 {
+			it.Children = proMapMenu(it.Children, fn)
+		}
+		out[i] = fn(it)
+	}
+	return out
 }
 
 // ProLayout builds an Ant Design Pro style admin shell: sider with logo and
@@ -365,7 +510,7 @@ type ProLayoutConfig struct {
 // ConfigProvider.Defaults("ProLayout", ...) keys: "layout" (string),
 // "noPadding" (bool), "siderWidth" (number), "breakpoint" (Breakpoint),
 // "title", "footer" (string), "navTheme" ("light" | "dark"),
-// "contentWidth" ("Fluid" | "Fixed"), "fixedHeader" (bool).
+// "contentWidth" ("Fluid" | "Fixed"), "fixedHeader", "fixSiderbar" (bool).
 func ProLayout(c *Context, cfg ProLayoutConfig, content func()) {
 	th := c.Theme
 	if cfg.Layout == "" {
@@ -392,6 +537,12 @@ func ProLayout(c *Context, cfg ProLayoutConfig, content func()) {
 	if !cfg.NoFixedHeader {
 		cfg.NoFixedHeader = !Prop(c, "ProLayout", "fixedHeader", true)
 	}
+	if !cfg.NoFixSiderbar {
+		cfg.NoFixSiderbar = !Prop(c, "ProLayout", "fixSiderbar", true)
+	}
+	if cfg.MenuItemRender != nil {
+		cfg.Menu = proMapMenu(cfg.Menu, cfg.MenuItemRender)
+	}
 	pl := &proLayout{c: c, th: c.ThemeFor(theme.CompLayout), cfg: cfg, content: content}
 	// shadcn has a single (light) Sidebar look driven by sidebar tokens.
 	pl.dark = !cfg.LightSider && th.Flavor != theme.StyleShadcn
@@ -416,6 +567,97 @@ type proLayout struct {
 	content      func()
 	dark         bool
 	scrollHeader func() // NoFixedHeader: header built inside the scroll
+	pageScroll   bool   // NoFixSiderbar: the page scrolls as a whole, main does not
+}
+
+// crumbs returns the breadcrumb items: the static Breadcrumb, else the
+// menu path of Selected (AutoBreadcrumb), passed through BreadcrumbRender.
+func (pl *proLayout) crumbs() []BreadcrumbItem {
+	cfg := pl.cfg
+	var items []BreadcrumbItem
+	switch {
+	case len(cfg.Breadcrumb) > 0:
+		for _, s := range cfg.Breadcrumb {
+			items = append(items, BreadcrumbItem{Label: s})
+		}
+	case cfg.AutoBreadcrumb && cfg.Selected != nil:
+		path := MenuPath(cfg.Menu, *cfg.Selected)
+		for i, it := range path {
+			bi := BreadcrumbItem{Label: it.Label, Href: it.Key}
+			if i < len(path)-1 && len(it.Children) == 0 && !it.Disabled {
+				key, sel, c := it.Key, cfg.Selected, pl.c
+				bi.OnClick = func() { *sel = key; c.invalid = true }
+			}
+			items = append(items, bi)
+		}
+	}
+	if cfg.BreadcrumbRender != nil {
+		items = cfg.BreadcrumbRender(items)
+	}
+	return items
+}
+
+// breadcrumb builds the breadcrumb; it reports whether there was one.
+func (pl *proLayout) breadcrumb() bool {
+	items := pl.crumbs()
+	if len(items) == 0 {
+		return false
+	}
+	BreadcrumbItems(pl.c, items).Show()
+	return true
+}
+
+// menuHeader builds the logo area through MenuHeaderRender.
+func (pl *proLayout) menuHeader(def func(), collapsed bool) {
+	if pl.cfg.MenuHeaderRender != nil {
+		pl.cfg.MenuHeaderRender(def, collapsed)
+		return
+	}
+	def()
+}
+
+// headerBar builds a header through HeaderRender.
+func (pl *proLayout) headerBar(def func()) {
+	if pl.cfg.HeaderRender != nil {
+		pl.cfg.HeaderRender(def)
+		return
+	}
+	def()
+}
+
+// footer builds the end of the content area: FooterRender, else the
+// default footer with FooterLinks and Footer.
+func (pl *proLayout) footer() {
+	if pl.cfg.FooterRender != nil {
+		pl.cfg.FooterRender()
+		return
+	}
+	DefaultFooter(pl.c).Links(pl.cfg.FooterLinks).Copyright(pl.cfg.Footer).Show()
+}
+
+// menuArea holds the sider menu: a scroll of its own while the sider is
+// fixed, a plain column when the page scrolls as a whole.
+func (pl *proLayout) menuArea(fn func()) {
+	if pl.pageScroll {
+		Column(pl.c, fn, layout.Grow(1))
+		return
+	}
+	Scroll(pl.c, fn, layout.Grow(1))
+}
+
+// pageScrollBody wraps fn (a row of sider and content) in the page
+// scroll of NoFixSiderbar; the row is at least as tall as the scroll so
+// the sider reaches the bottom. fallbackH is the first-frame guess.
+func (pl *proLayout) pageScrollBody(fn func(), fallbackH float32) {
+	c := pl.c
+	pl.pageScroll = true
+	Scroll(c, func() {
+		minH := fallbackH
+		if r, ok := c.RectOf(c.cur.id); ok && r.H > 0 {
+			minH = r.H
+		}
+		Row(c, fn, layout.MinH(minH), layout.AlignItems(layout.AlignStretch))
+	}, layout.Grow(1), layout.MinH(0))
 }
 
 func (pl *proLayout) collapsed() bool { return pl.cfg.Collapsed != nil && *pl.cfg.Collapsed }
@@ -513,8 +755,10 @@ func (pl *proLayout) main(crumbs bool) {
 	pctx.depth, pctx.filled = pctx.depth+1, false
 	pctx.info = pl.routeInfo()
 	inner := func() {
-		if crumbs && len(pl.cfg.Breadcrumb) > 0 {
-			Row(c, func() { Breadcrumb(c, pl.cfg.Breadcrumb...) }, layout.Margin(geom.Insets{Bottom: 16}))
+		if crumbs {
+			if items := pl.crumbs(); len(items) > 0 {
+				Row(c, func() { BreadcrumbItems(c, items).Show() }, layout.Margin(geom.Insets{Bottom: 16}))
+			}
 		}
 		if pl.cfg.PageTitle != "" {
 			Title(c, pl.cfg.PageTitle, 4).Layout(layout.Margin(geom.Insets{Bottom: 16}))
@@ -524,12 +768,16 @@ func (pl *proLayout) main(crumbs bool) {
 		} else {
 			pl.content()
 		}
-		if pl.cfg.Footer != "" {
-			Row(c, func() { Text(c, pl.cfg.Footer).Tertiary() }, layout.PadVH(24, 0), layout.Center())
-		}
+		pl.footer()
 	}
 	var padded *Box
-	if pl.scrollHeader != nil {
+	if pl.pageScroll {
+		// NoFixSiderbar: the page scroll around sider and content scrolls.
+		if pl.scrollHeader != nil {
+			pl.scrollHeader()
+		}
+		padded = Column(c, inner, pad, layout.Grow(1), layout.MinW(0))
+	} else if pl.scrollHeader != nil {
 		// NoFixedHeader: the header scrolls with the content.
 		Scroll(c, func() {
 			pl.scrollHeader()
@@ -549,7 +797,11 @@ func (pl *proLayout) main(crumbs bool) {
 // routeInfo describes the shell for RouteContext.
 func (pl *proLayout) routeInfo() RouteInfo {
 	cfg := pl.cfg
-	ri := RouteInfo{InLayout: true, Layout: cfg.Layout, Collapsed: pl.collapsed(), Breadcrumb: cfg.Breadcrumb,
+	var crumbs []string
+	for _, it := range pl.crumbs() {
+		crumbs = append(crumbs, it.Label)
+	}
+	ri := RouteInfo{InLayout: true, Layout: cfg.Layout, Collapsed: pl.collapsed(), Breadcrumb: crumbs, FixSiderbar: !cfg.NoFixSiderbar,
 		PageTitle: cfg.PageTitle, ContentWidth: cfg.ContentWidth, FixedHeader: !cfg.NoFixedHeader,
 		HasSiderMenu: cfg.Layout != "top", IsMobile: ScreenBreakpoint(pl.c) < MD}
 	if ri.ContentWidth == "" {
@@ -572,16 +824,19 @@ func (pl *proLayout) side() {
 	if !dark {
 		siderBg = tk.LightSiderBg
 	}
-	Layout(c, func() {
+	body := func() {
 		sider := Sider(c, pl.siderWidth(), collapsed, func() {
-			pl.logo(collapsed, dark)
-			Scroll(c, func() {
+			pl.menuHeader(func() { pl.logo(collapsed, dark) }, collapsed)
+			pl.menuArea(func() {
 				m := Menu(c, cfg.Menu, cfg.Selected).Collapsed(collapsed)
 				if dark {
 					m.Dark()
 				}
 				m.Show()
-			}, layout.Grow(1))
+			})
+			if cfg.MenuFooterRender != nil {
+				cfg.MenuFooterRender(collapsed)
+			}
 		})
 		sider.Bg(siderBg)
 		if !dark {
@@ -614,24 +869,35 @@ func (pl *proLayout) side() {
 						*cfg.Collapsed = !*cfg.Collapsed
 						c.invalid = true
 					}
-					if len(cfg.Breadcrumb) > 0 {
-						Gap(c, 8)
-						Breadcrumb(c, cfg.Breadcrumb...)
+					if cfg.HeaderContentRender != nil {
+						Row(c, cfg.HeaderContentRender, layout.Grow(1), layout.MinW(0), layout.Gap(8), layout.Middle())
+					} else {
+						if len(pl.crumbs()) > 0 {
+							Gap(c, 8)
+							pl.breadcrumb()
+						}
+						Spacer(c)
 					}
-					Spacer(c)
 					pl.user(false)
 				}, layout.H(tk.ProHeaderHeight), layout.PadVH(0, 16), layout.Gap(8), layout.Middle())
 				hdr.Bg(tk.ProHeaderBg).Paint(func(l *paint.List, r geom.Rect) {
 					l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, th.Split)
 				})
 			}
-			if cfg.NoFixedHeader {
-				pl.scrollHeader = header
+			if cfg.NoFixedHeader && !pl.pageScroll {
+				pl.scrollHeader = func() { pl.headerBar(header) }
 			} else {
-				header()
+				pl.headerBar(header)
 			}
 			pl.main(false)
 		}, layout.Grow(1), layout.MinW(0))
+	}
+	Layout(c, func() {
+		if cfg.NoFixSiderbar {
+			pl.pageScrollBody(body, c.Size().H)
+			return
+		}
+		body()
 	})
 }
 
@@ -642,8 +908,10 @@ func (pl *proLayout) header(menu bool) {
 	cfg := pl.cfg
 	dark := pl.dark
 	hdr := Row(c, func() {
-		pl.logo(false, dark)
-		if menu {
+		pl.menuHeader(func() { pl.logo(false, dark) }, false)
+		if cfg.HeaderContentRender != nil {
+			Row(c, cfg.HeaderContentRender, layout.Grow(1), layout.MinW(0), layout.Gap(8), layout.Middle(), layout.Margin(geom.Insets{Left: 24}))
+		} else if menu {
 			Row(c, func() {
 				m := Menu(c, cfg.Menu, cfg.Selected).Mode(MenuHorizontal)
 				if dark {
@@ -678,11 +946,13 @@ func (pl *proLayout) top() {
 	c := pl.c
 	Layout(c, func() {
 		header := func() {
-			if shad2d(c) {
-				pl.shadHeader(true)
-			} else {
-				pl.header(true)
-			}
+			pl.headerBar(func() {
+				if shad2d(c) {
+					pl.shadHeader(true)
+				} else {
+					pl.header(true)
+				}
+			})
 		}
 		if pl.cfg.NoFixedHeader {
 			pl.scrollHeader = header
@@ -702,21 +972,31 @@ func (pl *proLayout) mix() {
 		coll = &local
 	}
 	Layout(c, func() {
-		if shad2d(c) {
-			pl.shadHeader(false)
-		} else {
-			pl.header(false)
-		}
-		Layout(c, func() {
+		pl.headerBar(func() {
+			if shad2d(c) {
+				pl.shadHeader(false)
+			} else {
+				pl.header(false)
+			}
+		})
+		body := func() {
 			s := CollapsibleSider(c, pl.siderWidth(), coll).Light()
 			if cfg.Breakpoint > XS {
 				s.Breakpoint(cfg.Breakpoint)
 			}
 			s.Body(func() {
-				Scroll(c, func() { Menu(c, cfg.Menu, cfg.Selected).Collapsed(*coll).Show() }, layout.Grow(1), layout.Pad(0))
+				pl.menuArea(func() { Menu(c, cfg.Menu, cfg.Selected).Collapsed(*coll).Show() })
+				if cfg.MenuFooterRender != nil {
+					cfg.MenuFooterRender(*coll)
+				}
 			})
 			Column(c, func() { pl.main(true) }, layout.Grow(1), layout.MinW(0))
-		})
+		}
+		if cfg.NoFixSiderbar {
+			pl.pageScrollBody(body, c.Size().H-pl.th.Components.Layout.ProHeaderHeight)
+			return
+		}
+		Layout(c, body)
 	})
 }
 

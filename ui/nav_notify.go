@@ -19,12 +19,68 @@ import (
 // Message (global toasts at the top of the window)
 
 type toast struct {
-	id     ID
-	status string
-	title  string
-	start  time.Time
-	dur    time.Duration
-	env    *env // scope Message was called in (theme, direction, locale)
+	id        ID
+	status    string
+	title     string
+	start     time.Time
+	dur       time.Duration
+	env       *env // scope Message was called in (theme, direction, locale)
+	placement MessagePlacement
+	offset    float32 // distance from the window edge; 0: MessageToken.Top
+	closable  bool
+	plain     bool
+}
+
+// MessagePlacement is where Message toasts appear. The start / end
+// placements are logical: in RTL the end is the left side. The zero value
+// is the design system's default (top center; shadcn/ui: the bottom end
+// corner, as Sonner).
+type MessagePlacement string
+
+const (
+	MessageTop         MessagePlacement = "top"
+	MessageTopStart    MessagePlacement = "top-start"
+	MessageTopEnd      MessagePlacement = "top-end"
+	MessageBottom      MessagePlacement = "bottom"
+	MessageBottomStart MessagePlacement = "bottom-start"
+	MessageBottomEnd   MessagePlacement = "bottom-end"
+)
+
+// bottom reports a placement at the bottom edge.
+func (p MessagePlacement) bottom() bool {
+	return p == MessageBottom || p == MessageBottomStart || p == MessageBottomEnd
+}
+
+// align is the cross-axis alignment of the toasts of the placement.
+func (p MessagePlacement) align() layout.Align {
+	switch p {
+	case MessageTopStart, MessageBottomStart:
+		return layout.AlignStart
+	case MessageTopEnd, MessageBottomEnd:
+		return layout.AlignEnd
+	}
+	return layout.AlignCenter
+}
+
+// sonner maps the placement to the Sonner stack corner ("" is the bottom
+// end corner).
+func (p MessagePlacement) sonner(rtl bool) NotifyPlacement {
+	var n NotifyPlacement
+	switch p {
+	case MessageTop:
+		n = NotifyTop
+	case MessageTopStart:
+		n = NotifyTopStart
+	case MessageTopEnd:
+		n = NotifyTopEnd
+	case MessageBottom:
+		n = NotifyBottom
+	case MessageBottomStart:
+		n = NotifyBottomStart
+	default:
+		n = NotifyBottomEnd
+	}
+	return n.resolve(rtl)
 }
 
 type toasts struct {
@@ -75,6 +131,7 @@ func (r *MessageRef) Key(key string) *MessageRef {
 		if m.id == id && m != r.m {
 			m.status, m.title = r.m.status, r.m.title
 			m.start, m.dur, m.env = r.now, r.m.dur, r.m.env
+			m.placement, m.offset, m.closable, m.plain = r.m.placement, r.m.offset, r.m.closable, r.m.plain
 			r.t.remove(r.m)
 			r.m = m
 			return r
@@ -93,6 +150,24 @@ func (r *MessageRef) Duration(d time.Duration) *MessageRef {
 	r.m.dur = d
 	return r
 }
+
+// Placement selects where the message appears (MessageTop by default;
+// shadcn/ui: the bottom end corner). Messages of each placement stack
+// separately; bottom placements stack upwards.
+func (r *MessageRef) Placement(p MessagePlacement) *MessageRef { r.m.placement = p; return r }
+
+// Offset sets the distance in px from the window's top (or bottom) edge to
+// the stack (default MessageToken.Top). The newest message of a placement
+// decides it. shadcn/ui's Sonner stack keeps its own inset.
+func (r *MessageRef) Offset(px float32) *MessageRef { r.m.offset = px; return r }
+
+// ShowClose adds a close button that dismisses the message.
+func (r *MessageRef) ShowClose() *MessageRef { r.m.closable = true; return r }
+
+// Plain draws the message on the neutral popup background with only the
+// icon in the status color (Element plain); Ant's message already looks
+// this way.
+func (r *MessageRef) Plain() *MessageRef { r.m.plain = true; return r }
 
 func (t *toasts) remove(m *toast) {
 	for i, x := range t.msgs {
@@ -159,24 +234,109 @@ func renderMessages(c *Context) {
 	if len(t.msgs) == 0 {
 		return
 	}
-	// The stack follows the newest message's scope; each toast is built
-	// in its own.
-	c.withEnv(t.msgs[len(t.msgs)-1].env, func() {
-		if c.Theme.Flavor == theme.StyleShadcn {
-			renderMessagesSonner(c, t.msgs)
-			return
+	// Each placement is its own stack, following the scope of its newest
+	// message; each toast is built in its own scope.
+	for _, g := range messageGroups(c, t.msgs) {
+		g := g
+		newest := g[len(g)-1]
+		pl := newest.place(c)
+		c.withEnv(newest.env, func() {
+			if c.Theme.Flavor == theme.StyleShadcn {
+				renderMessagesSonner(c, pl, g)
+				return
+			}
+			renderMessageGroup(c, pl, newest.offset, g)
+		})
+	}
+}
+
+// place returns the message's placement with the default resolved for
+// the design system it was opened under.
+func (m *toast) place(c *Context) MessagePlacement {
+	if m.placement != "" {
+		return m.placement
+	}
+	th := c.Theme
+	if m.env != nil && m.env.th != nil {
+		th = m.env.th
+	}
+	if th.Flavor == theme.StyleShadcn {
+		return MessageBottomEnd
+	}
+	return MessageTop
+}
+
+// messageGroups splits msgs (oldest first) by placement, in order of each
+// placement's first message.
+func messageGroups(c *Context, msgs []*toast) [][]*toast {
+	if len(msgs) == 0 {
+		return nil
+	}
+	first := msgs[0].place(c)
+	same := true
+	for _, m := range msgs[1:] {
+		if m.place(c) != first {
+			same = false
+			break
 		}
-		ov := Overlay(c, OverlayOptions{Place: ScreenTop, Margin: 8}, func() {
-			for _, m := range t.msgs {
-				c.withEnv(m.env, func() { messageRow(c, m) })
+	}
+	if same {
+		return [][]*toast{msgs}
+	}
+	var groups [][]*toast
+	at := map[MessagePlacement]int{}
+	for _, m := range msgs {
+		p := m.place(c)
+		i, ok := at[p]
+		if !ok {
+			i = len(groups)
+			at[p] = i
+			groups = append(groups, nil)
+		}
+		groups[i] = append(groups[i], m)
+	}
+	return groups
+}
+
+// renderMessageGroup builds the Ant / Element stack of placement pl,
+// off px from the window edge (0: MessageToken.Top).
+func renderMessageGroup(c *Context, pl MessagePlacement, off float32, g []*toast) {
+	tk := &c.ThemeFor(theme.CompMessage).Components.Message
+	if off <= 0 {
+		off = tk.Top
+	}
+	if pl == MessageTop {
+		ov := Overlay(c, OverlayOptions{Place: ScreenTop, Margin: off}, func() {
+			for _, m := range g {
+				c.withEnv(m.env, func() { messageRow(c, m, layout.AlignCenter, false) })
 			}
 		})
 		ov.n.hit = false
-	})
+		return
+	}
+	bottom := pl.bottom()
+	pad := geom.Insets{Top: off, Left: tk.MarginInline, Right: tk.MarginInline}
+	just := layout.JustifyStart
+	if bottom {
+		pad = geom.Insets{Bottom: off, Left: tk.MarginInline, Right: tk.MarginInline}
+		just = layout.JustifyEnd
+	}
+	ov := Overlay(c, OverlayOptions{Place: ScreenFill}, func() {
+		// Bottom stacks grow upwards: the oldest stays at the edge.
+		for i := range g {
+			m := g[i]
+			if bottom {
+				m = g[len(g)-1-i]
+			}
+			c.withEnv(m.env, func() { messageRow(c, m, pl.align(), bottom) })
+		}
+	}, layout.Padding(pad), layout.JustifyContent(just))
+	ov.n.hit, ov.n.blocks = false, false
 }
 
-// messageRow builds one Ant / Element message toast.
-func messageRow(c *Context, m *toast) {
+// messageRow builds one Ant / Element message toast aligned on the cross
+// axis with align; bottom stacks enter from below.
+func messageRow(c *Context, m *toast, align layout.Align, bottom bool) {
 	th := c.ThemeFor(theme.CompMessage)
 	tk := &th.Components.Message
 	el := th.Flavor == theme.Element
@@ -187,6 +347,10 @@ func messageRow(c *Context, m *toast) {
 		target = 0
 	}
 	a := c.AnimFrom(m.id, "in", 0, target, th.DurationMid)
+	margin := geom.Insets{Top: (a - 1) * 16, Bottom: 8}
+	if bottom {
+		margin = geom.Insets{Top: 8, Bottom: (a - 1) * 16}
+	}
 	row := Row(c, func() {
 		if m.status == "loading" {
 			Icon(c, icon.Loading).Spin().Size(16).Color(th.Primary.Base)
@@ -195,16 +359,26 @@ func messageRow(c *Context, m *toast) {
 		}
 		t := Text(c, m.title).NoWrap()
 		switch {
+		case m.plain:
+			t.Color(tk.PlainColor)
 		case tk.Color.A > 0:
 			t.Color(tk.Color)
 		case el:
 			t.Color(pal.Base) // Element: text in the status color
 		}
-	}, layout.PadVH(tk.PaddingBlock, tk.PaddingInline), layout.Gap(8), layout.Middle(), layout.Margin(geom.Insets{Bottom: 8}))
+		if m.closable {
+			if IconButton(c, icon.Close, c.Locale().Close).Size(16, 12).NoHoverBg().Color(tk.CloseColor).Clicked() && !leaving {
+				m.dur = max(0, c.now.Sub(m.start))
+				c.invalid = true
+			}
+		}
+	}, layout.PadVH(tk.PaddingBlock, tk.PaddingInline), layout.Gap(8), layout.Middle(), layout.Margin(margin), layout.Self(align))
 	row.Semantics(liveRole(m.status), m.title)
-	row.n.ln.AlignSelf = layout.AlignCenter
-	bg, border := tk.ContentBg, tk.BorderColor
-	if el {
+	bg, border, shadow := tk.ContentBg, tk.BorderColor, tk.Shadow
+	switch {
+	case m.plain:
+		bg, border, shadow = tk.PlainBg, tk.PlainBorderColor, tk.PlainShadow
+	case el:
 		// Element tints the toast with the status palette unless the
 		// token sets the colors.
 		if bg.A == 0 {
@@ -214,12 +388,11 @@ func messageRow(c *Context, m *toast) {
 			border = pal.BgHover
 		}
 	}
-	row.Bg(bg).Radius(tk.Radius).Shadow(tk.Shadow)
+	row.Bg(bg).Radius(tk.Radius).Shadow(shadow)
 	if border.A > 0 {
 		row.Border(1, border)
 	}
 	row.Opacity(a)
-	row.n.ln.Margin.Top = (a - 1) * 16
 }
 
 // ---------------------------------------------------------------------------
@@ -908,9 +1081,10 @@ func sonnerIcon(c *Context, status string) {
 	}
 }
 
-// renderMessagesSonner shows messages as a Sonner stack at the bottom end
-// corner of the current scope (bottom right; bottom left in RTL).
-func renderMessagesSonner(c *Context, msgs []*toast) {
+// renderMessagesSonner shows messages as a Sonner stack at the corner of
+// placement pl in the current scope (default: bottom right; bottom left in
+// RTL).
+func renderMessagesSonner(c *Context, pl MessagePlacement, msgs []*toast) {
 	th := c.Theme
 	cards := make([]sonnerCard, 0, len(msgs))
 	for _, m := range msgs {
@@ -920,9 +1094,20 @@ func renderMessagesSonner(c *Context, msgs []*toast) {
 		cards = append(cards, sonnerCard{id: m.id, env: m.env, a: a, title: m.title, stat: m.status, body: func() {
 			sonnerIcon(c, m.status)
 			Text(c, m.title).Weight(text.Medium).Layout(layout.Grow(1), layout.MinW(0))
+			if m.closable {
+				tk := &c.ThemeFor(theme.CompMessage).Components.Message
+				if IconButton(c, icon.Close, c.Locale().Close).Size(20, 14).NoHoverBg().Color(tk.CloseColor).Clicked() && !leaving {
+					m.dur = max(0, c.now.Sub(m.start))
+					c.invalid = true
+				}
+			}
 		}})
 	}
-	sonnerStack(c, hashID("sonner-messages"), NotifyBottomEnd.resolve(c.IsRTL()), cards, sonnerMessageStyle)
+	key := hashID("sonner-messages")
+	if pl != MessageBottomEnd {
+		key = hashID("sonner-messages", string(pl))
+	}
+	sonnerStack(c, key, pl.sonner(c.IsRTL()), cards, sonnerMessageStyle)
 }
 
 func renderNotesSonner(c *Context, ns *navNotes, pl NotifyPlacement, group []*navNote) {

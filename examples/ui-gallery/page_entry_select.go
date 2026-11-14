@@ -17,6 +17,8 @@ var (
 	selTags1                       = []string{"Go", "Rust", "TypeScript"}
 	selTags2                       = []string{"前端", "后端", "测试", "运维", "产品"}
 	selTags3                       []string
+	selTags4                       = []string{"北京", "上海"}
+	selTags5                       = []string{"第一", "第二", "第三"}
 	selMS1                         = []string{"bj", "sh"}
 	selMS2                         = []string{"bj", "sh", "gz", "sz", "hz"}
 	selMS3                         = []string{"bj"}
@@ -28,6 +30,11 @@ var (
 	selCasS                        []string
 	selCasP                        = []string{"js", "nj", "gl"}
 	selCasPM                       = [][]string{{"zj", "nb", "hs"}}
+	selAC6, selAC7                 = "", "Wall Street"
+	selMT5, selMT6                 = "请 @李雷 和 @Lucy 看看 ", "变体示例"
+	selMS5                         = []string{"bj", "sh"}
+	selCas4                        = []string{"zj", "hz", "xh"}
+	selCas5                        []string
 )
 
 var selCities = []ui.Option{
@@ -61,7 +68,7 @@ func selDemo(c *ui.Context, label string, fn func()) {
 }
 
 func init() {
-	entryPage(gallery.Page{Name: "AutoComplete", Title: "AutoComplete 自动完成", Order: 60, Height: 470,
+	entryPage(gallery.Page{Name: "AutoComplete", Title: "AutoComplete 自动完成", Order: 60, Height: 600,
 		Render: func(c *ui.Context) {
 			entryRow(c, func() {
 				selDemo(c, "基本（输入以过滤）", func() {
@@ -93,8 +100,18 @@ func init() {
 					ui.AutoComplete(c, &selAC5, nil).Remote(func(string) {}).Loading(true).Open().A11yLabel("远程地点")
 				})
 			})
+			ui.Gap(c, 150)
+			entryRow(c, func() {
+				selDemo(c, "聚焦即弹出（TriggerOnFocus）", func() {
+					ui.AutoComplete(c, &selAC6, ui.Opts("Downing Street", "Wall Street", "Baker Street")).TriggerOnFocus().Placeholder("点击输入框即显示建议")
+				})
+				selDemo(c, "变体：filled / underlined", func() {
+					ui.AutoComplete(c, &selAC7, nil).Variant(ui.FieldFilled).A11yLabel("地址（filled）")
+					ui.AutoComplete(c, &selAC7, nil).Variant(ui.FieldUnderlined).A11yLabel("地址（underlined）")
+				})
+			})
 		}})
-	entryPage(gallery.Page{Name: "Mentions", Title: "Mentions 提及", Order: 61, Height: 520,
+	entryPage(gallery.Page{Name: "Mentions", Title: "Mentions 提及", Order: 61, Height: 640,
 		Render: func(c *ui.Context) {
 			entryRow(c, func() {
 				selDemo(c, "输入 @ 弹出候选", func() {
@@ -114,6 +131,15 @@ func init() {
 					// Remote receives the trigger prefix and the typed query.
 					ui.Mentions(c, &selMT4, nil).Remote(func(prefix, query string) {}).Loading(true).Open().A11yLabel("远程评论")
 				})
+				selDemo(c, "可清空、整体删除提及", func() {
+					// Backspace right after "@Lucy " removes the whole mention.
+					ui.Mentions(c, &selMT5, selUsers).AllowClear().Whole().Rows(2).A11yLabel("可清空评论")
+				})
+				selDemo(c, "变体：filled / borderless / underlined", func() {
+					ui.Mentions(c, &selMT6, selUsers).Variant(ui.FieldFilled).A11yLabel("评论（filled）")
+					ui.Mentions(c, &selMT6, selUsers).Variant(ui.FieldBorderless).A11yLabel("评论（borderless）")
+					ui.Mentions(c, &selMT6, selUsers).Variant(ui.FieldUnderlined).A11yLabel("评论（underlined）")
+				})
 			})
 		}})
 	entryPage(gallery.Page{Name: "InputTag", Title: "InputTag 标签输入", Order: 62,
@@ -132,9 +158,17 @@ func init() {
 				})
 			})
 			ui.Gap(c, 16)
-			selDemo(c, "尺寸：小 / 大", func() {
-				ui.InputTag(c, &selTags1).Size(ui.Small).A11yLabel("标签（小）")
-				ui.InputTag(c, &selTags1).Size(ui.Large).A11yLabel("标签（大）")
+			entryRow(c, func() {
+				selDemo(c, "尺寸：小 / 大", func() {
+					ui.InputTag(c, &selTags1).Size(ui.Small).A11yLabel("标签（小）")
+					ui.InputTag(c, &selTags1).Size(ui.Large).A11yLabel("标签（大）")
+				})
+				selDemo(c, "自定义分隔符（分号或空格）", func() {
+					ui.InputTag(c, &selTags4).Separators(";", " ").Placeholder("输入后按分号或空格")
+				})
+				selDemo(c, "拖动标签排序 / 失焦保存", func() {
+					ui.InputTag(c, &selTags5).Draggable().SaveOnBlur().A11yLabel("可排序标签")
+				})
 			})
 		}})
 	entryPage(gallery.Page{Name: "MultiSelect", Title: "Select 多选（标签折叠）", Order: 63, Height: 560,
@@ -160,9 +194,14 @@ func init() {
 					ui.MultiSelect(c, &selMS1, selCities).Size(ui.Small).A11yLabel("城市（小）")
 					ui.MultiSelect(c, &selMS1, selCities).Size(ui.Large).A11yLabel("城市（大）")
 				})
+				selDemo(c, "变体 / 前缀 / 后缀图标", func() {
+					ui.MultiSelect(c, &selMS5, selCities).Variant(ui.FieldFilled).A11yLabel("城市（filled）")
+					ui.MultiSelect(c, &selMS5, selCities).Variant(ui.FieldUnderlined).A11yLabel("城市（underlined）")
+					ui.MultiSelect(c, &selMS5, selCities).PrefixText("城市").SuffixIcon(icon.Search).A11yLabel("城市（前缀）")
+				})
 			})
 		}})
-	entryPage(gallery.Page{Name: "Cascader", Title: "Cascader 级联选择", Order: 64, Width: 1480, Height: 1560,
+	entryPage(gallery.Page{Name: "Cascader", Title: "Cascader 级联选择", Order: 64, Width: 1480, Height: 1760,
 		Render: func(c *ui.Context) {
 			entryRow(c, func() {
 				selDemo(c, "基本（显示完整路径）", func() {
@@ -200,6 +239,25 @@ func init() {
 					ui.CascaderPanel(c, nil, selRegions).Multiple(&selCasPM).A11yLabel("内嵌多选地区")
 				})
 			})
+			ui.Gap(c, 24)
+			entryRow(c, func() {
+				selDemo(c, "DisplayRender：只显示最后一级", func() {
+					ui.Cascader(c, &selCas4, selRegions).DisplayRender(func(ls []string, _ []ui.CascaderOption) string {
+						return ls[len(ls)-1]
+					}).A11yLabel("地区（末级）")
+				})
+				selDemo(c, "变体：filled / borderless / underlined", func() {
+					ui.Cascader(c, &selCas4, selRegions).Variant(ui.FieldFilled).A11yLabel("地区（filled）")
+					ui.Cascader(c, &selCas4, selRegions).Variant(ui.FieldBorderless).A11yLabel("地区（borderless）")
+					ui.Cascader(c, &selCas4, selRegions).Variant(ui.FieldUnderlined).A11yLabel("地区（underlined）")
+				})
+				selDemo(c, "FilterMethod：按末级编码前缀搜索（输入 x）", func() {
+					ui.Cascader(c, &selCas5, selRegions).Placeholder("按编码搜索").FilterMethod(func(q string, p []ui.CascaderOption) bool {
+						return strings.HasPrefix(p[len(p)-1].Value, q)
+					})
+				})
+			})
+			ui.Gap(c, 120)
 		},
 		Setup: func(d *ui.Driver) {
 			d.ClickLabel("输入关键字搜索")

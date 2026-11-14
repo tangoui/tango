@@ -31,6 +31,14 @@ type AlertToken struct {
 	WithDescriptionIconMarginEnd float32
 	TitleMarginBottom            float32 // title to description
 	Radius                       float32
+	// Dark effect (Element effect="dark"): the box is filled with the
+	// status color and text and icon are drawn in DarkTextColor (through
+	// Theme.TextOn, so a light fill gets dark text).
+	SuccessDarkBg Color
+	InfoDarkBg    Color
+	WarningDarkBg Color
+	ErrorDarkBg   Color
+	DarkTextColor Color
 }
 
 func deriveAlert(t *Theme) AlertToken {
@@ -44,6 +52,8 @@ func deriveAlert(t *Theme) AlertToken {
 		DefaultPaddingBlock: 8, DefaultPaddingInline: 12, WithDescriptionPaddingBlock: 20, WithDescriptionPaddingInline: 24,
 		IconSize: 14, WithDescriptionIconSize: 24, IconMarginInlineEnd: 8, WithDescriptionIconMarginEnd: 12,
 		TitleMarginBottom: 4, Radius: t.RadiusLG,
+		SuccessDarkBg: t.Success.Base, InfoDarkBg: t.Info.Base, WarningDarkBg: t.Warning.Base, ErrorDarkBg: t.Error.Base,
+		DarkTextColor: t.TextOnSolid,
 	}
 	switch t.Flavor {
 	case Element:
@@ -59,6 +69,7 @@ func deriveAlert(t *Theme) AlertToken {
 		k.SuccessBorderColor, k.InfoBorderColor, k.WarningBorderColor = t.BorderSecondary, t.BorderSecondary, t.BorderSecondary
 		k.ErrorBorderColor = Fade(t.Error.Base, .5)
 		k.InfoIconColor = t.Text
+		k.InfoDarkBg = t.Primary.Base // shadcn's solid neutral fill
 		k.DescriptionColor = t.TextTertiary
 		k.TitleFontSize, k.TitleFontWeight = t.FontSize, 500
 		k.DefaultPaddingBlock, k.DefaultPaddingInline, k.WithDescriptionPaddingBlock, k.WithDescriptionPaddingInline = 12, 16, 12, 16

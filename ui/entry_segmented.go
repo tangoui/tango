@@ -5,6 +5,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
@@ -30,7 +31,17 @@ type SegmentedW struct {
 	z        *lazy
 	items    []*node
 	itemIA   []Interaction
+	vertical bool
+	shape    SegmentedShape
 }
+
+// SegmentedShape is the outline of a Segmented control.
+type SegmentedShape string
+
+const (
+	SegmentedShapeDefault SegmentedShape = "default" // the control's corner radius
+	SegmentedShapeRound   SegmentedShape = "round"   // pill-shaped track and thumb (Ant shape="round")
+)
 
 // Segmented adds a segmented control bound to *val.
 func Segmented(c *Context, val *string, opts []Option) *SegmentedW {
@@ -76,6 +87,21 @@ func (w *SegmentedW) Block() *SegmentedW {
 // Size sets the control size.
 func (w *SegmentedW) Size(s ControlSize) *SegmentedW { w.size = s; return w }
 
+// Vertical stacks the options top to bottom (Ant orientation="vertical",
+// Element direction="vertical"); they share the width of the widest one
+// and the up / down arrow keys move the selection.
+func (w *SegmentedW) Vertical() *SegmentedW {
+	w.vertical = true
+	flexbox.Apply(&w.n.ln.Style, layout.Dir(layout.Column), layout.AlignItems(layout.AlignStretch))
+	w.n.aState &^= a11y.Horizontal
+	w.n.setState(a11y.Vertical)
+	return w
+}
+
+// Shape sets the outline: SegmentedShapeRound makes the track and the
+// thumb pill-shaped.
+func (w *SegmentedW) Shape(s SegmentedShape) *SegmentedW { w.shape = s; return w }
+
 // Disabled disables every option.
 func (w *SegmentedW) Disabled(on bool) *SegmentedW {
 	if on {
@@ -108,6 +134,10 @@ func (w *SegmentedW) font() float32 { return controlFontOf(w.th, w.size) }
 
 func (w *SegmentedW) radii() (outer, inner float32) {
 	th := w.th
+	if w.shape == SegmentedShapeRound {
+		ih := w.itemH()
+		return ih/2 + w.trackPad(), ih / 2
+	}
 	if th.Flavor == theme.Element {
 		return th.Radius, th.Radius
 	}
@@ -242,14 +272,21 @@ func (w *SegmentedW) paintTrack(l *paint.List, r geom.Rect) {
 	// The thumb slides along logical offsets (from the inline start), so
 	// it moves the same way as the selection in both directions.
 	kr := w.items[sel].ln.Rect
-	s := c.inline(r)
-	lo := kr.X
-	if c.IsRTL() {
-		lo = r.W - kr.X - kr.W
+	var tr geom.Rect
+	if w.vertical {
+		y := c.Anim(w.n.id, "seg-y", kr.Y, th.DurationSlow)
+		ht := c.Anim(w.n.id, "seg-ht", kr.H, th.DurationSlow)
+		tr = geom.Rect{X: r.X + kr.X, Y: r.Y + y, W: kr.W, H: ht}
+	} else {
+		s := c.inline(r)
+		lo := kr.X
+		if c.IsRTL() {
+			lo = r.W - kr.X - kr.W
+		}
+		x := c.Anim(w.n.id, "seg-x", lo, th.DurationSlow)
+		wd := c.Anim(w.n.id, "seg-w", kr.W, th.DurationSlow)
+		tr = s.Rect(x, r.Y+kr.Y, wd, kr.H)
 	}
-	x := c.Anim(w.n.id, "seg-x", lo, th.DurationSlow)
-	wd := c.Anim(w.n.id, "seg-w", kr.W, th.DurationSlow)
-	tr := s.Rect(x, r.Y+kr.Y, wd, kr.H)
 	if w.dis() {
 		if th.Flavor == theme.Element {
 			thumb = th.Primary.Border

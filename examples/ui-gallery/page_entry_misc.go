@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"image"
 	"image/color"
+	"strings"
 
 	"github.com/tangoui/tango/examples/ui-gallery/gallery"
 	"github.com/tangoui/tango/ui"
@@ -27,11 +29,15 @@ var miscState = struct {
 	tsm, tsc, tsc2     []string
 	target, target2    []string
 	files, cards       []ui.UploadFile
+	pics, manual       []ui.UploadFile
 	drag               []ui.UploadFile
 	all, all2          []string
 	q                  string
+	ts5                string
+	tsStrict           []string
 }{
-	ts1: "xh", ts3: "nb",
+	tsStrict: []string{"zj", "xh"},
+	ts1:      "xh", ts3: "nb",
 	tsm:    []string{"hz", "nj"},
 	tsc:    []string{"xh", "yh", "nb", "sz"},
 	tsc2:   []string{"xh"},
@@ -65,7 +71,17 @@ func init() {
 		{Name: "error.png", Status: "error"},
 	}
 
-	entryPage(gallery.Page{Name: "TreeSelect", Title: "TreeSelect 树选择", Order: 70, Height: 820, Render: func(c *ui.Context) {
+	miscState.pics = []ui.UploadFile{
+		{Name: "风景.png", Size: 230000, Status: "done", Thumb: miscThumb(color.NRGBA{22, 119, 255, 255}, color.NRGBA{114, 46, 209, 255})},
+		{Name: "海报.jpg", Size: 880000, Status: "uploading", Percent: 62},
+		{Name: "失败.png", Status: "error"},
+	}
+	miscState.manual = []ui.UploadFile{
+		{Name: "待上传-1.pdf", Size: 12000, Status: "ready"},
+		{Name: "待上传-2.xlsx", Size: 54000, Status: "ready"},
+	}
+
+	entryPage(gallery.Page{Name: "TreeSelect", Title: "TreeSelect 树选择", Order: 70, Height: 1100, Render: func(c *ui.Context) {
 		s := &miscState
 		entryRow(c, func() {
 			entryCol(c, func() {
@@ -94,6 +110,23 @@ func init() {
 			entryCol(c, func() {
 				ui.Text(c, "可勾选（半选联动，展开）").Tertiary()
 				ui.TreeSelect(c, &s.ts2, miscTree).Multiple(&s.tsc2).Checkable().DefaultExpandAll().Width(300).Open()
+			})
+		})
+		ui.Gap(c, 300)
+		entryRow(c, func() {
+			entryCol(c, func() {
+				ui.Text(c, "父子不联动（CheckStrictly）").Tertiary()
+				ui.TreeSelect(c, &s.ts2, miscTree).Multiple(&s.tsStrict).CheckStrictly().DefaultExpandAll().Width(300).A11yLabel("地区（不联动）")
+				ui.Text(c, "自定义搜索：按编码匹配（FilterTreeNode）").Tertiary()
+				ui.TreeSelect(c, &s.ts5, miscTree).Placeholder("输入编码，如 nj").FilterTreeNode(func(q string, n ui.TreeSelectNode) bool {
+					return strings.HasPrefix(n.Value, strings.ToLower(q))
+				}).Width(300)
+			})
+			entryCol(c, func() {
+				ui.Text(c, "变体：filled / borderless / underlined").Tertiary()
+				ui.TreeSelect(c, &s.ts3, miscTree).Variant(ui.FieldFilled).Width(200).A11yLabel("城市（filled）")
+				ui.TreeSelect(c, &s.ts3, miscTree).Variant(ui.FieldBorderless).Width(200).A11yLabel("城市（borderless）")
+				ui.TreeSelect(c, &s.ts3, miscTree).Variant(ui.FieldUnderlined).Width(200).A11yLabel("城市（underlined）")
 			})
 		})
 	}})
@@ -133,6 +166,24 @@ func init() {
 		ui.Text(c, "照片墙").Tertiary()
 		ui.Gap(c, 8)
 		ui.Upload(c, &s.cards).PictureCard()
+		ui.Gap(c, 16)
+		entryRow(c, func() {
+			entryCol(c, func() {
+				ui.Text(c, "图片列表（ListType picture）").Tertiary()
+				ui.Upload(c, &s.pics).ListType(ui.UploadListPicture).Width(360)
+			})
+			entryCol(c, func() {
+				ui.Text(c, "手动上传（AutoUpload(false) + Submit）").Tertiary()
+				up := ui.Upload(c, &s.manual).AutoUpload(false).Width(360).ButtonText("选择文件").
+					CustomRequest(func(ctx context.Context, f ui.UploadFile, progress func(float64)) ([]byte, error) {
+						progress(100)
+						return nil, nil
+					})
+				if ui.Button(c, "上传到服务器").Primary().Clicked() {
+					up.Submit()
+				}
+			})
+		})
 		ui.Gap(c, 16)
 		ui.Text(c, "拖拽上传").Tertiary()
 		ui.Gap(c, 8)

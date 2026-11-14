@@ -12,6 +12,31 @@ import (
 	"github.com/tangoui/tango/ui/theme"
 )
 
+// FieldVariant is the frame look of an input-like selector (Ant
+// variant): AutoComplete, Mentions, Select, MultiSelect, Cascader and
+// TreeSelect take it. The values are the strings Input.Variant and the
+// date pickers accept, so FieldVariant(s) converts a string default.
+type FieldVariant string
+
+const (
+	// FieldOutlined is the default bordered frame.
+	FieldOutlined FieldVariant = "outlined"
+	// FieldFilled is a tinted fill whose border shows on focus.
+	FieldFilled FieldVariant = "filled"
+	// FieldBorderless draws no frame (the padding stays).
+	FieldBorderless FieldVariant = "borderless"
+	// FieldUnderlined draws only the bottom line.
+	FieldUnderlined FieldVariant = "underlined"
+)
+
+// frameRadii returns rad for the variant: the underlined frame is square.
+func (v FieldVariant) frameRadii(rad geom.Radii) geom.Radii {
+	if v == FieldUnderlined {
+		return geom.Radii{}
+	}
+	return rad
+}
+
 type selectState struct {
 	open   bool
 	active int
@@ -41,9 +66,13 @@ type SelectW struct {
 	allowClear  bool
 	disabled    bool
 	status      string
+	variant     FieldVariant
 	size        ControlSize
 	changed     bool
 	ia          Interaction
+	prefix      *icon.Icon // Prefix icon before the value
+	prefixText  string     // PrefixText before the value
+	suffixIcon  *icon.Icon // SuffixIcon in place of the arrow
 	z           *lazy
 	edID        ID
 	optIDs      []ID // option nodes of the open list (ActiveDescendant)
@@ -106,10 +135,25 @@ func (w *SelectW) semantics(s *a11y.Node) {
 	}
 }
 
-func (w *SelectW) Placeholder(s string) *SelectW      { w.placeholder = s; return w }
-func (w *SelectW) Searchable() *SelectW               { w.search = true; return w }
-func (w *SelectW) AllowClear() *SelectW               { w.allowClear = true; return w }
-func (w *SelectW) Status(s string) *SelectW           { w.status = s; return w }
+func (w *SelectW) Placeholder(s string) *SelectW { w.placeholder = s; return w }
+func (w *SelectW) Searchable() *SelectW          { w.search = true; return w }
+func (w *SelectW) AllowClear() *SelectW          { w.allowClear = true; return w }
+func (w *SelectW) Status(s string) *SelectW      { w.status = s; return w }
+
+// Variant sets the frame look (FieldOutlined by default).
+func (w *SelectW) Variant(v FieldVariant) *SelectW { w.variant = v; return w }
+
+// Prefix shows ic before the value (Ant prefix).
+func (w *SelectW) Prefix(ic *icon.Icon) *SelectW { w.prefix = ic; return w }
+
+// PrefixText shows s before the value (Ant prefix, Element prefix slot),
+// e.g. a field name inside the frame.
+func (w *SelectW) PrefixText(s string) *SelectW { w.prefixText = s; return w }
+
+// SuffixIcon replaces the dropdown arrow with ic (Ant suffixIcon, Element
+// suffix-icon); it is not rotated and also stays while searching. The
+// clear button still takes its place on hover with AllowClear.
+func (w *SelectW) SuffixIcon(ic *icon.Icon) *SelectW  { w.suffixIcon = ic; return w }
 func (w *SelectW) Size(s ControlSize) *SelectW        { w.size = s; return w }
 func (w *SelectW) Width(px float32) *SelectW          { w.n.ln.Width = px; return w }
 func (w *SelectW) Layout(o ...layout.Option) *SelectW { flexbox.Apply(&w.n.ln.Style, o...); return w }
@@ -162,6 +206,7 @@ func (w *SelectW) finish() {
 	st := w.st
 	w.n.ln.Height = controlHeightOf(w.th, w.size)
 	w.n.ln.Padding = geom.Insets{Left: 11, Right: 11 + 18}
+	w.prefixNode()
 	// Text node for selected label / placeholder / search editor.
 	ed := &node{id: w.edID, parent: w.n}
 	ed.ln.Ref = ed
@@ -245,6 +290,50 @@ func (w *SelectW) finish() {
 	}
 	w.dropdown(opts)
 	st.ptr = c.pointer
+}
+
+// prefixNode adds the Prefix icon / PrefixText before the value (a
+// decoration: the combobox is named by its label or placeholder).
+func (w *SelectW) prefixNode() {
+	if w.prefix == nil && w.prefixText == "" {
+		return
+	}
+	c, th := w.c, w.th
+	fs := controlFontOf(th, w.size)
+	is := fs
+	pn := &node{id: hashID(w.n.id, "prefix"), parent: w.n, aHidden: true}
+	pn.ln.Ref = pn
+	pn.ln.NoStretch = true
+	pn.ln.Margin.Right = 4
+	pn.ln.Measure = func(_, _ float32) geom.Size {
+		wd := float32(0)
+		if w.prefix != nil {
+			wd = is
+		}
+		if w.prefixText != "" {
+			if wd > 0 {
+				wd += 4
+			}
+			wd += text.Width(w.prefixText, c.style(fs, text.Regular))
+		}
+		return geom.Size{W: wd, H: 22}
+	}
+	pn.paint = func(l *paint.List, r geom.Rect) {
+		col := th.TextTertiary
+		if w.disabled || w.n.disabled {
+			col = th.TextDisabled
+		}
+		s := c.inline(r)
+		off := float32(0)
+		if w.prefix != nil {
+			c.paintIcon(l, w.prefix, s.Rect(0, r.Y+(r.H-is)/2, is, is), col, 0)
+			off = is + 4
+		}
+		if w.prefixText != "" {
+			entTextIn(c, l, w.prefixText, off, r, fs, text.Regular, col, r.W-off+1)
+		}
+	}
+	w.n.kids = append(w.n.kids, pn)
 }
 
 func (w *SelectW) index(v string) int {
@@ -389,7 +478,7 @@ func (w *SelectW) paint(l *paint.List, r geom.Rect) {
 	rad := geom.Rad(controlRadiusOf(th, w.size))
 	dis := w.disabled || w.n.disabled
 	focus := w.st.open || c.focus == w.n.id || c.focus == w.edID
-	c.paintFrameWith(l, r, rad, w.n.id, frameState{hover: w.ia.Hovered, focus: focus, disabled: dis, status: w.status}, selectFrameTok(th))
+	c.paintFrameWith(l, r, w.variant.frameRadii(rad), w.n.id, frameState{hover: w.ia.Hovered, focus: focus, disabled: dis, status: w.status, variant: string(w.variant)}, selectFrameTok(th))
 	is, right, col := entArrowLook(c)
 	if th.Flavor == theme.Element {
 		is, col = 12, th.TextTertiary
@@ -402,7 +491,9 @@ func (w *SelectW) paint(l *paint.List, r geom.Rect) {
 	}
 	ic := icon.Down
 	ang := 0.0
-	if w.search && w.st.open {
+	if w.suffixIcon != nil {
+		ic = w.suffixIcon
+	} else if w.search && w.st.open {
 		ic = icon.Search
 	} else if th.Flavor == theme.Element {
 		ang = float64(c.Anim(w.n.id, "arrow", b2f(w.st.open), th.DurationMid)) * 3.14159

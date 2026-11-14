@@ -207,7 +207,7 @@ func (w *TreeSelectW) pollLoads() {
 // inheritCheck hands the check of a lazy node that was checked before its
 // children loaded down to the new children (the node was never a leaf).
 func (w *TreeSelectW) inheritCheck(nd *TreeSelectNode) {
-	if !w.checkable || len(nd.Children) == 0 || !contains(*w.vals, nd.Value) {
+	if !w.checkable || w.strictly || len(nd.Children) == 0 || !contains(*w.vals, nd.Value) {
 		return
 	}
 	vals := remove(*w.vals, nd.Value)
@@ -228,7 +228,7 @@ func (w *TreeSelectW) inheritCheck(nd *TreeSelectNode) {
 // by the checked strategy.
 func (w *TreeSelectW) chips() (labels, vals []string) {
 	set := w.valueSet()
-	if w.strategy == ShowChild {
+	if w.strategy == ShowChild || w.strictly {
 		for _, v := range *w.vals {
 			if nd := tsFind(w.nodes, v); nd != nil {
 				labels = append(labels, nd.Label)
@@ -264,7 +264,7 @@ func (w *TreeSelectW) chips() (labels, vals []string) {
 // removeChip unchecks the subtree of tag value v.
 func (w *TreeSelectW) removeChip(v string) {
 	nd := tsFind(w.nodes, v)
-	if nd == nil {
+	if nd == nil || w.strictly {
 		*w.vals = remove(*w.vals, v)
 		w.changed = true
 		return

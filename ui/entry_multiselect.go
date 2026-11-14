@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
@@ -86,6 +87,19 @@ func (w *MultiSelectW) Layout(o ...layout.Option) *MultiSelectW {
 	flexbox.Apply(&w.box.n.ln.Style, o...)
 	return w
 }
+
+// Variant sets the frame look (FieldOutlined by default).
+func (w *MultiSelectW) Variant(v FieldVariant) *MultiSelectW { w.box.variant = v; return w }
+
+// Prefix shows ic before the tags (Ant prefix).
+func (w *MultiSelectW) Prefix(ic *icon.Icon) *MultiSelectW { w.box.prefix = ic; return w }
+
+// PrefixText shows s before the tags (Ant prefix, Element prefix slot).
+func (w *MultiSelectW) PrefixText(s string) *MultiSelectW { w.box.prefixText = s; return w }
+
+// SuffixIcon replaces the dropdown arrow with ic (Ant suffixIcon); the
+// clear button still takes its place on hover with AllowClear.
+func (w *MultiSelectW) SuffixIcon(ic *icon.Icon) *MultiSelectW { w.box.arrowIcon = ic; return w }
 
 // MaxTagCount collapses tags after n into a "+ N ..." tag.
 func (w *MultiSelectW) MaxTagCount(n int) *MultiSelectW { w.box.maxCount = n; return w }

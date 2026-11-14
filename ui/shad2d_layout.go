@@ -24,12 +24,15 @@ func (pl *proLayout) shadSide() {
 	pl.breakpoint()
 	collapsed := pl.collapsed()
 	bg, _, _, _, _, _ := shad2dSidebar(th)
-	Layout(c, func() {
+	body := func() {
 		sider := Sider(c, pl.siderWidth(), collapsed, func() {
-			pl.shadBrand(collapsed)
-			Scroll(c, func() {
+			pl.menuHeader(func() { pl.shadBrand(collapsed) }, collapsed)
+			pl.menuArea(func() {
 				Menu(c, cfg.Menu, cfg.Selected).Collapsed(collapsed).Show()
-			}, layout.Grow(1))
+			})
+			if cfg.MenuFooterRender != nil {
+				cfg.MenuFooterRender(collapsed)
+			}
 			if cfg.UserName != "" {
 				pl.shadUser(collapsed)
 			}
@@ -44,26 +47,37 @@ func (pl *proLayout) shadSide() {
 							c.invalid = true
 						}
 					}
-					if len(cfg.Breadcrumb) > 0 {
-						if cfg.Collapsed != nil {
-							Div(c, layout.W(1), layout.H(16), layout.Margin(geom.Insets{Left: 4, Right: 4})).Bg(th.BorderSecondary)
+					if cfg.HeaderContentRender != nil {
+						Row(c, cfg.HeaderContentRender, layout.Grow(1), layout.MinW(0), layout.Gap(8), layout.Middle())
+					} else {
+						if items := pl.crumbs(); len(items) > 0 {
+							if cfg.Collapsed != nil {
+								Div(c, layout.W(1), layout.H(16), layout.Margin(geom.Insets{Left: 4, Right: 4})).Bg(th.BorderSecondary)
+							}
+							BreadcrumbItems(c, items).Show()
 						}
-						Breadcrumb(c, cfg.Breadcrumb...)
+						Spacer(c)
 					}
-					Spacer(c)
 					if cfg.Actions != nil {
 						cfg.Actions()
 					}
 				}, layout.H(tk.ProHeaderHeight), layout.PadVH(0, 16), layout.Gap(8), layout.Middle())
 				hdr.Bg(tk.ProHeaderBg).Paint(shad2dBottomLine(th.BorderSecondary))
 			}
-			if cfg.NoFixedHeader {
-				pl.scrollHeader = header
+			if cfg.NoFixedHeader && !pl.pageScroll {
+				pl.scrollHeader = func() { pl.headerBar(header) }
 			} else {
-				header()
+				pl.headerBar(header)
 			}
 			pl.main(false)
 		}, layout.Grow(1), layout.MinW(0))
+	}
+	Layout(c, func() {
+		if cfg.NoFixSiderbar {
+			pl.pageScrollBody(body, c.Size().H)
+			return
+		}
+		body()
 	})
 }
 
@@ -75,8 +89,10 @@ func (pl *proLayout) shadHeader(menu bool) {
 	tk := &th.Components.Layout
 	cfg := pl.cfg
 	hdr := Row(c, func() {
-		Row(c, func() { pl.shadBrandMark(false) }, layout.Gap(8), layout.Middle())
-		if menu {
+		pl.menuHeader(func() { Row(c, func() { pl.shadBrandMark(false) }, layout.Gap(8), layout.Middle()) }, false)
+		if cfg.HeaderContentRender != nil {
+			Row(c, cfg.HeaderContentRender, layout.Grow(1), layout.MinW(0), layout.Gap(8), layout.Middle(), layout.Margin(geom.Insets{Left: 24}))
+		} else if menu {
 			Row(c, func() {
 				Menu(c, cfg.Menu, cfg.Selected).Mode(MenuHorizontal).Show()
 			}, layout.Grow(1), layout.MinW(0), layout.Margin(geom.Insets{Left: 24}))

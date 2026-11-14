@@ -72,6 +72,8 @@ type TreeSelectW struct {
 	stratVal  bool     // the bound value follows the checked strategy
 	expKeys   *[]string
 	expChange bool
+	strictly  bool                                         // CheckStrictly
+	filterFn  func(query string, node TreeSelectNode) bool // FilterTreeNode
 }
 
 // TreeSelect adds a tree select bound to *val (single selection). Use
@@ -102,6 +104,27 @@ func (w *TreeSelectW) Checkable() *TreeSelectW {
 	return w
 }
 
+// CheckStrictly unlinks parents and children in Checkable mode (Ant
+// treeCheckStrictly, Element check-strictly; implies Checkable): every
+// node, parent or leaf, is checked on its own, the value holds exactly the
+// checked nodes and each one is a tag. ShowCheckedStrategy and
+// StrategyValue do not apply.
+func (w *TreeSelectW) CheckStrictly() *TreeSelectW {
+	w.strictly = true
+	return w.Checkable()
+}
+
+// FilterTreeNode replaces the search match (by default the label
+// containing the typed text, case-insensitively) with fn, which receives
+// the typed text and a node (Ant filterTreeNode, Element
+// filter-node-method). Matching nodes are shown with their ancestors;
+// the typed text is still highlighted where it appears in a label.
+// Implies Searchable.
+func (w *TreeSelectW) FilterTreeNode(fn func(query string, node TreeSelectNode) bool) *TreeSelectW {
+	w.filterFn, w.box.search = fn, true
+	return w
+}
+
 func (w *TreeSelectW) Placeholder(s string) *TreeSelectW { w.box.placeholder = s; return w }
 
 // A11yLabel sets the accessible name (inside a FormItem the item label is
@@ -112,6 +135,10 @@ func (w *TreeSelectW) AllowClear() *TreeSelectW        { w.box.allowClear = true
 func (w *TreeSelectW) DefaultExpandAll() *TreeSelectW  { w.expandAll = true; return w }
 func (w *TreeSelectW) MaxTagCount(n int) *TreeSelectW  { w.box.maxCount = n; return w }
 func (w *TreeSelectW) Status(s string) *TreeSelectW    { w.box.status = s; return w }
+
+// Variant sets the frame look (FieldOutlined by default).
+func (w *TreeSelectW) Variant(v FieldVariant) *TreeSelectW { w.box.variant = v; return w }
+
 func (w *TreeSelectW) Size(s ControlSize) *TreeSelectW { w.box.size = s; return w }
 func (w *TreeSelectW) Width(px float32) *TreeSelectW   { w.n.ln.Width = px; return w }
 func (w *TreeSelectW) Layout(o ...layout.Option) *TreeSelectW {
@@ -190,16 +217,27 @@ func tsLeaves(nd *TreeSelectNode, enabledOnly bool, out []string) []string {
 	return out
 }
 
-func tsMatches(nd *TreeSelectNode, q string) bool {
-	if strings.Contains(strings.ToLower(nd.Label), q) {
+// tsMatches reports whether nd or a descendant matches the search: self
+// reports a node's own match.
+func tsMatches(nd *TreeSelectNode, self func(*TreeSelectNode) bool) bool {
+	if self(nd) {
 		return true
 	}
 	for i := range nd.Children {
-		if tsMatches(&nd.Children[i], q) {
+		if tsMatches(&nd.Children[i], self) {
 			return true
 		}
 	}
 	return false
+}
+
+// matcher returns the own-match test of the search text q (lower-cased
+// and trimmed; raw is the text as typed, given to FilterTreeNode).
+func (w *TreeSelectW) matcher(q, raw string) func(*TreeSelectNode) bool {
+	if w.filterFn != nil {
+		return func(nd *TreeSelectNode) bool { return w.filterFn(raw, *nd) }
+	}
+	return func(nd *TreeSelectNode) bool { return strings.Contains(strings.ToLower(nd.Label), q) }
 }
 
 func (w *TreeSelectW) expandAllNodes(ns []TreeSelectNode) {
@@ -214,17 +252,19 @@ func (w *TreeSelectW) expandAllNodes(ns []TreeSelectNode) {
 // rows flattens the visible part of the tree. While searching, nodes that
 // match or have a matching descendant are shown with their ancestors open.
 func (w *TreeSelectW) rows() []tsRow {
-	q := strings.ToLower(strings.TrimSpace(w.box.st.query))
+	raw := strings.TrimSpace(w.box.st.query)
+	q := strings.ToLower(raw)
+	self := w.matcher(q, raw)
 	var out []tsRow
 	var walk func(ns []TreeSelectNode, depth, parent int)
 	walk = func(ns []TreeSelectNode, depth, parent int) {
 		for i := range ns {
 			nd := &ns[i]
-			if q != "" && !tsMatches(nd, q) {
+			if q != "" && !tsMatches(nd, self) {
 				continue
 			}
 			idx := len(out)
-			out = append(out, tsRow{nd: nd, depth: depth, parent: parent, match: q != "" && strings.Contains(strings.ToLower(nd.Label), q)})
+			out = append(out, tsRow{nd: nd, depth: depth, parent: parent, match: q != "" && self(nd)})
 			if len(nd.Children) > 0 && (q != "" || w.st.expanded[nd.Value]) {
 				walk(nd.Children, depth+1, idx)
 			}
@@ -244,7 +284,7 @@ const (
 // checkState returns tsOff/tsOn/tsHalf for nd in checkable mode, or
 // selected/unselected otherwise.
 func (w *TreeSelectW) checkState(nd *TreeSelectNode, set map[string]bool) int {
-	if !w.checkable || len(nd.Children) == 0 {
+	if !w.checkable || len(nd.Children) == 0 || w.strictly {
 		if (w.multiple() && set[nd.Value]) || (!w.multiple() && *w.val == nd.Value) {
 			return tsOn
 		}
@@ -300,6 +340,13 @@ func (w *TreeSelectW) act(nd *TreeSelectNode) {
 		w.st.pop.open = false
 		w.box.st.query = ""
 		c.SetFocus(w.box.ed.id)
+	case w.strictly:
+		if contains(*w.vals, nd.Value) {
+			*w.vals = remove(*w.vals, nd.Value)
+		} else {
+			*w.vals = append(*w.vals, nd.Value)
+		}
+		w.changed = true
 	case w.checkable:
 		set := w.valueSet()
 		leaves := tsLeaves(nd, true, nil)
@@ -380,7 +427,7 @@ func (w *TreeSelectW) finish() {
 		w.expandIn()
 	}
 	var user *[]string
-	if w.stratVal && w.checkable {
+	if w.stratVal && w.checkable && !w.strictly {
 		// Work on the checked leaves; write the strategy values back.
 		user = w.vals
 		leaves := tsExpandValues(w.nodes, *user)

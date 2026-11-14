@@ -74,6 +74,27 @@ type StepsToken struct {
 	NavInkBarColor Color // underline of the current navigation step (zero: none)
 	NavBg          Color // navigation strip (zero: none)
 	NavRadius      float32
+
+	// Inline type: a compact row of small dots with the titles under them.
+	InlineDotSize        float32
+	InlineDotCurrentSize float32
+	InlineTitleFontSize  float32
+	InlinePaddingX       float32 // inside each step, beside the title
+	InlinePaddingY       float32
+	InlineHoverBg        Color   // clickable step under the pointer
+	InlineRadius         float32 // hover background
+
+	// Panel type: arrow-shaped panels in a row.
+	PanelBg         Color   `contrast:"nontext:@Page"` // waiting and finished steps
+	PanelActiveBg   Color   // the current step
+	PanelErrorBg    Color   // a failed step
+	PanelHoverBg    Color   // clickable step under the pointer
+	PanelArrowWidth float32 // depth of the arrow point and notch
+	PanelGap        float32 // gap between two panels
+	PanelPaddingX   float32
+	PanelPaddingY   float32
+	PanelRadius     float32 // outer corners of the row
+	PanelIconSize   float32
 }
 
 func deriveSteps(t *Theme) StepsToken {
@@ -96,6 +117,12 @@ func deriveSteps(t *Theme) StepsToken {
 		HoverColor: t.Primary.Base, HoverIconBorderColor: t.Primary.Base, SubTitleColor: t.TextTertiary,
 		ProgressColor: t.Primary.Base, ProgressTrailColor: t.Split,
 		NavArrowColor: t.TextQuaternary, NavInkBarColor: t.Primary.Base,
+
+		InlineDotSize: 6, InlineDotCurrentSize: 8, InlineTitleFontSize: t.FontSizeSM,
+		InlinePaddingX: 8, InlinePaddingY: 4, InlineHoverBg: t.FillTertiary, InlineRadius: t.RadiusSM,
+
+		PanelBg: t.FillTertiary, PanelActiveBg: t.Primary.Bg, PanelErrorBg: t.Error.Bg, PanelHoverBg: t.FillSecondary,
+		PanelArrowWidth: 12, PanelGap: 4, PanelPaddingX: 16, PanelPaddingY: 10, PanelRadius: t.Radius, PanelIconSize: 24,
 	}
 	switch t.Flavor {
 	case Element:
@@ -118,6 +145,8 @@ func deriveSteps(t *Theme) StepsToken {
 		k.TailColor = t.BorderHover
 		k.NavArrowColor, k.NavInkBarColor = t.TextTertiary, Color{}
 		k.NavBg, k.NavRadius = t.FillTertiary, 4
+		k.InlineDotSize, k.InlineDotCurrentSize = 8, 8
+		k.PanelIconSize = 20
 	case StyleShadcn:
 		// No shadcn Steps; its stepper patterns: finished and current
 		// steps solid primary, waiting ones outlined, errors outlined in
@@ -128,6 +157,8 @@ func deriveSteps(t *Theme) StepsToken {
 		k.ErrorIconBg, k.ErrorIconBorderColor = t.BgContainer, t.Error.Base
 		k.WaitIconBg, k.WaitIconBorderColor = t.BgContainer, t.Border
 		k.HoverColor, k.HoverIconBorderColor = t.Text, t.BorderHover
+		k.InlineHoverBg, k.PanelHoverBg = t.ItemHoverBg, t.ItemHoverBg
+		k.PanelActiveBg = t.Primary.BgHover
 	}
 	return k
 }

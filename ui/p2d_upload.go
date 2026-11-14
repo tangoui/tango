@@ -136,6 +136,39 @@ func (w *UploadW) Retries(n int) *UploadW { w.req.retries = n; return w }
 // Client sets the HTTP client of Action (default http.DefaultClient).
 func (w *UploadW) Client(cl *http.Client) *UploadW { w.req.client = cl; return w }
 
+// AutoUpload(false) holds the files added with Action or CustomRequest
+// in the list with Status "ready" instead of uploading them at once
+// (Element auto-upload=false, Ant beforeUpload returning false); Submit
+// uploads them. Without Action / CustomRequest files are accepted locally
+// either way.
+func (w *UploadW) AutoUpload(on bool) *UploadW { w.manual = !on; return w }
+
+// Submit uploads every "ready" file of the list (see AutoUpload) with
+// Action or CustomRequest, e.g. when a separate "upload" button is
+// clicked. It returns how many uploads it started.
+func (w *UploadW) Submit() int {
+	if !w.req.active() || w.isDisabled() {
+		return 0
+	}
+	n := 0
+	for i := range *w.files {
+		f := &(*w.files)[i]
+		if f.Status != "ready" {
+			continue
+		}
+		if f.UID == 0 {
+			f.UID = upUID.Add(1)
+		}
+		f.Status, f.Percent, f.Err = "uploading", 0, ""
+		w.startJob(*f)
+		n++
+	}
+	if n > 0 {
+		w.c.invalid = true
+	}
+	return n
+}
+
 // Added returns the files the Upload added this frame (picked or dropped,
 // after the checks).
 func (w *UploadW) Added() []UploadFile { w.z.run(); return w.added }
@@ -152,8 +185,9 @@ func (w *UploadW) Rejections() []string {
 
 // configDefaults applies ConfigProvider Defaults("Upload", ...): "accept",
 // "action" (string), "maxSize" (int64 bytes), "maxCount" (int),
-// "multiple", "directory", "disabled" (bool), "listType" ("text" |
-// "picture-card" | "picture-circle"), "headers" (map[string]string) and
+// "multiple", "directory", "disabled", "autoUpload" (bool), "listType"
+// ("text" | "picture" | "picture-card" | "picture-circle"), "headers"
+// (map[string]string) and
 // "picker" (func(accept string, multiple, dir bool) ([]string, error)).
 func (w *UploadW) configDefaults() {
 	c := w.c
@@ -167,6 +201,11 @@ func (w *UploadW) configDefaults() {
 	switch propString(c, "Upload", "listType", "") {
 	case "picture-card", "picture-circle":
 		w.kind = upCard
+	case "picture":
+		w.kind = upPicture
+	}
+	if !propBool(c, "Upload", "autoUpload", true) {
+		w.manual = true
 	}
 	w.req.headers = Prop(c, "Upload", "headers", w.req.headers)
 	w.picker = Prop(c, "Upload", "picker", w.picker)
@@ -299,12 +338,16 @@ func (w *UploadW) addPaths(paths []string) {
 			}
 		}
 		f.UID = upUID.Add(1)
-		if w.req.active() {
+		upload := w.req.active() && !w.manual
+		switch {
+		case upload:
 			f.Status, f.Percent = "uploading", 0
+		case w.req.active():
+			f.Status = "ready" // waits for Submit
 		}
 		*w.files = append(*w.files, f)
 		w.added = append(w.added, f)
-		if w.req.active() {
+		if upload {
 			w.startJob(f)
 		}
 	}

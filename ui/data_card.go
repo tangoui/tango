@@ -35,6 +35,10 @@ type CardW struct {
 	opts      []layout.Option
 	ia        Interaction
 	headBg    theme.Color
+	tabs      []TabItem
+	tabActive *string
+	tabExtra  func()
+	tabHit    bool
 }
 
 // Card starts a card ("" title = no header); set options then call Body.
@@ -91,6 +95,23 @@ func (w *CardW) Padding(in geom.Insets) *CardW { w.pad = &in; return w }
 
 // Layout applies layout options to the card.
 func (w *CardW) Layout(o ...layout.Option) *CardW { w.opts = append(w.opts, o...); return w }
+
+// Tabs adds a tab bar under the title (Ant tabList / activeTabKey): it
+// switches *active, and the body is built as the active tab's panel, so
+// Body's fn shows the content for *active. Without a title the tab bar is
+// the whole header.
+func (w *CardW) Tabs(active *string, items []TabItem) *CardW {
+	w.tabActive, w.tabs = active, items
+	return w
+}
+
+// TabBarExtra builds content at the end of the card's tab bar (Ant
+// tabBarExtraContent).
+func (w *CardW) TabBarExtra(fn func()) *CardW { w.tabExtra = fn; return w }
+
+// TabChanged reports that the user switched tabs this frame (Ant
+// onTabChange). Call it after Body.
+func (w *CardW) TabChanged() bool { return w.tabHit }
 
 // Clicked reports a click on a hoverable card.
 func (w *CardW) Clicked() bool { return w.ia.Clicked }
@@ -161,7 +182,8 @@ func (w *CardW) Body(fn func()) *CardW {
 	if w.small {
 		pad = geom.All(tk.BodyPaddingSM)
 	}
-	hasHead := w.title != "" || w.extra != nil
+	hasTabs := w.tabActive != nil && len(w.tabs) > 0
+	hasHead := w.title != "" || w.extra != nil || hasTabs
 	if shad && hasHead {
 		pad.Top = 0 // shadcn CardContent: p-6 pt-0 under the header
 	}
@@ -172,7 +194,11 @@ func (w *CardW) Body(fn func()) *CardW {
 		if w.cover != nil {
 			Column(c, w.cover)
 		}
-		if w.title != "" || w.extra != nil {
+		var tb *TabsW
+		if hasTabs {
+			tb = w.tabBar(tk, border)
+		}
+		if tb == nil && (w.title != "" || w.extra != nil) {
 			h, fs, pv, ph := tk.HeaderHeight, tk.HeaderFontSize, tk.HeaderPaddingBlock, tk.HeaderPaddingInline
 			if w.small {
 				h, fs, pv, ph = tk.HeaderHeightSM, tk.HeaderFontSizeSM, tk.HeaderPaddingBlockSM, tk.HeaderPaddingInlineSM
@@ -206,6 +232,8 @@ func (w *CardW) Body(fn func()) *CardW {
 		}
 		if w.loading {
 			Column(c, func() { Skeleton(c).Active().NoTitle().Rows(4).Show() }, layout.Padding(pad))
+		} else if tb != nil && fn != nil {
+			Column(c, func() { tb.Panel(fn) }, layout.Padding(pad), layout.Grow(1))
 		} else if fn != nil {
 			Column(c, fn, layout.Padding(pad), layout.Grow(1))
 		}
@@ -244,6 +272,66 @@ type CardActionW struct {
 
 // Clicked reports whether the action was activated this frame.
 func (a *CardActionW) Clicked() bool { return a.clicked }
+
+// tabBar builds the header of a card with tabs: the title row (when there
+// is a title or extra) and the tab bar below it, with the header line at
+// the bottom. It returns the shown bar.
+func (w *CardW) tabBar(tk *theme.CardToken, border theme.Color) *TabsW {
+	c := w.c
+	th := c.ThemeFor(theme.CompCard)
+	el, shad := th.Flavor == theme.Element, th.Flavor == theme.StyleShadcn
+	h, fs, pv, ph := tk.HeaderHeight, tk.HeaderFontSize, tk.HeaderPaddingBlock, tk.HeaderPaddingInline
+	if w.small {
+		h, fs, pv, ph = tk.HeaderHeightSM, tk.HeaderFontSizeSM, tk.HeaderPaddingBlockSM, tk.HeaderPaddingInlineSM
+	}
+	var tb *TabsW
+	hd := Column(c, func() {
+		if w.title != "" || w.extra != nil {
+			ropts := []layout.Option{layout.Padding(geom.Insets{Top: pv, Left: ph, Right: ph}), layout.Middle(), layout.Gap(8)}
+			if h > 0 {
+				ropts = append(ropts, layout.MinH(h-pv))
+			}
+			Row(c, func() {
+				t := Text(c, w.title).Size(fs).Ellipsis().Layout(layout.Grow(1)).Color(tk.HeaderColor)
+				if tk.HeaderFontWeight != 0 {
+					t.Weight(text.Weight(tk.HeaderFontWeight))
+				}
+				if w.inner && !el {
+					t.Size(th.FontSize)
+				}
+				if w.extra != nil {
+					w.extra()
+				}
+			}, ropts...)
+		}
+		bopts := []layout.Option{layout.Padding(geom.Insets{Left: ph, Right: ph})}
+		if shad {
+			bopts = []layout.Option{layout.Padding(geom.Insets{Top: pv / 2, Left: ph, Right: ph, Bottom: pv / 2})}
+		}
+		Column(c, func() {
+			tb = Tabs(c, w.tabActive, w.tabs).NoMargin()
+			if w.small {
+				tb.Size(Small)
+			}
+			if w.tabExtra != nil {
+				tb.Extra(w.tabExtra)
+			}
+			tb.Show()
+			w.tabHit = tb.Changed()
+		}, bopts...)
+	})
+	if hb := tk.HeaderBg; w.inner && !el && tk.InnerHeaderBg.A > 0 {
+		hd.Bg(tk.InnerHeaderBg)
+	} else if hb.A > 0 {
+		hd.Bg(hb)
+	}
+	if !shad || w.inner {
+		hd.Paint(func(l *paint.List, r geom.Rect) {
+			dataHLine(l, r.X, r.Bottom()-1, r.W, border)
+		})
+	}
+	return tb
+}
 
 // CardAction is a convenience action slot: a clickable icon (e.g.
 // icon.Setting, icon.Edit, icon.More, icon.Like) in the secondary text

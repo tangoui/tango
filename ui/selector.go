@@ -39,6 +39,10 @@ type selector struct {
 	ia, edIA    Interaction
 	size        ControlSize
 	status      string
+	variant     FieldVariant // frame look (Variant of the owner)
+	prefix      *icon.Icon   // decoration before the tags / value
+	prefixText  string
+	prefixN     *node // the prefix node while shown
 	disabled    bool
 	placeholder string
 	allowClear  bool
@@ -162,7 +166,8 @@ func (b *selector) build(labels []string) {
 	}
 	b.hasValue = len(labels) > 0 || b.single != ""
 	b.labels = labels
-	b.removed, b.chipClicked = selectorTags(c, labels, b.maxCount, !b.disabled, b.disabled, b.size)
+	b.prefixNode()
+	b.removed, b.chipClicked = selectorTags(c, labels, b.maxCount, !b.disabled, b.disabled, b.size, b.variant == FieldFilled)
 	ed := c.add("ms-input", b.placeholder)
 	b.ed = ed
 	ed.aHidden = true // the editor is part of the combobox
@@ -175,7 +180,7 @@ func (b *selector) build(labels []string) {
 	if th.Flavor == theme.StyleShadcn {
 		padL = th.ControlPaddingH - 4
 	}
-	if len(labels) == 0 {
+	if len(labels) == 0 && b.prefix == nil && b.prefixText == "" {
 		ed.ln.Margin.Left = padL
 	}
 	// Nothing to type (or not focused and empty): the editor takes no room.
@@ -211,6 +216,63 @@ func (b *selector) build(labels []string) {
 	if !b.disabled && ((b.ia.PressedNow && !b.edIA.PressedNow) || b.chipClicked || b.removed >= 0) {
 		c.SetFocus(ed.id)
 	}
+}
+
+// prefixNode adds the Prefix icon / PrefixText at the start of the row
+// (a decoration: the combobox is named by its label or placeholder).
+func (b *selector) prefixNode() {
+	if b.prefix == nil && b.prefixText == "" {
+		return
+	}
+	c, th := b.c, b.th
+	fs := controlFontOf(th, b.size)
+	is := fs
+	n := c.add("selector-prefix", "")
+	b.prefixN = n
+	n.aHidden = true
+	n.ln.NoStretch = true
+	n.ln.Margin.Left = 7
+	n.ln.Margin.Right = 2
+	ch := selectorTagH(c, b.size)
+	n.ln.Measure = func(_, _ float32) geom.Size {
+		wd := float32(0)
+		if b.prefix != nil {
+			wd = is
+		}
+		if b.prefixText != "" {
+			if wd > 0 {
+				wd += 4
+			}
+			wd += text.Width(b.prefixText, b.font())
+		}
+		return geom.Size{W: wd, H: ch}
+	}
+	n.paint = func(l *paint.List, r geom.Rect) {
+		col := th.TextTertiary
+		if b.disabled {
+			col = th.TextDisabled
+		}
+		off := float32(0)
+		if b.prefix != nil {
+			c.paintIcon(l, b.prefix, c.inline(r).Rect(0, r.Y+(r.H-is)/2, is, is), col, 0)
+			off = is + 4
+		}
+		if b.prefixText != "" {
+			entTextIn(c, l, b.prefixText, off, r, fs, text.Regular, col, r.W-off+1)
+		}
+	}
+}
+
+// chipCount returns the number of tag nodes in the row (the prefix and
+// the editor are not tags).
+func (b *selector) chipCount() int {
+	n := 0
+	for _, k := range b.n.kids {
+		if k != b.ed && k != b.prefixN {
+			n++
+		}
+	}
+	return n
 }
 
 // focused reports whether the editor has keyboard focus.
@@ -256,7 +318,7 @@ func (b *selector) paintEditor(l *paint.List, r geom.Rect) {
 		col = th.TextDisabled
 	}
 	ph := ""
-	if len(b.n.kids) <= 1 { // no chips
+	if b.chipCount() == 0 {
 		ph = b.placeholder
 	}
 	editing := b.search && b.focused() && (b.open || b.st.query != "")
@@ -286,7 +348,7 @@ func (b *selector) paint(l *paint.List, r geom.Rect) {
 	rad := geom.Rad(controlRadiusOf(th, b.size))
 	hover := b.hovered(r)
 	focus := b.open || b.focused()
-	c.paintFrameWith(l, r, rad, b.n.id, frameState{hover: hover, focus: focus && !b.disabled, disabled: b.disabled, status: b.status}, selectFrameTok(th))
+	c.paintFrameWith(l, r, b.variant.frameRadii(rad), b.n.id, frameState{hover: hover, focus: focus && !b.disabled, disabled: b.disabled, status: b.status, variant: string(b.variant)}, selectFrameTok(th))
 	is, right, _ := entArrowLook(c)
 	if th.Flavor == theme.StyleShadcn {
 		is = 14
@@ -334,7 +396,7 @@ func selectorTagFont(c *Context, s ControlSize) float32 {
 // chip and 0 otherwise.
 // The label starts at the inline start of the chip, the close icon sits at
 // its end.
-func selectorTag(c *Context, label string, closable, disabled bool, size ControlSize) int {
+func selectorTag(c *Context, label string, closable, disabled bool, size ControlSize, filled bool) int {
 	th := c.ThemeFor(theme.CompSelect)
 	tk := &th.Components.Select
 	n := c.add("selector-tag", label)
@@ -394,7 +456,14 @@ func selectorTag(c *Context, label string, closable, disabled bool, size Control
 				bg.A /= 2
 			}
 		}
-		l.Fill(r, rad, bg)
+		if filled && !disabled {
+			// On the tinted filled frame a tag is a container chip with a
+			// hairline (Ant variant="filled").
+			l.Fill(r, rad, th.BgContainer)
+			l.Stroke(r, rad, 1, th.Split)
+		} else {
+			l.Fill(r, rad, bg)
+		}
 		maxW := r.W - 2*pad
 		if closable {
 			maxW -= 14
@@ -425,7 +494,7 @@ func selectorTag(c *Context, label string, closable, disabled bool, size Control
 // selectorTags adds chips for labels, collapsing everything after maxCount
 // (<= 0: show all) into a "+ N ..." chip. It returns the index of the label
 // whose close icon was clicked (-1 none) and whether any chip body was clicked.
-func selectorTags(c *Context, labels []string, maxCount int, closable, disabled bool, size ControlSize) (removed int, clicked bool) {
+func selectorTags(c *Context, labels []string, maxCount int, closable, disabled bool, size ControlSize, filled bool) (removed int, clicked bool) {
 	removed = -1
 	shown := len(labels)
 	if maxCount > 0 && shown > maxCount {
@@ -434,7 +503,7 @@ func selectorTags(c *Context, labels []string, maxCount int, closable, disabled 
 	for i := 0; i < shown; i++ {
 		i := i
 		Key(c, labels[i], func() {
-			switch selectorTag(c, labels[i], closable, disabled, size) {
+			switch selectorTag(c, labels[i], closable, disabled, size, filled) {
 			case 2:
 				removed = i
 			case 1:
@@ -443,7 +512,7 @@ func selectorTags(c *Context, labels []string, maxCount int, closable, disabled 
 		})
 	}
 	if rest := len(labels) - shown; rest > 0 {
-		if selectorTag(c, "+ "+itoaEnt(rest)+" ...", false, disabled, size) == 1 {
+		if selectorTag(c, "+ "+itoaEnt(rest)+" ...", false, disabled, size, filled) == 1 {
 			clicked = true
 		}
 	}
