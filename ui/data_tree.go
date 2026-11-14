@@ -48,6 +48,7 @@ type treeState struct {
 	loading    map[string]bool
 	loaded     map[string]bool
 	lastSearch string
+	expandInit bool // DefaultExpandAll applied
 	drag       treeDrag
 	targets    map[ID]string // click target -> key (previous build)
 	rows       map[string]ID // key -> row id (previous build)
@@ -74,6 +75,18 @@ type TreeW struct {
 	draggable bool
 	multiple  bool
 	expClick  bool
+	noSelect  bool // Selectable(false)
+	disabled  bool
+	expandAll bool
+	accordion bool
+	chkClick  bool
+	chkLeaf   bool
+	switcher  *icon.Icon
+	filterFn  func(keyword string, n *TreeNode) bool
+	allowDrag func(key string) bool
+	allowDrop func(drag, drop string, pos int) bool
+	emptyText string
+	emptySet  bool
 	expSet    bool
 	loadData  func(key string) bool
 	search    string
@@ -113,15 +126,22 @@ func Tree(c *Context, nodes []TreeNode) *TreeW {
 	w.useTheme()
 	w.expanded, w.selected, w.checked = &st.expanded, &st.selected, &st.checked
 	// ConfigProvider.Defaults("Tree", ...) keys: "showLine", "showIcon",
-	// "blockNode", "checkable", "multiple", "draggable", "height"
-	// (virtual scrolling viewport, px) and "virtual" (false turns the
-	// height into a plain scroll area).
+	// "blockNode", "checkable", "multiple", "draggable", "selectable",
+	// "defaultExpandAll", "accordion", "checkOnClickNode",
+	// "checkOnClickLeaf", "height" (virtual scrolling
+	// viewport, px) and "virtual" (false turns the height into a plain
+	// scroll area).
 	w.showLine = Prop(c, "Tree", "showLine", false)
 	w.showIcon = Prop(c, "Tree", "showIcon", false)
 	w.block = Prop(c, "Tree", "blockNode", false)
 	w.checkable = Prop(c, "Tree", "checkable", false)
 	w.multiple = Prop(c, "Tree", "multiple", false)
 	w.draggable = Prop(c, "Tree", "draggable", false)
+	w.noSelect = !Prop(c, "Tree", "selectable", true)
+	w.expandAll = Prop(c, "Tree", "defaultExpandAll", false)
+	w.accordion = Prop(c, "Tree", "accordion", false)
+	w.chkClick = Prop(c, "Tree", "checkOnClickNode", false)
+	w.chkLeaf = Prop(c, "Tree", "checkOnClickLeaf", false)
 	if h, ok := p2bNum(c, "Tree", "height"); ok && h > 0 {
 		w.height = float32(h)
 	}
@@ -175,6 +195,59 @@ func (w *TreeW) Draggable() *TreeW { w.draggable = true; return w }
 
 // Multiple allows selecting several nodes.
 func (w *TreeW) Multiple() *TreeW { w.multiple = true; return w }
+
+// Selectable turns selection on or off (antd selectable, default true).
+// An unselectable tree still expands, checks and drags.
+func (w *TreeW) Selectable(on bool) *TreeW { w.noSelect = !on; return w }
+
+// Disabled disables the whole tree (antd disabled): no selection,
+// expansion, checking, dragging or keyboard focus.
+func (w *TreeW) Disabled(on bool) *TreeW { w.disabled = on; return w }
+
+// DefaultExpandAll expands every parent node the first time the tree is
+// shown (antd defaultExpandAll, Element default-expand-all).
+func (w *TreeW) DefaultExpandAll() *TreeW { w.expandAll = true; return w }
+
+// Accordion keeps one node expanded per level: expanding a node collapses
+// its expanded siblings (Element accordion).
+func (w *TreeW) Accordion() *TreeW { w.accordion = true; return w }
+
+// CheckOnClick toggles the checkbox when a checkable node's title is
+// clicked (Element check-on-click-node).
+func (w *TreeW) CheckOnClick(on bool) *TreeW { w.chkClick = on; return w }
+
+// CheckOnClickLeaf toggles the checkbox when a checkable leaf's title is
+// clicked (Element check-on-click-leaf, on by default there; antd
+// selects instead, so it is off by default here: turn it on per tree or
+// with Defaults("Tree", Props{"checkOnClickLeaf": true})).
+func (w *TreeW) CheckOnClickLeaf(on bool) *TreeW { w.chkLeaf = on; return w }
+
+// SwitcherIcon replaces the expand switcher (antd switcherIcon, Element
+// icon). Draw it pointing down: it turns -90° while collapsed.
+func (w *TreeW) SwitcherIcon(ic *icon.Icon) *TreeW { w.switcher = ic; return w }
+
+// FilterMethod replaces the title-contains match used by Search and Filter
+// (antd filterTreeNode, Element filter-node-method).
+func (w *TreeW) FilterMethod(fn func(keyword string, n *TreeNode) bool) *TreeW {
+	w.filterFn = fn
+	return w
+}
+
+// AllowDrag decides which nodes can be dragged (antd draggable.nodeDraggable,
+// Element allow-drag).
+func (w *TreeW) AllowDrag(fn func(key string) bool) *TreeW { w.allowDrag = fn; return w }
+
+// AllowDrop decides where a dragged node may land (antd allowDrop, Element
+// allow-drop); pos is TreeDropBefore / Inside / After.
+func (w *TreeW) AllowDrop(fn func(drag, drop string, pos int) bool) *TreeW {
+	w.allowDrop = fn
+	return w
+}
+
+// EmptyText shows s when the tree has no rows to show (Element
+// empty-text; antd shows nothing). The Element theme shows Locale.NoData
+// by default (TreeToken.ShowEmptyText).
+func (w *TreeW) EmptyText(s string) *TreeW { w.emptyText, w.emptySet = s, true; return w }
 
 // ExpandOnClick toggles expansion when the title is clicked (Element's
 // expand-on-click-node, on by default with the Element theme).
@@ -477,6 +550,21 @@ func (w *TreeW) setExpanded(k string, on bool) {
 		return
 	}
 	if on {
+		if w.accordion {
+			// Collapse the expanded siblings of k.
+			p := w.parents[k]
+			sibs := w.nodes
+			if p != "" {
+				if pn := w.find(p); pn != nil {
+					sibs = pn.Children
+				}
+			}
+			for i := range sibs {
+				if sibs[i].Key != k {
+					*w.expanded = remove(*w.expanded, sibs[i].Key)
+				}
+			}
+		}
 		*w.expanded = append(*w.expanded, k)
 	} else {
 		*w.expanded = remove(*w.expanded, k)
@@ -493,11 +581,45 @@ func (w *TreeW) expandable(n *TreeNode) bool {
 }
 
 func (w *TreeW) matches(n *TreeNode) bool {
-	return w.search != "" && strings.Contains(n.Title, w.search)
+	if w.search == "" {
+		return false
+	}
+	if w.filterFn != nil {
+		return w.filterFn(w.search, n)
+	}
+	return strings.Contains(n.Title, w.search)
+}
+
+// searchParents returns the ancestors of every match, in tree order.
+func (w *TreeW) searchParents() []string {
+	if w.filterFn == nil {
+		return treeSearchParents(w.nodes, w.search)
+	}
+	seen := map[string]bool{}
+	var out []string
+	treeWalk(w.nodes, func(n *TreeNode, path []string) {
+		if w.matches(n) {
+			for _, p := range path {
+				if !seen[p] {
+					seen[p] = true
+					out = append(out, p)
+				}
+			}
+		}
+	})
+	return out
 }
 
 // Show builds the tree.
 func (w *TreeW) Show() *TreeW {
+	if w.disabled {
+		Disabled(w.c, true, func() { w.show() })
+		return w
+	}
+	return w.show()
+}
+
+func (w *TreeW) show() *TreeW {
 	c := w.c
 	st := w.st
 	if !w.expSet {
@@ -507,7 +629,7 @@ func (w *TreeW) Show() *TreeW {
 	if w.search != st.lastSearch {
 		st.lastSearch = w.search
 		if w.search != "" {
-			*w.expanded = treeSearchParents(w.nodes, w.search)
+			*w.expanded = w.searchParents()
 			w.expCh = true
 		}
 	}
@@ -559,9 +681,31 @@ func (w *TreeW) Show() *TreeW {
 	if keys := c.KeysFor(w.box.n.id); len(keys) > 0 {
 		w.handleKeys(keys)
 	}
-	if w.height > 0 {
+	if !st.expandInit {
+		st.expandInit = true
+		if w.expandAll {
+			treeWalk(w.nodes, func(n *TreeNode, _ []string) {
+				if len(n.Children) > 0 && !contains(*w.expanded, n.Key) {
+					*w.expanded = append(*w.expanded, n.Key)
+				}
+			})
+			w.expCh = true
+		}
+	}
+	_, tk := w.look()
+	empty := w.emptyText
+	if !w.emptySet && tk.ShowEmptyText {
+		empty = c.Locale().NoData
+	}
+	switch {
+	case empty != "" && len(w.visibleRows()) == 0:
+		// Element el-tree__empty-block: the text centered in 60px.
+		w.box.Body(func() {
+			Row(c, func() { Text(c, empty).Color(tk.EmptyTextColor) }, layout.MinH(60), layout.Center())
+		})
+	case w.height > 0:
 		w.virtualBody()
-	} else {
+	default:
 		w.box.Body(func() { w.level(w.nodes, 0, nil) })
 	}
 	st.targets, st.rows = w.targets, w.rows
@@ -718,7 +862,7 @@ func (w *TreeW) refreshChecks() {
 
 // selectNode applies a click/Enter on a row title.
 func (w *TreeW) selectNode(nd *TreeNode) {
-	if nd.Disabled {
+	if nd.Disabled || w.noSelect {
 		return
 	}
 	key := nd.Key
@@ -779,7 +923,7 @@ func (w *TreeW) row(nd *TreeNode, depth int, lasts []bool, pos, size int) {
 	el := w.el()
 	rowH, gap, indent, sw := w.metrics()
 	key := nd.Key
-	disabled := nd.Disabled
+	disabled := nd.Disabled || w.disabled || w.box.n.disabled
 	expandable := w.expandable(nd)
 	open := w.isExpanded(key)
 	loading := w.st.loading[key]
@@ -796,7 +940,7 @@ func (w *TreeW) row(nd *TreeNode, depth int, lasts []bool, pos, size int) {
 	w.rows[key] = rb.n.id
 	// Semantics: a tree item (the tree box keeps focus and handles the
 	// keys); switcher, checkbox and title are parts of it.
-	rb.n.setRole(a11y.RoleTreeItem).setName(nd.Title).setState(a11y.Selectable).stateIf(selected, a11y.Selected)
+	rb.n.setRole(a11y.RoleTreeItem).setName(nd.Title).stateIf(!w.noSelect, a11y.Selectable).stateIf(selected, a11y.Selected)
 	rb.n.stateIf(expandable, a11y.Expandable).stateIf(expandable && open, a11y.Expanded).stateIf(loading, a11y.Busy)
 	if w.checkable {
 		rb.n.setState(a11y.Checkable).stateIf(w.full[key], a11y.Checked).stateIf(w.half[key] && !w.full[key], a11y.Mixed)
@@ -934,6 +1078,11 @@ func (w *TreeW) row(nd *TreeNode, depth int, lasts []bool, pos, size int) {
 		if w.expClick && expandable {
 			w.toggleExpand(nd, !open)
 		}
+		if (w.chkClick || (w.chkLeaf && !expandable)) && w.checkable && !nd.DisableCheckbox {
+			*w.checked = treeToggleCheck(w.nodes, *w.checked, key, !w.full[key], w.strict)
+			w.checkCh = true
+			w.refreshChecks()
+		}
 	}
 	rowHov := c.Anim(rb.n.id, "hover", b2f((rowIA.Hovered || (w.focusVis && w.st.cursor == key)) && !disabled), th.DurationFast)
 	rb.Paint(func(l *paint.List, r geom.Rect) {
@@ -970,6 +1119,13 @@ func (w *TreeW) paintSwitcher(l *paint.List, r geom.Rect, expandable, loading bo
 		return
 	}
 	if !expandable {
+		return
+	}
+	if ic := w.switcher; ic != nil {
+		// Custom switcher (antd switcherIcon, 10px): drawn pointing down,
+		// turned -90° (towards the reading direction) while collapsed.
+		sz := tk.SwitcherIconSize
+		w.c.paintIcon(l, ic, geom.Rect{X: cx - sz/2, Y: cy - sz/2, W: sz, H: sz}, tk.SwitcherColor, float64(t-1)*math.Pi/2)
 		return
 	}
 	// The carets point along the reading direction when collapsed:
@@ -1147,7 +1303,7 @@ func (w *TreeW) dragBegin() {
 	if !ok {
 		return
 	}
-	if n := w.find(key); n == nil || n.Disabled {
+	if n := w.find(key); n == nil || n.Disabled || (w.allowDrag != nil && !w.allowDrag(key)) {
 		return
 	}
 	dx, dy := c.pointer.X-c.pressPos.X, c.pointer.Y-c.pressPos.Y
@@ -1187,6 +1343,9 @@ func (w *TreeW) dragOver() {
 			d.pos = TreeDropAfter
 		default:
 			d.pos = TreeDropInside
+		}
+		if w.allowDrop != nil && !w.allowDrop(d.key, k, d.pos) {
+			continue
 		}
 		d.over = k
 	}

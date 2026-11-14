@@ -30,7 +30,7 @@ func TestCSSVarsAnt(t *testing.T) {
 		"--tango-control-height-sm":      "24px",
 		"--tango-padding":                "16px",
 		"--tango-motion-duration-mid":    "0.2s",
-		"--tango-shadow-tertiary":        "0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02)",
+		"--tango-shadow-tertiary":        "0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px 0 rgba(0, 0, 0, 0.03)",
 		"--tango-color-scheme":           "light",
 		"--tango-color-info":             "#1677ff",
 		"--tango-color-warning-border":   HexString(AntDesign().Warning.Border),

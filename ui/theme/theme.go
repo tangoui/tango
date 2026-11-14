@@ -424,7 +424,8 @@ func AntDesign(opts ...Option) *Theme {
 		t.ControlOutline = RGBA(5, 145, 255, .1)
 		t.Shadow = []paint.Shadow{sh(0, 6, 16, 0, RGBA(0, 0, 0, .08)), sh(0, 3, 6, -4, RGBA(0, 0, 0, .12)), sh(0, 9, 28, 8, RGBA(0, 0, 0, .05))}
 		t.ShadowSecondary = t.Shadow
-		t.ShadowTertiary = []paint.Shadow{sh(0, 1, 2, 0, RGBA(0, 0, 0, .03)), sh(0, 1, 6, -1, RGBA(0, 0, 0, .02)), sh(0, 2, 4, 0, RGBA(0, 0, 0, .02))}
+		// boxShadowTertiary (antd 6.7 es/theme/util/alias.js): colorShadow #000 at .05 / .03 / .03.
+		t.ShadowTertiary = []paint.Shadow{sh(0, 1, 2, 0, RGBA(0, 0, 0, .05)), sh(0, 1, 6, -1, RGBA(0, 0, 0, .03)), sh(0, 2, 4, 0, RGBA(0, 0, 0, .03))}
 		t.ButtonShadow = []paint.Shadow{sh(0, 2, 0, 0, RGBA(0, 0, 0, .02))}
 		t.PrimaryShadow = []paint.Shadow{sh(0, 2, 0, 0, RGBA(5, 145, 255, .1))}
 		t.DangerShadow = []paint.Shadow{sh(0, 2, 0, 0, RGBA(255, 38, 5, .06))}
