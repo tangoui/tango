@@ -3,6 +3,7 @@ package terminal
 import (
 	"io"
 	"sync"
+	"time"
 
 	"github.com/tangoui/tango/ui/terminal/vt"
 )
@@ -34,8 +35,10 @@ type Options struct {
 }
 
 const (
-	// readBufSize is the size of the read loop's buffer.
-	readBufSize = 32 << 10
+	// readBufSize is the size of each read-loop batch. A Reader returns
+	// as soon as data is available, so the larger buffer reduces syscalls
+	// without waiting for more output.
+	readBufSize = 256 << 10
 	// maxLockBytes bounds how much output the read loop feeds the
 	// emulator in one hold of the lock, so the UI never waits long.
 	maxLockBytes = 256 << 10
@@ -103,6 +106,8 @@ type Terminal struct {
 
 	closeOnce sync.Once
 	closeErr  error // set once by Close
+	resizeMu  sync.Mutex
+	perf      perfCounters
 }
 
 // New returns a Terminal for o.Conn. It does not start reading; the
@@ -156,15 +161,14 @@ func (t *Terminal) Start(cols, rows int, invalidate func()) {
 	t.vt.Resize(cols, rows)
 	t.mu.Unlock()
 
-	// Re-check under smu: Close sets closing under smu before it closes
-	// the Conn, so neither Resize nor the goroutines run after it, and
-	// wg.Add happens before Close's wg.Wait or not at all.
+	// Resize outside smu. Close marks closing and closes the Conn before
+	// waiting for resizeMu, so a blocking platform resize is unblocked.
+	t.resizeConn(cols, rows, 0, 0)
 	t.smu.Lock()
 	defer t.smu.Unlock()
 	if t.closing {
 		return
 	}
-	t.conn.Resize(cols, rows, 0, 0)
 	t.wg.Add(2)
 	go t.writeLoop()
 	go t.readLoop(invalidate)
@@ -221,6 +225,39 @@ func (t *Terminal) isClosing() bool {
 	}
 }
 
+// SendResult reports how much interactive input was accepted.
+type SendResult struct {
+	AcceptedBytes int
+	Truncated     bool
+}
+
+// SendInput queues interactive input without consuming the reserved key
+// allowance with a large paste. Small protocol inputs can use the reserve;
+// larger payloads must fit the normal queue limit or are rejected whole.
+func (t *Terminal) SendInput(b []byte) SendResult {
+	if len(b) == 0 || t.isClosing() {
+		return SendResult{}
+	}
+	t.qmu.Lock()
+	reserve := min(replyQueueBytes, max(t.qlimit/8, 1))
+	limit := t.qlimit
+	if len(b) <= 256 {
+		limit += reserve
+	}
+	if t.qclosed || t.qbytes+len(b) > limit {
+		if !t.qclosed {
+			t.sendDrops++
+		}
+		t.qmu.Unlock()
+		return SendResult{Truncated: true}
+	}
+	t.queue = append(t.queue, queued{b: append([]byte(nil), b...)})
+	t.qbytes += len(b)
+	t.qmu.Unlock()
+	signal(t.wake)
+	return SendResult{AcceptedBytes: len(b)}
+}
+
 // queued is an entry of the write queue.
 type queued struct {
 	b     []byte
@@ -237,7 +274,11 @@ type queued struct {
 func (t *Terminal) feed(b []byte) {
 	for len(b) > 0 {
 		n := min(len(b), maxLockBytes)
+		waitStart := time.Now()
 		t.mu.Lock()
+		t.perf.feedLockWait.Add(uint64(time.Since(waitStart)))
+		t.perf.feedBytes.Add(uint64(n))
+		t.perf.feedBatches.Add(1)
 		t.vt.Write(b[:n])
 		pending := t.pending
 		t.pending = nil
@@ -327,6 +368,28 @@ func (t *Terminal) writeLoop() {
 	}
 }
 
+// Snapshot returns a read-only copy of the emulator state for painting.
+// The VT lock is held only while copying; callers must release the returned
+// snapshot when done.
+func (t *Terminal) Snapshot() vt.Snapshot {
+	t.mu.Lock()
+	s := t.vt.Snapshot()
+	t.mu.Unlock()
+	t.perf.snapshotBytes.Store(uint64(snapshotBytes(s)))
+	return s
+}
+
+func snapshotBytes(s vt.Snapshot) int {
+	n := len(s.StylesData) * 12
+	for _, row := range s.Rows {
+		n += len(row.Cells) * 8
+		for _, marks := range row.Combining {
+			n += 8 + len(marks.Runes)*4
+		}
+	}
+	return n
+}
+
 // Lock locks the emulator and returns it. The caller must call
 // [Terminal.Unlock] when done and must not keep the pointer past it.
 func (t *Terminal) Lock() *vt.Terminal {
@@ -363,10 +426,21 @@ func (t *Terminal) Send(b []byte) {
 	signal(t.wake)
 }
 
+func (t *Terminal) resizeConn(cols, rows, wpx, hpx int) {
+	t.resizeMu.Lock()
+	defer t.resizeMu.Unlock()
+	t.smu.Lock()
+	closing := t.closing
+	t.smu.Unlock()
+	if !closing {
+		t.conn.Resize(cols, rows, wpx, hpx)
+	}
+}
+
 // Resize resizes the emulator to cols×rows cells and tells the program
-// the new size, in cells and pixels. A Conn error is ignored. Resize
-// does nothing after Close, and never calls Conn.Resize once Close has
-// begun: the Conn call is made under smu, which Close takes first.
+// the new size, in cells and pixels. A Conn implementation must let Close
+// unblock a concurrent Resize; Resize is never called while holding the
+// lifecycle mutex. A Conn error is ignored.
 func (t *Terminal) Resize(cols, rows, wpx, hpx int) {
 	if t.isClosing() {
 		return
@@ -374,11 +448,7 @@ func (t *Terminal) Resize(cols, rows, wpx, hpx int) {
 	t.mu.Lock()
 	t.vt.Resize(cols, rows)
 	t.mu.Unlock()
-	t.smu.Lock()
-	defer t.smu.Unlock()
-	if !t.closing {
-		t.conn.Resize(cols, rows, wpx, hpx)
-	}
+	t.resizeConn(cols, rows, wpx, hpx)
 }
 
 // Exited reports whether the read loop has ended and, if it ended with
@@ -401,6 +471,8 @@ func (t *Terminal) Close() error {
 		close(t.done) // before conn.Close: see readLoop
 		t.smu.Unlock()
 		t.closeErr = t.conn.Close()
+		t.resizeMu.Lock()
+		t.resizeMu.Unlock()
 		t.wg.Wait()
 		t.qmu.Lock()
 		t.qclosed, t.queue, t.qbytes, t.rbytes = true, nil, 0, 0

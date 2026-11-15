@@ -179,7 +179,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	dirty = append(vs.dirty[:0], dirty...) // TakeDirty reuses its slice
 	vs.trackEviction(s)
 	out := w.applyInput(v, r)
-	vs.trackEviction(s) // input may have dropped lines (Cmd+K)
+	vs.trackEviction(s)
 	// Input may have scrolled the viewport or written to the screen
 	// (Cmd+K): take those changes too.
 	if n2 := v.TakeScroll(); n2 > 0 {
@@ -189,36 +189,42 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	dirty = append(dirty, d2...)
 	all = all || all2
 	vs.dirty = dirty
+	w.t.Unlock()
+	snap := w.t.Snapshot()
 
-	f := &frame{l: l, r: r, m: m, sch: &sch, styles: s.Styles()}
+	f := &frame{l: l, r: r, m: m, sch: &sch, styles: snap.Styles()}
 	if sch.Selection.A == 255 {
 		f.selFg = sch.Foreground
 	}
 	l.Fill(r, geom.Radii{}, sch.Background)
-	_, vrows := s.Size()
+	_, vrows := snap.Size()
 	selA, selB, selOK := vs.sel.bounds()
 	for y := range vrows {
-		line := s.ViewLine(y)
+		line := snap.ViewLine(y)
 		top := r.Y + float32(y)*m.lineH
 		lo, hi := 0, 0
 		if selOK {
-			lo, hi, _ = rowRange(line, w.stableRow(s, y), selA, selB)
+			lo, hi, _ = rowRange(line, vs.evicted+snap.ScrollbackLen()-snap.ViewOffset()+y, selA, selB)
 		}
-		w.paintRow(f, line, top, lo, hi)
+		key := rowCacheKey{id: snap.Rows[y].ID, version: snap.Rows[y].Version, cols: snap.Cols, metrics: m, scheme: sch, selLo: lo, selHi: hi}
+		w.paintRow(f, line, top, lo, hi, key)
 	}
-	cur := w.paintCursor(f, v, focused)
+	cur := w.paintCursor(f, &snap, focused)
 	if exited {
-		w.paintExited(f, v)
+		w.paintExited(f, &snap)
 	}
 	bar := geom.Rect{}
-	if thumb, ok := w.thumbRect(s, r); ok && (vs.hover || vs.bar.drag) {
+	if thumb, ok := thumbRectSnapshot(&snap, r); ok && (vs.hover || vs.bar.drag) {
 		bar = thumb
 		l.Fill(geom.Rect{X: thumb.X + 1, Y: thumb.Y, W: thumb.W - 2, H: thumb.H}, geom.Rad(3), tok.ScrollbarThumb)
 	}
 	if c.A11yEnabled() {
-		vs.a11yText = screenText(s)
+		vs.a11yText = snapshotText(&snap)
 	}
-	w.t.Unlock()
+	w.t.perf.cacheHits.Store(vs.rowCache.hits)
+	w.t.perf.cacheMisses.Store(vs.rowCache.misses)
+
+	snap.Release()
 
 	rec := damageRec{ok: true, r: r, m: m, sch: sch, cur: cur, selA: selA, selB: selB, selOK: selOK,
 		bar: bar, exited: exited, viewRows: vrows}
@@ -249,7 +255,8 @@ func (f *frame) cellRect(x0, x1 int, top float32) geom.Rect {
 }
 
 // paintRow draws one row; cells [selLo, selHi) are selected.
-func (w *ViewW) paintRow(f *frame, line *vt.Line, top float32, selLo, selHi int) {
+func (w *ViewW) paintRow(f *frame, line *vt.Line, top float32, selLo, selHi int, key rowCacheKey) {
+	w.t.perf.paintRows.Add(1)
 	l, cells := f.l, line.Cells
 	// Backgrounds.
 	start, col := -1, theme.Color{}
@@ -277,41 +284,54 @@ func (w *ViewW) paintRow(f *frame, line *vt.Line, top float32, selLo, selHi int)
 		l.Fill(f.cellRect(selLo, selHi, top), geom.Radii{}, f.sch.Selection)
 	}
 
-	// Text.
-	seg := f.runes[:0]
-	segStart, segStyle, segSel := 0, -1, false
-	flushSeg := func() {
-		if len(seg) > 0 {
-			w.drawText(f, seg, segStart, len(seg), top, uint16(segStyle), segSel, false)
+	// Text: the row plan avoids scanning and splitting unchanged cells every
+	// frame; absolute y/top coordinates stay outside the cache.
+	plan, ok := w.vs.rowCache.get(key)
+	if !ok {
+		plan = buildRowPlan(line, selLo, selHi, f.selFg.A != 0)
+		bytes := 0
+		for _, seg := range plan.segments {
+			bytes += 32 + 4*len(seg.runes)
 		}
-		// The next one-cell character starts a new segment at its own
-		// cell, also after a wide or combining character in the same
-		// style.
-		seg, segStyle = seg[:0], -1
+		w.vs.rowCache.put(key, plan, bytes)
+	}
+	for _, seg := range plan.segments {
+		w.drawText(f, seg.runes, seg.x, seg.n, top, seg.idx, seg.selected, seg.single)
+	}
+}
+
+func buildRowPlan(line *vt.Line, selLo, selHi int, selectionColor bool) *rowPlan {
+	cells := line.Cells
+	plan := &rowPlan{}
+	seg := make([]rune, 0, len(cells))
+	segStart, segStyle := 0, -1
+	segSel := false
+	flush := func() {
+		if len(seg) > 0 {
+			plan.segments = append(plan.segments, rowSegment{x: segStart, n: len(seg), idx: uint16(segStyle), runes: append([]rune(nil), seg...), selected: segSel})
+		}
+		seg = seg[:0]
+		segStyle = -1
 	}
 	for x := 0; x < len(cells); {
 		c := cells[x]
 		if c.Width == 0 {
-			x++ // the right half of a wide character
+			x++
 			continue
 		}
-		sel := x >= selLo && x < selHi && f.selFg.A != 0
-		var marks []rune
-		if c.Rune != 0 {
-			marks = line.Combining(x)
-		}
+		sel := selectionColor && x >= selLo && x < selHi
+		marks := line.Combining(x)
 		if c.Width > 1 || len(marks) > 0 {
-			flushSeg()
-			n := max(int(c.Width), 1)
+			flush()
 			if c.Rune != 0 {
-				f.one = append(append(f.one[:0], c.Rune), marks...)
-				w.drawText(f, f.one, x, n, top, c.Style, sel, true)
+				runes := append([]rune{c.Rune}, marks...)
+				plan.segments = append(plan.segments, rowSegment{x: x, n: max(int(c.Width), 1), idx: c.Style, attr: 0, runes: runes, selected: sel, single: true})
 			}
-			x += n
+			x += max(int(c.Width), 1)
 			continue
 		}
 		if int(c.Style) != segStyle || sel != segSel {
-			flushSeg()
+			flush()
 			segStart, segStyle, segSel = x, int(c.Style), sel
 		}
 		r := c.Rune
@@ -321,8 +341,8 @@ func (w *ViewW) paintRow(f *frame, line *vt.Line, top float32, selLo, selHi int)
 		seg = append(seg, r)
 		x++
 	}
-	flushSeg()
-	f.runes = seg[:0]
+	flush()
+	return plan
 }
 
 // drawText draws runes rs over cells [x, x+n) of the row at top in style
@@ -402,12 +422,12 @@ func shapeSeg(k segKey, m metrics) *segShape {
 }
 
 // paintCursor draws the cursor or the IME composition and reports the
-// caret rect to the host. v is locked.
-func (w *ViewW) paintCursor(f *frame, v *vt.Terminal, focused bool) cursorKey {
-	vs, s := w.vs, v.Screen()
-	cols, rows := s.Size()
-	cx, cy, shown := v.Cursor()
-	vy := cy + s.ViewOffset()
+// caret rect to the host. snap is an immutable frame snapshot.
+func (w *ViewW) paintCursor(f *frame, snap *vt.Snapshot, focused bool) cursorKey {
+	vs := w.vs
+	cols, rows := snap.Size()
+	cx, cy, shown := snap.CursorX, snap.CursorY, snap.CursorVisible
+	vy := cy + snap.ViewOffset()
 	key := cursorKey{vy: vy, x: cx, n: 1, shown: shown, focused: focused, comp: vs.comp, compCur: vs.compCur}
 	if vy >= rows {
 		key.vy, key.shown = -1, false
@@ -415,7 +435,7 @@ func (w *ViewW) paintCursor(f *frame, v *vt.Terminal, focused bool) cursorKey {
 	top := f.r.Y + float32(vy)*f.m.lineH
 	var cell vt.Cell
 	if key.vy >= 0 {
-		line := s.ViewLine(vy)
+		line := snap.ViewLine(vy)
 		cx = min(cx, cols-1)
 		if cx > 0 && line.Cells[cx].Width == 0 {
 			cx-- // on the right half: the cursor covers the wide character
@@ -449,7 +469,7 @@ func (w *ViewW) paintCursor(f *frame, v *vt.Terminal, focused bool) cursorKey {
 	l.Fill(rect, geom.Radii{}, f.sch.Cursor)
 	if cell.Rune != 0 {
 		st := f.styles.Get(cell.Style)
-		rs := append([]rune{cell.Rune}, s.ViewLine(vy).Combining(cx)...)
+		rs := append([]rune{cell.Rune}, snap.ViewLine(vy).Combining(cx)...)
 		w.drawRunes(f, rs, cx, key.n, top, st.Attr&^(vt.AttrUnderline|vt.AttrStrike|vt.AttrInvisible), f.sch.CursorText, true)
 	}
 	return key
@@ -458,20 +478,21 @@ func (w *ViewW) paintCursor(f *frame, v *vt.Terminal, focused bool) cursorKey {
 // paintExited draws exitedText on the row below the output (the last
 // non-blank row or the cursor's, whichever is lower), or over the last
 // row when the output fills the view. v is locked.
-func (w *ViewW) paintExited(f *frame, v *vt.Terminal) {
-	s := v.Screen()
-	_, rows := s.Size()
-	_, cy, _ := v.Cursor()
-	last := cy
+func (w *ViewW) paintExited(f *frame, snap *vt.Snapshot) {
+	if snap.ViewOffset() > 0 {
+		return
+	}
+	_, rows := snap.Size()
+	last := snap.CursorY
 	for y := rows - 1; y > last; y-- {
-		if !blankLine(s.Line(y)) {
+		if !blankLine(snap.ViewLine(y)) {
 			last = y
 			break
 		}
 	}
-	vy := last + 1 + s.ViewOffset()
+	vy := last + 1 + snap.ViewOffset()
 	if vy >= rows {
-		if s.ViewOffset() > 0 {
+		if snap.ViewOffset() > 0 {
 			return // below the viewport
 		}
 		vy = rows - 1
@@ -493,7 +514,19 @@ func blankLine(l *vt.Line) bool {
 
 // screenText returns the viewport's text for the semantics tree, one line
 // per row, trailing blanks dropped. s is locked.
-func screenText(s *vt.Screen) string {
+func thumbRectSnapshot(s *vt.Snapshot, r geom.Rect) (geom.Rect, bool) {
+	sb := s.ScrollbackLen()
+	if sb == 0 {
+		return geom.Rect{}, false
+	}
+	_, rows := s.Size()
+	total := float32(sb + rows)
+	h := max(r.H*float32(rows)/total, 20)
+	top := r.Y + (r.H-h)*float32(sb-s.ViewOffset())/float32(sb)
+	return geom.Rect{X: r.Right() - scrollbarWidth, Y: top, W: scrollbarWidth, H: h}, true
+}
+
+func snapshotText(s *vt.Snapshot) string {
 	_, rows := s.Size()
 	var sb strings.Builder
 	for y := range rows {

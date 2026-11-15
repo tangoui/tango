@@ -25,7 +25,7 @@ import (
 // viewRig runs a View of a Terminal on a pipeConn in a headless Driver.
 // A goroutine collects everything the terminal sends to the program.
 type viewRig struct {
-	t    *testing.T
+	t    testing.TB
 	conn *pipeConn
 	term *Terminal
 	d    *ui.Driver
@@ -38,7 +38,7 @@ type viewRig struct {
 
 // newViewRig builds a rig whose page is page(c, view builder); a nil page
 // shows the view alone.
-func newViewRig(t *testing.T, w, h float32, page func(c *ui.Context, view func())) *viewRig {
+func newViewRig(t testing.TB, w, h float32, page func(c *ui.Context, view func())) *viewRig {
 	t.Helper()
 	g := &viewRig{t: t, conn: newPipeConn(), end: make(chan struct{})}
 	g.term = New(Options{Conn: g.conn})

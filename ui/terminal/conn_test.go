@@ -74,7 +74,7 @@ func rowText(v *vt.Terminal, y int) string {
 }
 
 // waitFor polls cond until it holds or d passes.
-func waitFor(t *testing.T, d time.Duration, what string, cond func() bool) {
+func waitFor(t testing.TB, d time.Duration, what string, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(d)
 	for !cond() {

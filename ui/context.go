@@ -170,10 +170,11 @@ type Context struct {
 	tabCap         tabCapture    // CaptureTab declarations (tab_capture.go)
 	escClaim       escapeClaim   // ClaimEscape declarations (escape_claim.go)
 	events         []input.Event // ordered key / text / composition events of this frame (events_for.go)
-	winBlurred     bool          // the window lost key focus (WindowFocused)
-	dir            dirState      // resolved layout direction of the current scope (direction.go)
-	env            *env          // current configuration scope (env.go); swapped during paint / measure
-	envRoot        env           // the window's root scope, refreshed every build
+	terminalEvents map[ID]func(input.Event) bool
+	winBlurred     bool     // the window lost key focus (WindowFocused)
+	dir            dirState // resolved layout direction of the current scope (direction.go)
+	env            *env     // current configuration scope (env.go); swapped during paint / measure
+	envRoot        env      // the window's root scope, refreshed every build
 	focus          ID
 	focusVisible   bool
 	focusOrder     input.FocusOrder[ID]
