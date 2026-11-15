@@ -9,7 +9,7 @@ title: Radio 单选框
 
 - 选项不多（一般不超过 5 个）、需要把所有选项平铺展示以便比较时。
 - 只能选一个值；需要多选时用 [Checkbox 多选框](/components/checkbox)。
-- 选项较多或空间有限时用 [Select 选择器](/components/select)；作为视图切换（列表 / 看板）时用 [Segmented 分段控制器](/components/catalog/segmented)。
+- 选项较多或空间有限时用 [Select 选择器](/components/select)；作为视图切换（列表 / 看板）时用 [Segmented 分段控制器](/components/segmented)。
 
 ## 在线体验
 
@@ -124,4 +124,4 @@ func page(c *ui.Context) {
 
 - [源码 ui/choice.go](https://github.com/tangoui/tango/blob/main/ui/choice.go)
 - [ui Go API](/reference/api/ui)
-- [Checkbox 多选框](/components/checkbox)、[Select 选择器](/components/select)、[Segmented 分段控制器](/components/catalog/segmented)、[Form 表单](/components/form)
+- [Checkbox 多选框](/components/checkbox)、[Select 选择器](/components/select)、[Segmented 分段控制器](/components/segmented)、[Form 表单](/components/form)

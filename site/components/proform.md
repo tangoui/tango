@@ -9,7 +9,7 @@ title: ProForm 高级表单
 
 - 字段较多、以“配置”方式描述更清晰的增删改表单，例如后台管理中的新建 / 编辑页面。
 - 需要异步加载初始值、异步提交（按钮转圈、失败提示）、只读与编辑切换，而不想手写这些流程时。
-- 字段定义需要与 [ProTable](/components/protable)、[ProDescriptions](/components/catalog/prodescriptions) 共用一套值类型时。
+- 字段定义需要与 [ProTable](/components/protable)、[ProDescriptions](/components/prodescriptions) 共用一套值类型时。
 - 需要逐个控件精细排版、或字段很少时，直接用 [Form 表单](/components/form) 更灵活；同一份字段放进弹窗、抽屉、分步或查询栏时，用 ModalForm、DrawerForm、StepsForm、QueryFilter（见下文“其他表单外壳”）。
 
 ## 在线体验
@@ -322,4 +322,4 @@ func page(c *ui.Context) {
 
 - [源码 ui/form_pro.go](https://github.com/tangoui/tango/blob/main/ui/form_pro.go)、[ui/form_pro_field.go](https://github.com/tangoui/tango/blob/main/ui/form_pro_field.go)
 - [ui Go API](/reference/api/ui)
-- [Form 表单](/components/form)、[ProTable](/components/protable)、[ProDescriptions](/components/catalog/prodescriptions)、[ProFormGroup 表单分组](/components/catalog/proformgroup)
+- [Form 表单](/components/form)、[ProTable](/components/protable)、[ProDescriptions](/components/prodescriptions)、[ProFormGroup 表单分组](/components/catalog/proformgroup)

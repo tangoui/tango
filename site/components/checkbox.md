@@ -160,7 +160,7 @@ func page(c *ui.Context) {
 - **状态**：勾选状态就是你绑定的 `bool` / `[]string`，组件不另存副本；在代码中修改它们，下一帧界面就会更新。
 - **表单校验**：放进 [Form](/components/form) 时，单个多选框用 `ui.RulesOf(item, &agree, ui.MustBeTrue("..."))`，多选框组用 `ui.RulesOf` 配合 `ui.RequiredItems[string]`、`MinItems`、`MaxItems` 规则；在出错的表单项里方框自动显示错误色，也可以用 `Status("error")` 手动设置。
 - **无障碍**：Tab 聚焦，空格切换。没有可见标签的多选框（例如表格行选择）用 `A11yLabel` 设置名称；多选框组用 `A11yLabel` 命名整组（在表单项里默认使用表单项标签）。
-- **大量选项**：一屏放不下的选项请改用多选 Select 或 [Transfer 穿梭框](/components/catalog/transfer)。
+- **大量选项**：一屏放不下的选项请改用多选 Select 或 [Transfer 穿梭框](/components/transfer)。
 
 ## 示例代码
 

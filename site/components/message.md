@@ -9,7 +9,7 @@ title: Message 全局提示
 
 - 对用户操作的即时、简短反馈：成功、失败、警告、普通信息，以及“正在处理”的加载提示。
 - 内容需要标题加描述、带操作按钮或需要停留较久时，用 [Notification 通知提醒框](/components/notification)。
-- 需要用户确认或作出选择时，用 [Confirm 确认框](/components/confirm) 或 [Modal 对话框](/components/modal)；需要常驻在页面内的提示用 [Alert](/components/catalog/alert)。
+- 需要用户确认或作出选择时，用 [Confirm 确认框](/components/confirm) 或 [Modal 对话框](/components/modal)；需要常驻在页面内的提示用 [Alert](/components/alert)。
 
 ## 在线体验
 
@@ -200,5 +200,5 @@ func page(c *ui.Context) {
 
 - [源码 ui/nav_notify.go](https://github.com/tangoui/tango/blob/main/ui/nav_notify.go)
 - [Go API 参考](/reference/api/ui)
-- [Notification 通知提醒框](/components/notification)、[Alert](/components/catalog/alert)、[Confirm 确认框](/components/confirm)
+- [Notification 通知提醒框](/components/notification)、[Alert](/components/alert)、[Confirm 确认框](/components/confirm)
 - [组件总览](/components/)
