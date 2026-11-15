@@ -160,6 +160,8 @@ Capabilities differ by platform. Check [WebView support](docs/webview.md), [mobi
 | [`examples/ledger`](examples/ledger) | A complete bookkeeping app in self-drawn UI: tray, CSV export, packaged with `tan build`. |
 | [`examples/ui-hotreload`](examples/ui-hotreload) | Hot reload of self-drawn UI under `tan dev`, keeping state across rebuilds. |
 | [`examples/editor-demo`](examples/editor-demo) | The `ui/editor` code editor with background syntax highlighting on large files. |
+| [`examples/terminal`](examples/terminal) | A small local-shell terminal, with echo/replay modes and latency benchmarks. |
+| [`examples/terminal-workspace`](examples/terminal-workspace) | A complete native terminal workspace: independent shell tabs, draggable split panes, themes and keyboard shortcuts. |
 | [`examples/a11y-demo`](examples/a11y-demo) | How screen readers see self-drawn UI (VoiceOver), with an accessibility self-check. |
 | [`examples/i18n-demo`](examples/i18n-demo) | System languages, an app message catalog and localized native menus. |
 | [`examples/app-demo`](examples/app-demo) | Quit interception, deep links and opened files, single instance. |

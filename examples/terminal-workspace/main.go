@@ -62,7 +62,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		a.setTheme, a.invalidate = runner.SetTheme, runner.Invalidate
+		a.invalidate = runner.Invalidate
 		surface.OnClosed(a.workspace.close)
 		registerShortcuts(surface, a)
 		if *quitAfter > 0 {

@@ -102,6 +102,7 @@ type workspace struct {
 	tabs        []*terminalTab
 	activeTabID string
 	next        int
+	shellNumber int
 	openSession func(id string) (*session, error)
 }
 
@@ -141,8 +142,9 @@ func (w *workspace) open() (*session, error) {
 		return nil, errors.New("shell factory returned no session")
 	}
 	s.id = id
+	w.shellNumber++
 	if s.name == "" {
-		s.name = fmt.Sprintf("Shell %d", w.next)
+		s.name = fmt.Sprintf("Shell %d", w.shellNumber)
 	}
 	return s, nil
 }

@@ -17,15 +17,19 @@ type terminalApp struct {
 	fontSize     float32
 	focusPending bool
 	err          string
-	setTheme     func(*theme.Theme)
+	palette      *theme.Theme
 	invalidate   func()
 }
 
 func (a *terminalApp) theme() *theme.Theme {
-	if a.dark {
-		return theme.AntDesign(theme.Dark())
+	if a.palette == nil || a.palette.Dark != a.dark {
+		if a.dark {
+			a.palette = theme.AntDesign(theme.Dark())
+		} else {
+			a.palette = theme.AntDesign()
+		}
 	}
-	return theme.AntDesign()
+	return a.palette
 }
 
 func (a *terminalApp) action(fn func() error) {
@@ -49,6 +53,12 @@ func (a *terminalApp) changed(fn func()) {
 }
 
 func (a *terminalApp) page(c *ui.Context) {
+	// A ConfigProvider owns the page theme. Changing Runner.SetTheme inside
+	// a build would be undone when that build restores its root environment.
+	ui.ConfigProvider(c).Theme(a.theme()).Body(func() { a.content(c) })
+}
+
+func (a *terminalApp) content(c *ui.Context) {
 	in := c.SafeArea()
 	in.Bottom = max(in.Bottom, c.KeyboardInset().Bottom)
 	ui.Column(c, func() {
@@ -75,9 +85,8 @@ func (a *terminalApp) page(c *ui.Context) {
 			}
 			if ui.Button(c, themeLabel).Small().Clicked() {
 				a.dark = !a.dark
-				if a.setTheme != nil {
-					a.setTheme(a.theme())
-				}
+				a.focusPending = true
+				c.WakeAt(c.Now())
 			}
 		}, layout.Pad(8), layout.Gap(8), layout.WrapItems(), layout.AlignItems(layout.AlignCenter))
 		if a.err != "" {
@@ -124,7 +133,7 @@ func (a *terminalApp) page(c *ui.Context) {
 			ui.Spacer(c)
 			ui.Text(c, "New tab: Cmd+T / Ctrl+Shift+T · Next pane: Ctrl+Shift+Right").Tertiary()
 		}, layout.PadVH(5, 8), layout.Gap(8), layout.WrapItems())
-	}, layout.Fill(), layout.Padding(in))
+	}, layout.Fill(), layout.Padding(in)).Bg(c.Theme.BgLayout)
 }
 
 func (s *session) info() (cols, rows int, title string) {
