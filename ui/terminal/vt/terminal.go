@@ -64,6 +64,10 @@ type Terminal struct {
 	// sequence clears it, as in xterm.js.
 	joinable bool
 
+	// generation advances whenever program output or a resize may have
+	// changed the snapshot.
+	generation uint64
+
 	// pen is the style new characters get. penIdx caches its index in
 	// the style table while penOK is set and the table's generation is
 	// penGen.
@@ -106,7 +110,10 @@ func New(o Options) *Terminal {
 
 // Write feeds program output to the terminal. Input may be split across
 // calls at any byte, including inside a UTF-8 sequence.
-func (t *Terminal) Write(b []byte) { t.p.Write(b) }
+func (t *Terminal) Write(b []byte) {
+	t.generation++
+	t.p.Write(b)
+}
 
 // Screen returns the terminal's screen. The pointer stays valid for the
 // terminal's lifetime.
@@ -136,6 +143,7 @@ func (t *Terminal) Resize(cols, rows int) {
 	if max(cols, 1) == t.cols && max(rows, 1) == t.rows {
 		return // keep the pending wrap and skip the redraw, as xterm.js
 	}
+	t.generation++
 	// As in xterm.js, a pending wrap counts as being just past the last
 	// column: gaining columns puts the cursor there.
 	if t.pending {
