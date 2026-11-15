@@ -223,6 +223,39 @@ func (t *Terminal) isClosing() bool {
 	}
 }
 
+// SendResult reports how much interactive input was accepted.
+type SendResult struct {
+	AcceptedBytes int
+	Truncated     bool
+}
+
+// SendInput queues interactive input without consuming the reserved key
+// allowance with a large paste. Small protocol inputs can use the reserve;
+// larger payloads must fit the normal queue limit or are rejected whole.
+func (t *Terminal) SendInput(b []byte) SendResult {
+	if len(b) == 0 || t.isClosing() {
+		return SendResult{}
+	}
+	t.qmu.Lock()
+	reserve := min(replyQueueBytes, max(t.qlimit/8, 1))
+	limit := t.qlimit
+	if len(b) <= 256 {
+		limit += reserve
+	}
+	if t.qclosed || t.qbytes+len(b) > limit {
+		if !t.qclosed {
+			t.sendDrops++
+		}
+		t.qmu.Unlock()
+		return SendResult{Truncated: true}
+	}
+	t.queue = append(t.queue, queued{b: append([]byte(nil), b...)})
+	t.qbytes += len(b)
+	t.qmu.Unlock()
+	signal(t.wake)
+	return SendResult{AcceptedBytes: len(b)}
+}
+
 // queued is an entry of the write queue.
 type queued struct {
 	b     []byte

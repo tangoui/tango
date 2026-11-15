@@ -98,9 +98,12 @@ type metrics struct {
 type viewState struct {
 	pend pending
 	// IME composition shown at the cursor.
-	comp    string
-	compCur int
-	hover   bool
+	comp          string
+	compCur       int
+	hover         bool
+	fastCompose   bool
+	fastSwallow   bool
+	fastAwaitText bool
 
 	m       metrics
 	started bool
@@ -148,6 +151,7 @@ func View(c *ui.Context, t *Terminal) *ViewW {
 		c.CaptureTab(id)
 		c.ClaimEscape(id)
 	}
+	c.TerminalEvents(id, w.fastEvent)
 	w.collect()
 	return w
 }
@@ -191,6 +195,78 @@ func measure(maxW, maxH float32) geom.Size {
 	return sz
 }
 
+func (w *ViewW) fastInputSideEffects() {
+	v := w.t.Lock()
+	v.Screen().SetViewOffset(0)
+	w.t.Unlock()
+	w.vs.sel.clear()
+}
+
+// fastEvent handles terminal protocol input at event arrival. Local
+// application shortcuts deliberately return false so the normal frame path
+// can read the clipboard and mutate selection state safely.
+func (w *ViewW) fastEvent(ev input.Event) bool {
+	w.t.perf.fastEvents.Add(1)
+	if !w.ia.Focused {
+		return false
+	}
+	switch e := ev.(type) {
+	case input.Composition:
+		// Keep composition events in the frame path so the native pre-edit
+		// is painted at the caret; its commit must follow the same path.
+		w.vs.fastCompose = e.Text != ""
+		return false
+	case input.TextInput:
+		if w.vs.fastCompose {
+			return false
+		}
+		if w.vs.fastSwallow {
+			w.vs.fastSwallow = false
+			return true // the key event encodes this control character
+		}
+		if w.vs.fastAwaitText {
+			w.vs.fastAwaitText = false
+			return false // AltGr/Meta needs the frame's key+text ordering
+		}
+		if !isText(e) {
+			return false
+		}
+		w.fastInputSideEffects()
+		w.t.SendInput(vt.EncodeText(e.Text))
+		return true
+	case input.KeyEvent:
+		if !e.Down {
+			return false
+		}
+		if w.vs.fastCompose || shortcutAction(e) != "" || e.Key == input.KeyTab && e.Mods.Has(input.ModCtrl) {
+			return false
+		}
+		mods := e.Mods
+		v := w.t.Lock()
+		b, ok := vt.EncodeKey(e, v.Modes())
+		w.t.Unlock()
+		if ok && mods&(input.ModCtrl|input.ModAlt|input.ModMeta) == 0 {
+			w.fastInputSideEffects()
+			w.t.SendInput(b)
+			return true // Enter, arrows, Backspace and other non-text keys
+		}
+		if mods == input.ModCtrl {
+			// Let the frame encode the control key, but consume the host's
+			// duplicate committed letter if one arrives.
+			w.vs.fastSwallow = true
+			return false
+		}
+		if mods&(input.ModAlt|input.ModMeta) != 0 {
+			// AltGr and Option-as-Meta need the frame's key/text pairing.
+			w.vs.fastAwaitText = true
+			return false
+		}
+		return false // printable key: the following TextInput is direct
+	default:
+		return false
+	}
+}
+
 // collect takes this frame's input for the view from the Context into
 // the retained state: only the build pass that sees the events gets them.
 func (w *ViewW) collect() {
@@ -202,6 +278,7 @@ func (w *ViewW) collect() {
 		// Keys pressed while a composition is in progress belong to the
 		// input method (as in the code editor, ui/editor/input.go).
 		composing := vs.comp != ""
+		committed := false
 		for _, e := range c.EventsFor(id) {
 			switch e := e.(type) {
 			case input.KeyEvent:
@@ -210,12 +287,14 @@ func (w *ViewW) collect() {
 				}
 			case input.TextInput:
 				p.events = append(p.events, e)
+				committed = true
 				composing = false
 			case input.Composition:
 				composing = e.Text != ""
 			}
 		}
 		vs.comp, vs.compCur = c.CompositionFor(id)
+		vs.fastCompose = !committed && vs.comp != ""
 	}
 	pos, _ := c.Pointer()
 	if w.ia.PressedNow {

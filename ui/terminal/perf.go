@@ -12,6 +12,7 @@ type perfStats struct {
 	CacheHits     uint64
 	CacheMisses   uint64
 	SnapshotBytes uint64
+	FastEvents    uint64
 }
 
 type perfCounters struct {
@@ -22,6 +23,7 @@ type perfCounters struct {
 	cacheHits     atomic.Uint64
 	cacheMisses   atomic.Uint64
 	snapshotBytes atomic.Uint64
+	fastEvents    atomic.Uint64
 }
 
 func (p *perfCounters) snapshot() perfStats {
@@ -33,6 +35,7 @@ func (p *perfCounters) snapshot() perfStats {
 		CacheHits:     p.cacheHits.Load(),
 		CacheMisses:   p.cacheMisses.Load(),
 		SnapshotBytes: p.snapshotBytes.Load(),
+		FastEvents:    p.fastEvents.Load(),
 	}
 }
 

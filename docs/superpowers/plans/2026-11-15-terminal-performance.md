@@ -69,7 +69,7 @@
 
 **Interfaces:**
 - Consumes: Task 1 的计量；现有 `input.Event`、`ui.Context.EventsFor`、`Terminal.Send`。
-- Produces: 实验性终端事件通道，具体签名为 `Context.TerminalEvents(id ID, fn func(input.Event) input.EventResult)`；事件在 `Runner.HandleEvent` 入队时先交给当前声明且聚焦的终端 handler，handler 返回 `Handled` 后不重复进入普通 frame 队列。`Terminal.SendInput(b []byte) error` 负责保留额度/截断状态；普通 `Send` 的已有异步 FIFO 语义保持。
+- Produces: 实验性终端事件通道，具体签名为 `Context.TerminalEvents(id ID, fn func(input.Event) bool)`；事件在 `Runner.HandleEvent` 入队时先交给当前声明且聚焦的终端 handler，handler 返回 `true` 后不重复进入普通 frame 队列。`Terminal.SendInput(b []byte) SendResult` 负责保留额度/截断状态；`SendResult` 至少包含 `AcceptedBytes int`、`Truncated bool`；普通 `Send` 的已有异步 FIFO 语义保持。
 
 - [ ] **Step 1: 写失败测试**
   - `TestTerminalEventsSendsKeyBeforeNextFrame`：向 runner 注入按键，断言 Conn 在下一次 `Frame` 前已收到编码字节。

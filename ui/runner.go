@@ -156,6 +156,10 @@ func (r *Runner) Invalidate() {
 
 // HandleEvent queues an input event and requests a frame.
 func (r *Runner) HandleEvent(e input.Event) {
+	if r.c.terminalEvent != nil && r.c.focus == r.c.terminalEventID && r.c.terminalEvent(e) {
+		r.Invalidate()
+		return
+	}
 	r.queue = append(r.queue, e)
 	r.Invalidate()
 }
