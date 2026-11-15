@@ -115,7 +115,9 @@ func (a *terminalApp) content(c *ui.Context) {
 			}
 		}
 		if tab := a.workspace.activeTab(); tab != nil {
-			ui.Key(c, tab.id, func() { a.renderNode(c, tab, tab.root) })
+			// Views cache their last dimensions. Moving a session into/out of
+			// split ancestors must not resurrect an old view with stale sizes.
+			ui.Key(c, fmt.Sprintf("%s-layout-%d", tab.id, tab.layoutVersion), func() { a.renderNode(c, tab, tab.root) })
 		} else {
 			ui.Column(c, func() {
 				ui.Text(c, "No terminals open").Strong()
@@ -158,9 +160,15 @@ func (a *terminalApp) renderNode(c *ui.Context, tab *terminalTab, n *splitNode) 
 			split.Vertical()
 		}
 		split.Body(func() {
-			ui.SplitterPanel(c).Min(100).Body(func() { a.renderNode(c, tab, n.first) })
-			ui.SplitterPanel(c).Min(100).Body(func() { a.renderNode(c, tab, n.second) })
+			ui.SplitterPanel(c).DefaultPercent(n.ratio).Min(100).Body(func() { a.renderNode(c, tab, n.first) })
+			ui.SplitterPanel(c).DefaultPercent(1 - n.ratio).Min(100).Body(func() { a.renderNode(c, tab, n.second) })
 		})
+		if split.Changed() {
+			// Hidden widget state can be evicted; the tab still owns its layout.
+			if sizes := split.Sizes(); len(sizes) == 2 {
+				n.ratio = sizes[0]
+			}
+		}
 	})
 }
 

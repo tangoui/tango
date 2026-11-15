@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"math"
 	"os"
 	"sync"
 	"testing"
@@ -250,5 +252,59 @@ func TestPageKeyboardActionsKeepRequestedPaneFocus(t *testing.T) {
 	d.Settle()
 	if a.workspace.activeSession() != want {
 		t.Fatal("the earlier pane stole keyboard focus back")
+	}
+}
+
+func TestPageCollapseRestoresSurvivingPTYSize(t *testing.T) {
+	for _, axis := range []splitAxis{splitRight, splitDown} {
+		t.Run(fmt.Sprint(axis), func(t *testing.T) {
+			a, d, connections := pageHarness(t)
+			first := a.workspace.activeSession()
+			conn := connections[first.id]
+			_, full := conn.size()
+			a.action(func() error { return a.workspace.split(axis) })
+			d.Advance(100 * time.Millisecond)
+			d.Settle()
+			_, divided := conn.size()
+			if divided == full {
+				t.Fatal("split did not resize the first PTY")
+			}
+			a.changed(a.workspace.closePane)
+			d.Advance(100 * time.Millisecond)
+			d.Settle()
+			_, restored := conn.size()
+			if restored != full {
+				t.Fatalf("surviving PTY remains at split size: full %v, split %v, restored %v", full, divided, restored)
+			}
+		})
+	}
+}
+
+func TestPageSplitRatioSurvivesHiddenViewEviction(t *testing.T) {
+	a, d, _ := pageHarness(t)
+	a.action(func() error { return a.workspace.split(splitRight) })
+	d.Settle()
+	firstTab := a.workspace.activeTab()
+	bar, ok := d.A11yFind(a11y.RoleSeparator, "")
+	if !ok {
+		t.Fatal("missing splitter")
+	}
+	p := geom.Pt(bar.Bounds.X+bar.Bounds.W/2, bar.Bounds.Y+bar.Bounds.H/2)
+	d.Drag(p, geom.Pt(p.X-150, p.Y))
+	d.Advance(100 * time.Millisecond)
+	d.Settle()
+	before := d.A11yFindAll(a11y.RoleTextbox, "")[0].Bounds.W
+	a.action(a.workspace.newTab)
+	d.Settle()
+	for range 320 {
+		d.Advance(16 * time.Millisecond)
+		d.Frame()
+	}
+	a.workspace.selectTab(firstTab.id)
+	a.focusPending = true
+	d.Settle()
+	after := d.A11yFindAll(a11y.RoleTextbox, "")[0].Bounds.W
+	if math.Abs(float64(after-before)) > 2 {
+		t.Fatalf("hidden tab lost split ratio: width %v -> %v", before, after)
 	}
 }

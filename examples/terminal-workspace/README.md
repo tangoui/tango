@@ -54,7 +54,7 @@ Application shortcuts use `uihost.ShortcutWith`, which suppresses shortcuts duri
 
 ## Structure
 
-- `workspace.go`: application-owned sessions, bounded tabs, split tree and cleanup. View creation never creates or restarts a shell.
+- `workspace.go`: application-owned sessions, bounded tabs, split tree/ratios and cleanup. View creation never creates or restarts a shell. Layout generations prevent moved sessions from recovering a stale view-size cache after split/collapse; application-owned divider ratios survive hidden-widget state eviction.
 - `page.go`: keyed tab/pane UI, focus transitions, theme/error/empty/exited states and size/status display. Only the selected tab is rendered; other terminal read loops continue.
 - `main.go`: local PTY factory, shell options, native window and application shortcuts.
 - `workspace_test.go` / `page_test.go`: session ownership and headless interaction tests using the real terminal view/emulator.
