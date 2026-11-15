@@ -3,9 +3,11 @@ package editor
 import (
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tangoui/tango/ui"
+	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/keymap"
 	"github.com/tangoui/tango/ui/editor/monarch"
@@ -39,8 +41,12 @@ const lineCacheSize = 512
 // wrapped (wrap.go, viewlines.go). Redraws are driven by input and by the application: apart
 // from the caret blink (a Context.WakeAt while focused), one frame after
 // input it applied while painting and, in a large document, a frame when
-// the folding controls' ranges are due (paint.go, foldRangesNow), the View
-// never requests frames on its own, not even while highlighting is
+// the folding controls' ranges are due (paint.go, foldRangesNow), and one
+// frame when the occurrences of the word at the caret are due, and a frame
+// after each frame that left a document search (the occurrences or the
+// selection's matches) unfinished (occurrences.go: a long search is spread
+// over frames), the View never requests frames on its own, not even
+// while highlighting is
 // incomplete. An application that starts the Highlighter's background
 // goroutine passes c.Invalidator() (or ui.Invalidate) as its ready
 // callback, so newly final tokens are drawn when they arrive.
@@ -51,9 +57,13 @@ type ViewW struct {
 	vs  *viewState
 	ia  ui.Interaction
 
-	opts    Options // this frame's options: st.Options with the modifiers' overrides
-	km      *keymap.Keymap
-	ctxFn   func(key string) (any, bool)
+	opts  Options // this frame's options: st.Options with the modifiers' overrides
+	km    *keymap.Keymap
+	ctxFn func(key string) (any, bool)
+	// lnFn, lnChars and lnGen are this frame's LineNumbersFunc (gutter.go).
+	lnFn    LineNumberFunc
+	lnChars int
+	lnGen   uint64
 	changed bool
 	done    bool // input applied (finish)
 }
@@ -63,6 +73,10 @@ type viewState struct {
 	lines *text.LineCache
 	toks  []monarch.Token
 	long  map[longKey]*longLine
+
+	// bounds is styleRuns' scratch for a seg's style boundaries (not kept
+	// past the call: the runs and paints it returns are new slices).
+	bounds []styleBound
 
 	// Widest line seen (content width); reset when the buffer or the
 	// wrapping column changes.
@@ -76,6 +90,19 @@ type viewState struct {
 	colW               float32
 
 	inputState
+
+	stickyLines                                          []int
+	stickyY                                              []float32
+	stickyClips                                          []geom.Rect
+	stickyTokens                                         map[int]*stickyTokenLine
+	highlightDeadline                                    time.Time
+	stickyRect, minimapRect, overviewRect, minimapSlider geom.Rect
+	mini                                                 minimapState
+	miniRows                                             []miniRow
+	navPaint                                             []fixedPaint
+	railDrag                                             int // 1 minimap, 2 overview, 3 sticky press
+	railGrab                                             float32
+	railThumbHeight                                      float32
 
 	// menu is the context menu (menu.go).
 	menu menuState
@@ -96,21 +123,80 @@ type viewState struct {
 	// brk is this frame's colored brackets per model line, wsMarks the
 	// shaped whitespace marks (bracketpairs.go, whitespace.go); match
 	// the matched brackets for matchKey.
-	brk       map[int][]brSpan
-	wsMarks   *whitespaceMarks
-	match     []brange
-	matchKey  matchKey
-	matchOK   bool
-	matchPend matchKey  // the key awaiting matchDelay
-	matchDue  time.Time // when it is due
+	brk map[int][]brSpan
+	brc brCache
+	// bgPairs is this frame's bracket pairs with guides (bgOn: bracket
+	// pair guides are on), bgRows their guides on the laid out rows,
+	// bgc their cache (bracketguides.go).
+	bgPairs []guidePair
+	bgOn    bool
+	bgRows  []bgRow
+	bgc     bgCache
+	// guideActive caches the active guide of a caret outside the view.
+	guideActive activeKey
+	wsMarks     *whitespaceMarks
+	match       []brange
+	matchRes    []caretMatch // per selection, for matchKey
+	matchKey    matchKey
+	matchOK     bool
+	matchTries  int       // frames matchKey requested while unresolved
+	matchFrom   int       // the caret the next frame's match starts with
+	matchPend   matchKey  // the key awaiting matchDelay
+	matchDue    time.Time // when it is due
 
 	// dmg is what the last paint drew, for the redraw hints (damage.go);
 	// dmgSpare holds the buffers of the paint before it, for reuse.
 	dmg, dmgSpare damageRec
+
+	// Display decorations (paint.go, occurrences.go, unicode.go, links.go,
+	// colors.go): the occurrences and selection match states, scratch
+	// buffers, the links and swatches of the last paint (for the
+	// pointer), the active link, the link pressed with the trigger
+	// modifier, the host's link opener and the open color picker.
+	occ                    occState
+	selHL                  selHLState
+	occMatches, selMatches documentMatches
+	scanNow                func() time.Time // the searches' budget clock (nil: scanClock; tests)
+	decoLines              []int            // scratch: the laid out model lines
+	decoRanges             []brange
+	decoToks               []monarch.Token
+	decoLinks              []linkSpan
+	linkHits               []linkHit
+	swatches               []swatchHit
+	// Per-frame scratch of the rows' color literals, injected gaps and
+	// their seg pieces (injected.go), reused while arena is set (paint's
+	// layout of the rows).
+	fColors    []colorSpan
+	fInj       []injection
+	fSegs      []seg
+	arena      bool
+	activeLink linkKey
+	linkDown   *linkHit
+	openLink   func(url string)
+	picker     *pickerState
+	pickerID   ui.ID
+	zoomG      zoomGestureState
+	decoCount  [decoSwatch + 1]int // decorations of the laid out lines, per kind (tests)
+
+	// The Model's decorations (decorations.go): the query and inline
+	// scratch, the shaped gutter signs and the overview ruler's marks.
+	udq   []decorationEntryOf
+	udIn  []inlineSpan
+	signs map[signKey]*text.Layout
+	udOv  udOverview
+
+	// View zones (zones.go): this frame's fingerprints of the drawings of
+	// the zones without a Version, a count of frames with drawings the
+	// fingerprint does not describe (damageGlobal), the zone pressed and
+	// the pointer position last seen by the zones.
+	zfp        map[*ViewZone]uint64
+	zoneOpaque uint64
+	zonePress  *ViewZone
+	zonePtr    geom.Point
 }
 
 func newViewState() viewState {
-	return viewState{lines: text.NewLineCache(lineCacheSize), long: map[longKey]*longLine{}, foldX: -1, placeholderPress: -1}
+	return viewState{lines: text.NewLineCache(lineCacheSize), long: map[longKey]*longLine{}, foldX: -1, placeholderPress: -1, activeLink: linkKey{line: -1}}
 }
 
 // shapeHook, when set (tests), sees every LineCache call the View makes for
@@ -121,10 +207,18 @@ var shapeHook func(line int, s string)
 // measured sizes and scrolls it.
 func View(c *ui.Context, st *State) *ViewW {
 	w := &ViewW{c: c, st: st, opts: st.Options}
+	w.opts.zoom = ZoomLevel()
 	st.frameTab = 0
 	st.view = w
 	w.box = ui.Custom(c, w.measure, w.paint, layout.Grow(1))
 	w.box.Clip()
+	// Describe the focusable custom surface as a code editor, not the
+	// Box.Focusable fallback button. Hosts can override the name on Box().
+	name := st.Model.URI()
+	if name == "" {
+		name = "Code editor"
+	}
+	w.box.Semantics(a11y.RoleTextbox, name).A11yState(a11y.Multiline)
 	w.vs = ui.State(c, w.box.ID(), newViewState)
 	// While dragging selected text the pointer is an arrow, or the copy
 	// arrow while the trigger modifier is held (Monaco's mouseStyle
@@ -136,15 +230,117 @@ func View(c *ui.Context, st *State) *ViewW {
 			cur = input.CursorCopy
 		}
 	}
+	if w.linkHover() {
+		cur = input.CursorPointer // over a link with the trigger modifier (links.go)
+	}
+	if p, in := c.Pointer(); in {
+		if zc, ok := w.zoneCursor(p); ok {
+			cur = zc // over a view zone (zones.go)
+		}
+	}
 	w.ia = w.box.Focusable(cur)
 	w.collect()
 	wheel := false
 	if dx, dy, ok := c.WheelFor(w.box.ID()); ok && (dx != 0 || dy != 0) {
-		st.ScrollBy(dy, dx)
-		wheel = true
+		if !w.opts.MouseWheelZoom || !w.zoomGesture(dy) {
+			st.ScrollBy(dy, dx)
+			wheel = true
+		}
 	}
 	w.contextMenu(wheel)
+	w.colorPicker()  // the color picker opened from a swatch (colors.go)
+	st.checkScroll() // the wheel (scroll.go)
 	return w
+}
+
+// Editor zoom (Monaco's EditorZoom): one zoom level shared by every
+// editor, from -5 to 20; the font size and line height scale by
+// 1 + level/10. editor.action.fontZoomIn / fontZoomOut step it by one,
+// editor.action.fontZoomReset sets it to 0, and with
+// Options.MouseWheelZoom Cmd+wheel (Ctrl+wheel elsewhere) changes it by
+// one level per zoomWheelPx of wheel distance (zoomGesture).
+var zoomBits atomic.Uint64
+
+// ZoomLevel returns the editor zoom level (0 by default).
+func ZoomLevel() float64 { return math.Float64frombits(zoomBits.Load()) }
+
+// SetZoomLevel sets the editor zoom level, clamped to [-5, 20]. Views
+// apply it from their next frame; the application redraws the windows
+// that show editors other than the one that changed it.
+func SetZoomLevel(z float64) {
+	z = max(-5, min(z, 20))
+	zoomBits.Store(math.Float64bits(z))
+}
+
+func init() {
+	step := func(id, label string, f func(z float64) float64) {
+		RegisterCommand(Command{ID: id, Label: label, Run: func(st *State, _ any) bool {
+			SetZoomLevel(f(ZoomLevel()))
+			if w := st.view; w != nil {
+				ui.Invalidate(w.c.Window())
+			}
+			return true
+		}})
+	}
+	step("editor.action.fontZoomIn", "Increase Editor Font Size", func(z float64) float64 { return z + 1 })
+	step("editor.action.fontZoomOut", "Decrease Editor Font Size", func(z float64) float64 { return z - 1 })
+	step("editor.action.fontZoomReset", "Reset Editor Font Size", func(float64) float64 { return 0 })
+}
+
+// zoomMods reports whether the wheel's modifiers zoom (Monaco's
+// hasMouseWheelZoomModifiers): Cmd or Ctrl without Shift and Alt on
+// macOS, Ctrl alone elsewhere.
+func (w *ViewW) zoomMods(m input.Modifiers) bool {
+	if m&(input.ModShift|input.ModAlt) != 0 {
+		return false
+	}
+	if w.keymap().Platform() == keymap.Mac {
+		return m&(input.ModMeta|input.ModCtrl) != 0
+	}
+	return m&input.ModCtrl != 0 && m&input.ModMeta == 0
+}
+
+// Wheel zoom gestures (Monaco's _setupMouseWheelZoomListener for wheels
+// it does not classify as a physical mouse wheel, the only path here as
+// input.Scroll does not tell them apart): wheel frames less than
+// zoomGestureGap apart are one gesture; whether it zooms is decided by the
+// modifiers at its start (so the inertia of a trackpad scroll does not zoom
+// when Cmd is pressed during it, nor scroll when Cmd is released), and the
+// zoom level is the gesture's starting level plus the gesture's wheel
+// distance over zoomWheelPx (fractional levels, as Monaco's).
+const (
+	zoomGestureGap = 50 * time.Millisecond
+	// zoomWheelPx is the wheel distance of one zoom level, in logical
+	// pixels: Monaco divides pixel wheel deltas by 40 to normalize them,
+	// then accumulates deltaY/5 for non-physical wheels.
+	zoomWheelPx = 40 * 5
+)
+
+// zoomGestureState is the wheel zoom gesture in progress.
+type zoomGestureState struct {
+	last  time.Time // the gesture's last wheel frame
+	start float64   // the zoom level at its start
+	acc   float32   // its wheel distance (positive: down, zooms out)
+	zoom  bool      // it zooms (modifiers at its start)
+}
+
+// zoomGesture applies a wheel turn of dy (up, negative, zooms in) to the
+// gesture in progress and reports whether it zooms; it applies the new
+// level to this frame.
+func (w *ViewW) zoomGesture(dy float32) bool {
+	g := &w.vs.zoomG
+	now := w.c.Now()
+	if g.last.IsZero() || now.Sub(g.last) > zoomGestureGap {
+		*g = zoomGestureState{start: ZoomLevel(), zoom: w.zoomMods(w.c.PointerMods())}
+	}
+	g.last = now
+	if !g.zoom {
+		return false
+	}
+	g.acc += dy
+	SetZoomLevel(g.start - float64(g.acc)/zoomWheelPx)
+	w.opts.zoom = ZoomLevel()
+	return true
 }
 
 // The modifiers below override the State's Options for this frame only

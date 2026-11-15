@@ -106,13 +106,28 @@ func runCases(t *testing.T, cases []opCase) {
 				file = "a.txt"
 			}
 			text, sels := parseMarked(t, c.in)
-			st := NewState(text, file, theme.Base("vs"))
+			st := newTestState(text, file, theme.Base("vs"))
 			if c.opts != nil {
 				c.opts(st)
 			}
 			st.SetSelections(sels)
 			before := st.Snapshot().String()
 			ran := st.Execute(c.cmd, nil)
+			// Reindent is atomic when its syntax budget expires: no edits
+			// are applied and SyntaxCommandIncomplete reports that the
+			// result is not ready. Retry the same command, bounded, rather
+			// than comparing a scheduler pause's no-op with the final text.
+			if c.cmd == "editor.action.reindentlines" {
+				for tries := 1; st.SyntaxCommandIncomplete(); tries++ {
+					if st.Snapshot().String() != before || marked(st) != canonical(t, c.in) {
+						t.Fatal("incomplete reindent changed text or selections")
+					}
+					if tries == 100 {
+						t.Fatal("reindent incomplete after 100 attempts")
+					}
+					ran = st.Execute(c.cmd, nil)
+				}
+			}
 			if got := marked(st); got != c.want {
 				t.Errorf("%s:\n got %q\nwant %q", c.cmd, got, c.want)
 			}

@@ -43,10 +43,13 @@ func TestIndentFoldingRanges(t *testing.T) {
 	if got, want := rangesOf(t, goSrc, "a.go"), []FoldingRange{{0, 3, ""}, {1, 2, ""}}; !slices.Equal(got, want) {
 		t.Errorf("go: %v, want %v", got, want)
 	}
-	// Tabs count to the next tab stop.
-	if got, want := rangesOf(t, "a\n\tb\n        c\nd", "a.txt"), []FoldingRange{{0, 2, ""}, {1, 2, ""}}; !slices.Equal(got, want) {
+	// Tabs count to the next tab stop (of tab size 4: this text alone is
+	// detected as tab size 8, under which b and c are at one level).
+	tabs := newTestState("a\n\tb\n        c\nd", "a.txt", nil)
+	if got, want := tabs.FoldingRanges(), []FoldingRange{{0, 2, ""}, {1, 2, ""}}; !slices.Equal(got, want) {
 		t.Errorf("tabs: %v, want %v", got, want)
 	}
+	tabs.Close()
 	// Blank lines at the end of the document belong to the last block
 	// (not off-side).
 	if got, want := rangesOf(t, "a\n\tb\n\n", "a.txt"), []FoldingRange{{0, 3, ""}}; !slices.Equal(got, want) {

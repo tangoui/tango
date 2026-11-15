@@ -27,11 +27,13 @@ package editor
 // Results and their analysis: docs/specs/code-editor-m1-report.md.
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"hash/fnv"
 	"image"
+	"image/color"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -54,6 +56,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
+	"github.com/tangoui/tango/ui/paint"
 )
 
 // perfSize is the reference window of spec 6.6.
@@ -162,34 +165,20 @@ func (w *perfWindow) WriteClipboard(s string)      { w.clip = s }
 func (w *perfWindow) SetTextInput(bool, geom.Rect) {}
 func (w *perfWindow) Present(*image.RGBA) error    { return nil }
 
-// syncDevice is the Metal device with a way to wait for the last frame:
-// metal.Device.Execute commits without waiting and waits for the previous
-// command buffer at its start, so wait executes an empty frame of the same
-// sizes (a clear of the target, no uploads, no texture changes). The time
-// it returns includes encoding that clear, a few microseconds. syncDevice
-// is not a gpu.Retainer, so the renderer draws every frame in full and
-// clearing the target does not change what the next frame draws (the
-// View's Damage/ScrollRegion hints are ignored: the M1 conditions).
-//
-// With keep (retainDevice, the partial-redraw benchmarks) the wait frame
-// is a partial frame clearing only the bottom-left pixel to Frame.Clear,
-// the color it already has: the page leaves a row of the window
-// background (the List's Background, which is Frame.Clear) below the
-// view, so the target still holds the last frame for the next partial
-// one.
+// syncDevice counts rendered frames and waits for their existing Metal
+// command buffers. Waiting never submits a clear-only/1px frame, so the
+// following frame's CPU interval cannot include waiting for that extra work.
+// The wait interval is completion wall time (including queueing/scheduling),
+// not GPU execution time. This is a timer correction, not a product speedup.
+// syncDevice is not a gpu.Retainer (the full-redraw/M1 conditions); only
+// retainDevice exposes retained-target support to the renderer.
 type syncDevice struct {
-	d    *metal.Device
-	last gpu.Frame
-	keep bool
+	d *metal.Device
 
 	frames, partial int // frames executed (not counting waits), partial ones
 }
 
 func (s *syncDevice) Execute(f *gpu.Frame) error {
-	s.last = gpu.Frame{Size: f.Size, Clear: f.Clear, MaskSize: f.MaskSize, ColorSize: f.ColorSize, RampSize: f.RampSize}
-	if s.keep {
-		s.last.Dirty = []image.Rectangle{image.Rect(0, f.Size.Y-1, 1, f.Size.Y)}
-	}
 	s.frames++
 	if len(f.Dirty) > 0 {
 		s.partial++
@@ -197,18 +186,13 @@ func (s *syncDevice) Execute(f *gpu.Frame) error {
 	return s.d.Execute(f)
 }
 
-// retainDevice is a syncDevice (with keep) that reports the Metal
-// device's target retained, so the renderer draws partial frames.
+// retainDevice is a syncDevice that reports the Metal device's target
+// retained, so the renderer draws partial frames.
 type retainDevice struct{ *syncDevice }
 
 func (r retainDevice) Retained(size image.Point) bool { return r.d.Retained(size) }
 
-func (s *syncDevice) wait() error {
-	if s.last.Size.X == 0 {
-		return nil
-	}
-	return s.d.Execute(&s.last)
-}
+func (s *syncDevice) wait() error { return s.d.Wait() }
 
 var perfDevice struct {
 	once sync.Once
@@ -229,6 +213,48 @@ func metalDevice(tb testing.TB) *metal.Device {
 	return perfDevice.d
 }
 
+// TestPerfDeviceWaitPreservesFrame rejects the old completion trick that
+// submits a clear-only frame: waiting must leave the rendered pixels intact.
+func TestPerfDeviceWaitPreservesFrame(t *testing.T) {
+	d, err := metal.NewDevice()
+	if errors.Is(err, metal.ErrUnsupported) || errors.Is(err, metal.ErrNoDevice) {
+		t.Skipf("no Metal: %v", err)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(d.Close)
+	s := &syncDevice{d: d}
+	if err := s.wait(); err != nil {
+		t.Fatal(err)
+	}
+	l := &paint.List{Background: color.NRGBA{R: 10, G: 20, B: 30, A: 255}}
+	l.Fill(geom.R(2, 2, 8, 6), geom.Radii{}, color.NRGBA{R: 190, G: 40, B: 60, A: 255})
+	size := geom.Size{W: 16, H: 12}
+	r := gpu.NewRenderer(s)
+	r.SetVerify(false)
+	if err := r.Render(l, size, 1); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := s.wait(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := d.ReadPixels()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := paint.NewCPU()
+	ref.Render(l, size, 1)
+	if !bytes.Equal(got.Pix, ref.Image().Pix) {
+		t.Fatal("performance completion wait damaged the rendered frame")
+	}
+	if s.frames != 1 || s.partial != 0 {
+		t.Fatalf("waiting changed frame counters: frames=%d partial=%d", s.frames, s.partial)
+	}
+}
+
 // perfHost runs a page showing one State in a perfWindow, rendered on the
 // Metal device.
 type perfHost struct {
@@ -247,24 +273,31 @@ type perfHost struct {
 // newPerfHost shows st at scale (1 or 2) through a new Renderer on dev
 // (the device and so its pipelines are shared; the glyph atlas is the
 // Renderer's).
+// Both hosts first turn off the features named by $TANGO_EDITOR_PERF_OFF
+// (perfApplyOff; ui/editor/perfab/run.sh).
 func newPerfHost(tb testing.TB, st *State, scale float32) *perfHost {
 	tb.Helper()
+	perfApplyOffEnv(tb, st)
 	h := &perfHost{st: st, w: &perfWindow{size: perfSize, scale: scale}}
 	h.dev = &syncDevice{d: metalDevice(tb)}
+	ren := gpu.NewRenderer(h.dev)
+	ren.SetVerify(false) // acceptance timings must never include test-default verification
 	h.r = ui.NewRunner(func(c *ui.Context) {
 		h.vw = View(c, st)
-	}, ui.RunnerOptions{Renderer: gpu.NewRenderer(h.dev), NoAnimations: true})
+	}, ui.RunnerOptions{Renderer: ren, NoAnimations: true})
 	h.r.Attach(h.w)
 	return h
 }
 
 // newPartialPerfHost is newPerfHost with partial redraws: the device is a
-// retainDevice and verify mode is off (as in an application), and the view
-// leaves the bottom row of the window to the background (see syncDevice).
+// retainDevice and verify mode is off (as in an application). Keep the
+// historical 1px background row for benchmark geometry comparability;
+// completion waits no longer need or clear that row.
 func newPartialPerfHost(tb testing.TB, st *State, scale float32) *perfHost {
 	tb.Helper()
+	perfApplyOffEnv(tb, st)
 	h := &perfHost{st: st, w: &perfWindow{size: perfSize, scale: scale}}
-	h.dev = &syncDevice{d: metalDevice(tb), keep: true}
+	h.dev = &syncDevice{d: metalDevice(tb)}
 	ren := gpu.NewRenderer(retainDevice{h.dev})
 	ren.SetVerify(false)
 	h.r = ui.NewRunner(func(c *ui.Context) {
@@ -426,7 +459,7 @@ func sysctlLoad() (string, error) {
 }
 
 func logLoad(b *testing.B) {
-	b.Logf("load average: %s, GOMAXPROCS %d", loadAvg(), runtime.GOMAXPROCS(0))
+	b.Logf("load average: %s, GOMAXPROCS %d, %s=%q", loadAvg(), runtime.GOMAXPROCS(0), perfOffEnv, os.Getenv(perfOffEnv))
 }
 
 // openFile is what an application does to open path: read it, make the
@@ -436,7 +469,9 @@ func openFile(tb testing.TB, path string, scale float32) *perfHost {
 	if err != nil {
 		tb.Fatal(err)
 	}
-	st := NewState(string(data), path, theme.Base("vs"))
+	// NewState, with the creation options of $TANGO_EDITOR_PERF_OFF
+	// (detectindent; perf_ab_test.go).
+	st := NewView(NewModelWithOptions(path, string(data), DefaultRegistry(), perfModelOptions()), theme.Base("vs"))
 	return newPerfHost(tb, st, scale)
 }
 
@@ -454,6 +489,7 @@ func BenchmarkOpen100MB(b *testing.B) {
 	logLoad(b)
 	b.Logf("file: %.1f MB, 1000000 lines", float64(fi.Size())/1e6)
 	var open, hl durations
+	var cpu, wait durations
 	for b.Loop() {
 		runtime.GC()
 		start := time.Now()
@@ -467,10 +503,71 @@ func BenchmarkOpen100MB(b *testing.B) {
 			h.frame(b)
 		}
 		hl = append(hl, time.Since(start))
+		cpu, wait = append(cpu, h.cpuT), append(wait, h.waitT)
 	}
+	b.ReportMetric(ms(cpu.mean()), "cpu-ms")
+	b.ReportMetric(ms(wait.mean()), "gpuwait-ms")
+	b.ReportMetric(ms(open.pct(.95)), "open-p95-ms")
 	b.ReportMetric(ms(open.mean()), "open-ms")
 	b.ReportMetric(ms(open.pct(1)), "open-max-ms")
 	b.ReportMetric(ms(hl.mean()), "hl-ms")
+}
+
+// BenchmarkM2ColdOpen100MB must run as 1x in a fresh test process. It
+// includes the first Metal device/pipeline creation, unlike Open100MB.
+// OS file cache is not purged: this is process-cold, not disk-cold.
+func BenchmarkM2ColdOpen100MB(b *testing.B) {
+	path := perfFile(b, 1_000_000)
+	logLoad(b)
+	for b.Loop() {
+		start := time.Now()
+		h := openFile(b, path, 2)
+		h.frame(b)
+		b.ReportMetric(ms(time.Since(start)), "open-ms")
+		b.ReportMetric(ms(h.cpuT), "cpu-ms")
+		b.ReportMetric(ms(h.waitT), "gpuwait-ms")
+		b.ReportMetric(ms(time.Since(start)), "first-hl-ms")
+		if !h.visibleFinal() {
+			b.Fatal("first screen not finally highlighted")
+		}
+	}
+}
+
+// BenchmarkM2SingleLineEdit measures the retained partial path with all
+// default layers active (20k lines is below large-file thresholds).
+func BenchmarkM2SingleLineEdit(b *testing.B) {
+	path := perfFile(b, 20_000)
+	logLoad(b)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		b.Fatal(err)
+	}
+	h := newPartialPerfHost(b, NewState(string(data), path, theme.Base("vs-dark")), 2)
+	h.frame(b)
+	h.focus(b)
+	h.caretTo(b, 2) // comment: typing does not alter bracket nesting
+	for range 5 {
+		h.frame(b)
+	}
+	f0, p0 := h.dev.frames, h.dev.partial
+	h.resetSplit()
+	var d durations
+	for b.Loop() {
+		start := time.Now()
+		h.typeKey("x")
+		h.frame(b)
+		d = append(d, time.Since(start))
+	}
+	b.ReportMetric(ms(d.pct(.5)), "p50-ms")
+	b.ReportMetric(ms(d.pct(.95)), "p95-ms")
+	b.ReportMetric(ms(d.pct(.99)), "p99-ms")
+	h.reportSplit(b)
+	if n := h.dev.frames - f0; n > 0 {
+		b.ReportMetric(float64(h.dev.partial-p0)/float64(n), "partial")
+		if h.dev.partial == p0 {
+			b.Fatal("no actual partial frames executed")
+		}
+	}
 }
 
 // BenchmarkOpen100MBWrap is BenchmarkOpen100MB with word wrap on: the
@@ -490,6 +587,7 @@ func BenchmarkOpen100MBWrap(b *testing.B) {
 		}
 		st := NewState(string(data), path, theme.Base("vs"))
 		st.Options.WordWrap = WrapOn
+		st.wrapLarge = true // a large file: force wrapping (Monaco never wraps one)
 		h := newPerfHost(b, st, 2)
 		h.frame(b)
 		open = append(open, time.Since(start))
@@ -742,6 +840,7 @@ func BenchmarkTypeAt1MLines(b *testing.B) {
 			h := openFile(b, path, 2)
 			if c.wrap {
 				h.st.Options.WordWrap = WrapOn
+				h.st.wrapLarge = true // a large file: force wrapping
 			}
 			h.frame(b)
 			if c.full {
@@ -825,6 +924,7 @@ func BenchmarkScroll(b *testing.B) {
 			st := NewState(text, path, theme.Base("vs"))
 			if c.wrap {
 				st.Options.WordWrap = WrapOn
+				st.wrapLarge = true // a large file: force wrapping
 			}
 			h := newPerfHost(b, st, scale)
 			h.frame(b)
@@ -936,11 +1036,14 @@ func BenchmarkHighlightTS20kBackground(b *testing.B) {
 	metalDevice(b)
 	logLoad(b)
 	var bgT, during, after durations
+	var cpu, wait time.Duration
+	var frames int
 	for b.Loop() {
 		h := openFile(b, path, 2)
 		h.frame(b)
 		h.focus(b)
 		h.caretTo(b, 10)
+		h.resetSplit()
 		hl := h.st.Highlighter()
 		var ready atomic.Int32
 		ctx, cancel := context.WithCancel(context.Background())
@@ -977,7 +1080,12 @@ func BenchmarkHighlightTS20kBackground(b *testing.B) {
 			after = append(after, time.Since(t))
 		}
 		cancel()
+		cpu, wait, frames = cpu+h.cpuT, wait+h.waitT, frames+h.frames
 		b.Logf("background ready callbacks %d, keys typed during highlight %d", ready.Load(), i)
+	}
+	if frames > 0 {
+		b.ReportMetric(ms(cpu/time.Duration(frames)), "cpu-ms")
+		b.ReportMetric(ms(wait/time.Duration(frames)), "gpuwait-ms")
 	}
 	b.ReportMetric(ms(bgT.mean()), "bg-ms")
 	b.ReportMetric(ms(during.pct(0.5)), "p50-ms")
@@ -1022,10 +1130,7 @@ func TestPerfHostRenders(t *testing.T) {
 	if !h.visibleFinal() {
 		h.frame(t)
 	}
-	// One more frame without syncDevice.wait (its clear would be read).
-	if err := h.r.Frame(); err != nil {
-		t.Fatal(err)
-	}
+	// Read the frame preserved by the real completion wait above.
 	img, err := h.dev.d.ReadPixels()
 	if err != nil {
 		t.Fatal(err)
@@ -1047,5 +1152,80 @@ func TestPerfHostRenders(t *testing.T) {
 		if err := savePNG(p, img); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// bracketDoc returns n lines of TypeScript with nested brackets, about 30
+// bytes a line: 150 000 lines are 4.5 MB, under maxBracketTreeLen and
+// LargeFileLines, so the bracket tree and bracket pair colorization are
+// both on.
+func bracketDoc(n int) string {
+	tpl := [...]string{
+		"function fn%07d(alpha, beta) {",
+		"    if (alpha[%d] > beta) {",
+		"        call(alpha, [beta, %d]);",
+		"    }",
+		"    return { x: alpha, n: %d };",
+		"}",
+	}
+	var sb strings.Builder
+	for i := range n {
+		t := tpl[i%len(tpl)]
+		if strings.Contains(t, "%") {
+			fmt.Fprintf(&sb, t, i)
+		} else {
+			sb.WriteString(t)
+		}
+		sb.WriteByte('\n')
+	}
+	return sb.String()
+}
+
+// BenchmarkTypeBrackets types in a 150 000-line, 4.5 MB TypeScript file:
+// the bracket tree's path (colorization, matching). "balanced" types the
+// usual keys (keyAt) at line 75 000; "unbalanced" types "{" without
+// auto-closing, so every key changes the depth of every line below and
+// the tree rescans them within the frame budget. The document is fully
+// highlighted first, so the tree may scan it all.
+func BenchmarkTypeBrackets(b *testing.B) {
+	metalDevice(b)
+	logLoad(b)
+	text := bracketDoc(150_000)
+	b.Logf("file: %.1f MB, 150000 lines", float64(len(text))/1e6)
+	for _, unbalanced := range []bool{false, true} {
+		name := "balanced"
+		if unbalanced {
+			name = "unbalanced"
+		}
+		b.Run(name, func(b *testing.B) {
+			st := NewState(text, "gen.ts", theme.Base("vs"))
+			st.Options.AutoClosingBrackets = AutoCloseNever
+			h := newPerfHost(b, st, 2)
+			h.frame(b)
+			highlightAllBackground(b, st)
+			h.focus(b)
+			h.caretTo(b, 75_000)
+			if st.Model.brackets() == nil {
+				b.Fatal("no bracket tree")
+			}
+			var d durations
+			i := 0
+			h.resetSplit()
+			for b.Loop() {
+				key := keyAt(i)
+				if unbalanced {
+					key = "{"
+				}
+				start := time.Now()
+				h.typeKey(key)
+				h.frame(b)
+				d = append(d, time.Since(start))
+				i++
+			}
+			b.ReportMetric(ms(d.pct(0.5)), "p50-ms")
+			b.ReportMetric(ms(d.pct(0.95)), "p95-ms")
+			b.ReportMetric(ms(d.pct(1)), "max-ms")
+			h.reportSplit(b)
+		})
 	}
 }

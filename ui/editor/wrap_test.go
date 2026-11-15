@@ -162,6 +162,10 @@ func TestWrapMixedScripts(t *testing.T) {
 	if lb.rows() < 4 {
 		t.Fatalf("line wraps into %d rows at width 300", lb.rows())
 	}
+	// The default minimap narrows the text area. This exhaustive pointer
+	// script needs every row on screen; clicks below the window are not input.
+	ed.Resize(300, float32(st.viewCount()+2)*st.Viewport.LineHeight)
+	ed.Frame()
 	ls := snap.LineStart(1)
 	// Every row fits the text area (on the column grid).
 	g := w.vs
@@ -241,7 +245,7 @@ func TestWrapMixedScripts(t *testing.T) {
 		ed.Click(geom.Pt(r.X+0.5, r.Y+r.H/2))
 		ed.Frame()
 		if h := st.Primary().Head; h != off {
-			t.Fatalf("click at caret of %d (row %d): head %d", c, st.rowOf(off, false), h-ls)
+			t.Fatalf("click at caret of %d (row %d): head %d; caret %v text %v mini %v sticky %v viewport %+v", c, st.rowOf(off, false), h-ls, r, (*ed.vw).vs.text, (*ed.vw).vs.minimapRect, (*ed.vw).vs.stickyRect, st.Viewport)
 		}
 		if cr := rowRect(t, ed, st, st.Primary().Head, st.caretUp()); abs32(cr.X-r.X) > 1 || cr.Y != r.Y {
 			t.Fatalf("click at %d: caret %v, want %v", c, cr, r)

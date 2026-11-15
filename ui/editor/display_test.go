@@ -1,10 +1,12 @@
 package editor
 
 import (
+	"fmt"
 	"image/color"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tangoui/tango/ui/editor/theme"
 	"github.com/tangoui/tango/ui/geom"
@@ -268,8 +270,8 @@ func TestPadding(t *testing.T) {
 	if v.TopLine != 0 || v.OffsetY != -20 {
 		t.Fatalf("at the top: TopLine %d OffsetY %v, want 0 -20", v.TopLine, v.OffsetY)
 	}
-	// The first line is drawn below the padding: a click in the padding
-	// is on line 0.
+	// The first line is drawn below the padding: a point in the padding
+	// is above line 0 (row -1).
 	if r := (*vw).pointRow(geom.Pt((*vw).vs.text.X+5, (*vw).vs.text.Y+5)); r != -1 {
 		t.Errorf("row in the padding = %d, want -1 (above line 0)", r)
 	}
@@ -277,9 +279,11 @@ func TestPadding(t *testing.T) {
 	if v.TopLine != 0 || v.OffsetY != -10 {
 		t.Errorf("scrolled 10: %d %v", v.TopLine, v.OffsetY)
 	}
+	// The bottom padding does not extend the scroll range (Monaco with
+	// scrollBeyondLastLine): the last line stops at the top.
 	st.ScrollBy(1e6, 0)
-	if n := st.Snapshot().LineCount(); v.TopLine != n-1 || v.OffsetY != 5 {
-		t.Errorf("scrolled to the end: %d %v, want %d 5 (the bottom padding)", v.TopLine, v.OffsetY, n-1)
+	if n := st.Snapshot().LineCount(); v.TopLine != n-1 || v.OffsetY != 0 {
+		t.Errorf("scrolled to the end: %d %v, want %d 0", v.TopLine, v.OffsetY, n-1)
 	}
 	st.ScrollBy(-1e6, 0)
 	if v.TopLine != 0 || v.OffsetY != -20 {
@@ -290,5 +294,98 @@ func TestPadding(t *testing.T) {
 	d.Frame()
 	if v.TopLine != 0 || v.OffsetY != 0 {
 		t.Errorf("padding removed: %d %v", v.TopLine, v.OffsetY)
+	}
+}
+
+// TestIndentGuidesWrapped: continuation rows repeat their line's guides,
+// except those starting at column 0 (Monaco's BlockSubsequent):
+// wrappingIndent "none", or an indent too deep for the wrapping column.
+func TestIndentGuidesWrapped(t *testing.T) {
+	goText(t)
+	st := NewState("func f() {\n\t\tx := aaaa + bbbb + cccc + dddd + eeee + ffff + gggg\n}", "a.go", theme.Base("vs"))
+	st.Options.WordWrap = WrapColumn
+	for _, c := range []struct {
+		mode WrappingIndentMode
+		col  int
+		want int
+	}{{WrapIndentSame, 20, 2}, {WrapIndentNone, 20, 0}, {WrapIndentSame, 9, 0}} {
+		st.Options.WrappingIndent = c.mode
+		st.Options.WordWrapColumn = c.col
+		d, vw := viewDriver(st, 400, 200, nil)
+		d.Frame()
+		if st.lines().rowsOf(1) < 2 {
+			t.Fatal("line 2 does not wrap")
+		}
+		// The rows as laid out: a continuation row starts at its indent.
+		x0 := float32(st.breaks(1).rowIndent(1)) * (*vw).vs.colW
+		rows := []lineView{{i: 1, row: 0, rows: 2, segs: []seg{{}}}, {i: 1, row: 1, rows: 2, segs: []seg{{x0: x0}}}}
+		g := (*vw).guidesFor(st.Snapshot(), rows, 0)
+		if g[0].level != 2 || g[1].level != c.want {
+			t.Errorf("%s column %d (continuation indent %v): guides %+v, want 2 then %d", c.mode, c.col, rows[1].segs[0].x0, g, c.want)
+		}
+	}
+}
+
+// TestActiveGuideCaretFar: with the caret far below the view, the active
+// guide's block is computed once per text and caret, not every frame.
+func TestActiveGuideCaretFar(t *testing.T) {
+	var sb strings.Builder
+	sb.WriteString("func f() {\n")
+	for i := range 100_000 {
+		fmt.Fprintf(&sb, "\tx%d := g(%d)\n", i, i)
+	}
+	sb.WriteString("}")
+	st := NewState(sb.String(), "a.go", theme.Base("vs"))
+	vs := newViewState()
+	w := &ViewW{st: st, opts: DefaultOptions(), vs: &vs}
+	rows := make([]lineView, 40)
+	for i := range rows {
+		rows[i] = lineView{i: i, vi: i, rows: 1}
+	}
+	snap := st.Snapshot()
+	caret := 30_000                     // within Monaco's 50 000-line search
+	g := w.guidesFor(snap, rows, caret) // computes the block
+	if g[1].active != 1 || g[39].active != 1 {
+		t.Fatalf("active guides %+v %+v, want the function body's (level 1)", g[1], g[39])
+	}
+	start := time.Now()
+	for range 10 {
+		w.guidesFor(snap, rows, caret)
+	}
+	if el := time.Since(start) / 10; el > 2*time.Millisecond && !raceEnabled {
+		t.Errorf("guides with the caret far away: %v a frame", el)
+	}
+}
+
+// TestActiveGuideFirstCallFast: the first (uncached) computation of the
+// active guide of a caret outside the view, in a long block, reads the
+// block's lines once each: the search alternates above and below the
+// caret, which must not re-read a run of lines per access.
+func TestActiveGuideFirstCallFast(t *testing.T) {
+	var sb strings.Builder
+	sb.WriteString("{\n")
+	for i := range 30_000 {
+		fmt.Fprintf(&sb, "    \"key%d\": [%d, \"value %d\"],\n", i, i, i)
+	}
+	sb.WriteString("    \"end\": 0\n}\n")
+	st := NewState(sb.String(), "a.json", theme.Base("vs"))
+	vs := newViewState()
+	w := &ViewW{st: st, opts: DefaultOptions(), vs: &vs}
+	rows := make([]lineView, 40)
+	for i := range rows {
+		rows[i] = lineView{i: i, vi: i, rows: 1}
+	}
+	snap := st.Snapshot()
+	caret := 15_000 // mid-file, outside the view
+	start := time.Now()
+	g := w.guidesFor(snap, rows, caret)
+	el := time.Since(start)
+	if g[1].active != 1 || g[39].active != 1 {
+		t.Fatalf("active guides %+v %+v, want the object's (level 1)", g[1], g[39])
+	}
+	limit := gateLimit(5 * time.Millisecond)
+	t.Logf("first call: %v", el)
+	if el > limit {
+		t.Errorf("first active guide computation: %v, want at most %v", el, limit)
 	}
 }

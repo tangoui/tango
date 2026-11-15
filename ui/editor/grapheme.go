@@ -106,6 +106,19 @@ func isPict(r rune) bool {
 // nextGrapheme returns the end of the grapheme cluster starting at byte i of
 // s (len(s) if i is at or past the end). i is treated as a cluster start.
 func nextGrapheme(s string, i int) int {
+	// Two ASCII characters always have a boundary between them except
+	// CR LF (GB3; GB4, GB5, GB999: no ASCII character is Extend, ZWJ,
+	// SpacingMark, Prepend, a regional indicator or Hangul), so an ASCII
+	// character followed by one is a cluster of its own
+	// (TestNextGraphemeASCIIFast).
+	if i+1 < len(s) && s[i] < utf8.RuneSelf && s[i+1] < utf8.RuneSelf && s[i] != '\r' {
+		return i + 1
+	}
+	return nextGraphemeRules(s, i)
+}
+
+// nextGraphemeRules is nextGrapheme by the segmentation rules alone.
+func nextGraphemeRules(s string, i int) int {
 	if i >= len(s) {
 		return len(s)
 	}

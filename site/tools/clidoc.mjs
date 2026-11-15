@@ -1,42 +1,44 @@
-// clidoc.mjs captures the help text of every tan command into
+// clidoc.mjs turns cmd/tan/testdata/cli.golden (the help text of tan and
+// every command, pinned by cmd/tan's TestCLIGolden) into
 // site/reference/_cli-flags.md, which the CLI reference pages include, so the
 // flag lists never drift from cmd/tan.
 //
 //	node site/tools/clidoc.mjs      (part of npm run docs:gen)
 //
-// If cmd/tan does not build, the file says so instead of failing the docs
-// build.
-import { execFileSync, spawnSync } from "node:child_process";
+// It also publishes cmd/tan/tan.schema.json (the JSON Schema of tan.json,
+// pinned by TestConfigSchema) at /schema/tan.schema.json, the "$schema" URL
+// tan init writes.
+//
+// After changing tan's flags, refresh the golden first:
+//
+//	cd cmd/tan && go test -run TestCLIGolden -update
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const site = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repo = path.resolve(site, "..");
+const golden = path.join(repo, "cmd", "tan", "testdata", "cli.golden");
 const out = path.join(site, "reference", "_cli-flags.md");
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tan-clidoc-"));
-const bin = path.join(tmp, process.platform === "win32" ? "tan.exe" : "tan");
 
-let md = "<!-- 由 site/tools/clidoc.mjs 生成（tan <command> -h），请勿手改 -->\n\n";
-try {
-  execFileSync("go", ["build", "-o", bin, "."], { cwd: path.join(repo, "cmd", "tan"), stdio: ["ignore", "ignore", "pipe"] });
-  const help = (args) => {
-    const r = spawnSync(bin, args, { encoding: "utf8", cwd: tmp });
-    return ((r.stdout || "") + (r.stderr || "")).trim();
-  };
-  md += "```text\n$ tan help\n" + help(["help"]) + "\n```\n";
-  const cmds = [...help(["help"]).matchAll(/^ {2}([a-z][a-z-]*) /gm)].map((m) => m[1]);
-  for (const c of cmds) {
-    if (c === "version") continue;
-    const args = c === "generate" ? ["generate", "bindings", "-h"] : [c, "-h"];
-    md += `\n### tan ${args.slice(0, -1).join(" ")}\n\n\`\`\`text\n${help(args)}\n\`\`\`\n`;
+const text = fs.readFileSync(golden, "utf8").replace(/\r\n/g, "\n");
+// Blocks start with "$ tan <args>" and run to the next one.
+const blocks = text.split(/^(?=\$ tan )/m).filter((b) => b.trim());
+
+let md = "<!-- 由 site/tools/clidoc.mjs 从 cmd/tan/testdata/cli.golden 生成，请勿手改 -->\n\n";
+for (const [i, b] of blocks.entries()) {
+  const nl = b.indexOf("\n");
+  const cmd = b.slice(2, nl); // "tan build -h"
+  const body = b.slice(nl + 1).trimEnd();
+  if (i === 0) {
+    md += "```text\n$ " + cmd + "\n" + body + "\n```\n";
+  } else {
+    md += `\n### ${cmd.replace(/ -h$/, "")}\n\n\`\`\`text\n${body}\n\`\`\`\n`;
   }
-  console.log(`clidoc: ${cmds.length} commands → ${path.relative(repo, out)}`);
-} catch (e) {
-  md += "::: warning\n构建 cmd/tan 失败，未能生成参数列表；请在本地运行 `tan <command> -h` 查看。\n:::\n";
-  console.warn("clidoc: cmd/tan does not build; wrote a placeholder:", String(e.stderr || e.message).split("\n")[0]);
-} finally {
-  fs.rmSync(tmp, { recursive: true, force: true });
 }
+console.log(`clidoc: ${blocks.length - 1} commands → ${path.relative(repo, out)}`);
 fs.writeFileSync(out, md);
+
+const schemaDir = path.join(site, "public", "schema");
+fs.mkdirSync(schemaDir, { recursive: true });
+fs.copyFileSync(path.join(repo, "cmd", "tan", "tan.schema.json"), path.join(schemaDir, "tan.schema.json"));

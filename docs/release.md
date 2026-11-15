@@ -171,6 +171,14 @@ apidiff 视为不兼容的情况比"编译不过"更宽：给函数追加可变�
 - 通过上面 R1–R12 的审查，尤其是零值、可比较性、返回类型；
 - 它在签名里引用的符号也已经是稳定层（`apitxt -check` 没有新的跨层泄漏）。
 
+### CLI 与 `tan.json`
+
+`tan` 的命令、参数和 `tan.json` 同样是公开契约，与 Go 模块同号发布：
+
+- **命令与参数**：`cmd/tan/testdata/cli.golden` 记录 `tan help` 和每个子命令的 `-h`，由 `TestCLIGolden` 检查，参考站的参数列表也由它生成（`site/tools/clidoc.mjs`）。命令和参数不删除、不改名、不改语义；默认值的变化写进 CHANGELOG；弃用的参数保留并打印警告，至少保留一个 MINOR。改动后运行 `cd cmd/tan && go test -run TestCLIGolden -update`，审查 diff。
+- **`tan.json`**：JSON Schema 在 `cmd/tan/tan.schema.json`，由 `TestConfigSchema` 从 `Config` 的 json 标签和字段注释生成并检查（`-update` 重写），文档站发布在 `/schema/tan.schema.json`，`tan init` 写入 `"$schema"`。字段只增不删；改名时旧名继续解析并告警。未知字段会报错，所以按新版 tan 写的 `tan.json` 需要同样新的 tan，错误信息会提示这一点。
+- **CLI 依赖的运行时符号**：`tan dev` 在构建出的程序里查找 `internal/devhost.AttachSymbol`（`uihost.AttachWith` 的符号名），`uihost` 的 `TestAttachSymbol` 固定它。
+
 ## 发布前提（一次性）
 
 - 仓库 Settings → Pages → Source 选 **GitHub Actions**（文档站由 `release.yml` 的 `docs` 作业部署）。

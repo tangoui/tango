@@ -63,13 +63,17 @@ func AntIcons() *icon.Style {
 		icon.CustomerService:  antd.CustomerServiceOutlined, icon.QuestionMark: antd.QuestionOutlined,
 		icon.Sound: antd.SoundOutlined, icon.Pause: antd.PauseOutlined,
 		icon.Undo: antd.UndoOutlined, icon.Redo: antd.RedoOutlined, icon.Save: antd.SaveOutlined,
-		icon.Code: antd.CodeOutlined, icon.Bug: antd.BugOutlined, icon.Key: antd.KeyOutlined,
+		icon.Code: antd.CodeOutlined, icon.WrapText: antd.EnterOutlined, icon.Bug: antd.BugOutlined, icon.Key: antd.KeyOutlined,
 		icon.Database: antd.DatabaseOutlined, icon.Branch: antd.BranchesOutlined,
 		icon.History: antd.HistoryOutlined, icon.Sync: antd.SyncOutlined,
 		icon.Share: antd.ShareAltOutlined, icon.Send: antd.SendOutlined, icon.Pin: antd.PushpinOutlined,
 		icon.Sun: antd.SunOutlined, icon.Moon: antd.MoonOutlined,
 		icon.Scissor: antd.ScissorOutlined, icon.Tag: antd.TagOutlined, icon.Flag: antd.FlagOutlined,
 		icon.Monitor: antd.DesktopOutlined,
+		icon.FitView: antd.ExpandOutlined, icon.AutoLayout: antd.ApartmentOutlined,
+		icon.Clear:     antd.ClearOutlined,
+		icon.SplitPane: antd.SplitCellsOutlined,
+		icon.Robot:     antd.RobotOutlined, icon.Tool: antd.ToolOutlined, icon.Bulb: antd.BulbOutlined,
 	}}
 }
 
@@ -116,6 +120,11 @@ func ElementIcons() *icon.Style {
 		icon.Bookmark: element.CollectionTag, icon.Flag: element.Flag,
 		icon.Sun: element.Sunny, icon.Moon: element.Moon, icon.Sparkles: element.MagicStick,
 		icon.Scissor: element.Scissor, icon.History: element.Timer,
+		icon.FitView: element.FullScreen, icon.AutoLayout: element.Share,
+		icon.CheckAll: element.Finished, icon.Clear: element.Brush,
+		// icon.SplitPane: Element Plus has no split icon; the built-in shape stays.
+		// Element Plus has no robot icon: icon.Robot keeps its built-in shape.
+		icon.Tool: element.Tools, icon.Bulb: element.Opportunity,
 	}}
 }
 
@@ -163,12 +172,16 @@ func LucideIcons() *icon.Style {
 		icon.CustomerService: lucide.Headset, icon.QuestionMark: lucide.CircleQuestionMark, icon.Sound: lucide.Volume2,
 		icon.Play: lucide.Play, icon.Pause: lucide.Pause, icon.Stop: lucide.Square,
 		icon.Undo: lucide.Undo2, icon.Redo: lucide.Redo2, icon.Save: lucide.Save,
-		icon.Terminal: lucide.SquareTerminal, icon.Code: lucide.CodeXml, icon.Bug: lucide.Bug, icon.Key: lucide.Key,
+		icon.Terminal: lucide.SquareTerminal, icon.WrapText: lucide.WrapText, icon.Code: lucide.CodeXml, icon.Bug: lucide.Bug, icon.Key: lucide.Key,
 		icon.Database: lucide.Database, icon.Branch: lucide.GitBranch, icon.History: lucide.History,
 		icon.Sync: lucide.RefreshCcw, icon.Share: lucide.Share2, icon.Send: lucide.Send, icon.Pin: lucide.Pin,
 		icon.Sun: lucide.Sun, icon.Moon: lucide.Moon, icon.Sparkles: lucide.Sparkles,
 		icon.Scissor: lucide.Scissors, icon.Tag: lucide.Tag, icon.Bookmark: lucide.Bookmark, icon.Flag: lucide.Flag,
 		icon.Monitor: lucide.Monitor, icon.Cpu: lucide.Cpu,
 		icon.Minimize: lucide.Minus, icon.Maximize: lucide.Square, icon.Restore: lucide.Copy,
+		icon.FitView: lucide.Scan, icon.AutoLayout: lucide.Network,
+		icon.CheckAll: lucide.CheckCheck, icon.Clear: lucide.BrushCleaning,
+		icon.SplitPane: lucide.Columns2,
+		icon.Robot:     lucide.Bot, icon.Tool: lucide.Wrench, icon.Bulb: lucide.Lightbulb,
 	}}
 }

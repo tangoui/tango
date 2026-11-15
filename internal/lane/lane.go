@@ -9,7 +9,7 @@
 // *tango.Surface wraps a State to implement ipc.BinaryConn.
 //
 // All methods are safe from any goroutine. platformSend is called without
-// the State's lock held.
+// the State's lock held, with the generation the packet was admitted in.
 package lane
 
 import (
@@ -106,7 +106,7 @@ func (q *downQueue) end() {
 
 // State is the fast lane state of one page. Create it with New.
 type State struct {
-	platformSend func([]byte) bool
+	platformSend func(gen uint64, p []byte) bool
 
 	// Fault injection (tango_dev builds; fault.go): the lane faultLane
 	// fails after faultN packets in a generation.
@@ -127,9 +127,14 @@ type State struct {
 
 // New returns the state of a page whose platform lanes (down:android,
 // down:shm) send packets with platformSend (non-blocking, any goroutine;
-// false when the packet was not taken). platformSend may be nil when the
-// backend has no platform lane. TANGO_IPC_LANE_FAULT is read here.
-func New(platformSend func([]byte) bool) *State {
+// false when the packet was not taken). platformSend gets the generation
+// the packet was admitted in; it is called without the State's lock held,
+// so by then that generation may have ended, and the backend must deliver
+// the packet only to the page lane of that generation (and drop it
+// otherwise). It must not call back into the State. platformSend may be
+// nil when the backend has no platform lane. TANGO_IPC_LANE_FAULT is read
+// here.
+func New(platformSend func(gen uint64, p []byte) bool) *State {
 	s := &State{platformSend: platformSend, down: newDownQueue()}
 	s.down.end() // no generation yet
 	if name, n, ok := loadFault(); ok {
@@ -296,9 +301,12 @@ func (s *State) send(genID uint64, scoped bool, packet []byte) bool {
 		}
 		return true
 	}
+	// platformSend runs without s.mu (no lock order with the backend's own
+	// locks); gen lets the backend drop the packet if the generation ends
+	// meanwhile.
 	gen := s.gen
 	s.mu.Unlock()
-	if s.platformSend != nil && s.platformSend(packet) {
+	if s.platformSend != nil && s.platformSend(gen, packet) {
 		return true
 	}
 	if counted {
@@ -433,10 +441,15 @@ func (s *State) Close() {
 // Generation is an immutable identity for the current document session.
 func (s *State) Generation() uint64 { s.mu.Lock(); defer s.mu.Unlock(); return s.gen }
 
-// AllowUpSession authorizes native ingress and captures its session atomically.
-// Native backends must additionally bind originating document identity.
-func (s *State) AllowUpSession() (uint64, bool) {
+// AllowUpGen is asked for every packet a platform upstream lane (up:android,
+// up:shm) received, before it is delivered: true when gen, the generation
+// the page sent it in, is the current one and the upstream lane is usable
+// (UpAllowed), both checked under one lock so a delayed packet of an old
+// generation never counts for a new one. Only data packets are counted for
+// fault injection; an empty packet (count 0, such as the up:android probe)
+// is checked but not counted.
+func (s *State) AllowUpGen(gen uint64, p []byte) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.gen, s.upAllowedLocked(true)
+	return gen == s.gen && s.upAllowedLocked(!emptyPacket(p))
 }

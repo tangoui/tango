@@ -17,6 +17,9 @@ func NewDevice() (*Device, error) { return nil, ErrUnsupported }
 // Execute implements gpu.Device.
 func (d *Device) Execute(f *gpu.Frame) error { return ErrUnsupported }
 
+// Wait waits for previously submitted work; Metal is unsupported here.
+func (d *Device) Wait() error { return ErrUnsupported }
+
 // ReadPixels reads back the render target.
 func (d *Device) ReadPixels() (*image.RGBA, error) { return nil, ErrUnsupported }
 

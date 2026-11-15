@@ -6,6 +6,15 @@ import "github.com/tangoui/tango/ui/editor/monarch"
 // showing the same document share its Model (Monaco's model service). Like
 // Model it is not safe for concurrent use.
 type ModelPool struct {
+	// Options are the creation options of the Models Open creates (see
+	// NewModelWithOptions). The zero value means DefaultModelOptions
+	// (detection on), so "tab size 4, tabs, no detection" cannot be
+	// written as the zero value: give the TabSize, as in
+	// ModelOptions{TabSize: 4}. A non-zero Options with TabSize 0 means
+	// tab size 4 with DetectIndentation as given (a zero TabSize does not
+	// turn detection on).
+	Options ModelOptions
+
 	reg    *monarch.Registry
 	models map[string]*Model
 
@@ -20,8 +29,9 @@ func NewModelPool(reg *monarch.Registry) *ModelPool {
 }
 
 // Open returns the Model for uri, adding one reference. The first Open
-// creates it from text (see NewModel) and tells the OnCreate listeners; a
-// later Open returns the same Model and ignores text. An Open of a URI
+// creates it from text with Options (see NewModelWithOptions) and tells
+// the OnCreate listeners; a later Open returns the same Model and ignores
+// text (and does not detect again). An Open of a URI
 // whose Model is being disposed (from an OnWillDispose listener) creates a
 // fresh Model from text, which replaces the dying one in the pool.
 func (p *ModelPool) Open(uri, text string) *Model {
@@ -29,7 +39,11 @@ func (p *ModelPool) Open(uri, text string) *Model {
 		m.refs++
 		return m
 	}
-	m := NewModel(uri, text, p.reg)
+	o := p.Options
+	if o == (ModelOptions{}) {
+		o = DefaultModelOptions()
+	}
+	m := NewModelWithOptions(uri, text, p.reg, o)
 	m.pool, m.refs = p, 1
 	p.models[uri] = m
 	p.create.each(func(fn func(*Model)) { fn(m) })

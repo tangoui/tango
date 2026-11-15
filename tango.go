@@ -63,7 +63,8 @@ type Options struct {
 	// asset handler does its own (CORS, tokens).
 	AllowCrossOriginAssets bool
 
-	// QuitOnLastClose quits the app when its last surface closes. Nil
+	// QuitOnLastClose quits the app when its last surface closes
+	// (surfaces created with SurfaceOptions.Auxiliary do not count). Nil
 	// means the platform default: false on macOS (apps stay in the Dock),
 	// true on Windows and Linux. Ignored on mobile. See lifecycle.go.
 	QuitOnLastClose *bool
@@ -371,7 +372,7 @@ func (h host) OnSurfaceEvent(id platform.SurfaceID, ev platform.SurfaceEvent) {
 	switch ev.Kind {
 	case platform.SurfaceClosed:
 		s.handleClosed()
-		h.a.afterSurfaceClosed()
+		h.a.afterSurfaceClosed(s)
 	case platform.SurfaceLoaded:
 		s.handleLoaded(ev.URL)
 	case platform.SurfaceFocused, platform.SurfaceBlurred:

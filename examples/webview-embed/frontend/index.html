@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>嵌入的网页</title>
+<style>
+  html, body { margin: 0; background: linear-gradient(160deg, #e6f4ff, #fff 60%); }
+  body { font: 14px/1.6 -apple-system, "PingFang SC", sans-serif; color: #1f2329; padding: 16px 20px; }
+  h2 { margin: 0 0 6px; font-size: 20px; color: #0958d9; }
+  .row { display: flex; gap: 10px; align-items: center; margin: 12px 0; }
+  button, input { font: inherit; padding: 5px 12px; border-radius: 6px; border: 1px solid #1677ff; }
+  button { background: #1677ff; color: #fff; cursor: pointer; }
+  input { border-color: #d9d9d9; }
+  #from-go { color: #d4380d; min-height: 1.6em; }
+  .tile { display: inline-block; width: 96px; height: 60px; margin: 4px; border-radius: 8px; background: #91caff; }
+  .tile:nth-child(3n) { background: #ffd591; } .tile:nth-child(3n+1) { background: #b7eb8f; }
+</style>
+</head>
+<body>
+  <h2>原生 WebView（嵌在自绘布局里）</h2>
+  <div class="row">
+    <button id="btn">网页按钮</button><span>已点击 <b id="count">0</b> 次</span>
+  </div>
+  <div class="row"><input id="first" placeholder="网页输入框 1"><input id="second" placeholder="网页输入框 2"></div>
+  <p id="from-go"></p>
+  <div id="tiles"></div>
+<script>
+  const post = s => window.__tango && window.__tango.post(s);
+  let n = 0;
+  document.getElementById('btn').onclick = () => { n++; document.getElementById('count').textContent = n; post('click:' + n); };
+  addEventListener('focusin', e => post('focus:' + (e.target.id || e.target.tagName)));
+  addEventListener('keydown', e => { if (e.isTrusted) post('key:' + e.key); });
+  window.__tango && window.__tango.onMessage(m => { document.getElementById('from-go').textContent = m; });
+  const tiles = document.getElementById('tiles');
+  for (let i = 0; i < 24; i++) { const d = document.createElement('div'); d.className = 'tile'; tiles.appendChild(d); }
+</script>
+</body>
+</html>

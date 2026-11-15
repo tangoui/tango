@@ -1,13 +1,14 @@
 // Compile the real gallery source with the docs host; generated Go overlay
 // paths are local build artifacts, not duplicated source files in the repo.
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { prepareGalleryOverlay } from './playground-sources.mjs';
-import { parseComponentTable, mapComponentCatalog } from './component-catalog.mjs';
+import { parseComponentTable, mapComponentCatalog, componentDocPath } from './component-catalog.mjs';
 import { generateComponentPages } from './generate-component-pages.mjs';
+import { extractComponentDocs, generateComponentDocs } from './generate-component-docs.mjs';
 
 const site=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const repo=path.dirname(site);
@@ -16,9 +17,25 @@ const overlay=prepareGalleryOverlay(repo,path.join(site,'.playground'));
 mkdirSync(out,{recursive:true});
 const raw=execFileSync('go',['run',`-overlay=${overlay}`,'./site/tools/playground','-catalog'],{cwd:repo,encoding:'utf8',maxBuffer:8*1024*1024});
 const catalog=mapComponentCatalog(parseComponentTable(readFileSync(path.join(repo,'ui/AUTHORING.md'),'utf8')),JSON.parse(raw));
+// Hand-written component docs (components/<slug>.md) replace the generated page.
+const handWritten=new Set(readdirSync(path.join(site,'components')).filter(f=>f.endsWith('.md')).map(f=>f.slice(0,-3)));
+for (const entry of catalog.components) {
+  entry.doc=componentDocPath(entry,handWritten);
+  // A hand-written page names its component: its frontmatter title is the
+  // label of the sidebar entry, the overview card and the screenshot list.
+  if (handWritten.has(entry.slug)) {
+    const title=readFileSync(path.join(site,'components',entry.slug+'.md'),'utf8').match(/^---\n[\s\S]*?^title:\s*"?([^"\n]+)"?\s*$/m);
+    if (title) entry.label=title[1].trim();
+  }
+}
 mkdirSync(path.join(site,'.vitepress/generated'),{recursive:true});
 for(const file of [path.join(out,'catalog.json'),path.join(site,'.vitepress/generated/components.json')]) writeFileSync(file,JSON.stringify(catalog,null,2)+'\n');
 generateComponentPages(site,catalog);
+// API tables and demo source of every component page (hand-written ones too).
+const docs=extractComponentDocs(repo,catalog);
+writeFileSync(path.join(site,'.vitepress/generated/component-docs.json'),JSON.stringify(docs)+'\n');
+const demoSources=await generateComponentDocs(site,catalog,docs);
+console.log(`component docs: ${docs.components.length} API/example partials, ${demoSources} highlighted demo sources`);
 execFileSync('go',['build',`-overlay=${overlay}`,'-trimpath','-ldflags=-s -w','-o',path.join(out,'playground.wasm'),'./site/tools/playground'],{cwd:repo,env:{...process.env,GOOS:'js',GOARCH:'wasm',CGO_ENABLED:'0'},stdio:'inherit'});
 const packed=gzipSync(readFileSync(path.join(out,'playground.wasm')),{level:9});
 writeFileSync(path.join(out,'playground.wasm.gz'),packed);

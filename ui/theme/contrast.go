@@ -172,6 +172,9 @@ func themeLabel(t *Theme) string {
 //	  TextOnPrimary   antd 4.10, element 2.78, element-dark 2.78 white label on the brand fill
 //	  TextOnSolid     all six (2.90–4.24)                     white label on the danger fill
 //	  Error           antd 3.27, antd-dark 4.35, element 2.90, shadcn 3.76 validation text
+//	  (shadcn/ui v4, 2026-11-14: the light --destructive #e7000b passes, so
+//	  shadcn's TextOnSolid / Error / danger-button pairs dropped out; dark
+//	  text-white on --destructive #ff6467 is 2.89 and dark --input is 1.48.)
 //	  TableHeaderText element 3.08                            --el-table-header-text-color
 //	DesignDefault, non-text 3:1 (WCAG 1.4.11: identifies a control or state):
 //	  Border          all six (1.26–2.18)  input / select / checkbox frame; the

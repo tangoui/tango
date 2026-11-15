@@ -319,6 +319,31 @@ func i18nCases() []i18nCase {
 				Markdown(c, "```go\nx := 1\n```\n")
 			},
 			texts: func(l *Locale) []string { return []string{l.Markdown.CopyCode} }},
+		i18nCase{name: "CodeBlock",
+			page: func(c *Context, ids i18nIDs) {
+				CodeBlock(c, "x := 1").Title("a.go")
+			},
+			texts: func(l *Locale) []string { return []string{l.Markdown.CopyCode} }},
+		i18nCase{name: "LogView",
+			page: func(c *Context, ids i18nIDs) {
+				buf := NewLogBuffer(0)
+				buf.Append("INFO one", "ERROR two")
+				q := "zzz"
+				LogView(c, buf).Height(200).Query(&q)
+			},
+			texts: func(l *Locale) []string {
+				v := l.LogView
+				return []string{v.PrevMatch, v.NextMatch, v.NoMatch, v.Lines(2), l.Clear} // Wrap / Follow name icon-only toggles
+			}},
+		i18nCase{name: "JSONView",
+			page: func(c *Context, ids i18nIDs) {
+				q := "zzz"
+				JSONView(c, []byte(`{"a": [1, 2], "b": {"c": true}}`)).Height(200).Query(&q).ExpandDepth(2)
+			},
+			texts: func(l *Locale) []string {
+				v := l.JSONView
+				return []string{v.ExpandAll, v.CollapseAll, v.PrevMatch, v.NextMatch, v.NoMatch}
+			}},
 		i18nCase{name: "ProLayout",
 			page: func(c *Context, ids i18nIDs) {
 				collapsed := false
@@ -449,6 +474,17 @@ func i18nProCases() []i18nCase {
 				i18nA11y(t, l, d, a11y.RoleTextbox, func(o *Locale) string { return o.Pagination.Current })
 				i18nA11y(t, l, d, a11y.RoleSlider, func(o *Locale) string { return o.Slider.Min })
 				i18nA11y(t, l, d, a11y.RoleSlider, func(o *Locale) string { return o.Slider.Max })
+			}},
+		{name: "Dock",
+			page: func(c *Context, ids i18nIDs) {
+				l := NewDockLayout("a", "b", "c")
+				l.SplitTab("c", "g1", DockRight)
+				Dock(c, l).Style(layout.H(200)).Show()
+				Dock(c, NewDockLayout()).Style(layout.H(120)).Show()
+			},
+			texts: func(l *Locale) []string { return []string{l.Dock.Empty, l.Dock.Split, l.Dock.Maximize} },
+			check: func(t *testing.T, l *Locale, d *Driver, ids i18nIDs) {
+				i18nA11y(t, l, d, a11y.RoleGroup, func(o *Locale) string { return o.Dock.Group })
 			}},
 		{name: "ProCards",
 			page: func(c *Context, ids i18nIDs) {

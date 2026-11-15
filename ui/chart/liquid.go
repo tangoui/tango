@@ -92,7 +92,11 @@ func (w *LiquidW) Show() View {
 		}
 		txtCol := th.TextHeading
 		if float32(cur) > 0.55 {
-			txtCol = theme.Hex("#ffffff")
+			// The label sits on both wave layers; pick white or dark text
+			// from the composited fill (a light chart color such as
+			// shadcn/ui v4 neutral chart-1 needs dark text).
+			fill := theme.Over(theme.Fade(col, 0.85), theme.Over(theme.Fade(col, 0.45*0.85), th.BgContainer))
+			txtCol = textOn(fill)
 		}
 		drawText(l, vf(cur), c.X, y, alignCenter, alignTop, vs, txtCol)
 		if w.title != "" {

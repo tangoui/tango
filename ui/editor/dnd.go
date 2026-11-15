@@ -89,6 +89,9 @@ func (w *ViewW) overText(snap buffer.Snapshot, pt geom.Point) bool {
 		return false
 	}
 	line, row := w.st.lines().find(r)
+	if row < 0 || row >= w.st.vl.rowsOf(line) {
+		return false // a view zone (zones.go)
+	}
 	lv := w.rowAt(snap, line, row)
 	endX, ok := lv.caretX(lv.runeAt(lv.b1))
 	if !ok {

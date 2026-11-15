@@ -67,6 +67,16 @@ type Stats struct {
 	UpMainNanos    int64 `json:"upMainNanos"`
 	UpMainMaxNanos int64 `json:"upMainMaxNanos"`
 	UpBodyBytes    int64 `json:"upBodyBytes"`
+
+	// The Android lane counters (android.LaneStatsSnapshot, tango_dev and
+	// tango_selftest builds; zero elsewhere). On Android upRequests,
+	// upAccepted and downWrites above are filled from them too
+	// (lanestats_android.go).
+	LaneUpProbes    int64 `json:"laneUpProbes"`    // valid probes
+	LaneUpBadToken  int64 `json:"laneUpBadToken"`  // dropped: token or origin mismatch
+	LaneUpRefused   int64 `json:"laneUpRefused"`   // refused by the core (answered [1])
+	LaneDownDropped int64 `json:"laneDownDropped"` // down packets dropped (other generation, no proxy)
+	LaneDownQueued  int64 `json:"laneDownQueued"`  // down packets queued now
 }
 
 var (

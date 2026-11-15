@@ -192,7 +192,7 @@ interface Environment {
 }
 
 // @public
-export type ErrorCode = "not_found" | "bad_args" | "internal" | "canceled" | "forbidden" | "unsupported" | "not_running" | "busy" | (string & {});
+export type ErrorCode = "not_found" | "bad_args" | "internal" | "canceled" | "forbidden" | "unsupported" | "not_running" | "busy" | "transport" | (string & {});
 
 declare namespace Events {
     export {

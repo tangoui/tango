@@ -2,6 +2,8 @@
 
 `tan.json` 是项目配置文件，放在项目根目录。路径字段都相对于项目目录。`tan init` 会生成一份；未知字段会报错（防止拼错，也防止把密码之类写进来）。
 
+`tan init` 生成的文件第一行是 `"$schema": "https://tangoui.github.io/tango/schema/tan.schema.json"`，VS Code 等编辑器据此补全字段、显示说明并标出拼错的字段。已有项目手动加上这一行即可；tan 会忽略它。未知字段报错也意味着按新版 tan 写的 `tan.json` 需要同样新的 tan。
+
 ## 完整示例
 
 ```json

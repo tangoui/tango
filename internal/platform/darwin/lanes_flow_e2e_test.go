@@ -17,7 +17,7 @@ import (
 // only, spec §6.2) and the test hooks
 // (TANGO_SCHEME_PROBE=1: Debug.Stats, /__test/lanetests.js). The scenarios
 // themselves are examples/duplex/services/lanetests.js, which the iOS
-// self-test (examples/duplex-ios) runs too; each returns its numbers, ok
+// self-test (examples/duplex-mobile) runs too; each returns its numbers, ok
 // and why (the failed conditions), and the tests here assert on those and
 // on the scheme handler's counters.
 //

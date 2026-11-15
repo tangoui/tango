@@ -9,6 +9,8 @@ import android.os.Looper;
 import android.util.Log;
 import android.webkit.WebResourceResponse;
 
+import androidx.webkit.WebViewFeature;
+
 /**
  * The JNI boundary between the Go backend (internal/platform/android) and
  * the Java host. Native methods are implemented in libtango.so; the static
@@ -96,6 +98,15 @@ public final class Tango {
         return p;
     }
 
+    /**
+     * Whether pages can use the Android IPC fast lanes: ArrayBuffer messages
+     * over a WebMessageListener (WebView 116 and later).
+     */
+    static boolean laneSupported() {
+        return WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)
+                && WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_ARRAY_BUFFER);
+    }
+
     static String clipboardRead() {
         TangoActivity a = activity;
         if (a == null) return null;
@@ -137,10 +148,11 @@ public final class Tango {
     static native void nativeSurfaceEvent(long id, int kind, int width, int height, String url, String error);
     /**
      * A main-frame document starts loading: the previous document's bridge
-     * token stops working. Returns the page script to inject into a trusted
-     * document Go did not serve with it inside, else null.
+     * token stops working. Stores in script[0] the page script to inject
+     * into a trusted document Go did not serve with it inside (else leaves
+     * it null). Returns whether the page keeps its lane reply proxy.
      */
-    static native String nativeBeginPage(long id, String url);
+    static native boolean nativeBeginPage(long id, String url, String[] script);
     /** JavaBridge thread. The origin of the document token belongs to, or null if it is not current. */
     static native String nativeTokenOrigin(long id, String token);
     /** Delivers a message from origin (established by nativeTokenOrigin). */
@@ -150,6 +162,12 @@ public final class Tango {
      * reply to post back, or null.
      */
     static native String nativeWebMessage(long id, String sourceOrigin, String data);
+    /**
+     * An upstream lane message (an ArrayBuffer) from the main frame: 0 drop
+     * it, 1 delivered (a probe: keep the reply proxy, answer [0]), 2 refused
+     * (answer [1]).
+     */
+    static native int nativeLanePacket(long id, String sourceOrigin, byte[] data);
     /** WebView request thread. Returns the response for an asset-origin request. */
     static native WebResourceResponse nativeServeAsset(Page page, long id, String method, String url,
             String[] headers, boolean mainFrame);

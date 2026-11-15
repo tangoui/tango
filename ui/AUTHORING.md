@@ -1,5 +1,7 @@
 # Tango UI 组件编写指南
 
+> **设计基线**：Ant Design 6.7（`antd@6.7.0`）+ Ant Design Pro v6（Pro Components v3）。组件语义、默认值、令牌和交互状态都以它为准，详见 [docs/design-baseline.md](../docs/design-baseline.md)。
+
 本文面向给 `ui/` 补组件的开发者。读完即可按统一风格新增组件，**不需要修改基础层**（theme / paint / text / layout / input / Context / Runner / Driver）。如果确实缺基础能力，先在 PR 描述里说明，不要在组件里绕开基础层私自实现。
 
 ## 1. 文件与命名
@@ -248,9 +250,10 @@ func init() {
 | 布局 | `Space` | Space / el-space | nav_space.go |
 | 布局 | `Compact`、`Addon` | Space.Compact、Input.Group / el-input-group | entry_compact.go |
 | 布局 | `Splitter`、`SplitterPanel` | Splitter / el-splitter | nav_splitter.go |
+| 布局 | `Dock`（`DockLayout`/`DockNode` 分割树与标签组，JSON 保存、`ParseDockLayout` 恢复；标签拖放拆分/合并、分割条、最大化、撕出） | IDE 工作台编辑器分组（VS Code / JetBrains） | dock.go、dock_layout.go |
 | 布局 | `Scroll`、`ScrollH` | （滚动容器）/ el-scrollbar | scroll.go、reveal.go |
 | 导航 | `Menu` | Menu / el-menu | nav_menu.go |
-| 导航 | `Tabs` | Tabs / el-tabs | nav.go |
+| 导航 | `Tabs`（`Draggable` 拖拽排序、`OnTearOff` 拖出窗口撕出） | Tabs / el-tabs | nav.go、nav_tabs_drag.go |
 | 导航 | `Breadcrumb`、`BreadcrumbItems`（items 写法、下拉、分隔符） | Breadcrumb / el-breadcrumb | nav.go |
 | 导航 | `Pagination` | Pagination / el-pagination | nav.go |
 | 导航 | `Dropdown` | Dropdown、Dropdown.Button / el-dropdown；`ContextMenuAt` 无触发器右键菜单 | nav_dropdown.go、nav_contextmenu.go |
@@ -263,6 +266,10 @@ func init() {
 | 通用 | `Kbd` | shadcn Kbd / `<kbd>` | shad_kbd.go |
 | 导航 | `Menubar`（`MenubarMenu`、`MenubarItem`：子菜单、勾选项、单选组、分隔线、快捷键提示、禁用；Alt/F10 进入；下拉面板复用 Dropdown 的 `navMenuPopup`） | shadcn Menubar | menubar.go |
 | 布局 | `AspectRatio` | shadcn AspectRatio / CSS aspect-ratio | aspect_ratio.go |
+| 布局 | `StatusBar`、`StatusBarItem`（工作台状态栏：图标、文字、徽标、进度、状态色、提示） | VS Code / JetBrains 状态栏 | statusbar.go |
+| 布局 | `TitleBar`、`WindowControls`（无边框窗口标题栏：拖动区、双击最大化、平台窗口按钮；经 `WindowFrame` 驱动窗口，uihost 窗口已实现） | — | titlebar.go、window_frame.go |
+| 反馈 | `NotificationCenter`（铃铛 + 未读徽标 + 分组通知面板） | — | notification_center.go |
+| 数据录入 | `HotkeyInput`（快捷键录制；`ShortcutKeys`、`ShortcutLabel` 按平台显示加速键） | — | hotkey_input.go |
 | 数据展示 | `Item`、`ItemGroup`（default/outline/muted 变体、default/sm 尺寸、可作链接或按钮、分隔） | shadcn Item | item.go |
 | 数据录入 | `Input` | Input / el-input | input.go |
 | 数据录入 | `TextArea` | Input.TextArea / el-input type=textarea | entry_inputx.go |
@@ -346,6 +353,15 @@ func init() {
 | 数据展示 | `Watermark` | Watermark / el-watermark | data_watermark.go |
 | 数据展示 | `Markdown` | — | more_markdown.go |
 | 数据展示 | `RichText` | — | more_richtext.go |
+| 数据展示 | `CodeBlock`（只读代码、行号、复制、横向滚动/换行、选择复制；高亮经 `SetCodeHighlighter` 钩子，`ui/codehl` 用编辑器语法实现，Markdown 代码块共用） | — | codeblock.go、code_highlight.go、viewer_text.go |
+| 数据展示 | `LogView`、`LogBuffer`（百万行虚拟滚动、ANSI SGR `ParseANSI`、级别过滤、搜索、跟随底部、换行） | — | logview.go、logview_buffer.go、ansi.go |
+| 数据展示 | `JSONView`、`JSONViewValue`、`JSONViewSource`（`ValueSource` 懒加载值树、100 项分组、复制值/路径、搜索） | — | jsonview.go、jsonview_source.go |
+| AI 对话 | `Bubble`、`BubbleList`（虚拟化、贴底跟随、回到底部） | Ant Design X Bubble、Bubble.List | chat_bubble.go、chat_bubble_list.go |
+| AI 对话 | `Sender`（附件条、@ / 命令建议、发送/停止） | Ant Design X Sender、Attachments、Suggestion | chat_sender.go |
+| AI 对话 | `ThoughtChain`、`ToolCall` | Ant Design X ThoughtChain | chat_chain.go |
+| AI 对话 | `Approval`（工具权限确认） | — | chat_approval.go |
+| AI 对话 | `Conversations` | Ant Design X Conversations | chat_conversations.go |
+| AI 对话 | `Prompts`（提示词卡片，不同于对话框 `Prompt`） | Ant Design X Prompts | chat_prompts.go |
 | 反馈 | `Alert` | Alert / el-alert | feedback.go |
 | 反馈 | `Modal` | Modal / el-dialog | feedback.go |
 | 反馈 | `Drawer` | Drawer / el-drawer | feedback.go |
@@ -368,6 +384,9 @@ func init() {
 | 图表 | `chart.DualAxes` | DualAxes（柱 + 线）/ ECharts 双 yAxis | chart/dual.go |
 | 图表 | `chart.TinyLine`、`chart.TinyArea`、`chart.TinyColumn`、`chart.TinyProgress` | Tiny 系列 / ECharts sparkline 写法 | chart/tiny.go |
 | 图表 | `chart.Liquid` | Liquid / echarts-liquidfill | chart/liquid.go |
+| 图形 | `graph.Diagram`（节点模板/自定义绘制、直线/正交/贝塞尔连线、端口、平移缩放、框选、拖动吸附、小地图）、`graph.Layout`（分层布局） | React Flow / X6 / G6 思路 | graph/diagram.go、graph/layered.go |
+| 图形 | `graph.ER`（表节点、字段行外键连线） | — | graph/er.go |
+| 图形 | `graph.GitGraph`、`graph.LayoutCommits`（泳道布局、虚拟列表） | — | graph/gitgraph.go、graph/gitlayout.go |
 | 移动端 | `mobile.Provider`、`mobile.ThemeOf`、`mobile.NewTheme`（Ant Design Mobile / Vant 两套令牌，暗色随 ui 主题；ui 主题为 `theme.HighContrast` 时文字抬到 4.5:1、箭头/分隔线/开关轨道抬到 3:1） | ConfigProvider / van-config-provider | mobile/theme.go |
 | 移动端 | `mobile.Area`、`mobile.Within`、`mobile.Touchable`（手势仲裁：点按、长按、滑动、拖拽；双指捏合来自 `input.TouchEvent`；起点在普通控件上的拖动经 `TakePointer` 交给手势区） | — / @vant/use useTouch | mobile/arena.go、mobile/recognizer.go |
 | 移动端 | `mobile.Scroller`、`mobile.Decay`、`mobile.Spring`、`mobile.Rubber`（惯性、回弹、吸附） | — | mobile/physics.go |

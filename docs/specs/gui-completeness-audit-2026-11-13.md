@@ -17,7 +17,7 @@
 - `uihost/gpu_other.go` 明确让非 macOS / Windows 平台返回 `errNoGPUPresenter`。
 - 目前已有 Metal、D3D11 和 HLSL；没有 Linux GL 呈现器或 GLSL 输出后端。
 - Linux 桌面自绘窗口可走 CPU，不能据此声称 Linux 没有 GUI；缺的是 GPU 路径。
-- 证据：[gpu_other.go](../../uihost/gpu_other.go)、[gpu_windows.go](../../uihost/gpu_windows.go)、[shader](../../ui/shader)。
+- 证据：[gpu_other.go](../../uihost/gpu_other.go)、[gpu_windows.go](../../uihost/gpu_windows.go)、[shader](../../internal/render/shader)。
 
 ### P1：系统高对比度偏好没有自动接入
 

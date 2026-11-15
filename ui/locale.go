@@ -101,6 +101,7 @@ type Locale struct {
 	A11y           A11yLocale
 	Chart          ChartLocale
 	Mobile         MobileLocale
+	Graph          GraphLocale
 
 	// Groups of the Pro / entry components added later.
 	DatePicker      DatePickerLocale
@@ -118,6 +119,19 @@ type Locale struct {
 	LightFilter     LightFilterLocale
 	LoginForm       LoginFormLocale
 	SettingDrawer   SettingDrawerLocale
+	Dock            DockLocale
+
+	// Groups of the data viewers (types in codeblock.go, jsonview.go,
+	// logview.go).
+	CodeBlock CodeBlockLocale
+	JSONView  JSONViewLocale
+	LogView   LogViewLocale
+	// Workbench shell (locale_shell.go).
+	StatusBar          StatusBarLocale
+	TitleBar           TitleBarLocale
+	NotificationCenter NotificationCenterLocale
+	HotkeyInput        HotkeyInputLocale
+	Chat               ChatLocale // AI chat components (chat_locale.go)
 
 	// Extra holds texts of other components by key ("MyWidget.title", ...).
 	Extra map[string]string
@@ -205,6 +219,17 @@ type ChartLocale struct {
 	ValueFmt                                                                                                 string // single-value charts, args: kind, value ("%s：%s")
 	Total                                                                                                    string // pie / donut centre title ("总计")
 	Conversion                                                                                               string // funnel conversion-rate label ("转化率")
+}
+
+// GraphLocale holds the texts of ui/graph widgets (Diagram, ER, GitGraph).
+type GraphLocale struct {
+	_ [0]func()
+
+	Diagram, ER, GitGraph                         string // accessible names of the canvases / list
+	ZoomIn, ZoomOut, FitView, AutoLayout, MiniMap string // toolbar buttons and the minimap
+	PrimaryKey, ForeignKey                        string // ER column marks
+	SummaryFmt                                    string // diagram description, args: node count, edge count ("%[1]d 个节点，%[2]d 条连线")
+	CommitsFmt                                    string // commit list description, arg: commit count ("%d 个提交")
 }
 
 // MobileLocale holds the texts of ui/mobile components.
@@ -410,6 +435,16 @@ type SettingDrawerLocale struct {
 	FixedHeader, FixSiderbar, ColorWeak string
 	Other, Compact                      string
 	ColorFmt                            string // swatch name, arg: hex ("主题色 %s")
+}
+
+// DockLocale holds the Dock texts: the group header buttons, the hint of
+// an empty group and the accessible name of a group.
+type DockLocale struct {
+	_ [0]func()
+
+	Maximize, Restore, Split string // header buttons (accessible names, tooltips)
+	Empty                    string // hint shown in a group without tabs
+	Group                    string // accessible name of a tab group
 }
 
 // MarkdownLocale holds the Markdown viewer texts.

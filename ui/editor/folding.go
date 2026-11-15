@@ -175,7 +175,8 @@ func (s *State) foldRanges() []FoldingRange {
 	if rs == nil {
 		conf := s.Model.Conf()
 		off := conf != nil && conf.Folding.OffSide
-		rs = indentRanges(snap, s.indentSize(), off, markersOf(conf), foldingMaximumRegions)
+		long := func(i int) string { return s.Model.line(snap, i) }
+		rs = indentRangesOf(snap, long, s.indentSize(), off, markersOf(conf), foldingMaximumRegions)
 	}
 	fs.rs, fs.rsKey, fs.rsOK, fs.rsLines = rs, key, true, snap.LineCount()
 	s.mergeFolds()
@@ -198,7 +199,8 @@ func (s *State) foldRangesFresh() bool { return s.fold.rsOK && s.fold.rsKey == s
 // to the same text.
 func (s *State) syncFolds() {
 	s.resolveFolds()
-	s.vl.setHidden(s.fold.hidden(s.vl.n))
+	s.vl.setHidden(s.hiddenLines(s.vl.n))
+	s.syncZones()
 }
 
 // resolveFolds moves the folded regions to the current text.
@@ -341,7 +343,8 @@ func (s *State) selStartsIn(snap buffer.Snapshot, a, b int) bool {
 func (s *State) applyFolds() {
 	vl := s.lines()
 	line, row := vl.find(s.Viewport.TopLine)
-	vl.setHidden(s.fold.hidden(vl.n))
+	vl.setHidden(s.hiddenLines(vl.n))
+	s.syncZones()
 	s.anchorTop(line, row)
 	s.clampViewport()
 	s.fold.gen++
@@ -497,9 +500,15 @@ func (s *State) revealFolds() {
 	// Monaco checks the selections' selectionStartLineNumber: the
 	// anchor. A selection extended into a folded region (Select All,
 	// Shift+Ctrl+End) leaves it folded.
+	// Only lines folded away count: the owners' hidden areas (hidareas.go)
+	// are theirs to show.
+	folded := vl.hid
+	if s.hasHidAreas() {
+		folded = s.fold.hidden(vl.n)
+	}
 	var lines []int
 	for _, sel := range s.sels() {
-		if l := snap.LineOf(clampOff(snap, sel.Anchor)); vl.hidden(l) {
+		if l := snap.LineOf(clampOff(snap, sel.Anchor)); inSpans(folded, l) {
 			lines = append(lines, l)
 		}
 	}
@@ -837,4 +846,18 @@ func (s *State) foldPrepare(all bool) {
 	if all {
 		s.foldRanges()
 	}
+}
+
+// inSpans reports whether line l is in one of spans (sorted, disjoint).
+func inSpans(spans []lineSpan, l int) bool {
+	i, ok := slices.BinarySearchFunc(spans, l, func(sp lineSpan, l int) int {
+		switch {
+		case sp.b < l:
+			return -1
+		case sp.a > l:
+			return 1
+		}
+		return 0
+	})
+	return ok && i < len(spans)
 }

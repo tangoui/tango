@@ -60,7 +60,7 @@ func TestSurfaceLaneCaps(t *testing.T) {
 	if s.LaneCaps()[0] != "up:post" {
 		t.Fatal("LaneCaps returned the surface's own slice")
 	}
-	if s.SendLanePacket([]byte{1, 2, 3}) {
+	if s.SendLanePacket(1, []byte{1, 2, 3}) {
 		t.Fatal("SendLanePacket took a packet; darwin has no platform lane")
 	}
 	var wg sync.WaitGroup
@@ -70,7 +70,7 @@ func TestSurfaceLaneCaps(t *testing.T) {
 			defer wg.Done()
 			for range 100 {
 				_ = s.LaneCaps()
-				_ = s.SendLanePacket(nil)
+				_ = s.SendLanePacket(1, nil)
 			}
 		}()
 	}

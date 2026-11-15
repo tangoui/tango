@@ -8,7 +8,7 @@ License: SIL Open Font License 1.1, reproduced in `OFL.txt` and the public
 playground's `NOTO-SANS-SC-LICENSE.txt`. The font has been subset and
 instantiated at weight 400; this is not the full upstream distribution.
 The subset contains non-ASCII glyphs used in `ui/**/*.go` and
-`examples/ui-gallery/**/*.go` at generation time (1610 requested code points).
+`examples/ui-gallery/**/*.go` at generation time (1768 requested code points).
 Go Regular remains the Latin fallback. Arbitrary additional characters can
 be provided through the preview's local font import.
 
@@ -18,6 +18,6 @@ Reproduce using Python with fontTools 4.68.0 installed:
 python3 site/tools/subset-gallery-font.py '/path/to/NotoSansSC[wght].ttf'
 ```
 
-Normal documentation builds use the checked-in 422 KiB subset and require
+Normal documentation builds use the checked-in 467 KiB subset and require
 neither Python nor a font service. Regenerate it when new demo labels use
 additional glyphs, retaining the accompanying license.

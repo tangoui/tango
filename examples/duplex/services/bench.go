@@ -11,7 +11,7 @@ import (
 var benchJS []byte
 
 // BenchRoute returns next with GET /bench.js, the benchmark script that
-// examples/duplex and examples/duplex-ios share, in front of it.
+// examples/duplex and examples/duplex-mobile share, in front of it.
 func BenchRoute(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/bench.js" || (r.Method != http.MethodGet && r.Method != http.MethodHead) {

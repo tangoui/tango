@@ -9,10 +9,15 @@ pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) DropView
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Edit(ui/editor/buffer.Snapshot, ui/editor/buffer.Snapshot, []ui/editor/buffer.Edit)
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) FinalBefore(ui/editor/buffer.Snapshot, int) bool
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) FinalLines(ui/editor/buffer.Snapshot) int
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) GrammarGeneration() uint64
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Highlight(ui/editor/buffer.Snapshot, int, time.Duration) bool
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) HighlightFor(ViewKey, ui/editor/buffer.Snapshot, int, time.Duration) bool
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) LexerIdentity() *ui/editor/monarch.Lexer
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) PeekTokenRange(ui/editor/buffer.Snapshot, int, int, int, []ui/editor/monarch.Token) ([]ui/editor/monarch.Token, bool)
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) PeekTokens(ui/editor/buffer.Snapshot, int, []ui/editor/monarch.Token) ([]ui/editor/monarch.Token, bool)
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Reset(*ui/editor/monarch.Lexer)
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Start(context.Context, <-chan ui/editor/buffer.Snapshot, func())
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) StartState(ui/editor/buffer.Snapshot, int) (ui/editor/monarch.State, bool)
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Sync(ui/editor/buffer.Snapshot)
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) TokenizeSpan(ui/editor/buffer.Snapshot, int, string, []ui/editor/monarch.Token) []ui/editor/monarch.Token
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Tokens(ui/editor/buffer.Snapshot, int, []ui/editor/monarch.Token) ([]ui/editor/monarch.Token, bool)

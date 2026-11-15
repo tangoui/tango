@@ -5,11 +5,21 @@
 //	go run ./examples/editor-demo -gen-lines 1000000    # ~100 MB, 1M lines (spec 6.6)
 //	go run ./examples/editor-demo -file main.go -theme vs
 //	go run ./examples/editor-demo -renderer cpu         # force the CPU renderer
+//	go run ./examples/editor-demo -split -wrap          # two views of one model
+//	go run ./examples/editor-demo -theme hc-black -language go
+//	go run ./examples/editor-demo -diff old.go new.go   # diff view (ui/editor/diffview)
+//	go run ./examples/editor-demo -diff -inline -fold old.go new.go
 //
-// The whole window is the editor plus a status line (caret position, line
-// count, language, renderer, highlight progress). Syntax highlighting runs
+// The window contains a language selector, a Commands()-backed palette,
+// one or two editor views, and a status line (caret position, line count,
+// language, renderer, highlight progress). Syntax highlighting runs
 // in the background goroutine of the State's Highlighter and redraws the
 // window as tokens arrive.
+//
+// With -diff the window shows the diff view of the two files named after
+// the flags instead (side by side, or -inline; -fold folds the unchanged
+// regions); the toolbar switches the mode and moves between the changes
+// (also Alt+F5 / Shift+Alt+F5).
 //
 // -auto runs a scripted check once the window is up: 240 frames of
 // scrolling (two lines per frame), then 100 keystrokes, one per frame, and
@@ -18,7 +28,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -31,7 +40,8 @@ import (
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/editor"
-	"github.com/tangoui/tango/ui/editor/buffer"
+	"github.com/tangoui/tango/ui/editor/diffview"
+	"github.com/tangoui/tango/ui/editor/langs"
 	"github.com/tangoui/tango/ui/editor/theme"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
@@ -41,26 +51,190 @@ import (
 )
 
 var (
-	app      *tango.App
-	runner   *ui.Runner
-	st       *editor.State
-	rendName = "?"
-	focused  bool
-	hlDone   bool
-	auto     *autoRun
+	app             *tango.App
+	runner          *ui.Runner
+	st              *editor.State
+	rendName        = "?"
+	focused         bool
+	hlDone          bool
+	auto            *autoRun
+	second          *editor.State
+	active          *editor.State
+	paletteOpen     bool
+	paletteTarget   *editor.State
+	paletteCommand  string
+	pendingCommand  string
+	languageOptions []ui.Option
+	background      *modelHighlight
+	diffState       *diffview.State
+	diffOrigHL      *modelHighlight
+	diffMode        = "sideBySide"
 )
 
-func page(c *ui.Context) {
+func init() {
+	editor.RegisterCommand(editor.Command{ID: "editor.action.quickCommand", Label: "Command Palette", Run: func(target *editor.State, _ any) bool {
+		paletteTarget, paletteOpen = target, true
+		return true
+	}})
+	for _, lang := range langs.Builtin() {
+		languageOptions = append(languageOptions, ui.Option{Label: lang.ID, Value: lang.ID})
+	}
+}
+
+func setupDocument(name, text string, th *theme.Theme, split, wrap bool) {
+	if background != nil {
+		background.Close()
+	}
+	m := editor.NewModel(name, text, editor.DefaultRegistry())
+	background = newModelHighlight(m)
+	st, second = editor.NewView(m, th), nil
+	if wrap {
+		st.Options.WordWrap = editor.WrapOn
+	}
+	if split {
+		second = editor.NewView(m, th)
+		second.Options.WordWrap = st.Options.WordWrap
+	}
+	active, focused = st, false
+}
+
+func commandOptions() []ui.Option {
+	var opts []ui.Option
+	for _, cmd := range editor.Commands() {
+		opts = append(opts, ui.Option{Label: cmd.Label + " — " + cmd.ID, Value: cmd.ID})
+	}
+	return opts
+}
+
+// setupDiff opens the diff view of the files a and b.
+func setupDiff(a, b string, th *theme.Theme, wrap, inline, fold bool) error {
+	ta, err := os.ReadFile(a)
+	if err != nil {
+		return err
+	}
+	tb, err := os.ReadFile(b)
+	if err != nil {
+		return err
+	}
+	reg := editor.DefaultRegistry()
+	om, mm := editor.NewModel(a, string(ta), reg), editor.NewModel(b, string(tb), reg)
+	diffOrigHL, background = newModelHighlight(om), newModelHighlight(mm)
+	diffState = diffview.New(om, mm, th)
+	if wrap {
+		diffState.Options.DiffWordWrap = editor.WrapOn
+	}
+	if inline {
+		diffMode = "inline"
+	}
+	diffState.Options.HideUnchangedRegions.Enabled = fold
+	st, active, focused = diffState.Modified, diffState.Modified, false
+	return nil
+}
+
+// diffPage is the page of -diff.
+func diffPage(c *ui.Context) {
+	d := diffState
 	ui.Column(c, func() {
-		vw := editor.View(c, st)
-		if !focused {
-			c.SetFocus(vw.Box().ID())
-			focused = true
+		ui.Row(c, func() {
+			ui.Segmented(c, &diffMode, []ui.Option{{Label: "Side by side", Value: "sideBySide"}, {Label: "Inline", Value: "inline"}})
+			fold := d.Options.HideUnchangedRegions.Enabled
+			if ui.Checkbox(c, "Fold unchanged regions", &fold).Changed() {
+				d.Options.HideUnchangedRegions.Enabled = fold
+			}
+			if ui.Button(c, "Previous change").Clicked() {
+				d.Prev()
+			}
+			if ui.Button(c, "Next change").Clicked() {
+				d.Next()
+			}
+		}, layout.PadVH(4, 12), layout.Gap(12), layout.Middle())
+		d.Options.Mode = diffview.SideBySide
+		if diffMode == "inline" {
+			d.Options.Mode = diffview.Inline
 		}
 		ui.Row(c, func() {
-			ui.Text(c, status())
-		}, layout.PadVH(4, 12))
+			vw := diffview.View(c, d)
+			if _, mod := vw.Editors(); !focused && mod != nil {
+				c.SetFocus(mod.Box().ID())
+				focused = true
+			}
+		}, layout.Grow(1))
+		ui.Row(c, func() { ui.Text(c, diffStatus()) }, layout.PadVH(4, 12))
 	}, layout.Fill())
+	if auto != nil {
+		auto.frame(c)
+	}
+}
+
+func diffStatus() string {
+	r, ok := diffState.Result()
+	state := "computing…"
+	if ok {
+		state = "up to date"
+		if r.TimedOut {
+			state = "timed out"
+		}
+	}
+	return fmt.Sprintf("%d changes (%s)    original %d lines    modified %d lines    %s",
+		len(r.Changes), state, diffState.Original.Snapshot().LineCount(), diffState.Modified.Snapshot().LineCount(), status())
+}
+
+func page(c *ui.Context) {
+	if diffState != nil {
+		diffPage(c)
+		return
+	}
+	ui.Column(c, func() {
+		ui.Row(c, func() {
+			language := st.Model.Language()
+			if ui.Select(c, &language, languageOptions).Searchable().Width(210).A11yLabel("Document language").Changed() {
+				st.Model.SetLanguage(language)
+				hlDone = false
+			}
+			if ui.Button(c, "Command Palette").Clicked() {
+				paletteTarget, paletteOpen = active, true
+			}
+			ui.Text(c, "Right-click: editor menu · commands target the last focused pane")
+		}, layout.PadVH(4, 12))
+		ui.Row(c, func() {
+			show := func(target *editor.State) {
+				vw := editor.View(c, target)
+				if !focused {
+					c.SetFocus(vw.Box().ID())
+					focused = true
+				}
+				if vw.Focused() {
+					active = target
+				}
+				if pendingCommand != "" && target == paletteTarget {
+					c.SetFocus(vw.Box().ID())
+					// Execute only after a build observes the restored focus, so
+					// editorTextFocus preconditions and clipboard commands work.
+					if vw.Focused() {
+						id := pendingCommand
+						pendingCommand = ""
+						if !target.Execute(id, nil) {
+							log.Printf("editor-demo: command %s refused or made no change", id)
+						}
+					} else {
+						ui.Invalidate(c.Window())
+					}
+				}
+			}
+			show(st)
+			if second != nil {
+				show(second)
+			}
+		}, layout.Grow(1))
+		ui.Row(c, func() { ui.Text(c, status()) }, layout.PadVH(4, 12))
+	}, layout.Fill())
+	ui.Modal(c, &paletteOpen, "Editor commands").Width(720).NoFooter().Body(func() {
+		ui.Select(c, &paletteCommand, commandOptions()).Searchable().Width(650).A11yLabel("Registered editor commands")
+		if ui.Button(c, "Execute").Disabled(paletteCommand == "").Clicked() {
+			pendingCommand, paletteOpen = paletteCommand, false
+		}
+		ui.Text(c, "Commands without arguments only; preconditions/read-only rules still apply.")
+	})
 	if auto != nil {
 		auto.frame(c)
 	}
@@ -76,8 +250,18 @@ func status() string {
 			hl = "highlighted"
 		}
 	}
-	return fmt.Sprintf("Ln %d, Col %d    %d lines    %.1f MB    %s (%s)    renderer: %s",
-		p.Line+1, snap.UTF16Col(p.Line, p.Col)+1, snap.LineCount(), float64(snap.Len())/1e6, st.Model.Language(), hl, rendName)
+	return fmt.Sprintf("Ln %d, Col %d    %s    %d lines    %.1f MB    %s (%s)    renderer: %s",
+		p.Line+1, snap.UTF16Col(p.Line, p.Col)+1, indentStatus(st.Model), snap.LineCount(), float64(snap.Len())/1e6, st.Model.Language(), hl, rendName)
+}
+
+// indentStatus is VS Code's indentation item of the status bar: the
+// Model's tab size and insertSpaces, as detected from the text when it was
+// opened (editor.action.detectIndentation re-detects them).
+func indentStatus(m *editor.Model) string {
+	if m.InsertSpaces() {
+		return fmt.Sprintf("Spaces: %d", m.TabSize())
+	}
+	return fmt.Sprintf("Tab Size: %d", m.TabSize())
 }
 
 // tsTemplates generate the sample document (the same lines as the
@@ -186,10 +370,19 @@ func main() {
 	file := flag.String("file", "", "file to open (default: a generated TypeScript document)")
 	genLines := flag.Int("gen-lines", 10000, "lines of the generated TypeScript document when -file is not given")
 	renderer := flag.String("renderer", "", `force the renderer: "cpu" or "gpu" (sets TANGO_RENDERER)`)
-	themeName := flag.String("theme", "vs-dark", `editor theme: "vs" or "vs-dark"`)
+	themeName := flag.String("theme", "vs-dark", `editor theme: vs, vs-dark, hc-black, hc-light`)
+	split := flag.Bool("split", false, "two independent editor views sharing one text model")
+	wrap := flag.Bool("wrap", false, "word wrap (large-file optimizations may disable it)")
+	language := flag.String("language", "", "override document language ID (also switchable in the toolbar)")
 	autoFlag := flag.Bool("auto", false, "scripted scroll and typing check; logs the frame intervals")
 	quitAfter := flag.Duration("quit-after", 0, "quit after this long (0: run until the window closes)")
+	diffFlag := flag.Bool("diff", false, "show the diff view of the two files given as arguments")
+	inline := flag.Bool("inline", false, "with -diff: start in inline mode")
+	fold := flag.Bool("fold", false, "with -diff: fold the unchanged regions")
 	flag.Parse()
+	if *diffFlag && flag.NArg() != 2 {
+		log.Fatal("editor-demo: -diff wants two files: -diff [flags] a b")
+	}
 	switch *renderer {
 	case "":
 	case "cpu", "gpu":
@@ -197,13 +390,24 @@ func main() {
 	default:
 		log.Fatalf("editor-demo: -renderer %q: want cpu or gpu", *renderer)
 	}
-	if *themeName != "vs" && *themeName != "vs-dark" {
-		log.Fatalf("editor-demo: -theme %q: want vs or vs-dark", *themeName)
+	if !slices.Contains([]string{"vs", "vs-dark", "hc-black", "hc-light"}, *themeName) {
+		log.Fatalf("editor-demo: -theme %q: want vs, vs-dark, hc-black or hc-light", *themeName)
+	}
+	if *language != "" && langs.ByID(*language) == nil {
+		log.Fatalf("editor-demo: unknown language %q", *language)
 	}
 
 	start := time.Now()
 	var text, name string
-	if *file != "" {
+	if *diffFlag {
+		if err := setupDiff(flag.Arg(0), flag.Arg(1), theme.Base(*themeName), *wrap, *inline, *fold); err != nil {
+			log.Fatal(err)
+		}
+		defer diffState.Close()
+		defer diffOrigHL.Close()
+		defer background.Close()
+		name = flag.Arg(1)
+	} else if *file != "" {
 		b, err := os.ReadFile(*file)
 		if err != nil {
 			log.Fatal(err)
@@ -212,7 +416,17 @@ func main() {
 	} else {
 		text, name = genTS(*genLines), "generated.ts"
 	}
-	st = editor.NewView(editor.NewModel(name, text, editor.DefaultRegistry()), theme.Base(*themeName))
+	if !*diffFlag {
+		setupDocument(name, text, theme.Base(*themeName), *split, *wrap)
+		defer st.Close()
+		if second != nil {
+			defer second.Close()
+		}
+		defer background.Close() // cancel/unsubscribe before closing either view
+	}
+	if *language != "" {
+		st.Model.SetLanguage(*language)
+	}
 	text = ""
 	log.Printf("editor-demo: %s: %d lines, %.1f MB, language %s, state in %v",
 		filepath.Base(name), st.Snapshot().LineCount(), float64(st.Snapshot().Len())/1e6, st.Model.Language(), time.Since(start).Round(time.Millisecond))
@@ -237,23 +451,32 @@ func main() {
 		runner = r
 		rendName = uihost.Renderer(r)
 		log.Printf("editor-demo: window open %v after start, renderer %s", time.Since(start).Round(time.Millisecond), rendName)
-		if hl := st.Highlighter(); hl != nil {
-			ctx := context.Background()
-			ch := make(chan buffer.Snapshot, 1)
-			ch <- st.Snapshot()
-			hlStart := time.Now()
-			hl.Start(ctx, ch, func() {
+		if diffOrigHL != nil {
+			orig := diffOrigHL
+			orig.SetNotify(func() {
 				app.Post(func() {
-					if !hlDone {
-						if hl.Done(st.Snapshot()) {
-							hlDone = true
-							log.Printf("editor-demo: document highlighted in %v", time.Since(hlStart).Round(time.Millisecond))
-						}
+					if !orig.isClosed() {
+						r.Invalidate()
 					}
-					r.Invalidate()
 				})
 			})
 		}
+		life := background
+		hlStart := time.Now()
+		life.SetNotify(func() {
+			// ready runs off-thread (or is replayed during attachment).
+			// Never read Model/State until this UI-thread callback runs.
+			app.Post(func() {
+				if life.isClosed() {
+					return
+				}
+				if hl := st.Highlighter(); hl != nil && !hlDone && hl.Done(st.Snapshot()) {
+					hlDone = true
+					log.Printf("editor-demo: document highlighted in %v", time.Since(hlStart).Round(time.Millisecond))
+				}
+				r.Invalidate()
+			})
+		})
 		if *quitAfter > 0 {
 			time.AfterFunc(*quitAfter, func() { app.Post(app.Quit) })
 		}

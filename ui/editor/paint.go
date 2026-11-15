@@ -3,6 +3,7 @@ package editor
 import (
 	"image/color"
 	"math"
+	"slices"
 	"sort"
 	"time"
 	"unicode/utf8"
@@ -50,6 +51,11 @@ type seg struct {
 	r0, r1 int     // rune range of the line it covers
 	b0, b1 int     // byte range of the line it covers
 	paints []runPaint
+	// A piece of a row split at injected gaps (injected.go) shares the
+	// row's layout: rune r0 of the line is rune lr of the layout, and only
+	// the glyphs of its runes are drawn.
+	lr    int
+	piece bool
 }
 
 // runPaint is how a style run of a seg is drawn.
@@ -72,8 +78,15 @@ type lineView struct {
 	b0, b1 int // byte range of the row in text
 	r0, r1 int // rune range of the row
 	segs   []seg
-	long   *longLine // nil for a normal line
-	endX   float32   // content x of the row end
+	long   *longLine   // nil for a normal line
+	endX   float32     // content x of the row end
+	colors []colorSpan // the model line's color literals (lineColors)
+	inj    []injection // the injected gaps of the row (injected.go)
+	// zone is the view zone shown on this row instead of text (zones.go),
+	// nil for a text row. A zone row has no text: i is the line the zone
+	// follows (the first shown line for the zones before it), row is past
+	// its text rows (negative before the first line).
+	zone *zoneRow
 }
 
 // last reports whether lv is its model line's last row.
@@ -103,6 +116,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 			ui.Invalidate(w.c.Window())
 		}
 	}
+	w.opts.zoom = ZoomLevel() // a zoom command may have run with the input
 	if w.ia.Focused && !w.st.tabFocus && !w.opts.ReadOnly {
 		w.c.CaptureTab(w.box.ID()) // see input.go, "Tab"
 	}
@@ -115,8 +129,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	colW, _, _ := text.Shape(" ", mono, text.Options{NoWrap: true}).Caret(1)
 	gw := min(w.gutterWidth(dg, n), r.W)
 	vs.rect = r
-	vs.gutter = rectXYWH(r.X, r.Y, gw, r.H)
-	vs.text = rectXYWH(r.X+gw, r.Y, r.W-gw, r.H)
+	w.navigationGeometry(r, gw)
 	vs.colW = colW
 	if buf := st.Model.Buffer(); vs.buf != buf {
 		vs.buf, vs.maxW = buf, 0
@@ -146,8 +159,11 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	// before the rows are laid out (computing them may change the hidden
 	// lines; folding.go).
 	showAll, showFolded := w.foldControls()
-	st.foldPrepare(showAll && w.foldRangesNow())
+	st.foldPrepare((showAll || w.stickyOn()) && w.foldRangesNow())
 	st.measureViewport()
+	hlDeadline := time.Now().Add(highlightBudget)
+	vs.highlightDeadline = hlDeadline
+	w.prepareSticky(snap)
 	vl := st.lines()
 	first, last := st.VisibleLines()
 	nv := vl.Count()
@@ -161,20 +177,43 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		// frame: the background goroutine handles it.
 		upTo := mhi + 1
 		for i := mlo; i <= mhi; i++ {
-			if isLong(snap.Line(i)) {
+			if isLong(st.Model.line(snap, i)) {
 				upTo = i
 				break
 			}
 		}
-		hl.HighlightFor(st.hlKey, snap, upTo, highlightBudget)
+		hl.HighlightFor(st.hlKey, snap, upTo, max(0, time.Until(hlDeadline)))
 	}
 
-	// Bracket pair colorization (bracketpairs.go): the colors of the
-	// brackets of the lines about to be laid out.
-	vs.brk = w.bracketSpans(snap, vl, lo, hi, mhi, th)
+	// Spend the remaining token budget before bracket work, shaping and
+	// drawing. A slow renderer must not permanently starve miniature tokens.
+	w.prepareMinimap(snap, th, hlDeadline)
 
+	// The frame's bracket work shares one budget, spent before layout:
+	// first the carets' matched brackets, then the colors of the brackets
+	// of the lines about to be laid out (bracketpairs.go).
+	brDeadline := time.Now().Add(bracketFrameBudget)
+	st.Model.beginBracketFrame()
+	var match []brange
+	if w.ia.Focused {
+		vis0, _ := visibleSels(snap, st.sels(), snap.LineStart(mlo), lineEnd(snap, mhi))
+		caretShown := false
+		for _, x := range vis0 {
+			caretShown = caretShown || x.a == x.b
+		}
+		match = w.matched(caretShown, brDeadline)
+	}
+	vs.brk = w.bracketSpans(snap, vl, lo, hi, mhi, th, brDeadline)
+	// The sticky headers are laid out with this frame's bracket colors
+	// (bracketSpans colors their lines too).
+	sticky := w.layoutStickyRows(snap, th)
+	vs.bgPairs, vs.bgOn = w.bracketGuidePairs(snap, vl, lo, hi, mhi, clampOff(snap, st.Primary().Head), brDeadline)
+
+	vs.fColors, vs.fInj, vs.fSegs, vs.arena = vs.fColors[:0], vs.fInj[:0], vs.fSegs[:0], true
 	lines := w.layoutRows(snap, lo, hi, hl, th, colW)
+	vs.arena = false
 	fold := w.foldCodes(lines, showAll, showFolded)
+	vs.maxW = max(vs.maxW, zoneMinWidth(lines))
 	for k := range lines {
 		vs.maxW = max(vs.maxW, lines[k].endX)
 		if fold[k]&foldPlaceholder != 0 {
@@ -219,6 +258,9 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	// The selections touching the laid out lines (the primary first) and
 	// whether every selection is a caret.
 	vis, allEmpty := visibleSels(snap, st.sels(), snap.LineStart(mlo), lineEnd(snap, mhi))
+	for k := range vis {
+		vis[k].right = vis[k].head == vis[k].b && st.headRight(vis[k].idx) // injected.go
+	}
 
 	// IME composition: shown on the caret line, never in the buffer.
 	var cmp compView
@@ -282,6 +324,11 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		}
 	}
 
+	// The decorations of the Model (decorations.go): whole-line
+	// backgrounds over the current line, under the selections.
+	ud := w.userDecos(snap, lines)
+	w.paintWholeLineDecos(l, lines, ud, lineY, lh)
+
 	// 3. Selections (the primary hidden while composing: the composition
 	// replaces it).
 	for _, vsl := range vis {
@@ -291,50 +338,57 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		}
 		for k := range lines {
 			lv := &lines[k]
+			if lv.zone != nil {
+				continue
+			}
 			ls := snap.LineStart(lv.i)
 			le := ls + len(lv.text)
 			if b < ls || a > le {
 				continue
 			}
 			y := lineY(lv.vi)
-			s0, s1 := lv.runeAt(max(a, ls)-ls), lv.runeAt(min(b, le)-ls)
-			for _, sg := range lv.segs {
-				p0, p1 := max(s0, sg.r0), min(s1, sg.r1)
-				if p0 >= p1 {
-					continue
-				}
-				for _, sr := range sg.lay.SelectionRects(p0-sg.r0, p1-sg.r0) {
-					l.Fill(rectXYWH(tx+sg.x0+sr.X, y, sr.W, lh), geom.Radii{}, selBg)
-				}
+			right := -1
+			if vsl.right {
+				right = b - ls
 			}
+			lv.selRects(max(a, ls)-ls, min(b, le)-ls, right, func(x0, x1 float32) {
+				l.Fill(rectXYWH(tx+x0, y, x1-x0, lh), geom.Radii{}, selBg)
+			})
 			if lv.breakSelected(b, le, n) {
 				l.Fill(rectXYWH(tx+lv.endX, y, colW/2, lh), geom.Radii{}, selBg)
 			}
 		}
 	}
 
-	// Indentation guides (guides.go), the matched brackets' boxes and the
-	// control characters' backgrounds (whitespace.go).
+	// The decorations' range backgrounds, over the selections (Monaco's
+	// decorations overlay).
+	w.paintRangeDecos(l, snap, lines, ud, tx, lineY, lh)
+
+	// Indentation and bracket pair guides (guides.go, bracketguides.go),
+	// the matched brackets' boxes and the control characters' backgrounds
+	// (whitespace.go).
 	guides := w.guidesFor(snap, lines, caretLine)
-	if guides != nil {
+	vs.bgRows = nil
+	if vs.bgOn {
+		vs.bgRows = w.rowBracketGuides(lines, vs.bgPairs, colW) // bracketguides.go
+	}
+	if guides != nil || vs.bgRows != nil {
 		maxX := float32(0)
 		if wcfg.on() {
 			maxX = float32(wcfg.col) * colW
 		}
-		paintGuides(l, lines, guides, guideColorsOf(th), tx, colW, lh, max(w.tabs(), 1), maxX, lineY)
+		paintGuides(l, lines, guides, guideColorsOf(th), vs.bgRows, bracketGuideColorsOf(th), tx, colW, lh, max(w.tabs(), 1), maxX, lineY)
 	}
-	var match []brange
-	if focused {
-		caretShown := false
-		for _, x := range vis {
-			caretShown = caretShown || x.a == x.b
-		}
-		match = w.matched(caretShown)
-	}
+	// The decorations' boxes (occurrences, selection matches, suspicious
+	// characters: Monaco's decorations overlay, after the guides).
+	decos := w.decorations(snap, lines, vis, focused)
+	decoSigs := w.paintDecoBoxes(l, lines, decos, focused, tx, lh, lineY)
 	matchRows := paintMatch(l, snap, lines, match, tx, lh, lineY, defaultColor(th, "editorBracketMatch.background"), defaultColor(th, "editorBracketMatch.border"))
 	if w.opts.RenderControlCharacters {
 		for k := range lines {
-			w.paintControlBackgrounds(l, &lines[k], tx, lineY(lines[k].vi), lh)
+			if lines[k].zone == nil {
+				w.paintControlBackgrounds(l, &lines[k], tx, lineY(lines[k].vi), lh)
+			}
 		}
 	}
 
@@ -342,15 +396,24 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	wsColor := defaultColor(th, "editorWhitespace.foreground")
 	for k := range lines {
 		lv := &lines[k]
+		if lv.zone != nil {
+			continue
+		}
 		y := lineY(lv.vi)
+		vs.udIn = inlineSpans(snap, lv, ud, k, vs.udIn[:0])
 		for _, sg := range lv.segs {
-			drawSeg(l, sg, tx, y)
+			drawSegInline(l, sg, tx, y, vs.udIn)
 		}
 		w.paintWhitespace(l, snap, lv, vis, tx, y, wsColor)
 		if fold[k]&foldPlaceholder != 0 {
 			w.paintPlaceholder(l, lv, tx, y, th)
 		}
 	}
+	// Links' underlines and the color swatches.
+	w.paintDecoOver(l, snap, lines, decos, tx, colW, lh, lineY)
+	// The view zones' text area parts (zones.go).
+	clear(vs.zfp)
+	w.paintZones(l, lines, lineY, false)
 
 	// 5. Composition and caret.
 	if cmp.on {
@@ -375,7 +438,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 				if lv == nil {
 					continue
 				}
-				if x, ok := lv.caretX(lv.runeAt(vsl.head - snap.LineStart(lv.i))); ok {
+				if x, ok := lv.caretXSide(lv.runeAt(vsl.head-snap.LineStart(lv.i)), st.headRight(vsl.idx)); ok {
 					cx := float32(math.Round(float64(tx + x)))
 					cr := rectXYWH(cx, lineY(lv.vi), 2, lh)
 					l.Fill(cr, geom.Radii{}, cc)
@@ -396,21 +459,29 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	// below the visible ones stay inside the view).
 	gbg := defaultColor(th, "editorGutter.background")
 	l.Clip(vs.gutter, geom.Radii{})
-	w.paintGutter(l, r.X, gw, lines, lineY, n, caretLine, dg, gbg, curG, fill, isFill, border)
+	w.paintGutter(l, vs.gutter.X, vs.gutter.W, lines, ud, lineY, n, caretLine, dg, gbg, curG, fill, isFill, border)
 	vs.foldX = -1
 	if w.foldControlsShown() {
-		vs.foldX = w.foldControlX(r.X, dg, n)
+		vs.foldX = w.foldControlX(vs.gutter.X, dg, n)
 		paintFoldControls(l, vs.foldX, lines, fold, lineY, lh, defaultColor(th, "editorGutter.foldingControlForeground"))
 	}
+	w.paintZones(l, lines, lineY, true)
 	l.Pop()
+
+	vs.navPaint = vs.navPaint[:0]
+	w.paintSticky(l, sticky, th)
+	w.paintMinimap(l, th)
+	w.paintOverview(l, th)
 
 	aLine, aRow := vl.find(v.TopLine)
 	w.declareDamage(&paintFrame{
 		g: damageGlobal{rect: r, gutter: vs.gutter, text: vs.text, colW: colW, lh: lh, theme: th, opts: w.opts,
-			tab: w.tabs(), focused: focused, wrap: wcfg, numW: w.numbersWidth(dg, n), foldGen: st.fold.gen},
+			tab: w.tabs(), focused: focused, wrap: wcfg, numW: w.numbersWidth(dg, n), foldGen: st.fold.gen, hidGen: st.hidGen, zoneGen: st.zgen, zoneOpaque: vs.zoneOpaque,
+			lnFn: w.lnFn != nil, lnGen: w.lnGen},
 		snap: snap, lines: lines, vis: vis, cur: cur, curG: curG, cmp: cmp, caretLine: caretLine, scrollX: v.ScrollX, marks: marks,
-		aLine: aLine, aRow: aRow, fold: fold, guides: guides, match: matchRows,
+		aLine: aLine, aRow: aRow, fold: fold, guides: guides, bguides: vs.bgRows, match: matchRows, decos: decoSigs, udecos: ud,
 	})
+	st.checkScroll() // what paint itself scrolled (scroll.go)
 }
 
 // wrapConfig returns the wrapping in effect for a text area textW wide.
@@ -419,10 +490,14 @@ func (w *ViewW) wrapConfig(textW, colW float32) wrapConfig {
 	if t := w.st.wrapToggle; t != "" {
 		mode = t // editor.action.toggleWordWrap
 	}
+	if w.st.LargeFile() && !w.st.wrapLarge {
+		mode = WrapOff // Monaco shows large files unwrapped (largefile.go)
+	}
 	return wrapConfig{
 		col:    wrapColumn(mode, w.opts.WordWrapColumn, textW, colW),
 		tab:    w.tabs(),
 		indent: wrapIndentMode(w.opts.WrappingIndent),
+		inj:    w.injectConfig(colW),
 	}
 }
 
@@ -436,7 +511,8 @@ func (lv *lineView) breakSelected(b, le, n int) bool {
 // visSel is a selection drawn this frame: its ordered range and caret.
 type visSel struct {
 	a, b, head int
-	idx        int // index in the selections
+	idx        int  // index in the selections
+	right      bool // the head is b, drawn right of a gap (injected.go)
 	primary    bool
 }
 
@@ -467,13 +543,25 @@ func visibleSels(snap buffer.Snapshot, sels []Selection, from, to int) ([]visSel
 func drawSeg(l *paint.List, sg seg, tx, y float32) {
 	lay := sg.lay
 	org := geom.Pt(tx+sg.x0, y)
+	lo, hi := sg.lr, sg.lr+sg.r1-sg.r0 // the layout runes drawn (a piece's)
+	in := func(g int) bool {
+		if !sg.piece || g >= len(lay.GlyphCluster) {
+			return true
+		}
+		c := int(lay.GlyphCluster[g])
+		return c >= lo && c < hi
+	}
 	for g := 0; g < len(lay.Glyphs); {
+		if !in(g) {
+			g++
+			continue
+		}
 		run := int32(0)
 		if g < len(lay.GlyphRun) {
 			run = lay.GlyphRun[g]
 		}
 		e := g + 1
-		for e < len(lay.Glyphs) && e < len(lay.GlyphRun) && lay.GlyphRun[e] == run {
+		for e < len(lay.Glyphs) && e < len(lay.GlyphRun) && lay.GlyphRun[e] == run && in(e) {
 			e++
 		}
 		fg := color.NRGBA{A: 255}
@@ -491,8 +579,15 @@ func drawSeg(l *paint.List, sg seg, tx, y float32) {
 		if !p.underline && !p.strike {
 			continue
 		}
-		x0, _, _ := lay.Caret(p.r0)
-		x1, _, _ := lay.Caret(p.r1)
+		r0, r1 := p.r0, p.r1
+		if sg.piece {
+			r0, r1 = max(r0, lo), min(r1, hi)
+			if r0 >= r1 {
+				continue
+			}
+		}
+		x0, _, _ := lay.Caret(r0)
+		x1, _, _ := lay.Caret(r1)
 		x0, x1 = min(x0, x1), max(x0, x1)
 		if p.underline {
 			yy := y + base + 2
@@ -522,10 +617,9 @@ func (lv *lineView) runeAt(col int) int {
 // caretX returns the content x of the caret before rune i, false when that
 // part of a long line is not shaped (outside the visible range).
 func (lv *lineView) caretX(i int) (float32, bool) {
-	for _, sg := range lv.segs {
-		if i >= sg.r0 && i <= sg.r1 {
-			x, _, _ := sg.lay.Caret(i - sg.r0)
-			return sg.x0 + x, true
+	for k := range lv.segs {
+		if sg := &lv.segs[k]; i >= sg.r0 && i <= sg.r1 {
+			return sg.caret(i), true
 		}
 	}
 	if len(lv.segs) == 0 && lv.long == nil {
@@ -534,14 +628,25 @@ func (lv *lineView) caretX(i int) (float32, bool) {
 	return 0, false
 }
 
+// isLong reports whether s has more than longLineRunes runes. It counts at
+// most utf8.UTFMax*longLineRunes bytes: a longer string has more runes
+// than that whatever its content, so the test costs the same on a 1 MB
+// line as on an 8 KB one.
 func isLong(s string) bool {
-	return len(s) > longLineRunes && utf8.RuneCountInString(s) > longLineRunes
+	if len(s) <= longLineRunes {
+		return false
+	}
+	if len(s) > utf8.UTFMax*longLineRunes {
+		return true
+	}
+	countAdd(&workRuneBytes, len(s))
+	return utf8.RuneCountInString(s) > longLineRunes
 }
 
 // layoutLine shapes line i (a normal line) or prepares its chunk table (a
 // long line; see layoutChunks).
 func (w *ViewW) layoutLine(snap buffer.Snapshot, i int, hl *highlight.Highlighter, th *theme.Theme, colW float32) lineView {
-	s := snap.Line(i)
+	s := w.st.Model.line(snap, i)
 	lv := lineView{i: i, vi: i, rows: 1, text: s, b1: len(s)}
 	if isLong(s) {
 		lv.long = w.longLineOf(snap, i, s)
@@ -565,6 +670,9 @@ func (w *ViewW) layoutLine(snap buffer.Snapshot, i int, hl *highlight.Highlighte
 	if c, _, _ := sg.lay.Caret(lv.runes); sg.x0+c > lv.endX {
 		lv.endX = sg.x0 + c // trailing spaces
 	}
+	if lv.colors, lv.inj = w.lineGaps(s); lv.inj != nil {
+		lv.withGaps(w.segArena())
+	}
 	return lv
 }
 
@@ -574,9 +682,16 @@ func (w *ViewW) layoutRows(snap buffer.Snapshot, lo, hi int, hl *highlight.Highl
 	out := make([]lineView, 0, hi-lo+1)
 	vl := w.st.lines()
 	if !vl.on() {
-		// One row per shown line (folded regions hide some).
+		// One row per shown line (folded regions hide some), and the rows
+		// of the view zones.
 		for v := lo; v <= hi; v++ {
-			i, _ := vl.find(v)
+			i, row := vl.find(v)
+			if row != 0 {
+				if lv, ok := w.zoneView(i, row, v); ok {
+					out = append(out, lv)
+					continue
+				}
+			}
 			lv := w.layoutLine(snap, i, hl, th, colW)
 			lv.vi = v
 			out = append(out, lv)
@@ -585,6 +700,13 @@ func (w *ViewW) layoutRows(snap buffer.Snapshot, lo, hi int, hl *highlight.Highl
 	}
 	for v := lo; v <= hi; {
 		line, row := vl.find(v)
+		if row < 0 || row >= vl.rowsOf(line) {
+			if lv, ok := w.zoneView(line, row, v); ok {
+				out = append(out, lv)
+				v++
+				continue
+			}
+		}
 		k := len(out)
 		out = w.layoutWrapped(out, snap, line, row, row+hi-v, hl, th, colW)
 		if len(out) == k {
@@ -601,7 +723,7 @@ func (w *ViewW) layoutRows(snap buffer.Snapshot, lo, hi int, hl *highlight.Highl
 // those of the span of the rows (TokenizeSpan, as layoutChunks).
 func (w *ViewW) layoutWrapped(dst []lineView, snap buffer.Snapshot, i, k0, k1 int, hl *highlight.Highlighter, th *theme.Theme, colW float32) []lineView {
 	st := w.st
-	s := snap.Line(i)
+	s := st.Model.line(snap, i)
 	lb := st.breaks(i)
 	nr := lb.rows()
 	k1 = min(k1, nr-1)
@@ -624,16 +746,20 @@ func (w *ViewW) layoutWrapped(dst []lineView, snap buffer.Snapshot, i, k0, k1 in
 		}
 	}
 	v0 := st.vl.viewOf(i)
+	colors, inj := w.lineGaps(s)
 	for k := k0; k <= k1; k++ {
 		b0, b1 := lb.rowRange(k, len(s))
 		r0, _ := lb.rowRunes(k, 0)
 		r1 := r0 + utf8.RuneCountInString(s[b0:b1])
 		sg := w.shapeSeg(i, s[b0:b1], r0, r1, b0, toks, th)
 		sg.x0 = float32(lb.rowIndent(k)) * colW
-		lv := lineView{i: i, row: k, rows: nr, vi: v0 + k, text: s, runes: r1, b0: b0, b1: b1, r0: r0, r1: r1, segs: []seg{sg}}
+		lv := lineView{i: i, row: k, rows: nr, vi: v0 + k, text: s, runes: r1, b0: b0, b1: b1, r0: r0, r1: r1, segs: []seg{sg}, colors: colors}
 		lv.endX = sg.x0 + sg.lay.Width
 		if c, _, _ := sg.lay.Caret(r1 - r0); sg.x0+c > lv.endX {
 			lv.endX = sg.x0 + c // trailing spaces
+		}
+		if lv.inj = rowInjections(inj, b0, b1); lv.inj != nil {
+			lv.withGaps(w.segArena())
 		}
 		dst = append(dst, lv)
 	}
@@ -675,21 +801,8 @@ func (w *ViewW) longLineOf(snap buffer.Snapshot, i int, s string) *longLine {
 // layoutChunks tokenizes and shapes the chunks of a long line that overlap
 // the visible x range.
 func (w *ViewW) layoutChunks(lv *lineView, th *theme.Theme, colW float32) {
-	v := w.st.Viewport
 	ll := lv.long
-	x0 := v.ScrollX - longMargin*colW
-	x1 := v.ScrollX + v.Width + longMargin*colW
-	nc := len(ll.bytes) - 1
-	k0, k1 := -1, -1
-	for k := range nc {
-		cx0, cx1 := float32(ll.cols[k])*colW, float32(ll.cols[k+1])*colW
-		if cx1 >= x0 && cx0 <= x1 {
-			if k0 < 0 {
-				k0 = k
-			}
-			k1 = k
-		}
-	}
+	k0, k1 := w.chunkWindow(ll, colW)
 	if k0 < 0 {
 		return
 	}
@@ -708,6 +821,25 @@ func (w *ViewW) layoutChunks(lv *lineView, th *theme.Theme, colW float32) {
 		sg.x0 = float32(ll.cols[k]) * colW
 		lv.segs = append(lv.segs, sg)
 	}
+}
+
+// chunkWindow returns the chunks k0..k1 of long line ll that layoutChunks
+// shapes at the viewport's horizontal scroll (k0 < 0: none).
+func (w *ViewW) chunkWindow(ll *longLine, colW float32) (k0, k1 int) {
+	v := w.st.Viewport
+	x0 := v.ScrollX - longMargin*colW
+	x1 := v.ScrollX + v.Width + longMargin*colW
+	k0, k1 = -1, -1
+	for k := range len(ll.bytes) - 1 {
+		cx0, cx1 := float32(ll.cols[k])*colW, float32(ll.cols[k+1])*colW
+		if cx1 >= x0 && cx0 <= x1 {
+			if k0 < 0 {
+				k0 = k
+			}
+			k1 = k
+		}
+	}
+	return k0, k1
 }
 
 // lineOptions are the shaping options of every editor line. As in Monaco
@@ -729,6 +861,9 @@ func (w *ViewW) shapeSeg(i int, s string, r0, r1, b0 int, toks []monarch.Token, 
 		over = mergeSpans(over, controlSpans(s, b0, nil))
 		shaped = controlPictures(s)
 	}
+	if sp, ok := w.activeLinkSpan(i); ok {
+		over = withSpan(over, sp) // the link under the pointer (links.go)
+	}
 	runs, paints := w.styleRuns(s, b0, toks, th, over)
 	if shapeHook != nil {
 		shapeHook(i, s)
@@ -742,8 +877,9 @@ func (w *ViewW) shapeSeg(i int, s string, r0, r1, b0 int, toks []monarch.Token, 
 func (w *ViewW) styleRuns(s string, b0 int, toks []monarch.Token, th *theme.Theme, over []brSpan) ([]text.Run, []runPaint) {
 	b1 := b0 + len(s)
 	def := th.Style("")
-	// Boundaries: (byte offset in s, style).
-	bounds := []styleBound{{0, def}}
+	// Boundaries: (byte offset in s, style), in the view's scratch (kept
+	// for the next seg: every visible row runs this every frame).
+	bounds := append(w.vs.bounds[:0], styleBound{0, def})
 	for k, tk := range toks {
 		end := b1
 		if k+1 < len(toks) {
@@ -760,6 +896,7 @@ func (w *ViewW) styleRuns(s string, b0 int, toks []monarch.Token, th *theme.Them
 			bounds = append(bounds, styleBound{at, ts})
 		}
 	}
+	w.vs.bounds = bounds[:0]
 	// Spans of other colors (colored brackets, control characters): cut
 	// the runs at their ends and take their color inside.
 	if len(over) > 0 {
@@ -813,6 +950,16 @@ type styleBound struct {
 // of its line at the ends of spans (line bytes, sorted, not overlapping)
 // and gives the bytes inside them set(style, span color).
 func overrideBounds(bounds []styleBound, over []brSpan, b0, n int, set func(theme.Style, color.NRGBA) theme.Style) []styleBound {
+	// Only the spans that reach into the text count: the spans of a long
+	// line's other rows are skipped by a binary search, not walked (and
+	// not allocated for), once per row.
+	lo := sort.Search(len(over), func(k int) bool { return over[k].b1 > b0 })
+	hi := lo
+	for hi < len(over) && over[hi].b0 < b0+n {
+		hi++
+	}
+	over = over[lo:hi]
+	countAdd(&workOverSpans, len(over))
 	out := make([]styleBound, 0, len(bounds)+2*len(over))
 	push := func(b styleBound) {
 		if n := len(out); n > 0 && out[n-1].at == b.at {
@@ -976,6 +1123,9 @@ func (w *ViewW) foldCodes(rows []lineView, all, folded bool) []uint8 {
 	highlight := w.opts.FoldingHighlight
 	for k := range rows {
 		lv := &rows[k]
+		if lv.zone != nil {
+			continue
+		}
 		isFolded := fs.foldAt(lv.i) >= 0
 		var c uint8
 		if lv.row == 0 {
@@ -1028,4 +1178,384 @@ func (w *ViewW) paintPlaceholder(l *paint.List, lv *lineView, tx, y float32, th 
 	x0, _ := w.placeholderX(lv)
 	lay := w.ellipsis()
 	l.Glyphs(geom.Pt(tx+x0, y), lay.Glyphs, defaultColor(th, "editor.foldPlaceholderForeground"))
+}
+
+// Display decorations of Task 13 (occurrences.go, unicode.go, links.go,
+// colors.go): ranges of a row's model line, computed from the text of the
+// laid out rows only, after layout (they never change the layout).
+
+// decoKind is the kind of a decoration.
+type decoKind uint8
+
+const (
+	decoOcc     decoKind = iota + 1 // occurrence of the word at the caret
+	decoSelHL                       // match of the selection
+	decoUnicode                     // suspicious character
+	decoLink                        // link (underlined)
+	decoSwatch                      // color literal (swatch before it)
+)
+
+// deco is a decoration of a model line: its kind and line bytes.
+type deco struct {
+	kind decoKind
+	a, b int
+	c    color.NRGBA // the swatch color
+	url  string      // the link
+}
+
+// decorFrame is what the decorations of a frame depend on.
+type decorFrame struct {
+	occ, sel []brange // cached, bounded document matches (absolute offsets)
+	uo       unicodeOpts
+}
+
+// maxUnicodeMarks is Monaco's MAX_RESULT_LENGTH of the unicode
+// highlighter: with more marks than this none are drawn (Monaco shows a
+// banner instead).
+const maxUnicodeMarks = 1000
+
+// decorations returns the decorations of each laid out row (nil when there
+// are none at all).
+func (w *ViewW) decorations(snap buffer.Snapshot, lines []lineView, vis []visSel, focused bool) [][]deco {
+	word := w.occurrenceWord(snap, focused)
+	var oq *selQuery
+	if word != "" {
+		oq = &selQuery{text: word, whole: true}
+	}
+	// The document searches scan on for one frame's budget; the laid out
+	// lines are matched at once (occurrences.go).
+	vs, buf := w.vs, w.st.Model.Buffer()
+	clock := vs.scanNow
+	if clock == nil {
+		clock = scanClock
+	}
+	vs.decoLines = vs.decoLines[:0]
+	for k := range lines {
+		if n := len(vs.decoLines); n == 0 || lines[k].i > vs.decoLines[n-1] {
+			vs.decoLines = append(vs.decoLines, lines[k].i)
+		}
+	}
+	vs.occMatches.now, vs.selMatches.now = clock, clock
+	deadline := clock().Add(docScanBudget)
+	occ, occDone := vs.occMatches.find(buf, snap, oq, deadline, vs.decoLines)
+	sel, selDone := vs.selMatches.find(buf, snap, w.selectionQuery(snap), deadline, vs.decoLines)
+	if !occDone || !selDone {
+		// The rows declare what the scan changes (damage.go). A scan frame
+		// that changes nothing on screen declares nothing: the renderer
+		// redraws it whole (ui.Context.Damage).
+		w.c.WakeAtDamaged(w.c.Now())
+	}
+	df := &decorFrame{occ: occ, sel: sel, uo: w.opts.unicodeOpts()}
+	var out [][]deco
+	var cur []deco
+	curLine := -1
+	w.vs.decoCount = [decoSwatch + 1]int{}
+	for k := range lines {
+		lv := &lines[k]
+		if lv.zone != nil {
+			continue
+		}
+		if lv.i != curLine {
+			curLine = lv.i
+			cur = w.lineDecos(snap, lv.i, lv.text, lv.colors, vis, df)
+			for _, d := range cur {
+				w.vs.decoCount[d.kind]++
+			}
+		}
+		if len(cur) == 0 {
+			continue
+		}
+		if out == nil {
+			out = make([][]deco, len(lines))
+		}
+		out[k] = cur
+	}
+	if w.vs.decoCount[decoUnicode] > maxUnicodeMarks {
+		// Too many suspicious characters: none are marked.
+		w.vs.decoCount[decoUnicode] = 0
+		for k, ds := range out {
+			if k > 0 && lines[k].i == lines[k-1].i {
+				out[k] = out[k-1] // the rows of a line share its decorations
+				continue
+			}
+			out[k] = slices.DeleteFunc(ds, func(d deco) bool { return d.kind == decoUnicode })
+		}
+	}
+	return out
+}
+
+// lineDecos returns the decorations of model line i (text, whose color
+// literals are colors: lineColors, computed when the line was laid out),
+// sorted by kind.
+func (w *ViewW) lineDecos(snap buffer.Snapshot, i int, text string, colors []colorSpan, vis []visSel, df *decorFrame) []deco {
+	if isLong(text) {
+		return nil
+	}
+	var ds []deco
+	vs := w.vs
+	ls := snap.LineStart(i)
+	if len(df.occ) > 0 {
+		vs.decoRanges = lineMatches(df.occ, ls, ls+len(text), vs.decoRanges[:0])
+		for _, m := range vs.decoRanges {
+			ds = append(ds, deco{kind: decoOcc, a: m.a, b: m.b})
+		}
+	}
+	if len(df.sel) > 0 {
+		vs.decoRanges = dropSelected(lineMatches(df.sel, ls, ls+len(text), vs.decoRanges[:0]), ls, vis)
+		for _, m := range vs.decoRanges {
+			ds = append(ds, deco{kind: decoSelHL, a: m.a, b: m.b})
+		}
+	}
+	if df.uo.any() && mayNeedUnicode(text) {
+		var tokType func(int) string
+		if hl := w.st.Highlighter(); hl != nil && (!df.uo.inComments || !df.uo.inStrings) {
+			// The tokens are fetched for the first marked candidate only:
+			// lines of plain CJK text have none.
+			fetched := false
+			tokType = func(at int) string {
+				if !fetched {
+					vs.decoToks, _ = hl.TokensFor(w.st.hlKey, snap, i, vs.decoToks)
+					fetched = true
+				}
+				t := ""
+				for _, tk := range vs.decoToks {
+					if tk.ByteStart > at {
+						break
+					}
+					t = tk.Type
+				}
+				return stdTypeCached(t)
+			}
+		}
+		vs.decoRanges = unicodeMarks(text, df.uo, tokType, vs.decoRanges[:0])
+		for _, m := range vs.decoRanges {
+			ds = append(ds, deco{kind: decoUnicode, a: m.a, b: m.b})
+		}
+	}
+	vs.decoLinks = w.lineLinks(i, text, vs.decoLinks[:0])
+	for _, lk := range vs.decoLinks {
+		ds = append(ds, deco{kind: decoLink, a: lk.a, b: lk.b, url: lk.url})
+	}
+	for _, cs := range colors {
+		ds = append(ds, deco{kind: decoSwatch, a: cs.a, b: cs.b, c: cs.c})
+	}
+	return ds
+}
+
+// decoRects calls fn with the content x ranges of the bytes [a, b) of row
+// lv (a character without width gets an empty range at its place; an
+// injected gap strictly inside the range is covered: injected.go).
+func decoRects(lv *lineView, a, b int, fn func(x0, x1 float32)) {
+	if a >= lv.b1 || b <= lv.b0 {
+		return
+	}
+	s0, s1 := lv.runeAt(a), lv.runeAt(b)
+	for k := range lv.segs {
+		sg := &lv.segs[k]
+		p0, p1 := max(s0, sg.r0), min(s1, sg.r1)
+		if p0 >= p1 {
+			continue
+		}
+		rs := sg.lay.SelectionRects(sg.local(p0), sg.local(p1))
+		if len(rs) == 0 {
+			x := sg.caret(p0)
+			fn(x, x)
+			continue
+		}
+		for _, sr := range rs {
+			fn(sg.x0+sr.X, sg.x0+sr.X+sr.W)
+		}
+	}
+	lv.eachGap(func(in injection, x0, x1 float32) {
+		if a < in.col && in.col < b {
+			fn(x0, x1)
+		}
+	})
+}
+
+// decoStroke draws a one pixel border inside box.
+func decoStroke(l *paint.List, box geom.Rect, c color.NRGBA) {
+	if c.A == 0 {
+		return
+	}
+	l.Stroke(geom.Rect{X: box.X + 0.5, Y: box.Y + 0.5, W: box.W - 1, H: box.H - 1}, geom.Radii{}, 1, c)
+}
+
+// paintDecoBoxes draws the boxes of the decorations under the text
+// (occurrences, selection matches, suspicious characters) and returns the
+// fingerprint of each row's decorations (damage.go).
+func (w *ViewW) paintDecoBoxes(l *paint.List, lines []lineView, decos [][]deco, focused bool, tx, lh float32, lineY func(int) float32) []uint64 {
+	if decos == nil {
+		return nil
+	}
+	th := themeOf(w.st)
+	occBg, occBd := defaultColor(th, "editor.wordHighlightTextBackground"), defaultColor(th, "editor.wordHighlightTextBorder")
+	selBg, selBd := defaultColor(th, "editor.selectionHighlightBackground"), defaultColor(th, "editor.selectionHighlightBorder")
+	if !focused {
+		selBg.A, selBd = uint8(math.Round(float64(selBg.A)*0.5)), color.NRGBA{}
+	}
+	uniBg, uniBd := defaultColor(th, "editorUnicodeHighlight.background"), defaultColor(th, "editorUnicodeHighlight.border")
+	sigs := make([]uint64, len(lines))
+	for k, ds := range decos {
+		if len(ds) == 0 {
+			// 0, as when the frame has no decorations at all: the first
+			// decoration to appear (or the last to go) damages its rows only.
+			continue
+		}
+		lv := &lines[k]
+		y := lineY(lv.vi)
+		h := uint64(14695981039346656037)
+		mix := func(v int) {
+			h ^= uint64(v)
+			h *= 1099511628211
+		}
+		for _, d := range ds {
+			var bg, bd color.NRGBA
+			switch d.kind {
+			case decoOcc:
+				bg, bd = occBg, occBd
+			case decoSelHL:
+				bg, bd = selBg, selBd
+			case decoUnicode:
+				bg, bd = uniBg, uniBd
+			}
+			decoRects(lv, d.a, d.b, func(x0, x1 float32) {
+				mix(int(d.kind))
+				mix(int(math.Float32bits(x0)))
+				mix(int(math.Float32bits(x1)))
+				if d.kind == decoSwatch {
+					mix(int(d.c.R) | int(d.c.G)<<8 | int(d.c.B)<<16 | int(d.c.A)<<24)
+				}
+				if bg.A == 0 && bd.A == 0 {
+					return
+				}
+				box := rectXYWH(tx+x0, y, max(x1-x0, 2), lh)
+				if bg.A > 0 {
+					l.Fill(box, geom.Radii{}, bg)
+				}
+				decoStroke(l, box, bd)
+			})
+		}
+		sigs[k] = h
+	}
+	return sigs
+}
+
+// paintDecoOver draws the decorations over the text (the links'
+// underlines, the swatches) and records where the links and swatches are
+// for the pointer.
+func (w *ViewW) paintDecoOver(l *paint.List, snap buffer.Snapshot, lines []lineView, decos [][]deco, tx, colW, lh float32, lineY func(int) float32) {
+	vs := w.vs
+	vs.linkHits, vs.swatches = vs.linkHits[:0], vs.swatches[:0]
+	if decos == nil {
+		return
+	}
+	th := themeOf(w.st)
+	swBorder := color.NRGBA{0, 0, 0, 0xff}
+	if t := themeType(th); t == 1 || t == 2 {
+		swBorder = color.NRGBA{0xee, 0xee, 0xee, 0xff}
+	}
+	bg := defaultColor(th, "editor.background")
+	em := w.opts.fontSize()
+	sw := float32(math.Round(float64(0.8 * em)))       // Monaco's 0.8em box
+	bw := max(1, float32(math.Round(float64(0.1*em)))) // its 0.1em border
+	for k, ds := range decos {
+		lv := &lines[k]
+		y := lineY(lv.vi)
+		ls := snap.LineStart(lv.i)
+		for _, d := range ds {
+			switch d.kind {
+			case decoLink:
+				fg := runColorAt(lv, lv.runeAt(d.a))
+				base := float32(0)
+				if len(lv.segs) > 0 && len(lv.segs[0].lay.Lines) > 0 {
+					base = lv.segs[0].lay.Lines[0].Baseline
+				}
+				decoRects(lv, d.a, d.b, func(x0, x1 float32) {
+					yy := y + base + 2
+					l.Line(geom.Pt(tx+x0, yy), geom.Pt(tx+x1, yy), 1, fg)
+					if r := rectXYWH(tx+x0, y, x1-x0, lh).Intersect(vs.text); !r.Empty() {
+						vs.linkHits = append(vs.linkHits, linkHit{r: r, line: lv.i, a: d.a, b: d.b, url: d.url})
+					}
+				})
+			case decoSwatch:
+				if d.a < lv.b0 || d.a >= lv.b1 {
+					continue // the swatch goes before the literal, on its first row
+				}
+				// In the literal's gap (injected.go), after its 0.2em
+				// margin: a border box of the border color around the
+				// color (over the background, for translucent colors).
+				gx, found := float32(0), false
+				lv.eachGap(func(in injection, x0, _ float32) {
+					if in.col == d.a {
+						gx, found = x0, true
+					}
+				})
+				if !found {
+					continue
+				}
+				box := rectXYWH(float32(math.Round(float64(tx+gx+0.2*em))), float32(math.Round(float64(y+(lh-sw)/2))), sw, sw)
+				l.Fill(box, geom.Radii{}, swBorder)
+				inner := geom.Rect{X: box.X + bw, Y: box.Y + bw, W: max(0, box.W-2*bw), H: max(0, box.H-2*bw)}
+				l.Fill(inner, geom.Radii{}, bg)
+				l.Fill(inner, geom.Radii{}, d.c)
+				if r := box.Intersect(vs.text); !r.Empty() {
+					vs.swatches = append(vs.swatches, swatchHit{r: r, a: ls + d.a, b: ls + d.b, c: d.c})
+				}
+			}
+		}
+	}
+}
+
+// runColorAt returns the text color of rune i of row lv.
+func runColorAt(lv *lineView, i int) color.NRGBA {
+	for k := range lv.segs {
+		sg := &lv.segs[k]
+		if i < sg.r0 || i >= sg.r1 {
+			continue
+		}
+		for _, p := range sg.paints {
+			if j := sg.local(i); j >= p.r0 && j < p.r1 {
+				return p.fg
+			}
+		}
+	}
+	return color.NRGBA{A: 255}
+}
+
+// activeLinkSpan returns the color override of the active link on model
+// line i (links.go), false for none.
+func (w *ViewW) activeLinkSpan(i int) (brSpan, bool) {
+	al := w.vs.activeLink
+	if al.line != i || !w.opts.Links {
+		return brSpan{}, false
+	}
+	text := w.st.Model.line(w.st.Snapshot(), i)
+	for _, lk := range w.lineLinks(i, text, nil) {
+		if lk.a == al.a {
+			return brSpan{lk.a, lk.b, defaultColor(themeOf(w.st), "editorLink.activeForeground")}, true
+		}
+	}
+	return brSpan{}, false
+}
+
+// withSpan returns spans with sp laid over them: the spans it overlaps
+// are dropped.
+func withSpan(spans []brSpan, sp brSpan) []brSpan {
+	out := make([]brSpan, 0, len(spans)+1)
+	done := false
+	for _, s := range spans {
+		if s.b1 > sp.b0 && s.b0 < sp.b1 {
+			continue
+		}
+		if !done && s.b0 >= sp.b1 {
+			out = append(out, sp)
+			done = true
+		}
+		out = append(out, s)
+	}
+	if !done {
+		out = append(out, sp)
+	}
+	return out
 }

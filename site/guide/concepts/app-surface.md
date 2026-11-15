@@ -19,7 +19,7 @@ if err := app.Run(); err != nil {        // 阻塞到应用退出
 
 App 拥有原生事件循环和一个**主线程工作队列**。`Run` 必须在 `main` goroutine 里调用（根包在 `init` 里把它锁到进程主线程上）；其余方法都可以从任意 goroutine 调用。
 
-`Options.QuitOnLastClose` 决定关掉最后一个窗口时是否退出：`nil` 用平台习惯——macOS 不退出（应用留在 Dock 里），Windows 和 Linux 退出。
+`Options.QuitOnLastClose` 决定关掉最后一个窗口时是否退出：`nil` 用平台习惯——macOS 不退出（应用留在 Dock 里），Windows 和 Linux 退出。辅助窗口（`SurfaceOptions{Auxiliary: true}`）不算在内，见 [生命周期](/guide/concepts/lifecycle)。
 
 ## Surface
 

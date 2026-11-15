@@ -403,6 +403,13 @@ func TestStateAcrossHostRestart(t *testing.T) {
 	// ... and seeds the new host with it; the first worker gets it once.
 	e2 := start(t)
 	e2.ctl.Send(devhost.SnapshotData{Entries: d.Entries})
+	// The control and worker connections are served independently: let the
+	// seed land before the worker asks (tan dev starts the app well after).
+	eventually(t, "seed", func() bool {
+		n := make(chan int, 1)
+		e2.h.post(func() { n <- len(e2.h.seed) })
+		return <-n == 1
+	})
 	nw := e2.worker()
 	for i, want := range []int{1, 0} {
 		m, err := nw.cl.Request(func(id int) any { return devhost.SnapshotGet{Req: id} }, wait)

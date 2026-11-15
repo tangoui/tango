@@ -17,10 +17,12 @@
 
 import { getClient, type TangoStream, type StreamHandler } from "./client.js";
 import type { TangoSocket } from "./socket.js";
-// Registers the down:scheme and up:post fast lanes. Imports are evaluated
-// before this module's body, so they are registered before the eager
-// getClient() below (and in the IIFE, which bundles this entry).
+// Registers the fast lane modules (down:scheme and up:post; down:android
+// and up:android). Imports are evaluated before this module's body, so
+// they are registered before the eager getClient() below (and in the IIFE,
+// which bundles this entry).
 import "./lanes/scheme.js";
+import "./lanes/android.js";
 
 export { TangoSocket } from "./socket.js";
 

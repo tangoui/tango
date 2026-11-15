@@ -203,6 +203,7 @@ func (c *canvas) presentGPU(cpu bool) {
 		// live resize shows no stale frame.
 		procSetWindowPos.Call(c.sibling, attachHwndTop, 0, 0, uintptr(c.pxW), uintptr(c.pxH),
 			swpNoActivate|canvasGPUSwpShowWindow)
+		restackEmbeddedIn(c.parent) // webembed_windows.go: embedded views stay on top
 		canvasRedrawWindow.Call(c.sibling, 0, 0, canvasRdwInvalidate|canvasRdwUpdateNow)
 	case siblingRedraw:
 		canvasRedrawWindow.Call(c.sibling, 0, 0, canvasRdwInvalidate|canvasRdwUpdateNow)

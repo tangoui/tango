@@ -77,7 +77,7 @@ func TestTwoViewsKeepTheirWindows(t *testing.T) {
 	}
 	h.Edit(s, ns, []buffer.Edit{{Start: s.LineStart(50), End: s.LineStart(50), Text: "/* x\n*/\n"}})
 	highlightAll(t, h, ns)
-	want := fullTokenize(lx, ns)
+	want := fullTokenize(t, lx, ns)
 	for _, c := range []struct {
 		v           ViewKey
 		first, last int
@@ -108,7 +108,7 @@ func TestOverlappingWindowsConsistent(t *testing.T) {
 	ns, _ := s.Apply(e)
 	h.Edit(s, ns, e)
 	frame(t, h, a, ns, 0, 40)
-	want := fullTokenize(lx, ns)
+	want := fullTokenize(t, lx, ns)
 	for _, v := range []ViewKey{a, b} {
 		for i := 20; i <= 40; i++ {
 			if got, _ := h.TokensFor(v, ns, i, nil); !slices.Equal(got, want[i]) {

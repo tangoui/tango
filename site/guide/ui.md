@@ -53,7 +53,7 @@ func main() {
 
 ## 组件库
 
-组件按 Ant Design / Element Plus 的设计规范实现，每个组件只有一个公开入口，按通用、布局、导航、数据录入、数据展示、反馈分组。完整列表和截图见 [组件目录](/guide/components)。
+组件按 Ant Design / Element Plus 的设计规范实现，每个组件只有一个公开入口，按通用、布局、导航、数据录入、数据展示、反馈分组。每个组件的文档和在线示例见 [组件](/components/)，静态截图见 [组件截图目录](/components/screenshots)。
 
 编写新组件的约定（文件命名、节点与保留状态、布局、主题令牌、绘制、焦点与输入法、浮层、测试）在仓库的 [ui/AUTHORING.md](https://github.com/tangoui/tango/blob/main/ui/AUTHORING.md)。
 
@@ -288,6 +288,6 @@ WebView 窗口仍按重启处理（前端用 Vite HMR）。`tan dev -hot=false` 
 
 ## 相关
 
-- [组件目录](/guide/components)
+- [组件文档](/components/)
 - [多语言](/guide/i18n)：组件内置文案（日期选择、分页等）的语言
 - API：[ui](/reference/api/ui)、[uihost](/reference/api/uihost)、[ui/theme](/reference/api/ui-theme)
