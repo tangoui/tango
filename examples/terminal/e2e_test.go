@@ -13,6 +13,7 @@ package main
 //	TANGO_E2E=1 E2E_SHOTS=/tmp/shots go test ./examples/terminal -v  # also save screenshots
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -106,8 +107,12 @@ func TestAccept(t *testing.T) {
 		r.shot("01-ls-color")
 	})
 	t.Run("git log", func(t *testing.T) {
+		subject, err := exec.Command("git", "-C", repo, "log", "-1", "--format=%s").Output()
+		if err != nil {
+			t.Fatalf("git log: %v", err)
+		}
 		r.run("clear; git log --oneline --color=always | head -20")
-		r.waitText("size the segment cache")
+		r.waitText(strings.TrimSpace(string(subject)))
 		r.shot("02-git-log")
 	})
 	t.Run("history", func(t *testing.T) {
@@ -166,8 +171,7 @@ func TestAccept(t *testing.T) {
 		r.win.Press("Ctrl+U")
 	})
 	t.Run("paste multi-line (bracketed)", func(t *testing.T) {
-		old, _ := exec.Command("pbpaste").Output()
-		t.Cleanup(func() { setClipboard(t, string(old)) })
+		saveClipboard(t)
 		setClipboard(t, "echo paste-a\necho paste-b")
 		r.run("clear")
 		r.win.Press("Cmd+V")
@@ -182,8 +186,7 @@ func TestAccept(t *testing.T) {
 		r.shot("05-paste")
 	})
 	t.Run("select and copy", func(t *testing.T) {
-		old, _ := exec.Command("pbpaste").Output()
-		t.Cleanup(func() { setClipboard(t, string(old)) })
+		saveClipboard(t)
 		cellH := lineHeight(t, r)
 		r.run("clear; echo copy-me-please")
 		s := r.waitFor("copy-me-please", 5*time.Second, func(s string) bool { return slices.Contains(strings.Split(s, "\n"), "copy-me-please") })
@@ -239,16 +242,53 @@ func lineHeight(t *testing.T, r *rig) float32 {
 	return r.tb.Bounds().H / float32(rows)
 }
 
+var sttyN int
+
 func sttySize(t *testing.T, r *rig) (rows, cols int) {
 	t.Helper()
-	r.run("clear; stty size")
-	s := r.waitFor("stty size", 5*time.Second, func(s string) bool {
-		return len(strings.Fields(strings.Split(s, "\n")[0])) == 2
+	sttyN++
+	mark := "sz-" + strconv.Itoa(sttyN)
+	// The marker is split in the command line, so only the output has it.
+	r.run("clear; echo sz-''" + strconv.Itoa(sttyN) + " $(stty size)")
+	var f []string
+	r.waitFor("stty size "+mark, 5*time.Second, func(s string) bool {
+		for _, l := range strings.Split(s, "\n") {
+			if f = strings.Fields(l); len(f) == 3 && f[0] == mark {
+				return true
+			}
+		}
+		return false
 	})
-	f := strings.Fields(strings.Split(s, "\n")[0])
-	rows, _ = strconv.Atoi(f[0])
-	cols, _ = strconv.Atoi(f[1])
+	rows, _ = strconv.Atoi(f[1])
+	cols, _ = strconv.Atoi(f[2])
 	return rows, cols
+}
+
+// saveClipboard restores the user's clipboard when the test ends. A
+// clipboard that holds more than plain text (an image, files, rich text)
+// cannot be put back by pbcopy, so the test is skipped then.
+func saveClipboard(t *testing.T) {
+	t.Helper()
+	info, err := exec.Command("osascript", "-e", "clipboard info").Output()
+	if err != nil {
+		t.Skipf("cannot read the clipboard types: %v", err)
+	}
+	for _, f := range strings.Split(string(info), ",") {
+		f = strings.TrimSpace(f)
+		if f == "" || f[0] >= '0' && f[0] <= '9' {
+			continue // a size
+		}
+		switch f {
+		case "«class utf8»", "«class ut16»", "string", "Unicode text":
+		default:
+			t.Skipf("the clipboard holds %s, which this test could not restore", f)
+		}
+	}
+	old, err := exec.Command("pbpaste").Output()
+	if err != nil {
+		t.Skipf("cannot read the clipboard: %v", err)
+	}
+	t.Cleanup(func() { setClipboard(t, string(old)) })
 }
 
 func setClipboard(t *testing.T, s string) {
@@ -271,9 +311,24 @@ func TestAcceptResize(t *testing.T) {
 	r.run("PS1='$ '; clear")
 	r.waitFor("prompt", 10*time.Second, func(s string) bool { return strings.TrimSpace(s) == "$" })
 	rows0, cols0 := sttySize(t, r)
-	proc := procName(t)
-	script := `tell application "System Events" to tell (first process whose unix id is ` + proc + `) to set size of window 1 to {640, 400}`
-	if out, err := exec.Command("osascript", "-e", script).CombinedOutput(); err != nil {
+	// Give the window a title no other app has (the example's window
+	// follows the program's OSC 2 title) and resize the window by it.
+	title := fmt.Sprintf("tango-e2e-%d-%d", os.Getpid(), time.Now().UnixNano())
+	r.run(`printf '\033]2;%s\007' ` + title)
+	app.WindowMatching("the retitled window", func(w automation.WindowInfo) bool { return w.Title == title })
+	script := `tell application "System Events"
+	repeat with p in (every process whose background only is false)
+		repeat with w in (every window of p)
+			if name of w is "` + title + `" then
+				set size of w to {640, 400}
+				return "ok"
+			end if
+		end repeat
+	end repeat
+end tell
+return "not found"`
+	out, err := exec.Command("osascript", "-e", script).CombinedOutput()
+	if err != nil || strings.TrimSpace(string(out)) != "ok" {
 		t.Fatalf("osascript: %v: %s", err, out)
 	}
 	time.Sleep(300 * time.Millisecond) // past the 50 ms resize throttle
@@ -285,14 +340,4 @@ func TestAcceptResize(t *testing.T) {
 	r.shot("07-resized")
 	r.win.Type("sleep 0.5; exit")
 	r.win.Press("Enter")
-}
-
-// procName returns the pid of the launched example: automation builds it
-// as "app", the newest such process.
-func procName(t *testing.T) string {
-	out, err := exec.Command("pgrep", "-n", "-x", "app").Output()
-	if err != nil {
-		t.Fatalf("pgrep: %v", err)
-	}
-	return strings.TrimSpace(string(out))
 }

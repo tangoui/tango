@@ -24,13 +24,17 @@
 // so the line never wraps), one at a time, each as soon as the previous
 // one has been echoed, and logs the key-to-echo
 // latency (event posted until a frame shows the echo, including the PTY
-// round trip) and the frame intervals. -bench-cat FILE runs "cat FILE"
-// in the shell and logs the time until the output has been drawn and the
-// shell is back (it waits for a title the command sets after cat).
+// round trip) and the frame intervals; it needs a shell or -echo. Keys
+// are posted right after a frame is built, so the latency is that of a
+// key pressed just after a frame: the worst point of the display cycle.
+// -bench-cat FILE runs "cat FILE" in the shell and logs the time until
+// the output has been read and drawn (it waits for a line printed after
+// cat); it needs a shell.
 // -quit-after quits after the given duration (for scripted screenshots).
 package main
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
@@ -110,19 +114,34 @@ func page(c *ui.Context) {
 		auto.frame(c, cx, cy)
 	}
 	if bench != nil {
-		bench.frame(c, t)
+		bench.frame(c)
 	}
 }
 
-// countConn counts the bytes the program wrote.
+// countConn counts the bytes the program wrote and, for -bench-cat,
+// watches the output for a marker (the read loop is its only reader).
 type countConn struct {
 	terminal.Conn
-	n atomic.Int64
+	n      atomic.Int64
+	marker []byte
+	tail   []byte // the last len(marker)-1 bytes read, for a marker split across reads
+	seen   atomic.Bool
 }
+
+// watch makes Read look for marker in the output.
+func (c *countConn) watch(marker string) { c.marker = []byte(marker) }
 
 func (c *countConn) Read(b []byte) (int, error) {
 	n, err := c.Conn.Read(b)
 	c.n.Add(int64(n))
+	if len(c.marker) > 0 && n > 0 && !c.seen.Load() {
+		buf := append(c.tail, b[:n]...)
+		if bytes.Contains(buf, c.marker) {
+			c.seen.Store(true)
+		}
+		keep := min(len(buf), len(c.marker)-1)
+		c.tail = append(c.tail[:0], buf[len(buf)-keep:]...)
+	}
 	return n, err
 }
 
@@ -131,7 +150,6 @@ func (c *countConn) Read(b []byte) (int, error) {
 // records the latency and the frame intervals.
 type autoRun struct {
 	frameNow time.Time // c.Now of the frame last counted
-	frames   int
 	ready    time.Time // when the shell first printed something
 	last     time.Time
 	sent     time.Time // when the pending character was posted
@@ -216,7 +234,7 @@ type benchCat struct {
 
 const benchMarker = "tango-bench-cat-done"
 
-func (b *benchCat) frame(c *ui.Context, title string) {
+func (b *benchCat) frame(c *ui.Context) {
 	if b.done || c.Now().Equal(b.lastNow) {
 		return
 	}
@@ -234,8 +252,11 @@ func (b *benchCat) frame(c *ui.Context, title string) {
 			return
 		}
 		b.start, b.bytes0 = now, counter.n.Load()
-		term.Send(fmt.Appendf(nil, "cat %s; printf '\\033]2;%s\\007'\r", b.file, benchMarker))
-	case title == benchMarker:
+		// The marker is split in the command line, so only printf's
+		// output contains it.
+		h := len(benchMarker) / 2
+		term.Send(fmt.Appendf(nil, "cat %s; printf '%%s%%s\\n' '%s' '%s'\r", shellQuote(b.file), benchMarker[:h], benchMarker[h:]))
+	case counter.seen.Load():
 		b.done = true
 		d := now.Sub(b.start)
 		n := counter.n.Load() - b.bytes0
@@ -244,6 +265,32 @@ func (b *benchCat) frame(c *ui.Context, title string) {
 	default:
 		b.frames++
 	}
+}
+
+// shellQuote quotes s for a POSIX shell.
+func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+
+// runFlags are the flags that choose the connection and the measurements.
+type runFlags struct {
+	shell, replay, bench string
+	echo, auto           bool
+}
+
+// checkFlags rejects combinations that cannot work.
+func checkFlags(o runFlags) error {
+	switch {
+	case o.shell != "" && strings.TrimSpace(o.shell) == "":
+		return errors.New("-shell is blank")
+	case o.echo && o.replay != "":
+		return errors.New("-echo and -replay: choose one")
+	case o.auto && o.bench != "":
+		return errors.New("-auto and -bench-cat: run one at a time")
+	case o.auto && o.replay != "":
+		return errors.New("-auto needs input that comes back: a shell or -echo, not -replay")
+	case o.bench != "" && (o.echo || o.replay != ""):
+		return errors.New("-bench-cat runs cat in a shell: not with -echo or -replay")
+	}
+	return nil
 }
 
 func report(name string, d []time.Duration) {
@@ -319,9 +366,15 @@ func main() {
 	}
 	scheme, fontSize = sch, float32(*size)
 
+	if err := checkFlags(runFlags{shell: *shell, replay: *replay, bench: *benchFile, echo: *echo, auto: *autoFlag}); err != nil {
+		log.Fatalf("terminal: %v", err)
+	}
 	conn, what, err := connect(*shell, *replay, *echo)
 	if err != nil {
 		log.Fatalf("terminal: %v", err)
+	}
+	if *benchFile != "" && what == "echo" {
+		log.Fatalf("terminal: -bench-cat needs a shell; this platform has no pseudo-terminal")
 	}
 	if *autoFlag {
 		auto = &autoRun{}
@@ -332,6 +385,9 @@ func main() {
 	quit := true
 	app = tango.New(tango.Options{Name: defaultTitle, ID: "dev.tango.terminal", QuitOnLastClose: &quit})
 	counter = &countConn{Conn: conn}
+	if bench != nil {
+		counter.watch(benchMarker)
+	}
 	term = terminal.New(terminal.Options{Conn: counter, OnExit: func(err error) {
 		if err != nil {
 			log.Printf("terminal: connection ended: %v", err)
