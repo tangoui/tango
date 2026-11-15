@@ -386,9 +386,10 @@ func stdType(typ string) string {
 
 // lineTokens classifies from the first line, never treating dirty/degraded
 // highlighter tokens as definitive. One command has a shared work/time budget.
-// The deadline is checked before each atomic lexer call: a call may overshoot
-// by Monarch's line budget (including its two full 100ms regex attempts),
-// but no later line gets another allowance after exhaustion.
+// After a small bounded amount of work, the deadline is checked before each
+// atomic lexer call. A scheduler pause alone must not abandon a tiny command.
+// A call may overshoot by Monarch's line budget (including its two full 100ms
+// regex attempts); byte/line caps and degraded-token rejection still apply.
 const syntaxCommandLines = 128
 const syntaxCommandBytes = 32 * 1024
 const syntaxCommandBudget = 4 * time.Millisecond
@@ -422,7 +423,11 @@ func (lt *lineTokens) tokens(i int) []monarch.Token {
 		return nil
 	}
 	for lt.next <= i {
-		if lt.next >= syntaxCommandLines || time.Now().After(lt.deadline) {
+		// At most eight short lines or 1 KiB before the wall-clock cutoff
+		// applies. Hard work limits below always apply, as do the lexer's
+		// own budget and refusal to classify degraded tokens.
+		clockApplies := lt.next >= 8 || lt.bytes >= 1024
+		if lt.next >= syntaxCommandLines || clockApplies && time.Now().After(lt.deadline) {
 			lt.failed = true
 			return nil
 		}

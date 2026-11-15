@@ -303,9 +303,9 @@ func TestFinalClassificationIncompleteIsAtomicForReindent(t *testing.T) {
 	}
 	lt := s.newLineTokens(m.Snapshot())
 	lt.deadline = time.Now().Add(-time.Second)
-	lt.tokens(0)
-	if !lt.failed || lt.next != 0 {
-		t.Fatal("expired command still tokenized")
+	lt.tokens(100)
+	if !lt.failed || lt.next > 8 {
+		t.Fatalf("expired command exceeded its small progress allowance: next=%d failed=%v", lt.next, lt.failed)
 	}
 }
 
