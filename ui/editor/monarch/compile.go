@@ -385,6 +385,8 @@ type matcher struct {
 type compiledRe struct {
 	src, flags string
 	re         regex.Regexp // 锚定在开头；编译失败为 nil（永不匹配）
+	firstByte  byte
+	hasFirst   bool
 	searchOnce sync.Once
 	search     *regexp.Regexp // 非锚定搜索；不能翻译成 RE2 时为 nil，退回逐位置 MatchStart
 }
@@ -395,7 +397,31 @@ func (g *grammar) newCompiledRe(src, flags string) *compiledRe {
 		g.warnings = append(g.warnings, fmt.Sprintf("regex %q: %v", src, err))
 		re = nil
 	}
-	return &compiledRe{src: src, flags: flags, re: re}
+	firstByte, hasFirst := byte(0), false
+	if re != nil && re.Engine() == regex.Backtrack && !strings.Contains(flags, "i") {
+		firstByte, hasFirst = backtrackLiteralFirst(src)
+	}
+	return &compiledRe{src: src, flags: flags, re: re, firstByte: firstByte, hasFirst: hasFirst}
+}
+
+func backtrackLiteralFirst(src string) (byte, bool) {
+	i := 0
+	if i < len(src) && src[i] == '^' {
+		i++
+	}
+	if i >= len(src) {
+		return 0, false
+	}
+	if src[i] == '\\' {
+		if i+1 >= len(src) || !strings.ContainsRune(`/\\*+?.()[]{}^$|`, rune(src[i+1])) {
+			return 0, false
+		}
+		return src[i+1], true
+	}
+	if src[i] >= 0x80 || strings.ContainsRune(`.^$*+?(){}|[`, rune(src[i])) {
+		return 0, false
+	}
+	return src[i], true
 }
 
 func (m *matcher) resolve(state string) *compiledRe {
@@ -412,7 +438,11 @@ func (m *matcher) resolve(state string) *compiledRe {
 	if err != nil {
 		re = nil
 	}
-	c := &compiledRe{src: src, flags: m.flags, re: re}
+	firstByte, hasFirst := byte(0), false
+	if re != nil && re.Engine() == regex.Backtrack && !strings.Contains(m.flags, "i") {
+		firstByte, hasFirst = backtrackLiteralFirst(src)
+	}
+	c := &compiledRe{src: src, flags: m.flags, re: re, firstByte: firstByte, hasFirst: hasFirst}
 	if len(m.cache) > 1024 { // 状态名可由输入决定，防止无界增长
 		clear(m.cache)
 	}

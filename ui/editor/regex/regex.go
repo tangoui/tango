@@ -147,11 +147,22 @@ type stdRegexp struct {
 	ngroups int
 }
 
-func (r *stdRegexp) MatchStart(s string) []int { return r.re.FindStringSubmatchIndex(s) }
+func (r *stdRegexp) MatchStart(s string) []int {
+	if r.ngroups == 0 {
+		return r.re.FindStringIndex(s)
+	}
+	return r.re.FindStringSubmatchIndex(s)
+}
 func (r *stdRegexp) MatchStartRunes(s string, _ []rune) []int {
+	if r.ngroups == 0 {
+		return r.re.FindStringIndex(s)
+	}
 	return r.re.FindStringSubmatchIndex(s)
 }
 func (r *stdRegexp) TryMatchStart(s string, _ []rune) ([]int, error) {
+	if r.ngroups == 0 {
+		return r.re.FindStringIndex(s), nil
+	}
 	return r.re.FindStringSubmatchIndex(s), nil
 }
 func (r *stdRegexp) Engine() Engine { return Std }

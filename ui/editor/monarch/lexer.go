@@ -70,10 +70,11 @@ type Lexer struct {
 	g       *grammar
 	intern  interner
 	initial State
+	fastGo  bool // built-in Go grammar only; custom registry replacements use Monarch
 }
 
 func newLexer(reg *Registry, id string, g *grammar) *Lexer {
-	l := &Lexer{reg: reg, id: id, g: g}
+	l := &Lexer{reg: reg, id: id, g: g, fastGo: id == "go" && g.defaultToken == "" && g.tokenPostfix == ".go"}
 	l.intern.stacks = map[stackKey]*stackElem{}
 	l.intern.ids = map[lineState]State{}
 	l.initial = l.internState(lineState{stack: l.stackElem(nil, g.start)})
@@ -112,6 +113,12 @@ func (l *Lexer) tokenizeLineInfo(line string, st State, dst []Token, now func() 
 		st, ls = l.initial, l.mustState(l.initial)
 	}
 	base := len(dst)
+	if l.fastGo && st == l.initial && len(line) <= MaxLineLength {
+		if fast, fastOK := fastGoLine(line, dst); fastOK {
+			fillUTF16(line, fast[base:])
+			return fast, st, LineInfo{}
+		}
+	}
 	cut, cutCol := -1, 0
 	if len(line) > MaxLineLength { // UTF-16 长度不超过字节长度
 		cut, cutCol = cutUTF16(line, MaxLineLength)
@@ -477,7 +484,8 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 	stack := ls.stack
 	pos := 0
 	var gm *groupMatching
-	force := true // 空行也至少执行一次规则（monaco-editor#1235）
+	var singleCapt [1]capt // reused for the common no-capture rule path
+	force := true          // 空行也至少执行一次规则（monaco-editor#1235）
 	ctx := &matchCtx{budget: &c.budget}
 	var lr *lineRunes // 长行上整行的 []rune，供回溯引擎复用（见 longLineBytes）
 	emptyRun := 0     // 连续无进展（没有越过 high）的次数
@@ -532,8 +540,12 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 				if pos != 0 && ru.atLineStart {
 					continue
 				}
-				re := ru.m.resolve(state).re
+				cr := ru.m.resolve(state)
+				re := cr.re
 				if re == nil {
+					continue
+				}
+				if cr.hasFirst && len(rest) > 0 && rest[0] < utf8.RuneSelf && rest[0] != cr.firstByte {
 					continue
 				}
 				backtracked = backtracked || re.Engine() == regex.Backtrack
@@ -542,7 +554,12 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 					return ls, err
 				}
 				if m != nil {
-					matches = toCaptures(rest, m)
+					if len(m) == 2 {
+						singleCapt[0] = capt{rest[m[0]:m[1]], true}
+						matches = singleCapt[:]
+					} else {
+						matches = toCaptures(rest, m)
+					}
 					matched, act, r = matches[0].s, ru.action, ru
 					break
 				}
