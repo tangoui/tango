@@ -53,7 +53,8 @@ func ShapeRuns(s string, runs []Run, opt Options) *Layout {
 	mu.Lock()
 	defer mu.Unlock()
 	if v != cacheV {
-		cache = map[cacheKey]*Layout{}
+		resetLayouts()
+		clearPrepared()
 		runsCache = map[runsKey]*Layout{}
 		cacheV = v
 	}
@@ -81,7 +82,7 @@ func shapeRunsUncached(s string, runs []Run, opt Options) *Layout {
 }
 
 func normOptions(opt Options) Options {
-	if geom.IsInf(opt.MaxWidth) || opt.MaxWidth < 0 {
+	if geom.IsInf(opt.MaxWidth) || opt.MaxWidth < 0 || (opt.NoWrap && !opt.Ellipsis) {
 		opt.MaxWidth = 0
 	}
 	return opt

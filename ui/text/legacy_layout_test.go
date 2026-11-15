@@ -160,3 +160,6 @@ func legacyLayout(s string, st Style, opt Options, chain []*family) *Layout {
 	l.Height = float32(len(l.Lines)) * st.LineHeight
 	return l
 }
+
+// Reference shaper belongs to the frozen legacy implementation, not the runtime.
+var shaper shaping.HarfbuzzShaper

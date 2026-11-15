@@ -14,11 +14,39 @@ type Color = color.NRGBA
 // Hex parses "#rgb", "#rrggbb" or "#rrggbbaa". It panics on malformed input
 // because it is meant for literal design tokens.
 func Hex(s string) Color {
+	// Design tokens overwhelmingly use literal #rrggbb values. Decode those
+	// directly so hot UI rebuilds do not allocate through TrimSpace/ParseUint.
+	if len(s) == 7 && s[0] == '#' {
+		if v, ok := hex6(s[1:]); ok {
+			return Color{R: uint8(v >> 16), G: uint8(v >> 8), B: uint8(v), A: 255}
+		}
+	}
 	c, err := ParseHex(s)
 	if err != nil {
 		panic(err)
 	}
 	return c
+}
+
+func hex6(s string) (uint32, bool) {
+	if len(s) != 6 {
+		return 0, false
+	}
+	var v uint32
+	for _, c := range []byte(s) {
+		v <<= 4
+		switch {
+		case c >= '0' && c <= '9':
+			v |= uint32(c - '0')
+		case c >= 'a' && c <= 'f':
+			v |= uint32(c - 'a' + 10)
+		case c >= 'A' && c <= 'F':
+			v |= uint32(c - 'A' + 10)
+		default:
+			return 0, false
+		}
+	}
+	return v, true
 }
 
 // ParseHex is the error-returning form of Hex. It accepts 3, 4, 6 or 8

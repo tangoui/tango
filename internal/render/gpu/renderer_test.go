@@ -453,7 +453,7 @@ func TestRendererAtlasPersistent(t *testing.T) {
 			t.Fatalf("frame %d: %.3f%% over (max %d)", i, res.Frac*100, res.MaxDiff)
 		}
 	}
-	if dev.last.MaskSize != image.Pt(2048, 2048) {
+	if dev.last.MaskSize != image.Pt(atlasPageSize, atlasPageSize) {
 		t.Fatalf("mask size %v", dev.last.MaskSize)
 	}
 }
@@ -606,15 +606,41 @@ func TestPatchPageOverflow(t *testing.T) {
 		}
 	}
 
-	// The default page: a gradient wider than 2048 device pixels is tiled.
+	// The default page: a gradient wider than the page is tiled.
 	g := &paint.List{Background: white}
 	g.Add(paint.LinearGradient{Rect: geom.R(2, 2, 1096, 20), P0: geom.Pt(2, 0), P1: geom.Pt(1098, 0), From: blue, To: red})
 	want, got, dev := renderBoth(t, g, geom.Size{W: 1100, H: 24}, 2)
 	if res := compare(got, want, 2); res.Frac > 0.005 {
 		t.Fatalf("wide gradient: %.3f%% over (max %d)", res.Frac*100, res.MaxDiff)
 	}
-	if dev.last.ColorSize != image.Pt(2048, 2048) {
+	if dev.last.ColorSize != image.Pt(patchPageMin, patchPageMin) {
 		t.Fatalf("color size %v", dev.last.ColorSize)
+	}
+}
+
+// The patch page starts small and doubles after a frame that overflowed it,
+// up to patchPageMax; a frame that fits keeps the size.
+func TestPatchPageGrowsWithUse(t *testing.T) {
+	// A path larger than an atlas page is drawn as patches.
+	star := func(size float32) *paint.List {
+		l := &paint.List{Background: white}
+		l.Add(paint.FillPath{Path: paint.NewPath().MoveTo(0, size/2).LineTo(size, 0).LineTo(size*0.6, size).LineTo(size/2, size*0.2).Close(), Color: red})
+		return l
+	}
+	small, big := star(40), star(1500)
+
+	dev := &cpuDevice{}
+	r := NewRenderer(dev)
+	sizes := []int{}
+	for _, l := range []*paint.List{small, small, big, big, big, big, small} {
+		if err := r.Render(l, geom.Size{W: 1500, H: 1500}, 1); err != nil {
+			t.Fatal(err)
+		}
+		sizes = append(sizes, dev.last.ColorSize.X)
+	}
+	want := []int{512, 512, 512, 1024, 2048, 2048, 2048}
+	if fmt.Sprint(sizes) != fmt.Sprint(want) {
+		t.Fatalf("patch page sizes %v, want %v", sizes, want)
 	}
 }
 

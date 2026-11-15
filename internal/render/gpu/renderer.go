@@ -143,8 +143,9 @@ import (
 //     of the outer rounded clips are clipped as plain rectangles for solid
 //     and glyph instances and for patches.
 //
-// The patch page is one fixed square texture of patchPageSize texels,
-// shelf-packed from empty every frame. When a patch does not fit, the page
+// The patch page is one square texture, shelf-packed from empty every
+// frame. It starts at patchPageMin texels and doubles (up to patchPageMax)
+// after a frame that had to flush it, so a small UI keeps a small texture. When a patch does not fit, the page
 // is flushed: packing restarts at the top, the following patch uploads go
 // into Batch.Uploads of a new batch (applied after the earlier batches have
 // drawn), and drawing continues; a patch larger than the page is split into
@@ -255,12 +256,17 @@ type group struct {
 // to, so groups of similar sizes share a device's pooled textures.
 const layerAlign = 64
 
-// Default texture sizes. Pages are 2048 texels square (well within every
-// Metal device's limit); the glyph atlas grows to 4 pages (2048×8192 R8).
+// Default texture sizes, well within every Metal device's limit. The
+// patch page starts small and grows with use (see Renderer). Atlas pages
+// are 1024 texels square and the atlas grows page by page to 16 (1024×16384
+// R8, as much as 4 pages of 2048): an app drawing little text holds one
+// 1 MiB page (and its CPU copy) instead of 4 MiB. A mask larger than a page
+// (a path over 1024 device pixels) is drawn as a patch.
 const (
-	patchPageSize = 2048
-	atlasPageSize = 2048
-	atlasPages    = 4
+	patchPageMin  = 512
+	patchPageMax  = 2048
+	atlasPageSize = 1024
+	atlasPages    = 16
 )
 
 // clipState is the effective clip and transform after a push (PushClip,
@@ -283,7 +289,7 @@ type clipState struct {
 // NewRenderer returns a Renderer drawing through dev.
 func NewRenderer(dev Device) *Renderer {
 	r := &Renderer{dev: dev, cpu: paint.NewCPU(), atlas: atlas.New(atlasPageSize, atlasPages), ramps: newRampCache(),
-		images: newImageCache(), imageBudget: defaultImageBudget, logf: log.Printf, patchSize: patchPageSize, verify: verifyDefault,
+		images: newImageCache(), imageBudget: defaultImageBudget, logf: log.Printf, patchSize: patchPageMin, verify: verifyDefault,
 		verifyStrict: testing.Testing()}
 	r.glyphMask = r.cpu.GlyphMask
 	r.pathRaster = r.cpu.PathMask
@@ -507,6 +513,10 @@ func (r *Renderer) frame1(bg color.NRGBA, ops []paint.Op, fs image.Point, scale 
 	px := r.atlas.Pixels()
 	f.MaskSize = px.Rect.Size()
 	f.ColorSize = image.Pt(r.patchSize, r.patchSize)
+	if r.flushed && r.patchSize < patchPageMax {
+		// This frame's patches did not fit: the next frames get a larger page.
+		r.patchSize = min(r.patchSize*2, patchPageMax)
+	}
 	f.RampSize = r.ramps.size()
 	f.Uploads = r.ramps.uploads(f.Uploads)
 	r.images.frameLists(f)

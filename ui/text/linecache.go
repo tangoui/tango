@@ -347,7 +347,7 @@ func (fp *fastPath) font(w Weight, italic bool) *fastFont {
 		return ff
 	}
 	chain := reg.chain(true)
-	fm := &fontmap{chain: chain, w: w, italic: italic, byFF: map[*font.Face]*Face{}, feats: noLigaFeatures}
+	fm := &fontmap{chain: chain, w: w, italic: italic, feats: noLigaFeatures}
 	if len(chain) > 0 {
 		fm.eng = reg.engineFallback()
 	}
@@ -390,7 +390,7 @@ func (ff *fastFont) lookup(r rune) *Face {
 			ff.high[r] = res
 		}
 		if res.f != nil {
-			ff.byFont[res.f.face] = res.f
+			ff.byFont[res.f.gt()] = res.f
 			ff.fams[res.f] = res.fam
 		}
 	}
@@ -426,15 +426,15 @@ func (ff *fastFont) ResolveFace(r rune) *font.Face {
 		f, fam := ff.firstTried(r)
 		ff.first = f
 		if f != nil {
-			ff.byFont[f.face] = f
+			ff.byFont[f.gt()] = f
 			ff.fams[f] = fam
 		}
 	}
 	if f := ff.lookup(r); f != nil {
-		return f.face
+		return f.gt()
 	}
 	if ff.first != nil {
-		return ff.first.face
+		return ff.first.gt()
 	}
 	return nil
 }
@@ -458,7 +458,7 @@ func (fp *fastPath) isSafe(f *Face, fam *family) bool {
 	}
 	ok := true
 	if fam == nil || fam.class != classEmoji {
-		ft := f.face.Font
+		ft := f.gt().Font
 		ok = len(ft.Morx) == 0 && len(ft.Kern) == 0 && len(ft.Kerx) == 0
 		for _, x := range ft.GPOS.Features {
 			ok = ok && x.Tag != tagKern && x.Tag != tagDist && x.Tag != tagCurs
@@ -618,7 +618,7 @@ func (fp *fastPath) counted() {
 }
 
 func (fp *fastPath) shapeUnit(runes []rune, a, b int, k asciiKey) []sg {
-	in := shaping.Input{Text: runes, RunStart: a, RunEnd: b, Direction: di.DirectionLTR, Face: k.face.face,
+	in := shaping.Input{Text: runes, RunStart: a, RunEnd: b, Direction: di.DirectionLTR, Face: k.face.gt(),
 		Size: fixed.Int26_6(k.size * 64), Script: k.script, Language: k.lang, FontFeatures: noLigaFeatures}
 	if shapeHook != nil {
 		shapeHook(in)

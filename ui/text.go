@@ -64,6 +64,8 @@ type Label struct {
 	strike   bool
 	code     bool
 	mark     bool
+	lay      *text.Layout
+	layText  string
 	disabled bool
 }
 
@@ -72,10 +74,20 @@ func (c *Context) style(size float32, w text.Weight) text.Style {
 }
 
 func newLabel(c *Context, kind, s string, size float32, w text.Weight) *Label {
-	t := &Label{c: c, s: s, st: c.style(size, w)}
-	t.n = c.add(kind, s)
-	t.n.ln.Measure = t.measure
-	t.n.paint = t.paint
+	n := c.add(kind, "")
+	n.label = s
+	t := n.labelWidget
+	var old *text.Layout
+	if t != nil {
+		old = t.lay
+	} else {
+		t = c.allocLabel()
+	}
+	*t = Label{c: c, s: s, st: c.style(size, w), lay: old}
+	t.n = n
+	n.labelWidget = t
+	n.ln.Measure = t.measure
+	n.paint = t.paint
 	return t
 }
 
@@ -126,6 +138,16 @@ func (t *Label) opts(maxW float32) text.Options {
 	return o
 }
 
+func (t *Label) shape(maxW float32) *text.Layout {
+	o := t.opts(maxW)
+	if t.lay != nil && t.layText == t.s && o.NoWrap && !o.Ellipsis {
+		return t.lay
+	}
+	t.lay = text.ShapeInto(t.lay, t.s, t.st, o)
+	t.layText = t.s
+	return t.lay
+}
+
 func (t *Label) measure(maxW, maxH float32) geom.Size {
 	w := maxW
 	if t.opt.Ellipsis {
@@ -135,7 +157,7 @@ func (t *Label) measure(maxW, maxH float32) geom.Size {
 	if t.opt.NoWrap {
 		o.MaxWidth = 0
 	}
-	sz := text.Shape(t.s, t.st, o).Size()
+	sz := t.shape(w).Size()
 	if t.code {
 		sz.W += 8
 	}
@@ -159,7 +181,7 @@ func (t *Label) paint(l *paint.List, r geom.Rect) { t.paintCol(l, r, t.color()) 
 
 // paintCol draws the label in col.
 func (t *Label) paintCol(l *paint.List, r geom.Rect, col theme.Color) {
-	lay := text.Shape(t.s, t.st, t.opts(r.W+0.5))
+	lay := t.shape(r.W + 0.5)
 	x := r.X
 	if t.code || t.mark {
 		tk := &t.c.ThemeFor(theme.CompTypography).Components.Typography
