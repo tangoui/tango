@@ -5,8 +5,9 @@ package theme
 // under it, the bar is frosted — a backdrop blur (paint.BackdropBlur) of
 // BlurRadius under the translucent FrostedBg, like Ant Design Pro's
 // FooterToolbar and shadcn/ui's sticky bars (bg-background/60 with
-// backdrop-blur). In flow, in high-contrast themes and on renderers
-// without backdrop blur it draws Bg (opaque in high contrast).
+// backdrop-blur). In flow it draws Bg. When pinned, ui.FooterToolbar uses
+// FrostedBg + BlurRadius when supported; HighContrast themes and renderers
+// without backdrop blur use the opaque theme.BgContainer fallback.
 type FooterToolbarToken struct {
 	Alias
 	Bg         Color   // background in flow (slightly translucent)

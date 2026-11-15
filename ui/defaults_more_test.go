@@ -203,6 +203,191 @@ func TestDefaultsWiring(t *testing.T) {
 	}
 }
 
+func TestDefaultsNested(t *testing.T) {
+	day := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	var outerSize, innerSize, explicitSize ControlSize
+	var outerPicker, innerPicker, explicitPicker PickerType
+	var outerLoading, innerLoading, explicitLoading ControlSize
+	d := NewDriver(func(c *Context) {
+		ConfigProvider(c).
+			Defaults("Addon", Props{"size": Large}).
+			Defaults("DatePicker", Props{"picker": PickerMonth}).
+			Defaults("Spin", Props{"size": "large"}).
+			Body(func() {
+				outerSize = Addon(c, "outer").size
+				outerPicker = DatePickerPanel(c, &day).picker
+				outerLoading = Loading(c, true).size
+				ConfigProvider(c).
+					Defaults("Addon", Props{"size": Small}).
+					Defaults("DatePicker", Props{"picker": PickerYear}).
+					Defaults("Spin", Props{"size": "small"}).
+					Body(func() {
+						innerSize = Addon(c, "inner").size
+						explicitSize = Addon(c, "explicit").Size(Middle).size
+						innerPicker = DatePickerPanel(c, &day).picker
+						explicitPicker = DatePickerPanel(c, &day).Picker(PickerDate).picker
+						innerLoading = Loading(c, true).size
+						explicitLoading = Loading(c, true).Size(Large).size
+					})
+			})
+	}, DriverOptions{Width: 800, Height: 600})
+	d.Frame()
+	if outerSize != Large || innerSize != Small || explicitSize != Middle {
+		t.Fatalf("nested Addon defaults: outer %v inner %v explicit %v", outerSize, innerSize, explicitSize)
+	}
+	if outerPicker != PickerMonth || innerPicker != PickerYear || explicitPicker != PickerDate {
+		t.Fatalf("nested DatePicker defaults: outer %v inner %v explicit %v", outerPicker, innerPicker, explicitPicker)
+	}
+	if outerLoading != Large || innerLoading != Small || explicitLoading != Large {
+		t.Fatalf("nested Spin defaults: outer %v inner %v explicit %v", outerLoading, innerLoading, explicitLoading)
+	}
+}
+
+func TestDefaultsInvalidType(t *testing.T) {
+	type invalidCase struct {
+		name  string
+		comp  string
+		props Props
+		build func(*Context) any
+	}
+	day := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	cases := []invalidCase{
+		{"Addon size", "Addon", Props{"size": 42}, func(c *Context) any { return Addon(c, "x").size }},
+		{"BackTop number", "BackTop", Props{"visibilityHeight": "200"}, func(c *Context) any {
+			w := BackTop(c, 0)
+			return defSp(w.visible, w.dur)
+		}},
+		{"Flex gap", "Flex", Props{"gap": struct{}{}}, func(c *Context) any { return Flex(c).b.n.ln.Gap }},
+		{"FloatButtonGroup trigger", "FloatButtonGroup", Props{"trigger": 1}, func(c *Context) any {
+			return FloatButtonGroup(c).trigger
+		}},
+		{"SplitterPanel collapsible", "SplitterPanel", Props{"collapsible": "true"}, func(c *Context) any {
+			p := SplitterPanel(c)
+			return defSp(p.collapsible, p.fixed)
+		}},
+		{"Command placeholder", "Command", Props{"placeholder": 1}, func(c *Context) any {
+			w := Command(c, nil)
+			return w.place + w.empty
+		}},
+		{"CascaderPanel boolean", "Cascader", Props{"changeOnSelect": "true"}, func(c *Context) any {
+			w := CascaderPanel(c, nil, nil).cas
+			return w.changeOnSelect
+		}},
+		{"Checkbox size", "Checkbox", Props{"size": 1}, func(c *Context) any {
+			return Checkbox(c, "a", new(bool)).size
+		}},
+		{"ColorPicker format", "ColorPicker", Props{"format": 1}, func(c *Context) any {
+			return ColorPickerPanel(c, new(theme.Color)).cp.st.format
+		}},
+		{"DatePickerPanel picker", "DatePicker", Props{"picker": "month"}, func(c *Context) any {
+			return DatePickerPanel(c, &day).picker
+		}},
+		{"TimePanel format", "TimePicker", Props{"format": 15}, func(c *Context) any {
+			w := TimePanel(c, &day)
+			return defSp(w.format, w.clock.use12, w.steps)
+		}},
+		{"MultiDatePicker format", "DatePicker", Props{"format": 15}, func(c *Context) any {
+			w := MultiDatePicker(c, new([]time.Time))
+			return defSp(w.format, w.box.placeholder, w.picker, w.box.size)
+		}},
+		{"MarkdownEditor mode", "MarkdownEditor", Props{"mode": 1}, func(c *Context) any {
+			return MarkdownEditor(c, new(string)).mode
+		}},
+		{"AvatarGroup maxCount", "AvatarGroup", Props{"maxCount": "3"}, func(c *Context) any {
+			return AvatarGroup(c).max
+		}},
+		{"BadgeRibbon placement", "BadgeRibbon", Props{"placement": 1}, func(c *Context) any {
+			BadgeRibbon(c, "hot", "", "", func() {})
+			return badgeRibbonPlacement(c, "")
+		}},
+		{"Countdown format", "Countdown", Props{"format": 1}, func(c *Context) any {
+			return Countdown(c, "", day).format
+		}},
+		{"InfiniteScroll distance", "InfiniteScroll", Props{"distance": "50"}, func(c *Context) any {
+			return InfiniteScroll(c, func() {}).distance
+		}},
+		{"Listy split", "Listy", Props{"split": "false"}, func(c *Context) any {
+			w := Listy(c, 0, func(int) {})
+			return defSp(w.split, w.hoverable)
+		}},
+		{"Tour mask", "Tour", Props{"mask": "false"}, func(c *Context) any {
+			w := Tour(c, new(bool), new(int), nil)
+			return w.mask
+		}},
+		{"VirtualTree strict", "VirtualTree", Props{"checkStrictly": "true"}, func(c *Context) any {
+			return VirtualTree(c, nil).strict
+		}},
+		{"Item variant", "Item", Props{"variant": 1}, func(c *Context) any {
+			return Item(c, "a").variant
+		}},
+		{"ButtonGroup type", "ButtonGroup", Props{"type": 1}, func(c *Context) any {
+			return ButtonGroup(c).variant
+		}},
+		{"Button autoInsertSpace", "Button", Props{"autoInsertSpace": "true"}, func(c *Context) any {
+			return Button(c, "确定").shownLabel()
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var base, got any
+			d := NewDriver(func(c *Context) {
+				base = tc.build(c)
+				ConfigProvider(c).Defaults(tc.comp, tc.props).Body(func() {
+					got = tc.build(c)
+				})
+			}, DriverOptions{Width: 800, Height: 600})
+			d.Frame()
+			if !reflect.DeepEqual(got, base) {
+				t.Fatalf("invalid %s default: got %v, built-in %v", tc.comp, got, base)
+			}
+		})
+	}
+}
+
+func TestDefaultsUnknownAndUndeclared(t *testing.T) {
+	var base, unknown, undeclared, unknownProp any
+	d := NewDriver(func(c *Context) {
+		base = Addon(c, "x").size
+		ConfigProvider(c).Defaults("UnknownComponent", Props{"size": Large}).Body(func() {
+			unknown = Addon(c, "x").size
+		})
+		ConfigProvider(c).Defaults("Content", Props{"size": Large}).Body(func() {
+			undeclared = Addon(c, "x").size
+		})
+		ConfigProvider(c).Defaults("Addon", Props{"unknownProp": Large}).Body(func() {
+			unknownProp = Addon(c, "x").size
+		})
+	}, DriverOptions{Width: 800, Height: 600})
+	d.Frame()
+	if !reflect.DeepEqual(base, unknown) || !reflect.DeepEqual(base, undeclared) || !reflect.DeepEqual(base, unknownProp) {
+		t.Fatalf("unknown or undeclared defaults changed built-in value: base=%v unknown=%v undeclared=%v unknownProp=%v", base, unknown, undeclared, unknownProp)
+	}
+}
+
+func TestTimeRangePickerDoesNotInheritTimePickerDefaults(t *testing.T) {
+	var span [2]time.Time
+	var isolated, configured, explicit *TimeRangePickerW
+	d := NewDriver(func(c *Context) {
+		ConfigProvider(c).Defaults("TimePicker", Props{"use12Hours": true, "format": "03:04 PM"}).Body(func() {
+			isolated = TimeRangePicker(c, &span)
+		})
+		ConfigProvider(c).Defaults("TimeRangePicker", Props{"use12Hours": true, "format": "15:04"}).Body(func() {
+			configured = TimeRangePicker(c, &span)
+			explicit = TimeRangePicker(c, &span).Format("15:04:05").Use12Hours()
+		})
+	}, DriverOptions{Width: 600, Height: 300})
+	d.Frame()
+	if isolated.clock.use12 || isolated.layout() != "15:04:05" {
+		t.Fatalf("TimePicker defaults leaked into TimeRangePicker: use12=%v format=%q", isolated.clock.use12, isolated.layout())
+	}
+	if !configured.clock.use12 || configured.layout() != "15:04" {
+		t.Fatalf("TimeRangePicker defaults not applied: use12=%v format=%q", configured.clock.use12, configured.layout())
+	}
+	if !explicit.clock.use12 || explicit.layout() != "15:04:05" {
+		t.Fatalf("explicit TimeRangePicker modifiers did not win: use12=%v format=%q", explicit.clock.use12, explicit.layout())
+	}
+}
+
 // TestButtonAutoInsertSpaceRules: only two Han characters, no icon, not
 // text / link; the accessible name keeps the label.
 func TestButtonAutoInsertSpaceRules(t *testing.T) {

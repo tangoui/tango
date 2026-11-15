@@ -70,54 +70,80 @@ func pro2PageContainerDemo(c *ui.Context) {
 
 func pro2FooterToolbarDemo(c *ui.Context) {
 	th := c.Theme
-	// The scroll box's ID from the last frame: the bar pins to its bottom.
-	var target ui.ID
-	if r := ui.State[ui.ID](c, ui.ID(7101), nil); r != nil {
-		target = *r
-	}
+	ui.Text(c, "FooterToolbar 支持普通流、Sticky() 窗口吸底和 Target(scrollBox) 容器吸底；固定时为 Tango 适配的毛玻璃，HighContrast 或不支持模糊的渲染器自动使用不透明背景。").Tertiary().
+		Layout(layout.Margin(geom.Insets{Bottom: 8}))
 	pro2Canvas(c, func() {
-		sb := ui.Scroll(c, func() {
-			ui.ProCard(c, "仓库管理").Body(func() {
-				ui.Paragraph(c, "底部操作栏吸底时以毛玻璃浮在内容之上：下方滚过的文字与色块被模糊后透出半透明底色。")
-				for i := 0; i < 4; i++ {
-					ui.Row(c, func() {
-						for k, col := range []struct {
-							bg, fg theme.Color
-							label  string
-						}{
-							{th.Primary.Base, th.TextOnPrimary, "入库"},
-							{th.Success.Base, th.TextOnPrimary, "在库"},
-							{th.Warning.Base, th.TextOnPrimary, "预警"},
-							{th.Error.Base, th.TextOnPrimary, "缺货"},
-						} {
-							ui.Column(c, func() {
-								ui.Text(c, col.label).Color(col.fg).Strong()
-								ui.Text(c, fmt.Sprintf("%d 件", 120+i*37+k*11)).Color(col.fg)
-							}, layout.Grow(1), layout.PadVH(10, 12), layout.Gap(2)).Bg(col.bg).Radius(th.Radius)
-						}
-					}, layout.Gap(12))
-					ui.Gap(c, 12)
-					ui.Skeleton(c).Rows(2).Show()
-					ui.Gap(c, 12)
-				}
-			})
-			ui.FooterToolbar(c).Target(target).
-				Extra(func() {
+		// Target-sticky is first so the state is visible even in the fixed-size
+		// strict damage verifier. The bar is anchored to this ScrollBox rather
+		// than to the window.
+		ui.ProCard(c, "Target（滚动容器底部）").SubTitle("Affix 到指定 ScrollBox").Body(func() {
+			sb := ui.Scroll(c, nil, layout.H(300), layout.MinH(0))
+			sb.Body(func() {
+				ui.ProCard(c, "仓库管理").Body(func() {
+					ui.Paragraph(c, "底部操作栏吸底时以毛玻璃浮在内容之上：下方滚过的文字与色块被模糊后透出半透明底色。")
+					for i := 0; i < 4; i++ {
+						ui.Row(c, func() {
+							for k, col := range []struct {
+								bg, fg theme.Color
+								label  string
+							}{
+								{th.Primary.Base, th.TextOnPrimary, "入库"},
+								{th.Success.Base, th.TextOnPrimary, "在库"},
+								{th.Warning.Base, th.TextOnPrimary, "预警"},
+								{th.Error.Base, th.TextOnPrimary, "缺货"},
+							} {
+								ui.Column(c, func() {
+									ui.Text(c, col.label).Color(col.fg).Strong()
+									ui.Text(c, fmt.Sprintf("%d 件", 120+i*37+k*11)).Color(col.fg)
+								}, layout.Grow(1), layout.PadVH(10, 12), layout.Gap(2)).Bg(col.bg).Radius(th.Radius)
+							}
+						}, layout.Gap(12))
+						ui.Gap(c, 12)
+						ui.Skeleton(c).Rows(2).Show()
+						ui.Gap(c, 12)
+					}
+				})
+				ui.Gap(c, 320)
+				ui.FooterToolbar(c).Target(sb.ID()).Extra(func() {
 					ui.Icon(c, icon.Info).Size(16).Color(th.Primary.Base)
 					ui.Text(c, "表单有 2 处修改尚未保存")
-				}).
-				Body(func() {
+				}).Body(func() {
 					ui.Button(c, "取消")
 					ui.Button(c, "提交").Primary()
 				})
-		}, layout.Grow(1), layout.MinH(0), layout.Pad(16))
-		*ui.State[ui.ID](c, ui.ID(7101), nil) = sb.ID()
-	}, layout.H(360), layout.Pad(0), layout.Gap(0))
-	ui.Gap(c, 16)
-	ui.Text(c, "宽度跟随所在内容区；Sticky() 时以 Affix 固定在视口（或 Target 滚动容器）底部，固定时为毛玻璃（背景模糊 + 半透明底色）。").Tertiary().
-		Layout(layout.Margin(geom.Insets{Top: 4}))
-}
+			})
+		})
 
+		// Ordinary flow: the bar consumes layout space and keeps the plain
+		// FooterToolbar background rather than the pinned frosted surface.
+		ui.ProCard(c, "普通流").SubTitle("不吸底，跟随内容自然排布").Body(func() {
+			ui.Text(c, "普通流 FooterToolbar 会占据内容高度，适合页面内的局部操作。")
+			ui.FooterToolbar(c).Extra(func() {
+				ui.Text(c, "已选择 2 项").Secondary()
+			}).Body(func() {
+				ui.Button(c, "取消")
+				ui.Button(c, "保存").Primary()
+			})
+		})
+
+		// Window-sticky: scrolling content passes under the bar and makes the
+		// translucent backdrop visible in every design language.
+		ui.ProCard(c, "Sticky（窗口底部）").SubTitle("Affix 到窗口底部").Body(func() {
+			sb := ui.Scroll(c, nil, layout.H(220), layout.MinH(0))
+			sb.Body(func() {
+				ui.Column(c, nil, layout.H(440))
+				ui.Text(c, "继续滚动，窗口底部的 FooterToolbar 仍保持可操作。")
+			})
+			ui.FooterToolbar(c).Sticky().Extra(func() {
+				ui.Icon(c, icon.Info).Size(16).Color(th.Primary.Base)
+				ui.Text(c, "窗口级操作").Secondary()
+			}).Body(func() {
+				ui.Button(c, "取消")
+				ui.Button(c, "提交").Primary()
+			})
+		})
+	}, layout.H(920), layout.Pad(0))
+}
 func init() {
 	pro2PageReset()
 	pro2Page(gallery.Page{Name: "PageContainer", Title: "PageContainer 页容器", Group: gallery.Layout, Order: 40, Width: 1100,
