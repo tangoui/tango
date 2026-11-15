@@ -1095,6 +1095,7 @@ pkg github.com/tangoui/tango/ui, method (*Context) ScrollShift(ui/geom.Rect, ui/
 pkg github.com/tangoui/tango/ui, method (*Context) Semantics(ID, ui/a11y.Role, string, ...ui/a11y.State)
 pkg github.com/tangoui/tango/ui, method (*Context) SetFocus(ID)
 pkg github.com/tangoui/tango/ui, method (*Context) Size() ui/geom.Size
+pkg github.com/tangoui/tango/ui, method (*Context) TerminalEvents(ID, func(ui/input.Event) bool)
 pkg github.com/tangoui/tango/ui, method (*Context) TextEditsFor(ID) []ui/input.Event
 pkg github.com/tangoui/tango/ui, method (*Context) TextFor(ID) []string
 pkg github.com/tangoui/tango/ui, method (*Context) TextOpts(ui/text.Options) ui/text.Options

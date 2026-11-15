@@ -6,6 +6,8 @@ pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Exited() (bool, err
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Lock() *ui/terminal/vt.Terminal
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Resize(int, int, int, int)
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Send([]byte)
+pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) SendInput([]byte) SendResult
+pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Snapshot() ui/terminal/vt.Snapshot
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Start(int, int, func())
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Unlock()
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Box() *ui.Box
@@ -31,6 +33,9 @@ pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, CursorText ui/them
 pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, Foreground ui/theme.Color
 pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, Palette [16]ui/theme.Color
 pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, Selection ui/theme.Color
+pkg github.com/tangoui/tango/ui/terminal, type SendResult struct
+pkg github.com/tangoui/tango/ui/terminal, type SendResult struct, AcceptedBytes int
+pkg github.com/tangoui/tango/ui/terminal, type SendResult struct, Truncated bool
 pkg github.com/tangoui/tango/ui/terminal, type Terminal struct
 pkg github.com/tangoui/tango/ui/terminal, type Terminal struct, noncomparable
 pkg github.com/tangoui/tango/ui/terminal, type ViewW struct

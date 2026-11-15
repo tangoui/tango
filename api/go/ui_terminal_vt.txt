@@ -37,6 +37,13 @@ pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) Size() (int, int)
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) Styles() *StyleTable
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) ViewLine(int) *Line
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) ViewOffset() int
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Snapshot) Evicted() uint64
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Snapshot) Release()
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Snapshot) ScrollbackLen() int
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Snapshot) Size() (int, int)
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Snapshot) Styles() *StyleTable
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Snapshot) ViewLine(int) *Line
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Snapshot) ViewOffset() int
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*StyleTable) Compact()
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*StyleTable) Get(uint16) Style
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*StyleTable) Intern(Style) uint16
@@ -45,6 +52,7 @@ pkg github.com/tangoui/tango/ui/terminal/vt, method (*Terminal) Cursor() (int, i
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Terminal) Modes() Modes
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Terminal) Resize(int, int)
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Terminal) Screen() *Screen
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Terminal) Snapshot() Snapshot
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Terminal) TakeDirty() ([]int, bool)
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Terminal) TakeScroll() int
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Terminal) Title() string
@@ -87,6 +95,32 @@ pkg github.com/tangoui/tango/ui/terminal/vt, type Parser struct
 pkg github.com/tangoui/tango/ui/terminal/vt, type Parser struct, noncomparable
 pkg github.com/tangoui/tango/ui/terminal/vt, type Screen struct
 pkg github.com/tangoui/tango/ui/terminal/vt, type Screen struct, noncomparable
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, Cols int
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, CursorVisible bool
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, CursorX int
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, CursorY int
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, EvictedN uint64
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, Height int
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, Rows []SnapshotRow
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, Scrollback int
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, StyleGeneration uint64
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, StylesData []Style
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, Title string
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, Version uint64
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, ViewOffsetN int
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, noncomparable
+pkg github.com/tangoui/tango/ui/terminal/vt, type SnapshotCombining struct
+pkg github.com/tangoui/tango/ui/terminal/vt, type SnapshotCombining struct, Column int
+pkg github.com/tangoui/tango/ui/terminal/vt, type SnapshotCombining struct, Runes []rune
+pkg github.com/tangoui/tango/ui/terminal/vt, type SnapshotCombining struct, noncomparable
+pkg github.com/tangoui/tango/ui/terminal/vt, type SnapshotRow struct
+pkg github.com/tangoui/tango/ui/terminal/vt, type SnapshotRow struct, Cells []Cell
+pkg github.com/tangoui/tango/ui/terminal/vt, type SnapshotRow struct, Combining []SnapshotCombining
+pkg github.com/tangoui/tango/ui/terminal/vt, type SnapshotRow struct, ID uint64
+pkg github.com/tangoui/tango/ui/terminal/vt, type SnapshotRow struct, Version uint64
+pkg github.com/tangoui/tango/ui/terminal/vt, type SnapshotRow struct, Wrapped bool
+pkg github.com/tangoui/tango/ui/terminal/vt, type SnapshotRow struct, noncomparable
 pkg github.com/tangoui/tango/ui/terminal/vt, type Style struct
 pkg github.com/tangoui/tango/ui/terminal/vt, type Style struct, Attr Attr
 pkg github.com/tangoui/tango/ui/terminal/vt, type Style struct, Bg Color
