@@ -118,7 +118,8 @@ type viewState struct {
 	wheelAcc float32
 	bar      barState
 
-	cache *segCache
+	cache    *segCache
+	rowCache *rowCache
 
 	// What the last paint drew, for the redraw hints (paint.go).
 	dmg      damageRec
@@ -130,7 +131,11 @@ type viewState struct {
 }
 
 func newViewState() viewState {
-	return viewState{cache: newSegCache(segCacheMin), needFull: true}
+	return viewState{
+		cache:    newSegCache(segCacheMin),
+		rowCache: newRowCache(2048, 16<<20),
+		needFull: true,
+	}
 }
 
 // View shows t. Call it every frame; the application owns t and closes it.

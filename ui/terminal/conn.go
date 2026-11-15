@@ -368,6 +368,16 @@ func (t *Terminal) writeLoop() {
 	}
 }
 
+// Snapshot returns a read-only copy of the emulator state for painting.
+// The VT lock is held only while copying; callers must release the returned
+// snapshot when done.
+func (t *Terminal) Snapshot() vt.Snapshot {
+	t.mu.Lock()
+	s := t.vt.Snapshot()
+	t.mu.Unlock()
+	return s
+}
+
 // Lock locks the emulator and returns it. The caller must call
 // [Terminal.Unlock] when done and must not keep the pointer past it.
 func (t *Terminal) Lock() *vt.Terminal {

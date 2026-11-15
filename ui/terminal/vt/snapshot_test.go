@@ -73,3 +73,14 @@ func snapshotRowText(row SnapshotRow) string {
 	}
 	return strings.TrimRight(string(out), " ")
 }
+
+func TestSnapshotReusesUnchangedRowData(t *testing.T) {
+	tm := New(Options{Cols: 12, Rows: 3, Scrollback: 8})
+	tm.Write([]byte("one\r\ntwo"))
+	first := tm.Snapshot()
+	tm.Write([]byte("\r\nthree"))
+	second := tm.Snapshot()
+	if len(first.Rows[0].Cells) == 0 || &first.Rows[0].Cells[0] != &second.Rows[0].Cells[0] {
+		t.Fatal("unchanged row cells were copied again")
+	}
+}

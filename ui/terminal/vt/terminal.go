@@ -67,6 +67,9 @@ type Terminal struct {
 	// generation advances whenever program output or a resize may have
 	// changed the snapshot.
 	generation uint64
+	snapshot   *Snapshot
+	snapTGen   uint64
+	snapSGen   uint64
 
 	// pen is the style new characters get. penIdx caches its index in
 	// the style table while penOK is set and the table's generation is
