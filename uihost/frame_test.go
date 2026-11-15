@@ -42,6 +42,9 @@ func TestWindowFrame(t *testing.T) {
 	}
 	// Dragging the bar starts a native move.
 	press(geom.Pt(150, 18))
+	// StartWindowMove posts to App's queue, not fake's native-event queue.
+	// FlushFrame returning only proves the frame ran, not the posted move.
+	tango.Await(a, func() bool { return true })
 	if _, _, _, moves := cv.Surface().WindowCounts(); moves != 1 {
 		t.Fatalf("moves = %d", moves)
 	}

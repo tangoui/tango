@@ -387,6 +387,16 @@ func TestDecorationsDamageVerified(t *testing.T) {
 			st.Model.SetDecorations("other", []Decoration{LineDecoration(st.Snapshot(), 12, 12, whole)})
 			step("other owner")
 
+			// Finish work requested by the previous edits before isolating
+			// the next decoration's damage. Each requested frame is counted
+			// and strictly verified; this is not an unconditional settle.
+			for n := 0; h.w.asked; n++ {
+				if n == 50 {
+					t.Fatal("prior edits keep asking for frames before the single-row check")
+				}
+				h.step("requested before one line")
+			}
+
 			// Changing one line's decoration damages that row only.
 			cur := st.Model.Decorations("diff")
 			cur[1].End++ // inside line 5

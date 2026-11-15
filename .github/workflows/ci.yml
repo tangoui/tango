@@ -143,7 +143,10 @@ jobs:
         run: |
           slow='/ui$|/ui/editor|/ui/chart|/internal/render/gpu|/examples/ui-gallery'
           bash scripts/ci-go-test.sh $RACE -timeout 20m $(go list ./... | grep -Ev "$slow")
-          bash scripts/ci-go-test.sh -timeout 40m $(go list ./... | grep -E "$slow" | grep -v /examples/ui-gallery)
+          # Keep CPU-heavy render/editor packages sequential: their timing
+          # checks must not compete with other full render suites on this
+          # runner. All tests and existing timing thresholds stay enabled.
+          bash scripts/ci-go-test.sh -p 1 -timeout 40m $(go list ./... | grep -E "$slow" | grep -v /examples/ui-gallery)
           # The gallery's full text-contrast sweep (every page x six themes,
           # three times) has its own job below; -short skips it here.
           bash scripts/ci-go-test.sh -short -timeout 40m ./examples/ui-gallery/...
@@ -156,7 +159,7 @@ jobs:
           bash scripts/ci-go-test.sh $RACE -tags tango_dev -timeout 20m $(go list -tags tango_dev ./... | grep -Ev "$slow")
           # The gallery has no development features: the default run above
           # covers it, so it is not repeated here.
-          bash scripts/ci-go-test.sh -tags tango_dev -timeout 40m $(go list -tags tango_dev ./... | grep -E "$slow" | grep -v /examples/ui-gallery)
+          bash scripts/ci-go-test.sh -p 1 -tags tango_dev -timeout 40m $(go list -tags tango_dev ./... | grep -E "$slow" | grep -v /examples/ui-gallery)
 
       - name: go test (cmd/tan)
         working-directory: cmd/tan
