@@ -250,6 +250,7 @@ func (f *frame) cellRect(x0, x1 int, top float32) geom.Rect {
 
 // paintRow draws one row; cells [selLo, selHi) are selected.
 func (w *ViewW) paintRow(f *frame, line *vt.Line, top float32, selLo, selHi int) {
+	w.t.perf.paintRows.Add(1)
 	l, cells := f.l, line.Cells
 	// Backgrounds.
 	start, col := -1, theme.Color{}

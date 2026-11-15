@@ -3,6 +3,7 @@ package terminal
 import (
 	"io"
 	"sync"
+	"time"
 
 	"github.com/tangoui/tango/ui/terminal/vt"
 )
@@ -103,6 +104,7 @@ type Terminal struct {
 
 	closeOnce sync.Once
 	closeErr  error // set once by Close
+	perf      perfCounters
 }
 
 // New returns a Terminal for o.Conn. It does not start reading; the
@@ -237,7 +239,11 @@ type queued struct {
 func (t *Terminal) feed(b []byte) {
 	for len(b) > 0 {
 		n := min(len(b), maxLockBytes)
+		waitStart := time.Now()
 		t.mu.Lock()
+		t.perf.feedLockWait.Add(uint64(time.Since(waitStart)))
+		t.perf.feedBytes.Add(uint64(n))
+		t.perf.feedBatches.Add(1)
 		t.vt.Write(b[:n])
 		pending := t.pending
 		t.pending = nil
