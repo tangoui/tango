@@ -64,3 +64,24 @@ func TestFindMatchCaseInsensitive(t *testing.T) {
 		t.Fatalf("case-insensitive match = %d,%d,%v", a, b, ok)
 	}
 }
+
+func TestPreviousSearchMovesPastCurrentSelection(t *testing.T) {
+	v := editor.NewState("one two one", "sample.txt", theme.Base("vs"))
+	defer v.Close()
+	p := searchPanel{query: "one", caseSensitive: true}
+	v.SetSelections([]editor.Selection{{Anchor: 8, Head: 11}})
+	p.find(v, false)
+	if sel := v.Primary(); sel.Anchor != 0 || sel.Head != 3 {
+		t.Fatalf("previous selected %v", sel)
+	}
+}
+
+func TestReplaceMissingReportsNoMatches(t *testing.T) {
+	v := editor.NewState("hello", "sample.txt", theme.Base("vs"))
+	defer v.Close()
+	p := searchPanel{query: "absent", replacement: "new"}
+	p.replace(v)
+	if p.status != "No matches" {
+		t.Fatalf("status=%q", p.status)
+	}
+}

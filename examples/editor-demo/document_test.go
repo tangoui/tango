@@ -136,3 +136,33 @@ func TestDocumentDisplayName(t *testing.T) {
 		t.Fatalf("file path name = %q", got)
 	}
 }
+
+func TestLiveThemeAndSplitPreserveModel(t *testing.T) {
+	setupDocument("demo.txt", "hello", theme.Base("vs"), false, false)
+	defer func() {
+		background.Close()
+		st.Close()
+		if second != nil {
+			second.Close()
+		}
+	}()
+	model := st.Model
+	st.Insert("!")
+	documents.setSplit(true)
+	if second == nil || second == st || second.Model != model {
+		t.Fatal("split did not share live model")
+	}
+	documents.setTheme("hc-black")
+	if st.Theme.BaseName() != "hc-black" || second.Theme.BaseName() != "hc-black" {
+		t.Fatal("theme not applied to both views")
+	}
+	active = second
+	documents.setSplit(false)
+	if second != nil || active != st || st.Model != model || !documents.session.dirty() {
+		t.Fatal("closing split changed document state")
+	}
+	documents.install(newDocumentSession("next.txt", "next", nil))
+	if st.Theme.BaseName() != "hc-black" {
+		t.Fatal("new document lost selected theme")
+	}
+}

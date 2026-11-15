@@ -119,6 +119,7 @@ func showMessage(kind dialog.Kind, title, message string) {
 }
 
 func saveAsDocument() bool {
+	defer restoreEditorFocus()
 	if documents == nil || documents.session == nil {
 		return false
 	}
@@ -139,6 +140,7 @@ func saveAsDocument() bool {
 }
 
 func saveDocument() bool {
+	defer restoreEditorFocus()
 	if documents == nil || documents.session == nil {
 		return false
 	}
@@ -167,10 +169,10 @@ func confirmDiscard() bool {
 	if err != nil {
 		return false
 	}
-	switch discardAction(choice) {
-	case discardSave:
+	switch choice {
+	case 0:
 		return saveDocument()
-	case discardDontSave:
+	case 1:
 		return resolveDiscard(true, discardDontSave)
 	default:
 		return resolveDiscard(true, discardCancel)
@@ -197,13 +199,26 @@ func openDocumentPath(path string) bool {
 }
 
 func openDocumentDialog() {
-	if documents == nil || diffState != nil || !confirmDiscard() {
+	defer restoreEditorFocus()
+	if documents == nil || diffState != nil {
 		return
 	}
 	paths, err := dialog.Open(app, dialog.FileOptions{Parent: surface, Title: "Open File", Multiple: false})
 	if err == nil && len(paths) > 0 {
 		openDocumentPath(paths[0])
 	}
+}
+
+func configureDocumentApp(a *tango.App) {
+	a.OnQuitRequest(confirmDiscard)
+	a.OnOpenFiles(func(paths []string) {
+		for _, path := range paths {
+			if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
+				openDocumentPath(path)
+				break
+			}
+		}
+	})
 }
 
 func commandOptions() []ui.Option {
@@ -288,7 +303,7 @@ func diffStatus() string {
 }
 
 func page(c *ui.Context) {
-	syncTitle()
+	defer syncTitle()
 	if diffState != nil {
 		diffPage(c)
 		return
@@ -297,13 +312,13 @@ func page(c *ui.Context) {
 		ui.Row(c, func() {
 			if documents != nil {
 				if ui.Button(c, "Open").Clicked() {
-					openDocumentDialog()
+					postFileAction(openDocumentDialog)
 				}
 				if ui.Button(c, "Save").Disabled(!documents.session.dirty()).Clicked() {
-					saveDocument()
+					postFileAction(func() { saveDocument() })
 				}
 				if ui.Button(c, "Save As").Clicked() {
-					saveAsDocument()
+					postFileAction(func() { saveAsDocument() })
 				}
 				if ui.Button(c, "Find").Clicked() {
 					search.open = true
@@ -320,12 +335,32 @@ func page(c *ui.Context) {
 			if ui.Button(c, "Command Palette").Clicked() {
 				paletteTarget, paletteOpen = active, true
 			}
-			ui.Text(c, "Right-click: editor menu · commands target the last focused pane")
+		}, layout.PadVH(4, 12), layout.Gap(8))
+		ui.Row(c, func() {
+			name := documents.theme.BaseName()
+			if ui.Select(c, &name, []ui.Option{{Label: "Light", Value: "vs"}, {Label: "Dark", Value: "vs-dark"}, {Label: "High contrast dark", Value: "hc-black"}, {Label: "High contrast light", Value: "hc-light"}}).Width(180).A11yLabel("Editor theme").Changed() {
+				documents.setTheme(name)
+			}
+			split := documents.split
+			if ui.Checkbox(c, "Split view", &split).Changed() {
+				documents.setSplit(split)
+			}
+			wrap := documents.wrap
+			if ui.Checkbox(c, "Word wrap", &wrap).Changed() {
+				documents.wrap = wrap
+				st.Options.WordWrap = editor.WrapOff
+				if wrap {
+					st.Options.WordWrap = editor.WrapOn
+				}
+				if second != nil {
+					second.Options.WordWrap = st.Options.WordWrap
+				}
+			}
 		}, layout.PadVH(4, 12))
 		ui.Row(c, func() {
 			show := func(target *editor.State) {
 				vw := editor.View(c, target)
-				if !focused {
+				if !focused && (target == active || active == nil) {
 					c.SetFocus(vw.Box().ID())
 					focused = true
 				}
@@ -362,7 +397,12 @@ func page(c *ui.Context) {
 		ui.Text(c, "Commands without arguments only; preconditions/read-only rules still apply.")
 	})
 	if documents != nil {
+		wasOpen := search.open
 		search.render(c, active)
+		if wasOpen && !search.open {
+			focused = false
+			ui.Invalidate(c.Window())
+		}
 	}
 	if auto != nil {
 		auto.frame(c)
@@ -495,6 +535,40 @@ func report(name string, d []time.Duration) {
 
 func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
 
+func openDemoWindow(title string, ropts ui.RunnerOptions) (*ui.Runner, *tango.Surface, error) {
+	r, s, err := uihost.Open(app, uihost.Options{Surface: tango.SurfaceOptions{
+		Title: title, Width: 1200, Height: 800, MinWidth: 480, MinHeight: 320,
+		Resizable: true, Centered: true, AcceptFiles: diffState == nil,
+	}}, page, ropts)
+	if err != nil {
+		return nil, nil, err
+	}
+	runner = r
+	surface = s
+	surface.OnClose(func() bool { return confirmDiscard() })
+	surface.OnFilesDropped(func(paths []string, _, _ int) {
+		if len(paths) > 0 {
+			openDocumentPath(paths[0])
+		}
+	})
+	for _, shortcut := range []struct {
+		accelerator string
+		fn          func()
+	}{
+		{"CmdOrCtrl+O", openDocumentDialog},
+		{"CmdOrCtrl+S", func() { saveDocument() }},
+		{"CmdOrCtrl+F", func() { search.open = true }},
+		{"CmdOrCtrl+H", func() { search.open = true }},
+	} {
+		if _, err := uihost.Shortcut(surface, shortcut.accelerator, shortcut.fn); err != nil {
+			log.Printf("editor-demo: shortcut %s: %v", shortcut.accelerator, err)
+		}
+	}
+	syncTitle()
+	attachHighlightNotify(background, st.Model)
+	return r, s, nil
+}
+
 func main() {
 	file := flag.String("file", "", "file to open (default: a generated TypeScript document)")
 	genLines := flag.Int("gen-lines", 10000, "lines of the generated TypeScript document when -file is not given")
@@ -578,41 +652,12 @@ func main() {
 	}
 	quit := true
 	app = tango.New(tango.Options{Name: "Tango Editor", ID: "dev.tango.editordemo", QuitOnLastClose: &quit})
-	app.OnOpenFiles(func(paths []string) {
-		if len(paths) > 0 {
-			openDocumentPath(paths[0])
-		}
-	})
+	configureDocumentApp(app)
 	app.OnReady(func() {
-		r, s, err := uihost.Open(app, uihost.Options{Surface: tango.SurfaceOptions{
-			Title: "Tango Editor — " + filepath.Base(name), Width: 1200, Height: 800, MinWidth: 480, MinHeight: 320,
-			Resizable: true, Centered: true,
-		}}, page, ropts)
+		r, _, err := openDemoWindow("Tango Editor — "+filepath.Base(name), ropts)
 		if err != nil {
 			log.Fatal(err)
 		}
-		runner = r
-		surface = s
-		surface.OnClose(func() bool { return confirmDiscard() })
-		surface.OnFilesDropped(func(paths []string, _, _ int) {
-			if len(paths) > 0 {
-				openDocumentPath(paths[0])
-			}
-		})
-		for _, shortcut := range []struct {
-			accelerator string
-			fn          func()
-		}{
-			{"CmdOrCtrl+O", openDocumentDialog},
-			{"CmdOrCtrl+S", func() { saveDocument() }},
-			{"CmdOrCtrl+F", func() { search.open = true }},
-			{"CmdOrCtrl+H", func() { search.open = true }},
-		} {
-			if _, err := uihost.Shortcut(surface, shortcut.accelerator, shortcut.fn); err != nil {
-				log.Printf("editor-demo: shortcut %s: %v", shortcut.accelerator, err)
-			}
-		}
-		syncTitle()
 		rendName = uihost.Renderer(r)
 		log.Printf("editor-demo: window open %v after start, renderer %s", time.Since(start).Round(time.Millisecond), rendName)
 		if diffOrigHL != nil {
@@ -625,22 +670,7 @@ func main() {
 				})
 			})
 		}
-		life := background
-		hlStart := time.Now()
-		life.SetNotify(func() {
-			// ready runs off-thread (or is replayed during attachment).
-			// Never read Model/State until this UI-thread callback runs.
-			app.Post(func() {
-				if life.isClosed() {
-					return
-				}
-				if hl := st.Highlighter(); hl != nil && !hlDone && hl.Done(st.Snapshot()) {
-					hlDone = true
-					log.Printf("editor-demo: document highlighted in %v", time.Since(hlStart).Round(time.Millisecond))
-				}
-				r.Invalidate()
-			})
-		})
+		attachHighlightNotify(background, st.Model)
 		if *quitAfter > 0 {
 			time.AfterFunc(*quitAfter, func() { app.Post(app.Quit) })
 		}

@@ -11,6 +11,7 @@ import (
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/monarch"
 	"github.com/tangoui/tango/ui/editor/theme"
+	uitheme "github.com/tangoui/tango/ui/theme"
 )
 
 var errEmptySearch = errors.New("editor-demo: search text is empty")
@@ -49,6 +50,7 @@ func (d *documentSession) saveTo(path string) error {
 	if err := os.WriteFile(path, []byte(d.model.Snapshot().TextWithEOL()), 0o644); err != nil {
 		return err
 	}
+	d.model.Buffer().PushUndoStop()
 	d.path = path
 	d.savedVersion = d.model.Buffer().AltVersion()
 	return nil
@@ -136,6 +138,8 @@ func (c *documentController) install(d *documentSession) {
 		second.Options.WordWrap = st.Options.WordWrap
 	}
 	active, focused, hlDone = st, false, false
+	paletteOpen, paletteCommand, pendingCommand, paletteTarget = false, "", "", nil
+	attachHighlightNotify(background, d.model)
 }
 
 func (c *documentController) replace(path string) error {
@@ -181,4 +185,50 @@ func documentDisplayName(path string) string {
 		return "Untitled"
 	}
 	return name
+}
+
+func (c *documentController) setSplit(on bool) {
+	c.split = on
+	if on && second == nil {
+		second = editor.NewView(st.Model, c.theme)
+		second.Options = st.Options
+	} else if !on && second != nil {
+		if active == second {
+			active = st
+		}
+		second.Close()
+		second = nil
+	}
+	restoreEditorFocus()
+}
+
+func (c *documentController) setTheme(name string) {
+	c.theme = theme.Base(name)
+	st.Theme = c.theme
+	if second != nil {
+		second.Theme = c.theme
+	}
+	if runner != nil {
+		shell := uitheme.AntDesign()
+		if name == "vs-dark" || name == "hc-black" {
+			shell = uitheme.AntDesign(uitheme.Dark())
+		}
+		if name == "hc-black" || name == "hc-light" {
+			shell = uitheme.HighContrast(shell)
+		}
+		runner.SetTheme(shell)
+	}
+}
+
+func restoreEditorFocus() {
+	focused = false
+	if runner != nil {
+		runner.Invalidate()
+	}
+}
+
+func postFileAction(fn func()) {
+	if app != nil {
+		app.Post(fn)
+	}
 }

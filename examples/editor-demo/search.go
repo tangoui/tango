@@ -71,23 +71,29 @@ func fmtInt(n int) string {
 	return strconv.Itoa(n)
 }
 
-func (p *searchPanel) find(target *editor.State, forward bool) {
+func (p *searchPanel) find(target *editor.State, forward bool) bool {
 	if p.query == "" {
 		p.status = errEmptySearch.Error()
-		return
+		return false
 	}
 	snap := target.Snapshot()
 	text := snap.String()
-	start := target.Primary().Head
+	sel := target.Primary()
+	start := min(sel.Anchor, sel.Head)
+	if forward {
+		start = max(sel.Anchor, sel.Head)
+	}
 	if start < 0 || start > len(text) {
 		start = 0
 	}
 	if a, b, ok := findMatch(text, p.query, p.caseSensitive, start, forward); ok {
 		target.SetSelections([]editor.Selection{{Anchor: a, Head: b}})
+		target.RevealCaret()
 		p.status = "Match found"
-		return
+		return true
 	}
 	p.status = "No matches"
+	return false
 }
 
 func (p *searchPanel) replace(target *editor.State) {
@@ -106,8 +112,9 @@ func (p *searchPanel) replace(target *editor.State) {
 		matched = strings.EqualFold(text, p.query)
 	}
 	if !matched {
-		p.find(target, true)
-		p.status = "Match selected; press Replace again"
+		if p.find(target, true) {
+			p.status = "Match selected; press Replace again"
+		}
 		return
 	}
 	if err := target.Edit([]buffer.Edit{{Start: a, End: b, Text: p.replacement}}, editor.Selection{Anchor: a + len(p.replacement), Head: a + len(p.replacement)}); err != nil {
