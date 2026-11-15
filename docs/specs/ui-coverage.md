@@ -448,7 +448,7 @@ Addon、Affix、Alert、Anchor、App、AutoComplete、Avatar、AvatarGroup、Bac
 | P2 | Tree 的 titleRender/allowDrop（虚拟滚动已完成：data_tree.go `Height`） | 小 | 次要缺口 |
 | P2 | v6 新模式：Timeline 横向、Segmented 竖向/round、Steps inline/panel、Button color×variant、Statistic.Timer（Drawer resizable、Splitter lazy、Carousel 拖拽已完成） | 中（合计） | 跟进 v6 |
 | P2 | Element 专有：Button success/warning/info/plain + ButtonGroup、Switch active-value/inline-prompt、Alert effect=dark、Pagination layout、Calendar range（Tabs border-card、CascaderPanel 已完成） | 中（合计） | 提高 Element 风格的完整度 |
-| P2 | Pro：ProCard actions、ProForm readonly、ProField 独立组件与 read/edit 模式、FooterToolbar 毛玻璃（需要先给 paint 加背景模糊原语）、ProLayout 按路由生成面包屑（SettingDrawer、ProFormGroup 已完成） | 大（合计） | 次要项 |
+| P2 | Pro：ProCard actions、ProForm readonly、ProField 独立组件与 read/edit 模式、ProLayout 按路由生成面包屑（SettingDrawer、ProFormGroup、FooterToolbar 毛玻璃已完成） | 大（合计） | 次要项；FooterToolbar 实现见第 1.3 节 |
 | P2 | 组件级主题令牌（ConfigProvider 局部 Theme 或 `Components` 覆盖表） | 大 | 已完成（2026-11-13，54 个组件令牌，见第 6 节） |
 | P2 | RTL：布局逻辑方向（start/end）、镜像、ConfigProvider.Direction，再逐个组件改图标和箭头方向 | 大 | 已完成（2026-11-13，含 mobile/chart，见第 6 节） |
 | P2 | 画廊：给 43 个缺 Element 变体、69 个缺暗色变体的页面补变体（至少覆盖 Button/Input/Select/Table/Tabs/Form/Checkbox/Switch 主页面） | 小–中 | 方便做视觉回归 |

@@ -427,12 +427,25 @@ func TestFooterToolbarDamagePresenter(t *testing.T) {
 
 			// Scrolling beneath the pinned bar has the same requirement: the
 			// ScrollRegion may copy the content, but the blur source still needs
-			// the bar's complete rectangle redrawn.
+			// the bar's complete rectangle redrawn. Clear the prior reach hint so
+			// this frame proves the ScrollRegion itself reaches the blur.
+			hint = geom.Rect{}
 			st.sb.ScrollTo(0, 40)
+			st.declareScroll = true
 			resetDamagePresenter(w)
 			g.frame(t)
 			if w.presented != 0 || w.partial != 1 || !dirtyCovers(w.dirty, image.Rect(int(bar.X), int(bar.Y), int(bar.Right()), int(bar.Bottom()))) {
 				t.Fatalf("scroll under blur: presented=%d partial=%d dirty=%v bar=%v", w.presented, w.partial, w.dirty, bar)
+			}
+
+			// An actually idle Runner frame has no declaration. The Runner
+			// contract intentionally presents it whole; keep this baseline
+			// separate from the blur-list assertion below.
+			st.declareScroll = false
+			resetDamagePresenter(w)
+			g.frame(t)
+			if w.presented != 1 || w.partial != 0 {
+				t.Fatalf("idle runner baseline: presented=%d partial=%d dirty=%v", w.presented, w.partial, w.dirty)
 			}
 
 			// A change beyond the reach stays partial and does not pull the
@@ -491,8 +504,10 @@ func TestFooterToolbarDamagePresenter(t *testing.T) {
 }
 
 type footerDamageState struct {
-	sb *ScrollBox
-	ft *FooterToolbarW
+	sb            *ScrollBox
+	ft            *FooterToolbarW
+	prevY         float64
+	declareScroll bool
 }
 
 func footerDamagePage(dir Direction, sticky bool, hint *geom.Rect, st *footerDamageState) func(*Context) {
@@ -503,6 +518,10 @@ func footerDamagePage(dir Direction, sticky bool, hint *geom.Rect, st *footerDam
 				st.sb = sb
 				sb.Body(func() {
 					Column(c, nil, layout.H(900))
+					if st.declareScroll {
+						c.ScrollShift(geom.R(0, 0, 600, 300), geom.Pt(0, float32(st.prevY-sb.s.off.Y)))
+					}
+					st.prevY = sb.s.off.Y
 					ft := FooterToolbar(c)
 					if sticky {
 						ft.Sticky()
@@ -591,13 +610,13 @@ func TestFooterToolbarRTLGeometry(t *testing.T) {
 			}
 			if dir == LTR {
 				ltrBar, ltrExtra, ltrAction = bar, er, ar
-				if er.X >= ar.X {
-					t.Fatalf("%s LTR: Extra=%v is not inline-start of Action=%v", tc.name, er, ar)
+				if er.X <= bar.X || er.X >= ar.X || ar.Right() >= bar.Right() || er.X-bar.X > 40 || bar.Right()-ar.Right() > 40 {
+					t.Fatalf("%s LTR: Extra=%v/actions=%v are not at bar inline-start/end=%v", tc.name, er, ar, bar)
 				}
 			} else {
 				rtlBar, rtlExtra, rtlAction = bar, er, ar
-				if er.Right() <= ar.Right() {
-					t.Fatalf("%s RTL: Extra=%v is not inline-start of Action=%v", tc.name, er, ar)
+				if er.Right() >= bar.Right() || er.Right() <= ar.Right() || ar.X <= bar.X || ar.X-bar.X > 40 || bar.Right()-er.Right() > 40 {
+					t.Fatalf("%s RTL: Extra=%v/actions=%v are not at bar inline-start/end=%v", tc.name, er, ar, bar)
 				}
 			}
 		}
