@@ -29,3 +29,20 @@ func TestTrimCaches(t *testing.T) {
 		t.Fatal("TrimCaches cleared a LineCache")
 	}
 }
+
+func TestTrimFontCachesDropsDiscoveredSystemFamilies(t *testing.T) {
+	UseSystemFonts(true)
+	Families()
+	reg.mu.Lock()
+	built := reg.sysBuilt
+	reg.mu.Unlock()
+	if !built {
+		t.Fatal("system families were not discovered")
+	}
+	TrimFontCaches()
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+	if reg.sysBuilt || len(reg.system) != 0 || len(reg.mono) != 0 || reg.eng != nil {
+		t.Fatal("font caches survived TrimFontCaches")
+	}
+}
