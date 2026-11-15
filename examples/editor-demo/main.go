@@ -66,6 +66,7 @@ var (
 	paletteCommand  string
 	pendingCommand  string
 	languageOptions []ui.Option
+	search          searchPanel
 	background      *modelHighlight
 	documents       *documentController
 	surface         *tango.Surface
@@ -299,6 +300,12 @@ func page(c *ui.Context) {
 				if ui.Button(c, "Save As").Clicked() {
 					saveAsDocument()
 				}
+				if ui.Button(c, "Find").Clicked() {
+					search.open = true
+				}
+				if ui.Button(c, "Replace").Clicked() {
+					search.open = true
+				}
 			}
 			language := st.Model.Language()
 			if ui.Select(c, &language, languageOptions).Searchable().Width(210).A11yLabel("Document language").Changed() {
@@ -349,6 +356,9 @@ func page(c *ui.Context) {
 		}
 		ui.Text(c, "Commands without arguments only; preconditions/read-only rules still apply.")
 	})
+	if documents != nil {
+		search.render(c, active)
+	}
 	if auto != nil {
 		auto.frame(c)
 	}
