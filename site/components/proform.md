@@ -80,7 +80,7 @@ func page(c *ui.Context) {
 
 ### 栅格布局与分组
 
-`Columns(n)` 把字段排成 n 列等宽栅格（列间距由 `Gutter` 设置，默认 24）；单个字段用 `Span`（以 24 为满宽）覆盖自己的宽度。默认标签在控件上方，`Horizontal()` 改为标签在左，配合 `LabelWidth`。`Group` 相同的连续字段会被自动包进带标题的 [ProFormGroup](/components/catalog/proformgroup)。
+`Columns(n)` 把字段排成 n 列等宽栅格（列间距由 `Gutter` 设置，默认 24）；单个字段用 `Span`（以 24 为满宽）覆盖自己的宽度。默认标签在控件上方，`Horizontal()` 改为标签在左，配合 `LabelWidth`。`Group` 相同的连续字段会被自动包进带标题的 [ProFormGroup](/components/proformgroup)。
 
 ```go
 import (
@@ -294,7 +294,7 @@ func page(c *ui.Context) {
 | `ui.SchemaForm(c, schema)` | 统一入口，用 `LayoutType` 在以上外壳之间切换 |
 | `ui.LoginForm(c)` | 登录表单 |
 
-详见 [ModalForm](/components/modalform)、[StepsForm 分步表单](/components/stepsform)、[QueryFilter 查询表单](/components/catalog/queryfilter)、[LightFilter 轻量筛选](/components/catalog/lightfilter)、[LoginForm 登录表单](/components/catalog/loginform)。
+详见 [ModalForm](/components/modalform)、[StepsForm 分步表单](/components/stepsform)、[QueryFilter 查询表单](/components/queryfilter)、[LightFilter 轻量筛选](/components/lightfilter)、[LoginForm 登录表单](/components/loginform)。
 
 ## 主题与样式
 
@@ -322,4 +322,4 @@ func page(c *ui.Context) {
 
 - [源码 ui/form_pro.go](https://github.com/tangoui/tango/blob/main/ui/form_pro.go)、[ui/form_pro_field.go](https://github.com/tangoui/tango/blob/main/ui/form_pro_field.go)
 - [ui Go API](/reference/api/ui)
-- [Form 表单](/components/form)、[ProTable](/components/protable)、[ProDescriptions](/components/prodescriptions)、[ProFormGroup 表单分组](/components/catalog/proformgroup)
+- [Form 表单](/components/form)、[ProTable](/components/protable)、[ProDescriptions](/components/prodescriptions)、[ProFormGroup 表单分组](/components/proformgroup)

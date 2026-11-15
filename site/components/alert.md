@@ -9,7 +9,7 @@ title: Alert 警告提示
 
 - 在页面内容中展示持续可见的状态、风险或操作结果。
 - 需要用户主动关闭，或需要附加操作（如撤销、重试）时使用。
-- 只需短暂反馈时用 [Message](/components/message)；需要确认操作时用 [Popconfirm](/components/catalog/popconfirm)。
+- 只需短暂反馈时用 [Message](/components/message)；需要确认操作时用 [Popconfirm](/components/popconfirm)。
 
 ## 在线体验
 

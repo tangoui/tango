@@ -9,7 +9,7 @@ title: Popover 气泡卡片
 
 - 在不离开页面的情况下展示一块补充信息或少量操作，例如用户名片、字段解释、快捷设置、筛选条件。
 - 与 [Tooltip](/components/tooltip) 相比，Popover 可以有标题、多行内容和可交互的控件；只是一句说明时用 Tooltip。
-- 需要用户确认一个操作时用 [Popconfirm](/components/catalog/popconfirm)；选择一组菜单命令时用 [Dropdown 下拉菜单](/components/dropdown)；内容多到需要滚动或分步时用 [Modal](/components/modal) 或 [Drawer](/components/drawer)。
+- 需要用户确认一个操作时用 [Popconfirm](/components/popconfirm)；选择一组菜单命令时用 [Dropdown 下拉菜单](/components/dropdown)；内容多到需要滚动或分步时用 [Modal](/components/modal) 或 [Drawer](/components/drawer)。
 
 ## 在线体验
 
@@ -163,5 +163,5 @@ func page(c *ui.Context) {
 
 - [源码 ui/data_popover.go](https://github.com/tangoui/tango/blob/main/ui/data_popover.go)
 - [Go API 参考](/reference/api/ui)
-- [Tooltip 文字提示](/components/tooltip)、[Popconfirm](/components/catalog/popconfirm)、[Dropdown 下拉菜单](/components/dropdown)
+- [Tooltip 文字提示](/components/tooltip)、[Popconfirm](/components/popconfirm)、[Dropdown 下拉菜单](/components/dropdown)
 - [组件总览](/components/)
