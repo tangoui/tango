@@ -9,7 +9,7 @@
 #   web  one window loading a URL (system WebView)
 #   ui   uihost.Open + one ui.Button (Go self-drawn GUI)
 #
-# Flags: CGO_ENABLED=0, -trimpath -ldflags='-s -w -buildid='. Sizes are the
+# Flags: CGO_ENABLED=0, -trimpath -ldflags='-s -w'. Sizes are the
 # raw stripped executables plus their gzip -9 size (an estimate of what a
 # compressed download adds up to). Installers (.dmg etc.) are produced by
 # `tan package`; see site/guide/size.md.
@@ -81,14 +81,14 @@ done
 mib() { awk -v b="$1" 'BEGIN { printf "%.2f MiB", b / 1048576 }'; }
 
 echo "$(go version), tango $(git -C "$repo" rev-parse --short HEAD), $(date +%Y-%m-%d)"
-echo "flags: CGO_ENABLED=0 -trimpath -ldflags='-s -w -buildid='"
+echo "flags: CGO_ENABLED=0 -trimpath -ldflags='-s -w'"
 printf '%-4s %-14s %12s %10s %14s\n' app target bytes size "gzip -9"
 for app in web ui; do
 	for target in darwin/arm64 linux/amd64 windows/amd64; do
 		goos="${target%/*}" goarch="${target#*/}"
 		out="$work/out-$app-$goos-$goarch"
 		(cd "$work/$app" && GOWORK=off CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
-			go build -trimpath -ldflags='-s -w -buildid=' -o "$out" .)
+			go build -trimpath -ldflags='-s -w' -o "$out" .)
 		bytes=$(wc -c <"$out" | tr -d ' ')
 		gz=$(gzip -9 -c "$out" | wc -c | tr -d ' ')
 		printf '%-4s %-14s %12s %10s %14s\n' "$app" "$target" "$bytes" "$(mib "$bytes")" "$(mib "$gz")"

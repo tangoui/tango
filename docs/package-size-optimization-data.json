@@ -1,0 +1,212 @@
+{
+  "date": "2026-11-15/2026-11-16",
+  "baseline_commit": "b42c75ba4ba6dc4d3f71fe0147d6650a52baf138",
+  "after_code_commit": "5add4b48a30871defa0a1b33c6bdefb7209a69b7",
+  "go": "go1.27.2",
+  "host": "macOS arm64",
+  "release_flags": "CGO_ENABLED=0 -trimpath -ldflags=\"-s -w\"; tan also sets tango_release and Windows -H windowsgui",
+  "notes": [
+    "Windows payload is the application executable only; runtime-generated uninstaller and system dependencies not included. Windows installer was cross-built, not installed.",
+    "macOS payload includes complete ad-hoc signed .app. All dmg files passed hdiutil verify.",
+    "Linux payload is the sum of regular file sizes in the tar.gz, including executable, desktop entry, icons and install script. Not installed in this run.",
+    "Baseline and after used identical tan.json, app source, icons and tools. Raw minimum probe numbers without tan packaging flags differ slightly; these are actual tan package results."
+  ],
+  "minimal_sources": {
+    "min-web": "package main\nimport \"github.com/tangoui/tango\"\nfunc main() { a:=tango.New(tango.Options{Name:\"Min\"}); a.OnReady(func(){a.NewSurface(tango.SurfaceOptions{Title:\"Min\",URL:\"https://example.com\"})}); a.Run() }\n",
+    "min-ui": "package main\nimport(\"github.com/tangoui/tango\";\"github.com/tangoui/tango/ui\";\"github.com/tangoui/tango/uihost\")\nvar n int\nfunc main(){a:=tango.New(tango.Options{Name:\"Min\"});a.OnReady(func(){uihost.Open(a,uihost.Options{Surface:tango.SurfaceOptions{Title:\"Min\"}},func(c *ui.Context){if ui.Button(c,\"Click\").Clicked(){n++}},ui.RunnerOptions{})});a.Run()}\n"
+  },
+  "measurements": [
+    {
+      "sample": "min-web",
+      "target": "darwin-arm64",
+      "baseline": {
+        "executable_bytes": 5929984,
+        "application_payload_bytes": 5933146,
+        "archive_bytes": 1892120,
+        "archive": "Min-0.1.0-darwin-arm64.dmg"
+      },
+      "after": {
+        "executable_bytes": 5929984,
+        "application_payload_bytes": 5933146,
+        "archive_bytes": 1892888,
+        "archive": "Min-0.1.0-darwin-arm64.dmg"
+      }
+    },
+    {
+      "sample": "min-web",
+      "target": "windows-amd64",
+      "baseline": {
+        "executable_bytes": 5919744,
+        "application_payload_bytes": 5919744,
+        "archive_bytes": 2079808,
+        "archive": "Min-0.1.0-windows-amd64-setup.exe"
+      },
+      "after": {
+        "executable_bytes": 5919744,
+        "application_payload_bytes": 5919744,
+        "archive_bytes": 2081106,
+        "archive": "Min-0.1.0-windows-amd64-setup.exe"
+      }
+    },
+    {
+      "sample": "min-web",
+      "target": "linux-amd64",
+      "baseline": {
+        "executable_bytes": 6050055,
+        "application_payload_bytes": 6050645,
+        "archive_bytes": 2667172,
+        "archive": "Min-0.1.0-linux-amd64.tar.gz"
+      },
+      "after": {
+        "executable_bytes": 6050055,
+        "application_payload_bytes": 6050645,
+        "archive_bytes": 2598303,
+        "archive": "Min-0.1.0-linux-amd64.tar.gz"
+      }
+    },
+    {
+      "sample": "min-ui",
+      "target": "darwin-arm64",
+      "baseline": {
+        "executable_bytes": 10522816,
+        "application_payload_bytes": 10525978,
+        "archive_bytes": 3155822,
+        "archive": "Min-0.1.0-darwin-arm64.dmg"
+      },
+      "after": {
+        "executable_bytes": 10136944,
+        "application_payload_bytes": 10140106,
+        "archive_bytes": 3040164,
+        "archive": "Min-0.1.0-darwin-arm64.dmg"
+      }
+    },
+    {
+      "sample": "min-ui",
+      "target": "windows-amd64",
+      "baseline": {
+        "executable_bytes": 10964480,
+        "application_payload_bytes": 10964480,
+        "archive_bytes": 3526857,
+        "archive": "Min-0.1.0-windows-amd64-setup.exe"
+      },
+      "after": {
+        "executable_bytes": 10535936,
+        "application_payload_bytes": 10535936,
+        "archive_bytes": 3389415,
+        "archive": "Min-0.1.0-windows-amd64-setup.exe"
+      }
+    },
+    {
+      "sample": "min-ui",
+      "target": "linux-amd64",
+      "baseline": {
+        "executable_bytes": 11268359,
+        "application_payload_bytes": 11268949,
+        "archive_bytes": 4749565,
+        "archive": "Min-0.1.0-linux-amd64.tar.gz"
+      },
+      "after": {
+        "executable_bytes": 10854663,
+        "application_payload_bytes": 10855253,
+        "archive_bytes": 4449081,
+        "archive": "Min-0.1.0-linux-amd64.tar.gz"
+      }
+    },
+    {
+      "sample": "template-web",
+      "target": "darwin-arm64",
+      "baseline": {
+        "executable_bytes": 8345504,
+        "application_payload_bytes": 8525222,
+        "archive_bytes": 2731199,
+        "archive": "SizeWeb-0.1.0-darwin-arm64.dmg"
+      },
+      "after": {
+        "executable_bytes": 8345504,
+        "application_payload_bytes": 8525222,
+        "archive_bytes": 2732247,
+        "archive": "SizeWeb-0.1.0-darwin-arm64.dmg"
+      }
+    },
+    {
+      "sample": "template-web",
+      "target": "windows-amd64",
+      "baseline": {
+        "executable_bytes": 8693760,
+        "application_payload_bytes": 8693760,
+        "archive_bytes": 2860157,
+        "archive": "SizeWeb-0.1.0-windows-amd64-setup.exe"
+      },
+      "after": {
+        "executable_bytes": 8693760,
+        "application_payload_bytes": 8693760,
+        "archive_bytes": 2859507,
+        "archive": "SizeWeb-0.1.0-windows-amd64-setup.exe"
+      }
+    },
+    {
+      "sample": "template-web",
+      "target": "linux-amd64",
+      "baseline": {
+        "executable_bytes": 8564999,
+        "application_payload_bytes": 8601214,
+        "archive_bytes": 3676961,
+        "archive": "SizeWeb-0.1.0-linux-amd64.tar.gz"
+      },
+      "after": {
+        "executable_bytes": 8564999,
+        "application_payload_bytes": 8601214,
+        "archive_bytes": 3581416,
+        "archive": "SizeWeb-0.1.0-linux-amd64.tar.gz"
+      }
+    },
+    {
+      "sample": "template-ui",
+      "target": "darwin-arm64",
+      "baseline": {
+        "executable_bytes": 11533024,
+        "application_payload_bytes": 11712959,
+        "archive_bytes": 3602339,
+        "archive": "SizeUI-0.1.0-darwin-arm64.dmg"
+      },
+      "after": {
+        "executable_bytes": 11465888,
+        "application_payload_bytes": 11645823,
+        "archive_bytes": 3627903,
+        "archive": "SizeUI-0.1.0-darwin-arm64.dmg"
+      }
+    },
+    {
+      "sample": "template-ui",
+      "target": "windows-amd64",
+      "baseline": {
+        "executable_bytes": 12368896,
+        "application_payload_bytes": 12368896,
+        "archive_bytes": 3989954,
+        "archive": "SizeUI-0.1.0-windows-amd64-setup.exe"
+      },
+      "after": {
+        "executable_bytes": 12297216,
+        "application_payload_bytes": 12297216,
+        "archive_bytes": 3965765,
+        "archive": "SizeUI-0.1.0-windows-amd64-setup.exe"
+      }
+    },
+    {
+      "sample": "template-ui",
+      "target": "linux-amd64",
+      "baseline": {
+        "executable_bytes": 12390663,
+        "application_payload_bytes": 12426969,
+        "archive_bytes": 5299478,
+        "archive": "SizeUI-0.1.0-linux-amd64.tar.gz"
+      },
+      "after": {
+        "executable_bytes": 12321031,
+        "application_payload_bytes": 12357337,
+        "archive_bytes": 5127906,
+        "archive": "SizeUI-0.1.0-linux-amd64.tar.gz"
+      }
+    }
+  ]
+}
