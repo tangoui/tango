@@ -215,6 +215,11 @@ func (w *ViewW) fastEvent(ev input.Event) bool {
 	if !w.ia.Focused {
 		return false
 	}
+	if w.vs.fastSwallow {
+		if _, ok := ev.(input.TextInput); !ok {
+			w.vs.fastSwallow = false
+		}
+	}
 	switch e := ev.(type) {
 	case input.Composition:
 		// Keep composition events in the frame path so the native pre-edit
@@ -422,7 +427,7 @@ func (w *ViewW) runEffects(out []effect) {
 				win.WriteClipboard(e.copy)
 			}
 		default:
-			w.t.Send(e.send)
+			w.t.SendInput(e.send)
 		}
 	}
 }

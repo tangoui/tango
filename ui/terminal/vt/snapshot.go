@@ -16,6 +16,7 @@ type Snapshot struct {
 	StyleGeneration  uint64
 	StylesData       []Style
 	Rows             []SnapshotRow
+	rowIndex         map[uint64]int
 	styles           StyleTable
 	released         bool
 }
@@ -60,6 +61,7 @@ func (t *Terminal) Snapshot() Snapshot {
 		Title:           t.Title(),
 		StyleGeneration: styleGen,
 		Rows:            make([]SnapshotRow, rows),
+		rowIndex:        make(map[uint64]int, rows),
 	}
 	prev := t.snapshot
 	reuseRows := prev != nil && prev.Cols == cols && prev.Height == rows && prev.StyleGeneration == styleGen
@@ -76,18 +78,16 @@ func (t *Terminal) Snapshot() Snapshot {
 		id := s.dropped + uint64(abs)
 		reused := false
 		if reuseRows {
-			for i := range prev.Rows {
-				if prev.Rows[i].ID == id && snapshotLineEqual(line, prev.Rows[i]) {
-					out.Rows[y] = prev.Rows[i]
-					reused = true
-					break
-				}
+			if i, ok := prev.rowIndex[id]; ok && snapshotLineEqual(line, prev.Rows[i]) {
+				out.Rows[y] = prev.Rows[i]
+				reused = true
 			}
 		}
 		if !reused {
 			row := snapshotRow(line, id)
 			out.Rows[y] = row
 		}
+		out.rowIndex[id] = y
 	}
 	t.snapshot = &out
 	t.snapTGen, t.snapSGen = t.generation, s.generation

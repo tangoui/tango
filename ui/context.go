@@ -148,39 +148,38 @@ type Context struct {
 	anims  map[animKey]*anim
 
 	// Interaction, evaluated against the previous frame's hits.
-	hits, nextHits  []hit
-	rects           map[ID]geom.Rect
-	nextRects       map[ID]geom.Rect
-	pointer         geom.Point
-	pointerIn       bool
-	hot             ID
-	topLayer        int
-	active          ID
-	pressPos        geom.Point
-	pressMods       input.Modifiers // modifiers held at the last primary press
-	pointerMods     input.Modifiers // modifiers of the latest pointer or key event (PointerMods)
-	pressed         map[ID]bool
-	clicked         map[ID]int
-	released        map[ID]bool
-	releasePos      map[ID]geom.Point // position of each primary release this frame (ReleasePos)
-	pressedAny      bool
-	lastClick       time.Time
-	lastClickID     ID
-	clickCount      int
-	tabCap          tabCapture    // CaptureTab declarations (tab_capture.go)
-	escClaim        escapeClaim   // ClaimEscape declarations (escape_claim.go)
-	events          []input.Event // ordered key / text / composition events of this frame (events_for.go)
-	terminalEventID ID
-	terminalEvent   func(input.Event) bool
-	winBlurred      bool     // the window lost key focus (WindowFocused)
-	dir             dirState // resolved layout direction of the current scope (direction.go)
-	env             *env     // current configuration scope (env.go); swapped during paint / measure
-	envRoot         env      // the window's root scope, refreshed every build
-	focus           ID
-	focusVisible    bool
-	focusOrder      input.FocusOrder[ID]
-	nextFocusOrder  input.FocusOrder[ID]
-	keys            []input.KeyEvent
+	hits, nextHits []hit
+	rects          map[ID]geom.Rect
+	nextRects      map[ID]geom.Rect
+	pointer        geom.Point
+	pointerIn      bool
+	hot            ID
+	topLayer       int
+	active         ID
+	pressPos       geom.Point
+	pressMods      input.Modifiers // modifiers held at the last primary press
+	pointerMods    input.Modifiers // modifiers of the latest pointer or key event (PointerMods)
+	pressed        map[ID]bool
+	clicked        map[ID]int
+	released       map[ID]bool
+	releasePos     map[ID]geom.Point // position of each primary release this frame (ReleasePos)
+	pressedAny     bool
+	lastClick      time.Time
+	lastClickID    ID
+	clickCount     int
+	tabCap         tabCapture    // CaptureTab declarations (tab_capture.go)
+	escClaim       escapeClaim   // ClaimEscape declarations (escape_claim.go)
+	events         []input.Event // ordered key / text / composition events of this frame (events_for.go)
+	terminalEvents map[ID]func(input.Event) bool
+	winBlurred     bool     // the window lost key focus (WindowFocused)
+	dir            dirState // resolved layout direction of the current scope (direction.go)
+	env            *env     // current configuration scope (env.go); swapped during paint / measure
+	envRoot        env      // the window's root scope, refreshed every build
+	focus          ID
+	focusVisible   bool
+	focusOrder     input.FocusOrder[ID]
+	nextFocusOrder input.FocusOrder[ID]
+	keys           []input.KeyEvent
 	// frameKeys are the key events of this frame, never consumed (KeysFor
 	// empties keys): for window-wide shortcuts handled by widgets built
 	// after the focused one (Menubar's Alt / F10). keySeq counts the

@@ -58,3 +58,29 @@ func TestResizeDoesNotBlockClose(t *testing.T) {
 		t.Fatal("Resize did not finish after Close released the Conn")
 	}
 }
+
+func TestStartResizeDoesNotBlockClose(t *testing.T) {
+	conn := newBlockingResizeConn()
+	term := New(Options{Conn: conn})
+	startDone := make(chan struct{})
+	go func() {
+		term.Start(80, 24, func() {})
+		close(startDone)
+	}()
+	time.Sleep(10 * time.Millisecond)
+	closeDone := make(chan struct{})
+	go func() {
+		_ = term.Close()
+		close(closeDone)
+	}()
+	select {
+	case <-closeDone:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Close blocked behind initial Conn.Resize")
+	}
+	select {
+	case <-startDone:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Start did not finish after Close released the Conn")
+	}
+}

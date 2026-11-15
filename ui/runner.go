@@ -156,12 +156,24 @@ func (r *Runner) Invalidate() {
 
 // HandleEvent queues an input event and requests a frame.
 func (r *Runner) HandleEvent(e input.Event) {
-	if r.c.terminalEvent != nil && r.c.focus == r.c.terminalEventID && r.c.terminalEvent(e) {
-		r.Invalidate()
-		return
+	if !r.pendingFocusChange() {
+		if fn := r.c.terminalEvents[r.c.focus]; fn != nil && fn(e) {
+			r.Invalidate()
+			return
+		}
 	}
 	r.queue = append(r.queue, e)
 	r.Invalidate()
+}
+
+func (r *Runner) pendingFocusChange() bool {
+	for _, e := range r.queue {
+		switch e.(type) {
+		case input.Pointer, input.WindowFocus:
+			return true
+		}
+	}
+	return false
 }
 
 // Close releases resources.

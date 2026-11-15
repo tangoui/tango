@@ -189,8 +189,8 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	dirty = append(dirty, d2...)
 	all = all || all2
 	vs.dirty = dirty
-	snap := v.Snapshot()
 	w.t.Unlock()
+	snap := w.t.Snapshot()
 
 	f := &frame{l: l, r: r, m: m, sch: &sch, styles: snap.Styles()}
 	if sch.Selection.A == 255 {
@@ -221,6 +221,8 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	if c.A11yEnabled() {
 		vs.a11yText = snapshotText(&snap)
 	}
+	w.t.perf.cacheHits.Store(vs.rowCache.hits)
+	w.t.perf.cacheMisses.Store(vs.rowCache.misses)
 
 	snap.Release()
 
@@ -477,6 +479,9 @@ func (w *ViewW) paintCursor(f *frame, snap *vt.Snapshot, focused bool) cursorKey
 // non-blank row or the cursor's, whichever is lower), or over the last
 // row when the output fills the view. v is locked.
 func (w *ViewW) paintExited(f *frame, snap *vt.Snapshot) {
+	if snap.ViewOffset() > 0 {
+		return
+	}
 	_, rows := snap.Size()
 	last := snap.CursorY
 	for y := rows - 1; y > last; y-- {

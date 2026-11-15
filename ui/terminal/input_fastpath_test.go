@@ -54,3 +54,11 @@ func TestSendInputReportsBulkTruncation(t *testing.T) {
 		t.Fatalf("SendInput result = %+v, want truncated bulk input", result)
 	}
 }
+
+func TestFastControlKeyWithoutTextDoesNotSwallowNextText(t *testing.T) {
+	g := newViewRig(t, 600, 300, nil)
+	g.focus()
+	g.inject(input.KeyEvent{Key: input.KeyA, Down: true, Mods: input.ModCtrl}, input.KeyEvent{Key: input.KeyA, Mods: input.ModCtrl})
+	g.d.Type("x")
+	g.waitInput("\x01x")
+}

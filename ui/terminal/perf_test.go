@@ -25,8 +25,8 @@ func TestViewPerfStatsCountsPaintRows(t *testing.T) {
 	g.output("one\r\ntwo\r\n", func(v *vt.Terminal) bool { return rowText(v, 1) == "two" })
 	g.d.Frame()
 	st := g.vw.perfStats()
-	if st.PaintRows == 0 {
-		t.Fatalf("paint stats = %+v, want painted rows", st)
+	if st.PaintRows == 0 || st.SnapshotBytes == 0 || st.CacheHits == 0 {
+		t.Fatalf("paint stats = %+v, want rows, snapshot bytes and cache hits", st)
 	}
 }
 

@@ -106,6 +106,7 @@ type Terminal struct {
 
 	closeOnce sync.Once
 	closeErr  error // set once by Close
+	resizeMu  sync.Mutex
 	perf      perfCounters
 }
 
@@ -160,15 +161,14 @@ func (t *Terminal) Start(cols, rows int, invalidate func()) {
 	t.vt.Resize(cols, rows)
 	t.mu.Unlock()
 
-	// Re-check under smu: Close sets closing under smu before it closes
-	// the Conn, so neither Resize nor the goroutines run after it, and
-	// wg.Add happens before Close's wg.Wait or not at all.
+	// Resize outside smu. Close marks closing and closes the Conn before
+	// waiting for resizeMu, so a blocking platform resize is unblocked.
+	t.resizeConn(cols, rows, 0, 0)
 	t.smu.Lock()
 	defer t.smu.Unlock()
 	if t.closing {
 		return
 	}
-	t.conn.Resize(cols, rows, 0, 0)
 	t.wg.Add(2)
 	go t.writeLoop()
 	go t.readLoop(invalidate)
@@ -375,7 +375,19 @@ func (t *Terminal) Snapshot() vt.Snapshot {
 	t.mu.Lock()
 	s := t.vt.Snapshot()
 	t.mu.Unlock()
+	t.perf.snapshotBytes.Store(uint64(snapshotBytes(s)))
 	return s
+}
+
+func snapshotBytes(s vt.Snapshot) int {
+	n := len(s.StylesData) * 12
+	for _, row := range s.Rows {
+		n += len(row.Cells) * 8
+		for _, marks := range row.Combining {
+			n += 8 + len(marks.Runes)*4
+		}
+	}
+	return n
 }
 
 // Lock locks the emulator and returns it. The caller must call
@@ -414,6 +426,17 @@ func (t *Terminal) Send(b []byte) {
 	signal(t.wake)
 }
 
+func (t *Terminal) resizeConn(cols, rows, wpx, hpx int) {
+	t.resizeMu.Lock()
+	defer t.resizeMu.Unlock()
+	t.smu.Lock()
+	closing := t.closing
+	t.smu.Unlock()
+	if !closing {
+		t.conn.Resize(cols, rows, wpx, hpx)
+	}
+}
+
 // Resize resizes the emulator to cols×rows cells and tells the program
 // the new size, in cells and pixels. A Conn implementation must let Close
 // unblock a concurrent Resize; Resize is never called while holding the
@@ -425,12 +448,7 @@ func (t *Terminal) Resize(cols, rows, wpx, hpx int) {
 	t.mu.Lock()
 	t.vt.Resize(cols, rows)
 	t.mu.Unlock()
-	t.smu.Lock()
-	closing := t.closing
-	t.smu.Unlock()
-	if !closing {
-		t.conn.Resize(cols, rows, wpx, hpx)
-	}
+	t.resizeConn(cols, rows, wpx, hpx)
 }
 
 // Exited reports whether the read loop has ended and, if it ended with
@@ -453,6 +471,8 @@ func (t *Terminal) Close() error {
 		close(t.done) // before conn.Close: see readLoop
 		t.smu.Unlock()
 		t.closeErr = t.conn.Close()
+		t.resizeMu.Lock()
+		t.resizeMu.Unlock()
 		t.wg.Wait()
 		t.qmu.Lock()
 		t.qclosed, t.queue, t.qbytes, t.rbytes = true, nil, 0, 0

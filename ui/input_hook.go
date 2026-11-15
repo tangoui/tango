@@ -14,6 +14,8 @@ func (c *Context) TerminalEvents(id ID, fn func(input.Event) bool) {
 	if id == 0 {
 		return
 	}
-	c.terminalEventID = id
-	c.terminalEvent = fn
+	if c.terminalEvents == nil {
+		c.terminalEvents = make(map[ID]func(input.Event) bool)
+	}
+	c.terminalEvents[id] = fn
 }
