@@ -1,8 +1,8 @@
 # Tango UI 组件覆盖率扫描
 
 > 扫描日期：2026-11-13
-> 复核：2026-11-13 晚，按当前代码逐行更新（Splitter/Dropdown/Menu/Tabs/Form/Slider/TimePicker/Transfer/Carousel/Descriptions/List/Tree/Drawer 等缺口已补，App、SettingDrawer、RouteContext/GridContent、ProFormGroup、CascaderPanel 已有实现，ProTable 补齐 params/polling/columnsState/alert 自定义，货币改为 ISO 代码；Defaults 接线重算为 106/164；计数见 1.2）
-> 稳定性验证：2026-11-14，HEAD `f3ba799`，Windows 实机；测试、截图、无障碍与镜像检查全部通过（见 1.2 末尾与第 5 节）
+> 复核：2026-11-13 晚，按当前代码逐行更新（Splitter/Dropdown/Menu/Tabs/Form/Slider/TimePicker/Transfer/Carousel/Descriptions/List/Tree/Drawer 等缺口已补，App、SettingDrawer、RouteContext/GridContent、ProFormGroup、CascaderPanel 已有实现，ProTable 补齐 params/polling/columnsState/alert 自定义，货币改为 ISO 代码）；Defaults 接线当前审计为 141/177（此前 106/164 为早期统计，历史口径已失效；计数见 1.2 与第 6.1 节）
+> 历史稳定性验证：2026-11-14，历史基线 HEAD `f3ba799`，Windows 实机；测试、截图、无障碍与镜像检查全部通过（见 1.2 末尾与第 5 节；不代表当前 Task 1 的提交基线）
 > 范围：`ui/` 包，以及 `ui/chart`、`ui/mobile`、`ui/editor` 子包
 > 对标：Ant Design v6、Element Plus、Ant Design Pro Components
 
@@ -34,7 +34,7 @@
 
 2026-11-14 补齐：剩下的"部分"是 ConfigProvider（`Defaults` 接线，Ant、Element 各一行）和 FooterToolbar（毛玻璃，需要渲染层的背景模糊）。另按 shadcn/ui 新增 Menubar、AspectRatio、Item。同日 groupG 补完 `Defaults` 接线（141 已接线 / 36 不适用 / 0 未接线，见 6.1）并加上 Element 的 button.autoInsertSpace、message.max，ConfigProvider 两行改为 ✅；只剩 FooterToolbar 一项"部分"。
 
-**稳定性验证（2026-11-14，HEAD `f3ba799`，Windows）**：上表全部 ✅ 组件（含当天补齐的 Button/ButtonGroup、Steps、Segmented、Timeline、DatePicker/MultiDatePicker、ColorPicker 渐变、Statistic/StatisticTimer、Switch、Checkbox/Radio、AutoComplete、Mentions、Select、Cascader、TreeSelect、Upload、Card、Tour、Message、Pro 系列，以及 Menubar、AspectRatio、Item）判定为**稳定**：
+**历史稳定性验证（2026-11-14，历史基线 HEAD `f3ba799`，Windows）**：上表全部 ✅ 组件（含当天补齐的 Button/ButtonGroup、Steps、Segmented、Timeline、DatePicker/MultiDatePicker、ColorPicker 渐变、Statistic/StatisticTimer、Switch、Checkbox/Radio、AutoComplete、Mentions、Select、Cascader、TreeSelect、Upload、Card、Tour、Message、Pro 系列，以及 Menubar、AspectRatio、Item）判定为**稳定**：
 
 - `go test -count=1 ./ui/...` 连跑 3 轮，0 失败（无抖动）。
 - 画廊 `-theme all -scale 1` 退出码 0，231 个基础页面在 Ant 亮/暗、Element 亮/暗、shadcn 亮/暗六种渲染下均有截图，无缺页（见 5.2）；抽看 ButtonGroup-element-dark、Menubar-shadcn 正常。
@@ -286,7 +286,7 @@
 - shadcn 是**主题轮次**，不是逐页手写的变体。全仓只有 `page_shadcn.go` 一个 shadcn 专属页（ShadcnDashboard，以及 Command/Toggle/Kbd 等）。
 - 对标 shadcn 新增（groupF，2026-11-14）：`Menubar`（✅ menubar.go，下拉面板复用 nav_dropdown.go `navMenuPopup` + `navMarks` 勾选/单选指示；页面 page_menubar.go）、`AspectRatio`（✅ aspect_ratio.go；page_aspect_ratio.go）、`Item`/`ItemGroup`（✅ item.go；page_item.go）。三者在 Ant / Element / shadcn 亮暗下均有截图；令牌 `Components.Menubar` / `Components.Item`。`ConfigProvider.Defaults`：Item（variant/size）、ItemGroup（split/bordered）已接线（groupG）；Menubar、AspectRatio 记为不适用（见 6.1）。
 
-### 5.2 本次渲染结果（2026-11-14 重跑，HEAD `f3ba799`，Windows，`-theme all -scale 1`）
+### 5.2 本次渲染结果（历史记录：2026-11-14，基线 HEAD `f3ba799`，Windows，`-theme all -scale 1`）
 
 - 全部成功，退出码 0，耗时 3 分 30 秒；`components/` 下 1590 张，`mobile/` 下 66 张，另有首页、总览、仪表盘、浮层图（各六种风格）。
 - 基础页面（非变体）共 231 个（上次 219，新增 Menubar、AspectRatio、Item、ButtonGroup 等）。
@@ -324,7 +324,7 @@
 | ProSkeleton-shadcn-dark | 能用。页头区块是一整块浅灰，层次比 Ant 暗色更"反"（外层比卡片亮），属于 shadcn 暗色令牌本身的特点。 |
 | Table-shadcn-dark | 能用。排序列有整列底色高亮（这是 Ant 的行为，shadcn 原版没有）；未勾选复选框的边框在暗色下很淡。两点都是轻微问题。 |
 
-### 5.4 无障碍审计（`-audit`，2026-11-14 重跑，HEAD `f3ba799`：693 次页面渲染 × 3 种风格）
+### 5.4 无障碍审计（历史记录：`-audit`，2026-11-14，基线 HEAD `f3ba799`：693 次页面渲染 × 3 种风格）
 
 - missing-name 0，no-role 0，not-keyboard 0；无名交互节点 0（上次 657 次渲染，同样全为 0；2026-11-13 之前的 12 项 not-keyboard 来自 `CarouselCard`，data_carousel.go 卡片模式给每张卡片设 `aKbd` 后已消失）。
 - 对比度：6 个内置主题 0 项失败；108 项设计默认值低于 WCAG AA（58 项来自各设计规范本身，另有 50 项是终端 ANSI 调色板；HighContrast 能修正）；24 项豁免（禁用态、装饰性分隔线）；HighContrast 下 0 项失败。与上次相同。
@@ -351,7 +351,7 @@
 ### 6.1 ConfigProvider.Defaults 接线清单
 
 - **统计方法**：grep `ConfigProp(`、`Prop(c, "X"`、`propString/propBool/propFloat/propInt64`、`p2bBool/p2bNum/p2bStr/p2bDur`、`p2bSelectDefaults`、p2a_date.go 的 `p.comp`，复核时另加 `proPropInt/proPropSize/proPropPageSize`（shad2d_util.go）、`shad2aSize/shad2aTreeSize`、`s2cSize/messageDuration`（shad2c_defaults.go）、`dataPropCols/dataPropSize`（data_util.go）、`formPropSize`，以及以组件名为参数的 `sizeDefaults("Input")`、`shadDefaults("InputTag")`、`ModalFormW.defaults("ModalForm")` 等，取出读取到的组件名。入口直接调用另一个已接线入口、或读别的组件键的，也算接线（与 MultiSelect 读 "Select" 键同一口径）。2026-11-14 补的接线集中在 ui/defaults_more.go（各构造函数里一行 `configDefaults()`），新键一律用常量组件名和键名调用 `Prop` / `c.ConfigProp`，因此都进了 api/go/ui.txt 的 prop 行（R11）。
-- **分母**：177 个公开入口。即 `func Xxx(c *Context…)`（含 ProTable/EditableProTable/ProList 这类泛型入口），去掉 Row/Column/Div/StackBox/Custom/Spacer/Gap/Key/Disabled/Overlay/HoverDelay/SetHoverOpen/ScreenBreakpoint/OpenDialogs/MessageDestroy/NotificationDestroy/ConfigProvider 这些基础件，以及工具函数和取值钩子 Prop/State/UseApp/RouteContext/CloseContextMenu/ContextMenuOpen/ProSettingsProvider/ProFormItems 和 ContextMenuAt 的选项变体 ContextMenuAtWith。比 164 多出的 13 个是 AspectRatio、ButtonGroup、ColorPickerGradient、ColorPickerPanelGradient、DefaultFooter、Item、ItemGroup、Menubar、MultiDatePicker、ProFieldOf、SchemaForm、StatisticTimer、SwitchValue。`FormList[T]`（读 "ProFormList" 键）的第一个参数是 `*FormW` 不是 `*Context`，不计入分母。
+- **分母**：177 个公开入口。即 `func Xxx(c *Context…)`（含 ProTable/EditableProTable/ProList 这类泛型入口），去掉 Row/Column/Div/StackBox/Custom/Spacer/Gap/Key/Disabled/Overlay/HoverDelay/SetHoverOpen/ScreenBreakpoint/OpenDialogs/MessageDestroy/NotificationDestroy/ConfigProvider/NativeView 这些基础件；其中 `NativeView` 是仅供宿主放置平台原生视图的占位基础件，不纳入 Defaults 组件入口。另去掉工具函数和取值钩子 Prop/State/UseApp/RouteContext/CloseContextMenu/ContextMenuOpen/ProSettingsProvider/ProFormItems 和 ContextMenuAt 的选项变体 ContextMenuAtWith。比此前 164 的历史口径多出的 13 个是 AspectRatio、ButtonGroup、ColorPickerGradient、ColorPickerPanelGradient、DefaultFooter、Item、ItemGroup、Menubar、MultiDatePicker、ProFieldOf、SchemaForm、StatisticTimer、SwitchValue。`FormList[T]`（读 "ProFormList" 键）的第一个参数是 `*FormW` 不是 `*Context`，不计入分母。
 - **结果（互斥主分类）**：已声明且已接线 141，已声明但未接线 0，未声明且不适用 36（结论为“未声明，不是 bug”）；因此 141 + 36 = 177。下方“复用其他组件 key”“内部 panel 明确不继承”“显式覆盖不适用”是交叉审计标签，不另加分母。
 
 **已声明且已接线（141）**
@@ -387,7 +387,7 @@ Addon、Affix、Alert、Anchor、App、AutoComplete、Avatar、AvatarGroup、Bac
 
 **复用其他组件 key（交叉标签，24 个入口，不新增 API）**：BreadcrumbItems→`Breadcrumb`；CascaderPanel→`Cascader`；CheckAll→`Checkbox`/`CheckboxGroup`；CheckboxGroup→`Checkbox`；CheckCardGroup→`CheckCard`；CollapsibleSider→`Sider`；ColorPickerGradient→`ColorPicker`；ColorPickerPanel→`ColorPicker`；ColorPickerPanelGradient→`ColorPickerPanel`；DatePickerPanel→`DatePicker`；FieldSet→`ProFormFieldSet`；Loading→`Spin`；MessageBox→`Confirm`/`Modal`；MultiDatePicker→`DatePicker`；MultiSelect→`Select`；ProFieldOf→`ProField`；Prompt→`Confirm`/`Modal`；RadioGroup→`Radio`；SliderRange→`Slider`；StatisticCardGroup→`ProCard`；StatisticTimer→`Countdown`；SwitchValue→`Switch`；TimePanel→`TimePicker`；VirtualSelect→`Select`。这里的“复用”包含直接调用已接线入口和读取其他组件名的 helper，均按目标 key 的现有契约核对。
 
-**内部 panel 明确不继承（1 个边界）**：`TimeRangePicker` 的外层读取自己的 `TimeRangePicker` 默认；其内部时间列调用不读取默认值的 `timePanel`，所以不会继承 `Defaults("TimePicker", ...)`。现有 `ui/defaults_more_test.go` 的 `TestTimeRangePanelsIgnoreTimePickerDefaults` 将此作为正式边界，不视为漏接。
+**内部 panel helper 边界（1 个）**：public `TimeRangePicker` 的实际构造路径在 `ui/p2a_time_range.go`，其中内部时间列调用不读取默认值的 `timePanel`，所以该 helper 不继承 `Defaults("TimePicker", ...)`。现有 `ui/defaults_more_test.go` 的 `TestTimeRangePanelsIgnoreTimePickerDefaults` 直接调用 `timePanel` helper，只证明这一层不继承的边界，不宣称覆盖完整的 public `TimeRangePicker` 路径。
 
 **显式覆盖不适用（交叉标签）**：36 个未声明入口没有 Defaults 默认值，故不存在“默认后由显式 modifier 覆盖”的契约；这不等于已声明但未接线。已声明入口则按构造器先读 Defaults、链式 modifier 后执行的口径复核；其中只有 `Compact.block`、`SplitterPanel.collapsible`、`FloatButtonGroup` 的 `shape/type`、`Tour.type`、`VirtualTree` 的 `checkStrictly/checkOnClickNode`、`ItemGroup` 的 `split/bordered` 等单向开启项没有对应的关闭 modifier，报告时不把它们误记为显式覆盖测试缺口；`Tour` 的 `mask/arrow` 例外，分别可用 `NoMask`/`NoArrow` 覆盖。
 
