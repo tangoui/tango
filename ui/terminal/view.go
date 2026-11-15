@@ -25,8 +25,9 @@ const (
 	// resizeThrottle is the shortest time between two resizes sent to
 	// the program while the view is being resized.
 	resizeThrottle = 50 * time.Millisecond
-	// segCacheSize is the capacity of a view's shaped-segment cache.
-	segCacheSize = 512
+	// segCacheMin is the smallest capacity of a view's shaped-segment
+	// cache; the capacity grows with the grid (see segCache.fit).
+	segCacheMin = 512
 	// scrollbarWidth is the width of the overlay scrollback scrollbar.
 	scrollbarWidth = 8
 	// exitedText is drawn below the output once the program has exited.
@@ -126,7 +127,7 @@ type viewState struct {
 }
 
 func newViewState() viewState {
-	return viewState{cache: newSegCache(segCacheSize), needFull: true}
+	return viewState{cache: newSegCache(segCacheMin), needFull: true}
 }
 
 // View shows t. Call it every frame; the application owns t and closes it.
