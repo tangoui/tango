@@ -114,6 +114,7 @@ type MessageRef struct {
 //	ui.Message(c, "loading", "保存中…").Key("save").Duration(0)
 //	ui.Message(c, "success", "已保存").Key("save") // replaces the loading one
 func Message(c *Context, status, content string) *MessageRef {
+	c.useGlobalLayer(globalMessage, renderMessages)
 	t := c.toasts()
 	t.seq++
 	m := &toast{id: hashID("msg-key", "auto-"+strconv.Itoa(t.seq)), status: status, title: content, start: c.now, dur: messageDuration(c, "Message", MessageDuration), env: c.env}
@@ -190,8 +191,6 @@ func MessageDestroy(c *Context, key string) {
 	}
 	c.invalid = true
 }
-
-func init() { globalLayers = append(globalLayers, renderMessages) }
 
 // Messages and notifications are drawn by global layers after the page,
 // outside every ConfigProvider scope; each one keeps the env it was opened
@@ -512,6 +511,7 @@ type NotificationRef struct {
 // after 4.5s (paused while hovered), collapse into a stack when more than
 // NotifyStackThreshold share a corner, and can be updated in place by key.
 func Notification(c *Context, status, title string) *NotificationRef {
+	c.useGlobalLayer(globalNotification, renderNavNotes)
 	ns := c.navNotes()
 	ns.seq++
 	n := &navNote{id: hashID("note-key", "auto-"+strconv.Itoa(ns.seq)), cfg: noteConfig{Status: status, Title: title}, start: c.now, loc: c.Locale(), env: c.env}
@@ -588,8 +588,6 @@ func NotificationDestroy(c *Context, key string) {
 	}
 	c.invalid = true
 }
-
-func init() { globalLayers = append(globalLayers, renderNavNotes) }
 
 func (n *navNote) duration() time.Duration {
 	d := n.cfg.Duration
