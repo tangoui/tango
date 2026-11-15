@@ -349,6 +349,17 @@ func TestRouterOverSurfaceLanes(t *testing.T) {
 	}
 	expectLanePacket(t, ps[0], 1, small)
 	expectLanePacket(t, ps[1], 2, big)
+	// down:android is not ordered with the message channel: each lane frame
+	// is followed by a boundary, so a lost packet is detected.
+	var bounds []float64
+	for _, m := range ipcReplies(t, fb, s) {
+		if m["op"] == "boundary" {
+			bounds = append(bounds, m["seq"].(float64))
+		}
+	}
+	if len(bounds) != 2 || bounds[0] != 2 || bounds[1] != 3 {
+		t.Fatalf("boundaries %v, want [2 3]", bounds)
+	}
 }
 
 // down:poll (BinaryMinSize 0) while the page polls: every byte frame, small
@@ -385,6 +396,9 @@ func TestRouterOverSurfacePollLane(t *testing.T) {
 				}
 				if m["op"] == "data" {
 					t.Fatalf("stream data on the message channel: %s", it.Data)
+				}
+				if m["op"] == "boundary" { // down:poll is ordered: none needed
+					t.Fatalf("boundary on down:poll: %s", it.Data)
 				}
 			}
 		}

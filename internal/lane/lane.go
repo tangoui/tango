@@ -223,26 +223,40 @@ func (s *State) faultLocked(name string, count bool) bool {
 // ready or the lane refused it; the caller then sends the frames as
 // messages. On true the lane owns packet; on false it was
 // neither kept nor modified (ipc.BinaryConn.SendBinary).
-func (s *State) Send(packet []byte) bool { return s.send(0, false, packet) }
+func (s *State) Send(packet []byte) bool { ok, _ := s.send(0, false, packet); return ok }
+
+// SendOrdered is Send that also reports whether the lane that took packet
+// is down:poll, whose packets share one sequenced queue with the page's
+// messages (ipc.OrderedBinaryConn). ordered is false when sent is false.
+func (s *State) SendOrdered(packet []byte) (sent, ordered bool) { return s.send(0, false, packet) }
 
 // SendGeneration is Send for the session of generation gen: false when
 // gen is not the current generation. The check is made under s.mu but the
 // lane's send (platformSend, pollSend) runs after it is released, so a new
 // Hello in between does not stop the packet; the lane's own generation
 // (down:poll's page generation, a platform lane's) is what drops it then.
-func (s *State) SendGeneration(gen uint64, packet []byte) bool { return s.send(gen, true, packet) }
+func (s *State) SendGeneration(gen uint64, packet []byte) bool {
+	ok, _ := s.send(gen, true, packet)
+	return ok
+}
 
-func (s *State) send(genID uint64, scoped bool, packet []byte) bool {
+// SendGenerationOrdered is SendGeneration that also reports ordered, as
+// SendOrdered does.
+func (s *State) SendGenerationOrdered(gen uint64, packet []byte) (sent, ordered bool) {
+	return s.send(gen, true, packet)
+}
+
+func (s *State) send(genID uint64, scoped bool, packet []byte) (sent, ordered bool) {
 	s.mu.Lock()
 	if scoped && genID != s.gen {
 		s.mu.Unlock()
-		return false
+		return false, false
 	}
 	name := s.downLocked()
 	counted := !emptyPacket(packet)
 	if name == "" || s.faultLocked(name, counted) {
 		s.mu.Unlock()
-		return false
+		return false, false
 	}
 	gen := s.gen
 	s.mu.Unlock()
@@ -251,14 +265,14 @@ func (s *State) send(genID uint64, scoped bool, packet []byte) bool {
 		send = s.pollSend
 	}
 	if send != nil && send(packet) {
-		return true
+		return true, name == DownPoll
 	}
 	if counted {
 		s.mu.Lock()
 		s.uncountLocked(name, gen)
 		s.mu.Unlock()
 	}
-	return false
+	return false, false
 }
 
 // emptyPacket reports whether packet carries no frames (count 0), like the

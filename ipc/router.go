@@ -48,6 +48,22 @@ type BinaryConn interface {
 	BinaryMinSize() int
 }
 
+// OrderedBinaryConn is optionally implemented by a BinaryConn (or the
+// transport a SessionBinaryConn returns) whose downstream lane may deliver
+// packets in order with the message channel and as reliably as it (the
+// core's down:poll: one sequenced queue for messages and packets). The
+// Router uses SendBinaryOrdered instead of SendBinary when it is there.
+type OrderedBinaryConn interface {
+	BinaryConn
+	// SendBinaryOrdered is SendBinary that also reports, for a packet it
+	// took, whether the lane that took it delivers it in order with every
+	// message sent after it on the connection and never loses it while
+	// those arrive. The Router then sends no boundary for the frame (the
+	// page cannot see later messages without the packet, so there is no
+	// gap to detect). ordered is meaningless when sent is false.
+	SendBinaryOrdered(packet []byte) (sent, ordered bool)
+}
+
 // SessionBinaryConn binds sends to an immutable document generation. Reusable
 // surfaces must implement it; simple in-process BinaryConns may omit it.
 // BinarySession is captured once when connState is published, never per send.

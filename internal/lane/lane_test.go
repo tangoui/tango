@@ -345,3 +345,33 @@ func TestSuspendDown(t *testing.T) {
 		t.Fatal("suspension carried into the next generation")
 	}
 }
+
+// SendGenerationOrdered reports ordered only for a packet down:poll took.
+func TestSendGenerationOrdered(t *testing.T) {
+	plat, poll := &recorder{}, &recorder{}
+	s := New(plat.send, poll.send)
+	h := parseHello(t, s.Hello([]string{DownPoll, DownShm}, true))
+	if sent, _ := s.SendGenerationOrdered(h.Gen, mkPacket([]byte("x"))); sent {
+		t.Fatal("sent before any lane is ready")
+	}
+	s.Control(ctl("ready", DownPoll, h.Gen))
+	if sent, ordered := s.SendGenerationOrdered(h.Gen, mkPacket([]byte("x"))); !sent || !ordered || poll.n() != 1 {
+		t.Fatalf("down:poll: sent %v ordered %v", sent, ordered)
+	}
+	if sent, _ := s.SendGenerationOrdered(h.Gen+1, mkPacket([]byte("x"))); sent {
+		t.Fatal("sent for another generation")
+	}
+	poll.setFail(true)
+	if sent, ordered := s.SendGenerationOrdered(h.Gen, mkPacket([]byte("x"))); sent || ordered {
+		t.Fatalf("refused: sent %v ordered %v", sent, ordered)
+	}
+	poll.setFail(false)
+	// A platform lane is preferred and is not ordered.
+	s.Control(ctl("ready", DownShm, h.Gen))
+	if sent, ordered := s.SendGenerationOrdered(h.Gen, mkPacket([]byte("x"))); !sent || ordered || plat.n() != 1 {
+		t.Fatalf("down:shm: sent %v ordered %v", sent, ordered)
+	}
+	if sent, ordered := s.SendOrdered(mkPacket([]byte("x"))); !sent || ordered {
+		t.Fatalf("SendOrdered down:shm: sent %v ordered %v", sent, ordered)
+	}
+}

@@ -77,7 +77,10 @@
 //     the direction nor returns credit. A missing tail below it arms the same
 //     five-second gap deadline; contiguous receipt clears it. Only unresolved
 //     streams fail, even when there is no later frame/end and the send window
-//     is full.
+//     is full. Go sends no boundary for a frame an ordered lane took
+//     (OrderedBinaryConn: the core's down:poll, one sequenced queue for
+//     messages and packets), since such a packet cannot be missing while
+//     later messages arrive.
 //   - ack: returns "b" bytes of credit to the sender (the sum of the c of
 //     the frames read since the previous ack).
 //   - end: half close. The sender of end sends no more data but still

@@ -158,6 +158,17 @@ func (s *Surface) SendBinary(packet []byte) bool {
 	return !s.closed.Load() && s.lane.Send(packet)
 }
 
+// SendBinaryOrdered implements ipc.OrderedBinaryConn: SendBinary that
+// also reports whether down:poll took packet (it then travels in the
+// page's one sequenced downstream queue with every later message, so ipc
+// sends no boundary after it). Safe from any goroutine.
+func (s *Surface) SendBinaryOrdered(packet []byte) (sent, ordered bool) {
+	if s.closed.Load() {
+		return false, false
+	}
+	return s.lane.SendOrdered(packet)
+}
+
 // BinaryMinSize implements ipc.BinaryConn: the smallest byte frame worth
 // the downstream lane, -1 without one. Safe from any goroutine.
 func (s *Surface) BinaryMinSize() int {
@@ -249,6 +260,11 @@ func (s *Surface) BinarySession() (uint64, ipc.BinaryConn) {
 	return gen, &surfaceBinarySession{Surface: s, gen: gen}
 }
 
+var (
+	_ ipc.OrderedBinaryConn = (*Surface)(nil)
+	_ ipc.OrderedBinaryConn = (*surfaceBinarySession)(nil)
+)
+
 type surfaceBinarySession struct {
 	*Surface
 	gen uint64
@@ -256,6 +272,12 @@ type surfaceBinarySession struct {
 
 func (s *surfaceBinarySession) SendBinary(p []byte) bool {
 	return !s.closed.Load() && s.lane.SendGeneration(s.gen, p)
+}
+func (s *surfaceBinarySession) SendBinaryOrdered(p []byte) (sent, ordered bool) {
+	if s.closed.Load() {
+		return false, false
+	}
+	return s.lane.SendGenerationOrdered(s.gen, p)
 }
 func (s *surfaceBinarySession) BinaryMinSize() int {
 	if s.closed.Load() || s.gen != s.lane.Generation() {
