@@ -84,3 +84,46 @@ func TestReplaceAllRejectsEmptyQuery(t *testing.T) {
 		t.Fatalf("replaceAll error = %v, want %v", err, errEmptySearch)
 	}
 }
+
+func TestResolveDiscard(t *testing.T) {
+	tests := []struct {
+		name   string
+		dirty  bool
+		action discardAction
+		want   bool
+	}{
+		{name: "clean cancel is harmless", action: discardCancel, want: true},
+		{name: "dirty save allows close", dirty: true, action: discardSave, want: true},
+		{name: "dirty discard allows close", dirty: true, action: discardDontSave, want: true},
+		{name: "dirty cancel vetoes close", dirty: true, action: discardCancel, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveDiscard(tt.dirty, tt.action); got != tt.want {
+				t.Fatalf("resolveDiscard(%v, %v) = %v, want %v", tt.dirty, tt.action, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDocumentControllerTitleMarksDirty(t *testing.T) {
+	c := newDocumentController(editor.DefaultRegistry(), theme.Base("vs"), false, false)
+	c.install(newDocumentSession("/tmp/main.go", "package main\n", c.registry))
+	defer func() {
+		if background != nil {
+			background.Close()
+		}
+		if st != nil {
+			st.Close()
+		}
+	}()
+
+	if got := c.title(); got != "Tango Editor — main.go" {
+		t.Fatalf("clean title = %q", got)
+	}
+	st.SetSelections([]editor.Selection{{Anchor: 0, Head: 0}})
+	st.Insert("// comment\n")
+	if got := c.title(); got != "Tango Editor — *main.go" {
+		t.Fatalf("dirty title = %q", got)
+	}
+}

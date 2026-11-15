@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"github.com/tangoui/tango"
+	"github.com/tangoui/tango/sys/dialog"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/editor"
 	"github.com/tangoui/tango/ui/editor/diffview"
@@ -66,6 +67,9 @@ var (
 	pendingCommand  string
 	languageOptions []ui.Option
 	background      *modelHighlight
+	documents       *documentController
+	surface         *tango.Surface
+	surfaceTitle    string
 	diffState       *diffview.State
 	diffOrigHL      *modelHighlight
 	diffMode        = "sideBySide"
@@ -82,20 +86,118 @@ func init() {
 }
 
 func setupDocument(name, text string, th *theme.Theme, split, wrap bool) {
-	if background != nil {
-		background.Close()
+	if documents == nil {
+		documents = newDocumentController(editor.DefaultRegistry(), th, split, wrap)
+	} else {
+		documents.theme, documents.split, documents.wrap = th, split, wrap
 	}
-	m := editor.NewModel(name, text, editor.DefaultRegistry())
-	background = newModelHighlight(m)
-	st, second = editor.NewView(m, th), nil
-	if wrap {
-		st.Options.WordWrap = editor.WrapOn
+	documents.install(newDocumentSession(name, text, documents.registry))
+}
+
+func syncTitle() {
+	if surface == nil || documents == nil {
+		return
 	}
-	if split {
-		second = editor.NewView(m, th)
-		second.Options.WordWrap = st.Options.WordWrap
+	title := documents.title()
+	if title != surfaceTitle {
+		surface.SetTitle(title)
+		surfaceTitle = title
 	}
-	active, focused = st, false
+}
+
+func showMessage(kind dialog.Kind, title, message string) {
+	if app == nil {
+		return
+	}
+	_, _ = dialog.Message(app, dialog.MessageOptions{Parent: surface, Kind: kind, Title: title, Message: message})
+}
+
+func saveAsDocument() bool {
+	if documents == nil || documents.session == nil {
+		return false
+	}
+	name := filepath.Base(documents.session.path)
+	if name == "." || name == "/" || name == "" {
+		name = "untitled.txt"
+	}
+	path, err := dialog.Save(app, dialog.FileOptions{Parent: surface, Title: "Save As", Filename: name})
+	if err != nil || path == "" {
+		return false
+	}
+	if err := documents.saveAs(path); err != nil {
+		showMessage(dialog.Error, "Save failed", err.Error())
+		return false
+	}
+	syncTitle()
+	return true
+}
+
+func saveDocument() bool {
+	if documents == nil || documents.session == nil {
+		return false
+	}
+	if documents.session.path == "" {
+		return saveAsDocument()
+	}
+	if err := documents.save(); err != nil {
+		showMessage(dialog.Error, "Save failed", err.Error())
+		return false
+	}
+	syncTitle()
+	return true
+}
+
+func confirmDiscard() bool {
+	if documents == nil || documents.session == nil || !documents.session.dirty() {
+		return true
+	}
+	choice, err := dialog.Message(app, dialog.MessageOptions{
+		Parent:  surface,
+		Kind:    dialog.Question,
+		Title:   "Unsaved changes",
+		Message: "Save changes to " + filepath.Base(documents.session.path) + " before continuing?",
+		Buttons: []string{"Save", "Don't Save", "Cancel"},
+	})
+	if err != nil {
+		return false
+	}
+	switch discardAction(choice) {
+	case discardSave:
+		return saveDocument()
+	case discardDontSave:
+		return resolveDiscard(true, discardDontSave)
+	default:
+		return resolveDiscard(true, discardCancel)
+	}
+}
+
+func openDocumentPath(path string) bool {
+	if diffState != nil || documents == nil {
+		return false
+	}
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+	if !confirmDiscard() {
+		return false
+	}
+	if err := documents.replace(path); err != nil {
+		showMessage(dialog.Error, "Open failed", err.Error())
+		return false
+	}
+	syncTitle()
+	return true
+}
+
+func openDocumentDialog() {
+	if documents == nil || diffState != nil || !confirmDiscard() {
+		return
+	}
+	paths, err := dialog.Open(app, dialog.FileOptions{Parent: surface, Title: "Open File", Multiple: false})
+	if err == nil && len(paths) > 0 {
+		openDocumentPath(paths[0])
+	}
 }
 
 func commandOptions() []ui.Option {
@@ -180,12 +282,24 @@ func diffStatus() string {
 }
 
 func page(c *ui.Context) {
+	syncTitle()
 	if diffState != nil {
 		diffPage(c)
 		return
 	}
 	ui.Column(c, func() {
 		ui.Row(c, func() {
+			if documents != nil {
+				if ui.Button(c, "Open").Clicked() {
+					openDocumentDialog()
+				}
+				if ui.Button(c, "Save").Disabled(!documents.session.dirty()).Clicked() {
+					saveDocument()
+				}
+				if ui.Button(c, "Save As").Clicked() {
+					saveAsDocument()
+				}
+			}
 			language := st.Model.Language()
 			if ui.Select(c, &language, languageOptions).Searchable().Width(210).A11yLabel("Document language").Changed() {
 				st.Model.SetLanguage(language)
@@ -418,11 +532,20 @@ func main() {
 	}
 	if !*diffFlag {
 		setupDocument(name, text, theme.Base(*themeName), *split, *wrap)
-		defer st.Close()
-		if second != nil {
-			defer second.Close()
+		if *file == "" {
+			documents.session.path = ""
 		}
-		defer background.Close() // cancel/unsubscribe before closing either view
+		defer func() {
+			if background != nil {
+				background.Close()
+			}
+			if st != nil {
+				st.Close()
+			}
+			if second != nil {
+				second.Close()
+			}
+		}()
 	}
 	if *language != "" {
 		st.Model.SetLanguage(*language)
@@ -440,8 +563,13 @@ func main() {
 	}
 	quit := true
 	app = tango.New(tango.Options{Name: "Tango Editor", ID: "dev.tango.editordemo", QuitOnLastClose: &quit})
+	app.OnOpenFiles(func(paths []string) {
+		if len(paths) > 0 {
+			openDocumentPath(paths[0])
+		}
+	})
 	app.OnReady(func() {
-		r, _, err := uihost.Open(app, uihost.Options{Surface: tango.SurfaceOptions{
+		r, s, err := uihost.Open(app, uihost.Options{Surface: tango.SurfaceOptions{
 			Title: "Tango Editor — " + filepath.Base(name), Width: 1200, Height: 800, MinWidth: 480, MinHeight: 320,
 			Resizable: true, Centered: true,
 		}}, page, ropts)
@@ -449,6 +577,14 @@ func main() {
 			log.Fatal(err)
 		}
 		runner = r
+		surface = s
+		surface.OnClose(func() bool { return confirmDiscard() })
+		surface.OnFilesDropped(func(paths []string, _, _ int) {
+			if len(paths) > 0 {
+				openDocumentPath(paths[0])
+			}
+		})
+		syncTitle()
 		rendName = uihost.Renderer(r)
 		log.Printf("editor-demo: window open %v after start, renderer %s", time.Since(start).Round(time.Millisecond), rendName)
 		if diffOrigHL != nil {
