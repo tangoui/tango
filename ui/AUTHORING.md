@@ -72,6 +72,12 @@
 
 - **局部主题与组件令牌**（docs/specs/rtl-and-component-tokens.md）：节点构建时记下作用域的主题、语言和方向，paint/measure 回调里的 `c.Theme`、`c.Locale()`、`c.IsRTL()` 都是该节点作用域的值，所以嵌套 `ConfigProvider.Theme/Dark/PrimaryColor/Components` 只影响子树。新组件优先读组件令牌：构造时 `th := c.ThemeFor(theme.CompButton)`、`tk := &th.Components.Button`，paint 里用 `th`/`tk`，不要在 paint 里另取全局主题。新增组件专属视觉数值一律加进 `theme.Components` 对应的 `XToken`（`ui/theme/comp_<name>.go`，默认值在 `deriveX` 里由全局令牌派生），**不再往 `Theme` 加扁平组件字段**；行为/结构属性（size、variant、placement…）仍走 `Defaults`。
 
+### Defaults 规则
+
+- Defaults 矩阵只纳入**明确声明 Defaults 契约**的组件；未声明组件不自动视为缺陷，也不要为了填表新增默认键。
+- 对已声明组件，测试必须覆盖构造器读取默认值、显式 modifier 覆盖默认值，以及适用时的嵌套 panel / provider 边界；复用其它组件键时要验证实际边界，不把内部 helper 的结论扩大到公开入口。
+- 组件是否纳入矩阵以及“未声明、不属于缺陷”的分类，以 `docs/specs/ui-coverage.md` §6.1 为准。
+
 ## 6. 绘制（paint）
 
 paint 回调签名 `func(l *paint.List, r geom.Rect)`，`r` 是节点的绝对矩形（逻辑像素）。
