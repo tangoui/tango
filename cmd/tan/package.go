@@ -298,7 +298,10 @@ func writeTarGz(out, prefix string, files map[string]fileEntry) error {
 		return err
 	}
 	defer f.Close()
-	gz := gzip.NewWriter(f)
+	gz, err := gzip.NewWriterLevel(f, gzip.BestCompression)
+	if err != nil {
+		return err
+	}
 	tw := tar.NewWriter(gz)
 	if err := tw.WriteHeader(&tar.Header{Name: prefix + "/", Typeflag: tar.TypeDir, Mode: 0o755}); err != nil {
 		return err
