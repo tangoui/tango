@@ -173,6 +173,21 @@ func TestPollTakesQueued(t *testing.T) {
 	}
 }
 
+func TestPollTakesPacketWithoutCoalesceWindow(t *testing.T) {
+	s, _ := newState(t)
+	gen, tok := s.Start(true)
+	activate(t, s, gen, tok)
+	s.Push(Packet, []byte{0, 1, 2})
+	start := time.Now()
+	items := wantBatch(t, poll(context.Background(), s, gen, tok, 0), 1, 1)
+	if d := time.Since(start); d > 20*time.Millisecond {
+		t.Fatalf("packet response waited %v with default window", d)
+	}
+	if items[0].Kind != Packet {
+		t.Fatalf("kind = %v, want packet", items[0].Kind)
+	}
+}
+
 func TestPollHoldsUntilPush(t *testing.T) {
 	s, _ := newState(t)
 	gen, tok := s.Start(true)
