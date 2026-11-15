@@ -10,6 +10,11 @@
 //	go run ./examples/editor-demo -diff old.go new.go   # diff view (ui/editor/diffview)
 //	go run ./examples/editor-demo -diff -inline -fold old.go new.go
 //
+// The toolbar opens files, saves them, saves generated content with Save As,
+// and opens a find/replace panel. Dropping a file onto the window or opening
+// a file through the operating system uses the same document workflow; dirty
+// documents ask whether to save before replacement or close.
+//
 // The window contains a language selector, a Commands()-backed palette,
 // one or two editor views, and a status line (caret position, line count,
 // language, renderer, highlight progress). Syntax highlighting runs
@@ -594,6 +599,19 @@ func main() {
 				openDocumentPath(paths[0])
 			}
 		})
+		for _, shortcut := range []struct {
+			accelerator string
+			fn          func()
+		}{
+			{"CmdOrCtrl+O", openDocumentDialog},
+			{"CmdOrCtrl+S", func() { saveDocument() }},
+			{"CmdOrCtrl+F", func() { search.open = true }},
+			{"CmdOrCtrl+H", func() { search.open = true }},
+		} {
+			if _, err := uihost.Shortcut(surface, shortcut.accelerator, shortcut.fn); err != nil {
+				log.Printf("editor-demo: shortcut %s: %v", shortcut.accelerator, err)
+			}
+		}
 		syncTitle()
 		rendName = uihost.Renderer(r)
 		log.Printf("editor-demo: window open %v after start, renderer %s", time.Since(start).Round(time.Millisecond), rendName)

@@ -159,7 +159,7 @@ Capabilities differ by platform. Check [WebView support](docs/webview.md), [mobi
 | [`examples/mobile-hello`](examples/mobile-hello) | Mobile pages, lifecycle and system capability demos. |
 | [`examples/ledger`](examples/ledger) | A complete bookkeeping app in self-drawn UI: tray, CSV export, packaged with `tan build`. |
 | [`examples/ui-hotreload`](examples/ui-hotreload) | Hot reload of self-drawn UI under `tan dev`, keeping state across rebuilds. |
-| [`examples/editor-demo`](examples/editor-demo) | The `ui/editor` code editor with background syntax highlighting on large files. |
+| [`examples/editor-demo`](examples/editor-demo) | A complete `ui/editor` code editor: native open/save, Save As, dirty-state protection, find/replace, themes, split and diff views, and background syntax highlighting on large files. |
 | [`examples/a11y-demo`](examples/a11y-demo) | How screen readers see self-drawn UI (VoiceOver), with an accessibility self-check. |
 | [`examples/i18n-demo`](examples/i18n-demo) | System languages, an app message catalog and localized native menus. |
 | [`examples/app-demo`](examples/app-demo) | Quit interception, deep links and opened files, single instance. |
