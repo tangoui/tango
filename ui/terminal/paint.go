@@ -54,11 +54,15 @@ type segEntry struct {
 	v *segShape
 }
 
-// segCache is an LRU cache of shaped segments.
+// segCache is an LRU cache of shaped segments. Every frame paints the
+// rows top to bottom, so a cache smaller than the segments on screen
+// would evict each one just before the next frame asks for it and miss
+// on every lookup; the view sizes it to the grid with fit.
 type segCache struct {
-	cap int
-	ll  *list.List
-	m   map[segKey]*list.Element
+	cap    int
+	ll     *list.List
+	m      map[segKey]*list.Element
+	misses int // segments shaped, for tests
 }
 
 func newSegCache(n int) *segCache {
@@ -67,6 +71,19 @@ func newSegCache(n int) *segCache {
 
 func (c *segCache) reset() { c.ll.Init(); clear(c.m) }
 
+// fit sets the capacity to n (at least segCacheMin), dropping the least
+// recently used entries over it. A row holds at most one segment per
+// cell, so twice the grid's cells keep the screen and what has just
+// scrolled off it.
+func (c *segCache) fit(n int) {
+	c.cap = max(n, segCacheMin)
+	for c.ll.Len() > c.cap {
+		old := c.ll.Back()
+		c.ll.Remove(old)
+		delete(c.m, old.Value.(*segEntry).k)
+	}
+}
+
 // get returns the shape of k, shaping it with make on a miss.
 func (c *segCache) get(k segKey, make func() *segShape) *segShape {
 	if e, ok := c.m[k]; ok {
@@ -74,6 +91,7 @@ func (c *segCache) get(k segKey, make func() *segShape) *segShape {
 		return e.Value.(*segEntry).v
 	}
 	v := make()
+	c.misses++
 	c.m[k] = c.ll.PushFront(&segEntry{k, v})
 	if c.ll.Len() > c.cap {
 		old := c.ll.Back()
@@ -145,7 +163,9 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		scale = win.Scale()
 	}
 	m := vs.metricsFor(px, scale)
-	w.sizeTo(max(int(r.W/m.cellW), 2), max(int(r.H/m.lineH), 1), m)
+	cols, rows := max(int(r.W/m.cellW), 2), max(int(r.H/m.lineH), 1)
+	w.sizeTo(cols, rows, m)
+	vs.cache.fit(2 * cols * rows)
 	exited, _ := w.t.Exited()
 	focused := w.ia.Focused && c.WindowFocused()
 
