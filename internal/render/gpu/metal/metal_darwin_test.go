@@ -3,10 +3,12 @@
 package metal
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"testing"
 
 	"github.com/tangoui/tango/internal/render/gpu"
@@ -65,6 +67,144 @@ func TestMetalClosed(t *testing.T) {
 	d.Close() // idempotent
 	if err := d.Execute(&gpu.Frame{Size: image.Pt(4, 4)}); !errors.Is(err, ErrClosed) {
 		t.Fatalf("Execute after Close: %v", err)
+	}
+}
+
+// TestMetalWait waits for an existing submission without issuing a frame,
+// changing its resources or damaging the retained pixels. Close is already
+// idempotent; like Execute/ReadPixels, Wait after Close reports ErrClosed.
+func TestMetalWait(t *testing.T) {
+	d := newDevice(t)
+	w, ok := any(d).(interface{ Wait() error })
+	if !ok {
+		t.Fatal("Device must expose Wait() error without submitting another frame")
+	}
+	state := func() any {
+		return struct {
+			objects           [8]id
+			sizes             [5]image.Point
+			capacitiesAndAges [5]int
+			hasFrame          bool
+			commits           int
+		}{[8]id{d.target, d.mask, d.color, d.ramp, d.instBuf, d.staging, d.readBuf, d.scratch},
+			[5]image.Point{d.targetSize, d.maskSize, d.colorSize, d.rampSize, d.scratchSize},
+			[5]int{d.instCap, d.stagingCap, d.readCap, d.scratchIdle, d.layerFrames}, d.hasFrame, d.commits}
+	}
+	wait := func() {
+		t.Helper()
+		before := state()
+		if err := w.Wait(); err != nil {
+			t.Fatal(err)
+		}
+		if state() != before || len(d.inflight) != 0 {
+			t.Fatalf("Wait submitted work or changed retained resources: before=%v after=%v inflight=%d", before, state(), len(d.inflight))
+		}
+	}
+	wait() // before any frame: no allocation or submission
+	wait()
+	f := gpu.Frame{Size: image.Pt(16, 12), MaskSize: image.Pt(4, 4), ColorSize: image.Pt(4, 4), Clear: color.NRGBA{R: 20, G: 40, B: 60, A: 255}}
+	if err := d.Execute(&f); err != nil {
+		t.Fatal(err)
+	}
+	if len(d.inflight) != 1 {
+		t.Fatal("Execute must leave its submitted buffer for Wait")
+	}
+	wait()
+	wait() // completed frame, repeat is a no-op
+	if !d.Retained(f.Size) {
+		t.Fatal("Wait invalidated a successful retained frame")
+	}
+	f.Dirty = []image.Rectangle{image.Rect(0, 0, 8, 12)}
+	f.Clear = color.NRGBA{R: 180, G: 70, B: 30, A: 191}
+	if err := d.Execute(&f); err != nil {
+		t.Fatal(err)
+	}
+	wait()
+	seed := readPixels(t, d)
+	wait() // readback has already drained its own buffer
+	f.Copies = []gpu.CopyRegion{{Src: image.Rect(0, 0, 12, 12), Dst: image.Rect(4, 0, 16, 12)}}
+	f.Dirty = []image.Rectangle{image.Rect(0, 11, 16, 12)}
+	f.Clear = color.NRGBA{R: 10, G: 150, B: 30, A: 93}
+	want := image.NewRGBA(seed.Rect)
+	copy(want.Pix, seed.Pix)
+	for _, c := range f.Copies {
+		draw.Draw(want, c.Dst, seed, c.Src.Min, draw.Src)
+	}
+	for _, r := range f.Dirty {
+		draw.Draw(want, r, image.NewUniform(f.Clear), image.Point{}, draw.Src)
+	}
+	if err := d.Execute(&f); err != nil {
+		t.Fatal(err)
+	}
+	wait()
+	if got := readPixels(t, d); !bytes.Equal(got.Pix, want.Pix) {
+		t.Fatal("Wait/partial overlapping copy/readback changed retained pixels")
+	}
+	wait()
+	d.Close()
+	d.Close()
+	if err := w.Wait(); !errors.Is(err, ErrClosed) {
+		t.Fatalf("Wait after Close = %v, want ErrClosed", err)
+	}
+}
+
+// Pending completion errors remain observable until Execute consumes them;
+// repeated Wait must not make a failed frame appear successful or retained.
+func TestMetalWaitPendingError(t *testing.T) {
+	d := newDevice(t)
+	w, ok := any(d).(interface{ Wait() error })
+	if !ok {
+		t.Fatal("Device must expose Wait() error")
+	}
+	f := &gpu.Frame{Size: image.Pt(8, 8)}
+	if err := d.Execute(f); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	boom := errors.New("injected completion failure")
+	d.mu.Lock()
+	d.gpuFailed(boom, false)
+	d.mu.Unlock()
+	commits := d.commits
+	for range 2 {
+		if err := w.Wait(); !errors.Is(err, boom) {
+			t.Fatalf("Wait = %v, want pending failure", err)
+		}
+		if d.pendingErr != boom || d.hasFrame || d.commits != commits || len(d.inflight) != 0 || d.failures != 1 {
+			t.Fatal("Wait consumed failure, submitted work, or restored failed target")
+		}
+	}
+	if err := d.Execute(f); !errors.Is(err, boom) {
+		t.Fatalf("Execute must still consume pending failure: %v", err)
+	}
+	if d.pendingErr != nil {
+		t.Fatal("Execute did not consume pending failure")
+	}
+	if err := w.Wait(); err != nil {
+		t.Fatalf("Wait after error consumption, without a new submission: %v", err)
+	}
+	if err := d.Execute(f); err != nil {
+		t.Fatalf("Execute recovery: %v", err)
+	}
+	if err := w.Wait(); err != nil {
+		t.Fatalf("Wait recovery: %v", err)
+	}
+	if !d.Retained(f.Size) || d.failures != 0 {
+		t.Fatal("successful recovery not retained or failures not reset")
+	}
+	d.mu.Lock()
+	d.gpuFailed(boom, true)
+	d.mu.Unlock()
+	for range 2 {
+		if err := w.Wait(); err != d.lost || !errors.Is(err, ErrDeviceLost) {
+			t.Fatalf("Wait = %v, want permanent device-lost error %v", err, d.lost)
+		}
+	}
+	d.Close()
+	if err := w.Wait(); !errors.Is(err, ErrClosed) {
+		t.Fatalf("closed must take precedence over lost: %v", err)
 	}
 }
 

@@ -27,11 +27,13 @@ package editor
 // Results and their analysis: docs/specs/code-editor-m1-report.md.
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"hash/fnv"
 	"image"
+	"image/color"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -54,6 +56,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
+	"github.com/tangoui/tango/ui/paint"
 )
 
 // perfSize is the reference window of spec 6.6.
@@ -162,34 +165,20 @@ func (w *perfWindow) WriteClipboard(s string)      { w.clip = s }
 func (w *perfWindow) SetTextInput(bool, geom.Rect) {}
 func (w *perfWindow) Present(*image.RGBA) error    { return nil }
 
-// syncDevice is the Metal device with a way to wait for the last frame:
-// metal.Device.Execute commits without waiting and waits for the previous
-// command buffer at its start, so wait executes an empty frame of the same
-// sizes (a clear of the target, no uploads, no texture changes). The time
-// it returns includes encoding that clear, a few microseconds. syncDevice
-// is not a gpu.Retainer, so the renderer draws every frame in full and
-// clearing the target does not change what the next frame draws (the
-// View's Damage/ScrollRegion hints are ignored: the M1 conditions).
-//
-// With keep (retainDevice, the partial-redraw benchmarks) the wait frame
-// is a partial frame clearing only the bottom-left pixel to Frame.Clear,
-// the color it already has: the page leaves a row of the window
-// background (the List's Background, which is Frame.Clear) below the
-// view, so the target still holds the last frame for the next partial
-// one.
+// syncDevice counts rendered frames and waits for their existing Metal
+// command buffers. Waiting never submits a clear-only/1px frame, so the
+// following frame's CPU interval cannot include waiting for that extra work.
+// The wait interval is completion wall time (including queueing/scheduling),
+// not GPU execution time. This is a timer correction, not a product speedup.
+// syncDevice is not a gpu.Retainer (the full-redraw/M1 conditions); only
+// retainDevice exposes retained-target support to the renderer.
 type syncDevice struct {
-	d    *metal.Device
-	last gpu.Frame
-	keep bool
+	d *metal.Device
 
 	frames, partial int // frames executed (not counting waits), partial ones
 }
 
 func (s *syncDevice) Execute(f *gpu.Frame) error {
-	s.last = gpu.Frame{Size: f.Size, Clear: f.Clear, MaskSize: f.MaskSize, ColorSize: f.ColorSize, RampSize: f.RampSize}
-	if s.keep {
-		s.last.Dirty = []image.Rectangle{image.Rect(0, f.Size.Y-1, 1, f.Size.Y)}
-	}
 	s.frames++
 	if len(f.Dirty) > 0 {
 		s.partial++
@@ -197,18 +186,13 @@ func (s *syncDevice) Execute(f *gpu.Frame) error {
 	return s.d.Execute(f)
 }
 
-// retainDevice is a syncDevice (with keep) that reports the Metal
-// device's target retained, so the renderer draws partial frames.
+// retainDevice is a syncDevice that reports the Metal device's target
+// retained, so the renderer draws partial frames.
 type retainDevice struct{ *syncDevice }
 
 func (r retainDevice) Retained(size image.Point) bool { return r.d.Retained(size) }
 
-func (s *syncDevice) wait() error {
-	if s.last.Size.X == 0 {
-		return nil
-	}
-	return s.d.Execute(&s.last)
-}
+func (s *syncDevice) wait() error { return s.d.Wait() }
 
 var perfDevice struct {
 	once sync.Once
@@ -227,6 +211,48 @@ func metalDevice(tb testing.TB) *metal.Device {
 		tb.Fatal(err)
 	}
 	return perfDevice.d
+}
+
+// TestPerfDeviceWaitPreservesFrame rejects the old completion trick that
+// submits a clear-only frame: waiting must leave the rendered pixels intact.
+func TestPerfDeviceWaitPreservesFrame(t *testing.T) {
+	d, err := metal.NewDevice()
+	if errors.Is(err, metal.ErrUnsupported) || errors.Is(err, metal.ErrNoDevice) {
+		t.Skipf("no Metal: %v", err)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(d.Close)
+	s := &syncDevice{d: d}
+	if err := s.wait(); err != nil {
+		t.Fatal(err)
+	}
+	l := &paint.List{Background: color.NRGBA{R: 10, G: 20, B: 30, A: 255}}
+	l.Fill(geom.R(2, 2, 8, 6), geom.Radii{}, color.NRGBA{R: 190, G: 40, B: 60, A: 255})
+	size := geom.Size{W: 16, H: 12}
+	r := gpu.NewRenderer(s)
+	r.SetVerify(false)
+	if err := r.Render(l, size, 1); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := s.wait(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := d.ReadPixels()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := paint.NewCPU()
+	ref.Render(l, size, 1)
+	if !bytes.Equal(got.Pix, ref.Image().Pix) {
+		t.Fatal("performance completion wait damaged the rendered frame")
+	}
+	if s.frames != 1 || s.partial != 0 {
+		t.Fatalf("waiting changed frame counters: frames=%d partial=%d", s.frames, s.partial)
+	}
 }
 
 // perfHost runs a page showing one State in a perfWindow, rendered on the
@@ -264,13 +290,14 @@ func newPerfHost(tb testing.TB, st *State, scale float32) *perfHost {
 }
 
 // newPartialPerfHost is newPerfHost with partial redraws: the device is a
-// retainDevice and verify mode is off (as in an application), and the view
-// leaves the bottom row of the window to the background (see syncDevice).
+// retainDevice and verify mode is off (as in an application). Keep the
+// historical 1px background row for benchmark geometry comparability;
+// completion waits no longer need or clear that row.
 func newPartialPerfHost(tb testing.TB, st *State, scale float32) *perfHost {
 	tb.Helper()
 	perfApplyOffEnv(tb, st)
 	h := &perfHost{st: st, w: &perfWindow{size: perfSize, scale: scale}}
-	h.dev = &syncDevice{d: metalDevice(tb), keep: true}
+	h.dev = &syncDevice{d: metalDevice(tb)}
 	ren := gpu.NewRenderer(retainDevice{h.dev})
 	ren.SetVerify(false)
 	h.r = ui.NewRunner(func(c *ui.Context) {
@@ -1103,10 +1130,7 @@ func TestPerfHostRenders(t *testing.T) {
 	if !h.visibleFinal() {
 		h.frame(t)
 	}
-	// One more frame without syncDevice.wait (its clear would be read).
-	if err := h.r.Frame(); err != nil {
-		t.Fatal(err)
-	}
+	// Read the frame preserved by the real completion wait above.
 	img, err := h.dev.d.ReadPixels()
 	if err != nil {
 		t.Fatal(err)

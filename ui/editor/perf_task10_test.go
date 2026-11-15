@@ -66,7 +66,7 @@ func BenchmarkScrollPartial(b *testing.B) {
 	st := NewState(string(data), path, theme.Base("vs"))
 	perfApplyOffEnv(b, st)
 	h := &perfHost{st: st, w: &perfWindow{size: perfSize, scale: 2}}
-	h.dev = &syncDevice{d: metalDevice(b), keep: true}
+	h.dev = &syncDevice{d: metalDevice(b)}
 	dev := &copyCountDevice{retainDevice: retainDevice{h.dev}}
 	ren := gpu.NewRenderer(dev)
 	ren.SetVerify(false)

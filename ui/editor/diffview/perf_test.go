@@ -3,9 +3,11 @@
 package diffview
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"os"
 	"runtime"
 	"slices"
@@ -24,6 +26,7 @@ import (
 	"github.com/tangoui/tango/ui/editor/theme"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/paint"
 )
 
 // Performance gates of the diff view (docs/specs/diff-view.md, 4 C7), on
@@ -60,20 +63,49 @@ func (w *perfWindow) Present(*image.RGBA) error    { return nil }
 // syncDevice is the Metal device with a wait for the last frame (see
 // ui/editor's perf_test.go).
 type syncDevice struct {
-	d    *metal.Device
-	last gpu.Frame
+	d *metal.Device
 }
 
 func (s *syncDevice) Execute(f *gpu.Frame) error {
-	s.last = gpu.Frame{Size: f.Size, Clear: f.Clear, MaskSize: f.MaskSize, ColorSize: f.ColorSize, RampSize: f.RampSize}
 	return s.d.Execute(f)
 }
 
 func (s *syncDevice) wait() error {
-	if s.last.Size.X == 0 {
-		return nil
+	return s.d.Wait()
+}
+
+// TestPerfDeviceWaitPreservesFrame rejects the old completion trick that
+// submits a clear-only frame: waiting must leave the rendered pixels intact.
+func TestPerfDeviceWaitPreservesFrame(t *testing.T) {
+	d, err := metal.NewDevice()
+	if errors.Is(err, metal.ErrUnsupported) || errors.Is(err, metal.ErrNoDevice) {
+		t.Skipf("no Metal: %v", err)
 	}
-	return s.d.Execute(&s.last)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(d.Close)
+	s := &syncDevice{d: d}
+	l := &paint.List{Background: color.NRGBA{R: 10, G: 20, B: 30, A: 255}}
+	l.Fill(geom.R(2, 2, 8, 6), geom.Radii{}, color.NRGBA{R: 190, G: 40, B: 60, A: 255})
+	size := geom.Size{W: 16, H: 12}
+	r := gpu.NewRenderer(s)
+	r.SetVerify(false)
+	if err := r.Render(l, size, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.wait(); err != nil {
+		t.Fatal(err)
+	}
+	got, err := d.ReadPixels()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := paint.NewCPU()
+	ref.Render(l, size, 1)
+	if !bytes.Equal(got.Pix, ref.Image().Pix) {
+		t.Fatal("performance completion wait damaged the rendered frame")
+	}
 }
 
 var perfDev struct {

@@ -177,14 +177,24 @@ func TestWrapIncrementalBounded(t *testing.T) {
 				t.Errorf("%s (gaps %v): scanned %d runes, want <= %d", c.name, cfg.inj.on(), scanned, c.max)
 			}
 		}
-		// Deleting a range scans a few rows too.
-		ns := s[:mid] + s[fixBoundary(s, mid+30_000):]
-		got, scanned := rewrapEdit(lineBreaks{}, lb, s, ns, mid, fixBoundary(s, mid+30_000)-mid, 0, cfg)
-		if !eqBreaks(got, computeBreaks(ns, cfg)) {
-			t.Fatal("delete: breaks differ from computeBreaks")
-		}
-		if scanned > 4096 {
-			t.Errorf("delete: scanned %d runes, want <= 4096", scanned)
+		// Deletion coverage includes the original 30 KB case and a 64 KB case.
+		for _, del := range []struct {
+			n    int
+			max  int
+			name string
+		}{
+			{30_000, 4096, "30 KB"},
+			{64 << 10, 64*1024 + 4096, "64 KB"},
+		} {
+			end := fixBoundary(s, mid+del.n)
+			ns := s[:mid] + s[end:]
+			got, scanned := rewrapEdit(lineBreaks{}, lb, s, ns, mid, end-mid, 0, cfg)
+			if !eqBreaks(got, computeBreaks(ns, cfg)) {
+				t.Fatalf("%s delete: breaks differ from computeBreaks", del.name)
+			}
+			if scanned > del.max {
+				t.Errorf("%s delete (gaps %v): scanned %d runes, want <= %d", del.name, cfg.inj.on(), scanned, del.max)
+			}
 		}
 	}
 }

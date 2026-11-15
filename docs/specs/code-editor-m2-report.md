@@ -1,14 +1,16 @@
 # 编辑器里程碑 2 验收报告
 
-日期：2026-11-15（验收欠项计划 `docs/plans/2026-11-14-editor-m2-acceptance.md` Task 10 重写；性能为 2026-11-14 22:16 – 11-15 01:30 重测）。范围：`docs/specs/code-editor.md` §4 的 **1、2、11、12、13** 及 §6.6；依据里程碑 2 Tasks 1–15 与整体终审修复、验收欠项计划 Tasks 1–9 的任务报告与执行台账，Task 10 做最终成对测量与全量检查。
+日期：2026-11-15（验收欠项计划 Task 10 重写；历史性能为 2026-11-14 22:16 – 11-15 01:30，F/P 候选离屏复测为 2026-11-15 18:52 – 18:55）。范围：`docs/specs/code-editor.md` §4 的 **1、2、11、12、13** 及 §6.6；依据里程碑 2 Tasks 1–15、验收欠项计划 Tasks 1–9 和 F/P 渲染候选的独立审查记录。
 
-**结论：自动化验收未通过。** 以下及第 4.2 节保留 Task 10 当时的测量与结论；2026-11-15 后续 A–E 修复另列第 4.11 节，不以新数据覆盖历史。后续长行 p95 **中位数门槛已满足但仍有超限轮次**，滚动对 Monaco 仍 **NOT PASSED**，整体验收结论不变。Task 10 未通过与未判定的是：
+**结论：自动化验收仍未通过。** 第 4.2 节保留 Task 10 的历史结论，第 4.11 节保留 A–E 后续修复；本轮第 4.12 节新增的是 F-only/F+P 的锁屏离屏 paired 和绝对基准，不能替代真实窗口、present/vsync、IME、Windows 实机或已被审计为未证的 Monaco E2E 对照。锁屏离屏数据证明候选路径在同一 Wait 口径下没有引入长行回归，并改善了局部 copy 的离屏 GPU wait，但不把这些结果写成完整 M2 通过。
 
-1. **长单行（1 MB、换行开启）输入 p95 ≤ 16 ms：未通过。** 本次 10 轮中位 18.97 ms，没有一轮 ≤ 16 ms（Task 5 前 59.6 ms，已快 3.1 倍；Task 5b 另一时段测得 12.9–16.1 ms）。CPU 部分 6.4 ms，超出部分在 GPU 等待与帧调度，余量不足以稳定达标。
-2. **滚动对 Monaco（规格 6.6“若 Monaco 更好，以 Monaco 为门槛”）：未通过。** 走局部重绘（ScrollRegion）路径后 Tango 端到端 230.8 fps / p99 12.6 ms，Monaco 默认档 667.8 fps / 5.0 ms；CPU 工作口径 Tango 更好（均值 2.11 / p99 3.8 ms 对 2.26 / 8.8 ms），但端到端差距按裁定不解释掉。
-3. **“每项显示能力 ≤ 10% 退化”与“相对 M1 ≤ 10%”：按计划判据（各轮中位数之比）通过，统计上未判定。** 所有比值 ≤ 1.075，但本次 10 轮的 95% CI 上界到 1.13–1.18，未能把 Task 1 的 1.105 收紧到 ≤ 1.10。非大文件上全部显示能力合计让输入 p95 慢约 39–61%（不在规格门槛内，第 4.5 节如实列出）。
+当前仍未通过或未判定的项目：
 
-通过的门槛：打开 100 MB 36 ms、百万行输入 p95 10.6–13.4 ms、滚动绝对门槛、TS 2 万行后台高亮 319 ms、内存（用户 2026-11-13 选定的 Go 堆口径）约 1.6 倍、输入/打开/TS20k 对 Monaco。全量测试通过；`-race` 全量有两项依赖墙钟帧预算的测试在并行减速下失败（单独通过，无数据竞争，第 7 节）；严格 damage 测试的 blink 间歇失败已定位并修正夹具。实窗、IME、Windows 实机仍待人工验收（第 6 节）。测试通过不等于所有能力完全对齐 Monaco。
+1. **真实窗口/屏幕呈现验收：未完成。** 测量时 `CGSSessionScreenIsLocked=Yes`，因此本轮只能记录离屏诊断；真实 present/vsync 和 Monaco 窗口 trace 仍待解锁后执行。
+2. **滚动对 Monaco 的端到端门槛：未判定/暂不改判。** 历史 Monaco headless 数字只计主线程结束，不是 GPU-complete；本轮没有伪造新的 Monaco E2E 证据。Tango 自身绝对门槛的锁屏离屏结果另列第 4.12 节。
+3. **相对 M1 与显示能力 ≤10% 的正式统计结论：仍未完成。** 本轮是 F-only 对 F+P 的单变量验证，不是 M1 对最终候选的完整 paired；历史 CI 结论保留。
+
+锁屏状态下的绝对离屏数字（包括百万行输入、滚动、打开、TS20k 和 HeapInuse）只作为诊断/候选验证，不覆盖上述正式验收结论。全量编辑器回归、F-only/F+P 定向测试和 `go build ./...` 均通过；实窗、IME、Windows 实机仍待人工验收。
 
 ## 1. 演示与复现
 
@@ -276,6 +278,68 @@ RSS 与 footprint 作为规格 6.8 的窗口级预算项继续跟踪；若将来
 **E：CI测试修正（据Task E报告，最终集成验证交控制者）。** Bounded/ActiveGuide墙钟门槛统一走gateLimit，Converge使用产品侧maxMatchFrames且保留进展/完成断言；Decorations对具体操作逐帧严格核对，只有小数设备像素边界导致无法安全拷贝时允许横滚整帧；长行括号颜色、短行复制计数按有界token/括号工作完成后断言；reindent仅在SyntaxCommandIncomplete且文本/选区未改变时有界重试。A新增长行截断测试先建立初始final前提，再于每次编辑后立即断言，不能靠编辑后settle掩盖弄脏token。
 
 Task E报告记录：12×yes争用且倍率3时8项连续5次通过；同争用无倍率的6项语义测试连续5次通过；24×yes下长行/短行/reindent连续5次通过；三平台交叉vet通过。这些不是性能达标证据，也不是Windows/Linux实机运行。Windows小地图golden失败为autocrlf转换CRLF，整合时须带入上游0d3b59a的`.gitattributes`递归LF规则，本任务未改golden或越界修改根配置。E原副本最终复核中，无倍率的纯墙钟门槛仍曾因抢占失败；另发现新增highlight测试把已接受的降级结果当成完整token比较。该测试现已改为在完整比较前有界获取非降级结果，且保留重试前“不额外分词”的断言；注入降级用例与12×yes下连续30次通过。最终在最新origin/main集成工作区运行 `go test ./ui/editor/... ./examples/editor-demo -count=1` 全部通过，随后修改的highlight包再次单独全量通过；darwin/windows/linux交叉vet、apitxt -check、demo构建、diff-check均通过，递归LF规则已包含在基线。以上不代表Windows/Linux实机测试或推送后CI已通过。真实窗口/IME/平台验收，以及≤10%门槛进一步统计收紧仍待后续。
+
+### 4.12 2026-11-15 F/P 候选：锁屏离屏 paired 复测
+
+本节是 F-only 与 F+P 的单变量候选验证，不覆盖 M1→最终候选的完整正式 paired，也不覆盖真实窗口呈现。测量时 `CGSSessionScreenIsLocked=Yes`；所有结果均标为**锁屏离屏诊断**。F 引入真实 GPU Wait 并统一了两臂的等待口径，P 引入 Metal retained copy 的自适应 ping-pong。两臂均基于 `9382b0b`，使用同一生成文件、同一 scale2（3840×2160 设备像素）、同一测试宿主和独立进程；负载阈值为 6，保留轮负载 1.84–3.02。
+
+补丁校验：F `c64d5b6f9cdd218312ab43440fc40c006d4e1bc22a7990087d91efcd5b49ba63`；P `5a65351c9c1fce8092f13acf0463834ea9960684f785514017aee705f3797744`。F-only、F+P 两臂均通过 Metal 包测试、编辑器全量回归和 `go build ./...`；原始日志在 `.superpowers/sdd/2026-11-15-editor-m2-perf-acceptance/paired/`。
+
+#### 4.12.1 长单行换行：10 轮
+
+`BenchmarkTypeLongLineWrap`，1 MB 单行、换行开启、每臂 300 次输入，F+P 对 F-only：
+
+| 指标 | F-only 中位 | F+P 中位 | F+P / F-only | 95% CI |
+|---|---:|---:|---:|---:|
+| p50-ms | 3.875 | 3.875 | 1.000 | 0.997–1.003 |
+| p95-ms | 4.928 | 4.889 | 0.992 | 0.986–1.014 |
+| max-ms | 16.090 | 15.980 | 0.993 | 0.933–1.053 |
+| cpu-ms | 1.474 | 1.454 | 0.986 | 0.971–1.018 |
+| gpuwait-ms | 2.635 | 2.637 | 1.001 | 0.998–1.007 |
+
+结果说明：F+P 没有引入长行 p95 回归；但这是锁屏离屏、统一 Wait 后的候选对候选数据，不能替代原 Task 10 的 M1/当前正式口径，也不能据此把历史长行门槛改写成实窗稳定通过。
+
+#### 4.12.2 局部滚动：20 轮
+
+`BenchmarkScrollPartial`，1M 行、scale2、Retainer/ScrollRegion，每轮 300 帧；A/A 控制臂噪声 p99 约 0.6%。F+P 对 F-only：
+
+| 指标 | F-only 中位 | F+P 中位 | 结果 | 95% CI |
+|---|---:|---:|---:|---:|
+| fps | 208.8 | 209.0 | +0.1% | 0.996–1.000（worse 口径） |
+| p99-ms | 6.264 | 6.514 | +4.0% | 0.986–1.098 |
+| mean-ms | 4.790 | 4.663 | -2.6% | 0.971–0.975 |
+| cpu-ms | 3.357 | 3.359 | +0.1% | 0.998–1.002 |
+| gpuwait-ms | 1.434 | 1.306 | -8.9% | 0.905–0.914 |
+| partial | 0.997 | 0.997 | 不变 | 1.000–1.000 |
+
+20 轮所有轮次负载低于 6，无效轮次为 0。F+P 降低了离屏 GPU wait，CPU 工作量和 partial 比例不变；p99 点估计上升 4.0%，CI 上界 9.8% 未超过 10%，但这仍是锁屏诊断，不能替代真实 present/vsync。
+
+#### 4.12.3 F+P 锁屏离屏绝对基准
+
+单独运行 F+P 二进制得到以下数字；输入/滚动/打开/TS20k/内存均不是实窗验收结果：
+
+| 场景 | 结果 |
+|---|---:|
+| 百万行中段输入 p95 | 6.371 ms（cpu 3.692 / gpuwait 1.975 ms） |
+| 百万行末行输入 p95 | 5.729 ms（cpu 3.613 / gpuwait 1.996 ms） |
+| 百万行后台高亮中输入 p95 | 8.651 ms（cpu 3.657 / gpuwait 3.334 ms） |
+| 全量滚动 scale2 | 179.8 fps / p99 5.855 ms |
+| 局部滚动 20 轮中位 | 214.4 fps / p99 6.514 ms |
+| 打开 100 MB | 30.17 ms mean / 27.53 ms p95 / 30.19 ms max |
+| TS20k 输入 | p95 6.681 ms（cpu 2.452 / gpuwait 2.406 ms） |
+| TS20k 滚动 | 291.1 fps / p99 6.561 ms |
+| TS20k 后台高亮 | 本次单独绝对 benchmark 未覆盖完整后台时长；既有 Task 10 数字仍为 319 ms |
+
+`BenchmarkMemory100MB` 本次：文件约 100.5 MB；HeapInuse 增量 open 158.1 MB、全文高亮 164.0 MB，按锁屏离屏诊断口径低于 Go HeapInuse 的 3 倍数值参考线，不能单独计入正式验收通过。该进程的 footprint 增量 open 353.0 MB、全文高亮 352.3 MB，属于窗口级预算，不是本条 HeapInuse 门槛。
+
+P 的原生纹理成本必须单独计入：启用过大型 retained-copy 路径且尚未 idle 回收时，每个 Device 最多额外持有一张 Retina spare target，约 33,177,600 B（33.18 MB / 31.64 MiB）；原 target + spare 合计约 66.36 MB，不含 atlas/images/layers/buffers。fallback/small-copy 期间 scratch 可能暂时共存，spare 在 resize、Close 或 120 个未使用帧后回收。Go HeapInuse 数字不包含这项 Metal 原生纹理成本；多窗口时按 Device 线性增加，窗口级预算仍待真实窗口测量。
+
+#### 4.12.4 本节结论
+
+- F-only 与 F+P 在统一真实 Wait 口径下通过了本轮锁屏离屏正确性和性能回归；P 的局部 copy 路径降低 GPU wait，未改变 CPU 工作或 partial 覆盖率。
+- 长行、绝对输入、绝对滚动、打开和 HeapInuse 的锁屏离屏数字满足各自绝对数值，但不替代真实屏幕解锁后的验收。
+- 真实窗口 present/vsync、Monaco GPU-complete trace、M1→最终候选的正式 paired、IME 和 Windows 实机仍未验收；整体自动化验收保持未通过。
+- `go test -race ./ui/editor/... -count=1` 本轮全量在 10 分钟墙钟限制内超时于 `TestViewDamageVerifiedTask14` 与 `diffview.TestNavigationKeys`；两项分别单独运行均通过，未出现数据竞争报告，按已知 race 并行减速限制记录。
 
 ## 5. 降级、已知欠项与 M3 接口
 

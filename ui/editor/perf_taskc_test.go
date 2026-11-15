@@ -41,8 +41,8 @@ import (
 	"github.com/tangoui/tango/ui/paint"
 )
 
-// scrollStatDevice records the last executed frame (not the host's wait
-// frames: the caller reads it before waiting) and the time Execute took.
+// scrollStatDevice records the last executed frame and the time Execute
+// took. Completion waits no longer submit frames of their own.
 type scrollStatDevice struct {
 	*syncDevice
 	exec, render, build time.Duration
@@ -53,7 +53,8 @@ type scrollStatDevice struct {
 	upBytes, images     int
 	imageBytes          int
 	size                image.Point
-	ups                 []string // the last frame's uploads: texture, rect, bytes
+	metadata            gpu.Frame // scalar sizes/clear only, for same-texture synthetic replay
+	ups                 []string  // the last frame's uploads: texture, rect, bytes
 }
 
 func (s *scrollStatDevice) Render(l *paint.List, size geom.Size, scale float32) error {
@@ -86,6 +87,7 @@ func (s *scrollStatDevice) Execute(f *gpu.Frame) error {
 		s.imageBytes += len(u.Pix)
 	}
 	s.size = f.Size
+	s.metadata = gpu.Frame{Size: f.Size, Clear: f.Clear, MaskSize: f.MaskSize, ColorSize: f.ColorSize, RampSize: f.RampSize}
 	t := time.Now()
 	err := s.syncDevice.Execute(f)
 	s.exec = time.Since(t)
@@ -119,7 +121,7 @@ func scrollBreakdownHost(tb testing.TB) (*perfHost, *scrollStatDevice) {
 	st := NewState(string(data), path, theme.Base("vs"))
 	perfApplyOffEnv(tb, st)
 	h := &perfHost{st: st, w: &perfWindow{size: perfSize, scale: 2}}
-	h.dev = &syncDevice{d: metalDevice(tb), keep: true}
+	h.dev = &syncDevice{d: metalDevice(tb)}
 	sd := &scrollStatDevice{syncDevice: h.dev}
 	ren := gpu.NewRenderer(sd)
 	ren.SetVerify(false)
@@ -212,11 +214,10 @@ func scrollMean(ks []scrollStat, f func(scrollStat) float64) float64 {
 
 // synthGPU executes n synthetic partial frames (no batches) on the
 // device's target and returns the mean time from Execute to GPU done.
-func synthGPU(tb testing.TB, h *perfHost, size image.Point, dirty []image.Rectangle, copies []gpu.CopyRegion, n int) float64 {
-	// Keep atlas dimensions equal to the host's wait frame: alternating
-	// zero/nonzero sizes would recreate those textures on every Execute
-	// and measure texture allocation rather than the synthetic GPU work.
-	f := h.dev.last
+func synthGPU(tb testing.TB, h *perfHost, f gpu.Frame, size image.Point, dirty []image.Rectangle, copies []gpu.CopyRegion, n int) float64 {
+	// Keep atlas dimensions equal to the host's last actual frame:
+	// alternating zero/nonzero sizes would recreate those textures on every
+	// Execute and measure allocation rather than the synthetic GPU work.
 	f.Size, f.Dirty, f.Copies = size, dirty, copies
 	var sum time.Duration
 	for range n {
@@ -347,12 +348,12 @@ func TestScrollFrameBreakdown(t *testing.T) {
 	// rectangles and copies but no batches.
 	const m = 100
 	px := []image.Rectangle{image.Rect(0, sd.size.Y-1, 1, sd.size.Y)}
-	fmt.Fprintf(&sb, "  synthetic device frames (Execute → GPU done incl. the host's 1px wait frame, mean of %d):\n"+
+	fmt.Fprintf(&sb, "  synthetic device frames (Execute → existing CB completion, no extra wait frame, mean of %d):\n"+
 		"    1px dirty %.3f ms; copies+1px %.3f ms; dirty only %.3f ms; copies+dirty %.3f ms; full clear (no Dirty) %.3f ms\n", m,
-		synthGPU(t, h, sd.size, px, nil, m),
-		synthGPU(t, h, sd.size, px, sd.copies, m),
-		synthGPU(t, h, sd.size, last.dirty, nil, m),
-		synthGPU(t, h, sd.size, last.dirty, sd.copies, m),
-		synthGPU(t, h, sd.size, nil, nil, m))
+		synthGPU(t, h, sd.metadata, sd.size, px, nil, m),
+		synthGPU(t, h, sd.metadata, sd.size, px, sd.copies, m),
+		synthGPU(t, h, sd.metadata, sd.size, last.dirty, nil, m),
+		synthGPU(t, h, sd.metadata, sd.size, last.dirty, sd.copies, m),
+		synthGPU(t, h, sd.metadata, sd.size, nil, nil, m))
 	t.Log(sb.String())
 }

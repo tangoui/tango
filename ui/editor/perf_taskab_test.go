@@ -37,8 +37,7 @@ import (
 )
 
 // statDevice wraps a device and records the last executed frame's
-// commands, uploads and damage (the host's wait frames included, which
-// are told apart by the caller reading the stats before waiting).
+// commands, uploads and damage. Completion waits do not execute a frame.
 type statDevice struct {
 	gpu.Device
 	batches, instances  int
@@ -102,7 +101,7 @@ func breakdownHost(tb testing.TB, partial bool) (*perfHost, *statDevice) {
 	st.Options.WordWrap = WrapOn
 	perfApplyOffEnv(tb, st)
 	h := &perfHost{st: st, w: &perfWindow{size: perfSize, scale: 2}}
-	h.dev = &syncDevice{d: metalDevice(tb), keep: partial}
+	h.dev = &syncDevice{d: metalDevice(tb)}
 	sd := &statDevice{Device: h.dev}
 	var dev gpu.Device = sd
 	if partial {
