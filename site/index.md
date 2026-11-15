@@ -1,12 +1,12 @@
 ---
 layout: home
 title: Tango
-titleTemplate: 用 Go 写桌面与手机应用
+titleTemplate: 高颜值、高性能的 Go GUI
 
 hero:
   name: Tango
-  text: 用 Go 写桌面与手机应用
-  tagline: 界面可以交给系统 WebView，也可以用 Go 自绘，两者能在同一个窗口里混用。WebView 用系统自带的，安装包里没有浏览器引擎。
+  text: 高颜值、高性能的 Go GUI
+  tagline: 用一套 Go 代码构建桌面与手机应用：系统 WebView 与 Go 自绘 GUI 可在同一窗口自由组合，默认 GPU 渲染，安装包无需捆绑浏览器引擎。
   image:
     src: /logo.svg
     alt: Tango
