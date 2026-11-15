@@ -125,6 +125,23 @@ func main() {
 	fmt.Printf("PASS: all %d checks\n", len(want))
 }
 
+// waitStepSeen is waitStep that also returns the steps it skipped.
+func waitStepSeen(steps <-chan string, prefix string, d time.Duration) (string, []string, bool) {
+	var seen []string
+	deadline := time.After(scaled(d))
+	for {
+		select {
+		case s := <-steps:
+			if strings.HasPrefix(s, prefix) {
+				return s, seen, true
+			}
+			seen = append(seen, s)
+		case <-deadline:
+			return "", seen, false
+		}
+	}
+}
+
 // waitStep waits for a step with the given prefix, skipping others, for at
 // most d stretched by TANGO_SMOKE_TIMEOUT_SCALE (shared CI runners).
 func waitStep(steps <-chan string, prefix string, d time.Duration) (string, bool) {
@@ -194,8 +211,13 @@ func script(app *tango.App, sp **tango.Surface, steps chan string) {
 	if _, ok := waitStep(steps, "loaded", 2*time.Second); ok {
 		pass("reload-loaded", "")
 	}
-	if ev, ok := waitStep(steps, "msg:echo:after-reload", time.Second); ok {
+	if ev, seen, ok := waitStepSeen(steps, "msg:echo:after-reload", time.Second); ok {
 		pass("send-after-reload", ev)
+	} else {
+		// Intermittent on CI macOS runners only (never reproduced locally,
+		// even under load): say what did arrive, so the annotation tells a
+		// late echo from a lost message or one delivered to another page.
+		fail("send-after-reload", fmt.Sprintf("no echo within %v; steps seen meanwhile: %q", scaled(time.Second), seen))
 	}
 
 	// A provisional failure keeps the old page: the probe delivers to it.
