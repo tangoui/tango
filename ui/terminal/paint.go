@@ -284,7 +284,10 @@ func (w *ViewW) paintRow(f *frame, line *vt.Line, top float32, selLo, selHi int)
 		if len(seg) > 0 {
 			w.drawText(f, seg, segStart, len(seg), top, uint16(segStyle), segSel, false)
 		}
-		seg = seg[:0]
+		// The next one-cell character starts a new segment at its own
+		// cell, also after a wide or combining character in the same
+		// style.
+		seg, segStyle = seg[:0], -1
 	}
 	for x := 0; x < len(cells); {
 		c := cells[x]
