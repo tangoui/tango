@@ -263,10 +263,10 @@ const layerAlign = 64
 // 1 MiB page (and its CPU copy) instead of 4 MiB. A mask larger than a page
 // (a path over 1024 device pixels) is drawn as a patch.
 const (
-	patchPageMin  = 512
+	patchPageMin  = 128
 	patchPageMax  = 2048
-	atlasPageSize = 1024
-	atlasPages    = 16
+	atlasPageSize = 256
+	atlasPages    = 64
 )
 
 // clipState is the effective clip and transform after a push (PushClip,
