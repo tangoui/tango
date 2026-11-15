@@ -53,6 +53,9 @@ const downShim = `
   var downOpened = false; // _open seen for downGen (the loop runs at most once)
   var downLoop = 0;       // generation of the running poll loop; 0: none
   var downResume = null;  // continues the poll loop after a release
+  var downInFlight = 0;   // fetches issued and not fully returned
+  var downInFlightMax = 0;
+  var downModeTraceGen = 0;
   var pktSubs = [];
   var pktQueue = [];
   var pktFlushing = false;
@@ -62,6 +65,30 @@ const downShim = `
     if (t && t.enabled && typeof t.event === "function") {
       try { t.event(name, data || {}); } catch (e) {}
     }
+  }
+  function downPollMode(gen) {
+    var t = globalThis.__tangoIpcTrace;
+    if (t && t.enabled && downModeTraceGen !== gen) {
+      downModeTraceGen = gen;
+      downTrace("down_mode", {gen: gen, mode: "B"});
+    }
+    return "B";
+  }
+  function downFetchDone() {
+    if (downInFlight > 0) downInFlight--;
+  }
+  function downItemBytes(kind, data, size) {
+    if (typeof size === "number") return size;
+    if (kind === 1 && data) return data.byteLength;
+    if (kind === 2) return 8;
+    return typeof data === "string" ? data.length : 0;
+  }
+  function downDuplicate(seq, kind, data, size, source) {
+    var bytes = downItemBytes(kind, data, size);
+    downTrace("down_duplicate", {
+      seq: seq, kind: kind, source: source || "poll",
+      itemBytes: bytes, packetBytes: kind === 1 ? bytes : 0,
+    });
   }
   function downPacketFrames(p) {
     return p && p.byteLength >= 2 ? new DataView(p.buffer, p.byteOffset, 2).getUint16(0) : 0;
@@ -115,16 +142,20 @@ const downShim = `
     return true;
   }
   // downPut takes item seq; polled tells a poll response from _recvSeq.
-  function downPut(seq, kind, data, polled) {
+  function downPut(seq, kind, data, polled, size) {
     if (seq < downNext) {
       // The fallback's copy of the barrier waited on: the core ran it.
       if (!polled && kind === 2 && downWait && downWait.id === data) downRelease(downGen, data);
+      else downDuplicate(seq, kind, data, size, polled ? "poll" : "fallback");
       return;
     }
     var h = downHeld[seq];
-    if (h && !(kind === 2 && !polled)) return; // a fallback barrier replaces a polled one
+    if (h && !(kind === 2 && !polled)) {
+      downDuplicate(seq, kind, data, size, polled ? "poll" : "fallback");
+      return;
+    }
     if (!h) downHeldN++;
-    downHeld[seq] = [kind, data, polled];
+    downHeld[seq] = [kind, data, polled, size];
   }
   // downDrain delivers in order until a gap or a polled barrier.
   function downDrain() {
@@ -150,6 +181,7 @@ const downShim = `
   // is delivered as it is, otherwise through downPut and downDrain.
   function downBatch(b) {
     var i = 0, n = b.kinds.length;
+    downTrace("downBatch_start", {first: b.first, count: n, bytes: b.bytes || 0, ack: downNext - 1});
     if (downHeldN === 0) {
       while (i < n && !downWait && b.first + i === downNext) {
         downNext++;
@@ -157,8 +189,9 @@ const downShim = `
         i++;
       }
     }
-    for (; i < n; i++) downPut(b.first + i, b.kinds[i], b.datas[i], true);
+    for (; i < n; i++) downPut(b.first + i, b.kinds[i], b.datas[i], true, b.sizes && b.sizes[i]);
     downDrain();
+    downTrace("downBatch_end", {first: b.first, count: n, ack: downNext - 1, held: downHeldN, waiting: !!downWait});
   }
   function downRelease(gen, id) {
     if (gen !== downGen || !downWait || downWait.id !== id) return;
@@ -174,7 +207,7 @@ const downShim = `
     var v = new DataView(buf), n = buf.byteLength;
     if (n < 12) throw new Error("batch header cut short");
     var first = v.getUint32(0) * 4294967296 + v.getUint32(4);
-    var count = v.getUint32(8), off = 12, kinds = [], datas = [];
+    var count = v.getUint32(8), off = 12, kinds = [], datas = [], sizes = [];
     for (var i = 0; i < count; i++) {
       if (n - off < 5) throw new Error("item header cut short");
       var kind = v.getUint8(off), len = v.getUint32(off + 1), data;
@@ -186,10 +219,11 @@ const downShim = `
       else throw new Error("bad item kind " + kind);
       kinds.push(kind);
       datas.push(data);
+      sizes.push(len);
       off += len;
     }
     if (off !== n) throw new Error("trailing bytes after the batch");
-    return { first: first, kinds: kinds, datas: datas };
+    return { first: first, kinds: kinds, datas: datas, sizes: sizes, bytes: n };
   }
   function downPoll(gen, tok, path) {
     var live = function () { return downGen === gen && downLoop === gen; };
@@ -202,18 +236,28 @@ const downShim = `
     var next = function () {
       if (!live()) return;
       if (downWait) { downResume = next; return; }
+      var ack = downNext - 1;
       var url = path + (path.indexOf("?") < 0 ? "?" : "&") + "gen=" + gen +
-        "&tok=" + encodeURIComponent(tok) + "&ack=" + (downNext - 1);
-      downTrace("poll_start", {gen: gen, ack: downNext - 1});
+        "&tok=" + encodeURIComponent(tok) + "&ack=" + ack;
+      var mode = downPollMode(gen);
+      downTrace("poll_start", {gen: gen, ack: ack, mode: mode, inflight: downInFlight, inflightMax: downInFlightMax});
+      downTrace("next_fetch_issue", {gen: gen, ack: ack, mode: mode, inflight: downInFlight + 1, inflightMax: Math.max(downInFlightMax, downInFlight + 1)});
+      downInFlight++;
+      if (downInFlight > downInFlightMax) downInFlightMax = downInFlight;
       var f = downFetch || (typeof window.fetch === "function" ? window.fetch.bind(window) : null);
+      var finished = false;
+      var finish = function () {
+        if (!finished) { finished = true; downFetchDone(); }
+      };
       var p;
-      try { p = f(url, { cache: "no-store" }); } catch (e) { fail(); return; }
+      try { p = f(url, { cache: "no-store" }); } catch (e) { finish(); fail(); return; }
       Promise.resolve(p).then(function (r) {
-        if (!live()) return;
-        downTrace("fetch_response", {status: r.status, ack: downNext - 1});
-        if (r.status === 410) { downLoop = 0; return; }
-        if (r.status !== 200) { fail(); return; }
+        if (!live()) { finish(); return; }
+        downTrace("fetch_response", {status: r.status, ack: ack});
+        if (r.status === 410) { finish(); downLoop = 0; return; }
+        if (r.status !== 200) { finish(); fail(); return; }
         return r.arrayBuffer().then(function (buf) {
+          finish();
           if (!live()) return;
           downTrace("fetch_body", {bytes: buf.byteLength});
           var batch = downDecode(buf);
@@ -221,11 +265,11 @@ const downShim = `
           for (var i = 0; i < batch.kinds.length; i++) {
             if (batch.kinds[i] === 1) frames += downPacketFrames(batch.datas[i]);
           }
-          downTrace("decode_done", {bytes: buf.byteLength, items: batch.kinds.length, frames: frames});
+          downTrace("decode_done", {bytes: buf.byteLength, first: batch.first, count: batch.kinds.length, items: batch.kinds.length, frames: frames});
           downBatch(batch);
           next();
-        });
-      }).catch(fail);
+        }).catch(function () { finish(); fail(); });
+      }).catch(function () { finish(); fail(); });
     };
     downPost({ op: "poll", gen: gen });
     next();

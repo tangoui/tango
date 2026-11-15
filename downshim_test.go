@@ -27,10 +27,17 @@ const PREFIX = "\u0000tango-int:down:";
 const thrown = [];
 process.on("uncaughtException", (e) => thrown.push(e.message));
 
-function setup() {
+function setup(trace = false) {
   const posted = [];
   const fetches = [];
+  const traceEvents = [];
   const ctx = { setTimeout, Promise, console, TextDecoder, atob };
+  if (trace) {
+    ctx.__tangoIpcTrace = {
+      enabled: true,
+      event(name, fields) { traceEvents.push({ name, ...(fields || {}) }); },
+    };
+  }
   ctx.window = ctx;
   ctx.__tangoNative = { post(s) { posted.push(s); } };
   ctx.fetch = (url, opts) => new Promise((resolve, reject) => fetches.push({ url, opts, resolve, reject }));
@@ -45,7 +52,7 @@ function setup() {
   };
   const got = [];
   d.onMessage((m) => got.push(m));
-  return { ctx, d, posted, fetches, down, reply, got };
+  return { ctx, d, posted, fetches, down, reply, got, traceEvents };
 }
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -81,6 +88,23 @@ const scenarios = {
     h.d._open(OPEN);
     await tick();
     assert.equal(h.fetches.length, 4);
+  },
+
+  "downshim: trace records B poll timeline": async () => {
+    const h = setup(true);
+    h.d._open(OPEN);
+    await tick();
+    h.reply(0, 200, "abc");
+    await tick();
+    const names = h.traceEvents.map((e) => e.name);
+    for (const name of ["down_mode", "poll_start", "next_fetch_issue", "fetch_response", "fetch_body", "decode_done", "downBatch_start", "downBatch_end"]) {
+      assert.ok(names.includes(name), name);
+    }
+    assert.equal(h.traceEvents.find((e) => e.name === "down_mode").mode, "B");
+    assert.deepEqual(h.traceEvents.find((e) => e.name === "decode_done"), {
+      name: "decode_done", bytes: 30, first: 1, count: 3, items: 3, frames: 0,
+    });
+    assert.equal(h.traceEvents.find((e) => e.name === "next_fetch_issue").inflightMax, 1);
   },
 
   "downshim: reorders eval and poll": async () => {
@@ -297,7 +321,7 @@ const scenarios = {
   },
 
   "downshim: duplicate seq dropped": async () => {
-    const h = setup();
+    const h = setup(true);
     h.d._open(OPEN);
     await tick();
     h.d._recvSeq(1, [[2, 0, "b"]]);
@@ -315,6 +339,10 @@ const scenarios = {
     await tick();
     assert.deepEqual(h.got, ["one", "b", "c", "d"]);
     assert.match(h.fetches[3].url, /[?&]ack=4$/);
+    const duplicates = h.traceEvents.filter((e) => e.name === "down_duplicate");
+    assert.ok(duplicates.length > 0, "duplicate sequences are traced");
+    assert.ok(duplicates.every((e) => e.itemBytes > 0));
+    assert.equal(duplicates.reduce((n, e) => n + e.packetBytes, 0), 0);
   },
 
   "downshim: fallback barrier not paused": async () => {
@@ -398,6 +426,7 @@ func TestDownShimNode(t *testing.T) {
 	dataPath := write("data.json", string(data))
 	harness := write("harness.js", downHarness)
 	for _, name := range []string{
+		"downshim: trace records B poll timeline",
 		"downshim: delivers batch in order",
 		"downshim: reorders eval and poll",
 		"downshim: barrier pauses until release",

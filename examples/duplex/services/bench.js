@@ -182,9 +182,25 @@
     // after the run, so a lane that failed midway shows as fallback.
     const lane = tango.lanes();
     log(`  通道：下行 ${lane.down}，上行 ${lane.up}`);
+    const pagePoll = downTracePage || [];
+    const duplicates = pagePoll.filter((e) => e.name === "down_duplicate");
+    const modeEvent = pagePoll.find((e) => e.name === "down_mode") || pagePoll.find((e) => e.name === "poll_start");
+    const inFlightEvents = pagePoll.filter((e) => typeof e.inflightMax === "number");
+    const downPoll = {
+      mode: modeEvent ? modeEvent.mode : "B",
+      pollStarts: pagePoll.filter((e) => e.name === "poll_start").length,
+      fetchIssues: pagePoll.filter((e) => e.name === "next_fetch_issue").length,
+      responses: pagePoll.filter((e) => e.name === "decode_done").map((e) => ({first: e.first, count: e.count})),
+      batches: pagePoll.filter((e) => e.name === "downBatch_start").length,
+      duplicateItems: duplicates.length,
+      duplicateItemBytes: duplicates.reduce((n, e) => n + (e.itemBytes || 0), 0),
+      duplicatePacketBytes: duplicates.reduce((n, e) => n + (e.packetBytes || 0), 0),
+      maxInFlight: inFlightEvents.reduce((n, e) => Math.max(n, e.inflightMax || 0), 0),
+    };
     const res = {
       lane,
       platform: navigator.userAgent,
+      downPoll,
       latencyP50Ms: lat.p50,
       latencyP99Ms: lat.p99,
       latencyMeanMs: lat.mean,
