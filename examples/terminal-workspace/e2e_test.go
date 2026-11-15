@@ -82,6 +82,7 @@ func TestWorkspaceNative(t *testing.T) {
 	})
 	second := panes()[0].Name
 	secondPID := query(second, "$$")
+	fullSize := query(second, "$(stty size)")
 	if firstPID == secondPID {
 		t.Fatal("tabs share the same shell")
 	}
@@ -141,10 +142,16 @@ func TestWorkspaceNative(t *testing.T) {
 	if query(second, "$$") != secondPID {
 		t.Fatal("closing a split restarted its sibling")
 	}
+	if got := query(second, "$(stty size)"); got != fullSize {
+		t.Fatalf("collapsed horizontal split left stale PTY size: want %s, got %s", fullSize, got)
+	}
 	win.Find(a11y.RoleButton, "Split down").Click()
 	wait("vertical split", func() bool { return len(panes()) == 2 })
 	win.Find(a11y.RoleButton, "Close pane").Click()
 	wait("collapsed vertical split", func() bool { return len(panes()) == 1 })
+	if got := query(second, "$(stty size)"); got != fullSize {
+		t.Fatalf("collapsed vertical split left stale PTY size: want %s, got %s", fullSize, got)
+	}
 	win.Find(a11y.RoleButton, "Close pane").Click()
 	readContains(first, "FIRST_kept")
 	if query(first, "$$") != firstPID {

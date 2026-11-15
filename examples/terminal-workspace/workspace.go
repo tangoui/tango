@@ -42,6 +42,7 @@ type splitNode struct {
 	id            string
 	pane          *session
 	axis          splitAxis
+	ratio         float32 // first child's fraction, owned by the application
 	first, second *splitNode
 }
 
@@ -94,6 +95,7 @@ func removePane(n *splitNode, id string) *splitNode {
 type terminalTab struct {
 	id, name, activePaneID string
 	root                   *splitNode
+	layoutVersion          uint64
 }
 
 func (t *terminalTab) panes() []*session { return t.root.panes() }
@@ -180,7 +182,8 @@ func (w *workspace) split(axis splitAxis) error {
 		return err
 	}
 	old := *n
-	*n = splitNode{id: w.nextID("split"), axis: axis, first: &old, second: &splitNode{id: s.id, pane: s}}
+	*n = splitNode{id: w.nextID("split"), axis: axis, ratio: 0.5, first: &old, second: &splitNode{id: s.id, pane: s}}
+	tab.layoutVersion++
 	tab.activePaneID = s.id
 	return nil
 }
@@ -231,6 +234,7 @@ func (w *workspace) closePane() {
 			continue
 		}
 		tab.root = removePane(tab.root, pane.id)
+		tab.layoutVersion++
 		remaining := tab.panes()
 		tab.activePaneID = remaining[min(i, len(remaining)-1)].id
 		pane.close()
