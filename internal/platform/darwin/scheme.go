@@ -234,7 +234,7 @@ func (t *schemeTask) data(p []byte) {
 		chunk := nsData(p)
 		send(t.native, "didReceiveData:", uintptr(chunk))
 	})
-	t.lane.data()
+	t.lane.data(len(p))
 }
 
 // finish ends the response and closes the task: the writer's last action.

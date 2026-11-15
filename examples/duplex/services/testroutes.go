@@ -25,11 +25,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/tangoui/tango/internal/downq"
 	"github.com/tangoui/tango/ipc"
 )
 
 // Probe reports whether the test hooks are on (TANGO_SCHEME_PROBE=1).
 var Probe = sync.OnceValue(func() bool { return os.Getenv("TANGO_SCHEME_PROBE") == "1" })
+
+// TraceEnabled reports whether the development pipeline trace is requested.
+var TraceEnabled = sync.OnceValue(downq.TraceEnabled)
 
 // Stats is the result of Debug.Stats. Later counters are added as fields;
 // the page reads them by name.
@@ -54,21 +58,28 @@ type Stats struct {
 	// ios.LaneDownStats; zero on other platforms, and on macOS in builds
 	// without -tags tango_dev): lane requests it saw and
 	// how they were answered.
-	DownRequests int64 `json:"downRequests"` // GET /__tango/lane/poll (macOS; /__tango/lane/down on iOS)
-	DownConns    int64 `json:"downConns"`    // of them answered 200
-	DownActive   int64 `json:"downActive"`   // answered 200 and still open
-	DownWrites   int64 `json:"downWrites"`   // data blocks handed to WebKit on those answered 200
-	DownRefused  int64 `json:"downRefused"`  // of them answered 403 (macOS only)
-	DownOpen     int64 `json:"downOpen"`     // of them not finished yet, held ones included (macOS only)
-	UpRequests   int64 `json:"upRequests"`   // POST /__tango/lane/up
-	UpAccepted   int64 `json:"upAccepted"`   // of them answered 2xx
-	UpActive     int64 `json:"upActive"`     // started and not yet finished or stopped
+	DownRequests      int64 `json:"downRequests"` // GET /__tango/lane/poll (macOS; /__tango/lane/down on iOS)
+	DownConns         int64 `json:"downConns"`    // of them answered 200
+	DownActive        int64 `json:"downActive"`   // answered 200 and still open
+	DownWrites        int64 `json:"downWrites"`   // data blocks handed to WebKit on those answered 200
+	DownRefused       int64 `json:"downRefused"`  // of them answered 403 (macOS only)
+	DownOpen          int64 `json:"downOpen"`     // of them not finished yet, held ones included (macOS only)
+	DownResponseNanos int64 `json:"downResponseNanos,omitempty"`
+	DownDataNanos     int64 `json:"downDataNanos,omitempty"`
+	DownFinishNanos   int64 `json:"downFinishNanos,omitempty"`
+	DownDataCalls     int64 `json:"downDataCalls,omitempty"`
+	UpRequests        int64 `json:"upRequests"` // POST /__tango/lane/up
+	UpAccepted        int64 `json:"upAccepted"` // of them answered 2xx
+	UpActive          int64 `json:"upActive"`   // started and not yet finished or stopped
 	// Main-thread time the macOS scheme handler spent on up requests
 	// before their handler goroutine started (summed, largest), and their
 	// body bytes; zero on iOS and elsewhere.
 	UpMainNanos    int64 `json:"upMainNanos"`
 	UpMainMaxNanos int64 `json:"upMainMaxNanos"`
 	UpBodyBytes    int64 `json:"upBodyBytes"`
+	// IpcTraceEnabled is true only for a tango_dev run with TANGO_IPC_TRACE=1.
+	IpcTraceEnabled bool               `json:"ipcTraceEnabled,omitempty"`
+	IpcTrace        []downq.TraceBatch `json:"ipcTrace,omitempty"`
 }
 
 var (
@@ -87,7 +98,16 @@ func debugStats(context.Context, json.RawMessage) (any, error) {
 		UpBytes:      upBytes.Load(),
 	}
 	backendLaneStats(&st)
+	if TraceEnabled() {
+		st.IpcTraceEnabled = true
+		st.IpcTrace = downq.TraceStats()
+	}
 	return st, nil
+}
+
+func debugTraceReset(context.Context, json.RawMessage) (any, error) {
+	downq.TraceReset()
+	return struct{}{}, nil
 }
 
 // Sample is one Debug.Sample measurement.

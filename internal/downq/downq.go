@@ -169,6 +169,7 @@ func (s *State) endLocked() {
 	s.ended = true
 	s.queue, s.unacked = nil, nil
 	s.stopDogLocked()
+	traceEnd(s)
 	closeOnce(s.done)
 }
 
@@ -191,6 +192,7 @@ func (s *State) Push(kind Kind, data []byte) (seq uint64) {
 		s.fallback([]Item{it})
 		return it.Seq
 	}
+	tracePush(s, it.Seq)
 	s.queue = append(s.queue, it)
 	close(s.wake)
 	s.wake = make(chan struct{})
@@ -267,6 +269,7 @@ func (s *State) ackLocked(ack uint64) {
 	if len(s.unacked) == 0 {
 		s.unacked = nil
 	}
+	traceAck(s, ack)
 }
 
 // drainLocked removes and returns every unacknowledged and pending item,

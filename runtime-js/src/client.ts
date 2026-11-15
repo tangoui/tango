@@ -186,6 +186,16 @@ function report(err: unknown): void {
   }, 0);
 }
 
+function ipcTrace(name: string, data: Record<string, unknown> = {}): void {
+  const t = (globalThis as any).__tangoIpcTrace;
+  if (!t?.enabled || typeof t.event !== "function") return;
+  try {
+    t.event(name, data);
+  } catch {
+    // Diagnostics must never affect IPC behavior.
+  }
+}
+
 /** Decodes standard base64; throws on invalid input. */
 function decodeBase64(s: string): Uint8Array {
   const from = (Uint8Array as any).fromBase64;
@@ -269,6 +279,7 @@ type Result<T> = IteratorResult<T, undefined>;
 /** One received data frame: its value (Uint8Array for byte frames) and its
  * charged size, returned as credit once the frame is read. */
 interface Frame {
+  seq: number;
   v: unknown;
   c: number;
 }
@@ -389,7 +400,7 @@ class StreamImpl<T> implements TangoStream<T> {
         return this.fail("stream data has invalid base64 in bin");
       }
     }
-    this.accept(seq, { v, c: m.c });
+    this.accept(seq, { seq, v, c: m.c });
   }
 
   /** A byte frame from a fast lane packet (charged len + FRAME_OVERHEAD). */
@@ -397,7 +408,7 @@ class StreamImpl<T> implements TangoStream<T> {
     if (this.finished) return;
     if (seq < this.recvNext || this.pending.has(seq)) return this.fail("duplicate frame");
     if (this.endSeq !== null && seq >= this.endSeq) return this.fail("frame after end");
-    this.accept(seq, { v: payload, c: payload.length + FRAME_OVERHEAD });
+    this.accept(seq, { seq, v: payload, c: payload.length + FRAME_OVERHEAD });
   }
 
   /** Queues a checked frame in seq order. */
@@ -522,6 +533,7 @@ class StreamImpl<T> implements TangoStream<T> {
       const w = this.waiters.shift()!;
       const f = this.queue.shift()!;
       w.resolve({ value: f.v as T | Uint8Array, done: false });
+      ipcTrace("frame_read", { stream: this.id, seq: f.seq, charged: f.c, queued: this.queue.length });
       this.credit(f.c);
     }
     if (this.over && !this.queue.length) this.settleWaiters();
@@ -550,6 +562,7 @@ class StreamImpl<T> implements TangoStream<T> {
     if (this.unacked < this.c.recvWindow / ACK_DIVISOR && this.queue.length) return;
     const b = this.unacked;
     this.unacked = 0;
+    ipcTrace("ack", { stream: this.id, bytes: b });
     this.c._post({ tango: "stream", id: this.id, op: "ack", b });
   }
 
@@ -877,6 +890,7 @@ class StreamImpl<T> implements TangoStream<T> {
   private read(): Promise<Result<T | Uint8Array>> {
     const f = this.queue.shift();
     if (f) {
+      ipcTrace("frame_read", { stream: this.id, seq: f.seq, charged: f.c, queued: this.queue.length });
       this.credit(f.c);
       return Promise.resolve({ value: f.v as T | Uint8Array, done: false });
     }
@@ -1050,6 +1064,7 @@ class ClientImpl implements Client {
       }
       return;
     }
+    ipcTrace("runtime_client_packet", {frames: frames.length, bytes: p.byteLength});
     for (const f of frames) {
       // Copied: a payload view would keep the whole packet alive.
       this.streams.get(f.stream)?._data(f.seq, f.payload.slice());

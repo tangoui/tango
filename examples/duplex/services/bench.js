@@ -79,6 +79,10 @@
 
   /** Go → JS: 1024 frames of 64 KiB from Source. */
   async function down(frames = 1024, size = 64 * KiB) {
+    if (ipcTrace) {
+      try { await tango.call("Debug.TraceReset"); } catch {}
+      ipcTrace.reset();
+    }
     const t0 = performance.now();
     let n = 0;
     for await (const b of tango.stream("Source", frames, size)) n += b.length;
@@ -126,8 +130,31 @@
     }
   }
 
+  let ipcTrace = null;
+
+  function installTrace(enabled) {
+    if (!enabled) return null;
+    const events = [];
+    const trace = {
+      enabled: true,
+      event(name, data) {
+        events.push({ name, t: performance.now(), ...(data || {}) });
+      },
+      reset() {
+        events.length = 0;
+      },
+      snapshot() {
+        return events.slice();
+      },
+    };
+    globalThis.__tangoIpcTrace = trace;
+    return trace;
+  }
+
   /** The whole benchmark; log gets one progress line at a time. */
   async function run(log = () => {}) {
+    const initialStats = await stats();
+    ipcTrace = installTrace(Boolean(initialStats && initialStats.ipcTraceEnabled));
     log("延迟…");
     const lat = await latency();
     log(`  p50 ${lat.p50} ms, p99 ${lat.p99} ms, mean ${lat.mean} ms`);
@@ -141,6 +168,8 @@
     log(`  ${upMBps} MB/s`);
     log("下行（Go→JS）…");
     const downMBps = await down();
+    const downTraceGo = ipcTrace ? await stats() : null;
+    const downTracePage = ipcTrace ? ipcTrace.snapshot() : null;
     log(`  ${downMBps} MB/s`);
     log("下行小帧（20000 × 1 KiB）…");
     const small = await downSmall();
@@ -168,6 +197,16 @@
       downSmallMBps: small.MBps,
       downJsonFps: js.fps,
     };
+    if (ipcTrace && downTraceGo) {
+      res.ipcTrace = { go: downTraceGo.ipcTrace || [], page: downTracePage || [] };
+      res.downScheme = {
+        requests: downTraceGo.downRequests - (initialStats?.downRequests || 0),
+        responseMs: round3((downTraceGo.downResponseNanos - (initialStats?.downResponseNanos || 0)) / 1e6),
+        dataMs: round3((downTraceGo.downDataNanos - (initialStats?.downDataNanos || 0)) / 1e6),
+        finishMs: round3((downTraceGo.downFinishNanos - (initialStats?.downFinishNanos || 0)) / 1e6),
+        dataCalls: downTraceGo.downDataCalls - (initialStats?.downDataCalls || 0),
+      };
+    }
     if (s0 && s1) {
       // The upload's up:post requests and the main-thread time the macOS
       // scheme handler spent on them before their handler goroutine

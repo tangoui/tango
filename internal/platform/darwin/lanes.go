@@ -113,9 +113,15 @@ type LaneStats struct {
 	DownWrites   int64 // data blocks handed to WebKit on those answered 200
 	DownRefused  int64 // of them, answered 403 (no valid token)
 	DownOpen     int64 // of them, not yet finished or stopped (held ones included)
-	UpRequests   int64 // POST /__tango/lane/up requests
-	UpAccepted   int64 // of them, answered 2xx
-	UpActive     int64 // POST /__tango/lane/up requests not yet finished or stopped
+	// Development trace timing for poll requests: response, data delivery and
+	// request completion, summed across requests.
+	DownResponseNanos int64
+	DownDataNanos     int64
+	DownFinishNanos   int64
+	DownDataCalls     int64
+	UpRequests        int64 // POST /__tango/lane/up requests
+	UpAccepted        int64 // of them, answered 2xx
+	UpActive          int64 // POST /__tango/lane/up requests not yet finished or stopped
 	// Main-thread cost of the up requests: time serveSchemeTask spent on
 	// each (copying the request and its body, before the handler
 	// goroutine starts), summed and the largest; and the body bytes read.

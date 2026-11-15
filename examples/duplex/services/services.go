@@ -59,6 +59,7 @@ func Register(r *ipc.Router) {
 		r.Handle("Debug.Stats", debugStats)
 		r.Handle("Debug.Sample", debugSample)
 		r.Handle("Debug.Samples", debugSamples)
+		r.Handle("Debug.TraceReset", debugTraceReset)
 	}
 }
 

@@ -57,6 +57,16 @@ const downShim = `
   var pktQueue = [];
   var pktFlushing = false;
 
+  function downTrace(name, data) {
+    var t = globalThis.__tangoIpcTrace;
+    if (t && t.enabled && typeof t.event === "function") {
+      try { t.event(name, data || {}); } catch (e) {}
+    }
+  }
+  function downPacketFrames(p) {
+    return p && p.byteLength >= 2 ? new DataView(p.buffer, p.byteOffset, 2).getUint16(0) : 0;
+  }
+
   function downPost(o) {
     try { postMsg(downPrefix + JSON.stringify(o)); } catch (e) {}
   }
@@ -71,6 +81,7 @@ const downShim = `
     while (pktQueue.length && pktSubs.length) deliverPkt(pktQueue.shift());
   }
   function recvPkt(p) {
+    downTrace("shim_dispatch", {kind: 1, bytes: p.byteLength, frames: downPacketFrames(p)});
     if (!pktSubs.length || pktQueue.length) {
       pktQueue.push(p);
       if (pktSubs.length && !pktFlushing) { pktFlushing = true; Promise.resolve().then(flushPkts); }
@@ -193,16 +204,25 @@ const downShim = `
       if (downWait) { downResume = next; return; }
       var url = path + (path.indexOf("?") < 0 ? "?" : "&") + "gen=" + gen +
         "&tok=" + encodeURIComponent(tok) + "&ack=" + (downNext - 1);
+      downTrace("poll_start", {gen: gen, ack: downNext - 1});
       var f = downFetch || (typeof window.fetch === "function" ? window.fetch.bind(window) : null);
       var p;
       try { p = f(url, { cache: "no-store" }); } catch (e) { fail(); return; }
       Promise.resolve(p).then(function (r) {
         if (!live()) return;
+        downTrace("fetch_response", {status: r.status, ack: downNext - 1});
         if (r.status === 410) { downLoop = 0; return; }
         if (r.status !== 200) { fail(); return; }
         return r.arrayBuffer().then(function (buf) {
           if (!live()) return;
-          downBatch(downDecode(buf));
+          downTrace("fetch_body", {bytes: buf.byteLength});
+          var batch = downDecode(buf);
+          var frames = 0;
+          for (var i = 0; i < batch.kinds.length; i++) {
+            if (batch.kinds[i] === 1) frames += downPacketFrames(batch.datas[i]);
+          }
+          downTrace("decode_done", {bytes: buf.byteLength, items: batch.kinds.length, frames: frames});
+          downBatch(batch);
           next();
         });
       }).catch(fail);

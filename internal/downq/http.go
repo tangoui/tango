@@ -47,6 +47,7 @@ func (s *State) Serve(w http.ResponseWriter, r *http.Request) {
 	gen, genErr := strconv.ParseUint(q.Get("gen"), 10, 64)
 	tok := q.Get("tok")
 	ack, ackErr := strconv.ParseUint(q.Get("ack"), 10, 64)
+	reqAt := time.Now()
 
 	s.mu.Lock()
 	if genErr != nil || tok == "" || !s.tokenLocked(gen, tok) {
@@ -68,6 +69,7 @@ func (s *State) Serve(w http.ResponseWriter, r *http.Request) {
 	s.active, s.watchdogged = true, false
 	s.stopDogLocked()
 	s.reqs++
+	trace := tracePollStart(s, gen, ack, reqAt)
 	done := s.done
 	s.mu.Unlock()
 	defer s.leave()
@@ -82,16 +84,20 @@ func (s *State) Serve(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "tango: downq: generation ended", http.StatusGone)
 			return
 		}
+		takeStart := time.Now()
 		first, items := s.takeLocked()
+		takeEnd := time.Now()
 		cut := s.faultCutLocked(items)
 		wake := s.wake
 		s.mu.Unlock()
 		if cut >= 0 {
-			writeCutBatch(w, first, items, cut)
+			traceTake(trace, s, first, items, takeStart, takeEnd)
+			writeCutBatch(w, first, items, cut, trace)
 			return
 		}
 		if len(items) > 0 || expired {
-			writeBatch(w, first, items)
+			traceTake(trace, s, first, items, takeStart, takeEnd)
+			writeBatch(w, first, items, trace)
 			return
 		}
 		if hold == nil {
@@ -123,22 +129,28 @@ func (s *State) leave() {
 }
 
 // writeBatch answers 200 with the batch of items starting at first.
-func writeBatch(w http.ResponseWriter, first uint64, items []Item) {
+func writeBatch(w http.ResponseWriter, first uint64, items []Item, trace *traceRound) {
+	encodeStart := time.Now()
 	body := EncodeBatch(first, items)
+	traceEncoded(trace, len(body), encodeStart, time.Now())
 	h := w.Header()
 	h.Set("Content-Type", "application/octet-stream")
 	h.Set("Cache-Control", "no-store")
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Content-Length", strconv.Itoa(len(body)))
 	w.WriteHeader(http.StatusOK)
+	writeStart := time.Now()
 	w.Write(body) // a failed write leaves the items unacknowledged
+	traceWritten(trace, writeStart, time.Now())
 }
 
 // writeCutBatch is writeBatch cut off in the middle of items[cut] (fault
 // injection, fault.go): the head announces the whole batch, the body ends
 // early. The items stay unacknowledged.
-func writeCutBatch(w http.ResponseWriter, first uint64, items []Item, cut int) {
+func writeCutBatch(w http.ResponseWriter, first uint64, items []Item, cut int, trace *traceRound) {
+	encodeStart := time.Now()
 	body := EncodeBatch(first, items)
+	traceEncoded(trace, len(body), encodeStart, time.Now())
 	n := batchHeader
 	for _, it := range items[:cut] {
 		n += itemHeader + len(it.Data)
@@ -150,7 +162,9 @@ func writeCutBatch(w http.ResponseWriter, first uint64, items []Item, cut int) {
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Content-Length", strconv.Itoa(len(body)))
 	w.WriteHeader(http.StatusOK)
+	writeStart := time.Now()
 	w.Write(body[:n])
+	traceWritten(trace, writeStart, time.Now())
 }
 
 // EncodeBatch returns the batch of items whose first item has sequence

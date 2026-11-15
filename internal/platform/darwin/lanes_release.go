@@ -21,5 +21,5 @@ func laneTrackFor(string) *laneTrack { return nil }
 
 func (*laneTrack) respond(int)                   {}
 func (*laneTrack) mainTime(time.Duration, int64) {}
-func (*laneTrack) data()                         {}
+func (*laneTrack) data(...int)                   {}
 func (*laneTrack) done()                         {}
