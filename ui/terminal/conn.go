@@ -35,8 +35,10 @@ type Options struct {
 }
 
 const (
-	// readBufSize is the size of the read loop's buffer.
-	readBufSize = 32 << 10
+	// readBufSize is the size of each read-loop batch. A Reader returns
+	// as soon as data is available, so the larger buffer reduces syscalls
+	// without waiting for more output.
+	readBufSize = 256 << 10
 	// maxLockBytes bounds how much output the read loop feeds the
 	// emulator in one hold of the lock, so the UI never waits long.
 	maxLockBytes = 256 << 10
@@ -403,9 +405,9 @@ func (t *Terminal) Send(b []byte) {
 }
 
 // Resize resizes the emulator to cols×rows cells and tells the program
-// the new size, in cells and pixels. A Conn error is ignored. Resize
-// does nothing after Close, and never calls Conn.Resize once Close has
-// begun: the Conn call is made under smu, which Close takes first.
+// the new size, in cells and pixels. A Conn implementation must let Close
+// unblock a concurrent Resize; Resize is never called while holding the
+// lifecycle mutex. A Conn error is ignored.
 func (t *Terminal) Resize(cols, rows, wpx, hpx int) {
 	if t.isClosing() {
 		return
@@ -414,8 +416,9 @@ func (t *Terminal) Resize(cols, rows, wpx, hpx int) {
 	t.vt.Resize(cols, rows)
 	t.mu.Unlock()
 	t.smu.Lock()
-	defer t.smu.Unlock()
-	if !t.closing {
+	closing := t.closing
+	t.smu.Unlock()
+	if !closing {
 		t.conn.Resize(cols, rows, wpx, hpx)
 	}
 }
