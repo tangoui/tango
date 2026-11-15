@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/tangoui/tango/ui/a11y"
@@ -424,7 +425,7 @@ func (f *tblFrame) filterDropdown(col *TableColumn, anchor ID) {
 				}
 				return
 			}
-			if Button(c, c.Locale().FilterReset).Link().Small().Disabled(len(st.fDraft) == 0).Clicked() {
+			if Button(c, c.Locale().FilterReset).Link().Small().Disabled(tblSameFilterSet(st.fDraft, f.filterResetValues(col))).Clicked() {
 				reset = true
 			}
 			Spacer(c)
@@ -451,10 +452,11 @@ func (f *tblFrame) filterDropdown(col *TableColumn, anchor ID) {
 		f.applyFilter(col.Key, st.fDraft)
 		st.fOpen = ""
 	case reset:
-		vals := f.filterResetValues(col) // DefaultFilter with FilterResetToDefault
-		f.applyFilter(col.Key, vals)
-		st.fDraft = vals
-		st.fOpen = ""
+		// antd FilterDropdown.onReset defaults to confirm:false and
+		// closeDropdown:false: only reset the draft and its search.
+		st.fDraft = f.filterResetValues(col)
+		st.fQuery = ""
+		c.invalid = true
 	case c.EscapeAt(st.fPanel):
 		st.fOpen = ""
 	case c.PressedOutside(anchor, st.fPanel):
@@ -809,4 +811,16 @@ func (f *tblFrame) selectRows(rows []tblRow, on bool) {
 	f.loadSelection()
 	t.selCh = true
 	f.c.invalid = true
+}
+
+// tblSameFilterSet compares filter keys ignoring order, like antd's
+// getResetDisabled isEqual(default, selectedKeys, true) (FilterDropdown.js).
+func tblSameFilterSet(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	x, y := slices.Clone(a), slices.Clone(b)
+	slices.Sort(x)
+	slices.Sort(y)
+	return slices.Equal(x, y)
 }

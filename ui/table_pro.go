@@ -15,7 +15,6 @@ import (
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
-	"github.com/tangoui/tango/ui/text"
 	"github.com/tangoui/tango/ui/theme"
 )
 
@@ -110,23 +109,24 @@ type ProResult[T any] struct {
 type ProTableW[T any] struct {
 	_ [0]func()
 
-	c         *Context
-	cols      []ProColumn[T]
-	title     string
-	rowKey    func(T) string
-	request   func(req ProRequest, done func(ProResult[T]))
-	toolbar   func()
-	search    bool
-	selection *[]string
-	pageSize  int
-	scrollX   float32
-	bordered  bool
-	expand    func(row T)
-	dragSort  func(from, to int)
-	rowStyle  func(row T) RowStyle
-	table     *TableW
-	st        *proState[T]
-	id        ID
+	c             *Context
+	cols          []ProColumn[T]
+	title         string
+	rowKey        func(T) string
+	request       func(req ProRequest, done func(ProResult[T]))
+	toolbar       func()
+	toolbarConfig func(*ListToolBarW)
+	search        bool
+	selection     *[]string
+	pageSize      int
+	scrollX       float32
+	bordered      bool
+	expand        func(row T)
+	dragSort      func(from, to int)
+	rowStyle      func(row T) RowStyle
+	table         *TableW
+	st            *proState[T]
+	id            ID
 
 	// Functional extras (Ant params, polling, columnsState,
 	// tableAlertRender / tableAlertOptionRender, options, pagination).
@@ -140,6 +140,7 @@ type ProTableW[T any] struct {
 	alertFn    func(keys []string, clear func())
 	alertOpt   func(keys []string, clear func())
 	noAlert    bool
+	fullScreen bool
 	noOptions  bool
 	noPager    bool
 	density0   ControlSize
@@ -224,6 +225,7 @@ func ProTable[T any](c *Context, cols []ProColumn[T]) *ProTableW[T] {
 	p.search = Prop(c, "ProTable", "search", true)
 	p.bordered = Prop(c, "ProTable", "bordered", false)
 	p.noOptions = !Prop(c, "ProTable", "options", true)
+	p.fullScreen = Prop(c, "ProTable", "fullScreen", false)
 	if _, ok := c.ConfigProp("ProTable", "pagination"); ok {
 		n, on := proPropPageSize(c, "ProTable", 10)
 		p.noPager = !on
@@ -309,6 +311,9 @@ func (p *ProTableW[T]) TableAlertOptionRender(fn func(keys []string, clear func(
 // NoTableAlert hides the selection bar (Ant tableAlertRender={false}).
 func (p *ProTableW[T]) NoTableAlert() *ProTableW[T] { p.noAlert = true; return p }
 
+// FullScreen enables the fullscreen toolbar option (v3 default: false).
+func (p *ProTableW[T]) FullScreen(on bool) *ProTableW[T] { p.fullScreen = on; return p }
+
 // NoOptions hides the toolbar setting icons (Ant options={false}).
 func (p *ProTableW[T]) NoOptions() *ProTableW[T] { p.noOptions = true; return p }
 
@@ -348,6 +353,13 @@ func (p *ProTableW[T]) Request(fn func(req ProRequest, done func(ProResult[T])))
 
 // ToolBar adds actions (e.g. a "新建" button) left of the toolbar icons.
 func (p *ProTableW[T]) ToolBar(fn func()) *ProTableW[T] { p.toolbar = fn; return p }
+
+// Toolbar configures the public ListToolBar used by ProTable (search,
+// subtitle, tooltip, filters, tabs and menus). ToolBar still adds actions.
+func (p *ProTableW[T]) Toolbar(fn func(*ListToolBarW)) *ProTableW[T] {
+	p.toolbarConfig = fn
+	return p
+}
 
 // NoSearch hides the query form.
 func (p *ProTableW[T]) NoSearch() *ProTableW[T] { p.search = false; return p }
@@ -704,54 +716,55 @@ func (p *ProTableW[T]) density() ControlSize {
 	return Large
 }
 
-// toolbarRow is the title + actions + setting icons.
+// toolbarRow shares the public ListToolBar composition.
 func (p *ProTableW[T]) toolbarRow() {
-	c, th, st := p.c, p.c.Theme, p.st
+	w := ListToolBar(p.c).Title(p.title).Actions(p.toolbar)
+	w.minH = 64
+	if !p.noOptions {
+		w.Settings(p.toolbarSettings)
+	}
+	if p.toolbarConfig != nil {
+		p.toolbarConfig(w)
+	}
+	w.Show()
+}
+
+// toolbarSettings retains ProTable's existing setting state and menus.
+func (p *ProTableW[T]) toolbarSettings() {
+	c, st := p.c, p.st
 	Row(c, func() {
-		if p.title != "" {
-			t := Text(c, p.title).Size(th.FontSizeLG).Weight(text.Medium).Color(th.TextHeading)
-			if shad2d(c) {
-				t.Weight(text.Semibold)
-			}
+		if ok, _ := p.tool(c.Locale().ProTable.Reload, icon.Reload, false, false); ok {
+			p.Reload()
 		}
-		Spacer(c)
-		if p.toolbar != nil {
-			Row(c, p.toolbar, layout.Gap(8), layout.Middle())
+		ok, anchor := p.tool(c.Locale().ProTable.Density, icon.ColumnHeight, st.densOpen, true)
+		if ok {
+			st.densOpen = !st.densOpen
+			st.densFocus = st.densOpen
+			c.invalid = true
 		}
-		if p.noOptions {
+		if st.densOpen {
+			p.densityMenu(anchor)
+		}
+		ok, anchor = p.settingTool(st.setOpen)
+		if ok {
+			st.setOpen = !st.setOpen
+			c.invalid = true
+		}
+		if st.setOpen {
+			p.columnSettings(anchor)
+		}
+		if !p.fullScreen {
 			return
 		}
-		Row(c, func() {
-			if ok, _ := p.tool(c.Locale().ProTable.Reload, icon.Reload, false, false); ok {
-				p.Reload()
-			}
-			ok, anchor := p.tool(c.Locale().ProTable.Density, icon.ColumnHeight, st.densOpen, true)
-			if ok {
-				st.densOpen = !st.densOpen
-				st.densFocus = st.densOpen
-				c.invalid = true
-			}
-			if st.densOpen {
-				p.densityMenu(anchor)
-			}
-			ok, anchor = p.settingTool(st.setOpen)
-			if ok {
-				st.setOpen = !st.setOpen
-				c.invalid = true
-			}
-			if st.setOpen {
-				p.columnSettings(anchor)
-			}
-			ic, label := icon.Fullscreen, c.Locale().Fullscreen
-			if st.full {
-				ic, label = icon.FullscreenExit, c.Locale().ExitFullscreen
-			}
-			if ok, _ := p.tool(label, ic, false, false); ok {
-				st.full = !st.full
-				c.invalid = true
-			}
-		}, layout.Gap(4), layout.Middle(), layout.Margin(geom.Insets{Left: 12}))
-	}, layout.Middle(), layout.MinH(64))
+		ic, label := icon.Fullscreen, c.Locale().Fullscreen
+		if st.full {
+			ic, label = icon.FullscreenExit, c.Locale().ExitFullscreen
+		}
+		if ok, _ := p.tool(label, ic, false, false); ok {
+			st.full = !st.full
+			c.invalid = true
+		}
+	}, layout.Gap(4), layout.Middle(), layout.Margin(geom.Insets{Left: 12}))
 }
 
 // tool is a toolbar option button in the theme's look.
@@ -838,12 +851,19 @@ func (p *ProTableW[T]) densityMenu(anchor ID) {
 	ov.Bg(th.BgElevated).Radius(th.RadiusLG).Shadow(th.Shadow)
 	ov.Semantics(a11y.RoleMenu, c.Locale().ProTable.Density)
 	rovingTabStop(items, curIdx)
+	if st.densFocus && len(ids) > 0 {
+		// A hover tooltip may disappear on the opening frame and change
+		// the overlay IDs. Keep the initial focus request until this menu
+		// has been painted with its stable ID.
+		painted := c.focusOrder.Contains(ids[curIdx])
+		st.densFocus = !painted
+		c.SetFocus(ids[curIdx])
+		if !painted {
+			c.invalid = true
+		}
+	}
 	if to := rovingStep(c, ids, nil, rovingVertical); to >= 0 {
 		navFocus(c, ids[to])
-	}
-	if st.densFocus && len(ids) > 0 {
-		st.densFocus = false
-		c.SetFocus(ids[curIdx])
 	}
 	st.densPanel = ov.n.id
 	if c.Dismissed(st.densPanel, anchor) {

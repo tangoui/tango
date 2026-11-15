@@ -54,6 +54,12 @@ type EditableProTableW[T any] struct {
 	view  []p2eEditRow[T]
 
 	saved, deleted, moved bool
+
+	// CellEditorTable / RowEditorTable presets (table_pro_editor.go).
+	mode      p2eMode
+	noActions bool        // no automatic action column
+	edNodes   []p2eEdNode // editor cells built this frame
+	disabled  bool        // the table is inside a disabled subtree
 }
 
 type p2eEditRow[T any] struct {
@@ -77,6 +83,13 @@ type p2eEditState[T any] struct {
 	saveRes  pro3Async[p2eSaveResult]
 	page     int
 	pageSz   int
+
+	// Presets: the edited column (cell mode), focus the editor on the
+	// next frame, the editor had focus (blur saves).
+	cellCol  string
+	focusCol string
+	fresh    bool
+	hadFocus bool
 }
 
 type p2eAsyncResult struct {
@@ -283,6 +296,9 @@ func (e *EditableProTableW[T]) AddRow() string {
 		st.newOrder = append(st.newOrder, k)
 	}
 	e.startEdit(p2eEditRow[T]{row: row, index: -1, key: k})
+	if e.mode != p2eModeNone {
+		st.focusCol, st.fresh, st.hadFocus = "", true, false
+	}
 	if e.pageSize > 0 && !e.top {
 		st.page = max(1, (len(*e.rows)+len(st.newOrder)+e.pageSize-1)/e.pageSize)
 	} else if e.top {
@@ -334,6 +350,9 @@ func (e *EditableProTableW[T]) field(pc *ProColumn[T]) ProField {
 }
 
 func (e *EditableProTableW[T]) editable(pc *ProColumn[T]) bool {
+	if e.mode == p2eModeCell && (e.st == nil || pc.Key != e.st.cellCol) {
+		return false // cell mode edits (and validates) one column only
+	}
 	return pc.Editor != nil && pc.Set != nil && !pc.HideInTable
 }
 
@@ -378,6 +397,9 @@ func (e *EditableProTableW[T]) stopEdit(k string) {
 	delete(st.waiting, k)
 	delete(st.saving, k)
 	st.gen[k]++ // late async results are ignored
+	if e.mode != p2eModeNone {
+		st.cellCol, st.focusCol, st.fresh, st.hadFocus = "", "", false, false
+	}
 	if _, ok := st.pending[k]; ok {
 		delete(st.pending, k)
 		if i := slices.Index(st.newOrder, k); i >= 0 {
@@ -392,6 +414,7 @@ func (e *EditableProTableW[T]) Show() *EditableProTableW[T] {
 	c, th := e.c, e.c.Theme
 	root := c.box("editable-protable", layout.Column, nil)
 	e.id = root.n.id
+	e.disabled = root.n.disabled
 	st := State[p2eEditState[T]](c, e.id, func() p2eEditState[T] {
 		return p2eEditState[T]{drafts: map[string]ProValues{}, errs: map[string]map[string]string{},
 			pending: map[string]T{}, gen: map[string]int{}, waiting: map[string]int{}, saving: map[string]bool{},
@@ -661,7 +684,8 @@ func (e *EditableProTableW[T]) tableView() {
 	}
 	pt := &ProTableW[T]{c: c}
 	var cols []TableColumn
-	actions := false
+	actions := e.noActions
+	e.edNodes = e.edNodes[:0]
 	for i := range e.cols {
 		pc := &e.cols[i]
 		if pc.HideInTable {
@@ -720,8 +744,10 @@ func (e *EditableProTableW[T]) tableView() {
 			}
 		})
 	}
+	enter := e.mode != p2eModeNone && p2eEnterDown(c)
 	t.Show()
 	e.table = t
+	e.preset(t, enter)
 }
 
 // tblMoveSlice moves element from to the position of element to.
@@ -750,6 +776,9 @@ func (e *EditableProTableW[T]) cell(k string, fd *ProField) {
 		Disabled(c, st.waiting[k] > 0 || st.saving[k], func() { proFieldControl(c, fd, draft) })
 	}, layout.Grow(1), layout.MinW(0), layout.Middle())
 	c.itemStatus = prev
+	if e.mode != p2eModeNone {
+		e.edNodes = append(e.edNodes, p2eEdNode{col: fd.Key, valueType: fd.ValueType, n: b.n})
+	}
 	// Name the control after the column, with Required / Invalid like a
 	// FormItem.
 	b.n.fill(p2eCellField{label: fd.Label, required: fd.Required, err: st.errs[k][fd.Key]})

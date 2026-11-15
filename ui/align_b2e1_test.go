@@ -197,8 +197,8 @@ func TestAlignB2E1SorterTooltip(t *testing.T) {
 	}
 }
 
-// TestAlignB2E1FilterResetToDefault: the dropdown's reset button applies
-// DefaultFilter when FilterResetToDefault is set (E2's filterResetValues).
+// TestAlignB2E1FilterResetToDefault: Reset changes the draft only;
+// confirm applies DefaultFilter (or clears it), without closing on Reset.
 func TestAlignB2E1FilterResetToDefault(t *testing.T) {
 	vals := []string{"x", "y"}
 	for _, toDef := range []bool{true, false} {
@@ -220,12 +220,20 @@ func TestAlignB2E1FilterResetToDefault(t *testing.T) {
 		}
 		d.Settle()
 		d.Settle()
+		if n := len(tb.DisplayedRows()); n != 1 {
+			t.Fatalf("toDefault=%v: Reset must not apply the filter, got %d rows", toDef, n)
+		}
+		if _, ok := d.Find(loc.FilterConfirm); !ok {
+			t.Fatal("Reset must leave the filter panel open")
+		}
+		if err := d.ClickLabel(loc.FilterConfirm); err != nil { t.Fatal(err) }
+		d.Settle()
 		want := 2
 		if toDef {
 			want = 1
 		}
 		if n := len(tb.DisplayedRows()); n != want {
-			t.Fatalf("toDefault=%v: %d rows after reset, want %d", toDef, n, want)
+			t.Fatalf("toDefault=%v: %d rows after confirm, want %d", toDef, n, want)
 		}
 	}
 }

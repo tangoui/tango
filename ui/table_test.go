@@ -142,9 +142,16 @@ func TestTableFilterDropdown(t *testing.T) {
 	if _, ok := d.Find("确定"); ok {
 		t.Fatal("dropdown still open")
 	}
-	// Reset clears.
+	// Reset clears the draft only; confirmation applies it.
 	d.ClickLabel("city")
 	d.ClickLabel("重置")
+	if fmt.Sprint(rows) != "[0 2 3]" || len(filters["city"]) != 2 {
+		t.Fatalf("reset applied before confirm: rows %v filters %v", rows, filters)
+	}
+	if _, ok := d.Find("确定"); !ok {
+		t.Fatal("reset closed the dropdown")
+	}
+	d.ClickLabel("确定")
 	if len(rows) != 4 || len(filters) != 0 {
 		t.Fatalf("after reset rows %v filters %v", rows, filters)
 	}
