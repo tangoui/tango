@@ -41,6 +41,7 @@
   - 自测：`examples/duplex-ios` 改名为 `examples/duplex-mobile`，同一份自测也在 Android 模拟器上跑（`scripts/smoke.sh android-selftest`、`android-lanefault`）。Android 测试钩子构建（`-tags tango_selftest`，可调试 APK）读启动参数 `TANGO_TEST_ENV`（`am start … --esa TANGO_TEST_ENV TANGO_A=1,TANGO_B=2`）和 `TANGO_ANDROID_NO_ARRAYBUFFER`，见 [docs/dev-builds.md](docs/dev-builds.md)。
   - 内部接口（`internal/platform`，不影响应用）：平台通道的包带世代：`BinaryLane.SendLanePacket(gen, p)`、`LaneHost.OnLanePacket(id, origin, gen, p) bool`（返回是否投递），`lane.State.AllowUpGen` 取代 `AllowUpSession`，平台上行的空包不计入故障注入计数。
 - **终端视图**（`ui/terminal`）：`terminal.View` 把 `Terminal` 画成可交互的自绘终端（选择、滚动、链接 `OnOpenLink`、`OptionAsMeta`、`FontSize`）；配色 `Scheme` 和内置的 `SchemeDark`、`SchemeLight`、`SchemeDracula`、`SchemeSolarizedDark`、`SchemeSolarizedLight`，`ResolveColor` 把 `vt.Color` 解析成主题色；`vt.Screen.Evicted` 报告被挤出回滚区的行数。
+- 示例 `examples/terminal`：本地 shell 的终端窗口（`-shell`、`-scheme`、`-font-size`、`-renderer`），无伪终端的平台（iOS、Android）自动改用回显连接，`-replay` 回放录制的输出；手机上视图留在安全区内、软键盘上方。`e2e_test.go` 是 M1 的实机验收（macOS），报告见 [docs/specs/terminal-m1-report.md](docs/specs/terminal-m1-report.md)。
 - `ui/theme`：组件令牌 `TerminalToken`（`Components.Terminal`、`CompTerminal`），默认取 xterm.js 的 ANSI 调色板；HighContrast 会把对比度不够的调色板颜色调亮，对比度检查支持数组字段。
 - `ui`：`Context.ClaimEscape`：获得键盘焦点的组件（例如终端）在构建时声明后，键盘 Esc 交给它，而不是关闭浮层；Android 系统返回键不受影响，照常关闭浮层。
 - `ui/input`：`KeyBack`，Android 系统返回键的 `Code`（`Key` 仍是 `KeyEscape`，所以已有的 Esc 处理照常工作；返回键的抬起不会送给占用了 Esc 的组件）。
