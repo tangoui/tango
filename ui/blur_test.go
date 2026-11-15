@@ -306,6 +306,14 @@ func assertFooterGeometry(t *testing.T, d *Driver, ft *FooterToolbarW, sb *Scrol
 	}
 }
 
+func assertFooterAffixed(t *testing.T, ft *FooterToolbarW, want bool) {
+	t.Helper()
+	got := ft.affix != nil && ft.affix.Affixed()
+	if got != want {
+		t.Fatalf("footer affixed=%v, want %v", got, want)
+	}
+}
+
 // TestFooterToolbarStateMatrix checks each design language in light, dark and
 // high-contrast variants through the first flow frame, affixing, scroll-away,
 // return, and resize. Target repeats the same sequence inside a ScrollBox.
@@ -338,10 +346,8 @@ func TestFooterToolbarStateMatrix(t *testing.T) {
 								t.Fatal("first footer frame is already blurred")
 							}
 							d.Frame()
+							assertFooterAffixed(t, ft, true)
 							if highContrast {
-								if ft.affix == nil || !ft.affix.Affixed() {
-									t.Fatal("high-contrast footer did not affix")
-								}
 								assertOpaqueFooterFrame(t, d, ft, th)
 								if len(footerBlurs(d)) != 0 {
 									t.Fatal("high-contrast footer blurred")
@@ -355,6 +361,7 @@ func TestFooterToolbarStateMatrix(t *testing.T) {
 							sb.ScrollTo(0, 800)
 							d.Frame()
 							d.Frame()
+							assertFooterAffixed(t, ft, false)
 							if len(footerBlurs(d)) != 0 {
 								r, _ := d.r.c.RectOf(ft.ID())
 								x, y := sb.Offset()
@@ -363,6 +370,7 @@ func TestFooterToolbarStateMatrix(t *testing.T) {
 							sb.ScrollTo(0, 0)
 							d.Frame()
 							d.Frame()
+							assertFooterAffixed(t, ft, true)
 							if highContrast {
 								assertOpaqueFooterFrame(t, d, ft, th)
 							} else {
@@ -371,6 +379,7 @@ func TestFooterToolbarStateMatrix(t *testing.T) {
 
 							d.Resize(520, 220)
 							d.Frame()
+							assertFooterAffixed(t, ft, true)
 							assertFooterGeometry(t, d, ft, sb, target)
 							if highContrast {
 								assertOpaqueFooterFrame(t, d, ft, th)
@@ -415,6 +424,7 @@ func TestFooterToolbarOpaqueFallbacks(t *testing.T) {
 						d := footerDriver(footerMatrixPage(target, &sticky, &sb), th, true)
 						d.Frame()
 						d.Frame()
+						assertFooterAffixed(t, sticky, true)
 						assertOpaqueFooterFrame(t, d, sticky, th)
 						assertFooterGeometry(t, d, sticky, sb, target)
 
@@ -423,17 +433,20 @@ func TestFooterToolbarOpaqueFallbacks(t *testing.T) {
 						sb.ScrollTo(0, 800)
 						d.Frame()
 						d.Frame()
+						assertFooterAffixed(t, sticky, false)
 						if len(footerBlurs(d)) != 0 {
 							t.Fatal("no-blur footer emitted BackdropBlur after scroll-away")
 						}
 						sb.ScrollTo(0, 0)
 						d.Frame()
 						d.Frame()
+						assertFooterAffixed(t, sticky, true)
 						assertOpaqueFooterFrame(t, d, sticky, th)
 						assertFooterGeometry(t, d, sticky, sb, target)
 
 						d.Resize(520, 220)
 						d.Frame()
+						assertFooterAffixed(t, sticky, true)
 						assertOpaqueFooterFrame(t, d, sticky, th)
 						assertFooterGeometry(t, d, sticky, sb, target)
 					}
