@@ -31,6 +31,11 @@ func TestEditPastTokenizationCut(t *testing.T) {
 		default:
 			sb.WriteString("f(x[1], {k: (v)}); ")
 		}
+		// Preserve the 150 KiB line, UTF-16 boundaries and mixed syntax,
+		// without making the first 20k code units a tokenizer throughput
+		// benchmark. Under -race the old dense prefix exhausted every
+		// attempt's line budget, so no complete oracle could be obtained.
+		sb.WriteString(strings.Repeat(" ", 64))
 	}
 	sb.WriteString("\n/* open\nconst b = 2;\n")
 	s := buffer.NewSnapshot(sb.String())

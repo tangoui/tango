@@ -3,6 +3,7 @@ package highlight
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -74,20 +75,35 @@ func grammarLexer(t testing.TB, id, g string) *monarch.Lexer {
 }
 
 // fullTokenize 从头全量分词，作为对照。降级只因墙钟预算（负载很高的共享机器上偶发），
-// 对照结果不能降级：降级行重算，直到得到完整结果。
-func fullTokenize(lx *monarch.Lexer, s buffer.Snapshot) [][]monarch.Token {
+// 对照结果不能降级：有界重试后仍不可用就明确失败，绝不把预览当标准答案。
+func fullTokenize(t testing.TB, lx *monarch.Lexer, s buffer.Snapshot) [][]monarch.Token {
+	t.Helper()
 	out := make([][]monarch.Token, s.LineCount())
 	st := lx.Initial()
 	for i := range out {
-		for try := 0; ; try++ {
-			toks, end, info := lx.TokenizeLineInfo(s.Line(i), st, nil)
-			if !info.Degraded || try == 10 {
-				out[i], st = toks, end
-				break
-			}
+		line := s.Line(i)
+		toks, end, err := completeReferenceTokens(func() ([]monarch.Token, monarch.State, monarch.LineInfo) {
+			return lx.TokenizeLineInfo(line, st, nil)
+		})
+		if err != nil {
+			t.Fatalf("reference tokenization line %d: %v", i, err)
 		}
+		out[i], st = toks, end
 	}
 	return out
+}
+
+// completeReferenceTokens must never return a timeout preview as the oracle.
+func completeReferenceTokens(tokenize func() ([]monarch.Token, monarch.State, monarch.LineInfo)) ([]monarch.Token, monarch.State, error) {
+	// Match the incremental comparison's bounded clean-result acquisition.
+	// Exhaustion is an explicit setup error, never a silent partial oracle.
+	for try := 0; try < 50; try++ {
+		toks, end, info := tokenize()
+		if !info.Degraded {
+			return toks, end, nil
+		}
+	}
+	return nil, 0, fmt.Errorf("could not obtain complete reference tokens in 50 attempts")
 }
 
 // highlightAll 反复调用 Highlight 直到全部就绪。
@@ -103,7 +119,7 @@ func highlightAll(t testing.TB, h *Highlighter, s buffer.Snapshot) {
 
 func checkAllFinal(t testing.TB, h *Highlighter, lx *monarch.Lexer, s buffer.Snapshot, ctx string) {
 	t.Helper()
-	want := fullTokenize(lx, s)
+	want := fullTokenize(t, lx, s)
 	var dst []monarch.Token
 	for i := range want {
 		var final bool
