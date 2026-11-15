@@ -539,12 +539,17 @@ func TestPro2ProSkeleton(t *testing.T) {
 
 func TestPro2Semantics(t *testing.T) {
 	on := true
+	footerClicks := 0
 	d := NewDriver(func(c *Context) {
 		Column(c, func() {
 			ProCard(c, "Region").Collapsible().Body(func() { Text(c, "x") })
 			CheckCard(c, "Choice", &on).Show()
 			CheckCardGroup(c, []CheckCardOption{{Value: "r", Title: "RadioCard"}}).Value(new(string)).Show()
-			FooterToolbar(c).Body(func() { Button(c, "Ok") })
+			FooterToolbar(c).Body(func() {
+				if Button(c, "Ok").Clicked() {
+					footerClicks++
+				}
+			})
 			ProSkeleton(c, SkeletonResult).Show()
 			StatisticCard(c, "Stat").Value(1, 0).Trend("down").Show()
 		})
@@ -564,6 +569,19 @@ func TestPro2Semantics(t *testing.T) {
 	}
 	if _, ok := d.A11yFind(a11y.RoleToolbar, ZhCN.PageContainer.FooterToolbar); !ok {
 		t.Fatal("no footer toolbar")
+	}
+	if _, ok := d.A11yFind(a11y.RoleButton, "Ok"); !ok {
+		t.Fatal("footer action is not keyboard reachable")
+	}
+	if err := d.ClickLabel("Ok"); err != nil {
+		t.Fatal(err)
+	}
+	if footerClicks != 1 {
+		t.Fatalf("footer click = %d, want 1", footerClicks)
+	}
+	d.Key(input.KeyEnter, 0)
+	if footerClicks != 2 {
+		t.Fatalf("footer keyboard click = %d, want 2", footerClicks)
 	}
 	if n, ok := d.A11yFind(a11y.RoleStatus, ""); !ok || n.States&a11y.Busy == 0 {
 		t.Fatal("skeleton not a busy status")

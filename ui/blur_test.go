@@ -3,6 +3,7 @@ package ui
 import (
 	"image/color"
 	"testing"
+	"time"
 
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/layout"
@@ -160,5 +161,241 @@ func TestFooterToolbarNoBlurRenderer(t *testing.T) {
 	r := NewRunner(stickyFooterPage(LTR), RunnerOptions{Renderer: noBlurRenderer{paint.NewCPU()}, NoAnimations: true})
 	if !r.c.noBlur {
 		t.Fatal("runner does not see the renderer's missing blur")
+	}
+}
+
+type footerThemeCase struct {
+	name string
+	make func(dark bool) *theme.Theme
+}
+
+func footerThemeCases() []footerThemeCase {
+	return []footerThemeCase{
+		{"ant", func(dark bool) *theme.Theme {
+			if dark {
+				return theme.AntDesign(theme.Dark())
+			}
+			return theme.AntDesign()
+		}},
+		{"element", func(dark bool) *theme.Theme {
+			if dark {
+				return theme.ElementPlus(theme.Dark())
+			}
+			return theme.ElementPlus()
+		}},
+		{"shadcn", func(dark bool) *theme.Theme {
+			if dark {
+				return theme.Shadcn(theme.Dark())
+			}
+			return theme.Shadcn()
+		}},
+	}
+}
+
+func footerDriver(page func(*Context), th *theme.Theme, noBlur bool) *Driver {
+	if !noBlur {
+		return NewDriver(page, DriverOptions{Width: 600, Height: 300, Theme: th})
+	}
+	w := &driverWindow{size: geom.Size{W: 600, H: 300}, scale: 1,
+		now: time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)}
+	r := NewRunner(page, RunnerOptions{Theme: th, Renderer: noBlurRenderer{paint.NewCPU()}, NoAnimations: true})
+	r.Attach(w)
+	return &Driver{r: r, w: w}
+}
+
+func footerMatrixPage(target bool, ftOut **FooterToolbarW, sbOut **ScrollBox) func(*Context) {
+	return func(c *Context) {
+		Column(c, func() {
+			sb := Scroll(c, nil, layout.Grow(1))
+			*sbOut = sb
+			sb.Body(func() {
+				Column(c, nil, layout.H(900))
+				ft := FooterToolbar(c)
+				if target {
+					ft.Target(sb.ID())
+				} else {
+					ft.Sticky()
+				}
+				*ftOut = ft.Body(func() { Button(c, "Pinned") })
+			})
+		}, layout.Grow(1), layout.Pad(10))
+	}
+}
+
+func footerFlowPage(ftOut **FooterToolbarW) func(*Context) {
+	return func(c *Context) {
+		Column(c, func() {
+			Column(c, nil, layout.H(100))
+			ft := FooterToolbar(c)
+			*ftOut = ft.Body(func() { Button(c, "InFlow") })
+		}, layout.Grow(1), layout.Pad(10))
+	}
+}
+
+func footerSurfaceFill(t *testing.T, d *Driver, ft *FooterToolbarW) paint.FillRect {
+	t.Helper()
+	bar, ok := d.r.c.RectOf(ft.ID())
+	if !ok {
+		t.Fatal("footer bar has no painted rectangle")
+	}
+	for _, op := range d.r.List().Ops {
+		if f, ok := op.(paint.FillRect); ok && f.Rect == bar {
+			return f
+		}
+	}
+	t.Fatalf("no display-list FillRect for footer bar %v", bar)
+	return paint.FillRect{}
+}
+
+func assertFooterFrame(t *testing.T, d *Driver, ft *FooterToolbarW, th *theme.Theme, blurred bool) {
+	t.Helper()
+	bs := footerBlurs(d)
+	if blurred {
+		tk := th.Components.FooterToolbar
+		bar, ok := d.r.c.RectOf(ft.ID())
+		if len(bs) != 1 || !ok || bs[0].Radius != tk.BlurRadius || bs[0].Rect != bar {
+			t.Fatalf("blurred footer: blurs=%v bar=%v token=%v", bs, bar, tk.BlurRadius)
+		}
+	} else if len(bs) != 0 {
+		t.Fatalf("unblurred footer has backdrop blur: %v", bs)
+	}
+	fill := footerSurfaceFill(t, d, ft)
+	want := th.Components.FooterToolbar.Bg
+	if blurred {
+		want = th.Components.FooterToolbar.FrostedBg
+	}
+	if fill.Color != want {
+		t.Fatalf("footer FillRect color=%v, want %v (blurred=%v)", fill.Color, want, blurred)
+	}
+}
+
+// TestFooterToolbarStateMatrix checks each design language in light, dark and
+// high-contrast variants through the first flow frame, affixing, scroll-away,
+// return, and resize. Target repeats the same sequence inside a ScrollBox.
+func TestFooterToolbarStateMatrix(t *testing.T) {
+	for _, tc := range footerThemeCases() {
+		for _, dark := range []bool{false, true} {
+			for _, highContrast := range []bool{false, true} {
+				name := tc.name
+				if dark {
+					name += "-dark"
+				}
+				if highContrast {
+					name += "-hc"
+				}
+				t.Run(name, func(t *testing.T) {
+					th := tc.make(dark)
+					if highContrast {
+						th = theme.HighContrast(th)
+					}
+					for _, target := range []bool{false, true} {
+						t.Run(map[bool]string{false: "window", true: "target"}[target], func(t *testing.T) {
+							var ft *FooterToolbarW
+							var sb *ScrollBox
+							d := footerDriver(footerMatrixPage(target, &ft, &sb), th, false)
+
+							// The first recording is still in flow; the overlay marks
+							// the affix for the following frame.
+							d.Frame()
+							if len(footerBlurs(d)) != 0 {
+								t.Fatal("first footer frame is already blurred")
+							}
+							d.Frame()
+							if highContrast {
+								if ft.affix == nil || !ft.affix.Affixed() {
+									t.Fatal("high-contrast footer did not affix")
+								}
+								fill := footerSurfaceFill(t, d, ft)
+								if fill.Color != th.BgContainer || fill.Color.A != 255 {
+									t.Fatalf("high-contrast fallback=%v, want opaque BgContainer=%v", fill.Color, th.BgContainer)
+								}
+								if len(footerBlurs(d)) != 0 {
+									t.Fatal("high-contrast footer blurred")
+								}
+							} else {
+								assertFooterFrame(t, d, ft, th, true)
+							}
+
+							// Scroll beyond the toolbar and then return to the top.
+							sb.ScrollTo(0, 800)
+							d.Frame()
+							d.Frame()
+							if len(footerBlurs(d)) != 0 {
+								r, _ := d.r.c.RectOf(ft.ID())
+								x, y := sb.Offset()
+								t.Fatalf("footer remained blurred after scrolling past it: rect=%v offset=(%v,%v) affixed=%v", r, x, y, ft.affix != nil && ft.affix.Affixed())
+							}
+							sb.ScrollTo(0, 0)
+							d.Frame()
+							d.Frame()
+							if highContrast {
+								fill := footerSurfaceFill(t, d, ft)
+								if fill.Color != th.BgContainer || fill.Color.A != 255 {
+									t.Fatalf("returned high-contrast fallback=%v, want opaque BgContainer=%v", fill.Color, th.BgContainer)
+								}
+							} else {
+								assertFooterFrame(t, d, ft, th, true)
+							}
+
+							d.Resize(520, 220)
+							d.Frame()
+							if highContrast {
+								if len(footerBlurs(d)) != 0 {
+									t.Fatal("resized high-contrast footer blurred")
+								}
+								fill := footerSurfaceFill(t, d, ft)
+								if fill.Color != th.BgContainer || fill.Color.A != 255 {
+									t.Fatalf("resized high-contrast fallback=%v, want opaque BgContainer=%v", fill.Color, th.BgContainer)
+								}
+							} else {
+								assertFooterFrame(t, d, ft, th, true)
+							}
+						})
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestFooterToolbarOpaqueFallbacks(t *testing.T) {
+	for _, tc := range footerThemeCases() {
+		for _, dark := range []bool{false, true} {
+			for _, highContrast := range []bool{false, true} {
+				name := tc.name
+				if dark {
+					name += "-dark"
+				}
+				if highContrast {
+					name += "-hc"
+				}
+				t.Run(name, func(t *testing.T) {
+					th := tc.make(dark)
+					if highContrast {
+						th = theme.HighContrast(th)
+					}
+					var ft *FooterToolbarW
+					d := footerDriver(footerFlowPage(&ft), th, false)
+					d.Settle()
+					fill := footerSurfaceFill(t, d, ft)
+					if fill.Color != th.Components.FooterToolbar.Bg {
+						t.Fatalf("flow fallback=%v, want token Bg=%v", fill.Color, th.Components.FooterToolbar.Bg)
+					}
+
+					var sticky *FooterToolbarW
+					var sb *ScrollBox
+					d = footerDriver(footerMatrixPage(false, &sticky, &sb), th, true)
+					d.Frame()
+					d.Frame()
+					fill = footerSurfaceFill(t, d, sticky)
+					if fill.Color != th.BgContainer || fill.Color.A != 255 {
+						t.Fatalf("no-blur fallback=%v, want opaque BgContainer=%v", fill.Color, th.BgContainer)
+					}
+					if len(footerBlurs(d)) != 0 {
+						t.Fatal("no-blur renderer emitted BackdropBlur")
+					}
+				})
+			}
+		}
 	}
 }
