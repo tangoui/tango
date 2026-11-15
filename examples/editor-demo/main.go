@@ -122,8 +122,8 @@ func saveAsDocument() bool {
 	if documents == nil || documents.session == nil {
 		return false
 	}
-	name := filepath.Base(documents.session.path)
-	if name == "." || name == "/" || name == "" {
+	name := documentDisplayName(documents.session.path)
+	if name == "Untitled" {
 		name = "untitled.txt"
 	}
 	path, err := dialog.Save(app, dialog.FileOptions{Parent: surface, Title: "Save As", Filename: name})
@@ -161,7 +161,7 @@ func confirmDiscard() bool {
 		Parent:  surface,
 		Kind:    dialog.Question,
 		Title:   "Unsaved changes",
-		Message: "Save changes to " + filepath.Base(documents.session.path) + " before continuing?",
+		Message: "Save changes to " + documentDisplayName(documents.session.path) + " before continuing?",
 		Buttons: []string{"Save", "Don't Save", "Cancel"},
 	})
 	if err != nil {

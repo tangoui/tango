@@ -127,3 +127,12 @@ func TestDocumentControllerTitleMarksDirty(t *testing.T) {
 		t.Fatalf("dirty title = %q", got)
 	}
 }
+
+func TestDocumentDisplayName(t *testing.T) {
+	if got := documentDisplayName(""); got != "Untitled" {
+		t.Fatalf("empty path name = %q", got)
+	}
+	if got := documentDisplayName("/tmp/main.go"); got != "main.go" {
+		t.Fatalf("file path name = %q", got)
+	}
+}

@@ -165,14 +165,20 @@ func (c *documentController) title() string {
 	if c.session == nil {
 		return "Tango Editor"
 	}
-	name := c.session.path
-	if name == "" {
-		name = "Untitled"
-	} else {
-		name = filepath.Base(name)
-	}
+	name := documentDisplayName(c.session.path)
 	if c.session.dirty() {
 		name = "*" + name
 	}
 	return "Tango Editor — " + name
+}
+
+func documentDisplayName(path string) string {
+	if path == "" {
+		return "Untitled"
+	}
+	name := filepath.Base(path)
+	if name == "." || name == string(filepath.Separator) || name == "" {
+		return "Untitled"
+	}
+	return name
 }
