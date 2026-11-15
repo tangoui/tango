@@ -321,3 +321,33 @@ var (
 	Maximize  = def("window-maximize", "M5 5H19V19H5Z", "")
 	Restore   = def("window-restore", "M5 9H15V19H5ZM9 9V5H19V15H15", "")
 )
+
+// Graph widgets (ui/graph): diagram toolbar (original path data).
+var (
+	FitView    = def("fit-view", "M4 8.5V4H8.5M15.5 4H20V8.5M20 15.5V20H15.5M8.5 20H4V15.5M9 9H15V15H9Z", "")
+	AutoLayout = def("auto-layout", "M9.5 3.5H14.5V8H9.5ZM3.5 16H8.5V20.5H3.5ZM15.5 16H20.5V20.5H15.5ZM12 8V12M6 16V12H18V16", "")
+)
+
+// Data viewer icons (original path data): LogView's soft-wrap toggle.
+var (
+	WrapText = def("wrap-text", "M4 6H20M4 12H16.5C18.4 12 20 13.6 20 15.5C20 17.4 18.4 19 16.5 19H12.5M14.5 16.8L12.2 19L14.5 21.2M4 19H9", "")
+)
+
+// Workbench shell (StatusBar, TitleBar, NotificationCenter, HotkeyInput;
+// original path data).
+var (
+	CheckAll = def("check-all", "M2.5 12.5L7 17L16 7M11.5 15.5L13 17L22 7", "")
+	Clear    = def("clear", "M15 3L11.5 9.5M6.5 9.5H16.5L18 13H5ZM5 13L4 20.5H19L18 13M8.5 20.5L9 16.5M12.5 20.5V16.5M15.5 20.5L15 16.5", "")
+)
+
+// Docking layouts (original path data): the split action of a Dock group.
+var (
+	SplitPane = def("split-pane", "M3.5 4.5H20.5V19.5H3.5ZM12 4.5V19.5", "")
+)
+
+// AI chat components (Bubble, ToolCall, Prompts); original path data.
+var (
+	Robot = def("robot", "M5 9H19V19H5ZM12 9V6.5M9.5 13V14M14.5 13V14M9.5 16.5H14.5M3 12.5V15.5M21 12.5V15.5"+circle(12, 5, 1.5), "")
+	Tool  = def("tool", "M15.9 4.1V8.1H19.9A5 5 0 1 1 15.9 4.1ZM11.6 12.4L4.5 19.5", "")
+	Bulb  = def("bulb", "M9.5 18H14.5M10.5 21H13.5M8.8 15C7.1 13.8 6 11.8 6 9.5A6 6 0 0 1 18 9.5C18 11.8 16.9 13.8 15.2 15V15.5H8.8Z", "")
+)

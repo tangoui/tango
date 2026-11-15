@@ -40,13 +40,26 @@ type State struct {
 	// editor.action.toggleWordWrap set ("" for none: Options.WordWrap).
 	vl         viewLines
 	ups        caretAffinity
+	rights     caretAffinity // the carets' sides of injected gaps (injected.go)
 	wrapToggle WrapMode
+	// wrapLarge lets a large file wrap (tests and benchmarks only: Monaco
+	// never wraps one; largefile.go).
+	wrapLarge bool
 
-	fold foldState // folded regions and folding ranges (folding.go)
+	fold     foldState                 // folded regions and folding ranges (folding.go)
+	hid      *hidAreaStore             // hidden areas per owner, nil for none (hidareas.go)
+	hidGen   uint64                    // counts SetHiddenAreas calls (damage.go)
+	zones    *zoneStore[ViewZone]      // view zones per owner, nil for none (zones.go)
+	zgen     uint64                    // counts the zone layout changes of SetViewZones (damage.go)
+	zplaced  []zonePlaced              // the zones as placed in the view lines (syncZones)
+	scroll   scrollWatch               // OnDidScroll (scroll.go)
+	overview map[string][]OverviewMark // per-view owner markers (overview.go)
 
 	goals    []int // goal columns of vertical moves, one per selection; nil when unset
 	lastKind editKind
-	cancel   func() // Model subscription
+	// syntaxIncomplete reports conservative skips by the last trim/reindent.
+	syntaxIncomplete bool
+	cancel           func() // Model subscription
 
 	hlKey    highlight.ViewKey // this view's token window in the Highlighter
 	frameTab int               // the View's TabSize override this frame, 0 for none
@@ -125,6 +138,10 @@ func (s *State) Close() {
 		s.cancel()
 		s.cancel = nil
 		s.Model.hl.DropView(s.hlKey)
+		if d := s.Model.decos; d != nil {
+			d.dropView(s)
+		}
+		s.track() // no longer subscribed: unregistered
 	}
 	s.view = nil
 }
@@ -156,10 +173,11 @@ func (s *State) modelChanged(ch ModelChange) {
 		// Wrapping or folding: the top model line follows the text,
 		// keeping its row; the folds follow their anchors.
 		line, row := vl.find(s.Viewport.TopLine)
+		vl.memo = &s.Model.lines
 		vl.syncEdits(s.Model.Buffer(), ch.Old, ch.Edits, ch.New)
 		s.syncFolds()
 		s.anchorTop(mapTop(line), row)
-	case vl.mapped() || len(s.fold.folds) > 0:
+	case vl.mapped() || len(s.fold.folds) > 0 || s.tracks():
 		line, row := s.topAnchor()
 		s.anchorTop(mapTop(line), row)
 	default:
@@ -288,10 +306,14 @@ func (s *State) edit(edits []buffer.Edit, kind editKind, after []Selection, exac
 	if m := s.Model; m.notifying {
 		edits, after = slices.Clone(edits), slices.Clone(after)
 		m.enqueue(func(since [][]buffer.Edit) {
-			s.edit(mapEdits(edits, since), kind, mapSelsSince(after, since), true)
+			rebased := mapEdits(edits, since)
+			if s.edit(rebased, kind, rebaseAfter(edits, rebased, after, since), exact) != nil {
+				m.droppedEdits++
+			}
 		})
 		return nil
 	}
+	defer s.Model.command()()
 	buf := s.Model.buf
 	if kind != kindNone && (kind != s.lastKind || kind == kindOther) {
 		buf.PushUndoStop()

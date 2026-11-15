@@ -1,0 +1,196 @@
+$ tan help
+Usage: tan <command> [flags] [args]
+
+Commands:
+  init         create a project from a template
+  dev          run the app in development mode
+  build        build the app for one or more platforms
+  run          build and run the app on the iOS Simulator or Android
+  package      build, then make installers and archives
+  sign         sign a macOS app or disk image (and notarize), or a Windows exe/msi/msix
+  keygen       create an Ed25519 key pair for update signing
+  release-manifest make the signed update manifest and patches for a release
+  sign-update  sign an update manifest with an Ed25519 key
+  applinks     write the Universal Links / App Links files for /.well-known/
+  generate     generate code (bindings)
+  doctor       check the toolchain and platform dependencies
+  version      print the version
+
+Run "tan <command> -h" for a command's flags.
+
+$ tan init -h
+Usage: tan init [flags] [dir]
+
+Creates a Tango project in dir (which must not exist or be empty). Without
+dir, in a terminal, tan init asks for the directory, app name, id, template
+and mobile support; -yes skips the questions.
+
+Templates:
+  vanilla     plain HTML/CSS/JS, no npm needed
+  vanilla-ts  TypeScript + Vite
+  react-ts    React + TypeScript + Vite
+  vue-ts      Vue + TypeScript + Vite
+  shadcn      React + TypeScript + Vite with Tailwind CSS and shadcn/ui components
+  ui          self-drawn UI in Go (package ui): no WebView, no npm
+  hybrid      WebView page (TypeScript + Vite) with a self-drawn tool panel on top
+
+tan.json gets "permissions": [] and, unless -mobile=false, "ios" and
+"android" sections with only minimum OS versions; signing settings are left
+for you to add (docs/mobile.md).
+
+Flags:
+  -id id
+    	app id, reverse-DNS (default: com.example.<name>)
+  -local dir
+    	use the Tango checkout in dir through a replace directive
+  -mobile
+    	write the "ios" and "android" sections of tan.json (safe defaults, no signing) (default true)
+  -module path
+    	Go module path (default: the directory name)
+  -name name
+    	app display name (default: the directory name)
+  -template template
+    	project template: vanilla, vanilla-ts, react-ts, vue-ts, shadcn, ui, hybrid (default "vanilla")
+  -yes
+    	do not ask questions; use the flags and defaults (directory tango-app when none is given)
+
+$ tan dev -h
+Usage: tan dev [flags] [-- app args]
+  -C dir
+    	project dir (where tan.json is) (default ".")
+  -device string
+    	with -platform: the adb serial or the Simulator UDID or name (default: the only/first one running)
+  -hot
+    	hot-reload self-drawn UI (uihost) windows instead of restarting the app; TANGO_HOTRELOAD=0 turns it off (default true)
+  -no-restore
+    	do not restore window positions and sizes when the app restarts
+  -platform string
+    	run on a phone instead of the desktop: android (a connected device or a running emulator; android/<arch> to force the ABI) or ios-simulator
+  -url url
+    	use the dev server already running at url instead of starting frontend.dev
+  -watch-framework
+    	restart the dev host when the Tango sources it links change (local checkouts only) (default true)
+
+$ tan build -h
+Usage: tan build [flags]
+  -C dir
+    	project dir (where tan.json is) (default ".")
+  -debug
+    	keep symbols and the console window; let the page open the inspector; android: debug APK instead of the signed release
+  -o dir
+    	output dir (default "build")
+  -platform targets
+    	comma-separated targets such as darwin/arm64,windows/amd64,linux/amd64 (default: this machine; darwin/universal joins both Mac architectures); mobile: ios, ios-simulator, android, android/arm64,android/amd64
+  -xcode
+    	ios: also generate an Xcode project in <out>/xcode for debugging
+
+$ tan run -h
+Usage: tan run -platform ios-simulator|android [flags]
+  -C dir
+    	project dir (where tan.json is) (default ".")
+  -avd string
+    	android: start this emulator (AVD name) when no device is connected (default: the first AVD)
+  -device string
+    	Simulator name or UDID (ios-simulator), or adb serial (android); default: the booted one
+  -o dir
+    	output dir (default "build")
+  -platform platform
+    	platform to run on: ios-simulator or android
+
+$ tan package -h
+Usage: tan package [flags]
+  -C dir
+    	project dir (where tan.json is) (default ".")
+  -format format
+    	package format: empty for each platform's default (disk image, tarball and AppImage, NSIS installer); msix (Windows targets only); or, for Linux targets, a comma-separated list of tar, appimage, deb, rpm, flatpak
+  -o dir
+    	output dir (default "build")
+  -platform targets
+    	comma-separated targets, as for tan build
+
+$ tan sign -h
+Usage: tan sign [flags] <App.app|image.dmg> [-- notarytool args]
+       tan sign [flags] <app.exe|setup.msi|app.msix|app.appx>...
+  -C dir
+    	project dir (where tan.json is) (default ".")
+  -cert file
+    	Windows: PKCS#12 certificate file (default $TANGO_WINDOWS_CERT, else windows.certificate in tan.json)
+  -entitlements plist
+    	entitlements plist (default macos.entitlements from tan.json)
+  -identity identity
+    	macOS: codesign identity, e.g. "Developer ID Application: Name (TEAMID)" (default $TANGO_SIGN_IDENTITY)
+  -notarize
+    	submit to Apple's notary service and staple the ticket
+  -password password
+    	Windows: certificate password (prefer $TANGO_WINDOWS_CERT_PASSWORD: flags show up in process lists)
+  -profile profile
+    	notarytool keychain profile (default $TANGO_NOTARY_PROFILE; else $TANGO_APPLE_ID, $TANGO_APPLE_TEAM_ID, $TANGO_APPLE_PASSWORD)
+  -timestamp url
+    	Windows: RFC 3161 timestamp url (default windows.timestampURL, else http://timestamp.digicert.com)
+
+$ tan keygen -h
+Usage: tan keygen [flags]
+  -f	overwrite existing key files
+  -o name
+    	write name.key (private) and name.pub (public) (default "update")
+
+$ tan release-manifest -h
+Usage: tan release-manifest [flags]
+  -C dir
+    	project dir (where tan.json is) (default ".")
+  -build dir
+    	dir holding the tan build / tan package output (default "build")
+  -expires duration
+    	how long the manifest stays valid (its "expires"), e.g. 720h; 0 writes none (default 720h0m0s)
+  -key file
+    	private update key file from tan keygen (default $TANGO_UPDATE_KEY_FILE, or the key itself in $TANGO_UPDATE_KEY)
+  -linux format
+    	Linux update format: appimage or dir (default appimage when an AppImage was built, else dir)
+  -notes notes
+    	release notes, or @file to read them from a file
+  -o dir
+    	output dir for the update files, patches and latest.json (default "release")
+  -prev dir
+    	dir of an earlier release (its latest.json and files) to make patches from; repeatable
+  -url URL
+    	base URL the files are served from (default: next to latest.json, as relative URLs)
+  -windows format
+    	Windows update format: exe (replace the executable) or nsis (run the installer from tan package) (default "exe")
+
+$ tan sign-update -h
+Usage: tan sign-update [flags] <manifest.json>
+  -expires duration
+    	set the manifest's "expires" this long from now, e.g. 720h; 0 keeps the manifest's own (default 720h0m0s)
+  -key file
+    	private key file from tan keygen (default $TANGO_UPDATE_KEY_FILE, or the key itself in $TANGO_UPDATE_KEY)
+  -o file
+    	write the signed manifest to file (default: replace the input)
+
+$ tan applinks -h
+Usage: tan applinks [flags]
+  -C dir
+    	project dir (where tan.json is) (default ".")
+  -debug
+    	android: use the debug keystore's fingerprint (for debug builds only)
+  -fingerprint fingerprint
+    	SHA-256 signing certificate fingerprint for assetlinks.json; repeat for several keys (Play App Signing: the app signing key from Play Console). Default: android.keystore's key
+  -o dir
+    	output dir; the files go in <dir>/.well-known (default "build/applinks")
+  -platform string
+    	which files: ios (apple-app-site-association), android (assetlinks.json) or both (default "ios,android")
+  -team ID
+    	Apple team ID (default: from ios.provisioningProfile or ios.signIdentity)
+
+$ tan generate bindings -h
+Usage: tan generate bindings [flags]
+  -C dir
+    	project dir (where tan.json is) (default ".")
+  -o dir
+    	output dir (default <frontend.dir>/src/bindings, or bindings without tan.json)
+  -pkg dir
+    	Go package dir with the bind.Register calls, relative to the project (default ".")
+  -runtime module
+    	module that exports call (default "@tangoui/runtime")
+
+$ tan doctor -h
+Usage: tan doctor 

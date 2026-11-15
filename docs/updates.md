@@ -150,6 +150,59 @@ err = u.Apply(p)                 // 然后退出应用；辅助进程替换并�
 
 所以：**应用必须在“启动成功”的那个点调用 `Confirm()`**，否则每次更新都会被回滚。
 
+## 默认更新界面（updateui）
+
+不想自己做更新界面时，用 `service/updater/updateui`（实验性）：一行接上一个现成的更新窗口。窗口由 `ui` 自绘、单独打开（`uihost.Open`），所以 WebView 应用和自绘应用都能用；它跟随应用的主题、深浅色和语言（内置英文、简体中文、繁体中文、日文）。
+
+```go
+app.OnReady(func() {
+	stop, err := updateui.Start(app, u, updateui.Options{})
+	if err != nil {
+		log.Print(err) // 缺 ManifestURL、Version 或公钥
+	}
+	_ = stop // 停止后台检查、关闭窗口、还原 u.OnEvent
+})
+```
+
+`Start` 做三件事：调用 `u.Confirm()`（新版本启动后不会被回滚；上次更新没能启动时窗口提示已恢复到哪个版本）；之前选了"下次启动时安装"且安装包还在、版本仍比当前新时，弹窗问是否现在重启安装；然后每 `Options.Interval`（默认 24 小时）后台检查一次，第一次至少在 `Options.FirstDelay`（默认 30 秒）之后，且跨启动也不早于上次检查后 `Interval`。`Interval` 为负时只手动检查。
+
+窗口的几种状态：
+
+| 状态 | 内容 | 按钮 |
+|---|---|---|
+| 检查中 | 转圈（只在手动检查时显示） | — |
+| 发现新版本 | 版本号、发布日期、更新说明（Markdown） | 跳过此版本 · 稍后提醒 · 下载并安装 |
+| 下载中 | 进度条，注明增量更新还是完整安装包（补丁失败时自动改下完整包） | 取消 |
+| 下载完成 | — | 下次启动时安装 · 立即重启 |
+| 正在安装 | 转圈（`Apply` 暂存新版本时，成功后应用退出） | — |
+| 已下载（启动时） | 之前选了"下次启动时安装"：问是否现在重启安装 | 稍后 · 立即重启 |
+| 出错 | 原因（签名、降级等安全错误照实显示，没有"忽略"）；不能自更新的安装方式（不是从 .app、AppImage、安装目录运行）说明原因 | 关闭 · 重试（或"打开下载页面"） |
+| 已是最新 | 当前版本号 | 关闭 |
+| 已回滚 | 上次更新没能启动，已恢复到哪个版本 | 关闭 |
+
+后台检查只在发现新版本时弹窗；已是最新或出错时不打扰，只在手动检查时显示。"跳过此版本"会记住，以后后台检查不再提醒这个版本（更新的版本照常提醒，手动检查照常显示）；"稍后提醒"只在本次运行内有效。这些和上次检查时间存在更新器状态目录里的 `updateui.json`；下载的安装包放在同一目录的 `updateui-downloads/<版本>`（不放系统临时目录，重启后"下次启动时安装"仍然有效），取消或失败的下载随即删除，用不到的旧下载在下次 `Start` 时清理。已经下载好一个版本时，手动检查没有找到更新的版本（或检查失败）就继续显示"下载完成"；`Start` 不会用上次启动留下的记录替换本次运行里 `CheckNow` 已经下载好的版本。"下载并安装"只在 macOS、Windows、Linux 上出现。
+
+"检查更新…"菜单：`updateui` 不改应用菜单，自己用 `sys/menu` 接 `CheckNow`：
+
+```go
+m := menu.New()
+app := m.Submenu("Notes")
+app.Add("Check for Updates…", func() { updateui.CheckNow(a, u, updateui.Options{}) })
+app.Separator()
+app.Role(menu.Quit)
+menu.SetAppMenu(a, m)
+```
+
+注意：
+
+- 同一个 `*updater.Updater` 不要同时交给 `updateui` 和 jsapi 的 `InstallUpdater`：Updater 不能并发使用，两者都会包装 `OnEvent`。`updateui` 会先调用应用自己设的 `OnEvent`，再更新界面。
+- 需要"自检通过后再确认"的应用不要用 `Start`（它会立刻 `Confirm`），用 `CheckNow` 加自己的定时器。
+- 检查、下载或安装进行时，后台检查跳过，`CheckNow` 只把窗口拉到前面显示当前进度。
+- 更新窗口是辅助窗口（`tango.SurfaceOptions.Auxiliary`），不算作"最后一个窗口"：在 `QuitOnLastClose` 下用户关掉应用的最后一个其他窗口时，应用照常退出，更新窗口随之关闭，进行中的下载也随之结束；只开着更新窗口（例如后台应用）时，关掉它也不会让应用退出。
+- `stop()` 把 `u.OnEvent` 还原为 `Start` 时的值；`Start` 之后应用自己改过的 `OnEvent` 会被覆盖。
+
+完整例子见 `examples/update-demo`：不带参数运行时它在本地发布一个签了名的假版本 9.9.9，窗口马上弹出（`go run` 不是从安装包运行，所以安装那一步会提示无法自更新）。
+
 ## UI 钩子
 
 `Updater.OnEvent` 收到 `Event{Kind, Release, Patch, Done, Total, Error}`：

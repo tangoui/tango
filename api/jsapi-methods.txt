@@ -28,6 +28,7 @@ error forbidden js=ErrorCode
 error internal js=ErrorCode
 error not_found js=ErrorCode
 error not_running js=ErrorCode
+error transport js=ErrorCode
 error unsupported js=ErrorCode
 
 method tango:app.hide cap=AppControl js=App.hide

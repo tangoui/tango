@@ -89,10 +89,16 @@ import (
 // Partial frames (gpu.Frame.Dirty). The target persists between frames,
 // so the device is a gpu.Retainer. A partial frame is refused with
 // gpu.ErrNotRetained unless the target holds the last frame (not
-// recreated, no failure since). Its Copies are encoded first: every source
-// is blitted into a scratch texture, then from there to its destination
-// (a blit between overlapping regions of one texture is undefined). The
-// target's first pass loads instead of clearing and draws one quad per
+// recreated, no failure since). Its Copies are encoded first. Small or
+// complex copies use scratch: all sources saved before destinations written
+// (same-texture overlapping blits are undefined). For larger moves whose
+// validated destination-complement plus sources costs less, all preserved
+// pixels and all old sources go into one same-sized spare target, then the
+// targets swap. The spare is wholly overwritten, never loaded as an older
+// frame; full and no-copy frames keep drawing into the current target.
+// Resize drops the spare, 120 unused frames retire it, Close releases both.
+// A failed spare allocation uses scratch's original fallback/error path.
+// The target's first pass loads instead of clearing and draws one quad per
 // dirty rectangle with a pipeline without blending (clearPipeline),
 // scissored to the rectangle, to clear it to Frame.Clear; every batch
 // drawing into the target is then drawn once per dirty rectangle with its
@@ -142,6 +148,19 @@ type Device struct {
 	scratch       id          // gpu.Frame.Copies go through it
 	scratchSize   image.Point // size of scratch
 	scratchIdle   int         // frames since scratch was last used
+
+	copyTarget         id // at most one spare, same-sized retained render target
+	copyTargetSize     image.Point
+	copyTargetIdle     int
+	copyKeep, copyNext []image.Rectangle // bounded, reusable complement-planning buffers
+	copyStats          *copyStats        // nil normally; opt-in internal test counters, no atomics
+}
+
+// copyStats counts the actual scroll-copy commands of the last encoded
+// Execute. It excludes uploads, grabs, present and readback. Tests opt in.
+type copyStats struct {
+	pixels          int64
+	blits, encoders int
 }
 
 // scratchIdleFrames is how many frames without Copies the copy scratch
@@ -329,6 +348,8 @@ func (d *Device) Execute(f *gpu.Frame) error {
 		return fmt.Errorf("metal: frame with Copies but no Dirty")
 	}
 	d.scratchIdle++
+	d.copyTargetIdle++
+	pingPong := false
 	if partial {
 		// The target must still hold the previous frame: not recreated,
 		// and the last frame did not fail (gpuFailed clears hasFrame).
@@ -345,12 +366,22 @@ func (d *Device) Execute(f *gpu.Frame) error {
 			}
 			d.clearPipeline = p
 		}
-		if err := d.ensureScratch(f.Copies); err != nil {
+		if d.planCopyTarget(f) {
+			// An optional spare allocation must not lose a valid frame.
+			// If it fails, retain the original scratch path and its errors.
+			pingPong = d.ensureCopyTarget(f.Size) == nil
+		}
+		if pingPong {
+			d.copyTargetIdle = 0
+		} else if err := d.ensureScratch(f.Copies); err != nil {
 			if errors.Is(err, gpu.ErrNotRetained) {
 				return err // too large to stage: the Renderer draws the frame in full; not a failure
 			}
 			return d.syncFailed(err)
 		}
+	}
+	if d.copyTarget != 0 && d.copyTargetIdle > scratchIdleFrames {
+		d.dropCopyTarget()
 	}
 	if d.scratch != 0 && d.scratchIdle > scratchIdleFrames {
 		release(d.scratch) // no copies for a while: do not keep a window-sized texture
@@ -411,8 +442,13 @@ func (d *Device) Execute(f *gpu.Frame) error {
 	if cb == 0 {
 		return d.syncFailed(errors.New("metal: commandBuffer failed"))
 	}
-	if partial {
-		d.copyRegions(cb, f.Copies) // before anything is drawn
+	if d.copyStats != nil {
+		*d.copyStats = copyStats{}
+	}
+	if pingPong {
+		d.copyToTarget(cb, f.Copies) // swaps only after validation/allocation, before all draws/grabs
+	} else if partial {
+		d.copyRegions(cb, f.Copies)
 	}
 	ups := d.staged
 	first := len(f.ImageUploads) + len(f.Uploads)
@@ -622,6 +658,134 @@ func checkPartial(f *gpu.Frame) error {
 	return nil
 }
 
+// maxCopyKeepRects bounds both the copy count considered for ping-pong and
+// the complement's fragmentation. Complex inputs use the original scratch
+// path (and its ErrNotRetained size fallback) instead of unbounded planning.
+const maxCopyKeepRects = 64
+
+// planCopyTarget chooses between the actual pixel-copy costs: two copies
+// of every source through scratch, or preserved destination-complement plus
+// the sources into a distinct target. Valid disjoint destinations make the
+// latter exactly one full target. Destination overlap retains scratch's
+// snapshot/ordered-write semantics, even outside the Frame contract.
+func (d *Device) planCopyTarget(f *gpu.Frame) bool {
+	if len(f.Copies) == 0 || len(f.Copies) > maxCopyKeepRects || f.Size.X <= 0 || f.Size.Y <= 0 || f.Size.X > maxTextureSize || f.Size.Y > maxTextureSize {
+		return false
+	}
+	full := image.Rectangle{Max: f.Size}
+	fullArea := int64(f.Size.X) * int64(f.Size.Y)
+	var sourceArea int64
+	for i, c := range f.Copies {
+		if c.Src.Empty() || !c.Src.In(full) || !c.Dst.In(full) || c.Src.Size() != c.Dst.Size() {
+			return false
+		}
+		area := int64(c.Src.Dx()) * int64(c.Src.Dy())
+		if area > fullArea-sourceArea {
+			return false
+		}
+		sourceArea += area
+		for _, prev := range f.Copies[:i] {
+			if c.Dst.Overlaps(prev.Dst) {
+				return false
+			}
+		}
+	}
+	// Whole-target preservation cannot beat a cheaper small scratch move.
+	// Dimensions above are bounded before multiplication, all costs int64.
+	if 2*sourceArea <= fullArea {
+		return false
+	}
+	keep, next := d.copyKeep[:0], d.copyNext[:0]
+	defer func() { d.copyKeep, d.copyNext = keep, next[:0] }()
+	keep = append(keep, full)
+	for _, c := range f.Copies {
+		next = next[:0]
+		add := func(r image.Rectangle) bool {
+			if r.Empty() {
+				return true
+			}
+			if len(next) == maxCopyKeepRects {
+				return false
+			}
+			next = append(next, r)
+			return true
+		}
+		for _, r := range keep {
+			i := r.Intersect(c.Dst)
+			if i.Empty() {
+				if !add(r) {
+					return false
+				}
+				continue
+			}
+			for _, p := range [4]image.Rectangle{
+				image.Rect(r.Min.X, r.Min.Y, r.Max.X, i.Min.Y),
+				image.Rect(r.Min.X, i.Max.Y, r.Max.X, r.Max.Y),
+				image.Rect(r.Min.X, i.Min.Y, i.Min.X, i.Max.Y),
+				image.Rect(i.Max.X, i.Min.Y, r.Max.X, i.Max.Y),
+			} {
+				if !add(p) {
+					return false
+				}
+			}
+		}
+		keep, next = next, keep
+	}
+	cost := sourceArea
+	for _, r := range keep {
+		cost += int64(r.Dx()) * int64(r.Dy())
+	}
+	return cost == fullArea && cost < 2*sourceArea
+}
+
+func (d *Device) ensureCopyTarget(size image.Point) error {
+	if d.copyTarget != 0 && d.copyTargetSize == size {
+		return nil
+	}
+	d.dropCopyTarget()
+	t, err := d.newTexture(size.X, size.Y, pixelFormatRGBA8Unorm, usageRenderTarget|usageShaderRead)
+	if err != nil {
+		return err
+	}
+	d.copyTarget, d.copyTargetSize = t, size
+	return nil
+}
+
+func (d *Device) dropCopyTarget() {
+	release(d.copyTarget)
+	d.copyTarget, d.copyTargetSize, d.copyTargetIdle = 0, image.Point{}, 0
+}
+
+// copyBlit counts only encoded scroll-copy commands, with an opt-in pointer
+// normally nil. There is no per-pixel instrumentation or atomic hot path.
+func (d *Device) copyBlit(enc, src, dst id, r image.Rectangle, at image.Point) {
+	copyTextureToTexture(enc, src, mtlOrigin{uint64(r.Min.X), uint64(r.Min.Y), 0},
+		mtlSize{uint64(r.Dx()), uint64(r.Dy()), 1}, dst, mtlOrigin{uint64(at.X), uint64(at.Y), 0})
+	if s := d.copyStats; s != nil {
+		s.pixels += int64(r.Dx()) * int64(r.Dy())
+		s.blits++
+	}
+}
+
+// copyToTarget copies ALL preserved pixels and ALL old sources into the
+// spare before any target rendering. Dirty pixels are preserved too until
+// clearDirty replaces them. All sources refer to the old target, including
+// multi-copy/cycles. The spare never relies on contents of an older frame.
+func (d *Device) copyToTarget(cb id, copies []gpu.CopyRegion) {
+	enc := cb.Send(sel("blitCommandEncoder"))
+	if d.copyStats != nil {
+		d.copyStats.encoders++
+	}
+	for _, r := range d.copyKeep {
+		d.copyBlit(enc, d.target, d.copyTarget, r, r.Min)
+	}
+	for _, c := range copies {
+		d.copyBlit(enc, d.target, d.copyTarget, c.Src, c.Dst.Min)
+	}
+	enc.Send(sel("endEncoding"))
+	d.target, d.copyTarget = d.copyTarget, d.target
+}
+
 // ensureScratch makes d.scratch large enough to hold the sources of
 // copies stacked vertically. A scratch more than four times the area
 // needed is replaced by one of the needed size (the window shrank), and
@@ -681,14 +845,16 @@ func (d *Device) copyRegions(cb id, copies []gpu.CopyRegion) {
 	}
 	for pass := range 2 {
 		enc := cb.Send(sel("blitCommandEncoder"))
+		if d.copyStats != nil {
+			d.copyStats.encoders++
+		}
 		y := 0
 		for _, c := range copies {
-			size := mtlSize{uint64(c.Src.Dx()), uint64(c.Src.Dy()), 1}
-			at := mtlOrigin{0, uint64(y), 0}
+			at := image.Pt(0, y)
 			if pass == 0 {
-				copyTextureToTexture(enc, d.target, mtlOrigin{uint64(c.Src.Min.X), uint64(c.Src.Min.Y), 0}, size, d.scratch, at)
+				d.copyBlit(enc, d.target, d.scratch, c.Src, at)
 			} else {
-				copyTextureToTexture(enc, d.scratch, at, size, d.target, mtlOrigin{uint64(c.Dst.Min.X), uint64(c.Dst.Min.Y), 0})
+				d.copyBlit(enc, d.scratch, d.target, image.Rectangle{Min: at, Max: at.Add(c.Src.Size())}, c.Dst.Min)
 			}
 			y += c.Src.Dy()
 		}
@@ -1085,6 +1251,7 @@ func (d *Device) ensureTextures(f *gpu.Frame) error {
 		release(*s.tex)
 		*s.tex, *s.have = 0, image.Point{}
 		if s.tex == &d.target {
+			d.dropCopyTarget() // resizing invalidates both target allocations, not sampled textures
 			d.hasFrame = false // the new target's contents are undefined until a frame completes
 		}
 		t, err := d.newTexture(max(1, s.want.X), max(1, s.want.Y), s.format, s.usage)
@@ -1216,6 +1383,34 @@ func cbErrorLost(e id) bool {
 	return false
 }
 
+// Wait waits for the command buffers already committed by Execute or
+// present, without submitting a frame or changing a successful retained
+// target. It reports completion errors, not GPU or wall-clock durations.
+// A pending completion error remains observable until Execute consumes it;
+// Wait does not consume it. A lost device keeps returning ErrDeviceLost
+// (wrapped); after Close, Wait returns ErrClosed, like Execute/ReadPixels.
+func (d *Device) Wait() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.closed {
+		return ErrClosed
+	}
+	if d.lost != nil {
+		return d.lost
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	defer autoreleasePool()()
+	_, err := d.wait()
+	if d.lost != nil {
+		return d.lost
+	}
+	if err != nil {
+		return err
+	}
+	return d.pendingErr
+}
+
 // ReadPixels waits for the last frame and returns a copy of the render
 // target: RGBA8, premultiplied alpha, Frame.Size of that frame.
 func (d *Device) ReadPixels() (*image.RGBA, error) {
@@ -1271,6 +1466,8 @@ func (d *Device) Close() {
 }
 
 func (d *Device) release() {
+	d.dropCopyTarget()
+	d.copyKeep, d.copyNext = nil, nil
 	for k, t := range d.images {
 		release(t)
 		delete(d.images, k)

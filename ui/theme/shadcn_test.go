@@ -43,7 +43,7 @@ func TestShadcnDefaults(t *testing.T) {
 			t.Errorf("%s = %s, want %s", name, c[0], c[1])
 		}
 	}
-	if th.RadiusLG != 8 || th.Radius != 6 || th.RadiusSM != 4 {
+	if th.RadiusLG != 10 || th.Radius != 8 || th.RadiusSM != 6 { // v4 --radius 0.625rem
 		t.Errorf("radius %v/%v/%v", th.RadiusLG, th.Radius, th.RadiusSM)
 	}
 	if th.ControlHeight != 36 || th.FontSize != 14 || th.LineHeightFor(14) != 20 || th.LineHeightFor(12) != 16 {
@@ -81,12 +81,20 @@ func TestShadcnBasesAndContrast(t *testing.T) {
 				{"text on solid", th.TextOnSolid, th.Error.Base, 3},
 			}
 			for _, c := range checks {
+				// shadcn/ui v4's own values that fall short of these floors
+				// (contrast.go classifies them as design defaults): the dark
+				// --destructive is a light red under text-white (2.89), and
+				// olive's --muted-foreground is 4.25 on white.
+				if (dark && c.what == "text on solid") || (base == "olive" && !dark && c.what == "muted-foreground") {
+					continue
+				}
 				if got := contrast(c.fg, c.bg); got < c.min {
 					t.Errorf("%s: %s contrast %.2f < %.1f", name, c.what, got, c.min)
 				}
 			}
 			// Borders must be visible but quiet.
-			if got := contrast(v.Border, v.Background); got < 1.1 || got > 1.8 {
+			// v4's dark border is translucent white: compare it composited.
+			if got := contrast(Over(v.Border, v.Background), v.Background); got < 1.1 || got > 1.8 {
 				t.Errorf("%s: border contrast %.2f", name, got)
 			}
 		}
@@ -126,12 +134,12 @@ func TestShadcnCSSVars(t *testing.T) {
 		"--foreground":         "#09090b",
 		"--primary":            "#18181b",
 		"--primary-foreground": "#fafafa",
-		"--muted-foreground":   "#71717a",
+		"--muted-foreground":   "#71717b",
 		"--border":             "#e4e4e7",
-		"--ring":               "#a1a1aa",
-		"--radius":             "0.5rem",
-		"--chart-1":            "#e76e50",
-		"--tango-radius":       "6px",
+		"--ring":               "#9f9fa9",
+		"--radius":             "0.625rem",
+		"--chart-1":            "#d4d4d8",
+		"--tango-radius":       "8px",
 		"--tango-color-scheme": "light",
 	} {
 		if v[k] != w {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -172,25 +173,30 @@ func TestMetalEditorPartial(t *testing.T) {
 	}
 }
 
-// TestMetalScratchLimits: copy sources too tall to stack in one scratch
-// texture are refused with ErrNotRetained, which is not a device failure
-// (the Renderer draws the frame in full); the scratch shrinks when the
-// copies get much smaller and is released after scratchIdleFrames frames
-// without copies.
+// TestMetalScratchLimits preserves the legacy scratch path's stack limit,
+// shrink rule and idle retirement. Large legal copies now prefer a spare
+// target instead (TestMetalCopyTargetStackLimit); test ensureScratch itself
+// so this fallback's max-size guard is not silently dropped.
 func TestMetalScratchLimits(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	defer autoreleasePool()()
 	d := newDevice(t)
-	size := image.Pt(4096, 4096)
+	size := image.Pt(128, 4096)
 	if err := d.Execute(&gpu.Frame{Size: size}); err != nil {
 		t.Fatal(err)
 	}
-	var copies []gpu.CopyRegion
-	for i := range 5 { // 5 × 4000 rows > 16384
-		x := i * 800
-		copies = append(copies, gpu.CopyRegion{Src: image.Rect(x, 10, x+700, 4010), Dst: image.Rect(x, 0, x+700, 4000)})
+	if err := d.Wait(); err != nil {
+		t.Fatal(err)
 	}
-	dirty := []image.Rectangle{image.Rect(0, 4000, 4096, 4096)}
+	var copies []gpu.CopyRegion
+	for i := range 5 { // 5 × 4000 rows > 16384; narrow textures keep this test small
+		x := i * 20
+		copies = append(copies, gpu.CopyRegion{Src: image.Rect(x, 10, x+16, 4010), Dst: image.Rect(x, 0, x+16, 4000)})
+	}
+	dirty := []image.Rectangle{image.Rect(0, 4000, 128, 4096)}
 	for range maxFailures + 1 {
-		err := d.Execute(&gpu.Frame{Size: size, Dirty: dirty, Copies: copies})
+		err := d.ensureScratch(copies)
 		if !errors.Is(err, gpu.ErrNotRetained) {
 			t.Fatalf("err = %v, want ErrNotRetained", err)
 		}
@@ -198,14 +204,14 @@ func TestMetalScratchLimits(t *testing.T) {
 	if d.failures != 0 || d.lost != nil {
 		t.Fatalf("failures %d, lost %v: an oversized scratch is not a device failure", d.failures, d.lost)
 	}
-	// A large copy, then a small one: the scratch shrinks.
-	big := []gpu.CopyRegion{{Src: image.Rect(0, 10, 4096, 4010), Dst: image.Rect(0, 0, 4096, 4000)}}
-	if err := d.Execute(&gpu.Frame{Size: size, Dirty: dirty, Copies: big}); err != nil {
+	// A large legacy allocation, then a small one: the scratch shrinks.
+	big := []gpu.CopyRegion{{Src: image.Rect(0, 10, 128, 4010), Dst: image.Rect(0, 0, 128, 4000)}}
+	if err := d.ensureScratch(big); err != nil {
 		t.Fatal(err)
 	}
 	bigBytes := d.scratchBytes()
-	small := []gpu.CopyRegion{{Src: image.Rect(0, 10, 100, 110), Dst: image.Rect(0, 0, 100, 100)}}
-	if err := d.Execute(&gpu.Frame{Size: size, Dirty: dirty, Copies: small}); err != nil {
+	small := []gpu.CopyRegion{{Src: image.Rect(0, 10, 8, 110), Dst: image.Rect(0, 0, 8, 100)}}
+	if err := d.ensureScratch(small); err != nil {
 		t.Fatal(err)
 	}
 	if b := d.scratchBytes(); b == 0 || b*4 > bigBytes {
@@ -218,5 +224,44 @@ func TestMetalScratchLimits(t *testing.T) {
 	}
 	if b := d.scratchBytes(); b != 0 {
 		t.Fatalf("scratch %d bytes after %d frames without copies", b, scratchIdleFrames+1)
+	}
+}
+
+// The helper guard alone cannot protect Execute's error classification:
+// a scratch capacity refusal is a retained/full-redraw fallback, not a GPU
+// failure. Keep the moves small enough that ping-pong must NOT bypass it.
+func TestMetalScratchExecuteNotRetained(t *testing.T) {
+	d := newDevice(t)
+	size := image.Pt(256, 4096)
+	if err := d.Execute(&gpu.Frame{Size: size}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	f := gpu.Frame{Size: size, Dirty: []image.Rectangle{image.Rect(0, 4000, 256, 4096)}}
+	for i := range 5 {
+		x := i * 40
+		f.Copies = append(f.Copies, gpu.CopyRegion{Src: image.Rect(x, 10, x+16, 4010), Dst: image.Rect(x, 0, x+16, 4000)})
+	}
+	// Legacy: 2*5*16*4000=640000 pixels < 256*4096=1048576;
+	// its stacked height 20000 exceeds maxTextureSize despite that cost.
+	if d.planCopyTarget(&f) {
+		t.Fatal("small-area integration fixture must exercise legacy scratch")
+	}
+	target, commits := d.target, d.commits
+	for attempt := 1; attempt <= maxFailures+1; attempt++ {
+		if err := d.Execute(&f); !errors.Is(err, gpu.ErrNotRetained) {
+			t.Fatalf("attempt %d: err=%v, want ErrNotRetained", attempt, err)
+		}
+		if d.failures != 0 || d.lost != nil {
+			t.Fatalf("attempt %d: capacity refusal counted as GPU failure: failures=%d lost=%v", attempt, d.failures, d.lost)
+		}
+		if d.commits != commits || len(d.inflight) != 0 || d.target != target || d.copyTarget != 0 {
+			t.Fatalf("attempt %d: refusal submitted work or swapped/allocated copy target", attempt)
+		}
+		if !d.hasFrame || !d.Retained(size) {
+			t.Fatalf("attempt %d: refusal invalidated the retained target", attempt)
+		}
 	}
 }

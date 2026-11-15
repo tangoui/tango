@@ -21,7 +21,8 @@ site/.vitepress/cache/
 site/.vitepress/dist/
 site/reference/api/
 site/reference/_cli-flags.md
-site/guide/components.md
+site/public/schema/
+site/components/screenshots.md
 /examples/ui-gallery/ui-gallery
 /ui-gallery
 /mobile-ui
@@ -35,5 +36,6 @@ site/guide/components.md
 /site/.vitepress/generated/
 /site/public/playground/catalog.json
 /site/components/catalog/
+/site/components/_gen/
 /site/public/playground/playground.wasm.gz
 /site/public/playground/EDITOR-NOTICES.txt

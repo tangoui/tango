@@ -48,16 +48,35 @@ function apiItems(): DefaultTheme.SidebarItem[] {
     }));
 }
 
+// Component docs: an overview group, then one group per category of the
+// component table (ui/AUTHORING.md §14), like Ant Design's site. Entries
+// link to the hand-written page when there is one, else to the generated
+// page (tools/build-playground.mjs writes generated/components.json).
+type CatalogEntry = { group: string; names: string[]; slug: string; label?: string; doc?: string };
 function componentSidebar(): DefaultTheme.SidebarItem[] {
-  const file=path.join(here,"generated/components.json");
-  if (!fs.existsSync(file)) return [{text:"GUI 组件",items:[{text:"完整在线目录",link:"/components/"}]}];
-  const catalog=JSON.parse(fs.readFileSync(file,"utf8"));
+  const overview: DefaultTheme.SidebarItem = {
+    text: "开始",
+    items: [
+      { text: "组件总览", link: "/components/" },
+      { text: "在线演练场", link: "/components/playground" },
+      { text: "代码编辑器", link: "/components/code-editor" },
+      { text: "组件截图目录", link: "/components/screenshots" },
+    ],
+  };
+  const file = path.join(here, "generated/components.json");
+  if (!fs.existsSync(file)) return [overview];
+  const catalog = JSON.parse(fs.readFileSync(file, "utf8"));
   return [
-    {text:"GUI 组件",items:[{text:"全部组件与场景",link:"/components/"},{text:"代码编辑器在线演示",link:"/components/code-editor"},{text:"静态截图目录",link:"/guide/components"}]},
-    ...catalog.groups.map((group: string)=>({
-      text:group,collapsed:true,
-      items:catalog.components.filter((entry: {group:string})=>entry.group===group)
-        .map((entry: {names:string[];slug:string})=>({text:entry.names.slice(0,2).join(" · "),link:`/components/catalog/${entry.slug}`})),
+    overview,
+    ...catalog.groups.map((group: string) => ({
+      text: group,
+      collapsed: false,
+      items: catalog.components
+        .filter((entry: CatalogEntry) => entry.group === group)
+        .map((entry: CatalogEntry) => ({
+          text: entry.label ?? entry.names.slice(0, 2).join(" · "),
+          link: entry.doc ?? `/components/catalog/${entry.slug}`,
+        })),
     })),
   ];
 }
@@ -72,7 +91,7 @@ const zhSidebar: DefaultTheme.Sidebar = {
       ],
     },
     {
-      text: "核心概念",
+      text: "概念",
       items: [
         { text: "App 与 Surface", link: "/guide/concepts/app-surface" },
         { text: "线程模型", link: "/guide/concepts/threading" },
@@ -87,22 +106,33 @@ const zhSidebar: DefaultTheme.Sidebar = {
       items: [
         { text: "窗口与外观", link: "/guide/window" },
         { text: "菜单与托盘", link: "/guide/menu-tray" },
-        { text: "移动端", link: "/guide/mobile" },
         { text: "自绘 UI", link: "/guide/ui" },
-        { text: "组件在线体验", link: "/components/" },
-        { text: "组件目录", link: "/guide/components" },
+        { text: "组件文档", link: "/components/" },
+        { text: "移动端", link: "/guide/mobile" },
         { text: "多语言", link: "/guide/i18n" },
+        {
+          text: "系统能力",
+          collapsed: true,
+          items: [
+            { text: "总览", link: "/guide/system/" },
+            { text: "桌面", collapsed: true, items: sysItems(sysDesktop) },
+            { text: "移动端", collapsed: true, items: sysItems(sysMobile) },
+          ],
+        },
+      ],
+    },
+    {
+      text: "构建与发布",
+      items: [
         { text: "打包、签名与自动更新", link: "/guide/packaging" },
         { text: "CI 与冒烟测试", link: "/guide/ci" },
       ],
     },
     {
-      text: "系统能力",
-      collapsed: false,
+      text: "更多",
       items: [
-        { text: "总览", link: "/guide/system/" },
-        { text: "桌面", collapsed: true, items: sysItems(sysDesktop) },
-        { text: "移动端", collapsed: true, items: sysItems(sysMobile) },
+        { text: "平台支持", link: "/guide/platforms" },
+        { text: "性能与体积", link: "/guide/size" },
       ],
     },
   ],
@@ -138,8 +168,20 @@ const enSidebar: DefaultTheme.Sidebar = {
         { text: "Mobile", link: "/en/guide/mobile" },
         { text: "Self-drawn UI", link: "/en/guide/ui" },
         { text: "Internationalization", link: "/en/guide/i18n" },
+      ],
+    },
+    {
+      text: "Build & release",
+      items: [
         { text: "Packaging & updates", link: "/en/guide/packaging" },
         { text: "CI", link: "/en/guide/ci" },
+      ],
+    },
+    {
+      text: "More",
+      items: [
+        { text: "Platform support", link: "/en/guide/platforms" },
+        { text: "Performance & size", link: "/en/guide/size" },
       ],
     },
     {
@@ -156,12 +198,21 @@ const enSidebar: DefaultTheme.Sidebar = {
 
 export default defineConfig({
   base,
+  // Component docs use the whole width for their live previews: no
+  // right-hand outline ("本页内容") on any /components/ page, hand-written
+  // or generated.
+  transformPageData(pageData) {
+    if (pageData.relativePath.startsWith("components/")) {
+      pageData.frontmatter.aside = false;
+    }
+  },
   title: "Tango",
   cleanUrls: true,
   // Doc comments mention dev-server URLs such as http://localhost:5173.
   ignoreDeadLinks: "localhostLinks",
   lastUpdated: false,
-  srcExclude: ["tools/**", "README.md", "**/_*.md"],
+  // components/_gen holds the API/example partials the component pages include.
+  srcExclude: ["tools/**", "README.md", "**/_*.md", "components/_gen/**"],
   head: [["link", { rel: "icon", type: "image/svg+xml", href: `${base}logo.svg` }]],
   markdown: { lineNumbers: false },
   themeConfig: {
@@ -176,10 +227,9 @@ export default defineConfig({
       description: "一套 Go 代码跑桌面和手机，WebView 与 Go 自绘界面可在同一窗口混用",
       themeConfig: {
         nav: [
-          { text: "指南", link: "/guide/getting-started", activeMatch: "^/guide/" },
-          { text: "参考", link: "/reference/cli", activeMatch: "^/reference/" },
-          { text: "GUI 组件", link: "/components/" },
-          { text: "代码编辑器", link: "/components/code-editor" },
+          { text: "文档", link: "/guide/getting-started", activeMatch: "^/guide/" },
+          { text: "组件", link: "/components/", activeMatch: "^/components/" },
+          { text: "API", link: "/reference/api/", activeMatch: "^/reference/" },
           { text: "更新日志", link: `${repo}/blob/main/CHANGELOG.md` },
         ],
         sidebar: zhSidebar,
@@ -200,10 +250,9 @@ export default defineConfig({
       description: "One Go codebase for desktop and mobile; WebView and Go-drawn UI side by side in one window",
       themeConfig: {
         nav: [
-          { text: "Guide", link: "/en/guide/getting-started", activeMatch: "^/en/guide/" },
-          { text: "Reference", link: "/en/reference/cli", activeMatch: "^/en/reference/" },
-          { text: "Live GUI demos", link: "/components/" },
-          { text: "Code editor", link: "/components/code-editor" },
+          { text: "Docs", link: "/en/guide/getting-started", activeMatch: "^/en/guide/" },
+          { text: "Components", link: "/components/" },
+          { text: "API", link: "/en/reference/api", activeMatch: "^/en/reference/" },
           { text: "Changelog", link: `${repo}/blob/main/CHANGELOG.md` },
         ],
         sidebar: enSidebar,

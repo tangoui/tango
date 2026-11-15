@@ -141,12 +141,18 @@ func projectFlag(fs *flag.FlagSet) *string {
 }
 
 func runVersion(args []string) error {
+	fmt.Printf("%s\n", cliVersion())
+	return nil
+}
+
+// cliVersion is "tan <version>": the module version when installed with go
+// install, otherwise the one set at release time.
+func cliVersion() string {
 	v := version
 	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
 		v = strings.TrimPrefix(bi.Main.Version, "v")
 	}
-	fmt.Printf("tan %s\n", v)
-	return nil
+	return "tan " + v
 }
 
 func logf(format string, a ...any)  { fmt.Fprintf(os.Stderr, "• "+format+"\n", a...) }

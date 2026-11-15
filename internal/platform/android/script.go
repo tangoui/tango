@@ -43,7 +43,41 @@ func newToken() string {
 // WebMessageListener (ch.postMessage) messages are strings of a kind
 // byte, the token and the payload (parseWire, token.go); a stored body is
 // acknowledged with a reply "b1<id>" or "b0<id>".
-func pageScript(token, bridge string) string {
+//
+// With lanes (the page's surface reports down:android and up:android,
+// lanes.go) and a WebMessageListener, __tangoNative also has lane:
+// post(u8) sends a lane message (u8 is a whole buffer of at least 26
+// bytes, the first 16 left for the token, which post writes, sends and
+// clears again: the structured clone copies the buffer synchronously, so
+// the token stays in the closure); listen(fn), once, receives the
+// ArrayBuffers Java posts back (lane replies and down packets). A
+// same-origin iframe can reach parent.__tangoNative.lane as it can reach
+// parent.__tangoNative.post: that is application code (spec trust model).
+func pageScript(token, bridge string, lanes bool) string {
+	laneVar, laneMsg, laneAPI := "", "", ""
+	if lanes {
+		laneVar = `
+    var lane, AB = ArrayBuffer, U8 = Uint8Array, laneFn = null, tb = new U8(16);
+    for (var i = 0; i < 16; i++) tb[i] = parseInt(t.substr(2 * i, 2), 16);
+    lane = Object.freeze({
+      post: function (u8) {
+        if (!(u8 instanceof U8) || u8.byteOffset !== 0 || u8.byteLength !== u8.buffer.byteLength || u8.length < 26) {
+          throw new TypeError("tango: a lane packet is a whole Uint8Array of at least 26 bytes");
+        }
+        for (var i = 0; i < 16; i++) u8[i] = tb[i];
+        try { post.call(ch, u8.buffer); } finally { u8.fill(0, 0, 16); }
+      },
+      listen: function (fn) {
+        if (typeof fn !== "function") throw new TypeError("tango: lane.listen needs a function");
+        if (laneFn) throw new Error("tango: lane.listen was already called");
+        laneFn = fn;
+      }
+    });`
+		laneMsg = `
+      if (e.data instanceof AB) { if (laneFn) laneFn(e.data); return; }`
+		laneAPI = `
+  if (lane) api.lane = lane;`
+	}
 	var b strings.Builder
 	b.WriteString(`(function () {
   "use strict";
@@ -59,8 +93,8 @@ func pageScript(token, bridge string) string {
     stashNow = function (id, type, b64) { return ch.body(t, id, type, b64); };
     stashLater = function (id, type, b64) { return Promise.resolve(stashNow(id, type, b64)); };
   } else if (typeof ch.postMessage === "function") {
-    var post = ch.postMessage, waiting = Object.create(null);
-    ch.addEventListener("message", function (e) {
+    var post = ch.postMessage, waiting = Object.create(null);` + laneVar + `
+    ch.addEventListener("message", function (e) {` + laneMsg + `
       var d = String(e.data), cb = waiting[d.slice(2)];
       if (d.charAt(0) !== "b" || !cb) return;
       delete waiting[d.slice(2)];
@@ -75,9 +109,8 @@ func pageScript(token, bridge string) string {
     };
   } else return;
 ` + bodyScript + `
-  Object.defineProperty(window, "__tangoNative", {
-    value: Object.freeze({ post: function (s) { send(String(s)); } })
-  });
+  var api = { post: function (s) { send(String(s)); } };` + laneAPI + `
+  Object.defineProperty(window, "__tangoNative", { value: Object.freeze(api) });
 })();
 `)
 	b.WriteString(bridge)

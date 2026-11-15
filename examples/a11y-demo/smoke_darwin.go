@@ -237,7 +237,9 @@ func runSmoke(app *tango.App, s *tango.Surface) bool {
 // ---- AX API (out-of-process view of ourselves, from a background thread) ----
 
 var focusNotes atomic.Int32
+var focusTarget atomic.Int32
 var focusDesc atomic.Value
+var focusButton atomic.Uintptr
 
 func axSmoke(c *checks) {
 	runtime.LockOSThread()
@@ -303,36 +305,53 @@ func axSmoke(c *checks) {
 		c.fail("hittest", "no AXPosition/AXSize")
 	}
 
-	// Focus: observe AXFocusedUIElementChanged, then focus the button.
+	// Focus: observe AXFocusedUIElementChanged, move focus away, then to the
+	// button. AXPress above may already have focused it.
+	focusNotes.Store(0)
+	focusTarget.Store(0)
+	focusDesc.Store("")
+	focusButton.Store(uintptr(btn))
 	var obs cfRef
 	cbFn := purego.NewCallback(func(o, el, note, ref uintptr) uintptr {
 		focusNotes.Add(1)
-		focusDesc.Store(attrStr(el, "AXDescription"))
+		focusDesc.Store(attrStr(cfRef(el), "AXDescription"))
+		if b := cfRef(focusButton.Load()); b != 0 && cfEqual(cfRef(el), b) {
+			focusTarget.Add(1)
+		}
 		return 0
 	})
 	if e := axObserverCreate(int32(os.Getpid()), cbFn, &obs); e != 0 {
 		c.fail("focus", fmt.Sprintf("AXObserverCreate error %d", e))
 		return
 	}
-	axObserverAdd(obs, appEl, cfStr("AXFocusedUIElementChanged"), 0)
+	if e := axObserverAdd(obs, appEl, cfStr("AXFocusedUIElementChanged"), 0); e != 0 {
+		c.fail("focus", fmt.Sprintf("AXObserverAddNotification error %d", e))
+		return
+	}
 	cfRunLoopAdd(cfRunLoopCurrent(), axObserverSource(obs), cfDefaultMode)
+	if cb := find(appEl, 0, func(el cfRef) bool { return attrStr(el, "AXRole") == "AXCheckBox" }); cb != 0 {
+		_ = axSetAttr(cb, cfStr("AXFocused"), cfBooleanTrue)
+		cfRunLoopRunIn(cfDefaultMode, 0.1, false)
+		cfRelease(cb)
+	}
 	if e := axSetAttr(btn, cfStr("AXFocused"), cfBooleanTrue); e != 0 {
 		c.fail("focus", fmt.Sprintf("set AXFocused error %d", e))
 		return
 	}
 	end := time.Now().Add(scaled(3 * time.Second))
-	for time.Now().Before(end) && focusNotes.Load() == 0 {
+	for time.Now().Before(end) && focusTarget.Load() == 0 {
 		cfRunLoopRunIn(cfDefaultMode, 0.1, false)
 	}
 	d, _ := focusDesc.Load().(string)
 	focused := attr(appEl, "AXFocusedUIElement")
-	switch {
-	case focusNotes.Load() > 0 && d == "Press me":
-		c.pass("focus", "AXFocusedUIElementChanged for the button")
-	case focused != 0 && cfEqual(focused, btn):
-		c.fail("focus", "the button is AXFocusedUIElement but no notification arrived")
-	default:
-		c.fail("focus", fmt.Sprintf("notifications %d (%q); window not key? (locked screen)", focusNotes.Load(), d))
+	ok, detail := focusResult(focusEvidence{
+		Total: int(focusNotes.Load()), Target: int(focusTarget.Load()), Last: d,
+		Focused: focused != 0 && cfEqual(focused, btn),
+	})
+	if ok {
+		c.pass("focus", detail)
+	} else {
+		c.fail("focus", detail)
 	}
 	cfRelease(btn)
 }

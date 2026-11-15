@@ -152,7 +152,7 @@ if (!location.search.includes("bench")) startTerm();
 const benchLog = logTo("bench-out");
 
 /** The benchmark of /bench.js (window.duplexBench, shared with
- * examples/duplex-ios); the result object of docs/ipc-bench.md. */
+ * examples/duplex-mobile); the result object of docs/ipc-bench.md. */
 const bench = () => duplexBench.run(benchLog);
 
 async function runBench() {

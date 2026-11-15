@@ -165,7 +165,7 @@ window.fetch = async (req) => { sent.push({ url: req.url, method: req.method, id
 class XHR { open(m, u) { this.m = m; this.u = u; this.h = {}; } setRequestHeader(k, v) { this.h[k] = v; }
   send(b) { sent.push({ xhr: true, url: this.u, method: this.m, id: this.h["X-Tango-Body"] || null, body: b === undefined ? null : b }); } }
 globalThis.XMLHttpRequest = XHR;
-` + pageScript(tok, "") + `
+` + pageScript(tok, "", false) + `
 const hidden = typeof window.__tangoAndroid;
 window.__tangoNative.post("hello");
 (async () => {

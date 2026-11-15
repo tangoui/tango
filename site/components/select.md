@@ -34,7 +34,7 @@ func page(c *ui.Context) {
 
 | 参数 / 方法 | 说明 |
 | --- | --- |
-| `val *string` | 当前选项的 Key |
+| `val *string` | 当前选中项的 Value |
 | `opts []ui.Option` | 可选项列表 |
 | `Placeholder(string)` | 未选择时的占位文本 |
 | `Searchable()` | 启用搜索 |
@@ -44,11 +44,25 @@ func page(c *ui.Context) {
 
 ## 使用说明
 
-自定义选项时使用 ui.Option 的 Key 和 Label 区分存储值与显示文字。键盘 Enter 展开，方向键移动，Enter 选择，Escape 关闭。
+自定义选项时使用 ui.Option 的 Value 和 Label 区分存储值与显示文字。键盘 Enter 展开，方向键移动，Enter 选择，Escape 关闭。
+
+## 更多场景
+
+官方 gallery 里这个组件的全部示例（基础、进阶与组合场景），可切换场景、主题和深浅色。
+
+<GalleryPreview component="Select" />
 
 ## 实现与更多示例
 
 - [源码](https://github.com/tangoui/tango/blob/main/ui/select.go)
-- [完整组件截图目录](/guide/components)
-- [GUI 组件在线体验总览](/components/)
+- [组件截图目录](/components/screenshots)
+- [组件总览](/components/)
 - [ui Go API](/reference/api/ui)
+
+## 全部示例代码
+
+<!--@include: ./_gen/select-examples.md-->
+
+## 完整 API
+
+<!--@include: ./_gen/select-api.md-->

@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/tangoui/tango/ui/editor/buffer"
 )
@@ -94,6 +96,7 @@ func (s *State) setSels(sels []Selection, goals []int) {
 	s.Sels = sels
 	s.goals = goals
 	s.ups = caretAffinity{}
+	s.rights = caretAffinity{}
 	s.lastAdded = last
 	s.clampLast()
 	s.validateAutoClosed()
@@ -317,6 +320,7 @@ type cursorEdit struct {
 // secondary at 5, deleteWordLeft deletes [0,2) and [0,5): Monaco keeps
 // only the primary's and gives "cdef", this gives "f".
 func (s *State) applyCursorEdits(ces []cursorEdit, kind editKind) error {
+	defer s.Model.command()()
 	n := len(ces)
 	order := make([]int, n)
 	for i := range order {
@@ -491,7 +495,7 @@ func (s *State) RemoveSecondaryCursors() bool {
 	if len(s.Sels) <= 1 {
 		return false
 	}
-	s.setSels([]Selection{s.Sels[0]}, nil)
+	s.addRemoveSels([]Selection{s.Sels[0]}, nil)
 	return true
 }
 
@@ -505,12 +509,21 @@ func (s *State) AddCursor(off int) {
 	if len(sels) > 1 {
 		for i, x := range sels {
 			if a, b := ordered(x); a <= off && off <= b {
-				s.setSels(slices.Delete(slices.Clone(sels), i, i+1), nil)
+				s.addRemoveSels(slices.Delete(slices.Clone(sels), i, i+1), nil)
 				return
 			}
 		}
 	}
-	s.setSels(append(slices.Clone(sels), Selection{Anchor: off, Head: off}), nil)
+	s.addRemoveSels(append(slices.Clone(sels), Selection{Anchor: off, Head: off}), nil)
+}
+
+// addRemoveSels is setSels for adding or removing cursors: the carets
+// that survive keep their sides of injected gaps (injected.go; Monaco keeps
+// the surviving cursors' view state). Moves use setSels and setRights.
+func (s *State) addRemoveSels(sels []Selection, goals []int) {
+	oldSels, oldRights := s.Sels, s.rights
+	s.setSels(sels, goals)
+	s.keepRights(oldSels, oldRights)
 }
 
 // insertCursorVertical adds, for every cursor, a copy of it one line up
@@ -549,7 +562,7 @@ func (s *State) insertCursorVertical(dir Direction) {
 		out = append(out, x, Selection{Anchor: na, Head: nh})
 		outGoals = append(outGoals, goals[k], goals[k])
 	}
-	s.setSels(out, outGoals)
+	s.addRemoveSels(out, outGoals)
 }
 
 // insertCursorsAtLineEnds puts a caret at the end of every line each
@@ -709,7 +722,8 @@ func (s *State) nearestColumn(text string, goal int) int {
 type findSession struct {
 	text    string
 	whole   bool           // whole words only
-	re      *regexp.Regexp // case-insensitive matcher; nil: match case
+	re      *regexp.Regexp // case-insensitive matcher; nil: match case (unless fold)
+	fold    bool           // case-insensitive without re: text is longer than findRegexpMax
 	pending *Selection     // the word under the caret, the first "match"
 	sels    []Selection
 	ver     uint64
@@ -784,15 +798,86 @@ func (s *State) findSessionNow() *findSession {
 		}
 	}
 	if !f.whole {
-		f.re = regexp.MustCompile("(?i)" + regexp.QuoteMeta(f.text))
+		if len(f.text) <= findRegexpMax {
+			// Compile fails on invalid UTF-8 in the selection.
+			f.re, _ = regexp.Compile("(?i)" + regexp.QuoteMeta(f.text))
+		}
+		f.fold = f.re == nil
 	}
 	s.find = f
 	return f
 }
 
+// findRegexpMax is the longest find text (bytes) matched with a compiled
+// "(?i)" regexp. Longer text, such as a select-all of a large file, and
+// text with invalid UTF-8 (which regexp rejects) are matched by foldIndex:
+// compiling costs about 85 ms and 227 MB per million characters and fails
+// past roughly ten million ("expression too large").
+const findRegexpMax = 64 << 10
+
+// foldIndex returns the first match at or after lo of needle in text under
+// simple case folding, as regexp "(?i)" + QuoteMeta(needle) matches (the
+// same folding as strings.EqualFold, so a match may differ from needle in
+// byte length, as with the Kelvin sign and k; an invalid UTF-8 byte
+// matches only itself); a < 0 when there is none or needle is empty. It tries each rune boundary in turn: worst case
+// O(len(text)·len(needle)), linear for text that differs from needle
+// within a few runes at most positions.
+func foldIndex(text string, lo int, needle string) (a, b int) {
+	if needle == "" {
+		return -1, -1
+	}
+	for i := lo; i < len(text); {
+		j, k := i, 0
+		for k < len(needle) && j < len(text) {
+			tn, nn, ok := foldAt(text[j:], needle[k:])
+			if !ok {
+				break
+			}
+			j, k = j+tn, k+nn
+		}
+		if k == len(needle) {
+			return i, j
+		}
+		_, n := utf8.DecodeRuneInString(text[i:])
+		i += n
+	}
+	return -1, -1
+}
+
+// foldAt reports whether the first runes of t and n are equal under simple
+// case folding (an invalid byte equals only the same byte), with their
+// byte lengths.
+func foldAt(t, n string) (tn, nn int, ok bool) {
+	tr, tn := utf8.DecodeRuneInString(t)
+	nr, nn := utf8.DecodeRuneInString(n)
+	if tr == utf8.RuneError && tn == 1 || nr == utf8.RuneError && nn == 1 {
+		return tn, nn, tn == nn && t[0] == n[0]
+	}
+	return tn, nn, foldEq(tr, nr)
+}
+
+// foldEq reports whether r and s are equal under simple case folding.
+func foldEq(r, s rune) bool {
+	if r == s {
+		return true
+	}
+	if r < utf8.RuneSelf && s < utf8.RuneSelf {
+		return 'A' <= r && r <= 'Z' && r+'a'-'A' == s || 'A' <= s && s <= 'Z' && s+'a'-'A' == r
+	}
+	for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+		if f == s {
+			return true
+		}
+	}
+	return false
+}
+
 // index returns the first match of f's text in text at or after lo, by
 // its case rule but not the whole-word rule; a < 0 when there is none.
 func (f *findSession) index(text string, lo int) (a, b int) {
+	if f.fold {
+		return foldIndex(text, lo, f.text)
+	}
 	if f.re == nil {
 		i := strings.Index(text[lo:], f.text)
 		if i < 0 {

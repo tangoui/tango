@@ -39,6 +39,13 @@ type SurfaceOptions struct {
 	State               WindowState // initial state
 	Appearance          Appearance
 	AcceptFiles         bool // report dropped files (OnFilesDropped) instead of letting the page open them
+	// Auxiliary marks a window that does not keep the app running, such
+	// as an update window or a tool palette: under Options.QuitOnLastClose
+	// the app quits when the last window that is not auxiliary closes,
+	// closing the auxiliary ones with it, and closing an auxiliary window
+	// never quits it. False (the default) counts the window like any
+	// other.
+	Auxiliary bool
 
 	// WebView settings: user agent and extra request headers (webview.go).
 	WebView WebViewOptions
@@ -62,6 +69,8 @@ type Surface struct {
 	visible   bool     // bookkeeping for surfaces without platform.SurfaceStatus
 	focused   bool     // likewise, from SurfaceFocused / SurfaceBlurred
 
+	auxiliary bool // SurfaceOptions.Auxiliary; set at creation, then read-only
+
 	mu        sync.Mutex // guards the handlers
 	onClose   []func() bool
 	onClosed  []func()
@@ -72,8 +81,9 @@ type Surface struct {
 	ext surfaceExt // round-2 window state and handlers; surface_ext.go
 	web surfaceWeb // round-4 WebView state and handlers; webview.go
 
-	lane  *lane.State  // IPC fast lanes (any goroutine); lanes.go
-	lanes surfaceLanes // their wiring to the native surface; lanes.go
+	lane    *lane.State  // IPC fast lanes (any goroutine); lanes.go
+	lanes   surfaceLanes // their wiring to the native surface; lanes.go
+	embedIn *Surface     // embedded WebViews: the surface it lives in (webembed.go); set before creation
 }
 
 // NewSurface creates a surface. Safe from any goroutine once the app runs;
@@ -129,7 +139,7 @@ func (a *App) addSurface(opts SurfaceOptions, navOrigin string, extrasTaken bool
 	a.nextID++
 	id := a.nextID
 	a.mu.Unlock()
-	s := &Surface{app: a, id: id, navOrigin: navOrigin, title: opts.Title, visible: !opts.Hidden}
+	s := &Surface{app: a, id: id, navOrigin: navOrigin, title: opts.Title, visible: !opts.Hidden, auxiliary: opts.Auxiliary}
 	s.initLanes(navOrigin) // outside a.mu: lane.New may log
 	// Registered before the backend call: a backend may emit events for
 	// the surface while creating it.

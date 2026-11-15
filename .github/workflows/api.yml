@@ -43,7 +43,7 @@ jobs:
 
       - uses: actions/setup-node@v7.1.0
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
           cache-dependency-path: runtime-js/package-lock.json
 

@@ -47,6 +47,8 @@ type mdBlock struct {
 	header  []string
 	aligns  []TextAlign
 	rows    [][]string
+	code    []Span       // highlighted code (mdCode), once final
+	codeTh  *theme.Theme // the theme code was colored for
 }
 
 type mdItem struct {
@@ -840,6 +842,9 @@ type MarkdownW struct {
 	shad     bool // shadcn's typography (h2 rule, quote bar, muted code)
 	copyable bool
 	noSelect bool
+	hl       CodeHighlighter
+	hlSet    bool
+	col      theme.Color // body text color (zero: theme Text)
 }
 
 type mdCache struct {
@@ -873,6 +878,15 @@ func (m *MarkdownW) NoSelect() *MarkdownW { m.noSelect = true; return m }
 // NoCopy hides the copy button of code blocks.
 func (m *MarkdownW) NoCopy() *MarkdownW { m.copyable = false; return m }
 
+// Highlighter sets the code highlighter of fenced code blocks with a
+// language (default DefaultCodeHighlighter; nil: plain text).
+func (m *MarkdownW) Highlighter(h CodeHighlighter) *MarkdownW { m.hl, m.hlSet = h, true; return m }
+
+// Color sets the color of body text and headings (default theme Text and
+// TextHeading), for documents on a colored background such as a chat
+// bubble.
+func (m *MarkdownW) Color(col theme.Color) *MarkdownW { m.col = col; return m }
+
 // ClickedLink returns the URL of a link clicked this frame ("" if none).
 func (m *MarkdownW) ClickedLink() string { m.z.run(); return m.clicked }
 
@@ -890,7 +904,7 @@ func (m *MarkdownW) build() {
 		p := &mdParser{}
 		st.blocks, st.src = p.parse(strings.Split(src, "\n")), m.src
 	}
-	m.blocks(st.blocks, Span{}, true)
+	m.blocks(st.blocks, Span{Color: m.col}, true)
 }
 
 func (m *MarkdownW) fontSize() float32 {
@@ -936,6 +950,9 @@ func (m *MarkdownW) blocks(bs []*mdBlock, base Span, top bool) {
 				}
 				spans := mdInline(b.text, Span{Bold: true}, m.c.Locale().Markdown.ImagePrefix)
 				col := th.TextHeading
+				if base.Color.A > 0 {
+					col = base.Color
+				}
 				w := m.rich(mdMerge(spans), size, col)
 				w.n.setRole(a11y.RoleHeading)
 				if lv := min(b.level, 6); c.a11yOn {
@@ -1019,7 +1036,7 @@ func (m *MarkdownW) code(b *mdBlock, mb float32) {
 				}
 			}, layout.Middle(), layout.Margin(geom.Insets{Bottom: 4}))
 		}
-		code := RichText(c, Span{Text: b.text, Mono: true}).Pre().Size(m.fontSize() - 1)
+		code := RichText(c, m.codeSpans(b)...).Pre().Size(m.fontSize() - 1)
 		code.n.setRole(a11y.RoleParagraph).setName(b.text)
 		if !m.noSelect {
 			code.Selectable()
@@ -1033,6 +1050,26 @@ func (m *MarkdownW) code(b *mdBlock, mb float32) {
 		// bg-muted, no border, rounded-md (the Typography code token).
 		box.Bg(c.ThemeFor(theme.CompTypography).Components.Typography.CodeBg).Border(0, theme.Color{}).Radius(th.Radius)
 	}
+}
+
+// codeSpans returns the code of b as monospace spans, highlighted when a
+// highlighter knows its language.
+func (m *MarkdownW) codeSpans(b *mdBlock) []Span {
+	th := m.c.ThemeFor(theme.CompCodeBlock)
+	if b.code != nil && b.codeTh == th {
+		return b.code
+	}
+	h := m.hl
+	if !m.hlSet {
+		h = DefaultCodeHighlighter()
+	}
+	spans, final := highlightSpans(h, b.lang, b.text, &th.Components.CodeBlock)
+	if final && h != nil {
+		b.code, b.codeTh = spans, th // colors are resolved: redo them for another theme
+	} else if !final {
+		m.c.WakeAt(m.c.Now().Add(codeHighlightRetry))
+	}
+	return spans
 }
 
 func (m *MarkdownW) list(b *mdBlock, base Span, depth int, mb float32) {

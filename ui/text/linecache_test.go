@@ -226,8 +226,15 @@ func TestLigaturesDisableFastPath(t *testing.T) {
 	if want := lineRef(line, runs, LineOptions{Ligatures: true}); !reflect.DeepEqual(got, want) {
 		t.Errorf("ligature layout differs from ShapeRuns")
 	}
-	c.Shape(line, runs, LineOptions{})
+	plain := c.Shape(line, runs, LineOptions{})
 	if c.stats.fast != 1 {
+		// The fast path needs a monospace face without kerning (isSafe);
+		// Linux's DejaVu Sans Mono has some.
+		if len(plain.Glyphs) > 0 {
+			if f, ok := plain.Glyphs[0].Src.(*Face); ok && !(&fastPath{safe: map[*Face]bool{}}).isSafe(f, nil) {
+				t.Skipf("monospace face %s is not fast-path safe on this machine", f.Family)
+			}
+		}
 		t.Errorf("stats %+v: no ligatures should take the fast path", c.stats)
 	}
 	// Other cases the fast path leaves to ShapeRuns.

@@ -95,12 +95,16 @@ func (s *State) Move(dir Direction, unit Unit, extend bool) {
 			}
 		}
 		ups := make([]bool, len(sels))
+		rights := make([]bool, len(sels))
 		for k, sel := range sels {
 			to, up := s.verticalUp(snap, clampOff(snap, sel.Head), s.headUp(k), dir, n, goals[k])
 			out[k], ups[k] = moved(sel, to), up
+			// Down arrives right of a gap, Up left of it (injected.go).
+			rights[k] = dir == Forward
 		}
 		s.setSels(out, goals)
 		s.setUps(out, ups)
+		s.setRights(out, rights)
 		if unit == Page {
 			dy := float32(n) * s.Viewport.LineHeight
 			if dir == Backward {
@@ -111,6 +115,7 @@ func (s *State) Move(dir Direction, unit Unit, extend bool) {
 		return
 	}
 	ups := make([]bool, len(sels))
+	rights := make([]bool, len(sels))
 	for k, sel := range sels {
 		if unit == LineEdge {
 			// Wrapped lines: the row's edges first (Monaco).
@@ -132,11 +137,14 @@ func (s *State) Move(dir Direction, unit Unit, extend bool) {
 		to := s.target(dir, unit, clampOff(snap, sel.Head))
 		if unit == Char {
 			to = s.overFolds(snap, dir, clampOff(snap, sel.Head), to)
+			// Left arrives right of a gap (injected.go).
+			rights[k] = dir == Backward
 		}
 		out[k] = moved(sel, to)
 	}
 	s.setSels(out, nil)
 	s.setUps(out, ups)
+	s.setRights(out, rights)
 }
 
 // overFolds is a Char move from off to to that crosses a line break over
@@ -159,7 +167,11 @@ func (s *State) overFolds(snap buffer.Snapshot, dir Direction, off, to int) int 
 		}
 		return snap.LineStart(nx)
 	}
-	return lineEnd(snap, max(0, vl.prevVisible(l)))
+	p := vl.prevVisible(l)
+	if p < 0 {
+		return off // hidden lines start the document (an owner's hidden area)
+	}
+	return lineEnd(snap, p)
 }
 
 // selRange returns the primary selection as an ordered, clamped range.

@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tangoui/tango"
@@ -60,6 +62,10 @@ func (c *coalescer) drain() []string {
 type echoPanel struct {
 	echoes *coalescer
 	recent []string // the last few echoes; UI thread only
+
+	// For Panel.Stats (examples/duplex's e2e test): frames the panel drew
+	// and echoes it has shown, counted on the UI thread.
+	frames, shown atomic.Int64
 }
 
 const recentEchoes = 5
@@ -81,6 +87,13 @@ func attachPanel(app *tango.App, s *tango.Surface, r *ipc.Router) error {
 	if err != nil {
 		return err
 	}
+
+	// Panel.Stats: {"frames": n, "echoes": n}, the panel's frames and the
+	// echoes it has shown. The e2e test watches them advance, which needs
+	// no screen capture permission (its pixel check does).
+	r.Handle("Panel.Stats", func(context.Context, json.RawMessage) (any, error) {
+		return map[string]int64{"frames": p.frames.Load(), "echoes": p.shown.Load()}, nil
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.OnClosed(cancel)
@@ -129,7 +142,10 @@ func (p *echoPanel) run(ctx context.Context, r *ipc.Router) {
 // page draws the panel; it runs on the UI thread, which is where recent
 // is read and written.
 func (p *echoPanel) page(c *ui.Context) {
-	p.recent = append(p.recent, p.echoes.drain()...)
+	got := p.echoes.drain()
+	p.recent = append(p.recent, got...)
+	p.frames.Add(1)
+	p.shown.Add(int64(len(got)))
 	if n := len(p.recent); n > recentEchoes {
 		p.recent = p.recent[n-recentEchoes:]
 	}

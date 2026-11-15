@@ -30,6 +30,7 @@ export type ErrorCode =
   | "unsupported"
   | "not_running"
   | "busy"
+  | "transport"
   | (string & {});
 
 /** Error raised for failed calls and streams; see ErrorCode. */

@@ -149,6 +149,9 @@ func TestLaneControlChannel(t *testing.T) {
 	if got := fb.LanePackets(s.ID()); len(got) != 1 || string(got[0]) != string(p) {
 		t.Fatalf("LanePackets = %v", got)
 	}
+	if gens := fb.LanePacketGens(s.ID()); len(gens) != 1 || gens[0] != h.Gen {
+		t.Fatalf("LanePacketGens = %v, want [%d]", gens, h.Gen)
+	}
 	// An untrusted page's control message is ignored.
 	fb.MessageFrom(s.ID(), "https://evil.example", laneCtl("fail", lane.DownAndroid, h.Gen))
 	if s.BinaryMinSize() != 0 {
@@ -182,7 +185,7 @@ func TestOnLanePacketRouting(t *testing.T) {
 	}
 	fb.Message(s.ID(), laneCtl("ready", lane.UpAndroid, h.Gen))
 
-	fb.LaneUp(s.ID(), fb.AssetOrigin(), []byte("pkt"))
+	fb.LaneUp(s.ID(), fb.AssetOrigin(), h.Gen, []byte("pkt"))
 	for _, want := range []string{"pkt", "second:pkt"} {
 		select {
 		case g := <-ch:
@@ -193,11 +196,11 @@ func TestOnLanePacketRouting(t *testing.T) {
 			t.Fatalf("OnBinary not called synchronously for %q", want)
 		}
 	}
-	fb.LaneUp(s.ID(), "https://evil.example", []byte("bad"))
-	fb.LaneUp(s.ID()+100, fb.AssetOrigin(), []byte("nobody"))
+	fb.LaneUp(s.ID(), "https://evil.example", h.Gen, []byte("bad"))
+	fb.LaneUp(s.ID()+100, fb.AssetOrigin(), h.Gen, []byte("nobody"))
 	// After the up lane failed its packets are dropped.
 	fb.Message(s.ID(), laneCtl("fail", lane.UpAndroid, h.Gen))
-	fb.LaneUp(s.ID(), fb.AssetOrigin(), []byte("late"))
+	fb.LaneUp(s.ID(), fb.AssetOrigin(), h.Gen, []byte("late"))
 	select {
 	case g := <-ch:
 		t.Fatalf("unexpected OnBinary call with %q", g.p)
@@ -210,9 +213,55 @@ func TestOnLanePacketBeforeHello(t *testing.T) {
 	called := false
 	a.OnBinary(func(*Surface, uint64, []byte) { called = true })
 	s := laneSurface(t, a, fb, "", lane.UpAndroid)
-	fb.LaneUp(s.ID(), fb.AssetOrigin(), []byte("early"))
+	fb.LaneUp(s.ID(), fb.AssetOrigin(), 0, []byte("early"))
 	if called {
 		t.Fatal("lane packet delivered before any lane hello")
+	}
+}
+
+// OnLanePacket reports whether it handed the packet to OnBinary, so a
+// backend can tell the page its upstream lane refused it.
+func TestOnLanePacketReportsRefusal(t *testing.T) {
+	a, fb := laneApp(t, Options{})
+	type got struct {
+		gen uint64
+		p   string
+	}
+	var mu sync.Mutex
+	var calls []got
+	a.OnBinary(func(_ *Surface, gen uint64, p []byte) {
+		mu.Lock()
+		calls = append(calls, got{gen, string(p)})
+		mu.Unlock()
+	})
+	s := laneSurface(t, a, fb, "", lane.UpAndroid)
+	var h1, h2 laneHelloJSON
+	if err := json.Unmarshal(s.LaneHello(), &h1); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(s.LaneHello(), &h2); err != nil {
+		t.Fatal(err)
+	}
+	if !fb.LaneUp(s.ID(), fb.AssetOrigin(), h2.Gen, []byte("cur")) {
+		t.Fatal("current generation's packet reported refused")
+	}
+	if fb.LaneUp(s.ID(), fb.AssetOrigin(), h1.Gen, []byte("old")) {
+		t.Fatal("old generation's packet reported delivered")
+	}
+	if fb.LaneUp(s.ID(), "https://evil.example", h2.Gen, []byte("evil")) {
+		t.Fatal("packet from outside the asset origin reported delivered")
+	}
+	if fb.LaneUp(s.ID()+100, fb.AssetOrigin(), h2.Gen, []byte("nobody")) {
+		t.Fatal("packet for an unknown surface reported delivered")
+	}
+	s.lane.Reset()
+	if fb.LaneUp(s.ID(), fb.AssetOrigin(), h2.Gen, []byte("reset")) {
+		t.Fatal("packet after Reset reported delivered")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(calls) != 1 || calls[0] != (got{h2.Gen, "cur"}) {
+		t.Fatalf("OnBinary got %+v, want only (%d, cur)", calls, h2.Gen)
 	}
 }
 
@@ -407,7 +456,7 @@ func TestLanesOffAfterNavigateAway(t *testing.T) {
 			if !s.SendBinary([]byte{0, 0}) {
 				t.Fatal("lane not usable before navigating away")
 			}
-			fb.LaneUp(s.ID(), fb.AssetOrigin(), []byte("before"))
+			fb.LaneUp(s.ID(), fb.AssetOrigin(), h.Gen, []byte("before"))
 
 			c.away(fb, s)
 			if s.SendBinary([]byte{0, 1}) || s.BinaryMinSize() != -1 {
@@ -416,7 +465,7 @@ func TestLanesOffAfterNavigateAway(t *testing.T) {
 			if n := len(fb.LanePackets(s.ID())); n != 1 {
 				t.Fatalf("%d lane packets, want only the one before navigating", n)
 			}
-			fb.LaneUp(s.ID(), fb.AssetOrigin(), []byte("after"))
+			fb.LaneUp(s.ID(), fb.AssetOrigin(), h.Gen, []byte("after"))
 			// A late control message cannot revive the old generation.
 			fb.Message(s.ID(), laneCtl("ready", lane.DownAndroid, h.Gen))
 			if s.BinaryMinSize() != -1 {
@@ -458,7 +507,7 @@ func TestLanesDownSuspendedOnNavigating(t *testing.T) {
 	if n := len(fb.LanePackets(s.ID())); n != 1 {
 		t.Fatalf("%d lane packets, want only the one before navigating", n)
 	}
-	fb.LaneUp(s.ID(), fb.AssetOrigin(), []byte("upload"))
+	fb.LaneUp(s.ID(), fb.AssetOrigin(), h.Gen, []byte("upload"))
 	mu.Lock()
 	if len(got) != 1 || got[0] != "upload" {
 		mu.Unlock()

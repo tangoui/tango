@@ -251,6 +251,13 @@ func markersOf(conf *langs.Conf) *markerMatcher {
 // Beyond limit ranges, the most deeply indented ones are dropped (Monaco's
 // foldingMaximumRegions).
 func indentRanges(snap buffer.Snapshot, tab int, offSide bool, markers *markerMatcher, limit int) []FoldingRange {
+	return indentRangesOf(snap, nil, tab, offSide, markers, limit)
+}
+
+// indentRangesOf is indentRanges; long, when not nil, returns line i of
+// snap and is used for the lines of at least memoMinLen bytes (Model.line:
+// the long line a keystroke's frame has read already, not a copy of it).
+func indentRangesOf(snap buffer.Snapshot, long func(i int) string, tab int, offSide bool, markers *markerMatcher, limit int) []FoldingRange {
 	tab = max(tab, 1)
 	type region struct {
 		indent    int // -1 sentinel, -2 an end marker
@@ -269,21 +276,11 @@ func indentRanges(snap buffer.Snapshot, tab int, offSide bool, markers *markerMa
 	)
 	const block = 2048
 	for l0 := 0; l0 < n; l0 += block {
-		l1 := min(n, l0+block)
-		end := snap.Len()
-		if l1 < n {
-			end = snap.LineStart(l1) - 1
-		}
-		text := snap.Slice(snap.LineStart(l0), end)
-		for l := l0; l < l1; l++ {
-			line := text
-			if i := strings.IndexByte(text, '\n'); i >= 0 {
-				line, text = text[:i], text[i+1:]
-			}
+		eachLine(snap, l0, min(n, l0+block), long, func(l int, line string) {
 			ind := indentLevel(line, tab)
 			if ind < 0 {
 				info[l] = -1
-				continue
+				return
 			}
 			v := int32(min(ind, indentMask))
 			if markers != nil {
@@ -294,7 +291,7 @@ func indentRanges(snap buffer.Snapshot, tab int, offSide bool, markers *markerMa
 				}
 			}
 			info[l] = v
-		}
+		})
 	}
 	// Ranges are found bottom up; out is reversed at the end.
 	var out []FoldingRange

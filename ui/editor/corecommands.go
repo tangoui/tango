@@ -89,6 +89,13 @@ func coreCommands() []Command {
 			st.revealCaret()
 			return ok
 		}},
+		// Re-detect the tab size and insertSpaces from the text
+		// (Monaco's DetectIndentation action; Model.DetectIndentation).
+		// It changes options, not text, so read-only views run it too.
+		Command{ID: "editor.action.detectIndentation", Label: "Detect Indentation from Content", Run: func(st *State, _ any) bool {
+			st.Model.DetectIndentation()
+			return true
+		}},
 		Command{ID: "editor.action.toggleTabFocusMode", Label: "Toggle Tab Key Moves Focus", Run: func(st *State, _ any) bool {
 			st.tabFocus = !st.tabFocus
 			return true

@@ -383,7 +383,7 @@ var _ flag.Value = (*stringsFlag)(nil)
 func runAppLinks(args []string) error {
 	fs := newFlags("applinks", "[flags]")
 	dir := projectFlag(fs)
-	out := fs.String("o", filepath.Join("build", "applinks"), "output `dir`; the files go in <dir>/.well-known")
+	out := fs.String("o", "build/applinks", "output `dir`; the files go in <dir>/.well-known")
 	platform := fs.String("platform", "ios,android", "which files: ios (apple-app-site-association), android (assetlinks.json) or both")
 	team := fs.String("team", "", "Apple team `ID` (default: from ios.provisioningProfile or ios.signIdentity)")
 	var fps stringsFlag

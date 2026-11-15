@@ -120,9 +120,9 @@ func (s *Surface) laneNative() (platform.BinaryLane, string) {
 }
 
 // sendLanePacket is lane.State's platformSend.
-func (s *Surface) sendLanePacket(p []byte) bool {
+func (s *Surface) sendLanePacket(gen uint64, p []byte) bool {
 	bl, _ := s.laneNative()
-	return bl != nil && bl.SendLanePacket(p)
+	return bl != nil && bl.SendLanePacket(gen, p)
 }
 
 // LaneHello implements ipc.BinaryConn: it starts a new lane generation for
@@ -164,16 +164,20 @@ var _ platform.LaneHost = host{}
 // claim the main thread). Lanes are only offered to pages from the asset
 // origin, so packets from any other origin are dropped (trusts would also
 // accept the origin the core navigated to, but it reads main-thread state).
-func (h host) OnLanePacket(id platform.SurfaceID, origin string, p []byte) {
+// gen is the generation the page sent p in; packets of any other
+// generation are dropped (lane.State.AllowUpGen). It reports whether p
+// reached the handlers.
+func (h host) OnLanePacket(id platform.SurfaceID, origin string, gen uint64, p []byte) bool {
 	a := h.a
 	s := a.surface(id)
 	if s == nil || s.closed.Load() || !a.isAssetOrigin(origin) {
-		return
+		return false
 	}
-	gen, ok := s.lane.AllowUpSession()
-	if ok {
-		a.deliverBinary(s, gen, p)
+	if !s.lane.AllowUpGen(gen, p) {
+		return false
 	}
+	a.deliverBinary(s, gen, p)
+	return true
 }
 
 // deliverBinary runs the OnBinary handlers for p from s.

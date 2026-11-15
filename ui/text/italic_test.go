@@ -5,6 +5,7 @@ import "testing"
 func TestItalicSetsSkewKeepsAdvances(t *testing.T) {
 	// CJK fonts ship no italic, so the upright face is slanted and the
 	// advances stay those of the upright face.
+	needFont(t, "中文")
 	up := Shape("中文", Style{Size: 14}, Options{NoWrap: true})
 	it := Shape("中文", Style{Size: 14, Italic: true}, Options{NoWrap: true})
 	if up.Width != it.Width || len(up.Glyphs) != len(it.Glyphs) {

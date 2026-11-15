@@ -113,6 +113,9 @@ func AttachWindowState(a App) {
 		}
 	})
 	corehook.OnSurfaceCreated(a, func(surface any) {
+		if corehook.EmbeddedParent != nil && corehook.EmbeddedParent(surface) != nil {
+			return // an embedded WebView (webembed.go) is not a window
+		}
 		s := surface.(windowSurface)
 		seq++
 		key := keyFor(s.Title(), seq)

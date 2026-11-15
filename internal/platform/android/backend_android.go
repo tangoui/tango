@@ -35,6 +35,7 @@ type Backend struct {
 	quitOnce     sync.Once
 
 	wakePending atomic.Bool   // a Drain is posted to the main Looper
+	laneDirty   atomic.Bool   // a down lane packet was queued (lanes_android.go)
 	stepCh      chan struct{} // Wake signal for Step(true)
 
 	mu       sync.Mutex // guards surfaces (the request thread reads it)
@@ -178,6 +179,7 @@ func (b *Backend) drain() {
 		b.deliver(h, b.life.start())
 		b.flushMobileEvents(h) // mobile_android.go
 	}
+	b.flushLanes() // lanes_android.go
 	h.Drain()
 }
 
@@ -206,7 +208,10 @@ func (b *Backend) NewSurface(id platform.SurfaceID, opts platform.SurfaceOptions
 	if u == "" {
 		u = "about:blank"
 	}
-	s := &surface{b: b, id: id, bridge: opts.BridgeScript, tokens: newDocTokens(AssetOrigin, u)}
+	// The lanes are decided before the surface is published: the request
+	// thread builds the first document's page script from them.
+	s := &surface{b: b, id: id, bridge: opts.BridgeScript, tokens: newDocTokens(AssetOrigin, u),
+		laneCaps: envLaneCaps(), lanes: newLaneState()}
 	b.mu.Lock()
 	b.surfaces[id] = s
 	b.mu.Unlock()
@@ -240,6 +245,11 @@ type surface struct {
 	id     platform.SurfaceID
 	bridge string     // the core's BridgeScript, after the shim (pageScript)
 	tokens *docTokens // per-document bridge tokens and trusted origins
+
+	// IPC fast lanes (lanes_android.go). laneCaps is set before the surface
+	// is published and never changes; lanes is safe from any thread.
+	laneCaps []string
+	lanes    *laneState
 
 	// Main thread only.
 	page   C.jobject // global ref to the Java Page
@@ -314,6 +324,7 @@ func (s *surface) release() {
 		return
 	}
 	s.closed = true
+	s.lanes.close()
 	page, view := s.page, s.view
 	s.page, s.view = 0, 0
 	withEnv(func(e env) {

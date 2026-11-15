@@ -139,6 +139,7 @@ func TestWrapResizeLazy(t *testing.T) {
 	text := bigWrapDoc(n)
 	start := time.Now()
 	st := NewState(text, "big.txt", theme.Base("vs"))
+	st.wrapLarge = true // exercise lazy wrapping even for a large file
 	st.Options.WordWrap = WrapOn
 	ed := newEditDriver(st, 600, 400, pinMac)
 	open := time.Since(start)

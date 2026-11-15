@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"fmt"
 	"image/color"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/monarch"
 	"github.com/tangoui/tango/ui/editor/theme"
+	"github.com/tangoui/tango/ui/geom"
 )
 
 // highlighted returns a State for text in a file named name, fully
@@ -52,7 +54,7 @@ func TestBracketPairColors(t *testing.T) {
 	if len(pal.levels) != 3 {
 		t.Fatalf("vs-dark palette has %d levels, want 3 (foreground4-6 are transparent)", len(pal.levels))
 	}
-	spans, sure := st.bracketColors(tr, []int{0, 1, 2, 3, 4, 5}, pal, far)
+	spans, sure := st.bracketColors(tr, []int{0, 1, 2, 3, 4, 5}, pal, far, nil)
 	if !sure {
 		t.Error("colors not sure with every line known")
 	}
@@ -95,7 +97,7 @@ func TestBracketPairColors(t *testing.T) {
 	}
 	ptr := pt.Model.brackets()
 	ptr.ensure(modelBrackets{pt.Model}, 1, time.Time{})
-	if sp, _ := pt.bracketColors(ptr, []int{0}, pal, far); len(sp) != 0 {
+	if sp, _ := pt.bracketColors(ptr, []int{0}, pal, far, nil); len(sp) != 0 {
 		t.Errorf("plain text colored: %v", sp)
 	}
 }
@@ -105,6 +107,8 @@ type plainSource struct{}
 
 func (plainSource) tokens(buffer.Snapshot, int, string, []monarch.Token) []monarch.Token { return nil }
 func (plainSource) finalLines(s buffer.Snapshot) int                                     { return s.LineCount() }
+func (plainSource) startState(buffer.Snapshot, int) monarch.State                        { return 0 }
+func (plainSource) advance(buffer.Snapshot, int, time.Time)                              {}
 
 func sameTree(t *testing.T, got, want *bracketTree, upTo int) {
 	t.Helper()
@@ -249,5 +253,268 @@ func TestMatchBrackets(t *testing.T) {
 	st.Execute("editor.action.selectToBracket", map[string]any{"selectBrackets": false})
 	if s := st.Primary(); s.Anchor != close4 || s.Head != open1+1 {
 		t.Errorf("selectToBracket from the closing bracket = %+v, want %d..%d", s, close4, open1+1)
+	}
+}
+
+// TestBracketTokenChanges: an edit that changes the tokens of the lines
+// after it (an opened comment) without changing their text rescans them
+// (Monaco's handleDidChangeTokens).
+func TestBracketTokenChanges(t *testing.T) {
+	text := "func f() {\n" + // 0
+		"\tx := 1\n" + //       1
+		"\tif x {\n" + //       2
+		"\t\ty() */ + 1\n" + // 3
+		"\t}\n" + //            4
+		"}\n" //                5
+	th := theme.Base("vs-dark")
+	st := highlighted(t, text, "a.go", th)
+	src := modelBrackets{st.Model}
+	tr := st.Model.brackets()
+	tr.ensure(src, 100, time.Time{})
+	// On a line without brackets: its end stack does not change.
+	st.MoveCaret(st.Snapshot().LineStart(1), false)
+	st.Insert("/*")
+	snap := st.Snapshot()
+	st.Highlighter().Highlight(snap, snap.LineCount(), time.Minute)
+	tr = st.Model.brackets()
+	tr.ensure(src, snap.LineCount(), time.Time{})
+	full := newBracketTree(tr.conf, snap)
+	full.ensure(src, snap.LineCount(), time.Time{})
+	sameTree(t, tr, full, snap.LineCount())
+	if d := stackDepth(tr.start[4]); d != 1 {
+		t.Errorf("line 5 starts at depth %d, want 1 (the if's { is commented out)", d)
+	}
+	pal := paletteOf(th)
+	spans, _ := st.bracketColors(tr, []int{4, 5}, pal, far, nil)
+	if c, _ := spanAt(spans, 4, 1); c != pal.levels[0] {
+		t.Errorf("line 5's } = %v, want level 1 %v", c, pal.levels[0])
+	}
+	if c, _ := spanAt(spans, 5, 0); c != pal.invalid {
+		t.Errorf("line 6's } = %v, want unexpected %v", c, pal.invalid)
+	}
+	if p, ok := st.matchBracket(snap.LineStart(5), far); ok {
+		t.Errorf("line 6's } matched %+v", p)
+	}
+}
+
+// TestBracketCommandsTokenize: without a background Highlighter, the
+// bracket commands tokenize the lines they need themselves.
+func TestBracketCommandsTokenize(t *testing.T) {
+	var sb strings.Builder
+	sb.WriteString("func f() {\n")
+	for i := range 300 {
+		fmt.Fprintf(&sb, "\tx%d := \"}\" // }\n", i)
+	}
+	sb.WriteString("}\n")
+	st := NewState(sb.String(), "a.go", theme.Base("vs")) // nothing tokenized
+	snap := st.Snapshot()
+	open := strings.Index(snap.Line(0), "{")
+	st.MoveCaret(open, false)
+	st.Execute("editor.action.jumpToBracket", nil)
+	if h, want := st.Primary().Head, snap.LineStart(301); h != want {
+		t.Fatalf("jumpToBracket: caret %d, want %d (line 302's })", h, want)
+	}
+	st.MoveCaret(snap.LineStart(150)+1, false)
+	st.Execute("editor.action.selectToBracket", nil)
+	if s := st.Primary(); s.Anchor != open || s.Head != snap.LineStart(301)+1 {
+		t.Errorf("selectToBracket = %+v", s)
+	}
+}
+
+// TestMatchBracketsFarNoBackground: with no background Highlighter, the
+// View's match of a bracket whose pair is far below keeps requesting
+// frames (the query tokenizes the lines itself) until it is found.
+func TestMatchBracketsFarNoBackground(t *testing.T) {
+	goText(t)
+	var sb strings.Builder
+	sb.WriteString("func f() {\n")
+	for i := range 20000 {
+		fmt.Fprintf(&sb, "\tx%d := g(%d)\n", i, i)
+	}
+	sb.WriteString("}\n")
+	st := NewState(sb.String(), "a.go", theme.Base("vs"))
+	// A small frame budget, often spent at the moment the tree has caught
+	// up with the tokenized lines: the query still tokenizes further and
+	// asks for the next frame.
+	defer func(b time.Duration) { bracketFrameBudget = b }(bracketFrameBudget)
+	bracketFrameBudget = 300 * time.Microsecond
+	if raceEnabled {
+		bracketFrameBudget *= 10 // the same work per frame, 10× slower
+	}
+	d, vw := viewDriver(st, 400, 300, nil)
+	d.Frame()
+	d.Click(geom.Pt(300, 250)) // focus
+	st.MoveCaret(strings.Index(sb.String(), "{"), false)
+	close := st.Snapshot().LineStart(20001)
+	for frames := 1; ; frames++ {
+		d.Frame()
+		if m := (*vw).vs.match; len(m) == 2 {
+			if m[1].a != close {
+				t.Fatalf("matched %v, want the } at %d", m, close)
+			}
+			t.Logf("matched after %d frames", frames)
+			break
+		}
+		if !d.NeedsFrame() {
+			t.Fatalf("frame %d: no match and no frame requested", frames)
+		}
+		if frames > maxMatchFrames {
+			t.Fatal("no match within maxMatchFrames frames")
+		}
+	}
+}
+
+// TestBracketColorsLanguageSwitch: the colors cached for a text follow a
+// language change (the snapshot is the same).
+func TestBracketColorsLanguageSwitch(t *testing.T) {
+	goText(t)
+	st := NewState("x := ((1))\n", "a.go", theme.Base("vs"))
+	d, vw := viewDriver(st, 400, 100, nil)
+	d.Frame()
+	d.Frame()
+	if len((*vw).vs.brk[0]) == 0 {
+		t.Fatal("go: brackets not colored")
+	}
+	st.Model.SetLanguage(PlainText)
+	d.Frame()
+	if sp := (*vw).vs.brk[0]; len(sp) != 0 {
+		t.Errorf("plain text: brackets still colored %v", sp)
+	}
+}
+
+// TestMatchManyCursorsBounded: carets far apart in a long function, with
+// no background Highlighter: however many carets query, a frame's bracket
+// work overruns its budget at most once (minOverrun), and in a document
+// the frames can tokenize in time every caret gets matched, the undecided
+// carets going first in the next frame.
+func TestMatchManyCursorsBounded(t *testing.T) {
+	for _, c := range []struct {
+		lines, carets, frames int
+		all                   bool
+	}{{100_000, 100, 40, false}, {6_000, 30, maxMatchFrames, true}} {
+		var sb strings.Builder
+		sb.WriteString("func f() {\n")
+		for i := range c.lines {
+			fmt.Fprintf(&sb, "\tx%d := g(%d)\n", i, i)
+		}
+		sb.WriteString("}\n")
+		st := NewState(sb.String(), "a.go", theme.Base("vs"))
+		snap := st.Snapshot()
+		var sels []Selection
+		for k := range c.carets {
+			off := snap.LineStart(1+k*(c.lines/c.carets)) + 2
+			sels = append(sels, Selection{Anchor: off, Head: off})
+		}
+		st.SetSelections(sels)
+		tr := st.Model.brackets()
+		budget := bracketFrameBudget
+		if raceEnabled {
+			budget *= 10 // the same work per frame, 10× slower
+		}
+		// The budget, the work allowed past it, a slow line; relaxed under
+		// the race detector and on shared CI runners (gateLimit), where a
+		// frame's wall time includes the runner's preemption.
+		limit := gateLimit(bracketFrameBudget + minOverrun + time.Millisecond)
+		from, over := 0, 0
+		done := false
+		res := make([]caretMatch, len(sels))
+		for frame := 0; frame < c.frames && !done; frame++ {
+			tr.beginFrame()
+			tr.unsure = false
+			start := time.Now()
+			unsure := st.matchCarets(MatchBracketsAlways, start.Add(budget), from, res)
+			el := time.Since(start)
+			out := matchRanges(res)
+			if el > 3*limit {
+				t.Fatalf("%d lines, %d carets, frame %d: bracket work %v, want at most %v", c.lines, c.carets, frame, el, limit)
+			}
+			if el > limit {
+				over++ // a collection or a slow line; not frame after frame
+			}
+			if unsure < 0 {
+				if len(out) != 2*len(sels) {
+					t.Fatalf("frame %d: %d brackets matched, want %d", frame, len(out), 2*len(sels))
+				}
+				t.Logf("%d lines: all %d carets matched after %d frames", c.lines, c.carets, frame+1)
+				done = true
+			}
+			from = max(unsure, 0)
+		}
+		if over > c.frames/20+1 {
+			t.Errorf("%d lines: %d frames over %v", c.lines, over, limit)
+		}
+		if c.all && !done {
+			t.Errorf("%d lines: carets not all matched within %d frames", c.lines, c.frames)
+		}
+	}
+}
+
+// TestMatchManyCursorsConverge: 100 carets in a 30 000-line function, each
+// enclosed by the function's braces: once the tree is complete each caret
+// still costs a scan, more than one frame's budget for all. The View keeps
+// the carets decided in earlier frames, so the shown matches only grow,
+// every caret is matched within a bounded number of frames and the frame
+// requests then stop.
+func TestMatchManyCursorsConverge(t *testing.T) {
+	goText(t)
+	const lines, carets = 30_000, 100
+	var sb strings.Builder
+	sb.WriteString("func f() {\n")
+	for i := range lines {
+		fmt.Fprintf(&sb, "\tx%d := g(%d)\n", i, i)
+	}
+	sb.WriteString("}\n")
+	st := NewState(sb.String(), "a.go", theme.Base("vs"))
+	if raceEnabled {
+		defer func(b time.Duration) { bracketFrameBudget = b }(bracketFrameBudget)
+		bracketFrameBudget *= 10 // the same work per frame, 10× slower
+	}
+	d, vw := viewDriver(st, 400, 300, nil)
+	d.Frame()
+	d.Click(geom.Pt(300, 250)) // focus
+	snap := st.Snapshot()
+	var sels []Selection
+	for k := range carets {
+		off := snap.LineStart(1+k*(lines/carets)) + 2
+		sels = append(sels, Selection{Anchor: off, Head: off})
+	}
+	st.SetSelections(sels)
+	open, close := strings.Index(sb.String(), "{"), snap.LineStart(lines+1)
+	// About 110 frames on an idle machine: tokenizing for the tree, then
+	// one for the carets. A frame's budget is wall time, so a loaded
+	// machine (or -race) needs more frames; minOverrun makes every frame
+	// progress, and the View gives up after maxMatchFrames.
+	bound := maxMatchFrames
+	shown := 0
+	for frames := 1; ; frames++ {
+		d.Frame()
+		m := (*vw).vs.match
+		if len(m) < shown {
+			t.Fatalf("frame %d: %d brackets shown, %d the frame before", frames, len(m), shown)
+		}
+		shown = len(m)
+		for k := 0; k < len(m); k += 2 {
+			if m[k].a != open || m[k+1].a != close {
+				t.Fatalf("frame %d: matched %v %v, want the function's braces", frames, m[k], m[k+1])
+			}
+		}
+		if len(m) == 2*carets {
+			t.Logf("all carets matched after %d frames", frames)
+			break
+		}
+		if !d.NeedsFrame() {
+			t.Fatalf("frame %d: %d of %d carets matched and no frame requested", frames, len(m)/2, carets)
+		}
+		if frames > bound {
+			t.Fatalf("%d of %d carets matched after %d frames", len(m)/2, carets, frames)
+		}
+	}
+	// Converged: the match no longer asks for frames.
+	d.Frame()
+	if d.NeedsFrame() {
+		t.Error("frames still requested after every caret matched")
+	}
+	if len((*vw).vs.match) != 2*carets {
+		t.Errorf("%d brackets shown after converging, want %d", len((*vw).vs.match), 2*carets)
 	}
 }

@@ -3,6 +3,8 @@
 package monarch
 
 import (
+	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -12,6 +14,12 @@ import (
 // assertBudget 检查墙钟预算。-race 下检测器把执行拖慢数倍，预算断言在 budget_race_test.go 里是空操作。
 func assertBudget(t testing.TB, what string, d, limit time.Duration) {
 	t.Helper()
+	// Shared CI runners (TANGO_SMOKE_TIMEOUT_SCALE, which CI sets) are
+	// slower and vary by 2x and more from run to run; the budgets catch
+	// superlinear blow-ups, which miss them by far more.
+	if f, err := strconv.ParseFloat(os.Getenv("TANGO_SMOKE_TIMEOUT_SCALE"), 64); err == nil && f > 1 {
+		limit = time.Duration(float64(limit) * 2 * f)
+	}
 	if d > limit {
 		t.Fatalf("%s took %v (> %v)", what, d, limit)
 	}

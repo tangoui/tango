@@ -1,6 +1,6 @@
 // The duplex examples' benchmark (window.duplexBench), served as /bench.js
 // by services.BenchRoute: examples/duplex's page (-bench) and
-// examples/duplex-ios (index.html?bench) run the same code. See
+// examples/duplex-mobile (index.html?bench) run the same code. See
 // docs/ipc-bench.md for the fields.
 "use strict";
 

@@ -42,6 +42,8 @@ var gtkTest struct {
 type gtkTestHost struct {
 	mu    sync.Mutex
 	queue []func()
+
+	onEvent func(platform.SurfaceID, platform.SurfaceEvent) // main thread; set from onMain
 }
 
 func (h *gtkTestHost) Drain() {
@@ -59,12 +61,17 @@ func (h *gtkTestHost) Drain() {
 	}
 }
 
-func (h *gtkTestHost) OnLifecycle(platform.LifecycleEvent)                      {}
-func (h *gtkTestHost) ShouldClose(platform.SurfaceID) bool                      { return true }
-func (h *gtkTestHost) OnSurfaceEvent(platform.SurfaceID, platform.SurfaceEvent) {}
-func (h *gtkTestHost) OnMessage(platform.SurfaceID, string, string)             {}
+func (h *gtkTestHost) OnLifecycle(platform.LifecycleEvent)          {}
+func (h *gtkTestHost) ShouldClose(platform.SurfaceID) bool          { return true }
+func (h *gtkTestHost) OnMessage(platform.SurfaceID, string, string) {}
 func (h *gtkTestHost) ServeAsset(_ platform.SurfaceID, w http.ResponseWriter, _ *http.Request) {
 	http.NotFound(w, nil)
+}
+
+func (h *gtkTestHost) OnSurfaceEvent(id platform.SurfaceID, ev platform.SurfaceEvent) {
+	if fn := h.onEvent; fn != nil {
+		fn(id, ev)
+	}
 }
 
 func TestMain(m *testing.M) {

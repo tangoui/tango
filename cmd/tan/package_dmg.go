@@ -8,7 +8,7 @@ package main
 // without showing it in Finder (-nobrowse), writes .DS_Store (whose
 // background alias needs the files' catalog ids on the mounted volume),
 // sets the volume's custom-icon flag, detaches, and converts the image to
-// a compressed read-only one.
+// a read-only LZMA-compressed one (ULMO).
 
 import (
 	"cmp"
@@ -178,7 +178,10 @@ func packageDarwin(ctx context.Context, cfg *Config, a artifact) ([]string, erro
 
 	dmg := filepath.Join(filepath.Dir(a.dir), artifactBase(cfg, a.target)+".dmg")
 	os.Remove(dmg)
-	if err := runIn(ctx, "", nil, "hdiutil", "convert", "-quiet", rw, "-format", "UDZO", "-imagekey", "zlib-level=9", "-ov", "-o", dmg); err != nil {
+	// ULMO (LZMA) is the smallest read-only format hdiutil offers, about a
+	// quarter smaller than UDZO for a Go app; it mounts on macOS 10.15 and
+	// later, below the LSMinimumSystemVersion tan writes (11.0).
+	if err := runIn(ctx, "", nil, "hdiutil", "convert", "-quiet", rw, "-format", "ULMO", "-ov", "-o", dmg); err != nil {
 		return nil, err
 	}
 	return []string{dmg}, nil
