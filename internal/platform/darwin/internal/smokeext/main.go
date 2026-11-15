@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/tangoui/tango"
@@ -65,7 +66,7 @@ func main() {
 		})})
 
 	var normal, frameless *tango.Surface
-	steps := make(chan string, 64) // messages and events, consumed by the script goroutine
+	steps := newStepLog() // messages and events, retained until a check consumes them
 
 	app.OnMessage(func(s *tango.Surface, msg string) {
 		if strings.HasPrefix(msg, "\x00") {
@@ -125,40 +126,64 @@ func main() {
 	fmt.Printf("PASS: all %d checks\n", len(want))
 }
 
-// waitStepSeen is waitStep that also returns the steps it skipped.
-func waitStepSeen(steps <-chan string, prefix string, d time.Duration) (string, []string, bool) {
-	var seen []string
+// stepLog keeps every native callback until a check consumes the matching
+// prefix. Waiting for one kind of event never discards another kind that
+// arrived early, and callbacks never block the main thread.
+type stepLog struct {
+	mu    sync.Mutex
+	items []string
+	wake  chan struct{}
+}
+
+func newStepLog() *stepLog { return &stepLog{wake: make(chan struct{}, 1)} }
+
+func (l *stepLog) add(s string) {
+	l.mu.Lock()
+	l.items = append(l.items, s)
+	l.mu.Unlock()
+	select {
+	case l.wake <- struct{}{}:
+	default:
+	}
+}
+
+func (l *stepLog) take(prefix string) (string, bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for i, s := range l.items {
+		if strings.HasPrefix(s, prefix) {
+			copy(l.items[i:], l.items[i+1:])
+			l.items = l.items[:len(l.items)-1]
+			return s, true
+		}
+	}
+	return "", false
+}
+
+// pending returns the steps no check has taken yet.
+func (l *stepLog) pending() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]string(nil), l.items...)
+}
+
+// waitStep waits for and consumes a step with the given prefix. Other
+// steps remain available to later checks.
+func waitStep(steps *stepLog, prefix string, d time.Duration) (string, bool) {
 	deadline := time.After(scaled(d))
 	for {
+		if s, ok := steps.take(prefix); ok {
+			return s, true
+		}
 		select {
-		case s := <-steps:
-			if strings.HasPrefix(s, prefix) {
-				return s, seen, true
-			}
-			seen = append(seen, s)
+		case <-steps.wake:
 		case <-deadline:
-			return "", seen, false
+			return steps.take(prefix)
 		}
 	}
 }
 
-// waitStep waits for a step with the given prefix, skipping others, for at
-// most d stretched by TANGO_SMOKE_TIMEOUT_SCALE (shared CI runners).
-func waitStep(steps <-chan string, prefix string, d time.Duration) (string, bool) {
-	deadline := time.After(scaled(d))
-	for {
-		select {
-		case s := <-steps:
-			if strings.HasPrefix(s, prefix) {
-				return s, true
-			}
-		case <-deadline:
-			return "", false
-		}
-	}
-}
-
-func script(app *tango.App, sp **tango.Surface, steps chan string) {
+func script(app *tango.App, sp **tango.Surface, steps *stepLog) {
 	s := *sp
 	if _, ok := waitStep(steps, "msg:ready:", 2*time.Second); !ok {
 		fail("normal-created", "page never became ready")
@@ -211,13 +236,12 @@ func script(app *tango.App, sp **tango.Surface, steps chan string) {
 	if _, ok := waitStep(steps, "loaded", 2*time.Second); ok {
 		pass("reload-loaded", "")
 	}
-	if ev, seen, ok := waitStepSeen(steps, "msg:echo:after-reload", time.Second); ok {
+	if ev, ok := waitStep(steps, "msg:echo:after-reload", time.Second); ok {
 		pass("send-after-reload", ev)
 	} else {
-		// Intermittent on CI macOS runners only (never reproduced locally,
-		// even under load): say what did arrive, so the annotation tells a
-		// late echo from a lost message or one delivered to another page.
-		fail("send-after-reload", fmt.Sprintf("no echo within %v; steps seen meanwhile: %q", scaled(time.Second), seen))
+		// Say what is left unconsumed, so the CI annotation tells a late
+		// echo from a lost message or one delivered to another page.
+		fail("send-after-reload", fmt.Sprintf("no echo within %v; pending steps: %q", scaled(time.Second), steps.pending()))
 	}
 
 	// A provisional failure keeps the old page: the probe delivers to it.
@@ -250,15 +274,12 @@ func script(app *tango.App, sp **tango.Surface, steps chan string) {
 
 var hiddenFailed bool
 
-// emit never blocks the main thread.
-func emit(steps chan string, s string) {
+// emit never blocks the main thread or drops a step.
+func emit(steps *stepLog, s string) {
 	if os.Getenv("SMOKE_DEBUG") != "" {
 		logf("  step %q", s)
 	}
-	select {
-	case steps <- s:
-	default:
-	}
+	steps.add(s)
 }
 
 // deadURL is an http URL on a local port nobody listens on.

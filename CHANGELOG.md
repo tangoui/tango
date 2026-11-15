@@ -65,6 +65,8 @@
 
 ### 修复
 
+- Linux GL：仅装 EGL/Mesa/libepoxy、缺少 `libGL.so.1` 与 `libOpenGL.so.0` 时，GPU 初始化返回不可用错误，允许上层退回 CPU，不再被 libepoxy 的延迟加载直接终止进程。
+- `tan dev`：控制连接的登记与 `Welcome` 发送在同一把锁下完成，避免刚握手成功时遗漏热加载完成的 `Swapped` 通知。
 - `sys/pty`（Windows）：关闭 ConPTY 前先读完剩余输出，不再丢掉最后一段；文档说明 Windows 上的 EOF 行为。
 - **水波图文字**：`chart.Liquid` 水位过半时，数值和标题的颜色按合成后的水色明暗选白色或深色，不再固定为白色（shadcn/ui v4 neutral 的 chart-1 是浅灰，白字看不清）。
 - Android：资源响应不再带两个 `Content-Length`（以前是 `585, 585`，流式响应是 `0, 3145728`）。WebView 自己按响应体流的 `available()` 设置这个头，后端改为通过它报告处理函数的长度，不再另传头；HEAD 响应报告 GET 的长度。资源处理函数 panic 时返回 `tango: asset handler panic: <原因>`，与 macOS/iOS 一致（以前是 `tango: asset handler panicked`）。
