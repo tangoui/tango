@@ -14,10 +14,11 @@ type Screen struct {
 	cols, rows int
 	scrollback int // capacity of the scrollback, in lines
 
-	ring   []Line // len rows+scrollback; grows lazily up to that
-	head   int    // ring index of the oldest line (scrollback or row 0)
-	sbLen  int    // lines in the scrollback
-	offset int    // viewport offset from the bottom, in [0, sbLen]
+	ring       []Line // len rows+scrollback; grows lazily up to that
+	head       int    // ring index of the oldest line (scrollback or row 0)
+	sbLen      int    // lines in the scrollback
+	offset     int    // viewport offset from the bottom, in [0, sbLen]
+	generation uint64
 	// dropped counts the lines removed from the top (see Evicted).
 	dropped uint64
 
@@ -95,7 +96,13 @@ func (s *Screen) ViewOffset() int { return s.offset }
 
 // SetViewOffset scrolls the viewport n lines up from the bottom, clamped
 // to [0, ScrollbackLen].
-func (s *Screen) SetViewOffset(n int) { s.offset = min(max(n, 0), s.sbLen) }
+func (s *Screen) SetViewOffset(n int) {
+	n = min(max(n, 0), s.sbLen)
+	if n != s.offset {
+		s.offset = n
+		s.generation++
+	}
+}
 
 // ScrollUp scrolls active rows top through bottom (inclusive) up one line
 // and blanks row bottom. If top is 0 and the screen keeps scrollback, the
@@ -230,6 +237,7 @@ func (s *Screen) ClearScrollback() {
 	s.dropped += uint64(s.sbLen)
 	s.setLines(all[s.sbLen:], 0)
 	s.offset = 0
+	s.generation++
 	s.styles.resetBackoff()
 }
 

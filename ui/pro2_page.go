@@ -24,9 +24,8 @@ import (
 // Pinned, the bar is frosted: the page under it is blurred
 // (paint.BackdropBlur) and shows through a translucent background
 // (FooterToolbarToken: BlurRadius, FrostedBg per design system). In flow,
-// with a high-contrast theme, or on a renderer without backdrop blur, the
-// bar draws its plain background (FooterToolbarToken.Bg; opaque in high
-// contrast). The blurred region follows the bar's rectangle, in
+// the bar draws the token background. High-contrast themes and renderers
+// without backdrop blur use an opaque BgContainer only while pinned. The blurred region follows the bar's rectangle, in
 // right-to-left layouts too (nothing is mirrored).
 
 // FooterToolbarW builds a FooterToolbar.
@@ -126,15 +125,16 @@ func (f *FooterToolbarW) surface(b *Box) {
 	c := f.c
 	th := c.ThemeFor(theme.CompFooterToolbar)
 	tk := &th.Components.FooterToolbar
-	if th.HighContrast {
-		// No translucency: the bar reads against whatever scrolls by.
-		b.Bg(theme.Over(th.BgContainer, theme.Hex("#ffffff")))
-		return
-	}
-	if f.affix != nil && f.affix.Affixed() && tk.BlurRadius > 0 && !c.noBlur {
-		b.Bg(tk.FrostedBg)
-		b.blur = tk.BlurRadius
-		return
+	if f.affix != nil && f.affix.Affixed() {
+		if th.HighContrast || c.noBlur {
+			b.Bg(th.BgContainer)
+			return
+		}
+		if tk.BlurRadius > 0 {
+			b.Bg(tk.FrostedBg)
+			b.blur = tk.BlurRadius
+			return
+		}
 	}
 	b.Bg(tk.Bg)
 }
