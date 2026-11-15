@@ -10,7 +10,7 @@ title: Confirm 确认框
 - 操作前的二次确认，例如删除、清空、提交审核、离开未保存的页面。
 - 告知一个需要用户确认知晓的结果（`MessageBox`），例如“订单已提交”“网络请求失败”。
 - 只需要输入一个值（`Prompt`），例如重命名、修改邮箱。
-- 内容复杂、包含多个字段或自定义布局时，用 [Modal 对话框](/components/modal)；就地的轻量确认（按钮旁边弹出）用 [Popconfirm](/components/catalog/popconfirm)；不需要用户确认的反馈用 [Message](/components/message)。
+- 内容复杂、包含多个字段或自定义布局时，用 [Modal 对话框](/components/modal)；就地的轻量确认（按钮旁边弹出）用 [Popconfirm](/components/popconfirm)；不需要用户确认的反馈用 [Message](/components/message)。
 
 ## 在线体验
 
@@ -187,7 +187,7 @@ func page(c *ui.Context) {
 }
 ```
 
-MessageBox 和 Prompt 各自也有生成的示例页：[MessageBox 信息提示](/components/catalog/messagebox)、[Prompt 输入框](/components/catalog/prompt)。
+MessageBox 和 Prompt 各自也有生成的示例页：[MessageBox 信息提示](/components/messagebox)、[Prompt 输入框](/components/prompt)。
 
 ## 主题与样式
 
@@ -215,5 +215,5 @@ Confirm / MessageBox / Prompt 与 [Modal](/components/modal#主题与样式) 共
 
 - [源码 ui/more_confirm.go](https://github.com/tangoui/tango/blob/main/ui/more_confirm.go)
 - [Go API 参考](/reference/api/ui)
-- [Modal 对话框](/components/modal)、[Popconfirm](/components/catalog/popconfirm)、[MessageBox](/components/catalog/messagebox)、[Prompt](/components/catalog/prompt)
+- [Modal 对话框](/components/modal)、[Popconfirm](/components/popconfirm)、[MessageBox](/components/messagebox)、[Prompt](/components/prompt)
 - [组件总览](/components/)

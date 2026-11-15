@@ -9,7 +9,7 @@ title: Tooltip 文字提示
 
 - 给图标按钮、缩写、被截断的文字补充说明，例如“刷新”“复制链接”“最后修改于 2026-11-13 10:24”。
 - 只承载简短的纯文字（或少量富文本），不放可交互的内容。
-- 需要标题、按钮、链接等可点击内容时，用 [Popover 气泡卡片](/components/popover)；需要确认操作时用 [Popconfirm](/components/catalog/popconfirm)；表单字段的说明可以用表单项的 `Tooltip` 方法。
+- 需要标题、按钮、链接等可点击内容时，用 [Popover 气泡卡片](/components/popover)；需要确认操作时用 [Popconfirm](/components/popconfirm)；表单字段的说明可以用表单项的 `Tooltip` 方法。
 
 ## 在线体验
 
@@ -177,5 +177,5 @@ func page(c *ui.Context) {
 
 - [源码 ui/display.go](https://github.com/tangoui/tango/blob/main/ui/display.go)
 - [Go API 参考](/reference/api/ui)
-- [Popover 气泡卡片](/components/popover)、[Popconfirm](/components/catalog/popconfirm)
+- [Popover 气泡卡片](/components/popover)、[Popconfirm](/components/popconfirm)
 - [组件总览](/components/)

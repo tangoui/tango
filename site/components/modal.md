@@ -8,9 +8,9 @@ title: Modal 对话框
 ## 何时使用
 
 - 需要用户处理事务，又不希望跳转页面打断工作流时，例如新建 / 编辑一条记录、查看详情、二次确认带说明的操作。
-- 只需要一句话确认（“确定删除吗？”）时，用命令式的 [Confirm 确认框](/components/confirm) 更省事，不必自己维护打开状态；只需要告知结果时用 [MessageBox](/components/catalog/messagebox)。
+- 只需要一句话确认（“确定删除吗？”）时，用命令式的 [Confirm 确认框](/components/confirm) 更省事，不必自己维护打开状态；只需要告知结果时用 [MessageBox](/components/messagebox)。
 - 内容较多、需要和页面对照着看（例如长表单、详情面板），用 [Drawer 抽屉](/components/drawer)。
-- 轻量的、不打断操作的反馈用 [Message 全局提示](/components/message) 或 [Notification 通知提醒框](/components/notification)；就地的小确认用 [Popconfirm](/components/catalog/popconfirm)。
+- 轻量的、不打断操作的反馈用 [Message 全局提示](/components/message) 或 [Notification 通知提醒框](/components/notification)；就地的小确认用 [Popconfirm](/components/popconfirm)。
 
 ## 在线体验
 
@@ -351,5 +351,5 @@ func page(c *ui.Context) {
 
 - [源码 ui/feedback.go](https://github.com/tangoui/tango/blob/main/ui/feedback.go)
 - [Go API 参考](/reference/api/ui)
-- [Confirm 确认框](/components/confirm)、[Drawer 抽屉](/components/drawer)、[ModalForm](/components/modalform)、[Popconfirm](/components/catalog/popconfirm)
+- [Confirm 确认框](/components/confirm)、[Drawer 抽屉](/components/drawer)、[ModalForm](/components/modalform)、[Popconfirm](/components/popconfirm)
 - [组件总览](/components/)
