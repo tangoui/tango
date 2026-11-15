@@ -90,7 +90,6 @@ func pageHarness(t *testing.T) (*terminalApp, *ui.Driver, map[string]*screenConn
 		t.Fatal(err)
 	}
 	d := ui.NewDriver(a.page, ui.DriverOptions{Width: 1100, Height: 720, Theme: a.theme(), Accessibility: true})
-	a.setTheme = d.SetTheme
 	d.Settle()
 	t.Cleanup(a.workspace.close)
 	return a, d, connections
@@ -209,6 +208,10 @@ func TestPageThemeAndLaunchFailure(t *testing.T) {
 	clickControl(t, d, "Light theme")
 	if a.dark {
 		t.Fatal("theme toggle did not change state")
+	}
+	r, g, b, _ := d.Frame().At(4, 4).RGBA()
+	if r+g+b < 3*0x8000 {
+		t.Fatal("light theme kept painting a dark background")
 	}
 	clickControl(t, d, "Dark theme")
 	a.workspace.openSession = func(string) (*session, error) { return nil, errors.New("test shell unavailable") }
