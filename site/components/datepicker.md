@@ -227,5 +227,5 @@ func page(c *ui.Context) {
 
 - [源码 ui/date.go](https://github.com/tangoui/tango/blob/main/ui/date.go)、[ui/entry_daterange.go](https://github.com/tangoui/tango/blob/main/ui/entry_daterange.go)、[ui/date_multi.go](https://github.com/tangoui/tango/blob/main/ui/date_multi.go)、[ui/entry_datetime.go](https://github.com/tangoui/tango/blob/main/ui/entry_datetime.go)
 - [ui Go API](/reference/api/ui)
-- [RangePicker 日期范围选择](/components/catalog/rangepicker)、[DateTimePicker 日期时间选择](/components/catalog/datetimepicker)
+- [RangePicker 日期范围选择](/components/rangepicker)、[DateTimePicker 日期时间选择](/components/datetimepicker)
 - [TimePicker 时间选择框](/components/timepicker)、[Calendar 日历](/components/calendar)、[Form 表单](/components/form)

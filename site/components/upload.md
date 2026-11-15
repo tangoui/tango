@@ -9,7 +9,7 @@ title: Upload 上传
 
 - 需要上传一个或多个文件（附件、头像、图片集）时。
 - 需要显示上传进度、失败重试，或限制文件类型、大小和数量时。
-- 只想让某块区域在文件拖入时高亮、自己处理拖入的文件时，用 [DropZone 拖入文件高亮](/components/catalog/dropzone)。
+- 只想让某块区域在文件拖入时高亮、自己处理拖入的文件时，用 [DropZone 拖入文件高亮](/components/dropzone)。
 
 ## 在线体验
 
@@ -213,4 +213,4 @@ func page(c *ui.Context) {
 
 - [源码 ui/entry_upload.go](https://github.com/tangoui/tango/blob/main/ui/entry_upload.go)、[ui/p2d_upload.go](https://github.com/tangoui/tango/blob/main/ui/p2d_upload.go)、[uihost/upload.go](https://github.com/tangoui/tango/blob/main/uihost/upload.go)
 - [ui Go API](/reference/api/ui)、[uihost Go API](/reference/api/uihost)
-- [DropZone 拖入文件高亮](/components/catalog/dropzone)、[Form 表单](/components/form)、[ProForm 高级表单](/components/proform)（`upload` 值类型）
+- [DropZone 拖入文件高亮](/components/dropzone)、[Form 表单](/components/form)、[ProForm 高级表单](/components/proform)（`upload` 值类型）

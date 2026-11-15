@@ -9,7 +9,7 @@ title: TimePicker 时间选择框
 
 - 需要用户输入一个时刻（提醒时间、营业开始时间）时。
 - 需要同时选择日期和时间时，用 [DatePicker](/components/datepicker) 中的 `DateTimePicker`；选择一段日期用 `RangePicker`。
-- 只能从固定间隔的几个时间点中选择（例如每 30 分钟一个档位）时，用下拉列表风格的 [TimeSelect](/components/catalog/timeselect) 更直接。
+- 只能从固定间隔的几个时间点中选择（例如每 30 分钟一个档位）时，用下拉列表风格的 [TimeSelect](/components/timeselect) 更直接。
 
 ## 在线体验
 
@@ -184,5 +184,5 @@ func page(c *ui.Context) {
 
 - [源码 ui/entry_time.go](https://github.com/tangoui/tango/blob/main/ui/entry_time.go)、[ui/p2a_time_range.go](https://github.com/tangoui/tango/blob/main/ui/p2a_time_range.go)
 - [ui Go API](/reference/api/ui)
-- [TimeRangePicker 时间范围](/components/catalog/timerangepicker)、[TimeSelect](/components/catalog/timeselect)
+- [TimeRangePicker 时间范围](/components/timerangepicker)、[TimeSelect](/components/timeselect)
 - [DatePicker 日期选择框](/components/datepicker)、[Form 表单](/components/form)

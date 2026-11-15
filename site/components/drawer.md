@@ -211,5 +211,5 @@ func page(c *ui.Context) {
 
 - [源码 ui/feedback.go](https://github.com/tangoui/tango/blob/main/ui/feedback.go)
 - [Go API 参考](/reference/api/ui)
-- [Modal 对话框](/components/modal)、[DrawerForm（见 ModalForm）](/components/catalog/modalform)
+- [Modal 对话框](/components/modal)、[DrawerForm（见 ModalForm）](/components/modalform)
 - [组件总览](/components/)

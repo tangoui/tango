@@ -294,7 +294,7 @@ func page(c *ui.Context) {
 | `ui.SchemaForm(c, schema)` | 统一入口，用 `LayoutType` 在以上外壳之间切换 |
 | `ui.LoginForm(c)` | 登录表单 |
 
-详见 [ModalForm](/components/catalog/modalform)、[StepsForm 分步表单](/components/catalog/stepsform)、[QueryFilter 查询表单](/components/catalog/queryfilter)、[LightFilter 轻量筛选](/components/catalog/lightfilter)、[LoginForm 登录表单](/components/catalog/loginform)。
+详见 [ModalForm](/components/modalform)、[StepsForm 分步表单](/components/stepsform)、[QueryFilter 查询表单](/components/catalog/queryfilter)、[LightFilter 轻量筛选](/components/catalog/lightfilter)、[LoginForm 登录表单](/components/catalog/loginform)。
 
 ## 主题与样式
 

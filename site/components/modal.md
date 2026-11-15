@@ -261,7 +261,7 @@ func page(c *ui.Context) {
 }
 ```
 
-字段多、需要 `OnFinish` 回调和提交中状态时，可直接使用 Pro 组件 [ModalForm](/components/catalog/modalform)（`ui.ModalForm(c, &open, title, fields)`），它把对话框、表单、校验和提交流程打包在一起；抽屉形式用 `ui.DrawerForm`。
+字段多、需要 `OnFinish` 回调和提交中状态时，可直接使用 Pro 组件 [ModalForm](/components/modalform)（`ui.ModalForm(c, &open, title, fields)`），它把对话框、表单、校验和提交流程打包在一起；抽屉形式用 `ui.DrawerForm`。
 
 ### 位置、宽度、拖动与全屏
 
@@ -351,5 +351,5 @@ func page(c *ui.Context) {
 
 - [源码 ui/feedback.go](https://github.com/tangoui/tango/blob/main/ui/feedback.go)
 - [Go API 参考](/reference/api/ui)
-- [Confirm 确认框](/components/confirm)、[Drawer 抽屉](/components/drawer)、[ModalForm](/components/catalog/modalform)、[Popconfirm](/components/catalog/popconfirm)
+- [Confirm 确认框](/components/confirm)、[Drawer 抽屉](/components/drawer)、[ModalForm](/components/modalform)、[Popconfirm](/components/catalog/popconfirm)
 - [组件总览](/components/)
