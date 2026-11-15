@@ -638,7 +638,7 @@ func TestPatchPageGrowsWithUse(t *testing.T) {
 		}
 		sizes = append(sizes, dev.last.ColorSize.X)
 	}
-	want := []int{512, 512, 512, 1024, 2048, 2048, 2048}
+	want := []int{128, 128, 128, 256, 512, 1024, 2048}
 	if fmt.Sprint(sizes) != fmt.Sprint(want) {
 		t.Fatalf("patch page sizes %v, want %v", sizes, want)
 	}
