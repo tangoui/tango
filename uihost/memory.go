@@ -43,7 +43,7 @@ func trimMemory() {
 		v.(*gpuRenderer).trim()
 		return true
 	})
-	text.TrimCaches()
+	text.TrimFontCaches()
 	memRunners.Range(func(k, _ any) bool {
 		k.(*ui.Runner).Invalidate()
 		return true
