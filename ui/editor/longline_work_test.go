@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"image"
 	"math/rand/v2"
 	"slices"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/tangoui/tango/ui/editor/buffer"
+	"github.com/tangoui/tango/ui/editor/monarch"
 	"github.com/tangoui/tango/ui/editor/theme"
 	"github.com/tangoui/tango/ui/input"
 )
@@ -297,34 +299,42 @@ func TestLongLineBracketColorsDrawn(t *testing.T) {
 	mk := func(text string) (*State, *editDriver) {
 		st := newTestState(text, "a.ts", theme.Base("vs"))
 		st.Options.WordWrap = WrapOn
+		retryDegradedAtOnce(st)
 		return st, newEditDriver(st, 700, 420, pinMac)
 	}
 	st, ed := mk(sb.String())
 	bracketLongIndexOff = true
 	ref, red := mk(sb.String())
 	bracketLongIndexOff = false
+	// Drive the actual incremental jobs to completion, not until two
+	// images happen to agree: two equal incomplete frames are not done.
+	// Precomputing the tree still leaves the View to derive this frame's
+	// colors and sticky header; no previous paint supplies those colors.
+	settledFrame := func(s *State, d *editDriver) *image.RGBA {
+		for frames := 0; frames < maxMatchFrames; frames++ {
+			settleTokens(t, s)
+			tr := s.Model.brackets()
+			tr.beginFrame()
+			tr.ensure(modelBrackets{s.Model}, s.Snapshot().LineCount(), time.Now().Add(bracketFrameBudget))
+			_, _, degradedBefore := monarch.Stats()
+			img := d.Frame()
+			_, _, degradedAfter := monarch.Stats()
+			// TokenizeSpan (used to paint long-line windows) deliberately
+			// stores nothing, so Done alone cannot detect its degraded
+			// output. Only compare a frame whose lexer work also finished.
+			if tr.complete() && s.Highlighter().Done(s.Snapshot()) && degradedBefore == degradedAfter {
+				return img
+			}
+		}
+		t.Fatal("tokens and bracket tree not final within maxMatchFrames")
+		return nil
+	}
 	// The text area's pixels (the minimap's tokens follow the clock).
 	frame := func(s *State, d *editDriver, top int, off bool) []byte {
 		bracketLongIndexOff = off
 		defer func() { bracketLongIndexOff = false }()
-		if hl := s.Highlighter(); hl != nil {
-			hl.Highlight(s.Snapshot(), s.Snapshot().LineCount(), time.Minute)
-		}
-		// One frame after the scroll: the sticky header must take this
-		// frame's colors, not the previous frame's.
 		s.Viewport.TopLine = top
-		img := d.Frame()
-		// The reference scans the whole line within the frame's bracket
-		// budget: when a slow build (-race) runs out of it, its colors
-		// come in later frames. Let it settle (the indexed view under
-		// test gets one frame).
-		for i := 0; off && i < 20; i++ {
-			prev := slices.Clone(img.Pix) // the driver may reuse the image
-			img = d.Frame()
-			if slices.Equal(img.Pix, prev) {
-				break
-			}
-		}
+		img := settledFrame(s, d)
 		tr := (*d.vw).vs.text
 		var px []byte
 		for y := int(tr.Y); y < int(tr.Y+tr.H); y++ {
@@ -373,11 +383,8 @@ func TestLongLineBracketColorsDrawn(t *testing.T) {
 	frameRect := func(s *State, d *editDriver, off bool) []byte {
 		bracketLongIndexOff = off
 		defer func() { bracketLongIndexOff = false }()
-		if hl := s.Highlighter(); hl != nil {
-			hl.Highlight(s.Snapshot(), s.Snapshot().LineCount(), time.Minute)
-		}
 		s.Viewport.TopLine = top
-		img := d.Frame()
+		img := settledFrame(s, d)
 		vs := (*d.vw).vs
 		if len(vs.stickyClips) == 0 {
 			t.Fatal("no sticky header")
@@ -413,6 +420,7 @@ func TestShortLineNextToLongLineCopies(t *testing.T) {
 	text := "f(\n  a\n" + long + "),\n[\n  b\n" + long + "]\n"
 	st := newTestState(text, "a.ts", theme.Base("vs"))
 	st.Options.WordWrap = WrapOn
+	retryDegradedAtOnce(st)
 	ed := newEditDriver(st, 700, 420, pinMac)
 	ed.focus(t)
 	st.MoveCaret(st.Snapshot().LineStart(1)+3, false) // inside f( … ), whose ")" ends line 2
@@ -424,16 +432,51 @@ func TestShortLineNextToLongLineCopies(t *testing.T) {
 	ed.Frame()
 	key()
 	key()
+	// The bracket tree needs the long lines' tokens final (settleTokens),
+	// before the counted keys as after them.
+	settleTokens(t, st)
+	ed.Frame()
 	resetWork()
 	const keys = 6
 	for range keys {
 		key()
 	}
+	settleTokens(t, st)
 	if p, ok := st.enclosingBrackets(st.Primary().Head, far); !ok || st.Snapshot().LineOf(p.close.a) != 2 {
 		t.Fatalf("caret's enclosing pair %+v %v, want one closing in line 2", p, ok)
 	}
-	if c := workLineCopies.Load(); c > 0 {
-		t.Errorf("long lines copied %d times over %d keys in a short line", c, keys)
+	if copies := workLineCopies.Load(); copies > 0 {
+		t.Errorf("long lines copied %d times over %d keys in a short line", copies, keys)
+	}
+}
+
+// settleTries bounds the Highlight calls of settleTokens: each retries the
+// lines Monarch degraded once (retryDegradedAtOnce).
+const settleTries = 100
+
+// retryDegradedAtOnce makes st's Highlighter retry a Degraded line at its
+// next call, settleTries times before accepting it. Monarch's line budget
+// is wall time (monarch.LineBudget): on a loaded machine a long line can
+// overrun it and stay not final until the retry RetryDelay later.
+func retryDegradedAtOnce(st *State) {
+	if hl := st.Highlighter(); hl != nil {
+		hl.RetryDelay, hl.MaxRetries = 0, settleTries
+	}
+}
+
+// settleTokens tokenizes st's text until every line is final (Done).
+func settleTokens(t *testing.T, st *State) {
+	t.Helper()
+	hl := st.Highlighter()
+	if hl == nil {
+		return
+	}
+	snap := st.Snapshot()
+	for i := 0; !hl.Done(snap); i++ {
+		if i == settleTries {
+			t.Fatalf("tokens not final after %d Highlight calls", i)
+		}
+		hl.Highlight(snap, snap.LineCount(), time.Minute)
 	}
 }
 

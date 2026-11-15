@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/monarch"
 	"github.com/tangoui/tango/ui/editor/theme"
@@ -57,7 +58,14 @@ type miniBlock struct {
 	color color.NRGBA
 }
 type miniLine struct {
-	text   string
+	text string
+	// The source text was made from (miniatureSource, trimmed): its
+	// length, its first bytes text depends on (miniatureDep: about text
+	// plus a character, not the whole lookahead) and whether the line
+	// goes on after it. A source matching all three gives the same text.
+	dep    string
+	rawLen int
+	short  bool
 	start  monarch.State
 	final  bool
 	tokens []monarch.Token
@@ -75,6 +83,7 @@ type minimapState struct {
 	buf         *buffer.Buffer
 	column, tab int
 	rebuilt     uint64 // cache-line builds, also used by incremental regression tests
+	idle        int    // frames in a row that left rows and built none
 	// The character minimap (minimap_chars.go): the glyph cells in use,
 	// the strip images by strip number, whether the strips are numbered
 	// by sample (rows thinner than a pixel), the last composition number,
@@ -149,13 +158,39 @@ func miniatureLine(s string, columns, tab int) string {
 // boundedMiniature reads a bounded rope slice before inspecting text. A giant
 // combining cluster is omitted, not scanned past the bounded lookahead or split.
 func boundedMiniature(snap buffer.Snapshot, line, from, columns, tab int) string {
+	raw, short := miniatureSource(snap, line, from, columns)
+	return miniatureOf(raw, short, columns, tab)
+}
+
+// miniatureSource is the bounded slice boundedMiniature reads: the line
+// from byte from, at most columns*4+256 bytes; short reports that the
+// line goes on after it. The miniature is miniatureOf(raw, short, ...), a
+// function of these two only, so a minimap row whose source is unchanged
+// keeps its miniature without walking it again.
+func miniatureSource(snap buffer.Snapshot, line, from, columns int) (raw string, short bool) {
 	start := snap.LineStart(line) + from
 	end := lineEnd(snap, line)
 	start = min(start, end)
 	cut := min(end, start+columns*4+256)
-	raw := snap.Slice(start, cut)
+	raw = snap.Slice(start, cut)
 	countAdd(&workMiniBytes, len(raw))
-	if cut < end {
+	return raw, cut < end
+}
+
+// miniatureOf is the miniature of the source raw (miniatureSource): the
+// prefix of raw ending at a grapheme boundary on the display-column grid
+// (miniatureLine), and when short, before the last cluster of raw, which
+// might continue past the lookahead (and before trailing bytes of an
+// incomplete character). It walks raw only up to the columns it keeps.
+func miniatureOf(raw string, short bool, columns, tab int) string {
+	text, _ := miniatureDep(trimMiniSource(raw, short), short, columns, tab)
+	return text
+}
+
+// trimMiniSource drops, when short, the trailing bytes of an incomplete
+// character from raw.
+func trimMiniSource(raw string, short bool) string {
+	if short {
 		for len(raw) > 0 {
 			r, n := utf8.DecodeLastRuneInString(raw)
 			if r != utf8.RuneError || n != 1 || raw[len(raw)-1] < 0x80 {
@@ -163,15 +198,37 @@ func boundedMiniature(snap buffer.Snapshot, line, from, columns, tab int) string
 			}
 			raw = raw[:len(raw)-1]
 		}
-		// The last cluster might continue outside our lookahead. Exclude it.
-		last := 0
-		for i := 0; i < len(raw); {
-			last = i
-			i = nextGrapheme(raw, i)
-		}
-		raw = raw[:last]
 	}
-	return strings.Clone(miniatureLine(raw, columns, tab))
+	return raw
+}
+
+// miniatureDep is miniatureOf of a trimmed source; dep is how many leading
+// bytes of raw the result depends on (with len(raw) and short): the
+// clusters walked and the character after the last one, which
+// nextGrapheme reads to end it. Another source with the same length, the
+// same short and the same first dep bytes has the same miniature.
+func miniatureDep(raw string, short bool, columns, tab int) (text string, dep int) {
+	depAt := func(j int) int { return min(len(raw), j+utf8.UTFMax) }
+	col := 0
+	for i := 0; i < len(raw); {
+		j := nextGrapheme(raw, i)
+		countAdd(&workMiniScan, j-i)
+		if short && j == len(raw) {
+			// The last cluster might continue outside our lookahead.
+			// Exclude it.
+			return strings.Clone(raw[:i]), j
+		}
+		next := advanceCol(col, raw[i:j], tab)
+		if next > columns {
+			return strings.Clone(raw[:i]), depAt(j)
+		}
+		col = next
+		i = j
+		if col >= columns {
+			return strings.Clone(raw[:i]), depAt(j)
+		}
+	}
+	return strings.Clone(raw), len(raw)
 }
 
 // A miniature is a scaled view-row canvas. The scrolling proportional window
@@ -242,6 +299,8 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 	}
 	vs.miniRows = vs.miniRows[:0]
 	keep := make(map[int]bool, count)
+	left := false // rows left for a later frame (the deadline passed)
+	built := m.rebuilt
 	hl := w.st.Highlighter()
 	for k := 0; k < count; k++ {
 		pos := float32(k) * step
@@ -280,8 +339,19 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 		}
 		vs.miniRows = append(vs.miniRows, miniRow{line: line, vrow: vr, key: key, y: y, h: h})
 		keep[key] = true
-		prefix := boundedMiniature(snap, line, from, cols, tab)
 		ln := m.cache[key]
+		// The source decides the miniature: a row whose source is the
+		// cached one's (a row of a long line the key did not change, or
+		// moved without changing) is not walked again.
+		raw, short := miniatureSource(snap, line, from, cols)
+		raw = trimMiniSource(raw, short)
+		var prefix string
+		dep := 0
+		if ln != nil && ln.short == short && ln.rawLen == len(raw) && strings.HasPrefix(raw, ln.dep) {
+			prefix, dep = ln.text, len(ln.dep)
+		} else {
+			prefix, dep = miniatureDep(raw, short, cols, tab)
+		}
 		var start monarch.State
 		final := true
 		var toks []monarch.Token
@@ -302,11 +372,12 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 		}
 		if !cached && hl != nil {
 			if time.Now().After(deadline) {
+				left = true
 				continue
 			}
 			toks = hl.TokenizeSpan(snap, line, prefix, nil)
 		}
-		ln = &miniLine{text: prefix, start: start, final: final, tokens: slices.Clone(toks), blocks: miniBlocksAt(prefix, base, toks, th, tab), base: base}
+		ln = &miniLine{text: prefix, dep: strings.Clone(raw[:dep]), rawLen: len(raw), short: short, start: start, final: final, tokens: slices.Clone(toks), blocks: miniBlocksAt(prefix, base, toks, th, tab), base: base}
 		m.cache[key] = ln
 		m.rebuilt++
 		w.ensureMiniBitmap(ln, th, tab)
@@ -316,9 +387,23 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 			delete(m.cache, i)
 		}
 	}
-	// Like the visible highlighter, unfinished preview work resumes on the
-	// host's next frame (normally its Highlighter.Start ready callback).
-	// A preview must not create a new frame loop or steal the caret's timer.
+	// Rows left for later ask for the next frame (ui.Invalidate, not a
+	// timer: the caret's blink timer stays; what the rows draw is declared
+	// as damage through navPaint, damage.go). The lines in view may all be
+	// final, so the Highlighter's ready callback need not come. A frame
+	// that built no row counts towards maxMiniFrames, which bounds the
+	// frames asked for while the deadline is spent before the minimap
+	// every frame.
+	switch {
+	case !left:
+		m.idle = 0
+	case m.rebuilt != built:
+		m.idle = 0
+		ui.Invalidate(w.c.Window())
+	case m.idle < maxMiniFrames:
+		m.idle++
+		ui.Invalidate(w.c.Window())
+	}
 	v := w.st.Viewport
 	rawScroll := float32(v.scrollY()) / max(1, v.LineHeight)
 	scroll := max(0, rawScroll)
@@ -327,6 +412,10 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 	height := max(0, min(extent-sy, (bottom-scroll)*unit))
 	vs.minimapSlider = geom.Rect{X: r.X, Y: r.Y + sy, W: r.W, H: height}
 }
+
+// maxMiniFrames bounds the frames in a row the minimap asks for without
+// building a row (prepareMinimap).
+const maxMiniFrames = 60
 
 // miniZoneKey is the cache key of a view zone's minimap rows: no line
 // is cached under it, so they draw nothing.

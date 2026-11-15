@@ -22,11 +22,12 @@ type hintWindow struct {
 	size  geom.Size
 	scale float32
 	clip  string
+	asked bool // Invalidate was called (a frame was requested)
 }
 
 func (w *hintWindow) Size() geom.Size              { return w.size }
 func (w *hintWindow) Scale() float32               { return w.scale }
-func (w *hintWindow) Invalidate()                  {}
+func (w *hintWindow) Invalidate()                  { w.asked = true }
 func (w *hintWindow) InvalidateAt(time.Time)       {}
 func (w *hintWindow) SetCursor(input.Cursor)       {}
 func (w *hintWindow) ReadClipboard() string        { return w.clip }
@@ -70,6 +71,7 @@ func newHintHost(t *testing.T, st *State, size geom.Size, scale float32) *hintHo
 // frame runs one frame and reports whether the renderer drew it partially.
 func (h *hintHost) frame() bool {
 	h.t.Helper()
+	h.w.asked = false
 	before := h.dev.Stats().Partial
 	if err := h.r.Frame(); err != nil {
 		h.t.Fatalf("frame %d: %v", h.frames, err)
@@ -172,17 +174,20 @@ func TestViewDamageVerified(t *testing.T) {
 			h.key(input.KeyEnter, 0)
 			h.step("enter")
 
-			// Settle first: the minimap's rows share the frame's
-			// tokenization deadline (minimap.go prepareMinimap) and, when
-			// the frame ran out of it (CPU contention), wait for the next
-			// frame without requesting one — the first blink frame would
-			// draw them. Uncounted frames at the same instant until one
-			// declares no damage.
-			for range 50 {
-				h.frame()
-				if dam, sc := h.lineHints(); len(dam) == 0 && len(sc) == 0 {
-					break
+			// The frames the view asked for (ui.Invalidate) run, as a
+			// host runs them, before the clock reaches the blink: work
+			// left for a later frame (the minimap's rows after the
+			// frame's token deadline, under CPU contention) is drawn
+			// then, not in a blink frame.
+			requested := 0
+			for ; h.w.asked; requested++ {
+				if requested == 50 {
+					t.Fatal("the view keeps asking for frames")
 				}
+				h.step("requested")
+			}
+			if requested > 0 {
+				t.Logf("%d requested frames before the blink", requested)
 			}
 
 			// The caret blinks: the host wakes the runner at NextWake.

@@ -3,6 +3,7 @@ package editor
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"math/rand/v2"
 	"strings"
 	"testing"
@@ -338,7 +339,8 @@ func TestDecorationsPaintGapsWrapLong(t *testing.T) {
 // TestDecorationsDamageVerified runs decorations through the strict
 // verifier (spec 6.8): setting them, typing before and inside them (they
 // move), another owner, a view-only owner, changing one line's decoration
-// (only that row is damaged), scrolling and removing them.
+// (only that row is damaged), scrolling and removing them. Every frame but
+// those changing many rows is drawn partially.
 func TestDecorationsDamageVerified(t *testing.T) {
 	for _, scale := range []float32{1, 1.5} {
 		t.Run(fmt.Sprintf("scale%v", scale), func(t *testing.T) {
@@ -346,6 +348,20 @@ func TestDecorationsDamageVerified(t *testing.T) {
 			st := NewState(hintDoc(80), "main.go", theme.Base("vs-dark"))
 			h := newHintHost(t, st, geom.Size{W: 480, H: 360}, scale)
 			h.focusAt(3)
+			// The frames the decorations change little in must be drawn
+			// partially; the others (whole-line decorations set on or
+			// removed from many rows, a line count change moving every
+			// row below) may be full redraws.
+			mayBeFull := map[string]bool{"set": true, "enter": true, "backspace": true, "undo": true, "redo": true, "remove": true}
+			var full []string
+			step := func(what string) {
+				t.Helper()
+				before := h.partial
+				h.step(what)
+				if h.partial == before && !mayBeFull[what] {
+					full = append(full, what)
+				}
+			}
 			snap := st.Snapshot()
 			whole := &DecorationOptions{WholeLine: true, Background: color.NRGBA{0x30, 0x60, 0x30, 0xff}, MarginBackground: decoGreen,
 				Gutter: &GutterMark{Sign: "+", SignColor: decoGreen, Bar: decoGreen}, LineNumberColor: decoOrange,
@@ -357,25 +373,25 @@ func TestDecorationsDamageVerified(t *testing.T) {
 				ds = append(ds, Decoration{Start: snap.LineStart(l+1) + 5, End: snap.LineStart(l+1) + 12, Options: inner})
 			}
 			st.Model.SetDecorations("diff", ds)
-			h.step("set")
+			step("set")
 			for i := range 6 {
 				h.typeText(string(rune('a' + i)))
-				h.step("type")
+				step("type")
 			}
 			h.key(input.KeyEnter, 0)
-			h.step("enter")
+			step("enter")
 			h.key(input.KeyBackspace, 0)
-			h.step("backspace")
+			step("backspace")
 			st.SetDecorations("view", []Decoration{{Start: snap.LineStart(9), End: snap.LineStart(9) + 20, Options: inner}})
-			h.step("view owner")
+			step("view owner")
 			st.Model.SetDecorations("other", []Decoration{LineDecoration(st.Snapshot(), 12, 12, whole)})
-			h.step("other owner")
+			step("other owner")
 
 			// Changing one line's decoration damages that row only.
 			cur := st.Model.Decorations("diff")
 			cur[1].End++ // inside line 5
 			st.Model.SetDecorations("diff", cur)
-			h.step("one line")
+			step("one line")
 			lh := st.Viewport.LineHeight
 			dam, _ := h.lineHints()
 			for _, d := range dam {
@@ -386,19 +402,43 @@ func TestDecorationsDamageVerified(t *testing.T) {
 			p := geom.Pt(240, 180)
 			for _, dy := range []float32{12, 30, -8, 40} {
 				h.r.HandleEvent(input.Scroll{Pos: p, DY: dy})
-				h.step("scroll")
+				step("scroll")
 			}
 			h.r.HandleEvent(input.Scroll{Pos: p, DX: 16})
-			h.step("scroll x")
+			step("scroll x")
+			// The renderer copies a horizontal scroll only when the text
+			// area's edges are whole device pixels (scrollSafe matches its
+			// clip edges; the gutter's width follows the font's digits, so
+			// the text area of a 1.5 scale starts at a half pixel with some
+			// fonts): otherwise it redraws the text area, a full frame.
+			if tx := h.vw.vs.text; !devAligned(tx.X, scale) || !devAligned(tx.Right(), scale) {
+				if n := len(full); n > 0 && full[n-1] == "scroll x" {
+					full = full[:n-1]
+					t.Logf("scroll x drawn in full: text area %v at scale %v is not on device pixels", tx, scale)
+				}
+			}
 			st.Undo()
-			h.step("undo")
+			step("undo")
 			st.Redo()
-			h.step("redo")
+			step("redo")
 			st.Model.SetDecorations("diff", nil)
-			h.step("remove")
-			h.verified()
+			step("remove")
+			if n, last := h.ren.VerifyFailures(); n != 0 {
+				t.Fatalf("%d verify failures, last %v", n, last)
+			}
+			if len(full) > 0 {
+				t.Fatalf("frames drawn in full: %v (%d of %d frames partial)", full, h.partial, h.frames)
+			}
+			t.Logf("%d of %d frames partial", h.partial, h.frames)
 		})
 	}
+}
+
+// devAligned reports whether logical coordinate x is a whole device pixel
+// at scale.
+func devAligned(x, scale float32) bool {
+	d := float64(x) * float64(scale)
+	return math.Abs(d-math.Round(d)) < 1e-3
 }
 
 // TestDecorationsOverviewDelay: the overview marks follow a new set at

@@ -408,11 +408,13 @@ func TestMatchManyCursorsBounded(t *testing.T) {
 		st.SetSelections(sels)
 		tr := st.Model.brackets()
 		budget := bracketFrameBudget
-		limit := budget + minOverrun + time.Millisecond
 		if raceEnabled {
-			// The same work per frame, 10× slower.
-			budget, limit = 10*budget, 10*limit
+			budget *= 10 // the same work per frame, 10× slower
 		}
+		// The budget, the work allowed past it, a slow line; relaxed under
+		// the race detector and on shared CI runners (gateLimit), where a
+		// frame's wall time includes the runner's preemption.
+		limit := gateLimit(bracketFrameBudget + minOverrun + time.Millisecond)
 		from, over := 0, 0
 		done := false
 		res := make([]caretMatch, len(sels))
@@ -478,10 +480,11 @@ func TestMatchManyCursorsConverge(t *testing.T) {
 	}
 	st.SetSelections(sels)
 	open, close := strings.Index(sb.String(), "{"), snap.LineStart(lines+1)
-	bound := 300 // about 110: tokenizing for the tree, then one for the carets
-	if raceEnabled {
-		bound = maxMatchFrames // and a loaded machine
-	}
+	// About 110 frames on an idle machine: tokenizing for the tree, then
+	// one for the carets. A frame's budget is wall time, so a loaded
+	// machine (or -race) needs more frames; minOverrun makes every frame
+	// progress, and the View gives up after maxMatchFrames.
+	bound := maxMatchFrames
 	shown := 0
 	for frames := 1; ; frames++ {
 		d.Frame()

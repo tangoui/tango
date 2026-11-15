@@ -2,7 +2,7 @@
 
 日期：2026-11-15（验收欠项计划 `docs/plans/2026-11-14-editor-m2-acceptance.md` Task 10 重写；性能为 2026-11-14 22:16 – 11-15 01:30 重测）。范围：`docs/specs/code-editor.md` §4 的 **1、2、11、12、13** 及 §6.6；依据里程碑 2 Tasks 1–15 与整体终审修复、验收欠项计划 Tasks 1–9 的任务报告与执行台账，Task 10 做最终成对测量与全量检查。
 
-**结论：自动化验收未通过。** 逐项见第 4.2 节，未通过与未判定的是：
+**结论：自动化验收未通过。** 以下及第 4.2 节保留 Task 10 当时的测量与结论；2026-11-15 后续 A–E 修复另列第 4.11 节，不以新数据覆盖历史。后续长行 p95 **中位数门槛已满足但仍有超限轮次**，滚动对 Monaco 仍 **NOT PASSED**，整体验收结论不变。Task 10 未通过与未判定的是：
 
 1. **长单行（1 MB、换行开启）输入 p95 ≤ 16 ms：未通过。** 本次 10 轮中位 18.97 ms，没有一轮 ≤ 16 ms（Task 5 前 59.6 ms，已快 3.1 倍；Task 5b 另一时段测得 12.9–16.1 ms）。CPU 部分 6.4 ms，超出部分在 GPU 等待与帧调度，余量不足以稳定达标。
 2. **滚动对 Monaco（规格 6.6“若 Monaco 更好，以 Monaco 为门槛”）：未通过。** 走局部重绘（ScrollRegion）路径后 Tango 端到端 230.8 fps / p99 12.6 ms，Monaco 默认档 667.8 fps / 5.0 ms；CPU 工作口径 Tango 更好（均值 2.11 / p99 3.8 ms 对 2.26 / 8.8 ms），但端到端差距按裁定不解释掉。
@@ -248,6 +248,34 @@ RSS 与 footprint 作为规格 6.8 的窗口级预算项继续跟踪；若将来
 1. 真实屏幕与 Windows 实机：本轮无实窗（锁屏），Windows 只有交叉编译；不构成实窗/Windows 性能结果。
 2. 统计置信度：相对 M1 与显示能力合计成本的输入 p95 CI 未收紧到 ≤ 1.10（第 4.3、4.4 节）；需要在空闲机器上 ≥ 20 轮重测才能给出 95% 置信的结论。
 3. 最坏情况：海量光标、病态正则、无断点长串里的长行编辑、键入不配对括号的长行仍可能超过 16 ms/键（第 5 节）。
+
+### 4.11 2026-11-15 后续修复与复测（A–E，独立于 Task 10 历史数据）
+
+来源：本地工作副本 `.work/task-ab-report.md`、`.work/task-c-report.md`、`.work/task-e-report.md`。本节汇总已有证据，Task D 不新增测量或测试；第 4.2–4.10 节仍为 Task 10 当时的结果，不能视为本轮重测。
+
+**A：长单行输入。** `BenchmarkTypeLongLineWrap` 在负载 **4.43–5.76** 下做 **12 轮交替**（diffview-final 基线 / 改后 / 同二进制 A/A）：输入 p95 逐轮中位数 **17.17 → 13.98 ms**，A/A 改后臂 **12.91 ms**；改后/基线比 0.814（95% CI 0.710–0.941）。修复包括小地图缓存依赖避免每键重扫所有预览行、截断点之后的长行编辑复用有效 token、减少无必要的整行复制及长行换行 ASCII 快路径。**按逐轮 p95 中位数判据，≤16 ms 门槛已满足；不等于稳定地每轮达标。** 主改后臂有 **4/12** 轮超过16 ms（16.02、16.33、16.27、16.29），A/A臂另有16.63 ms，合计 **5/24**。A+B源报告正文的“4/24”为算术错误，此处按其逐轮表更正。改后 max 中位33.83 ms（基线28.87），级联换行会更新整个小地图，尾部与稳定性仍须跟踪；本节不因此把所有性能门槛改判通过。
+
+**B：小地图剩余工作。** 共享高亮截止时间后仍有未处理行时，视图现在请求下一帧；持续零进展有界，完成后停止请求。严格 damage 夹具移除 Task 10 的无条件沉淀帧，改成实际执行视图请求的帧（最多50帧、计数且严格验证），blink 只损坏光标的原断言保留。A+B报告记录压力下12/12通过；不能把“等待到像素碰巧相同”当作产品完成信号。
+
+**C：滚动。** 14:52–15:22按负载<6进行base/before/after交替（每臂1000帧），仅取得 **3个有效完整轮**，负载 **4.17–5.55**；另两轮因结束负载≥6作废，达到30分钟墙钟上限后停止，**≥5轮复测仍PENDING**。结果为各轮中位数，仅作暂存，不宣称fps提升：
+
+| 指标 | diffview-final基线 | before C（含A/B） | after C |
+|---|---:|---:|---:|
+| fps | 256.2 | 256.1 | 214.9 |
+| p99 ms | 8.473 | 9.255 | 12.430 |
+| CPU均值 ms | 2.241 | 2.294 | 2.616 |
+| CPU p99 ms | 4.928 | 5.015 | 6.647 |
+| wait均值 ms | 1.726 | 1.594 | 2.038 |
+
+其中after首轮max149 ms、p99 36.49 ms，前后1分钟load仍<6，依既定规则保留；不能删掉该轮来宣称改善。确定的编辑器侧收益只有样式边界scratch复用：单次多token行样式转换 **7→2 allocations**，返回runs/paints不引用scratch。新增计数/严格像素测试约束scale1/2稳态两行滚动damage≤两行+2 logical px；计数测试×3通过，damage/navigation/goldens通过，三平台vet通过。详细阶段计时仍待低负载补测。
+
+渲染路径已确认：ScrollRegion/ScrollShift生效，稳态 **1 copy、1 dirty rect，重画目标约3.86%**，不是全屏重画gutter/小地图；Metal把约95.4%目标区域经scratch做两次blit，partial pass是load+局部clear。GPU项目需求（本轮未改internal/render）：提供独立encode/commit、前帧等待、queue latency与GPUStart/EndTime计时及fence接口，避免基准靠再提交1px帧等待；量化并降低双blit流量、retained load/store及单缓冲同步固定成本，给出copy-only/strip-only/合成帧和实际present的低负载证据。初版合成帧测量曾因atlas尺寸切换引入纹理重建，已修正测量器并作废其耗时，不能拿它证明GPU瓶颈。
+
+**Monaco判定不变。** Tango上述端到端含GPU完成，Monaco默认headless **667.8 fps / p99 5.02 ms**仅计主线程、不含raster/compositor（主线程work均值2.26 / p99 8.76 ms；nolfo保留高亮490 fps / p99 4.73 ms）。CPU工作与主线程work应单独比较，不与Tango含GPU总时长混用；本轮3轮after CPU均值2.616 / p99 6.647 ms也不足以替代正式复测。按控制者对§6.6的裁定，不把口径差异解释为豁免：**滚动对Monaco仍NOT PASSED**；长行中位数达标、分配减少或绝对60fps达标均不替代该门槛，整体自动化验收仍未通过。
+
+**E：CI测试修正（据Task E报告，最终集成验证交控制者）。** Bounded/ActiveGuide墙钟门槛统一走gateLimit，Converge使用产品侧maxMatchFrames且保留进展/完成断言；Decorations对具体操作逐帧严格核对，只有小数设备像素边界导致无法安全拷贝时允许横滚整帧；长行括号颜色、短行复制计数按有界token/括号工作完成后断言；reindent仅在SyntaxCommandIncomplete且文本/选区未改变时有界重试。A新增长行截断测试先建立初始final前提，再于每次编辑后立即断言，不能靠编辑后settle掩盖弄脏token。
+
+Task E报告记录：12×yes争用且倍率3时8项连续5次通过；同争用无倍率的6项语义测试连续5次通过；24×yes下长行/短行/reindent连续5次通过；三平台交叉vet通过。这些不是性能达标证据，也不是Windows/Linux实机运行。Windows小地图golden失败为autocrlf转换CRLF，整合时须带入上游0d3b59a的`.gitattributes`递归LF规则，本任务未改golden或越界修改根配置。E原副本最终复核中，无倍率的纯墙钟门槛仍曾因抢占失败；另发现新增highlight测试把已接受的降级结果当成完整token比较。该测试现已改为在完整比较前有界获取非降级结果，且保留重试前“不额外分词”的断言；注入降级用例与12×yes下连续30次通过。最终在最新origin/main集成工作区运行 `go test ./ui/editor/... ./examples/editor-demo -count=1` 全部通过，随后修改的highlight包再次单独全量通过；darwin/windows/linux交叉vet、apitxt -check、demo构建、diff-check均通过，递归LF规则已包含在基线。以上不代表Windows/Linux实机测试或推送后CI已通过。真实窗口/IME/平台验收，以及≤10%门槛进一步统计收紧仍待后续。
 
 ## 5. 降级、已知欠项与 M3 接口
 

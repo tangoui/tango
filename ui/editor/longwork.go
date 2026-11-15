@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"strings"
 	"sync/atomic"
 
 	"github.com/tangoui/tango/ui/editor/buffer"
@@ -18,6 +19,7 @@ var (
 	workRuneBytes    atomic.Int64 // bytes isLong counted runes over
 	workOverSpans    atomic.Int64 // spans overrideBounds looked at
 	workMiniBytes    atomic.Int64 // bytes boundedMiniature read
+	workMiniScan     atomic.Int64 // bytes boundedMiniature walked grapheme by grapheme
 	workLineCopies   atomic.Int64 // long lines lineMemo copied out of the rope
 )
 
@@ -27,6 +29,7 @@ func resetWork() {
 	workRuneBytes.Store(0)
 	workOverSpans.Store(0)
 	workMiniBytes.Store(0)
+	workMiniScan.Store(0)
 	workLineCopies.Store(0)
 }
 
@@ -169,4 +172,46 @@ func (m *Model) line(snap buffer.Snapshot, i int) string { return m.lines.line(m
 // line is Model.line for the synced Buffer's snapshots.
 func (vl *viewLines) line(snap buffer.Snapshot, i int) string {
 	return vl.memo.line(vl.buf, snap, i)
+}
+
+// runMaxBytes is the most text eachLine reads in one slice of the rope.
+const runMaxBytes = 256 << 10
+
+// eachLine calls fn with lines lo..hi-1 of snap in order, reading them in
+// runs (one slice of the rope for many lines: a Snapshot.Line per line
+// walks the tree twice). With long not nil, a run of more than
+// runMaxBytes is split in halves until it is one line, and a line of at
+// least memoMinLen bytes comes from long (Model.line: the long line a
+// keystroke's frame has read already) instead of a copy of it.
+func eachLine(snap buffer.Snapshot, lo, hi int, long func(i int) string, fn func(i int, line string)) {
+	if lo >= hi {
+		return
+	}
+	start := snap.LineStart(lo)
+	end := snap.Len()
+	if hi < snap.LineCount() {
+		end = snap.LineStart(hi) - 1
+	}
+	if long != nil && end-start > runMaxBytes {
+		if hi-lo == 1 {
+			if end-start >= memoMinLen {
+				fn(lo, long(lo))
+			} else {
+				fn(lo, snap.Slice(start, end))
+			}
+			return
+		}
+		mid := lo + (hi-lo)/2
+		eachLine(snap, lo, mid, long, fn)
+		eachLine(snap, mid, hi, long, fn)
+		return
+	}
+	text := snap.Slice(start, end)
+	for l := lo; l < hi; l++ {
+		line := text
+		if i := strings.IndexByte(text, '\n'); i >= 0 {
+			line, text = text[:i], text[i+1:]
+		}
+		fn(l, line)
+	}
 }

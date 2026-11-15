@@ -203,6 +203,14 @@ func (h *Highlighter) Edit(old, new buffer.Snapshot, edits []buffer.Edit) {
 			continue
 		}
 		sl, el := old.LineOf(e.Start), old.LineOf(e.End)
+		if sl == el && pastCut(old, sl, e) {
+			// The line's tokens and end state stay as they are. A
+			// consequence: such an edit no longer marks the line dirty, so
+			// a line whose degraded result was accepted (retries used up)
+			// is not tokenized again by edits past the cut; one before the
+			// cut, or a Reset, still does.
+			continue
+		}
 		d := countBreaks(e.Text) - (el - sl)
 		total += d
 		if n := len(regs); n > 0 && sl <= regs[n-1].el { // 与上一段同行：合并
@@ -227,6 +235,23 @@ func (h *Highlighter) Edit(old, new buffer.Snapshot, edits []buffer.Edit) {
 		h.st.splice(regs, h.keep())
 	}
 	h.signal()
+}
+
+// cutSafe is the byte offset in a line from which an edit is certainly
+// past the part of the line the lexer reads: a line longer than
+// monarch.MaxLineLength UTF-16 code units is tokenized only up to that many
+// units (the rest is one "" token and the line ends in its start state),
+// and each code unit is at most three bytes, so the cut is before byte
+// 3·(MaxLineLength+1).
+const cutSafe = 3 * (monarch.MaxLineLength + 1)
+
+// pastCut reports whether edit e of line sl of old changes only text after
+// the part of the line the lexer reads: inside the line, no line break
+// inserted, starting at or after cutSafe. The line's tokens, which depend
+// only on the text before the cut and on its start state, and its end
+// state (its start state) are then those of the new text too.
+func pastCut(old buffer.Snapshot, sl int, e buffer.Edit) bool {
+	return e.Start-old.LineStart(sl) >= cutSafe && !strings.ContainsAny(e.Text, "\r\n")
 }
 
 // countBreaks counts the line breaks of an inserted text the way

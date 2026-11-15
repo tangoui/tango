@@ -74,6 +74,10 @@ type viewState struct {
 	toks  []monarch.Token
 	long  map[longKey]*longLine
 
+	// bounds is styleRuns' scratch for a seg's style boundaries (not kept
+	// past the call: the runs and paints it returns are new slices).
+	bounds []styleBound
+
 	// Widest line seen (content width); reset when the buffer or the
 	// wrapping column changes.
 	buf     *buffer.Buffer

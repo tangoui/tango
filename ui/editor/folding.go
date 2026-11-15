@@ -175,7 +175,8 @@ func (s *State) foldRanges() []FoldingRange {
 	if rs == nil {
 		conf := s.Model.Conf()
 		off := conf != nil && conf.Folding.OffSide
-		rs = indentRanges(snap, s.indentSize(), off, markersOf(conf), foldingMaximumRegions)
+		long := func(i int) string { return s.Model.line(snap, i) }
+		rs = indentRangesOf(snap, long, s.indentSize(), off, markersOf(conf), foldingMaximumRegions)
 	}
 	fs.rs, fs.rsKey, fs.rsOK, fs.rsLines = rs, key, true, snap.LineCount()
 	s.mergeFolds()

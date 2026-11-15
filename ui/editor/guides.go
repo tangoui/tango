@@ -48,8 +48,9 @@ type guideCtx struct {
 	tab          int
 	offSide      bool
 	ind          map[int]int
-	above, below map[int]int // contentAbove / contentBelow results
-	up, down     lineRun     // runs of lines read (line)
+	above, below map[int]int        // contentAbove / contentBelow results
+	up, down     lineRun            // runs of lines read (line)
+	long         func(i int) string // the long lines (eachLine; nil: copies)
 }
 
 func (g *guideCtx) indent(i int) int {
@@ -75,11 +76,11 @@ func (g *guideCtx) line(i int) string {
 	}
 	const run = 256
 	if g.down.lines == nil || i >= g.down.lo {
-		g.down.read(g.snap, i, min(i+run, g.snap.LineCount())) // searching downwards
+		g.down.read(g.snap, i, min(i+run, g.snap.LineCount()), g.long) // searching downwards
 		return g.down.lines[0]
 	}
 	lo := max(0, i-run+1) // searching upwards
-	g.up.read(g.snap, lo, i+1)
+	g.up.read(g.snap, lo, i+1, g.long)
 	return g.up.lines[i-lo]
 }
 
@@ -96,13 +97,19 @@ func (r *lineRun) get(i int) (string, bool) {
 	return "", false
 }
 
-// read reads lines lo..hi-1 of snap.
-func (r *lineRun) read(snap buffer.Snapshot, lo, hi int) {
-	end := snap.Len()
-	if hi < snap.LineCount() {
-		end = snap.LineStart(hi) - 1
+// read reads lines lo..hi-1 of snap (the long ones through long, see
+// eachLine).
+func (r *lineRun) read(snap buffer.Snapshot, lo, hi int, long func(i int) string) {
+	if long == nil {
+		end := snap.Len()
+		if hi < snap.LineCount() {
+			end = snap.LineStart(hi) - 1
+		}
+		r.lo, r.lines = lo, strings.Split(snap.Slice(snap.LineStart(lo), end), "\n")
+		return
 	}
-	r.lo, r.lines = lo, strings.Split(snap.Slice(snap.LineStart(lo), end), "\n")
+	r.lo, r.lines = lo, make([]string, 0, hi-lo)
+	eachLine(snap, lo, hi, long, func(_ int, line string) { r.lines = append(r.lines, line) })
 }
 
 func ceilDiv(a, b int) int { return (a + b - 1) / b }
@@ -305,6 +312,7 @@ func (w *ViewW) guidesFor(snap buffer.Snapshot, rows []lineView, caretLine int) 
 		return nil
 	}
 	g := &guideCtx{snap: snap, tab: max(w.tabs(), 1), ind: map[int]int{}, above: map[int]int{}, below: map[int]int{}}
+	g.long = func(i int) string { return w.st.Model.line(snap, i) }
 	if c := w.st.Model.Conf(); c != nil {
 		g.offSide = c.Folding.OffSide
 	}

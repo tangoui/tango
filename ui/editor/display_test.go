@@ -383,10 +383,7 @@ func TestActiveGuideFirstCallFast(t *testing.T) {
 	if g[1].active != 1 || g[39].active != 1 {
 		t.Fatalf("active guides %+v %+v, want the object's (level 1)", g[1], g[39])
 	}
-	limit := 5 * time.Millisecond
-	if raceEnabled {
-		limit *= 10
-	}
+	limit := gateLimit(5 * time.Millisecond)
 	t.Logf("first call: %v", el)
 	if el > limit {
 		t.Errorf("first active guide computation: %v, want at most %v", el, limit)

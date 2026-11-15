@@ -877,8 +877,9 @@ func (w *ViewW) shapeSeg(i int, s string, r0, r1, b0 int, toks []monarch.Token, 
 func (w *ViewW) styleRuns(s string, b0 int, toks []monarch.Token, th *theme.Theme, over []brSpan) ([]text.Run, []runPaint) {
 	b1 := b0 + len(s)
 	def := th.Style("")
-	// Boundaries: (byte offset in s, style).
-	bounds := []styleBound{{0, def}}
+	// Boundaries: (byte offset in s, style), in the view's scratch (kept
+	// for the next seg: every visible row runs this every frame).
+	bounds := append(w.vs.bounds[:0], styleBound{0, def})
 	for k, tk := range toks {
 		end := b1
 		if k+1 < len(toks) {
@@ -895,6 +896,7 @@ func (w *ViewW) styleRuns(s string, b0 int, toks []monarch.Token, th *theme.Them
 			bounds = append(bounds, styleBound{at, ts})
 		}
 	}
+	w.vs.bounds = bounds[:0]
 	// Spans of other colors (colored brackets, control characters): cut
 	// the runs at their ends and take their color inside.
 	if len(over) > 0 {

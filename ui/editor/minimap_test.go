@@ -203,3 +203,46 @@ func TestMinimapViewZones(t *testing.T) {
 		})
 	}
 }
+
+// TestMinimapRequestsFrameForLeftoverRows: rows the minimap leaves for
+// later because the frame's token deadline passed ask for the next frame
+// (the visible highlighter's ready callback may never come: the lines in
+// view are final); the frames that follow build them, and once every row
+// is built no more frames are requested.
+func TestMinimapRequestsFrameForLeftoverRows(t *testing.T) {
+	goText(t)
+	st := NewState(strings.Repeat("var x = 1\n", 200), "a.go", theme.Base("vs"))
+	defer st.Close()
+	st.Highlighter().TokenWindow = 10
+	d, vw := viewDriver(st, 640, 300, nil)
+	for range 20 {
+		d.Frame()
+		if !d.NeedsFrame() {
+			break
+		}
+	}
+	if d.NeedsFrame() {
+		t.Fatal("the view keeps requesting frames")
+	}
+	(*vw).vs.mini.cache = nil
+	(*vw).prepareMinimap(st.Snapshot(), st.Theme, time.Now().Add(-time.Second))
+	if (*vw).vs.mini.cache[100] != nil {
+		t.Fatal("uncached offscreen line tokenized after token deadline")
+	}
+	if !d.NeedsFrame() {
+		t.Fatal("rows left for later, but no frame requested")
+	}
+	frames := 0
+	for d.NeedsFrame() && frames < 20 {
+		d.Frame()
+		frames++
+	}
+	if d.NeedsFrame() {
+		t.Fatalf("still requesting frames after %d", frames)
+	}
+	for _, row := range (*vw).vs.miniRows {
+		if row.key != miniZoneKey && (*vw).vs.mini.cache[row.key] == nil {
+			t.Fatalf("row of line %d not built after %d frames", row.line, frames)
+		}
+	}
+}
