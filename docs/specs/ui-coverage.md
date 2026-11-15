@@ -318,7 +318,7 @@
 | Menu-shadcn | "内嵌模式 / 暗色"一栏右侧的暗色菜单**没有变暗**。这是设计取舍：nav_menu.go:104 写明 shadcn 只有一套 Sidebar 外观，`Menu.Dark()` 在 shadcn 下被忽略，需要在文档里说明。弹出子菜单正常。重跑后不变。 |
 | ProCard-shadcn | 整体正常。"默认尺寸"卡片头部的"操作"离右边缘约 16 px，**不是缺陷**：它是 Link 按钮，按钮两侧保留内边距（button.go `measure` 用 `padX()`；shadcn 16 px 即 `px-4`，Ant 15 px），与 shadcn/ui 和 Ant Design 原版一致，Ant 版截图同样如此。同排"带边框"卡片的日期是纯文本，所以贴右。Element 风格的 link 按钮按 `el-link` 去掉了内边距。 |
 | StatisticCard-shadcn | 正常。趋势红涨绿跌，迷你图用 `--chart-1` 色。 |
-| PageContainer-shadcn | 正常。页头、标签（segmented 风格）、FooterToolbar 吸底都对；FooterToolbar 没有毛玻璃（与第 4 节一致）。 |
+| PageContainer-shadcn | 正常。页头、标签（segmented 风格）、FooterToolbar 吸底都对；FooterToolbar 的毛玻璃是 Tango 对 Element/shadcn 变体的适配（`paint.BackdropBlur` + 半透明底色），不代表 Element Plus 或 shadcn/ui 官方组件默认值。 |
 | CheckCard-shadcn | 正常。选中态是深色边框加右上角三角标。 |
 | LoginForm-shadcn | 正常。右侧表单的初始校验错误应该是画廊 Setup 触发的。 |
 | ProSkeleton-shadcn-dark | 能用。页头区块是一整块浅灰，层次比 Ant 暗色更"反"（外层比卡片亮），属于 shadcn 暗色令牌本身的特点。 |

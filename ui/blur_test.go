@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image"
 	"image/color"
 	"testing"
 	"time"
@@ -390,6 +391,224 @@ func TestFooterToolbarStateMatrix(t *testing.T) {
 					}
 				})
 			}
+		}
+	}
+}
+
+func TestFooterToolbarDamagePresenter(t *testing.T) {
+	for _, dir := range []Direction{LTR, RTL} {
+		name := "ltr"
+		if dir == RTL {
+			name = "rtl"
+		}
+		t.Run(name, func(t *testing.T) {
+			var st footerDamageState
+			var hint geom.Rect
+			page := footerDamagePage(dir, true, &hint, &st)
+			w := &damagePresenterWin{damageWin: damageWin{size: geom.Size{W: 600, H: 300}, scale: 1}}
+			g := newDamageRig(t, page, w, RunnerOptions{NoAnimations: true})
+			for range 3 {
+				g.frame(t)
+			}
+			bar, ok := g.r.c.RectOf(st.ft.ID())
+			if !ok || st.ft.affix == nil || !st.ft.affix.Affixed() {
+				t.Fatalf("footer did not settle as an affixed bar: rect=%v ok=%v", bar, ok)
+			}
+
+			// A change inside the blur reach must make the presenter redraw the
+			// bar, even though the bar's own fingerprint is unchanged.
+			reach := paint.BackdropBlurReach(float32(st.ft.c.Theme.Components.FooterToolbar.BlurRadius), 1)
+			hint = geom.R(bar.X+20, bar.Y-reach/2, 10, 10)
+			resetDamagePresenter(w)
+			g.frame(t)
+			if w.presented != 0 || w.partial != 1 || !dirtyCovers(w.dirty, image.Rect(int(bar.X), int(bar.Y), int(bar.Right()), int(bar.Bottom()))) {
+				t.Fatalf("blur-reach damage: presented=%d partial=%d dirty=%v bar=%v", w.presented, w.partial, w.dirty, bar)
+			}
+
+			// Scrolling beneath the pinned bar has the same requirement: the
+			// ScrollRegion may copy the content, but the blur source still needs
+			// the bar's complete rectangle redrawn.
+			st.sb.ScrollTo(0, 40)
+			resetDamagePresenter(w)
+			g.frame(t)
+			if w.presented != 0 || w.partial != 1 || !dirtyCovers(w.dirty, image.Rect(int(bar.X), int(bar.Y), int(bar.Right()), int(bar.Bottom()))) {
+				t.Fatalf("scroll under blur: presented=%d partial=%d dirty=%v bar=%v", w.presented, w.partial, w.dirty, bar)
+			}
+
+			// A change beyond the reach stays partial and does not pull the
+			// whole viewport into the presenter update.
+			hint = geom.R(bar.X+20, bar.Y-reach-20, 10, 10)
+			resetDamagePresenter(w)
+			g.frame(t)
+			if w.presented != 0 || w.partial != 1 || dirtyCovers(w.dirty, image.Rect(0, 0, 600, 300)) {
+				t.Fatalf("out-of-reach damage became full-frame: presented=%d partial=%d dirty=%v reach=%v bar=%v", w.presented, w.partial, w.dirty, reach, bar)
+			}
+
+			// No hint means addBlurDamage has no persistent work of its own.
+			hint = geom.Rect{}
+			l := &paint.List{}
+			l.BackdropBlur(bar, geom.Rad(6), float32(st.ft.c.Theme.Components.FooterToolbar.BlurRadius))
+			addBlurDamage(l, 1)
+			if d := damages(l); len(d) != 0 {
+				t.Fatalf("idle blur accumulated damage: %v", d)
+			}
+		})
+	}
+
+	// Switching between flow and sticky must cover both the old and new bar
+	// rectangles; a stale bar must not remain on a DamagePresenter surface.
+	var sticky bool
+	var ft *FooterToolbarW
+	page := func(c *Context) {
+		Column(c, func() {
+			Column(c, nil, layout.H(80))
+			f := FooterToolbar(c)
+			if sticky {
+				f.Sticky()
+			}
+			ft = f.Body(func() { Button(c, "Toggle") })
+		}, layout.Grow(1))
+	}
+	w := &damagePresenterWin{damageWin: damageWin{size: geom.Size{W: 600, H: 300}, scale: 1}}
+	g := newDamageRig(t, page, w, RunnerOptions{NoAnimations: true})
+	g.frame(t)
+	old := mustRect(t, g.r.c, ft.ID())
+	sticky = true
+	resetDamagePresenter(w)
+	g.frame(t)
+	mid := mustRect(t, g.r.c, ft.ID())
+	if !presenterCovers(w, old) || !presenterCovers(w, mid) {
+		t.Fatalf("flow-to-sticky damage: old=%v new=%v presented=%d partial=%d dirty=%v", old, mid, w.presented, w.partial, w.dirty)
+	}
+	old = mid
+	sticky = false
+	resetDamagePresenter(w)
+	g.frame(t)
+	mid = mustRect(t, g.r.c, ft.ID())
+	if !presenterCovers(w, old) || !presenterCovers(w, mid) {
+		t.Fatalf("sticky-to-flow damage: old=%v new=%v presented=%d partial=%d dirty=%v", old, mid, w.presented, w.partial, w.dirty)
+	}
+}
+
+type footerDamageState struct {
+	sb *ScrollBox
+	ft *FooterToolbarW
+}
+
+func footerDamagePage(dir Direction, sticky bool, hint *geom.Rect, st *footerDamageState) func(*Context) {
+	return func(c *Context) {
+		ConfigProvider(c).Direction(dir).Body(func() {
+			Column(c, func() {
+				sb := Scroll(c, nil, layout.Grow(1))
+				st.sb = sb
+				sb.Body(func() {
+					Column(c, nil, layout.H(900))
+					ft := FooterToolbar(c)
+					if sticky {
+						ft.Sticky()
+					}
+					st.ft = ft.Body(func() {
+						Button(c, "Action")
+					})
+				})
+			}, layout.Grow(1))
+			if !hint.Empty() {
+				c.Damage(*hint)
+			}
+		})
+	}
+}
+
+func resetDamagePresenter(w *damagePresenterWin) {
+	w.presented, w.partial = 0, 0
+	w.dirty = nil
+}
+
+func mustRect(t *testing.T, c *Context, id ID) geom.Rect {
+	t.Helper()
+	r, ok := c.RectOf(id)
+	if !ok {
+		t.Fatalf("missing rect for %v", id)
+	}
+	return r
+}
+
+func dirtyCovers(dirty []image.Rectangle, want image.Rectangle) bool {
+	if want.Empty() {
+		return true
+	}
+	for y := want.Min.Y; y < want.Max.Y; y++ {
+		for x := want.Min.X; x < want.Max.X; x++ {
+			covered := false
+			for _, r := range dirty {
+				if image.Pt(x, y).In(r) {
+					covered = true
+					break
+				}
+			}
+			if !covered {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func presenterCovers(w *damagePresenterWin, want geom.Rect) bool {
+	if w.presented != 0 {
+		return true
+	}
+	return dirtyCovers(w.dirty, image.Rect(int(want.X), int(want.Y), int(want.Right()), int(want.Bottom())))
+}
+
+func TestFooterToolbarRTLGeometry(t *testing.T) {
+	for _, tc := range footerThemeCases() {
+		var ltrBar, rtlBar, ltrExtra, rtlExtra, ltrAction, rtlAction geom.Rect
+		for _, dir := range []Direction{LTR, RTL} {
+			var ft *FooterToolbarW
+			var extra *Box
+			var action *ButtonW
+			page := func(c *Context) {
+				ConfigProvider(c).Direction(dir).Body(func() {
+					Scroll(c, func() {
+						Column(c, nil, layout.H(900))
+						ft = FooterToolbar(c).Sticky().Extra(func() {
+							extra = Div(c, layout.W(120), layout.H(24))
+							extra.Body(func() { Text(c, "Extra") })
+						}).Body(func() { action = Button(c, "Action") })
+					}, layout.Grow(1))
+				})
+			}
+			d := footerDriver(page, tc.make(false), false)
+			d.Frame()
+			d.Frame()
+			d.Frame()
+			bar := mustRect(t, d.r.c, ft.ID())
+			er := mustRect(t, d.r.c, extra.ID())
+			ar := mustRect(t, d.r.c, action.ID())
+			if bs := footerBlurs(d); len(bs) != 1 || bs[0].Rect != bar {
+				t.Fatalf("%s %v: blur rect=%v bar=%v", tc.name, dir, bs, bar)
+			}
+			if dir == LTR {
+				ltrBar, ltrExtra, ltrAction = bar, er, ar
+				if er.X >= ar.X {
+					t.Fatalf("%s LTR: Extra=%v is not inline-start of Action=%v", tc.name, er, ar)
+				}
+			} else {
+				rtlBar, rtlExtra, rtlAction = bar, er, ar
+				if er.Right() <= ar.Right() {
+					t.Fatalf("%s RTL: Extra=%v is not inline-start of Action=%v", tc.name, er, ar)
+				}
+			}
+		}
+		if ltrBar != rtlBar {
+			t.Fatalf("%s: LTR bar=%v RTL bar=%v", tc.name, ltrBar, rtlBar)
+		}
+		mirror := func(r geom.Rect) geom.Rect {
+			return geom.Rect{X: ltrBar.Right() - r.Right(), Y: r.Y, W: r.W, H: r.H}
+		}
+		if rtlExtra != mirror(ltrExtra) || rtlAction != mirror(ltrAction) {
+			t.Fatalf("%s: physical RTL swap mismatch: LTR extra/action=%v/%v RTL=%v/%v", tc.name, ltrExtra, ltrAction, rtlExtra, rtlAction)
 		}
 	}
 }

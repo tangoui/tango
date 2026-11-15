@@ -8,10 +8,10 @@ import (
 	"github.com/tangoui/tango/ui/theme"
 )
 
-// runHighContrast renders the dashboard and the Form, Switch and Checkbox
-// pages of every style, light and dark, once with the stock theme and once with
-// theme.HighContrast, as hc/<page>-<style>[-dark].png and the same name
-// with -hc, for side-by-side comparison.
+// runHighContrast renders the dashboard and the Form, Switch, Checkbox and
+// FooterToolbar pages of every style, light and dark, once with the stock theme
+// and once with theme.HighContrast, as hc/<page>-<style>[-dark].png and the
+// same name with -hc, for side-by-side comparison.
 func runHighContrast() error {
 	styles := []struct {
 		name string
@@ -50,7 +50,7 @@ func runHighContrast() error {
 					}
 				}
 				for _, p := range gallery.Pages() {
-					if (p.Name != "Form" && p.Name != "Switch" && p.Name != "Checkbox") || !want(p.Name+s) {
+					if (p.Name != "Form" && p.Name != "Switch" && p.Name != "Checkbox" && p.Name != "FooterToolbar") || !want(p.Name+s) {
 						continue
 					}
 					p := p
