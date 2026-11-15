@@ -539,17 +539,12 @@ func TestPro2ProSkeleton(t *testing.T) {
 
 func TestPro2Semantics(t *testing.T) {
 	on := true
-	footerClicks := 0
 	d := NewDriver(func(c *Context) {
 		Column(c, func() {
 			ProCard(c, "Region").Collapsible().Body(func() { Text(c, "x") })
 			CheckCard(c, "Choice", &on).Show()
 			CheckCardGroup(c, []CheckCardOption{{Value: "r", Title: "RadioCard"}}).Value(new(string)).Show()
-			FooterToolbar(c).Body(func() {
-				if Button(c, "Ok").Clicked() {
-					footerClicks++
-				}
-			})
+			FooterToolbar(c).Body(func() { Button(c, "Ok") })
 			ProSkeleton(c, SkeletonResult).Show()
 			StatisticCard(c, "Stat").Value(1, 0).Trend("down").Show()
 		})
@@ -573,15 +568,29 @@ func TestPro2Semantics(t *testing.T) {
 	if _, ok := d.A11yFind(a11y.RoleButton, "Ok"); !ok {
 		t.Fatal("footer action is not keyboard reachable")
 	}
-	if err := d.ClickLabel("Ok"); err != nil {
-		t.Fatal(err)
+	tabClicks := 0
+	tabDriver := NewDriver(func(c *Context) {
+		Column(c, func() {
+			Button(c, "Before")
+			FooterToolbar(c).Body(func() {
+				if Button(c, "TabOk").Clicked() {
+					tabClicks++
+				}
+			})
+		})
+	}, DriverOptions{Width: 500, Height: 300, Accessibility: true})
+	tabDriver.EnableAccessibility()
+	tabDriver.Key(input.KeyTab, 0)
+	if f := tabDriver.A11yFocused(); f == nil || f.Name != "Before" {
+		t.Fatalf("first Tab focus = %v, want Before", f)
 	}
-	if footerClicks != 1 {
-		t.Fatalf("footer click = %d, want 1", footerClicks)
+	tabDriver.Key(input.KeyTab, 0)
+	if f := tabDriver.A11yFocused(); f == nil || f.Name != "TabOk" {
+		t.Fatalf("second Tab focus = %v, want TabOk", f)
 	}
-	d.Key(input.KeyEnter, 0)
-	if footerClicks != 2 {
-		t.Fatalf("footer keyboard click = %d, want 2", footerClicks)
+	tabDriver.Key(input.KeyEnter, 0)
+	if tabClicks != 1 {
+		t.Fatalf("footer keyboard click = %d, want 1", tabClicks)
 	}
 	if n, ok := d.A11yFind(a11y.RoleStatus, ""); !ok || n.States&a11y.Busy == 0 {
 		t.Fatal("skeleton not a busy status")

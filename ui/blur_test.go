@@ -269,6 +269,43 @@ func assertFooterFrame(t *testing.T, d *Driver, ft *FooterToolbarW, th *theme.Th
 	}
 }
 
+func assertOpaqueFooterFrame(t *testing.T, d *Driver, ft *FooterToolbarW, th *theme.Theme) {
+	t.Helper()
+	if bs := footerBlurs(d); len(bs) != 0 {
+		t.Fatalf("opaque footer has backdrop blur: %v", bs)
+	}
+	bar, ok := d.r.c.RectOf(ft.ID())
+	if !ok {
+		t.Fatal("opaque footer has no painted rectangle")
+	}
+	fill := footerSurfaceFill(t, d, ft)
+	if fill.Rect != bar {
+		t.Fatalf("opaque footer FillRect rect=%v, want bar=%v", fill.Rect, bar)
+	}
+	if fill.Color != th.BgContainer || fill.Color.A != 255 {
+		t.Fatalf("opaque footer FillRect color=%v, want BgContainer=%v alpha 255", fill.Color, th.BgContainer)
+	}
+}
+
+func assertFooterGeometry(t *testing.T, d *Driver, ft *FooterToolbarW, sb *ScrollBox, target bool) {
+	t.Helper()
+	bar, ok := d.r.c.RectOf(ft.ID())
+	if !ok {
+		t.Fatal("footer has no painted rectangle")
+	}
+	viewport, ok := d.r.c.RectOf(sb.ID())
+	if !ok {
+		t.Fatal("scroll viewport has no painted rectangle")
+	}
+	wantBottom := d.w.size.H
+	if target {
+		wantBottom = viewport.Bottom()
+	}
+	if bar.W != viewport.W || bar.Y != wantBottom-bar.H || bar.Bottom() != wantBottom {
+		t.Fatalf("footer geometry=%v, want width=%v y=%v bottom=%v (viewport=%v target=%v)", bar, viewport.W, wantBottom-bar.H, wantBottom, viewport, target)
+	}
+}
+
 // TestFooterToolbarStateMatrix checks each design language in light, dark and
 // high-contrast variants through the first flow frame, affixing, scroll-away,
 // return, and resize. Target repeats the same sequence inside a ScrollBox.
@@ -305,16 +342,14 @@ func TestFooterToolbarStateMatrix(t *testing.T) {
 								if ft.affix == nil || !ft.affix.Affixed() {
 									t.Fatal("high-contrast footer did not affix")
 								}
-								fill := footerSurfaceFill(t, d, ft)
-								if fill.Color != th.BgContainer || fill.Color.A != 255 {
-									t.Fatalf("high-contrast fallback=%v, want opaque BgContainer=%v", fill.Color, th.BgContainer)
-								}
+								assertOpaqueFooterFrame(t, d, ft, th)
 								if len(footerBlurs(d)) != 0 {
 									t.Fatal("high-contrast footer blurred")
 								}
 							} else {
 								assertFooterFrame(t, d, ft, th, true)
 							}
+							assertFooterGeometry(t, d, ft, sb, target)
 
 							// Scroll beyond the toolbar and then return to the top.
 							sb.ScrollTo(0, 800)
@@ -329,24 +364,16 @@ func TestFooterToolbarStateMatrix(t *testing.T) {
 							d.Frame()
 							d.Frame()
 							if highContrast {
-								fill := footerSurfaceFill(t, d, ft)
-								if fill.Color != th.BgContainer || fill.Color.A != 255 {
-									t.Fatalf("returned high-contrast fallback=%v, want opaque BgContainer=%v", fill.Color, th.BgContainer)
-								}
+								assertOpaqueFooterFrame(t, d, ft, th)
 							} else {
 								assertFooterFrame(t, d, ft, th, true)
 							}
 
 							d.Resize(520, 220)
 							d.Frame()
+							assertFooterGeometry(t, d, ft, sb, target)
 							if highContrast {
-								if len(footerBlurs(d)) != 0 {
-									t.Fatal("resized high-contrast footer blurred")
-								}
-								fill := footerSurfaceFill(t, d, ft)
-								if fill.Color != th.BgContainer || fill.Color.A != 255 {
-									t.Fatalf("resized high-contrast fallback=%v, want opaque BgContainer=%v", fill.Color, th.BgContainer)
-								}
+								assertOpaqueFooterFrame(t, d, ft, th)
 							} else {
 								assertFooterFrame(t, d, ft, th, true)
 							}
@@ -382,17 +409,33 @@ func TestFooterToolbarOpaqueFallbacks(t *testing.T) {
 						t.Fatalf("flow fallback=%v, want token Bg=%v", fill.Color, th.Components.FooterToolbar.Bg)
 					}
 
-					var sticky *FooterToolbarW
-					var sb *ScrollBox
-					d = footerDriver(footerMatrixPage(false, &sticky, &sb), th, true)
-					d.Frame()
-					d.Frame()
-					fill = footerSurfaceFill(t, d, sticky)
-					if fill.Color != th.BgContainer || fill.Color.A != 255 {
-						t.Fatalf("no-blur fallback=%v, want opaque BgContainer=%v", fill.Color, th.BgContainer)
-					}
-					if len(footerBlurs(d)) != 0 {
-						t.Fatal("no-blur renderer emitted BackdropBlur")
+					for _, target := range []bool{false, true} {
+						var sticky *FooterToolbarW
+						var sb *ScrollBox
+						d := footerDriver(footerMatrixPage(target, &sticky, &sb), th, true)
+						d.Frame()
+						d.Frame()
+						assertOpaqueFooterFrame(t, d, sticky, th)
+						assertFooterGeometry(t, d, sticky, sb, target)
+
+						// Leaving the footer must remove the affixed surface; returning
+						// to the top must rebuild the opaque fallback.
+						sb.ScrollTo(0, 800)
+						d.Frame()
+						d.Frame()
+						if len(footerBlurs(d)) != 0 {
+							t.Fatal("no-blur footer emitted BackdropBlur after scroll-away")
+						}
+						sb.ScrollTo(0, 0)
+						d.Frame()
+						d.Frame()
+						assertOpaqueFooterFrame(t, d, sticky, th)
+						assertFooterGeometry(t, d, sticky, sb, target)
+
+						d.Resize(520, 220)
+						d.Frame()
+						assertOpaqueFooterFrame(t, d, sticky, th)
+						assertFooterGeometry(t, d, sticky, sb, target)
 					}
 				})
 			}
