@@ -147,7 +147,7 @@ test("stream with byte acks and backpressure", async () => {
   assert.ok(st.maxInflight <= DEFAULT_WINDOW_BYTES, `maxInflight=${st.maxInflight}`);
   assert.ok(st.acks.length > 0);
   assert.ok(st.acks.every((n) => n > 0 && n % C === 0), `acks=${st.acks}`);
-  assert.ok(st.acks.some((n) => n >= DEFAULT_WINDOW_BYTES / 2), `acks=${st.acks}`);
+  assert.ok(st.acks.some((n) => n >= DEFAULT_WINDOW_BYTES / 4), `acks=${st.acks}`);
 });
 
 test("acks by bytes after consumption", async () => {
@@ -155,14 +155,17 @@ test("acks by bytes after consumption", async () => {
   const c = createClient(b);
   const s = c.stream("Big");
   b.take();
-  b.recv({ tango: "stream", id: 1, op: "data", seq: 0, c: 300000, data: 1 });
-  b.recv({ tango: "stream", id: 1, op: "data", seq: 1, c: 300000, data: 2 });
+  b.recv({ tango: "stream", id: 1, op: "data", seq: 0, c: 200000, data: 1 });
+  b.recv({ tango: "stream", id: 1, op: "data", seq: 1, c: 100000, data: 2 });
+  b.recv({ tango: "stream", id: 1, op: "data", seq: 2, c: 100000, data: 3 });
   assert.deepEqual(b.take(), []); // nothing is acked before it is read
   const it = s[Symbol.asyncIterator]();
   assert.deepEqual(await it.next(), { value: 1, done: false });
-  assert.deepEqual(b.take(), []); // 300000 < half a window, one frame still queued
+  assert.deepEqual(b.take(), []); // 200000 < a quarter window, frames still queued
   assert.deepEqual(await it.next(), { value: 2, done: false });
-  assert.deepEqual(b.take(), [{ tango: "stream", id: 1, op: "ack", b: 600000 }]);
+  assert.deepEqual(b.take(), [{ tango: "stream", id: 1, op: "ack", b: 300000 }]); // ≥ 262144
+  assert.deepEqual(await it.next(), { value: 3, done: false });
+  assert.deepEqual(b.take(), [{ tango: "stream", id: 1, op: "ack", b: 100000 }]); // caught up
 });
 
 test("acks a small remainder once the reader caught up", async () => {
@@ -932,16 +935,16 @@ test("readable yields values and bytes then closes", async () => {
 test("readable pulls lazily: ack only after reads", async () => {
   const { b, s } = openReader("Big");
   const reader = s.readable.getReader();
-  b.recv({ tango: "stream", id: 1, op: "data", seq: 0, c: 300000, data: 1 });
-  b.recv({ tango: "stream", id: 1, op: "data", seq: 1, c: 300000, data: 2 });
+  b.recv({ tango: "stream", id: 1, op: "data", seq: 0, c: 200000, data: 1 });
+  b.recv({ tango: "stream", id: 1, op: "data", seq: 1, c: 200000, data: 2 });
   await settle();
   assert.deepEqual(b.take(), []); // nothing read yet: nothing acked
   assert.deepEqual(await reader.read(), { value: 1, done: false });
   await settle();
-  assert.deepEqual(b.take(), []); // one frame still queued, below half a window
+  assert.deepEqual(b.take(), []); // one frame still queued, below a quarter window
   assert.deepEqual(await reader.read(), { value: 2, done: false });
   await settle();
-  assert.deepEqual(b.take(), [{ tango: "stream", id: 1, op: "ack", b: 600000 }]);
+  assert.deepEqual(b.take(), [{ tango: "stream", id: 1, op: "ack", b: 400000 }]);
 });
 
 test("readable and iterator are exclusive", async () => {

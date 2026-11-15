@@ -143,7 +143,7 @@ func (s *Surface) Native() uintptr
 ```
 
 - **帧**：一帧就是应用的一条消息，不拆不并。`data` 与 `bin` 二选一（`"bin":""` 是空字节帧，不同于没有 `bin`）；`seq` 按方向从 0 递增，接收方按序交付；`end`/`close`/`error` 的 `seq` 是本方向已发帧数，收齐之前的帧才处理。
-- **背压**（按字节计的信用窗口）：每帧计费 `c` = 负载字节数 + 64（`FrameOverhead`），由发送方算好写进帧里（JSON 按发送方编码后的长度，字节按原始长度）。窗口是接收方通告的：Go 在 `hello` 回复里给出 `win`（`Router.SetStreamWindow`，默认 `DefaultWindowBytes` = 1 MiB）；runtime-js 在自己的 `hello` 里给出 `win`（1 MiB），下行通道 `down:poll` 就绪后用 `{"tango":"win"}` 提到 4 MiB（之后新开的流用新窗口，已开的流只升不降）。没有 `win`（旧 runtime-js）、不是整数或小于 4096 时按 1 MiB，大于 `MaxPeerWindowBytes`（64 MiB）按 64 MiB；不认识 `win` 消息的旧 Go 忽略它。在途 + 本帧 > 窗口时发送方阻塞，在途为 0 时单帧可以超窗。接收方在应用读走一帧后累计归还，累计到半个窗口时发 `ack`；读走后接收队列已空也立即全部归还。单帧原始负载上限 `MaxFrameBytes` = 16 MiB，超过时发送调用返回 `bad_args`，流不受影响。
+- **背压**（按字节计的信用窗口）：每帧计费 `c` = 负载字节数 + 64（`FrameOverhead`），由发送方算好写进帧里（JSON 按发送方编码后的长度，字节按原始长度）。窗口是接收方通告的：Go 在 `hello` 回复里给出 `win`（`Router.SetStreamWindow`，默认 `DefaultWindowBytes` = 1 MiB）；runtime-js 在自己的 `hello` 里给出 `win`（1 MiB），下行通道 `down:poll` 就绪后用 `{"tango":"win"}` 提到 4 MiB（之后新开的流用新窗口，已开的流只升不降）。没有 `win`（旧 runtime-js）、不是整数或小于 4096 时按 1 MiB，大于 `MaxPeerWindowBytes`（64 MiB）按 64 MiB；不认识 `win` 消息的旧 Go 忽略它。在途 + 本帧 > 窗口时发送方阻塞，在途为 0 时单帧可以超窗。接收方在应用读走一帧后累计归还，累计到窗口的一定比例时发 `ack`（Go 半个窗口；runtime-js 四分之一，`ACK_DIVISOR`）；读走后接收队列已空也立即全部归还。单帧原始负载上限 `MaxFrameBytes` = 16 MiB，超过时发送调用返回 `bad_args`，流不受影响。
 - **结束**：双方都 `end` 为正常完成；`close` = `end` 加"不再接收"，之后对方的写返回"stream closed by peer"，对方在这条流上不再发任何消息；`error` 让两端都失败；`cancel` 立即放弃并丢弃未读数据。Go 处理函数返回 nil 时发 `close`，返回错误时发 `error`。
 - `accept` 之前打开方就可以发数据；收到 `in:false` 时本地发送失败（`bad_args`），对方丢弃已收到的数据并照常 `ack`。找不到处理函数回 `error`（`not_found`），不发 `accept`。未知 `op` 忽略。
 - **进程内客户端**：`Router.Call`、`Router.Open` 让同进程的 Go 代码（自绘界面）使用同一批处理函数，走同一套流状态机，但不经过线协议（不编码 JSON 消息，不做 base64）。

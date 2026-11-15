@@ -134,7 +134,7 @@ export const DEFAULT_WINDOW_BYTES = 1048576;
 const POLL_WINDOW_BYTES = 4 * 1048576;
 /** A reader returns credit once a 1/ACK_DIVISOR of the receive window
  * accumulated (or at once when it caught up). */
-const ACK_DIVISOR = 2;
+const ACK_DIVISOR = 4;
 /** Bytes charged per stream frame on top of its payload (Go: ipc.FrameOverhead). */
 export const FRAME_OVERHEAD = 64;
 /** Largest raw payload of one stream frame (Go: ipc.MaxFrameBytes). */
@@ -540,8 +540,8 @@ class StreamImpl<T> implements TangoStream<T> {
     }
   }
 
-  /** Returns a read frame's credit: acks once half the window (1/ACK_DIVISOR
-   * of the receive window this page advertised) accumulated,
+  /** Returns a read frame's credit: acks once a quarter of the window
+   * (1/ACK_DIVISOR of the receive window this page advertised) accumulated,
    * or as soon as the reader caught up. Once Go ended its direction the
    * credit is useless and is not sent. */
   private credit(c: number): void {

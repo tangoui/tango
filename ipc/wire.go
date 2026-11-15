@@ -121,8 +121,11 @@
 // gives none). The sender blocks while frames are in flight and the next
 // frame's c would exceed the window; with nothing in flight a single frame
 // may exceed it. The receiver returns a frame's c once the application has
-// read the frame, and sends ack when the credit to return reaches half its
-// window, and also at once whenever a read leaves its receive queue empty.
+// read the frame, and sends ack when the credit to return reaches a share
+// of its window (Go: half; runtime-js: a quarter, so a page with a large
+// window returns credit sooner), and also at once whenever a read leaves
+// its receive queue empty. The share is the receiver's choice; a sender
+// does not depend on it.
 //
 // # Fast lanes
 //
