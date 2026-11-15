@@ -15,17 +15,28 @@
 // One JSON object per raw message, tagged by the "tango" field. Messages
 // without that field are not ipc and are left to the application.
 //
-// Handshake. runtime-js sends hello when it starts (the page (re)loaded).
-// Go drops everything of the previous document on that connection and
-// replies with its stream receive window in bytes (SetStreamWindow, default
-// DefaultWindowBytes). A hello without "proto":2 is answered with an error
-// and logged with slog.Warn; that runtime's calls and streams then fail.
-// Before Go's hello arrives, JS may already send calls, events and stream
-// messages, counting on a window of DefaultWindowBytes.
+// Handshake. runtime-js sends hello when it starts (the page (re)loaded),
+// with its own stream receive window in bytes in "win". Go drops everything
+// of the previous document on that connection and replies with its stream
+// receive window (SetStreamWindow, default DefaultWindowBytes). A hello
+// without "proto":2 is answered with an error and logged with slog.Warn;
+// that runtime's calls and streams then fail. Before Go's hello arrives,
+// JS may already send calls, events and stream messages, counting on a
+// window of DefaultWindowBytes.
 //
-//	{"tango":"hello","proto":2}
+//	{"tango":"hello","proto":2,"win":1048576}
 //	{"tango":"hello","proto":2,"win":1048576}
 //	{"tango":"hello","error":{"code":"bad_args","message":"runtime-js protocol mismatch"}}
+//
+// The page's "win" is optional (older runtimes leave it out): a missing
+// one, or one that is not an integer of at least MinWindowBytes, means
+// DefaultWindowBytes; one above MaxPeerWindowBytes counts as that. The page
+// may later change its window with win (runtime-js raises it once down:poll
+// is ready); it applies to the streams opened after it and raises, never
+// lowers, the window of open ones. Invalid ones, and one before hello, are
+// ignored; a Go that predates it ignores it as an unknown message.
+//
+//	{"tango":"win","win":4194304}
 //
 // Calls and events:
 //
@@ -105,13 +116,13 @@
 // # Flow control
 //
 // Each direction of each stream has a window in bytes: the receive window
-// the receiver advertised (Go's "win" in hello; toward runtime-js it is
-// always DefaultWindowBytes). The sender blocks while frames are in flight
-// and the next frame's c would exceed the window; with nothing in flight a
-// single frame may exceed it. The receiver returns a frame's c once the
-// application has read the frame, and sends ack when the credit to return
-// reaches half its window, and also at once whenever a read leaves its
-// receive queue empty.
+// the receiver advertised (Go's "win" in its hello reply; runtime-js's
+// "win" in its hello or a later win message, DefaultWindowBytes when it
+// gives none). The sender blocks while frames are in flight and the next
+// frame's c would exceed the window; with nothing in flight a single frame
+// may exceed it. The receiver returns a frame's c once the application has
+// read the frame, and sends ack when the credit to return reaches half its
+// window, and also at once whenever a read leaves its receive queue empty.
 //
 // # Fast lanes
 //
@@ -192,6 +203,14 @@ const (
 	// MaxFrameBytes is the largest raw payload a single stream frame may
 	// carry.
 	MaxFrameBytes = 16 << 20
+	// MinWindowBytes is the smallest stream receive window either side may
+	// use (Router.SetStreamWindow; a smaller "win" from the page is
+	// ignored).
+	MinWindowBytes = 4096
+	// MaxPeerWindowBytes caps the receive window Go accepts from a page:
+	// a larger "win" is taken as this much, which bounds what Go queues
+	// toward the page per stream.
+	MaxPeerWindowBytes = 64 << 20
 )
 
 // Error is the error object carried on the wire. Handlers may return an
@@ -228,6 +247,7 @@ type wireIn struct {
 	Bin    *string         `json:"bin"` // nil when absent; "" is an empty byte frame
 	B      int             `json:"b"`
 	In     *bool           `json:"in"`
+	Win    json.RawMessage `json:"win"` // hello, win: the page's receive window (validated by peerWindow)
 }
 
 // seq returns the "seq" field, 0 when absent.

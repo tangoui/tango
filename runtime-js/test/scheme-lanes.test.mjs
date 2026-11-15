@@ -490,13 +490,16 @@ test("IIFE registers the fast lanes before the client starts", async () => {
   assert.equal(ctx[REG]?.has("down:poll"), true);
   assert.equal(ctx[REG]?.has("up:post"), true);
   assert.equal(ctx[REG]?.has("down:scheme"), false);
-  assert.deepEqual(b.out.splice(0), ['{"tango":"hello","proto":2}']);
+  assert.deepEqual(b.out.splice(0), ['{"tango":"hello","proto":2,"win":1048576}']);
   b.recv({ tango: "hello", proto: 2, win: 1048576, lanes: { gen: 4, tok: "k", list: ["down:poll", "up:post"] } });
   await tick();
   assert.equal(b.pktSubs.length, 1, "down:poll subscribed to _onPacket");
   assert.deepEqual(ups.map((u) => u.url), ["/__tango/lane/up?gen=4&tok=k"], "down:poll fetches nothing");
   const ctl = (op, lane) => INTERNAL_PREFIX + "lane:" + JSON.stringify({ op, lane, gen: 4 });
-  assert.deepEqual(b.out.splice(0).sort(), [ctl("ready", "down:poll"), ctl("ready", "up:post")].sort());
+  assert.deepEqual(
+    b.out.splice(0).sort(),
+    [ctl("ready", "down:poll"), ctl("ready", "up:post"), '{"tango":"win","win":4194304}'].sort(),
+  );
   assert.equal(JSON.stringify(ctx.tango.lanes()), JSON.stringify({ down: "down:poll", up: "up:post" })); // other realm
 });
 

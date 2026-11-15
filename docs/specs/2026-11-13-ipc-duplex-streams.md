@@ -99,9 +99,12 @@ Tango 的 `ipc` 流目前只有 Go→JS 一个方向，负载只能是 JSON 值�
 **握手**
 
 ```
-JS → Go  {"tango":"hello","proto":2}
+JS → Go  {"tango":"hello","proto":2,"win":1048576}
 Go → JS  {"tango":"hello","proto":2,"win":1048576}
+JS → Go  {"tango":"win","win":4194304}      （之后，可选：页面调整接收窗口）
 ```
+
+- **页面通告接收窗口（2026-11-15 补充）**：JS 的 `hello` 带页面的每流接收窗口 `win`，Go 用它作为发往这个页面的发送窗口。缺省（旧 runtime-js）、不是整数或小于 4096 时按 `DefaultWindowBytes`；大于 `MaxPeerWindowBytes`（64 MiB）按 64 MiB，限制 Go 每流朝页面排队的量。之后页面可以发 `{"tango":"win","win":N}` 调整：新开的流用 N，已开的流只升不降（页面可能已按旧窗口收数据，降窗口不安全；升窗口时 Go 唤醒等信用的写方）。`hello` 之前的、不合法的 `win` 消息忽略。旧 Go 不认识 `win` 字段和 `win` 消息（未知的 `tango` 类型本来就忽略），继续按 1 MiB 发，页面照常工作（读空时立即归还信用，不会卡死）。runtime-js 的取值：`hello` 里固定 1 MiB；`down:poll` 就绪时发 `win` 提到 4 MiB（`POLL_WINDOW_BYTES`）。不在 `hello` 里直接通告大窗口，是因为 `hello` 早于通道协商：消息通道兜底（`Eval`）每 MiB 的代价高得多，窗口越大，同一条消息通道上排在大块数据后面的调用回复等得越久；只有 `down:poll` 一轮能搬走一整个窗口，窗口才是它的瓶颈。下行通道之后失败退回 `Eval` 时不降窗口（只升不降），每流页面侧缓冲仍以 4 MiB 为界。
 
 - JS 启动时发 `hello`（现有行为），新增 `proto`。Go 收到后照旧 `Drop` 掉这个连接的旧状态，然后回一个 `hello`，带上 Go 端的接收窗口 `win`。第二期有快速通道时再加 `lanes` 字段（§6.1）；没有这个字段就表示没有快速通道。
 - 没带 `proto` 或 `proto` 不是 2 的 `hello`：Go 回 `{"tango":"hello","error":{"code":"bad_args","message":"runtime-js protocol mismatch"}}`，并用 `slog.Warn` 记一条日志（不走 `OnPanic`：这不是 panic，走那条路会误触发应用的崩溃处理）。**不兼容 v1**：runtime-js 嵌在 Go 模块里（`runtime-js/runtimejs`），npm 包 `@tangoui/runtime` 和 Go 模块同版本发布，0.x 阶段不值得维护两套协议（这是我的判断）。
@@ -130,7 +133,7 @@ Go → JS  {"tango":"hello","proto":2,"win":1048576}
 
 ### 5.3 背压：按字节计的信用窗口
 
-- 每条流每个方向一个窗口，初始大小 = 对方在 `hello` 里通告的 `win`（默认 `DefaultWindowBytes = 1 MiB`，Go 侧可在 `Router` 上配置）。JS 在收到 Go 的 `hello` 之前按 1 MiB 计算。
+- 每条流每个方向一个窗口，初始大小 = 对方在 `hello` 里通告的 `win`（默认 `DefaultWindowBytes = 1 MiB`，Go 侧可在 `Router` 上配置；页面侧见 §5.2 的"页面通告接收窗口"，可用 `win` 消息调整）。JS 在收到 Go 的 `hello` 之前按 1 MiB 计算。
 - 每条数据帧的**计费大小** = 负载字节数 + 64（每帧固定开销，防止大量空帧绕过背压）。JSON 负载按**发送方**编码后的字节数；字节负载按原始长度（不算 base64 膨胀，这样换传输不影响计费）。
 - **计费大小由发送方算出并写在帧的 `c` 字段里**，接收方读走一帧后归还的就是这个 `c`，自己不重新计算。原因：Go 的 `json.Marshal` 和 JS 的 `JSON.stringify` 转义与数字格式不同，两边各算各的会对不上，导致在途计数永远回不到 0（流最终卡死）或信用泄漏。快速通道上的字节帧没有 `c` 字段，计费大小固定为 `len + 64`，两边算法相同。缺少 `c` 或 `c` 小于 64 的 JSON 帧：接收方让流 `error`（`bad_args`）。
 - 发送方：在途（已发未归还）字节数 + 本帧计费 > 窗口时阻塞；**例外**：在途为 0 时，单帧可以超出窗口（否则大于窗口的帧永远发不出去）。

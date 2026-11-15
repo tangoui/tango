@@ -139,6 +139,8 @@ export interface LaneHost {
   /** The ready upstream lane stopped or failed: frames it took and never
    * dispatched are lost. */
   onUpStopped(): void;
+  /** A downstream lane became ready (after its ready message was posted). */
+  onDownReady?(name: string): void;
 }
 
 const report = (err: unknown) =>
@@ -234,6 +236,13 @@ export class Lanes {
         if (e.dead) return;
         e.ready = true;
         this.control("ready", e.name);
+        if (!isUp(e.lane)) {
+          try {
+            this.host.onDownReady?.(e.name);
+          } catch (err) {
+            report(err);
+          }
+        }
       },
       () => this.fail(e, dir),
     );

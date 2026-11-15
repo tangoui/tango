@@ -44,7 +44,7 @@ const tick = () => new Promise((r) => setImmediate(r));
 test("hello is posted on start", () => {
   const b = fakeBridge();
   createClient(b);
-  assert.deepEqual(b.take(), [{ tango: "hello", proto: 2 }]);
+  assert.deepEqual(b.take(), [{ tango: "hello", proto: 2, win: DEFAULT_WINDOW_BYTES }]);
 });
 
 test("protocol constants match Go", () => {
@@ -1214,7 +1214,7 @@ test("IIFE exposes window.tango and shares one client per bridge", async () => {
   ctx.window = ctx;
   vm.runInContext(src, ctx);
   vm.runInContext(src, ctx); // a second bundle (e.g. the ESM build) must reuse the client
-  assert.deepEqual(b.take(), [{ tango: "hello", proto: 2 }]);
+  assert.deepEqual(b.take(), [{ tango: "hello", proto: 2, win: DEFAULT_WINDOW_BYTES }]);
   assert.equal(typeof ctx.tango.call, "function");
   const p = ctx.tango.call("A.B", 1);
   const [m] = b.take();
@@ -1242,5 +1242,5 @@ test("IIFE exposes window.tango when __tango is frozen", () => {
   vm.runInContext(readFileSync(new URL("../runtimejs/tango.iife.js", import.meta.url), "utf8"), ctx);
   assert.equal(typeof ctx.tango, "object");
   assert.equal(typeof ctx.tango.call, "function");
-  assert.deepEqual(posted, ['{"tango":"hello","proto":2}']);
+  assert.deepEqual(posted, ['{"tango":"hello","proto":2,"win":1048576}']);
 });

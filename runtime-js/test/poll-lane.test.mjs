@@ -153,3 +153,90 @@ test("poll lane: stop unsubscribes", async (t) => {
   assert.equal(b.pktSubs.length, 0);
   assert.equal(c.lanes().down, "fallback");
 });
+
+const ipcOut = (b) => b.out.filter((s) => !s.startsWith(INTERNAL_PREFIX)).map((s) => JSON.parse(s));
+
+// Plays Go sending total JSON frames of charge c on stream id within a
+// send window of win bytes; returns a pump to call after each read.
+function producer(b, id, total, c, win) {
+  const st = { sent: 0, inflight: 0, acks: [] };
+  return () => {
+    for (const m of ipcOut(b)) if (m.id === id && m.op === "ack") (st.acks.push(m.b), (st.inflight -= m.b));
+    b.out.length = 0;
+    while (st.sent < total && (st.inflight === 0 || st.inflight + c <= win)) {
+      st.inflight += c;
+      b.recv({ tango: "stream", id, op: "data", seq: st.sent++, c, data: 0 });
+    }
+    return st;
+  };
+}
+
+test("poll lane: ready raises the page's receive window (win message)", async (t) => {
+  const b = fakeCore();
+  asCore(t, b);
+  const c = createClient(b);
+  assert.deepEqual(ipcOut(b), [{ tango: "hello", proto: 2, win: 1048576 }]);
+  b.out.length = 0;
+  b.recv(hello(3, ["down:poll", "up:post"]));
+  await tick();
+  assert.deepEqual(ipcOut(b), [{ tango: "win", win: 4 * 1048576 }]);
+  // Acks now come once a quarter of 4 MiB was read (or the reader caught up).
+  let s;
+  c.onStream("Feed", (x) => (s = x));
+  b.recv({ tango: "stream", id: 2, op: "open", method: "Feed", args: [] });
+  b.out.length = 0;
+  const pump = producer(b, 2, 64, 65600, 4 * 1048576);
+  pump();
+  let n = 0;
+  for await (const _ of s) {
+    if (++n === 64) break;
+    pump();
+  }
+  const st = pump();
+  assert.equal(st.sent, 64);
+  // The first ack waits for well over 1 MiB: the threshold follows the
+  // 4 MiB window, not DEFAULT_WINDOW_BYTES.
+  assert.ok(st.acks.length >= 1 && st.acks[0] >= 1048576, `acks=${st.acks}`);
+});
+
+test("poll lane: no win message without down:poll", async (t) => {
+  for (const offer of [["up:post"], []]) {
+    const b = fakeCore();
+    asCore(t, b);
+    createClient(b);
+    b.out.length = 0;
+    b.recv(offer.length ? hello(1, offer) : { tango: "hello", proto: 2, win: 1048576 });
+    await tick();
+    assert.deepEqual(ipcOut(b), [], `offer ${offer}`);
+  }
+  // down:poll offered but the core has no _onPacket: it fails, no win.
+  const b = fakeCore({ hook: false });
+  asCore(t, b);
+  createClient(b);
+  b.out.length = 0;
+  b.recv(hello(2));
+  await tick();
+  assert.deepEqual(ipcOut(b), []);
+});
+
+// A Go that ignores win (and the hello's win) keeps sending within 1 MiB:
+// the page acks once it caught up, so the stream still completes.
+test("poll lane: a Go ignoring win still gets its credit back", async (t) => {
+  const b = fakeCore();
+  asCore(t, b);
+  const c = createClient(b);
+  b.recv(hello(3));
+  await tick();
+  let s;
+  c.onStream("Feed", (x) => (s = x));
+  b.recv({ tango: "stream", id: 2, op: "open", method: "Feed", args: [] });
+  b.out.length = 0;
+  const pump = producer(b, 2, 100, 65600, 1048576);
+  pump();
+  let n = 0;
+  for await (const _ of s) {
+    if (++n === 100) break;
+    pump();
+  }
+  assert.equal(pump().sent, 100);
+});
