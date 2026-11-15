@@ -19,6 +19,7 @@ pkg github.com/tangoui/tango/ui/text, func Shape(string, Style, Options) *Layout
 pkg github.com/tangoui/tango/ui/text, func ShapeInto(*Layout, string, Style, Options) *Layout
 pkg github.com/tangoui/tango/ui/text, func ShapeRuns(string, []Run, Options) *Layout
 pkg github.com/tangoui/tango/ui/text, func TrimCaches()
+pkg github.com/tangoui/tango/ui/text, func TrimFontCaches()
 pkg github.com/tangoui/tango/ui/text, func TrimSpaceRight(string) string
 pkg github.com/tangoui/tango/ui/text, func UseSystemEngine(bool) bool
 pkg github.com/tangoui/tango/ui/text, func UseSystemFonts(bool)
