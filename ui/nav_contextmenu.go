@@ -30,8 +30,6 @@ type contextMenuState struct {
 
 var contextMenuKey = hashID("context-menu")
 
-func init() { globalLayers = append(globalLayers, renderContextMenu) }
-
 // ContextMenuOptions configure ContextMenuAtWith.
 type ContextMenuOptions struct {
 	_ [0]func()
@@ -71,6 +69,7 @@ func ContextMenuAt(c *Context, owner ID, pos geom.Point, items []MenuItem, onSel
 // ContextMenuAtWith is ContextMenuAt with options. Options take effect
 // when the menu (re)opens.
 func ContextMenuAtWith(c *Context, owner ID, pos geom.Point, items []MenuItem, onSelect func(key string), opts ContextMenuOptions) {
+	c.useGlobalLayer(globalContextMenu, renderContextMenu)
 	st := State[contextMenuState](c, contextMenuKey, nil)
 	st.items, st.onSelect, st.fresh = items, onSelect, true
 	if st.open && st.owner == owner && st.pos == pos {

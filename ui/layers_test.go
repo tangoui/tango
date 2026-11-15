@@ -98,12 +98,11 @@ func TestLayerModalThenConfirm(t *testing.T) {
 
 func TestGlobalLayerDeferredRuns(t *testing.T) {
 	ran := 0
-	saved := globalLayers
-	globalLayers = append(append([]func(*Context){}, saved...), func(c *Context) {
-		c.deferred = append(c.deferred, func() { ran++ })
+	d := driver(func(c *Context) {
+		c.useGlobalLayer(globalMessage, func(c *Context) {
+			c.deferred = append(c.deferred, func() { ran++ })
+		})
 	})
-	t.Cleanup(func() { globalLayers = saved })
-	d := driver(func(c *Context) {})
 	d.Frame()
 	if ran == 0 {
 		t.Fatal("deferred work of a global layer did not run")

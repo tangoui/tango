@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"image/png"
 	"io"
 	"os"
@@ -204,5 +205,57 @@ func TestNSISAssociations(t *testing.T) {
 	os.WriteFile(nsi, []byte(nsisScript(cfg, a, filepath.Join(dir, "setup.exe"))), 0o644)
 	if out, err := exec.Command(makensis, "-V2", nsi).CombinedOutput(); err != nil {
 		t.Fatalf("makensis: %v\n%s", err, out)
+	}
+}
+
+// The tar format and installed payload stay identical; only the download's
+// compression improves. Derive both compressed sizes from the same tar bytes.
+func TestTarGzCompressionAndPayload(t *testing.T) {
+	var payload bytes.Buffer
+	for i := range 12000 {
+		fmt.Fprintf(&payload, "line %06d: %s\n", i%701, strings.Repeat("Tango archive payload;", 8+i%7))
+	}
+	want := payload.Bytes()
+	out := filepath.Join(t.TempDir(), "app.tar.gz")
+	if err := writeTarGz(out, "app", map[string]fileEntry{"program": {data: want, mode: 0o755}}); err != nil {
+		t.Fatal(err)
+	}
+	packed, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gz, err := gzip.NewReader(bytes.NewReader(packed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := io.ReadAll(gz)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gz.Close()
+	var def bytes.Buffer
+	zw := gzip.NewWriter(&def)
+	if _, err := zw.Write(raw); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if len(packed) >= def.Len() {
+		t.Errorf("tar.gz download %d B, default gzip %d B: want a smaller archive", len(packed), def.Len())
+	}
+	tr := tar.NewReader(bytes.NewReader(raw))
+	if h, err := tr.Next(); err != nil || h.Name != "app/" || h.Typeflag != tar.TypeDir {
+		t.Fatalf("root: %+v, %v", h, err)
+	}
+	if h, err := tr.Next(); err != nil || h.Name != "app/program" || h.Mode != 0o755 {
+		t.Fatalf("program: %+v, %v", h, err)
+	}
+	got, err := io.ReadAll(tr)
+	if err != nil || !bytes.Equal(got, want) {
+		t.Fatalf("payload changed: bytes=%d err=%v", len(got), err)
+	}
+	if _, err := tr.Next(); err != io.EOF {
+		t.Fatalf("extra member: %v", err)
 	}
 }

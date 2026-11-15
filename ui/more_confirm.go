@@ -113,8 +113,6 @@ type moreBoxes struct {
 
 var moreBoxesKey = hashID("more-confirm-boxes")
 
-func init() { globalLayers = append(globalLayers, moreRenderBoxes) }
-
 // Confirm opens a confirmation dialog with Cancel and OK buttons.
 func Confirm(c *Context, o ConfirmOptions) *ConfirmRef { return moreOpenBox(c, moreBoxConfirm, o) }
 
@@ -128,6 +126,7 @@ func MessageBox(c *Context, o ConfirmOptions) *ConfirmRef { return moreOpenBox(c
 func Prompt(c *Context, o ConfirmOptions) *ConfirmRef { return moreOpenBox(c, moreBoxPrompt, o) }
 
 func moreOpenBox(c *Context, kind int, o ConfirmOptions) *ConfirmRef {
+	c.useGlobalLayer(globalConfirm, moreRenderBoxes)
 	o.defaults(c) // ConfigProvider "Confirm" / "Modal" defaults
 	bs := State[moreBoxes](c, moreBoxesKey, nil)
 	bs.seq++

@@ -143,6 +143,7 @@ type Context struct {
 	counters      map[ID]int
 	overlays      []*overlay
 	layer         int
+	globalLayers  [globalLayerCount]func(*Context)
 
 	states map[ID]*stateEntry
 	anims  map[animKey]*anim
