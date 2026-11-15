@@ -154,6 +154,13 @@ func Renderer(r *ui.Runner) string {
 	return "cpu"
 }
 
+// autoCPUWindow keeps small utility windows from paying Metal's drawable,
+// heap and atlas residency cost. GPU remains the default unless auto is set.
+func autoCPUWindow(cv platform.Canvas) bool {
+	w, h := cv.Size()
+	return w > 0 && h > 0 && w*h <= 100000
+}
+
 // setupGPU switches cv to GPU presentation and returns the renderer for
 // the runner, or nil to stay on the CPU path. Main thread.
 func setupGPU(cv platform.Canvas, ropts ui.RunnerOptions) *gpuRenderer {
@@ -165,6 +172,9 @@ func setupGPU(cv platform.Canvas, ropts ui.RunnerOptions) *gpuRenderer {
 		return nil
 	}
 	forced := mode == "gpu"
+	if mode == "auto" && autoCPUWindow(cv) {
+		return nil
+	}
 	target, err := gpuTarget(cv)
 	if err != nil {
 		logGPUUnavailable(err, forced)
