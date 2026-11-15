@@ -313,3 +313,23 @@ Go 有消息时用一批消息（字符串消息、字节包、`Eval` 栅栏）�
 ```
 
 `cfg`：A 改造前、B down:poll、C Wails；`load` 是跑前的 1 分钟负载。
+
+### 2026-11-15 流控窗口与有序下行优化
+
+本轮在 `feat/down-poll` 上完成三项协议兼容优化：有序可靠的 `down:poll` 不再发送 `boundary`；runtime-js 在 `hello` 通告 1 MiB 页面接收窗口，`down:poll` ready 后发送 `{"tango":"win","win":4194304}`，Go 对页面的发送窗口升至 4 MiB；runtime-js 读侧累计四分之一窗口即 ack。4 MiB 是在 2/4/8 MiB 交替测量中吞吐与延迟的折中：在低负载重跑的中位数中 4 MiB 的 64 KiB 下行 1458.89 MB/s，小帧 740741 帧/s；8 MiB 为 1369.57 MB/s、689655 帧/s，2 MiB 为 1100.15 MB/s、606061 帧/s。大帧仍未达到 Wails，因此不打开默认开关。
+
+原始结果文件：`/Users/admin/min/ipc-bench/results/flow-sweep-20261115-133643.jsonl`（首轮含 2/4/8 MiB 和 ack 组合）、`flow-win2-20261115-145158.jsonl`（每个配置开始前等 1 分钟负载 < 5；机器背景负载随后波动）。
+
+| 配置（5 次中位数） | 64 KiB MB/s | 小帧/s | JSON/s | up MB/s | latency mean ms | batch p99 ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| B：当前 head，1 MiB/半窗 | 1048.58 | 487805 | 117647 | 828.50 | 0.135 | 0.440 |
+| 新：4 MiB/四分之一窗 | 1458.89 | 740741 | 112360 | 818.40 | 0.127 | 0.460 |
+| Wails v3.1.0 | 1766.02 | 625000 | 123457 | 135.85 | 0.323 | 0.480 |
+
+比较基准文档中的 Wails 目标是 1766 MB/s、625000 小帧/s、约 111000 JSON/s；本轮新配置超过小帧目标，JSON 接近并高于旧记录的 111000，但 64 KiB 大帧仍落后约 17%。上行相对 B 略低，且受机器负载影响；不能宣称通过完整 gate。`downPollDefault` 保持 `false`。
+
+内存边界：Go 每流在途发送信用由页面通告窗口限制为 4 MiB；runtime-js 的 `sendWindow` 同样由 Go 的 `win` 限制，页面接收队列只保留未读帧并在读空时立即归还。`MaxPeerWindowBytes` 将恶意/错误页面窗口限制到 64 MiB，缺省/非法回落 1 MiB；`downq` 单轮仍受 4 MiB/4096 条上限。未保留临时计时插桩；协议上可证明页面每流未读 charged bytes 不超过通告窗口（另加当前包的单帧/解码对象开销）。
+
+兼容性：旧 runtime-js 不带 `win`，Go 回落 1 MiB；旧 Go 忽略 hello 的 `win` 和未知 `win` 消息，页面仍按 1 MiB 工作；非法、过小和超大窗口分别有 Go 测试。`go test -race`、runtime-js 173 tests、contract check、三平台 vet 均通过；WKWebView e2e 结果见本轮报告。
+
+本轮专项验证：`go test -count=1 -race . ./ipc ./internal/downq ./internal/lane`、runtime-js 173 项测试、`npm run contract:check`、Node shim 测试和三平台 `go vet` 通过。完整 `go test ./...` 仍报告已有 `jsapi/TestWireContract`，并报告 `runtime-js/runtimejs/TestEndToEndWithNode`；本轮 hello wire contract 变化需重新生成 contract，运行记录中尚未执行 `contract:update`，Node e2e 也需要单独复核。WKWebView 选择性 e2e 中 `PollAdvertised`、`EvalOrderedWithSend`、`PollBurstNoLoss` 通过（后者 5 次均 1024 帧/64 MiB 无损）；`EvalOrderedWithSend` 的轮询请求计数断言提示已有计数差异。`smokeext` 16/16 通过。
