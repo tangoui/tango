@@ -54,7 +54,11 @@ type PaintFunc func(l *paint.List, r geom.Rect)
 type node struct {
 	ln       flexbox.Node
 	id       ID
+	kind     string
+	idLabel  string
 	label    string
+	parentID ID
+	ordinal  int
 	parent   *node
 	kids     []*node
 	paint    PaintFunc
@@ -92,6 +96,9 @@ type node struct {
 
 	ptr ptrFlags // touch / pointer-takeover declarations (pointer_capture.go)
 
+	boxWidget   *Box
+	labelWidget *Label
+
 	env *env // configuration scope the node was built in (env.go); nil = inherit while painting
 }
 
@@ -127,12 +134,15 @@ type Context struct {
 	// rendererBlurs); frosted surfaces fall back to opaque ones.
 	noBlur bool
 
-	root     *node
-	cur      *node
-	scope    ID
-	counters map[ID]int
-	overlays []*overlay
-	layer    int
+	allocs        frameAllocators
+	nodeIndex     map[ID]*node
+	nextNodeIndex map[ID]*node
+	root          *node
+	cur           *node
+	scope         ID
+	counters      map[ID]int
+	overlays      []*overlay
+	layer         int
 
 	states map[ID]*stateEntry
 	anims  map[animKey]*anim
@@ -307,10 +317,30 @@ func (c *Context) WakeAt(t time.Time) {
 
 // newID derives a widget ID in the current scope.
 func (c *Context) newID(kind, label string) ID {
-	base := hashID(c.scope, kind, label)
+	// Keep hashID's byte encoding, without boxing the hot-path arguments
+	// into interfaces (strings and non-small integers escape when boxed).
+	var h maphash.Hash
+	h.SetSeed(seed)
+	writeIDPart(&h, uint64(c.scope))
+	h.WriteString(kind)
+	h.WriteByte(0)
+	h.WriteString(label)
+	h.WriteByte(0)
+	base := ID(h.Sum64())
 	n := c.counters[base]
 	c.counters[base] = n + 1
-	return hashID(base, n)
+	h.Reset()
+	writeIDPart(&h, uint64(base))
+	writeIDPart(&h, uint64(n))
+	return ID(h.Sum64())
+}
+
+func writeIDPart(h *maphash.Hash, v uint64) {
+	var b [9]byte // eight little-endian bytes and hashID's part separator
+	for i := 0; i < 8; i++ {
+		b[i] = byte(v >> (8 * i))
+	}
+	h.Write(b[:])
 }
 
 // Key runs fn in an identity scope named by key, so widgets inside keep
@@ -324,7 +354,15 @@ func Key(c *Context, key any, fn func()) {
 
 // add creates a node under the current parent.
 func (c *Context) add(kind, label string) *node {
-	n := &node{id: c.newID(kind, label), label: label, parent: c.cur, disabled: c.disabledDepth > 0}
+	id := c.newID(kind, label)
+	n := c.takeNode(id)
+	if n.kind != "" && (n.kind != kind || n.idLabel != label || n.parentID != c.scope || n.ordinal != len(c.cur.kids)) {
+		n = c.allocNode()
+		c.nextNodeIndex[id] = n
+	} else {
+		resetNode(n)
+	}
+	n.id, n.kind, n.idLabel, n.label, n.parent, n.parentID, n.ordinal, n.disabled = id, kind, label, label, c.cur, c.scope, len(c.cur.kids), c.disabledDepth > 0
 	n.ln.Ref = n
 	c.stampEnv(n)
 	if c.cur != nil {
@@ -514,7 +552,12 @@ func (c *Context) box(kind string, dir layout.Direction, opts []layout.Option) *
 	n := c.add(kind, "")
 	n.ln.Dir = dir
 	flexbox.Apply(&n.ln.Style, opts...)
-	b := &Box{c: c, n: n}
+	b := n.boxWidget
+	if b == nil {
+		b = c.allocBox()
+	}
+	*b = Box{c: c, n: n}
+	n.boxWidget = b
 	n.paint = b.paintBox
 	return b
 }

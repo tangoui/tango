@@ -194,6 +194,7 @@ func (s *engineState) fallbackFamily(r rune) *family {
 // always rasterize through the engine, except keys the engine failed on,
 // which keep falling back for the life of the face.
 func (f *Face) RasterGlyph(id uint32, size float32, subx uint8, skew float32) (*image.Alpha, image.Point, bool) {
+	f.ready()
 	if f.ras == nil {
 		return nil, image.Point{}, false
 	}
@@ -225,7 +226,10 @@ type rasterKey struct {
 
 // SystemRasterized reports whether the face's glyphs are rasterized by the
 // system text engine.
-func (f *Face) SystemRasterized() bool { return f.ras != nil }
+func (f *Face) SystemRasterized() bool {
+	f.ready()
+	return f.ras != nil
+}
 
 // newEngineFace wraps an engine face: gt shapes (same tables the engine
 // renders), ras rasterizes, unitPath (optional) supplies outlines in font
@@ -236,6 +240,15 @@ func newEngineFace(family string, w Weight, italic bool, gt *font.Face, ras glyp
 	f.ras = ras
 	f.unitPath = unitPath
 	return f
+}
+
+// newLazyEngineFace is newEngineFace for a face built on first use: build
+// returns what newEngineFace takes (gt nil when the face cannot be built).
+// Loading a family registers every style it has; a UI uses a few of them,
+// and parsing a face's tables (a CJK font's character map, a variable
+// font's variation data) costs megabytes.
+func newLazyEngineFace(family string, w Weight, italic bool, build func() (*font.Face, glyphEngine, func(uint32) *paint.Path)) *Face {
+	return &Face{Family: family, Weight: w, Italic: italic, paths: map[uint32]*paint.Path{}, build: build}
 }
 
 // runeClass is the script group a rune prefers a font for.

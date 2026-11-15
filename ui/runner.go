@@ -435,7 +435,11 @@ func (r *Runner) build() {
 	c.stashShifts()
 	clear(c.counters)
 	c.resetRootEnv()
-	c.root = &node{id: hashID("root")}
+	c.beginNodeReuse()
+	c.resetFrameAllocations()
+	c.root = c.takeNode(hashID("root"))
+	resetNode(c.root)
+	c.root.id = hashID("root")
 	c.root.ln.Ref = c.root
 	c.root.ln.Width, c.root.ln.Height = c.size.W, c.size.H
 	c.stampEnv(c.root)

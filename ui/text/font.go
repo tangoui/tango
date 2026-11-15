@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -66,32 +67,76 @@ type Face struct {
 	ras      glyphEngine
 	unitPath func(id uint32) *paint.Path // outline in font units when go-text has none
 	noRaster map[rasterKey]bool          // keys the engine failed on (fall back forever)
+
+	// Lazily built engine faces (newLazyEngineFace): a family registers all
+	// its styles, but only the ones a layout picks parse their tables.
+	once   sync.Once
+	build  func() (gt *font.Face, ras glyphEngine, unitPath func(uint32) *paint.Path)
+	broken bool // build failed: the face cannot be used
+}
+
+// ready builds a lazy face on first use; a no-op for faces built eagerly.
+func (f *Face) ready() {
+	f.once.Do(func() {
+		build := f.build
+		if build == nil {
+			return
+		}
+		f.build = nil
+		gt, ras, unitPath := build()
+		if gt == nil {
+			f.broken = true
+			return
+		}
+		f.setFont(gt)
+		f.ras, f.unitPath = ras, unitPath
+	})
+}
+
+// usable reports whether f is not a lazy face that failed to build.
+func (f *Face) usable() bool {
+	f.ready()
+	return !f.broken
+}
+
+// gt is the go-text face, built on first use.
+func (f *Face) gt() *font.Face {
+	f.ready()
+	return f.face
 }
 
 func newFace(family string, w Weight, f *font.Face) *Face {
-	fc := &Face{Family: family, Weight: w, face: f, upem: float32(f.Upem()), paths: map[uint32]*paint.Path{}}
+	fc := &Face{Family: family, Weight: w, paths: map[uint32]*paint.Path{}}
+	fc.setFont(f)
+	return fc
+}
+
+// setFont sets the go-text face and the metrics read from it.
+func (fc *Face) setFont(f *font.Face) {
+	fc.face, fc.upem = f, float32(f.Upem())
 	if ext, ok := f.FontHExtents(); ok {
 		fc.asc = ext.Ascender
 		fc.desc = -ext.Descender
 	} else {
 		fc.asc, fc.desc = fc.upem*0.8, fc.upem*0.2
 	}
-	return fc
 }
 
 // Metrics returns ascent and descent in px at size.
 func (f *Face) Metrics(size float32) (ascent, descent float32) {
+	f.ready()
 	return f.asc * size / f.upem, f.desc * size / f.upem
 }
 
 // HasRune reports whether the face maps r.
 func (f *Face) HasRune(r rune) bool {
-	_, ok := f.face.NominalGlyph(r)
+	_, ok := f.gt().NominalGlyph(r)
 	return ok
 }
 
 // GlyphPath implements paint.GlyphSource.
 func (f *Face) GlyphPath(id uint32, size float32) *paint.Path {
+	f.ready()
 	f.mu.Lock()
 	p, ok := f.paths[id]
 	if !ok {
@@ -109,7 +154,7 @@ func (f *Face) outline(id uint32) *paint.Path {
 	if f.unitPath != nil {
 		return f.unitPath(id)
 	}
-	o, ok := f.face.GlyphDataOutline(font.GID(id))
+	o, ok := f.gt().GlyphDataOutline(font.GID(id))
 	if !ok || len(o.Segments) == 0 {
 		return nil
 	}
@@ -170,6 +215,20 @@ func (fm *family) ensure() {
 // upright outline.
 func (fm *family) pick(w Weight, italic bool) (f *Face, synth bool) {
 	fm.ensure()
+	for {
+		f, synth = fm.pickBuilt(w, italic)
+		if f == nil || f.usable() {
+			return f, synth
+		}
+		// A lazy face whose tables could not be read: drop it, pick again.
+		fm.faces = slices.DeleteFunc(fm.faces, func(x *Face) bool { return x == f })
+		if len(fm.faces) == 0 {
+			fm.failed = true
+		}
+	}
+}
+
+func (fm *family) pickBuilt(w Weight, italic bool) (f *Face, synth bool) {
 	if italic {
 		if f := pickWeight(fm.faces, w, true); f != nil {
 			return f, false

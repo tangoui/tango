@@ -49,9 +49,12 @@ type Node struct {
 	Rect    geom.Rect // output: border box relative to parent
 	Content geom.Size // output: size of laid-out content incl. padding
 
-	gen   uint32
-	memo  [6]memoEntry
-	nmemo int
+	gen uint32
+	// Most nodes need at most two constraint combinations. Keep the full
+	// six-entry cache, but only pay for its tail on complex layouts.
+	memo     [2]memoEntry
+	memoMore *[4]memoEntry
+	nmemo    int
 }
 
 type memoEntry struct {
@@ -97,20 +100,33 @@ func measure(n *Node, cw, ch float32, fw, fh bool) geom.Size {
 		n.nmemo = 0
 	}
 	for i := 0; i < n.nmemo; i++ {
-		m := n.memo[i]
+		m := n.memoAt(i)
 		if m.cw == cw && m.ch == ch && m.fw == fw && m.fh == fh {
 			return m.out
 		}
 	}
 	out := measureUncached(n, cw, ch, fw, fh)
-	if n.nmemo < len(n.memo) {
-		n.memo[n.nmemo] = memoEntry{cw, ch, fw, fh, out}
+	m := memoEntry{cw, ch, fw, fh, out}
+	if n.nmemo < 6 {
+		if n.nmemo == len(n.memo) && n.memoMore == nil {
+			n.memoMore = new([4]memoEntry)
+		}
+		*n.memoAt(n.nmemo) = m
 		n.nmemo++
 	} else {
-		copy(n.memo[:], n.memo[1:])
-		n.memo[len(n.memo)-1] = memoEntry{cw, ch, fw, fh, out}
+		for i := 0; i < 5; i++ {
+			*n.memoAt(i) = *n.memoAt(i + 1)
+		}
+		*n.memoAt(5) = m
 	}
 	return out
+}
+
+func (n *Node) memoAt(i int) *memoEntry {
+	if i < len(n.memo) {
+		return &n.memo[i]
+	}
+	return &n.memoMore[i-len(n.memo)]
 }
 
 func measureUncached(n *Node, cw, ch float32, fw, fh bool) geom.Size {
@@ -266,6 +282,30 @@ type item struct {
 	fixedCrossSz float32
 }
 
+// wrapLines is kept separate so appending wrapped lines cannot make the
+// non-wrapping path's stack-backed indices escape through the lines slice.
+func wrapLines(items []item, mainAvail, gap float32) [][]int {
+	var lines [][]int
+	var cur []int
+	used := float32(0)
+	for i, it := range items {
+		sz := it.basis + it.mMain
+		if len(cur) > 0 && used+gap+sz > mainAvail+0.01 {
+			lines = append(lines, cur)
+			cur, used = nil, 0
+		}
+		if len(cur) > 0 {
+			used += gap
+		}
+		used += sz
+		cur = append(cur, i)
+	}
+	if len(cur) > 0 {
+		lines = append(lines, cur)
+	}
+	return lines
+}
+
 // flex lays out in-flow children inside an inner box and returns the content
 // size. When commit is set, child Rects are written and children arranged.
 func flex(n *Node, innerW, innerH float32, defW, defH, commit bool) geom.Size {
@@ -286,7 +326,13 @@ func flex(n *Node, innerW, innerH float32, defW, defH, commit bool) geom.Size {
 	if geom.IsInf(crossAvail) {
 		defCross = false
 	}
-	items := make([]item, 0, len(n.Children))
+	// Small containers are common; their scratch must not escape to the
+	// heap. Larger and wrapped containers retain the general layout path.
+	var smallItems [8]item
+	items := smallItems[:0]
+	if len(n.Children) > len(smallItems) {
+		items = make([]item, 0, len(n.Children))
+	}
 	for _, c := range n.Children {
 		if c.Absolute {
 			continue
@@ -340,35 +386,33 @@ func flex(n *Node, innerW, innerH float32, defW, defH, commit bool) geom.Size {
 	}
 	gap := s.Gap
 	// Break into lines.
+	var smallIndices [8]int
+	var singleLine [1][]int
 	var lines [][]int
 	if s.Wrap && !geom.IsInf(mainAvail) {
-		var cur []int
-		used := float32(0)
-		for i, it := range items {
-			sz := it.basis + it.mMain
-			if len(cur) > 0 && used+gap+sz > mainAvail+0.01 {
-				lines = append(lines, cur)
-				cur, used = nil, 0
-			}
-			if len(cur) > 0 {
-				used += gap
-			}
-			used += sz
-			cur = append(cur, i)
-		}
-		if len(cur) > 0 {
-			lines = append(lines, cur)
-		}
+		lines = wrapLines(items, mainAvail, gap)
 	} else {
-		idx := make([]int, len(items))
+		idx := smallIndices[:0]
+		if len(items) <= len(smallIndices) {
+			idx = smallIndices[:len(items)]
+		} else {
+			idx = make([]int, len(items))
+		}
 		for i := range idx {
 			idx[i] = i
 		}
-		lines = [][]int{idx}
+		singleLine[0] = idx
+		lines = singleLine[:]
 	}
 	// Resolve main sizes per line.
 	var contentMain float32
-	lineCross := make([]float32, len(lines))
+	var singleCross [1]float32
+	lineCross := singleCross[:0]
+	if len(lines) <= len(singleCross) {
+		lineCross = singleCross[:len(lines)]
+	} else {
+		lineCross = make([]float32, len(lines))
+	}
 	for li, ln := range lines {
 		sum := float32(0)
 		for k, i := range ln {

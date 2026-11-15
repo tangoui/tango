@@ -595,74 +595,82 @@ var wghtTag = tag4("wght")
 
 func (e *ctEngine) load(name string) []*Face {
 	seen := map[faceKey]bool{}
+	// Named instances of one variable font share its tables: they are
+	// parsed once, by the first instance built.
 	type sharedFont struct {
+		once sync.Once
+		mu   sync.Mutex // font.NewFont reads the loader
 		fn   *font.Font
 		ld   *ot.Loader
 		axes []tables.VariationAxisRecord
 	}
 	shared := map[string]*sharedFont{}
 	var out []*Face
+	// add registers the style; its tables are read when a layout first
+	// uses it (newLazyEngineFace).
 	add := func(f uintptr, w Weight, italic bool) {
 		if seen[faceKey{w, italic}] {
 			cfRelease(f)
 			return
 		}
-		// Named instances of one variable font share its tables: parse
-		// them once (the instance is the variation set below).
+		seen[faceKey{w, italic}] = true
 		key := tableKey(f)
-		sh, ok := shared[key]
-		if !ok {
-			gt, ld, err := goTextFace(ctTables(f))
-			if err != nil {
-				shared[key] = nil
-				cfRelease(f)
-				return
-			}
-			sh = &sharedFont{fn: gt.Font, ld: ld, axes: fvarAxes(ld)}
+		sh := shared[key]
+		if sh == nil {
+			sh = &sharedFont{}
 			shared[key] = sh
 		}
-		if sh == nil {
-			cfRelease(f)
-			return
-		}
-		// Instances of a variable font need their own *font.Font:
-		// go-text's HarfbuzzShaper caches its shaping font per *font.Font,
-		// so instances sharing one would shape with the first one's
-		// variation coordinates (all weights measuring alike).
-		fn := sh.fn
-		if len(sh.axes) > 0 {
-			if f2, err := font.NewFont(sh.ld); err == nil {
-				fn = f2
+		out = append(out, newLazyEngineFace(name, w, italic, func() (*font.Face, glyphEngine, func(uint32) *paint.Path) {
+			sh.once.Do(func() {
+				if gt, ld, err := goTextFace(ctTables(f)); err == nil {
+					sh.fn, sh.ld, sh.axes = gt.Font, ld, fvarAxes(ld)
+				}
+			})
+			if sh.fn == nil {
+				cfRelease(f)
+				return nil, nil, nil
 			}
-		}
-		gt := font.NewFace(fn)
-		axes := sh.axes
-		var vals map[uint32]float32
-		if len(axes) > 0 {
-			vals = ctVariation(f)
-			if vals == nil {
-				vals = map[uint32]float32{}
+			// Instances of a variable font need their own *font.Font:
+			// go-text's HarfbuzzShaper caches its shaping font per *font.Font,
+			// so instances sharing one would shape with the first one's
+			// variation coordinates (all weights measuring alike).
+			fn := sh.fn
+			if len(sh.axes) > 0 {
+				sh.mu.Lock()
+				if f2, err := font.NewFont(sh.ld); err == nil {
+					fn = f2
+				}
+				sh.mu.Unlock()
 			}
-			// Pin the optical size: CoreText would otherwise follow the
-			// point size, drawing other designs than go-text measured.
-			for _, a := range axes {
-				if uint32(a.Tag) == opszTag {
-					if _, ok := vals[opszTag]; !ok {
-						vals[opszTag] = 16
+			gt := font.NewFace(fn)
+			axes := sh.axes
+			var vals map[uint32]float32
+			if len(axes) > 0 {
+				vals = ctVariation(f)
+				if vals == nil {
+					vals = map[uint32]float32{}
+				}
+				// Pin the optical size: CoreText would otherwise follow the
+				// point size, drawing other designs than go-text measured.
+				for _, a := range axes {
+					if uint32(a.Tag) == opszTag {
+						if _, ok := vals[opszTag]; !ok {
+							vals[opszTag] = 16
+						}
 					}
 				}
+				if len(vals) == 0 {
+					// keep f: the default instance
+				} else if nf := withVariation(f, vals); nf != 0 {
+					cfRelease(f)
+					f = nf
+				}
+				setDesignCoords(gt, axes, vals)
 			}
-			if len(vals) == 0 {
-				// keep f: the default instance
-			} else if nf := withVariation(f, vals); nf != 0 {
-				cfRelease(f)
-				f = nf
-			}
-			setDesignCoords(gt, axes, vals)
-		}
-		seen[faceKey{w, italic}] = true
-		r := newCTRaster(f, vals)
-		out = append(out, newEngineFace(name, w, italic, gt, r, r.unitPath))
+			r := newCTRaster(f, vals)
+			r.tables = sh.ld
+			return gt, r, r.unitPath
+		}))
 	}
 	if name == ctSystemUI {
 		// The system UI font is reachable only through the UI font API
@@ -758,15 +766,18 @@ func fvarAxesOfCT(f uintptr) []uint32 {
 
 // ctRaster draws the glyphs of one CTFont.
 type ctRaster struct {
-	base  uintptr // retained, size 16, no matrix
-	upem  float32
-	desc  uintptr // variable faces: the pinned instance, applied to every sized copy
-	color bool    // colour glyphs (Apple Color Emoji): mask = luminance
+	tables *ot.Loader // immutable shaping tables for fixed-instance specialization
+	base   uintptr    // retained, size 16, no matrix
+	upem   float32
+	desc   uintptr // variable faces: the pinned instance, applied to every sized copy
+	color  bool    // colour glyphs (Apple Color Emoji): mask = luminance
 
 	mu    sync.Mutex
 	sized map[ctSizeKey]uintptr // per (size, skew) copies, retained
 	unit  uintptr               // at size upem: outlines in font units
 }
+
+func (r *ctRaster) shapingTables() *ot.Loader { return r.tables }
 
 type ctSizeKey struct{ size, skew float32 }
 

@@ -105,7 +105,9 @@ type Layout struct {
 	// style run Glyphs[g] belongs to; the ellipsis takes the run of the
 	// last rune kept on its line. Same length as Glyphs; all 0 in layouts
 	// made by Shape (one implicit run).
-	GlyphRun   []int32
+	GlyphRun []int32
+	// scratch holds compact numeric shaping glyphs for ShapeInto reuse.
+	scratch    []sg
 	Truncated  bool
 	Ascent     float32
 	LineHeight float32
@@ -189,18 +191,20 @@ type cacheKey struct {
 }
 
 var (
-	mu      sync.Mutex
-	cache   = map[cacheKey]*Layout{}
-	cacheV  = -1
-	shaper  shaping.HarfbuzzShaper
-	segm    shaping.Segmenter
-	breaker segmenter.Segmenter
-	hits    int
+	mu     sync.Mutex
+	cache  = map[cacheKey]*Layout{}
+	cacheV = -1
+
+	advanceShaper compactShaper
+	segm          shaping.Segmenter
+	breaker       segmenter.Segmenter
+	hits          int
 )
 
 func clearCache() {
 	mu.Lock()
-	cache = map[cacheKey]*Layout{}
+	resetLayouts()
+	clearPrepared()
 	runsCache = map[runsKey]*Layout{}
 	mu.Unlock()
 }
@@ -209,10 +213,7 @@ func clearCache() {
 // mutated.
 func Shape(s string, st Style, opt Options) *Layout {
 	st = st.norm()
-	if geom.IsInf(opt.MaxWidth) || opt.MaxWidth < 0 {
-		opt.MaxWidth = 0
-	}
-	chain := reg.chain(st.Mono)
+	opt = normOptions(opt)
 	reg.mu.Lock()
 	v := reg.version
 	reg.mu.Unlock()
@@ -221,7 +222,8 @@ func Shape(s string, st Style, opt Options) *Layout {
 	mu.Lock()
 	defer mu.Unlock()
 	if v != cacheV {
-		cache = map[cacheKey]*Layout{}
+		resetLayouts()
+		clearPrepared()
 		runsCache = map[runsKey]*Layout{}
 		cacheV = v
 	}
@@ -229,11 +231,13 @@ func Shape(s string, st Style, opt Options) *Layout {
 		hits++
 		return l
 	}
-	l := layout(s, st, opt, chain, lang)
-	if len(cache) > 8192 {
-		cache = map[cacheKey]*Layout{}
+	if fast := simpleNumericLayout(s, st, opt, v); fast != nil {
+		putLayout(k, fast)
+		return fast
 	}
-	cache[k] = l
+	chain := reg.chain(st.Mono)
+	l := layout(s, st, opt, chain, lang)
+	putLayout(k, l)
 	return l
 }
 
@@ -247,13 +251,40 @@ func Width(s string, st Style) float32 { return Shape(s, st, Options{NoWrap: tru
 func LineHeightOf(st Style) float32 { return st.norm().LineHeight }
 
 type fontmap struct {
-	chain  []*family
-	eng    *engineState // system engine: per-rune platform fallback
-	w      Weight
-	italic bool
-	byFF   map[*font.Face]*Face
-	first  *Face
-	feats  []shaping.FontFeature // Input.FontFeatures of every shaped run
+	chain      []*family
+	eng        *engineState // system engine: per-rune platform fallback
+	w          Weight
+	italic     bool
+	byFF       map[*font.Face]*Face
+	inlineFont *font.Face
+	inlineFace *Face
+	first      *Face
+	feats      []shaping.FontFeature // Input.FontFeatures of every shaped run
+}
+
+// Most labels use one typeface. Keep its reverse mapping inline and
+// allocate a map only when fallback introduces a second font.
+func (m *fontmap) remember(gt *font.Face, f *Face) {
+	if m.inlineFont == nil {
+		m.inlineFont, m.inlineFace = gt, f
+	}
+	if gt == m.inlineFont {
+		m.inlineFace = f
+		if m.byFF != nil {
+			m.byFF[gt] = f
+		}
+		return
+	}
+	if m.byFF == nil {
+		m.byFF = map[*font.Face]*Face{m.inlineFont: m.inlineFace}
+	}
+	m.byFF[gt] = f
+}
+func (m *fontmap) fromFont(gt *font.Face) *Face {
+	if gt == m.inlineFont {
+		return m.inlineFace
+	}
+	return m.byFF[gt]
 }
 
 // noLigaFeatures turns off the ligature features HarfBuzz enables by
@@ -271,11 +302,11 @@ var noLigaFeatures = []shaping.FontFeature{
 // the rune (CTFontCreateForString, fontconfig charset match).
 func (m *fontmap) ResolveFace(r rune) *font.Face {
 	if f, _ := m.resolve(r); f != nil {
-		return f.face
+		return f.gt()
 	}
 	if m.first != nil {
-		m.byFF[m.first.face] = m.first
-		return m.first.face
+		m.remember(m.first.gt(), m.first)
+		return m.first.gt()
 	}
 	return nil
 }
@@ -293,7 +324,7 @@ func (m *fontmap) resolve(r rune) (*Face, *family) {
 			m.first = f
 		}
 		if f.HasRune(r) {
-			m.byFF[f.face] = f
+			m.remember(f.gt(), f)
 			return f
 		}
 		return nil
@@ -390,14 +421,13 @@ func shapeItems(runes []rune, items []item, fms []*fontmap, adv []float32) []sg 
 			if shapeHook != nil {
 				shapeHook(run)
 			}
-			face := fm.byFF[run.Face]
-			o := shaper.Shape(run)
-			for _, g := range o.Glyphs {
-				gl := sg{face: face, gid: uint32(g.GlyphID), adv: fx(g.XAdvance), xoff: fx(g.XOffset), yoff: fx(g.YOffset), cluster: g.ClusterIndex, run: it.run}
-				if g.ClusterIndex >= a && g.ClusterIndex < b {
-					adv[g.ClusterIndex] += gl.adv
+			face := fm.fromFont(run.Face)
+			first := len(out)
+			out = advanceShaper.append(out, run, face, it.run)
+			for _, gl := range out[first:] {
+				if gl.cluster >= a && gl.cluster < b {
+					adv[gl.cluster] += gl.adv
 				}
-				out = append(out, gl)
 			}
 		}
 	}
@@ -448,7 +478,7 @@ func newFontmaps(rs []runStyle, opt Options, buf *[1]*fontmap) []*fontmap {
 			}
 		}
 		if fms[k] == nil {
-			fms[k] = &fontmap{chain: r.chain, w: r.st.Weight, italic: r.st.Italic, byFF: map[*font.Face]*Face{}, feats: feats}
+			fms[k] = &fontmap{chain: r.chain, w: r.st.Weight, italic: r.st.Italic, feats: feats}
 			if len(r.chain) > 0 {
 				fms[k].eng = reg.engineFallback()
 			}
@@ -543,11 +573,10 @@ func (l *Layout) addGlyph(g paint.Glyph, cluster, run int32, n int) {
 // prepRuns; nil: runs are not cut for shaping). With one run the result is
 // exactly the single-style layout.
 func layoutRuns(s string, rs []runStyle, runOf, shapeOf []int32, opt Options) *Layout {
-	runes := []rune(s)
+	prep := prepareText(s, rs, runOf, shapeOf, opt)
+	runes := prep.runes
 	st := rs[0].st
-	lang := language.NewLanguage(rs[0].lang)
-	var fmBuf [1]*fontmap
-	fms := newFontmaps(rs, opt, &fmBuf)
+	fms := prep.fms
 	skew := func(run int32, f *Face) float32 {
 		if rs[run].st.Italic && !f.Italic {
 			return ItalicSkew
@@ -563,62 +592,27 @@ func layoutRuns(s string, rs []runStyle, runOf, shapeOf []int32, opt Options) *L
 	// Line metrics: the tallest line height of the runs in use, and one
 	// baseline per line centring the union of their ascents and descents
 	// (for a single run: the single-style rule).
-	lh, asc, desc := lineMetrics(rs, fms, runOf, len(runes))
+	lh, asc, desc := prep.lh, prep.asc, prep.desc
 	l := &Layout{Text: s, Runes: runes, Style: st, LineHeight: lh}
 	l.Ascent = asc
 	baseOff := (lh-(asc+desc))/2 + asc
-	adv := make([]float32, len(runes)+1)
+	adv := prep.adv
 	maxW := opt.MaxWidth
 	wrap := maxW > 0 && !opt.NoWrap
 
-	// Bidi state of the paragraph each span belongs to.
-	type paraInfo struct {
-		base  bidi.Level
-		mixed bool // needs bidi handling (some RTL rune or an RTL paragraph)
-	}
+	glyphs, lv := prep.glyphs, prep.lv
 	var spans []span
-	var paras []paraInfo
-	var glyphs []sg
-	var items []item
-	lv := make([]bidi.Level, len(runes))
-	// Paragraphs.
-	pa := 0
-	for pa <= len(runes) {
-		pb := pa
-		for pb < len(runes) && runes[pb] != '\n' {
-			pb++
-		}
-		var pi paraInfo
-		if opt.Direction == DirRTL {
-			pi = paraInfo{base: 1, mixed: true}
-		}
-		if pb > pa {
-			pi.base, pi.mixed = paraLevels(runes, pa, pb, opt.Direction, lv)
-		}
-		items = items[:0]
-		if pi.mixed {
-			items = itemize(pa, pb, lv, st, lang, items)
-		} else {
-			items = append(items, item{start: pa, end: pb, st: st, lang: lang})
-		}
-		if shapeOf != nil {
-			items = splitRuns(items, shapeOf, rs)
-		}
-		gl := shapeItems(runes, items, fms, adv)
-		if opt.tabStop > 0 {
-			expandTabs(runes, pa, pb, adv, gl, opt.tabStop)
-		}
-		glyphs = append(glyphs, gl...)
+	var paras []paragraphInfo
+	for pi, p := range prep.paras {
 		n0 := len(spans)
-		if !wrap || pb == pa {
-			spans = append(spans, span{pa, pb})
+		if !wrap || p.a == p.b {
+			spans = append(spans, span{p.a, p.b})
 		} else {
-			spans = append(spans, breakLines(runes, pa, pb, adv, maxW)...)
+			spans = append(spans, breakAt(runes, p.a, adv, maxW, prep.lineEnds(pi))...)
 		}
 		for range spans[n0:] {
-			paras = append(paras, pi)
+			paras = append(paras, p)
 		}
-		pa = pb + 1
 	}
 	// Max lines / ellipsis.
 	truncLast := false
@@ -626,6 +620,11 @@ func layoutRuns(s string, rs []runStyle, runOf, shapeOf []int32, opt Options) *L
 		spans = spans[:opt.MaxLines]
 		truncLast = true
 		l.Truncated = true
+	}
+	if !opt.Ellipsis {
+		if previous := prep.placement(spans, truncLast, wrap); previous != nil {
+			return previous
+		}
 	}
 	// Ellipsis glyphs per style run (the run of the line's last rune).
 	type ellipsis struct {
@@ -637,12 +636,7 @@ func layoutRuns(s string, rs []runStyle, runOf, shapeOf []int32, opt Options) *L
 		return opt.Ellipsis && maxW > 0 && (truncLast || spanWidth(adv, sp.a, sp.b, runes) > maxW+0.01)
 	}
 	// Build glyph index by cluster for quick lookup.
-	byCluster := make([][]int, len(runes)+1)
-	for i, g := range glyphs {
-		if g.cluster >= 0 && g.cluster < len(byCluster) {
-			byCluster[g.cluster] = append(byCluster[g.cluster], i)
-		}
-	}
+	byCluster := prep.byCluster
 	for n, sp := range spans {
 		top := float32(n) * lh
 		ln := Line{Start: sp.a, End: sp.b, Top: top, Baseline: top + baseOff}
@@ -695,7 +689,7 @@ func layoutRuns(s string, rs []runStyle, runOf, shapeOf []int32, opt Options) *L
 			// Left-to-right only: the original placement.
 			for i := sp.a; i < end; i++ {
 				ln.carets = append(ln.carets, pen)
-				for _, gi := range byCluster[i] {
+				for gi := byCluster.first[i]; gi >= 0; gi = byCluster.next[gi] {
 					g := glyphs[gi]
 					if g.face != nil && runes[i] != '\t' {
 						l.addGlyph(paint.Glyph{Src: g.face, ID: g.gid, Size: rs[g.run].st.Size, X: pen + g.xoff, Y: ln.Baseline - g.yoff, Skew: skew(g.run, g.face)}, int32(i), runAt(i), len(glyphs)+2)
@@ -725,7 +719,7 @@ func layoutRuns(s string, rs []runStyle, runOf, shapeOf []int32, opt Options) *L
 				i := sp.a + j
 				bl.xl[j] = pen
 				bl.rtl[j] = llv[j]&1 == 1
-				for _, gi := range byCluster[i] {
+				for gi := byCluster.first[i]; gi >= 0; gi = byCluster.next[gi] {
 					g := glyphs[gi]
 					if g.face != nil && runes[i] != '\t' {
 						l.addGlyph(paint.Glyph{Src: g.face, ID: g.gid, Size: rs[g.run].st.Size, X: pen + g.xoff, Y: ln.Baseline - g.yoff, Skew: skew(g.run, g.face)}, int32(i), runAt(i), len(glyphs)+2)
@@ -769,6 +763,9 @@ func layoutRuns(s string, rs []runStyle, runOf, shapeOf []int32, opt Options) *L
 		l.Lines = append(l.Lines, ln)
 	}
 	l.Height = float32(len(l.Lines)) * lh
+	if !opt.Ellipsis {
+		prep.rememberPlacement(l, wrap)
+	}
 	return l
 }
 
@@ -788,14 +785,25 @@ type span struct{ a, b int }
 
 // breakLines greedily fills lines using UAX #14 break opportunities, falling
 // back to per-character breaks for segments wider than a line.
-func breakLines(runes []rune, a, b int, adv []float32, maxW float32) []span {
+func lineEnds(runes []rune, a, b int) []int {
 	breaker.Init(runes[a:b])
 	it := breaker.LineIterator()
-	var out []span
-	start, cur := a, a
+	var ends []int
 	for it.Next() {
 		ln := it.Line()
-		segB := a + ln.Offset + len(ln.Text)
+		ends = append(ends, a+ln.Offset+len(ln.Text))
+	}
+	return ends
+}
+
+func breakLines(runes []rune, a, b int, adv []float32, maxW float32) []span {
+	return breakAt(runes, a, adv, maxW, lineEnds(runes, a, b))
+}
+
+func breakAt(runes []rune, a int, adv []float32, maxW float32, ends []int) []span {
+	var out []span
+	start, cur := a, a
+	for _, segB := range ends {
 		if spanWidth(adv, start, segB, runes) <= maxW {
 			cur = segB
 			continue
@@ -822,3 +830,22 @@ func breakLines(runes []rune, a, b int, adv []float32, maxW float32) []span {
 
 // TrimSpaceRight is a helper for callers building labels.
 func TrimSpaceRight(s string) string { return strings.TrimRight(s, " \t") }
+
+// ShapeInto updates dst for the compact fixed numeric label path and reuses its backing slices.
+func ShapeInto(dst *Layout, s string, st Style, opt Options) *Layout {
+	st = st.norm()
+	opt = normOptions(opt)
+	if !simpleNumericText(s) || !opt.NoWrap || opt.Ellipsis || opt.MaxLines != 0 || opt.Direction == DirRTL {
+		return Shape(s, st, opt)
+	}
+	reg.mu.Lock()
+	v := reg.version
+	reg.mu.Unlock()
+	mu.Lock()
+	fast := simpleNumericLayoutInto(dst, s, st, opt, v)
+	mu.Unlock()
+	if fast != nil {
+		return fast
+	}
+	return Shape(s, st, opt)
+}
