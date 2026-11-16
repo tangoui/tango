@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/platform"
+	"github.com/tangoui/tango/ui/a11y"
 	"os"
 	"path/filepath"
 	"testing"
@@ -61,5 +62,78 @@ func TestExplorerFileSelectionHonorsCancel(t *testing.T) {
 	}
 	if got := tango.Await(a, func() string { return st.Snapshot().String() }); got != "changed" {
 		t.Fatal("navigation discarded edits")
+	}
+}
+
+func TestExplorerKeepsCurrentDirtyFileWithoutPrompt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "current.go")
+	os.WriteFile(path, []byte("original"), 0600)
+	a, fb := testDocumentApp(t, path)
+	prompts := 0
+	fb.OnMessageDialog = func(_ platform.SurfaceID, _ platform.MessageOptions) (int, error) { prompts++; return 1, nil }
+	var e fileExplorer
+	if !tango.Await(a, func() bool { return e.selectFile(path) }) {
+		t.Fatal("current file selection failed")
+	}
+	if prompts != 0 {
+		t.Fatalf("current file prompted %d times", prompts)
+	}
+	if got := tango.Await(a, func() string { return st.Snapshot().String() }); got != "changed" {
+		t.Fatal("current file was reloaded")
+	}
+}
+
+func TestExplorerReopenFolderReloadsExpandedDirectories(t *testing.T) {
+	d := shellDriver(t, 1200)
+	root := t.TempDir()
+	os.Mkdir(filepath.Join(root, "src"), 0755)
+	os.WriteFile(filepath.Join(root, "src", "child.go"), []byte("package child"), 0600)
+	for range 2 {
+		if err := shellUI.explorer.openFolder(root); err != nil {
+			t.Fatal(err)
+		}
+		d.Frame()
+		d.Frame()
+		shellUI.explorer.expanded = []string{filepath.Join(root, "src")}
+		d.Frame()
+		d.Frame()
+		if _, ok := d.A11yFind(a11y.RoleTreeItem, "child.go"); !ok {
+			t.Fatal("folder reopen retained stale tree load state")
+		}
+	}
+}
+
+func TestExplorerRefreshRetriesFailedDirectory(t *testing.T) {
+	d := shellDriver(t, 1200)
+	root := t.TempDir()
+	src := filepath.Join(root, "src")
+	os.Mkdir(src, 0755)
+	if err := shellUI.explorer.openFolder(root); err != nil {
+		t.Fatal(err)
+	}
+	os.Remove(src)
+	shellUI.explorer.expanded = []string{src}
+	d.Frame()
+	d.Frame()
+	if shellUI.explorer.err == "" {
+		t.Fatal("directory failure not reported")
+	}
+	os.Mkdir(src, 0755)
+	os.WriteFile(filepath.Join(src, "recovered.go"), []byte("package recovered"), 0600)
+	shellUI.explorer.refresh()
+	d.Frame()
+	d.Frame()
+	if _, ok := d.A11yFind(a11y.RoleTreeItem, "recovered.go"); !ok {
+		t.Fatal("refresh did not retry failed directory")
+	}
+}
+
+func TestExplorerMissingFileRestoresActualDocumentSelection(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "current.go")
+	a, _ := testDocumentApp(t, path)
+	e := fileExplorer{selected: []string{"missing"}}
+	tango.Await(a, func() bool { e.selectFile(filepath.Join(t.TempDir(), "missing.go")); return true })
+	if len(e.selected) != 1 || e.selected[0] != path {
+		t.Fatalf("missing file left selection=%v", e.selected)
 	}
 }

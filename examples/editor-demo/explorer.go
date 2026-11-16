@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,6 +17,7 @@ import (
 // Only directories the user expands are read. Directory symlinks stay leaves,
 // so aliases cannot introduce cycles into the navigation tree.
 type fileExplorer struct {
+	revision           uint64
 	root               string
 	nodes              []ui.TreeNode
 	expanded, selected []string
@@ -32,6 +34,7 @@ func (e *fileExplorer) openFolder(path string) error {
 		return err
 	}
 	e.root, e.nodes, e.expanded, e.selected, e.err = path, nodes, nil, nil, ""
+	e.revision++
 	return nil
 }
 
@@ -79,24 +82,51 @@ func (e *fileExplorer) load(path string) bool {
 	return false // synchronous completion, not a spinner
 }
 
+func (e *fileExplorer) restoreSelection() {
+	e.selected = nil
+	if documents != nil && documents.session != nil && documents.session.path != "" {
+		path, err := filepath.Abs(documents.session.path)
+		if err == nil {
+			e.selected = []string{path}
+		}
+	}
+}
+
 func (e *fileExplorer) selectFile(path string) bool {
 	info, err := os.Stat(path)
 	if err != nil {
 		e.err = err.Error()
+		e.restoreSelection()
 		return false
 	}
 	if !info.Mode().IsRegular() {
 		return false
 	}
-	if !openDocumentPath(path) {
-		e.selected = nil
-		if documents.session.path != "" {
-			e.selected = []string{documents.session.path}
+	if documents.session.path != "" {
+		current, _ := filepath.Abs(documents.session.path)
+		target, _ := filepath.Abs(path)
+		if current == target {
+			e.selected = []string{target}
+			restoreEditorFocus()
+			return true
 		}
+	}
+	if !openDocumentPath(path) {
+		e.restoreSelection()
 		return false
 	}
-	e.selected = []string{path}
+	e.restoreSelection()
 	return true
+}
+
+func (e *fileExplorer) refresh() {
+	expanded := slices.Clone(e.expanded)
+	if err := e.openFolder(e.root); err != nil {
+		e.err = err.Error()
+		return
+	}
+	e.expanded = expanded
+	e.restoreSelection()
 }
 
 func openFolderDialog() {
@@ -118,6 +148,9 @@ func renderExplorer(c *ui.Context, treeHeight float32) {
 		ui.Row(c, func() {
 			ui.Text(c, "EXPLORER").Size(th.FontSizeSM).Strong().Secondary()
 			ui.Spacer(c)
+			if shellUI.explorer.root != "" {
+				shellIcon(c, icon.Reload, "Refresh folder", func() { shellUI.explorer.refresh(); ui.Invalidate(c.Window()) })
+			}
 			shellIcon(c, icon.FolderOpen, "Open folder", func() { postFileAction(openFolderDialog) })
 		}, layout.H(workbenchHeaderHeight(c)), layout.Middle(), layout.PadVH(0, th.PaddingSM)).Bg(th.BgContainer)
 		renderExplorerContent(c, treeHeight)
@@ -159,11 +192,13 @@ func renderExplorerContent(c *ui.Context, treeHeight float32) {
 			ui.Icon(c, icon.Down).Size(th.FontSizeSM)
 			ui.Text(c, strings.ToUpper(filepath.Base(e.root))).Size(th.FontSizeSM).Strong().Secondary().NoWrap().Ellipsis().Layout(layout.Grow(1), layout.MinW(0))
 		}, layout.Middle(), layout.Gap(th.PaddingXXS), layout.PadVH(th.PaddingXXS, th.PaddingXS))
-		tree := ui.Tree(c, e.nodes).Expanded(&e.expanded).Selected(&e.selected).ShowIcon().BlockNode().ExpandOnClick(true).LoadData(e.load).Height(max(120, treeHeight)).A11yLabel("Folder files").Show()
-		if tree.SelectChanged() && len(e.selected) > 0 {
-			path := e.selected[0]
-			postFileAction(func() { e.selectFile(path) })
-		}
+		ui.Key(c, fmt.Sprintf("folder-%d", e.revision), func() {
+			tree := ui.Tree(c, e.nodes).Expanded(&e.expanded).Selected(&e.selected).ShowIcon().BlockNode().ExpandOnClick(true).LoadData(e.load).Height(max(120, treeHeight)).A11yLabel("Folder files").Show()
+			if tree.SelectChanged() && len(e.selected) > 0 {
+				path := e.selected[0]
+				postFileAction(func() { e.selectFile(path) })
+			}
+		})
 		if e.err != "" {
 			ui.Text(c, e.err).Size(th.FontSizeSM).Color(th.Error.Text).Ellipsis()
 		}

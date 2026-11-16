@@ -43,7 +43,11 @@ func (s *shellState) theme(name string) *uitheme.Theme {
 }
 
 func renderShell(c *ui.Context) {
-	shellUI.narrow = c.Size().W < 820
+	narrow := c.Size().W < 820
+	if narrow != shellUI.narrow {
+		restoreEditorFocus()
+	}
+	shellUI.narrow = narrow
 	th := c.Theme
 	ui.Column(c, func() {
 		bar := ui.TitleBar(c).Menu(func() {

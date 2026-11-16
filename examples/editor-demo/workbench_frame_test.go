@@ -54,3 +54,24 @@ func TestWorkbenchHasNavigationInsteadOfSettingsForm(t *testing.T) {
 		t.Fatalf("headers misaligned: explorer=%+v tab=%+v", explorer, tab.Bounds)
 	}
 }
+
+func TestWorkbenchResizeKeepsSplitTypingFocus(t *testing.T) {
+	d := shellDriver(t, 1200)
+	documents.setSplit(true)
+	d.Frame()
+	d.Frame()
+	active = second
+	restoreEditorFocus()
+	d.Frame()
+	d.Frame()
+	for _, width := range []float32{480, 1200} {
+		d.Resize(width, 640)
+		d.Frame()
+		d.Frame()
+		before := st.Snapshot().String()
+		d.Type("x")
+		if st.Snapshot().String() == before || active != second {
+			t.Fatalf("width %.0f lost active split focus", width)
+		}
+	}
+}

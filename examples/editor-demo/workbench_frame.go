@@ -8,6 +8,9 @@ import (
 )
 
 func editorWindowAppearance() tango.Appearance {
+	if diffState != nil {
+		return tango.Appearance{}
+	}
 	titlebar := tango.TitleBarNone
 	if runtime.GOOS == "darwin" {
 		titlebar = tango.TitleBarHidden
