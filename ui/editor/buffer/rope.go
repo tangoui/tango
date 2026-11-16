@@ -263,6 +263,14 @@ func afterNewline(n *node, k int) int {
 			n = n.right
 		}
 	}
+	// Counting halves is worthwhile only for later queries in leaves whose
+	// lines are short on average (about 32 bytes or less): there the byte
+	// search would pay one call per short preceding line. A leaf with a few
+	// newlines bunched at its start but long lines elsewhere keeps the
+	// original byte search, which then stops after a few short calls.
+	if k > 8 && n.lines >= 32 && n.bytes <= n.lines*32 {
+		return off + leafAfterNewline(n.text, k)
+	}
 	t := n.text
 	for {
 		i := strings.IndexByte(t, '\n')
@@ -272,6 +280,36 @@ func afterNewline(n *node, k int) int {
 		}
 		off += i + 1
 		t = t[i+1:]
+	}
+}
+
+// leafAfterNewline selects the k-th newline in text (1 <= k <= its newline
+// count) and returns the byte just after it. Sparse/early queries use the
+// simple byte search. For a later newline, count and skip halves first:
+// this avoids one IndexByte call per preceding short line, without storing
+// an index or changing a leaf's immutable representation. Splitting text
+// at a byte inside UTF-8 is safe here: only ASCII '\n' bytes are counted.
+func leafAfterNewline(text string, k int) int {
+	off := 0
+	for k > 8 && len(text) > 64 {
+		mid := len(text) / 2
+		left := strings.Count(text[:mid], "\n")
+		if k <= left {
+			text = text[:mid]
+		} else {
+			k -= left
+			off += mid
+			text = text[mid:]
+		}
+	}
+	for {
+		i := strings.IndexByte(text, '\n')
+		k--
+		if k == 0 {
+			return off + i + 1
+		}
+		off += i + 1
+		text = text[i+1:]
 	}
 }
 
