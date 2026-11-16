@@ -32,7 +32,7 @@ import (
 //
 // Shaping stays on go-text rather than CTLine: each face's tables
 // (CTFontCopyTable: cmap, hmtx, GSUB, GPOS, morx, fvar...; not the glyph
-// data) are packed into an in-memory sfnt, so go-text picks the same glyph
+// data) are exposed through a small sfnt directory, so go-text picks the same glyph
 // ids with the font's own advances, and CTFontDrawGlyphs draws exactly
 // those glyphs. Line breaking, kinsoku, carets and the per-rune fallback
 // chain stay one code path on every platform. Variable faces get the axis
@@ -589,34 +589,6 @@ func variationDesc(vals map[uint32]float32) uintptr {
 	return desc
 }
 
-// ctTables reads the shaping tables of f into an in-memory sfnt.
-func ctTables(f uintptr) []byte {
-	arr := ctFontCopyAvailableTables(f, 0)
-	if arr == 0 {
-		return nil
-	}
-	defer cfRelease(arr)
-	tabs := map[uint32][]byte{}
-	for i := int64(0); i < cfArrayGetCount(arr); i++ {
-		tag := uint32(cfArrayGetValueAtIndex(arr, i)) // CTFontTableTag values, not CF objects
-		if skipTable(tag) {
-			continue
-		}
-		d := ctFontCopyTable(f, tag, 0)
-		if d == 0 {
-			continue
-		}
-		n := cfDataGetLength(d)
-		b := make([]byte, n)
-		if n > 0 {
-			copy(b, unsafe.Slice((*byte)(cfDataGetBytePtr(d)), n))
-		}
-		cfRelease(d)
-		tabs[tag] = b
-	}
-	return sfntFromTables(tabs)
-}
-
 var opszTag = tag4("opsz")
 var wghtTag = tag4("wght")
 
@@ -626,7 +598,6 @@ func (e *ctEngine) load(name string) []*Face {
 	// parsed once, by the first instance built.
 	type sharedFont struct {
 		once sync.Once
-		mu   sync.Mutex // font.NewFont reads the loader
 		fn   *font.Font
 		ld   *ot.Loader
 		axes []tables.VariationAxisRecord
@@ -654,19 +625,26 @@ func (e *ctEngine) load(name string) []*Face {
 			defer runtime.KeepAlive(owner)
 			f := owner.base
 			sh.once.Do(func() {
-				if gt, ld, err := goTextFace(ctTables(f)); err == nil {
-					sh.fn, sh.ld, sh.axes = gt.Font, ld, fvarAxes(ld)
+				source := ctTables(f)
+				ld, err := ot.NewLoader(source)
+				if err != nil {
+					if source.owner != nil {
+						source.owner.release()
+					}
+					return
+				}
+				if fn, err := font.NewFont(ld); err == nil {
+					sh.fn, sh.ld, sh.axes = fn, ld, fvarAxes(ld)
+				} else {
+					source.owner.release()
 				}
 			})
 			if sh.fn == nil {
 				owner.release()
 				return nil, nil, nil
 			}
-			// Instances share the parsed *font.Font (immutable after
-			// load); each gets its own *font.Face carrying its variation
-			// coordinates. Shapers must key shaping fonts by face and
-			// coordinates, not by *font.Font (see compactShaper and
-			// fastPath.shapeUnit).
+			// Font tables are read-only. Each Face owns its coordinates and
+			// glyph caches; runtime shapers key by Face and instance state.
 			gt := font.NewFace(sh.fn)
 			axes := sh.axes
 			var vals map[uint32]float32
