@@ -130,6 +130,8 @@ type Device struct {
 	noImage                                   id         // 1×1 texture bound to TexImage for batches without an image
 	instBuf, staging, readBuf                 id
 	instCap, stagingCap, readCap              int
+	instUsage, stagingUsage                   uploadBufferUsage
+	stagedBytes                               int
 	inflight                                  []id // committed, not yet waited command buffers, in commit order
 	hasFrame, closed                          bool
 	commits                                   int      // frames committed by Execute and present (tests)
@@ -442,6 +444,11 @@ func (d *Device) Execute(f *gpu.Frame) error {
 	if cb == 0 {
 		return d.syncFailed(errors.New("metal: commandBuffer failed"))
 	}
+	// All validation and mandatory allocations succeeded. The previous
+	// submissions have completed, and this buffer has not encoded references
+	// to upload memory yet, so optional replacements cannot race the GPU.
+	d.stagingUsage.trim(d.dev, &d.staging, &d.stagingCap, d.stagedBytes)
+	d.instUsage.trim(d.dev, &d.instBuf, &d.instCap, (nInst+nClear)*instanceSize)
 	if d.copyStats != nil {
 		*d.copyStats = copyStats{}
 	}
@@ -561,6 +568,8 @@ func (d *Device) Execute(f *gpu.Frame) error {
 	d.commit(cb)
 	d.commits++
 	d.hasFrame = true
+	d.stagingUsage.record(d.stagingCap, d.stagedBytes)
+	d.instUsage.record(d.instCap, (nInst+nClear)*instanceSize)
 	clear(d.staged)
 	return nil
 }
@@ -1155,6 +1164,7 @@ func (d *Device) stage(f *gpu.Frame) error {
 			total += w * h * bpp
 		}
 	}
+	d.stagedBytes = total
 	if total == 0 {
 		return nil
 	}
@@ -1276,6 +1286,50 @@ func vertexFormat(kind string, n int) (uint64, error) {
 		return 0, fmt.Errorf("no vertex format for %d × %s", n, kind)
 	}
 	return b + uint64(n-1), nil // Float, Float2, Float3, Float4 are consecutive (Int…, UInt… too)
+}
+
+// uploadBufferUsage remembers a sustained lower working set rather than a
+// single quiet frame. Large uploads recurring within the grace period keep
+// their allocation; ordinary frame data is never retained on the Go heap.
+type uploadBufferUsage struct {
+	frames, peak int
+}
+
+const uploadBufferIdleFrames = 120
+
+func (u *uploadBufferUsage) record(capacity, n int) {
+	if capacity <= 4096 || n > capacity/4 {
+		*u = uploadBufferUsage{}
+		return
+	}
+	u.frames++
+	u.peak = max(u.peak, n)
+}
+
+// trim is optional: allocation failure leaves the existing usable buffer.
+// Call only after waiting for prior submissions and before encoding this
+// frame's references. Preserve the bytes stage/instance packing just wrote.
+func (u *uploadBufferUsage) trim(dev id, buf *id, capacity *int, n int) {
+	if u.frames < uploadBufferIdleFrames || n > *capacity/4 || *buf == 0 {
+		return
+	}
+	size := max(u.peak, n)
+	var replacement id
+	if size > 0 {
+		size = max(4096, align16(size))
+		replacement = msgNewBuffer(dev, sel("newBufferWithLength:options:"), uint64(size), storageModeShared|cpuCacheModeWC)
+		if replacement == 0 {
+			return
+		}
+		if n > 0 {
+			dst := unsafe.Slice((*byte)(msgPtr(replacement, sel("contents"))), n)
+			src := unsafe.Slice((*byte)(msgPtr(*buf, sel("contents"))), n)
+			copy(dst, src)
+		}
+	}
+	release(*buf)
+	*buf, *capacity = replacement, size
+	*u = uploadBufferUsage{}
 }
 
 // ensureBuffer grows *buf to at least n bytes (n > 0).

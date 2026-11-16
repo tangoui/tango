@@ -423,6 +423,29 @@ func (r *CPU) clipCov(x, y int) uint32 {
 	return uint32(r.cmask.Pix[my*r.cmask.Stride+mx])
 }
 
+// clipOpaque reports whether dst is completely covered by the active mask.
+// Most glyphs are far from rounded edges. Their cached masks can be drawn
+// directly without allocating and multiplying a temporary alpha image.
+func (r *CPU) clipOpaque(dst image.Rectangle) bool {
+	if r.cmask == nil {
+		return true
+	}
+	m, at := r.cmask, r.cmaskAt
+	if !dst.In(image.Rectangle{Min: at, Max: at.Add(m.Rect.Size())}) {
+		return false
+	}
+	x0 := dst.Min.X - at.X
+	for y := dst.Min.Y; y < dst.Max.Y; y++ {
+		i := (y-at.Y)*m.Stride + x0
+		for _, coverage := range m.Pix[i : i+dst.Dx()] {
+			if coverage != 255 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // clipMask returns m (placed at at) restricted to dst and multiplied by the
 // rounded-clip coverage, as a new mask with origin 0,0 placed at dst.Min.
 // m is not modified (it may be a cached glyph or shadow mask).
@@ -748,7 +771,7 @@ func (r *CPU) text(o Text) {
 		if dst.Empty() {
 			continue
 		}
-		if r.cmask != nil {
+		if r.cmask != nil && !r.clipOpaque(dst) {
 			draw.DrawMask(r.cur, dst, src, image.Point{}, r.clipMask(gm.mask, at, dst), image.Point{}, draw.Over)
 			continue
 		}
