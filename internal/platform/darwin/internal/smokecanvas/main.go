@@ -51,6 +51,8 @@ func init() { runtime.LockOSThread() }
 
 const surfaceID platform.SurfaceID = 1
 
+var coreGraphics = flag.Bool("coregraphics", false, "exercise native retained content hosting")
+
 var smoke = flag.Bool("smoke", false, "run the automatic checks and exit")
 
 type host struct {
@@ -204,7 +206,12 @@ func (s *sink) CanvasFrame() {
 	pw, ph := int(math.Round(float64(w*sc))), int(math.Round(float64(h*sc)))
 	img := image.NewRGBA(image.Rect(0, 0, pw, ph))
 	draw(img, sc, s.mouse)
-	err := cv.Present(img)
+	var err error
+	if *coreGraphics {
+		err = nativeSmokeFrame(img, sc)
+	} else {
+		err = cv.Present(img)
+	}
 	s.frames = append(s.frames, frameInfo{time.Now(), pw, ph, w, h, sc, err})
 	if len(s.frames) == 1 {
 		s.h.onFirstFrame()
@@ -293,6 +300,13 @@ func (h *host) onStarted() {
 		return
 	}
 	h.surface, h.cv = s, cv
+	if *coreGraphics {
+		if err := nativeSmokeStart(h); err != nil {
+			h.fail("native-hosting", err.Error())
+			h.b.Quit()
+			return
+		}
+	}
 	w, ht := cv.Size()
 	h.pass("canvas-creator", fmt.Sprintf("native=%#x size=%gx%g scale=%g", s.Native(), w, ht, cv.Scale()))
 	if *smoke {
@@ -735,6 +749,11 @@ func (h *host) stepIdle() {
 
 func (h *host) stepClose() {
 	cv := h.cv
+	if *coreGraphics {
+		if err := nativeSmokeFinish(h); err != nil {
+			h.fail("native-finish", err.Error())
+		}
+	}
 	h.surface.Close()
 	h.post(func() {
 		cv.Invalidate() // must be harmless after close

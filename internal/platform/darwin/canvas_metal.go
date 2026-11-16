@@ -58,6 +58,8 @@ func (c *canvas) UseMetalLayer() (uintptr, error) {
 		send(layer, "setActions:", uintptr(noActions()))
 		send(layer, "setOpaque:", 1)
 		msgSetFloat(layer, sel("setContentsScale:"), c.scale)
+		c.nativeLayer, c.cpuLayer = 0, 0 // old view layer may deallocate in setLayer
+		c.tiles = nil
 		send(c.view, "setLayer:", uintptr(layer))
 		send(c.view, "setWantsLayer:", 1)
 		c.metalLayer = layer
@@ -90,17 +92,21 @@ func (c *canvas) metalDisplay() {
 	withPool(c.frame) // drawables are autoreleased: one pool per frame
 }
 
-// syncMetalLayer keeps the hosted layer's contentsScale on the backing
+// syncHostedLayer keeps the hosted layer's contentsScale on the backing
 // scale. Called from checkGeometry before CanvasResized is reported.
-func (c *canvas) syncMetalLayer() {
-	if c.metalLayer == 0 {
+func (c *canvas) syncHostedLayer() {
+	layer := c.metalLayer
+	if layer == 0 {
+		layer = c.nativeLayer
+	}
+	if layer == 0 {
 		return
 	}
 	withPool(func() {
 		ca := class("CATransaction")
 		send(ca, "begin")
 		send(ca, "setDisableActions:", 1)
-		msgSetFloat(c.metalLayer, sel("setContentsScale:"), c.scale)
+		msgSetFloat(layer, sel("setContentsScale:"), c.scale)
 		send(ca, "commit")
 	})
 }

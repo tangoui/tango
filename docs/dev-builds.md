@@ -34,10 +34,15 @@ Android 同样用 `tango_selftest`：`GOFLAGS=-tags=tango_selftest bash mobile/a
 
 `TANGO_RENDERER` 是窗口创建时读取的运行参数，`ui.RunnerOptions.Renderer` 显式指定的渲染器始终优先：
 
-- 未设置：保持 GPU 优先的默认行为，GPU 不可用时回退 CPU。
+- 未设置：macOS Apple Silicon 上面积不超过 100,000 逻辑像素的普通自绘窗口先使用原生 Core Animation 图层和 CoreText；较大窗口和其他平台保持 GPU 优先，失败回退 CPU。透明/材质窗口、WebView 附加画布和调用方自选渲染器保留原路径。原生路径的连续六帧绘制和呈现工作超过 8 ms，或连续六帧整窗软件回退时，尝试单向升级 Metal；相邻帧间的空闲时间需不超过 100 ms，单次冷启动/零散操作不触发。升级失败立即呈现 CPU 图像且不反复尝试。
 - `cpu`：始终使用 CPU，不创建原生 GPU 呈现目标。
 - `gpu`：尝试 GPU（包括软件 OpenGL），失败仍回退 CPU。
+- `native`：在支持的 macOS Apple Silicon 普通自绘窗口强制原生图层，不自动升级 Metal；不支持时沿用 GPU/CPU 回退。`uihost.Renderer(r)` 会报告 `native`、`gpu` 或 `cpu`。
 - `auto`：面积不超过 100,000 逻辑像素的小窗口先使用 CPU；其他窗口 GPU 优先。CPU 起步的窗口在放大超过阈值、绘制列表达到 256 项或连续六个实际绘制帧的间隔不超过 100 ms 时，尝试升级 GPU。升级单向生效，不随缩小窗口来回切换；升级失败也不逐帧重试。这是保守的工作量启发式，不是对 CPU/GPU 快慢的保证。小型编辑器、终端或持续动画也可直接设 `gpu`。
+
+较大窗口的默认原生渲染尚未通过 CPU/尾部帧间隔验收，因此保留 GPU 默认；可用 `native` 显式比较低内存路径。
+
+原生图层保留未变化的文字和图片，整像素移动只更新位置；圆角、边框、阴影等使用有界且可复用的参考渲染图片。复杂裁剪、变换、透明度组和背景模糊会完整软件回退，超过 64 MiB 的预计图层位图也回退；不丢弃绘制命令。原生层的文字抗锯齿遵循 CoreGraphics。大量动态图片、复杂效果或持续动画可显式选择 `gpu`。Intel macOS 保留原渲染路径。
 
 `text.TrimCaches()` 仅清排版缓存；`text.TrimFontCaches()` 还丢弃注册表持有的系统字体链。平台低内存通知会同时调用每个窗口的 `runner.TrimCaches()`，清理 CPU 字形遮罩、变换图片、阴影缓存及 GPU 可重建缓存并请求重绘，避免这些缓存继续持有旧字体。桌面应用也可以在自己的低内存策略中，在主线程上依次调用 `text.TrimFontCaches()` 和 `runner.TrimCaches()`。`paint.CPU.Trim()` 保留当前帧像素，不会立即把窗口清空。
 

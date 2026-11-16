@@ -111,6 +111,7 @@ type canvas struct {
 	lastFrame   time.Time
 	inFrame     bool
 	missed      bool         // AppKit displayed the view before NewCanvasSurface returned
+	nativeLayer id           // retained CoreGraphics hosting, separate from Metal
 	metalLayer  id           // CAMetalLayer hosted by the view after UseMetalLayer (canvas_metal.go)
 	cpuLayer    id           // Metal mode: sublayer showing Present(img) frames (canvas_metal.go)
 	tiles       *canvasTiles // CPU mode: tile sublayers of partial frames (canvas_damage.go)
@@ -340,7 +341,7 @@ func (c *canvas) checkGeometry() bool {
 		return false
 	}
 	c.w, c.h, c.scale = w, h, scale
-	c.syncMetalLayer()
+	c.syncHostedLayer()
 	if c.ready {
 		c.sink.CanvasResized(float32(w), float32(h), float32(scale))
 	}
@@ -443,7 +444,7 @@ func (c *canvas) requestFrame() {
 }
 
 func (c *canvas) setNeedsDisplay() {
-	if c.metalLayer != 0 {
+	if c.metalLayer != 0 || c.nativeLayer != 0 {
 		c.metalDisplay() // layer-hosting: no updateLayer (canvas_metal.go)
 		return
 	}
@@ -575,7 +576,7 @@ func (c *canvas) Present(img *image.RGBA) error {
 		return errCanvasClosed
 	}
 	if img == nil {
-		if c.metalLayer != 0 {
+		if c.metalLayer != 0 || c.nativeLayer != 0 {
 			c.hideCPULayer() // the GPU presented the drawable already
 			return nil
 		}
@@ -595,7 +596,7 @@ func (c *canvas) Present(img *image.RGBA) error {
 	if err != nil {
 		return err
 	}
-	if c.metalLayer != 0 {
+	if c.metalLayer != 0 || c.nativeLayer != 0 {
 		c.tiles = nil // the view's old layer took the tile sublayers with it
 	}
 	withPool(func() {
@@ -640,6 +641,8 @@ func (c *canvas) destroy() {
 		return
 	}
 	c.closed = true
+	c.nativeLayer, c.metalLayer, c.cpuLayer = 0, 0, 0
+	c.tiles = nil
 	if c.link != 0 {
 		send(c.link, "invalidate") // drops its reference to the view
 		release(c.link)
