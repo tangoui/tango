@@ -7,6 +7,9 @@
 ### 新增
 
 - 实验性 `macoslite` 包：独立的 macOS 原生轻量窗口宿主，只用 purego 调 AppKit/CoreGraphics/CoreText，不加载 WebView、`ui.Runner` 或 GPU 渲染器；提供窗口生命周期、鼠标键盘事件、`Canvas` 填充/圆角矩形/CoreText 文本。参考窗口 `examples/macoslite-counter` 空闲 physical footprint 约 26 MiB，测量脚本 `scripts/macoslite-memory.sh`。
+- `Appearance.AllSpaces`：窗口出现在每个桌面空间。macOS 上会出现在所有 Space，包括全屏应用旁边；Linux 上是粘滞窗口；Windows 没有对应 API，忽略这个字段。
+
+- `@tangoui/runtime` 的 `ErrorCode` 加入 `busy`（更新器在已有检查或下载进行时返回）。
 
 - macOS 自绘 UI 新增可选 `TANGO_TEXT_ENGINE=coretext` 轻量文字路径：无换行短文本使用 CoreText glyph-run 与系统字体回退，复杂排版自动继续使用 go-text/HarfBuzz；默认文字引擎和输出路径不变。
 
@@ -187,6 +190,8 @@
     - 浮层与对话框：Modal/Drawer/Popconfirm/Tour 的关闭按钮、间距、遮罩、焦点与目标交互按 antd/EP 对齐；Popover/Popconfirm 箭头与偏移改由令牌决定（Ant 有箭头 10 → 12）；shadcn Sheet 512–640 宽度断点和上下方向自适应高度暂不做。
   - 间接受影响的页面：PageContainer 页头（Descriptions、Tag）、ProLayout / GridContent 头像、Segmented 选中项、chat 气泡与 graph 节点（`ShadowTertiary`）、FooterToolbar 示例里的 Skeleton 等随上述组件变化。
   - QRCode：默认提升纠错级别（同一内容的码图会变）、边框色改 Split、无边框去掉内边距、空字符串不画码。Watermark：排布改为 antd 算法，图片标记随角度旋转、默认不透明度 .2 → 1。
+- macOS：`KindPanel` 窗口不再出现在 Cmd+\` 窗口切换和“窗口”菜单里，与 Windows（工具窗口）和 Linux（跳过任务栏与切换器）一致。
+- macOS：`AcceptFiles` 的 WebView 窗口在拖动经过时把悬停交给页面，页面会收到 `dragenter` / `dragover` / `dragleave`，与 Windows、Linux 一致，可以用来高亮放置区域。松手时文件仍交给 `OnFilesDropped`，页面收到的是 `dragleave`。
 - **IPC 线协议升级到 v2，不兼容旧版 runtime-js**：握手带 `proto:2`，Go 拒绝其他版本（回 `runtime-js protocol mismatch` 并记 `slog.Warn`）。`@tangoui/runtime` 必须与 Go 模块同版本；自己实现协议的客户端需要按 `ipc` 包注释更新。流的背压从按条数改为按字节计的信用窗口（默认 1 MiB，每帧计负载 + 64 字节），`ack` 改为带归还字节数 `b`；单帧负载上限 16 MiB，超过时这次写入返回 `bad_args`。
 - **macOS/iOS 的资源处理函数改在主线程之外运行**：`tango://` 协议处理器改为异步，`Options.Assets` 的处理函数每个请求在自己的 goroutine 里运行（请求可能并发处理），不再在主线程上同步执行。大文件、SSE 等大的或长时间不结束的响应不再卡住界面；WebKit 取消请求时 `r.Context()` 被取消，阻塞中的写入返回 `context.Canceled`。处理函数里若直接访问只能在主线程用的状态，改用 `app.Post` 投递到主线程或加锁；`tango.Await` 也可以，但它会一直阻塞到主线程执行完，这个请求的响应也跟着等（平台契约一直允许在任意线程调用处理函数）。
 - **`Stream.Close` 语义改为优雅全关闭**：本方结束发送并不再接收，对方之后的写入返回 "stream closed by peer"。只想结束本方发送、继续读的用新增的 `CloseSend`。处理函数返回 nil 时 Router 发的就是这个 `close`。
@@ -250,7 +255,6 @@
 - **命令行 `tan`**：`init`（多种模板）、`dev`、`build`（桌面、iOS、Android）、`run`、`package`（dmg、NSIS、MSIX、tar.gz、AppImage）、`sign`（macOS 签名与公证、Windows Authenticode）、`keygen`、`release-manifest`、`sign-update`（更新清单与签名）、`generate bindings`、`doctor`。
 - **示例**：`hello`、`runtime-demo`、`showcase`（IPC、流、系统能力、托盘、菜单、通知、主题跟随，带 `-smoke` 自检）等。
 - **工程**：CI（lint、三平台测试与真实窗口冒烟、iOS 模拟器与 Android 模拟器冒烟）、文档站（VitePress，中文为主、英文首页与核心页面）。
-- `@tangoui/runtime` 的 `ErrorCode` 加入 `busy`（更新器在已有检查或下载进行时返回）。
 
 - JS 运行时的 API 兼容检查：`runtime-js/etc/runtime.api.md`（API Extractor 报告，含各命名空间成员）与 `api/jsapi-methods.txt`（Go `jsapi` 与 TS 封装的方法名、事件名、错误码对账），CI 在漂移时失败；文档补充本地修改 runtime 的流程。
 
@@ -295,6 +299,7 @@
 
 ### 修复
 
+- macOS：WebView 被键值观察（KVO）换成子类后，不含文件的拖动在 `TangoWebView` 的拖放方法里无限递归导致崩溃。现在调用父类时固定从 `TangoWebView` 开始查找。
 - `icon.CheckFilled`、`CloseFilled`、`InfoFilled`、`WarningFilled` 原来只画一个实心圆，现在中间的符号是镂空的。
 - **无障碍**：滚动或裁剪出视野、嵌套超过一层的内容（例如表单项里的滑块）不再从语义树里消失，读屏软件能找到它们并滚动显示（`ui/runner.go` `recordRects`）。所有平台的屏幕阅读器都受影响，在 iOS 真机上发现。
 - **iOS 无障碍**：自绘界面的可编辑输入框对 VoiceOver 标记为文本输入：iOS 18.1 起用 `accessibilityTextInputResponder`，iOS 17–18.0 在提示里说明双击编辑。最低版本仍是 iOS 17。

@@ -366,6 +366,7 @@ func windowOpts(o tango.SurfaceOptions) devhost.WindowOpts {
 		AlwaysOnTop: o.Appearance.AlwaysOnTop, Opacity: o.Appearance.Opacity,
 		NoShadow: o.Appearance.NoShadow, NoClose: o.Appearance.NoClose,
 		NoMinimize: o.Appearance.NoMinimize, NoMaximize: o.Appearance.NoMaximize,
+		AllSpaces: o.Appearance.AllSpaces,
 	}
 }
 

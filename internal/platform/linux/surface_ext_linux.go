@@ -443,6 +443,15 @@ func (s *surface) SetAppearance(a platform.Appearance) {
 	if a.AlwaysOnTop != prev.AlwaysOnTop {
 		wx.windowSetKeepAbove(s.win, a.AlwaysOnTop)
 	}
+	if a.AllSpaces != prev.AllSpaces {
+		// Sticky: shown on every workspace. Like keep-above, GTK remembers
+		// it until the window is mapped; the window manager decides.
+		if a.AllSpaces {
+			wx.windowStick(s.win)
+		} else {
+			wx.windowUnstick(s.win)
+		}
+	}
 	if a.Opacity != prev.Opacity {
 		wx.widgetSetOpacity(s.win, a.Opacity) // needs a compositor
 	}

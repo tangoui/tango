@@ -105,6 +105,7 @@ type WindowOpts struct {
 	NoClose             bool
 	NoMinimize          bool
 	NoMaximize          bool
+	AllSpaces           bool
 }
 
 // ---- worker → host ----

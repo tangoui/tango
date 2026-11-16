@@ -84,6 +84,10 @@ type Appearance struct {
 	NoClose     bool    // disable the close button / close command
 	NoMinimize  bool    // disable minimizing
 	NoMaximize  bool    // disable maximizing / zoom
+	// AllSpaces shows the window on every desktop: every macOS Space,
+	// including beside full-screen windows, and every Linux workspace
+	// (sticky). Windows has no API for it and ignores it.
+	AllSpaces bool
 }
 
 type Styled interface {

@@ -1097,6 +1097,7 @@ func surfaceOptions(o devhost.WindowOpts) tango.SurfaceOptions {
 			TitleBar: tango.TitleBar(o.TitleBar), Transparent: o.Transparent, Background: o.Background,
 			Material: tango.Material(o.Material), AlwaysOnTop: o.AlwaysOnTop, Opacity: o.Opacity,
 			NoShadow: o.NoShadow, NoClose: o.NoClose, NoMinimize: o.NoMinimize, NoMaximize: o.NoMaximize,
+			AllSpaces: o.AllSpaces,
 		},
 	}
 }

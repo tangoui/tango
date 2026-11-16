@@ -26,7 +26,7 @@ s, err := app.NewSurface(tango.SurfaceOptions{
 })
 ```
 
-`KindPanel` 是浮动工具面板（不激活应用）；`KindSheet` 在 macOS 上是附着在父窗口上的表单，其他平台按 `KindModal` 处理。
+`KindPanel` 是浮动工具面板（不激活应用，不出现在任务栏和窗口切换里：macOS 的 Cmd+\`、Windows 的 Alt+Tab）；`KindSheet` 在 macOS 上是附着在父窗口上的表单，其他平台按 `KindModal` 处理。
 
 ## 几何与状态
 
@@ -68,6 +68,7 @@ s.SetAppearance(tango.Appearance{
     Background:  0x1e1e1eff,             // 0xRRGGBBAA，非透明时的背景色
     Material:    tango.MaterialBlur,     // macOS 毛玻璃 / Windows Acrylic；MaterialMica：Windows 11 Mica
     AlwaysOnTop: true,
+    AllSpaces:   true,                   // 出现在每个桌面空间（macOS 含全屏应用旁；Linux 为粘滞窗口）；Windows 不支持
     Opacity:     0.95,
     NoMinimize:  true,                   // 还有 NoClose、NoMaximize、NoShadow（无边框时）
 })
@@ -87,7 +88,7 @@ ap := s.Appearance()
 
 ## 文件拖放
 
-- **拖入**：`AcceptFiles: true` 后，`s.OnFilesDropped(func(paths []string, x, y int))` 收到绝对路径；页面里是 `Window.onFilesDropped`。
+- **拖入**：`AcceptFiles: true` 后，`s.OnFilesDropped(func(paths []string, x, y int))` 收到绝对路径；页面里是 `Window.onFilesDropped`。拖动经过页面时，页面在三个平台上都会收到 `dragenter` / `dragover` / `dragleave`（`dataTransfer.types` 含 `Files`），可以用来高亮放置区域；用 `x, y` 加 `document.elementFromPoint` 判断落在哪个元素上。松手时 macOS 的页面收到的是 `dragleave` 而不是 `drop`，所以不要依赖页面的 `drop` 事件。
 - **拖出**：`s.DragFiles(paths, iconPNG, done)` 从窗口把文件拖到 Finder / 资源管理器。必须在鼠标按下期间调用（页面的 `mousedown` / `dragstart` 转给 Go），页面里记得 `event.preventDefault()`。
 
 ## 页面控制
