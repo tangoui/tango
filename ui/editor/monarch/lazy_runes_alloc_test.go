@@ -40,3 +40,19 @@ func TestRE2LongLineDoesNotAllocateRuneIndex(t *testing.T) {
 		}
 	}
 }
+
+// TestBacktrackingUnicodeReusesRuneBuffers checks that the Lexer's numeric
+// rune/index scratch is pooled across adjacent tokenizations. The exact
+// assertion is !race-only because sync.Pool may discard entries in race builds.
+func TestBacktrackingUnicodeReusesRuneBuffers(t *testing.T) {
+	lx := runePerfLexer(t, `{"tokenizer":{"root":[["(?=世)世","special"],[".","text"]]}}`)
+	line := strings.Repeat("a", 40) + "世" + strings.Repeat("b", 40)
+	initial := lx.Initial()
+	dst := make([]Token, 0, 8)
+	allocs := testing.AllocsPerRun(30, func() {
+		dst, _, _ = lx.TokenizeLineInfo(line, initial, dst[:0])
+	})
+	if allocs > 7 {
+		t.Fatalf("Unicode backtracking tokenization allocates %.0f times; want <=7 after scratch pooling", allocs)
+	}
+}

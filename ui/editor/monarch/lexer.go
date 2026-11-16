@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
@@ -71,6 +72,8 @@ type Lexer struct {
 	intern  interner
 	initial State
 	fastGo  bool // built-in Go grammar only; custom registry replacements use Monarch
+
+	runeScratch sync.Pool // *lineRuneScratch; each active tokenizer gets its own one
 }
 
 func newLexer(reg *Registry, id string, g *grammar) *Lexer {
@@ -472,22 +475,43 @@ type lineRunes struct {
 	index []int32 // 字节偏移 → rune 下标（非法字节各算一个 rune，与 []rune(s) 一致）
 }
 
-func newLineRunes(line string) lineRunes {
-	lr := lineRunes{runes: []rune(line)}
-	if len(lr.runes) == len(line) {
-		return lr // one rune per byte: ASCII and single invalid bytes
+// lineRuneScratch owns only numeric buffers; it never stores the input string.
+// Large malformed/plugin lines are discarded instead of retained by the pool.
+type lineRuneScratch struct {
+	runes []rune
+	index []int32
+}
+
+const maxRuneScratchBytes = 1 << 20
+
+func (s *lineRuneScratch) make(line string) lineRunes {
+	s.runes = s.runes[:0]
+	s.index = s.index[:0]
+	for _, r := range line {
+		s.runes = append(s.runes, r)
 	}
-	lr.index = make([]int32, len(line)+1)
+	if len(s.runes) == len(line) {
+		return lineRunes{runes: s.runes}
+	}
+	if cap(s.index) < len(line)+1 {
+		s.index = make([]int32, len(line)+1)
+	} else {
+		s.index = s.index[:len(line)+1]
+	}
 	runeIndex := 0
 	for i := range line {
 		_, size := utf8.DecodeRuneInString(line[i:])
 		for k := 0; k < size; k++ {
-			lr.index[i+k] = int32(runeIndex)
+			s.index[i+k] = int32(runeIndex)
 		}
 		runeIndex++
 	}
-	lr.index[len(line)] = int32(len(lr.runes))
-	return lr
+	s.index[len(line)] = int32(len(s.runes))
+	return lineRunes{runes: s.runes, index: s.index}
+}
+
+func (s *lineRuneScratch) reusable() bool {
+	return cap(s.runes)*4+cap(s.index)*4 <= maxRuneScratchBytes
 }
 
 func (lr *lineRunes) at(byteOffset int) []rune {
@@ -539,9 +563,17 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 	force := true // 空行也至少执行一次规则（monaco-editor#1235）
 	ctx := &frame.ctx
 	var lr lineRunes // allocated only when a rule needs backtracking
-	lrBase := 0      // byte at which its reusable suffix begins
-	emptyRun := 0    // 连续无进展（没有越过 high）的次数
-	high := 0        // 本行目前到达过的最远位置；只有越过它才算进展
+	var scratch *lineRuneScratch
+	defer func() {
+		if scratch != nil && scratch.reusable() {
+			scratch.runes = scratch.runes[:0]
+			scratch.index = scratch.index[:0]
+			l.runeScratch.Put(scratch)
+		}
+	}()
+	lrBase := 0   // byte at which its reusable suffix begins
+	emptyRun := 0 // 连续无进展（没有越过 high）的次数
+	high := 0     // 本行目前到达过的最远位置；只有越过它才算进展
 
 	for force || pos < lineLen {
 		pos0 := pos
@@ -598,7 +630,14 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 				if re.Engine() == regex.Backtrack {
 					backtracked = true
 					if lr.runes == nil || pos < lrBase {
-						lr, lrBase = newLineRunes(rest), pos
+						if scratch == nil {
+							if v := l.runeScratch.Get(); v != nil {
+								scratch = v.(*lineRuneScratch)
+							} else {
+								scratch = &lineRuneScratch{}
+							}
+						}
+						lr, lrBase = scratch.make(rest), pos
 					}
 					restRunes = lr.at(pos - lrBase)
 				}
