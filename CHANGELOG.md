@@ -6,6 +6,10 @@
 
 ### 新增
 
+- **实验性编译 profile**：`tan.json` 可配置 `features: ["webview", "canvas"]`，`tan build/package -features webview,canvas` 可覆盖；默认 `all` 保持兼容。Darwin profile 对缺少的 WebView/canvas 能力返回 `ErrUnsupported`；Windows/Linux 非 `all` profile 本阶段明确拒绝。最小样本测量显示当前 Go 链接器已自动裁掉大部分未用后端代码，因此 profile 暂不宣传为体积优化，见 [体积报告](docs/package-size-optimization.md)。
+
+- **主题重建优化**：Alias 和动态主色重建不再重复创建完整图标映射和组件派生，公开主题 API 与 token 结果不变；运行时构造分配和耗时下降，安装后体积收益未显著测出。
+
 - **IDE 工作台组件**（均为实验性 API）：
   - `Dock` 停靠分屏：可嵌套分割树、标签拖到组边缘拆分 / 中间合并（带落点预览）、分割条调整、组最大化，布局模型 `DockLayout` 可 JSON 保存与恢复；`Tabs` 新增 `Draggable` 拖拽排序与 `OnTearOff` 拖出窗口回调（示例 `examples/dock-demo`）。
   - `StatusBar` 状态栏、`TitleBar` 自绘标题栏与 `WindowControls` 窗口按钮（经新接口 `ui.WindowFrame` 控制真实窗口与拖动）、`NotificationCenter` 通知中心、`HotkeyInput` 快捷键录制框。

@@ -113,6 +113,8 @@ Desktop platform implementations are split by build tags at the static dependenc
 
 The implementation is scoped to Darwin in this phase because it is the measured primary platform and has the clearest common delegate coupling. Windows and Linux retain `all` only; `tan build -features webview` or `canvas` fails during target/profile validation with an explicit "profile not implemented on <platform>" error. This is intentional, not a partial binary. A later phase can split those backends after the Darwin boundary and size benefit are proven.
 
+Self-check result: the first Darwin profile implementation provides deterministic capability errors, but the minimal probe matrix showed that Go's linker already removes almost all unused mode code. The `webview` raw delta was only 16–48 bytes and canvas/mixed were unchanged. Therefore this phase does not advertise profile-based size reduction and does not perform a high-risk full-file Darwin split; the profile boundary remains an experimental foundation for a later measured split.
+
 ### 4. Measurement and release behavior
 
 `tan.json` profile selection affects `tan build` and `tan package`; package metadata and artifacts include the selected profile for non-`all` outputs so they cannot overwrite each other. Existing artifact names remain unchanged for `all`.
