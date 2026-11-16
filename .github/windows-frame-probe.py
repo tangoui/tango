@@ -37,6 +37,7 @@ s += r'''
 type frameDiagStats struct {
     EnsureNS, AdvanceNS, TokensNS, OpenNS, CloseNS int64
     EnsureCalls, AdvanceCalls, TokensCalls, OpenCalls, CloseCalls int
+    DeadlineDriftNS, MaxDeadlineDriftNS int64
 }
 var frameDiag frameDiagStats
 var diagKernel32 = windows.NewLazySystemDLL("kernel32.dll")
@@ -84,6 +85,27 @@ for rel, funcs in {
         index = s.index('{', s.index(prefix)) + 1
         body = f'\n diagStart := time.Now(); frameDiag.{field}Calls++; defer func() {{ frameDiag.{field}NS += time.Since(diagStart).Nanoseconds() }}()\n'
         s = s[:index] + body + s[index:]
+    if rel.endswith('bracketpairs.go'):
+        old = 'hl.Highlight(snap, upTo, time.Until(deadline))'
+        assert s.count(old) == 1
+        s = s.replace(old, '''hl.FrameProbeBefore(deadline)
+            hl.Highlight(snap, upTo, time.Until(deadline))
+            drift := hl.FrameProbeDrift().Nanoseconds()
+            frameDiag.DeadlineDriftNS += drift
+            frameDiag.MaxDeadlineDriftNS = max(frameDiag.MaxDeadlineDriftNS, drift)''')
     save(rel, s)
+
+rel = 'ui/editor/highlight/highlight.go'
+s = Path(rel).read_text()
+old = 'deadline := start.Add(budget)'
+assert s.count(old) == 1
+s = s.replace(old, old + '\n frameProbeDrift = deadline.Sub(frameProbeTarget)', 1)
+s += '''
+var frameProbeTarget time.Time
+var frameProbeDrift time.Duration
+func (h *Highlighter) FrameProbeBefore(deadline time.Time) { frameProbeTarget = deadline }
+func (h *Highlighter) FrameProbeDrift() time.Duration { return frameProbeDrift }
+'''
+save(rel, s)
 (out / 'overlay.json').write_text(json.dumps({'Replace': replacements}))
 print(out / 'overlay.json')
