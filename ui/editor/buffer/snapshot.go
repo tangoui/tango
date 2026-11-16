@@ -154,8 +154,13 @@ func (s Snapshot) LineOf(off int) int {
 
 // Line returns line i without its line break. It panics if i is out of range.
 func (s Snapshot) Line(i int) string {
-	start := s.LineStart(i)
-	return s.slice(start, s.lineEnd(i))
+	if i < 0 || i >= s.LineCount() {
+		panic(fmt.Sprintf("buffer: line %d out of range [0,%d)", i, s.LineCount()))
+	}
+	if s.root == nil {
+		return ""
+	}
+	return lineAt(s.root, i)
 }
 
 // Slice returns bytes [start, end) of the LF-normalised text. It panics if

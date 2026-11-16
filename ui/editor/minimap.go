@@ -309,7 +309,9 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 	}
 	keep := m.keep
 	// Don't retain token strings from an old grammar when the view is idle.
-	defer func() { clear(m.tokenScratch) }()
+	// A later query can shorten the slice; clear the whole backing array
+	// so earlier queries cannot keep an old grammar's token strings alive.
+	defer func() { clear(m.tokenScratch[:cap(m.tokenScratch)]) }()
 	left := false // rows left for a later frame (the deadline passed)
 	built := m.rebuilt
 	hl := w.st.Highlighter()

@@ -275,6 +275,41 @@ func afterNewline(n *node, k int) int {
 	}
 }
 
+// lineAt returns line i (without its newline). i must be in range. Most
+// editor lines fit in a leaf: locate their start once, then find their end
+// directly in that leaf instead of walking from the root and rescanning
+// the same newlines for LineStart, lineEnd and slice separately.
+func lineAt(n *node, i int) string {
+	root, line := n, i
+	off := 0
+	for !n.isLeaf() {
+		if i <= n.left.lines {
+			n = n.left
+		} else {
+			i -= n.left.lines
+			off += n.left.bytes
+			n = n.right
+		}
+	}
+	start := 0
+	if i > 0 {
+		start = afterNewline(n, i)
+	}
+	if i < n.lines {
+		// The ending newline is in this leaf. Otherwise skip the scan:
+		// very long lines may occupy several newline-free leaves.
+		tail := n.text[start:]
+		end := strings.IndexByte(tail, '\n')
+		return tail[:end]
+	}
+	// A cross-leaf line still needs a copy; use the existing range reader.
+	end := root.bytes
+	if line < root.lines {
+		end = afterNewline(root, line+1) - 1
+	}
+	return slice(root, off+start, end)
+}
+
 // slice returns bytes [start, end) of n. Ranges inside one leaf are returned
 // without copying.
 func slice(n *node, start, end int) string {

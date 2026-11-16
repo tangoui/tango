@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/tangoui/tango/ui/editor/buffer"
+	"github.com/tangoui/tango/ui/editor/monarch"
 	"github.com/tangoui/tango/ui/editor/theme"
 	"github.com/tangoui/tango/ui/text"
 )
@@ -144,5 +145,21 @@ func BenchmarkMinimapRaster(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		minimapPerfBitmap = miniCharsAt(input, 4, g, func(int) color.NRGBA { return fg })
+	}
+}
+
+// A shorter last query must not leave old token strings in the scratch's
+// unused capacity: the scratch lives as long as the view, not the lexer.
+func TestMinimapPreparationClearsScratchCapacity(t *testing.T) {
+	w := minimapPerfView(t)
+	w.vs.mini.tokenScratch = make([]monarch.Token, 256)
+	for i := range w.vs.mini.tokenScratch {
+		w.vs.mini.tokenScratch[i].Type = "old-grammar-reference"
+	}
+	w.prepareMinimap(w.st.Snapshot(), w.st.Theme, time.Now().Add(time.Second))
+	for i, tok := range w.vs.mini.tokenScratch[:cap(w.vs.mini.tokenScratch)] {
+		if tok != (monarch.Token{}) {
+			t.Fatalf("scratch[%d] still holds %+v after preparation", i, tok)
+		}
 	}
 }
