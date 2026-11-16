@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tangoui/tango/ui/editor/internal/frameclock"
+
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/langs"
 	"github.com/tangoui/tango/ui/editor/regex"
@@ -755,10 +757,10 @@ func (s *State) electricChar(ch string) bool {
 // electricBudget.
 func (s *State) matchBracketUp(snap buffer.Snapshot, pair [2]string, l, col int) (int, bool) {
 	open, closeText := pair[0], pair[1]
-	deadline := time.Now().Add(electricBudget)
+	deadline := frameclock.Now().Add(electricBudget)
 	count := -1
 	for line := l; line >= 0; line-- {
-		if (l-line)%64 == 63 && time.Now().After(deadline) {
+		if (l-line)%64 == 63 && frameclock.Now().After(deadline) {
 			return 0, false
 		}
 		text := snap.Line(line)

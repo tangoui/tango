@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tangoui/tango/ui/editor/internal/frameclock"
+
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/langs"
 	"github.com/tangoui/tango/ui/editor/monarch"
@@ -406,7 +408,7 @@ type lineTokens struct {
 }
 
 func (s *State) newLineTokens(snap buffer.Snapshot) *lineTokens {
-	lt := &lineTokens{snap: snap, deadline: time.Now().Add(syntaxCommandBudget)}
+	lt := &lineTokens{snap: snap, deadline: frameclock.Now().Add(syntaxCommandBudget)}
 	if !s.Model.plain {
 		lt.lx = s.Model.hl.LexerIdentity()
 		if lt.lx != nil {
@@ -427,7 +429,7 @@ func (lt *lineTokens) tokens(i int) []monarch.Token {
 		// applies. Hard work limits below always apply, as do the lexer's
 		// own budget and refusal to classify degraded tokens.
 		clockApplies := lt.next >= 8 || lt.bytes >= 1024
-		if lt.next >= syntaxCommandLines || clockApplies && time.Now().After(lt.deadline) {
+		if lt.next >= syntaxCommandLines || clockApplies && frameclock.Now().After(lt.deadline) {
 			lt.failed = true
 			return nil
 		}

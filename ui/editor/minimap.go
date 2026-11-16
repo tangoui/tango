@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/tangoui/tango/ui/editor/internal/frameclock"
 	"unicode/utf8"
 
 	"github.com/tangoui/tango/ui"
@@ -389,7 +391,7 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 			base = from
 		}
 		if !cached && hl != nil {
-			if time.Now().After(deadline) {
+			if frameclock.Now().After(deadline) {
 				left = true
 				continue
 			}

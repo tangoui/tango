@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/tangoui/tango/ui/editor/internal/frameclock"
+
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/monarch"
@@ -562,7 +564,7 @@ func (x *indentIndex) budget(deadline time.Time) bool {
 var indentLinesRead atomic.Int64
 
 // indentPast reports whether deadline has passed (a variable for tests).
-var indentPast = func(deadline time.Time) bool { return time.Now().After(deadline) }
+var indentPast = func(deadline time.Time) bool { return frameclock.Now().After(deadline) }
 
 // scan reads lines lo..hi and returns their smallest indentation.
 func (x *indentIndex) scan(snap buffer.Snapshot, lo, hi int) int32 {
