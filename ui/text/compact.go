@@ -31,10 +31,14 @@ type shapingFont struct {
 	font         *harfbuzz.Font
 	coords       []tables.Coord
 	xPpem, yPpem uint16
-	specialized  bool
 	uses         int
+	specialized  bool
 }
 
+// Specializing a variable font pays for long or changing labels, but parsing
+// a second font for a few static button glyphs wastes startup time and memory.
+// Both routes have exactly the same metrics; defer that optimization until
+// this instance has shaped enough text to amortize its setup.
 const hotShapingUses = 64
 
 func (s *compactShaper) append(dst []sg, in shaping.Input, face *Face, run int32) []sg {
@@ -51,27 +55,33 @@ func (s *compactShaper) append(dst []sg, in shaping.Input, face *Face, run int32
 	entry, ok := s.fonts[in.Face]
 	xPpem, yPpem := in.Face.Ppem()
 	coords := in.Face.Coords()
-	if !ok || entry.xPpem != xPpem || entry.yPpem != yPpem || !slices.Equal(entry.coords, coords) {
+	changed := !ok || entry.xPpem != xPpem || entry.yPpem != yPpem || !slices.Equal(entry.coords, coords)
+	if changed {
 		// Retain only a bounded set of immutable face instances. In particular,
 		// distinct variable-font instances must never share a shaping font.
 		if s.fonts == nil || len(s.fonts) >= 16 {
 			s.fonts = make(map[*font.Face]shapingFont)
 		}
-		entry = shapingFont{font: harfbuzz.NewFont(fixedShapingFace(in.Face)), coords: append([]tables.Coord(nil), coords...), xPpem: xPpem, yPpem: yPpem}
+		entry = shapingFont{coords: append([]tables.Coord(nil), coords...), xPpem: xPpem, yPpem: yPpem, specialized: len(coords) == 0}
 	}
-	// Specializing HVAR re-parses the whole font (a few MiB per instance),
-	// so only faces shaped often get it; the glyphs are identical either way.
-	if entry.uses++; !entry.specialized && entry.uses > hotShapingUses {
-		entry.specialized = true
-		var raw *ot.Loader
-		if source, ok := face.ras.(interface{ shapingTables() *ot.Loader }); ok {
-			raw = source.shapingTables()
-		}
-		if raw != nil {
+	if !entry.specialized {
+		changed = true
+		entry.uses = min(hotShapingUses+1, entry.uses+1)
+		if entry.uses > hotShapingUses {
+			var raw *ot.Loader
+			if source, ok := face.ras.(interface{ shapingTables() *ot.Loader }); ok {
+				raw = source.shapingTables()
+			}
 			entry.font = harfbuzz.NewFont(fixedShapingFace(in.Face, raw))
+			entry.specialized = true
 		}
 	}
-	s.fonts[in.Face] = entry
+	if entry.font == nil {
+		entry.font = harfbuzz.NewFont(in.Face)
+	}
+	if changed {
+		s.fonts[in.Face] = entry
+	}
 	f := entry.font
 	f.XScale = int32(in.Size.Ceil()) * 64
 	f.YScale = f.XScale

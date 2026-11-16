@@ -1,7 +1,6 @@
 package text
 
 import (
-	"bytes"
 	"encoding/binary"
 	"sort"
 
@@ -116,8 +115,11 @@ func specializeMetricFace(source *font.Face, loader *ot.Loader) *font.Face {
 		rawTables = append(rawTables, ot.Table{Tag: tag, Content: data})
 	}
 	sort.Slice(rawTables, func(i, j int) bool { return rawTables[i].Tag < rawTables[j].Tag })
-	data := ot.WriteTTF(rawTables)
-	ld, err := ot.NewLoader(bytes.NewReader(data))
+	data, err := shapingTableResource(rawTables)
+	if err != nil {
+		return source
+	}
+	ld, err := ot.NewLoader(data)
 	if err != nil {
 		return source
 	}
