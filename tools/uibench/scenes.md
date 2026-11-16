@@ -33,7 +33,9 @@ the first call prints `bench ready`.
   `theme.AntDesign()`, default renderer for the size (no `TANGO_RENDERER`).
 - **MyGo** (v0.9.0) draws with its self-drawn `ui` package
   (`mygo.NewWindow(mygo.WindowOptions{Content: ui.View(view), UseContentSize: true})`),
-  not a web view. The view calls `c.Invalidate()` every pass and tells a new
+  not a web view. The view calls `c.AnimationFrame()` every pass (MyGo's documented
+  per-frame request, ui/api_gen.go: "asks for another frame as soon as the
+  display can show it") and tells a new
   frame by `c.Now()`, ready on the second frame as Tango.
 - **NSGo** chains `cx.RequestAnimationFrame`; its first callback, after the
   first commit, is ready. Default drawing: AppKit views.

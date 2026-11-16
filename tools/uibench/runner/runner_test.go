@@ -102,3 +102,12 @@ func TestParsePSTime(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckScreen(t *testing.T) {
+	if err := checkScreen(func() bool { return true }); err != errScreenLocked {
+		t.Fatalf("locked screen: err %v, want errScreenLocked", err)
+	}
+	if err := checkScreen(func() bool { return false }); err != nil {
+		t.Fatalf("unlocked screen: err %v, want nil", err)
+	}
+}

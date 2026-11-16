@@ -406,12 +406,13 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	if err := checkScreen(screenLocked); err != nil {
+		fmt.Fprintln(os.Stderr, "runner:", err)
+		os.Exit(1)
+	}
 	cfg := config{bin: *bin, settle: *settle, seconds: time.Duration(*seconds) * time.Second,
 		builds: readBuilds(*bin), loadRead: systemLoad}
 	res := &Results{Meta: newMeta(cfg)}
-	if res.Meta.ScreenLocked {
-		fmt.Fprintln(os.Stderr, "runner: the screen is locked: windows are occluded and no round will be usable")
-	}
 	if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
 		fatal(err)
 	}
@@ -458,6 +459,20 @@ func main() {
 		fatal(err)
 	}
 	fmt.Println("results:", *out)
+}
+
+// errScreenLocked: behind a locked screen the windows are occluded, the
+// frameworks that draw on the display's frame clock never report ready, and
+// every round would be wasted.
+var errScreenLocked = errors.New("the session screen is locked: windows are occluded and no scene can report ready; unlock the screen and run again")
+
+// checkScreen refuses a run behind a locked screen; locked is the probe
+// (screenLocked in production).
+func checkScreen(locked func() bool) error {
+	if locked() {
+		return errScreenLocked
+	}
+	return nil
 }
 
 func printRound(r Round) {

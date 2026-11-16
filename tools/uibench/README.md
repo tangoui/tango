@@ -21,16 +21,22 @@ Scenes and their per-frame work: [scenes.md](scenes.md).
 cd tools/uibench
 ./setup.sh /path/to/nsgo/source   # links third_party/nsgo, writes third_party/nsgo.version
 ./build.sh                        # bin/tango, bin/mygo, bin/nsgo, bin/runner, bin/build-info.txt
-cd runner
+cd runner                         # the runner is its own module: run it from here
 GOWORK=off go test ./... -count=1
-../bin/runner -bin ../bin -scenes counter,list,grid -frameworks tango,mygo,nsgo \
+GOWORK=off go run . -bin ../bin -scenes counter,list,grid -frameworks tango,mygo,nsgo \
 	-rounds 5 -settle 3s -seconds 10 -out ../results/$(date +%F).json
+# smoke (opens windows, about 2 minutes; not a performance result):
+GOWORK=off go run . -bin ../bin -scenes counter,list,grid -rounds 1 -seconds 3 -out ../results/smoke.json
 ```
 
+`go run ./runner` from tools/uibench does not work: tools/uibench has no
+go.mod, so the go command resolves the parent Tango module instead.
+
 The runner opens real windows and needs an unlocked screen: behind a
-locked screen the windows are occluded, Tango and MyGo (which draw on the
-display's frame clock) draw nothing, and the runner marks every round
-`screen_locked`, which the judge does not read. `bin/`, `third_party/` and
+locked screen the windows are occluded and Tango and MyGo (which draw on the
+display's frame clock) draw nothing. The runner refuses to start when the
+session screen is locked, and if the screen locks during a run it marks the
+rounds `screen_locked`, which the judge does not read. `bin/`, `third_party/` and
 `results/` are git-ignored.
 
 ## Protocol
@@ -77,6 +83,22 @@ not disturbed and not screen-locked, and returns:
   most the opponent's (counter: footprint median at most the opponent's in
   place of fps and p99);
 - `NotFaster` otherwise.
+
+## Methodology choices
+
+- **MyGo frame driving** follows MyGo's documented API: the view calls
+  `c.AnimationFrame()` every frame ("asks for another frame as soon as the
+  display can show it", ui/api_gen.go), as MyGo's own benchmark app does.
+  Tango uses `c.WakeAt(c.Now())`, NSGo chains `cx.RequestAnimationFrame`.
+- **Tango list uses `ui.Listy`**, with Virtual, ItemHeight(40), Split(false),
+  RowHoverable(false) and ScrollTo(px). `ui.VirtualList` scrolls only by
+  whole rows (ScrollToIndex / ScrollIntoView), so it cannot scroll 8 px a frame.
+- **The row's third text is `"<i*13%100> ms"`**, identical in all three
+  programs, after `"Row <i>"` and `"<i*7%1000>"`.
+- **The 5% work check compares work per frame** (work/s ÷ fps). Work per
+  second would mix the frame rate into the work check; fps is judged on its own.
+- **The counter scene compares median memory** (phys_footprint, Tango ≤
+  opponent) instead of fps and p99, alongside the CPU conditions.
 
 ## Build modes
 

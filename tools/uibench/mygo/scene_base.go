@@ -36,7 +36,7 @@ func (s *counter) view(c *ui.Context) {
 	if s.k.next(c) {
 		switch s.k.frames {
 		case 1:
-			c.Invalidate() // one more frame, after the first is presented
+			c.AnimationFrame() // one more frame, after the first is presented
 		case 2:
 			report(0)
 		}
@@ -66,7 +66,7 @@ type list struct {
 }
 
 func (s *list) view(c *ui.Context) {
-	c.Invalidate()
+	c.AnimationFrame() // MyGo's per-frame request while something moves
 	advance := s.k.next(c) && s.k.frames >= 2
 	if advance {
 		s.scroll.Y += listStep
@@ -94,7 +94,7 @@ type grid struct {
 }
 
 func (s *grid) view(c *ui.Context) {
-	c.Invalidate()
+	c.AnimationFrame() // MyGo's per-frame request while something moves
 	advance := s.k.next(c) && s.k.frames >= 2
 	if advance {
 		s.frame++
