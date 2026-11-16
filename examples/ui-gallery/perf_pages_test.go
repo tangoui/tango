@@ -11,7 +11,11 @@ import (
 	"time"
 )
 
-var galleryTimeDebt = map[string]string{} // Task 12 populates this at load < 6.
+// galleryTimeDebt lists pages whose Interact frame is over 4ms. Empty:
+// the Task 12a baseline (5f115d3, 1-min load < 6) measured every
+// non-variant page within budget.
+var galleryTimeDebt = map[string]string{}
+
 type galleryPerfWin struct{ hintWin }
 
 func (galleryPerfWin) Scale() float32 { return 2 }
@@ -64,14 +68,7 @@ func TestGalleryPageBudgets(t *testing.T) {
 			continue
 		}
 		r, _ := newGalleryRunner(p)
-		for i := 0; i < 20; i++ {
-			galleryInteract(r, i)
-		}
-		start := time.Now()
-		for i := 0; i < 50; i++ {
-			galleryInteract(r, i)
-		}
-		ns := time.Since(start) / 50
+		ns := galleryTime(r)
 		key := p.Name + "/Interact"
 		over := ns > 4*time.Millisecond
 		d, indebt := galleryTimeDebt[key]
@@ -85,4 +82,25 @@ func TestGalleryPageBudgets(t *testing.T) {
 			t.Logf("GALLERY %s %v %s", key, ns, fmt.Sprint(d))
 		}
 	}
+}
+
+// galleryTime times a page's Interact frame: up to 20 warm-up frames that
+// fit in 200 ms (at least one), then at least 3 timed frames, continuing
+// until 50 frames or 1 s of timed work, like perfTime in package ui. Timed
+// frames restart at index 0, as the fixed 20 + 50 loop did, so the scroll
+// pattern (20 down, 20 up, …) is unchanged.
+func galleryTime(r *ui.Runner) time.Duration {
+	start := time.Now()
+	for i := 0; i < 20 && (i == 0 || time.Since(start) < 200*time.Millisecond); i++ {
+		galleryInteract(r, i)
+	}
+	start = time.Now()
+	n := 0
+	var el time.Duration
+	for n < 3 || (n < 50 && el < time.Second) {
+		galleryInteract(r, n)
+		n++
+		el = time.Since(start)
+	}
+	return el / time.Duration(n)
 }

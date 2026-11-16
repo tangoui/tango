@@ -334,27 +334,83 @@ func perfBudget(fx perfFixture, scene string, large1k time.Duration) time.Durati
 }
 
 // perfTime times one scene by hand (testing.Benchmark is too slow for
-// hundreds of fixtures): warm steps, then a fixed number of timed steps,
-// median per-step time of three runs.
+// hundreds of fixtures): median per-step time of three runs. Each run
+// warms up, then times steps, adapting the counts to the step cost the
+// way testing.B does, so a scene of seconds per step stays bounded.
 func perfTime(sc perfScene) time.Duration {
-	warm, n := 20, 200
+	limit := perfTimedMax
 	if sc.Name == "Mount" {
-		n = 50
+		limit = perfTimedMaxMount
 	}
 	var runs [3]time.Duration
 	for k := range runs {
 		step, _ := sc.Setup()
-		for i := 0; i < warm; i++ {
-			step(i)
-		}
-		t0 := time.Now()
-		for i := 0; i < n; i++ {
-			step(warm + i)
-		}
-		runs[k] = time.Since(t0) / time.Duration(n)
+		runs[k], _, _ = perfTimeRun(step, limit)
 	}
 	slices.Sort(runs[:])
 	return runs[1]
+}
+
+// perfTime step counts: up to perfWarmMax warm-up steps that fit in
+// perfWarmFor (at least one), then at least perfTimedMin timed steps,
+// continuing until limit steps or perfTimedFor of timed work.
+const (
+	perfWarmMax       = 20
+	perfWarmFor       = 200 * time.Millisecond
+	perfTimedMin      = 3
+	perfTimedMax      = 200
+	perfTimedMaxMount = 50
+	perfTimedFor      = time.Second
+)
+
+// perfTimeRun runs warm-up then timed steps of one setup with continuing
+// step indices (so reversible interactions stay in sequence) and returns
+// the mean timed step and both counts.
+func perfTimeRun(step func(int), limit int) (per time.Duration, warm, n int) {
+	t0 := time.Now()
+	for warm < perfWarmMax && (warm == 0 || time.Since(t0) < perfWarmFor) {
+		step(warm)
+		warm++
+	}
+	t0 = time.Now()
+	var el time.Duration
+	for n < perfTimedMin || (n < limit && el < perfTimedFor) {
+		step(warm + n)
+		n++
+		el = time.Since(t0)
+	}
+	return el / time.Duration(n), warm, n
+}
+
+// TestPerfTimeSlowStepBounded checks that a slow scene (300 ms per step)
+// is timed in bounded time with at least perfTimedMin timed steps and
+// continuing step indices.
+func TestPerfTimeSlowStepBounded(t *testing.T) {
+	var got []int
+	start := time.Now()
+	per, warm, n := perfTimeRun(func(i int) {
+		got = append(got, i)
+		time.Sleep(300 * time.Millisecond)
+	}, perfTimedMax)
+	if el := time.Since(start); el > 3*time.Second {
+		t.Errorf("one run of a 300ms step took %v", el)
+	}
+	if warm != 1 || n < perfTimedMin || n > perfTimedMin+1 {
+		t.Errorf("warm %d, timed %d: want 1 warm-up and %d–%d timed steps", warm, n, perfTimedMin, perfTimedMin+1)
+	}
+	if per < 300*time.Millisecond {
+		t.Errorf("per-step %v < 300ms", per)
+	}
+	for i, v := range got {
+		if v != i {
+			t.Fatalf("step indices %v, want 0, 1, 2, …", got)
+		}
+	}
+	// A fast step keeps the fixed caps.
+	_, warm, n = perfTimeRun(func(int) {}, perfTimedMaxMount)
+	if warm != perfWarmMax || n != perfTimedMaxMount {
+		t.Errorf("fast step: warm %d, timed %d; want %d and %d", warm, n, perfWarmMax, perfTimedMaxMount)
+	}
 }
 
 func TestPerfBudgets(t *testing.T) {

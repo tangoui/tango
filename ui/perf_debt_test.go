@@ -174,5 +174,44 @@ var perfDamageDebt = map[string]perfDebt{
 // perfTimeDebt is keyed by "Name/Scene". LogView's scenes are owned by
 // perf/memory-logview: an overrun of one gets an entry with Why "owned by
 // perf/memory-logview" instead of a fix on this branch (none is over its
-// budget today: Task 6 measured Mount, Interact and Large100k within).
-var perfTimeDebt = map[string]perfDebt{}
+// budget: the Task 12a baseline measured Mount, Interact and Large100k
+// within).
+//
+// Task 12a baseline (5f115d3 + adaptive perfTime, Apple M4, 1-min
+// load < 6): the worse of 2 TestPerfBudgets runs. A
+// Large100k budget is min(4ms, 1.5 × Large1k) of the same run.
+var perfTimeDebt = map[string]perfDebt{
+	"AutoComplete/Large100k":   {Measured: "709.60ms (budget 1.86ms)", Why: "baseline"},
+	"AvatarGroup/Large100k":    {Measured: "18.18ms (budget 225µs)", Why: "baseline"},
+	"BubbleList/Large100k":     {Measured: "5.44ms (budget 536µs)", Why: "baseline"},
+	"Carousel/Large100k":       {Measured: "243.68ms (budget 2.10ms)", Why: "baseline"},
+	"Cascader/Large100k":       {Measured: "616.15ms (budget 1.73ms)", Why: "baseline"},
+	"CascaderPanel/Large100k":  {Measured: "614.46ms (budget 1.62ms)", Why: "baseline"},
+	"CheckAll/Large100k":       {Measured: "2.53s (budget 2.09ms)", Why: "baseline"},
+	"CheckboxGroup/Large100k":  {Measured: "2.55s (budget 2.11ms)", Why: "baseline"},
+	"Collapse/Large100k":       {Measured: "1.67s (budget 3.82ms)", Why: "baseline"},
+	"Command/Large100k":        {Measured: "770.45ms (budget 1.04ms)", Why: "baseline"},
+	"Conversations/Large100k":  {Measured: "701.98ms (budget 2.41ms)", Why: "baseline"},
+	"Descriptions/Large100k":   {Measured: "2.03s (budget 4.00ms)", Why: "baseline"},
+	"Image/Mount":              {Measured: "660µs (budget 500µs)", Why: "baseline"},
+	"InfiniteScroll/Large100k": {Measured: "866.15ms (budget 3.65ms)", Why: "baseline"},
+	"InputTag/Large100k":       {Measured: "2.26s (budget 4.00ms)", Why: "baseline"},
+	"List/Large100k":           {Measured: "996.34ms (budget 3.91ms)", Why: "baseline"},
+	"Markdown/Large100k":       {Measured: "1.09s (budget 4.00ms)", Why: "baseline"},
+	"Masonry/Large100k":        {Measured: "392µs (budget 95µs)", Why: "baseline"},
+	"Mentions/Large100k":       {Measured: "719.90ms (budget 1.86ms)", Why: "baseline"},
+	"Menu/Large100k":           {Measured: "91.99ms (budget 773µs)", Why: "baseline"},
+	"ProList/Large100k":        {Measured: "1.76s (budget 4.00ms)", Why: "baseline"},
+	"ProTable/Large100k":       {Measured: "278.99ms (budget 2.81ms)", Why: "baseline"},
+	"RadioGroup/Large100k":     {Measured: "2.51s (budget 2.20ms)", Why: "baseline"},
+	"RichText/Large100k":       {Measured: "2.09s (budget 4.00ms)", Why: "baseline"},
+	"Scroll/Large100k":         {Measured: "53.52ms (budget 506µs)", Why: "baseline"},
+	"ScrollH/Large100k":        {Measured: "53.97ms (budget 502µs)", Why: "baseline"},
+	"Segmented/Large100k":      {Measured: "1.12s (budget 1.29ms)", Why: "baseline"},
+	"Tabs/Large100k":           {Measured: "4.58s (budget 3.53ms)", Why: "baseline"},
+	"Timeline/Large100k":       {Measured: "1.47s (budget 4.00ms)", Why: "baseline"},
+	"ToggleGroup/Large100k":    {Measured: "2.68s (budget 1.40ms)", Why: "baseline"},
+	"Transfer/Large100k":       {Measured: "45.68ms (budget 509µs)", Why: "baseline"},
+	"Tree/Large100k":           {Measured: "1.19s (budget 4.00ms)", Why: "baseline"},
+	"TreeSelect/Large100k":     {Measured: "6.35ms (budget 76µs)", Why: "baseline"},
+}
