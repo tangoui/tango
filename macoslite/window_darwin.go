@@ -19,9 +19,9 @@ type appkitBackend struct {
 	app *App
 
 	// Main thread only.
-	nsApp, window, view, delegate id
-	space                         uintptr // sRGB color space, owned
-	looping                       bool
+	nsApp, window, view, delegate, appDelegate id
+	space                                      uintptr // sRGB color space, owned
+	looping                                    bool
 
 	qmu   sync.Mutex
 	queue []func()
@@ -35,6 +35,7 @@ const (
 	nsWindowStyleResizable        = 1 << 3
 	nsBackingStoreBuffered        = 2
 	nsEventTypeApplicationDefined = 15
+	nsTerminateNow                = 1
 	// NSViewLayerContentsRedrawDuringViewResize
 	redrawDuringResize = 2
 
@@ -71,6 +72,12 @@ func registerClasses() error {
 			{Cmd: sel("mouseMoved:"), Fn: mouseHandler(MouseMove)},
 			{Cmd: sel("rightMouseDown:"), Fn: mouseHandler(MouseDown)},
 			{Cmd: sel("rightMouseUp:"), Fn: mouseHandler(MouseUp)},
+			{Cmd: sel("viewDidChangeBackingProperties"), Fn: func(self id, _ objc.SEL) {
+				objc.ID(self).SendSuper(sel("viewDidChangeBackingProperties"))
+				if b := backends[self]; b != nil {
+					b.app.backingChanged()
+				}
+			}},
 			{Cmd: sel("keyDown:"), Fn: keyHandler(true)},
 			{Cmd: sel("keyUp:"), Fn: keyHandler(false)},
 		})
@@ -83,6 +90,18 @@ func registerClasses() error {
 				if b := backends[self]; b != nil {
 					b.windowClosed()
 				}
+			}},
+		})
+		if err != nil {
+			classErr = err
+			return
+		}
+		_, err = objc.RegisterClass("MacosLiteAppDelegate", objc.GetClass("NSObject"), nil, nil, []objc.MethodDef{
+			{Cmd: sel("applicationShouldTerminate:"), Fn: func(self id, _ objc.SEL, _ id) uint {
+				if b := backends[self]; b != nil {
+					b.app.terminating()
+				}
+				return nsTerminateNow
 			}},
 		})
 		if err != nil {
@@ -136,10 +155,14 @@ func (b *appkitBackend) open(o Options) error {
 
 		b.delegate = send(class("MacosLiteWindowDelegate"), "new")
 		msgVoidID(b.window, sel("setDelegate:"), b.delegate)
-		backends[b.view], backends[b.delegate] = b, b
+		b.appDelegate = send(class("MacosLiteAppDelegate"), "new")
+		msgVoidID(b.nsApp, sel("setDelegate:"), b.appDelegate)
+		backends[b.view], backends[b.delegate], backends[b.appDelegate] = b, b, b
 
 		b.space = cgColorSpaceCreateWithName(kCGColorSpaceSRGB)
 		send(b.window, "center")
+		// Keys reach the view before any click (Esc in a prompt window).
+		msgBoolID(b.window, sel("makeFirstResponder:"), b.view)
 		msgVoidID(b.window, sel("makeKeyAndOrderFront:"), 0)
 		msgVoidBool(b.nsApp, sel("activateIgnoringOtherApps:"), true)
 		msgVoidBool(b.view, sel("setNeedsDisplay:"), true)
@@ -220,7 +243,12 @@ func (b *appkitBackend) teardown() {
 	b.ready.Store(false)
 	delete(backends, b.view)
 	delete(backends, b.delegate)
+	delete(backends, b.appDelegate)
 	withPool(func() {
+		if b.appDelegate != 0 {
+			msgVoidID(b.nsApp, sel("setDelegate:"), 0)
+			send(b.appDelegate, "release")
+		}
 		if b.window != 0 {
 			msgVoidID(b.window, sel("setDelegate:"), 0)
 			msgVoidID(b.window, sel("setContentView:"), 0)
@@ -233,7 +261,7 @@ func (b *appkitBackend) teardown() {
 			send(b.delegate, "release")
 		}
 	})
-	b.window, b.view, b.delegate = 0, 0, 0
+	b.window, b.view, b.delegate, b.appDelegate = 0, 0, 0, 0
 	if b.space != 0 {
 		cgColorSpaceRelease(b.space)
 		b.space = 0

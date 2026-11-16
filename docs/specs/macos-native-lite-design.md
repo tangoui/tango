@@ -10,7 +10,7 @@
 - CoreText 绘制 Latin、CJK 短文本；
 - 默认空闲 physical footprint < 31 MiB，目标接近 mygo/NSGo；
 - 启动到首帧可测量；
-- 无 WebKit/WebView 子进程；
+- 不创建 WebView，没有 WebContent 进程；
 - `CGO_ENABLED=0`，不改变 Tango 现有桌面/WebView/自绘路径。
 
 ## 非目标
@@ -107,9 +107,11 @@ func (a *App) Invalidate()
 
 `scripts/macoslite-memory.sh --rounds 3`，Apple Silicon Retina，屏幕解锁：
 
-- 空闲 physical footprint 两次三轮中位数 **26.3 MiB / 27.2 MiB**（单轮 25.7–29.1），低于 31 MiB 目标；同机此前测得 mygo 31.2 MiB、NSGo 26.3 MiB、Tango 完整自绘 CPU 约 49 MiB；
-- 启动到首帧 175–240 ms；二进制 2.2 MiB；
-- 不加载 WebKit、Metal；依赖只有 `macoslite` 与 purego。
+- 空闲 physical footprint 三次三轮中位数 **26.3 / 27.2 / 25.5 MiB**（单轮 25.4–29.1），低于 31 MiB 目标；同机此前测得 mygo 31.2 MiB、NSGo 26.3 MiB、Tango 完整自绘 CPU 约 49 MiB；
+- 启动到首帧中位数 193 ms（单轮 172–652 ms，构建后首次启动最慢）；二进制 2.2 MiB；
+- 依赖只有 `macoslite` 与 purego；不创建 WebView、Metal device，没有 WebContent 进程。但 AppKit 自身会映射 `Metal.framework`，macOS 15+ 的 WritingToolsUI 在窗口成为 key 后还会映射 `WebKit.framework`，它们的脏页已计入上面的 footprint；脚本在 "mapped images" 中列出。
+
+审查后补充：换屏（backing scale 变化）重绘、启动即设 first responder（不点击也能收键）、`applicationShouldTerminate:` 里先关窗并调用 `View.Close`（Dock 退出、注销）、`TrimCaches` 可从任意 goroutine 调用。
 
 实现与草案的差异：窗口 view 走 `wantsUpdateLayer`/`updateLayer`，帧以 CGImage 作为 layer contents（与 Tango 自绘 CPU 路径一致），不走 `drawRect:`；用户关窗同样结束 `Run`（单窗口宿主）；文字用 CTLine 直接画进帧的 RGBA 像素。
 
