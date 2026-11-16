@@ -44,6 +44,6 @@ const updated = completeTask(tasks, "Try Find and Replace");
 console.log(progress(updated));
 
 // File, Edit and View menus contain the available actions.
-// Use the sidebar to change language, theme, wrapping or split view.
+// Use View for themes and layout; Explorer opens files from your folder.
 // Your unsaved edits stay protected when opening a file or quitting.
 `

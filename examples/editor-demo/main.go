@@ -463,7 +463,7 @@ func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
 func openDemoWindow(title string, ropts ui.RunnerOptions) (*ui.Runner, *tango.Surface, error) {
 	r, s, err := uihost.Open(app, uihost.Options{Surface: tango.SurfaceOptions{
 		Title: title, Width: 1200, Height: 800, MinWidth: 480, MinHeight: 320,
-		Resizable: true, Centered: true, AcceptFiles: diffState == nil,
+		Resizable: true, Centered: true, AcceptFiles: diffState == nil, Appearance: editorWindowAppearance(),
 	}}, page, ropts)
 	if err != nil {
 		return nil, nil, err
@@ -498,6 +498,7 @@ func openDemoWindow(title string, ropts ui.RunnerOptions) (*ui.Runner, *tango.Su
 
 func main() {
 	file := flag.String("file", "", "file to open (default: a short TypeScript welcome sample)")
+	folder := flag.String("folder", "", "folder shown in Explorer (default: current directory)")
 	genLines := flag.Int("gen-lines", 10000, "generate a benchmark TypeScript document with this many lines (opt-in)")
 	renderer := flag.String("renderer", "", `force the renderer: "cpu" or "gpu" (sets TANGO_RENDERER)`)
 	themeName := flag.String("theme", "vs-dark", `editor theme: vs, vs-dark, hc-black, hc-light`)
@@ -584,6 +585,15 @@ func main() {
 	quit := true
 	app = tango.New(tango.Options{Name: "Tango Editor", ID: "dev.tango.editordemo", QuitOnLastClose: &quit})
 	configureDocumentApp(app)
+	dir := *folder
+	if dir == "" {
+		dir, _ = os.Getwd()
+	}
+	if dir != "" {
+		if err := shellUI.explorer.openFolder(dir); err != nil {
+			log.Printf("editor-demo: open folder: %v", err)
+		}
+	}
 	app.OnReady(func() {
 		r, _, err := openDemoWindow("Tango Editor — "+filepath.Base(name), ropts)
 		if err != nil {

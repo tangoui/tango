@@ -17,6 +17,8 @@ import (
 // existing Ant Design UI. Presentation state never owns document text.
 type shellState struct {
 	sidebar                bool
+	explorer               fileExplorer
+	sidebarRatio           float32
 	narrow, sidebarOverlay bool
 	tab                    string
 	settings, details      bool
@@ -44,21 +46,33 @@ func renderShell(c *ui.Context) {
 	shellUI.narrow = c.Size().W < 820
 	th := c.Theme
 	ui.Column(c, func() {
-		ui.Row(c, func() {
-			ui.Icon(c, icon.Code).Size(th.FontSizeXL).Color(th.Primary.Base)
-			if c.Size().W >= 760 {
-				ui.Text(c, "Tango Editor").Strong()
-			}
-			switch key := ui.Menubar(c, shellMenus()).A11yLabel("Editor menu").Clicked(); key {
-			case "":
-			default:
+		bar := ui.TitleBar(c).Menu(func() {
+			if key := ui.Menubar(c, shellMenus()).A11yLabel("Editor menu").Clicked(); key != "" {
 				runShellAction(key)
 				ui.Invalidate(c.Window())
 			}
-			ui.Spacer(c)
-			shellIcon(c, icon.Search, "Command Palette", func() { runShellAction("palette") })
-			shellIcon(c, icon.Setting, "Settings", func() { runShellAction("settings") })
-		}, layout.H(th.Components.Menubar.Height+th.PaddingXXS), layout.Middle(), layout.Gap(th.PaddingXS), layout.PadVH(0, th.PaddingSM)).Bg(th.BgContainer)
+		})
+		if frame, ok := c.Window().(ui.WindowFrame); ok {
+			bar.Frame(guardedEditorFrame{frame})
+		}
+		if c.Size().W >= 850 {
+			bar.Center(func() {
+				title := "Tango Editor"
+				if shellUI.explorer.root != "" {
+					title = filepath.Base(shellUI.explorer.root) + " — Tango Editor"
+				}
+				if ui.Button(c, title).Text().Small().Icon(icon.Search).A11yLabel("Command Palette").Layout(layout.MaxW(320)).Clicked() {
+					runShellAction("palette")
+				}
+			})
+		}
+		bar.Tools(func() {
+			if c.Size().W < 850 {
+				shellIcon(c, icon.Search, "Command Palette", func() { runShellAction("palette") })
+			}
+			shellIcon(c, icon.PanelLeft, "Toggle sidebar", func() { runShellAction("sidebar"); ui.Invalidate(c.Window()) })
+		}).Action()
+
 		ui.Row(c, func() {
 			ui.Column(c, func() {
 				col := th.TextTertiary
@@ -75,31 +89,25 @@ func renderShell(c *ui.Context) {
 				ui.Spacer(c)
 				shellIcon(c, icon.Setting, "Editor settings", func() { runShellAction("settings") })
 			}, layout.W(th.ControlHeight+th.PaddingXS*2), layout.Pad(th.PaddingXS), layout.Gap(th.PaddingSM), layout.MinH(0)).Bg(th.BgContainer)
-			if shellUI.sidebar && c.Size().W >= 820 {
-				renderSidebar(c)
+			if shellUI.sidebar && !shellUI.narrow {
+				ratio := shellUI.sidebarRatio
+				if ratio <= 0 {
+					ratio = 0.22
+				}
+				split := ui.Splitter(c).Style(layout.Fill(), layout.MinW(0), layout.MinH(0))
+				split.Body(func() {
+					ui.SplitterPanel(c).DefaultPercent(ratio).Min(180).Max(360).Body(func() { renderExplorer(c, max(120, c.Size().H-200)) })
+					ui.SplitterPanel(c).DefaultPercent(1 - ratio).Min(300).Body(func() { renderDocumentWorkspace(c) })
+				})
+				if split.Changed() {
+					if sizes := split.Sizes(); len(sizes) == 2 {
+						shellUI.sidebarRatio = sizes[0]
+					}
+				}
+			} else {
+				renderDocumentWorkspace(c)
 			}
-			ui.Key(c, "document-workspace", func() {
-				ui.Column(c, func() {
-					label := documentDisplayName(documents.session.path)
-					if documents.session.dirty() {
-						label += " •"
-					}
-					ic := filetype.ForFlavor(th.Flavor).Icon(shellDocumentFilename(), false, false)
-					ui.Tabs(c, &shellUI.tab, []ui.TabItem{{Key: "document", Label: label, Icon: ic}}).Size(ui.Small).NoMargin().TabBarStyle(layout.PadVH(0, th.PaddingSM)).Extra(func() {
-						ui.Row(c, func() {
-							ui.Disabled(c, !documents.session.dirty(), func() { shellIcon(c, icon.Save, "Save file", func() { postFileAction(func() { saveDocument() }) }) })
-							shellIcon(c, icon.SplitPane, "Split editor", func() { runShellAction("split"); ui.Invalidate(c.Window()) })
-						}, layout.Middle(), layout.Gap(th.PaddingXS))
-					}).Show()
-					if documents.session.path != "" && c.Size().W >= 820 {
-						ui.Row(c, func() {
-							ui.Text(c, filepath.Dir(documents.session.path)).Size(th.FontSizeSM).Secondary().NoWrap().Ellipsis().Layout(layout.Grow(1))
-						}, layout.H(th.ControlHeightSM), layout.PadVH(0, th.PaddingSM), layout.Middle()).Bg(th.BgContainer)
-					}
-					search.render(c, active)
-					renderEditorPanes(c)
-				}, layout.Grow(1), layout.MinW(0), layout.MinH(0)).Bg(th.BgContainer).Clip()
-			})
+
 		}, layout.Grow(1), layout.MinW(0), layout.MinH(0))
 		renderStatusBar(c)
 	}, layout.Fill()).Bg(th.BgLayout)
@@ -123,6 +131,7 @@ func shellMenus() []ui.MenubarMenu {
 		{Key: "file", Label: "File", Items: []ui.MenubarItem{
 			{Key: "open", Label: "Open…", Icon: icon.FolderOpen, Shortcut: ui.ShortcutLabel("CmdOrCtrl+O")},
 			{Key: "save", Label: "Save", Icon: icon.Save, Shortcut: ui.ShortcutLabel("CmdOrCtrl+S")},
+			{Key: "open-folder", Label: "Open Folder…", Icon: icon.FolderOpen},
 			{Key: "save-as", Label: "Save As…", Shortcut: ui.ShortcutLabel("CmdOrCtrl+Shift+S")},
 		}},
 		{Key: "edit", Label: "Edit", Items: []ui.MenubarItem{
@@ -149,6 +158,8 @@ func runShellAction(key string) {
 	switch key {
 	case "open":
 		postFileAction(openDocumentDialog)
+	case "open-folder":
+		postFileAction(openFolderDialog)
 	case "save":
 		postFileAction(func() { saveDocument() })
 	case "save-as":
@@ -194,41 +205,6 @@ func setDocumentWrap(wrap bool) {
 		second.Options.WordWrap = st.Options.WordWrap
 	}
 	restoreEditorFocus()
-}
-
-func renderSidebar(c *ui.Context) {
-	th := c.Theme
-	width := th.PaddingXL * 7
-	ui.Column(c, func() { renderSidebarContent(c, width-th.PaddingSM*2) }, layout.W(width), layout.Pad(th.PaddingSM), layout.Gap(th.PaddingXS), layout.MinH(0)).Bg(th.BgLayout).Clip()
-}
-
-func renderSidebarContent(c *ui.Context, width float32) {
-	th := c.Theme
-	ui.Text(c, "OPEN DOCUMENT").Size(th.FontSizeSM).Secondary().Strong()
-	name := documentDisplayName(documents.session.path)
-	ic := filetype.ForFlavor(th.Flavor).Icon(shellDocumentFilename(), false, false)
-	if ui.Button(c, name).Text().Icon(ic).Block().A11yLabel("Focus active document").Clicked() {
-		restoreEditorFocus()
-	}
-	if documents.session.dirty() {
-		ui.Text(c, "Unsaved changes").Size(th.FontSizeSM).Color(th.Warning.Text)
-	} else if documents.session.path == "" {
-		ui.Text(c, "Not saved to disk").Size(th.FontSizeSM).Secondary()
-	} else {
-		ui.Text(c, "All changes saved").Size(th.FontSizeSM).Secondary()
-	}
-	ui.Div(c, layout.H(th.PaddingXS))
-	ui.Text(c, "EDITOR").Size(th.FontSizeSM).Secondary().Strong()
-	renderEditorOptions(c, width)
-	ui.Spacer(c)
-	ui.Text(c, "SHORTCUTS").Size(th.FontSizeSM).Secondary().Strong()
-	for _, shortcut := range []struct{ label, accel string }{{"Open file", "CmdOrCtrl+O"}, {"Save file", "CmdOrCtrl+S"}, {"Find", "CmdOrCtrl+F"}} {
-		ui.Row(c, func() {
-			ui.Text(c, shortcut.label).Size(th.FontSizeSM).Secondary()
-			ui.Spacer(c)
-			ui.Text(c, ui.ShortcutLabel(shortcut.accel)).Size(th.FontSizeSM).Tertiary()
-		}, layout.Middle())
-	}
 }
 
 func renderEditorOptions(c *ui.Context, width float32) {
@@ -297,7 +273,7 @@ func renderShellDialogs(c *ui.Context) {
 	ui.Modal(c, &shellUI.details, "Editor details").Width(min(500, c.Size().W-32)).NoFooter().Body(func() { ui.Text(c, status()) })
 	drawerWidth := min(c.Theme.PaddingXL*10, c.Size().W-c.Theme.PaddingLG)
 	ui.Drawer(c, &shellUI.sidebarOverlay, "Document sidebar").Placement(ui.DrawerLeft).Size(drawerWidth).Body(func() {
-		ui.Column(c, func() { renderSidebarContent(c, drawerWidth-c.Theme.Components.Drawer.Padding*2) }, layout.Gap(c.Theme.PaddingXS))
+		ui.Column(c, func() { renderExplorerContent(c, max(120, c.Size().H-240)) }, layout.Gap(c.Theme.PaddingXS))
 	})
 	if settingsWasOpen && !shellUI.settings || detailsWasOpen && !shellUI.details || sidebarWasOpen && !shellUI.sidebarOverlay {
 		restoreEditorFocus()
@@ -342,4 +318,30 @@ func shellDocumentFilename() string {
 		return documents.session.path
 	}
 	return st.Model.URI()
+}
+
+func renderDocumentWorkspace(c *ui.Context) {
+	th := c.Theme
+	ui.Key(c, "document-workspace", func() {
+		ui.Column(c, func() {
+			label := documentDisplayName(documents.session.path)
+			if documents.session.dirty() {
+				label += " •"
+			}
+			ic := filetype.ForFlavor(th.Flavor).Icon(shellDocumentFilename(), false, false)
+			ui.Tabs(c, &shellUI.tab, []ui.TabItem{{Key: "document", Label: label, Icon: ic}}).Size(ui.Small).NoMargin().TabBarStyle(layout.H(workbenchHeaderHeight(c)), layout.PadVH(0, th.PaddingSM)).Extra(func() {
+				ui.Row(c, func() {
+					ui.Disabled(c, !documents.session.dirty(), func() { shellIcon(c, icon.Save, "Save file", func() { postFileAction(func() { saveDocument() }) }) })
+					shellIcon(c, icon.SplitPane, "Split editor", func() { runShellAction("split"); ui.Invalidate(c.Window()) })
+				}, layout.Middle(), layout.Gap(th.PaddingXS))
+			}).Show()
+			if documents.session.path != "" && c.Size().W >= 820 {
+				ui.Row(c, func() {
+					ui.Text(c, filepath.Dir(documents.session.path)).Size(th.FontSizeSM).Secondary().NoWrap().Ellipsis().Layout(layout.Grow(1))
+				}, layout.H(th.ControlHeightSM), layout.PadVH(0, th.PaddingSM), layout.Middle()).Bg(th.BgContainer)
+			}
+			search.render(c, active)
+			renderEditorPanes(c)
+		}, layout.Grow(1), layout.MinW(0), layout.MinH(0)).Bg(th.BgContainer).Clip()
+	})
 }

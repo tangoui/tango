@@ -91,7 +91,7 @@ func TestShellKeepsCodeViewportAtNarrowWidths(t *testing.T) {
 			if r.W < width*0.55 || r.H < 400 || r.X < 0 || r.X+r.W > width+1 {
 				t.Fatalf("unusable editor viewport at width %.0f: %+v", width, r)
 			}
-			if _, ok := d.Find("Settings"); !ok {
+			if _, ok := d.Find("Editor settings"); !ok {
 				t.Fatal("settings unavailable")
 			}
 		})
@@ -135,7 +135,7 @@ func TestUntitledSampleDoesNotClaimToBeSaved(t *testing.T) {
 	d := shellDriver(t, 1200)
 	documents.session.path = ""
 	d.Frame()
-	if _, ok := d.FindText("Not saved to disk"); !ok {
+	if _, ok := d.FindText("All changes saved"); ok {
 		t.Fatal("untitled document must not claim its content is saved")
 	}
 }
@@ -174,7 +174,7 @@ func TestShellModalCancelReturnsToLastSplit(t *testing.T) {
 				t.Fatal("right pane not focused")
 			}
 			if dialog == "palette" {
-				if err := d.ClickLabel("Command Palette"); err != nil {
+				if err := d.A11yPerform(a11y.RoleButton, "Command Palette", a11y.Press, ""); err != nil {
 					t.Fatal(err)
 				}
 			} else {

@@ -42,6 +42,9 @@ func TestShellVisualQA(t *testing.T) {
 			search = searchPanel{}
 			setupDocument("welcome.ts", welcomeSample, theme.Base(tt.theme), tt.split, false)
 			documents.session.path = ""
+			if err := shellUI.explorer.openFolder("."); err != nil {
+				t.Fatal(err)
+			}
 			defer func() {
 				background.Close()
 				st.Close()
