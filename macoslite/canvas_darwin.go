@@ -81,11 +81,3 @@ func (c *Canvas) RoundRect(r Rect, radius float64, col Color) {
 		}
 	}
 }
-
-// Text draws s with its baseline-left at origin. Implemented in Task 4.
-func (c *Canvas) Text(s string, origin Point, size float64, col Color) {}
-
-// fontCache is filled in by the CoreText task.
-type fontCache struct{}
-
-func (f *fontCache) clear() {}
