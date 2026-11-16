@@ -22,6 +22,40 @@ type stackElem struct {
 	rules    []*rule
 	ok       bool   // 状态（或其点分前缀）有定义
 	boundary string // compiler-proven fixed ASCII prefix for an embedded @pop rule
+	plan     *rulePlan
+}
+
+type indexedRule struct {
+	rule  *rule
+	order int
+}
+
+type rulePlan struct {
+	fallback []indexedRule
+	byFirst  map[byte][]indexedRule
+}
+
+type rulePlanIter struct {
+	fallback, bucket []indexedRule
+	fi, bi           int
+}
+
+func (p *rulePlan) iter(first byte) rulePlanIter {
+	return rulePlanIter{fallback: p.fallback, bucket: p.byFirst[first]}
+}
+
+func (it *rulePlanIter) next() (*rule, bool) {
+	if it.fi >= len(it.fallback) && it.bi >= len(it.bucket) {
+		return nil, false
+	}
+	if it.bi >= len(it.bucket) || it.fi < len(it.fallback) && it.fallback[it.fi].order < it.bucket[it.bi].order {
+		r := it.fallback[it.fi].rule
+		it.fi++
+		return r, true
+	}
+	r := it.bucket[it.bi].rule
+	it.bi++
+	return r, true
 }
 
 // embedded 是嵌入语言的状态（对应 Monaco 的 EmbeddedLanguageData）。
@@ -65,9 +99,25 @@ func (l *Lexer) stackElem(parent *stackElem, state string) *stackElem {
 	e.rules, e.ok = l.g.findRules(state)
 	if e.ok {
 		e.boundary = fixedEmbeddedBoundary(e.rules)
+		e.plan = compileRulePlan(e.rules)
 	}
 	in.stacks[k] = e
 	return e
+}
+
+func compileRulePlan(rules []*rule) *rulePlan {
+	p := &rulePlan{byFirst: make(map[byte][]indexedRule)}
+	for i, r := range rules {
+		if r.m != nil && !r.m.dynamic && r.m.static != nil && r.m.static.hasFirst {
+			p.byFirst[r.m.static.firstByte] = append(p.byFirst[r.m.static.firstByte], indexedRule{rule: r, order: i})
+		} else {
+			p.fallback = append(p.fallback, indexedRule{rule: r, order: i})
+		}
+	}
+	if len(p.byFirst) == 0 {
+		return nil
+	}
+	return p
 }
 
 func (l *Lexer) internState(ls lineState) State {

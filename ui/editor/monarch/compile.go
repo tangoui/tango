@@ -402,7 +402,7 @@ func (g *grammar) newCompiledRe(src, flags string) *compiledRe {
 		re = nil
 	}
 	firstByte, hasFirst := byte(0), false
-	if re != nil && re.Engine() == regex.Backtrack && !strings.Contains(flags, "i") {
+	if re != nil && !strings.Contains(flags, "i") {
 		firstByte, hasFirst = backtrackLiteralFirst(src)
 	}
 	return &compiledRe{src: src, flags: flags, re: re, firstByte: firstByte, hasFirst: hasFirst}
@@ -491,7 +491,7 @@ func (m *matcher) resolve(state string) *compiledRe {
 		re = nil
 	}
 	firstByte, hasFirst := byte(0), false
-	if re != nil && re.Engine() == regex.Backtrack && !strings.Contains(m.flags, "i") {
+	if re != nil && !strings.Contains(m.flags, "i") {
 		firstByte, hasFirst = backtrackLiteralFirst(src)
 	}
 	c := &compiledRe{src: src, flags: m.flags, re: re, firstByte: firstByte, hasFirst: hasFirst}
