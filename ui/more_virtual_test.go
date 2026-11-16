@@ -2,14 +2,50 @@ package ui
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
 	"time"
+	"weak"
 
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/theme"
 )
+
+func TestMoreVirtualListReleasesOffscreenWidgets(t *testing.T) {
+	top := 0
+	var firstLabel weak.Pointer[Label]
+	d := NewDriver(func(c *Context) {
+		list := VirtualList(c, 10000, 40, func(i int) {
+			Row(c, func() {
+				Div(c, layout.Size(10, 10))
+				label := Text(c, fmt.Sprintf("Row %d", i))
+				if i == 0 {
+					firstLabel = weak.Make(label)
+				}
+			}, layout.H(40))
+		}, layout.Fill())
+		list.ScrollToIndex(top)
+	}, DriverOptions{Width: 480, Height: 800})
+	// Exercise the real frame tree without CPU rasterization. Keep the runner
+	// alive after GC, as it would be in a continuously scrolling window.
+	for top = 0; top < 100; top++ {
+		d.r.build()
+		d.r.layoutAndPaint()
+		d.r.afterFrame()
+	}
+	if firstLabel == (weak.Pointer[Label]{}) {
+		t.Fatal("initial row was never built")
+	}
+	runtime.GC()
+	runtime.GC()
+	retained := firstLabel.Value() != nil
+	runtime.KeepAlive(d)
+	if retained {
+		t.Fatal("offscreen row widget remains reachable after scrolling and GC")
+	}
+}
 
 func moreCountNodes(n *node) int {
 	k := 1

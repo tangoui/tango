@@ -134,7 +134,6 @@ type Context struct {
 	// rendererBlurs); frosted surfaces fall back to opaque ones.
 	noBlur bool
 
-	allocs        frameAllocators
 	nodeIndex     map[ID]*node
 	nextNodeIndex map[ID]*node
 	root          *node
