@@ -12,9 +12,13 @@ import (
 
 // TimelineItem is one event of a Timeline.
 type TimelineItem struct {
-	Content string // main text
+	Content string // main text (Ant v6 content)
 	Body    func() // custom content (replaces Content)
-	Label   string // Ant: text on the opposite side of the axis
+	// Title is the text on the opposite side of the axis (Ant v6 title);
+	// any item with a Title centers the axis of a vertical timeline.
+	Title string
+	// Deprecated: use Title.
+	Label   string
 	Time    string // Element: timestamp under (or above) the content
 	TimeTop bool   // put Time above the content
 	// Color is a status ("primary", "success", "warning", "error", "info",
@@ -24,39 +28,99 @@ type TimelineItem struct {
 	Dot     func()     // fully custom dot node
 	Hollow  bool       // Element: hollow dot
 	Large   bool       // Element: larger dot
+	// Placement puts this item's content at the "start" or "end" side,
+	// overriding the Mode (Ant v6 items[].placement).
+	Placement string
+	// Loading shows a spinning dot (Ant v6 items[].loading); the axis
+	// entering it (leaving it under Reverse) is dotted where the theme's
+	// TimelineToken.BusyTailDashed says so.
+	Loading bool
+	// Center centers the dot vertically on the item (Element center).
+	Center bool
 }
 
 // TimelineW shows events along a vertical axis.
 type TimelineW struct {
 	_ [0]func()
 
-	c       *Context
-	items   []TimelineItem
-	mode    string
-	pending string
-	reverse bool
-	horiz   bool
-	box     *Box
-	th      *theme.Theme
-	tk      *theme.TimelineToken
+	c         *Context
+	items     []TimelineItem
+	mode      string
+	pending   string
+	reverse   bool
+	horiz     bool
+	variant   string  // "filled" | "outlined" | "" (the theme's dot)
+	titleSpan float32 // TitleSpan, in 24ths (0: 12)
+	box       *Box
+	th        *theme.Theme
+	tk        *theme.TimelineToken
 }
 
 // Timeline starts a timeline; finish with Show.
 //
-// ConfigProvider.Defaults("Timeline", ...) keys: "mode" ("left" |
-// "right" | "alternate" | "start" | "end"), "reverse" (bool).
+// ConfigProvider.Defaults("Timeline", ...) keys: "mode" ("start" |
+// "end" | "alternate" | "alternate-reverse"; "left" / "right" are the
+// deprecated names of start / end), "reverse" (bool), "orientation"
+// ("vertical" | "horizontal"), "variant" ("outlined" | "filled").
 func Timeline(c *Context, items []TimelineItem) *TimelineW {
 	th := c.ThemeFor(theme.CompTimeline)
-	return &TimelineW{c: c, items: items, mode: Prop(c, "Timeline", "mode", "left"), reverse: Prop(c, "Timeline", "reverse", false),
+	w := &TimelineW{c: c, items: items, mode: Prop(c, "Timeline", "mode", "start"), reverse: Prop(c, "Timeline", "reverse", false),
 		th: th, tk: &th.Components.Timeline}
+	w.Orientation(Prop(c, "Timeline", "orientation", "vertical"))
+	w.variant = Prop(c, "Timeline", "variant", "")
+	return w
 }
 
-// Mode places the content: "left" or "start" (axis at the inline start,
-// default), "right" or "end" (axis at the inline end) or "alternate"
-// (content alternates around a centered axis). Items with a Label also
-// center the axis. The sides are logical: in RTL "left" puts the axis at
-// the right.
+// Mode places the content: "start" (axis at the inline start, content
+// after it; default), "end" (axis at the inline end), "alternate"
+// (content alternates around a centered axis, the first item after it)
+// or "alternate-reverse" (Element: the first item before it). "left" and
+// "right" are the deprecated Ant names of "start" and "end". Items with a
+// Title also center the axis. The sides are logical: in RTL "start" puts
+// the axis at the right.
 func (w *TimelineW) Mode(m string) *TimelineW { w.mode = m; return w }
+
+// Orientation lays the events out "vertical" (default) or "horizontal"
+// (Ant v6 orientation; same as Horizontal).
+func (w *TimelineW) Orientation(o string) *TimelineW { w.horiz = o == "horizontal"; return w }
+
+// Variant sets the dots: "outlined" (a ring, Ant's default) or "filled"
+// (a solid dot, the Element and shadcn default). Empty keeps the theme's
+// (TimelineToken.DotOutlined).
+func (w *TimelineW) Variant(v string) *TimelineW { w.variant = v; return w }
+
+// TitleSpan sets the share of the width, in 24ths, taken by the titles of
+// a vertical timeline whose items have a Title (Ant titleSpan; default 12,
+// the axis in the middle). Ignored with Mode("alternate").
+func (w *TimelineW) TitleSpan(span float32) *TimelineW { w.titleSpan = max(0, min(span, 24)); return w }
+
+// placement returns "start" or "end" for item idx (its Placement, else
+// the Mode).
+func (w *TimelineW) placement(e tlEntry, idx int) string {
+	switch e.Placement {
+	case "start", "end":
+		return e.Placement
+	}
+	switch w.mode {
+	case "right", "end":
+		return "end"
+	case "alternate":
+		if idx%2 == 1 {
+			return "end"
+		}
+	case "alternate-reverse":
+		if idx%2 == 0 {
+			return "end"
+		}
+	}
+	return "start"
+}
+
+// alternate reports an alternating mode.
+func (w *TimelineW) alternate() bool { return w.mode == "alternate" || w.mode == "alternate-reverse" }
+
+// busy reports an item drawn with a spinner (Loading or the Pending item).
+func (e tlEntry) busy() bool { return e.pending || e.Loading }
 
 // Horizontal lays the events out along a horizontal axis (Ant v6
 // orientation="horizontal"): every event takes an equal share of the
@@ -101,7 +165,7 @@ func (w *TimelineW) dotColor(it tlEntry) theme.Color {
 	case "info":
 		return th.Info.Base
 	case "gray", "grey":
-		return th.TextQuaternary
+		return th.TextDisabled // antd colorTextDisabled
 	}
 	if col, err := theme.ParseHex(it.Color); err == nil {
 		return col
@@ -114,7 +178,11 @@ func (w *TimelineW) Show() *TimelineW {
 	c := w.c
 	entries := make([]tlEntry, 0, len(w.items)+1)
 	for _, it := range w.items {
-		entries = append(entries, tlEntry{TimelineItem: it})
+		e := tlEntry{TimelineItem: it}
+		if e.Title != "" {
+			e.Label = e.Title
+		}
+		entries = append(entries, e)
 	}
 	if w.reverse {
 		for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
@@ -143,32 +211,33 @@ func (w *TimelineW) Show() *TimelineW {
 		for i, e := range entries {
 			e := e
 			last := i == len(entries)-1
-			Key(c, i, func() { w.item(e, i, last, labelled) })
+			prevBusy := i > 0 && entries[i-1].busy()
+			nextBusy := !last && entries[i+1].busy()
+			Key(c, i, func() { w.item(e, i, last, labelled, prevBusy, nextBusy) })
 		}
 	})
 	w.box.n.setRole(a11y.RoleList)
 	return w
 }
 
-func (w *TimelineW) item(e tlEntry, idx int, last, labelled bool) {
+func (w *TimelineW) item(e tlEntry, idx int, last, labelled, prevBusy, nextBusy bool) {
 	c, th, tk := w.c, w.th, w.tk
 	el := th.Flavor == theme.Element
 	shad := th.Flavor == theme.StyleShadcn // inferred: 1px border axis, filled size-2.5 dots, medium titles
 	// Which side does the content go to?
 	side := "right" // content after the axis (logical: at its end side)
-	centered := labelled || w.mode == "alternate"
-	switch w.mode {
-	case "right", "end":
+	centered := labelled || w.alternate()
+	if w.placement(e, idx) == "end" {
 		side = "left"
-	case "alternate":
-		if idx%2 == 1 {
-			side = "left"
-		}
+	}
+	// Grow factors of the title and content columns (Ant titleSpan).
+	labelGrow, contentGrow := float32(1), float32(1)
+	if labelled && !w.alternate() && w.titleSpan > 0 {
+		labelGrow, contentGrow = w.titleSpan, 24-w.titleSpan
 	}
 	axisW := tk.DotSize
 	gap := tk.ContentGap       // axis → content
 	headTop := tk.DotOffsetTop // dot top inside the first line
-	pendingDot := e.pending
 	dotD, col := w.dotLook(e)
 	textCol := tk.ContentColor
 
@@ -193,14 +262,14 @@ func (w *TimelineW) item(e tlEntry, idx int, last, labelled bool) {
 			if !el && e.Time != "" && !labelled {
 				Text(c, e.Time).Size(tk.TimeFontSize).Color(tk.TimeColor).Align(align)
 			}
-		}, layout.Grow(1), layout.MinW(0))
+		}, layout.Grow(contentGrow), layout.MinW(0))
 	}
 	label := func(align TextAlign) {
 		Column(c, func() {
 			if e.Label != "" {
 				Text(c, e.Label).Color(tk.LabelColor).Align(align)
 			}
-		}, layout.Grow(1), layout.MinW(0))
+		}, layout.Grow(labelGrow), layout.MinW(0))
 	}
 	padBottom := tk.ItemPaddingBottom
 	if last {
@@ -210,28 +279,54 @@ func (w *TimelineW) item(e tlEntry, idx int, last, labelled bool) {
 		ax := c.box("timeline-axis", layout.Column, []layout.Option{layout.W(axisW), layout.AlignItems(layout.AlignCenter)})
 		ax.n.ln.Shrink = 0
 		ax.n.aHidden = true // dots and tail are decoration
+		// dotY is the dot centre: on the first line, or (Center) in the
+		// middle of the item.
+		dotY := func(r geom.Rect) float32 {
+			if e.Center {
+				return r.Y + r.H/2
+			}
+			return r.Y + headTop + axisW/2
+		}
 		ax.Paint(func(l *paint.List, r geom.Rect) {
 			cx := r.X + r.W/2
-			// Tail: from this head to the next item's head.
-			if !last {
-				tc, lw := tk.TailColor, tk.TailWidth
-				y0, y1 := r.Y+headTop+axisW/2, r.Bottom()+padBottom+headTop
-				if pendingDot || (w.pending != "" && idx == len(w.items)-1 && !w.reverse) {
-					// Dashed tail towards the pending item (Ant style).
-					if !el {
-						p := paint.NewPath().MoveTo(cx, y0).LineTo(cx, y1)
-						l.StrokePath(p, paint.StrokeStyle{Width: lw, Dash: []float32{4, 3}}, tc)
-						return
-					}
+			tc, lw := tk.TailColor, tk.TailWidth
+			// seg draws the axis from y0 to y1, dotted next to a busy item
+			// (Loading, Pending) when the theme says so (antd v6: a rail
+			// with the "process" status).
+			seg := func(y0, y1 float32, dotted bool) {
+				if y1 <= y0 {
+					return
+				}
+				if dotted && tk.BusyTailDashed {
+					p := paint.NewPath().MoveTo(cx, y0).LineTo(cx, y1)
+					l.StrokePath(p, paint.StrokeStyle{Width: lw, Dash: []float32{4, 3}}, tc)
+					return
 				}
 				l.Fill(geom.Rect{X: cx - lw/2, Y: y0, W: lw, H: y1 - y0}, geom.Radii{}, tc)
+			}
+			cy := dotY(r)
+			// From the previous item down to this dot, then on to the next
+			// item: each item draws its share, so centred dots join up.
+			// rc-steps colours a rail with the next step's status, or with
+			// its own under railFollowPrevStatus (antd Timeline: reverse):
+			// the segment entering a busy item is dotted, or the one
+			// leaving it when reversed.
+			in, out := e.busy(), nextBusy
+			if w.reverse {
+				in, out = prevBusy, e.busy()
+			}
+			if idx > 0 {
+				seg(r.Y, cy, in)
+			}
+			if !last {
+				seg(cy, r.Bottom()+padBottom, out)
 			}
 		})
 		ax.n.over = func(l *paint.List, r geom.Rect) {
 			if e.Dot != nil {
 				return
 			}
-			w.drawDot(l, r.X+r.W/2, r.Y+headTop+axisW/2, e, dotD, col)
+			w.drawDot(l, r.X+r.W/2, dotY(r), e, dotD, col)
 		}
 		if e.Dot != nil {
 			ax.Body(func() {
@@ -270,7 +365,7 @@ func (w *TimelineW) item(e tlEntry, idx int, last, labelled bool) {
 			content(AlignStart)
 		}
 	}, layout.Padding(geom.Insets{Bottom: padBottom}), layout.MinH(minH))
-	it.n.setRole(a11y.RoleListItem).stateIf(e.pending, a11y.Busy)
+	it.n.setRole(a11y.RoleListItem).stateIf(e.busy(), a11y.Busy)
 }
 
 // dotD is the drawn dot diameter of e; col its color.
@@ -294,8 +389,9 @@ func (w *TimelineW) drawDot(l *paint.List, cx, cy float32, e tlEntry, dotD float
 	c, th, tk := w.c, w.th, w.tk
 	el := th.Flavor == theme.Element
 	shad := th.Flavor == theme.StyleShadcn
+	outlined := w.variant == "outlined" || w.variant == "" && tk.DotOutlined
 	switch {
-	case e.pending:
+	case e.busy():
 		s := float32(14)
 		icon.Draw(l, icon.Loading, geom.Rect{X: cx - s/2, Y: cy - s/2, W: s, H: s}, tk.PendingColor, spinAngle(c))
 	case e.DotIcon != nil:
@@ -307,24 +403,27 @@ func (w *TimelineW) drawDot(l *paint.List, cx, cy float32, e tlEntry, dotD float
 		}
 		l.Fill(geom.Rect{X: cx - s/2, Y: cy - s/2, W: s, H: s}, geom.Radii{}, tk.DotBg)
 		c.paintIcon(l, e.DotIcon, geom.Rect{X: cx - s/2, Y: cy - s/2, W: s, H: s}, col, 0)
-	case el:
+	case el || outlined && !shad:
 		rad := dotD / 2
-		if e.Hollow {
+		if e.Hollow || outlined {
 			bw := tk.DotBorderWidth
 			l.Path(paint.NewPath().Circle(cx, cy, rad), tk.DotBg)
 			l.StrokePath(paint.NewPath().Circle(cx, cy, rad-bw/2), paint.StrokeStyle{Width: bw}, col)
 		} else {
 			l.Path(paint.NewPath().Circle(cx, cy, rad), col)
 		}
-	case shad:
-		// size-2.5 rounded-full with a ring-4 of the background
-		// that cuts the axis around the dot.
-		l.Path(paint.NewPath().Circle(cx, cy, dotD/2+2), tk.DotBg)
+	case !shad: // Variant("filled") under Ant
 		l.Path(paint.NewPath().Circle(cx, cy, dotD/2), col)
 	default:
-		bw := tk.DotBorderWidth
-		l.Path(paint.NewPath().Circle(cx, cy, dotD/2), tk.DotBg)
-		l.StrokePath(paint.NewPath().Circle(cx, cy, dotD/2-bw/2), paint.StrokeStyle{Width: bw}, col)
+		// shadcn: size-2.5 rounded-full with a ring-4 of the background
+		// that cuts the axis around the dot.
+		l.Path(paint.NewPath().Circle(cx, cy, dotD/2+2), tk.DotBg)
+		if outlined {
+			bw := tk.DotBorderWidth
+			l.StrokePath(paint.NewPath().Circle(cx, cy, dotD/2-bw/2), paint.StrokeStyle{Width: bw}, col)
+			return
+		}
+		l.Path(paint.NewPath().Circle(cx, cy, dotD/2), col)
 	}
 }
 
@@ -336,13 +435,7 @@ func (w *TimelineW) showHorizontal(entries []tlEntry, labelled bool) {
 	c, tk := w.c, w.tk
 	n := len(entries)
 	below := func(i int) bool { // content under the axis
-		switch w.mode {
-		case "right", "end":
-			return false
-		case "alternate":
-			return i%2 == 0
-		}
-		return true
+		return w.placement(entries[i], i) == "start"
 	}
 	hasTop, hasBottom := false, false
 	for i := range entries {
@@ -378,7 +471,7 @@ func (w *TimelineW) showHorizontal(entries []tlEntry, labelled bool) {
 			}
 		}, cellOpts(top)...)
 		if isContent {
-			col.n.setRole(a11y.RoleListItem).stateIf(e.pending, a11y.Busy)
+			col.n.setRole(a11y.RoleListItem).stateIf(e.busy(), a11y.Busy)
 		}
 	}
 	row := func(top bool) {
@@ -394,7 +487,13 @@ func (w *TimelineW) showHorizontal(entries []tlEntry, labelled bool) {
 		}
 		Row(c, func() {
 			for i, e := range entries {
-				Key(c, i, func() { w.hAxis(e, i, i == n-1) })
+				// The tail from i to i+1 is dotted when it enters a busy
+				// event, or (reverse) leaves one; see item.
+				busyTail := i < n-1 && entries[i+1].busy()
+				if w.reverse {
+					busyTail = e.busy()
+				}
+				Key(c, i, func() { w.hAxis(e, i, i == n-1, busyTail) })
 			}
 		})
 		if hasBottom {
@@ -428,16 +527,14 @@ func (w *TimelineW) hContent(e tlEntry, labelled bool) {
 // hAxis builds the axis cell of entry i: its dot in the middle and the
 // tail towards the next dot (into the next cell, which has the same
 // width).
-func (w *TimelineW) hAxis(e tlEntry, i int, last bool) {
-	c, th, tk := w.c, w.th, w.tk
+func (w *TimelineW) hAxis(e tlEntry, i int, last, busyTail bool) {
+	c, tk := w.c, w.tk
 	dotD, col := w.dotLook(e)
 	h := max(tk.DotSize, tk.DotSizeLG, tk.IconDotSize, 14)
 	ax := c.box("timeline-axis", layout.Column, []layout.Option{layout.Grow(1), layout.Basis(0), layout.MinW(0), layout.H(h),
 		layout.AlignItems(layout.AlignCenter), layout.JustifyContent(layout.JustifyCenter)})
 	ax.n.aHidden = true // dots and tail are decoration
-	// The tail to a pending event is dashed (Ant).
-	dashed := th.Flavor != theme.Element && w.pending != "" &&
-		((!w.reverse && i == len(w.items)-1) || (w.reverse && e.pending))
+	dashed := tk.BusyTailDashed && busyTail
 	ax.Paint(func(l *paint.List, r geom.Rect) {
 		if last {
 			return

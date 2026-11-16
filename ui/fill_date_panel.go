@@ -74,6 +74,13 @@ type DatePickerPanelW struct {
 	// multi lists the selected period starts of a MultiDatePicker popup
 	// (drawn as selected; picks go to onPick, which toggles them).
 	multi []time.Time
+	// bounds: MinDate / MaxDate (cells outside are disabled, the header
+	// arrows stop at their pages).
+	bounds dtBounds
+	// showWeek adds the week-number column to the day grid (Ant showWeek).
+	showWeek bool
+	// noOrder keeps a range in pick order (RangePicker Order(false)).
+	noOrder bool
 }
 
 // DatePickerPanel adds an inline date panel bound to *val. Picked values
@@ -112,6 +119,18 @@ func (w *DatePickerPanelW) DisabledDate(fn func(time.Time) bool) *DatePickerPane
 	w.disabled = fn
 	return w
 }
+
+// MinDate limits the pickable dates (Ant minDate): periods wholly before
+// t are disabled and the header arrows stop at t's page. Zero = no limit.
+func (w *DatePickerPanelW) MinDate(t time.Time) *DatePickerPanelW { w.bounds.lo = t; return w }
+
+// MaxDate limits the pickable dates (Ant maxDate): periods wholly after t
+// are disabled and the header arrows stop at t's page. Zero = no limit.
+func (w *DatePickerPanelW) MaxDate(t time.Time) *DatePickerPanelW { w.bounds.hi = t; return w }
+
+// ShowWeek adds the ISO week-number column to the day grid (Ant showWeek;
+// the week picker always shows it).
+func (w *DatePickerPanelW) ShowWeek(on bool) *DatePickerPanelW { w.showWeek = on; return w }
 
 // Border toggles the panel border (default on).
 func (w *DatePickerPanelW) Border(on bool) *DatePickerPanelW { w.border = on; return w }
@@ -258,6 +277,9 @@ func (w *DatePickerPanelW) commit(p time.Time) {
 		st.rangeStart = p
 	} else {
 		a, b := fillDPOrder(st.rangeStart, p)
+		if w.noOrder {
+			a, b = st.rangeStart, p
+		}
 		st.rangeStart = time.Time{}
 		if w.onRange != nil {
 			st.cursor = p
@@ -400,6 +422,9 @@ func (w *DatePickerPanelW) key(k input.KeyEvent) bool {
 		cur = fillPeriodStart(cur, st.mode, w.ws())
 	}
 	if k.Key == input.KeyEnter || k.Key == input.KeySpace {
+		if w.bounds.out(cur, st.mode, w.ws()) {
+			return true // out of MinDate / MaxDate at any level
+		}
 		if w.disabled == nil || !w.disabled(cur) || st.mode != fillViewLevel(w.picker) {
 			mode := st.mode
 			w.pickAt(cur)
@@ -516,13 +541,22 @@ func (w *DatePickerPanelW) header(anchor time.Time, prev, next bool, titles func
 			}
 			return
 		}
-		b := IconButton(c, ic, label).Size(24, 12).NoHoverBg()
-		if el {
-			b.Size(24, 14)
+		target := fillAnchorStep(anchor, st.mode, n)
+		if st.mode == PickerDate {
+			target = dtAddMonths(anchor, n)
 		}
-		if shad {
-			dtShadcnNav(c, b)
-		}
+		off := w.bounds.pageOut(target, st.mode, n < 0)
+		var b *IconButtonW
+		Disabled(c, off, func() {
+			b = IconButton(c, ic, label).Size(24, 12).NoHoverBg()
+			if el {
+				b.Size(24, 14)
+			}
+			if shad {
+				dtShadcnNav(c, b)
+			}
+			dtNavOff(b, off)
+		})
 		if b.Clicked() {
 			if st.mode == PickerDate {
 				st.view = dtAddMonths(st.view, n)
@@ -661,12 +695,17 @@ func (w *DatePickerPanelW) dayPanel(month time.Time, prev, next bool, hover *tim
 	loc := c.Locale()
 	ws := w.ws()
 	week := w.picker == PickerWeek && st.mode == PickerDate
+	weekCol := week || (w.showWeek && st.mode == PickerDate) // week-number column
 	pw := dtPanelWidth(th)
-	if week {
+	if weekCol {
 		pw += cw
 	}
 	a, b := w.selected()
-	m := dtMonth{view: month, today: c.now, cursor: st.cursor, disabled: w.disabled, hideOut: w.ranged, hover: hover, ids: w.ids}
+	lvl := PickerDate
+	if week {
+		lvl = PickerWeek
+	}
+	m := dtMonth{view: month, today: c.now, cursor: st.cursor, disabled: w.bounds.limit(w.disabled, lvl, ws), hideOut: w.ranged, hover: hover, ids: w.ids}
 	if st.mode == fillViewLevel(w.picker) {
 		m.selA, m.selB = a, b
 		if w.multi != nil {
@@ -709,7 +748,7 @@ func (w *DatePickerPanelW) dayPanel(month time.Time, prev, next bool, hover *tim
 		w.header(month, prev, next, w.titles(month))
 		grid := Column(c, func() {
 			wk := Row(c, func() {
-				if week {
+				if weekCol {
 					Gap(c, cw)
 				}
 				for _, d := range dtWeekNames(loc, ws) {
@@ -726,7 +765,7 @@ func (w *DatePickerPanelW) dayPanel(month time.Time, prev, next bool, hover *tim
 			first := dtGridStart(month, ws)
 			for row := 0; row < 6; row++ {
 				Row(c, func() {
-					if week {
+					if weekCol {
 						// ISO week number of the row's Thursday.
 						var thu time.Time
 						for i := 0; i < 7; i++ {
@@ -884,7 +923,7 @@ func (w *DatePickerPanelW) gridPanel(anchor time.Time, prev, next bool, hover *t
 								look.selected = ce.start.Equal(fillPeriodStart(*w.val, level, w.ws()))
 							}
 						}
-						look.disabled = base && w.disabled != nil && w.disabled(ce.start)
+						look.disabled = (base && w.disabled != nil && w.disabled(ce.start)) || w.bounds.out(ce.start, level, w.ws())
 						if w.fillCell(look, ce.start, cw, rh, hover) && !w.off {
 							w.pickAt(ce.start)
 						}

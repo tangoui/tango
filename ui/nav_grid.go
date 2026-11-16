@@ -92,6 +92,7 @@ type GridRowW struct {
 	c       *Context
 	gh, gv  float32
 	respG   map[Breakpoint]float32
+	respGV  map[Breakpoint]float32
 	justify layout.Justify
 	align   layout.Align
 	noWrap  bool
@@ -109,6 +110,16 @@ func (g *GridRowW) GutterAt(bp Breakpoint, px float32) *GridRowW {
 		g.respG = map[Breakpoint]float32{}
 	}
 	g.respG[bp] = px
+	return g
+}
+
+// VGutterAt sets a responsive vertical gutter (the gap between wrapped
+// lines) per breakpoint (Ant gutter={[h, {xs: 8, md: 16}]}).
+func (g *GridRowW) VGutterAt(bp Breakpoint, px float32) *GridRowW {
+	if g.respGV == nil {
+		g.respGV = map[Breakpoint]float32{}
+	}
+	g.respGV[bp] = px
 	return g
 }
 
@@ -209,6 +220,13 @@ func (g *GridRowW) Body(fn func()) *Box {
 	for b := int(bp); b >= 0; b-- {
 		if v, ok := g.respG[Breakpoint(b)]; ok {
 			gh = v
+			break
+		}
+	}
+	gv := g.gv
+	for b := int(bp); b >= 0; b-- {
+		if v, ok := g.respGV[Breakpoint(b)]; ok {
+			gv = v
 			break
 		}
 	}
@@ -321,6 +339,6 @@ func (g *GridRowW) Body(fn func()) *Box {
 				}
 			})
 		}
-	}, layout.Gap(g.gv))
+	}, layout.Gap(gv))
 	return outer
 }

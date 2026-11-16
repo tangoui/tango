@@ -22,6 +22,14 @@ type TreeToken struct {
 	FilterHighlightColor   Color `contrast:"text:@Page"` // VirtualTree.Filter match
 	DropIndicatorColor     Color `contrast:"nontext:@Page"`
 	DraggingNodeBg         Color // title of the node being dragged
+	// VirtualIndentSize is VirtualTree's indent per level (Element
+	// el-tree-v2 indent 16, el-tree 18).
+	VirtualIndentSize float32
+	SwitcherIconSize  float32 // Tree.SwitcherIcon (antd .switcher-icon fontSize 10)
+	// ShowEmptyText shows Locale.NoData when the tree has no rows
+	// (Element el-tree__empty-block; antd renders nothing).
+	ShowEmptyText  bool
+	EmptyTextColor Color `contrast:"text:@Page"`
 }
 
 func deriveTree(t *Theme) TreeToken {
@@ -33,12 +41,14 @@ func deriveTree(t *Theme) TreeToken {
 		SwitcherColor:          t.Text, LineColor: t.Border,
 		SearchHighlightColor: Hex("#ff5500"), FilterHighlightColor: t.Warning.Base,
 		DropIndicatorColor: t.Primary.Base, DraggingNodeBg: Fade(t.Primary.Bg, 0.9),
+		SwitcherIconSize: 10, EmptyTextColor: t.TextSecondary,
 	}
 	switch t.Flavor {
 	case Element:
 		// el-tree: 26px rows without gaps, 18px indent, the current row
 		// tinted with the brand, placeholder-colored carets.
 		k.TitleHeight, k.NodeGap, k.DropdownNodeHeight, k.IndentSize = 26, 0, 26, 18
+		k.VirtualIndentSize, k.ShowEmptyText, k.SwitcherIconSize = 16, true, 12 // tree-v2 indent 16; el-tree emptyText
 		k.NodeBorderRadius = 0
 		k.NodeSelectedBg = t.Primary.Bg
 		k.SwitcherColor = t.TextQuaternary
@@ -53,6 +63,9 @@ func deriveTree(t *Theme) TreeToken {
 		k.SwitcherColor = t.TextTertiary
 		k.SearchHighlightColor, k.SearchHighlightBg = Color{}, t.Warning.Border
 		k.FilterHighlightColor = t.Primary.Base
+	}
+	if k.VirtualIndentSize == 0 {
+		k.VirtualIndentSize = k.IndentSize // VirtualTree indents like Tree but under Element
 	}
 	return k
 }

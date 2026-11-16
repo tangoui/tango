@@ -66,9 +66,16 @@ type StepsToken struct {
 
 	HoverColor           Color `contrast:"text:@Page"` // clickable step under the pointer
 	HoverIconBorderColor Color // outline of a waiting step's icon under the pointer
-	SubTitleColor        Color `contrast:"text:@Page"`
-	ProgressColor        Color // percent ring of the current step
-	ProgressTrailColor   Color
+	HoverIconBg          Color // icon fill of a waiting / finished step under the pointer (zero: unchanged)
+
+	// Variant("outlined"): rings in the status color.
+	OutlinedIconBg          Color // icon fill
+	OutlinedActiveIconBg    Color // icon fill of the current step
+	OutlinedHoverColor      Color // ring and glyph of a hovered waiting / finished step
+	OutlinedErrorHoverColor Color // ring and glyph of a hovered failed step
+	SubTitleColor           Color `contrast:"text:@Page"`
+	ProgressColor           Color // percent ring of the current step
+	ProgressTrailColor      Color
 
 	NavArrowColor  Color // chevron between navigation steps
 	NavInkBarColor Color // underline of the current navigation step (zero: none)
@@ -108,13 +115,20 @@ func deriveSteps(t *Theme) StepsToken {
 
 		ProcessIconBg: t.Primary.Base, ProcessIconColor: t.TextOnPrimary, ProcessTitleColor: t.Text, ProcessDescriptionColor: t.Text,
 		FinishIconBg: t.Primary.Bg, FinishIconColor: t.Primary.Base, FinishTitleColor: t.Text, FinishDescriptionColor: t.TextTertiary,
-		WaitIconBg: t.FillSecondary, WaitIconColor: t.TextTertiary, WaitTitleColor: t.TextTertiary, WaitDescriptionColor: t.TextTertiary,
+		// antd 6.7 es/steps/style/status.js (filled): wait icon
+		// colorFillTertiary + colorTextLabel; hover colorPrimaryBgHover
+		// fill, colorPrimary glyph, no border; texts colorPrimaryHover.
+		WaitIconBg: t.FillTertiary, WaitIconColor: t.TextSecondary, WaitTitleColor: t.TextTertiary, WaitDescriptionColor: t.TextTertiary,
 		ErrorIconBg: t.Error.Bg, ErrorIconColor: t.Error.Base, ErrorTitleColor: t.Error.Base, ErrorDescriptionColor: t.Error.Base,
 		SuccessIconBg: t.Success.Bg, SuccessIconColor: t.Success.Base, SuccessTitleColor: t.Text, SuccessDescriptionColor: t.TextTertiary,
 		TailColor: t.Split, FinishTailColor: t.Primary.Base, SuccessTailColor: t.Success.Base,
 
 		DotActiveColor: t.Primary.Base, DotErrorColor: t.Error.Base, DotWaitColor: t.TextQuaternary,
-		HoverColor: t.Primary.Base, HoverIconBorderColor: t.Primary.Base, SubTitleColor: t.TextTertiary,
+		HoverColor: t.Primary.Hover, HoverIconBg: t.Primary.BgHover, SubTitleColor: t.TextTertiary,
+		// status.js (outlined): colorBgContainer fill, the current step colorPrimaryBg.
+		// (zero OutlinedIconBg: the theme's icons are outlined already.)
+		OutlinedIconBg: t.BgContainer, OutlinedActiveIconBg: t.Primary.Bg,
+		OutlinedHoverColor: t.Primary.Hover, OutlinedErrorHoverColor: t.Error.Hover,
 		ProgressColor: t.Primary.Base, ProgressTrailColor: t.Split,
 		NavArrowColor: t.TextQuaternary, NavInkBarColor: t.Primary.Base,
 
@@ -143,6 +157,8 @@ func deriveSteps(t *Theme) StepsToken {
 		k.ErrorIconBg, k.ErrorIconColor, k.ErrorIconBorderColor, k.ErrorTitleColor, k.ErrorDescriptionColor = status(t.Error.Base)
 		k.SuccessIconBg, k.SuccessIconColor, k.SuccessIconBorderColor, k.SuccessTitleColor, k.SuccessDescriptionColor = status(t.Success.Base)
 		k.TailColor = t.BorderHover
+		k.HoverColor, k.HoverIconBorderColor, k.HoverIconBg = t.Primary.Base, t.Primary.Base, Color{}
+		k.OutlinedIconBg, k.OutlinedActiveIconBg = Color{}, Color{} // el-step icons are rings already
 		k.NavArrowColor, k.NavInkBarColor = t.TextTertiary, Color{}
 		k.NavBg, k.NavRadius = t.FillTertiary, 4
 		k.InlineDotSize, k.InlineDotCurrentSize = 8, 8
@@ -156,7 +172,8 @@ func deriveSteps(t *Theme) StepsToken {
 		k.SuccessIconBg, k.SuccessIconColor = t.Success.Base, t.TextOnSolid
 		k.ErrorIconBg, k.ErrorIconBorderColor = t.BgContainer, t.Error.Base
 		k.WaitIconBg, k.WaitIconBorderColor = t.BgContainer, t.Border
-		k.HoverColor, k.HoverIconBorderColor = t.Text, t.BorderHover
+		k.HoverColor, k.HoverIconBorderColor, k.HoverIconBg = t.Text, t.BorderHover, Color{}
+		k.WaitIconColor = t.TextTertiary
 		k.InlineHoverBg, k.PanelHoverBg = t.ItemHoverBg, t.ItemHoverBg
 		k.PanelActiveBg = t.Primary.BgHover
 	}

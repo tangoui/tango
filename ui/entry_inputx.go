@@ -39,6 +39,7 @@ type SearchW struct {
 	z           *lazy
 	inputID     ID
 	name        string
+	variant     string // Variant
 }
 
 // Search adds a search box bound to *val.
@@ -49,9 +50,17 @@ func Search(c *Context, val *string) *SearchW {
 	w.n.ln.Align = layout.AlignStretch
 	w.n.ln.Width = 260
 	w.configDefaults()
+	// antd useVariant('inputSearch', …, 'input'): the inner Input already
+	// falls back to the "Input" key.
+	w.variant = propString(c, "Search", "variant", "")
 	w.z = c.lazy(w.n, w.build)
 	return w
 }
+
+// Variant sets the look of the field like InputW.Variant (antd
+// Input.Search variant). ConfigProvider Defaults: "Search" "variant",
+// falling back to "Input".
+func (w *SearchW) Variant(v string) *SearchW { w.variant = v; return w }
 
 func (w *SearchW) Placeholder(s string) *SearchW { w.placeholder = s; return w }
 
@@ -94,6 +103,9 @@ func (w *SearchW) build() {
 	in := Input(c, w.val).Placeholder(w.placeholder).Size(w.size).Status(w.status).Disabled(dis).Layout(layout.Grow(1), layout.MinW(0))
 	if w.allowClear {
 		in.AllowClear()
+	}
+	if w.variant != "" {
+		in.Variant(w.variant)
 	}
 	w.inputID = in.ID()
 	in.ed.setRole(a11y.RoleSearchbox)
@@ -235,7 +247,9 @@ type TextAreaW struct {
 	exceed      bool
 	allowClear  bool
 	disabled    bool
-	bare        bool // no frame, fills its parent (MarkdownEditor)
+	bare        bool   // no frame, fills its parent (MarkdownEditor)
+	variant     string // Variant
+	readOnly    bool   // ReadOnly
 	res         editResult
 	cleared     bool
 	done        bool
@@ -253,7 +267,7 @@ const ixLineH = 22
 
 // TextArea adds a multi-line input bound to *val.
 func TextArea(c *Context, val *string) *TextAreaW {
-	w := &TextAreaW{c: c, val: val, rows: 3, status: c.itemStatus}
+	w := &TextAreaW{c: c, val: val, rows: 2, status: c.itemStatus} // antd (native textarea) and Element: 2 rows
 	w.n = c.add("textarea-x", "")
 	w.n.ln.Dir = layout.Column
 	w.st = State[ixTAState](c, w.n.id, func() ixTAState { return ixTAState{lastCur: -1} })
@@ -275,6 +289,7 @@ func TextArea(c *Context, val *string) *TextAreaW {
 	w.edIA = c.interact(w.ed, true, input.CursorText)
 	w.boxIA = c.interact(w.box, false, input.CursorText)
 	w.configDefaults()
+	w.variant = propString(c, "TextArea", "variant", "") // antd useVariant('textArea'): no fallback to Input
 	c.deferred = append(c.deferred, w.finish)
 	return w
 }
@@ -296,9 +311,22 @@ func (w *TextAreaW) semantics(s *a11y.Node) {
 	if w.status == "error" || w.over() {
 		s.States |= a11y.Invalid
 	}
+	if w.readOnly {
+		s.States |= a11y.ReadOnly
+		s.Actions &^= a11y.SetValue
+	}
 }
 
-// Rows sets the fixed number of visible rows (default 3).
+// Variant sets the frame look like InputW.Variant: "outlined" (default),
+// "filled", "borderless" or "underlined" (antd TextArea variant).
+func (w *TextAreaW) Variant(v string) *TextAreaW { w.variant = v; return w }
+
+// ReadOnly prevents edits but allows selection and scrolling (antd /
+// Element readonly).
+func (w *TextAreaW) ReadOnly() *TextAreaW { w.readOnly = true; return w }
+
+// Rows sets the fixed number of visible rows (default 2, like antd's
+// native textarea and Element's rows).
 func (w *TextAreaW) Rows(n int) *TextAreaW { w.rows = max(1, n); return w }
 
 // AutoSize grows the box with its content between minRows and maxRows
@@ -409,6 +437,10 @@ func (w *TextAreaW) finish() {
 		}
 		w.ed.ln.MinH = view
 	} else {
+		// shadcn textarea: min-h-16 (Input token TextAreaMinHeight).
+		if mh := c.ThemeFor(theme.CompInput).Components.Input.TextAreaMinHeight; view+in.Vertical() < mh {
+			view = mh - in.Vertical()
+		}
 		w.ed.ln.MinH = view
 		w.sb.n.ln.Height = view
 		w.box.ln.Height = view + in.Vertical()
@@ -454,7 +486,7 @@ func (w *TextAreaW) finish() {
 		ml = 0
 	}
 	e := &w.st.edit
-	w.res = c.processEdit(w.ed.id, e, w.val, editConfig{multiline: true, maxLen: ml}, w.edIA)
+	w.res = c.processEdit(w.ed.id, e, w.val, editConfig{multiline: true, maxLen: ml, readOnly: w.readOnly}, w.edIA)
 	// Keep the caret visible inside the scroll view when it moved.
 	n := len(*w.val)
 	if c.focus == w.ed.id && (e.cur != w.st.lastCur || n != w.st.lastLen) {
@@ -499,7 +531,11 @@ func (w *TextAreaW) paintBox(l *paint.List, r geom.Rect) {
 		status = "error"
 	}
 	hover := w.boxIA.Hovered || w.edIA.Hovered
-	c.paintFrame(l, r, geom.Rad(c.Theme.Radius), w.box.id, frameState{hover: hover, focus: c.focus == w.ed.id, disabled: w.box.disabled, status: status})
+	rad := geom.Rad(c.Theme.Radius)
+	if w.variant == "underlined" {
+		rad = geom.Radii{}
+	}
+	c.paintFrame(l, r, rad, w.box.id, frameState{hover: hover, focus: c.focus == w.ed.id, disabled: w.box.disabled, status: status, variant: w.variant})
 }
 
 func (w *TextAreaW) paintOver(l *paint.List, r geom.Rect) {

@@ -27,6 +27,17 @@ type MenubarToken struct {
 	TriggerHoverColor    Color `contrast:"text:TriggerHoverBg"`
 	TriggerOpenBg        Color // trigger of the open menu (zero: none)
 	TriggerOpenColor     Color `contrast:"text:TriggerOpenBg"`
+	// TriggerFocusBg fills a keyboard-focused trigger instead of the
+	// focus ring (shadcn focus:bg-accent; zero: the theme focus ring).
+	TriggerFocusBg    Color
+	TriggerFocusColor Color `contrast:"text:TriggerFocusBg"`
+
+	// Drop-down panels: least width, gap under the trigger (shadcn
+	// sideOffset) and shift along the bar towards the inline start when
+	// negative (shadcn alignOffset).
+	PopupMinWidth    float32
+	PopupOffset      float32
+	PopupAlignOffset float32
 
 	// Checkable items in the panels: the indicator column at the item's
 	// inline start (IndicatorWidth wide, labels of the panel move past it).
@@ -44,6 +55,7 @@ func deriveMenubar(t *Theme) MenubarToken {
 		TriggerHoverBg: t.ItemHoverBg, TriggerHoverColor: t.Text,
 		TriggerOpenBg: t.ItemHoverBg, TriggerOpenColor: t.Text,
 		IndicatorColor: t.Primary.Base, IndicatorSize: 14, IndicatorWidth: 22,
+		PopupMinWidth: 180, PopupOffset: 4,
 	}
 	switch t.Flavor {
 	case Element:
@@ -55,6 +67,7 @@ func deriveMenubar(t *Theme) MenubarToken {
 		k.TriggerHoverBg = t.Primary.Bg
 		k.TriggerOpenBg, k.TriggerOpenColor = t.Primary.Bg, t.Primary.Base
 		k.IndicatorSize, k.IndicatorWidth = 12, 20
+		k.PopupOffset = 2
 	case StyleShadcn:
 		// Menubar: h-9 rounded-md border bg-background p-1 shadow-xs, gap-1;
 		// MenubarTrigger: rounded-sm px-2 py-1 font-medium, accent when open;
@@ -65,6 +78,12 @@ func deriveMenubar(t *Theme) MenubarToken {
 		k.TriggerPaddingInline, k.TriggerFontWeight = 8, 500
 		k.TriggerHoverColor, k.TriggerOpenColor = t.ItemSelected, t.ItemSelected
 		k.IndicatorColor, k.IndicatorSize, k.IndicatorWidth = t.Text, 16, 24
+		// Radix Menubar trigger has no hover style, only focus and open
+		// (bg-accent); MenubarContent min-w-[12rem], sideOffset 8,
+		// alignOffset -4.
+		k.TriggerHoverBg, k.TriggerHoverColor = Color{}, t.Text
+		k.TriggerFocusBg, k.TriggerFocusColor = t.ItemHoverBg, t.ItemSelected
+		k.PopupMinWidth, k.PopupOffset, k.PopupAlignOffset = 192, 8, -4
 	}
 	return k
 }

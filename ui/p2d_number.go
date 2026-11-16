@@ -43,8 +43,8 @@ func (w *InputNumberW) paintPrefix(l *paint.List, r geom.Rect) {
 	c, th := w.c, w.th
 	s := c.inline(r) // the prefix sits at the inline start
 	off := w.padL()
-	if w.ctrlPos == "sides" {
-		off = r.H + 8
+	if w.ctrlPos == "sides" && !w.controlsHidden() {
+		off = w.sideW(r.H) + 8 // after the − button, where the editor starts
 	}
 	col := th.Text
 	if w.box.disabled {
@@ -59,6 +59,22 @@ func (w *InputNumberW) paintPrefix(l *paint.List, r geom.Rect) {
 		lay := text.Shape(w.prefixTxt, c.style(is, text.Regular), text.Options{NoWrap: true})
 		l.Glyphs(geom.Pt(s.X(off, lay.Width), r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
 	}
+}
+
+// sideW is the width of a spinner (ControlsPosition "sides") button: the
+// size's SideHandleWidth token, or the field height h when unset.
+func (w *InputNumberW) sideW(h float32) float32 {
+	sw := w.tk.SideHandleWidth
+	switch w.size {
+	case Small:
+		sw = w.tk.SideHandleWidthSM
+	case Large:
+		sw = w.tk.SideHandleWidthLG
+	}
+	if sw > 0 {
+		return sw
+	}
+	return h
 }
 
 // padL is the left padding before the prefix / value (shadcn px-3).

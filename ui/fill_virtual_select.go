@@ -83,6 +83,16 @@ type fillVSState struct {
 
 	list, activeID ID      // listbox and highlighted option of the last build
 	shownH         float32 // row height at the last build
+
+	// host carries Select's dropdown settings to the engine when Select
+	// drives it without a selector shell (set by Select every build).
+	host fillVSHost
+}
+
+// fillVSHost holds the dropdown settings of the select hosting the engine.
+type fillVSHost struct {
+	place    Placement
+	notFound string
 }
 
 // VirtualSelectW is a single or multiple select with a virtualized
@@ -141,6 +151,7 @@ func VirtualSelect(c *Context, val *string, opts []Option) *VirtualSelectW {
 	w.st = fillVSStateOf(c, w.box.n.id)
 	w.qp, w.anchor = &w.box.st.query, w.box.n.id
 	p2bSelectDefaults(c, w.box, &w.listH, &w.debounce, &w.filterable)
+	selDefaults(c, "Select", &w.box.variant, &w.box.place)
 	w.z = c.lazy(w.box.n, w.finish)
 	return w
 }
@@ -213,8 +224,21 @@ func (w *VirtualSelectW) Remote(fn func(query string)) *VirtualSelectW {
 // Debounce sets the delay of Remote calls.
 func (w *VirtualSelectW) Debounce(d time.Duration) *VirtualSelectW { w.debounce = d; return w }
 
-// Loading shows the loading text instead of the options.
-func (w *VirtualSelectW) Loading(on bool) *VirtualSelectW { w.loading = on; return w }
+// Loading shows the loading text instead of the options and a spinner in
+// place of the arrow (Ant loading).
+func (w *VirtualSelectW) Loading(on bool) *VirtualSelectW {
+	w.loading, w.box.loading = on, on
+	return w
+}
+
+// Placement sets where the dropdown opens: BottomStart (default),
+// BottomEnd, TopStart or TopEnd (Element placement, Ant placement); it
+// flips when there is no room.
+func (w *VirtualSelectW) Placement(p Placement) *VirtualSelectW { w.box.place = p; return w }
+
+// NotFoundContent replaces the text of an empty dropdown (Element
+// no-data-text / no-match-text, Ant notFoundContent).
+func (w *VirtualSelectW) NotFoundContent(s string) *VirtualSelectW { w.box.notFound = s; return w }
 
 // AllowCreate offers the typed text as a new option when no label matches
 // it exactly (Element allow-create, Ant mode="tags"); read it with Created.
@@ -797,7 +821,11 @@ func (w *VirtualSelectW) dropdown(rows []fillVSRow, sel map[string]bool) {
 	loc := c.Locale()
 	rh := w.rowH()
 	st.list, st.activeID = 0, 0
-	ov := entPanel(c, w.anchor, &st.pop, true, func() {
+	h := st.host
+	if w.box != nil {
+		h = fillVSHost{place: w.box.place, notFound: w.box.notFound}
+	}
+	ov := selPanel(c, w.anchor, &st.pop, true, h.place, func() {
 		switch {
 		case w.loading && (len(rows) == 0 || w.remote != nil):
 			entLoadingRow(c, loc.Loading, rh)
@@ -806,6 +834,9 @@ func (w *VirtualSelectW) dropdown(rows []fillVSRow, sel map[string]bool) {
 			msg := loc.NoData
 			if w.query() != "" && loc.NotFound != "" {
 				msg = loc.NotFound
+			}
+			if h.notFound != "" {
+				msg = h.notFound
 			}
 			Empty(c).Simple().Description(msg)
 			return

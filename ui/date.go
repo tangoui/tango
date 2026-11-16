@@ -41,6 +41,10 @@ type DatePickerW struct {
 	size        ControlSize
 	variant     string
 	ids         dtGridIDs // grid and active cell of the open panel (semantics)
+	place       Placement // popup placement (Ant placement)
+	bounds      dtBounds  // MinDate / MaxDate
+	showWeek    bool
+	showNow     bool // the Today footer link (Ant showNow)
 }
 
 type dpState struct {
@@ -62,9 +66,9 @@ type dpState struct {
 //
 // ConfigProvider.Defaults("DatePicker", ...) keys: "format",
 // "placeholder", "picker" (PickerType), "allowClear", "width", "size",
-// "variant".
+// "variant", "placement", "showNow", "showWeek", "needConfirm".
 func DatePicker(c *Context, val *time.Time) *DatePickerW {
-	w := &DatePickerW{c: c, val: val, loc: c.Locale(), placeholder: c.Locale().SelectDate, format: "2006-01-02", size: c.defaultSize(), allowClear: true, status: c.itemStatus}
+	w := &DatePickerW{c: c, val: val, loc: c.Locale(), placeholder: c.Locale().SelectDate, format: "2006-01-02", size: c.defaultSize(), allowClear: true, status: c.itemStatus, showNow: true}
 	w.n = c.add("datepicker", "")
 	w.st = State[dpState](c, w.n.id, nil)
 	def := p2aDefaults(c, "DatePicker")
@@ -79,6 +83,10 @@ func DatePicker(c *Context, val *time.Time) *DatePickerW {
 	def.px("width", &w.n.ln.Width)
 	def.size(&w.size)
 	def.str("variant", &w.variant)
+	def.flag("showNow", &w.showNow)
+	def.flag("showWeek", &w.showWeek)
+	def.flag("needConfirm", &w.needConfirm)
+	dtPlaceDefault(c, "DatePicker", &w.place)
 	w.n.ownKeys = true
 	w.n.setRole(a11y.RoleCombobox).setState(a11y.Expandable | a11y.HasPopup).fill(w)
 	w.n.ln.Measure = func(_, _ float32) geom.Size { return geom.Size{W: 180, H: c.controlHeight(w.size)} }
@@ -148,6 +156,27 @@ func (w *DatePickerW) Status(s string) *DatePickerW { w.status = s; return w }
 // Variant sets the frame look: "outlined" (default), "filled",
 // "borderless" or "underlined" (Ant variant).
 func (w *DatePickerW) Variant(v string) *DatePickerW { w.variant = v; return w }
+
+// Placement sets where the panel opens: BottomStart (default), BottomEnd,
+// TopStart or TopEnd (Ant placement "bottomLeft" / "bottomRight" /
+// "topLeft" / "topRight"); it flips when there is no room.
+func (w *DatePickerW) Placement(p Placement) *DatePickerW { w.place = p; return w }
+
+// MinDate limits the pickable dates (Ant minDate): periods wholly before t
+// cannot be picked or typed, and the panel arrows stop at t's page. Zero
+// = no limit.
+func (w *DatePickerW) MinDate(t time.Time) *DatePickerW { w.bounds.lo = t; return w }
+
+// MaxDate limits the pickable dates (Ant maxDate), like MinDate.
+func (w *DatePickerW) MaxDate(t time.Time) *DatePickerW { w.bounds.hi = t; return w }
+
+// ShowNow toggles the Today link in the panel footer (Ant showNow, on by
+// default for the date picker).
+func (w *DatePickerW) ShowNow(on bool) *DatePickerW { w.showNow = on; return w }
+
+// ShowWeek adds the ISO week-number column to the day grid (Ant
+// showWeek; the week picker always shows it).
+func (w *DatePickerW) ShowWeek(on bool) *DatePickerW { w.showWeek = on; return w }
 
 // Width sets the input width in pixels (default 180).
 func (w *DatePickerW) Width(px float32) *DatePickerW { w.n.ln.Width = px; return w }
@@ -222,11 +251,13 @@ func (w *DatePickerW) core(pick func(time.Time)) *DatePickerPanelW {
 	if w.needConfirm {
 		val = &w.st.draft
 	}
-	return &DatePickerPanelW{c: w.c, val: val, picker: w.picker, disabled: w.disabledFn, st: &w.st.fp, ids: &w.ids, onPick: pick}
+	return &DatePickerPanelW{c: w.c, val: val, picker: w.picker, disabled: w.disabledFn, st: &w.st.fp, ids: &w.ids, onPick: pick, bounds: w.bounds, showWeek: w.showWeek}
 }
 
 func (w *DatePickerW) finish() {
 	c, st := w.c, w.st
+	// MinDate / MaxDate act like DisabledDate at the picker's granularity.
+	w.disabledFn = w.bounds.limit(w.disabledFn, w.picker, w.loc.WeekStart)
 	if w.disabled || w.n.disabled {
 		st.open = false
 		return
@@ -351,7 +382,7 @@ func (w *DatePickerW) finish() {
 	th, tk := dtTheme(c)
 	loc := c.Locale()
 	a := c.AnimFrom(w.n.id, "open", 0, 1, th.DurationMid)
-	ov := Overlay(c, OverlayOptions{Anchor: w.n.id, Place: BottomStart, Offset: 4, Flip: true}, func() {
+	ov := Overlay(c, OverlayOptions{Anchor: w.n.id, Place: w.place, Offset: 4, Flip: true}, func() {
 		Row(c, func() {
 			if len(w.presets) > 0 {
 				w.presetList(commit)
@@ -361,7 +392,7 @@ func (w *DatePickerW) finish() {
 				switch {
 				case w.needConfirm:
 					w.confirmFooter(pick, commit)
-				case w.picker == PickerDate && dtFooterLink(c, loc.Today):
+				case w.picker == PickerDate && w.showNow && w.todayLink(loc.Today):
 					pick(dtDayUTC(c.now))
 				}
 			})
@@ -379,13 +410,9 @@ func (w *DatePickerW) confirmFooter(pick, commit func(time.Time)) {
 	loc := c.Locale()
 	el := c.Theme.Flavor == theme.Element
 	dtFooter(c, func() {
-		if w.picker == PickerDate {
-			today := false
-			if el {
-				today = dtTextBtn(c, loc.Today, true)
-			} else {
-				today = dtLink(c, loc.Today)
-			}
+		if w.picker == PickerDate && w.showNow {
+			off := w.disabledFn != nil && w.disabledFn(dtDayUTC(c.now))
+			today := dtNowAction(c, loc.Today, off, el)
 			if today {
 				pick(dtDayUTC(c.now))
 			}
@@ -399,6 +426,15 @@ func (w *DatePickerW) confirmFooter(pick, commit func(time.Time)) {
 			commit(st.draft)
 		}
 	})
+}
+
+// todayLink is the footer's Today link, disabled when today cannot be
+// picked (rc-picker Footer: nowDisabled = disabledDate(now)).
+func (w *DatePickerW) todayLink(label string) bool {
+	hit := false
+	off := w.disabledFn != nil && w.disabledFn(dtDayUTC(w.c.now))
+	Disabled(w.c, off, func() { hit = dtFooterLink(w.c, label) })
+	return hit && !off
 }
 
 // presetList builds the side list of preset dates.

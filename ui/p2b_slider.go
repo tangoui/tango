@@ -34,6 +34,9 @@ type sliderState struct {
 	// Range handles may cross: the dragged handle then takes over the
 	// other value, so grab can differ from the pressed node's index.
 	grab int
+	// moved: a pointer drag changed the value; ChangeComplete reports it
+	// when the pointer is released.
+	moved bool
 }
 
 // SliderW is a slider; chain modifiers after Slider / SliderRange.
@@ -67,6 +70,11 @@ type SliderW struct {
 
 	thumbs [2]*node
 	tia    [2]Interaction
+
+	reverse     bool // Reverse
+	notIncluded bool // Included(false)
+	complete    bool // ChangeComplete
+	noKeyboard  bool // Keyboard(false)
 
 	th *theme.Theme       // ThemeFor(CompSlider)
 	tk *theme.SliderToken // &th.Components.Slider
@@ -106,6 +114,12 @@ func Slider(c *Context, val *float64, min, max float64) *SliderW {
 	}
 	if v, ok := p2bBool(c, "Slider", "disabled"); ok && v {
 		w.Disabled(true)
+	}
+	if v, ok := p2bBool(c, "Slider", "reverse"); ok {
+		w.reverse = v
+	}
+	if v, ok := p2bBool(c, "Slider", "included"); ok {
+		w.notIncluded = !v
 	}
 	if v, ok := c.ConfigProp("Slider", "marks"); ok {
 		if m, ok := v.(map[float64]string); ok {
@@ -189,6 +203,25 @@ func (w *SliderW) Disabled(on bool) *SliderW {
 
 // Changed reports a value change this frame.
 func (w *SliderW) Changed() bool { w.z.run(); return w.changed }
+
+// ChangeComplete reports the end of a change (antd onChangeComplete): the
+// frame the pointer is released after dragging changed the value, or a
+// keyboard / number box / assistive change.
+func (w *SliderW) ChangeComplete() bool { w.z.run(); return w.complete }
+
+// Reverse runs the slider the other way (antd reverse): max at the inline
+// start (at the bottom when vertical). The arrow keys follow the visual
+// direction.
+func (w *SliderW) Reverse() *SliderW { w.reverse = true; return w }
+
+// Keyboard turns the arrow / Page / Home / End keys on (the default) or
+// off (antd keyboard); the handles stay focusable.
+func (w *SliderW) Keyboard(on bool) *SliderW { w.noKeyboard = !on; return w }
+
+// Included sets whether the part from the start to the value (a range:
+// between the handles) is filled (antd included, default true); false
+// leaves the rail plain, for marks that are points rather than ranges.
+func (w *SliderW) Included(on bool) *SliderW { w.notIncluded = !on; return w }
 
 // A11yLabel sets the accessible name (inside a FormItem the item label is
 // used). A range names its group; the handles are "minimum" / "maximum".
@@ -325,6 +358,15 @@ func (w *SliderW) frac(v float64) float64 {
 	return math.Max(0, math.Min(1, (v-w.min)/math.Max(1e-12, w.max-w.min)))
 }
 
+// vfrac is the visual position of v along the rail: 0 at the inline start
+// (the bottom when vertical), 1 at the end; Reverse flips it.
+func (w *SliderW) vfrac(v float64) float64 {
+	if w.reverse {
+		return 1 - w.frac(v)
+	}
+	return w.frac(v)
+}
+
 // fromPoint maps a pointer position over track rect r to a value. A
 // horizontal slider runs from its inline start (min at the right in RTL).
 func (w *SliderW) fromPoint(r geom.Rect, p geom.Point) float64 {
@@ -341,6 +383,9 @@ func (w *SliderW) fromPoint(r geom.Rect, p geom.Point) float64 {
 		t = float64((px - x0) / max(1, x1-x0))
 	}
 	t = math.Max(0, math.Min(1, t))
+	if w.reverse {
+		t = 1 - t
+	}
 	return w.min + t*(w.max-w.min)
 }
 
@@ -426,6 +471,9 @@ func (w *SliderW) finish() {
 		w.numberBox(1)
 	}
 	if w.off() {
+		// A drag cut short by disabling is dropped: no ChangeComplete when
+		// the slider is enabled again.
+		w.st.moved, w.st.grab, w.st.drag = false, -1, -1
 		return
 	}
 	// Rail presses pick the nearest handle and drag it.
@@ -460,12 +508,21 @@ func (w *SliderW) finish() {
 	case ok && w.st.drag >= 0:
 		w.st.drag = w.drag(w.st.drag, w.fromPoint(tr, c.pointer))
 	}
+	if w.st.grab >= 0 || w.st.drag >= 0 {
+		w.st.moved = w.st.moved || w.changed
+	} else if w.st.moved {
+		w.st.moved, w.complete = false, true // released after a drag
+	}
+	pointer := w.changed
 	for i := 0; i < w.handles(); i++ {
 		th := w.thumbs[i]
 		if v, ok := c.takeSetNumber(th.id); ok {
 			w.set(i, v)
 		}
 		w.keys(i)
+	}
+	if w.changed && !pointer {
+		w.complete = true // keyboard / assistive technology
 	}
 	w.tooltips()
 }
@@ -499,7 +556,7 @@ func (w *SliderW) numberBox(i int) {
 		in.A11yLabel(w.aName)
 	}
 	if in.Changed() {
-		w.changed = true
+		w.changed, w.complete = true, true
 		w.pushOther(i)
 	}
 }
@@ -507,6 +564,9 @@ func (w *SliderW) numberBox(i int) {
 // keys handles the keyboard of handle i.
 func (w *SliderW) keys(i int) {
 	c := w.c
+	if w.noKeyboard {
+		return
+	}
 	step := w.step
 	if step <= 0 {
 		step = (w.max - w.min) / 100
@@ -518,8 +578,13 @@ func (w *SliderW) keys(i int) {
 	// The arrow toward the max side increases: in a horizontal RTL slider
 	// that is Left. Up always increases.
 	inc := input.KeyRight
-	if c.IsRTL() && !w.vertical {
+	if c.IsRTL() != w.reverse && !w.vertical {
 		inc = input.KeyLeft
+	}
+	up, down := input.KeyUp, input.KeyDown
+	if w.reverse && w.vertical {
+		up, down = down, up // max at the bottom
+		inc = input.KeyLeft // rc-slider "ttb": Right = -1, Left = +1
 	}
 	for _, k := range c.KeysFor(w.thumbs[i].id) {
 		if !k.Down {
@@ -534,9 +599,9 @@ func (w *SliderW) keys(i int) {
 			} else {
 				w.set(i, v-step)
 			}
-		case input.KeyDown:
+		case down:
 			w.set(i, v-step)
-		case input.KeyUp:
+		case up:
 			w.set(i, v+step)
 		case input.KeyPageDown:
 			w.set(i, v-big)
@@ -578,33 +643,33 @@ func (w *SliderW) buildTrack() {
 	t.paint = w.paint
 	parent := c.cur
 	c.cur = t
-	// Spacers sized by the value fractions place the handles.
-	fr := [2]float64{w.frac(*w.val), 0}
-	if w.hi != nil {
-		fr[1] = w.frac(*w.hi)
-	}
+	// Spacers sized by the handles' positions along the layout axis
+	// (left to right, or top to bottom when vertical) place the handles.
 	nh := w.handles()
-	gaps := []float64{fr[0]}
-	if nh == 2 {
-		gaps = append(gaps, math.Max(0, fr[1]-fr[0]))
-		gaps = append(gaps, math.Max(0, 1-fr[1]))
-	} else {
-		gaps = append(gaps, 1-fr[0])
-	}
-	if w.vertical { // top to bottom: max first
-		for i, j := 0, len(gaps)-1; i < j; i, j = i+1, j-1 {
-			gaps[i], gaps[j] = gaps[j], gaps[i]
+	at := [2]float64{}
+	for i := 0; i < nh; i++ {
+		at[i] = w.vfrac(w.value(i))
+		if w.vertical {
+			at[i] = 1 - at[i] // the column runs from the top
 		}
 	}
+	order := []int{0}
+	if nh == 2 {
+		order = []int{0, 1}
+		if at[1] < at[0] {
+			order = []int{1, 0}
+		}
+	}
+	gaps := []float64{at[order[0]]}
+	if nh == 2 {
+		gaps = append(gaps, math.Max(0, at[order[1]]-at[order[0]]))
+	}
+	gaps = append(gaps, math.Max(0, 1-at[order[len(order)-1]]))
 	spacer := func(g float64) {
 		s := c.add("slider-gap", "")
 		s.ln.Grow = float32(g)
 		s.ln.HasBasis = true
 		s.ln.Shrink = 0
-	}
-	order := []int{0, 1}
-	if w.vertical {
-		order = []int{1, 0}
 	}
 	gi := 0
 	spacer(gaps[gi])
@@ -741,7 +806,7 @@ func p2bTip(c *Context, anchor ID, tip string, place Placement) {
 // rail sits at the inline start of a vertical track (labels at the end)
 // and a horizontal one runs from the inline start.
 func (w *SliderW) pos(r geom.Rect, v float64) geom.Point {
-	t := float32(w.frac(v))
+	t := float32(w.vfrac(v))
 	// Computed in LTR space, then mirrored (keeps LTR arithmetic exact).
 	var p geom.Point
 	if w.vertical {
@@ -757,8 +822,17 @@ func (w *SliderW) pos(r geom.Rect, v float64) geom.Point {
 	return p
 }
 
-// inRange reports whether v lies on the filled part.
+// inRange reports whether v lies on the filled part (Included(false):
+// whether v is a handle's value).
 func (w *SliderW) inRange(v float64) bool {
+	if w.notIncluded {
+		for i := 0; i < w.handles(); i++ {
+			if math.Abs(v-w.value(i)) < 1e-9 {
+				return true
+			}
+		}
+		return false
+	}
 	lo, hi := w.min, *w.val
 	if w.hi != nil {
 		lo, hi = *w.val, *w.hi
@@ -786,12 +860,13 @@ func (w *SliderW) paint(l *paint.List, r geom.Rect) {
 		defer l.Pop()
 	}
 	if dis && !shad {
-		trackC = tk.TrackBgDisabled
+		// antd disabled: railBg !important (no hover color).
+		railC, trackC = tk.RailBg, tk.TrackBgDisabled
 	}
 	a, b := w.pos(r, w.min), w.pos(r, w.max)
 	var rail geom.Rect
 	if w.vertical {
-		rail = geom.Rect{X: a.X - railH/2, Y: b.Y, W: railH, H: a.Y - b.Y}
+		rail = geom.Rect{X: a.X - railH/2, Y: min(a.Y, b.Y), W: railH, H: max(a.Y-b.Y, b.Y-a.Y)}
 	} else { // min may be at the right (RTL)
 		rail = geom.Rect{X: min(a.X, b.X), Y: a.Y - railH/2, W: max(b.X-a.X, a.X-b.X), H: railH}
 	}
@@ -801,9 +876,11 @@ func (w *SliderW) paint(l *paint.List, r geom.Rect) {
 		lo, hi = *w.val, *w.hi
 	}
 	p0, p1 := w.pos(r, lo), w.pos(r, hi)
-	if w.vertical {
-		l.Fill(geom.Rect{X: rail.X, Y: p1.Y, W: railH, H: p0.Y - p1.Y}, geom.Rad(railH/2), trackC)
-	} else {
+	switch {
+	case w.notIncluded:
+	case w.vertical:
+		l.Fill(geom.Rect{X: rail.X, Y: min(p0.Y, p1.Y), W: railH, H: max(p0.Y-p1.Y, p1.Y-p0.Y)}, geom.Rad(railH/2), trackC)
+	default:
 		l.Fill(geom.Rect{X: min(p0.X, p1.X), Y: rail.Y, W: max(p1.X-p0.X, p0.X-p1.X), H: railH}, geom.Rad(railH/2), trackC)
 	}
 	// Step dots and mark dots.
@@ -876,7 +953,8 @@ func (w *SliderW) paintHandle(l *paint.List, p geom.Point, i int, trackC theme.C
 		// Thumb: size-4 rounded-full border-primary bg-white shadow-sm;
 		// hover / focus-visible: ring-4 ring-ring/50.
 		if (act || (focus && c.focusVisible)) && !dis && tk.HandleActiveOutlineColor.A > 0 {
-			l.Stroke(hr.Expand(4), geom.Rad(hs/2+4), 4, tk.HandleActiveOutlineColor)
+			ow := tk.HandleActiveOutlineWidth
+			l.Stroke(hr.Expand(ow), geom.Rad(hs/2+ow), ow, tk.HandleActiveOutlineColor)
 		}
 		l.Fill(hr, geom.Rad(hs/2), tk.HandleBg)
 		l.Stroke(hr, geom.Rad(hs/2), tk.HandleLineWidth, trackC)
@@ -892,17 +970,21 @@ func (w *SliderW) paintHandle(l *paint.List, p geom.Point, i int, trackC theme.C
 		l.Path(paint.NewPath().Circle(p.X, p.Y, hs/2), col)
 		l.Path(paint.NewPath().Circle(p.X, p.Y, hs/2-tk.HandleLineWidth), tk.HandleBg)
 	default:
-		a := c.Anim(h.id, "h", b2f(act || focus), th.DurationMid)
+		a := c.Anim(h.id, "h", b2f((act || focus) && !dis), th.DurationMid)
 		rad := tk.HandleSize/2 + (tk.HandleSizeHover-tk.HandleSize)/2*a
 		ring := tk.HandleLineWidth + (tk.HandleLineWidthHover-tk.HandleLineWidth)*a
 		ringC := theme.Lerp(tk.HandleColor, tk.HandleActiveColor, a)
 		if dis {
 			ringC = tk.HandleColorDisabled
 		}
-		if focus && c.focusVisible && !dis && tk.HandleActiveOutlineColor.A > 0 {
-			l.Path(paint.NewPath().Circle(p.X, p.Y, rad+ring+4), tk.HandleActiveOutlineColor)
+		// antd: the 6px outline (handleActiveOutlineColor) shows on hover,
+		// press and focus, from the handle's edge outward over its ring.
+		ring0, halo := ring, a > 0 && !dis && tk.HandleActiveOutlineColor.A > 0
+		l.Path(paint.NewPath().Circle(p.X, p.Y, rad+ring0), ringC)
+		if halo {
+			ow := tk.HandleActiveOutlineWidth
+			l.Path(paint.NewPath().Circle(p.X, p.Y, rad+ow), theme.Fade(tk.HandleActiveOutlineColor, float64(a)))
 		}
-		l.Path(paint.NewPath().Circle(p.X, p.Y, rad+ring), ringC)
 		l.Path(paint.NewPath().Circle(p.X, p.Y, rad), tk.HandleBg)
 	}
 }

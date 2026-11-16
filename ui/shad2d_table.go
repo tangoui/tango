@@ -51,7 +51,7 @@ func (p *ProTableW[T]) shadContent() {
 	p.toolbarRow()
 	if st.err != nil {
 		Row(c, func() {
-			Alert(c, "error", locFmt(c.Locale().ProTable.LoadErrorFmt, st.err.Error())).Show()
+			Alert(c, "error", locFmt(c.Locale().ProTable.LoadErrorFmt, st.err.Error())).ShowIcon(true).Show()
 		}, layout.Margin(geom.Insets{Bottom: 16}))
 		Row(c, func() {
 			if Button(c, c.Locale().Retry).Small().Icon(icon.Reload).Clicked() {

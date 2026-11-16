@@ -23,7 +23,10 @@ func deriveBreadcrumb(t *Theme) BreadcrumbToken {
 		IconFontSize: 14,
 		ItemColor:    t.TextTertiary, LastItemColor: t.Text, LinkHoverColor: t.Text, LinkHoverBg: t.BgTextHover,
 		LinkPaddingInline: 4, ItemHeight: 22,
-		SeparatorColor: t.TextQuaternary, SeparatorMargin: 4, IconSeparatorMargin: 8,
+		// antd 6.7 es/breadcrumb/style/index.js: separatorColor
+		// colorTextDescription, separatorMargin marginXS (8) = 4 here plus
+		// the link's paddingXXS (antd pulls the link back by marginXXS).
+		SeparatorColor: t.TextTertiary, SeparatorMargin: 4, IconSeparatorMargin: 8,
 		Radius: t.RadiusSM,
 	}
 	switch t.Flavor {
@@ -32,11 +35,17 @@ func deriveBreadcrumb(t *Theme) BreadcrumbToken {
 		// secondary-text current page.
 		k.ItemColor, k.LastItemColor, k.LinkHoverColor, k.LinkHoverBg = t.Text, t.TextSecondary, t.Primary.Base, Color{}
 		k.LinkFontWeight = 700
+		// breadcrumb-item.scss: __separator margin 0 9px in
+		// text-color-placeholder (an icon separator 0 6px); links have no
+		// padding.
+		k.LinkPaddingInline, k.SeparatorMargin, k.IconSeparatorMargin = 0, 9, 6
+		k.SeparatorColor = t.TextQuaternary
 	case StyleShadcn:
-		// BreadcrumbList gap-1.5 / sm:gap-2.5 (8 here), muted links that
-		// turn foreground on hover, chevron separators.
+		// breadcrumb.tsx BreadcrumbList gap-1.5 sm:gap-2.5 (10: desktop
+		// widths are past sm), muted links that turn foreground on hover,
+		// ChevronRight size-3.5 separators.
 		k.LinkHoverBg, k.LinkPaddingInline, k.ItemHeight = Color{}, 0, 0
-		k.ItemGap, k.SeparatorMargin, k.IconSeparatorMargin = 8, 0, 0
+		k.ItemGap, k.SeparatorMargin, k.IconSeparatorMargin = 10, 0, 0
 		k.SeparatorColor = t.TextTertiary
 	}
 	return k

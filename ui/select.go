@@ -79,6 +79,12 @@ type SelectW struct {
 	listID      ID
 	a11yName    string // name computed for the combobox (names the listbox)
 
+	place       Placement             // dropdown placement (Ant placement)
+	labelRender func(o Option) string // text of the selected value (Ant labelRender)
+	notFound    string                // empty-list text (Ant notFoundContent)
+	wasOpen     bool                  // dropdown state before this build
+	openChange  bool                  // the dropdown opened or closed this frame
+
 	rx      p2bRich         // groups, remote, create, render, virtual (p2b_select.go)
 	eng     *VirtualSelectW // dropdown engine while rx is in use
 	created string
@@ -93,6 +99,7 @@ func Select(c *Context, val *string, opts []Option) *SelectW {
 	w.n.ln.Dir = layout.Row
 	w.n.ln.Align = layout.AlignCenter
 	w.st = State[selectState](c, w.n.id, nil)
+	w.wasOpen = w.st.open
 	w.edID = hashID(w.n.id, "search")
 	w.n.ln.Measure = nil
 	w.n.paint = w.paint
@@ -104,6 +111,7 @@ func Select(c *Context, val *string, opts []Option) *SelectW {
 	sb.size = w.size
 	p2bSelectDefaults(c, &sb, nil, nil, nil)
 	w.allowClear, w.search, w.placeholder, w.size = sb.allowClear, sb.search, sb.placeholder, sb.size
+	selDefaults(c, "Select", &w.variant, &w.place)
 	w.z = c.lazy(w.n, w.finish)
 	return w
 }
@@ -164,6 +172,26 @@ func (w *SelectW) Disabled(on bool) *SelectW {
 	return w
 }
 
+// Placement sets where the dropdown opens: BottomStart (default),
+// BottomEnd, TopStart or TopEnd (Ant placement bottomLeft / bottomRight /
+// topLeft / topRight; Element placement). It flips when there is no room.
+// ConfigProvider.Defaults("Select", "placement") takes the Ant names.
+func (w *SelectW) Placement(p Placement) *SelectW { w.place = p; return w }
+
+// LabelRender sets the text shown for the selected value (Ant
+// labelRender). fn also receives values that are not among the options,
+// as Option{Label: value, Value: value}.
+func (w *SelectW) LabelRender(fn func(o Option) string) *SelectW { w.labelRender = fn; return w }
+
+// NotFoundContent sets the text of an empty dropdown (Ant
+// notFoundContent, Element no-data-text / no-match-text); by default the
+// Locale's NoData.
+func (w *SelectW) NotFoundContent(s string) *SelectW { w.notFound = s; return w }
+
+// OpenChanged reports that the dropdown opened or closed this frame (Ant
+// onOpenChange, Element visible-change); read IsOpen for the new state.
+func (w *SelectW) OpenChanged() bool { w.z.run(); return w.openChange }
+
 // Open forces the dropdown open (screenshots, tests).
 func (w *SelectW) Open() *SelectW {
 	if !w.st.open {
@@ -179,19 +207,31 @@ func (w *SelectW) IsOpen() bool { return w.st.open }
 // Changed reports a new selection this frame.
 func (w *SelectW) Changed() bool { w.z.run(); return w.changed }
 
+// label returns the text shown for the value: the option's label, or the
+// value itself when no option has it (as Ant; rc-select label ?? value),
+// passed through LabelRender.
 func (w *SelectW) label() string {
+	v := *w.val
+	o, found := Option{Label: v, Value: v}, false
 	if w.eng != nil {
-		if *w.val == "" {
-			return ""
+		if v != "" {
+			o.Label, found = w.eng.labelOf(v), true
 		}
-		return w.eng.labelOf(*w.val)
-	}
-	for _, o := range w.opts {
-		if o.Value == *w.val {
-			return o.Label
+	} else {
+		for _, x := range w.opts {
+			if x.Value == v {
+				o, found = x, true
+				break
+			}
 		}
 	}
-	return ""
+	if !found && v == "" {
+		return "" // no value: the placeholder shows
+	}
+	if w.labelRender != nil {
+		return w.labelRender(o)
+	}
+	return o.Label
 }
 
 func (w *SelectW) filtered() []Option {
@@ -216,11 +256,14 @@ func (w *SelectW) finish() {
 	}
 	w.n.kids = append(w.n.kids, ed)
 	ed.paint = w.paintValue
+	defer func() { w.openChange = w.st.open != w.wasOpen }()
 	if w.disabled || w.n.disabled {
 		st.open = false
 		return
 	}
 	if w.rx.on(w.opts) {
+		h := &fillVSStateOf(c, w.n.id).host
+		h.place, h.notFound = w.place, w.notFound
 		w.finishRich(ed)
 		return
 	}
@@ -257,11 +300,12 @@ func (w *SelectW) finish() {
 					st.open = true
 					st.active = max(0, w.index(*w.val))
 				} else if len(opts) > 0 {
-					st.active = (st.active + 1) % len(opts)
+					// Disabled options are skipped (rc-select getEnabledActiveIndex).
+					st.active = msStep(opts, st.active, true)
 				}
 			case input.KeyUp:
 				if len(opts) > 0 {
-					st.active = (st.active - 1 + len(opts)) % len(opts)
+					st.active = msStep(opts, st.active, false)
 				}
 			case input.KeyEnter, input.KeySpace:
 				if !st.open {
@@ -365,9 +409,9 @@ func (w *SelectW) dropdown(opts []Option) {
 	follow := !st.listShown || st.active != st.shown
 	moved := c.pointer != st.ptr
 	optH := tk.OptionHeight
-	ov := Overlay(c, OverlayOptions{Anchor: w.n.id, Place: BottomStart, Offset: 4, MatchWidth: true, Flip: true}, func() {
+	ov := Overlay(c, OverlayOptions{Anchor: w.n.id, Place: w.place, Offset: 4, MatchWidth: true, Flip: true}, func() {
 		if len(opts) == 0 {
-			Empty(c).Simple().Description(c.Locale().NoData)
+			Empty(c).Simple().Description(selEmptyText(c, w.notFound))
 			return
 		}
 		sb := Scroll(c, func() { w.options(opts, moved, optH) }, layout.MaxH(256))
@@ -487,6 +531,10 @@ func (w *SelectW) paint(l *paint.List, r geom.Rect) {
 	y := r.Y + (r.H-is)/2
 	if w.allowClear && *w.val != "" && w.ia.Hovered && !dis {
 		entClearIcon(c, l, geom.Rect{X: x, Y: y, W: is, H: is})
+		return
+	}
+	if w.rx.loading && w.suffixIcon == nil { // Ant: a custom suffix wins over loading
+		selSpinner(c, l, geom.Rect{X: x, Y: y, W: is, H: is})
 		return
 	}
 	ic := icon.Down

@@ -44,6 +44,9 @@ type ProDescriptionsW struct {
 	title    string
 	extra    func()
 	cols     int
+	colsAt   dataRespCols
+	colsDef  dataRespCols
+	colsSet  bool
 	bordered bool
 	size     ControlSize
 	sizeSet  bool
@@ -96,13 +99,11 @@ type pro3DescSave struct {
 // ProDescriptions starts a description list over items; chain options,
 // then Show.
 func ProDescriptions(c *Context, items []ProDescItem) *ProDescriptionsW {
-	p := &ProDescriptionsW{c: c, items: items, cols: 3}
+	p := &ProDescriptionsW{c: c, items: items}
 	// ConfigProvider.Defaults("ProDescriptions", ...) keys: "column"
-	// (number), "bordered" (bool), "size", "layout" ("horizontal" |
-	// "vertical").
-	if n, ok := proPropInt(c, "ProDescriptions", "column"); ok && n > 0 {
-		p.cols = n
-	}
+	// (number or map[Breakpoint]int), "bordered" (bool), "size",
+	// "layout" ("horizontal" | "vertical").
+	dataPropCols(c, "ProDescriptions", "column", &p.cols, &p.colsDef)
 	p.bordered = Prop(c, "ProDescriptions", "bordered", false)
 	if sz, ok := proPropSize(c, "ProDescriptions"); ok {
 		p.size, p.sizeSet = sz, true
@@ -117,8 +118,24 @@ func (p *ProDescriptionsW) Title(s string) *ProDescriptionsW { p.title = s; retu
 // Extra builds actions right of the heading.
 func (p *ProDescriptionsW) Extra(fn func()) *ProDescriptionsW { p.extra = fn; return p }
 
-// Column sets the number of columns (default 3).
-func (p *ProDescriptionsW) Column(n int) *ProDescriptionsW { p.cols = max(1, n); return p }
+// Column sets the number of columns (default: Descriptions'
+// DEFAULT_COLUMN_MAP, 1 on xs, 2 on sm, 3 from md up).
+func (p *ProDescriptionsW) Column(n int) *ProDescriptionsW {
+	p.cols, p.colsSet = max(1, n), true
+	return p
+}
+
+// ColumnAt sets the number of columns from breakpoint bp upwards.
+func (p *ProDescriptionsW) ColumnAt(bp Breakpoint, n int) *ProDescriptionsW {
+	p.colsAt.set(bp, n)
+	return p
+}
+
+// Columns sets the number of columns for several breakpoints.
+func (p *ProDescriptionsW) Columns(m map[Breakpoint]int) *ProDescriptionsW {
+	p.colsAt.setMap(m)
+	return p
+}
 
 // Bordered draws the table-like bordered style.
 func (p *ProDescriptionsW) Bordered() *ProDescriptionsW { p.bordered = true; return p }
@@ -227,7 +244,7 @@ func (p *ProDescriptionsW) Show() *ProDescriptionsW {
 	}
 	root.Body(func() {
 		if st.err != nil {
-			Row(c, func() { Alert(c, "error", st.err.Error()).Show() }, layout.Margin(geom.Insets{Bottom: 16}))
+			Row(c, func() { Alert(c, "error", st.err.Error()).ShowIcon(true).Show() }, layout.Margin(geom.Insets{Bottom: 16}))
 		}
 		Loading(c, st.loading).Body(func() { p.list(vals) })
 	})
@@ -334,7 +351,17 @@ func (p *ProDescriptionsW) list(vals ProValues) {
 			Key(c, it.Key, func() { p.cell(it, vals) })
 		}}
 	}
-	d := Descriptions(c, items).Column(p.cols)
+	// Pro v3 passes column through to antd Descriptions; unset columns
+	// fall back to its DEFAULT_COLUMN_MAP there.
+	d := Descriptions(c, items)
+	if p.colsSet {
+		d.Column(p.cols)
+	} else if p.cols > 0 || p.colsDef != (dataRespCols{}) {
+		d.cols, d.colsDef = p.cols, p.colsDef // ProDescriptions defaults win
+	}
+	if p.colsAt != (dataRespCols{}) {
+		d.colsAt = p.colsAt
+	}
 	if p.title != "" {
 		d.Title(p.title)
 	}

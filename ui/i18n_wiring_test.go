@@ -292,7 +292,7 @@ func i18nCases() []i18nCase {
 		i18nCase{name: "ProTable",
 			page: func(c *Context, ids i18nIDs) {
 				type row struct{ Name string }
-				ProTable(c, []ProColumn[row]{{Key: "name", Title: "Name", Value: func(r row) any { return r.Name }}}).Show()
+				ProTable(c, []ProColumn[row]{{Key: "name", Title: "Name", Value: func(r row) any { return r.Name }}}).FullScreen(true).Show()
 			},
 			texts: func(l *Locale) []string {
 				return []string{l.ProTable.Reload, l.ProTable.Density, l.ProTable.ColumnSetting, l.Fullscreen,

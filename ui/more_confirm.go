@@ -54,6 +54,13 @@ type ConfirmOptions struct {
 	// Icon replaces the status icon; it is drawn in the status color
 	// (the primary color for Status "none").
 	Icon *icon.Icon
+	// AutoFocusButton picks the button focused when the dialog opens:
+	// "" or "ok" (default), "cancel", or "none" (antd autoFocusButton,
+	// null for none). A Prompt focuses its input.
+	AutoFocusButton string
+	// NoKeyboard keeps Escape from closing the dialog (antd keyboard
+	// false, Element close-on-press-escape false).
+	NoKeyboard bool
 
 	// Prompt only.
 	InputValue       string
@@ -281,14 +288,9 @@ func moreRenderBoxIn(c *Context, d *ConfirmRef, top bool) {
 	}
 	width := d.o.Width
 	if width == 0 {
-		width = 416
-		if th.Flavor == theme.StyleShadcn {
-			width = 512 // max-w-lg
-		}
-		if el {
-			width = 420
-		}
+		width = tk.ConfirmWidth // Ant 416, Element 420, shadcn max-w-lg 512
 	}
+	width = min(width, max(0, c.size.W-32))
 	okText := d.o.OkText
 	if okText == "" {
 		okText = c.Locale().OK
@@ -305,7 +307,11 @@ func moreRenderBoxIn(c *Context, d *ConfirmRef, top bool) {
 	var okClicked, cancelClicked, closeClicked bool
 	buttons := func() {
 		if d.kind != moreBoxAlert {
-			if Button(c, cancelText).Clicked() {
+			cb := Button(c, cancelText)
+			if focusID == 0 && d.o.AutoFocusButton == "cancel" {
+				focusID = cb.ID()
+			}
+			if cb.Clicked() {
 				cancelClicked = true
 			}
 		}
@@ -313,7 +319,7 @@ func moreRenderBoxIn(c *Context, d *ConfirmRef, top bool) {
 		if d.o.Danger {
 			ok.Danger()
 		}
-		if focusID == 0 {
+		if focusID == 0 && d.o.AutoFocusButton != "none" { // "cancel" set it above (no Cancel: OK)
 			focusID = ok.ID()
 		}
 		if ok.Clicked() {
@@ -392,7 +398,7 @@ func moreRenderBoxIn(c *Context, d *ConfirmRef, top bool) {
 		}
 		c.SetFocus(focusID)
 	}
-	if top && c.EscapeAt(dlg.n.id) {
+	if top && c.EscapeAt(dlg.n.id) && !d.o.NoKeyboard {
 		closeClicked = true
 	}
 	switch {
@@ -521,7 +527,8 @@ func moreAntBox(c *Context, d *ConfirmRef, status string, buttons, input func())
 			}, layout.AlignItems(layout.AlignStart))
 		}
 		d.handle = head.n
-		Row(c, buttons, d.justify(true), layout.Gap(8), layout.Margin(geom.Insets{Top: 24}))
+		top := c.ThemeFor(theme.CompModal).Components.Modal.ConfirmBtnsMarginTop
+		Row(c, buttons, d.justify(true), layout.Gap(8), layout.Margin(geom.Insets{Top: top}))
 	}, layout.PadVH(20, 24))
 }
 

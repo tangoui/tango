@@ -29,6 +29,55 @@ type toast struct {
 	offset    float32 // distance from the window edge; 0: MessageToken.Top
 	closable  bool
 	plain     bool
+
+	noPause  bool          // PauseOnHover(false)
+	paused   time.Duration // time spent hovered
+	pausedAt time.Time     // hovered since (zero: counting)
+	row      ID            // toast node last frame (hover check)
+	ic       *icon.Icon    // Icon
+	onClose  func()
+	onClick  func()
+	closed   bool // onClose ran
+	group    bool // Grouping
+	repeat   int  // Grouping counter (EP repeatNum)
+	fresh    bool // not rendered yet (Grouping and maxCount apply on the first render)
+	maxCount int  // Defaults("Message", maxCount) where it was opened (0: none)
+}
+
+// elapsed is the visible time of the message, without hovered time.
+func (m *toast) elapsed(now time.Time) time.Duration {
+	e := now.Sub(m.start) - m.paused
+	if !m.pausedAt.IsZero() {
+		e -= now.Sub(m.pausedAt)
+	}
+	return e
+}
+
+// leaving reports a message whose time is up (it fades out).
+func (m *toast) leaving(now time.Time) bool { return m.elapsed(now) >= m.dur }
+
+// hover pauses or resumes the countdown of a visible message (antd
+// pauseOnHover, default true; EP pauses on mouseenter too).
+func (m *toast) hover(c *Context, over bool) {
+	if m.noPause || m.leaving(c.now) {
+		return
+	}
+	switch {
+	case over && m.pausedAt.IsZero():
+		m.pausedAt = c.now
+	case !over && !m.pausedAt.IsZero():
+		m.paused += c.now.Sub(m.pausedAt)
+		m.pausedAt = time.Time{}
+	}
+}
+
+// close ends the message now (close button, MessageDestroy).
+func (m *toast) close(now time.Time) {
+	if !m.pausedAt.IsZero() {
+		m.paused += now.Sub(m.pausedAt)
+		m.pausedAt = time.Time{}
+	}
+	m.dur = max(0, m.elapsed(now))
 }
 
 // MessagePlacement is where Message toasts appear. The start / end
@@ -117,9 +166,12 @@ func Message(c *Context, status, content string) *MessageRef {
 	c.useGlobalLayer(globalMessage, renderMessages)
 	t := c.toasts()
 	t.seq++
-	m := &toast{id: hashID("msg-key", "auto-"+strconv.Itoa(t.seq)), status: status, title: content, start: c.now, dur: messageDuration(c, "Message", MessageDuration), env: c.env}
+	m := &toast{id: hashID("msg-key", "auto-"+strconv.Itoa(t.seq)), status: status, title: content, start: c.now, dur: messageDuration(c, "Message", MessageDuration), env: c.env,
+		noPause: !Prop(c, "Message", "pauseOnHover", true), fresh: true}
+	if n, ok := numProp(c.ConfigProp("Message", "maxCount")); ok && n >= 1 {
+		m.maxCount = int(n) // applied when rendered, after Key / Grouping (EP order)
+	}
 	t.msgs = append(t.msgs, m)
-	messageMaxCount(c, t) // Defaults("Message", ...): maxCount
 	c.invalid = true
 	return &MessageRef{t: t, m: m, now: c.now}
 }
@@ -134,6 +186,8 @@ func (r *MessageRef) Key(key string) *MessageRef {
 			m.status, m.title = r.m.status, r.m.title
 			m.start, m.dur, m.env = r.now, r.m.dur, r.m.env
 			m.placement, m.offset, m.closable, m.plain = r.m.placement, r.m.offset, r.m.closable, r.m.plain
+			m.noPause, m.ic, m.onClose, m.onClick, m.group = r.m.noPause, r.m.ic, r.m.onClose, r.m.onClick, r.m.group
+			m.paused, m.pausedAt, m.closed = 0, time.Time{}, false
 			r.t.remove(r.m)
 			r.m = m
 			return r
@@ -171,6 +225,83 @@ func (r *MessageRef) ShowClose() *MessageRef { r.m.closable = true; return r }
 // this way.
 func (r *MessageRef) Plain() *MessageRef { r.m.plain = true; return r }
 
+// PauseOnHover pauses the countdown while the pointer is over the message
+// (antd pauseOnHover, default true; Defaults key "pauseOnHover").
+func (r *MessageRef) PauseOnHover(on bool) *MessageRef { r.m.noPause = !on; return r }
+
+// Icon replaces the status icon (antd icon).
+func (r *MessageRef) Icon(ic *icon.Icon) *MessageRef { r.m.ic = ic; return r }
+
+// OnClose runs fn once when the message has closed (timed out, closed or
+// destroyed), as antd onClose / EP onClose.
+func (r *MessageRef) OnClose(fn func()) *MessageRef { r.m.onClose = fn; return r }
+
+// OnClick runs fn when the message is clicked (antd onClick).
+func (r *MessageRef) OnClick(fn func()) *MessageRef { r.m.onClick = fn; return r }
+
+// Grouping merges this message into a visible one with the same content
+// and placement: that one restarts its timer, takes the new options and
+// shows a repeat counter (EP grouping / repeatNum). The merge happens when
+// the message is first shown, so the options chained after Grouping apply.
+func (r *MessageRef) Grouping() *MessageRef { r.m.group = true; return r }
+
+// groupInto merges the fresh message m into an older visible one with the
+// same content and placement and reports whether it did.
+func (t *toasts) groupInto(c *Context, m *toast) bool {
+	for _, o := range t.msgs {
+		if o == m || o.fresh || o.title != m.title || o.leaving(c.now) || o.place(c) != m.place(c) {
+			continue
+		}
+		o.repeat = max(1, o.repeat) + 1
+		o.status, o.start, o.dur, o.env = m.status, m.start, m.dur, m.env
+		o.offset, o.closable, o.plain, o.noPause = m.offset, m.closable, m.plain, m.noPause
+		o.maxCount = m.maxCount
+		if m.ic != nil {
+			o.ic = m.ic
+		}
+		if m.onClose != nil { // options the repeat does not set stay
+			o.onClose = m.onClose
+		}
+		if m.onClick != nil {
+			o.onClick = m.onClick
+		}
+		o.paused, o.pausedAt, o.group, o.closed = 0, time.Time{}, true, false
+		return true
+	}
+	return false
+}
+
+// settleNew applies Grouping and the maxCount default to messages opened
+// since the last render: grouped ones merge into their twin, then the
+// oldest visible messages beyond the newest message's maxCount close (they
+// fade out and run OnClose), as EP does grouping before max.
+func (t *toasts) settleNew(c *Context) {
+	limit := 0
+	keep := t.msgs[:0]
+	for _, m := range t.msgs {
+		if m.fresh {
+			m.fresh = false
+			if m.group && t.groupInto(c, m) {
+				continue
+			}
+			limit = m.maxCount
+		}
+		keep = append(keep, m)
+	}
+	t.msgs = keep
+	if limit < 1 {
+		return
+	}
+	open := 0
+	for i := len(t.msgs) - 1; i >= 0; i-- {
+		if m := t.msgs[i]; !m.leaving(c.now) {
+			if open++; open > limit {
+				m.close(c.now)
+			}
+		}
+	}
+}
+
 func (t *toasts) remove(m *toast) {
 	for i, x := range t.msgs {
 		if x == m {
@@ -186,7 +317,7 @@ func MessageDestroy(c *Context, key string) {
 	id := hashID("msg-key", key)
 	for _, m := range t.msgs {
 		if key == "" || m.id == id {
-			m.dur = max(0, c.now.Sub(m.start))
+			m.close(c.now)
 		}
 	}
 	c.invalid = true
@@ -221,13 +352,24 @@ func renderMessages(c *Context) {
 	if len(t.msgs) == 0 {
 		return
 	}
+	t.settleNew(c)
 	keep := t.msgs[:0]
 	for _, m := range t.msgs {
-		if c.now.Sub(m.start) < m.dur+c.Theme.DurationMid {
+		e := m.elapsed(c.now)
+		fade := c.Theme.DurationMid
+		if c.noAnim {
+			fade = 0 // no leave animation: gone at once (as Notification)
+		}
+		if e < m.dur+fade {
 			keep = append(keep, m)
-			if m.dur < navForever {
-				c.WakeAt(m.start.Add(m.dur))
+			if m.dur < navForever && m.pausedAt.IsZero() && e < m.dur {
+				c.WakeAt(c.now.Add(m.dur - e))
 			}
+			continue
+		}
+		if m.onClose != nil && !m.closed {
+			m.closed = true
+			m.onClose()
 		}
 	}
 	t.msgs = keep
@@ -341,23 +483,30 @@ func messageRow(c *Context, m *toast, align layout.Align, bottom bool) {
 	tk := &th.Components.Message
 	el := th.Flavor == theme.Element
 	pal := th.ColorOf(m.status)
-	leaving := c.now.Sub(m.start) >= m.dur
+	m.hover(c, c.pointerOver(m.row))
+	leaving := m.leaving(c.now)
 	target := float32(1)
 	if leaving {
 		target = 0
 	}
 	a := c.AnimFrom(m.id, "in", 0, target, th.DurationMid)
-	margin := geom.Insets{Top: (a - 1) * 16, Bottom: 8}
+	margin := geom.Insets{Top: (a - 1) * 16, Bottom: tk.Gap}
 	if bottom {
-		margin = geom.Insets{Top: 8, Bottom: (a - 1) * 16}
+		margin = geom.Insets{Top: tk.Gap, Bottom: (a - 1) * 16}
 	}
 	row := Row(c, func() {
-		if m.status == "loading" {
-			Icon(c, icon.Loading).Spin().Size(16).Color(th.Primary.Base)
-		} else {
+		switch {
+		case m.ic != nil:
+			Icon(c, m.ic).Size(16).Color(pal.Base)
+		case m.status == "loading":
+			Icon(c, icon.Loading).Spin().Size(16).Color(th.Primary.Base) // antd icon-loading: colorInfo (= colorPrimary)
+		default:
 			statusIcon(c, m.status, 16).ln.AlignSelf = layout.AlignCenter
 		}
 		t := Text(c, m.title).NoWrap()
+		if tk.ContentFontSize > 0 {
+			t.Size(tk.ContentFontSize)
+		}
 		switch {
 		case m.plain:
 			t.Color(tk.PlainColor)
@@ -368,12 +517,19 @@ func messageRow(c *Context, m *toast, align layout.Align, bottom bool) {
 		}
 		if m.closable {
 			if IconButton(c, icon.Close, c.Locale().Close).Size(16, 12).NoHoverBg().Color(tk.CloseColor).Clicked() && !leaving {
-				m.dur = max(0, c.now.Sub(m.start))
+				m.close(c.now)
 				c.invalid = true
 			}
 		}
 	}, layout.PadVH(tk.PaddingBlock, tk.PaddingInline), layout.Gap(8), layout.Middle(), layout.Margin(margin), layout.Self(align))
+	m.row = row.n.id
 	row.Semantics(liveRole(m.status), m.title)
+	if m.onClick != nil && row.Clicked() {
+		m.onClick()
+	}
+	if m.repeat > 1 {
+		messageBadge(c, row, m)
+	}
 	bg, border, shadow := tk.ContentBg, tk.BorderColor, tk.Shadow
 	switch {
 	case m.plain:
@@ -457,6 +613,11 @@ type noteConfig struct {
 	NoPause      bool          // keep counting while hovered
 	Actions      func()        // buttons under the description
 	OnClick      func()
+	OnClose      func()
+	NoClose      bool       // Closable(false)
+	CloseIcon    *icon.Icon // nil: icon.Close
+	Icon         *icon.Icon // replaces the status icon
+	Role         string     // "alert" | "status" | "" (by status)
 }
 
 type navNote struct {
@@ -469,6 +630,7 @@ type navNote struct {
 	loc      *Locale // locale where it was opened (rendered in a global layer)
 	env      *env    // scope it was opened in (theme, direction, locale)
 	focused  bool    // keyboard focus was inside the card last frame (pauses it)
+	closed   bool    // OnClose ran
 }
 
 // corner is the physical placement of the card in its scope's direction.
@@ -517,6 +679,17 @@ func Notification(c *Context, status, title string) *NotificationRef {
 	n := &navNote{id: hashID("note-key", "auto-"+strconv.Itoa(ns.seq)), cfg: noteConfig{Status: status, Title: title}, start: c.now, loc: c.Locale(), env: c.env}
 	n.defaults(c) // ConfigProvider.Defaults("Notification", ...): placement, duration, showProgress, pauseOnHover
 	ns.list = append(ns.list, n)
+	if k, ok := numProp(c.ConfigProp("Notification", "maxCount")); ok && k >= 1 {
+		// antd maxCount: the oldest open cards close.
+		open := 0
+		for i := len(ns.list) - 1; i >= 0; i-- {
+			if x := ns.list[i]; x.closing.IsZero() {
+				if open++; open > int(k) {
+					x.closing = c.now
+				}
+			}
+		}
+	}
 	c.invalid = true
 	return &NotificationRef{ns: ns, n: n, now: c.now}
 }
@@ -567,6 +740,24 @@ func (r *NotificationRef) Actions(fn func()) *NotificationRef { r.n.cfg.Actions 
 
 // OnClick runs fn when the card is clicked.
 func (r *NotificationRef) OnClick(fn func()) *NotificationRef { r.n.cfg.OnClick = fn; return r }
+
+// OnClose runs fn once when the card has closed (timed out, closed or
+// destroyed), as antd onClose / EP onClose.
+func (r *NotificationRef) OnClose(fn func()) *NotificationRef { r.n.cfg.OnClose = fn; return r }
+
+// Closable shows (default) or hides the close button (antd closable, EP
+// showClose).
+func (r *NotificationRef) Closable(on bool) *NotificationRef { r.n.cfg.NoClose = !on; return r }
+
+// CloseIcon replaces the close icon (antd closeIcon, EP closeIcon).
+func (r *NotificationRef) CloseIcon(ic *icon.Icon) *NotificationRef { r.n.cfg.CloseIcon = ic; return r }
+
+// Icon replaces the status icon (antd icon, EP icon).
+func (r *NotificationRef) Icon(ic *icon.Icon) *NotificationRef { r.n.cfg.Icon = ic; return r }
+
+// Role sets the live-region role: "alert" (assertive) or "status"
+// (polite). By default errors and warnings are alerts (antd role).
+func (r *NotificationRef) Role(role string) *NotificationRef { r.n.cfg.Role = role; return r }
 
 func (ns *navNotes) remove(n *navNote) {
 	for i, x := range ns.list {
@@ -621,6 +812,9 @@ func renderNavNotes(c *Context) {
 			if c.now.Sub(n.closing) < th.DurationMid && !c.noAnim {
 				keep = append(keep, n)
 				c.animating = true
+			} else if n.cfg.OnClose != nil && !n.closed {
+				n.closed = true
+				n.cfg.OnClose()
 			}
 			continue
 		}
@@ -714,10 +908,7 @@ func renderNoteGroup(c *Context, ns *navNotes, pl NotifyPlacement, group []*navN
 	})
 	holder.n.hit, holder.n.blocks = false, false
 	ns.groups[pl] = col.id
-	margin := float32(24)
-	if el {
-		margin = 16
-	}
+	margin := c.ThemeFor(theme.CompNotification).Components.Notification.MarginEdge
 	holder.n.paint = func(_ *paint.List, r geom.Rect) {
 		ln := &col.ln
 		switch pl {
@@ -742,21 +933,20 @@ func renderNoteGroup(c *Context, ns *navNotes, pl NotifyPlacement, group []*navN
 func noteCard(c *Context, n *navNote, pl NotifyPlacement, width float32, stacked bool, depth int, rtlParent bool) {
 	th := c.ThemeFor(theme.CompNotification)
 	tk := &th.Components.Notification
-	el := th.Flavor == theme.Element
 	leaving := !n.closing.IsZero()
 	a := c.AnimFrom(n.id, "in", 0, b2f(!leaving), th.DurationMid)
 	if leaving && c.noAnim {
 		a = 0
 	}
 	cfg := n.cfg
-	gap := float32(16)
-	if el {
-		gap = 16
-	}
+	gap := tk.Gap
 	var card *Box
 	inner := func() {
-		if cfg.Status != "" {
-			statusIcon(c, cfg.Status, 24).ln.Margin.Right = map[bool]float32{true: 1, false: 4}[el]
+		switch {
+		case cfg.Icon != nil:
+			Icon(c, cfg.Icon).Size(24).Color(th.ColorOf(cfg.Status).Base).n.ln.Margin.Right = tk.IconGap
+		case cfg.Status != "":
+			statusIcon(c, cfg.Status, 24).ln.Margin.Right = tk.IconGap
 		}
 		Column(c, func() {
 			t := Text(c, cfg.Title).Size(tk.TitleFontSize).Color(tk.TitleColor)
@@ -767,20 +957,21 @@ func noteCard(c *Context, n *navNote, pl NotifyPlacement, width float32, stacked
 				t.Weight(text.Weight(tk.TitleFontWeight))
 			}
 			if cfg.Description != "" {
-				t.Layout(layout.Margin(geom.Insets{Bottom: map[bool]float32{true: 6, false: 8}[el]}))
-				Text(c, cfg.Description).Color(tk.DescriptionColor)
-			}
-			if cfg.Actions != nil {
-				Row(c, cfg.Actions, layout.Gap(8), layout.End(), layout.Margin(geom.Insets{Top: 16}))
+				t.Layout(layout.Margin(geom.Insets{Bottom: tk.TitleMarginBottom}))
+				noteDescription(c, tk, cfg.Description)
 			}
 		}, layout.Grow(1), layout.MinW(0))
-		if IconButton(c, icon.Close, n.loc.Close).Size(22, 14).Clicked() && n.closing.IsZero() {
-			n.closing = c.now
-			c.invalid = true
-		}
+		noteClose(c, n, tk, 22, 14, tk.CloseGap, false)
 	}
-	card = Row(c, inner, layout.Padding(geom.Insets{Top: tk.PaddingBlock, Right: tk.Padding, Bottom: tk.PaddingBlock, Left: tk.PaddingInlineStart}),
-		layout.Gap(12), layout.AlignItems(layout.AlignStart))
+	// Actions are a sibling of the icon / text / close row, floated to the
+	// end of the card's content box (rc-notification Notification.js
+	// actionsNode; antd .ant-notification-notice-actions float right).
+	card = Column(c, func() {
+		Row(c, inner, layout.AlignItems(layout.AlignStart))
+		if cfg.Actions != nil {
+			Row(c, cfg.Actions, layout.Gap(8), layout.End(), layout.Margin(geom.Insets{Top: tk.ActionsMarginTop}))
+		}
+	}, layout.Padding(geom.Insets{Top: tk.PaddingBlock, Right: tk.Padding, Bottom: tk.PaddingBlock, Left: tk.PaddingInlineStart}))
 	card.Bg(tk.Bg).Radius(tk.Radius).Shadow(tk.Shadow)
 	if tk.BorderColor.A > 0 {
 		card.Border(1, tk.BorderColor)
@@ -789,17 +980,8 @@ func noteCard(c *Context, n *navNote, pl NotifyPlacement, width float32, stacked
 	if cfg.OnClick != nil && card.Clicked() {
 		cfg.OnClick()
 	}
-	// Progress bar.
 	if cfg.ShowProgress && cfg.Duration >= 0 {
-		dur := n.duration()
-		left := 1 - float32(n.elapsed(c.now))/float32(dur)
-		left = max(0, min(1, left))
-		card.PaintOver(func(l *paint.List, r geom.Rect) {
-			l.Clip(r, geom.Rad(tk.Radius))
-			bar := c.inline(r).Rect(0, r.Bottom()-2, r.W*left, 2) // shrinks towards the inline start
-			l.Fill(bar, geom.Rad(1), th.Primary.Base)
-			l.Pop()
-		})
+		noteProgress(c, card, n, tk)
 	}
 	// Entrance: slide in from the card's physical edge; stacking: peek
 	// cards behind. Margins are logical in an RTL column, so the sign
@@ -860,7 +1042,16 @@ func noteCard(c *Context, n *navNote, pl NotifyPlacement, width float32, stacked
 // card with OnClick is focusable (Enter clicks it); focus inside a card
 // pauses its countdown.
 func noteSem(c *Context, card *Box, n *navNote, title, desc, status string) {
-	card.Semantics(liveRole(status), title)
+	role := liveRole(status)
+	if n != nil {
+		switch n.cfg.Role {
+		case "alert":
+			role = a11y.RoleAlert
+		case "status":
+			role = a11y.RoleStatus
+		}
+	}
+	card.Semantics(role, title)
 	if desc != "" && c.a11yOn {
 		card.A11y(func(s *a11y.Node) { s.Description = desc })
 	}
@@ -1085,26 +1276,36 @@ func sonnerIcon(c *Context, status string) {
 // RTL).
 func renderMessagesSonner(c *Context, pl MessagePlacement, msgs []*toast) {
 	th := c.Theme
+	key := hashID("sonner-messages")
+	if pl != MessageBottomEnd {
+		key = hashID("sonner-messages", string(pl))
+	}
+	// Sonner pauses every toast of a stack while it is hovered.
+	over := c.pointerOver(State[sonnerState](c, key, nil).col)
 	cards := make([]sonnerCard, 0, len(msgs))
 	for _, m := range msgs {
 		m := m
-		leaving := c.now.Sub(m.start) >= m.dur
+		m.hover(c, over)
+		leaving := m.leaving(c.now)
 		a := c.AnimFrom(m.id, "in", 0, b2f(!leaving), th.DurationMid)
-		cards = append(cards, sonnerCard{id: m.id, env: m.env, a: a, title: m.title, stat: m.status, body: func() {
-			sonnerIcon(c, m.status)
-			Text(c, m.title).Weight(text.Medium).Layout(layout.Grow(1), layout.MinW(0))
+		cards = append(cards, sonnerCard{id: m.id, env: m.env, a: a, title: m.title, stat: m.status, click: m.onClick, body: func() {
+			tk := &c.ThemeFor(theme.CompMessage).Components.Message
+			if m.ic != nil {
+				Icon(c, m.ic).Size(16).Color(c.Theme.Text)
+			} else {
+				sonnerIcon(c, m.status)
+			}
+			t := Text(c, m.title).Weight(text.Medium).Layout(layout.Grow(1), layout.MinW(0))
+			if tk.ContentFontSize > 0 {
+				t.Size(tk.ContentFontSize)
+			}
 			if m.closable {
-				tk := &c.ThemeFor(theme.CompMessage).Components.Message
 				if IconButton(c, icon.Close, c.Locale().Close).Size(20, 14).NoHoverBg().Color(tk.CloseColor).Clicked() && !leaving {
-					m.dur = max(0, c.now.Sub(m.start))
+					m.close(c.now)
 					c.invalid = true
 				}
 			}
 		}})
-	}
-	key := hashID("sonner-messages")
-	if pl != MessageBottomEnd {
-		key = hashID("sonner-messages", string(pl))
 	}
 	sonnerStack(c, key, pl.sonner(c.IsRTL()), cards, sonnerMessageStyle)
 }
@@ -1123,7 +1324,11 @@ func renderNotesSonner(c *Context, ns *navNotes, pl NotifyPlacement, group []*na
 		sc := sonnerCard{id: n.id, env: n.env, a: a, click: cfg.OnClick, note: n, title: cfg.Title, desc: cfg.Description, stat: cfg.Status}
 		sc.body = func() {
 			tk := &c.ThemeFor(theme.CompNotification).Components.Notification
-			sonnerIcon(c, cfg.Status)
+			if cfg.Icon != nil {
+				Icon(c, cfg.Icon).Size(16).Color(c.Theme.Text)
+			} else {
+				sonnerIcon(c, cfg.Status)
+			}
 			Column(c, func() {
 				t := Text(c, cfg.Title).Color(tk.TitleColor)
 				if tk.TitleFontSize != c.Theme.FontSize {
@@ -1136,30 +1341,124 @@ func renderNotesSonner(c *Context, ns *navNotes, pl NotifyPlacement, group []*na
 					t.Weight(text.Weight(tk.TitleFontWeight))
 				}
 				if cfg.Description != "" {
-					Text(c, cfg.Description).Color(tk.DescriptionColor)
+					noteDescription(c, tk, cfg.Description)
 				}
 				if cfg.Actions != nil {
-					Row(c, cfg.Actions, layout.Gap(8), layout.Margin(geom.Insets{Top: 8}))
+					Row(c, cfg.Actions, layout.Gap(8), layout.Margin(geom.Insets{Top: tk.ActionsMarginTop}))
 				}
-			}, layout.Grow(1), layout.MinW(0), layout.Gap(2))
-			if IconButton(c, icon.Close, n.loc.Close).Size(20, 14).NoHoverBg().Clicked() && n.closing.IsZero() {
-				n.closing = c.now
-				c.invalid = true
-			}
+			}, layout.Grow(1), layout.MinW(0), layout.Gap(tk.TitleMarginBottom))
+			noteClose(c, n, tk, 20, 14, 0, true)
 		}
 		if cfg.ShowProgress && cfg.Duration >= 0 {
-			left := max(0, min(1, 1-float32(n.elapsed(c.now))/float32(n.duration())))
 			sc.after = func(card *Box) {
-				th := c.Theme // the card's scope
-				rad := c.ThemeFor(theme.CompNotification).Components.Notification.Radius
-				card.PaintOver(func(l *paint.List, r geom.Rect) {
-					l.Clip(r, geom.Rad(rad))
-					l.Fill(c.inline(r).Rect(0, r.Bottom()-2, r.W*left, 2), geom.Radii{}, theme.Fade(th.Text, .25))
-					l.Pop()
-				})
+				noteProgress(c, card, n, &c.ThemeFor(theme.CompNotification).Components.Notification)
 			}
 		}
 		cards = append(cards, sc)
 	}
 	ns.groups[pl] = sonnerStack(c, hashID("sonner-notes", strconv.Itoa(int(pl))), pl, cards, sonnerNoteStyle)
+}
+
+// messageBadge paints the Grouping repeat counter at the message's top
+// end corner (EP message.scss .el-message__badge top -8px right -8px; an
+// el-badge of the message type, error as danger: 18px high, padding 0 6px,
+// 12px text, 1px border in the background color).
+func messageBadge(c *Context, row *Box, m *toast) {
+	th := c.Theme
+	label := strconv.Itoa(m.repeat)
+	st := c.style(th.FontSizeSM, text.Regular)
+	lay := text.Shape(label, st, text.Options{NoWrap: true})
+	bg := th.ColorOf(m.status).Base
+	if m.status == "" || m.status == "loading" {
+		bg = th.Info.Base
+	}
+	fg, ring := th.TextOn(bg, th.TextOnSolid), th.BgContainer
+	rtl := c.IsRTL() // the end corner is on the left in RTL
+	row.PaintOver(func(l *paint.List, r geom.Rect) {
+		w := max(18, lay.Width+12)
+		x := r.X + r.W + 8 - w
+		if rtl {
+			x = r.X - 8
+		}
+		br := geom.Rect{X: x, Y: r.Y - 8, W: w, H: 18}
+		l.Fill(br, geom.Rad(9), bg)
+		l.Stroke(br, geom.Rad(9), 1, ring)
+		l.Glyphs(geom.Pt(br.X+(br.W-lay.Width)/2, br.Y+(br.H-lay.Height)/2), lay.Glyphs, fg)
+	})
+}
+
+// noteDescription adds a card's description text.
+func noteDescription(c *Context, tk *theme.NotificationToken, s string) {
+	d := Text(c, s).Color(tk.DescriptionColor)
+	if tk.DescriptionFontSize > 0 {
+		d.Size(tk.DescriptionFontSize)
+	}
+	if tk.DescriptionLineHeight > 0 {
+		d.LineHeight(tk.DescriptionLineHeight)
+	}
+}
+
+// noteClose adds a card's close button (box px, icon px, gap before it)
+// unless Closable(false).
+func noteClose(c *Context, n *navNote, tk *theme.NotificationToken, box, size, gap float32, noBg bool) {
+	if n.cfg.NoClose {
+		return
+	}
+	ic := n.cfg.CloseIcon
+	if ic == nil {
+		ic = icon.Close
+	}
+	ib := IconButton(c, ic, n.loc.Close).Size(box, size)
+	ib.n.ln.Margin.Left = gap
+	if noBg {
+		ib.NoHoverBg()
+	}
+	if !ib.Hovered() {
+		ib.Color(tk.CloseColor) // hover: the default icon hover color
+	}
+	if ib.Clicked() && n.closing.IsZero() {
+		n.closing = c.now
+		c.invalid = true
+	}
+}
+
+// noteProgress paints the ShowProgress countdown bar at the bottom of
+// card: it shrinks towards the inline start, inset from the rounded
+// corners, as a gradient (antd progressBg) or the status color (EP).
+func noteProgress(c *Context, card *Box, n *navNote, tk *theme.NotificationToken) {
+	th := c.Theme
+	left := max(0, min(1, 1-float32(n.elapsed(c.now))/float32(n.duration())))
+	from, to := tk.ProgressColorStart, tk.ProgressColor
+	if tk.ProgressStatusColor {
+		switch n.cfg.Status {
+		case "success", "warning", "error":
+			from = th.ColorOf(n.cfg.Status).Base
+			to = from
+		}
+	}
+	h, inset, rad, rail := max(1, tk.ProgressHeight), tk.ProgressInset, tk.Radius, tk.ProgressRail
+	rtl := c.IsRTL()
+	card.PaintOver(func(l *paint.List, r geom.Rect) {
+		l.Clip(r, geom.Rad(rad))
+		track := geom.Rect{X: r.X + inset, Y: r.Bottom() - h, W: max(0, r.W-2*inset), H: h}
+		if rail.A > 0 {
+			l.Fill(track, geom.Rad(h/2), rail)
+		}
+		bar := track
+		bar.W = track.W * left
+		if rtl {
+			bar.X = track.Right() - bar.W
+		}
+		if from == to {
+			l.Fill(bar, geom.Rad(h/2), to)
+		} else {
+			// The gradient spans the whole track, as a CSS progress value.
+			p0, p1 := geom.Pt(track.X, 0), geom.Pt(track.Right(), 0)
+			if rtl {
+				p0, p1 = p1, p0
+			}
+			l.LinearStops(bar, geom.Rad(h/2), p0, p1, paint.Stop{Offset: 0, Color: from}, paint.Stop{Offset: 1, Color: to})
+		}
+		l.Pop()
+	})
 }

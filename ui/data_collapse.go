@@ -71,25 +71,32 @@ type CollapseItem struct {
 	Body     func()
 	Disabled bool
 	NoArrow  bool
+	// Collapsible overrides the group's Collapsible for this panel:
+	// "header" (only the title and the arrow toggle), "icon" (only the
+	// arrow toggles) or "disabled"; "" uses the group's mode.
+	Collapsible string
 }
 
 // CollapseW is an accordion / collapse panel group.
 type CollapseW struct {
 	_ [0]func()
 
-	c          *Context
-	active     *[]string
-	items      []CollapseItem
-	accordion  bool
-	ghost      bool
-	borderless bool
-	iconEnd    bool
-	iconSet    bool
-	size       ControlSize
-	changed    bool
-	box        *Box
-	th         *theme.Theme         // c.ThemeFor(theme.CompCollapse), set by Show
-	tk         *theme.CollapseToken // &th.Components.Collapse
+	c           *Context
+	active      *[]string
+	items       []CollapseItem
+	accordion   bool
+	ghost       bool
+	borderless  bool
+	iconEnd     bool
+	iconSet     bool
+	size        ControlSize
+	collapsible string
+	expandIcon  *icon.Icon
+	before      func(key string) bool
+	changed     bool
+	box         *Box
+	th          *theme.Theme         // c.ThemeFor(theme.CompCollapse), set by Show
+	tk          *theme.CollapseToken // &th.Components.Collapse
 }
 
 // Collapse starts a collapse group bound to the app's open panel keys.
@@ -100,20 +107,17 @@ func Collapse(c *Context, active *[]string, items []CollapseItem) *CollapseW {
 	}
 	w := &CollapseW{c: c, active: active, items: items, size: c.defaultSize()}
 	// ConfigProvider.Defaults("Collapse", ...) keys: "size", "bordered"
-	// (bool), "accordion" (bool), "ghost" (bool), "expandIconPosition"
-	// ("start" | "end").
+	// (bool), "accordion" (bool), "ghost" (bool), "collapsible"
+	// ("header" | "icon" | "disabled"), "expandIconPlacement" ("start" |
+	// "end"; the deprecated "expandIconPosition" is still read).
 	if s, ok := dataPropSize(c, "Collapse"); ok {
 		w.size = s
 	}
 	w.borderless = !Prop(c, "Collapse", "bordered", true)
 	w.accordion = Prop(c, "Collapse", "accordion", false)
 	w.ghost = Prop(c, "Collapse", "ghost", false)
-	switch Prop(c, "Collapse", "expandIconPosition", "") {
-	case "end", "right":
-		w.iconEnd, w.iconSet = true, true
-	case "start", "left":
-		w.iconEnd, w.iconSet = false, true
-	}
+	w.collapsible = Prop(c, "Collapse", "collapsible", "")
+	w.ExpandIconPlacement(Prop(c, "Collapse", "expandIconPlacement", Prop(c, "Collapse", "expandIconPosition", "")))
 	return w
 }
 
@@ -127,10 +131,42 @@ func (w *CollapseW) Ghost() *CollapseW { w.ghost = true; return w }
 func (w *CollapseW) Borderless() *CollapseW { w.borderless = true; return w }
 
 // IconEnd puts the expand arrow at the end of the header (Element's default).
+//
+// Deprecated: use ExpandIconPlacement("end").
 func (w *CollapseW) IconEnd() *CollapseW { w.iconEnd, w.iconSet = true, true; return w }
 
 // IconStart puts the expand arrow before the label (Ant's default).
+//
+// Deprecated: use ExpandIconPlacement("start").
 func (w *CollapseW) IconStart() *CollapseW { w.iconEnd, w.iconSet = false, true; return w }
+
+// ExpandIconPlacement places the expand arrow: "start" (before the label,
+// Ant's default) or "end" (Element and shadcn's default); antd
+// expandIconPlacement, Element expand-icon-position ("left" / "right"
+// are accepted too). Other values keep the theme's default.
+func (w *CollapseW) ExpandIconPlacement(p string) *CollapseW {
+	switch p {
+	case "end", "right":
+		w.iconEnd, w.iconSet = true, true
+	case "start", "left":
+		w.iconEnd, w.iconSet = false, true
+	}
+	return w
+}
+
+// Collapsible sets which part of every header toggles its panel (antd
+// collapsible): "" the whole header, "header" only the title and the
+// arrow, "icon" only the arrow, "disabled" nothing. CollapseItem.Collapsible
+// overrides it per panel.
+func (w *CollapseW) Collapsible(mode string) *CollapseW { w.collapsible = mode; return w }
+
+// ExpandIcon replaces the expand arrow (antd expandIcon, Element icon). It
+// points to the inline end when closed and turns 90° when open.
+func (w *CollapseW) ExpandIcon(ic *icon.Icon) *CollapseW { w.expandIcon = ic; return w }
+
+// BeforeCollapse is asked before a panel opens or closes (Element
+// before-collapse); returning false keeps the panel as it is.
+func (w *CollapseW) BeforeCollapse(fn func(key string) bool) *CollapseW { w.before = fn; return w }
 
 // Size sets header padding (Small / Middle / Large).
 func (w *CollapseW) Size(s ControlSize) *CollapseW { w.size = s; return w }
@@ -139,18 +175,33 @@ func (w *CollapseW) Size(s ControlSize) *CollapseW { w.size = s; return w }
 func (w *CollapseW) Changed() bool { return w.changed }
 
 // IsOpen reports whether key is open.
-func (w *CollapseW) IsOpen(key string) bool { return contains(*w.active, key) }
+// In accordion mode only the first active key counts (rc-collapse
+// useItems: activeKey[0]).
+func (w *CollapseW) IsOpen(key string) bool {
+	if w.accordion {
+		return len(*w.active) > 0 && (*w.active)[0] == key
+	}
+	return contains(*w.active, key)
+}
 
-func (w *CollapseW) toggle(key string) {
-	if contains(*w.active, key) {
+func (w *CollapseW) toggle(key string) bool {
+	if w.before != nil && !w.before(key) {
+		return false
+	}
+	if w.accordion {
+		if w.IsOpen(key) {
+			*w.active = (*w.active)[:0]
+		} else {
+			*w.active = append((*w.active)[:0], key)
+		}
+	} else if contains(*w.active, key) {
 		*w.active = remove(*w.active, key)
-	} else if w.accordion {
-		*w.active = append((*w.active)[:0], key)
 	} else {
 		*w.active = append(*w.active, key)
 	}
 	w.changed = true
 	w.c.invalid = true
+	return true
 }
 
 func (w *CollapseW) headerPad() (v, h float32) {
@@ -162,6 +213,19 @@ func (w *CollapseW) headerPad() (v, h float32) {
 		return tk.HeaderPaddingBlockLG, tk.HeaderPaddingInlineLG
 	}
 	return tk.HeaderPaddingBlock, tk.HeaderPaddingInline
+}
+
+// headerStart is the start padding of a header without an arrow before
+// the label (antd's small and large headers pad the start less; the
+// arrow's offset margin makes up the difference when it is there).
+func (w *CollapseW) headerStart(h float32) float32 {
+	switch w.size {
+	case Small:
+		return w.tk.HeaderPaddingInlineStartSM
+	case Large:
+		return w.tk.HeaderPaddingInlineStartLG
+	}
+	return h
 }
 
 func (w *CollapseW) contentPad() (v, h float32) {
@@ -185,7 +249,7 @@ func (w *CollapseW) Show() *CollapseW {
 	shad := th.Flavor == theme.StyleShadcn
 	iconEnd := w.iconEnd
 	if !w.iconSet {
-		iconEnd = el || shad
+		iconEnd = tk.ExpandIconEnd
 	}
 	ant := !el && !shad // shadcn Accordion: no frame, items split by lines
 	bordered := ant && !w.borderless && !w.ghost
@@ -196,6 +260,9 @@ func (w *CollapseW) Show() *CollapseW {
 			Key(c, it.Key, func() { w.panel(it, last, iconEnd, bordered) })
 		}
 	})
+	if w.accordion {
+		w.box.n.setRole(a11y.RoleTabList) // rc-collapse: role tablist in accordion mode
+	}
 	switch {
 	case bordered:
 		w.box.Bg(tk.HeaderBg).Border(1, tk.BorderColor).Radius(tk.Radius).Clip()
@@ -218,11 +285,34 @@ func (w *CollapseW) Layout(o ...layout.Option) *CollapseW {
 	return w
 }
 
+// collTrigger marks n as the panel's toggle: a button (a tab in accordion
+// mode, as rc-collapse) that is expandable and, when it has no text of
+// its own, named by the panel label.
+func (w *CollapseW) collTrigger(n *node, label string, disabled bool) {
+	role := a11y.RoleButton
+	if w.accordion {
+		role = a11y.RoleTab
+	}
+	n.setRole(role).setName(label).setState(a11y.Expandable)
+	if disabled {
+		n.cursor = input.CursorNotAllowed
+		n.focus = false // not a Tab stop (rc-collapse tabIndex -1)
+	}
+}
+
 func (w *CollapseW) panel(it CollapseItem, last, iconEnd, bordered bool) {
 	c, th, tk := w.c, w.th, w.tk
 	el := th.Flavor == theme.Element
 	shad := th.Flavor == theme.StyleShadcn
-	open := contains(*w.active, it.Key)
+	open := w.IsOpen(it.Key)
+	mode := it.Collapsible
+	if mode == "" {
+		mode = w.collapsible
+	}
+	if it.Disabled {
+		mode = "disabled"
+	}
+	partial := mode == "header" || mode == "icon" // only parts of the header toggle
 	pv, ph := w.headerPad()
 	var hopts []layout.Option
 	if el {
@@ -231,23 +321,24 @@ func (w *CollapseW) panel(it CollapseItem, last, iconEnd, bordered bool) {
 			hopts = append(hopts, layout.Padding(geom.Insets{}))
 		}
 	} else {
-		hopts = []layout.Option{layout.PadVH(pv, ph), layout.Middle(), layout.Gap(tk.HeaderGap)}
+		start := ph
+		if iconEnd || it.NoArrow {
+			start = w.headerStart(ph)
+		}
+		hopts = []layout.Option{layout.Padding(geom.Insets{Top: pv, Bottom: pv, Left: start, Right: ph}), layout.Middle(), layout.Gap(tk.HeaderGap)}
 	}
 	hdr := collNamedBox(c, "collapse-header", it.Label, layout.Row, hopts...)
-	disabled := it.Disabled || hdr.n.disabled
-	ia := hdr.Focusable(input.CursorPointer)
-	if disabled {
-		hdr.n.cursor = input.CursorNotAllowed
-		hdr.n.focus = false // not a Tab stop
-		ia.Clicked = false
+	disabled := mode == "disabled" || hdr.n.disabled
+	var ia, arrowIA, titleIA Interaction
+	var trigger *node // the node carrying the button semantics
+	if partial {
+		hdr.n.cursor = input.CursorDefault
+	} else {
+		ia = hdr.Focusable(input.CursorPointer)
+		trigger = hdr.n
+		w.collTrigger(hdr.n, it.Label, disabled)
 	}
-	hdr.n.setRole(a11y.RoleButton).setName(it.Label).setState(a11y.Expandable)
-	if ia.Clicked && !disabled {
-		w.toggle(it.Key)
-		open = !open
-	}
-	hdr.n.stateIf(open, a11y.Expanded)
-	t := c.Anim(hdr.n.id, "arrow", b2f(open), th.DurationMid)
+	var t float32 // arrow turn, set after the toggle below
 	arrowCol, textCol := tk.ArrowColor, tk.HeaderColor
 	if disabled {
 		arrowCol, textCol = th.TextDisabled, th.TextDisabled
@@ -260,29 +351,67 @@ func (w *CollapseW) panel(it CollapseItem, last, iconEnd, bordered bool) {
 	if tk.HeaderFontWeight != 0 {
 		weight = text.Weight(tk.HeaderFontWeight)
 	}
+	var arrowN *node
 	arrowNode := func() {
 		if it.NoArrow {
 			return
 		}
 		n := c.add("collapse-arrow", "")
+		arrowN = n
 		sz := tk.ArrowSize
 		n.ln.Width, n.ln.Height = sz, sz
 		n.ln.AlignSelf = layout.AlignCenter
-		if shad {
-			// shadcn: muted chevron-down turning 180° when open.
-			col := arrowCol
-			n.paint = func(l *paint.List, r geom.Rect) { icon.Draw(l, icon.Down, r, col, float64(t)*math.Pi) }
-			return
+		if partial {
+			// antd: the icon is the button when collapsible is header / icon.
+			arrowIA = c.interact(n, !disabled, input.CursorPointer)
+			trigger = n
+			w.collTrigger(n, it.Label, disabled)
+		} else {
+			n.aHidden = true
 		}
-		n.paint = func(l *paint.List, r geom.Rect) { collArrow(c, l, r, arrowCol, t) }
+		if ic := w.expandIcon; ic != nil {
+			n.paint = func(l *paint.List, r geom.Rect) { c.paintIcon(l, ic, r, arrowCol, float64(t)*math.Pi/2) }
+		} else if shad {
+			// shadcn: muted chevron-down turning 180° when open.
+			n.paint = func(l *paint.List, r geom.Rect) { icon.Draw(l, icon.Down, r, arrowCol, float64(t)*math.Pi) }
+		} else {
+			n.paint = func(l *paint.List, r geom.Rect) { collArrow(c, l, r, arrowCol, t) }
+		}
+		if partial && arrowIA.FocusVisible {
+			n.over = func(l *paint.List, r geom.Rect) { drawFocusRing(l, th, r, geom.Rad(th.RadiusSM)) }
+		}
 	}
 	hdr.Body(func() {
 		if !iconEnd {
 			arrowNode()
 		}
-		lab := Text(c, it.Label).Size(fs).Color(textCol).Ellipsis().Layout(layout.Grow(1))
+		lab := Text(c, it.Label).Size(fs).Color(textCol).Ellipsis()
+		if mode == "header" {
+			// antd .collapsible-header: the title does not grow and is the
+			// only clickable text.
+			if it.NoArrow {
+				// No arrow button: the title is the trigger (rc-collapse
+				// gives the title span the full collapsibleProps).
+				titleIA = c.interact(lab.n, !disabled, input.CursorPointer)
+				trigger = lab.n
+				w.collTrigger(lab.n, it.Label, disabled)
+				if titleIA.FocusVisible {
+					lab.n.over = func(l *paint.List, r geom.Rect) { drawFocusRing(l, th, r, geom.Rad(th.RadiusSM)) }
+				}
+			} else {
+				titleIA = c.interact(lab.n, false, input.CursorPointer)
+				lab.n.aKbd = true // the arrow button is the keyboard equivalent
+			}
+			if disabled {
+				titleIA = Interaction{}
+			}
+			lab.n.ln.Shrink = 1
+			Spacer(c)
+		} else {
+			lab.Layout(layout.Grow(1))
+		}
 		lab.st.Weight = weight
-		if shad && ia.Hovered && !disabled {
+		if shad && (ia.Hovered || titleIA.Hovered) && !disabled {
 			lab.Underline() // hover:underline
 		}
 		if el {
@@ -300,6 +429,18 @@ func (w *CollapseW) panel(it CollapseItem, last, iconEnd, bordered bool) {
 			}
 		}
 	})
+	if disabled {
+		ia.Clicked, arrowIA.Clicked, titleIA.Clicked = false, false, false
+	}
+	if (ia.Clicked || arrowIA.Clicked || titleIA.Clicked) && w.toggle(it.Key) {
+		open = !open
+	}
+	if trigger != nil {
+		trigger.stateIf(open, a11y.Expanded)
+	}
+	if arrowN != nil {
+		t = c.Anim(arrowN.id, "arrow", b2f(open), th.DurationMid)
+	}
 	sep := tk.BorderColor
 	if ia.FocusVisible {
 		hdr.PaintOver(func(l *paint.List, r geom.Rect) {
@@ -333,13 +474,20 @@ func (w *CollapseW) panel(it CollapseItem, last, iconEnd, bordered bool) {
 		return
 	}
 	var bodyOpts []layout.Option
+	cv, ch := w.contentPad()
 	switch {
 	case shad, el:
 		bodyOpts = []layout.Option{layout.Padding(geom.Insets{Bottom: tk.ContentPaddingBlock})}
-	case w.ghost, w.borderless:
-		bodyOpts = []layout.Option{layout.Padding(geom.Insets{Top: tk.BorderlessContentPadding, Right: ph, Bottom: tk.BorderlessContentPaddingBottom, Left: ph})}
+	case w.ghost:
+		if w.borderless {
+			ch = tk.BorderlessContentPaddingInline
+		}
+		bodyOpts = []layout.Option{layout.PadVH(tk.GhostContentPaddingBlock, ch)}
+	case w.borderless:
+		bi := tk.BorderlessContentPaddingInline
+		bodyOpts = []layout.Option{layout.Padding(geom.Insets{Top: tk.BorderlessContentPadding, Right: bi, Bottom: tk.BorderlessContentPaddingBottom, Left: bi})}
 	default:
-		bodyOpts = []layout.Option{layout.PadVH(w.contentPad())}
+		bodyOpts = []layout.Option{layout.PadVH(cv, ch)}
 	}
 	inner := collMotion(c, "collapse-motion", open, func() {
 		it.Body()
@@ -347,10 +495,14 @@ func (w *CollapseW) panel(it CollapseItem, last, iconEnd, bordered bool) {
 	if inner == nil {
 		return
 	}
-	inner.n.setRole(a11y.RoleGroup).setName(it.Label)
-	if c.a11yOn {
-		pid := inner.n.id
-		hdr.n.fill(semFunc(func(s *a11y.Node) { s.Controls = a11y.NodeID(pid) }))
+	prole := a11y.RoleGroup
+	if w.accordion {
+		prole = a11y.RoleTabPanel
+	}
+	inner.n.setRole(prole).setName(it.Label)
+	if c.a11yOn && trigger != nil {
+		pid, tn := inner.n.id, trigger
+		tn.fill(semFunc(func(s *a11y.Node) { s.Controls = a11y.NodeID(pid) }))
 	}
 	inner.Paint(func(l *paint.List, r geom.Rect) {
 		switch {

@@ -202,6 +202,15 @@ func TestR2MenuPopupDefaults(t *testing.T) {
 		m, k := th.Components.Menu, th.Components.Dropdown
 		p := menuPopupToken(&m)
 		p.Alias = k.Alias
+		if th.Flavor == theme.Ant {
+			// Batch 3 (docs/specs/align/3-menu.md): antd Dropdown items take
+			// fontSizeSM icons and a 12px extra column after 16px; Menu
+			// pop-outs keep the Menu's 14px icon and 14px extra.
+			if p.IconSize != 14 || p.ShortcutFontSize != th.FontSize || p.ShortcutGap != 16 {
+				t.Errorf("antd Menu popup icon / extra: %v %v %v", p.IconSize, p.ShortcutFontSize, p.ShortcutGap)
+			}
+			p.IconSize, p.ShortcutFontSize, p.ShortcutGap = k.IconSize, k.ShortcutFontSize, k.ShortcutGap
+		}
 		if p.PopupBg != k.PopupBg || p.PopupBorderColor != k.PopupBorderColor || p.PopupRadius != k.PopupRadius ||
 			len(p.PopupShadow) != len(k.PopupShadow) || p.PaddingBlock != k.PaddingBlock || p.PaddingInline != k.PaddingInline ||
 			p.ItemHeight != k.ItemHeight || p.ItemPaddingInline != k.ItemPaddingInline || p.ItemBorderRadius != k.ItemBorderRadius ||

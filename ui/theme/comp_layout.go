@@ -16,6 +16,11 @@ type LayoutToken struct {
 	SiderBg             Color // dark sider
 	LightSiderBg        Color
 	SiderWidth          float32
+	// SiderCollapsedWidth is the collapsed Sider width. Difference from
+	// antd 6.7: Layout.Sider collapsedWidth defaults to 80
+	// (antd/es/layout/Sider.js); Tango's Ant theme keeps 64 because
+	// ProLayout collapses the same Sider to 64 (Pro v6). Recorded in
+	// docs/design-baseline.md.
 	SiderCollapsedWidth float32
 	TriggerBg           Color
 	TriggerColor        Color `contrast:"text:TriggerBg"`
@@ -49,6 +54,15 @@ func deriveLayout(t *Theme) LayoutToken {
 		// Site header (h-14, bg-background, border-b) and footer.
 		k.BodyBg, k.HeaderBg, k.HeaderColor, k.HeaderHeight, k.HeaderPaddingInline = t.BgContainer, t.HeaderBg, t.Text, t.HeaderHeight, t.Padding
 		k.FooterPadding, k.FooterPaddingInline = t.Padding, t.PaddingLG
+	default:
+		// antd layout/style/index.js: triggerBg is the literal '#002140'
+		// beside siderBg '#001529' in both algorithms. Tango's dark Ant
+		// sider is not #001529 (SiderBg follows the dark palette), so the
+		// dark trigger keeps deriving from SiderSubmenuBg to sit on it;
+		// the light theme's dark sider is antd's and takes antd's value.
+		if !t.Dark {
+			k.TriggerBg = Hex("#002140")
+		}
 	}
 	return k
 }

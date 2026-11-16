@@ -205,6 +205,10 @@ type TableLocale struct {
 	// Selection dropdown next to the header checkbox: its accessible name
 	// and the built-in SelectionPage / SelectionNone items.
 	Selections, SelectPage, SelectNone string
+
+	// SumText is the first cell of ShowSummary's row (Element Plus
+	// sum-text, "合计").
+	SumText string
 }
 
 // ChartLocale holds the accessible names and summaries of ui/chart charts:
@@ -258,6 +262,7 @@ type FormLocale struct {
 	RequiredInputFmt, RequiredSelectFmt string // default required message, arg: field label
 	Submit, Query, PrevStep, NextStep   string
 	MoveUp, MoveDown, AddRow            string // FormList actions
+	Optional                            string // label suffix of optional items (Form.RequiredMarkOptional)
 }
 
 // TransferLocale holds the Transfer defaults.
@@ -326,6 +331,9 @@ type TabsLocale struct {
 type PaginationLocale struct {
 	_             [0]func()
 	Jump, Current string
+	// Confirm is the quick jumper's go button (antd jump_to_confirm);
+	// Prev3 / Next3 name the ••• jumps of ShowLessItems.
+	Confirm, Prev3, Next3 string
 }
 
 // SliderLocale holds the accessible names of the two SliderRange handles.

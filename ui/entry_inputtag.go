@@ -29,6 +29,7 @@ type InputTagW struct {
 	sepsSet    bool
 	draggable  bool
 	saveOnBlur bool
+	trigger    string // key that adds the typed tag: "Enter" (default) or "Space"
 }
 
 // inputTagState is the per-widget state kept across frames.
@@ -55,6 +56,7 @@ func InputTag(c *Context, val *[]string) *InputTagW {
 	w.box.n.setRole(a11y.RoleGroup)
 	w.box.n.aState, w.box.n.aFill = 0, nil
 	w.box.shadDefaults("InputTag")
+	w.trigger = Prop(c, "InputTag", "trigger", "Enter")
 	w.z = c.lazy(w.box.n, w.finish)
 	return w
 }
@@ -110,6 +112,12 @@ func (w *InputTagW) Separators(seps ...string) *InputTagW {
 // Draggable lets the user reorder the tags by dragging them; a drop
 // reports Changed.
 func (w *InputTagW) Draggable() *InputTagW { w.draggable = true; return w }
+
+// Trigger sets the key that turns the typed text into a tag (Element
+// trigger): "Enter" (default) or "Space". With "Space" the space key adds
+// the tag instead of typing a space and Enter does nothing.
+// ConfigProvider.Defaults("InputTag", "trigger") sets it for a subtree.
+func (w *InputTagW) Trigger(key string) *InputTagW { w.trigger = key; return w }
 
 // SaveOnBlur turns the typed text into a tag when the field loses focus
 // (by default the text stays in the field).
@@ -186,12 +194,32 @@ func (w *InputTagW) finish() {
 	if b.clicked() {
 		c.SetFocus(b.ed.id)
 	}
+	space := w.trigger == "Space"
+	addKey := input.KeyEnter
+	if space {
+		addKey = input.KeySpace
+		if b.focused() {
+			// The space that would be typed is the trigger: drop it.
+			rest := c.text[:0:0]
+			for _, t := range c.text {
+				if t == " " {
+					c.keys = append(c.keys, input.KeyEvent{Key: input.KeySpace, Down: true})
+					continue
+				}
+				rest = append(rest, t)
+			}
+			c.text = rest
+		}
+	}
 	keys := b.takeKeys(func(k input.KeyEvent) bool {
-		return k.Key == input.KeyEnter || (k.Key == input.KeyBackspace && b.st.query == "")
+		return k.Key == addKey || (space && k.Key == input.KeyEnter) || (k.Key == input.KeyBackspace && b.st.query == "")
 	})
 	for _, k := range keys {
 		switch k.Key {
-		case input.KeyEnter:
+		case input.KeyEnter, input.KeySpace:
+			if k.Key != addKey {
+				continue // Enter does nothing with the Space trigger
+			}
 			if w.add(b.st.query) || strings.TrimSpace(b.st.query) == "" || contains(*w.val, strings.TrimSpace(b.st.query)) {
 				b.st.query = ""
 			}

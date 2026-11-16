@@ -83,6 +83,12 @@ type navMenuPopup struct {
 	// marks gives items a checked state (Menubar check and radio items);
 	// nil: none.
 	marks *navMarks
+	// alignOffset shifts an anchored root panel along the trigger's
+	// edge, towards the inline end when positive (shadcn alignOffset).
+	alignOffset float32
+	// wrap builds the root panel's content around its menu (Dropdown
+	// PopupRender); nil: the menu alone.
+	wrap func(menu func())
 }
 
 // navMarks describes the checkable items of popup panels: of returns an
@@ -233,6 +239,10 @@ func (p *navMenuPopup) panel(items []MenuItem, level int, anchor ID, place Place
 	}
 	var ov, layer *Box
 	body := func() { p.items(items, level, anchor) }
+	if level == 0 && p.wrap != nil {
+		menu := body
+		body = func() { p.wrap(menu) }
+	}
 	// Long menus scroll inside a height-limited panel.
 	_, tk := p.look()
 	pad := 2 * tk.PaddingBlock
@@ -272,7 +282,14 @@ func (p *navMenuPopup) panel(items []MenuItem, level int, anchor ID, place Place
 		}
 		ov, layer = inner, holder
 	} else {
-		ov = Overlay(c, OverlayOptions{Anchor: anchor, Place: place, Offset: offset, Flip: true}, body)
+		shift := float32(0)
+		if level == 0 && p.alignOffset != 0 {
+			shift = p.alignOffset
+			if c.IsRTL() {
+				shift = -shift
+			}
+		}
+		ov = Overlay(c, OverlayOptions{Anchor: anchor, Place: place, Offset: offset, Flip: true, ShiftX: shift}, body)
 		layer = ov
 	}
 	// Submenus are built inside their parent's body, so they finish first;
@@ -466,10 +483,10 @@ func (p *navMenuPopup) items(items []MenuItem, level int, parent ID) {
 		n.ln.Measure = func(_, _ float32) geom.Size {
 			w := text.Width(it.Label, st) + 2*tk.ItemPaddingInline + inset
 			if it.Icon != nil {
-				w += 22
+				w += p.iconAdvance()
 			}
 			if hasKids {
-				w += 24
+				w += tk.SubmenuArrowInset + p.arrowSize() + 2
 			}
 			if it.Shortcut != "" {
 				w += p.shortcutGap() + p.shortcutWidth(it.Shortcut)
@@ -604,7 +621,7 @@ func (p *navMenuPopup) items(items []MenuItem, level int, parent ID) {
 					ic = tk.ItemIconColor // shadcn: muted-foreground icons
 				}
 				c.drawIconAt(l, it.Icon, s.X(x, is), r.Y+(r.H-is)/2, is, ic)
-				x += is + 8
+				x += p.iconAdvance()
 			}
 			lay := navLabel(c, it.Label, th.FontSize, text.Regular)
 			l.Glyphs(geom.Pt(s.X(x, lay.Width), r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
@@ -616,7 +633,7 @@ func (p *navMenuPopup) items(items []MenuItem, level int, parent ID) {
 					end = 16
 				}
 				if hasKids {
-					end = 28
+					end = tk.SubmenuArrowInset + p.arrowSize() + 6
 				}
 				sc := tk.ShortcutColor
 				switch {
@@ -635,7 +652,8 @@ func (p *navMenuPopup) items(items []MenuItem, level int, parent ID) {
 					ac = col
 				}
 				// The submenu chevron points towards the end (mirrored in RTL).
-				c.paintIcon(l, icon.Right, s.Rect(r.W-22, r.Y+(r.H-10)/2, 10, 10), ac, 0)
+				as := p.arrowSize()
+				c.paintIcon(l, icon.Right, s.Rect(r.W-tk.SubmenuArrowInset-as, r.Y+(r.H-as)/2, as, as), ac, 0)
 			}
 		}
 		if open {
@@ -684,6 +702,22 @@ func (p *navMenuPopup) items(items []MenuItem, level int, parent ID) {
 		}
 		p.key(ents, act, actKey, actMods, level, parent)
 	}
+}
+
+// iconAdvance is the room an item icon takes before the label: the icon
+// slot (at least the font size wide, antd min-width fontSize) and the gap.
+func (p *navMenuPopup) iconAdvance() float32 {
+	th, tk := p.look()
+	return max(tk.IconSize, th.FontSize) + 8
+}
+
+// arrowSize is the size of the submenu chevron.
+func (p *navMenuPopup) arrowSize() float32 {
+	_, tk := p.look()
+	if tk.SubmenuArrowSize > 0 {
+		return tk.SubmenuArrowSize
+	}
+	return 10
 }
 
 // shortcutGap is the least space between an item's label and its
@@ -923,6 +957,15 @@ type DropdownW struct {
 	clicked  string
 	changed  bool
 	openPtr  *bool
+	source   string // what last opened or closed the menu ("trigger" | "menu")
+
+	enter, leave  time.Duration // hover trigger delays
+	pointAtCenter bool
+	autoFocus     bool
+	keepOpen      bool // HideOnClick(false)
+	wrap          func(menu func())
+	checks        map[string]*bool
+	radios        []dropdownRadio
 
 	// Button form.
 	primary, danger bool
@@ -932,18 +975,128 @@ type DropdownW struct {
 	btnClicked      bool
 }
 
+// dropdownRadio binds a group of Dropdown items to one value.
+type dropdownRadio struct {
+	val  *string
+	keys []string
+}
+
 // Dropdown starts a dropdown menu; chain options, then Body with the
 // trigger content, or Button for a split button (Ant Dropdown.Button,
 // Element split-button):
 //
 //	if k := ui.Dropdown(c, items).Trigger(ui.TriggerClick).Body(func() { ui.Button(c, "更多") }).Clicked(); k != "" { ... }
 //	dd := ui.Dropdown(c, items).Primary().Button("提交")
+//
+// ConfigProvider.Defaults("Dropdown", ...) keys: "trigger", "placement",
+// "arrow", "disabled", "mouseEnterDelay" / "mouseLeaveDelay"
+// (time.Duration; default the Dropdown token: Ant 150 / 100 ms, Element
+// 150 / 150 ms), "autoFocus", "hideOnClick" (bool, default true).
 func Dropdown(c *Context, items []MenuItem) *DropdownW {
 	d := &DropdownW{c: c, items: items, place: BottomStart}
 	d.th = c.ThemeFor(theme.CompDropdown)
 	d.tk = &d.th.Components.Dropdown
 	d.defaults() // ConfigProvider.Defaults("Dropdown", ...): trigger, placement, arrow, disabled
+	d.enter = Prop(c, "Dropdown", "mouseEnterDelay", d.tk.MouseEnterDelay)
+	d.leave = Prop(c, "Dropdown", "mouseLeaveDelay", d.tk.MouseLeaveDelay)
+	d.autoFocus = Prop(c, "Dropdown", "autoFocus", false)
+	d.keepOpen = !Prop(c, "Dropdown", "hideOnClick", true)
 	return d
+}
+
+// MouseEnterDelay waits d before a hover dropdown opens (antd
+// mouseEnterDelay 0.15 s, Element show-timeout).
+func (d *DropdownW) MouseEnterDelay(dur time.Duration) *DropdownW { d.enter = dur; return d }
+
+// MouseLeaveDelay waits d before a hover dropdown closes once the pointer
+// left the trigger and the menu (antd mouseLeaveDelay 0.1 s, Element
+// hide-timeout).
+func (d *DropdownW) MouseLeaveDelay(dur time.Duration) *DropdownW { d.leave = dur; return d }
+
+// ArrowPointAtCenter draws the arrow (Arrow) at the centre of the trigger
+// instead of near its aligned edge (antd arrow.pointAtCenter).
+func (d *DropdownW) ArrowPointAtCenter(on bool) *DropdownW {
+	d.pointAtCenter = on
+	if on {
+		d.arrow = true
+	}
+	return d
+}
+
+// AutoFocus moves keyboard focus to the first enabled item whenever the
+// menu opens, also by pointer (antd autoFocus; the keyboard always does).
+func (d *DropdownW) AutoFocus(on bool) *DropdownW { d.autoFocus = on; return d }
+
+// HideOnClick(false) keeps the menu open after an item is chosen (Element
+// hide-on-click; default true).
+func (d *DropdownW) HideOnClick(on bool) *DropdownW { d.keepOpen = !on; return d }
+
+// PopupRender builds the panel content around the menu (antd popupRender,
+// v6 name of dropdownRender): call menu() where the items go, add other
+// content before or after it.
+func (d *DropdownW) PopupRender(fn func(menu func())) *DropdownW { d.wrap = fn; return d }
+
+// Check makes the item keyed key a checkbox item bound to on (shadcn
+// DropdownMenuCheckboxItem): a check mark shows its state and choosing it
+// toggles *on (Clicked still reports the key). The panel reserves an
+// indicator column for it.
+func (d *DropdownW) Check(key string, on *bool) *DropdownW {
+	if d.checks == nil {
+		d.checks = map[string]*bool{}
+	}
+	d.checks[key] = on
+	return d
+}
+
+// Radio makes the items keyed keys a radio group bound to value (shadcn
+// DropdownMenuRadioGroup): the item whose key equals *value shows a dot and
+// choosing an item stores its key.
+func (d *DropdownW) Radio(value *string, keys ...string) *DropdownW {
+	d.radios = append(d.radios, dropdownRadio{val: value, keys: keys})
+	return d
+}
+
+// OpenSource reports what opened or closed the menu this frame (when
+// OpenChanged): "menu" when choosing an item closed it, else "trigger"
+// (antd onOpenChange info.source).
+func (d *DropdownW) OpenSource() string { return d.source }
+
+// marks returns the checkable items of the menu, or nil.
+func (d *DropdownW) marks() *navMarks {
+	if len(d.checks) == 0 && len(d.radios) == 0 {
+		return nil
+	}
+	tk := d.tk
+	return &navMarks{color: tk.IndicatorColor, size: tk.IndicatorSize, width: tk.IndicatorWidth,
+		of: func(it MenuItem) (navMarkKind, bool) {
+			if v, ok := d.checks[it.Key]; ok {
+				return navMarkCheck, v != nil && *v
+			}
+			for _, g := range d.radios {
+				for _, k := range g.keys {
+					if k == it.Key {
+						return navMarkRadio, g.val != nil && *g.val == k
+					}
+				}
+			}
+			return navMarkNone, false
+		}}
+}
+
+// choose applies a chosen item to its check or radio binding.
+func (d *DropdownW) choose(key string) {
+	if v, ok := d.checks[key]; ok && v != nil {
+		*v = !*v
+		return
+	}
+	for _, g := range d.radios {
+		for _, k := range g.keys {
+			if k == key && g.val != nil {
+				*g.val = k
+				return
+			}
+		}
+	}
 }
 
 // Trigger selects hover (default), click or context-menu activation.
@@ -1011,6 +1164,9 @@ func (d *DropdownW) setOpen(v bool) {
 	if d.st.open != v {
 		d.st.open = v
 		d.changed = true
+		if d.source == "" {
+			d.source = "trigger"
+		}
 		d.c.invalid = true
 		if !v {
 			d.st.popup.path = nil
@@ -1130,7 +1286,7 @@ func (d *DropdownW) Body(trigger func()) *DropdownW {
 			}
 		case TriggerHover:
 			over := c.pointerOver(append([]ID{b.n.id}, d.st.panels...)...)
-			want := HoverDelay(c, b.n.id, over, 150*time.Millisecond, 100*time.Millisecond)
+			want := HoverDelay(c, b.n.id, over, d.enter, d.leave)
 			if !want && d.st.open && d.st.popup.kbd {
 				want = true // keyboard navigation keeps it open until the pointer moves
 			}
@@ -1184,12 +1340,13 @@ func (d *DropdownW) Body(trigger func()) *DropdownW {
 		d.st.popup.layer = 0
 		return d
 	}
-	a := c.AnimFrom(b.n.id, "open", 0, 1, th.DurationMid)
-	pop := &navMenuPopup{c: c, th: th, tk: d.tk, st: &d.st.popup, selected: d.selected, element: el, opacity: a, minW: d.minW, maxH: d.maxH}
-	off := float32(4)
-	if el {
-		off = 8
+	if d.changed && d.autoFocus && d.st.popup.focus == 0 {
+		d.st.popup.focus = 1
 	}
+	a := c.AnimFrom(b.n.id, "open", 0, 1, th.DurationMid)
+	pop := &navMenuPopup{c: c, th: th, tk: d.tk, st: &d.st.popup, selected: d.selected, element: el, opacity: a, minW: d.minW, maxH: d.maxH,
+		marks: d.marks(), wrap: d.wrap}
+	off := d.tk.PopupOffset
 	if d.arrow {
 		off += 6
 	}
@@ -1206,10 +1363,14 @@ func (d *DropdownW) Body(trigger func()) *DropdownW {
 	d.st.panels = pop.panels
 	if pop.clicked != "" {
 		d.clicked = pop.clicked
-		if pop.hasFocus() {
-			c.SetFocus(navFirstFocusable(b.n))
+		d.choose(pop.clicked)
+		if !d.keepOpen {
+			if pop.hasFocus() {
+				c.SetFocus(navFirstFocusable(b.n))
+			}
+			d.source = "menu"
+			d.setOpen(false)
 		}
-		d.setOpen(false)
 	}
 	return d
 }
@@ -1225,6 +1386,7 @@ func (d *DropdownW) drawArrow(panel ID) {
 	}
 	anchor := d.id
 	place := d.place.Resolve(c.IsRTL()) // BottomStart aligns to the right edge in RTL
+	center := d.pointAtCenter
 	prev := ov.root.over
 	ov.root.over = func(l *paint.List, r geom.Rect) {
 		if prev != nil {
@@ -1234,29 +1396,46 @@ func (d *DropdownW) drawArrow(panel ID) {
 		if !ok {
 			return
 		}
-		cx := ar.X + min(ar.W/2, 24)
-		switch place {
-		case Bottom, Top:
-			cx = ar.X + ar.W/2
-		case BottomEnd, TopEnd:
-			cx = ar.Right() - min(ar.W/2, 24)
-		}
-		cx = max(r.X+12, min(cx, r.Right()-12))
-		p := paint.NewPath()
-		up := r.Y >= ar.Bottom()-1
-		if up {
-			p.MoveTo(cx-6, r.Y+0.5).LineTo(cx, r.Y-6).LineTo(cx+6, r.Y+0.5).Close()
-		} else {
-			p.MoveTo(cx-6, r.Bottom()-0.5).LineTo(cx, r.Bottom()+6).LineTo(cx+6, r.Bottom()-0.5).Close()
+		// The arrow is drawn on the panel side facing the trigger. Along
+		// that side it sits near the aligned edge of the trigger (antd
+		// arrowOffset), at its centre for centred placements and with
+		// ArrowPointAtCenter.
+		const half, h = 6, 6
+		var p, q *paint.Path
+		switch {
+		case r.Y >= ar.Bottom()-1 || r.Bottom() <= ar.Y+1: // below / above
+			cx := ar.X + min(ar.W/2, 24)
+			switch {
+			case center || place == Bottom || place == Top:
+				cx = ar.X + ar.W/2
+			case place == BottomEnd || place == TopEnd:
+				cx = ar.Right() - min(ar.W/2, 24)
+			}
+			cx = max(r.X+12, min(cx, r.Right()-12))
+			y, dy := r.Bottom()-0.5, float32(h+0.5)
+			if r.Y >= ar.Bottom()-1 {
+				y, dy = r.Y+0.5, -h-0.5
+			}
+			p = paint.NewPath().MoveTo(cx-half, y).LineTo(cx, y+dy).LineTo(cx+half, y).Close()
+			q = paint.NewPath().MoveTo(cx-half, y).LineTo(cx, y+dy).LineTo(cx+half, y)
+		default: // beside the trigger (left / right placements)
+			cy := ar.Y + min(ar.H/2, 24)
+			switch {
+			case center || place == Left || place == Right:
+				cy = ar.Y + ar.H/2
+			case place == LeftEnd || place == RightEnd:
+				cy = ar.Bottom() - min(ar.H/2, 24)
+			}
+			cy = max(r.Y+12, min(cy, r.Bottom()-12))
+			x, dx := r.Right()-0.5, float32(h+0.5)
+			if r.X >= ar.Right()-1 {
+				x, dx = r.X+0.5, -h-0.5
+			}
+			p = paint.NewPath().MoveTo(x, cy-half).LineTo(x+dx, cy).LineTo(x, cy+half).Close()
+			q = paint.NewPath().MoveTo(x, cy-half).LineTo(x+dx, cy).LineTo(x, cy+half)
 		}
 		l.Path(p, tk.PopupBg)
-		if navEl(c) {
-			q := paint.NewPath()
-			if up {
-				q.MoveTo(cx-6, r.Y+0.5).LineTo(cx, r.Y-6).LineTo(cx+6, r.Y+0.5)
-			} else {
-				q.MoveTo(cx-6, r.Bottom()-0.5).LineTo(cx, r.Bottom()+6).LineTo(cx+6, r.Bottom()-0.5)
-			}
+		if tk.PopupBorderColor.A > 0 {
 			l.StrokePath(q, paint.StrokeStyle{Width: 1}, tk.PopupBorderColor)
 		}
 	}
@@ -1265,6 +1444,14 @@ func (d *DropdownW) drawArrow(panel ID) {
 // Button builds the split-button form: a main button labelled label joined
 // with a menu button (Ant Dropdown.Button, Element split-button). Check
 // ButtonClicked for the main part and Clicked for the chosen item.
+//
+// Deprecated: use Compact + Button + Dropdown (antd 6 deprecates
+// Dropdown.Button):
+//
+//	ui.Compact(c).Body(func() {
+//		ui.Button(c, "提交")
+//		ui.Dropdown(c, items).Placement(ui.BottomEnd).Body(func() { ui.Button(c, "").Icon(icon.More) })
+//	})
 func (d *DropdownW) Button(label string) *DropdownW {
 	c := d.c
 	size := c.navSize(d.size, d.sizeSet)

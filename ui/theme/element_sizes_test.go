@@ -38,9 +38,11 @@ func TestElementPlusComponentSizes(t *testing.T) {
 		}
 	}
 	// The others are unchanged: Ant sizes (shadcn size-8 avatars match).
+	// Tour: antd 6.7 tour/style width 520 with max-width fit-content
+	// (batch 3 group K: 320 -> 520).
 	for _, th := range []*Theme{AntDesign(), Shadcn()} {
 		k := th.Components
-		if k.Avatar.ContainerSize != 32 || k.Avatar.ContainerSizeLG != 40 || k.InputNumber.ControlWidth != 90 || k.Tour.Width != 320 {
+		if k.Avatar.ContainerSize != 32 || k.Avatar.ContainerSizeLG != 40 || k.InputNumber.ControlWidth != 90 || k.Tour.Width != 520 {
 			t.Errorf("%v: avatar %v/%v input number %v tour %v", th.Flavor,
 				k.Avatar.ContainerSize, k.Avatar.ContainerSizeLG, k.InputNumber.ControlWidth, k.Tour.Width)
 		}

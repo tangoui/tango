@@ -3,21 +3,30 @@ package theme
 // CollapseToken styles Collapse.
 type CollapseToken struct {
 	Alias
-	HeaderBg                       Color // header band (Ant: the whole group; zero: none)
-	HeaderColor                    Color `contrast:"text:HeaderBg"`
-	ArrowColor                     Color `contrast:"nontext:HeaderBg"`
-	ArrowSize                      float32
-	HeaderFontSize                 float32
-	HeaderFontSizeLG               float32
-	HeaderFontWeight               int     // zero: regular
-	HeaderHeight                   float32 // minimum header height and label line height (zero: none)
-	HeaderPaddingBlock             float32
-	HeaderPaddingInline            float32
-	HeaderPaddingBlockSM           float32
-	HeaderPaddingInlineSM          float32
-	HeaderPaddingBlockLG           float32
-	HeaderPaddingInlineLG          float32
-	HeaderGap                      float32 // between arrow, label and extra
+	HeaderBg              Color // header band (Ant: the whole group; zero: none)
+	HeaderColor           Color `contrast:"text:HeaderBg"`
+	ArrowColor            Color `contrast:"nontext:HeaderBg"`
+	ArrowSize             float32
+	HeaderFontSize        float32
+	HeaderFontSizeLG      float32
+	HeaderFontWeight      int     // zero: regular
+	HeaderHeight          float32 // minimum header height and label line height (zero: none)
+	HeaderPaddingBlock    float32
+	HeaderPaddingInline   float32
+	HeaderPaddingBlockSM  float32
+	HeaderPaddingInlineSM float32
+	HeaderPaddingBlockLG  float32
+	HeaderPaddingInlineLG float32
+	HeaderGap             float32 // between arrow, label and extra
+	// HeaderPaddingInlineStartSM / LG pad the start of a small / large
+	// header that has no arrow before the label (antd headerPaddingSM
+	// "8 12 8 8", headerPaddingLG "16 24 16 16"; an arrow at the start
+	// keeps HeaderPaddingInlineSM / LG through its offset margin).
+	HeaderPaddingInlineStartSM float32
+	HeaderPaddingInlineStartLG float32
+	// ExpandIconEnd puts the arrow at the end of the header by default
+	// (Element expand-icon-position "right", shadcn AccordionTrigger).
+	ExpandIconEnd                  bool
 	ContentBg                      Color   // zero: none
 	ContentPaddingBlock            float32 // Element and shadcn: below the content only
 	ContentPaddingInline           float32
@@ -27,7 +36,9 @@ type CollapseToken struct {
 	ContentPaddingInlineLG         float32
 	BorderlessContentPadding       float32 // above the content of a borderless / ghost group
 	BorderlessContentPaddingBottom float32
-	BorderColor                    Color // frame and dividers
+	BorderlessContentPaddingInline float32 // borderless body inline padding (fixed, every size)
+	GhostContentPaddingBlock       float32 // body block padding of a ghost group (inline stays ContentPaddingInline*)
+	BorderColor                    Color   // frame and dividers
 	Radius                         float32
 }
 
@@ -37,28 +48,37 @@ func deriveCollapse(t *Theme) CollapseToken {
 		HeaderFontSize: t.FontSize, HeaderFontSizeLG: t.FontSizeLG,
 		HeaderPaddingBlock: 12, HeaderPaddingInline: 16, HeaderPaddingBlockSM: 8, HeaderPaddingInlineSM: 12,
 		HeaderPaddingBlockLG: 16, HeaderPaddingInlineLG: 24, HeaderGap: 12,
+		HeaderPaddingInlineStartSM: 8, HeaderPaddingInlineStartLG: 16,
+		// contentPadding "16px 16px", contentPaddingSM = paddingSM (12),
+		// contentPaddingLG = paddingLG (24) on every side.
 		ContentBg: t.BgContainer, ContentPaddingBlock: 16, ContentPaddingInline: 16,
-		ContentPaddingBlockSM: 8, ContentPaddingInlineSM: 8, ContentPaddingBlockLG: 16, ContentPaddingInlineLG: 24,
-		BorderlessContentPadding: 4, BorderlessContentPaddingBottom: 16,
-		BorderColor: t.Border, Radius: t.RadiusLG,
+		ContentPaddingBlockSM: 12, ContentPaddingInlineSM: 12, ContentPaddingBlockLG: 24, ContentPaddingInlineLG: 24,
+		// borderlessContentPadding "4px 16px 16px"; ghost body paddingBlock = paddingSM.
+		BorderlessContentPadding: 4, BorderlessContentPaddingBottom: 16, BorderlessContentPaddingInline: 16,
+		GhostContentPaddingBlock: 12,
+		BorderColor:              t.Border, Radius: t.RadiusLG,
 	}
 	switch t.Flavor {
 	case Element:
 		// el-collapse: 48px white headers, 13px medium titles, a light
-		// divider, 25px below the content; one size.
-		k.HeaderBg, k.ArrowColor = t.BgContainer, t.TextSecondary
+		// divider, 25px below the content; one size. The arrow inherits
+		// the header text color (collapse-item.scss __arrow sets no color).
+		k.HeaderBg, k.ArrowColor, k.ExpandIconEnd = t.BgContainer, t.Text, true
 		k.HeaderFontSize, k.HeaderFontSizeLG, k.HeaderFontWeight, k.HeaderHeight = 13, 13, 500, 48
 		k.HeaderPaddingBlock, k.HeaderPaddingInline = 0, 0
 		k.HeaderPaddingBlockSM, k.HeaderPaddingInlineSM, k.HeaderPaddingBlockLG, k.HeaderPaddingInlineLG = 0, 0, 0, 0
+		k.HeaderPaddingInlineStartSM, k.HeaderPaddingInlineStartLG = 0, 0
 		k.HeaderGap, k.ContentPaddingBlock, k.ContentPaddingInline = 8, 25, 0
 		k.BorderColor = t.BorderSecondary
 	case StyleShadcn:
 		// Accordion: no frame, items split by lines, py-4 medium triggers
 		// with a muted 16px chevron, pb-4 content; one size.
 		k.HeaderBg, k.ContentBg, k.ArrowColor, k.ArrowSize = Color{}, Color{}, t.TextTertiary, 16
+		k.ExpandIconEnd = true
 		k.HeaderFontSizeLG, k.HeaderFontWeight = t.FontSize, 500
 		k.HeaderPaddingBlock, k.HeaderPaddingInline = 16, 0
 		k.HeaderPaddingBlockSM, k.HeaderPaddingInlineSM, k.HeaderPaddingBlockLG, k.HeaderPaddingInlineLG = 16, 0, 16, 0
+		k.HeaderPaddingInlineStartSM, k.HeaderPaddingInlineStartLG = 0, 0
 		k.HeaderGap, k.ContentPaddingBlock, k.ContentPaddingInline = 16, 16, 0
 		k.BorderColor = t.Split
 	}

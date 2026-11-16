@@ -239,7 +239,7 @@ func (w *CascaderW) strategyChips() (labels []string, paths [][]string) {
 	el := w.th.Flavor == theme.Element
 	label := func(o CascaderOption, p []string) string {
 		if el {
-			return strings.Join(w.labelsOf(p), " / ")
+			return strings.Join(w.labelsOf(p), w.separator())
 		}
 		return o.Label
 	}

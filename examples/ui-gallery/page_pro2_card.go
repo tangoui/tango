@@ -34,6 +34,15 @@ func pro2CardPage(c *ui.Context) {
 			}, layout.Gap(16))
 		})
 	})
+	gallery.Demo(c, "outlined / borderless / boxShadow", "Pro v3 默认 outlined；boxShadow 使用三级阴影并隐藏边框，ghost / split 子卡去边框。", func() {
+		pro2Canvas(c, func() {
+			ui.Row(c, func() {
+				ui.ProCard(c, "outlined (default)").Layout(layout.Grow(1), layout.Basis(0)).Body(func() { ui.Text(c, "Default") })
+				ui.ProCard(c, "borderless").Borderless().Layout(layout.Grow(1), layout.Basis(0)).Body(func() { ui.Text(c, "Borderless") })
+				ui.ProCard(c, "boxShadow").BoxShadow(true).Layout(layout.Grow(1), layout.Basis(0)).Body(func() { ui.Text(c, "ShadowTertiary") })
+			}, layout.Gap(16))
+		})
+	})
 	gallery.Demo(c, "分栏与栅格", "split 竖向分栏，colSpan 按 24 栅格分配；嵌套横向分栏。", func() {
 		pro2Canvas(c, func() {
 			ui.ProCard(c, "左右分栏").Bordered().HeaderBordered().Split(ui.SplitVertical).Body(func() {
@@ -125,7 +134,7 @@ func pro2StatisticCardPage(c *ui.Context) {
 	})
 	gallery.Demo(c, "指标组与左右图表", "StatisticCardGroup 竖线分隔；图表放在右侧、图标在左侧。", func() {
 		pro2Canvas(c, func() {
-			ui.StatisticCardGroup(c).Body(func() {
+			ui.StatisticCardGroup(c).Split(ui.SplitVertical).Body(func() {
 				ui.StatisticCard(c, "今日UV").Value(79, 0).Desc("较昨日", "8.04%", "up").Show()
 				ui.StatisticCard(c, "冻结金额").Value(112893, 2).Prefix("¥").Desc("较昨日", "2.1%", "down").Show()
 				ui.StatisticCard(c, "信息完整度").Value(92.1, 1).Suffix("%").Show()

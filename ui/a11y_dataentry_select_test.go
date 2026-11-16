@@ -280,7 +280,7 @@ func TestA11yTransfer(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.Settle()
-	if len(target) != 2 || target[1] != "2" {
+	if len(target) != 2 || target[0] != "2" {
 		t.Fatalf("target %v", target)
 	}
 	if rep := d.AuditNoContrast(); rep.MissingInteractiveNames() != 0 || rep.Count(AuditNotKeyboard) != 0 || rep.Count(AuditNoRole) != 0 {

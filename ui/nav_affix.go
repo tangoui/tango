@@ -53,11 +53,15 @@ type AffixW struct {
 // Affix starts a pinned block (default: offset top 0 in the window). Give
 // it Target(scrollBox.ID()) when the page scrolls inside a container.
 //
-// ConfigProvider.Defaults("Affix", ...) keys: "offsetTop" (number).
+// ConfigProvider.Defaults("Affix", ...) keys: "offsetTop", "offsetBottom"
+// (numbers). Element's position="bottom" + offset is OffsetBottom.
 func Affix(c *Context) *AffixW {
 	a := &AffixW{c: c}
 	if v, ok := p2bNum(c, "Affix", "offsetTop"); ok {
 		a.OffsetTop(float32(v))
+	}
+	if v, ok := p2bNum(c, "Affix", "offsetBottom"); ok {
+		a.OffsetBottom(float32(v))
 	}
 	return a
 }
@@ -216,6 +220,9 @@ type AnchorW struct {
 	bounds     float32
 	horizontal bool
 	noInk      bool
+	rail       int // Type: 0 theme default, 1 underline (rail), 2 default (no rail)
+	current    func(active string) string
+	shown      string // highlighted key this frame (after CurrentAnchor)
 	st         *anchorState
 	clicked    string
 	changed    bool
@@ -224,9 +231,12 @@ type AnchorW struct {
 // Anchor starts a table of contents; call Target with the scroll container
 // holding the AnchorSections, then Show.
 func Anchor(c *Context, items []AnchorItem) *AnchorW {
-	a := &AnchorW{c: c, items: items, bounds: 5}
+	a := &AnchorW{c: c, items: items, bounds: c.ThemeFor(theme.CompAnchor).Components.Anchor.Bounds}
 	// ConfigProvider.Defaults("Anchor", ...) keys: "targetOffset" /
-	// "offsetTop", "bounds" (numbers).
+	// "offsetTop", "bounds" (numbers), "direction" ("vertical" |
+	// "horizontal"), "type" ("default" | "underline").
+	a.Direction(Prop(c, "Anchor", "direction", ""))
+	a.Type(Prop(c, "Anchor", "type", ""))
 	if v, ok := p2bNum(c, "Anchor", "targetOffset"); ok {
 		a.offset = float32(v)
 	} else if v, ok := p2bNum(c, "Anchor", "offsetTop"); ok {
@@ -248,11 +258,32 @@ func (a *AnchorW) TargetOffset(px float32) *AnchorW { a.offset = px; return a }
 // Horizontal lays links out in a row with a bottom ink bar.
 func (a *AnchorW) Horizontal() *AnchorW { a.horizontal = true; return a }
 
+// Direction lays the links out "vertical" (default) or "horizontal"
+// (antd direction, Element direction).
+func (a *AnchorW) Direction(d string) *AnchorW { a.horizontal = d == "horizontal"; return a }
+
+// Bounds sets how close (px) a section's top must come to the offset line
+// to become active (antd bounds 5, Element bound 15; default from
+// AnchorToken.Bounds).
+func (a *AnchorW) Bounds(px float32) *AnchorW { a.bounds = px; return a }
+
+// Type picks Element's look: "underline" draws the rail with a thin
+// marker, "default" only a rounded marker. "" follows the theme (Ant and
+// shadcn draw the rail, Element does not).
+func (a *AnchorW) Type(t string) *AnchorW {
+	a.rail = map[string]int{"underline": 1, "default": 2}[t]
+	return a
+}
+
+// CurrentAnchor customizes the highlighted link (antd getCurrentAnchor):
+// fn gets the key scrolling selected and returns the key to highlight.
+func (a *AnchorW) CurrentAnchor(fn func(active string) string) *AnchorW { a.current = fn; return a }
+
 // NoInk hides the ink rail (Element "underline" off).
 func (a *AnchorW) NoInk() *AnchorW { a.noInk = true; return a }
 
 // Active returns the highlighted key.
-func (a *AnchorW) Active() string { return a.st.active }
+func (a *AnchorW) Active() string { return a.shown }
 
 // Clicked returns the key clicked this frame.
 func (a *AnchorW) Clicked() string { return a.clicked }
@@ -308,7 +339,6 @@ func (a *AnchorW) Show() *AnchorW {
 	c := a.c
 	th := c.ThemeFor(theme.CompAnchor)
 	tk := &th.Components.Anchor
-	el := navEl(c)
 	var flat []anchorFlat
 	flattenAnchor(a.items, 0, &flat)
 	b := c.box("anchor", layout.Column, nil)
@@ -327,6 +357,13 @@ func (a *AnchorW) Show() *AnchorW {
 	} else if act := a.computeActive(flat); act != "" {
 		a.st.active = act
 	}
+	// The highlighted key: CurrentAnchor maps the computed one each frame
+	// (antd getCurrentAnchor gets the internal value, not its own output).
+	shown := a.st.active
+	if a.current != nil {
+		shown = a.current(a.st.active)
+	}
+	a.shown = shown
 	var nodes []*node
 	var active *node
 	link := func(f anchorFlat) {
@@ -339,6 +376,9 @@ func (a *AnchorW) Show() *AnchorW {
 			indent = 0
 		}
 		lh := 22 + 2*tk.LinkPaddingBlock
+		if f.level > 0 {
+			lh = 22 + 2*tk.LinkPaddingBlockNested // antd anchorPaddingBlockSecondary
+		}
 		n.ln.Measure = func(maxW, _ float32) geom.Size {
 			if a.horizontal {
 				return geom.Size{W: text.Width(it.Title, st), H: lh}
@@ -347,7 +387,7 @@ func (a *AnchorW) Show() *AnchorW {
 		}
 		n.ln.NoStretch = a.horizontal
 		ia := c.interact(n, true, input.CursorPointer)
-		isActive := it.Key == a.st.active
+		isActive := it.Key == shown
 		if isActive {
 			active = n
 		}
@@ -364,7 +404,7 @@ func (a *AnchorW) Show() *AnchorW {
 					sr, ok1 := c.rects[id]
 					vr, ok2 := c.rects[a.target]
 					if ok1 && ok2 {
-						navScrollTo(c, a.target, float32(s.off.Y)+sr.Y-vr.Y-a.offset, th.DurationSlow+200e6)
+						navScrollTo(c, a.target, float32(s.off.Y)+sr.Y-vr.Y-a.offset, tk.ScrollDuration)
 					}
 				}
 			}
@@ -417,17 +457,29 @@ func (a *AnchorW) Show() *AnchorW {
 			return
 		}
 		rail := tk.RailWidth
+		showRail := tk.ShowRail
+		iw, ih, irad := tk.InkWidth, tk.InkHeight, tk.InkRadius
+		switch a.rail {
+		case 1: // Element underline: the rail and a thin square marker
+			showRail, iw, irad = true, rail, 0
+		case 2:
+			showRail = false
+		}
+		if iw == 0 {
+			iw = rail
+		}
 		// The rail runs along the start edge.
-		rx := c.inline(r).X(0, rail)
-		l.Fill(geom.Rect{X: rx, Y: r.Y, W: rail, H: r.H}, geom.Radii{}, tk.RailColor)
+		sp := c.inline(r)
+		if showRail {
+			l.Fill(geom.Rect{X: sp.X(0, rail), Y: r.Y, W: rail, H: r.H}, geom.Radii{}, tk.RailColor)
+		}
 		if active != nil {
 			y := c.Anim(id, "ink-y", active.abs.Y-r.Y, th.DurationSlow)
-			if el {
-				// Element: a short marker centered on the link.
-				l.Fill(geom.Rect{X: rx, Y: r.Y + y + 7, W: rail, H: 16}, geom.Rad(1), tk.InkBarColor)
-			} else {
-				l.Fill(geom.Rect{X: rx, Y: r.Y + y + 4, W: rail, H: active.abs.H - 8}, geom.Radii{}, tk.InkBarColor)
+			h := ih
+			if h == 0 {
+				h = 22 // antd: as tall as the link title
 			}
+			l.Fill(geom.Rect{X: sp.X(0, iw), Y: r.Y + y + (active.abs.H-h)/2, W: iw, H: h}, geom.Rad(min(irad, iw/2)), tk.InkBarColor)
 		}
 	})
 	a.changed = prev != "" && prev != a.st.active

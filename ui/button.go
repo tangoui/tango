@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"time"
 	"unicode"
 
 	"github.com/tangoui/tango/ui/a11y"
@@ -124,6 +125,12 @@ type ButtonW struct {
 	grp      *ButtonGroupW    // enclosing ButtonGroup (direct child), nil otherwise
 	// autoSpace: AutoInsertSpace (Defaults "autoInsertSpace").
 	autoSpace bool
+	// loadIc replaces the spinner (LoadingIcon); loadDelay postpones
+	// the loading state (LoadingDelay), loadShown is its resolution.
+	loadIc    *icon.Icon
+	loadDelay time.Duration
+	loadShown bool
+	loadZ     *lazy
 }
 
 // Button adds a button.
@@ -137,7 +144,16 @@ func Button(c *Context, label string) *ButtonW {
 	b.n.ln.NoStretch = true
 	b.n.paint = b.paint
 	b.ia = c.interact(b.n, true, input.CursorPointer)
+	// Ant inserts a space between two Chinese characters by default,
+	// Element and shadcn do not (ButtonToken.AutoInsertSpace).
+	b.autoSpace = b.tk.AutoInsertSpace
 	b.configDefaults()
+	// Defaults("Button", {"iconPlacement": "start" | "end"}) (Ant v6).
+	if p, ok := c.ConfigProp("Button", "iconPlacement"); ok {
+		if s, ok := p.(string); ok {
+			b.IconPlacement(s)
+		}
+	}
 	b.joinGroup()
 	return b
 }
@@ -195,9 +211,10 @@ func (b *ButtonW) Size(s ControlSize) *ButtonW { b.size = s; return b }
 // is drawn with a space between them ("确定" shows as "确 定"; Ant / Element
 // ConfigProvider button.autoInsertSpace). It applies only to buttons
 // without an icon whose appearance is not text or link; the accessible
-// name keeps the label as given. Off by default in every design system
-// (Element's default); Defaults("Button", Props{"autoInsertSpace": true})
-// turns it on for a scope, as Ant does by default.
+// name keeps the label as given. The default follows the design system
+// (ButtonToken.AutoInsertSpace: on for Ant, off for Element and shadcn);
+// Defaults("Button", Props{"autoInsertSpace": …}) overrides it for a
+// scope and this method for one button.
 func (b *ButtonW) AutoInsertSpace(on bool) *ButtonW { b.autoSpace = on; return b }
 
 // shownLabel is the label as drawn (AutoInsertSpace applied).
@@ -221,8 +238,24 @@ func (b *ButtonW) Circle() *ButtonW { b.circle = true; return b }
 // Icon puts an icon before the label.
 func (b *ButtonW) Icon(ic *icon.Icon) *ButtonW { b.ic = ic; return b }
 
-// IconRight puts the icon after the label.
+// IconRight puts the icon after the label (Icon(ic).IconPlacement("end")).
 func (b *ButtonW) IconRight(ic *icon.Icon) *ButtonW { b.ic, b.icRight = ic, true; return b }
+
+// IconPlacement places the icon at the inline "start" of the label
+// (default) or at its "end" (Ant v6 iconPlacement, which replaces
+// iconPosition). Both are logical: "end" is on the left in a right-to-left
+// scope. Other values are ignored.
+//
+//	ui.Button(c, "下一步").Icon(icon.Right).IconPlacement("end")
+func (b *ButtonW) IconPlacement(p string) *ButtonW {
+	switch p {
+	case "start":
+		b.icRight = false
+	case "end":
+		b.icRight = true
+	}
+	return b
+}
 
 // Block stretches the button to the container width.
 func (b *ButtonW) Block() *ButtonW {
@@ -245,6 +278,52 @@ func (b *ButtonW) Disabled(on bool) *ButtonW {
 // Loading shows a spinner and blocks clicks.
 func (b *ButtonW) Loading(on bool) *ButtonW { b.loading = on; b.n.stateIf(on, a11y.Busy); return b }
 
+// LoadingIcon replaces the loading spinner with ic, drawn spinning (Ant
+// loading.icon, Element loading-icon).
+func (b *ButtonW) LoadingIcon(ic *icon.Icon) *ButtonW { b.loadIc = ic; return b }
+
+// LoadingDelay postpones the loading state (Ant loading.delay): after
+// Loading(true) the button stays clickable and shows no spinner until d
+// has passed; a loading that ends sooner never shows.
+func (b *ButtonW) LoadingDelay(d time.Duration) *ButtonW {
+	b.loadDelay = d
+	if b.loadZ == nil {
+		b.loadZ = b.c.lazy(b.n, b.resolveLoading)
+	}
+	return b
+}
+
+// resolveLoading decides, once all modifiers are applied, whether a
+// delayed loading state shows yet.
+func (b *ButtonW) resolveLoading() {
+	c := b.c
+	since := State[time.Time](c, hashID(b.n.id, "load-delay"), nil)
+	if !b.loading || b.loadDelay <= 0 {
+		*since = time.Time{}
+		b.loadShown = b.loading
+		return
+	}
+	if since.IsZero() {
+		*since = c.Now()
+	}
+	at := since.Add(b.loadDelay)
+	b.loadShown = !c.Now().Before(at)
+	if !b.loadShown {
+		c.WakeAt(at)
+		b.n.aState &^= a11y.Busy
+	}
+}
+
+// isLoading reports whether the loading state shows (LoadingDelay
+// applied).
+func (b *ButtonW) isLoading() bool {
+	if b.loadZ != nil {
+		b.loadZ.run()
+		return b.loadShown
+	}
+	return b.loading
+}
+
 // A11yLabel sets the accessible name read by screen readers. Icon-only
 // buttons (no label) must set one, from the Locale: Button(c, "").Icon(ic).A11yLabel(loc.Search).
 func (b *ButtonW) A11yLabel(s string) *ButtonW { b.n.setName(s); return b }
@@ -256,7 +335,7 @@ func (b *ButtonW) Layout(opts ...layout.Option) *ButtonW {
 }
 
 // Clicked reports activation (never when disabled or loading).
-func (b *ButtonW) Clicked() bool { return b.ia.Clicked && !b.isDisabled() && !b.loading }
+func (b *ButtonW) Clicked() bool { return b.ia.Clicked && !b.isDisabled() && !b.isLoading() }
 
 // Hovered reports hover.
 func (b *ButtonW) Hovered() bool { return b.ia.Hovered }
@@ -317,14 +396,14 @@ func (b *ButtonW) measure(_, _ float32) geom.Size {
 		return geom.Size{W: h, H: h}
 	}
 	w := text.Width(b.shownLabel(), b.font())
-	if b.ic != nil || b.loading {
+	if b.ic != nil || b.isLoading() {
 		w += b.iconSize() + b.gap()
 	}
 	pad := b.padX()
 	if b.th.Flavor == theme.Element && b.appearance() == ButtonLink {
 		pad = 0
 	}
-	if (b.ic != nil || b.loading) && b.label != "" && b.shad() {
+	if (b.ic != nil || b.isLoading()) && b.label != "" && b.shad() {
 		pad -= shadButtonIconPadCut(b.size) // has-[>svg]:px-3 / px-2.5 / px-4
 	}
 	return geom.Size{W: w + 2*pad + 2, H: h}
@@ -528,7 +607,8 @@ func (b *ButtonW) radius(r geom.Rect) geom.Radii {
 func (b *ButtonW) paint(l *paint.List, r geom.Rect) {
 	lk := b.look()
 	rad := b.radius(r)
-	if b.loading {
+	loading := b.isLoading()
+	if loading {
 		l.Opacity(0.65)
 	}
 	if lk.opacity > 0 && lk.opacity < 1 {
@@ -547,54 +627,66 @@ func (b *ButtonW) paint(l *paint.List, r geom.Rect) {
 	lay := text.Shape(b.shownLabel(), st, b.c.textOpts(text.Options{NoWrap: true}))
 	is := b.iconSize()
 	ic := b.ic
-	if b.loading {
+	if loading {
 		ic = icon.Loading
-	}
-	contentW := lay.Width
-	if b.label == "" {
-		contentW = 0
-	}
-	if ic != nil {
-		if contentW > 0 {
-			contentW += b.gap()
+		if b.loadIc != nil {
+			ic = b.loadIc
 		}
-		contentW += is
 	}
-	// Content runs from the inline start: the leading icon sits right of
-	// the label in RTL.
-	s := b.c.inline(r)
-	off := (r.W - contentW) / 2
 	ty := r.Y + (r.H-lay.Height)/2
 	iy := r.Y + (r.H-is)/2
-	gap := b.gap()
-	drawIc := func(off float32) {
+	icX, labelX := b.place(r, lay.Width, ic != nil)
+	if ic != nil {
 		ang := 0.0
-		if b.loading {
+		if loading {
 			ang = spinAngle(b.c)
 		}
-		b.c.paintIcon(l, ic, s.Rect(off, iy, is, is), lk.fg, ang)
-	}
-	if ic != nil && !b.icRight {
-		drawIc(off)
-		off += is + gap
+		b.c.paintIcon(l, ic, geom.Rect{X: icX, Y: iy, W: is, H: is}, lk.fg, ang)
 	}
 	if b.label != "" {
-		x := s.X(off, lay.Width)
-		l.Glyphs(geom.Pt(x, ty), lay.Glyphs, lk.fg)
+		l.Glyphs(geom.Pt(labelX, ty), lay.Glyphs, lk.fg)
 		if lk.underline && len(lay.Lines) > 0 {
-			l.Fill(geom.Rect{X: x, Y: ty + lay.Lines[0].Baseline + 3, W: lay.Width, H: 1}, geom.Radii{}, lk.fg)
+			l.Fill(geom.Rect{X: labelX, Y: ty + lay.Lines[0].Baseline + 3, W: lay.Width, H: 1}, geom.Radii{}, lk.fg)
 		}
-		off += lay.Width + gap
 	}
-	if ic != nil && b.icRight {
-		drawIc(off)
-	}
-	if b.loading {
+	if loading {
 		l.Pop()
 	}
 	if b.grp == nil { // a group raises the ring above the neighbours
 		b.focusRing(l, r, rad)
 	}
+}
+
+// place returns the physical x of the icon and of the label (width labelW)
+// centred as a group in r. Content runs from the inline start: an icon
+// placed at the start sits right of the label in RTL, one at the end left
+// of it.
+func (b *ButtonW) place(r geom.Rect, labelW float32, hasIcon bool) (iconX, labelX float32) {
+	is, gap := b.iconSize(), b.gap()
+	contentW := labelW
+	if b.label == "" {
+		contentW = 0
+	}
+	if hasIcon {
+		if contentW > 0 {
+			contentW += gap
+		}
+		contentW += is
+	}
+	s := b.c.inline(r)
+	off := (r.W - contentW) / 2
+	if hasIcon && !b.icRight {
+		iconX = s.X(off, is)
+		off += is + gap
+	}
+	if b.label != "" {
+		labelX = s.X(off, labelW)
+		off += labelW + gap
+	}
+	if hasIcon && b.icRight {
+		iconX = s.X(off, is)
+	}
+	return iconX, labelX
 }
 
 // strokeBorder draws the 1px border of lk (dashed for dashed buttons).

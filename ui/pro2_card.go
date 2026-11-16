@@ -63,6 +63,8 @@ type ProCardW struct {
 	headerBordered bool
 	ghost          bool
 	hoverable      bool
+	boxShadow      bool
+	outlined       bool // resolved border of the last Body
 	small          bool
 	center         bool
 	bodyPad        *geom.Insets
@@ -102,7 +104,11 @@ func pro2Stack(c *Context) *pro2CardStack {
 //
 // ConfigProvider.Defaults("ProCard", ...) keys: "size" ("small" |
 // "default" or a ControlSize), "bordered", "headerBordered", "ghost",
-// "hoverable", "collapsible" (bool), "gutter" (number).
+// "hoverable", "collapsible", "boxShadow" (bool), "gutter" (number).
+//
+// Like Pro Components v3 (variant defaults to "outlined") a card is
+// bordered unless Borderless is set; ghost cards and split children have
+// no border.
 func ProCard(c *Context, title string) *ProCardW {
 	w := &ProCardW{c: c, title: title, small: c.defaultSize() == Small}
 	if s, ok := proPropSize(c, "ProCard"); ok {
@@ -114,6 +120,7 @@ func ProCard(c *Context, title string) *ProCardW {
 	w.headerBordered = Prop(c, "ProCard", "headerBordered", false)
 	w.ghost = Prop(c, "ProCard", "ghost", false)
 	w.hoverable = Prop(c, "ProCard", "hoverable", false)
+	w.boxShadow = Prop(c, "ProCard", "boxShadow", false)
 	w.collapsible = Prop(c, "ProCard", "collapsible", false)
 	if v, ok := p2bNum(c, "ProCard", "gutter"); ok {
 		w.gutter = float32(v)
@@ -170,10 +177,11 @@ func (w *ProCardW) DefaultCollapsed() *ProCardW {
 // Loading shows the animated loading placeholder instead of the body.
 func (w *ProCardW) Loading(on bool) *ProCardW { w.loading = on; return w }
 
-// Bordered draws a border around the card.
+// Bordered draws a border around the card (the default; it overrides a
+// "bordered": false ConfigProvider default).
 func (w *ProCardW) Bordered() *ProCardW { w.bordered, w.borderSet = true, true; return w }
 
-// Borderless removes the border (Element cards are bordered by default).
+// Borderless removes the border (Pro v3 variant "borderless").
 func (w *ProCardW) Borderless() *ProCardW { w.bordered, w.borderSet = false, true; return w }
 
 // HeaderBordered draws a divider under the header.
@@ -181,6 +189,10 @@ func (w *ProCardW) HeaderBordered() *ProCardW { w.headerBordered = true; return 
 
 // Ghost removes the background and the body padding.
 func (w *ProCardW) Ghost() *ProCardW { w.ghost = true; return w }
+
+// BoxShadow gives the card the tertiary shadow and hides its border
+// (Pro v3 boxShadow).
+func (w *ProCardW) BoxShadow(on bool) *ProCardW { w.boxShadow = on; return w }
 
 // Hoverable lifts the card with a shadow on hover.
 func (w *ProCardW) Hoverable() *ProCardW { w.hoverable = true; return w }
@@ -301,28 +313,33 @@ func (w *ProCardW) Body(fn func()) *ProCardW {
 		rad = shad2dCardRadius(th) // Card: rounded-xl
 	}
 	bordered := w.bordered
-	if !w.borderSet && (el || shad) {
-		bordered = true // el-card and shadcn Card are outlined
+	if !w.borderSet {
+		bordered = true // Pro v3 variant defaults to "outlined"
 	}
 	if w.inSplit != "" || w.ghost {
 		bordered = false
 	}
+	w.outlined = bordered
 	border := th.BorderSecondary
 	if th.CardBorder.A > 0 {
 		border = th.CardBorder
 	}
 	if w.inSplit == "" && !w.ghost {
 		b.Bg(th.BgContainer).Radius(rad)
-		if bordered {
+		if bordered && !w.boxShadow { // box-shadow: border-color transparent
 			b.PaintOver(func(l *paint.List, r geom.Rect) { l.Stroke(r, geom.Rad(rad), 1, border) })
 		}
 		switch {
 		case w.hoverable:
 			w.ia = b.Interact(input.CursorPointer)
 			a := c.Anim(b.n.id, "hover", b2f(w.ia.Hovered), th.DurationMid)
-			if a > 0 {
+			if w.boxShadow && a == 0 {
+				b.Shadow(th.ShadowTertiary)
+			} else if a > 0 {
 				b.Shadow(pro2FadeShadows(th.Shadow, a))
 			}
+		case w.boxShadow:
+			b.Shadow(th.ShadowTertiary)
 		case el && bordered:
 			b.Shadow(th.ShadowTertiary)
 		case len(th.CardShadow) > 0:
@@ -583,7 +600,7 @@ func (w *ProCardW) content(fn func(), pad geom.Insets) {
 			ln.Width = k.colWidth
 			ln.NoStretch = true
 		}
-		if i > 0 && w.split != "" {
+		if i > 0 && w.split != "" && !pro2CardOwnDividerBefore(k.box.n) {
 			vertical := row
 			k.box.Paint(func(l *paint.List, r geom.Rect) {
 				if vertical {
@@ -594,6 +611,22 @@ func (w *ProCardW) content(fn func(), pad geom.Insets) {
 			})
 		}
 	}
+}
+
+// pro2CardOwnDividerBefore reports whether the previous sibling already
+// supplies the separation (StatisticCardGroup operation / explicit divider).
+// Such nodes are not cards, so frame.kids alone cannot identify them.
+func pro2CardOwnDividerBefore(n *node) bool {
+	if n.parent == nil {
+		return false
+	}
+	for i, k := range n.parent.kids {
+		if k == n && i > 0 {
+			label := n.parent.kids[i-1].label
+			return label == "pro2-stat-op" || label == "pro2-stat-divider"
+		}
+	}
+	return false
 }
 
 // pro2CardLoading paints ProCard's loading placeholder: rows of animated

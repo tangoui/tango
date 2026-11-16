@@ -71,6 +71,12 @@ func (w *ColorPickerPanelW) PresetGroups(groups ...ColorPresetGroup) *ColorPicke
 // PresetLabel names the preset group (Ant).
 func (w *ColorPickerPanelW) PresetLabel(s string) *ColorPickerPanelW { w.cp.presetName = s; return w }
 
+// DisabledFormat leaves the format select out (Ant disabledFormat).
+func (w *ColorPickerPanelW) DisabledFormat(on bool) *ColorPickerPanelW {
+	w.cp.noFormat = on
+	return w
+}
+
 // NoAlpha hides the alpha bar and input.
 func (w *ColorPickerPanelW) NoAlpha() *ColorPickerPanelW { w.cp.noAlpha = true; return w }
 

@@ -341,6 +341,73 @@ func TestPro2ProCardTabsAndLoading(t *testing.T) {
 // ---------------------------------------------------------------------------
 // StatisticCard
 
+// TestProCardVariantAndBoxShadow: Pro v3 variant defaults to "outlined"
+// in every theme; ghost cards and split children drop the border;
+// BoxShadow (or the "boxShadow" default) adds boxShadowTertiary.
+func TestProCardVariantAndBoxShadow(t *testing.T) {
+	themes := pro2Themes()
+	themes["shadcn"] = func() *theme.Theme { return theme.Shadcn() }
+	for name, mk := range themes {
+		t.Run(name, func(t *testing.T) {
+			var plain, less, ghost, kid, shadow, defShadow *ProCardW
+			th := mk()
+			pro2Driver(th, 900, 700, func(c *Context) {
+				plain = ProCard(c, "Plain").Body(func() {})
+				less = ProCard(c, "Less").Borderless().Body(func() {})
+				ghost = ProCard(c, "Ghost").Ghost().Body(func() {})
+				ProCard(c, "").Split(SplitVertical).Body(func() {
+					kid = ProCard(c, "Kid").Body(func() {})
+				})
+				shadow = ProCard(c, "Shadow").BoxShadow(true).Body(func() {})
+				ConfigProvider(c).Defaults("ProCard", Props{"boxShadow": true}).Body(func() {
+					defShadow = ProCard(c, "Def").Body(func() {})
+				})
+			})
+			if !plain.outlined {
+				t.Fatal("default card must be outlined")
+			}
+			if less.outlined || ghost.outlined || kid.outlined {
+				t.Fatalf("borderless=%v ghost=%v split kid=%v must have no border", less.outlined, ghost.outlined, kid.outlined)
+			}
+			for _, w := range []*ProCardW{shadow, defShadow} {
+				if !w.boxShadow || len(w.box.shadows) != len(th.ShadowTertiary) || w.box.shadows[0] != th.ShadowTertiary[0] {
+					t.Fatalf("%q: boxShadow must use ShadowTertiary, got %v", w.title, w.box.shadows)
+				}
+				if w.box.n.over != nil {
+					t.Fatalf("%q: boxShadow border must be transparent (no stroke)", w.title)
+				}
+			}
+			if plain.box.n.over == nil || less.box.n.over != nil || ghost.box.n.over != nil || kid.box.n.over != nil {
+				t.Fatal("only the default outlined card should paint an outer stroke")
+			}
+			var override *ProCardW
+			pro2Driver(th, 900, 300, func(c *Context) {
+				ConfigProvider(c).Defaults("ProCard", Props{"boxShadow": true, "bordered": false}).Body(func() {
+					override = ProCard(c, "Override").BoxShadow(false).Bordered().Body(nil)
+				})
+			})
+			if override.boxShadow || !override.outlined || override.box.n.over == nil {
+				t.Fatal("explicit BoxShadow(false) / Bordered must win over Defaults")
+			}
+		})
+	}
+}
+
+// Explicit statistic separators are siblings of cards, not frame.kids.
+func TestProCardOwnDividerBefore(t *testing.T) {
+	for _, label := range []string{"pro2-stat-op", "pro2-stat-divider", "ordinary"} {
+		first, separator, last := &node{}, &node{label: label}, &node{}
+		parent := &node{kids: []*node{first, separator, last}}
+		first.parent, last.parent = parent, parent
+		if pro2CardOwnDividerBefore(first) {
+			t.Fatal("first child must not suppress a divider")
+		}
+		if got, want := pro2CardOwnDividerBefore(last), label != "ordinary"; got != want {
+			t.Fatalf("previous sibling %q: got %v, want %v", label, got, want)
+		}
+	}
+}
+
 func TestPro2StatisticCard(t *testing.T) {
 	for name, mk := range pro2Themes() {
 		t.Run(name, func(t *testing.T) {
@@ -525,10 +592,120 @@ func TestPro2ProSkeleton(t *testing.T) {
 			// Toggles drop parts.
 			var empty *Box
 			pro2Driver(mk(), 900, 900, func(c *Context) {
-				empty = ProSkeleton(c, "").PageHeader(false).Statistic(0).List(0).Show()
+				// Pro v3: list=false keeps the toolbar card, so the
+				// toolbar is hidden on its own (was hidden by List(0)).
+				empty = ProSkeleton(c, "").PageHeader(false).Statistic(0).List(0).Toolbar(false).Show()
 			})
 			if h := empty.Rect().H; h > 1 {
 				t.Fatalf("empty skeleton height %v", h)
+			}
+		})
+	}
+}
+
+// pro2SkelBlocks counts the skeleton blocks under n.
+func pro2SkelBlocks(n *node) int {
+	blocks := 0
+	var walk func(n *node)
+	walk = func(n *node) {
+		if n.label == "" && n.ln.Measure != nil && n.paint != nil && len(n.kids) == 0 {
+			blocks++
+		}
+		for _, k := range n.kids {
+			walk(k)
+		}
+	}
+	walk(n)
+	return blocks
+}
+
+// TestProSkeletonStatisticDefault: Pro v3 renders 2 statistics in a
+// browser at every width (first true breakpoint key is xs or sm);
+// Statistic(n) and the "statistic" default win.
+func TestProSkeletonStatisticDefault(t *testing.T) {
+	themes := pro2Themes()
+	themes["shadcn"] = func() *theme.Theme { return theme.Shadcn() }
+	for name, mk := range themes {
+		t.Run(name, func(t *testing.T) {
+			count := func(width float32, page func(c *Context) *ProSkeletonW) int {
+				var b *Box
+				pro2Driver(mk(), width, 400, func(c *Context) {
+					b = page(c).PageHeader(false).Toolbar(false).List(0).Show()
+				})
+				return pro2SkelBlocks(b.n) / 2
+			}
+			for _, w := range []float32{500, 900, 1300} {
+				if n := count(w, func(c *Context) *ProSkeletonW { return ProSkeleton(c, SkeletonList) }); n != 2 {
+					t.Fatalf("width %v: %d statistics, want 2", w, n)
+				}
+			}
+			if n := count(1300, func(c *Context) *ProSkeletonW { return ProSkeleton(c, SkeletonList).Statistic(3) }); n != 3 {
+				t.Fatalf("Statistic(3): %d", n)
+			}
+			n := 0
+			var b *Box
+			pro2Driver(mk(), 1300, 400, func(c *Context) {
+				ConfigProvider(c).Defaults("ProSkeleton", Props{"statistic": 5}).Body(func() {
+					b = ProSkeleton(c, SkeletonList).PageHeader(false).Toolbar(false).List(0).Show()
+				})
+			})
+			if n = pro2SkelBlocks(b.n) / 2; n != 5 {
+				t.Fatalf("Defaults statistic 5: %d", n)
+			}
+			pro2Driver(mk(), 1300, 400, func(c *Context) {
+				ConfigProvider(c).Defaults("ProSkeleton", Props{"statistic": 5}).Body(func() {
+					b = ProSkeleton(c, SkeletonList).Statistic(3).PageHeader(false).Toolbar(false).List(0).Show()
+				})
+			})
+			if n = pro2SkelBlocks(b.n) / 2; n != 3 {
+				t.Fatalf("explicit Statistic(3) must win over Defaults statistic 5: %d", n)
+			}
+		})
+	}
+}
+
+// TestProSkeletonListAndToolbar: on the list page List(0) keeps the
+// toolbar; on the descriptions page List sets the table rows (default 4)
+// and List(0) drops the table card. Columns follow the observed Pro v3
+// breakpoint (1 on xs, 2 otherwise).
+func TestProSkeletonListAndToolbar(t *testing.T) {
+	for name, mk := range pro2Themes() {
+		t.Run(name, func(t *testing.T) {
+			var tb *Box
+			pro2Driver(mk(), 900, 600, func(c *Context) {
+				tb = ProSkeleton(c, SkeletonList).PageHeader(false).Statistic(0).List(0).Show()
+			})
+			if tb.Rect().H < 20 {
+				t.Fatalf("List(0) must keep the toolbar: height %v", tb.Rect().H)
+			}
+			desc := func(width float32, mod func(s *ProSkeletonW)) (*Box, int) {
+				var b *Box
+				pro2Driver(mk(), width, 900, func(c *Context) {
+					s := ProSkeleton(c, SkeletonDescriptions).PageHeader(false)
+					mod(s)
+					b = s.Show()
+				})
+				return b, len(b.n.kids)
+			}
+			// Descriptions card: title + 3 rows x cols x 2 bars.
+			// Table card: title + (rows+1) x (cols+1) bars.
+			b, cards := desc(900, func(*ProSkeletonW) {})
+			if cards != 3 || pro2SkelBlocks(b.n.kids[2]) != 1+5*3 {
+				t.Fatalf("default table: children=%d (cards + divider), blocks=%d", cards, pro2SkelBlocks(b.n.kids[len(b.n.kids)-1]))
+			}
+			if got := pro2SkelBlocks(b.n.kids[0]); got != 1+3*2*2 {
+				t.Fatalf("descriptions items at md: %d", got)
+			}
+			b, _ = desc(900, func(s *ProSkeletonW) { s.List(2) })
+			if got := pro2SkelBlocks(b.n.kids[2]); got != 1+3*3 {
+				t.Fatalf("List(2) table blocks %d", got)
+			}
+			if _, cards = desc(900, func(s *ProSkeletonW) { s.List(0) }); cards != 1 {
+				t.Fatalf("List(0) must hide the table: %d cards", cards)
+			}
+			b, _ = desc(500, func(*ProSkeletonW) {})
+			if got := pro2SkelBlocks(b.n.kids[0]); got != 1+3*1*2 {
+				t.Fatalf("descriptions items at xs: %d", got)
 			}
 		})
 	}

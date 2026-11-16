@@ -304,7 +304,7 @@ type Theme struct {
 	SiderCollapsed  float32
 	SiderText       Color // menu text on dark sider
 	SiderTextActive Color
-	// Deprecated: use Components.Menu.DarkSubMenuItemBg / Components.Layout.TriggerBg (the field remains the source of the derived default).
+	// Deprecated: use Components.Menu.DarkSubMenuItemBg / Components.Layout.TriggerBg (the field remains the source of the derived default of Components.Menu.DarkSubMenuItemBg, and of Layout.TriggerBg except in the light Ant theme, which uses antd's #002140).
 	SiderSubmenuBg   Color
 	SiderItemHoverBg Color
 	// Deprecated: use Components.Menu.ItemHeight (the field remains the source of the derived default).
@@ -428,7 +428,8 @@ func antDesignCore(o options, full bool) *Theme {
 		t.ControlOutline = RGBA(5, 145, 255, .1)
 		t.Shadow = []paint.Shadow{sh(0, 6, 16, 0, RGBA(0, 0, 0, .08)), sh(0, 3, 6, -4, RGBA(0, 0, 0, .12)), sh(0, 9, 28, 8, RGBA(0, 0, 0, .05))}
 		t.ShadowSecondary = t.Shadow
-		t.ShadowTertiary = []paint.Shadow{sh(0, 1, 2, 0, RGBA(0, 0, 0, .03)), sh(0, 1, 6, -1, RGBA(0, 0, 0, .02)), sh(0, 2, 4, 0, RGBA(0, 0, 0, .02))}
+		// boxShadowTertiary (antd 6.7 es/theme/util/alias.js): colorShadow #000 at .05 / .03 / .03.
+		t.ShadowTertiary = []paint.Shadow{sh(0, 1, 2, 0, RGBA(0, 0, 0, .05)), sh(0, 1, 6, -1, RGBA(0, 0, 0, .03)), sh(0, 2, 4, 0, RGBA(0, 0, 0, .03))}
 		t.ButtonShadow = []paint.Shadow{sh(0, 2, 0, 0, RGBA(0, 0, 0, .02))}
 		t.PrimaryShadow = []paint.Shadow{sh(0, 2, 0, 0, RGBA(5, 145, 255, .1))}
 		t.DangerShadow = []paint.Shadow{sh(0, 2, 0, 0, RGBA(255, 38, 5, .06))}
@@ -471,7 +472,7 @@ func antDesignCore(o options, full bool) *Theme {
 		t.HeaderBg = Hex("#141414")
 		t.SiderLightBg = Hex("#141414")
 		t.TableHeaderBg = Hex("#1d1d1d")
-		t.TableRowHoverBg = Hex("#262626")
+		t.TableRowHoverBg = Hex("#1d1d1d") // antd rowHoverBg: colorFillAlter over colorBgContainer (table/style/index.js)
 		t.TextOnPrimary = Hex("#ffffff")
 	}
 	t.ItemSelectedBg = t.Primary.Bg
@@ -512,7 +513,8 @@ func antDesignCore(o options, full bool) *Theme {
 	t.AddonBg, t.AddonText = t.FillAlter, t.Text
 	t.MarkBg = Hex("#ffe58f") // gold-3
 	if o.dark {
-		t.TableSorterIdle, t.TableFixedShadowAlpha = t.TextQuaternary, .6
+		// headerIconColor: colorIcon (.45) × opacityLoading (.65) (table/style/index.js).
+		t.TableSorterIdle, t.TableFixedShadowAlpha = RGBA(255, 255, 255, .29), .6
 		t.StatusDefault = t.TextQuaternary
 		t.SkeletonBg, t.SkeletonHighlight = RGBA(255, 255, 255, .12), RGBA(255, 255, 255, .2)
 		t.AddonBg = t.FillQuaternary

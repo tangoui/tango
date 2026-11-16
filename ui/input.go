@@ -171,6 +171,7 @@ type InputW struct {
 
 	kind  input.TextKind // Kind
 	enter input.EnterKey // EnterKey
+	noEye bool           // VisibilityToggle(false)
 }
 
 type inputState struct {
@@ -231,6 +232,14 @@ func (w *InputW) EnterKey(k input.EnterKey) *InputW { w.enter = k; return w }
 
 // Password masks the value and adds a visibility toggle.
 func (w *InputW) Password() *InputW { w.password = true; return w }
+
+// VisibilityToggle shows (true, the default) or hides the eye button of a
+// Password field (antd Input.Password visibilityToggle; Element
+// type="password" without show-password).
+func (w *InputW) VisibilityToggle(on bool) *InputW { w.noEye = !on; return w }
+
+// eye reports whether the password visibility button is shown.
+func (w *InputW) eye() bool { return w.password && !w.noEye }
 
 // Disabled disables editing.
 func (w *InputW) Disabled(on bool) *InputW {
@@ -315,7 +324,7 @@ func (w *InputW) suffixWidth() float32 {
 	if w.allowClear {
 		sw += is + 4
 	}
-	if w.password {
+	if w.eye() {
 		sw += is + 4
 	}
 	if w.suffix != nil {
@@ -376,7 +385,7 @@ func (w *InputW) finish() {
 	if w.box.disabled {
 		return
 	}
-	if w.password || w.allowClear && *w.val != "" {
+	if w.eye() || w.allowClear && *w.val != "" {
 		w.parts()
 	}
 	if w.boxIA.PressedNow && !w.edIA.PressedNow {
@@ -422,7 +431,7 @@ func (w *InputW) parts() {
 		}
 		return ia, n
 	}
-	if w.password {
+	if w.eye() {
 		name := loc.A11y.ShowPassword
 		if w.st.showPwd {
 			name = loc.A11y.HidePassword
@@ -493,7 +502,7 @@ func (w *InputW) paintBox(l *paint.List, r geom.Rect) {
 		c.drawIconAt(l, w.suffix, s.X(off, is), iy, is, th.TextTertiary)
 		off -= 4
 	}
-	if w.password {
+	if w.eye() {
 		off -= is
 		w.st.eyeRect = s.Rect(off, iy, is, is)
 		ic := icon.EyeInvisible
@@ -566,6 +575,11 @@ type InputNumberW struct {
 	wheel     bool                // Wheel
 	sval      *string             // StringMode
 	variant   string              // Variant
+
+	noControls   bool // Controls(false)
+	readOnly     bool // ReadOnly
+	noKeyboard   bool // Keyboard(false)
+	stepStrictly bool // StepStrictly
 }
 
 type numState struct {
@@ -686,7 +700,7 @@ func InputNumber(c *Context, val *float64) *InputNumberW {
 				}
 				col = tk.HandleHoverColor
 			}
-			if w.atLimit(i == 0) {
+			if w.atLimit(i == 0) { // read-only (Element keeps the buttons): normal look, no response
 				col = tk.HandleDisabledColor
 			}
 			ic := icon.Up
@@ -754,16 +768,106 @@ func (w *InputNumberW) Variant(v string) *InputNumberW { w.variant = v; return w
 // float64.
 func (w *InputNumberW) StringMode(s *string) *InputNumberW { w.sval = s; return w }
 
+// Mode chooses where the step buttons go (antd 6 mode): "input" (stacked
+// at the inline end, the default) or "spinner" (− before and + after the
+// value, which is centred). It is the antd name of ControlsPosition:
+// "spinner" equals ControlsPosition("sides") and "input" equals
+// ControlsPosition("right").
+func (w *InputNumberW) Mode(m string) *InputNumberW {
+	switch m {
+	case "spinner":
+		w.ctrlPos = "sides"
+	case "input":
+		w.ctrlPos = "right"
+	}
+	return w
+}
+
+// Controls shows (true, the default) or hides the step buttons (antd
+// controls, Element controls). Without them the arrow keys and the wheel
+// still step the value.
+func (w *InputNumberW) Controls(on bool) *InputNumberW { w.noControls = !on; return w }
+
+// ReadOnly shows the value without letting it change: the text can be
+// selected and copied, the step buttons are hidden and the arrow keys and
+// the wheel do nothing (antd readOnly, Element readonly).
+func (w *InputNumberW) ReadOnly() *InputNumberW { w.readOnly = true; return w }
+
+// Keyboard turns the Up / Down arrow keys stepping on (the default) or off
+// (antd keyboard).
+func (w *InputNumberW) Keyboard(on bool) *InputNumberW { w.noKeyboard = !on; return w }
+
+// StepStrictly only accepts multiples of Step (Element step-strictly): a
+// typed value is rounded to the nearest multiple when it is committed.
+// It applies to float64 values (not to StringMode).
+func (w *InputNumberW) StepStrictly() *InputNumberW { w.stepStrictly = true; return w }
+
 // configDefaults applies ConfigProvider Defaults("InputNumber", ...):
-// "controlsPosition", "variant" (string), "wheel" (bool).
+// "controlsPosition", "mode" ("input" | "spinner"), "variant" (string),
+// "wheel", "controls", "keyboard" (bool).
 func (w *InputNumberW) configDefaults() {
 	c := w.c
 	if w.ctrlPos == "" && w.nth.Flavor == theme.Element {
 		w.ctrlPos = "sides" // el-input-number puts − and + at the sides by default
 	}
 	w.ctrlPos = propString(c, "InputNumber", "controlsPosition", w.ctrlPos)
+	w.Mode(propString(c, "InputNumber", "mode", ""))
 	w.variant = propString(c, "InputNumber", "variant", w.variant)
 	w.wheel = propBool(c, "InputNumber", "wheel", w.wheel)
+	w.noControls = !propBool(c, "InputNumber", "controls", true)
+	w.noKeyboard = !propBool(c, "InputNumber", "keyboard", true)
+}
+
+// controlsHidden reports whether the step buttons are left out:
+// Controls(false), or a disabled / read-only field when the theme hides
+// them then (antd mergedControls = controls && !disabled && !readOnly;
+// Element keeps them, inactive).
+func (w *InputNumberW) controlsHidden() bool {
+	return w.noControls || (w.readOnly || w.box.disabled) && w.tk.HideControlsInactive != 0
+}
+
+// applyControls finishes the step buttons once the chained options are
+// known: hidden (controlsHidden), the spinner buttons' width from the
+// token, and a button that cannot act disabled.
+func (w *InputNumberW) applyControls() {
+	if w.controlsHidden() {
+		if w.ctrlPos == "sides" {
+			// antd spinner without actions: the value stays centred.
+			w.box.kids = []*node{w.ed}
+			w.ed.ln.Margin = geom.Insets{Left: w.padL() + w.prefixWidth(), Right: w.padL()}
+			return
+		}
+		w.handles.ln.Width = 0
+		w.handles.kids = nil
+		w.handles.paint = nil
+		return
+	}
+	if w.ctrlPos == "sides" {
+		sw := w.sideW(w.box.ln.Height)
+		w.down.ln.Width, w.up.ln.Width = sw, sw
+	}
+	for _, b := range []struct {
+		n  *node
+		up bool
+	}{{w.up, true}, {w.down, false}} {
+		if w.atLimit(b.up) || w.box.disabled {
+			b.n.disabled = true
+			b.n.cursor = input.CursorNotAllowed
+		} else if w.readOnly { // EP readonly: the buttons look normal but do nothing
+			b.n.disabled = true
+		}
+	}
+}
+
+// UpDisabled reports whether the + / up button is disabled (a value at
+// Max, a disabled or read-only field, or no step buttons).
+func (w *InputNumberW) UpDisabled() bool { w.finish(); return w.stepOff(true) }
+
+// DownDisabled reports whether the − / down button is disabled.
+func (w *InputNumberW) DownDisabled() bool { w.finish(); return w.stepOff(false) }
+
+func (w *InputNumberW) stepOff(up bool) bool {
+	return w.box.disabled || w.readOnly || w.noControls || w.atLimit(up)
 }
 
 func (w *InputNumberW) semantics(s *a11y.Node) {
@@ -773,6 +877,10 @@ func (w *InputNumberW) semantics(s *a11y.Node) {
 	}
 	if w.status == "error" {
 		s.States |= a11y.Invalid
+	}
+	if w.readOnly {
+		s.States |= a11y.ReadOnly
+		s.Actions &^= a11y.SetValue | a11y.Increment | a11y.Decrement
 	}
 	if w.isEmpty() {
 		return
@@ -925,6 +1033,15 @@ func (w *InputNumberW) atLimit(up bool) bool {
 
 func (w *InputNumberW) set(v float64) {
 	v = math.Max(w.min, math.Min(w.max, v))
+	if w.stepStrictly && w.step > 0 {
+		// Element verifyValue: round to a multiple of step, then clamp.
+		// JS Math.round: halves round up (-2.5 → -2), unlike math.Round.
+		v = math.Max(w.min, math.Min(w.max, math.Floor(v/w.step+0.5)*w.step))
+		if p := sliderDecimals(w.step); p >= 0 {
+			k := math.Pow(10, float64(p))
+			v = math.Round(v*k) / k
+		}
+	}
 	if w.precision >= 0 {
 		p := math.Pow(10, float64(w.precision))
 		v = math.Round(v*p) / p
@@ -995,14 +1112,16 @@ func (w *InputNumberW) finish() {
 	c := w.c
 	w.box.ln.Height = controlHeightOf(w.th, w.size)
 	w.layoutParts()
+	w.applyControls()
 	if w.box.disabled {
 		return
 	}
-	if w.upIA.Clicked {
+	steps := !w.readOnly && !w.noControls
+	if steps && w.upIA.Clicked && !w.atLimit(true) {
 		w.st.editing = false
 		w.stepBy(1)
 	}
-	if w.dnIA.Clicked {
+	if steps && w.dnIA.Clicked && !w.atLimit(false) {
 		w.st.editing = false
 		w.stepBy(-1)
 	}
@@ -1014,7 +1133,7 @@ func (w *InputNumberW) finish() {
 		w.st.editing = true
 		w.st.buf = w.shown()
 	}
-	if focused && w.wheel {
+	if focused && w.wheel && !w.readOnly {
 		if _, dy, ok := c.WheelFor(w.box.id); ok && dy != 0 {
 			if dy < 0 {
 				w.stepBy(1)
@@ -1026,6 +1145,9 @@ func (w *InputNumberW) finish() {
 	}
 	if focused {
 		for _, k := range c.keys {
+			if w.readOnly || w.noKeyboard {
+				break
+			}
 			if k.Down && (k.Key == input.KeyUp || k.Key == input.KeyDown) {
 				if k.Key == input.KeyDown {
 					w.stepBy(-1)
@@ -1039,7 +1161,7 @@ func (w *InputNumberW) finish() {
 		if w.formatter == nil && w.parser == nil {
 			filter = func(r rune) bool { return (r >= '0' && r <= '9') || r == '.' || r == '-' }
 		}
-		res := c.processEdit(w.ed.id, &w.st.edit, &w.st.buf, editConfig{filter: filter}, w.edIA)
+		res := c.processEdit(w.ed.id, &w.st.edit, &w.st.buf, editConfig{filter: filter, readOnly: w.readOnly}, w.edIA)
 		if res.changed {
 			w.typed(w.parse(w.st.buf))
 		}
@@ -1088,6 +1210,13 @@ func (w *InputNumberW) typed(t string) {
 }
 
 func (w *InputNumberW) commit() {
+	if w.readOnly {
+		// rc-input-number: a read-only field never updates its value (no
+		// clamping, rounding or precision on blur / Enter).
+		w.st.editing = w.c.focus == w.ed.id
+		w.st.buf = w.shown()
+		return
+	}
 	t := w.parse(w.st.buf)
 	switch {
 	case t == "" && (w.empty != nil || w.sval != nil):

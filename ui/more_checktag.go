@@ -155,7 +155,8 @@ func (w *CheckableTagW) colors() (bg, fg theme.Color) {
 	case on:
 		return pal.Base, th.TextOnPrimary
 	case hov:
-		return theme.Color{}, pal.Base
+		// antd: unchecked hover is colorPrimary on colorFillSecondary.
+		return th.FillSecondary, pal.Base
 	}
 	return theme.Color{}, th.Text
 }
@@ -191,6 +192,101 @@ func (w *CheckableTagW) paint(l *paint.List, r geom.Rect) {
 			l.Stroke(r.Expand(2), geom.Rad(rad+2), 2, th.Primary.Shades[3])
 		} else {
 			l.Stroke(r.Expand(3), geom.Rad(rad+3), 2, th.FocusRing)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// CheckableTagGroup (antd 6 Tag.CheckableTagGroup)
+
+// CheckableTagGroupW is a row of checkable tags bound to the selected
+// values.
+type CheckableTagGroupW struct {
+	_ [0]func()
+
+	c        *Context
+	n        *node
+	sel      *[]string
+	opts     []Option
+	multiple bool
+	disabled bool
+	changed  bool
+	z        *lazy
+}
+
+// CheckableTagGroup renders one CheckableTag per option bound to
+// *selected. Single selection by default: checking a tag replaces the
+// value, unchecking it clears the value (antd value null); Multiple
+// toggles each value. Tags wrap with a gap of 8 (antd paddingXS). A nil
+// selected shows nothing checked and ignores clicks.
+//
+// ConfigProvider.Defaults("CheckableTagGroup", ...) keys: "multiple"
+// (bool).
+func CheckableTagGroup(c *Context, selected *[]string, opts []Option) *CheckableTagGroupW {
+	g := &CheckableTagGroupW{c: c, sel: selected, opts: opts, multiple: Prop(c, "CheckableTagGroup", "multiple", false)}
+	g.n = c.add("checktaggroup", "")
+	g.n.setRole(a11y.RoleGroup)
+	g.n.ln.Dir = layout.Row
+	g.n.ln.Wrap = true
+	g.n.ln.Gap, g.n.ln.LineGap = 8, 8
+	g.n.ln.NoStretch = true
+	g.z = c.lazy(g.n, g.build)
+	return g
+}
+
+// Multiple allows several checked tags.
+func (g *CheckableTagGroupW) Multiple(on bool) *CheckableTagGroupW { g.multiple = on; return g }
+
+// Disabled disables every tag of the group.
+func (g *CheckableTagGroupW) Disabled(on bool) *CheckableTagGroupW { g.disabled = on; return g }
+
+// A11yLabel names the group for screen readers.
+func (g *CheckableTagGroupW) A11yLabel(s string) *CheckableTagGroupW { g.n.setName(s); return g }
+
+// Changed reports a selection change this frame.
+func (g *CheckableTagGroupW) Changed() bool { g.z.run(); return g.changed }
+
+func (g *CheckableTagGroupW) build() {
+	c := g.c
+	if g.disabled || g.n.disabled {
+		c.disabledDepth++
+		defer func() { c.disabledDepth-- }()
+	}
+	var cur []string
+	if g.sel != nil {
+		cur = *g.sel
+	}
+	for _, o := range g.opts {
+		on := false
+		for _, v := range cur {
+			if v == o.Value {
+				on = true
+			}
+		}
+		was := on
+		t := CheckableTag(c, o.Label, &on)
+		if o.Disabled {
+			t.Disabled(true)
+		}
+		if !t.Changed() || on == was || g.sel == nil {
+			continue
+		}
+		g.changed = true
+		switch {
+		case !g.multiple && on:
+			*g.sel = []string{o.Value}
+		case !g.multiple:
+			*g.sel = nil
+		case on:
+			*g.sel = append(*g.sel, o.Value)
+		default:
+			out := (*g.sel)[:0:0]
+			for _, v := range *g.sel {
+				if v != o.Value {
+					out = append(out, v)
+				}
+			}
+			*g.sel = out
 		}
 	}
 }

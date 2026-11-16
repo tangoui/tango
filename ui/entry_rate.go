@@ -37,11 +37,22 @@ type RateW struct {
 	loc        *Locale
 	th         *theme.Theme // Rate Alias applied
 	tk         *theme.RateToken
+	csize      ControlSize // Small / Large (Size in px wins)
+	noKeys     bool        // Keyboard(false)
+	cols       []theme.Color
+	low, high  float64 // Thresholds (Element low-threshold / high-threshold)
+	voidCol    theme.Color
+	voidSet    bool
+	scoreFmt   func(v float64) string
+	charFn     func(i int) string
+	icOn       *icon.Icon
+	icVoid     *icon.Icon
+	tips       []string
 }
 
 // Rate adds a rating bound to *val (0..count, steps of 1 or 0.5).
 func Rate(c *Context, val *float64) *RateW {
-	w := &RateW{c: c, val: val, count: 5, allowClear: true, loc: c.Locale()}
+	w := &RateW{c: c, val: val, count: 5, allowClear: true, loc: c.Locale(), csize: c.defaultSize(), low: 2, high: 4}
 	w.th = c.ThemeFor(theme.CompRate)
 	w.tk = &w.th.Components.Rate
 	w.n = c.add("rate", "")
@@ -52,6 +63,9 @@ func Rate(c *Context, val *float64) *RateW {
 	w.n.ownKeys = true
 	w.ia = c.interact(w.n, true, input.CursorPointer)
 	w.configDefaults()
+	// Defaults("Rate", {"size": …, "keyboard": bool}).
+	shad2aSize(c, "Rate", &w.csize) // ControlSize or "small" / "middle" / "large"
+	w.noKeys = !Prop(c, "Rate", "keyboard", true)
 	w.z = c.lazy(w.n, w.finish)
 	return w
 }
@@ -89,11 +103,52 @@ func (w *RateW) AllowClear(on bool) *RateW { w.allowClear = on; return w }
 // Character replaces the star with a text character (e.g. "A", "好").
 func (w *RateW) Character(s string) *RateW { w.char = s; return w }
 
+// CharacterFunc draws the character fn returns for star i (0-based; Ant
+// character as a function of the index).
+func (w *RateW) CharacterFunc(fn func(i int) string) *RateW { w.charFn = fn; return w }
+
+// Icons replaces the star icons: on for the filled part, void for the
+// empty one (Element icons / void-icon; nil keeps the star).
+func (w *RateW) Icons(on, void *icon.Icon) *RateW { w.icOn, w.icVoid = on, void; return w }
+
+// Tooltips shows a tooltip over the star under the pointer, one text per
+// star (Ant tooltips); "" entries show none.
+func (w *RateW) Tooltips(tips ...string) *RateW { w.tips = tips; return w }
+
 // Size sets the star size in px (Ant 20, Element 18).
 func (w *RateW) Size(px float32) *RateW { w.size = px; return w }
 
 // Color overrides the active color.
 func (w *RateW) Color(col theme.Color) *RateW { w.col, w.colSet = col, true; return w }
+
+// Small uses the small star size (Ant size="small": 15px; Element 14px).
+func (w *RateW) Small() *RateW { w.csize = Small; return w }
+
+// Large uses the large star size (Ant size="large": 25px; Element keeps
+// 18px in a 40px row).
+func (w *RateW) Large() *RateW { w.csize = Large; return w }
+
+// Keyboard enables or disables the arrow / Home / End keys (Ant keyboard,
+// default on).
+func (w *RateW) Keyboard(on bool) *RateW { w.noKeys = !on; return w }
+
+// Colors sets the active color by the value (Element colors): a value at
+// or below the low threshold uses the first color, below the high
+// threshold the second, from it on the third. One color applies to every
+// value; Color overrides them all.
+func (w *RateW) Colors(cols ...theme.Color) *RateW { w.cols = cols; return w }
+
+// Thresholds sets the values that switch Colors (Element low-threshold /
+// high-threshold; default 2 and 4).
+func (w *RateW) Thresholds(low, high float64) *RateW { w.low, w.high = low, high; return w }
+
+// VoidColor sets the color of the empty stars (Element void-color /
+// disabled-void-color).
+func (w *RateW) VoidColor(col theme.Color) *RateW { w.voidCol, w.voidSet = col, true; return w }
+
+// ScoreFormat formats the score of ShowScore (Element score-template; by
+// default the bare number).
+func (w *RateW) ScoreFormat(fn func(v float64) string) *RateW { w.scoreFmt = fn; return w }
 
 // Texts shows a description after the stars, one per star (Element show-text).
 func (w *RateW) Texts(t ...string) *RateW { w.texts = t; return w }
@@ -121,20 +176,36 @@ func (w *RateW) starSize() float32 {
 	if w.size > 0 {
 		return w.size
 	}
+	switch w.csize {
+	case Small:
+		return w.tk.StarSizeSM
+	case Large:
+		return w.tk.StarSizeLG
+	}
 	return w.tk.StarSize
 }
 
 func (w *RateW) gap() float32 { return w.tk.StarGap }
 
 func (w *RateW) height() float32 {
-	if w.tk.Height > 0 {
-		return w.tk.Height
+	h := w.tk.Height
+	switch w.csize {
+	case Small:
+		h = w.tk.HeightSM
+	case Large:
+		h = w.tk.HeightLG
+	}
+	if h > 0 {
+		return h
 	}
 	return max(22, w.starSize()+2)
 }
 
 func (w *RateW) label(v float64) string {
 	if w.showScore {
+		if w.scoreFmt != nil {
+			return w.scoreFmt(v)
+		}
 		return formatRateScore(v)
 	}
 	if len(w.texts) > 0 && v > 0 {
@@ -158,6 +229,11 @@ func (w *RateW) labelWidth() float32 {
 	st := w.c.style(w.th.FontSize, text.Regular)
 	if w.showScore {
 		mw = text.Width("0.5", st)
+		if w.scoreFmt != nil {
+			for i := 0; i <= 2*w.count; i++ {
+				mw = max(mw, text.Width(w.scoreFmt(float64(i)/2), st))
+			}
+		}
 	}
 	for _, t := range w.texts {
 		mw = max(mw, text.Width(t, st))
@@ -220,6 +296,10 @@ func (w *RateW) finish() {
 	r, ok := c.rects[w.n.id]
 	if ok && w.ia.Hovered {
 		w.hoverVal = w.valueAt(r, c.pointer.X)
+		if i := int(math.Ceil(w.hoverVal)) - 1; i >= 0 && i < len(w.tips) && w.tips[i] != "" {
+			s, g := w.starSize(), w.gap()
+			typoTip(c, w.n.id, c.inline(r).Rect(float32(i)*(s+g), r.Y+(r.H-s)/2, s, s), w.tips[i])
+		}
 	}
 	if w.ia.Clicked && ok && c.pointer.X > 0 {
 		v := w.valueAt(r, c.pointer.X)
@@ -235,7 +315,7 @@ func (w *RateW) finish() {
 		step = 0.5
 	}
 	for _, k := range c.KeysFor(w.n.id) {
-		if !k.Down {
+		if !k.Down || w.noKeys {
 			continue
 		}
 		// The arrow toward the filled side's growth (the inline end)
@@ -256,14 +336,35 @@ func (w *RateW) finish() {
 	}
 }
 
-func (w *RateW) colors() (on, off theme.Color) {
+// colors returns the active and empty star colors for the shown value v.
+func (w *RateW) colors(v float64) (on, off theme.Color) {
 	tk := w.tk
 	on, off = tk.StarColor, tk.StarBg
 	if w.dis() {
 		off = tk.StarBgDisabled
 	}
-	if w.colSet {
+	if w.voidSet {
+		off = w.voidCol
+	}
+	switch n := len(w.cols); {
+	case w.colSet:
 		on = w.col
+	case n == 1:
+		on = w.cols[0]
+	case n >= 3:
+		switch {
+		case v <= w.low:
+			on = w.cols[0]
+		case v < w.high: // Element: the high threshold itself is excluded
+			on = w.cols[1]
+		default:
+			on = w.cols[2]
+		}
+	case n == 2:
+		on = w.cols[0]
+		if v > w.low {
+			on = w.cols[1]
+		}
 	}
 	return on, off
 }
@@ -271,7 +372,6 @@ func (w *RateW) colors() (on, off theme.Color) {
 func (w *RateW) paint(l *paint.List, r geom.Rect) {
 	c, th, tk := w.c, w.th, w.tk
 	s, g := w.starSize(), w.gap()
-	on, off := w.colors()
 	if th.Flavor == theme.StyleShadcn && w.dis() {
 		l.Opacity(0.5) // disabled:opacity-50
 		defer l.Pop()
@@ -284,6 +384,7 @@ func (w *RateW) paint(l *paint.List, r geom.Rect) {
 	if hv > 0 {
 		v = hv
 	}
+	on, off := w.colors(v)
 	y := r.Y + (r.H-s)/2
 	hoverIdx := -1
 	if hv > 0 && tk.StarHoverScale != 1 {
@@ -301,19 +402,19 @@ func (w *RateW) paint(l *paint.List, r geom.Rect) {
 		fill := v - float64(i)
 		switch {
 		case fill >= 1:
-			w.drawStar(l, sr, on)
+			w.drawStar(l, sr, i, on, true)
 		case fill >= 0.5:
-			w.drawStar(l, sr, off)
+			w.drawStar(l, sr, i, off, false)
 			// The half at the inline start.
 			half := geom.Rect{X: sr.X - 1, Y: sr.Y - 1, W: sr.W/2 + 1, H: sr.H + 2}
 			if c.IsRTL() {
 				half.X = sr.X + sr.W/2
 			}
 			l.Clip(half, geom.Radii{})
-			w.drawStar(l, sr, on)
+			w.drawStar(l, sr, i, on, true)
 			l.Pop()
 		default:
-			w.drawStar(l, sr, off)
+			w.drawStar(l, sr, i, off, false)
 		}
 	}
 	if w.ia.FocusVisible {
@@ -337,14 +438,28 @@ func (w *RateW) paint(l *paint.List, r geom.Rect) {
 	}
 }
 
-func (w *RateW) drawStar(l *paint.List, r geom.Rect, col theme.Color) {
-	if w.char != "" {
+// drawStar draws star i in col; filled tells the filled from the void
+// part (for Icons).
+func (w *RateW) drawStar(l *paint.List, r geom.Rect, i int, col theme.Color, filled bool) {
+	ch := w.char
+	if w.charFn != nil {
+		ch = w.charFn(i)
+	}
+	if ch != "" {
 		st := w.c.style(r.H, text.Regular)
-		lay := text.Shape(w.char, st, text.Options{NoWrap: true})
+		lay := text.Shape(ch, st, text.Options{NoWrap: true})
 		l.Glyphs(geom.Pt(r.X+(r.W-lay.Width)/2, r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
 		return
 	}
-	if oc := w.tk.StarOutlineColor; oc.A > 0 && (col == w.tk.StarBg || col == w.tk.StarBgDisabled) && !w.colSet {
+	if ic := w.icOn; filled && ic != nil {
+		w.c.paintIcon(l, ic, r.Expand(1), col, 0)
+		return
+	}
+	if ic := w.icVoid; !filled && ic != nil {
+		w.c.paintIcon(l, ic, r.Expand(1), col, 0)
+		return
+	}
+	if oc := w.tk.StarOutlineColor; oc.A > 0 && (col == w.tk.StarBg || col == w.tk.StarBgDisabled) && !w.colSet && !w.voidSet {
 		// Outline stars for the voids (shadcn: lucide star).
 		w.c.paintIcon(l, icon.Star, r.Expand(1), oc, 0)
 		return

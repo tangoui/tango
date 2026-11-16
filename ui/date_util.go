@@ -140,6 +140,7 @@ type dtMonth struct {
 	onNav        func(months int)
 	hover        *time.Time // receives the hovered day
 	ids          *dtGridIDs // receives the grid and active cell IDs (semantics)
+	bounds       dtBounds   // MinDate / MaxDate: arrows past them are disabled
 }
 
 // semExpanded marks an open combobox: Expanded, and Collapse instead of
@@ -201,13 +202,18 @@ func dtMonthPanel(c *Context, m dtMonth) (picked time.Time, ok bool) {
 					}
 					return
 				}
-				b := IconButton(c, ic, label).Size(24, 12).NoHoverBg()
-				if el {
-					b.Size(24, 14)
-				}
-				if shad {
-					dtShadcnNav(c, b)
-				}
+				off := m.bounds.pageOut(dtAddMonths(m.view, months), PickerDate, months < 0)
+				var b *IconButtonW
+				Disabled(c, off, func() {
+					b = IconButton(c, ic, label).Size(24, 12).NoHoverBg()
+					if el {
+						b.Size(24, 14)
+					}
+					if shad {
+						dtShadcnNav(c, b)
+					}
+					dtNavOff(b, off)
+				})
 				if b.Clicked() && m.onNav != nil {
 					m.onNav(months)
 				}
@@ -717,15 +723,16 @@ func (st *dtPanelState) key(k input.Key, val, now time.Time, rtl bool) bool {
 }
 
 // dtDatePanel builds a single-date month panel over st with an optional
-// "今天" footer and returns the picked day (UTC midnight).
+// "今天" footer and returns the picked day (UTC midnight). bounds
+// (MinDate / MaxDate) stop the month arrows; disabled already includes them.
 // ids (optional) receives the semantic IDs of the grid.
-func dtDatePanel(c *Context, st *dtPanelState, val time.Time, disabled func(time.Time) bool, today bool, ids *dtGridIDs) (time.Time, bool) {
+func dtDatePanel(c *Context, st *dtPanelState, val time.Time, disabled func(time.Time) bool, bounds dtBounds, today bool, ids *dtGridIDs) (time.Time, bool) {
 	if !st.hasView {
 		st.sync(val, c.now)
 	}
 	m := dtMonth{
 		view: st.view, today: c.now, selA: val, cursor: st.cursor, disabled: disabled,
-		navPrev: true, navNext: true, ids: ids,
+		navPrev: true, navNext: true, ids: ids, bounds: bounds,
 		onNav: func(n int) { st.view = dtAddMonths(st.view, n); c.invalid = true },
 	}
 	if ids != nil {
@@ -786,4 +793,94 @@ func dtMonthUTC(t time.Time) time.Time {
 // dtDayUTC returns t's calendar date at UTC midnight.
 func dtDayUTC(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+// ---------------------------------------------------------------------------
+// Pickable bounds and popup placement (Ant minDate / maxDate, placement)
+
+// dtBounds limits the pickable dates to [lo, hi] (a zero end is open):
+// Ant minDate / maxDate. A cell is out when its period lies wholly before
+// lo or after hi (rc-picker useDisabledBoundary compares at the panel's
+// granularity), and the header arrows stop at the pages holding them.
+type dtBounds struct{ lo, hi time.Time }
+
+func (b dtBounds) set() bool { return !b.lo.IsZero() || !b.hi.IsZero() }
+
+// out reports whether the period of level containing t is out of bounds.
+func (b dtBounds) out(t time.Time, level PickerType, ws time.Weekday) bool {
+	if t.IsZero() || !b.set() {
+		return false
+	}
+	p := fillPeriodStart(t, level, ws)
+	if !b.lo.IsZero() && p.Before(fillPeriodStart(b.lo, level, ws)) {
+		return true
+	}
+	return !b.hi.IsZero() && p.After(fillPeriodStart(b.hi, level, ws))
+}
+
+// limit merges a DisabledDate function with the bounds at level.
+func (b dtBounds) limit(fn func(time.Time) bool, level PickerType, ws time.Weekday) func(time.Time) bool {
+	if !b.set() {
+		return fn
+	}
+	return func(t time.Time) bool { return b.out(t, level, ws) || (fn != nil && fn(t)) }
+}
+
+// pageOut reports whether the panel page of level anchored at a lies
+// wholly before lo (back) or after hi (forward): its arrow is disabled.
+func (b dtBounds) pageOut(a time.Time, level PickerType, back bool) bool {
+	if back {
+		return !b.lo.IsZero() && dtDayUTC(a).Before(fillAnchor(b.lo, level))
+	}
+	return !b.hi.IsZero() && dtDayUTC(a).After(fillAnchor(b.hi, level))
+}
+
+// dtNavOff dims a header arrow that cannot move further
+// (DatePickerToken.NavDisabledOpacity / NavDisabledColor).
+func dtNavOff(b *IconButtonW, off bool) {
+	if !off {
+		return
+	}
+	b.n.cursor = input.CursorNotAllowed // EP date-picker/utils.scss disable mixin
+	_, tk := dtTheme(b.c)
+	if tk.NavDisabledColor.A > 0 {
+		b.Color(tk.NavDisabledColor)
+	}
+	if tk.NavDisabledOpacity > 0 && tk.NavDisabledOpacity < 1 {
+		b.n.opacity = float32(tk.NavDisabledOpacity)
+	}
+}
+
+// dtNowAction is a footer Today / Now action (Element: a text button,
+// otherwise dtLink), disabled when that moment cannot be picked
+// (rc-picker Footer: nowDisabled = disabledDate(now)).
+func dtNowAction(c *Context, label string, off, el bool) bool {
+	hit := false
+	Disabled(c, off, func() {
+		if el {
+			hit = dtTextBtn(c, label, true)
+		} else {
+			hit = dtLink(c, label)
+		}
+	})
+	return hit && !off
+}
+
+// dtPlaceDefault reads the "placement" Defaults key of comp (Ant names
+// "bottomLeft", "bottomRight", "topLeft", "topRight", or a Placement).
+// The names map to logical sides (Left = Start), so they mirror in RTL
+// like rc-picker's default placement; an explicit Ant "bottomLeft" does
+// not mirror in antd.
+func dtPlaceDefault(c *Context, comp string, dst *Placement) {
+	if v, ok := c.ConfigProp(comp, "placement"); ok {
+		if p, ok := s2cPlacement(v); ok {
+			*dst = p
+		}
+	}
+}
+
+// dtPanel opens a picker dropdown like entPanel, at place (it still flips
+// when it does not fit): selPanel without width matching.
+func dtPanel(c *Context, anchor ID, p *entPopup, place Placement, fn func()) *Box {
+	return selPanel(c, anchor, p, false, place, fn)
 }

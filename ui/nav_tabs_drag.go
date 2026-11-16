@@ -349,8 +349,5 @@ func (t *TabsW) dropAt(st *tabDragState, nodes []*node, p geom.Point) {
 		to--
 	}
 	t.reorder(st.from, to)
-	if *t.active != st.key {
-		*t.active = st.key
-		t.changed = true
-	}
+	t.activate(st.key) // through BeforeLeave like every switch
 }

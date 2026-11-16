@@ -53,6 +53,13 @@ type selector struct {
 	maxCount    int    // collapse chips after this many (0 = all)
 	single      string // single-value selectors: the value label
 	hasValue    bool
+	loading     bool      // spinner in place of the arrow (Ant loading)
+	place       Placement // dropdown placement (Ant placement)
+	notFound    string    // empty-list text ("" = Locale NoData)
+	tagText     int       // longest chip label in runes (0 = no limit)
+	// tagRest builds the text of the collapsed "+ N ..." chip from the
+	// hidden labels (nil = Ant's "+ N ...").
+	tagRest func(omitted []string) string
 
 	removed     int  // chip whose close icon was clicked (-1 none)
 	chipClicked bool // a chip body was clicked
@@ -167,7 +174,7 @@ func (b *selector) build(labels []string) {
 	b.hasValue = len(labels) > 0 || b.single != ""
 	b.labels = labels
 	b.prefixNode()
-	b.removed, b.chipClicked = selectorTags(c, labels, b.maxCount, !b.disabled, b.disabled, b.size, b.variant == FieldFilled)
+	b.removed, b.chipClicked = selectorTags(c, labels, selTagOpts{max: b.maxCount, textLen: b.tagText, rest: b.tagRest}, !b.disabled, b.disabled, b.size, b.variant == FieldFilled)
 	ed := c.add("ms-input", b.placeholder)
 	b.ed = ed
 	ed.aHidden = true // the editor is part of the combobox
@@ -360,9 +367,81 @@ func (b *selector) paint(l *paint.List, r geom.Rect) {
 		entClearIcon(c, l, cr)
 		return
 	}
+	if b.loading && b.arrowIcon == nil { // Ant: a custom suffix wins over loading
+		selSpinner(c, l, cr)
+		return
+	}
 	if b.arrow {
 		entArrow(c, l, r, b.n.id, b.open, b.arrowIcon)
 	}
+}
+
+// selSpinner draws the loading indicator of a select (Ant LoadingOutlined
+// in the suffix slot) into r.
+func selSpinner(c *Context, l *paint.List, r geom.Rect) {
+	th := c.ThemeFor(theme.CompSelect)
+	p2bSpin(c, l, r, th.Components.Select.LoadingIconColor)
+}
+
+// ---------------------------------------------------------------------------
+// Shared Select-family settings (placement, variant, empty text)
+
+// selDefaults reads the ConfigProvider.Defaults of a select-like comp:
+// "variant" (string or FieldVariant) and "placement" (a placement name
+// or a Placement, see s2cPlacement). Nil targets are skipped.
+func selDefaults(c *Context, comp string, variant *FieldVariant, place *Placement) {
+	if variant != nil {
+		if v, ok := c.ConfigProp(comp, "variant"); ok {
+			switch x := v.(type) {
+			case FieldVariant:
+				*variant = x
+			case string:
+				*variant = FieldVariant(x)
+			}
+		}
+	}
+	if place != nil {
+		if v, ok := c.ConfigProp(comp, "placement"); ok {
+			// One parser for every placement Defaults key (s2cPlacement):
+			// Ant "bottomLeft" … "topRight", Element "bottom-start" …,
+			// centered "bottom" / "top", case-insensitive, or a Placement.
+			if p, ok := s2cPlacement(v); ok {
+				*place = p
+			}
+		}
+	}
+}
+
+// selPanel is entPanel at place: the dropdown of a select or picker opens
+// below or above its trigger, flips when there is no room, and slides in
+// from the trigger side. dtPanel is the same without width matching.
+func selPanel(c *Context, anchor ID, p *entPopup, match bool, place Placement, fn func()) *Box {
+	if place == BottomStart {
+		return entPanel(c, anchor, p, match, fn)
+	}
+	th := c.Theme
+	a := c.AnimFrom(anchor, "ent-open", 0, 1, th.DurationMid)
+	shift := (1 - a) * -4
+	if placeAbove(place) {
+		shift = -shift // slide in from the trigger side
+	}
+	ov := Overlay(c, OverlayOptions{Anchor: anchor, Place: place, Offset: 4, MatchWidth: match, Flip: true, ShiftY: shift}, fn)
+	entStylePanel(c, ov)
+	ov.Opacity(a)
+	p.panel = ov.n.id
+	return ov
+}
+
+// placeAbove reports whether an overlay at p opens above its anchor.
+func placeAbove(p Placement) bool { return p == Top || p == TopStart || p == TopEnd }
+
+// selEmptyText is the text of an empty dropdown: custom (NotFoundContent)
+// or the Locale's "no data".
+func selEmptyText(c *Context, custom string) string {
+	if custom != "" {
+		return custom
+	}
+	return c.Locale().NoData
 }
 
 // ---------------------------------------------------------------------------
@@ -391,12 +470,13 @@ func selectorTagFont(c *Context, s ControlSize) float32 {
 	return th.FontSize
 }
 
-// selectorTag adds a selected-value chip into the current (row) parent. It
+// selectorTag adds a selected-value chip into the current (row) parent; it
+// shows text (label cut by MaxTagTextLength) and is named by label. It
 // returns 2 when the close icon was clicked, 1 for a click elsewhere on the
 // chip and 0 otherwise.
 // The label starts at the inline start of the chip, the close icon sits at
 // its end.
-func selectorTag(c *Context, label string, closable, disabled bool, size ControlSize, filled bool) int {
+func selectorTag(c *Context, label, shown string, closable, disabled bool, size ControlSize, filled bool) int {
 	th := c.ThemeFor(theme.CompSelect)
 	tk := &th.Components.Select
 	n := c.add("selector-tag", label)
@@ -411,7 +491,7 @@ func selectorTag(c *Context, label string, closable, disabled bool, size Control
 		pad = 9
 	}
 	n.ln.Measure = func(maxW, _ float32) geom.Size {
-		w := entTextW(c, label, fs, text.Regular) + 2*pad
+		w := entTextW(c, shown, fs, text.Regular) + 2*pad
 		if closable {
 			w += 14
 		}
@@ -468,7 +548,7 @@ func selectorTag(c *Context, label string, closable, disabled bool, size Control
 		if closable {
 			maxW -= 14
 		}
-		entTextIn(c, l, label, pad, r, fs, text.Regular, fg, maxW)
+		entTextIn(c, l, shown, pad, r, fs, text.Regular, fg, maxW)
 		if closable && !disabled {
 			s := c.inline(r)
 			hov := ia.Hovered && s.Off(c.pointer.X) > r.W-pad-14
@@ -491,19 +571,42 @@ func selectorTag(c *Context, label string, closable, disabled bool, size Control
 	return res
 }
 
-// selectorTags adds chips for labels, collapsing everything after maxCount
-// (<= 0: show all) into a "+ N ..." chip. It returns the index of the label
-// whose close icon was clicked (-1 none) and whether any chip body was clicked.
-func selectorTags(c *Context, labels []string, maxCount int, closable, disabled bool, size ControlSize, filled bool) (removed int, clicked bool) {
+// selTagOpts controls how selectorTags shows the chips: max collapses the
+// chips after it (<= 0: show all), textLen cuts longer labels to that
+// many runes plus "..." (Ant maxTagTextLength) and rest builds the
+// collapsed chip's text (Ant maxTagPlaceholder; nil: "+ N ...").
+type selTagOpts struct {
+	max     int
+	textLen int
+	rest    func(omitted []string) string
+}
+
+// selTagText cuts label to n runes plus "..." (n <= 0: unchanged), as
+// rc-select's maxTagTextLength.
+func selTagText(label string, n int) string {
+	if n <= 0 {
+		return label
+	}
+	r := []rune(label)
+	if len(r) <= n {
+		return label
+	}
+	return string(r[:n]) + "..."
+}
+
+// selectorTags adds chips for labels, collapsing everything after o.max
+// into a "+ N ..." chip. It returns the index of the label whose close icon
+// was clicked (-1 none) and whether any chip body was clicked.
+func selectorTags(c *Context, labels []string, o selTagOpts, closable, disabled bool, size ControlSize, filled bool) (removed int, clicked bool) {
 	removed = -1
 	shown := len(labels)
-	if maxCount > 0 && shown > maxCount {
-		shown = maxCount
+	if o.max > 0 && shown > o.max {
+		shown = o.max
 	}
 	for i := 0; i < shown; i++ {
 		i := i
 		Key(c, labels[i], func() {
-			switch selectorTag(c, labels[i], closable, disabled, size, filled) {
+			switch selectorTag(c, labels[i], selTagText(labels[i], o.textLen), closable, disabled, size, filled) {
 			case 2:
 				removed = i
 			case 1:
@@ -512,7 +615,11 @@ func selectorTags(c *Context, labels []string, maxCount int, closable, disabled 
 		})
 	}
 	if rest := len(labels) - shown; rest > 0 {
-		if selectorTag(c, "+ "+itoaEnt(rest)+" ...", false, disabled, size, filled) == 1 {
+		s := "+ " + itoaEnt(rest) + " ..."
+		if o.rest != nil {
+			s = o.rest(append([]string(nil), labels[shown:]...)) // a copy: fn may keep or modify it
+		}
+		if selectorTag(c, s, s, false, disabled, size, filled) == 1 {
 			clicked = true
 		}
 	}

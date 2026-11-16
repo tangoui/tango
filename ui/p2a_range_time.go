@@ -81,7 +81,7 @@ func (w *RangePickerW) commitDraft() {
 		return
 	}
 	a, b := w.st.draft[0], w.st.draft[1]
-	if b.Before(a) {
+	if b.Before(a) && !w.noOrder {
 		a, b = b, a
 	}
 	w.set([2]time.Time{a, b})

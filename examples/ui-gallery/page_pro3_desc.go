@@ -39,8 +39,8 @@ func init() {
 						Request(func() (map[string]any, error) { return p3DescData(), nil }).
 						Editable(func(key string, v any, all ui.ProValues, done func(error)) { done(nil) }).Show()
 				})
-				tbDemo(c, "无边框 · 中等尺寸", "", func() {
-					ui.ProDescriptions(c, p3DescItems()[:6]).Column(3).Size(ui.Middle).
+				tbDemo(c, "无边框 · 中等尺寸", "未设 Column 时：xs 1 列、sm 2 列、md 起 3 列。", func() {
+					ui.ProDescriptions(c, p3DescItems()[:6]).Size(ui.Middle).
 						DataSource(ptrVals(ui.ProValues(p3DescData()))).Show()
 				})
 			}, func(d *ui.Driver) {

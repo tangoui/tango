@@ -228,7 +228,7 @@ func init() {
 - 不要复制 Viva、mygo、Wails 或其他项目的代码、常量表、图标数据；设计令牌和色值按 Ant Design / Element Plus 官方文档。
 - 不要改 `ui/theme`、`ui/paint`、`ui/text`、`ui/layout`、`ui/input` 与 `context.go/runner.go/overlay.go/driver.go` 来满足单个组件；需要扩展先提出。
 - 不要在组件文件里私建通用工具（颜色换算、图片缩放、日期网格、图标、复选框/选择器外壳、悬停延迟、子树命中判断、滚到可见）：先查基础层（theme/paint/icon、date_util.go、choice.go、selector.go、hover.go、layers.go、reveal.go），没有就补到基础层。
-- 新组件先查第 14 节总表，已有同类组件就扩展它，不要再加一个同义的新名字（shadcn 的 Sheet = `Drawer`、Accordion = `Collapse`、HoverCard = `Popover.Trigger("hover")`、Separator = `Divider`、Sonner = `Message/Notification`、Badge = `Tag`，只做外观）。shadcn 特有组件文件以 `shad_` 开头。
+- 新组件先查第 14 节总表，已有同类组件就扩展它，不要再加一个同义的新名字（shadcn 的 Sheet = `Drawer`、Accordion / Collapsible = `Collapse`、HoverCard = `Popover.Trigger("hover")`、Separator = `Divider`、Sonner = `Message/Notification`、Badge = `Tag`、Field = `FormItem`、InputGroup = `Compact`/`Addon`/输入框前后缀、NativeSelect = `Select`、Combobox = `Select.Searchable`/`MultiSelect.Searchable`/`AutoComplete`、Typography keyboard = `Kbd`，只做外观）。shadcn 特有组件文件以 `shad_` 开头。
 - 不要在组件文件里写死界面文案（中文、英文都不行），见第 15 节；`TestNoHardcodedCJK` 会拦住 CJK 字面量。
 
 ## 14. 组件总表
@@ -256,18 +256,18 @@ func init() {
 | 布局 | `Flex` | Flex | nav_space.go |
 | 布局 | `Space` | Space / el-space | nav_space.go |
 | 布局 | `Compact`、`Addon` | Space.Compact、Input.Group / el-input-group | entry_compact.go |
-| 布局 | `Splitter`、`SplitterPanel` | Splitter / el-splitter | nav_splitter.go |
+| 布局 | `Splitter`、`SplitterPanel` | Splitter / el-splitter；shadcn Resizable = `Splitter`（`WithHandle`） | nav_splitter.go |
 | 布局 | `Dock`（`DockLayout`/`DockNode` 分割树与标签组，JSON 保存、`ParseDockLayout` 恢复；标签拖放拆分/合并、分割条、最大化、撕出） | IDE 工作台编辑器分组（VS Code / JetBrains） | dock.go、dock_layout.go |
 | 布局 | `Scroll`、`ScrollH` | （滚动容器）/ el-scrollbar | scroll.go、reveal.go |
-| 导航 | `Menu` | Menu / el-menu | nav_menu.go |
-| 导航 | `Tabs`（`Draggable` 拖拽排序、`OnTearOff` 拖出窗口撕出） | Tabs / el-tabs | nav.go、nav_tabs_drag.go |
+| 导航 | `Menu` | Menu / el-menu；shadcn NavigationMenu = `Menu(MenuHorizontal)` + `ItemPanel`，Sidebar = `Sider/CollapsibleSider` + `Menu` | nav_menu.go |
+| 导航 | `Tabs`（`Draggable` 拖拽排序、`OnTearOff` 拖出窗口撕出；`TabPlacement`、`Stretch`、`BeforeLeave`、shadcn `Variant("line")`） | Tabs / el-tabs；shadcn Tabs | nav.go、nav_tabs_drag.go |
 | 导航 | `Breadcrumb`、`BreadcrumbItems`（items 写法、下拉、分隔符） | Breadcrumb / el-breadcrumb | nav.go |
-| 导航 | `Pagination` | Pagination / el-pagination | nav.go |
-| 导航 | `Dropdown` | Dropdown、Dropdown.Button / el-dropdown；`ContextMenuAt` 无触发器右键菜单 | nav_dropdown.go、nav_contextmenu.go |
-| 导航 | `Steps` | Steps / el-steps | nav_steps.go |
+| 导航 | `Pagination` | Pagination / el-pagination；`Size(Large)`、`Align`、`ShowLessItems`、`GoButton`、`ShowTotalFunc`、`PageSizeOptions` | nav.go |
+| 导航 | `Dropdown` | Dropdown、Dropdown.Button（弃用，用 Compact + Button + Dropdown）/ el-dropdown；Check/Radio/PopupRender；`ContextMenuAt` 无触发器右键菜单 | nav_dropdown.go、nav_contextmenu.go |
+| 导航 | `Steps` | Steps / el-steps；`Orientation`、`TitlePlacement`、`Variant`、`Initial`、`MaxCount` | nav_steps.go |
 | 导航 | `Anchor`、`AnchorSection` | Anchor / el-anchor | nav_affix.go |
 | 导航 | `Affix` | Affix / el-affix | nav_affix.go |
-| 导航 | `PageHeader` | PageHeader / el-page-header | nav_pageheader.go |
+| 导航 | `PageHeader` | Pro Components v3 PageHeader / el-page-header | nav_pageheader.go |
 | 导航 | `Command`（`CommandItem`：分组、图标、快捷键、关键词、禁用） | shadcn Command | shad_command.go |
 | 通用 | `Toggle`、`ToggleGroup` | shadcn Toggle / ToggleGroup | shad_toggle.go |
 | 通用 | `Kbd` | shadcn Kbd / `<kbd>` | shad_kbd.go |
@@ -333,10 +333,10 @@ func init() {
 | 数据展示 | `ProList` | ProList | pro3_list.go |
 | 数据展示 | `Tree` | Tree / el-tree | data_tree.go |
 | 数据展示 | `VirtualTree` | Tree virtual / el-tree-v2 | fill_virtual_tree.go |
-| 数据展示 | `Tag` | Tag / el-tag | display.go |
-| 数据展示 | `CheckableTag` | Tag.CheckableTag / el-check-tag | more_checktag.go |
+| 数据展示 | `Tag`（`Variant` filled/solid/outlined、`Disabled`、`CloseIcon`、`Round`；shadcn Badge 变体含 `ghost`/`link`） | Tag / el-tag；shadcn Badge | display.go |
+| 数据展示 | `CheckableTag`、`CheckableTagGroup` | Tag.CheckableTag、Tag.CheckableTagGroup / el-check-tag | more_checktag.go |
 | 数据展示 | `Badge`、`BadgeRibbon` | Badge、Badge.Ribbon / el-badge | data_badge.go |
-| 数据展示 | `Avatar`、`AvatarGroup` | Avatar / el-avatar | display.go、data_badge.go |
+| 数据展示 | `Avatar`（`Small/Large/Shape/Gap`）、`AvatarGroup`（`MaxPopover`） | Avatar / el-avatar、el-avatar-group | display.go、data_badge.go |
 | 数据展示 | `Card`、`CardMeta`、`CardAction` | Card / el-card | data_card.go |
 | 数据展示 | `ProCard` | ProCard | pro2_card.go |
 | 数据展示 | `Descriptions` | Descriptions / el-descriptions | data_card.go |
@@ -344,7 +344,7 @@ func init() {
 | 数据展示 | `Statistic`、`Countdown` | Statistic / el-statistic、el-countdown | display.go、data_skeleton.go |
 | 数据展示 | `StatisticCard`、`StatisticCardGroup` | StatisticCard、StatisticCard.Group | pro2_statistic.go |
 | 数据展示 | `Progress` | Progress / el-progress | data_progress.go |
-| 数据展示 | `Empty` | Empty / el-empty | data_result.go |
+| 数据展示 | `Empty`（`Title`） | Empty / el-empty；shadcn Empty | data_result.go |
 | 数据展示 | `Result` | Result / el-result | data_result.go |
 | 数据展示 | `Skeleton`、`SkeletonAvatar/Button/Input/Image` | Skeleton / el-skeleton | data_skeleton.go |
 | 数据展示 | `ProSkeleton` | ProSkeleton | pro2_skeleton.go |
@@ -369,17 +369,17 @@ func init() {
 | AI 对话 | `Approval`（工具权限确认） | — | chat_approval.go |
 | AI 对话 | `Conversations` | Ant Design X Conversations | chat_conversations.go |
 | AI 对话 | `Prompts`（提示词卡片，不同于对话框 `Prompt`） | Ant Design X Prompts | chat_prompts.go |
-| 反馈 | `Alert` | Alert / el-alert | feedback.go |
-| 反馈 | `Modal` | Modal / el-dialog | feedback.go |
-| 反馈 | `Drawer` | Drawer / el-drawer | feedback.go |
-| 反馈 | `Confirm` | Modal.confirm / ElMessageBox.confirm | more_confirm.go |
+| 反馈 | `Alert` | Alert / el-alert；`ShowIcon`、`Icon`、`Variant`、`CloseIcon`、`CloseText`、`CloseDisabled` | feedback.go |
+| 反馈 | `Modal` | Modal / el-dialog；shadcn Dialog = `Modal`；`Keyboard`、`Loading`、`AfterOpenChanged` | feedback.go |
+| 反馈 | `Drawer` | Drawer / el-drawer；shadcn Sheet/Drawer = `Drawer`；`ClosablePlacement`、`Keyboard`、`Loading`、`Push`、`AfterOpenChanged` | feedback.go |
+| 反馈 | `Confirm` | Modal.confirm / ElMessageBox.confirm；shadcn AlertDialog = `Confirm`；`AutoFocusButton`、`NoKeyboard` | more_confirm.go |
 | 反馈 | `MessageBox` | Modal.info/success… / ElMessageBox.alert | more_confirm.go |
 | 反馈 | `Prompt`、`OpenDialogs`（打开中的 Confirm/MessageBox/Prompt 数） | — / ElMessageBox.prompt | more_confirm.go |
 | 反馈 | `Popconfirm` | Popconfirm / el-popconfirm | feedback.go |
 | 反馈 | `Message`、`MessageDestroy` | message / ElMessage | nav_notify.go |
 | 反馈 | `Notification`、`NotificationDestroy` | notification / ElNotification | nav_notify.go |
-| 反馈 | `Spin` | Spin | feedback.go |
-| 反馈 | `Loading` | Spin 包裹 / v-loading | feedback.go |
+| 反馈 | `Spin` | Spin；shadcn Spinner = `Spin`（`SpinToken.Indicator = SpinIcon`） | feedback.go |
+| 反馈 | `Loading` | Spin 包裹 / v-loading；EP v-loading / ElLoading.service = `Loading`（Text、Spinner、Background、Fullscreen） | feedback.go |
 | 图表 | `chart.Line`、`chart.Area`（平滑、阶梯、面积、堆叠、对数轴、LTTB 降采样） | Line、Area / ECharts line | chart/line.go |
 | 图表 | `chart.Column`、`chart.Bar`（分组、堆叠、百分比堆叠） | Column、Bar / ECharts bar | chart/column.go |
 | 图表 | `chart.Pie`、`chart.Donut`（引导线标签、内部标签、中心统计） | Pie / ECharts pie | chart/pie.go |

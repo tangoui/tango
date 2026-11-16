@@ -56,9 +56,17 @@ func ProFormFieldSet(c *Context, fs ProFieldSet) ProField {
 }
 
 // FieldSet builds a field set as a labelled item of form f (outside a
-// ProForm); vals holds the values.
+// ProForm); vals holds the values. While vals has no fs.Key entry it is
+// filled with a copy of fs.Initial (checked every frame, like ProForm's
+// initial values), so an existing value is never overwritten; to clear the
+// set store nil parts (e.g. []any{nil, nil}) instead of deleting the key.
 func FieldSet(c *Context, f *FormW, fs ProFieldSet, vals ProValues) {
 	fd := ProFormFieldSet(c, fs)
+	if vals != nil && fs.Initial != nil {
+		if _, ok := vals[fs.Key]; !ok {
+			vals[fs.Key] = append([]any(nil), fs.Initial...)
+		}
+	}
 	proFieldItem(c, f, &fd, vals)
 }
 

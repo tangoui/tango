@@ -279,7 +279,9 @@ func (it *FormItemW) trackBlur(trig FormTrigger) {
 
 // labelTip adds the label's tooltip icon. It is a sibling of the label
 // (a leaf), positioned over the gap the label leaves for it.
-func (it *FormItemW) labelTip(s, colon string, st text.Style, lw float32) {
+// extra is the width drawn between the tip and the colon (the optional
+// mark of Form.RequiredMarkOptional).
+func (it *FormItemW) labelTip(s, colon string, st text.Style, lw, extra float32) {
 	f, c := it.f, it.f.c
 	tk := &c.ThemeFor(theme.CompForm).Components.Form
 	req := float32(0)
@@ -287,7 +289,7 @@ func (it *FormItemW) labelTip(s, colon string, st text.Style, lw float32) {
 		req = 11
 	}
 	sw, cw := text.Width(s, st), text.Width(colon, st)
-	total := req + sw + formTipGap + formTipSize + cw
+	total := req + sw + formTipGap + formTipSize + extra + cw
 	left := req + sw + formTipGap
 	top := (tk.LabelHeight - formTipSize) / 2
 	if f.layout == FormVertical {

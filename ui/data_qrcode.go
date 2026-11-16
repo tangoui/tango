@@ -639,6 +639,8 @@ type QRCodeW struct {
 	icSize   float32
 	status   string
 	refresh  bool
+	noBoost  bool    // BoostLevel(false)
+	margin   int     // MarginSize: quiet zone in modules
 	loc      *Locale // captured at build; paint runs outside ConfigProvider
 	ia       Interaction
 }
@@ -646,15 +648,22 @@ type QRCodeW struct {
 type qrCache struct {
 	value string
 	level QRLevel
+	boost bool
 	m     *QRMatrix
 	err   error
 }
 
 // QRCode adds a QR code for value (default 160px, level M, bordered).
+// An empty value draws nothing (Ant renders null), keeping the box size.
 func QRCode(c *Context, value string) *QRCodeW {
 	q := &QRCodeW{c: c, value: value, size: 160, level: QRLevelM, bordered: true, icSize: 40, loc: c.Locale()}
 	// ConfigProvider.Defaults("QRCode", ...) keys: "size" (px),
-	// "errorLevel" ("L" | "M" | "Q" | "H"), "bordered" (bool).
+	// "errorLevel" ("L" | "M" | "Q" | "H"), "bordered" (bool),
+	// "boostLevel" (bool), "marginSize" (modules).
+	q.noBoost = !Prop(c, "QRCode", "boostLevel", true)
+	if v, ok := p2bNum(c, "QRCode", "marginSize"); ok {
+		q.margin = max(0, int(v))
+	}
 	if v, ok := p2bNum(c, "QRCode", "size"); ok && v > 0 {
 		q.size = float32(v)
 	}
@@ -700,6 +709,15 @@ func (q *QRCodeW) Bg(col theme.Color) *QRCodeW { q.bg, q.bgSet = col, true; retu
 // Bordered toggles the outer border.
 func (q *QRCodeW) Bordered(on bool) *QRCodeW { q.bordered = on; return q }
 
+// BoostLevel(false) keeps the requested error-correction level; by
+// default (Ant boostLevel true) the level is raised as far as the code
+// keeps the same version (size).
+func (q *QRCodeW) BoostLevel(on bool) *QRCodeW { q.noBoost = !on; return q }
+
+// MarginSize adds a quiet zone of n modules around the code (Ant
+// marginSize, default 0).
+func (q *QRCodeW) MarginSize(n int) *QRCodeW { q.margin = max(0, n); return q }
+
 // Icon draws img in the center (use level "H" so the code stays readable).
 func (q *QRCodeW) Icon(img image.Image) *QRCodeW { q.ic = img; return q }
 
@@ -724,15 +742,29 @@ func (q *QRCodeW) Refreshed() bool { return q.status == "expired" && q.ia.Clicke
 func (q *QRCodeW) Matrix() *QRMatrix { return q.matrix() }
 
 func (q *QRCodeW) matrix() *QRMatrix {
+	if q.value == "" {
+		return nil
+	}
 	st := State[qrCache](q.c, q.n.id, nil)
-	if st.m == nil && st.err == nil || st.value != q.value || st.level != q.level {
-		st.value, st.level = q.value, q.level
+	boost := !q.noBoost
+	if st.m == nil && st.err == nil || st.value != q.value || st.level != q.level || st.boost != boost {
+		st.value, st.level, st.boost = q.value, q.level, boost
 		st.m, st.err = EncodeQR(q.value, q.level)
+		// Boost (qrcodegen boostEcl): the highest level that fits the
+		// same version.
+		for l := q.level + 1; boost && st.m != nil && l <= QRLevelH; l++ {
+			if m, err := EncodeQR(q.value, l); err == nil && m.Version == st.m.Version {
+				st.m = m
+			}
+		}
 	}
 	return st.m
 }
 
 func (q *QRCodeW) paint(l *paint.List, r geom.Rect) {
+	if q.value == "" {
+		return // Ant: no value, no code
+	}
 	th := q.c.Theme
 	m := q.matrix()
 	bg := theme.Color{}
@@ -756,14 +788,20 @@ func (q *QRCodeW) paint(l *paint.List, r geom.Rect) {
 	if th.Flavor == theme.Element {
 		rad = geom.Rad(th.Radius)
 	}
+	// antd qr-code/style: border lineWidth colorSplit, padding paddingSM;
+	// borderless drops the padding and the radius.
+	pad := float32(12)
+	if !q.bordered {
+		pad, rad = 0, geom.Radii{}
+	}
 	l.Fill(r, rad, bg)
 	if q.bordered {
-		l.Stroke(r, rad, 1, th.BorderSecondary)
+		l.Stroke(r, rad, 1, th.Split)
 	}
-	pad := float32(12)
 	inner := geom.Rect{X: r.X + pad, Y: r.Y + pad, W: r.W - 2*pad, H: r.H - 2*pad}
 	if m != nil {
-		cell := inner.W / float32(m.Size)
+		cell := inner.W / float32(m.Size+2*q.margin)
+		inner = inner.Inset(geom.All(cell * float32(q.margin)))
 		// Merge horizontal runs into one rect per run so edges stay crisp
 		// and the display list stays small.
 		p := paint.NewPath()
@@ -793,7 +831,7 @@ func (q *QRCodeW) paint(l *paint.List, r geom.Rect) {
 		mask := theme.Fade(th.BgContainer, 0.96)
 		l.Fill(r, rad, mask)
 		if q.bordered {
-			l.Stroke(r, rad, 1, th.BorderSecondary)
+			l.Stroke(r, rad, 1, th.Split)
 		}
 		cx, cy := r.X+r.W/2, r.Y+r.H/2
 		switch q.status {

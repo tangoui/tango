@@ -228,23 +228,21 @@ func proImages(v any) []image.Image {
 	return nil
 }
 
-// proCaptchaState is the countdown of a captcha field.
-type proCaptchaState struct {
-	until   time.Time
-	sending bool
-	res     pro3Async[error]
-}
-
-// proCaptchaControl is the code input with the "get code" button. The
-// button counts down ProField.CaptchaSeconds (default 60) after
-// OnCaptcha reports success.
+// proCaptchaControl is the code input with the "get code" button (Pro
+// ProFormCaptcha): OnCaptcha sends the code, the button then counts down
+// ProField.CaptchaSeconds (default 60); a failed send leaves it ready.
 func proCaptchaControl(c *Context, fd *ProField, vals ProValues, ph string, grow []layout.Option) {
-	loc := c.Locale()
 	k := fd.Key
 	s := vals.String(k)
 	secs := fd.CaptchaSeconds
 	if secs <= 0 {
-		secs = 60
+		secs = Prop(c, "ProFormCaptcha", "countDown", 60)
+	}
+	secs = proCaptchaSecs(secs)
+	var text func(bool, int) string
+	var onTiming func(int)
+	if fd.Captcha != nil {
+		text, onTiming = fd.Captcha.Text, fd.Captcha.OnTiming
 	}
 	Row(c, func() {
 		in := Input(c, &s).Placeholder(ph).AllowClear().Layout(layout.Grow(1), layout.MinW(0))
@@ -254,38 +252,47 @@ func proCaptchaControl(c *Context, fd *ProField, vals ProValues, ph string, grow
 		if in.Changed() {
 			proSetOrDelete(vals, k, s, s == "")
 		}
-		st := State[proCaptchaState](c, hashID(in.ID(), "pro-captcha"), nil)
-		for {
-			err, ok := st.res.poll()
-			if !ok {
-				break
+		st := State[proCaptcha](c, hashID(in.ID(), "pro-captcha"), nil)
+		st.poll(c, secs)
+		clicked := st.button(c, secs, c.defaultSize(), text, onTiming)
+		if clicked {
+			st.validating = true
+			if fd.Captcha != nil {
+				st.phone = proValueText(vals[fd.Captcha.PhoneKey])
 			}
-			st.sending = false
-			if err == nil {
-				st.until = c.Now().Add(time.Duration(secs) * time.Second)
-				c.Announce(locFmt(loc.LoginForm.CodeSentFmt, secs), a11y.LivePolite)
-			}
-			c.invalid = true
 		}
-		n := pro3Remain(st.until, c.Now())
-		label := loc.LoginForm.GetCode
-		if n > 0 {
-			label = locFmt(loc.LoginForm.ResendFmt, n)
-			left := st.until.Sub(c.Now())
-			c.WakeAt(c.Now().Add(left - time.Duration(n-1)*time.Second))
+		if !st.validating {
+			return
 		}
-		b := Button(c, label).Disabled(n > 0).Loading(st.sending).Layout(layout.MinW(120))
-		if b.Clicked() && !st.sending {
-			if fd.OnCaptcha == nil {
-				st.until = c.Now().Add(time.Duration(secs) * time.Second)
+		disabled := in.box.disabled
+		// Validation runs only after every form item has registered. Keep
+		// the intent across frames while async phone rules are pending.
+		c.deferred = append(c.deferred, func() {
+			if disabled || (fd.Captcha != nil && st.phone != proValueText(vals[fd.Captcha.PhoneKey])) {
+				st.validating = false
 				c.invalid = true
 				return
 			}
-			st.sending = true
-			ch, inv := st.res.chInit(), c.Invalidator()
-			fd.OnCaptcha(vals.Clone(), func(err error) { ch <- err; inv() })
-			c.invalid = true
-		}
+			if fd.beforeCaptcha != nil {
+				ok, pending := fd.beforeCaptcha()
+				if pending {
+					return
+				}
+				if !ok {
+					st.validating = false
+					c.invalid = true
+					return
+				}
+			}
+			st.validating = false
+			if fd.OnCaptcha == nil {
+				st.start(c, secs)
+				return
+			}
+			snap := vals.Clone()
+			st.send(c, func(done func(error)) { fd.OnCaptcha(snap, done) })
+			st.poll(c, secs)
+		})
 	}, append([]layout.Option{layout.Gap(8), layout.Middle()}, grow...)...)
 }
 
@@ -525,6 +532,14 @@ func proCodeBlock(c *Context, s string, compact bool) {
 // proFieldView renders the read-only value of a field: lists show their
 // rows, the other types go through pro3ValueView.
 func proFieldView(c *Context, fd *ProField, v any, size float32) {
+	if fd.ValueType == ValueSegmented {
+		for _, o := range fd.ValueEnum {
+			if o.Value == proValueText(v) {
+				Text(c, o.Label)
+				return
+			}
+		}
+	}
 	if fd.ValueType == ValueFormList && fd.List != nil {
 		rows, _ := v.([]ProValues)
 		if len(rows) == 0 {

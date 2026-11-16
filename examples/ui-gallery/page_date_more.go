@@ -48,7 +48,7 @@ func dmWorkHours(day time.Time) ui.DisabledTimes {
 }
 
 func init() {
-	entryPage(gallery.Page{Name: "DatePickerMultiple", Title: "DatePicker 多选日期", Parent: "DatePicker", Order: 49, Width: 1000, Height: 900, Render: func(c *ui.Context) {
+	entryPage(gallery.Page{Name: "DatePickerMultiple", Title: "DatePicker 多选日期", Parent: "DatePicker", Order: 49, Width: 1000, Height: 960, Render: func(c *ui.Context) {
 		gallery.Demo(c, "多选", "MultiDatePicker(c, &[]time.Time)：每次点击切换一个日期，面板不关闭；选中项以标签显示，Backspace 删除最后一个。Picker(ui.PickerMonth / PickerYear) 即 Element 的 type=\"months\" / \"years\"。", func() {
 			entryRow(c, func() {
 				ui.MultiDatePicker(c, &dmd.days).A11yLabel("多个日期")

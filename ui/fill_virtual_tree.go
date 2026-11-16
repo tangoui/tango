@@ -86,6 +86,10 @@ type VirtualTreeW struct {
 	expClick  bool
 	expSet    bool
 	chkClick  bool
+	chkLeaf   bool
+	accordion bool
+	emptyText string
+	emptySet  bool
 	loadData  func(key string) bool
 	query     string
 	filterFn  func(query string, n *TreeNode) bool
@@ -124,6 +128,9 @@ func VirtualTree(c *Context, nodes []TreeNode) *VirtualTreeW {
 	w := &VirtualTreeW{c: c, nodes: nodes, st: st, height: 200}
 	w.expanded, w.checked, w.current = &st.expandedKeys, &st.checkedKeys, &st.currentKey
 	w.configDefaults() // Defaults("VirtualTree", ...): checkStrictly, expandOnClickNode, checkOnClickNode
+	// Defaults("VirtualTree", ...) also: "accordion", "checkOnClickLeaf".
+	w.accordion = Prop(c, "VirtualTree", "accordion", false)
+	w.chkLeaf = Prop(c, "VirtualTree", "checkOnClickLeaf", false)
 	return w
 }
 
@@ -145,6 +152,19 @@ func (w *VirtualTreeW) CheckStrictly() *VirtualTreeW { w.strict = true; return w
 
 // CheckOnClick toggles the check box when a row is clicked.
 func (w *VirtualTreeW) CheckOnClick() *VirtualTreeW { w.chkClick = true; return w }
+
+// CheckOnClickLeaf toggles the check box when a leaf row is clicked
+// (Element check-on-click-leaf; off by default, as antd selects instead).
+func (w *VirtualTreeW) CheckOnClickLeaf(on bool) *VirtualTreeW { w.chkLeaf = on; return w }
+
+// Accordion keeps one node expanded per level: expanding a node collapses
+// its expanded siblings (Element accordion).
+func (w *VirtualTreeW) Accordion() *VirtualTreeW { w.accordion = true; return w }
+
+// EmptyText shows s instead of the empty illustration when no row is
+// shown (Element empty-text); the Element theme shows Locale.NoData
+// (TreeToken.ShowEmptyText).
+func (w *VirtualTreeW) EmptyText(s string) *VirtualTreeW { w.emptyText, w.emptySet = s, true; return w }
 
 // Current binds the current (highlighted) node key.
 func (w *VirtualTreeW) Current(key *string) *VirtualTreeW { w.current = key; return w }
@@ -294,6 +314,9 @@ func (w *VirtualTreeW) setExpanded(key string, on bool) {
 		return
 	}
 	if on {
+		if w.accordion {
+			w.collapseSiblings(key)
+		}
 		st.expanded[key] = true
 		*w.expanded = append((*w.expanded)[:len(*w.expanded):len(*w.expanded)], key)
 	} else {
@@ -304,6 +327,30 @@ func (w *VirtualTreeW) setExpanded(key string, on bool) {
 	st.expVer++
 	w.expCh = true
 	w.c.invalid = true
+}
+
+// collapseSiblings collapses the expanded siblings of key (Accordion).
+func (w *VirtualTreeW) collapseSiblings(key string) {
+	st := w.st
+	i, ok := st.index[key]
+	if !ok {
+		return
+	}
+	p := st.items[i].parent
+	lo, hi := int32(0), int32(len(st.items))
+	if p >= 0 {
+		lo, hi = p+1, st.items[p].end
+	}
+	for j := lo; j < hi; j++ {
+		it := st.items[j]
+		if it.parent != p || j == i {
+			continue
+		}
+		if k := it.n.Key; st.expanded[k] {
+			delete(st.expanded, k)
+			*w.expanded = remove(*w.expanded, k)
+		}
+	}
 }
 
 func (w *VirtualTreeW) expandable(i int32) bool {
@@ -522,6 +569,7 @@ func (w *VirtualTreeW) Show() *VirtualTreeW {
 		w.expClick = w.paint.el()
 	}
 	w.rowH, w.gap, w.indent, w.switchW = w.paint.metrics()
+	w.indent = w.paint.tk.VirtualIndentSize
 	w.prepare()
 	w.syncExpanded()
 	w.applyFilter()
@@ -568,6 +616,15 @@ func (w *VirtualTreeW) build() {
 	c, st := w.c, w.st
 	rows := w.visibleRows()
 	if len(rows) == 0 {
+		tk := w.paint.tk
+		if w.emptySet || tk.ShowEmptyText {
+			s := w.emptyText
+			if !w.emptySet {
+				s = c.Locale().NoData
+			}
+			Row(c, func() { Text(c, s).Color(tk.EmptyTextColor) }, layout.MinH(60), layout.Center())
+			return
+		}
 		Column(c, func() { Empty(c).Simple() }, layout.H(w.height), layout.Center())
 		return
 	}
@@ -820,7 +877,7 @@ func (w *VirtualTreeW) row(item int32) {
 			if w.expClick && expandable {
 				w.toggleExpand(item, !open)
 			}
-			if w.chkClick && w.checkable && treeCheckable(nd) {
+			if (w.chkClick || (w.chkLeaf && !expandable)) && w.checkable && treeCheckable(nd) {
 				w.toggleCheck(item, !st.full[item])
 			}
 		}

@@ -268,7 +268,7 @@ func TestNavGrid(t *testing.T) {
 func TestNavSpace(t *testing.T) {
 	var sp, cp *Box
 	d := navDriver(func(c *Context) {
-		sp = Space(c).Split(func() { VDivider(c) }).Body(func() {
+		sp = Space(c).Separator(func() { VDivider(c) }).Body(func() {
 			Text(c, "一")
 			Text(c, "二")
 			Text(c, "三")

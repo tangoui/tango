@@ -47,6 +47,16 @@ type ButtonToken struct {
 	// GroupDividerOpacity is the opacity of the label color for the seam
 	// between two solid buttons of a ButtonGroup.
 	GroupDividerOpacity float32
+	// AutoInsertSpace is the default of Button.AutoInsertSpace: a space
+	// between the two characters of a two-Chinese-character label (Ant
+	// ConfigProvider button.autoInsertSpace defaults to true; Element
+	// auto-insert-space to false; shadcn has none). Being a bool, false
+	// cannot be set through Components overrides (a zero field inherits):
+	// turn it off for a scope with ConfigProvider
+	// Defaults("Button", Props{"autoInsertSpace": false}), or per button
+	// with ButtonW.AutoInsertSpace(false). Precedence: the method, then
+	// Defaults, then this token.
+	AutoInsertSpace bool
 }
 
 // ButtonPalette derives the interaction palette (hover, active, tints) of
@@ -69,6 +79,7 @@ func deriveButton(t *Theme) ButtonToken {
 		TextHoverBg:   t.BgTextHover,
 		DefaultShadow: t.ButtonShadow, PrimaryShadow: t.PrimaryShadow, DangerShadow: t.DangerShadow,
 		PresetTextContrast: 3, GroupDividerOpacity: 0.3,
+		AutoInsertSpace: t.Flavor == Ant,
 	}
 	solid := Over(t.Text, t.BgContainer)
 	k.DefaultSolidBg, k.DefaultSolidColor = solid, t.BgContainer

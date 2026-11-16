@@ -98,10 +98,19 @@ type ImageW struct {
 	groupIdx int
 	alt      string
 	loc      *Locale // captured at build; paint runs outside ConfigProvider
-	ia       Interaction
-	st       *imgState
-	th       *theme.Theme
-	tk       *theme.ImageToken
+
+	// Preview behaviour (zero: the theme's ImageToken defaults).
+	minScale, maxScale, step float32
+	noMove                   bool // Movable(false)
+	maskClose                int8 // MaskClosable: 0 theme, 1 on, -1 off
+	infinite                 int8 // Infinite: 0 theme, 1 on, -1 off
+	progress                 int8 // ShowProgress: 0 theme, 1 on, -1 off
+	noEsc                    bool // CloseOnEscape(false)
+	previewSrc               image.Image
+	ia                       Interaction
+	st                       *imgState
+	th                       *theme.Theme
+	tk                       *theme.ImageToken
 }
 
 type imgState struct {
@@ -122,6 +131,7 @@ type imgState struct {
 	overlay    ID
 	overlayPan ID
 	imgRect    geom.Rect // preview image rect in the last frame
+	original   bool      // Element mode "original": natural size instead of fitted
 }
 
 // Image adds an image; img may be nil (shows the placeholder). The default
@@ -207,10 +217,93 @@ func (w *ImageW) semantics(s *a11y.Node) {
 func (w *ImageW) Preview(on bool) *ImageW { w.preview = on; return w }
 
 // PreviewGroup previews imgs (this image is imgs[index]) with prev/next
-// navigation and a counter.
+// navigation and a counter. An index out of range is clamped.
 func (w *ImageW) PreviewGroup(imgs []image.Image, index int) *ImageW {
-	w.preview, w.group, w.groupIdx = true, imgs, index
+	w.preview, w.group, w.groupIdx = true, imgs, max(0, min(index, len(imgs)-1))
 	return w
+}
+
+// PreviewSrc shows img in the preview instead of the image itself (Ant
+// preview.src: a larger original behind a thumbnail).
+func (w *ImageW) PreviewSrc(img image.Image) *ImageW { w.previewSrc, w.preview = img, true; return w }
+
+// OpenPreview opens the preview now (Ant preview.open); call it once per
+// action, like Rotate. PreviewOpen reports the state.
+func (w *ImageW) OpenPreview() *ImageW {
+	w.preview = true
+	if !w.st.open && w.showing() != nil {
+		w.openPreview()
+	}
+	return w
+}
+
+// MinScale and MaxScale bound the preview zoom (Ant minScale 1 / maxScale
+// 50; Element min-scale 0.2 / max-scale 7; the theme picks the default).
+func (w *ImageW) MinScale(k float32) *ImageW { w.minScale = max(0.01, k); return w }
+func (w *ImageW) MaxScale(k float32) *ImageW { w.maxScale = max(0.01, k); return w }
+
+// ScaleStep sets the zoom step of the preview buttons: each step scales
+// by 1+step (Ant scaleStep 0.5; Element zoom-rate 1.2 = step 0.2).
+func (w *ImageW) ScaleStep(step float32) *ImageW { w.step = max(0.01, step); return w }
+
+// Movable(false) stops dragging the preview image around (Ant
+// preview.movable, default true).
+func (w *ImageW) Movable(on bool) *ImageW { w.noMove = !on; return w }
+
+// MaskClosable sets whether a click on the preview backdrop closes it
+// (Ant mask.closable, default true; Element hide-on-click-modal, default
+// false; the theme picks the default).
+func (w *ImageW) MaskClosable(on bool) *ImageW { w.maskClose = tri(on); return w }
+
+// Infinite sets whether the group preview wraps from the last image to
+// the first (Element infinite, default true; Ant stops at the ends).
+func (w *ImageW) Infinite(on bool) *ImageW { w.infinite = tri(on); return w }
+
+// ShowProgress shows the "2 / 5" counter of a group preview (Ant always,
+// Element show-progress, default false; the theme picks the default).
+func (w *ImageW) ShowProgress(on bool) *ImageW { w.progress = tri(on); return w }
+
+// CloseOnEscape(false) keeps the preview open on Escape (Element
+// close-on-press-escape, default true).
+func (w *ImageW) CloseOnEscape(on bool) *ImageW { w.noEsc = !on; return w }
+
+// tri maps a bool option to 1 / -1 (0 stays "the theme's default").
+func tri(on bool) int8 {
+	if on {
+		return 1
+	}
+	return -1
+}
+
+// triOr resolves a tri-state option against the default def.
+func triOr(v int8, def bool) bool {
+	if v == 0 {
+		return def
+	}
+	return v > 0
+}
+
+// scales returns the preview zoom bounds and step.
+func (w *ImageW) scales() (lo, hi, step float32) {
+	lo, hi, step = w.tk.PreviewMinScale, w.tk.PreviewMaxScale, w.tk.PreviewScaleStep
+	if w.minScale > 0 {
+		lo = w.minScale
+	}
+	if w.maxScale > 0 {
+		hi = w.maxScale
+	}
+	if w.step > 0 {
+		step = w.step
+	}
+	return lo, max(lo, hi), step
+}
+
+// openPreview opens the preview at the image's group index.
+func (w *ImageW) openPreview() {
+	st := w.st
+	st.open, st.scale, st.angle, st.flipX, st.flipY, st.pan = true, 1, 0, false, false, geom.Point{}
+	st.idx, st.original = w.groupIdx, false
+	w.c.invalid = true
 }
 
 // Layout applies layout options.
@@ -277,11 +370,8 @@ func (w *ImageW) finish() {
 	c := w.c
 	if w.preview && w.showing() != nil {
 		w.ia = c.interact(w.n, true, input.CursorPointer)
-		if w.ia.Clicked {
-			st := w.st
-			st.open, st.scale, st.angle, st.flipX, st.flipY, st.pan = true, 1, 0, false, false, geom.Point{}
-			st.idx = w.groupIdx
-			c.invalid = true
+		if w.ia.Clicked && !w.n.disabled {
+			w.openPreview()
 		}
 	}
 	w.previewOverlay()
@@ -362,14 +452,12 @@ func (w *ImageW) paint(l *paint.List, r geom.Rect) {
 // ---------------------------------------------------------------------------
 // Preview overlay
 
-const (
-	imgMinScale = 0.25
-	imgMaxScale = 8
-)
-
 func (w *ImageW) previewImages() []image.Image {
 	if len(w.group) > 0 {
 		return w.group
+	}
+	if w.previewSrc != nil {
+		return []image.Image{w.previewSrc}
 	}
 	return []image.Image{w.showing()}
 }
@@ -388,7 +476,40 @@ func (w *ImageW) previewOverlay() {
 		return
 	}
 	el := th.Flavor == theme.Element
+	imgMinScale, imgMaxScale, step := w.scales()
+	infinite := triOr(w.infinite, tk.PreviewInfinite)
+	// go moves to image i of the group: wrapping when Infinite, else
+	// stopping at the ends.
+	goImg := func(i int) {
+		n := len(imgs)
+		if infinite {
+			i = (i%n + n) % n
+		} else {
+			i = max(0, min(i, n-1))
+		}
+		if i != st.idx {
+			st.idx = i
+			st.scale, st.angle, st.flipX, st.flipY, st.pan = 1, 0, false, false, geom.Point{}
+			c.invalid = true
+		}
+	}
 	ov := Overlay(c, OverlayOptions{Place: ScreenFill}, func() {
+		// Left / Right switch images. Read before the toolbar buttons are
+		// built: the focused button takes the frame's keys (Enter / Space).
+		if st.open && len(imgs) > 1 {
+			for _, k := range c.keys {
+				if !k.Down {
+					continue
+				}
+				// Arrow keys are visual: in RTL Left shows the next image.
+				switch prev, next := c.inlineKey(k.Key); {
+				case prev:
+					goImg(st.idx - 1)
+				case next:
+					goImg(st.idx + 1)
+				}
+			}
+		}
 		// Drag surface for panning (below the controls).
 		pan := c.add("img-pan", loc.Image.PreviewLabel)
 		// The drag / wheel surface shows the image: arrow keys and the
@@ -402,7 +523,7 @@ func (w *ImageW) previewOverlay() {
 			st.last = c.pointer
 			st.rotDrag = c.pressMods.Has(input.ModShift) && st.imgRect.Contains(c.pressPos)
 		}
-		if c.Dragging(pan.id) {
+		if c.Dragging(pan.id) && (st.rotDrag || !w.noMove) {
 			if p, ok := c.Pointer(); ok {
 				if st.rotDrag {
 					// Rotate by the angle swept around the image centre.
@@ -439,17 +560,22 @@ func (w *ImageW) previewOverlay() {
 				c.invalid = true
 			}
 		}
-		if ia.Clicked && ia.Clicks >= 2 {
+		if ia.Clicked && ia.Clicks >= 2 && tk.PreviewDblClickZoom {
+			// rc-image: a double click zooms one step, or resets.
 			if st.scale == 1 {
-				st.scale = 2
+				st.scale = min(imgMaxScale, 1+step)
 			} else {
 				st.scale, st.pan = 1, geom.Point{}
 			}
-		} else if ia.Clicked && !el && !st.imgRect.Contains(c.pressPos) && c.pressPos == c.pointer {
-			st.open = false // Ant: clicking the mask closes
+		} else if ia.Clicked && triOr(w.maskClose, tk.PreviewMaskClosable) && !st.imgRect.Contains(c.pressPos) && c.pressPos == c.pointer {
+			st.open = false // clicking the backdrop closes
 		}
 
 		btn := func(label string, ic *icon.Icon, std *icon.Icon, disabled bool, place layout.Option, size, iconSize float32, round bool) bool {
+			fg, fgHover := tk.PreviewOperationColor, tk.PreviewOperationHoverColor
+			if round {
+				fg, fgHover = tk.PreviewSwitchColor, tk.PreviewSwitchHoverColor
+			}
 			n := c.add("img-op", label)
 			n.ln.Width, n.ln.Height = size, size
 			flexbox.Apply(&n.ln.Style, place)
@@ -459,13 +585,13 @@ func (w *ImageW) previewOverlay() {
 			id := n.id
 			n.paint = func(l *paint.List, r geom.Rect) {
 				hv := c.Anim(id, "hover", b2f(bia.Hovered), th.DurationMid)
-				if round {
+				if round && !disabled { // Ant: a disabled switch has no background
 					l.Fill(r, geom.Rad(size/2), tk.PreviewOperationBg)
 					if hv > 0 && tk.PreviewOperationHoverBg.A > 0 {
 						l.Fill(r, geom.Rad(size/2), theme.Fade(tk.PreviewOperationHoverBg, float64(hv)))
 					}
 				}
-				col := theme.Lerp(tk.PreviewOperationColor, tk.PreviewOperationHoverColor, hv)
+				col := theme.Lerp(fg, fgHover, hv)
 				if disabled {
 					col = tk.PreviewOperationDisabledColor
 				}
@@ -487,33 +613,25 @@ func (w *ImageW) previewOverlay() {
 		U := layout.Unset
 		// Close button: top-end (Abs offsets are logical: top-left in RTL).
 		sz, is := tk.PreviewOperationSize, tk.PreviewOperationIconSize
-		cm := float32(32)
-		if el {
-			cm = 40
-		}
+		cm := tk.PreviewCloseOffset
 		if btn(loc.Image.ClosePreview, nil, icon.Close, false, layout.Abs(U, cm, cm, U), sz, is, true) {
 			st.open = false
 		}
 		// Prev / next for groups: prev at the inline start, next at the end.
 		if len(imgs) > 1 {
-			m := float32(12)
-			if el {
-				m = 40
-			}
+			m := tk.PreviewSwitchOffset
 			mid := c.size.H/2 - sz/2
-			if btn(loc.Image.Prev, nil, icon.Left, st.idx == 0 && !el, layout.Abs(m, mid, U, U), sz, is, true) {
-				st.idx = (st.idx - 1 + len(imgs)) % len(imgs)
-				st.scale, st.angle, st.flipX, st.flipY, st.pan = 1, 0, false, false, geom.Point{}
+			if btn(loc.Image.Prev, nil, icon.Left, st.idx == 0 && !infinite, layout.Abs(m, mid, U, U), sz, is, true) {
+				goImg(st.idx - 1)
 			}
-			if btn(loc.Image.Next, nil, icon.Right, st.idx == len(imgs)-1 && !el, layout.Abs(U, mid, m, U), sz, is, true) {
-				st.idx = (st.idx + 1) % len(imgs)
-				st.scale, st.angle, st.flipX, st.flipY, st.pan = 1, 0, false, false, geom.Point{}
+			if btn(loc.Image.Next, nil, icon.Right, st.idx == len(imgs)-1 && !infinite, layout.Abs(U, mid, m, U), sz, is, true) {
+				goImg(st.idx + 1)
 			}
 		}
 		// Toolbar.
-		zoomIn := func() { st.scale = min(imgMaxScale, st.scale*1.5) }
+		zoomIn := func() { st.scale = min(imgMaxScale, st.scale*(1+step)) }
 		zoomOut := func() {
-			st.scale = max(imgMinScale, st.scale/1.5)
+			st.scale = max(imgMinScale, st.scale/(1+step))
 			if st.scale <= 1 {
 				st.pan = geom.Point{}
 			}
@@ -527,7 +645,10 @@ func (w *ImageW) previewOverlay() {
 					zoomIn()
 				}
 				imgSep(c, tk)
+				// EP toggleMode: contain (fitted) <-> original (natural
+				// size), resetting the transform.
 				if btn(loc.Reset, nil, icon.Fullscreen, false, layout.Option{}, 23, 23, false) {
+					st.original = !st.original
 					st.scale, st.angle, st.pan, st.flipX, st.flipY = 1, 0, geom.Point{}, false, false
 				}
 				imgSep(c, tk)
@@ -540,37 +661,38 @@ func (w *ImageW) previewOverlay() {
 			}, layout.Abs(c.size.W/2-140, U, U, 30), layout.W(280), layout.H(44), layout.Middle(),
 				layout.JustifyContent(layout.JustifySpaceAround), layout.PadVH(0, 23)).Bg(tk.PreviewToolbarBg).Radius(22)
 		} else {
-			tw := float32(6*44 + 24)
+			as, gap, pad := tk.PreviewActionSize, tk.PreviewActionGap, tk.PreviewActionsPadding
+			tw := 6*as + 5*gap + 2*pad
 			bar := Row(c, func() {
-				if btn(loc.Image.FlipVertical, icon.SwapVertical, nil, false, layout.Option{}, 44, 18, false) {
+				if btn(loc.Image.FlipVertical, icon.SwapVertical, nil, false, layout.Option{}, as, is, false) {
 					st.flipY = !st.flipY
 				}
-				if btn(loc.Image.FlipHorizontal, icon.Swap, nil, false, layout.Option{}, 44, 18, false) {
+				if btn(loc.Image.FlipHorizontal, icon.Swap, nil, false, layout.Option{}, as, is, false) {
 					st.flipX = !st.flipX
 				}
-				if btn(loc.Image.RotateLeft, icon.RotateLeft, nil, false, layout.Option{}, 44, 18, false) {
+				if btn(loc.Image.RotateLeft, icon.RotateLeft, nil, false, layout.Option{}, as, is, false) {
 					st.angle -= 90
 				}
-				if btn(loc.Image.RotateRight, icon.RotateRight, nil, false, layout.Option{}, 44, 18, false) {
+				if btn(loc.Image.RotateRight, icon.RotateRight, nil, false, layout.Option{}, as, is, false) {
 					st.angle += 90
 				}
-				if btn(loc.Image.ZoomOut, icon.ZoomOut, nil, st.scale <= imgMinScale, layout.Option{}, 44, 18, false) {
+				if btn(loc.Image.ZoomOut, icon.ZoomOut, nil, st.scale <= imgMinScale, layout.Option{}, as, is, false) {
 					zoomOut()
 				}
-				if btn(loc.Image.ZoomIn, icon.ZoomIn, nil, st.scale >= imgMaxScale, layout.Option{}, 44, 18, false) {
+				if btn(loc.Image.ZoomIn, icon.ZoomIn, nil, st.scale >= imgMaxScale, layout.Option{}, as, is, false) {
 					zoomIn()
 				}
-			}, layout.Abs(c.size.W/2-tw/2, U, U, 32), layout.W(tw), layout.H(44), layout.Middle(), layout.PadVH(0, 12))
+			}, layout.Abs(c.size.W/2-tw/2, U, U, 32), layout.W(tw), layout.H(as), layout.Middle(), layout.Gap(gap), layout.PadVH(0, pad))
 			bar.Bg(tk.PreviewToolbarBg).Radius(100)
-			if len(imgs) > 1 {
-				s := fmt.Sprintf("%d / %d", st.idx+1, len(imgs))
-				n := c.add("img-count", "")
-				n.setRole(a11y.RoleText).setName(s)
-				flexbox.Apply(&n.ln.Style, layout.Abs(0, U, 0, 32+44+12), layout.H(22))
-				n.paint = func(l *paint.List, r geom.Rect) {
-					lay := c.dataShape(s, th.FontSize, text.Regular)
-					dataText(l, lay, r.X+(r.W-lay.Width)/2, r.Y, tk.PreviewOperationColor)
-				}
+		}
+		if len(imgs) > 1 && triOr(w.progress, tk.PreviewShowProgress) {
+			s := fmt.Sprintf("%d / %d", st.idx+1, len(imgs))
+			n := c.add("img-count", "")
+			n.setRole(a11y.RoleText).setName(s)
+			flexbox.Apply(&n.ln.Style, layout.Abs(0, U, 0, tk.PreviewProgressBottom), layout.H(22))
+			n.paint = func(l *paint.List, r geom.Rect) {
+				lay := c.dataShape(s, th.FontSize, text.Regular)
+				dataText(l, lay, r.X+(r.W-lay.Width)/2, r.Y, tk.PreviewProgressColor)
 			}
 		}
 		if !st.open {
@@ -586,23 +708,9 @@ func (w *ImageW) previewOverlay() {
 	if st.open {
 		c.TrapFocus(ov.n.id)
 	}
-	if st.open && c.EscapeAt(ov.ID()) {
+	if st.open && !w.noEsc && c.EscapeAt(ov.ID()) {
 		st.open = false
 		c.invalid = true
-	}
-	if st.open {
-		for _, k := range c.keys {
-			if !k.Down || len(imgs) < 2 {
-				continue
-			}
-			// Arrow keys are visual: in RTL Left shows the next image.
-			switch prev, next := c.inlineKey(k.Key); {
-			case prev:
-				st.idx = (st.idx - 1 + len(imgs)) % len(imgs)
-			case next:
-				st.idx = (st.idx + 1) % len(imgs)
-			}
-		}
 	}
 	mask := tk.PreviewBg
 	ov.n.paint = func(l *paint.List, r geom.Rect) {
@@ -626,6 +734,9 @@ func (w *ImageW) previewOverlay() {
 		bw := ow*float32(cs) + oh*float32(sn)
 		bh := ow*float32(sn) + oh*float32(cs)
 		fit := min(1, (r.W-160)/bw, (r.H-250)/bh)
+		if st.original {
+			fit = 1
+		}
 		zoom := st.scale * (0.9 + 0.1*vis)
 		dw, dh := ow*fit*zoom, oh*fit*zoom
 		cen := geom.Pt(r.X+r.W/2+st.pan.X, r.Y+r.H/2+st.pan.Y)

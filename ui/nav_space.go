@@ -38,6 +38,18 @@ func Flex(c *Context) *FlexW {
 // Vertical lays children top to bottom.
 func (f *FlexW) Vertical() *FlexW { f.b.n.ln.Dir = layout.Column; return f }
 
+// Orientation sets the direction: "horizontal" (default) or "vertical"
+// (Ant v6 orientation). Other values are ignored.
+func (f *FlexW) Orientation(o string) *FlexW {
+	switch o {
+	case "horizontal":
+		f.b.n.ln.Dir = layout.Row
+	case "vertical":
+		f.b.n.ln.Dir = layout.Column
+	}
+	return f
+}
+
 // Justify distributes free space on the main axis.
 func (f *FlexW) Justify(j layout.Justify) *FlexW { f.b.n.ln.Justify = j; return f }
 
@@ -77,15 +89,35 @@ type SpaceW struct {
 
 // Space starts a horizontal group with the Small (8px) gap and centered
 // items; chain options, then Body. ConfigProvider's Defaults("Space",
-// Props{"size": ...}) changes the default gap.
+// Props{...}) keys: "size" (ControlSize), "orientation" ("horizontal" |
+// "vertical").
 //
 //	ui.Space(c).Body(func() { ui.Button(c, "A"); ui.Button(c, "B") })
-//	ui.Space(c).Vertical().Size(ui.Large).Body(fn)
-//	ui.Space(c).Split(func() { ui.VDivider(c) }).Body(fn)
+//	ui.Space(c).Orientation("vertical").Size(ui.Large).Body(fn)
+//	ui.Space(c).Separator(func() { ui.VDivider(c) }).Body(fn)
 func Space(c *Context) *SpaceW {
 	s := &SpaceW{c: c}
 	s.b = c.box("space", layout.Row, nil)
 	s.b.n.ln.Align = layout.AlignCenter
+	if o, ok := c.ConfigProp("Space", "orientation"); ok {
+		if o, ok := o.(string); ok {
+			s.Orientation(o)
+		}
+	}
+	return s
+}
+
+// Orientation sets the direction: "horizontal" (default) or "vertical"
+// (Ant v6 orientation, which replaces direction; Element direction).
+// Vertical items align to the start. Other values are ignored.
+func (s *SpaceW) Orientation(o string) *SpaceW {
+	switch o {
+	case "horizontal":
+		s.b.n.ln.Dir = layout.Row
+		s.b.n.ln.Align = layout.AlignCenter
+	case "vertical":
+		s.Vertical()
+	}
 	return s
 }
 
@@ -117,8 +149,15 @@ func (s *SpaceW) Align(a layout.Align) *SpaceW { s.b.n.ln.Align = a; return s }
 // Wrap wraps items onto new lines (horizontal only).
 func (s *SpaceW) Wrap() *SpaceW { s.b.n.ln.Wrap = true; return s }
 
+// Separator builds a separator between every two items (Ant v6
+// separator, Element spacer), e.g. ui.VDivider or a Text; it is built
+// once per gap, never before the first item or after the last.
+func (s *SpaceW) Separator(fn func()) *SpaceW { s.split = fn; return s }
+
 // Split builds a separator between every two items (e.g. VDivider).
-func (s *SpaceW) Split(fn func()) *SpaceW { s.split = fn; return s }
+//
+// Deprecated: use Separator (Ant v6 renamed split to separator).
+func (s *SpaceW) Split(fn func()) *SpaceW { return s.Separator(fn) }
 
 // Layout applies extra layout options (margins, width, ...).
 func (s *SpaceW) Layout(o ...layout.Option) *SpaceW { s.b.Style(o...); return s }

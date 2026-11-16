@@ -42,6 +42,10 @@ type DatePickerToken struct {
 	HeaderHoverColor  Color // zero: unchanged
 	HeaderHoverBg     Color // zero: none
 	HeaderBorderColor Color // divider under the header (zero: none)
+	// Header arrows stopped by MinDate / MaxDate: drawn at
+	// NavDisabledOpacity, or in NavDisabledColor when that is set.
+	NavDisabledOpacity float64 // unitless ratio
+	NavDisabledColor   Color
 
 	PanelPaddingInline float32 // around the cell grid
 	PanelBg            Color
@@ -70,8 +74,12 @@ type DatePickerToken struct {
 }
 
 func deriveDatePicker(t *Theme) DatePickerToken {
+	// Ant (date-picker/style/token.js, panel.js): cellWidth =
+	// controlHeightSM*1.5 = 36; a row is cellHeight (controlHeightSM 24)
+	// plus pickerCellPaddingVertical (paddingXXS*1.5 = 6) above and below
+	// = 36; presetsWidth 120.
 	k := DatePickerToken{
-		CellWidth: 36, CellHeight: 32, CellInnerSize: 24, MonthCellWidth: 60, MonthCellHeight: 24,
+		CellWidth: 36, CellHeight: 36, CellInnerSize: 24, MonthCellWidth: 60, MonthCellHeight: 24,
 		CellRadius:   t.RadiusSM,
 		CellColor:    t.Text,
 		CellOutColor: t.TextQuaternary,
@@ -82,10 +90,11 @@ func deriveDatePicker(t *Theme) DatePickerToken {
 		CellDisabledBg:  t.BgContainerDisabled, CellDisabledColor: t.TextDisabled,
 		WeekFontSize: t.FontSize, WeekNumberColor: t.TextQuaternary,
 		HeaderHeight: 40, HeaderColor: t.Text, HeaderHoverColor: t.Primary.Base, HeaderBorderColor: t.Split,
+		NavDisabledOpacity: 0.25, // panel.js header '> button:disabled' opacity
 		PanelPaddingInline: 18,
 		PanelBg:            t.BgElevated, PanelRadius: t.RadiusLG, PanelShadow: t.Shadow, PanelBorderColor: t.BorderSecondary,
 		SplitColor:   t.Split,
-		PresetsWidth: 110, FooterHeight: 40,
+		PresetsWidth: 120, FooterHeight: 40,
 		PresetColor: t.Text, PresetHoverBg: t.ItemHoverBg,
 		TimeColumnWidth: 56, TimeColumnHeight: 224, TimeCellHeight: 28, TimeCellFontSize: t.FontSize, TimeCellRadius: t.RadiusSM,
 		TimeCellColor: t.Text, TimeCellHoverBg: t.ItemHoverBg,
@@ -108,6 +117,9 @@ func deriveDatePicker(t *Theme) DatePickerToken {
 		k.HeaderBorderColor = Color{}
 		k.PanelPaddingInline = 12
 		k.PresetHoverColor, k.PresetHoverBg = t.Primary.Base, Color{}
+		k.PresetsWidth = 110 // el-picker-panel__sidebar (picker-panel.scss)
+		// picker-panel.scss icon-btn is-disabled: --el-text-color-disabled.
+		k.NavDisabledOpacity, k.NavDisabledColor = 1, t.TextDisabled
 		k.TimeColumnWidth, k.TimeColumnHeight, k.TimeCellHeight = 60, 192, 32
 		k.TimeCellFontSize, k.TimeCellRadius = t.FontSizeSM, 0
 		k.TimeCellColor = t.TextSecondary
@@ -128,6 +140,7 @@ func deriveDatePicker(t *Theme) DatePickerToken {
 		k.WeekColor, k.WeekFontSize = t.TextTertiary, t.FontSizeSM
 		k.HeaderHoverColor, k.HeaderHoverBg = Color{}, t.ItemHoverBg
 		k.HeaderBorderColor = Color{}
+		k.NavDisabledOpacity = 0.5 // calendar.tsx button_previous aria-disabled:opacity-50
 		k.PanelPaddingInline = 12
 		k.FooterHeight = 44
 		k.TimeCellActiveBg, k.TimeCellActiveColor = t.Primary.Base, t.TextOnPrimary

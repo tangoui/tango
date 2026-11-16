@@ -19,6 +19,8 @@ type TimelineToken struct {
 	LabelColor        Color   `contrast:"text:@Page"` // Ant label on the opposite side
 	TimeColor         Color   `contrast:"text:@Page"` // timestamp
 	TimeFontSize      float32
+	DotOutlined       bool // Variant "" draws a ring (Ant); otherwise a filled dot
+	BusyTailDashed    bool // the axis next to a Pending / Loading item is dotted (Ant, shadcn)
 
 	// Horizontal timelines (Timeline.Horizontal).
 	HorizontalGap         float32 // axis to the content / label above and below
@@ -26,22 +28,29 @@ type TimelineToken struct {
 }
 
 func deriveTimeline(t *Theme) TimelineToken {
+	// antd 6.7 es/timeline/style/index.js prepareComponentToken: tailWidth
+	// and dotBorderWidth lineWidthBold (2), itemPaddingBottom padding*1.25;
+	// the dot is the Steps dot (es/steps/style/index.js dotCurrentSize =
+	// controlHeightLG/4 = 10).
 	k := TimelineToken{
 		TailColor: t.Split, TailWidth: 2, DotBg: t.BgContainer, DotColor: t.Primary.Base,
-		DotSize: 10, DotSizeLG: 10, DotBorderWidth: 3, DotOffsetTop: 5.5, IconDotSize: 16,
+		DotSize: 10, DotSizeLG: 10, DotBorderWidth: 2, DotOffsetTop: 5.5, IconDotSize: 16,
 		PendingColor: t.Primary.Base, ItemPaddingBottom: 20, ContentGap: 16,
 		ContentColor: t.Text, LabelColor: t.Text, TimeColor: t.TextTertiary, TimeFontSize: t.FontSize,
 		HorizontalGap: 8, HorizontalItemPadding: 8,
+		DotOutlined: true, BusyTailDashed: true,
 	}
 	switch t.Flavor {
 	case Element:
 		k.DotColor = t.Split // --el-timeline-node-color
 		k.DotSize, k.DotSizeLG, k.DotBorderWidth, k.DotOffsetTop, k.IconDotSize = 12, 14, 2, 4, 14
 		k.TimeFontSize = 13
+		k.DotOutlined, k.BusyTailDashed = false, false
 	case StyleShadcn:
 		// 1px border axis, filled size-2.5 dots centred on the 20px line.
 		k.TailColor, k.TailWidth, k.DotOffsetTop = t.Border, 1, 5
 		k.TimeFontSize = t.FontSizeSM
+		k.DotOutlined = false
 	}
 	return k
 }
