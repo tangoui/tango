@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -21,15 +22,24 @@ func abVerdict(base, head []abMetric) string {
 		return "noise"
 	}
 	bn, hn := medianAB(base, 0), medianAB(head, 0)
-	ba, ha := medianAB(base, 1), medianAB(head, 1)
-	if bn == 0 || ba == 0 {
+	if bn <= 0 {
 		return "noise"
 	}
-	ns, alloc := 1-hn/bn, 1-ha/ba
-	if (ns >= .10 || alloc >= .20) && ns >= -.05 && alloc >= -.05 {
+	ns := 1 - hn/bn
+	ba, ha := medianAB(base, 1), medianAB(head, 1)
+	alloc, comparable := 0.0, false
+	switch {
+	case ba > 0:
+		alloc, comparable = 1-ha/ba, true
+	case ha > 0:
+		alloc, comparable = -1, true
+	}
+	keep := ns >= .10 || (comparable && alloc >= .20)
+	regress := ns < -.05 || (comparable && alloc < -.05)
+	if keep && !regress {
 		return "keep"
 	}
-	if ns < -.05 || alloc < -.05 {
+	if regress {
 		return "regress"
 	}
 	return "noise"
@@ -51,23 +61,21 @@ func runAB(baseRev, bench, pkg string, rounds int, out *strings.Builder) (err er
 		return err
 	}
 	base := filepath.Join(parent, "tree")
-	owned := false
+	possibleRegistered := true // add can register before returning an error.
 	defer func() {
-		if !owned {
-			_ = os.RemoveAll(parent)
-			return
+		if possibleRegistered {
+			if ce := cleanupWorktree(root, base); ce != nil {
+				err = errors.Join(err, ce)
+				return // never remove the parent while registration may remain
+			}
 		}
-		if ce := cleanupWorktree(root, base); ce != nil && err == nil {
-			err = ce
-		}
-		if re := os.RemoveAll(parent); re != nil && err == nil {
-			err = re
+		if re := os.RemoveAll(parent); re != nil {
+			err = errors.Join(err, re)
 		}
 	}()
 	if err = runCmd(root, "git", "worktree", "add", "--detach", base, baseRev); err != nil {
 		return err
 	}
-	owned = true
 	baseBin, headBin := filepath.Join(parent, "base.test"), filepath.Join(parent, "head.test")
 	if err = runCmd(root, "go", "test", "-c", "-o", headBin, pkg); err != nil {
 		return err
@@ -106,18 +114,25 @@ func runAB(baseRev, bench, pkg string, rounds int, out *strings.Builder) (err er
 	if len(baseRows) == 0 || len(headRows) == 0 {
 		return fmt.Errorf("benchmark produced no matching rows")
 	}
-	names := make([]string, 0, len(baseRows))
+	nameSet := map[string]bool{}
 	for name := range baseRows {
+		nameSet[name] = true
+	}
+	for name := range headRows {
+		nameSet[name] = true
+	}
+	names := make([]string, 0, len(nameSet))
+	for name := range nameSet {
 		names = append(names, name)
 	}
 	sortStrings(names)
 	for _, name := range names {
-		h, ok := headRows[name]
-		if !ok {
-			fmt.Fprintf(out, "%s: missing from head; verdict: noise\n", name)
+		b, bok := baseRows[name]
+		h, hok := headRows[name]
+		if !bok || !hok {
+			fmt.Fprintf(out, "%s: missing from %s; verdict: noise\n", name, map[bool]string{true: "base", false: "head"}[!bok])
 			continue
 		}
-		b := baseRows[name]
 		fmt.Fprintf(out, "%s: base median ns/op %.0f, head %.0f; base allocs/op %.1f, head %.1f; verdict: %s\n", name, medianAB(b, 0), medianAB(h, 0), medianAB(b, 1), medianAB(h, 1), abVerdict(b, h))
 	}
 	return nil
@@ -167,18 +182,22 @@ func cleanupWorktree(root, path string) error {
 	if !filepath.IsAbs(path) {
 		return fmt.Errorf("refuse to clean non-absolute worktree %q", path)
 	}
-	if err := exec.Command("git", "-C", root, "worktree", "remove", "--force", path).Run(); err != nil {
-		_ = exec.Command("git", "-C", root, "worktree", "prune").Run()
-		return fmt.Errorf("remove worktree %s: %w", path, err)
+	removeErr := exec.Command("git", "-C", root, "worktree", "remove", "--force", path).Run()
+	pruneErr := exec.Command("git", "-C", root, "worktree", "prune").Run()
+	list, listErr := exec.Command("git", "-C", root, "worktree", "list", "--porcelain").Output()
+	var errs []error
+	if removeErr != nil {
+		errs = append(errs, fmt.Errorf("remove worktree %s: %w", path, removeErr))
 	}
-	list, err := exec.Command("git", "-C", root, "worktree", "list", "--porcelain").Output()
-	if err != nil {
-		return err
+	if pruneErr != nil {
+		errs = append(errs, fmt.Errorf("prune worktrees: %w", pruneErr))
 	}
-	if strings.Contains(string(list), "worktree "+path+"\n") {
-		return fmt.Errorf("worktree registration remains: %s", path)
+	if listErr != nil {
+		errs = append(errs, fmt.Errorf("verify worktree cleanup: %w", listErr))
+	} else if strings.Contains(string(list), "worktree "+path+"\n") {
+		errs = append(errs, fmt.Errorf("worktree registration remains: %s", path))
 	}
-	return nil
+	return errors.Join(errs...)
 }
 func runCmd(dir string, args ...string) error {
 	c := exec.Command(args[0], args[1:]...)

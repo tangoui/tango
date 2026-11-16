@@ -37,3 +37,9 @@ func TestCleanupWorktreeRejectsUnownedPath(t *testing.T) {
 		t.Fatal("expected ownership/path error")
 	}
 }
+
+func TestCleanupWorktreeReportsGitFailure(t *testing.T) {
+	if err := cleanupWorktree("/definitely/not/a/repository", "/tmp/uiperf-owned-tree"); err == nil {
+		t.Fatal("expected cleanup error")
+	}
+}
