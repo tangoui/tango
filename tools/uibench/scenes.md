@@ -8,7 +8,7 @@ constants.
 
 | Scene | Window (content, logical px) | Content | Per frame | `work` |
 |---|---|---|---|---|
-| counter | 360×260 | a number (56 px, bold) above a row of three buttons `−`, `Reset`, `+` (the last primary) | nothing: after ready no frame is requested (CPU and memory at rest) | 0 |
+| counter | 360×260 | centered column, gap 12: caption `Taps` (13 px, #6b7280), the tap count (48 px, bold), a row (gap 10) of buttons `Less`, `Reset`, `More` (the last primary) | nothing: after ready no frame is requested (CPU and memory at rest) | 0 |
 | list | 800×600 | virtual list of 100,000 rows, 40 px high, padded 16 px left/right, gap 12, three texts | scroll 8 logical px further (back to 0 at the end) | 1 |
 | grid | 800×600 | 30 rows × 20 columns of 40×20 cells, each with its own background, a centered 11 px number | every one of the 600 numbers changes | 600 |
 
@@ -16,9 +16,9 @@ constants.
 
 - List row `i`: `"Row <i>"` (14 px, takes the free width), `"<i*7%1000>"`
   (13 px, #6b7280) and `"<i*13%100> ms"` (13 px, #6b7280).
-- Grid cell `cell = row*20 + col` at frame `f`: `(cell*7919 + f*31) % 10000`
+- Grid cell `cell = row*20 + col` at frame `f`: `(cell*131 + f*17) % 10000`
   as decimal text, color #101010, background
-  `[#f6c9c4, #f4e8b8, #c6e9c8, #c9d8f4][(row+col)%4]`. Since 31 is not a
+  `[#f6c9c4, #f4e8b8, #c6e9c8, #c9d8f4][(row+col)%4]`. Since 17 is not a
   multiple of 10000, every cell changes every frame.
 
 ## Frames and ready

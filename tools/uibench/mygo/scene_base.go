@@ -25,96 +25,103 @@ var (
 	cellBg  = [4]ui.Color{ui.Hex("#f6c9c4"), ui.Hex("#f4e8b8"), ui.Hex("#c6e9c8"), ui.Hex("#c9d8f4")}
 )
 
-// counter is a number and three buttons. After its first frame is on
-// screen it reports ready and asks for no more frames.
+// counter shows a caption, a tap count and Less / Reset / More. It
+// reports ready on the frame after the first and then requests none.
 type counter struct {
-	n int
-	k clock
+	taps int
+	k    clock
 }
 
 func (s *counter) view(c *ui.Context) {
 	if s.k.next(c) {
-		switch s.k.frames {
-		case 1:
-			c.AnimationFrame() // one more frame, after the first is presented
-		case 2:
+		if s.k.frames == 1 {
+			c.AnimationFrame() // the frame after the first is presented is ready
+		} else if s.k.frames == 2 {
 			report(0)
 		}
 	}
-	probe(ui.Column(c).Fill().Center().Gap(16)).Children(func() {
-		ui.Text(c, strconv.Itoa(s.n)).FontSize(56).Bold()
-		ui.Row(c).Gap(8).Children(func() {
-			if ui.Button(c.Key("decrement"), "−").Clicked() {
-				s.n--
-			}
-			if ui.Button(c.Key("reset"), "Reset").Clicked() {
-				s.n = 0
-			}
-			if ui.PrimaryButton(c.Key("increment"), "+").Clicked() {
-				s.n++
-			}
-		})
+	probe(ui.Column(c).Center().Fill().Gap(12)).Children(func() {
+		ui.Text(c, "Taps").TextColor(muted).FontSize(13)
+		ui.Text(c, strconv.Itoa(s.taps)).Bold().FontSize(48)
+		ui.Row(c).Gap(10).Children(func() { s.buttons(c) })
 	})
 }
 
-// list is a virtual list of 100,000 rows of three texts, scrolled 8
-// logical px further every frame through its tracked scroll state.
-type list struct {
-	k      clock
-	state  ui.ListState
-	scroll ui.ScrollState
+func (s *counter) buttons(c *ui.Context) {
+	if ui.Button(c.Key("taps-less"), "Less").Clicked() {
+		s.taps--
+	}
+	if ui.Button(c.Key("taps-reset"), "Reset").Clicked() {
+		s.taps = 0
+	}
+	if ui.PrimaryButton(c.Key("taps-more"), "More").Clicked() {
+		s.taps++
+	}
 }
 
-func (s *list) view(c *ui.Context) {
+// scrollingList is the list scene: 100,000 rows, its scroll position moved
+// 8 logical px each frame through the state the list tracks.
+type scrollingList struct {
+	k      clock
+	offset ui.ScrollState
+	items  ui.ListState
+}
+
+func (s *scrollingList) view(c *ui.Context) {
 	c.AnimationFrame() // MyGo's per-frame request while something moves
-	advance := s.k.next(c) && s.k.frames >= 2
-	if advance {
-		s.scroll.Y += listStep
-		if s.scroll.Y > listRows*listRowH-viewH {
-			s.scroll.Y = 0
+	moved := s.k.next(c) && s.k.frames >= 2
+	if moved {
+		if s.offset.Y += listStep; s.offset.Y > listRows*listRowH-viewH {
+			s.offset.Y = 0
 		}
 	}
-	probe(ui.List(c, &s.state, listRows, func(i int) {
-		ui.Row(c).Height(listRowH).Padding(0, 16).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Row "+strconv.Itoa(i)).FontSize(14).Grow(1).NoWrap()
-			ui.Text(c, strconv.Itoa(i*7%1000)).FontSize(13).TextColor(muted).NoWrap()
-			ui.Text(c, strconv.Itoa(i*13%100)+" ms").FontSize(13).TextColor(muted).NoWrap()
-		})
-	}).Fill().TrackScroll(&s.scroll))
-	if advance {
+	probe(ui.List(c, &s.items, listRows, func(i int) { listRow(c, i) }).TrackScroll(&s.offset).Fill())
+	if moved {
 		report(1)
 	}
 }
 
-// grid is 600 cells, each with its own background, whose numbers all
-// change every frame.
-type grid struct {
-	k     clock
-	frame int
+func listRow(c *ui.Context, i int) {
+	ui.Row(c).AlignItems(ui.Center).Gap(12).Padding(0, 16).Height(listRowH).Children(func() {
+		ui.Text(c, "Row "+strconv.Itoa(i)).Grow(1).FontSize(14).NoWrap()
+		ui.Text(c, strconv.Itoa(i*7%1000)).TextColor(muted).FontSize(13).NoWrap()
+		ui.Text(c, strconv.Itoa(i*13%100)+" ms").TextColor(muted).FontSize(13).NoWrap()
+	})
 }
 
-func (s *grid) view(c *ui.Context) {
+// dashboard is the grid scene: 30 rows of 20 cells, rebuilt every frame
+// with all 600 numbers new.
+type dashboard struct {
+	k    clock
+	tick int
+}
+
+func (s *dashboard) view(c *ui.Context) {
 	c.AnimationFrame() // MyGo's per-frame request while something moves
-	advance := s.k.next(c) && s.k.frames >= 2
-	if advance {
-		s.frame++
+	moved := s.k.next(c) && s.k.frames >= 2
+	if moved {
+		s.tick++
 	}
 	probe(ui.Column(c).Fill()).Children(func() {
-		for row := range gridRows {
+		for r := 0; r < gridRows; r++ {
 			ui.Row(c).Children(func() {
-				for col := range gridCols {
-					cell := row*gridCols + col
-					ui.Box(c).Size(cellW, cellH).Center().Background(cellBg[(row+col)%4]).Children(func() {
-						ui.Text(c, strconv.Itoa(cellValue(cell, s.frame))).FontSize(11).TextColor(cellInk).NoWrap()
-					})
+				for col := 0; col < gridCols; col++ {
+					gridCell(c, cellValue(r*gridCols+col, s.tick), cellBg[(r+col)%len(cellBg)])
 				}
 			})
 		}
 	})
-	if advance {
+	if moved {
 		report(gridChange)
 	}
 }
 
-// cellValue is cell's number at frame: every cell changes every frame.
-func cellValue(cell, frame int) int { return (cell*7919 + frame*31) % 10000 }
+func gridCell(c *ui.Context, value int, bg ui.Color) {
+	ui.Box(c).Background(bg).Width(cellW).Height(cellH).Center().Children(func() {
+		ui.Text(c, strconv.Itoa(value)).TextColor(cellInk).FontSize(11).NoWrap()
+	})
+}
+
+// cellValue is a cell's number at a frame: 17 is not a multiple of 10000,
+// so every cell changes every frame.
+func cellValue(cell, frame int) int { return (cell*131 + frame*17) % 10000 }

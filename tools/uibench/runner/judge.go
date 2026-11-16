@@ -20,14 +20,17 @@ const (
 
 // The bar of the global constraints.
 const (
-	cpuRatio      = 0.50 // Tango's median CPU at most this share of the opponent's
-	workTolerance = 0.05 // work per frame may differ this much
+	cpuRatio       = 0.50 // Tango's median CPU at most this share of the opponent's
+	workTolerance  = 0.05 // work per frame may differ this much
+	minRoundsFloor = 3    // fewer usable rounds never judge: quartiles need them
 )
 
 // judge compares Tango's rounds t with an opponent's rounds o of the same
-// scene.
-func judge(t, o []Round) Verdict {
-	v, _ := judgeWhy(t, o)
+// scene. Each side needs at least minRounds usable rounds (never fewer than
+// minRoundsFloor): with one round, Q1 = Q3 = the median and the
+// interquartile condition would hold by itself.
+func judge(t, o []Round, minRounds int) Verdict {
+	v, _ := judgeWhy(t, o, minRounds)
 	return v
 }
 
@@ -39,10 +42,11 @@ func judge(t, o []Round) Verdict {
 // opponent's; median frame-interval p99 at most the opponent's. The counter
 // scene draws no frames after ready, so there fps and p99 give way to the
 // median physical footprint, which must be at most the opponent's.
-func judgeWhy(t, o []Round) (Verdict, string) {
+func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
 	t, o = usable(t), usable(o)
-	if len(t) == 0 || len(o) == 0 {
-		return Invalid, fmt.Sprintf("usable rounds: tango %d, opponent %d", len(t), len(o))
+	need := max(minRounds, minRoundsFloor)
+	if len(t) < need || len(o) < need {
+		return Invalid, fmt.Sprintf("usable rounds: tango %d, opponent %d, need %d each", len(t), len(o), need)
 	}
 	for _, side := range [][]Round{t, o} {
 		for _, r := range side[1:] {

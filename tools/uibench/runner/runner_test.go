@@ -2,6 +2,7 @@ package main
 
 import (
 	"reflect"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -24,8 +25,8 @@ func TestDisturbedRoundsDropped(t *testing.T) {
 			t.Fatalf("usable kept disturbed round %d", r.Round)
 		}
 	}
-	if v := judge(tg, o); v != Faster {
-		_, why := judgeWhy(tg, o)
+	if v := judge(tg, o, 3); v != Faster {
+		_, why := judgeWhy(tg, o, 3)
 		t.Fatalf("verdict %s (%s), want Faster from the 3 calm rounds", v, why)
 	}
 	// Failed rounds and rounds behind a locked screen do not count either.
@@ -109,5 +110,38 @@ func TestCheckScreen(t *testing.T) {
 	}
 	if err := checkScreen(func() bool { return false }); err != nil {
 		t.Fatalf("unlocked screen: err %v, want nil", err)
+	}
+}
+
+func TestMonitorDropsFirstGroup(t *testing.T) {
+	m := newMonitor()
+	in := "bench ready\nbench frames 1\nbench work 1\nbench intervals_us 1\n" + // before sampling
+		"bench frames 50\n" // a group that straddles the start
+	rest := "bench work 50\nbench intervals_us 20000\n" +
+		"bench frames 60\nbench work 600\nbench intervals_us 16000,17000\n" +
+		"bench frames 62\nbench work 620\nbench intervals_us 16100\n"
+	m.feed(in)
+	m.setSampling(true)
+	m.feed(rest)
+	if !reflect.DeepEqual(m.frames, []float64{60, 62}) || !reflect.DeepEqual(m.work, []float64{600, 620}) ||
+		!reflect.DeepEqual(m.intervals, []float64{16000, 17000, 16100}) {
+		t.Fatalf("sampled frames %v work %v intervals %v", m.frames, m.work, m.intervals)
+	}
+}
+
+func TestStopAllKillsGroups(t *testing.T) {
+	var g groups
+	g.add(101)
+	g.add(202)
+	g.remove(101)
+	var killed []int
+	g.stopAll(func(pid int, sig syscall.Signal) error {
+		if sig == syscall.SIGTERM {
+			killed = append(killed, pid)
+		}
+		return nil
+	})
+	if !reflect.DeepEqual(killed, []int{-202}) {
+		t.Fatalf("stopAll signalled %v, want the group of 202 only", killed)
 	}
 }

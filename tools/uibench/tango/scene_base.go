@@ -28,10 +28,11 @@ var (
 	cellBg  = [4]theme.Color{theme.Hex("#f6c9c4"), theme.Hex("#f4e8b8"), theme.Hex("#c6e9c8"), theme.Hex("#c9d8f4")}
 )
 
-// counterPage is a number and three buttons. After its first frame is on
-// screen it reports ready and asks for no more frames.
+// counterPage shows a caption, a tap count and Less / Reset / More.
+// After its first frame is on screen it reports ready and asks for no more
+// frames.
 func counterPage() func(*ui.Context) {
-	n := 0
+	taps := 0
 	var k clock
 	return func(c *ui.Context) {
 		if k.next(c) {
@@ -43,19 +44,20 @@ func counterPage() func(*ui.Context) {
 			}
 		}
 		ui.Column(c, func() {
-			ui.Text(c, strconv.Itoa(n)).Size(56).Weight(text.Bold)
+			ui.Text(c, "Taps").Size(13).Color(muted)
+			ui.Text(c, strconv.Itoa(taps)).Size(48).Weight(text.Bold)
 			ui.Row(c, func() {
-				if ui.Button(c, "−").Clicked() {
-					n--
+				if ui.Button(c, "Less").Clicked() {
+					taps--
 				}
 				if ui.Button(c, "Reset").Clicked() {
-					n = 0
+					taps = 0
 				}
-				if ui.Button(c, "+").Primary().Clicked() {
-					n++
+				if ui.Button(c, "More").Primary().Clicked() {
+					taps++
 				}
-			}, layout.Gap(8))
-		}, layout.Fill(), layout.Center(), layout.Gap(16))
+			}, layout.Gap(10))
+		}, layout.Fill(), layout.Center(), layout.Gap(12))
 	}
 }
 
@@ -118,5 +120,6 @@ func gridPage() func(*ui.Context) {
 	}
 }
 
-// cellValue is cell's number at frame: every cell changes every frame.
-func cellValue(cell, frame int) int { return (cell*7919 + frame*31) % 10000 }
+// cellValue is a cell's number at a frame: 17 is not a multiple of 10000,
+// so every cell changes every frame.
+func cellValue(cell, frame int) int { return (cell*131 + frame*17) % 10000 }

@@ -17,6 +17,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -89,12 +90,14 @@ func (r Round) fps() float64       { return r.FPS }
 func (r Round) p99() float64       { return r.P99us }
 func (r Round) footprint() float64 { return float64(r.Footprint) }
 
-// usable drops the attempts the judge must not read: disturbed, failed or
-// measured behind a locked screen.
+// usable drops the attempts the judge must not read: disturbed, failed,
+// measured behind a locked screen, or without a known renderer (the
+// renderer consistency check cannot vouch for them).
 func usable(rs []Round) []Round {
 	var out []Round
 	for _, r := range rs {
-		if !r.Disturbed && !r.ScreenLocked && r.Error == "" && r.Ready {
+		known := r.Renderer != "" && r.Renderer != "unknown"
+		if known && !r.Disturbed && !r.ScreenLocked && r.Error == "" && r.Ready {
 			out = append(out, r)
 		}
 	}
@@ -148,11 +151,17 @@ type monitor struct {
 	ready chan struct{}
 	done  chan struct{} // stdout closed: the program exited
 
-	mu        sync.Mutex
-	isReady   bool
-	readyAt   time.Time
-	renderer  string
-	sampling  bool
+	mu       sync.Mutex
+	isReady  bool
+	readyAt  time.Time
+	renderer string
+	sampling bool
+	// A report group is one second's frames, work and intervals lines, in
+	// that order. It is taken whole or not at all, and the first group
+	// completed after sampling starts is dropped: it covers time before
+	// the start.
+	skip      int
+	pending   group
 	frames    []float64
 	work      []float64
 	intervals []float64
@@ -162,47 +171,116 @@ func newMonitor() *monitor {
 	return &monitor{ready: make(chan struct{}), done: make(chan struct{})}
 }
 
+// group is a report group being received.
+type group struct {
+	frames, work       float64
+	hasFrames, hasWork bool
+}
+
 func (m *monitor) read(r io.Reader) {
 	defer close(m.done)
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64<<10), 4<<20) // a second of intervals at a high rate
 	for sc.Scan() {
-		e, ok := parseLine(sc.Text())
-		if !ok {
-			continue
+		m.line(sc.Text())
+	}
+}
+
+// feed passes lines as read would (tests).
+func (m *monitor) feed(text string) {
+	for _, l := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
+		m.line(l)
+	}
+}
+
+func (m *monitor) line(text string) {
+	e, ok := parseLine(text)
+	if !ok {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	switch e.kind {
+	case "ready":
+		if !m.isReady {
+			m.isReady, m.readyAt = true, time.Now()
+			close(m.ready)
 		}
-		m.mu.Lock()
-		switch e.kind {
-		case "ready":
-			if !m.isReady {
-				m.isReady, m.readyAt = true, time.Now()
-				close(m.ready)
-			}
-		case "renderer":
-			m.renderer = e.name
-		case "frames":
-			if m.sampling {
-				m.frames = append(m.frames, e.value)
-			}
-		case "work":
-			if m.sampling {
-				m.work = append(m.work, e.value)
-			}
-		case "intervals":
-			if m.sampling {
-				for _, us := range e.intervals {
-					m.intervals = append(m.intervals, float64(us))
-				}
-			}
+	case "renderer":
+		m.renderer = e.name
+	case "frames":
+		m.pending = group{frames: e.value, hasFrames: true}
+	case "work":
+		if m.pending.hasFrames {
+			m.pending.work, m.pending.hasWork = e.value, true
 		}
-		m.mu.Unlock()
+	case "intervals":
+		g := m.pending
+		m.pending = group{}
+		if !g.hasFrames || !g.hasWork || !m.sampling {
+			return
+		}
+		if m.skip > 0 {
+			m.skip--
+			return
+		}
+		m.frames = append(m.frames, g.frames)
+		m.work = append(m.work, g.work)
+		for _, us := range e.intervals {
+			m.intervals = append(m.intervals, float64(us))
+		}
 	}
 }
 
 func (m *monitor) setSampling(on bool) {
 	m.mu.Lock()
 	m.sampling = on
+	if on {
+		m.skip = 1
+	}
 	m.mu.Unlock()
+}
+
+// groups are the process groups of running scene programs, which an
+// interrupted runner must stop: an orphaned list or grid keeps drawing and
+// skews whatever is measured next.
+type groups struct {
+	mu   sync.Mutex
+	pids map[int]bool
+}
+
+var running groups
+
+func (g *groups) add(pid int) {
+	g.mu.Lock()
+	if g.pids == nil {
+		g.pids = map[int]bool{}
+	}
+	g.pids[pid] = true
+	g.mu.Unlock()
+}
+
+func (g *groups) remove(pid int) {
+	g.mu.Lock()
+	delete(g.pids, pid)
+	g.mu.Unlock()
+}
+
+// stopAll sends SIGTERM to every running group (the negative pid), then
+// SIGKILL to what is left after a moment.
+func (g *groups) stopAll(kill func(pid int, sig syscall.Signal) error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for pid := range g.pids {
+		_ = kill(-pid, syscall.SIGTERM)
+	}
+	if len(g.pids) > 0 {
+		time.Sleep(500 * time.Millisecond)
+	}
+	for pid := range g.pids {
+		_ = kill(-pid, syscall.SIGKILL)
+		delete(g.pids, pid)
+	}
 }
 
 // tail keeps the last bytes of a program's standard error for the report.
@@ -253,6 +331,7 @@ func runOnce(cfg config, fw, scene string) Round {
 		r.Error = err.Error()
 		return r
 	}
+	running.add(cmd.Process.Pid)
 	go m.read(stdout)
 	defer stop(cmd, m)
 	pid := cmd.Process.Pid
@@ -321,6 +400,7 @@ func runOnce(cfg config, fw, scene string) Round {
 
 // stop ends the program and its process group, then reaps it.
 func stop(cmd *exec.Cmd, m *monitor) {
+	defer running.remove(cmd.Process.Pid)
 	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 	exited := make(chan struct{})
 	go func() { <-m.done; _ = cmd.Wait(); close(exited) }()
@@ -410,6 +490,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, "runner:", err)
 		os.Exit(1)
 	}
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		s := <-sigs
+		fmt.Fprintf(os.Stderr, "runner: %v: stopping the scene programs\n", s)
+		running.stopAll(syscall.Kill)
+		os.Exit(130)
+	}()
 	cfg := config{bin: *bin, settle: *settle, seconds: time.Duration(*seconds) * time.Second,
 		builds: readBuilds(*bin), loadRead: systemLoad}
 	res := &Results{Meta: newMeta(cfg)}
@@ -447,7 +535,7 @@ func main() {
 					continue
 				}
 				o := pick(res.Rounds, scene, fw)
-				v, why := judgeWhy(t, o)
+				v, why := judgeWhy(t, o, *rounds)
 				res.Verdicts = append(res.Verdicts, VerdictLine{Scene: scene, Opponent: fw, Verdict: v, Why: why,
 					Rounds: [2]int{len(usable(t)), len(usable(o))}})
 				fmt.Printf("verdict %-8s tango vs %-5s %-9s %s\n", scene, fw, v, why)

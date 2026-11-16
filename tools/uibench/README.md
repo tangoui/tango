@@ -69,12 +69,21 @@ started afresh, in an order that rotates by one each round. For each:
 4. Load ≥ 6 before or after sampling marks the attempt `disturbed`; it is
    measured again, up to 3 more times. Every attempt stays in the file.
 
+Per-second reports arrive as groups (frames, work, intervals). A group is
+taken whole or not at all, and the first group completed after sampling
+starts is dropped, since part of it lies before the start. Ctrl-C or
+SIGTERM stops the running scene program's process group before the runner
+exits (status 130), so no orphaned scene keeps drawing.
+
 ## Judge
 
-`judge(tango, opponent)` reads only rounds that are ready, without error,
-not disturbed and not screen-locked, and returns:
+`judge(tango, opponent, minRounds)` reads only rounds that are ready,
+without error, not disturbed, not screen-locked and with a known renderer
+(not empty or `unknown`), and returns:
 
-- `Invalid` when either side has no such round, a framework changed its
+- `Invalid` when either side has fewer such rounds than `-rounds` (never
+  fewer than 3: with one round Q1 = Q3 = the median and the interquartile
+  condition would hold by itself), a framework changed its
   renderer between rounds, or the work per frame (work/s ÷ fps) differs by
   more than 5%;
 - `Faster` when Tango's median (process + WindowServer) CPU is at most half
@@ -100,6 +109,12 @@ not disturbed and not screen-locked, and returns:
 - **The counter scene compares median memory** (phys_footprint, Tango ≤
   opponent) instead of fps and p99, alongside the CPU conditions.
 
+- **Counter CPU is mostly noise.** At rest the process uses almost no CPU,
+  and WindowServer's `ps` time has 10 ms resolution, so the counter's
+  (process + WindowServer) sum is dominated by compositor noise. Process
+  CPU (`cpu_s`) and WindowServer CPU (`windowserver_s`) are recorded
+  separately in every round so the two can be read apart.
+
 ## Build modes
 
 `build.sh` builds every program with `GOWORK=off CGO_ENABLED=0 go build
@@ -109,8 +124,14 @@ mode goes to `bin/build-info.txt` and into every result's `build` field.
 
 As of 2026-11-17 all three build with `CGO_ENABLED=0`.
 
-## Not copied
+## Written independently
 
 MyGo and NSGo ship their own benchmark suites. This one borrows their ideas
 (external rusage sampling, a ready line, frame intervals) and none of their
-code; the scene programs use each framework's ordinary public API.
+code. The scene programs in `mygo/` and `nsgo/` were written independently
+from each framework's public API and documentation, without working from
+the opponents' benchmark sources: the widget keys, the counter's text and
+layout, the code organization and the grid's cell formula
+(`(cell*131 + frame*17) % 10000`, shared by all three programs) are this
+suite's own. Where the code resembles an opponent's, it is because the
+framework's API allows only that shape.

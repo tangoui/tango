@@ -25,8 +25,8 @@ type scene struct {
 func scenes() map[string]scene {
 	return map[string]scene{
 		"counter": {360, 260, (&counter{}).view},
-		"list":    {800, 600, (&list{}).view},
-		"grid":    {800, 600, (&grid{}).view},
+		"list":    {800, 600, (&scrollingList{}).view},
+		"grid":    {800, 600, (&dashboard{}).view},
 	}
 }
 
@@ -89,7 +89,7 @@ func main() {
 		mygo.NewWindow(mygo.WindowOptions{
 			Title: "uibench mygo " + *name, Width: s.width, Height: s.height,
 			UseContentSize: true,
-			Content: ui.View(s.view),
+			Content:        ui.View(s.view),
 		})
 	})
 	if err := mygo.App.Run(); err != nil {
