@@ -3,6 +3,7 @@ package editor
 import (
 	"fmt"
 	"image/color"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -388,7 +389,14 @@ func TestBracketColorsLanguageSwitch(t *testing.T) {
 // work overruns its budget at most once (minOverrun), and in a document
 // the frames can tokenize in time every caret gets matched, the undecided
 // carets going first in the next frame.
+//
+// A frame's work is its thread's CPU time where there is a thread clock
+// (threadCPUClock): its wall time also counts the time the OS runs other
+// threads instead, tens of milliseconds on a loaded machine, though the
+// work stopped at its deadline.
 func TestMatchManyCursorsBounded(t *testing.T) {
+	runtime.LockOSThread() // workClock is this thread's clock
+	defer runtime.UnlockOSThread()
 	for _, c := range []struct {
 		lines, carets, frames int
 		all                   bool
@@ -413,29 +421,39 @@ func TestMatchManyCursorsBounded(t *testing.T) {
 			budget *= 10 // the same work per frame, 10× slower
 		}
 		// The budget, the work allowed past it, a slow line; relaxed under
-		// the race detector and on shared CI runners (gateLimit), where a
-		// frame's wall time includes the runner's preemption.
+		// the race detector and on shared CI runners (gateLimit), which are
+		// slower and, without a thread clock, preempt the frame.
 		limit := gateLimit(bracketFrameBudget + minOverrun + time.Millisecond)
-		// Judged on the median frame and on repeated far overruns, not on
-		// single frames: on laptops with frequency scaling or hybrid cores
-		// the same 2 ms of work takes from 1 ms to 3 ms and more, with
-		// spikes of tens of milliseconds. Unbounded work overruns frame
-		// after frame and still fails.
-		from, far := 0, 0
-		var els []time.Duration
+		// With a thread clock, no frame's work is far over the limit and
+		// few are over it. Without one, wall time is judged on the median
+		// frame and on repeated far overruns: on laptops with frequency
+		// scaling or hybrid cores the same 2 ms of work takes from 1 ms to
+		// 3 ms and more, with spikes of tens of milliseconds. Unbounded work
+		// overruns frame after frame and fails either way.
+		over, overLimit := 0, limit
+		if !threadCPUClock {
+			overLimit = 3 * limit
+		}
+		from := 0
+		var walls []time.Duration
 		done := false
 		res := make([]caretMatch, len(sels))
 		for frame := 0; frame < c.frames && !done; frame++ {
 			tr.beginFrame()
 			tr.unsure = false
 			start := time.Now()
+			w0 := workClock()
 			unsure := st.matchCarets(MatchBracketsAlways, start.Add(budget), from, res)
-			el := time.Since(start)
+			work := workClock() - w0
+			wall := time.Since(start)
 			out := matchRanges(res)
-			els = append(els, el)
-			if el > 3*limit {
-				far++
-				t.Logf("%d lines, %d carets, frame %d: bracket work %v, want at most %v", c.lines, c.carets, frame, el, limit)
+			walls = append(walls, wall)
+			if threadCPUClock && work > 3*limit {
+				t.Fatalf("%d lines, %d carets, frame %d: bracket work %v (wall %v), want at most %v", c.lines, c.carets, frame, work, wall, limit)
+			}
+			if work > overLimit {
+				over++ // a collection or a slow line; not frame after frame
+				t.Logf("%d lines, %d carets, frame %d: bracket work %v (wall %v), want at most %v", c.lines, c.carets, frame, work, wall, limit)
 			}
 			if unsure < 0 {
 				if len(out) != 2*len(sels) {
@@ -446,11 +464,11 @@ func TestMatchManyCursorsBounded(t *testing.T) {
 			}
 			from = max(unsure, 0)
 		}
-		if far > c.frames/20+1 {
-			t.Errorf("%d lines: %d frames over %v", c.lines, far, 3*limit)
+		if over > c.frames/20+1 {
+			t.Errorf("%d lines: %d frames over %v", c.lines, over, overLimit)
 		}
-		slices.Sort(els)
-		if med := els[len(els)/2]; len(els) >= 10 && med > limit { // a few frames have no stable median
+		slices.Sort(walls)
+		if med := walls[len(walls)/2]; !threadCPUClock && len(walls) >= 10 && med > limit { // a few frames have no stable median
 			t.Errorf("%d lines: median frame %v, want at most %v", c.lines, med, limit)
 		}
 		if c.all && !done {
