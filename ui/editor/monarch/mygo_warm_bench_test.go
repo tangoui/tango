@@ -3,6 +3,8 @@ package monarch
 import (
 	"strings"
 	"testing"
+
+	"github.com/tangoui/tango/ui/editor/regex"
 )
 
 // Matches MyGo v0.9.0's published Go/HTML benchmark inputs. Both keep their
@@ -18,6 +20,8 @@ func BenchmarkMyGoCompareWarm(b *testing.B) {
 			var tokens []Token
 			b.SetBytes(int64(len(tc.source)))
 			b.ReportAllocs()
+			_, _, timeouts := regex.Stats()
+			_, _, degraded := Stats()
 			b.ResetTimer()
 			for range b.N {
 				state := lx.Initial()
@@ -25,6 +29,11 @@ func BenchmarkMyGoCompareWarm(b *testing.B) {
 					tokens, state = lx.TokenizeLine(line, state, tokens[:0])
 				}
 			}
+			b.StopTimer()
+			_, _, endTimeouts := regex.Stats()
+			_, _, endDegraded := Stats()
+			b.ReportMetric(float64(endTimeouts-timeouts)/float64(b.N), "timeouts/op")
+			b.ReportMetric(float64(endDegraded-degraded)/float64(b.N), "degraded/op")
 		})
 	}
 }

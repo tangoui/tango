@@ -40,6 +40,7 @@ type rule struct {
 	m           *matcher
 	atLineStart bool // 源码以 ^ 开头：只在行（或嵌入后剩余片段）开头尝试
 	action      *action
+	noCaptures  bool // action cannot inspect captured subgroups
 }
 
 type actKind uint8
@@ -226,6 +227,8 @@ func (g *grammar) addRules(state string, out *[]*rule, rules *node, depth int) e
 			return err
 		}
 		r.action = a
+		r.noCaptures = a.kind == actString || a.kind == actToken && !a.tokenSubst &&
+			!strings.Contains(a.next, "$") && !strings.Contains(a.switchTo, "$") && !strings.Contains(a.nextEmbed, "$")
 		*out = append(*out, r)
 	}
 	return nil

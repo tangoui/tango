@@ -82,7 +82,10 @@ func TestGuardTimeoutDegrades(t *testing.T) {
 
 // 不超时、但累计匹配耗时超过行预算（50ms）时也降级：这里每个位置的锚定匹配都要扫到行尾（平方级）。
 func TestSlowLineDegrades(t *testing.T) {
-	lx := addLexer(t, "slow", `{"tokenPostfix":"","tokenizer":{"root":[["[^z]*z","z"],[".","c"]]}}`)
+	// A group action keeps this on the full-capture RE2 path. The equivalent
+	// no-capture byte span can finish below even the race build's time budget,
+	// so requiring that faster path to degrade would reject an optimization.
+	lx := addLexer(t, "slow", `{"tokenPostfix":"","tokenizer":{"root":[["([^z]*z)",["z"]],[".","c"]]}}`)
 	line := strings.Repeat("a", MaxLineLength-1)
 	start := time.Now()
 	toks, st, info := lx.TokenizeLineInfo(line, lx.Initial(), nil)

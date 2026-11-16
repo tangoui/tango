@@ -198,6 +198,10 @@ func (b *lineBudget) check(off int, force bool) error {
 
 // match 执行一次锚定匹配；回溯超时转为 errDegraded（off 为本次匹配在行内的字节起点）。
 func (b *lineBudget) match(re regex.Regexp, s string, rs []rune, off int) ([]int, error) {
+	return b.matchWithCaptures(re, s, rs, off, true, nil)
+}
+
+func (b *lineBudget) matchWithCaptures(re regex.Regexp, s string, rs []rune, off int, captures bool, dst []int) ([]int, error) {
 	// All exhaustion paths latch: a guard reporting false after a timeout
 	// must never grant subsequent guards another engine timeout allowance.
 	if b.exhausted || b.backtrackSpent > lineBudgetDur {
@@ -212,7 +216,13 @@ func (b *lineBudget) match(re regex.Regexp, s string, rs []rune, off int) ([]int
 	if backtrack {
 		start = b.now()
 	}
-	m, err := re.TryMatchStart(s, rs)
+	var m []int
+	var err error
+	if captures {
+		m, err = re.TryMatchStart(s, rs)
+	} else {
+		m, err = regex.TryMatchStartNoCaptures(re, s, rs, dst)
+	}
 	if err != nil {
 		return nil, b.stop(off)
 	}
@@ -225,7 +235,11 @@ func (b *lineBudget) match(re regex.Regexp, s string, rs []rune, off int) ([]int
 		// measurements; separate long pauses in both attempts remain possible.
 		if elapsed >= 250*time.Microsecond*raceFactor || b.backtrackSpent+elapsed > lineBudgetDur {
 			start = b.now()
-			m, err = re.TryMatchStart(s, rs)
+			if captures {
+				m, err = re.TryMatchStart(s, rs)
+			} else {
+				m, err = regex.TryMatchStartNoCaptures(re, s, rs, dst)
+			}
 			if err != nil {
 				return nil, b.stop(off)
 			}
@@ -489,6 +503,7 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 	frame := struct {
 		ctx    matchCtx
 		single [1]capt
+		span   [2]int
 	}{ctx: matchCtx{budget: &c.budget}}
 	force := true // 空行也至少执行一次规则（monaco-editor#1235）
 	ctx := &frame.ctx
@@ -575,7 +590,8 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 						restRunes = asciiRunes[pos:]
 					}
 				}
-				m, err := c.budget.match(re, rest, restRunes, off+pos)
+				captures := !ru.noCaptures && re.NumGroups() != 0
+				m, err := c.budget.matchWithCaptures(re, rest, restRunes, off+pos, captures, frame.span[:0])
 				if err != nil {
 					return ls, err
 				}
