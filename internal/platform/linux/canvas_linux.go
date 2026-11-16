@@ -76,6 +76,10 @@ type canvas struct {
 	appliedWin ptr // GdkWindow the applied cursor was set on
 	inside     bool
 
+	// Native menu shortcut capture, independent of text input.
+	shortcutCapture bool
+	shortcutHeld    map[uint16]bool // captured physical keys until release or loss of focus
+
 	// Keyboard and text input (canvas_input_linux.go).
 	textOn    bool
 	caret     geom.Rect

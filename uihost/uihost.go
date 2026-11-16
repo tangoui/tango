@@ -257,6 +257,13 @@ func (w *window) Scale() float32           { return w.cv.Scale() }
 func (w *window) Invalidate()              { w.cv.Invalidate() }
 func (w *window) InvalidateAt(t time.Time) { w.cv.InvalidateAt(t) }
 func (w *window) SetCursor(c input.Cursor) { w.cv.SetCursor(c) }
+func (w *window) SetShortcutCapture(on bool) {
+	w.sc.setCapture(on)
+	if cv, ok := w.cv.(platform.CanvasShortcutCapture); ok {
+		cv.SetShortcutCapture(on)
+	}
+}
+
 func (w *window) SetTextInput(on bool, caret geom.Rect) {
 	w.sc.setText(on)
 	w.cv.SetTextInput(on, caret)

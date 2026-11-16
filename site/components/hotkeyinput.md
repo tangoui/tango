@@ -161,7 +161,7 @@ func (b *binding) rebind(s *tango.Surface) error {
 }
 ```
 
-录制期间要暂停这些绑定，见下文“注意事项”里的 `syncShortcuts`。
+录制期间无需移除绑定：`uihost` 会自动让窗口快捷键和原生菜单加速键把按键交给录制框，结束后恢复原有行为。只有实际修改了绑定值时才需要 `rebind`。
 
 ### 按平台显示加速键
 
@@ -194,38 +194,15 @@ func hints(c *ui.Context) {
 
 ### 录制与应用快捷键
 
-录制读取的是按键事件，不是文本输入。需要清楚下面几条：
+录制读取的是按键事件，不是文本输入。
 
-- **窗口快捷键先于输入框**：用 `uihost.Shortcut` 注册的窗口快捷键，在按键到达界面之前就按加速键匹配并**吞掉**按键。`HotkeyInput` 不是文本输入框（不会向宿主申请文本输入），所以 `uihost` 对文本框的豁免（只放行 F1–F12 和部分 Ctrl 组合）不适用：录制时如果按下的组合已被某个窗口快捷键占用，触发的是那个快捷键，输入框收不到按键。
-- **菜单加速键更靠前**：菜单项的加速键由平台先处理（macOS 的 key equivalent、Windows 的 TranslateAccelerator、GTK 的 accel group），同样到不了输入框，也无法被录制。用 `Conflict` 把这些保留组合报给用户，不要指望录制出来。
-- **录制期间暂停窗口快捷键**：要让用户能重新录制已绑定的组合，在 `Recording()` 为 `true` 时先移除相关窗口快捷键，录制结束（`Recording()` 回到 `false`）后再注册回去。下面沿用上文的 `binding`：
-- **系统与输入法保留的组合**：切换输入法、Cmd+Space、Alt+F4、Cmd+Q 这类由系统或输入法在应用之前处理的组合键，应用收不到，也就录不到。
-- **输入法**：输入框不会开启输入法组合；`uihost` 在输入法正在组合时不触发快捷键，这与录制无关。录制时只看按下的键和修饰键，不看输入法产生的文字。
+- **自动优先录制**：在 `uihost.Open` / `Attach` 窗口中，录制时窗口快捷键（包括 `InTextInput: true`）、原生菜单加速键，以及 `Menubar` 的 Alt / F10 激活都会让位给录制框。不需要手动移除、禁用或重新注册已有绑定；`tan dev` 下同样适用。
+- **自动恢复**：确认组合键、Esc 取消、Tab 或点击其他控件失焦、窗口失焦、禁用或移除控件，都会释放录制状态。录制完成后继续按住主键不会因自动重复而触发原快捷键；释放后再次按下，才恢复正常触发。
+- **不改变菜单操作**：仅改变录制期间的键盘加速键路由，不禁用菜单项本身，也不影响其他窗口或获得原生焦点的其他控件。
+- **系统保留键仍不可抢占**：系统切换输入法、Cmd+Space、Ctrl+Alt+Delete 以及已由 `sys/hotkey` 或其他程序注册的全局热键，可能在应用收到事件之前就被处理，录制框不能保证收到。应用自己的菜单命令（例如 Cmd+Q）不等于系统保留键。
+- **输入法**：录制不会开启 IME 或软键盘，只记录按键及其修饰键，不处理输入法产生的文字。
+- **自定义宿主**：非 `uihost` 宿主需要实现 `ui.ShortcutCaptureWindow`，在 `SetShortcutCapture(true)` 期间把窗口快捷键和菜单加速键交给当前 canvas；不要把它当作文本输入开启输入法。未实现该可选接口的宿主仍需自行处理快捷键冲突。
 - **Esc 的归属**：录制中按 Esc 只取消录制并保留原值，这次 Esc 不会再传给外层，所以放在 Modal、Drawer 里时它们不会被顺带关闭；不在录制时的 Esc 照常交给外层。Popover 和下拉面板在构建内容前就检查 Esc，因此放在它们里面时 Esc 会直接关闭面板。
-
-```go
-var (
-	bindings        []*binding
-	shortcutsPaused bool
-)
-
-// syncShortcuts 在录制开始时移除所有窗口快捷键，录制结束后恢复。
-func syncShortcuts(s *tango.Surface, recording bool) {
-	if recording == shortcutsPaused {
-		return
-	}
-	shortcutsPaused = recording
-	for _, b := range bindings {
-		if recording {
-			b.unbind()
-		} else {
-			_ = b.rebind(s)
-		}
-	}
-}
-```
-
-页面里在建好所有 `HotkeyInput` 之后，用其中任一个的 `Recording()` 调用 `syncShortcuts(surface, hk.Recording())`（`surface` 是 `uihost.Open` 返回的窗口）。
 
 ### 状态与无障碍
 

@@ -14,9 +14,10 @@ package darwin
 // committed text arrives in insertText:replacementRange: (input.TextInput),
 // pre-edit text in setMarkedText:... (input.Composition), and keys the
 // input method does not use come back as doCommandBySelector:, reported as
-// KeyEvents. Command shortcuts are never interpreted: performKeyEquivalent:
-// is not overridden, so the menu sees them first; Edit menu actions sent to
-// the view (copy:, paste:, ...) are reported as the matching Cmd+key.
+// KeyEvents. Outside shortcut capture, Command shortcuts reach the menu
+// first; Edit menu actions sent to the view (copy:, paste:, ...) are
+// reported as matching Cmd+key. Capture intercepts native key equivalents
+// in the view/window and sends raw KeyEvents without entering the IME.
 
 import (
 	"math"
@@ -86,6 +87,7 @@ func registerCanvasView() {
 				ok := byte(msgSuper(superOf(self), sel("resignFirstResponder"))) != 0
 				if c := canvasOf(self); c != nil && ok {
 					c.firstResp = false
+					clear(c.shortcutHeld)
 					c.focusMaybeChanged()
 				}
 				return ok
@@ -138,7 +140,8 @@ func registerCanvasView() {
 				c.input(input.Scroll{Pos: c.loc(ev), DX: dx, DY: dy, Mods: eventMods(ev)})
 			}),
 
-			// Keyboard.
+			// Keyboard. Capture equivalents before AppKit reaches the menu.
+			shortcutEquivalentMethod("TangoCanvasView"),
 			method("keyDown:", func(self id, _ objc.SEL, ev id) {
 				if c := canvasOf(self); c != nil {
 					c.keyDown(ev)
@@ -146,6 +149,7 @@ func registerCanvasView() {
 			}),
 			method("keyUp:", func(self id, _ objc.SEL, ev id) {
 				if c := canvasOf(self); c != nil {
+					delete(c.shortcutHeld, uint16(send(ev, "keyCode")))
 					k := eventKey(ev)
 					if c.downKeys[k] {
 						delete(c.downKeys, k)
@@ -240,9 +244,16 @@ func eventKey(ev id) input.Key {
 }
 
 func (c *canvas) keyDown(ev id) {
+	captured := c.capturesShortcutEvent(ev)
+	if captured {
+		if c.shortcutHeld == nil {
+			c.shortcutHeld = map[uint16]bool{}
+		}
+		c.shortcutHeld[uint16(send(ev, "keyCode"))] = true
+	}
 	k := input.KeyEvent{Key: eventKey(ev), Down: true, Repeat: sendBool(ev, "isARepeat"), Mods: eventMods(ev)}
 	c.curKey = k
-	if c.textOn && k.Mods&input.ModMeta == 0 {
+	if !captured && c.textOn && k.Mods&input.ModMeta == 0 {
 		c.inKeyDown = true
 		withPool(func() { send(c.view, "interpretKeyEvents:", uintptr(nsArray(ev))) })
 		c.inKeyDown = false
