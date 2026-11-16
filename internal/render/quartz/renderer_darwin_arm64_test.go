@@ -392,3 +392,37 @@ func TestNativeBatchedTextRetainsColorsClipsAndBorrowedGlyphSafety(t *testing.T)
 		}
 	}
 }
+
+func TestNativeBatchedOverlappingAlphaMatchesSeparateLayers(t *testing.T) {
+	for _, scale := range []float32{1, 1.5, 2} {
+		for _, reverse := range []bool{false, true} {
+			a, b := textOp("MMMM", 10, 10), textOp("WWWW", 19, 10)
+			a.Color = color.NRGBA{R: 240, G: 30, A: 123}
+			b.Color = color.NRGBA{B: 230, G: 60, A: 181}
+			if reverse {
+				a, b = b, a
+			}
+			sentinel := paint.FillRect{Rect: geom.Rect{X: 150, Y: 65, W: 1, H: 1}, Color: color.NRGBA{G: 255, A: 255}}
+			clip := geom.Rect{X: 15, Y: 12, W: 35, H: 15}
+			batched := &paint.List{Background: color.NRGBA{R: 25, G: 40, B: 50, A: 80}, Ops: []paint.Op{a, paint.PushClip{Rect: clip}, b, paint.Pop{}, sentinel}}
+			separate := &paint.List{Background: batched.Background, Ops: []paint.Op{a, sentinel, paint.PushClip{Rect: clip}, b, paint.Pop{}}}
+			r, ref := newNativeTestRenderer(t), newNativeTestRenderer(t)
+			size := geom.Size{W: 170, H: 75}
+			nativeFrame(t, r, batched, size, scale)
+			nativeFrame(t, ref, separate, size, scale)
+			if len(r.nodes) != 2 || len(ref.nodes) != 3 {
+				t.Fatal("reference did not separate overlapping text")
+			}
+			got, want := nativeSnapshot(t, r), nativeSnapshot(t, ref)
+			for i, p := range got.Pix {
+				d := int(p) - int(want.Pix[i])
+				if d < 0 {
+					d = -d
+				}
+				if d > 2 {
+					t.Fatalf("compositing differs @%v reverse=%v byte %d: %d vs %d", scale, reverse, i, p, want.Pix[i])
+				}
+			}
+		}
+	}
+}
