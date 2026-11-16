@@ -158,6 +158,19 @@ type Device struct {
 	submits, frames    uint64            // command buffers committed / frames committed by Execute
 	failedFrame        uint64            // frame of the last counted command-buffer failure
 	failedSeen         bool              // failedFrame is set
+
+	timeline     func(Timing)  // diagnostics callback (SetTimeline); nil normally
+	drawableWait time.Duration // the next present submission's nextDrawable wait
+}
+
+// SetTimeline installs fn (nil removes it) to receive the Timing of every
+// command buffer as it is retired, and of every present that found no
+// drawable. fn runs with the Device locked and must not call the Device.
+// Diagnostics only: with no callback nothing is timed.
+func (d *Device) SetTimeline(fn func(Timing)) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.timeline = fn
 }
 
 // copyStats counts the actual scroll-copy commands of the last encoded
@@ -1312,6 +1325,12 @@ func (d *Device) commitAs(cb id, kind submissionKind) {
 	cb.Send(sel("commit"))
 	d.submits++
 	s := submission{id: d.submits, kind: kind, frame: d.frames, cb: retain(cb)}
+	if d.timeline != nil {
+		s.commit = time.Now()
+		if kind == submitPresent {
+			s.drawableWait = d.drawableWait
+		}
+	}
 	s.retire = func() error { return d.retireCommand(s) }
 	d.inflight.push(s)
 }
@@ -1326,11 +1345,29 @@ func (d *Device) retireCommand(s submission) error {
 		e := cb.Send(sel("error"))
 		err := nsError(fmt.Sprintf("metal: command buffer status %d", st), e)
 		d.noteRetired(s, err, cbErrorLost(e))
+		d.report(s, cb, err)
 		return err
 	}
 	d.lastRetiredGPU = time.Duration((msgF64(cb, sel("GPUEndTime")) - msgF64(cb, sel("GPUStartTime"))) * float64(time.Second))
 	d.noteRetired(s, nil, false)
+	d.report(s, cb, nil)
 	return nil
+}
+
+// report delivers a retired submission's Timing to the timeline callback.
+func (d *Device) report(s submission, cb id, err error) {
+	if d.timeline == nil || s.commit.IsZero() {
+		return // no callback, or none when it was committed
+	}
+	t := Timing{Kind: s.kind.String(), Frame: s.frame, Commit: s.commit, Err: err,
+		Drawable: s.kind == submitPresent, DrawableWait: s.drawableWait}
+	start, end := msgF64(cb, sel("GPUStartTime")), msgF64(cb, sel("GPUEndTime"))
+	if start > 0 && end >= start {
+		t.GPUStart = time.Duration(start * float64(time.Second))
+		t.GPUEnd = time.Duration(end * float64(time.Second))
+		t.GPUKnown = true
+	}
+	d.timeline(t)
 }
 
 // noteRetired records a retired submission's outcome. A failure marks the

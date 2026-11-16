@@ -2,6 +2,8 @@
 
 package metal
 
+import "time"
+
 // asyncInflightLimit bounds the command buffers (frames and presents
 // together) the Device keeps committed but not yet retired.
 const asyncInflightLimit = 2
@@ -33,6 +35,10 @@ type submission struct {
 	frame  uint64 // Execute frame it belongs to (a present: the frame it shows)
 	cb     id     // retained until retirement
 	retire func() error
+
+	// Diagnostics (filled only while a timeline callback is installed).
+	commit       time.Time
+	drawableWait time.Duration
 }
 
 // submissionQueue holds submissions in commit order; retirement is FIFO.

@@ -8,6 +8,7 @@ import (
 	"image"
 	"runtime"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -220,6 +221,10 @@ func newPresenter(layer uintptr) (*presenter, error) {
 	msgSetID(l, sel("setDevice:"), dev.dev)
 	msgSetU64(l, sel("setPixelFormat:"), pixelFormatBGRA8Unorm)
 	msgSetBool(l, sel("setFramebufferOnly:"), true)
+	// nextDrawable must give up (return nil) rather than block forever
+	// when every drawable is held; Core Animation's timeout is about one
+	// second and is not configurable, so that is the bound present has.
+	msgSetBool(l, sel("setAllowsNextDrawableTimeout:"), true)
 	if kCGColorSpaceSRGB != 0 {
 		if cs := cgColorSpaceCreateWithName(kCGColorSpaceSRGB); cs != 0 {
 			msgSetPtr(l, sel("setColorspace:"), cs) // the layer retains it
@@ -318,9 +323,20 @@ func (p *presenter) present(size image.Point, scale float32) error {
 	if !d.hasFrame {
 		return nil
 	}
+	var waitStart time.Time
+	if d.timeline != nil {
+		waitStart = time.Now()
+	}
 	drawable := p.layer.Send(sel("nextDrawable"))
+	d.drawableWait = 0
+	if d.timeline != nil {
+		d.drawableWait = time.Since(waitStart)
+	}
 	if drawable == 0 {
-		return nil // not visible, or every drawable busy for a second
+		if d.timeline != nil {
+			d.timeline(Timing{Kind: submitPresent.String(), Frame: d.frames, DrawableWait: d.drawableWait})
+		}
+		return nil // not visible, or every drawable busy until the timeout
 	}
 	cb := d.queue.Send(sel("commandBuffer"))
 	if cb == 0 {
