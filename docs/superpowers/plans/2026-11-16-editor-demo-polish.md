@@ -1,6 +1,6 @@
 # Editor layout polish Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Use a familiar IDE layout while retaining Tango's existing Ant Design visual style and editor behavior.
 
@@ -32,10 +32,10 @@
 
 **Interfaces:** `shellState` owns sidebar/dialog/tab/theme state. `renderShell(c *ui.Context)` composes menus, sidebar, active-document tab, shared editor panes and status. `runShellAction(key string)` delegates to the existing file/editor actions. `shellTheme(name string) *uitheme.Theme` caches the existing Ant themes.
 
-- [ ] Write driver tests for real document tab/dirty marker, File/View actions, sidebar toggling, theme persistence, split focus, and viewport layout at 480×640 and 1200×800.
-- [ ] Run those tests and observe missing-shell failures.
-- [ ] Extract the existing editor view/palette code and implement the shell using existing Menubar, Tabs and token-based containers. Collapse the sidebar automatically at narrow widths, retain settings via menus, keep view IDs stable.
-- [ ] Run `go test ./examples/editor-demo -count=1`; fix regressions and commit `feat(editor-demo): arrange existing UI as compact editor shell`.
+- [x] Write driver tests for real document tab/dirty marker, File/View actions, sidebar toggling, theme persistence, split focus, and viewport layout at 480×640 and 1200×800.
+- [x] Run those tests and observe missing-shell failures.
+- [x] Extract the existing editor view/palette code and implement the shell using existing Menubar, Tabs and token-based containers. Collapse the sidebar automatically at narrow widths, retain settings via menus, keep view IDs stable.
+- [x] Run `go test ./examples/editor-demo -count=1`; fix regressions and commit `feat(editor-demo): arrange existing UI as compact editor shell`.
 
 ### Task 2: Inline search and readable startup sample
 
@@ -43,15 +43,15 @@
 
 **Interfaces:** `searchPanel.render` becomes an editor-local panel and `showSearch(replace bool)` requests query focus. `startupDocument(file string, generatedLines int, explicitGenerator bool) (name, content string, err error)` preserves explicit file/generator behavior and otherwise returns a short TypeScript sample.
 
-- [ ] Write tests that find remains inside the editor pane, query Enter/previous/replace/close work and return focus, the default document is short, and explicit generator/file flags still work.
-- [ ] Observe failures, implement with existing Input/Button/IconButton controls and keep replacement/navigation helpers unchanged.
-- [ ] Run `go test ./examples/editor-demo -count=1` and commit `feat(editor-demo): add inline search and readable welcome sample`.
+- [x] Write tests that find remains inside the editor pane, query Enter/previous/replace/close work and return focus, the default document is short, and explicit generator/file flags still work.
+- [x] Observe failures, implement with existing Input/Button/IconButton controls and keep replacement/navigation helpers unchanged.
+- [x] Run `go test ./examples/editor-demo -count=1` and commit `feat(editor-demo): add inline search and readable welcome sample`.
 
 ### Task 3: Visual QA, documentation and review
 
 **Files:** Update example documentation and tests; save screenshots in the plan workspace.
 
-- [ ] Render light/dark/high-contrast, narrow, split, dirty and search states with ui.Driver; inspect screenshots and correct clipping/contrast issues.
-- [ ] Run `go test ./...`, `go vet ./examples/editor-demo`, build, gofmt and `git diff --check`.
-- [ ] Request one fresh read-only review of the whole branch; fix significant findings with regressions.
-- [ ] Launch the polished example separately after verification, preserving the existing process. Commit documentation and provide screenshot evidence and run command.
+- [x] Render light/dark/high-contrast, narrow, split, dirty and search states with ui.Driver; inspect screenshots and correct clipping/contrast issues.
+- [x] Run `go test ./...`, `go vet ./examples/editor-demo`, build, gofmt and `git diff --check`.
+- [x] Request one fresh read-only review of the whole branch; fix significant findings with regressions.
+- [x] Launch the polished example separately after verification, preserving the existing process. Commit documentation and provide screenshot evidence and run command.
