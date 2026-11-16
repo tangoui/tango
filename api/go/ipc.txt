@@ -7,6 +7,8 @@ pkg github.com/tangoui/tango/ipc, const DefaultWindowBytes untyped int = 1048576
 pkg github.com/tangoui/tango/ipc, const FrameOverhead untyped int = 64
 pkg github.com/tangoui/tango/ipc, const GapTimeout time.Duration = 5000000000
 pkg github.com/tangoui/tango/ipc, const MaxFrameBytes untyped int = 16777216
+pkg github.com/tangoui/tango/ipc, const MaxPeerWindowBytes untyped int = 67108864
+pkg github.com/tangoui/tango/ipc, const MinWindowBytes untyped int = 4096
 pkg github.com/tangoui/tango/ipc, const ProtoVersion untyped int = 2
 pkg github.com/tangoui/tango/ipc, func AppendPacket([]byte, ...PacketFrame) []byte
 pkg github.com/tangoui/tango/ipc, func ConnFrom(context.Context) (Conn, bool)
@@ -58,6 +60,12 @@ pkg github.com/tangoui/tango/ipc, type Message struct, Binary bool
 pkg github.com/tangoui/tango/ipc, type Message struct, Bytes []byte
 pkg github.com/tangoui/tango/ipc, type Message struct, JSON encoding/json.RawMessage
 pkg github.com/tangoui/tango/ipc, type Message struct, noncomparable
+pkg github.com/tangoui/tango/ipc, type OrderedBinaryConn interface { BinaryMinSize, LaneHello, Send, SendBinary, SendBinaryOrdered }
+pkg github.com/tangoui/tango/ipc, type OrderedBinaryConn interface, BinaryMinSize() int
+pkg github.com/tangoui/tango/ipc, type OrderedBinaryConn interface, LaneHello() encoding/json.RawMessage
+pkg github.com/tangoui/tango/ipc, type OrderedBinaryConn interface, Send(string)
+pkg github.com/tangoui/tango/ipc, type OrderedBinaryConn interface, SendBinary([]byte) bool
+pkg github.com/tangoui/tango/ipc, type OrderedBinaryConn interface, SendBinaryOrdered([]byte) (bool, bool)
 pkg github.com/tangoui/tango/ipc, type PacketFrame struct
 pkg github.com/tangoui/tango/ipc, type PacketFrame struct, Payload []byte
 pkg github.com/tangoui/tango/ipc, type PacketFrame struct, Seq uint64
