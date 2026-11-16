@@ -235,6 +235,10 @@ func Shape(s string, st Style, opt Options) *Layout {
 		putLayout(k, fast)
 		return fast
 	}
+	if native := coreTextShape(s, st, opt); native != nil {
+		putLayout(k, native)
+		return native
+	}
 	chain := reg.chain(st.Mono)
 	l := layout(s, st, opt, chain, lang)
 	putLayout(k, l)
