@@ -65,7 +65,7 @@
 
 **Files:** add renderer policy documentation and measured report under `docs/perf/`.
 
-- [ ] Run native window image/resize/input smoke checks; compare matched GPU/native and pinned current NSGo scenes, three alternating-order rounds plus minute scrolling, no diagnostic GC in headline results.
-- [ ] Verify all text/rows are actually drawn before accepting memory numbers. Record CPU, WindowServer increment, process footprint, callbacks and tails; reject a default that substantially regresses sustained CPU/frame behavior.
+- [x] Run native window image/resize/input smoke checks; compare matched GPU/native and pinned current NSGo scenes, three alternating-order rounds plus minute scrolling, no diagnostic GC in headline results.
+- [x] Verify all text/rows are actually drawn before accepting memory numbers. Record CPU, WindowServer increment, process footprint, callbacks and tails; reject a default that substantially regresses sustained CPU/frame behavior.
 - [x] Run complete Go suite with CPU-heavy packages serialized as CI, development builds, vet, relevant race tests, and Linux/Windows/Intel-mac cross builds; preserve existing thresholds.
-- [ ] Independent whole-branch review, fix important findings with RED/GREEN, document limitations and reproducible results, then integrate only verified code into main.
+- [x] Independent whole-branch review, fix important findings with RED/GREEN, document limitations and reproducible results, then integrate only verified code into main.
