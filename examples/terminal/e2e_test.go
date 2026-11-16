@@ -126,10 +126,13 @@ func TestAccept(t *testing.T) {
 	})
 	t.Run("tab completion", func(t *testing.T) {
 		r.run("clear")
-		r.win.Type("ls examples/termi")
+		// A prefix only one directory has: "examples/termi" also matches
+		// examples/terminal-workspace, and zsh then stops at the common
+		// prefix without the slash.
+		r.win.Type("ls examples/terminal-wo")
 		r.win.Press("Tab")
 		r.waitFor("completion", 5*time.Second, func(s string) bool {
-			return strings.Contains(lastLine(s), "examples/terminal/")
+			return strings.Contains(lastLine(s), "examples/terminal-workspace/")
 		})
 		r.win.Press("Ctrl+U")
 	})

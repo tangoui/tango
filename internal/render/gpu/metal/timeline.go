@@ -29,3 +29,12 @@ type Timing struct {
 
 	Err error // the command buffer's error, nil when it completed
 }
+
+// TimelineSource is implemented by the renderer NewPresenter returns:
+// SetTimeline installs fn (nil removes it) to receive the Timing of every
+// retired command buffer and of every present that got no drawable.
+// uihost's TANGO_FRAME_TRACE asserts the renderer to it; presenter_darwin.go
+// checks the implementation at compile time.
+type TimelineSource interface {
+	SetTimeline(fn func(Timing))
+}

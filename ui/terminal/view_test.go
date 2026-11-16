@@ -332,9 +332,10 @@ func TestViewDamageOnlyDirtyRows(t *testing.T) {
 	if len(dam) == 0 {
 		t.Fatal("frame declared no damage (full redraw)")
 	}
+	pad := rowPad(lh) + 0.5 // the row's damage covers glyphs overhanging it
 	for _, d := range dam {
-		if d.Y < row.Y-0.5 || d.Bottom() > row.Bottom()+0.5 {
-			t.Errorf("damage %v outside the changed row %v", d, row)
+		if d.Y < row.Y-pad || d.Bottom() > row.Bottom()+pad {
+			t.Errorf("damage %v outside the changed row %v (padded by %v)", d, row, rowPad(lh))
 		}
 	}
 }

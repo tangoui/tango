@@ -199,6 +199,8 @@ func (r *presenterRenderer) Close() error {
 // locked and must not call the renderer.
 func (r *presenterRenderer) SetTimeline(fn func(Timing)) { r.p.dev.SetTimeline(fn) }
 
+var _ TimelineSource = (*presenterRenderer)(nil)
+
 func newPresenter(layer uintptr) (*presenter, error) {
 	if layer == 0 {
 		return nil, errors.New("metal: NewPresenter: nil layer")

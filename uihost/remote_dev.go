@@ -308,6 +308,9 @@ func devOpen(app *tango.App, opts Options, page func(*ui.Context), ropts ui.Runn
 	}
 	hideWorker(app)
 	devTrace("opened")
+	if s != nil {
+		frameTraceSkipped(s.ID(), "a tan dev window is drawn by the CPU in the dev worker; only GPU windows are traced")
+	}
 	w.Invalidate()
 	return r, s, true, nil
 }
