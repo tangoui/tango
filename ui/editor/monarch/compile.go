@@ -405,6 +405,11 @@ func (g *grammar) newCompiledRe(src, flags string) *compiledRe {
 }
 
 func backtrackLiteralFirst(src string) (byte, bool) {
+	// An alternative may start with another byte. Reject conservatively, even
+	// when the bar is escaped or inside a nested expression.
+	if strings.Contains(src, "|") {
+		return 0, false
+	}
 	i := 0
 	if i < len(src) && src[i] == '^' {
 		i++
@@ -416,9 +421,15 @@ func backtrackLiteralFirst(src string) (byte, bool) {
 		if i+1 >= len(src) || !strings.ContainsRune(`/\\*+?.()[]{}^$|`, rune(src[i+1])) {
 			return 0, false
 		}
+		if i+2 < len(src) && strings.ContainsRune("?*{", rune(src[i+2])) {
+			return 0, false
+		}
 		return src[i+1], true
 	}
 	if src[i] >= 0x80 || strings.ContainsRune(`.^$*+?(){}|[`, rune(src[i])) {
+		return 0, false
+	}
+	if i+1 < len(src) && strings.ContainsRune("?*{", rune(src[i+1])) {
 		return 0, false
 	}
 	return src[i], true

@@ -130,7 +130,7 @@ type Device struct {
 	noImage                                   id         // 1×1 texture bound to TexImage for batches without an image
 	instBuf, staging, readBuf                 id
 	instCap, stagingCap, readCap              int
-	inflight                                  []id // committed, not yet waited command buffers, in commit order
+	inflight                                  submissionQueue // committed, not yet waited command buffers, in commit order
 	hasFrame, closed                          bool
 	commits                                   int      // frames committed by Execute and present (tests)
 	failures                                  int      // consecutive failed frames
@@ -154,6 +154,28 @@ type Device struct {
 	copyTargetIdle     int
 	copyKeep, copyNext []image.Rectangle // bounded, reusable complement-planning buffers
 	copyStats          *copyStats        // nil normally; opt-in internal test counters, no atomics
+	lastRetiredGPU     time.Duration     // GPU time of the last retired command buffer
+	submits, frames    uint64            // command buffers committed / frames committed by Execute
+	retiringFrame      uint64            // frame of the submissions being retired (noteRetired)
+	retiringSet        bool              // retiringFrame is set
+	retiringFailed     bool              // a submission of retiringFrame failed (counted once)
+
+	timeline     func(Timing)  // diagnostics callback (SetTimeline); nil normally
+	drawableWait time.Duration // the next present submission's nextDrawable wait
+	// drainOnExecute restores the pre-A1 behaviour (Execute waits for every
+	// command buffer, presents included). Set only by same-binary A/B
+	// benchmarks (BenchmarkPresentLoop); never in product code.
+	drainOnExecute bool
+}
+
+// SetTimeline installs fn (nil removes it) to receive the Timing of every
+// command buffer as it is retired, and of every present that found no
+// drawable. fn runs with the Device locked and must not call the Device.
+// Diagnostics only: with no callback nothing is timed.
+func (d *Device) SetTimeline(fn func(Timing)) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.timeline = fn
 }
 
 // copyStats counts the actual scroll-copy commands of the last encoded
@@ -333,7 +355,7 @@ func (d *Device) Execute(f *gpu.Frame) error {
 	defer runtime.UnlockOSThread()
 	defer autoreleasePool()()
 
-	d.wait()
+	d.retireForFrame()
 	if err := d.pendingErr; err != nil {
 		d.pendingErr = nil
 		if d.lost != nil {
@@ -558,7 +580,8 @@ func (d *Device) Execute(f *gpu.Frame) error {
 		}
 		enc.Send(sel("endEncoding"))
 	}
-	d.commit(cb)
+	d.frames++
+	d.commitAs(cb, submitFrame)
 	d.commits++
 	d.hasFrame = true
 	clear(d.staged)
@@ -1297,41 +1320,142 @@ func ensureBuffer(dev id, buf *id, capacity *int, n int, opts uint64) error {
 	return nil
 }
 
-// commit commits cb and keeps it (retained) until wait.
-func (d *Device) commit(cb id) {
+// commit commits cb as a submission that is neither a frame nor a present
+// (readback, test references) and keeps it (retained) until retirement.
+func (d *Device) commit(cb id) { d.commitAs(cb, submitOther) }
+
+// commitAs commits cb and keeps it (retained) until it is retired, in
+// commit order, by waitOldest or wait.
+func (d *Device) commitAs(cb id, kind submissionKind) {
 	cb.Send(sel("commit"))
-	d.inflight = append(d.inflight, retain(cb))
+	d.submits++
+	s := submission{id: d.submits, kind: kind, frame: d.frames, cb: retain(cb)}
+	if d.timeline != nil {
+		s.commit = time.Now()
+		if kind == submitPresent {
+			s.drawableWait = d.drawableWait
+		}
+	}
+	s.retire = func() error { return d.retireCommand(s) }
+	d.inflight.push(s)
+}
+
+// retireCommand waits for one command buffer, records its outcome and
+// releases it. The Device mutex is held by callers.
+func (d *Device) retireCommand(s submission) error {
+	cb := s.cb
+	defer release(cb)
+	cb.Send(sel("waitUntilCompleted"))
+	if st := msgU64(cb, sel("status")); st != cbStatusCompleted {
+		e := cb.Send(sel("error"))
+		err := nsError(fmt.Sprintf("metal: command buffer status %d", st), e)
+		d.noteRetired(s, err, cbErrorLost(e))
+		d.report(s, cb, err)
+		return err
+	}
+	d.lastRetiredGPU = time.Duration((msgF64(cb, sel("GPUEndTime")) - msgF64(cb, sel("GPUStartTime"))) * float64(time.Second))
+	d.noteRetired(s, nil, false)
+	d.report(s, cb, nil)
+	return nil
+}
+
+// report delivers a retired submission's Timing to the timeline callback.
+func (d *Device) report(s submission, cb id, err error) {
+	if d.timeline == nil || s.commit.IsZero() {
+		return // no callback, or none when it was committed
+	}
+	t := Timing{Kind: s.kind.String(), Frame: s.frame, Commit: s.commit, Err: err,
+		Drawable: s.kind == submitPresent, DrawableWait: s.drawableWait}
+	start, end := msgF64(cb, sel("GPUStartTime")), msgF64(cb, sel("GPUEndTime"))
+	if start > 0 && end >= start {
+		t.GPUStart = time.Duration(start * float64(time.Second))
+		t.GPUEnd = time.Duration(end * float64(time.Second))
+		t.GPUKnown = true
+	}
+	d.timeline(t)
+}
+
+// noteRetired records a retired submission's outcome. Submissions retire in
+// commit order, so a frame's submissions (its draw, its present, a readback
+// of it) retire together and the first submission of a later frame means
+// the earlier frame is done. The failures of one frame count once toward
+// maxFailures, as when they were waited for together; the count resets only
+// when a frame is done with every submission completed (a failing present
+// with succeeding draws still adds up to a lost device). A failure clears
+// hasFrame only when it belongs to the latest committed frame: a late
+// failure of an earlier frame says nothing about the target the newer frame
+// drew, and is reported (pendingErr) only if it is that frame's first.
+func (d *Device) noteRetired(s submission, err error, removed bool) {
+	if !d.retiringSet || s.frame != d.retiringFrame {
+		if d.retiringSet && !d.retiringFailed {
+			d.failures = 0
+		}
+		d.retiringSet, d.retiringFrame, d.retiringFailed = true, s.frame, false
+	}
+	if err == nil {
+		return
+	}
+	if s.frame == d.frames {
+		d.hasFrame = false
+	}
+	if !d.retiringFailed {
+		d.retiringFailed = true
+		d.pendingErr = err
+		d.failures++
+	}
+	if d.lost == nil && (removed || d.failures >= maxFailures) {
+		d.lost = fmt.Errorf("%w: %w", ErrDeviceLost, err)
+	}
+}
+
+// retireForFrame retires what Execute must not overlap: every frame (it
+// reuses their instance and staging buffers) and readback, then presents
+// while the queue is at asyncInflightLimit. In-flight presents only read
+// the target; the queue orders this frame's writes after them.
+func (d *Device) retireForFrame() {
+	if d.drainOnExecute {
+		d.wait()
+		return
+	}
+	for d.inflight.hasNonPresent() || len(d.inflight.items) >= asyncInflightLimit {
+		d.waitOldest()
+	}
+}
+
+// waitOldest retires only the oldest submission.
+func (d *Device) waitOldest() (time.Duration, error) {
+	if len(d.inflight.items) == 0 {
+		return 0, nil
+	}
+	d.lastRetiredGPU = 0
+	err := d.inflight.waitOldest()
+	return d.lastRetiredGPU, err
 }
 
 // wait blocks until every committed command buffer completes and returns
-// the GPU time of the last one. A failed buffer is recorded (gpuFailed)
-// and its error returned; when all succeeded the failure count resets.
+// the GPU time of the last one. A failed buffer is recorded and its error is
+// returned; when all succeeded the failure count resets.
 func (d *Device) wait() (time.Duration, error) {
-	if len(d.inflight) == 0 {
+	if len(d.inflight.items) == 0 {
 		return 0, nil
 	}
 	var g time.Duration
 	var first error
-	for i, cb := range d.inflight {
-		cb.Send(sel("waitUntilCompleted"))
-		if st := msgU64(cb, sel("status")); st != cbStatusCompleted {
-			e := cb.Send(sel("error"))
-			err := nsError(fmt.Sprintf("metal: command buffer status %d", st), e)
-			if first == nil {
-				first = err
-				d.gpuFailed(err, cbErrorLost(e))
-			}
-		} else {
-			g = time.Duration((msgF64(cb, sel("GPUEndTime")) - msgF64(cb, sel("GPUStartTime"))) * float64(time.Second))
+	for len(d.inflight.items) > 0 {
+		var err error
+		g, err = d.waitOldest()
+		if err != nil && first == nil {
+			first = err
 		}
-		release(cb)
-		d.inflight[i] = 0
 	}
-	d.inflight = d.inflight[:0]
 	if first != nil {
 		return 0, first
 	}
-	d.failures = 0
+	// Everything committed is done: a frame whose submissions all completed
+	// ends the run of failures (noteRetired resets only at the next frame).
+	if d.retiringSet && !d.retiringFailed {
+		d.failures = 0
+	}
 	return g, nil
 }
 

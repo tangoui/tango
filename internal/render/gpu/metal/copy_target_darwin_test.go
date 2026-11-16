@@ -387,7 +387,7 @@ func TestMetalCopyTargetFailureLifecycle(t *testing.T) {
 	}
 	d.Close()
 	d.Close()
-	if d.target != 0 || d.copyTarget != 0 || d.scratch != 0 || d.dev != 0 || d.queue != 0 || len(d.inflight) != 0 {
+	if d.target != 0 || d.copyTarget != 0 || d.scratch != 0 || d.dev != 0 || d.queue != 0 || len(d.inflight.items) != 0 {
 		t.Fatal("Close did not drain/release copy targets and device")
 	}
 	if err := d.Wait(); !errors.Is(err, ErrClosed) {

@@ -106,18 +106,42 @@ func Layout(g *Graph, o LayoutOptions) {
 	l.rank(ll)
 
 	// Virtual nodes for long edges. Vertex ids >= n are virtual.
-	crossSize := make([]float32, n, n+len(ll))
+	virtual := 0
+	for _, k := range ll {
+		virtual += max(0, l.ranks[k[1]]-l.ranks[k[0]]-1)
+	}
+	vertices := n + virtual
+	l.ranks = slices.Grow(l.ranks, virtual)
+	crossSize := make([]float32, n, vertices)
 	for i := range n {
 		crossSize[i] = cross(sizes[i])
 	}
 	chains := make([][]int, len(ll)) // virtual vertices along each link, from u to v
-	l.succ = make([][]int, n)
-	l.pred = make([][]int, n)
+	// Exact adjacency capacities avoid a separate allocation (and repeated
+	// growth) for every real and virtual vertex.
+	degrees := make([]int, 2*n)
+	for _, k := range ll {
+		degrees[k[0]]++
+		degrees[n+k[1]]++
+	}
+	succData := make([]int, len(ll)+virtual)
+	predData := make([]int, len(ll)+virtual)
+	l.succ = make([][]int, n, vertices)
+	l.pred = make([][]int, n, vertices)
+	succAt, predAt := 0, 0
+	for i := range n {
+		l.succ[i] = succData[succAt : succAt : succAt+degrees[i]]
+		l.pred[i] = predData[predAt : predAt : predAt+degrees[n+i]]
+		succAt += degrees[i]
+		predAt += degrees[n+i]
+	}
 	addV := func(rank int) int {
 		id := len(l.ranks)
 		l.ranks = append(l.ranks, rank)
-		l.succ = append(l.succ, nil)
-		l.pred = append(l.pred, nil)
+		l.succ = append(l.succ, succData[succAt:succAt:succAt+1])
+		l.pred = append(l.pred, predData[predAt:predAt:predAt+1])
+		succAt++
+		predAt++
 		crossSize = append(crossSize, 2)
 		return id
 	}
@@ -128,6 +152,9 @@ func Layout(g *Graph, o LayoutOptions) {
 	for i, k := range ll {
 		u, v := k[0], k[1]
 		prev := u
+		if count := l.ranks[v] - l.ranks[u] - 1; count > 0 {
+			chains[i] = make([]int, 0, count)
+		}
 		for r := l.ranks[u] + 1; r < l.ranks[v]; r++ {
 			w := addV(r)
 			chains[i] = append(chains[i], w)
@@ -498,6 +525,7 @@ func (l *layered) coords(size []float32, sep float32) []float32 {
 		}
 	}
 	var want, wt, gap []float64
+	var fitWorkspace isotonicWorkspace
 	fit := func(layer []int, nbr, other [][]int) {
 		want, wt, gap = want[:0], wt[:0], gap[:0]
 		for i, v := range layer {
@@ -528,7 +556,7 @@ func (l *layered) coords(size []float32, sep float32) []float32 {
 				gap = append(gap, float64(size[p]/2+sep+size[v]/2))
 			}
 		}
-		out := isotonicGap(want, wt, gap)
+		out := fitWorkspace.fit(want, wt, gap)
 		for i, v := range layer {
 			x[v] = float32(out[i])
 		}
@@ -553,29 +581,48 @@ func (l *layered) coords(size []float32, sep float32) []float32 {
 // x_{i+1} − x_i ≥ gap_i, by pool-adjacent-violators on the shifted values
 // y_i = x_i − Σ_{j<i} gap_j (which must be non-decreasing).
 func isotonicGap(d, w, gap []float64) []float64 {
+	var ws isotonicWorkspace
+	return ws.fit(d, w, gap)
+}
+
+type isotonicBlock struct {
+	sum, wsum float64
+	count     int
+}
+
+// Owned by one coords invocation; results are consumed before the next fit.
+// No process-wide pool or mutable storage escapes to the graph result.
+type isotonicWorkspace struct {
+	shift, out []float64
+	blocks     []isotonicBlock
+}
+
+func (ws *isotonicWorkspace) fit(d, w, gap []float64) []float64 {
 	n := len(d)
-	shift := make([]float64, n)
+	ws.shift = slices.Grow(ws.shift[:0], n)[:n]
+	shift := ws.shift
+	if n > 0 {
+		shift[0] = 0
+	}
 	for i := 1; i < n; i++ {
 		shift[i] = shift[i-1] + gap[i-1]
 	}
-	type block struct {
-		sum, wsum float64
-		count     int
-	}
-	blocks := make([]block, 0, n)
+	ws.blocks = slices.Grow(ws.blocks[:0], n)
+	blocks := ws.blocks
 	for i := range n {
 		y := d[i] - shift[i]
-		blocks = append(blocks, block{y * w[i], w[i], 1})
+		blocks = append(blocks, isotonicBlock{y * w[i], w[i], 1})
 		for len(blocks) > 1 {
 			a, b := blocks[len(blocks)-2], blocks[len(blocks)-1]
 			if a.sum/a.wsum <= b.sum/b.wsum {
 				break
 			}
 			blocks = blocks[:len(blocks)-2]
-			blocks = append(blocks, block{a.sum + b.sum, a.wsum + b.wsum, a.count + b.count})
+			blocks = append(blocks, isotonicBlock{a.sum + b.sum, a.wsum + b.wsum, a.count + b.count})
 		}
 	}
-	out := make([]float64, n)
+	ws.out = slices.Grow(ws.out[:0], n)[:n]
+	out := ws.out
 	i := 0
 	for _, b := range blocks {
 		m := b.sum / b.wsum

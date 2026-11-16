@@ -19,6 +19,7 @@ type Registry struct {
 
 type entry struct {
 	grammar json.RawMessage
+	builtin bool
 	once    sync.Once // 编译只做一次（结果含错误被缓存）；在 r.mu 之外执行
 	lexer   *Lexer
 	err     error
@@ -44,7 +45,7 @@ func NewRegistry() *Registry {
 			r.mimes[m] = l.ID
 		}
 		if g := strings.TrimSpace(string(l.Grammar)); g != "" && g != "null" {
-			r.entries[l.ID] = &entry{grammar: l.Grammar}
+			r.entries[l.ID] = &entry{grammar: l.Grammar, builtin: true}
 		}
 	}
 	return r
@@ -78,7 +79,12 @@ func (r *Registry) Lexer(id string) (*Lexer, error) {
 	if !ok {
 		return nil, fmt.Errorf("monarch: no tokenizer for language %q", id)
 	}
-	e.once.Do(func() { e.lexer, e.err = r.compile(id, e.grammar) })
+	e.once.Do(func() {
+		e.lexer, e.err = r.compile(id, e.grammar)
+		if e.err == nil {
+			e.lexer.fastGo = e.builtin && id == "go"
+		}
+	})
 	return e.lexer, e.err
 }
 

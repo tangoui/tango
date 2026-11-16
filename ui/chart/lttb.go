@@ -10,18 +10,36 @@ import "math"
 // points than threshold, every valid index is returned.
 func LTTB(xs, ys []float64, threshold int) []int {
 	n := min(len(xs), len(ys))
-	idx := make([]int, 0, n)
+	// Dense inputs use their original indices directly. Only build a mapping
+	// when NaN values actually make the input sparse.
+	var idx []int
 	for i := 0; i < n; i++ {
-		if !math.IsNaN(ys[i]) {
+		if math.IsNaN(ys[i]) {
+			if idx == nil {
+				idx = make([]int, i, n)
+				for j := range idx {
+					idx[j] = j
+				}
+			}
+		} else if idx != nil {
 			idx = append(idx, i)
 		}
 	}
-	m := len(idx)
+	m := n
+	if idx != nil {
+		m = len(idx)
+	}
 	if threshold < 3 || m <= threshold {
+		if idx == nil {
+			idx = make([]int, m)
+			for i := range idx {
+				idx[i] = i
+			}
+		}
 		return idx
 	}
 	out := make([]int, 0, threshold)
-	out = append(out, idx[0])
+	out = append(out, lttbIndex(idx, 0))
 	// The m-2 interior points are split into threshold-2 buckets.
 	every := float64(m-2) / float64(threshold-2)
 	a := 0 // position (in idx) of the last selected point
@@ -37,26 +55,50 @@ func LTTB(xs, ys []float64, threshold int) []int {
 			ns, ne = m-1, m
 		}
 		var avx, avy float64
-		for j := ns; j < ne; j++ {
-			avx += xs[idx[j]]
-			avy += ys[idx[j]]
+		if idx == nil {
+			for j := ns; j < ne; j++ {
+				avx += xs[j]
+				avy += ys[j]
+			}
+		} else {
+			for j := ns; j < ne; j++ {
+				avx += xs[idx[j]]
+				avy += ys[idx[j]]
+			}
 		}
 		cnt := float64(ne - ns)
 		avx /= cnt
 		avy /= cnt
-		ax, ay := xs[idx[a]], ys[idx[a]]
+		ax, ay := xs[lttbIndex(idx, a)], ys[lttbIndex(idx, a)]
 		best, bestArea := s, -1.0
-		for j := s; j < e; j++ {
-			px, py := xs[idx[j]], ys[idx[j]]
-			// Twice the triangle area (a, p, avg); the factor is irrelevant.
-			area := math.Abs((ax-avx)*(py-ay) - (ax-px)*(avy-ay))
-			if area > bestArea {
-				best, bestArea = j, area
+		if idx == nil {
+			for j := s; j < e; j++ {
+				px, py := xs[j], ys[j]
+				area := math.Abs((ax-avx)*(py-ay) - (ax-px)*(avy-ay))
+				if area > bestArea {
+					best, bestArea = j, area
+				}
+			}
+		} else {
+			for j := s; j < e; j++ {
+				px, py := xs[idx[j]], ys[idx[j]]
+				area := math.Abs((ax-avx)*(py-ay) - (ax-px)*(avy-ay))
+				if area > bestArea {
+					best, bestArea = j, area
+				}
 			}
 		}
-		out = append(out, idx[best])
+		out = append(out, lttbIndex(idx, best))
 		a = best
 	}
-	out = append(out, idx[m-1])
+	out = append(out, lttbIndex(idx, m-1))
 	return out
+}
+
+// lttbIndex is inlined; nil is the identity mapping for dense series.
+func lttbIndex(idx []int, i int) int {
+	if idx == nil {
+		return i
+	}
+	return idx[i]
 }
