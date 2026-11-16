@@ -260,3 +260,15 @@ func TestNativePrependingContentDoesNotStealALayerNeededLater(t *testing.T) {
 		t.Fatal("new leading content destroyed an unchanged retained layer")
 	}
 }
+
+func TestNativeCloseClearsBackgroundForCPUTakeover(t *testing.T) {
+	r := newNativeTestRenderer(t)
+	nativeFrame(t, r, &paint.List{Background: color.NRGBA{R: 255, A: 255}}, geom.Size{W: 30, H: 30}, 1)
+	layer := r.layer
+	if err := r.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if layer.Send(sel("backgroundColor")) != 0 {
+		t.Fatal("native background survived close and would blend under a CPU replacement")
+	}
+}

@@ -194,6 +194,14 @@ type AttachedCanvas interface {
 	Detach()
 }
 
+// CanvasCoreGraphics provides a retained content layer on macOS/arm64.
+// Main thread only. The view owns the returned CALayer until close or a switch
+// to Metal; callers retaining it may finish releasing their content afterward.
+// Acquisition is idempotent and schedules a frame without calling the sink.
+type CanvasCoreGraphics interface {
+	UseCoreGraphicsLayer() (uintptr, error)
+}
+
 // CanvasMetal is implemented by macOS canvases that can switch to a
 // CAMetalLayer for GPU presentation. Discover it with a type assertion on
 // the Canvas from CanvasCreator.NewCanvasSurface.

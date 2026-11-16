@@ -146,10 +146,14 @@ func logGPUUnavailable(err error, forced bool) {
 var renderers sync.Map // *ui.Runner -> *gpuRenderer
 
 // Renderer reports how r's window is drawn: "gpu" (Metal, Direct3D 11,
-// OpenGL) or "cpu" (no GPU, TANGO_RENDERER=cpu, a fallback after the GPU
+// OpenGL), "native" (retained macOS content layers), or "cpu" (no GPU,
+// TANGO_RENDERER=cpu, a fallback after the GPU
 // was lost, or a runner uihost did not open). Main thread.
 func Renderer(r *ui.Runner) string {
 	if g, ok := renderers.Load(r); ok && !g.(*gpuRenderer).lost() {
+		if g.(*gpuRenderer).nativeMode {
+			return "native"
+		}
 		return "gpu"
 	}
 	return "cpu"
@@ -171,6 +175,11 @@ func setupGPU(cv platform.Canvas, ropts ui.RunnerOptions) *gpuRenderer {
 	mode := os.Getenv("TANGO_RENDERER")
 	if mode == "cpu" {
 		return nil
+	}
+	if mode == "" || mode == "native" {
+		if g := startNative(cv, mode == "native"); g != nil {
+			return g
+		}
 	}
 	forced := mode == "gpu"
 	if mode == "auto" && autoCPUWindow(cv) {
@@ -216,11 +225,13 @@ func startGPU(cv platform.Canvas, forced bool) *gpuRenderer {
 // gpuRenderer renders with the GPU renderer until the device is lost,
 // then with a paint.CPU. Main thread.
 type gpuRenderer struct {
-	gpu     paint.Renderer
-	present func(size image.Point, scale float32) error
-	cpu     *paint.CPU // non-nil: CPU mode
-	closed  bool
-	auto    *autoRendererState // CPU-first policy; cleared after promotion or failed attempt
+	gpu        paint.Renderer
+	present    func(size image.Point, scale float32) error
+	cpu        *paint.CPU // non-nil: CPU mode
+	closed     bool
+	nativeMode bool
+	native     *nativeRendererState
+	auto       *autoRendererState // CPU-first policy; cleared after promotion or failed attempt
 
 	// Oversized frames: a frame beyond a device limit (texture size,
 	// instance count; gpu.ErrTargetTooLarge) is drawn by
@@ -237,6 +248,14 @@ func (g *gpuRenderer) Render(l *paint.List, size geom.Size, scale float32) error
 		return nil
 	}
 	g.bigFrame = false
+	if g.native != nil {
+		if g.native.ready {
+			g.promoteNative()
+		}
+		if g.native != nil {
+			g.native.start = time.Now()
+		}
+	}
 	if g.auto != nil && g.auto.shouldPromote(l, size, time.Now()) {
 		cv := g.auto.canvas
 		g.auto = nil // try once; failures never cause a retry storm
@@ -278,6 +297,7 @@ func (g *gpuRenderer) releaseGPU() {
 		_ = c.Close()
 	}
 	g.gpu, g.present = nil, nil
+	g.nativeMode, g.native = false, nil
 }
 
 // Close releases everything when the window goes away. Main thread;
@@ -318,7 +338,7 @@ func (g *gpuRenderer) presentFrame(cv platform.Canvas, id platform.SurfaceID) er
 	s := cv.Scale()
 	px := image.Pt(int(math.Round(float64(w*s))), int(math.Round(float64(h*s))))
 	if err := g.present(px, s); err != nil {
-		if errors.Is(err, gpu.ErrDeviceLost) {
+		if g.nativeMode || errors.Is(err, gpu.ErrDeviceLost) {
 			g.fallback(cv, id, err)
 			return nil
 		}
@@ -330,6 +350,7 @@ func (g *gpuRenderer) presentFrame(cv platform.Canvas, id platform.SurfaceID) er
 		}
 		return err
 	}
+	g.nativePresented()
 	return cv.Present(nil) // hides a CPU frame shown before, if any
 }
 
@@ -340,7 +361,7 @@ func (g *gpuRenderer) frameError(cv platform.Canvas, id platform.SurfaceID, err 
 	if g.cpu != nil {
 		return
 	}
-	if errors.Is(err, gpu.ErrDeviceLost) {
+	if g.nativeMode || errors.Is(err, gpu.ErrDeviceLost) {
 		g.fallback(cv, id, err)
 		return
 	}

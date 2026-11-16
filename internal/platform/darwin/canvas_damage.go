@@ -43,7 +43,7 @@ type canvasTiles struct {
 // emptied); a grid of another size drops its layers. Inside the
 // CATransaction of the whole frame. Not in Metal mode.
 func (c *canvas) tilesReset(px image.Point) {
-	if c.metalLayer != 0 {
+	if c.metalLayer != 0 || c.nativeLayer != 0 {
 		return
 	}
 	t := c.tiles
@@ -90,7 +90,7 @@ func (c *canvas) PresentDamage(img *image.RGBA, dirty []image.Rectangle) error {
 	if c.closed {
 		return errCanvasClosed
 	}
-	if img == nil || c.metalLayer != 0 || c.tiles == nil {
+	if img == nil || (c.metalLayer != 0 || c.nativeLayer != 0) || c.tiles == nil {
 		return c.Present(img)
 	}
 	b := img.Bounds()

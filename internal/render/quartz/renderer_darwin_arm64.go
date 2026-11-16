@@ -406,6 +406,7 @@ func (r *renderer) Close() error {
 	clear(r.images)
 	r.scene.releaseScratch()
 	r.scene.cpu = nil
+	r.layer.Send(sel("setBackgroundColor:"), uintptr(0))
 	r.layer.Send(sel("release"))
 	r.layer = 0
 	return nil
