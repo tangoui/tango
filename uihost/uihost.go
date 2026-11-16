@@ -114,6 +114,8 @@ func Open(app *tango.App, opts Options, page func(*ui.Context), ropts ui.RunnerO
 			h.trace = newFrameTrace(h.id)
 			h.gpu.setTrace(h.trace)
 		}
+	} else {
+		frameTraceSkipped(h.id, "drawn by the CPU (TANGO_RENDERER=cpu, no GPU presenter, or a renderer set in RunnerOptions); only GPU windows are traced")
 	}
 	s.OnClosed(h.close)
 	watchMemory(app, r) // memory.go
@@ -145,7 +147,9 @@ func (h *host) CanvasFrame() {
 	}
 	if h.trace != nil {
 		h.trace.begin()
-		defer h.trace.end(Renderer(h.r))
+		// The renderer is read when the frame ends: a frame that loses the
+		// GPU is summarized as cpu.
+		defer func() { h.trace.end(Renderer(h.r)) }()
 	}
 	var err error
 	// A panic in the frame (page functions included) goes to the app's

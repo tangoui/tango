@@ -18,6 +18,25 @@ package uihost
 // time. Nothing here is a time on screen: no platform reports when a frame
 // was displayed.
 //
+// The fields count different events, so their sample counts differ from
+// n (the frames summarized): render and present only frames that rendered
+// or presented (a frame the runner skips adds to frame and gap only); gpu
+// every GPU frame the device retired in the period — more than n under
+// gpu.Renderer's verify mode (which renders a frame twice), and lagging by
+// a frame or two because frames retire asynchronously; drawable and
+// misses one per present. renderer is the window's renderer when the
+// summarized period ended ("cpu" from the frame that lost the GPU on).
+// The drawable, misses and gpu fields appear only for a period in which a
+// timeline reported.
+//
+// Only windows presented by a GPU renderer (uihost.Open with a GPU or
+// native presenter, also after a native window promotes to Metal) are
+// traced; a native window has no Metal timeline, so only frame, render,
+// present and gap. A window drawn by the CPU (TANGO_RENDERER=cpu, no GPU
+// presenter as on Linux without usable OpenGL, a renderer chosen in
+// ui.RunnerOptions), an attached layer (Attach) and a tan dev window log
+// one "not traced" line instead.
+//
 // Off by default; it times nothing and allocates nothing when off.
 
 import (
@@ -59,6 +78,14 @@ type frameTrace struct {
 }
 
 func newFrameTrace(id platform.SurfaceID) *frameTrace { return &frameTrace{id: id} }
+
+// frameTraceSkipped logs, when TANGO_FRAME_TRACE is set, that window id
+// gets no trace and why, so the variable is never silently ignored.
+func frameTraceSkipped(id platform.SurfaceID, why string) {
+	if frameTraceOn() {
+		frameTraceLogf("tango: frame trace surface %d not traced: %s", id, why)
+	}
+}
 
 // begin marks the start of a frame.
 func (t *frameTrace) begin() {
@@ -112,6 +139,9 @@ func (t *frameTrace) flush(renderer string) {
 	frameTraceLogf("%s", b.String())
 	t.frame, t.render, t.present, t.gap = t.frame[:0], t.render[:0], t.present[:0], t.gap[:0]
 	t.drawable, t.gpu, t.misses = t.drawable[:0], t.gpu[:0], 0
+	// Decided again for every summary: after a fallback to the CPU no
+	// timeline reports, and a bare misses=0 would read as "no misses".
+	t.timeline = false
 }
 
 // stat appends " name p50=… p95=…" (and max) for d, sorting it.

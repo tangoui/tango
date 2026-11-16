@@ -22,7 +22,7 @@ Tango 只有一个构建开关：`tango_dev` 构建标签。
 
 开发功能都由环境变量或本机端口触发。与应用同一用户的任何进程都能控制这些输入：`open -a App --env TANGO_DEV_URL=http://evil`、`launchctl setenv`、Windows 的用户环境变量、抢占本机端口。若发布版也响应它们，攻击者就能让一个已签名、已拿到 TCC 授权和钥匙串访问的应用加载自己的页面（页面可调用全部绑定），或通过自动化通道远程执行 JS。运行时检查挡不住同用户的攻击者，所以这些代码在默认构建里根本不编译进去：`go list -deps` 看不到 `internal/automation`、`internal/devhost`（`automation` 包的 `TestReleaseBuildHasNoChannel` 检查），二进制里也没有 `asset.DevProxy`。
 
-默认构建仍会读取几个面向用户排障的变量：`TANGO_RENDERER`（自绘窗口渲染器）、`TANGO_TEXT_ENGINE`（文字引擎）、`TANGO_LINUX_TRAY`、`TANGO_ATSPI_EMBED`、`TANGO_WINDOWS_TOAST=0`（Windows 通知回退到气泡）。它们只在已有实现之间切换，不会加载外部代码或打开通道。
+默认构建仍会读取几个面向用户排障的变量：`TANGO_RENDERER`（自绘窗口渲染器）、`TANGO_FRAME_TRACE`（自绘窗口帧时延日志，见下文）、`TANGO_TEXT_ENGINE`（文字引擎）、`TANGO_LINUX_TRAY`、`TANGO_ATSPI_EMBED`、`TANGO_WINDOWS_TOAST=0`（Windows 通知回退到气泡）。它们只在已有实现之间切换或只写日志，不会加载外部代码或打开通道。
 
 macOS 可选 `TANGO_TEXT_ENGINE=coretext`：无换行短文本使用 CoreText glyph-run 排版和系统字体回退，glyph 仍走 Tango 的 CoreText raster；换行、RTL、编辑器行缓存和不适合的文本自动回退 go-text/HarfBuzz。它是轻量/实验路径，CoreText 的字距与 go-text 可能存在平台差异；未设置时保持默认 go-text/HarfBuzz 路径。
 
@@ -41,6 +41,19 @@ Android 同样用 `tango_selftest`：`GOFLAGS=-tags=tango_selftest bash mobile/a
 - `auto`：面积不超过 100,000 逻辑像素的小窗口先使用 CPU；其他窗口 GPU 优先。CPU 起步的窗口在放大超过阈值、绘制列表达到 256 项或连续六个实际绘制帧的间隔不超过 100 ms 时，尝试升级 GPU。升级单向生效，不随缩小窗口来回切换；升级失败也不逐帧重试。这是保守的工作量启发式，不是对 CPU/GPU 快慢的保证。小型编辑器、终端或持续动画也可直接设 `gpu`。
 
 较大窗口的默认原生渲染尚未通过 CPU/尾部帧间隔验收，因此保留 GPU 默认；可用 `native` 显式比较低内存路径。
+
+### 帧时延日志（`TANGO_FRAME_TRACE`）
+
+`TANGO_FRAME_TRACE=1` 让自绘窗口每 120 帧打一行摘要（`tango: frame trace surface N renderer=… n=120 …`），各项给 p50/p95：
+
+- `frame`：一帧在 CPU 上的全程（布局、绘制、Render、Present）；`render`：渲染器的 Render；`present`：呈现（macOS 上包含 `nextDrawable` 的等待）；`gap`：相邻两帧开始时刻的间隔（显示刷新节拍，没有请求帧时会更长）。
+- 仅 macOS Metal：`drawable`（`nextDrawable` 阻塞时长）、`misses`（拿不到 drawable 的 present 次数）、`gpu`（帧在 GPU 上的执行时长）。这三项只在该统计周期里 Metal 确实上报过时才出现。
+- 各项的样本数不一定等于 `n`：跳过绘制或呈现的帧只计入 `frame`/`gap`；`gpu` 是周期内退役的 GPU 帧，异步退役会滞后一两帧，verify 模式下每帧会多一次。
+- `renderer` 是周期结束时的渲染器：在 present 中丢失 GPU 的那一帧起就记为 `cpu`。
+
+只有经 GPU 渲染器（`gpu` 或 `native`，包括原生窗口升级 Metal 之后）呈现的窗口会被统计；原生图层窗口没有 Metal 时间线，只有前四项。CPU 窗口（`TANGO_RENDERER=cpu`、没有可用 GPU、`ui.RunnerOptions` 自选渲染器）、`Attach` 附加层和 `tan dev` 窗口不统计，各打一行 `not traced` 说明原因。
+
+没有任何平台报告帧何时真正上屏，所以这里的时间都不是"屏幕时延"。未设置时不计时、不分配。
 
 原生图层保留未变化的文字和图片，整像素移动只更新位置；圆角、边框、阴影等使用有界且可复用的参考渲染图片。复杂裁剪、变换、透明度组和背景模糊会完整软件回退，超过 64 MiB 的预计图层位图也回退；不丢弃绘制命令。原生层的文字抗锯齿遵循 CoreGraphics。大量动态图片、复杂效果或持续动画可显式选择 `gpu`。Intel macOS 保留原渲染路径。
 

@@ -16,16 +16,11 @@ var (
 	platformGPURelease   func(platform.Canvas) // the layer / GPU window stays: Present(img) uses it
 )
 
-// metalTimeline is the Metal presenter's renderer (metal.NewPresenter):
-// its Device reports drawable waits and GPU times.
-type metalTimeline interface {
-	SetTimeline(fn func(metal.Timing))
-}
-
-// attachTimeline connects r's timeline, when it has one, to t
-// (TANGO_FRAME_TRACE, frametrace.go).
+// attachTimeline connects r's timeline, when it has one (the Metal
+// presenter's renderer, metal.TimelineSource), to t (TANGO_FRAME_TRACE,
+// frametrace.go).
 func attachTimeline(r any, t *frameTrace) {
-	s, ok := r.(metalTimeline)
+	s, ok := r.(metal.TimelineSource)
 	if !ok {
 		return
 	}

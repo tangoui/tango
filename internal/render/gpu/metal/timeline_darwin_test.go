@@ -4,6 +4,7 @@ package metal
 
 import (
 	"image"
+	"slices"
 	"testing"
 	"time"
 
@@ -122,5 +123,34 @@ func TestMetalTimelineCloseDrains(t *testing.T) {
 	d.Close()
 	if len(*got) != 1 || (*got)[0].Kind != "frame" {
 		t.Fatalf("timings after Close = %+v, want the in-flight frame", *got)
+	}
+}
+
+// TestNewPresenterTimelineSource (review M5): the renderer NewPresenter
+// returns is the metal.TimelineSource uihost's TANGO_FRAME_TRACE asserts
+// it to, and its timeline delivers the present's drawable wait and the
+// frame's GPU time.
+func TestNewPresenterTimelineSource(t *testing.T) {
+	layer := newTestLayer(t, image.Pt(10, 10))
+	r, present, err := NewPresenter(uintptr(layer))
+	if err != nil {
+		t.Skipf("no Metal device: %v", err)
+	}
+	t.Cleanup(func() { r.(interface{ Close() error }).Close() })
+	src, ok := r.(TimelineSource)
+	if !ok {
+		t.Fatalf("NewPresenter's renderer %T is not a TimelineSource", r)
+	}
+	var kinds []string
+	src.SetTimeline(func(tm Timing) { kinds = append(kinds, tm.Kind) })
+	if err := r.Render(gputest.Scenes[0].Make(t), gputest.SceneSize, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := present(devicePixels(gputest.SceneSize, 1), 1); err != nil {
+		t.Fatal(err)
+	}
+	r.(interface{ Close() error }).Close() // drains: both are retired and reported
+	if !slices.Contains(kinds, "frame") || !slices.Contains(kinds, "present") {
+		t.Fatalf("timeline kinds %v, want a frame and a present", kinds)
 	}
 }

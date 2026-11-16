@@ -17,7 +17,8 @@ import (
 // offscreen CAMetalLayer at a Retina window size. The layer has no display,
 // so this measures how long the CPU is blocked on command-buffer
 // completion (what bounded in-flight changes), not vsync or display
-// latency. Metrics: ns/op and the p50/p95/p99 of single iterations.
+// latency. Metrics: ns/op and the p50/p95/p99 of single iterations; in the
+// paced arms the wait for the next tick is excluded from both.
 func BenchmarkPresentLoop(b *testing.B) {
 	for _, arm := range []struct {
 		name  string
@@ -102,10 +103,14 @@ func presentLoop(b *testing.B, drain, vsync bool, tick time.Duration) {
 	next := time.Now()
 	for range b.N {
 		if tick > 0 {
+			// The wait for the tick is not frame work: keep it out of
+			// ns/op, which otherwise would just be the tick period.
+			b.StopTimer()
 			for now := time.Now(); next.Before(now); {
 				next = next.Add(tick) // the first tick not yet passed
 			}
 			time.Sleep(time.Until(next))
+			b.StartTimer()
 		}
 		t := time.Now()
 		frame()
