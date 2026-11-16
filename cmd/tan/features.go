@@ -79,8 +79,8 @@ func configFeatures(values []string) (buildFeatures, error) {
 		return 0, errors.New("features must not be empty")
 	}
 	for _, value := range values {
-		if strings.TrimSpace(value) == "all" {
-			return 0, errors.New("config features accepts webview and canvas; omit the field for all")
+		if value != "webview" && value != "canvas" {
+			return 0, fmt.Errorf("invalid config feature %q (want webview or canvas)", value)
 		}
 	}
 	return parseFeatures(strings.Join(values, ","))
@@ -88,12 +88,18 @@ func configFeatures(values []string) (buildFeatures, error) {
 
 func resolveFeatures(config []string, override string, hasOverride bool) (buildFeatures, error) {
 	if hasOverride {
+		if strings.TrimSpace(override) == "" {
+			return 0, errors.New("-features cannot be empty")
+		}
 		return parseFeatures(override)
 	}
 	return configFeatures(config)
 }
 
 func featureTags(f buildFeatures, t target) ([]string, error) {
+	if t.OS == "ios" || t.OS == "ios-simulator" || t.OS == "android" {
+		return nil, nil // mobile build paths do not use desktop profiles
+	}
 	if f != featureAll && t.OS != "darwin" {
 		return nil, fmt.Errorf("features %s is not implemented on %s (only all is supported)", f, t.OS)
 	}

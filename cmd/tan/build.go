@@ -108,11 +108,12 @@ func runBuild(args []string) error {
 
 // artifact is one target's build output.
 type artifact struct {
-	target target
-	dir    string   // <out>/<os>-<arch>
-	path   string   // the .app bundle, the executable, or the APK
-	exe    string   // the executable itself
-	extra  []string // more outputs (.ipa, .aab)
+	target   target
+	features buildFeatures
+	dir      string   // <out>/<os>-<arch>
+	path     string   // the .app bundle, the executable, or the APK
+	exe      string   // the executable itself
+	extra    []string // more outputs (.ipa, .aab)
 }
 
 // build runs the front-end build once, then builds every target.
@@ -152,7 +153,7 @@ func build(ctx context.Context, cfg *Config, o buildOptions) ([]artifact, error)
 }
 
 func buildTarget(ctx context.Context, cfg *Config, t target, dir string, debug bool, features buildFeatures) (artifact, error) {
-	a := artifact{target: t, dir: dir}
+	a := artifact{target: t, features: features, dir: dir}
 	if err := os.RemoveAll(dir); err != nil {
 		return a, err
 	}
@@ -195,7 +196,7 @@ func goBuildDarwin(ctx context.Context, cfg *Config, arch, exe string, debug boo
 	var parts []string
 	for _, arch := range []string{"amd64", "arm64"} {
 		p := exe + "-" + arch
-		if err := goBuild(ctx, cfg, target{"darwin", arch}, p, debug); err != nil {
+		if err := goBuild(ctx, cfg, target{"darwin", arch}, p, debug, features); err != nil {
 			return err
 		}
 		defer os.Remove(p)

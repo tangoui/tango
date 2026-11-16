@@ -204,7 +204,7 @@ func packageMSIX(ctx context.Context, cfg *Config, a artifact) ([]string, error)
 			return nil, err
 		}
 	}
-	base := filepath.Join(filepath.Dir(a.dir), artifactBase(cfg, a.target))
+	base := filepath.Join(filepath.Dir(a.dir), artifactBaseOf(cfg, a))
 	layout := base + "-msix"
 	if err := writeMSIXLayout(cfg, a, layout); err != nil {
 		return nil, err

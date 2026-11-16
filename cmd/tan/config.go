@@ -233,6 +233,12 @@ const SchemaURL = "https://tangoui.github.io/tango/schema/tan.schema.json"
 // typos do not pass silently; a field added by a later tan is one too, and
 // the error says so.
 func ParseConfig(data []byte) (*Config, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err == nil {
+		if raw, ok := fields["features"]; ok && bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			return nil, errors.New(`tan.json: "features" must be omitted or a non-empty array`)
+		}
+	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	var c Config

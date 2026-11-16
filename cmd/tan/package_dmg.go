@@ -176,7 +176,7 @@ func packageDarwin(ctx context.Context, cfg *Config, a artifact) ([]string, erro
 		return nil, err
 	}
 
-	dmg := filepath.Join(filepath.Dir(a.dir), artifactBase(cfg, a.target)+".dmg")
+	dmg := filepath.Join(filepath.Dir(a.dir), artifactBaseOf(cfg, a)+".dmg")
 	os.Remove(dmg)
 	// ULMO (LZMA) is the smallest read-only format hdiutil offers, about a
 	// quarter smaller than UDZO for a Go app; it mounts on macOS 10.15 and

@@ -89,6 +89,16 @@ func artifactBase(cfg *Config, t target) string {
 	return fmt.Sprintf("%s-%s-%s-%s", cfg.Exe(), cfg.Version, t.OS, t.Arch)
 }
 
+// artifactBaseOf is artifactBase plus the backend profile for non-all
+// builds, so packages of different profiles never overwrite each other.
+func artifactBaseOf(cfg *Config, a artifact) string {
+	base := artifactBase(cfg, a.target)
+	if a.features != featureAll {
+		base += "-" + strings.ReplaceAll(a.features.String(), ",", "+")
+	}
+	return base
+}
+
 // desktopEntry renders the freedesktop .desktop file. %U passes the
 // URLs or files the app is opened with; MimeType lists the deep-link
 // schemes (x-scheme-handler/<scheme>) and the associated file types.
@@ -216,7 +226,7 @@ func packageLinux(cfg *Config, a artifact) ([]string, error) {
 // definitions and install.sh.
 func linuxTarball(cfg *Config, a artifact, icons map[string][]byte) (string, error) {
 	exe := cfg.Exe()
-	tgz := filepath.Join(filepath.Dir(a.dir), artifactBase(cfg, a.target)+".tar.gz")
+	tgz := filepath.Join(filepath.Dir(a.dir), artifactBaseOf(cfg, a)+".tar.gz")
 	files := map[string]fileEntry{
 		exe:              {path: a.exe, mode: 0o755},
 		exe + ".desktop": {data: []byte(desktopEntry(cfg)), mode: 0o644},
@@ -229,7 +239,7 @@ func linuxTarball(cfg *Config, a artifact, icons map[string][]byte) (string, err
 		files[exe+"-mime.xml"] = fileEntry{data: mimeXML, mode: 0o644}
 	}
 	files["install.sh"] = fileEntry{data: []byte(installScript(cfg, len(icons) > 0, mimeXML != nil)), mode: 0o755}
-	if err := writeTarGz(tgz, artifactBase(cfg, a.target), files); err != nil {
+	if err := writeTarGz(tgz, artifactBaseOf(cfg, a), files); err != nil {
 		return "", err
 	}
 	return tgz, nil
@@ -242,7 +252,7 @@ func linuxTarball(cfg *Config, a artifact, icons map[string][]byte) (string, err
 func linuxAppImage(cfg *Config, a artifact, icons map[string][]byte) ([]string, error) {
 	exe := cfg.Exe()
 	parent := filepath.Dir(a.dir)
-	base := artifactBase(cfg, a.target)
+	base := artifactBaseOf(cfg, a)
 	appDir := filepath.Join(parent, exe+"-"+a.target.Arch+".AppDir")
 	os.RemoveAll(appDir)
 	bin := filepath.Join(appDir, "usr", "bin")
@@ -355,7 +365,7 @@ func packageWindows(ctx context.Context, cfg *Config, a artifact) ([]string, err
 			return nil, err
 		}
 	}
-	setup := filepath.Join(filepath.Dir(a.dir), artifactBase(cfg, a.target)+"-setup.exe")
+	setup := filepath.Join(filepath.Dir(a.dir), artifactBaseOf(cfg, a)+"-setup.exe")
 	nsi, err := writeNSISScript(cfg, a, setup)
 	if err != nil {
 		return nil, err

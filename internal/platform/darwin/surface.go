@@ -57,7 +57,7 @@ type surface struct {
 
 func (b *backend) NewSurface(sid platform.SurfaceID, opts platform.SurfaceOptions) (platform.Surface, error) {
 	if !profileWebViewEnabled {
-		return nil, platform.ErrUnsupported
+		return nil, profileWebViewError()
 	}
 	return b.newSurface(sid, opts, nil)
 }
