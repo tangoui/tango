@@ -214,6 +214,8 @@ type monitor struct {
 
 	mu        sync.Mutex
 	now       func() time.Time // receive time of an untimed renderer line
+	startNs   int64            // the process start, for the clock-step guard
+	clockStep bool             // a renderer time before the start or > 1 s after receipt
 	timeline  []RendererSample
 	window    string // from "bench scene"
 	sceneName string
@@ -272,8 +274,13 @@ func (m *monitor) line(text string) {
 		}
 	case "renderer":
 		s := RendererSample{T: e.t, Name: e.name}
+		recv := m.now().UnixNano()
 		if s.T == 0 {
-			s.T, s.RunnerClock = m.now().UnixNano(), true
+			s.T, s.RunnerClock = recv, true
+		} else if (m.startNs > 0 && s.T < m.startNs) || s.T > recv+int64(time.Second) {
+			// The program's clock and the runner's disagree: a wall-clock
+			// step, which misplaces samples against the sample window.
+			m.clockStep = true
 		}
 		m.timeline = append(m.timeline, s)
 	case "scene":
@@ -400,11 +407,17 @@ type config struct {
 	seconds  time.Duration
 	loadRead func() (float64, error)
 	manifest Manifest
+	binSrc   string // -bin, where build.sh put the binaries; bin is the private copy
 }
 
 // runOnce starts one scene program, measures it and stops it.
 func runOnce(cfg config, fw, scene string) Round {
-	r := Round{Scene: scene, Framework: fw, Build: cfg.manifest.buildLine(fw), Input: inputOf(cfg, scene), ScreenLocked: screenLocked()}
+	r := Round{Scene: scene, Framework: fw, Input: inputOf(cfg, scene), ScreenLocked: screenLocked()}
+	var err error
+	if r.Build, err = launchBuild(cfg, fw); err != nil {
+		r.Error = err.Error()
+		return r
+	}
 	cmd := sceneCommand(cfg, fw, scene)
 	stderr := &tail{}
 	cmd.Stderr = stderr
@@ -415,6 +428,7 @@ func runOnce(cfg config, fw, scene string) Round {
 	}
 	m := newMonitor()
 	start := time.Now()
+	m.startNs = start.UnixNano()
 	pid, err := running.start(func() (int, error) {
 		if err := cmd.Start(); err != nil {
 			return 0, err
@@ -482,6 +496,9 @@ func runOnce(cfg config, fw, scene string) Round {
 	r.WindowServerSeconds = (w1 - w0).Seconds()
 	m.mu.Lock()
 	r.Input.Window = m.window
+	if m.clockStep {
+		r.Notes = append(r.Notes, "clock step")
+	}
 	if m.sceneName != "" && m.sceneName != scene {
 		r.Notes = append(r.Notes, "program reported scene "+m.sceneName)
 	}
@@ -561,8 +578,15 @@ type Meta struct {
 	// ClearedEnv: inherited variables removed from the scene programs'
 	// environment (TANGO_RENDERER), so Tango ran its default policy.
 	ClearedEnv []string `json:"cleared_env"`
-	NSGo       string   `json:"nsgo,omitempty"`
-	LoadStart  float64  `json:"load_start"`
+	// DirtyBuild: a binary was built from a work tree that differed from
+	// its commit (manifest source.dirty); every verdict says so.
+	DirtyBuild bool `json:"dirty_build"`
+	// UnverifiedRunner: -unverified-runner, the running runner is not the
+	// manifest's; the results are not adoptable.
+	UnverifiedRunner bool    `json:"unverified_runner,omitempty"`
+	Adoptable        bool    `json:"adoptable"`
+	NSGo             string  `json:"nsgo,omitempty"`
+	LoadStart        float64 `json:"load_start"`
 	// ScreenLocked at the start: the run cannot produce usable rounds.
 	ScreenLocked bool `json:"screen_locked"`
 }
@@ -589,6 +613,7 @@ func main() {
 	seconds := flag.Int("seconds", 10, "sampling seconds")
 	out := flag.String("out", "../results/"+time.Now().Format("2006-01-02-150405")+".json", "results file")
 	verifyOnly := flag.Bool("verify", false, "verify -bin/manifest.json against the binaries and exit, opening no window")
+	unverifiedRunner := flag.Bool("unverified-runner", false, "allow a runner that is not the manifest's (go run); the results are marked not adoptable and every verdict line says so")
 	buildMode := flag.Bool("build", false, "build.sh's step: build the scene programs and the runner into -bin with the pinned toolchain and write -bin/manifest.json")
 	flag.Parse()
 
@@ -619,36 +644,56 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
+	if *unverifiedRunner {
+		fmt.Fprintln(os.Stderr, "runner: -unverified-runner: the running runner is not checked against the manifest; results are NOT adoptable")
+		self = ""
+	}
 	manifest, err := verifyManifest(*bin, self, inspectBinary)
 	if err != nil {
 		fatal(err)
 	}
 	fmt.Println("runner: build manifest verified:", filepath.Join(*bin, manifestName))
+	if manifest.dirty() {
+		fmt.Println("runner: dirty build: a binary was built from a work tree that differed from its commit; every verdict says so")
+	}
 	if *verifyOnly {
 		return
 	}
 	_, cleared := childEnv(os.Environ())
 	if len(cleared) > 0 {
-		fmt.Printf("runner: cleared inherited %s from the scene programs' environment (Tango runs its default renderer policy)\n", strings.Join(cleared, ", "))
+		fmt.Printf("runner: cleared inherited %s from the scene programs' environment (Tango runs its default policy, no Tango-only diagnostics)\n", strings.Join(cleared, ", "))
 	} else {
-		fmt.Println("runner: TANGO_RENDERER not inherited; the scene programs run without it (Tango's default renderer policy)")
+		fmt.Println("runner: no TANGO_* variable inherited; the scene programs run without any (Tango's default renderer policy)")
 	}
 	if err := checkScreen(screenLocked); err != nil {
-		fmt.Fprintln(os.Stderr, "runner:", err)
-		os.Exit(1)
+		fatal(err)
 	}
+	// SIGINT/SIGTERM: stop the scene programs first (after stopAll no
+	// program can start), then remove the private copies, then exit.
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		s := <-sigs
 		fmt.Fprintf(os.Stderr, "runner: %v: stopping the scene programs\n", s)
 		running.stopAll(syscall.Kill)
+		staged.cleanup()
 		os.Exit(130)
 	}()
-	cfg := config{bin: *bin, settle: *settle, seconds: time.Duration(*seconds) * time.Second,
-		loadRead: systemLoad, manifest: manifest}
+	// Launch only private copies of the verified binaries: a build.sh run
+	// during the measurement cannot reach later rounds.
+	stagedBin, err := stageBinaries(*bin, manifest, &staged)
+	if err != nil {
+		fatal(err)
+	}
+	defer staged.cleanup()
+	fmt.Println("runner: launching private copies of the verified binaries from", stagedBin)
+	cfg := config{bin: stagedBin, settle: *settle, seconds: time.Duration(*seconds) * time.Second,
+		loadRead: systemLoad, manifest: manifest, binSrc: *bin}
 	res := &Results{Meta: newMeta(cfg)}
 	res.Meta.ClearedEnv = append([]string{}, cleared...)
+	res.Meta.DirtyBuild = manifest.dirty()
+	res.Meta.UnverifiedRunner = *unverifiedRunner
+	res.Meta.Adoptable = !*unverifiedRunner
 	if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
 		fatal(err)
 	}
@@ -684,6 +729,7 @@ func main() {
 				}
 				o := pick(res.Rounds, scene, fw)
 				v, why := judgeWhy(t, o, *rounds)
+				why = annotateWhy(why, manifest, *unverifiedRunner)
 				tk, ts := rendererSummary(t)
 				ok, osw := rendererSummary(o)
 				res.Verdicts = append(res.Verdicts, VerdictLine{Scene: scene, Opponent: fw, Verdict: v, Why: why,
@@ -781,7 +827,10 @@ func write(path string, res *Results) error {
 	return os.Rename(tmp, path)
 }
 
+// fatal exits 1; os.Exit skips deferred calls, so it removes the private
+// binary copies itself.
 func fatal(err error) {
+	staged.cleanup()
 	fmt.Fprintln(os.Stderr, "runner:", err)
 	os.Exit(1)
 }
@@ -801,7 +850,7 @@ func newMeta(cfg config) Meta {
 	if v, err := exec.Command("sw_vers", "-productVersion").Output(); err == nil {
 		m.OS += " macOS " + strings.TrimSpace(string(v))
 	}
-	if b, err := os.ReadFile(filepath.Join(cfg.bin, "..", "third_party", "nsgo.version")); err == nil {
+	if b, err := os.ReadFile(filepath.Join(cfg.binSrc, "..", "third_party", "nsgo.version")); err == nil {
 		m.NSGo = strings.TrimSpace(string(b))
 	}
 	m.LoadStart, _ = systemLoad()

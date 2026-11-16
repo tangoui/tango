@@ -115,12 +115,13 @@ func describeRenderer(rs []Round) string {
 	return key
 }
 
-// childEnv is the scene programs' environment: the runner's, without
-// TANGO_RENDERER, so that Tango takes its default renderer policy (spec
-// §6.3). cleared lists what was removed.
+// childEnv is the scene programs' environment: the runner's, without any
+// TANGO_* variable, so that Tango takes its default renderer policy (spec
+// §6.3: TANGO_RENDERER) and pays for no Tango-only diagnostics (such as
+// TANGO_FRAME_TRACE). cleared lists what was removed.
 func childEnv(parent []string) (env, cleared []string) {
 	for _, kv := range parent {
-		if strings.HasPrefix(kv, "TANGO_RENDERER=") {
+		if strings.HasPrefix(kv, "TANGO_") {
 			cleared = append(cleared, kv)
 			continue
 		}

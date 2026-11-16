@@ -53,6 +53,7 @@ type fakeBuild struct {
 	version map[string]string // binary name -> go version it was "built" with
 	fail    map[string]bool   // binary name -> go build fails
 	dirty   string
+	deps    map[string]string // module -> "version sum" the binaries link (default mygo v0.9.0 h1:zGeZ=)
 	calls   []string
 	envs    [][]string
 }
@@ -73,9 +74,21 @@ func (f *fakeBuild) run(dir string, env []string, name string, args ...string) (
 		return nil, os.WriteFile(out, []byte("binary of "+filepath.Base(dir)), 0o755)
 	case name == "go" && args[0] == "version":
 		p := args[len(args)-1]
-		return []byte(fmt.Sprintf("%s: %s\n\tpath\tx\n\tbuild\tCGO_ENABLED=0\n", p, f.versionOf(filepath.Base(p)))), nil
+		dep := ""
+		if filepath.Base(p) == "mygo" {
+			v, s, _ := strings.Cut(f.dep("github.com/egoist/mygo"), " ")
+			dep = "\tdep\tgithub.com/egoist/mygo\t" + v + "\t" + s + "\n"
+		}
+		return []byte(fmt.Sprintf("%s: %s\n\tpath\tx\n%s\tbuild\tCGO_ENABLED=0\n", p, f.versionOf(filepath.Base(p)), dep)), nil
 	}
 	return nil, fmt.Errorf("unexpected %s %v", name, args)
+}
+
+func (f *fakeBuild) dep(mod string) string {
+	if v, ok := f.deps[mod]; ok {
+		return v
+	}
+	return "v0.9.0 h1:zGeZ="
 }
 
 func (f *fakeBuild) versionOf(bin string) string {
@@ -97,6 +110,9 @@ func (f *fakeBuild) inspect(path string) (binInfo, error) {
 	}}
 	if name == "runner" {
 		info.Symtab, info.DWARF = true, true
+	}
+	if name == "mygo" {
+		info.Deps = map[string]string{"github.com/egoist/mygo": f.dep("github.com/egoist/mygo")}
 	}
 	return info, nil
 }

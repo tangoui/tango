@@ -149,20 +149,22 @@ func TestJudgeMixedConsistency(t *testing.T) {
 	}
 }
 
-// The runner clears an inherited TANGO_RENDERER from every scene
-// program's environment, so Tango runs its default renderer policy.
+// The runner clears every inherited TANGO_* variable from every scene
+// program's environment: Tango runs its default renderer policy and no
+// Tango-only diagnostics (TANGO_FRAME_TRACE adds per-frame cost).
 func TestChildEnvClearsTangoRenderer(t *testing.T) {
-	env, cleared := childEnv([]string{"HOME=/h", "TANGO_RENDERER=gpu", "PATH=/bin", "TANGO_RENDERER=cpu"})
-	if !reflect.DeepEqual(env, []string{"HOME=/h", "PATH=/bin"}) || !reflect.DeepEqual(cleared, []string{"TANGO_RENDERER=gpu", "TANGO_RENDERER=cpu"}) {
+	env, cleared := childEnv([]string{"HOME=/h", "TANGO_RENDERER=gpu", "PATH=/bin", "TANGO_FRAME_TRACE=1", "MY_TANGO_X=1", "TANGO_RENDERER=cpu"})
+	if !reflect.DeepEqual(env, []string{"HOME=/h", "PATH=/bin", "MY_TANGO_X=1"}) || !reflect.DeepEqual(cleared, []string{"TANGO_RENDERER=gpu", "TANGO_FRAME_TRACE=1", "TANGO_RENDERER=cpu"}) {
 		t.Fatalf("childEnv = %v, cleared %v", env, cleared)
 	}
 	t.Setenv("TANGO_RENDERER", "gpu")
+	t.Setenv("TANGO_FRAME_TRACE", "1")
 	cmd := sceneCommand(config{bin: "/b"}, "tango", "list")
 	if cmd.Env == nil {
 		t.Fatal("scene command inherits the runner's environment as is")
 	}
 	for _, kv := range cmd.Env {
-		if strings.HasPrefix(kv, "TANGO_RENDERER=") {
+		if strings.HasPrefix(kv, "TANGO_") {
 			t.Fatalf("scene command env has %s", kv)
 		}
 	}

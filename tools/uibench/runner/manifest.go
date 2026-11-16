@@ -102,9 +102,13 @@ type Source struct {
 	// go.sum (MyGo, from the module cache)
 	Module string `json:"module,omitempty"`
 	Sum    string `json:"sum,omitempty"`
-	// nsgo.version (NSGo, a linked source tree that is not a git checkout)
-	Path     string `json:"path,omitempty"`
-	TreeSHA1 string `json:"go_tree_sha1,omitempty"`
+	// nsgo.version (NSGo, a linked source tree that is not a git checkout).
+	// TreeSHA1 is setup.sh's hash of the .go files; go.mod and go.sum,
+	// which it leaves out, are hashed here ("absent" when missing).
+	Path        string `json:"path,omitempty"`
+	TreeSHA1    string `json:"go_tree_sha1,omitempty"`
+	GoModSHA256 string `json:"go_mod_sha256,omitempty"`
+	GoSumSHA256 string `json:"go_sum_sha256,omitempty"`
 	// Version: MyGo's module version, NSGo's CHANGELOG heading.
 	Version string `json:"version,omitempty"`
 }
@@ -121,6 +125,7 @@ type BuildCommand struct {
 type binInfo struct {
 	GoVersion     string
 	Settings      map[string]string
+	Deps          map[string]string // module path -> "version sum"
 	Symtab, DWARF bool
 }
 
@@ -130,9 +135,12 @@ func inspectBinary(path string) (binInfo, error) {
 	if err != nil {
 		return binInfo{}, err
 	}
-	info := binInfo{GoVersion: bi.GoVersion, Settings: map[string]string{}}
+	info := binInfo{GoVersion: bi.GoVersion, Settings: map[string]string{}, Deps: map[string]string{}}
 	for _, s := range bi.Settings {
 		info.Settings[s.Key] = s.Value
+	}
+	for _, d := range bi.Deps {
+		info.Deps[d.Path] = d.Version + " " + d.Sum
 	}
 	f, err := macho.Open(path)
 	if err != nil {
@@ -380,6 +388,19 @@ func nsgoSource(dir string) (Source, error) {
 	if now != s.TreeSHA1 {
 		return Source{}, fmt.Errorf("third_party/nsgo.version says go-tree-sha1 %s but the linked source hashes to %s: rerun setup.sh", s.TreeSHA1, now)
 	}
+	for _, f := range []struct {
+		name string
+		dst  *string
+	}{{"go.mod", &s.GoModSHA256}, {"go.sum", &s.GoSumSHA256}} {
+		sum, err := fileSHA256(filepath.Join(src, f.name))
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			sum = "absent"
+		case err != nil:
+			return Source{}, err
+		}
+		*f.dst = sum
+	}
 	return s, nil
 }
 
@@ -436,6 +457,9 @@ func fileSHA256(path string) (string, error) {
 func checkEntry(e BinaryEntry, info binInfo) error {
 	var errs []error
 	bad := func(format string, a ...any) { errs = append(errs, fmt.Errorf(e.Name+": "+format, a...)) }
+	if e.File != e.Name || strings.ContainsAny(e.File, `/\`) {
+		bad("manifest file %q, want %q (the file the runner launches)", e.File, e.Name)
+	}
 	if e.GoVersion != pinnedToolchain || info.GoVersion != pinnedToolchain {
 		bad("built with %s (manifest %s), want %s", info.GoVersion, e.GoVersion, pinnedToolchain)
 	}
@@ -461,7 +485,32 @@ func checkEntry(e BinaryEntry, info binInfo) error {
 			bad("has DWARF: not built with -ldflags \"-s -w\"")
 		}
 	}
+	if e.Source.Module != "" {
+		want := e.Source.Version + " " + e.Source.Sum
+		if got := info.Deps[e.Source.Module]; got != want {
+			bad("binary links %s %q, manifest source says %q", e.Source.Module, got, want)
+		}
+		if got := goVersionMDep(e.GoVersionM, e.Source.Module); got != want {
+			bad("go version -m lists %s %q, manifest source says %q", e.Source.Module, got, want)
+		}
+	}
 	return errors.Join(errs...)
+}
+
+// goVersionMDep is "version sum" of module's dep line in `go version -m`
+// output, or "" when it has none.
+func goVersionMDep(out, module string) string {
+	for _, l := range strings.Split(out, "\n") {
+		f := strings.Fields(l)
+		if len(f) >= 3 && f[0] == "dep" && f[1] == module {
+			sum := ""
+			if len(f) >= 4 {
+				sum = f[3]
+			}
+			return f[2] + " " + sum
+		}
+	}
+	return ""
 }
 
 func hasSeq(xs, seq []string) bool {
@@ -575,7 +624,7 @@ func verifyManifest(bin, self string, inspect func(string) (binInfo, error)) (Ma
 			continue
 		}
 		paths := []string{filepath.Join(bin, e.File)}
-		if name == "runner" {
+		if name == "runner" && self != "" { // "": -unverified-runner
 			paths = append(paths, self)
 		}
 		for _, p := range paths {
@@ -610,6 +659,17 @@ func verifyManifest(bin, self string, inspect func(string) (binInfo, error)) (Ma
 	return m, nil
 }
 
+// dirty reports whether any binary was built from a work tree that
+// differed from its commit.
+func (m Manifest) dirty() bool {
+	for _, e := range m.Binaries {
+		if e.Source.Dirty {
+			return true
+		}
+	}
+	return false
+}
+
 func short(s string) string {
 	if len(s) > 12 {
 		return s[:12]
@@ -617,12 +677,17 @@ func short(s string) string {
 	return s
 }
 
-// buildLine is a round's one-line build summary from the manifest.
-func (m Manifest) buildLine(name string) string {
+// buildLine is a round's one-line build summary: the manifest entry with
+// sha, the SHA-256 of the binary actually launched.
+func (m Manifest) buildLine(name, sha string) string {
 	e := m.entry(name)
 	if e == nil {
 		return ""
 	}
-	return fmt.Sprintf("%s %s %s/%s %s sha256=%s", e.GoVersion, "CGO_ENABLED="+e.Build.Env.CGO_ENABLED,
-		e.Build.Env.GOOS, e.Build.Env.GOARCH, flagsOf(e.Build.Args), short(e.SHA256))
+	line := fmt.Sprintf("%s %s %s/%s %s sha256=%s", e.GoVersion, "CGO_ENABLED="+e.Build.Env.CGO_ENABLED,
+		e.Build.Env.GOOS, e.Build.Env.GOARCH, flagsOf(e.Build.Args), sha)
+	if e.Source.Dirty {
+		line += " (dirty build)"
+	}
+	return line
 }

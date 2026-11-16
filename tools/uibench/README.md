@@ -85,9 +85,10 @@ clock (`runner_clock` in the timeline).
 
 ## Renderer recording
 
-The runner removes an inherited `TANGO_RENDERER` from every scene
-program's environment before starting it, says so on startup and lists it
-in `meta.cleared_env`: Tango runs its default policy, which may start
+The runner removes every inherited `TANGO_*` variable from every scene
+program's environment before starting it, says which on startup and lists
+them in `meta.cleared_env`: no Tango-only diagnostics (`TANGO_FRAME_TRACE`
+adds per-frame cost), and with `TANGO_RENDERER` gone Tango runs its default policy, which may start
 native or cpu and move to gpu (or fall back) during a run, so the window
 size does not tell the path. Each round keeps:
 
@@ -97,6 +98,16 @@ size does not tell the path. Each round keeps:
 - `renderer`: the one path seen in the sample window (the path in effect
   at its start plus any reported inside it), or `mixed`, with
   `renderer_sequence` (e.g. `native, gpu`) and `renderer_switches_in_sample`.
+
+MyGo and NSGo report a fixed path: MyGo the painter's path probed on its
+first painted frame, NSGo always `appkit`. A later fallback inside them
+(say GPU to software in MyGo) would not show in their timelines; only
+Tango's renderer is polled every frame.
+
+A renderer time earlier than the program's start, or more than 1 s later
+than the runner read it, adds the round note `clock step`: the program's
+and the runner's wall clocks disagreed, so the timeline may be misplaced
+against the sample window.
 
 A mixed round is usable: its CPU includes the switch, which the main
 result keeps. The judge's renderer check compares rounds by this summary,
@@ -212,9 +223,12 @@ no manifest. For each binary it records:
 
 - the source: Tango and the runner, this repository's commit and whether
   the work tree was dirty (with the files); MyGo, the module version
-  mygo/go.mod requires and its go.sum hash; NSGo, third_party/nsgo.version
-  (CHANGELOG heading, source path, Go tree hash), whose hash the builder
-  recomputes and refuses when stale (rerun setup.sh);
+  mygo/go.mod requires and its go.sum hash, which must equal the
+  `dep github.com/egoist/mygo` the binary links (its build info and
+  `go version -m`); NSGo, third_party/nsgo.version (CHANGELOG heading,
+  source path, Go tree hash), whose hash the builder recomputes and refuses
+  when stale (rerun setup.sh), plus the SHA-256 of its go.mod and go.sum,
+  which that hash leaves out;
 - the build command as run and its environment;
 - its SHA-256, build settings and full `go version -m` output.
 
@@ -222,7 +236,19 @@ At startup the runner refuses to measure (exit 1) unless bin/manifest.json
 exists, every binary's SHA-256 and its own match it, every binary was built
 with the pinned toolchain and target, and the three scene programs were
 built alike (toolchain, environment, flags, settings, stripping).
-`runner -verify` runs just this check. Raising the toolchain means changing
+`runner -verify` runs just this check. `-unverified-runner` skips only the
+runner's own SHA-256 (to allow `go run .`): `meta.adoptable` is false and
+every verdict starts `UNVERIFIED RUNNER (not adoptable)`. A dirty build
+(`meta.dirty_build`) is allowed but every verdict ends `(dirty build)`.
+
+After verifying, the runner copies the four binaries into a private
+directory of its own (0700, under the temp directory), hashing while
+copying against the manifest, and launches only those copies, with the
+same file names: a build.sh run during a long measurement cannot reach
+later rounds. Each launch hashes its copy again and records that SHA-256
+in the round's `build`; a copy that differs fails the round. The directory
+is removed on exit, also after Ctrl-C or SIGTERM (once the scene programs
+are stopped) and after a fatal error. Raising the toolchain means changing
 `pinnedToolchain` in runner/manifest.go and build.sh together, then
 rebuilding and re-measuring all three frameworks.
 
