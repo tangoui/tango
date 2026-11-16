@@ -1,9 +1,11 @@
 package jsapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"image/png"
 	"strconv"
 
 	"github.com/tangoui/tango"
@@ -231,6 +233,22 @@ var pageRoles = map[string]menu.Role{
 }
 
 const maxMenuDepth = 8
+const maxMenuIconPixels = 4 << 20
+
+func decodeMenuIcon(encoded string) ([]byte, error) {
+	b, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, ipc.NewError(ipc.CodeBadArgs, "menu icon must be base64-encoded PNG")
+	}
+	cfg, err := png.DecodeConfig(bytes.NewReader(b))
+	if err != nil || cfg.Width <= 0 || cfg.Height <= 0 {
+		return nil, ipc.NewError(ipc.CodeBadArgs, "menu icon must be a PNG")
+	}
+	if int64(cfg.Width)*int64(cfg.Height) > maxMenuIconPixels {
+		return nil, ipc.NewError(ipc.CodeBadArgs, "menu icon is too large")
+	}
+	return b, nil
+}
 
 // buildMenu converts the page's description; choose is called with the id
 // of the item clicked.
@@ -282,9 +300,11 @@ func buildMenu(items []menuItemJS, depth int, choose func(id string)) (*menu.Men
 		item.Accelerator = it.Accelerator
 		item.Disabled = it.Disabled
 		if it.Icon != "" {
-			if b, err := base64.StdEncoding.DecodeString(it.Icon); err == nil {
-				item.Icon = b
+			b, err := decodeMenuIcon(it.Icon)
+			if err != nil {
+				return nil, err
 			}
+			item.Icon = b
 		}
 	}
 	return m, nil
