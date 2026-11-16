@@ -68,10 +68,11 @@ func parseTargets(s string) ([]target, error) {
 }
 
 type buildOptions struct {
-	targets []target
-	out     string // output root; each target goes to <out>/<os>-<arch>
-	debug   bool
-	xcode   bool // ios: also write an Xcode project
+	targets  []target
+	out      string // output root; each target goes to <out>/<os>-<arch>
+	debug    bool
+	xcode    bool // ios: also write an Xcode project
+	features buildFeatures
 }
 
 func runBuild(args []string) error {
@@ -79,6 +80,8 @@ func runBuild(args []string) error {
 	dir := projectFlag(fs)
 	platform := fs.String("platform", "", "comma-separated `targets` such as darwin/arm64,windows/amd64,linux/amd64 (default: this machine; darwin/universal joins both Mac architectures); mobile: ios, ios-simulator, android, android/arm64,android/amd64")
 	out := fs.String("o", "build", "output `dir`")
+	var featureFlag oneStringFlag
+	fs.Var(&featureFlag, "features", "backend profile: all, webview, canvas or webview,canvas")
 	debug := fs.Bool("debug", false, "keep symbols and the console window; let the page open the inspector; android: debug APK instead of the signed release")
 	xcode := fs.Bool("xcode", false, "ios: also generate an Xcode project in <out>/xcode for debugging")
 	if err := fs.Parse(args); err != nil {
@@ -95,7 +98,11 @@ func runBuild(args []string) error {
 	if err != nil {
 		return err
 	}
-	_, err = build(context.Background(), cfg, buildOptions{targets: ts, out: *out, debug: *debug, xcode: *xcode})
+	features, err := resolveFeatures(cfg.Features, featureFlag.value, featureFlag.set)
+	if err != nil {
+		return err
+	}
+	_, err = build(context.Background(), cfg, buildOptions{targets: ts, out: *out, debug: *debug, xcode: *xcode, features: features})
 	return err
 }
 
@@ -111,6 +118,11 @@ type artifact struct {
 // build runs the front-end build once, then builds every target.
 func build(ctx context.Context, cfg *Config, o buildOptions) ([]artifact, error) {
 	desktop, mobile := splitTargets(o.targets)
+	for _, t := range o.targets {
+		if _, err := featureTags(o.features, t); err != nil {
+			return nil, err
+		}
+	}
 	if err := checkMobileBuild(cfg, mobile, o); err != nil {
 		return nil, err
 	}
@@ -128,7 +140,7 @@ func build(ctx context.Context, cfg *Config, o buildOptions) ([]artifact, error)
 	for _, t := range desktop {
 		logf("Building %s %s for %s", cfg.Name, cfg.Version, t)
 		dir := filepath.Join(out, t.OS+"-"+t.Arch)
-		a, err := buildTarget(ctx, cfg, t, dir, o.debug)
+		a, err := buildTarget(ctx, cfg, t, dir, o.debug, o.features)
 		if err != nil {
 			os.RemoveAll(dir)
 			return arts, fmt.Errorf("%s: %w", t, err)
@@ -139,7 +151,7 @@ func build(ctx context.Context, cfg *Config, o buildOptions) ([]artifact, error)
 	return arts, nil
 }
 
-func buildTarget(ctx context.Context, cfg *Config, t target, dir string, debug bool) (artifact, error) {
+func buildTarget(ctx context.Context, cfg *Config, t target, dir string, debug bool, features buildFeatures) (artifact, error) {
 	a := artifact{target: t, dir: dir}
 	if err := os.RemoveAll(dir); err != nil {
 		return a, err
@@ -151,7 +163,7 @@ func buildTarget(ctx context.Context, cfg *Config, t target, dir string, debug b
 	case "darwin":
 		a.path = filepath.Join(dir, cfg.Name+".app")
 		a.exe = filepath.Join(a.path, "Contents", "MacOS", cfg.Exe())
-		if err := goBuildDarwin(ctx, cfg, t.Arch, a.exe, debug); err != nil {
+		if err := goBuildDarwin(ctx, cfg, t.Arch, a.exe, debug, features); err != nil {
 			return a, err
 		}
 		if err := writeBundle(cfg, a.path); err != nil {
@@ -164,18 +176,18 @@ func buildTarget(ctx context.Context, cfg *Config, t target, dir string, debug b
 		a.exe = filepath.Join(dir, cfg.Exe()+".exe")
 		a.path = a.exe
 		return a, withWindowsResources(cfg, t.Arch, func() error {
-			return goBuild(ctx, cfg, t, a.exe, debug)
+			return goBuild(ctx, cfg, t, a.exe, debug, features)
 		})
 	default:
 		a.exe = filepath.Join(dir, cfg.Exe())
 	}
 	a.path = a.exe
-	return a, goBuild(ctx, cfg, t, a.exe, debug)
+	return a, goBuild(ctx, cfg, t, a.exe, debug, features)
 }
 
-func goBuildDarwin(ctx context.Context, cfg *Config, arch, exe string, debug bool) error {
+func goBuildDarwin(ctx context.Context, cfg *Config, arch, exe string, debug bool, features buildFeatures) error {
 	if arch != "universal" {
-		return goBuild(ctx, cfg, target{"darwin", arch}, exe, debug)
+		return goBuild(ctx, cfg, target{"darwin", arch}, exe, debug, features)
 	}
 	if _, err := exec.LookPath("lipo"); err != nil {
 		return errors.New("darwin/universal needs lipo (Xcode command line tools)")
@@ -194,8 +206,20 @@ func goBuildDarwin(ctx context.Context, cfg *Config, arch, exe string, debug boo
 
 // goBuildArgs returns the go build arguments for a release (or debug)
 // build of the project's main package.
-func goBuildArgs(t target, out string, debug bool) []string {
-	args := []string{"build", "-tags", buildTags(false)} // build_tags.go
+func goBuildArgs(t target, out string, debug bool, features ...buildFeatures) []string {
+	f := featureAll
+	if len(features) > 0 {
+		f = features[0]
+	}
+	profileTags, err := featureTags(f, t)
+	if err != nil {
+		profileTags = nil
+	}
+	tags := buildTags(false)
+	if len(profileTags) > 0 {
+		tags += "," + strings.Join(profileTags, ",")
+	}
+	args := []string{"build", "-tags", tags} // build_tags.go
 	var ldflags []string
 	if !debug {
 		args = append(args, "-trimpath")
@@ -212,9 +236,9 @@ func goBuildArgs(t target, out string, debug bool) []string {
 
 // goBuild compiles without cgo: the desktop backends call the OS through
 // purego/syscall, so cross-compiling needs no C toolchain.
-func goBuild(ctx context.Context, cfg *Config, t target, out string, debug bool) error {
+func goBuild(ctx context.Context, cfg *Config, t target, out string, debug bool, features ...buildFeatures) error {
 	env := []string{"CGO_ENABLED=0", "GOOS=" + t.OS, "GOARCH=" + t.Arch}
-	return runIn(ctx, cfg.dir, env, "go", goBuildArgs(t, out, debug)...)
+	return runIn(ctx, cfg.dir, env, "go", goBuildArgs(t, out, debug, features...)...)
 }
 
 // buildFrontend installs dependencies when needed and runs frontend.build.

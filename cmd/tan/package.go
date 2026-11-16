@@ -22,6 +22,8 @@ func runPackage(args []string) error {
 	dir := projectFlag(fs)
 	platform := fs.String("platform", "", "comma-separated `targets`, as for tan build")
 	out := fs.String("o", "build", "output `dir`")
+	var featureFlag oneStringFlag
+	fs.Var(&featureFlag, "features", "backend profile: all, webview, canvas or webview,canvas")
 	format := fs.String("format", "", "package `format`: empty for each platform's default (disk image, tarball and AppImage, NSIS installer); msix (Windows targets only); or, for Linux targets, a comma-separated list of tar, appimage, deb, rpm, flatpak")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -43,9 +45,13 @@ func runPackage(args []string) error {
 	if err := checkPackageFormat(cfg, *format, ts); err != nil {
 		return err
 	}
+	features, err := resolveFeatures(cfg.Features, featureFlag.value, featureFlag.set)
+	if err != nil {
+		return err
+	}
 	warnedUnsigned = false // winsign.go: warn once per run
 	ctx := context.Background()
-	arts, err := build(ctx, cfg, buildOptions{targets: ts, out: *out})
+	arts, err := build(ctx, cfg, buildOptions{targets: ts, out: *out, features: features})
 	if err != nil {
 		return err
 	}
