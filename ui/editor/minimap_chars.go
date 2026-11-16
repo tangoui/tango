@@ -107,7 +107,10 @@ func miniCharsAt(s string, tab int, g *miniGlyphs, colorAt func(i int) color.NRG
 		col, n, glyph int
 		c             color.NRGBA
 	}
-	var cells []cell
+	// Common minimap rows are at most 120 columns. Keep their transient
+	// glyph cells on the stack; unusually wide previews can still grow.
+	var local [128]cell
+	cells := local[:0]
 	col, end := 0, 0
 	for i := 0; i < len(s); {
 		j := nextGrapheme(s, i)

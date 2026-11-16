@@ -76,14 +76,17 @@ type miniLine struct {
 	bmpDone bool
 }
 type minimapState struct {
-	cache       map[int]*miniLine
-	theme       *theme.Theme
-	language    string
-	lexer       *monarch.Lexer
-	buf         *buffer.Buffer
-	column, tab int
-	rebuilt     uint64 // cache-line builds, also used by incremental regression tests
-	idle        int    // frames in a row that left rows and built none
+	// Temporary per-frame queries must never alias miniLine.tokens.
+	tokenScratch []monarch.Token
+	keep         map[int]bool
+	cache        map[int]*miniLine
+	theme        *theme.Theme
+	language     string
+	lexer        *monarch.Lexer
+	buf          *buffer.Buffer
+	column, tab  int
+	rebuilt      uint64 // cache-line builds, also used by incremental regression tests
+	idle         int    // frames in a row that left rows and built none
 	// The character minimap (minimap_chars.go): the glyph cells in use,
 	// the strip images by strip number, whether the strips are numbered
 	// by sample (rows thinner than a pixel), the last composition number,
@@ -298,7 +301,12 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 		count++
 	}
 	vs.miniRows = vs.miniRows[:0]
-	keep := make(map[int]bool, count)
+	if m.keep == nil {
+		m.keep = make(map[int]bool, count)
+	} else {
+		clear(m.keep)
+	}
+	keep := m.keep
 	left := false // rows left for a later frame (the deadline passed)
 	built := m.rebuilt
 	hl := w.st.Highlighter()
@@ -359,7 +367,8 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 		if hl != nil {
 			start, _ = hl.StartState(snap, line)
 			final = hl.FinalBefore(snap, line+1)
-			toks, cached = hl.PeekTokenRange(snap, line, from, from+len(prefix), nil)
+			toks, cached = hl.PeekTokenRange(snap, line, from, from+len(prefix), m.tokenScratch[:0])
+			m.tokenScratch = toks[:0]
 		}
 		dirty := ln == nil || ln.text != prefix || ln.start != start || ln.final != final || (cached && !slices.Equal(ln.tokens, toks))
 		if !dirty {
@@ -375,7 +384,8 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 				left = true
 				continue
 			}
-			toks = hl.TokenizeSpan(snap, line, prefix, nil)
+			toks = hl.TokenizeSpan(snap, line, prefix, m.tokenScratch[:0])
+			m.tokenScratch = toks[:0]
 		}
 		ln = &miniLine{text: prefix, dep: strings.Clone(raw[:dep]), rawLen: len(raw), short: short, start: start, final: final, tokens: slices.Clone(toks), blocks: miniBlocksAt(prefix, base, toks, th, tab), base: base}
 		m.cache[key] = ln
