@@ -40,8 +40,60 @@ func perfEntryOpenClose(r *perfRun, i int, label string) {
 	}
 	r.D.Key(input.KeyEscape, 0)
 	r.D.Click(perfOutside)
-	r.D.r.c.focus = 0
-	r.D.r.Invalidate()
+	r.D.Settle()
+}
+
+func perfEntryTagEdit(r *perfRun, i int) {
+	p := r.At(0.9, 0.5)
+	r.D.Click(p)
+	if i%2 == 0 {
+		r.D.Type("new")
+		r.D.Key(input.KeyEnter, 0)
+	} else {
+		r.D.Key(input.KeyBackspace, 0)
+	}
+	r.D.Click(perfOutside)
+}
+
+func perfEntryNumber(r *perfRun, i int) {
+	if i%2 == 0 {
+		r.D.Click(r.Center())
+		r.D.Key(input.KeyEnd, 0)
+		r.D.Type("1")
+	} else {
+		r.D.Key(input.KeyBackspace, 0)
+		r.D.Click(perfOutside)
+	}
+}
+
+func perfEntryOTP(r *perfRun, i int) {
+	if i%2 == 0 {
+		r.D.Click(r.At(0.1, 0.5))
+		r.D.Type("5")
+	} else {
+		r.D.Key(input.KeyBackspace, 0)
+		r.D.Click(perfOutside)
+	}
+}
+
+func perfEntryHotkey(r *perfRun, i int) {
+	r.D.Click(r.Center())
+	if i%2 == 0 {
+		r.D.Key(input.KeyP, input.ModCtrl)
+	} else {
+		r.D.Key(input.KeyK, input.ModCtrl)
+	}
+	r.D.Click(perfOutside)
+}
+
+func perfEntrySliderDrag(r *perfRun, i int) {
+	if i%2 == 0 {
+		r.D.Drag(r.At(0.1, 0.5), r.At(0.6, 0.5))
+	} else {
+		r.D.Click(r.Center())
+		r.D.Key(input.KeyHome, 0)
+		r.D.Click(perfOutside)
+	}
 	r.D.Settle()
 }
 func perfEntryLargeOpen(r *perfRun, i int) {
@@ -60,6 +112,16 @@ func perfEntryDrag(r *perfRun, i int) {
 	}
 }
 
+func perfEntryRangeDrag(r *perfRun, i int) {
+	if i%2 == 0 {
+		r.D.Click(r.Center())
+		r.D.Key(input.KeyEnd, 0)
+	} else {
+		r.D.Key(input.KeyHome, 0)
+		r.D.Click(perfOutside)
+	}
+	r.D.Settle()
+}
 func perfEntryColorOpenClose(r *perfRun, i int) {
 	if i%2 == 1 {
 		r.D.Key(input.KeyEscape, 0)
@@ -117,6 +179,7 @@ func perfEntryText(r *perfRun, i int) {
 	} else {
 		r.D.Key(input.KeyBackspace, 0)
 		r.D.Click(perfOutside)
+		r.D.Settle()
 	}
 }
 
@@ -167,16 +230,60 @@ func TestPerfEntryInteractionEvents(t *testing.T) {
 	}
 }
 
+func TestPerfEntrySliderDrag(t *testing.T) {
+	value := 30.0
+	d := newPerfDriver(func(c *Context) { Slider(c, &value, 0, 100) }, false)
+	d.Settle()
+	r := &perfRun{D: d}
+	r.Target = perfTarget(d)
+	d.Drag(r.At(0.3, 0.5), r.At(0.6, 0.5))
+	if value == 30 {
+		t.Fatal("slider drag did not change its bound value")
+	}
+}
+
+func TestPerfEntryRetainedInputTag(t *testing.T) {
+	values := []string{"one"}
+	d := newPerfDriver(func(c *Context) { InputTag(c, &values) }, false)
+	d.Settle()
+	d.Click(perfTarget(d).Center())
+	d.Type("two")
+	d.Key(input.KeyEnter, 0)
+	if len(values) != 2 || values[1] != "two" {
+		t.Fatalf("input tag event produced %v", values)
+	}
+	d.Frame()
+	if len(values) != 2 || values[1] != "two" {
+		t.Fatalf("input tag value was overwritten on rebuild: %v", values)
+	}
+}
+
+func TestPerfEntryDateTimeOwnPopup(t *testing.T) {
+	value := t0()
+	d := newPerfDriver(func(c *Context) { DateTimePicker(c, &value).Placeholder("选择日期时间") }, false)
+	d.Settle()
+	d.Click(perfTarget(d).Center())
+	if _, ok := d.Find("确定"); !ok {
+		t.Fatal("DateTimePicker did not open its own confirmation popup")
+	}
+	d.Key(input.KeyEscape, 0)
+	if _, ok := d.Find("确定"); ok {
+		t.Fatal("DateTimePicker popup did not close with Escape")
+	}
+}
 func TestPerfLargeEntryLists(t *testing.T) {
-	for _, name := range []string{"AutoComplete", "Mentions"} {
-		fx := perfRegistry[name]
-		d := newPerfDriver(perfPage(fx.Large(1000)), false)
-		d.Settle()
-		r := &perfRun{D: d}
-		perfStep(r, fx.LargeInteract, 0)
-		if _, ok := d.Find("option-1000"); !ok {
-			if _, textOK := d.FindText("option-1000"); !textOK {
-				t.Fatalf("%s Large1000 did not render its candidate list", name)
+	for _, n := range []int{1000, 100000} {
+		for _, name := range []string{"AutoComplete", "Mentions"} {
+			fx := perfRegistry[name]
+			d := newPerfDriver(perfPage(fx.Large(n)), false)
+			d.Settle()
+			r := &perfRun{D: d}
+			perfStep(r, fx.LargeInteract, 0)
+			candidate := "option-" + strconv.Itoa(n)
+			if _, ok := d.Find(candidate); !ok {
+				if _, textOK := d.FindText(candidate); !textOK {
+					t.Fatalf("%s Large%d did not render its candidate list", name, n)
+				}
 			}
 		}
 	}
@@ -187,15 +294,15 @@ func init() {
 		perfFixture{Name: "InputNumber", Build: func(c *Context) {
 			v := State[float64](c, hashID("perf.entry.number"), func() float64 { return 42 })
 			InputNumber(c, v).A11yLabel("数量").Width(220)
-		}, Interact: perfEntryHover},
+		}, Interact: perfEntryNumber},
 		perfFixture{Name: "InputTag", Build: func(c *Context) {
-			values := perfEntryTags(3)
-			InputTag(c, &values).Width(360)
-		}, Interact: perfEntryText,
+			values := State[[]string](c, hashID("perf.entry.tags"), func() []string { return []string{"one", "two", "three"} })
+			InputTag(c, values).Width(360)
+		}, Interact: perfEntryTagEdit,
 			Large: func(n int) func(*Context) {
 				return func(c *Context) {
-					values := perfEntryTags(n)
-					InputTag(c, &values).Width(520)
+					values := State[[]string](c, hashID("perf.entry.tags.large"), func() []string { return perfEntryTags(n) })
+					InputTag(c, values).Width(520)
 				}
 			}},
 		perfFixture{Name: "TextArea", Build: func(c *Context) {
@@ -203,9 +310,9 @@ func init() {
 		}, Interact: perfEntryText},
 		perfFixture{Name: "Search", Build: func(c *Context) { Search(c, perfEntryString(c, "search", "搜索规则")) }, Interact: perfEntryText},
 		perfFixture{Name: "OTP", Build: func(c *Context) {
-			v := State[string](c, hashID("perf.entry.otp"), func() string { return "1234" })
+			v := State[string](c, hashID("perf.entry.otp"), func() string { return "" })
 			OTP(c, v, 6).A11yLabel("验证码")
-		}, Interact: func(r *perfRun, i int) { perfEntryFocusAt(r, i, 0.1, 0.5) }},
+		}, Interact: perfEntryOTP},
 		perfFixture{Name: "AutoComplete", Build: func(c *Context) {
 			AutoComplete(c, perfEntryString(c, "autocomplete", ""), perfEntryOptions()).Width(360)
 		}, Interact: perfEntryText,
@@ -222,21 +329,41 @@ func init() {
 					Mentions(c, perfEntryString(c, "mentions.large", "@"), opts).Width(360)
 				}
 			}, LargeInteract: perfEntryLargeOpen},
-		perfFixture{Name: "Checkbox", Covers: []string{"CheckboxGroup", "CheckAll"}, Build: func(c *Context) {
+		perfFixture{Name: "Checkbox", Build: func(c *Context) {
 			v := State[bool](c, hashID("perf.entry.checkbox"), func() bool { return false })
 			Checkbox(c, "同意条款", v)
-			selected := State[[]string](c, hashID("perf.entry.checkbox.selected"), func() []string { return []string{"alpha"} })
-			CheckboxGroup(c, selected, perfEntryOptions()).Buttons()
-			CheckAll(c, selected, perfEntryOptions())
 		}, Interact: func(r *perfRun, _ int) {
 			perfEntryClickLabel(r, "同意条款")
+			r.D.Click(perfOutside)
+		}},
+		perfFixture{Name: "CheckboxGroup", Build: func(c *Context) {
+			selected := State[[]string](c, hashID("perf.entry.checkbox.group"), func() []string { return []string{"alpha"} })
+			CheckboxGroup(c, selected, perfEntryOptions()).Buttons()
+		}, Interact: func(r *perfRun, i int) {
+			if i%2 == 0 {
+				perfEntryClickLabel(r, "beta")
+			} else {
+				perfEntryClickLabel(r, "beta")
+			}
 			r.D.Click(perfOutside)
 		}, Large: func(n int) func(*Context) {
 			return func(c *Context) {
 				opts := perfEntryLargeOptions(n)
-				selected := []string{}
-				CheckboxGroup(c, &selected, opts)
-				CheckAll(c, &selected, opts)
+				selected := State[[]string](c, hashID("perf.entry.checkbox.group.large"), func() []string { return nil })
+				CheckboxGroup(c, selected, opts)
+			}
+		}},
+		perfFixture{Name: "CheckAll", Build: func(c *Context) {
+			selected := State[[]string](c, hashID("perf.entry.checkall"), func() []string { return nil })
+			CheckAll(c, selected, perfEntryOptions())
+		}, Interact: func(r *perfRun, _ int) {
+			perfEntryClickLabel(r, "全选")
+			r.D.Click(perfOutside)
+		}, Large: func(n int) func(*Context) {
+			return func(c *Context) {
+				opts := perfEntryLargeOptions(n)
+				selected := State[[]string](c, hashID("perf.entry.checkall.large"), func() []string { return nil })
+				CheckAll(c, selected, opts)
 			}
 		}}, perfFixture{Name: "Radio", Covers: []string{"RadioGroup"}, Build: func(c *Context) {
 			Radio(c, "备选方案", true)
@@ -252,8 +379,8 @@ func init() {
 		}, Large: func(n int) func(*Context) {
 			return func(c *Context) {
 				opts := perfEntryLargeOptions(n)
-				value := opts[0].Value
-				RadioGroup(c, &value, opts)
+				value := State[string](c, hashID("perf.entry.radio.large"), func() string { return opts[0].Value })
+				RadioGroup(c, value, opts)
 			}
 		}},
 		perfFixture{Name: "Switch", Covers: []string{"SwitchValue"}, Build: func(c *Context) {
@@ -265,37 +392,40 @@ func init() {
 			r.D.Click(r.At(0.5, 0.25))
 			r.D.Click(perfOutside)
 		}},
-		perfFixture{Name: "Toggle", Covers: []string{"ToggleGroup"}, Build: func(c *Context) {
+		perfFixture{Name: "Toggle", Build: func(c *Context) {
 			v := State[bool](c, hashID("perf.entry.toggle"), func() bool { return false })
 			Toggle(c, "重点", v)
-			selected := State[[]string](c, hashID("perf.entry.toggle.selected"), func() []string { return []string{"alpha"} })
-			ToggleGroup(c, selected, perfEntryOptions())
 		}, Interact: func(r *perfRun, _ int) {
 			perfEntryClickLabel(r, "重点")
+			r.D.Click(perfOutside)
+		}},
+		perfFixture{Name: "ToggleGroup", Build: func(c *Context) {
+			selected := State[[]string](c, hashID("perf.entry.toggle.group"), func() []string { return []string{"alpha"} })
+			ToggleGroup(c, selected, perfEntryOptions())
+		}, Interact: func(r *perfRun, _ int) {
+			perfEntryClickLabel(r, "beta")
 			r.D.Click(perfOutside)
 		}, Large: func(n int) func(*Context) {
 			return func(c *Context) {
 				opts := perfEntryLargeOptions(n)
-				selected := []string{opts[0].Value}
-				ToggleGroup(c, &selected, opts)
+				selected := State[[]string](c, hashID("perf.entry.toggle.group.large"), func() []string { return []string{opts[0].Value} })
+				ToggleGroup(c, selected, opts)
 			}
 		}},
-		perfFixture{Name: "Slider", Covers: []string{"SliderRange"}, Build: func(c *Context) {
-			v := State[float64](c, hashID("perf.entry.slider"), func() float64 { return 30 })
+		perfFixture{Name: "Slider", Build: func(c *Context) {
+			v := State[float64](c, hashID("perf.entry.slider"), func() float64 { return 0 })
 			Slider(c, v, 0, 100).Marks(map[float64]string{0: "0", 100: "100"})
-			lo := State[float64](c, hashID("perf.entry.slider.lo"), func() float64 { return 20 })
-			hi := State[float64](c, hashID("perf.entry.slider.hi"), func() float64 { return 80 })
+		}, Interact: perfEntrySliderDrag},
+		perfFixture{Name: "SliderRange", Build: func(c *Context) {
+			lo := State[float64](c, hashID("perf.entry.slider.range.lo"), func() float64 { return 0 })
+			hi := State[float64](c, hashID("perf.entry.slider.range.hi"), func() float64 { return 0 })
 			SliderRange(c, lo, hi, 0, 100)
-		}, Interact: func(r *perfRun, i int) {
-			if i%2 == 0 {
-				r.D.Move(r.Center())
-			} else {
-				r.D.Move(perfOutside)
-			}
-		}},
-		perfFixture{Name: "ColorPicker", Covers: []string{"ColorPickerGradient"}, Build: func(c *Context) {
+		}, Interact: perfEntryRangeDrag},
+		perfFixture{Name: "ColorPicker", Build: func(c *Context) {
 			col := State[theme.Color](c, hashID("perf.entry.color"), func() theme.Color { return theme.Hex("#1677ff") })
 			ColorPicker(c, col).ShowText()
+		}, Interact: perfEntryColorOpenClose},
+		perfFixture{Name: "ColorPickerGradient", Build: func(c *Context) {
 			grad := State[theme.Gradient](c, hashID("perf.entry.gradient"), func() theme.Gradient {
 				return theme.Gradient{Angle: 90, Stops: []theme.GradientStop{{Offset: 0, Color: theme.Hex("#1677ff")}, {Offset: 1, Color: theme.Hex("#722ed1")}}}
 			})
@@ -323,14 +453,18 @@ func init() {
 		perfFixture{Name: "DatePickerPanel", Build: func(c *Context) {
 			d := State[time.Time](c, hashID("perf.entry.date.panel"), func() time.Time { return t0() })
 			DatePickerPanel(c, d)
-		}, Interact: perfEntryHover}, perfFixture{Name: "RangePicker", Covers: []string{"MultiDatePicker", "DateTimePicker"}, Build: func(c *Context) {
+		}, Interact: perfEntryHover}, perfFixture{Name: "RangePicker", Build: func(c *Context) {
 			r := State[[2]time.Time](c, hashID("perf.entry.range"), func() [2]time.Time { return [2]time.Time{t0(), t1()} })
 			RangePicker(c, r).Placeholder("开始日期", "结束日期")
-			multi := State[[]time.Time](c, hashID("perf.entry.multi"), func() []time.Time { return nil })
-			MultiDatePicker(c, multi)
+		}, Interact: func(r *perfRun, i int) { perfEntryOpenClose(r, i, "开始日期") }},
+		perfFixture{Name: "MultiDatePicker", Build: func(c *Context) {
+			values := State[[]time.Time](c, hashID("perf.entry.multi"), func() []time.Time { return nil })
+			MultiDatePicker(c, values).Placeholder("选择多个日期")
+		}, Interact: func(r *perfRun, i int) { perfEntryOpenClose(r, i, "选择多个日期") }},
+		perfFixture{Name: "DateTimePicker", Build: func(c *Context) {
 			d := State[time.Time](c, hashID("perf.entry.datetime"), func() time.Time { return t0() })
 			DateTimePicker(c, d).Placeholder("选择日期时间")
-		}, Interact: func(r *perfRun, i int) { perfEntryOpenClose(r, i, "开始日期") }},
+		}, Interact: func(r *perfRun, i int) { perfEntryOpenClose(r, i, "选择日期时间") }},
 		perfFixture{Name: "TimePicker", Build: func(c *Context) {
 			t := State[time.Time](c, hashID("perf.entry.time"), func() time.Time { return time.Time{} })
 			TimePicker(c, t).Placeholder("选择时间")
