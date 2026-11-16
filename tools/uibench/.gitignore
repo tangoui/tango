@@ -1,0 +1,4 @@
+# Built programs, the NSGo source link and measurement output stay local.
+bin/
+third_party/
+results/

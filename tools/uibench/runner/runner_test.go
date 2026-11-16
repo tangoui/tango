@@ -1,0 +1,104 @@
+package main
+
+import (
+	"reflect"
+	"testing"
+	"time"
+)
+
+func TestDisturbedRoundsDropped(t *testing.T) {
+	o := rounds("mygo", 5, 1.0, 0.1, nil)
+	// Two disturbed Tango rounds were dear enough to lose the comparison
+	// if they counted.
+	tg := rounds("tango", 5, 0.4, 0.1, func(i int, r *Round) {
+		if i == 1 || i == 3 {
+			r.Disturbed = true
+			r.CPUSeconds, r.WindowServerSeconds = 30, 3
+		}
+	})
+	if got := usable(tg); len(got) != 3 {
+		t.Fatalf("usable kept %d rounds, want 3", len(got))
+	}
+	for _, r := range usable(tg) {
+		if r.Disturbed {
+			t.Fatalf("usable kept disturbed round %d", r.Round)
+		}
+	}
+	if v := judge(tg, o); v != Faster {
+		_, why := judgeWhy(tg, o)
+		t.Fatalf("verdict %s (%s), want Faster from the 3 calm rounds", v, why)
+	}
+	// Failed rounds and rounds behind a locked screen do not count either.
+	tg[0].Error = "not ready"
+	if got := usable(tg); len(got) != 2 {
+		t.Fatalf("usable kept %d rounds after a failure, want 2", len(got))
+	}
+	tg[2].ScreenLocked = true
+	if got := usable(tg); len(got) != 1 {
+		t.Fatalf("usable kept %d rounds after a locked screen, want 1", len(got))
+	}
+}
+
+func TestParseProtocol(t *testing.T) {
+	for _, tc := range []struct {
+		line string
+		want event
+		ok   bool
+	}{
+		{"bench ready", event{kind: "ready"}, true},
+		{"bench renderer native", event{kind: "renderer", name: "native"}, true},
+		{"bench frames 119.8", event{kind: "frames", value: 119.8}, true},
+		{"bench work 71880.0", event{kind: "work", value: 71880}, true},
+		{"bench intervals_us 8333,8334,16667", event{kind: "intervals", intervals: []int64{8333, 8334, 16667}}, true},
+		{"bench intervals_us ", event{kind: "intervals"}, true},
+		{"bench frames fast", event{}, false},
+		{"bench intervals_us 1,x", event{}, false},
+		{"2026/11/17 log line from the framework", event{}, false},
+		{"bench unknown 1", event{}, false},
+	} {
+		got, ok := parseLine(tc.line)
+		if ok != tc.ok || (ok && !reflect.DeepEqual(got, tc.want)) {
+			t.Errorf("parseLine(%q) = %+v, %v; want %+v, %v", tc.line, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+func TestRotate(t *testing.T) {
+	fws := []string{"tango", "mygo", "nsgo"}
+	want := [][]string{{"tango", "mygo", "nsgo"}, {"mygo", "nsgo", "tango"}, {"nsgo", "tango", "mygo"}, {"tango", "mygo", "nsgo"}}
+	for round, w := range want {
+		if got := rotate(fws, round); !reflect.DeepEqual(got, w) {
+			t.Errorf("round %d: %v, want %v", round, got, w)
+		}
+	}
+}
+
+func TestLoadGate(t *testing.T) {
+	loads := []float64{7.5, 6.0, 5.9}
+	slept := 0
+	read := func() (float64, error) { v := loads[0]; loads = loads[1:]; return v, nil }
+	if err := loadGate(read, func(time.Duration) { slept++ }, 6, time.Hour); err != nil || slept != 2 {
+		t.Fatalf("gate: err %v after %d sleeps, want nil after 2", err, slept)
+	}
+	high := func() (float64, error) { return 9, nil }
+	if err := loadGate(high, func(time.Duration) {}, 6, time.Minute); err == nil {
+		t.Fatal("gate passed a load that stayed high")
+	}
+	if v, err := parseLoadavg("{ 1.40 1.52 1.61 }\n"); err != nil || v != 1.40 {
+		t.Fatalf("parseLoadavg = %v, %v", v, err)
+	}
+}
+
+func TestParsePSTime(t *testing.T) {
+	for in, want := range map[string]time.Duration{
+		"  0:01.50\n":   1500 * time.Millisecond,
+		"12:34.56":      12*time.Minute + 34560*time.Millisecond,
+		"1:02:03.00":    time.Hour + 2*time.Minute + 3*time.Second,
+		"2-01:00:00.00": 49 * time.Hour,
+	} {
+		got, err := parsePSTime(in)
+		if err != nil || (got-want).Abs() > time.Millisecond {
+			t.Errorf("parsePSTime(%q) = %v, %v; want %v", in, got, err, want)
+		}
+	}
+}
