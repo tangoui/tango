@@ -495,7 +495,7 @@ P 的原生纹理成本必须单独计入：启用过大型 retained-copy 路径
 - Monaco trace 采到 14,504 条事件，并建立了部分 renderer→surface→FrameSink→display 聚合链；8 个更新均缺少可验证的完整 `FrameDisplayed` 身份/硬件完成反馈，因此 Monaco GPU-complete E2E/FPS 保持 unverified，不把历史 headless 667.8fps当呈现门槛证据。
 - 中文 IME 真实组字、Windows 硬件实机、用户可见窗口的逐帧 present/vsync 关联仍待人工/平台验收。屏幕实际显示器为 3840×2160、1920×1080@60Hz；原生 smoke 证明窗口可运行，不证明每帧硬件呈现。
 
-**自动化 Windows 帧预算 PASS：** Windows runner run `43847500233`（QPC 低开销候选）中，无倍率原门槛 focused ×10、CI 倍率 race ×3、单帧睡眠 mutation、稀疏 ETW 采集均成功。QPC 只作为高精度经过墙钟，等待时间仍计入，不使用 `QueryThreadCycleTime` 周期换算，不改变原阈值：任帧 `>3×limit` 失败、`>limit` 的帧数上限仍为 `frames/20+1`。正式实现为 Windows QPC `frameclock`，并复用 Go runtime 的 QPC leaf 降低逐行检查开销。该 PASS 是测试/预算口径验收，不是 Windows 硬件显示验收。
+**自动化 Windows 帧预算 PASS：** Windows runner run `43847500233`（QPC 低开销候选）中，无倍率原门槛 focused ×10、CI 倍率 race ×3、单帧睡眠 mutation 均成功。QPC 只作为高精度经过墙钟，等待时间仍计入，不使用 `QueryThreadCycleTime` 周期换算，不改变原阈值：任帧 `>3×limit` 失败、`>limit` 的帧数上限仍为 `frames/20+1`。正式实现为 Windows QPC `frameclock`，并复用 Go runtime 的 QPC leaf 降低逐行检查开销。该 PASS 是测试/预算口径验收，不是 Windows 硬件显示验收。该 Run 的稀疏 ETW 诊断步骤因 probe 脚本仍匹配旧 deadline 表达式而未完成，不能记为 ETW PASS。
 
 **FAIL / follow-up（历史诊断，已由上述自动化复验关闭）：** 多光标默认墙钟预算曾在完整包上下文出现单帧尖峰（一次 22.67ms）；ETW 显示部分时间来自 guest 调度，但仍有帧在扣除明确换出后超过门槛。未放宽门槛；改用统一 QPC 墙钟后原门槛在 Windows runner 通过。该历史证据不证明任意调度条件下的硬实时保证。
 
@@ -518,7 +518,7 @@ P 的原生纹理成本必须单独计入：启用过大型 retained-copy 路径
 | `02d2058`（主线等价提交见 `5f952ca` / 后续合并历史） | Windows 编辑器 deadline/elapsed 统一 QPC 经过墙钟，补充换算、单调性与 Windows 测试。 |
 | `8e6423a`（本地等价提交 `b8e5d2f`） | 复用 Go runtime QPC leaf，避免逐行检查走 `LazyProc.Call`。 |
 
-**最终主线状态：** 当前 `origin/main` 已包含上述 Windows 帧预算修复；最新主线提交可继续前进，不应把后续 HTML/其他性能合并提交重复计入本功能。正式 Windows gate run `43847500233` 全部成功；主线 `b8e5d2f` 的 CI/API/文档运行分别为 `43848341772`、`43848341697`、`43848341694`，均成功。后续主线若以等价 patch-id 合并，按功能提交计一次。
+**最终主线状态：** 当前 `origin/main` 已包含上述 Windows 帧预算修复；最新主线提交可继续前进，不应把后续 HTML/其他性能合并提交重复计入本功能。正式 Windows gate run `43847500233` 的 unscaled、race、mutation 三项成功；同一 Run 的 ETW 稀疏诊断因 probe 脚本与当前 deadline 表达式不匹配而未完成。主线 `b8e5d2f` 的 CI/API/文档运行分别为 `43848341772`、`43848341697`、`43848341694`，均成功。后续主线若以等价 patch-id 合并，按功能提交计一次。
 
 **不计入正式功能的诊断提交：** `c075cbc`、`831c5ab`、`8e835ba`、`942fb5d`、`de255ca`、`6e09eb3`、`2ad62b7`、`2ff7eba` 主要用于 overrun/trace/QPC/ETW 定位；`156235e`、`34801c9` 只修 feature 分支 mutation workflow 编码/匹配，不属于产品实现。它们即使出现在合并历史中，也不应单列为验收功能或性能收益。
 
