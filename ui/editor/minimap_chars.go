@@ -207,8 +207,19 @@ func (w *ViewW) miniGlyphsFor(th *theme.Theme) *miniGlyphs {
 	for _, ln := range m.cache {
 		ln.bmp, ln.bmpDone = nil, false
 	}
-	m.strips = nil
+	w.dropMiniStrips()
 	return m.glyphs
+}
+
+// Strip images are private immutable values. Once discarded, no future
+// minimap frame draws them: retire their renderer copies immediately.
+func (w *ViewW) dropMiniStrips() {
+	for _, s := range w.vs.mini.strips {
+		if s.img != nil {
+			w.c.InvalidateImage(s.img)
+		}
+	}
+	w.vs.mini.strips = nil
 }
 
 // ensureMiniBitmap draws ln's bitmap when characters are on and it has
@@ -235,7 +246,8 @@ func (w *ViewW) paintMinimapChars(l *paint.List, r geom.Rect) {
 	unit, offset, _ := w.miniCanvas()
 	sampling := unit < 1
 	if sampling != m.stripSampling {
-		m.strips, m.stripSampling = nil, sampling
+		w.dropMiniStrips()
+		m.stripSampling = sampling
 	}
 	if m.strips == nil {
 		m.strips = map[int]*miniStrip{}
@@ -294,6 +306,9 @@ func (w *ViewW) paintMinimapChars(l *paint.List, r geom.Rect) {
 			// Rows not drawn this frame lie outside the minimap (clipped):
 			// they are left out and composed when they come into view.
 			s.rows, s.tall = wt.rows, tall
+			if s.img != nil {
+				w.c.InvalidateImage(s.img)
+			}
 			s.img = composeMiniStrip(&s.rows, cw, tall)
 			m.stripGen++
 			s.gen = m.stripGen
@@ -318,6 +333,9 @@ func (w *ViewW) paintMinimapChars(l *paint.List, r geom.Rect) {
 	}
 	for id, s := range m.strips {
 		if !s.used {
+			if s.img != nil {
+				w.c.InvalidateImage(s.img)
+			}
 			delete(m.strips, id)
 		}
 	}

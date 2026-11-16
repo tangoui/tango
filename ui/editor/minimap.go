@@ -271,6 +271,7 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 	vs := w.vs
 	r := vs.minimapRect
 	if r.Empty() {
+		w.dropMiniStrips()
 		vs.mini.cache = nil
 		return
 	}
@@ -291,6 +292,8 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 	}
 	if w.opts.Minimap.RenderCharacters {
 		w.miniGlyphsFor(th)
+	} else {
+		w.dropMiniStrips()
 	}
 	unit, offset, extent := w.miniCanvas()
 	n := w.st.vl.Count()

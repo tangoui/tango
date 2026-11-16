@@ -44,11 +44,13 @@ import (
 // Renderer re-uploads everything it samples when MaskSize/ColorSize/RampSize
 // change.
 //
-// Images. Each gpu.ImageUpload creates a private RGBA8Unorm texture of its
-// own (replacing one of the same ID), filled by the first blit like the
-// other uploads, and kept in d.images until Frame.ImageFrees names it
-// (freed before the frame's uploads; the previous frame has completed by
-// then). Every batch binds its Batch.Image texture to slot TexImage, or a
+// Images. Each gpu.ImageUpload owns a private RGBA8Unorm texture, filled
+// completely by the first blit like the other uploads, and kept in d.images
+// until Frame.ImageFrees names it
+// (detached before the frame's uploads; the previous frame has completed
+// by then). A bounded exact-size handoff can reuse those textures during
+// applyImages; no spare image textures remain after that call. Every batch
+// binds its Batch.Image texture to slot TexImage, or a
 // 1×1 placeholder when it has none.
 //
 // Layers. Each gpu.Frame.Layers entry is drawn into a private RGBA8Unorm
@@ -126,8 +128,9 @@ type Device struct {
 
 	target, mask, color, ramp                 id
 	targetSize, maskSize, colorSize, rampSize image.Point
-	images                                    map[int]id // image textures by gpu.ImageUpload.ID
-	noImage                                   id         // 1×1 texture bound to TexImage for batches without an image
+	images                                    map[int]id          // image textures by gpu.ImageUpload.ID
+	imageSizes                                map[int]image.Point // live image dimensions; exact-size reuse
+	noImage                                   id                  // 1×1 texture bound to TexImage for batches without an image
 	instBuf, staging, readBuf                 id
 	instCap, stagingCap, readCap              int
 	inflight                                  []id // committed, not yet waited command buffers, in commit order
@@ -1063,47 +1066,6 @@ func (d *Device) blit(cb id, ups []staged) {
 	enc.Send(sel("endEncoding"))
 }
 
-// applyImages releases the textures of f.ImageFrees, creates one for each
-// of f.ImageUploads (validated; the pixels are staged by stage) and checks
-// that every batch's Image is held.
-func (d *Device) applyImages(f *gpu.Frame) error {
-	if d.images == nil {
-		d.images = map[int]id{}
-	}
-	for _, i := range f.ImageFrees {
-		release(d.images[i])
-		delete(d.images, i)
-	}
-	if d.noImage == 0 {
-		t, err := d.newTexture(1, 1, pixelFormatRGBA8Unorm, usageShaderRead)
-		if err != nil {
-			return err
-		}
-		d.noImage = t
-	}
-	for _, u := range f.ImageUploads {
-		w, h := u.Size.X, u.Size.Y
-		if u.ID <= 0 || w <= 0 || h <= 0 {
-			return fmt.Errorf("metal: image upload %d of size %v", u.ID, u.Size)
-		}
-		if len(u.Pix) < (h-1)*u.Stride+4*w {
-			return fmt.Errorf("metal: image upload %d: %d bytes with stride %d for %v", u.ID, len(u.Pix), u.Stride, u.Size)
-		}
-		t, err := d.newTexture(w, h, pixelFormatRGBA8Unorm, usageShaderRead)
-		if err != nil {
-			return err
-		}
-		release(d.images[u.ID])
-		d.images[u.ID] = t
-	}
-	for i := range f.Batches {
-		if b := f.Batches[i].Image; b != 0 && d.images[b] == 0 {
-			return fmt.Errorf("metal: batch %d binds image %d, which the device does not hold", i, b)
-		}
-	}
-	return nil
-}
-
 // newTexture creates a private w×h texture.
 func (d *Device) newTexture(w, h int, format, usage uint64) (id, error) {
 	desc := msgTexDesc(class("MTLTextureDescriptor"), sel("texture2DDescriptorWithPixelFormat:width:height:mipmapped:"), format, uint64(w), uint64(h), false)
@@ -1472,6 +1434,7 @@ func (d *Device) release() {
 		release(t)
 		delete(d.images, k)
 	}
+	d.imageSizes = nil
 	for _, l := range d.layers {
 		release(l.tex)
 	}

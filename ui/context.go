@@ -132,7 +132,8 @@ type Context struct {
 	running bool
 	// noBlur: the renderer does not draw paint.BackdropBlur (see
 	// rendererBlurs); frosted surfaces fall back to opaque ones.
-	noBlur bool
+	noBlur     bool
+	imageCache imageInvalidator // optional renderer cache capability
 
 	allocs        frameAllocators
 	nodeIndex     map[ID]*node

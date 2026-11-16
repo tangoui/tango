@@ -86,6 +86,7 @@ func NewRunner(page func(*Context), o RunnerOptions) *Runner {
 	r.c.noAnim = o.NoAnimations
 	r.c.reduceMotion = o.ReduceMotion
 	r.c.noBlur = !rendererBlurs(r.renderer)
+	r.c.imageCache, _ = r.renderer.(imageInvalidator)
 	return r
 }
 

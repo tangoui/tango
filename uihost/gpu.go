@@ -225,6 +225,20 @@ type gpuRenderer struct {
 
 func (g *gpuRenderer) lost() bool { return g.cpu != nil }
 
+// InvalidateImage reaches every cache that may render a future frame,
+// including temporary oversized-frame and permanent CPU fallbacks.
+func (g *gpuRenderer) InvalidateImage(img image.Image) {
+	if inv, ok := g.gpu.(interface{ InvalidateImage(image.Image) }); ok {
+		inv.InvalidateImage(img)
+	}
+	if g.cpu != nil {
+		g.cpu.InvalidateImage(img)
+	}
+	if g.big != nil {
+		g.big.InvalidateImage(img)
+	}
+}
+
 func (g *gpuRenderer) Render(l *paint.List, size geom.Size, scale float32) error {
 	g.bigFrame = false
 	if g.cpu != nil {
