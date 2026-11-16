@@ -7,16 +7,15 @@ package ios
 // /__tango/lane/up, served by the core through Host.ServeAsset). It also
 // streams responses (scheme.go), but WebKit holds back part of a large
 // burst of a streamed response until more data arrives on it (spec §6.2;
-// seen on the iOS 27.2 simulator as on macOS), so down:scheme is not
-// offered: downstream frames stay on the message channel. There is no
-// platform lane of our own.
+// seen on the iOS 27.2 simulator as on macOS), so no streamed downstream
+// lane is offered, and the core's down:poll is not offered on iOS yet:
+// downstream frames stay on the message channel. There is no platform lane
+// of our own.
 //
 // Default off: a surface reports lanes only when TANGO_IPC_LANES_DARWIN was
 // set to an "on" value (not empty, 0, false or off) when it was created, and
 // TANGO_IPC_LANES=0 still turns them off, until measured on a real device
-// (macOS is default-on).
-// TANGO_IPC_LANES_DARWIN=all also offers down:scheme, for experiments only
-// (laneCapsFromEnv, lanes.go).
+// (macOS is default-on). See laneCapsFromEnv (lanes.go).
 //
 // Frames: a WKURLSchemeTask does not say which frame asked, so a lane
 // request from a subframe cannot be refused here. The lanes rely on the
@@ -38,8 +37,8 @@ var _ platform.BinaryLane = (*surface)(nil)
 // before the surface is handed to the core and never changes.
 func (s *surface) LaneCaps() []string { return slices.Clone(s.laneCaps) }
 
-// SendLanePacket implements platform.BinaryLane: iOS has no platform lane
-// (down:scheme is the core's), so no packet is ever taken. Any goroutine.
+// SendLanePacket implements platform.BinaryLane: iOS has no platform lane,
+// so no packet is ever taken. Any goroutine.
 func (s *surface) SendLanePacket(uint64, []byte) bool { return false }
 
 // envLaneCaps returns the lanes of a WebView surface created now.

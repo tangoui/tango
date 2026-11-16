@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
@@ -46,6 +47,22 @@ type BinaryConn interface {
 	// on the downstream lane (smaller frames go as messages, for latency).
 	// A negative value means there is no downstream lane.
 	BinaryMinSize() int
+}
+
+// OrderedBinaryConn is optionally implemented by a BinaryConn (or the
+// transport a SessionBinaryConn returns) whose downstream lane may deliver
+// packets in order with the message channel and as reliably as it (the
+// core's down:poll: one sequenced queue for messages and packets). The
+// Router uses SendBinaryOrdered instead of SendBinary when it is there.
+type OrderedBinaryConn interface {
+	BinaryConn
+	// SendBinaryOrdered is SendBinary that also reports, for a packet it
+	// took, whether the lane that took it delivers it in order with every
+	// message sent after it on the connection and never loses it while
+	// those arrive. The Router then sends no boundary for the frame (the
+	// page cannot see later messages without the packet, so there is no
+	// gap to detect). ordered is meaningless when sent is false.
+	SendBinaryOrdered(packet []byte) (sent, ordered bool)
 }
 
 // SessionBinaryConn binds sends to an immutable document generation. Reusable
@@ -126,7 +143,7 @@ type Router struct {
 	onPanic  func(c Conn, where string, value any, stack []byte)
 	window   int // stream receive window in bytes; 0 means DefaultWindowBytes
 
-	jsSendWin  int           // tests only (setJSSendWindow); 0 means DefaultWindowBytes
+	jsSendWin  int           // tests only (setJSSendWindow); 0: the page's window
 	gapTimeout time.Duration // tests only (setGapTimeout); 0 means GapTimeout
 
 	localID uint64 // last in-process stream id (odd; see Open)
@@ -152,7 +169,7 @@ func NewRouter() *Router { return &Router{} }
 // page send more than Go now accepts, which fails its streams with
 // "flow control violated".
 func (r *Router) SetStreamWindow(n int) {
-	if n < 4096 {
+	if n < MinWindowBytes {
 		panic("ipc: SetStreamWindow: window must be at least 4096 bytes")
 	}
 	r.mu.Lock()
@@ -170,15 +187,26 @@ func (r *Router) streamWindow() int {
 	return r.window
 }
 
-// jsSendWindow returns the send window toward runtime-js, which does not
-// advertise its receive window: always DefaultWindowBytes outside tests.
-func (r *Router) jsSendWindow() int {
+// testJSSendWindow returns the test override of the send window toward
+// runtime-js (setJSSendWindow), or 0.
+func (r *Router) testJSSendWindow() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.jsSendWin == 0 {
-		return DefaultWindowBytes
-	}
 	return r.jsSendWin
+}
+
+// peerWindow validates a receive window a page advertised ("win" in its
+// hello or in a win message): ok is false unless raw is an integer of at
+// least MinWindowBytes; a window above MaxPeerWindowBytes is clamped.
+func peerWindow(raw json.RawMessage) (n int, ok bool) {
+	var v float64 // a JS number: 1e12 is as valid as 1000000000000
+	if len(raw) == 0 || json.Unmarshal(raw, &v) != nil || v != math.Trunc(v) || v < MinWindowBytes {
+		return 0, false
+	}
+	if v > MaxPeerWindowBytes {
+		return MaxPeerWindowBytes, true
+	}
+	return int(v), true
 }
 
 // streamGapTimeout returns the gap timeout for new streams: always
@@ -418,8 +446,15 @@ func (r *Router) HandleMessage(c Conn, msg string) bool {
 		// Retire any state a concurrent Go opener published in the Drop →
 		// LaneHello interval. Its immutable handle belongs to the old session.
 		r.drop(c, false, true)
-		r.state(c) // publish the new immutable session only after LaneHello
+		cs := r.state(c) // publish the new immutable session only after LaneHello
+		if n, ok := peerWindow(m.Win); ok {
+			cs.mu.Lock()
+			cs.pageWin = n
+			cs.mu.Unlock()
+		}
 		c.Send(encode(helloOut{Tango: "hello", Proto: ProtoVersion, Win: r.streamWindow(), Lanes: raw}))
+	case "win":
+		r.handleWin(c, &m)
 	case "call":
 		r.handleCall(c, &m)
 	case "event":
@@ -428,6 +463,33 @@ func (r *Router) HandleMessage(c Conn, msg string) bool {
 		r.handleStream(c, &m)
 	}
 	return true
+}
+
+// handleWin applies a page's receive window update (see the package
+// comment): new streams get it as their send window, open ones are raised
+// to it (never lowered: the page may count on the larger window already).
+// Ignored before hello (no state) and when invalid.
+func (r *Router) handleWin(c Conn, m *wireIn) {
+	n, ok := peerWindow(m.Win)
+	if !ok {
+		return
+	}
+	r.mu.Lock()
+	cs := r.conns[c]
+	r.mu.Unlock()
+	if cs == nil {
+		return
+	}
+	cs.mu.Lock()
+	cs.pageWin = n
+	open := make([]*Stream, 0, len(cs.streams))
+	for _, s := range cs.streams {
+		open = append(open, s)
+	}
+	cs.mu.Unlock()
+	for _, s := range open {
+		s.raiseSendWindow(n)
+	}
 }
 
 // HandleBinary processes one upstream fast lane packet from c (see the
@@ -497,7 +559,7 @@ func (r *Router) OpenStream(c Conn, method string, args ...any) (*Stream, error)
 	if err != nil {
 		return nil, err
 	}
-	sendWin, recvWin, gapWait := r.jsSendWindow(), r.streamWindow(), r.streamGapTimeout()
+	testWin, recvWin, gapWait := r.testJSSendWindow(), r.streamWindow(), r.streamGapTimeout()
 	var cs *connState
 	for {
 		cs = r.state(c)
@@ -511,7 +573,7 @@ func (r *Router) OpenStream(c Conn, method string, args ...any) (*Stream, error)
 	}
 	cs.nextID += 2
 	id := cs.nextID
-	s := newStream(cs.ctx, wirePeer{cs}, id, sendWin, recvWin, cs.removeStream)
+	s := newStream(cs.ctx, wirePeer{cs}, id, cs.sendWinLocked(testWin), recvWin, cs.removeStream)
 	s.gapWait = gapWait  // before publishing: onFrame reads it under mu only
 	s.awaitAccept = true // no fast lane before JS's accept (it could overtake the open)
 	cs.streams[id] = s
@@ -547,6 +609,27 @@ type connState struct {
 	streams map[uint64]*Stream
 	nextID  uint64 // last Go-allocated stream id (even)
 	reaped  bool   // dropped: allocates no more ids (see Router.drop)
+	// pageWin is the page's receive window per stream (its hello's or
+	// latest win message's "win"); 0 means DefaultWindowBytes (a runtime-js
+	// that does not advertise one).
+	pageWin int
+}
+
+// pageWinLocked returns the page's receive window. cs.mu held.
+func (cs *connState) pageWinLocked() int {
+	if cs.pageWin == 0 {
+		return DefaultWindowBytes
+	}
+	return cs.pageWin
+}
+
+// sendWinLocked returns the send window of a stream created now: testWin
+// (setJSSendWindow) when set, else the page's window. cs.mu held.
+func (cs *connState) sendWinLocked(testWin int) int {
+	if testWin != 0 {
+		return testWin
+	}
+	return cs.pageWinLocked()
 }
 
 func (r *Router) state(c Conn) *connState {
@@ -716,13 +799,13 @@ func (r *Router) openFromJS(cs *connState, m *wireIn) {
 		cs.send(encode(streamCtl{Tango: "stream", ID: id, Op: "error", Error: NewError(CodeNotFound, "stream not found: "+m.Method)}))
 		return
 	}
-	sendWin, recvWin, gapWait := r.jsSendWindow(), r.streamWindow(), r.streamGapTimeout()
+	testWin, recvWin, gapWait := r.testJSSendWindow(), r.streamWindow(), r.streamGapTimeout()
 	cs.mu.Lock()
 	if old := cs.streams[id]; old != nil {
 		cs.mu.Unlock()
 		return // duplicate open; ignore
 	}
-	s := newStream(cs.ctx, wirePeer{cs}, id, sendWin, recvWin, cs.removeStream)
+	s := newStream(cs.ctx, wirePeer{cs}, id, cs.sendWinLocked(testWin), recvWin, cs.removeStream)
 	s.gapWait = gapWait // before publishing: onFrame reads it under mu only
 	if h.duplex == nil {
 		s.setSendOnly() // a StreamFunc only sends; set before publishing

@@ -27,7 +27,7 @@ import { call, on, emit, stream, socket, Window, Clipboard, TangoError } from "@
 | `socket(method, ...args): TangoSocket` | 同一种流的 WebSocket 风格包装，见 [TangoSocket](#tangosocket) |
 | `onStream(name, fn)` | 处理 Go 用 `Router.OpenStream` 主动打开的流，`fn(stream, ...args)` 拿到的也是 `TangoStream` |
 | `onRaw(fn)` / `postRaw(msg)` | 非 IPC 的原始消息 |
-| `lanes(): { down, up }` | 当前用的[快速通道](/guide/concepts/ipc#快速通道)：每个方向是通道名（如 `"down:scheme"`、`"up:post"`），没有快速通道的方向是 `"fallback"`（字节帧走消息通道）。只用于诊断，值会随通道就绪、坏掉和页面重新握手而变化 |
+| `lanes(): { down, up }` | 当前用的[快速通道](/guide/concepts/ipc#快速通道)：每个方向是通道名（如 `"down:poll"`、`"up:post"`），没有快速通道的方向是 `"fallback"`（字节帧走消息通道）。只用于诊断，值会随通道就绪、坏掉和页面重新握手而变化 |
 | `TangoError` | 所有 reject 的错误类型，带 `code` |
 
 协议、Go 侧 API 和错误码见 [IPC](/guide/concepts/ipc)。

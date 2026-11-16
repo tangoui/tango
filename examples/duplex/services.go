@@ -13,4 +13,5 @@ import (
 func registerServices(r *ipc.Router) {
 	services.Register(r)
 	r.HandleDuplex("Term", term)
+	registerDebug(r) // debughooks.go; TANGO_SCHEME_PROBE=1 only
 }

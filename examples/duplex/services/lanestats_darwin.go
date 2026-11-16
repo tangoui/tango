@@ -9,7 +9,8 @@ import "github.com/tangoui/tango/internal/platform/darwin"
 // plain build darwin.LaneDownStats returns zeros.
 func backendLaneStats(st *Stats) {
 	l := darwin.LaneDownStats()
-	st.DownRequests, st.DownConns, st.DownActive, st.DownWrites = l.DownRequests, l.DownConns, l.DownActive, l.DownWrites
+	st.DownRequests, st.DownConns, st.DownActive, st.DownWrites, st.DownRefused, st.DownOpen = l.DownRequests, l.DownConns, l.DownActive, l.DownWrites, l.DownRefused, l.DownOpen
+	st.DownResponseNanos, st.DownDataNanos, st.DownFinishNanos, st.DownDataCalls = l.DownResponseNanos, l.DownDataNanos, l.DownFinishNanos, l.DownDataCalls
 	st.UpRequests, st.UpAccepted, st.UpActive = l.UpRequests, l.UpAccepted, l.UpActive
 	st.UpMainNanos, st.UpMainMaxNanos, st.UpBodyBytes = l.UpMainNanos, l.UpMainMaxNanos, l.UpBodyBytes
 }

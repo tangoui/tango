@@ -15,17 +15,28 @@
 // One JSON object per raw message, tagged by the "tango" field. Messages
 // without that field are not ipc and are left to the application.
 //
-// Handshake. runtime-js sends hello when it starts (the page (re)loaded).
-// Go drops everything of the previous document on that connection and
-// replies with its stream receive window in bytes (SetStreamWindow, default
-// DefaultWindowBytes). A hello without "proto":2 is answered with an error
-// and logged with slog.Warn; that runtime's calls and streams then fail.
-// Before Go's hello arrives, JS may already send calls, events and stream
-// messages, counting on a window of DefaultWindowBytes.
+// Handshake. runtime-js sends hello when it starts (the page (re)loaded),
+// with its own stream receive window in bytes in "win". Go drops everything
+// of the previous document on that connection and replies with its stream
+// receive window (SetStreamWindow, default DefaultWindowBytes). A hello
+// without "proto":2 is answered with an error and logged with slog.Warn;
+// that runtime's calls and streams then fail. Before Go's hello arrives,
+// JS may already send calls, events and stream messages, counting on a
+// window of DefaultWindowBytes.
 //
-//	{"tango":"hello","proto":2}
+//	{"tango":"hello","proto":2,"win":1048576}
 //	{"tango":"hello","proto":2,"win":1048576}
 //	{"tango":"hello","error":{"code":"bad_args","message":"runtime-js protocol mismatch"}}
+//
+// The page's "win" is optional (older runtimes leave it out): a missing
+// one, or one that is not an integer of at least MinWindowBytes, means
+// DefaultWindowBytes; one above MaxPeerWindowBytes counts as that. The page
+// may later change its window with win (runtime-js raises it once down:poll
+// is ready); it applies to the streams opened after it and raises, never
+// lowers, the window of open ones. Invalid ones, and one before hello, are
+// ignored; a Go that predates it ignores it as an unknown message.
+//
+//	{"tango":"win","win":4194304}
 //
 // Calls and events:
 //
@@ -77,7 +88,10 @@
 //     the direction nor returns credit. A missing tail below it arms the same
 //     five-second gap deadline; contiguous receipt clears it. Only unresolved
 //     streams fail, even when there is no later frame/end and the send window
-//     is full.
+//     is full. Go sends no boundary for a frame an ordered lane took
+//     (OrderedBinaryConn: the core's down:poll, one sequenced queue for
+//     messages and packets), since such a packet cannot be missing while
+//     later messages arrive.
 //   - ack: returns "b" bytes of credit to the sender (the sum of the c of
 //     the frames read since the previous ack).
 //   - end: half close. The sender of end sends no more data but still
@@ -102,13 +116,16 @@
 // # Flow control
 //
 // Each direction of each stream has a window in bytes: the receive window
-// the receiver advertised (Go's "win" in hello; toward runtime-js it is
-// always DefaultWindowBytes). The sender blocks while frames are in flight
-// and the next frame's c would exceed the window; with nothing in flight a
-// single frame may exceed it. The receiver returns a frame's c once the
-// application has read the frame, and sends ack when the credit to return
-// reaches half its window, and also at once whenever a read leaves its
-// receive queue empty.
+// the receiver advertised (Go's "win" in its hello reply; runtime-js's
+// "win" in its hello or a later win message, DefaultWindowBytes when it
+// gives none). The sender blocks while frames are in flight and the next
+// frame's c would exceed the window; with nothing in flight a single frame
+// may exceed it. The receiver returns a frame's c once the application has
+// read the frame, and sends ack when the credit to return reaches a share
+// of its window (Go: half; runtime-js: a quarter, so a page with a large
+// window returns credit sooner), and also at once whenever a read leaves
+// its receive queue empty. The share is the receiver's choice; a sender
+// does not depend on it.
 //
 // # Fast lanes
 //
@@ -134,7 +151,7 @@
 // BinaryConn.LaneHello JSON verbatim in "lanes"; without lanes the field
 // is absent:
 //
-//	{"tango":"hello","proto":2,"win":1048576,"lanes":{"gen":1,"tok":"…","list":["down:scheme","up:post"]}}
+//	{"tango":"hello","proto":2,"win":1048576,"lanes":{"gen":1,"tok":"…","list":["down:poll","up:post"]}}
 //
 // A lane carries packets, identical on every platform (big endian, not
 // base64):
@@ -189,6 +206,14 @@ const (
 	// MaxFrameBytes is the largest raw payload a single stream frame may
 	// carry.
 	MaxFrameBytes = 16 << 20
+	// MinWindowBytes is the smallest stream receive window either side may
+	// use (Router.SetStreamWindow; a smaller "win" from the page is
+	// ignored).
+	MinWindowBytes = 4096
+	// MaxPeerWindowBytes caps the receive window Go accepts from a page:
+	// a larger "win" is taken as this much, which bounds what Go queues
+	// toward the page per stream.
+	MaxPeerWindowBytes = 64 << 20
 )
 
 // Error is the error object carried on the wire. Handlers may return an
@@ -225,6 +250,7 @@ type wireIn struct {
 	Bin    *string         `json:"bin"` // nil when absent; "" is an empty byte frame
 	B      int             `json:"b"`
 	In     *bool           `json:"in"`
+	Win    json.RawMessage `json:"win"` // hello, win: the page's receive window (validated by peerWindow)
 }
 
 // seq returns the "seq" field, 0 when absent.

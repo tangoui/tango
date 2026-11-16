@@ -206,6 +206,20 @@ func (s *Stream) sendFrame(f frame) error {
 	}
 }
 
+// raiseSendWindow raises the peer's receive window to n (never lowers it)
+// and wakes a writer blocked on the old one.
+func (s *Stream) raiseSendWindow(n int) {
+	s.mu.Lock()
+	raised := n > s.sendWin
+	if raised {
+		s.sendWin = n
+	}
+	s.mu.Unlock()
+	if raised {
+		s.signal()
+	}
+}
+
 // signal wakes a writer blocked in sendFrame. Only one writer can wait at a
 // time (writeMu), so one buffered slot is enough; spurious wakes recheck.
 func (s *Stream) signal() {

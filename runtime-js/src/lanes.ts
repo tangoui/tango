@@ -1,7 +1,7 @@
 // Fast lanes (see the Go package internal/lane and the ipc package comment,
 // "Fast lanes"): side channels that carry stream byte frames as binary
 // packets next to the message channel. Lane modules (one per lane name,
-// e.g. down:scheme, up:post) register themselves with registerLane; the
+// e.g. down:poll, up:post) register themselves with registerLane; the
 // client starts the ones Go offers in its hello reply ("lanes" field) and
 // reports each one ready or failed on the core's internal "lane" channel.
 
@@ -105,7 +105,7 @@ export function locationFetch(href: string | undefined, fetcher: typeof fetch): 
   const base = href ? new URL(href) : null;
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (!base) return fetcher(input, init); // non-browser injectable test adapter
-    if (typeof input !== "string" || !/^\/__tango\/lane\/(up|down)\?/.test(input)) {
+    if (typeof input !== "string" || !/^\/__tango\/lane\/up\?/.test(input)) {
       throw new Error("tango: invalid lane destination");
     }
     const dest = new URL(input, base);
@@ -139,6 +139,8 @@ export interface LaneHost {
   /** The ready upstream lane stopped or failed: frames it took and never
    * dispatched are lost. */
   onUpStopped(): void;
+  /** A downstream lane became ready (after its ready message was posted). */
+  onDownReady?(name: string): void;
 }
 
 const report = (err: unknown) =>
@@ -234,6 +236,13 @@ export class Lanes {
         if (e.dead) return;
         e.ready = true;
         this.control("ready", e.name);
+        if (!isUp(e.lane)) {
+          try {
+            this.host.onDownReady?.(e.name);
+          } catch (err) {
+            report(err);
+          }
+        }
       },
       () => this.fail(e, dir),
     );

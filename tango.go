@@ -161,6 +161,8 @@ func newWithBackend(opts Options, b platform.Backend) *App {
 	a.loop.app = a
 	// Fast lane control messages from runtime-js; lanes.go.
 	a.handleInternal(laneChannel, func(s *Surface, p string) { s.lane.Control(p) })
+	// down:poll reports from downShim; downpoll.go.
+	a.handleInternal(downChannel, func(s *Surface, p string) { s.handleDown(p) })
 	devfeat.AttachWindowState(a) // tan dev window placement; internal/devfeat
 	devfeat.AttachAutomation(a)  // TANGO_AUTOMATION control channel; internal/devfeat
 	return a
@@ -212,7 +214,8 @@ func (a *App) shutdown() {
 	a.mu.Unlock()
 	for _, s := range ss {
 		s.closed.Store(true)
-		s.lane.Close() // ends a down:scheme response still open; lanes.go
+		s.downq.Close() // ends a down:poll request still waiting; downpoll.go
+		s.lane.Close()
 	}
 }
 

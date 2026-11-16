@@ -26,3 +26,17 @@ func gapTimerActive(s *Stream) bool {
 	defer s.mu.Unlock()
 	return s.gapTimer != nil
 }
+
+// pageWindow returns the send window new streams on c would get toward the
+// page (DefaultWindowBytes when c has no state).
+func pageWindow(r *Router, c Conn) int {
+	r.mu.Lock()
+	cs := r.conns[c]
+	r.mu.Unlock()
+	if cs == nil {
+		return DefaultWindowBytes
+	}
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	return cs.pageWinLocked()
+}
