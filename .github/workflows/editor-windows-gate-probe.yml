@@ -55,12 +55,12 @@ jobs:
           from pathlib import Path
           source = Path('ui/editor/brackets_test.go').resolve()
           old = 'unsure := st.matchCarets(MatchBracketsAlways, start.Add(budget), from, res)'
-          text = source.read_text()
+          text = source.read_text(encoding='utf-8')
           assert text.count(old) == 1
           replacement = Path(os.environ['RUNNER_TEMP']) / 'brackets_sleep_test.go'
-          replacement.write_text(text.replace(old, 'time.Sleep(20 * time.Millisecond)\n\t\t\t' + old))
+          replacement.write_text(text.replace(old, 'time.Sleep(20 * time.Millisecond)\n\t\t\t' + old), encoding='utf-8')
           overlay = Path(os.environ['RUNNER_TEMP']) / 'sleep-overlay.json'
-          overlay.write_text(json.dumps({'Replace': {str(source): str(replacement)}}))
+          overlay.write_text(json.dumps({'Replace': {str(source): str(replacement)}}), encoding='utf-8')
           PY
           set +e
           go test -overlay="$RUNNER_TEMP/sleep-overlay.json" ./ui/editor -run '^TestMatchManyCursorsBounded$' -count=1 -v > "$RUNNER_TEMP/mutation.log" 2>&1
