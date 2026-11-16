@@ -103,11 +103,18 @@ func (s *Store) Clear() error {
 	return s.update(func(m map[string]any) { clear(m) })
 }
 
-// update applies fn to a copy of the map, persists the copy and only then
-// makes it current, so a failed write changes nothing.
+// update mutates memory-only stores under the lock. Persisted stores apply fn
+// to a copy and publish it after writing, so a failed write changes nothing.
 func (s *Store) update(fn func(map[string]any)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// A memory-only update cannot fail after Set's JSON validation, so
+	// mutate under the same exclusive lock instead of cloning the whole map.
+	// Persistent stores still use copy/write/publish for rollback on I/O errors.
+	if s.path == "" {
+		fn(s.m)
+		return nil
+	}
 	next := maps.Clone(s.m)
 	fn(next)
 	if s.path != "" {

@@ -74,7 +74,7 @@ type Lexer struct {
 }
 
 func newLexer(reg *Registry, id string, g *grammar) *Lexer {
-	l := &Lexer{reg: reg, id: id, g: g, fastGo: id == "go" && g.defaultToken == "" && g.tokenPostfix == ".go"}
+	l := &Lexer{reg: reg, id: id, g: g}
 	l.intern.stacks = map[stackKey]*stackElem{}
 	l.intern.ids = map[lineState]State{}
 	l.initial = l.internState(lineState{stack: l.stackElem(nil, g.start)})
