@@ -71,6 +71,17 @@ done
 N=${#LABELS[@]}
 
 load1() { uptime | sed -E 's/.*load averages?: *([0-9.]+).*/\1/'; }
+lock1() {
+	if ! command -v ioreg >/dev/null 2>&1; then
+		echo unknown
+		return
+	fi
+	if ioreg -n Root -d 1 2>/dev/null | grep -q 'CGSSessionScreenIsLocked.*Yes'; then
+		echo locked
+	else
+		echo unlocked
+	fi
+}
 high() { awk -v l="$1" -v m="$LOAD_MAX" 'BEGIN { exit !(l >= m) }'; }
 
 # waitload sleeps (30 s at a time, at most 40 times) until the load is
@@ -115,9 +126,10 @@ done
 # run i r: runs arm i for round r into $OUT/<label>/<r>.log. Returns 1 when
 # a load sample was >= LOAD_MAX.
 run() {
-	local i=$1 r=$2 log l0 l1 part pat bt k=0 parts prof=()
+	local i=$1 r=$2 log l0 l1 s0 s1 part pat bt k=0 parts prof=()
 	log=$OUT/${LABELS[$i]}/$r.log
 	l0=$(load1)
+	s0=$(lock1)
 	: >"$log"
 	IFS=';' read -r -a parts <<<"$REGEX"
 	for part in "${parts[@]}"; do
@@ -135,8 +147,9 @@ run() {
 		}
 	done
 	l1=$(load1)
-	echo "$r ${LABELS[$i]} $l0 $l1" >>"$OUT/load.log"
-	printf '%s round %s %s: load %s -> %s\n' "$(date +%T)" "$r" "${LABELS[$i]}" "$l0" "$l1" >&2
+	s1=$(lock1)
+	echo "$r ${LABELS[$i]} $l0 $l1 $s0 $s1" >>"$OUT/load.log"
+	printf '%s round %s %s: load %s -> %s, screen %s -> %s\n' "$(date +%T)" "$r" "${LABELS[$i]}" "$l0" "$l1" "$s0" "$s1" >&2
 	if high "$l0" || high "$l1"; then return 1; fi
 	return 0
 }
