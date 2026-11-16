@@ -81,6 +81,8 @@ var (
 	ctOK   bool
 
 	cfRelease                                 func(uintptr)
+	cfRetain                                  func(uintptr) uintptr
+	cfAttributedStringCreate                  func(uintptr, uintptr, uintptr) uintptr
 	cfStringCreateWithBytes                   func(alloc uintptr, b *byte, n int64, enc uint32, ext bool) uintptr
 	cfStringGetLength                         func(uintptr) int64
 	cfStringGetCString                        func(s uintptr, buf *byte, n int64, enc uint32) bool
@@ -116,6 +118,16 @@ var (
 	ctFontCreatePathForGlyph                      func(f uintptr, g uint16, m *cgAffine) uintptr
 	ctFontDrawGlyphs                              func(f uintptr, g *uint16, p *cgPoint, n int64, ctx uintptr)
 	ctFontCreateForString                         func(f, s uintptr, r cfRange) uintptr
+	ctLineCreateWithAttributedString              func(uintptr) uintptr
+	ctLineGetGlyphRuns                            func(uintptr) uintptr
+	ctRunGetGlyphCount                            func(uintptr) int64
+	ctRunGetGlyphs                                func(uintptr, cfRange, *uint16)
+	ctRunGetPositions                             func(uintptr, cfRange, *cgPoint)
+	ctRunGetAdvances                              func(uintptr, cfRange, *cgSize)
+	ctRunGetStringIndices                         func(uintptr, cfRange, *int64)
+	ctRunGetAttributes                            func(uintptr) uintptr
+	ctFontGetAscent                               func(uintptr) float64
+	ctFontGetDescent                              func(uintptr) float64
 
 	cgColorSpaceCreateDeviceGray               func() uintptr
 	cgColorSpaceRelease                        func(uintptr)
@@ -136,6 +148,7 @@ var (
 
 	kCFTypeDictKeyCB, kCFTypeDictValueCB uintptr
 	kCTFontFamilyNameAttribute           uintptr
+	kCTFontAttributeName                 uintptr
 	kCTFontVariationAttribute            uintptr
 	kCTFontWeightTrait                   uintptr
 	kCTFontTraitsAttribute               uintptr
@@ -179,6 +192,8 @@ func loadCoreText() (ok bool) {
 	cg := open("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
 	reg := func(fn any, lib uintptr, name string) { purego.RegisterLibFunc(fn, lib, name) }
 	reg(&cfRelease, cf, "CFRelease")
+	reg(&cfRetain, cf, "CFRetain")
+	reg(&cfAttributedStringCreate, cf, "CFAttributedStringCreate")
 	reg(&cfStringCreateWithBytes, cf, "CFStringCreateWithBytes")
 	reg(&cfStringGetLength, cf, "CFStringGetLength")
 	reg(&cfStringGetCString, cf, "CFStringGetCString")
@@ -214,6 +229,16 @@ func loadCoreText() (ok bool) {
 	reg(&ctFontGetAdvancesForGlyphs, ct, "CTFontGetAdvancesForGlyphs")
 	reg(&ctFontDrawGlyphs, ct, "CTFontDrawGlyphs")
 	reg(&ctFontCreateForString, ct, "CTFontCreateForString")
+	reg(&ctLineCreateWithAttributedString, ct, "CTLineCreateWithAttributedString")
+	reg(&ctLineGetGlyphRuns, ct, "CTLineGetGlyphRuns")
+	reg(&ctRunGetGlyphCount, ct, "CTRunGetGlyphCount")
+	reg(&ctRunGetGlyphs, ct, "CTRunGetGlyphs")
+	reg(&ctRunGetPositions, ct, "CTRunGetPositions")
+	reg(&ctRunGetAdvances, ct, "CTRunGetAdvances")
+	reg(&ctRunGetStringIndices, ct, "CTRunGetStringIndices")
+	reg(&ctRunGetAttributes, ct, "CTRunGetAttributes")
+	reg(&ctFontGetAscent, ct, "CTFontGetAscent")
+	reg(&ctFontGetDescent, ct, "CTFontGetDescent")
 
 	reg(&cgColorSpaceCreateDeviceGray, cg, "CGColorSpaceCreateDeviceGray")
 	reg(&cgColorSpaceRelease, cg, "CGColorSpaceRelease")
@@ -246,6 +271,7 @@ func loadCoreText() (ok bool) {
 	kCFTypeDictKeyCB = sym(cf, "kCFTypeDictionaryKeyCallBacks")
 	kCFTypeDictValueCB = sym(cf, "kCFTypeDictionaryValueCallBacks")
 	kCTFontFamilyNameAttribute = val(ct, "kCTFontFamilyNameAttribute")
+	kCTFontAttributeName = val(ct, "kCTFontAttributeName")
 	kCTFontVariationAttribute = val(ct, "kCTFontVariationAttribute")
 	kCTFontWeightTrait = val(ct, "kCTFontWeightTrait")
 	kCTFontTraitsAttribute = val(ct, "kCTFontTraitsAttribute")
