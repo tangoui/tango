@@ -22,11 +22,15 @@ func BenchmarkPresentLoop(b *testing.B) {
 		name  string
 		drain bool
 	}{{"drain", true}, {"a1", false}} {
-		b.Run(arm.name+"/editor", func(b *testing.B) { presentLoop(b, arm.drain) })
+		b.Run(arm.name+"/editor", func(b *testing.B) { presentLoop(b, arm.drain, true) })
+		b.Run(arm.name+"/editor-nosync", func(b *testing.B) { presentLoop(b, arm.drain, false) })
 	}
 }
 
-func presentLoop(b *testing.B, drain bool) {
+// presentLoop runs the loop; with vsync false the layer's displaySyncEnabled
+// is turned off, so nextDrawable stops pacing the loop to the display and
+// what is left is CPU encode plus command-buffer back-pressure.
+func presentLoop(b *testing.B, drain, vsync bool) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if err := loadPresenter(); err != nil {
@@ -50,6 +54,7 @@ func presentLoop(b *testing.B, drain bool) {
 		b.Fatal(err)
 	}
 	defer p.Close()
+	msgSetBool(layer, sel("setDisplaySyncEnabled:"), vsync)
 	p.r.(*presenterRenderer).SetVerify(false) // test binaries verify every frame against paint.CPU
 
 	p.dev.mu.Lock()
