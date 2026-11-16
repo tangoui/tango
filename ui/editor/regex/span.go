@@ -250,6 +250,11 @@ func (r *stdRegexp) rejectASCII(s string) bool {
 // existing independent capture results. Unknown implementations use that API.
 func TryMatchStartNoCaptures(re Regexp, s string, rs []rune, dst []int) ([]int, error) {
 	switch r := re.(type) {
+	case *literalRegexp:
+		if len(s) < len(r.literal) || !bytes.Equal([]byte(s[:len(r.literal)]), r.literal) {
+			return nil, nil
+		}
+		return append(dst[:0], 0, len(r.literal)), nil
 	case *stdRegexp:
 		if r.rejectASCII(s) {
 			return nil, nil

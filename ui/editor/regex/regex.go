@@ -18,6 +18,7 @@
 package regex
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"regexp"
@@ -101,6 +102,12 @@ func Compile(source, flags string) (Regexp, error) {
 	if err != nil {
 		return nil, err
 	}
+	if flags == "" {
+		if literal, ok := parseASCIILiteral(source); ok {
+			nStd.Add(1)
+			return &literalRegexp{src: source, literal: literal}, nil
+		}
+	}
 	out, groups, err := translate(source, fl, toRE2)
 	switch {
 	case err == nil:
@@ -156,6 +163,25 @@ type stdRegexp struct {
 	first    asciiSet
 	hasFirst bool
 }
+
+type literalRegexp struct {
+	src     string
+	literal []byte
+}
+
+func (r *literalRegexp) MatchStart(s string) []int {
+	if len(s) < len(r.literal) || !bytes.Equal([]byte(s[:len(r.literal)]), r.literal) {
+		return nil
+	}
+	return []int{0, len(r.literal)}
+}
+func (r *literalRegexp) MatchStartRunes(s string, _ []rune) []int { return r.MatchStart(s) }
+func (r *literalRegexp) TryMatchStart(s string, _ []rune) ([]int, error) {
+	return r.MatchStart(s), nil
+}
+func (r *literalRegexp) Engine() Engine { return Std }
+func (r *literalRegexp) Source() string { return r.src }
+func (r *literalRegexp) NumGroups() int { return 0 }
 
 func (r *stdRegexp) MatchStart(s string) []int {
 	if r.rejectASCII(s) {
