@@ -1,6 +1,12 @@
 package main
 
-import "testing"
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestABVerdict(t *testing.T) {
 	cases := []struct {
@@ -46,5 +52,86 @@ func TestABVerdictZeroAllocations(t *testing.T) {
 				t.Fatalf("got %s", got)
 			}
 		})
+	}
+}
+
+func TestWorktreeOwnerRejectsOutsidePath(t *testing.T) {
+	parent := t.TempDir()
+	o := &worktreeOwner{parent: parent, path: filepath.Join(filepath.Dir(parent), "outside"), root: parent}
+	if err := o.cleanup(); err == nil {
+		t.Fatal("expected outside path error")
+	}
+}
+
+func TestWorktreeOwnerAddFailureDoesNotPrune(t *testing.T) {
+	parent := t.TempDir()
+	old := runGit
+	defer func() { runGit = old }()
+	var calls []string
+	runGit = func(_ string, args ...string) ([]byte, error) {
+		calls = append(calls, strings.Join(args, " "))
+		return nil, nil
+	}
+	o := &worktreeOwner{root: parent, parent: parent, path: filepath.Join(parent, "tree"), addAttempted: true}
+	if err := o.cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	for _, call := range calls {
+		if strings.Contains(call, "prune") {
+			t.Fatalf("unexpected global prune: %s", call)
+		}
+	}
+	if _, err := os.Stat(parent); !os.IsNotExist(err) {
+		t.Fatalf("parent remains: %v", err)
+	}
+}
+
+func TestWorktreeOwnerRegistrationFailurePreservesParent(t *testing.T) {
+	parent := t.TempDir()
+	path := filepath.Join(parent, "tree")
+	old := runGit
+	defer func() { runGit = old }()
+	calls := 0
+	runGit = func(_ string, args ...string) ([]byte, error) {
+		calls++
+		if len(args) > 0 && args[0] == "worktree" && args[1] == "list" {
+			return []byte("worktree " + path + "\n"), nil
+		}
+		return nil, errors.New("remove failed")
+	}
+	o := &worktreeOwner{root: parent, parent: parent, path: path, addAttempted: true}
+	if err := o.cleanup(); err == nil {
+		t.Fatal("expected cleanup error")
+	}
+	if _, err := os.Stat(parent); err != nil {
+		t.Fatalf("parent should remain: %v", err)
+	}
+	if calls < 2 {
+		t.Fatalf("expected registration and remove attempts, got %d", calls)
+	}
+}
+
+func TestWorktreeOwnerPartialRegistrationCleanup(t *testing.T) {
+	parent := t.TempDir()
+	path := filepath.Join(parent, "tree")
+	old := runGit
+	defer func() { runGit = old }()
+	listed := true
+	runGit = func(_ string, args ...string) ([]byte, error) {
+		if args[0] == "worktree" && args[1] == "list" {
+			if listed {
+				listed = false
+				return []byte("worktree " + path + "\n"), nil
+			}
+			return nil, nil
+		}
+		return nil, nil
+	}
+	o := &worktreeOwner{root: parent, parent: parent, path: path, addAttempted: true}
+	if err := o.cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(parent); !os.IsNotExist(err) {
+		t.Fatalf("parent remains: %v", err)
 	}
 }

@@ -61,21 +61,17 @@ func runAB(baseRev, bench, pkg string, rounds int, out *strings.Builder) (err er
 		return err
 	}
 	base := filepath.Join(parent, "tree")
-	possibleRegistered := true // add can register before returning an error.
+	owner := &worktreeOwner{root: root, parent: parent, path: base}
 	defer func() {
-		if possibleRegistered {
-			if ce := cleanupWorktree(root, base); ce != nil {
-				err = errors.Join(err, ce)
-				return // never remove the parent while registration may remain
-			}
-		}
-		if re := os.RemoveAll(parent); re != nil {
-			err = errors.Join(err, re)
+		if ce := owner.cleanup(); ce != nil {
+			err = errors.Join(err, ce)
 		}
 	}()
+	owner.addAttempted = true
 	if err = runCmd(root, "git", "worktree", "add", "--detach", base, baseRev); err != nil {
 		return err
 	}
+	owner.registered = true
 	baseBin, headBin := filepath.Join(parent, "base.test"), filepath.Join(parent, "head.test")
 	if err = runCmd(root, "go", "test", "-c", "-o", headBin, pkg); err != nil {
 		return err
@@ -178,27 +174,84 @@ func parseABOutput(s string) ([]namedABMetric, error) {
 	}
 	return out, nil
 }
-func cleanupWorktree(root, path string) error {
-	if !filepath.IsAbs(path) {
-		return fmt.Errorf("refuse to clean non-absolute worktree %q", path)
-	}
-	removeErr := exec.Command("git", "-C", root, "worktree", "remove", "--force", path).Run()
-	pruneErr := exec.Command("git", "-C", root, "worktree", "prune").Run()
-	list, listErr := exec.Command("git", "-C", root, "worktree", "list", "--porcelain").Output()
-	var errs []error
-	if removeErr != nil {
-		errs = append(errs, fmt.Errorf("remove worktree %s: %w", path, removeErr))
-	}
-	if pruneErr != nil {
-		errs = append(errs, fmt.Errorf("prune worktrees: %w", pruneErr))
-	}
-	if listErr != nil {
-		errs = append(errs, fmt.Errorf("verify worktree cleanup: %w", listErr))
-	} else if strings.Contains(string(list), "worktree "+path+"\n") {
-		errs = append(errs, fmt.Errorf("worktree registration remains: %s", path))
-	}
-	return errors.Join(errs...)
+
+var runGit = func(root string, args ...string) ([]byte, error) {
+	return exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput()
 }
+
+type worktreeOwner struct {
+	root, parent, path       string
+	addAttempted, registered bool
+}
+
+func (o *worktreeOwner) validate() error {
+	parent, err := filepath.Abs(o.parent)
+	if err != nil {
+		return err
+	}
+	path, err := filepath.Abs(o.path)
+	if err != nil {
+		return err
+	}
+	rel, err := filepath.Rel(parent, path)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("worktree path is outside owned parent: %s", o.path)
+	}
+	if _, err := os.Lstat(parent); err != nil {
+		return fmt.Errorf("owned parent unavailable: %w", err)
+	}
+	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("refuse symlink worktree path: %s", path)
+	}
+	o.parent, o.path = parent, path
+	return nil
+}
+func registrationPresent(root, path string) (bool, error) {
+	out, err := runGit(root, "worktree", "list", "--porcelain")
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if line == "worktree "+path {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+func (o *worktreeOwner) cleanup() error {
+	if err := o.validate(); err != nil {
+		return err
+	}
+	if !o.addAttempted {
+		return os.Remove(o.parent)
+	}
+	if !o.registered {
+		present, err := registrationPresent(o.root, o.path)
+		if err != nil {
+			return fmt.Errorf("verify partial worktree registration: %w", err)
+		}
+		if !present {
+			return os.Remove(o.parent)
+		}
+		o.registered = true
+	}
+	removeOut, removeErr := runGit(o.root, "worktree", "remove", "--force", o.path)
+	if removeErr != nil {
+		return fmt.Errorf("remove worktree %s: %w (%s)", o.path, removeErr, strings.TrimSpace(string(removeOut)))
+	}
+	present, verifyErr := registrationPresent(o.root, o.path)
+	if verifyErr != nil {
+		return fmt.Errorf("verify worktree cleanup: %w", verifyErr)
+	}
+	if present {
+		return fmt.Errorf("worktree registration remains: %s", o.path)
+	}
+	if err := os.RemoveAll(o.parent); err != nil {
+		return fmt.Errorf("remove owned parent %s: %w", o.parent, err)
+	}
+	return nil
+}
+
 func runCmd(dir string, args ...string) error {
 	c := exec.Command(args[0], args[1:]...)
 	c.Dir = dir

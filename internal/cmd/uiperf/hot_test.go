@@ -32,14 +32,3 @@ func TestHotBenchRegexQuotesNames(t *testing.T) {
 		t.Fatal("regex was not quoted")
 	}
 }
-func TestCleanupWorktreeRejectsUnownedPath(t *testing.T) {
-	if err := cleanupWorktree("/tmp", "relative-tree"); err == nil {
-		t.Fatal("expected ownership/path error")
-	}
-}
-
-func TestCleanupWorktreeReportsGitFailure(t *testing.T) {
-	if err := cleanupWorktree("/definitely/not/a/repository", "/tmp/uiperf-owned-tree"); err == nil {
-		t.Fatal("expected cleanup error")
-	}
-}
