@@ -8,49 +8,91 @@ import (
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/editor"
 	"github.com/tangoui/tango/ui/editor/buffer"
+	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/layout"
 )
 
 type searchPanel struct {
-	open          bool
-	query         string
-	replacement   string
-	caseSensitive bool
-	status        string
+	open                    bool
+	replaceMode, focusQuery bool
+	query                   string
+	replacement             string
+	caseSensitive           bool
+	status                  string
+}
+
+// showSearch preserves the query when switching between Find and Replace.
+func showSearch(replace bool) {
+	search.open, search.replaceMode, search.focusQuery = true, replace, true
+	search.status = ""
+	if runner != nil {
+		runner.Invalidate()
+	}
 }
 
 func (p *searchPanel) render(c *ui.Context, target *editor.State) bool {
 	if !p.open || target == nil {
 		return false
 	}
-	ui.Modal(c, &p.open, "Find and Replace").Width(640).NoFooter().Body(func() {
-		ui.Input(c, &p.query).Placeholder("Find").A11yLabel("Find text").Width(600)
-		ui.Input(c, &p.replacement).Placeholder("Replace with").A11yLabel("Replacement text").Width(600)
-		ui.Checkbox(c, "Case sensitive", &p.caseSensitive)
+	th := c.Theme
+	ui.Column(c, func() {
 		ui.Row(c, func() {
-			if ui.Button(c, "Find Previous").Clicked() {
-				p.find(target, false)
+			toggleIcon := icon.Right
+			if p.replaceMode {
+				toggleIcon = icon.Down
 			}
-			if ui.Button(c, "Find Next").Clicked() {
+			shellIcon(c, toggleIcon, "Toggle replacement", func() { p.replaceMode = !p.replaceMode; ui.Invalidate(c.Window()) })
+			query := ui.Input(c, &p.query).Placeholder("Find").A11yLabel("Find text").Layout(layout.Grow(1), layout.MinW(0))
+			if p.focusQuery {
+				query.Focus()
+				p.focusQuery = false
+			}
+			if query.Submitted() {
 				p.find(target, true)
 			}
-			if ui.Button(c, "Replace").Clicked() {
-				p.replace(target)
-			}
-			if ui.Button(c, "Replace All").Clicked() {
-				count, err := replaceAll(target, p.query, p.replacement, p.caseSensitive)
-				if err != nil {
-					p.status = err.Error()
-				} else {
-					p.status = replaceStatus(count)
+			shellIcon(c, icon.ArrowUp, "Previous match", func() { p.find(target, false) })
+			shellIcon(c, icon.ArrowDown, "Next match", func() { p.find(target, true) })
+			shellIcon(c, icon.Close, "Close search", func() { p.close(c) })
+		}, layout.Middle(), layout.Gap(th.PaddingXXS))
+		if p.replaceMode {
+			ui.Row(c, func() {
+				ui.Div(c, layout.W(th.ControlHeightSM))
+				replacement := ui.Input(c, &p.replacement).Placeholder("Replace with").A11yLabel("Replacement text").Layout(layout.Grow(1), layout.MinW(0))
+				if replacement.Submitted() {
+					p.replace(target)
 				}
-			}
-		}, layout.Gap(8))
-		if p.status != "" {
-			ui.Text(c, p.status)
+				if ui.Button(c, "Replace").Small().A11yLabel("Replace match").Clicked() {
+					p.replace(target)
+				}
+				if ui.Button(c, "Replace all").Small().Clicked() {
+					count, err := replaceAll(target, p.query, p.replacement, p.caseSensitive)
+					if err != nil {
+						p.status = err.Error()
+					} else {
+						p.status = replaceStatus(count)
+					}
+				}
+			}, layout.Middle(), layout.Gap(th.PaddingXXS))
 		}
-	})
+		ui.Row(c, func() {
+			ui.Div(c, layout.W(th.ControlHeightSM))
+			ui.Checkbox(c, "Match case", &p.caseSensitive)
+			ui.Spacer(c)
+			if p.status != "" {
+				ui.Text(c, p.status).Size(th.FontSizeSM).Secondary().NoWrap().Ellipsis().Layout(layout.MaxW(220))
+			}
+		}, layout.Middle(), layout.Gap(th.PaddingXS))
+	}, layout.Pad(th.PaddingXS), layout.Gap(th.PaddingXXS)).Bg(th.BgContainer)
+	if c.Escape() {
+		p.close(c)
+	}
 	return true
+}
+
+func (p *searchPanel) close(c *ui.Context) {
+	p.open = false
+	restoreEditorFocus()
+	ui.Invalidate(c.Window())
 }
 
 func replaceStatus(count int) string {

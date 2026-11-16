@@ -11,7 +11,6 @@ import (
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/monarch"
 	"github.com/tangoui/tango/ui/editor/theme"
-	uitheme "github.com/tangoui/tango/ui/theme"
 )
 
 var errEmptySearch = errors.New("editor-demo: search text is empty")
@@ -208,16 +207,7 @@ func (c *documentController) setTheme(name string) {
 	if second != nil {
 		second.Theme = c.theme
 	}
-	if runner != nil {
-		shell := uitheme.AntDesign()
-		if name == "vs-dark" || name == "hc-black" {
-			shell = uitheme.AntDesign(uitheme.Dark())
-		}
-		if name == "hc-black" || name == "hc-light" {
-			shell = uitheme.HighContrast(shell)
-		}
-		runner.SetTheme(shell)
-	}
+	restoreEditorFocus()
 }
 
 func restoreEditorFocus() {
