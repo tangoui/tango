@@ -23,16 +23,16 @@
 - The custom close button must not bypass Surface.OnClose.
 
 ### Task 1: Real filesystem navigation
-- [ ] Add tests for sorted directories, lazy loading, symlinks, error preservation and guarded file selection.
-- [ ] Observe failure; implement explorer.go and native Open Folder using existing dialog and guarded document opening.
-- [ ] Run editor-demo tests.
+- [x] Add tests for sorted directories, lazy loading, symlinks, error preservation and guarded file selection.
+- [x] Observe failure; implement explorer.go and native Open Folder using existing dialog and guarded document opening.
+- [x] Run editor-demo tests.
 
 ### Task 2: Correct workbench composition
-- [ ] Add Driver regressions for no settings form in sidebar, aligned explorer/tab rows, narrow code space and custom-frame close guard.
-- [ ] Replace redundant menu row with existing TitleBar, macOS native traffic-light reservation, shared-height explorer/tab headers and existing Splitter sidebar.
-- [ ] Render light/dark/narrow/split/tree states and inspect actual native preview; fix clipping/geometry.
+- [x] Add Driver regressions for no settings form in sidebar, aligned explorer/tab rows, narrow code space and custom-frame close guard.
+- [x] Replace redundant menu row with existing TitleBar, macOS native traffic-light reservation, shared-height explorer/tab headers and existing Splitter sidebar.
+- [x] Render light/dark/narrow/split/tree states and inspect actual native preview; fix clipping/geometry.
 
 ### Task 3: Final verification
-- [ ] Test editor package/full suite, build, vet, formatting and diff checks.
-- [ ] Fresh read-only review of final diff and regressions for significant findings.
-- [ ] Launch separate final preview and provide actual screenshot evidence. Leave unmerged until the corrected layout is reviewable.
+- [x] Test editor package/full suite, build, vet, formatting and diff checks.
+- [x] Fresh read-only review of final diff and regressions for significant findings.
+- [x] Launch separate final preview and provide actual screenshot evidence. Leave unmerged until the corrected layout is reviewable.
