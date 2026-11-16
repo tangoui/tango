@@ -400,9 +400,11 @@ func (d *Device) Execute(f *gpu.Frame) error {
 		return d.syncFailed(err)
 	}
 	if err := d.stage(f); err != nil {
+		d.imagePool.clear()
 		return err
 	}
 	if err := d.assignLayers(f); err != nil {
+		d.imagePool.clear()
 		return err
 	}
 	nInst := 0
@@ -1398,10 +1400,12 @@ func (d *Device) ReadPixels() (*image.RGBA, error) {
 	w, h := d.targetSize.X, d.targetSize.Y
 	n := w * h * 4
 	if err := ensureBuffer(d.dev, &d.readBuf, &d.readCap, n, storageModeShared); err != nil {
+		d.imagePool.clear()
 		return nil, err
 	}
 	cb := d.queue.Send(sel("commandBuffer"))
 	if cb == 0 {
+		d.imagePool.clear()
 		return nil, errors.New("metal: commandBuffer failed")
 	}
 	enc := cb.Send(sel("blitCommandEncoder"))

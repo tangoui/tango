@@ -6,6 +6,7 @@ import (
 	"errors"
 	"image"
 	"image/color"
+	"strings"
 	"testing"
 	"time"
 
@@ -229,6 +230,63 @@ func TestMetalImagePoolTrim(t *testing.T) {
 	}
 	if err := d.Execute(&gpu.Frame{Size: image.Pt(1, 1)}); err != ErrClosed {
 		t.Fatalf("closed device accepted frame: %v", err)
+	}
+}
+
+// Native nil receivers return nil objects, letting the real allocation paths
+// fail without a production allocator hook or a machine-wide memory shortage.
+func TestMetalImagePoolAllocationErrors(t *testing.T) {
+	for _, kind := range []string{"stage-buffer", "read-buffer", "read-command"} {
+		t.Run(kind, func(t *testing.T) {
+			d := newDevice(t)
+			a := imageReuseFrame(1, image.Pt(5, 3), color.RGBA{180, 40, 20, 255})
+			if err := d.Execute(&a); err != nil {
+				t.Fatal(err)
+			}
+			b := imageReuseFrame(2, image.Pt(6, 4), color.RGBA{20, 140, 80, 255})
+			b.ImageFrees = []int{1}
+			if err := d.Execute(&b); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.Wait(); err != nil {
+				t.Fatal(err)
+			}
+			if d.imagePool.n == 0 {
+				t.Fatal("allocation failure fixture has no spare")
+			}
+			dev, queue, failures := d.dev, d.queue, d.failures
+			defer func() { d.dev, d.queue = dev, queue }()
+			var err error
+			want := "cannot allocate"
+			switch kind {
+			case "stage-buffer":
+				d.dev, d.stagingCap = 0, 0
+				b.ImageFrees = nil
+				err = d.Execute(&b)
+			case "read-buffer":
+				d.dev = 0
+				_, err = d.ReadPixels()
+			case "read-command":
+				d.queue = 0
+				_, err = d.ReadPixels()
+				want = "commandBuffer failed"
+			}
+			d.dev, d.queue = dev, queue
+			if err == nil || !strings.Contains(err.Error(), want) {
+				t.Fatalf("%s did not reach native failure: %v", kind, err)
+			}
+			if d.failures != failures || d.pendingErr != nil || d.lost != nil {
+				t.Fatal("raw native failure changed the established failure policy")
+			}
+			if d.imagePool.n != 0 || d.imagePool.bytes != 0 {
+				t.Fatal("native failure kept unused textures resident")
+			}
+			b.ImageFrees = nil
+			if err := d.Execute(&b); err != nil {
+				t.Fatal(err)
+			}
+			assertReuseFrameColor(t, d, color.RGBA{20, 140, 80, 255})
+		})
 	}
 }
 
