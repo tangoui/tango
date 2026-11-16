@@ -156,8 +156,9 @@ type Device struct {
 	copyStats          *copyStats        // nil normally; opt-in internal test counters, no atomics
 	lastRetiredGPU     time.Duration     // GPU time of the last retired command buffer
 	submits, frames    uint64            // command buffers committed / frames committed by Execute
-	failedFrame        uint64            // frame of the last counted command-buffer failure
-	failedSeen         bool              // failedFrame is set
+	retiringFrame      uint64            // frame of the submissions being retired (noteRetired)
+	retiringSet        bool              // retiringFrame is set
+	retiringFailed     bool              // a submission of retiringFrame failed (counted once)
 
 	timeline     func(Timing)  // diagnostics callback (SetTimeline); nil normally
 	drawableWait time.Duration // the next present submission's nextDrawable wait
@@ -1374,28 +1375,37 @@ func (d *Device) report(s submission, cb id, err error) {
 	d.timeline(t)
 }
 
-// noteRetired records a retired submission's outcome. A failure marks the
-// target as not holding a frame and is reported by the next Execute; the
-// failures of one frame's submissions (its draw and its present) count as
-// one toward maxFailures, as when they were waited for together. A frame
-// (or readback) that completed resets the count; a present alone does not.
+// noteRetired records a retired submission's outcome. Submissions retire in
+// commit order, so a frame's submissions (its draw, its present, a readback
+// of it) retire together and the first submission of a later frame means
+// the earlier frame is done. The failures of one frame count once toward
+// maxFailures, as when they were waited for together; the count resets only
+// when a frame is done with every submission completed (a failing present
+// with succeeding draws still adds up to a lost device). A failure clears
+// hasFrame only when it belongs to the latest committed frame: a late
+// failure of an earlier frame says nothing about the target the newer frame
+// drew, and is reported (pendingErr) only if it is that frame's first.
 func (d *Device) noteRetired(s submission, err error, removed bool) {
-	if err == nil {
-		if s.kind != submitPresent {
+	if !d.retiringSet || s.frame != d.retiringFrame {
+		if d.retiringSet && !d.retiringFailed {
 			d.failures = 0
 		}
+		d.retiringSet, d.retiringFrame, d.retiringFailed = true, s.frame, false
+	}
+	if err == nil {
 		return
 	}
-	if d.failedSeen && d.failedFrame == s.frame {
+	if s.frame == d.frames {
 		d.hasFrame = false
-		d.pendingErr = err
-		if removed && d.lost == nil {
-			d.lost = fmt.Errorf("%w: %w", ErrDeviceLost, err)
-		}
-		return
 	}
-	d.failedSeen, d.failedFrame = true, s.frame
-	d.gpuFailed(err, removed)
+	if !d.retiringFailed {
+		d.retiringFailed = true
+		d.pendingErr = err
+		d.failures++
+	}
+	if d.lost == nil && (removed || d.failures >= maxFailures) {
+		d.lost = fmt.Errorf("%w: %w", ErrDeviceLost, err)
+	}
 }
 
 // retireForFrame retires what Execute must not overlap: every frame (it
@@ -1441,7 +1451,11 @@ func (d *Device) wait() (time.Duration, error) {
 	if first != nil {
 		return 0, first
 	}
-	d.failures = 0
+	// Everything committed is done: a frame whose submissions all completed
+	// ends the run of failures (noteRetired resets only at the next frame).
+	if d.retiringSet && !d.retiringFailed {
+		d.failures = 0
+	}
 	return g, nil
 }
 

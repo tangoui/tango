@@ -11,7 +11,7 @@
 |------|------|
 | `65a42cb` | `submissionQueue`：按提交顺序退休的 command buffer 队列，替代 `[]id` |
 | `516666e` | A1：Execute 不再 drain 全部；只退休 frame/readback 提交（它们引用的 instance/staging 是单份共享缓冲），present 提交可跨 Execute 保持 in-flight；frame+present 统一上限 2，present 满时只退休最老一个；同一帧 draw+present 的失败只计一次 |
-| `39e868d` | B1：`Device.SetTimeline` 内部诊断，退休时报告种类、帧号、commit 时间、GPU start/end（不可得为 unknown）、present 的 `nextDrawable` 等待（与 GPU 时间分开）；拿不到 drawable 报告 miss；layer 开启 `allowsNextDrawableTimeout` |
+| `39e868d` | B1：`Device.SetTimeline` 内部诊断，退休时报告种类、帧号、commit 时间、GPU start/end（不可得为 unknown）、present 的 `nextDrawable` 等待（与 GPU 时间分开）；拿不到 drawable 报告 miss |
 | `de9f53e`、`aa1cc26` | `BenchmarkPresentLoop`：同一二进制两臂（`drain` = A1 之前行为，仅测试可开的字段；`a1`），全窗编辑器帧 3840×2160，Render+present 无 Wait，与 uihost 一致；含关闭 display sync 的场景 |
 
 公共 API 不变：`gpu.Device`、uihost、非 darwin 签名都没改；非 darwin 只多了一个空的 `SetTimeline`。
@@ -42,6 +42,9 @@ A1 明确不做资源 ring。Execute 每帧都会改写单份共享的 instance 
 
 ## 5. 未完成 / 未证明
 
+- **与已批准决策的偏差 1：drawable 有界等待没有实现。** 设计 §5 要求 `nextDrawable` 超过上限就跳过 present、不阻塞约 1 秒。`allowsNextDrawableTimeout` 默认就是 YES，显式设置它不改变行为；`nextDrawable` 仍可能在持有 Device 锁时阻塞约 1 秒（窗口不可见、drawable 全部被占用时），这与 A1 之前相同。要有更短的上限，必须把 drawable 获取移出加锁的同步路径，属于新设计，未做。
+- **与已批准决策的偏差 2：resize 不先 drain。** 设计 §6 写"resize 先 drain 再释放 target/spare"。实现里 present 仍在 GPU 上时，`ensureTextures`/`dropCopyTarget` 就会 `release` 旧 target。这是安全的：所有 command buffer 都用 `commandBuffer`（保留引用、默认 hazard tracking），GPU 用完前纹理不会真正释放。
+- **审查修复**：最终审查发现失败计数两处回归（present 持续失败、draw 成功时设备永不判定丢失；已计过的旧失败在新帧提交后再次上报并清掉新帧的 `hasFrame`），已用 `TestMetalAlternatingFailuresLoseDevice`、`TestMetalStaleFailureKeepsNewFrame` 复现并修复。
 - **20 轮低负载配对**：机器负载持续 >6，脚本在等负载降下来；结论目前基于单轮试跑。差值远小于噪声，预期不会改变结论，但未证明。
 - **真实窗口**：没有在前台真实窗口测；离屏 layer 的 drawable 节奏不等于真实显示器。CAMetalLayer 没有逐帧"已显示"反馈，所以任何 "photon latency" 都 not proven。
 - **编辑器 perfab ABAB**（`BenchmarkTypeTS20k` 等）：那套 harness 每帧显式 `Wait()`，A1 对它在定义上不改变行为（Wait 仍 drain 全部），所以没跑。

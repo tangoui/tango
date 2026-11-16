@@ -116,21 +116,59 @@ func TestMetalPresentRetiresOldestOnly(t *testing.T) {
 
 // TestMetalFailureCountedOncePerFrame: a failed frame and its failed
 // present count as one failure toward device loss, as the old batch wait
-// did; a later successful frame resets the count, a present does not.
+// did; the count resets only once a frame has retired with every one of
+// its submissions completed (known when the next frame's first submission
+// retires).
 func TestMetalFailureCountedOncePerFrame(t *testing.T) {
-	d := &Device{}
+	d := &Device{frames: 1}
 	boom := errors.New("boom")
 	d.noteRetired(submission{kind: submitFrame, frame: 1}, boom, false)
 	d.noteRetired(submission{kind: submitPresent, frame: 1}, boom, false)
 	if d.failures != 1 || d.pendingErr != boom || d.hasFrame {
 		t.Fatalf("failures=%d pending=%v hasFrame=%v, want 1/boom/false", d.failures, d.pendingErr, d.hasFrame)
 	}
-	d.noteRetired(submission{kind: submitPresent, frame: 2}, nil, false)
-	if d.failures != 1 {
-		t.Fatalf("a successful present reset failures to %d", d.failures)
-	}
+	d.frames = 2
 	d.noteRetired(submission{kind: submitFrame, frame: 2}, nil, false)
+	if d.failures != 1 {
+		t.Fatalf("frame 2's draw alone reset failures to %d", d.failures)
+	}
+	d.noteRetired(submission{kind: submitPresent, frame: 2}, nil, false)
+	d.frames = 3
+	d.noteRetired(submission{kind: submitFrame, frame: 3}, nil, false)
 	if d.failures != 0 {
-		t.Fatalf("a successful later frame left failures=%d", d.failures)
+		t.Fatalf("a fully successful frame 2 left failures=%d", d.failures)
+	}
+}
+
+// TestMetalAlternatingFailuresLoseDevice (review Important 1): presents
+// that keep failing while every draw succeeds must still add up to a lost
+// device. Steady-state retirement order is F(k-1), P(k-1), F(k), ... with
+// P(k-1) retired after F(k) was committed.
+func TestMetalAlternatingFailuresLoseDevice(t *testing.T) {
+	d := &Device{}
+	boom := errors.New("present failed")
+	for k := uint64(1); k <= maxFailures+1 && d.lost == nil; k++ {
+		d.frames = k
+		d.noteRetired(submission{kind: submitFrame, frame: k}, nil, false)
+		d.frames = k + 1 // the next frame is committed before P(k) retires
+		d.noteRetired(submission{kind: submitPresent, frame: k}, boom, false)
+	}
+	if !errors.Is(d.lost, ErrDeviceLost) {
+		t.Fatalf("failures=%d lost=%v: failing presents never lost the device", d.failures, d.lost)
+	}
+}
+
+// TestMetalStaleFailureKeepsNewFrame (review Important 2): once frame N's
+// failure was counted and frame N+1 committed, a late failure of frame N's
+// present neither counts again nor clears frame N+1's hasFrame/pendingErr.
+func TestMetalStaleFailureKeepsNewFrame(t *testing.T) {
+	d := &Device{frames: 1}
+	boom := errors.New("boom")
+	d.noteRetired(submission{kind: submitFrame, frame: 1}, boom, false)
+	d.pendingErr = nil             // Execute reported it
+	d.frames, d.hasFrame = 2, true // frame 2 committed
+	d.noteRetired(submission{kind: submitPresent, frame: 1}, boom, false)
+	if d.failures != 1 || !d.hasFrame || d.pendingErr != nil {
+		t.Fatalf("stale failure: failures=%d hasFrame=%v pending=%v, want 1/true/nil", d.failures, d.hasFrame, d.pendingErr)
 	}
 }

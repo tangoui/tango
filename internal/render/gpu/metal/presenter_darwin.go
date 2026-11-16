@@ -221,9 +221,11 @@ func newPresenter(layer uintptr) (*presenter, error) {
 	msgSetID(l, sel("setDevice:"), dev.dev)
 	msgSetU64(l, sel("setPixelFormat:"), pixelFormatBGRA8Unorm)
 	msgSetBool(l, sel("setFramebufferOnly:"), true)
-	// nextDrawable must give up (return nil) rather than block forever
-	// when every drawable is held; Core Animation's timeout is about one
-	// second and is not configurable, so that is the bound present has.
+	// nextDrawable gives up (returns nil) after Core Animation's fixed
+	// timeout of about one second instead of blocking forever. YES is the
+	// default; it is set explicitly because present relies on it. This is
+	// the only bound present has: a shorter one would need the drawable to
+	// be acquired off this path (not done; see the async present report).
 	msgSetBool(l, sel("setAllowsNextDrawableTimeout:"), true)
 	if kCGColorSpaceSRGB != 0 {
 		if cs := cgColorSpaceCreateWithName(kCGColorSpaceSRGB); cs != 0 {
