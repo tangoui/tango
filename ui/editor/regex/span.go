@@ -3,7 +3,6 @@ package regex
 import (
 	"bytes"
 	"regexp/syntax"
-	"time"
 	"unicode"
 	"unicode/utf8"
 )
@@ -288,7 +287,7 @@ func TryMatchStartNoCaptures(re Regexp, s string, rs []rune, dst []int) ([]int, 
 			}
 			return append(dst[:0], 0, len(r.assertion.consume)), nil
 		}
-		return r.tryMatchStartWithCaptures(s, rs, r.re.FindRunesMatch, time.Now, false, dst)
+		return r.tryMatchStartNoCaptures(s, rs, dst)
 	default:
 		m, err := re.TryMatchStart(s, rs)
 		if m != nil {

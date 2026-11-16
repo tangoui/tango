@@ -243,6 +243,53 @@ func (r *backtrackRegexp) tryMatchStart(s string, rs []rune, find func([]rune) (
 	return r.tryMatchStartWithCaptures(s, rs, find, now, true, nil)
 }
 
+func (r *backtrackRegexp) tryMatchStartNoCaptures(s string, rs []rune, dst []int) ([]int, error) {
+	if rs == nil {
+		rs = []rune(s)
+	}
+	start := time.Now()
+	confirmed := false
+	for {
+		from, length, ok, err := r.re.FindRunesMatchLength(rs)
+		if err == nil {
+			if !ok {
+				return nil, nil
+			}
+			to := from + length
+			if to <= len(s) {
+				ascii := true
+				for i := 0; i < to; i++ {
+					if s[i] >= utf8.RuneSelf {
+						ascii = false
+						break
+					}
+				}
+				if ascii {
+					return append(dst[:0], from, to), nil
+				}
+			}
+			byteOff := make([]int, 0, to+1)
+			for b := 0; len(byteOff) <= to; {
+				byteOff = append(byteOff, b)
+				_, size := utf8.DecodeRuneInString(s[b:])
+				b += size
+			}
+			return append(dst[:0], byteOff[from], byteOff[to]), nil
+		}
+		if !strings.Contains(err.Error(), "timeout") {
+			return nil, fmt.Errorf("regex: match %q: %w", r.src, err)
+		}
+		if now := time.Now(); now.Sub(start) >= matchTimeout {
+			if confirmed {
+				nTimeouts.Add(1)
+				return nil, ErrTimeout
+			}
+			confirmed = true
+			start = now
+		}
+	}
+}
+
 func (r *backtrackRegexp) tryMatchStartWithCaptures(s string, rs []rune, find func([]rune) (*regexp2.Match, error), now func() time.Time, captures bool, dst []int) ([]int, error) {
 	if rs == nil {
 		rs = []rune(s)
