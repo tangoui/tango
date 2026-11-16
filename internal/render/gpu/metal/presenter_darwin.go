@@ -300,7 +300,7 @@ func (p *presenter) present(size image.Point, scale float32) error {
 	defer runtime.UnlockOSThread()
 	defer autoreleasePool()()
 
-	if len(d.inflight) >= maxInflight {
+	if len(d.inflight.items) >= maxInflight {
 		d.wait()
 	}
 	if d.lost != nil {

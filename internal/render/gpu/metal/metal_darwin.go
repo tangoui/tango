@@ -130,7 +130,7 @@ type Device struct {
 	noImage                                   id         // 1×1 texture bound to TexImage for batches without an image
 	instBuf, staging, readBuf                 id
 	instCap, stagingCap, readCap              int
-	inflight                                  []id // committed, not yet waited command buffers, in commit order
+	inflight                                  submissionQueue // committed, not yet waited command buffers, in commit order
 	hasFrame, closed                          bool
 	commits                                   int      // frames committed by Execute and present (tests)
 	failures                                  int      // consecutive failed frames
@@ -154,6 +154,7 @@ type Device struct {
 	copyTargetIdle     int
 	copyKeep, copyNext []image.Rectangle // bounded, reusable complement-planning buffers
 	copyStats          *copyStats        // nil normally; opt-in internal test counters, no atomics
+	lastRetiredGPU     time.Duration
 }
 
 // copyStats counts the actual scroll-copy commands of the last encoded
@@ -1297,37 +1298,61 @@ func ensureBuffer(dev id, buf *id, capacity *int, n int, opts uint64) error {
 	return nil
 }
 
-// commit commits cb and keeps it (retained) until wait.
+// commit commits cb and keeps it (retained) until retirement.
 func (d *Device) commit(cb id) {
 	cb.Send(sel("commit"))
-	d.inflight = append(d.inflight, retain(cb))
+	retained := retain(cb)
+	d.inflight.push(submission{
+		id: uint64(d.commits),
+		cb: retained,
+		retire: func() error {
+			return d.retireCommand(retained)
+		},
+	})
+}
+
+// retireCommand waits for one command buffer, records its completion error and
+// releases its Objective-C reference. The Device mutex is held by callers.
+func (d *Device) retireCommand(cb id) error {
+	cb.Send(sel("waitUntilCompleted"))
+	if st := msgU64(cb, sel("status")); st != cbStatusCompleted {
+		e := cb.Send(sel("error"))
+		err := nsError(fmt.Sprintf("metal: command buffer status %d", st), e)
+		d.gpuFailed(err, cbErrorLost(e))
+		release(cb)
+		return err
+	}
+	d.lastRetiredGPU = time.Duration((msgF64(cb, sel("GPUEndTime")) - msgF64(cb, sel("GPUStartTime"))) * float64(time.Second))
+	release(cb)
+	return nil
+}
+
+// waitOldest retires only the oldest submission.
+func (d *Device) waitOldest() (time.Duration, error) {
+	if len(d.inflight.items) == 0 {
+		return 0, nil
+	}
+	d.lastRetiredGPU = 0
+	err := d.inflight.waitOldest()
+	return d.lastRetiredGPU, err
 }
 
 // wait blocks until every committed command buffer completes and returns
-// the GPU time of the last one. A failed buffer is recorded (gpuFailed)
-// and its error returned; when all succeeded the failure count resets.
+// the GPU time of the last one. A failed buffer is recorded and its error is
+// returned; when all succeeded the failure count resets.
 func (d *Device) wait() (time.Duration, error) {
-	if len(d.inflight) == 0 {
+	if len(d.inflight.items) == 0 {
 		return 0, nil
 	}
 	var g time.Duration
 	var first error
-	for i, cb := range d.inflight {
-		cb.Send(sel("waitUntilCompleted"))
-		if st := msgU64(cb, sel("status")); st != cbStatusCompleted {
-			e := cb.Send(sel("error"))
-			err := nsError(fmt.Sprintf("metal: command buffer status %d", st), e)
-			if first == nil {
-				first = err
-				d.gpuFailed(err, cbErrorLost(e))
-			}
-		} else {
-			g = time.Duration((msgF64(cb, sel("GPUEndTime")) - msgF64(cb, sel("GPUStartTime"))) * float64(time.Second))
+	for len(d.inflight.items) > 0 {
+		var err error
+		g, err = d.waitOldest()
+		if err != nil && first == nil {
+			first = err
 		}
-		release(cb)
-		d.inflight[i] = 0
 	}
-	d.inflight = d.inflight[:0]
 	if first != nil {
 		return 0, first
 	}
