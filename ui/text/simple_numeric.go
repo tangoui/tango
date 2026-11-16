@@ -57,11 +57,68 @@ func numericFaceFor(st Style, lang string, version int) (numericFaceValue, bool)
 	numericFaces[k] = v
 	return v, true
 }
+func directNumericLayout(s string, st Style, opt Options, version int) *Layout {
+	return directNumericLayoutInto(nil, s, st, opt, version)
+}
+
+func directNumericLayoutInto(dst *Layout, s string, st Style, opt Options, version int) *Layout {
+	st = st.norm()
+	if !simpleNumericText(s) || !opt.NoWrap || opt.Ellipsis || opt.MaxLines != 0 || opt.Direction == DirRTL {
+		return nil
+	}
+	nf, ok := numericFaceFor(st, resolveLang(st), version)
+	if !ok || len(nf.feats) != 0 {
+		return nil // preserve feature-bearing shaping semantics
+	}
+	face := nf.face
+	if face == nil {
+		return nil
+	}
+	gt := face.gt()
+	if gt == nil {
+		return nil
+	}
+	if dst == nil {
+		dst = &Layout{}
+	}
+	l := dst
+	oldRunes, oldGlyphs, oldClusters, oldRuns := l.Runes, l.Glyphs, l.GlyphCluster, l.GlyphRun
+	*l = Layout{Text: s, Style: st, LineHeight: st.LineHeight}
+	l.Runes = oldRunes[:0]
+	l.Glyphs = oldGlyphs[:0]
+	l.GlyphCluster = oldClusters[:0]
+	l.GlyphRun = oldRuns[:0]
+	asc, desc := face.Metrics(st.Size)
+	l.Ascent, l.Height = asc, st.LineHeight
+	pen := float32(0)
+	for _, r := range s {
+		gid, exists := gt.NominalGlyph(r)
+		if !exists {
+			return nil
+		}
+		adv := gt.HorizontalAdvance(gid) * st.Size / face.upem
+		l.Runes = append(l.Runes, r)
+		l.Glyphs = append(l.Glyphs, paint.Glyph{Src: face, ID: uint32(gid), Size: st.Size, X: pen, Y: (st.LineHeight-(asc+desc))/2 + asc})
+		pen += adv
+	}
+	l.GlyphCluster = make([]int32, len(l.Glyphs))
+	l.GlyphRun = make([]int32, len(l.Glyphs))
+	for i := range l.GlyphCluster {
+		l.GlyphCluster[i] = int32(i)
+	}
+	l.Lines = []Line{{Start: 0, End: len(l.Runes), Width: pen, Baseline: (st.LineHeight-(asc+desc))/2 + asc}}
+	l.Width = pen
+	return l
+}
+
 func simpleNumericLayout(s string, st Style, opt Options, version int) *Layout {
-	return simpleNumericLayoutInto(nil, s, st, opt, version)
+	return directNumericLayout(s, st, opt, version)
 }
 
 func simpleNumericLayoutInto(dst *Layout, s string, st Style, opt Options, version int) *Layout {
+	if fast := directNumericLayoutInto(dst, s, st, opt, version); fast != nil {
+		return fast
+	}
 	st = st.norm()
 	if !simpleNumericText(s) || !opt.NoWrap || opt.Ellipsis || opt.MaxLines != 0 || opt.Direction == DirRTL {
 		return nil

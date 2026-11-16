@@ -14,3 +14,23 @@ func TestShapeIntoReusesNumericLayout(t *testing.T) {
 		t.Fatal("numeric layout buffers were replaced")
 	}
 }
+
+func TestDirectNumericLayoutPreservesMetrics(t *testing.T) {
+	st := Style{Size: 11}
+	opt := Options{NoWrap: true}
+	got := directNumericLayout("123.45", st, opt, 0)
+	if got == nil || len(got.Glyphs) != 6 {
+		t.Fatalf("direct numeric layout = %#v", got)
+	}
+	want := Shape("123.45", st, opt)
+	if absFloat(got.Width-want.Width) > 0.01 || got.Height != want.Height {
+		t.Fatalf("direct metrics width=%v height=%v; shaped width=%v height=%v", got.Width, got.Height, want.Width, want.Height)
+	}
+}
+
+func absFloat(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
