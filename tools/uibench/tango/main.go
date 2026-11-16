@@ -29,6 +29,22 @@ func scenes() map[string]scene {
 		"counter": {360, 260, counterPage()},
 		"list":    {800, 600, listPage()},
 		"grid":    {800, 600, gridPage()},
+		// Component scenes (scene_components.go).
+		"buttons":     {800, 600, buttonsPage()},
+		"inputs":      {800, 600, inputsPage()},
+		"textarea":    {800, 600, textareaPage()},
+		"checkboxes":  {800, 600, checkboxesPage()},
+		"radios":      {800, 600, radiosPage()},
+		"switches":    {800, 600, switchesPage()},
+		"sliders":     {800, 600, slidersPage()},
+		"progress":    {800, 600, progressPage()},
+		"tabs":        {800, 600, tabsPage()},
+		"menu":        {800, 600, menuPage()},
+		"dialog":      {800, 600, dialogPage()},
+		"toast":       {800, 600, toastPage()},
+		"tree":        {800, 600, treePage()},
+		"datepicker":  {800, 600, datepickerPage()},
+		"colorpicker": {800, 600, colorpickerPage()},
 	}
 }
 
@@ -66,7 +82,7 @@ func report(work int) {
 }
 
 func main() {
-	name := flag.String("scene", "counter", "scene: counter, list or grid")
+	name := flag.String("scene", "counter", "scene: counter, list, grid or a component scene (../scenes.md)")
 	flag.Parse()
 	s, ok := scenes()[*name]
 	if !ok {

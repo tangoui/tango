@@ -13,7 +13,10 @@ programs, as the design (docs/superpowers/specs/2026-11-16-ui-component-performa
 | `mygo/` | `tango.local/uibench/mygo` | MyGo v0.9.0 scenes, self-drawn `ui` mode |
 | `nsgo/` | `tango.local/uibench/nsgo` | NSGo scenes (`replace github.com/nsgo-dev/nsgo => ../third_party/nsgo`) |
 
-Scenes and their per-frame work: [scenes.md](scenes.md).
+Scenes and their per-frame work: [scenes.md](scenes.md) (the base scenes
+counter, list and grid, and the component scenes: buttons, inputs, textarea,
+checkboxes, radios, switches, sliders, progress, tabs, menu, dialog, toast,
+tree, datepicker, colorpicker).
 
 ## Use
 
@@ -27,6 +30,9 @@ GOWORK=off go run . -bin ../bin -scenes counter,list,grid -frameworks tango,mygo
 	-rounds 5 -settle 3s -seconds 10 -out ../results/$(date +%F).json
 # smoke (opens windows, about 2 minutes; not a performance result):
 GOWORK=off go run . -bin ../bin -scenes counter,list,grid -rounds 1 -seconds 3 -out ../results/smoke.json
+# component scenes smoke:
+GOWORK=off go run . -bin ../bin -rounds 1 -seconds 3 -out ../results/smoke-components.json \
+	-scenes buttons,inputs,textarea,checkboxes,radios,switches,sliders,progress,tabs,menu,dialog,toast,tree,datepicker,colorpicker
 ```
 
 `go run ./runner` from tools/uibench does not work: tools/uibench has no
@@ -135,3 +141,6 @@ layout, the code organization and the grid's cell formula
 (`(cell*131 + frame*17) % 10000`, shared by all three programs) are this
 suite's own. Where the code resembles an opponent's, it is because the
 framework's API allows only that shape.
+The component scenes (Task 10) were written the same way: their texts,
+counts, starting values and formulas (`components_data.go`, shared by all
+three programs) are this suite's own.

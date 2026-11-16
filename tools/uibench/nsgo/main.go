@@ -26,6 +26,22 @@ func scenes() map[string]scene {
 		"counter": {360, 260, counterRoot},
 		"list":    {800, 600, listRoot},
 		"grid":    {800, 600, gridRoot},
+		// Component scenes (scene_components.go).
+		"buttons":     {800, 600, buttonsRoot},
+		"inputs":      {800, 600, inputsRoot},
+		"textarea":    {800, 600, textareaRoot},
+		"checkboxes":  {800, 600, checkboxesRoot},
+		"radios":      {800, 600, radiosRoot},
+		"switches":    {800, 600, switchesRoot},
+		"sliders":     {800, 600, slidersRoot},
+		"progress":    {800, 600, progressRoot},
+		"tabs":        {800, 600, tabsRoot},
+		"menu":        {800, 600, menuRoot},
+		"dialog":      {800, 600, dialogRoot},
+		"toast":       {800, 600, toastRoot},
+		"tree":        {800, 600, treeRoot},
+		"datepicker":  {800, 600, datepickerRoot},
+		"colorpicker": {800, 600, colorpickerRoot},
 	}
 }
 
@@ -44,7 +60,7 @@ func report(work int) {
 func main() {
 	// NSGo reads its own flags from os.Args; take -scene off first.
 	fs := flag.NewFlagSet("nsgo", flag.ContinueOnError)
-	name := fs.String("scene", "counter", "scene: counter, list or grid")
+	name := fs.String("scene", "counter", "scene: counter, list, grid or a component scene (../scenes.md)")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		os.Exit(2)
 	}
