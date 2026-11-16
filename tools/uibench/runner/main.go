@@ -257,27 +257,35 @@ func (m *monitor) setSampling(on bool) {
 type groups struct {
 	mu   sync.Mutex
 	pids map[int]bool
-	// stopping is set by stopAll: a program started after it is not
-	// tracked but killed at once (add returns false), so none outlives
-	// an interrupted runner.
+	// stopping is set by stopAll: after it start refuses to start a
+	// program, so none outlives an interrupted runner.
 	stopping bool
 }
 
 var running groups
 
-// add tracks the group of pid; it returns false when the runner is
-// stopping, and the caller must kill the group.
-func (g *groups) add(pid int) bool {
+// errStopping is start's refusal once stopAll has run.
+var errStopping = errors.New("runner stopping: program not started")
+
+// start runs launch (which starts a program and returns its pid) under
+// the same lock as stopAll and tracks the program's group. Once stopAll
+// has run it refuses with errStopping and never calls launch, so no
+// program can start between stopAll's sweep and the runner's exit.
+func (g *groups) start(launch func() (int, error)) (int, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.stopping {
-		return false
+		return 0, errStopping
+	}
+	pid, err := launch()
+	if err != nil {
+		return 0, err
 	}
 	if g.pids == nil {
 		g.pids = map[int]bool{}
 	}
 	g.pids[pid] = true
-	return true
+	return pid, nil
 }
 
 func (g *groups) remove(pid int) {
@@ -348,19 +356,18 @@ func runOnce(cfg config, fw, scene string) Round {
 	}
 	m := newMonitor()
 	start := time.Now()
-	if err := cmd.Start(); err != nil {
+	pid, err := running.start(func() (int, error) {
+		if err := cmd.Start(); err != nil {
+			return 0, err
+		}
+		return cmd.Process.Pid, nil
+	})
+	if err != nil {
 		r.Error = err.Error()
-		return r
-	}
-	if !running.add(cmd.Process.Pid) {
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		_ = cmd.Wait()
-		r.Error = "runner stopping: program killed at start"
 		return r
 	}
 	go m.read(stdout)
 	defer stop(cmd, m)
-	pid := cmd.Process.Pid
 
 	select {
 	case <-m.ready:

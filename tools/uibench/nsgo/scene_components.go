@@ -232,9 +232,10 @@ func tabsRoot(cx *core.Scope) core.Node {
 	}}
 }
 
-// menuRoot: a vertical menu of 12 items filling the window's height (it
-// scrolls); frame f selects item f%12. NSGo's vertical, selectable menu
-// is its Sidebar (its Menu is a popup from a trigger).
+// menuRoot: a vertical menu of 12 items in a column the window's height
+// (all 12 fit, nothing scrolls); frame f selects item f%12. NSGo's
+// vertical, selectable menu is its Sidebar (its Menu is a popup from a
+// trigger).
 func menuRoot(cx *core.Scope) core.Node {
 	sel := core.NewSignal(cx, menuKey(0))
 	everyFrame(cx, func(f int) int {

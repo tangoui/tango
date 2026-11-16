@@ -45,6 +45,31 @@ func scenes() map[string]scene {
 		"tree":        {800, 600, treePage()},
 		"datepicker":  {800, 600, datepickerPage()},
 		"colorpicker": {800, 600, colorpickerPage()},
+		// Nearest-counterpart scenes (scene_nearest.go).
+		"select":       {800, 600, selectPage()},
+		"tooltip":      {800, 600, tooltipPage()},
+		"table":        {800, 600, tablePage()},
+		"pagination":   {800, 600, paginationPage()},
+		"cascader":     {800, 600, cascaderPage()},
+		"transfer":     {800, 600, transferPage()},
+		"treeselect":   {800, 600, treeselectPage()},
+		"calendar":     {800, 600, calendarPage()},
+		"steps":        {800, 600, stepsPage()},
+		"timeline":     {800, 600, timelinePage()},
+		"descriptions": {800, 600, descriptionsPage()},
+		"form":         {800, 600, formPage()},
+		"upload":       {800, 600, uploadPage()},
+		"carousel":     {800, 600, carouselPage()},
+		"collapse":     {800, 600, collapsePage()},
+		"drawer":       {800, 600, drawerPage()},
+		"tour":         {800, 600, tourPage()},
+		"protable":     {800, 600, protablePage()},
+		"segmented":    {800, 600, segmentedPage()},
+		"rate":         {800, 600, ratePage()},
+		"tags":         {800, 600, tagsPage()},
+		"badges":       {800, 600, badgesPage()},
+		"cards":        {800, 600, cardsPage()},
+		"statistics":   {800, 600, statisticsPage()},
 	}
 }
 
@@ -81,6 +106,15 @@ func report(work int) {
 	proto.Frame(work)
 }
 
+// useEnglish shows the components' built-in texts (buttons, month and
+// weekday names, counts) in English, as all three programs do, whatever
+// the system's language: ui's English pack, kept by uihost.LocaleFixed.
+func useEnglish() {
+	if l, ok := ui.LocaleByCode("en"); ok {
+		ui.SetDefaultLocale(l)
+	}
+}
+
 func main() {
 	name := flag.String("scene", "counter", "scene: counter, list, grid or a component scene (../scenes.md)")
 	flag.Parse()
@@ -89,12 +123,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "uibench tango: unknown scene %q\n", *name)
 		os.Exit(2)
 	}
+	useEnglish()
 	quit := true
 	app := tango.New(tango.Options{Name: "uibench tango", ID: "local.tango.uibench", QuitOnLastClose: &quit})
 	app.OnReady(func() {
 		r, surface, err := uihost.Open(app, uihost.Options{Surface: tango.SurfaceOptions{
 			Title: "uibench tango " + *name, Width: s.width, Height: s.height, Centered: true,
-		}}, s.page, ui.RunnerOptions{Theme: theme.AntDesign()})
+		}, Locale: uihost.LocaleFixed}, s.page, ui.RunnerOptions{Theme: theme.AntDesign()})
 		if err != nil {
 			log.Fatal(err)
 		}

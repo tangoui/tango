@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"reflect"
 	"syscall"
 	"testing"
@@ -131,8 +132,11 @@ func TestMonitorDropsFirstGroup(t *testing.T) {
 
 func TestStopAllKillsGroups(t *testing.T) {
 	var g groups
-	g.add(101)
-	g.add(202)
+	for _, pid := range []int{101, 202} {
+		if _, err := g.start(func() (int, error) { return pid, nil }); err != nil {
+			t.Fatal(err)
+		}
+	}
 	g.remove(101)
 	var killed []int
 	g.stopAll(func(pid int, sig syscall.Signal) error {
@@ -146,20 +150,36 @@ func TestStopAllKillsGroups(t *testing.T) {
 	}
 }
 
-// After stopAll, a program that starts is refused (add reports false, so
-// runOnce kills it) and never tracked.
+// After stopAll, no program starts: start refuses without calling the
+// start function (it runs under the same lock as stopAll, so a child can
+// never start between stopAll's check and its kill), and nothing is tracked.
 func TestStopAllRefusesLateStarts(t *testing.T) {
 	var g groups
-	if !g.add(101) {
-		t.Fatal("add before stopAll refused")
+	if _, err := g.start(func() (int, error) { return 101, nil }); err != nil {
+		t.Fatalf("start before stopAll: %v", err)
 	}
 	g.stopAll(func(int, syscall.Signal) error { return nil })
-	if g.add(303) {
-		t.Fatal("add after stopAll accepted")
+	called := false
+	if _, err := g.start(func() (int, error) { called = true; return 303, nil }); err != errStopping {
+		t.Fatalf("start after stopAll: err %v, want errStopping", err)
+	}
+	if called {
+		t.Fatal("start after stopAll ran the program")
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if len(g.pids) != 0 {
 		t.Fatalf("groups left after stopAll: %v", g.pids)
+	}
+}
+
+// A start function that fails is not tracked.
+func TestStartFailureNotTracked(t *testing.T) {
+	var g groups
+	if _, err := g.start(func() (int, error) { return 0, errors.New("no such file") }); err == nil {
+		t.Fatal("failed start reported no error")
+	}
+	if len(g.pids) != 0 {
+		t.Fatalf("failed start tracked: %v", g.pids)
 	}
 }

@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // rounds makes n rounds of one framework at cpu cores of process CPU
 // (WindowServer adds a tenth of it), spread ±spread around it.
@@ -185,22 +188,71 @@ func TestJudgeDenseSixPercentInvalid(t *testing.T) {
 	if v, why := judgeWhy(tg, o, 5); v != Invalid {
 		t.Fatalf("verdict %s (%s), want Invalid", v, why)
 	}
-	if tol := workToleranceFor(1, tg, o); tol != workTolerance {
-		t.Fatalf("dense tolerance %v, want %v", tol, workTolerance)
+	if tol, ok := workToleranceFor(1, tg, o); !ok || tol != workTolerance {
+		t.Fatalf("dense tolerance %v (ok %v), want %v", tol, ok, workTolerance)
+	}
+}
+
+// A sparse scene whose reports cover fewer frames than one period has no
+// expected change to compare: Invalid ("too few sampled frames"), not a
+// 100% tolerance that would pass any work.
+func TestJudgeSparseTooFewFramesInvalid(t *testing.T) {
+	saved := sceneMetas
+	defer func() { sceneMetas = saved }()
+	sceneMetas = map[string]sceneMeta{"sparse": {period: 30}}
+	few := func(fw string, events int) []Round {
+		return rounds(fw, 5, 0.5, 0.1, func(_ int, r *Round) {
+			r.Scene, r.Seconds, r.FPS, r.Intervals = "sparse", 0.4, 60, 24
+			r.WorkPerSec = float64(events) / 0.4
+		})
+	}
+	tg, o := few("tango", 0), few("mygo", 1)
+	if _, ok := workToleranceFor(30, tg, o); ok {
+		t.Fatal("tolerance ok with 24 frames sampled at period 30")
+	}
+	v, why := judgeWhy(tg, o, 5)
+	if v != Invalid || !strings.Contains(why, "too few sampled frames") {
+		t.Fatalf("verdict %s (%s), want Invalid: too few sampled frames", v, why)
+	}
+}
+
+// The Task 11 scenes' periods and motion flags (scenes.md, "Default
+// motion"): those that change every 30th frame, and those whose change
+// the frameworks animate differently.
+func TestNearestSceneMetas(t *testing.T) {
+	want := map[string]sceneMeta{
+		"tooltip": {period: 30, unequalMotion: true}, "carousel": {period: 30, unequalMotion: true},
+		"collapse": {period: 30, unequalMotion: true}, "drawer": {period: 30, unequalMotion: true},
+		"tour": {period: 30}, "segmented": {period: 1, unequalMotion: true}, "steps": {period: 1, unequalMotion: true},
+		"select": {period: 1}, "table": {period: 1}, "pagination": {period: 1}, "cascader": {period: 1},
+		"transfer": {period: 1}, "treeselect": {period: 1}, "calendar": {period: 1}, "timeline": {period: 1},
+		"descriptions": {period: 1}, "form": {period: 1}, "upload": {period: 1}, "protable": {period: 1},
+		"rate": {period: 1}, "tags": {period: 1}, "badges": {period: 1}, "cards": {period: 1}, "statistics": {period: 1},
+	}
+	for scene, m := range want {
+		if got := metaOf(scene); got != m {
+			t.Errorf("%s: meta %+v, want %+v", scene, got, m)
+		}
 	}
 }
 
 // R37: a scene with unequal default motion is reported, not judged.
 func TestJudgeUnequalMotionInfo(t *testing.T) {
-	for _, scene := range []string{"tabs", "dialog", "toast"} {
+	for _, scene := range []string{"tabs", "dialog", "toast", "tooltip", "carousel", "collapse", "drawer", "segmented", "steps"} {
 		if !metaOf(scene).unequalMotion {
 			t.Fatalf("%s not flagged unequal motion", scene)
 		}
 		period := metaOf(scene).period
 		tg := sparse(scene, "tango", 5, 0.1, 180/period)
 		o := sparse(scene, "nsgo", 5, 1.0, 180/period)
-		if v, why := judgeWhy(tg, o, 5); v != Info {
+		v, why := judgeWhy(tg, o, 5)
+		if v != Info {
 			t.Fatalf("%s: verdict %s (%s), want Info", scene, v, why)
+		}
+		for _, part := range []string{"cpu ", "fps ", "p99 "} {
+			if !strings.Contains(why, part) {
+				t.Fatalf("%s: Info reason %q lacks %q", scene, why, part)
+			}
 		}
 		// Too few rounds and unequal work still make it Invalid.
 		if v := judge(tg[:2], o, 5); v != Invalid {

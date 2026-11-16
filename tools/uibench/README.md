@@ -14,9 +14,13 @@ programs, as the design (docs/superpowers/specs/2026-11-16-ui-component-performa
 | `nsgo/` | `tango.local/uibench/nsgo` | NSGo scenes (`replace github.com/nsgo-dev/nsgo => ../third_party/nsgo`) |
 
 Scenes and their per-frame work: [scenes.md](scenes.md) (the base scenes
-counter, list and grid, and the component scenes: buttons, inputs, textarea,
+counter, list and grid; the component scenes: buttons, inputs, textarea,
 checkboxes, radios, switches, sliders, progress, tabs, menu, dialog, toast,
-tree, datepicker, colorpicker).
+tree, datepicker, colorpicker; and the nearest-counterpart scenes: select,
+tooltip, table, pagination, cascader, transfer, treeselect, calendar,
+steps, timeline, descriptions, form, upload, carousel, collapse, drawer,
+tour, protable, segmented, rate, tags, badges, cards, statistics). The
+same file maps every Tango fixture entry to the scene it is compared in.
 
 ## Use
 
@@ -33,7 +37,14 @@ GOWORK=off go run . -bin ../bin -scenes counter,list,grid -rounds 1 -seconds 3 -
 # component scenes smoke:
 GOWORK=off go run . -bin ../bin -rounds 1 -seconds 3 -out ../results/smoke-components.json \
 	-scenes buttons,inputs,textarea,checkboxes,radios,switches,sliders,progress,tabs,menu,dialog,toast,tree,datepicker,colorpicker
+# nearest-counterpart scenes smoke:
+GOWORK=off go run . -bin ../bin -rounds 1 -seconds 3 -out ../results/smoke-nearest.json \
+	-scenes select,tooltip,table,pagination,cascader,transfer,treeselect,calendar,steps,timeline,descriptions,form,upload,carousel,collapse,drawer,tour,protable,segmented,rate,tags,badges,cards,statistics
 ```
+
+Each scene program's tests (`GOWORK=off go test ./...` in tango/, mygo/,
+nsgo/) also run the nearest-counterpart scenes headless and check what
+they show; they open no window.
 
 `go run ./runner` from tools/uibench does not work: tools/uibench has no
 go.mod, so the go command resolves the parent Tango module instead.
@@ -79,8 +90,9 @@ Per-second reports arrive as groups (frames, work, intervals). A group is
 taken whole or not at all, and the first group completed after sampling
 starts is dropped, since part of it lies before the start. Ctrl-C or
 SIGTERM stops the running scene program's process group before the runner
-exits (status 130), so no orphaned scene keeps drawing; a program that
-starts while the runner is stopping is killed at once rather than tracked.
+exits (status 130), so no orphaned scene keeps drawing; once stopping,
+the runner starts no further program (the start runs under the same lock
+as the stop, so none can slip in between).
 
 ## Judge
 
@@ -93,13 +105,15 @@ without error, not disturbed, not screen-locked and with a known renderer
   condition would hold by itself), a framework changed its
   renderer between rounds, or the work per frame (work/s ÷ fps) differs by
   more than the work tolerance: 5%, or for a scene that changes only every
-  `period` frames (tabs 10, dialog and toast 30) max(5%, 1/expected
-  changes), the expected changes being the frames sampled ÷ `period`
-  (R35: one change more or less at a report's edge is not a difference in
-  work);
+  `period` frames (tabs 10; dialog, toast, tooltip, carousel, collapse,
+  drawer and tour 30) max(5%, 1/expected changes), the expected changes
+  being the frames sampled ÷ `period` (R35: one change more or less at a
+  report's edge is not a difference in work); with less than one expected
+  change the rounds are `Invalid` ("too few sampled frames");
 - `Info` for a valid comparison of a scene whose default motion differs
-  between the frameworks (tabs, dialog, toast; scenes.md "Default
-  motion", ruling R37): CPU and frames are reported, not judged;
+  between the frameworks (tabs, dialog, toast, tooltip, carousel,
+  collapse, drawer, segmented, steps; scenes.md "Default motion", ruling
+  R37): CPU, fps and frame-interval p99 are reported, not judged;
 - `Faster` when Tango's median (process + WindowServer) CPU is at most half
   the opponent's, Tango's third quartile is below the opponent's first,
   median fps is at least the opponent's and median frame-interval p99 at
@@ -122,6 +136,12 @@ without error, not disturbed, not screen-locked and with a known renderer
   second would mix the frame rate into the work check; fps is judged on its own.
 - **The counter scene compares median memory** (phys_footprint, Tango ≤
   opponent) instead of fps and p99, alongside the CPU conditions.
+
+- **Built-in texts are English in all three** (from Task 11): Tango
+  `ui.SetDefaultLocale(en)` with `uihost.LocaleFixed`, MyGo
+  `mygo.App.SetLocale("en")`, NSGo `Scope.SetLocale("en")`, so that a
+  zh-Hans system does not give one framework Chinese labels and month
+  names and another English ones (scenes.md).
 
 - **Counter CPU is mostly noise.** At rest the process uses almost no CPU,
   and WindowServer's `ps` time has 10 ms resolution, so the counter's
@@ -152,3 +172,6 @@ framework's API allows only that shape.
 The component scenes (Task 10) were written the same way: their texts,
 counts, starting values and formulas (`components_data.go`, shared by all
 three programs) are this suite's own.
+The nearest-counterpart scenes (Task 11) likewise: where an opponent has
+no such component, its composition follows its own documentation (MyGo's
+drawer is the one docs/ui/overlays.md shows), not any benchmark source.

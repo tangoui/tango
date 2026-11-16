@@ -43,6 +43,31 @@ func scenes() map[string]scene {
 		"tree":        {800, 600, newTree().view},
 		"datepicker":  {800, 600, (&datepicker{}).view},
 		"colorpicker": {800, 600, (&colorpicker{}).view},
+		// Nearest-counterpart scenes (scene_nearest.go).
+		"select":       {800, 600, newSelect().view},
+		"tooltip":      {800, 600, newTooltip().view},
+		"table":        {800, 600, newTable().view},
+		"pagination":   {800, 600, newPagination().view},
+		"cascader":     {800, 600, newCascader().view},
+		"transfer":     {800, 600, newTransfer().view},
+		"treeselect":   {800, 600, newTreeselect().view},
+		"calendar":     {800, 600, newCalendar().view},
+		"steps":        {800, 600, newSteps().view},
+		"timeline":     {800, 600, newTimeline().view},
+		"descriptions": {800, 600, newDescriptions().view},
+		"form":         {800, 600, newForm().view},
+		"upload":       {800, 600, newUpload().view},
+		"carousel":     {800, 600, newCarousel().view},
+		"collapse":     {800, 600, newCollapse().view},
+		"drawer":       {800, 600, newDrawer().view},
+		"tour":         {800, 600, newTour().view},
+		"protable":     {800, 600, newProtable().view},
+		"segmented":    {800, 600, newSegmented().view},
+		"rate":         {800, 600, newRate().view},
+		"tags":         {800, 600, newTags().view},
+		"badges":       {800, 600, newBadges().view},
+		"cards":        {800, 600, newCards().view},
+		"statistics":   {800, 600, newStatistics().view},
 	}
 }
 
@@ -102,6 +127,9 @@ func main() {
 		os.Exit(2)
 	}
 	mygo.App.WhenReady(func() {
+		// The components' built-in texts in English, as in all three
+		// programs, whatever the system's language.
+		mygo.App.SetLocale("en")
 		mygo.NewWindow(mygo.WindowOptions{
 			Title: "uibench mygo " + *name, Width: s.width, Height: s.height,
 			UseContentSize: true,

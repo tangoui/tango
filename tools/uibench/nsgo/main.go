@@ -42,6 +42,31 @@ func scenes() map[string]scene {
 		"tree":        {800, 600, treeRoot},
 		"datepicker":  {800, 600, datepickerRoot},
 		"colorpicker": {800, 600, colorpickerRoot},
+		// Nearest-counterpart scenes (scene_nearest.go).
+		"select":       {800, 600, selectRoot},
+		"tooltip":      {800, 600, tooltipRoot},
+		"table":        {800, 600, tableRoot},
+		"pagination":   {800, 600, paginationRoot},
+		"cascader":     {800, 600, cascaderRoot},
+		"transfer":     {800, 600, transferRoot},
+		"treeselect":   {800, 600, treeselectRoot},
+		"calendar":     {800, 600, calendarRoot},
+		"steps":        {800, 600, stepsRoot},
+		"timeline":     {800, 600, timelineRoot},
+		"descriptions": {800, 600, descriptionsRoot},
+		"form":         {800, 600, formRoot},
+		"upload":       {800, 600, uploadRoot},
+		"carousel":     {800, 600, carouselRoot},
+		"collapse":     {800, 600, collapseRoot},
+		"drawer":       {800, 600, drawerRoot},
+		"tour":         {800, 600, tourRoot},
+		"protable":     {800, 600, protableRoot},
+		"segmented":    {800, 600, segmentedRoot},
+		"rate":         {800, 600, rateRoot},
+		"tags":         {800, 600, tagsRoot},
+		"badges":       {800, 600, badgesRoot},
+		"cards":        {800, 600, cardsRoot},
+		"statistics":   {800, 600, statisticsRoot},
 	}
 }
 
@@ -70,5 +95,12 @@ func main() {
 		os.Exit(2)
 	}
 	os.Args = append(os.Args[:1], fs.Args()...)
-	nsgo.Run(s.root, nsgo.WindowSize(s.width, s.height))
+	// The components' built-in texts in English, as in all three programs,
+	// whatever the system's language (Scope.SetLocale, what --nsgo-lang does).
+	root := func(cx *core.Scope) core.Node {
+		node := s.root(cx)
+		cx.SetLocale("en")
+		return node
+	}
+	nsgo.Run(root, nsgo.WindowSize(s.width, s.height))
 }

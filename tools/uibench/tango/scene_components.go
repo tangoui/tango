@@ -290,8 +290,8 @@ func tabsPage() func(*ui.Context) {
 	}
 }
 
-// menuPage: a vertical menu of 12 items filling the window's height (it
-// scrolls); frame f selects item f%12.
+// menuPage: a vertical menu of 12 items in a column the window's height
+// (all 12 fit, nothing scrolls); frame f selects item f%12.
 func menuPage() func(*ui.Context) {
 	var s stepper
 	items := make([]ui.MenuItem, menuCount)

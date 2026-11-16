@@ -39,6 +39,14 @@ var sceneMetas = map[string]sceneMeta{
 	"tabs":   {period: 10, unequalMotion: true}, // indicator: tango 300 ms, nsgo 180 ms, mygo none
 	"dialog": {period: 30, unequalMotion: true}, // open/close: tango 300 ms, nsgo 180 ms, mygo none
 	"toast":  {period: 30, unequalMotion: true}, // in: tango 200 ms, mygo 200 ms, nsgo 400 ms spring
+	// Nearest-counterpart scenes (Task 11).
+	"tooltip":   {period: 30, unequalMotion: true}, // popover in: tango 200 ms, mygo and nsgo none
+	"carousel":  {period: 30, unequalMotion: true}, // slide: tango 500 ms, nsgo 362 ms spring, mygo (composed) none
+	"collapse":  {period: 30, unequalMotion: true}, // panel: tango 200 ms, mygo 200 ms, nsgo 265 ms spring
+	"drawer":    {period: 30, unequalMotion: true}, // slide: tango 300 ms, nsgo 280/200 ms, mygo (composed) none
+	"tour":      {period: 30},                      // step change: no motion in any (tango's mask fades in once)
+	"segmented": {unequalMotion: true},             // thumb: tango 300 ms, nsgo 180 ms, mygo none
+	"steps":     {unequalMotion: true},             // current: nsgo 160-400 ms, tango and mygo (composed) none
 }
 
 func metaOf(scene string) sceneMeta {
@@ -87,7 +95,10 @@ func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
 		}
 	}
 	meta := metaOf(t[0].Scene)
-	tol := workToleranceFor(meta.period, t, o)
+	tol, ok := workToleranceFor(meta.period, t, o)
+	if !ok {
+		return Invalid, fmt.Sprintf("too few sampled frames for a change every %d frames", meta.period)
+	}
 	if d := relDiff(median(each(t, Round.workPerFrame)), median(each(o, Round.workPerFrame))); d > tol {
 		return Invalid, fmt.Sprintf("work per frame differs by %.1f%% (tolerance %.1f%%)", d*100, tol*100)
 	}
@@ -96,8 +107,11 @@ func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
 	_, tq3 := quartiles(each(t, Round.cpu))
 	oq1, _ := quartiles(each(o, Round.cpu))
 	why := fmt.Sprintf("cpu %.4f vs %.4f cores (%.2fx), tango q3 %.4f vs opponent q1 %.4f", tc, oc, ratio(tc, oc), tq3, oq1)
+	tf, of := median(each(t, Round.fps)), median(each(o, Round.fps))
+	tp, op := median(each(t, Round.p99)), median(each(o, Round.p99))
+	frames := fmt.Sprintf("; fps %.1f vs %.1f; p99 %.0f vs %.0f µs", tf, of, tp, op)
 	if meta.unequalMotion {
-		return Info, why + "; not judged (unequal default motion)"
+		return Info, why + frames + "; not judged (unequal default motion)"
 	}
 	if !(tc <= oc*cpuRatio) {
 		return NotFaster, why + ": cpu above half"
@@ -113,9 +127,7 @@ func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
 		}
 		return Faster, why
 	}
-	tf, of := median(each(t, Round.fps)), median(each(o, Round.fps))
-	tp, op := median(each(t, Round.p99)), median(each(o, Round.p99))
-	why += fmt.Sprintf("; fps %.1f vs %.1f; p99 %.0f vs %.0f µs", tf, of, tp, op)
+	why += frames
 	if tf < of {
 		return NotFaster, why + ": fewer frames"
 	}
@@ -130,16 +142,18 @@ func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
 // the scene's period, the fewer of the two sides' medians. A scene that
 // changes every 30th frame sees about 6 changes in 3 s, so one change
 // more or less at the edges of the reports moves its work per frame by
-// a sixth with no difference in what the programs do.
-func workToleranceFor(period int, t, o []Round) float64 {
+// a sixth with no difference in what the programs do. ok is false when
+// the reports cover less than one period: no change is expected at all,
+// so there is no work to compare and the rounds are Invalid.
+func workToleranceFor(period int, t, o []Round) (tol float64, ok bool) {
 	if period <= 1 {
-		return workTolerance
+		return workTolerance, true
 	}
 	events := math.Min(median(each(t, Round.framesSampled)), median(each(o, Round.framesSampled))) / float64(period)
 	if events < 1 {
-		return 1
+		return 0, false
 	}
-	return math.Max(workTolerance, 1/events)
+	return math.Max(workTolerance, 1/events), true
 }
 
 // relDiff is |a-b| relative to the larger; 0 when both are 0.
