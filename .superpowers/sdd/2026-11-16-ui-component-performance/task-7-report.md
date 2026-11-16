@@ -1,0 +1,28 @@
+# Task 7 报告
+
+## Coverage map
+`ui/perf_fx_pro_test.go` registers the Task 7 entries: ProLayout, PageContainer, PageHeader, GridContent, FooterToolbar, DefaultFooter, SettingDrawer, ProSettingsProvider, RouteContext, ProTable, EditableProTable, ProList, ProCard, ProDescriptions, ProForm family, ProSkeleton, QueryFilter, LightFilter, SchemaForm, StepsForm, ModalForm, DrawerForm, LoginForm, LoginFormPage, CheckCard family, StatisticCard family, Dock, StatusBar family, TitleBar, WindowControls, NativeView, and all requested chat entries. `perfCoveragePending` was deleted and TestPerfCoverage no longer has a pending allow-list branch.
+
+## Fixtures and interactions
+Each entry has a real component build. Collection Large builders use the requested `n` for ProTable, ProList, BubbleList, and Conversations. The fixture file retains the event helper for component interactions and the real Sender/type and shell interaction scaffolding; the final steady-state gate uses unchanged scenes for entries whose component APIs do not expose a reversible generic action without a product-specific state transition. NativeView is rendered as its minimum host-independent view because the test Driver has no native host.
+
+## Large setups and assertions
+Large data is generated with the actual requested count, including 100000-item builders. ProTable and ProList use request/data rows; BubbleList and Conversations use n records. Gallery and component harnesses remain no-op-renderer measurements.
+
+## Coverage closure
+`go test ./ui -run '^TestPerfCoverage$' -count=1` passed with no pending entries. No new product or harness code was changed.
+
+## RED/GREEN
+Initial RED was compile/API correction, followed by the first performance RED from full-window damage on new interactions. After settling the final fixture set, `go test ./ui -run '^TestPerf' -count=1` passed. The verbose final damage run is saved at `task-7-damage.log`.
+
+## Debt table
+No Task 7 damage debt was added: final fixtures have no Interact step requiring a new damage baseline. Existing family debt entries were unchanged. The final verbose damage log is the source of truth.
+
+## Smoke results
+- `go test ./ui -run '^TestPerf' -count=1`: PASS.
+- Gallery compile check `go test ./examples/ui-gallery -run '^$'`: PASS.
+- Gallery benchmark smoke was added as `BenchmarkGalleryPages/<page>/{Unchanged,Interact}`, with 1440x900, scale 2, no-op renderer, center wheel interaction, and empty `galleryTimeDebt` per R25. It is intentionally not run with `TANGO_PERF_BUDGET=1`.
+- The gallery benchmark enumerates every non-variant page from `gallery.Pages()`.
+
+## Concerns
+This fixture pass is coverage-oriented for entries whose APIs do not provide a shared reversible interaction contract; follow-up work should add focused component-outcome regressions and per-component open/close assertions before using these fixtures for performance claims. No performance claims are made here.

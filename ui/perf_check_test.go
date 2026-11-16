@@ -82,17 +82,11 @@ func TestPerfCoverage(t *testing.T) {
 	var missing, stale []string
 	for _, e := range entries {
 		switch {
-		case !covered[e] && !perfCoveragePending[e]:
+		case !covered[e]:
 			missing = append(missing, e)
-		case covered[e] && perfCoveragePending[e]:
-			stale = append(stale, e)
 		}
 	}
-	for n := range perfCoveragePending {
-		if !isEntry[n] {
-			stale = append(stale, n)
-		}
-	}
+
 	sort.Strings(stale)
 	if len(missing) > 0 {
 		t.Errorf("%d ui entries have no perf fixture (register one, Covers it, or add a Skip fixture): %s",
