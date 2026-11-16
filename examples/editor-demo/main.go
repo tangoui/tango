@@ -304,107 +304,32 @@ func diffStatus() string {
 
 func page(c *ui.Context) {
 	defer syncTitle()
-	if diffState != nil {
-		diffPage(c)
+	if st == nil {
 		return
 	}
-	ui.Column(c, func() {
-		ui.Row(c, func() {
-			if documents != nil {
-				if ui.Button(c, "Open").Clicked() {
-					postFileAction(openDocumentDialog)
-				}
-				if ui.Button(c, "Save").Disabled(!documents.session.dirty()).Clicked() {
-					postFileAction(func() { saveDocument() })
-				}
-				if ui.Button(c, "Save As").Clicked() {
-					postFileAction(func() { saveAsDocument() })
-				}
-				if ui.Button(c, "Find").Clicked() {
-					search.open = true
-				}
-				if ui.Button(c, "Replace").Clicked() {
-					search.open = true
-				}
-			}
-			language := st.Model.Language()
-			if ui.Select(c, &language, languageOptions).Searchable().Width(210).A11yLabel("Document language").Changed() {
-				st.Model.SetLanguage(language)
-				hlDone = false
-			}
-			if ui.Button(c, "Command Palette").Clicked() {
-				paletteTarget, paletteOpen = active, true
-			}
-		}, layout.PadVH(4, 12), layout.Gap(8))
-		ui.Row(c, func() {
-			name := documents.theme.BaseName()
-			if ui.Select(c, &name, []ui.Option{{Label: "Light", Value: "vs"}, {Label: "Dark", Value: "vs-dark"}, {Label: "High contrast dark", Value: "hc-black"}, {Label: "High contrast light", Value: "hc-light"}}).Width(180).A11yLabel("Editor theme").Changed() {
-				documents.setTheme(name)
-			}
-			split := documents.split
-			if ui.Checkbox(c, "Split view", &split).Changed() {
-				documents.setSplit(split)
-			}
-			wrap := documents.wrap
-			if ui.Checkbox(c, "Word wrap", &wrap).Changed() {
-				documents.wrap = wrap
-				st.Options.WordWrap = editor.WrapOff
-				if wrap {
-					st.Options.WordWrap = editor.WrapOn
-				}
-				if second != nil {
-					second.Options.WordWrap = st.Options.WordWrap
-				}
-			}
-		}, layout.PadVH(4, 12))
-		ui.Row(c, func() {
-			show := func(target *editor.State) {
-				vw := editor.View(c, target)
-				if !focused && (target == active || active == nil) {
-					c.SetFocus(vw.Box().ID())
-					focused = true
-				}
-				if vw.Focused() {
-					active = target
-				}
-				if pendingCommand != "" && target == paletteTarget {
-					c.SetFocus(vw.Box().ID())
-					// Execute only after a build observes the restored focus, so
-					// editorTextFocus preconditions and clipboard commands work.
-					if vw.Focused() {
-						id := pendingCommand
-						pendingCommand = ""
-						if !target.Execute(id, nil) {
-							log.Printf("editor-demo: command %s refused or made no change", id)
-						}
-					} else {
-						ui.Invalidate(c.Window())
-					}
-				}
-			}
-			show(st)
-			if second != nil {
-				show(second)
-			}
-		}, layout.Grow(1))
-		ui.Row(c, func() { ui.Text(c, status()) }, layout.PadVH(4, 12))
-	}, layout.Fill())
-	ui.Modal(c, &paletteOpen, "Editor commands").Width(720).NoFooter().Body(func() {
-		ui.Select(c, &paletteCommand, commandOptions()).Searchable().Width(650).A11yLabel("Registered editor commands")
-		if ui.Button(c, "Execute").Disabled(paletteCommand == "").Clicked() {
-			pendingCommand, paletteOpen = paletteCommand, false
+	ui.ConfigProvider(c).Theme(shellUI.theme(st.Theme.BaseName())).Size(ui.Small).Body(func() {
+		if diffState != nil {
+			diffPage(c)
+			return
 		}
-		ui.Text(c, "Commands without arguments only; preconditions/read-only rules still apply.")
+		renderShell(c)
+		ui.Modal(c, &paletteOpen, "Editor commands").Width(720).NoFooter().Body(func() {
+			ui.Select(c, &paletteCommand, commandOptions()).Searchable().Width(650).A11yLabel("Registered editor commands")
+			if ui.Button(c, "Execute").Disabled(paletteCommand == "").Clicked() {
+				pendingCommand, paletteOpen = paletteCommand, false
+			}
+			ui.Text(c, "Commands without arguments only; preconditions/read-only rules still apply.")
+		})
+		if documents != nil {
+			wasOpen := search.open
+			search.render(c, active)
+			if wasOpen && !search.open {
+				focused = false
+				ui.Invalidate(c.Window())
+			}
+		}
 	})
-	if documents != nil {
-		wasOpen := search.open
-		search.render(c, active)
-		if wasOpen && !search.open {
-			focused = false
-			ui.Invalidate(c.Window())
-		}
-	}
-	if auto != nil {
+	if auto != nil && diffState == nil {
 		auto.frame(c)
 	}
 }
@@ -559,6 +484,8 @@ func openDemoWindow(title string, ropts ui.RunnerOptions) (*ui.Runner, *tango.Su
 		{"CmdOrCtrl+S", func() { saveDocument() }},
 		{"CmdOrCtrl+F", func() { search.open = true }},
 		{"CmdOrCtrl+H", func() { search.open = true }},
+		{"CmdOrCtrl+Shift+S", func() { saveAsDocument() }},
+		{"CmdOrCtrl+Shift+P", func() { runShellAction("palette") }},
 	} {
 		if _, err := uihost.Shortcut(surface, shortcut.accelerator, shortcut.fn); err != nil {
 			log.Printf("editor-demo: shortcut %s: %v", shortcut.accelerator, err)
