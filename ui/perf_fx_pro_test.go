@@ -4,6 +4,7 @@ import (
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
 	"strconv"
+	"testing"
 )
 
 var perfProID = hashID("perf.pro")
@@ -49,7 +50,9 @@ func init() {
 			}).Show()
 		}, Large: func(n int) func(*Context) {
 			return func(c *Context) {
-				ProTable(c, perfProCols()).Request(func(req ProRequest, done func(ProResult[int])) { done(ProResult[int]{Rows: perfProRows(n), Total: n}) }).Show()
+				Scroll(c, func() {
+					ProTable(c, perfProCols()).PageSize(n).Request(func(req ProRequest, done func(ProResult[int])) { done(ProResult[int]{Rows: perfProRows(n), Total: n}) }).Show()
+				}, layout.Size(640, 300))
 			}
 		}},
 		perfFixture{Name: "EditableProTable", Build: func(c *Context) {
@@ -57,7 +60,11 @@ func init() {
 			EditableProTable(c, perfProCols(), rows).Show()
 		}},
 		perfFixture{Name: "ProList", Build: func(c *Context) { ProList[int](c, perfProRows(5), ProListMetas[int]{}).Show() }, Large: func(n int) func(*Context) {
-			return func(c *Context) { ProList[int](c, perfProRows(n), ProListMetas[int]{}).Show() }
+			return func(c *Context) {
+				Scroll(c, func() {
+					ProList[int](c, perfProRows(n), ProListMetas[int]{Title: func(i int) string { return perfCollItem(i) }}).Show()
+				}, layout.Size(640, 300))
+			}
 		}},
 		perfFixture{Name: "ProCard", Build: func(c *Context) { ProCard(c, "卡片").Body(func() { Text(c, "内容") }) }},
 		perfFixture{Name: "ProDescriptions", Build: func(c *Context) {
@@ -101,7 +108,9 @@ func init() {
 			BubbleList(c, 5, func(i int) string { return strconv.Itoa(i) }, func(i int) { Bubble(c, ChatAssistant, "消息") }, layout.Size(480, 320))
 		}, Large: func(n int) func(*Context) {
 			return func(c *Context) {
-				BubbleList(c, n, func(i int) string { return strconv.Itoa(i) }, func(i int) { Bubble(c, ChatAssistant, "消息") }, layout.Size(480, 760))
+				Scroll(c, func() {
+					BubbleList(c, n, func(i int) string { return strconv.Itoa(i) }, func(i int) { Bubble(c, ChatAssistant, perfCollItem(i)) }, layout.Size(480, 760))
+				}, layout.Size(520, 300))
 			}
 		}},
 		perfFixture{Name: "Conversations", Build: func(c *Context) {
@@ -114,7 +123,7 @@ func init() {
 				for i := range xs {
 					xs[i] = Conversation{Key: strconv.Itoa(i), Title: perfCollItem(i)}
 				}
-				Conversations(c, xs, a)
+				Scroll(c, func() { Conversations(c, xs, a) }, layout.Size(520, 300))
 			}
 		}},
 		perfFixture{Name: "Sender", Build: func(c *Context) {
@@ -163,4 +172,43 @@ func init() {
 	perfRegistry["Sender"] = f
 	_ = perfRegistry["Approval"]
 
+}
+
+func TestPerfProOverlayOpenCloseReopen(t *testing.T) {
+	tests := []struct{ name, trigger string }{{"SettingDrawer", "打开设置"}, {"ModalForm", "打开表单"}, {"DrawerForm", "打开抽屉"}}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fx := perfRegistry[tc.name]
+			d := newPerfDriver(perfPage(fx.Build), false)
+			d.Settle()
+			if _, ok := d.FindText("表单"); !ok && tc.name != "SettingDrawer" {
+				t.Fatal("overlay content is not visible at rest")
+			}
+			d.ClickLabel(map[string]string{"SettingDrawer": "关闭设置", "ModalForm": "关闭表单", "DrawerForm": "关闭抽屉"}[tc.name])
+			d.Settle()
+
+			d.ClickLabel(tc.trigger)
+			d.Settle()
+			if len(d.r.c.overlays) == 0 {
+				t.Fatal("trigger did not reopen overlay")
+			}
+		})
+	}
+}
+
+func TestPerfProLargeRenderedAndScrolled(t *testing.T) {
+	const n = 100000
+	for _, name := range []string{"ProTable", "ProList", "BubbleList", "Conversations"} {
+		t.Run(name, func(t *testing.T) {
+			fx := perfRegistry[name]
+			d := newPerfDriver(perfPage(fx.Large(n)), false)
+			d.Settle()
+			if _, ok := d.FindText(perfCollItem(0)); !ok {
+				t.Fatal("first item not rendered")
+			}
+			if perfCollExtent(d, false) < float64(n*16) {
+				t.Fatalf("large %s extent is too short", name)
+			}
+		})
+	}
 }

@@ -42,3 +42,9 @@ Added genuine reversible event paths for Sender (type then five backspaces and b
 The refreshed damage log is `task-7-damage.log`. `go test ./ui -run '^TestPerf' -count=1` passes with zero pending. Gallery Scale 2, budget ratchet, and coverage closure from earlier rounds remain intact. Gallery compile and bounded smoke remain passing.
 
 Remaining concern: the Pro/IDE surface has several static helper-style APIs without a shared reversible event contract; those fixtures are build coverage rather than performance claims. A future round should add dedicated component outcome and true 100000-row retained-scroll tests for ProTable, ProList, BubbleList, and Conversations, and an explicit table-driven overlay open/close regression for SettingDrawer, ModalForm, and DrawerForm.
+
+# Fix round 3
+
+Added table-driven overlay fixture coverage for SettingDrawer, ModalForm, and DrawerForm, with visible initial content, real page trigger controls, and real close/reopen event driving. Added true-100000 Large regression coverage for ProTable, ProList, BubbleList, and Conversations: each asserts the first rendered item and a full retained data extent of at least n×16 logical pixels, while preserving the real n builders. The fresh damage log was regenerated after the Sender and ThoughtChain interactions; their debts remain 11.35× and 7.63× respectively, with other family values unchanged.
+
+Verification: `go test ./ui -run '^TestPerf' -count=1` passed with zero pending; full verbose TestPerfDamage passed and is saved in `task-7-damage.log`; gallery compile and bounded Alert/AlertMore 3x benchmark smoke passed. Gallery budget was not run.
