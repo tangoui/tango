@@ -53,6 +53,8 @@ var (
 	msgInitWindow  func(recv id, op objc.SEL, r cgRect, style uint, backing uint, deferred bool) id
 	msgInitRect    func(recv id, op objc.SEL, r cgRect) id
 	msgPerformMain func(recv id, op objc.SEL, sel objc.SEL, arg id, wait bool)
+	msgOtherEvent  func(recv id, op objc.SEL, kind uint, where cgPoint, mods uint, stamp float64, window int, ctx id, subtype int16, d1, d2 int) id
+	msgPostEvent   func(recv id, op objc.SEL, ev id, atStart bool)
 
 	arPoolPush    func() uintptr
 	arPoolPop     func(uintptr)
@@ -65,7 +67,7 @@ var (
 	cfAttributedStringCreate func(alloc, s, attrs uintptr) uintptr
 	cfDataCreate             func(alloc uintptr, b unsafe.Pointer, n int) uintptr
 
-	cgColorSpaceCreateDeviceRGB    func() uintptr
+	cgColorSpaceCreateWithName     func(name uintptr) uintptr
 	cgColorSpaceRelease            func(uintptr)
 	cgBitmapContextCreate          func(data unsafe.Pointer, w, h, bpc, stride int, space uintptr, info uint32) uintptr
 	cgContextRelease               func(uintptr)
@@ -93,6 +95,7 @@ var (
 	kCFTypeDictionaryKeyCallBacks   uintptr
 	kCFTypeDictionaryValueCallBacks uintptr
 	kCFBooleanTrue                  uintptr
+	kCGColorSpaceSRGB               uintptr
 
 	selCache sync.Map // string -> objc.SEL
 )
@@ -167,7 +170,7 @@ func loadNative() error {
 		if objcMsgSend != 0 && big != 0 {
 			for _, f := range []any{&msgID, &msgIDID, &msgVoidID, &msgVoidBool, &msgVoidInt, &msgBool,
 				&msgFloat, &msgVoidFloat, &msgPoint, &msgConvert, &msgUint16, &msgInt, &msgInitWindow,
-				&msgInitRect, &msgPerformMain} {
+				&msgInitRect, &msgPerformMain, &msgOtherEvent, &msgPostEvent} {
 				purego.RegisterFunc(f, objcMsgSend)
 			}
 			purego.RegisterFunc(&msgRect, big)
@@ -186,7 +189,8 @@ func loadNative() error {
 		kCFTypeDictionaryValueCallBacks = l.sym(libCF, "kCFTypeDictionaryValueCallBacks")
 		kCFBooleanTrue = l.constPtr(libCF, "kCFBooleanTrue")
 
-		l.bind(&cgColorSpaceCreateDeviceRGB, libCG, "CGColorSpaceCreateDeviceRGB")
+		l.bind(&cgColorSpaceCreateWithName, libCG, "CGColorSpaceCreateWithName")
+		kCGColorSpaceSRGB = l.constPtr(libCG, "kCGColorSpaceSRGB")
 		l.bind(&cgColorSpaceRelease, libCG, "CGColorSpaceRelease")
 		l.bind(&cgBitmapContextCreate, libCG, "CGBitmapContextCreate")
 		l.bind(&cgContextRelease, libCG, "CGContextRelease")
