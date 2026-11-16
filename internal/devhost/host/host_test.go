@@ -275,6 +275,12 @@ func TestSwapKeepsWindow(t *testing.T) {
 		t.Fatal("banner covered the whole frame")
 	}
 	e.ctl.Send(devhost.Status{})
+	// The clear arrives asynchronously: a frame flushed before it is
+	// applied (the banner's own invalidate) would still be drawn with the
+	// banner, and the clear's request would never be flushed.
+	eventually(t, "banner state cleared", func() bool {
+		return tango.Await(e.app, func() bool { return e.h.banner.Kind == "" })
+	})
 	eventually(t, "frame wanted", func() bool { return cv.FlushFrame() })
 	w2.frame(o2.Win, blue)
 	eventually(t, "banner cleared", func() bool { return pixel(cv, 100, 0) == blue })
