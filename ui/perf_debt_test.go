@@ -167,6 +167,8 @@ var perfDamageDebt = map[string]perfDebt{
 	"VirtualList":    {Measured: "dirty 8.44×", Why: "baseline"},
 	"VirtualSelect":  {Measured: "dirty 168.75×", Why: "baseline"},
 	"VirtualTree":    {Measured: "dirty 2.91×", Why: "baseline"},
+	"ThoughtChain":   {Measured: "dirty 7.63×", Why: "baseline"},
+	"Sender":         {Measured: "dirty 11.35×", Why: "baseline"},
 }
 
 // perfTimeDebt is keyed by "Name/Scene". LogView's scenes are owned by

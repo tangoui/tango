@@ -122,8 +122,45 @@ func init() {
 			Sender(c, v).Placeholder("输入")
 		}},
 		perfFixture{Name: "Prompts", Build: func(c *Context) { Prompts(c, []PromptItem{{Key: "a", Label: "建议"}}) }},
-		perfFixture{Name: "ThoughtChain", Build: func(c *Context) { ThoughtChain(c, []ChainItem{{Title: "思考", Description: "内容"}}) }},
-		perfFixture{Name: "ToolCall", Build: func(c *Context) { ToolCall(c, "工具") }},
-		perfFixture{Name: "Approval", Build: func(c *Context) { Approval(c, "需要批准").Description("确认操作") }},
+		perfFixture{Name: "ThoughtChain", Build: func(c *Context) {
+			ThoughtChain(c, []ChainItem{{Title: "思考", Description: "内容", Detail: "详细步骤"}}).Title("思考")
+		}},
+		perfFixture{Name: "ToolCall", Build: func(c *Context) { ToolCall(c, "工具").Summary("展开工具").Args("参数").Result("结果") }},
+		perfFixture{Name: "Approval", Build: func(c *Context) {
+			Approval(c, "需要批准").Description("确认操作").Choices(ApproveOnce, ApproveDeny)
+		}},
 	)
+}
+
+func perfProText(r *perfRun, text string) {
+	if box, ok := r.D.FindText(text); ok {
+		r.D.Click(box.Center())
+	} else {
+		r.D.Click(r.Center())
+	}
+}
+func init() {
+	for _, name := range []string{"ThoughtChain"} {
+		f := perfRegistry[name]
+		f.Interact = func(r *perfRun, i int) {
+			r.D.Click(r.Center())
+			r.D.Move(perfOutside)
+		}
+		perfRegistry[name] = f
+	}
+	f := perfRegistry["Sender"]
+	f.Interact = func(r *perfRun, i int) {
+		r.D.Click(r.Center())
+		if i%2 == 0 {
+			r.D.Type("hello")
+		} else {
+			for range 5 {
+				r.D.Key(input.KeyBackspace, 0)
+			}
+			r.D.Click(perfOutside)
+		}
+	}
+	perfRegistry["Sender"] = f
+	_ = perfRegistry["Approval"]
+
 }
