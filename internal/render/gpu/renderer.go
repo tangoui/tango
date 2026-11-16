@@ -317,6 +317,9 @@ func (r *Renderer) Trim() {
 	for _, t := range r.images.byKey {
 		r.images.free(t) // freed on the device with the next frame
 	}
+	if t, ok := r.dev.(interface{ TrimImages() }); ok {
+		t.TrimImages()
+	}
 }
 
 // Render converts l into a Frame and executes it on the device. A frame

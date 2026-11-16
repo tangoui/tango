@@ -49,7 +49,8 @@ import (
 // until Frame.ImageFrees names it
 // (detached before the frame's uploads; the previous frame has completed
 // by then). A bounded exact-size handoff can reuse those textures during
-// applyImages; no spare image textures remain after that call. Every batch
+// applyImages; a separate small exact-size spare pool covers recurring image
+// sizes across calls (see image_pool_darwin.go). Every batch
 // binds its Batch.Image texture to slot TexImage, or a
 // 1×1 placeholder when it has none.
 //
@@ -130,6 +131,8 @@ type Device struct {
 	targetSize, maskSize, colorSize, rampSize image.Point
 	images                                    map[int]id          // image textures by gpu.ImageUpload.ID
 	imageSizes                                map[int]image.Point // live image dimensions; exact-size reuse
+	imagePool                                 imageTexturePool    // small detached textures, never referenced by active IDs
+	imageTrimmed                              bool                // suppress one refill after low-memory trim
 	noImage                                   id                  // 1×1 texture bound to TexImage for batches without an image
 	instBuf, staging, readBuf                 id
 	instCap, stagingCap, readCap              int
@@ -1304,6 +1307,7 @@ const maxFailures = 3
 // the next Execute (and present until then) returns err, and the device
 // is lost after maxFailures failures in a row or when removed is set.
 func (d *Device) gpuFailed(err error, removed bool) {
+	d.imagePool.clear()
 	d.hasFrame = false
 	d.pendingErr = err
 	d.failures++
@@ -1316,6 +1320,7 @@ func (d *Device) gpuFailed(err error, removed bool) {
 // texture/buffer allocation failed) and returns err, or the loss error
 // once the device counts as lost.
 func (d *Device) syncFailed(err error) error {
+	d.imagePool.clear()
 	d.failures++
 	if d.lost == nil && d.failures >= maxFailures {
 		d.lost = fmt.Errorf("%w: %w", ErrDeviceLost, err)
@@ -1428,6 +1433,7 @@ func (d *Device) Close() {
 }
 
 func (d *Device) release() {
+	d.imagePool.clear()
 	d.dropCopyTarget()
 	d.copyKeep, d.copyNext = nil, nil
 	for k, t := range d.images {

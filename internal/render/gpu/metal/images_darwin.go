@@ -9,9 +9,9 @@ import (
 	"github.com/tangoui/tango/internal/render/gpu"
 )
 
-// Only candidates detached by the current frame can be handed off. No
-// GPU resource is pooled across calls; these bounds also limit transient
-// retention when the new uploads need different sizes.
+// Only candidates detached by the current frame can be handed off here. These
+// bounds limit transient retention when uploads need different sizes; unused
+// candidates may enter the separately bounded small spare pool at the end.
 const (
 	imageHandoffCount = 32
 	imageHandoffBytes = 8 << 20
@@ -24,7 +24,10 @@ type imageCandidate struct {
 
 // applyImages runs after Execute waited for previous submissions. Every
 // reused texture is fully overwritten by stage/blit before current draws.
-func (d *Device) applyImages(f *gpu.Frame) error {
+func (d *Device) applyImages(f *gpu.Frame) (err error) {
+	d.imagePool.beginFrame(len(f.ImageUploads) == 0)
+	pooling := len(f.ImageUploads) > 0 && !d.imageTrimmed
+	d.imageTrimmed = false
 	if d.images == nil {
 		d.images = map[int]id{}
 	}
@@ -35,7 +38,14 @@ func (d *Device) applyImages(f *gpu.Frame) error {
 	count, heldBytes := 0, 0
 	defer func() {
 		for i := 0; i < count; i++ {
-			release(candidates[i].tex)
+			if err == nil && pooling {
+				d.imagePool.put(candidates[i])
+			} else {
+				release(candidates[i].tex)
+			}
+		}
+		if err != nil {
+			d.imagePool.clear()
 		}
 	}()
 	for _, key := range f.ImageFrees {
@@ -81,6 +91,9 @@ func (d *Device) applyImages(f *gpu.Frame) error {
 					candidates[count] = imageCandidate{}
 					break
 				}
+			}
+			if tex == 0 && pooling {
+				tex = d.imagePool.take(u.Size)
 			}
 			if tex == 0 {
 				t, err := d.newTexture(w, h, pixelFormatRGBA8Unorm, usageShaderRead)
