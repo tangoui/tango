@@ -15,11 +15,16 @@ import (
 // its flow and its window. Start and CheckNow share it, so the Updater's
 // OnEvent is wrapped once.
 type session struct {
-	app  *tango.App
-	u    *updater.Updater
-	opts Options
-	m    *model
-	f    *flow
+	app *tango.App
+	u   *updater.Updater
+	m   *model
+	f   *flow
+
+	// optsMu guards opts: Start sets them while the window (opened by an
+	// earlier CheckNow) reads them on the main thread for every frame.
+	// It is never held while calling out.
+	optsMu sync.Mutex
+	opts   Options
 
 	origOnEvent func(updater.Event)
 
@@ -83,8 +88,15 @@ func sessionFor(app *tango.App, u *updater.Updater, opts Options) *session {
 	return s
 }
 
+// options returns the session's options.
+func (s *session) options() Options {
+	s.optsMu.Lock()
+	defer s.optsMu.Unlock()
+	return s.opts
+}
+
 // strings returns the window's texts for the current locale.
-func (s *session) strings() *Strings { return stringsFor(s.opts) }
+func (s *session) strings() *Strings { return stringsFor(s.options()) }
 
 // Start shows the update window when an update is found: it confirms a
 // newly installed version (Updater.Confirm, so it is kept), offers an
@@ -118,7 +130,9 @@ func Start(app *tango.App, u *updater.Updater, opts Options) (stop func(), err e
 		return s.stopFn, nil
 	}
 	s.started = true
+	s.optsMu.Lock()
 	s.opts = opts
+	s.optsMu.Unlock()
 
 	if out, err := u.Confirm(); err != nil {
 		log.Printf("updateui: confirm: %v", err)

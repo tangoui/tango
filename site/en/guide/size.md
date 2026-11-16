@@ -47,5 +47,3 @@ bash scripts/size-report.sh          # builds both samples for the three desktop
 tan build -platform darwin/arm64 && tan package -platform darwin/arm64
 tan package -platform windows/amd64   # NSIS installer; needs makensis
 ```
-
-Default-template installers from an earlier run (2026-11-13) are recorded in [docs/package-size.md](https://github.com/tangoui/tango/blob/main/docs/package-size.md). Its dmg numbers were measured before the switch to LZMA.

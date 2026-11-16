@@ -42,26 +42,6 @@ TanGo は **macOS、Windows、Linux、iOS、Android** 向けの Go アプリケ�
 | 明示的なページ権限 | ページから利用できるシステム API を Go 側の許可リストで制御し、ブリッジでメッセージの送信元も検証します。 |
 | 開発から配布まで | テンプレート、自動再ビルド、Go 描画ウィンドウのホットリロード、パッケージ化、コード署名、署名付き自動更新。 |
 
-## アプリのサイズ
-
-**ダウンロードサイズ：** 標準テンプレートでは、ユーザーがダウンロードするインストーラー（`.dmg`、`.exe`、`.deb`、`.rpm`、`.AppImage`、`.tar.gz`）は **2.78–5.11 MB** です。インストール後の実行ファイルは、WebView アプリで **7.86–8.69 MB**、Go 描画 UI アプリで **9.77–11.65 MB** です。
-
-| 対象 | 配布形式 | WebView アプリ | Go UI アプリ |
-| --- | --- | ---: | ---: |
-| macOS / arm64 | `.dmg` | 3.51 MB | 4.57 MB |
-| macOS / amd64（Intel） | `.dmg` | 3.86 MB | 5.11 MB |
-| Windows / amd64 | NSIS `.exe` | 2.78 MB | 3.64 MB |
-| Linux / amd64 | `.deb` | 3.49 MB | 4.50 MB |
-| Linux / amd64 | `.rpm` | 3.49 MB | 4.51 MB |
-| Linux / amd64 | `.AppImage` | 4.10 MB | 5.02 MB |
-| Linux / amd64 | `.tar.gz` | 3.58 MB | 4.62 MB |
-| Linux / arm64 | `.deb` | 3.18 MB | 4.06 MB |
-| Linux / arm64 | `.rpm` | 3.19 MB | 4.06 MB |
-| Linux / arm64 | `.AppImage` | 3.77 MB | 4.56 MB |
-| Linux / arm64 | `.tar.gz` | 3.26 MB | 4.15 MB |
-
-**2026-11-13** に Go **1.27.2**、コミット `36322bc`、`CGO_ENABLED=0`、`-trimpath`、`-ldflags="-s -w"` で測定。MB = 1,000,000 バイト。標準テンプレートの測定例であり、最小値や完成したアプリのサイズを保証するものではありません。システムライブラリと WebView ランタイムは含みません。インストーラーは正式な署名なし（macOS は ad-hoc 署名のみ）で、Flatpak、Windows arm64、モバイルパッケージは未測定です。[測定記録と再現手順（中国語）](docs/package-size.md)をご覧ください。
-
 ## UI の作り方を選ぶ
 
 | UI | 用途 | テンプレート |

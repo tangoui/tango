@@ -146,4 +146,3 @@ xz -9e -k build/darwin-arm64/Min.app/Contents/MacOS/Min
 
 - 没有生成 Linux 安装包；表中 Linux 的 gzip、xz 数字是可执行文件的压缩结果，不是安装包。
 - 系统 WebView 运行时不计入应用包：目标机器仍需要 WebView2、GTK/WebKitGTK 等系统依赖。
-- 默认模板（`tan init` 生成的入门应用，不是最小程序）在各平台、各格式下的安装包体积，见仓库里的 [`docs/package-size.md`](https://github.com/tangoui/tango/blob/main/docs/package-size.md)（2026-11-13，十进制 MB，附原始字节数和复现步骤）。那份报告里的 dmg 数字是改用 LZMA 之前测的（`UDZO`），现在的默认 dmg 会小一些。

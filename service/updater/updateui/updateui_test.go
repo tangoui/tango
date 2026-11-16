@@ -380,3 +380,39 @@ func TestStartKeepsCheckNowDownload(t *testing.T) {
 	}
 	_ = fb
 }
+
+// TestStartWhileWindowPaints: a window opened by CheckNow repaints on the
+// main thread, reading the session's texts, while Start sets the session's
+// options on another goroutine. The race detector must see no conflict.
+func TestStartWhileWindowPaints(t *testing.T) {
+	a, fb := runApp(t)
+	s := newReleaseServer(t)
+	s.publish("1.4.0")
+	u := s.updater(t, "1.2.0")
+	CheckNow(a, u, en)
+	waitFor(t, "the window", func() bool { return len(updateWindows(fb)) == 1 })
+	cv := fb.Canvas(updateWindows(fb)[0].ID())
+	// Paint frames (each reads the session's texts) while Start runs.
+	stopPaint := make(chan struct{})
+	painted := make(chan struct{})
+	go func() {
+		defer close(painted)
+		for {
+			select {
+			case <-stopPaint:
+				return
+			default:
+				cv.Frame()
+			}
+		}
+	}()
+	time.Sleep(10 * time.Millisecond)
+	stop, err := Start(a, u, en)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	close(stopPaint)
+	<-painted
+	stop()
+}
