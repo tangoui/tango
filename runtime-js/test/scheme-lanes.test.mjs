@@ -26,9 +26,7 @@ const internal = await (async () => {
   return import("data:text/javascript;base64," + Buffer.from(out.outputFiles[0].text).toString("base64"));
 })();
 const {
-  newSchemeDown,
   newPostUp,
-  DOWN_START_TIMEOUT_MS,
   POST_MIN_SIZE,
   POST_BATCH_BYTES,
   POST_BATCH_DELAY_MS,
@@ -42,46 +40,6 @@ const {
 const tick = () => new Promise((r) => setImmediate(r));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const bytes = (n, seed = 1) => new Uint8Array(n).map((_, i) => (i * seed + 3) & 255);
-
-// A controllable fetch for down:scheme: each call records its url/init and
-// returns a response whose body the test feeds (push/end/error). An abort
-// of init.signal errors the body (or rejects the fetch), as browsers do.
-function downFetch({ status = 200, noBody = false, hang = false } = {}) {
-  const f = {
-    calls: [],
-    body: null, // ReadableStreamDefaultController of the last response
-    fn(url, init) {
-      const call = { url, init };
-      f.calls.push(call);
-      return new Promise((resolve, reject) => {
-        const abortErr = () => new DOMException("aborted", "AbortError");
-        if (hang) {
-          init?.signal?.addEventListener("abort", () => reject(abortErr()));
-          return;
-        }
-        let ctrl;
-        const body = new ReadableStream({
-          start(c) {
-            ctrl = c;
-          },
-        });
-        f.body = {
-          push: (arr) => ctrl.enqueue(arr instanceof Uint8Array ? arr : new Uint8Array(arr)),
-          end: () => ctrl.close(),
-          error: (e) => ctrl.error(e),
-        };
-        init?.signal?.addEventListener("abort", () => {
-          call.aborted = true;
-          try {
-            ctrl.error(abortErr());
-          } catch {}
-        });
-        resolve({ status, ok: status >= 200 && status < 300, body: noBody ? null : body });
-      });
-    },
-  };
-  return f;
-}
 
 function fakeCtx(fetchFn) {
   const ctx = {
@@ -113,10 +71,9 @@ const settled = (p) => {
   return s;
 };
 
-// ---- down:scheme ----
+// ---- constants ----
 
 test("constants", () => {
-  assert.equal(DOWN_START_TIMEOUT_MS, 5000);
   assert.equal(POST_MIN_SIZE, 16 * 1024);
   assert.equal(POST_BATCH_BYTES, 16 * 1024);
   assert.equal(POST_BATCH_DELAY_MS, 4);
@@ -125,241 +82,6 @@ test("constants", () => {
   // timeout fails its streams.
   assert.equal(POST_TIMEOUT_MS, 4000);
   assert.ok(POST_TIMEOUT_MS < GAP_TIMEOUT_MS);
-});
-
-test("down:scheme requests the relative down url without caching", async () => {
-  const f = downFetch();
-  const ctx = fakeCtx(f.fn);
-  const lane = newSchemeDown();
-  const st = settled(lane.start(ctx));
-  await tick();
-  assert.equal(f.calls.length, 1);
-  assert.equal(f.calls[0].url, "/__tango/lane/down?gen=7&tok=" + encodeURIComponent("a+b/c d"));
-  assert.equal(f.calls[0].init.cache, "no-store");
-  assert.ok(f.calls[0].init.signal);
-  f.body.push([0, 0]);
-  await tick();
-  assert.equal(st.ok, true);
-  lane.stop();
-});
-
-test("down:scheme parses packets split across chunks", async () => {
-  const f = downFetch();
-  const ctx = fakeCtx(f.fn);
-  const lane = newSchemeDown();
-  const st = settled(lane.start(ctx));
-  await tick();
-  const p1 = encodePacket([{ stream: 2, seq: 0, payload: bytes(9000) }]);
-  const p2 = encodePacket([
-    { stream: 2, seq: 1, payload: bytes(5, 3) },
-    { stream: 4, seq: 0, payload: new Uint8Array(0) },
-  ]);
-  f.body.push([0, 0]);
-  await tick();
-  assert.equal(st.ok, true, "start resolves on the first (empty) packet");
-  assert.equal(ctx.packets.length, 0, "the empty packet is not handed on");
-  f.body.push(p1.subarray(0, 4000));
-  await tick();
-  assert.equal(ctx.packets.length, 0);
-  const rest = new Uint8Array(p1.length - 4000 + p2.length);
-  rest.set(p1.subarray(4000));
-  rest.set(p2, p1.length - 4000);
-  f.body.push(rest);
-  await tick();
-  assert.equal(ctx.packets.length, 2);
-  assert.deepEqual(ctx.packets[0], p1);
-  assert.deepEqual(ctx.packets[1], p2);
-  assert.deepEqual(ctx.fails, []);
-  lane.stop();
-});
-
-test("down:scheme parses a stream fed one byte at a time", async () => {
-  const f = downFetch();
-  const ctx = fakeCtx(f.fn);
-  const lane = newSchemeDown();
-  const st = settled(lane.start(ctx));
-  await tick();
-  const pkts = [
-    encodePacket([]),
-    encodePacket([{ stream: 1, seq: 0, payload: bytes(30) }]),
-    encodePacket([]), // an empty packet later in the stream is skipped too
-    encodePacket([
-      { stream: 1, seq: 1, payload: bytes(3, 5) },
-      { stream: 3, seq: 9, payload: bytes(25, 7) },
-      { stream: 5, seq: 2, payload: new Uint8Array(0) },
-    ]),
-  ];
-  for (const p of pkts) for (const b of p) f.body.push([b]);
-  // One read per tick at most; give the reader time.
-  for (let i = 0; i < 400 && ctx.packets.length < 2; i++) await tick();
-  assert.equal(st.ok, true);
-  assert.equal(ctx.packets.length, 2);
-  assert.deepEqual(ctx.packets[0], pkts[1]);
-  assert.deepEqual(ctx.packets[1], pkts[3]);
-  assert.equal(decodePacket(ctx.packets[1]).length, 3);
-  lane.stop();
-});
-
-test("down:scheme hands on packets that arrive with the first one", async () => {
-  const f = downFetch();
-  const ctx = fakeCtx(f.fn);
-  const lane = newSchemeDown();
-  const st = settled(lane.start(ctx));
-  await tick();
-  const p1 = encodePacket([{ stream: 2, seq: 0, payload: bytes(10) }]);
-  const all = new Uint8Array(2 + p1.length);
-  all.set(p1, 2);
-  f.body.push(all);
-  await tick();
-  assert.equal(st.ok, true);
-  assert.deepEqual(ctx.packets, [p1]);
-  lane.stop();
-});
-
-test("down:scheme start fails on non-200", async () => {
-  for (const status of [403, 500, 204]) {
-    const f = downFetch({ status });
-    const ctx = fakeCtx(f.fn);
-    const lane = newSchemeDown();
-    await assert.rejects(lane.start(ctx));
-    assert.deepEqual(ctx.fails, []);
-    lane.stop();
-  }
-});
-
-test("down:scheme start fails without a body or when fetch rejects", async () => {
-  const f = downFetch({ noBody: true });
-  await assert.rejects(newSchemeDown().start(fakeCtx(f.fn)));
-  const ctx = fakeCtx(() => Promise.reject(new TypeError("network")));
-  await assert.rejects(newSchemeDown().start(ctx), /network/);
-  const ctx2 = fakeCtx(() => {
-    throw new TypeError("sync throw");
-  });
-  await assert.rejects(newSchemeDown().start(ctx2), /sync throw/);
-});
-
-test("down:scheme stream end triggers fail", async () => {
-  const f = downFetch();
-  const ctx = fakeCtx(f.fn);
-  const lane = newSchemeDown();
-  const p = lane.start(ctx);
-  await tick();
-  f.body.push([0, 0]);
-  await p;
-  f.body.end();
-  await tick();
-  await tick();
-  assert.equal(ctx.fails.length, 1);
-  lane.stop();
-});
-
-test("down:scheme read error triggers fail", async () => {
-  const f = downFetch();
-  const ctx = fakeCtx(f.fn);
-  const lane = newSchemeDown();
-  const p = lane.start(ctx);
-  await tick();
-  f.body.push([0, 0]);
-  await p;
-  f.body.error(new TypeError("connection reset"));
-  await tick();
-  await tick();
-  assert.equal(ctx.fails.length, 1);
-  lane.stop();
-});
-
-test("down:scheme stream end before the first packet fails start", async () => {
-  const f = downFetch();
-  const ctx = fakeCtx(f.fn);
-  const lane = newSchemeDown();
-  const p = lane.start(ctx);
-  await tick();
-  f.body.push([0]); // half a packet
-  f.body.end();
-  await assert.rejects(p);
-  assert.deepEqual(ctx.fails, [], "a start failure is the rejection, not fail");
-  lane.stop();
-});
-
-test("down:scheme frame length beyond MAX_FRAME_BYTES fails the lane", async () => {
-  const f = downFetch();
-  const ctx = fakeCtx(f.fn);
-  const lane = newSchemeDown();
-  const p = lane.start(ctx);
-  await tick();
-  f.body.push([0, 0]);
-  await p;
-  const bad = new Uint8Array(22);
-  const dv = new DataView(bad.buffer);
-  dv.setUint16(0, 1);
-  dv.setUint32(18, (16 << 20) + 1);
-  f.body.push(bad);
-  await tick();
-  await tick();
-  assert.equal(ctx.fails.length, 1);
-  assert.equal(f.calls[0].aborted, true, "the fetch is aborted");
-  lane.stop();
-});
-
-test("down:scheme stop aborts the fetch and never calls fail", async () => {
-  const f = downFetch();
-  const ctx = fakeCtx(f.fn);
-  const lane = newSchemeDown();
-  const p = lane.start(ctx);
-  await tick();
-  f.body.push([0, 0]);
-  await p;
-  lane.stop();
-  await tick();
-  await tick();
-  assert.equal(f.calls[0].aborted, true);
-  assert.deepEqual(ctx.fails, []);
-  lane.stop(); // twice is harmless
-});
-
-test("down:scheme stop before the first packet settles start", async () => {
-  const f = downFetch();
-  const ctx = fakeCtx(f.fn);
-  const lane = newSchemeDown();
-  const p = lane.start(ctx);
-  await tick();
-  lane.stop();
-  await assert.rejects(p);
-  assert.deepEqual(ctx.fails, []);
-});
-
-test("down:scheme start times out without a first packet", async () => {
-  // Headers arrive but no bytes.
-  const f = downFetch();
-  const ctx = fakeCtx(f.fn);
-  const lane = newSchemeDown({ startTimeoutMs: 30 });
-  const t0 = Date.now();
-  await assert.rejects(lane.start(ctx), /5 s|timed out|within/);
-  assert.ok(Date.now() - t0 >= 25);
-  assert.equal(f.calls[0].aborted, true, "the fetch is aborted");
-  assert.deepEqual(ctx.fails, []);
-  lane.stop();
-
-  // No response at all.
-  const g = downFetch({ hang: true });
-  const lane2 = newSchemeDown({ startTimeoutMs: 30 });
-  await assert.rejects(lane2.start(fakeCtx(g.fn)));
-  assert.equal(g.calls[0].init.signal.aborted, true);
-  lane2.stop();
-});
-
-test("down:scheme start timer stops once started", async () => {
-  const f = downFetch();
-  const ctx = fakeCtx(f.fn);
-  const lane = newSchemeDown({ startTimeoutMs: 30 });
-  const p = lane.start(ctx);
-  await tick();
-  f.body.push([0, 0]);
-  await p;
-  await sleep(60);
-  assert.notEqual(f.calls[0].aborted, true);
-  assert.deepEqual(ctx.fails, []);
-  lane.stop();
 });
 
 // ---- up:post ----
@@ -705,28 +427,39 @@ test("the clean ESM entry registers both lanes before synchronous eager hello", 
   const script = `
     import assert from "node:assert/strict";
     let recv;
-    globalThis.fetch = async (_url, init) => init?.method === "POST" ? {status:204} : ({status:200,body:new ReadableStream({start(c){c.enqueue(new Uint8Array([0,0]));}})});
+    globalThis.fetch = async (_url, init) => init?.method === "POST" ? {status:204} : {status:404};
     globalThis.__tango = {
       onMessage(fn){recv=fn;return ()=>{};},
-      post(raw){if(raw[0]!=="{")return;const m=JSON.parse(raw);if(m.tango==="hello")recv(JSON.stringify({tango:"hello",proto:2,win:1048576,lanes:{gen:1,tok:"t",list:["down:scheme","up:post"]}}));}
+      _onPacket(fn){return ()=>{};},
+      post(raw){if(raw[0]!=="{")return;const m=JSON.parse(raw);if(m.tango==="hello")recv(JSON.stringify({tango:"hello",proto:2,win:1048576,lanes:{gen:1,tok:"t",list:["down:poll","up:post"]}}));}
     };
     const api=await import(${JSON.stringify(entry)});
     await new Promise(r=>setImmediate(r));
-    assert.deepEqual(api.lanes(),{down:"down:scheme",up:"up:post"});
+    assert.deepEqual(api.lanes(),{down:"down:poll",up:"up:post"});
   `;
   execFileSync(process.execPath, ["--input-type=module", "-e", script], { timeout: 10000 });
 });
 
+// A core bridge for the IIFE's realm, with the downShim's _onPacket:
+// push(p) delivers a packet to its subscribers.
 function iifeBridge() {
   let sub = null;
   const b = {
     out: [],
+    pktSubs: [],
     post(s) {
       b.out.push(s);
     },
     onMessage(fn) {
       sub = fn;
       return () => (sub = null);
+    },
+    _onPacket(fn) {
+      b.pktSubs.push(fn);
+      return () => (b.pktSubs = b.pktSubs.filter((x) => x !== fn));
+    },
+    push(p) {
+      for (const fn of [...b.pktSubs]) fn(p);
     },
     recv(m) {
       sub(typeof m === "string" ? m : JSON.stringify(m));
@@ -737,17 +470,13 @@ function iifeBridge() {
 
 // The IIFE (what Go injects) must have registered both lanes by the time
 // its eager client sees Go's hello reply.
-test("IIFE registers the scheme lanes before the client starts", async () => {
+test("IIFE registers the fast lanes before the client starts", async () => {
   const src = readFileSync(new URL("../runtimejs/tango.iife.js", import.meta.url), "utf8");
   const b = iifeBridge();
-  const f = downFetch();
   const ups = [];
   const fetchFn = (url, init) => {
-    if (url.startsWith("/__tango/lane/up")) {
-      ups.push({ url, init });
-      return Promise.resolve({ status: 204, ok: true });
-    }
-    return f.fn(url, init);
+    ups.push({ url, init });
+    return Promise.resolve({ status: url.startsWith("/__tango/lane/up") ? 204 : 404, ok: true });
   };
   const ctx = vm.createContext({
     __tango: b,
@@ -758,84 +487,75 @@ test("IIFE registers the scheme lanes before the client starts", async () => {
     console,
   });
   vm.runInContext(src, ctx);
-  assert.equal(ctx[REG]?.has("down:scheme"), true);
+  assert.equal(ctx[REG]?.has("down:poll"), true);
   assert.equal(ctx[REG]?.has("up:post"), true);
-  assert.deepEqual(b.out.splice(0), ['{"tango":"hello","proto":2}']);
-  b.recv({ tango: "hello", proto: 2, win: 1048576, lanes: { gen: 4, tok: "k", list: ["down:scheme", "up:post"] } });
+  assert.equal(ctx[REG]?.has("down:scheme"), false);
+  assert.deepEqual(b.out.splice(0), ['{"tango":"hello","proto":2,"win":1048576}']);
+  b.recv({ tango: "hello", proto: 2, win: 1048576, lanes: { gen: 4, tok: "k", list: ["down:poll", "up:post"] } });
   await tick();
-  assert.equal(f.calls.length, 1);
-  assert.equal(f.calls[0].url, "/__tango/lane/down?gen=4&tok=k");
+  assert.equal(b.pktSubs.length, 1, "down:poll subscribed to _onPacket");
+  assert.deepEqual(ups.map((u) => u.url), ["/__tango/lane/up?gen=4&tok=k"], "down:poll fetches nothing");
   const ctl = (op, lane) => INTERNAL_PREFIX + "lane:" + JSON.stringify({ op, lane, gen: 4 });
-  assert.deepEqual(b.out.splice(0), [ctl("ready", "up:post")]);
-  f.body.push([0, 0]);
-  await tick();
-  assert.deepEqual(b.out.splice(0), [ctl("ready", "down:scheme")]);
-  assert.equal(JSON.stringify(ctx.tango.lanes()), JSON.stringify({ down: "down:scheme", up: "up:post" })); // other realm
+  assert.deepEqual(
+    b.out.splice(0).sort(),
+    [ctl("ready", "down:poll"), ctl("ready", "up:post"), '{"tango":"win","win":4194304}'].sort(),
+  );
+  assert.equal(JSON.stringify(ctx.tango.lanes()), JSON.stringify({ down: "down:poll", up: "up:post" })); // other realm
 });
 
 // Ordering in the IIFE: even a hello reply delivered synchronously from
 // the eager client's own hello post (the earliest possible moment) finds
 // both lanes registered.
-test("IIFE registers the scheme lanes before its eager client posts hello", async () => {
+test("IIFE registers the fast lanes before its eager client posts hello", async () => {
   const src = readFileSync(new URL("../runtimejs/tango.iife.js", import.meta.url), "utf8");
-  const f = downFetch();
-  let sub = null;
-  const out = [];
-  const b = {
-    post(s) {
-      out.push(s);
-      if (s.includes('"hello"')) {
-        sub(JSON.stringify({ tango: "hello", proto: 2, lanes: { gen: 1, tok: "k", list: ["up:post", "down:scheme"] } }));
-      }
-    },
-    onMessage(fn) {
-      sub = fn;
-      return () => {};
-    },
+  const b = iifeBridge();
+  const post = b.post;
+  b.post = (s) => {
+    post(s);
+    if (s.includes('"hello"')) {
+      b.recv({ tango: "hello", proto: 2, lanes: { gen: 1, tok: "k", list: ["up:post", "down:poll"] } });
+    }
   };
-  // up:post's start probe gets its 204; down:scheme gets f.
-  const fetchFn = (url, init) => (url.startsWith("/__tango/lane/up") ? Promise.resolve({ status: 204, ok: true }) : f.fn(url, init));
+  // up:post's start probe gets its 204.
+  const fetchFn = () => Promise.resolve({ status: 204, ok: true });
   const ctx = vm.createContext({ __tango: b, setTimeout, clearTimeout, fetch: fetchFn, AbortController, console });
   vm.runInContext(src, ctx);
   await tick();
-  assert.equal(f.calls.length, 1, "down:scheme was started");
-  assert.ok(out.some((s) => s.includes('"op":"ready","lane":"up:post"')), "up:post was started");
+  assert.equal(b.pktSubs.length, 1, "down:poll was started");
+  assert.ok(b.out.some((s) => s.includes('"op":"ready","lane":"up:post"')), "up:post was started");
+  assert.ok(b.out.some((s) => s.includes('"op":"ready","lane":"down:poll"')), "down:poll is ready");
 });
 
 // End to end through the client: a Go-opened stream gets its bytes from
-// the down:scheme response and sends big frames with up:post.
-test("client streams through down:scheme and up:post", async (t) => {
-  const f = downFetch();
+// down:poll packets and sends big frames with up:post.
+test("client streams through down:poll and up:post", async (t) => {
   const posts = [];
   let probes = 0;
   const prev = globalThis.fetch;
   globalThis.fetch = (url, init) => {
-    if (url.startsWith("/__tango/lane/up")) {
-      const frames = decodePacket(new Uint8Array(init.body));
-      if (frames.length) posts.push(frames);
-      else probes++; // up:post's start probe
-      return Promise.resolve({ status: 204, ok: true });
-    }
-    return f.fn(url, init);
+    assert.ok(url.startsWith("/__tango/lane/up"), `unexpected fetch ${url}`);
+    const frames = decodePacket(new Uint8Array(init.body));
+    if (frames.length) posts.push(frames);
+    else probes++; // up:post's start probe
+    return Promise.resolve({ status: 204, ok: true });
   };
-  t.after(() => (globalThis.fetch = prev));
-  let sub;
-  const out = [];
-  const b = { post: (s) => out.push(s), onMessage: (fn) => ((sub = fn), () => {}) };
+  const b = iifeBridge();
+  const prevCore = globalThis.__tango;
+  globalThis.__tango = b; // down:poll reads window.__tango._onPacket
+  t.after(() => {
+    globalThis.fetch = prev;
+    globalThis.__tango = prevCore;
+  });
   const c = createClient(b);
-  sub(JSON.stringify({ tango: "hello", proto: 2, win: 1048576, lanes: { gen: 1, tok: "t", list: ["down:scheme", "up:post"] } }));
+  b.recv({ tango: "hello", proto: 2, win: 1048576, lanes: { gen: 1, tok: "t", list: ["down:poll", "up:post"] } });
   await tick();
-  f.body.push([0, 0]);
-  await tick();
-  assert.deepEqual(c.lanes(), { down: "down:scheme", up: "up:post" });
+  assert.deepEqual(c.lanes(), { down: "down:poll", up: "up:post" });
   assert.equal(probes, 1, "up:post was ready after one start probe");
   let s;
   c.onStream("Feed", (x) => (s = x));
-  sub(JSON.stringify({ tango: "stream", id: 2, op: "open", method: "Feed", args: [] }));
+  b.recv({ tango: "stream", id: 2, op: "open", method: "Feed", args: [] });
   const payload = bytes(8000, 9);
-  const pkt = encodePacket([{ stream: 2, seq: 0, payload }]);
-  f.body.push(pkt.subarray(0, 100));
-  f.body.push(pkt.subarray(100));
+  b.push(encodePacket([{ stream: 2, seq: 0, payload }]));
   const it = s[Symbol.asyncIterator]();
   const { value } = await it.next();
   assert.deepEqual(new Uint8Array(value), payload);
@@ -847,8 +567,7 @@ test("client streams through down:scheme and up:post", async (t) => {
     posts[0].map((g) => [g.stream, g.seq, g.payload.length]),
     [[2, 0, 20000]],
   );
-  c.lanes(); // still both
-  assert.deepEqual(c.lanes(), { down: "down:scheme", up: "up:post" });
+  assert.deepEqual(c.lanes(), { down: "down:poll", up: "up:post" });
 });
 
 
@@ -908,7 +627,9 @@ test("default adapter ignores external HTML base, pins normal and opaque locatio
       await assert.rejects(adapter("https://external.example/__tango/lane/up?gen=1"));
     }
     const redirect = internal.locationFetch("https://tango.localhost/", async () => ({ redirected: true }));
-    await assert.rejects(redirect("/__tango/lane/down?gen=1&tok=secret"), /redirect/);
+    await assert.rejects(redirect("/__tango/lane/up?gen=1&tok=secret"), /redirect/);
+    // down:scheme's /__tango/lane/down is gone: not a lane destination any more.
+    await assert.rejects(internal.locationFetch("https://tango.localhost/", async () => ({ status: 200 }))("/__tango/lane/down?gen=1&tok=secret"), /invalid lane destination/);
   } finally { delete globalThis.document; }
 });
 

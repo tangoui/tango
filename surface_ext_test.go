@@ -11,14 +11,15 @@ import (
 	"github.com/tangoui/tango/internal/platform/fake"
 )
 
-func recvCount(evals []string) int {
-	n := 0
-	for _, e := range evals {
-		if strings.HasPrefix(e, "window.__tango._recv(") {
-			n++
-		}
+func recvCount(t *testing.T, evals []string) int { t.Helper(); return len(sentMsgs(t, evals)) }
+
+func lastMsg(t *testing.T, evals []string) string {
+	t.Helper()
+	m := sentMsgs(t, evals)
+	if len(m) == 0 {
+		return ""
 	}
-	return n
+	return m[len(m)-1]
 }
 
 func sync0(a *App) { Await(a, func() int { return 0 }) }
@@ -249,18 +250,18 @@ func TestNavigatingRebuffersSend(t *testing.T) {
 	fb.Load(s.ID())
 	s.Send("one")
 	sync0(a)
-	if recvCount(ns.Evals()) != 1 {
+	if recvCount(t, ns.Evals()) != 1 {
 		t.Fatal("not delivered after load")
 	}
 	// A link click: the page starts unloading; messages must wait.
 	fb.Navigating(s.ID(), "tango://app/next")
 	s.Send("two")
 	sync0(a)
-	if recvCount(ns.Evals()) != 1 {
+	if recvCount(t, ns.Evals()) != 1 {
 		t.Fatal("sent into a page that is navigating away")
 	}
 	fb.LoadURL(s.ID(), "tango://app/next")
-	if ev := ns.Evals(); recvCount(ev) != 2 || ev[len(ev)-1] != `window.__tango._recv("two")` {
+	if ev := ns.Evals(); recvCount(t, ev) != 2 || lastMsg(t, ev) != "two" {
 		t.Fatalf("evals %q", ev)
 	}
 
@@ -268,11 +269,11 @@ func TestNavigatingRebuffersSend(t *testing.T) {
 	s.Reload()
 	s.Send("three")
 	sync0(a)
-	if recvCount(ns.Evals()) != 2 {
+	if recvCount(t, ns.Evals()) != 2 {
 		t.Fatal("sent during reload")
 	}
 	fb.Load(s.ID())
-	if recvCount(ns.Evals()) != 3 {
+	if recvCount(t, ns.Evals()) != 3 {
 		t.Fatal("not delivered after reload")
 	}
 }
@@ -287,19 +288,19 @@ func TestLoadFailedProbe(t *testing.T) {
 	fb.LoadFailed(s.ID(), "https://down.example/", "offline")
 	ev := ns.Evals()
 	probe := ev[len(ev)-1]
-	if !strings.Contains(probe, `tango-int:frame:alive:2`) || recvCount(ev) != 0 {
+	if !strings.Contains(probe, `tango-int:frame:alive:2`) || recvCount(t, ev) != 0 {
 		t.Fatalf("evals %q", ev)
 	}
 	// A stale answer (from before the latest navigation) is ignored.
 	fb.Message(s.ID(), "\x00tango-int:frame:alive:1")
-	if recvCount(ns.Evals()) != 0 {
+	if recvCount(t, ns.Evals()) != 0 {
 		t.Fatal("stale probe answer flushed")
 	}
 	// The old page is still there and answers: the message goes to it.
 	var user []string
 	a.OnMessage(func(_ *Surface, m string) { user = append(user, m) })
 	fb.Message(s.ID(), "\x00tango-int:frame:alive:2")
-	if ev := ns.Evals(); ev[len(ev)-1] != `window.__tango._recv("kept")` {
+	if ev := ns.Evals(); lastMsg(t, ev) != "kept" {
 		t.Fatalf("evals %q", ev)
 	}
 	if n := Await(a, func() int { return len(user) }); n != 0 {
@@ -311,11 +312,11 @@ func TestLoadFailedProbe(t *testing.T) {
 	s.Send("later")
 	fb.LoadFailed(s.ID(), "https://down.example/", "offline")
 	sync0(a)
-	if recvCount(ns.Evals()) != 1 {
+	if recvCount(t, ns.Evals()) != 1 {
 		t.Fatal("delivered without a page")
 	}
 	fb.Load(s.ID())
-	if recvCount(ns.Evals()) != 2 {
+	if recvCount(t, ns.Evals()) != 2 {
 		t.Fatal("not delivered on next load")
 	}
 }

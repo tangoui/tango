@@ -79,12 +79,45 @@
 
   /** Go → JS: 1024 frames of 64 KiB from Source. */
   async function down(frames = 1024, size = 64 * KiB) {
+    if (ipcTrace) {
+      try { await tango.call("Debug.TraceReset"); } catch {}
+      ipcTrace.reset();
+    }
     const t0 = performance.now();
     let n = 0;
     for await (const b of tango.stream("Source", frames, size)) n += b.length;
     const ms = performance.now() - t0;
     if (n !== frames * size) throw new Error("source sent " + n);
     return mbps(n, ms);
+  }
+
+  /** Go → JS, terminal-like: 20000 byte frames of 1 KiB from Source.
+   * Frames per second and MB/s. */
+  async function downSmall(frames = 20000, size = 1024) {
+    const t0 = performance.now();
+    let n = 0;
+    let count = 0;
+    for await (const b of tango.stream("Source", frames, size)) {
+      n += b.length;
+      count++;
+    }
+    const ms = performance.now() - t0;
+    if (count !== frames || n !== frames * size) throw new Error("small source sent " + count + " frames, " + n + " bytes");
+    return { fps: Math.round(frames / (ms / 1000)), MBps: mbps(n, ms) };
+  }
+
+  /** Go → JS, AI / database chunk-like: 10000 JSON frames of about 2.3 KB
+   * (20 rows × 5 strings) from SourceJSON. Frames per second. */
+  async function downJSON(frames = 10000) {
+    const t0 = performance.now();
+    let count = 0;
+    for await (const v of tango.stream("SourceJSON", frames)) {
+      if (!v || !Array.isArray(v.rows) || v.rows.length !== 20) throw new Error("bad json frame at " + count);
+      count++;
+    }
+    const ms = performance.now() - t0;
+    if (count !== frames) throw new Error("json source sent " + count);
+    return { fps: Math.round(frames / (ms / 1000)) };
   }
 
   /** Debug.Stats when the test hooks are on (TANGO_SCHEME_PROBE=1), else
@@ -97,8 +130,31 @@
     }
   }
 
+  let ipcTrace = null;
+
+  function installTrace(enabled) {
+    if (!enabled) return null;
+    const events = [];
+    const trace = {
+      enabled: true,
+      event(name, data) {
+        events.push({ name, t: performance.now(), ...(data || {}) });
+      },
+      reset() {
+        events.length = 0;
+      },
+      snapshot() {
+        return events.slice();
+      },
+    };
+    globalThis.__tangoIpcTrace = trace;
+    return trace;
+  }
+
   /** The whole benchmark; log gets one progress line at a time. */
   async function run(log = () => {}) {
+    const initialStats = await stats();
+    ipcTrace = installTrace(Boolean(initialStats && initialStats.ipcTraceEnabled));
     log("延迟…");
     const lat = await latency();
     log(`  p50 ${lat.p50} ms, p99 ${lat.p99} ms, mean ${lat.mean} ms`);
@@ -112,15 +168,39 @@
     log(`  ${upMBps} MB/s`);
     log("下行（Go→JS）…");
     const downMBps = await down();
+    const downTraceGo = ipcTrace ? await stats() : null;
+    const downTracePage = ipcTrace ? ipcTrace.snapshot() : null;
     log(`  ${downMBps} MB/s`);
+    log("下行小帧（20000 × 1 KiB）…");
+    const small = await downSmall();
+    log(`  ${small.fps} 帧/s, ${small.MBps} MB/s`);
+    log("下行 JSON（10000 × ~2.3 KB）…");
+    const js = await downJSON();
+    log(`  ${js.fps} 帧/s`);
     // The fast lanes the page used: {down, up}, each a lane name such as
     // "up:post" or "fallback" (byte frames on the message channel). Read
     // after the run, so a lane that failed midway shows as fallback.
     const lane = tango.lanes();
     log(`  通道：下行 ${lane.down}，上行 ${lane.up}`);
+    const pagePoll = downTracePage || [];
+    const duplicates = pagePoll.filter((e) => e.name === "down_duplicate");
+    const modeEvent = pagePoll.find((e) => e.name === "down_mode") || pagePoll.find((e) => e.name === "poll_start");
+    const inFlightEvents = pagePoll.filter((e) => typeof e.inflightMax === "number");
+    const downPoll = {
+      mode: modeEvent ? modeEvent.mode : "B",
+      pollStarts: pagePoll.filter((e) => e.name === "poll_start").length,
+      fetchIssues: pagePoll.filter((e) => e.name === "next_fetch_issue").length,
+      responses: pagePoll.filter((e) => e.name === "decode_done").map((e) => ({first: e.first, count: e.count})),
+      batches: pagePoll.filter((e) => e.name === "downBatch_start").length,
+      duplicateItems: duplicates.length,
+      duplicateItemBytes: duplicates.reduce((n, e) => n + (e.itemBytes || 0), 0),
+      duplicatePacketBytes: duplicates.reduce((n, e) => n + (e.packetBytes || 0), 0),
+      maxInFlight: inFlightEvents.reduce((n, e) => Math.max(n, e.inflightMax || 0), 0),
+    };
     const res = {
       lane,
       platform: navigator.userAgent,
+      downPoll,
       latencyP50Ms: lat.p50,
       latencyP99Ms: lat.p99,
       latencyMeanMs: lat.mean,
@@ -129,7 +209,20 @@
       latencyBatchMeansMs: batch.means,
       upMBps,
       downMBps,
+      downSmallFps: small.fps,
+      downSmallMBps: small.MBps,
+      downJsonFps: js.fps,
     };
+    if (ipcTrace && downTraceGo) {
+      res.ipcTrace = { go: downTraceGo.ipcTrace || [], page: downTracePage || [] };
+      res.downScheme = {
+        requests: downTraceGo.downRequests - (initialStats?.downRequests || 0),
+        responseMs: round3((downTraceGo.downResponseNanos - (initialStats?.downResponseNanos || 0)) / 1e6),
+        dataMs: round3((downTraceGo.downDataNanos - (initialStats?.downDataNanos || 0)) / 1e6),
+        finishMs: round3((downTraceGo.downFinishNanos - (initialStats?.downFinishNanos || 0)) / 1e6),
+        dataCalls: downTraceGo.downDataCalls - (initialStats?.downDataCalls || 0),
+      };
+    }
     if (s0 && s1) {
       // The upload's up:post requests and the main-thread time the macOS
       // scheme handler spent on them before their handler goroutine
@@ -146,5 +239,5 @@
     return res;
   }
 
-  window.duplexBench = { latency, latencyBatches, up, down, run };
+  window.duplexBench = { latency, latencyBatches, up, down, downSmall, downJSON, run };
 })();

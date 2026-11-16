@@ -303,5 +303,5 @@ func init() {
 		return nil // not a typed nil *Surface
 	}
 	corehook.SurfaceClosed = func(surface any) bool { return surface.(*Surface).closed.Load() }
-	corehook.SurfaceLoaded = func(surface any) bool { return surface.(*Surface).loaded }
+	corehook.SurfaceLoaded = func(surface any) bool { return surface.(*Surface).loaded.Load() }
 }

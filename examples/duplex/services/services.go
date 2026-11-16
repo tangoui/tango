@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"sync"
 
 	"github.com/tangoui/tango/ipc"
@@ -41,17 +42,26 @@ func SetBenchDone(fn func()) {
 //     frames of size bytes each. Without mod every frame holds byte(i) at
 //     offset i; with mod > 0, byte j of the whole stream (counted across
 //     frames) is (j + add) % mod.
+//   - "SourceJSON" (stream, [frames]): writes frames JSON frames of about
+//     2.3 KB each, shaped like MinCode's AI / database chunks (jsonChunk).
 //   - "Bench.Report" (call): prints its argument as one JSON line on stdout.
 //   - "Debug.Stats" (call), only with TANGO_SCHEME_PROBE=1: Go-side
 //     counters for the platform tests (Stats, testroutes.go).
+//   - "Debug.Sample" [ms, stepMs] and "Debug.Samples" (calls), only with
+//     TANGO_SCHEME_PROBE=1: sample goroutines and open poll requests in
+//     the background (testroutes.go), across page reloads.
 func Register(r *ipc.Router) {
 	r.HandleDuplex("Echo", echo)
 	r.HandleDuplex("Upload", upload)
 	r.HandleDuplex("Sink", sink)
 	r.HandleStream("Source", source)
+	r.HandleStream("SourceJSON", sourceJSON)
 	r.Handle("Bench.Report", benchReport)
 	if Probe() {
 		r.Handle("Debug.Stats", debugStats)
+		r.Handle("Debug.Sample", debugSample)
+		r.Handle("Debug.Samples", debugSamples)
+		r.Handle("Debug.TraceReset", debugTraceReset)
 	}
 }
 
@@ -187,6 +197,38 @@ func fillSource(buf []byte, off, mod, add int) {
 			v = 0
 		}
 	}
+}
+
+// chunk is one SourceJSON frame. It and jsonChunk are byte-for-byte the
+// frame of the ipc-bench/tango program (the one the Wails numbers
+// were measured with), so the results stay comparable.
+type chunk struct {
+	Seq  int        `json:"seq"`
+	Kind string     `json:"kind"`
+	Rows [][]string `json:"rows"`
+}
+
+// jsonChunk returns frame i: 20 rows of 5 strings, about 2.3 KB as JSON.
+func jsonChunk(i int) chunk {
+	rows := make([][]string, 20)
+	for r := range rows {
+		rows[r] = []string{strconv.Itoa(i*20 + r), "user_name_value", "someone@example.com", "2026-11-14T20:48:42Z", "some longer text column with a few words"}
+	}
+	return chunk{Seq: i, Kind: "rows", Rows: rows}
+}
+
+// sourceJSON writes frames JSON frames (jsonChunk(0), jsonChunk(1), ...).
+func sourceJSON(ctx context.Context, args json.RawMessage, w ipc.StreamWriter) error {
+	var frames int
+	if err := decodeArgs(args, &frames); err != nil || frames < 0 {
+		return ipc.NewError(ipc.CodeBadArgs, "SourceJSON(frames int)")
+	}
+	for i := range frames {
+		if err := w.Write(jsonChunk(i)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // benchReport prints its argument as one JSON line on stdout, then runs

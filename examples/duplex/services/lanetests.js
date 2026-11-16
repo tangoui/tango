@@ -7,7 +7,9 @@
 //
 // On Apple platforms the app runs with up:post on (the macOS default; the
 // iOS self-test sets TANGO_IPC_LANES_DARWIN=1, iOS lanes being off by
-// default): they offer only up:post (spec §6.2), so the lane assertions
+// default): they offer only up:post (spec §6.2; macOS can opt into
+// down:poll with TANGO_IPC_LANES_DARWIN=1, which the macOS flow test does
+// not set: it pins TANGO_IPC_LANES_DARWIN=up), so the lane assertions
 // are about the upstream direction (Debug.Stats upFrames: frames that
 // reached Go on the upstream lane). Downstream frames travel on the
 // message channel; they are checked for being complete and in order only.

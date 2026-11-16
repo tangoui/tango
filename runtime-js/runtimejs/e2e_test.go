@@ -412,7 +412,7 @@ func TestEndToEndWithNode(t *testing.T) {
 		if err := json.Unmarshal(sc.Bytes(), &msg); err != nil {
 			t.Fatalf("bad line %q", sc.Text())
 		}
-		if msg == `{"tango":"hello","proto":2}` {
+		if equalJSON(json.RawMessage(msg), json.RawMessage(pageHello)) {
 			sawHello = true
 		}
 		if r.HandleMessage(c, msg) {
@@ -424,7 +424,7 @@ func TestEndToEndWithNode(t *testing.T) {
 		case strings.HasPrefix(msg, "DONE "):
 			check(t, msg[5:])
 			if !sawHello {
-				t.Error(`no {"tango":"hello","proto":2} from JS`)
+				t.Errorf("no %s from JS", pageHello)
 			}
 			if got, want := c.helloReplies(), []string{`{"tango":"hello","proto":2,"win":65536}`}; !equalJSON(got, want) {
 				t.Errorf("Go hello replies = %q, want %q", got, want)
@@ -530,6 +530,11 @@ func uploadSHA() string {
 	}
 	return sha(b)
 }
+
+// pageHello is the hello runtime-js sends: the protocol version and the
+// page's per-stream receive window (DEFAULT_WINDOW_BYTES; a ready
+// down:poll raises it later with a separate "win" message).
+const pageHello = `{"tango":"hello","proto":2,"win":1048576}`
 
 // equalJSON compares a and b by their JSON encodings, decoded and
 // re-encoded so that key order and number formatting do not matter.

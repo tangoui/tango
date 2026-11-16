@@ -8,8 +8,9 @@
 // pending until the page reports them ready (Control). The core's
 // *tango.Surface wraps a State to implement ipc.BinaryConn.
 //
-// All methods are safe from any goroutine. platformSend is called without
-// the State's lock held, with the generation the packet was admitted in.
+// All methods are safe from any goroutine. platformSend and pollSend are
+// called without the State's lock held, with the generation the packet was
+// admitted in.
 package lane
 
 import (
@@ -23,12 +24,15 @@ import (
 // Lane names, as reported by backends (platform.BinaryLane.LaneCaps), listed
 // in the hello reply and named in control messages.
 const (
-	DownScheme  = "down:scheme"  // streaming GET /__tango/lane/down on the asset origin
 	UpPost      = "up:post"      // POST /__tango/lane/up on the asset origin
 	DownAndroid = "down:android" // Android WebMessagePort / ArrayBuffer bridge
 	UpAndroid   = "up:android"
 	DownShm     = "down:shm" // WebView2 shared buffers
 	UpShm       = "up:shm"
+	// DownPoll is the core's downstream transport: GET /__tango/lane/poll
+	// on the asset origin (the root package and internal/downq). Its
+	// packets go to New's pollSend.
+	DownPoll = "down:poll"
 )
 
 const (
@@ -38,28 +42,19 @@ const (
 	// PostBatchBytes is the size at which runtime-js sends an up:post batch
 	// without waiting for the batch delay.
 	PostBatchBytes = 16 << 10
-
-	// SchemeMinSize is BinaryMinSize while down:scheme is the downstream
-	// lane: smaller frames go as messages, for latency. Platform lanes
-	// (down:android, down:shm) take every byte frame (0).
-	SchemeMinSize = 4096
-
-	// maxDownQueue bounds the bytes queued for the down:scheme response;
-	// past it Send returns false and frames go on the message channel.
-	maxDownQueue = 8 << 20
 )
 
 // downPref and upPref are the order in which ready lanes are chosen:
-// platform lanes before the scheme ones. runtime-js keeps at most one lane
-// ready per direction, so the order only matters if a page misbehaves.
+// platform lanes before down:poll and up:post. runtime-js keeps at most one
+// lane ready per direction, so the order only matters if a page misbehaves.
 var (
-	downPref = []string{DownShm, DownAndroid, DownScheme}
+	downPref = []string{DownShm, DownAndroid, DownPoll}
 	upPref   = []string{UpShm, UpAndroid, UpPost}
 )
 
 func known(name string) bool {
 	switch name {
-	case DownScheme, UpPost, DownAndroid, UpAndroid, DownShm, UpShm:
+	case DownPoll, UpPost, DownAndroid, UpAndroid, DownShm, UpShm:
 		return true
 	}
 	return false
@@ -75,38 +70,10 @@ const (
 	failed // reported failed, or faulted; stays failed for the generation
 )
 
-// downQueue holds the packets waiting for one generation's down:scheme
-// response. The response handler (ServeDown) takes packets under State.mu,
-// waits on wake for more and stops when done is closed: a new generation,
-// Close, or down:scheme failing ends the queue.
-type downQueue struct {
-	pkts  [][]byte
-	size  int           // retained bytes: pkts plus in-flight Write/Flush calls
-	wake  chan struct{} // capacity 1; signalled when a packet is queued
-	done  chan struct{} // closed by end
-	ended bool
-	// conn is closed to end the response currently serving the queue
-	// when another one connects (ServeDown); nil when none is connected.
-	conn chan struct{}
-}
-
-func newDownQueue() *downQueue {
-	return &downQueue{wake: make(chan struct{}, 1), done: make(chan struct{})}
-}
-
-// end ends the queue and drops its packets. s.mu held.
-func (q *downQueue) end() {
-	if q.ended {
-		return
-	}
-	q.ended = true
-	q.pkts, q.size = nil, 0
-	close(q.done)
-}
-
 // State is the fast lane state of one page. Create it with New.
 type State struct {
 	platformSend func(gen uint64, p []byte) bool
+	pollSend     func(gen uint64, p []byte) bool
 
 	// Fault injection (tango_dev builds; fault.go): the lane faultLane
 	// fails after faultN packets in a generation.
@@ -120,24 +87,27 @@ type State struct {
 	caps   []string          // lanes offered in this generation, hello order
 	st     map[string]status // per offered lane
 	count  int               // packets counted for faultLane in this generation
-	down   *downQueue        // this generation's down:scheme queue
 	// downOff suspends this generation's downstream lanes (SuspendDown).
 	downOff bool
 }
 
 // New returns the state of a page whose platform lanes (down:android,
-// down:shm) send packets with platformSend (non-blocking, any goroutine;
-// false when the packet was not taken). platformSend gets the generation
-// the packet was admitted in; it is called without the State's lock held,
-// so by then that generation may have ended, and the backend must deliver
-// the packet only to the page lane of that generation (and drop it
-// otherwise). It must not call back into the State. platformSend may be
-// nil when the backend has no platform lane. TANGO_IPC_LANE_FAULT is read
-// here.
-func New(platformSend func(gen uint64, p []byte) bool) *State {
-	s := &State{platformSend: platformSend, down: newDownQueue()}
-	s.down.end() // no generation yet
-	if name, n, ok := loadFault(); ok {
+// down:shm) send packets with platformSend and whose down:poll lane sends
+// them with pollSend (the core's downstream queue). Both are non-blocking,
+// called from any goroutine without the State's lock held, and return
+// false when the packet was not taken; either may be nil (the lane then
+// takes nothing). Both get the generation the packet was admitted in; by
+// the time they run that generation may have ended, and they must deliver
+// the packet only to the page of that generation (and drop it otherwise:
+// a platform backend checks its page lane's generation, the core's pollSend
+// checks DownCurrent atomically with its push). They must not call back
+// into the State, except that pollSend may call DownCurrent.
+// TANGO_IPC_LANE_FAULT is read here.
+func New(platformSend, pollSend func(gen uint64, p []byte) bool) *State {
+	s := &State{platformSend: platformSend, pollSend: pollSend}
+	// down:poll's faults are injected where its responses are written
+	// (internal/downq's fault.go), so that they exercise the real recovery.
+	if name, n, ok := loadFault(); ok && name != DownPoll {
 		s.faultLane, s.faultN = name, n
 	}
 	return s
@@ -150,8 +120,7 @@ type helloLanes struct {
 }
 
 // Hello starts a new generation for a hello from the page: the generation
-// number goes up, a new token is made, every lane is pending and the
-// previous down:scheme response ends (its queued packets are dropped). It
+// number goes up, a new token is made and every lane is pending. It
 // returns the hello reply's "lanes" field for caps (unknown and repeated
 // names dropped), or nil when enabled is false, no known lane is left, or
 // the State is closed; the previous generation ends in every case.
@@ -162,8 +131,6 @@ func (s *State) Hello(caps []string, enabled bool) json.RawMessage {
 		return nil
 	}
 	s.gen++
-	s.down.end()
-	s.down = newDownQueue()
 	s.tok, s.caps, s.st, s.count = "", nil, nil, 0
 	s.downOff = false
 	if !enabled {
@@ -223,13 +190,9 @@ func (s *State) Control(payload string) {
 	}
 }
 
-// failLocked marks name failed; failing down:scheme ends its response.
-// s.mu held.
+// failLocked marks name failed. s.mu held.
 func (s *State) failLocked(name string) {
 	s.st[name] = failed
-	if name == DownScheme {
-		s.down.end()
-	}
 }
 
 // downLocked returns the ready downstream lane, or "". s.mu held.
@@ -263,58 +226,63 @@ func (s *State) faultLocked(name string, count bool) bool {
 }
 
 // Send hands packet to the ready downstream lane: a platform lane's
-// platformSend, or the down:scheme queue. It reports false when no lane is
-// ready, the lane refused it or the queue is full; the caller then sends
-// the frames as messages. On true the lane owns packet; on false it was
+// platformSend, or down:poll's pollSend. It reports false when no lane is
+// ready or the lane refused it; the caller then sends the frames as
+// messages. On true the lane owns packet; on false it was
 // neither kept nor modified (ipc.BinaryConn.SendBinary).
-func (s *State) Send(packet []byte) bool { return s.send(0, false, packet) }
+func (s *State) Send(packet []byte) bool { ok, _ := s.send(0, false, packet); return ok }
 
-// SendGeneration atomically validates session identity with queue admission.
-func (s *State) SendGeneration(gen uint64, packet []byte) bool { return s.send(gen, true, packet) }
+// SendOrdered is Send that also reports whether the lane that took packet
+// is down:poll, whose packets share one sequenced queue with the page's
+// messages (ipc.OrderedBinaryConn). ordered is false when sent is false.
+func (s *State) SendOrdered(packet []byte) (sent, ordered bool) { return s.send(0, false, packet) }
 
-func (s *State) send(genID uint64, scoped bool, packet []byte) bool {
+// SendGeneration is Send for the session of generation gen: false when
+// gen is not the current generation. The check is made under s.mu but the
+// lane's send (platformSend, pollSend) runs after it is released, so a new
+// Hello in between does not stop the packet there; the lane's send, which
+// gets gen, is what drops it then (see New).
+func (s *State) SendGeneration(gen uint64, packet []byte) bool {
+	ok, _ := s.send(gen, true, packet)
+	return ok
+}
+
+// SendGenerationOrdered is SendGeneration that also reports ordered, as
+// SendOrdered does.
+func (s *State) SendGenerationOrdered(gen uint64, packet []byte) (sent, ordered bool) {
+	return s.send(gen, true, packet)
+}
+
+func (s *State) send(genID uint64, scoped bool, packet []byte) (sent, ordered bool) {
 	s.mu.Lock()
 	if scoped && genID != s.gen {
 		s.mu.Unlock()
-		return false
+		return false, false
 	}
 	name := s.downLocked()
 	counted := !emptyPacket(packet)
 	if name == "" || s.faultLocked(name, counted) {
 		s.mu.Unlock()
-		return false
+		return false, false
 	}
-	if name == DownScheme {
-		defer s.mu.Unlock()
-		q := s.down
-		if q.ended || q.size+len(packet) > maxDownQueue {
-			if counted {
-				s.uncountLocked(name, s.gen)
-			}
-			return false
-		}
-		q.pkts = append(q.pkts, packet)
-		q.size += len(packet)
-		select {
-		case q.wake <- struct{}{}:
-		default:
-		}
-		return true
-	}
-	// platformSend runs without s.mu (no lock order with the backend's own
-	// locks); gen lets the backend drop the packet if the generation ends
-	// meanwhile.
+	// The lane's send runs without s.mu (no lock order with the backend's
+	// or the downstream queue's own locks); gen lets it drop the packet if
+	// the generation ends meanwhile.
 	gen := s.gen
 	s.mu.Unlock()
-	if s.platformSend != nil && s.platformSend(gen, packet) {
-		return true
+	send := s.platformSend
+	if name == DownPoll {
+		send = s.pollSend
+	}
+	if send != nil && send(gen, packet) {
+		return true, name == DownPoll
 	}
 	if counted {
 		s.mu.Lock()
 		s.uncountLocked(name, gen)
 		s.mu.Unlock()
 	}
-	return false
+	return false, false
 }
 
 // emptyPacket reports whether packet carries no frames (count 0), like the
@@ -331,20 +299,15 @@ func (s *State) uncountLocked(name string, gen uint64) {
 	}
 }
 
-// MinSize is ipc.BinaryConn.BinaryMinSize: SchemeMinSize while down:scheme
-// is the ready downstream lane, 0 for a platform lane, -1 when none is
-// ready.
+// MinSize is ipc.BinaryConn.BinaryMinSize: 0 while a downstream lane is
+// ready (every lane takes byte frames of any size), -1 when none is.
 func (s *State) MinSize() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	switch s.downLocked() {
-	case "":
+	if s.downLocked() == "" {
 		return -1
-	case DownScheme:
-		return SchemeMinSize
-	default:
-		return 0
 	}
+	return 0
 }
 
 // CheckToken reports whether gen and tok are the current generation's (in
@@ -402,44 +365,48 @@ func (s *State) upAllowedLocked(count bool) bool {
 
 // Reset ends the current generation without starting one with lanes, as
 // a disabled Hello does: the page has left (navigated away from the asset
-// origin). Send and UpAllowed refuse, MinSize is -1, the token is dead and
-// the down:scheme response ends, until the next Hello.
+// origin). Send and UpAllowed refuse, MinSize is -1 and the token is dead,
+// until the next Hello.
 func (s *State) Reset() { s.Hello(nil, false) }
 
 // SuspendDown stops the downstream lanes of the current generation until
-// the next Hello: Send refuses, MinSize is -1 and the down:scheme response
-// ends. The page is navigating and its successor must not receive this
-// page's bytes; a later ready for a downstream lane of this generation does
-// not lift it. The upstream lane and the token stay valid: a navigation may
-// leave the page in place (a download, a failed load), and its uploads in
-// flight must still arrive.
+// the next Hello: Send refuses and MinSize is -1. The page is navigating
+// and its successor must not receive this page's bytes on a platform lane
+// (down:android, down:shm). down:poll's own generation also ends in the
+// core's downstream queue, and DownCurrent reports false for the suspended
+// generation, so pollSend refuses its packets too. A later ready for a
+// downstream lane of this generation does not lift it. The upstream lane and the token stay valid:
+// a navigation may leave the page in place (a download, a failed load),
+// and its uploads in flight must still arrive.
 func (s *State) SuspendDown() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.downOff = true
-	s.down.end()
 }
 
-// Queued returns the packets and bytes waiting in the current generation's
-// down:scheme queue (tests, diagnostics).
-func (s *State) Queued() (packets, bytes int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.down.pkts), s.down.size
-}
-
-// Close ends the State for good (the surface closed): no lane is usable,
-// the down:scheme response ends and Hello returns nil.
+// Close ends the State for good (the surface closed): no lane is usable
+// and Hello returns nil.
 func (s *State) Close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.closed = true
-	s.down.end()
 	s.tok, s.caps, s.st = "", nil, nil
 }
 
 // Generation is an immutable identity for the current document session.
 func (s *State) Generation() uint64 { s.mu.Lock(); defer s.mu.Unlock(); return s.gen }
+
+// DownCurrent reports whether a downstream packet admitted in generation
+// gen may still be delivered: gen is the current generation, its
+// downstream lanes are not suspended (SuspendDown) and the State is not
+// closed. The core's pollSend asks it under its downstream queue's lock,
+// atomically with the push, so that a packet of a page that has gone never
+// reaches the next page's down:poll generation.
+func (s *State) DownCurrent(gen uint64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return !s.closed && !s.downOff && gen == s.gen
+}
 
 // AllowUpGen is asked for every packet a platform upstream lane (up:android,
 // up:shm) received, before it is delivered: true when gen, the generation

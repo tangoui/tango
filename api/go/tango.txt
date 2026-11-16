@@ -152,6 +152,7 @@ pkg github.com/tangoui/tango, method (*Surface) Restore() error
 pkg github.com/tangoui/tango, method (*Surface) Screenshot() ([]byte, error)
 pkg github.com/tangoui/tango, method (*Surface) Send(string)
 pkg github.com/tangoui/tango, method (*Surface) SendBinary([]byte) bool
+pkg github.com/tangoui/tango, method (*Surface) SendBinaryOrdered([]byte) (bool, bool)
 pkg github.com/tangoui/tango, method (*Surface) SetAppearance(Appearance) error
 pkg github.com/tangoui/tango, method (*Surface) SetAuthHandler(func(AuthChallenge) AuthResponse)
 pkg github.com/tangoui/tango, method (*Surface) SetBounds(Rect) error

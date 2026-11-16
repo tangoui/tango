@@ -16,7 +16,8 @@ import (
 
 // End-to-end tests of the IPC fast lanes on macOS (lanes.go): which lanes
 // examples/duplex's page gets under the TANGO_IPC_LANES_DARWIN switch (on by
-// default: up:post), whether a subframe can use them, and that a page whose
+// default: up:post; "1" or "all" add down:poll, whose data flow
+// downpoll_e2e_test.go covers), whether a subframe can use them, and that a page whose
 // CSP blocks the asset origin keeps the message channel. Every test sets the switches explicitly
 // through automation.Options.Env (the app inherits the test's own
 // environment otherwise).
@@ -59,11 +60,11 @@ func settledLanes(t *testing.T, win *automation.Window) lanes {
 	return l
 }
 
-// TestLanesAdvertised: with an explicit TANGO_IPC_LANES_DARWIN=1 (the same
-// as the default) the page gets up:post only (WebKit holds back large down:scheme bursts, spec §6.2, so downstream
-// frames stay on the message channel).
+// TestLanesAdvertised: with TANGO_IPC_LANES_DARWIN=up (up:post only, as
+// the default while down:poll is off by default) downstream frames stay
+// on the message channel.
 func TestLanesAdvertised(t *testing.T) {
-	app, win := launchLanes(t, "TANGO_IPC_LANES_DARWIN=1", "TANGO_IPC_LANES=")
+	app, win := launchLanes(t, "TANGO_IPC_LANES_DARWIN=up", "TANGO_IPC_LANES=")
 	win.WaitJS(`tango.lanes().up === "up:post"`)
 	if l := settledLanes(t, win); l != (lanes{"fallback", "up:post"}) {
 		t.Fatalf("lanes %+v, want {fallback up:post}", l)
@@ -71,12 +72,14 @@ func TestLanesAdvertised(t *testing.T) {
 	app.Quit()
 }
 
-// TestLanesAdvertisedAll: the experimental TANGO_IPC_LANES_DARWIN=all also
-// offers down:scheme. Advertisement only: its data flow is not reliable on
-// WebKit (spec §6.2) and is not asserted here.
+// TestLanesAdvertisedAll: TANGO_IPC_LANES_DARWIN=all, like 1, offers both
+// lanes: down:poll and up:post.
 func TestLanesAdvertisedAll(t *testing.T) {
 	app, win := launchLanes(t, "TANGO_IPC_LANES_DARWIN=all", "TANGO_IPC_LANES=")
-	win.WaitJS(`(l => l.down === "down:scheme" && l.up === "up:post")(tango.lanes())`)
+	win.WaitJS(`(l => l.down === "down:poll" && l.up === "up:post")(tango.lanes())`)
+	if l := settledLanes(t, win); l != (lanes{"down:poll", "up:post"}) {
+		t.Fatalf("lanes %+v, want {down:poll up:post}", l)
+	}
 	app.Quit()
 }
 
@@ -154,10 +157,10 @@ var laneCounterNames = []string{
 	"hellos",       // runtime hellos that reached Go's OnMessage
 	"upPackets",    // packets delivered to OnBinary
 	"upFrames",     // frames in them
-	"downRequests", // /__tango/lane/down requests seen by the scheme handler
-	"downConns",    // ... answered 200: accepted down connections
-	"downActive",   // accepted ones still open
-	"downWrites",   // data blocks handed to WebKit on accepted ones
+	"downRequests", // /__tango/lane/poll requests seen by the scheme handler
+	"downConns",    // ... answered 200 (a batch)
+	"downActive",   // answered ones still open
+	"downWrites",   // data blocks handed to WebKit on answered ones
 	"upRequests",   // /__tango/lane/up requests seen by the scheme handler
 	"upAccepted",   // ... answered 2xx
 }
@@ -206,7 +209,7 @@ const attackScript = `(async () => {
       const q = "?gen=" + gen + "&tok=" + encodeURIComponent(tok);
       for (const mode of ["cors", "no-cors"]) {
         jobs.push(attempt(BASE + "/__tango/lane/up" + q, { method: "POST", body: PKT.slice().buffer, mode }));
-        jobs.push(attempt(BASE + "/__tango/lane/down" + q, { mode }));
+        jobs.push(attempt(BASE + "/__tango/lane/poll" + q + "&ack=0", { mode }));
       }
     }
   }
@@ -335,9 +338,10 @@ func delta(a, b map[string]int64) map[string]int64 {
 //     up:post, before and after).
 //
 // Run with the shipped default (TANGO_IPC_LANES_DARWIN empty: up:post
-// only). The down requests are still made: the core serves
-// /__tango/lane/down whatever was offered, and refuses them for want of a
-// token (and of a down:scheme offer).
+// only). The poll requests are still made: the core serves
+// /__tango/lane/poll whatever was offered, and refuses them for want of a
+// token (a generation without down:poll has none). TestPollSubframeNoToken
+// is the same attack with down:poll on.
 //
 // Every frame makes 6 generations x 3 tokens x 2 modes = 36 up and 36 down
 // requests. The test asserts that they happened (the frame's report lists

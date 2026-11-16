@@ -17,10 +17,11 @@
 
 import { getClient, type TangoStream, type StreamHandler } from "./client.js";
 import type { TangoSocket } from "./socket.js";
-// Registers the fast lane modules (down:scheme and up:post; down:android
+// Registers the fast lane modules (down:poll and up:post; down:android
 // and up:android). Imports are evaluated before this module's body, so
 // they are registered before the eager getClient() below (and in the IIFE,
 // which bundles this entry).
+import "./lanes/poll.js";
 import "./lanes/scheme.js";
 import "./lanes/android.js";
 
@@ -105,7 +106,7 @@ export function postRaw(msg: string): void {
 }
 
 /** The fast lanes the page uses: the name of the ready downstream and
- * upstream lane (e.g. "down:scheme", "up:post"), or "fallback" when byte
+ * upstream lane (e.g. "down:poll", "up:post"), or "fallback" when byte
  * frames in that direction go on the message channel. For diagnostics. */
 export function lanes(): { down: string; up: string } {
   return getClient().lanes();

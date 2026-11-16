@@ -3,12 +3,17 @@
 // JSON string literal. Usage:
 //
 //   node harness.mjs <tango.iife.js>                    the ipc scenarios
-//   node harness.mjs <tango.iife.js> lanes <base URL>   the fast lane scenarios
+//   node harness.mjs <tango.iife.js> lanes <base URL>   the fast lane scenarios (up:post)
+//   node harness.mjs <tango.iife.js> poll <base URL>    the same with down:poll as well
 //   node harness.mjs <tango.iife.js> nolanes <base URL> the same, lanes off
 //
 // In the lane modes the page's relative fetch("/__tango/lane/...") goes to
 // <base URL> (Go's httptest server), as it would go to the asset origin in
-// a WebView, and the client is created with a 300 ms gap timeout.
+// a WebView, and the client is created with a 300 ms gap timeout. The
+// bridge has the core's _onPacket: a stdin line that is a JSON object
+// {"pkt":"<base64>"} (not a string literal) is a down:poll byte packet,
+// delivered to the _onPacket subscribers in stdin order with the messages,
+// as the core's downShim delivers poll items in sequence order.
 //
 // Scenarios run one after another. The original ones fill the map sent with
 // the final "DONE <json>" line; the stream scenarios report through
@@ -20,14 +25,18 @@ import { createInterface } from "node:readline";
 import vm from "node:vm";
 
 const [scriptPath, mode = "ipc", laneBase = ""] = process.argv.slice(2);
-const laneMode = mode === "lanes" || mode === "nolanes";
+const laneMode = mode === "lanes" || mode === "poll" || mode === "nolanes";
 const LANE_GAP_MS = 300; // e2e_test.go: laneGapMs
 
 const out = (msg) => process.stdout.write(JSON.stringify(msg) + "\n");
 
-// Minimal core shim: buffer Go→JS messages until the first subscriber.
+// Minimal core shim: buffer Go→JS messages (and byte packets) until the
+// first subscriber.
 const subs = new Set();
 let pending = [];
+const pktSubs = new Set();
+let pktPending = [];
+let toPacket = (buf) => buf; // set below: a Uint8Array of the VM realm
 const bridge = {
   post: (s) => out(String(s)),
   onMessage(fn) {
@@ -40,8 +49,25 @@ const bridge = {
     return () => subs.delete(fn);
   },
 };
+if (laneMode) {
+  bridge._onPacket = (fn) => {
+    pktSubs.add(fn);
+    if (pktPending) {
+      const p = pktPending;
+      pktPending = null;
+      for (const pkt of p) fn(pkt);
+    }
+    return () => pktSubs.delete(fn);
+  };
+}
 createInterface({ input: process.stdin }).on("line", (line) => {
   const msg = JSON.parse(line);
+  if (typeof msg === "object" && msg !== null) {
+    const pkt = toPacket(Buffer.from(msg.pkt, "base64"));
+    if (pktPending) pktPending.push(pkt);
+    else for (const fn of [...pktSubs]) fn(pkt);
+    return;
+  }
   if (pending) pending.push(msg);
   else for (const fn of [...subs]) fn(msg);
 });
@@ -81,6 +107,12 @@ if (laneMode) {
 }
 const ctx = vm.createContext(globals);
 ctx.window = ctx;
+const VMU8 = vm.runInContext("Uint8Array", ctx);
+toPacket = (buf) => {
+  const p = new VMU8(buf.length);
+  p.set(buf);
+  return p;
+};
 vm.runInContext(readFileSync(scriptPath, "utf8"), ctx);
 const tango = ctx.tango;
 if (laneMode) {
@@ -90,7 +122,8 @@ if (laneMode) {
   Object.defineProperty(ctx, Symbol.for("tango.ipc.client"), { value: { bridge, client }, configurable: true });
   ctx.__tango = bridge;
   if (tango.getClient() !== client) throw new Error("harness: tango.getClient() is not the lane client");
-  // Go is done once it closes stdin; the down:scheme fetch would keep node alive.
+  // Go is done once it closes stdin; open streams and timers would keep
+  // node alive.
   process.stdin.on("close", () => process.exit(0));
 }
 
@@ -375,8 +408,12 @@ async function lanesWhen(ok, ms) {
 }
 
 async function lanesUp() {
-  const want = mode === "lanes" ? { down: "down:scheme", up: "up:post" } : { down: "fallback", up: "fallback" };
-  // up:post is ready at once, down:scheme once its response has started.
+  const want = {
+    lanes: { down: "fallback", up: "up:post" }, // no downstream lane offered
+    poll: { down: "down:poll", up: "up:post" },
+    nolanes: { down: "fallback", up: "fallback" },
+  }[mode];
+  // down:poll is ready once subscribed, up:post on its start probe's 204.
   tango.emit("result:lanesUp", await lanesWhen((l) => l.down === want.down && l.up === want.up, 5000));
 }
 
@@ -447,19 +484,18 @@ async function laneFailure() {
   await cb.waitFor(4);
   await ca.waitFor(2);
 
-  // Go cuts the down:scheme response at the next packet it writes: A's
-  // echo of frame 2 (B is idle). That packet, and any queued behind it,
-  // is lost.
+  // There is no downstream lane to cut (lanes_e2e_test.go): Go reports
+  // lanefail:tripped after the next downstream byte frame, A's echo of
+  // frame 2 (B is idle), and every frame still arrives.
   const armed = once("lanefail:armed");
   tango.emit("lanefail:arm");
   await armed;
   const tripped = once("lanefail:tripped");
   await a.sendBytes(tagged(A, 2, BIG));
-  await tripped; // down:scheme has failed in Go
+  await tripped;
   const t0 = Date.now();
 
-  // Later frames: A's echoes go as messages (A still misses frame 2); B
-  // goes on in parallel.
+  // Later frames: A's echoes go as messages; B goes on in parallel.
   const aLater = (async () => {
     try {
       for (let k = 3; k < 8; k++) await a.sendBytes(tagged(A, k, k === 7 ? 100 : BIG));
@@ -481,7 +517,7 @@ async function laneFailure() {
   let bOk = !cb.error && cb.frames.length === bSent.length;
   for (let k = 0; bOk && k < bSent.length; k++) bOk = sameBytes(cb.frames[k], bSent[k]);
 
-  // The down:scheme response ended, so the page fails the lane as well.
+  // The page still has no downstream lane, and keeps up:post.
   const lanes = await lanesWhen((l) => l.down === "fallback", 5000);
   tango.emit("result:laneFailure", {
     aCode: ca.error ? ca.error.code : null,
@@ -494,7 +530,11 @@ async function laneFailure() {
 }
 
 async function laneMain() {
-  const fns = mode === "lanes" ? [lanesUp, bigBothWays, mixedSizesOrder, laneFailure] : [lanesUp, bigBothWays];
+  const fns = {
+    lanes: [lanesUp, bigBothWays, mixedSizesOrder, laneFailure],
+    poll: [lanesUp, bigBothWays, mixedSizesOrder],
+    nolanes: [lanesUp, bigBothWays],
+  }[mode];
   for (const fn of fns) {
     tango.emit("e2e:start", fn.name);
     await fn();

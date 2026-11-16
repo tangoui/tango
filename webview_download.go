@@ -40,7 +40,7 @@ func (h host) OnDownloadStarted(id platform.SurfaceID, d platform.DownloadReques
 // SurfaceLoadFailed, ask the current page whether it is alive; if it
 // answers, messages flow to it again. Main thread.
 func (s *Surface) probeAfterDownload() {
-	if s.loaded || s.ns == nil {
+	if s.loaded.Load() || s.ns == nil {
 		return
 	}
 	s.ext.navSeq++

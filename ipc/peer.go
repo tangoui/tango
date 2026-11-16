@@ -109,7 +109,8 @@ func (w wirePeer) sendFrame(id uint64, f frame) {
 }
 
 // sendLane sends byte frame f as a one-frame packet on the downstream lane
-// and reports whether it was handled. f.payload is prepareBytes' buffer;
+// and reports whether it was handled. The boundary that follows it is left
+// out when the lane that took it is ordered (OrderedBinaryConn). f.payload is prepareBytes' buffer;
 // the packet header is written into its room.
 func (w wirePeer) sendLane(id uint64, f frame) bool {
 	bc := w.cs.binary
@@ -128,10 +129,18 @@ func (w wirePeer) sendLane(id uint64, f frame) bool {
 	binary.BigEndian.PutUint64(pkt[packetHeaderBytes:], id)
 	binary.BigEndian.PutUint64(pkt[packetHeaderBytes+8:], f.seq)
 	binary.BigEndian.PutUint32(pkt[packetHeaderBytes+16:], uint32(n))
-	if !bc.SendBinary(pkt) {
+	var sent, ordered bool
+	if obc, ok := bc.(OrderedBinaryConn); ok {
+		sent, ordered = obc.SendBinaryOrdered(pkt)
+	} else {
+		sent = bc.SendBinary(pkt)
+	}
+	if !sent {
 		return false
 	}
-	w.sendCtl(id, ctl{op: "boundary", seq: f.seq + 1})
+	if !ordered { // an ordered lane cannot lose it ahead of later messages
+		w.sendCtl(id, ctl{op: "boundary", seq: f.seq + 1})
+	}
 	return true
 }
 

@@ -462,7 +462,8 @@ func TestIOSWriterEmptyResponse(t *testing.T) {
 	}
 }
 
-// The writer satisfies what internal/lane's ServeDown needs.
+// The writer streams: it is an http.Flusher with FlushError, as a
+// streaming Options.Assets response (SSE, a long download) needs.
 func TestIOSWriterFlushInterfaces(t *testing.T) {
 	_, w := newFake(context.Background(), "/")
 	var rw http.ResponseWriter = w

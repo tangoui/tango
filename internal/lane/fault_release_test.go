@@ -8,7 +8,7 @@ import "testing"
 func TestFaultReleaseNoop(t *testing.T) {
 	t.Setenv("TANGO_IPC_LANE_FAULT", DownAndroid+":0")
 	rec := &recorder{}
-	s := New(rec.send)
+	s := New(rec.send, nil)
 	h := parseHello(t, s.Hello([]string{DownAndroid}, true))
 	s.Control(ctl("ready", DownAndroid, h.Gen))
 	for i := 0; i < 5; i++ {
