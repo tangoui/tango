@@ -3,9 +3,11 @@ package regex
 import "strings"
 
 type asciiAssertionPlan struct {
-	consume  []byte
-	check    []byte
-	positive bool
+	consume    []byte
+	check      []byte
+	notByte    byte
+	hasNotByte bool
+	positive   bool
 }
 
 func compileASCIIAssertionPlan(source, flags string) *asciiAssertionPlan {
@@ -28,10 +30,13 @@ func compileASCIIAssertionPlan(source, flags string) *asciiAssertionPlan {
 			continue
 		}
 		check, ok := parseASCIILiteral(source[i+len(marker.text) : len(source)-1])
-		if !ok || len(check) == 0 {
-			continue
+		if ok && len(check) > 0 {
+			return &asciiAssertionPlan{consume: consume, check: check, positive: marker.positive}
 		}
-		return &asciiAssertionPlan{consume: consume, check: check, positive: marker.positive}
+		body := source[i+len(marker.text) : len(source)-1]
+		if len(body) == 8 && strings.HasPrefix(body, "([^=") && strings.HasSuffix(body, "]|$)") {
+			return &asciiAssertionPlan{consume: consume, notByte: '=', hasNotByte: true, positive: marker.positive}
+		}
 	}
 	return nil
 }

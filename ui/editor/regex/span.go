@@ -271,8 +271,13 @@ func TryMatchStartNoCaptures(re Regexp, s string, rs []rune, dst []int) ([]int, 
 			if len(s) < len(r.assertion.consume) || !bytes.Equal([]byte(s[:len(r.assertion.consume)]), r.assertion.consume) {
 				return nil, nil
 			}
-			matched := len(s) >= len(r.assertion.consume)+len(r.assertion.check) &&
-				bytes.Equal([]byte(s[len(r.assertion.consume):len(r.assertion.consume)+len(r.assertion.check)]), r.assertion.check)
+			matched := false
+			if r.assertion.hasNotByte {
+				matched = len(s) == len(r.assertion.consume) || s[len(r.assertion.consume)] != r.assertion.notByte
+			} else {
+				matched = len(s) >= len(r.assertion.consume)+len(r.assertion.check) &&
+					bytes.Equal([]byte(s[len(r.assertion.consume):len(r.assertion.consume)+len(r.assertion.check)]), r.assertion.check)
+			}
 			if matched != r.assertion.positive {
 				return nil, nil
 			}

@@ -16,6 +16,9 @@ func TestASCIIAssertionPlanMatchesNative(t *testing.T) {
 		{"a(?!b)", "ac", []int{0, 1}},
 		{"a(?!b)", "ab", nil},
 		{`a\.(?=b)`, "a.b", []int{0, 2}},
+		{"!(?=([^=]|$))", "!x", []int{0, 1}},
+		{"!(?=([^=]|$))", "!=", nil},
+		{"!(?=([^=]|$))", "!", []int{0, 1}},
 	} {
 		re := mustCompile(t, tc.source, "")
 		got, err := TryMatchStartNoCaptures(re, tc.input, nil, nil)
