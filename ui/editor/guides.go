@@ -316,6 +316,15 @@ func (w *ViewW) guidesFor(snap buffer.Snapshot, rows []lineView, caretLine int) 
 	if c := w.st.Model.Conf(); c != nil {
 		g.offSide = c.Folding.OffSide
 	}
+	// Layout already owns the full model text of every visible row,
+	// including wrapped continuations. Reuse it instead of copying a
+	// surrounding block from the rope just to discover its indentation.
+	for k := range rows {
+		lv := &rows[k]
+		if _, seen := g.ind[lv.i]; !seen && lv.zone == nil && lv.text != "" {
+			g.ind[lv.i] = indentOf(lv.text, g.tab)
+		}
+	}
 	out := make([]rowGuides, len(rows))
 	// The searches below blank lines bottom-up, so a run of blank rows
 	// shares one (contentBelow's memo).

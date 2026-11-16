@@ -132,7 +132,8 @@ type Context struct {
 	running bool
 	// noBlur: the renderer does not draw paint.BackdropBlur (see
 	// rendererBlurs); frosted surfaces fall back to opaque ones.
-	noBlur bool
+	noBlur     bool
+	imageCache imageInvalidator // optional renderer cache capability
 
 	nodeIndex     map[ID]*node
 	nextNodeIndex map[ID]*node
@@ -193,6 +194,10 @@ type Context struct {
 	composeCursor int
 	escape        bool
 	scrollQ       []input.Scroll
+
+	shortcutCapture, shortcutCaptureNext ID   // shortcut recorder owner (shortcut_capture.go)
+	shortcutBlurred                      bool // a WindowFocus(false) arrived in this frame, even if followed by true
+
 	wantText      bool
 	textCaret     geom.Rect
 	cursorShape   input.Cursor

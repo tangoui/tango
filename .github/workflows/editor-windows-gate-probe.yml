@@ -1,0 +1,86 @@
+# Temporary diagnostic workflow on the feature branch only. Not for main.
+name: Editor Windows gate probe
+on:
+  push:
+    branches: [fix/editor-windows-frame-gate]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Native unscaled gate, 10 repetitions
+        id: unscaled
+        continue-on-error: true
+        env:
+          CGO_ENABLED: "0"
+          TANGO_SMOKE_TIMEOUT_SCALE: ""
+        run: |
+          set -o pipefail
+          go version
+          go test ./ui/editor -run '^(TestBracketFrameTimingOverruns|TestMatchManyCursorsBounded)$' -count=10 -v 2>&1 | tee "$RUNNER_TEMP/unscaled.log"
+      - name: Sparse markers with ETW scheduling
+        continue-on-error: true
+        shell: pwsh
+        env:
+          CGO_ENABLED: "0"
+          TANGO_SMOKE_TIMEOUT_SCALE: ""
+        run: .github/windows-sparse-etw.ps1
+      - name: Native CI scale with race, 3 repetitions
+        id: raced
+        continue-on-error: true
+        env:
+          CGO_ENABLED: "1"
+          TANGO_SMOKE_TIMEOUT_SCALE: "3"
+        run: |
+          set -o pipefail
+          go test -race ./ui/editor -run '^(TestBracketFrameTimingOverruns|TestMatchManyCursorsBounded)$' -count=3 -v 2>&1 | tee "$RUNNER_TEMP/race.log"
+      - name: A single sleeping frame must fail
+        id: mutation
+        continue-on-error: true
+        env:
+          CGO_ENABLED: "0"
+          TANGO_SMOKE_TIMEOUT_SCALE: ""
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          source = Path('ui/editor/brackets_test.go').resolve()
+          old = 'unsure := st.matchCarets(MatchBracketsAlways, start.Add(budget), from, res)'
+          text = source.read_text()
+          assert text.count(old) == 1
+          replacement = Path(os.environ['RUNNER_TEMP']) / 'brackets_sleep_test.go'
+          replacement.write_text(text.replace(old, 'time.Sleep(20 * time.Millisecond)\n\t\t\t' + old))
+          overlay = Path(os.environ['RUNNER_TEMP']) / 'sleep-overlay.json'
+          overlay.write_text(json.dumps({'Replace': {str(source): str(replacement)}}))
+          PY
+          set +e
+          go test -overlay="$RUNNER_TEMP/sleep-overlay.json" ./ui/editor -run '^TestMatchManyCursorsBounded$' -count=1 -v > "$RUNNER_TEMP/mutation.log" 2>&1
+          result=$?
+          cat "$RUNNER_TEMP/mutation.log"
+          test "$result" -ne 0 && grep -Eq 'frame 0: bracket work.*want at most' "$RUNNER_TEMP/mutation.log"
+      - name: Upload native diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: windows-frame-gate-logs
+          path: |
+            ${{ runner.temp }}/*.log
+            ${{ runner.temp }}/sparse-probe/**
+      - name: Require all three probes
+        if: always()
+        env:
+          UNSCALED: ${{ steps.unscaled.outcome }}
+          RACED: ${{ steps.raced.outcome }}
+          MUTATION: ${{ steps.mutation.outcome }}
+        run: |
+          echo "unscaled=$UNSCALED race=$RACED mutation=$MUTATION"
+          test "$UNSCALED" = success && test "$RACED" = success && test "$MUTATION" = success

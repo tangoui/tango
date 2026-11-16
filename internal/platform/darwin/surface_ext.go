@@ -548,6 +548,7 @@ func (s *surface) StartResize(string) {}
 
 func registerExtClasses() {
 	classDef("TangoPanel", "NSPanel", nil, []objc.MethodDef{
+		shortcutEquivalentMethod("TangoPanel"),
 		method("canBecomeKeyWindow", func(self id, _ objc.SEL) bool { return true }),
 	})
 

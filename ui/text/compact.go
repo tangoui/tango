@@ -31,7 +31,15 @@ type shapingFont struct {
 	font         *harfbuzz.Font
 	coords       []tables.Coord
 	xPpem, yPpem uint16
+	uses         int
+	specialized  bool
 }
+
+// Specializing a variable font pays for long or changing labels, but parsing
+// a second font for a few static button glyphs wastes startup time and memory.
+// Both routes have exactly the same metrics; defer that optimization until
+// this instance has shaped enough text to amortize its setup.
+const hotShapingUses = 64
 
 func (s *compactShaper) append(dst []sg, in shaping.Input, face *Face, run int32) []sg {
 	if s.buffer == nil {
@@ -47,17 +55,31 @@ func (s *compactShaper) append(dst []sg, in shaping.Input, face *Face, run int32
 	entry, ok := s.fonts[in.Face]
 	xPpem, yPpem := in.Face.Ppem()
 	coords := in.Face.Coords()
-	if !ok || entry.xPpem != xPpem || entry.yPpem != yPpem || !slices.Equal(entry.coords, coords) {
+	changed := !ok || entry.xPpem != xPpem || entry.yPpem != yPpem || !slices.Equal(entry.coords, coords)
+	if changed {
 		// Retain only a bounded set of immutable face instances. In particular,
 		// distinct variable-font instances must never share a shaping font.
 		if s.fonts == nil || len(s.fonts) >= 16 {
 			s.fonts = make(map[*font.Face]shapingFont)
 		}
-		var raw *ot.Loader
-		if source, ok := face.ras.(interface{ shapingTables() *ot.Loader }); ok {
-			raw = source.shapingTables()
+		entry = shapingFont{coords: append([]tables.Coord(nil), coords...), xPpem: xPpem, yPpem: yPpem, specialized: len(coords) == 0}
+	}
+	if !entry.specialized {
+		changed = true
+		entry.uses = min(hotShapingUses+1, entry.uses+1)
+		if entry.uses > hotShapingUses {
+			var raw *ot.Loader
+			if source, ok := face.ras.(interface{ shapingTables() *ot.Loader }); ok {
+				raw = source.shapingTables()
+			}
+			entry.font = harfbuzz.NewFont(fixedShapingFace(in.Face, raw))
+			entry.specialized = true
 		}
-		entry = shapingFont{font: harfbuzz.NewFont(fixedShapingFace(in.Face, raw)), coords: append([]tables.Coord(nil), coords...), xPpem: xPpem, yPpem: yPpem}
+	}
+	if entry.font == nil {
+		entry.font = harfbuzz.NewFont(in.Face)
+	}
+	if changed {
 		s.fonts[in.Face] = entry
 	}
 	f := entry.font

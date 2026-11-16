@@ -55,9 +55,8 @@ var ErrNoBackend = errors.New("tango: no platform backend for this platform")
 type Options struct {
 	Name, ID string
 	// Assets serves requests under the backend's asset origin; nil
-	// answers 404. Requests other than GET and HEAD whose Origin header
-	// names another origin (a remote page posting a form to /api, say)
-	// are answered 403 before they reach it; see assets.go.
+	// answers 404. If a request supplies an Origin header, it must name the
+	// asset origin for every method, including GET and HEAD; see assets.go.
 	Assets http.Handler
 	// AllowCrossOriginAssets turns that Origin check off, for apps whose
 	// asset handler does its own (CORS, tokens).

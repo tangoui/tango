@@ -49,6 +49,8 @@ type Runner struct {
 	lastCaret geom.Rect
 	closed    bool
 
+	shortcutCaptureOn bool
+
 	// Input-method state (textstate.go): the state last reported, whether
 	// it is in effect, the widget it came from, and the focused widget
 	// that took TextEdit events last frame.
@@ -86,6 +88,7 @@ func NewRunner(page func(*Context), o RunnerOptions) *Runner {
 	r.c.noAnim = o.NoAnimations
 	r.c.reduceMotion = o.ReduceMotion
 	r.c.noBlur = !rendererBlurs(r.renderer)
+	r.c.imageCache, _ = r.renderer.(imageInvalidator)
 	return r
 }
 
@@ -260,6 +263,7 @@ func (r *Runner) clearFrameInput() {
 	c.pressedAny = false
 	c.ctxPressed = false
 	c.keys = c.keys[:0]
+	c.shortcutBlurred = false
 	c.frameKeys = c.frameKeys[:0]
 	c.keySeq++
 	c.text = c.text[:0]
@@ -409,6 +413,7 @@ func (r *Runner) processEvents() bool {
 			c.events = append(c.events, ev)
 		case input.WindowFocus:
 			c.winBlurred = !ev.Focused
+			c.shortcutBlurred = c.shortcutBlurred || !ev.Focused
 			if !ev.Focused {
 				c.capCancel()
 				c.active = 0
@@ -465,6 +470,7 @@ func (r *Runner) build() {
 	c.escPending = c.escPending[:0]
 	c.backNext = false
 	c.layer = 0
+	c.shortcutCaptureNext = 0
 	c.wantText = false
 	c.ime.want = false
 	c.traps = c.traps[:0]
@@ -730,6 +736,7 @@ func (r *Runner) afterFrame() {
 		r.win.SetCursor(cur)
 		r.lastCur = cur
 	}
+	r.sendShortcutCapture()
 	r.sendTextInput() // textstate.go
 	r.checkKeyboard() // keyboard.go
 	// GC retained state.

@@ -106,7 +106,8 @@ func Compile(source, flags string) (Regexp, error) {
 	case err == nil:
 		if re, cerr := regexp.Compile(anchorStd(out)); cerr == nil {
 			nStd.Add(1)
-			return &stdRegexp{re: re, src: source, ngroups: len(groups)}, nil
+			span, first, hasFirst := compileSpan(anchorStd(out))
+			return &stdRegexp{re: re, src: source, ngroups: len(groups), span: span, first: first, hasFirst: hasFirst}, nil
 		}
 		// RE2 拒绝（如重复次数超过 1000、组名含 $）：交给 regexp2。
 	case err != errNeedBacktrack:
@@ -142,24 +143,30 @@ func Compile(source, flags string) (Regexp, error) {
 }
 
 type stdRegexp struct {
-	re      *regexp.Regexp
-	src     string
-	ngroups int
+	re       *regexp.Regexp
+	src      string
+	ngroups  int
+	span     *byteSpan
+	first    asciiSet
+	hasFirst bool
 }
 
 func (r *stdRegexp) MatchStart(s string) []int {
+	if r.rejectASCII(s) {
+		return nil
+	}
 	if r.ngroups == 0 {
 		return r.re.FindStringIndex(s)
 	}
 	return r.re.FindStringSubmatchIndex(s)
 }
 func (r *stdRegexp) MatchStartRunes(s string, _ []rune) []int {
-	if r.ngroups == 0 {
-		return r.re.FindStringIndex(s)
-	}
-	return r.re.FindStringSubmatchIndex(s)
+	return r.MatchStart(s)
 }
 func (r *stdRegexp) TryMatchStart(s string, _ []rune) ([]int, error) {
+	if r.rejectASCII(s) {
+		return nil, nil
+	}
 	if r.ngroups == 0 {
 		return r.re.FindStringIndex(s), nil
 	}
@@ -195,6 +202,10 @@ func (r *backtrackRegexp) TryMatchStart(s string, rs []rune) ([]int, error) {
 // Dependencies are call-local: deterministic pause tests never mutate a shared
 // Regexp, the regexp2 process clock, or a global hook used by other goroutines.
 func (r *backtrackRegexp) tryMatchStart(s string, rs []rune, find func([]rune) (*regexp2.Match, error), now func() time.Time) ([]int, error) {
+	return r.tryMatchStartWithCaptures(s, rs, find, now, true, nil)
+}
+
+func (r *backtrackRegexp) tryMatchStartWithCaptures(s string, rs []rune, find func([]rune) (*regexp2.Match, error), now func() time.Time, captures bool, dst []int) ([]int, error) {
 	if rs == nil {
 		rs = []rune(s)
 	}
@@ -226,6 +237,21 @@ func (r *backtrackRegexp) tryMatchStart(s string, rs []rune, find func([]rune) (
 	if m == nil {
 		return nil, nil
 	}
+	if !captures {
+		start, end := m.Index, m.Index+m.Length
+		byteStart, byteEnd := 0, 0
+		for ri := 0; ri < end; ri++ {
+			if ri == start {
+				byteStart = byteEnd
+			}
+			_, size := utf8.DecodeRuneInString(s[byteEnd:])
+			byteEnd += size
+		}
+		if start == end {
+			byteStart = byteEnd
+		}
+		return append(dst[:0], byteStart, byteEnd), nil
+	}
 	// regexp2 给出 rune 下标（与 []rune(s) 一致，非法字节各算一个 rune），换算为字节偏移。
 	res := make([]int, 2*(1+len(r.nums)))
 	res[0], res[1] = m.Index, m.Index+m.Length
@@ -238,6 +264,18 @@ func (r *backtrackRegexp) tryMatchStart(s string, rs []rune, find func([]rune) (
 		}
 		res[2*i+2], res[2*i+3] = g.Index, g.Index+g.Length
 		maxRune = max(maxRune, res[2*i+3]) // 前瞻里的组可以越过整体匹配的结尾
+	}
+	// ASCII byte and rune offsets are identical. Only the prefix reached
+	// by captures matters; non-ASCII or invalid UTF-8 later in s is safe.
+	ascii := true
+	for i := 0; i < maxRune; i++ {
+		if s[i] >= utf8.RuneSelf {
+			ascii = false
+			break
+		}
+	}
+	if ascii {
+		return res, nil
 	}
 	byteOff := make([]int, 0, maxRune+1)
 	for b := 0; len(byteOff) <= maxRune; {

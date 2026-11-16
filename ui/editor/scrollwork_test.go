@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -51,7 +52,7 @@ func TestScrollDamageStrip(t *testing.T) {
 
 // TestStyleRunsScratch: styleRuns runs for every visible row every frame
 // (a scroll frame lays out all of them); its style boundaries live in the
-// view's scratch, so a call allocates only the runs and paints it returns
+// view's scratch, so a warm call allocates only the paints it returns
 // (editor M2 follow-up Task C: per-frame allocations of a scroll frame).
 // The result is the same as from a fresh call.
 func TestStyleRunsScratch(t *testing.T) {
@@ -70,8 +71,9 @@ func TestStyleRunsScratch(t *testing.T) {
 		t.Fatalf("%d tokens", len(toks))
 	}
 	runs0, paints0 := w.styleRuns(line, 0, toks, th, nil)
-	if n := testing.AllocsPerRun(50, func() { w.styleRuns(line, 0, toks, th, nil) }); n > 2 {
-		t.Fatalf("styleRuns: %.1f allocations per call, want ≤ 2 (runs, paints)", n)
+	runs0 = slices.Clone(runs0) // shaping inputs expire on the next call
+	if n := testing.AllocsPerRun(50, func() { w.styleRuns(line, 0, toks, th, nil) }); n > 1 {
+		t.Fatalf("styleRuns: %.1f allocations per call, want ≤ 1 (paints)", n)
 	}
 	runs1, paints1 := w.styleRuns(line, 0, toks, th, nil)
 	if len(runs0) != len(runs1) || len(paints0) != len(paints1) {

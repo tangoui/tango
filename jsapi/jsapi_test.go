@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
+	"hash/crc32"
 	"image"
 	"image/png"
 	"path/filepath"
@@ -515,6 +517,26 @@ func TestMenuPopup(t *testing.T) {
 	jsonEq(t, choose().result, `{"id":null,"checked":false}`)
 	p.fails(CodeForbidden, "menu.popup", []any{map[string]any{"role": "quit"}}, 0, 0)
 	p.fails(ipc.CodeBadArgs, "menu.popup", []any{map[string]any{"type": "weird"}}, 0, 0)
+}
+
+func TestMenuIconPixelLimit(t *testing.T) {
+	// A valid PNG header is enough for DecodeConfig to expose the dimensions;
+	// the decoder must reject the request before allocating the pixel buffer.
+	data := []byte("\x89PNG\r\n\x1a\n")
+	chunk := make([]byte, 4+4+13+4)
+	binary.BigEndian.PutUint32(chunk[:4], 13)
+	copy(chunk[4:8], "IHDR")
+	binary.BigEndian.PutUint32(chunk[8:12], 65535)
+	binary.BigEndian.PutUint32(chunk[12:16], 65535)
+	chunk[16] = 8 // bit depth
+	chunk[17] = 6 // RGBA
+	crc := crc32.ChecksumIEEE(chunk[4 : 8+13])
+	binary.BigEndian.PutUint32(chunk[21:], crc)
+	data = append(data, chunk...)
+	_, err := buildMenu([]menuItemJS{{Label: "x", Icon: base64.StdEncoding.EncodeToString(data)}}, 0, func(string) {})
+	if err == nil || !strings.Contains(err.Error(), "too large") {
+		t.Fatalf("buildMenu huge icon error = %v", err)
+	}
 }
 
 func TestHotkeys(t *testing.T) {

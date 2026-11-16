@@ -269,6 +269,10 @@ type canvas struct {
 	hasFocus bool // the window has keyboard focus
 	focused  bool // last value reported to the sink
 
+	// Shortcut recording is separate from text input/IME.
+	shortcutCapture bool
+	shortcutHeld    map[uint16]bool // captured virtual keys until release or loss of focus
+
 	// Text input.
 	textOn bool
 	caret  geom.Rect

@@ -92,6 +92,8 @@ type Canvas struct {
 	cursor        input.Cursor
 	textOn        bool
 	caret         geom.Rect
+
+	shortcutCapture bool
 }
 
 // ---- platform.Canvas ----
@@ -266,4 +268,18 @@ func (c *Canvas) TextInput() (enabled bool, caret geom.Rect) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.textOn, c.caret
+}
+
+// SetShortcutCapture records the shortcut recorder state (platform.CanvasShortcutCapture).
+func (c *Canvas) SetShortcutCapture(on bool) {
+	c.mu.Lock()
+	c.shortcutCapture = on
+	c.mu.Unlock()
+}
+
+// ShortcutCapture returns the last shortcut recorder state.
+func (c *Canvas) ShortcutCapture() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.shortcutCapture
 }

@@ -874,6 +874,7 @@ func (w *ViewW) shapeSeg(i int, s string, r0, r1, b0 int, toks []monarch.Token, 
 
 // styleRuns turns the tokens over s (bytes [b0, b0+len(s)) of its line)
 // into style runs, merging neighbours with the same theme style.
+// Runs are valid until the next call on this view; paints are independently owned.
 func (w *ViewW) styleRuns(s string, b0 int, toks []monarch.Token, th *theme.Theme, over []brSpan) ([]text.Run, []runPaint) {
 	b1 := b0 + len(s)
 	def := th.Style("")
@@ -900,10 +901,11 @@ func (w *ViewW) styleRuns(s string, b0 int, toks []monarch.Token, th *theme.Them
 	// Spans of other colors (colored brackets, control characters): cut
 	// the runs at their ends and take their color inside.
 	if len(over) > 0 {
-		bounds = overrideBounds(bounds, over, b0, len(s), func(st theme.Style, c color.NRGBA) theme.Style {
+		bounds = overrideBoundsInto(w.vs.overrideScratch, bounds, over, b0, len(s), func(st theme.Style, c color.NRGBA) theme.Style {
 			st.Foreground = c
 			return st
 		})
+		w.vs.overrideScratch = bounds[:0]
 	}
 	// Merge equal neighbours.
 	m := bounds[:1]
@@ -914,7 +916,7 @@ func (w *ViewW) styleRuns(s string, b0 int, toks []monarch.Token, th *theme.Them
 	}
 	fallback := defaultColor(th, "editor.foreground")
 	base := w.monoStyle()
-	runs := make([]text.Run, 0, len(m))
+	runs := w.vs.shapeRuns[:0]
 	paints := make([]runPaint, 0, len(m))
 	rpos, bpos := 0, 0
 	for k, bd := range m {
@@ -937,6 +939,7 @@ func (w *ViewW) styleRuns(s string, b0 int, toks []monarch.Token, th *theme.Them
 		runs = append(runs, text.Run{Start: rs, End: re, Style: ts})
 		paints = append(paints, runPaint{fg: fg, underline: bd.st.Underline, strike: bd.st.Strikethrough, bold: bd.st.Bold, italic: bd.st.Italic, r0: rs, r1: re})
 	}
+	w.vs.shapeRuns = runs[:0]
 	return runs, paints
 }
 
@@ -950,6 +953,12 @@ type styleBound struct {
 // of its line at the ends of spans (line bytes, sorted, not overlapping)
 // and gives the bytes inside them set(style, span color).
 func overrideBounds(bounds []styleBound, over []brSpan, b0, n int, set func(theme.Style, color.NRGBA) theme.Style) []styleBound {
+	return overrideBoundsInto(nil, bounds, over, b0, n, set)
+}
+
+// dst must not share storage with bounds; the output is temporary until
+// the next use of dst.
+func overrideBoundsInto(dst, bounds []styleBound, over []brSpan, b0, n int, set func(theme.Style, color.NRGBA) theme.Style) []styleBound {
 	// Only the spans that reach into the text count: the spans of a long
 	// line's other rows are skipped by a binary search, not walked (and
 	// not allocated for), once per row.
@@ -960,7 +969,11 @@ func overrideBounds(bounds []styleBound, over []brSpan, b0, n int, set func(them
 	}
 	over = over[lo:hi]
 	countAdd(&workOverSpans, len(over))
-	out := make([]styleBound, 0, len(bounds)+2*len(over))
+	need := len(bounds) + 2*len(over)
+	out := dst[:0]
+	if cap(out) < need {
+		out = make([]styleBound, 0, need)
+	}
 	push := func(b styleBound) {
 		if n := len(out); n > 0 && out[n-1].at == b.at {
 			out[n-1] = b

@@ -84,6 +84,10 @@ type canvas struct {
 	inside   bool // pointer is over the view (tracking area)
 	tracking id
 
+	// Native menu shortcut capture, independent of text input.
+	shortcutCapture bool
+	shortcutHeld    map[uint16]bool // captured physical keys until release or loss of focus
+
 	// Text input (canvas_view.go).
 	textOn    bool
 	caret     geom.Rect
@@ -216,6 +220,7 @@ func loadCanvas() {
 		nsRunLoopCommon = constPtr(libFoundation, "NSRunLoopCommonModes")
 
 		registerCanvasView()
+		installShortcutReleaseMonitor()
 
 		var ctx [10]uintptr // CFRunLoopSourceContext; perform is the last field
 		ctx[9] = canvasPerformCB
@@ -676,6 +681,9 @@ func (c *canvas) focusMaybeChanged() {
 		return
 	}
 	f := c.firstResp && sendBool(c.s.win, "isKeyWindow")
+	if !f {
+		clear(c.shortcutHeld)
+	}
 	if f == c.focused {
 		return
 	}

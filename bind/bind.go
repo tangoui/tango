@@ -97,14 +97,25 @@ func makeHandler(fn reflect.Value) (ipc.HandlerFunc, error) {
 	if hasResult && !jsonable(ft.Out(0)) {
 		return nil, fmt.Errorf("result type %s is not JSON-encodable", ft.Out(0))
 	}
+	noRequiredArgs := len(params) == 0 || (variadic && len(params) == 1)
 
 	return func(ctx context.Context, args json.RawMessage) (any, error) {
-		in, err := decodeArgs(args, params, variadic)
-		if err != nil {
-			return nil, ipc.NewError(ipc.CodeBadArgs, err.Error())
-		}
+		var prefix []reflect.Value
 		if hasCtx {
-			in = append([]reflect.Value{reflect.ValueOf(ctx)}, in...)
+			prefix = []reflect.Value{reflect.ValueOf(ctx)}
+		}
+		in := prefix
+		// Keep empty calls in this frame so the Context-only slice can stay
+		// on the stack. Other input still receives full JSON/arity checking.
+		if !noRequiredArgs || (string(args) != "[]" && string(args) != "null") {
+			var err error
+			in, err = decodeArgs(args, params, variadic, prefix...)
+			if err != nil {
+				return nil, ipc.NewError(ipc.CodeBadArgs, err.Error())
+			}
+			if len(in) == 0 {
+				in = prefix
+			}
 		}
 		outs := fn.Call(in) // variadic values are already expanded in in
 		if hasErr {
@@ -119,10 +130,10 @@ func makeHandler(fn reflect.Value) (ipc.HandlerFunc, error) {
 	}, nil
 }
 
-func decodeArgs(args json.RawMessage, params []reflect.Type, variadic bool) ([]reflect.Value, error) {
-	var raw []json.RawMessage
-	if err := json.Unmarshal(args, &raw); err != nil {
-		return nil, fmt.Errorf("arguments must be a JSON array: %v", err)
+func decodeArgs(args json.RawMessage, params []reflect.Type, variadic bool, prefix ...reflect.Value) ([]reflect.Value, error) {
+	raw, err := rawArguments(args, len(params))
+	if err != nil {
+		return nil, err
 	}
 	fixed := len(params)
 	if variadic {
@@ -133,7 +144,14 @@ func decodeArgs(args json.RawMessage, params []reflect.Type, variadic bool) ([]r
 	} else if len(raw) != fixed {
 		return nil, fmt.Errorf("want %d arguments, got %d", fixed, len(raw))
 	}
-	in := make([]reflect.Value, 0, len(raw))
+	// Empty JSON with whitespace still went through the decoder. Let the
+	// caller keep its stack-backed Context prefix rather than allocating it.
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	// Include Context in the same allocation as the decoded parameters.
+	in := make([]reflect.Value, 0, len(prefix)+len(raw))
+	in = append(in, prefix...)
 	for i, r := range raw {
 		var pt reflect.Type
 		if i < fixed {
@@ -148,6 +166,20 @@ func decodeArgs(args json.RawMessage, params []reflect.Type, variadic bool) ([]r
 		in = append(in, p.Elem())
 	}
 	return in, nil
+}
+
+func rawArguments(args json.RawMessage, capacity int) ([]json.RawMessage, error) {
+	// Return before declaring raw: its address escapes through Unmarshal.
+	// Only these exact encodings skip decoding; whitespace and all other
+	// input still pass through encoding/json.
+	if string(args) == "[]" || string(args) == "null" {
+		return nil, nil
+	}
+	raw := make([]json.RawMessage, 0, capacity)
+	if err := json.Unmarshal(args, &raw); err != nil {
+		return nil, fmt.Errorf("arguments must be a JSON array: %v", err)
+	}
+	return raw, nil
 }
 
 // jsonable rejects types encoding/json can never handle.
