@@ -10,10 +10,15 @@ import (
 
 var (
 	kernel32  = windows.NewLazySystemDLL("kernel32.dll")
-	counter   = kernel32.NewProc("QueryPerformanceCounter")
 	frequency = kernel32.NewProc("QueryPerformanceFrequency")
 	clock     = newClock()
 )
+
+// QueryPerformanceCounter is already linked by the Go runtime. Reusing that
+// leaf avoids a syscall wrapper on every line-budget check.
+//
+//go:linkname runtimeQueryPerformanceCounter internal/syscall/windows.QueryPerformanceCounter
+func runtimeQueryPerformanceCounter() int64
 
 type performanceClock struct {
 	frequency int64
@@ -31,14 +36,7 @@ func newClock() performanceClock {
 	return performanceClock{frequency: hz, origin: origin, base: time.Now()}
 }
 
-func readCounter() int64 {
-	var ticks int64
-	ok, _, err := counter.Call(uintptr(unsafe.Pointer(&ticks)))
-	if ok == 0 {
-		panic(fmt.Sprintf("frameclock: QueryPerformanceCounter: %v", err))
-	}
-	return ticks
-}
+func readCounter() int64 { return runtimeQueryPerformanceCounter() }
 
 // Now advances one shared wall-clock anchor by QPC elapsed time. Round(0)
 // intentionally removes Go's monotonic component: callers may pass deadlines
