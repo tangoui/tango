@@ -210,7 +210,7 @@ func (s *scene) opBounds(op paint.Op) (image.Rectangle, bool) {
 	var b image.Rectangle
 	switch o := op.(type) {
 	case paint.FillRect:
-		if o.Color.A == 0 {
+		if o.Rect.Empty() || o.Color.A == 0 {
 			return b, false
 		}
 		b = rectBounds(o.Rect, s.scale)

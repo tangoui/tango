@@ -121,6 +121,8 @@ func (s *scene) patchKey(op paint.Op, frame, clip image.Rectangle) (string, []an
 		k.rgba(o.Color)
 	case paint.LinearGradient:
 		k.tag(5)
+		k.tag(byte(frame.Min.X & 3))
+		k.tag(byte(frame.Min.Y & 3))
 		k.rect(o.Rect, s.scale, at)
 		k.radii(o.Radii)
 		k.point(o.P0, s.scale, at)
@@ -129,6 +131,8 @@ func (s *scene) patchKey(op paint.Op, frame, clip image.Rectangle) (string, []an
 		k.rgba(o.To)
 	case paint.Gradient:
 		k.tag(6)
+		k.tag(byte(frame.Min.X & 3))
+		k.tag(byte(frame.Min.Y & 3))
 		k.rect(o.Rect, s.scale, at)
 		k.radii(o.Radii)
 		k.path(o.Path, s.scale, at)
@@ -145,8 +149,9 @@ func (s *scene) patchKey(op paint.Op, frame, clip image.Rectangle) (string, []an
 		k.rect(o.Rect, s.scale, at)
 		k.radii(o.Radii)
 		k.f(o.Cell)
-		k.rgba(o.A)
-		k.rgba(o.B)
+		a, b := paint.CheckerColors(o)
+		k.rgba(a)
+		k.rgba(b)
 	case paint.Image:
 		k.tag(8)
 		k.rect(o.Rect, s.scale, at)

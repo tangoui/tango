@@ -272,3 +272,13 @@ func TestNativeCloseClearsBackgroundForCPUTakeover(t *testing.T) {
 		t.Fatal("native background survived close and would blend under a CPU replacement")
 	}
 }
+
+func TestNativeRenderCompletesChangedTextBeforeSubmittingTransaction(t *testing.T) {
+	r := newNativeTestRenderer(t)
+	if e := r.Render(&paint.List{Ops: []paint.Op{textOp("ready", 10, 10)}}, geom.Size{W: 120, H: 60}, 2); e != nil {
+		t.Fatal(e)
+	}
+	if len(r.nodes) != 1 || r.nodes[0].paints == 0 {
+		t.Fatal("text drawing left for an extra implicit presentation transaction")
+	}
+}

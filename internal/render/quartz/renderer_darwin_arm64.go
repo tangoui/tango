@@ -99,6 +99,8 @@ func (r *renderer) Render(l *paint.List, size geom.Size, scale float32) error {
 	pool := nativePoolPush()
 	defer nativePoolPop(pool)
 	start := time.Now()
+	defer func() { r.renderCost = time.Since(start) }()
+	r.metricsReady = false
 	r.epoch++
 	r.drawErr = nil
 	if err := r.scene.plan(l, size, scale); err != nil {
@@ -111,7 +113,13 @@ func (r *renderer) Render(l *paint.List, size geom.Size, scale float32) error {
 	if err := r.apply(size); err != nil {
 		return err
 	}
-	r.renderCost = time.Since(start)
+	// Draw changed backing stores inside the same explicit transaction as
+	// their geometry/content changes. Drawing after commit creates a second
+	// implicit submission, adding work to every animated text frame.
+	r.drawText()
+	if r.drawErr != nil {
+		return r.drawErr
+	}
 	r.metricsReady = true
 	return nil
 }
@@ -321,6 +329,15 @@ func (n *node) draw(ctx uintptr) {
 	}
 	runtime.KeepAlive(n.runs)
 }
+func (r *renderer) drawText() {
+	for _, n := range r.nodes {
+		if n.kind == itemText && n.dirty {
+			n.layer.Send(sel("displayIfNeeded"))
+			n.dirty = false
+		}
+	}
+}
+
 func (r *renderer) present(_ image.Point, _ float32) error {
 	if r.closed {
 		return nil
@@ -330,12 +347,7 @@ func (r *renderer) present(_ image.Point, _ float32) error {
 	pool := nativePoolPush()
 	defer nativePoolPop(pool)
 	start := time.Now()
-	for _, n := range r.nodes {
-		if n.kind == itemText && n.dirty {
-			n.layer.Send(sel("displayIfNeeded"))
-			n.dirty = false
-		}
-	}
+
 	if r.metricsReady {
 		r.lastWork = r.renderCost + time.Since(start)
 	} else {

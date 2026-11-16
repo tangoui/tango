@@ -203,3 +203,57 @@ func TestPlanBoundsNativeBitmapResidency(t *testing.T) {
 		t.Fatal("bounded fallback omitted later drawing")
 	}
 }
+
+func TestPlanEmptyFillsNeverDraw(t *testing.T) {
+	for _, scale := range []float32{1, 1.5, 2} {
+		for _, r := range []geom.Rect{{X: 20, Y: 10, W: -10, H: 10}, {X: 10, Y: 20, W: 10, H: -10}, {X: 10, Y: 10, H: 10}, {X: 10, Y: 10, W: 10}} {
+			s := newScene(nil)
+			l := &paint.List{Ops: []paint.Op{paint.PushClip{Rect: geom.Rect{X: 5, Y: 5, W: 30, H: 30}}, paint.FillRect{Rect: r, Color: color.NRGBA{R: 255, A: 255}}, paint.Pop{}}}
+			if e := s.plan(l, geom.Size{W: 50, H: 50}, scale); e != nil {
+				t.Fatal(e)
+			}
+			if len(s.items) != 0 {
+				t.Fatalf("empty rect %+v @%v produced content", r, scale)
+			}
+		}
+	}
+}
+func TestPlanGradientSnapshotTracksDeviceDitherPhase(t *testing.T) {
+	s := newScene(nil)
+	size := geom.Size{W: 80, H: 80}
+	for _, scale := range []float32{1, 1.5, 2} {
+		a := paint.Gradient{Rect: geom.Rect{X: 8, Y: 8, W: 16, H: 20}, Start: geom.Pt(8, 8), End: geom.Pt(8, 28), Stops: []paint.Stop{{Offset: 0, Color: color.NRGBA{R: 31, A: 255}}, {Offset: 1, Color: color.NRGBA{R: 95, A: 255}}}}
+		if e := s.plan(&paint.List{Ops: []paint.Op{a}}, size, scale); e != nil {
+			t.Fatal(e)
+		}
+		key := s.items[0].key
+		step := 1 / scale
+		a.Rect.X += step
+		a.Start.X += step
+		a.End.X += step
+		if e := s.plan(&paint.List{Ops: []paint.Op{a}}, size, scale); e != nil {
+			t.Fatal(e)
+		}
+		if key == s.items[0].key {
+			t.Fatalf("gradient @%v reused bitmap from a different dither phase", scale)
+		}
+	}
+}
+func TestPlanCheckerSnapshotTracksResolvedDefaults(t *testing.T) {
+	oldLight, oldDark := paint.CheckerLight, paint.CheckerDark
+	t.Cleanup(func() { paint.CheckerLight, paint.CheckerDark = oldLight, oldDark })
+	s := newScene(nil)
+	l := &paint.List{Ops: []paint.Op{paint.Checker{Rect: geom.Rect{W: 20, H: 20}, Cell: 4}}}
+	size := geom.Size{W: 30, H: 30}
+	if e := s.plan(l, size, 1); e != nil {
+		t.Fatal(e)
+	}
+	key := s.items[0].key
+	paint.CheckerLight = color.NRGBA{R: 255, A: 255}
+	if e := s.plan(l, size, 1); e != nil {
+		t.Fatal(e)
+	}
+	if key == s.items[0].key {
+		t.Fatal("changed checker defaults reused stale snapshot")
+	}
+}
