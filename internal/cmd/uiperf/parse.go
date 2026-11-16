@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -22,61 +23,83 @@ type budgetResult struct {
 	Status     string
 }
 
-var benchRE = regexp.MustCompile(`^(?:Benchmark[^/]+/)([^/]+)/([^\s-]+)(?:-\d+)?\s+.*?\s([0-9]+(?:\.[0-9]+)?)\s+ns/op(?:\s+([0-9]+(?:\.[0-9]+)?)\s+dirty/op)?(?:\s+([0-9]+(?:\.[0-9]+)?)\s+B/op)?(?:\s+([0-9]+(?:\.[0-9]+)?)\s+allocs/op)?\s*$`)
+var benchmarkNameRE = regexp.MustCompile(`^BenchmarkComponents/(.+)/(.+)$`)
+var benchmarkIterationRE = regexp.MustCompile(`-(\d+)$`)
+var metricUnitRE = regexp.MustCompile(`^([0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)$`)
 
 func parseBenchLine(s string) (benchResult, error) {
-	m := benchRE.FindStringSubmatch(strings.TrimSpace(s))
-	if m == nil {
+	fields := strings.Fields(strings.TrimSpace(s))
+	if len(fields) < 3 || !strings.HasPrefix(fields[0], "BenchmarkComponents/") {
 		return benchResult{}, fmt.Errorf("not a benchmark line: %q", s)
 	}
-	vals := make([]float64, 4)
-	for i := 3; i < 7; i++ {
-		if m[i] != "" {
-			v, e := strconv.ParseFloat(m[i], 64)
-			if e != nil {
-				return benchResult{}, e
-			}
-			vals[i-3] = v
+	name := strings.TrimSuffix(fields[0], "-"+strings.TrimSuffix(benchmarkIterationRE.FindString(fields[0]), ""))
+	// The suffix is an iteration count on the complete benchmark name. Do not
+	// trim any hyphens in the component or scene itself.
+	if m := benchmarkIterationRE.FindStringSubmatch(fields[0]); m != nil {
+		name = fields[0][:len(fields[0])-len(m[0])]
+	}
+	parts := benchmarkNameRE.FindStringSubmatch(name)
+	if parts == nil || parts[1] == "" || parts[2] == "" {
+		return benchResult{}, fmt.Errorf("invalid benchmark name: %q", fields[0])
+	}
+	values := map[string]float64{}
+	for i := 1; i+1 < len(fields); i++ {
+		unit := fields[i+1]
+		if unit != "ns/op" && unit != "dirty/op" && unit != "B/op" && unit != "allocs/op" {
+			continue
+		}
+		if _, exists := values[unit]; exists {
+			return benchResult{}, fmt.Errorf("duplicate metric %s: %q", unit, s)
+		}
+		if !metricUnitRE.MatchString(fields[i]) {
+			return benchResult{}, fmt.Errorf("invalid metric value %q: %q", fields[i], s)
+		}
+		v, err := strconv.ParseFloat(fields[i], 64)
+		if err != nil {
+			return benchResult{}, err
+		}
+		values[unit] = v
+	}
+	for _, unit := range []string{"ns/op", "dirty/op", "B/op", "allocs/op"} {
+		if _, ok := values[unit]; !ok {
+			return benchResult{}, fmt.Errorf("missing metric %s: %q", unit, s)
 		}
 	}
-	return benchResult{Name: m[1], Scene: m[2], NsOp: vals[0], Dirty: vals[1], BOp: vals[2], AllocsOp: vals[3]}, nil
+	return benchResult{Name: parts[1], Scene: parts[2], NsOp: values["ns/op"], Dirty: values["dirty/op"], BOp: values["B/op"], AllocsOp: values["allocs/op"]}, nil
 }
+
 func parseBudgetLine(s string) (budgetResult, error) {
 	f := strings.Fields(s)
 	if len(f) != 5 || f[0] != "PERF" {
 		return budgetResult{}, fmt.Errorf("invalid budget line: %q", s)
 	}
-	ns, e := strconv.ParseFloat(f[2], 64)
-	if e != nil {
-		return budgetResult{}, e
+	ns, err := strconv.ParseFloat(f[2], 64)
+	if err != nil {
+		return budgetResult{}, err
 	}
-	b, e := strconv.ParseFloat(f[3], 64)
-	if e != nil {
-		return budgetResult{}, e
+	budget, err := strconv.ParseFloat(f[3], 64)
+	if err != nil {
+		return budgetResult{}, err
 	}
-	return budgetResult{Key: f[1], NS: ns, Budget: b, Status: f[4]}, nil
+	return budgetResult{Key: f[1], NS: ns, Budget: budget, Status: f[4]}, nil
 }
+
 func median(v []float64) float64 {
 	if len(v) == 0 {
 		return 0
 	}
 	x := append([]float64(nil), v...)
-	for i := 1; i < len(x); i++ {
-		for j := i; j > 0 && x[j] < x[j-1]; j-- {
-			x[j], x[j-1] = x[j-1], x[j]
-		}
+	sort.Float64s(x)
+	if len(x)%2 == 1 {
+		return x[len(x)/2]
 	}
-	return x[len(x)/2]
+	return (x[len(x)/2-1] + x[len(x)/2]) / 2
 }
 func iqr(v []float64) float64 {
 	if len(v) < 2 {
 		return 0
 	}
 	x := append([]float64(nil), v...)
-	for i := 1; i < len(x); i++ {
-		for j := i; j > 0 && x[j] < x[j-1]; j-- {
-			x[j], x[j-1] = x[j-1], x[j]
-		}
-	}
+	sort.Float64s(x)
 	return x[(3*len(x))/4] - x[len(x)/4]
 }

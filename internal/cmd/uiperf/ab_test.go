@@ -20,3 +20,10 @@ func TestABVerdict(t *testing.T) {
 		})
 	}
 }
+
+func TestParseABOutputGroupsNames(t *testing.T) {
+	rows, err := parseABOutput("BenchmarkButton-8  1  100 ns/op  1 B/op  2 allocs/op\nBenchmarkTable-8  1  200 ns/op  2 B/op  3 allocs/op\n")
+	if err != nil || len(rows) != 2 || rows[0].Name != "BenchmarkButton" || rows[1].Name != "BenchmarkTable" {
+		t.Fatalf("rows=%+v err=%v", rows, err)
+	}
+}

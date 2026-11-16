@@ -20,3 +20,18 @@ func TestParseBudgetLine(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 }
+
+func TestParseBenchLineMetricOrderAndHyphen(t *testing.T) {
+	got, err := parseBenchLine("BenchmarkComponents/Date-Range/Large-100k-10  3  17 allocs/op  2048 B/op  0.125 dirty/op  812345 ns/op")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "Date-Range" || got.Scene != "Large-100k" || got.NsOp != 812345 || got.Dirty != .125 || got.BOp != 2048 || got.AllocsOp != 17 {
+		t.Fatalf("got %+v", got)
+	}
+}
+func TestMedianEven(t *testing.T) {
+	if got := median([]float64{9, 1, 5, 3}); got != 4 {
+		t.Fatalf("got %v", got)
+	}
+}

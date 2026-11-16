@@ -25,3 +25,15 @@ func TestHotScore(t *testing.T) {
 		t.Fatalf("expected non-target: %+v", got)
 	}
 }
+
+func TestHotBenchRegexQuotesNames(t *testing.T) {
+	got := hotBenchRegex("A+B", "Scene.(x)")
+	if got == "^BenchmarkComponents/A+B/Scene.(x)$" {
+		t.Fatal("regex was not quoted")
+	}
+}
+func TestCleanupWorktreeRejectsUnownedPath(t *testing.T) {
+	if err := cleanupWorktree("/tmp", "relative-tree"); err == nil {
+		t.Fatal("expected ownership/path error")
+	}
+}

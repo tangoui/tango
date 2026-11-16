@@ -26,13 +26,23 @@ func runBench(count int, run, out string) error {
 	if e != nil {
 		return fmt.Errorf("benchmark: %w\n%s", e, o)
 	}
-	var results []benchResult
+	groups := map[string][]benchResult{}
 	sc := bufio.NewScanner(strings.NewReader(string(o)))
 	for sc.Scan() {
-		x, e := parseBenchLine(sc.Text())
-		if e == nil {
-			results = append(results, x)
+		line := strings.TrimSpace(sc.Text())
+		if !strings.HasPrefix(line, "BenchmarkComponents/") {
+			continue
 		}
+		x, pe := parseBenchLine(line)
+		if pe != nil {
+			return fmt.Errorf("parse benchmark: %w", pe)
+		}
+		key := x.Name + "\x00" + x.Scene
+		groups[key] = append(groups[key], x)
+	}
+	var results []benchResult
+	for _, rows := range groups {
+		results = append(results, aggregateBench(rows))
 	}
 	if e = sc.Err(); e != nil {
 		return e
@@ -87,6 +97,22 @@ func runBench(count int, run, out string) error {
 	sort.Slice(results, func(i, j int) bool { return results[i].Name+results[i].Scene < results[j].Name+results[j].Scene })
 	_ = time.Second // keep timing policy visible at this command boundary
 	return writeBenchReport(out, results)
+}
+
+func aggregateBench(rows []benchResult) benchResult {
+	if len(rows) == 0 {
+		return benchResult{}
+	}
+	out := rows[0]
+	var ns, dirty, bytes, allocs []float64
+	for _, r := range rows {
+		ns = append(ns, r.NsOp)
+		dirty = append(dirty, r.Dirty)
+		bytes = append(bytes, r.BOp)
+		allocs = append(allocs, r.AllocsOp)
+	}
+	out.NsOp, out.Dirty, out.BOp, out.AllocsOp = median(ns), median(dirty), median(bytes), median(allocs)
+	return out
 }
 func coldBenchmark(out, component string) {} // reserved for the process-isolated cold pass
 var _ = filepath.Join

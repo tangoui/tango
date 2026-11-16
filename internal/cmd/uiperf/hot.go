@@ -19,6 +19,7 @@ type hotInput struct {
 	Component, Function string
 	CumPct, Over        float64
 }
+type hotFailure struct{ Component, Stage, Reason string }
 type hotScore struct {
 	Function   string
 	Score      float64
@@ -108,6 +109,10 @@ func hotScores(in []hotInput) []hotScore {
 	return out
 }
 
+func hotBenchRegex(name, scene string) string {
+	return `^BenchmarkComponents/` + regexp.QuoteMeta(name) + `/` + regexp.QuoteMeta(scene) + `$`
+}
+
 func runHot(dir string, top int) error {
 	if top < 1 {
 		return fmt.Errorf("top must be positive")
@@ -121,6 +126,8 @@ func runHot(dir string, top int) error {
 		return err
 	}
 	var inputs []hotInput
+	var failures []hotFailure
+	attempted, succeeded := 0, 0
 	profDir := filepath.Join(dir, "prof")
 	if err := os.MkdirAll(profDir, 0755); err != nil {
 		return err
@@ -129,21 +136,29 @@ func runHot(dir string, top int) error {
 		if b.Budget <= 0 || b.NsOp <= b.Budget {
 			continue
 		}
-		safe := strings.NewReplacer("/", "-", "\\", "-").Replace(b.Name + "-" + b.Scene)
+		attempted++
+		component := b.Name + "/" + b.Scene
+		safe := strings.NewReplacer("/", "-", "\\", "-").Replace(component)
 		prof := filepath.Join(profDir, safe+".pprof")
-		cmd := exec.Command("go", "test", "./ui", "-run", "^$", "-bench", "^BenchmarkComponents/"+b.Name+"/"+b.Scene+"$", "-benchtime=2s", "-cpuprofile", prof)
-		if out, e := cmd.CombinedOutput(); e == nil {
-			p := exec.Command("go", "tool", "pprof", "-top", "-cum", "-nodecount="+fmt.Sprint(top), prof)
-			text, pe := p.Output()
-			if pe == nil {
-				if es, pe := parsePprofTop(string(text)); pe == nil {
-					for _, x := range es {
-						inputs = append(inputs, hotInput{Component: b.Name + "/" + b.Scene, Function: x.Name, CumPct: x.CumPct, Over: b.NsOp / b.Budget})
-					}
-				}
-			}
-		} else {
-			_ = out
+		cmd := exec.Command("go", "test", "./ui", "-run", "^$", "-bench", hotBenchRegex(b.Name, b.Scene), "-benchtime=2s", "-cpuprofile", prof)
+		if out, e := cmd.CombinedOutput(); e != nil {
+			failures = append(failures, hotFailure{component, "profile", fmt.Sprintf("%v: %s", e, strings.TrimSpace(string(out)))})
+			continue
+		}
+		p := exec.Command("go", "tool", "pprof", "-top", "-cum", "-nodecount="+fmt.Sprint(top), prof)
+		text, e := p.Output()
+		if e != nil {
+			failures = append(failures, hotFailure{component, "pprof", e.Error()})
+			continue
+		}
+		es, e := parsePprofTop(string(text))
+		if e != nil {
+			failures = append(failures, hotFailure{component, "parse", e.Error()})
+			continue
+		}
+		succeeded++
+		for _, x := range es {
+			inputs = append(inputs, hotInput{Component: component, Function: x.Name, CumPct: x.CumPct, Over: b.NsOp / b.Budget})
 		}
 	}
 	f, err := os.Create(filepath.Join(dir, "hot.md"))
@@ -154,6 +169,15 @@ func runHot(dir string, top int) error {
 	fmt.Fprintln(f, "# UI hotspots\n\n| Function | Score | Components | Non-target |\n|---|---:|---|:---:|")
 	for _, x := range hotScores(inputs) {
 		fmt.Fprintf(f, "| `%s` | %.4f | %s | %t |\n", x.Function, x.Score, strings.Join(x.Components, ", "), x.NonTarget)
+	}
+	if len(failures) > 0 {
+		fmt.Fprintln(f, "\n## Failed profiles\n\n| Component | Stage | Reason |\n|---|---|---|")
+		for _, x := range failures {
+			fmt.Fprintf(f, "| %s | %s | %s |\n", x.Component, x.Stage, strings.ReplaceAll(x.Reason, "|", "\\|"))
+		}
+	}
+	if attempted > 0 && succeeded == 0 {
+		return fmt.Errorf("all %d hotspot profiles failed; see %s", attempted, filepath.Join(dir, "hot.md"))
 	}
 	return nil
 }
