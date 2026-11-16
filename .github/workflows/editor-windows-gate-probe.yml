@@ -54,7 +54,7 @@ jobs:
           import json, os
           from pathlib import Path
           source = Path('ui/editor/brackets_test.go').resolve()
-          old = 'unsure := st.matchCarets(MatchBracketsAlways, start.Add(budget), from, res)'
+          old = 'unsure := st.matchCarets(MatchBracketsAlways, frameclock.Now().Add(budget), from, res)'
           text = source.read_text(encoding='utf-8')
           assert text.count(old) == 1
           replacement = Path(os.environ['RUNNER_TEMP']) / 'brackets_sleep_test.go'
