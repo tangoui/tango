@@ -583,7 +583,25 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 			rest := line[pos:]
 			var restRunes []rune
 			backtracked := false
-			for _, ru := range stack.rules {
+			usePlan := stack.plan != nil && len(rest) > 0 && rest[0] < utf8.RuneSelf
+			var planIter rulePlanIter
+			if usePlan {
+				planIter = stack.plan.iter(rest[0])
+			}
+			for rulePos := 0; ; rulePos++ {
+				var ru *rule
+				if usePlan {
+					var ok bool
+					ru, ok = planIter.next()
+					if !ok {
+						break
+					}
+				} else {
+					if rulePos >= len(stack.rules) {
+						break
+					}
+					ru = stack.rules[rulePos]
+				}
 				if pos != 0 && ru.atLineStart {
 					continue
 				}
