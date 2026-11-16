@@ -408,11 +408,48 @@ func (g *grammar) newCompiledRe(src, flags string) *compiledRe {
 	return &compiledRe{src: src, flags: flags, re: re, firstByte: firstByte, hasFirst: hasFirst}
 }
 
+const maxBacktrackFirstSource = 512
+
 func backtrackLiteralFirst(src string) (byte, bool) {
-	// An alternative may start with another byte. Reject conservatively, even
-	// when the bar is escaped or inside a nested expression.
+	// Only a top-level alternative can bypass a required leading literal.
+	// Bound the extra scan; large expressions keep the previous conservative
+	// behavior. The compiler has already validated the expression's syntax.
 	if strings.Contains(src, "|") {
-		return 0, false
+		if len(src) > maxBacktrackFirstSource {
+			return 0, false
+		}
+		depth, inClass := 0, false
+		for i := 0; i < len(src); i++ {
+			switch {
+			case src[i] == '\\':
+				i++
+			case inClass:
+				if src[i] == ']' {
+					inClass = false
+				}
+			case src[i] == '[':
+				inClass = true
+			case src[i] == '(':
+				// Inline options, comments and non-JS group extensions can
+				// change how later punctuation is parsed. Keep the old
+				// conservative fallback for those forms.
+				if i+1 < len(src) && src[i+1] == '?' &&
+					(i+2 >= len(src) || !strings.ContainsRune(":!=<", rune(src[i+2]))) {
+					return 0, false
+				}
+				depth++
+			case src[i] == ')':
+				depth--
+				if depth < 0 {
+					return 0, false
+				}
+			case src[i] == '|' && depth == 0:
+				return 0, false
+			}
+		}
+		if depth != 0 || inClass {
+			return 0, false
+		}
 	}
 	i := 0
 	if i < len(src) && src[i] == '^' {
