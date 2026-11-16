@@ -10,7 +10,7 @@ title: editor.View 代码编辑器视图
 - 需要在自绘页面中编辑 Go、TypeScript、Python 等带语法高亮的代码时。
 - 多个文件需要各自保留模型、选区、滚动位置和撤销历史时。
 - 需要只读查看、行号、Tab 缩进或链接点击等编辑器交互时。
-- 只编辑 Markdown 文本并需要工具栏和实时预览时，用 [MarkdownEditor](/components/markdowneditor)；只展示短代码片段时，用 [CodeBlock](/components/catalog/codeblock) 更轻量。
+- 只编辑 Markdown 文本并需要工具栏和实时预览时，用 [MarkdownEditor](/components/markdowneditor)；只展示短代码片段时，用 [CodeBlock](/components/codeblock) 更轻量。
 
 ## 在线体验
 

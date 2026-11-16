@@ -10,7 +10,7 @@ title: Notification 通知提醒框
 - 内容较多、需要标题加描述的通知，例如“版本更新”“任务完成”“同步失败及原因”。
 - 需要在通知里放操作按钮（“立即重启”“查看详情”），或希望通知停留更久、悬停时暂停计时。
 - 由系统主动推送、与用户当前操作无直接关联的消息。
-- 一句话的操作反馈用 [Message 全局提示](/components/message)；需要用户必须处理的用 [Modal 对话框](/components/modal) 或 [Confirm 确认框](/components/confirm)；需要一个可回看的消息列表用 [NotificationCenter](/components/catalog/notificationcenter)。
+- 一句话的操作反馈用 [Message 全局提示](/components/message)；需要用户必须处理的用 [Modal 对话框](/components/modal) 或 [Confirm 确认框](/components/confirm)；需要一个可回看的消息列表用 [NotificationCenter](/components/notificationcenter)。
 
 ## 在线体验
 
@@ -172,5 +172,5 @@ func page(c *ui.Context) {
 
 - [源码 ui/nav_notify.go](https://github.com/tangoui/tango/blob/main/ui/nav_notify.go)
 - [Go API 参考](/reference/api/ui)
-- [Message 全局提示](/components/message)、[NotificationCenter](/components/catalog/notificationcenter)
+- [Message 全局提示](/components/message)、[NotificationCenter](/components/notificationcenter)
 - [组件总览](/components/)
