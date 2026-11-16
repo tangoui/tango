@@ -141,7 +141,11 @@ func Compile(source, flags string) (Regexp, error) {
 	}
 	nBacktrack.Add(1)
 	first, hasFirst := compileBacktrackFirst(anchored, opts)
-	return &backtrackRegexp{re: re, src: source, nums: nums, first: first, hasFirst: hasFirst}, nil
+	plan := (*asciiAssertionPlan)(nil)
+	if len(nums) == 0 {
+		plan = compileASCIIAssertionPlan(source, flags)
+	}
+	return &backtrackRegexp{re: re, src: source, nums: nums, first: first, hasFirst: hasFirst, assertion: plan}, nil
 }
 
 type stdRegexp struct {
@@ -179,11 +183,12 @@ func (r *stdRegexp) Source() string { return r.src }
 func (r *stdRegexp) NumGroups() int { return r.ngroups }
 
 type backtrackRegexp struct {
-	re       *regexp2.Regexp
-	src      string
-	nums     []int // JS 组 i+1 对应的 regexp2 组号
-	first    asciiSet
-	hasFirst bool
+	re        *regexp2.Regexp
+	src       string
+	nums      []int // JS 组 i+1 对应的 regexp2 组号
+	first     asciiSet
+	hasFirst  bool
+	assertion *asciiAssertionPlan
 }
 
 func (r *backtrackRegexp) Engine() Engine { return Backtrack }
