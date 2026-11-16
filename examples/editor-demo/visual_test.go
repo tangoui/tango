@@ -33,6 +33,7 @@ func TestShellVisualQA(t *testing.T) {
 		{"search", "vs-dark", 1200, false, true, false},
 		{"dirty", "vs-dark", 1200, false, false, true},
 		{"narrow-search", "vs-dark", 480, false, true, false},
+		{"narrow-sidebar", "vs-dark", 480, false, false, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			old := text.UseSystemEngine(true)
@@ -50,6 +51,9 @@ func TestShellVisualQA(t *testing.T) {
 				shellUI = shellState{sidebar: true, tab: "document"}
 				search = searchPanel{}
 			}()
+			if tt.name == "narrow-sidebar" {
+				shellUI.sidebarOverlay = true
+			}
 			if tt.dirty {
 				st.Insert("// My editor\n")
 			}

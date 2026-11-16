@@ -8,6 +8,7 @@ import (
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/editor/theme"
+	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/text"
 	uitheme "github.com/tangoui/tango/ui/theme"
@@ -153,4 +154,76 @@ func TestNarrowShellKeepsCommandPaletteOnscreen(t *testing.T) {
 		t.Fatalf("palette extends beyond window: %+v", r)
 	}
 	paletteOpen = false
+}
+
+func TestShellModalCancelReturnsToLastSplit(t *testing.T) {
+	for _, dialog := range []string{"palette", "details"} {
+		t.Run(dialog, func(t *testing.T) {
+			d := shellDriver(t, 1200)
+			documents.setSplit(true)
+			d.Frame()
+			d.Frame()
+			editors := d.A11yFindAll(a11y.RoleTextbox, "main.go")
+			if len(editors) != 2 {
+				t.Fatal("two editors expected")
+			}
+			r := editors[1].Bounds
+			d.Click(geom.Pt(r.X+r.W/2, r.Y+80))
+			d.Frame()
+			if active != second {
+				t.Fatal("right pane not focused")
+			}
+			if dialog == "palette" {
+				if err := d.ClickLabel("Command Palette"); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err := d.ClickLabel("Help"); err != nil {
+					t.Fatal(err)
+				}
+				d.Frame()
+				if err := d.ClickLabel("Editor details…"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			d.Frame()
+			d.Key(input.KeyEscape, 0)
+			d.Frame()
+			d.Frame()
+			before := second.Snapshot().String()
+			d.Type("x")
+			if second.Snapshot().String() == before || active != second {
+				t.Fatalf("%s cancellation lost right-pane typing focus", dialog)
+			}
+		})
+	}
+}
+
+func TestNarrowSidebarButtonOpensDocumentDrawer(t *testing.T) {
+	d := shellDriver(t, 480)
+	if err := d.ClickLabel("Toggle sidebar"); err != nil {
+		t.Fatal(err)
+	}
+	d.Frame()
+	d.Frame()
+	if _, ok := d.A11yFind(a11y.RoleDialog, "Document sidebar"); !ok {
+		t.Fatal("narrow sidebar action did not open a drawer")
+	}
+	d.Key(input.KeyEscape, 0)
+	d.Frame()
+	d.Frame()
+	if n := d.A11yFocused(); n == nil || n.Name != "main.go" {
+		t.Fatal("sidebar dismissal did not restore editor focus")
+	}
+}
+
+func TestShellFileIdentityFollowsSaveAsExtension(t *testing.T) {
+	shellDriver(t, 1200)
+	path := filepath.Join(t.TempDir(), "notes.ts")
+	if err := documents.saveAs(path); err != nil {
+		t.Fatal(err)
+	}
+	if got := shellDocumentFilename(); got != path {
+		t.Fatalf("shell still identifies old file: %q", got)
+	}
 }

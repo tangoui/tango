@@ -16,11 +16,12 @@ import (
 // The shell borrows the IDE layout; every control and visual token is Tango's
 // existing Ant Design UI. Presentation state never owns document text.
 type shellState struct {
-	sidebar           bool
-	tab               string
-	settings, details bool
-	palette           *uitheme.Theme
-	themeName         string
+	sidebar                bool
+	narrow, sidebarOverlay bool
+	tab                    string
+	settings, details      bool
+	palette                *uitheme.Theme
+	themeName              string
 }
 
 var shellUI = shellState{sidebar: true, tab: "document"}
@@ -40,6 +41,7 @@ func (s *shellState) theme(name string) *uitheme.Theme {
 }
 
 func renderShell(c *ui.Context) {
+	shellUI.narrow = c.Size().W < 820
 	th := c.Theme
 	ui.Column(c, func() {
 		ui.Row(c, func() {
@@ -60,7 +62,7 @@ func renderShell(c *ui.Context) {
 		ui.Row(c, func() {
 			ui.Column(c, func() {
 				col := th.TextTertiary
-				if shellUI.sidebar && c.Size().W >= 820 {
+				if shellUI.sidebar && !shellUI.narrow || shellUI.sidebarOverlay {
 					col = th.Primary.Base
 				}
 				ui.Tooltip(c, "Toggle sidebar", func() {
@@ -82,7 +84,7 @@ func renderShell(c *ui.Context) {
 					if documents.session.dirty() {
 						label += " •"
 					}
-					ic := filetype.ForFlavor(th.Flavor).Icon(st.Model.URI(), false, false)
+					ic := filetype.ForFlavor(th.Flavor).Icon(shellDocumentFilename(), false, false)
 					ui.Tabs(c, &shellUI.tab, []ui.TabItem{{Key: "document", Label: label, Icon: ic}}).Size(ui.Small).NoMargin().TabBarStyle(layout.PadVH(0, th.PaddingSM)).Extra(func() {
 						ui.Row(c, func() {
 							ui.Disabled(c, !documents.session.dirty(), func() { shellIcon(c, icon.Save, "Save file", func() { postFileAction(func() { saveDocument() }) }) })
@@ -152,7 +154,11 @@ func runShellAction(key string) {
 	case "save-as":
 		postFileAction(func() { saveAsDocument() })
 	case "sidebar":
-		shellUI.sidebar = !shellUI.sidebar
+		if shellUI.narrow {
+			shellUI.sidebarOverlay = !shellUI.sidebarOverlay
+		} else {
+			shellUI.sidebar = !shellUI.sidebar
+		}
 		restoreEditorFocus()
 	case "split":
 		documents.setSplit(!documents.split)
@@ -193,33 +199,36 @@ func setDocumentWrap(wrap bool) {
 func renderSidebar(c *ui.Context) {
 	th := c.Theme
 	width := th.PaddingXL * 7
-	ui.Column(c, func() {
-		ui.Text(c, "OPEN DOCUMENT").Size(th.FontSizeSM).Secondary().Strong()
-		name := documentDisplayName(documents.session.path)
-		ic := filetype.ForFlavor(th.Flavor).Icon(st.Model.URI(), false, false)
-		if ui.Button(c, name).Text().Icon(ic).Block().A11yLabel("Focus active document").Clicked() {
-			restoreEditorFocus()
-		}
-		if documents.session.dirty() {
-			ui.Text(c, "Unsaved changes").Size(th.FontSizeSM).Color(th.Warning.Text)
-		} else if documents.session.path == "" {
-			ui.Text(c, "Not saved to disk").Size(th.FontSizeSM).Secondary()
-		} else {
-			ui.Text(c, "All changes saved").Size(th.FontSizeSM).Secondary()
-		}
-		ui.Div(c, layout.H(th.PaddingXS))
-		ui.Text(c, "EDITOR").Size(th.FontSizeSM).Secondary().Strong()
-		renderEditorOptions(c, width-th.PaddingSM*2)
-		ui.Spacer(c)
-		ui.Text(c, "SHORTCUTS").Size(th.FontSizeSM).Secondary().Strong()
-		for _, shortcut := range []struct{ label, accel string }{{"Open file", "CmdOrCtrl+O"}, {"Save file", "CmdOrCtrl+S"}, {"Find", "CmdOrCtrl+F"}} {
-			ui.Row(c, func() {
-				ui.Text(c, shortcut.label).Size(th.FontSizeSM).Secondary()
-				ui.Spacer(c)
-				ui.Text(c, ui.ShortcutLabel(shortcut.accel)).Size(th.FontSizeSM).Tertiary()
-			}, layout.Middle())
-		}
-	}, layout.W(width), layout.Pad(th.PaddingSM), layout.Gap(th.PaddingXS), layout.MinH(0)).Bg(th.BgLayout).Clip()
+	ui.Column(c, func() { renderSidebarContent(c, width-th.PaddingSM*2) }, layout.W(width), layout.Pad(th.PaddingSM), layout.Gap(th.PaddingXS), layout.MinH(0)).Bg(th.BgLayout).Clip()
+}
+
+func renderSidebarContent(c *ui.Context, width float32) {
+	th := c.Theme
+	ui.Text(c, "OPEN DOCUMENT").Size(th.FontSizeSM).Secondary().Strong()
+	name := documentDisplayName(documents.session.path)
+	ic := filetype.ForFlavor(th.Flavor).Icon(shellDocumentFilename(), false, false)
+	if ui.Button(c, name).Text().Icon(ic).Block().A11yLabel("Focus active document").Clicked() {
+		restoreEditorFocus()
+	}
+	if documents.session.dirty() {
+		ui.Text(c, "Unsaved changes").Size(th.FontSizeSM).Color(th.Warning.Text)
+	} else if documents.session.path == "" {
+		ui.Text(c, "Not saved to disk").Size(th.FontSizeSM).Secondary()
+	} else {
+		ui.Text(c, "All changes saved").Size(th.FontSizeSM).Secondary()
+	}
+	ui.Div(c, layout.H(th.PaddingXS))
+	ui.Text(c, "EDITOR").Size(th.FontSizeSM).Secondary().Strong()
+	renderEditorOptions(c, width)
+	ui.Spacer(c)
+	ui.Text(c, "SHORTCUTS").Size(th.FontSizeSM).Secondary().Strong()
+	for _, shortcut := range []struct{ label, accel string }{{"Open file", "CmdOrCtrl+O"}, {"Save file", "CmdOrCtrl+S"}, {"Find", "CmdOrCtrl+F"}} {
+		ui.Row(c, func() {
+			ui.Text(c, shortcut.label).Size(th.FontSizeSM).Secondary()
+			ui.Spacer(c)
+			ui.Text(c, ui.ShortcutLabel(shortcut.accel)).Size(th.FontSizeSM).Tertiary()
+		}, layout.Middle())
+	}
 }
 
 func renderEditorOptions(c *ui.Context, width float32) {
@@ -283,10 +292,14 @@ func renderStatusBar(c *ui.Context) {
 }
 
 func renderShellDialogs(c *ui.Context) {
-	settingsWasOpen := shellUI.settings
+	settingsWasOpen, detailsWasOpen, sidebarWasOpen := shellUI.settings, shellUI.details, shellUI.sidebarOverlay
 	ui.Modal(c, &shellUI.settings, "Editor settings").Width(min(380, c.Size().W-32)).NoFooter().Body(func() { renderEditorOptions(c, min(332, c.Size().W-80)) })
 	ui.Modal(c, &shellUI.details, "Editor details").Width(min(500, c.Size().W-32)).NoFooter().Body(func() { ui.Text(c, status()) })
-	if settingsWasOpen && !shellUI.settings {
+	drawerWidth := min(c.Theme.PaddingXL*10, c.Size().W-c.Theme.PaddingLG)
+	ui.Drawer(c, &shellUI.sidebarOverlay, "Document sidebar").Placement(ui.DrawerLeft).Size(drawerWidth).Body(func() {
+		ui.Column(c, func() { renderSidebarContent(c, drawerWidth-c.Theme.Components.Drawer.Padding*2) }, layout.Gap(c.Theme.PaddingXS))
+	})
+	if settingsWasOpen && !shellUI.settings || detailsWasOpen && !shellUI.details || sidebarWasOpen && !shellUI.sidebarOverlay {
 		restoreEditorFocus()
 		ui.Invalidate(c.Window())
 	}
@@ -322,4 +335,11 @@ func renderEditorPanes(c *ui.Context) {
 			show(second)
 		}
 	}, layout.Grow(1), layout.MinW(0), layout.MinH(0))
+}
+
+func shellDocumentFilename() string {
+	if documents.session.path != "" {
+		return documents.session.path
+	}
+	return st.Model.URI()
 }

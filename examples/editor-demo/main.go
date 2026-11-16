@@ -313,6 +313,7 @@ func page(c *ui.Context) {
 			return
 		}
 		renderShell(c)
+		paletteWasOpen := paletteOpen
 		ui.Modal(c, &paletteOpen, "Editor commands").Width(min(720, c.Size().W-32)).NoFooter().Body(func() {
 			ui.Select(c, &paletteCommand, commandOptions()).Searchable().Width(min(650, c.Size().W-80)).A11yLabel("Registered editor commands")
 			if ui.Button(c, "Execute").Disabled(paletteCommand == "").Clicked() {
@@ -320,6 +321,13 @@ func page(c *ui.Context) {
 			}
 			ui.Text(c, "Commands without arguments only; preconditions/read-only rules still apply.")
 		})
+		if paletteWasOpen && !paletteOpen && pendingCommand == "" {
+			if paletteTarget != nil {
+				active = paletteTarget
+			}
+			restoreEditorFocus()
+			ui.Invalidate(c.Window())
+		}
 	})
 	if auto != nil && diffState == nil {
 		auto.frame(c)
@@ -489,8 +497,8 @@ func openDemoWindow(title string, ropts ui.RunnerOptions) (*ui.Runner, *tango.Su
 }
 
 func main() {
-	file := flag.String("file", "", "file to open (default: a generated TypeScript document)")
-	genLines := flag.Int("gen-lines", 10000, "lines of the generated TypeScript document when -file is not given")
+	file := flag.String("file", "", "file to open (default: a short TypeScript welcome sample)")
+	genLines := flag.Int("gen-lines", 10000, "generate a benchmark TypeScript document with this many lines (opt-in)")
 	renderer := flag.String("renderer", "", `force the renderer: "cpu" or "gpu" (sets TANGO_RENDERER)`)
 	themeName := flag.String("theme", "vs-dark", `editor theme: vs, vs-dark, hc-black, hc-light`)
 	split := flag.Bool("split", false, "two independent editor views sharing one text model")

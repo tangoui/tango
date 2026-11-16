@@ -20,7 +20,7 @@ go run ./examples/editor-demo -theme hc-black -split -wrap
 
 - **File:** Open, Save and Save As use native dialogs. Opening another file or quitting asks before discarding unsaved edits. Dropped files and files opened by the operating system follow the same workflow.
 - **Edit:** Undo/Redo, inline Find/Replace and the command palette operate on the last focused editor pane. Enter in Find selects the next result. Escape or the close icon closes the search panel and restores editor focus.
-- **View:** Toggle the sidebar, split view and word wrapping; choose an existing light, dark or high-contrast theme. Settings stay reachable in narrow windows even when the sidebar is hidden.
+- **View:** Toggle the sidebar, split view and word wrapping; choose an existing light, dark or high-contrast theme. In narrow windows the sidebar opens as the existing Drawer component, while settings also remain reachable from the menu.
 - **Document tab:** Shows the current filename and a dot for unsaved edits. Save As refreshes the name. Both split panes share one document and undo history.
 - **Status bar:** Shows caret position, indentation, EOL and language. Choose the language item to open settings. **Help → Editor details** contains renderer and highlighting diagnostics.
 
