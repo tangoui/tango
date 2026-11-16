@@ -152,6 +152,9 @@ func (m *MenubarW) menuKey(i int) string {
 // from the keys still unconsumed.
 func (m *MenubarW) hotkeys() {
 	c, st := m.c, m.st
+	if c.shortcutCapture != 0 && c.shortcutCapture == c.focus {
+		return // the focused shortcut recorder owns Alt and F10 this frame
+	}
 	for i, k := range c.keys {
 		if k.Key == input.KeyF10 && k.Mods&(input.ModShift|input.ModCtrl|input.ModAlt|input.ModMeta) == 0 {
 			c.keys = append(c.keys[:i:i], c.keys[i+1:]...) // F10 belongs to the bar

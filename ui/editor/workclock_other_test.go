@@ -4,9 +4,10 @@ package editor
 
 import "time"
 
-// threadCPUClock is false where workClock has no thread clock (only darwin
-// and linux have one wired; Windows' thread times tick at the scheduler's
-// 15.6 ms): workClock is then the monotonic wall clock.
+// Only darwin and linux have a thread CPU clock wired here. On Windows,
+// GetThreadTimes' 100 ns units do not guarantee sub-millisecond resolution,
+// and QueryThreadCycleTime explicitly cannot be converted to elapsed time.
+// Use the monotonic wall clock rather than claim precise CPU timing.
 const threadCPUClock = false
 
 var workClockStart = time.Now()

@@ -14,9 +14,10 @@ package linux
 // context ...) and every key while text input is off are reported as
 // input.KeyEvent. Modifier keys are reported as their left/right Key, Mods
 // including the modifier on press and excluding it on release, like the
-// darwin backend's flagsChanged:. GtkWindow
-// activates menu accelerators before the focus widget sees a key, so menu
-// shortcuts win, as on macOS.
+// darwin backend's flagsChanged:. GtkWindow normally activates menu
+// accelerators before the focus widget sees a key. Shortcut capture uses
+// an earlier window signal handler (canvas_shortcut_linux.go) and bypasses
+// the IM context without changing its text-input state.
 
 import (
 	"unsafe"
@@ -161,7 +162,7 @@ func (c *canvas) onKey(ev ptr, press bool) ptr {
 	if c.closed {
 		return 0
 	}
-	if c.textOn && c.im != 0 && canvasFFI.imFilterKeypress(c.im, ev) {
+	if !c.shortcutCapture && !c.shortcutHeld[canvasEvU16(ev, canvasEvKeyHWCode)] && c.textOn && c.im != 0 && canvasFFI.imFilterKeypress(c.im, ev) {
 		return 1 // the input method used it
 	}
 	state := canvasEvU32(ev, canvasEvKeyState)
@@ -261,6 +262,9 @@ func (c *canvas) focusMaybeChanged() {
 		return
 	}
 	f := canvasFFI.widgetHasFocus(c.widget)
+	if !f {
+		clear(c.shortcutHeld)
+	}
 	c.syncIMFocus(f)
 	if f == c.focused {
 		return

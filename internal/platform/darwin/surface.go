@@ -364,6 +364,7 @@ func registerWindowClasses() {
 	// surfaces always accept it so they can take keyboard input.
 	yes := func(_ id, _ objc.SEL) bool { return true }
 	classDef("TangoWindow", "NSWindow", nil, []objc.MethodDef{
+		shortcutEquivalentMethod("TangoWindow"),
 		method("canBecomeKeyWindow", yes),
 		method("canBecomeMainWindow", yes),
 	})
