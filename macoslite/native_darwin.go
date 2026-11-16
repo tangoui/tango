@@ -6,7 +6,10 @@ package macoslite
 // bound by name through purego; Objective-C methods go through objc_msgSend
 // with typed function shapes (struct and float arguments cannot use a
 // variadic word-only call). Only AppKit, CoreFoundation, CoreGraphics and
-// CoreText are loaded — never WebKit or Metal.
+// CoreText are opened here, and the package never creates a WebView or a
+// Metal device. AppKit itself still maps Metal.framework, and on macOS 15+
+// WritingToolsUI maps WebKit.framework once a window becomes key; neither
+// starts a WebContent process.
 
 import (
 	"errors"
@@ -42,7 +45,7 @@ var (
 	msgVoidID      func(recv id, op objc.SEL, a id)
 	msgVoidBool    func(recv id, op objc.SEL, a bool)
 	msgVoidInt     func(recv id, op objc.SEL, a int)
-	msgBool        func(recv id, op objc.SEL) bool
+	msgBoolID      func(recv id, op objc.SEL, a id) bool
 	msgFloat       func(recv id, op objc.SEL) float64
 	msgVoidFloat   func(recv id, op objc.SEL, a float64)
 	msgRect        func(recv id, op objc.SEL) cgRect
@@ -168,7 +171,7 @@ func loadNative() error {
 			big = l.sym(libObjC, "objc_msgSend_stret")
 		}
 		if objcMsgSend != 0 && big != 0 {
-			for _, f := range []any{&msgID, &msgIDID, &msgVoidID, &msgVoidBool, &msgVoidInt, &msgBool,
+			for _, f := range []any{&msgID, &msgIDID, &msgVoidID, &msgVoidBool, &msgVoidInt, &msgBoolID,
 				&msgFloat, &msgVoidFloat, &msgPoint, &msgConvert, &msgUint16, &msgInt, &msgInitWindow,
 				&msgInitRect, &msgPerformMain, &msgOtherEvent, &msgPostEvent} {
 				purego.RegisterFunc(f, objcMsgSend)

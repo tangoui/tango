@@ -211,3 +211,50 @@ func TestRoundRectFill(t *testing.T) {
 		t.Fatalf("edge middle = %+v, want opaque", p)
 	}
 }
+
+// Review fix: TrimCaches is called from timers and goroutines like
+// Invalidate; it must release fonts on the main thread, not the caller's.
+func TestTrimCachesRunsOnMainThread(t *testing.T) {
+	a, be := newFakeApp(t, &countView{})
+	be.runInline = false
+	released := 0
+	a.fonts = fontCache{release: func(uintptr) { released++ }, entries: []fontEntry{{size: 13, font: 0x99}}}
+	done := make(chan struct{})
+	go func() { a.TrimCaches(); close(done) }()
+	<-done
+	if released != 0 {
+		t.Fatal("TrimCaches released fonts off the main thread")
+	}
+	be.flush()
+	if released != 1 || a.fonts.len() != 0 {
+		t.Fatalf("after main-thread drain: released=%d len=%d", released, a.fonts.len())
+	}
+}
+
+// Review fix: a backing scale change (moving between 1x and Retina screens)
+// must request a new frame; the layer contents are our own CGImage.
+func TestBackingChangeRequestsFrame(t *testing.T) {
+	a, be := newFakeApp(t, &countView{})
+	a.backingChanged()
+	if be.needs != 1 {
+		t.Fatalf("setNeedsDisplay = %d, want 1", be.needs)
+	}
+	a.Stop()
+	a.backingChanged()
+	if be.needs != 1 {
+		t.Fatal("no frame after Stop")
+	}
+}
+
+// Review fix: Dock Quit / logout runs -terminate:, which exits the process;
+// View.Close must still run once and the window must close first.
+func TestTerminateClosesViewOnce(t *testing.T) {
+	v := &countView{}
+	a, be := newFakeApp(t, v)
+	_ = a.Run()
+	a.terminating()
+	a.terminating()
+	if v.closes != 1 || be.closes != 1 {
+		t.Fatalf("view closes=%d native closes=%d, want 1/1", v.closes, be.closes)
+	}
+}

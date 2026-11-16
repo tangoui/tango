@@ -120,8 +120,8 @@ func (a *App) Invalidate() {
 }
 
 // TrimCaches releases cached fonts; the current frame stays on screen.
-// Call it on the main thread (from a View callback).
-func (a *App) TrimCaches() { a.fonts.clear() }
+// Safe from any goroutine: the fonts are released on the main thread.
+func (a *App) TrimCaches() { a.be.dispatchMain(a.fonts.clear) }
 
 // drawFrame renders one frame of w×h points at scale and presents it. It is
 // the only caller of View.Draw and ignores re-entrant calls.
@@ -152,3 +152,20 @@ func (a *App) drawFrame(w, h, scale float64) {
 	a.view.Draw(&Frame{Width: w, Height: h, Scale: scale}, c)
 	a.be.present(a.img)
 }
+
+// backingChanged runs when the window's backing scale changes (moved
+// between a 1x and a Retina screen): the layer holds our own CGImage, so
+// AppKit will not redraw it at the new scale by itself.
+func (a *App) backingChanged() {
+	a.mu.Lock()
+	stopped := a.stopped
+	a.mu.Unlock()
+	if !stopped {
+		a.be.setNeedsDisplay()
+	}
+}
+
+// terminating runs from applicationShouldTerminate: (Dock Quit, logout).
+// It closes the window and runs View.Close before AppKit can exit; closing
+// the window also stops the event loop, so Run returns normally.
+func (a *App) terminating() { a.finish(true) }
