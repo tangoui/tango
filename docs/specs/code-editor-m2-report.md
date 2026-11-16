@@ -344,7 +344,7 @@ P 的原生纹理成本必须单独计入：启用过大型 retained-copy 路径
 
 - F-only 与 F+P 在统一真实 Wait 口径下通过了本轮锁屏离屏正确性和性能回归；P 的局部 copy 路径降低 GPU wait，未改变 CPU 工作或 partial 覆盖率。
 - 长行、绝对输入、绝对滚动、打开和 HeapInuse 的锁屏离屏数字满足各自绝对数值，但不替代真实屏幕解锁后的验收。
-- 真实窗口 present/vsync、Monaco GPU-complete trace、M1→最终候选的正式 paired、IME 和 Windows 实机仍未验收；整体自动化验收保持未通过。
+- **截至本阶段**，真实窗口 present/vsync、Monaco GPU-complete trace、M1→最终候选的正式 paired、IME 和 Windows 实机仍未验收；**该阶段**整体自动化验收保持未通过。后续最终候选与 Windows 帧预算结果以 §4.13–§4.15 为准。
 - `go test -race ./ui/editor/... -count=1` 本轮全量在 10 分钟墙钟限制内超时于 `TestViewDamageVerifiedTask14` 与 `diffview.TestNavigationKeys`；两项分别单独运行均通过，未出现数据竞争报告，按已知 race 并行减速限制记录。
 
 ## 5. 降级、已知欠项与 M3 接口
@@ -406,7 +406,7 @@ P 的原生纹理成本必须单独计入：启用过大型 retained-copy 路径
 | 中文输入法组字中Cmd+D、多个光标提交、撤销 | 待用户真实输入法实测 | 合成composition事件通过不等于拼音输入法验收 |
 | 选区拖动、Option复制、同帧松开/移动、撤销 | 待解锁实测 | `dnd_test.go`真实事件路径，仅Driver |
 | `-wrap` + 折叠 + sticky + resize，CJK/tab/emoji跨行点击与导航 | 待解锁实测 | mixed script、fold、strict damage组合测试 |
-| 百万行GPU `-auto`，滚动/输入显示节拍，关闭后无残留进程 | 待解锁实测 | 本轮只测离屏，历史M1实窗60Hz结果不挪作本轮结果 |
+| 百万行GPU `-auto`，滚动/输入显示节拍，关闭后无残留进程 | **窗口 callback/screenshot smoke 已完成；逐帧 present/vsync、GPU fence、按键到屏幕延迟待验收** | 本轮已记录解锁后的 1920×1080/DPR2/Metal/100MB smoke 与约60Hz回调；这不是硬件呈现结果 |
 | 四主题、系统字体、读屏名称和多行角色 | 待实窗/辅助技术复测 | 四张纯Go截图、语义树单测；不等于完整VoiceOver文本编辑支持 |
 | 括号对参考线：`Guides.BracketPairs` 设为 `true` 与 `active`，在嵌套 `{}`/`()` 中移动光标，看活动对变色、水平线到括号；折叠一段、开换行后参考线不越过折叠、续行连续；输入未闭合 `{` 时不画 | 待解锁实测 | `TestBracketGuides*`、`TestViewDamageVerified/bracketGuides`、金样图 |
 | 颜色占位：CSS 文件中 `#ff0000`、`rgb(...)` 前出现间隙与色块；点击间隙左/右半、左右键/上下键/Home 经过间隙，光标不进间隙；点色块打开选择器、改色、撤销；换行窄窗口下有颜色的行断行正确；在该行用中文输入法组字 | 待解锁实测（IME 部分待用户输入法） | `TestColorInjected*`、`TestColorSwatchPointer`、金样图 `view_vs*_colors.png` |
@@ -415,7 +415,7 @@ P 的原生纹理成本必须单独计入：启用过大型 retained-copy 路径
 | 长单行换行：`-wrap` 打开含 1 MB 单行（含 CJK、Tab）的文件，在行中连续输入、粘贴 64 KB、删除整段，观察每键无可感卡顿 | 待解锁实测 | `TestWrapIncremental*`、`BenchmarkTypeLongLineWrap`（第 4.6 节） |
 | 稀有查询：20 MB 以下文件，选中只在文末出现一次的词，首帧不卡、文末匹配随后出现；扫描期间输入 | 待解锁实测 | `TestDocumentMatches*`、`TestOccurrencesFirstFrameBudget` |
 | Unicode 区域表：系统语言为俄文/中文等时，西里尔/全角可疑字符的高亮与 Monaco 一致 | 待实机多语言环境 | `TestUnicodeLocaleTables`、`TestUnicodeSystemLocales` |
-| Windows 实机：上述新增能力与性能 | 待 Windows 实机（阻塞里程碑 5） | 仅 `GOOS=windows go vet` |
+| Windows 实机：上述新增能力与性能 | **Windows editor frame-budget automation 已通过；Windows 硬件实机性能、GPU/present/vsync 仍待验收** | QPC frameclock、Windows runner unscaled/race/mutation 证据及交叉 vet；CI runner 不等于真实用户硬件 |
 
 ## 7. 最终工程验证与证据
 
