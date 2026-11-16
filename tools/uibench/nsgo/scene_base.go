@@ -23,8 +23,8 @@ const (
 
 var (
 	muted   = core.RGB(0x6b7280)
-	cellInk = core.RGB(0x101010)
-	cellBg  = [4]core.Color{core.RGB(0xf6c9c4), core.RGB(0xf4e8b8), core.RGB(0xc6e9c8), core.RGB(0xc9d8f4)}
+	cellInk = core.RGB(0x1d2433)
+	cellBg  = [4]core.Color{core.RGB(0xe2d4f3), core.RGB(0xd2ebee), core.RGB(0xf6dbc9), core.RGB(0xdde7cd)}
 )
 
 var (

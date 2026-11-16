@@ -149,3 +149,65 @@ func TestUnknownRendererUnusable(t *testing.T) {
 		}
 	}
 }
+
+// sparse makes n rounds of a scene that changes every period frames: 3 s
+// at 60 fps, 180 frames reported, events changes among them.
+func sparse(scene, fw string, n int, cpu float64, events int) []Round {
+	return rounds(fw, n, cpu, 0.1, func(_ int, r *Round) {
+		r.Scene, r.Seconds, r.FPS, r.Intervals = scene, 3, 60, 180
+		r.CPUSeconds, r.WindowServerSeconds = cpu*3, cpu*0.3
+		r.WorkPerSec = float64(events) / 3
+	})
+}
+
+// R35: a period-30 scene over 3 s expects 6 changes; one more at the
+// report edges (7 vs 6, 14% apart) is within max(5%, 1/6) and not Invalid.
+func TestJudgeSparseEdgeEventNotInvalid(t *testing.T) {
+	saved := sceneMetas
+	defer func() { sceneMetas = saved }()
+	sceneMetas = map[string]sceneMeta{"sparse": {period: 30}}
+	tg := sparse("sparse", "tango", 5, 0.4, 6)
+	o := sparse("sparse", "mygo", 5, 1.0, 7)
+	if v, why := judgeWhy(tg, o, 5); v == Invalid {
+		t.Fatalf("verdict Invalid (%s), want a judged verdict", why)
+	}
+	// Two changes apart (6 vs 8, 25%) is beyond 1/6: Invalid.
+	o = sparse("sparse", "mygo", 5, 1.0, 8)
+	if v := judge(tg, o, 5); v != Invalid {
+		t.Fatalf("verdict %s for 6 vs 8 changes, want Invalid", v)
+	}
+}
+
+// A scene changing every frame keeps the 5% bar: 6% apart is Invalid.
+func TestJudgeDenseSixPercentInvalid(t *testing.T) {
+	o := rounds("mygo", 5, 1.0, 0.1, nil)
+	tg := rounds("tango", 5, 0.4, 0.1, func(_ int, r *Round) { r.WorkPerSec *= 1.06 })
+	if v, why := judgeWhy(tg, o, 5); v != Invalid {
+		t.Fatalf("verdict %s (%s), want Invalid", v, why)
+	}
+	if tol := workToleranceFor(1, tg, o); tol != workTolerance {
+		t.Fatalf("dense tolerance %v, want %v", tol, workTolerance)
+	}
+}
+
+// R37: a scene with unequal default motion is reported, not judged.
+func TestJudgeUnequalMotionInfo(t *testing.T) {
+	for _, scene := range []string{"tabs", "dialog", "toast"} {
+		if !metaOf(scene).unequalMotion {
+			t.Fatalf("%s not flagged unequal motion", scene)
+		}
+		period := metaOf(scene).period
+		tg := sparse(scene, "tango", 5, 0.1, 180/period)
+		o := sparse(scene, "nsgo", 5, 1.0, 180/period)
+		if v, why := judgeWhy(tg, o, 5); v != Info {
+			t.Fatalf("%s: verdict %s (%s), want Info", scene, v, why)
+		}
+		// Too few rounds and unequal work still make it Invalid.
+		if v := judge(tg[:2], o, 5); v != Invalid {
+			t.Fatalf("%s with 2 rounds: verdict %s, want Invalid", scene, v)
+		}
+	}
+	if metaOf("grid").unequalMotion || metaOf("grid").period != 1 {
+		t.Fatal("grid has special meta")
+	}
+}

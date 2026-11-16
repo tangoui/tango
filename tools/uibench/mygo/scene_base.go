@@ -21,8 +21,8 @@ const (
 
 var (
 	muted   = ui.Hex("#6b7280")
-	cellInk = ui.Hex("#101010")
-	cellBg  = [4]ui.Color{ui.Hex("#f6c9c4"), ui.Hex("#f4e8b8"), ui.Hex("#c6e9c8"), ui.Hex("#c9d8f4")}
+	cellInk = ui.Hex("#1d2433")
+	cellBg  = [4]ui.Color{ui.Hex("#e2d4f3"), ui.Hex("#d2ebee"), ui.Hex("#f6dbc9"), ui.Hex("#dde7cd")}
 )
 
 // counter shows a caption, a tap count and Less / Reset / More. It

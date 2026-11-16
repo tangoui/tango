@@ -16,12 +16,43 @@ const (
 	// Invalid: the rounds cannot be compared (no usable rounds, different
 	// work, or a framework changed its drawing path between rounds).
 	Invalid Verdict = "Invalid"
+	// Info: the comparison is valid but not judged, because the frameworks'
+	// default motion differs in the scene (sceneMeta.unequalMotion): its
+	// CPU would measure the motion as much as the component (R37).
+	Info Verdict = "Info"
 )
+
+// sceneMeta is what the judge must know about a scene beyond its rounds.
+type sceneMeta struct {
+	// period is the number of frames between the scene's changes: 1 when
+	// every frame changes something (the default), 10 or 30 for scenes
+	// that change now and then.
+	period int
+	// unequalMotion: the frameworks animate the scene's change for
+	// different times by default (scenes.md, "Default motion").
+	unequalMotion bool
+}
+
+// scenes the judge treats specially; every other scene changes on every
+// frame with no motion difference worth flagging.
+var sceneMetas = map[string]sceneMeta{
+	"tabs":   {period: 10, unequalMotion: true}, // indicator: tango 300 ms, nsgo 180 ms, mygo none
+	"dialog": {period: 30, unequalMotion: true}, // open/close: tango 300 ms, nsgo 180 ms, mygo none
+	"toast":  {period: 30, unequalMotion: true}, // in: tango 200 ms, mygo 200 ms, nsgo 400 ms spring
+}
+
+func metaOf(scene string) sceneMeta {
+	m := sceneMetas[scene]
+	if m.period < 1 {
+		m.period = 1
+	}
+	return m
+}
 
 // The bar of the global constraints.
 const (
 	cpuRatio       = 0.50 // Tango's median CPU at most this share of the opponent's
-	workTolerance  = 0.05 // work per frame may differ this much
+	workTolerance  = 0.05 // work per frame may differ this much, at least (see workToleranceFor)
 	minRoundsFloor = 3    // fewer usable rounds never judge: quartiles need them
 )
 
@@ -55,14 +86,19 @@ func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
 			}
 		}
 	}
-	if d := relDiff(median(each(t, Round.workPerFrame)), median(each(o, Round.workPerFrame))); d > workTolerance {
-		return Invalid, fmt.Sprintf("work per frame differs by %.1f%%", d*100)
+	meta := metaOf(t[0].Scene)
+	tol := workToleranceFor(meta.period, t, o)
+	if d := relDiff(median(each(t, Round.workPerFrame)), median(each(o, Round.workPerFrame))); d > tol {
+		return Invalid, fmt.Sprintf("work per frame differs by %.1f%% (tolerance %.1f%%)", d*100, tol*100)
 	}
 
 	tc, oc := median(each(t, Round.cpu)), median(each(o, Round.cpu))
 	_, tq3 := quartiles(each(t, Round.cpu))
 	oq1, _ := quartiles(each(o, Round.cpu))
 	why := fmt.Sprintf("cpu %.4f vs %.4f cores (%.2fx), tango q3 %.4f vs opponent q1 %.4f", tc, oc, ratio(tc, oc), tq3, oq1)
+	if meta.unequalMotion {
+		return Info, why + "; not judged (unequal default motion)"
+	}
 	if !(tc <= oc*cpuRatio) {
 		return NotFaster, why + ": cpu above half"
 	}
@@ -87,6 +123,23 @@ func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
 		return NotFaster, why + ": worse p99"
 	}
 	return Faster, why
+}
+
+// workToleranceFor is R35's work tolerance: max(5%, 1/expected events),
+// where expected events are the frames a round's reports cover divided by
+// the scene's period, the fewer of the two sides' medians. A scene that
+// changes every 30th frame sees about 6 changes in 3 s, so one change
+// more or less at the edges of the reports moves its work per frame by
+// a sixth with no difference in what the programs do.
+func workToleranceFor(period int, t, o []Round) float64 {
+	if period <= 1 {
+		return workTolerance
+	}
+	events := math.Min(median(each(t, Round.framesSampled)), median(each(o, Round.framesSampled))) / float64(period)
+	if events < 1 {
+		return 1
+	}
+	return math.Max(workTolerance, 1/events)
 }
 
 // relDiff is |a-b| relative to the larger; 0 when both are 0.

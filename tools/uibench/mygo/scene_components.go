@@ -317,8 +317,8 @@ func (t *tabs) view(c *ui.Context) {
 	}
 }
 
-// menu: a vertical menu of 50 items filling the window's height (it
-// scrolls); frame f selects item f%50. MyGo's vertical, selectable menu
+// menu: a vertical menu of 12 items filling the window's height (it
+// scrolls); frame f selects item f%12. MyGo's vertical, selectable menu
 // is its Sidebar (a source list).
 type menu struct {
 	s   stepper

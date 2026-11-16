@@ -86,6 +86,16 @@ func (r Round) workPerFrame() float64 {
 	}
 	return r.WorkPerSec
 }
+
+// framesSampled is the number of frames the round's reports cover: the
+// intervals reported, or seconds times fps where none were.
+func (r Round) framesSampled() float64 {
+	if r.Intervals > 0 {
+		return float64(r.Intervals)
+	}
+	return r.Seconds * r.FPS
+}
+
 func (r Round) fps() float64       { return r.FPS }
 func (r Round) p99() float64       { return r.P99us }
 func (r Round) footprint() float64 { return float64(r.Footprint) }
@@ -247,17 +257,27 @@ func (m *monitor) setSampling(on bool) {
 type groups struct {
 	mu   sync.Mutex
 	pids map[int]bool
+	// stopping is set by stopAll: a program started after it is not
+	// tracked but killed at once (add returns false), so none outlives
+	// an interrupted runner.
+	stopping bool
 }
 
 var running groups
 
-func (g *groups) add(pid int) {
+// add tracks the group of pid; it returns false when the runner is
+// stopping, and the caller must kill the group.
+func (g *groups) add(pid int) bool {
 	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.stopping {
+		return false
+	}
 	if g.pids == nil {
 		g.pids = map[int]bool{}
 	}
 	g.pids[pid] = true
-	g.mu.Unlock()
+	return true
 }
 
 func (g *groups) remove(pid int) {
@@ -271,6 +291,7 @@ func (g *groups) remove(pid int) {
 func (g *groups) stopAll(kill func(pid int, sig syscall.Signal) error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.stopping = true
 	for pid := range g.pids {
 		_ = kill(-pid, syscall.SIGTERM)
 	}
@@ -331,7 +352,12 @@ func runOnce(cfg config, fw, scene string) Round {
 		r.Error = err.Error()
 		return r
 	}
-	running.add(cmd.Process.Pid)
+	if !running.add(cmd.Process.Pid) {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		_ = cmd.Wait()
+		r.Error = "runner stopping: program killed at start"
+		return r
+	}
 	go m.read(stdout)
 	defer stop(cmd, m)
 	pid := cmd.Process.Pid

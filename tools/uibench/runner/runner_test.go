@@ -145,3 +145,21 @@ func TestStopAllKillsGroups(t *testing.T) {
 		t.Fatalf("stopAll signalled %v, want the group of 202 only", killed)
 	}
 }
+
+// After stopAll, a program that starts is refused (add reports false, so
+// runOnce kills it) and never tracked.
+func TestStopAllRefusesLateStarts(t *testing.T) {
+	var g groups
+	if !g.add(101) {
+		t.Fatal("add before stopAll refused")
+	}
+	g.stopAll(func(int, syscall.Signal) error { return nil })
+	if g.add(303) {
+		t.Fatal("add after stopAll accepted")
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if len(g.pids) != 0 {
+		t.Fatalf("groups left after stopAll: %v", g.pids)
+	}
+}

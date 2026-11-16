@@ -41,7 +41,7 @@ const (
 	tabLines = 20
 	tabEvery = 10 // frames between tab changes
 
-	menuCount = 50
+	menuCount = 12 // fits one 600 px screen in all three (scenes.md)
 	menuWidth = 240
 
 	overlayEvery = 30 // frames between dialog toggles, between toasts

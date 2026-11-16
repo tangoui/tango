@@ -24,8 +24,8 @@ const (
 
 var (
 	muted   = theme.Hex("#6b7280")
-	cellInk = theme.Hex("#101010")
-	cellBg  = [4]theme.Color{theme.Hex("#f6c9c4"), theme.Hex("#f4e8b8"), theme.Hex("#c6e9c8"), theme.Hex("#c9d8f4")}
+	cellInk = theme.Hex("#1d2433")
+	cellBg  = [4]theme.Color{theme.Hex("#e2d4f3"), theme.Hex("#d2ebee"), theme.Hex("#f6dbc9"), theme.Hex("#dde7cd")}
 )
 
 // counterPage shows a caption, a tap count and Less / Reset / More.

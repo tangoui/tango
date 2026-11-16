@@ -17,8 +17,8 @@ constants.
 - List row `i`: `"Row <i>"` (14 px, takes the free width), `"<i*7%1000>"`
   (13 px, #6b7280) and `"<i*13%100> ms"` (13 px, #6b7280).
 - Grid cell `cell = row*20 + col` at frame `f`: `(cell*131 + f*17) % 10000`
-  as decimal text, color #101010, background
-  `[#f6c9c4, #f4e8b8, #c6e9c8, #c9d8f4][(row+col)%4]`. Since 17 is not a
+  as decimal text, color #1d2433, background
+  `[#e2d4f3, #d2ebee, #f6dbc9, #dde7cd][(row+col)%4]`. Since 17 is not a
   multiple of 10000, every cell changes every frame.
 
 ## Frames and ready
@@ -130,18 +130,51 @@ as in the base scenes; NSGo: the first frame callback). Pages are padded
 | sliders | 20 sliders 0…100 in two columns, slider `i` at `5i` | slider `f%20` +1, past 100 back to 0 | 1 |
 | progress | 50 bars 0…100 % in two columns, bar `i` at `2i`, no text | every bar +1, past 100 back to 0 | 50 |
 | tabs | 10 tabs `Tab 1`…`Tab 10`; below them the chosen tab's 20 lines `Tab <t>, line <l>: the content of the chosen tab.` | when `f%10==0` the next tab is chosen | 1 on those frames, else 0 |
-| menu | a vertical menu of 50 items `Menu item 1`…`Menu item 50`, 240 px wide and the window's height, scrolling | item `f%50` is selected | 1 |
+| menu | a vertical menu of 12 items `Menu item 1`…`Menu item 12`, 240 px wide in a column the window's height | item `f%12` is selected | 1 |
 | dialog | a page line of text; a modal titled `Edit profile` with 3 inputs (`Ada Lovelace`, `ada@example.org`, `London`) and buttons `Cancel`, `Save` | when `f%30==0` the dialog opens or closes | 1 on those frames, else 0 |
 | toast | a page line of text | when `f%30==0` a toast `Toast number <f/30>` shows, for 1 s | 1 on those frames, else 0 |
 | tree | 100 groups `Group <g>` of 99 leaves `Item <g>.<j>` = 10,000 nodes, all expanded, filling the window | row `50 + f%9900` is centered: one row further each frame | 1 |
 | datepicker | an inline date panel | the selected day is 1 March 2026 + `f%31` days (one day later each frame, within March) | 1 |
 | colorpicker | an inline color panel | the color is hue `f%360`°, saturation 0.75, value 0.85 (`hueRGB`) | 1 |
 
+**Why 12 menu items, not the brief's 50.** The rows are not equally
+tall: antd's inline items are 40 px plus a 4 px margin, MyGo's and NSGo's
+sidebar rows about 28–32 px, and none of the three scrolls the selected
+item into view. With 50 items Tango would show about 13 and the others
+about 20, so a different share of the selection changes would be on
+screen and painted. 12 items fit in 600 px in all three, so every
+selection change is visible everywhere.
+
 The tabs, dialog and toast scenes change something only every 10th or
 30th frame, so their work per frame is 0.1 or 1/30 on average, the same
 in all three. A one-second report holds about 60 frames, so its count is
 6 (tabs) or 2 (dialog, toast) give or take one event at the report's
-edges; read over a whole round, those edges are the only difference.
+edges; read over a whole round, those edges are the only difference. The
+judge allows for it (R35): its work tolerance for these scenes is
+max(5%, 1/expected changes), the expected changes being the frames the
+reports cover divided by the period (10 or 30).
+
+## Default motion
+
+Each framework animates some changes by default, for different times.
+Where that motion is what a scene mostly measures, the judge reports the
+scene as `Info` ("not judged (unequal default motion)") rather than
+`Faster`/`NotFaster` (ruling R37; `sceneMetas` in runner/judge.go).
+
+| Scene | Tango (antd) | MyGo | NSGo | Judged |
+|---|---|---|---|---|
+| dialog, open and close | 300 ms: panel zoom + mask fade, both ways (`modalMotion`, ui/feedback.go, `theme.DurationSlow`) | none: `Modal` shows or not (`coreModal`, ui/widgets.go) | 180 ms fade + pop, dim fades (`dialogFade`/`dialogPop`, ui/dialog.go) | Info |
+| toast, in and out | 200 ms in, 200 ms out (`messageRow`, ui/nav_notify.go, `theme.DurationMid`) | 200 ms fade in, fade out at the end (ui/toast.go, `const fade`) | 400 ms spring in, 200 ms out (base/toast `SonnerMotion`; ui/toast.go 200 ms item transition) | Info |
+| tabs, indicator | 300 ms ink bar slide (ui/nav.go, `DurationSlow`) | none (ui/tabs.go) | 180 ms indicator slide (`tabsSlide`, ui/tabs.go) | Info |
+
+A motion-free `dialog-still` variant (option (a) of R37) is not offered:
+NSGo has no public way for an app to turn its motion off. Its reduced
+motion follows the system setting only (`core.Env.ReduceMotion`, set from
+`internal/driver.Environment`). Tango could (`ui.RunnerOptions{NoAnimations: true}`),
+and MyGo's dialog has no motion anyway.
+
+Smaller per-control motions in the dense scenes (switch knobs, check
+marks) are each framework's own and are left to be measured.
 
 ## What each framework draws
 
@@ -156,7 +189,7 @@ nothing below was changed to compensate.
 | checkboxes, radios, switches, sliders | self-drawn; antd switches animate their knob | self-drawn; the switch knob slides | NSGo's styled views; radios each read their group's signal |
 | progress | antd line progress with `HideInfo()`: antd shows the percent by default, the scene's bars show no text (MyGo and NSGo bars have none) | `ui.Progress(v/100)` | `ui.Progress{Value}` (0…100) |
 | tabs | antd line tabs and a tab panel | MyGo's tab row; the page is built below it | default segmented tabs (NSGo's look); the 20 lines are texts reading the tab signal |
-| menu | antd inline `Menu` in a `ui.Scroll` 600 px high | `Sidebar` of 50 `SidebarItem`s, 600 px high (it scrolls) | `Sidebar` of one untitled section of 50 items in a 240×600 view (it scrolls) |
+| menu | antd inline `Menu` in a `ui.Scroll` 600 px high | `Sidebar` of 12 `SidebarItem`s, 600 px high | `Sidebar` of one untitled section of 12 items in a 240×600 view |
 | dialog | antd `Modal`: mask, title, close button, body of 3 inputs, footer `Cancel`/`Save`, open and close motion | `Modal` over the dimmed window: bold title, 3 inputs, `Cancel` and primary `Save`; it focuses its first input as it opens | `Dialog` with `Title`, 3 inputs, footer of 2 buttons |
 | toast | antd `Message` (info icon) at the top, 1 s | `AddToast` (near the bottom), `Timeout` 1 s, fading in and out | `Toaster.Show`, `Duration` 1 s, `ui.Toasts` at its default placement (top) |
 | tree | `VirtualTree`, `Height(600)`; `ScrollToKey` centers the row (and moves the keyboard cursor, drawn only while focused) | `Outline` (builds the rows in view), `ScrollTo(row, ui.Center)` | `ui.Tree`, list `ScrollToIndexAt(row, 0.5, 0, false)` |

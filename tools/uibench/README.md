@@ -79,7 +79,8 @@ Per-second reports arrive as groups (frames, work, intervals). A group is
 taken whole or not at all, and the first group completed after sampling
 starts is dropped, since part of it lies before the start. Ctrl-C or
 SIGTERM stops the running scene program's process group before the runner
-exits (status 130), so no orphaned scene keeps drawing.
+exits (status 130), so no orphaned scene keeps drawing; a program that
+starts while the runner is stopping is killed at once rather than tracked.
 
 ## Judge
 
@@ -91,7 +92,14 @@ without error, not disturbed, not screen-locked and with a known renderer
   fewer than 3: with one round Q1 = Q3 = the median and the interquartile
   condition would hold by itself), a framework changed its
   renderer between rounds, or the work per frame (work/s ÷ fps) differs by
-  more than 5%;
+  more than the work tolerance: 5%, or for a scene that changes only every
+  `period` frames (tabs 10, dialog and toast 30) max(5%, 1/expected
+  changes), the expected changes being the frames sampled ÷ `period`
+  (R35: one change more or less at a report's edge is not a difference in
+  work);
+- `Info` for a valid comparison of a scene whose default motion differs
+  between the frameworks (tabs, dialog, toast; scenes.md "Default
+  motion", ruling R37): CPU and frames are reported, not judged;
 - `Faster` when Tango's median (process + WindowServer) CPU is at most half
   the opponent's, Tango's third quartile is below the opponent's first,
   median fps is at least the opponent's and median frame-interval p99 at
