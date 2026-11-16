@@ -10,11 +10,11 @@ replacements = {}
 
 def save(rel, text):
     dest = out / Path(rel).name
-    dest.write_text(text)
+    dest.write_text(text, encoding='utf-8')
     replacements[str((root / rel).resolve())] = str(dest.resolve())
 
 rel = 'ui/editor/brackets_test.go'
-s = Path(rel).read_text()
+s = Path(rel).read_text(encoding='utf-8')
 s = s.replace('"fmt"', '"fmt"\n"context"\n"runtime/trace"\n"unsafe"\n"golang.org/x/sys/windows"', 1)
 s = s.replace('tr.beginFrame()\n\t\t\ttr.unsure = false\n\t\t\tstart := time.Now()', '''tr.beginFrame()
             tr.unsure = false
@@ -80,7 +80,7 @@ for rel, funcs in {
     'ui/editor/brackets.go': [('func (t *bracketTree) ensure(', 'Ensure'), ('func (t *bracketTree) scanOpen(', 'Open'), ('func (t *bracketTree) scanClose(', 'Close')],
     'ui/editor/bracketpairs.go': [('func (s modelBrackets) advance(', 'Advance'), ('func (s modelBrackets) tokens(', 'Tokens')],
 }.items():
-    s = Path(rel).read_text()
+    s = Path(rel).read_text(encoding='utf-8')
     for prefix, field in funcs:
         index = s.index('{', s.index(prefix)) + 1
         body = f'\n diagStart := time.Now(); frameDiag.{field}Calls++; defer func() {{ frameDiag.{field}NS += time.Since(diagStart).Nanoseconds() }}()\n'
@@ -96,7 +96,7 @@ for rel, funcs in {
     save(rel, s)
 
 rel = 'ui/editor/highlight/highlight.go'
-s = Path(rel).read_text()
+s = Path(rel).read_text(encoding='utf-8')
 old = 'deadline := start.Add(budget)'
 assert s.count(old) == 1
 s = s.replace(old, old + '\n frameProbeDrift = deadline.Sub(frameProbeTarget)', 1)
