@@ -33,7 +33,7 @@ s += r'''
 
 type frameDiagStats struct {
     EnsureNS, AdvanceNS, TokensNS, OpenNS, CloseNS int64
-    EnsureCalls, AdvanceCalls, TokenCalls, OpenCalls, CloseCalls int
+    EnsureCalls, AdvanceCalls, TokensCalls, OpenCalls, CloseCalls int
 }
 var frameDiag frameDiagStats
 var diagKernel32 = windows.NewLazySystemDLL("kernel32.dll")
