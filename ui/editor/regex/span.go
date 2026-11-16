@@ -263,6 +263,9 @@ func TryMatchStartNoCaptures(re Regexp, s string, rs []rune, dst []int) ([]int, 
 		}
 		return r.re.FindStringIndex(s), nil
 	case *backtrackRegexp:
+		if r.rejectASCII(s) {
+			return nil, nil
+		}
 		return r.tryMatchStartWithCaptures(s, rs, r.re.FindRunesMatch, time.Now, false, dst)
 	default:
 		m, err := re.TryMatchStart(s, rs)
