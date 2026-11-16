@@ -26,3 +26,11 @@ No Task 7 damage debt was added: final fixtures have no Interact step requiring 
 
 ## Concerns
 This fixture pass is coverage-oriented for entries whose APIs do not provide a shared reversible interaction contract; follow-up work should add focused component-outcome regressions and per-component open/close assertions before using these fixtures for performance claims. No performance claims are made here.
+
+# Fix round 1
+
+Gallery budget validation now enumerates every non-variant page, performs warm-up and measured center-wheel interaction frames, enforces the 4 ms threshold with the debt ratchet, and retains an intentionally empty `galleryTimeDebt` table with the Task 12 comment. Gallery benchmark and budget runners use a local 1440x900 Scale 2 window, leaving `hintWin` unchanged.
+
+Removed the now-dead coverage stale branch. Focused verification: `go test ./ui -run '^TestPerf' -count=1` passed; gallery compile passed; bounded benchmark smoke ran Alert and AlertMore, Unchanged/Interact, 3 iterations each. The refreshed damage log is `task-7-damage.log`; no Task 7 debt was added and prior debts are unchanged.
+
+Concern carried forward: several Pro/IDE/chat APIs do not yet expose a shared reversible test interaction in this fixture pass, so those entries remain build-coverage fixtures rather than performance claims. Follow-up should add component-specific event and outcome regressions, especially overlays and 100000-item retained-scroll assertions.
