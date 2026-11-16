@@ -226,8 +226,9 @@ func TestNearestSceneMetas(t *testing.T) {
 		"tour": {period: 30}, "segmented": {period: 1, unequalMotion: true}, "steps": {period: 1, unequalMotion: true},
 		"select": {period: 1}, "table": {period: 1}, "pagination": {period: 1}, "cascader": {period: 1},
 		"transfer": {period: 1}, "treeselect": {period: 1}, "calendar": {period: 1}, "timeline": {period: 1},
-		"descriptions": {period: 1}, "form": {period: 1}, "upload": {period: 1}, "protable": {period: 1},
-		"rate": {period: 1}, "tags": {period: 1}, "badges": {period: 1}, "cards": {period: 1}, "statistics": {period: 1},
+		"descriptions": {period: 1}, "form": {period: 1}, "upload": {period: 1, unequalMotion: true}, "protable": {period: 1},
+		"progress": {period: 1, unequalMotion: true},
+		"rate":     {period: 1}, "tags": {period: 1}, "badges": {period: 1}, "cards": {period: 1}, "statistics": {period: 1},
 	}
 	for scene, m := range want {
 		if got := metaOf(scene); got != m {
@@ -238,7 +239,7 @@ func TestNearestSceneMetas(t *testing.T) {
 
 // R37: a scene with unequal default motion is reported, not judged.
 func TestJudgeUnequalMotionInfo(t *testing.T) {
-	for _, scene := range []string{"tabs", "dialog", "toast", "tooltip", "carousel", "collapse", "drawer", "segmented", "steps"} {
+	for _, scene := range []string{"tabs", "dialog", "toast", "tooltip", "carousel", "collapse", "drawer", "segmented", "steps", "upload", "progress"} {
 		if !metaOf(scene).unequalMotion {
 			t.Fatalf("%s not flagged unequal motion", scene)
 		}

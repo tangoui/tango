@@ -39,6 +39,9 @@ var sceneMetas = map[string]sceneMeta{
 	"tabs":   {period: 10, unequalMotion: true}, // indicator: tango 300 ms, nsgo 180 ms, mygo none
 	"dialog": {period: 30, unequalMotion: true}, // open/close: tango 300 ms, nsgo 180 ms, mygo none
 	"toast":  {period: 30, unequalMotion: true}, // in: tango 200 ms, mygo 200 ms, nsgo 400 ms spring
+	// NSGo's ui.Progress eases its bar to a new value over 200 ms (layout
+	// transition); Tango's and MyGo's bars jump (Task 11 fix round 1).
+	"progress": {unequalMotion: true},
 	// Nearest-counterpart scenes (Task 11).
 	"tooltip":   {period: 30, unequalMotion: true}, // popover in: tango 200 ms, mygo and nsgo none
 	"carousel":  {period: 30, unequalMotion: true}, // slide: tango 500 ms, nsgo 362 ms spring, mygo (composed) none
@@ -47,6 +50,7 @@ var sceneMetas = map[string]sceneMeta{
 	"tour":      {period: 30},                      // step change: no motion in any (tango's mask fades in once)
 	"segmented": {unequalMotion: true},             // thumb: tango 300 ms, nsgo 180 ms, mygo none
 	"steps":     {unequalMotion: true},             // current: nsgo 160-400 ms, tango and mygo (composed) none
+	"upload":    {unequalMotion: true},             // bar: nsgo Progress 200 ms, tango and mygo none
 }
 
 func metaOf(scene string) sceneMeta {

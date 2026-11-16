@@ -44,7 +44,8 @@ GOWORK=off go run . -bin ../bin -rounds 1 -seconds 3 -out ../results/smoke-neare
 
 Each scene program's tests (`GOWORK=off go test ./...` in tango/, mygo/,
 nsgo/) also run the nearest-counterpart scenes headless and check what
-they show; they open no window.
+they show, and check every component scene's report cadence against
+`sceneWork`; they open no window.
 
 `go run ./runner` from tools/uibench does not work: tools/uibench has no
 go.mod, so the go command resolves the parent Tango module instead.
@@ -111,9 +112,9 @@ without error, not disturbed, not screen-locked and with a known renderer
   report's edge is not a difference in work); with less than one expected
   change the rounds are `Invalid` ("too few sampled frames");
 - `Info` for a valid comparison of a scene whose default motion differs
-  between the frameworks (tabs, dialog, toast, tooltip, carousel,
-  collapse, drawer, segmented, steps; scenes.md "Default motion", ruling
-  R37): CPU, fps and frame-interval p99 are reported, not judged;
+  between the frameworks (tabs, dialog, toast, progress, tooltip,
+  carousel, collapse, drawer, segmented, steps, upload; scenes.md
+  "Default motion", ruling R37): CPU, fps and frame-interval p99 are reported, not judged;
 - `Faster` when Tango's median (process + WindowServer) CPU is at most half
   the opponent's, Tango's third quartile is below the opponent's first,
   median fps is at least the opponent's and median frame-interval p99 at
@@ -139,9 +140,15 @@ without error, not disturbed, not screen-locked and with a known renderer
 
 - **Built-in texts are English in all three** (from Task 11): Tango
   `ui.SetDefaultLocale(en)` with `uihost.LocaleFixed`, MyGo
-  `mygo.App.SetLocale("en")`, NSGo `Scope.SetLocale("en")`, so that a
-  zh-Hans system does not give one framework Chinese labels and month
-  names and another English ones (scenes.md).
+  `MYGO_LOCALE=en` set by the program for its own run, NSGo
+  `Scope.SetLocale("en")`, so that a zh-Hans system does not give one
+  framework Chinese labels and month names and another English ones
+  (scenes.md). Side effects: none persist. Tango's default locale is
+  in-memory; MyGo's `App.SetLocale` would save the language for later
+  launches (in the app's defaults on macOS), which is why the program sets
+  `MYGO_LOCALE` instead, which MyGo never saves; NSGo's `SetLocale` pins
+  the language in the app's defaults only for a bundled app (it needs a
+  bundle identifier), and the scene programs run unbundled.
 
 - **Counter CPU is mostly noise.** At rest the process uses almost no CPU,
   and WindowServer's `ps` time has 10 ms resolution, so the counter's

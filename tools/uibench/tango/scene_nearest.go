@@ -84,9 +84,14 @@ func tableColumns(upd []int) []ui.TableColumn {
 	return cols
 }
 
-// tablePage: a virtual table of 1000 rows and 6 columns; frame f writes f
-// into row f%8's Updated cell. No scrolling: Tango's Table has no
-// scroll API (R36).
+// tangoRowH is antd's default (middle) table row, 55 px (measured with
+// ui.NewDriver; scene_nearest_test.go checks the view holds tableShown).
+const tangoRowH = 55
+
+// tablePage: a virtual table of 1000 rows and 6 columns, its body
+// tableShown rows high (ScrollY) at the default row height; frame f
+// writes f into row f%8's Updated cell. No scrolling: Tango's Table has
+// no scroll API (R36).
 func tablePage() func(*ui.Context) {
 	var s stepper
 	upd := make([]int, tableRows)
@@ -96,7 +101,7 @@ func tablePage() func(*ui.Context) {
 			upd[tableRow(s.f)] = s.f
 			defer report(1)
 		}
-		pageCol(c, func() { ui.Table(c, cols, tableRows).Virtual().ScrollY(viewH - 2*pagePad - 56).Show() })
+		pageCol(c, func() { ui.Table(c, cols, tableRows).Virtual().ScrollY(tableShown * tangoRowH).Show() })
 	}
 }
 
@@ -207,7 +212,9 @@ func treeselectPage() func(*ui.Context) {
 	}
 }
 
-// calendarPage: antd's full calendar; frame f selects pickDay(f).
+// calendarPage: antd's card calendar (Calendar.Card, antd
+// fullscreen=false), the counterpart of the opponents' date-panel
+// calendars; frame f selects pickDay(f).
 func calendarPage() func(*ui.Context) {
 	var s stepper
 	day := pickDay(0)
@@ -216,7 +223,7 @@ func calendarPage() func(*ui.Context) {
 			day = pickDay(s.f)
 			defer report(1)
 		}
-		pageCol(c, func() { ui.Calendar(c, &day) })
+		pageCol(c, func() { ui.Calendar(c, &day).Card() })
 	}
 }
 
@@ -349,7 +356,7 @@ func carouselPage() func(*ui.Context) {
 	}
 }
 
-// collapsePage: an accordion of 6 panels of 3 lines; every 10th frame the
+// collapsePage: an accordion of 6 panels of 3 lines; every 30th frame the
 // next panel opens (and the open one closes).
 func collapsePage() func(*ui.Context) {
 	var s stepper
@@ -439,9 +446,10 @@ func tourPage() func(*ui.Context) {
 	}
 }
 
-// protablePage: ProTable with a query form of one field (Name) over 20
-// rows of the table scene's columns; frame f writes f into row f%5's
-// Updated cell.
+// protablePage: ProTable without its toolbar options and pager
+// (NoOptions, NoPagination), a query form of one field (Name) over 6 rows
+// of the table scene's columns, all in view at antd's 55 px rows; frame f
+// writes f into row f%6's Updated cell.
 func protablePage() func(*ui.Context) {
 	var s stepper
 	upd := make([]int, proRows)
@@ -466,7 +474,7 @@ func protablePage() func(*ui.Context) {
 			defer report(1)
 		}
 		pageCol(c, func() {
-			ui.ProTable(c, cols).PageSize(proRows).Request(func(_ ui.ProRequest, done func(ui.ProResult[int])) {
+			ui.ProTable(c, cols).NoOptions().NoPagination().Request(func(_ ui.ProRequest, done func(ui.ProResult[int])) {
 				done(ui.ProResult[int]{Rows: rows, Total: proRows})
 			}).Show()
 		})

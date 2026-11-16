@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -77,6 +78,100 @@ func TestNearestScenesShowTheirChange(t *testing.T) {
 		for _, s := range tc.absent {
 			if app.Exists("text:" + s) {
 				t.Errorf("%s after %d frames: %q shown", tc.scene, tc.frames, s)
+			}
+		}
+	}
+}
+
+// The table scene's view holds the header and tableShown rows: DataTable
+// builds the rows in view only, so the last is there and the next is not;
+// the ProTable's 6 rows all show.
+func TestTableShowsItsRows(t *testing.T) {
+	app := runScene(t, "table", 1)
+	if !app.Exists("text:" + tableCell(tableShown-1, 0)) {
+		t.Errorf("row %d not shown", tableShown)
+	}
+	if app.Exists("text:" + tableCell(tableShown, 0)) {
+		t.Errorf("row %d shown, want the view to hold %d rows", tableShown+1, tableShown)
+	}
+	if app := runScene(t, "protable", 1); !app.Exists("text:" + tableCell(proRows-1, 0)) {
+		t.Errorf("protable row %d not shown", proRows)
+	}
+}
+
+// After frame f, the controls the scenes change show the state their
+// contract gives, read from the views' accessibility properties. The
+// Stepper reports its current step only through StatusText, which the
+// scene does not set (it would add work to NSGo's frames), so steps is
+// left to the work cadence check.
+func TestNearestSceneState(t *testing.T) {
+	const f = 23
+	var got, want []string
+	for _, v := range runScene(t, "rate", f).Query("role:adjustable") {
+		got = append(got, strconv.Itoa(int(v.Props.Value.Now)))
+	}
+	for i := range rateCount {
+		want = append(want, strconv.Itoa((rateStart(i)+stepsTaken(i, f, rateCount))%(rateMax+1)))
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("rate after %d frames: %q, want %q", f, got, want)
+	}
+	got, want = nil, nil
+	for _, v := range runScene(t, "segmented", f).Query("role:tab") {
+		if v.Props.Selected {
+			got = append(got, v.Props.Label)
+		}
+	}
+	for i := range segCount {
+		want = append(want, segLabels[(segStart(i)+stepsTaken(i, f, segCount))%segChoices])
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("segmented after %d frames: %q, want %q", f, got, want)
+	}
+	got = nil
+	for _, v := range runScene(t, "calendar", f).Query("role:button") {
+		if v.Props.Selected {
+			got = append(got, v.Props.Label)
+		}
+	}
+	if w := pickDay(f).Format("2006-01-02"); !slices.Equal(got, []string{w}) {
+		t.Errorf("calendar after %d frames: selected %q, want %q", f, got, w)
+	}
+	got, want = runScene(t, "badges", f).Texts(), nil
+	for i := range badgeCount {
+		c := badgeStart(i)
+		for range stepsTaken(i, f, badgeCount) {
+			c = nextCount(c)
+		}
+		want = append(want, strconv.Itoa(c))
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("badges after %d frames: %q, want %q", f, got, want)
+	}
+}
+
+// Every component scene reports once per frame callback, with the work
+// sceneWork gives. The tree scene is left out: nsgotest's headless model
+// takes about 40 s over its 10,000 rows (a cost of the test host, not of
+// the scene), and its work is 1 every frame like the others.
+func TestWorkCadence(t *testing.T) {
+	const frames = 65
+	for name := range scenes() {
+		if sceneWork(name, 1) < 0 || name == "tree" {
+			continue
+		}
+		var works []int
+		reportHook = func(w int) { works = append(works, w) }
+		runScene(t, name, frames)
+		reportHook = nil
+		if len(works) != frames {
+			t.Errorf("%s: %d reports over %d frames", name, len(works), frames)
+			continue
+		}
+		for i, w := range works {
+			if want := sceneWork(name, i+1); w != want {
+				t.Errorf("%s: frame %d reported work %d, want %d", name, i+1, w, want)
+				break
 			}
 		}
 	}

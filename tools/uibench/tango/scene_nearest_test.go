@@ -1,11 +1,13 @@
 package main
 
 import (
+	"slices"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/tangoui/tango/ui"
+	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/theme"
 )
 
@@ -81,6 +83,147 @@ func TestNearestScenesShowTheirChange(t *testing.T) {
 		for _, s := range tc.absent {
 			if _, ok := d.FindText(s); ok {
 				t.Errorf("%s after %d frames: %q shown", tc.scene, tc.frames, s)
+			}
+		}
+	}
+}
+
+// The table scene's view holds the header and tableShown rows: the row
+// after them is cut off (its band of pixels is blank), the last one is
+// drawn. Tango's virtual table builds a row or two beyond its view, so
+// the check is on the pixels rather than on the texts.
+func TestTableShowsItsRows(t *testing.T) {
+	d := runScene(t, "table", 1)
+	img := d.Image()
+	first, _ := d.FindText(tableCell(0, 0))
+	blank := func(y0 float32) bool {
+		bg := img.RGBAAt(4, int(y0)+2)
+		for y := int(y0) + 2; y < int(y0+tangoRowH)-2; y++ {
+			for x := int(first.X); x < int(first.X)+120; x++ {
+				if img.RGBAAt(x, y) != bg {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	last := first.Y + (tableShown-1)*tangoRowH
+	if blank(last) {
+		t.Errorf("row %d (y %v) is blank, want it drawn", tableShown, last)
+	}
+	if !blank(last + tangoRowH) {
+		t.Errorf("row %d (y %v) is drawn, want it cut off: the view holds %d rows", tableShown+1, last+tangoRowH, tableShown)
+	}
+	// The ProTable's rows all fit under its query form.
+	d = runScene(t, "protable", 1)
+	if r, ok := d.FindText(tableCell(proRows-1, 1)); !ok || r.Y+r.H > 600 {
+		t.Errorf("protable: last row %v (shown %v), want it inside the window", r, ok)
+	}
+	if _, ok := d.FindText(tableCell(proRows, 1)); ok {
+		t.Errorf("protable shows more than %d rows", proRows)
+	}
+}
+
+// After frame f, the controls the scenes change show the state their
+// contract gives, read from Tango's accessibility tree.
+func TestNearestSceneState(t *testing.T) {
+	const f = 23
+	tree := func(scene string) *a11y.Tree {
+		sc := scenes()[scene]
+		useEnglish()
+		d := ui.NewDriver(sc.page, ui.DriverOptions{Width: float32(sc.width), Height: float32(sc.height), Scale: 1, Theme: theme.AntDesign()})
+		d.EnableAccessibility()
+		d.Frame()
+		for range f {
+			d.Advance(16 * time.Millisecond)
+			d.Frame()
+		}
+		return d.AccessibilityTree()
+	}
+	// rate: rating i at rateStart(i) plus the steps it took, mod 6.
+	var got, want []string
+	for _, n := range tree("rate").FindAll(a11y.RoleSlider, "") {
+		got = append(got, n.Value)
+	}
+	for i := range rateCount {
+		want = append(want, strconv.Itoa((rateStart(i)+stepsTaken(i, f, rateCount))%(rateMax+1))+" of 5 stars")
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("rate after %d frames: %q, want %q", f, got, want)
+	}
+	// segmented: the checked choice of each control.
+	got, want = nil, nil
+	for _, n := range tree("segmented").FindAll(a11y.RoleRadio, "") {
+		if n.States&a11y.Checked != 0 {
+			got = append(got, n.Name)
+		}
+	}
+	for i := range segCount {
+		want = append(want, segLabels[(segStart(i)+stepsTaken(i, f, segCount))%segChoices])
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("segmented after %d frames: %q, want %q", f, got, want)
+	}
+	// calendar: the selected cell is pickDay(f).
+	got = nil
+	for _, n := range tree("calendar").FindAll(a11y.RoleCell, "") {
+		if n.States&a11y.Selected != 0 {
+			got = append(got, n.Name)
+		}
+	}
+	if w := pickDay(f).Format("Jan 2, 2006"); !slices.Equal(got, []string{w}) {
+		t.Errorf("calendar after %d frames: selected %q, want %q", f, got, w)
+	}
+	// steps: the current step is f%5.
+	got = nil
+	for _, n := range tree("steps").FindAll(a11y.RoleListItem, "") {
+		if n.States&a11y.Current != 0 {
+			got = append(got, n.Name)
+		}
+	}
+	if w := stepTitle(f % stepCount); !slices.Equal(got, []string{w}) {
+		t.Errorf("steps after %d frames: current %q, want %q", f, got, w)
+	}
+	// badges: each badge's count (its description).
+	got, want = nil, nil
+	for _, n := range tree("badges").FindAll(a11y.RoleGroup, "") {
+		if n.Description != "" {
+			got = append(got, n.Description)
+		}
+	}
+	for i := range badgeCount {
+		c := badgeStart(i)
+		for range stepsTaken(i, f, badgeCount) {
+			c = nextCount(c)
+		}
+		want = append(want, strconv.Itoa(c))
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("badges after %d frames: %q, want %q", f, got, want)
+	}
+}
+
+// Every component scene reports one frame per frame after the first, with
+// the work sceneWork gives: 1 every frame, or 1 on every period-th frame
+// and 0 between (the cadence the judge's work check relies on).
+func TestWorkCadence(t *testing.T) {
+	const frames = 65
+	for name := range scenes() {
+		if sceneWork(name, 1) < 0 {
+			continue
+		}
+		var works []int
+		reportHook = func(w int) { works = append(works, w) }
+		runScene(t, name, frames)
+		reportHook = nil
+		if len(works) != frames {
+			t.Errorf("%s: %d reports over %d frames", name, len(works), frames)
+			continue
+		}
+		for i, w := range works {
+			if want := sceneWork(name, i+1); w != want {
+				t.Errorf("%s: frame %d reported work %d, want %d", name, i+1, w, want)
+				break
 			}
 		}
 	}

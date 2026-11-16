@@ -98,10 +98,16 @@ var reported bool
 
 // report counts a frame that did the scene's work. The first one names the
 // renderer, which uihost settled by then.
+// reportHook, set by the tests only, sees every frame report() counts.
+var reportHook func(work int)
+
 func report(work int) {
 	if !reported {
 		reported = true
 		proto.Renderer(uihost.Renderer(runner))
+	}
+	if reportHook != nil {
+		reportHook(work)
 	}
 	proto.Frame(work)
 }

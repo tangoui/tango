@@ -103,6 +103,9 @@ func probe(root ui.Element) ui.Element {
 
 // report counts a frame that did the scene's work; the first names the
 // renderer.
+// reportHook, set by the tests only, sees every frame report() counts.
+var reportHook func(work int)
+
 func report(work int) {
 	if !reported {
 		reported = true
@@ -115,6 +118,9 @@ func report(work int) {
 		}
 		proto.Renderer(name)
 	}
+	if reportHook != nil {
+		reportHook(work)
+	}
 	proto.Frame(work)
 }
 
@@ -126,10 +132,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "uibench mygo: unknown scene %q\n", *name)
 		os.Exit(2)
 	}
+	// The components' built-in texts in English, as in all three programs,
+	// whatever the system's language. MYGO_LOCALE (what `mygo dev -lang`
+	// sets) chooses the language for this run and saves nothing, where
+	// App.SetLocale would keep it for later launches (mygo locale.go).
+	os.Setenv("MYGO_LOCALE", "en")
 	mygo.App.WhenReady(func() {
-		// The components' built-in texts in English, as in all three
-		// programs, whatever the system's language.
-		mygo.App.SetLocale("en")
 		mygo.NewWindow(mygo.WindowOptions{
 			Title: "uibench mygo " + *name, Width: s.width, Height: s.height,
 			UseContentSize: true,

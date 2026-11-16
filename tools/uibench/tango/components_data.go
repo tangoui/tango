@@ -180,8 +180,8 @@ const (
 
 	tableRows  = 1000
 	tableCols  = 6
-	tableShown = 8 // the rows whose last cell changes, in view in all three
-	proShown   = 5 // the same for the ProTable scene, under its query form
+	tableShown = 8 // rows in each table's view, header apart, and those whose last cell changes
+	proShown   = proRows
 
 	pageSize  = 10
 	pageTotal = 500 // items, so 50 pages
@@ -229,7 +229,7 @@ const (
 	statCount = 12
 	statCols  = 4
 
-	proRows = 20 // the ProTable scene's rows (one antd page)
+	proRows = 6 // the ProTable scene's rows: all in view under its query form in all three
 )
 
 const (
@@ -433,4 +433,47 @@ func pagerItems(p int) []int {
 		items = append(items, pageCount)
 	}
 	return items
+}
+
+// sceneWork is the work a component scene reports on frame f (f ≥ 1), as
+// ../scenes.md's contracts say; -1 for the base scenes, whose work is in
+// scene_base.go. The programs' tests check their reports against it.
+func sceneWork(scene string, f int) int {
+	every := func(n int) int {
+		if f%n == 0 {
+			return 1
+		}
+		return 0
+	}
+	switch scene {
+	case "counter", "list", "grid":
+		return -1
+	case "progress":
+		return progressCount
+	case "tabs":
+		return every(tabEvery)
+	case "dialog", "toast", "drawer":
+		return every(overlayEvery)
+	case "tooltip":
+		return every(tooltipEvery)
+	case "carousel":
+		return every(carouselEvery)
+	case "collapse":
+		return every(collapseEvery)
+	case "tour":
+		return every(tourEvery)
+	}
+	return 1
+}
+
+// stepsTaken is how many of frames 1..f changed item i of n when frame k
+// changes item k%n: the state an item has reached after frame f.
+func stepsTaken(i, f, n int) int {
+	if f < i || i == 0 && f < n {
+		return 0
+	}
+	if i == 0 {
+		return f / n
+	}
+	return (f-i)/n + 1
 }

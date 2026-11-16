@@ -74,10 +74,16 @@ var reported bool
 
 // report counts a frame that did the scene's work; the first names the
 // renderer, which for NSGo on macOS is always its native views.
+// reportHook, set by the tests only, sees every frame report() counts.
+var reportHook func(work int)
+
 func report(work int) {
 	if !reported {
 		reported = true
 		proto.Renderer("appkit")
+	}
+	if reportHook != nil {
+		reportHook(work)
 	}
 	proto.Frame(work)
 }
@@ -96,7 +102,11 @@ func main() {
 	}
 	os.Args = append(os.Args[:1], fs.Args()...)
 	// The components' built-in texts in English, as in all three programs,
-	// whatever the system's language (Scope.SetLocale, what --nsgo-lang does).
+	// whatever the system's language (Scope.SetLocale, what --nsgo-lang
+	// does). NSGo pins a forced language in the app's defaults for later
+	// launches only for a bundled app (internal/platform/apple PinLanguage
+	// needs a bundle identifier); this program runs unbundled, so nothing
+	// is kept.
 	root := func(cx *core.Scope) core.Node {
 		node := s.root(cx)
 		cx.SetLocale("en")

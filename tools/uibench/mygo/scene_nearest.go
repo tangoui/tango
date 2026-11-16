@@ -120,8 +120,17 @@ func tableText(upd []int, r, col int) string {
 	return tableCell(r, col)
 }
 
-// newTable: a table of 1000 rows and 6 columns; frame f writes f into row
-// f%8's Updated cell. No scrolling.
+// MyGo's default table rows are 32 DIPs and its header 33 (measured with
+// ui.NewTester, asserted in scene_nearest_test.go): the tables are as high
+// as their header and the scene's rows, so each shows as many rows as the
+// other programs' (scenes.md).
+const (
+	mygoRowH  = 32
+	mygoHeadH = 33
+)
+
+// newTable: a table of 1000 rows and 6 columns, 8 rows in view; frame f
+// writes f into row f%8's Updated cell. No scrolling.
 func newTable() *tableScene {
 	return &tableScene{upd: make([]int, tableRows), cols: tableColumns()}
 }
@@ -139,7 +148,8 @@ func (t *tableScene) view(c *ui.Context) {
 		t.upd[tableRow(t.s.f)] = t.s.f
 	}
 	page(c).Children(func() {
-		ui.Table(c, &t.st, t.cols, tableRows, func(r, col int) { ui.Text(c, tableText(t.upd, r, col)) }).Grow(1)
+		ui.Table(c, &t.st, t.cols, tableRows, func(r, col int) { ui.Text(c, tableText(t.upd, r, col)) }).
+			Height(mygoHeadH + tableShown*mygoRowH)
 	})
 	if adv {
 		report(1)
@@ -590,7 +600,7 @@ func (k *carouselScene) view(c *ui.Context) {
 	}
 }
 
-// newCollapse: an accordion of 6 panels of 3 lines; every 10th frame the
+// newCollapse: an accordion of 6 panels of 3 lines; every 30th frame the
 // next panel opens (and the open one closes). MyGo's Accordion.
 func newCollapse() *collapseScene { return &collapseScene{open: make([]bool, collapseCount)} }
 
@@ -716,8 +726,8 @@ func (t *tourScene) view(c *ui.Context) {
 }
 
 // newProtable: a query form of one field (Name, with Reset and Query) over
-// a table of 20 rows of the table scene's columns; frame f writes f into
-// row f%5's Updated cell. MyGo has no ProTable: a Field and two buttons
+// a table of 6 rows of the table scene's columns, all in view; frame f
+// writes f into row f%6's Updated cell. MyGo has no ProTable: a Field and two buttons
 // over its Table.
 func newProtable() *protableScene {
 	return &protableScene{upd: make([]int, proRows), cols: tableColumns()}
@@ -745,7 +755,8 @@ func (p *protableScene) view(c *ui.Context) {
 			ui.Button(c, resetButton)
 			ui.PrimaryButton(c, queryButton)
 		})
-		ui.Table(c, &p.st, p.cols, proRows, func(r, col int) { ui.Text(c, tableText(p.upd, r, col)) }).Grow(1)
+		ui.Table(c, &p.st, p.cols, proRows, func(r, col int) { ui.Text(c, tableText(p.upd, r, col)) }).
+			Height(mygoHeadH + proRows*mygoRowH)
 	})
 	if adv {
 		report(1)

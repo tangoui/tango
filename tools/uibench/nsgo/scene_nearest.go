@@ -106,8 +106,11 @@ func tableColumns() []datatable.Column {
 }
 
 // dataTable is a DataTable of n rows over upd, a signal per row of its
-// Updated value: a change updates that row's cell only.
-func dataTable(n int, upd []*core.Signal[int]) core.Node {
+// Updated value: a change updates that row's cell only. It is as high as
+// its header and shown rows at DataTable's default heights (row 32, the
+// header a row's: base/datatable RowHeight, HeaderHeight), so it shows as
+// many rows as the other programs' tables (scenes.md).
+func dataTable(n, shown int, upd []*core.Signal[int]) core.Node {
 	cols := tableColumns()
 	return datatable.DataTable{Columns: func() []datatable.Column { return cols }, RowCount: func() int { return n },
 		Text: func(r, col int) string {
@@ -115,8 +118,10 @@ func dataTable(n int, upd []*core.Signal[int]) core.Node {
 				return strconv.Itoa(upd[r].Get())
 			}
 			return tableCell(r, col)
-		}, Style: fillStyle}
+		}, Style: core.Style{Height: core.Pt(core.Points(nsgoRowH * (shown + 1)))}}
 }
+
+const nsgoRowH = 32 // DataTable's default row (and header) height
 
 func rowSignals(cx *core.Scope, n int) []*core.Signal[int] {
 	s := make([]*core.Signal[int], n)
@@ -126,12 +131,13 @@ func rowSignals(cx *core.Scope, n int) []*core.Signal[int] {
 	return s
 }
 
-// tableRoot: a table of 1000 rows and 6 columns (base/datatable: NSGo has
-// no styled table); frame f writes f into row f%8's Updated cell.
+// tableRoot: a table of 1000 rows and 6 columns, 8 rows in view
+// (base/datatable: NSGo has no styled table); frame f writes f into row
+// f%8's Updated cell.
 func tableRoot(cx *core.Scope) core.Node {
 	upd := rowSignals(cx, tableRows)
 	everyFrame(cx, func(f int) int { upd[tableRow(f)].Set(f); return 1 })
-	return page(dataTable(tableRows, upd))
+	return page(dataTable(tableRows, tableShown, upd))
 }
 
 // paginationRoot: the 10 items of a page over a pager of 50 pages; frame f
@@ -402,7 +408,7 @@ func carouselRoot(cx *core.Scope) core.Node {
 		}})
 }
 
-// collapseRoot: an accordion of 6 panels of 3 lines; every 10th frame the
+// collapseRoot: an accordion of 6 panels of 3 lines; every 30th frame the
 // next panel opens (and the open one closes). NSGo's Accordion.
 func collapseRoot(cx *core.Scope) core.Node {
 	cur := core.NewSignal(cx, 0)
@@ -501,9 +507,12 @@ func tourRoot(cx *core.Scope) core.Node {
 }
 
 // protableRoot: a query form of one field (Name, with Reset and Query)
-// over a table of 20 rows of the table scene's columns; frame f writes f
-// into row f%5's Updated cell. NSGo has no ProTable: a FormField and two
-// buttons over a DataTable.
+// over a table of 6 rows of the table scene's columns, all in view; frame
+// f writes f into row f%6's Updated cell. NSGo has no ProTable: a
+// FormField and two buttons over a DataTable. The field is a FormField,
+// as in the form scene: its Input is a base.Input (the platform text
+// field) by FormField's API; the inputs scene's ui.Input is the boxed
+// field for a field on its own.
 func protableRoot(cx *core.Scope) core.Node {
 	upd := rowSignals(cx, proRows)
 	everyFrame(cx, func(f int) int { upd[proRow(f)].Set(f); return 1 })
@@ -517,7 +526,7 @@ func protableRoot(cx *core.Scope) core.Node {
 			ui.Button{Text: resetButton, Variant: ui.ButtonSecondary},
 			ui.Button{Text: queryButton},
 		}},
-		dataTable(proRows, upd),
+		dataTable(proRows, proRows, upd),
 	)
 }
 

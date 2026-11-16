@@ -169,6 +169,7 @@ scene as `Info` ("not judged (unequal default motion)") rather than
 | dialog, open and close | 300 ms: panel zoom + mask fade, both ways (`modalMotion`, ui/feedback.go, `theme.DurationSlow`) | none: `Modal` shows or not (`coreModal`, ui/widgets.go) | 180 ms fade + pop, dim fades (`dialogFade`/`dialogPop`, ui/dialog.go) | Info |
 | toast, in and out | 200 ms in, 200 ms out (`messageRow`, ui/nav_notify.go, `theme.DurationMid`) | 200 ms fade in, fade out at the end (ui/toast.go, `const fade`) | 400 ms spring in, 200 ms out (base/toast `SonnerMotion`; ui/toast.go 200 ms item transition) | Info |
 | tabs, indicator | 300 ms ink bar slide (ui/nav.go, `DurationSlow`) | none (ui/tabs.go) | 180 ms indicator slide (`tabsSlide`, ui/tabs.go) | Info |
+| progress, every bar (found in Task 11) | none (the line progress jumps; only the `active` status shimmers) | none (`coreProgress` paints the value) | 200 ms layout transition of each indicator (ui/progress.go), so with every bar changing each frame NSGo's bars are always moving | Info |
 
 A motion-free `dialog-still` variant (option (a) of R37) is not offered:
 NSGo has no public way for an app to turn its motion off. Its reduced
@@ -213,13 +214,21 @@ widget). The numbers, texts and formulas are in `components_data.go`
 (shared, byte for byte); `scene_nearest.go` in each program builds the
 scenes, and `scene_nearest_test.go` in each runs them headless (Tango
 `ui.NewDriver`, MyGo `ui.NewTester`, NSGo `nsgotest`) and checks that
-frame f shows what the contract below says.
+frame f shows what the contract below says: the texts, the state of the
+rated, segmented, calendar, steps and badge controls (from each
+framework's accessibility view; NSGo's Stepper exposes its current step
+only through `StatusText`, which the scene leaves unset), the rows in
+view of the tables, and, for every component scene of Tasks 10 and 11,
+that the program reports once a frame with the work `sceneWork` gives
+(1, or 1 every period-th frame and 0 between).
 
 **Built-in texts in English.** From Task 11 on all three programs show
 their components' built-in texts in English whatever the system's
 language (this machine's is zh-Hans): Tango `ui.SetDefaultLocale(en)`
-with `uihost.LocaleFixed`, MyGo `mygo.App.SetLocale("en")`, NSGo
-`Scope.SetLocale("en")` (what its `--nsgo-lang` flag does). Without it
+with `uihost.LocaleFixed`, MyGo `MYGO_LOCALE=en` for the run (saved
+nowhere, unlike `App.SetLocale`), NSGo `Scope.SetLocale("en")` (what its
+`--nsgo-lang` flag does; pinned for later launches only in a bundled app,
+which the scene programs are not; README "Methodology choices"). Without it
 Tango drew 查询/重置, "4 项" and Chinese month and weekday names where
 the others drew English. This applies to the earlier scenes too (the
 date panels' month and weekday names).
@@ -232,12 +241,12 @@ date panels' month and weekday names).
 |---|---|---|---|
 | select | an open select, 240 px wide, of 8 options `Option 1`…`Option 8`, all in view | option `f%8` is chosen | 1 |
 | tooltip | a button `Hover target`; a one-line popover `Tooltip text for the target` under it | when `f%30==0` the popover shows or hides | 1 on those frames, else 0 |
-| table | a virtual table of 1000 rows, columns `ID`, `Name`, `City`, `Score`, `Latency`, `Updated` (`tableCell`; `Updated` starts at 0) | row `f%8`'s `Updated` cell reads `f` (rows 0–7 are in view in all three); no scrolling | 1 |
+| table | a virtual table of 1000 rows, columns `ID`, `Name`, `City`, `Score`, `Latency`, `Updated` (`tableCell`; `Updated` starts at 0), as high as its header and 8 rows at the framework's default row height, so 8 rows are in view in all three | row `f%8`'s `Updated` cell reads `f`; no scrolling | 1 |
 | pagination | the 10 items `Item <(p-1)*10+i+1>` of page `p` over a pager of 50 pages | page `p = 1+f%50` | 1 |
 | cascader | a field showing the path (`Region a / City a.b / District a.b.c`, 480 px) and, open under it, 3 columns of 5 options, the chosen one marked in each | the path `cascadePath(f)`: the last level moves every frame, the middle every 5th | 1 |
 | transfer | two lists 300×400 (`Source`, `Target`, each headed by its count, `N items`) of 10 items `Item 1`…`Item 10` with check boxes, between them the two move buttons; item `i` starts on the right when `i%3==0` | item `f%10` moves to the other side | 1 |
 | treeselect | a field 300 px wide showing the chosen leaf and, open under it, a tree of 2 groups `Group g` of 3 leaves `Leaf g.j`, all expanded (8 rows) | leaf `treeSelPick(f)` is chosen | 1 |
-| calendar | the framework's month calendar | the selected day is `pickDay(f)` | 1 |
+| calendar | the framework's month calendar panel (Tango: antd's card calendar) | the selected day is `pickDay(f)` | 1 |
 | steps | 5 steps `Step i` with `Details i` | step `f%5` is current | 1 |
 | timeline | 8 events, each `Event i` over its time `2026-03-0i 09:00` | event `f%8` reads `Event i, frame f` | 1 |
 | descriptions | 12 items `Field i` / `Value i` in 3 bordered columns | item `f%12` reads `Value i @ f` | 1 |
@@ -247,7 +256,7 @@ date panels' month and weekday names).
 | collapse | an accordion of 6 panels `Panel i`, each 3 lines `Panel i, line l: the content of the panel.` | when `f%30==0` the next panel opens and the open one closes | 1 on those frames, else 0 |
 | drawer | a page line; a 360 px drawer at the right titled `Settings` with the dialog's 3 inputs and `Cancel`, `Save` | when `f%30==0` the drawer opens or closes | 1 on those frames, else 0 |
 | tour | buttons `Upload`, `Save`, `More`; a tour of 3 steps at them (`Upload files`, `Save changes`, `More actions`; `Step i of the tour.`) over a dimming mask | when `f%30==0` the next step | 1 on those frames, else 0 |
-| protable | a query form of one field `Name` with `Reset` and `Query` over a table of 20 rows of the table scene's columns | row `f%5`'s `Updated` cell reads `f` (rows 0–4 are in view under the form in all three) | 1 |
+| protable | a query form of one field `Name` with `Reset` and `Query` over a table of 6 rows of the table scene's columns, all in view in all three | row `f%6`'s `Updated` cell reads `f` | 1 |
 | segmented | 10 segmented controls of `Day`, `Week`, `Month`, `Year`; control `i` at choice `i%4` | control `f%10` takes its next choice | 1 |
 | rate | 20 five-star ratings in two columns, rating `i` at `i%6` stars | rating `f%20` +1 star, past 5 back to 0 | 1 |
 | tags | 60 tags `Tag i` in rows of 6 | tag `f%60` reads `Tag i · f` | 1 |
@@ -259,8 +268,19 @@ Counts were chosen so that what changes is in view in all three at their
 default sizes (Tango's headless test checks the bounds): the cascader's
 5 options fit antd's 180 px columns, the tree select's 8 rows antd's
 256 px dropdown, the timeline's 8 events and the form's two columns of
-5 the 600 px window, the ProTable's rows 0–4 the room under its query
-form and toolbar.
+5 the 600 px window, the ProTable's 6 rows the room under its query
+form at antd's 55 px rows.
+
+**Rows in view in the tables.** Each table keeps its framework's default
+row height and is given a height of its header plus the scene's rows
+through its own API: Tango `Table.ScrollY(8 × 55)` (antd's middle row);
+MyGo `Table(...).Height(33 + 8 × 32)` (its default header and rows);
+NSGo `DataTable` `Style.Height` 32 × 9 (`RowHeight` 32 and the header a
+row's, base/datatable). So the table scene shows 8 rows and the
+ProTable scene 6 in all three; the tests check it (Tango: the 9th row's
+band of pixels is blank; MyGo: the tester's box of row 9 is empty; NSGo:
+DataTable builds no row 9). The tables differ in height on screen
+(Tango's 55 px rows against 32 px), which is each framework's default.
 
 ## The four moved scenes
 
@@ -305,6 +325,7 @@ differently by default is reported `Info`, not judged
 | drawer, open and close | 300 ms (`drawerMotion`, `DurationSlow`) | none (composed overlay) | 280 ms in, 200 ms out (base/internal/sheet) | Info |
 | segmented, thumb | 300 ms slide (ui/entry_segmented.go) | none (`coreSegmented`) | 180 ms indicator slide (NSGo tabs) | Info |
 | steps, current step | none for the default type (the 200 ms ink is the nav type's) | none (composed) | 160–400 ms marker, colour and connector transitions (ui/stepper.go) | Info |
+| upload, a file's bar | none (`upBar` paints the percent, ui/entry_upload.go) | none (`coreProgress` paints it) | 200 ms layout transition of the indicator (ui/progress.go) | Info |
 | tour, next step | none (its mask fades in once, when the tour opens) | none | none (Popover) | judged |
 
 The open lists of select, cascader and treeselect stay open, so their
@@ -322,12 +343,12 @@ is made heavier or lighter to match another.
 |---|---|---|---|
 | select | antd `Select`, open (its 200 ms open motion runs once, at the start) | `Select` (closed) + `Popover` of a `List` (rows 6/12 padded) | `Select` (closed) as `HoverCard` trigger + `List` (8 rows of 32) |
 | tooltip | antd `Popover`, text only, under the button | `Popover` (at least as wide as the button) | `Popover` with a secondary `Button` trigger |
-| table | antd `Table`, virtual, 55 px rows (9 in view) | `Table`, 32 px rows (17 in view) | `DataTable` (base) |
+| table | antd `Table`, virtual, 55 px rows, 8 in view (`ScrollY`) | `Table`, 32 px rows, 8 in view (`Height`) | `DataTable` (base), 32 px rows, 8 in view (`Style.Height`) |
 | pagination | antd `Pagination` | composed of buttons | `Pagination` |
 | cascader | antd `Cascader`, open: field and a popup of three 180 px columns | `Combobox` + `Popover` of three 160×180 `List`s | `Combobox` (options: the 125 paths) as `HoverCard` trigger + three 160×180 `List`s |
 | transfer | antd `Transfer` (300×400 lists, header check box, item check boxes, move buttons) | two bordered columns: header text and count, `Checkbox` rows; two disabled buttons | the same with `ui.Checkbox` and `ui.Button` |
 | treeselect | antd `TreeSelect`, open, all expanded | `Select` (closed) + `Popover` of a `Tree` (`TreeItem.Selected`) | `Select` (closed) as `HoverCard` trigger + `Tree` with a `Selection` |
-| calendar | antd `Calendar`: the full-page month with year/month selects and a mode switch, cells 80+ px high (heavier by nature) | `Calendar` (its only one; the datepicker scene uses it too) | `Calendar` (likewise) |
+| calendar | antd `Calendar(...).Card()` (antd fullscreen=false): year and month selects, a mode switch, a compact month grid; it fills the page's width | `Calendar` (its only one; the datepicker scene uses it too) | `Calendar` (likewise) |
 | steps | antd `Steps` | composed: numbered circle (check when done, filled when current), title and details, line | `Stepper` |
 | timeline | antd `Timeline`, each item's `Body` the two texts | composed: dot and line boxes + two texts | composed likewise with views |
 | descriptions | antd `Descriptions`, bordered, 3 columns | composed: rows of bordered text cells, labels on the surface color | composed likewise |
@@ -337,7 +358,7 @@ is made heavier or lighter to match another.
 | collapse | antd `Collapse`, accordion | `Accordion` | `Accordion` |
 | drawer | antd `Drawer` (mask, header with close button, body, footer) | composed: MyGo's documented drawer (docs/ui/overlays.md): a modal `Overlay` row with a dimmed background and a panel at its end | `base.Sheet{Side: right}` with ui's colors (ui.Sheet sits at the bottom only) |
 | tour | antd `Tour`: mask with a cut-out at the target, panel with close button, indicators, Previous/Next | composed: dimming box in an `Overlay` + `Popover` at the step's button (title, text, two buttons) | composed: dimming view over the page + a `Popover` on each button, open for its step (title, text, two buttons) |
-| protable | antd `ProTable`: query form, toolbar with 4 icon actions, table, pager (the toolbar and pager are ProTable's defaults: heavier by nature) | composed: `Form`/`Field` + `Reset`, `Query` + `Table` | composed: `FormField` + buttons + `DataTable` |
+| protable | antd `ProTable` with `NoOptions().NoPagination()`: query form, the (empty) toolbar band, a 6-row table | composed: `Form`/`Field` + `Reset`, `Query` + `Table` | composed: `FormField` + buttons + `DataTable` |
 | segmented | antd `Segmented` | `Segmented` | `Tabs[int]` in its default segmented look, no panel |
 | rate | antd `Rate` | `Rating` | `Rating` |
 | tags | antd `Tag` | `Badge` (a pill: MyGo's tag-like component) | `Badge` (likewise) |
@@ -349,6 +370,9 @@ is made heavier or lighter to match another.
 
 - **PF1** (R36, from Task 10): no public API scrolls an open `Select` or
   a `Table` from code.
+- Tango's `ProTable.NoOptions()` hides the setting icons but keeps the
+  toolbar's empty band above the table (seen in the headless render);
+  recorded, not changed.
 - **PF2**: `TreeSelect.ListHeight` applies only to the virtual dropdown;
   the default dropdown keeps antd's 256 px (`layout.MaxH(256)`,
   ui/entry_treeselect.go), so `ListHeight(480)` had no effect. The scene
@@ -367,8 +391,8 @@ draw nothing, which have no row). Of the 217 rows:
 | Kind | Rows | Meaning |
 |---|---|---|
 | own scene | 40 | the scene measures this component itself (16 from the base and Task 10 scenes, 24 from Task 11) |
-| grouped | 161 | compared through the nearest scene, for the reason given |
-| 无对手，只看硬预算 | 16 | no comparison: the opponents have nothing equivalent, or the entry is a context or page shell that draws nothing of its own; only Tango's hard budgets apply |
+| grouped | 168 | compared through the nearest scene, for the reason given |
+| 无对手，只看硬预算 | 9 | no comparison, only Tango's hard budgets: the entry draws nothing of its own (App, ConfigProvider, Disabled, ProSettingsProvider, RouteContext), its cost is the hosted platform view's (NativeView), or neither opponent has anything like it (BorderBeam, QRCode, Watermark; checked in MyGo v0.9.0 `ui/` and NSGo `ui/`, `base/`, `core/`) |
 
 The MyGo and NSGo columns say what the scene's program draws (for a
 grouped row: the scene's, with the opponent's own counterpart in the
@@ -381,7 +405,7 @@ reason where it has one, though no scene measures it).
 | Alert | 归入 cards | composed: bordered Column | composed: bordered View | a static bordered box of icon and text |
 | Anchor | 归入 menu | Sidebar + SidebarItem | Sidebar | vertical links with a current item, as the menu's selection |
 | AnchorSection (in Anchor) | 归入 menu | Sidebar + SidebarItem | Sidebar | the sections Anchor tracks |
-| App | 无对手，只看硬预算 | — | — | application root that provides message and notification context; draws nothing of its own |
+| App | 无对手，只看硬预算 | — | — | application root that provides message and notification context; it draws nothing of its own, so there is nothing to compare |
 | Approval | 归入 cards | composed: bordered Column | composed: bordered View | a card of texts and two buttons (Ant Design X) |
 | AspectRatio | 归入 grid | Row/Column of Text in boxes | View/Text over one signal | a layout box; the grid scene lays out and redraws 600 boxes a frame |
 | AutoComplete | 归入 select | Select (closed) + Popover of a List | Select (closed) as a HoverCard trigger + List | an input with an open suggestion list (MyGo Autocomplete, NSGo Combobox) |
@@ -422,7 +446,7 @@ reason where it has one, though no scene measures it).
 | Column (in Row) | 归入 grid | Row/Column of Text in boxes | View/Text over one signal | a column layout |
 | Command | 归入 select | Select (closed) + Popover of a List | Select (closed) as a HoverCard trigger + List | a searchable list of commands (NSGo Command; MyGo none) |
 | Compact | 归入 buttons | Button | Button (core.Dynamic) | buttons and inputs joined in a row |
-| ConfigProvider | 无对手，只看硬预算 | — | — | context that sets theme, size and locale for what it holds; draws nothing of its own |
+| ConfigProvider | 无对手，只看硬预算 | — | — | context that sets theme, size and locale for what it holds (MyGo Themed is the same kind of context); it draws nothing of its own, so there is nothing to compare |
 | Confirm | 归入 dialog | Modal | Dialog | a modal confirm dialog |
 | Content (in Layout) | 归入 grid | Row/Column of Text in boxes | View/Text over one signal | Layout part |
 | ContextMenuAt | 归入 select | Select (closed) + Popover of a List | Select (closed) as a HoverCard trigger + List | an open popup list (MyGo ContextMenuBase, NSGo ContextMenu) |
@@ -434,9 +458,9 @@ reason where it has one, though no scene measures it).
 | DatePicker | 归入 datepicker | Calendar | Calendar | the trigger of the date panel |
 | DatePickerPanel | datepicker | Calendar | Calendar | the scene is this component |
 | DateTimePicker | 归入 datepicker | Calendar | Calendar | date panel with a time column |
-| DefaultFooter | 无对手，只看硬预算 | — | — | Ant Design Pro page footer; neither has a page-frame component, and an admin page shell is not a component counterpart |
+| DefaultFooter | 归入 buttons | Button | Button (core.Dynamic) | a row of links over a copyright line: link texts as in the buttons (MyGo Link, NSGo Link) |
 | Descriptions | descriptions | composed: rows of bordered Text cells | composed: rows of bordered View cells | the scene is this component |
-| Disabled | 无对手，只看硬预算 | — | — | runs its content disabled; a context, nothing drawn of its own |
+| Disabled | 无对手，只看硬预算 | — | — | runs its content disabled (MyGo and NSGo disable each control instead: Element.Disabled, Disabled funcs); the wrapper draws nothing of its own, its controls are compared in their scenes |
 | Div | 归入 grid | Row/Column of Text in boxes | View/Text over one signal | a plain box |
 | Divider | 归入 grid | Row/Column of Text in boxes | View/Text over one signal | a line between boxes |
 | Dock | 归入 tabs | Tabs | Tabs[T] | IDE-style tab groups (NSGo DockArea; MyGo Split + Tabs) |
@@ -454,7 +478,7 @@ reason where it has one, though no scene measures it).
 | FooterToolbar | 归入 buttons | Button | Button (core.Dynamic) | a bar of buttons pinned to the page bottom |
 | Form | form | Form + Field + TextInput | FormSection + FormField | the scene is this component |
 | Gap (in Row) | 归入 grid | Row/Column of Text in boxes | View/Text over one signal | fixed space |
-| GridContent | 无对手，只看硬预算 | — | — | Ant Design Pro content width wrapper; a page shell, not a component counterpart |
+| GridContent | 归入 grid | Row/Column of Text in boxes | View/Text over one signal | a box that limits the content's width: a layout box |
 | GridRow | 归入 grid | Row/Column of Text in boxes | View/Text over one signal | 24-column grid row |
 | Header (in Layout) | 归入 grid | Row/Column of Text in boxes | View/Text over one signal | Layout part |
 | HotkeyInput | 归入 inputs | TextInput | Input (AppKit field) | an input that records a key combination |
@@ -495,15 +519,15 @@ reason where it has one, though no scene measures it).
 | ModalForm | 归入 dialog | Modal | Dialog | a modal holding a form |
 | MultiDatePicker | 归入 datepicker | Calendar | Calendar | a date panel choosing several days |
 | MultiSelect | 归入 select | Select (closed) + Popover of a List | Select (closed) as a HoverCard trigger + List | a select with tags |
-| NativeView | 无对手，只看硬预算 | — | — | hosts a platform view: the cost is the platform view's, not the framework's |
+| NativeView | 无对手，只看硬预算 | — | — | hosts a platform view; MyGo (ui.NativeView) and NSGo (core.Native) host them too, but the cost is the hosted platform view's, not the toolkit's, so a comparison would measure AppKit |
 | Notification | 归入 toast | Context.AddToast | Toaster + Toasts | a toast with a title |
 | NotificationCenter | 归入 list | List + TrackScroll | List + Ref.ScrollTo | a panel listing notifications |
 | NotificationDestroy (in Notification) | 归入 toast | Context.AddToast | Toaster + Toasts | removes notifications |
 | OpenDialogs (in Confirm) | 归入 dialog | Modal | Dialog | lists the open Confirm dialogs |
 | OTP | 归入 inputs | TextInput | Input (AppKit field) | one input per code digit (NSGo OTPInput) |
 | Overlay | 归入 tooltip | Popover on a Button | Popover with a Button trigger | an anchored panel opened from code |
-| PageContainer | 无对手，只看硬预算 | — | — | Ant Design Pro page frame; a page shell, not a component counterpart |
-| PageHeader | 无对手，只看硬预算 | — | — | Ant Design Pro page header with breadcrumb and actions; a page shell |
+| PageContainer | 归入 grid | Row/Column of Text in boxes | View/Text over one signal | a page frame of header and content: layout boxes (NSGo NavPage) |
+| PageHeader | 归入 buttons | Button | Button (core.Dynamic) | a title row with breadcrumb links and action buttons (NSGo NavHeader) |
 | Pagination | pagination | composed: Buttons (pagerItems) | Pagination{VisiblePages: 7} | MyGo has none and composes it from buttons |
 | Paragraph | 归入 grid | Row/Column of Text in boxes | View/Text over one signal | text; the grid changes 600 texts a frame |
 | Popconfirm | 归入 tooltip | Popover on a Button | Popover with a Button trigger | a popover with a question and two buttons |
@@ -516,7 +540,7 @@ reason where it has one, though no scene measures it).
 | ProFormGroup | 归入 form | Form + Field + TextInput | FormSection + FormField | a titled group of fields |
 | ProFormItems | 归入 form | Form + Field + TextInput | FormSection + FormField | form items from a schema |
 | Progress | progress | Progress | Progress | the scene is this component |
-| ProLayout | 无对手，只看硬预算 | — | — | Ant Design Pro application frame (sider, header, menu, content); a page shell, not a component counterpart |
+| ProLayout | 归入 menu | Sidebar + SidebarItem | Sidebar | an application frame whose live part is the sider menu with a selected item (NSGo SidebarShell + Sidebar; MyGo Sidebar beside the content) |
 | ProList | 归入 list | List + TrackScroll | List + Ref.ScrollTo | a list of rows with title, description and actions |
 | Prompt | 归入 dialog | Modal | Dialog | a modal with an input |
 | Prompts | 归入 cards | composed: bordered Column | composed: bordered View | a row of prompt cards (Ant Design X) |
@@ -577,7 +601,7 @@ reason where it has one, though no scene measures it).
 | TimeRangePicker | 归入 datepicker | Calendar | Calendar | a time range |
 | TimeSelect | 归入 select | Select (closed) + Popover of a List | Select (closed) as a HoverCard trigger + List | a select of times (Element Plus) |
 | Title | 归入 grid | Row/Column of Text in boxes | View/Text over one signal | heading text |
-| TitleBar | 无对手，只看硬预算 | — | — | window chrome drawn by the app; the opponents' windows keep the system title bar |
+| TitleBar | 归入 buttons | Button | Button (core.Dynamic) | a title text and small buttons the app draws in a hidden title bar; MyGo (hidden title bar, c.TitleBar, DragWindow) and NSGo (desktop.SetTitleBar(TitleBarHidden)) let the app draw it too |
 | Toggle | 归入 switches | Switch | Switch | a two-state button (MyGo Toggle, NSGo ToggleButton) |
 | ToggleGroup | 归入 segmented | Segmented | Tabs[T] (segmented look) | a row of exclusive toggles (MyGo ToggleGroup, NSGo ToggleGroup) |
 | ToolCall | 归入 collapse | Accordion + AccordionItem | Accordion | a collapsible tool-call block (Ant Design X) |
@@ -592,4 +616,4 @@ reason where it has one, though no scene measures it).
 | VirtualSelect | 归入 select | Select (closed) + Popover of a List | Select (closed) as a HoverCard trigger + List | a select with a virtual list |
 | VirtualTree | tree | Outline | Tree | the scene is this component |
 | Watermark | 无对手，只看硬预算 | — | — | neither has a watermark; repeated rotated text over the page is not a component counterpart |
-| WindowControls | 无对手，只看硬预算 | — | — | window buttons drawn by the app; the opponents use the system's |
+| WindowControls | 归入 buttons | Button | Button (core.Dynamic) | three small window buttons the app draws in a hidden title bar (MyGo hidden title bar with its MaximizeButton, NSGo desktop.SetTitleBar(TitleBarHidden)) |

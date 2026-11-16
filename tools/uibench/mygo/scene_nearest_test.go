@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -80,6 +81,112 @@ func TestNearestScenesShowTheirChange(t *testing.T) {
 		for _, s := range tc.absent {
 			if r, ok := d.Find(s); ok && r.W > 0 && r.H > 0 {
 				t.Errorf("%s after %d frames: %q shown", tc.scene, tc.frames, s)
+			}
+		}
+	}
+}
+
+// The table scene's view holds the header and tableShown rows: the last
+// is drawn, the next is cut off (the tester's box for it is empty); the
+// ProTable's 6 rows all show.
+func TestTableShowsItsRows(t *testing.T) {
+	tt := runScene(t, "table", 1)
+	if r, ok := tt.Find(tableCell(tableShown-1, 0)); !ok || r.H <= 0 {
+		t.Errorf("row %d: %v %v, want it drawn", tableShown, r, ok)
+	}
+	if r, ok := tt.Find(tableCell(tableShown, 0)); ok && r.H > 0 {
+		t.Errorf("row %d drawn at %v, want it cut off: the view holds %d rows", tableShown+1, r, tableShown)
+	}
+	tt = runScene(t, "protable", 1)
+	if r, ok := tt.Find(tableCell(proRows-1, 0)); !ok || r.H <= 0 {
+		t.Errorf("protable row %d: %v %v, want it drawn", proRows, r, ok)
+	}
+}
+
+// After frame f, the controls the scenes change show the state their
+// contract gives, read from the tester's accessibility view (and texts
+// for the composed steps and badges).
+func TestNearestSceneState(t *testing.T) {
+	const f = 23
+	var got, want []string
+	for _, a := range runScene(t, "rate", f).AccessAll() {
+		if a.Max == rateMax {
+			got = append(got, strconv.Itoa(int(a.Now)))
+		}
+	}
+	for i := range rateCount {
+		want = append(want, strconv.Itoa((rateStart(i)+stepsTaken(i, f, rateCount))%(rateMax+1)))
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("rate after %d frames: %q, want %q", f, got, want)
+	}
+	got, want = nil, nil
+	for _, a := range runScene(t, "segmented", f).AccessAll() {
+		if a.Checked {
+			got = append(got, a.Name)
+		}
+	}
+	for i := range segCount {
+		want = append(want, segLabels[(segStart(i)+stepsTaken(i, f, segCount))%segChoices])
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("segmented after %d frames: %q, want %q", f, got, want)
+	}
+	got = nil
+	for _, a := range runScene(t, "calendar", f).AccessAll() {
+		if a.Checked {
+			got = append(got, a.Name)
+		}
+	}
+	if w := pickDay(f).Format("January 2, 2006"); !slices.Equal(got, []string{w}) {
+		t.Errorf("calendar after %d frames: chosen %q, want %q", f, got, w)
+	}
+	// steps (composed): the steps before the current one show a check.
+	checks := 0
+	for _, s := range runScene(t, "steps", f).Texts() {
+		if s == "✓" {
+			checks++
+		}
+	}
+	if checks != f%stepCount {
+		t.Errorf("steps after %d frames: %d done, want %d", f, checks, f%stepCount)
+	}
+	got, want = nil, nil
+	for _, s := range runScene(t, "badges", f).Texts() {
+		got = append(got, s)
+	}
+	for i := range badgeCount {
+		c := badgeStart(i)
+		for range stepsTaken(i, f, badgeCount) {
+			c = nextCount(c)
+		}
+		want = append(want, strconv.Itoa(c))
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("badges after %d frames: %q, want %q", f, got, want)
+	}
+}
+
+// Every component scene reports one frame per frame after the first, with
+// the work sceneWork gives.
+func TestWorkCadence(t *testing.T) {
+	const frames = 65
+	for name := range scenes() {
+		if sceneWork(name, 1) < 0 {
+			continue
+		}
+		var works []int
+		reportHook = func(w int) { works = append(works, w) }
+		runScene(t, name, frames)
+		reportHook = nil
+		if len(works) != frames {
+			t.Errorf("%s: %d reports over %d frames", name, len(works), frames)
+			continue
+		}
+		for i, w := range works {
+			if want := sceneWork(name, i+1); w != want {
+				t.Errorf("%s: frame %d reported work %d, want %d", name, i+1, w, want)
+				break
 			}
 		}
 	}
