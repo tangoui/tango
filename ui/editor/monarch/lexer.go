@@ -198,6 +198,10 @@ func (b *lineBudget) check(off int, force bool) error {
 
 // match 执行一次锚定匹配；回溯超时转为 errDegraded（off 为本次匹配在行内的字节起点）。
 func (b *lineBudget) match(re regex.Regexp, s string, rs []rune, off int) ([]int, error) {
+	return b.matchWithCaptures(re, s, rs, off, true, nil)
+}
+
+func (b *lineBudget) matchWithCaptures(re regex.Regexp, s string, rs []rune, off int, captures bool, dst []int) ([]int, error) {
 	// All exhaustion paths latch: a guard reporting false after a timeout
 	// must never grant subsequent guards another engine timeout allowance.
 	if b.exhausted || b.backtrackSpent > lineBudgetDur {
@@ -212,7 +216,13 @@ func (b *lineBudget) match(re regex.Regexp, s string, rs []rune, off int) ([]int
 	if backtrack {
 		start = b.now()
 	}
-	m, err := re.TryMatchStart(s, rs)
+	var m []int
+	var err error
+	if captures {
+		m, err = re.TryMatchStart(s, rs)
+	} else {
+		m, err = regex.TryMatchStartNoCaptures(re, s, rs, dst)
+	}
 	if err != nil {
 		return nil, b.stop(off)
 	}
@@ -225,7 +235,11 @@ func (b *lineBudget) match(re regex.Regexp, s string, rs []rune, off int) ([]int
 		// measurements; separate long pauses in both attempts remain possible.
 		if elapsed >= 250*time.Microsecond*raceFactor || b.backtrackSpent+elapsed > lineBudgetDur {
 			start = b.now()
-			m, err = re.TryMatchStart(s, rs)
+			if captures {
+				m, err = re.TryMatchStart(s, rs)
+			} else {
+				m, err = regex.TryMatchStartNoCaptures(re, s, rs, dst)
+			}
 			if err != nil {
 				return nil, b.stop(off)
 			}
@@ -484,12 +498,20 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 	stack := ls.stack
 	pos := 0
 	var gm *groupMatching
-	var singleCapt [1]capt // reused for the common no-capture rule path
-	force := true          // 空行也至少执行一次规则（monaco-editor#1235）
-	ctx := &matchCtx{budget: &c.budget}
+	// Context and its single capture have the same call-local lifetime.
+	// Keep one frame per invocation, including recursive embedded languages.
+	frame := struct {
+		ctx    matchCtx
+		single [1]capt
+		span   [2]int
+	}{ctx: matchCtx{budget: &c.budget}}
+	force := true // 空行也至少执行一次规则（monaco-editor#1235）
+	ctx := &frame.ctx
 	var lr *lineRunes // 长行上整行的 []rune，供回溯引擎复用（见 longLineBytes）
-	emptyRun := 0     // 连续无进展（没有越过 high）的次数
-	high := 0         // 本行目前到达过的最远位置；只有越过它才算进展
+	var asciiRunes []rune
+	checkedASCII := false
+	emptyRun := 0 // 连续无进展（没有越过 high）的次数
+	high := 0     // 本行目前到达过的最远位置；只有越过它才算进展
 
 	for force || pos < lineLen {
 		pos0 := pos
@@ -542,26 +564,45 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 					continue
 				}
 				var restRunes []rune
-				if re.Engine() == regex.Backtrack {
-					// RE2 ignores runes, and a first-byte-filtered rule never
-					// runs. Allocate the shared index only for a real long
-					// backtracking attempt, preserving its current byte window.
+				backtrack := re.Engine() == regex.Backtrack
+				if backtrack {
+					// Only a real backtracking attempt needs rune storage.
 					if lr == nil && len(rest) > longLineBytes {
 						lr = newLineRunes(line)
 					}
 					if lr != nil {
 						restRunes = lr.runes[lr.index[pos]:]
+					} else if len(line) <= longLineBytes {
+						// Reuse ASCII runes on short lines. A short remainder
+						// of a long line still uses the engine's small window.
+						if !checkedASCII {
+							checkedASCII = true
+							ascii := true
+							for i := range len(line) {
+								if line[i] >= utf8.RuneSelf {
+									ascii = false
+									break
+								}
+							}
+							if ascii {
+								asciiRunes = []rune(line)
+							}
+						}
+						if asciiRunes != nil {
+							restRunes = asciiRunes[pos:]
+						}
 					}
 					backtracked = true
 				}
-				m, err := c.budget.match(re, rest, restRunes, off+pos)
+				captures := !ru.noCaptures && re.NumGroups() != 0
+				m, err := c.budget.matchWithCaptures(re, rest, restRunes, off+pos, captures, frame.span[:0])
 				if err != nil {
 					return ls, err
 				}
 				if m != nil {
 					if len(m) == 2 {
-						singleCapt[0] = capt{rest[m[0]:m[1]], true}
-						matches = singleCapt[:]
+						frame.single[0] = capt{rest[m[0]:m[1]], true}
+						matches = frame.single[:]
 					} else {
 						matches = toCaptures(rest, m)
 					}
@@ -748,7 +789,11 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 			}
 			typ = sanitize(b.token + result[len("@brackets"):])
 		} else if result != "" {
-			typ = sanitize(result + g.tokenPostfix)
+			if act.tokenType == "" {
+				typ = sanitize(result + g.tokenPostfix)
+			} else {
+				typ = act.tokenType
+			}
 		}
 		// 无进展的迭代不输出 token（其宽度会被同位置的下一个 token 覆盖为 0），token 数因此不超过行长
 		if progress && pos0 < lineNoLFLen {
