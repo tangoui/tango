@@ -33,12 +33,21 @@ var (
 	// ErrTooLarge is returned by Insert for a mask wider or taller than a
 	// page.
 	ErrTooLarge = errors.New("atlas: mask larger than a page")
-	// ErrFull is returned by Insert when no page has room and every page
-	// was used in the current frame, so none can be evicted.
+	// ErrFull is returned by Insert when no page has room and every page was
+	// used in the current frame, so none can be evicted.
 	ErrFull = errors.New("atlas: all pages in use this frame")
+	// ErrInvalidBudget is returned for production budgets that cannot retain
+	// at least one page.
+	ErrInvalidBudget = errors.New("atlas: invalid budget")
 )
 
-// Kinds of masks (Key.Kind).
+// AtlasBudget bounds the number of resident atlas pages. IdleFrames is the
+// minimum age of a page, in frames, before it may be evicted.
+type AtlasBudget struct {
+	MaxPages   int
+	IdleFrames uint32
+}
+
 const (
 	KindGlyph = 0 // a glyph: Src, ID, Size, Sub, Skew
 	KindPath  = 1 // a filled path's coverage: Path, M, Size
@@ -157,6 +166,7 @@ type Atlas struct {
 	gen            uint32
 	dirty, spare   []image.Rectangle
 	evictions      int
+	budget         AtlasBudget
 }
 
 // New returns an empty atlas of one page of pageSize×pageSize texels that
@@ -167,10 +177,72 @@ func New(pageSize, maxPages int) *Atlas {
 	return a
 }
 
-// BeginFrame starts a new frame for the LRU: pages used (looked up or
-// inserted into) from now on are protected from eviction until the next
-// BeginFrame.
-func (a *Atlas) BeginFrame() { a.gen++ }
+// SetBudget enables a production budget. A zero budget is only available to
+// tests through SetBudgetForTest because an atlas must retain one page.
+func (a *Atlas) SetBudget(b AtlasBudget) error {
+	if b.MaxPages < 1 {
+		return ErrInvalidBudget
+	}
+	a.budget = b
+	return nil
+}
+
+// SetBudgetForTest allows tiny budgets in package tests.
+func (a *Atlas) SetBudgetForTest(maxPages int, idle uint32) {
+	a.budget = AtlasBudget{MaxPages: maxPages, IdleFrames: idle}
+}
+
+// BeginFrame starts a new frame for the LRU. An explicit frame number is used
+// by budget policy; the no-argument form preserves the renderer's old call.
+func (a *Atlas) BeginFrame(frame ...uint64) {
+	if len(frame) > 0 {
+		a.gen = uint32(frame[0])
+		return
+	}
+	a.gen++
+}
+
+// EndFrame marks the frame boundary for deferred release.
+func (a *Atlas) EndFrame() {}
+
+// Evict removes idle pages until the configured page budget is met. Current
+// frame pages are protected by their generation. Returns pages emptied.
+func (a *Atlas) Evict(frame uint64) int {
+	if a.budget.MaxPages < 1 || len(a.pages) <= a.budget.MaxPages {
+		return 0
+	}
+	if uint32(frame) > a.gen {
+		a.gen = uint32(frame)
+	}
+	removed := 0
+	for len(a.pages) > a.budget.MaxPages {
+		victim := -1
+		for i, p := range a.pages {
+			if len(p.keys) == 0 || p.used == a.gen || a.gen-p.used < a.budget.IdleFrames {
+				continue
+			}
+			if victim < 0 || i > victim {
+				victim = i
+			}
+		}
+		if victim < 0 {
+			break
+		}
+		a.evict(victim)
+		removed++
+		a.trimTrailingPages()
+	}
+	return removed
+}
+
+func (a *Atlas) trimTrailingPages() {
+	for len(a.pages) > 1 && len(a.pages[len(a.pages)-1].keys) == 0 {
+		a.pages = a.pages[:len(a.pages)-1]
+		pix := image.NewAlpha(image.Rect(0, 0, a.size, a.size*len(a.pages)))
+		copy(pix.Pix, a.pix.Pix[:len(pix.Pix)])
+		a.pix = pix
+	}
+}
 
 // Reset drops every entry and shrinks the atlas to one page; call it when
 // the device scale changes. Pending dirty rectangles are dropped too: the

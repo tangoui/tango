@@ -618,6 +618,8 @@ func (r *Renderer) frame1(bg color.NRGBA, ops []paint.Op, fs image.Point, scale 
 	r.maskSent = f.MaskSize
 	r.ramps.sent = true
 	r.images.executed(true)
+	r.atlas.EndFrame()
+	r.atlas.Evict(r.renders)
 	r.syncResourceStats(f)
 	return nil
 }
