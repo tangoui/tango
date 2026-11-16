@@ -528,13 +528,6 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 				return ls, l.errorf("tokenizer state is not defined: %s", state)
 			}
 			rest := line[pos:]
-			if lr == nil && len(rest) > longLineBytes {
-				lr = newLineRunes(line)
-			}
-			var restRunes []rune
-			if lr != nil {
-				restRunes = lr.runes[lr.index[pos]:]
-			}
 			backtracked := false
 			for _, ru := range stack.rules {
 				if pos != 0 && ru.atLineStart {
@@ -548,7 +541,19 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 				if cr.hasFirst && len(rest) > 0 && rest[0] < utf8.RuneSelf && rest[0] != cr.firstByte {
 					continue
 				}
-				backtracked = backtracked || re.Engine() == regex.Backtrack
+				var restRunes []rune
+				if re.Engine() == regex.Backtrack {
+					// RE2 ignores runes, and a first-byte-filtered rule never
+					// runs. Allocate the shared index only for a real long
+					// backtracking attempt, preserving its current byte window.
+					if lr == nil && len(rest) > longLineBytes {
+						lr = newLineRunes(line)
+					}
+					if lr != nil {
+						restRunes = lr.runes[lr.index[pos]:]
+					}
+					backtracked = true
+				}
 				m, err := c.budget.match(re, rest, restRunes, off+pos)
 				if err != nil {
 					return ls, err
