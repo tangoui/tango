@@ -2282,6 +2282,7 @@ pkg github.com/tangoui/tango/ui, method (*Runner) SetReduceMotion(bool)
 pkg github.com/tangoui/tango/ui, method (*Runner) SetSafeArea(ui/geom.Insets)
 pkg github.com/tangoui/tango/ui, method (*Runner) SetTheme(*ui/theme.Theme)
 pkg github.com/tangoui/tango/ui, method (*Runner) SetTouchPointerEmulation(bool)
+pkg github.com/tangoui/tango/ui, method (*Runner) TrimCaches()
 pkg github.com/tangoui/tango/ui, method (*SchemaFormW) Columns(int) *SchemaFormW
 pkg github.com/tangoui/tango/ui, method (*SchemaFormW) Finished() bool
 pkg github.com/tangoui/tango/ui, method (*SchemaFormW) LayoutType(SchemaLayoutType) *SchemaFormW

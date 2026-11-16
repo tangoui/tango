@@ -6,6 +6,8 @@
 
 ### 新增
 
+- 自绘窗口支持可选 `TANGO_RENDERER=auto`：小窗口先用 CPU，放大、内容复杂或持续高频刷新后单向升级 GPU；保持默认 GPU 优先和显式 Renderer 优先级不变。系统字体链可由 `text.TrimFontCaches()` 丢弃，平台低内存通知也会触发回收；仍被页面或编辑器持有的字体继续有效，macOS 原生字体句柄在最后一个拥有者不可达后释放（见 `docs/dev-builds.md`）。
+
 - **IDE 工作台组件**（均为实验性 API）：
   - `Dock` 停靠分屏：可嵌套分割树、标签拖到组边缘拆分 / 中间合并（带落点预览）、分割条调整、组最大化，布局模型 `DockLayout` 可 JSON 保存与恢复；`Tabs` 新增 `Draggable` 拖拽排序与 `OnTearOff` 拖出窗口回调（示例 `examples/dock-demo`）。
   - `StatusBar` 状态栏、`TitleBar` 自绘标题栏与 `WindowControls` 窗口按钮（经新接口 `ui.WindowFrame` 控制真实窗口与拖动）、`NotificationCenter` 通知中心、`HotkeyInput` 快捷键录制框。

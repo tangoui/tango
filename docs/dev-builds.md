@@ -28,6 +28,19 @@ iOS 模拟器自测要用这些钩子，但 `tan build`（`mobile/ios/build.sh` 
 
 Android 同样用 `tango_selftest`：`GOFLAGS=-tags=tango_selftest bash mobile/android/build.sh <应用>`（`scripts/smoke.sh android-selftest`、`android-lanefault` 就这样构建）。Android 进程没法从外部拿到环境变量，所以测试钩子构建另读启动 Intent 的字符串数组 extra `TANGO_TEST_ENV`：`adb shell am start -n <包名>/org.tango.host.TangoActivity --esa TANGO_TEST_ENV TANGO_A=1,TANGO_B=2`（`am` 按逗号拆分，所以值里不能有逗号），只接受 `TANGO_` 开头的键，在 `main.main` 运行之前 `os.Setenv`。Java 侧只在可调试 APK（`tan build -debug`，`mobile/android/build.sh` 的默认）里交出这个 extra。`TANGO_ANDROID_NO_ARRAYBUFFER=1` 让 Go 把 WebView 当成不支持 ArrayBuffer 消息（测试没有通道时的回退）。不带这两个标签的 Android 构建不读这些输入，`android.LaneStatsSnapshot` 始终为零；`TANGO_IPC_LANES_ANDROID` 是正式开关，任何构建都读。
 
+## 自绘窗口的渲染分级与字体回收
+
+`TANGO_RENDERER` 是窗口创建时读取的运行参数，`ui.RunnerOptions.Renderer` 显式指定的渲染器始终优先：
+
+- 未设置：保持 GPU 优先的默认行为，GPU 不可用时回退 CPU。
+- `cpu`：始终使用 CPU，不创建原生 GPU 呈现目标。
+- `gpu`：尝试 GPU（包括软件 OpenGL），失败仍回退 CPU。
+- `auto`：面积不超过 100,000 逻辑像素的小窗口先使用 CPU；其他窗口 GPU 优先。CPU 起步的窗口在放大超过阈值、绘制列表达到 256 项或连续六个实际绘制帧的间隔不超过 100 ms 时，尝试升级 GPU。升级单向生效，不随缩小窗口来回切换；升级失败也不逐帧重试。这是保守的工作量启发式，不是对 CPU/GPU 快慢的保证。小型编辑器、终端或持续动画也可直接设 `gpu`。
+
+`text.TrimCaches()` 仅清排版缓存；`text.TrimFontCaches()` 还丢弃注册表持有的系统字体链。平台低内存通知会同时调用每个窗口的 `runner.TrimCaches()`，清理 CPU 字形遮罩、变换图片、阴影缓存及 GPU 可重建缓存并请求重绘，避免这些缓存继续持有旧字体。桌面应用也可以在自己的低内存策略中，在主线程上依次调用 `text.TrimFontCaches()` 和 `runner.TrimCaches()`。`paint.CPU.Trim()` 保留当前帧像素，不会立即把窗口清空。
+
+仍被当前页面、`Layout` 或编辑器 `LineCache` 引用的字体继续有效，不会被提前销毁；macOS 的原生字体资源随最后一个拥有者不可达，由 Go cleanup 释放。回收不强制全局 GC，也不承诺物理内存立即下降。当前没有默认空闲计时器，避免多个活动窗口频繁丢弃彼此正在使用的字体链。
+
 ## `tango_release` 已废弃
 
 `tango_release` 以前是"发布构建"的标签；默认构建现在就是生产构建，它**不再起任何作用**，只作为兼容别名保留：`tan build` 仍会传它，手写的 `-tags tango_release` 也不会出错。`-tags tango_release,tango_dev` 等同于 `-tags tango_dev`。
