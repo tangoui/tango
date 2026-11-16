@@ -12,7 +12,9 @@ type perfDebt struct {
 // perfDamageDebt is keyed by fixture name. Every entry (all families) was
 // regenerated from one verbose TestPerfDamage run (task-5-fix-2-damage.log)
 // with the content-area denominator (perfContentRects / perfContentArea:
-// union area of the shown parts, transparent overlay carriers excluded).
+// union area of the shown parts, transparent overlay carriers excluded);
+// task-6-damage.log measured every earlier entry again unchanged and set
+// the collection entries.
 var perfDamageDebt = map[string]perfDebt{
 	// Task 3 display/feedback: measured after reversible interactions pass.
 	"Alert":          {Measured: "dirty 10.34×", Why: "baseline"},
@@ -149,9 +151,28 @@ var perfDamageDebt = map[string]perfDebt{
 	"Pagination":         {Measured: "dirty 29.09×", Why: "baseline"},
 	"Steps":              {Measured: "dirty 17.24×", Why: "baseline"},
 	"Tabs":               {Measured: "dirty 20.24×", Why: "baseline"},
+
+	// Task 6 collections.
+	"Cascader":       {Measured: "dirty 168.75×", Why: "baseline"},
+	"CascaderPanel":  {Measured: "dirty 21.62×", Why: "baseline"},
+	"InfiniteScroll": {Measured: "dirty 10.38×", Why: "baseline"},
+	"List":           {Measured: "dirty 3.75×", Why: "baseline"},
+	"ListActions":    {Measured: "dirty 4.31×", Why: "baseline"},
+	"Listy":          {Measured: "dirty 2.59×", Why: "baseline"},
+	"LogView":        {Measured: "dirty 4.22×", Why: "baseline"},
+	"MultiSelect":    {Measured: "dirty 17.46×", Why: "baseline"},
+	"Transfer":       {Measured: "dirty 12.27×", Why: "baseline"},
+	"Tree":           {Measured: "dirty 4.16×", Why: "baseline"},
+	"TreeSelect":     {Measured: "dirty 168.75×", Why: "baseline"},
+	"VirtualList":    {Measured: "dirty 8.44×", Why: "baseline"},
+	"VirtualSelect":  {Measured: "dirty 168.75×", Why: "baseline"},
+	"VirtualTree":    {Measured: "dirty 2.91×", Why: "baseline"},
 }
 
-// perfTimeDebt is keyed by "Name/Scene".
+// perfTimeDebt is keyed by "Name/Scene". LogView's scenes are owned by
+// perf/memory-logview: an overrun of one gets an entry with Why "owned by
+// perf/memory-logview" instead of a fix on this branch (none is over its
+// budget today: Task 6 measured Mount, Interact and Large100k within).
 var perfTimeDebt = map[string]perfDebt{}
 
 // perfCoveragePending lists the ui entries without a fixture yet (until
@@ -161,8 +182,6 @@ var perfCoveragePending = map[string]bool{
 	"Approval":            true,
 	"Bubble":              true,
 	"BubbleList":          true,
-	"Cascader":            true,
-	"CascaderPanel":       true,
 	"CheckCard":           true,
 	"CheckCardGroup":      true,
 	"Conversations":       true,
@@ -172,17 +191,10 @@ var perfCoveragePending = map[string]bool{
 	"EditableProTable":    true,
 	"FooterToolbar":       true,
 	"GridContent":         true,
-	"InfiniteScroll":      true,
 	"LightFilter":         true,
-	"List":                true,
-	"ListActions":         true,
-	"ListItemMeta":        true,
-	"Listy":               true,
-	"LogView":             true,
 	"LoginForm":           true,
 	"LoginFormPage":       true,
 	"ModalForm":           true,
-	"MultiSelect":         true,
 	"NativeView":          true,
 	"PageContainer":       true,
 	"PageHeader":          true,
@@ -212,11 +224,5 @@ var perfCoveragePending = map[string]bool{
 	"ThoughtChain":        true,
 	"TitleBar":            true,
 	"ToolCall":            true,
-	"Transfer":            true,
-	"Tree":                true,
-	"TreeSelect":          true,
-	"VirtualList":         true,
-	"VirtualSelect":       true,
-	"VirtualTree":         true,
 	"WindowControls":      true,
 }

@@ -187,6 +187,26 @@ func perfNavWheel(r *perfRun, i int) {
 	r.D.Move(perfOutside)
 }
 
+// perfNavLargeItems are n flat menu items "菜单项 i" (keys "m<i>").
+func perfNavLargeItems(n int) []MenuItem {
+	items := make([]MenuItem, n)
+	for i := range items {
+		s := strconv.Itoa(i + 1)
+		items[i] = MenuItem{Key: "m" + s, Label: "菜单项 " + s}
+	}
+	return items
+}
+
+// perfNavLargeTabs are n tabs "标签 i" (keys "t<i>").
+func perfNavLargeTabs(n int) []TabItem {
+	tabs := make([]TabItem, n)
+	for i := range tabs {
+		s := strconv.Itoa(i + 1)
+		tabs[i] = TabItem{Key: "t" + s, Label: "标签 " + s}
+	}
+	return tabs
+}
+
 func perfNavCommandItems(n int) []CommandItem {
 	if n <= 0 {
 		return []CommandItem{
@@ -221,6 +241,13 @@ func init() {
 				Menu(c, perfNavMenuItems, sel).Width(240).Show()
 			},
 			Interact: perfNavSwitch("表单页", "详情页"),
+			Large: func(n int) func(*Context) {
+				items := perfNavLargeItems(n)
+				return func(c *Context) {
+					sel := State(c, perfNavID("menu.large"), func() string { return "m1" })
+					Scroll(c, func() { Menu(c, items, sel).Width(240).Show() }, layout.Size(280, 760))
+				}
+			},
 		},
 		perfFixture{
 			Name:     "Menubar",
@@ -234,6 +261,16 @@ func init() {
 				Tabs(c, tab, []TabItem{{Key: "1", Label: "基本信息"}, {Key: "2", Label: "安全设置", Icon: icon.Lock}, {Key: "3", Label: "消息通知"}, {Key: "4", Label: "禁用", Disabled: true}}).Show()
 			},
 			Interact: perfNavSwitch("安全设置", "基本信息"),
+			// n tabs in one bar (the ones that do not fit scroll and are
+			// listed in the more menu); switching tabs is the interaction.
+			Large: func(n int) func(*Context) {
+				tabs := perfNavLargeTabs(n)
+				return func(c *Context) {
+					tab := State(c, perfNavID("tabs.large"), func() string { return "t1" })
+					Tabs(c, tab, tabs).Show()
+				}
+			},
+			LargeInteract: perfNavSwitch("标签 2", "标签 1"),
 		},
 		perfFixture{
 			// Clicking a crumb navigates up (the path is cut there); the
