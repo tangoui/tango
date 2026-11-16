@@ -8,7 +8,8 @@ import (
 	"github.com/tangoui/tango/ui/paint"
 	"image/color"
 	"math"
-	"time"
+
+	"github.com/tangoui/tango/ui/editor/internal/frameclock"
 	"unicode/utf8"
 )
 
@@ -136,7 +137,7 @@ func (w *ViewW) layoutSticky(snap buffer.Snapshot, i int, th *theme.Theme) lineV
 			toks = got
 		} else if cached != nil && cached.text == s && cached.lexer == lexer && cached.start == start && cached.final == final {
 			toks = cached.tokens
-		} else if time.Now().Before(w.vs.highlightDeadline) {
+		} else if frameclock.Now().Before(w.vs.highlightDeadline) {
 			toks = hl.TokenizeSpan(snap, i, s, nil)
 		} // Otherwise use plain text until the host's next highlight-ready frame.
 		if toks != nil {

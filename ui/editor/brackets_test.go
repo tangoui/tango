@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tangoui/tango/ui/editor/buffer"
+	"github.com/tangoui/tango/ui/editor/internal/frameclock"
 	"github.com/tangoui/tango/ui/editor/monarch"
 	"github.com/tangoui/tango/ui/editor/theme"
 	"github.com/tangoui/tango/ui/geom"
@@ -439,12 +440,9 @@ func TestMatchManyCursorsBounded(t *testing.T) {
 			tr.unsure = false
 			start := time.Now()
 			w0 := workClock()
-			unsure := st.matchCarets(MatchBracketsAlways, start.Add(budget), from, res)
+			unsure := st.matchCarets(MatchBracketsAlways, frameclock.Now().Add(budget), from, res)
 			work := workClock() - w0
 			wall := time.Since(start)
-			if runtime.GOOS == "windows" {
-				work = wall // original start-to-return wall interval, not a CPU estimate
-			}
 			out := matchRanges(res)
 			walls = append(walls, wall)
 			if hardLimit > 0 && work > hardLimit {
