@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"image/color"
 	"slices"
 	"strings"
 	"testing"
@@ -99,5 +100,49 @@ func BenchmarkMinimapWarmPreparation(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		w.prepareMinimap(snap, th, time.Now().Add(time.Second))
+	}
+}
+
+var minimapPerfBitmap *miniBitmap
+
+func TestMinimapRasterAllocations(t *testing.T) {
+	g := minimapGlyphsFor(2, false, 255)
+	input := strings.Repeat("a", 120)
+	fg := color.NRGBA{R: 201, G: 127, B: 73, A: 255}
+	allocs := testing.AllocsPerRun(30, func() {
+		minimapPerfBitmap = miniCharsAt(input, 4, g, func(int) color.NRGBA { return fg })
+	})
+	if allocs > 2 {
+		t.Fatalf("rasterizing a 120-column miniature allocated %.0f times, want only bitmap and pixels (<=2)", allocs)
+	}
+	if minimapPerfBitmap == nil || minimapPerfBitmap.w != 240 || minimapPerfBitmap.h != 4 {
+		t.Fatalf("bitmap geometry = %+v, want 240x4", minimapPerfBitmap)
+	}
+}
+
+func TestMinimapRasterColorCallbackOrder(t *testing.T) {
+	// A, tab, 中, e+combining, emoji, U+0080 (no glyph), invalid UTF-8,
+	// trailing space. colorAt must see byte offsets, once per drawn cluster.
+	input := "A\t中é😀\u0080\xff "
+	var got []int
+	bmp := miniCharsAt(input, 4, minimapGlyphsFor(2, false, 255), func(i int) color.NRGBA {
+		got = append(got, i)
+		return color.NRGBA{R: byte(i + 1), A: 255}
+	})
+	if want := []int{0, 2, 5, 8, 14}; !slices.Equal(got, want) {
+		t.Fatalf("callback offsets = %v, want %v (once, increasing)", got, want)
+	}
+	if bmp == nil {
+		t.Fatal("mixed text produced no bitmap")
+	}
+}
+
+func BenchmarkMinimapRaster(b *testing.B) {
+	g := minimapGlyphsFor(2, false, 255)
+	input := strings.Repeat("a", 120)
+	fg := color.NRGBA{R: 201, G: 127, B: 73, A: 255}
+	b.ReportAllocs()
+	for b.Loop() {
+		minimapPerfBitmap = miniCharsAt(input, 4, g, func(int) color.NRGBA { return fg })
 	}
 }
