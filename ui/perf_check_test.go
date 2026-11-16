@@ -146,9 +146,13 @@ func TestPerfDamage(t *testing.T) {
 			d := newPerfDriver(perfPage(fx.Build), false)
 			d.Settle()
 			r := &perfRun{D: d}
-			before := perfBBox(d)
+			before := perfContentRects(d)
 			perfStep(r, fx.Interact, 0)
-			box := rectArea(before.Union(perfBBox(d)))
+			// The denominator is the area the fixture shows before and after
+			// the step (union of its parts), not their bounding rect: parts
+			// far apart (a scroll box top-left, a float button bottom-right)
+			// would otherwise span most of the window.
+			box := perfContentArea(append(before, perfContentRects(d)...))
 			dirty := perfDirtyArea(d)
 			ratio := float32(-1) // no box: any damage is too much
 			if box > 0 {
@@ -396,6 +400,32 @@ func TestPerfBudgets(t *testing.T) {
 				t.Errorf("%s: %v within budget %v now (debt says %s): remove it from perfTimeDebt", key, ns, budget, debt.Measured)
 			}
 		}
+	}
+}
+
+// TestPerfDamageUnionArea checks the damage denominator on parts far
+// apart: a 40×40 box at the top-left and one at the bottom-right. Their
+// bounding rect covers most of the window, so a full-window repaint would
+// stay under 2× of it; against the union of the parts it must not.
+func TestPerfDamageUnionArea(t *testing.T) {
+	d := newPerfDriver(perfPage(func(c *Context) {
+		Div(c, layout.Size(40, 40)).Bg(color.NRGBA{R: 200, A: 255})
+		Div(c, layout.Size(40, 40), layout.Margin(geom.Insets{Top: 780, Left: 1330})).Bg(color.NRGBA{B: 200, A: 255})
+	}), false)
+	d.Settle()
+	rs := perfContentRects(d)
+	area := perfContentArea(rs)
+	if want := float32(2 * 40 * 40); area != want {
+		t.Errorf("content area %.0f px², want %.0f (two 40×40 boxes)", area, want)
+	}
+	sz := d.r.win.Size()
+	if full := sz.W * sz.H; full <= 2*area {
+		t.Errorf("a full-window repaint (%.0f px²) is within 2× of the content area %.0f px²: the gate cannot fail", full, area)
+	}
+	// Overlaps count once.
+	r := geom.Rect{X: 10, Y: 10, W: 20, H: 20}
+	if got := perfContentArea([]geom.Rect{r, r, {X: 20, Y: 10, W: 20, H: 20}}); got != 600 {
+		t.Errorf("overlapping rects area %.0f, want 600", got)
 	}
 }
 

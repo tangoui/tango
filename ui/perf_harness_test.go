@@ -6,6 +6,7 @@ import (
 	"hash/fnv"
 	"image"
 	"io"
+	"math"
 	"sort"
 	"time"
 
@@ -127,9 +128,10 @@ func perfBBox(d *Driver) geom.Rect {
 // transparent carrier (Affix, float buttons, context menus, notifications
 // build a ScreenFill layer and place their content inside, often only at
 // paint time): its rect is the union of its descendants' rects, recursive
-// because pinned Affix content sits under a 1×1 clip node; a carrier
-// without descendants (Affix's watcher) contributes nothing. abs is set
-// while painting, so after a frame it holds the final positions.
+// because pinned Affix content sits in an inner node under a clip node
+// (declared 1×1, resized to the viewport at paint time); a carrier without
+// descendants (Affix's watcher) contributes nothing. abs is set while
+// painting, so after a frame it holds the final positions.
 func perfOverlayContent(o *overlay) geom.Rect {
 	if o.root.hit || o.root.blocks {
 		return o.root.abs
@@ -144,6 +146,44 @@ func perfOverlayContent(o *overlay) geom.Rect {
 	}
 	walk(o.root)
 	return r
+}
+
+// perfContentRects are the rects of what the fixture shows: the page
+// column's children (the parts perfTarget unions) and the visible content
+// of every open overlay (perfOverlayContent), clipped to the window.
+func perfContentRects(d *Driver) []geom.Rect {
+	sz := d.r.win.Size()
+	win := geom.Rect{W: sz.W, H: sz.H}
+	var out []geom.Rect
+	add := func(r geom.Rect) {
+		if r = r.Intersect(win); !r.Empty() {
+			out = append(out, r)
+		}
+	}
+	if root := d.r.c.root; root != nil && len(root.kids) > 0 {
+		for _, k := range root.kids[0].kids {
+			add(k.abs)
+		}
+	}
+	for _, o := range d.r.c.overlays {
+		add(perfOverlayContent(o))
+	}
+	return out
+}
+
+// perfContentArea is the area (logical px², the unit perfDirtyArea
+// returns) covered by rs, overlaps counted once. rectsUnionArea works on
+// integer rects, so coordinates go on a 1/64 logical-px grid (rounded):
+// layout positions are fractional, and snapping them to the device-pixel
+// grid would inflate small parts' areas by up to a pixel per edge.
+func perfContentArea(rs []geom.Rect) float32 {
+	const grid = 64
+	q := func(v float32) int { return int(math.Round(float64(v * grid))) }
+	px := make([]image.Rectangle, 0, len(rs))
+	for _, r := range rs {
+		px = append(px, image.Rect(q(r.X), q(r.Y), q(r.Right()), q(r.Bottom())))
+	}
+	return float32(float64(rectsUnionArea(px)) / (grid * grid))
 }
 
 // perfDirtyArea is the area (logical px²) of the union of the last frame's

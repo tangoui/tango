@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
@@ -798,8 +799,17 @@ func TestPerfNavInteractOutcome(t *testing.T) {
 			return strconv.FormatBool(ok)
 		}, [3]string{"false", "true", "false"}},
 		{"FloatButton", func(d *Driver) string {
-			return strconv.FormatBool(*State[bool](d.r.c, perfNavID("float"), nil))
-		}, [3]string{"false", "true", "false"}},
+			// The retained flag and the button's label agree. An icon-only
+			// float button's label is its accessible name (its hit label is
+			// always "float"), so read it from the accessibility tree.
+			if d.AccessibilityTree() == nil {
+				d.EnableAccessibility()
+			}
+			_, closeShown := d.A11yFind(a11y.RoleButton, "关闭帮助")
+			_, helpShown := d.A11yFind(a11y.RoleButton, "帮助")
+			return strconv.FormatBool(*State[bool](d.r.c, perfNavID("float"), nil)) + "," +
+				strconv.FormatBool(closeShown) + "," + strconv.FormatBool(helpShown)
+		}, [3]string{"false,false,true", "true,true,false", "false,false,true"}},
 		{"FloatButtonGroup", func(d *Driver) string {
 			n := 0
 			for _, h := range d.r.c.hits {
