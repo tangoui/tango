@@ -161,6 +161,10 @@ type Device struct {
 
 	timeline     func(Timing)  // diagnostics callback (SetTimeline); nil normally
 	drawableWait time.Duration // the next present submission's nextDrawable wait
+	// drainOnExecute restores the pre-A1 behaviour (Execute waits for every
+	// command buffer, presents included). Set only by same-binary A/B
+	// benchmarks (BenchmarkPresentLoop); never in product code.
+	drainOnExecute bool
 }
 
 // SetTimeline installs fn (nil removes it) to receive the Timing of every
@@ -1399,6 +1403,10 @@ func (d *Device) noteRetired(s submission, err error, removed bool) {
 // while the queue is at asyncInflightLimit. In-flight presents only read
 // the target; the queue orders this frame's writes after them.
 func (d *Device) retireForFrame() {
+	if d.drainOnExecute {
+		d.wait()
+		return
+	}
 	for d.inflight.hasNonPresent() || len(d.inflight.items) >= asyncInflightLimit {
 		d.waitOldest()
 	}
