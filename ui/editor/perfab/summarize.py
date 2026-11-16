@@ -86,9 +86,12 @@ last = {}
 if os.path.exists(os.path.join(out, "load.log")):
     with open(os.path.join(out, "load.log")) as f:
         for line in f:
+            # "round label load0 load1", or with arms.sh's screen state
+            # "round label load0 load1 screen0 screen1".
             p = line.split()
-            if len(p) == 4 and p[0] in rounds and p[1] in labels:
-                last[(p[0], p[1])] = (p[0], p[1], float(p[2]), float(p[3]))
+            if len(p) in (4, 6) and p[0] in rounds and p[1] in labels:
+                screen = (p[4], p[5]) if len(p) == 6 else None
+                last[(p[0], p[1])] = (p[0], p[1], float(p[2]), float(p[3]), screen)
 loads = list(last.values())
 
 benches = []
@@ -174,10 +177,24 @@ for label in labels[1:]:
     summary["arms"][label] = rows
 
 if loads:
-    allv = [v for l in loads for v in l[2:]]
+    allv = [v for l in loads for v in l[2:4]]
     print(f"Load (1-minute uptime) over the kept rounds: {min(allv):.2f}-{max(allv):.2f}\n")
+
+    def arm_load(l):
+        s = f"{l[1]} {l[2]:.2f}->{l[3]:.2f}"
+        return s + (f" ({l[4][0]}->{l[4][1]})" if l[4] else "")
+
     for r in rounds:
-        print(f"- round {r}: " + ", ".join(f"{l[1]} {l[2]:.2f}->{l[3]:.2f}" for l in loads if l[0] == r))
+        print(f"- round {r}: " + ", ".join(arm_load(l) for l in loads if l[0] == r))
     summary["load"] = [min(allv), max(allv)]
+    screens = sorted({s for l in loads if l[4] for s in l[4]})
+    if screens:
+        print(f"\nScreen state over the kept rounds: {', '.join(screens)}")
+        # Locked or changing screens make offscreen GPU timings unlike an
+        # unlocked session's: report them, never mix them in silently.
+        odd = sorted({l[0] for l in loads if l[4] and (l[4][0] != "unlocked" or l[4][1] != "unlocked")}, key=int)
+        if odd:
+            print(f"WARNING: rounds not unlocked throughout: {' '.join(odd)}; group them separately")
+        summary["screen"] = {"states": screens, "not_unlocked_rounds": odd}
 with open(os.path.join(out, "summary.json"), "w") as f:
     json.dump(summary, f, indent=1)

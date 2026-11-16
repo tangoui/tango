@@ -106,6 +106,6 @@ tan sign-update -key update.key latest.json   # 只重新签名一个手改过�
 清单格式（平台条目、补丁、签名信封）见 [service/updater 的 API 参考](/reference/api/service-updater)；完整参数见 [命令行 tan](/reference/cli#完整参数)。自动更新属于实验性功能，Windows、Linux 的安装流程尚未实机验证。
 :::
 
-## 发布 Tango 自己
+## 发布 TanGo 自己
 
-Tango 框架本身的版本号规则和发布流程见仓库的 [docs/release.md](https://github.com/tangoui/tango/blob/main/docs/release.md)。
+TanGo 框架本身的版本号规则和发布流程见仓库的 [docs/release.md](https://github.com/tangoui/tango/blob/main/docs/release.md)。

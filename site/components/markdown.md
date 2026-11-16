@@ -43,7 +43,7 @@ import "github.com/tangoui/tango/ui"
 var openedURL string
 
 func page(c *ui.Context) {
-    md := ui.Markdown(c, "访问 [Tango](https://github.com/tangoui/tango) 查看源码。")
+    md := ui.Markdown(c, "访问 [TanGo](https://github.com/tangoui/tango) 查看源码。")
     if u := md.ClickedLink(); u != "" {
         openedURL = u
     }

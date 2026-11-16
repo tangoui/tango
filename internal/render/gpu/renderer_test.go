@@ -606,14 +606,14 @@ func TestPatchPageOverflow(t *testing.T) {
 		}
 	}
 
-	// The default page: a gradient wider than the page is tiled.
+	// A native gradient wider than the default patch page needs no patch texture.
 	g := &paint.List{Background: white}
 	g.Add(paint.LinearGradient{Rect: geom.R(2, 2, 1096, 20), P0: geom.Pt(2, 0), P1: geom.Pt(1098, 0), From: blue, To: red})
 	want, got, dev := renderBoth(t, g, geom.Size{W: 1100, H: 24}, 2)
 	if res := compare(got, want, 2); res.Frac > 0.005 {
 		t.Fatalf("wide gradient: %.3f%% over (max %d)", res.Frac*100, res.MaxDiff)
 	}
-	if dev.last.ColorSize != image.Pt(patchPageMin, patchPageMin) {
+	if dev.last.ColorSize != (image.Point{}) {
 		t.Fatalf("color size %v", dev.last.ColorSize)
 	}
 }
@@ -638,7 +638,7 @@ func TestPatchPageGrowsWithUse(t *testing.T) {
 		}
 		sizes = append(sizes, dev.last.ColorSize.X)
 	}
-	want := []int{128, 128, 128, 256, 512, 1024, 2048}
+	want := []int{0, 0, 128, 256, 512, 1024, 1024}
 	if fmt.Sprint(sizes) != fmt.Sprint(want) {
 		t.Fatalf("patch page sizes %v, want %v", sizes, want)
 	}

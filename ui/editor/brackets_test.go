@@ -3,6 +3,7 @@ package editor
 import (
 	"fmt"
 	"image/color"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -415,7 +416,13 @@ func TestMatchManyCursorsBounded(t *testing.T) {
 		// the race detector and on shared CI runners (gateLimit), where a
 		// frame's wall time includes the runner's preemption.
 		limit := gateLimit(bracketFrameBudget + minOverrun + time.Millisecond)
-		from, over := 0, 0
+		// Judged on the median frame and on repeated far overruns, not on
+		// single frames: on laptops with frequency scaling or hybrid cores
+		// the same 2 ms of work takes from 1 ms to 3 ms and more, with
+		// spikes of tens of milliseconds. Unbounded work overruns frame
+		// after frame and still fails.
+		from, far := 0, 0
+		var els []time.Duration
 		done := false
 		res := make([]caretMatch, len(sels))
 		for frame := 0; frame < c.frames && !done; frame++ {
@@ -425,11 +432,10 @@ func TestMatchManyCursorsBounded(t *testing.T) {
 			unsure := st.matchCarets(MatchBracketsAlways, start.Add(budget), from, res)
 			el := time.Since(start)
 			out := matchRanges(res)
+			els = append(els, el)
 			if el > 3*limit {
-				t.Fatalf("%d lines, %d carets, frame %d: bracket work %v, want at most %v", c.lines, c.carets, frame, el, limit)
-			}
-			if el > limit {
-				over++ // a collection or a slow line; not frame after frame
+				far++
+				t.Logf("%d lines, %d carets, frame %d: bracket work %v, want at most %v", c.lines, c.carets, frame, el, limit)
 			}
 			if unsure < 0 {
 				if len(out) != 2*len(sels) {
@@ -440,8 +446,12 @@ func TestMatchManyCursorsBounded(t *testing.T) {
 			}
 			from = max(unsure, 0)
 		}
-		if over > c.frames/20+1 {
-			t.Errorf("%d lines: %d frames over %v", c.lines, over, limit)
+		if far > c.frames/20+1 {
+			t.Errorf("%d lines: %d frames over %v", c.lines, far, 3*limit)
+		}
+		slices.Sort(els)
+		if med := els[len(els)/2]; len(els) >= 10 && med > limit { // a few frames have no stable median
+			t.Errorf("%d lines: median frame %v, want at most %v", c.lines, med, limit)
 		}
 		if c.all && !done {
 			t.Errorf("%d lines: carets not all matched within %d frames", c.lines, c.frames)

@@ -101,7 +101,7 @@ func page(c *ui.Context) {
 
 ### 在工具栏中使用
 
-`Layout` 接受 Tango 的布局选项；需要把控件放进标题栏时，也可以直接在标题栏的 `Center` 或工具栏回调中创建它。
+`Layout` 接受 TanGo 的布局选项；需要把控件放进标题栏时，也可以直接在标题栏的 `Center` 或工具栏回调中创建它。
 
 ```go
 import (

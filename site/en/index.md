@@ -1,15 +1,15 @@
 ---
 layout: home
-title: Tango
+title: TanGo
 titleTemplate: Desktop and mobile apps in Go
 
 hero:
-  name: Tango
+  name: TanGo
   text: Desktop and mobile apps in Go
   tagline: Use the system WebView, draw the interface in Go, or mix both in one window. The WebView is the one the OS already ships, so no browser engine is bundled.
   image:
     src: /logo.svg
-    alt: Tango
+    alt: TanGo
   actions:
     - theme: brand
       text: Get started
@@ -46,14 +46,14 @@ Desktop is verified on **macOS hardware only**. Windows and Linux are cross-comp
 
 ### System WebView, no bundled engine
 
-Tango uses WKWebView, WebView2, WebKitGTK and Android WebView. Bring any frontend. Go and the page talk through calls, events and streams with backpressure.
+TanGo uses WKWebView, WebView2, WebKitGTK and Android WebView. Bring any frontend. Go and the page talk through calls, events and streams with backpressure.
 
 </div>
 <div class="home-card">
 
 ### Go-drawn GUI
 
-Components keep their state and logic in Go; Tango does layout and drawing. Rendering defaults to the GPU (Metal, Direct3D 11, OpenGL, OpenGL ES) and falls back to the CPU.
+Components keep their state and logic in Go; TanGo does layout and drawing. Rendering defaults to the GPU (Metal, Direct3D 11, OpenGL, OpenGL ES) and falls back to the CPU.
 
 </div>
 <div class="home-card">
@@ -190,7 +190,7 @@ WebView and Go-drawn pages; builds .apk and .aab. Tested on the emulator (API 36
 
 <div class="gui-showcase">
 
-![Tango Go GUI: navigation, statistics, filters and a data table](/screenshots/gui-preview.png)
+![TanGo Go GUI: navigation, statistics, filters and a data table](/screenshots/gui-preview.png)
 
 Rendered by `examples/ui-gallery`: navigation, statistics, filters and a data table.
 
@@ -219,7 +219,7 @@ Chinese is the primary documentation. Some English pages are still being transla
 
 <div class="home-footer">
 <div>
-<strong>Tango</strong>
+<strong>TanGo</strong>
 <p>A Go application framework for desktop and mobile, with system WebView and Go-drawn UI. MIT licensed.</p>
 </div>
 <div>

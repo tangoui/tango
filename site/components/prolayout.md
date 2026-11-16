@@ -46,12 +46,12 @@ var (
 
 func page(c *ui.Context) {
     ui.ProLayout(c, ui.ProLayoutConfig{
-        Title:     "Tango Admin",
+        Title:     "TanGo Admin",
         Menu:      menu,
         Selected:  &selected,
         Collapsed: &collapsed,
         UserName:  "曲丽丽",
-        Footer:    "Tango UI ©2026",
+        Footer:    "TanGo UI ©2026",
     }, func() {
         ui.Card(c, "当前页面").Body(func() { ui.Text(c, selected) })
     })
@@ -94,7 +94,7 @@ var (
 
 func page(c *ui.Context) {
     ui.ProLayout(c, ui.ProLayoutConfig{
-        Title:      "Tango Pro",
+        Title:      "TanGo Pro",
         Menu:       menu,
         Selected:   &selected,
         Collapsed:  &collapsed,
@@ -146,7 +146,7 @@ var pages = map[string]func(c *ui.Context){
 
 func page(c *ui.Context) {
     ui.ProLayout(c, ui.ProLayoutConfig{
-        Title:    "Tango Admin",
+        Title:    "TanGo Admin",
         Menu:     menu,
         Selected: &selected,
         MenuItemRender: func(it ui.MenuItem) ui.MenuItem {
@@ -191,7 +191,7 @@ var selected = "table-list"
 
 func page(c *ui.Context) {
     ui.ProLayout(c, ui.ProLayoutConfig{
-        Title:          "Tango Admin",
+        Title:          "TanGo Admin",
         Menu:           menu,
         Selected:       &selected,
         AutoBreadcrumb: true, // 列表页 / 查询表格
@@ -239,7 +239,7 @@ var (
 
 func page(c *ui.Context) {
     ui.ProLayout(c, ui.ProLayoutConfig{
-        Title:     "Tango Admin",
+        Title:     "TanGo Admin",
         Logo:      icon.Appstore,
         Menu:      menu,
         Selected:  &selected,
@@ -260,7 +260,7 @@ func page(c *ui.Context) {
             {Key: "docs", Title: "文档", OnClick: func() { selected = "home" }},
             {Key: "help", Title: "帮助"},
         },
-        Footer: "© 2026 Tango UI",
+        Footer: "© 2026 TanGo UI",
     }, func() {
         ui.Text(c, "搜索："+keyword)
     })
@@ -290,7 +290,7 @@ var (
 
 func page(c *ui.Context) {
     ui.ProLayout(c, ui.ProLayoutConfig{
-        Title: "Tango Admin", Menu: menu, Selected: &selected,
+        Title: "TanGo Admin", Menu: menu, Selected: &selected,
         ContentWidth: "Fixed",
     }, func() {
         rc := ui.RouteContext(c)
@@ -336,7 +336,7 @@ var (
 
 func page(c *ui.Context) {
     ui.ProSettingsProvider(c, &settings, func() {
-        cfg := ui.ProLayoutConfig{Title: "Tango Admin", Menu: menu, Selected: &selected, Collapsed: &collapsed}
+        cfg := ui.ProLayoutConfig{Title: "TanGo Admin", Menu: menu, Selected: &selected, Collapsed: &collapsed}
         settings.Apply(&cfg)
         ui.ProLayout(c, cfg, func() {
             ui.Text(c, "布局："+settings.Layout+"，菜单主题："+settings.NavTheme)

@@ -55,13 +55,15 @@ const ConfigFile = "tan.json"
 type Config struct {
 	// Schema is the URL of tan.json's JSON Schema, which editors use for
 	// completion and checks; tan ignores it.
-	Schema    string `json:"$schema,omitempty"`
-	Name      string `json:"name"`           // display name; also names the executable (see Exe)
-	ID        string `json:"id"`             // reverse-DNS identifier, e.g. com.example.hello
-	Version   string `json:"version"`        // x.y.z
-	Icon      string `json:"icon,omitempty"` // master icon: square, full-bleed PNG, ideally 1024×1024 (see Icons)
-	Icons     Icons  `json:"icons,omitzero"` // per-platform overrides; see icons_config.go
-	Copyright string `json:"copyright,omitempty"`
+	Schema  string `json:"$schema,omitempty"`
+	Name    string `json:"name"`    // display name; also names the executable (see Exe)
+	ID      string `json:"id"`      // reverse-DNS identifier, e.g. com.example.hello
+	Version string `json:"version"` // x.y.z
+	// Features selects the compile-time desktop backend profile. Omitted means all capabilities.
+	Features  []string `json:"features,omitempty"`
+	Icon      string   `json:"icon,omitempty"` // master icon: square, full-bleed PNG, ideally 1024×1024 (see Icons)
+	Icons     Icons    `json:"icons,omitzero"` // per-platform overrides; see icons_config.go
+	Copyright string   `json:"copyright,omitempty"`
 	// Localizations are the languages the app declares to Apple platforms
 	// (CFBundleLocalizations); system-provided menu items and dialogs are
 	// localized only into these. Default: en, zh-Hans, zh-Hant, ja (the
@@ -231,6 +233,12 @@ const SchemaURL = "https://tangoui.github.io/tango/schema/tan.schema.json"
 // typos do not pass silently; a field added by a later tan is one too, and
 // the error says so.
 func ParseConfig(data []byte) (*Config, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err == nil {
+		if raw, ok := fields["features"]; ok && bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			return nil, errors.New(`tan.json: "features" must be omitted or a non-empty array`)
+		}
+	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	var c Config
@@ -260,6 +268,9 @@ func (c *Config) validate() error {
 	}
 	if !versionPattern.MatchString(c.Version) {
 		errs = append(errs, fmt.Errorf(`"version" %q must look like 1.2.3`, c.Version))
+	}
+	if _, err := configFeatures(c.Features); err != nil {
+		errs = append(errs, fmt.Errorf(`"features": %w`, err))
 	}
 	if c.HasFrontend() { // no "frontend" at all: a self-drawn UI app (package uihost)
 		if c.Frontend.Dir == "" {

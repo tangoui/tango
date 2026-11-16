@@ -50,7 +50,7 @@ There are at most 12 tabs and 4 panes in each tab. Tab close buttons end all the
 | Larger / smaller font | Cmd+= / Cmd+- | Ctrl+= / Ctrl+- |
 | Reset font | Cmd+0 | Ctrl+0 |
 
-Application shortcuts use `uihost.ShortcutWith`, which suppresses shortcuts during IME composition. Normal typing, Tab, Escape, shell Ctrl+C/Ctrl+D, selection, scrollback, copy and paste are handled by the terminal component. On macOS copying/pasting is Cmd+C/Cmd+V; on Windows/Linux it is Ctrl+Shift+C/Ctrl+Shift+V. Font size is bounded to 10–24 logical pixels.
+Application shortcuts use `uihost.ShortcutWith`, which suppresses shortcuts during IME composition. Normal typing, **shell-native completion** (`Tab` / `Shift+Tab`), Escape, shell Ctrl+C/Ctrl+D, selection, scrollback, copy and paste are handled by the terminal component. Plain `Tab` and `Shift+Tab` are forwarded unchanged to the shell; Tango does not parse the command line or draw a competing completion list. Configure completion in the shell itself (for example zsh `compinit` / `fzf-tab` or bash completion) and it will work in the Tango terminal. Do not start zsh with `-f` if you want it to load your completion configuration. On macOS copying/pasting is Cmd+C/Cmd+V; on Windows/Linux it is Ctrl+Shift+C/Ctrl+Shift+V. Font size is bounded to 10–24 logical pixels.
 
 ## Structure
 

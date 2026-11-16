@@ -1,9 +1,9 @@
 # Getting started
 
-This page takes you from nothing to a running Tango app: install the `tan` command, create a project from a template, run it in development mode, and make a release build — once for desktop and once for mobile.
+This page takes you from nothing to a running TanGo app: install the `tan` command, create a project from a template, run it in development mode, and make a release build — once for desktop and once for mobile.
 
 ::: warning Current status
-Tango is an early 0.x release. The desktop backends are verified on **macOS** hardware; the Windows and Linux backends are implemented and pass cross-compilation and CI smoke tests, but have not been verified systematically on real machines. Mobile (iOS, Android) is **experimental**: verified on simulators/emulators only, not on devices.
+TanGo is an early 0.x release. The desktop backends are verified on **macOS** hardware; the Windows and Linux backends are implemented and pass cross-compilation and CI smoke tests, but have not been verified systematically on real machines. Mobile (iOS, Android) is **experimental**: verified on simulators/emulators only, not on devices.
 :::
 
 ## Requirements
@@ -54,7 +54,7 @@ cd hello
 | `-id` | `com.example.<name>` | reverse-DNS app id (bundle id / applicationId) |
 | `-module` | directory name | Go module path |
 | `-mobile` | `true` | write the `ios` and `android` sections of tan.json |
-| `-local` | | use a local Tango checkout (replace directive) |
+| `-local` | | use a local TanGo checkout (replace directive) |
 
 | Template | Contents |
 |---|---|

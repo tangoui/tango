@@ -26,7 +26,7 @@ import (
 )
 
 func page(c *ui.Context) {
-    ui.Watermark(c, "Tango UI").Body(func() {
+    ui.Watermark(c, "TanGo UI").Body(func() {
         ui.Column(c, func() {
             ui.Text(c, "这段内容带有水印").Strong()
             ui.Text(c, "水印绘制在内容上方，但不会阻止下方控件接收点击。").Secondary()
@@ -53,7 +53,7 @@ import (
 )
 
 func page(c *ui.Context) {
-    ui.Watermark(c, "Tango", "内部资料 请勿外传").
+    ui.Watermark(c, "TanGo", "内部资料 请勿外传").
         FontSize(14).
         Weight(text.Semibold).
         Color(theme.Fade(c.Theme.Error.Base, 0.2)).

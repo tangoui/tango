@@ -225,6 +225,9 @@ func loadCanvas() {
 
 // NewCanvasSurface implements platform.CanvasCreator.
 func (b *backend) NewCanvasSurface(sid platform.SurfaceID, opts platform.SurfaceOptions, ex platform.SurfaceExtras, sink platform.CanvasSink) (platform.Surface, platform.Canvas, error) {
+	if !profileCanvasEnabled {
+		return nil, nil, profileCanvasError()
+	}
 	if sink == nil {
 		return nil, nil, errors.New("tango/darwin: NewCanvasSurface: nil sink")
 	}

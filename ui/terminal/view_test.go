@@ -244,6 +244,17 @@ func TestViewEscInsideModal(t *testing.T) {
 	}
 }
 
+// TestViewShellCompletionKeysForwarded keeps completion in the shell: Tango
+// must not inspect the command line or replace the shell's completion UI.
+func TestViewShellCompletionKeysForwarded(t *testing.T) {
+	g := newViewRig(t, 400, 200, nil)
+	g.focus()
+	g.d.Key(input.KeyTab, 0)
+	g.waitInput("\t")
+	g.d.Key(input.KeyTab, input.ModShift)
+	g.waitInput("\t\x1b[Z")
+}
+
 func TestViewCtrlTabLeaves(t *testing.T) {
 	g := newViewRig(t, 400, 300, func(c *ui.Context, view func()) {
 		ui.Column(c, func() {

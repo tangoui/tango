@@ -4,7 +4,7 @@ outline: [2, 3]
 ---
 # 代码编辑器在线演示
 
-Tango 的代码编辑器位于 `github.com/tangoui/tango/ui/editor`。下面直接运行 Go 编写的 `editor.View`，可编辑示例代码，并使用同一套模型、语法分词、选区和撤销历史。
+TanGo 的代码编辑器位于 `github.com/tangoui/tango/ui/editor`。下面直接运行 Go 编写的 `editor.View`，可编辑示例代码，并使用同一套模型、语法分词、选区和撤销历史。
 
 ## 在线编辑
 

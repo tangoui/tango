@@ -32,7 +32,7 @@ func page(c *ui.Context) {
     case "events":
         ui.Text(c, "Calls, events and streams")
     default:
-        ui.Text(c, "Build your interface with Tango")
+        ui.Text(c, "Build your interface with TanGo")
     }
 }
 ```

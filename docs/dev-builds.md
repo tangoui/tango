@@ -24,6 +24,8 @@ Tango 只有一个构建开关：`tango_dev` 构建标签。
 
 默认构建仍会读取几个面向用户排障的变量：`TANGO_RENDERER`（自绘窗口渲染器）、`TANGO_TEXT_ENGINE`（文字引擎）、`TANGO_LINUX_TRAY`、`TANGO_ATSPI_EMBED`、`TANGO_WINDOWS_TOAST=0`（Windows 通知回退到气泡）。它们只在已有实现之间切换，不会加载外部代码或打开通道。
 
+macOS 可选 `TANGO_TEXT_ENGINE=coretext`：无换行短文本使用 CoreText glyph-run 排版和系统字体回退，glyph 仍走 Tango 的 CoreText raster；换行、RTL、编辑器行缓存和不适合的文本自动回退 go-text/HarfBuzz。它是轻量/实验路径，CoreText 的字距与 go-text 可能存在平台差异；未设置时保持默认 go-text/HarfBuzz 路径。
+
 iOS 模拟器自测要用这些钩子，但 `tan build`（`mobile/ios/build.sh` 也走它）会去掉 `tango_dev`。所以 iOS 另有一个只编进测试钩子的标签 `tango_selftest`：`tan build` 保留 `GOFLAGS` 里除 `tango_dev` 以外的标签，`GOFLAGS=-tags=tango_selftest bash mobile/ios/build.sh <应用> simulator` 构建出带钩子的 .app（`scripts/smoke.sh ios-probe`、`ios-selftest` 就这样构建）。`tango_selftest` 不链接自动化通道、热加载或开发代理，只打开上表那几个自测钩子。不带这两个标签的 iOS 构建不读这些变量，桥接代码里的探测路由也不编译进去。快速通道的关闭开关（`TANGO_IPC_LANES_DARWIN=0`/`false`/`off`、`TANGO_IPC_LANES=0`）在所有构建里都生效。
 
 Android 同样用 `tango_selftest`：`GOFLAGS=-tags=tango_selftest bash mobile/android/build.sh <应用>`（`scripts/smoke.sh android-selftest`、`android-lanefault` 就这样构建）。Android 进程没法从外部拿到环境变量，所以测试钩子构建另读启动 Intent 的字符串数组 extra `TANGO_TEST_ENV`：`adb shell am start -n <包名>/org.tango.host.TangoActivity --esa TANGO_TEST_ENV TANGO_A=1,TANGO_B=2`（`am` 按逗号拆分，所以值里不能有逗号），只接受 `TANGO_` 开头的键，在 `main.main` 运行之前 `os.Setenv`。Java 侧只在可调试 APK（`tan build -debug`，`mobile/android/build.sh` 的默认）里交出这个 extra。`TANGO_ANDROID_NO_ARRAYBUFFER=1` 让 Go 把 WebView 当成不支持 ArrayBuffer 消息（测试没有通道时的回退）。不带这两个标签的 Android 构建不读这些输入，`android.LaneStatsSnapshot` 始终为零；`TANGO_IPC_LANES_ANDROID` 是正式开关，任何构建都读。
@@ -40,6 +42,10 @@ Android 同样用 `tango_selftest`：`GOFLAGS=-tags=tango_selftest bash mobile/a
 `text.TrimCaches()` 仅清排版缓存；`text.TrimFontCaches()` 还丢弃注册表持有的系统字体链。平台低内存通知会同时调用每个窗口的 `runner.TrimCaches()`，清理 CPU 字形遮罩、变换图片、阴影缓存及 GPU 可重建缓存并请求重绘，避免这些缓存继续持有旧字体。桌面应用也可以在自己的低内存策略中，在主线程上依次调用 `text.TrimFontCaches()` 和 `runner.TrimCaches()`。`paint.CPU.Trim()` 保留当前帧像素，不会立即把窗口清空。
 
 仍被当前页面、`Layout` 或编辑器 `LineCache` 引用的字体继续有效，不会被提前销毁；macOS 的原生字体资源随最后一个拥有者不可达，由 Go cleanup 释放。回收不强制全局 GC，也不承诺物理内存立即下降。当前没有默认空闲计时器，避免多个活动窗口频繁丢弃彼此正在使用的字体链。
+
+## macOS 原生轻量宿主（`macoslite`）
+
+`macoslite` 是独立于 `uihost.Open` 的 macOS 小窗口宿主：只通过 purego 调 AppKit、CoreGraphics、CoreText，不加载 Tango App、WebView、`ui.Runner`、布局、无障碍或 GPU 渲染器，用于设置、更新器、提示这类小型工具窗口。非 macOS 平台 `New` 返回 `ErrUnsupported`。参考窗口 `examples/macoslite-counter` 空闲约 26 MiB（`scripts/macoslite-memory.sh`）；设计见 `docs/specs/macos-native-lite-design.md`。
 
 ## `tango_release` 已废弃
 

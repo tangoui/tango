@@ -8,7 +8,7 @@ This page records **file sizes that you can reproduce**. Runtime memory, CPU and
 
 ## Environment
 
-- 2026-11-14, Tango `main` @ `be5c620+`, Apple M4 host, Go 1.27.2.
+- 2026-11-14, TanGo `main` @ `be5c620+`, Apple M4 host, Go 1.27.2.
 - `CGO_ENABLED=0` cross-compilation, `-trimpath -ldflags='-s -w -buildid='`. 1 MiB = 1,048,576 bytes.
 - WebView sample: one window loading `https://example.com`. Go-drawn sample: `uihost.Open` with one `ui.Button`.
 

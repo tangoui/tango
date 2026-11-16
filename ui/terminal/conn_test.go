@@ -22,10 +22,22 @@ type pipeConn struct {
 	inR  *io.PipeReader // test reads terminal input
 	inW  *io.PipeWriter // terminal writes input
 
-	mu          sync.Mutex
-	resizes     [][4]int
-	closed      int
-	lateResizes int // Resize calls after Close
+	mu      sync.Mutex
+	resizes [][4]int
+	closed  int
+	// closeReturned is set by the test once Terminal.Close has returned;
+	// lateResizes counts Resize calls after that. A Resize that was
+	// already under way may reach the Conn while Close runs (Close has
+	// to close the Conn to unblock it), but none may start afterwards.
+	closeReturned bool
+	lateResizes   int
+}
+
+// markCloseReturned records that Terminal.Close has returned.
+func (c *pipeConn) markCloseReturned() {
+	c.mu.Lock()
+	c.closeReturned = true
+	c.mu.Unlock()
 }
 
 func newPipeConn() *pipeConn {
@@ -40,7 +52,7 @@ func (c *pipeConn) Write(b []byte) (int, error) { return c.inW.Write(b) }
 
 func (c *pipeConn) Resize(cols, rows, w, h int) error {
 	c.mu.Lock()
-	if c.closed > 0 {
+	if c.closeReturned {
 		c.lateResizes++
 	}
 	c.resizes = append(c.resizes, [4]int{cols, rows, w, h})
@@ -413,12 +425,13 @@ func TestTerminalResizeRacingClose(t *testing.T) {
 			}()
 		}
 		closeWithin(t, term, 5*time.Second)
-		wg.Wait()
+		c.markCloseReturned()
+		wg.Wait() // resizers still running must not reach the Conn
 		c.mu.Lock()
 		late := c.lateResizes
 		c.mu.Unlock()
 		if late != 0 {
-			t.Fatalf("%d Conn.Resize calls after Close", late)
+			t.Fatalf("%d Conn.Resize calls after Close returned", late)
 		}
 		v := term.Lock()
 		cols, rows := v.Screen().Size()
@@ -444,14 +457,15 @@ func TestTerminalStartRacingClose(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(2)
 		go func() { defer wg.Done(); term.Start(10, 3, func() {}) }()
-		go func() { defer wg.Done(); term.Close() }()
+		go func() { defer wg.Done(); term.Close(); c.markCloseReturned() }()
 		wg.Wait()
-		term.Close() // waits for any loop Start launched
+		term.Close()                 // waits for any loop Start launched
+		term.Start(20, 5, func() {}) // after Close: no-op
 		c.mu.Lock()
 		late := c.lateResizes
 		c.mu.Unlock()
 		if late != 0 {
-			t.Fatalf("%d Conn.Resize calls after Close", late)
+			t.Fatalf("%d Conn.Resize calls after Close returned", late)
 		}
 		if n := exits.Load(); n > 1 {
 			t.Fatalf("OnExit called %d times", n)

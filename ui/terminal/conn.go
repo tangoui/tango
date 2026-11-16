@@ -426,6 +426,13 @@ func (t *Terminal) Send(b []byte) {
 	signal(t.wake)
 }
 
+// resizeConn calls Conn.Resize unless Close has begun. It does not hold
+// smu across the call, so a blocking platform resize cannot block Close:
+// Close marks closing, closes the Conn (which unblocks the call) and then
+// waits for resizeMu. A call that passed the check just before Close
+// began may therefore reach a Conn that Close has just closed; the Conn
+// returns an error, which is ignored. No call starts once Close has
+// returned.
 func (t *Terminal) resizeConn(cols, rows, wpx, hpx int) {
 	t.resizeMu.Lock()
 	defer t.resizeMu.Unlock()
@@ -440,7 +447,9 @@ func (t *Terminal) resizeConn(cols, rows, wpx, hpx int) {
 // Resize resizes the emulator to cols×rows cells and tells the program
 // the new size, in cells and pixels. A Conn implementation must let Close
 // unblock a concurrent Resize; Resize is never called while holding the
-// lifecycle mutex. A Conn error is ignored.
+// lifecycle mutex. A Conn error is ignored. Resize does nothing after
+// Close has returned; one that races Close may still reach the Conn after
+// it was closed (see resizeConn).
 func (t *Terminal) Resize(cols, rows, wpx, hpx int) {
 	if t.isClosing() {
 		return

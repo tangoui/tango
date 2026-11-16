@@ -206,7 +206,7 @@ export default defineConfig({
       pageData.frontmatter.aside = false;
     }
   },
-  title: "Tango",
+  title: "TanGo",
   cleanUrls: true,
   // Doc comments mention dev-server URLs such as http://localhost:5173.
   ignoreDeadLinks: "localhostLinks",
@@ -236,7 +236,7 @@ export default defineConfig({
         outline: { level: [2, 3], label: "本页内容" },
         docFooter: { prev: "上一页", next: "下一页" },
         editLink: { pattern: `${repo}/edit/main/site/:path`, text: "在 GitHub 上编辑此页" },
-        footer: { message: "以 MIT 许可发布", copyright: "Copyright © 2026 Tango contributors" },
+        footer: { message: "以 MIT 许可发布", copyright: "Copyright © 2026 TanGo contributors" },
         darkModeSwitchLabel: "外观",
         sidebarMenuLabel: "菜单",
         returnToTopLabel: "回到顶部",
@@ -257,7 +257,7 @@ export default defineConfig({
         ],
         sidebar: enSidebar,
         editLink: { pattern: `${repo}/edit/main/site/:path`, text: "Edit this page on GitHub" },
-        footer: { message: "Released under the MIT License", copyright: "Copyright © 2026 Tango contributors" },
+        footer: { message: "Released under the MIT License", copyright: "Copyright © 2026 TanGo contributors" },
       },
     },
   },

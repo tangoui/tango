@@ -1,6 +1,6 @@
 # push：远程推送通知
 
-`push` 把应用注册到推送服务，拿到设备令牌（token）交给你的服务器，并报告应用运行时收到的推送和用户点击的推送。iOS 走 APNs；Android 走 Firebase Cloud Messaging（FCM），但 Tango 不打包 Google 服务，需要应用自己接入。
+`push` 把应用注册到推送服务，拿到设备令牌（token）交给你的服务器，并报告应用运行时收到的推送和用户点击的推送。iOS 走 APNs；Android 走 Firebase Cloud Messaging（FCM），但 TanGo 不打包 Google 服务，需要应用自己接入。
 
 ```go
 import "github.com/tangoui/tango/sys/push"

@@ -149,7 +149,7 @@ func packageFlatpak(ctx context.Context, cfg *Config, a artifact, icons map[stri
 	made := []string{manifest}
 
 	arch := flatpakArch(a.target.Arch)
-	bundle := filepath.Join(parent, artifactBase(cfg, a.target)+".flatpak")
+	bundle := filepath.Join(parent, artifactBaseOf(cfg, a)+".flatpak")
 	repo, buildDir := filepath.Join(dir, "repo"), filepath.Join(dir, "build")
 	builderArgs := []string{"--arch=" + arch, "--force-clean", "--repo=" + repo, buildDir, manifest}
 	bundleArgs := []string{"build-bundle", "--arch=" + arch, repo, bundle, cfg.ID}

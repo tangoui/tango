@@ -140,7 +140,7 @@ func borderBeamTogglePage(c *ui.Context) {
 
 - 默认渐变使用当前主题的 `Primary.Hover` 到 `Primary.Base`；不传 `Color` 或 `Gradient` 时无需硬编码颜色。
 - 组件没有独立的公开 token 结构，尺寸、圆角和布局由 `BorderBeamW` 的方法及包裹内容主题共同决定。
-- Ant Design、Element Plus 和 shadcn 都保留 BorderBeam 作为 Tango 的装饰扩展；基础卡片、按钮和文字仍使用各自主题令牌。
+- Ant Design、Element Plus 和 shadcn 都保留 BorderBeam 作为 TanGo 的装饰扩展；基础卡片、按钮和文字仍使用各自主题令牌。
 
 ## 注意事项
 

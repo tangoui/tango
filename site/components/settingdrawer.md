@@ -42,7 +42,7 @@ var settingMenu = []ui.MenuItem{
 func settingDrawerPage(c *ui.Context) {
     ui.ProSettingsProvider(c, &settingState, func() {
         cfg := ui.ProLayoutConfig{
-            Title: "Tango Admin", Menu: settingMenu,
+            Title: "TanGo Admin", Menu: settingMenu,
             Selected: &settingSelected, Collapsed: &settingCollapsed,
         }
         settingState.Apply(&cfg)
@@ -99,7 +99,7 @@ var (
 func settingApplyPage(c *ui.Context) {
     ui.ProSettingsProvider(c, &appliedSettings, func() {
         cfg := ui.ProLayoutConfig{
-            Title: "Tango Pro", Selected: &appliedSelected,
+            Title: "TanGo Pro", Selected: &appliedSelected,
             Menu: []ui.MenuItem{{Key: "dashboard", Label: "仪表盘"}},
         }
         appliedSettings.Apply(&cfg)
@@ -178,7 +178,7 @@ func settingChangePage(c *ui.Context) {
 
 - Ant Design Pro 默认是深色菜单、side 布局、Fluid 内容、固定顶栏和固定侧栏；`NavTheme` 可选 `"light"`、`"dark"`、`"realDark"`。
 - Element Plus 使用对应主题令牌和亮色布局；shadcn 侧栏使用其 dashboard 风格，`Light()` 等经典深色侧栏选项不改变 shadcn 的固定外观。
-- `ProSettingsProvider` 会把 `realDark` 转成暗色主题、`PrimaryColor` 转成主色、`Compact` 转成紧凑尺寸、`ColorWeak` 转成高对比主题；Tango 没有 CSS 滤镜，色弱模式使用 `theme.HighContrast`。
+- `ProSettingsProvider` 会把 `realDark` 转成暗色主题、`PrimaryColor` 转成主色、`Compact` 转成紧凑尺寸、`ColorWeak` 转成高对比主题；TanGo 没有 CSS 滤镜，色弱模式使用 `theme.HighContrast`。
 - SettingDrawer 自身的默认隐藏项来自 `ConfigProvider.Defaults("SettingDrawer", ...)`：`hideColors`、`hideLayout`、`hideOther`。
 
 ## 注意事项

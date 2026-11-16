@@ -68,6 +68,6 @@ bind.Register(r, "Photos", Photos{app})
 
 ## 注意
 
-- **权限**：`Pick` 使用系统选择器，在独立进程中运行，**不需要**相册权限。`TakePhoto` 在 iOS 上需要 `NSCameraUsageDescription`（`tan.json` 的 `permissions` 加 `"camera"`），缺少时返回 `ErrNotConfigured`；Android 上拍照走系统相机，不声明 `CAMERA` 也能用，但一旦声明，Tango 会先请求授权。见 [tan.json](/reference/tan-json)。
+- **权限**：`Pick` 使用系统选择器，在独立进程中运行，**不需要**相册权限。`TakePhoto` 在 iOS 上需要 `NSCameraUsageDescription`（`tan.json` 的 `permissions` 加 `"camera"`），缺少时返回 `ErrNotConfigured`；Android 上拍照走系统相机，不声明 `CAMERA` 也能用，但一旦声明，TanGo 会先请求授权。见 [tan.json](/reference/tan-json)。
 - **文件位置**：iOS 为 `Library/Caches/tango-media`，Android 为 `cache/tango-media`。用完请删除。
 - 用户取消返回 `ErrCanceled`；桌面返回 `ErrUnsupported`；应用退出后返回 `tango.ErrNotRunning`。

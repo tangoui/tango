@@ -86,7 +86,7 @@ func stableMasonry(c *ui.Context) {
 
 ### 未知高度与估计值
 
-不提供 `ItemHeight` 时，Tango 会在绘制后测量项目高度；首帧使用 `EstimatedHeight` 排布，实测后再修正。
+不提供 `ItemHeight` 时，TanGo 会在绘制后测量项目高度；首帧使用 `EstimatedHeight` 排布，实测后再修正。
 
 ```go
 import (

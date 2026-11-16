@@ -31,7 +31,7 @@ type article struct {
 }
 
 var articles = []article{
-    {"Tango 自绘 UI 入门", "用纯 Go 画界面，不需要 WebView。", "Ann"},
+    {"TanGo 自绘 UI 入门", "用纯 Go 画界面，不需要 WebView。", "Ann"},
     {"即时模式与状态", "状态放在你的 Go 变量里，组件每帧读取。", "Bob"},
     {"主题与令牌", "Ant Design、Element Plus、shadcn 三套风格。", "Cara"},
 }

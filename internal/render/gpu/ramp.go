@@ -48,7 +48,6 @@ type rampRow struct {
 func newRampCache() *rampCache {
 	return &rampCache{
 		seed:  maphash.MakeSeed(),
-		pix:   make([]byte, rampRows*rampStride),
 		byKey: map[uint64]int{},
 	}
 }
@@ -107,6 +106,10 @@ func sameStops(a, b []paint.Stop) bool {
 
 // write puts the ramp of stops into row i.
 func (c *rampCache) write(i int, k uint64, stops []paint.Stop) {
+	if c.pix == nil {
+		c.pix = make([]byte, rampRows*rampStride)
+		c.sent = false // earlier frames only bound an empty texture
+	}
 	ramp := paint.GradientRamp(stops)
 	px := paint.RampPremul(&ramp)
 	dst := c.pix[i*rampStride:][:rampStride]
@@ -134,6 +137,9 @@ func (c *rampCache) hash(stops []paint.Stop) uint64 {
 // when the device may not hold it, else one upload per run of consecutive
 // rows written this frame.
 func (c *rampCache) uploads(ups []Upload) []Upload {
+	if c.pix == nil {
+		return ups
+	}
 	const stride = rampStride
 	if !c.sent {
 		return append(ups, Upload{Tex: TexRamp, Rect: image.Rect(0, 0, paint.RampWidth, rampRows), Pix: c.pix, Stride: stride})
@@ -156,4 +162,9 @@ func (c *rampCache) uploads(ups []Upload) []Upload {
 }
 
 // size is the ramp texture's size.
-func (c *rampCache) size() image.Point { return image.Pt(paint.RampWidth, rampRows) }
+func (c *rampCache) size() image.Point {
+	if c.pix == nil {
+		return image.Point{}
+	}
+	return image.Pt(paint.RampWidth, rampRows)
+}

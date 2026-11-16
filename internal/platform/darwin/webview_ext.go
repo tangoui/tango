@@ -145,6 +145,9 @@ var pendingWeb *platform.WebOptions
 // NewSurfaceWeb implements platform.WebCreator: the user agent is set
 // before the first request. Extra headers are not supported.
 func (b *backend) NewSurfaceWeb(sid platform.SurfaceID, opts platform.SurfaceOptions, ex platform.SurfaceExtras, web platform.WebOptions) (platform.Surface, error) {
+	if !profileWebViewEnabled {
+		return nil, profileWebViewError()
+	}
 	pendingWeb = &web
 	defer func() { pendingWeb = nil }()
 	return b.newSurface(sid, opts, &ex)

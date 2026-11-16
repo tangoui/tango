@@ -452,7 +452,6 @@ func (r *Runner) build() {
 	clear(c.counters)
 	c.resetRootEnv()
 	c.beginNodeReuse()
-	c.resetFrameAllocations()
 	c.root = c.takeNode(hashID("root"))
 	resetNode(c.root)
 	c.root.id = hashID("root")

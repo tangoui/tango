@@ -445,7 +445,7 @@ func packageRPM(cfg *Config, a artifact, icons map[string][]byte) (string, error
 		sig = append(sig, 0)
 	}
 
-	out := filepath.Join(filepath.Dir(a.dir), artifactBase(cfg, a.target)+".rpm")
+	out := filepath.Join(filepath.Dir(a.dir), artifactBaseOf(cfg, a)+".rpm")
 	var b bytes.Buffer
 	b.Write(rpmLead(name+"-"+version+"-"+release, arch))
 	b.Write(sig)
