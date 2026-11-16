@@ -94,6 +94,7 @@ func renderShell(c *ui.Context) {
 							ui.Text(c, filepath.Dir(documents.session.path)).Size(th.FontSizeSM).Secondary().NoWrap().Ellipsis().Layout(layout.Grow(1))
 						}, layout.H(th.ControlHeightSM), layout.PadVH(0, th.PaddingSM), layout.Middle()).Bg(th.BgContainer)
 					}
+					search.render(c, active)
 					renderEditorPanes(c)
 				}, layout.Grow(1), layout.MinW(0), layout.MinH(0)).Bg(th.BgContainer).Clip()
 			})
@@ -157,8 +158,10 @@ func runShellAction(key string) {
 		documents.setSplit(!documents.split)
 	case "wrap":
 		setDocumentWrap(!documents.wrap)
-	case "find", "replace":
-		search.open = true
+	case "find":
+		showSearch(false)
+	case "replace":
+		showSearch(true)
 	case "palette":
 		paletteTarget, paletteOpen = active, true
 	case "settings":

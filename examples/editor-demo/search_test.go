@@ -1,6 +1,9 @@
 package main
 
 import (
+	"github.com/tangoui/tango/ui/a11y"
+	"github.com/tangoui/tango/ui/input"
+	"strings"
 	"testing"
 
 	"github.com/tangoui/tango/ui/editor"
@@ -83,5 +86,68 @@ func TestReplaceMissingReportsNoMatches(t *testing.T) {
 	p.replace(v)
 	if p.status != "No matches" {
 		t.Fatalf("status=%q", p.status)
+	}
+}
+
+func TestSearchPanelIsInlineAndRestoresEditorFocus(t *testing.T) {
+	d := shellDriver(t, 1200)
+	st.Insert("// one two one\n")
+	showSearch(false)
+	d.Frame()
+	d.Frame()
+	if _, ok := d.A11yFind(a11y.RoleDialog, "Find and Replace"); ok {
+		t.Fatal("search still uses a blocking modal")
+	}
+	query, ok := d.A11yFind(a11y.RoleTextbox, "Find text")
+	if !ok {
+		t.Fatal("inline query missing")
+	}
+	if query.Bounds.W < 160 || query.Bounds.Y > 180 {
+		t.Fatalf("query outside editor header: %+v", query.Bounds)
+	}
+	d.Type("one")
+	d.Key(input.KeyEnter, 0)
+	d.Frame()
+	if st.Snapshot().Slice(st.Primary().Anchor, st.Primary().Head) != "one" {
+		t.Fatal("Enter did not select a match")
+	}
+	if err := d.ClickLabel("Previous match"); err != nil {
+		t.Fatal(err)
+	}
+	d.Frame()
+	if err := d.ClickLabel("Close search"); err != nil {
+		t.Fatal(err)
+	}
+	d.Frame()
+	d.Frame()
+	if search.open {
+		t.Fatal("search did not close")
+	}
+	if n := d.A11yFocused(); n == nil || n.Name != "main.go" {
+		t.Fatalf("focus not restored to editor: %+v", n)
+	}
+}
+
+func TestInlineReplaceWorksWithoutCoveringEditor(t *testing.T) {
+	d := shellDriver(t, 480)
+	showSearch(true)
+	search.query = "Hello"
+	search.replacement = "Hi"
+	d.Frame()
+	d.Frame()
+	if err := d.ClickLabel("Replace all"); err != nil {
+		t.Fatal(err)
+	}
+	d.Frame()
+	if !strings.Contains(st.Snapshot().String(), "Hi, Tango") {
+		t.Fatal("inline replace all did not apply")
+	}
+	if n, ok := d.A11yFind(a11y.RoleTextbox, "main.go"); !ok || n.Bounds.H < 300 {
+		t.Fatal("search hid the code viewport")
+	}
+	d.Key(input.KeyEscape, 0)
+	d.Frame()
+	if search.open {
+		t.Fatal("Escape did not close inline search")
 	}
 }

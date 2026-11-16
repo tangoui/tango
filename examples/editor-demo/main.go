@@ -1,7 +1,7 @@
 // Command editor-demo opens the Tango code editor view (ui/editor) in a
 // real window.
 //
-//	go run ./examples/editor-demo                       # 10 000 generated TypeScript lines
+//	go run ./examples/editor-demo                       # readable TypeScript welcome sample
 //	go run ./examples/editor-demo -gen-lines 1000000    # ~100 MB, 1M lines (spec 6.6)
 //	go run ./examples/editor-demo -file main.go -theme vs
 //	go run ./examples/editor-demo -renderer cpu         # force the CPU renderer
@@ -10,8 +10,8 @@
 //	go run ./examples/editor-demo -diff old.go new.go   # diff view (ui/editor/diffview)
 //	go run ./examples/editor-demo -diff -inline -fold old.go new.go
 //
-// The toolbar opens files, saves them, saves generated content with Save As,
-// and opens a find/replace panel. Dropping a file onto the window or opening
+// The File menu opens files, saves them, saves generated content with Save As,
+// and Edit opens an inline find/replace panel. Dropping a file onto the window or opening
 // a file through the operating system uses the same document workflow; dirty
 // documents ask whether to save before replacement or close.
 //
@@ -320,14 +320,6 @@ func page(c *ui.Context) {
 			}
 			ui.Text(c, "Commands without arguments only; preconditions/read-only rules still apply.")
 		})
-		if documents != nil {
-			wasOpen := search.open
-			search.render(c, active)
-			if wasOpen && !search.open {
-				focused = false
-				ui.Invalidate(c.Window())
-			}
-		}
 	})
 	if auto != nil && diffState == nil {
 		auto.frame(c)
@@ -482,8 +474,8 @@ func openDemoWindow(title string, ropts ui.RunnerOptions) (*ui.Runner, *tango.Su
 	}{
 		{"CmdOrCtrl+O", openDocumentDialog},
 		{"CmdOrCtrl+S", func() { saveDocument() }},
-		{"CmdOrCtrl+F", func() { search.open = true }},
-		{"CmdOrCtrl+H", func() { search.open = true }},
+		{"CmdOrCtrl+F", func() { showSearch(false) }},
+		{"CmdOrCtrl+H", func() { showSearch(true) }},
 		{"CmdOrCtrl+Shift+S", func() { saveAsDocument() }},
 		{"CmdOrCtrl+Shift+P", func() { runShellAction("palette") }},
 	} {
@@ -537,14 +529,18 @@ func main() {
 		defer diffOrigHL.Close()
 		defer background.Close()
 		name = flag.Arg(1)
-	} else if *file != "" {
-		b, err := os.ReadFile(*file)
+	} else {
+		explicitGenerator := *autoFlag
+		flag.Visit(func(f *flag.Flag) {
+			if f.Name == "gen-lines" {
+				explicitGenerator = true
+			}
+		})
+		var err error
+		name, text, err = startupDocument(*file, *genLines, explicitGenerator)
 		if err != nil {
 			log.Fatal(err)
 		}
-		text, name = string(b), *file
-	} else {
-		text, name = genTS(*genLines), "generated.ts"
 	}
 	if !*diffFlag {
 		setupDocument(name, text, theme.Base(*themeName), *split, *wrap)
