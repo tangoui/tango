@@ -373,3 +373,5 @@ Go 有消息时用一批消息（字符串消息、字节包、`Eval` 栅栏）�
 兼容性：旧 runtime-js 不带 `win`，Go 回落 1 MiB；旧 Go 忽略 hello 的 `win` 和未知 `win` 消息，页面仍按 1 MiB 工作；非法、过小和超大窗口分别有 Go 测试。`go test -race`、runtime-js 173 tests、contract check、三平台 vet 均通过；WKWebView e2e 结果见本轮报告。
 
 本轮专项验证：`go test -count=1 -race . ./ipc ./internal/downq ./internal/lane`、runtime-js 173 项测试、`npm run contract:check`、Node shim 测试和三平台 `go vet` 通过。完整 `go test ./...` 仍报告已有 `jsapi/TestWireContract`，并报告 `runtime-js/runtimejs/TestEndToEndWithNode`；本轮 hello wire contract 变化需重新生成 contract，运行记录中尚未执行 `contract:update`，Node e2e 也需要单独复核。WKWebView 选择性 e2e 中 `PollAdvertised`、`EvalOrderedWithSend`、`PollBurstNoLoss` 通过（后者 5 次均 1024 帧/64 MiB 无损）；`EvalOrderedWithSend` 的轮询请求计数断言提示已有计数差异。`smokeext` 16/16 通过。
+
+（合并 `feat/down-poll` 到 main 时补记：上面两项已解决。hello 的 `win` 不在 wire contract（`api/jsapi-methods.txt`）里，不需要 `contract:update`，`npm run contract:check` 与 `jsapi/TestWireContract` 通过；`runtime-js/runtimejs/TestEndToEndWithNode` 已改为按 JSON 比较带 `win` 的 hello，Node e2e 通过。）

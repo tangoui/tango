@@ -372,9 +372,10 @@ func (s *State) Reset() { s.Hello(nil, false) }
 // SuspendDown stops the downstream lanes of the current generation until
 // the next Hello: Send refuses and MinSize is -1. The page is navigating
 // and its successor must not receive this page's bytes on a platform lane
-// (down:android, down:shm; down:poll's own generation ends in the core's
-// downstream queue); a later ready for a downstream lane of this
-// generation does not lift it. The upstream lane and the token stay valid:
+// (down:android, down:shm). down:poll's own generation also ends in the
+// core's downstream queue, and DownCurrent reports false for the suspended
+// generation, so pollSend refuses its packets too. A later ready for a
+// downstream lane of this generation does not lift it. The upstream lane and the token stay valid:
 // a navigation may leave the page in place (a download, a failed load),
 // and its uploads in flight must still arrive.
 func (s *State) SuspendDown() {

@@ -134,8 +134,8 @@ func (s *Surface) sendLanePacket(gen uint64, p []byte) bool {
 // generation p was admitted in, is still current with its downstream lanes
 // not suspended (lane.State.DownCurrent), both checked atomically with the
 // push. A packet of a page that has gone (navigated, reloaded) thus never
-// reaches the next page's downstream generation, as main's platformSend
-// guarantees for the platform lanes.
+// reaches the next page's downstream generation, as platformSend's
+// backends do for the platform lanes (lane.New).
 func (s *Surface) sendPollPacket(gen uint64, p []byte) bool {
 	return s.downq.PushActive(downq.Packet, p, func() bool { return s.lane.DownCurrent(gen) }) != 0
 }

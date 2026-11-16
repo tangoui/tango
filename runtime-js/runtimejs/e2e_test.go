@@ -531,13 +531,13 @@ func uploadSHA() string {
 	return sha(b)
 }
 
-// equalJSON compares a and b by their JSON encodings, decoded and
-// re-encoded so that key order and number formatting do not matter.
 // pageHello is the hello runtime-js sends: the protocol version and the
 // page's per-stream receive window (DEFAULT_WINDOW_BYTES; a ready
 // down:poll raises it later with a separate "win" message).
 const pageHello = `{"tango":"hello","proto":2,"win":1048576}`
 
+// equalJSON compares a and b by their JSON encodings, decoded and
+// re-encoded so that key order and number formatting do not matter.
 func equalJSON(a, b any) bool {
 	return canonJSON(a) == canonJSON(b)
 }
