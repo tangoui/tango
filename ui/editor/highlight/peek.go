@@ -38,6 +38,34 @@ func (h *Highlighter) PeekTokens(snap buffer.Snapshot, line int, dst []monarch.T
 	return dst, false
 }
 
+// PeekCompleteTokens copies cached whole-line tokens only when they are final
+// for this exact snapshot and tokenizer start state. Accepted degraded previews
+// are final for scheduling, but are not complete token results and must miss.
+// Like PeekTokens, this never lexes, moves a window or touches window LRU order;
+// the returned tokens belong to dst, not to the cache. A miss returns dst[:0].
+func (h *Highlighter) PeekCompleteTokens(snap buffer.Snapshot, line int, dst []monarch.Token) (tokens []monarch.Token, found bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	dst = dst[:0]
+	// Versions are local to a Buffer: compare the immutable snapshot identity,
+	// not only Version, so another document with the same version cannot hit.
+	if h.lx == nil || !h.have || h.snap != snap || line < 0 || line >= h.st.n() ||
+		!h.st.final(line) || h.st.acceptedDegraded(line) {
+		return dst, false
+	}
+	start := h.startState(line)
+	for k := range h.st.wins {
+		w := &h.st.wins[k]
+		if w.contains(line) {
+			sl := &w.slots[line-w.lo]
+			if sl.ok && sl.start == start {
+				return append(dst, sl.toks...), true
+			}
+		}
+	}
+	return dst, false
+}
+
 // PeekTokenRange copies only tokens intersecting [from,to), preserving their
 // model-line byte and UTF-16 coordinates. It includes the token covering from
 // and never moves a window or lexes a line; lookup is logarithmic in the tokens.

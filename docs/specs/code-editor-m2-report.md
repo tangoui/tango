@@ -474,3 +474,29 @@ P 的原生纹理成本必须单独计入：启用过大型 retained-copy 路径
 最终工程验证：`go test ./ui/editor/... -count=1` 全部通过（editor53.274s），demo测试0.863s通过；`go test -race -p 1 ./ui/editor/... ./examples/editor-demo -count=1` 全部通过（editor553.213s、demo6.270s）。strict damage/navigation专项、darwin全仓vet/build、windows/linux的UI+demo vet及全仓交叉构建、三平台prod/dev demo `-o /dev/null`、gofmt/diff-check均通过。此前出现过既有 `TestBracketCommandsTokenize` 和 `TestActiveGuideFirstCallFast` 的时限失败，原门限隔离及最终复验通过；完整经过和日志保留在 final-fix-report，未放宽门限，也不把其起因强行归为负载。
 
 
+
+### 4.13 2026-11-16 最终候选与分项验收分类
+
+**Q：括号扫描复用完整 token 缓存。** 仅在当前 immutable snapshot、起始状态匹配、完整 final 且非 accepted-degraded 时复用；缓存不命中仍走原始 `TokenizeSpan`。真实计数测试将重复 Span Lexer 调用从 20 次降为 0、查询分配从 31 次降为 0；Reset、dirty、不同 Buffer、pending/accepted degradation、驱逐、嵌入语言和撤销/重做对照均通过。Q 独立审查为 Approved，补丁 SHA256 为 `12c466eb873b576bad941b2fae2662898ea299b2747b58f729468655ef514154`。
+
+**本机自动化 PASS：**
+- M1→最终版本 20 轮解锁 paired：mid/end/mid-bg 输入、滚动 p99/fps、100MB 打开均在相对 10% 门槛内，CI 上界最高 1.057；fps 按“越高越好”方向计算。
+- 最终默认→全关闭显示能力 40 对 mid/end：默认输入开销分别为 1.003（CI 0.997–1.011）和 1.010（CI 0.999–1.032）；mid-bg、滚动 p99/fps、打开均在门槛内。
+- 长行与 GPU 候选：F+P 离屏锁屏诊断中 1MB 换行 p95 约 4.9ms；P 让局部滚动 GPU wait 约下降 8.9%，但 fps 不显著变化。P 新增每 Device 约 33.18MB spare target，原生内存预算必须单列。F/P/Q、严格像素/生命周期/错误回退、编辑器回归、默认/CI预算回归均通过。
+- 真实窗口 smoke：解锁、1920×1080逻辑像素、DPR2、Metal、100MB文件，自动滚动/输入回调约60Hz，截图有实际语法高亮正文；回调不是GPU fence/presentation feedback，不能替代端到端呈现验收。
+
+**NOT TESTED / NOT PROVEN：**
+- Monaco trace 采到 14,504 条事件，并建立了部分 renderer→surface→FrameSink→display 聚合链；8 个更新均缺少可验证的完整 `FrameDisplayed` 身份/硬件完成反馈，因此 Monaco GPU-complete E2E/FPS 保持 unverified，不把历史 headless 667.8fps当呈现门槛证据。
+- 中文 IME 真实组字、Windows 实机、用户可见窗口的逐帧 present/vsync 关联仍待人工/平台验收。屏幕实际显示器为 3840×2160、1920×1080@60Hz；原生 smoke 证明窗口可运行，不证明每帧硬件呈现。
+
+**FAIL / follow-up：** 多光标默认墙钟预算在完整包上下文偶发单帧尖峰（一次 22.67ms）；线程 CPU 诊断显示对应样本墙钟 3.53ms而线程CPU约0.09ms、Go Runnable约3.48ms，未证明是产品 CPU 工作，也未修改门槛。该边界需后续可控调度/平台验收，不以一次孤立通过关闭。
+
+因此本次结论是：**本机自动化性能与分项实现 PASS；严格 Monaco GPU-complete、IME、Windows 和偶发墙钟尖峰为 NOT TESTED/FAIL follow-up，不宣称完整 M2 规格验收通过。**
+
+### 4.14 多光标墙钟尖峰 Task R 诊断（2026-11-16）
+
+`scanOpen` 的过期帧协作缺口已用 overlay 红灯确认，但现有计数显示其累计工作约 157.9 µs，失败帧没有 OpenSteps；Q后唯一完整包诊断中，17字节行的 3.531 ms 墙钟样本仅 0.090 ms 同线程CPU、约3.482 ms Go Runnable。因此不能把旧的22 ms墙钟尖峰归因于scanOpen或重复Span分词，也不能扩大 gateLimit 伪造通过。保持产品与门槛不变；该项列为平台调度/测试条件待隔离诊断。
+
+### 4.14 多光标墙钟尖峰 Task R 诊断（2026-11-16）
+
+`scanOpen` 的过期帧协作缺口已用 overlay 红灯确认，但现有计数显示其累计工作约 157.9 µs，失败帧没有 OpenSteps；Q后唯一完整包诊断中，17字节行的 3.531 ms 墙钟样本仅 0.090 ms 同线程CPU、约3.482 ms Go Runnable。因此不能把旧的22 ms墙钟尖峰归因于scanOpen或重复Span分词，也不能扩大 gateLimit 伪造通过。保持产品与门槛不变；该项列为平台调度/测试条件待隔离诊断。

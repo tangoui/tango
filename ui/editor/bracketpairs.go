@@ -50,6 +50,9 @@ func (s modelBrackets) tokens(snap buffer.Snapshot, line int, text string, dst [
 	if hl == nil || len(text) > maxTokenizationLineLength {
 		return dst[:0]
 	}
+	if toks, ok := hl.PeekCompleteTokens(snap, line, dst); ok {
+		return toks
+	}
 	return hl.TokenizeSpan(snap, line, text, dst)
 }
 
