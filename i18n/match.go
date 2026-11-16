@@ -11,12 +11,19 @@ import "strings"
 // -> "zh-Hans-CN", "EN-us" -> "en-US". It returns "" for "", "C" and
 // "POSIX". It does not validate the tag.
 func Canonical(tag string) string {
+	originalLen := len(tag)
 	tag = strings.TrimSpace(tag)
 	if i := strings.IndexAny(tag, ".@"); i >= 0 {
 		tag = tag[:i]
 	}
 	if tag == "" || tag == "C" || tag == "POSIX" {
 		return ""
+	}
+	// Most calls match tags which are already canonical. Avoid splitting and
+	// rebuilding those strings; keep the existing Unicode path for everything
+	// else, including trimmed POSIX names and repeated separators.
+	if len(tag) == originalLen && canonicalASCII(tag) {
+		return tag
 	}
 	parts := strings.FieldsFunc(tag, func(r rune) bool { return r == '-' || r == '_' })
 	for i, p := range parts {
@@ -32,6 +39,50 @@ func Canonical(tag string) string {
 		}
 	}
 	return strings.Join(parts, "-")
+}
+
+// canonicalASCII recognizes precisely the unchanged subset of Canonical's
+// casing rules. It deliberately does not validate BCP 47 syntax.
+func canonicalASCII(tag string) bool {
+	if strings.IndexByte(tag, '_') >= 0 {
+		return false
+	}
+	first := true
+	for p := range strings.SplitSeq(tag, "-") {
+		if len(p) == 0 {
+			return false
+		}
+		for i := range len(p) {
+			if p[i] >= 0x80 {
+				return false
+			}
+		}
+		switch {
+		case !first && len(p) == 4 && isAlpha(p):
+			if p[0] < 'A' || p[0] > 'Z' {
+				return false
+			}
+			for i := 1; i < len(p); i++ {
+				if p[i] < 'a' || p[i] > 'z' {
+					return false
+				}
+			}
+		case !first && len(p) == 2 && isAlpha(p):
+			for i := range len(p) {
+				if p[i] < 'A' || p[i] > 'Z' {
+					return false
+				}
+			}
+		default:
+			for i := range len(p) {
+				if p[i] >= 'A' && p[i] <= 'Z' {
+					return false
+				}
+			}
+		}
+		first = false
+	}
+	return true
 }
 
 func isAlpha(s string) bool {
@@ -56,15 +107,17 @@ type tagParts struct{ lang, script, region string }
 
 func parseTag(tag string) tagParts {
 	var t tagParts
-	for i, p := range strings.Split(Canonical(tag), "-") {
+	first := true
+	for p := range strings.SplitSeq(Canonical(tag), "-") {
 		switch {
-		case i == 0:
+		case first:
 			t.lang = p
 		case len(p) == 4 && t.script == "" && t.region == "":
 			t.script = p
 		case (len(p) == 2 || len(p) == 3) && t.region == "":
 			t.region = p
 		}
+		first = false
 	}
 	return t
 }
