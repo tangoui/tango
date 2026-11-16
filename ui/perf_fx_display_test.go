@@ -114,12 +114,18 @@ func perfDisplayTimeline(c *Context, n int, changed bool) {
 	Timeline(c, items).Show()
 }
 
-func perfDisplayCollapse(n int) func(*Context) {
+// scroll=false is the gallery-sized typical Build; only Large pages use a
+// bounded scroll container, so it never inflates the typical damage bbox.
+func perfDisplayCollapse(n int, scroll bool) func(*Context) {
 	return func(c *Context) {
 		open := State(c, hashID("perf.display.collapse"), func() []string { return []string{"0"} })
 		items := make([]CollapseItem, n)
 		for i := range items {
 			items[i] = CollapseItem{Key: strconv.Itoa(i), Label: "面板 Panel " + strconv.Itoa(i+1), Body: func() { Text(c, "折叠面板内容 Panel content") }}
+		}
+		if !scroll {
+			Collapse(c, open, items).Show().Layout(layout.W(640))
+			return
 		}
 		Scroll(c, func() { Collapse(c, open, items).Show() }, layout.Size(760, 360)).Always()
 	}
@@ -134,13 +140,17 @@ func perfDisplayCarousel(n int) func(*Context) {
 	}
 }
 
-func perfDisplaySegments(n int) func(*Context) {
+func perfDisplaySegments(n int, scroll bool) func(*Context) {
 	return func(c *Context) {
 		*State[bool](c, hashID("perf.display.rtl"), nil) = c.IsRTL()
 		val := State(c, hashID("perf.display.segment"), func() string { return "0" })
 		opts := make([]Option, n)
 		for i := range opts {
 			opts[i] = Option{Label: "视图 " + strconv.Itoa(i+1), Value: strconv.Itoa(i)}
+		}
+		if !scroll {
+			Segmented(c, val, opts)
+			return
 		}
 		ScrollH(c, func() { Segmented(c, val, opts) }, layout.Size(760, 100)).Always()
 	}
@@ -385,6 +395,9 @@ func init() {
 			t := Tooltip(c, "这是一段文字提示 Tooltip", func() { Button(c, "查看提示") }).Trigger("click").Placement("bottom")
 			// Tooltip has no controlled Open API. Seed its actual retained
 			// click state before its lazy build, not a replacement overlay.
+			// The click variant is measured because the default hover trigger
+			// recomputes HoverDelay from the pointer every frame, so it cannot
+			// be open on the first build without pointer input.
 			key := hashID(t.ID(), "tooltip")
 			State(c, key, func() tooltipState { return tooltipState{open: true} })
 			*State[ID](c, hashID("perf.display.tooltip.key"), nil) = key
@@ -407,6 +420,8 @@ func init() {
 			p := Popconfirm(c, "删除任务", "确定要删除这个任务吗？", func() { Button(c, "删除").Danger() }).Placement("bottom")
 			// Popconfirm likewise exposes no controlled Open method. Keep the
 			// real component state in this driver's Context and reopen it there.
+			// Unlike a real trigger click, the seeded open state does not move
+			// focus into the bubble (no focus ring on OK); it measures the panel.
 			State(c, p.b.ID(), func() popState { return popState{open: true} })
 			*State[ID](c, hashID("perf.display.popconfirm.key"), nil) = p.b.ID()
 		}, Interact: func(r *perfRun, i int) {
@@ -416,7 +431,8 @@ func init() {
 			r.D.r.Invalidate()
 			r.D.Frame()
 		}},
-		perfFixture{Name: "Collapse", Build: perfDisplayCollapse(3), Large: perfDisplayCollapse,
+		perfFixture{Name: "Collapse", Build: perfDisplayCollapse(3, false),
+			Large:    func(n int) func(*Context) { return perfDisplayCollapse(n, true) },
 			Interact: func(r *perfRun, _ int) { perfDisplayClick(r, "面板 Panel 1") }},
 		carousel,
 		perfDisplayFixture("Calendar", func(c *Context, changed bool) {
@@ -428,7 +444,8 @@ func init() {
 			*v = time.Date(2026, 1, day, 0, 0, 0, 0, time.UTC)
 			Column(c, func() { Calendar(c, v).Card() }, layout.W(320))
 		}),
-		perfFixture{Name: "Segmented", Build: perfDisplaySegments(3), Large: perfDisplaySegments,
+		perfFixture{Name: "Segmented", Build: perfDisplaySegments(3, false),
+			Large: func(n int) func(*Context) { return perfDisplaySegments(n, true) },
 			Interact: func(r *perfRun, i int) {
 				label := "视图 2"
 				if i%2 == 1 {
@@ -490,12 +507,25 @@ func TestPerfDisplayContextIsolation(t *testing.T) {
 }
 
 func TestPerfDisplayOverlaysInitiallyOpen(t *testing.T) {
-	for _, name := range []string{"Tooltip", "Popover", "Popconfirm"} {
+	for name, text := range map[string]string{
+		"Tooltip": "这是一段文字提示 Tooltip", "Popover": "气泡卡片内容 More information", "Popconfirm": "确定要删除这个任务吗？",
+	} {
 		t.Run(name, func(t *testing.T) {
 			d := newPerfDriver(perfPage(perfRegistry[name].Build), false)
 			d.Frame()
 			if len(d.r.c.overlays) == 0 {
 				t.Fatal("overlay absent from first build")
+			}
+			r, ok := d.FindText(text)
+			if !ok {
+				t.Fatalf("overlay content %q absent from first build", text)
+			}
+			var inOverlay bool
+			for _, o := range d.r.c.overlays {
+				inOverlay = inOverlay || o.root.abs.Intersect(r) == r
+			}
+			if !inOverlay {
+				t.Fatalf("%q is not inside an open overlay", text)
 			}
 		})
 	}
@@ -560,6 +590,22 @@ func TestPerfDisplayLargeData(t *testing.T) {
 			case "Markdown":
 				if _, ok := d.FindText("段落 1000"); !ok {
 					t.Fatal("last requested paragraph absent")
+				}
+			}
+		})
+	}
+}
+
+// Typical Builds measure the gallery-sized component itself; bounded scroll
+// containers belong only to Large pages, or they inflate the damage bbox.
+func TestPerfDisplayTypicalBuildUnwrapped(t *testing.T) {
+	for _, name := range []string{"AvatarGroup", "Descriptions", "Timeline", "Collapse", "Segmented", "CodeBlock", "Markdown", "RichText"} {
+		t.Run(name, func(t *testing.T) {
+			d := newPerfDriver(perfPage(perfRegistry[name].Build), false)
+			d.Settle()
+			for _, k := range d.r.c.root.kids[0].kids {
+				if k.kind == "scroll" || k.kind == "scrollh" {
+					t.Fatalf("typical Build is wrapped in a %s container %v", k.kind, k.abs)
 				}
 			}
 		})
