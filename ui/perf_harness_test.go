@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/binary"
 	"fmt"
 	"hash/fnv"
 	"image"
@@ -167,9 +168,11 @@ func rectsUnionArea(rs []image.Rectangle) int {
 	return area
 }
 
-// perfListHash is an FNV-64a hash of the last frame's display list. Only
-// values are hashed: pointers (paths, glyph sources, images) are replaced
-// by what they hold, so two frames that paint the same thing hash equal.
+// perfListHash is an FNV-64a hash of the last frame's visual display list.
+// Presentation hints (Damage/ScrollRegion) are excluded. Paths, glyph
+// outlines and image pixels are hashed by content, never pointer identity.
+// This correctness check runs outside benchmark timing; resources are not
+// cached here, so replacing or editing one cannot leave a stale hash.
 func perfListHash(d *Driver) uint64 {
 	h := fnv.New64a()
 	for _, op := range d.r.List().Ops {
@@ -180,6 +183,8 @@ func perfListHash(d *Driver) uint64 {
 
 func perfHashOp(w io.Writer, op paint.Op) {
 	switch o := op.(type) {
+	case paint.Damage, paint.ScrollRegion:
+		return // presentation strategy, not screen content
 	case paint.FillPath:
 		fmt.Fprintf(w, "FillPath{%#v %#v}", perfPathSegs(o.Path), o.Color)
 	case paint.Gradient:
@@ -189,15 +194,35 @@ func perfHashOp(w io.Writer, op paint.Op) {
 	case paint.Text:
 		fmt.Fprintf(w, "Text{%#v %#v", o.Origin, o.Color)
 		for _, g := range o.Glyphs {
-			fmt.Fprintf(w, " %T %d %g %g %g %g", g.Src, g.ID, g.Size, g.X, g.Y, g.Skew)
+			var p *paint.Path
+			if g.Src != nil {
+				p = g.Src.GlyphPath(g.ID, g.Size)
+			}
+			fmt.Fprintf(w, " {%d %g %g %g %g %#v}", g.ID, g.Size, g.X, g.Y, g.Skew, perfPathSegs(p))
 		}
 		io.WriteString(w, "}")
 	case paint.Image:
-		var b image.Rectangle
-		if o.Img != nil {
-			b = o.Img.Bounds()
+		fmt.Fprintf(w, "Image{%#v %#v", o.Rect, o.Radii)
+		if o.Img == nil {
+			io.WriteString(w, " nil}")
+			return
 		}
-		fmt.Fprintf(w, "Image{%T %v %#v %#v}", o.Img, b, o.Rect, o.Radii)
+		b := o.Img.Bounds()
+		fmt.Fprintf(w, " %v ", b)
+		// RGBA() provides canonical 16-bit premultiplied channels across
+		// image/color implementations. Include every pixel, not just bounds.
+		var pixel [8]byte
+		for y := b.Min.Y; y < b.Max.Y; y++ {
+			for x := b.Min.X; x < b.Max.X; x++ {
+				r, g, b, a := o.Img.At(x, y).RGBA()
+				binary.LittleEndian.PutUint16(pixel[0:2], uint16(r))
+				binary.LittleEndian.PutUint16(pixel[2:4], uint16(g))
+				binary.LittleEndian.PutUint16(pixel[4:6], uint16(b))
+				binary.LittleEndian.PutUint16(pixel[6:8], uint16(a))
+				w.Write(pixel[:])
+			}
+		}
+		io.WriteString(w, "}")
 	default:
 		fmt.Fprintf(w, "%#v", op)
 	}

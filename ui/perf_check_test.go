@@ -5,6 +5,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"image"
+	"image/color"
 	"os"
 	"slices"
 	"sort"
@@ -13,6 +15,8 @@ import (
 	"time"
 
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/layout"
+	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
 )
 
@@ -115,11 +119,11 @@ func TestPerfIdle(t *testing.T) {
 		t.Run(fx.Name, func(t *testing.T) {
 			d := newPerfDriver(perfPage(fx.Build), false)
 			d.Settle()
+			if fx.Animated != "" {
+				t.Logf("animates at rest (%s)", fx.Animated)
+				return
+			}
 			if d.NeedsFrame() {
-				if fx.Animated != "" {
-					t.Logf("animates at rest (%s)", fx.Animated)
-					return
-				}
 				t.Errorf("NeedsFrame after Settle (invalid=%v animating=%v)", d.w.invalid.Load(), d.r.Animating())
 			}
 		})
@@ -189,6 +193,92 @@ func TestPerfInteractSteady(t *testing.T) {
 				t.Errorf("Interact(1) does not restore the settled screen")
 			}
 		})
+	}
+}
+
+// perfGlyphOutline supplies an actual outline for the hash regression:
+// equal source types and glyph IDs need not mean equal glyph shapes.
+type perfGlyphOutline struct{ path *paint.Path }
+
+func (s *perfGlyphOutline) GlyphPath(uint32, float32) *paint.Path { return s.path }
+
+func TestPerfListHash(t *testing.T) {
+	hash := func(ops ...paint.Op) uint64 {
+		return perfListHash(&Driver{r: &Runner{list: paint.List{Ops: ops}}})
+	}
+	fill := paint.FillRect{Rect: geom.Rect{W: 40, H: 30}, Color: color.NRGBA{R: 200, A: 255}}
+	for _, hint := range []paint.Op{
+		paint.Damage{Rect: geom.Rect{W: 20, H: 20}},
+		paint.ScrollRegion{Rect: geom.Rect{W: 20, H: 20}, Delta: geom.Point{Y: 4}},
+	} {
+		t.Run(fmt.Sprintf("Hints/%T", hint), func(t *testing.T) {
+			if hash(fill, hint) != hash(fill) {
+				t.Error("presentation hints changed the visual hash")
+			}
+		})
+	}
+	t.Run("ImagePixels", func(t *testing.T) {
+		img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+		op := paint.Image{Img: img, Rect: geom.Rect{W: 20, H: 20}}
+		h0 := hash(op)
+		img.SetRGBA(1, 1, color.RGBA{R: 255, A: 255})
+		if hash(op) == h0 {
+			t.Error("different image pixels with the same bounds have the same hash")
+		}
+		copy := image.NewRGBA(img.Bounds())
+		copy.SetRGBA(1, 1, color.RGBA{R: 255, A: 255})
+		if hash(paint.Image{Img: copy, Rect: op.Rect}) != hash(op) {
+			t.Error("reallocated identical image changed the visual hash")
+		}
+	})
+	t.Run("GlyphOutlines", func(t *testing.T) {
+		text := func(width float32) paint.Text {
+			p := paint.NewPath().MoveTo(0, 0).LineTo(width, -10).LineTo(0, -10).Close()
+			return paint.Text{Color: color.NRGBA{A: 255}, Glyphs: []paint.Glyph{
+				{Src: &perfGlyphOutline{path: p}, ID: 1, Size: 14},
+			}}
+		}
+		if hash(text(4)) == hash(text(8)) {
+			t.Error("same source type and glyph ID hid different glyph outlines")
+		}
+		if hash(text(4)) != hash(text(4)) {
+			t.Error("reallocated identical glyph outline changed the visual hash")
+		}
+		// Empty glyphs (spaces) and an absent source must not panic.
+		_ = hash(paint.Text{Glyphs: []paint.Glyph{{Src: &perfGlyphOutline{}}, {}}})
+	})
+}
+
+func TestPerfInteractSteadyWithDamage(t *testing.T) {
+	changed, declare := false, false
+	box := geom.Rect{X: 24, Y: 24, W: 80, H: 40}
+	d := newPerfDriver(perfPage(func(c *Context) {
+		col := color.NRGBA{R: 200, A: 255}
+		if changed {
+			col = color.NRGBA{B: 200, A: 255}
+		}
+		Div(c, layout.Size(80, 40)).Bg(col)
+		if declare {
+			c.Damage(box)
+		}
+	}), false)
+	d.Settle()
+	h0 := perfListHash(d) // baseline has no presentation hints
+	r := &perfRun{D: d}
+	act := func(r *perfRun, i int) {
+		changed, declare = i%2 == 0, true
+		r.D.r.Invalidate()
+	}
+	perfStep(r, act, 0)
+	if perfListHash(d) == h0 {
+		t.Error("visual change was not detected with damage declarations")
+	}
+	perfStep(r, act, 1)
+	if perfDirtyArea(d) > 2*rectArea(box) || d.r.lastDirty == nil {
+		t.Fatal("regression must exercise a partial redraw after undo")
+	}
+	if perfListHash(d) != h0 {
+		t.Error("undo restored the visuals but different presentation hints changed the hash")
 	}
 }
 
