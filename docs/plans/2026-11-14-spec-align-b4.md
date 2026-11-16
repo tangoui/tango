@@ -138,3 +138,48 @@
 - Pro 页面模式采用当前 Tango API 的组合示例，不照搬 React 模板的 props/ref/render-prop；缺少基础布局、动画、背景模糊等能力时记录“暂不做，缺 X”。
 - 稳定类型上的新增方法视为稳定承诺；新独立类型默认实验性，只有用户另行批准才加入稳定白名单。
 - 现有 Pro 代码已含部分页面示例和 v2/v3 能力；第 4 批重点是逐项复核 v3 精确行为、补 9 个缺失入口和六种完整模式，不重复实现已有能力。
+
+## 第4批旧28项复核索引（2026-11-15）
+
+旧表的完整符号范围并非全部 v3 API；逐项默认值/行为/剩余缺口以下列记录为准。按设计第5批再整体重写 ui-coverage.md，本批不把旧✅继续当作无缺口声明。
+
+|旧项目|本批记录|
+|---|---|
+|ProLayout|[对照记录](../specs/align/4-layout-list-provider.md)|
+|SettingDrawer|[对照记录](../specs/align/4-layout-list-provider.md)|
+|RouteContext / GridContent|[对照记录](../specs/align/4-layout-list-provider.md)|
+|PageContainer|[对照记录](../specs/align/4-layout-list-provider.md)|
+|FooterToolbar|[对照记录](../specs/align/4-layout-list-provider.md)|
+|ProCard|[对照记录](../specs/align/4-card-descriptions-field-skeleton.md)|
+|StatisticCard|[对照记录](../specs/align/4-statistic-checkcard.md)|
+|CheckCard|[对照记录](../specs/align/4-statistic-checkcard.md)|
+|WaterMark|不属于当前 Pro v3 layout/index.d.ts/index.d.ts 导出；沿用 antd Watermark，已在第2批 `2-media.md` 核对，不增加重复入口|
+|ProTable|[对照记录](../specs/align/4-table.md)|
+|EditableProTable|[对照记录](../specs/align/4-table.md)|
+|DragSortTable|[对照记录](../specs/align/4-table.md)|
+|ProList|[对照记录](../specs/align/4-layout-list-provider.md)|
+|ProDescriptions|[对照记录](../specs/align/4-card-descriptions-field-skeleton.md)|
+|ProForm|[对照记录](../specs/align/4-form.md)|
+|ModalForm / DrawerForm|[对照记录](../specs/align/4-form.md)|
+|QueryFilter|[对照记录](../specs/align/4-form.md)|
+|LightFilter|[对照记录](../specs/align/4-form.md)|
+|StepsForm|[对照记录](../specs/align/4-form.md)|
+|LoginForm / LoginFormPage|[对照记录](../specs/align/4-form.md)|
+|ProFormList|[对照记录](../specs/align/4-form.md)|
+|ProFormFieldSet|[对照记录](../specs/align/4-card-descriptions-field-skeleton.md)|
+|ProFormDependency|[对照记录](../specs/align/4-form.md)|
+|ProFormGroup|[对照记录](../specs/align/4-form.md)|
+|SchemaForm（BetaSchemaForm）|[对照记录](../specs/align/4-form.md)|
+|ProForm 字段组件（ProFormText/Select…）|[对照记录](../specs/align/4-form.md)|
+|ProField|[对照记录](../specs/align/4-card-descriptions-field-skeleton.md)|
+|ProSkeleton|[对照记录](../specs/align/4-card-descriptions-field-skeleton.md)|
+
+### 九个缺失名称的 Go 对应
+
+- CellEditorTable / RowEditorTable / TableDropdown / ListToolBar：四个独立专属类型入口，复用既有编辑与工具栏状态。
+- ProBreadcrumb / PageLoading / TopNavHeader：三个专属薄入口，复用 Breadcrumb / Spin / ProLayout 顶栏。
+- ProFormCaptcha / ProFormSegmented：源码是字段包装器，已有 ValueCaptcha / ValueSegmented，补 ProField.Captcha / Segmented 配置而不新增同义入口。
+
+### 六种完整页面模式
+
+`examples/ui-gallery/page_pro4_patterns.go` 注册 ProPatternLogin / List / Form / Detail / Result / Settings；参考 `/tmp/tango-ref/adpro/repo@42f2cb1` 的 `src/pages/user/login`、`table-list`、`form/basic-form`、`profile/basic`、`result/success` 和 `src/app.tsx`。全是本地示例数据，登录、验证码与表单不连接真实服务。三套主题×明暗均通过 gallery 通用变体生成。

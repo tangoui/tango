@@ -255,24 +255,16 @@ func (w *ProCardW) Box() *Box { return w.box }
 
 // pads returns the header and body paddings.
 func (w *ProCardW) pads() (head, body geom.Insets) {
-	el, shad := pro2El(w.c), pro2Shad(w.c)
-	v, h := float32(16), float32(24)
-	switch {
-	case w.small:
-		v, h = 8, 12
-	case el:
-		v, h = 18, 20
-	case shad:
-		v, h = 24, 24
+	tk := w.c.ThemeFor(theme.CompCard).Components.Card
+	v, h, bv := tk.ProHeaderPaddingBlock, tk.ProHeaderPaddingInline, tk.ProBodyPaddingBlock
+	if w.small {
+		v, h, bv = tk.ProHeaderPaddingBlockSM, tk.ProHeaderPaddingInlineSM, tk.ProBodyPaddingBlockSM
 	}
 	head = geom.Insets{Top: v, Left: h, Right: h}
 	if w.headerBordered {
 		head.Bottom = v
 	}
-	body = geom.Insets{Top: v, Bottom: v, Left: h, Right: h}
-	if el && !w.small {
-		body = geom.All(20)
-	}
+	body = geom.Insets{Top: bv, Bottom: bv, Left: h, Right: h}
 	if w.ghost {
 		head = geom.Insets{Bottom: v}
 		body = geom.Insets{}
@@ -326,17 +318,30 @@ func (w *ProCardW) Body(fn func()) *ProCardW {
 	}
 	if w.inSplit == "" && !w.ghost {
 		b.Bg(th.BgContainer).Radius(rad)
+		tk := c.ThemeFor(theme.CompCard).Components.Card
+		var hover float32
 		if bordered && !w.boxShadow { // box-shadow: border-color transparent
-			b.PaintOver(func(l *paint.List, r geom.Rect) { l.Stroke(r, geom.Rad(rad), 1, border) })
+			b.PaintOver(func(l *paint.List, r geom.Rect) {
+				col := border
+				if hover > 0 {
+					col = theme.Lerp(border, tk.ProHoverBorderColor, hover)
+				}
+				if col.A > 0 {
+					l.Stroke(r, geom.Rad(rad), 1, col)
+				}
+			})
 		}
 		switch {
 		case w.hoverable:
 			w.ia = b.Interact(input.CursorPointer)
 			a := c.Anim(b.n.id, "hover", b2f(w.ia.Hovered), th.DurationMid)
-			if w.boxShadow && a == 0 {
+			hover = a
+			if w.boxShadow {
+				// Pro v3 boxShadow and hover both use boxShadowTertiary:
+				// keep the base shadow instead of fading it out on entry.
 				b.Shadow(th.ShadowTertiary)
 			} else if a > 0 {
-				b.Shadow(pro2FadeShadows(th.Shadow, a))
+				b.Shadow(pro2FadeShadows(tk.ProHoverShadow, a))
 			}
 		case w.boxShadow:
 			b.Shadow(th.ShadowTertiary)

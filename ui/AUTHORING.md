@@ -246,7 +246,7 @@ func init() {
 | 通用 | `App`、`UseApp` | App（App.useApp） | pro4_app.go |
 | 通用 | `BorderBeam` | Magic UI Border Beam（流光描边装饰） | fill_border_beam.go |
 | 布局 | `Layout`、`Header`、`Sider`、`Content`、`Footer` | Layout / el-container | prolayout.go |
-| 布局 | `ProLayout` | ProLayout | prolayout.go |
+| 布局 | `ProLayout`、`TopNavHeader`、`ProBreadcrumb`、`PageLoading` | ProLayout、TopNavHeader、ProBreadcrumb、PageLoading | prolayout.go、pro4_topnav.go、pro4_breadcrumb.go、pro4_pageloading.go |
 | 布局 | `CollapsibleSider` | Layout.Sider collapsible、breakpoint / el-aside + 折叠 | prolayout.go |
 | 布局 | `PageContainer`、`FooterToolbar` | PageContainer、FooterToolbar | pro2_page.go |
 | 布局 | `SettingDrawer`、`ProSettingsProvider`、`DefaultProSettings`（`ProSettings.Apply`） | ProLayout SettingDrawer | pro4_setting.go |
@@ -313,7 +313,7 @@ func init() {
 | 数据录入 | `CheckCard`、`CheckCardGroup` | CheckCard | pro2_checkcard.go |
 | 数据录入 | `Form`（`FormItem` 与 `Required/Email/MinLen/MaxLen/Pattern/Match/Check/AsyncCheck` 规则；`Name/Dependencies/OnDepsChange/Hidden/Disabled` 联动；`Submit/Finished/ScrollToFirstError`） | Form / el-form | form.go |
 | 数据录入 | `FormList`（`FormListRow`） | Form.List、ProFormList | form_pro_list.go |
-| 数据录入 | `ProForm`（`ProField`、`ProValues`，值类型与 ProTable 共用） | ProForm | form_pro.go、form_pro_field.go |
+| 数据录入 | `ProForm`（`ProField`、`ProValues`，值类型与 ProTable 共用；ProFormCaptcha = `ValueCaptcha` + `ProField.Captcha`；ProFormSegmented = `ValueSegmented` + `ProField.Segmented`，不重复加入口） | ProForm | form_pro.go、form_pro_field.go |
 | 数据录入 | `StepsForm`（`StepsFormStep`） | StepsForm | form_pro_steps.go |
 | 数据录入 | `ModalForm`、`DrawerForm` | ModalForm、DrawerForm | form_pro_modal.go |
 | 数据录入 | `QueryFilter` | QueryFilter（ProTable 查询表单复用） | form_pro_query.go |
@@ -325,7 +325,8 @@ func init() {
 | 数据录入 | `MarkdownEditor` | — | more_mdeditor.go |
 | 数据展示 | `Table`（`Wrap` 可变行高、树形勾选联动/`CheckStrictly`、`Sticky/StickySummary` 吸顶吸底、拖拽排序边缘自动滚动） | Table / el-table | table*.go |
 | 数据展示 | `ProTable`（列设置含固定到左/右） | ProTable | table_pro.go |
-| 数据展示 | `EditableProTable` | EditableProTable | p2e_editable.go |
+| 数据展示 | `EditableProTable`、`CellEditorTable`、`RowEditorTable` | EditableProTable、CellEditorTable、RowEditorTable | p2e_editable.go、table_pro_editor.go |
+| 数据展示 | `ListToolBar`、`TableDropdown` | ListToolBar、TableDropdown | table_pro_toolbar.go、table_pro_dropdown.go |
 | 数据展示 | `VirtualList` | List virtual / el-table-v2 思路 | more_virtual.go |
 | 数据展示 | `InfiniteScroll` | — / v-infinite-scroll | more_infinite.go |
 | 数据展示 | `List`、`ListItemMeta`、`ListActions` | List | data_list.go |
@@ -338,11 +339,11 @@ func init() {
 | 数据展示 | `Badge`、`BadgeRibbon` | Badge、Badge.Ribbon / el-badge | data_badge.go |
 | 数据展示 | `Avatar`（`Small/Large/Shape/Gap`）、`AvatarGroup`（`MaxPopover`） | Avatar / el-avatar、el-avatar-group | display.go、data_badge.go |
 | 数据展示 | `Card`、`CardMeta`、`CardAction` | Card / el-card | data_card.go |
-| 数据展示 | `ProCard` | ProCard | pro2_card.go |
+| 数据展示 | `ProCard`（`BoxShadow`） | ProCard | pro2_card.go |
 | 数据展示 | `Descriptions` | Descriptions / el-descriptions | data_card.go |
-| 数据展示 | `ProDescriptions` | ProDescriptions | pro3_descriptions.go |
+| 数据展示 | `ProDescriptions`（`ColumnAt` / `Columns`） | ProDescriptions | pro3_descriptions.go |
 | 数据展示 | `Statistic`、`Countdown` | Statistic / el-statistic、el-countdown | display.go、data_skeleton.go |
-| 数据展示 | `StatisticCard`、`StatisticCardGroup` | StatisticCard、StatisticCard.Group | pro2_statistic.go |
+| 数据展示 | `StatisticCard`、`StatisticCardGroup`、`ProStatistic`、`StatisticCardDivider`、`StatisticCardOperation` | StatisticCard、StatisticCard.Group / Statistic / Divider / Operation | pro2_statistic.go |
 | 数据展示 | `Progress` | Progress / el-progress | data_progress.go |
 | 数据展示 | `Empty`（`Title`） | Empty / el-empty；shadcn Empty | data_result.go |
 | 数据展示 | `Result` | Result / el-result | data_result.go |

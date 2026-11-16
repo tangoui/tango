@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
@@ -35,6 +36,7 @@ type FooterToolbarW struct {
 	c      *Context
 	extra  func()
 	sticky bool
+	fixed  bool
 	target ID
 	opts   []layout.Option
 	box    *Box
@@ -44,9 +46,16 @@ type FooterToolbarW struct {
 // FooterToolbar starts a bottom action bar; chain options, then Body with
 // the right-hand buttons.
 //
-// ConfigProvider.Defaults("FooterToolbar", ...) keys: "sticky" (bool).
+// ConfigProvider.Defaults("FooterToolbar", ...) keys: "fixed" (bool, default true), "sticky" (legacy bool).
 func FooterToolbar(c *Context) *FooterToolbarW {
-	return &FooterToolbarW{c: c, sticky: Prop(c, "FooterToolbar", "sticky", false)}
+	w := &FooterToolbarW{c: c, fixed: Prop(c, "FooterToolbar", "fixed", true)}
+	if v, ok := c.ConfigProp("FooterToolbar", "sticky"); ok {
+		if on, ok := v.(bool); ok && on {
+			w.fixed = false
+			w.sticky = true
+		}
+	}
+	return w
 }
 
 // Extra builds content at the left of the bar.
@@ -54,11 +63,21 @@ func (f *FooterToolbarW) Extra(fn func()) *FooterToolbarW { f.extra = fn; return
 
 // Sticky pins the bar to the bottom of the viewport while the content above
 // scrolls (Affix with offset bottom 0).
-func (f *FooterToolbarW) Sticky() *FooterToolbarW { f.sticky = true; return f }
+func (f *FooterToolbarW) Sticky() *FooterToolbarW { f.sticky = true; f.fixed = false; return f }
+
+// Fixed controls whether the bar is pinned to the bottom (default true).
+// Fixed(false) places it in normal flow. Sticky remains an alias for enabling it.
+func (f *FooterToolbarW) Fixed(on bool) *FooterToolbarW { f.fixed = on; f.sticky = false; return f }
 
 // Target makes Sticky pin to the bottom of a scroll box (ScrollBox.ID())
 // instead of the window.
-func (f *FooterToolbarW) Target(id ID) *FooterToolbarW { f.sticky, f.target = true, id; return f }
+func (f *FooterToolbarW) Target(id ID) *FooterToolbarW {
+	f.target = id
+	if !f.fixed {
+		f.sticky = true
+	}
+	return f
+}
 
 // Layout applies layout options to the bar.
 func (f *FooterToolbarW) Layout(o ...layout.Option) *FooterToolbarW {
@@ -77,6 +96,10 @@ func (f *FooterToolbarW) ID() ID {
 // Body builds the bar with fn as the right-hand actions.
 func (f *FooterToolbarW) Body(fn func()) *FooterToolbarW {
 	c := f.c
+	if f.fixed {
+		f.fixedBar(fn)
+		return f
+	}
 	if !f.sticky {
 		f.bar(fn)
 		return f
@@ -90,15 +113,47 @@ func (f *FooterToolbarW) Body(fn func()) *FooterToolbarW {
 	return f
 }
 
+// fixedBar reserves the bar's measured height in flow and positions the
+// overlay after the current frame's container layout has been solved.
+func (f *FooterToolbarW) fixedBar(fn func()) {
+	c := f.c
+	tk := &c.ThemeFor(theme.CompFooterToolbar).Components.FooterToolbar
+	marker := c.box("footer-toolbar-marker", layout.Column, []layout.Option{layout.MinH(tk.MinHeight)})
+	var clip *node
+	ov := Overlay(c, OverlayOptions{Place: ScreenFill}, func() {
+		clip = c.add("footer-toolbar-clip", "")
+		clip.ln.Absolute = true
+		clip.clip = true
+		c.body(clip, func() { f.bar(fn) })
+	})
+	ov.n.hit, ov.n.blocks = false, false
+	bar := f.box.n
+	bar.ln.Absolute = true
+	bar.hit, bar.blocks = true, true
+	marker.n.ln.Measure = func(maxW, maxH float32) geom.Size {
+		link(bar)
+		return flexbox.SolveAt(&bar.ln, maxW, geom.Inf, maxW < geom.Inf, false)
+	}
+	ov.n.paint = func(_ *paint.List, _ geom.Rect) {
+		view := geom.Rect{W: c.size.W, H: c.size.H}
+		if f.target != 0 {
+			if r, ok := c.anchorRect(f.target); ok {
+				view = r
+			}
+		}
+		anchor := navAbsRect(marker.n)
+		x := max(view.X, anchor.X)
+		width := max(float32(0), min(view.Right(), anchor.Right())-x)
+		clip.ln.Rect = view
+		flexbox.SolveAt(&bar.ln, width, geom.Inf, true, false)
+		bar.ln.Rect.X, bar.ln.Rect.Y = x-view.X, view.H-bar.ln.Rect.H
+	}
+}
+
 func (f *FooterToolbarW) bar(fn func()) {
 	c, th := f.c, f.c.Theme
-	el := pro2El(c)
-	h := float32(56)
-	padH := float32(24)
-	if el {
-		h, padH = 60, 20
-	}
-	opts := append([]layout.Option{layout.H(h), layout.PadVH(0, padH), layout.Middle(), layout.Gap(8)}, f.opts...)
+	tk := &c.ThemeFor(theme.CompFooterToolbar).Components.FooterToolbar
+	opts := append([]layout.Option{layout.MinH(tk.MinHeight), layout.PadVH(0, tk.PaddingInline), layout.Middle(), layout.Gap(8)}, f.opts...)
 	b := pro2Box(c, "pro2-footer-toolbar", "", layout.Row, opts)
 	f.box = b
 	b.Semantics(a11y.RoleToolbar, c.Locale().PageContainer.FooterToolbar)
@@ -125,7 +180,7 @@ func (f *FooterToolbarW) surface(b *Box) {
 	c := f.c
 	th := c.ThemeFor(theme.CompFooterToolbar)
 	tk := &th.Components.FooterToolbar
-	if f.affix != nil && f.affix.Affixed() {
+	if f.fixed || f.affix != nil && f.affix.Affixed() {
 		if th.HighContrast || c.noBlur {
 			b.Bg(th.BgContainer)
 			return
@@ -292,8 +347,11 @@ func (p *PageContainerW) Body(fn func()) *PageContainerW {
 		opts = append(opts, layout.Grow(1), layout.MinH(0))
 	}
 	opts = append(opts, p.opts...)
-	if pc := proLayoutContext(c); pc.depth > 0 && !p.ghost {
-		pc.filled = true // ProLayout drops its content padding (NoPadding)
+	if pc := proLayoutContext(c); pc.depth > 0 {
+		pc.hasPage = true
+		if !p.ghost {
+			pc.filled = true
+		}
 	}
 	root := pro2Box(c, "pro2-page-container", p.title, layout.Column, opts)
 	root.Semantics(a11y.RoleGroup, p.title)
@@ -305,10 +363,8 @@ func (p *PageContainerW) Body(fn func()) *PageContainerW {
 			p.main(fn)
 		}
 		if p.footer != nil || p.footerExtra != nil {
-			ft := FooterToolbar(c).Extra(p.footerExtra)
-			if !p.fill {
-				ft.Sticky()
-			}
+			ft := FooterToolbar(c).Extra(p.footerExtra).Fixed(!p.fill)
+
 			ft.Body(p.footer)
 			p.footerBar = ft
 		}
@@ -318,28 +374,30 @@ func (p *PageContainerW) Body(fn func()) *PageContainerW {
 
 // main builds header and content.
 func (p *PageContainerW) main(fn func()) {
-	c, th := p.c, p.c.Theme
-	el := pro2El(c)
+	c := p.c
+	tk := &c.ThemeFor(theme.CompLayout).Components.Layout
+	rc := RouteContext(c)
+	if p.title == "" {
+		p.title = rc.PageTitle
+	}
+	if p.title == "" && p.sub == "" && len(p.crumbs) == 0 && len(rc.BreadcrumbItems) == 0 && !p.back && p.tags == nil && p.extra == nil && p.content == nil && p.extraCont == nil && len(p.tabs) == 0 {
+		p.noHeader = true
+	}
 	if !p.noHeader {
 		hdr := Column(c, func() { p.buildHeader() })
 		if !p.ghost {
-			hdr.Bg(th.BgContainer)
-			if len(p.tabs) == 0 {
-				split := th.Split
-				hdr.Paint(func(l *paint.List, r geom.Rect) { dataHLine(l, r.X, r.Bottom()-1, r.W, split) })
-			}
+			hdr.Bg(tk.PageBg)
 		}
 	}
-	pad := geom.All(24)
-	if el {
-		pad = geom.All(20)
+	pad := geom.Insets{Left: tk.PagePaddingInline, Right: tk.PagePaddingInline, Bottom: tk.PagePaddingBlock}
+	if p.noHeader {
+		pad.Top = tk.PagePaddingBlock
 	}
 	if p.ghost {
-		pad = geom.Insets{Top: 16}
+		pad = geom.Insets{Top: tk.PagePaddingBlock / 2}
 	}
 	if p.loading {
-		Column(c, func() { Spin(c).Size(Large) }, layout.Padding(pad), layout.Center(), layout.MinH(200)).
-			Semantics(a11y.RoleStatus, c.Locale().Loading).A11yState(a11y.Busy)
+		PageLoading(c).Show()
 		return
 	}
 	Column(c, fn, layout.Padding(pad), layout.Grow(1), layout.MinW(0))
@@ -347,10 +405,12 @@ func (p *PageContainerW) main(fn func()) {
 
 func (p *PageContainerW) buildHeader() {
 	c := p.c
-	el := pro2El(c)
+	tk := &c.ThemeFor(theme.CompLayout).Components.Layout
 	ph := PageHeader(c, p.title).SubTitle(p.sub)
-	if len(p.crumbs) > 0 {
+	if p.crumbs != nil {
 		ph.Breadcrumb(p.crumbs...)
+	} else {
+		ph.BreadcrumbItems(RouteContext(c).BreadcrumbItems)
 	}
 	if p.back {
 		ph.Back()
@@ -375,27 +435,17 @@ func (p *PageContainerW) buildHeader() {
 			}, layout.AlignItems(layout.AlignStart))
 		})
 	}
-	padH := float32(24)
-	if el {
-		padH = 20
+	padH := tk.PagePaddingInline
+	tabs := len(p.tabs) > 0 && p.tabActive != nil
+	headerPad := geom.Insets{Top: tk.PageHeaderPaddingTop, Bottom: tk.PageHeaderPaddingBottom, Left: padH, Right: padH}
+	if tabs {
+		headerPad.Bottom = 0
 	}
 	if p.ghost {
 		padH = 0
+		headerPad = geom.Insets{}
 	}
-	// PageHeader pads itself with 16/24 (Ant) and nothing (Element); the
-	// container aligns it with the content and the tab list.
-	tabs := len(p.tabs) > 0 && p.tabActive != nil
-	switch {
-	case p.ghost:
-		ph.Padding(geom.Insets{})
-	case el:
-		ph.Padding(geom.VH(20, padH))
-	case tabs:
-		ph.Padding(geom.Insets{Top: 16, Left: 24, Right: 24})
-	}
-	if tabs && el && !p.ghost {
-		ph.Padding(geom.Insets{Top: 20, Left: padH, Right: padH})
-	}
+	ph.Padding(headerPad)
 	Column(c, func() { ph.Show() })
 	p.header = ph
 	if tabs {

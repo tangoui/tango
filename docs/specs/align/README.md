@@ -13,6 +13,7 @@
 | Element Plus | `element-plus@2.14.8` | `/tmp/tango-ref/ep/package` | `npm pack element-plus@2.14.8` |
 | Tailwind CSS（shadcn 灰阶） | `tailwindcss@4.3.5` | `/tmp/tango-ref/tw/package/theme.css` | `npm pack tailwindcss@4.3.5` |
 | shadcn/ui v4 | `shadcn-ui/ui@e62c9435fff729a175f38983dee73b2cb4f6a069` | `/tmp/tango-ref/shadcn-ui/apps/v4/registry` | 稀疏克隆后 checkout 该 commit |
+| Ant Design Pro 模板（页面模式） | `ant-design-pro@6.0.3`（commit `42f2cb1d303380909ea04c73b5e60679d09c321a`，2026-10-26） | `/tmp/tango-ref/adpro/repo` | 稀疏克隆 `src`、`config` 后 checkout 该 commit（第 4 批加入） |
 
 官网文档页可以作为补充；默认值、令牌、尺寸以上面的源码为准。
 

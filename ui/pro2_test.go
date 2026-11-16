@@ -171,7 +171,7 @@ func TestPro2FooterToolbar(t *testing.T) {
 					Column(c, nil, layout.W(150)) // a sider
 					Column(c, func() {
 						Scroll(c, func() { Text(c, "Content") }, layout.Grow(1))
-						ft = FooterToolbar(c).Extra(func() { Text(c, "LeftInfo") })
+						ft = FooterToolbar(c).Fixed(false).Extra(func() { Text(c, "LeftInfo") })
 						ft.Body(func() {
 							if Button(c, "Done").Primary().Clicked() {
 								clicked = true

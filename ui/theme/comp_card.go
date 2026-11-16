@@ -31,6 +31,13 @@ type CardToken struct {
 	// el-card shadow="always", shadcn shadow-sm), false "never" (Ant,
 	// where only a borderless card keeps Shadow).
 	ShadowAlways bool
+	// Pro v3 Card/style.js uses independent header/body padding; small
+	// header uses paddingXS (8), body paddingSM (12), not antd Card padding.
+	ProHeaderPaddingBlock, ProHeaderPaddingInline     float32
+	ProHeaderPaddingBlockSM, ProHeaderPaddingInlineSM float32
+	ProBodyPaddingBlock, ProBodyPaddingBlockSM        float32
+	ProHoverShadow                                    []paint.Shadow
+	ProHoverBorderColor                               Color // zero: transparent at full hover
 }
 
 func deriveCard(t *Theme) CardToken {
@@ -41,6 +48,10 @@ func deriveCard(t *Theme) CardToken {
 		BodyPadding: 24, BodyPaddingSM: 12, InnerBodyPaddingBlock: 16,
 		ActionsBg: t.BgContainer, BorderColor: t.BorderSecondary, Radius: t.CardRadius,
 		Shadow: t.ShadowTertiary, HoverShadow: antCardShadow(t),
+		ProHeaderPaddingBlock: 16, ProHeaderPaddingInline: 24,
+		ProHeaderPaddingBlockSM: 8, ProHeaderPaddingInlineSM: 12,
+		ProBodyPaddingBlock: 16, ProBodyPaddingBlockSM: 12,
+		ProHoverShadow: t.ShadowTertiary,
 	}
 	if t.CardBorder.A > 0 {
 		k.BorderColor = t.CardBorder
@@ -52,12 +63,16 @@ func deriveCard(t *Theme) CardToken {
 		k.HeaderHeight, k.HeaderHeightSM = 0, 0
 		k.HeaderPaddingBlock, k.HeaderPaddingBlockSM, k.HeaderPaddingInline = 18, 10, 20
 		k.BodyPadding = 20
+		k.ProHeaderPaddingBlock, k.ProHeaderPaddingInline, k.ProBodyPaddingBlock = 18, 20, 20
+		k.ProHoverShadow, k.ProHoverBorderColor = t.Shadow, k.BorderColor
 		k.HoverShadow = []paint.Shadow{{Y: 0, Blur: 12, Color: RGBA(0, 0, 0, .12)}}
 		if k.Radius == 0 {
 			k.Radius = t.Radius
 		}
 	case StyleShadcn:
 		k.ShadowAlways, k.HoverShadow = true, t.Shadow
+		k.ProHeaderPaddingBlock, k.ProBodyPaddingBlock = 24, 24
+		k.ProHoverShadow, k.ProHoverBorderColor = t.Shadow, k.BorderColor
 		// CardHeader p-6 (p-4 small) with a semibold title, no divider.
 		k.HeaderHeight, k.HeaderHeightSM = 0, 0
 		k.HeaderPaddingBlock, k.HeaderPaddingBlockSM = 24, 16

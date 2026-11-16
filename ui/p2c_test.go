@@ -895,8 +895,8 @@ func TestP2CProLayoutModes(t *testing.T) {
 		}, DriverOptions{Width: 1200, Height: 600, Theme: th(), Accessibility: true})
 		d.Settle()
 		p2cA11y(t, d, a11y.RoleMenuBar, "")
-		if _, ok := d.A11yFind(a11y.RoleNavigation, ZhCN.A11y.Navigation); ok {
-			t.Fatal("top layout has a sider")
+		if n := len(d.A11yFindAll(a11y.RoleNavigation, ZhCN.A11y.Navigation)); n != 1 {
+			t.Fatalf("top layout should have one top navigation header and no sider, got %d", n)
 		}
 		d.Click(p2cFind(t, d, "Orders").Center())
 		if sel != "b" {
@@ -939,10 +939,8 @@ func TestP2CPageContainerTabs(t *testing.T) {
 		})
 		tr := p2cFind(t, d, "Overview")
 		body := p2cText(t, d, "Body text")
-		pad := float32(24)
-		if navEl(d.r.c) {
-			pad = 20
-		}
+		// Pro v3 PageContainer children-container paddingBlockStart is 0.
+		pad := float32(0)
 		if gap := body.Y - tr.Bottom(); math.Abs(float64(gap-pad)) > 0.5 {
 			t.Fatalf("tab bar to body gap %v (want %v)", gap, pad)
 		}
@@ -1014,8 +1012,8 @@ func TestP2CPageContainerInProLayout(t *testing.T) {
 		}, DriverOptions{Width: 1200, Height: 600, Theme: th(), Accessibility: true})
 		d.Settle()
 		group := p2cA11y(t, d, a11y.RoleGroup, "Orders").Bounds
-		sw := d.r.c.Theme.SiderWidth
-		if math.Abs(float64(group.X-sw)) > 0.5 || math.Abs(float64(group.Y-d.r.c.Theme.HeaderHeight)) > 0.5 {
+		sw := d.r.c.Theme.Components.Layout.ProSiderWidth
+		if math.Abs(float64(group.X-sw)) > 0.5 || math.Abs(float64(group.Y-d.r.c.Theme.Components.Layout.ProHeaderHeight)) > 0.5 {
 			t.Fatalf("page container not flush with the content area: %v", group)
 		}
 		ghost = true

@@ -35,22 +35,27 @@ type ProListMetas[T any] struct {
 type ProListW[T any] struct {
 	_ [0]func()
 
-	c        *Context
-	rows     []T
-	metas    ProListMetas[T]
-	title    string
-	toolbar  func()
-	rowKey   func(T) string
-	sel      *[]string
-	expand   func(c *Context, row T)
-	pageSize int
-	loading  bool
-	grid     int
-	bordered bool
-	split    bool
-	empty    string
-	onClick  func(row T)
-	request  func(page, size int) ([]T, int, error)
+	c             *Context
+	rows          []T
+	metas         ProListMetas[T]
+	title         string
+	toolbar       func()
+	rowKey        func(T) string
+	sel           *[]string
+	expand        func(c *Context, row T)
+	defaultExpand bool
+	expandedKeys  *[]string
+	expandByClick bool
+	rowExpandable func(T) bool
+	vertical      bool
+	pageSize      int
+	loading       bool
+	grid          int
+	bordered      bool
+	split         bool
+	empty         string
+	onClick       func(row T)
+	request       func(page, size int) ([]T, int, error)
 
 	id      ID
 	st      *pro3ListState
@@ -59,8 +64,9 @@ type ProListW[T any] struct {
 }
 
 type pro3ListState struct {
-	page     int
-	expanded map[string]bool
+	page                 int
+	expanded             map[string]bool
+	expansionInitialized bool
 
 	// Remote data (Request).
 	reqPage, reqSize int // page of the last request (0: none yet)
@@ -84,13 +90,16 @@ type pro3ListRes struct {
 
 // ProList starts a list over rows; chain options, then Show.
 func ProList[T any](c *Context, rows []T, metas ProListMetas[T]) *ProListW[T] {
-	p := &ProListW[T]{c: c, rows: rows, metas: metas, split: true}
+	p := &ProListW[T]{c: c, rows: rows, metas: metas, split: true, defaultExpand: true}
 	// ConfigProvider.Defaults("ProList", ...) keys: "pagination" (false,
 	// a page size, or Props{"pageSize": n}), "split", "bordered" (bool),
 	// "grid" (column count).
 	if _, ok := c.ConfigProp("ProList", "pagination"); ok {
 		p.pageSize, _ = proPropPageSize(c, "ProList", 0)
 	}
+	p.defaultExpand = Prop(c, "ProList", "defaultExpandAllRows", true)
+	p.vertical = Prop(c, "ProList", "itemLayout", "horizontal") == "vertical"
+	p.loading = Prop(c, "ProList", "loading", false)
 	p.split = Prop(c, "ProList", "split", p.split)
 	p.bordered = Prop(c, "ProList", "bordered", p.bordered)
 	if n, ok := proPropInt(c, "ProList", "grid"); ok {
@@ -114,6 +123,21 @@ func (p *ProListW[T]) Selection(keys *[]string) *ProListW[T] { p.sel = keys; ret
 
 // Expandable adds an expand toggle per item showing fn below it.
 func (p *ProListW[T]) Expandable(fn func(c *Context, row T)) *ProListW[T] { p.expand = fn; return p }
+
+// DefaultExpandAllRows controls the initial expansion of each row (default true).
+func (p *ProListW[T]) DefaultExpandAllRows(on bool) *ProListW[T] { p.defaultExpand = on; return p }
+
+// ExpandedRowKeys binds the expanded keys to application-owned state.
+func (p *ProListW[T]) ExpandedRowKeys(keys *[]string) *ProListW[T] { p.expandedKeys = keys; return p }
+
+// ExpandRowByClick toggles expansion when the row body is activated.
+func (p *ProListW[T]) ExpandRowByClick() *ProListW[T] { p.expandByClick = true; return p }
+
+// RowExpandable determines which rows offer an expand control.
+func (p *ProListW[T]) RowExpandable(fn func(T) bool) *ProListW[T] { p.rowExpandable = fn; return p }
+
+// ItemLayout selects horizontal (default) or vertical item actions.
+func (p *ProListW[T]) ItemLayout(s string) *ProListW[T] { p.vertical = s == "vertical"; return p }
 
 // Pagination shows n items per page with a pager.
 func (p *ProListW[T]) Pagination(n int) *ProListW[T] { p.pageSize = max(1, n); return p }
@@ -223,6 +247,15 @@ func (p *ProListW[T]) Show() *ProListW[T] {
 	} else if p.pageSize > 0 {
 		pages := max(1, (len(p.rows)+p.pageSize-1)/p.pageSize)
 		st.page = max(1, min(st.page, pages))
+	}
+	if !st.expansionInitialized {
+		st.expansionInitialized = true
+		for i := range p.rows {
+			k := p.key(i)
+			if _, ok := st.expanded[k]; !ok {
+				st.expanded[k] = p.defaultExpand
+			}
+		}
 	}
 	root.Semantics(a11y.RoleList, p.title)
 	root.Body(func() {
@@ -353,22 +386,43 @@ func (p *ProListW[T]) remoteData() {
 
 // expander is the caret toggle of an expandable item.
 func (p *ProListW[T]) expander(k string) {
-	c, st := p.c, p.st
+	c := p.c
 	loc := c.Locale()
-	open := st.expanded[k]
+	open := p.isExpanded(k)
 	lbl := loc.Expand
 	ic := icon.Right
 	if open {
 		lbl, ic = loc.Collapse, icon.Down
 	}
 	if pro3IconBtn(c, lbl, ic, 20) {
-		st.expanded[k] = !open
-		c.invalid = true
+		p.toggleExpanded(k)
 	}
 }
 
+func (p *ProListW[T]) isExpanded(k string) bool {
+	if p.expandedKeys != nil {
+		return slices.Contains(*p.expandedKeys, k)
+	}
+	return p.st.expanded[k]
+}
+func (p *ProListW[T]) canExpand(row T) bool {
+	return p.expand != nil && (p.rowExpandable == nil || p.rowExpandable(row))
+}
+func (p *ProListW[T]) toggleExpanded(k string) {
+	if p.expandedKeys != nil {
+		if i := slices.Index(*p.expandedKeys, k); i >= 0 {
+			*p.expandedKeys = slices.Delete(*p.expandedKeys, i, i+1)
+		} else {
+			*p.expandedKeys = append(*p.expandedKeys, k)
+		}
+	} else {
+		p.st.expanded[k] = !p.st.expanded[k]
+	}
+	p.c.Invalidate()
+}
+
 // meta builds the avatar + title (+ subtitle) + description block.
-func (p *ProListW[T]) meta(row T, grow bool) {
+func (p *ProListW[T]) meta(row T, grow bool, showDesc bool) {
 	c, th := p.c, p.c.Theme
 	m := p.metas
 	opts := []layout.Option{layout.MinW(0), layout.AlignItems(layout.AlignStart)}
@@ -391,7 +445,7 @@ func (p *ProListW[T]) meta(row T, grow bool) {
 					}
 				}, layout.Gap(8), layout.Middle(), layout.MinW(0))
 			}
-			if m.Description != nil {
+			if m.Description != nil && showDesc {
 				if s := m.Description(row); s != "" {
 					Text(c, s).Color(th.TextTertiary).Layout(layout.Margin(geom.Insets{Top: 4}))
 				}
@@ -406,39 +460,64 @@ func (p *ProListW[T]) item(i int) {
 	row := p.rows[i]
 	k := p.key(i)
 	m := p.metas
+	can := p.canExpand(row)
+	open := !can || p.isExpanded(k)
 	col := Column(c, func() {
 		Row(c, func() {
-			if p.expand != nil {
-				p.expander(k)
-			}
-			if p.sel != nil {
-				on := p.selected(k)
-				if Checkbox(c, "", &on).A11yLabel(p.selectName(i, row)).Changed() {
-					p.toggle(k)
+			Column(c, func() {
+				Row(c, func() {
+					if p.sel != nil {
+						on := p.selected(k)
+						if Checkbox(c, "", &on).A11yLabel(p.selectName(i, row)).Changed() {
+							p.toggle(k)
+						}
+					}
+					if can {
+						p.expander(k)
+					}
+					p.meta(row, true, open)
+				}, layout.Gap(12), layout.Middle())
+				if open && (m.Content != nil || can) {
+					Column(c, func() {
+						if m.Content != nil {
+							m.Content(c, row)
+						}
+						if can {
+							p.expand(c, row)
+						}
+					}, layout.Padding(geom.Insets{Top: 12}), layout.Gap(8))
 				}
-			}
-			p.meta(row, true)
-			if m.Content != nil {
-				Row(c, func() { m.Content(c, row) }, layout.Grow(1), layout.Basis(0), layout.MinW(0), layout.Middle())
-			}
-			if m.Actions != nil {
+				if p.vertical && m.Actions != nil {
+					Row(c, func() { ListActions(c, func() { m.Actions(c, row) }) }, layout.Margin(geom.Insets{Top: 16}))
+				}
+			}, layout.Grow(1), layout.MinW(0))
+			if !p.vertical && m.Actions != nil {
 				ListActions(c, func() { m.Actions(c, row) })
 			}
 			if m.Extra != nil {
 				Row(c, func() { m.Extra(c, row) }, layout.Margin(geom.Insets{Left: 24}))
 			}
 		}, layout.Gap(12), layout.Middle())
-		if p.expand != nil && p.st.expanded[k] {
-			Column(c, func() { p.expand(c, row) }, layout.Padding(geom.Insets{Top: 12, Left: 32}))
-		}
 	}, layout.Grow(1), layout.MinW(0))
 	col.Semantics(a11y.RoleListItem, p.titleOf(row))
 	if p.sel != nil && p.selected(k) {
 		col.A11yState(a11y.Selected)
 	}
-	// A clickable item is a Tab stop: Enter / Space click it.
-	if p.onClick != nil && p.itemFocusable(col, p.c.Theme.RadiusSM).Clicked {
-		p.onClick(row)
+	if can {
+		col.A11yState(a11y.Expandable)
+		if open {
+			col.A11yState(a11y.Expanded)
+		}
+	}
+	if p.onClick != nil || (can && p.expandByClick) {
+		if p.itemFocusable(col, p.c.Theme.RadiusSM).Clicked {
+			if p.onClick != nil {
+				p.onClick(row)
+			}
+			if can && p.expandByClick {
+				p.toggleExpanded(k)
+			}
+		}
 	}
 }
 
@@ -485,7 +564,10 @@ func (p *ProListW[T]) card(i int) {
 	}
 	b := Column(c, func() {
 		Row(c, func() {
-			p.meta(row, true)
+			p.meta(row, true, true)
+			if m.Actions != nil {
+				Row(c, func() { m.Actions(c, row) }, layout.Gap(12), layout.Middle())
+			}
 			if p.sel != nil {
 				v := on
 				if Checkbox(c, "", &v).A11yLabel(p.selectName(i, row)).Changed() {
@@ -496,17 +578,15 @@ func (p *ProListW[T]) card(i int) {
 		if m.Content != nil {
 			Column(c, func() { m.Content(c, row) }, layout.Margin(geom.Insets{Top: 12}))
 		}
-		if p.expand != nil {
+		if p.canExpand(row) {
 			Row(c, func() { p.expander(k) }, layout.Margin(geom.Insets{Top: 8}))
-			if p.st.expanded[k] {
+			if p.isExpanded(k) {
 				Column(c, func() { p.expand(c, row) }, layout.Margin(geom.Insets{Top: 8}))
 			}
 		}
-		if m.Actions != nil || m.Extra != nil {
+		if m.Extra != nil {
 			Row(c, func() {
-				if m.Actions != nil {
-					Row(c, func() { m.Actions(c, row) }, layout.Gap(16), layout.Middle())
-				}
+
 				Spacer(c)
 				if m.Extra != nil {
 					m.Extra(c, row)

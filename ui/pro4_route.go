@@ -2,6 +2,7 @@ package ui
 
 import (
 	"github.com/tangoui/tango/ui/layout"
+	"github.com/tangoui/tango/ui/theme"
 )
 
 // ---------------------------------------------------------------------------
@@ -9,27 +10,28 @@ import (
 //
 //	ui.ProLayout(c, cfg, func() {
 //		rc := ui.RouteContext(c) // layout, collapsed, breadcrumb, content width…
-//		ui.GridContent(c).Body(page) // 1200px centred when cfg.ContentWidth is "Fixed"
+//		ui.GridContent(c).Body(page) // 1152px centred when cfg.ContentWidth is "Fixed"
 //	})
 //
 // RouteContext reads what the enclosing ProLayout knows about the shell
 // (Ant's React context of the same name); outside a ProLayout InLayout is
 // false. GridContent is the content container that follows the shell's
-// content width: Fluid fills the area, Fixed centres it at 1200px.
+// content width: Fluid fills the area, Fixed centres it at 1152px.
 
 // RouteInfo is the shell state seen by the content of a ProLayout.
 type RouteInfo struct {
-	InLayout     bool     // built inside a ProLayout content area
-	Layout       string   // "side", "top" or "mix"
-	Collapsed    bool     // sider collapsed
-	IsMobile     bool     // window narrower than MD
-	HasSiderMenu bool     // side and mix layouts
-	Breadcrumb   []string // the shell's breadcrumb
-	PageTitle    string
-	Selected     string // selected menu key
-	ContentWidth string // "Fluid" or "Fixed"
-	FixedHeader  bool
-	FixSiderbar  bool // the sider stays while the content scrolls
+	InLayout        bool             // built inside a ProLayout content area
+	Layout          string           // "side", "top" or "mix"
+	Collapsed       bool             // sider collapsed
+	IsMobile        bool             // window narrower than MD
+	HasSiderMenu    bool             // side and mix layouts
+	Breadcrumb      []string         // the shell's breadcrumb
+	BreadcrumbItems []BreadcrumbItem // structured route breadcrumb, including navigation callbacks
+	PageTitle       string
+	Selected        string // selected menu key
+	ContentWidth    string // "Fluid" or "Fixed"
+	FixedHeader     bool
+	FixSiderbar     bool // the sider stays while the content scrolls
 }
 
 // RouteContext returns the state of the innermost ProLayout being built
@@ -42,7 +44,7 @@ func RouteContext(c *Context) RouteInfo {
 }
 
 // GridContentFixedWidth is the content width of a Fixed GridContent.
-const GridContentFixedWidth = 1200
+const GridContentFixedWidth = 1152
 
 // GridContentW builds a GridContent.
 type GridContentW struct {
@@ -60,7 +62,7 @@ type GridContentW struct {
 // ("Fluid" | "Fixed"). Without either, the enclosing ProLayout's content
 // width is used.
 func GridContent(c *Context) *GridContentW {
-	g := &GridContentW{c: c, max: GridContentFixedWidth}
+	g := &GridContentW{c: c, max: c.ThemeFor(theme.CompLayout).Components.Layout.ProFixedWidth}
 	g.width = Prop(c, "GridContent", "contentWidth", "")
 	if g.width == "" {
 		g.width = RouteContext(c).ContentWidth
@@ -71,7 +73,7 @@ func GridContent(c *Context) *GridContentW {
 // ContentWidth sets "Fluid" (fill) or "Fixed" (centred, MaxWidth).
 func (g *GridContentW) ContentWidth(w string) *GridContentW { g.width = w; return g }
 
-// MaxWidth sets the width of a Fixed container (default 1200).
+// MaxWidth sets the width of a Fixed container (default 1152).
 func (g *GridContentW) MaxWidth(px float32) *GridContentW { g.max = px; return g }
 
 // Layout applies layout options to the inner column.
@@ -81,7 +83,9 @@ func (g *GridContentW) Layout(o ...layout.Option) *GridContentW {
 }
 
 // Fixed reports whether the container centres its content.
-func (g *GridContentW) Fixed() bool { return g.width == "Fixed" }
+func (g *GridContentW) Fixed() bool {
+	return g.width == "Fixed" && (RouteContext(g.c).Layout == "top" || RouteContext(g.c).Layout == "")
+}
 
 // Body builds fn inside the container and returns the inner column.
 func (g *GridContentW) Body(fn func()) *Box {

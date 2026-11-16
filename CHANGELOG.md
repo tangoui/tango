@@ -82,6 +82,13 @@
   - Link 自己的颜色令牌 `TypographyToken.LinkTextColor/LinkTextHoverColor/LinkTextActiveColor`（零值回落到 `LinkColor*`）。
   - 第 2 批复审新增的实验层令牌：`TimelineToken.DotOutlined`、`BusyTailDashed`；`TagToken.PlainColor`、`PlainBorderColor`；`ProgressToken.ShowInfo`；`TableToken.SelectionBorderedExtra`、`SorterTooltip`。
 
+- **组件规范对齐 第 4 批：Pro Components v3**（新独立组件及 Pro 类型扩展均为实验性；稳定类型上的新增成员仍按白名单承诺）：
+  - 表格：`CellEditorTable`、`RowEditorTable` 复用 EditableProTable 编辑状态，支持保存、取消、同步/异步校验；`TableDropdown`、`ListToolBar`（ProTable 复用工具栏）；`ProEnum.Disabled`。
+  - 布局：`ProBreadcrumb`、`PageLoading`、`TopNavHeader`；结构化 `RouteInfo.BreadcrumbItems`、`ProLayoutConfig.NavTheme/FixedHeader`，ProList 受控/默认展开选项。
+  - 表单：ProFormCaptcha 对应已有 `ValueCaptcha` + `ProField.Captcha`（手机号校验、自定义倒计时文案/回调）；ProFormSegmented 对应已有 `ValueSegmented` + `ProField.Segmented`（禁用选项、自定义内容）；不重复新增同义构造函数。
+  - 卡片：ProCard `BoxShadow`；ProDescriptions `ColumnAt/Columns`；StatisticCard 布局和独立 `ProStatistic`、`StatisticCardDivider`、`StatisticCardOperation`；CheckCard/Group 非受控值、嵌套组、自定义内容和操作。
+  - gallery：登录、查询列表、基础表单、详情、结果、设置抽屉六种完整 Pro v6 页面组合，全部使用真实 Tango API 和本地示例数据。复核旧 28 项的结果与尚缺能力见 `docs/specs/align/4-*.md`，不再将其解释为全部 v3 API 已完整。
+
 ### 变更
 
 - **删除 `down:scheme`**：单个长流式响应的下行通道（`GET /__tango/lane/down`）和 runtime-js 的对应模块删除，由 `down:poll` 取代；它在 Apple 上本来就因 WebKit 扣住大块突发而停用，其他平台没有接入。`TANGO_IPC_LANE_FAULT=down:scheme:N` 改为 `down:poll:N`（把带第 N+1 个字节包的轮询响应截断）。
@@ -89,6 +96,48 @@
 - **`Surface.Eval` 与 `Send` 对任意 goroutine 都保序**：页面加载完成后，`Send` 的消息按序号进下行序列；`Eval` 只在当前页面开启了 `down:poll` 时进同一序列，作为栅栏，页面把它之前的消息交付完才执行（多一次页面到 Go 的往返，约 0.06 ms；通道空闲时直接走 `Eval`，没有这笔开销）。没开 `down:poll` 的页面（iOS、Windows、Linux、Android，以及默认的 macOS）`Eval` 不带序号，仍是一次普通的 `evaluateJavaScript`，与 `Send` 经同一个出队队列按调用顺序交给页面。所以"与 `Send` 保序"的承诺对任意 goroutine 都成立。主线程上调用 `Send`/`Eval` 且走 `Eval` 路径时，返回前已经交给页面（与以前一致）。
 - **与页面导航赛跑的跨 goroutine `Send`、`Eval` 会被丢弃**：页面加载完成后，其他 goroutine 的 `Send` 和 `Eval` 现在调用时就进入当前页面世代的下行队列（以前先投递到主线程，执行时才看页面状态）。页面开始导航（用户点链接、重新加载，`SurfaceNavigating`；或 `Navigate`）时当前世代结束，已排队但还没交给页面的消息和脚本随之丢弃。以前这样的消息如果在导航开始后才轮到主线程执行，会暂存起来交给新页面，脚本则在新页面里执行；现在都不会。导航开始之后调用的 `Send` 照旧暂存，新页面加载完成后交付；这期间调用的 `Eval` 照旧在主线程上对当时的页面执行。需要新页面收到的消息或执行的脚本，在新页面加载后（例如 `Surface.OnLoaded` 的回调里）再发。
 - **macOS 自绘 UI 减少默认字体常驻开销**：同一可变系统字体的各字重共用一份解析后的字体数据，只各自保留字形缓存和变体坐标；HVAR 字宽变体的专用化改为字体 Face 被整形超过 64 次才做（整形结果不变）。等宽行缓存的快路径改用按 Face 和坐标做缓存键的整形器，各字重仍按自己的坐标整形。
+- **组件规范对齐 第 4 批：默认值和交互直接改为 Pro v3 规范**（逐项来源和测试见 `docs/specs/align/4-*.md`）：
+  - Ant ProCard 默认无边框 → outlined（所有主题未显式设置时 bordered=true）；显式 Borderless、ghost、split 子卡仍无边框。依据 Pro v3 Card/index.js variant 默认 outlined。已有 `TestShad2dProCardAntUnchanged` 保留半径断言并新增 outlined 期望，未删用例。
+  - ProSkeleton statistic 默认固定 4 → 2；遵循 Pro v3 浏览器实际行为，而不是 lookup 表表面上的 2/4/6。显式 Statistic(n) 和 Defaults statistic 保持优先。
+  - 基础 Descriptions / ProDescriptions 默认固定 3 列 → xs 1、sm 2、md 起 3 列（Tango 无 xxxl）。窄宽度下布局行数会增加；显式 Column / Defaults 数字仍保持指定列数。
+  - ProSkeleton descriptions 原固定 4 个总表格行且忽略 List → 默认 4 正文行 + 表头；List(n) 指定正文行，List(0) 隐藏分隔线/表格；描述项列数固定 3 → xs 1、其余 2，表格另有 flex-3 尾列。
+  - ProSkeleton list 页 List(0) 原连 toolbar 一起隐藏 → 只隐藏 rows；Toolbar(false) 独立隐藏工具栏。已有 `TestPro2ProSkeleton` 的“全空”调用增加 Toolbar(false)，不删除原用例。
+  - StatisticCardGroup 默认 SplitVertical → 无 split、body padding 0（Pro v3 Group 的真实定义，TestStatisticCardGroupDefaults）。旧用法要分隔线可显式 `.Split(SplitVertical)`。
+  - StatisticCard 未赋值时显示空字符串 → 显示 0（antd/statistic/Statistic.js `value = 0`，TestStatisticCardDefaultValue）。
+  - StatisticCard.Value 的数字格式化由 FormatNumber（四舍五入）→ statisticFormat（按 antd 截断精度），需要自定义格式可用 ValueText。
+  - 移除 StatisticCard / CheckCard 内部按设计语言分支：所有主题标题用 Pro 的正文色、footer 保持 Pro 分隔线、CheckCard 保持 Pro 角标；字号、颜色、内外边距继续来自令牌。
+  - StatisticCard 标题色 `TextSecondary` → `Text`（Pro v3 `pro/card/components/Statistic/style.js`）。
+  - StatisticCard 趋势：数值随趋势染红/绿（原只染三角）；三角 12×8 → 7×9（同上 `&-trend-icon`）。
+  - StatisticCard `Desc` 小指标：横排换行 → 竖排间距 4；字号 14 → 12（fontSizeSM）；标题次要色 → 正文色，值正文色 → 次要色；三角移到值前（同上 `& &-layout-inline`、`& + &`）。
+  - StatisticCard tip 图标与标题间距 6 → 4；状态点列宽 12 → 14；`Description` 上边距 8 → 0。
+  - StatisticCard 左右图表间距 24 → 16 且顶对齐（原垂直居中）；底部图表下方增加 8（`pro/card/components/StatisticCard/style.js` `&-chart`）。
+  - StatisticCard footer 上外边距 16 → 8（同上 `&-footer` marginXS）。
+  - CheckCard 圆角 RadiusLG → Radius（`pro/card/components/CheckCard/style.js` `borderRadius`）。
+  - CheckCard 内容内边距：随尺寸 12/16/20 四边 → 横 12、竖 16（`&-content`）。
+  - CheckCard 选中角标 12×12 贴角 → 20×20、距顶/末端 2、带上末端圆角（`genCheckedAfterBase`）。
+  - CheckCard 禁用背景 FillTertiary → BgContainerDisabled，禁用选中边框 Primary.BorderHover → Border，禁用头像透明度 0.25（`proCheckCardDisabled`）。
+  - CheckCard Large 标题字号 FontSizeLG → FontSize，标题色 → TextHeading（`&-title`）。
+  - CheckCard 头像：32/40/48 随尺寸、圆形 → 固定 48、方形；只有头像和标题时垂直居中（index.js `Avatar size=48 shape=square`、`-avatar-header`）。
+  - CheckCard 封面内边距 8 → 4（`&-cover` paddingXXS）。
+  - CheckCard loading：骨架 3 → 4 行、内边距 20；loading 时不响应点击；CheckCardGroup loading 时卡片不显示选中（Group.js、index.js）。
+  - ModalForm/DrawerForm 默认宽度：基础Modal/Drawer默认 → 800（v3对应index.js）。
+  - QueryFilter 列断点：560/900/1500 → 576/768/1600；窄屏折叠时0字段 → 至少1字段（v3 getSpanConfig/showLength）。
+  - ModalForm/DrawerForm 默认首次打开/重开清空 → 保留值；新增 DestroyOnHidden(true) 显式清空（v3默认不销毁）。TestModalFormClosesAfterSubmit 末尾重开期望从空字符串改为 x，与本行为修正对应；未删用例。
+  - ProForm 默认提交按钮顺序 submit/reset → reset/submit（Submitter/index.js）。
+  - ProLayout/DefaultProSettings：默认深侧栏→light，fixedHeader true→false（`layout/defaultSettings.js`）。需要深侧栏请显式 `NavTheme:"dark"`。
+  - GridContent：Fixed上限1200→1152；在side/mix不再收窄（源码 `GridContent/style.js` 而非过时1200注释）；独立显式Fixed/MaxWidth保留。
+  - PageContainer loading改用PageLoading（原minHeight200居中）；空页头不再占位，默认继承RouteContext的标题和面包屑；PageContainer存在时由其独占内容页头，避免top/mix重复自动标题与面包屑。
+  - ProList 默认折叠→全展开；checkbox移动到expand图标前；content由标题右侧→下方；折叠同时隐藏description/content；grid卡片actions由body底部→header右侧。
+  - SettingDrawer宽320→300；配色8→9补daybreak；切top自动Fixed，其他Fluid，mix强制light；top的fixed sider禁用。
+  - TopNavHeader统一复用原普通header并消费新增独立Pro token：title18→16、logo/title间距12→6、logo行64→56、菜单padding6；Sider默认Ant208→256（mix215），基础Layout/Header/Sider默认令牌不改。shadcn top不再单独绘制shadBrandMark。
+  - PageContainer Ant inline24→40、body block24→32、header top16→8/bottom16、children top24→0（无header时32）、背景surface→透明；FooterToolbar高56→min64；DefaultFooter gap40→8、margin top48/bottom24、inline16。以上均有Pro v3源码与共享token依据。
+  - ProTable 全屏选项：默认显示 → 默认隐藏（pro/table/components/ToolBar/index.js 合并 options 时 fullScreen:false）；需要显示时调用 FullScreen(true)。主线程已为 a11y/i18n 原全屏用例显式开启保留测试覆盖。
+  - ProTable toolbar：内部单独绘制 → 复用公开 ListToolBar；标题 Ant 原 Medium500 → Semibold600（ListToolBar style fontWeightStrong），组合增加8px统一间距；基础 Table 的外观/行为未改。
+  - 密度菜单：鼠标打开时 hover tooltip 撤销可能导致首次键盘焦点丢失 → 初始焦点请求保持到菜单首次稳定绘制，且先回焦点再处理漫游键盘事件。
+  - 基础 Table 内置筛选 Reset 修正：只改草稿并清搜索、面板不关闭，不立即 applyFilter；FilterResetToDefault 时，空草稿也允许恢复默认，草稿等于重置目标时 Reset 禁用。新增回归 `TestTableFilterResetOnlyDraftV3`（恢复默认和清空两分支）、`TestTableFilterResetRestoresDefaultFromEmptyDraft`。默认值不变，其余 Table 外观和行为不变。
+  - 共享视觉令牌：ProCard small body 纵向内边距 8 → 12，hover 用三级阴影和透明边框（BoxShadow 卡片 hover 时阴影不变）；LoginForm 标识间距 12 → 16、标题字重 500 → 600、描述下间距 32 → 40。ProLayout / PageContainer / DefaultFooter / FooterToolbar 改读独立 Pro 令牌，基础 Layout / Header / Sider 外观不变。
+  - FooterToolbar 默认改为固定在窗口或 Target 底部（Pro v3 position:fixed）；`Fixed(false)` 回到文档流，`Sticky()` 保留原到达底边才吸附的行为。App 的 maxCount 改走共享消息关闭流程，被挤掉的消息会触发 OnClose。
+
 - **组件规范对齐 第 1 批：默认值和行为改为规范的样子**（依据见各对照记录；不加保留旧行为的开关）：
   - Button：Ant 主题两字中文按钮默认插入空格（「确定」→「确 定」，antd autoInsertSpace 默认 true；Element、shadcn 不插）。关掉用 `Defaults("Button", Props{"autoInsertSpace": false})` 或 `AutoInsertSpace(false)`；优先级：方法 > Defaults > 主题令牌。
   - Divider：`Orientation` 改为表示方向（horizontal / vertical，antd v6），旧的标题位置值仍可用；`"left"`/`"right"` 标题位置改为物理方向；Ant 带标题分割线字号 14 → 16、高 22 → 24，竖线高 14 → 12.6（0.9em）；shadcn 竖线撑满所在行。

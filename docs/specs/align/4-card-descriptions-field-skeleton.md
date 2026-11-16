@@ -15,7 +15,7 @@
 | boxShadow | 默认 false；boxShadowTertiary、borderColor transparent（同上 index.js:39、style.js:28，2026-11-15） | ui/pro2_card.go:BoxShadow(bool)，Defaults `boxShadow`，ShadowTertiary；ghost/split 不加阴影 | 已补齐（TestProCardVariantAndBoxShadow） |
 | headerBordered | 默认 false（pro/es/card/components/Card/index.js:35，2026-11-15） | ui/pro2_card.go:HeaderBordered | 已对齐 |
 | ghost | 默认 false，透明背景/无边框、body 无 padding（同上及 style.js `&&-ghost`，2026-11-15） | ui/pro2_card.go:Ghost/pads/Body | 已对齐 |
-| hoverable | 默认 false，hover 三级阴影及透明边框（同上 style.js，2026-11-15） | ui/pro2_card.go:Hoverable 使用现有 hover 阴影；尚未迁移到 Pro 专用 hover token | 暂不做：本轮只补 boxShadow，hover 阴影/边框仍有存量差异，见共享请求 |
+| hoverable | 默认 false，hover 三级阴影及透明边框（同上 style.js，2026-11-15） | ui/pro2_card.go:Hoverable 读取 CardToken.ProHoverShadow/ProHoverBorderColor | 已补齐（TestAlignB4ProTokens、ProCard 回归） |
 | split | vertical/horizontal，共享 surface 与分隔线（pro/es/card/components/Card/index.js、style.js，2026-11-15） | ui/pro2_card.go:Split/content | 已对齐（TestPro2ProCardSplitAndSpan） |
 | direction | column/row（pro/es/card/typing.d.ts，2026-11-15） | ui/pro2_card.go:Direction | 已对齐 |
 | gutter | 默认 0，官方支持二元方向间距（同上、components/Card/index.js:32，2026-11-15） | ui/pro2_card.go:Gutter；不同方向 gap 用 Layout | 等价写法：普通 gutter 用 Gutter，复杂间距由外部 Row/Column Layout 组合 |
@@ -32,7 +32,7 @@
 | Group / Divider | 静态组合入口（pro/es/card/ProCard.js，2026-11-15） | ui/pro2_card.go:Split/Gutter/Direction；通用 Divider | 等价写法：用既有 ProCard 与 Divider 组合，不新增同义构造函数 |
 | ref / styles / classNames | React 引用、CSS semantic slots（pro/es/card/typing.d.ts，2026-11-15） | ui/pro2_card.go:ID/Box/BodyPadding/Layout | 不需要：非 DOM 框架；构建器/布局/主题提供原生控制 |
 | 键盘 / a11y | 官方 header collapse DOM 交互（pro/es/card/components/Card/index.js，2026-11-15） | ui/pro2_card.go:header button/expanded；root group、actions toolbar | 已对齐（TestPro2Semantics） |
-| 尺寸 / 令牌 | header padding 16/24、body 16/24；small header 8/12、body 12/12，圆角 LG（pro/es/card/components/Card/style.js，2026-11-15） | ui/pro2_card.go:pads 默认 16/24，small body 仍 8/12；已有 radius/shadow/border token | 暂不做：small body 纵向 padding 存量差异未扩范围修，建议后续 ProCardToken 统一 |
+| 尺寸 / 令牌 | header padding 16/24、body 16/24；small header 8/12、body 12/12，圆角 LG（pro/es/card/components/Card/style.js，2026-11-15） | ui/pro2_card.go:pads 读取 CardToken.ProHeader*/ProBody*；small body 12/12，主题独立派生 | 已补齐（TestAlignB4ProTokens、Pro2 回归） |
 | EP 外观 | card border 1px、body padding 20、header 18/20、light shadow（ep/theme-chalk/src/card.scss、common/var.scss，2026-11-15） | ui/pro2_card.go:pads/Body，Element border/header/shadow 保留 | 已对齐 |
 | shadcn 外观 | border、rounded-xl、py-6、px-6、shadow-sm（shadcn/card.tsx，2026-11-15） | ui/pro2_card.go:pads/Body/shadHeader；shad2dCardRadius、CardShadow | 已对齐 |
 | 明暗主题 | 背景/边框/阴影来自 token（上述官方样式，2026-11-15） | ui/pro2_card.go:Body 使用 BgContainer/BorderSecondary/CardBorder/ShadowTertiary，不分支 Dark | 已对齐 |
@@ -143,3 +143,8 @@
 5. Locale / theme / Defaults 注册文件本轮未改；组件内直接读取已有 ConfigProvider.Defaults，未新增硬编码组件界面文案。
 6. 按主线程转来的组 A2 请求，ui/pro2_card.go:content 遇前兄弟 label `pro2-stat-op` / `pro2-stat-divider` 时不再叠画 split 自动分隔线；补 TestProCardOwnDividerBefore。节点不保存 kind，识别当前 StatisticCardOperation/Divider 已写入的 Label。
 7. Gallery 的 ProCard、ProSkeleton、ProDescriptions 页面已组内出图（具体结果见 fix report）；ProDescriptions 示例保留请求/行内编辑，默认列示例取消显式 Column。后续建议主线程补全 viewport 窄宽度的共享 gallery 场景；本轮默认断点已由行为测试覆盖。
+
+## 主线程共享令牌整合（2026-11-15）
+
+- 已补 ProCard small body paddingBlock：8 → 12（上游 Card/style.js paddingSM），header 保持8；CardToken 新增 ProHeaderPaddingBlock/Inline/SM、ProBodyPaddingBlock/SM，三主题从主题派生，不再在 pads 内判断 Flavor。
+- 已补 ProCard hover 使用 ProHoverShadow（Ant ShadowTertiary）和 ProHoverBorderColor（Ant透明），替代原 Shadow + 不变边框。对应前文 hover/small body 暂不做项关闭。测试 TestAlignB4ProTokens 及 ProCard/Pro2 通过。

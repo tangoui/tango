@@ -10,9 +10,10 @@ package theme
 // without backdrop blur use the opaque theme.BgContainer fallback.
 type FooterToolbarToken struct {
 	Alias
-	Bg         Color   // background in flow (slightly translucent)
-	FrostedBg  Color   // background over the blurred page while pinned
-	BlurRadius float32 // backdrop blur under FrostedBg (logical px; ZeroPx: never frosted)
+	Bg                       Color   // background in flow (slightly translucent)
+	FrostedBg                Color   // background over the blurred page while pinned
+	BlurRadius               float32 // backdrop blur under FrostedBg (logical px; ZeroPx: never frosted)
+	MinHeight, PaddingInline float32 // Pro form/components/FooterToolbar/style.js
 }
 
 func deriveFooterToolbar(t *Theme) FooterToolbarToken {
@@ -22,6 +23,7 @@ func deriveFooterToolbar(t *Theme) FooterToolbarToken {
 		Bg:         Fade(t.BgContainer, 0.96),
 		FrostedBg:  Fade(t.BgContainer, 0.6),
 		BlurRadius: 8,
+		MinHeight:  64, PaddingInline: 24,
 	}
 	switch t.Flavor {
 	case Element:

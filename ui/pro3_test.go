@@ -336,6 +336,8 @@ func TestProListSelectExpandPaginate(t *testing.T) {
 		if !pro3HasText(d, ZhCN.Selected(1)) {
 			t.Fatal("selection bar missing")
 		}
+		// Pro v3 defaults to expanded rows; exercise collapse then expand.
+		clickNth(t, d, ZhCN.Collapse, 0)
 		clickNth(t, d, ZhCN.Expand, 0)
 		if !pro3HasText(d, "detail of Item 0") {
 			t.Fatal("not expanded")

@@ -128,7 +128,7 @@ func TestFooterToolbarFrosted(t *testing.T) {
 	// In flow: no frosting.
 	d := pro2Driver(theme.AntDesign(), 600, 300, func(c *Context) {
 		Scroll(c, func() { Text(c, "Content") }, layout.Grow(1))
-		FooterToolbar(c).Body(func() { Button(c, "InFlow") })
+		FooterToolbar(c).Fixed(false).Body(func() { Button(c, "InFlow") })
 	})
 	if bs := footerBlurs(d); len(bs) != 0 {
 		t.Fatalf("bar in flow frosted: %v", bs)
@@ -211,7 +211,7 @@ func footerMatrixPage(target bool, ftOut **FooterToolbarW, sbOut **ScrollBox) fu
 			*sbOut = sb
 			sb.Body(func() {
 				Column(c, nil, layout.H(900))
-				ft := FooterToolbar(c)
+				ft := FooterToolbar(c).Fixed(false)
 				if target {
 					ft.Target(sb.ID())
 				} else {
@@ -227,7 +227,7 @@ func footerFlowPage(ftOut **FooterToolbarW) func(*Context) {
 	return func(c *Context) {
 		Column(c, func() {
 			Column(c, nil, layout.H(100))
-			ft := FooterToolbar(c)
+			ft := FooterToolbar(c).Fixed(false)
 			*ftOut = ft.Body(func() { Button(c, "InFlow") })
 		}, layout.Grow(1), layout.Pad(10))
 	}
@@ -475,7 +475,7 @@ func TestFooterToolbarDamagePresenter(t *testing.T) {
 	page := func(c *Context) {
 		Column(c, func() {
 			Column(c, nil, layout.H(80))
-			f := FooterToolbar(c)
+			f := FooterToolbar(c).Fixed(false)
 			if sticky {
 				f.Sticky()
 			}
@@ -522,7 +522,7 @@ func footerDamagePage(dir Direction, sticky bool, hint *geom.Rect, st *footerDam
 						c.ScrollShift(geom.R(0, 0, 600, 300), geom.Pt(0, float32(st.prevY-sb.s.off.Y)))
 					}
 					st.prevY = sb.s.off.Y
-					ft := FooterToolbar(c)
+					ft := FooterToolbar(c).Fixed(false)
 					if sticky {
 						ft.Sticky()
 					}
