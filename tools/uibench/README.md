@@ -27,18 +27,19 @@ same file maps every Tango fixture entry to the scene it is compared in.
 ```sh
 cd tools/uibench
 ./setup.sh /path/to/nsgo/source   # links third_party/nsgo, writes third_party/nsgo.version
-./build.sh                        # bin/tango, bin/mygo, bin/nsgo, bin/runner, bin/build-info.txt
-cd runner                         # the runner is its own module: run it from here
+./build.sh                        # bin/tango, bin/mygo, bin/nsgo, bin/runner, bin/manifest.json
+cd runner                         # the runner is its own module: test it from here
 GOWORK=off go test ./... -count=1
-GOWORK=off go run . -bin ../bin -scenes counter,list,grid -frameworks tango,mygo,nsgo \
+../bin/runner -bin ../bin -verify # check the manifest, open no window
+../bin/runner -bin ../bin -scenes counter,list,grid -frameworks tango,mygo,nsgo \
 	-rounds 5 -settle 3s -seconds 10 -out ../results/$(date +%F).json
 # smoke (opens windows, about 2 minutes; not a performance result):
-GOWORK=off go run . -bin ../bin -scenes counter,list,grid -rounds 1 -seconds 3 -out ../results/smoke.json
+../bin/runner -bin ../bin -scenes counter,list,grid -rounds 1 -seconds 3 -out ../results/smoke.json
 # component scenes smoke:
-GOWORK=off go run . -bin ../bin -rounds 1 -seconds 3 -out ../results/smoke-components.json \
+../bin/runner -bin ../bin -rounds 1 -seconds 3 -out ../results/smoke-components.json \
 	-scenes buttons,inputs,textarea,checkboxes,radios,switches,sliders,progress,tabs,menu,dialog,toast,tree,datepicker,colorpicker
 # nearest-counterpart scenes smoke:
-GOWORK=off go run . -bin ../bin -rounds 1 -seconds 3 -out ../results/smoke-nearest.json \
+../bin/runner -bin ../bin -rounds 1 -seconds 3 -out ../results/smoke-nearest.json \
 	-scenes select,tooltip,table,pagination,cascader,transfer,treeselect,calendar,steps,timeline,descriptions,form,upload,carousel,collapse,drawer,tour,protable,segmented,rate,tags,badges,cards,statistics
 ```
 
@@ -47,8 +48,11 @@ nsgo/) also run the nearest-counterpart scenes headless and check what
 they show, and check every component scene's report cadence against
 `sceneWork`; they open no window.
 
-`go run ./runner` from tools/uibench does not work: tools/uibench has no
-go.mod, so the go command resolves the parent Tango module instead.
+Measure with `../bin/runner`, the runner build.sh built: the runner
+refuses to measure when its own SHA-256 is not the manifest's, so `go run .`
+(another binary, maybe another toolchain) is refused. `go run ./runner`
+from tools/uibench does not work either: tools/uibench has no go.mod, so
+the go command resolves the parent Tango module instead.
 
 The runner opens real windows and needs an unlocked screen: behind a
 locked screen the windows are occluded and Tango and MyGo (which draw on the
@@ -63,18 +67,53 @@ A scene program is started as `<bin> -scene <name>`; an unknown scene exits
 with status 2. It prints on standard output:
 
 ```
-bench renderer <name>
+bench scene <name> <w>x<h>  at start: the scene and its window in points
 bench ready
+bench renderer <name> <ns>  at ready, after every per-second report, and
+                            as soon as the path changes between frames
 bench frames <fps>          once a second
 bench work <work/s>         once a second
 bench intervals_us <a,b,…>  once a second
 ```
+
+`<ns>` is the program's clock in Unix nanoseconds. Each program gives
+proto the renderer every frame (Tango polls `uihost.Renderer(runner)` on
+the UI thread; MyGo its painter's path once the first frame was painted;
+NSGo `appkit`), and proto prints it at the points above. The runner still
+reads the old once-only `bench renderer <name>` line, timing it by its own
+clock (`runner_clock` in the timeline).
+
+## Renderer recording
+
+The runner removes an inherited `TANGO_RENDERER` from every scene
+program's environment before starting it, says so on startup and lists it
+in `meta.cleared_env`: Tango runs its default policy, which may start
+native or cpu and move to gpu (or fall back) during a run, so the window
+size does not tell the path. Each round keeps:
+
+- `renderer_timeline`: every renderer line, (t_ns, name);
+- `renderer_switches`: each change, with its time and `in_sample`;
+- `sample_start_ns`, `sample_end_ns`: the window the timeline is read against;
+- `renderer`: the one path seen in the sample window (the path in effect
+  at its start plus any reported inside it), or `mixed`, with
+  `renderer_sequence` (e.g. `native, gpu`) and `renderer_switches_in_sample`.
+
+A mixed round is usable: its CPU includes the switch, which the main
+result keeps. The judge's renderer check compares rounds by this summary,
+so a mixed round matches only rounds that switched in the same sequence
+(`mixed[native>gpu]`); verdicts name each side's path with its switch
+count and never call a mixed side by one path. Round lines print
+`switches=`, verdict lines `switches=<tango>/<opponent>`.
 
 ## Measurement
 
 Per scene, `-rounds` rounds; in each round every framework's program is
 started afresh, in an order that rotates by one each round. For each:
 
+0. Before anything, the build manifest must verify (see Build), or the
+   runner exits non-zero. Every round records its `input` (scene, window,
+   work definition and period, settle and sampling time) and its `build`
+   line; `meta.manifest` holds the whole manifest.
 1. Load gate before the round (1-minute load < 6, waiting up to 10 min,
    as uiperf's gate).
 2. Start, wait for `bench ready` (30 s timeout; startup = exec to ready),
@@ -99,12 +138,12 @@ as the stop, so none can slip in between).
 
 `judge(tango, opponent, minRounds)` reads only rounds that are ready,
 without error, not disturbed, not screen-locked and with a known renderer
-(not empty or `unknown`), and returns:
+(not empty or `unknown`; `mixed` is known), and returns:
 
 - `Invalid` when either side has fewer such rounds than `-rounds` (never
   fewer than 3: with one round Q1 = Q3 = the median and the interquartile
   condition would hold by itself), a framework changed its
-  renderer between rounds, or the work per frame (work/s ÷ fps) differs by
+  renderer between rounds (by the per-round summary above), or the work per frame (work/s ÷ fps) differs by
   more than the work tolerance: 5%, or for a scene that changes only every
   `period` frames (tabs 10; dialog, toast, tooltip, carousel, collapse,
   drawer and tour 30) max(5%, 1/expected changes), the expected changes
@@ -156,14 +195,36 @@ without error, not disturbed, not screen-locked and with a known renderer
   CPU (`cpu_s`) and WindowServer CPU (`windowserver_s`) are recorded
   separately in every round so the two can be read apart.
 
-## Build modes
+## Build
 
-`build.sh` builds every program with `GOWORK=off CGO_ENABLED=0 go build
--trimpath -ldflags "-s -w"` and one toolchain (`GOTOOLCHAIN=go1.27.3`). A
-framework that fails without cgo is rebuilt with `CGO_ENABLED=1`; the
-mode goes to `bin/build-info.txt` and into every result's `build` field.
+`build.sh` runs `go run . -build` in runner/ with exactly
+`GOTOOLCHAIN=go1.27.3 CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 GOWORK=off
+GOFLAGS=` (no `+auto`: a module needing a newer go fails instead of
+switching toolchains for one framework). The builder (runner/manifest.go)
+refuses to run on another toolchain, builds the three scene programs with
+`go build -trimpath -ldflags "-s -w"` and the runner with `-trimpath`,
+stops at the first failure (there is no CGO_ENABLED=1 fallback any more),
+checks each binary's own build info (`go1.27.3`, CGO_ENABLED, GOOS, GOARCH,
+`-trimpath`; and, because Go leaves `-ldflags` out of the build info under
+`-trimpath`, that the scene programs carry no defined symbols and no
+`__DWARF` segment), and writes `bin/manifest.json`. A failed build leaves
+no manifest. For each binary it records:
 
-As of 2026-11-17 all three build with `CGO_ENABLED=0`.
+- the source: Tango and the runner, this repository's commit and whether
+  the work tree was dirty (with the files); MyGo, the module version
+  mygo/go.mod requires and its go.sum hash; NSGo, third_party/nsgo.version
+  (CHANGELOG heading, source path, Go tree hash), whose hash the builder
+  recomputes and refuses when stale (rerun setup.sh);
+- the build command as run and its environment;
+- its SHA-256, build settings and full `go version -m` output.
+
+At startup the runner refuses to measure (exit 1) unless bin/manifest.json
+exists, every binary's SHA-256 and its own match it, every binary was built
+with the pinned toolchain and target, and the three scene programs were
+built alike (toolchain, environment, flags, settings, stripping).
+`runner -verify` runs just this check. Raising the toolchain means changing
+`pinnedToolchain` in runner/manifest.go and build.sh together, then
+rebuilding and re-measuring all three frameworks.
 
 ## Written independently
 

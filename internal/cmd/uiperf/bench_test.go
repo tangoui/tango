@@ -252,3 +252,38 @@ func TestRunBenchColdBuildFailureExplicit(t *testing.T) {
 		}
 	}
 }
+
+// The bench step's first -bench element is anchored: an unanchored
+// "BenchmarkComponents" also selects BenchmarkComponentsRaster.
+func TestRunBenchFirstElementAnchored(t *testing.T) {
+	calls := fakeBenchPipeline(t)
+	if err := runBench(1, "Checkbox/Interact", t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range *calls {
+		if c.name == "go" && hasArgs(c.args, "-run", "^$") {
+			if !hasArgs(c.args, "-bench", "^BenchmarkComponents$/Checkbox/Interact") {
+				t.Fatalf("bench run %v: want -bench ^BenchmarkComponents$/Checkbox/Interact", c.args)
+			}
+			return
+		}
+	}
+	t.Fatal("no bench run")
+}
+
+// A failed budget gate leaves bench's exit status 0, so bench says so on
+// stderr in one line.
+func TestRunBenchBudgetFailureNote(t *testing.T) {
+	fakeBenchPipeline(t)
+	var buf strings.Builder
+	old := benchStderr
+	benchStderr = &buf
+	t.Cleanup(func() { benchStderr = old })
+	if err := runBench(1, ".*", t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if strings.Count(got, "\n") != 1 || !strings.Contains(got, "budget.status") || !strings.Contains(got, "exits 0") {
+		t.Fatalf("stderr note %q: want one line naming exit 0 and budget.status", got)
+	}
+}

@@ -94,16 +94,15 @@ func (k *clock) next(c *ui.Context) bool {
 	return true
 }
 
-var reported bool
-
-// report counts a frame that did the scene's work. The first one names the
-// renderer, which uihost settled by then.
+// report counts a frame that did the scene's work. Every frame it polls
+// the renderer uihost uses for the window, on the UI thread; proto reports
+// it at ready, with every per-second report and as soon as it changes
+// (spec §6.3: the default policy may move between native, gpu and cpu).
 // reportHook, set by the tests only, sees every frame report() counts.
 var reportHook func(work int)
 
 func report(work int) {
-	if !reported {
-		reported = true
+	if runner != nil { // nil only before uihost.Open returned, and in the headless tests
 		proto.Renderer(uihost.Renderer(runner))
 	}
 	if reportHook != nil {
@@ -130,6 +129,7 @@ func main() {
 		os.Exit(2)
 	}
 	useEnglish()
+	proto.Scene(*name, s.width, s.height)
 	quit := true
 	app := tango.New(tango.Options{Name: "uibench tango", ID: "local.tango.uibench", QuitOnLastClose: &quit})
 	app.OnReady(func() {

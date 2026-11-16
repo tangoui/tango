@@ -43,11 +43,20 @@ type Round struct {
 	Framework string `json:"framework"`
 	Round     int    `json:"round"`
 	Attempt   int    `json:"attempt"`
-	Build     string `json:"build,omitempty"` // how the program was built (CGO)
+	Build     string `json:"build,omitempty"` // the program's manifest entry, in one line
+	Input     Input  `json:"input"`
 
-	Ready     bool    `json:"ready"`
-	Renderer  string  `json:"renderer"`
-	StartupMs float64 `json:"startup_ms"` // exec to "bench ready"
+	Ready bool `json:"ready"`
+	// Renderer is the one drawing path seen in the sample window, or
+	// "mixed" (RendererSequence then says which, in order).
+	Renderer         string           `json:"renderer"`
+	RendererSequence []string         `json:"renderer_sequence,omitempty"`
+	SampleSwitches   int              `json:"renderer_switches_in_sample"`
+	RendererSwitches []RendererSwitch `json:"renderer_switches,omitempty"`
+	RendererTimeline []RendererSample `json:"renderer_timeline,omitempty"`
+	SampleStartNs    int64            `json:"sample_start_ns,omitempty"` // the window RendererTimeline is read against
+	SampleEndNs      int64            `json:"sample_end_ns,omitempty"`
+	StartupMs        float64          `json:"startup_ms"` // exec to "bench ready"
 
 	Seconds             float64 `json:"seconds"`        // sampled wall time
 	CPUSeconds          float64 `json:"cpu_s"`          // process user+system
@@ -68,6 +77,30 @@ type Round struct {
 	ScreenLocked bool     `json:"screen_locked,omitempty"`
 	Error        string   `json:"error,omitempty"`
 	Notes        []string `json:"notes,omitempty"`
+}
+
+// Input identifies what a round measured: the scene, the window the
+// program opened (its "bench scene" line), the scene's work definition and
+// the settle and sampling periods.
+type Input struct {
+	Scene   string `json:"scene"`
+	Window  string `json:"window,omitempty"` // logical points, WxH
+	Work    string `json:"work"`
+	Period  int    `json:"period_frames"` // frames between the scene's changes
+	Settle  string `json:"settle"`
+	Seconds string `json:"seconds"`
+}
+
+func inputOf(cfg config, scene string) Input {
+	meta := metaOf(scene)
+	work := "scenes.md " + scene + ": every frame changes the scene's work"
+	if meta.period > 1 {
+		work = fmt.Sprintf("scenes.md %s: one change every %d frames", scene, meta.period)
+	}
+	if meta.unequalMotion {
+		work += "; default motion differs between frameworks (Info)"
+	}
+	return Input{Scene: scene, Work: work, Period: meta.period, Settle: cfg.settle.String(), Seconds: cfg.seconds.String()}
 }
 
 func (r Round) cpu() float64 {
@@ -102,7 +135,8 @@ func (r Round) footprint() float64 { return float64(r.Footprint) }
 
 // usable drops the attempts the judge must not read: disturbed, failed,
 // measured behind a locked screen, or without a known renderer (the
-// renderer consistency check cannot vouch for them).
+// renderer consistency check cannot vouch for them). A mixed round is
+// usable; the judge reports its switches.
 func usable(rs []Round) []Round {
 	var out []Round
 	for _, r := range rs {
@@ -116,9 +150,11 @@ func usable(rs []Round) []Round {
 
 // event is one parsed protocol line.
 type event struct {
-	kind      string // ready, renderer, frames, work, intervals
+	kind      string // ready, renderer, scene, frames, work, intervals
 	value     float64
 	name      string
+	window    string // scene
+	t         int64  // renderer: Unix ns, 0 on the old untimed line
 	intervals []int64
 }
 
@@ -134,7 +170,22 @@ func parseLine(line string) (event, bool) {
 	case "ready":
 		return event{kind: "ready"}, arg == ""
 	case "renderer":
-		return event{kind: "renderer", name: strings.TrimSpace(arg)}, strings.TrimSpace(arg) != ""
+		// "bench renderer <name> <unix_ns>", or the old "bench renderer <name>".
+		f := strings.Fields(arg)
+		switch len(f) {
+		case 1:
+			return event{kind: "renderer", name: f[0]}, true
+		case 2:
+			t, err := strconv.ParseInt(f[1], 10, 64)
+			return event{kind: "renderer", name: f[0], t: t}, err == nil && t > 0
+		}
+		return event{}, false
+	case "scene":
+		f := strings.Fields(arg)
+		if len(f) != 2 {
+			return event{}, false
+		}
+		return event{kind: "scene", name: f[0], window: f[1]}, true
 	case "frames", "work":
 		v, err := strconv.ParseFloat(strings.TrimSpace(arg), 64)
 		return event{kind: key, value: v}, err == nil
@@ -161,11 +212,14 @@ type monitor struct {
 	ready chan struct{}
 	done  chan struct{} // stdout closed: the program exited
 
-	mu       sync.Mutex
-	isReady  bool
-	readyAt  time.Time
-	renderer string
-	sampling bool
+	mu        sync.Mutex
+	now       func() time.Time // receive time of an untimed renderer line
+	timeline  []RendererSample
+	window    string // from "bench scene"
+	sceneName string
+	isReady   bool
+	readyAt   time.Time
+	sampling  bool
 	// A report group is one second's frames, work and intervals lines, in
 	// that order. It is taken whole or not at all, and the first group
 	// completed after sampling starts is dropped: it covers time before
@@ -178,7 +232,7 @@ type monitor struct {
 }
 
 func newMonitor() *monitor {
-	return &monitor{ready: make(chan struct{}), done: make(chan struct{})}
+	return &monitor{ready: make(chan struct{}), done: make(chan struct{}), now: time.Now}
 }
 
 // group is a report group being received.
@@ -217,7 +271,13 @@ func (m *monitor) line(text string) {
 			close(m.ready)
 		}
 	case "renderer":
-		m.renderer = e.name
+		s := RendererSample{T: e.t, Name: e.name}
+		if s.T == 0 {
+			s.T, s.RunnerClock = m.now().UnixNano(), true
+		}
+		m.timeline = append(m.timeline, s)
+	case "scene":
+		m.sceneName, m.window = e.name, e.window
 	case "frames":
 		m.pending = group{frames: e.value, hasFrames: true}
 	case "work":
@@ -338,15 +398,14 @@ type config struct {
 	bin      string
 	settle   time.Duration
 	seconds  time.Duration
-	builds   map[string]string
 	loadRead func() (float64, error)
+	manifest Manifest
 }
 
 // runOnce starts one scene program, measures it and stops it.
 func runOnce(cfg config, fw, scene string) Round {
-	r := Round{Scene: scene, Framework: fw, Build: cfg.builds[fw], ScreenLocked: screenLocked()}
-	cmd := exec.Command(filepath.Join(cfg.bin, fw), "-scene", scene)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	r := Round{Scene: scene, Framework: fw, Build: cfg.manifest.buildLine(fw), Input: inputOf(cfg, scene), ScreenLocked: screenLocked()}
+	cmd := sceneCommand(cfg, fw, scene)
 	stderr := &tail{}
 	cmd.Stderr = stderr
 	stdout, err := cmd.StdoutPipe()
@@ -391,6 +450,7 @@ func runOnce(cfg config, fw, scene string) Round {
 	w0, err2 := windowServerCPU()
 	m.setSampling(true)
 	t0 := time.Now()
+	r.SampleStartNs = t0.UnixNano()
 	tick := time.NewTicker(250 * time.Millisecond)
 	for deadline := t0.Add(cfg.seconds); time.Now().Before(deadline); {
 		select {
@@ -408,6 +468,7 @@ func runOnce(cfg config, fw, scene string) Round {
 	c1, err3 := procCPU(pid)
 	w1, err4 := windowServerCPU()
 	r.Seconds = time.Since(t0).Seconds()
+	r.SampleEndNs = time.Now().UnixNano()
 	m.setSampling(false)
 	r.Footprint, _ = procFootprint(pid)
 	r.PeakFootprint = max(r.PeakFootprint, r.Footprint)
@@ -420,7 +481,19 @@ func runOnce(cfg config, fw, scene string) Round {
 	r.CPUSeconds = (c1 - c0).Seconds()
 	r.WindowServerSeconds = (w1 - w0).Seconds()
 	m.mu.Lock()
-	r.Renderer = m.renderer
+	r.Input.Window = m.window
+	if m.sceneName != "" && m.sceneName != scene {
+		r.Notes = append(r.Notes, "program reported scene "+m.sceneName)
+	}
+	r.RendererTimeline = append([]RendererSample(nil), m.timeline...)
+	var switches []RendererSwitch
+	r.Renderer, r.RendererSequence, switches = summarizeRenderer(r.RendererTimeline, r.SampleStartNs, r.SampleEndNs)
+	r.RendererSwitches = switches
+	for _, sw := range switches {
+		if sw.InSample {
+			r.SampleSwitches++
+		}
+	}
 	r.FPS = mean(m.frames)
 	r.WorkPerSec = mean(m.work)
 	r.Intervals = len(m.intervals)
@@ -474,18 +547,22 @@ type Results struct {
 }
 
 type Meta struct {
-	Started   string            `json:"started"`
-	Finished  string            `json:"finished,omitempty"`
-	Machine   string            `json:"machine"`
-	MemBytes  int64             `json:"mem_bytes"`
-	OS        string            `json:"os"`
-	Runner    string            `json:"runner_go"`
-	Args      []string          `json:"args"`
-	Settle    string            `json:"settle"`
-	Seconds   string            `json:"seconds"`
-	Builds    map[string]string `json:"builds"` // framework -> build line of bin/build-info.txt
-	NSGo      string            `json:"nsgo,omitempty"`
-	LoadStart float64           `json:"load_start"`
+	Started  string   `json:"started"`
+	Finished string   `json:"finished,omitempty"`
+	Machine  string   `json:"machine"`
+	MemBytes int64    `json:"mem_bytes"`
+	OS       string   `json:"os"`
+	Runner   string   `json:"runner_go"`
+	Args     []string `json:"args"`
+	Settle   string   `json:"settle"`
+	Seconds  string   `json:"seconds"`
+	// Manifest is bin/manifest.json as verified at startup (spec §5).
+	Manifest Manifest `json:"manifest"`
+	// ClearedEnv: inherited variables removed from the scene programs'
+	// environment (TANGO_RENDERER), so Tango ran its default policy.
+	ClearedEnv []string `json:"cleared_env"`
+	NSGo       string   `json:"nsgo,omitempty"`
+	LoadStart  float64  `json:"load_start"`
 	// ScreenLocked at the start: the run cannot produce usable rounds.
 	ScreenLocked bool `json:"screen_locked"`
 }
@@ -496,6 +573,11 @@ type VerdictLine struct {
 	Verdict  Verdict `json:"verdict"`
 	Why      string  `json:"why"`
 	Rounds   [2]int  `json:"usable_rounds"` // tango, opponent
+	// Renderers are each side's path over its usable rounds ("mixed[a>b]"
+	// for rounds that switched); Switches the renderer switches inside
+	// their sample windows. Both tango, opponent.
+	Renderers [2]string `json:"renderers"`
+	Switches  [2]int    `json:"renderer_switches_in_sample"`
 }
 
 func main() {
@@ -506,18 +588,50 @@ func main() {
 	settle := flag.Duration("settle", 3*time.Second, "wait after ready before sampling")
 	seconds := flag.Int("seconds", 10, "sampling seconds")
 	out := flag.String("out", "../results/"+time.Now().Format("2006-01-02-150405")+".json", "results file")
+	verifyOnly := flag.Bool("verify", false, "verify -bin/manifest.json against the binaries and exit, opening no window")
+	buildMode := flag.Bool("build", false, "build.sh's step: build the scene programs and the runner into -bin with the pinned toolchain and write -bin/manifest.json")
 	flag.Parse()
+
+	if *buildMode {
+		root, err := filepath.Abs(filepath.Join(*bin, ".."))
+		if err != nil {
+			fatal(err)
+		}
+		b := newBuilder(root)
+		b.bin, _ = filepath.Abs(*bin)
+		m, err := b.build()
+		if err != nil {
+			fatal(err)
+		}
+		for _, e := range m.Binaries {
+			fmt.Printf("%-6s %s\n       sha256=%s\n", e.Name, e.Build.Line, e.SHA256)
+		}
+		fmt.Println("manifest:", filepath.Join(b.bin, manifestName))
+		return
+	}
 
 	scenes, fws := split(*scenesFlag), split(*fwFlag)
 	if len(scenes) == 0 || len(fws) == 0 || *rounds < 1 || *seconds < 1 {
 		fmt.Fprintln(os.Stderr, "runner: need scenes, frameworks, rounds ≥ 1 and seconds ≥ 1")
 		os.Exit(2)
 	}
-	for _, fw := range fws {
-		if _, err := os.Stat(filepath.Join(*bin, fw)); err != nil {
-			fmt.Fprintf(os.Stderr, "runner: %v (run build.sh)\n", err)
-			os.Exit(1)
-		}
+	self, err := os.Executable()
+	if err != nil {
+		fatal(err)
+	}
+	manifest, err := verifyManifest(*bin, self, inspectBinary)
+	if err != nil {
+		fatal(err)
+	}
+	fmt.Println("runner: build manifest verified:", filepath.Join(*bin, manifestName))
+	if *verifyOnly {
+		return
+	}
+	_, cleared := childEnv(os.Environ())
+	if len(cleared) > 0 {
+		fmt.Printf("runner: cleared inherited %s from the scene programs' environment (Tango runs its default renderer policy)\n", strings.Join(cleared, ", "))
+	} else {
+		fmt.Println("runner: TANGO_RENDERER not inherited; the scene programs run without it (Tango's default renderer policy)")
 	}
 	if err := checkScreen(screenLocked); err != nil {
 		fmt.Fprintln(os.Stderr, "runner:", err)
@@ -532,8 +646,9 @@ func main() {
 		os.Exit(130)
 	}()
 	cfg := config{bin: *bin, settle: *settle, seconds: time.Duration(*seconds) * time.Second,
-		builds: readBuilds(*bin), loadRead: systemLoad}
+		loadRead: systemLoad, manifest: manifest}
 	res := &Results{Meta: newMeta(cfg)}
+	res.Meta.ClearedEnv = append([]string{}, cleared...)
 	if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
 		fatal(err)
 	}
@@ -569,9 +684,11 @@ func main() {
 				}
 				o := pick(res.Rounds, scene, fw)
 				v, why := judgeWhy(t, o, *rounds)
+				tk, ts := rendererSummary(t)
+				ok, osw := rendererSummary(o)
 				res.Verdicts = append(res.Verdicts, VerdictLine{Scene: scene, Opponent: fw, Verdict: v, Why: why,
-					Rounds: [2]int{len(usable(t)), len(usable(o))}})
-				fmt.Printf("verdict %-8s tango vs %-5s %-9s %s\n", scene, fw, v, why)
+					Rounds: [2]int{len(usable(t)), len(usable(o))}, Renderers: [2]string{tk, ok}, Switches: [2]int{ts, osw}})
+				fmt.Printf("verdict %-8s tango vs %-5s %-9s switches=%d/%d %s\n", scene, fw, v, ts, osw, why)
 			}
 		}
 	}
@@ -610,8 +727,8 @@ func printRound(r Round) {
 	if r.ScreenLocked {
 		status += " screen-locked"
 	}
-	fmt.Printf("%-8s %-6s round %d.%d %s renderer=%s startup=%.0fms fps=%.1f work/s=%.0f cpu=%.3f ws=%.3f cores p50=%.0fus p99=%.0fus footprint=%.1fMiB load=%.2f/%.2f\n",
-		r.Scene, r.Framework, r.Round, r.Attempt, status, r.Renderer, r.StartupMs, r.FPS, r.WorkPerSec,
+	fmt.Printf("%-8s %-6s round %d.%d %s renderer=%s switches=%d startup=%.0fms fps=%.1f work/s=%.0f cpu=%.3f ws=%.3f cores p50=%.0fus p99=%.0fus footprint=%.1fMiB load=%.2f/%.2f\n",
+		r.Scene, r.Framework, r.Round, r.Attempt, status, rendererKey(r), r.SampleSwitches, r.StartupMs, r.FPS, r.WorkPerSec,
 		safeDiv(r.CPUSeconds, r.Seconds), safeDiv(r.WindowServerSeconds, r.Seconds),
 		r.P50us, r.P99us, float64(r.Footprint)/(1<<20), r.LoadBefore, r.LoadAfter)
 }
@@ -669,32 +786,16 @@ func fatal(err error) {
 	os.Exit(1)
 }
 
-// readBuilds reads bin/build-info.txt, which build.sh writes as
-// "<framework> <how it was built>" lines.
-func readBuilds(bin string) map[string]string {
-	builds := map[string]string{}
-	b, err := os.ReadFile(filepath.Join(bin, "build-info.txt"))
-	if err != nil {
-		return builds
-	}
-	for _, line := range strings.Split(string(b), "\n") {
-		if fw, how, ok := strings.Cut(strings.TrimSpace(line), " "); ok {
-			builds[fw] = strings.TrimSpace(how)
-		}
-	}
-	return builds
-}
-
 func newMeta(cfg config) Meta {
 	m := Meta{
-		Started: time.Now().Format(time.RFC3339),
-		Machine: sysctl("machdep.cpu.brand_string"),
-		OS:      runtime.GOOS + "/" + runtime.GOARCH,
-		Runner:  runtime.Version(),
-		Args:    os.Args[1:],
-		Settle:  cfg.settle.String(),
-		Seconds: cfg.seconds.String(),
-		Builds:  cfg.builds,
+		Started:  time.Now().Format(time.RFC3339),
+		Machine:  sysctl("machdep.cpu.brand_string"),
+		OS:       runtime.GOOS + "/" + runtime.GOARCH,
+		Runner:   runtime.Version(),
+		Args:     os.Args[1:],
+		Settle:   cfg.settle.String(),
+		Seconds:  cfg.seconds.String(),
+		Manifest: cfg.manifest,
 	}
 	m.MemBytes, _ = strconv.ParseInt(sysctl("hw.memsize"), 10, 64)
 	if v, err := exec.Command("sw_vers", "-productVersion").Output(); err == nil {

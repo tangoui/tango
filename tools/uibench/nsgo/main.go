@@ -70,18 +70,14 @@ func scenes() map[string]scene {
 	}
 }
 
-var reported bool
-
-// report counts a frame that did the scene's work; the first names the
-// renderer, which for NSGo on macOS is always its native views.
+// report counts a frame that did the scene's work and gives proto the
+// renderer, which for NSGo on macOS is always its native views (proto
+// reports it at ready, with every per-second report and on change).
 // reportHook, set by the tests only, sees every frame report() counts.
 var reportHook func(work int)
 
 func report(work int) {
-	if !reported {
-		reported = true
-		proto.Renderer("appkit")
-	}
+	proto.Renderer("appkit")
 	if reportHook != nil {
 		reportHook(work)
 	}
@@ -101,6 +97,7 @@ func main() {
 		os.Exit(2)
 	}
 	os.Args = append(os.Args[:1], fs.Args()...)
+	proto.Scene(*name, int(s.width), int(s.height))
 	// The components' built-in texts in English, as in all three programs,
 	// whatever the system's language (Scope.SetLocale, what --nsgo-lang
 	// does). NSGo pins a forced language in the app's defaults for later

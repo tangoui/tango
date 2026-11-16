@@ -90,7 +90,7 @@ func (k *clock) next(c *ui.Context) bool {
 // The renderer is what MyGo's painter says of the first frame: drawn on
 // the GPU (Metal on macOS) or in software.
 var (
-	probed, accelerated, reported bool
+	probed, accelerated bool
 )
 
 // probe watches the first painted frame of root for the renderer.
@@ -101,19 +101,16 @@ func probe(root ui.Element) ui.Element {
 	return root.Draw(func(p *ui.Painter, _ ui.Rect) { probed, accelerated = true, p.Accelerated() })
 }
 
-// report counts a frame that did the scene's work; the first names the
-// renderer.
+// report counts a frame that did the scene's work and gives proto the
+// renderer every frame, once the first painted frame told it (proto
+// reports it at ready, with every per-second report and on change).
 // reportHook, set by the tests only, sees every frame report() counts.
 var reportHook func(work int)
 
 func report(work int) {
-	if !reported {
-		reported = true
+	if probed {
 		name := "software"
-		switch {
-		case !probed:
-			name = "unknown"
-		case accelerated:
+		if accelerated {
 			name = "metal"
 		}
 		proto.Renderer(name)
@@ -137,6 +134,7 @@ func main() {
 	// sets) chooses the language for this run and saves nothing, where
 	// App.SetLocale would keep it for later launches (mygo locale.go).
 	os.Setenv("MYGO_LOCALE", "en")
+	proto.Scene(*name, s.width, s.height)
 	mygo.App.WhenReady(func() {
 		mygo.NewWindow(mygo.WindowOptions{
 			Title: "uibench mygo " + *name, Width: s.width, Height: s.height,

@@ -14,7 +14,8 @@ const (
 	// NotFaster: the comparison is valid and Tango missed a condition.
 	NotFaster Verdict = "NotFaster"
 	// Invalid: the rounds cannot be compared (no usable rounds, different
-	// work, or a framework changed its drawing path between rounds).
+	// work, or a framework changed its drawing path between rounds; a
+	// mixed round matches only rounds with the same switch sequence).
 	Invalid Verdict = "Invalid"
 	// Info: the comparison is valid but not judged, because the frameworks'
 	// default motion differs in the scene (sceneMeta.unequalMotion): its
@@ -91,13 +92,16 @@ func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
 	if len(t) < need || len(o) < need {
 		return Invalid, fmt.Sprintf("usable rounds: tango %d, opponent %d, need %d each", len(t), len(o), need)
 	}
+	// The same path in every round, by the per-round summary: a mixed
+	// round matches only rounds that switched in the same sequence.
 	for _, side := range [][]Round{t, o} {
 		for _, r := range side[1:] {
-			if r.Renderer != side[0].Renderer {
-				return Invalid, fmt.Sprintf("%s drew with %q and %q", r.Framework, side[0].Renderer, r.Renderer)
+			if rendererKey(r) != rendererKey(side[0]) {
+				return Invalid, fmt.Sprintf("%s drew with %q and %q", r.Framework, rendererKey(side[0]), rendererKey(r))
 			}
 		}
 	}
+	paths := fmt.Sprintf("; renderer tango %s, opponent %s", describeRenderer(t), describeRenderer(o))
 	meta := metaOf(t[0].Scene)
 	tol, ok := workToleranceFor(meta.period, t, o)
 	if !ok {
@@ -115,23 +119,24 @@ func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
 	tp, op := median(each(t, Round.p99)), median(each(o, Round.p99))
 	frames := fmt.Sprintf("; fps %.1f vs %.1f; p99 %.0f vs %.0f µs", tf, of, tp, op)
 	if meta.unequalMotion {
-		return Info, why + frames + "; not judged (unequal default motion)"
+		return Info, why + frames + paths + "; not judged (unequal default motion)"
 	}
 	if !(tc <= oc*cpuRatio) {
-		return NotFaster, why + ": cpu above half"
+		return NotFaster, why + paths + ": cpu above half"
 	}
 	if !(tq3 < oq1) {
-		return NotFaster, why + ": interquartile ranges overlap"
+		return NotFaster, why + paths + ": interquartile ranges overlap"
 	}
 	if t[0].Scene == "counter" {
 		tm, om := median(each(t, Round.footprint)), median(each(o, Round.footprint))
 		why += fmt.Sprintf("; footprint %.1f vs %.1f MiB", tm/(1<<20), om/(1<<20))
+		why += paths
 		if tm > om {
 			return NotFaster, why + ": more memory"
 		}
 		return Faster, why
 	}
-	why += frames
+	why += frames + paths
 	if tf < of {
 		return NotFaster, why + ": fewer frames"
 	}

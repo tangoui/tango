@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +19,9 @@ var benchExec = func(env []string, name string, args ...string) ([]byte, error) 
 	c.Env = env
 	return c.CombinedOutput()
 }
+
+// benchStderr receives bench's notes to the user. Tests replace it.
+var benchStderr io.Writer = os.Stderr
 
 // componentBenchRegex anchors every slash-separated element: go test matches
 // each element on its own, so an unanchored "Checkbox" would also select
@@ -46,7 +50,9 @@ func runBench(count int, run, out string) error {
 		return e
 	}
 	// A full run takes about 65 minutes, far past go test's default 10-minute timeout.
-	args := []string{"test", "./ui", "-run", "^$", "-bench", "BenchmarkComponents/" + run, "-benchmem", "-count", fmt.Sprint(count), "-timeout", "0"}
+	// The first element is anchored: unanchored, it would also select
+	// BenchmarkComponentsRaster and run it as well.
+	args := []string{"test", "./ui", "-run", "^$", "-bench", "^BenchmarkComponents$/" + run, "-benchmem", "-count", fmt.Sprint(count), "-timeout", "0"}
 	o, e := benchExec(nil, "go", args...)
 	if e != nil {
 		return fmt.Errorf("benchmark: %w\n%s", e, o)
@@ -73,6 +79,9 @@ func runBench(count int, run, out string) error {
 		results = append(results, aggregateBench(rows))
 	}
 	budget := runBudget(results)
+	if budget.Status != "ok" {
+		fmt.Fprintf(benchStderr, "uiperf bench: budget gate failed (%s); bench exits 0, check budget.status in %s\n", budget.Error, filepath.Join(out, "bench.json"))
+	}
 	runCold(out, results)
 	sort.Slice(results, func(i, j int) bool { return results[i].Name+results[i].Scene < results[j].Name+results[j].Scene })
 	return writeBenchReport(out, results, budget)

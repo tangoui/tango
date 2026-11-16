@@ -2,13 +2,19 @@
 // standard output, whatever framework draws it. The runner reads these
 // lines; it never links the scene programs.
 //
-//	bench renderer <name>     the drawing path the framework took
-//	bench ready               the first frame that did the scene's work
-//	bench frames <fps>        frames of the last second, per second
-//	bench work <n>            items changed in the last second, per second
-//	bench intervals_us <a,b>  the gaps between those frames, in µs
+//	bench scene <name> <w>x<h>  the scene and its window, in points, at start
+//	bench ready                 the first frame that did the scene's work
+//	bench renderer <name> <ns>  the drawing path, with the time (Unix ns):
+//	                            at ready, after every per-second report,
+//	                            and as soon as it changes between frames
+//	bench frames <fps>          frames of the last second, per second
+//	bench work <n>              items changed in the last second, per second
+//	bench intervals_us <a,b>    the gaps between those frames, in µs
 //
-// Frame and Renderer must be called from one goroutine, the UI thread.
+// Earlier programs printed "bench renderer <name>" once, without a time;
+// the runner still reads that line.
+//
+// Scene, Frame and Renderer must be called from one goroutine, the UI thread.
 package proto
 
 import (
@@ -21,7 +27,10 @@ import (
 var (
 	out = bufio.NewWriterSize(os.Stdout, 16<<10)
 
+	now = time.Now
+
 	ready     bool
+	renderer  string    // the path last reported to Renderer
 	since     time.Time // start of the second being counted
 	last      time.Time // previous frame
 	frames    int
@@ -30,10 +39,36 @@ var (
 	line      []byte
 )
 
-// Renderer reports the drawing path, such as Tango's uihost.Renderer.
-func Renderer(name string) {
-	out.WriteString("bench renderer " + name + "\n")
+// Scene names the scene and its window size in points, once, at start.
+func Scene(name string, width, height int) {
+	out.WriteString("bench scene " + name + " " + strconv.Itoa(width) + "x" + strconv.Itoa(height) + "\n")
 	out.Flush()
+}
+
+// Renderer gives the drawing path, such as Tango's uihost.Renderer. Call
+// it every frame: a change after ready is reported at once, and the path
+// is repeated at ready and with every per-second report.
+func Renderer(name string) {
+	if name == renderer {
+		return
+	}
+	renderer = name
+	if ready {
+		writeRenderer(now())
+		out.Flush()
+	}
+}
+
+func writeRenderer(t time.Time) {
+	if renderer == "" {
+		return
+	}
+	line = append(line[:0], "bench renderer "...)
+	line = append(line, renderer...)
+	line = append(line, ' ')
+	line = strconv.AppendInt(line, t.UnixNano(), 10)
+	line = append(line, '\n')
+	out.Write(line)
 }
 
 // Frame counts one frame that did the scene's work; work is how many items
@@ -44,6 +79,7 @@ func frameAt(now time.Time, n int) {
 	if !ready {
 		ready, since, last = true, now, now
 		out.WriteString("bench ready\n")
+		writeRenderer(now)
 		out.Flush()
 		return
 	}
@@ -69,6 +105,7 @@ func frameAt(now time.Time, n int) {
 	}
 	line = append(line, '\n')
 	out.Write(line)
+	writeRenderer(now)
 	out.Flush()
 	frames, work, intervals, since = 0, 0, intervals[:0], now
 }
