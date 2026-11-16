@@ -107,7 +107,7 @@ func (a *App) Invalidate()
 
 `scripts/macoslite-memory.sh --rounds 3`，Apple Silicon Retina，屏幕解锁：
 
-- 空闲 physical footprint 中位数 **26.3 MiB**（25.7 / 26.3 / 26.4），低于 31 MiB 目标；同机此前测得 mygo 31.2 MiB、NSGo 26.3 MiB、Tango 完整自绘 CPU 约 49 MiB；
+- 空闲 physical footprint 两次三轮中位数 **26.3 MiB / 27.2 MiB**（单轮 25.7–29.1），低于 31 MiB 目标；同机此前测得 mygo 31.2 MiB、NSGo 26.3 MiB、Tango 完整自绘 CPU 约 49 MiB；
 - 启动到首帧 175–240 ms；二进制 2.2 MiB；
 - 不加载 WebKit、Metal；依赖只有 `macoslite` 与 purego。
 

@@ -4,6 +4,8 @@
 // ui.Runner, layout, accessibility or GPU renderer, so an idle window costs
 // far less memory than a full Tango surface.
 //
+// Experimental: the API may change incompatibly between minor releases.
+//
 // It is independent of uihost.Open and does not replace it. On platforms
 // other than macOS, New returns ErrUnsupported. See
 // docs/specs/macos-native-lite-design.md.
