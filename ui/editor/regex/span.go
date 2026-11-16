@@ -1,6 +1,7 @@
 package regex
 
 import (
+	"bytes"
 	"regexp/syntax"
 	"time"
 	"unicode"
@@ -265,6 +266,17 @@ func TryMatchStartNoCaptures(re Regexp, s string, rs []rune, dst []int) ([]int, 
 	case *backtrackRegexp:
 		if r.rejectASCII(s) {
 			return nil, nil
+		}
+		if r.assertion != nil {
+			if len(s) < len(r.assertion.consume) || !bytes.Equal([]byte(s[:len(r.assertion.consume)]), r.assertion.consume) {
+				return nil, nil
+			}
+			matched := len(s) >= len(r.assertion.consume)+len(r.assertion.check) &&
+				bytes.Equal([]byte(s[len(r.assertion.consume):len(r.assertion.consume)+len(r.assertion.check)]), r.assertion.check)
+			if matched != r.assertion.positive {
+				return nil, nil
+			}
+			return append(dst[:0], 0, len(r.assertion.consume)), nil
 		}
 		return r.tryMatchStartWithCaptures(s, rs, r.re.FindRunesMatch, time.Now, false, dst)
 	default:
