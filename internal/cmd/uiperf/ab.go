@@ -194,14 +194,38 @@ func (o *worktreeOwner) validate() error {
 		return err
 	}
 	rel, err := filepath.Rel(parent, path)
-	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
-		return fmt.Errorf("worktree path is outside owned parent: %s", o.path)
+	if err != nil || rel != "tree" {
+		return fmt.Errorf("worktree path is not the owned tree: %s", o.path)
 	}
-	if _, err := os.Lstat(parent); err != nil {
+	if info, err := os.Lstat(parent); err != nil {
 		return fmt.Errorf("owned parent unavailable: %w", err)
+	} else if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("refuse symlink owned parent: %s", parent)
+	}
+	tempRoot, err := filepath.Abs(os.TempDir())
+	if err != nil {
+		return fmt.Errorf("resolve temporary root: %w", err)
+	}
+	parentRel, err := filepath.Rel(tempRoot, parent)
+	if err != nil || parentRel == ".." || strings.HasPrefix(parentRel, ".."+string(filepath.Separator)) || filepath.IsAbs(parentRel) {
+		return fmt.Errorf("owned parent is outside temporary root: %s", parent)
+	}
+	component := tempRoot
+	for _, part := range strings.Split(parentRel, string(filepath.Separator)) {
+		if part == "." || part == "" {
+			continue
+		}
+		component = filepath.Join(component, part)
+		if info, err := os.Lstat(component); err != nil {
+			return fmt.Errorf("inspect owned path component: %w", err)
+		} else if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("refuse symlink component in owned parent: %s", component)
+		}
 	}
 	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("refuse symlink worktree path: %s", path)
+	} else if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("inspect worktree path: %w", err)
 	}
 	o.parent, o.path = parent, path
 	return nil
@@ -252,7 +276,7 @@ func (o *worktreeOwner) cleanup() error {
 	return nil
 }
 
-func runCmd(dir string, args ...string) error {
+var runCmd = func(dir string, args ...string) error {
 	c := exec.Command(args[0], args[1:]...)
 	c.Dir = dir
 	c.Stdout = os.Stdout
