@@ -192,6 +192,13 @@ func (r *presenterRenderer) Close() error {
 	return nil
 }
 
+// SetTimeline is Device.SetTimeline on the presenter's Device: fn (nil
+// removes it) receives the Timing of every retired command buffer and of
+// every present that got no drawable. Diagnostics (uihost's
+// TANGO_FRAME_TRACE); fn runs on the presenting thread with the Device
+// locked and must not call the renderer.
+func (r *presenterRenderer) SetTimeline(fn func(Timing)) { r.p.dev.SetTimeline(fn) }
+
 func newPresenter(layer uintptr) (*presenter, error) {
 	if layer == 0 {
 		return nil, errors.New("metal: NewPresenter: nil layer")
