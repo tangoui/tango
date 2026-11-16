@@ -202,6 +202,8 @@ func renderSidebar(c *ui.Context) {
 		}
 		if documents.session.dirty() {
 			ui.Text(c, "Unsaved changes").Size(th.FontSizeSM).Color(th.Warning.Text)
+		} else if documents.session.path == "" {
+			ui.Text(c, "Not saved to disk").Size(th.FontSizeSM).Secondary()
 		} else {
 			ui.Text(c, "All changes saved").Size(th.FontSizeSM).Secondary()
 		}

@@ -129,3 +129,28 @@ func TestShellSplitMenuPreservesTypingTarget(t *testing.T) {
 		t.Fatal("focus did not return to second pane")
 	}
 }
+
+func TestUntitledSampleDoesNotClaimToBeSaved(t *testing.T) {
+	d := shellDriver(t, 1200)
+	documents.session.path = ""
+	d.Frame()
+	if _, ok := d.FindText("Not saved to disk"); !ok {
+		t.Fatal("untitled document must not claim its content is saved")
+	}
+}
+
+func TestNarrowShellKeepsCommandPaletteOnscreen(t *testing.T) {
+	d := shellDriver(t, 480)
+	runShellAction("palette")
+	d.Frame()
+	d.Frame()
+	n, ok := d.A11yFind(a11y.RoleDialog, "Editor commands")
+	if !ok {
+		t.Fatal("command palette missing")
+	}
+	r := n.Bounds
+	if r.X < 0 || r.W > 480 || r.X+r.W > 480 {
+		t.Fatalf("palette extends beyond window: %+v", r)
+	}
+	paletteOpen = false
+}

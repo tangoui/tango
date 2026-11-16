@@ -313,8 +313,8 @@ func page(c *ui.Context) {
 			return
 		}
 		renderShell(c)
-		ui.Modal(c, &paletteOpen, "Editor commands").Width(720).NoFooter().Body(func() {
-			ui.Select(c, &paletteCommand, commandOptions()).Searchable().Width(650).A11yLabel("Registered editor commands")
+		ui.Modal(c, &paletteOpen, "Editor commands").Width(min(720, c.Size().W-32)).NoFooter().Body(func() {
+			ui.Select(c, &paletteCommand, commandOptions()).Searchable().Width(min(650, c.Size().W-80)).A11yLabel("Registered editor commands")
 			if ui.Button(c, "Execute").Disabled(paletteCommand == "").Clicked() {
 				pendingCommand, paletteOpen = paletteCommand, false
 			}
