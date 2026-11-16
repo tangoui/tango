@@ -96,8 +96,8 @@ func TestMetalWait(t *testing.T) {
 		if err := w.Wait(); err != nil {
 			t.Fatal(err)
 		}
-		if state() != before || len(d.inflight) != 0 {
-			t.Fatalf("Wait submitted work or changed retained resources: before=%v after=%v inflight=%d", before, state(), len(d.inflight))
+		if state() != before || len(d.inflight.items) != 0 {
+			t.Fatalf("Wait submitted work or changed retained resources: before=%v after=%v inflight=%d", before, state(), len(d.inflight.items))
 		}
 	}
 	wait() // before any frame: no allocation or submission
@@ -106,7 +106,7 @@ func TestMetalWait(t *testing.T) {
 	if err := d.Execute(&f); err != nil {
 		t.Fatal(err)
 	}
-	if len(d.inflight) != 1 {
+	if len(d.inflight.items) != 1 {
 		t.Fatal("Execute must leave its submitted buffer for Wait")
 	}
 	wait()
@@ -172,7 +172,7 @@ func TestMetalWaitPendingError(t *testing.T) {
 		if err := w.Wait(); !errors.Is(err, boom) {
 			t.Fatalf("Wait = %v, want pending failure", err)
 		}
-		if d.pendingErr != boom || d.hasFrame || d.commits != commits || len(d.inflight) != 0 || d.failures != 1 {
+		if d.pendingErr != boom || d.hasFrame || d.commits != commits || len(d.inflight.items) != 0 || d.failures != 1 {
 			t.Fatal("Wait consumed failure, submitted work, or restored failed target")
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"image"
 	"runtime"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -220,6 +221,12 @@ func newPresenter(layer uintptr) (*presenter, error) {
 	msgSetID(l, sel("setDevice:"), dev.dev)
 	msgSetU64(l, sel("setPixelFormat:"), pixelFormatBGRA8Unorm)
 	msgSetBool(l, sel("setFramebufferOnly:"), true)
+	// nextDrawable gives up (returns nil) after Core Animation's fixed
+	// timeout of about one second instead of blocking forever. YES is the
+	// default; it is set explicitly because present relies on it. This is
+	// the only bound present has: a shorter one would need the drawable to
+	// be acquired off this path (not done; see the async present report).
+	msgSetBool(l, sel("setAllowsNextDrawableTimeout:"), true)
 	if kCGColorSpaceSRGB != 0 {
 		if cs := cgColorSpaceCreateWithName(kCGColorSpaceSRGB); cs != 0 {
 			msgSetPtr(l, sel("setColorspace:"), cs) // the layer retains it
@@ -279,9 +286,10 @@ func (d *Device) encodeCopy(cb, dst id) {
 // (maxTextureSize). CAMetalLayer ignores a larger drawableSize.
 const maxDrawable = maxTextureSize
 
-// maxInflight bounds the command buffers present lets pile up when it is
-// called without Execute in between (Execute waits for all of them).
-const maxInflight = 4
+// maxInflight is shared by frame and present command buffers. The device's
+// retained target and upload buffers remain safe because the next Execute
+// drains when it has a dependency; this cap bounds present-only bursts.
+const maxInflight = asyncInflightLimit
 
 func (p *presenter) present(size image.Point, scale float32) error {
 	d := p.dev
@@ -300,8 +308,8 @@ func (p *presenter) present(size image.Point, scale float32) error {
 	defer runtime.UnlockOSThread()
 	defer autoreleasePool()()
 
-	if len(d.inflight) >= maxInflight {
-		d.wait()
+	for len(d.inflight.items) >= maxInflight {
+		d.waitOldest() // a failure is recorded (pendingErr/lost) and reported below
 	}
 	if d.lost != nil {
 		return d.lost
@@ -317,9 +325,20 @@ func (p *presenter) present(size image.Point, scale float32) error {
 	if !d.hasFrame {
 		return nil
 	}
+	var waitStart time.Time
+	if d.timeline != nil {
+		waitStart = time.Now()
+	}
 	drawable := p.layer.Send(sel("nextDrawable"))
+	d.drawableWait = 0
+	if d.timeline != nil {
+		d.drawableWait = time.Since(waitStart)
+	}
 	if drawable == 0 {
-		return nil // not visible, or every drawable busy for a second
+		if d.timeline != nil {
+			d.timeline(Timing{Kind: submitPresent.String(), Frame: d.frames, DrawableWait: d.drawableWait})
+		}
+		return nil // not visible, or every drawable busy until the timeout
 	}
 	cb := d.queue.Send(sel("commandBuffer"))
 	if cb == 0 {
@@ -327,7 +346,7 @@ func (p *presenter) present(size image.Point, scale float32) error {
 	}
 	d.encodeCopy(cb, drawable.Send(sel("texture")))
 	msgSetID(cb, sel("presentDrawable:"), drawable)
-	d.commit(cb)
+	d.commitAs(cb, submitPresent)
 	d.commits++
 	p.presented++
 	return nil

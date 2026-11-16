@@ -26,4 +26,8 @@ func (d *Device) ReadPixels() (*image.RGBA, error) { return nil, ErrUnsupported 
 // Close releases the device.
 func (d *Device) Close() {}
 
+// SetTimeline installs a diagnostics callback; there is nothing to report
+// on this platform.
+func (d *Device) SetTimeline(fn func(Timing)) {}
+
 var _ gpu.Device = (*Device)(nil)

@@ -257,7 +257,7 @@ func TestMetalScratchExecuteNotRetained(t *testing.T) {
 		if d.failures != 0 || d.lost != nil {
 			t.Fatalf("attempt %d: capacity refusal counted as GPU failure: failures=%d lost=%v", attempt, d.failures, d.lost)
 		}
-		if d.commits != commits || len(d.inflight) != 0 || d.target != target || d.copyTarget != 0 {
+		if d.commits != commits || len(d.inflight.items) != 0 || d.target != target || d.copyTarget != 0 {
 			t.Fatalf("attempt %d: refusal submitted work or swapped/allocated copy target", attempt)
 		}
 		if !d.hasFrame || !d.Retained(size) {
