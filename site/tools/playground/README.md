@@ -87,7 +87,7 @@ Actual Chrome/Safari, IME and clipboard smoke checks remain manual. The
 canvas has keyboard entry/exit, a hidden IME textarea and a status summary;
 a full DOM accessibility mirror is not implemented. System dialogs, native
 windows and network actions retain the sample implementations; this is not
-full browser-platform support for Tango applications.
+full browser-platform support for TanGo applications.
 
 - [ ] In Chrome/Safari, search and open all eight groups and several advanced scenes.
 - [ ] Exercise fields, Select, table horizontal scroll, bare dashboard vertical scroll and Reset.

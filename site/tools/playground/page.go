@@ -1,4 +1,4 @@
-// The documentation playground renders the public Tango components unchanged.
+// The documentation playground renders the public TanGo components unchanged.
 package main
 
 import (
@@ -81,7 +81,7 @@ func (s *demoState) page(c *ui.Context) {
 			case "settings":
 				ui.Text(c, "Theme and application settings")
 			default:
-				ui.Text(c, "Build your interface with Tango")
+				ui.Text(c, "Build your interface with TanGo")
 			}
 		default:
 			ui.Title(c, "Button", 4)

@@ -1,15 +1,15 @@
 ---
 layout: home
-title: Tango
+title: TanGo
 titleTemplate: 高颜值、高性能的 Go GUI
 
 hero:
-  name: Tango
+  name: TanGo
   text: 高颜值、高性能的 Go GUI
   tagline: 用一套 Go 代码构建桌面与手机应用：系统 WebView 与 Go 自绘 GUI 可在同一窗口自由组合，默认 GPU 渲染，安装包无需捆绑浏览器引擎。
   image:
     src: /logo.svg
-    alt: Tango
+    alt: TanGo
   actions:
     - theme: brand
       text: 快速开始
@@ -34,7 +34,7 @@ hero:
 
 </div>
 
-<p class="home-lead">Tango 的取舍，以及每一项目前做到哪一步。</p>
+<p class="home-lead">TanGo 的取舍，以及每一项目前做到哪一步。</p>
 
 <div class="home-grid">
 <div class="home-card">
@@ -55,7 +55,7 @@ hero:
 
 ### Go 自绘 GUI
 
-组件用 Go 写状态和逻辑，由 Tango 负责布局和绘制。默认走 GPU 渲染（Metal、Direct3D 11、OpenGL、OpenGL ES），设备起不来时回退到 CPU。
+组件用 Go 写状态和逻辑，由 TanGo 负责布局和绘制。默认走 GPU 渲染（Metal、Direct3D 11、OpenGL、OpenGL ES），设备起不来时回退到 CPU。
 
 </div>
 <div class="home-card">
@@ -147,7 +147,7 @@ hero:
 
 <div class="gui-showcase">
 
-![Tango Go GUI：导航、统计卡片、筛选表单和数据表格](/screenshots/gui-preview.png)
+![TanGo Go GUI：导航、统计卡片、筛选表单和数据表格](/screenshots/gui-preview.png)
 
 这张截图由 `examples/ui-gallery` 实际渲染生成，包含导航、统计卡片、筛选表单和数据表格。
 
@@ -172,7 +172,7 @@ tan package                  # 生成本机平台的安装包
 
 <div class="home-footer">
 <div>
-<strong>Tango</strong>
+<strong>TanGo</strong>
 <p>Go 应用框架，覆盖桌面和手机，可用系统 WebView，也可用 Go 自绘界面。MIT 许可。</p>
 </div>
 <div>

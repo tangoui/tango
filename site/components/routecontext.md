@@ -32,7 +32,7 @@ var routeCollapsed bool
 
 func routePage(c *ui.Context) {
     ui.ProLayout(c, ui.ProLayoutConfig{
-        Title:        "Tango Pro",
+        Title:        "TanGo Pro",
         Menu:         []ui.MenuItem{{Key: "home", Label: "首页"}, {Key: "settings", Label: "设置"}},
         Selected:     &routeSelected,
         Collapsed:    &routeCollapsed,
@@ -61,7 +61,7 @@ var mobileSelected = "orders"
 
 func mobileAwarePage(c *ui.Context) {
     ui.ProLayout(c, ui.ProLayoutConfig{
-        Title:      "Tango Pro",
+        Title:      "TanGo Pro",
         Menu:       []ui.MenuItem{{Key: "orders", Label: "订单"}},
         Selected:   &mobileSelected,
         Breakpoint: ui.MD,

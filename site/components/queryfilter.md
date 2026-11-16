@@ -134,7 +134,7 @@ var dependentFields = []ui.ProField{
     {Key: "kind", Label: "对象类型", ValueType: ui.ValueSelect,
         ValueEnum: []ui.ProEnum{{Value: "project", Label: "项目"}, {Value: "team", Label: "团队"}}},
     {Key: "project", Label: "项目", ValueType: ui.ValueSelect,
-        ValueEnum: []ui.ProEnum{{Value: "tango", Label: "Tango"}},
+        ValueEnum: []ui.ProEnum{{Value: "tango", Label: "TanGo"}},
         Hide: func(v ui.ProValues) bool { return v.String("kind") != "project" }},
     {Key: "archived", Label: "包含归档", ValueType: ui.ValueSwitch,
         Disable: func(v ui.ProValues) bool { return v.String("kind") == "team" }},
@@ -158,7 +158,7 @@ import "github.com/tangoui/tango/ui"
 
 type rule struct{ ID, Name string }
 
-var rules = []rule{{ID: "r1", Name: "Tango"}}
+var rules = []rule{{ID: "r1", Name: "TanGo"}}
 var tableQuery ui.ProValues
 
 func page(c *ui.Context) {

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="site/public/readme-hero.svg" width="1280" alt="Tango — Go application framework for desktop and mobile">
+  <img src="site/public/readme-hero.svg" width="1280" alt="TanGo — Go application framework for desktop and mobile">
 </p>
 
 <p align="center"><strong>使い慣れた Web 技術で。Go で描く UI で。OS の機能とともに。</strong></p>
@@ -21,17 +21,17 @@
 
 <p align="center"><a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <strong>日本語</strong></p>
 
-Tango は **macOS、Windows、Linux、iOS、Android** 向けの Go アプリケーションフレームワークです。システム WebView と好みのフロントエンドを使うことも、Go のコンポーネントでデスクトップ UI を描画することも、両方を同じデスクトップウィンドウに組み合わせることもできます。
+TanGo は **macOS、Windows、Linux、iOS、Android** 向けの Go アプリケーションフレームワークです。システム WebView と好みのフロントエンドを使うことも、Go のコンポーネントでデスクトップ UI を描画することも、両方を同じデスクトップウィンドウに組み合わせることもできます。
 
 <p align="center">
-  <img src="site/public/screenshots/showcase.png" width="1100" alt="Tango Showcase">
+  <img src="site/public/screenshots/showcase.png" width="1100" alt="TanGo Showcase">
   <br>
-  <sub>Tango アプリの実例。システム WebView から、呼び出し・イベント・ストリームを通じて Go サービスを利用できます。</sub>
+  <sub>TanGo アプリの実例。システム WebView から、呼び出し・イベント・ストリームを通じて Go サービスを利用できます。</sub>
 </p>
 
 > **初期の 0.x バージョンです。** 公開 API は 1.0 までに変更される可能性があります。モバイルと Go 描画 UI は実験的機能です。検証範囲は下のプラットフォーム表をご確認ください。
 
-## Tango を選ぶ理由
+## TanGo を選ぶ理由
 
 | 機能 | できること |
 | --- | --- |
@@ -126,8 +126,8 @@ func registerServices(router *ipc.Router) error {
 ページ側から呼び出します。
 
 ```javascript
-const message = await window.tango.call("Greeter.Hello", "Tango");
-// "Hello, Tango!"
+const message = await window.tango.call("Greeter.Hello", "TanGo");
+// "Hello, TanGo!"
 ```
 
 `tan generate bindings` で型付き TypeScript クライアントを生成できます。実行可能な [hello サンプル](examples/hello)には、ブリッジの設定、イベント、ストリームが含まれます。
@@ -191,4 +191,4 @@ Issue とプルリクエストを歓迎します。開発手順と DCO の署名
 
 ---
 
-<p align="center"><a href="LICENSE">MIT</a> © 2026 Tango contributors.</p>
+<p align="center"><a href="LICENSE">MIT</a> © 2026 TanGo contributors.</p>

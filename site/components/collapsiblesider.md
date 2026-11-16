@@ -146,7 +146,7 @@ var proMenu = []ui.MenuItem{{Key: "dashboard", Label: "仪表盘", Icon: icon.Da
 
 func siderProLayoutPage(c *ui.Context) {
     ui.ProLayout(c, ui.ProLayoutConfig{
-        Title: "Tango Admin", Menu: proMenu, Selected: &proSelected, Collapsed: &proCollapsed,
+        Title: "TanGo Admin", Menu: proMenu, Selected: &proSelected, Collapsed: &proCollapsed,
     }, func() {
         ui.Text(c, "页面内容")
     })

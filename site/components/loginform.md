@@ -27,7 +27,7 @@ import "github.com/tangoui/tango/ui"
 
 func page(c *ui.Context) {
     login := ui.LoginForm(c).
-        Title("Tango").
+        Title("TanGo").
         SubTitle("登录工作台").
         OnFinish(func(values ui.ProValues, done func(error)) {
             authenticate(values)
@@ -136,7 +136,7 @@ func otherMethods(c *ui.Context) {
 func page(c *ui.Context) {
     ui.LoginForm(c).
         Logo(func() { logo(c) }).
-        Title("Tango").
+        Title("TanGo").
         SubTitle("一套代码运行在桌面、Web 和移动端").
         Actions(func() { otherMethods(c) }).
         Show()
@@ -157,7 +157,7 @@ import "github.com/tangoui/tango/ui"
 func page(c *ui.Context) {
     ui.LoginFormPage(c).
         Placement("center").
-        Title("Tango").
+        Title("TanGo").
         SubTitle("欢迎回来").
         Side(func() {
             ui.Text(c, "统一工作台").Strong()

@@ -9,7 +9,7 @@ outline: [2, 3]
 
 ## 环境与口径
 
-- 测量日期：2026-11-14；Tango `main` @ `be5c620+`；Apple M4 主机，macOS；Go 1.27.2。
+- 测量日期：2026-11-14；TanGo `main` @ `be5c620+`；Apple M4 主机，macOS；Go 1.27.2。
 - 目标：`darwin/arm64`、`linux/amd64`、`windows/amd64`，均 `CGO_ENABLED=0` 交叉编译。
 - 编译参数：`-trimpath -ldflags='-s -w -buildid='`。1 MiB = 1,048,576 字节。
 - WebView 样本只有一个窗口并加载 `https://example.com`；自绘样本只有 `uihost.Open` 和一个 `ui.Button`。
@@ -52,11 +52,11 @@ Windows 安装程序（同一个 WebView 样本，`tan package -platform windows
 
 两个安装程序都是 `tan package` 的默认产物，不需要额外参数：macOS 1.80 MiB，Windows 1.97 MiB。**Linux 这次没有打安装包**（没有生成 AppImage、deb 等），表里只列可执行文件经 gzip、xz 压缩后的大小，不能当作安装包体积。
 
-> **为什么不是更小？** WebView 样本约 5.6 MiB 的二进制主要来自 Go 运行时、`net/http` 与 `crypto/tls`。Tango 的资源服务是一个 `http.Handler`，所以在不改变这部分架构的情况下，体积不会简单地降到很小。安装包不包含浏览器引擎：WebView 使用系统提供的 WKWebView、WebView2 或 WebKitGTK。
+> **为什么不是更小？** WebView 样本约 5.6 MiB 的二进制主要来自 Go 运行时、`net/http` 与 `crypto/tls`。TanGo 的资源服务是一个 `http.Handler`，所以在不改变这部分架构的情况下，体积不会简单地降到很小。安装包不包含浏览器引擎：WebView 使用系统提供的 WKWebView、WebView2 或 WebKitGTK。
 
 ### 自绘 UI 的差异
 
-自绘样本多出 Tango 的 GUI、排版和渲染器代码。gzip -9 后为 3.87–4.08 MiB；这只是文件大小，不说明运行速度或内存占用。真实示例有更多代码和资源：`examples/hello` 的 WebView + IPC 约 7.8–8.1 MiB，`examples/ui-window` 的完整自绘演示约 10.8–11.3 MiB。
+自绘样本多出 TanGo 的 GUI、排版和渲染器代码。gzip -9 后为 3.87–4.08 MiB；这只是文件大小，不说明运行速度或内存占用。真实示例有更多代码和资源：`examples/hello` 的 WebView + IPC 约 7.8–8.1 MiB，`examples/ui-window` 的完整自绘演示约 10.8–11.3 MiB。
 
 ## 复现
 

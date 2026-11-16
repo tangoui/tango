@@ -1,6 +1,6 @@
 # 移动端（实验性）
 
-同一个 Tango 应用不改代码就能构建成 iOS 和 Android 应用。界面仍是系统 WebView（iOS WKWebView、Android 系统 WebView），Go 代码编译成库，由 Tango 自带的原生宿主加载。
+同一个 TanGo 应用不改代码就能构建成 iOS 和 Android 应用。界面仍是系统 WebView（iOS WKWebView、Android 系统 WebView），Go 代码编译成库，由 TanGo 自带的原生宿主加载。
 
 ::: warning 实验性
 iOS 已在模拟器（Apple Silicon，arm64）上验证，真机 SDK 能编译但**未在真机上运行验证**；Android 已在 API 36 模拟器上验证（启动、生命周期、消息往返、剪贴板、对话框、返回键），**未上真机**。接口和行为可能变化。
@@ -78,7 +78,7 @@ header { padding-top: var(--tango-safe-top, env(safe-area-inset-top, 0px)); }
 | `biometric` | `biometric.Authenticate` | `NSFaceIDUsageDescription` | `USE_BIOMETRIC` |
 | `notifications` | `push.Register`、`permission` | 运行时询问（远程推送另需 `aps-environment`） | `POST_NOTIFICATIONS` |
 
-iOS 上缺用途说明就调用相关 API 会被系统终止，Tango 在调用前检查，缺键时返回 `ErrNotConfigured`（错误信息写出缺的键名）。默认用途说明是英文模板，上架前请在 `ios.usageDescriptions` 里写具体用途。
+iOS 上缺用途说明就调用相关 API 会被系统终止，TanGo 在调用前检查，缺键时返回 `ErrNotConfigured`（错误信息写出缺的键名）。默认用途说明是英文模板，上架前请在 `ios.usageDescriptions` 里写具体用途。
 
 完整对照（含隐私清单、通用链接、Android FCM 接入）见仓库的 [docs/mobile-permissions.md](https://github.com/tangoui/tango/blob/main/docs/mobile-permissions.md)。
 
@@ -93,7 +93,7 @@ tan build -platform ios                     # 真机 .app + .ipa
 tan build -platform ios-simulator -xcode    # 另外生成 Xcode 工程，便于调试
 ```
 
-`tan build` 不需要 Xcode 工程：用 Xcode 的 clang 以 `c-archive` 编译 Go，链接 Tango 的宿主 `main.m`，按 `tan.json` 生成 Info.plist、编译图标、复制隐私清单并签名。
+`tan build` 不需要 Xcode 工程：用 Xcode 的 clang 以 `c-archive` 编译 Go，链接 TanGo 的宿主 `main.m`，按 `tan.json` 生成 Info.plist、编译图标、复制隐私清单并签名。
 
 真机签名需要：
 
@@ -116,7 +116,7 @@ tan build -platform android -debug                # debug APK（arm64-v8a + x86_
 tan build -platform android/arm64,android/amd64   # release：签名的 APK 与 AAB
 ```
 
-每个 ABI 用 NDK clang 以 `c-shared` 编译出 `libtango.so`（16 KB 段对齐，满足 Android 15+ 设备），同步 Tango 自带的 Gradle 工程，写入应用名、图标、清单，再离线运行 Gradle。宿主只用平台 API，不依赖 androidx。
+每个 ABI 用 NDK clang 以 `c-shared` 编译出 `libtango.so`（16 KB 段对齐，满足 Android 15+ 设备），同步 TanGo 自带的 Gradle 工程，写入应用名、图标、清单，再离线运行 Gradle。宿主只用平台 API，不依赖 androidx。
 
 release 签名：
 

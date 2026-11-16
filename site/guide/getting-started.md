@@ -1,9 +1,9 @@
 # 快速开始
 
-本页从零做出一个 Tango 应用：安装命令行工具 `tan`，用模板创建项目，开发模式运行，再做发布构建。桌面和移动端各走一遍。
+本页从零做出一个 TanGo 应用：安装命令行工具 `tan`，用模板创建项目，开发模式运行，再做发布构建。桌面和移动端各走一遍。
 
 ::: warning 当前状态
-Tango 是 0.x 早期版本。桌面端只在 **macOS** 上实机验证过；Windows、Linux 的后端已实现并通过交叉编译与 CI 冒烟，但尚未在实机上系统验证。移动端（iOS、Android）属于**实验性**，只在模拟器上验证过，没有上真机。
+TanGo 是 0.x 早期版本。桌面端只在 **macOS** 上实机验证过；Windows、Linux 的后端已实现并通过交叉编译与 CI 冒烟，但尚未在实机上系统验证。移动端（iOS、Android）属于**实验性**，只在模拟器上验证过，没有上真机。
 :::
 
 ## 准备环境
@@ -56,7 +56,7 @@ cd hello
 | `-id` | `com.example.<name>` | 反向域名形式的应用 ID（Bundle ID / applicationId） |
 | `-module` | 目录名 | Go 模块路径 |
 | `-mobile` | `true` | 在 tan.json 写入 `ios`、`android` 两节（安全的默认值，不含签名） |
-| `-local` | | 使用本地 Tango 仓库（replace） |
+| `-local` | | 使用本地 TanGo 仓库（replace） |
 | `-yes` | `false` | 不询问 |
 
 | 模板 | 内容 |

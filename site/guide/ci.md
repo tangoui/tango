@@ -1,6 +1,6 @@
 # CI 与冒烟测试
 
-Tango 的 CI 配置在 `.github/workflows/ci.yml`。冒烟测试入口 `scripts/smoke.sh`（macOS / Linux）和 `scripts/smoke.ps1`（Windows）本地和 CI 共用，CI 上失败的步骤都能在本机用同一条命令复现。
+TanGo 的 CI 配置在 `.github/workflows/ci.yml`。冒烟测试入口 `scripts/smoke.sh`（macOS / Linux）和 `scripts/smoke.ps1`（Windows）本地和 CI 共用，CI 上失败的步骤都能在本机用同一条命令复现。
 
 ## 本地运行
 

@@ -84,7 +84,7 @@ func fullHeaderPage(c *ui.Context) {
         }).
         Content(func() {
             ui.Row(c, func() {
-                ui.Text(c, "负责人：Tango")
+                ui.Text(c, "负责人：TanGo")
                 ui.Text(c, "更新时间：2026-11-15")
             }, layout.Gap(32))
         }).

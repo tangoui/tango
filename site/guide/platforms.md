@@ -5,7 +5,7 @@ outline: [2, 3]
 
 # 平台支持
 
-Tango 面向 macOS、Windows、Linux、iOS 和 Android 五个平台，五个平台共用 `App` 和 `Surface` 这套 API。各平台的系统接口不同，能用的功能也不完全一样。下面写清楚每个平台用了哪些系统技术、能打出什么包，以及**目前实际验证到哪一步**。
+TanGo 面向 macOS、Windows、Linux、iOS 和 Android 五个平台，五个平台共用 `App` 和 `Surface` 这套 API。各平台的系统接口不同，能用的功能也不完全一样。下面写清楚每个平台用了哪些系统技术、能打出什么包，以及**目前实际验证到哪一步**。
 
 ::: warning 0.x
 只有 macOS 做过实机验证。其他平台写着“已实现”，意思是代码写好了、单元测试和冒烟测试通过，不代表在真机上系统地测过。依赖某项功能之前，请先查 [WebView 能力表](https://github.com/tangoui/tango/blob/main/docs/webview.md)、[移动端文档](https://github.com/tangoui/tango/blob/main/docs/mobile.md) 和 [运行时 API](https://github.com/tangoui/tango/blob/main/docs/runtime-api.md)。

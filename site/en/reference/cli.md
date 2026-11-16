@@ -1,6 +1,6 @@
 # tan CLI
 
-`tan` creates, runs, builds and ships Tango apps. Every command except `init`, `keygen`, `doctor` and `version` reads [tan.json](/en/reference/tan-json) from the current directory (or the one given with `-C <dir>`).
+`tan` creates, runs, builds and ships TanGo apps. Every command except `init`, `keygen`, `doctor` and `version` reads [tan.json](/en/reference/tan-json) from the current directory (or the one given with `-C <dir>`).
 
 ```bash
 go install github.com/tangoui/tango/cmd/tan@latest

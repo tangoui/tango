@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="site/public/readme-hero.svg" width="1280" alt="Tango — Go application framework for desktop and mobile">
+  <img src="site/public/readme-hero.svg" width="1280" alt="TanGo — Go application framework for desktop and mobile">
 </p>
 
 <p align="center"><strong>Build with your web stack. Draw in Go. Connect to the system.</strong></p>
@@ -21,17 +21,17 @@
 
 <p align="center"><strong>English</strong> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ja.md">日本語</a></p>
 
-Tango is a Go application framework for **macOS, Windows, Linux, iOS and Android**. Use a system WebView with your preferred frontend, build a desktop interface with Go-drawn components, or combine both in one desktop window.
+TanGo is a Go application framework for **macOS, Windows, Linux, iOS and Android**. Use a system WebView with your preferred frontend, build a desktop interface with Go-drawn components, or combine both in one desktop window.
 
 <p align="center">
-  <img src="site/public/screenshots/showcase.png" width="1100" alt="Tango Showcase">
+  <img src="site/public/screenshots/showcase.png" width="1100" alt="TanGo Showcase">
   <br>
-  <sub>A real Tango application: a system WebView connected to Go services, events and streams.</sub>
+  <sub>A real TanGo application: a system WebView connected to Go services, events and streams.</sub>
 </p>
 
 > **Early 0.x.** Public APIs may change before 1.0. Mobile and Go-drawn UI are experimental; see the platform matrix below for the current verification scope.
 
-## Why Tango
+## Why TanGo
 
 | Capability | What you get |
 | --- | --- |
@@ -128,8 +128,8 @@ func registerServices(router *ipc.Router) error {
 Call it from the page:
 
 ```javascript
-const message = await window.tango.call("Greeter.Hello", "Tango");
-// "Hello, Tango!"
+const message = await window.tango.call("Greeter.Hello", "TanGo");
+// "Hello, TanGo!"
 ```
 
 Use `tan generate bindings` for a typed TypeScript client. The runnable [hello example](examples/hello) includes the complete bridge setup, events and a stream.
@@ -195,4 +195,4 @@ Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) fo
 
 ---
 
-<p align="center"><a href="LICENSE">MIT</a> © 2026 Tango contributors.</p>
+<p align="center"><a href="LICENSE">MIT</a> © 2026 TanGo contributors.</p>

@@ -1,6 +1,6 @@
 # 自绘 UI（实验性）
 
-除了 WebView，Tango 还可以用纯 Go 画界面：`github.com/tangoui/tango/ui` 是一个即时模式 API + 保留式场景的 UI 库，自带一套组件（按钮、表单、表格、日期选择、树、弹层……），`uihost` 把它放进原生窗口。不需要 HTML、JS，也不需要 WebView 进程。
+除了 WebView，TanGo 还可以用纯 Go 画界面：`github.com/tangoui/tango/ui` 是一个即时模式 API + 保留式场景的 UI 库，自带一套组件（按钮、表单、表格、日期选择、树、弹层……），`uihost` 把它放进原生窗口。不需要 HTML、JS，也不需要 WebView 进程。
 
 ::: warning 实验性
 - 自绘窗口目前只在 **macOS** 上实机验证；Windows（GDI 位图）和 Linux（GTK/cairo）的 canvas 上屏已实现但未实机验证；移动端还在推进中。
@@ -27,7 +27,7 @@ var clicks int
 
 func page(c *ui.Context) {
     ui.Column(c, func() {
-        ui.Title(c, "你好，Tango", 3)
+        ui.Title(c, "你好，TanGo", 3)
         ui.Input(c, &name)
         if ui.Button(c, "点我").Clicked() {
             clicks++

@@ -1,6 +1,6 @@
 # App 与 Surface
 
-Tango 的根包 `github.com/tangoui/tango` 只有两个核心类型：**App** 是整个应用，**Surface** 是一块界面。
+TanGo 的根包 `github.com/tangoui/tango` 只有两个核心类型：**App** 是整个应用，**Surface** 是一块界面。
 
 ## App
 

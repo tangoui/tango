@@ -37,7 +37,7 @@ func page(c *ui.Context) {
             ui.Text(c, "Content")
         }, layout.Pad(24))
         ui.Footer(c, func() {
-            ui.Text(c, "Tango ©2026")
+            ui.Text(c, "TanGo ©2026")
         })
     })
 }
@@ -63,7 +63,7 @@ var items = []ui.MenuItem{{Key: "home", Label: "首页"}, {Key: "docs", Label: "
 
 func page(c *ui.Context) {
     ui.Layout(c, func() {
-        ui.Header(c, func() { ui.Text(c, "Tango") })
+        ui.Header(c, func() { ui.Text(c, "TanGo") })
         ui.Layout(c, func() {
             ui.Sider(c, 200, false, func() {
                 ui.Menu(c, items, &sel).Dark().Show()

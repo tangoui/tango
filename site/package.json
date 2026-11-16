@@ -2,7 +2,7 @@
   "name": "tango-docs",
   "private": true,
   "type": "module",
-  "description": "Tango documentation site (VitePress)",
+  "description": "TanGo documentation site (VitePress)",
   "scripts": {
     "docs:api": "cd .. && go run ./site/tools/apigen -root . -out site/reference/api",
     "docs:cli": "node tools/clidoc.mjs",

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="site/public/readme-hero.svg" width="1280" alt="Tango — Go application framework for desktop and mobile">
+  <img src="site/public/readme-hero.svg" width="1280" alt="TanGo — Go application framework for desktop and mobile">
 </p>
 
 <p align="center"><strong>以熟悉的 Web 技術製作頁面，以 Go 繪製介面，串接系統功能。</strong></p>
@@ -21,17 +21,17 @@
 
 <p align="center"><a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · <strong>繁體中文</strong> · <a href="README.ja.md">日本語</a></p>
 
-Tango 是適用於 **macOS、Windows、Linux、iOS 與 Android** 的 Go 應用程式框架。你可以在系統 WebView 中使用喜歡的前端技術，以 Go 元件建立桌面自繪介面，也可以將兩者組合在同一個桌面視窗中。
+TanGo 是適用於 **macOS、Windows、Linux、iOS 與 Android** 的 Go 應用程式框架。你可以在系統 WebView 中使用喜歡的前端技術，以 Go 元件建立桌面自繪介面，也可以將兩者組合在同一個桌面視窗中。
 
 <p align="center">
-  <img src="site/public/screenshots/showcase.png" width="1100" alt="Tango Showcase">
+  <img src="site/public/screenshots/showcase.png" width="1100" alt="TanGo Showcase">
   <br>
-  <sub>實際的 Tango 應用程式：系統 WebView 透過呼叫、事件與串流連接 Go 服務。</sub>
+  <sub>實際的 TanGo 應用程式：系統 WebView 透過呼叫、事件與串流連接 Go 服務。</sub>
 </p>
 
 > **0.x 早期版本。** 公開 API 在 1.0 前可能變動。行動平台與 Go 自繪 UI 屬於實驗性功能，驗證範圍請見下方平台支援表。
 
-## 為什麼選擇 Tango
+## 為什麼選擇 TanGo
 
 | 功能 | 你能獲得什麼 |
 | --- | --- |
@@ -126,8 +126,8 @@ func registerServices(router *ipc.Router) error {
 在頁面中呼叫：
 
 ```javascript
-const message = await window.tango.call("Greeter.Hello", "Tango");
-// "Hello, Tango!"
+const message = await window.tango.call("Greeter.Hello", "TanGo");
+// "Hello, TanGo!"
 ```
 
 使用 `tan generate bindings` 產生具型別資訊的 TypeScript 用戶端。[hello 範例](examples/hello)包含完整橋接設定、事件與串流，可直接執行。
@@ -191,4 +191,4 @@ README 提供英文、簡體中文、繁體中文與日文版本。詳細文件�
 
 ---
 
-<p align="center"><a href="LICENSE">MIT</a> © 2026 Tango contributors。</p>
+<p align="center"><a href="LICENSE">MIT</a> © 2026 TanGo contributors。</p>

@@ -1,6 +1,6 @@
 # 命令行 tan
 
-`tan` 负责创建、运行、构建和发布 Tango 应用。除 `init`、`keygen`、`doctor`、`version` 外，每个命令都读取当前目录（或 `-C <dir>` 指定目录）下的 [tan.json](/reference/tan-json)。
+`tan` 负责创建、运行、构建和发布 TanGo 应用。除 `init`、`keygen`、`doctor`、`version` 外，每个命令都读取当前目录（或 `-C <dir>` 指定目录）下的 [tan.json](/reference/tan-json)。
 
 ```bash
 go install github.com/tangoui/tango/cmd/tan@latest

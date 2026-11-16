@@ -22,7 +22,7 @@ import "github.com/tangoui/tango/ui"
 type project struct{ Key, Name, Desc string }
 
 func page(c *ui.Context) {
-    rows := []project{{"p1", "Tango", "UI 框架"}, {"p2", "MinCode", "IDE"}}
+    rows := []project{{"p1", "TanGo", "UI 框架"}, {"p2", "MinCode", "IDE"}}
     ui.ProList(c, rows, ui.ProListMetas[project]{
         Title: func(r project) string { return r.Name },
         Description: func(r project) string { return r.Desc },

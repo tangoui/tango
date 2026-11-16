@@ -103,7 +103,7 @@ func page(c *ui.Context) {
 
 ## 主题与样式
 
-Grid 本身只负责列计算和 gutter；列内容的背景、圆角和内边距由 `Col.Body` 内的容器负责。Ant、Element Plus、shadcn 的主要差异在断点语义与外层容器样式，Tango 断点统一使用 `XS` 至 `XXL`。
+Grid 本身只负责列计算和 gutter；列内容的背景、圆角和内边距由 `Col.Body` 内的容器负责。Ant、Element Plus、shadcn 的主要差异在断点语义与外层容器样式，TanGo 断点统一使用 `XS` 至 `XXL`。
 
 ## 注意事项
 

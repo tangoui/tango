@@ -153,7 +153,7 @@ import "github.com/tangoui/tango/ui"
 
 type account struct{ ID, Name string }
 
-var accounts = []account{{ID: "a1", Name: "Tango"}}
+var accounts = []account{{ID: "a1", Name: "TanGo"}}
 var accountColumns = []ui.ProColumn[account]{
     {Key: "name", Title: "名称", Value: func(r account) any { return r.Name },
         Editor: &ui.ProField{
