@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -637,6 +638,79 @@ func perfCollState[T any](d *Driver, key string) T { return *State[T](d.r.c, per
 // perfCollScrolls are the driver's retained scroll states (read only).
 func perfCollScrolls(d *Driver) []*scrollState { return perfNavInternal[scrollState](d) }
 
+// perfCollScrollOffsets snapshots the vertical offset of every retained
+// scroll state in the driver's Context, keyed by its State ID (read only).
+// Hover, display-list hashes and painted rects play no part: the scroll
+// gate must see that the wheel moved content.
+func perfCollScrollOffsets(d *Driver) map[ID]float64 {
+	out := map[ID]float64{}
+	for id, e := range d.r.c.states {
+		if s, ok := e.v.(*scrollState); ok {
+			out[id] = s.off.Y
+		}
+	}
+	return out
+}
+
+// perfCollScrollDY is the vertical offset change of the scroll state that
+// moved between the snapshots (0 when none did).
+func perfCollScrollDY(before, after map[ID]float64) float64 {
+	dy := 0.0
+	for id, y := range after {
+		if y0, ok := before[id]; ok && y != y0 {
+			dy = y - y0
+		}
+	}
+	return dy
+}
+
+// perfCollCheckScroll is the scroll gate of the default Large
+// interaction, called after perfScroll step 0 ran on r (before: the
+// scroll positions at rest). perfScroll wheels down for steps 0-19 and up
+// from step 20: steps 0 and 1 must each move a Context-local scroll offset
+// down and step 20 must move it back up. A hover repaint at the wheel
+// point changes the display list but no offset, so it cannot pass.
+func perfCollCheckScroll(r *perfRun, before map[ID]float64) error {
+	s0 := perfCollScrollOffsets(r.D)
+	if dy := perfCollScrollDY(before, s0); dy <= 0 {
+		return fmt.Errorf("default Large scroll step 0 moved no scroll offset down (dy %.0f)", dy)
+	}
+	perfStep(r, perfScroll, 1)
+	s1 := perfCollScrollOffsets(r.D)
+	if dy := perfCollScrollDY(s0, s1); dy <= 0 {
+		return fmt.Errorf("default Large scroll step 1 moved no scroll offset down (dy %.0f)", dy)
+	}
+	perfStep(r, perfScroll, 20)
+	if dy := perfCollScrollDY(s1, perfCollScrollOffsets(r.D)); dy >= 0 {
+		return fmt.Errorf("default Large scroll step 20 (up) moved no scroll offset up (dy %.0f)", dy)
+	}
+	return nil
+}
+
+// perfCollCheckOwnLarge checks the outcome of step 0 of the fixtures with
+// their own LargeInteract on their retained state, not on the screen hash
+// (a hover repaint changes that too): Transfer moved the first item to the
+// target, Tabs switched to tab 2, LogView's wheel moved its view up.
+func perfCollCheckOwnLarge(name string, d *Driver, before map[ID]float64) error {
+	switch name {
+	case "Transfer":
+		if got := perfCollState[[]string](d, "transfer.large"); len(got) != 1 || got[0] != "k1" {
+			return fmt.Errorf("Transfer Large move: target %v, want [k1]", got)
+		}
+	case "Tabs":
+		if got := *State[string](d.r.c, perfNavID("tabs.large"), nil); got != "t2" {
+			return fmt.Errorf("Tabs Large switch: active %q, want t2", got)
+		}
+	case "LogView":
+		if dy := perfCollScrollDY(before, perfCollScrollOffsets(d)); dy >= 0 {
+			return fmt.Errorf("LogView Large wheel up moved no scroll offset up (dy %.0f)", dy)
+		}
+	default:
+		return fmt.Errorf("%s: no Large outcome check for its own LargeInteract", name)
+	}
+	return nil
+}
+
 // perfCollExtent is the largest scroll extent (virtual or measured
 // content size) along y (x when horiz) of any scroll container.
 func perfCollExtent(d *Driver, horiz bool) float64 {
@@ -816,7 +890,10 @@ func TestPerfCollPopupOpenClose(t *testing.T) {
 // the first item is rendered (dropdowns are open), all n rows are
 // reachable (a non-virtualized list built its last row; a virtualized one
 // scrolls over at least n rows of minRow px) and the Large interaction
-// changes the screen.
+// works on retained state, never on the screen hash alone (a hover repaint
+// at the wheel point changes that too): the default wheel moves a scroll
+// offset down and back up (perfCollCheckScroll), an own LargeInteract has
+// its outcome checked (perfCollCheckOwnLarge).
 func TestPerfCollLarge(t *testing.T) {
 	const n = 100000
 	leaves := n / (perfCollTreeKids + 1) * perfCollTreeKids
@@ -862,14 +939,20 @@ func TestPerfCollLarge(t *testing.T) {
 				}
 			}
 			act := fx.LargeInteract
-			if act == nil {
+			defaultScroll := act == nil
+			if defaultScroll {
 				act = perfScroll
 			}
 			h := perfListHash(d)
+			beforeScroll := perfCollScrollOffsets(d)
 			r := &perfRun{D: d}
 			perfStep(r, act, 0)
-			if perfListHash(d) == h {
-				t.Fatal("the Large interaction changed nothing on screen")
+			if defaultScroll {
+				if err := perfCollCheckScroll(r, beforeScroll); err != nil {
+					t.Fatalf("%v (hash %x → %x)", err, h, perfListHash(d))
+				}
+			} else if err := perfCollCheckOwnLarge(tc.name, d, beforeScroll); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}
@@ -893,5 +976,48 @@ func TestPerfCollLogViewFirstFrame(t *testing.T) {
 	d.Frame()
 	if perfListHash(d) == h0 {
 		t.Fatal("LogView's first settled frame is complete now: delete perfCollLogSettle")
+	}
+}
+
+// TestPerfCollLargeScrollGuard is the focused regression for the scroll
+// gate of TestPerfCollLarge: on a page whose rows fit (nothing scrolls),
+// perfScroll's wheel only moves the pointer over a row, whose hover
+// background changes the display list. The old hash-only check passed
+// that; perfCollCheckScroll must reject it, and accept a real scroll of
+// the same rows in a short viewport.
+func TestPerfCollLargeScrollGuard(t *testing.T) {
+	rows := perfNavLargeItems(5)
+	for _, tc := range []struct {
+		name   string
+		page   func(*Context)
+		scroll bool
+	}{
+		{"hover only", func(c *Context) {
+			sel := State(c, perfCollID("guard.menu"), func() string { return "m1" })
+			Menu(c, rows, sel).Width(240).Show()
+		}, false},
+		{"scrolls", func(c *Context) {
+			sel := State(c, perfCollID("guard.menu"), func() string { return "m1" })
+			Scroll(c, func() { Menu(c, rows, sel).Width(240).Show() }, layout.Size(280, 100))
+		}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := newPerfDriver(perfPage(tc.page), false)
+			d.Settle()
+			h := perfListHash(d)
+			before := perfCollScrollOffsets(d)
+			r := &perfRun{D: d}
+			perfStep(r, perfScroll, 0)
+			if !tc.scroll && perfListHash(d) == h {
+				t.Fatal("premise: the wheel must repaint the row hover (hash unchanged)")
+			}
+			err := perfCollCheckScroll(r, before)
+			if tc.scroll && err != nil {
+				t.Fatalf("real scroll rejected: %v", err)
+			}
+			if !tc.scroll && err == nil {
+				t.Fatal("hover-only repaint passed the scroll gate")
+			}
+		})
 	}
 }
