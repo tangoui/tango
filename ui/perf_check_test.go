@@ -367,14 +367,20 @@ const (
 // step indices (so reversible interactions stay in sequence) and returns
 // the mean timed step and both counts.
 func perfTimeRun(step func(int), limit int) (per time.Duration, warm, n int) {
+	return perfTimeRunFor(step, limit, perfWarmFor, perfTimedFor)
+}
+
+// perfTimeRunFor is perfTimeRun with explicit time windows, so the test can
+// scale them down instead of sleeping through the real ones.
+func perfTimeRunFor(step func(int), limit int, warmFor, timedFor time.Duration) (per time.Duration, warm, n int) {
 	t0 := time.Now()
-	for warm < perfWarmMax && (warm == 0 || time.Since(t0) < perfWarmFor) {
+	for warm < perfWarmMax && (warm == 0 || time.Since(t0) < warmFor) {
 		step(warm)
 		warm++
 	}
 	t0 = time.Now()
 	var el time.Duration
-	for n < perfTimedMin || (n < limit && el < perfTimedFor) {
+	for n < perfTimedMin || (n < limit && el < timedFor) {
 		step(warm + n)
 		n++
 		el = time.Since(t0)
@@ -382,24 +388,27 @@ func perfTimeRun(step func(int), limit int) (per time.Duration, warm, n int) {
 	return el / time.Duration(n), warm, n
 }
 
-// TestPerfTimeSlowStepBounded checks that a slow scene (300 ms per step)
-// is timed in bounded time with at least perfTimedMin timed steps and
-// continuing step indices.
+// TestPerfTimeSlowStepBounded checks that a slow scene is timed in bounded
+// time with at least perfTimedMin timed steps and continuing step indices.
+// It uses a 100 ms step with the warm-up and timing windows scaled by the same
+// 1/3 (200 ms → 200/3 ms, 1 s → 1/3 s), which is the real 300 ms case
+// shrunk, so one run costs about 0.5 s instead of about 1.5 s.
 func TestPerfTimeSlowStepBounded(t *testing.T) {
+	const step = 100 * time.Millisecond
 	var got []int
 	start := time.Now()
-	per, warm, n := perfTimeRun(func(i int) {
+	per, warm, n := perfTimeRunFor(func(i int) {
 		got = append(got, i)
-		time.Sleep(300 * time.Millisecond)
-	}, perfTimedMax)
-	if el := time.Since(start); el > 3*time.Second {
-		t.Errorf("one run of a 300ms step took %v", el)
+		time.Sleep(step)
+	}, perfTimedMax, perfWarmFor/3, perfTimedFor/3)
+	if el := time.Since(start); el > 10*step {
+		t.Errorf("one run of a %v step took %v", step, el)
 	}
 	if warm != 1 || n < perfTimedMin || n > perfTimedMin+1 {
 		t.Errorf("warm %d, timed %d: want 1 warm-up and %d–%d timed steps", warm, n, perfTimedMin, perfTimedMin+1)
 	}
-	if per < 300*time.Millisecond {
-		t.Errorf("per-step %v < 300ms", per)
+	if per < step {
+		t.Errorf("per-step %v < %v", per, step)
 	}
 	for i, v := range got {
 		if v != i {

@@ -88,7 +88,10 @@ func TestGalleryPageBudgets(t *testing.T) {
 // fit in 200 ms (at least one), then at least 3 timed frames, continuing
 // until 50 frames or 1 s of timed work, like perfTime in package ui. Timed
 // frames restart at index 0, as the fixed 20 + 50 loop did, so the scroll
-// pattern (20 down, 20 up, …) is unchanged.
+// pattern (20 down, 20 up, …) is unchanged. Precondition: the warm-up
+// reaches the full 20 frames only when a frame takes less than about 10 ms
+// (20 × 10 ms = the 200 ms window); slower pages get fewer warm-up frames,
+// down to one.
 func galleryTime(r *ui.Runner) time.Duration {
 	start := time.Now()
 	for i := 0; i < 20 && (i == 0 || time.Since(start) < 200*time.Millisecond); i++ {

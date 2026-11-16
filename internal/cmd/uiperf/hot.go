@@ -27,10 +27,14 @@ type hotScore struct {
 	NonTarget  bool
 }
 
-var pprofRE = regexp.MustCompile(`^\s*([0-9.]+)(?:s|ms|us|ns)\s+\S+\s+\S+\s+([0-9.]+)(?:s|ms|us|ns)\s+([0-9.]+)%\s+(.+?)\s*$`)
+// pprofRE matches one `pprof -top` row: flat flat% sum% cum cum% name.
+// pprof prints a zero duration as a bare "0" without a unit; those rows are
+// the cumulative-only callers (Frame, layoutAndPaint, …) and must be kept.
+var pprofRE = regexp.MustCompile(`^\s*([0-9.]+(?:s|ms|us|µs|ns)?)\s+[0-9.]+%\s+[0-9.]+%\s+([0-9.]+(?:s|ms|us|µs|ns)?)\s+([0-9.]+)%\s+(.+?)\s*$`)
 
 func durationNS(s string) float64 {
 	u := "ns"
+	s = strings.Replace(s, "µs", "us", 1)
 	for _, x := range []string{"ms", "us", "ns", "s"} {
 		if strings.HasSuffix(s, x) {
 			u = x
@@ -56,13 +60,11 @@ func parsePprofTop(s string) ([]pprofEntry, error) {
 		if m == nil {
 			continue
 		}
-		flat := strings.Fields(line)[0]
-		cum := strings.Fields(line)[3]
 		fp, e := strconv.ParseFloat(m[3], 64)
 		if e != nil {
 			return nil, e
 		}
-		out = append(out, pprofEntry{Name: strings.TrimSpace(m[4]), FlatNS: durationNS(flat), CumNS: durationNS(cum), CumPct: fp})
+		out = append(out, pprofEntry{Name: strings.TrimSpace(m[4]), FlatNS: durationNS(m[1]), CumNS: durationNS(m[2]), CumPct: fp})
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("no pprof entries")
@@ -109,9 +111,7 @@ func hotScores(in []hotInput) []hotScore {
 	return out
 }
 
-func hotBenchRegex(name, scene string) string {
-	return `^BenchmarkComponents/` + regexp.QuoteMeta(name) + `/` + regexp.QuoteMeta(scene) + `$`
-}
+func hotBenchRegex(name, scene string) string { return componentBenchRegex(name, scene) }
 
 func runHot(dir string, top int) error {
 	if top < 1 {
@@ -140,7 +140,7 @@ func runHot(dir string, top int) error {
 		component := b.Name + "/" + b.Scene
 		safe := strings.NewReplacer("/", "-", "\\", "-").Replace(component)
 		prof := filepath.Join(profDir, safe+".pprof")
-		cmd := exec.Command("go", "test", "./ui", "-run", "^$", "-bench", hotBenchRegex(b.Name, b.Scene), "-benchtime=2s", "-cpuprofile", prof)
+		cmd := exec.Command("go", "test", "./ui", "-run", "^$", "-bench", hotBenchRegex(b.Name, b.Scene), "-benchtime=2s", "-timeout", "0", "-cpuprofile", prof)
 		if out, e := cmd.CombinedOutput(); e != nil {
 			failures = append(failures, hotFailure{component, "profile", fmt.Sprintf("%v: %s", e, strings.TrimSpace(string(out)))})
 			continue

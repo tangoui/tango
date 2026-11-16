@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestParsePprofTop(t *testing.T) {
 	in := `Showing nodes accounting for 9.50s, 95% of 10s total
@@ -30,5 +33,32 @@ func TestHotBenchRegexQuotesNames(t *testing.T) {
 	got := hotBenchRegex("A+B", "Scene.(x)")
 	if got == "^BenchmarkComponents/A+B/Scene.(x)$" {
 		t.Fatal("regex was not quoted")
+	}
+}
+
+func TestParsePprofTopKeepsFlatZeroRows(t *testing.T) {
+	in := `File: ui.test
+Type: cpu
+Showing nodes accounting for 9.50s, 95.00% of 10s total
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      8.12s 81.20%  github.com/tangoui/tango/ui.(*Runner).Frame
+     1.20s 12.00% 12.00%      6.00s 60.00%  github.com/tangoui/tango/ui/flexbox.Solve
+         0     0% 12.00%      4.50s 45.00%  github.com/tangoui/tango/ui.(*Runner).layoutAndPaint (inline)
+    10.50ms  0.11% 12.11%   900.25us  9.00%  github.com/tangoui/tango/ui.measure`
+	got, err := parsePprofTop(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 4 {
+		t.Fatalf("got %d rows, want 4: %+v", len(got), got)
+	}
+	if got[0].Name != "github.com/tangoui/tango/ui.(*Runner).Frame" || got[0].FlatNS != 0 || math.Abs(got[0].CumNS-8.12e9) > 1 || got[0].CumPct != 81.2 {
+		t.Fatalf("flat=0 row parsed as %+v", got[0])
+	}
+	if got[2].Name != "github.com/tangoui/tango/ui.(*Runner).layoutAndPaint (inline)" || got[2].FlatNS != 0 || got[2].CumPct != 45 {
+		t.Fatalf("flat=0 inline row parsed as %+v", got[2])
+	}
+	if math.Abs(got[1].FlatNS-1.2e9) > 1 || math.Abs(got[3].FlatNS-10.5e6) > 1 || math.Abs(got[3].CumNS-900250) > 1 {
+		t.Fatalf("units: %+v", got)
 	}
 }

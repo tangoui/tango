@@ -29,12 +29,16 @@
 
 时间门槛只在 `TANGO_PERF_BUDGET=1` 时运行。棘轮规则：超预算的场景必须登记在债表里，并写明实测值；已在预算内的场景不得留在债表里。
 
+### 批次 A/B 对比口径
+
+优化批次判断前后快慢，只用基准中位数（`uiperf bench` 写出的 `bench.json`）或 `uiperf ab`（固定测试二进制、每轮新进程、交替多轮取中位数）。`perfTimeDebt` 里的 Measured 字符串是门槛单次运行的记录值，只用于棘轮登记，不得用作 A/B 对比的依据。
+
 ### 证据与环境
 
 - 机器：Apple M4（Mac16,10），10 核，16 GB，macOS 26.6（25G72），Go 1.27.2 darwin/arm64。
 - Tango：`5f115d300fe68054765fee1c2ce7a8bd498e2126`（分支 `perf/ui-components-20261116`）。
 - 对手版本（供 12b 使用，本版未运行）：MyGo v0.9.0（自绘 `ui` 模式）；NSGo 源码 changelog 为 Unreleased，go tree SHA1 `ca0381d685af758f880c7775824adc38380b9ac7`。
-- 原始数据在工作区的 `.superpowers/sdd/2026-11-16-ui-component-performance/baseline-12a/`（已 gitignore，不入库）：`bench-raw.txt`、`bench.json`、`status.md`、`hot.md`、`prof/`、`scratch{1,2}.txt`、`cold14.txt`、`gate.txt`、`load.log`。
+- 原始数据在工作区的 `.superpowers/sdd/2026-11-16-ui-component-performance/baseline-12a/`（已 gitignore，不入库）：`bench-raw.txt`、`bench.json`、`status.md`、`hot.md`、`prof/`、`scratch{1,2}.txt`、`cold14.txt`、`gate1.txt`、`gate2.txt`、`gate3.txt`、`bench.orig.json`、`status.orig.md`、`budget-raw.txt`、`load.log`。
 
 ### 运行与负载（1 分钟负载均 < 6）
 
@@ -52,7 +56,7 @@
 | **门槛 2**，PASS | 03:19:05–03:31:15 | 2.08 2.15 2.11 → 5.62 3.78 2.81 |
 | 门槛 3，PASS，**受干扰，不采信** | 03:32:23–03:44:28 | 3.21 3.43 2.75 → 6.97 3.86 3.10 |
 
-本任务的测量都是串行运行的。约 03:30 起，另一个会话启动了自己的 GUI 基准（`tango-scenes`、`mygo-scenes grid`，伴随 WindowServer / fontd 活动），所以门槛 2 结束时负载升到 5.62：它的后段（T 开头之后的组件）比门槛 1 慢，最多约 2.7 倍，但仍在 < 6 的范围内，而且全部判定与门槛 1 一致。门槛 3 结束时负载 6.97 ≥ 6，标为受干扰，不用于债表取值；它的判定与门槛 1、2 全部一致，也是 PASS。
+本任务的各个步骤是串行运行的（上一步结束后才开始下一步），但每次门槛内部 `./ui` 与 `./examples/ui-gallery` 两个包是并行运行的（go test 默认的 `-p`），影响见下一段。Task F1 已让 `uiperf bench` 的预算测试改用 `-count=1 -p 1`（包串行），以后的运行不再有这种重叠。约 03:30 起，另一个会话启动了自己的 GUI 基准（`tango-scenes`、`mygo-scenes grid`，伴随 WindowServer / fontd 活动），所以门槛 2 结束时负载升到 5.62：它的后段（T 开头之后的组件）比门槛 1 慢，最多约 2.7 倍，但仍在 < 6 的范围内，而且全部判定与门槛 1 一致。门槛 3 结束时负载 6.97 ≥ 6，标为受干扰，不用于债表取值；它的判定与门槛 1、2 全部一致，也是 PASS。
 
 门槛命令为 `TANGO_PERF_BUDGET=1 go test ./ui ./examples/ui-gallery -run 'Test(Perf|GalleryPage)Budgets' -count=1 -timeout 0 -v`。`-timeout 0` 只取消 go test 的默认超时，`-v` 用来留下 PERF 行。两个包会并行运行，gallery 测试（约 2.7 s）与 ui 的前几个组件（A 开头）重叠，那几项在门槛中的数值比基准中位数高 2–3.7 倍，但都远在预算内。
 
@@ -345,7 +349,7 @@
 |---|---|---|---|
 | P1 | `NoAnimations` 下 Message 提示关闭后不会从树中移除（不透明度约 0 时仍在） | `ui/nav_notify.go:225-231` 的 `renderMessages` 只在 `start+dur` 处 `WakeAt`，没有在 `start+dur+DurationMid` 处唤醒，最后一次过滤从不发生（Task 5 发现） | 本项目优化批次：补 `WakeAt`，并加回归测试（`DurationMid` 后浮层数为 0） |
 | P2 | Command 未虚拟化 | `Command/Large100k` 768.46 ms/步，预算 1.04 ms；Large1k 0.70 ms；`(*CommandW).item.func1` 进入热点前 30 | 本项目第 1 批候选 |
-| P3 | LogView 首帧按 200 px 占位高度布局，之后不再请求帧，静止画面缺行 | 夹具在首次构建后多跑一帧绕过；`TestPerfCollLogViewFirstFrame` 修复后会翻转（Task 6）。LogView 本次各场景都在预算内：Mount 87.4 µs，Interact 37.1 µs，Large100k 24.6 µs | `perf/memory-logview` 会话 |
+| P3 | LogView 首帧按 200 px 占位高度布局，之后不再请求帧，静止画面缺行 | 夹具在首次构建后多跑一帧绕过；`TestPerfCollLogViewFirstFrame` 修复后会翻转（Task 6）。LogView 本次各场景都在预算内（基准中位数）：Mount 87.4 µs，Interact 37.1 µs，Large100k 24.6 µs | `perf/memory-logview` 会话 |
 | — | 渲染器后端（合成器 CPU、提交、footprint） | 进程内不可见 | 待 12b；若有证据再转渲染器会话 |
 | — | 终端 / 编辑器 | 本项目夹具不覆盖 `ui/terminal`、`ui/editor` 内核，profile 中未出现 | 无转交 |
 
@@ -354,7 +358,7 @@
 依据 `hot.md` 和本次实测（以下时间为基准中位数）：
 
 1. **非虚拟化的 10 万项集合**（每步重建并布局全部子项，耗时随 n 线性增长）：Tabs（4.44 s/步）、Tree（1.09 s）、List（1.02 s）、InfiniteScroll（867.66 ms）、Cascader / CascaderPanel（609.90 / 613.41 ms）、Menu（91.04 ms）、Command（768.46 ms，P2）、Scroll / ScrollH（50.35 / 50.78 ms）。同样线性增长的还有 CheckAll、CheckboxGroup、RadioGroup、ToggleGroup（约 2.5 s）、InputTag（2.25 s）、Descriptions（2.07 s）、RichText（2.02 s）、ProList（1.78 s）、Collapse（1.72 s）、Mentions、AutoComplete（约 1.4 s）、Timeline（1.37 s）、Segmented（1.11 s）、Markdown（1.08 s）、Conversations（694.70 ms）、ProTable（277.77 ms）、Carousel（243.53 ms）。其中有些是可放大夹具，产品上未必需要支持 10 万项；这一点在批次里逐个判定是“补虚拟化”还是“定为不适用”，不得为了过门槛改夹具。
-2. **已虚拟化但仍超预算**：Transfer（43.36 ms）、AvatarGroup（18.32 ms）、BubbleList（6.06 ms）、TreeSelect（5.62 ms）、Masonry（386 µs，预算 95 µs）。
+2. **已虚拟化但仍超预算**：Transfer（43.67 ms）、AvatarGroup（18.12 ms）、BubbleList（5.69 ms）、TreeSelect（5.82 ms）、Masonry（441 µs，预算 95 µs）。
 3. **公共管线**：`flexbox.flex` / `measure` / `measureUncached` / `arrange` / `measureAxis` 出现在 21 个超标场景里，说明布局对不可见子项也做了完整测量。文字路径 `text.layoutRuns` / `compactShaper.append` / `text.Shape` / `prepareText` / `shapeItems` 加上 harfbuzz 出现在 15 个超标场景里，说明重复 shaping 没有命中缓存。这两条是“多个组件共享”的优先目标。
 4. **Image/Mount**：653 µs，是唯一超标的首次构建；它的 Interact 也是所有 Interact 中最慢的（586 µs）。
 5. **局部重绘**：`perfDamageDebt` 有 146 项，大多数交互帧重绘了整个窗口（如 Icon 2250×、IconButton 2677×、Kbd 1592×、CheckableTag 1042×）。这是 damage 债，与时间预算分开处理。

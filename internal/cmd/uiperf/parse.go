@@ -14,6 +14,8 @@ type benchResult struct {
 	AllocsOp, BOp float64
 	Dirty         float64
 	ColdNS        float64
+	ColdStatus    string
+	ColdError     string `json:",omitempty"`
 	Budget        float64
 	Pass          bool
 }
