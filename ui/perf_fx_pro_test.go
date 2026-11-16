@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
 	"strconv"
@@ -221,7 +222,7 @@ func TestPerfProOverlayOpenCloseReopen(t *testing.T) {
 
 func TestPerfProLargeRenderedAndScrolled(t *testing.T) {
 	const n = 100000
-	for _, name := range []string{"ProTable", "ProList", "BubbleList", "Conversations"} {
+	for _, name := range []string{"ProTable", "ProList", "BubbleList", "Conversations", "CellEditorTable", "RowEditorTable"} {
 		t.Run(name, func(t *testing.T) {
 			fx := perfRegistry[name]
 			d := newPerfDriver(perfPage(fx.Large(n)), false)
@@ -258,3 +259,209 @@ func TestPerfProLargeRenderedAndScrolled(t *testing.T) {
 		})
 	}
 }
+
+// Post-merge catch-up (task M1): Pro entries added upstream.
+
+// perfProEditRow is a row of the CellEditorTable / RowEditorTable
+// fixtures: the ID column is read only, name and note are editable.
+type perfProEditRow struct{ ID, Name, Note string }
+
+func perfProEditRows(n int, name func(int) string) []perfProEditRow {
+	out := make([]perfProEditRow, n)
+	for i := range out {
+		out[i] = perfProEditRow{ID: strconv.Itoa(i + 1), Name: name(i), Note: "备注 " + strconv.Itoa(i+1)}
+	}
+	return out
+}
+
+func perfProEditName(i int) string { return "项目 " + strconv.Itoa(i+1) }
+
+func perfProEditCols() []ProColumn[perfProEditRow] {
+	return []ProColumn[perfProEditRow]{
+		{Key: "id", Title: "编号", Width: 80, Value: func(r perfProEditRow) any { return r.ID }},
+		{Key: "name", Title: "名称", Width: 220, Value: func(r perfProEditRow) any { return r.Name },
+			Editor: &ProField{Required: true}, Set: func(r *perfProEditRow, v any) { r.Name, _ = v.(string) }},
+		{Key: "note", Title: "备注", Width: 220, Value: func(r perfProEditRow) any { return r.Note },
+			Editor: &ProField{}, Set: func(r *perfProEditRow, v any) { r.Note, _ = v.(string) }},
+	}
+}
+
+// perfProDoubleClick double-clicks p (the editor tables start editing on
+// a double click).
+func perfProDoubleClick(d *Driver, p geom.Point) {
+	d.Inject(input.Pointer{Kind: input.Move, Pos: p})
+	d.Inject(input.Pointer{Kind: input.Press, Pos: p, Clicks: 1})
+	d.Inject(input.Pointer{Kind: input.Release, Pos: p})
+	d.Inject(input.Pointer{Kind: input.Press, Pos: p, Clicks: 2})
+	d.Inject(input.Pointer{Kind: input.Release, Pos: p})
+	d.Settle()
+}
+
+// perfProEdit is the editor tables' interaction: even steps double-click
+// the name cell of row 2, append "X" and save with Enter; odd steps edit
+// it back (Backspace, Enter). A click on the page padding then blurs the
+// table so the settled screen has no focus ring.
+func perfProEdit(r *perfRun, i int) {
+	label, typed := "项目 2", "X"
+	if i%2 == 1 {
+		label, typed = "项目 2X", ""
+	}
+	box, ok := r.D.FindText(label)
+	if !ok {
+		panic("perf: editor table cell not found: " + label)
+	}
+	perfProDoubleClick(r.D, box.Center())
+	r.D.Key(input.KeyEnd, 0)
+	if typed != "" {
+		r.D.Type(typed)
+	} else {
+		r.D.Key(input.KeyBackspace, 0)
+	}
+	r.D.Key(input.KeyEnter, 0)
+	r.D.Click(perfOutside)
+}
+
+// perfProEditLarge is a page with n editable rows in a bounded scroll
+// region (the editor tables have no virtual mode: every row is built).
+func perfProEditLarge(id string, show func(c *Context, rows *[]perfProEditRow)) func(n int) func(*Context) {
+	return func(n int) func(*Context) {
+		return func(c *Context) {
+			rows := State(c, hashID(id), func() []perfProEditRow { return perfProEditRows(n, perfCollItem) })
+			Scroll(c, func() { show(c, rows) }, layout.Size(640, 300))
+		}
+	}
+}
+
+func perfProListToolBarMenu() []TabItem {
+	return []TabItem{{Key: "all", Label: "全部项目"}, {Key: "doing", Label: "进行中"}, {Key: "done", Label: "已完成"}}
+}
+
+func init() {
+	cellShow := func(c *Context, rows *[]perfProEditRow) {
+		CellEditorTable(c, perfProEditCols(), rows).RowKey(func(r perfProEditRow) string { return r.ID }).Show()
+	}
+	rowShow := func(c *Context, rows *[]perfProEditRow) {
+		RowEditorTable(c, perfProEditCols(), rows).RowKey(func(r perfProEditRow) string { return r.ID }).Show()
+	}
+	registerPerf(
+		perfFixture{
+			Name: "CellEditorTable",
+			Build: func(c *Context) {
+				cellShow(c, State(c, hashID("perf.pro.celledit"), func() []perfProEditRow { return perfProEditRows(5, perfProEditName) }))
+			},
+			Interact: perfProEdit,
+			Large:    perfProEditLarge("perf.pro.celledit.large", cellShow),
+		},
+		perfFixture{
+			Name: "RowEditorTable",
+			Build: func(c *Context) {
+				rowShow(c, State(c, hashID("perf.pro.rowedit"), func() []perfProEditRow { return perfProEditRows(5, perfProEditName) }))
+			},
+			Interact: perfProEdit,
+			Large:    perfProEditLarge("perf.pro.rowedit.large", rowShow),
+		},
+		perfFixture{
+			// The toolbar's header menu (Pro ListToolBar menu type "tab")
+			// switches the list view; search and actions are built too.
+			// It wraps no list, so it has no Large.
+			Name: "ListToolBar",
+			Build: func(c *Context) {
+				active := State(c, hashID("perf.pro.listtoolbar.menu"), func() string { return "all" })
+				search := State(c, hashID("perf.pro.listtoolbar.search"), func() string { return "" })
+				ListToolBar(c).Menu("tab", active, perfProListToolBarMenu()).Search(search).
+					Actions(func() { Button(c, "新建").Primary() }).Show()
+			},
+			Interact: perfNavSwitch("进行中", "全部项目"),
+		},
+		// PageLoading, ProStatistic, StatisticCardDivider and
+		// StatisticCardOperation are non-interactive visual helpers:
+		// build-only (idle, damage-free first frame and Mount timing).
+		perfFixture{Name: "PageLoading", Build: func(c *Context) { PageLoading(c).Description("页面加载中").Show() }},
+		perfFixture{Name: "ProStatistic", Build: func(c *Context) {
+			ProStatistic(c, "今日 UV").Value(1328, 0).Trend("up").Description(func() { Text(c, "较昨日 +12%") }).Show()
+		}},
+		perfFixture{Name: "StatisticCardDivider", Build: func(c *Context) {
+			StatisticCardGroup(c).Body(func() {
+				Row(c, func() {
+					StatisticCard(c, "总流量").Value(79, 0).Show()
+					StatisticCardDivider(c, "")
+					StatisticCard(c, "付费流量").Value(112, 0).Show()
+				})
+			})
+		}},
+		perfFixture{Name: "StatisticCardOperation", Build: func(c *Context) {
+			Row(c, func() {
+				ProStatistic(c, "服务网格数").Value(500, 0).StatisticLayout(StatisticVertical).Show()
+				StatisticCardOperation(c, "=")
+				ProStatistic(c, "未发布").Value(234, 0).StatisticLayout(StatisticVertical).Show()
+				StatisticCardOperation(c, "+")
+				ProStatistic(c, "已发布").Value(266, 0).StatisticLayout(StatisticVertical).Show()
+			}, layout.Gap(16))
+		}},
+	)
+}
+
+// TestPerfProInteractOutcome checks the component-specific result of the
+// Pro interactions at rest, after step 0 and after step 1.
+func TestPerfProInteractOutcome(t *testing.T) {
+	name := func(id string) func(*Driver) string {
+		return func(d *Driver) string {
+			rows := *State[[]perfProEditRow](d.r.c, hashID(id), nil)
+			return rows[1].Name + "," + strconv.Itoa(len(perfProEditors(d)))
+		}
+	}
+	tests := []struct {
+		name  string
+		probe func(*Driver) string
+		want  [3]string
+	}{
+		{"CellEditorTable", name("perf.pro.celledit"), [3]string{"项目 2,0", "项目 2X,0", "项目 2,0"}},
+		{"RowEditorTable", name("perf.pro.rowedit"), [3]string{"项目 2,0", "项目 2X,0", "项目 2,0"}},
+		{"ListToolBar", func(d *Driver) string {
+			return *State[string](d.r.c, hashID("perf.pro.listtoolbar.menu"), nil)
+		}, [3]string{"all", "doing", "all"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fx := perfRegistry[tc.name]
+			d := newPerfDriver(perfPage(fx.Build), false)
+			d.Settle()
+			r := &perfRun{D: d}
+			for i, want := range tc.want {
+				if i > 0 {
+					perfStep(r, fx.Interact, i-1)
+				}
+				if got := tc.probe(d); got != want {
+					t.Fatalf("after %d steps: got %q, want %q", i, got, want)
+				}
+			}
+		})
+	}
+}
+
+// TestPerfProEditorMode shows the editor tables' own modes on the
+// fixtures' double click: CellEditorTable opens one editor (the cell),
+// RowEditorTable opens one per editable column of the row (name, note).
+func TestPerfProEditorMode(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		want int
+	}{{"CellEditorTable", 1}, {"RowEditorTable", 2}} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := newPerfDriver(perfPage(perfRegistry[tc.name].Build), false)
+			d.Settle()
+			box, ok := d.FindText("项目 2")
+			if !ok {
+				t.Fatal("cell not found")
+			}
+			perfProDoubleClick(d, box.Center())
+			if got := len(perfProEditors(d)); got != tc.want {
+				t.Fatalf("%d editors open, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// perfProEditors are the text editors shown (pro3TextEditors: the
+// editor tables' fixtures have no other text input).
+func perfProEditors(d *Driver) []geom.Rect { return pro3TextEditors(d) }

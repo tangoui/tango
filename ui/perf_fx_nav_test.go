@@ -736,6 +736,60 @@ func perfNavShown(d *Driver, text string) (geom.Rect, bool) {
 	return geom.Rect{}, false
 }
 
+// Post-merge catch-up (task M1): navigation entries added upstream.
+
+var perfNavTopMenu = []MenuItem{{Key: "workplace", Label: "工作台"}, {Key: "analysis", Label: "分析页"}, {Key: "monitor", Label: "监控页"}}
+
+var perfNavTableActions = []MenuItem{{Key: "copy", Label: "复制行"}, {Key: "archive", Label: "归档"}, {Key: "delete", Label: "删除行", Danger: true}}
+
+func init() {
+	registerPerf(
+		perfFixture{
+			// As Breadcrumb: a crumb navigates up, the link back down. The
+			// route items are given with Items (no enclosing ProLayout).
+			Name: "ProBreadcrumb",
+			Build: func(c *Context) {
+				path := State(c, perfNavID("procrumbs"), func() []string { return append([]string(nil), perfNavCrumbs...) })
+				items := make([]BreadcrumbItem, len(*path))
+				for i, s := range *path {
+					items[i] = BreadcrumbItem{Label: s}
+				}
+				if i := ProBreadcrumb(c).Items(items).Show().Clicked(); i >= 0 && i < len(*path)-1 {
+					*path = append([]string(nil), (*path)[:i+1]...)
+					c.Invalidate()
+				}
+				if Link(c, "进入某应用").Clicked() {
+					*path = append([]string(nil), perfNavCrumbs...)
+					c.Invalidate()
+				}
+			},
+			Interact: perfNavSwitch("应用中心", "进入某应用"),
+		},
+		perfFixture{
+			Name: "TopNavHeader",
+			Build: func(c *Context) {
+				sel := State(c, perfNavID("topnav"), func() string { return "workplace" })
+				TopNavHeader(c, perfNavTopMenu, sel).Title("Tango").UserName("管理员").Show()
+			},
+			Interact: perfNavSwitch("分析页", "工作台"),
+		},
+		perfFixture{
+			// The row-action menu opens on hover (TableDropdown's default
+			// trigger) over its ellipsis button, the fixture's only node.
+			Name:  "TableDropdown",
+			Build: func(c *Context) { TableDropdown(c, perfNavTableActions).Show() },
+			Interact: func(r *perfRun, i int) {
+				if i%2 == 0 {
+					r.D.Move(r.Center())
+				} else {
+					r.D.Move(perfOutside)
+				}
+				r.D.Settle()
+			},
+		},
+	)
+}
+
 // TestPerfNavOverlayOpenClose checks every popup / overlay fixture through
 // its own Interact: the identifying content is (not) shown at rest, step 0
 // flips it, step 1 restores it, and when shown it lies in an overlay's
@@ -748,6 +802,7 @@ func TestPerfNavOverlayOpenClose(t *testing.T) {
 		{"Menubar", "新建窗口", false},
 		{"BreadcrumbItems", "应用一", false},
 		{"Dropdown", "系统设置", false},
+		{"TableDropdown", "归档", false},
 		{"ContextMenuAt", "复制", false},
 		{"ContextMenuAtWith", "复制", false},
 		{"NotificationCenter", "构建失败", false},
@@ -815,6 +870,10 @@ func TestPerfNavInteractOutcome(t *testing.T) {
 		{"Breadcrumb", func(d *Driver) string {
 			return strings.Join(*State[[]string](d.r.c, perfNavID("crumbs"), nil), "/")
 		}, [3]string{"首页/应用中心/应用列表/某应用", "首页/应用中心", "首页/应用中心/应用列表/某应用"}},
+		{"ProBreadcrumb", func(d *Driver) string {
+			return strings.Join(*State[[]string](d.r.c, perfNavID("procrumbs"), nil), "/")
+		}, [3]string{"首页/应用中心/应用列表/某应用", "首页/应用中心", "首页/应用中心/应用列表/某应用"}},
+		{"TopNavHeader", str("topnav"), [3]string{"workplace", "analysis", "workplace"}},
 		{"Pagination", num("page"), [3]string{"1", "2", "1"}},
 		{"Steps", num("steps"), [3]string{"1", "2", "1"}},
 		{"Anchor", func(d *Driver) string {

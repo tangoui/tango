@@ -769,6 +769,8 @@ func TestPerfCollInteractOutcome(t *testing.T) {
 		{"TreeSelect", str("treeselect"), [3]string{"xh", "yh", "xh"}},
 		{"Cascader", join("cascader"), [3]string{"zj,hz,xh", "zj,hz,yh", "zj,hz,xh"}},
 		{"CascaderPanel", join("cascader.panel"), [3]string{"zj,hz,xh", "zj,hz,yh", "zj,hz,xh"}},
+		// antd 6.7 default targetOrder unshift: moved keys go first
+		// (transfer/index.js newMoveKeys.concat(targetKeys)).
 		{"Transfer", func(d *Driver) string {
 			// The item's side: left or right of the move buttons (the
 			// middle of the transfer).
@@ -780,7 +782,7 @@ func TestPerfCollInteractOutcome(t *testing.T) {
 				}
 			}
 			return join("transfer")(d) + "/" + side
-		}, [3]string{"k6/left", "k6,k1/right", "k6/left"}},
+		}, [3]string{"k6/left", "k1,k6/right", "k6/left"}},
 		{"List", func(d *Driver) string {
 			return strconv.Itoa(perfCollState[int](d, "list.page")) + "," + perfNavHas(d, "Ant Design Title 4") + "," + perfNavHas(d, "Ant Design Title 1")
 		}, [3]string{"1,no,yes", "2,yes,no", "1,no,yes"}},

@@ -611,3 +611,38 @@ func TestPerfDisplayTypicalBuildUnwrapped(t *testing.T) {
 		})
 	}
 }
+
+// Post-merge catch-up (task M1): CheckableTagGroup, single selection
+// bound to Context State; step 0 checks 新品 (replacing 热门), step 1
+// checks 热门 again.
+func init() {
+	registerPerf(perfFixture{
+		Name: "CheckableTagGroup",
+		Build: func(c *Context) {
+			sel := State(c, hashID("perf.display.taggroup"), func() []string { return []string{"hot"} })
+			CheckableTagGroup(c, sel, []Option{{Label: "热门", Value: "hot"}, {Label: "新品", Value: "new"}, {Label: "促销", Value: "sale"}, {Label: "停售", Value: "off", Disabled: true}})
+		},
+		Interact: func(r *perfRun, i int) {
+			if i%2 == 0 {
+				perfDisplayClick(r, "新品")
+			} else {
+				perfDisplayClick(r, "热门")
+			}
+		},
+	})
+}
+
+func TestPerfDisplayCheckableTagGroupOutcome(t *testing.T) {
+	fx := perfRegistry["CheckableTagGroup"]
+	d := newPerfDriver(perfPage(fx.Build), false)
+	d.Settle()
+	r := &perfRun{D: d}
+	for i, want := range []string{"hot", "new", "hot"} {
+		if i > 0 {
+			perfStep(r, fx.Interact, i-1)
+		}
+		if got := strings.Join(*State[[]string](d.r.c, hashID("perf.display.taggroup"), nil), ","); got != want {
+			t.Fatalf("after %d steps: selected %q, want %q", i, got, want)
+		}
+	}
+}
