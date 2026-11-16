@@ -1,7 +1,7 @@
 // Command editor-demo opens the Tango code editor view (ui/editor) in a
 // real window.
 //
-//	go run ./examples/editor-demo                       # 10 000 generated TypeScript lines
+//	go run ./examples/editor-demo                       # readable TypeScript welcome sample
 //	go run ./examples/editor-demo -gen-lines 1000000    # ~100 MB, 1M lines (spec 6.6)
 //	go run ./examples/editor-demo -file main.go -theme vs
 //	go run ./examples/editor-demo -renderer cpu         # force the CPU renderer
@@ -9,6 +9,11 @@
 //	go run ./examples/editor-demo -theme hc-black -language go
 //	go run ./examples/editor-demo -diff old.go new.go   # diff view (ui/editor/diffview)
 //	go run ./examples/editor-demo -diff -inline -fold old.go new.go
+//
+// The File menu opens files, saves them, saves generated content with Save As,
+// and Edit opens an inline find/replace panel. Dropping a file onto the window or opening
+// a file through the operating system uses the same document workflow; dirty
+// documents ask whether to save before replacement or close.
 //
 // The window contains a language selector, a Commands()-backed palette,
 // one or two editor views, and a status line (caret position, line count,
@@ -38,6 +43,7 @@ import (
 	"time"
 
 	"github.com/tangoui/tango"
+	"github.com/tangoui/tango/sys/dialog"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/editor"
 	"github.com/tangoui/tango/ui/editor/diffview"
@@ -65,7 +71,11 @@ var (
 	paletteCommand  string
 	pendingCommand  string
 	languageOptions []ui.Option
+	search          searchPanel
 	background      *modelHighlight
+	documents       *documentController
+	surface         *tango.Surface
+	surfaceTitle    string
 	diffState       *diffview.State
 	diffOrigHL      *modelHighlight
 	diffMode        = "sideBySide"
@@ -82,20 +92,133 @@ func init() {
 }
 
 func setupDocument(name, text string, th *theme.Theme, split, wrap bool) {
-	if background != nil {
-		background.Close()
+	if documents == nil {
+		documents = newDocumentController(editor.DefaultRegistry(), th, split, wrap)
+	} else {
+		documents.theme, documents.split, documents.wrap = th, split, wrap
 	}
-	m := editor.NewModel(name, text, editor.DefaultRegistry())
-	background = newModelHighlight(m)
-	st, second = editor.NewView(m, th), nil
-	if wrap {
-		st.Options.WordWrap = editor.WrapOn
+	documents.install(newDocumentSession(name, text, documents.registry))
+}
+
+func syncTitle() {
+	if surface == nil || documents == nil {
+		return
 	}
-	if split {
-		second = editor.NewView(m, th)
-		second.Options.WordWrap = st.Options.WordWrap
+	title := documents.title()
+	if title != surfaceTitle {
+		surface.SetTitle(title)
+		surfaceTitle = title
 	}
-	active, focused = st, false
+}
+
+func showMessage(kind dialog.Kind, title, message string) {
+	if app == nil {
+		return
+	}
+	_, _ = dialog.Message(app, dialog.MessageOptions{Parent: surface, Kind: kind, Title: title, Message: message})
+}
+
+func saveAsDocument() bool {
+	defer restoreEditorFocus()
+	if documents == nil || documents.session == nil {
+		return false
+	}
+	name := documentDisplayName(documents.session.path)
+	if name == "Untitled" {
+		name = "untitled.txt"
+	}
+	path, err := dialog.Save(app, dialog.FileOptions{Parent: surface, Title: "Save As", Filename: name})
+	if err != nil || path == "" {
+		return false
+	}
+	if err := documents.saveAs(path); err != nil {
+		showMessage(dialog.Error, "Save failed", err.Error())
+		return false
+	}
+	syncTitle()
+	return true
+}
+
+func saveDocument() bool {
+	defer restoreEditorFocus()
+	if documents == nil || documents.session == nil {
+		return false
+	}
+	if documents.session.path == "" {
+		return saveAsDocument()
+	}
+	if err := documents.save(); err != nil {
+		showMessage(dialog.Error, "Save failed", err.Error())
+		return false
+	}
+	syncTitle()
+	return true
+}
+
+func confirmDiscard() bool {
+	if documents == nil || documents.session == nil || !documents.session.dirty() {
+		return true
+	}
+	choice, err := dialog.Message(app, dialog.MessageOptions{
+		Parent:  surface,
+		Kind:    dialog.Question,
+		Title:   "Unsaved changes",
+		Message: "Save changes to " + documentDisplayName(documents.session.path) + " before continuing?",
+		Buttons: []string{"Save", "Don't Save", "Cancel"},
+	})
+	if err != nil {
+		return false
+	}
+	switch choice {
+	case 0:
+		return saveDocument()
+	case 1:
+		return resolveDiscard(true, discardDontSave)
+	default:
+		return resolveDiscard(true, discardCancel)
+	}
+}
+
+func openDocumentPath(path string) bool {
+	if diffState != nil || documents == nil {
+		return false
+	}
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+	if !confirmDiscard() {
+		return false
+	}
+	if err := documents.replace(path); err != nil {
+		showMessage(dialog.Error, "Open failed", err.Error())
+		return false
+	}
+	syncTitle()
+	return true
+}
+
+func openDocumentDialog() {
+	defer restoreEditorFocus()
+	if documents == nil || diffState != nil {
+		return
+	}
+	paths, err := dialog.Open(app, dialog.FileOptions{Parent: surface, Title: "Open File", Multiple: false})
+	if err == nil && len(paths) > 0 {
+		openDocumentPath(paths[0])
+	}
+}
+
+func configureDocumentApp(a *tango.App) {
+	a.OnQuitRequest(confirmDiscard)
+	a.OnOpenFiles(func(paths []string) {
+		for _, path := range paths {
+			if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
+				openDocumentPath(path)
+				break
+			}
+		}
+	})
 }
 
 func commandOptions() []ui.Option {
@@ -180,62 +303,33 @@ func diffStatus() string {
 }
 
 func page(c *ui.Context) {
-	if diffState != nil {
-		diffPage(c)
+	defer syncTitle()
+	if st == nil {
 		return
 	}
-	ui.Column(c, func() {
-		ui.Row(c, func() {
-			language := st.Model.Language()
-			if ui.Select(c, &language, languageOptions).Searchable().Width(210).A11yLabel("Document language").Changed() {
-				st.Model.SetLanguage(language)
-				hlDone = false
-			}
-			if ui.Button(c, "Command Palette").Clicked() {
-				paletteTarget, paletteOpen = active, true
-			}
-			ui.Text(c, "Right-click: editor menu · commands target the last focused pane")
-		}, layout.PadVH(4, 12))
-		ui.Row(c, func() {
-			show := func(target *editor.State) {
-				vw := editor.View(c, target)
-				if !focused {
-					c.SetFocus(vw.Box().ID())
-					focused = true
-				}
-				if vw.Focused() {
-					active = target
-				}
-				if pendingCommand != "" && target == paletteTarget {
-					c.SetFocus(vw.Box().ID())
-					// Execute only after a build observes the restored focus, so
-					// editorTextFocus preconditions and clipboard commands work.
-					if vw.Focused() {
-						id := pendingCommand
-						pendingCommand = ""
-						if !target.Execute(id, nil) {
-							log.Printf("editor-demo: command %s refused or made no change", id)
-						}
-					} else {
-						ui.Invalidate(c.Window())
-					}
-				}
-			}
-			show(st)
-			if second != nil {
-				show(second)
-			}
-		}, layout.Grow(1))
-		ui.Row(c, func() { ui.Text(c, status()) }, layout.PadVH(4, 12))
-	}, layout.Fill())
-	ui.Modal(c, &paletteOpen, "Editor commands").Width(720).NoFooter().Body(func() {
-		ui.Select(c, &paletteCommand, commandOptions()).Searchable().Width(650).A11yLabel("Registered editor commands")
-		if ui.Button(c, "Execute").Disabled(paletteCommand == "").Clicked() {
-			pendingCommand, paletteOpen = paletteCommand, false
+	ui.ConfigProvider(c).Theme(shellUI.theme(st.Theme.BaseName())).Size(ui.Small).Body(func() {
+		if diffState != nil {
+			diffPage(c)
+			return
 		}
-		ui.Text(c, "Commands without arguments only; preconditions/read-only rules still apply.")
+		renderShell(c)
+		paletteWasOpen := paletteOpen
+		ui.Modal(c, &paletteOpen, "Editor commands").Width(min(720, c.Size().W-32)).NoFooter().Body(func() {
+			ui.Select(c, &paletteCommand, commandOptions()).Searchable().Width(min(650, c.Size().W-80)).A11yLabel("Registered editor commands")
+			if ui.Button(c, "Execute").Disabled(paletteCommand == "").Clicked() {
+				pendingCommand, paletteOpen = paletteCommand, false
+			}
+			ui.Text(c, "Commands without arguments only; preconditions/read-only rules still apply.")
+		})
+		if paletteWasOpen && !paletteOpen && pendingCommand == "" {
+			if paletteTarget != nil {
+				active = paletteTarget
+			}
+			restoreEditorFocus()
+			ui.Invalidate(c.Window())
+		}
 	})
-	if auto != nil {
+	if auto != nil && diffState == nil {
 		auto.frame(c)
 	}
 }
@@ -366,9 +460,46 @@ func report(name string, d []time.Duration) {
 
 func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
 
+func openDemoWindow(title string, ropts ui.RunnerOptions) (*ui.Runner, *tango.Surface, error) {
+	r, s, err := uihost.Open(app, uihost.Options{Surface: tango.SurfaceOptions{
+		Title: title, Width: 1200, Height: 800, MinWidth: 480, MinHeight: 320,
+		Resizable: true, Centered: true, AcceptFiles: diffState == nil, Appearance: editorWindowAppearance(),
+	}}, page, ropts)
+	if err != nil {
+		return nil, nil, err
+	}
+	runner = r
+	surface = s
+	surface.OnClose(func() bool { return confirmDiscard() })
+	surface.OnFilesDropped(func(paths []string, _, _ int) {
+		if len(paths) > 0 {
+			openDocumentPath(paths[0])
+		}
+	})
+	for _, shortcut := range []struct {
+		accelerator string
+		fn          func()
+	}{
+		{"CmdOrCtrl+O", openDocumentDialog},
+		{"CmdOrCtrl+S", func() { saveDocument() }},
+		{"CmdOrCtrl+F", func() { showSearch(false) }},
+		{"CmdOrCtrl+H", func() { showSearch(true) }},
+		{"CmdOrCtrl+Shift+S", func() { saveAsDocument() }},
+		{"CmdOrCtrl+Shift+P", func() { runShellAction("palette") }},
+	} {
+		if _, err := uihost.Shortcut(surface, shortcut.accelerator, shortcut.fn); err != nil {
+			log.Printf("editor-demo: shortcut %s: %v", shortcut.accelerator, err)
+		}
+	}
+	syncTitle()
+	attachHighlightNotify(background, st.Model)
+	return r, s, nil
+}
+
 func main() {
-	file := flag.String("file", "", "file to open (default: a generated TypeScript document)")
-	genLines := flag.Int("gen-lines", 10000, "lines of the generated TypeScript document when -file is not given")
+	file := flag.String("file", "", "file to open (default: a short TypeScript welcome sample)")
+	folder := flag.String("folder", "", "folder shown in Explorer (default: current directory)")
+	genLines := flag.Int("gen-lines", 10000, "generate a benchmark TypeScript document with this many lines (opt-in)")
 	renderer := flag.String("renderer", "", `force the renderer: "cpu" or "gpu" (sets TANGO_RENDERER)`)
 	themeName := flag.String("theme", "vs-dark", `editor theme: vs, vs-dark, hc-black, hc-light`)
 	split := flag.Bool("split", false, "two independent editor views sharing one text model")
@@ -407,22 +538,35 @@ func main() {
 		defer diffOrigHL.Close()
 		defer background.Close()
 		name = flag.Arg(1)
-	} else if *file != "" {
-		b, err := os.ReadFile(*file)
+	} else {
+		explicitGenerator := *autoFlag
+		flag.Visit(func(f *flag.Flag) {
+			if f.Name == "gen-lines" {
+				explicitGenerator = true
+			}
+		})
+		var err error
+		name, text, err = startupDocument(*file, *genLines, explicitGenerator)
 		if err != nil {
 			log.Fatal(err)
 		}
-		text, name = string(b), *file
-	} else {
-		text, name = genTS(*genLines), "generated.ts"
 	}
 	if !*diffFlag {
 		setupDocument(name, text, theme.Base(*themeName), *split, *wrap)
-		defer st.Close()
-		if second != nil {
-			defer second.Close()
+		if *file == "" {
+			documents.session.path = ""
 		}
-		defer background.Close() // cancel/unsubscribe before closing either view
+		defer func() {
+			if background != nil {
+				background.Close()
+			}
+			if st != nil {
+				st.Close()
+			}
+			if second != nil {
+				second.Close()
+			}
+		}()
 	}
 	if *language != "" {
 		st.Model.SetLanguage(*language)
@@ -440,15 +584,21 @@ func main() {
 	}
 	quit := true
 	app = tango.New(tango.Options{Name: "Tango Editor", ID: "dev.tango.editordemo", QuitOnLastClose: &quit})
+	configureDocumentApp(app)
+	dir := *folder
+	if dir == "" {
+		dir, _ = os.Getwd()
+	}
+	if dir != "" {
+		if err := shellUI.explorer.openFolder(dir); err != nil {
+			log.Printf("editor-demo: open folder: %v", err)
+		}
+	}
 	app.OnReady(func() {
-		r, _, err := uihost.Open(app, uihost.Options{Surface: tango.SurfaceOptions{
-			Title: "Tango Editor — " + filepath.Base(name), Width: 1200, Height: 800, MinWidth: 480, MinHeight: 320,
-			Resizable: true, Centered: true,
-		}}, page, ropts)
+		r, _, err := openDemoWindow("Tango Editor — "+filepath.Base(name), ropts)
 		if err != nil {
 			log.Fatal(err)
 		}
-		runner = r
 		rendName = uihost.Renderer(r)
 		log.Printf("editor-demo: window open %v after start, renderer %s", time.Since(start).Round(time.Millisecond), rendName)
 		if diffOrigHL != nil {
@@ -461,22 +611,7 @@ func main() {
 				})
 			})
 		}
-		life := background
-		hlStart := time.Now()
-		life.SetNotify(func() {
-			// ready runs off-thread (or is replayed during attachment).
-			// Never read Model/State until this UI-thread callback runs.
-			app.Post(func() {
-				if life.isClosed() {
-					return
-				}
-				if hl := st.Highlighter(); hl != nil && !hlDone && hl.Done(st.Snapshot()) {
-					hlDone = true
-					log.Printf("editor-demo: document highlighted in %v", time.Since(hlStart).Round(time.Millisecond))
-				}
-				r.Invalidate()
-			})
-		})
+		attachHighlightNotify(background, st.Model)
 		if *quitAfter > 0 {
 			time.AfterFunc(*quitAfter, func() { app.Post(app.Quit) })
 		}

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/editor"
 	"github.com/tangoui/tango/ui/editor/diff"
@@ -122,6 +123,9 @@ func TestDemoDiff(t *testing.T) {
 	os.WriteFile(b, []byte(mod), 0o644)
 	if err := setupDiff(a, b, theme.Base("vs"), false, false, true); err != nil {
 		t.Fatal(err)
+	}
+	if editorWindowAppearance().TitleBar != tango.TitleBarDefault {
+		t.Fatal("diff window lost native controls without rendering a titlebar")
 	}
 	defer func() {
 		background.Close()

@@ -137,7 +137,7 @@ const message = await window.tango.call("Greeter.Hello", "TanGo");
 | [`examples/mobile-hello`](examples/mobile-hello) | 移动端页面、生命周期与系统能力演示。 |
 | [`examples/ledger`](examples/ledger) | 完整的自绘 UI 记账应用：托盘、CSV 导出，用 `tan build` 打包。 |
 | [`examples/ui-hotreload`](examples/ui-hotreload) | `tan dev` 下自绘 UI 热重载，重建后保留状态。 |
-| [`examples/editor-demo`](examples/editor-demo) | `ui/editor` 代码编辑器，大文件后台语法高亮。 |
+| [`examples/editor-demo`](examples/editor-demo) | 完整的 `ui/editor` 代码编辑器：原生打开/保存、另存、未保存保护、查找替换、主题、拆分与差异视图，以及大文件后台语法高亮。 |
 | [`examples/a11y-demo`](examples/a11y-demo) | 读屏软件（VoiceOver）眼中的自绘 UI，附无障碍自检。 |
 | [`examples/i18n-demo`](examples/i18n-demo) | 系统语言、应用文案目录与本地化原生菜单。 |
 | [`examples/app-demo`](examples/app-demo) | 退出拦截、深度链接与打开文件、单实例。 |

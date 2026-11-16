@@ -105,3 +105,23 @@ func (d *modelHighlight) Close() {
 		unsubscribe()
 	}
 }
+
+// attachHighlightNotify follows each document's lifetime, including files
+// opened after startup. Closed lifetimes cannot update the current view.
+func attachHighlightNotify(life *modelHighlight, m *editor.Model) {
+	if app == nil || runner == nil || life == nil {
+		return
+	}
+	a, r := app, runner
+	life.SetNotify(func() {
+		a.Post(func() {
+			if life.isClosed() {
+				return
+			}
+			if h := m.Highlighter(); h != nil && h.Done(m.Snapshot()) {
+				hlDone = true
+			}
+			r.Invalidate()
+		})
+	})
+}

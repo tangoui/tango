@@ -448,26 +448,36 @@ func (l *Lexer) nestedTokenize(line string, hasEOL bool, ls lineState, off int, 
 	return l.myTokenize(line[pop:], hasEOL, ls, off+pop, c)
 }
 
-// longLineBytes：剩余部分超过这个字节数时，整行转成一次 []rune 供回溯引擎的规则复用。
-// 否则 regexp2 每次匹配都要把"行的剩余部分"转成 []rune，长行上逐位置尝试就是平方级的。
-const longLineBytes = 256
-
+// lineRunes shares one rune conversion across a line's backtracking
+// attempts. It is created lazily: standard-regexp-only lines need none.
 type lineRunes struct {
 	runes []rune
 	index []int32 // 字节偏移 → rune 下标（非法字节各算一个 rune，与 []rune(s) 一致）
 }
 
-func newLineRunes(line string) *lineRunes {
-	lr := &lineRunes{runes: make([]rune, 0, len(line)), index: make([]int32, len(line)+1)}
-	for i, r := range line {
+func newLineRunes(line string) lineRunes {
+	lr := lineRunes{runes: []rune(line)}
+	if len(lr.runes) == len(line) {
+		return lr // one rune per byte: ASCII and single invalid bytes
+	}
+	lr.index = make([]int32, len(line)+1)
+	runeIndex := 0
+	for i := range line {
 		_, size := utf8.DecodeRuneInString(line[i:])
 		for k := 0; k < size; k++ {
-			lr.index[i+k] = int32(len(lr.runes))
+			lr.index[i+k] = int32(runeIndex)
 		}
-		lr.runes = append(lr.runes, r)
+		runeIndex++
 	}
 	lr.index[len(line)] = int32(len(lr.runes))
 	return lr
+}
+
+func (lr *lineRunes) at(byteOffset int) []rune {
+	if lr.index != nil {
+		byteOffset = int(lr.index[byteOffset])
+	}
+	return lr.runes[byteOffset:]
 }
 
 // maxEmptyRun 是允许的连续无进展次数（空匹配，或 goBack 后没有越过本行已到达的最远位置；内置语法远低于此值）。
@@ -507,11 +517,10 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 	}{ctx: matchCtx{budget: &c.budget}}
 	force := true // 空行也至少执行一次规则（monaco-editor#1235）
 	ctx := &frame.ctx
-	var lr *lineRunes // 长行上整行的 []rune，供回溯引擎复用（见 longLineBytes）
-	var asciiRunes []rune
-	checkedASCII := false
-	emptyRun := 0 // 连续无进展（没有越过 high）的次数
-	high := 0     // 本行目前到达过的最远位置；只有越过它才算进展
+	var lr lineRunes // allocated only when a rule needs backtracking
+	lrBase := 0      // byte at which its reusable suffix begins
+	emptyRun := 0    // 连续无进展（没有越过 high）的次数
+	high := 0        // 本行目前到达过的最远位置；只有越过它才算进展
 
 	for force || pos < lineLen {
 		pos0 := pos
@@ -550,6 +559,7 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 				return ls, l.errorf("tokenizer state is not defined: %s", state)
 			}
 			rest := line[pos:]
+			var restRunes []rune
 			backtracked := false
 			for _, ru := range stack.rules {
 				if pos != 0 && ru.atLineStart {
@@ -563,36 +573,12 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 				if cr.hasFirst && len(rest) > 0 && rest[0] < utf8.RuneSelf && rest[0] != cr.firstByte {
 					continue
 				}
-				var restRunes []rune
-				backtrack := re.Engine() == regex.Backtrack
-				if backtrack {
-					// Only a real backtracking attempt needs rune storage.
-					if lr == nil && len(rest) > longLineBytes {
-						lr = newLineRunes(line)
-					}
-					if lr != nil {
-						restRunes = lr.runes[lr.index[pos]:]
-					} else if len(line) <= longLineBytes {
-						// Reuse ASCII runes on short lines. A short remainder
-						// of a long line still uses the engine's small window.
-						if !checkedASCII {
-							checkedASCII = true
-							ascii := true
-							for i := range len(line) {
-								if line[i] >= utf8.RuneSelf {
-									ascii = false
-									break
-								}
-							}
-							if ascii {
-								asciiRunes = []rune(line)
-							}
-						}
-						if asciiRunes != nil {
-							restRunes = asciiRunes[pos:]
-						}
-					}
+				if re.Engine() == regex.Backtrack {
 					backtracked = true
+					if lr.runes == nil || pos < lrBase {
+						lr, lrBase = newLineRunes(rest), pos
+					}
+					restRunes = lr.at(pos - lrBase)
 				}
 				captures := !ru.noCaptures && re.NumGroups() != 0
 				m, err := c.budget.matchWithCaptures(re, rest, restRunes, off+pos, captures, frame.span[:0])

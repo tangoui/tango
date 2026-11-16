@@ -1067,6 +1067,7 @@ pkg github.com/tangoui/tango/ui, method (*Context) Focused() ID
 pkg github.com/tangoui/tango/ui, method (*Context) Inline(ui/geom.Rect) InlineSpan
 pkg github.com/tangoui/tango/ui, method (*Context) InlineKey(ui/input.Key) (bool, bool)
 pkg github.com/tangoui/tango/ui, method (*Context) Invalidate()
+pkg github.com/tangoui/tango/ui, method (*Context) InvalidateImage(image.Image)
 pkg github.com/tangoui/tango/ui, method (*Context) Invalidator() func()
 pkg github.com/tangoui/tango/ui, method (*Context) IsRTL() bool
 pkg github.com/tangoui/tango/ui, method (*Context) KeepPointer(ID)

@@ -265,6 +265,18 @@ func (r *backtrackRegexp) tryMatchStartWithCaptures(s string, rs []rune, find fu
 		res[2*i+2], res[2*i+3] = g.Index, g.Index+g.Length
 		maxRune = max(maxRune, res[2*i+3]) // 前瞻里的组可以越过整体匹配的结尾
 	}
+	// ASCII byte and rune offsets are identical. Only the prefix reached
+	// by captures matters; non-ASCII or invalid UTF-8 later in s is safe.
+	ascii := true
+	for i := 0; i < maxRune; i++ {
+		if s[i] >= utf8.RuneSelf {
+			ascii = false
+			break
+		}
+	}
+	if ascii {
+		return res, nil
+	}
 	byteOff := make([]int, 0, maxRune+1)
 	for b := 0; len(byteOff) <= maxRune; {
 		byteOff = append(byteOff, b)
