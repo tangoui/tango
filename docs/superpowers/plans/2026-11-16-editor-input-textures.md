@@ -23,14 +23,15 @@
 ### Task 1: Bound and trim unused Metal textures
 **Files:** modify internal/render/gpu/metal/images_darwin.go, metal_darwin.go, internal/render/gpu/renderer.go; create internal/render/gpu/metal/image_pool_darwin.go and image_pool_darwin_test.go.
 **Interfaces:** Device retains imageTexturePool; pool owns only unused imageCandidate values. Device.TrimImages() is an optional capability consumed by gpu.Renderer.Trim.
-- [ ] Write native alternating-size identity/pixel test, observe baseline allocation failure; add workload benchmarks before compiling baseline binaries.
-- [ ] Add tests through Device/Renderer for mismatch, distinct/live IDs, no-upload release,121-age workload,16 count/1MiB bounds, invalid return/failure/Close and low-memory trim. Retain old native objects to eliminate allocator-address ambiguity.
-- [ ] Implement bounded FIFO/age pool, integrate claim/deposit and every release path; TrimImages drops it and suppresses one refill. Unknown devices keep existing Trim behavior.
-- [ ] Focused identity/pixel/lifecycle tests and full Metal/renderer trim regression PASS; variable-size benchmark demonstrates reuse without changed pixels.
+- [x] Write native alternating-size identity/pixel test, observe baseline allocation failure; add workload benchmarks before compiling baseline binaries.
+- [x] Add tests through Device/Renderer for mismatch, distinct/live IDs, no-upload release,121-age workload,16 count/1MiB bounds, invalid return/failure/Close and low-memory trim. Retain old native objects to eliminate allocator-address ambiguity.
+- [x] Implement bounded FIFO/age pool, integrate claim/deposit and every release path; TrimImages drops it and suppresses one refill. Unknown devices keep existing Trim behavior.
+- [x] Focused identity/pixel/lifecycle tests and full Metal/renderer trim regression PASS; variable-size benchmark demonstrates reuse without changed pixels.
 
 ### Task 2: Measure and deliver
 **Files:** ui/editor/perf_input_profile_test.go (warm-only opt-in observation); docs/specs/editor-input-performance-2026-11-16.md; plan/spec; external measurement artifacts and execution ledger.
 **Interfaces:** real GPU renderer/devices from Task1, unchanged editor benchmark fixtures. Device wrappers in diagnostic test preserve retention and cache trimming capability where used.
-- [ ] Validate actual warm-profile input workload, preserve baseline/candidate binaries; alternating native and full/partial TS20k editor comparisons, warm-only profile and sustained memory, report mixed results and1MiB nominal residency tradeoff.
-- [ ] Full Metal/editor/subpackages/host/demo regressions, root short suite, meaningful changed-path race, API/vet/build/gofmt/diff and fresh whole-branch review. Address substantive findings with RED→GREEN.
-- [ ] Commit using tango identity; fast-forward clean local main, build clean merged tree, safely update/start app with unsaved-content protection; record commit, SHA, PID and all limits in delivery.json. Archive only this plan's scratch ledger; retain host-owned worktree.
+- [x] Validate actual warm-profile input workload, preserve baseline/candidate binaries; alternating native and full/partial TS20k editor comparisons, warm-only profile and sustained memory, report mixed results and1MiB nominal residency tradeoff.
+- [x] Full Metal/editor/subpackages/host/demo regressions, root short suite, meaningful changed-path race, API/vet/build/gofmt/diff and fresh whole-branch review. Address substantive findings with RED→GREEN.
+- [x] Verify tango identity and clean local main; prepare report and completed acceptance evidence for delivery.
+- Delivery: commit and fast-forward local main; build clean merged tree and safely update/start app with unsaved-content protection. Record commit, SHA, PID and limits in external delivery.json; archive only this plan's scratch ledger and retain the host-owned worktree.
