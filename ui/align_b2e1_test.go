@@ -226,7 +226,9 @@ func TestAlignB2E1FilterResetToDefault(t *testing.T) {
 		if _, ok := d.Find(loc.FilterConfirm); !ok {
 			t.Fatal("Reset must leave the filter panel open")
 		}
-		if err := d.ClickLabel(loc.FilterConfirm); err != nil { t.Fatal(err) }
+		if err := d.ClickLabel(loc.FilterConfirm); err != nil {
+			t.Fatal(err)
+		}
 		d.Settle()
 		want := 2
 		if toDef {

@@ -164,5 +164,5 @@ func WriteFileAtomic(path string, data []byte, perm fs.FileMode) (err error) {
 	if err = os.Chmod(tmp, perm); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	return replaceFile(tmp, path) // rename_windows.go: retried while another process holds path
 }
