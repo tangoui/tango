@@ -1,0 +1,30 @@
+package monarch
+
+import (
+	"strings"
+	"testing"
+)
+
+// Matches MyGo v0.9.0's published Go/HTML benchmark inputs. Both keep their
+// destination token capacity between documents; language setup is excluded.
+func BenchmarkMyGoCompareWarm(b *testing.B) {
+	goSource, _ := mygoCompareGoChunk()
+	htmlSource := strings.Repeat("<div class=\"card\" id='x' data-a=\"{b}\">\n\t<a href=\"/p?q=1&amp;r\">Hi &lt;there&gt;</a> <!-- note -->\n"+
+		"\t<script>if (a > 1) { run(`x${y}`) }</script>\n\t<style>.a { color: red; }</style>\n</div>\n", 200)
+	for _, tc := range []struct{ language, source string }{{"go", goSource}, {"html", htmlSource}} {
+		b.Run(tc.language, func(b *testing.B) {
+			lx := mustLexer(b, tc.language)
+			lines := strings.Split(tc.source, "\n")
+			var tokens []Token
+			b.SetBytes(int64(len(tc.source)))
+			b.ReportAllocs()
+			b.ResetTimer()
+			for range b.N {
+				state := lx.Initial()
+				for _, line := range lines {
+					tokens, state = lx.TokenizeLine(line, state, tokens[:0])
+				}
+			}
+		})
+	}
+}

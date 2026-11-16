@@ -55,6 +55,7 @@ type action struct {
 	kind       actKind
 	token      string
 	tokenSubst bool
+	tokenType  string // immutable sanitized type for a literal non-bracket token
 	next       string
 	switchTo   string
 	goBack     int
@@ -116,7 +117,7 @@ func compileGrammar(id string, src *node) (g *grammar, err error) {
 	if s := src.get("start"); s.isString() {
 		g.start = s.str
 	}
-	g.defAction = &action{kind: actString, token: g.defaultToken}
+	g.defAction = g.tokenAction(actString, g.defaultToken)
 	tk := src.get("tokenizer")
 	if tk == nil || tk.kind != kObject {
 		return nil, g.errorf("a language definition must define the 'tokenizer' attribute as an object")
@@ -585,14 +586,26 @@ func approxXID(s string) string {
 	return sb.String()
 }
 
+// Limit per-action copies of plugin-supplied labels and postfixes. Very long
+// types retain the original runtime path instead of multiplying compile memory.
+const maxPrecomputedTokenTypeBytes = 256
+
+func (g *grammar) tokenAction(kind actKind, token string) *action {
+	a := &action{kind: kind, token: token, tokenSubst: kind == actToken && strings.Contains(token, "$")}
+	if token != "" && !a.tokenSubst && !strings.HasPrefix(token, "@brackets") && len(token)+len(g.tokenPostfix) <= maxPrecomputedTokenTypeBytes {
+		a.tokenType = sanitize(token + g.tokenPostfix)
+	}
+	return a
+}
+
 // compileAction 对应 Monaco 的 compileAction。
 func (g *grammar) compileAction(ruleName string, n *node) (*action, error) {
 	if !n.truthy() {
-		return &action{kind: actToken}, nil
+		return g.tokenAction(actToken, ""), nil
 	}
 	switch n.kind {
 	case kString:
-		return &action{kind: actString, token: n.str}, nil
+		return g.tokenAction(actString, n.str), nil
 	case kArray:
 		a := &action{kind: actGroup}
 		for _, e := range n.arr {
@@ -611,7 +624,7 @@ func (g *grammar) compileAction(ruleName string, n *node) (*action, error) {
 		if !tok.isString() {
 			return nil, g.errorf("a 'token' attribute must be of type string, in rule: %s", ruleName)
 		}
-		a := &action{kind: actToken, token: tok.str, tokenSubst: strings.Contains(tok.str, "$")}
+		a := g.tokenAction(actToken, tok.str)
 		if b := n.get("bracket"); b.isString() && b.str != "@open" && b.str != "@close" {
 			return nil, g.errorf("a 'bracket' attribute must be either '@open' or '@close', in rule: %s", ruleName)
 		}
