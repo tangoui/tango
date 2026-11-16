@@ -427,6 +427,23 @@ func (l *Lexer) findLeavingNestedOffset(line string, ls lineState, off int, c *c
 }
 
 func (l *Lexer) nestedTokenize(line string, hasEOL bool, ls lineState, off int, c *collector) (lineState, error) {
+	if ls.stack.boundary != "" {
+		if end := strings.Index(line, ls.stack.boundary); end >= 0 {
+			if end > 0 {
+				if _, err := c.nested(line[:end], false, ls.emb, off); err != nil {
+					return ls, err
+				}
+			}
+			return l.myTokenize(line[end:], hasEOL, ls, off+end, c)
+		}
+		st, err := c.nested(line, hasEOL, ls.emb, off)
+		if err != nil {
+			return ls, err
+		}
+		e := ls.emb
+		e.state = st
+		return lineState{stack: ls.stack, emb: e}, nil
+	}
 	pop, err := l.findLeavingNestedOffset(line, ls, off, c)
 	if err != nil {
 		return ls, err
