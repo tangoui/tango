@@ -10,6 +10,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/ebitengine/purego"
 	"github.com/ebitengine/purego/objc"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/paint"
@@ -280,5 +281,114 @@ func TestNativeRenderCompletesChangedTextBeforeSubmittingTransaction(t *testing.
 	}
 	if len(r.nodes) != 1 || r.nodes[0].paints == 0 {
 		t.Fatal("text drawing left for an extra implicit presentation transaction")
+	}
+}
+
+func TestNativeTextKeepsBackingWhenInkWidthChanges(t *testing.T) {
+	r := newNativeTestRenderer(t)
+	size := geom.Size{W: 300, H: 100}
+	nativeFrame(t, r, &paint.List{Ops: []paint.Op{textOp("888888", 10, 10)}}, size, 2)
+	n := r.nodes[0]
+	before := getNativeTestRect(n.layer, "bounds").Size
+	ink := n.frame.Size()
+	nativeFrame(t, r, &paint.List{Ops: []paint.Op{textOp("11111", 10, 10)}}, size, 2)
+	if n != r.nodes[0] || ink == n.frame.Size() {
+		t.Fatal("test did not retain a node with different ink bounds")
+	}
+	after := getNativeTestRect(n.layer, "bounds").Size
+	if before != after {
+		t.Fatalf("minor text change resized backing %v -> %v", before, after)
+	}
+	nativeFrame(t, r, &paint.List{Ops: []paint.Op{textOp("i", 10, 10)}}, size, 2)
+	after = getNativeTestRect(n.layer, "bounds").Size
+	if after.W*after.H > 4*float64(n.frame.Dx()*n.frame.Dy())/4 {
+		t.Fatal("short replacement retained more than four times required backing area")
+	}
+}
+func getNativeTestRect(layer objc.ID, name string) nativeRect {
+	var get func(objc.ID, objc.SEL) nativeRect
+	lib, e := purego.Dlopen("/usr/lib/libobjc.A.dylib", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+	if e != nil {
+		panic(e)
+	}
+	defer purego.Dlclose(lib)
+	addr, e := purego.Dlsym(lib, "objc_msgSend")
+	if e != nil {
+		panic(e)
+	}
+	purego.RegisterFunc(&get, addr)
+	return get(layer, sel(name))
+}
+func TestNativeRetainedTextBackingHonorsChangingClips(t *testing.T) {
+	for _, scale := range []float32{1, 1.5, 2} {
+		r := newNativeTestRenderer(t)
+		text := textOp("Latin 中文 888888", 10, 10)
+		size := geom.Size{W: 200, H: 80}
+		nativeFrame(t, r, &paint.List{Ops: []paint.Op{text}}, size, scale)
+		for _, clip := range []geom.Rect{{X: 12, Y: 14, W: 35, H: 8}, {X: 18, Y: 10, W: 70, H: 9}} {
+			l := &paint.List{Ops: []paint.Op{paint.PushClip{Rect: clip}, text, paint.Pop{}}}
+			nativeFrame(t, r, l, size, scale)
+			snap := nativeSnapshot(t, r)
+			allowed := clipBounds(clip, scale)
+			ink := 0
+			for y := 0; y < snap.Rect.Dy(); y++ {
+				for x := 0; x < snap.Rect.Dx(); x++ {
+					if snap.RGBAAt(x, y).A != 0 {
+						ink++
+						if !image.Pt(x, y).In(allowed) {
+							t.Fatalf("retained text escaped new clip @%v: %d,%d", scale, x, y)
+						}
+					}
+				}
+			}
+			if ink == 0 {
+				t.Fatalf("retained text disappeared @%v clip=%v", scale, clip)
+			}
+		}
+	}
+}
+
+func TestNativeBatchedTextRetainsColorsClipsAndBorrowedGlyphSafety(t *testing.T) {
+	for _, scale := range []float32{1, 1.5, 2} {
+		r := newNativeTestRenderer(t)
+		one, two := textOp("hello", 10, 10), textOp("world", 52, 10)
+		one.Color = color.NRGBA{R: 255, A: 255}
+		two.Color = color.NRGBA{B: 255, A: 255}
+		clip := geom.Rect{X: 52, Y: 10, W: 20, H: 22}
+		l := &paint.List{Ops: []paint.Op{one, paint.PushClip{Rect: clip}, two, paint.Pop{}}}
+		nativeFrame(t, r, l, geom.Size{W: 180, H: 70}, scale)
+		if len(r.nodes) != 1 || len(r.nodes[0].texts) != 2 {
+			t.Fatal("same-row text was not batched")
+		}
+		n := r.nodes[0]
+		paints := n.paints
+		img := nativeSnapshot(t, r)
+		red, blue := 0, 0
+		for y := 0; y < img.Rect.Dy(); y++ {
+			for x := 0; x < img.Rect.Dx(); x++ {
+				p := img.RGBAAt(x, y)
+				if p.R > p.B && p.A > 100 {
+					red++
+				}
+				if p.B > p.R && p.A > 100 {
+					blue++
+					if !image.Pt(x, y).In(clipBounds(clip, scale)) {
+						t.Fatal("batched blue text escaped its own clip")
+					}
+				}
+			}
+		}
+		if red == 0 || blue == 0 {
+			t.Fatal("batched text lost a color or glyph run")
+		}
+		oldID := n.texts[1].runs[0].IDs[0]
+		two.Glyphs[0].ID = one.Glyphs[0].ID
+		if n.texts[1].runs[0].IDs[0] != oldID {
+			t.Fatal("batch retained borrowed glyph storage")
+		}
+		nativeFrame(t, r, l, geom.Size{W: 180, H: 70}, scale)
+		if n.paints <= paints {
+			t.Fatal("mutated glyph buffer did not redraw batch")
+		}
 	}
 }

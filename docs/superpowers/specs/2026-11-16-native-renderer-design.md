@@ -78,3 +78,19 @@ regressions in these scenes. Verify native and development builds, API snapshots
 Linux/Windows cross compilation and the repository suite. Intel macOS keeps the
 existing path until its native ABI is validated. The aim is a measured material
 improvement, not an unsupported promise to equal every NSGo result.
+
+## Continuation: native text surface costs
+
+The user requested further optimization after the conservative rollout. Measure
+current main (1274788) before attributing gains: it also includes newer font,
+CPU clipping and lazy Metal resources. Retain local text backing dimensions
+through small ink changes, shrink above four times current ink area, and count
+that maximum capacity in the existing 64 MiB bitmap budget. Exact visible clips
+remain independent of backing capacity. Adjacent native text commands may share
+a surface only with overlapping row geometry, at most eight commands, and a
+union area at most twice total ink area. Each part retains its original color,
+clip and owned glyph positions; non-text paint is an ordering barrier. Movement
+must reuse contents, mutable caller buffers must invalidate them, and all source
+references must retire at close. Reject the change if matched CPU/tail or memory
+measurements regress materially. No new public component APIs or appearance
+changes are authorized by this implementation choice.

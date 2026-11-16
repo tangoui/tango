@@ -22,12 +22,19 @@ const (
 	itemPatch
 )
 
+type textPart struct {
+	frame image.Rectangle // local top-left device pixels inside the item
+	color color.NRGBA
+	runs  []nativeglyph.Run
+}
+
 type item struct {
 	kind  itemKind
 	key   string
 	frame image.Rectangle
 	color color.NRGBA
 	runs  []nativeglyph.Run
+	texts []textPart
 	op    paint.Op
 	clip  image.Rectangle
 	refs  []any
@@ -158,6 +165,7 @@ func (s *scene) plan(l *paint.List, size geom.Size, scale float32) error {
 		}
 		s.items = append(s.items, item{kind: itemPatch, key: k, frame: frame, op: op, clip: clip, refs: refs})
 	}
+	s.coalesceText()
 	// Text backing stores and immutable image snapshots must stay bounded even
 	// when a display list stacks many large, partially transparent contents.
 	// A complete software frame preserves ordering and alpha within one bitmap.
@@ -166,7 +174,11 @@ func (s *scene) plan(l *paint.List, size geom.Size, scale float32) error {
 		if it.kind == itemSolid {
 			continue
 		}
-		bitmapBytes += uint64(it.frame.Dx()) * uint64(it.frame.Dy()) * 4
+		bytes := uint64(it.frame.Dx()) * uint64(it.frame.Dy()) * 4
+		if it.kind == itemText {
+			bytes *= 4 // keepTextBacking caps retained text capacity at this ratio
+		}
+		bitmapBytes += bytes
 		if bitmapBytes > 64<<20 {
 			return s.fullFrame(l, size)
 		}
@@ -273,3 +285,71 @@ func (s *scene) releaseScratch() {
 }
 func (s *scene) trim()                           { s.cpu = paint.NewCPU(); s.imageEpoch++; s.releaseScratch() }
 func (s *scene) invalidateImage(img image.Image) { s.cpu.InvalidateImage(img); s.imageEpoch++ }
+
+// Small ink changes (especially changing digits) must not repeatedly resize a
+// CALayer's backing store. Retain capacity in local coordinates, so scrolling
+// only moves the layer. Large replacements shrink instead of keeping a peak.
+func keepTextBacking(previous, need image.Point) image.Point {
+	kept := image.Pt(max(previous.X, need.X), max(previous.Y, need.Y))
+	if uint64(kept.X)*uint64(kept.Y) > 4*uint64(need.X)*uint64(need.Y) {
+		return need
+	}
+	return kept
+}
+
+// Coalesce only adjacent same-row text. Each part keeps its own exact clip and
+// color. Bounding whitespace is capped, and non-text content is an ordering
+// barrier, so grouping cannot paint across a background, image or effect.
+func (s *scene) coalesceText() {
+	in := s.items
+	out := in[:0]
+	for i := 0; i < len(in); {
+		first := in[i]
+		if first.kind != itemText {
+			out = append(out, first)
+			i++
+			continue
+		}
+		frame := first.frame
+		area := uint64(frame.Dx()) * uint64(frame.Dy())
+		j := i + 1
+		for j < len(in) && j-i < 8 && in[j].kind == itemText {
+			next := in[j].frame
+			overlap := min(frame.Max.Y, next.Max.Y) - max(frame.Min.Y, next.Min.Y)
+			if overlap <= 0 || 2*overlap < min(frame.Dy(), next.Dy()) {
+				break
+			}
+			union := frame.Union(next)
+			sum := area + uint64(next.Dx())*uint64(next.Dy())
+			if uint64(union.Dx())*uint64(union.Dy()) > 2*sum {
+				break
+			}
+			frame, area = union, sum
+			j++
+		}
+		if j == i+1 {
+			out = append(out, first)
+			i = j
+			continue
+		}
+		batch := item{kind: itemText, frame: frame}
+		k := keyData{}
+		k.tag(253)
+		k.i(frame.Dx())
+		k.i(frame.Dy())
+		k.i(j - i)
+		for _, part := range in[i:j] {
+			local := part.frame.Sub(frame.Min)
+			k.i(local.Min.X)
+			k.i(local.Min.Y)
+			k.i(len(part.key))
+			k = append(k, part.key...)
+			batch.texts = append(batch.texts, textPart{frame: local, color: part.color, runs: part.runs})
+		}
+		batch.key = string(k)
+		out = append(out, batch)
+		i = j
+	}
+	clear(in[len(out):])
+	s.items = out
+}

@@ -16,17 +16,19 @@ import (
 )
 
 type node struct {
-	owner  *renderer
-	layer  objc.ID
-	kind   itemKind
-	key    string
-	frame  image.Rectangle
-	scale  float32
-	color  color.NRGBA
-	runs   []nativeglyph.Run
-	used   uint64
-	dirty  bool
-	paints uint64
+	owner   *renderer
+	layer   objc.ID
+	kind    itemKind
+	key     string
+	frame   image.Rectangle
+	backing image.Point
+	scale   float32
+	color   color.NRGBA
+	runs    []nativeglyph.Run
+	texts   []textPart
+	used    uint64
+	dirty   bool
+	paints  uint64
 }
 type imageResource struct {
 	id   uintptr
@@ -253,13 +255,19 @@ func (r *renderer) newNode(kind itemKind) *node {
 }
 func (r *renderer) update(n *node, it item) error {
 	changed := n.key != it.key
-	if n.frame != it.frame || n.scale != r.scene.scale {
-		s := float64(r.scene.scale)
-		setNativeRect(n.layer, sel("setFrame:"), nativeRect{nativePoint{float64(it.frame.Min.X) / s, float64(it.frame.Min.Y) / s}, nativeSize{float64(it.frame.Dx()) / s, float64(it.frame.Dy()) / s}})
-		setNativeFloat(n.layer, sel("setContentsScale:"), s)
-		n.frame = it.frame
-		n.scale = r.scene.scale
+	backing := it.frame.Size()
+	if it.kind == itemText {
+		backing = keepTextBacking(n.backing, backing)
 	}
+	if n.frame != it.frame || n.scale != r.scene.scale || n.backing != backing {
+		s := float64(r.scene.scale)
+		setNativeRect(n.layer, sel("setFrame:"), nativeRect{nativePoint{float64(it.frame.Min.X) / s, float64(it.frame.Min.Y) / s}, nativeSize{float64(backing.X) / s, float64(backing.Y) / s}})
+		if n.scale != r.scene.scale {
+			setNativeFloat(n.layer, sel("setContentsScale:"), s)
+		}
+		n.frame, n.backing, n.scale = it.frame, backing, r.scene.scale
+	}
+
 	switch it.kind {
 	case itemSolid:
 		if changed {
@@ -269,6 +277,11 @@ func (r *renderer) update(n *node, it item) error {
 	case itemText:
 		if changed {
 			n.runs = cloneRuns(it.runs)
+			n.texts = make([]textPart, len(it.texts))
+			for i, part := range it.texts {
+				n.texts[i] = part
+				n.texts[i].runs = cloneRuns(part.runs)
+			}
 			n.color = it.color
 			n.dirty = true
 			n.layer.Send(sel("setNeedsDisplay"))
@@ -310,25 +323,45 @@ func (n *node) draw(ctx uintptr) {
 	// Native glyph positions are y-up. A flipped content context needs one
 	// local reversal; parent layer geometry does not change glyph coordinates.
 	if byte(n.layer.Send(sel("contentsAreFlipped"))) != 0 {
-		cgTranslate(ctx, 0, float64(n.frame.Dy())/float64(n.scale))
+		cgTranslate(ctx, 0, float64(n.backing.Y)/float64(n.scale))
 		cgScale(ctx, 1, -1)
 	}
 	cgScale(ctx, 1/float64(n.scale), 1/float64(n.scale))
+	// The backing store may outlive small changes in ink dimensions. Keep its
+	// top-left anchor, then clip the complete run to this frame's exact visible
+	// ink rectangle. Padding must never reveal glyphs cropped by the scene clip.
+	padY := n.backing.Y - n.frame.Dy()
+	cgClip(ctx, nativeRect{nativePoint{0, float64(padY)}, nativeSize{float64(n.frame.Dx()), float64(n.frame.Dy())}})
+	cgTranslate(ctx, 0, float64(padY))
 	cgFillSpace(ctx, nativeSRGB)
-	values := [4]float64{float64(n.color.R) / 255, float64(n.color.G) / 255, float64(n.color.B) / 255, float64(n.color.A) / 255}
-	cgFillColor(ctx, &values[0])
 	for i, fn := range cgFontFlags {
 		fn(ctx, i < 5)
 	}
+	if len(n.texts) == 0 {
+		n.drawRuns(ctx, n.runs, n.color)
+	}
+	for _, part := range n.texts {
+		cgSave(ctx)
+		cgTranslate(ctx, float64(part.frame.Min.X), float64(n.frame.Dy()-part.frame.Max.Y))
+		cgClip(ctx, nativeRect{Size: nativeSize{float64(part.frame.Dx()), float64(part.frame.Dy())}})
+		n.drawRuns(ctx, part.runs, part.color)
+		cgRestore(ctx)
+	}
+	runtime.KeepAlive(n.runs)
+	runtime.KeepAlive(n.texts)
+}
+func (n *node) drawRuns(ctx uintptr, runs []nativeglyph.Run, c color.NRGBA) {
+	values := [4]float64{float64(c.R) / 255, float64(c.G) / 255, float64(c.B) / 255, float64(c.A) / 255}
+	cgFillColor(ctx, &values[0])
 	provider := n.owner.scene.provider
-	for _, run := range n.runs {
+	for _, run := range runs {
 		if provider == nil || !provider.Draw(ctx, run) {
 			n.owner.drawErr = fmt.Errorf("quartz: native glyph drawing failed")
 			break
 		}
 	}
-	runtime.KeepAlive(n.runs)
 }
+
 func (r *renderer) drawText() {
 	for _, n := range r.nodes {
 		if n.kind == itemText && n.dirty {
@@ -375,6 +408,7 @@ func (n *node) close() {
 	n.layer = 0
 	n.owner = nil
 	n.runs = nil
+	n.texts = nil
 }
 func (r *renderer) Trim() {
 	if r.closed {

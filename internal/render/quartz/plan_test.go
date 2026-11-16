@@ -257,3 +257,85 @@ func TestPlanCheckerSnapshotTracksResolvedDefaults(t *testing.T) {
 		t.Fatal("changed checker defaults reused stale snapshot")
 	}
 }
+
+type largePlanGlyphs struct{ planGlyphs }
+
+func (largePlanGlyphs) Bounds(nativeglyph.Run) (image.Rectangle, bool) {
+	return image.Rect(0, -512, 512, 0), true
+}
+func TestPlanBoundsRetainedTextBackingBudget(t *testing.T) {
+	s := newScene(largePlanGlyphs{})
+	src := &planGlyphSource{}
+	l := &paint.List{}
+	for i := 0; i < 17; i++ {
+		l.Ops = append(l.Ops, paint.Text{Glyphs: []paint.Glyph{{Src: src, ID: 1, Size: 10}}, Color: color.NRGBA{A: 255}})
+		l.Ops = append(l.Ops, paint.FillRect{Rect: geom.Rect{W: 1, H: 1}, Color: color.NRGBA{A: 255}})
+	}
+	l.Ops = append(l.Ops, paint.FillRect{Rect: geom.Rect{W: 512, H: 512}, Color: color.NRGBA{R: 99, A: 255}})
+	if err := s.plan(l, geom.Size{W: 512, H: 512}, 1); err != nil {
+		t.Fatal(err)
+	}
+	if !s.full || len(s.items) != 1 {
+		t.Fatal("text backing retention could exceed native bitmap budget")
+	}
+	if got := s.pixels(s.items[0]).RGBAAt(50, 50); got.R != 99 || got.A != 255 {
+		t.Fatal("budget fallback omitted subsequent drawing")
+	}
+}
+
+func TestPlanBatchesNeighborTextWithSeparateColorsAndClips(t *testing.T) {
+	s := newScene(planGlyphs{})
+	src := &planGlyphSource{}
+	glyphs := []paint.Glyph{{Src: src, ID: 1, Size: 10, X: 0, Y: 8}}
+	l := &paint.List{Ops: []paint.Op{
+		paint.Text{Origin: geom.Pt(10, 20), Glyphs: glyphs, Color: color.NRGBA{R: 255, A: 255}},
+		paint.PushClip{Rect: geom.Rect{X: 20, Y: 20, W: 5, H: 12}},
+		paint.Text{Origin: geom.Pt(20, 20), Glyphs: glyphs, Color: color.NRGBA{B: 255, A: 255}}, paint.Pop{},
+	}}
+	if e := s.plan(l, geom.Size{W: 100, H: 80}, 1); e != nil {
+		t.Fatal(e)
+	}
+	if len(s.items) != 1 || len(s.items[0].texts) != 2 {
+		t.Fatal("neighbor text did not share a retained surface")
+	}
+	if s.items[0].texts[0].color.R != 255 || s.items[0].texts[1].color.B != 255 {
+		t.Fatal("batched colors lost")
+	}
+	before := s.items[0].key
+	for i, op := range l.Ops {
+		switch o := op.(type) {
+		case paint.Text:
+			o.Origin.X += 8
+			o.Origin.Y += 8
+			l.Ops[i] = o
+		case paint.PushClip:
+			o.Rect.X += 8
+			o.Rect.Y += 8
+			l.Ops[i] = o
+		}
+	}
+	if e := s.plan(l, geom.Size{W: 100, H: 80}, 1); e != nil {
+		t.Fatal(e)
+	}
+	if s.items[0].key != before {
+		t.Fatal("integer movement changed batch identity")
+	}
+}
+func TestPlanDoesNotBatchDistantTextOrAcrossPaint(t *testing.T) {
+	for _, ops := range [][]paint.Op{
+		{planTestText(2, 2), planTestText(70, 2)},
+		{planTestText(2, 2), planTestText(2, 40)},
+		{planTestText(2, 2), paint.FillRect{Rect: geom.Rect{X: 3, Y: 3, W: 4, H: 4}, Color: color.NRGBA{A: 255}}, planTestText(10, 2)},
+	} {
+		s := newScene(planGlyphs{})
+		if e := s.plan(&paint.List{Ops: ops}, geom.Size{W: 100, H: 80}, 1); e != nil {
+			t.Fatal(e)
+		}
+		if len(s.items) != len(ops) {
+			t.Fatal("batch crossed paint order or retained excessive whitespace")
+		}
+	}
+}
+func planTestText(x, y float32) paint.Text {
+	return paint.Text{Origin: geom.Pt(x, y), Glyphs: []paint.Glyph{{Src: &planGlyphSource{}, ID: 1, Size: 10, Y: 8}}, Color: color.NRGBA{A: 255}}
+}

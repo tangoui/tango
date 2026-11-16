@@ -34,6 +34,7 @@ var setNativeRect func(objc.ID, objc.SEL, nativeRect)
 var setNativeFloat func(objc.ID, objc.SEL, float64)
 var cgSave, cgRestore, cgContextRelease func(uintptr)
 var cgScale, cgTranslate func(uintptr, float64, float64)
+var cgClip func(uintptr, nativeRect)
 var cgFillSpace func(uintptr, uintptr)
 var cgFillColor func(uintptr, *float64)
 var cgFontFlags [7]func(uintptr, bool)
@@ -81,7 +82,7 @@ func loadNative() error {
 			name string
 		}{
 			{&cgSave, "CGContextSaveGState"}, {&cgRestore, "CGContextRestoreGState"}, {&cgContextRelease, "CGContextRelease"}, {&cgScale, "CGContextScaleCTM"}, {&cgTranslate, "CGContextTranslateCTM"},
-			{&cgFillSpace, "CGContextSetFillColorSpace"}, {&cgFillColor, "CGContextSetFillColor"}, {&cgColorCreate, "CGColorCreate"}, {&cgColorRelease, "CGColorRelease"}, {&cgImageRelease, "CGImageRelease"}, {&cgProviderRelease, "CGDataProviderRelease"},
+			{&cgClip, "CGContextClipToRect"}, {&cgFillSpace, "CGContextSetFillColorSpace"}, {&cgFillColor, "CGContextSetFillColor"}, {&cgColorCreate, "CGColorCreate"}, {&cgColorRelease, "CGColorRelease"}, {&cgImageRelease, "CGImageRelease"}, {&cgProviderRelease, "CGDataProviderRelease"},
 			{&cgProviderCreate, "CGDataProviderCreateWithCFData"}, {&cgImageCreate, "CGImageCreate"}, {&cgBitmapCreate, "CGBitmapContextCreate"}, {&nativeSpaceCreate, "CGColorSpaceCreateWithName"},
 		} {
 			purego.RegisterLibFunc(entry.fn, cg, entry.name)
