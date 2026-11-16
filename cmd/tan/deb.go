@@ -130,7 +130,7 @@ func packageDeb(cfg *Config, a artifact, icons map[string][]byte) (string, error
 		return "", err
 	}
 
-	out := filepath.Join(filepath.Dir(a.dir), artifactBase(cfg, a.target)+".deb")
+	out := filepath.Join(filepath.Dir(a.dir), artifactBaseOf(cfg, a)+".deb")
 	f, err := os.Create(out)
 	if err != nil {
 		return "", err

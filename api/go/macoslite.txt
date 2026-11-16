@@ -1,0 +1,54 @@
+pkg github.com/tangoui/tango/macoslite, const MouseDown MouseKind = 0
+pkg github.com/tangoui/tango/macoslite, const MouseMove MouseKind = 2
+pkg github.com/tangoui/tango/macoslite, const MouseUp MouseKind = 1
+pkg github.com/tangoui/tango/macoslite, func New(Options, View) (*App, error)
+pkg github.com/tangoui/tango/macoslite, method (*App) Invalidate()
+pkg github.com/tangoui/tango/macoslite, method (*App) Run() error
+pkg github.com/tangoui/tango/macoslite, method (*App) Stop()
+pkg github.com/tangoui/tango/macoslite, method (*App) TrimCaches()
+pkg github.com/tangoui/tango/macoslite, method (*Canvas) Fill(Rect, Color)
+pkg github.com/tangoui/tango/macoslite, method (*Canvas) RoundRect(Rect, float64, Color)
+pkg github.com/tangoui/tango/macoslite, method (*Canvas) Text(string, Point, float64, Color)
+pkg github.com/tangoui/tango/macoslite, method (Rect) Contains(Point) bool
+pkg github.com/tangoui/tango/macoslite, type App struct
+pkg github.com/tangoui/tango/macoslite, type App struct, noncomparable [darwin]
+pkg github.com/tangoui/tango/macoslite, type Canvas struct
+pkg github.com/tangoui/tango/macoslite, type Color struct
+pkg github.com/tangoui/tango/macoslite, type Color struct, A uint8
+pkg github.com/tangoui/tango/macoslite, type Color struct, B uint8
+pkg github.com/tangoui/tango/macoslite, type Color struct, G uint8
+pkg github.com/tangoui/tango/macoslite, type Color struct, R uint8
+pkg github.com/tangoui/tango/macoslite, type Frame struct
+pkg github.com/tangoui/tango/macoslite, type Frame struct, Height float64
+pkg github.com/tangoui/tango/macoslite, type Frame struct, Scale float64
+pkg github.com/tangoui/tango/macoslite, type Frame struct, Width float64
+pkg github.com/tangoui/tango/macoslite, type KeyEvent struct
+pkg github.com/tangoui/tango/macoslite, type KeyEvent struct, Code uint16
+pkg github.com/tangoui/tango/macoslite, type KeyEvent struct, Down bool
+pkg github.com/tangoui/tango/macoslite, type KeyEvent struct, Key string
+pkg github.com/tangoui/tango/macoslite, type MouseEvent struct
+pkg github.com/tangoui/tango/macoslite, type MouseEvent struct, Button int
+pkg github.com/tangoui/tango/macoslite, type MouseEvent struct, Kind MouseKind
+pkg github.com/tangoui/tango/macoslite, type MouseEvent struct, Pos Point
+pkg github.com/tangoui/tango/macoslite, type MouseKind int
+pkg github.com/tangoui/tango/macoslite, type Options struct
+pkg github.com/tangoui/tango/macoslite, type Options struct, Height float64
+pkg github.com/tangoui/tango/macoslite, type Options struct, Name string
+pkg github.com/tangoui/tango/macoslite, type Options struct, Title string
+pkg github.com/tangoui/tango/macoslite, type Options struct, Width float64
+pkg github.com/tangoui/tango/macoslite, type Point struct
+pkg github.com/tangoui/tango/macoslite, type Point struct, X float64
+pkg github.com/tangoui/tango/macoslite, type Point struct, Y float64
+pkg github.com/tangoui/tango/macoslite, type Rect struct
+pkg github.com/tangoui/tango/macoslite, type Rect struct, H float64
+pkg github.com/tangoui/tango/macoslite, type Rect struct, W float64
+pkg github.com/tangoui/tango/macoslite, type Rect struct, X float64
+pkg github.com/tangoui/tango/macoslite, type Rect struct, Y float64
+pkg github.com/tangoui/tango/macoslite, type View interface { Close, Draw, Key, Mouse }
+pkg github.com/tangoui/tango/macoslite, type View interface, Close()
+pkg github.com/tangoui/tango/macoslite, type View interface, Draw(*Frame, *Canvas)
+pkg github.com/tangoui/tango/macoslite, type View interface, Key(KeyEvent)
+pkg github.com/tangoui/tango/macoslite, type View interface, Mouse(MouseEvent)
+pkg github.com/tangoui/tango/macoslite, var ErrInvalidOptions error
+pkg github.com/tangoui/tango/macoslite, var ErrNilView error
+pkg github.com/tangoui/tango/macoslite, var ErrUnsupported error

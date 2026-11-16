@@ -208,5 +208,85 @@
         "archive": "SizeUI-0.1.0-linux-amd64.tar.gz"
       }
     }
-  ]
+  ],
+  "backend_profiles": {
+    "commit": "0baef7555fbc2a4881721324d69632677ba36764",
+    "platform": "darwin/arm64",
+    "flags": "CGO_ENABLED=0 -trimpath -ldflags=\"-s -w\"",
+    "raw_and_gzip": [
+      {
+        "sample": "webview",
+        "profile": "all",
+        "raw_bytes": 5946402,
+        "gzip9_bytes": 2466798
+      },
+      {
+        "sample": "webview",
+        "profile": "webview",
+        "raw_bytes": 5946386,
+        "gzip9_bytes": 2465696
+      },
+      {
+        "sample": "webview",
+        "profile": "canvas",
+        "raw_bytes": 5946402,
+        "gzip9_bytes": 2466641
+      },
+      {
+        "sample": "webview",
+        "profile": "webview,canvas",
+        "raw_bytes": 5946402,
+        "gzip9_bytes": 2466833
+      },
+      {
+        "sample": "canvas",
+        "profile": "all",
+        "raw_bytes": 10178034,
+        "gzip9_bytes": 4036805
+      },
+      {
+        "sample": "canvas",
+        "profile": "webview",
+        "raw_bytes": 10177986,
+        "gzip9_bytes": 4036448
+      },
+      {
+        "sample": "canvas",
+        "profile": "canvas",
+        "raw_bytes": 10178034,
+        "gzip9_bytes": 4036856
+      },
+      {
+        "sample": "canvas",
+        "profile": "webview,canvas",
+        "raw_bytes": 10178034,
+        "gzip9_bytes": 4037016
+      },
+      {
+        "sample": "mixed",
+        "profile": "all",
+        "raw_bytes": 10178034,
+        "gzip9_bytes": 4036768
+      },
+      {
+        "sample": "mixed",
+        "profile": "webview",
+        "raw_bytes": 10177986,
+        "gzip9_bytes": 4036420
+      },
+      {
+        "sample": "mixed",
+        "profile": "canvas",
+        "raw_bytes": 10178034,
+        "gzip9_bytes": 4036732
+      },
+      {
+        "sample": "mixed",
+        "profile": "webview,canvas",
+        "raw_bytes": 10178034,
+        "gzip9_bytes": 4036900
+      }
+    ],
+    "interpretation": "Go linker reachability already removes almost all unused Darwin mode code in these minimal probes. Profiles provide deterministic unsupported behavior, but do not qualify as a meaningful installed-size optimization in this phase. webview raw difference is 16-48 B; canvas and mixed are unchanged."
+  }
 }

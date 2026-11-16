@@ -6,7 +6,15 @@
 
 ### 新增
 
+- 实验性 `macoslite` 包：独立的 macOS 原生轻量窗口宿主，只用 purego 调 AppKit/CoreGraphics/CoreText，不加载 WebView、`ui.Runner` 或 GPU 渲染器；提供窗口生命周期、鼠标键盘事件、`Canvas` 填充/圆角矩形/CoreText 文本。参考窗口 `examples/macoslite-counter` 空闲 physical footprint 约 26 MiB，测量脚本 `scripts/macoslite-memory.sh`。
+
+- macOS 自绘 UI 新增可选 `TANGO_TEXT_ENGINE=coretext` 轻量文字路径：无换行短文本使用 CoreText glyph-run 与系统字体回退，复杂排版自动继续使用 go-text/HarfBuzz；默认文字引擎和输出路径不变。
+
 - 自绘窗口支持可选 `TANGO_RENDERER=auto`：小窗口先用 CPU，放大、内容复杂或持续高频刷新后单向升级 GPU；保持默认 GPU 优先和显式 Renderer 优先级不变。系统字体链可由 `text.TrimFontCaches()` 丢弃，平台低内存通知也会触发回收；仍被页面或编辑器持有的字体继续有效，macOS 原生字体句柄在最后一个拥有者不可达后释放（见 `docs/dev-builds.md`）。
+
+- **实验性编译 profile**：`tan.json` 可配置 `features: ["webview", "canvas"]`，`tan build/package -features webview,canvas` 可覆盖；默认 `all` 保持兼容。Darwin profile 对缺少的 WebView/canvas 能力返回 `ErrUnsupported`；Windows/Linux 非 `all` profile 本阶段明确拒绝。最小样本测量显示当前 Go 链接器已自动裁掉大部分未用后端代码，因此 profile 暂不宣传为体积优化，见 [体积报告](docs/package-size-optimization.md)。
+
+- **主题重建优化**：Alias 和动态主色重建不再重复创建完整图标映射和组件派生，公开主题 API 与 token 结果不变；运行时构造分配和耗时下降，安装后体积收益未显著测出。
 
 - **IDE 工作台组件**（均为实验性 API）：
   - `Dock` 停靠分屏：可嵌套分割树、标签拖到组边缘拆分 / 中间合并（带落点预览）、分割条调整、组最大化，布局模型 `DockLayout` 可 JSON 保存与恢复；`Tabs` 新增 `Draggable` 拖拽排序与 `OnTearOff` 拖出窗口回调（示例 `examples/dock-demo`）。
@@ -68,6 +76,10 @@
 
 ### 修复
 
+- Metal 内存：大块上传和实例缓冲区在连续 120 个低用量已提交帧后按近期需求缩小或回收，周期性大上传保留容量；重建保留当前打包数据，失败时继续使用旧缓冲区。
+- CPU 文字绘制：字形完全处于不透明裁剪区域时复用缓存蒙版，避免逐字形临时分配；百万行日志测试每帧分配次数约少 60%。本轮耗时区间重叠，不额外宣称 CPU 加速，见 [第二轮性能记录](docs/perf/2026-11-16-memory-logview-round2.md)。
+- 自绘 UI 内存：未使用的渐变与临时补丁纹理改为按需分配，大块补丁纹理在连续 120 个已执行帧未使用后回收；CPU 图层弹出时释放对旧图像和蒙版的引用，避免窗口缩小后仍保留大图像。
+- 日志视图 CPU：圆角裁剪蒙版复用每行非圆角区域的覆盖率计算，保留逐像素结果；百万行日志追加并绘制的同机三轮基准耗时中位数从 3.47 ms 降至 0.72 ms。测试口径与内存实测见 [性能记录](docs/perf/2026-11-16-memory-logview.md)。
 - 应用体积：自绘确认框、右键菜单、消息、通知改为首次使用时按窗口自动安装渲染器，让未使用的实现可被链接器裁掉，保留 API、固定层序与同帧显示。最小自绘样本应用有效载荷减少约 377–419 KiB；实际收益取决于功能使用情况。Linux tar.gz 改用最高 gzip 压缩级别；四样本下载包减少约 2.6%–6.3%。并非所有格式都变小，默认自绘模板 dmg 本轮增大约 25 KiB，完整口径与数据见 [体积优化实测](docs/package-size-optimization.md)。
 - 补齐 `ui/text.ShapeInto` 已有公开符号的 API 快照（实现来自 `38d0c1b`，本轮不改签名）。
 

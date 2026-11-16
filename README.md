@@ -42,26 +42,6 @@ TanGo is a Go application framework for **macOS, Windows, Linux, iOS and Android
 | Explicit page permissions | A Go-side capability allowlist controls page access to system APIs; the bridge also checks message origins. |
 | Development to distribution | Project templates, automatic rebuilds, hot reload for Go-drawn windows, packaging, signing and signed auto-updates. |
 
-## Application size
-
-**Download size:** with the default templates, the installer a user downloads (`.dmg`, `.exe`, `.deb`, `.rpm`, `.AppImage`, `.tar.gz`) is **2.78–5.11 MB**. Once installed, the executable is **7.86–8.69 MB** for a WebView app and **9.77–11.65 MB** for a Go-drawn UI app.
-
-| Target | Download format | WebView app | Go UI app |
-| --- | --- | ---: | ---: |
-| macOS / arm64 | `.dmg` | 3.51 MB | 4.57 MB |
-| macOS / amd64 (Intel) | `.dmg` | 3.86 MB | 5.11 MB |
-| Windows / amd64 | NSIS `.exe` | 2.78 MB | 3.64 MB |
-| Linux / amd64 | `.deb` | 3.49 MB | 4.50 MB |
-| Linux / amd64 | `.rpm` | 3.49 MB | 4.51 MB |
-| Linux / amd64 | `.AppImage` | 4.10 MB | 5.02 MB |
-| Linux / amd64 | `.tar.gz` | 3.58 MB | 4.62 MB |
-| Linux / arm64 | `.deb` | 3.18 MB | 4.06 MB |
-| Linux / arm64 | `.rpm` | 3.19 MB | 4.06 MB |
-| Linux / arm64 | `.AppImage` | 3.77 MB | 4.56 MB |
-| Linux / arm64 | `.tar.gz` | 3.26 MB | 4.15 MB |
-
-Measured on **2026-11-13**, Go **1.27.2**, commit `36322bc`, with `CGO_ENABLED=0`, `-trimpath` and `-ldflags="-s -w"`; MB = 1,000,000 bytes. These are default-template samples, not minimum sizes or guarantees for a finished app. System libraries / WebView runtimes are excluded. Installers are not formally signed (macOS is ad-hoc signed only); Flatpak, Windows arm64 and mobile packages were not measured. See the [measurement record and reproduction steps](docs/package-size.md).
-
 ## Choose how you build
 
 | Interface | Best for | Template |

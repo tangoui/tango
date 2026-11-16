@@ -33,7 +33,7 @@ func (s *session) show(manual bool) {
 			s.win.surf.Focus()
 			return
 		}
-		opts := s.opts.Window
+		opts := s.options().Window
 		if opts.Surface.Title == "" {
 			opts.Surface.Title = s.strings().Title
 		}

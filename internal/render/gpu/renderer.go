@@ -150,7 +150,8 @@ import (
 // into Batch.Uploads of a new batch (applied after the earlier batches have
 // drawn), and drawing continues; a patch larger than the page is split into
 // page-sized tiles, each its own instance. So the texture never grows and
-// any amount of patch area renders.
+// any amount of patch area renders. Unused pages are allocated on first use
+// and released after patchIdleFrames rendered frames without a patch.
 //
 // Clip and opacity nesting is as tolerant as paint.CPU: extra Pops are
 // ignored, unclosed pushes end with the list, and the depth is unbounded.
@@ -174,6 +175,8 @@ type Renderer struct {
 	ops  []paint.Op // this frame's ops with pointer ops dereferenced (when there are any)
 
 	patchSize int       // patch page side in texels
+	patchUsed bool      // this frame contains patch-page uploads
+	patchIdle int       // rendered frames since the last patch-page use
 	patches   patchPage // this frame's packing of the patch page
 	flushed   bool      // the patch page was flushed: color uploads go to pending
 	newBatch  bool      // the next instance must start a new batch
@@ -256,6 +259,9 @@ type group struct {
 // to, so groups of similar sizes share a device's pooled textures.
 const layerAlign = 64
 
+// patchIdleFrames counts rendered frames; idle windows do not run a timer.
+const patchIdleFrames = 120
+
 // Default texture sizes, well within every Metal device's limit. The
 // patch page starts small and grows with use (see Renderer). Atlas pages
 // are 1024 texels square and the atlas grows page by page to 16 (1024×16384
@@ -307,7 +313,8 @@ func (r *Renderer) InvalidateImage(img image.Image) {
 
 // Trim releases what the renderer caches and can rebuild, for a low-memory
 // warning (docs/specs/mobile-canvas.md §3.4): the glyph and path mask atlas
-// shrinks to one empty page and every image texture is freed. The next
+// shrinks to one empty page, optional ramp and patch pages are dropped,
+// and every image texture is freed. The next
 // frame re-rasterizes and re-uploads what it draws (the whole mask atlas
 // texture, at its new size), so it costs more than usual but draws the
 // same pixels. Main thread, between frames.
@@ -315,6 +322,9 @@ func (r *Renderer) Trim() {
 	r.cpu.Trim() // masks retain GlyphSource/Face even after the atlas is cleared
 	r.atlas.Reset()
 	r.maskSent = image.Point{} // upload the shrunken atlas whole
+	r.ramps = newRampCache()
+	r.patchSize, r.patchIdle = patchPageMin, 0
+	r.frame.ColorSize = image.Point{}
 	for _, t := range r.images.byKey {
 		r.images.free(t) // freed on the device with the next frame
 	}
@@ -389,6 +399,7 @@ func (r *Renderer) frame1(bg color.NRGBA, ops []paint.Op, fs image.Point, scale 
 	r.clips = r.clips[:0]
 	r.patches.reset(r.patchSize)
 	r.flushed, r.newBatch = false, false
+	r.patchUsed = false
 	r.misrouted = 0
 	r.target, r.alpha = 0, 1
 	r.groups = r.groups[:0]
@@ -513,7 +524,18 @@ func (r *Renderer) frame1(bg color.NRGBA, ops []paint.Op, fs image.Point, scale 
 
 	px := r.atlas.Pixels()
 	f.MaskSize = px.Rect.Size()
-	f.ColorSize = image.Pt(r.patchSize, r.patchSize)
+	if r.patchUsed {
+		f.ColorSize = image.Pt(r.patchSize, r.patchSize)
+		r.patchIdle = 0
+	} else if f.ColorSize != (image.Point{}) {
+		r.patchIdle++
+		if r.patchIdle > patchIdleFrames {
+			// Keep recently used pages to avoid allocation churn, but a
+			// transient complex frame must not pin a large page forever.
+			f.ColorSize = image.Point{}
+			r.patchSize = patchPageMin
+		}
+	}
 	if r.flushed && r.patchSize < patchPageMax {
 		// This frame's patches did not fit: the next frames get a larger page.
 		r.patchSize = min(r.patchSize*2, patchPageMax)
@@ -1570,6 +1592,7 @@ func (r *Renderer) patch(ops []paint.Op, bounds image.Rectangle, alpha float32) 
 	if ink.Empty() {
 		return
 	}
+	r.patchUsed = true
 	n := r.patchSize
 	for y := ink.Min.Y; y < ink.Max.Y; y += n {
 		for x := ink.Min.X; x < ink.Max.X; x += n {

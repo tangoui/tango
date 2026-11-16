@@ -89,7 +89,7 @@ Ant Design, Element Plus and shadcn themes share one set of semantic tokens, eac
 
 <p class="home-lead">Measured 2026-11-14 with Go 1.27.2, cross-compiled on an Apple M4, <code>CGO_ENABLED=0</code>, <code>-trimpath -ldflags='-s -w -buildid='</code>. 1 MiB = 1,048,576 bytes. These are file sizes only; runtime memory and CPU were not measured.</p>
 
-<div class="home-grid cols-2">
+<div class="home-grid">
 <div class="home-card">
 <span class="metric">1.80 <small>MiB</small></span>
 
@@ -112,14 +112,6 @@ Stripped executables for darwin/arm64, linux/amd64 and windows/amd64. Most of it
 ### Minimal Go-drawn app
 
 `uihost.Open` with one `ui.Button`. The extra size is the component and renderer code. With gzip -9 they come to 3.87–4.08 MiB.
-
-</div>
-<div class="home-card">
-<span class="metric">2.78–5.11 <small>MB</small></span>
-
-### Default-template installers
-
-From a separate run (2026-11-13, decimal MB): 11 installer formats built from the default `tan init` templates. See the [package size record](https://github.com/tangoui/tango/blob/main/docs/package-size.md); its dmg sizes predate the LZMA switch.
 
 </div>
 </div>

@@ -77,6 +77,8 @@ Usage: tan build [flags]
     	project dir (where tan.json is) (default ".")
   -debug
     	keep symbols and the console window; let the page open the inspector; android: debug APK instead of the signed release
+  -features value
+    	backend profile: all, webview, canvas or webview,canvas
   -o dir
     	output dir (default "build")
   -platform targets
@@ -101,6 +103,8 @@ $ tan package -h
 Usage: tan package [flags]
   -C dir
     	project dir (where tan.json is) (default ".")
+  -features value
+    	backend profile: all, webview, canvas or webview,canvas
   -format format
     	package format: empty for each platform's default (disk image, tarball and AppImage, NSIS installer); msix (Windows targets only); or, for Linux targets, a comma-separated list of tar, appimage, deb, rpm, flatpak
   -o dir

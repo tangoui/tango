@@ -663,7 +663,7 @@ func (t *Theme) stockTheme(primary *Color) *Theme {
 	}
 	switch t.Flavor {
 	case Element:
-		return ElementPlus(opts...)
+		return elementPlusCore(collect(opts), false)
 	case StyleShadcn:
 		o := ShadcnOptions{Dark: t.Dark}
 		if t.Shadcn != nil {
@@ -672,9 +672,9 @@ func (t *Theme) stockTheme(primary *Color) *Theme {
 		if primary != nil {
 			o.Primary = *primary
 		}
-		return Shadcn(o)
+		return shadcnCore(o, false, Components{})
 	}
-	return AntDesign(opts...)
+	return antDesignCore(collect(opts), false)
 }
 
 // adoptPrimary moves t to brand color c the way the constructor would have

@@ -290,12 +290,21 @@ func shTW(y, blur, spread float32, a float64) paint.Shadow {
 // chart-1..5); th.Shadcn keeps them and CSSVars exports them under the
 // same names.
 func Shadcn(args ...ShadcnArg) *Theme {
+	o := collectShadcn(args)
+	return shadcnCore(o, true, shadcnComponents(args))
+}
+
+func collectShadcn(args []ShadcnArg) ShadcnOptions {
 	o := ShadcnOptions{Base: "neutral", Radius: 10}
 	for _, a := range args {
 		if a != nil {
 			a.applyShadcn(&o)
 		}
 	}
+	return o
+}
+
+func shadcnCore(o ShadcnOptions, full bool, comps Components) *Theme {
 	o.Base, o.Color = strings.ToLower(o.Base), strings.ToLower(o.Color)
 	if _, ok := shadcnThemeVars[o.Color]; !ok || isShadcnBase(o.Color) {
 		o.Color = ""
@@ -339,7 +348,10 @@ func Shadcn(args ...ShadcnArg) *Theme {
 	// translucent) values.
 	v := raw.opaque()
 
-	t := &Theme{Name: "shadcn", Flavor: StyleShadcn, Dark: dark, Shadcn: raw, Icons: LucideIcons()}
+	t := &Theme{Name: "shadcn", Flavor: StyleShadcn, Dark: dark, Shadcn: raw}
+	if full {
+		t.Icons = LucideIcons()
+	}
 	bg := v.Background
 	t.Primary = shadcnPalette(v.Primary, bg, dark)
 	if o.Primary.A == 0 {
@@ -502,6 +514,8 @@ func Shadcn(args ...ShadcnArg) *Theme {
 	if dark {
 		t.Illustration.Back, t.Illustration.Fill1, t.Illustration.Fill2, t.Illustration.Ink = s.at(700), s.at(700), s.at(800), s.at(600)
 	}
-	t.deriveComponents(shadcnComponents(args))
+	if full {
+		t.deriveComponents(comps)
+	}
 	return t
 }

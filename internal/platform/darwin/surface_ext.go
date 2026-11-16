@@ -109,6 +109,9 @@ var (
 
 // NewSurfaceEx implements platform.CreatorEx.
 func (b *backend) NewSurfaceEx(sid platform.SurfaceID, opts platform.SurfaceOptions, ex platform.SurfaceExtras) (platform.Surface, error) {
+	if !profileWebViewEnabled {
+		return nil, profileWebViewError()
+	}
 	return b.newSurface(sid, opts, &ex)
 }
 
