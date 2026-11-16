@@ -21,7 +21,7 @@ Measured on an Apple Silicon Mac (Retina), screen unlocked, 2026-11-16:
 
 | | |
 |---|---|
-| idle physical footprint (median of 3) | 26.3 MiB (25.7 / 26.3 / 26.4) |
+| idle physical footprint (median of 3) | 26.3 MiB and 27.2 MiB in two runs (rounds 25.7–29.1) |
 | launch → first frame | 175–240 ms |
 | stripped binary (`CGO_ENABLED=0 -trimpath -s -w`) | 2.2 MiB |
 | WebKit / Metal | not loaded |
