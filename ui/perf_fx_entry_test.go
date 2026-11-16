@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/theme"
@@ -158,16 +159,23 @@ func perfEntryHover(r *perfRun, i int) {
 	}
 }
 
+// perfEntryFieldSet edits the first part of the FieldSet: it clicks the
+// field between the item label and the separator, appends a digit, then
+// removes it and blurs.
 func perfEntryFieldSet(r *perfRun, i int) {
-	if box, ok := r.D.FindText("1"); ok && i%2 == 0 {
-		r.D.Click(box.Center())
-	} else if i%2 == 0 {
-		r.D.Click(r.Center())
-	} else {
-		r.D.Key(input.KeyEscape, 0)
+	if i%2 == 1 {
+		r.D.Key(input.KeyBackspace, 0)
 		r.D.Click(perfOutside)
+		return
 	}
-	r.D.Settle()
+	label, ok := r.D.FindText("预算")
+	sep, sepOK := r.D.FindText("~")
+	if !ok || !sepOK {
+		panic("perf: FieldSet parts not found")
+	}
+	r.D.Click(geom.Pt((label.X+label.W+sep.X)/2, sep.Center().Y))
+	r.D.Key(input.KeyEnd, 0)
+	r.D.Type("5")
 }
 
 func perfEntryTextLabel(r *perfRun, i int, label string) {
@@ -364,6 +372,29 @@ func TestPerfEntryPopupOpenClose(t *testing.T) {
 		})
 	}
 }
+func TestPerfEntryFieldSetEditsInnerField(t *testing.T) {
+	fx := perfRegistry["FieldSet"]
+	d := newPerfDriver(perfPage(fx.Build), false)
+	d.Settle()
+	vals := State[ProValues](d.r.c, hashID("perf.entry.form.values"), nil)
+	part := func(i int) any {
+		parts := vals.Parts("budget")
+		if i >= len(parts) {
+			return nil
+		}
+		return parts[i]
+	}
+	r := &perfRun{D: d}
+	perfStep(r, fx.Interact, 0)
+	if v := part(0); v != float64(15) {
+		t.Fatalf("FieldSet interaction did not edit its first field: %v", *vals)
+	}
+	perfStep(r, fx.Interact, 1)
+	if part(0) != float64(1) || part(1) != float64(2) {
+		t.Fatalf("FieldSet interaction did not restore its fields: %v", *vals)
+	}
+}
+
 func TestPerfLargeEntryLists(t *testing.T) {
 	for _, n := range []int{1000, 100000} {
 		for _, name := range []string{"AutoComplete", "Mentions"} {
@@ -617,17 +648,7 @@ func init() {
 			f := Form(c).Layout(layout.W(620))
 			vals := State[ProValues](c, hashID("perf.entry.form.values"), func() ProValues { return ProValues{"budget": []any{float64(1), float64(2)}} })
 			FieldSet(c, f, ProFieldSet{Key: "budget", Label: "预算", Parts: []ProField{{ValueType: ValueDigit}, {ValueType: ValueDigit}}, Separator: "~"}, *vals)
-			clicked := State[bool](c, hashID("perf.entry.fieldset.clicked"), func() bool { return false })
-			button := Button(c, "字段集操作")
-			if button.Clicked() {
-				*clicked = !*clicked
-			}
-			Text(c, map[bool]string{false: "字段集就绪", true: "字段集已操作"}[*clicked])
-		}, Interact: func(r *perfRun, _ int) {
-			perfEntryClickLabel(r, "字段集操作")
-			r.D.Click(perfOutside)
-			r.D.Settle()
-		}},
+		}, Interact: perfEntryFieldSet},
 		perfFixture{Name: "Item", Build: func(c *Context) {
 			selected := State[bool](c, hashID("perf.entry.item.selected"), func() bool { return false })
 			item := Item(c, "安全设置").Description(map[bool]string{false: "双重验证已开启", true: "已选择"}[*selected]).Clickable()
