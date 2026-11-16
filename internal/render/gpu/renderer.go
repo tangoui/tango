@@ -167,9 +167,11 @@ type Renderer struct {
 
 	ramps *rampCache // gradient ramp rows (TexRamp)
 
-	images      *imageCache // image textures (TexImage)
-	imageBudget int         // bytes of image textures one frame uploads at most
-	budgetHit   bool        // the image upload budget overflow was logged
+	images         *imageCache // image textures (TexImage)
+	imageBudget    int         // bytes of image textures one frame uploads at most
+	budgetHit      bool        // the image upload budget overflow was logged
+	stats          resourceStats
+	atlasEvictSeen int
 	// logf logs (log.Printf; tests replace it).
 	logf func(format string, args ...any)
 	ops  []paint.Op // this frame's ops with pointer ops dereferenced (when there are any)
@@ -311,6 +313,26 @@ func (r *Renderer) InvalidateImage(img image.Image) {
 	r.cpu.InvalidateImage(img)
 }
 
+// ResourceStats returns the latest internal residency/churn snapshot. It is
+// intentionally an internal diagnostic seam; callers must not mutate it.
+func (r *Renderer) ResourceStats() ResourceStats { return r.stats.Snapshot() }
+
+func (r *Renderer) syncResourceStats(f *Frame) {
+	r.stats.AtlasPages = r.atlas.PageCount()
+	r.stats.AtlasBytes = r.atlas.ResidentBytes()
+	r.stats.ImageCount = r.images.residentCount()
+	r.stats.ImageBytes = r.images.residentBytes()
+	r.stats.RenderTargetBytes = int64(f.Size.X) * int64(f.Size.Y) * 4
+	for range f.Uploads {
+		r.stats.AddUpload()
+	}
+	evictions := r.atlas.Evictions()
+	for i := r.atlasEvictSeen; i < evictions; i++ {
+		r.stats.AddEviction()
+	}
+	r.atlasEvictSeen = evictions
+}
+
 // Trim releases what the renderer caches and can rebuild, for a low-memory
 // warning (docs/specs/mobile-canvas.md §3.4): the glyph and path mask atlas
 // shrinks to one empty page, optional ramp and patch pages are dropped,
@@ -381,6 +403,7 @@ func (r *Renderer) frame1(bg color.NRGBA, ops []paint.Op, fs image.Point, scale 
 
 	// Count this as a frame for the glyph cache that GlyphMask shares, so
 	// unused glyphs are evicted as in paint.CPU.Render.
+	r.stats.BeginFrame()
 	r.cpu.BeginFrame(scale)
 	if scale != r.atlasScale {
 		r.atlas.Reset() // glyphs are rasterized at device size
@@ -589,11 +612,13 @@ func (r *Renderer) frame1(bg color.NRGBA, ops []paint.Op, fs image.Point, scale 
 		r.maskSent = image.Point{} // the device may have missed this frame's uploads
 		r.ramps.sent = false
 		r.images.executed(false)
+		r.syncResourceStats(f)
 		return err
 	}
 	r.maskSent = f.MaskSize
 	r.ramps.sent = true
 	r.images.executed(true)
+	r.syncResourceStats(f)
 	return nil
 }
 

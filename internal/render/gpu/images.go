@@ -72,6 +72,10 @@ func newImageCache() *imageCache {
 	return &imageCache{byKey: map[imageKey]*imageTex{}, idle: imageIdleFrames}
 }
 
+func (c *imageCache) residentCount() int   { return len(c.byKey) }
+func (c *imageCache) residentBytes() int64 { return int64(max(0, c.held)) }
+func (c *imageCache) uploadBytes() int64   { return int64(max(0, c.uploaded)) }
+
 // beginFrame starts a frame.
 func (c *imageCache) beginFrame() {
 	c.frame++

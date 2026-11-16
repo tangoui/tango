@@ -192,6 +192,12 @@ func (a *Atlas) Evictions() int { return a.evictions }
 // than this fits.
 func (a *Atlas) PageSize() int { return a.size }
 
+// PageCount reports the currently allocated atlas pages.
+func (a *Atlas) PageCount() int { return len(a.pages) }
+
+// ResidentBytes reports the CPU-side alpha atlas bytes currently allocated.
+func (a *Atlas) ResidentBytes() int64 { return int64(len(a.pix.Pix)) }
+
 // Pixels returns the CPU copy of the whole atlas texture. Opening a page
 // replaces the image (it grows by a page), so do not keep it across
 // Insert calls.
