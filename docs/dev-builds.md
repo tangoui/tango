@@ -42,6 +42,8 @@ Android 同样用 `tango_selftest`：`GOFLAGS=-tags=tango_selftest bash mobile/a
 
 较大窗口的默认原生渲染尚未通过 CPU/尾部帧间隔验收，因此保留 GPU 默认；可用 `native` 显式比较低内存路径。
 
+GPU 默认路径还会对可重建的 atlas 页和闲置 Metal image texture 施加有界预算，在 frame boundary 淘汰未被当前 frame/command buffer 使用的资源；当前 glyph、present target 和活动图片不会被淘汰。`TANGO_GPU_BUDGET=off` 可关闭这项预算并恢复旧的资源常驻策略。该开关不改变 `TANGO_RENDERER` 的选择，也不保证每种场景都降低物理 footprint；如果重新上传导致帧尾部恶化，应先用 `TANGO_FRAME_TRACE=1` 对照。
+
 ### 帧时延日志（`TANGO_FRAME_TRACE`）
 
 `TANGO_FRAME_TRACE=1` 让自绘窗口每 120 帧打一行摘要（`tango: frame trace surface N renderer=… n=120 …`），各项给 p50/p95：

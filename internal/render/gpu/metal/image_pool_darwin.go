@@ -121,6 +121,15 @@ func (p *imageTexturePool) put(c imageCandidate) {
 	p.bytes += n
 }
 
+// SetImageBudget changes the detached texture budget at a frame boundary.
+// Renderer calls this through an internal capability; active textures remain
+// owned by Device.images and are not touched.
+func (d *Device) SetImageBudget(maxBytes int64, idle uint64) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.imagePool.SetBudget(ImageBudget{MaxBytes: maxBytes, MaxCount: imageSpareCount, IdleFrames: idle})
+}
+
 // TrimImages drops unused image textures immediately on memory pressure.
 // Necessary live textures keep their usual frame-local handoff, but the next
 // frame must not refill the spare pool from the renderer's pending frees.

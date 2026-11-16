@@ -317,6 +317,16 @@ func (r *Renderer) InvalidateImage(img image.Image) {
 // intentionally an internal diagnostic seam; callers must not mutate it.
 func (r *Renderer) ResourceStats() ResourceStats { return r.stats.Snapshot() }
 
+func (r *Renderer) applyBudgetPolicy(size image.Point, scale float32) {
+	p := budgetPolicy(size, scale)
+	if p.AtlasMaxPages > 0 {
+		_ = r.atlas.SetBudget(atlas.AtlasBudget{MaxPages: p.AtlasMaxPages, IdleFrames: p.AtlasIdleFrames})
+		if setter, ok := r.dev.(interface{ SetImageBudget(int64, uint64) error }); ok {
+			_ = setter.SetImageBudget(p.ImageMaxBytes, p.ImageIdleFrames)
+		}
+	}
+}
+
 func (r *Renderer) syncResourceStats(f *Frame) {
 	r.stats.AtlasPages = r.atlas.PageCount()
 	r.stats.AtlasBytes = r.atlas.ResidentBytes()
@@ -410,6 +420,7 @@ func (r *Renderer) frame1(bg color.NRGBA, ops []paint.Op, fs image.Point, scale 
 		r.atlasScale = scale
 	}
 	r.atlas.BeginFrame()
+	r.applyBudgetPolicy(fs, scale)
 	r.ramps.beginFrame()
 	r.images.beginFrame()
 
