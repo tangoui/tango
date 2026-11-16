@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image"
 	"time"
 
 	"github.com/tangoui/tango/ui/a11y"
@@ -62,7 +63,8 @@ type Runner struct {
 	a11yUpdates int          // AccessibilityUpdate calls (tests)
 	actions     []a11yAction // queued PerformAction requests
 
-	dmg damageState // redraw-hint change tracking (damage.go)
+	dmg       damageState       // redraw-hint change tracking (damage.go)
+	lastDirty []image.Rectangle // dirty rects of the last frame, nil = whole frame (perf tests)
 
 	backOn bool // last value sent to BackWindow (back.go)
 }
@@ -217,6 +219,7 @@ func (r *Runner) Frame() error {
 	r.layoutAndPaint()
 	scale := r.win.Scale()
 	dirty := r.collectDamage(scale)
+	r.lastDirty = dirty
 	r.afterFrame()
 	if a11yOn {
 		r.reportA11y(host)

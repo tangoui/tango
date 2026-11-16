@@ -1,0 +1,240 @@
+package ui
+
+import (
+	"fmt"
+	"hash/fnv"
+	"image"
+	"io"
+	"sort"
+	"time"
+
+	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/layout"
+	"github.com/tangoui/tango/ui/paint"
+	"github.com/tangoui/tango/ui/theme"
+)
+
+// Component performance harness (first layer): every root ui entry has a
+// fixture with a typical instance, its most common interaction and, for
+// collections, a large data set. perf_check_test.go checks coverage, idle
+// frames, damage and steady interaction; perf_bench_test.go times them.
+
+type perfFixture struct {
+	Name          string                       // root ui exported entry, e.g. "Button"
+	Covers        []string                     // other entries this fixture also covers, e.g. "CardMeta", "CardAction"
+	Skip          string                       // non-empty = not applicable, with the reason (helpers that render nothing…)
+	Overlay       bool                         // overlay kinds: first build budget 2 ms
+	Animated      string                       // non-empty = animates legitimately at rest (Spin, Skeleton shimmer…), with the reason
+	Build         func(c *Context)             // typical instance; overlays build open
+	Interact      func(r *perfRun, i int)      // step i: even steps act, odd steps undo
+	Large         func(n int) func(c *Context) // collections only: a page with n items
+	LargeInteract func(r *perfRun, i int)      // nil = default scroll (perfScroll)
+}
+
+type perfRun struct {
+	D      *Driver
+	Target geom.Rect // the component's bounding box (perfTarget)
+}
+
+// Center is the center of Target.
+func (r *perfRun) Center() geom.Point { return r.Target.Center() }
+
+// At is the point at fractions fx, fy (0..1) of Target.
+func (r *perfRun) At(fx, fy float32) geom.Point {
+	return geom.Point{X: r.Target.X + fx*r.Target.W, Y: r.Target.Y + fy*r.Target.H}
+}
+
+var perfRegistry = map[string]perfFixture{}
+
+// registerPerf adds fixtures; a duplicate name panics.
+func registerPerf(fx ...perfFixture) {
+	for _, f := range fx {
+		if _, dup := perfRegistry[f.Name]; dup {
+			panic("ui: duplicate perf fixture " + f.Name)
+		}
+		perfRegistry[f.Name] = f
+	}
+}
+
+// perfFixtures returns the fixtures sorted by Name.
+func perfFixtures() []perfFixture {
+	out := make([]perfFixture, 0, len(perfRegistry))
+	for _, f := range perfRegistry {
+		out = append(out, f)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// perfNopRenderer renders nothing: timings cover build, layout, the
+// display list and damage fingerprints, not rasterization.
+type perfNopRenderer struct{}
+
+func (perfNopRenderer) Render(*paint.List, geom.Size, float32) error { return nil }
+func (perfNopRenderer) BackdropBlur() bool                           { return true }
+
+// newPerfDriver is a 1440×900 driver at scale 2 without animations, theme
+// antd. raster=false renders through perfNopRenderer.
+func newPerfDriver(page func(*Context), raster bool) *Driver {
+	win := &driverWindow{size: geom.Size{W: 1440, H: 900}, scale: 2, now: time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)}
+	d := &Driver{w: win}
+	var rd paint.Renderer
+	if !raster {
+		rd = perfNopRenderer{}
+	}
+	d.r = NewRunner(page, RunnerOptions{Theme: theme.AntDesign(), Clock: func() time.Time { return win.now }, NoAnimations: true, Renderer: rd})
+	d.r.Attach(win)
+	return d
+}
+
+// perfPage wraps a fixture's build in the page every fixture shares.
+func perfPage(build func(c *Context)) func(*Context) {
+	return func(c *Context) { Column(c, func() { build(c) }, layout.Pad(24)) }
+}
+
+// perfTarget is the bounding box of what the fixture built in the page:
+// the union of the rects of the page column's children (the root's first
+// child is perfPage's full-width column, so its own rect is not the
+// component's).
+func perfTarget(d *Driver) geom.Rect {
+	root := d.r.c.root
+	if root == nil || len(root.kids) == 0 {
+		return geom.Rect{}
+	}
+	var r geom.Rect
+	for _, k := range root.kids[0].kids {
+		r = r.Union(k.abs)
+	}
+	return r
+}
+
+// perfBBox is Target united with the rects of all open overlay roots,
+// clipped to the window (dirty rects never reach beyond it).
+func perfBBox(d *Driver) geom.Rect {
+	r := perfTarget(d)
+	for _, o := range d.r.c.overlays {
+		r = r.Union(o.root.abs)
+	}
+	sz := d.r.win.Size()
+	return r.Intersect(geom.Rect{W: sz.W, H: sz.H})
+}
+
+// perfDirtyArea is the area (logical px²) of the union of the last frame's
+// dirty rects; a frame presented whole (nil) counts as the viewport.
+func perfDirtyArea(d *Driver) float32 {
+	s := d.r.win.Scale()
+	if d.r.lastDirty == nil {
+		sz := d.r.win.Size()
+		return sz.W * sz.H
+	}
+	return float32(rectsUnionArea(d.r.lastDirty)) / (s * s)
+}
+
+// rectsUnionArea is the exact area covered by rs (overlaps counted once).
+func rectsUnionArea(rs []image.Rectangle) int {
+	var xs []int
+	for _, r := range rs {
+		xs = append(xs, r.Min.X, r.Max.X)
+	}
+	sort.Ints(xs)
+	area := 0
+	for i := 0; i+1 < len(xs); i++ {
+		x0, x1 := xs[i], xs[i+1]
+		if x0 == x1 {
+			continue
+		}
+		type span struct{ a, b int }
+		var sp []span
+		for _, r := range rs {
+			if r.Min.X <= x0 && r.Max.X >= x1 {
+				sp = append(sp, span{r.Min.Y, r.Max.Y})
+			}
+		}
+		sort.Slice(sp, func(i, j int) bool { return sp[i].a < sp[j].a })
+		h, end := 0, -1<<62
+		for _, s := range sp {
+			if s.a > end {
+				h += s.b - s.a
+				end = s.b
+			} else if s.b > end {
+				h += s.b - end
+				end = s.b
+			}
+		}
+		area += h * (x1 - x0)
+	}
+	return area
+}
+
+// perfListHash is an FNV-64a hash of the last frame's display list. Only
+// values are hashed: pointers (paths, glyph sources, images) are replaced
+// by what they hold, so two frames that paint the same thing hash equal.
+func perfListHash(d *Driver) uint64 {
+	h := fnv.New64a()
+	for _, op := range d.r.List().Ops {
+		perfHashOp(h, op)
+	}
+	return h.Sum64()
+}
+
+func perfHashOp(w io.Writer, op paint.Op) {
+	switch o := op.(type) {
+	case paint.FillPath:
+		fmt.Fprintf(w, "FillPath{%#v %#v}", perfPathSegs(o.Path), o.Color)
+	case paint.Gradient:
+		segs := perfPathSegs(o.Path)
+		o.Path = nil
+		fmt.Fprintf(w, "%#v %#v", o, segs)
+	case paint.Text:
+		fmt.Fprintf(w, "Text{%#v %#v", o.Origin, o.Color)
+		for _, g := range o.Glyphs {
+			fmt.Fprintf(w, " %T %d %g %g %g %g", g.Src, g.ID, g.Size, g.X, g.Y, g.Skew)
+		}
+		io.WriteString(w, "}")
+	case paint.Image:
+		var b image.Rectangle
+		if o.Img != nil {
+			b = o.Img.Bounds()
+		}
+		fmt.Fprintf(w, "Image{%T %v %#v %#v}", o.Img, b, o.Rect, o.Radii)
+	default:
+		fmt.Fprintf(w, "%#v", op)
+	}
+}
+
+func perfPathSegs(p *paint.Path) []paint.Seg {
+	if p == nil {
+		return nil
+	}
+	return p.Segs
+}
+
+// perfStep runs interaction step i: Target is refreshed, the fixture acts,
+// and the frame a host would run next (only if one is needed: queued
+// input, an invalidation or an animation) is run. Interactions that run
+// their own frames (Driver.Move, Click, Key, Type) leave the frame that
+// processed the input last; a forced frame with nothing to do would
+// measure an idle frame's damage instead.
+func perfStep(r *perfRun, interact func(r *perfRun, i int), i int) {
+	r.Target = perfTarget(r.D)
+	interact(r, i)
+	if r.D.NeedsFrame() {
+		r.D.Frame()
+	}
+}
+
+// perfScroll is the default large-data interaction: wheel scrolling at
+// the center of the top-most open overlay (a dropdown list), or of Target
+// when none is open; 20 steps down, then 20 up.
+func perfScroll(r *perfRun, i int) {
+	p := r.Center()
+	if ov := r.D.r.c.overlays; len(ov) > 0 {
+		p = ov[len(ov)-1].root.abs.Center()
+	}
+	dy := float32(120)
+	if i%40 >= 20 {
+		dy = -120
+	}
+	r.D.Inject(input.Scroll{Pos: p, DY: dy})
+}
