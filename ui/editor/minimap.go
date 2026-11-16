@@ -93,6 +93,7 @@ type minimapState struct {
 	// and counts of line bitmaps drawn and strips composed (tests).
 	glyphs         *miniGlyphs
 	strips         map[int]*miniStrip
+	stripWants     []miniStripWant // cleared before reuse; at most the visible strips
 	stripSampling  bool
 	stripGen       uint64
 	charRendered   uint64
