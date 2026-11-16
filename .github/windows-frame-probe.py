@@ -23,11 +23,14 @@ s = s.replace('tr.beginFrame()\n\t\t\ttr.unsure = false\n\t\t\tstart := time.Now
             trace.Logf(context.Background(), "frame", "lines=%d frame=%d", c.lines, frame)
             region := trace.StartRegion(context.Background(), "bounded-frame")
             cpu0, cycles0 := frameThreadCounters()
+            qpc0 := frameQPC()
             start := time.Now()''', 1)
 s = s.replace('wall := time.Since(start)\n', '''wall := time.Since(start)
+            qpcTicks := frameQPC() - qpc0
+            qpcElapsed := time.Duration(qpcTicks * 1000000000 / frameQPCFreq())
             cpu1, cycles1 := frameThreadCounters()
             region.End()
-            t.Logf("DIAG lines=%d frame=%d wall=%v thread100ns=%d cycles=%d known=%d->%d final=%d->%d stats=%+v", c.lines, frame, wall, cpu1-cpu0, cycles1-cycles0, knownBefore, tr.known(), finalBefore, st.Model.Highlighter().FinalLines(snap), frameDiag)
+            t.Logf("DIAG lines=%d frame=%d wall=%v qpc=%v thread100ns=%d cycles=%d known=%d->%d final=%d->%d stats=%+v", c.lines, frame, wall, qpcElapsed, cpu1-cpu0, cycles1-cycles0, knownBefore, tr.known(), finalBefore, st.Model.Highlighter().FinalLines(snap), frameDiag)
 ''', 1)
 s += r'''
 
@@ -39,6 +42,21 @@ var frameDiag frameDiagStats
 var diagKernel32 = windows.NewLazySystemDLL("kernel32.dll")
 var diagTimes = diagKernel32.NewProc("GetThreadTimes")
 var diagCycles = diagKernel32.NewProc("QueryThreadCycleTime")
+var diagQPC = diagKernel32.NewProc("QueryPerformanceCounter")
+var diagQPF = diagKernel32.NewProc("QueryPerformanceFrequency")
+
+func frameQPC() int64 {
+    var n int64
+    ok, _, err := diagQPC.Call(uintptr(unsafe.Pointer(&n)))
+    if ok == 0 { panic(err) }
+    return n
+}
+func frameQPCFreq() int64 {
+    var n int64
+    ok, _, err := diagQPF.Call(uintptr(unsafe.Pointer(&n)))
+    if ok == 0 || n <= 0 { panic(err) }
+    return n
+}
 
 // CPU times are raw 100ns units, NOT a claim of 100ns resolution.
 // Cycle counts are raw: Microsoft's contract prohibits conversion to time.
