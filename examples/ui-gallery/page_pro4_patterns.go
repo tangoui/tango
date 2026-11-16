@@ -49,11 +49,11 @@ func proPatternList(c *ui.Context) {
 		}
 		table := ui.ProTable(c, cols).Title("规则管理").PageSize(5).RowKey(func(r tbRule) string { return r.key }).Selection(selected)
 		table.ToolBar(func() {
-				if ui.Button(c, "新建规则").Primary().Clicked() {
-					*rows = append(*rows, tbRule{key: fmt.Sprint("demo-", len(*rows)), name: "新规则", owner: "演示用户", status: "running"})
-					table.Reload()
-				}
-			}).
+			if ui.Button(c, "新建规则").Primary().Clicked() {
+				*rows = append(*rows, tbRule{key: fmt.Sprint("demo-", len(*rows)), name: "新规则", owner: "演示用户", status: "running"})
+				table.Reload()
+			}
+		}).
 			Request(func(req ui.ProRequest, done func(ui.ProResult[tbRule])) {
 				rs, total, err := tbRuleServer(*rows, req)
 				done(ui.ProResult[tbRule]{Rows: rs, Total: total, Err: err})
