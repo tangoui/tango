@@ -78,3 +78,24 @@ go build -o /tmp/tan-size ./cmd/tan
 ```
 
 两阶段应用目录要分别创建或调整 `go.mod` 的本地 replace，确保它指向被测源码而非另一阶段。不要把安装器生成目录中的 installer.nsi 等构建辅助文件计入安装后有效载荷，也不要将不同 Go 版本/提交/样本口径混为同一组数据。
+
+## 2026-11-16 backend profile self-check
+
+本轮增加了 Darwin 的 `all`、`webview`、`canvas`、`webview,canvas` 编译 profile 和确定性的能力边界：不包含某模式的 profile 在调用对应入口时返回 `ErrUnsupported`，不会创建空白窗口。Windows/Linux 的非 `all` profile 本阶段在 `tan build/package` 的目标校验阶段明确拒绝。
+
+| 样本 | profile | raw B | gzip-9 B |
+|---|---|---:|---:|
+| WebView | all | 5,946,402 | 2,466,798 |
+| WebView | webview | 5,946,386 | 2,465,696 |
+| WebView | canvas | 5,946,402 | 2,466,641 |
+| WebView | webview,canvas | 5,946,402 | 2,466,833 |
+| Canvas | all | 10,178,034 | 4,036,805 |
+| Canvas | webview | 10,177,986 | 4,036,448 |
+| Canvas | canvas | 10,178,034 | 4,036,856 |
+| Canvas | webview,canvas | 10,178,034 | 4,037,016 |
+| Mixed | all | 10,178,034 | 4,036,768 |
+| Mixed | webview | 10,177,986 | 4,036,420 |
+| Mixed | canvas | 10,178,034 | 4,036,732 |
+| Mixed | webview,canvas | 10,178,034 | 4,036,900 |
+
+结论：Go 链接器已经自动裁掉了最小样本中没有被调用的多数后端代码。`webview` profile 只减少 16–48 B，canvas/mixed 没有安装后体积收益；因此本轮不把 backend profile 宣传成瘦身方案，也不做高风险的 Darwin 全文件拆分。profile 保留为后续平台拆分和能力校验的实验性基础。

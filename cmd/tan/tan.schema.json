@@ -444,6 +444,18 @@
     "copyright": {
       "type": "string"
     },
+    "features": {
+      "description": "Features selects the compile-time desktop backend profile. Omitted means all capabilities.",
+      "items": {
+        "enum": [
+          "canvas",
+          "webview"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
     "fileAssociations": {
       "description": "FileAssociations are the document types the app opens.",
       "items": {

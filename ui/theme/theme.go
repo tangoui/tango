@@ -365,13 +365,17 @@ func sh(x, y, blur, spread float32, c Color) paint.Shadow {
 }
 
 // AntDesign returns the Ant Design v5 token set.
-func AntDesign(opts ...Option) *Theme {
-	o := collect(opts)
+func AntDesign(opts ...Option) *Theme { return antDesignCore(collect(opts), true) }
+
+func antDesignCore(o options, full bool) *Theme {
 	primary := Hex("#1677ff")
 	if o.primary != nil {
 		primary = *o.primary
 	}
-	t := &Theme{Name: "antd", Flavor: Ant, Dark: o.dark, Icons: AntIcons()}
+	t := &Theme{Name: "antd", Flavor: Ant, Dark: o.dark}
+	if full {
+		t.Icons = AntIcons()
+	}
 	bgDark := Hex("#141414")
 	t.Primary = AntPalette(primary, o.dark, bgDark)
 	t.Success = AntPalette(Hex("#52c41a"), o.dark, bgDark)
@@ -535,18 +539,24 @@ func AntDesign(opts ...Option) *Theme {
 	}
 	t.SegmentedSelectedBg = t.BgElevated
 	t.TabsHeaderBg = t.FillAlter
-	t.deriveComponents(o.components)
+	if full {
+		t.deriveComponents(o.components)
+	}
 	return t
 }
 
 // ElementPlus returns the Element Plus token set.
-func ElementPlus(opts ...Option) *Theme {
-	o := collect(opts)
+func ElementPlus(opts ...Option) *Theme { return elementPlusCore(collect(opts), true) }
+
+func elementPlusCore(o options, full bool) *Theme {
 	primary := Hex("#409eff")
 	if o.primary != nil {
 		primary = *o.primary
 	}
-	t := &Theme{Name: "element-plus", Flavor: Element, Dark: o.dark, Icons: ElementIcons()}
+	t := &Theme{Name: "element-plus", Flavor: Element, Dark: o.dark}
+	if full {
+		t.Icons = ElementIcons()
+	}
 	bgDark := Hex("#141414")
 	t.Primary = ElementPalette(primary, o.dark, bgDark)
 	t.Success = ElementPalette(Hex("#67c23a"), o.dark, bgDark)
@@ -704,7 +714,9 @@ func ElementPlus(opts ...Option) *Theme {
 	t.SegmentedBg = t.FillTertiary
 	t.SegmentedSelectedBg = t.Primary.Base
 	t.TabsHeaderBg = t.BgContainerDisabled // fill-color-light: #f5f7fa / #262727
-	t.deriveComponents(o.components)
+	if full {
+		t.deriveComponents(o.components)
+	}
 	return t
 }
 

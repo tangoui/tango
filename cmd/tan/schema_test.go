@@ -130,6 +130,10 @@ func configSchema(t *testing.T) []byte {
 				slices.Sort(names)
 				s["items"] = map[string]any{"type": "string", "enum": names}
 			}
+			if key == "Config.Features" {
+				s["items"] = map[string]any{"type": "string", "enum": []string{"canvas", "webview"}}
+				s["minItems"] = 1
+			}
 			return s
 		case reflect.Map:
 			return map[string]any{"type": "object", "additionalProperties": typeSchema(rt.Elem(), key+"{}")}
