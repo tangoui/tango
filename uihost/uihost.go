@@ -110,6 +110,10 @@ func Open(app *tango.App, opts Options, page func(*ui.Context), ropts ui.RunnerO
 	r.Attach(h.win)
 	if h.gpu != nil {
 		renderers.Store(r, h.gpu)
+		if frameTraceOn() {
+			h.trace = newFrameTrace(h.id)
+			h.gpu.setTrace(h.trace)
+		}
 	}
 	s.OnClosed(h.close)
 	watchMemory(app, r) // memory.go
@@ -131,12 +135,17 @@ type host struct {
 	closed  bool
 	lastErr string // last frame error logged
 	ax      *a11yBridge
-	win     *window // the runner's window; nil until attached
+	win     *window     // the runner's window; nil until attached
+	trace   *frameTrace // TANGO_FRAME_TRACE (frametrace.go); nil: off
 }
 
 func (h *host) CanvasFrame() {
 	if h.closed || h.cv == nil {
 		return
+	}
+	if h.trace != nil {
+		h.trace.begin()
+		defer h.trace.end(Renderer(h.r))
 	}
 	var err error
 	// A panic in the frame (page functions included) goes to the app's

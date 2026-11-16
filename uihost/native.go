@@ -66,6 +66,7 @@ func (g *gpuRenderer) promoteNative() {
 	g.releaseGPU()
 	if promoted != nil && promoted.gpu != nil {
 		g.gpu, g.present = promoted.gpu, promoted.present
+		g.attachTimeline() // TANGO_FRAME_TRACE: the new Metal device's timeline
 		return
 	}
 	// Target acquisition may already have replaced the native layer with Metal.
