@@ -437,3 +437,11 @@ type CanvasAccessibleSink interface {
 	// gtk_widget_grab_focus).
 	AccessibilityAction(id a11y.NodeID, act a11y.Action, arg string) error
 }
+
+// CanvasShortcutCapture is an optional capability for shortcut recording.
+// While enabled, menu accelerators yield to this canvas when it owns native
+// keyboard focus. Other controls/windows and OS-level hotkeys are unaffected.
+// It does not enable text input/IME. Main thread.
+type CanvasShortcutCapture interface {
+	SetShortcutCapture(on bool)
+}

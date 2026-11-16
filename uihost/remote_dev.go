@@ -308,6 +308,9 @@ func devOpen(app *tango.App, opts Options, page func(*ui.Context), ropts ui.Runn
 	}
 	hideWorker(app)
 	devTrace("opened")
+	if s != nil {
+		frameTraceSkipped(s.ID(), "a tan dev window is drawn by the CPU in the dev worker; only GPU windows are traced")
+	}
 	w.Invalidate()
 	return r, s, true, nil
 }
@@ -363,6 +366,7 @@ func windowOpts(o tango.SurfaceOptions) devhost.WindowOpts {
 		AlwaysOnTop: o.Appearance.AlwaysOnTop, Opacity: o.Appearance.Opacity,
 		NoShadow: o.Appearance.NoShadow, NoClose: o.Appearance.NoClose,
 		NoMinimize: o.Appearance.NoMinimize, NoMaximize: o.Appearance.NoMaximize,
+		AllSpaces: o.Appearance.AllSpaces,
 	}
 }
 
@@ -436,6 +440,11 @@ func (w *remoteWin) SetCursor(c input.Cursor) {
 	}
 	w.cursor, w.curSet = c, true
 	_ = w.cl.Send(devhost.SetCursor{Win: w.id, Cursor: c})
+}
+
+func (w *remoteWin) SetShortcutCapture(on bool) {
+	w.sc.setCapture(on)
+	_ = w.cl.Send(devhost.SetShortcutCapture{Win: w.id, Enabled: on})
 }
 
 func (w *remoteWin) SetTextInput(on bool, caret geom.Rect) {

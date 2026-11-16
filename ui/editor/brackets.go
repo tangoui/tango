@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tangoui/tango/ui/editor/internal/frameclock"
+
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/langs"
 	"github.com/tangoui/tango/ui/editor/monarch"
@@ -546,7 +548,7 @@ func (t *bracketTree) ensure(src bracketSource, upTo int, deadline time.Time) bo
 			return t.known() >= upTo
 		}
 		t.overrun = true // the frame's overrun: minOverrun more
-		deadline = time.Now().Add(minOverrun)
+		deadline = frameclock.Now().Add(minOverrun)
 	}
 	final := -1
 	bytes, lines := 0, 0 // scanned since the last look at the clock
@@ -595,7 +597,7 @@ func (t *bracketTree) ensure(src bracketSource, upTo int, deadline time.Time) bo
 		// every few lines (each is tokenized).
 		if lines++; !deadline.IsZero() && (bytes >= 4096 || lines >= 16) {
 			bytes, lines = 0, 0
-			if time.Now().After(deadline) {
+			if frameclock.Now().After(deadline) {
 				break
 			}
 		}
@@ -626,7 +628,7 @@ func (t *bracketTree) lineText(src bracketSource, i int) string {
 
 // pastDeadline reports whether deadline (zero: none) has passed.
 func (t *bracketTree) pastDeadline(deadline time.Time) bool {
-	return !deadline.IsZero() && time.Now().After(deadline)
+	return !deadline.IsZero() && frameclock.Now().After(deadline)
 }
 
 // minOverrun is the work a frame may do once past its bracket deadline

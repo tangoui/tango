@@ -12,8 +12,8 @@ Tango 只有一个构建开关：`tango_dev` 构建标签。
 | 未处理的 panic（`Options.OnPanic` 为 nil） | 弹错误框后以退出码 2 退出 | 记日志、继续运行 |
 | `i18n` 缺失 key 警告、`env.Info().Debug` | 关闭 / `false` | 打开 / `true` |
 | GPU 渲染校验（`internal/render/gpu` verify 模式）默认值 | 见 `internal/render/gpu/verify_release.go` | 打开 |
-| IPC 快速通道的测试开关（`TANGO_IPC_LANE_FAULT`；macOS/iOS 另有 `TANGO_SCHEME_PROBE` 的探测路由和通道计数器、`TANGO_IPC_LANES_DARWIN=all`） | 无效（`all` 等同默认的开启值） | 生效 |
-| iOS 模拟器自测钩子（`TANGO_SCHEME_PROBE`、`TANGO_IPC_LANES_DARWIN=all`、`TANGO_CANVAS_IME_SELFTEST`、`TANGO_CANVAS_A11Y_SELFTEST`）和通道故障注入 `TANGO_IPC_LANE_FAULT`（所有平台） | 无效；`-tags tango_selftest` 时生效（见下文） | 生效 |
+| IPC 快速通道的测试开关（`TANGO_IPC_LANE_FAULT`；macOS/iOS 另有 `TANGO_SCHEME_PROBE` 的探测路由和通道计数器） | 无效 | 生效 |
+| iOS 模拟器自测钩子（`TANGO_SCHEME_PROBE`、`TANGO_CANVAS_IME_SELFTEST`、`TANGO_CANVAS_A11Y_SELFTEST`）和通道故障注入 `TANGO_IPC_LANE_FAULT`（所有平台） | 无效；`-tags tango_selftest` 时生效（见下文） | 生效 |
 | Android 模拟器自测钩子：启动参数 `TANGO_TEST_ENV`（还要求可调试 APK）、`TANGO_ANDROID_NO_ARRAYBUFFER`、快速通道计数（`android.LaneStatsSnapshot`） | 无效；`-tags tango_selftest` 时生效（见下文） | 生效 |
 
 **直接 `go run .` 或 `go build` 得到的就是生产行为。** 热加载、自动化、前端开发代理这些开发功能只能通过 `tan dev` 或手动加 `-tags tango_dev` 使用。
@@ -22,11 +22,11 @@ Tango 只有一个构建开关：`tango_dev` 构建标签。
 
 开发功能都由环境变量或本机端口触发。与应用同一用户的任何进程都能控制这些输入：`open -a App --env TANGO_DEV_URL=http://evil`、`launchctl setenv`、Windows 的用户环境变量、抢占本机端口。若发布版也响应它们，攻击者就能让一个已签名、已拿到 TCC 授权和钥匙串访问的应用加载自己的页面（页面可调用全部绑定），或通过自动化通道远程执行 JS。运行时检查挡不住同用户的攻击者，所以这些代码在默认构建里根本不编译进去：`go list -deps` 看不到 `internal/automation`、`internal/devhost`（`automation` 包的 `TestReleaseBuildHasNoChannel` 检查），二进制里也没有 `asset.DevProxy`。
 
-默认构建仍会读取几个面向用户排障的变量：`TANGO_RENDERER`（自绘窗口渲染器）、`TANGO_TEXT_ENGINE`（文字引擎）、`TANGO_LINUX_TRAY`、`TANGO_ATSPI_EMBED`、`TANGO_WINDOWS_TOAST=0`（Windows 通知回退到气泡）。它们只在已有实现之间切换，不会加载外部代码或打开通道。
+默认构建仍会读取几个面向用户排障的变量：`TANGO_RENDERER`（自绘窗口渲染器）、`TANGO_FRAME_TRACE`（自绘窗口帧时延日志，见下文）、`TANGO_TEXT_ENGINE`（文字引擎）、`TANGO_LINUX_TRAY`、`TANGO_ATSPI_EMBED`、`TANGO_WINDOWS_TOAST=0`（Windows 通知回退到气泡）。它们只在已有实现之间切换或只写日志，不会加载外部代码或打开通道。
 
 macOS 可选 `TANGO_TEXT_ENGINE=coretext`：无换行短文本使用 CoreText glyph-run 排版和系统字体回退，glyph 仍走 Tango 的 CoreText raster；换行、RTL、编辑器行缓存和不适合的文本自动回退 go-text/HarfBuzz。它是轻量/实验路径，CoreText 的字距与 go-text 可能存在平台差异；未设置时保持默认 go-text/HarfBuzz 路径。
 
-iOS 模拟器自测要用这些钩子，但 `tan build`（`mobile/ios/build.sh` 也走它）会去掉 `tango_dev`。所以 iOS 另有一个只编进测试钩子的标签 `tango_selftest`：`tan build` 保留 `GOFLAGS` 里除 `tango_dev` 以外的标签，`GOFLAGS=-tags=tango_selftest bash mobile/ios/build.sh <应用> simulator` 构建出带钩子的 .app（`scripts/smoke.sh ios-probe`、`ios-selftest` 就这样构建）。`tango_selftest` 不链接自动化通道、热加载或开发代理，只打开上表那几个自测钩子。不带这两个标签的 iOS 构建不读这些变量，桥接代码里的探测路由也不编译进去。快速通道的关闭开关（`TANGO_IPC_LANES_DARWIN=0`/`false`/`off`、`TANGO_IPC_LANES=0`）在所有构建里都生效。
+iOS 模拟器自测要用这些钩子，但 `tan build`（`mobile/ios/build.sh` 也走它）会去掉 `tango_dev`。所以 iOS 另有一个只编进测试钩子的标签 `tango_selftest`：`tan build` 保留 `GOFLAGS` 里除 `tango_dev` 以外的标签，`GOFLAGS=-tags=tango_selftest bash mobile/ios/build.sh <应用> simulator` 构建出带钩子的 .app（`scripts/smoke.sh ios-probe`、`ios-selftest` 就这样构建）。`tango_selftest` 不链接自动化通道、热加载或开发代理，只打开上表那几个自测钩子。不带这两个标签的 iOS 构建不读这些变量，桥接代码里的探测路由也不编译进去。`TANGO_IPC_LANES_DARWIN` 的所有取值（macOS：`1`/`all` 开 `down:poll` + `up:post`，`up`、`down` 只开其一，`0`/`false`/`off` 关闭；iOS：非空且不是关闭值时开 `up:post`）和 `TANGO_IPC_LANES=0` 在所有构建里都生效，不再是开发构建专属的测试开关（`all` 以前只在开发构建里开 `down:scheme`，该通道已删除）。
 
 Android 同样用 `tango_selftest`：`GOFLAGS=-tags=tango_selftest bash mobile/android/build.sh <应用>`（`scripts/smoke.sh android-selftest`、`android-lanefault` 就这样构建）。Android 进程没法从外部拿到环境变量，所以测试钩子构建另读启动 Intent 的字符串数组 extra `TANGO_TEST_ENV`：`adb shell am start -n <包名>/org.tango.host.TangoActivity --esa TANGO_TEST_ENV TANGO_A=1,TANGO_B=2`（`am` 按逗号拆分，所以值里不能有逗号），只接受 `TANGO_` 开头的键，在 `main.main` 运行之前 `os.Setenv`。Java 侧只在可调试 APK（`tan build -debug`，`mobile/android/build.sh` 的默认）里交出这个 extra。`TANGO_ANDROID_NO_ARRAYBUFFER=1` 让 Go 把 WebView 当成不支持 ArrayBuffer 消息（测试没有通道时的回退）。不带这两个标签的 Android 构建不读这些输入，`android.LaneStatsSnapshot` 始终为零；`TANGO_IPC_LANES_ANDROID` 是正式开关，任何构建都读。
 
@@ -41,6 +41,21 @@ Android 同样用 `tango_selftest`：`GOFLAGS=-tags=tango_selftest bash mobile/a
 - `auto`：面积不超过 100,000 逻辑像素的小窗口先使用 CPU；其他窗口 GPU 优先。CPU 起步的窗口在放大超过阈值、绘制列表达到 256 项或连续六个实际绘制帧的间隔不超过 100 ms 时，尝试升级 GPU。升级单向生效，不随缩小窗口来回切换；升级失败也不逐帧重试。这是保守的工作量启发式，不是对 CPU/GPU 快慢的保证。小型编辑器、终端或持续动画也可直接设 `gpu`。
 
 较大窗口的默认原生渲染尚未通过 CPU/尾部帧间隔验收，因此保留 GPU 默认；可用 `native` 显式比较低内存路径。
+
+GPU 默认路径还会对可重建的 atlas 页和闲置 Metal image texture 施加有界预算，在 frame boundary 淘汰未被当前 frame/command buffer 使用的资源；当前 glyph、present target 和活动图片不会被淘汰。`TANGO_GPU_BUDGET=off` 可关闭这项预算并恢复旧的资源常驻策略。该开关不改变 `TANGO_RENDERER` 的选择，也不保证每种场景都降低物理 footprint；如果重新上传导致帧尾部恶化，应先用 `TANGO_FRAME_TRACE=1` 对照。
+
+### 帧时延日志（`TANGO_FRAME_TRACE`）
+
+`TANGO_FRAME_TRACE=1` 让自绘窗口每 120 帧打一行摘要（`tango: frame trace surface N renderer=… n=120 …`），各项给 p50/p95：
+
+- `frame`：一帧在 CPU 上的全程（布局、绘制、Render、Present）；`render`：渲染器的 Render；`present`：呈现（macOS 上包含 `nextDrawable` 的等待）；`gap`：相邻两帧开始时刻的间隔（显示刷新节拍，没有请求帧时会更长）。
+- 仅 macOS Metal：`drawable`（`nextDrawable` 阻塞时长）、`misses`（拿不到 drawable 的 present 次数）、`gpu`（帧在 GPU 上的执行时长）。这三项只在该统计周期里 Metal 确实上报过时才出现。
+- 各项的样本数不一定等于 `n`：跳过绘制或呈现的帧只计入 `frame`/`gap`；`gpu` 是周期内退役的 GPU 帧，异步退役会滞后一两帧，verify 模式下每帧会多一次。
+- `renderer` 是周期结束时的渲染器：在 present 中丢失 GPU 的那一帧起就记为 `cpu`。
+
+只有经 GPU 渲染器（`gpu` 或 `native`，包括原生窗口升级 Metal 之后）呈现的窗口会被统计；原生图层窗口没有 Metal 时间线，只有前四项。CPU 窗口（`TANGO_RENDERER=cpu`、没有可用 GPU、`ui.RunnerOptions` 自选渲染器）、`Attach` 附加层和 `tan dev` 窗口不统计，各打一行 `not traced` 说明原因。
+
+没有任何平台报告帧何时真正上屏，所以这里的时间都不是"屏幕时延"。未设置时不计时、不分配。
 
 原生图层保留未变化的文字和图片，整像素移动只更新位置；圆角、边框、阴影等使用有界且可复用的参考渲染图片。复杂裁剪、变换、透明度组和背景模糊会完整软件回退，超过 64 MiB 的预计图层位图也回退；不丢弃绘制命令。原生层的文字抗锯齿遵循 CoreGraphics。大量动态图片、复杂效果或持续动画可显式选择 `gpu`。Intel macOS 保留原渲染路径。
 
@@ -77,6 +92,6 @@ Android 同样用 `tango_selftest`：`GOFLAGS=-tags=tango_selftest bash mobile/a
 
 ## 与生产构建都有关的：资源源的跨源写请求
 
-`Options.Assets` 不知道请求来自哪个页面，外站页面（用户点链接打开的、iframe 里的）可以向 `<资源源>/api` 发表单 POST。核心在请求到达 `Options.Assets` 之前检查：GET、HEAD 总是放行；其他方法的 `Origin` 必须是资源源本身（没有 `Origin` 头的请求放行），否则回 403。WebKit（macOS、iOS）对自定义 scheme 请求不带 `Origin`，后端用主文档 URL（`NSURLRequest.mainDocumentURL`）补上；Windows（WebView2）与 Android 的资源源是 `https://tango.localhost`，由 Chromium 内核按规范带 `Origin`（尚未在这两个平台上实测）。Linux（WebKitGTK）暂未补，请求不带 `Origin` 时放行。确实需要跨源写请求（自己做 CORS 或 token 校验）时设置 `tango.Options.AllowCrossOriginAssets`。
+`Options.Assets` 不知道请求来自哪个页面，外站页面（用户点链接打开的、iframe 里的）可能尝试访问 `<资源源>`。核心在请求到达 `Options.Assets` 之前检查：只要请求带 `Origin`，其值就必须是资源源本身，GET、HEAD 也不例外；没有 `Origin` 头的请求放行（例如 WebView 或核心自身发起的请求），否则回 403。WebKit（macOS、iOS）对自定义 scheme 请求不带 `Origin`，后端用主文档 URL（`NSURLRequest.mainDocumentURL`）补上；Windows（WebView2）与 Android 的资源源是 `https://tango.localhost`，由 Chromium 内核按规范带 `Origin`（尚未在这两个平台上实测）。Linux（WebKitGTK）暂未补，请求不带 `Origin` 时放行。确实需要跨源请求（自己做 CORS 或 token 校验）时设置 `tango.Options.AllowCrossOriginAssets`。
 
 已知限制：补上的是主文档的来源，后端分不清请求来自哪个 frame，所以应用页面里嵌的跨源 iframe 发往资源源的写请求也能通过这项检查（IPC 快速通道的请求另有每世代令牌保护，不受影响）。不要在资源页面里嵌不可信的 frame。

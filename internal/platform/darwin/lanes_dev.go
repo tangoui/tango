@@ -2,18 +2,15 @@
 
 package darwin
 
-// Development-build test hooks of the lanes (see lanes.go): the
-// TANGO_IPC_LANES_DARWIN=all experiment and the lane counters.
+// Development-build test hooks of the lanes (see lanes.go): the lane
+// counters, on with TANGO_SCHEME_PROBE=1.
 
 import (
+	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 )
-
-// devTestHooks is true in development builds: laneCapsFromEnv honours
-// TANGO_IPC_LANES_DARWIN=all and the scheme handler honours
-// TANGO_SCHEME_PROBE=1 (lane counters, the streaming probe route).
-const devTestHooks = true
 
 // LaneDownStats returns the lane counters (all zero unless
 // TANGO_SCHEME_PROBE=1, and always zero in production builds). Any
@@ -21,16 +18,21 @@ const devTestHooks = true
 func LaneDownStats() LaneStats { return laneProbe.stats() }
 
 var laneProbe laneCounters
+var laneTrace = sync.OnceValue(func() bool { return os.Getenv("TANGO_IPC_TRACE") == "1" })
 
 type laneCounters struct {
-	downReq, downConns, downActive, downWrites, upReq, upOK, upActive atomic.Int64
-	upMainNanos, upMainMax, upBodyBytes                               atomic.Int64
+	downReq, downConns, downActive, downWrites, downRefused, downOpen, upReq, upOK, upActive atomic.Int64
+	downResponseNanos, downDataNanos, downFinishNanos, downDataCalls                         atomic.Int64
+	upMainNanos, upMainMax, upBodyBytes                                                      atomic.Int64
 }
 
 func (c *laneCounters) stats() LaneStats {
 	return LaneStats{
 		DownRequests: c.downReq.Load(), DownConns: c.downConns.Load(), DownActive: c.downActive.Load(),
-		DownWrites: c.downWrites.Load(), UpRequests: c.upReq.Load(), UpAccepted: c.upOK.Load(),
+		DownWrites: c.downWrites.Load(), DownRefused: c.downRefused.Load(), DownOpen: c.downOpen.Load(),
+		DownResponseNanos: c.downResponseNanos.Load(), DownDataNanos: c.downDataNanos.Load(),
+		DownFinishNanos: c.downFinishNanos.Load(), DownDataCalls: c.downDataCalls.Load(),
+		UpRequests: c.upReq.Load(), UpAccepted: c.upOK.Load(),
 		UpActive: c.upActive.Load(), UpMainNanos: c.upMainNanos.Load(), UpMainMaxNanos: c.upMainMax.Load(),
 		UpBodyBytes: c.upBodyBytes.Load(),
 	}
@@ -40,13 +42,14 @@ func (c *laneCounters) stats() LaneStats {
 // request.
 func (c *laneCounters) track(path string) *laneTrack {
 	switch path {
-	case "/__tango/lane/down":
+	case "/__tango/lane/poll":
 		c.downReq.Add(1)
-		return &laneTrack{c: c, down: true}
+		c.downOpen.Add(1)
+		return &laneTrack{c: c, down: true, open: true, started: time.Now()}
 	case "/__tango/lane/up":
 		c.upReq.Add(1)
 		c.upActive.Add(1)
-		return &laneTrack{c: c, open: true}
+		return &laneTrack{c: c, open: true, started: time.Now()}
 	}
 	return nil
 }
@@ -57,16 +60,26 @@ type laneTrack struct {
 	c        *laneCounters
 	down     bool
 	accepted bool // a down connection answered 200, until done
-	open     bool // an up request, until done
+	open     bool // until done
+	started  time.Time
+	response time.Time
+	lastData time.Time
 }
 
 func (t *laneTrack) respond(status int) {
 	switch {
 	case t == nil:
 	case t.down && status == 200:
+		now := time.Now()
+		if laneTrace() {
+			t.response = now
+			t.c.downResponseNanos.Add(now.Sub(t.started).Nanoseconds())
+		}
 		t.accepted = true
 		t.c.downConns.Add(1)
 		t.c.downActive.Add(1)
+	case t.down && status == 403:
+		t.c.downRefused.Add(1)
 	case !t.down && status >= 200 && status < 300:
 		t.c.upOK.Add(1)
 	}
@@ -88,20 +101,46 @@ func (t *laneTrack) mainTime(d time.Duration, n int64) {
 	}
 }
 
-func (t *laneTrack) data() {
+func (t *laneTrack) data(_ ...int) {
 	if t != nil && t.accepted {
 		t.c.downWrites.Add(1)
+		if laneTrace() {
+			now := time.Now()
+			from := t.response
+			if !t.lastData.IsZero() {
+				from = t.lastData
+			}
+			t.lastData = now
+			t.c.downDataCalls.Add(1)
+			if !from.IsZero() {
+				t.c.downDataNanos.Add(now.Sub(from).Nanoseconds())
+			}
+		}
 	}
 }
 
 func (t *laneTrack) done() {
 	if t != nil && t.accepted {
+		if laneTrace() {
+			now := time.Now()
+			from := t.lastData
+			if from.IsZero() {
+				from = t.response
+			}
+			if !from.IsZero() {
+				t.c.downFinishNanos.Add(now.Sub(from).Nanoseconds())
+			}
+		}
 		t.accepted = false
 		t.c.downActive.Add(-1)
 	}
 	if t != nil && t.open {
 		t.open = false
-		t.c.upActive.Add(-1)
+		if t.down {
+			t.c.downOpen.Add(-1)
+		} else {
+			t.c.upActive.Add(-1)
+		}
 	}
 }
 

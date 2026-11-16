@@ -20,10 +20,10 @@ func TestLaneCapsFromEnv(t *testing.T) {
 		{" OFF ", "", nil},
 		{"False", "", nil},
 		{" ", "", nil},
-		{"ALL", "", []string{"down:scheme", "up:post"}},
-		{"all", "", []string{"down:scheme", "up:post"}}, // experimental
-		{"", "", nil},                                   // unset/empty: off on iOS (macOS differs on purpose: default on)
-		{"1", "0", nil},                                 // the kill switch wins
+		{"ALL", "", []string{"up:post"}},
+		{"all", "", []string{"up:post"}}, // no down:poll on iOS
+		{"", "", nil},                    // unset/empty: off on iOS (macOS differs on purpose: default on)
+		{"1", "0", nil},                  // the kill switch wins
 		{"all", "0", nil},
 		{"", "0", nil},
 	}

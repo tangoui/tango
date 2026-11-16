@@ -38,7 +38,7 @@ func newWireClient(t *testing.T, r *Router) *wireClient {
 	}
 	w := &wireClient{
 		t: t, r: r, c: c,
-		sendWin: h.Win, recvWin: r.jsSendWindow(),
+		sendWin: h.Win, recvWin: pageWindow(r, c),
 		done:    make(chan struct{}),
 		streams: make(map[uint64]*wireStream),
 	}

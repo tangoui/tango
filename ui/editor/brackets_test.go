@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tangoui/tango/ui/editor/buffer"
+	"github.com/tangoui/tango/ui/editor/internal/frameclock"
 	"github.com/tangoui/tango/ui/editor/monarch"
 	"github.com/tangoui/tango/ui/editor/theme"
 	"github.com/tangoui/tango/ui/geom"
@@ -424,16 +425,12 @@ func TestMatchManyCursorsBounded(t *testing.T) {
 		// the race detector and on shared CI runners (gateLimit), which are
 		// slower and, without a thread clock, preempt the frame.
 		limit := gateLimit(bracketFrameBudget + minOverrun + time.Millisecond)
-		// With a thread clock, no frame's work is far over the limit and
-		// few are over it. Without one, wall time is judged on the median
-		// frame and on repeated far overruns: on laptops with frequency
-		// scaling or hybrid cores the same 2 ms of work takes from 1 ms to
-		// 3 ms and more, with spikes of tens of milliseconds. Unbounded work
-		// overruns frame after frame and fails either way.
-		over, overLimit := 0, limit
-		if !threadCPUClock {
-			overLimit = 3 * limit
-		}
+		// Thread-clock platforms and Windows keep the original per-frame
+		// thresholds. Windows uses wall time, so OS preemption still counts:
+		// a single far overrun must fail, not disappear behind a median.
+		// Other fallback platforms retain the median/far-overrun policy.
+		hardLimit, overLimit := bracketFrameTimingLimits(runtime.GOOS, threadCPUClock, limit)
+		over := 0
 		from := 0
 		var walls []time.Duration
 		done := false
@@ -443,12 +440,12 @@ func TestMatchManyCursorsBounded(t *testing.T) {
 			tr.unsure = false
 			start := time.Now()
 			w0 := workClock()
-			unsure := st.matchCarets(MatchBracketsAlways, start.Add(budget), from, res)
+			unsure := st.matchCarets(MatchBracketsAlways, frameclock.Now().Add(budget), from, res)
 			work := workClock() - w0
 			wall := time.Since(start)
 			out := matchRanges(res)
 			walls = append(walls, wall)
-			if threadCPUClock && work > 3*limit {
+			if hardLimit > 0 && work > hardLimit {
 				t.Fatalf("%d lines, %d carets, frame %d: bracket work %v (wall %v), want at most %v", c.lines, c.carets, frame, work, wall, limit)
 			}
 			if work > overLimit {
@@ -468,7 +465,7 @@ func TestMatchManyCursorsBounded(t *testing.T) {
 			t.Errorf("%d lines: %d frames over %v", c.lines, over, overLimit)
 		}
 		slices.Sort(walls)
-		if med := walls[len(walls)/2]; !threadCPUClock && len(walls) >= 10 && med > limit { // a few frames have no stable median
+		if med := walls[len(walls)/2]; hardLimit == 0 && len(walls) >= 10 && med > limit { // a few frames have no stable median
 			t.Errorf("%d lines: median frame %v, want at most %v", c.lines, med, limit)
 		}
 		if c.all && !done {

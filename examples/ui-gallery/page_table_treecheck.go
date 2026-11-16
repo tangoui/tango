@@ -29,11 +29,11 @@ func init() {
 			{Key: "lead", Title: "负责人", Width: 200, Text: func(i int) string { return nodes[i].lead }},
 		}
 		return func(c *ui.Context) {
-				tbDemo(c, "父子联动（默认）", "勾选父节点会勾选全部子孙；子节点全选时父节点自动勾选，部分勾选时显示半选。", func() {
+				tbDemo(c, "CheckLinked 父子联动", "勾选父节点会勾选全部子孙；子节点全选时父节点自动勾选，部分勾选时显示半选（Element Plus 默认；antd checkStrictly={false}）。", func() {
 					ui.Table(c, cols, len(nodes)).Tree([]int{0}, func(i int) []int { return nodes[i].kids }).
-						TreeOpenKeys(&open).Selection(&sel).Size(ui.Middle).Show()
+						TreeOpenKeys(&open).Selection(&sel).CheckLinked().Size(ui.Middle).Show()
 				})
-				tbDemo(c, "CheckStrictly", "关闭联动：父子节点各自独立勾选。", func() {
+				tbDemo(c, "CheckStrictly（默认）", "不联动：父子节点各自独立勾选（antd rowSelection.checkStrictly 默认 true）。", func() {
 					ui.Table(c, cols, len(nodes)).Tree([]int{0}, func(i int) []int { return nodes[i].kids }).
 						TreeOpenKeys(&open2).Selection(&sel2).CheckStrictly().Size(ui.Middle).Show()
 				})

@@ -16,6 +16,9 @@ package windows
 // handled, so Alt+F4, Alt+Space and menu mnemonics keep working. Menu
 // accelerators are translated by the backend's message loop before the
 // canvas sees the key (as the menu sees Cmd shortcuts first on macOS).
+// Shortcut capture skips TranslateAccelerator only for the actual focus
+// canvas and consumes system-key defaults (including Alt+F4) and SYSCHAR.
+// Captured keys remain protected until keyup, even if recording ends first.
 //
 // AltGr. On layouts with a third level the right Alt key arrives as a
 // left Ctrl the system synthesizes, then the real right Alt with the same
@@ -61,6 +64,7 @@ const (
 	canvasWmChar           = 0x0102
 	canvasWmSysKeyDown     = 0x0104
 	canvasWmSysKeyUp       = 0x0105
+	canvasWmSysChar        = 0x0106
 	canvasWmImeStartComp   = 0x010D
 	canvasWmImeEndComp     = 0x010E
 	canvasWmImeComposition = 0x010F
@@ -207,17 +211,28 @@ func (c *canvas) inputMessage(m uint32, wp, lp uintptr) (uintptr, bool) {
 		return 0, false
 
 	case canvasWmKeyDown, canvasWmSysKeyDown:
+		captured := c.capturesShortcutKey(uint16(wp))
+		if captured {
+			c.holdShortcut(uint16(wp))
+		}
 		if c.skipAltGrCtrl(m, wp, lp) {
-			return 0, m == canvasWmKeyDown
+			return 0, m == canvasWmKeyDown || captured
 		}
 		c.key(uint16(wp), lp, true, canvasKeyRepeat(lp))
-		return 0, m == canvasWmKeyDown // system keys continue to DefWindowProc
+		return 0, m == canvasWmKeyDown || captured // block Alt+F4/Space/F10 defaults while recording
 	case canvasWmKeyUp, canvasWmSysKeyUp:
+		captured := c.capturesShortcutKey(uint16(wp))
+		delete(c.shortcutHeld, uint16(wp))
 		if c.skipAltGrCtrl(m, wp, lp) {
-			return 0, m == canvasWmKeyUp
+			return 0, m == canvasWmKeyUp || captured
 		}
 		c.key(uint16(wp), lp, false, false)
-		return 0, m == canvasWmKeyUp
+		return 0, m == canvasWmKeyUp || captured
+	case canvasWmSysChar:
+		// TranslateMessage can have queued WM_SYSCHAR before dispatching
+		// the keydown that ends recording. Suppress its menu mnemonic too.
+		focus, _, _ := canvasGetFocus.Call()
+		return 0, focus == c.hwnd && (c.shortcutCapture || len(c.shortcutHeld) > 0)
 	case canvasWmChar:
 		if c.textOn {
 			if s, ok := c.chars.feed(uint16(wp)); ok {
@@ -232,6 +247,7 @@ func (c *canvas) inputMessage(m uint32, wp, lp uintptr) (uintptr, bool) {
 		c.placeIME()
 		return 0, true
 	case canvasWmKillFocus:
+		clear(c.shortcutHeld)
 		c.hasFocus = false
 		c.altGr = false
 		c.chars = canvasCharDecoder{}

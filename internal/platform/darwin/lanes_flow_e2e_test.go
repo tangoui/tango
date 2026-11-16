@@ -13,8 +13,9 @@ import (
 )
 
 // End-to-end lane scenarios on macOS: examples/duplex with
-// TANGO_IPC_LANES_DARWIN=1 (explicit; the same as the default: up:post
-// only, spec §6.2) and the test hooks
+// TANGO_IPC_LANES_DARWIN=up (explicit: up:post only, as the default while
+// down:poll is off by default; downpoll_e2e_test.go covers down:poll) and
+// the test hooks
 // (TANGO_SCHEME_PROBE=1: Debug.Stats, /__test/lanetests.js). The scenarios
 // themselves are examples/duplex/services/lanetests.js, which the iOS
 // self-test (examples/duplex-mobile) runs too; each returns its numbers, ok
@@ -24,7 +25,7 @@ import (
 //	TANGO_E2E=1 go test -timeout 900s ./internal/platform/darwin -run 'LaneBig|LaneMixed|LaneReload|LaneStall|LaneFault' -v
 
 // laneFlowEnv is the environment of the lane scenarios.
-var laneFlowEnv = []string{"TANGO_SCHEME_PROBE=1", "TANGO_IPC_LANES_DARWIN=1", "TANGO_IPC_LANES=", "TANGO_IPC_LANE_FAULT="}
+var laneFlowEnv = []string{"TANGO_SCHEME_PROBE=1", "TANGO_IPC_LANES_DARWIN=up", "TANGO_IPC_LANES=", "TANGO_IPC_LANE_FAULT="}
 
 // launchLaneFlow starts examples/duplex with laneFlowEnv plus extra, waits
 // for up:post to be ready and loads the scenarios.

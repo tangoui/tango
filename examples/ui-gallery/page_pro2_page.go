@@ -70,7 +70,7 @@ func pro2PageContainerDemo(c *ui.Context) {
 
 func pro2FooterToolbarDemo(c *ui.Context) {
 	th := c.Theme
-	ui.Text(c, "FooterToolbar 支持普通流、Sticky() 窗口吸底和 Target(scrollBox) 容器吸底；固定时为 Tango 适配的毛玻璃，HighContrast 或不支持模糊的渲染器自动使用不透明背景。").Tertiary().
+	ui.Text(c, "FooterToolbar 默认固定在视口底部；Fixed(false) 使用普通流，Sticky() 按阈值吸底，Target(scrollBox) 固定到容器底部；固定时为 Tango 适配的毛玻璃，HighContrast 或不支持模糊的渲染器自动使用不透明背景。").Tertiary().
 		Layout(layout.Margin(geom.Insets{Bottom: 8}))
 	pro2Canvas(c, func() {
 		// Target-sticky is first so the state is visible even in the fixed-size
@@ -118,7 +118,7 @@ func pro2FooterToolbarDemo(c *ui.Context) {
 		// FooterToolbar background rather than the pinned frosted surface.
 		ui.ProCard(c, "普通流").SubTitle("不吸底，跟随内容自然排布").Body(func() {
 			ui.Text(c, "普通流 FooterToolbar 会占据内容高度，适合页面内的局部操作。")
-			ui.FooterToolbar(c).Extra(func() {
+			ui.FooterToolbar(c).Fixed(false).Extra(func() {
 				ui.Text(c, "已选择 2 项").Secondary()
 			}).Body(func() {
 				ui.Button(c, "取消")

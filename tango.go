@@ -55,9 +55,8 @@ var ErrNoBackend = errors.New("tango: no platform backend for this platform")
 type Options struct {
 	Name, ID string
 	// Assets serves requests under the backend's asset origin; nil
-	// answers 404. Requests other than GET and HEAD whose Origin header
-	// names another origin (a remote page posting a form to /api, say)
-	// are answered 403 before they reach it; see assets.go.
+	// answers 404. If a request supplies an Origin header, it must name the
+	// asset origin for every method, including GET and HEAD; see assets.go.
 	Assets http.Handler
 	// AllowCrossOriginAssets turns that Origin check off, for apps whose
 	// asset handler does its own (CORS, tokens).
@@ -161,6 +160,8 @@ func newWithBackend(opts Options, b platform.Backend) *App {
 	a.loop.app = a
 	// Fast lane control messages from runtime-js; lanes.go.
 	a.handleInternal(laneChannel, func(s *Surface, p string) { s.lane.Control(p) })
+	// down:poll reports from downShim; downpoll.go.
+	a.handleInternal(downChannel, func(s *Surface, p string) { s.handleDown(p) })
 	devfeat.AttachWindowState(a) // tan dev window placement; internal/devfeat
 	devfeat.AttachAutomation(a)  // TANGO_AUTOMATION control channel; internal/devfeat
 	return a
@@ -212,7 +213,8 @@ func (a *App) shutdown() {
 	a.mu.Unlock()
 	for _, s := range ss {
 		s.closed.Store(true)
-		s.lane.Close() // ends a down:scheme response still open; lanes.go
+		s.downq.Close() // ends a down:poll request still waiting; downpoll.go
+		s.lane.Close()
 	}
 }
 

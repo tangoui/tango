@@ -177,6 +177,8 @@ func (b *backend) finishSurface(s *surface, ex *platform.SurfaceExtras) {
 	s.accel = gtkAccelGroupNew()
 	gtkWindowAddAccelGroup(s.win, s.accel)
 
+	connect(s.win, "key-press-event", 1, func(_, ev ptr) ptr { return s.captureShortcut(ev, true) })
+	connect(s.win, "key-release-event", 1, func(_, ev ptr) ptr { return s.captureShortcut(ev, false) })
 	connect(s.win, "delete-event", 1, s.onDeleteEvent)
 	connect(s.win, "destroy", 0, s.onDestroy)
 	connect(s.win, "focus-in-event", 1, s.onFocusIn)

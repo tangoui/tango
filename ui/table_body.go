@@ -188,10 +188,7 @@ func (f *tblFrame) measureRow(r tblRow) float32 {
 
 // treeIndent is the width of a tree row's indent and toggle.
 func (f *tblFrame) treeIndent(r tblRow) float32 {
-	sz := float32(17)
-	if f.el {
-		sz = 16
-	}
+	sz := f.tk.ExpandIconSize // layout box (antd scales the drawing only)
 	return float32(r.depth)*f.t.indent + sz + 8
 }
 
@@ -359,8 +356,8 @@ func (f *tblFrame) body() {
 	// node so scroll.go maps the logical offset in RTL (offset 0 shows the
 	// right end, wheel and scrollbar deltas flip).
 	f.scroll.ln = &b.n.ln
-	if t.bordered && !f.el && len(t.summary) == 0 {
-		b.n.radii = geom.Radii{BL: th.RadiusLG, BR: th.RadiusLG}
+	if br := f.tk.BottomRadius; t.bordered && br > 0 && len(t.summary) == 0 && t.footer == nil {
+		b.n.radii = geom.Radii{BL: br, BR: br}
 	}
 	f.rowPaint = t.span == nil
 	f.bodyID = b.n.id
@@ -485,8 +482,8 @@ func (f *tblFrame) rowBg(rv *tblRowVis, sorted bool) theme.Color {
 		return th.ColorOf(rv.style.Status).Bg
 	case rv.stripe:
 		return tk.RowStripedBg
-	case sorted && !f.el:
-		return tk.BodySortBg
+	case sorted:
+		return tk.BodySortBg // zero for Element
 	}
 	return theme.Color{}
 }
@@ -651,6 +648,9 @@ func (f *tblFrame) cell(r tblRow, pos int, ce tblCell, top float32, rv *tblRowVi
 	n.ln.Dir = layout.Row
 	n.ln.Align = layout.AlignCenter
 	n.ln.Padding = geom.VH(0, f.ph)
+	if lf.kind == tkSelect {
+		n.ln.Padding = geom.VH(0, f.selPad(w))
+	}
 	n.ln.Gap = 8
 	align := AlignStart
 	if col != nil {
@@ -782,6 +782,12 @@ func (f *tblFrame) cell(r tblRow, pos int, ce tblCell, top float32, rv *tblRowVi
 	return n.id, true
 }
 
+// selPad is the inline padding of a selection cell of width w: the token
+// (antd paddingXS 8, EP 14), shrunk so a 16px checkbox still fits.
+func (f *tblFrame) selPad(w float32) float32 {
+	return max(0, min(f.tk.SelectionPaddingInline, (w-16)/2))
+}
+
 // selectCell builds the checkbox or radio of a row.
 func (f *tblFrame) selectCell(r tblRow, pos int) {
 	c, t := f.c, f.t
@@ -826,7 +832,7 @@ func (f *tblFrame) expandCell(r tblRow) {
 	}
 	open := f.expSet[r.key]
 	n := c.add("expand-icon", "expand:"+r.key)
-	n.ln.Width, n.ln.Height = 17, 17
+	n.ln.Width, n.ln.Height = f.tk.ExpandIconSize, f.tk.ExpandIconSize
 	ia := c.interact(n, false, input.CursorPointer)
 	if ia.Clicked {
 		ks := f.expKeys()
@@ -838,7 +844,7 @@ func (f *tblFrame) expandCell(r tblRow) {
 	}
 	f.toggleSem(n, open)
 	a := c.Anim(n.id, "open", b2f(open), f.th.DurationMid)
-	n.paint = func(l *paint.List, rr geom.Rect) { tblDrawExpand(f.th, l, rr, a, ia.Hovered, f.rtl) }
+	n.paint = func(l *paint.List, rr geom.Rect) { tblDrawExpand(f.tk, l, rr, a, ia.Hovered, f.rtl) }
 }
 
 // toggleSem annotates an expand / tree toggle. It is pointer-only: the
@@ -862,10 +868,7 @@ func (f *tblFrame) treePrefix(r tblRow) float32 {
 	if ind > 0 {
 		Gap(c, ind)
 	}
-	sz := float32(17)
-	if f.el {
-		sz = 16
-	}
+	sz := f.tk.ExpandIconSize
 	n := c.add("tree-toggle", "tree:"+r.key)
 	n.ln.Width, n.ln.Height = sz, sz
 	n.ln.Margin.Right = 8
@@ -898,7 +901,7 @@ func (f *tblFrame) treePrefix(r tblRow) float32 {
 				drawSpinner(c, l, rr.Inset(geom.All(1.5)))
 				return
 			}
-			tblDrawExpand(f.th, l, rr, a, hov, f.rtl)
+			tblDrawExpand(f.tk, l, rr, a, hov, f.rtl)
 		}
 	}
 	return ind + sz + 8
@@ -910,16 +913,16 @@ func (f *tblFrame) panel(r tblRow) {
 	p := c.box("tr-expand", layout.Column, nil)
 	p.n.ln.Width = f.viewW
 	p.n.ln.Margin.Left = f.sx
-	if f.el {
-		p.n.ln.Padding = geom.VH(20, 50)
-	} else {
-		p.n.ln.Padding = geom.VH(f.pv, f.ph)
+	pv, ph := f.pv, f.ph
+	if f.tk.ExpandedPaddingBlock > 0 || f.tk.ExpandedPaddingInline > 0 {
+		pv, ph = f.tk.ExpandedPaddingBlock, f.tk.ExpandedPaddingInline // EP __expanded-cell 20px 50px
 	}
+	p.n.ln.Padding = geom.VH(pv, ph)
 	p.Body(func() { t.expRender(r.data) })
 	p.Paint(func(l *paint.List, rr geom.Rect) {
 		l.Fill(rr, geom.Radii{}, th.BgContainer)
-		if !f.el {
-			l.Fill(rr, geom.Radii{}, th.FillAlter)
+		if bg := f.tk.RowExpandedBg; bg.A > 0 {
+			l.Fill(rr, geom.Radii{}, bg) // antd rowExpandedBg colorFillAlter
 		}
 		l.Fill(geom.Rect{X: rr.X, Y: rr.Bottom() - 1, W: rr.W, H: 1}, geom.Radii{}, f.spl)
 	})
@@ -1103,16 +1106,19 @@ func (f *tblFrame) scrollThumbs() {
 			if show <= 0.01 {
 				return
 			}
-			a := float64(show) * 0.5
+			// antd sticky.js scroll bar / EP $scrollbar / shadcn
+			// scroll-area thumb (TableToken.StickyScrollBar*).
+			col := f.tk.StickyScrollBarBg
 			if drag || ia.Hovered {
-				a = 0.75
+				col = f.tk.StickyScrollBarHoverBg
 			}
-			col := theme.Fade(th.TextTertiary, a)
+			col = theme.Fade(col, float64(show))
+			sz := min(f.tk.StickyScrollBarSize, 10)
 			if vertical {
 				// 1px from the box's outer edge (the table's end edge).
-				l.Fill(geom.Rect{X: f.inl(rr).X(3, 6), Y: rr.Y + 2, W: 6, H: rr.H - 4}, geom.Rad(3), col)
+				l.Fill(geom.Rect{X: f.inl(rr).X(9-sz, sz), Y: rr.Y + 2, W: sz, H: rr.H - 4}, geom.Rad(sz/2), col)
 			} else {
-				l.Fill(geom.Rect{X: rr.X + 2, Y: rr.Y + 3, W: rr.W - 4, H: 6}, geom.Rad(3), col)
+				l.Fill(geom.Rect{X: rr.X + 2, Y: rr.Y + 9 - sz, W: rr.W - 4, H: sz}, geom.Rad(sz/2), col)
 			}
 		}
 	}
@@ -1179,7 +1185,7 @@ func (f *tblFrame) summaryBar() {
 							l.Fill(geom.Rect{X: f.inl(rr).X(rr.W-1, 1), Y: rr.Y, W: 1, H: rr.H}, geom.Radii{}, f.spl)
 						}
 						tc := f.tk.FooterColor
-						f.drawText(l, v, rr.X+f.ph, rr.Y, rr.W-2*f.ph, rr.H, align, f.font(text.Regular), tc)
+						f.drawText(l, v, rr.X+f.ph, rr.Y, rr.W-2*f.ph, rr.H, align, f.font(themeWeight(f.tk.FooterFontWeight)), tc)
 					}
 				}
 			}

@@ -83,12 +83,20 @@ func TestG2SliderTokenDefaults(t *testing.T) {
 			rail, railHov, track, trackHov = th.FillTertiary, th.FillSecondary, th.Primary.Border, th.Primary.BorderHover
 			ring, ringAct, bg = th.Primary.Border, th.Primary.Base, th.BgContainer
 			halo = theme.Fade(th.Primary.Base, .2)
-			hs, hsHov, lw, lwHov, dot = 10, 12, 2, 4, 8
+			hs, hsHov, lw, lwHov, dot = 10, 12, 2, 2.5, 8
+		}
+		trackDis, handleDis := th.TextDisabled, th.TextDisabled
+		switch th.Flavor {
+		case theme.Element:
+			trackDis, handleDis = th.TextQuaternary, th.TextQuaternary
+		case theme.StyleShadcn:
+		default:
+			trackDis = th.BgContainerDisabled
 		}
 		if k.RailSize != th.SliderRailHeight || k.RailBg != rail || k.RailHoverBg != railHov || k.TrackBg != track ||
 			k.TrackHoverBg != trackHov || k.HandleColor != ring || k.HandleActiveColor != ringAct || k.HandleBg != bg ||
 			k.HandleSize != hs || k.HandleSizeHover != hsHov || k.HandleLineWidth != lw || k.HandleLineWidthHover != lwHov ||
-			k.DotSize != dot || k.TrackBgDisabled != th.TextDisabled || k.HandleColorDisabled != th.TextDisabled ||
+			k.DotSize != dot || k.TrackBgDisabled != trackDis || k.HandleColorDisabled != handleDis ||
 			k.DotBorderColor != th.BorderSecondary || (th.Flavor != theme.Element && k.HandleActiveOutlineColor != halo) {
 			t.Errorf("%s: slider token %+v", name, k)
 		}

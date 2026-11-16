@@ -215,20 +215,10 @@ func ansiSGR(st ANSIStyle, params string) ANSIStyle {
 	if params[0] >= '<' && params[0] <= '?' { // private sequences
 		return st
 	}
-	ps := strings.Split(params, ";")
-	num := func(s string) int {
-		if i := strings.IndexByte(s, ':'); i >= 0 {
-			s = s[:i]
-		}
-		n, err := strconv.Atoi(s)
-		if err != nil {
-			return 0
-		}
-		return n
-	}
-	for i := 0; i < len(ps); i++ {
-		p := ps[i]
-		code := num(p)
+	pos := 0
+	for pos < len(params) {
+		p, _ := ansiNextParam(params, &pos)
+		code := ansiParamInt(p)
 		switch {
 		case code == 0:
 			st = ANSIStyle{}
@@ -271,12 +261,10 @@ func ansiSGR(st ANSIStyle, params string) ANSIStyle {
 		case code == 38 || code == 48:
 			var col ANSIColor
 			var ok bool
-			if strings.Contains(p, ":") {
-				col, ok = ansiExtColor(strings.Split(p, ":")[1:])
+			if strings.IndexByte(p, ':') >= 0 {
+				col, ok = ansiExtColorColon(p)
 			} else {
-				var used int
-				col, used, ok = ansiExtColorSemi(ps[i+1:])
-				i += used
+				col, ok = ansiExtColorSemiAt(params, &pos)
 			}
 			if ok {
 				if code == 38 {
@@ -290,56 +278,95 @@ func ansiSGR(st ANSIStyle, params string) ANSIStyle {
 	return st
 }
 
-// ansiExtColor parses the colon form "5:n" / "2:[cs]:r:g:b".
-func ansiExtColor(sub []string) (ANSIColor, bool) {
-	if len(sub) == 0 {
+// ansiNextParam returns one semicolon-delimited parameter without creating a
+// slice of all parameters. SGR is on a hot path for log ingestion.
+func ansiNextParam(s string, pos *int) (string, bool) {
+	if *pos >= len(s) {
+		return "", false
+	}
+	start := *pos
+	end := strings.IndexByte(s[start:], ';')
+	if end < 0 {
+		*pos = len(s)
+		return s[start:], true
+	}
+	end += start
+	*pos = end + 1
+	return s[start:end], true
+}
+
+func ansiParamInt(s string) int {
+	if i := strings.IndexByte(s, ':'); i >= 0 {
+		s = s[:i]
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+func ansiExtColorColon(s string) (ANSIColor, bool) {
+	i := strings.IndexByte(s, ':')
+	if i < 0 {
 		return ANSIColor{}, false
 	}
-	at := func(i int) int {
-		if i >= len(sub) {
-			return 0
+	var vals [5]int
+	n := 0
+	for pos := i + 1; pos <= len(s) && n < len(vals); {
+		end := strings.IndexByte(s[pos:], ':')
+		if end < 0 {
+			end = len(s)
+		} else {
+			end += pos
 		}
-		n, _ := strconv.Atoi(sub[i])
-		return n
+		if end > pos {
+			vals[n], _ = strconv.Atoi(s[pos:end])
+		}
+		n++
+		pos = end + 1
+		if end == len(s) {
+			break
+		}
 	}
-	switch at(0) {
+	switch vals[0] {
 	case 5:
-		return ANSIColor{Kind: ANSIIndexed, Index: uint8(max(0, min(255, at(1))))}, len(sub) >= 2
-	case 2:
-		if len(sub) >= 5 { // 2:colorspace:r:g:b
-			return ansiRGB(at(2), at(3), at(4)), true
+		if n >= 2 {
+			return ANSIColor{Kind: ANSIIndexed, Index: uint8(max(0, min(255, vals[1])))}, true
 		}
-		return ansiRGB(at(1), at(2), at(3)), len(sub) >= 4
+	case 2:
+		if n >= 5 {
+			return ansiRGB(vals[2], vals[3], vals[4]), true
+		}
+		if n >= 4 {
+			return ansiRGB(vals[1], vals[2], vals[3]), true
+		}
 	}
 	return ANSIColor{}, false
 }
 
-// ansiExtColorSemi parses the semicolon form after 38/48 and returns how
-// many parameters it used.
-func ansiExtColorSemi(ps []string) (ANSIColor, int, bool) {
-	at := func(i int) int {
-		if i >= len(ps) {
-			return 0
-		}
-		n, _ := strconv.Atoi(ps[i])
-		return n
+func ansiExtColorSemiAt(params string, pos *int) (ANSIColor, bool) {
+	mode, ok := ansiNextParam(params, pos)
+	if !ok {
+		return ANSIColor{}, false
 	}
-	if len(ps) == 0 {
-		return ANSIColor{}, 0, false
-	}
-	switch at(0) {
+	switch ansiParamInt(mode) {
 	case 5:
-		if len(ps) < 2 {
-			return ANSIColor{}, len(ps), false
+		idx, ok := ansiNextParam(params, pos)
+		if !ok {
+			return ANSIColor{}, false
 		}
-		return ANSIColor{Kind: ANSIIndexed, Index: uint8(max(0, min(255, at(1))))}, 2, true
+		return ANSIColor{Kind: ANSIIndexed, Index: uint8(max(0, min(255, ansiParamInt(idx))))}, true
 	case 2:
-		if len(ps) < 4 {
-			return ANSIColor{}, len(ps), false
+		r, rok := ansiNextParam(params, pos)
+		g, gok := ansiNextParam(params, pos)
+		b, bok := ansiNextParam(params, pos)
+		if !rok || !gok || !bok {
+			return ANSIColor{}, false
 		}
-		return ansiRGB(at(1), at(2), at(3)), 4, true
+		return ansiRGB(ansiParamInt(r), ansiParamInt(g), ansiParamInt(b)), true
 	}
-	return ANSIColor{}, 1, false
+	return ANSIColor{}, false
 }
 
 func ansiRGB(r, g, b int) ANSIColor {

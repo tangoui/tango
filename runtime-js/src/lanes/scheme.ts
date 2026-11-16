@@ -1,24 +1,19 @@
-// The scheme lanes, served by Go's internal/lane (http.go) on the asset
-// origin, so they work on every platform whose pages come from it:
+// The up:post lane, served by Go's internal/lane (http.go) on the asset
+// origin, so it works on every platform whose pages come from it:
 //
-//   down:scheme  GET  /__tango/lane/down?gen=&tok=  an endless response
-//                of packets back to back (ServeDown), starting with the
-//                empty packet [0,0] so that its headers go out at once.
 //   up:post      POST /__tango/lane/up?gen=&tok=    one packet per
 //                request, answered 204 (ServeUp). start posts the empty
 //                packet [0,0] first and is ready only on its 204.
 //
-// Both use relative URLs: Go offers them only to pages from the asset
-// origin, where a relative path is tango://app/... or
-// https://tango.localhost/... . They register at module load, so the ESM
-// entry and the injected IIFE have them before the client's hello reply.
+// (Its downstream sibling down:scheme is gone: down:poll, lanes/poll.ts,
+// replaced it.) The URL is relative: Go offers the lane only to pages from
+// the asset origin, where a relative path is tango://app/... or
+// https://tango.localhost/... . It registers at module load, so the ESM
+// entry and the injected IIFE have it before the client's hello reply.
 
-import { registerLane, type DownLane, type LaneContext, type UpLane } from "../lanes.js";
-import { encodePacket, MAX_FRAME, type PacketFrame } from "../packet.js";
+import { registerLane, type LaneContext, type UpLane } from "../lanes.js";
+import { encodePacket, type PacketFrame } from "../packet.js";
 
-/** How long down:scheme waits for its first packet before start rejects
- * (a start that never settles would block every later downstream lane). */
-export const DOWN_START_TIMEOUT_MS = 5000;
 /** up:post takes byte frames of at least this many bytes; smaller ones go
  * on the message channel. */
 export const POST_MIN_SIZE = 16 << 10;
@@ -45,164 +40,6 @@ const MAX_FRAMES = 0xffff;
 
 const laneURL = (path: string, ctx: LaneContext) =>
   `/__tango/lane/${path}?gen=${ctx.gen}&tok=${encodeURIComponent(ctx.tok)}`;
-
-/** Cuts a byte stream into packets. Current single-frame downlink packets
- * avoid repeated prefix copies. Multi-frame split packets can recopy prefixes;
- * use an amortized reader before enabling a batching downlink producer. */
-class PacketReader {
-  private chunks: Uint8Array[] = [];
-  private have = 0; // bytes in chunks
-  private pos = 0; // bytes of the current packet parsed so far
-  private left = -1; // frames of the current packet still to parse; -1: header not read
-
-  push(c: Uint8Array): void {
-    if (c.length === 0) return;
-    this.chunks.push(c);
-    this.have += c.length;
-  }
-
-  /** The next complete packet (a view that is valid until the next push),
-   * or null. Throws on a frame length beyond MAX_FRAME. */
-  next(): Uint8Array | null {
-    for (;;) {
-      const need = this.left < 0 ? PACKET_HEADER : this.left > 0 ? this.pos + FRAME_HEADER : this.pos;
-      if (this.have < need) return null;
-      const buf = this.flat();
-      if (this.left < 0) {
-        this.left = (buf[0] << 8) | buf[1];
-        this.pos = PACKET_HEADER;
-      } else if (this.left > 0) {
-        const at = this.pos + 16;
-        const n = buf[at] * 0x1000000 + ((buf[at + 1] << 16) | (buf[at + 2] << 8) | buf[at + 3]);
-        if (n > MAX_FRAME) throw new Error(`down:scheme: frame of ${n} bytes exceeds MAX_FRAME_BYTES`);
-        this.pos += FRAME_HEADER + n;
-        this.left--;
-      } else {
-        const p = buf.subarray(0, this.pos);
-        const rest = buf.subarray(this.pos);
-        this.chunks = rest.length ? [rest] : [];
-        this.have = rest.length;
-        this.pos = 0;
-        this.left = -1;
-        return p;
-      }
-    }
-  }
-
-  private flat(): Uint8Array {
-    if (this.chunks.length > 1) {
-      const out = new Uint8Array(this.have);
-      let at = 0;
-      for (const c of this.chunks) {
-        out.set(c, at);
-        at += c.length;
-      }
-      this.chunks = [out];
-    }
-    return this.chunks[0];
-  }
-}
-
-export interface SchemeDownOptions {
-  /** Default DOWN_START_TIMEOUT_MS. */
-  startTimeoutMs?: number;
-}
-
-class SchemeDown implements DownLane {
-  private ac: AbortController | null = null;
-  private timer: ReturnType<typeof setTimeout> | null = null;
-  private stopped = false;
-  private end: (() => void) | null = null;
-
-  constructor(private readonly timeoutMs: number) {}
-
-  start(ctx: LaneContext): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      let state: "starting" | "started" | "done" = "starting";
-      // (A function: TypeScript would keep state narrowed across awaits.)
-      const done = () => state === "done";
-      const started = () => {
-        if (state !== "starting") return;
-        state = "started";
-        this.clearTimer();
-        resolve();
-      };
-      // The lane broke: before the first packet that rejects start, after
-      // it the lane fails (unless stop did it).
-      const broken = (err: unknown) => {
-        if (state === "done") return;
-        const wasStarting = state === "starting";
-        state = "done";
-        this.release();
-        if (wasStarting) reject(err);
-        else if (!this.stopped) ctx.fail(err);
-      };
-      this.end = () => broken(new Error("down:scheme: stopped"));
-      if (this.stopped) return this.end();
-
-      this.timer = setTimeout(
-        () => broken(new Error(`down:scheme: no response within ${this.timeoutMs} ms`)),
-        this.timeoutMs,
-      );
-      const read = async () => {
-        const ac = new AbortController();
-        this.ac = ac;
-        const res = await ctx.fetch(laneURL("down", ctx), { cache: "no-store", signal: ac.signal });
-        if (done()) {
-          res.body?.cancel().catch(() => {});
-          return;
-        }
-        if (res.status !== 200) throw new Error(`down:scheme: HTTP ${res.status}`);
-        if (!res.body) throw new Error("down:scheme: the response has no body stream");
-        const reader = res.body.getReader();
-        const packets = new PacketReader();
-        for (;;) {
-          const { done: end, value } = await reader.read();
-          if (done()) return;
-          if (end) throw new Error("down:scheme: the response ended");
-          packets.push(value);
-          for (let p = packets.next(); p; p = packets.next()) {
-            started();
-            if (done()) return;
-            if (p.length > PACKET_HEADER) ctx.onPacket(p); // empty packets carry nothing
-          }
-        }
-      };
-      read().catch(broken);
-    });
-  }
-
-  stop(): void {
-    this.stopped = true;
-    if (this.end) this.end();
-    else this.release();
-  }
-
-  private clearTimer(): void {
-    if (this.timer !== null) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
-  }
-
-  private release(): void {
-    this.clearTimer();
-    const ac = this.ac;
-    this.ac = null;
-    if (ac) {
-      try {
-        ac.abort();
-      } catch {}
-    }
-  }
-}
-
-/** A down:scheme module (registered as "down:scheme"; tests build their
- * own with options). */
-export function newSchemeDown(opts?: SchemeDownOptions): DownLane {
-  const t = opts?.startTimeoutMs;
-  return new SchemeDown(typeof t === "number" && t >= 0 ? t : DOWN_START_TIMEOUT_MS);
-}
 
 export interface PostUpOptions {
   /** Default POST_BATCH_DELAY_MS. */
@@ -412,5 +249,4 @@ export function newPostUp(opts?: PostUpOptions): UpLane {
     typeof t === "number" && t >= 0 ? t : POST_TIMEOUT_MS);
 }
 
-registerLane("down:scheme", () => newSchemeDown());
 registerLane("up:post", () => newPostUp());

@@ -74,7 +74,7 @@ func TestDisplayLazyBuilders(t *testing.T) {
 			Badge(c).Count(5).Body(func() { Button(c, "inbox") })
 			Empty(c).Simple().Description("没有订单")
 			Descriptions(c, []DescItem{{Label: "姓名", Value: "张三"}}).Title("信息").Bordered()
-			Space(c).Split(func() { VDivider(c) }).Body(func() { Text(c, "x"); Text(c, "y") })
+			Space(c).Separator(func() { VDivider(c) }).Body(func() { Text(c, "x"); Text(c, "y") })
 		})
 	}, DriverOptions{})
 	d.Settle()

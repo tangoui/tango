@@ -355,7 +355,7 @@ func TestMinimapCharactersFillShortDoc(t *testing.T) {
 				continue
 			}
 			n++
-			img := o.Img.(*image.NRGBA)
+			img := o.Img.(*image.RGBA)
 			if got := o.Rect.H * scale; got != float32(img.Rect.Dy()) {
 				t.Fatalf("scale %v: image %d px tall drawn %v device px (stretched)", scale, img.Rect.Dy(), got)
 			}
@@ -366,7 +366,7 @@ func TestMinimapCharactersFillShortDoc(t *testing.T) {
 			for y := 0; y <= img.Rect.Dy(); y++ {
 				ink := false
 				for x := 0; y < img.Rect.Dy() && x < img.Rect.Dx(); x++ {
-					if img.NRGBAAt(x, y).A != 0 {
+					if img.RGBAAt(x, y).A != 0 {
 						ink = true
 						break
 					}

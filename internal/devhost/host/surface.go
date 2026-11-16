@@ -61,6 +61,7 @@ func (h *Host) applyOp(x *win, m devhost.SurfaceOp) {
 			TitleBar: tango.TitleBar(a.TitleBar), Transparent: a.Transparent, Background: a.Background,
 			Material: tango.Material(a.Material), AlwaysOnTop: a.AlwaysOnTop, Opacity: a.Opacity,
 			NoShadow: a.NoShadow, NoClose: a.NoClose, NoMinimize: a.NoMinimize, NoMaximize: a.NoMaximize,
+			AllSpaces: a.AllSpaces,
 		})
 	}
 }

@@ -81,12 +81,15 @@ func cleanPath(p string) (string, bool) {
 	if strings.ContainsAny(p, "\\\x00") {
 		return "", false
 	}
-	for _, seg := range strings.Split(p, "/") {
+	for seg := range strings.SplitSeq(p, "/") {
 		if seg == ".." {
 			return "", false
 		}
 	}
-	name := strings.TrimPrefix(path.Clean("/"+p), "/")
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	name := strings.TrimPrefix(path.Clean(p), "/")
 	if name == "" {
 		return "", true
 	}

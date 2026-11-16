@@ -196,7 +196,9 @@ defer s.Close()
 
 默认情况下所有 IPC 都走原始消息通道：每帧是一条 JSON 字符串，字节帧编成 base64。**快速通道**是挨着消息通道的二进制旁路，只承载流的**字节帧**，省掉 JSON 和 base64；JSON 帧、`open`/`accept`/`ack`/`end` 等控制消息和握手仍然走消息通道。两个方向分别协商，同一条流的帧可以一部分走快速通道、一部分走消息通道，接收方按序号重排，所以语义完全不变：应用代码除了接线，什么都不用改。
 
-快速通道按名字区分：`down:scheme` / `up:post`（资源来源上的 `/__tango/lane/down` 流式响应和 `/__tango/lane/up` POST），以及平台各自的 `down:android` / `up:android`、`down:shm` / `up:shm`。`down:scheme` 只接 4 KiB 及以上的帧，`up:post` 只接 16 KiB 到约 1 MiB 的帧，更小的帧照旧走消息通道（延迟更低）。
+快速通道按名字区分：`down:poll` / `up:post`（资源来源上的 `/__tango/lane/poll` 轮询和 `/__tango/lane/up` POST），以及平台各自的 `down:android` / `up:android`、`down:shm` / `up:shm`。`down:poll` 接所有字节帧，`up:post` 只接 16 KiB 到约 1 MiB 的帧，更小的帧照旧走消息通道（延迟更低）。
+
+`down:poll` 比其他通道管得多：它是核心的下行传输，开启后 `Surface.Send` 的**每条**消息（ipc 的 JSON 帧和控制消息、调用回复、jsapi 事件、`__tango.onMessage` 收的消息）都和字节帧一起按序号走它。页面始终挂一个 `GET /__tango/lane/poll`，Go 有消息时用一批消息结束这次响应，页面立即再发下一个；轮询失败、页面不来取（例如在后台被节流）或通道空闲时只有一条小消息，消息带着序号改走 `Eval`，页面按序号交付，顺序与 `Send` 一致。`Surface.Eval` 在轮询时也排进同一个序列（栅栏），仍与 `Send` 保序。它不要求注册 `OnBinary`。
 
 ### 什么时候开启
 
@@ -208,7 +210,7 @@ defer s.Close()
 4. 没有被关掉：`tango.Options{DisableFastLanes: true}`，或环境变量 `TANGO_IPC_LANES=0`（任何构建都生效，排查问题用）。
 
 ::: warning 目前只有 macOS 和 Android 默认开启
-公共设施（协议、核心、`@tangoui/runtime` 的通道模块）已经就绪。**macOS 默认报告 `up:post`**（上行字节帧走快速通道），**Android 默认报告 `down:android` / `up:android`**（两个方向）；iOS 可以用环境变量试用，默认关闭（见下文「macOS / iOS」「Android」）；Windows、Linux 仍然全部走消息通道，通过基准对比后才会逐个默认开启。现在就把 `OnBinary` 接上，到时候无需改代码。
+公共设施（协议、核心、`@tangoui/runtime` 的 `down:poll` / `up:post` 等通道模块）已经就绪。**macOS 默认报告 `up:post`**（上行字节帧走快速通道），**Android 默认报告 `down:android` / `up:android`**（两个方向）；iOS 可以用环境变量试用，默认关闭（见下文「macOS / iOS」「Android」）；Windows、Linux 仍然全部走消息通道，通过基准对比后才会逐个默认开启。现在就把 `OnBinary` 接上，到时候无需改代码。
 :::
 
 `OnBinary` 的处理函数在收到包的 goroutine 上调用，不在主线程；包只在调用期间有效。`r.HandleBinarySession` 满足这两点。`gen` 是包通过校验时所属的页面世代，原样交给 `HandleBinarySession`，旧页面的包就不会进新页面的流。不要用 `r.HandleBinary`：它只给不复用页面的简单连接用，对 `*tango.Surface` 会丢掉所有包（并记一条警告）。一个 surface 只接一个 `Router`：每次握手都会换通道世代，两个 Router 会互相作废，不支持。
@@ -219,17 +221,18 @@ defer s.Close()
 
 ### macOS / iOS
 
-- **只提供 `up:post`**（上行字节帧经 `/__tango/lane/up` 的 POST 交给 Go）。**下行仍走消息通道**：WKWebView 对 `tango://` 流式响应的小块逐块交付，但会扣住大块突发的一部分，直到同一响应上有新数据才交出；突发之后没有新数据时，被扣住的帧迟迟不到，流会以 `transport` 失败。所以不报告 `down:scheme`。
-- **macOS 默认开启 `up:post`，iOS 默认关闭**（iOS 只在模拟器上测过，等真机数据）。环境变量 `TANGO_IPC_LANES_DARWIN` 控制两个平台（每个窗口/页面创建时读一次；去掉首尾空白、不分大小写；关闭值在任何构建都生效）：
+- **macOS 提供 `up:post` 和 `down:poll`，iOS 只提供 `up:post`**（上行字节帧经 `/__tango/lane/up` 的 POST 交给 Go）。早先的流式下行通道 `down:scheme` 已删除：WKWebView 会扣住 `tango://` 流式响应里大块突发的一部分，直到同一响应上有新数据才交出。`down:poll` 的每个响应都会结束，没有这个问题。
+- **macOS 默认只开 `up:post`**：`down:poll` 让下行比改造前快 3～11 倍（64 KiB 帧 306 → 1017 MB/s，1 KiB 小帧 4.5 万 → 50 万帧/s，2.3 KB JSON 3.4 万 → 11 万帧/s），小消息往返慢不到 10%，但 64 KiB 帧和小帧的吞吐还没赶上 Wails v3.1.0（流控窗口所限），所以默认关闭，用 `TANGO_IPC_LANES_DARWIN=1` 打开，数据见 [docs/ipc-bench.md](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)。**iOS 默认关闭**（只在模拟器上测过，等真机数据）。环境变量 `TANGO_IPC_LANES_DARWIN` 控制两个平台（每个窗口/页面创建时读一次；去掉首尾空白、不分大小写；所有取值在任何构建都生效）：
 
   | 取值 | macOS | iOS |
   |---|---|---|
-  | 未设置、空 | `up:post`（默认开启） | 关闭（默认） |
+  | 未设置、空、其他值 | `up:post`（默认） | 关闭（默认；其他值见下） |
+  | `1`、`all` | `down:poll` + `up:post` | `up:post` |
+  | `up` | `up:post` | `up:post` |
+  | `down` | `down:poll`（排查问题用） | `up:post` |
   | `0`、`false`、`off` | 关闭 | 关闭 |
-  | `all` | 只在开发构建（`-tags tango_dev`）生效：`down:scheme` + `up:post`，**仅供实验**，大块下行会被扣住，流可能以 `transport` 失败；生产构建等同默认 | `down:scheme` + `up:post`，**仅供实验**（任何构建都生效） |
-  | 其他值（通常是 `1`） | `up:post` | `up:post` |
 
-  `TANGO_IPC_LANES=0` 或 `DisableFastLanes` 始终优先关闭。iOS 真机上没法从外部传环境变量，要试用就在 Go 里、创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "1")`。开启时（macOS 默认就是）`tango.lanes()` 返回 `{down: "fallback", up: "up:post"}`。macOS 上传 64 MiB 的吞吐约为消息通道的 2.73 倍，见 [docs/ipc-bench.md](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)。
+  iOS 上除了未设置、空和关闭值，其他取值都是 `up:post`。`TANGO_IPC_LANES=0` 或 `DisableFastLanes` 始终优先关闭。iOS 真机上没法从外部传环境变量，要试用就在 Go 里、创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "up")`（不用 `1`：同一份代码在 macOS 上 `1` 还会打开实验性的 `down:poll`）。macOS 默认时 `tango.lanes()` 返回 `{down: "fallback", up: "up:post"}`，`TANGO_IPC_LANES_DARWIN=1` 时返回 `{down: "down:poll", up: "up:post"}`。macOS 上传 64 MiB 的吞吐约为消息通道的 2.73 倍，见 [docs/ipc-bench.md](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)。
 - **CSP**：`up:post` 启动时先向 `/__tango/lane/up` POST 一个空包，收到 204 才算就绪。页面的 CSP 若不允许 `connect-src` 到资源来源（比如 `connect-src https://api.example.com`，或者不含 `'self'` 的 `default-src`），探测被拒，这个页面就不开快速通道，字节帧照常走消息通道，不会报错。想用快速通道，就在 `connect-src` 里加上 `'self'`。
 - 已知限制：
   - iframe 拿不到通道令牌。协议处理器看不到请求来自哪个 frame，安全性靠"令牌只经主框架的消息桥下发"；macOS 实测不透明来源的 frame（沙箱 `srcdoc`、`data:`）和同源 frame 发出的通道请求全部被拒（iOS 未单独测）。同源 frame 本来就能访问 `parent.tango`，那是应用自己的代码。
@@ -261,7 +264,7 @@ tango.lanes(); // macOS 默认：{down: "fallback", up: "up:post"}；没有快�
 
 ### 故障注入（仅开发构建）
 
-开发构建（`-tags tango_dev`，`tan dev` 和 `automation.Launch` 自动加）和自测构建（`-tags tango_selftest`，`tan build` 会保留它，iOS 模拟器自测用）里，环境变量 `TANGO_IPC_LANE_FAULT=<通道名>:<N>` 让该通道在每个页面世代里成功发送（下行）或接收（上行）N 个数据包之后进入故障（空包不计，比如 `up:post` 启动时的探测）：之后的包被拒绝或丢弃，按「通道坏掉」处理。例如 `TANGO_IPC_LANE_FAULT=down:scheme:3`。格式不对时记一条警告并忽略；生产构建不读这个变量。用来验证应用在通道中途坏掉时的表现。
+开发构建（`-tags tango_dev`，`tan dev` 和 `automation.Launch` 自动加）和自测构建（`-tags tango_selftest`，`tan build` 会保留它，iOS 模拟器自测用）里，环境变量 `TANGO_IPC_LANE_FAULT=<通道名>:<N>` 让该通道在每个页面世代里成功发送（下行）或接收（上行）N 个数据包之后进入故障（空包不计，比如 `up:post` 启动时的探测）：之后的包被拒绝或丢弃，按「通道坏掉」处理。例如 `TANGO_IPC_LANE_FAULT=down:poll:3`（把带第 4 个字节包的轮询响应截断，页面解码失败后退回 `Eval`，不丢帧）。格式不对时记一条警告并忽略；生产构建不读这个变量。用来验证应用在通道中途坏掉时的表现。
 
 ## TypeScript 绑定生成
 
@@ -295,4 +298,4 @@ tan generate bindings          # 默认写到 <frontend.dir>/src/bindings
 
 `data` 帧二选一带 `data`（JSON 负载）或 `bin`（字节负载，标准 base64 带填充；`"bin":""` 是空字节帧）；`seq` 是这个方向的帧序号，`c` 是发送方算好的计费大小，`ack` 的 `b` 是归还的信用字节数。完整规则（握手、`accept` 的 `in`、`end`/`close`/`error` 的 `seq`、归还时机）写在 [`ipc` 包文档](/reference/api/ipc)的包注释里。协议很小，需要时可以在别的语言或测试里直接实现。
 
-有快速通道时，Go 的 `hello` 回复多一个 `lanes` 字段（`{"gen":1,"tok":"…","list":["down:scheme","up:post"]}`），快速通道上的二进制包格式也在同一份包注释里。走快速通道的帧另有一条 `{"tango":"stream","id":3,"op":"boundary","seq":2}`（见上面的 `transport` 错误）。
+有快速通道时，Go 的 `hello` 回复多一个 `lanes` 字段（`{"gen":1,"tok":"…","list":["down:poll","up:post"]}`），快速通道上的二进制包格式也在同一份包注释里。走快速通道的帧另有一条 `{"tango":"stream","id":3,"op":"boundary","seq":2}`（见上面的 `transport` 错误）。

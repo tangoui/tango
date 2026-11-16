@@ -47,6 +47,8 @@ type AutoCompleteW struct {
 	z         *lazy
 	optIDs    []ID // option nodes of the open list
 	listID    ID
+	place     Placement // dropdown placement (Ant placement, Element placement)
+	notFound  string    // text of an empty dropdown ("" = close it, as Ant)
 }
 
 // AutoComplete adds an input bound to *val that suggests opts (filtered by
@@ -64,6 +66,11 @@ func AutoComplete(c *Context, val *string, opts []Option) *AutoCompleteW {
 	// status; this adds the popup relations).
 	w.in.ed.setRole(a11y.RoleCombobox).setState(a11y.Expandable | a11y.HasPopup | a11y.Editable).fill(w)
 	w.configDefaults()
+	v := FieldVariant("")
+	selDefaults(c, "AutoComplete", &v, &w.place)
+	if v != "" {
+		w.in.Variant(string(v))
+	}
 	w.z = c.lazy(w.in.box, w.finish)
 	return w
 }
@@ -132,6 +139,16 @@ func (w *AutoCompleteW) TriggerOnFocus() *AutoCompleteW { w.onFocus = true; retu
 // Highlight emphasises the matched part of each suggestion.
 func (w *AutoCompleteW) Highlight() *AutoCompleteW { w.highlight = true; return w }
 
+// Placement sets where the suggestions open: BottomStart (default),
+// BottomEnd, TopStart or TopEnd (Ant placement, Element placement); they
+// flip when there is no room. ConfigProvider.Defaults("AutoComplete",
+// "placement") takes the Ant names.
+func (w *AutoCompleteW) Placement(p Placement) *AutoCompleteW { w.place = p; return w }
+
+// NotFoundContent keeps the dropdown open with text s when nothing
+// matches (Ant notFoundContent; without it an empty list closes).
+func (w *AutoCompleteW) NotFoundContent(s string) *AutoCompleteW { w.notFound = s; return w }
+
 // Open forces the dropdown open (screenshots, tests).
 func (w *AutoCompleteW) Open() *AutoCompleteW { w.st.pop.open, w.forced = true, true; return w }
 
@@ -162,7 +179,7 @@ func (w *AutoCompleteW) busy(opts []Option) bool {
 
 // keepOpen reports whether an empty suggestion list may leave the popup
 // open (remote results or a loading row may still arrive).
-func (w *AutoCompleteW) keepOpen() bool { return w.remote != nil || w.loading }
+func (w *AutoCompleteW) keepOpen() bool { return w.remote != nil || w.loading || w.notFound != "" }
 
 func (w *AutoCompleteW) pick(o Option) {
 	c := w.c
@@ -196,7 +213,7 @@ func (w *AutoCompleteW) finish() {
 			w.remote(*w.val)
 		}
 	})
-	if (w.in.edIA.Clicked || w.in.boxIA.Clicked) && !st.pop.open && (len(opts) > 0 || w.loading) {
+	if (w.in.edIA.Clicked || w.in.boxIA.Clicked) && !st.pop.open && (len(opts) > 0 || w.loading || w.notFound != "") {
 		st.pop.open = true
 		st.active = 0
 	}
@@ -249,7 +266,7 @@ func (w *AutoCompleteW) finish() {
 		st.active = 0
 	}
 	busy := w.busy(opts)
-	if st.pop.open && (len(list) > 0 || busy) {
+	if st.pop.open && (len(list) > 0 || busy || w.notFound != "") {
 		w.shown = true
 		w.dropdown(list, busy)
 	} else {
@@ -261,9 +278,13 @@ func (w *AutoCompleteW) dropdown(opts []Option, busy bool) {
 	c, st := w.c, w.st
 	q := *w.val
 	loc := c.Locale()
-	ov := entPanel(c, w.in.box.id, &st.pop, true, func() {
+	ov := selPanel(c, w.in.box.id, &st.pop, true, w.place, func() {
 		if busy {
 			entLoadingRow(c, loc.Loading, entOptionH(c))
+			return
+		}
+		if len(opts) == 0 {
+			Empty(c).Simple().Description(w.notFound)
 			return
 		}
 		msOptionList(c, len(opts), func(i int) (string, string, bool) {
@@ -281,7 +302,7 @@ func (w *AutoCompleteW) dropdown(opts []Option, busy bool) {
 	})
 	ov.Style(layout.Padding(entListPad(c)))
 	w.listID = 0
-	if !busy { // the loading row is a status, not a list
+	if !busy && len(opts) > 0 { // the loading row is a status, not a list
 		ov.n.setRole(a11y.RoleListbox).setName(popupName(c, w.in.ed, w.in.placeholder))
 		w.listID = ov.n.id
 	}

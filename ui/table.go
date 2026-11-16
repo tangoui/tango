@@ -78,6 +78,11 @@ type TableColumn struct {
 	SortMultiple int
 	// DefaultSort is the initial order when the table owns its sort state.
 	DefaultSort SortOrder
+	// SortDirections lists the orders a sorter click cycles through
+	// (Ant Design sortDirections, Element Plus sort-orders); after the
+	// last one the column returns to unsorted. Empty: the table's
+	// SortDirections, by default ascending, descending.
+	SortDirections []SortOrder
 
 	// Filters lists the values of the filter dropdown. OnFilter filters
 	// locally (a row passes if it matches any selected value); without it
@@ -88,6 +93,14 @@ type TableColumn struct {
 	OnFilter     func(row int, value string) bool
 	// FilterPanel replaces the option list with a custom panel.
 	FilterPanel func(p *TableFilterPanel)
+	// DefaultFilter is the initial filter of the column when the table
+	// owns its filter state, or when the bound Filters map has no entry
+	// for the column on the first frame (Ant Design defaultFilteredValue).
+	DefaultFilter []string
+	// FilterResetToDefault makes the filter's reset button restore
+	// DefaultFilter instead of clearing it (Ant Design
+	// filterResetToDefaultFilteredValue).
+	FilterResetToDefault bool
 
 	// Text returns the cell text; Render, if set, builds custom content
 	// (any widget: tags, badges, buttons, progress, avatars).
@@ -235,8 +248,28 @@ type TableW struct {
 	selMenu    bool
 	tp         *tblTranspose // Transposed (table_transpose.go)
 
+	// Ant Design / Element Plus options added with the spec alignment.
+	sortDirs      []SortOrder
+	preserveSel   bool
+	selColW       float32
+	selFixed      bool
+	expandByClick bool
+	hideExpandCol bool
+	expandAll     bool
+	noHeader      bool
+	headH         float32
+	title, footer func()
+	pagePlace     []string
+	pageCfg       func(p *PaginationW)
+	curKey        *string
+	showSum       bool
+	ellipsisAll   bool
+	sortTip       bool
+	scrollTop     bool // scroll the body to the first row on page / sort / filter changes
+
 	// Results of the last Show.
 	sortedCh, filterCh, selCh, expCh, pageCh, resizedCh, movedCh, editedCh bool
+	curCh                                                                  bool
 	clickRow                                                               int
 	dblRow                                                                 int
 
@@ -258,6 +291,7 @@ func Table(c *Context, cols []TableColumn, rows int) *TableW {
 	}
 	t.bordered = Prop(c, "Table", "bordered", false)
 	t.striped = Prop(c, "Table", "striped", Prop(c, "Table", "stripe", false))
+	t.tableDefaults()
 	return t
 }
 
@@ -335,10 +369,9 @@ func (t *TableW) Selections(items ...TableSelection) *TableW {
 // HideSelectAll hides the header checkbox.
 func (t *TableW) HideSelectAll() *TableW { t.hideAll = true; return t }
 
-// CheckStrictly turns off the parent/child linkage of tree selection. By
-// default (Tree + multi-select) checking a row checks its descendants, a
-// parent is checked once all its children are and shows a half state when
-// only some are.
+// CheckStrictly checks tree rows independently, without parent/child
+// linkage. It is the default (Ant Design rowSelection.checkStrictly
+// true); it overrides a ConfigProvider default of false. See CheckLinked.
 func (t *TableW) CheckStrictly() *TableW { t.strict = true; return t }
 
 // Sticky pins the header to the top of the scroll container the table
@@ -439,7 +472,8 @@ func (t *TableW) TreeLazy(has func(row int) bool, load func(row int)) *TableW {
 // TreeOpenKeys binds the expanded tree nodes (controlled).
 func (t *TableW) TreeOpenKeys(keys *[]string) *TableW { t.treeOpen = keys; return t }
 
-// Indent sets the per-level tree indent (default 15).
+// Indent sets the per-level tree indent (default TableToken.IndentSize:
+// 15, Element Plus 16).
 func (t *TableW) Indent(px float32) *TableW { t.indent = px; return t }
 
 // Span merges body cells: return (rowSpan, colSpan); 0 hides a cell that a
@@ -524,3 +558,144 @@ func (t *TableW) DisplayedRows() []int {
 	}
 	return t.vis
 }
+
+// tableDefaults reads the behaviour defaults of ConfigProvider.Defaults
+// ("Table", ...). Keys are Ant Design prop names: "checkStrictly"
+// (default true), "preserveSelectedRowKeys", "expandRowByClick",
+// "defaultExpandAllRows", "showExpandColumn" (default true), "showHeader"
+// (default true), "showSorterTooltip" (default true), "indentSize"
+// (default TableToken.IndentSize: 15, Element 16),
+// "scrollToFirstRowOnChange" (default true), plus Element Plus'
+// "highlightCurrentRow", "showOverflowTooltip", "showSummary" and
+// "defaultExpandAll".
+func (t *TableW) tableDefaults() {
+	c := t.c
+	t.strict = Prop(c, "Table", "checkStrictly", true)
+	t.preserveSel = Prop(c, "Table", "preserveSelectedRowKeys", false)
+	t.expandByClick = Prop(c, "Table", "expandRowByClick", false)
+	t.expandAll = Prop(c, "Table", "defaultExpandAllRows", Prop(c, "Table", "defaultExpandAll", false))
+	t.hideExpandCol = !Prop(c, "Table", "showExpandColumn", true)
+	t.noHeader = !Prop(c, "Table", "showHeader", true)
+	t.sortTip = Prop(c, "Table", "showSorterTooltip", true)
+	ind := c.ThemeFor(theme.CompTable).Components.Table.IndentSize // antd 15, Element 16
+	if ind <= 0 {
+		ind = 15
+	}
+	t.indent = propFloat(c, "Table", "indentSize", ind)
+	t.scrollTop = Prop(c, "Table", "scrollToFirstRowOnChange", true)
+	t.highlight = Prop(c, "Table", "highlightCurrentRow", false)
+	t.ellipsisAll = Prop(c, "Table", "showOverflowTooltip", false)
+	t.showSum = Prop(c, "Table", "showSummary", false)
+}
+
+// SortDirections sets the orders a sorter click cycles through for every
+// column without its own TableColumn.SortDirections (Ant Design
+// sortDirections, Element Plus sort-orders). The default is SortAsc,
+// SortDesc; after the last order the column returns to unsorted.
+// SortDesc, SortAsc starts with descending; a single order toggles
+// between it and unsorted.
+func (t *TableW) SortDirections(dirs ...SortOrder) *TableW { t.sortDirs = dirs; return t }
+
+// ShowSorterTooltip shows or hides the "click to sort" tooltip of sortable
+// headers (Ant Design showSorterTooltip, default true). A theme whose
+// TableToken.SorterTooltip is false (Element Plus) shows none.
+func (t *TableW) ShowSorterTooltip(on bool) *TableW { t.sortTip = on; return t }
+
+// PreserveSelectedRowKeys keeps selected keys whose rows are no longer in
+// the data (Ant Design preserveSelectedRowKeys, Element Plus
+// reserve-selection). By default a selection change drops them, so with
+// ServerPagination the selection covers the current page only.
+func (t *TableW) PreserveSelectedRowKeys() *TableW { t.preserveSel = true; return t }
+
+// CheckLinked turns on the parent/child linkage of tree selection
+// (Ant Design rowSelection.checkStrictly false, Element Plus' default
+// tree-props checkStrictly false): checking a row checks its descendants,
+// a parent is checked once all its children are and shows a half state
+// when only some are. By default (Ant Design checkStrictly true) rows are
+// checked independently.
+func (t *TableW) CheckLinked() *TableW { t.strict = false; return t }
+
+// SelectionColumnWidth sets the width of the selection column (Ant Design
+// rowSelection.columnWidth).
+func (t *TableW) SelectionColumnWidth(px float32) *TableW { t.selColW = px; return t }
+
+// SelectionFixed pins the selection column (and the expand column) to the
+// start side (Ant Design rowSelection.fixed). Without it they are pinned
+// when the first data column is.
+func (t *TableW) SelectionFixed() *TableW { t.selFixed = true; return t }
+
+// ExpandRowByClick toggles a row's detail panel (Expandable) or tree
+// children when the row is clicked (Ant Design expandable.expandRowByClick).
+func (t *TableW) ExpandRowByClick() *TableW { t.expandByClick = true; return t }
+
+// HideExpandColumn hides the expand column of Expandable (Ant Design
+// expandable.showExpandColumn false); rows then expand by ExpandRowByClick,
+// Enter or the bound ExpandedKeys.
+func (t *TableW) HideExpandColumn() *TableW { t.hideExpandCol = true; return t }
+
+// DefaultExpandAllRows expands every expandable row and tree node on the
+// first frame when the table owns the expansion state (Ant Design
+// expandable.defaultExpandAllRows, Element Plus default-expand-all).
+// Rows of TreeLazy whose children are not loaded stay closed.
+func (t *TableW) DefaultExpandAllRows() *TableW { t.expandAll = true; return t }
+
+// HideHeader hides the header row (Ant Design / Element Plus showHeader
+// false). Sorting and filters stay bound but have no controls.
+func (t *TableW) HideHeader() *TableW { t.noHeader = true; return t }
+
+// HeaderHeight overrides the height of a header row (Element Plus Table V2
+// header-height); 0 keeps the height derived from the size.
+func (t *TableW) HeaderHeight(px float32) *TableW { t.headH = px; return t }
+
+// Title builds a bar above the table (Ant Design title).
+func (t *TableW) Title(fn func()) *TableW { t.title = fn; return t }
+
+// Footer builds a bar below the table body (Ant Design footer).
+func (t *TableW) Footer(fn func()) *TableW { t.footer = fn; return t }
+
+// Pagination placements (PaginationPlacement), Ant Design 6
+// pagination.placement.
+const (
+	PageTopStart     = "topStart"
+	PageTopCenter    = "topCenter"
+	PageTopEnd       = "topEnd"
+	PageBottomStart  = "bottomStart"
+	PageBottomCenter = "bottomCenter"
+	PageBottomEnd    = "bottomEnd" // default
+	PageNone         = "none"
+)
+
+// PaginationPlacement places the pager: one top and/or one bottom
+// placement (PageTopStart … PageBottomEnd); PageNone hides it while
+// paging still applies. The default is PageBottomEnd.
+func (t *TableW) PaginationPlacement(p ...string) *TableW { t.pagePlace = p; return t }
+
+// PaginationConfig customizes the pager after the table set it up (Ant
+// Design's pagination object): fn receives it before Show, e.g.
+// p.ShowTotal().ShowQuickJumper(). Like Ant Design, the table's pager
+// shows no total by default and is small for Small and Middle tables.
+func (t *TableW) PaginationConfig(fn func(p *PaginationW)) *TableW { t.pageCfg = fn; return t }
+
+// CurrentRowKey binds the highlighted current row by key (Element Plus
+// current-row-key / setCurrentRow); "" means none. It turns on
+// HighlightCurrentRow; CurrentChanged reports clicks that moved it.
+func (t *TableW) CurrentRowKey(key *string) *TableW { t.curKey, t.highlight = key, true; return t }
+
+// CurrentChanged reports that the current row moved in the last Show
+// (Element Plus current-change).
+func (t *TableW) CurrentChanged() bool { return t.curCh }
+
+// ShowSummary adds Element Plus' default summary row (show-summary): the
+// first data column shows Locale().Table.SumText, columns whose displayed
+// texts are numbers show their sum, others stay empty. Use Summary for a
+// custom summary-method.
+func (t *TableW) ShowSummary() *TableW { t.showSum = true; return t }
+
+// ShowOverflowTooltip makes every text column ellipsis with a tooltip
+// (Element Plus' table-level show-overflow-tooltip).
+func (t *TableW) ShowOverflowTooltip() *TableW { t.ellipsisAll = true; return t }
+
+// ScrollToFirstRowOnChange sets whether a page, sort or filter change
+// scrolls a bounded body back to the first row (Ant Design
+// scroll.scrollToFirstRowOnChange, default true).
+func (t *TableW) ScrollToFirstRowOnChange(on bool) *TableW { t.scrollTop = on; return t }

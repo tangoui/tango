@@ -114,7 +114,7 @@ pkg github.com/tangoui/tango/ui, const FixedRight untyped string = "right"
 pkg github.com/tangoui/tango/ui, const FormHorizontal FormLayout = 0
 pkg github.com/tangoui/tango/ui, const FormInline FormLayout = 2
 pkg github.com/tangoui/tango/ui, const FormVertical FormLayout = 1
-pkg github.com/tangoui/tango/ui, const GridContentFixedWidth untyped int = 1200
+pkg github.com/tangoui/tango/ui, const GridContentFixedWidth untyped int = 1152
 pkg github.com/tangoui/tango/ui, const InlineEnd Placement = 19
 pkg github.com/tangoui/tango/ui, const InlineEndBottom Placement = 21
 pkg github.com/tangoui/tango/ui, const InlineEndTop Placement = 20
@@ -164,6 +164,13 @@ pkg github.com/tangoui/tango/ui, const NotifyTopEnd NotifyPlacement = 0
 pkg github.com/tangoui/tango/ui, const NotifyTopLeft NotifyPlacement = 7
 pkg github.com/tangoui/tango/ui, const NotifyTopRight NotifyPlacement = 6
 pkg github.com/tangoui/tango/ui, const NotifyTopStart NotifyPlacement = 1
+pkg github.com/tangoui/tango/ui, const PageBottomCenter untyped string = "bottomCenter"
+pkg github.com/tangoui/tango/ui, const PageBottomEnd untyped string = "bottomEnd"
+pkg github.com/tangoui/tango/ui, const PageBottomStart untyped string = "bottomStart"
+pkg github.com/tangoui/tango/ui, const PageNone untyped string = "none"
+pkg github.com/tangoui/tango/ui, const PageTopCenter untyped string = "topCenter"
+pkg github.com/tangoui/tango/ui, const PageTopEnd untyped string = "topEnd"
+pkg github.com/tangoui/tango/ui, const PageTopStart untyped string = "topStart"
 pkg github.com/tangoui/tango/ui, const PaginationJumper PaginationPart = "jumper"
 pkg github.com/tangoui/tango/ui, const PaginationNext PaginationPart = "next"
 pkg github.com/tangoui/tango/ui, const PaginationPager PaginationPart = "pager"
@@ -226,10 +233,14 @@ pkg github.com/tangoui/tango/ui, const SortDesc SortOrder = 2
 pkg github.com/tangoui/tango/ui, const SortNone SortOrder = 0
 pkg github.com/tangoui/tango/ui, const SplitHorizontal untyped string = "horizontal"
 pkg github.com/tangoui/tango/ui, const SplitVertical untyped string = "vertical"
+pkg github.com/tangoui/tango/ui, const StatisticHorizontal untyped string = "horizontal"
+pkg github.com/tangoui/tango/ui, const StatisticInline untyped string = "inline"
+pkg github.com/tangoui/tango/ui, const StatisticVertical untyped string = "vertical"
 pkg github.com/tangoui/tango/ui, const TimerCountdown TimerType = "countdown"
 pkg github.com/tangoui/tango/ui, const TimerCountup TimerType = "countup"
 pkg github.com/tangoui/tango/ui, const Top Placement = 5
 pkg github.com/tangoui/tango/ui, const TopEnd Placement = 4
+pkg github.com/tangoui/tango/ui, const TopNavHeaderWideWidth untyped int = 1152
 pkg github.com/tangoui/tango/ui, const TopStart Placement = 3
 pkg github.com/tangoui/tango/ui, const TourMaskInherit TourMask = 0
 pkg github.com/tangoui/tango/ui, const TourMaskOff TourMask = 2
@@ -354,12 +365,14 @@ pkg github.com/tangoui/tango/ui, func CardMeta(*Context, func(), string, string)
 pkg github.com/tangoui/tango/ui, func Carousel(*Context, int, func(int)) *CarouselW
 pkg github.com/tangoui/tango/ui, func Cascader(*Context, *[]string, []CascaderOption) *CascaderW
 pkg github.com/tangoui/tango/ui, func CascaderPanel(*Context, *[]string, []CascaderOption) *CascaderPanelW
+pkg github.com/tangoui/tango/ui, func CellEditorTable[T any](*Context, []ProColumn[T], *[]T) *CellEditorTableW[T]
 pkg github.com/tangoui/tango/ui, func Check(func(string) string) Rule
 pkg github.com/tangoui/tango/ui, func CheckAll(*Context, *[]string, []Option) *CheckAllW
 pkg github.com/tangoui/tango/ui, func CheckCard(*Context, string, *bool) *CheckCardW
 pkg github.com/tangoui/tango/ui, func CheckCardGroup(*Context, []CheckCardOption) *CheckCardGroupW
 pkg github.com/tangoui/tango/ui, func CheckValue[T any](func(T) string) RuleOf[T]
 pkg github.com/tangoui/tango/ui, func CheckableTag(*Context, string, *bool) *CheckableTagW
+pkg github.com/tangoui/tango/ui, func CheckableTagGroup(*Context, *[]string, []Option) *CheckableTagGroupW
 pkg github.com/tangoui/tango/ui, func Checkbox(*Context, string, *bool) *CheckboxW
 pkg github.com/tangoui/tango/ui, func CheckboxGroup(*Context, *[]string, []Option) *CheckboxGroupW
 pkg github.com/tangoui/tango/ui, func CloseContextMenu(*Context, ID)
@@ -446,6 +459,7 @@ pkg github.com/tangoui/tango/ui, func Link(*Context, string) *LinkW
 pkg github.com/tangoui/tango/ui, func List(*Context, int) *ListW
 pkg github.com/tangoui/tango/ui, func ListActions(*Context, func()) *ListActionsW
 pkg github.com/tangoui/tango/ui, func ListItemMeta(*Context, func(), string, string) *ListItemMetaW
+pkg github.com/tangoui/tango/ui, func ListToolBar(*Context) *ListToolBarW
 pkg github.com/tangoui/tango/ui, func Listy(*Context, int, func(int)) *ListyW
 pkg github.com/tangoui/tango/ui, func Loading(*Context, bool) *LoadingW
 pkg github.com/tangoui/tango/ui, func LocaleByCode(string) (*Locale, bool)
@@ -493,6 +507,7 @@ pkg github.com/tangoui/tango/ui, func Opts(...string) []Option
 pkg github.com/tangoui/tango/ui, func Overlay(*Context, OverlayOptions, func(), ...ui/layout.Option) *Box
 pkg github.com/tangoui/tango/ui, func PageContainer(*Context, string) *PageContainerW
 pkg github.com/tangoui/tango/ui, func PageHeader(*Context, string) *PageHeaderW
+pkg github.com/tangoui/tango/ui, func PageLoading(*Context) *PageLoadingW
 pkg github.com/tangoui/tango/ui, func Pagination(*Context, *int, int, int) *PaginationW
 pkg github.com/tangoui/tango/ui, func Paragraph(*Context, string) *Label
 pkg github.com/tangoui/tango/ui, func ParseANSI(string) (string, []ANSISpan)
@@ -503,6 +518,7 @@ pkg github.com/tangoui/tango/ui, func Pattern(string, string) Rule
 pkg github.com/tangoui/tango/ui, func PlainText([]Span) string
 pkg github.com/tangoui/tango/ui, func Popconfirm(*Context, string, string, func()) *PopconfirmW
 pkg github.com/tangoui/tango/ui, func Popover(*Context) *PopoverW
+pkg github.com/tangoui/tango/ui, func ProBreadcrumb(*Context) *ProBreadcrumbW
 pkg github.com/tangoui/tango/ui, func ProCard(*Context, string) *ProCardW
 pkg github.com/tangoui/tango/ui, func ProDescriptions(*Context, []ProDescItem) *ProDescriptionsW
 pkg github.com/tangoui/tango/ui, func ProFieldOf(*Context, ProField, *any) *ProFieldW
@@ -516,6 +532,7 @@ pkg github.com/tangoui/tango/ui, func ProLayout(*Context, ProLayoutConfig, func(
 pkg github.com/tangoui/tango/ui, func ProList[T any](*Context, []T, ProListMetas[T]) *ProListW[T]
 pkg github.com/tangoui/tango/ui, func ProSettingsProvider(*Context, *ProSettings, func())
 pkg github.com/tangoui/tango/ui, func ProSkeleton(*Context, string) *ProSkeletonW
+pkg github.com/tangoui/tango/ui, func ProStatistic(*Context, string) *ProStatisticW
 pkg github.com/tangoui/tango/ui, func ProTable[T any](*Context, []ProColumn[T]) *ProTableW[T]
 pkg github.com/tangoui/tango/ui, func Progress(*Context, float64) *ProgressW
 pkg github.com/tangoui/tango/ui, func Prompt(*Context, ConfirmOptions) *ConfirmRef
@@ -539,6 +556,7 @@ pkg github.com/tangoui/tango/ui, func Result(*Context, string, string) *ResultW
 pkg github.com/tangoui/tango/ui, func RichText(*Context, ...Span) *RichTextW
 pkg github.com/tangoui/tango/ui, func RouteContext(*Context) RouteInfo
 pkg github.com/tangoui/tango/ui, func Row(*Context, func(), ...ui/layout.Option) *Box
+pkg github.com/tangoui/tango/ui, func RowEditorTable[T any](*Context, []ProColumn[T], *[]T) *RowEditorTableW[T]
 pkg github.com/tangoui/tango/ui, func RulesOf[T any](*FormItemW, *T, ...RuleOf[T]) *FormItemW
 pkg github.com/tangoui/tango/ui, func SchemaForm(*Context, []ProField) *SchemaFormW
 pkg github.com/tangoui/tango/ui, func ScreenBreakpoint(*Context) Breakpoint
@@ -572,7 +590,9 @@ pkg github.com/tangoui/tango/ui, func StackBox(*Context, func(), ...ui/layout.Op
 pkg github.com/tangoui/tango/ui, func State[T any](*Context, ID, func() T) *T
 pkg github.com/tangoui/tango/ui, func Statistic(*Context, string, float64, int) *StatisticW
 pkg github.com/tangoui/tango/ui, func StatisticCard(*Context, string) *StatisticCardW
+pkg github.com/tangoui/tango/ui, func StatisticCardDivider(*Context, string) *StatisticCardDividerW
 pkg github.com/tangoui/tango/ui, func StatisticCardGroup(*Context) *ProCardW
+pkg github.com/tangoui/tango/ui, func StatisticCardOperation(*Context, string) *StatisticCardOperationW
 pkg github.com/tangoui/tango/ui, func StatisticTimer(*Context, string, TimerType, time.Time) *CountdownW
 pkg github.com/tangoui/tango/ui, func StatusBar(*Context) *StatusBarW
 pkg github.com/tangoui/tango/ui, func StatusBarItem(*Context, string) *StatusBarItemW
@@ -581,6 +601,7 @@ pkg github.com/tangoui/tango/ui, func StepsForm(*Context, []StepsFormStep) *Step
 pkg github.com/tangoui/tango/ui, func Switch(*Context, *bool) *SwitchW
 pkg github.com/tangoui/tango/ui, func SwitchValue[T comparable](*Context, *T, T, T) *SwitchW
 pkg github.com/tangoui/tango/ui, func Table(*Context, []TableColumn, int) *TableW
+pkg github.com/tangoui/tango/ui, func TableDropdown(*Context, []MenuItem) *TableDropdownW
 pkg github.com/tangoui/tango/ui, func Tabs(*Context, *string, []TabItem) *TabsW
 pkg github.com/tangoui/tango/ui, func Tag(*Context, string) *TagW
 pkg github.com/tangoui/tango/ui, func Text(*Context, string) *Label
@@ -598,6 +619,7 @@ pkg github.com/tangoui/tango/ui, func ToggleGroup(*Context, *[]string, []Option)
 pkg github.com/tangoui/tango/ui, func ToggleMarkdownTask(string, int) string
 pkg github.com/tangoui/tango/ui, func ToolCall(*Context, string) *ToolCallW
 pkg github.com/tangoui/tango/ui, func Tooltip(*Context, string, func()) *TooltipW
+pkg github.com/tangoui/tango/ui, func TopNavHeader(*Context, []MenuItem, *string) *TopNavHeaderW
 pkg github.com/tangoui/tango/ui, func Tour(*Context, *bool, *int, []TourStep) *TourW
 pkg github.com/tangoui/tango/ui, func Transfer(*Context, []TransferItem, *[]string) *TransferW
 pkg github.com/tangoui/tango/ui, func Tree(*Context, []TreeNode) *TreeW
@@ -629,19 +651,29 @@ pkg github.com/tangoui/tango/ui, method (*AlertW) Action(func()) *AlertW
 pkg github.com/tangoui/tango/ui, method (*AlertW) Banner() *AlertW
 pkg github.com/tangoui/tango/ui, method (*AlertW) Center() *AlertW
 pkg github.com/tangoui/tango/ui, method (*AlertW) Closable() *AlertW
+pkg github.com/tangoui/tango/ui, method (*AlertW) CloseDisabled(bool) *AlertW
+pkg github.com/tangoui/tango/ui, method (*AlertW) CloseIcon(*ui/icon.Icon) *AlertW
+pkg github.com/tangoui/tango/ui, method (*AlertW) CloseText(string) *AlertW
 pkg github.com/tangoui/tango/ui, method (*AlertW) Closed() bool
 pkg github.com/tangoui/tango/ui, method (*AlertW) Description(string) *AlertW
 pkg github.com/tangoui/tango/ui, method (*AlertW) Effect(AlertEffect) *AlertW
+pkg github.com/tangoui/tango/ui, method (*AlertW) Icon(*ui/icon.Icon) *AlertW
 pkg github.com/tangoui/tango/ui, method (*AlertW) NoIcon() *AlertW
 pkg github.com/tangoui/tango/ui, method (*AlertW) Show() *AlertW
+pkg github.com/tangoui/tango/ui, method (*AlertW) ShowIcon(bool) *AlertW
+pkg github.com/tangoui/tango/ui, method (*AlertW) Variant(string) *AlertW
 pkg github.com/tangoui/tango/ui, method (*AnchorW) Active() string
+pkg github.com/tangoui/tango/ui, method (*AnchorW) Bounds(float32) *AnchorW
 pkg github.com/tangoui/tango/ui, method (*AnchorW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*AnchorW) Clicked() string
+pkg github.com/tangoui/tango/ui, method (*AnchorW) CurrentAnchor(func(string) string) *AnchorW
+pkg github.com/tangoui/tango/ui, method (*AnchorW) Direction(string) *AnchorW
 pkg github.com/tangoui/tango/ui, method (*AnchorW) Horizontal() *AnchorW
 pkg github.com/tangoui/tango/ui, method (*AnchorW) NoInk() *AnchorW
 pkg github.com/tangoui/tango/ui, method (*AnchorW) Show() *AnchorW
 pkg github.com/tangoui/tango/ui, method (*AnchorW) Target(ID) *AnchorW
 pkg github.com/tangoui/tango/ui, method (*AnchorW) TargetOffset(float32) *AnchorW
+pkg github.com/tangoui/tango/ui, method (*AnchorW) Type(string) *AnchorW
 pkg github.com/tangoui/tango/ui, method (*AppW) Body(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*AppW) Layout(...ui/layout.Option) *AppW
 pkg github.com/tangoui/tango/ui, method (*AppW) Message(AppMessageConfig) *AppW
@@ -671,8 +703,10 @@ pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Highlight() *AutoComple
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) IsOpen() bool
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Layout(...ui/layout.Option) *AutoCompleteW
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Loading(bool) *AutoCompleteW
+pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) NotFoundContent(string) *AutoCompleteW
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Open() *AutoCompleteW
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Placeholder(string) *AutoCompleteW
+pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Placement(Placement) *AutoCompleteW
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Prefix(*ui/icon.Icon) *AutoCompleteW
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Remote(func(string)) *AutoCompleteW
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Selected() (string, bool)
@@ -684,24 +718,34 @@ pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Variant(FieldVariant) *
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Width(float32) *AutoCompleteW
 pkg github.com/tangoui/tango/ui, method (*AvatarGroupW) Body(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*AvatarGroupW) Max(int) *AvatarGroupW
+pkg github.com/tangoui/tango/ui, method (*AvatarGroupW) MaxPopover(bool, string, string) *AvatarGroupW
 pkg github.com/tangoui/tango/ui, method (*AvatarGroupW) MoreBg(ui/theme.Color) *AvatarGroupW
 pkg github.com/tangoui/tango/ui, method (*AvatarGroupW) Size(float32) *AvatarGroupW
 pkg github.com/tangoui/tango/ui, method (*AvatarW) A11yLabel(string) *AvatarW
 pkg github.com/tangoui/tango/ui, method (*AvatarW) Bg(ui/theme.Color) *AvatarW
+pkg github.com/tangoui/tango/ui, method (*AvatarW) Gap(float32) *AvatarW
 pkg github.com/tangoui/tango/ui, method (*AvatarW) Icon(*ui/icon.Icon) *AvatarW
 pkg github.com/tangoui/tango/ui, method (*AvatarW) Image(image.Image) *AvatarW
+pkg github.com/tangoui/tango/ui, method (*AvatarW) Large() *AvatarW
+pkg github.com/tangoui/tango/ui, method (*AvatarW) Shape(string) *AvatarW
 pkg github.com/tangoui/tango/ui, method (*AvatarW) Size(float32) *AvatarW
+pkg github.com/tangoui/tango/ui, method (*AvatarW) Small() *AvatarW
 pkg github.com/tangoui/tango/ui, method (*AvatarW) Square() *AvatarW
 pkg github.com/tangoui/tango/ui, method (*BackTopW) Clicked() bool
 pkg github.com/tangoui/tango/ui, method (*BackTopW) Content(func()) *BackTopW
+pkg github.com/tangoui/tango/ui, method (*BackTopW) Description(string) *BackTopW
 pkg github.com/tangoui/tango/ui, method (*BackTopW) Duration(time.Duration) *BackTopW
+pkg github.com/tangoui/tango/ui, method (*BackTopW) Icon(*ui/icon.Icon) *BackTopW
 pkg github.com/tangoui/tango/ui, method (*BackTopW) Position(float32, float32) *BackTopW
+pkg github.com/tangoui/tango/ui, method (*BackTopW) Primary() *BackTopW
 pkg github.com/tangoui/tango/ui, method (*BackTopW) Show() *BackTopW
+pkg github.com/tangoui/tango/ui, method (*BackTopW) Square() *BackTopW
 pkg github.com/tangoui/tango/ui, method (*BackTopW) VisibilityHeight(float32) *BackTopW
 pkg github.com/tangoui/tango/ui, method (*BadgeW) Body(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*BadgeW) Color(string) *BadgeW
 pkg github.com/tangoui/tango/ui, method (*BadgeW) Count(int) *BadgeW
 pkg github.com/tangoui/tango/ui, method (*BadgeW) Dot() *BadgeW
+pkg github.com/tangoui/tango/ui, method (*BadgeW) Hidden(bool) *BadgeW
 pkg github.com/tangoui/tango/ui, method (*BadgeW) Layout(...ui/layout.Option) *BadgeW
 pkg github.com/tangoui/tango/ui, method (*BadgeW) Max(int) *BadgeW
 pkg github.com/tangoui/tango/ui, method (*BadgeW) Offset(float32, float32) *BadgeW
@@ -709,6 +753,7 @@ pkg github.com/tangoui/tango/ui, method (*BadgeW) ShowZero() *BadgeW
 pkg github.com/tangoui/tango/ui, method (*BadgeW) Small() *BadgeW
 pkg github.com/tangoui/tango/ui, method (*BadgeW) Status(string, string) *BadgeW
 pkg github.com/tangoui/tango/ui, method (*BadgeW) Text(string) *BadgeW
+pkg github.com/tangoui/tango/ui, method (*BadgeW) Title(string) *BadgeW
 pkg github.com/tangoui/tango/ui, method (*BorderBeamW) Active(bool) *BorderBeamW
 pkg github.com/tangoui/tango/ui, method (*BorderBeamW) Body(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*BorderBeamW) Color(ui/theme.Color) *BorderBeamW
@@ -753,6 +798,7 @@ pkg github.com/tangoui/tango/ui, method (*Box) Touches() []ui/input.TouchEvent
 pkg github.com/tangoui/tango/ui, method (*Box) Transform(ui/geom.Affine) *Box
 pkg github.com/tangoui/tango/ui, method (*BreadcrumbW) Clicked() int
 pkg github.com/tangoui/tango/ui, method (*BreadcrumbW) ClickedHref() string
+pkg github.com/tangoui/tango/ui, method (*BreadcrumbW) DropdownIcon(*ui/icon.Icon) *BreadcrumbW
 pkg github.com/tangoui/tango/ui, method (*BreadcrumbW) MenuClicked() string
 pkg github.com/tangoui/tango/ui, method (*BreadcrumbW) Separator(string) *BreadcrumbW
 pkg github.com/tangoui/tango/ui, method (*BreadcrumbW) SeparatorIcon(*ui/icon.Icon) *BreadcrumbW
@@ -812,12 +858,15 @@ pkg github.com/tangoui/tango/ui, method (*ButtonW) Ghost() *ButtonW
 pkg github.com/tangoui/tango/ui, method (*ButtonW) Hovered() bool
 pkg github.com/tangoui/tango/ui, method (*ButtonW) ID() ID
 pkg github.com/tangoui/tango/ui, method (*ButtonW) Icon(*ui/icon.Icon) *ButtonW
+pkg github.com/tangoui/tango/ui, method (*ButtonW) IconPlacement(string) *ButtonW
 pkg github.com/tangoui/tango/ui, method (*ButtonW) IconRight(*ui/icon.Icon) *ButtonW
 pkg github.com/tangoui/tango/ui, method (*ButtonW) Info() *ButtonW
 pkg github.com/tangoui/tango/ui, method (*ButtonW) Large() *ButtonW
 pkg github.com/tangoui/tango/ui, method (*ButtonW) Layout(...ui/layout.Option) *ButtonW
 pkg github.com/tangoui/tango/ui, method (*ButtonW) Link() *ButtonW
 pkg github.com/tangoui/tango/ui, method (*ButtonW) Loading(bool) *ButtonW
+pkg github.com/tangoui/tango/ui, method (*ButtonW) LoadingDelay(time.Duration) *ButtonW
+pkg github.com/tangoui/tango/ui, method (*ButtonW) LoadingIcon(*ui/icon.Icon) *ButtonW
 pkg github.com/tangoui/tango/ui, method (*ButtonW) Plain() *ButtonW
 pkg github.com/tangoui/tango/ui, method (*ButtonW) Primary() *ButtonW
 pkg github.com/tangoui/tango/ui, method (*ButtonW) Round() *ButtonW
@@ -832,13 +881,17 @@ pkg github.com/tangoui/tango/ui, method (*CalendarW) Card() *CalendarW
 pkg github.com/tangoui/tango/ui, method (*CalendarW) CellHeight(float32) *CalendarW
 pkg github.com/tangoui/tango/ui, method (*CalendarW) CellRender(func(time.Time)) *CalendarW
 pkg github.com/tangoui/tango/ui, method (*CalendarW) Changed() bool
+pkg github.com/tangoui/tango/ui, method (*CalendarW) ControllerType(string) *CalendarW
 pkg github.com/tangoui/tango/ui, method (*CalendarW) DisabledDate(func(time.Time) bool) *CalendarW
+pkg github.com/tangoui/tango/ui, method (*CalendarW) Formatter(func(int, string) string) *CalendarW
 pkg github.com/tangoui/tango/ui, method (*CalendarW) Layout(...ui/layout.Option) *CalendarW
 pkg github.com/tangoui/tango/ui, method (*CalendarW) Mode(*string) *CalendarW
 pkg github.com/tangoui/tango/ui, method (*CalendarW) MonthCellRender(func(time.Time)) *CalendarW
 pkg github.com/tangoui/tango/ui, method (*CalendarW) NoHeader() *CalendarW
 pkg github.com/tangoui/tango/ui, method (*CalendarW) PanelChanged() bool
 pkg github.com/tangoui/tango/ui, method (*CalendarW) Range(time.Time, time.Time) *CalendarW
+pkg github.com/tangoui/tango/ui, method (*CalendarW) ShowWeek(bool) *CalendarW
+pkg github.com/tangoui/tango/ui, method (*CalendarW) ValidRange(time.Time, time.Time) *CalendarW
 pkg github.com/tangoui/tango/ui, method (*CardActionW) Clicked() bool
 pkg github.com/tangoui/tango/ui, method (*CardW) Actions(...func()) *CardW
 pkg github.com/tangoui/tango/ui, method (*CardW) Body(func()) *CardW
@@ -857,19 +910,26 @@ pkg github.com/tangoui/tango/ui, method (*CardW) Small() *CardW
 pkg github.com/tangoui/tango/ui, method (*CardW) TabBarExtra(func()) *CardW
 pkg github.com/tangoui/tango/ui, method (*CardW) TabChanged() bool
 pkg github.com/tangoui/tango/ui, method (*CardW) Tabs(*string, []TabItem) *CardW
+pkg github.com/tangoui/tango/ui, method (*CardW) Variant(string) *CardW
 pkg github.com/tangoui/tango/ui, method (*CarouselW) Arrows(string) *CarouselW
 pkg github.com/tangoui/tango/ui, method (*CarouselW) Autoplay(time.Duration) *CarouselW
 pkg github.com/tangoui/tango/ui, method (*CarouselW) Card() *CarouselW
+pkg github.com/tangoui/tango/ui, method (*CarouselW) CardScale(float32) *CarouselW
 pkg github.com/tangoui/tango/ui, method (*CarouselW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*CarouselW) Current(*int) *CarouselW
+pkg github.com/tangoui/tango/ui, method (*CarouselW) DotDuration(bool) *CarouselW
+pkg github.com/tangoui/tango/ui, method (*CarouselW) DotOutside() *CarouselW
+pkg github.com/tangoui/tango/ui, method (*CarouselW) DotPlacement(string) *CarouselW
 pkg github.com/tangoui/tango/ui, method (*CarouselW) DotPosition(string) *CarouselW
 pkg github.com/tangoui/tango/ui, method (*CarouselW) Dots(bool) *CarouselW
 pkg github.com/tangoui/tango/ui, method (*CarouselW) Draggable(bool) *CarouselW
 pkg github.com/tangoui/tango/ui, method (*CarouselW) Fade() *CarouselW
 pkg github.com/tangoui/tango/ui, method (*CarouselW) Height(float32) *CarouselW
 pkg github.com/tangoui/tango/ui, method (*CarouselW) Loop(bool) *CarouselW
+pkg github.com/tangoui/tango/ui, method (*CarouselW) PauseOnHover(bool) *CarouselW
 pkg github.com/tangoui/tango/ui, method (*CarouselW) Show() *Box
 pkg github.com/tangoui/tango/ui, method (*CarouselW) SwipeThreshold(float32) *CarouselW
+pkg github.com/tangoui/tango/ui, method (*CarouselW) Trigger(string) *CarouselW
 pkg github.com/tangoui/tango/ui, method (*CarouselW) Vertical() *CarouselW
 pkg github.com/tangoui/tango/ui, method (*CascaderPanelW) A11yLabel(string) *CascaderPanelW
 pkg github.com/tangoui/tango/ui, method (*CascaderPanelW) Border(bool) *CascaderPanelW
@@ -899,42 +959,83 @@ pkg github.com/tangoui/tango/ui, method (*CascaderW) IsOpen() bool
 pkg github.com/tangoui/tango/ui, method (*CascaderW) Layout(...ui/layout.Option) *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) LoadData(func([]string, func([]CascaderOption))) *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) MaxTagCount(int) *CascaderW
+pkg github.com/tangoui/tango/ui, method (*CascaderW) MaxTagPlaceholder(func([]string) string) *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) Multiple(*[][]string) *CascaderW
+pkg github.com/tangoui/tango/ui, method (*CascaderW) NotFoundContent(string) *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) Open() *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) Placeholder(string) *CascaderW
+pkg github.com/tangoui/tango/ui, method (*CascaderW) Placement(Placement) *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) Searchable() *CascaderW
+pkg github.com/tangoui/tango/ui, method (*CascaderW) Separator(string) *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) ShowCheckedStrategy(CheckedStrategy) *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) Size(ControlSize) *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) Status(string) *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) StrategyValue(bool) *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) Variant(FieldVariant) *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) Width(float32) *CascaderW
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Bordered(bool) *CellEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Cancel()
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Changed() bool
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Edit(string, string)
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) EditingCell() (string, string)
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Errors(string) map[string]string
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) ID() ID
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) OnSave(func(T, int, func(error))) *CellEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Pagination(int) *CellEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) RowEditable(func(T) bool) *CellEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) RowKey(func(T) string) *CellEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Save()
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Saved() bool
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) ScrollX(float32) *CellEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Show() *CellEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Size(ControlSize) *CellEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Table() *TableW
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Title(string) *CellEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) ToolBar(func()) *CellEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Validating(string) bool
 pkg github.com/tangoui/tango/ui, method (*CheckAllW) Changed() bool
+pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Body(func()) *CheckCardGroupW
+pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Borderless() *CheckCardGroupW
 pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Changed() bool
+pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) DefaultValue(string) *CheckCardGroupW
+pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) DefaultValues(...string) *CheckCardGroupW
 pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Disabled(bool) *CheckCardGroupW
 pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Layout(...ui/layout.Option) *CheckCardGroupW
 pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Loading(bool) *CheckCardGroupW
+pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Multiple() *CheckCardGroupW
+pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Selected() string
+pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) SelectedValues() []string
 pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Show() *CheckCardGroupW
 pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Size(ControlSize) *CheckCardGroupW
 pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Value(*string) *CheckCardGroupW
 pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Values(*[]string) *CheckCardGroupW
 pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Width(float32) *CheckCardGroupW
+pkg github.com/tangoui/tango/ui, method (*CheckCardW) Actions(...func()) *CheckCardW
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) Avatar(string) *CheckCardW
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) AvatarIcon(*ui/icon.Icon) *CheckCardW
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) Borderless() *CheckCardW
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) Clicked() bool
+pkg github.com/tangoui/tango/ui, method (*CheckCardW) Content(func()) *CheckCardW
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) Cover(func()) *CheckCardW
+pkg github.com/tangoui/tango/ui, method (*CheckCardW) DefaultChecked(bool) *CheckCardW
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) Description(string) *CheckCardW
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) Disabled(bool) *CheckCardW
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) Extra(func()) *CheckCardW
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) ID() ID
+pkg github.com/tangoui/tango/ui, method (*CheckCardW) IsChecked() bool
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) Large() *CheckCardW
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) Loading(bool) *CheckCardW
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) Show() *CheckCardW
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) Size(ControlSize) *CheckCardW
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) Small() *CheckCardW
+pkg github.com/tangoui/tango/ui, method (*CheckCardW) SubTitle(string) *CheckCardW
+pkg github.com/tangoui/tango/ui, method (*CheckCardW) Value(string) *CheckCardW
 pkg github.com/tangoui/tango/ui, method (*CheckCardW) Width(float32) *CheckCardW
+pkg github.com/tangoui/tango/ui, method (*CheckableTagGroupW) A11yLabel(string) *CheckableTagGroupW
+pkg github.com/tangoui/tango/ui, method (*CheckableTagGroupW) Changed() bool
+pkg github.com/tangoui/tango/ui, method (*CheckableTagGroupW) Disabled(bool) *CheckableTagGroupW
+pkg github.com/tangoui/tango/ui, method (*CheckableTagGroupW) Multiple(bool) *CheckableTagGroupW
 pkg github.com/tangoui/tango/ui, method (*CheckableTagW) A11yLabel(string) *CheckableTagW
 pkg github.com/tangoui/tango/ui, method (*CheckableTagW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*CheckableTagW) Checked() bool
@@ -973,8 +1074,12 @@ pkg github.com/tangoui/tango/ui, method (*CodeBlockW) StartLine(int) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Title(string) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Wrap(bool) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CollapseW) Accordion() *CollapseW
+pkg github.com/tangoui/tango/ui, method (*CollapseW) BeforeCollapse(func(string) bool) *CollapseW
 pkg github.com/tangoui/tango/ui, method (*CollapseW) Borderless() *CollapseW
 pkg github.com/tangoui/tango/ui, method (*CollapseW) Changed() bool
+pkg github.com/tangoui/tango/ui, method (*CollapseW) Collapsible(string) *CollapseW
+pkg github.com/tangoui/tango/ui, method (*CollapseW) ExpandIcon(*ui/icon.Icon) *CollapseW
+pkg github.com/tangoui/tango/ui, method (*CollapseW) ExpandIconPlacement(string) *CollapseW
 pkg github.com/tangoui/tango/ui, method (*CollapseW) Ghost() *CollapseW
 pkg github.com/tangoui/tango/ui, method (*CollapseW) IconEnd() *CollapseW
 pkg github.com/tangoui/tango/ui, method (*CollapseW) IconStart() *CollapseW
@@ -986,6 +1091,7 @@ pkg github.com/tangoui/tango/ui, method (*ColorPickerPanelW) AllowClear() *Color
 pkg github.com/tangoui/tango/ui, method (*ColorPickerPanelW) Border(bool) *ColorPickerPanelW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerPanelW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*ColorPickerPanelW) Disabled(bool) *ColorPickerPanelW
+pkg github.com/tangoui/tango/ui, method (*ColorPickerPanelW) DisabledFormat(bool) *ColorPickerPanelW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerPanelW) Format(string) *ColorPickerPanelW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerPanelW) ID() ID
 pkg github.com/tangoui/tango/ui, method (*ColorPickerPanelW) NoAlpha() *ColorPickerPanelW
@@ -997,10 +1103,12 @@ pkg github.com/tangoui/tango/ui, method (*ColorPickerW) AllowClear() *ColorPicke
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) Cleared() bool
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) Disabled(bool) *ColorPickerW
+pkg github.com/tangoui/tango/ui, method (*ColorPickerW) DisabledFormat(bool) *ColorPickerW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) Format(string) *ColorPickerW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) IsOpen() bool
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) NoAlpha() *ColorPickerW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) Open() *ColorPickerW
+pkg github.com/tangoui/tango/ui, method (*ColorPickerW) Placement(Placement) *ColorPickerW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) PresetGroups(...ColorPresetGroup) *ColorPickerW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) PresetLabel(string) *ColorPickerW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) Presets(...ui/theme.Color) *ColorPickerW
@@ -1008,17 +1116,27 @@ pkg github.com/tangoui/tango/ui, method (*ColorPickerW) ShowText() *ColorPickerW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) Size(ControlSize) *ColorPickerW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) Status(string) *ColorPickerW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) Trigger(Trigger) *ColorPickerW
+pkg github.com/tangoui/tango/ui, method (*CommandW) DisablePointerSelection(bool) *CommandW
 pkg github.com/tangoui/tango/ui, method (*CommandW) Empty(string) *CommandW
+pkg github.com/tangoui/tango/ui, method (*CommandW) Filter(func(string, string, []string) float64) *CommandW
 pkg github.com/tangoui/tango/ui, method (*CommandW) ID() ID
 pkg github.com/tangoui/tango/ui, method (*CommandW) Layout(...ui/layout.Option) *CommandW
+pkg github.com/tangoui/tango/ui, method (*CommandW) Loop(bool) *CommandW
 pkg github.com/tangoui/tango/ui, method (*CommandW) MaxHeight(float32) *CommandW
 pkg github.com/tangoui/tango/ui, method (*CommandW) Placeholder(string) *CommandW
 pkg github.com/tangoui/tango/ui, method (*CommandW) Query() string
+pkg github.com/tangoui/tango/ui, method (*CommandW) Search(*string) *CommandW
 pkg github.com/tangoui/tango/ui, method (*CommandW) Selected() (CommandItem, bool)
 pkg github.com/tangoui/tango/ui, method (*CommandW) Shadow() *CommandW
+pkg github.com/tangoui/tango/ui, method (*CommandW) ShouldFilter(bool) *CommandW
+pkg github.com/tangoui/tango/ui, method (*CommandW) Value(*string) *CommandW
+pkg github.com/tangoui/tango/ui, method (*CommandW) ValueChanged() bool
+pkg github.com/tangoui/tango/ui, method (*CommandW) VimBindings(bool) *CommandW
 pkg github.com/tangoui/tango/ui, method (*CompactW) Block() *CompactW
 pkg github.com/tangoui/tango/ui, method (*CompactW) Body(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*CompactW) Layout(...ui/layout.Option) *CompactW
+pkg github.com/tangoui/tango/ui, method (*CompactW) Orientation(string) *CompactW
+pkg github.com/tangoui/tango/ui, method (*CompactW) Size(ControlSize) *CompactW
 pkg github.com/tangoui/tango/ui, method (*CompactW) Vertical() *CompactW
 pkg github.com/tangoui/tango/ui, method (*ConfigProviderW) Body(func())
 pkg github.com/tangoui/tango/ui, method (*ConfigProviderW) Compact(bool) *ConfigProviderW
@@ -1067,6 +1185,7 @@ pkg github.com/tangoui/tango/ui, method (*Context) Focused() ID
 pkg github.com/tangoui/tango/ui, method (*Context) Inline(ui/geom.Rect) InlineSpan
 pkg github.com/tangoui/tango/ui, method (*Context) InlineKey(ui/input.Key) (bool, bool)
 pkg github.com/tangoui/tango/ui, method (*Context) Invalidate()
+pkg github.com/tangoui/tango/ui, method (*Context) InvalidateImage(image.Image)
 pkg github.com/tangoui/tango/ui, method (*Context) Invalidator() func()
 pkg github.com/tangoui/tango/ui, method (*Context) IsRTL() bool
 pkg github.com/tangoui/tango/ui, method (*Context) KeepPointer(ID)
@@ -1129,8 +1248,11 @@ pkg github.com/tangoui/tango/ui, method (*DatePickerPanelW) Border(bool) *DatePi
 pkg github.com/tangoui/tango/ui, method (*DatePickerPanelW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*DatePickerPanelW) Disabled(bool) *DatePickerPanelW
 pkg github.com/tangoui/tango/ui, method (*DatePickerPanelW) DisabledDate(func(time.Time) bool) *DatePickerPanelW
+pkg github.com/tangoui/tango/ui, method (*DatePickerPanelW) MaxDate(time.Time) *DatePickerPanelW
+pkg github.com/tangoui/tango/ui, method (*DatePickerPanelW) MinDate(time.Time) *DatePickerPanelW
 pkg github.com/tangoui/tango/ui, method (*DatePickerPanelW) Picker(PickerType) *DatePickerPanelW
 pkg github.com/tangoui/tango/ui, method (*DatePickerPanelW) Range(*time.Time) *DatePickerPanelW
+pkg github.com/tangoui/tango/ui, method (*DatePickerPanelW) ShowWeek(bool) *DatePickerPanelW
 pkg github.com/tangoui/tango/ui, method (*DatePickerPanelW) View() PickerType
 pkg github.com/tangoui/tango/ui, method (*DatePickerW) A11yLabel(string) *DatePickerW
 pkg github.com/tangoui/tango/ui, method (*DatePickerW) AllowClear(bool) *DatePickerW
@@ -1140,11 +1262,16 @@ pkg github.com/tangoui/tango/ui, method (*DatePickerW) DisabledDate(func(time.Ti
 pkg github.com/tangoui/tango/ui, method (*DatePickerW) Format(string) *DatePickerW
 pkg github.com/tangoui/tango/ui, method (*DatePickerW) IsOpen() bool
 pkg github.com/tangoui/tango/ui, method (*DatePickerW) Layout(...ui/layout.Option) *DatePickerW
+pkg github.com/tangoui/tango/ui, method (*DatePickerW) MaxDate(time.Time) *DatePickerW
+pkg github.com/tangoui/tango/ui, method (*DatePickerW) MinDate(time.Time) *DatePickerW
 pkg github.com/tangoui/tango/ui, method (*DatePickerW) NeedConfirm(bool) *DatePickerW
 pkg github.com/tangoui/tango/ui, method (*DatePickerW) Open() *DatePickerW
 pkg github.com/tangoui/tango/ui, method (*DatePickerW) Picker(PickerType) *DatePickerW
 pkg github.com/tangoui/tango/ui, method (*DatePickerW) Placeholder(string) *DatePickerW
+pkg github.com/tangoui/tango/ui, method (*DatePickerW) Placement(Placement) *DatePickerW
 pkg github.com/tangoui/tango/ui, method (*DatePickerW) Presets(...DatePreset) *DatePickerW
+pkg github.com/tangoui/tango/ui, method (*DatePickerW) ShowNow(bool) *DatePickerW
+pkg github.com/tangoui/tango/ui, method (*DatePickerW) ShowWeek(bool) *DatePickerW
 pkg github.com/tangoui/tango/ui, method (*DatePickerW) Size(ControlSize) *DatePickerW
 pkg github.com/tangoui/tango/ui, method (*DatePickerW) Status(string) *DatePickerW
 pkg github.com/tangoui/tango/ui, method (*DatePickerW) Variant(string) *DatePickerW
@@ -1152,15 +1279,20 @@ pkg github.com/tangoui/tango/ui, method (*DatePickerW) Width(float32) *DatePicke
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) A11yLabel(string) *DateTimePickerW
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) AllowClear(bool) *DateTimePickerW
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) Changed() bool
+pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) DefaultTime(time.Time) *DateTimePickerW
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) Disabled(bool) *DateTimePickerW
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) DisabledDate(func(time.Time) bool) *DateTimePickerW
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) DisabledTime(func(time.Time) DisabledTimes) *DateTimePickerW
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) Format(string) *DateTimePickerW
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) IsOpen() bool
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) Layout(...ui/layout.Option) *DateTimePickerW
+pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) MaxDate(time.Time) *DateTimePickerW
+pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) MinDate(time.Time) *DateTimePickerW
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) Open() *DateTimePickerW
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) Placeholder(string) *DateTimePickerW
+pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) Placement(Placement) *DateTimePickerW
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) Presets(...DatePreset) *DateTimePickerW
+pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) ShowNow(bool) *DateTimePickerW
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) Size(ControlSize) *DateTimePickerW
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) Status(string) *DateTimePickerW
 pkg github.com/tangoui/tango/ui, method (*DateTimePickerW) Steps(int, int, int) *DateTimePickerW
@@ -1185,6 +1317,10 @@ pkg github.com/tangoui/tango/ui, method (*DescriptionsW) Vertical() *Description
 pkg github.com/tangoui/tango/ui, method (*DividerW) Dashed() *DividerW
 pkg github.com/tangoui/tango/ui, method (*DividerW) Orientation(string) *DividerW
 pkg github.com/tangoui/tango/ui, method (*DividerW) Plain() *DividerW
+pkg github.com/tangoui/tango/ui, method (*DividerW) Size(ControlSize) *DividerW
+pkg github.com/tangoui/tango/ui, method (*DividerW) TitlePlacement(string) *DividerW
+pkg github.com/tangoui/tango/ui, method (*DividerW) Variant(string) *DividerW
+pkg github.com/tangoui/tango/ui, method (*DividerW) Vertical() *DividerW
 pkg github.com/tangoui/tango/ui, method (*DockLayout) Activate(string) bool
 pkg github.com/tangoui/tango/ui, method (*DockLayout) AddTab(string, string)
 pkg github.com/tangoui/tango/ui, method (*DockLayout) FocusGroup() *DockNode
@@ -1205,18 +1341,23 @@ pkg github.com/tangoui/tango/ui, method (*DockW) Show() *DockW
 pkg github.com/tangoui/tango/ui, method (*DockW) Style(...ui/layout.Option) *DockW
 pkg github.com/tangoui/tango/ui, method (*DockW) Tab(func(string) TabItem) *DockW
 pkg github.com/tangoui/tango/ui, method (*DockW) TornOff() (string, ui/geom.Point, bool)
+pkg github.com/tangoui/tango/ui, method (*DrawerW) AfterOpenChanged() bool
 pkg github.com/tangoui/tango/ui, method (*DrawerW) BindSize(*float32) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Body(func()) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Closable(bool) *DrawerW
+pkg github.com/tangoui/tango/ui, method (*DrawerW) ClosablePlacement(string) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Closed() bool
 pkg github.com/tangoui/tango/ui, method (*DrawerW) CurrentSize() float32
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Extra(func()) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Footer(func()) *DrawerW
+pkg github.com/tangoui/tango/ui, method (*DrawerW) Keyboard(bool) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Large() *DrawerW
+pkg github.com/tangoui/tango/ui, method (*DrawerW) Loading(bool) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Mask(bool) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) MaskClosable(bool) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) NoHeader() *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Placement(DrawerPlacement) *DrawerW
+pkg github.com/tangoui/tango/ui, method (*DrawerW) Push(float32) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Resizable(bool) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Resized() bool
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Size(float32) *DrawerW
@@ -1280,22 +1421,31 @@ pkg github.com/tangoui/tango/ui, method (*DropZoneW) ID() ID
 pkg github.com/tangoui/tango/ui, method (*DropZoneW) Layout(...ui/layout.Option) *DropZoneW
 pkg github.com/tangoui/tango/ui, method (*DropZoneW) Over() bool
 pkg github.com/tangoui/tango/ui, method (*DropdownW) Arrow() *DropdownW
+pkg github.com/tangoui/tango/ui, method (*DropdownW) ArrowPointAtCenter(bool) *DropdownW
+pkg github.com/tangoui/tango/ui, method (*DropdownW) AutoFocus(bool) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) Body(func()) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) Button(string) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) ButtonClicked() bool
+pkg github.com/tangoui/tango/ui, method (*DropdownW) Check(string, *bool) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) Clicked() string
 pkg github.com/tangoui/tango/ui, method (*DropdownW) Danger() *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) Disabled(bool) *DropdownW
+pkg github.com/tangoui/tango/ui, method (*DropdownW) HideOnClick(bool) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) ID() ID
 pkg github.com/tangoui/tango/ui, method (*DropdownW) IsOpen() bool
 pkg github.com/tangoui/tango/ui, method (*DropdownW) MaxHeight(float32) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) MenuIcon(*ui/icon.Icon) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) MinWidth(float32) *DropdownW
+pkg github.com/tangoui/tango/ui, method (*DropdownW) MouseEnterDelay(time.Duration) *DropdownW
+pkg github.com/tangoui/tango/ui, method (*DropdownW) MouseLeaveDelay(time.Duration) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) Open(*bool) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) OpenAt(ui/geom.Point) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) OpenChanged() bool
+pkg github.com/tangoui/tango/ui, method (*DropdownW) OpenSource() string
 pkg github.com/tangoui/tango/ui, method (*DropdownW) Placement(Placement) *DropdownW
+pkg github.com/tangoui/tango/ui, method (*DropdownW) PopupRender(func(func())) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) Primary() *DropdownW
+pkg github.com/tangoui/tango/ui, method (*DropdownW) Radio(*string, ...string) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) Selected(string) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) Size(ControlSize) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) Trigger(Trigger) *DropdownW
@@ -1336,11 +1486,13 @@ pkg github.com/tangoui/tango/ui, method (*EmptyW) Image(func()) *EmptyW
 pkg github.com/tangoui/tango/ui, method (*EmptyW) ImageSize(float32) *EmptyW
 pkg github.com/tangoui/tango/ui, method (*EmptyW) Layout(...ui/layout.Option) *EmptyW
 pkg github.com/tangoui/tango/ui, method (*EmptyW) Simple() *EmptyW
+pkg github.com/tangoui/tango/ui, method (*EmptyW) Title(string) *EmptyW
 pkg github.com/tangoui/tango/ui, method (*FlexW) Align(ui/layout.Align) *FlexW
 pkg github.com/tangoui/tango/ui, method (*FlexW) Body(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*FlexW) Gap(ControlSize) *FlexW
 pkg github.com/tangoui/tango/ui, method (*FlexW) GapPx(float32) *FlexW
 pkg github.com/tangoui/tango/ui, method (*FlexW) Justify(ui/layout.Justify) *FlexW
+pkg github.com/tangoui/tango/ui, method (*FlexW) Orientation(string) *FlexW
 pkg github.com/tangoui/tango/ui, method (*FlexW) Style(...ui/layout.Option) *FlexW
 pkg github.com/tangoui/tango/ui, method (*FlexW) Vertical() *FlexW
 pkg github.com/tangoui/tango/ui, method (*FlexW) Wrap() *FlexW
@@ -1365,6 +1517,7 @@ pkg github.com/tangoui/tango/ui, method (*FloatButtonW) Square() *FloatButtonW
 pkg github.com/tangoui/tango/ui, method (*FloatButtonW) Tooltip(string) *FloatButtonW
 pkg github.com/tangoui/tango/ui, method (*FooterToolbarW) Body(func()) *FooterToolbarW
 pkg github.com/tangoui/tango/ui, method (*FooterToolbarW) Extra(func()) *FooterToolbarW
+pkg github.com/tangoui/tango/ui, method (*FooterToolbarW) Fixed(bool) *FooterToolbarW
 pkg github.com/tangoui/tango/ui, method (*FooterToolbarW) ID() ID
 pkg github.com/tangoui/tango/ui, method (*FooterToolbarW) Layout(...ui/layout.Option) *FooterToolbarW
 pkg github.com/tangoui/tango/ui, method (*FooterToolbarW) Sticky() *FooterToolbarW
@@ -1411,6 +1564,7 @@ pkg github.com/tangoui/tango/ui, method (*FormW) LabelAlign(TextAlign) *FormW
 pkg github.com/tangoui/tango/ui, method (*FormW) LabelWidth(float32) *FormW
 pkg github.com/tangoui/tango/ui, method (*FormW) Layout(...ui/layout.Option) *FormW
 pkg github.com/tangoui/tango/ui, method (*FormW) RequiredMark(bool) *FormW
+pkg github.com/tangoui/tango/ui, method (*FormW) RequiredMarkOptional() *FormW
 pkg github.com/tangoui/tango/ui, method (*FormW) ResetFields(...string)
 pkg github.com/tangoui/tango/ui, method (*FormW) ResetValidation()
 pkg github.com/tangoui/tango/ui, method (*FormW) ScrollToFirstError() *FormW
@@ -1447,6 +1601,7 @@ pkg github.com/tangoui/tango/ui, method (*GridRowW) Gutter(float32, float32) *Gr
 pkg github.com/tangoui/tango/ui, method (*GridRowW) GutterAt(Breakpoint, float32) *GridRowW
 pkg github.com/tangoui/tango/ui, method (*GridRowW) Justify(ui/layout.Justify) *GridRowW
 pkg github.com/tangoui/tango/ui, method (*GridRowW) NoWrap() *GridRowW
+pkg github.com/tangoui/tango/ui, method (*GridRowW) VGutterAt(Breakpoint, float32) *GridRowW
 pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) A11yLabel(string) *HotkeyInputW
 pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) AllowBare(bool) *HotkeyInputW
 pkg github.com/tangoui/tango/ui, method (*HotkeyInputW) Changed() bool
@@ -1473,20 +1628,30 @@ pkg github.com/tangoui/tango/ui, method (*IconW) Size(float32) *IconW
 pkg github.com/tangoui/tango/ui, method (*IconW) Spin() *IconW
 pkg github.com/tangoui/tango/ui, method (*ImageW) A11yLabel(string) *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) Alt(string) *ImageW
+pkg github.com/tangoui/tango/ui, method (*ImageW) CloseOnEscape(bool) *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) Failed(bool) *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) Fallback(image.Image) *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) Fit(string) *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) Height(float32) *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) ID() ID
+pkg github.com/tangoui/tango/ui, method (*ImageW) Infinite(bool) *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) Layout(...ui/layout.Option) *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) Loading(bool) *ImageW
+pkg github.com/tangoui/tango/ui, method (*ImageW) MaskClosable(bool) *ImageW
+pkg github.com/tangoui/tango/ui, method (*ImageW) MaxScale(float32) *ImageW
+pkg github.com/tangoui/tango/ui, method (*ImageW) MinScale(float32) *ImageW
+pkg github.com/tangoui/tango/ui, method (*ImageW) Movable(bool) *ImageW
+pkg github.com/tangoui/tango/ui, method (*ImageW) OpenPreview() *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) Preview(bool) *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) PreviewAngle() float64
 pkg github.com/tangoui/tango/ui, method (*ImageW) PreviewGroup([]image.Image, int) *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) PreviewOpen() bool
 pkg github.com/tangoui/tango/ui, method (*ImageW) PreviewScale() float32
+pkg github.com/tangoui/tango/ui, method (*ImageW) PreviewSrc(image.Image) *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) Radius(float32) *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) Rotate(float64) *ImageW
+pkg github.com/tangoui/tango/ui, method (*ImageW) ScaleStep(float32) *ImageW
+pkg github.com/tangoui/tango/ui, method (*ImageW) ShowProgress(bool) *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) Size(float32, float32) *ImageW
 pkg github.com/tangoui/tango/ui, method (*ImageW) Width(float32) *ImageW
 pkg github.com/tangoui/tango/ui, method (*InfiniteScrollW) Disabled(bool) *InfiniteScrollW
@@ -1503,21 +1668,28 @@ pkg github.com/tangoui/tango/ui, method (*InfiniteScrollW) Offset() float64
 pkg github.com/tangoui/tango/ui, method (*InfiniteScrollW) ScrollTo(float64) *InfiniteScrollW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) A11yLabel(string) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Changed() bool
+pkg github.com/tangoui/tango/ui, method (*InputNumberW) Controls(bool) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) ControlsPosition(string) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Disabled(bool) *InputNumberW
+pkg github.com/tangoui/tango/ui, method (*InputNumberW) DownDisabled() bool
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Empty(*bool) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Formatter(func(string) string) *InputNumberW
+pkg github.com/tangoui/tango/ui, method (*InputNumberW) Keyboard(bool) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Max(float64) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Min(float64) *InputNumberW
+pkg github.com/tangoui/tango/ui, method (*InputNumberW) Mode(string) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Parser(func(string) string) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Placeholder(string) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Precision(int) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Prefix(*ui/icon.Icon) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) PrefixText(string) *InputNumberW
+pkg github.com/tangoui/tango/ui, method (*InputNumberW) ReadOnly() *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Size(ControlSize) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Status(string) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Step(float64) *InputNumberW
+pkg github.com/tangoui/tango/ui, method (*InputNumberW) StepStrictly() *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) StringMode(*string) *InputNumberW
+pkg github.com/tangoui/tango/ui, method (*InputNumberW) UpDisabled() bool
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Variant(string) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Wheel() *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Width(float32) *InputNumberW
@@ -1535,6 +1707,7 @@ pkg github.com/tangoui/tango/ui, method (*InputTagW) SaveOnBlur() *InputTagW
 pkg github.com/tangoui/tango/ui, method (*InputTagW) Separators(...string) *InputTagW
 pkg github.com/tangoui/tango/ui, method (*InputTagW) Size(ControlSize) *InputTagW
 pkg github.com/tangoui/tango/ui, method (*InputTagW) Status(string) *InputTagW
+pkg github.com/tangoui/tango/ui, method (*InputTagW) Trigger(string) *InputTagW
 pkg github.com/tangoui/tango/ui, method (*InputTagW) Width(float32) *InputTagW
 pkg github.com/tangoui/tango/ui, method (*InputW) A11yLabel(string) *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) AllowClear() *InputW
@@ -1562,6 +1735,7 @@ pkg github.com/tangoui/tango/ui, method (*InputW) Submitted() bool
 pkg github.com/tangoui/tango/ui, method (*InputW) Suffix(*ui/icon.Icon) *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) SuffixText(string) *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) Variant(string) *InputW
+pkg github.com/tangoui/tango/ui, method (*InputW) VisibilityToggle(bool) *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) Width(float32) *InputW
 pkg github.com/tangoui/tango/ui, method (*ItemGroupW) A11yLabel(string) *ItemGroupW
 pkg github.com/tangoui/tango/ui, method (*ItemGroupW) Body(func()) *ItemGroupW
@@ -1641,8 +1815,23 @@ pkg github.com/tangoui/tango/ui, method (*LightFilterW) Values(*ProValues) *Ligh
 pkg github.com/tangoui/tango/ui, method (*LinkW) Clicked() bool
 pkg github.com/tangoui/tango/ui, method (*LinkW) Color(ui/theme.Color) *LinkW
 pkg github.com/tangoui/tango/ui, method (*LinkW) Hovered() bool
+pkg github.com/tangoui/tango/ui, method (*LinkW) Icon(*ui/icon.Icon) *LinkW
 pkg github.com/tangoui/tango/ui, method (*LinkW) Secondary() *LinkW
 pkg github.com/tangoui/tango/ui, method (*LinkW) Type(string) *LinkW
+pkg github.com/tangoui/tango/ui, method (*LinkW) UnderlineMode(string) *LinkW
+pkg github.com/tangoui/tango/ui, method (*ListToolBarW) Actions(func()) *ListToolBarW
+pkg github.com/tangoui/tango/ui, method (*ListToolBarW) Filter(func()) *ListToolBarW
+pkg github.com/tangoui/tango/ui, method (*ListToolBarW) ID() ID
+pkg github.com/tangoui/tango/ui, method (*ListToolBarW) Menu(string, *string, []TabItem) *ListToolBarW
+pkg github.com/tangoui/tango/ui, method (*ListToolBarW) MultipleLine(bool) *ListToolBarW
+pkg github.com/tangoui/tango/ui, method (*ListToolBarW) OnSearch(func(string)) *ListToolBarW
+pkg github.com/tangoui/tango/ui, method (*ListToolBarW) Search(*string) *ListToolBarW
+pkg github.com/tangoui/tango/ui, method (*ListToolBarW) Settings(func()) *ListToolBarW
+pkg github.com/tangoui/tango/ui, method (*ListToolBarW) Show() *ListToolBarW
+pkg github.com/tangoui/tango/ui, method (*ListToolBarW) SubTitle(string) *ListToolBarW
+pkg github.com/tangoui/tango/ui, method (*ListToolBarW) Tabs(*string, []TabItem) *ListToolBarW
+pkg github.com/tangoui/tango/ui, method (*ListToolBarW) Title(string) *ListToolBarW
+pkg github.com/tangoui/tango/ui, method (*ListToolBarW) Tooltip(string) *ListToolBarW
 pkg github.com/tangoui/tango/ui, method (*ListW) Bordered() *ListW
 pkg github.com/tangoui/tango/ui, method (*ListW) EmptyText(string) *ListW
 pkg github.com/tangoui/tango/ui, method (*ListW) Footer(func()) *ListW
@@ -1650,12 +1839,16 @@ pkg github.com/tangoui/tango/ui, method (*ListW) Grid(int, float32) *ListW
 pkg github.com/tangoui/tango/ui, method (*ListW) GridAt(Breakpoint, int) *ListW
 pkg github.com/tangoui/tango/ui, method (*ListW) Header(func()) *ListW
 pkg github.com/tangoui/tango/ui, method (*ListW) Item(func(int)) *ListW
+pkg github.com/tangoui/tango/ui, method (*ListW) ItemExtra(func(int)) *ListW
+pkg github.com/tangoui/tango/ui, method (*ListW) ItemLayout(string) *ListW
 pkg github.com/tangoui/tango/ui, method (*ListW) Layout(...ui/layout.Option) *ListW
 pkg github.com/tangoui/tango/ui, method (*ListW) LoadMore(string, bool) *ListW
 pkg github.com/tangoui/tango/ui, method (*ListW) LoadMoreClicked() bool
 pkg github.com/tangoui/tango/ui, method (*ListW) Loading(bool) *ListW
 pkg github.com/tangoui/tango/ui, method (*ListW) PageChanged() bool
 pkg github.com/tangoui/tango/ui, method (*ListW) Pagination(*int, int) *ListW
+pkg github.com/tangoui/tango/ui, method (*ListW) PaginationAlign(string) *ListW
+pkg github.com/tangoui/tango/ui, method (*ListW) PaginationPosition(string) *ListW
 pkg github.com/tangoui/tango/ui, method (*ListW) Size(ControlSize) *ListW
 pkg github.com/tangoui/tango/ui, method (*ListW) Split(bool) *ListW
 pkg github.com/tangoui/tango/ui, method (*ListyW) Clicked() (int, bool)
@@ -1682,6 +1875,8 @@ pkg github.com/tangoui/tango/ui, method (*LoadingW) Background(ui/theme.Color) *
 pkg github.com/tangoui/tango/ui, method (*LoadingW) Body(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*LoadingW) Fullscreen() *LoadingW
 pkg github.com/tangoui/tango/ui, method (*LoadingW) Size(ControlSize) *LoadingW
+pkg github.com/tangoui/tango/ui, method (*LoadingW) Spinner(*ui/icon.Icon) *LoadingW
+pkg github.com/tangoui/tango/ui, method (*LoadingW) Text(string) *LoadingW
 pkg github.com/tangoui/tango/ui, method (*LoadingW) Tip(string) *LoadingW
 pkg github.com/tangoui/tango/ui, method (*Locale) Date(int, int, int) string
 pkg github.com/tangoui/tango/ui, method (*Locale) Digit(int, int) string
@@ -1780,6 +1975,7 @@ pkg github.com/tangoui/tango/ui, method (*MasonryW) ID() ID
 pkg github.com/tangoui/tango/ui, method (*MasonryW) ItemColumn(func(int) int) *MasonryW
 pkg github.com/tangoui/tango/ui, method (*MasonryW) ItemHeight(func(int) float32) *MasonryW
 pkg github.com/tangoui/tango/ui, method (*MasonryW) ItemKey(func(int) any) *MasonryW
+pkg github.com/tangoui/tango/ui, method (*MasonryW) LayoutChanged() bool
 pkg github.com/tangoui/tango/ui, method (*MasonryW) Show() *MasonryW
 pkg github.com/tangoui/tango/ui, method (*MasonryW) Virtual(float32) *MasonryW
 pkg github.com/tangoui/tango/ui, method (*MentionsW) A11yLabel(string) *MentionsW
@@ -1793,12 +1989,14 @@ pkg github.com/tangoui/tango/ui, method (*MentionsW) Layout(...ui/layout.Option)
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Loading(bool) *MentionsW
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Open() *MentionsW
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Placeholder(string) *MentionsW
+pkg github.com/tangoui/tango/ui, method (*MentionsW) Placement(Placement) *MentionsW
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Prefix(...string) *MentionsW
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Query() (string, string, bool)
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Remote(func(string, string)) *MentionsW
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Rows(int) *MentionsW
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Selected() string
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Size(ControlSize) *MentionsW
+pkg github.com/tangoui/tango/ui, method (*MentionsW) Split(string) *MentionsW
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Status(string) *MentionsW
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Variant(FieldVariant) *MentionsW
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Whole() *MentionsW
@@ -1809,8 +2007,20 @@ pkg github.com/tangoui/tango/ui, method (*MenuW) Clicked() string
 pkg github.com/tangoui/tango/ui, method (*MenuW) Collapsed(bool) *MenuW
 pkg github.com/tangoui/tango/ui, method (*MenuW) Dark() *MenuW
 pkg github.com/tangoui/tango/ui, method (*MenuW) DefaultOpen(...string) *MenuW
+pkg github.com/tangoui/tango/ui, method (*MenuW) Ellipsis(bool) *MenuW
+pkg github.com/tangoui/tango/ui, method (*MenuW) ExpandIcon(*ui/icon.Icon) *MenuW
+pkg github.com/tangoui/tango/ui, method (*MenuW) InlineIndent(float32) *MenuW
+pkg github.com/tangoui/tango/ui, method (*MenuW) ItemPanel(string, func()) *MenuW
 pkg github.com/tangoui/tango/ui, method (*MenuW) Mode(MenuMode) *MenuW
+pkg github.com/tangoui/tango/ui, method (*MenuW) OpenChanged() bool
+pkg github.com/tangoui/tango/ui, method (*MenuW) OpenKeys(*[]string) *MenuW
+pkg github.com/tangoui/tango/ui, method (*MenuW) OverflowedIndicator(*ui/icon.Icon) *MenuW
+pkg github.com/tangoui/tango/ui, method (*MenuW) Selectable(bool) *MenuW
 pkg github.com/tangoui/tango/ui, method (*MenuW) Show() *MenuW
+pkg github.com/tangoui/tango/ui, method (*MenuW) SubMenuCloseDelay(time.Duration) *MenuW
+pkg github.com/tangoui/tango/ui, method (*MenuW) SubMenuOpenDelay(time.Duration) *MenuW
+pkg github.com/tangoui/tango/ui, method (*MenuW) Tooltip(bool) *MenuW
+pkg github.com/tangoui/tango/ui, method (*MenuW) TriggerSubMenuAction(Trigger) *MenuW
 pkg github.com/tangoui/tango/ui, method (*MenuW) Width(float32) *MenuW
 pkg github.com/tangoui/tango/ui, method (*MenubarW) A11yLabel(string) *MenubarW
 pkg github.com/tangoui/tango/ui, method (*MenubarW) Changed() bool
@@ -1818,12 +2028,18 @@ pkg github.com/tangoui/tango/ui, method (*MenubarW) Clicked() string
 pkg github.com/tangoui/tango/ui, method (*MenubarW) ID() ID
 pkg github.com/tangoui/tango/ui, method (*MenubarW) OpenMenu() string
 pkg github.com/tangoui/tango/ui, method (*MessageRef) Duration(time.Duration) *MessageRef
+pkg github.com/tangoui/tango/ui, method (*MessageRef) Grouping() *MessageRef
+pkg github.com/tangoui/tango/ui, method (*MessageRef) Icon(*ui/icon.Icon) *MessageRef
 pkg github.com/tangoui/tango/ui, method (*MessageRef) Key(string) *MessageRef
 pkg github.com/tangoui/tango/ui, method (*MessageRef) Offset(float32) *MessageRef
+pkg github.com/tangoui/tango/ui, method (*MessageRef) OnClick(func()) *MessageRef
+pkg github.com/tangoui/tango/ui, method (*MessageRef) OnClose(func()) *MessageRef
+pkg github.com/tangoui/tango/ui, method (*MessageRef) PauseOnHover(bool) *MessageRef
 pkg github.com/tangoui/tango/ui, method (*MessageRef) Placement(MessagePlacement) *MessageRef
 pkg github.com/tangoui/tango/ui, method (*MessageRef) Plain() *MessageRef
 pkg github.com/tangoui/tango/ui, method (*MessageRef) ShowClose() *MessageRef
 pkg github.com/tangoui/tango/ui, method (*ModalFormW) Columns(int) *ModalFormW
+pkg github.com/tangoui/tango/ui, method (*ModalFormW) DestroyOnHidden(bool) *ModalFormW
 pkg github.com/tangoui/tango/ui, method (*ModalFormW) Finished() bool
 pkg github.com/tangoui/tango/ui, method (*ModalFormW) KeepValues() *ModalFormW
 pkg github.com/tangoui/tango/ui, method (*ModalFormW) OnFinish(func(ProValues, func(error))) *ModalFormW
@@ -1831,6 +2047,7 @@ pkg github.com/tangoui/tango/ui, method (*ModalFormW) Readonly(bool) *ModalFormW
 pkg github.com/tangoui/tango/ui, method (*ModalFormW) Show() *ModalFormW
 pkg github.com/tangoui/tango/ui, method (*ModalFormW) Values(*ProValues) *ModalFormW
 pkg github.com/tangoui/tango/ui, method (*ModalFormW) Width(float32) *ModalFormW
+pkg github.com/tangoui/tango/ui, method (*ModalW) AfterOpenChanged() bool
 pkg github.com/tangoui/tango/ui, method (*ModalW) Body(func()) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) CancelText(string) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) Cancelled() bool
@@ -1842,6 +2059,8 @@ pkg github.com/tangoui/tango/ui, method (*ModalW) Draggable() *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) Footer(func()) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) Fullscreen(*bool) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) FullscreenToggle() *ModalW
+pkg github.com/tangoui/tango/ui, method (*ModalW) Keyboard(bool) *ModalW
+pkg github.com/tangoui/tango/ui, method (*ModalW) Loading(bool) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) Mask(bool) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) MaskClosable(bool) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) NoFooter() *ModalW
@@ -1856,11 +2075,14 @@ pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) Disabled(bool) *Mult
 pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) DisabledDate(func(time.Time) bool) *MultiDatePickerW
 pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) Format(string) *MultiDatePickerW
 pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) IsOpen() bool
+pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) MaxDate(time.Time) *MultiDatePickerW
 pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) MaxTagCount(int) *MultiDatePickerW
+pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) MinDate(time.Time) *MultiDatePickerW
 pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) NeedConfirm(bool) *MultiDatePickerW
 pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) Open() *MultiDatePickerW
 pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) Picker(PickerType) *MultiDatePickerW
 pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) Placeholder(string) *MultiDatePickerW
+pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) Placement(Placement) *MultiDatePickerW
 pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) Size(ControlSize) *MultiDatePickerW
 pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) Status(string) *MultiDatePickerW
 pkg github.com/tangoui/tango/ui, method (*MultiDatePickerW) Width(float32) *MultiDatePickerW
@@ -1880,9 +2102,14 @@ pkg github.com/tangoui/tango/ui, method (*MultiSelectW) ListHeight(float32) *Mul
 pkg github.com/tangoui/tango/ui, method (*MultiSelectW) Loading(bool) *MultiSelectW
 pkg github.com/tangoui/tango/ui, method (*MultiSelectW) MaxCount(int) *MultiSelectW
 pkg github.com/tangoui/tango/ui, method (*MultiSelectW) MaxTagCount(int) *MultiSelectW
+pkg github.com/tangoui/tango/ui, method (*MultiSelectW) MaxTagPlaceholder(func([]string) string) *MultiSelectW
+pkg github.com/tangoui/tango/ui, method (*MultiSelectW) MaxTagTextLength(int) *MultiSelectW
+pkg github.com/tangoui/tango/ui, method (*MultiSelectW) NotFoundContent(string) *MultiSelectW
 pkg github.com/tangoui/tango/ui, method (*MultiSelectW) Open() *MultiSelectW
+pkg github.com/tangoui/tango/ui, method (*MultiSelectW) OpenChanged() bool
 pkg github.com/tangoui/tango/ui, method (*MultiSelectW) OptionRender(func(Option, OptionState)) *MultiSelectW
 pkg github.com/tangoui/tango/ui, method (*MultiSelectW) Placeholder(string) *MultiSelectW
+pkg github.com/tangoui/tango/ui, method (*MultiSelectW) Placement(Placement) *MultiSelectW
 pkg github.com/tangoui/tango/ui, method (*MultiSelectW) Prefix(*ui/icon.Icon) *MultiSelectW
 pkg github.com/tangoui/tango/ui, method (*MultiSelectW) PrefixText(string) *MultiSelectW
 pkg github.com/tangoui/tango/ui, method (*MultiSelectW) Remote(func(string)) *MultiSelectW
@@ -1908,12 +2135,17 @@ pkg github.com/tangoui/tango/ui, method (*NotificationCenterW) Title(string) *No
 pkg github.com/tangoui/tango/ui, method (*NotificationCenterW) Unread() int
 pkg github.com/tangoui/tango/ui, method (*NotificationCenterW) Width(float32) *NotificationCenterW
 pkg github.com/tangoui/tango/ui, method (*NotificationRef) Actions(func()) *NotificationRef
+pkg github.com/tangoui/tango/ui, method (*NotificationRef) Closable(bool) *NotificationRef
+pkg github.com/tangoui/tango/ui, method (*NotificationRef) CloseIcon(*ui/icon.Icon) *NotificationRef
 pkg github.com/tangoui/tango/ui, method (*NotificationRef) Description(string) *NotificationRef
 pkg github.com/tangoui/tango/ui, method (*NotificationRef) Duration(time.Duration) *NotificationRef
+pkg github.com/tangoui/tango/ui, method (*NotificationRef) Icon(*ui/icon.Icon) *NotificationRef
 pkg github.com/tangoui/tango/ui, method (*NotificationRef) Key(string) *NotificationRef
 pkg github.com/tangoui/tango/ui, method (*NotificationRef) NoPause() *NotificationRef
 pkg github.com/tangoui/tango/ui, method (*NotificationRef) OnClick(func()) *NotificationRef
+pkg github.com/tangoui/tango/ui, method (*NotificationRef) OnClose(func()) *NotificationRef
 pkg github.com/tangoui/tango/ui, method (*NotificationRef) Placement(NotifyPlacement) *NotificationRef
+pkg github.com/tangoui/tango/ui, method (*NotificationRef) Role(string) *NotificationRef
 pkg github.com/tangoui/tango/ui, method (*NotificationRef) ShowProgress() *NotificationRef
 pkg github.com/tangoui/tango/ui, method (*OTPW) A11yLabel(string) *OTPW
 pkg github.com/tangoui/tango/ui, method (*OTPW) CellID(int) ID
@@ -1924,8 +2156,12 @@ pkg github.com/tangoui/tango/ui, method (*OTPW) Focus() *OTPW
 pkg github.com/tangoui/tango/ui, method (*OTPW) Gap(float32) *OTPW
 pkg github.com/tangoui/tango/ui, method (*OTPW) Mask(string) *OTPW
 pkg github.com/tangoui/tango/ui, method (*OTPW) Numeric() *OTPW
+pkg github.com/tangoui/tango/ui, method (*OTPW) ReadOnly() *OTPW
+pkg github.com/tangoui/tango/ui, method (*OTPW) Separator(string) *OTPW
+pkg github.com/tangoui/tango/ui, method (*OTPW) SeparatorFunc(func(int) string) *OTPW
 pkg github.com/tangoui/tango/ui, method (*OTPW) Size(ControlSize) *OTPW
 pkg github.com/tangoui/tango/ui, method (*OTPW) Status(string) *OTPW
+pkg github.com/tangoui/tango/ui, method (*OTPW) Variant(string) *OTPW
 pkg github.com/tangoui/tango/ui, method (*PageContainerW) Back() *PageContainerW
 pkg github.com/tangoui/tango/ui, method (*PageContainerW) BackClicked() bool
 pkg github.com/tangoui/tango/ui, method (*PageContainerW) Body(func()) *PageContainerW
@@ -1948,34 +2184,54 @@ pkg github.com/tangoui/tango/ui, method (*PageContainerW) TabExtra(func()) *Page
 pkg github.com/tangoui/tango/ui, method (*PageContainerW) Tabs(*string, []TabItem) *PageContainerW
 pkg github.com/tangoui/tango/ui, method (*PageContainerW) TabsCard() *PageContainerW
 pkg github.com/tangoui/tango/ui, method (*PageContainerW) Tags(func()) *PageContainerW
+pkg github.com/tangoui/tango/ui, method (*PageHeaderW) Avatar(func()) *PageHeaderW
 pkg github.com/tangoui/tango/ui, method (*PageHeaderW) Back() *PageHeaderW
 pkg github.com/tangoui/tango/ui, method (*PageHeaderW) BackClicked() bool
+pkg github.com/tangoui/tango/ui, method (*PageHeaderW) BackIcon(*ui/icon.Icon) *PageHeaderW
 pkg github.com/tangoui/tango/ui, method (*PageHeaderW) BackText(string) *PageHeaderW
 pkg github.com/tangoui/tango/ui, method (*PageHeaderW) Bordered() *PageHeaderW
 pkg github.com/tangoui/tango/ui, method (*PageHeaderW) Breadcrumb(...string) *PageHeaderW
+pkg github.com/tangoui/tango/ui, method (*PageHeaderW) BreadcrumbItems([]BreadcrumbItem) *PageHeaderW
 pkg github.com/tangoui/tango/ui, method (*PageHeaderW) Content(func()) *PageHeaderW
 pkg github.com/tangoui/tango/ui, method (*PageHeaderW) CrumbClicked() int
 pkg github.com/tangoui/tango/ui, method (*PageHeaderW) Extra(func()) *PageHeaderW
 pkg github.com/tangoui/tango/ui, method (*PageHeaderW) Footer(func()) *PageHeaderW
+pkg github.com/tangoui/tango/ui, method (*PageHeaderW) Ghost(bool) *PageHeaderW
 pkg github.com/tangoui/tango/ui, method (*PageHeaderW) Padding(ui/geom.Insets) *PageHeaderW
 pkg github.com/tangoui/tango/ui, method (*PageHeaderW) Show() *PageHeaderW
 pkg github.com/tangoui/tango/ui, method (*PageHeaderW) SubTitle(string) *PageHeaderW
 pkg github.com/tangoui/tango/ui, method (*PageHeaderW) Tags(func()) *PageHeaderW
+pkg github.com/tangoui/tango/ui, method (*PageLoadingW) Delay(time.Duration) *PageLoadingW
+pkg github.com/tangoui/tango/ui, method (*PageLoadingW) Description(string) *PageLoadingW
+pkg github.com/tangoui/tango/ui, method (*PageLoadingW) Show() *PageLoadingW
+pkg github.com/tangoui/tango/ui, method (*PageLoadingW) Size(ControlSize) *PageLoadingW
+pkg github.com/tangoui/tango/ui, method (*PageLoadingW) Spinning(bool) *PageLoadingW
+pkg github.com/tangoui/tango/ui, method (*PaginationW) Align(string) *PaginationW
 pkg github.com/tangoui/tango/ui, method (*PaginationW) Background(bool) *PaginationW
 pkg github.com/tangoui/tango/ui, method (*PaginationW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*PaginationW) Disabled(bool) *PaginationW
+pkg github.com/tangoui/tango/ui, method (*PaginationW) GoButton(string) *PaginationW
 pkg github.com/tangoui/tango/ui, method (*PaginationW) HideOnSinglePage() *PaginationW
 pkg github.com/tangoui/tango/ui, method (*PaginationW) Layout(...PaginationPart) *PaginationW
+pkg github.com/tangoui/tango/ui, method (*PaginationW) NextIcon(*ui/icon.Icon) *PaginationW
+pkg github.com/tangoui/tango/ui, method (*PaginationW) NextText(string) *PaginationW
+pkg github.com/tangoui/tango/ui, method (*PaginationW) PageSizeOptions(...int) *PaginationW
 pkg github.com/tangoui/tango/ui, method (*PaginationW) PagerCount(int) *PaginationW
+pkg github.com/tangoui/tango/ui, method (*PaginationW) PrevIcon(*ui/icon.Icon) *PaginationW
+pkg github.com/tangoui/tango/ui, method (*PaginationW) PrevText(string) *PaginationW
 pkg github.com/tangoui/tango/ui, method (*PaginationW) ReadOnly() *PaginationW
 pkg github.com/tangoui/tango/ui, method (*PaginationW) Show() *PaginationW
+pkg github.com/tangoui/tango/ui, method (*PaginationW) ShowLessItems() *PaginationW
 pkg github.com/tangoui/tango/ui, method (*PaginationW) ShowQuickJumper() *PaginationW
 pkg github.com/tangoui/tango/ui, method (*PaginationW) ShowTotal() *PaginationW
+pkg github.com/tangoui/tango/ui, method (*PaginationW) ShowTotalFunc(func(int, int, int) string) *PaginationW
 pkg github.com/tangoui/tango/ui, method (*PaginationW) Simple() *PaginationW
 pkg github.com/tangoui/tango/ui, method (*PaginationW) Size(ControlSize) *PaginationW
 pkg github.com/tangoui/tango/ui, method (*PaginationW) SizeChanger(*int) *PaginationW
 pkg github.com/tangoui/tango/ui, method (*PaginationW) Small() *PaginationW
+pkg github.com/tangoui/tango/ui, method (*PopconfirmW) Arrow(bool) *PopconfirmW
 pkg github.com/tangoui/tango/ui, method (*PopconfirmW) CancelText(string) *PopconfirmW
+pkg github.com/tangoui/tango/ui, method (*PopconfirmW) CancelType(string) *PopconfirmW
 pkg github.com/tangoui/tango/ui, method (*PopconfirmW) Cancelled() bool
 pkg github.com/tangoui/tango/ui, method (*PopconfirmW) Confirmed() bool
 pkg github.com/tangoui/tango/ui, method (*PopconfirmW) Description(string) *PopconfirmW
@@ -1985,11 +2241,16 @@ pkg github.com/tangoui/tango/ui, method (*PopconfirmW) IconColor(ui/theme.Color)
 pkg github.com/tangoui/tango/ui, method (*PopconfirmW) IsOpen() bool
 pkg github.com/tangoui/tango/ui, method (*PopconfirmW) OkDanger() *PopconfirmW
 pkg github.com/tangoui/tango/ui, method (*PopconfirmW) OkText(string) *PopconfirmW
+pkg github.com/tangoui/tango/ui, method (*PopconfirmW) OkType(string) *PopconfirmW
 pkg github.com/tangoui/tango/ui, method (*PopconfirmW) Placement(string) *PopconfirmW
 pkg github.com/tangoui/tango/ui, method (*PopconfirmW) ShowCancel(bool) *PopconfirmW
+pkg github.com/tangoui/tango/ui, method (*PopconfirmW) Width(float32) *PopconfirmW
+pkg github.com/tangoui/tango/ui, method (*PopoverW) Arrow(bool) *PopoverW
 pkg github.com/tangoui/tango/ui, method (*PopoverW) Body(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*PopoverW) Content(func()) *PopoverW
 pkg github.com/tangoui/tango/ui, method (*PopoverW) IsOpen() bool
+pkg github.com/tangoui/tango/ui, method (*PopoverW) MouseEnterDelay(time.Duration) *PopoverW
+pkg github.com/tangoui/tango/ui, method (*PopoverW) MouseLeaveDelay(time.Duration) *PopoverW
 pkg github.com/tangoui/tango/ui, method (*PopoverW) NoArrow() *PopoverW
 pkg github.com/tangoui/tango/ui, method (*PopoverW) NoPadding() *PopoverW
 pkg github.com/tangoui/tango/ui, method (*PopoverW) Open(*bool) *PopoverW
@@ -1999,12 +2260,17 @@ pkg github.com/tangoui/tango/ui, method (*PopoverW) Text(string) *PopoverW
 pkg github.com/tangoui/tango/ui, method (*PopoverW) Title(string) *PopoverW
 pkg github.com/tangoui/tango/ui, method (*PopoverW) Trigger(string) *PopoverW
 pkg github.com/tangoui/tango/ui, method (*PopoverW) Width(float32) *PopoverW
+pkg github.com/tangoui/tango/ui, method (*ProBreadcrumbW) Items([]BreadcrumbItem) *ProBreadcrumbW
+pkg github.com/tangoui/tango/ui, method (*ProBreadcrumbW) Len() int
+pkg github.com/tangoui/tango/ui, method (*ProBreadcrumbW) Separator(string) *ProBreadcrumbW
+pkg github.com/tangoui/tango/ui, method (*ProBreadcrumbW) Show() *ProBreadcrumbW
 pkg github.com/tangoui/tango/ui, method (*ProCardW) Actions(...func()) *ProCardW
 pkg github.com/tangoui/tango/ui, method (*ProCardW) Body(func()) *ProCardW
 pkg github.com/tangoui/tango/ui, method (*ProCardW) BodyPadding(ui/geom.Insets) *ProCardW
 pkg github.com/tangoui/tango/ui, method (*ProCardW) Bordered() *ProCardW
 pkg github.com/tangoui/tango/ui, method (*ProCardW) Borderless() *ProCardW
 pkg github.com/tangoui/tango/ui, method (*ProCardW) Box() *Box
+pkg github.com/tangoui/tango/ui, method (*ProCardW) BoxShadow(bool) *ProCardW
 pkg github.com/tangoui/tango/ui, method (*ProCardW) Centered() *ProCardW
 pkg github.com/tangoui/tango/ui, method (*ProCardW) Clicked() bool
 pkg github.com/tangoui/tango/ui, method (*ProCardW) ColSpan(int) *ProCardW
@@ -2034,6 +2300,8 @@ pkg github.com/tangoui/tango/ui, method (*ProCardW) Tooltip(string) *ProCardW
 pkg github.com/tangoui/tango/ui, method (*ProCardW) Wrap() *ProCardW
 pkg github.com/tangoui/tango/ui, method (*ProDescriptionsW) Bordered() *ProDescriptionsW
 pkg github.com/tangoui/tango/ui, method (*ProDescriptionsW) Column(int) *ProDescriptionsW
+pkg github.com/tangoui/tango/ui, method (*ProDescriptionsW) ColumnAt(Breakpoint, int) *ProDescriptionsW
+pkg github.com/tangoui/tango/ui, method (*ProDescriptionsW) Columns(map[Breakpoint]int) *ProDescriptionsW
 pkg github.com/tangoui/tango/ui, method (*ProDescriptionsW) DataSource(*ProValues) *ProDescriptionsW
 pkg github.com/tangoui/tango/ui, method (*ProDescriptionsW) Editable(func(string, any, ProValues, func(error))) *ProDescriptionsW
 pkg github.com/tangoui/tango/ui, method (*ProDescriptionsW) Editing(string) bool
@@ -2088,19 +2356,24 @@ pkg github.com/tangoui/tango/ui, method (*ProFormW) Submitter(func(*ProSubmitter
 pkg github.com/tangoui/tango/ui, method (*ProFormW) Submitting() bool
 pkg github.com/tangoui/tango/ui, method (*ProFormW) Values(*ProValues) *ProFormW
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) Bordered() *ProListW[T]
+pkg github.com/tangoui/tango/ui, method (*ProListW[T]) DefaultExpandAllRows(bool) *ProListW[T]
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) EmptyText(string) *ProListW[T]
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) Err() error
+pkg github.com/tangoui/tango/ui, method (*ProListW[T]) ExpandRowByClick() *ProListW[T]
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) Expandable(func(*Context, T)) *ProListW[T]
+pkg github.com/tangoui/tango/ui, method (*ProListW[T]) ExpandedRowKeys(*[]string) *ProListW[T]
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) Grid(int) *ProListW[T]
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) HeaderTitle(string) *ProListW[T]
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) ID() ID
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) IsLoading() bool
+pkg github.com/tangoui/tango/ui, method (*ProListW[T]) ItemLayout(string) *ProListW[T]
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) Loading(bool) *ProListW[T]
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) OnItemClick(func(T)) *ProListW[T]
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) Page() int
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) Pagination(int) *ProListW[T]
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) Reload()
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) Request(func(int, int) ([]T, int, error)) *ProListW[T]
+pkg github.com/tangoui/tango/ui, method (*ProListW[T]) RowExpandable(func(T) bool) *ProListW[T]
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) RowKey(func(T) string) *ProListW[T]
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) Selection(*[]string) *ProListW[T]
 pkg github.com/tangoui/tango/ui, method (*ProListW[T]) SelectionChanged() bool
@@ -2115,6 +2388,19 @@ pkg github.com/tangoui/tango/ui, method (*ProSkeletonW) PageHeader(bool) *ProSke
 pkg github.com/tangoui/tango/ui, method (*ProSkeletonW) Show() *Box
 pkg github.com/tangoui/tango/ui, method (*ProSkeletonW) Statistic(int) *ProSkeletonW
 pkg github.com/tangoui/tango/ui, method (*ProSkeletonW) Toolbar(bool) *ProSkeletonW
+pkg github.com/tangoui/tango/ui, method (*ProStatisticW) Description(func()) *ProStatisticW
+pkg github.com/tangoui/tango/ui, method (*ProStatisticW) Icon(*ui/icon.Icon) *ProStatisticW
+pkg github.com/tangoui/tango/ui, method (*ProStatisticW) Prefix(string) *ProStatisticW
+pkg github.com/tangoui/tango/ui, method (*ProStatisticW) Show() *ProStatisticW
+pkg github.com/tangoui/tango/ui, method (*ProStatisticW) StatisticLayout(string) *ProStatisticW
+pkg github.com/tangoui/tango/ui, method (*ProStatisticW) Status(string) *ProStatisticW
+pkg github.com/tangoui/tango/ui, method (*ProStatisticW) Suffix(string) *ProStatisticW
+pkg github.com/tangoui/tango/ui, method (*ProStatisticW) Tooltip(string) *ProStatisticW
+pkg github.com/tangoui/tango/ui, method (*ProStatisticW) Trend(string) *ProStatisticW
+pkg github.com/tangoui/tango/ui, method (*ProStatisticW) TrendColors(ui/theme.Color, ui/theme.Color) *ProStatisticW
+pkg github.com/tangoui/tango/ui, method (*ProStatisticW) Value(float64, int) *ProStatisticW
+pkg github.com/tangoui/tango/ui, method (*ProStatisticW) ValueColor(ui/theme.Color) *ProStatisticW
+pkg github.com/tangoui/tango/ui, method (*ProStatisticW) ValueText(string) *ProStatisticW
 pkg github.com/tangoui/tango/ui, method (*ProSubmitter) Context() *Context
 pkg github.com/tangoui/tango/ui, method (*ProSubmitter) Loading() bool
 pkg github.com/tangoui/tango/ui, method (*ProSubmitter) Reset()
@@ -2123,6 +2409,7 @@ pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) Bordered() *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) ColumnsState(*TableColumnState) *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) DragSort(func(int, int)) *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) Expandable(func(T)) *ProTableW[T]
+pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) FullScreen(bool) *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) Loading() bool
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) MovePageRow(int, int)
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) NoOptions() *ProTableW[T]
@@ -2150,21 +2437,27 @@ pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) TableAlertOptionRender(f
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) TableAlertRender(func([]string, func())) *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) Title(string) *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) ToolBar(func()) *ProTableW[T]
+pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) Toolbar(func(*ListToolBarW)) *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProgressW) A11yLabel(string) *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Circle(float32) *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Color(ui/theme.Color) *ProgressW
+pkg github.com/tangoui/tango/ui, method (*ProgressW) ColorFunc(func(float64) ui/theme.Color) *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Dashboard(float32) *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Format(func(float64) string) *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) GapDegree(float64) *ProgressW
+pkg github.com/tangoui/tango/ui, method (*ProgressW) GapPlacement(string) *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Gradient(ui/theme.Color, ui/theme.Color) *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) HideInfo() *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Indeterminate() *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Layout(...ui/layout.Option) *ProgressW
+pkg github.com/tangoui/tango/ui, method (*ProgressW) PercentPosition(string, string) *ProgressW
+pkg github.com/tangoui/tango/ui, method (*ProgressW) RailColor(ui/theme.Color) *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) ShowInfo() *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Small() *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Square() *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Status(string) *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Steps(int) *ProgressW
+pkg github.com/tangoui/tango/ui, method (*ProgressW) StepsGap(float32) *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Striped(bool) *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) StrokeWidth(float32) *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Success(float64) *ProgressW
@@ -2180,11 +2473,13 @@ pkg github.com/tangoui/tango/ui, method (*PromptsW) Vertical() *PromptsW
 pkg github.com/tangoui/tango/ui, method (*PromptsW) Wrap() *PromptsW
 pkg github.com/tangoui/tango/ui, method (*QRCodeW) A11yLabel(string) *QRCodeW
 pkg github.com/tangoui/tango/ui, method (*QRCodeW) Bg(ui/theme.Color) *QRCodeW
+pkg github.com/tangoui/tango/ui, method (*QRCodeW) BoostLevel(bool) *QRCodeW
 pkg github.com/tangoui/tango/ui, method (*QRCodeW) Bordered(bool) *QRCodeW
 pkg github.com/tangoui/tango/ui, method (*QRCodeW) Color(ui/theme.Color) *QRCodeW
 pkg github.com/tangoui/tango/ui, method (*QRCodeW) Icon(image.Image) *QRCodeW
 pkg github.com/tangoui/tango/ui, method (*QRCodeW) IconSize(float32) *QRCodeW
 pkg github.com/tangoui/tango/ui, method (*QRCodeW) Level(string) *QRCodeW
+pkg github.com/tangoui/tango/ui, method (*QRCodeW) MarginSize(int) *QRCodeW
 pkg github.com/tangoui/tango/ui, method (*QRCodeW) Matrix() *QRMatrix
 pkg github.com/tangoui/tango/ui, method (*QRCodeW) Refreshed() bool
 pkg github.com/tangoui/tango/ui, method (*QRCodeW) Size(float32) *QRCodeW
@@ -2202,12 +2497,15 @@ pkg github.com/tangoui/tango/ui, method (*QueryFilterW) Searched() bool
 pkg github.com/tangoui/tango/ui, method (*QueryFilterW) Show() *QueryFilterW
 pkg github.com/tangoui/tango/ui, method (*QueryFilterW) Values(*ProValues) *QueryFilterW
 pkg github.com/tangoui/tango/ui, method (*RadioGroupW) A11yLabel(string) *RadioGroupW
+pkg github.com/tangoui/tango/ui, method (*RadioGroupW) Block() *RadioGroupW
 pkg github.com/tangoui/tango/ui, method (*RadioGroupW) Border() *RadioGroupW
 pkg github.com/tangoui/tango/ui, method (*RadioGroupW) Buttons() *RadioGroupW
 pkg github.com/tangoui/tango/ui, method (*RadioGroupW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*RadioGroupW) Disabled(bool) *RadioGroupW
+pkg github.com/tangoui/tango/ui, method (*RadioGroupW) Orientation(string) *RadioGroupW
 pkg github.com/tangoui/tango/ui, method (*RadioGroupW) Size(ControlSize) *RadioGroupW
 pkg github.com/tangoui/tango/ui, method (*RadioGroupW) Solid() *RadioGroupW
+pkg github.com/tangoui/tango/ui, method (*RadioGroupW) Vertical() *RadioGroupW
 pkg github.com/tangoui/tango/ui, method (*RadioW) Border() *RadioW
 pkg github.com/tangoui/tango/ui, method (*RadioW) Clicked() bool
 pkg github.com/tangoui/tango/ui, method (*RadioW) Disabled(bool) *RadioW
@@ -2222,10 +2520,15 @@ pkg github.com/tangoui/tango/ui, method (*RangePickerW) DisabledTime(func(time.T
 pkg github.com/tangoui/tango/ui, method (*RangePickerW) Format(string) *RangePickerW
 pkg github.com/tangoui/tango/ui, method (*RangePickerW) IsOpen() bool
 pkg github.com/tangoui/tango/ui, method (*RangePickerW) Layout(...ui/layout.Option) *RangePickerW
+pkg github.com/tangoui/tango/ui, method (*RangePickerW) MaxDate(time.Time) *RangePickerW
+pkg github.com/tangoui/tango/ui, method (*RangePickerW) MinDate(time.Time) *RangePickerW
 pkg github.com/tangoui/tango/ui, method (*RangePickerW) Open() *RangePickerW
+pkg github.com/tangoui/tango/ui, method (*RangePickerW) Order(bool) *RangePickerW
 pkg github.com/tangoui/tango/ui, method (*RangePickerW) Picker(PickerType) *RangePickerW
 pkg github.com/tangoui/tango/ui, method (*RangePickerW) Placeholder(string, string) *RangePickerW
+pkg github.com/tangoui/tango/ui, method (*RangePickerW) Placement(Placement) *RangePickerW
 pkg github.com/tangoui/tango/ui, method (*RangePickerW) Presets(...DatePreset) *RangePickerW
+pkg github.com/tangoui/tango/ui, method (*RangePickerW) Separator(string) *RangePickerW
 pkg github.com/tangoui/tango/ui, method (*RangePickerW) ShowTime() *RangePickerW
 pkg github.com/tangoui/tango/ui, method (*RangePickerW) Size(ControlSize) *RangePickerW
 pkg github.com/tangoui/tango/ui, method (*RangePickerW) Status(string) *RangePickerW
@@ -2236,13 +2539,23 @@ pkg github.com/tangoui/tango/ui, method (*RateW) AllowClear(bool) *RateW
 pkg github.com/tangoui/tango/ui, method (*RateW) AllowHalf() *RateW
 pkg github.com/tangoui/tango/ui, method (*RateW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*RateW) Character(string) *RateW
+pkg github.com/tangoui/tango/ui, method (*RateW) CharacterFunc(func(int) string) *RateW
 pkg github.com/tangoui/tango/ui, method (*RateW) Color(ui/theme.Color) *RateW
+pkg github.com/tangoui/tango/ui, method (*RateW) Colors(...ui/theme.Color) *RateW
 pkg github.com/tangoui/tango/ui, method (*RateW) Count(int) *RateW
 pkg github.com/tangoui/tango/ui, method (*RateW) Disabled(bool) *RateW
 pkg github.com/tangoui/tango/ui, method (*RateW) Hovered() float64
+pkg github.com/tangoui/tango/ui, method (*RateW) Icons(*ui/icon.Icon, *ui/icon.Icon) *RateW
+pkg github.com/tangoui/tango/ui, method (*RateW) Keyboard(bool) *RateW
+pkg github.com/tangoui/tango/ui, method (*RateW) Large() *RateW
+pkg github.com/tangoui/tango/ui, method (*RateW) ScoreFormat(func(float64) string) *RateW
 pkg github.com/tangoui/tango/ui, method (*RateW) ShowScore() *RateW
 pkg github.com/tangoui/tango/ui, method (*RateW) Size(float32) *RateW
+pkg github.com/tangoui/tango/ui, method (*RateW) Small() *RateW
 pkg github.com/tangoui/tango/ui, method (*RateW) Texts(...string) *RateW
+pkg github.com/tangoui/tango/ui, method (*RateW) Thresholds(float64, float64) *RateW
+pkg github.com/tangoui/tango/ui, method (*RateW) Tooltips(...string) *RateW
+pkg github.com/tangoui/tango/ui, method (*RateW) VoidColor(ui/theme.Color) *RateW
 pkg github.com/tangoui/tango/ui, method (*ResultW) Body(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*ResultW) Extra(func()) *ResultW
 pkg github.com/tangoui/tango/ui, method (*ResultW) Icon(func()) *ResultW
@@ -2258,6 +2571,30 @@ pkg github.com/tangoui/tango/ui, method (*RichTextW) Pre() *RichTextW
 pkg github.com/tangoui/tango/ui, method (*RichTextW) Selectable() *RichTextW
 pkg github.com/tangoui/tango/ui, method (*RichTextW) Selection() string
 pkg github.com/tangoui/tango/ui, method (*RichTextW) Size(float32) *RichTextW
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) AddAtTop() *RowEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) AddRow() string
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Bordered(bool) *RowEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Cancel()
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Changed() bool
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Edit(string)
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) EditingKey() string
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Errors(string) map[string]string
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) ID() ID
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) MaxLength(int) *RowEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) NewRow(func() T) *RowEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) OnSave(func(T, int, func(error))) *RowEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Pagination(int) *RowEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) RowEditable(func(T) bool) *RowEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) RowKey(func(T) string) *RowEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Save()
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Saved() bool
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) ScrollX(float32) *RowEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Show() *RowEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Size(ControlSize) *RowEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Table() *TableW
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Title(string) *RowEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) ToolBar(func()) *RowEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Validating(string) bool
 pkg github.com/tangoui/tango/ui, method (*Runner) AccessibilityTree() *ui/a11y.Tree
 pkg github.com/tangoui/tango/ui, method (*Runner) Animating() bool
 pkg github.com/tangoui/tango/ui, method (*Runner) Attach(Window)
@@ -2314,14 +2651,18 @@ pkg github.com/tangoui/tango/ui, method (*SearchW) Placeholder(string) *SearchW
 pkg github.com/tangoui/tango/ui, method (*SearchW) Searched() bool
 pkg github.com/tangoui/tango/ui, method (*SearchW) Size(ControlSize) *SearchW
 pkg github.com/tangoui/tango/ui, method (*SearchW) Status(string) *SearchW
+pkg github.com/tangoui/tango/ui, method (*SearchW) Variant(string) *SearchW
 pkg github.com/tangoui/tango/ui, method (*SearchW) Width(float32) *SearchW
 pkg github.com/tangoui/tango/ui, method (*SegmentedW) A11yLabel(string) *SegmentedW
 pkg github.com/tangoui/tango/ui, method (*SegmentedW) Block() *SegmentedW
 pkg github.com/tangoui/tango/ui, method (*SegmentedW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*SegmentedW) Disabled(bool) *SegmentedW
 pkg github.com/tangoui/tango/ui, method (*SegmentedW) Icons(...*ui/icon.Icon) *SegmentedW
+pkg github.com/tangoui/tango/ui, method (*SegmentedW) ItemRender(func(Option, bool)) *SegmentedW
+pkg github.com/tangoui/tango/ui, method (*SegmentedW) Orientation(string) *SegmentedW
 pkg github.com/tangoui/tango/ui, method (*SegmentedW) Shape(SegmentedShape) *SegmentedW
 pkg github.com/tangoui/tango/ui, method (*SegmentedW) Size(ControlSize) *SegmentedW
+pkg github.com/tangoui/tango/ui, method (*SegmentedW) Tooltips(...string) *SegmentedW
 pkg github.com/tangoui/tango/ui, method (*SegmentedW) Vertical() *SegmentedW
 pkg github.com/tangoui/tango/ui, method (*SelectW) A11yLabel(string) *SelectW
 pkg github.com/tangoui/tango/ui, method (*SelectW) AllowClear() *SelectW
@@ -2334,12 +2675,16 @@ pkg github.com/tangoui/tango/ui, method (*SelectW) Disabled(bool) *SelectW
 pkg github.com/tangoui/tango/ui, method (*SelectW) FilterMethod(func(string, Option) bool) *SelectW
 pkg github.com/tangoui/tango/ui, method (*SelectW) Groups([]OptionGroup) *SelectW
 pkg github.com/tangoui/tango/ui, method (*SelectW) IsOpen() bool
+pkg github.com/tangoui/tango/ui, method (*SelectW) LabelRender(func(Option) string) *SelectW
 pkg github.com/tangoui/tango/ui, method (*SelectW) Layout(...ui/layout.Option) *SelectW
 pkg github.com/tangoui/tango/ui, method (*SelectW) ListHeight(float32) *SelectW
 pkg github.com/tangoui/tango/ui, method (*SelectW) Loading(bool) *SelectW
+pkg github.com/tangoui/tango/ui, method (*SelectW) NotFoundContent(string) *SelectW
 pkg github.com/tangoui/tango/ui, method (*SelectW) Open() *SelectW
+pkg github.com/tangoui/tango/ui, method (*SelectW) OpenChanged() bool
 pkg github.com/tangoui/tango/ui, method (*SelectW) OptionRender(func(Option, OptionState)) *SelectW
 pkg github.com/tangoui/tango/ui, method (*SelectW) Placeholder(string) *SelectW
+pkg github.com/tangoui/tango/ui, method (*SelectW) Placement(Placement) *SelectW
 pkg github.com/tangoui/tango/ui, method (*SelectW) Prefix(*ui/icon.Icon) *SelectW
 pkg github.com/tangoui/tango/ui, method (*SelectW) PrefixText(string) *SelectW
 pkg github.com/tangoui/tango/ui, method (*SelectW) Remote(func(string)) *SelectW
@@ -2386,21 +2731,31 @@ pkg github.com/tangoui/tango/ui, method (*SiderW) NoTrigger() *SiderW
 pkg github.com/tangoui/tango/ui, method (*SiderW) ReverseArrow() *SiderW
 pkg github.com/tangoui/tango/ui, method (*SkeletonW) Active() *SkeletonW
 pkg github.com/tangoui/tango/ui, method (*SkeletonW) Avatar(bool) *SkeletonW
+pkg github.com/tangoui/tango/ui, method (*SkeletonW) AvatarSize(float32) *SkeletonW
 pkg github.com/tangoui/tango/ui, method (*SkeletonW) Body(func()) *Box
+pkg github.com/tangoui/tango/ui, method (*SkeletonW) Count(int) *SkeletonW
 pkg github.com/tangoui/tango/ui, method (*SkeletonW) Loading(bool) *SkeletonW
 pkg github.com/tangoui/tango/ui, method (*SkeletonW) NoTitle() *SkeletonW
+pkg github.com/tangoui/tango/ui, method (*SkeletonW) ParagraphWidth(...float32) *SkeletonW
 pkg github.com/tangoui/tango/ui, method (*SkeletonW) Round() *SkeletonW
 pkg github.com/tangoui/tango/ui, method (*SkeletonW) Rows(int) *SkeletonW
 pkg github.com/tangoui/tango/ui, method (*SkeletonW) Show() *Box
+pkg github.com/tangoui/tango/ui, method (*SkeletonW) Throttle(time.Duration, time.Duration) *SkeletonW
+pkg github.com/tangoui/tango/ui, method (*SkeletonW) ThrottleInitial(bool) *SkeletonW
+pkg github.com/tangoui/tango/ui, method (*SkeletonW) TitleWidth(float32) *SkeletonW
 pkg github.com/tangoui/tango/ui, method (*SliderW) A11yLabel(string) *SliderW
 pkg github.com/tangoui/tango/ui, method (*SliderW) AllowCross(bool) *SliderW
+pkg github.com/tangoui/tango/ui, method (*SliderW) ChangeComplete() bool
 pkg github.com/tangoui/tango/ui, method (*SliderW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*SliderW) Disabled(bool) *SliderW
 pkg github.com/tangoui/tango/ui, method (*SliderW) Dots() *SliderW
+pkg github.com/tangoui/tango/ui, method (*SliderW) Included(bool) *SliderW
+pkg github.com/tangoui/tango/ui, method (*SliderW) Keyboard(bool) *SliderW
 pkg github.com/tangoui/tango/ui, method (*SliderW) Layout(...ui/layout.Option) *SliderW
 pkg github.com/tangoui/tango/ui, method (*SliderW) Marks(map[float64]string) *SliderW
 pkg github.com/tangoui/tango/ui, method (*SliderW) Pushable(float64) *SliderW
 pkg github.com/tangoui/tango/ui, method (*SliderW) Range(*float64) *SliderW
+pkg github.com/tangoui/tango/ui, method (*SliderW) Reverse() *SliderW
 pkg github.com/tangoui/tango/ui, method (*SliderW) Step(float64) *SliderW
 pkg github.com/tangoui/tango/ui, method (*SliderW) Tooltip(func(float64) string) *SliderW
 pkg github.com/tangoui/tango/ui, method (*SliderW) TooltipOpen(bool) *SliderW
@@ -2409,14 +2764,19 @@ pkg github.com/tangoui/tango/ui, method (*SliderW) WithInput() *SliderW
 pkg github.com/tangoui/tango/ui, method (*SpaceW) Align(ui/layout.Align) *SpaceW
 pkg github.com/tangoui/tango/ui, method (*SpaceW) Body(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*SpaceW) Layout(...ui/layout.Option) *SpaceW
+pkg github.com/tangoui/tango/ui, method (*SpaceW) Orientation(string) *SpaceW
+pkg github.com/tangoui/tango/ui, method (*SpaceW) Separator(func()) *SpaceW
 pkg github.com/tangoui/tango/ui, method (*SpaceW) Size(ControlSize) *SpaceW
 pkg github.com/tangoui/tango/ui, method (*SpaceW) SizePx(float32, float32) *SpaceW
 pkg github.com/tangoui/tango/ui, method (*SpaceW) Split(func()) *SpaceW
 pkg github.com/tangoui/tango/ui, method (*SpaceW) Vertical() *SpaceW
 pkg github.com/tangoui/tango/ui, method (*SpaceW) Wrap() *SpaceW
 pkg github.com/tangoui/tango/ui, method (*SpinW) Delay(time.Duration) *SpinW
+pkg github.com/tangoui/tango/ui, method (*SpinW) Description(string) *SpinW
+pkg github.com/tangoui/tango/ui, method (*SpinW) Indicator(*ui/icon.Icon) *SpinW
 pkg github.com/tangoui/tango/ui, method (*SpinW) IndicatorSize(float32) *SpinW
 pkg github.com/tangoui/tango/ui, method (*SpinW) Percent(float64) *SpinW
+pkg github.com/tangoui/tango/ui, method (*SpinW) PercentAuto() *SpinW
 pkg github.com/tangoui/tango/ui, method (*SpinW) Size(ControlSize) *SpinW
 pkg github.com/tangoui/tango/ui, method (*SpinW) Spinning(bool) *SpinW
 pkg github.com/tangoui/tango/ui, method (*SpinW) Tip(string) *SpinW
@@ -2427,7 +2787,9 @@ pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Collapsible() *Splitte
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) DefaultPercent(float32) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) DefaultSize(float32) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Max(float32) *SplitterPanelW
+pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) MaxPercent(float32) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Min(float32) *SplitterPanelW
+pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) MinPercent(float32) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Resizable(bool) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Body(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Changed() bool
@@ -2435,9 +2797,13 @@ pkg github.com/tangoui/tango/ui, method (*SplitterW) DragEnded() (int, bool)
 pkg github.com/tangoui/tango/ui, method (*SplitterW) DragStarted() (int, bool)
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Dragging() bool
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Lazy() *SplitterW
+pkg github.com/tangoui/tango/ui, method (*SplitterW) Orientation(string) *SplitterW
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Sizes() []float32
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Style(...ui/layout.Option) *SplitterW
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Vertical() *SplitterW
+pkg github.com/tangoui/tango/ui, method (*SplitterW) WithHandle() *SplitterW
+pkg github.com/tangoui/tango/ui, method (*StatisticCardDividerW) Layout(...ui/layout.Option) *StatisticCardDividerW
+pkg github.com/tangoui/tango/ui, method (*StatisticCardOperationW) Layout(...ui/layout.Option) *StatisticCardOperationW
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Bordered() *StatisticCardW
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Card() *ProCardW
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) CardTitle(string) *StatisticCardW
@@ -2449,12 +2815,14 @@ pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Desc(string, string, s
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Description(func()) *StatisticCardW
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Extra(func()) *StatisticCardW
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Footer(func()) *StatisticCardW
+pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Ghost() *StatisticCardW
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Hoverable() *StatisticCardW
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Icon(*ui/icon.Icon) *StatisticCardW
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Layout(...ui/layout.Option) *StatisticCardW
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Loading(bool) *StatisticCardW
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Prefix(string) *StatisticCardW
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Show() *StatisticCardW
+pkg github.com/tangoui/tango/ui, method (*StatisticCardW) StatisticLayout(string) *StatisticCardW
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Status(string) *StatisticCardW
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Suffix(string) *StatisticCardW
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) Tooltip(string) *StatisticCardW
@@ -2465,6 +2833,9 @@ pkg github.com/tangoui/tango/ui, method (*StatisticCardW) ValueColor(ui/theme.Co
 pkg github.com/tangoui/tango/ui, method (*StatisticCardW) ValueText(string) *StatisticCardW
 pkg github.com/tangoui/tango/ui, method (*StatisticW) Color(ui/theme.Color) *StatisticW
 pkg github.com/tangoui/tango/ui, method (*StatisticW) CountUp(float64, int) *StatisticW
+pkg github.com/tangoui/tango/ui, method (*StatisticW) DecimalSeparator(string) *StatisticW
+pkg github.com/tangoui/tango/ui, method (*StatisticW) Formatter(func(float64) string) *StatisticW
+pkg github.com/tangoui/tango/ui, method (*StatisticW) GroupSeparator(string) *StatisticW
 pkg github.com/tangoui/tango/ui, method (*StatisticW) Layout(...ui/layout.Option) *StatisticW
 pkg github.com/tangoui/tango/ui, method (*StatisticW) Loading(bool) *StatisticW
 pkg github.com/tangoui/tango/ui, method (*StatisticW) Prefix(string) *StatisticW
@@ -2504,17 +2875,23 @@ pkg github.com/tangoui/tango/ui, method (*StepsW) Current(int) *StepsW
 pkg github.com/tangoui/tango/ui, method (*StepsW) Dot() *StepsW
 pkg github.com/tangoui/tango/ui, method (*StepsW) DotRender(func(*ui/paint.List, StepDot)) *StepsW
 pkg github.com/tangoui/tango/ui, method (*StepsW) FinishStatus(string) *StepsW
+pkg github.com/tangoui/tango/ui, method (*StepsW) Initial(int) *StepsW
 pkg github.com/tangoui/tango/ui, method (*StepsW) Inline() *StepsW
 pkg github.com/tangoui/tango/ui, method (*StepsW) LabelVertical() *StepsW
+pkg github.com/tangoui/tango/ui, method (*StepsW) MaxCount(int) *StepsW
+pkg github.com/tangoui/tango/ui, method (*StepsW) Orientation(string) *StepsW
 pkg github.com/tangoui/tango/ui, method (*StepsW) Panel() *StepsW
 pkg github.com/tangoui/tango/ui, method (*StepsW) Percent(float64) *StepsW
 pkg github.com/tangoui/tango/ui, method (*StepsW) Show() *StepsW
 pkg github.com/tangoui/tango/ui, method (*StepsW) Size(ControlSize) *StepsW
 pkg github.com/tangoui/tango/ui, method (*StepsW) Small() *StepsW
 pkg github.com/tangoui/tango/ui, method (*StepsW) Status(string) *StepsW
+pkg github.com/tangoui/tango/ui, method (*StepsW) TitlePlacement(string) *StepsW
 pkg github.com/tangoui/tango/ui, method (*StepsW) Type(string) *StepsW
+pkg github.com/tangoui/tango/ui, method (*StepsW) Variant(string) *StepsW
 pkg github.com/tangoui/tango/ui, method (*StepsW) Vertical() *StepsW
 pkg github.com/tangoui/tango/ui, method (*SwitchW) A11yLabel(string) *SwitchW
+pkg github.com/tangoui/tango/ui, method (*SwitchW) ActionIcons(*ui/icon.Icon, *ui/icon.Icon) *SwitchW
 pkg github.com/tangoui/tango/ui, method (*SwitchW) BeforeChange(func(bool) bool) *SwitchW
 pkg github.com/tangoui/tango/ui, method (*SwitchW) BeforeChangeAsync(func(bool, func(bool))) *SwitchW
 pkg github.com/tangoui/tango/ui, method (*SwitchW) Changed() bool
@@ -2527,6 +2904,16 @@ pkg github.com/tangoui/tango/ui, method (*SwitchW) Size(ControlSize) *SwitchW
 pkg github.com/tangoui/tango/ui, method (*SwitchW) Small() *SwitchW
 pkg github.com/tangoui/tango/ui, method (*SwitchW) Texts(string, string) *SwitchW
 pkg github.com/tangoui/tango/ui, method (*SwitchW) Width(float32) *SwitchW
+pkg github.com/tangoui/tango/ui, method (*TableDropdownW) Button(string) *TableDropdownW
+pkg github.com/tangoui/tango/ui, method (*TableDropdownW) Clicked() string
+pkg github.com/tangoui/tango/ui, method (*TableDropdownW) Disabled(bool) *TableDropdownW
+pkg github.com/tangoui/tango/ui, method (*TableDropdownW) ID() ID
+pkg github.com/tangoui/tango/ui, method (*TableDropdownW) IsOpen() bool
+pkg github.com/tangoui/tango/ui, method (*TableDropdownW) Label(string) *TableDropdownW
+pkg github.com/tangoui/tango/ui, method (*TableDropdownW) OnSelect(func(string)) *TableDropdownW
+pkg github.com/tangoui/tango/ui, method (*TableDropdownW) Open(*bool) *TableDropdownW
+pkg github.com/tangoui/tango/ui, method (*TableDropdownW) Show() *TableDropdownW
+pkg github.com/tangoui/tango/ui, method (*TableDropdownW) Trigger(Trigger) *TableDropdownW
 pkg github.com/tangoui/tango/ui, method (*TableFilterPanel) Close()
 pkg github.com/tangoui/tango/ui, method (*TableFilterPanel) Confirm()
 pkg github.com/tangoui/tango/ui, method (*TableFilterPanel) Context() *Context
@@ -2534,8 +2921,12 @@ pkg github.com/tangoui/tango/ui, method (*TableFilterPanel) Reset()
 pkg github.com/tangoui/tango/ui, method (*TableW) A11yLabel(string) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Bordered() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Cancel(int)
+pkg github.com/tangoui/tango/ui, method (*TableW) CheckLinked() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) CheckStrictly() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) ColumnState(*TableColumnState) *TableW
+pkg github.com/tangoui/tango/ui, method (*TableW) CurrentChanged() bool
+pkg github.com/tangoui/tango/ui, method (*TableW) CurrentRowKey(*string) *TableW
+pkg github.com/tangoui/tango/ui, method (*TableW) DefaultExpandAllRows() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) DisplayedRows() []int
 pkg github.com/tangoui/tango/ui, method (*TableW) DragSort(func(int, int)) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Edit(int)
@@ -2543,10 +2934,15 @@ pkg github.com/tangoui/tango/ui, method (*TableW) EditableRows(*[]string) *Table
 pkg github.com/tangoui/tango/ui, method (*TableW) Edited() bool
 pkg github.com/tangoui/tango/ui, method (*TableW) EmptyText(string) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) ExpandChanged() bool
+pkg github.com/tangoui/tango/ui, method (*TableW) ExpandRowByClick() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Expandable(func(int)) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) ExpandedKeys(*[]string) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) FilterChanged() bool
 pkg github.com/tangoui/tango/ui, method (*TableW) Filters(*map[string][]string) *TableW
+pkg github.com/tangoui/tango/ui, method (*TableW) Footer(func()) *TableW
+pkg github.com/tangoui/tango/ui, method (*TableW) HeaderHeight(float32) *TableW
+pkg github.com/tangoui/tango/ui, method (*TableW) HideExpandColumn() *TableW
+pkg github.com/tangoui/tango/ui, method (*TableW) HideHeader() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) HideSelectAll() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) HighlightCurrentRow() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) ID() ID
@@ -2559,6 +2955,9 @@ pkg github.com/tangoui/tango/ui, method (*TableW) NoHover() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) PageChanged() bool
 pkg github.com/tangoui/tango/ui, method (*TableW) PageSizes(...int) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Pagination(*int, *int) *TableW
+pkg github.com/tangoui/tango/ui, method (*TableW) PaginationConfig(func(*PaginationW)) *TableW
+pkg github.com/tangoui/tango/ui, method (*TableW) PaginationPlacement(...string) *TableW
+pkg github.com/tangoui/tango/ui, method (*TableW) PreserveSelectedRowKeys() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Resizable() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Resized() bool
 pkg github.com/tangoui/tango/ui, method (*TableW) Revision(uint64) *TableW
@@ -2569,19 +2968,26 @@ pkg github.com/tangoui/tango/ui, method (*TableW) RowExpandable(func(int) bool) 
 pkg github.com/tangoui/tango/ui, method (*TableW) RowHeight(float32) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) RowKey(func(int) string) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Save(int) bool
+pkg github.com/tangoui/tango/ui, method (*TableW) ScrollToFirstRowOnChange(bool) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) ScrollX(float32) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) ScrollY(float32) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) SelectDisabled(func(int) bool) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) SelectedKeys(*[]string) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Selection(*[]int) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) SelectionChanged() bool
+pkg github.com/tangoui/tango/ui, method (*TableW) SelectionColumnWidth(float32) *TableW
+pkg github.com/tangoui/tango/ui, method (*TableW) SelectionFixed() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Selections(...TableSelection) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) ServerPagination(*int, *int, int) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Show() *TableW
+pkg github.com/tangoui/tango/ui, method (*TableW) ShowOverflowTooltip() *TableW
+pkg github.com/tangoui/tango/ui, method (*TableW) ShowSorterTooltip(bool) *TableW
+pkg github.com/tangoui/tango/ui, method (*TableW) ShowSummary() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) SingleSelect() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Size(ControlSize) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Sort(*SortState) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) SortChanged() bool
+pkg github.com/tangoui/tango/ui, method (*TableW) SortDirections(...SortOrder) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Span(func(TableSpan) (int, int)) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Sticky(float32) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) StickyContainer(ID) *TableW
@@ -2589,6 +2995,7 @@ pkg github.com/tangoui/tango/ui, method (*TableW) StickySummary(float32) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Striped() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Summary(func(string, []int) string) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) SummaryFixed() *TableW
+pkg github.com/tangoui/tango/ui, method (*TableW) Title(func()) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Transposed() *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) TransposedColumnWidth(float32) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) TransposedHeader(func(int) string) *TableW
@@ -2598,7 +3005,9 @@ pkg github.com/tangoui/tango/ui, method (*TableW) Tree([]int, func(int) []int) *
 pkg github.com/tangoui/tango/ui, method (*TableW) TreeLazy(func(int) bool, func(int)) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) TreeOpenKeys(*[]string) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Virtual() *TableW
+pkg github.com/tangoui/tango/ui, method (*TabsW) AddIcon(*ui/icon.Icon) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Added() bool
+pkg github.com/tangoui/tango/ui, method (*TabsW) BeforeLeave(func(string, string) bool) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) BorderCard() *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Card() *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Centered() *TabsW
@@ -2609,23 +3018,35 @@ pkg github.com/tangoui/tango/ui, method (*TabsW) Draggable() *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Extra(func()) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) ExtraLeft(func()) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Height(float32) *TabsW
+pkg github.com/tangoui/tango/ui, method (*TabsW) Indicator(float32, string) *TabsW
+pkg github.com/tangoui/tango/ui, method (*TabsW) MoreIcon(*ui/icon.Icon) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) NoMargin() *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) OnAdd(func()) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) OnTearOff(func(string, ui/geom.Point)) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Panel(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*TabsW) Placement(Placement) *TabsW
+pkg github.com/tangoui/tango/ui, method (*TabsW) RemoveIcon(*ui/icon.Icon) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Reordered() []TabItem
 pkg github.com/tangoui/tango/ui, method (*TabsW) Show() *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Size(ControlSize) *TabsW
+pkg github.com/tangoui/tango/ui, method (*TabsW) Stretch() *TabsW
+pkg github.com/tangoui/tango/ui, method (*TabsW) TabBarGutter(float32) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) TabBarStyle(...ui/layout.Option) *TabsW
+pkg github.com/tangoui/tango/ui, method (*TabsW) TabClicked() string
+pkg github.com/tangoui/tango/ui, method (*TabsW) TabPlacement(string) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) TornOff() (string, ui/geom.Point, bool)
+pkg github.com/tangoui/tango/ui, method (*TabsW) Variant(string) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TagW) Borderless() *TagW
 pkg github.com/tangoui/tango/ui, method (*TagW) Closable() *TagW
+pkg github.com/tangoui/tango/ui, method (*TagW) CloseIcon(*ui/icon.Icon) *TagW
 pkg github.com/tangoui/tango/ui, method (*TagW) Closed() bool
 pkg github.com/tangoui/tango/ui, method (*TagW) Color(string) *TagW
+pkg github.com/tangoui/tango/ui, method (*TagW) Disabled(bool) *TagW
 pkg github.com/tangoui/tango/ui, method (*TagW) Effect(string) *TagW
 pkg github.com/tangoui/tango/ui, method (*TagW) Icon(*ui/icon.Icon) *TagW
+pkg github.com/tangoui/tango/ui, method (*TagW) Round() *TagW
 pkg github.com/tangoui/tango/ui, method (*TagW) Size(ControlSize) *TagW
+pkg github.com/tangoui/tango/ui, method (*TagW) Variant(string) *TagW
 pkg github.com/tangoui/tango/ui, method (*TextAreaW) A11yLabel(string) *TextAreaW
 pkg github.com/tangoui/tango/ui, method (*TextAreaW) AllowClear() *TextAreaW
 pkg github.com/tangoui/tango/ui, method (*TextAreaW) AutoSize(int, int) *TextAreaW
@@ -2637,9 +3058,11 @@ pkg github.com/tangoui/tango/ui, method (*TextAreaW) ID() ID
 pkg github.com/tangoui/tango/ui, method (*TextAreaW) Layout(...ui/layout.Option) *TextAreaW
 pkg github.com/tangoui/tango/ui, method (*TextAreaW) MaxLength(int) *TextAreaW
 pkg github.com/tangoui/tango/ui, method (*TextAreaW) Placeholder(string) *TextAreaW
+pkg github.com/tangoui/tango/ui, method (*TextAreaW) ReadOnly() *TextAreaW
 pkg github.com/tangoui/tango/ui, method (*TextAreaW) Rows(int) *TextAreaW
 pkg github.com/tangoui/tango/ui, method (*TextAreaW) ShowCount() *TextAreaW
 pkg github.com/tangoui/tango/ui, method (*TextAreaW) Status(string) *TextAreaW
+pkg github.com/tangoui/tango/ui, method (*TextAreaW) Variant(string) *TextAreaW
 pkg github.com/tangoui/tango/ui, method (*TextAreaW) Width(float32) *TextAreaW
 pkg github.com/tangoui/tango/ui, method (*ThoughtChainW) Card() *ThoughtChainW
 pkg github.com/tangoui/tango/ui, method (*ThoughtChainW) DefaultCollapsed() *ThoughtChainW
@@ -2671,9 +3094,12 @@ pkg github.com/tangoui/tango/ui, method (*TimePickerW) HourStep(int) *TimePicker
 pkg github.com/tangoui/tango/ui, method (*TimePickerW) IsOpen() bool
 pkg github.com/tangoui/tango/ui, method (*TimePickerW) Layout(...ui/layout.Option) *TimePickerW
 pkg github.com/tangoui/tango/ui, method (*TimePickerW) MinuteStep(int) *TimePickerW
+pkg github.com/tangoui/tango/ui, method (*TimePickerW) NeedConfirm(bool) *TimePickerW
 pkg github.com/tangoui/tango/ui, method (*TimePickerW) Open() *TimePickerW
 pkg github.com/tangoui/tango/ui, method (*TimePickerW) Placeholder(string) *TimePickerW
+pkg github.com/tangoui/tango/ui, method (*TimePickerW) Placement(Placement) *TimePickerW
 pkg github.com/tangoui/tango/ui, method (*TimePickerW) SecondStep(int) *TimePickerW
+pkg github.com/tangoui/tango/ui, method (*TimePickerW) ShowNow(bool) *TimePickerW
 pkg github.com/tangoui/tango/ui, method (*TimePickerW) Size(ControlSize) *TimePickerW
 pkg github.com/tangoui/tango/ui, method (*TimePickerW) Status(string) *TimePickerW
 pkg github.com/tangoui/tango/ui, method (*TimePickerW) Steps(int, int, int) *TimePickerW
@@ -2694,8 +3120,11 @@ pkg github.com/tangoui/tango/ui, method (*TimeRangePickerW) IsOpen() bool
 pkg github.com/tangoui/tango/ui, method (*TimeRangePickerW) Layout(...ui/layout.Option) *TimeRangePickerW
 pkg github.com/tangoui/tango/ui, method (*TimeRangePickerW) MinuteStep(int) *TimeRangePickerW
 pkg github.com/tangoui/tango/ui, method (*TimeRangePickerW) Open() *TimeRangePickerW
+pkg github.com/tangoui/tango/ui, method (*TimeRangePickerW) Order(bool) *TimeRangePickerW
 pkg github.com/tangoui/tango/ui, method (*TimeRangePickerW) Placeholder(string, string) *TimeRangePickerW
+pkg github.com/tangoui/tango/ui, method (*TimeRangePickerW) Placement(Placement) *TimeRangePickerW
 pkg github.com/tangoui/tango/ui, method (*TimeRangePickerW) SecondStep(int) *TimeRangePickerW
+pkg github.com/tangoui/tango/ui, method (*TimeRangePickerW) Separator(string) *TimeRangePickerW
 pkg github.com/tangoui/tango/ui, method (*TimeRangePickerW) Size(ControlSize) *TimeRangePickerW
 pkg github.com/tangoui/tango/ui, method (*TimeRangePickerW) Status(string) *TimeRangePickerW
 pkg github.com/tangoui/tango/ui, method (*TimeRangePickerW) Use12Hours() *TimeRangePickerW
@@ -2706,6 +3135,7 @@ pkg github.com/tangoui/tango/ui, method (*TimeSelectW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*TimeSelectW) Clearable(bool) *TimeSelectW
 pkg github.com/tangoui/tango/ui, method (*TimeSelectW) Disabled(bool) *TimeSelectW
 pkg github.com/tangoui/tango/ui, method (*TimeSelectW) End(string) *TimeSelectW
+pkg github.com/tangoui/tango/ui, method (*TimeSelectW) IncludeEndTime(bool) *TimeSelectW
 pkg github.com/tangoui/tango/ui, method (*TimeSelectW) IsOpen() bool
 pkg github.com/tangoui/tango/ui, method (*TimeSelectW) Layout(...ui/layout.Option) *TimeSelectW
 pkg github.com/tangoui/tango/ui, method (*TimeSelectW) MaxTime(string) *TimeSelectW
@@ -2713,6 +3143,7 @@ pkg github.com/tangoui/tango/ui, method (*TimeSelectW) MinTime(string) *TimeSele
 pkg github.com/tangoui/tango/ui, method (*TimeSelectW) Open() *TimeSelectW
 pkg github.com/tangoui/tango/ui, method (*TimeSelectW) Options() []Option
 pkg github.com/tangoui/tango/ui, method (*TimeSelectW) Placeholder(string) *TimeSelectW
+pkg github.com/tangoui/tango/ui, method (*TimeSelectW) Placement(Placement) *TimeSelectW
 pkg github.com/tangoui/tango/ui, method (*TimeSelectW) Size(ControlSize) *TimeSelectW
 pkg github.com/tangoui/tango/ui, method (*TimeSelectW) Start(string) *TimeSelectW
 pkg github.com/tangoui/tango/ui, method (*TimeSelectW) Status(string) *TimeSelectW
@@ -2722,9 +3153,12 @@ pkg github.com/tangoui/tango/ui, method (*TimeSelectW) Width(float32) *TimeSelec
 pkg github.com/tangoui/tango/ui, method (*TimelineW) Horizontal() *TimelineW
 pkg github.com/tangoui/tango/ui, method (*TimelineW) Layout(...ui/layout.Option) *TimelineW
 pkg github.com/tangoui/tango/ui, method (*TimelineW) Mode(string) *TimelineW
+pkg github.com/tangoui/tango/ui, method (*TimelineW) Orientation(string) *TimelineW
 pkg github.com/tangoui/tango/ui, method (*TimelineW) Pending(string) *TimelineW
 pkg github.com/tangoui/tango/ui, method (*TimelineW) Reverse() *TimelineW
 pkg github.com/tangoui/tango/ui, method (*TimelineW) Show() *TimelineW
+pkg github.com/tangoui/tango/ui, method (*TimelineW) TitleSpan(float32) *TimelineW
+pkg github.com/tangoui/tango/ui, method (*TimelineW) Variant(string) *TimelineW
 pkg github.com/tangoui/tango/ui, method (*TitleBarW) Action() WindowAction
 pkg github.com/tangoui/tango/ui, method (*TitleBarW) Center(func()) *TitleBarW
 pkg github.com/tangoui/tango/ui, method (*TitleBarW) Controls(WindowControlsStyle) *TitleBarW
@@ -2742,6 +3176,8 @@ pkg github.com/tangoui/tango/ui, method (*ToggleGroupW) Icons(map[string]*ui/ico
 pkg github.com/tangoui/tango/ui, method (*ToggleGroupW) Outline() *ToggleGroupW
 pkg github.com/tangoui/tango/ui, method (*ToggleGroupW) Single() *ToggleGroupW
 pkg github.com/tangoui/tango/ui, method (*ToggleGroupW) Size(ControlSize) *ToggleGroupW
+pkg github.com/tangoui/tango/ui, method (*ToggleGroupW) Spacing(int) *ToggleGroupW
+pkg github.com/tangoui/tango/ui, method (*ToggleGroupW) Variant(string) *ToggleGroupW
 pkg github.com/tangoui/tango/ui, method (*ToggleW) A11yLabel(string) *ToggleW
 pkg github.com/tangoui/tango/ui, method (*ToggleW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*ToggleW) Disabled(bool) *ToggleW
@@ -2750,6 +3186,7 @@ pkg github.com/tangoui/tango/ui, method (*ToggleW) Icon(*ui/icon.Icon) *ToggleW
 pkg github.com/tangoui/tango/ui, method (*ToggleW) IconOnly(*ui/icon.Icon) *ToggleW
 pkg github.com/tangoui/tango/ui, method (*ToggleW) Outline() *ToggleW
 pkg github.com/tangoui/tango/ui, method (*ToggleW) Size(ControlSize) *ToggleW
+pkg github.com/tangoui/tango/ui, method (*ToggleW) Variant(string) *ToggleW
 pkg github.com/tangoui/tango/ui, method (*ToolCallW) Args(string) *ToolCallW
 pkg github.com/tangoui/tango/ui, method (*ToolCallW) Body(func()) *ToolCallW
 pkg github.com/tangoui/tango/ui, method (*ToolCallW) DefaultOpen() *ToolCallW
@@ -2766,12 +3203,22 @@ pkg github.com/tangoui/tango/ui, method (*ToolCallW) Toggled() bool
 pkg github.com/tangoui/tango/ui, method (*TooltipW) Arrow(bool) *TooltipW
 pkg github.com/tangoui/tango/ui, method (*TooltipW) Color(string) *TooltipW
 pkg github.com/tangoui/tango/ui, method (*TooltipW) Content(func()) *TooltipW
+pkg github.com/tangoui/tango/ui, method (*TooltipW) Disabled(bool) *TooltipW
 pkg github.com/tangoui/tango/ui, method (*TooltipW) Effect(string) *TooltipW
 pkg github.com/tangoui/tango/ui, method (*TooltipW) IsOpen() bool
 pkg github.com/tangoui/tango/ui, method (*TooltipW) MouseEnterDelay(time.Duration) *TooltipW
 pkg github.com/tangoui/tango/ui, method (*TooltipW) MouseLeaveDelay(time.Duration) *TooltipW
+pkg github.com/tangoui/tango/ui, method (*TooltipW) Open(*bool) *TooltipW
+pkg github.com/tangoui/tango/ui, method (*TooltipW) OpenChanged() bool
 pkg github.com/tangoui/tango/ui, method (*TooltipW) Placement(string) *TooltipW
 pkg github.com/tangoui/tango/ui, method (*TooltipW) Trigger(string) *TooltipW
+pkg github.com/tangoui/tango/ui, method (*TopNavHeaderW) Actions(func()) *TopNavHeaderW
+pkg github.com/tangoui/tango/ui, method (*TopNavHeaderW) ContentWidth(string) *TopNavHeaderW
+pkg github.com/tangoui/tango/ui, method (*TopNavHeaderW) Logo(*ui/icon.Icon) *TopNavHeaderW
+pkg github.com/tangoui/tango/ui, method (*TopNavHeaderW) OnMenuHeaderClick(func()) *TopNavHeaderW
+pkg github.com/tangoui/tango/ui, method (*TopNavHeaderW) Show() *TopNavHeaderW
+pkg github.com/tangoui/tango/ui, method (*TopNavHeaderW) Title(string) *TopNavHeaderW
+pkg github.com/tangoui/tango/ui, method (*TopNavHeaderW) UserName(string) *TopNavHeaderW
 pkg github.com/tangoui/tango/ui, method (*TourActions) Close()
 pkg github.com/tangoui/tango/ui, method (*TourActions) Default()
 pkg github.com/tangoui/tango/ui, method (*TourActions) GoTo(int)
@@ -2779,15 +3226,22 @@ pkg github.com/tangoui/tango/ui, method (*TourActions) Next()
 pkg github.com/tangoui/tango/ui, method (*TourActions) Prev()
 pkg github.com/tangoui/tango/ui, method (*TourW) ActionsRender(func(*TourActions)) *TourW
 pkg github.com/tangoui/tango/ui, method (*TourW) Changed() bool
+pkg github.com/tangoui/tango/ui, method (*TourW) Closable(bool) *TourW
 pkg github.com/tangoui/tango/ui, method (*TourW) Closed() bool
+pkg github.com/tangoui/tango/ui, method (*TourW) DisabledInteraction(bool) *TourW
 pkg github.com/tangoui/tango/ui, method (*TourW) Finished() bool
 pkg github.com/tangoui/tango/ui, method (*TourW) Gap(float32) *TourW
+pkg github.com/tangoui/tango/ui, method (*TourW) GapRadius(float32) *TourW
 pkg github.com/tangoui/tango/ui, method (*TourW) IndicatorsRender(func(int, int)) *TourW
+pkg github.com/tangoui/tango/ui, method (*TourW) Keyboard(bool) *TourW
+pkg github.com/tangoui/tango/ui, method (*TourW) MaskColor(ui/theme.Color) *TourW
 pkg github.com/tangoui/tango/ui, method (*TourW) NoArrow() *TourW
 pkg github.com/tangoui/tango/ui, method (*TourW) NoMask() *TourW
+pkg github.com/tangoui/tango/ui, method (*TourW) Placement(string) *TourW
 pkg github.com/tangoui/tango/ui, method (*TourW) Primary() *TourW
 pkg github.com/tangoui/tango/ui, method (*TourW) ScrollIntoView(bool) *TourW
 pkg github.com/tangoui/tango/ui, method (*TourW) Show() *TourW
+pkg github.com/tangoui/tango/ui, method (*TransferW) Actions(string, string) *TransferW
 pkg github.com/tangoui/tango/ui, method (*TransferW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*TransferW) Checked(int) []string
 pkg github.com/tangoui/tango/ui, method (*TransferW) DefaultChecked(...string) *TransferW
@@ -2798,7 +3252,9 @@ pkg github.com/tangoui/tango/ui, method (*TransferW) Operations(string, string) 
 pkg github.com/tangoui/tango/ui, method (*TransferW) Pagination(int) *TransferW
 pkg github.com/tangoui/tango/ui, method (*TransferW) Render(func(Option)) *TransferW
 pkg github.com/tangoui/tango/ui, method (*TransferW) Searchable() *TransferW
+pkg github.com/tangoui/tango/ui, method (*TransferW) ShowSelectAll(bool) *TransferW
 pkg github.com/tangoui/tango/ui, method (*TransferW) Status(string) *TransferW
+pkg github.com/tangoui/tango/ui, method (*TransferW) TargetOrder(string) *TransferW
 pkg github.com/tangoui/tango/ui, method (*TransferW) Titles(string, string) *TransferW
 pkg github.com/tangoui/tango/ui, method (*TransferW) TreeSource([]TreeNode) *TransferW
 pkg github.com/tangoui/tango/ui, method (*TransferW) Virtual(bool) *TransferW
@@ -2818,9 +3274,12 @@ pkg github.com/tangoui/tango/ui, method (*TreeSelectW) Layout(...ui/layout.Optio
 pkg github.com/tangoui/tango/ui, method (*TreeSelectW) ListHeight(float32) *TreeSelectW
 pkg github.com/tangoui/tango/ui, method (*TreeSelectW) LoadData(func(string) bool) *TreeSelectW
 pkg github.com/tangoui/tango/ui, method (*TreeSelectW) MaxTagCount(int) *TreeSelectW
+pkg github.com/tangoui/tango/ui, method (*TreeSelectW) MaxTagPlaceholder(func([]string) string) *TreeSelectW
 pkg github.com/tangoui/tango/ui, method (*TreeSelectW) Multiple(*[]string) *TreeSelectW
+pkg github.com/tangoui/tango/ui, method (*TreeSelectW) NotFoundContent(string) *TreeSelectW
 pkg github.com/tangoui/tango/ui, method (*TreeSelectW) Open() *TreeSelectW
 pkg github.com/tangoui/tango/ui, method (*TreeSelectW) Placeholder(string) *TreeSelectW
+pkg github.com/tangoui/tango/ui, method (*TreeSelectW) Placement(Placement) *TreeSelectW
 pkg github.com/tangoui/tango/ui, method (*TreeSelectW) Searchable() *TreeSelectW
 pkg github.com/tangoui/tango/ui, method (*TreeSelectW) ShowCheckedStrategy(CheckedStrategy) *TreeSelectW
 pkg github.com/tangoui/tango/ui, method (*TreeSelectW) Size(ControlSize) *TreeSelectW
@@ -2830,17 +3289,26 @@ pkg github.com/tangoui/tango/ui, method (*TreeSelectW) Variant(FieldVariant) *Tr
 pkg github.com/tangoui/tango/ui, method (*TreeSelectW) Virtual(bool) *TreeSelectW
 pkg github.com/tangoui/tango/ui, method (*TreeSelectW) Width(float32) *TreeSelectW
 pkg github.com/tangoui/tango/ui, method (*TreeW) A11yLabel(string) *TreeW
+pkg github.com/tangoui/tango/ui, method (*TreeW) Accordion() *TreeW
+pkg github.com/tangoui/tango/ui, method (*TreeW) AllowDrag(func(string) bool) *TreeW
+pkg github.com/tangoui/tango/ui, method (*TreeW) AllowDrop(func(string, string, int) bool) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) BlockNode() *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) Built() int
 pkg github.com/tangoui/tango/ui, method (*TreeW) CheckChanged() bool
+pkg github.com/tangoui/tango/ui, method (*TreeW) CheckOnClick(bool) *TreeW
+pkg github.com/tangoui/tango/ui, method (*TreeW) CheckOnClickLeaf(bool) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) CheckStrictly() *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) Checkable(*[]string) *TreeW
+pkg github.com/tangoui/tango/ui, method (*TreeW) DefaultExpandAll() *TreeW
+pkg github.com/tangoui/tango/ui, method (*TreeW) Disabled(bool) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) Draggable() *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) Dropped() (string, string, int, bool)
+pkg github.com/tangoui/tango/ui, method (*TreeW) EmptyText(string) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) ExpandChanged() bool
 pkg github.com/tangoui/tango/ui, method (*TreeW) ExpandOnClick(bool) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) Expanded(*[]string) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) Filter() *TreeW
+pkg github.com/tangoui/tango/ui, method (*TreeW) FilterMethod(func(string, *TreeNode) bool) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) HalfChecked() []string
 pkg github.com/tangoui/tango/ui, method (*TreeW) Height(float32) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) Layout(...ui/layout.Option) *TreeW
@@ -2848,10 +3316,12 @@ pkg github.com/tangoui/tango/ui, method (*TreeW) LoadData(func(string) bool) *Tr
 pkg github.com/tangoui/tango/ui, method (*TreeW) Multiple() *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) Search(string) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) SelectChanged() bool
+pkg github.com/tangoui/tango/ui, method (*TreeW) Selectable(bool) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) Selected(*[]string) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) Show() *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) ShowIcon() *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) ShowLine() *TreeW
+pkg github.com/tangoui/tango/ui, method (*TreeW) SwitcherIcon(*ui/icon.Icon) *TreeW
 pkg github.com/tangoui/tango/ui, method (*UploadW) Accept(string) *UploadW
 pkg github.com/tangoui/tango/ui, method (*UploadW) Action(string) *UploadW
 pkg github.com/tangoui/tango/ui, method (*UploadW) Added() []UploadFile
@@ -2883,6 +3353,7 @@ pkg github.com/tangoui/tango/ui, method (*UploadW) Previewed() int
 pkg github.com/tangoui/tango/ui, method (*UploadW) Rejections() []string
 pkg github.com/tangoui/tango/ui, method (*UploadW) Removed() int
 pkg github.com/tangoui/tango/ui, method (*UploadW) Retries(int) *UploadW
+pkg github.com/tangoui/tango/ui, method (*UploadW) ShowUploadList(bool) *UploadW
 pkg github.com/tangoui/tango/ui, method (*UploadW) Submit() int
 pkg github.com/tangoui/tango/ui, method (*UploadW) Tip(string) *UploadW
 pkg github.com/tangoui/tango/ui, method (*UploadW) Width(float32) *UploadW
@@ -2914,21 +3385,26 @@ pkg github.com/tangoui/tango/ui, method (*VirtualSelectW) Loading(bool) *Virtual
 pkg github.com/tangoui/tango/ui, method (*VirtualSelectW) MaxCount(int) *VirtualSelectW
 pkg github.com/tangoui/tango/ui, method (*VirtualSelectW) MaxTagCount(int) *VirtualSelectW
 pkg github.com/tangoui/tango/ui, method (*VirtualSelectW) Multiple(*[]string) *VirtualSelectW
+pkg github.com/tangoui/tango/ui, method (*VirtualSelectW) NotFoundContent(string) *VirtualSelectW
 pkg github.com/tangoui/tango/ui, method (*VirtualSelectW) Open() *VirtualSelectW
 pkg github.com/tangoui/tango/ui, method (*VirtualSelectW) OptionRender(func(Option, VirtualOptionState)) *VirtualSelectW
 pkg github.com/tangoui/tango/ui, method (*VirtualSelectW) Placeholder(string) *VirtualSelectW
+pkg github.com/tangoui/tango/ui, method (*VirtualSelectW) Placement(Placement) *VirtualSelectW
 pkg github.com/tangoui/tango/ui, method (*VirtualSelectW) Query() string
 pkg github.com/tangoui/tango/ui, method (*VirtualSelectW) Remote(func(string)) *VirtualSelectW
 pkg github.com/tangoui/tango/ui, method (*VirtualSelectW) Size(ControlSize) *VirtualSelectW
 pkg github.com/tangoui/tango/ui, method (*VirtualSelectW) Status(string) *VirtualSelectW
 pkg github.com/tangoui/tango/ui, method (*VirtualSelectW) Width(float32) *VirtualSelectW
+pkg github.com/tangoui/tango/ui, method (*VirtualTreeW) Accordion() *VirtualTreeW
 pkg github.com/tangoui/tango/ui, method (*VirtualTreeW) CheckChanged() bool
 pkg github.com/tangoui/tango/ui, method (*VirtualTreeW) CheckOnClick() *VirtualTreeW
+pkg github.com/tangoui/tango/ui, method (*VirtualTreeW) CheckOnClickLeaf(bool) *VirtualTreeW
 pkg github.com/tangoui/tango/ui, method (*VirtualTreeW) CheckStrictly() *VirtualTreeW
 pkg github.com/tangoui/tango/ui, method (*VirtualTreeW) Checkable(*[]string) *VirtualTreeW
 pkg github.com/tangoui/tango/ui, method (*VirtualTreeW) Current(*string) *VirtualTreeW
 pkg github.com/tangoui/tango/ui, method (*VirtualTreeW) CurrentChanged() bool
 pkg github.com/tangoui/tango/ui, method (*VirtualTreeW) DataVersion(int) *VirtualTreeW
+pkg github.com/tangoui/tango/ui, method (*VirtualTreeW) EmptyText(string) *VirtualTreeW
 pkg github.com/tangoui/tango/ui, method (*VirtualTreeW) ExpandChanged() bool
 pkg github.com/tangoui/tango/ui, method (*VirtualTreeW) ExpandOnClick(bool) *VirtualTreeW
 pkg github.com/tangoui/tango/ui, method (*VirtualTreeW) Expanded(*[]string) *VirtualTreeW
@@ -2947,11 +3423,13 @@ pkg github.com/tangoui/tango/ui, method (*VirtualTreeW) VisibleCount() int
 pkg github.com/tangoui/tango/ui, method (*WatermarkW) Body(func()) *WatermarkW
 pkg github.com/tangoui/tango/ui, method (*WatermarkW) Color(ui/theme.Color) *WatermarkW
 pkg github.com/tangoui/tango/ui, method (*WatermarkW) FontSize(float32) *WatermarkW
+pkg github.com/tangoui/tango/ui, method (*WatermarkW) FontStyle(string) *WatermarkW
 pkg github.com/tangoui/tango/ui, method (*WatermarkW) Gap(float32, float32) *WatermarkW
 pkg github.com/tangoui/tango/ui, method (*WatermarkW) Grid() *WatermarkW
 pkg github.com/tangoui/tango/ui, method (*WatermarkW) Image(image.Image, float32, float32) *WatermarkW
 pkg github.com/tangoui/tango/ui, method (*WatermarkW) ImageOpacity(float32) *WatermarkW
 pkg github.com/tangoui/tango/ui, method (*WatermarkW) Layout(...ui/layout.Option) *WatermarkW
+pkg github.com/tangoui/tango/ui, method (*WatermarkW) MarkSize(float32, float32) *WatermarkW
 pkg github.com/tangoui/tango/ui, method (*WatermarkW) Offset(float32, float32) *WatermarkW
 pkg github.com/tangoui/tango/ui, method (*WatermarkW) Rotate(float64) *WatermarkW
 pkg github.com/tangoui/tango/ui, method (*WatermarkW) Weight(ui/text.Weight) *WatermarkW
@@ -2994,9 +3472,22 @@ pkg github.com/tangoui/tango/ui, method (ProValues) Time(string) time.Time
 pkg github.com/tangoui/tango/ui, method (Rule) Warning() Rule
 pkg github.com/tangoui/tango/ui, method (RuleOf[T]) Warning() RuleOf[T]
 pkg github.com/tangoui/tango/ui, prop "Addon" "size" any
+pkg github.com/tangoui/tango/ui, prop "Affix" "offsetBottom" number
+pkg github.com/tangoui/tango/ui, prop "Affix" "offsetTop" number
 pkg github.com/tangoui/tango/ui, prop "Alert" "banner" bool
 pkg github.com/tangoui/tango/ui, prop "Alert" "closable" bool
+pkg github.com/tangoui/tango/ui, prop "Alert" "showIcon" any
 pkg github.com/tangoui/tango/ui, prop "Alert" "showIcon" bool
+pkg github.com/tangoui/tango/ui, prop "Alert" "variant" string
+pkg github.com/tangoui/tango/ui, prop "Anchor" "bounds" number
+pkg github.com/tangoui/tango/ui, prop "Anchor" "direction" string
+pkg github.com/tangoui/tango/ui, prop "Anchor" "offsetTop" number
+pkg github.com/tangoui/tango/ui, prop "Anchor" "targetOffset" number
+pkg github.com/tangoui/tango/ui, prop "Anchor" "type" string
+pkg github.com/tangoui/tango/ui, prop "App" "messageMaxCount" number
+pkg github.com/tangoui/tango/ui, prop "App" "notificationMaxCount" number
+pkg github.com/tangoui/tango/ui, prop "AutoComplete" "allowClear" bool
+pkg github.com/tangoui/tango/ui, prop "Avatar" "gap" any
 pkg github.com/tangoui/tango/ui, prop "Avatar" "shape" string
 pkg github.com/tangoui/tango/ui, prop "Avatar" "size" any
 pkg github.com/tangoui/tango/ui, prop "AvatarGroup" "maxCount" any
@@ -3004,112 +3495,256 @@ pkg github.com/tangoui/tango/ui, prop "BackTop" "duration" any
 pkg github.com/tangoui/tango/ui, prop "BackTop" "visibilityHeight" any
 pkg github.com/tangoui/tango/ui, prop "Badge" "color" string
 pkg github.com/tangoui/tango/ui, prop "Badge" "dot" bool
+pkg github.com/tangoui/tango/ui, prop "Badge" "overflowCount" number
 pkg github.com/tangoui/tango/ui, prop "Badge" "showZero" bool
 pkg github.com/tangoui/tango/ui, prop "BadgeRibbon" "placement" string
 pkg github.com/tangoui/tango/ui, prop "Breadcrumb" "separator" string
 pkg github.com/tangoui/tango/ui, prop "Button" "autoInsertSpace" bool
+pkg github.com/tangoui/tango/ui, prop "Button" "block" bool
+pkg github.com/tangoui/tango/ui, prop "Button" "danger" bool
+pkg github.com/tangoui/tango/ui, prop "Button" "ghost" bool
+pkg github.com/tangoui/tango/ui, prop "Button" "iconPlacement" any
+pkg github.com/tangoui/tango/ui, prop "Button" "shape" string
+pkg github.com/tangoui/tango/ui, prop "Button" "type" string
+pkg github.com/tangoui/tango/ui, prop "Button" "variant" string
 pkg github.com/tangoui/tango/ui, prop "ButtonGroup" "size" any
 pkg github.com/tangoui/tango/ui, prop "ButtonGroup" "type" string
+pkg github.com/tangoui/tango/ui, prop "Calendar" "controllerType" string
 pkg github.com/tangoui/tango/ui, prop "Calendar" "fullscreen" bool
+pkg github.com/tangoui/tango/ui, prop "Calendar" "showWeek" bool
 pkg github.com/tangoui/tango/ui, prop "Card" "bordered" bool
 pkg github.com/tangoui/tango/ui, prop "Card" "hoverable" bool
 pkg github.com/tangoui/tango/ui, prop "Card" "shadow" string
+pkg github.com/tangoui/tango/ui, prop "Card" "type" string
 pkg github.com/tangoui/tango/ui, prop "Card" "variant" string
 pkg github.com/tangoui/tango/ui, prop "Carousel" "arrows" string
 pkg github.com/tangoui/tango/ui, prop "Carousel" "autoplay" time.Duration
+pkg github.com/tangoui/tango/ui, prop "Carousel" "dotPlacement" string
 pkg github.com/tangoui/tango/ui, prop "Carousel" "dotPosition" string
 pkg github.com/tangoui/tango/ui, prop "Carousel" "dots" bool
 pkg github.com/tangoui/tango/ui, prop "Carousel" "effect" string
 pkg github.com/tangoui/tango/ui, prop "Carousel" "height" float32
+pkg github.com/tangoui/tango/ui, prop "Carousel" "pauseOnHover" bool
+pkg github.com/tangoui/tango/ui, prop "Carousel" "trigger" string
 pkg github.com/tangoui/tango/ui, prop "Carousel" "type" string
+pkg github.com/tangoui/tango/ui, prop "Cascader" "allowClear" bool
+pkg github.com/tangoui/tango/ui, prop "Cascader" "changeOnSelect" bool
+pkg github.com/tangoui/tango/ui, prop "Cascader" "expandTrigger" string
+pkg github.com/tangoui/tango/ui, prop "Cascader" "maxTagCount" number
+pkg github.com/tangoui/tango/ui, prop "Cascader" "placeholder" string
+pkg github.com/tangoui/tango/ui, prop "Cascader" "showSearch" bool
+pkg github.com/tangoui/tango/ui, prop "Cascader" "status" string
+pkg github.com/tangoui/tango/ui, prop "Cascader" "strategyValue" bool
 pkg github.com/tangoui/tango/ui, prop "CheckCard" "bordered" bool
+pkg github.com/tangoui/tango/ui, prop "CheckCard" "defaultChecked" bool
+pkg github.com/tangoui/tango/ui, prop "CheckCard" "disabled" bool
+pkg github.com/tangoui/tango/ui, prop "CheckCard" "loading" bool
+pkg github.com/tangoui/tango/ui, prop "CheckCardGroup" "bordered" bool
+pkg github.com/tangoui/tango/ui, prop "CheckCardGroup" "defaultValue" []string
+pkg github.com/tangoui/tango/ui, prop "CheckCardGroup" "defaultValue" string
+pkg github.com/tangoui/tango/ui, prop "CheckCardGroup" "disabled" bool
+pkg github.com/tangoui/tango/ui, prop "CheckCardGroup" "loading" bool
+pkg github.com/tangoui/tango/ui, prop "CheckCardGroup" "multiple" bool
+pkg github.com/tangoui/tango/ui, prop "CheckableTagGroup" "multiple" bool
 pkg github.com/tangoui/tango/ui, prop "Checkbox" "size" any
 pkg github.com/tangoui/tango/ui, prop "Collapse" "accordion" bool
 pkg github.com/tangoui/tango/ui, prop "Collapse" "bordered" bool
+pkg github.com/tangoui/tango/ui, prop "Collapse" "collapsible" string
+pkg github.com/tangoui/tango/ui, prop "Collapse" "expandIconPlacement" string
 pkg github.com/tangoui/tango/ui, prop "Collapse" "expandIconPosition" string
 pkg github.com/tangoui/tango/ui, prop "Collapse" "ghost" bool
+pkg github.com/tangoui/tango/ui, prop "ColorPicker" "allowClear" bool
+pkg github.com/tangoui/tango/ui, prop "ColorPicker" "disabledAlpha" bool
+pkg github.com/tangoui/tango/ui, prop "ColorPicker" "disabledFormat" bool
+pkg github.com/tangoui/tango/ui, prop "ColorPicker" "format" string
+pkg github.com/tangoui/tango/ui, prop "ColorPicker" "showText" bool
 pkg github.com/tangoui/tango/ui, prop "Command" "emptyText" string
+pkg github.com/tangoui/tango/ui, prop "Command" "loop" bool
 pkg github.com/tangoui/tango/ui, prop "Command" "placeholder" string
+pkg github.com/tangoui/tango/ui, prop "Command" "shouldFilter" bool
+pkg github.com/tangoui/tango/ui, prop "Command" "vimBindings" bool
 pkg github.com/tangoui/tango/ui, prop "Compact" "block" bool
+pkg github.com/tangoui/tango/ui, prop "Confirm" "width" number
 pkg github.com/tangoui/tango/ui, prop "Countdown" "format" string
 pkg github.com/tangoui/tango/ui, prop "DatePicker" "picker" any
 pkg github.com/tangoui/tango/ui, prop "Descriptions" "bordered" bool
 pkg github.com/tangoui/tango/ui, prop "Descriptions" "colon" bool
+pkg github.com/tangoui/tango/ui, prop "Descriptions" "column" int|map[Breakpoint]int
 pkg github.com/tangoui/tango/ui, prop "Descriptions" "layout" string
 pkg github.com/tangoui/tango/ui, prop "Descriptions" "size" string
 pkg github.com/tangoui/tango/ui, prop "Divider" "dashed" bool
 pkg github.com/tangoui/tango/ui, prop "Divider" "orientation" string
 pkg github.com/tangoui/tango/ui, prop "Divider" "plain" bool
+pkg github.com/tangoui/tango/ui, prop "Divider" "size" any
+pkg github.com/tangoui/tango/ui, prop "Divider" "titlePlacement" string
 pkg github.com/tangoui/tango/ui, prop "Divider" "variant" string
+pkg github.com/tangoui/tango/ui, prop "Divider" "vertical" bool
+pkg github.com/tangoui/tango/ui, prop "Drawer" "closable" bool
+pkg github.com/tangoui/tango/ui, prop "Drawer" "closablePlacement" string
+pkg github.com/tangoui/tango/ui, prop "Drawer" "keyboard" bool
+pkg github.com/tangoui/tango/ui, prop "Drawer" "mask" bool
+pkg github.com/tangoui/tango/ui, prop "Drawer" "maskClosable" bool
 pkg github.com/tangoui/tango/ui, prop "Drawer" "placement" any
 pkg github.com/tangoui/tango/ui, prop "Drawer" "size" any
+pkg github.com/tangoui/tango/ui, prop "Drawer" "size" number
+pkg github.com/tangoui/tango/ui, prop "Drawer" "width" number
+pkg github.com/tangoui/tango/ui, prop "Dropdown" "arrow" bool
+pkg github.com/tangoui/tango/ui, prop "Dropdown" "autoFocus" bool
+pkg github.com/tangoui/tango/ui, prop "Dropdown" "disabled" bool
+pkg github.com/tangoui/tango/ui, prop "Dropdown" "hideOnClick" bool
+pkg github.com/tangoui/tango/ui, prop "Dropdown" "mouseEnterDelay" time.Duration
+pkg github.com/tangoui/tango/ui, prop "Dropdown" "mouseLeaveDelay" time.Duration
 pkg github.com/tangoui/tango/ui, prop "Dropdown" "placement" any
 pkg github.com/tangoui/tango/ui, prop "Dropdown" "trigger" any
+pkg github.com/tangoui/tango/ui, prop "Dropdown" "trigger" string
 pkg github.com/tangoui/tango/ui, prop "EditableProTable" "bordered" bool
+pkg github.com/tangoui/tango/ui, prop "EditableProTable" "maxLength" number
 pkg github.com/tangoui/tango/ui, prop "EditableProTable" "pagination" any
 pkg github.com/tangoui/tango/ui, prop "Empty" "image" string
+pkg github.com/tangoui/tango/ui, prop "Empty" "imageSize" number
 pkg github.com/tangoui/tango/ui, prop "Flex" "gap" any
 pkg github.com/tangoui/tango/ui, prop "FloatButton" "shape" string
 pkg github.com/tangoui/tango/ui, prop "FloatButton" "type" string
 pkg github.com/tangoui/tango/ui, prop "FloatButtonGroup" "shape" string
 pkg github.com/tangoui/tango/ui, prop "FloatButtonGroup" "trigger" string
 pkg github.com/tangoui/tango/ui, prop "FloatButtonGroup" "type" string
-pkg github.com/tangoui/tango/ui, prop "FooterToolbar" "sticky" bool
+pkg github.com/tangoui/tango/ui, prop "FooterToolbar" "fixed" bool
+pkg github.com/tangoui/tango/ui, prop "FooterToolbar" "sticky" any
+pkg github.com/tangoui/tango/ui, prop "Form" "colon" bool
+pkg github.com/tangoui/tango/ui, prop "Form" "disabled" bool
+pkg github.com/tangoui/tango/ui, prop "Form" "labelWidth" number
+pkg github.com/tangoui/tango/ui, prop "Form" "requiredMark" any
+pkg github.com/tangoui/tango/ui, prop "Form" "requiredMark" bool
 pkg github.com/tangoui/tango/ui, prop "GridContent" "contentWidth" string
 pkg github.com/tangoui/tango/ui, prop "GridRow" "gutter" float32
+pkg github.com/tangoui/tango/ui, prop "Header" "height" number
 pkg github.com/tangoui/tango/ui, prop "Image" "fit" string
 pkg github.com/tangoui/tango/ui, prop "Image" "preview" bool
 pkg github.com/tangoui/tango/ui, prop "InfiniteScroll" "distance" any
+pkg github.com/tangoui/tango/ui, prop "Input" "allowClear" bool
+pkg github.com/tangoui/tango/ui, prop "Input" "maxLength" number
+pkg github.com/tangoui/tango/ui, prop "Input" "showCount" bool
+pkg github.com/tangoui/tango/ui, prop "InputNumber" "controls" bool
+pkg github.com/tangoui/tango/ui, prop "InputNumber" "keyboard" bool
+pkg github.com/tangoui/tango/ui, prop "InputNumber" "placeholder" string
+pkg github.com/tangoui/tango/ui, prop "InputNumber" "wheel" bool
+pkg github.com/tangoui/tango/ui, prop "InputTag" "trigger" string
 pkg github.com/tangoui/tango/ui, prop "Item" "size" any
 pkg github.com/tangoui/tango/ui, prop "Item" "variant" any
 pkg github.com/tangoui/tango/ui, prop "ItemGroup" "bordered" bool
 pkg github.com/tangoui/tango/ui, prop "ItemGroup" "split" bool
 pkg github.com/tangoui/tango/ui, prop "LightFilter" "bordered" bool
+pkg github.com/tangoui/tango/ui, prop "LightFilter" "collapse" number
+pkg github.com/tangoui/tango/ui, prop "Link" "underline" string
 pkg github.com/tangoui/tango/ui, prop "List" "bordered" bool
+pkg github.com/tangoui/tango/ui, prop "List" "itemLayout" string
 pkg github.com/tangoui/tango/ui, prop "List" "split" bool
+pkg github.com/tangoui/tango/ui, prop "ListItem" "itemLayout" string
+pkg github.com/tangoui/tango/ui, prop "ListToolBar" "multipleLine" bool
+pkg github.com/tangoui/tango/ui, prop "ListToolBar" "search" bool
+pkg github.com/tangoui/tango/ui, prop "ListToolBar" "subTitle" string
+pkg github.com/tangoui/tango/ui, prop "ListToolBar" "title" string
+pkg github.com/tangoui/tango/ui, prop "ListToolBar" "tooltip" string
 pkg github.com/tangoui/tango/ui, prop "Listy" "rowHoverable" bool
 pkg github.com/tangoui/tango/ui, prop "Listy" "split" bool
 pkg github.com/tangoui/tango/ui, prop "LoginForm" "subTitle" string
 pkg github.com/tangoui/tango/ui, prop "LoginForm" "submitText" string
 pkg github.com/tangoui/tango/ui, prop "LoginForm" "title" string
+pkg github.com/tangoui/tango/ui, prop "LoginForm" "width" number
 pkg github.com/tangoui/tango/ui, prop "LoginFormPage" "placement" string
 pkg github.com/tangoui/tango/ui, prop "MarkdownEditor" "mode" string
 pkg github.com/tangoui/tango/ui, prop "MarkdownEditor" "placeholder" string
+pkg github.com/tangoui/tango/ui, prop "Masonry" "columns" int|map[Breakpoint]int
+pkg github.com/tangoui/tango/ui, prop "Masonry" "gutter" number
+pkg github.com/tangoui/tango/ui, prop "Mentions" "placeholder" string
+pkg github.com/tangoui/tango/ui, prop "Mentions" "prefix" string
+pkg github.com/tangoui/tango/ui, prop "Mentions" "rows" number
 pkg github.com/tangoui/tango/ui, prop "Menu" "accordion" bool
+pkg github.com/tangoui/tango/ui, prop "Menu" "ellipsis" bool
 pkg github.com/tangoui/tango/ui, prop "Menu" "inlineCollapsed" bool
+pkg github.com/tangoui/tango/ui, prop "Menu" "inlineIndent" float32
 pkg github.com/tangoui/tango/ui, prop "Menu" "mode" MenuMode
+pkg github.com/tangoui/tango/ui, prop "Menu" "selectable" bool
+pkg github.com/tangoui/tango/ui, prop "Menu" "subMenuCloseDelay" time.Duration
+pkg github.com/tangoui/tango/ui, prop "Menu" "subMenuOpenDelay" time.Duration
 pkg github.com/tangoui/tango/ui, prop "Menu" "theme" string
+pkg github.com/tangoui/tango/ui, prop "Menu" "tooltip" bool
+pkg github.com/tangoui/tango/ui, prop "Menu" "triggerSubMenuAction" string
 pkg github.com/tangoui/tango/ui, prop "Message" "maxCount" any
+pkg github.com/tangoui/tango/ui, prop "Message" "pauseOnHover" bool
+pkg github.com/tangoui/tango/ui, prop "Modal" "cancelText" string
+pkg github.com/tangoui/tango/ui, prop "Modal" "centered" bool
+pkg github.com/tangoui/tango/ui, prop "Modal" "closable" bool
+pkg github.com/tangoui/tango/ui, prop "Modal" "keyboard" bool
+pkg github.com/tangoui/tango/ui, prop "Modal" "mask" bool
+pkg github.com/tangoui/tango/ui, prop "Modal" "maskClosable" bool
+pkg github.com/tangoui/tango/ui, prop "Modal" "okText" string
+pkg github.com/tangoui/tango/ui, prop "Modal" "width" number
 pkg github.com/tangoui/tango/ui, prop "Notification" "duration" any
+pkg github.com/tangoui/tango/ui, prop "Notification" "maxCount" any
+pkg github.com/tangoui/tango/ui, prop "Notification" "pauseOnHover" bool
 pkg github.com/tangoui/tango/ui, prop "Notification" "placement" any
+pkg github.com/tangoui/tango/ui, prop "Notification" "showProgress" bool
+pkg github.com/tangoui/tango/ui, prop "OTP" "mask" string
 pkg github.com/tangoui/tango/ui, prop "PageContainer" "fill" bool
 pkg github.com/tangoui/tango/ui, prop "PageContainer" "ghost" bool
 pkg github.com/tangoui/tango/ui, prop "PageContainer" "tabsCard" bool
 pkg github.com/tangoui/tango/ui, prop "PageHeader" "ghost" bool
+pkg github.com/tangoui/tango/ui, prop "PageLoading" "delay" time.Duration
+pkg github.com/tangoui/tango/ui, prop "PageLoading" "description" string
+pkg github.com/tangoui/tango/ui, prop "PageLoading" "size" ControlSize
+pkg github.com/tangoui/tango/ui, prop "PageLoading" "spinning" bool
+pkg github.com/tangoui/tango/ui, prop "Pagination" "align" string
+pkg github.com/tangoui/tango/ui, prop "Pagination" "background" bool
 pkg github.com/tangoui/tango/ui, prop "Pagination" "disabled" bool
 pkg github.com/tangoui/tango/ui, prop "Pagination" "hideOnSinglePage" bool
+pkg github.com/tangoui/tango/ui, prop "Pagination" "pageSizeOptions" []int
+pkg github.com/tangoui/tango/ui, prop "Pagination" "pagerCount" int
+pkg github.com/tangoui/tango/ui, prop "Pagination" "showLessItems" bool
 pkg github.com/tangoui/tango/ui, prop "Pagination" "showQuickJumper" bool
 pkg github.com/tangoui/tango/ui, prop "Pagination" "showTotal" bool
 pkg github.com/tangoui/tango/ui, prop "Pagination" "simple" bool
 pkg github.com/tangoui/tango/ui, prop "Pagination" "size" any
+pkg github.com/tangoui/tango/ui, prop "Popconfirm" "arrow" bool
 pkg github.com/tangoui/tango/ui, prop "Popconfirm" "cancelText" string
+pkg github.com/tangoui/tango/ui, prop "Popconfirm" "cancelType" string
+pkg github.com/tangoui/tango/ui, prop "Popconfirm" "disabled" bool
 pkg github.com/tangoui/tango/ui, prop "Popconfirm" "okText" string
+pkg github.com/tangoui/tango/ui, prop "Popconfirm" "okType" string
 pkg github.com/tangoui/tango/ui, prop "Popconfirm" "placement" string
 pkg github.com/tangoui/tango/ui, prop "Popconfirm" "showCancel" bool
+pkg github.com/tangoui/tango/ui, prop "Popconfirm" "width" float32
 pkg github.com/tangoui/tango/ui, prop "Popover" "arrow" bool
+pkg github.com/tangoui/tango/ui, prop "Popover" "mouseEnterDelay" time.Duration
+pkg github.com/tangoui/tango/ui, prop "Popover" "mouseLeaveDelay" time.Duration
 pkg github.com/tangoui/tango/ui, prop "Popover" "placement" string
 pkg github.com/tangoui/tango/ui, prop "Popover" "trigger" string
+pkg github.com/tangoui/tango/ui, prop "ProBreadcrumb" "separator" string
+pkg github.com/tangoui/tango/ui, prop "ProCard" "bordered" bool
+pkg github.com/tangoui/tango/ui, prop "ProCard" "boxShadow" bool
 pkg github.com/tangoui/tango/ui, prop "ProCard" "collapsible" bool
 pkg github.com/tangoui/tango/ui, prop "ProCard" "ghost" bool
+pkg github.com/tangoui/tango/ui, prop "ProCard" "gutter" number
 pkg github.com/tangoui/tango/ui, prop "ProCard" "headerBordered" bool
 pkg github.com/tangoui/tango/ui, prop "ProCard" "hoverable" bool
 pkg github.com/tangoui/tango/ui, prop "ProDescriptions" "bordered" bool
+pkg github.com/tangoui/tango/ui, prop "ProDescriptions" "column" int|map[Breakpoint]int
 pkg github.com/tangoui/tango/ui, prop "ProDescriptions" "layout" string
 pkg github.com/tangoui/tango/ui, prop "ProField" "mode" string
+pkg github.com/tangoui/tango/ui, prop "ProForm" "columns" number
+pkg github.com/tangoui/tango/ui, prop "ProForm" "gutter" number
+pkg github.com/tangoui/tango/ui, prop "ProForm" "labelWidth" number
 pkg github.com/tangoui/tango/ui, prop "ProForm" "layout" string
 pkg github.com/tangoui/tango/ui, prop "ProForm" "submitter" bool
+pkg github.com/tangoui/tango/ui, prop "ProFormCaptcha" "countDown" int
 pkg github.com/tangoui/tango/ui, prop "ProFormFieldSet" "separator" string
 pkg github.com/tangoui/tango/ui, prop "ProFormGroup" "collapsible" bool
+pkg github.com/tangoui/tango/ui, prop "ProFormGroup" "columns" number
+pkg github.com/tangoui/tango/ui, prop "ProFormGroup" "gutter" number
+pkg github.com/tangoui/tango/ui, prop "ProFormGroup" "size" number
+pkg github.com/tangoui/tango/ui, prop "ProFormList" "addText" string
+pkg github.com/tangoui/tango/ui, prop "ProFormList" "max" number
+pkg github.com/tangoui/tango/ui, prop "ProFormList" "min" number
 pkg github.com/tangoui/tango/ui, prop "ProLayout" "breakpoint" Breakpoint
 pkg github.com/tangoui/tango/ui, prop "ProLayout" "contentWidth" string
 pkg github.com/tangoui/tango/ui, prop "ProLayout" "fixSiderbar" bool
@@ -3118,60 +3753,146 @@ pkg github.com/tangoui/tango/ui, prop "ProLayout" "footer" string
 pkg github.com/tangoui/tango/ui, prop "ProLayout" "layout" string
 pkg github.com/tangoui/tango/ui, prop "ProLayout" "navTheme" string
 pkg github.com/tangoui/tango/ui, prop "ProLayout" "noPadding" bool
+pkg github.com/tangoui/tango/ui, prop "ProLayout" "siderWidth" number
 pkg github.com/tangoui/tango/ui, prop "ProLayout" "title" string
 pkg github.com/tangoui/tango/ui, prop "ProList" "bordered" bool
+pkg github.com/tangoui/tango/ui, prop "ProList" "defaultExpandAllRows" bool
+pkg github.com/tangoui/tango/ui, prop "ProList" "grid" number
+pkg github.com/tangoui/tango/ui, prop "ProList" "itemLayout" string
+pkg github.com/tangoui/tango/ui, prop "ProList" "loading" bool
 pkg github.com/tangoui/tango/ui, prop "ProList" "pagination" any
 pkg github.com/tangoui/tango/ui, prop "ProList" "split" bool
 pkg github.com/tangoui/tango/ui, prop "ProSkeleton" "active" bool
+pkg github.com/tangoui/tango/ui, prop "ProSkeleton" "list" number
 pkg github.com/tangoui/tango/ui, prop "ProSkeleton" "pageHeader" bool
+pkg github.com/tangoui/tango/ui, prop "ProSkeleton" "statistic" number
 pkg github.com/tangoui/tango/ui, prop "ProSkeleton" "toolbar" bool
+pkg github.com/tangoui/tango/ui, prop "ProStatistic" "layout" string
 pkg github.com/tangoui/tango/ui, prop "ProTable" "bordered" bool
+pkg github.com/tangoui/tango/ui, prop "ProTable" "fullScreen" bool
 pkg github.com/tangoui/tango/ui, prop "ProTable" "headerTitle" string
 pkg github.com/tangoui/tango/ui, prop "ProTable" "options" bool
 pkg github.com/tangoui/tango/ui, prop "ProTable" "pagination" any
+pkg github.com/tangoui/tango/ui, prop "ProTable" "polling" time.Duration|number
 pkg github.com/tangoui/tango/ui, prop "ProTable" "search" bool
 pkg github.com/tangoui/tango/ui, prop "Progress" "showInfo" any
 pkg github.com/tangoui/tango/ui, prop "Progress" "strokeLinecap" string
 pkg github.com/tangoui/tango/ui, prop "Progress" "type" string
+pkg github.com/tangoui/tango/ui, prop "QRCode" "boostLevel" bool
 pkg github.com/tangoui/tango/ui, prop "QRCode" "bordered" bool
+pkg github.com/tangoui/tango/ui, prop "QRCode" "errorLevel" string
+pkg github.com/tangoui/tango/ui, prop "QRCode" "marginSize" number
+pkg github.com/tangoui/tango/ui, prop "QRCode" "size" number
 pkg github.com/tangoui/tango/ui, prop "QueryFilter" "defaultCollapsed" bool
+pkg github.com/tangoui/tango/ui, prop "QueryFilter" "labelWidth" number
 pkg github.com/tangoui/tango/ui, prop "QueryFilter" "resetText" string
 pkg github.com/tangoui/tango/ui, prop "QueryFilter" "searchText" string
+pkg github.com/tangoui/tango/ui, prop "Radio" "buttonStyle" string
+pkg github.com/tangoui/tango/ui, prop "Radio" "optionType" string
 pkg github.com/tangoui/tango/ui, prop "Radio" "size" any
 pkg github.com/tangoui/tango/ui, prop "RangePicker" "picker" any
 pkg github.com/tangoui/tango/ui, prop "RangePicker" "placeholder" any
+pkg github.com/tangoui/tango/ui, prop "Rate" "allowClear" bool
+pkg github.com/tangoui/tango/ui, prop "Rate" "allowHalf" bool
+pkg github.com/tangoui/tango/ui, prop "Rate" "count" number
+pkg github.com/tangoui/tango/ui, prop "Rate" "keyboard" bool
 pkg github.com/tangoui/tango/ui, prop "SchemaForm" "layoutType" string
+pkg github.com/tangoui/tango/ui, prop "Search" "enterButton" string
+pkg github.com/tangoui/tango/ui, prop "Segmented" "block" bool
+pkg github.com/tangoui/tango/ui, prop "Select" "allowClear" bool
+pkg github.com/tangoui/tango/ui, prop "Select" "debounce" time.Duration|number
+pkg github.com/tangoui/tango/ui, prop "Select" "listHeight" number
+pkg github.com/tangoui/tango/ui, prop "Select" "maxTagCount" number
+pkg github.com/tangoui/tango/ui, prop "Select" "maxTagTextLength" number
+pkg github.com/tangoui/tango/ui, prop "Select" "placeholder" string
+pkg github.com/tangoui/tango/ui, prop "Select" "showSearch" bool
+pkg github.com/tangoui/tango/ui, prop "Select" "virtual" bool
 pkg github.com/tangoui/tango/ui, prop "Sider" "breakpoint" Breakpoint
 pkg github.com/tangoui/tango/ui, prop "Sider" "collapsedWidth" float32
+pkg github.com/tangoui/tango/ui, prop "Sider" "collapsedWidth" number
 pkg github.com/tangoui/tango/ui, prop "Sider" "theme" string
 pkg github.com/tangoui/tango/ui, prop "Skeleton" "active" bool
 pkg github.com/tangoui/tango/ui, prop "Skeleton" "round" bool
+pkg github.com/tangoui/tango/ui, prop "Slider" "disabled" bool
+pkg github.com/tangoui/tango/ui, prop "Slider" "dots" bool
+pkg github.com/tangoui/tango/ui, prop "Slider" "included" bool
 pkg github.com/tangoui/tango/ui, prop "Slider" "marks" any
+pkg github.com/tangoui/tango/ui, prop "Slider" "reverse" bool
+pkg github.com/tangoui/tango/ui, prop "Slider" "showInput" bool
+pkg github.com/tangoui/tango/ui, prop "Slider" "step" number
+pkg github.com/tangoui/tango/ui, prop "Slider" "tooltip" bool
+pkg github.com/tangoui/tango/ui, prop "Space" "orientation" any
 pkg github.com/tangoui/tango/ui, prop "Space" "size" any
+pkg github.com/tangoui/tango/ui, prop "Spin" "delay" time.Duration|number
+pkg github.com/tangoui/tango/ui, prop "Spin" "description" string
+pkg github.com/tangoui/tango/ui, prop "Spin" "tip" string
 pkg github.com/tangoui/tango/ui, prop "Splitter" "layout" string
+pkg github.com/tangoui/tango/ui, prop "Splitter" "lazy" bool
+pkg github.com/tangoui/tango/ui, prop "Splitter" "orientation" string
+pkg github.com/tangoui/tango/ui, prop "Splitter" "withHandle" bool
 pkg github.com/tangoui/tango/ui, prop "SplitterPanel" "collapsible" bool
 pkg github.com/tangoui/tango/ui, prop "SplitterPanel" "resizable" bool
+pkg github.com/tangoui/tango/ui, prop "Statistic" "decimalSeparator" string
+pkg github.com/tangoui/tango/ui, prop "Statistic" "groupSeparator" string
+pkg github.com/tangoui/tango/ui, prop "StatisticCard" "bordered" bool
 pkg github.com/tangoui/tango/ui, prop "StatisticCard" "chartPlacement" string
 pkg github.com/tangoui/tango/ui, prop "StatisticCard" "hoverable" bool
+pkg github.com/tangoui/tango/ui, prop "StatisticCard" "layout" string
+pkg github.com/tangoui/tango/ui, prop "StatisticCardDivider" "orientation" string
+pkg github.com/tangoui/tango/ui, prop "Steps" "direction" string
 pkg github.com/tangoui/tango/ui, prop "Steps" "labelPlacement" string
+pkg github.com/tangoui/tango/ui, prop "Steps" "maxCount" int
+pkg github.com/tangoui/tango/ui, prop "Steps" "orientation" string
+pkg github.com/tangoui/tango/ui, prop "Steps" "progressDot" bool
 pkg github.com/tangoui/tango/ui, prop "Steps" "size" any
+pkg github.com/tangoui/tango/ui, prop "Steps" "titlePlacement" string
 pkg github.com/tangoui/tango/ui, prop "Steps" "type" string
+pkg github.com/tangoui/tango/ui, prop "Steps" "variant" string
+pkg github.com/tangoui/tango/ui, prop "StepsForm" "width" number
+pkg github.com/tangoui/tango/ui, prop "Switch" "checkedChildren" string
 pkg github.com/tangoui/tango/ui, prop "Switch" "size" any
+pkg github.com/tangoui/tango/ui, prop "Switch" "unCheckedChildren" string
 pkg github.com/tangoui/tango/ui, prop "Table" "bordered" bool
+pkg github.com/tangoui/tango/ui, prop "Table" "checkStrictly" bool
+pkg github.com/tangoui/tango/ui, prop "Table" "defaultExpandAll" bool
+pkg github.com/tangoui/tango/ui, prop "Table" "defaultExpandAllRows" bool
+pkg github.com/tangoui/tango/ui, prop "Table" "expandRowByClick" bool
+pkg github.com/tangoui/tango/ui, prop "Table" "highlightCurrentRow" bool
+pkg github.com/tangoui/tango/ui, prop "Table" "indentSize" number
+pkg github.com/tangoui/tango/ui, prop "Table" "preserveSelectedRowKeys" bool
+pkg github.com/tangoui/tango/ui, prop "Table" "scrollToFirstRowOnChange" bool
+pkg github.com/tangoui/tango/ui, prop "Table" "showExpandColumn" bool
+pkg github.com/tangoui/tango/ui, prop "Table" "showHeader" bool
+pkg github.com/tangoui/tango/ui, prop "Table" "showOverflowTooltip" bool
+pkg github.com/tangoui/tango/ui, prop "Table" "showSorterTooltip" bool
+pkg github.com/tangoui/tango/ui, prop "Table" "showSummary" bool
 pkg github.com/tangoui/tango/ui, prop "Table" "stripe" bool
 pkg github.com/tangoui/tango/ui, prop "Table" "striped" bool
+pkg github.com/tangoui/tango/ui, prop "TableDropdown" "disabled" bool
+pkg github.com/tangoui/tango/ui, prop "TableDropdown" "placement" Placement
+pkg github.com/tangoui/tango/ui, prop "TableDropdown" "trigger" Trigger
 pkg github.com/tangoui/tango/ui, prop "Tabs" "centered" bool
 pkg github.com/tangoui/tango/ui, prop "Tabs" "placement" any
 pkg github.com/tangoui/tango/ui, prop "Tabs" "size" any
+pkg github.com/tangoui/tango/ui, prop "Tabs" "stretch" bool
+pkg github.com/tangoui/tango/ui, prop "Tabs" "tabBarGutter" number
+pkg github.com/tangoui/tango/ui, prop "Tabs" "tabPlacement" any
 pkg github.com/tangoui/tango/ui, prop "Tabs" "tabPosition" any
 pkg github.com/tangoui/tango/ui, prop "Tabs" "type" string
+pkg github.com/tangoui/tango/ui, prop "Tabs" "variant" string
 pkg github.com/tangoui/tango/ui, prop "Tag" "bordered" bool
 pkg github.com/tangoui/tango/ui, prop "Tag" "color" string
+pkg github.com/tangoui/tango/ui, prop "Tag" "disabled" bool
 pkg github.com/tangoui/tango/ui, prop "Tag" "effect" string
+pkg github.com/tangoui/tango/ui, prop "Tag" "variant" string
+pkg github.com/tangoui/tango/ui, prop "TextArea" "rows" number
 pkg github.com/tangoui/tango/ui, prop "TimeRangePicker" "placeholder" any
 pkg github.com/tangoui/tango/ui, prop "Timeline" "mode" string
+pkg github.com/tangoui/tango/ui, prop "Timeline" "orientation" string
 pkg github.com/tangoui/tango/ui, prop "Timeline" "reverse" bool
+pkg github.com/tangoui/tango/ui, prop "Timeline" "variant" string
 pkg github.com/tangoui/tango/ui, prop "Toggle" "variant" string
+pkg github.com/tangoui/tango/ui, prop "ToggleGroup" "spacing" int
 pkg github.com/tangoui/tango/ui, prop "ToggleGroup" "variant" string
 pkg github.com/tangoui/tango/ui, prop "Tooltip" "arrow" bool
 pkg github.com/tangoui/tango/ui, prop "Tooltip" "color" string
@@ -3180,18 +3901,58 @@ pkg github.com/tangoui/tango/ui, prop "Tooltip" "mouseEnterDelay" time.Duration
 pkg github.com/tangoui/tango/ui, prop "Tooltip" "mouseLeaveDelay" time.Duration
 pkg github.com/tangoui/tango/ui, prop "Tooltip" "placement" string
 pkg github.com/tangoui/tango/ui, prop "Tooltip" "trigger" string
+pkg github.com/tangoui/tango/ui, prop "TopNavHeader" "contentWidth" string
+pkg github.com/tangoui/tango/ui, prop "TopNavHeader" "title" string
+pkg github.com/tangoui/tango/ui, prop "TopNavHeader" "userName" string
 pkg github.com/tangoui/tango/ui, prop "Tour" "arrow" bool
+pkg github.com/tangoui/tango/ui, prop "Tour" "disabledInteraction" bool
+pkg github.com/tangoui/tango/ui, prop "Tour" "keyboard" bool
 pkg github.com/tangoui/tango/ui, prop "Tour" "mask" bool
+pkg github.com/tangoui/tango/ui, prop "Tour" "placement" string
 pkg github.com/tangoui/tango/ui, prop "Tour" "type" string
+pkg github.com/tangoui/tango/ui, prop "Transfer" "disabled" bool
+pkg github.com/tangoui/tango/ui, prop "Transfer" "listHeight" number
+pkg github.com/tangoui/tango/ui, prop "Transfer" "listWidth" number
+pkg github.com/tangoui/tango/ui, prop "Transfer" "oneWay" bool
+pkg github.com/tangoui/tango/ui, prop "Transfer" "pageSize" number
+pkg github.com/tangoui/tango/ui, prop "Transfer" "showSearch" bool
+pkg github.com/tangoui/tango/ui, prop "Transfer" "showSelectAll" bool
+pkg github.com/tangoui/tango/ui, prop "Transfer" "status" string
+pkg github.com/tangoui/tango/ui, prop "Transfer" "targetOrder" string
 pkg github.com/tangoui/tango/ui, prop "Transfer" "titles" any
+pkg github.com/tangoui/tango/ui, prop "Transfer" "virtual" bool
+pkg github.com/tangoui/tango/ui, prop "Tree" "accordion" bool
 pkg github.com/tangoui/tango/ui, prop "Tree" "blockNode" bool
+pkg github.com/tangoui/tango/ui, prop "Tree" "checkOnClickLeaf" bool
+pkg github.com/tangoui/tango/ui, prop "Tree" "checkOnClickNode" bool
 pkg github.com/tangoui/tango/ui, prop "Tree" "checkable" bool
+pkg github.com/tangoui/tango/ui, prop "Tree" "defaultExpandAll" bool
 pkg github.com/tangoui/tango/ui, prop "Tree" "draggable" bool
+pkg github.com/tangoui/tango/ui, prop "Tree" "height" number
 pkg github.com/tangoui/tango/ui, prop "Tree" "multiple" bool
+pkg github.com/tangoui/tango/ui, prop "Tree" "selectable" bool
 pkg github.com/tangoui/tango/ui, prop "Tree" "showIcon" bool
 pkg github.com/tangoui/tango/ui, prop "Tree" "showLine" bool
+pkg github.com/tangoui/tango/ui, prop "TreeSelect" "allowClear" bool
+pkg github.com/tangoui/tango/ui, prop "TreeSelect" "listHeight" number
+pkg github.com/tangoui/tango/ui, prop "TreeSelect" "maxTagCount" number
+pkg github.com/tangoui/tango/ui, prop "TreeSelect" "placeholder" string
+pkg github.com/tangoui/tango/ui, prop "TreeSelect" "showSearch" bool
+pkg github.com/tangoui/tango/ui, prop "TreeSelect" "status" string
+pkg github.com/tangoui/tango/ui, prop "TreeSelect" "strategyValue" bool
+pkg github.com/tangoui/tango/ui, prop "TreeSelect" "treeDefaultExpandAll" bool
+pkg github.com/tangoui/tango/ui, prop "TreeSelect" "virtual" bool
+pkg github.com/tangoui/tango/ui, prop "Upload" "autoUpload" bool
+pkg github.com/tangoui/tango/ui, prop "Upload" "directory" bool
+pkg github.com/tangoui/tango/ui, prop "Upload" "disabled" bool
 pkg github.com/tangoui/tango/ui, prop "Upload" "headers" map[string]string
+pkg github.com/tangoui/tango/ui, prop "Upload" "maxCount" number
+pkg github.com/tangoui/tango/ui, prop "Upload" "maxSize" number
+pkg github.com/tangoui/tango/ui, prop "Upload" "multiple" bool
 pkg github.com/tangoui/tango/ui, prop "Upload" "picker" func(string, bool, bool) ([]string, error)
+pkg github.com/tangoui/tango/ui, prop "Upload" "showUploadList" bool
+pkg github.com/tangoui/tango/ui, prop "VirtualTree" "accordion" bool
+pkg github.com/tangoui/tango/ui, prop "VirtualTree" "checkOnClickLeaf" bool
 pkg github.com/tangoui/tango/ui, prop "VirtualTree" "checkOnClickNode" bool
 pkg github.com/tangoui/tango/ui, prop "VirtualTree" "checkStrictly" bool
 pkg github.com/tangoui/tango/ui, prop "VirtualTree" "expandOnClickNode" bool
@@ -3336,6 +4097,7 @@ pkg github.com/tangoui/tango/ui, type BreadcrumbItem struct, Icon *ui/icon.Icon
 pkg github.com/tangoui/tango/ui, type BreadcrumbItem struct, Label string
 pkg github.com/tangoui/tango/ui, type BreadcrumbItem struct, Menu []MenuItem
 pkg github.com/tangoui/tango/ui, type BreadcrumbItem struct, OnClick func()
+pkg github.com/tangoui/tango/ui, type BreadcrumbItem struct, Separator string
 pkg github.com/tangoui/tango/ui, type BreadcrumbItem struct, noncomparable
 pkg github.com/tangoui/tango/ui, type BreadcrumbW struct
 pkg github.com/tangoui/tango/ui, type BreadcrumbW struct, noncomparable
@@ -3383,6 +4145,8 @@ pkg github.com/tangoui/tango/ui, type CascaderPanelW struct
 pkg github.com/tangoui/tango/ui, type CascaderPanelW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type CascaderW struct
 pkg github.com/tangoui/tango/ui, type CascaderW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type CellEditorTableW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type CellEditorTableW[T any] struct
 pkg github.com/tangoui/tango/ui, type ChainItem struct
 pkg github.com/tangoui/tango/ui, type ChainItem struct, Content func()
 pkg github.com/tangoui/tango/ui, type ChainItem struct, Description string
@@ -3476,14 +4240,20 @@ pkg github.com/tangoui/tango/ui, type CheckCardGroupW struct
 pkg github.com/tangoui/tango/ui, type CheckCardGroupW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type CheckCardOption struct
 pkg github.com/tangoui/tango/ui, type CheckCardOption struct, Avatar string
+pkg github.com/tangoui/tango/ui, type CheckCardOption struct, Children []CheckCardOption
+pkg github.com/tangoui/tango/ui, type CheckCardOption struct, Cover func()
 pkg github.com/tangoui/tango/ui, type CheckCardOption struct, Description string
 pkg github.com/tangoui/tango/ui, type CheckCardOption struct, Disabled bool
 pkg github.com/tangoui/tango/ui, type CheckCardOption struct, Icon *ui/icon.Icon
+pkg github.com/tangoui/tango/ui, type CheckCardOption struct, Size ControlSize
+pkg github.com/tangoui/tango/ui, type CheckCardOption struct, SizeSet bool
 pkg github.com/tangoui/tango/ui, type CheckCardOption struct, Title string
 pkg github.com/tangoui/tango/ui, type CheckCardOption struct, Value string
 pkg github.com/tangoui/tango/ui, type CheckCardOption struct, noncomparable
 pkg github.com/tangoui/tango/ui, type CheckCardW struct
 pkg github.com/tangoui/tango/ui, type CheckCardW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type CheckableTagGroupW struct
+pkg github.com/tangoui/tango/ui, type CheckableTagGroupW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type CheckableTagW struct
 pkg github.com/tangoui/tango/ui, type CheckableTagW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type CheckboxGroupW struct
@@ -3507,6 +4277,7 @@ pkg github.com/tangoui/tango/ui, type CodeSpan struct, Start int
 pkg github.com/tangoui/tango/ui, type CodeTokenKind uint8
 pkg github.com/tangoui/tango/ui, type CollapseItem struct
 pkg github.com/tangoui/tango/ui, type CollapseItem struct, Body func()
+pkg github.com/tangoui/tango/ui, type CollapseItem struct, Collapsible string
 pkg github.com/tangoui/tango/ui, type CollapseItem struct, Disabled bool
 pkg github.com/tangoui/tango/ui, type CollapseItem struct, Extra func()
 pkg github.com/tangoui/tango/ui, type CollapseItem struct, Key string
@@ -3565,6 +4336,7 @@ pkg github.com/tangoui/tango/ui, type ConfigProviderW struct
 pkg github.com/tangoui/tango/ui, type ConfigProviderW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ConfirmAction string
 pkg github.com/tangoui/tango/ui, type ConfirmOptions struct
+pkg github.com/tangoui/tango/ui, type ConfirmOptions struct, AutoFocusButton string
 pkg github.com/tangoui/tango/ui, type ConfirmOptions struct, CancelText string
 pkg github.com/tangoui/tango/ui, type ConfirmOptions struct, Center bool
 pkg github.com/tangoui/tango/ui, type ConfirmOptions struct, Content string
@@ -3575,6 +4347,7 @@ pkg github.com/tangoui/tango/ui, type ConfirmOptions struct, Icon *ui/icon.Icon
 pkg github.com/tangoui/tango/ui, type ConfirmOptions struct, InputPlaceholder string
 pkg github.com/tangoui/tango/ui, type ConfirmOptions struct, InputValue string
 pkg github.com/tangoui/tango/ui, type ConfirmOptions struct, MaskClosable bool
+pkg github.com/tangoui/tango/ui, type ConfirmOptions struct, NoKeyboard bool
 pkg github.com/tangoui/tango/ui, type ConfirmOptions struct, OkText string
 pkg github.com/tangoui/tango/ui, type ConfirmOptions struct, OnCancel func()
 pkg github.com/tangoui/tango/ui, type ConfirmOptions struct, OnClose func()
@@ -3641,9 +4414,11 @@ pkg github.com/tangoui/tango/ui, type DateTimePickerW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type DefaultFooterW struct
 pkg github.com/tangoui/tango/ui, type DefaultFooterW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type DescItem struct
+pkg github.com/tangoui/tango/ui, type DescItem struct, Filled bool
 pkg github.com/tangoui/tango/ui, type DescItem struct, Label string
 pkg github.com/tangoui/tango/ui, type DescItem struct, Render func()
 pkg github.com/tangoui/tango/ui, type DescItem struct, Span int
+pkg github.com/tangoui/tango/ui, type DescItem struct, Spans map[Breakpoint]int
 pkg github.com/tangoui/tango/ui, type DescItem struct, Value string
 pkg github.com/tangoui/tango/ui, type DescItem struct, noncomparable
 pkg github.com/tangoui/tango/ui, type DescriptionsW struct
@@ -3740,6 +4515,7 @@ pkg github.com/tangoui/tango/ui, type FormLocale struct, AddRow string
 pkg github.com/tangoui/tango/ui, type FormLocale struct, MoveDown string
 pkg github.com/tangoui/tango/ui, type FormLocale struct, MoveUp string
 pkg github.com/tangoui/tango/ui, type FormLocale struct, NextStep string
+pkg github.com/tangoui/tango/ui, type FormLocale struct, Optional string
 pkg github.com/tangoui/tango/ui, type FormLocale struct, PrevStep string
 pkg github.com/tangoui/tango/ui, type FormLocale struct, Query string
 pkg github.com/tangoui/tango/ui, type FormLocale struct, RequiredInputFmt string
@@ -3875,6 +4651,8 @@ pkg github.com/tangoui/tango/ui, type ListActionsW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ListItemMetaW struct
 pkg github.com/tangoui/tango/ui, type ListItemMetaW struct, embedded *Box
 pkg github.com/tangoui/tango/ui, type ListItemMetaW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type ListToolBarW struct
+pkg github.com/tangoui/tango/ui, type ListToolBarW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ListW struct
 pkg github.com/tangoui/tango/ui, type ListW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ListyW struct
@@ -4230,9 +5008,14 @@ pkg github.com/tangoui/tango/ui, type PageContainerW struct
 pkg github.com/tangoui/tango/ui, type PageContainerW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type PageHeaderW struct
 pkg github.com/tangoui/tango/ui, type PageHeaderW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type PageLoadingW struct
+pkg github.com/tangoui/tango/ui, type PageLoadingW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type PaginationLocale struct
+pkg github.com/tangoui/tango/ui, type PaginationLocale struct, Confirm string
 pkg github.com/tangoui/tango/ui, type PaginationLocale struct, Current string
 pkg github.com/tangoui/tango/ui, type PaginationLocale struct, Jump string
+pkg github.com/tangoui/tango/ui, type PaginationLocale struct, Next3 string
+pkg github.com/tangoui/tango/ui, type PaginationLocale struct, Prev3 string
 pkg github.com/tangoui/tango/ui, type PaginationLocale struct, noncomparable
 pkg github.com/tangoui/tango/ui, type PaginationPart string
 pkg github.com/tangoui/tango/ui, type PaginationW struct
@@ -4245,6 +5028,9 @@ pkg github.com/tangoui/tango/ui, type PopconfirmW struct
 pkg github.com/tangoui/tango/ui, type PopconfirmW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type PopoverW struct
 pkg github.com/tangoui/tango/ui, type PopoverW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type ProBreadcrumbW struct
+pkg github.com/tangoui/tango/ui, type ProBreadcrumbW struct, embedded *BreadcrumbW
+pkg github.com/tangoui/tango/ui, type ProBreadcrumbW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ProCardLocale struct
 pkg github.com/tangoui/tango/ui, type ProCardLocale struct, MoreInfo string
 pkg github.com/tangoui/tango/ui, type ProCardLocale struct, noncomparable
@@ -4297,12 +5083,14 @@ pkg github.com/tangoui/tango/ui, type ProDescriptionsW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ProEnum struct
 pkg github.com/tangoui/tango/ui, type ProEnum struct, Children []ProEnum
 pkg github.com/tangoui/tango/ui, type ProEnum struct, Color string
+pkg github.com/tangoui/tango/ui, type ProEnum struct, Disabled bool
 pkg github.com/tangoui/tango/ui, type ProEnum struct, Label string
 pkg github.com/tangoui/tango/ui, type ProEnum struct, Status string
 pkg github.com/tangoui/tango/ui, type ProEnum struct, Value string
 pkg github.com/tangoui/tango/ui, type ProEnum struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ProField struct
 pkg github.com/tangoui/tango/ui, type ProField struct, AsyncValidate func(any, func(string))
+pkg github.com/tangoui/tango/ui, type ProField struct, Captcha *ProFieldCaptcha
 pkg github.com/tangoui/tango/ui, type ProField struct, CaptchaSeconds int
 pkg github.com/tangoui/tango/ui, type ProField struct, Dependencies []string
 pkg github.com/tangoui/tango/ui, type ProField struct, Disable func(ProValues) bool
@@ -4325,12 +5113,18 @@ pkg github.com/tangoui/tango/ui, type ProField struct, Readonly bool
 pkg github.com/tangoui/tango/ui, type ProField struct, Render func(*Context, ProValues)
 pkg github.com/tangoui/tango/ui, type ProField struct, Required bool
 pkg github.com/tangoui/tango/ui, type ProField struct, Rules []Rule
+pkg github.com/tangoui/tango/ui, type ProField struct, Segmented func(*SegmentedW)
 pkg github.com/tangoui/tango/ui, type ProField struct, Span int
 pkg github.com/tangoui/tango/ui, type ProField struct, Validate func(any, ProValues) string
 pkg github.com/tangoui/tango/ui, type ProField struct, ValueEnum []ProEnum
 pkg github.com/tangoui/tango/ui, type ProField struct, ValueType string
 pkg github.com/tangoui/tango/ui, type ProField struct, Width float32
 pkg github.com/tangoui/tango/ui, type ProField struct, noncomparable
+pkg github.com/tangoui/tango/ui, type ProFieldCaptcha struct
+pkg github.com/tangoui/tango/ui, type ProFieldCaptcha struct, OnTiming func(int)
+pkg github.com/tangoui/tango/ui, type ProFieldCaptcha struct, PhoneKey string
+pkg github.com/tangoui/tango/ui, type ProFieldCaptcha struct, Text func(bool, int) string
+pkg github.com/tangoui/tango/ui, type ProFieldCaptcha struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ProFieldList struct
 pkg github.com/tangoui/tango/ui, type ProFieldList struct, AddText string
 pkg github.com/tangoui/tango/ui, type ProFieldList struct, Fields []ProField
@@ -4382,6 +5176,7 @@ pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, BreadcrumbRender f
 pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, Breakpoint Breakpoint
 pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, Collapsed *bool
 pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, ContentWidth string
+pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, FixedHeader bool
 pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, Footer string
 pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, FooterLinks []FooterLink
 pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, FooterRender func()
@@ -4394,6 +5189,7 @@ pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, Menu []MenuItem
 pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, MenuFooterRender func(bool)
 pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, MenuHeaderRender func(func(), bool)
 pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, MenuItemRender func(MenuItem) MenuItem
+pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, NavTheme string
 pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, NoFixSiderbar bool
 pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, NoFixedHeader bool
 pkg github.com/tangoui/tango/ui, type ProLayoutConfig struct, NoPadding bool
@@ -4439,6 +5235,7 @@ pkg github.com/tangoui/tango/ui, type ProSettings struct, PrimaryColor ui/theme.
 pkg github.com/tangoui/tango/ui, type ProSettings struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ProSkeletonW struct
 pkg github.com/tangoui/tango/ui, type ProSkeletonW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type ProStatisticW struct
 pkg github.com/tangoui/tango/ui, type ProSubmitter struct
 pkg github.com/tangoui/tango/ui, type ProSubmitter struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ProTableLocale struct
@@ -4498,6 +5295,7 @@ pkg github.com/tangoui/tango/ui, type RichTextW struct
 pkg github.com/tangoui/tango/ui, type RichTextW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type RouteInfo struct
 pkg github.com/tangoui/tango/ui, type RouteInfo struct, Breadcrumb []string
+pkg github.com/tangoui/tango/ui, type RouteInfo struct, BreadcrumbItems []BreadcrumbItem
 pkg github.com/tangoui/tango/ui, type RouteInfo struct, Collapsed bool
 pkg github.com/tangoui/tango/ui, type RouteInfo struct, ContentWidth string
 pkg github.com/tangoui/tango/ui, type RouteInfo struct, FixSiderbar bool
@@ -4509,6 +5307,8 @@ pkg github.com/tangoui/tango/ui, type RouteInfo struct, Layout string
 pkg github.com/tangoui/tango/ui, type RouteInfo struct, PageTitle string
 pkg github.com/tangoui/tango/ui, type RouteInfo struct, Selected string
 pkg github.com/tangoui/tango/ui, type RouteInfo struct, noncomparable
+pkg github.com/tangoui/tango/ui, type RowEditorTableW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type RowEditorTableW[T any] struct
 pkg github.com/tangoui/tango/ui, type RowStyle struct
 pkg github.com/tangoui/tango/ui, type RowStyle struct, Bg ui/theme.Color
 pkg github.com/tangoui/tango/ui, type RowStyle struct, Bold bool
@@ -4568,6 +5368,8 @@ pkg github.com/tangoui/tango/ui, type SettingDrawerLocale struct, Top string
 pkg github.com/tangoui/tango/ui, type SettingDrawerLocale struct, noncomparable
 pkg github.com/tangoui/tango/ui, type SettingDrawerW struct
 pkg github.com/tangoui/tango/ui, type SettingDrawerW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type ShortcutCaptureWindow interface { SetShortcutCapture }
+pkg github.com/tangoui/tango/ui, type ShortcutCaptureWindow interface, SetShortcutCapture(bool)
 pkg github.com/tangoui/tango/ui, type SiderBoxW struct
 pkg github.com/tangoui/tango/ui, type SiderBoxW struct, embedded *Box
 pkg github.com/tangoui/tango/ui, type SiderBoxW struct, noncomparable
@@ -4605,10 +5407,12 @@ pkg github.com/tangoui/tango/ui, type SplitterPanelW struct
 pkg github.com/tangoui/tango/ui, type SplitterPanelW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type SplitterW struct
 pkg github.com/tangoui/tango/ui, type SplitterW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type StatisticCardDividerW struct
 pkg github.com/tangoui/tango/ui, type StatisticCardLocale struct
 pkg github.com/tangoui/tango/ui, type StatisticCardLocale struct, Down string
 pkg github.com/tangoui/tango/ui, type StatisticCardLocale struct, Up string
 pkg github.com/tangoui/tango/ui, type StatisticCardLocale struct, noncomparable
+pkg github.com/tangoui/tango/ui, type StatisticCardOperationW struct
 pkg github.com/tangoui/tango/ui, type StatisticCardW struct
 pkg github.com/tangoui/tango/ui, type StatisticCardW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type StatisticW struct
@@ -4629,6 +5433,7 @@ pkg github.com/tangoui/tango/ui, type StepDot struct, Status string
 pkg github.com/tangoui/tango/ui, type StepDot struct, Title string
 pkg github.com/tangoui/tango/ui, type StepDot struct, noncomparable
 pkg github.com/tangoui/tango/ui, type StepItem struct
+pkg github.com/tangoui/tango/ui, type StepItem struct, Content string
 pkg github.com/tangoui/tango/ui, type StepItem struct, Description string
 pkg github.com/tangoui/tango/ui, type StepItem struct, Disabled bool
 pkg github.com/tangoui/tango/ui, type StepItem struct, Icon *ui/icon.Icon
@@ -4660,10 +5465,12 @@ pkg github.com/tangoui/tango/ui, type TableColumn struct
 pkg github.com/tangoui/tango/ui, type TableColumn struct, Align TextAlign
 pkg github.com/tangoui/tango/ui, type TableColumn struct, Children []TableColumn
 pkg github.com/tangoui/tango/ui, type TableColumn struct, Compare func(int, int) int
+pkg github.com/tangoui/tango/ui, type TableColumn struct, DefaultFilter []string
 pkg github.com/tangoui/tango/ui, type TableColumn struct, DefaultSort SortOrder
 pkg github.com/tangoui/tango/ui, type TableColumn struct, Editor *TableEditor
 pkg github.com/tangoui/tango/ui, type TableColumn struct, Ellipsis bool
 pkg github.com/tangoui/tango/ui, type TableColumn struct, FilterPanel func(*TableFilterPanel)
+pkg github.com/tangoui/tango/ui, type TableColumn struct, FilterResetToDefault bool
 pkg github.com/tangoui/tango/ui, type TableColumn struct, FilterSearch bool
 pkg github.com/tangoui/tango/ui, type TableColumn struct, FilterSingle bool
 pkg github.com/tangoui/tango/ui, type TableColumn struct, Filters []Option
@@ -4674,6 +5481,7 @@ pkg github.com/tangoui/tango/ui, type TableColumn struct, Key string
 pkg github.com/tangoui/tango/ui, type TableColumn struct, MinWidth float32
 pkg github.com/tangoui/tango/ui, type TableColumn struct, OnFilter func(int, string) bool
 pkg github.com/tangoui/tango/ui, type TableColumn struct, Render func(int)
+pkg github.com/tangoui/tango/ui, type TableColumn struct, SortDirections []SortOrder
 pkg github.com/tangoui/tango/ui, type TableColumn struct, SortMultiple int
 pkg github.com/tangoui/tango/ui, type TableColumn struct, Sortable bool
 pkg github.com/tangoui/tango/ui, type TableColumn struct, Text func(int) string
@@ -4687,6 +5495,8 @@ pkg github.com/tangoui/tango/ui, type TableColumnState struct, Hidden map[string
 pkg github.com/tangoui/tango/ui, type TableColumnState struct, Order []string
 pkg github.com/tangoui/tango/ui, type TableColumnState struct, Widths map[string]float32
 pkg github.com/tangoui/tango/ui, type TableColumnState struct, noncomparable
+pkg github.com/tangoui/tango/ui, type TableDropdownW struct
+pkg github.com/tangoui/tango/ui, type TableDropdownW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type TableEditor struct
 pkg github.com/tangoui/tango/ui, type TableEditor struct, Error func(int) string
 pkg github.com/tangoui/tango/ui, type TableEditor struct, Kind string
@@ -4713,6 +5523,7 @@ pkg github.com/tangoui/tango/ui, type TableLocale struct, SelectNone string
 pkg github.com/tangoui/tango/ui, type TableLocale struct, SelectPage string
 pkg github.com/tangoui/tango/ui, type TableLocale struct, SelectRowFmt string
 pkg github.com/tangoui/tango/ui, type TableLocale struct, Selections string
+pkg github.com/tangoui/tango/ui, type TableLocale struct, SumText string
 pkg github.com/tangoui/tango/ui, type TableLocale struct, Unpin string
 pkg github.com/tangoui/tango/ui, type TableLocale struct, noncomparable
 pkg github.com/tangoui/tango/ui, type TableSelection struct
@@ -4759,6 +5570,7 @@ pkg github.com/tangoui/tango/ui, type TimeSelectW struct
 pkg github.com/tangoui/tango/ui, type TimeSelectW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type TimelineItem struct
 pkg github.com/tangoui/tango/ui, type TimelineItem struct, Body func()
+pkg github.com/tangoui/tango/ui, type TimelineItem struct, Center bool
 pkg github.com/tangoui/tango/ui, type TimelineItem struct, Color string
 pkg github.com/tangoui/tango/ui, type TimelineItem struct, Content string
 pkg github.com/tangoui/tango/ui, type TimelineItem struct, Dot func()
@@ -4766,8 +5578,11 @@ pkg github.com/tangoui/tango/ui, type TimelineItem struct, DotIcon *ui/icon.Icon
 pkg github.com/tangoui/tango/ui, type TimelineItem struct, Hollow bool
 pkg github.com/tangoui/tango/ui, type TimelineItem struct, Label string
 pkg github.com/tangoui/tango/ui, type TimelineItem struct, Large bool
+pkg github.com/tangoui/tango/ui, type TimelineItem struct, Loading bool
+pkg github.com/tangoui/tango/ui, type TimelineItem struct, Placement string
 pkg github.com/tangoui/tango/ui, type TimelineItem struct, Time string
 pkg github.com/tangoui/tango/ui, type TimelineItem struct, TimeTop bool
+pkg github.com/tangoui/tango/ui, type TimelineItem struct, Title string
 pkg github.com/tangoui/tango/ui, type TimelineItem struct, noncomparable
 pkg github.com/tangoui/tango/ui, type TimelineW struct
 pkg github.com/tangoui/tango/ui, type TimelineW struct, noncomparable
@@ -4789,6 +5604,8 @@ pkg github.com/tangoui/tango/ui, type ToolCallW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type TooltipW struct
 pkg github.com/tangoui/tango/ui, type TooltipW struct, embedded *Box
 pkg github.com/tangoui/tango/ui, type TooltipW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type TopNavHeaderW struct
+pkg github.com/tangoui/tango/ui, type TopNavHeaderW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type TourActions struct
 pkg github.com/tangoui/tango/ui, type TourActions struct, Current int
 pkg github.com/tangoui/tango/ui, type TourActions struct, Total int
@@ -4803,6 +5620,7 @@ pkg github.com/tangoui/tango/ui, type TourMask uint8
 pkg github.com/tangoui/tango/ui, type TourStep struct
 pkg github.com/tangoui/tango/ui, type TourStep struct, Cover func()
 pkg github.com/tangoui/tango/ui, type TourStep struct, Description string
+pkg github.com/tangoui/tango/ui, type TourStep struct, HideArrow bool
 pkg github.com/tangoui/tango/ui, type TourStep struct, HideNext bool
 pkg github.com/tangoui/tango/ui, type TourStep struct, HidePrev bool
 pkg github.com/tangoui/tango/ui, type TourStep struct, Mask TourMask

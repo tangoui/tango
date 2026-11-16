@@ -486,19 +486,37 @@ type BackTopW struct {
 	dur     time.Duration
 	clicked bool
 	content func()
+	ic      *icon.Icon // Icon
+	desc    string     // Description
+	primary bool
+	square  bool
 }
 
 // BackTop adds the button for the scroll container target
 // (ScrollBox.ID()); it appears once scrolled past VisibilityHeight
-// (default 400) and scrolls back smoothly. Call Show.
+// (antd 400, Element 200: FloatButtonToken.BackTop*) and scrolls back
+// smoothly in Duration (450ms, antd duration). Call Show. It is antd's
+// FloatButton.BackTop: Icon, Description, Primary and Square style it like
+// a FloatButton.
 func BackTop(c *Context, target ID) *BackTopW {
-	b := &BackTopW{c: c, target: target, visible: 400, right: 40, bottom: 40, dur: 450 * time.Millisecond}
-	if !navEl(c) {
-		b.right, b.bottom = 24, 48
-	}
+	tk := &c.ThemeFor(theme.CompFloatButton).Components.FloatButton
+	b := &BackTopW{c: c, target: target, visible: tk.BackTopVisibilityHeight, right: tk.BackTopRight, bottom: tk.BackTopBottom, dur: 450 * time.Millisecond}
 	b.configDefaults() // Defaults("BackTop", ...): visibilityHeight, duration
 	return b
 }
+
+// Icon replaces the default icon (antd icon).
+func (b *BackTopW) Icon(ic *icon.Icon) *BackTopW { b.ic = ic; return b }
+
+// Description shows a text under the icon in a square button (antd 6
+// content, description deprecated).
+func (b *BackTopW) Description(s string) *BackTopW { b.desc = s; return b }
+
+// Primary uses the primary button type (antd type="primary").
+func (b *BackTopW) Primary() *BackTopW { b.primary = true; return b }
+
+// Square uses the square shape (antd shape="square").
+func (b *BackTopW) Square() *BackTopW { b.square = true; return b }
 
 // VisibilityHeight sets the scroll distance after which it shows.
 func (b *BackTopW) VisibilityHeight(px float32) *BackTopW { b.visible = px; return b }
@@ -547,8 +565,20 @@ func (b *BackTopW) Show() *BackTopW {
 		}
 		f := FloatButton(c)
 		f.glyph = icon.VerticalAlignTop
-		if navEl(c) {
+		if c.ThemeFor(theme.CompFloatButton).Components.FloatButton.BackTopCaret {
 			f.glyph = icon.CaretUp
+		}
+		if b.ic != nil {
+			f.Icon(b.ic)
+		}
+		if b.desc != "" {
+			f.Description(b.desc)
+		}
+		if b.primary {
+			f.Primary()
+		}
+		if b.square {
+			f.Square()
 		}
 		f.n.label = c.Locale().BackTop
 		hit = f.ia

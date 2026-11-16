@@ -20,6 +20,7 @@ type Appearance struct {
 	NoClose     bool
 	NoMinimize  bool
 	NoMaximize  bool
+	AllSpaces   bool
 }
 
 // SurfaceOp kinds.

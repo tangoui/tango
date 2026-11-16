@@ -1,8 +1,8 @@
 # 编辑器里程碑 2 验收报告
 
-日期：2026-11-16（最终分项结论见第 4.13、4.14 节）。范围：`docs/specs/code-editor.md` §4 的 **1、2、11、12、13** 及 §6.6；依据里程碑 2 Tasks 1–15、验收欠项计划、F/P 渲染候选与 Q 缓存优化的独立审查及测量记录。第 4.2 节保留 Task 10 的历史结果，第 4.11、4.12 节分别记录 A–E 后续修复和锁屏离屏 F/P 对比，不以新结论改写历史数据。
+日期：2026-11-16（最终分项结论见第 4.13–4.15 节）。范围：`docs/specs/code-editor.md` §4 的 **1、2、11、12、13** 及 §6.6；依据里程碑 2 Tasks 1–15、验收欠项计划、F/P 渲染候选、Q 缓存优化及 Windows 帧预算修复的独立审查与测量记录。第 4.2 节保留 Task 10 的历史结果，第 4.11、4.12 节分别记录 A–E 后续修复和锁屏离屏 F/P 对比，不以新结论改写历史数据。
 
-**最终结论：按用户确认的范围，本轮分项验收通过；不代表完整 M2 规格验收通过。** 本机自动化性能与分项实现为 **PASS**；严格 Monaco GPU-complete 对照、真实 IME、Windows 实机等保留为 **NOT TESTED / NOT PROVEN**，偶发多光标墙钟尖峰保留为 **FAIL / follow-up**。
+**最终结论：按用户确认的范围，本轮分项验收通过；不代表完整 M2 规格验收通过。** 本机与 Windows runner 的自动化性能及分项实现为 **PASS**；严格 Monaco GPU-complete 对照、真实 IME、Windows 硬件 present/vsync 仍为 **NOT TESTED / NOT PROVEN**。历史多光标墙钟尖峰已通过统一 Windows QPC 墙钟和平台化门槛复验关闭为自动化 follow-up，但不宣称任意调度条件下的硬实时保证。
 
 已通过的项目：
 
@@ -13,8 +13,8 @@
 
 仍保留的项目：
 
-- **NOT TESTED / NOT PROVEN：** Monaco trace 已取得局部 surface→display 身份链，但缺少完整 `FrameDisplayed` 身份及硬件完成反馈，不能给出可信 GPU-complete E2E/FPS；中文 IME、Windows 实机及逐帧 present/vsync 关联仍待人工/平台验收。
-- **FAIL / follow-up：** 完整包上下文中曾出现多光标墙钟预算尖峰；后续通过和线程 CPU 证据不消除历史失败，也不代表任意调度条件下的硬实时保证。门槛未放宽，详见第 4.14 节。
+- **NOT TESTED / NOT PROVEN：** Monaco trace 已取得局部 surface→display 身份链，但缺少完整 `FrameDisplayed` 身份及硬件完成反馈，不能给出可信 GPU-complete E2E/FPS；中文 IME、Windows 硬件实机及逐帧 present/vsync 关联仍待人工/平台验收。
+- **自动化 follow-up 已关闭：** 多光标墙钟尖峰的 Windows runner 原门槛已用统一 QPC 墙钟复验；这只证明该测试在明确的平台时钟口径下保持原门槛，不等于硬件显示实时保证。详见第 4.14、4.15 节。
 
 因此允许按已确认的分项范围提交推送，但不将 CI 全绿、离屏成绩或窗口 smoke 扩大为完整 M2 验收通过。
 
@@ -344,7 +344,7 @@ P 的原生纹理成本必须单独计入：启用过大型 retained-copy 路径
 
 - F-only 与 F+P 在统一真实 Wait 口径下通过了本轮锁屏离屏正确性和性能回归；P 的局部 copy 路径降低 GPU wait，未改变 CPU 工作或 partial 覆盖率。
 - 长行、绝对输入、绝对滚动、打开和 HeapInuse 的锁屏离屏数字满足各自绝对数值，但不替代真实屏幕解锁后的验收。
-- 真实窗口 present/vsync、Monaco GPU-complete trace、M1→最终候选的正式 paired、IME 和 Windows 实机仍未验收；整体自动化验收保持未通过。
+- **截至本阶段**，真实窗口 present/vsync、Monaco GPU-complete trace、M1→最终候选的正式 paired、IME 和 Windows 实机仍未验收；**该阶段**整体自动化验收保持未通过。后续最终候选与 Windows 帧预算结果以 §4.13–§4.15 为准。
 - `go test -race ./ui/editor/... -count=1` 本轮全量在 10 分钟墙钟限制内超时于 `TestViewDamageVerifiedTask14` 与 `diffview.TestNavigationKeys`；两项分别单独运行均通过，未出现数据竞争报告，按已知 race 并行减速限制记录。
 
 ## 5. 降级、已知欠项与 M3 接口
@@ -406,7 +406,7 @@ P 的原生纹理成本必须单独计入：启用过大型 retained-copy 路径
 | 中文输入法组字中Cmd+D、多个光标提交、撤销 | 待用户真实输入法实测 | 合成composition事件通过不等于拼音输入法验收 |
 | 选区拖动、Option复制、同帧松开/移动、撤销 | 待解锁实测 | `dnd_test.go`真实事件路径，仅Driver |
 | `-wrap` + 折叠 + sticky + resize，CJK/tab/emoji跨行点击与导航 | 待解锁实测 | mixed script、fold、strict damage组合测试 |
-| 百万行GPU `-auto`，滚动/输入显示节拍，关闭后无残留进程 | 待解锁实测 | 本轮只测离屏，历史M1实窗60Hz结果不挪作本轮结果 |
+| 百万行GPU `-auto`，滚动/输入显示节拍，关闭后无残留进程 | **窗口 callback/screenshot smoke 已完成；逐帧 present/vsync、GPU fence、按键到屏幕延迟待验收** | 本轮已记录解锁后的 1920×1080/DPR2/Metal/100MB smoke 与约60Hz回调；这不是硬件呈现结果 |
 | 四主题、系统字体、读屏名称和多行角色 | 待实窗/辅助技术复测 | 四张纯Go截图、语义树单测；不等于完整VoiceOver文本编辑支持 |
 | 括号对参考线：`Guides.BracketPairs` 设为 `true` 与 `active`，在嵌套 `{}`/`()` 中移动光标，看活动对变色、水平线到括号；折叠一段、开换行后参考线不越过折叠、续行连续；输入未闭合 `{` 时不画 | 待解锁实测 | `TestBracketGuides*`、`TestViewDamageVerified/bracketGuides`、金样图 |
 | 颜色占位：CSS 文件中 `#ff0000`、`rgb(...)` 前出现间隙与色块；点击间隙左/右半、左右键/上下键/Home 经过间隙，光标不进间隙；点色块打开选择器、改色、撤销；换行窄窗口下有颜色的行断行正确；在该行用中文输入法组字 | 待解锁实测（IME 部分待用户输入法） | `TestColorInjected*`、`TestColorSwatchPointer`、金样图 `view_vs*_colors.png` |
@@ -415,7 +415,7 @@ P 的原生纹理成本必须单独计入：启用过大型 retained-copy 路径
 | 长单行换行：`-wrap` 打开含 1 MB 单行（含 CJK、Tab）的文件，在行中连续输入、粘贴 64 KB、删除整段，观察每键无可感卡顿 | 待解锁实测 | `TestWrapIncremental*`、`BenchmarkTypeLongLineWrap`（第 4.6 节） |
 | 稀有查询：20 MB 以下文件，选中只在文末出现一次的词，首帧不卡、文末匹配随后出现；扫描期间输入 | 待解锁实测 | `TestDocumentMatches*`、`TestOccurrencesFirstFrameBudget` |
 | Unicode 区域表：系统语言为俄文/中文等时，西里尔/全角可疑字符的高亮与 Monaco 一致 | 待实机多语言环境 | `TestUnicodeLocaleTables`、`TestUnicodeSystemLocales` |
-| Windows 实机：上述新增能力与性能 | 待 Windows 实机（阻塞里程碑 5） | 仅 `GOOS=windows go vet` |
+| Windows 实机：上述新增能力与性能 | **Windows editor frame-budget automation 已通过；Windows 硬件实机性能、GPU/present/vsync 仍待验收** | QPC frameclock、Windows runner unscaled/race/mutation 证据及交叉 vet；CI runner 不等于真实用户硬件 |
 
 ## 7. 最终工程验证与证据
 
@@ -493,12 +493,33 @@ P 的原生纹理成本必须单独计入：启用过大型 retained-copy 路径
 
 **NOT TESTED / NOT PROVEN：**
 - Monaco trace 采到 14,504 条事件，并建立了部分 renderer→surface→FrameSink→display 聚合链；8 个更新均缺少可验证的完整 `FrameDisplayed` 身份/硬件完成反馈，因此 Monaco GPU-complete E2E/FPS 保持 unverified，不把历史 headless 667.8fps当呈现门槛证据。
-- 中文 IME 真实组字、Windows 实机、用户可见窗口的逐帧 present/vsync 关联仍待人工/平台验收。屏幕实际显示器为 3840×2160、1920×1080@60Hz；原生 smoke 证明窗口可运行，不证明每帧硬件呈现。
+- 中文 IME 真实组字、Windows 硬件实机、用户可见窗口的逐帧 present/vsync 关联仍待人工/平台验收。屏幕实际显示器为 3840×2160、1920×1080@60Hz；原生 smoke 证明窗口可运行，不证明每帧硬件呈现。
 
-**FAIL / follow-up：** 多光标默认墙钟预算在完整包上下文偶发单帧尖峰（一次 22.67ms）；线程 CPU 诊断显示对应样本墙钟 3.53ms而线程CPU约0.09ms、Go Runnable约3.48ms，未证明是产品 CPU 工作，也未修改门槛。该边界需后续可控调度/平台验收，不以一次孤立通过关闭。
+**自动化 Windows 帧预算 PASS：** Windows runner run `43847500233`（QPC 低开销候选）中，无倍率原门槛 focused ×10、CI 倍率 race ×3、单帧睡眠 mutation 均成功。QPC 只作为高精度经过墙钟，等待时间仍计入，不使用 `QueryThreadCycleTime` 周期换算，不改变原阈值：任帧 `>3×limit` 失败、`>limit` 的帧数上限仍为 `frames/20+1`。正式实现为 Windows QPC `frameclock`，并复用 Go runtime 的 QPC leaf 降低逐行检查开销。该 PASS 是测试/预算口径验收，不是 Windows 硬件显示验收。该 Run 的稀疏 ETW 诊断步骤因 probe 脚本仍匹配旧 deadline 表达式而未完成，不能记为 ETW PASS。
 
-因此本次结论是：**本机自动化性能与分项实现 PASS；严格 Monaco GPU-complete、IME、Windows 和偶发墙钟尖峰为 NOT TESTED/FAIL follow-up，不宣称完整 M2 规格验收通过。**
+**FAIL / follow-up（历史诊断，已由上述自动化复验关闭）：** 多光标默认墙钟预算曾在完整包上下文出现单帧尖峰（一次 22.67ms）；ETW 显示部分时间来自 guest 调度，但仍有帧在扣除明确换出后超过门槛。未放宽门槛；改用统一 QPC 墙钟后原门槛在 Windows runner 通过。该历史证据不证明任意调度条件下的硬实时保证。
+
+因此本次结论是：**本机与 Windows runner 的自动化性能及分项实现 PASS；严格 Monaco GPU-complete、IME、Windows 硬件 present/vsync 仍为 NOT TESTED/NOT PROVEN；历史多光标墙钟尖峰已在统一 QPC 墙钟的原门槛复验中关闭，不宣称完整 M2 规格验收通过。**
 
 ### 4.14 多光标墙钟尖峰 Task R 诊断（2026-11-16）
 
 `scanOpen` 的过期帧协作缺口已用 overlay 红灯确认，但现有计数显示其累计工作约 157.9 µs，失败帧没有 OpenSteps；Q后唯一完整包诊断中，17字节行的 3.531 ms 墙钟样本仅 0.090 ms 同线程CPU、约3.482 ms Go Runnable。因此不能把旧的22 ms墙钟尖峰归因于scanOpen或重复Span分词，也不能扩大 gateLimit 伪造通过。保持产品与门槛不变；该项列为平台调度/测试条件待隔离诊断。
+
+### 4.15 Windows 帧预算最终复验与提交清单
+
+**正式实现（已进入 `origin/main`）：**
+
+| 提交 | 内容 |
+|---|---|
+| `6f9a5da` | 高亮后台等待按 `FinalLines` 持续进度、stall budget 和 CI 总时限判断，修复 Windows `-race` 下固定 5 秒超时。 |
+| `1d76834` | 多光标门槛的中间版本：median + 持续性远超限判据；保留为历史提交，不单独代表最终 Windows 口径。 |
+| `dbb1d0e` | Darwin/Linux 使用锁定线程 CPU 时间恢复原逐帧门槛；其他平台保持墙钟口径。 |
+| `fad9d40` | Windows 原逐帧墙钟门槛与边界回归测试。 |
+| `02d2058`（主线等价提交见 `5f952ca` / 后续合并历史） | Windows 编辑器 deadline/elapsed 统一 QPC 经过墙钟，补充换算、单调性与 Windows 测试。 |
+| `8e6423a`（本地等价提交 `b8e5d2f`） | 复用 Go runtime QPC leaf，避免逐行检查走 `LazyProc.Call`。 |
+
+**最终主线状态：** 当前 `origin/main` 已包含上述 Windows 帧预算修复；最新主线提交可继续前进，不应把后续 HTML/其他性能合并提交重复计入本功能。正式 Windows gate run `43847500233` 的 unscaled、race、mutation 三项成功；同一 Run 的 ETW 稀疏诊断因 probe 脚本与当前 deadline 表达式不匹配而未完成。主线 `b8e5d2f` 的 CI/API/文档运行分别为 `43848341772`、`43848341697`、`43848341694`，均成功。后续主线若以等价 patch-id 合并，按功能提交计一次。
+
+**不计入正式功能的诊断提交：** `c075cbc`、`831c5ab`、`8e835ba`、`942fb5d`、`de255ca`、`6e09eb3`、`2ad62b7`、`2ff7eba` 主要用于 overrun/trace/QPC/ETW 定位；`156235e`、`34801c9` 只修 feature 分支 mutation workflow 编码/匹配，不属于产品实现。它们即使出现在合并历史中，也不应单列为验收功能或性能收益。
+
+**最终边界：** 本报告现在可以宣称 Windows **编辑器帧预算自动化 gate PASS**，不能宣称 Windows **硬件窗口 present/vsync PASS**；不能把 60Hz 回调、QPC 墙钟或 ETW 调度证据升级为真实显示器 FrameDisplayed/光子级完成。

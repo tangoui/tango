@@ -55,6 +55,8 @@ type MentionsW struct {
 	z           *lazy
 	optIDs      []ID // suggestion nodes (ActiveDescendant)
 	listID      ID
+	split       string    // text inserted after a mention (Ant split, " ")
+	place       Placement // BottomStart (default) or TopStart (Ant placement)
 }
 
 // Mentions adds a mention input bound to *val with candidate opts.
@@ -76,7 +78,17 @@ func Mentions(c *Context, val *string, opts []Option) *MentionsW {
 	w.edIA = c.interact(w.ed, true, input.CursorText)
 	w.boxIA = c.interact(w.box, false, input.CursorText)
 	w.ed.setRole(a11y.RoleTextbox).setState(a11y.Multiline | a11y.HasPopup).fill(w)
+	w.split = " "
 	w.configDefaults()
+	selDefaults(c, "Mentions", &w.variant, &w.place) // "top" / "bottom" or a Placement
+	// antd Mentions placement "top" / "bottom": the list opens at the
+	// start edge above or below the input, not centered.
+	switch w.place {
+	case Top:
+		w.place = TopStart
+	case Bottom:
+		w.place = BottomStart
+	}
 	w.z = c.lazy(w.box, w.finish)
 	return w
 }
@@ -137,6 +149,16 @@ func (w *MentionsW) WholeCheck(fn func(prefix, value string) bool) *MentionsW {
 	w.whole, w.wholeCheck = true, fn
 	return w
 }
+
+// Split sets the text inserted after a picked mention (Ant split, default
+// " "; Element split). "" inserts nothing.
+func (w *MentionsW) Split(s string) *MentionsW { w.split = s; return w }
+
+// Placement opens the suggestions below (BottomStart, default) or above
+// (TopStart) the input (Ant placement "bottom" / "top", Element
+// placement); ConfigProvider.Defaults("Mentions", "placement") takes
+// "top" / "bottom".
+func (w *MentionsW) Placement(p Placement) *MentionsW { w.place = p; return w }
 
 // Prefix sets the trigger characters (default "@").
 func (w *MentionsW) Prefix(p ...string) *MentionsW { w.prefixes = p; return w }
@@ -429,7 +451,7 @@ func (w *MentionsW) insert(o Option) {
 	}
 	rs := []rune(*w.val)
 	cur := clampIdx(w.st.edit.cur, len(rs))
-	ins := []rune(p + o.Value + " ")
+	ins := []rune(p + o.Value + w.split)
 	nr := append(append(append([]rune(nil), rs[:pos]...), ins...), rs[cur:]...)
 	*w.val = string(nr)
 	w.st.edit.cur = pos + len(ins)
@@ -458,6 +480,7 @@ func (w *MentionsW) dropdown(pos int, opts []Option, busy bool) {
 	loc := c.Locale()
 	th := c.Theme
 	a := c.AnimFrom(w.box.id, "ent-open", 0, 1, th.DurationMid)
+	top := w.place == TopStart || w.place == TopEnd
 	var sx, sy float32
 	if p, ok := w.caretAt(pos); ok {
 		er := c.rects[w.ed.id]
@@ -466,10 +489,17 @@ func (w *MentionsW) dropdown(pos int, opts []Option, busy bool) {
 			sx = p.X - er.Right() // BottomStart aligns the right edges in RTL
 		}
 		sy = max(sy, c.rects[w.box.id].Bottom()-er.Bottom())
+		if top {
+			sy = c.rects[w.box.id].Y - er.Y // above the frame
+		}
 	} else {
 		c.animating = true // no geometry yet: ask for one more frame
 	}
-	ov := Overlay(c, OverlayOptions{Anchor: w.ed.id, Place: BottomStart, Offset: 4, ShiftX: sx, ShiftY: sy}, func() {
+	place := BottomStart
+	if top {
+		place = TopStart
+	}
+	ov := Overlay(c, OverlayOptions{Anchor: w.ed.id, Place: place, Offset: 4, ShiftX: sx, ShiftY: sy}, func() {
 		if busy {
 			entLoadingRow(c, loc.Loading, entOptionH(c))
 			return

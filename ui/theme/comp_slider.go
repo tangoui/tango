@@ -20,6 +20,9 @@ type SliderToken struct {
 	// HandleActiveOutlineColor is the halo around a focused (Ant) or
 	// hovered / focused (shadcn) handle; zero: none.
 	HandleActiveOutlineColor Color `zero:"none"`
+	// HandleActiveOutlineWidth is the width of that halo outside the
+	// handle (antd outline 6px, shadcn ring-4).
+	HandleActiveOutlineWidth float32
 	DotSize                  float32
 	DotBorderColor           Color // step / mark dot ring off the filled part
 }
@@ -27,10 +30,14 @@ type SliderToken struct {
 func deriveSlider(t *Theme) SliderToken {
 	k := SliderToken{
 		RailSize: t.SliderRailHeight, RailBg: t.FillTertiary, RailHoverBg: t.FillSecondary,
-		TrackBg: t.Primary.Border, TrackHoverBg: t.Primary.BorderHover, TrackBgDisabled: t.TextDisabled,
-		HandleSize: 10, HandleSizeHover: 12, HandleLineWidth: 2, HandleLineWidthHover: 4,
+		TrackBg: t.Primary.Border, TrackHoverBg: t.Primary.BorderHover, TrackBgDisabled: t.BgContainerDisabled,
+		// antd 6 es/slider/style/index.js prepareComponentToken:
+		// handleSize controlHeightLG/4, handleSizeHover controlHeightSM/2,
+		// handleLineWidth lineWidth+1, handleLineWidthHover lineWidth+1.5,
+		// trackBgDisabled colorBgContainerDisabled, outline 6px.
+		HandleSize: 10, HandleSizeHover: 12, HandleLineWidth: 2, HandleLineWidthHover: 2.5,
 		HandleColor: t.Primary.Border, HandleActiveColor: t.Primary.Base, HandleColorDisabled: t.TextDisabled,
-		HandleBg: t.BgContainer, HandleActiveOutlineColor: Fade(t.Primary.Base, .2),
+		HandleBg: t.BgContainer, HandleActiveOutlineColor: Fade(t.Primary.Base, .2), HandleActiveOutlineWidth: 6,
 		DotSize: 8, DotBorderColor: t.BorderSecondary,
 	}
 	switch t.Flavor {
@@ -40,8 +47,10 @@ func deriveSlider(t *Theme) SliderToken {
 		k.HandleActiveColor = t.Primary.Base
 		k.HandleSize, k.HandleSizeHover = 20, 24
 		k.HandleLineWidthHover = k.HandleLineWidth
-		k.HandleActiveOutlineColor = Color{}
+		k.HandleActiveOutlineColor, k.HandleActiveOutlineWidth = Color{}, 0
 		k.DotSize = 6
+		// --el-slider-disabled-color: --el-text-color-placeholder.
+		k.TrackBgDisabled, k.HandleColorDisabled = t.TextQuaternary, t.TextQuaternary
 	case StyleShadcn:
 		k.RailBg, k.RailHoverBg = t.FillSecondary, t.FillSecondary
 		k.TrackBg, k.TrackHoverBg, k.HandleColor = t.Primary.Base, t.Primary.Base, t.Primary.Base
@@ -50,7 +59,10 @@ func deriveSlider(t *Theme) SliderToken {
 		// bg-white thumb in light and dark mode.
 		k.HandleBg = Hex("#ffffff")
 		// ring-4 ring-ring/50: the input halo carries ring/50.
-		k.HandleActiveOutlineColor = t.ControlOutline
+		k.HandleActiveOutlineColor, k.HandleActiveOutlineWidth = t.ControlOutline, 4
+		// Disabled fades the whole slider (opacity-50); keep the plain
+		// disabled text color for the unused track token.
+		k.TrackBgDisabled = t.TextDisabled
 		if k.HandleActiveOutlineColor.A == 0 {
 			k.HandleActiveOutlineColor = Fade(t.FocusOutline, .5)
 		}

@@ -267,7 +267,8 @@ func TestSplitterToggleArrowInsideWhenCollapsed(t *testing.T) {
 				t.Fatalf("not collapsed: %v", f)
 			}
 			a := mustFind(t, d, "collapse-toggle") // visible (clipped) hit rect
-			full := float32(16)
+			// antd collapse-bar width fontSizeSM (12; was 16 before batch 3).
+			full := float32(12)
 			got := a.W
 			if tc.vertical {
 				got = a.H

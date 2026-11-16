@@ -169,6 +169,29 @@ func TestProFieldOfModes(t *testing.T) {
 	})
 }
 
+// TestProFieldOfEditEnum: Pro v3 "update" has no Tango mode (equivalent:
+// ProFieldEdit); edit mode shows the select editor, not the enum label.
+func TestProFieldOfEditEnum(t *testing.T) {
+	for _, themeCase := range []struct {
+		name string
+		th   *theme.Theme
+	}{{"ant", theme.AntDesign()}, {"element", theme.ElementPlus()}, {"shadcn", theme.Shadcn()}} {
+		t.Run(themeCase.name, func(t *testing.T) {
+			value := any("online")
+			d := pro3Driver(func() *theme.Theme { return themeCase.th }, 500, 220, func(c *Context) {
+				ProFieldOf(c, ProField{Label: "Status", ValueType: ValueSelect, ValueEnum: []ProEnum{{Value: "online", Label: "Online"}, {Value: "offline", Label: "Offline"}}}, &value).
+					Mode(ProFieldEdit).Show()
+			})
+			d.EnableAccessibility()
+			d.Frame()
+			mustNode(t, d, a11y.RoleCombobox, "Status")
+			if _, ok := d.FindText("Online"); ok {
+				t.Fatal("edit mode rendered the read-only enum label")
+			}
+		})
+	}
+}
+
 func TestProFormNewTypesEdit(t *testing.T) {
 	pro3Themes(t, func(t *testing.T, th func() *theme.Theme) {
 		vals := ProValues{"cfg": "{bad"}

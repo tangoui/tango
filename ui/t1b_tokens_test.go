@@ -71,8 +71,8 @@ func t1bCases() []t1bCase {
 		{"Rate", theme.Components{Rate: theme.RateToken{StarColor: t1bMark}},
 			func(th *theme.Theme) theme.Color { return th.Components.Rate.StarColor },
 			func(c *Context) { v := 3.0; Rate(c, &v) }},
-		{"InputNumber", theme.Components{InputNumber: theme.InputNumberToken{SideHandleBg: t1bMark}},
-			func(th *theme.Theme) theme.Color { return th.Components.InputNumber.SideHandleBg },
+		{"InputNumber", theme.Components{InputNumber: theme.InputNumberToken{SideHandleColor: t1bMark}},
+			func(th *theme.Theme) theme.Color { return th.Components.InputNumber.SideHandleColor },
 			func(c *Context) { v := 1.0; InputNumber(c, &v).ControlsPosition("sides") }},
 		{"Form", theme.Components{Form: theme.FormToken{LabelRequiredMarkColor: t1bMark}},
 			func(th *theme.Theme) theme.Color { return th.Components.Form.LabelRequiredMarkColor },
@@ -145,7 +145,7 @@ func TestT1bDerivedDefaults(t *testing.T) {
 		check("InputNumber.HandleBorderColor", k.InputNumber.HandleBorderColor, th.Border)
 		check("Form.ErrorColor", k.Form.ErrorColor, th.Error.Base)
 		check("Form.LabelHeight", k.Form.LabelHeight, th.ControlHeight)
-		w, h := float32(36), float32(32)
+		w, h := float32(36), float32(36)
 		if el {
 			w, h = 40, 36
 		} else if shad {

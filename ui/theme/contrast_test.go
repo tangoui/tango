@@ -84,9 +84,12 @@ func TestBuiltinThemeContrast(t *testing.T) {
 	// the 50 xterm.js ANSI colors below 4.5:1 on the terminal background
 	// (TerminalToken.Palette: 11 in each light theme, 6 in antd-dark and
 	// element-plus-dark, 5 in shadcn-dark), minus the 3 light shadcn danger
-	// pairs shadcn/ui v4's --destructive (#e7000b, 4.5:1+) now passes.
-	if n[ContrastStatusDesignDefault] != 105 {
-		t.Errorf("%d design defaults, want 105", n[ContrastStatusDesignDefault])
+	// pairs shadcn/ui v4's --destructive (#e7000b, 4.5:1+) now passes,
+	// plus the 6 Drawer dragger pairs (DrawerToken.ResizeLineColor /
+	// ResizeLineActiveColor: antd primary at .2 / .3 in antd and
+	// antd-dark, Element primary on white; batch 3 group K).
+	if n[ContrastStatusDesignDefault] != 111 {
+		t.Errorf("%d design defaults, want 111", n[ContrastStatusDesignDefault])
 	}
 	rep := ContrastReport(BuiltinThemes()...)
 	if strings.Count(rep, "\nDesignDefault ") != n[ContrastStatusDesignDefault] || strings.Contains(rep, "\nFAIL") {

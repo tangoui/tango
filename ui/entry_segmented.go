@@ -33,6 +33,8 @@ type SegmentedW struct {
 	itemIA   []Interaction
 	vertical bool
 	shape    SegmentedShape
+	render   func(o Option, selected bool)
+	tips     []string
 }
 
 // SegmentedShape is the outline of a Segmented control.
@@ -97,6 +99,40 @@ func (w *SegmentedW) Vertical() *SegmentedW {
 	w.n.setState(a11y.Vertical)
 	return w
 }
+
+// Orientation sets the direction: "horizontal" (default) or "vertical"
+// (Ant v6 orientation, Element direction). Other values are ignored.
+func (w *SegmentedW) Orientation(o string) *SegmentedW {
+	switch o {
+	case "vertical":
+		return w.Vertical()
+	case "horizontal":
+		w.vertical = false
+		flexbox.Apply(&w.n.ln.Style, layout.Dir(layout.Row))
+		w.n.aState &^= a11y.Vertical
+		w.n.setState(a11y.Horizontal)
+	}
+	return w
+}
+
+// ItemRender builds the content of every option in place of its icon and
+// label (Element el-segmented default slot, Ant options[].label as a
+// node): fn runs inside the segment, which centres what it adds, with the
+// option and whether it is the selected one. The option label stays the
+// accessible name; a hint per option is a Tooltip around the content.
+//
+//	ui.Segmented(c, &v, opts).ItemRender(func(o ui.Option, sel bool) {
+//		ui.Icon(c, icons[o.Value])
+//		ui.Text(c, o.Label).Size(12)
+//	})
+func (w *SegmentedW) ItemRender(fn func(o Option, selected bool)) *SegmentedW {
+	w.render = fn
+	return w
+}
+
+// Tooltips shows a tooltip per option while the pointer is over it (Ant
+// options[].tooltip); "" entries show none.
+func (w *SegmentedW) Tooltips(tips ...string) *SegmentedW { w.tips = tips; return w }
 
 // Shape sets the outline: SegmentedShapeRound makes the track and the
 // thumb pill-shaped.
@@ -197,15 +233,29 @@ func (w *SegmentedW) build() {
 		it.aKbd = true // arrow keys of the focused track
 		it.ln.Height = w.itemH()
 		ic := w.iconAt(i)
-		it.ln.Measure = func(_, _ float32) geom.Size {
-			tw := entTextW(c, o.Label, w.font(), w.weight())
-			if ic != nil {
-				tw += w.font() + 6
-				if o.Label == "" {
-					tw -= 6
-				}
+		if w.render != nil {
+			it.setName(o.Label)
+			if o.Label == "" {
+				it.setName(o.Value)
 			}
-			return geom.Size{W: tw + 2*w.padX(), H: w.itemH()}
+			it.ln.Dir = layout.Row
+			it.ln.Align = layout.AlignCenter
+			it.ln.Justify = layout.JustifyCenter
+			it.ln.Gap = 6
+			it.ln.Padding = geom.Insets{Left: w.padX(), Right: w.padX()}
+			sel := o.Value == *w.val
+			c.body(it, func() { w.render(o, sel) })
+		} else {
+			it.ln.Measure = func(_, _ float32) geom.Size {
+				tw := entTextW(c, o.Label, w.font(), w.weight())
+				if ic != nil {
+					tw += w.font() + 6
+					if o.Label == "" {
+						tw -= 6
+					}
+				}
+				return geom.Size{W: tw + 2*w.padX(), H: w.itemH()}
+			}
 		}
 		if w.block {
 			it.ln.Grow = 1
@@ -222,6 +272,11 @@ func (w *SegmentedW) build() {
 		if ia.Clicked && !it.disabled {
 			w.pick(i)
 			c.SetFocus(w.n.id)
+		}
+		if ia.Hovered && i < len(w.tips) && w.tips[i] != "" {
+			if ar, ok := c.anchorRect(it.id); ok {
+				typoTip(c, it.id, ar, w.tips[i])
+			}
 		}
 		w.items = append(w.items, it)
 		w.itemIA = append(w.itemIA, ia)
@@ -328,6 +383,9 @@ func (w *SegmentedW) paintItem(l *paint.List, r geom.Rect, i int, ia Interaction
 		col = w.tk.ItemHoverColor
 		h := c.Anim(w.items[i].id, "seg-h", 1, th.DurationMid)
 		l.Fill(r, geom.Rad(inner), theme.Fade(hoverBg, float64(h)))
+	}
+	if w.render != nil {
+		return // ItemRender content is built as children
 	}
 	fs := w.font()
 	tw := entTextW(c, o.Label, fs, w.weight())

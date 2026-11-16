@@ -31,7 +31,7 @@ func layoutPage(c *ui.Context) {
 						ui.Column(c, label("Content"), layout.H(120), layout.Center()).Bg(th.BgContainer).Radius(th.RadiusLG)
 					}, layout.Pad(24))
 				})
-				ui.Footer(c, label("Footer ©2026"))
+				ui.Footer(c, label("Footer ©2026"), layout.Center()) // the Ant demo centres it (textAlign: center)
 			})
 		})
 	})

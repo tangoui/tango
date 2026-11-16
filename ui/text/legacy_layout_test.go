@@ -35,7 +35,7 @@ func legacyShapeRange(runes []rune, a, b int, st Style, fm *fontmap, adv []float
 			continue
 		}
 		face := fm.byFF[run.Face]
-		o := shaper.Shape(run)
+		o := legacyShaper(run.Face).Shape(run)
 		for _, g := range o.Glyphs {
 			gl := sg{face: face, gid: uint32(g.GlyphID), adv: fx(g.XAdvance), xoff: fx(g.XOffset), yoff: fx(g.YOffset), cluster: g.ClusterIndex}
 			if g.ClusterIndex >= a && g.ClusterIndex < b {
@@ -161,5 +161,18 @@ func legacyLayout(s string, st Style, opt Options, chain []*family) *Layout {
 	return l
 }
 
-// Reference shaper belongs to the frozen legacy implementation, not the runtime.
-var shaper shaping.HarfbuzzShaper
+// Reference shapers belong to the frozen legacy implementation, not the
+// runtime. One per face: go-text's HarfbuzzShaper caches its shaping font by
+// *font.Font, which every weight of a variable system font shares (each with
+// its own *font.Face and coordinates), so a single shared shaper would shape
+// later weights with the first weight's coordinates.
+var legacyShapers = map[*font.Face]*shaping.HarfbuzzShaper{}
+
+func legacyShaper(f *font.Face) *shaping.HarfbuzzShaper {
+	s := legacyShapers[f]
+	if s == nil {
+		s = &shaping.HarfbuzzShaper{}
+		legacyShapers[f] = s
+	}
+	return s
+}

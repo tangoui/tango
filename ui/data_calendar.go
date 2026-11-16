@@ -40,7 +40,12 @@ type CalendarW struct {
 	cellH      float32
 	rangeA     time.Time // Range: first and last shown day (zero = none)
 	rangeB     time.Time
-	th         *theme.Theme // Calendar Alias applied
+	validA     time.Time // ValidRange: first and last selectable day (zero = none)
+	validB     time.Time
+	showWeek   bool
+	controller string                          // ControllerType: "button" | "select"
+	formatter  func(v int, kind string) string // Formatter of the select labels
+	th         *theme.Theme                    // Calendar Alias applied
 	tk         *theme.CalendarToken
 }
 
@@ -65,8 +70,13 @@ type calViewState struct {
 //	ui.Calendar(c, &day).Card().DisabledDate(isWeekend)
 func Calendar(c *Context, val *time.Time) *CalendarW {
 	// ConfigProvider.Defaults("Calendar", ...) keys: "fullscreen" (bool;
-	// false is the Card form).
-	w := &CalendarW{c: c, val: val, full: Prop(c, "Calendar", "fullscreen", true), header: true}
+	// false is the Card form), "showWeek" (bool), "controllerType"
+	// ("button" | "select", the Element header).
+	if val == nil {
+		val = new(time.Time)
+	}
+	w := &CalendarW{c: c, val: val, full: Prop(c, "Calendar", "fullscreen", true), header: true,
+		showWeek: Prop(c, "Calendar", "showWeek", false), controller: Prop(c, "Calendar", "controllerType", "button")}
 	w.th = c.ThemeFor(theme.CompCalendar)
 	w.tk = &w.th.Components.Calendar
 	w.b = c.box("calendar", layout.Column, nil)
@@ -125,6 +135,53 @@ func (w *CalendarW) inRange(d time.Time) bool {
 	return !d.Before(w.rangeA) && !d.After(w.rangeB)
 }
 
+// ValidRange limits the dates that can be picked and shown (Ant
+// validRange): days outside [start, end] are disabled, the header's year
+// and month choices and the month navigation stay inside the range.
+func (w *CalendarW) ValidRange(start, end time.Time) *CalendarW {
+	a, b := dtDayUTC(start), dtDayUTC(end)
+	if b.Before(a) {
+		a, b = b, a
+	}
+	w.validA, w.validB = a, b
+	return w
+}
+
+// valid reports whether day d is inside the ValidRange (always without one).
+func (w *CalendarW) valid(d time.Time) bool {
+	if w.validA.IsZero() {
+		return true
+	}
+	d = dtDayUTC(d)
+	return !d.Before(w.validA) && !d.After(w.validB)
+}
+
+// validMonth reports whether month m (its first day) has a valid day.
+func (w *CalendarW) validMonth(m time.Time) bool {
+	if w.validA.IsZero() {
+		return true
+	}
+	end := m.AddDate(0, 1, -1)
+	return !end.Before(w.validA) && !m.After(w.validB)
+}
+
+// ShowWeek adds a column of week numbers (ISO weeks) before the days of
+// the month view (Ant showWeek).
+func (w *CalendarW) ShowWeek(on bool) *CalendarW { w.showWeek = on; return w }
+
+// ControllerType sets the Element header's month navigation: "button"
+// (previous / today / next, default) or "select" (year and month selects;
+// Element controller-type). The Ant header always uses selects.
+func (w *CalendarW) ControllerType(t string) *CalendarW { w.controller = t; return w }
+
+// Formatter formats the labels of the header's year and month selects:
+// fn(v, kind) gets the year or the month number (1-12) and kind "year" or
+// "month" (Element formatter); empty results fall back to the default.
+func (w *CalendarW) Formatter(fn func(v int, kind string) string) *CalendarW {
+	w.formatter = fn
+	return w
+}
+
 // NoHeader hides the header.
 func (w *CalendarW) NoHeader() *CalendarW { w.header = false; return w }
 
@@ -162,13 +219,25 @@ func (w *CalendarW) build() {
 		rm := "month"
 		mode = &rm
 	}
+	clampView := func(m time.Time) time.Time {
+		if !w.validA.IsZero() {
+			if lo := dtMonthUTC(w.validA); m.Before(lo) {
+				m = lo
+			}
+			if hi := dtMonthUTC(w.validB); m.After(hi) {
+				m = hi
+			}
+		}
+		return m
+	}
+	st.view = clampView(st.view)
 	nav := func(t time.Time) {
-		st.view = dtMonthUTC(t)
+		st.view = clampView(dtMonthUTC(t))
 		w.panelCh = true
 		c.invalid = true
 	}
 	pick := func(d time.Time) {
-		if (w.disabled != nil && w.disabled(d)) || !w.inRange(d) {
+		if (w.disabled != nil && w.disabled(d)) || !w.inRange(d) || !w.valid(d) {
 			return
 		}
 		*w.val = d
@@ -186,8 +255,10 @@ func (w *CalendarW) build() {
 	if w.header {
 		if w.ranged() {
 			w.rangeHeader()
-		} else if el {
+		} else if el && w.controller != "select" {
 			w.elHeader(st, nav, pick)
+		} else if el {
+			w.elSelectHeader(st, nav, pick)
 		} else {
 			w.antHeader(st, mode, nav)
 		}
@@ -211,30 +282,7 @@ func (w *CalendarW) antHeader(st *calViewState, mode *string, nav func(time.Time
 	}
 	loc := c.Locale()
 	b := Row(c, func() {
-		var years []Option
-		y0 := st.view.Year()
-		for y := y0 - 10; y <= y0+10; y++ {
-			s := strconv.Itoa(y)
-			years = append(years, Option{Label: loc.Year(y), Value: s})
-		}
-		st.yearS = strconv.Itoa(y0)
-		if Select(c, &st.yearS, years).A11yLabel(loc.Calendar.Year).Size(size).Width(map[bool]float32{true: tk.YearControlWidth, false: tk.YearControlWidthSM}[w.full]).Changed() {
-			if y, err := strconv.Atoi(st.yearS); err == nil {
-				nav(time.Date(y, st.view.Month(), 1, 0, 0, 0, 0, time.UTC))
-			}
-		}
-		if *mode == "month" {
-			var months []Option
-			for m := 1; m <= 12; m++ {
-				months = append(months, Option{Label: loc.Month(m), Value: strconv.Itoa(m)})
-			}
-			st.monS = strconv.Itoa(int(st.view.Month()))
-			if Select(c, &st.monS, months).A11yLabel(loc.Calendar.Month).Size(size).Width(map[bool]float32{true: tk.MonthControlWidth, false: tk.MonthControlWidthSM}[w.full]).Changed() {
-				if m, err := strconv.Atoi(st.monS); err == nil {
-					nav(time.Date(st.view.Year(), time.Month(m), 1, 0, 0, 0, 0, time.UTC))
-				}
-			}
-		}
+		w.ymSelects(st, nav, size, *mode == "month")
 		mv := *mode
 		g := RadioGroup(c, &mv, []Option{{Label: loc.Calendar.Month, Value: "month"}, {Label: loc.Calendar.Year, Value: "year"}}).Buttons().Size(size)
 		if g.Changed() {
@@ -246,6 +294,71 @@ func (w *CalendarW) antHeader(st *calViewState, mode *string, nav func(time.Time
 	if !w.full {
 		b.Paint(func(l *paint.List, r geom.Rect) { dataHLine(l, r.X, r.Bottom()-1, r.W, tk.HeaderBorderColor) })
 	}
+}
+
+// ymSelects builds the year select and (with month) the month select of
+// a header; ValidRange limits the choices.
+func (w *CalendarW) ymSelects(st *calViewState, nav func(time.Time), size ControlSize, month bool) {
+	c, tk := w.c, w.tk
+	loc := c.Locale()
+	label := func(v int, kind, def string) string {
+		if w.formatter != nil {
+			if s := w.formatter(v, kind); s != "" {
+				return s
+			}
+		}
+		return def
+	}
+	var years []Option
+	y0 := st.view.Year()
+	lo, hi := y0-10, y0+10
+	if !w.validA.IsZero() {
+		lo, hi = w.validA.Year(), w.validB.Year()
+	}
+	for y := lo; y <= hi; y++ {
+		years = append(years, Option{Label: label(y, "year", loc.Year(y)), Value: strconv.Itoa(y)})
+	}
+	st.yearS = strconv.Itoa(y0)
+	if Select(c, &st.yearS, years).A11yLabel(loc.Calendar.Year).Size(size).Width(map[bool]float32{true: tk.YearControlWidth, false: tk.YearControlWidthSM}[w.full]).Changed() {
+		if y, err := strconv.Atoi(st.yearS); err == nil {
+			nav(time.Date(y, st.view.Month(), 1, 0, 0, 0, 0, time.UTC))
+		}
+	}
+	if !month {
+		return
+	}
+	var months []Option
+	for m := 1; m <= 12; m++ {
+		first := time.Date(y0, time.Month(m), 1, 0, 0, 0, 0, time.UTC)
+		months = append(months, Option{Label: label(m, "month", loc.Month(m)), Value: strconv.Itoa(m), Disabled: !w.validMonth(first)})
+	}
+	st.monS = strconv.Itoa(int(st.view.Month()))
+	if Select(c, &st.monS, months).A11yLabel(loc.Calendar.Month).Size(size).Width(map[bool]float32{true: tk.MonthControlWidth, false: tk.MonthControlWidthSM}[w.full]).Changed() {
+		if m, err := strconv.Atoi(st.monS); err == nil {
+			nav(time.Date(st.view.Year(), time.Month(m), 1, 0, 0, 0, 0, time.UTC))
+		}
+	}
+}
+
+// elSelectHeader is the Element header with controller-type="select":
+// the month title and the year and month selects.
+func (w *CalendarW) elSelectHeader(st *calViewState, nav func(time.Time), pick func(time.Time)) {
+	c, th, tk := w.c, w.th, w.tk
+	loc := c.Locale()
+	Row(c, func() {
+		Text(c, dtMonthTitle(loc, st.view)).Color(th.Text).Layout(layout.Grow(1))
+		Row(c, func() {
+			w.ymSelects(st, nav, Small, true)
+			// select-controller.vue: a small "Today" button after the
+			// selects.
+			if Button(c, loc.Today).Small().Disabled(!w.valid(c.now)).Clicked() {
+				nav(c.now)
+				pick(dtDayUTC(c.now))
+			}
+		}, layout.Middle(), layout.Gap(8))
+	}, layout.PadVH(12, 20), layout.Middle()).Paint(func(l *paint.List, r geom.Rect) {
+		dataHLine(l, r.X, r.Bottom()-1, r.W, tk.HeaderBorderColor)
+	})
 }
 
 // rangeHeader shows the Range ("2026-03-02 – 2026-04-12") instead of the
@@ -274,14 +387,14 @@ func (w *CalendarW) elHeader(st *calViewState, nav func(time.Time), pick func(ti
 	Row(c, func() {
 		Text(c, dtMonthTitle(loc, st.view)).Color(th.Text).Layout(layout.Grow(1))
 		Row(c, func() {
-			if Button(c, loc.PrevMonth).Small().Clicked() {
+			if Button(c, loc.PrevMonth).Small().Disabled(!w.validMonth(st.view.AddDate(0, -1, 0))).Clicked() {
 				nav(st.view.AddDate(0, -1, 0))
 			}
-			if Button(c, loc.Today).Small().Clicked() {
+			if Button(c, loc.Today).Small().Disabled(!w.valid(c.now)).Clicked() {
 				nav(c.now)
 				pick(dtDayUTC(c.now))
 			}
-			if Button(c, loc.NextMonth).Small().Clicked() {
+			if Button(c, loc.NextMonth).Small().Disabled(!w.validMonth(st.view.AddDate(0, 1, 0))).Clicked() {
 				nav(st.view.AddDate(0, 1, 0))
 			}
 		}, layout.Middle())
@@ -345,8 +458,37 @@ func (w *CalendarW) monthGrid(st *calViewState, pick func(time.Time)) {
 		active = c.now
 	}
 	grid := Column(c, func() {
+		// weekCell adds the week number cell of a row (ShowWeek): the ISO
+		// week of the row's Thursday; an empty cell in the header.
+		weekW := tk.WeekColumnWidth
+		weekCell := func(first time.Time, header bool) {
+			if !w.showWeek {
+				return
+			}
+			if header {
+				b := c.add("cal-week-head", "")
+				b.ln.Width = weekW
+				b.aHidden = true
+				return
+			}
+			var thu time.Time
+			for i := 0; i < 7; i++ {
+				if d := first.AddDate(0, 0, i); d.Weekday() == time.Thursday {
+					thu = d
+				}
+			}
+			_, wn := thu.ISOWeek()
+			wl := Text(c, strconv.Itoa(wn)).Color(tk.WeekNumberColor).Align(AlignCenter).Layout(layout.W(weekW))
+			if w.full {
+				wl.Layout(layout.PadVH(4, 0))
+			} else {
+				wl.Layout(layout.Self(layout.AlignCenter))
+			}
+			wl.n.setRole(a11y.RoleRowHeader).setName(p2aWeekLabel(c.Locale(), thu))
+		}
 		// Weekday header.
 		Row(c, func() {
+			weekCell(time.Time{}, true)
 			for _, nm := range names {
 				t := Text(c, nm).Layout(layout.Grow(1), layout.Basis(0))
 				t.n.setRole(a11y.RoleColumnHeader)
@@ -365,6 +507,7 @@ func (w *CalendarW) monthGrid(st *calViewState, pick func(time.Time)) {
 		}).n.setRole(a11y.RoleRow)
 		for r := 0; r < rows; r++ {
 			Row(c, func() {
+				weekCell(gridStart.AddDate(0, 0, r*7), false)
 				for col := 0; col < 7; col++ {
 					day := gridStart.AddDate(0, 0, r*7+col)
 					Key(c, day.Format("20060102"), func() {
@@ -430,7 +573,7 @@ func (w *CalendarW) dayCell(day time.Time, st *calViewState, cellH float32, pick
 	}
 	sel := dtSameDay(*w.val, day)
 	isToday := dtSameDay(day, c.now)
-	dis := (w.disabled != nil && w.disabled(day)) || out
+	dis := (w.disabled != nil && w.disabled(day)) || out || !w.valid(day)
 	label := strconv.Itoa(day.Day())
 	if w.full && !el {
 		label = fmt.Sprintf("%02d", day.Day())
@@ -474,6 +617,13 @@ func (w *CalendarW) dayCell(day time.Time, st *calViewState, cellH float32, pick
 					to = w.rangeA
 				} else if to.After(w.rangeB) {
 					to = w.rangeB
+				}
+			}
+			if !w.validA.IsZero() {
+				if to.Before(w.validA) {
+					to = w.validA
+				} else if to.After(w.validB) {
+					to = w.validB
 				}
 			}
 			st.kbd, st.pending = to, true
@@ -639,16 +789,21 @@ func (w *CalendarW) yearGrid(st *calViewState, mode *string, nav func(time.Time)
 						}
 						cell := c.box("cal-month", layout.Column, opts)
 						cell.n.label = m.Format("2006-01")
-						ia := cell.Focusable(input.CursorPointer)
+						mdis := !w.validMonth(m)
+						cursor := input.CursorPointer
+						if mdis {
+							cursor = input.CursorNotAllowed
+						}
+						ia := cell.Focusable(cursor)
 						cells[r*3+col] = cell.n.id
-						if ia.Clicked {
+						if ia.Clicked && !mdis {
 							nav(m)
 							*mode = "month"
 						}
 						sel := m.Year() == st.view.Year() && m.Month() == st.view.Month()
-						cur := m.Equal(thisMonth)
+						now := m.Equal(thisMonth)
 						cell.n.setRole(a11y.RoleCell).setName(loc.YearMonth(m.Year(), int(m.Month()))).
-							setState(a11y.Selectable).stateIf(sel, a11y.Selected).stateIf(cur, a11y.Current)
+							setState(a11y.Selectable).stateIf(sel, a11y.Selected).stateIf(now, a11y.Current).stateIf(mdis, a11y.Disabled)
 						cell.n.aKbd = true
 						if !sel {
 							cell.n.noTab = true
@@ -659,11 +814,15 @@ func (w *CalendarW) yearGrid(st *calViewState, mode *string, nav func(time.Time)
 								drawFocusRing(l, th, rr.Inset(geom.All(g)), geom.Rad(th.RadiusSM))
 							}
 						}
-						hov := c.Anim(cell.n.id, "hover", b2f(ia.Hovered), th.DurationMid)
+						hov := c.Anim(cell.n.id, "hover", b2f(ia.Hovered && !mdis), th.DurationMid)
 						label := loc.Month(int(m.Month()))
 						fs := c.style(th.FontSize, text.Regular)
+						cur := now
 						cell.n.paint = func(l *paint.List, rr geom.Rect) {
 							col := tk.ItemColor
+							if mdis {
+								col = th.TextDisabled
+							}
 							if w.full {
 								bg := theme.Color{}
 								if sel {

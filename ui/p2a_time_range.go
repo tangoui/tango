@@ -52,11 +52,14 @@ type TimeRangePickerW struct {
 	forced     bool
 	ia         Interaction
 	z          *lazy
+	place      Placement // popup placement (Ant placement)
+	noOrder    bool      // Order(false): keep start / end as picked
 }
 
 // TimeRangePicker adds a time range input bound to *val ([start, end],
 // zero = empty). Both ends are edited in side-by-side columns and
-// committed with OK (or Enter); the result is ordered by clock. Each end
+// committed with OK (or Enter); the result is ordered by clock (see
+// Order). Each end
 // can also be typed: printable keys edit the active end, Enter applies
 // valid text (and commits once both ends are set), invalid or disabled
 // text is dropped.
@@ -66,7 +69,7 @@ type TimeRangePickerW struct {
 // ConfigProvider.Defaults("TimeRangePicker", ...) keys: "format",
 // "separator", "use12Hours", "hourStep", "minuteStep", "secondStep",
 // "allowClear", "width", "size", "variant", "hideDisabledOptions",
-// "placeholder" ([2]string).
+// "placeholder" ([2]string), "placement", "order".
 func TimeRangePicker(c *Context, val *[2]time.Time) *TimeRangePickerW {
 	loc := c.Locale()
 	w := &TimeRangePickerW{c: c, val: val, loc: loc, format: "15:04:05", sep: loc.RangeSeparator,
@@ -87,6 +90,10 @@ func TimeRangePicker(c *Context, val *[2]time.Time) *TimeRangePickerW {
 	def.size(&w.size)
 	def.str("variant", &w.variant)
 	def.flag("hideDisabledOptions", &w.clock.hide)
+	dtPlaceDefault(c, "TimeRangePicker", &w.place)
+	order := true
+	def.flag("order", &order)
+	w.noOrder = !order
 	if v, ok := c.ConfigProp("TimeRangePicker", "placeholder"); ok {
 		if p, ok := v.([2]string); ok {
 			w.ph = p
@@ -194,6 +201,20 @@ func (w *TimeRangePickerW) Changed() bool { w.z.run(); return w.changed }
 // "borderless" or "underlined".
 func (w *TimeRangePickerW) Variant(v string) *TimeRangePickerW { w.variant = v; return w }
 
+// Placement sets where the columns open: BottomStart (default),
+// BottomEnd, TopStart or TopEnd (Ant placement); they flip when there is
+// no room.
+func (w *TimeRangePickerW) Placement(p Placement) *TimeRangePickerW { w.place = p; return w }
+
+// Separator sets the text between the two ends (Ant separator, Element
+// range-separator; default the Locale's RangeSeparator).
+func (w *TimeRangePickerW) Separator(s string) *TimeRangePickerW { w.sep = s; return w }
+
+// Order toggles sorting the two ends by clock (Ant order, on by default).
+// Order(false) keeps an end earlier than the start, e.g. an overnight
+// shift 22:00 – 06:00.
+func (w *TimeRangePickerW) Order(on bool) *TimeRangePickerW { w.noOrder = !on; return w }
+
 // HideDisabledOptions leaves disabled hours, minutes and seconds out of
 // the columns instead of greying them (Ant hideDisabledOptions).
 func (w *TimeRangePickerW) HideDisabledOptions(on bool) *TimeRangePickerW {
@@ -286,7 +307,7 @@ func (w *TimeRangePickerW) commit() {
 	if a.IsZero() || b.IsZero() || w.cfg(0).disabled(a) || w.cfg(1).disabled(b) {
 		return
 	}
-	if dtClockOf(b) < dtClockOf(a) {
+	if dtClockOf(b) < dtClockOf(a) && !w.noOrder {
 		a, b = b, a
 	}
 	if !a.Equal(w.val[0]) || !b.Equal(w.val[1]) {
@@ -427,7 +448,7 @@ func (w *TimeRangePickerW) panel() {
 	th := c.Theme
 	el := th.Flavor == theme.Element
 	loc := c.Locale()
-	dtStylePanel(c, entPanel(c, w.n.id, &st.pop, false, func() {
+	dtStylePanel(c, dtPanel(c, w.n.id, &st.pop, w.place, func() {
 		Column(c, func() {
 			Row(c, func() {
 				for i := 0; i < 2; i++ {

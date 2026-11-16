@@ -21,6 +21,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ebitengine/purego/objc"
+
 	"github.com/tangoui/tango"
 )
 
@@ -42,6 +44,7 @@ var (
 		"setbounds", "moved-event", "resized-event", "maximize", "restore",
 		"zoom", "reload-navigating", "reload-loaded", "send-after-reload",
 		"loadfailed", "probe-delivery", "internal-hidden", "sheet",
+		"spaces-normal", "spaces-panel", "spaces-all", "spaces-off",
 	}
 )
 
@@ -107,7 +110,7 @@ func main() {
 		go script(app, &normal, steps)
 	})
 
-	time.AfterFunc(scaled(5*time.Second), app.Quit)
+	time.AfterFunc(scaled(6*time.Second), app.Quit)
 	if err := app.Run(); err != nil {
 		fmt.Println("run:", err)
 		os.Exit(1)
@@ -270,6 +273,60 @@ func script(app *tango.App, sp **tango.Surface, steps *stepLog) {
 	time.Sleep(300 * time.Millisecond)
 	sheet.Close()
 	pass("sheet", "shown and closed")
+
+	spaces(app, s)
+}
+
+// NSWindowCollectionBehavior bits.
+const (
+	cbAllSpaces    = 1 << 0
+	cbIgnoresCycle = 1 << 6
+	cbFSPrimary    = 1 << 7
+	cbFSAuxiliary  = 1 << 8
+)
+
+// behavior reads the NSWindow's collectionBehavior on the main thread.
+func behavior(app *tango.App, s *tango.Surface) uint {
+	return tango.Await(app, func() uint {
+		return objc.Send[uint](objc.ID(s.Native()), objc.RegisterName("collectionBehavior"))
+	})
+}
+
+// spaces checks the collection behavior of a normal window, a panel
+// (left out of window cycling) and Appearance.AllSpaces set and cleared.
+func spaces(app *tango.App, normal *tango.Surface) {
+	if b := behavior(app, normal); b == cbFSPrimary {
+		pass("spaces-normal", fmt.Sprintf("%#x", b))
+	} else {
+		fail("spaces-normal", fmt.Sprintf("%#x", b))
+	}
+	panel, err := app.NewSurface(tango.SurfaceOptions{Title: "panel", Width: 200, Height: 120, Kind: tango.KindPanel,
+		Appearance: tango.Appearance{TitleBar: tango.TitleBarNone, Transparent: true, AlwaysOnTop: true}})
+	if err != nil {
+		fail("spaces-panel", err.Error())
+		return
+	}
+	defer panel.Close()
+	if b := behavior(app, panel); b == cbFSAuxiliary|cbIgnoresCycle {
+		pass("spaces-panel", fmt.Sprintf("%#x", b))
+	} else {
+		fail("spaces-panel", fmt.Sprintf("%#x", b))
+	}
+	ap := panel.Appearance()
+	ap.AllSpaces = true
+	panel.SetAppearance(ap)
+	if b := behavior(app, panel); b == cbAllSpaces|cbFSAuxiliary|cbIgnoresCycle && panel.Appearance().AllSpaces {
+		pass("spaces-all", fmt.Sprintf("%#x", b))
+	} else {
+		fail("spaces-all", fmt.Sprintf("%#x", b))
+	}
+	ap.AllSpaces = false
+	panel.SetAppearance(ap)
+	if b := behavior(app, panel); b == cbFSAuxiliary|cbIgnoresCycle {
+		pass("spaces-off", fmt.Sprintf("%#x", b))
+	} else {
+		fail("spaces-off", fmt.Sprintf("%#x", b))
+	}
 }
 
 var hiddenFailed bool

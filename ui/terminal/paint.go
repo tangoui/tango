@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"container/list"
+	"math"
 	"strings"
 
 	"github.com/tangoui/tango/ui/geom"
@@ -33,7 +34,10 @@ import (
 // reports, and damages the old and new cursor rows and the scrollbar
 // strip when they change; anything else that changes (size, colors,
 // selection, the exit message, a full redraw from the emulator) damages
-// the whole view.
+// the whole view. A row's damage reaches rowPad past its line box, where
+// glyphs such as "|", "_" and descenders overhang it; a scroll also
+// damages the grid's top edge, where the copy leaves the overhang of the
+// rows it moved out of the grid.
 
 // segKey identifies a shaped segment.
 type segKey struct {
@@ -552,6 +556,11 @@ func snapshotText(s *vt.Snapshot) string {
 	return strings.TrimRight(sb.String(), "\n")
 }
 
+// rowPad is how far, in logical pixels, a row's damage reaches past its
+// line box: some glyphs ("|", "_", descenders of tall fonts) overhang it.
+// The editor pads its rows the same way (ui/editor/damage.go).
+func rowPad(lh float32) float32 { return max(2, float32(math.Ceil(float64(lh)/4))) }
+
 // declareDamage declares what changed since the last paint: n rows
 // scrolled, the dirty rows, or all.
 func (w *ViewW) declareDamage(cur damageRec, n int, dirty []int, all bool) {
@@ -564,14 +573,26 @@ func (w *ViewW) declareDamage(cur damageRec, n int, dirty []int, all bool) {
 		c.Damage(r)
 		return
 	}
+	pad := rowPad(lh)
+	// band damages the view between y0 and y1, padded by pad.
+	band := func(y0, y1 float32) {
+		if d := (geom.Rect{X: r.X, Y: y0 - pad, W: r.W, H: y1 - y0 + 2*pad}).Intersect(r); !d.Empty() {
+			c.Damage(d)
+		}
+	}
 	row := func(y int) {
 		if y >= 0 && y < cur.viewRows {
-			c.Damage(geom.Rect{X: r.X, Y: r.Y + float32(y)*lh, W: r.W, H: lh})
+			top := r.Y + float32(y)*lh
+			band(top, top+lh)
 		}
 	}
 	if n > 0 {
 		grid := geom.Rect{X: r.X, Y: r.Y, W: r.W, H: float32(cur.viewRows) * lh}
 		w.box.ScrollShift(grid, geom.Pt(0, -float32(n)*lh))
+		// The copy moves a row's overhang with it, also the overhang of
+		// the rows it moves out of the top, which ends up on row 0. (Below
+		// the grid the rows scrolled in are dirty: vt marks them.)
+		band(grid.Y, grid.Y)
 	}
 	for _, y := range dirty {
 		row(y)

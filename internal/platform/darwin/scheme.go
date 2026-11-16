@@ -17,6 +17,7 @@ package darwin
 // webView:stopURLSchemeTask:.
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -69,10 +70,11 @@ func registerSchemeHandler() {
 // schemeTask adapts one WKURLSchemeTask to the taskSink interface used by
 // assetWriter. Main thread only.
 type schemeTask struct {
-	native id // retained WKURLSchemeTask; zero once closed
-	w      *assetWriter
-	cancel context.CancelFunc
-	lane   *laneTrack // lane request counters (test hook, lanes_dev.go); nil in production builds
+	native     id // retained WKURLSchemeTask; zero once closed
+	w          *assetWriter
+	cancel     context.CancelFunc
+	bodyStream id         // retained while the request body is drained off-main
+	lane       *laneTrack // lane request counters (test hook, lanes_dev.go); nil in production builds
 }
 
 func (t *schemeTask) open() bool { return t.native != 0 }
@@ -86,6 +88,11 @@ func (t *schemeTask) close() {
 	t.native = 0
 	t.lane.done()
 	t.cancel()
+	if t.bodyStream != 0 {
+		send(t.bodyStream, "close")
+		release(t.bodyStream)
+		t.bodyStream = 0
+	}
 	delete(assetBridge.inFlight, native)
 	release(native)
 }
@@ -114,7 +121,15 @@ func serveSchemeTask(webView, native id) {
 	assetBridge.inFlight[native] = t
 	t.w = newAssetWriter(ctx, t, postMain, "")
 
-	req, err := buildRequest(ctx, requestFromNative(send(native, "request")))
+	nr := requestFromNative(send(native, "request"))
+	if nr.BodyTooLarge {
+		t.w.WriteHeader(http.StatusRequestEntityTooLarge)
+		t.w.finish()
+		return
+	}
+	stream := nr.BodyStream
+	nr.BodyStream = 0 // ownership moves to the scheme task below
+	req, err := buildRequest(ctx, nr)
 	if err != nil {
 		t.w.WriteHeader(http.StatusBadRequest)
 		t.w.finish()
@@ -132,7 +147,29 @@ func serveSchemeTask(webView, native id) {
 		sid = s.id
 	}
 	h, w := b.h, t.w
-	go runAssetHandler(w, func() { h.ServeAsset(sid, w, req) })
+	if stream == 0 {
+		go runAssetHandler(w, func() { h.ServeAsset(sid, w, req) })
+		return
+	}
+	// Retain the stream once for the task (so stop can close a blocked read)
+	// and once for the worker. No body bytes are read on WebKit's main thread.
+	t.bodyStream = retain(stream)
+	go func(s id) {
+		defer release(s)
+		body, err := drainInputStreamLimit(s, maxAssetRequestBody)
+		if err != nil {
+			if errors.Is(err, errAssetRequestBodyTooLarge) {
+				w.WriteHeader(http.StatusRequestEntityTooLarge)
+			} else {
+				w.WriteHeader(http.StatusBadRequest)
+			}
+			w.finish()
+			return
+		}
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		req.ContentLength = int64(len(body))
+		runAssetHandler(w, func() { h.ServeAsset(sid, w, req) })
+	}(retain(stream))
 }
 
 // requestFromNative copies the parts of an NSURLRequest the Go side needs.
@@ -159,9 +196,13 @@ func requestFromNative(r id) nativeRequest {
 	// streamed or large body, as an NSInputStream.
 	switch body, stream := send(r, "HTTPBody"), send(r, "HTTPBodyStream"); {
 	case body != 0:
-		out.Body = goBytes(body)
+		if int64(sendInt(body, "length")) > maxAssetRequestBody {
+			out.BodyTooLarge = true
+		} else {
+			out.Body = goBytes(body)
+		}
 	case stream != 0:
-		out.Body = drainInputStream(stream)
+		out.BodyStream = stream
 	}
 	return out
 }
@@ -184,11 +225,26 @@ func (r nsInputStream) Read(p []byte) (int, error) {
 	}
 }
 
-func drainInputStream(stream id) []byte {
+const maxAssetRequestBody = 64 << 20
+
+var errAssetRequestBodyTooLarge = errors.New("tango: asset request body too large")
+
+func drainInputStreamLimit(stream id, max int64) ([]byte, error) {
 	send(stream, "open")
-	body, _ := io.ReadAll(nsInputStream{stream}) // keep what arrived before an error
+	body, err := readAssetBody(nsInputStream{stream}, max)
 	send(stream, "close")
-	return body
+	return body, err
+}
+
+func readAssetBody(r io.Reader, max int64) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(r, max+1))
+	if err != nil {
+		return body, err
+	}
+	if int64(len(body)) > max {
+		return body[:max], errAssetRequestBodyTooLarge
+	}
+	return body, nil
 }
 
 // respond sends the response head. WebKit wants an NSHTTPURLResponse for the
@@ -234,7 +290,7 @@ func (t *schemeTask) data(p []byte) {
 		chunk := nsData(p)
 		send(t.native, "didReceiveData:", uintptr(chunk))
 	})
-	t.lane.data()
+	t.lane.data(len(p))
 }
 
 // finish ends the response and closes the task: the writer's last action.

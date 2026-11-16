@@ -24,6 +24,8 @@ type SplitterPanelW struct {
 	size        float32 // default size in px (0 = share)
 	percent     float32 // default size as fraction 0..1
 	min, max    float32 // px limits
+	minPct      float32 // MinPercent (0..1; 0: none)
+	maxPct      float32 // MaxPercent (0..1; 0: none)
 	collapsible bool
 	toggle      bool   // CollapseToggle: one arrow that folds this pane
 	collapseTip string // CollapseToggle tips (empty: locale Collapse / Expand)
@@ -58,6 +60,18 @@ func (p *SplitterPanelW) Min(px float32) *SplitterPanelW { p.min = px; return p 
 
 // Max sets the maximum size in pixels.
 func (p *SplitterPanelW) Max(px float32) *SplitterPanelW { p.max = px; return p }
+
+// MinPercent / MaxPercent limit the size as a fraction of the splitter
+// (antd min / max "20%"); with Min / Max too, the tighter limit wins. A
+// minimum above the maximum keeps the pane at the minimum.
+func (p *SplitterPanelW) MinPercent(f float32) *SplitterPanelW {
+	p.minPct = max(0, min(f, 1))
+	return p
+}
+func (p *SplitterPanelW) MaxPercent(f float32) *SplitterPanelW {
+	p.maxPct = max(0, min(f, 1))
+	return p
+}
 
 // Collapsible shows collapse arrows on the adjacent bars.
 func (p *SplitterPanelW) Collapsible() *SplitterPanelW { p.collapsible = true; return p }
@@ -116,6 +130,7 @@ type SplitterW struct {
 	st       *splitterState
 	changed  bool
 	lazy     bool
+	handle   bool                 // WithHandle
 	started  int                  // bar index whose drag started this frame (0: none)
 	ended    int                  // bar index whose drag ended this frame (0: none)
 	th       *theme.Theme         // c.ThemeFor(theme.CompSplitter), set by Body
@@ -124,13 +139,33 @@ type SplitterW struct {
 
 // Splitter starts a split view; chain options, then Body with SplitterPanel calls.
 //
-// ConfigProvider.Defaults("Splitter", ...) keys: "layout" ("vertical").
+// ConfigProvider.Defaults("Splitter", ...) keys: "orientation" ("vertical";
+// antd 6), "layout" (its deprecated name), "lazy", "withHandle" (bool).
+//
+// Under shadcn/ui this is Resizable: a 1px border line, WithHandle adds the
+// grip box of ResizableHandle withHandle.
 func Splitter(c *Context) *SplitterW {
-	return &SplitterW{c: c, vertical: Prop(c, "Splitter", "layout", "") == "vertical"}
+	s := &SplitterW{c: c, vertical: Prop(c, "Splitter", "layout", "") == "vertical"}
+	if o := Prop(c, "Splitter", "orientation", ""); o != "" {
+		s.Orientation(o)
+	}
+	s.lazy = Prop(c, "Splitter", "lazy", false)
+	s.handle = Prop(c, "Splitter", "withHandle", false)
+	return s
 }
 
 // Vertical stacks panes top to bottom.
+//
+// Deprecated: use Orientation("vertical") (antd 6 orientation).
 func (s *SplitterW) Vertical() *SplitterW { s.vertical = true; return s }
+
+// Orientation lays the panes out "horizontal" (default, side by side) or
+// "vertical" (antd 6 orientation; layout deprecated).
+func (s *SplitterW) Orientation(o string) *SplitterW { s.vertical = o == "vertical"; return s }
+
+// WithHandle draws a grip on every resizable bar (shadcn ResizableHandle
+// withHandle).
+func (s *SplitterW) WithHandle() *SplitterW { s.handle = true; return s }
 
 // Style applies layout options (give the splitter a size, e.g. layout.H(200)).
 func (s *SplitterW) Style(opts ...layout.Option) *SplitterW { s.opts = opts; return s }
@@ -227,10 +262,15 @@ func (s *SplitterW) Body(fn func()) *Box {
 		}
 	}
 	limits := func(i int) (lo, hi float32) {
-		lo, hi = panels[i].min/total, 1
-		if panels[i].max > 0 {
-			hi = panels[i].max / total
+		p := panels[i]
+		lo, hi = max(p.min/total, p.minPct), 1
+		if p.max > 0 {
+			hi = p.max / total
 		}
+		if p.maxPct > 0 {
+			hi = min(hi, p.maxPct)
+		}
+		hi = max(hi, lo) // min > max: the minimum wins
 		return
 	}
 	if s.lazy {
@@ -279,7 +319,7 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 	c, th, tk := s.c, s.th, s.tk
 	barW := tk.SplitTriggerSize
 	n := c.add("splitter-bar", "splitter-bar-"+strconv.Itoa(i))
-	resizable := !panels[i-1].fixed && !panels[i].fixed
+	resizable := !panels[i-1].fixed && !panels[i].fixed && c.disabledDepth == 0
 	if s.vertical {
 		n.ln.Height = barW
 	} else {
@@ -335,9 +375,9 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 				}
 				an := c.add("splitter-arrow", label)
 				an.ln.Absolute = true
-				w, h := float32(16), float32(20)
+				w, h := tk.CollapseWidth, tk.CollapseHeight
 				if s.vertical {
-					w, h = 20, 16
+					w, h = h, w
 				}
 				an.ln.Width, an.ln.Height = w, h
 				if s.vertical {
@@ -525,20 +565,58 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 	id := n.id
 	vertical := s.vertical
 	n.paint = func(l *paint.List, r geom.Rect) {
-		hov := c.Anim(id, "hover", b2f(ia.Hovered || c.Dragging(id)), th.DurationMid)
+		dragging := c.Dragging(id)
+		hov := c.Anim(id, "hover", b2f(ia.Hovered || dragging), th.DurationMid)
 		line := tk.BarColor
+		if resizable {
+			hc, ac := tk.BarHoverColor, tk.BarActiveColor
+			if hc.A == 0 {
+				hc = line
+			}
+			if ac.A == 0 {
+				ac = hc
+			}
+			line = theme.Lerp(line, hc, hov)
+			if dragging {
+				line = ac
+			}
+		}
+		lw := max(1, tk.BarLineSize)
 		if vertical {
-			navHLine(l, r.X, r.Y+r.H/2-0.5, r.W, line)
+			l.Fill(geom.Rect{X: r.X, Y: r.Y + r.H/2 - lw/2, W: r.W, H: lw}, geom.Rad(0), line)
 		} else {
-			navVLine(l, r.X+r.W/2-0.5, r.Y, r.H, line)
+			l.Fill(geom.Rect{X: r.X + r.W/2 - lw/2, Y: r.Y, W: lw, H: r.H}, geom.Rad(0), line)
 		}
 		if ia.FocusVisible {
 			drawFocusRing(l, th, r, geom.Rad(th.RadiusSM))
 		}
-		if resizable {
-			col := theme.Lerp(tk.HandleHoverColor, tk.HandleActiveColor, b2f(c.Dragging(id)))
-			if hov > 0 || c.Dragging(id) {
-				col = theme.Fade(col, float64(max(hov, b2f(c.Dragging(id)))))
+		if resizable && s.handle {
+			// shadcn withHandle: a bordered grip box on the line.
+			gw, gh := tk.GripWidth, tk.GripHeight
+			if vertical {
+				gw, gh = gh, gw
+			}
+			gr := geom.Rect{X: r.X + r.W/2 - gw/2, Y: r.Y + r.H/2 - gh/2, W: gw, H: gh}
+			l.Fill(gr, geom.Rad(tk.GripRadius), tk.GripBg)
+			l.Stroke(gr, geom.Rad(tk.GripRadius), 1, tk.GripBorder)
+			gs := tk.GripIconSize
+			ir := geom.Rect{X: gr.X + gw/2 - gs/2, Y: gr.Y + gh/2 - gs/2, W: gs, H: gs}
+			if vertical {
+				l.Transform(geom.RotateAround(1.5707964, geom.Pt(ir.X+gs/2, ir.Y+gs/2)))
+				c.paintIcon(l, icon.Holder, ir, tk.GripColor, 0)
+				l.Pop()
+			} else {
+				c.paintIcon(l, icon.Holder, ir, tk.GripColor, 0)
+			}
+		} else if resizable {
+			col := theme.Lerp(tk.HandleHoverColor, tk.HandleActiveColor, b2f(dragging))
+			show := max(hov, b2f(dragging))
+			if tk.HandleColor.A > 0 {
+				// antd: the spinner is always shown.
+				col, show = theme.Lerp(tk.HandleColor, col, show), 1
+			}
+			if show > 0 && col.A > 0 {
+				col = theme.Fade(col, float64(show))
 				bs, bl := tk.SplitBarSize, tk.SplitBarDraggableSize
 				if vertical {
 					l.Fill(geom.Rect{X: r.X + r.W/2 - bl/2, Y: r.Y + r.H/2 - bs/2, W: bl, H: bs}, geom.Rad(bs/2), col)
@@ -552,15 +630,16 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 			for k, an := range arrowNodes[:nArrows] {
 				// Position the arrow boxes around the bar center for this
 				// frame (a single toggle sits on the center).
-				off := -26 + float32(k)*32
+				cw, ch := tk.CollapseWidth, tk.CollapseHeight
+				off := -ch - 6 + float32(k)*(ch+12)
 				if tgt >= 0 {
-					off = -10
+					off = -ch / 2
 				}
 				var ar geom.Rect
 				if vertical {
-					ar = geom.Rect{X: r.X + r.W/2 + off, Y: r.Y + r.H/2 - 8, W: 20, H: 16}
+					ar = geom.Rect{X: r.X + r.W/2 + off, Y: r.Y + r.H/2 - cw/2, W: ch, H: cw}
 				} else {
-					ar = geom.Rect{X: r.X + r.W/2 - 8, Y: r.Y + r.H/2 + off, W: 16, H: 20}
+					ar = geom.Rect{X: r.X + r.W/2 - cw/2, Y: r.Y + r.H/2 + off, W: cw, H: ch}
 				}
 				if tgt >= 0 && folded(tgt) {
 					// The bar now lies on the splitter's edge (the folded

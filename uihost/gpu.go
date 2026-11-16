@@ -243,6 +243,24 @@ type gpuRenderer struct {
 	big      *paint.CPU
 	bigFrame bool // the current frame was drawn by big
 	bigNoted bool // logged for the current oversized stretch
+
+	trace *frameTrace // TANGO_FRAME_TRACE (frametrace.go); nil: off
+}
+
+// setTrace times Render and presentFrame into t and, when the presenter
+// has a timeline (metal), feeds it drawable waits and GPU times.
+func (g *gpuRenderer) setTrace(t *frameTrace) {
+	g.trace = t
+	g.attachTimeline()
+}
+
+// attachTimeline connects the current GPU renderer's timeline (if any) to
+// the trace; called again after the renderer changes (auto promotion).
+func (g *gpuRenderer) attachTimeline() {
+	if g.trace == nil || g.gpu == nil {
+		return
+	}
+	attachTimeline(g.gpu, g.trace) // frametrace.go
 }
 
 func (g *gpuRenderer) lost() bool { return g.cpu != nil }
@@ -265,8 +283,23 @@ func (g *gpuRenderer) Render(l *paint.List, size geom.Size, scale float32) error
 		g.auto = nil // try once; failures never cause a retry storm
 		if promoted := startGPU(cv, false); promoted != nil && promoted.gpu != nil {
 			g.gpu, g.present, g.cpu = promoted.gpu, promoted.present, nil
+			g.attachTimeline()
 		}
 	}
+	return g.trace.timed(g.traceSlot(func(t *frameTrace) *[]time.Duration { return &t.render }), func() error {
+		return g.render(l, size, scale)
+	})
+}
+
+// traceSlot returns the trace slice pick selects, or nil without a trace.
+func (g *gpuRenderer) traceSlot(pick func(*frameTrace) *[]time.Duration) *[]time.Duration {
+	if g.trace == nil {
+		return nil
+	}
+	return pick(g.trace)
+}
+
+func (g *gpuRenderer) render(l *paint.List, size geom.Size, scale float32) error {
 	if g.cpu != nil {
 		return g.cpu.Render(l, size, scale)
 	}
@@ -329,6 +362,12 @@ func (g *gpuRenderer) fallback(cv platform.Canvas, id platform.SurfaceID, err er
 
 // presentFrame is window.Present(nil) on a GPU window.
 func (g *gpuRenderer) presentFrame(cv platform.Canvas, id platform.SurfaceID) error {
+	return g.trace.timed(g.traceSlot(func(t *frameTrace) *[]time.Duration { return &t.present }), func() error {
+		return g.presentFrame1(cv, id)
+	})
+}
+
+func (g *gpuRenderer) presentFrame1(cv platform.Canvas, id platform.SurfaceID) error {
 	if g.cpu != nil {
 		return cv.Present(g.cpu.Image())
 	}

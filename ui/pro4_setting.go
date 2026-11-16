@@ -39,7 +39,7 @@ import (
 type ProSettings struct {
 	_ [0]func()
 
-	NavTheme     string      // "light", "dark" (default) or "realDark"
+	NavTheme     string      // "light", "dark" or "realDark"
 	PrimaryColor theme.Color // zero: the theme's brand color
 	Layout       string      // "side" (default), "top" or "mix"
 	ContentWidth string      // "Fluid" (default) or "Fixed"
@@ -49,10 +49,10 @@ type ProSettings struct {
 	Compact      bool
 }
 
-// DefaultProSettings returns Pro's defaults: dark menu, side layout,
-// fluid content, fixed header and side menu.
+// DefaultProSettings returns Pro v3 defaults: light menu, side layout,
+// fluid content, scrolling header and fixed side menu.
 func DefaultProSettings() ProSettings {
-	return ProSettings{NavTheme: "dark", Layout: "side", ContentWidth: "Fluid", FixedHeader: true, FixSiderbar: true}
+	return ProSettings{NavTheme: "light", Layout: "side", ContentWidth: "Fluid", FixedHeader: false, FixSiderbar: true}
 }
 
 // Apply copies the layout settings into cfg.
@@ -60,10 +60,12 @@ func (s ProSettings) Apply(cfg *ProLayoutConfig) {
 	if s.Layout != "" {
 		cfg.Layout = s.Layout
 	}
-	cfg.LightSider = s.NavTheme == "light"
+	cfg.NavTheme = s.NavTheme
+	cfg.LightSider = s.NavTheme != "dark"
 	if s.ContentWidth != "" {
 		cfg.ContentWidth = s.ContentWidth
 	}
+	cfg.FixedHeader = s.FixedHeader
 	cfg.NoFixedHeader = !s.FixedHeader
 	cfg.NoFixSiderbar = !s.FixSiderbar
 }
@@ -71,7 +73,7 @@ func (s ProSettings) Apply(cfg *ProLayoutConfig) {
 // ProSettingsPresetColors are the theme colors offered by SettingDrawer
 // (Pro's daybreak, dust, volcano, sunset, cyan, green, geekblue, purple).
 var ProSettingsPresetColors = []theme.Color{
-	theme.Hex("#1677ff"), theme.Hex("#f5222d"), theme.Hex("#fa541c"), theme.Hex("#faad14"),
+	theme.Hex("#1677ff"), theme.Hex("#1890ff"), theme.Hex("#f5222d"), theme.Hex("#fa541c"), theme.Hex("#faad14"),
 	theme.Hex("#13c2c2"), theme.Hex("#52c41a"), theme.Hex("#2f54eb"), theme.Hex("#722ed1"),
 }
 
@@ -167,7 +169,7 @@ func (w *SettingDrawerW) Show() *SettingDrawerW {
 	if !*open {
 		return w
 	}
-	Drawer(c, open, t.Title).Size(320).Body(func() {
+	Drawer(c, open, t.Title).Size(300).Body(func() {
 		Column(c, func() { w.sections(t) }, layout.Gap(24))
 	})
 	return w
@@ -187,11 +189,21 @@ func (w *SettingDrawerW) sections(t SettingDrawerLocale) {
 	}
 	if !w.hideItems["hideLayout"] {
 		w.section(t.Layout, func() {
+			old := s.Layout
 			w.choice(t.Layout, &s.Layout, []pro4Choice{
 				{"side", t.Side, pro4PreviewLayout("side")},
 				{"top", t.Top, pro4PreviewLayout("top")},
 				{"mix", t.Mix, pro4PreviewLayout("mix")},
 			})
+			if s.Layout != old {
+				s.ContentWidth = "Fluid"
+				if s.Layout == "top" {
+					s.ContentWidth = "Fixed"
+				}
+				if s.Layout == "mix" {
+					s.NavTheme = "light"
+				}
+			}
 		})
 		Column(c, func() {
 			w.row(t.ContentWidth, func() {
@@ -206,7 +218,7 @@ func (w *SettingDrawerW) sections(t SettingDrawerLocale) {
 				}
 			})
 			w.switchRow(t.FixedHeader, &s.FixedHeader)
-			w.switchRow(t.FixSiderbar, &s.FixSiderbar)
+			Disabled(c, s.Layout == "top", func() { w.switchRow(t.FixSiderbar, &s.FixSiderbar) })
 		}, layout.Gap(4))
 	}
 	if !w.hideItems["hideOther"] {

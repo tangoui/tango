@@ -126,6 +126,16 @@ export interface ClientOptions {
 export const PROTO_VERSION = 2;
 /** Default stream receive window in bytes (Go: ipc.DefaultWindowBytes). */
 export const DEFAULT_WINDOW_BYTES = 1048576;
+/** The page's per-stream receive window while its downstream lane is
+ * down:poll, advertised to Go with a win message once the lane is ready.
+ * down:poll delivers a whole window per poll round trip, so the window
+ * caps throughput; it also bounds what a stream may have queued here
+ * (frames Go sent and the application has not read yet). Other transports
+ * keep DEFAULT_WINDOW_BYTES. */
+const POLL_WINDOW_BYTES = 4 * 1048576;
+/** A reader returns credit once a 1/ACK_DIVISOR of the receive window
+ * accumulated (or at once when it caught up). */
+const ACK_DIVISOR = 4;
 /** Bytes charged per stream frame on top of its payload (Go: ipc.FrameOverhead). */
 export const FRAME_OVERHEAD = 64;
 /** Largest raw payload of one stream frame (Go: ipc.MaxFrameBytes). */
@@ -157,7 +167,7 @@ interface Wire {
   data?: unknown;
   op?: string;
   proto?: number;
-  win?: number; // hello: Go's stream receive window in bytes
+  win?: number; // hello (both ways), win: the sender's stream receive window in bytes
   seq?: number; // data: frame number; end/close/error: frames sent
   c?: number; // data: charged size in bytes
   bin?: string; // data: byte payload, standard base64 ("" is an empty frame)
@@ -175,6 +185,16 @@ function report(err: unknown): void {
   (globalThis as any).setTimeout(() => {
     throw err;
   }, 0);
+}
+
+function ipcTrace(name: string, data: Record<string, unknown> = {}): void {
+  const t = (globalThis as any).__tangoIpcTrace;
+  if (!t?.enabled || typeof t.event !== "function") return;
+  try {
+    t.event(name, data);
+  } catch {
+    // Diagnostics must never affect IPC behavior.
+  }
 }
 
 /** Decodes standard base64; throws on invalid input. */
@@ -260,6 +280,7 @@ type Result<T> = IteratorResult<T, undefined>;
 /** One received data frame: its value (Uint8Array for byte frames) and its
  * charged size, returned as credit once the frame is read. */
 interface Frame {
+  seq: number;
   v: unknown;
   c: number;
 }
@@ -380,7 +401,7 @@ class StreamImpl<T> implements TangoStream<T> {
         return this.fail("stream data has invalid base64 in bin");
       }
     }
-    this.accept(seq, { v, c: m.c });
+    this.accept(seq, { seq, v, c: m.c });
   }
 
   /** A byte frame from a fast lane packet (charged len + FRAME_OVERHEAD). */
@@ -388,7 +409,7 @@ class StreamImpl<T> implements TangoStream<T> {
     if (this.finished) return;
     if (seq < this.recvNext || this.pending.has(seq)) return this.fail("duplicate frame");
     if (this.endSeq !== null && seq >= this.endSeq) return this.fail("frame after end");
-    this.accept(seq, { v: payload, c: payload.length + FRAME_OVERHEAD });
+    this.accept(seq, { seq, v: payload, c: payload.length + FRAME_OVERHEAD });
   }
 
   /** Queues a checked frame in seq order. */
@@ -513,6 +534,7 @@ class StreamImpl<T> implements TangoStream<T> {
       const w = this.waiters.shift()!;
       const f = this.queue.shift()!;
       w.resolve({ value: f.v as T | Uint8Array, done: false });
+      ipcTrace("frame_read", { stream: this.id, seq: f.seq, charged: f.c, queued: this.queue.length });
       this.credit(f.c);
     }
     if (this.over && !this.queue.length) this.settleWaiters();
@@ -531,15 +553,17 @@ class StreamImpl<T> implements TangoStream<T> {
     }
   }
 
-  /** Returns a read frame's credit: acks once half the window accumulated,
+  /** Returns a read frame's credit: acks once a quarter of the window
+   * (1/ACK_DIVISOR of the receive window this page advertised) accumulated,
    * or as soon as the reader caught up. Once Go ended its direction the
    * credit is useless and is not sent. */
   private credit(c: number): void {
     this.unacked += c;
     if (this.finished || this.endSeq !== null) return;
-    if (this.unacked < DEFAULT_WINDOW_BYTES / 2 && this.queue.length) return;
+    if (this.unacked < this.c.recvWindow / ACK_DIVISOR && this.queue.length) return;
     const b = this.unacked;
     this.unacked = 0;
+    ipcTrace("ack", { stream: this.id, bytes: b });
     this.c._post({ tango: "stream", id: this.id, op: "ack", b });
   }
 
@@ -867,6 +891,7 @@ class StreamImpl<T> implements TangoStream<T> {
   private read(): Promise<Result<T | Uint8Array>> {
     const f = this.queue.shift();
     if (f) {
+      ipcTrace("frame_read", { stream: this.id, seq: f.seq, charged: f.c, queued: this.queue.length });
       this.credit(f.c);
       return Promise.resolve({ value: f.v as T | Uint8Array, done: false });
     }
@@ -969,6 +994,10 @@ class ClientImpl implements Client {
   /** Go's stream receive window (bytes JS may have in flight per stream);
    * DEFAULT_WINDOW_BYTES until Go's hello says otherwise. */
   sendWindow = DEFAULT_WINDOW_BYTES;
+  /** This page's stream receive window as advertised to Go: in the hello,
+   * raised by a win message once down:poll is ready. Never lowered (Go may
+   * already count on it). */
+  recvWindow = DEFAULT_WINDOW_BYTES;
   readonly gapTimeoutMs: number;
   private readonly laneSet: Lanes;
   private badPacketWarned = false;
@@ -989,10 +1018,19 @@ class ClientImpl implements Client {
         if (this.failed) return;
         for (const s of [...this.streams.values()]) s._laneLost();
       },
+      onDownReady: (name) => {
+        // down:poll moves a whole window per poll round trip: a larger
+        // window is what lets it keep up. Go raises its send window for
+        // new and open streams (a Go that predates win ignores it; it
+        // also never offers down:poll).
+        if (this.failed || name !== "down:poll") return;
+        this.recvWindow = Math.max(this.recvWindow, POLL_WINDOW_BYTES);
+        this._post({ tango: "win", win: this.recvWindow });
+      },
     });
     bridge.onMessage((msg) => this.receive(msg));
     // Tell Go a new document started so state of the previous page is dropped.
-    this._post({ tango: "hello", proto: PROTO_VERSION });
+    this._post({ tango: "hello", proto: PROTO_VERSION, win: this.recvWindow });
   }
 
   _post(m: Wire): void {
@@ -1027,6 +1065,7 @@ class ClientImpl implements Client {
       }
       return;
     }
+    ipcTrace("runtime_client_packet", {frames: frames.length, bytes: p.byteLength});
     for (const f of frames) {
       // Copied: a payload view would keep the whole packet alive.
       this.streams.get(f.stream)?._data(f.seq, f.payload.slice());

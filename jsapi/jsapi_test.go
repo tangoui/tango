@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
+	"hash/crc32"
 	"image"
 	"image/png"
 	"path/filepath"
@@ -73,17 +75,26 @@ func (p *page) post(msg string) { p.e.fb.Message(p.s.ID(), msg) }
 func (p *page) received() []map[string]json.RawMessage {
 	var out []map[string]json.RawMessage
 	for _, ev := range p.fs.Evals() {
-		lit, ok := strings.CutPrefix(ev, "window.__tango._recv(")
+		// window.__tango._recvSeq(gen,[[seq,kind,data],...]); kind 0 is a
+		// message.
+		lit, ok := strings.CutPrefix(ev, "window.__tango._recvSeq(")
 		if !ok {
 			continue
 		}
-		var msg string
-		if json.Unmarshal([]byte(strings.TrimSuffix(lit, ")")), &msg) != nil {
+		_, lit, _ = strings.Cut(lit, ",")
+		var items [][]json.RawMessage
+		if json.Unmarshal([]byte(strings.TrimSuffix(lit, ")")), &items) != nil {
 			continue
 		}
-		var m map[string]json.RawMessage
-		if json.Unmarshal([]byte(msg), &m) == nil {
-			out = append(out, m)
+		for _, it := range items {
+			var msg string
+			if len(it) != 3 || string(it[1]) != "0" || json.Unmarshal(it[2], &msg) != nil {
+				continue
+			}
+			var m map[string]json.RawMessage
+			if json.Unmarshal([]byte(msg), &m) == nil {
+				out = append(out, m)
+			}
 		}
 	}
 	return out
@@ -506,6 +517,26 @@ func TestMenuPopup(t *testing.T) {
 	jsonEq(t, choose().result, `{"id":null,"checked":false}`)
 	p.fails(CodeForbidden, "menu.popup", []any{map[string]any{"role": "quit"}}, 0, 0)
 	p.fails(ipc.CodeBadArgs, "menu.popup", []any{map[string]any{"type": "weird"}}, 0, 0)
+}
+
+func TestMenuIconPixelLimit(t *testing.T) {
+	// A valid PNG header is enough for DecodeConfig to expose the dimensions;
+	// the decoder must reject the request before allocating the pixel buffer.
+	data := []byte("\x89PNG\r\n\x1a\n")
+	chunk := make([]byte, 4+4+13+4)
+	binary.BigEndian.PutUint32(chunk[:4], 13)
+	copy(chunk[4:8], "IHDR")
+	binary.BigEndian.PutUint32(chunk[8:12], 65535)
+	binary.BigEndian.PutUint32(chunk[12:16], 65535)
+	chunk[16] = 8 // bit depth
+	chunk[17] = 6 // RGBA
+	crc := crc32.ChecksumIEEE(chunk[4 : 8+13])
+	binary.BigEndian.PutUint32(chunk[21:], crc)
+	data = append(data, chunk...)
+	_, err := buildMenu([]menuItemJS{{Label: "x", Icon: base64.StdEncoding.EncodeToString(data)}}, 0, func(string) {})
+	if err == nil || !strings.Contains(err.Error(), "too large") {
+		t.Fatalf("buildMenu huge icon error = %v", err)
+	}
 }
 
 func TestHotkeys(t *testing.T) {

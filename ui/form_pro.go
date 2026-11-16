@@ -297,7 +297,7 @@ func (p *ProFormW) content(vals ProValues) {
 		}
 		if st.err != nil {
 			Row(c, func() {
-				Alert(c, "error", st.err.Error()).Show()
+				Alert(c, "error", st.err.Error()).ShowIcon(true).Show()
 			}, layout.Margin(geom.Insets{Bottom: 16}))
 		}
 		if p.noSubmit || p.readonly {
@@ -321,11 +321,11 @@ func (p *ProFormW) content(vals ProValues) {
 				if rst == "" {
 					rst = loc.Reset
 				}
-				if Button(c, sub).Primary().Loading(p.Submitting()).Clicked() {
-					p.Submit()
-				}
 				if !p.noReset && Button(c, rst).Disabled(p.Submitting()).Clicked() {
 					p.Reset()
+				}
+				if Button(c, sub).Primary().Loading(p.Submitting()).Clicked() {
+					p.Submit()
 				}
 			}, layout.Gap(8), layout.Middle())
 		})

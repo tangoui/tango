@@ -12,7 +12,7 @@ import (
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
-	"github.com/tangoui/tango/ui/text"
+	"github.com/tangoui/tango/ui/theme"
 )
 
 // Scroll alignments of Listy.ScrollToKey / ScrollToGroup.
@@ -91,6 +91,8 @@ type ListyW struct {
 	version   int
 	req       fillListyScroll
 	st        *fillListyState
+	th        *theme.Theme     // ThemeFor(CompList)
+	tk        *theme.ListToken // &th.Components.List (Listy* fields)
 
 	sb         *ScrollBox
 	rows       []fillListyRow
@@ -111,7 +113,11 @@ func Listy(c *Context, n int, item func(i int)) *ListyW {
 	st := State(c, id, func() fillListyState {
 		return fillListyState{heights: map[any]float32{}, hIdx: map[int32]float32{}, ids: map[any]ID{}}
 	})
-	w := &ListyW{c: c, count: max(0, n), item: item, est: 46, hoverable: true, split: true, st: st, clicked: -1}
+	th := c.ThemeFor(theme.CompList)
+	tk := &th.Components.List
+	// antd: itemHeight = fontHeight + itemPaddingBlock * 2 (46).
+	est := th.LineHeightFor(th.FontSize) + 2*tk.ListyItemPaddingBlock
+	w := &ListyW{c: c, count: max(0, n), item: item, est: est, hoverable: true, split: true, st: st, clicked: -1, th: th, tk: tk}
 	w.configDefaults() // Defaults("Listy", ...): split, rowHoverable
 	return w
 }
@@ -246,7 +252,10 @@ func fillListyGroups(n int, key func(i int) string) (rows []fillListyRow, groups
 	return rows, groups, counts
 }
 
-func (w *ListyW) headerH() float32 { return 38 }
+// headerH is the group header height: fontHeight + paddingXS * 2 (38).
+func (w *ListyW) headerH() float32 {
+	return w.th.LineHeightFor(w.th.FontSize) + 2*w.tk.ListyGroupHeaderPaddingBlock
+}
 
 func (w *ListyW) footerH() float32 { return 48 }
 
@@ -432,7 +441,7 @@ func (w *ListyW) buildRows(first, end int) {
 }
 
 func (w *ListyW) buildRow(r fillListyRow) {
-	c, th, st := w.c, w.c.Theme, w.st
+	c, tk, st := w.c, w.tk, w.st
 	k := w.rowKey(r)
 	Key(c, k, func() {
 		if r.item < 0 {
@@ -440,7 +449,7 @@ func (w *ListyW) buildRow(r fillListyRow) {
 			return
 		}
 		i := int(r.item)
-		opts := []layout.Option{layout.PadVH(12, 16)}
+		opts := []layout.Option{layout.PadVH(tk.ListyItemPaddingBlock, tk.ListyItemPaddingInline)}
 		if w.itemH > 0 {
 			opts = append(opts, layout.H(w.itemH), layout.JustifyContent(layout.JustifyCenter))
 		}
@@ -455,10 +464,10 @@ func (w *ListyW) buildRow(r fillListyRow) {
 		split := w.split
 		b.Paint(func(l *paint.List, rr geom.Rect) {
 			if hover {
-				l.Fill(rr, geom.Radii{}, th.ItemHoverBg)
+				l.Fill(rr, geom.Radii{}, tk.ListyItemHoverBg)
 			}
 			if split {
-				l.Fill(geom.Rect{X: rr.X, Y: rr.Bottom() - 1, W: rr.W, H: 1}, geom.Radii{}, th.Split)
+				l.Fill(geom.Rect{X: rr.X, Y: rr.Bottom() - 1, W: rr.W, H: 1}, geom.Radii{}, tk.ListySplitColor)
 			}
 		})
 		st.ids[k] = b.ID()
@@ -467,9 +476,9 @@ func (w *ListyW) buildRow(r fillListyRow) {
 
 // header builds a group header (also used as the sticky copy).
 func (w *ListyW) header(g int32, sticky bool, opts ...layout.Option) {
-	c, th := w.c, w.c.Theme
+	c, th, tk := w.c, w.th, w.tk
 	key := w.groups[g]
-	opts = append([]layout.Option{layout.H(w.headerH()), layout.PadVH(0, 16), layout.JustifyContent(layout.JustifyCenter)}, opts...)
+	opts = append([]layout.Option{layout.H(w.headerH()), layout.PadVH(0, tk.ListyItemPaddingInline), layout.JustifyContent(layout.JustifyCenter)}, opts...)
 	b := c.box("fill-listy-group", layout.Column, opts)
 	b.Semantics(a11y.RoleHeading, "")
 	if sticky {
@@ -484,12 +493,13 @@ func (w *ListyW) header(g int32, sticky bool, opts ...layout.Option) {
 			w.groupHead(key, w.counts[g])
 			return
 		}
-		Text(c, key).Weight(text.Semibold)
+		// antd group header: colorTextDescription, fontWeightStrong.
+		Text(c, key).Weight(themeWeight(tk.ListyGroupHeaderFontWeight)).Color(tk.ListyGroupHeaderColor)
 	})
 	b.Paint(func(l *paint.List, r geom.Rect) {
+		// backgroundColor colorBgContainer + a colorFillAlter layer; no rule.
 		l.Fill(r, geom.Radii{}, th.BgContainer)
-		l.Fill(r, geom.Radii{}, th.FillQuaternary)
-		l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, th.Split)
+		l.Fill(r, geom.Radii{}, tk.ListyGroupHeaderBg)
 	})
 }
 

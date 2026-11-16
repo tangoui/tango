@@ -1,6 +1,9 @@
 package monarch
 
-import "sync"
+import (
+	"strings"
+	"sync"
+)
 
 // State 是驻留后的行尾状态 ID；0 保留为"无"（TokenizeLine 视同 Initial）。
 // 同一 Lexer 上，相同的（状态栈, 嵌入语言, 嵌入语言状态）总是得到同一个 State。
@@ -13,11 +16,46 @@ type State uint32
 // stackElem 是 Monarch 状态栈的一个元素。元素按（父元素, 状态名）驻留，
 // 因此结构相同的栈就是同一个指针，可以直接作 map 键。
 type stackElem struct {
-	parent *stackElem
-	state  string
-	depth  int
-	rules  []*rule
-	ok     bool // 状态（或其点分前缀）有定义
+	parent   *stackElem
+	state    string
+	depth    int
+	rules    []*rule
+	ok       bool   // 状态（或其点分前缀）有定义
+	boundary string // compiler-proven fixed ASCII prefix for an embedded @pop rule
+	plan     *rulePlan
+}
+
+type indexedRule struct {
+	rule  *rule
+	order int
+}
+
+type rulePlan struct {
+	fallback []indexedRule
+	byFirst  map[byte][]indexedRule
+}
+
+type rulePlanIter struct {
+	fallback, bucket []indexedRule
+	fi, bi           int
+}
+
+func (p *rulePlan) iter(first byte) rulePlanIter {
+	return rulePlanIter{fallback: p.fallback, bucket: p.byFirst[first]}
+}
+
+func (it *rulePlanIter) next() (*rule, bool) {
+	if it.fi >= len(it.fallback) && it.bi >= len(it.bucket) {
+		return nil, false
+	}
+	if it.bi >= len(it.bucket) || it.fi < len(it.fallback) && it.fallback[it.fi].order < it.bucket[it.bi].order {
+		r := it.fallback[it.fi].rule
+		it.fi++
+		return r, true
+	}
+	r := it.bucket[it.bi].rule
+	it.bi++
+	return r, true
 }
 
 // embedded 是嵌入语言的状态（对应 Monaco 的 EmbeddedLanguageData）。
@@ -59,8 +97,27 @@ func (l *Lexer) stackElem(parent *stackElem, state string) *stackElem {
 		e.depth = parent.depth + 1
 	}
 	e.rules, e.ok = l.g.findRules(state)
+	if e.ok {
+		e.boundary = fixedEmbeddedBoundary(e.rules)
+		e.plan = compileRulePlan(e.rules)
+	}
 	in.stacks[k] = e
 	return e
+}
+
+func compileRulePlan(rules []*rule) *rulePlan {
+	p := &rulePlan{byFirst: make(map[byte][]indexedRule)}
+	for i, r := range rules {
+		if r.m != nil && !r.m.dynamic && r.m.static != nil && r.m.static.hasFirst {
+			p.byFirst[r.m.static.firstByte] = append(p.byFirst[r.m.static.firstByte], indexedRule{rule: r, order: i})
+		} else {
+			p.fallback = append(p.fallback, indexedRule{rule: r, order: i})
+		}
+	}
+	if len(p.byFirst) == 0 {
+		return nil
+	}
+	return p
 }
 
 func (l *Lexer) internState(ls lineState) State {
@@ -91,4 +148,31 @@ func (e *stackElem) popall() *stackElem {
 		e = e.parent
 	}
 	return e
+}
+
+// fixedEmbeddedBoundary returns a compiler-proven literal prefix for the
+// simple embedded-language pop rule. The original rule still tokenizes the
+// boundary; this metadata only avoids searching for its start with a regex.
+func fixedEmbeddedBoundary(rules []*rule) string {
+	if len(rules) != 2 {
+		return ""
+	}
+	for _, r := range rules {
+		if r.action == nil || r.action.kind != actToken || r.action.nextEmbed != "@pop" || r.m == nil || r.m.dynamic || r.m.static == nil {
+			continue
+		}
+		src := strings.ReplaceAll(r.m.static.src, `\/`, `/`)
+		if len(src) < 3 || src[0] != '<' || src[1] != '/' || strings.IndexAny(src, `\\^$.*+?()[]{}|`) >= 0 {
+			continue
+		}
+		other := rules[0]
+		if other == r {
+			other = rules[1]
+		}
+		if other.m == nil || other.m.dynamic || other.m.static == nil || other.m.static.src != `[^<]+` {
+			return ""
+		}
+		return src
+	}
+	return ""
 }

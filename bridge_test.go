@@ -6,11 +6,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/tangoui/tango/internal/downq"
 )
 
 // shimHarness exercises coreShim in node. argv[2] is the shim file,
 // argv[3] a JSON file {"msgs": [...], "evals": [...]} where evals[i] is
-// recvJS(msgs[i]) produced by Go.
+// recvSeqJS of msgs[i] (sequence number i+1, generation 1) produced by Go.
 const shimHarness = `
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -129,7 +131,7 @@ func TestCoreShimNode(t *testing.T) {
 	}
 	evals := make([]string, len(msgs))
 	for i, m := range msgs {
-		evals[i] = recvJS(m)
+		evals[i] = recvSeqJS(1, []downq.Item{{Seq: uint64(i + 1), Kind: downq.Msg, Data: []byte(m)}})
 	}
 	data, _ := json.Marshal(map[string]any{"msgs": msgs, "evals": evals})
 	shimPath := write("shim.js", coreShim)

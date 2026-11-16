@@ -347,8 +347,8 @@ function compact(r) {
 
 // runLanes waits up to 5 s for the upstream lane to become ready, then
 // 500 ms more (a downstream lane, if one were offered, would be ready too),
-// and returns tango.lanes() ("fallback": none). Apple platforms offer
-// up:post only (WebKit holds back large down:scheme bursts, spec §6.2).
+// and returns tango.lanes() ("fallback": none). iOS offers up:post
+// only (down:poll is macOS-only and opt-in).
 async function runLanes() {
   const t0 = Date.now();
   while (tango.lanes().up === "fallback" && Date.now() - t0 < 5000) await new Promise(res => setTimeout(res, 50));

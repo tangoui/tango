@@ -66,21 +66,42 @@ func NewSnapshot(text string) Snapshot {
 		if loneCR, loneLF := cr-crlf, lf-crlf; crlf > loneCR+loneLF {
 			eol = "\r\n"
 		}
-		text = normalizeEOL(text)
+		text = rewriteEOL(text, strings.IndexByte(text, '\r'), crlf)
 	}
 	return Snapshot{root: build(text), eol: eol, version: 1}
 }
 
 // normalizeEOL rewrites "\r\n" and lone "\r" as "\n".
 func normalizeEOL(text string) string {
-	if strings.IndexByte(text, '\r') < 0 {
+	first := strings.IndexByte(text, '\r')
+	if first < 0 {
 		return text
 	}
-	text = strings.ReplaceAll(text, "\r\n", "\n")
-	if strings.IndexByte(text, '\r') < 0 {
-		return text
+	return rewriteEOL(text, first, strings.Count(text, "\r\n"))
+}
+
+// rewriteEOL copies unchanged spans and rewrites both CRLF and lone CR into
+// one output allocation. NewSnapshot supplies its already-counted CRLF total.
+// first must be the first CR offset; crlf is the number of CRLF pairs.
+func rewriteEOL(text string, first, crlf int) string {
+	var out strings.Builder
+	out.Grow(len(text) - crlf)
+	start := 0
+	for off := first; ; {
+		out.WriteString(text[start:off])
+		out.WriteByte('\n')
+		start = off + 1
+		if start < len(text) && text[start] == '\n' {
+			start++
+		}
+		next := strings.IndexByte(text[start:], '\r')
+		if next < 0 {
+			break
+		}
+		off = start + next
 	}
-	return strings.ReplaceAll(text, "\r", "\n")
+	out.WriteString(text[start:])
+	return out.String()
 }
 
 // Len returns the length in bytes of the LF-normalised text.
@@ -133,8 +154,13 @@ func (s Snapshot) LineOf(off int) int {
 
 // Line returns line i without its line break. It panics if i is out of range.
 func (s Snapshot) Line(i int) string {
-	start := s.LineStart(i)
-	return s.slice(start, s.lineEnd(i))
+	if i < 0 || i >= s.LineCount() {
+		panic(fmt.Sprintf("buffer: line %d out of range [0,%d)", i, s.LineCount()))
+	}
+	if s.root == nil {
+		return ""
+	}
+	return lineAt(s.root, i)
 }
 
 // Slice returns bytes [start, end) of the LF-normalised text. It panics if

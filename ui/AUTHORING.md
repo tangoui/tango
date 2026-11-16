@@ -103,6 +103,7 @@ l.Checker(r, rad, cell, a, b)                  // 透明背景棋盘格
 - 组件需要的图标加到内置集 `ui/icon/builtin.go`：24×24 网格、1.8 线宽、自己绘制的 SVG 路径，不得手抄第三方图标数据；不要在组件文件里 `icon.New` 私建图标，也不要用 `paint.NewPath` 手画图标。主题会按设计体系替换内置图标（`theme.Theme.Icons`：Ant 主题换成 `ui/icon/antd`，Element 换成 `ui/icon/element`，shadcn 换成 `ui/icon/lucide` 并把线宽改为 2），新增内置图标时在 `ui/theme/icons.go` 三张映射表里补上对应项。
 - 三套第三方图标库（`ui/icon/element`、`antd`、`lucide`）由 `internal/cmd/icongen` 从 npm 包生成，不要手改 `icons.go`；升级版本时重新生成并更新 THIRD_PARTY_NOTICES。文件类型图标用 `ui/icon/filetype`。
 - **重绘提示（可选，纯性能提示）**：组件可以声明本帧变化区域，渲染器据此只重画脏区。只能在 UI 线程调用。`c.Damage(r)`：页面构建期间或 paint/over 回调里都可以调用；r 用窗口逻辑坐标（与 `RectOf`/`Box.Rect` 同一空间）。`c.ScrollShift(r, d)`：只能在构建期间、被滚动内容的 `Body` 内调用（当前父节点记为"滚动内容"；在 `Scroll` 的回调里调用时，滚动内容是它的子节点），表示 r 内内容像素平移了 d。`(*Box).ScrollShift(r, d)`：给自己绘制滚动内容的组件（代码编辑器的行）用，声明 b 自己绘制的内容连同子树在 r 内平移了 d；可以在构建期间或 b 的 paint 回调里调用（paint 时才知道滚到了哪），规则与 `c.ScrollShift` 相同。两种平移都要求 r 内祖先背景处处一致；Runner 会把 r 内不随内容移动的节点（吸顶表头、合计行、Affix、浮层）原位与平移后的位置、露出的条带、滚动条槽并入 Damage，节点跨 r 边界、内容未绘制、祖先在 r 上有 `over` 绘制或变换时撤销平移、整块 r 重画。Runner 自动并入：`Anim/AnimFrom` 值变化的 ID 的新旧矩形（找不到该 ID 的节点就整帧）、浮层打开/关闭/移动、焦点环显示/隐藏/移动、hover/press 变化；主题、尺寸、scale、ReduceMotion 变化、首帧、上一帧 Render/Present 出错，以及时钟越过上一帧 `WakeAt` 定时或上一帧在动画中（依赖 `c.Now()` 的绘制，如输入框光标闪烁、骨架屏闪光、自动消失计时）一律整帧；`WakeAtDamaged` 定时不触发整帧。**未声明的变化有自动兜底**：只要本帧带提示（局部重画），Runner 就比较每个节点自己的绘制指纹（它的 paint/over 回调产生的绘制命令——坐标相对节点原点——加上节点矩形、裁剪、继承的透明度与变换；子节点各算各的）与上一帧，变了的节点把新旧绘制范围并入 Damage，新出现的并入新范围，消失的并入旧范围；随 ScrollShift 内容恰好平移 d 且绘制不变的节点交给拷贝，不会把整块区域标脏。所以别的组件声明了 Damage、而某个 `ui.Text` 状态栏改了文字没声明时，也不会残留旧像素。代价：带提示的帧对整棵绘制树做一次哈希（约 1250 个节点 ~20µs），不带提示的帧只记录每个节点的命令区间（~10ns/节点）。声明仍然有用：在 paint/over 回调里自己声明过（`c.Damage`、`Box.ScrollShift`、`l.Damage`/`l.Scroll`）的节点被信任，不再按指纹整块标脏——变化只占节点一小块（编辑器的光标、某几行）时，声明比指纹精细得多。注意：指纹看不见原地修改的数据——图片像素原地改了要调渲染器的 `InvalidateImage` 并声明 Damage（或换一个新的图片值），已记录的 `*paint.Path`、字形切片不要原地改。paint 回调里也可以直接 `l.Damage(r)` / `l.Scroll(r, d)`，此时坐标随变换栈。
+- **图片缓存失效**：在构建或 paint 阶段可用 `c.InvalidateImage(img)` 清除当前渲染器缓存的图片表示。原地修改图片像素时还须声明 `Damage`；丢弃组件私有的派生图片时也可用此提示及时释放旧资源。它不会修改图片内容，旧的不可变图片值以后仍可重新绘制。未知渲染器可忽略该提示，普通图片值替换依然按原有绘制指纹处理。
 
 ## 7. 交互、键盘、焦点、IME
 
@@ -227,7 +228,7 @@ func init() {
 - 不要复制 Viva、mygo、Wails 或其他项目的代码、常量表、图标数据；设计令牌和色值按 Ant Design / Element Plus 官方文档。
 - 不要改 `ui/theme`、`ui/paint`、`ui/text`、`ui/layout`、`ui/input` 与 `context.go/runner.go/overlay.go/driver.go` 来满足单个组件；需要扩展先提出。
 - 不要在组件文件里私建通用工具（颜色换算、图片缩放、日期网格、图标、复选框/选择器外壳、悬停延迟、子树命中判断、滚到可见）：先查基础层（theme/paint/icon、date_util.go、choice.go、selector.go、hover.go、layers.go、reveal.go），没有就补到基础层。
-- 新组件先查第 14 节总表，已有同类组件就扩展它，不要再加一个同义的新名字（shadcn 的 Sheet = `Drawer`、Accordion = `Collapse`、HoverCard = `Popover.Trigger("hover")`、Separator = `Divider`、Sonner = `Message/Notification`、Badge = `Tag`，只做外观）。shadcn 特有组件文件以 `shad_` 开头。
+- 新组件先查第 14 节总表，已有同类组件就扩展它，不要再加一个同义的新名字（shadcn 的 Sheet = `Drawer`、Accordion / Collapsible = `Collapse`、HoverCard = `Popover.Trigger("hover")`、Separator = `Divider`、Sonner = `Message/Notification`、Badge = `Tag`、Field = `FormItem`、InputGroup = `Compact`/`Addon`/输入框前后缀、NativeSelect = `Select`、Combobox = `Select.Searchable`/`MultiSelect.Searchable`/`AutoComplete`、Typography keyboard = `Kbd`，只做外观）。shadcn 特有组件文件以 `shad_` 开头。
 - 不要在组件文件里写死界面文案（中文、英文都不行），见第 15 节；`TestNoHardcodedCJK` 会拦住 CJK 字面量。
 
 ## 14. 组件总表
@@ -245,7 +246,7 @@ func init() {
 | 通用 | `App`、`UseApp` | App（App.useApp） | pro4_app.go |
 | 通用 | `BorderBeam` | Magic UI Border Beam（流光描边装饰） | fill_border_beam.go |
 | 布局 | `Layout`、`Header`、`Sider`、`Content`、`Footer` | Layout / el-container | prolayout.go |
-| 布局 | `ProLayout` | ProLayout | prolayout.go |
+| 布局 | `ProLayout`、`TopNavHeader`、`ProBreadcrumb`、`PageLoading` | ProLayout、TopNavHeader、ProBreadcrumb、PageLoading | prolayout.go、pro4_topnav.go、pro4_breadcrumb.go、pro4_pageloading.go |
 | 布局 | `CollapsibleSider` | Layout.Sider collapsible、breakpoint / el-aside + 折叠 | prolayout.go |
 | 布局 | `PageContainer`、`FooterToolbar` | PageContainer、FooterToolbar | pro2_page.go |
 | 布局 | `SettingDrawer`、`ProSettingsProvider`、`DefaultProSettings`（`ProSettings.Apply`） | ProLayout SettingDrawer | pro4_setting.go |
@@ -255,18 +256,18 @@ func init() {
 | 布局 | `Flex` | Flex | nav_space.go |
 | 布局 | `Space` | Space / el-space | nav_space.go |
 | 布局 | `Compact`、`Addon` | Space.Compact、Input.Group / el-input-group | entry_compact.go |
-| 布局 | `Splitter`、`SplitterPanel` | Splitter / el-splitter | nav_splitter.go |
+| 布局 | `Splitter`、`SplitterPanel` | Splitter / el-splitter；shadcn Resizable = `Splitter`（`WithHandle`） | nav_splitter.go |
 | 布局 | `Dock`（`DockLayout`/`DockNode` 分割树与标签组，JSON 保存、`ParseDockLayout` 恢复；标签拖放拆分/合并、分割条、最大化、撕出） | IDE 工作台编辑器分组（VS Code / JetBrains） | dock.go、dock_layout.go |
 | 布局 | `Scroll`、`ScrollH` | （滚动容器）/ el-scrollbar | scroll.go、reveal.go |
-| 导航 | `Menu` | Menu / el-menu | nav_menu.go |
-| 导航 | `Tabs`（`Draggable` 拖拽排序、`OnTearOff` 拖出窗口撕出） | Tabs / el-tabs | nav.go、nav_tabs_drag.go |
+| 导航 | `Menu` | Menu / el-menu；shadcn NavigationMenu = `Menu(MenuHorizontal)` + `ItemPanel`，Sidebar = `Sider/CollapsibleSider` + `Menu` | nav_menu.go |
+| 导航 | `Tabs`（`Draggable` 拖拽排序、`OnTearOff` 拖出窗口撕出；`TabPlacement`、`Stretch`、`BeforeLeave`、shadcn `Variant("line")`） | Tabs / el-tabs；shadcn Tabs | nav.go、nav_tabs_drag.go |
 | 导航 | `Breadcrumb`、`BreadcrumbItems`（items 写法、下拉、分隔符） | Breadcrumb / el-breadcrumb | nav.go |
-| 导航 | `Pagination` | Pagination / el-pagination | nav.go |
-| 导航 | `Dropdown` | Dropdown、Dropdown.Button / el-dropdown；`ContextMenuAt` 无触发器右键菜单 | nav_dropdown.go、nav_contextmenu.go |
-| 导航 | `Steps` | Steps / el-steps | nav_steps.go |
+| 导航 | `Pagination` | Pagination / el-pagination；`Size(Large)`、`Align`、`ShowLessItems`、`GoButton`、`ShowTotalFunc`、`PageSizeOptions` | nav.go |
+| 导航 | `Dropdown` | Dropdown、Dropdown.Button（弃用，用 Compact + Button + Dropdown）/ el-dropdown；Check/Radio/PopupRender；`ContextMenuAt` 无触发器右键菜单 | nav_dropdown.go、nav_contextmenu.go |
+| 导航 | `Steps` | Steps / el-steps；`Orientation`、`TitlePlacement`、`Variant`、`Initial`、`MaxCount` | nav_steps.go |
 | 导航 | `Anchor`、`AnchorSection` | Anchor / el-anchor | nav_affix.go |
 | 导航 | `Affix` | Affix / el-affix | nav_affix.go |
-| 导航 | `PageHeader` | PageHeader / el-page-header | nav_pageheader.go |
+| 导航 | `PageHeader` | Pro Components v3 PageHeader / el-page-header | nav_pageheader.go |
 | 导航 | `Command`（`CommandItem`：分组、图标、快捷键、关键词、禁用） | shadcn Command | shad_command.go |
 | 通用 | `Toggle`、`ToggleGroup` | shadcn Toggle / ToggleGroup | shad_toggle.go |
 | 通用 | `Kbd` | shadcn Kbd / `<kbd>` | shad_kbd.go |
@@ -312,7 +313,7 @@ func init() {
 | 数据录入 | `CheckCard`、`CheckCardGroup` | CheckCard | pro2_checkcard.go |
 | 数据录入 | `Form`（`FormItem` 与 `Required/Email/MinLen/MaxLen/Pattern/Match/Check/AsyncCheck` 规则；`Name/Dependencies/OnDepsChange/Hidden/Disabled` 联动；`Submit/Finished/ScrollToFirstError`） | Form / el-form | form.go |
 | 数据录入 | `FormList`（`FormListRow`） | Form.List、ProFormList | form_pro_list.go |
-| 数据录入 | `ProForm`（`ProField`、`ProValues`，值类型与 ProTable 共用） | ProForm | form_pro.go、form_pro_field.go |
+| 数据录入 | `ProForm`（`ProField`、`ProValues`，值类型与 ProTable 共用；ProFormCaptcha = `ValueCaptcha` + `ProField.Captcha`；ProFormSegmented = `ValueSegmented` + `ProField.Segmented`，不重复加入口） | ProForm | form_pro.go、form_pro_field.go |
 | 数据录入 | `StepsForm`（`StepsFormStep`） | StepsForm | form_pro_steps.go |
 | 数据录入 | `ModalForm`、`DrawerForm` | ModalForm、DrawerForm | form_pro_modal.go |
 | 数据录入 | `QueryFilter` | QueryFilter（ProTable 查询表单复用） | form_pro_query.go |
@@ -324,7 +325,8 @@ func init() {
 | 数据录入 | `MarkdownEditor` | — | more_mdeditor.go |
 | 数据展示 | `Table`（`Wrap` 可变行高、树形勾选联动/`CheckStrictly`、`Sticky/StickySummary` 吸顶吸底、拖拽排序边缘自动滚动） | Table / el-table | table*.go |
 | 数据展示 | `ProTable`（列设置含固定到左/右） | ProTable | table_pro.go |
-| 数据展示 | `EditableProTable` | EditableProTable | p2e_editable.go |
+| 数据展示 | `EditableProTable`、`CellEditorTable`、`RowEditorTable` | EditableProTable、CellEditorTable、RowEditorTable | p2e_editable.go、table_pro_editor.go |
+| 数据展示 | `ListToolBar`、`TableDropdown` | ListToolBar、TableDropdown | table_pro_toolbar.go、table_pro_dropdown.go |
 | 数据展示 | `VirtualList` | List virtual / el-table-v2 思路 | more_virtual.go |
 | 数据展示 | `InfiniteScroll` | — / v-infinite-scroll | more_infinite.go |
 | 数据展示 | `List`、`ListItemMeta`、`ListActions` | List | data_list.go |
@@ -332,18 +334,18 @@ func init() {
 | 数据展示 | `ProList` | ProList | pro3_list.go |
 | 数据展示 | `Tree` | Tree / el-tree | data_tree.go |
 | 数据展示 | `VirtualTree` | Tree virtual / el-tree-v2 | fill_virtual_tree.go |
-| 数据展示 | `Tag` | Tag / el-tag | display.go |
-| 数据展示 | `CheckableTag` | Tag.CheckableTag / el-check-tag | more_checktag.go |
+| 数据展示 | `Tag`（`Variant` filled/solid/outlined、`Disabled`、`CloseIcon`、`Round`；shadcn Badge 变体含 `ghost`/`link`） | Tag / el-tag；shadcn Badge | display.go |
+| 数据展示 | `CheckableTag`、`CheckableTagGroup` | Tag.CheckableTag、Tag.CheckableTagGroup / el-check-tag | more_checktag.go |
 | 数据展示 | `Badge`、`BadgeRibbon` | Badge、Badge.Ribbon / el-badge | data_badge.go |
-| 数据展示 | `Avatar`、`AvatarGroup` | Avatar / el-avatar | display.go、data_badge.go |
+| 数据展示 | `Avatar`（`Small/Large/Shape/Gap`）、`AvatarGroup`（`MaxPopover`） | Avatar / el-avatar、el-avatar-group | display.go、data_badge.go |
 | 数据展示 | `Card`、`CardMeta`、`CardAction` | Card / el-card | data_card.go |
-| 数据展示 | `ProCard` | ProCard | pro2_card.go |
+| 数据展示 | `ProCard`（`BoxShadow`） | ProCard | pro2_card.go |
 | 数据展示 | `Descriptions` | Descriptions / el-descriptions | data_card.go |
-| 数据展示 | `ProDescriptions` | ProDescriptions | pro3_descriptions.go |
+| 数据展示 | `ProDescriptions`（`ColumnAt` / `Columns`） | ProDescriptions | pro3_descriptions.go |
 | 数据展示 | `Statistic`、`Countdown` | Statistic / el-statistic、el-countdown | display.go、data_skeleton.go |
-| 数据展示 | `StatisticCard`、`StatisticCardGroup` | StatisticCard、StatisticCard.Group | pro2_statistic.go |
+| 数据展示 | `StatisticCard`、`StatisticCardGroup`、`ProStatistic`、`StatisticCardDivider`、`StatisticCardOperation` | StatisticCard、StatisticCard.Group / Statistic / Divider / Operation | pro2_statistic.go |
 | 数据展示 | `Progress` | Progress / el-progress | data_progress.go |
-| 数据展示 | `Empty` | Empty / el-empty | data_result.go |
+| 数据展示 | `Empty`（`Title`） | Empty / el-empty；shadcn Empty | data_result.go |
 | 数据展示 | `Result` | Result / el-result | data_result.go |
 | 数据展示 | `Skeleton`、`SkeletonAvatar/Button/Input/Image` | Skeleton / el-skeleton | data_skeleton.go |
 | 数据展示 | `ProSkeleton` | ProSkeleton | pro2_skeleton.go |
@@ -368,17 +370,17 @@ func init() {
 | AI 对话 | `Approval`（工具权限确认） | — | chat_approval.go |
 | AI 对话 | `Conversations` | Ant Design X Conversations | chat_conversations.go |
 | AI 对话 | `Prompts`（提示词卡片，不同于对话框 `Prompt`） | Ant Design X Prompts | chat_prompts.go |
-| 反馈 | `Alert` | Alert / el-alert | feedback.go |
-| 反馈 | `Modal` | Modal / el-dialog | feedback.go |
-| 反馈 | `Drawer` | Drawer / el-drawer | feedback.go |
-| 反馈 | `Confirm` | Modal.confirm / ElMessageBox.confirm | more_confirm.go |
+| 反馈 | `Alert` | Alert / el-alert；`ShowIcon`、`Icon`、`Variant`、`CloseIcon`、`CloseText`、`CloseDisabled` | feedback.go |
+| 反馈 | `Modal` | Modal / el-dialog；shadcn Dialog = `Modal`；`Keyboard`、`Loading`、`AfterOpenChanged` | feedback.go |
+| 反馈 | `Drawer` | Drawer / el-drawer；shadcn Sheet/Drawer = `Drawer`；`ClosablePlacement`、`Keyboard`、`Loading`、`Push`、`AfterOpenChanged` | feedback.go |
+| 反馈 | `Confirm` | Modal.confirm / ElMessageBox.confirm；shadcn AlertDialog = `Confirm`；`AutoFocusButton`、`NoKeyboard` | more_confirm.go |
 | 反馈 | `MessageBox` | Modal.info/success… / ElMessageBox.alert | more_confirm.go |
 | 反馈 | `Prompt`、`OpenDialogs`（打开中的 Confirm/MessageBox/Prompt 数） | — / ElMessageBox.prompt | more_confirm.go |
 | 反馈 | `Popconfirm` | Popconfirm / el-popconfirm | feedback.go |
 | 反馈 | `Message`、`MessageDestroy` | message / ElMessage | nav_notify.go |
 | 反馈 | `Notification`、`NotificationDestroy` | notification / ElNotification | nav_notify.go |
-| 反馈 | `Spin` | Spin | feedback.go |
-| 反馈 | `Loading` | Spin 包裹 / v-loading | feedback.go |
+| 反馈 | `Spin` | Spin；shadcn Spinner = `Spin`（`SpinToken.Indicator = SpinIcon`） | feedback.go |
+| 反馈 | `Loading` | Spin 包裹 / v-loading；EP v-loading / ElLoading.service = `Loading`（Text、Spinner、Background、Fullscreen） | feedback.go |
 | 图表 | `chart.Line`、`chart.Area`（平滑、阶梯、面积、堆叠、对数轴、LTTB 降采样） | Line、Area / ECharts line | chart/line.go |
 | 图表 | `chart.Column`、`chart.Bar`（分组、堆叠、百分比堆叠） | Column、Bar / ECharts bar | chart/column.go |
 | 图表 | `chart.Pie`、`chart.Donut`（引导线标签、内部标签、中心统计） | Pie / ECharts pie | chart/pie.go |

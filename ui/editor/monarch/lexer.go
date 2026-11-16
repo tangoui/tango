@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
@@ -71,6 +72,8 @@ type Lexer struct {
 	intern  interner
 	initial State
 	fastGo  bool // built-in Go grammar only; custom registry replacements use Monarch
+
+	runeScratch sync.Pool // *lineRuneScratch; each active tokenizer gets its own one
 }
 
 func newLexer(reg *Registry, id string, g *grammar) *Lexer {
@@ -198,6 +201,10 @@ func (b *lineBudget) check(off int, force bool) error {
 
 // match 执行一次锚定匹配；回溯超时转为 errDegraded（off 为本次匹配在行内的字节起点）。
 func (b *lineBudget) match(re regex.Regexp, s string, rs []rune, off int) ([]int, error) {
+	return b.matchWithCaptures(re, s, rs, off, true, nil)
+}
+
+func (b *lineBudget) matchWithCaptures(re regex.Regexp, s string, rs []rune, off int, captures bool, dst []int) ([]int, error) {
 	// All exhaustion paths latch: a guard reporting false after a timeout
 	// must never grant subsequent guards another engine timeout allowance.
 	if b.exhausted || b.backtrackSpent > lineBudgetDur {
@@ -212,7 +219,13 @@ func (b *lineBudget) match(re regex.Regexp, s string, rs []rune, off int) ([]int
 	if backtrack {
 		start = b.now()
 	}
-	m, err := re.TryMatchStart(s, rs)
+	var m []int
+	var err error
+	if captures {
+		m, err = re.TryMatchStart(s, rs)
+	} else {
+		m, err = regex.TryMatchStartNoCaptures(re, s, rs, dst)
+	}
 	if err != nil {
 		return nil, b.stop(off)
 	}
@@ -225,7 +238,11 @@ func (b *lineBudget) match(re regex.Regexp, s string, rs []rune, off int) ([]int
 		// measurements; separate long pauses in both attempts remain possible.
 		if elapsed >= 250*time.Microsecond*raceFactor || b.backtrackSpent+elapsed > lineBudgetDur {
 			start = b.now()
-			m, err = re.TryMatchStart(s, rs)
+			if captures {
+				m, err = re.TryMatchStart(s, rs)
+			} else {
+				m, err = regex.TryMatchStartNoCaptures(re, s, rs, dst)
+			}
 			if err != nil {
 				return nil, b.stop(off)
 			}
@@ -413,6 +430,23 @@ func (l *Lexer) findLeavingNestedOffset(line string, ls lineState, off int, c *c
 }
 
 func (l *Lexer) nestedTokenize(line string, hasEOL bool, ls lineState, off int, c *collector) (lineState, error) {
+	if ls.stack.boundary != "" {
+		if end := strings.Index(line, ls.stack.boundary); end >= 0 {
+			if end > 0 {
+				if _, err := c.nested(line[:end], false, ls.emb, off); err != nil {
+					return ls, err
+				}
+			}
+			return l.myTokenize(line[end:], hasEOL, ls, off+end, c)
+		}
+		st, err := c.nested(line, hasEOL, ls.emb, off)
+		if err != nil {
+			return ls, err
+		}
+		e := ls.emb
+		e.state = st
+		return lineState{stack: ls.stack, emb: e}, nil
+	}
 	pop, err := l.findLeavingNestedOffset(line, ls, off, c)
 	if err != nil {
 		return ls, err
@@ -434,26 +468,57 @@ func (l *Lexer) nestedTokenize(line string, hasEOL bool, ls lineState, off int, 
 	return l.myTokenize(line[pop:], hasEOL, ls, off+pop, c)
 }
 
-// longLineBytes：剩余部分超过这个字节数时，整行转成一次 []rune 供回溯引擎的规则复用。
-// 否则 regexp2 每次匹配都要把"行的剩余部分"转成 []rune，长行上逐位置尝试就是平方级的。
-const longLineBytes = 256
-
+// lineRunes shares one rune conversion across a line's backtracking
+// attempts. It is created lazily: standard-regexp-only lines need none.
 type lineRunes struct {
 	runes []rune
 	index []int32 // 字节偏移 → rune 下标（非法字节各算一个 rune，与 []rune(s) 一致）
 }
 
-func newLineRunes(line string) *lineRunes {
-	lr := &lineRunes{runes: make([]rune, 0, len(line)), index: make([]int32, len(line)+1)}
-	for i, r := range line {
+// lineRuneScratch owns only numeric buffers; it never stores the input string.
+// Large malformed/plugin lines are discarded instead of retained by the pool.
+type lineRuneScratch struct {
+	runes []rune
+	index []int32
+}
+
+const maxRuneScratchBytes = 1 << 20
+
+func (s *lineRuneScratch) make(line string) lineRunes {
+	s.runes = s.runes[:0]
+	s.index = s.index[:0]
+	for _, r := range line {
+		s.runes = append(s.runes, r)
+	}
+	if len(s.runes) == len(line) {
+		return lineRunes{runes: s.runes}
+	}
+	if cap(s.index) < len(line)+1 {
+		s.index = make([]int32, len(line)+1)
+	} else {
+		s.index = s.index[:len(line)+1]
+	}
+	runeIndex := 0
+	for i := range line {
 		_, size := utf8.DecodeRuneInString(line[i:])
 		for k := 0; k < size; k++ {
-			lr.index[i+k] = int32(len(lr.runes))
+			s.index[i+k] = int32(runeIndex)
 		}
-		lr.runes = append(lr.runes, r)
+		runeIndex++
 	}
-	lr.index[len(line)] = int32(len(lr.runes))
-	return lr
+	s.index[len(line)] = int32(len(s.runes))
+	return lineRunes{runes: s.runes, index: s.index}
+}
+
+func (s *lineRuneScratch) reusable() bool {
+	return cap(s.runes)*4+cap(s.index)*4 <= maxRuneScratchBytes
+}
+
+func (lr *lineRunes) at(byteOffset int) []rune {
+	if lr.index != nil {
+		byteOffset = int(lr.index[byteOffset])
+	}
+	return lr.runes[byteOffset:]
 }
 
 // maxEmptyRun 是允许的连续无进展次数（空匹配，或 goBack 后没有越过本行已到达的最远位置；内置语法远低于此值）。
@@ -484,12 +549,31 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 	stack := ls.stack
 	pos := 0
 	var gm *groupMatching
-	var singleCapt [1]capt // reused for the common no-capture rule path
-	force := true          // 空行也至少执行一次规则（monaco-editor#1235）
-	ctx := &matchCtx{budget: &c.budget}
-	var lr *lineRunes // 长行上整行的 []rune，供回溯引擎复用（见 longLineBytes）
-	emptyRun := 0     // 连续无进展（没有越过 high）的次数
-	high := 0         // 本行目前到达过的最远位置；只有越过它才算进展
+	// Group actions drain before the next match. Reuse call-local storage;
+	// recursive embedded tokenizers still get independent containers.
+	var groupState groupMatching
+	var smallGroups []groupEntry // allocated only if a small group is used
+	// Context and its single capture have the same call-local lifetime.
+	// Keep one frame per invocation, including recursive embedded languages.
+	frame := struct {
+		ctx    matchCtx
+		single [1]capt
+		span   [2]int
+	}{ctx: matchCtx{budget: &c.budget}}
+	force := true // 空行也至少执行一次规则（monaco-editor#1235）
+	ctx := &frame.ctx
+	var lr lineRunes // allocated only when a rule needs backtracking
+	var scratch *lineRuneScratch
+	defer func() {
+		if scratch != nil && scratch.reusable() {
+			scratch.runes = scratch.runes[:0]
+			scratch.index = scratch.index[:0]
+			l.runeScratch.Put(scratch)
+		}
+	}()
+	lrBase := 0   // byte at which its reusable suffix begins
+	emptyRun := 0 // 连续无进展（没有越过 high）的次数
+	high := 0     // 本行目前到达过的最远位置；只有越过它才算进展
 
 	for force || pos < lineLen {
 		pos0 := pos
@@ -518,6 +602,7 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 			matched, act, r = ge.matched.s, ge.action, gm.rule
 			if len(gm.groups) == 0 {
 				gm = nil
+				groupState = groupMatching{} // release large groups after draining
 			}
 		} else {
 			if !force && pos >= lineLen {
@@ -528,15 +613,27 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 				return ls, l.errorf("tokenizer state is not defined: %s", state)
 			}
 			rest := line[pos:]
-			if lr == nil && len(rest) > longLineBytes {
-				lr = newLineRunes(line)
-			}
 			var restRunes []rune
-			if lr != nil {
-				restRunes = lr.runes[lr.index[pos]:]
-			}
 			backtracked := false
-			for _, ru := range stack.rules {
+			usePlan := stack.plan != nil && len(rest) > 0 && rest[0] < utf8.RuneSelf
+			var planIter rulePlanIter
+			if usePlan {
+				planIter = stack.plan.iter(rest[0])
+			}
+			for rulePos := 0; ; rulePos++ {
+				var ru *rule
+				if usePlan {
+					var ok bool
+					ru, ok = planIter.next()
+					if !ok {
+						break
+					}
+				} else {
+					if rulePos >= len(stack.rules) {
+						break
+					}
+					ru = stack.rules[rulePos]
+				}
 				if pos != 0 && ru.atLineStart {
 					continue
 				}
@@ -548,15 +645,29 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 				if cr.hasFirst && len(rest) > 0 && rest[0] < utf8.RuneSelf && rest[0] != cr.firstByte {
 					continue
 				}
-				backtracked = backtracked || re.Engine() == regex.Backtrack
-				m, err := c.budget.match(re, rest, restRunes, off+pos)
+				if re.Engine() == regex.Backtrack {
+					backtracked = true
+					if lr.runes == nil || pos < lrBase {
+						if scratch == nil {
+							if v := l.runeScratch.Get(); v != nil {
+								scratch = v.(*lineRuneScratch)
+							} else {
+								scratch = &lineRuneScratch{}
+							}
+						}
+						lr, lrBase = scratch.make(rest), pos
+					}
+					restRunes = lr.at(pos - lrBase)
+				}
+				captures := !ru.noCaptures && re.NumGroups() != 0
+				m, err := c.budget.matchWithCaptures(re, rest, restRunes, off+pos, captures, frame.span[:0])
 				if err != nil {
 					return ls, err
 				}
 				if m != nil {
 					if len(m) == 2 {
-						singleCapt[0] = capt{rest[m[0]:m[1]], true}
-						matches = singleCapt[:]
+						frame.single[0] = capt{rest[m[0]:m[1]], true}
+						matches = frame.single[:]
 					} else {
 						matches = toCaptures(rest, m)
 					}
@@ -569,7 +680,8 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 			}
 		}
 		if matches == nil {
-			matches = []capt{{"", true}}
+			frame.single[0] = capt{"", true}
+			matches = frame.single[:]
 			matched = ""
 		}
 		if act == nil {
@@ -577,7 +689,8 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 			if pos < lineLen {
 				_, size := decodeRune(line[pos:])
 				matched = line[pos : pos+size]
-				matches = []capt{{matched, true}}
+				frame.single[0] = capt{matched, true}
+				matches = frame.single[:]
 			}
 			act = g.defAction
 		}
@@ -684,7 +797,17 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 			if total != len(matched) {
 				return ls, l.errorf("with groups, all characters should be matched in consecutive groups in rule: %s", ruleName(r))
 			}
-			gm = &groupMatching{rule: r, matches: matches, groups: make([]groupEntry, len(group))}
+			var entries []groupEntry
+			if len(group) <= 4 {
+				if cap(smallGroups) < len(group) {
+					smallGroups = make([]groupEntry, len(group))
+				}
+				entries = smallGroups[:len(group)]
+			} else {
+				entries = make([]groupEntry, len(group))
+			}
+			groupState = groupMatching{rule: r, matches: matches, groups: entries}
+			gm = &groupState
 			for i, a := range group {
 				gm.groups[i] = groupEntry{action: a, matched: matches[i+1]}
 			}
@@ -743,7 +866,11 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 			}
 			typ = sanitize(b.token + result[len("@brackets"):])
 		} else if result != "" {
-			typ = sanitize(result + g.tokenPostfix)
+			if act.tokenType == "" {
+				typ = sanitize(result + g.tokenPostfix)
+			} else {
+				typ = act.tokenType
+			}
 		}
 		// 无进展的迭代不输出 token（其宽度会被同位置的下一个 token 覆盖为 0），token 数因此不超过行长
 		if progress && pos0 < lineNoLFLen {

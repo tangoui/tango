@@ -55,18 +55,23 @@ type DateTimePickerW struct {
 	disabledFn func(time.Time) bool
 	disTime    func(day time.Time) DisabledTimes
 	presets    []DatePreset
+	place      Placement // popup placement (Ant placement)
+	bounds     dtBounds  // MinDate / MaxDate
+	showNow    bool      // the Now footer action (Ant showNow)
+	defTime    time.Time // clock of a day picked without one (DefaultTime)
 }
 
 // DateTimePicker adds a date-time input bound to *val (zero = empty).
 func DateTimePicker(c *Context, val *time.Time) *DateTimePickerW {
-	w := &DateTimePickerW{c: c, val: val, format: "2006-01-02 15:04:05"}
+	w := &DateTimePickerW{c: c, val: val, format: "2006-01-02 15:04:05", showNow: true}
 	w.f = dtNewField(c, "datetimepicker", icon.Calendar)
 	w.st = State[dtDateTimeState](c, w.f.n.id, nil)
 	w.f.st = &w.st.field
 	w.f.ph = c.Locale().SelectDateTime
 	w.f.display = func() string { return dtFormat(*w.val, w.format) }
 	// ConfigProvider.Defaults("DateTimePicker", ...): "format",
-	// "placeholder", "allowClear", "width", "size", "variant".
+	// "placeholder", "allowClear", "width", "size", "variant",
+	// "placement", "showNow".
 	def := p2aDefaults(c, "DateTimePicker")
 	def.str("format", &w.format)
 	def.str("placeholder", &w.f.ph)
@@ -74,6 +79,8 @@ func DateTimePicker(c *Context, val *time.Time) *DateTimePickerW {
 	def.px("width", &w.f.n.ln.Width)
 	def.size(&w.f.size)
 	def.str("variant", &w.f.variant)
+	def.flag("showNow", &w.showNow)
+	dtPlaceDefault(c, "DateTimePicker", &w.place)
 	w.z = c.lazy(w.f.n, w.finish)
 	return w
 }
@@ -116,6 +123,27 @@ func (w *DateTimePickerW) DisabledTime(fn func(day time.Time) DisabledTimes) *Da
 	w.disTime = fn
 	return w
 }
+
+// Placement sets where the dropdown opens: BottomStart (default),
+// BottomEnd, TopStart or TopEnd (Ant placement); it flips when there is
+// no room.
+func (w *DateTimePickerW) Placement(p Placement) *DateTimePickerW { w.place = p; return w }
+
+// MinDate limits the pickable days (Ant minDate): earlier days cannot be
+// picked, typed or confirmed and the month arrows stop at t's month.
+func (w *DateTimePickerW) MinDate(t time.Time) *DateTimePickerW { w.bounds.lo = t; return w }
+
+// MaxDate limits the pickable days (Ant maxDate), like MinDate.
+func (w *DateTimePickerW) MaxDate(t time.Time) *DateTimePickerW { w.bounds.hi = t; return w }
+
+// ShowNow toggles the Now action in the footer (Ant showNow, on by
+// default).
+func (w *DateTimePickerW) ShowNow(on bool) *DateTimePickerW { w.showNow = on; return w }
+
+// DefaultTime is the clock given to a day picked while no time is set
+// (Element default-time, Ant showTime.defaultValue; default 00:00:00).
+// Only its hour, minute and second are used.
+func (w *DateTimePickerW) DefaultTime(t time.Time) *DateTimePickerW { w.defTime = t; return w }
 
 // Presets adds a side list of named date-times (DatePreset.Value, else
 // Range[0]) that commit immediately.
@@ -184,6 +212,8 @@ func (w *DateTimePickerW) commit(t time.Time) {
 func (w *DateTimePickerW) finish() {
 	c, st, f := w.c, w.st, w.f
 	th := c.Theme
+	// MinDate / MaxDate act like DisabledDate on days.
+	w.disabledFn = w.bounds.limit(w.disabledFn, PickerDate, c.Locale().WeekStart)
 	if f.n.ln.Width == 0 {
 		f.n.ln.Width = 200
 		if th.Flavor == theme.Element {
@@ -256,7 +286,7 @@ func (w *DateTimePickerW) finish() {
 	// Up / Down step the active time column (Left / Right switch columns);
 	// the date is picked with the pointer or typed into the field.
 	defer func() { f.ctl, f.act = st.ts.active() }()
-	dtStylePanel(c, entPanel(c, f.n.id, &st.field.pop, false, func() {
+	dtStylePanel(c, dtPanel(c, f.n.id, &st.field.pop, w.place, func() {
 		Row(c, func() {
 			if len(w.presets) > 0 {
 				dtPresetList(c, w.presets, func(v time.Time) { w.commit(v) })
@@ -273,9 +303,12 @@ func (w *DateTimePickerW) panel(cfg dtTimeCfg, hh float32) {
 	th := c.Theme
 	Column(c, func() {
 		Row(c, func() {
-			if d, ok := dtDatePanel(c, &st.panel, st.date, w.disabledFn, false, nil); ok {
+			if d, ok := dtDatePanel(c, &st.panel, st.date, w.disabledFn, w.bounds, false, nil); ok {
 				st.date = d
 				clock := st.draft
+				if clock.IsZero() {
+					clock = w.defTime // no time yet: DefaultTime (zero = midnight)
+				}
 				st.draft = time.Date(d.Year(), d.Month(), d.Day(), clock.Hour(), clock.Minute(), clock.Second(), 0, w.loc())
 				f.setText(dtFormat(st.draft, w.format))
 				c.invalid = true
@@ -321,7 +354,7 @@ func (w *DateTimePickerW) panel(cfg dtTimeCfg, hh float32) {
 				return n
 			}
 			if th.Flavor == theme.Element {
-				if dtTextBtn(c, loc.Now, true) {
+				if w.showNow && dtNowAction(c, loc.Now, w.blocked(now()), true) {
 					w.commit(now())
 				}
 				Spacer(c)
@@ -330,7 +363,7 @@ func (w *DateTimePickerW) panel(cfg dtTimeCfg, hh float32) {
 				}
 				return
 			}
-			if dtLink(c, loc.Now) {
+			if w.showNow && dtNowAction(c, loc.Now, w.blocked(now()), false) {
 				w.commit(now())
 			}
 			Spacer(c)

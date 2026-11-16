@@ -63,6 +63,9 @@ type TransferW struct {
 	oneWay   bool
 	tree     []TreeNode
 	virtual  int // 0 auto (long lists), 1 always, -1 never
+
+	order       string // target order: "unshift" (default), "push", "original"
+	noSelectAll bool   // hide the select-all checkboxes (ShowSelectAll(false))
 }
 
 // Transfer adds a transfer bound to the keys of the right-hand list.
@@ -77,6 +80,8 @@ func Transfer(c *Context, items []TransferItem, target *[]string) *TransferW {
 	w.st = State(c, w.n.id, func() tfState {
 		return tfState{checked: [2]map[string]bool{{}, {}}}
 	})
+	w.order = Prop(c, "Transfer", "targetOrder", "unshift")
+	w.noSelectAll = !Prop(c, "Transfer", "showSelectAll", true)
 	w.transferDefaults()
 	w.z = c.lazy(w.n, w.build)
 	return w
@@ -88,11 +93,29 @@ func (w *TransferW) Titles(left, right string) *TransferW {
 	return w
 }
 
-// Operations labels the move buttons (default: icons only).
-func (w *TransferW) Operations(toRight, toLeft string) *TransferW {
+// Actions labels the move buttons (Ant 6 actions, Element button-texts;
+// default: icons only).
+func (w *TransferW) Actions(toRight, toLeft string) *TransferW {
 	w.ops = [2]string{toRight, toLeft}
 	return w
 }
+
+// Operations labels the move buttons.
+//
+// Deprecated: use Actions (Ant 6 renamed operations to actions).
+func (w *TransferW) Operations(toRight, toLeft string) *TransferW { return w.Actions(toRight, toLeft) }
+
+// TargetOrder sets where moved keys go in the bound target slice and the
+// order of the right list (Element target-order): "unshift" (default, as
+// Ant: new keys first, the list follows the slice), "push" (new keys
+// last, the list follows the slice) or "original" (the slice and the
+// list follow the item order). ConfigProvider.Defaults("Transfer",
+// "targetOrder") sets it for a subtree.
+func (w *TransferW) TargetOrder(s string) *TransferW { w.order = s; return w }
+
+// ShowSelectAll shows or hides the select-all checkbox in the list headers
+// (Ant showSelectAll, default true).
+func (w *TransferW) ShowSelectAll(on bool) *TransferW { w.noSelectAll = !on; return w }
 
 // ListSize sets the size of each list box.
 func (w *TransferW) ListSize(wd, ht float32) *TransferW { w.listW, w.listH = wd, ht; return w }
@@ -146,15 +169,33 @@ func (w *TransferW) side(it TransferItem) int {
 	return 0
 }
 
-// list returns the (filtered) items of a side.
+// list returns the (filtered) items of a side. The source list follows
+// the item order; the target list follows the bound slice unless
+// TargetOrder is "original" (Ant orders it by targetKeys).
 func (w *TransferW) list(side int, filtered bool) []TransferItem {
 	q := strings.ToLower(strings.TrimSpace(w.st.query[side]))
+	keep := func(it TransferItem) bool {
+		return !filtered || q == "" || strings.Contains(strings.ToLower(it.Title), q)
+	}
 	var out []TransferItem
-	for _, it := range w.items {
-		if w.side(it) != side {
-			continue
+	if side == 1 && w.order != "original" {
+		idx := make(map[string]int, len(w.items))
+		for i, it := range w.items {
+			if _, ok := idx[it.Key]; !ok {
+				idx[it.Key] = i
+			}
 		}
-		if filtered && q != "" && !strings.Contains(strings.ToLower(it.Title), q) {
+		seen := make(map[string]bool, len(*w.target))
+		for _, k := range *w.target {
+			if i, ok := idx[k]; ok && !seen[k] && keep(w.items[i]) {
+				seen[k] = true // a repeated key shows once (antd useData.js)
+				out = append(out, w.items[i])
+			}
+		}
+		return out
+	}
+	for _, it := range w.items {
+		if w.side(it) != side || !keep(it) {
 			continue
 		}
 		out = append(out, it)
@@ -174,7 +215,21 @@ func (w *TransferW) move(from int) {
 		return
 	}
 	if from == 0 {
-		*w.target = append(*w.target, keys...)
+		switch w.order {
+		case "push":
+			*w.target = append(append([]string(nil), *w.target...), keys...)
+		case "original":
+			t := append(append([]string(nil), *w.target...), keys...)
+			out := make([]string, 0, len(t))
+			for _, it := range w.items {
+				if contains(t, it.Key) && !contains(out, it.Key) {
+					out = append(out, it.Key)
+				}
+			}
+			*w.target = out
+		default: // "unshift": Ant newMoveKeys.concat(targetKeys)
+			*w.target = append(append([]string(nil), keys...), *w.target...)
+		}
 	} else {
 		for _, k := range keys {
 			*w.target = remove(*w.target, k)
@@ -311,8 +366,9 @@ func (w *TransferW) listBox(side int, dis bool) {
 		}
 		hdr := Row(c, func() {
 			v := nEnabled > 0 && nChecked == nEnabled
-			if w.oneWay && side == 1 {
-				// One-way target: no checks, items have remove buttons.
+			if (w.oneWay && side == 1) || w.noSelectAll {
+				// One-way target: no checks, items have remove buttons;
+				// ShowSelectAll(false): items are checked one by one.
 			} else if Checkbox(c, "", &v).Indeterminate(nChecked > 0 && !v).Disabled(dis || nEnabled == 0).A11yLabel(c.Locale().SelectAll).Changed() {
 				for _, it := range shown {
 					if !it.Disabled {

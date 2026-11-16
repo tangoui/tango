@@ -309,8 +309,10 @@ func Content(c *Context, fn func(), opts ...layout.Option) *Box {
 	return layoutRegion(c, contentTag, layout.Column, def, opts, fn)
 }
 
-// Footer is the bottom bar (Ant: centred, 24px/50px padding; Element: 60px
-// high, 20px padding).
+// Footer is the bottom bar (Ant: 24px/50px padding on the layout
+// background; Element: 60px high, 20px padding). Its content starts at the
+// inline start like Ant's and Element's footers (neither centres it; pass
+// layout.Center() for the centred footer of the Ant demos).
 func Footer(c *Context, fn func(), opts ...layout.Option) *Box {
 	tk := &c.ThemeFor(theme.CompLayout).Components.Layout
 	pad := layout.PadVH(tk.FooterPadding, tk.FooterPaddingInline)
@@ -318,10 +320,10 @@ func Footer(c *Context, fn func(), opts ...layout.Option) *Box {
 		return layoutRegion(c, footerTag, layout.Row, []layout.Option{layout.H(60), pad, layout.Middle()}, opts, fn)
 	}
 	if shad2d(c) {
-		b := layoutRegion(c, footerTag, layout.Row, []layout.Option{pad, layout.Center(), layout.Gap(8)}, opts, fn)
+		b := layoutRegion(c, footerTag, layout.Row, []layout.Option{pad, layout.Middle(), layout.Gap(8)}, opts, fn)
 		return b.Paint(shad2dTopLine(c.Theme.BorderSecondary))
 	}
-	return layoutRegion(c, footerTag, layout.Row, []layout.Option{pad, layout.Center()}, opts, fn)
+	return layoutRegion(c, footerTag, layout.Row, []layout.Option{pad, layout.Middle()}, opts, fn)
 }
 
 // ProLayoutConfig configures the admin shell.
@@ -331,7 +333,8 @@ type ProLayoutConfig struct {
 	Menu       []MenuItem
 	Selected   *string
 	Collapsed  *bool
-	LightSider bool     // light sider (default dark, classic Pro)
+	LightSider bool     // explicitly request a light sider
+	NavTheme   string   // "light" (v3 default) or "dark"; LightSider still forces light
 	Breadcrumb []string // shown in the header
 	UserName   string
 	Actions    func() // extra header actions (left of the avatar)
@@ -351,11 +354,13 @@ type ProLayoutConfig struct {
 	// SiderWidth overrides the expanded sider width (0: the theme's).
 	SiderWidth float32
 	// ContentWidth is "Fluid" (default) or "Fixed": the content is then
-	// centred in a 1200px GridContent (Ant contentWidth).
+	// centred in a 1152px GridContent in the top layout (Ant contentWidth).
 	ContentWidth string
 	// NoFixedHeader lets the header scroll away with the content (Ant
-	// fixedHeader=false); by default it stays on top.
+	// fixedHeader=false, the v3 default). FixedHeader explicitly pins it.
 	NoFixedHeader bool
+	// FixedHeader explicitly pins the header; NoFixedHeader takes precedence.
+	FixedHeader bool
 	// NoFixSiderbar lets the sider scroll with the page (Ant
 	// fixSiderbar=false): sider and content share one scroll, so a long
 	// menu is reached by scrolling the page. By default the sider stays
@@ -437,6 +442,7 @@ func (f *DefaultFooterW) Clicked() string { return f.clicked }
 // Show builds the footer.
 func (f *DefaultFooterW) Show() *DefaultFooterW {
 	c := f.c
+	tk := &c.ThemeFor(theme.CompLayout).Components.Layout
 	if len(f.links) == 0 && f.copyright == "" {
 		return f
 	}
@@ -460,12 +466,12 @@ func (f *DefaultFooterW) Show() *DefaultFooterW {
 						}
 					})
 				}
-			}, layout.Gap(40), layout.Center(), layout.Middle(), layout.WrapItems())
+			}, layout.Gap(tk.DefaultFooterLinkGap), layout.Center(), layout.Middle(), layout.WrapItems())
 		}
 		if f.copyright != "" {
 			Text(c, f.copyright).Tertiary()
 		}
-	}, layout.PadVH(24, 0), layout.Gap(8), layout.AlignItems(layout.AlignCenter))
+	}, layout.PadVH(0, tk.DefaultFooterPaddingInline), layout.Margin(geom.Insets{Top: tk.DefaultFooterMarginTop, Bottom: tk.DefaultFooterMarginBottom}), layout.Gap(8), layout.AlignItems(layout.AlignCenter))
 	return f
 }
 
@@ -528,14 +534,17 @@ func ProLayout(c *Context, cfg ProLayoutConfig, content func()) {
 	if cfg.Footer == "" {
 		cfg.Footer = Prop(c, "ProLayout", "footer", "")
 	}
+	if cfg.NavTheme == "" {
+		cfg.NavTheme = Prop(c, "ProLayout", "navTheme", "light")
+	}
 	if !cfg.LightSider {
-		cfg.LightSider = Prop(c, "ProLayout", "navTheme", "") == "light"
+		cfg.LightSider = cfg.NavTheme != "dark"
 	}
 	if cfg.ContentWidth == "" {
 		cfg.ContentWidth = Prop(c, "ProLayout", "contentWidth", "")
 	}
 	if !cfg.NoFixedHeader {
-		cfg.NoFixedHeader = !Prop(c, "ProLayout", "fixedHeader", true)
+		cfg.NoFixedHeader = !(cfg.FixedHeader || Prop(c, "ProLayout", "fixedHeader", false))
 	}
 	if !cfg.NoFixSiderbar {
 		cfg.NoFixSiderbar = !Prop(c, "ProLayout", "fixSiderbar", true)
@@ -544,6 +553,12 @@ func ProLayout(c *Context, cfg ProLayoutConfig, content func()) {
 		cfg.Menu = proMapMenu(cfg.Menu, cfg.MenuItemRender)
 	}
 	pl := &proLayout{c: c, th: c.ThemeFor(theme.CompLayout), cfg: cfg, content: content}
+	// RouteContext is available to header/menu render hooks too, not only content.
+	pc := proLayoutContext(c)
+	saved := *pc
+	pc.depth++
+	pc.info = pl.routeInfo()
+	defer func() { *proLayoutContext(c) = saved }()
 	// shadcn has a single (light) Sidebar look driven by sidebar tokens.
 	pl.dark = !cfg.LightSider && th.Flavor != theme.StyleShadcn
 	switch cfg.Layout {
@@ -671,7 +686,10 @@ func (pl *proLayout) siderWidth() float32 {
 	if v, ok := p2bNum(pl.c, "ProLayout", "siderWidth"); ok && v > 0 {
 		return float32(v)
 	}
-	return pl.th.Components.Layout.SiderWidth
+	if pl.cfg.Layout == "mix" {
+		return pl.th.Components.Layout.ProMixSiderWidth
+	}
+	return pl.th.Components.Layout.ProSiderWidth
 }
 
 // breakpoint collapses the sider when the window crosses cfg.Breakpoint.
@@ -694,9 +712,14 @@ func (pl *proLayout) breakpoint() {
 // logo builds the logo mark and title (title hidden when collapsed).
 func (pl *proLayout) logo(collapsed, onDark bool) {
 	c, th := pl.c, pl.th
+	tk := &th.Components.Layout
+	pad := float32(16)
+	if pl.cfg.Layout == "top" || pl.cfg.Layout == "mix" {
+		pad = 0
+	}
 	Row(c, func() {
 		logo := c.add("logo", "")
-		logo.ln.Width, logo.ln.Height = 32, 32
+		logo.ln.Width, logo.ln.Height = tk.ProLogoSize, tk.ProLogoSize
 		if pl.cfg.Logo != nil {
 			ic := pl.cfg.Logo
 			logo.paint = func(l *paint.List, r geom.Rect) { c.drawIconAt(l, ic, r.X+4, r.Y+4, 24, th.Primary.Base) }
@@ -704,12 +727,12 @@ func (pl *proLayout) logo(collapsed, onDark bool) {
 			logo.paint = func(l *paint.List, r geom.Rect) { drawLogo(l, r, th) }
 		}
 		if !collapsed {
-			t := Text(c, pl.cfg.Title).Size(18).Weight(text.Semibold).NoWrap()
+			t := Text(c, pl.cfg.Title).Size(tk.ProHeaderTitleFontSize).Weight(text.Semibold).NoWrap()
 			if onDark {
 				t.Color(theme.Hex("#ffffff"))
 			}
 		}
-	}, layout.H(64), layout.PadVH(0, 16), layout.Gap(12), layout.Middle())
+	}, layout.H(tk.ProHeaderHeight), layout.PadVH(0, pad), layout.Gap(tk.ProLogoTitleGap), layout.Middle())
 }
 
 // user builds the actions and the avatar with the user name.
@@ -733,9 +756,10 @@ func (pl *proLayout) user(onDark bool) {
 // PageContainer inside it reports itself, and the content area then drops
 // its padding (NoPadding) so the page header spans it edge to edge.
 type proLayoutCtx struct {
-	depth  int
-	filled bool // a PageContainer was built directly in the content area
-	info   RouteInfo
+	depth   int
+	filled  bool // a PageContainer was built directly in the content area
+	hasPage bool // PageContainer owns the content header, including ghost mode
+	info    RouteInfo
 }
 
 var proLayoutCtxKey = hashID("prolayout-content-ctx")
@@ -752,21 +776,29 @@ func (pl *proLayout) main(crumbs bool) {
 	}
 	pctx := proLayoutContext(c)
 	saved := *pctx
-	pctx.depth, pctx.filled = pctx.depth+1, false
+	pctx.depth, pctx.filled, pctx.hasPage = pctx.depth+1, false, false
 	pctx.info = pl.routeInfo()
 	inner := func() {
-		if crumbs {
-			if items := pl.crumbs(); len(items) > 0 {
-				Row(c, func() { BreadcrumbItems(c, items).Show() }, layout.Margin(geom.Insets{Bottom: 16}))
-			}
-		}
-		if pl.cfg.PageTitle != "" {
-			Title(c, pl.cfg.PageTitle, 4).Layout(layout.Margin(geom.Insets{Bottom: 16}))
-		}
+		// Reserve the header's position, but build it only after the content
+		// has reported whether a PageContainer owns that header. No content
+		// callback is invoked twice and no nodes are detached from the tree.
+		autoHeader := Column(c, func() {})
 		if pl.cfg.ContentWidth == "Fixed" {
 			GridContent(c).ContentWidth("Fixed").Body(pl.content)
 		} else {
 			pl.content()
+		}
+		if !proLayoutContext(c).hasPage {
+			autoHeader.Body(func() {
+				if crumbs {
+					if items := pl.crumbs(); len(items) > 0 {
+						Row(c, func() { BreadcrumbItems(c, items).Show() }, layout.Margin(geom.Insets{Bottom: 16}))
+					}
+				}
+				if pl.cfg.PageTitle != "" {
+					Title(c, pl.cfg.PageTitle, 4).Layout(layout.Margin(geom.Insets{Bottom: 16}))
+				}
+			})
 		}
 		pl.footer()
 	}
@@ -802,7 +834,7 @@ func (pl *proLayout) routeInfo() RouteInfo {
 		crumbs = append(crumbs, it.Label)
 	}
 	ri := RouteInfo{InLayout: true, Layout: cfg.Layout, Collapsed: pl.collapsed(), Breadcrumb: crumbs, FixSiderbar: !cfg.NoFixSiderbar,
-		PageTitle: cfg.PageTitle, ContentWidth: cfg.ContentWidth, FixedHeader: !cfg.NoFixedHeader,
+		BreadcrumbItems: pl.crumbs(), PageTitle: cfg.PageTitle, ContentWidth: cfg.ContentWidth, FixedHeader: !cfg.NoFixedHeader,
 		HasSiderMenu: cfg.Layout != "top", IsMobile: ScreenBreakpoint(pl.c) < MD}
 	if ri.ContentWidth == "" {
 		ri.ContentWidth = "Fluid"
@@ -902,7 +934,7 @@ func (pl *proLayout) side() {
 }
 
 // header builds the full-width header of the top and mix layouts.
-func (pl *proLayout) header(menu bool) {
+func (pl *proLayout) header(menu bool) *Box {
 	c, th := pl.c, pl.th
 	tk := &th.Components.Layout
 	cfg := pl.cfg
@@ -910,7 +942,7 @@ func (pl *proLayout) header(menu bool) {
 	hdr := Row(c, func() {
 		pl.menuHeader(func() { pl.logo(false, dark) }, false)
 		if cfg.HeaderContentRender != nil {
-			Row(c, cfg.HeaderContentRender, layout.Grow(1), layout.MinW(0), layout.Gap(8), layout.Middle(), layout.Margin(geom.Insets{Left: 24}))
+			Row(c, cfg.HeaderContentRender, layout.Grow(1), layout.MinW(0), layout.Gap(8), layout.Middle(), layout.Pad(tk.ProMenuPadding))
 		} else if menu {
 			Row(c, func() {
 				m := Menu(c, cfg.Menu, cfg.Selected).Mode(MenuHorizontal)
@@ -918,12 +950,12 @@ func (pl *proLayout) header(menu bool) {
 					m.Dark()
 				}
 				m.Show()
-			}, layout.Grow(1), layout.MinW(0), layout.Margin(geom.Insets{Left: 24}))
+			}, layout.Grow(1), layout.MinW(0), layout.Pad(tk.ProMenuPadding))
 		} else {
 			Spacer(c)
 		}
 		pl.user(dark)
-	}, layout.H(tk.ProHeaderHeight), layout.PadVH(0, 16), layout.Gap(8), layout.Middle())
+	}, layout.H(tk.ProHeaderHeight), layout.PadVH(0, tk.ProTopNavPaddingInline), layout.Gap(8), layout.Middle())
 	if dark {
 		hdr.Bg(tk.SiderBg)
 	} else {
@@ -940,6 +972,7 @@ func (pl *proLayout) header(menu bool) {
 			}
 		}
 	}
+	return hdr
 }
 
 func (pl *proLayout) top() {
@@ -947,11 +980,7 @@ func (pl *proLayout) top() {
 	Layout(c, func() {
 		header := func() {
 			pl.headerBar(func() {
-				if shad2d(c) {
-					pl.shadHeader(true)
-				} else {
-					pl.header(true)
-				}
+				TopNavHeader(c, pl.cfg.Menu, pl.cfg.Selected).fromLayout(pl).Show()
 			})
 		}
 		if pl.cfg.NoFixedHeader {

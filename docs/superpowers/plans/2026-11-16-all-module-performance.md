@@ -18,7 +18,7 @@
 - [x] 顺序运行 14 个包、81 个子场景，记录 ns/op、B/op、allocs/op、负载、命令及提交。
 - [x] 第一批：为 graph.coords 和 isotonicGap 建立 CPU/alloc profile；若重复工作区分配明显，增加复用/所有权回归，局部复用工作区。
 - [x] 第一批：为 chart.LTTB 的稀疏/稠密和 NaN 输入建立对照及分配回归，减少临时索引成本。
-- [ ] 第一批：评估 buffer.NewSnapshot CRLF，保留换行统计/EOL 与 Unicode 语义。
+- [x] 第二批：评估并优化 buffer.NewSnapshot CRLF，保留换行统计/EOL 与 Unicode 语义；定点/race/旧模型对照通过，五轮 A/B 耗时 -33.2%。
 - [x] 第一批：用通用 Monarch 对照快速 Go lexer 的数字、转义、注释、运算符及自定义 grammar；出现偏差先修复。
 - [x] 补齐未跑 benchmark 的 editor/highlight、editor/diffview、Metal、gallery 和 shader/compiler 库；无法在本机有效测量的平台标注待设备。
 - [ ] 补齐 IPC/绑定/服务/CLI/i18n/资源的代表负载和基准。
@@ -38,5 +38,5 @@
 - Graph：分配字节 -66.5%、分配次数 -79.0%、耗时 -9.7%。
 - LTTB：分配字节 -85.8%、耗时 -19.2%。
 - KV Set/1000：分配字节 -99.96%、耗时 -98.5%。
-- Go lexer：语义修正后的固定语料新鲜对照比 MyGo v0.9.0 耗时低 61.6%，分配仍更多。
+- Go lexer：语义修正已验证；旧61.6%比例在第四批发现工具链不一致后撤回，统一Go1.27.3的新对照见第四批报告。
 - 全部模块持续优化任务尚未完成，详见 docs/performance/2026-11-16-module-coverage.md；不把第一批当作整个项目验收。

@@ -24,10 +24,9 @@ import (
 // work anywhere and read ConfigProvider.Defaults, so App is the unified
 // configuration container: its Message / Notification settings become the
 // "Message" / "Notification" defaults of everything built inside, and
-// UseApp returns handles that apply them (including MaxCount, which the
-// plain calls do not take from App; a plain Message follows the
-// "Message" maxCount default of ConfigProvider.Defaults instead). Text
-// already takes the theme's color and font
+// UseApp returns handles that apply them. Both plain calls and AppAPI use
+// the shared feedback lifecycle for MaxCount, including OnClose callbacks.
+// Text already takes the theme's color and font
 // everywhere, so there is no style reset to do; App only adds a column
 // that fills its parent.
 
@@ -94,10 +93,20 @@ func (a *AppW) Layout(o ...layout.Option) *AppW { a.opts = append(a.opts, o...);
 func (a *AppW) Body(fn func()) *Box {
 	c := a.c
 	cp := ConfigProvider(c)
+	mp := Props{}
 	if a.msg.Duration > 0 {
-		cp.Defaults("Message", Props{"duration": a.msg.Duration})
+		mp["duration"] = a.msg.Duration
+	}
+	if a.msg.MaxCount > 0 {
+		mp["maxCount"] = a.msg.MaxCount
+	}
+	if len(mp) > 0 {
+		cp.Defaults("Message", mp)
 	}
 	np := Props{}
+	if a.note.MaxCount > 0 {
+		np["maxCount"] = a.note.MaxCount
+	}
 	if a.note.PlacementSet {
 		np["placement"] = a.note.Placement
 	}
@@ -153,23 +162,28 @@ func (a AppAPI) InApp() bool { return a.ok }
 // Message opens a message (see Message), closing the oldest ones beyond
 // MaxCount.
 func (a AppAPI) Message(status, content string) *MessageRef {
-	r := Message(a.c, status, content)
+	var r *MessageRef
+	if a.msg.MaxCount > 0 {
+		ConfigProvider(a.c).Defaults("Message", Props{"maxCount": a.msg.MaxCount}).Body(func() { r = Message(a.c, status, content) })
+	} else {
+		r = Message(a.c, status, content)
+	}
 	if a.msg.Duration > 0 {
 		r.Duration(a.msg.Duration)
 	}
-	if n := a.msg.MaxCount; n > 0 {
-		t := a.c.toasts()
-		if len(t.msgs) > n {
-			t.msgs = append([]*toast(nil), t.msgs[len(t.msgs)-n:]...)
-		}
-	}
+
 	return r
 }
 
 // Notification opens a notification (see Notification), closing the
 // oldest cards beyond MaxCount.
 func (a AppAPI) Notification(status, title string) *NotificationRef {
-	r := Notification(a.c, status, title)
+	var r *NotificationRef
+	if a.note.MaxCount > 0 {
+		ConfigProvider(a.c).Defaults("Notification", Props{"maxCount": a.note.MaxCount}).Body(func() { r = Notification(a.c, status, title) })
+	} else {
+		r = Notification(a.c, status, title)
+	}
 	if a.note.PlacementSet {
 		r.Placement(a.note.Placement)
 	}
@@ -179,12 +193,7 @@ func (a AppAPI) Notification(status, title string) *NotificationRef {
 	if a.note.ShowProgress {
 		r.ShowProgress()
 	}
-	if n := a.note.MaxCount; n > 0 {
-		ns := a.c.navNotes()
-		if len(ns.list) > n {
-			ns.list = append([]*navNote(nil), ns.list[len(ns.list)-n:]...)
-		}
-	}
+
 	return r
 }
 

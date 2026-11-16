@@ -44,8 +44,9 @@ type CardW struct {
 // Card starts a card ("" title = no header); set options then call Body.
 //
 // ConfigProvider.Defaults("Card", ...) keys: "size" ("small" / Small),
-// "bordered" (bool), "variant" ("outlined" | "borderless"), "hoverable"
-// (bool), "shadow" (Element: "always" | "hover" | "never").
+// "variant" ("outlined" | "borderless"; the deprecated "bordered" bool is
+// still read), "hoverable" (bool), "shadow" (Element: "always" | "hover"
+// | "never"), "type" ("inner").
 func Card(c *Context, title string) *CardW {
 	w := &CardW{c: c, title: title, bordered: true, small: c.defaultSize() == Small}
 	if s, ok := dataPropSize(c, "Card"); ok {
@@ -57,6 +58,20 @@ func Card(c *Context, title string) *CardW {
 	}
 	w.hoverable = Prop(c, "Card", "hoverable", false)
 	w.shadow = Prop(c, "Card", "shadow", "")
+	w.inner = Prop(c, "Card", "type", "") == "inner"
+	return w
+}
+
+// Variant sets the card variant (antd 6 variant): "outlined" (the
+// default, a 1px outline) or "borderless" (no outline; an Ant card then
+// keeps a soft shadow, antd .ant-card:not(.ant-card-bordered)).
+func (w *CardW) Variant(v string) *CardW {
+	switch v {
+	case "borderless":
+		w.bordered = false
+	case "outlined":
+		w.bordered = true
+	}
 	return w
 }
 
@@ -78,6 +93,9 @@ func (w *CardW) Loading(on bool) *CardW { w.loading = on; return w }
 func (w *CardW) Hoverable() *CardW { w.hoverable = true; return w }
 
 // Borderless removes the border.
+//
+// Deprecated: use Variant("borderless") (antd 6 replaced bordered with
+// variant).
 func (w *CardW) Borderless() *CardW { w.bordered = false; return w }
 
 // Small uses the compact header and padding.
@@ -86,8 +104,10 @@ func (w *CardW) Small() *CardW { w.small = true; return w }
 // Inner uses Ant's inner-card header (grey header band).
 func (w *CardW) Inner() *CardW { w.inner = true; return w }
 
-// Shadow sets the shadow mode: "always", "hover" or "never" (default:
-// never for Ant, always for Element; Element's el-card shadow prop).
+// Shadow sets the shadow mode: "always", "hover" or "never" (Element's
+// el-card shadow prop). The default comes from the theme
+// (CardToken.ShadowAlways: never for Ant, except a borderless card, which
+// keeps a soft shadow; always for Element and shadcn).
 func (w *CardW) Shadow(mode string) *CardW { w.shadow = mode; return w }
 
 // Padding overrides the body padding.
@@ -137,27 +157,38 @@ func (w *CardW) Body(fn func()) *CardW {
 		b.Clip()
 	}
 	border := tk.BorderColor
-	if w.bordered {
-		// Drawn above children so the cover and action bar backgrounds
-		// do not hide it.
-		b.PaintOver(func(l *paint.List, r geom.Rect) { l.Stroke(r, geom.Rad(rad), 1, border) })
-	}
 	mode := w.shadow
 	if mode == "" {
 		mode = "never"
-		if el || shad {
+		if tk.ShadowAlways || !w.bordered {
 			mode = "always"
 		}
 	}
 	if w.hoverable {
 		mode = "hover"
 	}
+	if mode == "hover" {
+		// A hoverable card is clickable (Clicked): a Tab stop too.
+		w.ia = b.Focusable(input.CursorPointer)
+	}
+	if w.bordered {
+		// Drawn above children so the cover and action bar backgrounds
+		// do not hide it. antd: a hoverable card's outline turns
+		// transparent under the pointer (HoverBorderColor zero).
+		outline := border
+		if mode == "hover" {
+			ha := c.Anim(b.n.id, "hover-border", b2f(w.ia.Hovered), th.DurationMid)
+			outline = theme.Lerp(border, tk.HoverBorderColor, ha)
+			if tk.HoverBorderColor.A == 0 {
+				outline = theme.Fade(border, float64(1-ha))
+			}
+		}
+		b.PaintOver(func(l *paint.List, r geom.Rect) { l.Stroke(r, geom.Rad(rad), 1, outline) })
+	}
 	switch mode {
 	case "always":
 		b.Shadow(tk.Shadow)
 	case "hover":
-		// A hoverable card is clickable (Clicked): a Tab stop too.
-		w.ia = b.Focusable(input.CursorPointer)
 		if w.ia.FocusVisible {
 			fr, prev := geom.Rad(rad), b.n.over
 			b.PaintOver(func(l *paint.List, r geom.Rect) {
@@ -169,11 +200,21 @@ func (w *CardW) Body(fn func()) *CardW {
 		}
 		a := c.Anim(b.n.id, "hover", b2f(w.ia.Hovered), th.DurationMid)
 		src := tk.HoverShadow
-		if a > 0 {
-			sh := make([]paint.Shadow, len(src))
-			for i, s := range src {
+		// antd: a borderless card keeps boxShadowTertiary at rest and
+		// swaps to cardShadow under the pointer.
+		var base []paint.Shadow
+		if !w.bordered && !tk.ShadowAlways {
+			base = tk.Shadow
+		}
+		if a > 0 || len(base) > 0 {
+			sh := make([]paint.Shadow, 0, len(src)+len(base))
+			for _, s := range base {
+				s.Color = theme.Fade(s.Color, float64(1-a))
+				sh = append(sh, s)
+			}
+			for _, s := range src {
 				s.Color = theme.Fade(s.Color, float64(a))
-				sh[i] = s
+				sh = append(sh, s)
 			}
 			b.Shadow(sh)
 		}
@@ -181,6 +222,9 @@ func (w *CardW) Body(fn func()) *CardW {
 	pad := geom.All(tk.BodyPadding)
 	if w.small {
 		pad = geom.All(tk.BodyPaddingSM)
+	} else if w.inner {
+		// antd type inner: body padding "padding bodyPadding" (16 24).
+		pad.Top, pad.Bottom = tk.InnerBodyPaddingBlock, tk.InnerBodyPaddingBlock
 	}
 	hasTabs := w.tabActive != nil && len(w.tabs) > 0
 	hasHead := w.title != "" || w.extra != nil || hasTabs
@@ -391,6 +435,13 @@ type DescItem struct {
 	Label, Value string
 	Span         int
 	Render       func()
+	// Spans sets the span from a breakpoint upwards (antd span={{ xs: 1,
+	// md: 2 }}); the largest set breakpoint not above the window width
+	// wins, Span is the fallback.
+	Spans map[Breakpoint]int
+	// Filled makes the item take the rest of its row and ends the row
+	// (antd span: 'filled').
+	Filled bool
 }
 
 // DescriptionsW is a description list: title, extra, columns, bordered,
@@ -403,7 +454,7 @@ type DescriptionsW struct {
 	title    string
 	extra    func()
 	items    []DescItem
-	cols     int
+	cols     int // 0 = DEFAULT_COLUMN_MAP
 	bordered bool
 	size     ControlSize
 	vertical bool
@@ -417,21 +468,28 @@ type DescriptionsW struct {
 	tk       *theme.DescriptionsToken
 }
 
-// Descriptions adds a description list (default 3 columns, no border).
+// Descriptions adds a description list (no border). Without Column or a
+// "column" default the column count follows antd's DEFAULT_COLUMN_MAP:
+// 1 on xs, 2 on sm, 3 from md up.
 // Modifiers apply until the end of the build; the content is built then.
 //
 // ConfigProvider.Defaults("Descriptions", ...) keys: "column" (int or
 // map[Breakpoint]int), "bordered", "size", "layout" ("vertical"),
 // "colon" (bool).
 func Descriptions(c *Context, items []DescItem) *DescriptionsW {
-	d := &DescriptionsW{c: c, items: items, cols: 3, colon: true, size: c.sizeOr(Large), th: c.ThemeFor(theme.CompDescriptions)}
-	d.tk = &d.th.Components.Descriptions
+	th := c.ThemeFor(theme.CompDescriptions)
+	tk := &th.Components.Descriptions
+	def := Large // antd size "default" has the largest padding
+	if tk.DefaultMiddle {
+		def = Middle // Element's default size
+	}
+	d := &DescriptionsW{c: c, items: items, colon: true, size: c.sizeOr(def), th: th, tk: tk}
 	dataPropCols(c, "Descriptions", "column", &d.cols, &d.colsDef)
 	d.bordered = Prop(c, "Descriptions", "bordered", false)
 	if s, ok := dataPropSize(c, "Descriptions"); ok {
 		d.size = s
 		if s == Middle && Prop(c, "Descriptions", "size", "") == "default" {
-			d.size = Large // Ant "default" is the largest padding
+			d.size = def
 		}
 	}
 	d.vertical = Prop(c, "Descriptions", "layout", "horizontal") == "vertical"
@@ -450,7 +508,8 @@ func (d *DescriptionsW) Column(n int) *DescriptionsW {
 
 // ColumnAt sets the column count from breakpoint bp upwards (Ant
 // column={{ xs: 1, sm: 2, md: 3 }}); the largest set breakpoint not above
-// the window width wins, Column (default 3) is the fallback.
+// the window width wins, Column (default DEFAULT_COLUMN_MAP) is the
+// fallback.
 func (d *DescriptionsW) ColumnAt(bp Breakpoint, n int) *DescriptionsW { d.colsAt.set(bp, n); return d }
 
 // Columns sets several breakpoint column counts at once.
@@ -470,29 +529,59 @@ func (d *DescriptionsW) Layout(o ...layout.Option) *DescriptionsW { d.b.Style(o.
 // LabelBg overrides the bordered label background.
 func (d *DescriptionsW) LabelBg(col theme.Color) *DescriptionsW { d.labelBg = col; return d }
 
-func (d *DescriptionsW) rows() [][]DescItem {
+// descRows splits items into rows of cols columns like antd's useRow: an
+// item that does not fit is cut to the rest of the row (it does not wrap),
+// a Filled item takes the rest of its row and ends it, and the last item
+// of a short row stretches to fill it. span(i) is item i's span.
+func descRows(items []DescItem, cols int, span func(i int) int) [][]DescItem {
 	var rows [][]DescItem
 	var cur []DescItem
-	used := 0
-	for i, it := range d.items {
-		span := max(1, it.Span)
-		if used+span > d.cols && len(cur) > 0 {
-			// Stretch the previous row's last item to fill.
-			rows = append(rows, cur)
-			cur, used = nil, 0
+	count := 0
+	for i, it := range items {
+		if it.Filled {
+			it.Span = 1
+			cur = append(cur, it)
+			rows, cur, count = append(rows, cur), nil, 0
+			continue
 		}
-		span = min(span, d.cols)
-		it.Span = span
-		if i == len(d.items)-1 && used+span < d.cols {
-			it.Span = d.cols - used
+		it.Span = max(1, span(i))
+		rest := cols - count
+		count += it.Span
+		if count >= cols {
+			if count > cols {
+				it.Span = rest
+			}
+			cur = append(cur, it)
+			rows, cur, count = append(rows, cur), nil, 0
+			continue
 		}
 		cur = append(cur, it)
-		used += span
 	}
 	if len(cur) > 0 {
 		rows = append(rows, cur)
 	}
+	for _, row := range rows {
+		n := 0
+		for _, it := range row {
+			n += it.Span
+		}
+		if n < cols {
+			row[len(row)-1].Span += cols - n
+		}
+	}
 	return rows
+}
+
+func (d *DescriptionsW) rows() [][]DescItem {
+	return descRows(d.items, d.cols, func(i int) int {
+		it := &d.items[i]
+		if len(it.Spans) == 0 {
+			return it.Span
+		}
+		var r dataRespCols
+		r.setMap(it.Spans)
+		return r.resolve(d.c, it.Span)
+	})
 }
 
 func (d *DescriptionsW) pads() (v, h float32) {
@@ -506,11 +595,40 @@ func (d *DescriptionsW) pads() (v, h float32) {
 	return tk.CellPaddingBlock, tk.CellPaddingInline
 }
 
+// itemPad returns the bottom padding of borderless rows and of the label
+// row of a borderless vertical list.
+func (d *DescriptionsW) itemPad() (row, vlabel float32) {
+	tk := d.tk
+	switch d.size {
+	case Small:
+		return tk.ItemPaddingBottomSM, tk.VerticalLabelPaddingBottomSM
+	case Middle:
+		return tk.ItemPaddingBottomMD, tk.VerticalLabelPaddingBottomMD
+	}
+	return tk.ItemPaddingBottom, tk.VerticalLabelPaddingBottom
+}
+
+// descDefaultCols is antd's DEFAULT_COLUMN_MAP (descriptions/constant.js:
+// xs 1, sm 2, md..xxl 3; Tango has no xxxl).
+func descDefaultCols(c *Context) int {
+	switch ScreenBreakpoint(c) {
+	case XS:
+		return 1
+	case SM:
+		return 2
+	}
+	return 3
+}
+
 func (d *DescriptionsW) build() {
 	c, th, tk := d.c, d.th, d.tk
-	fallback := d.cols
+	base := d.cols
+	if base == 0 {
+		base = descDefaultCols(c)
+	}
+	fallback := base
 	if !d.colsSet {
-		fallback = d.colsDef.resolve(c, d.cols)
+		fallback = d.colsDef.resolve(c, base)
 	}
 	d.cols = d.colsAt.resolve(c, fallback)
 	el := th.Flavor == theme.Element
@@ -520,6 +638,19 @@ func (d *DescriptionsW) build() {
 		labelBg = d.labelBg
 	}
 	pv, ph := d.pads()
+	rowPad, vlabelPad := d.itemPad()
+	labelEnd := tk.LabelMarginInlineEnd
+	if d.size == Small {
+		labelEnd = tk.LabelMarginInlineEndSM
+	}
+	if tk.ShowColon && !d.colon {
+		// antd -item-no-colon::after keeps marginInline 2 8.
+		labelEnd += tk.ColonMarginInlineStart
+	}
+	colonText := ""
+	if d.colon && tk.ShowColon {
+		colonText = c.Locale().LabelColon
+	}
 	if d.bordered && !d.vertical && d.labelW == 0 {
 		// Align the label column across rows like a table would.
 		lst := c.style(th.FontSize, text.Regular)
@@ -532,31 +663,64 @@ func (d *DescriptionsW) build() {
 			it.Render()
 			return
 		}
-		Text(c, it.Value).Color(tk.ContentColor)
-	}
-	labelText := func(it DescItem, suffix bool) {
-		s := it.Label
-		if suffix && d.colon && !d.bordered {
-			s = c.Locale().WithColon(s)
-			if el {
-				s = it.Label
-			}
+		col := tk.ContentColor
+		if d.bordered {
+			col = tk.BorderedContentColor
 		}
-		t := Text(c, s).NoWrap().Color(tk.LabelColor)
+		Text(c, it.Value).Color(col)
+	}
+	labelText := func(it DescItem) {
+		col := tk.LabelColor
+		if d.bordered {
+			col = tk.BorderedLabelColor
+		}
+		t := Text(c, it.Label).NoWrap().Color(col)
 		if el && d.bordered {
 			t.Strong()
 		}
 	}
+	// plainLabel builds a borderless label: the text, then the colon with
+	// antd's margins (2px before, the label gap after; without a colon
+	// the gap stays, like antd's empty ::after).
+	plainLabel := func(it DescItem) *Box {
+		lb := Row(c, func() {
+			labelText(it)
+			if colonText != "" {
+				ct := Text(c, colonText).NoWrap().Color(tk.LabelColor).Layout(layout.Margin(geom.Insets{Left: tk.ColonMarginInlineStart}))
+				ct.n.aHidden = true // decoration, like antd's ::after
+			}
+		})
+		lb.n.ln.Shrink = 0
+		return lb
+	}
 	if d.title != "" || d.extra != nil {
+		tfs, tmb := tk.TitleFontSize, tk.TitleMarginBottom
+		switch d.size {
+		case Small:
+			tfs, tmb = tk.TitleFontSizeSM, tk.TitleMarginBottomSM
+		case Middle:
+			tmb = tk.TitleMarginBottomMD
+		}
 		Row(c, func() {
-			t := Text(c, d.title).Size(tk.TitleFontSize).Color(tk.TitleColor).Layout(layout.Grow(1))
+			t := Text(c, d.title).Size(tfs).Color(tk.TitleColor).Ellipsis().Layout(layout.Grow(1))
 			t.Strong()
 			if d.extra != nil {
 				d.extra()
 			}
-		}, layout.Middle(), layout.Margin(geom.Insets{Bottom: tk.TitleMarginBottom}))
+		}, layout.Middle(), layout.Margin(geom.Insets{Bottom: tmb}))
 	}
 	rows := d.rows()
+	// cell builds one borderless grid cell: an unpadded outer box that
+	// takes span columns (so columns line up whatever the padding) and a
+	// padded inner box.
+	cell := func(span int, bottom, end float32, role a11y.Role, fn func()) {
+		Row(c, func() {
+			in := Row(c, fn, layout.Grow(1), layout.MinW(0), layout.Padding(geom.Insets{Bottom: bottom, Right: end}), layout.AlignItems(layout.AlignStart))
+			if role != a11y.RoleNone {
+				in.n.setRole(role)
+			}
+		}, layout.Grow(float32(span)), layout.Basis(0), layout.MinW(0))
+	}
 	grid := Column(c, func() {
 		for ri, row := range rows {
 			last := ri == len(rows)-1
@@ -565,19 +729,29 @@ func (d *DescriptionsW) build() {
 					r.Paint(func(l *paint.List, rr geom.Rect) { dataHLine(l, rr.X, rr.Bottom()-1, rr.W, border) })
 				}
 			}
+			bottom := rowPad
+			if last {
+				bottom = 0 // antd: the last row has no bottom padding
+			}
+			endPad := func(ci int) float32 {
+				if ci == len(row)-1 {
+					return 0
+				}
+				return tk.ItemPaddingEnd
+			}
 			if d.vertical {
 				// Label row then content row.
 				lr := Row(c, func() {
 					for ci, it := range row {
-						cell := Row(c, func() { labelText(it, false) }, layout.Grow(float32(it.Span)), layout.Basis(0), layout.PadVH(pv, ph))
-						cell.n.setRole(a11y.RoleColumnHeader)
-						if d.bordered {
-							cell.Bg(labelBg)
-							if ci < len(row)-1 {
-								cell.Paint(func(l *paint.List, r geom.Rect) { dataVLine(l, dataEndX(c, r), r.Y, r.H, border) })
-							}
-						} else {
-							cell.Style(layout.PadVH(0, 0), layout.Margin(geom.Insets{Bottom: 4}))
+						if !d.bordered {
+							cell(it.Span, vlabelPad, endPad(ci), a11y.RoleColumnHeader, func() { plainLabel(it) })
+							continue
+						}
+						cl := Row(c, func() { labelText(it) }, layout.Grow(float32(it.Span)), layout.Basis(0), layout.PadVH(pv, ph))
+						cl.n.setRole(a11y.RoleColumnHeader)
+						cl.Bg(labelBg)
+						if ci < len(row)-1 {
+							cl.Paint(func(l *paint.List, r geom.Rect) { dataVLine(l, dataEndX(c, r), r.Y, r.H, border) })
 						}
 					}
 				})
@@ -587,14 +761,14 @@ func (d *DescriptionsW) build() {
 				}
 				cr := Row(c, func() {
 					for ci, it := range row {
-						cell := Row(c, func() { content(it) }, layout.Grow(float32(it.Span)), layout.Basis(0), layout.PadVH(pv, ph))
-						cell.n.setRole(a11y.RoleCell)
-						if d.bordered {
-							if ci < len(row)-1 {
-								cell.Paint(func(l *paint.List, r geom.Rect) { dataVLine(l, dataEndX(c, r), r.Y, r.H, border) })
-							}
-						} else {
-							cell.Style(layout.PadVH(0, 0), layout.Margin(geom.Insets{Bottom: 16}))
+						if !d.bordered {
+							cell(it.Span, bottom, endPad(ci), a11y.RoleCell, func() { content(it) })
+							continue
+						}
+						cc := Row(c, func() { content(it) }, layout.Grow(float32(it.Span)), layout.Basis(0), layout.PadVH(pv, ph))
+						cc.n.setRole(a11y.RoleCell)
+						if ci < len(row)-1 {
+							cc.Paint(func(l *paint.List, r geom.Rect) { dataVLine(l, dataEndX(c, r), r.Y, r.H, border) })
 						}
 					}
 				})
@@ -606,32 +780,30 @@ func (d *DescriptionsW) build() {
 				for ci, it := range row {
 					span := float32(it.Span)
 					if d.bordered {
-						cell := Row(c, func() {
+						bc := Row(c, func() {
 							lopts := []layout.Option{layout.PadVH(pv, ph)}
 							if d.labelW > 0 {
 								lopts = append(lopts, layout.W(d.labelW))
 							}
-							Row(c, func() { labelText(it, false) }, lopts...).Bg(labelBg).Paint(func(l *paint.List, r geom.Rect) {
+							Row(c, func() { labelText(it) }, lopts...).Bg(labelBg).Paint(func(l *paint.List, r geom.Rect) {
 								dataVLine(l, dataEndX(c, r), r.Y, r.H, border)
 							}).n.setRole(a11y.RoleRowHeader)
-							Row(c, func() { content(it) }, layout.Grow(1), layout.PadVH(pv, ph), layout.Middle()).n.setRole(a11y.RoleCell)
-						}, layout.Grow(span), layout.Basis(0))
+							Column(c, func() { content(it) }, layout.Grow(1), layout.MinW(0), layout.PadVH(pv, ph)).n.setRole(a11y.RoleCell)
+						}, layout.Grow(span), layout.Basis(0), layout.MinW(0))
 						if ci < len(row)-1 {
-							cell.Paint(func(l *paint.List, r geom.Rect) { dataVLine(l, dataEndX(c, r), r.Y, r.H, border) })
+							bc.Paint(func(l *paint.List, r geom.Rect) { dataVLine(l, dataEndX(c, r), r.Y, r.H, border) })
 						}
-					} else {
-						Row(c, func() {
-							lb := Row(c, func() { labelText(it, true) })
-							lb.n.setRole(a11y.RoleRowHeader)
-							if d.labelW > 0 {
-								lb.Style(layout.W(d.labelW))
-							}
-							if tk.LabelMarginInlineEnd > 0 {
-								lb.Style(layout.Margin(geom.Insets{Right: tk.LabelMarginInlineEnd}))
-							}
-							Column(c, func() { content(it) }, layout.Grow(1)).n.setRole(a11y.RoleCell)
-						}, layout.Grow(span), layout.Basis(0), layout.Padding(geom.Insets{Bottom: tk.ItemPaddingBottom, Right: ph / 2}))
+						continue
 					}
+					cell(it.Span, bottom, endPad(ci), a11y.RoleNone, func() {
+						lb := plainLabel(it)
+						lb.n.setRole(a11y.RoleRowHeader)
+						if d.labelW > 0 {
+							lb.Style(layout.W(d.labelW))
+						}
+						lb.Style(layout.Margin(geom.Insets{Right: labelEnd}))
+						Column(c, func() { content(it) }, layout.Grow(1), layout.MinW(0)).n.setRole(a11y.RoleCell)
+					})
 				}
 			}, layout.AlignItems(layout.AlignStretch))
 			r.n.setRole(a11y.RoleRow)

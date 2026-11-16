@@ -462,7 +462,7 @@ func (h *Host) handle(w *worker, m any) {
 			case x.owner == w:
 				x.surf.Close()
 			case x.next == w:
-				x.next = nil
+				x.next, x.nextCapture = nil, nil
 				if x.owner == nil {
 					x.surf.Close()
 				}
@@ -485,6 +485,15 @@ func (h *Host) handle(w *worker, m any) {
 				x.cv.SetCursor(m.Cursor)
 			case x.next == w:
 				x.nextCursor = &m.Cursor
+			}
+		}
+	case devhost.SetShortcutCapture:
+		if x := h.wins[m.Win]; x != nil {
+			switch {
+			case x.owner == w:
+				x.setShortcutCapture(m.Enabled)
+			case x.next == w:
+				x.nextCapture = &m.Enabled
 			}
 		}
 	case devhost.SetTextInput:
@@ -523,6 +532,9 @@ func (h *Host) workerGone(w *worker) {
 		h.active = nil
 	}
 	for id, x := range h.wins {
+		if x.owner == w {
+			x.setShortcutCapture(false)
+		}
 		if x.held == nil || x.held.w != w {
 			w.dropSegs(id, -1)
 		}
@@ -545,6 +557,7 @@ func (h *Host) abandonPending(w *worker) {
 	for _, x := range h.wins {
 		if x.next == w {
 			x.next, x.nextCursor, x.nextText, x.nextTitle, x.nextOps = nil, nil, nil, "", nil
+			x.nextCapture = nil
 			if x.owner == nil {
 				x.surf.Close()
 			}
@@ -584,6 +597,8 @@ func (h *Host) commit(p *worker) {
 		x.owner, x.next = p, nil
 		x.outstanding = nil
 		x.orphanedAt = time.Time{}
+		x.setShortcutCapture(x.nextCapture != nil && *x.nextCapture)
+		x.nextCapture = nil
 		if x.nextCursor != nil {
 			x.cv.SetCursor(*x.nextCursor)
 		}
@@ -608,6 +623,7 @@ func (h *Host) commit(p *worker) {
 		for id, x := range h.wins {
 			if x.owner == old {
 				x.owner = nil
+				x.setShortcutCapture(false)
 				x.orphanedAt = time.Now()
 				h.scheduleOrphanCheck(id)
 			}
@@ -719,6 +735,7 @@ type win struct {
 	owner       *worker // draws the window
 	next        *worker // pending worker that reopened it
 	nextCursor  *input.Cursor
+	nextCapture *bool
 	nextText    *devhost.SetTextInput
 	nextTitle   string
 	nextOps     []devhost.SurfaceOp // Surface calls of next, applied when it takes over
@@ -1080,6 +1097,13 @@ func surfaceOptions(o devhost.WindowOpts) tango.SurfaceOptions {
 			TitleBar: tango.TitleBar(o.TitleBar), Transparent: o.Transparent, Background: o.Background,
 			Material: tango.Material(o.Material), AlwaysOnTop: o.AlwaysOnTop, Opacity: o.Opacity,
 			NoShadow: o.NoShadow, NoClose: o.NoClose, NoMinimize: o.NoMinimize, NoMaximize: o.NoMaximize,
+			AllSpaces: o.AllSpaces,
 		},
+	}
+}
+
+func (x *win) setShortcutCapture(on bool) {
+	if cv, ok := x.cv.(platform.CanvasShortcutCapture); ok {
+		cv.SetShortcutCapture(on)
 	}
 }

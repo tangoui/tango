@@ -106,17 +106,16 @@ Go 运行时在 `TangoStart` 之前就已由 c-archive 的加载初始化启动�
 
 ### IPC 快速通道
 
-快速通道的整体说明见 [IPC：快速通道](../site/guide/concepts/ipc.md#快速通道)。iOS 与 macOS 提供的通道和取值含义相同，**但默认不同**：macOS 默认开启 `up:post`，iOS 默认关闭（只在模拟器上测过，等真机数据）。下面写的是 iOS：
+快速通道的整体说明见 [IPC：快速通道](../site/guide/concepts/ipc.md#快速通道)。iOS 与 macOS 读同一个环境变量，**但提供的通道和默认不同**：macOS 默认开启 `up:post`，另可开下行轮询通道 `down:poll`；iOS 只有 `up:post`，默认关闭（只在模拟器上测过，等真机数据）。下面写的是 iOS：
 
-- **只提供 `up:post`**：流的上行字节帧以 `POST tango://app/__tango/lane/up`（ArrayBuffer 请求体）交给 Go。**下行仍走消息通道**：`down:scheme` 的小块确实逐块交付，但 WebKit 会扣住大块突发的一部分，直到同一响应上有新数据才交出（实测见 [规格 §6.2](specs/2026-11-13-ipc-duplex-streams.md)），所以不报告。
+- **只提供 `up:post`**：流的上行字节帧以 `POST tango://app/__tango/lane/up`（ArrayBuffer 请求体）交给 Go。**下行仍走消息通道**（核心的带序号 `Eval`）：iOS 不报告 macOS 的 `down:poll`。早先的流式下行通道 `down:scheme` 因 WebKit 扣住大块突发（实测见 [规格 §6.2](specs/2026-11-13-ipc-duplex-streams.md)）已删除。
 - **iOS 默认关闭**，由环境变量 `TANGO_IPC_LANES_DARWIN` 控制，每个页面创建时读一次（任何构建都读；去掉首尾空白、不分大小写）：
   - 未设置、空、`0`、`false`、`off`：关闭（iOS 默认，等真机测量；macOS 上未设置/空是开启）；
-  - `all`：`down:scheme` + `up:post`，**仅供实验**，大块下行会出现上述扣留，流可能以 `transport` 失败；
-  - 其他值（通常是 `1`）：`up:post`。
+  - 其他值（`up`、`1`、`all` 都一样）：`up:post`。
   - `TANGO_IPC_LANES=0`（或 `tango.Options{DisableFastLanes: true}`）始终优先关闭。
   - 模拟器上用 `SIMCTL_CHILD_TANGO_IPC_LANES_DARWIN=1 xcrun simctl launch …` 传给应用。
-  - 真机上没法从外部给应用传环境变量：在 Go 里、创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "1")`（每个页面创建时读一次，之后再改只影响新页面）。
-  - `all` 和测试钩子 `TANGO_SCHEME_PROBE` 只在带 `-tags tango_dev`（`tan dev`）或 `-tags tango_selftest`（`GOFLAGS=-tags=tango_selftest bash mobile/ios/build.sh …`，模拟器自测用）的构建里生效；生产构建里 `all` 等同 `1`，探测路由不编译进去。见 [开发功能与生产构建](dev-builds.md)。
+  - 真机上没法从外部给应用传环境变量：在 Go 里、创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "up")`（每个页面创建时读一次，之后再改只影响新页面）。用 `up` 而不是 `1`：同一份代码在 macOS 上跑时，`1` 会把实验性的 `down:poll` 也打开，`up` 在两个平台上都只开 `up:post`。
+  - 测试钩子 `TANGO_SCHEME_PROBE` 只在带 `-tags tango_dev`（`tan dev`）或 `-tags tango_selftest`（`GOFLAGS=-tags=tango_selftest bash mobile/ios/build.sh …`，模拟器自测用）的构建里生效，生产构建里探测路由不编译进去。见 [开发功能与生产构建](dev-builds.md)。
 - iframe 拿不到通道令牌：`WKURLSchemeTask` 不提供发起请求的 frame，后端无法按 frame 拒绝，安全性依赖"令牌只经主框架的消息桥下发"（运行时只注入主框架，子框架的消息被丢弃）。macOS 上实测：沙箱 `srcdoc`、`data:` 等不透明来源的 frame 和同源 frame 发出的通道请求全部被拒，Go 侧没有收到任何包。同源 frame 本来就能访问 `parent.tango`，那是应用代码，不在此列。
 - WebKit 的 `tango://` 请求不带 `Origin`，后端用主文档的来源补上；所以应用页面里嵌的跨源 iframe 发往 `tango://app` 的请求能通过资源 CSRF 检查（原有行为，与通道无关；通道请求仍受每世代令牌保护）。不要在资源页面里嵌不可信的 frame。
 - `up:post` 只用 ArrayBuffer 作请求体，因为 WebKit 不交付 Blob 请求体（WebKit bug 197237）；`bodyshim.go` 对应用请求的 Blob/FormData 转换不受影响。

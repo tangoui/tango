@@ -6,8 +6,14 @@ import (
 	"github.com/tangoui/tango/ui/theme"
 )
 
-func tblDrawSorter(th *theme.Theme, tk *theme.TableToken, l *paint.List, r geom.Rect, order SortOrder) {
+// tblDrawSorter paints the up / down sort carets centred in r: the active
+// direction in the primary color, the other one idle (or the hover color
+// while the header is hovered). Sizes come from the Table token.
+func tblDrawSorter(th *theme.Theme, tk *theme.TableToken, l *paint.List, r geom.Rect, order SortOrder, hov bool) {
 	idle := tk.SorterIdleColor
+	if hov && tk.SorterHoverColor.A > 0 {
+		idle = tk.SorterHoverColor
+	}
 	up, down := idle, idle
 	if order == SortAsc {
 		up = th.Primary.Base
@@ -15,24 +21,31 @@ func tblDrawSorter(th *theme.Theme, tk *theme.TableToken, l *paint.List, r geom.
 		down = th.Primary.Base
 	}
 	cx, cy := r.X+r.W/2, r.Y+r.H/2
-	hw, h := float32(4), float32(4.5)
-	if th.Flavor == theme.Element {
-		hw, h = 5, 5
-	}
-	g := float32(1.5)
+	hw, h := tk.SorterArrowWidth/2, tk.SorterArrowHeight
+	g := tk.SorterGap / 2
 	l.Path(paint.NewPath().MoveTo(cx, cy-g-h).LineTo(cx+hw, cy-g).LineTo(cx-hw, cy-g).Close(), up)
 	l.Path(paint.NewPath().MoveTo(cx, cy+g+h).LineTo(cx-hw, cy+g).LineTo(cx+hw, cy+g).Close(), down)
 }
 
+// tblExpandSize is the drawn size of the expand / tree toggle.
+func tblExpandSize(tk *theme.TableToken) float32 {
+	s := tk.ExpandIconSize
+	if tk.ExpandIconScale > 0 {
+		s *= tk.ExpandIconScale
+	}
+	return s
+}
+
 // tblDrawExpand paints the expand / tree toggle: Ant's bordered plus/minus
-// square or Element's rotating arrow, which points toward the inline end
-// when closed (left in RTL) and down when open.
-func tblDrawExpand(th *theme.Theme, l *paint.List, r geom.Rect, open float32, hov, rtl bool) {
-	if th.Flavor == theme.Element {
-		col := th.TextSecondary
-		if hov {
-			col = th.Primary.Base
-		}
+// box (TableToken.ExpandIcon*) or, with ExpandIconArrow, Element's
+// rotating arrow, which points toward the inline end when closed (left in
+// RTL) and down when open.
+func tblDrawExpand(tk *theme.TableToken, l *paint.List, r geom.Rect, open float32, hov, rtl bool) {
+	col := tk.ExpandIconColor
+	if hov {
+		col = tk.ExpandIconHoverColor
+	}
+	if tk.ExpandIconArrow {
 		s := float32(12)
 		cx, cy := r.X+r.W/2, r.Y+r.H/2
 		k, ox, oy := s/24, cx-s/2, cy-s/2
@@ -50,19 +63,30 @@ func tblDrawExpand(th *theme.Theme, l *paint.List, r geom.Rect, open float32, ho
 		l.StrokePath(p, paint.StrokeStyle{Width: 1.8 * s / 24 * 1.3, Cap: paint.CapRound}, col)
 		return
 	}
-	const s = 17
-	b := geom.Rect{X: float32(int(r.X + (r.W-s)/2)), Y: float32(int(r.Y + (r.H-s)/2)), W: s, H: s}
-	bc := th.BorderSecondary
-	fg := th.Text
-	if hov {
-		bc, fg = th.Primary.Hover, th.Primary.Hover
+	// antd expand.js: a CSS box of ExpandIconSize with a 1px border, the
+	// lines inset paddingXXS − lineWidth (3) inside the border, the whole
+	// scaled by ExpandIconScale (16/17).
+	sc := tk.ExpandIconScale
+	if sc <= 0 {
+		sc = 1
 	}
-	l.Fill(b, geom.Rad(th.RadiusSM), th.BgContainer)
-	l.Stroke(b, geom.Rad(th.RadiusSM), 1, bc)
-	cx, cy := b.X+s/2, b.Y+s/2
-	l.Fill(geom.Rect{X: b.X + 4, Y: cy - 0.5, W: s - 8, H: 1}, geom.Radii{}, fg)
+	s := tk.ExpandIconSize * sc
+	b := geom.Rect{X: float32(int(r.X + (r.W-s)/2)), Y: float32(int(r.Y + (r.H-s)/2)), W: s, H: s}
+	rad := geom.Rad(tk.ExpandIconRadius * sc)
+	bc := tk.ExpandIconBorder
+	if hov {
+		bc = col // border currentcolor on hover
+	}
+	l.Fill(b, rad, tk.ExpandIconBg)
+	l.Stroke(b, rad, 1, bc)
+	// Pixel-aligned 1px lines on row / column m with an odd length
+	// centred on them (the scaled box is 16px: no centre pixel).
+	m := float32(int((s - 1) / 2))
+	ln := float32(int(s-8*sc)/2*2 + 1)
+	st := m + 0.5 - ln/2
+	l.Fill(geom.Rect{X: b.X + st, Y: b.Y + m, W: ln, H: 1}, geom.Radii{}, col)
 	if open < 1 {
-		hgt := (s - 8) * (1 - open)
-		l.Fill(geom.Rect{X: cx - 0.5, Y: cy - hgt/2, W: 1, H: hgt}, geom.Radii{}, fg)
+		hgt := ln * (1 - open)
+		l.Fill(geom.Rect{X: b.X + m, Y: b.Y + m + 0.5 - hgt/2, W: 1, H: hgt}, geom.Radii{}, col)
 	}
 }

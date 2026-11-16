@@ -185,7 +185,8 @@ func (w *UploadW) Rejections() []string {
 
 // configDefaults applies ConfigProvider Defaults("Upload", ...): "accept",
 // "action" (string), "maxSize" (int64 bytes), "maxCount" (int),
-// "multiple", "directory", "disabled", "autoUpload" (bool), "listType"
+// "multiple", "directory", "disabled", "autoUpload", "showUploadList"
+// (bool), "listType"
 // ("text" | "picture" | "picture-card" | "picture-circle"), "headers"
 // (map[string]string) and
 // "picker" (func(accept string, multiple, dir bool) ([]string, error)).
@@ -198,6 +199,7 @@ func (w *UploadW) configDefaults() {
 	w.multiple = propBool(c, "Upload", "multiple", w.multiple)
 	w.dir = propBool(c, "Upload", "directory", w.dir)
 	w.disabled = propBool(c, "Upload", "disabled", w.disabled)
+	w.noList = !propBool(c, "Upload", "showUploadList", !w.noList)
 	switch propString(c, "Upload", "listType", "") {
 	case "picture-card", "picture-circle":
 		w.kind = upCard
@@ -336,6 +338,9 @@ func (w *UploadW) addPaths(paths []string) {
 				rejects = append(rejects, err.Error())
 				continue
 			}
+		}
+		if w.maxCount == 1 && len(*w.files) > 0 {
+			w.replaceAll() // antd maxCount 1: the newest file wins
 		}
 		f.UID = upUID.Add(1)
 		upload := w.req.active() && !w.manual

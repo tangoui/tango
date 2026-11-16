@@ -40,6 +40,7 @@ type rule struct {
 	m           *matcher
 	atLineStart bool // 源码以 ^ 开头：只在行（或嵌入后剩余片段）开头尝试
 	action      *action
+	noCaptures  bool // action cannot inspect captured subgroups
 }
 
 type actKind uint8
@@ -55,6 +56,7 @@ type action struct {
 	kind       actKind
 	token      string
 	tokenSubst bool
+	tokenType  string // immutable sanitized type for a literal non-bracket token
 	next       string
 	switchTo   string
 	goBack     int
@@ -116,7 +118,7 @@ func compileGrammar(id string, src *node) (g *grammar, err error) {
 	if s := src.get("start"); s.isString() {
 		g.start = s.str
 	}
-	g.defAction = &action{kind: actString, token: g.defaultToken}
+	g.defAction = g.tokenAction(actString, g.defaultToken)
 	tk := src.get("tokenizer")
 	if tk == nil || tk.kind != kObject {
 		return nil, g.errorf("a language definition must define the 'tokenizer' attribute as an object")
@@ -225,6 +227,8 @@ func (g *grammar) addRules(state string, out *[]*rule, rules *node, depth int) e
 			return err
 		}
 		r.action = a
+		r.noCaptures = a.kind == actString || a.kind == actToken && !a.tokenSubst &&
+			!strings.Contains(a.next, "$") && !strings.Contains(a.switchTo, "$") && !strings.Contains(a.nextEmbed, "$")
 		*out = append(*out, r)
 	}
 	return nil
@@ -398,17 +402,54 @@ func (g *grammar) newCompiledRe(src, flags string) *compiledRe {
 		re = nil
 	}
 	firstByte, hasFirst := byte(0), false
-	if re != nil && re.Engine() == regex.Backtrack && !strings.Contains(flags, "i") {
+	if re != nil && !strings.Contains(flags, "i") {
 		firstByte, hasFirst = backtrackLiteralFirst(src)
 	}
 	return &compiledRe{src: src, flags: flags, re: re, firstByte: firstByte, hasFirst: hasFirst}
 }
 
+const maxBacktrackFirstSource = 512
+
 func backtrackLiteralFirst(src string) (byte, bool) {
-	// An alternative may start with another byte. Reject conservatively, even
-	// when the bar is escaped or inside a nested expression.
+	// Only a top-level alternative can bypass a required leading literal.
+	// Bound the extra scan; large expressions keep the previous conservative
+	// behavior. The compiler has already validated the expression's syntax.
 	if strings.Contains(src, "|") {
-		return 0, false
+		if len(src) > maxBacktrackFirstSource {
+			return 0, false
+		}
+		depth, inClass := 0, false
+		for i := 0; i < len(src); i++ {
+			switch {
+			case src[i] == '\\':
+				i++
+			case inClass:
+				if src[i] == ']' {
+					inClass = false
+				}
+			case src[i] == '[':
+				inClass = true
+			case src[i] == '(':
+				// Inline options, comments and non-JS group extensions can
+				// change how later punctuation is parsed. Keep the old
+				// conservative fallback for those forms.
+				if i+1 < len(src) && src[i+1] == '?' &&
+					(i+2 >= len(src) || !strings.ContainsRune(":!=<", rune(src[i+2]))) {
+					return 0, false
+				}
+				depth++
+			case src[i] == ')':
+				depth--
+				if depth < 0 {
+					return 0, false
+				}
+			case src[i] == '|' && depth == 0:
+				return 0, false
+			}
+		}
+		if depth != 0 || inClass {
+			return 0, false
+		}
 	}
 	i := 0
 	if i < len(src) && src[i] == '^' {
@@ -450,7 +491,7 @@ func (m *matcher) resolve(state string) *compiledRe {
 		re = nil
 	}
 	firstByte, hasFirst := byte(0), false
-	if re != nil && re.Engine() == regex.Backtrack && !strings.Contains(m.flags, "i") {
+	if re != nil && !strings.Contains(m.flags, "i") {
 		firstByte, hasFirst = backtrackLiteralFirst(src)
 	}
 	c := &compiledRe{src: src, flags: m.flags, re: re, firstByte: firstByte, hasFirst: hasFirst}
@@ -585,14 +626,26 @@ func approxXID(s string) string {
 	return sb.String()
 }
 
+// Limit per-action copies of plugin-supplied labels and postfixes. Very long
+// types retain the original runtime path instead of multiplying compile memory.
+const maxPrecomputedTokenTypeBytes = 256
+
+func (g *grammar) tokenAction(kind actKind, token string) *action {
+	a := &action{kind: kind, token: token, tokenSubst: kind == actToken && strings.Contains(token, "$")}
+	if token != "" && !a.tokenSubst && !strings.HasPrefix(token, "@brackets") && len(token)+len(g.tokenPostfix) <= maxPrecomputedTokenTypeBytes {
+		a.tokenType = sanitize(token + g.tokenPostfix)
+	}
+	return a
+}
+
 // compileAction 对应 Monaco 的 compileAction。
 func (g *grammar) compileAction(ruleName string, n *node) (*action, error) {
 	if !n.truthy() {
-		return &action{kind: actToken}, nil
+		return g.tokenAction(actToken, ""), nil
 	}
 	switch n.kind {
 	case kString:
-		return &action{kind: actString, token: n.str}, nil
+		return g.tokenAction(actString, n.str), nil
 	case kArray:
 		a := &action{kind: actGroup}
 		for _, e := range n.arr {
@@ -611,7 +664,7 @@ func (g *grammar) compileAction(ruleName string, n *node) (*action, error) {
 		if !tok.isString() {
 			return nil, g.errorf("a 'token' attribute must be of type string, in rule: %s", ruleName)
 		}
-		a := &action{kind: actToken, token: tok.str, tokenSubst: strings.Contains(tok.str, "$")}
+		a := g.tokenAction(actToken, tok.str)
 		if b := n.get("bracket"); b.isString() && b.str != "@open" && b.str != "@close" {
 			return nil, g.errorf("a 'bracket' attribute must be either '@open' or '@close', in rule: %s", ruleName)
 		}

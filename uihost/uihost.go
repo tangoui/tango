@@ -110,6 +110,12 @@ func Open(app *tango.App, opts Options, page func(*ui.Context), ropts ui.RunnerO
 	r.Attach(h.win)
 	if h.gpu != nil {
 		renderers.Store(r, h.gpu)
+		if frameTraceOn() {
+			h.trace = newFrameTrace(h.id)
+			h.gpu.setTrace(h.trace)
+		}
+	} else {
+		frameTraceSkipped(h.id, "drawn by the CPU (TANGO_RENDERER=cpu, no GPU presenter, or a renderer set in RunnerOptions); only GPU windows are traced")
 	}
 	s.OnClosed(h.close)
 	watchMemory(app, r) // memory.go
@@ -131,12 +137,19 @@ type host struct {
 	closed  bool
 	lastErr string // last frame error logged
 	ax      *a11yBridge
-	win     *window // the runner's window; nil until attached
+	win     *window     // the runner's window; nil until attached
+	trace   *frameTrace // TANGO_FRAME_TRACE (frametrace.go); nil: off
 }
 
 func (h *host) CanvasFrame() {
 	if h.closed || h.cv == nil {
 		return
+	}
+	if h.trace != nil {
+		h.trace.begin()
+		// The renderer is read when the frame ends: a frame that loses the
+		// GPU is summarized as cpu.
+		defer func() { h.trace.end(Renderer(h.r)) }()
 	}
 	var err error
 	// A panic in the frame (page functions included) goes to the app's
@@ -244,6 +257,13 @@ func (w *window) Scale() float32           { return w.cv.Scale() }
 func (w *window) Invalidate()              { w.cv.Invalidate() }
 func (w *window) InvalidateAt(t time.Time) { w.cv.InvalidateAt(t) }
 func (w *window) SetCursor(c input.Cursor) { w.cv.SetCursor(c) }
+func (w *window) SetShortcutCapture(on bool) {
+	w.sc.setCapture(on)
+	if cv, ok := w.cv.(platform.CanvasShortcutCapture); ok {
+		cv.SetShortcutCapture(on)
+	}
+}
+
 func (w *window) SetTextInput(on bool, caret geom.Rect) {
 	w.sc.setText(on)
 	w.cv.SetTextInput(on, caret)

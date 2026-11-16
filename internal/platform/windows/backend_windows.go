@@ -222,6 +222,12 @@ func (b *Backend) Step(block bool) bool {
 // dispatch delivers one message. Menu accelerators of the surface that
 // contains the target window are tried first.
 func (b *Backend) dispatch(m *msg) {
+	if capturesCanvasShortcut(m) {
+		// No TranslateMessage: a generated SYSCHAR can otherwise remain
+		// queued until after recording ends / the captured key is released.
+		procDispatchMessageW.Call(uintptr(unsafe.Pointer(m)))
+		return
+	}
 	if b.translateAccelerator(m) {
 		return
 	}
@@ -232,6 +238,9 @@ func (b *Backend) dispatch(m *msg) {
 func (b *Backend) translateAccelerator(m *msg) bool {
 	if m.HWnd == 0 {
 		return false
+	}
+	if capturesCanvasShortcut(m) {
+		return false // actual focus canvas gets the key, not TranslateAccelerator
 	}
 	top, _, _ := procGetAncestor.Call(m.HWnd, gaRoot)
 	s := b.surfaces[top]

@@ -64,7 +64,7 @@ func TestG6TableTokenDefaults(t *testing.T) {
 			k := th.Components.Table
 			el := th.Flavor == theme.Element
 			if k.HeaderBg != th.TableHeaderBg || k.RowHoverBg != th.TableRowHoverBg || k.BorderColor != th.BorderSecondary ||
-				k.SorterIdleColor != th.TableSorterIdle || k.RowStripedBg != th.FillAlter || k.RowCurrentBg != th.Primary.Bg {
+				k.SorterIdleColor != th.TableSorterIdle || (!el && k.RowStripedBg != th.FillAlter) || k.RowCurrentBg != th.Primary.Bg {
 				t.Errorf("%v dark=%v: colors", th.Flavor, dark)
 			}
 			if el && (k.RowSelectedBg.A != 0 || k.HeaderBorderRadius != 0 || k.CellColor != th.TextSecondary || k.CellPaddingInlineMD != 12) {

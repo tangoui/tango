@@ -285,7 +285,7 @@ func TestA11yProTableToolbar(t *testing.T) {
 	type row struct{ name string }
 	d := NewDriver(func(c *Context) {
 		ProTable(c, []ProColumn[row]{{Key: "name", Title: "Name", Value: func(r row) any { return r.name }}}).
-			Title("Users").NoSearch().
+			Title("Users").NoSearch().FullScreen(true).
 			Request(func(_ ProRequest, done func(ProResult[row])) { done(ProResult[row]{Rows: []row{{"a"}}, Total: 1}) }).Show()
 	}, DriverOptions{Width: 1000, Height: 700})
 	d.EnableAccessibility()

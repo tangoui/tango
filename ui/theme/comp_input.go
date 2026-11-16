@@ -30,6 +30,10 @@ type InputToken struct {
 	WarningActiveShadowColor Color
 
 	Shadow []paint.Shadow // resting field shadow (shadcn shadow-xs)
+
+	// TextAreaMinHeight is the smallest TextArea frame (shadcn min-h-16);
+	// zero: the rows decide.
+	TextAreaMinHeight float32
 }
 
 func deriveInput(t *Theme) InputToken {
@@ -57,6 +61,8 @@ func deriveInput(t *Theme) InputToken {
 		// new-york: text-sm at every size, no hover border.
 		k.InputFontSizeLG = t.FontSize
 		k.HoverBorderColor = t.Border
+		// new-york-v4 textarea.tsx: min-h-16.
+		k.TextAreaMinHeight = 64
 	}
 	return k
 }

@@ -48,7 +48,7 @@ func TestComponentOrder(t *testing.T) {
 	}
 	want := []string{"Button", "Input", "Select", "Checkbox", "Radio", "Switch", "Slider", "Tag", "Tabs", "Menu", "Table",
 		"Card", "Modal", "Drawer", "Tooltip", "Popover", "Notification", "Message", "Pagination", "Segmented", "Avatar", "Skeleton", "Layout",
-		"Tree", "Cascader", "DatePicker", "Calendar", "Steps", "Timeline", "Descriptions", "List", "Badge", "Progress", "Upload", "Transfer", "Collapse", "Alert", "Breadcrumb", "Dropdown", "Rate", "InputNumber", "Statistic", "Divider", "Typography", "Image", "Carousel", "ColorPicker", "Tour", "Splitter", "Result", "Empty", "FloatButton", "Anchor", "Form", "Menubar", "Item", "Terminal", "CodeBlock", "JSONView", "LogView", "StatusBar", "TitleBar", "NotificationCenter", "HotkeyInput", "Dock", "Chat", "FooterToolbar", "DiffView"}
+		"Tree", "Cascader", "DatePicker", "Calendar", "Steps", "Timeline", "Descriptions", "List", "Badge", "Progress", "Upload", "Transfer", "Collapse", "Alert", "Breadcrumb", "Dropdown", "Rate", "InputNumber", "Statistic", "Divider", "Typography", "Image", "Carousel", "ColorPicker", "Tour", "Splitter", "Result", "Empty", "FloatButton", "Anchor", "Form", "Menubar", "Item", "Terminal", "CodeBlock", "JSONView", "LogView", "StatusBar", "TitleBar", "NotificationCenter", "HotkeyInput", "Dock", "Chat", "FooterToolbar", "DiffView", "Spin", "PageHeader", "Command"}
 	for i, n := range want {
 		if Comp(i).String() != n {
 			t.Errorf("Comp(%d) = %s, want %s", i, Comp(i), n)
@@ -305,10 +305,11 @@ func TestHighContrastComponents(t *testing.T) {
 		}
 	}
 	// Normal themes without overrides report no component pair, except
-	// the always-audited (spec-tagged) terminal palette.
+	// the always-audited (spec-tagged) terminal palette and Drawer
+	// dragger (batch 3 group K).
 	for _, th := range BuiltinThemes() {
 		for _, ch := range CheckContrast(th) {
-			if strings.Contains(ch.Token, ".") && !strings.HasPrefix(ch.Token, "Terminal.Palette[") {
+			if strings.Contains(ch.Token, ".") && !strings.HasPrefix(ch.Token, "Terminal.Palette[") && !strings.HasPrefix(ch.Token, "Drawer.ResizeLine") {
 				t.Errorf("unexpected component pair in a stock theme: %s", ch)
 			}
 		}
@@ -334,6 +335,10 @@ func TestComponentCSSVars(t *testing.T) {
 		for j := range ft.NumField() {
 			if ft.Field(j).Type.Kind() == reflect.Array {
 				n += ft.Field(j).Type.Len() - 1
+			}
+			// Behaviour switches (Button.AutoInsertSpace) have no CSS form.
+			if ft.Field(j).Type.Kind() == reflect.Bool {
+				n--
 			}
 		}
 	}

@@ -123,7 +123,9 @@ type ColorPickerW struct {
 	// points at gcol, the color of the selected stop the editors change.
 	grad      *theme.Gradient
 	gcol      theme.Color
-	hoverTrig bool // Trigger(TriggerHover)
+	hoverTrig bool      // Trigger(TriggerHover)
+	place     Placement // popup placement (Ant placement)
+	noFormat  bool      // DisabledFormat: the format select is left out
 }
 
 // cpTheme captures the ColorPicker theme and tokens at build.
@@ -146,6 +148,12 @@ func ColorPicker(c *Context, val *theme.Color) *ColorPickerW {
 	w.ia = c.interact(w.n, true, input.CursorPointer)
 	w.n.setRole(a11y.RoleCombobox).setState(a11y.Expandable | a11y.HasPopup).fill(w)
 	w.configDefaults()
+	// Further Defaults("ColorPicker", ...) keys: "placement",
+	// "disabledFormat".
+	dtPlaceDefault(c, "ColorPicker", &w.place)
+	if v, ok := p2bBool(c, "ColorPicker", "disabledFormat"); ok {
+		w.noFormat = v
+	}
 	w.z = c.lazy(w.n, w.finish)
 	return w
 }
@@ -189,6 +197,15 @@ func (w *ColorPickerW) PresetLabel(s string) *ColorPickerW { w.presetName = s; r
 
 // ShowText shows the color value next to the swatch.
 func (w *ColorPickerW) ShowText() *ColorPickerW { w.showText = true; return w }
+
+// DisabledFormat leaves the format select out of the panel (Ant
+// disabledFormat): the value is edited in the current Format only.
+func (w *ColorPickerW) DisabledFormat(on bool) *ColorPickerW { w.noFormat = on; return w }
+
+// Placement sets where the panel opens: BottomStart (default), BottomEnd,
+// TopStart or TopEnd (Ant placement "bottomLeft" …); it flips when there
+// is no room.
+func (w *ColorPickerW) Placement(p Placement) *ColorPickerW { w.place = p; return w }
 
 // NoAlpha hides the alpha slider and input.
 func (w *ColorPickerW) NoAlpha() *ColorPickerW { w.noAlpha = true; return w }
@@ -363,7 +380,7 @@ func (w *ColorPickerW) finish() {
 	if !st.pop.open {
 		return
 	}
-	entPanel(c, w.n.id, &st.pop, false, w.panel)
+	dtPanel(c, w.n.id, &st.pop, w.place, w.panel)
 	if w.grad != nil {
 		w.gradStore()
 	}
@@ -564,8 +581,13 @@ func (w *ColorPickerW) inputsAnt() {
 		if st.format == "hsv" {
 			third = Option{Label: "HSV", Value: "hsv"}
 		}
-		sel := Select(c, &st.format, []Option{{Label: "HEX", Value: "hex"}, {Label: "RGB", Value: "rgb"}, third}).Size(Small).Width(76).A11yLabel(w.loc.ColorPicker.Format)
-		st.selPop = sel.st.panel
+		// DisabledFormat leaves the format select out (antd
+		// color-picker/components/ColorInput.js: !disabledFormat && <Select>).
+		st.selPop = 0
+		if !w.noFormat {
+			sel := Select(c, &st.format, []Option{{Label: "HEX", Value: "hex"}, {Label: "RGB", Value: "rgb"}, third}).Size(Small).Width(76).A11yLabel(w.loc.ColorPicker.Format)
+			st.selPop = sel.st.panel
+		}
 		if hsb {
 			w.inputsHSB()
 		} else if st.format == "hex" {

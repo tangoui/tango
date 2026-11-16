@@ -182,6 +182,111 @@ func TestProDescriptionsRequestError(t *testing.T) {
 	}
 }
 
+func TestProDescriptionsResponsiveColumns(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		width  float32
+		oneRow bool
+	}{
+		{name: "narrow", width: 500, oneRow: false},
+		{name: "wide", width: 1300, oneRow: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, themeCase := range []struct {
+				name string
+				th   *theme.Theme
+			}{{"ant", theme.AntDesign()}, {"element", theme.ElementPlus()}, {"shadcn", theme.Shadcn()}} {
+				t.Run(themeCase.name, func(t *testing.T) {
+					d := pro3Driver(func() *theme.Theme { return themeCase.th }, tc.width, 300, func(c *Context) {
+						ProDescriptions(c, []ProDescItem{{Key: "one", Label: "One"}, {Key: "two", Label: "Two"}}).
+							DataSource(&ProValues{"one": "A", "two": "B"}).
+							Column(3).ColumnAt(XS, 1).ColumnAt(MD, 3).Show()
+					})
+					one, _ := d.FindText("A")
+					two, _ := d.FindText("B")
+					if (absf(one.Y-two.Y) < 1) != tc.oneRow {
+						t.Fatalf("responsive columns at %gpx: one=%v two=%v", tc.width, one, two)
+					}
+				})
+			}
+		})
+	}
+}
+
+// pro3SameRow reports whether the texts a and b are on one row.
+func pro3SameRow(t *testing.T, d *Driver, a, b string) bool {
+	t.Helper()
+	ra, ok1 := d.FindText(a)
+	rb, ok2 := d.FindText(b)
+	if !ok1 || !ok2 {
+		t.Fatalf("%q/%q not rendered", a, b)
+	}
+	return absf(ra.Y-rb.Y) < 1
+}
+
+// TestDescriptionsDefaultColumnMap: without Column or a "column" default
+// Descriptions and ProDescriptions follow antd's DEFAULT_COLUMN_MAP
+// (xs 1, sm 2, md+ 3); a ProDescriptions "column" map default applies and
+// an explicit Column wins over it.
+func TestDescriptionsDefaultColumnMap(t *testing.T) {
+	items := []DescItem{{Label: "L1", Value: "A"}, {Label: "L2", Value: "B"}, {Label: "L3", Value: "C"}}
+	pitems := []ProDescItem{{Key: "a", Label: "L1"}, {Key: "b", Label: "L2"}, {Key: "c", Label: "L3"}}
+	src := ProValues{"a": "A", "b": "B", "c": "C"}
+	for _, tc := range []struct {
+		width  float32
+		ab, bc bool // A/B and B/C on one row
+	}{{500, false, false}, {700, true, false}, {1300, true, true}} {
+		for name, page := range map[string]func(c *Context){
+			"base": func(c *Context) { Descriptions(c, items) },
+			"pro":  func(c *Context) { ProDescriptions(c, pitems).DataSource(&src).Show() },
+		} {
+			d := pro3Driver(func() *theme.Theme { return theme.AntDesign() }, tc.width, 400, page)
+			if ab, bc := pro3SameRow(t, d, "A", "B"), pro3SameRow(t, d, "B", "C"); ab != tc.ab || bc != tc.bc {
+				t.Fatalf("%s at %gpx: A/B row=%v B/C row=%v, want %v %v", name, tc.width, ab, bc, tc.ab, tc.bc)
+			}
+		}
+	}
+	mapDef := Props{"column": map[Breakpoint]int{XS: 1, MD: 2}}
+	d := pro3Driver(func() *theme.Theme { return theme.AntDesign() }, 1300, 400, func(c *Context) {
+		ConfigProvider(c).Defaults("ProDescriptions", mapDef).Body(func() {
+			ProDescriptions(c, pitems).DataSource(&src).Show()
+		})
+	})
+	if !pro3SameRow(t, d, "A", "B") || pro3SameRow(t, d, "B", "C") {
+		t.Fatal("ProDescriptions column map default not applied")
+	}
+	d = pro3Driver(func() *theme.Theme { return theme.AntDesign() }, 1300, 400, func(c *Context) {
+		ConfigProvider(c).Defaults("ProDescriptions", mapDef).Body(func() {
+			ProDescriptions(c, pitems).DataSource(&src).Column(3).Show()
+		})
+	})
+	if !pro3SameRow(t, d, "B", "C") {
+		t.Fatal("explicit Column must win over the column map default")
+	}
+}
+
+func TestProDescriptionsA11y(t *testing.T) {
+	for _, themeCase := range []struct {
+		name string
+		th   *theme.Theme
+	}{{"ant", theme.AntDesign()}, {"element", theme.ElementPlus()}, {"shadcn", theme.Shadcn()}} {
+		t.Run(themeCase.name, func(t *testing.T) {
+			d := pro3Driver(func() *theme.Theme { return themeCase.th }, 800, 300, func(c *Context) {
+				ProDescriptions(c, []ProDescItem{{Key: "name", Label: "Name"}, {Key: "state", Label: "State", ValueType: ValueSelect, ValueEnum: []ProEnum{{Value: "on", Label: "Online"}}}}).
+					Title("Details").DataSource(&ProValues{"name": "Ada", "state": "on"}).Show()
+			})
+			d.EnableAccessibility()
+			d.Frame()
+			if _, ok := d.A11yFind(a11y.RoleTable, "Details"); !ok {
+				t.Fatal("descriptions table is not named")
+			}
+			if rep := d.AuditNoContrast(); rep.Count(AuditMissingName) != 0 || rep.Count(AuditNotKeyboard) != 0 {
+				t.Fatalf("audit: %s", rep)
+			}
+		})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // ProList
 
@@ -231,6 +336,8 @@ func TestProListSelectExpandPaginate(t *testing.T) {
 		if !pro3HasText(d, ZhCN.Selected(1)) {
 			t.Fatal("selection bar missing")
 		}
+		// Pro v3 defaults to expanded rows; exercise collapse then expand.
+		clickNth(t, d, ZhCN.Collapse, 0)
 		clickNth(t, d, ZhCN.Expand, 0)
 		if !pro3HasText(d, "detail of Item 0") {
 			t.Fatal("not expanded")
@@ -635,6 +742,66 @@ func TestFieldSetInForm(t *testing.T) {
 	}
 	if p := vals.Parts("phone"); fmt.Sprint(p) != "[86 555]" {
 		t.Fatalf("parts %v", p)
+	}
+}
+
+func TestFieldSetInitialValues(t *testing.T) {
+	vals := ProValues{}
+	pro3Driver(func() *theme.Theme { return theme.AntDesign() }, 700, 300, func(c *Context) {
+		f := Form(c)
+		f.Body(func() {
+			FieldSet(c, f, ProFieldSet{Key: "phone", Label: "Phone", Initial: []any{"86", "555"},
+				Parts: []ProField{{ValueType: ValueText}, {ValueType: ValueText}}}, vals)
+		})
+	})
+	parts := vals.Parts("phone")
+	if len(parts) != 2 || parts[0] != "86" || parts[1] != "555" {
+		t.Fatalf("initial parts = %v", parts)
+	}
+	// An existing value (even all-nil parts) is never replaced by Initial,
+	// also across frames after the app edits it.
+	kept := ProValues{"phone": []any{nil, nil}}
+	d := pro3Driver(func() *theme.Theme { return theme.AntDesign() }, 700, 300, func(c *Context) {
+		f := Form(c)
+		f.Body(func() {
+			FieldSet(c, f, ProFieldSet{Key: "phone", Label: "Phone", Initial: []any{"86", "555"},
+				Parts: []ProField{{ValueType: ValueText}, {ValueType: ValueText}}}, kept)
+		})
+	})
+	if p := kept.Parts("phone"); len(p) != 2 || p[0] != nil || p[1] != nil {
+		t.Fatalf("nil parts overwritten by Initial: %v", p)
+	}
+	kept["phone"] = []any{"1", "2"}
+	d.Frame()
+	d.Frame()
+	if p := kept.Parts("phone"); len(p) != 2 || p[0] != "1" || p[1] != "2" {
+		t.Fatalf("edited parts reverted: %v", p)
+	}
+}
+
+func TestFieldSetA11y(t *testing.T) {
+	for _, themeCase := range []struct {
+		name string
+		th   *theme.Theme
+	}{{"ant", theme.AntDesign()}, {"element", theme.ElementPlus()}, {"shadcn", theme.Shadcn()}} {
+		t.Run(themeCase.name, func(t *testing.T) {
+			vals := ProValues{"phone": []any{"86", "555"}}
+			d := pro3Driver(func() *theme.Theme { return themeCase.th }, 700, 300, func(c *Context) {
+				f := Form(c)
+				f.Body(func() {
+					FieldSet(c, f, ProFieldSet{Key: "phone", Label: "Phone", Required: true,
+						Parts: []ProField{{ValueType: ValueText}, {ValueType: ValueText}}}, vals)
+				})
+			})
+			d.EnableAccessibility()
+			d.Frame()
+			if _, ok := d.A11yFind(a11y.RoleGroup, "Phone"); !ok {
+				t.Fatal("fieldset group is not named")
+			}
+			if rep := d.AuditNoContrast(); rep.Count(AuditMissingName) != 0 || rep.Count(AuditNotKeyboard) != 0 {
+				t.Fatalf("audit: %s", rep)
+			}
+		})
 	}
 }
 

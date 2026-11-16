@@ -18,17 +18,26 @@ import (
 // ---------------------------------------------------------------------------
 // Spin
 
-// drawSpinner paints the default loading indicator in the primary color.
-func drawSpinner(c *Context, l *paint.List, r geom.Rect) {
-	drawSpinDots(c, l, r, c.Theme.Primary.Base)
+// spinTokens returns the Spin token of the current scope.
+func spinTokens(c *Context) *theme.SpinToken {
+	return &c.ThemeFor(theme.CompSpin).Components.Spin
 }
 
-// drawSpinDots paints the Ant four-dot indicator.
+// drawSpinner paints the theme's loading indicator (SpinToken.Indicator)
+// in the Spin color.
+func drawSpinner(c *Context, l *paint.List, r geom.Rect) {
+	drawSpinIndicator(c, l, r, -1, spinTokens(c).Color)
+}
+
+// drawSpinDots paints the Ant four-dot indicator (antd es/spin/style
+// genIndicatorStyle): four items of (size − marginXXS/2) / 2 in the
+// corners, scaled to 0.75, fading from 0.3 to 1.
 func drawSpinDots(c *Context, l *paint.List, r geom.Rect, col theme.Color) {
 	ang := spinAngle(c) * 1000 / 1200
 	cx, cy := r.X+r.W/2, r.Y+r.H/2
-	rad := r.W * 9 / 40          // four dots, each 9/20 of the box
-	off := (r.W/2 - rad) * 1.414 // dots sit in the corners
+	item := max(0, r.W-2) / 2
+	rad := item / 2 * 0.75
+	off := (r.W/2 - item/2) * math.Sqrt2 // item centers sit in the corners
 	for i := 0; i < 4; i++ {
 		a := ang + float64(i)*math.Pi/2 + math.Pi/4
 		x := cx + float32(math.Cos(a))*off
@@ -38,37 +47,87 @@ func drawSpinDots(c *Context, l *paint.List, r geom.Rect, col theme.Color) {
 	}
 }
 
-// drawSpinIndicator paints the flavor's indicator, or a progress ring when
-// percent >= 0.
+// drawSpinIndicator paints the theme's indicator, or a progress ring when
+// percent > 0 (antd shows the dots until the percent leaves 0).
 func drawSpinIndicator(c *Context, l *paint.List, r geom.Rect, percent float64, col theme.Color) {
 	th := c.Theme
+	tk := spinTokens(c)
 	cx, cy := r.X+r.W/2, r.Y+r.H/2
-	if percent >= 0 {
-		w := max(2, r.W/8)
+	if percent > 0 {
+		// antd Indicator/Progress.js: stroke viewSize / 5 on a
+		// colorFillSecondary track, starting at the top.
+		w := max(2, r.W*float32(tk.ProgressStrokeRatio))
 		rad := r.W/2 - w/2
 		l.StrokePath(paint.NewPath().Arc(cx, cy, rad, 0, 2*math.Pi), paint.StrokeStyle{Width: w}, th.FillSecondary)
-		if percent > 0 {
-			l.StrokePath(paint.NewPath().Arc(cx, cy, rad, -math.Pi/2, 2*math.Pi*min(percent, 100)/100), paint.StrokeStyle{Width: w, Cap: paint.CapRound}, col)
-		}
+		l.StrokePath(paint.NewPath().Arc(cx, cy, rad, -math.Pi/2, 2*math.Pi*min(percent, 100)/100), paint.StrokeStyle{Width: w, Cap: paint.CapRound}, col)
 		return
 	}
-	if th.Flavor != theme.Ant { // Element and shadcn (lucide loader) draw a rotating arc
-		w := max(2, r.W/22)
-		if th.Flavor == theme.StyleShadcn {
-			w = max(1.5, r.W/12)
-		}
-		l.StrokePath(paint.NewPath().Arc(cx, cy, r.W/2-w, spinAngle(c)*0.8, 1.4*math.Pi), paint.StrokeStyle{Width: w, Cap: paint.CapRound}, col)
-		return
+	switch tk.Indicator {
+	case theme.SpinCircular:
+		// EP loading.scss: r=20 circle in a 50 viewBox, stroke-width 2,
+		// dash 90/150 rotating.
+		w := max(1, r.W*2/50)
+		l.StrokePath(paint.NewPath().Arc(cx, cy, r.W*20/50, spinAngle(c)*0.8, 1.4*math.Pi), paint.StrokeStyle{Width: w, Cap: paint.CapRound}, col)
+	case theme.SpinIcon:
+		c.paintIcon(l, icon.Loading, r, col, spinAngle(c)) // shadcn Spinner: lucide Loader2
+	default:
+		drawSpinDots(c, l, r, col)
 	}
-	drawSpinDots(c, l, r, col)
 }
 
 type spinState struct {
 	since time.Time
 }
 
-// SpinW is a loading indicator: sizes, tip, delayed show, progress percent
-// and a nested mode (Wrap) that dims the wrapped content.
+// throttleState is the state of throttledOn.
+type throttleState struct {
+	inited bool
+	last   bool // latest requested value
+	val    bool // value shown
+	pend   bool
+	at     time.Time
+}
+
+// throttledOn delays a boolean the way Element's useThrottleRender does
+// (and antd Spin delay): after on turns true it reports true only once
+// leading has passed, after it turns false only once trailing has passed
+// (trailing <= 0: at once). The first frame starts from initVal and
+// takes on after the leading delay whatever on is (EP onMounted
+// dispatches "leading"). Delays are skipped when animations are off
+// (screenshots), unless the Driver runs with animations.
+func throttledOn(c *Context, key ID, on bool, leading, trailing time.Duration, initVal bool) bool {
+	st := State[throttleState](c, key, nil)
+	schedule := func(d time.Duration) {
+		if d <= 0 || c.noAnim {
+			st.val, st.pend = st.last, false
+			return
+		}
+		st.pend, st.at = true, c.now.Add(d)
+	}
+	switch {
+	case !st.inited:
+		st.inited, st.val, st.last = true, initVal, on
+		schedule(leading)
+	case st.last != on:
+		st.last = on
+		if on {
+			schedule(leading)
+		} else {
+			schedule(trailing)
+		}
+	}
+	if st.pend {
+		if !c.now.Before(st.at) {
+			st.val, st.pend = st.last, false
+		} else {
+			c.WakeAt(st.at)
+		}
+	}
+	return st.val
+}
+
+// SpinW is a loading indicator: sizes, description, delayed show,
+// progress percent and a nested mode (Wrap) that dims the wrapped content.
 type SpinW struct {
 	_ [0]func()
 
@@ -83,16 +142,25 @@ type SpinW struct {
 	spinning bool
 	percent  float64 // <0: none
 	shown    bool
+	auto     bool       // PercentAuto
+	ic       *icon.Icon // Indicator
+	full     bool       // fullscreen indicator size
 }
 
 // Spin adds a loading indicator; chain options. Wrap turns it into a
 // container that covers its content while spinning:
 //
-//	ui.Spin(c).Size(ui.Large).Tip("加载中")
+//	ui.Spin(c).Size(ui.Large).Description("加载中")
 //	ui.Spin(c).Spinning(loading).Wrap(func() { ... })
+//
+// ConfigProvider.Defaults("Spin", ...) keys: "size", "delay",
+// "description" ("tip" before antd 6).
 func Spin(c *Context) *SpinW {
 	s := &SpinW{c: c, spinning: true, percent: -1}
 	s.defaults() // ConfigProvider.Defaults("Spin", ...): size, delay, tip
+	if d, ok := p2bStr(c, "Spin", "description"); ok {
+		s.tip = d
+	}
 	s.n = c.add("spin", "")
 	s.n.ln.NoStretch = true
 	s.n.ln.Measure = func(_, _ float32) geom.Size {
@@ -103,7 +171,7 @@ func Spin(c *Context) *SpinW {
 	}
 	s.n.paint = func(l *paint.List, r geom.Rect) {
 		if s.shown {
-			s.paint(l, r, false)
+			s.paint(l, r, spinTokens(c).Color)
 		}
 	}
 	s.z = c.lazy(s.n, func() {
@@ -122,43 +190,53 @@ func (s *SpinW) Size(sz ControlSize) *SpinW { s.size, s.sizeSet = sz, true; retu
 // IndicatorSize sets a custom indicator size in px.
 func (s *SpinW) IndicatorSize(px float32) *SpinW { s.custom = px; return s }
 
+// Description shows a text under the indicator (antd 6 description).
+func (s *SpinW) Description(t string) *SpinW { s.tip = t; return s }
+
 // Tip shows a text under the indicator.
+//
+// Deprecated: use Description (antd 6 renamed tip to description).
 func (s *SpinW) Tip(t string) *SpinW { s.tip = t; return s }
 
-// Delay shows the indicator only after spinning lasted d (avoids flashes).
+// Indicator replaces the indicator with a spinning icon (antd indicator,
+// EP spinner).
+func (s *SpinW) Indicator(ic *icon.Icon) *SpinW { s.ic = ic; return s }
+
+// Delay shows the indicator only after spinning lasted d (avoids flashes);
+// it hides at once when spinning stops (antd delay).
 func (s *SpinW) Delay(d time.Duration) *SpinW { s.delay = d; return s }
 
 // Spinning toggles the indicator (default on).
 func (s *SpinW) Spinning(on bool) *SpinW { s.spinning = on; return s }
 
-// Percent replaces the indicator with a progress ring (0..100).
-func (s *SpinW) Percent(p float64) *SpinW { s.percent = p; return s }
+// Percent replaces the indicator with a progress ring (0..100); at 0 the
+// indicator still spins (antd).
+func (s *SpinW) Percent(p float64) *SpinW { s.percent, s.auto = p, false; return s }
+
+// PercentAuto shows a simulated progress that slows down as it nears 100
+// while spinning (antd percent="auto": every 200ms it advances 5% of the
+// rest up to 30, 3% up to 70, 1% up to 96).
+func (s *SpinW) PercentAuto() *SpinW { s.auto, s.percent = true, 0; return s }
 
 func (s *SpinW) px() float32 {
 	if s.custom > 0 {
 		return s.custom
 	}
+	tk := spinTokens(s.c)
 	sz := s.size
 	if !s.sizeSet {
+		if s.full && tk.FullscreenDotSize > 0 {
+			return tk.FullscreenDotSize
+		}
 		sz, _ = s.c.ComponentSize()
 	}
-	el := navEl(s.c)
 	switch sz {
 	case Small:
-		if el {
-			return 28
-		}
-		return 14
+		return tk.DotSizeSM
 	case Large:
-		if el {
-			return 50
-		}
-		return 32
+		return tk.DotSizeLG
 	}
-	if el {
-		return 42
-	}
-	return 20
+	return tk.DotSize
 }
 
 func (s *SpinW) visible(id ID) bool {
@@ -166,48 +244,66 @@ func (s *SpinW) visible(id ID) bool {
 	st := State[spinState](c, hashID(id, "spin"), nil)
 	if !s.spinning {
 		st.since = time.Time{}
-		return false
-	}
-	if st.since.IsZero() {
+	} else if st.since.IsZero() {
 		st.since = c.now
 	}
-	if s.delay > 0 && !c.noAnim && c.now.Sub(st.since) < s.delay {
-		c.WakeAt(st.since.Add(s.delay))
-		return false
+	on := throttledOn(c, hashID(id, "spin-delay"), s.spinning, s.delay, 0, false)
+	if on && s.auto {
+		s.percent = spinAutoPercent(c, st.since)
 	}
-	return true
+	return on
+}
+
+// spinAutoPercent is the simulated progress of PercentAuto after spinning
+// since start (antd spin/usePercent.js).
+func spinAutoPercent(c *Context, start time.Time) float64 {
+	const step = 200 * time.Millisecond
+	if c.noAnim {
+		return 0 // deterministic screenshots; reduced motion still advances (it is information)
+	}
+	n := int(c.now.Sub(start) / step)
+	p := 0.0
+	for i := 0; i < n && i < 2000; i++ {
+		rest := 100 - p
+		switch {
+		case p <= 30:
+			p += rest * 0.05
+		case p <= 70:
+			p += rest * 0.03
+		case p <= 96:
+			p += rest * 0.01
+		default:
+			return p
+		}
+	}
+	c.WakeAt(start.Add(time.Duration(n+1) * step))
+	return p
 }
 
 func (s *SpinW) tipStyle() text.Style {
-	th := s.c.Theme
-	fsz := th.FontSize
-	if !navEl(s.c) && s.size == Small && s.sizeSet {
-		fsz = th.FontSizeSM
-	}
-	return s.c.style(fsz, text.Regular)
+	return s.c.style(spinTokens(s.c).DescriptionFontSize, text.Regular)
 }
 
 func (s *SpinW) measure() geom.Size {
 	px := s.px()
 	if s.tip != "" {
 		st := s.tipStyle()
-		return geom.Size{W: max(px, text.Width(s.tip, st)), H: px + 8 + st.LineHeight}
+		return geom.Size{W: max(px, text.Width(s.tip, st)), H: px + spinTokens(s.c).DescriptionGap + st.LineHeight}
 	}
 	return geom.Size{W: px, H: px}
 }
 
-func (s *SpinW) paint(l *paint.List, r geom.Rect, onDark bool) {
-	th := s.c.Theme
-	col := th.Primary.Base
-	if onDark {
-		col = th.TextOnPrimary
-	}
+func (s *SpinW) paint(l *paint.List, r geom.Rect, col theme.Color) {
 	px := s.px()
 	ir := geom.Rect{X: r.X + (r.W-px)/2, Y: r.Y, W: px, H: px}
-	drawSpinIndicator(s.c, l, ir, s.percent, col)
+	if s.ic != nil && s.percent <= 0 {
+		s.c.paintIcon(l, s.ic, ir, col, spinAngle(s.c))
+	} else {
+		drawSpinIndicator(s.c, l, ir, s.percent, col)
+	}
 	if s.tip != "" {
 		lay := text.Shape(s.tip, s.tipStyle(), text.Options{NoWrap: true})
-		l.Glyphs(geom.Pt(r.X+(r.W-lay.Width)/2, ir.Bottom()+8), lay.Glyphs, col)
+		l.Glyphs(geom.Pt(r.X+(r.W-lay.Width)/2, ir.Bottom()+spinTokens(s.c).DescriptionGap), lay.Glyphs, col)
 	}
 }
 
@@ -233,20 +329,22 @@ func (s *SpinW) semantics(n *a11y.Node) {
 	}
 }
 
-// indicator adds a separate indicator leaf (used inside masks).
-func (s *SpinW) indicator(onDark bool) *node {
+// indicator adds a separate indicator leaf in col (used inside masks).
+func (s *SpinW) indicator(col theme.Color) *node {
 	n := s.c.add("spin-indicator", s.tip)
 	s.annotate(n)
 	n.ln.NoStretch = true
 	n.ln.Measure = func(_, _ float32) geom.Size { return s.measure() }
-	n.paint = func(l *paint.List, r geom.Rect) { s.paint(l, r, onDark) }
+	n.paint = func(l *paint.List, r geom.Rect) { s.paint(l, r, col) }
 	return n
 }
 
 // Wrap builds content and, while spinning, dims it and centers the
 // indicator above it (Ant nested Spin).
 func (s *SpinW) Wrap(fn func()) *Box {
-	c, th := s.c, s.c.Theme
+	c := s.c
+	th := c.Theme
+	tk := spinTokens(c)
 	s.z.done = true // a container now, not a leaf
 	n := s.n
 	n.ln.NoStretch = false
@@ -262,12 +360,12 @@ func (s *SpinW) Wrap(fn func()) *Box {
 	a := c.Anim(n.id, "on", b2f(on), th.DurationMid)
 	b.Body(func() {
 		content := Column(c, fn)
-		if a > 0 {
-			content.Opacity(1 - 0.5*a)
+		if a > 0 && tk.ContainerOpacity < 1 {
+			content.Opacity(1 - float32(1-tk.ContainerOpacity)*a)
 		}
 		if on || a > 0 {
-			mask := Column(c, func() { s.indicator(false) }, layout.Center())
-			mask.Bg(theme.Fade(th.BgContainer, 0.5)).Opacity(a)
+			mask := Column(c, func() { s.indicator(tk.Color) }, layout.Center())
+			mask.Bg(tk.MaskBg).Opacity(a)
 			mask.n.hit, mask.n.blocks = true, true
 		}
 	})
@@ -290,22 +388,32 @@ type LoadingW struct {
 	full    bool
 	size    ControlSize
 	sizeSet bool
+	ic      *icon.Icon
 }
 
 // Loading starts a loading mask shown while on; chain options, then Body
 // (cover a region) or Fullscreen (cover the window):
 //
-//	ui.Loading(c, busy).Tip("加载中").Body(func() { ... })
+//	ui.Loading(c, busy).Text("加载中").Body(func() { ... })
 //	ui.Loading(c, busy).Fullscreen()
 //
 // ConfigProvider.Defaults("Spin", ...) "size" and "tip" apply.
 func Loading(c *Context, on bool) *LoadingW {
 	m := &LoadingW{c: c, on: on}
 	m.configDefaults()
+	if d, ok := p2bStr(c, "Spin", "description"); ok {
+		m.tip = d
+	}
 	return m
 }
 
+// Text shows a caption under the spinner (EP element-loading-text, antd
+// Spin description).
+func (m *LoadingW) Text(s string) *LoadingW { m.tip = s; return m }
+
 // Tip shows a caption under the spinner.
+//
+// Deprecated: use Text.
 func (m *LoadingW) Tip(s string) *LoadingW { m.tip = s; return m }
 
 // Background overrides the mask color.
@@ -314,37 +422,45 @@ func (m *LoadingW) Background(col theme.Color) *LoadingW { m.bg, m.bgSet = col, 
 // Size sets the spinner size.
 func (m *LoadingW) Size(s ControlSize) *LoadingW { m.size, m.sizeSet = s, true; return m }
 
-func (m *LoadingW) maskColor() (theme.Color, bool) {
-	th := m.c.Theme
-	switch {
-	case m.bgSet:
-		return m.bg, false
-	case navEl(m.c):
-		return theme.Fade(th.BgContainer, 0.9), false
-	case m.full:
-		return th.BgMask, true // Ant fullscreen Spin: dark mask, white indicator
+// Spinner replaces the indicator with a spinning icon (EP
+// element-loading-spinner, antd indicator).
+func (m *LoadingW) Spinner(ic *icon.Icon) *LoadingW { m.ic = ic; return m }
+
+// look returns the mask color and the indicator color.
+func (m *LoadingW) look() (bg, fg theme.Color) {
+	tk := spinTokens(m.c)
+	bg, fg = tk.MaskBg, tk.Color
+	if m.full {
+		bg, fg = tk.FullscreenMaskBg, tk.FullscreenColor
 	}
-	return theme.Fade(th.BgContainer, 0.6), false
+	if m.bgSet {
+		bg = m.bg
+	}
+	return bg, fg
 }
 
 func (m *LoadingW) spin() *SpinW {
-	return &SpinW{c: m.c, size: m.size, sizeSet: m.sizeSet, tip: m.tip, spinning: true, percent: -1}
+	return &SpinW{c: m.c, size: m.size, sizeSet: m.sizeSet, tip: m.tip, spinning: true, percent: -1, ic: m.ic, full: m.full}
 }
 
 // Body builds the region and covers it while loading.
 func (m *LoadingW) Body(fn func()) *Box {
 	c, th := m.c, m.c.Theme
+	tk := spinTokens(c)
 	b := c.box("loading", layout.Stack, nil)
 	if m.on {
 		b.n.setRole(a11y.RoleGroup).setState(a11y.Busy)
 	}
 	a := c.Anim(b.n.id, "on", b2f(m.on), th.DurationMid)
 	b.Body(func() {
-		Column(c, fn)
+		content := Column(c, fn)
+		if a > 0.01 && tk.ContainerOpacity < 1 {
+			content.Opacity(1 - float32(1-tk.ContainerOpacity)*a)
+		}
 		if a > 0.01 {
-			col, dark := m.maskColor()
-			mask := Column(c, func() { m.spin().indicator(dark) }, layout.Center())
-			mask.Bg(col).Opacity(a)
+			bg, fg := m.look()
+			mask := Column(c, func() { m.spin().indicator(fg) }, layout.Center())
+			mask.Bg(bg).Opacity(a)
 			mask.n.hit, mask.n.blocks = true, true
 			mask.n.cursor = input.CursorDefault
 		}
@@ -361,9 +477,9 @@ func (m *LoadingW) Fullscreen() *LoadingW {
 	if a <= 0.01 {
 		return m
 	}
-	col, dark := m.maskColor()
-	ov := Overlay(c, OverlayOptions{Place: ScreenFill}, func() { m.spin().indicator(dark) }, layout.Center())
-	ov.Bg(col).Opacity(a)
+	bg, fg := m.look()
+	ov := Overlay(c, OverlayOptions{Place: ScreenFill}, func() { m.spin().indicator(fg) }, layout.Center())
+	ov.Bg(bg).Opacity(a)
 	return m
 }
 
@@ -387,6 +503,13 @@ type AlertW struct {
 	action   func()
 	th       *theme.Theme
 	tk       *theme.AlertToken
+
+	iconSet   bool // ShowIcon / NoIcon / Defaults "showIcon" decided
+	variant   string
+	ic        *icon.Icon
+	closeIc   *icon.Icon
+	closeText string
+	closeOff  bool
 }
 
 // AlertEffect selects how an Alert is filled (Element's effect).
@@ -402,17 +525,22 @@ const (
 )
 
 // Alert adds a banner; call Show after options. status: success, info,
-// warning, error.
+// warning, error. title is antd's title (v6; message before).
+//
+// As in antd and Element Plus the icon is off unless ShowIcon(true) (or
+// Banner, which shows it by default).
 //
 // ConfigProvider.Defaults("Alert", ...) keys: "showIcon", "closable",
-// "banner" (bool).
+// "banner" (bool), "variant" (string: "outlined" | "filled").
 //
 // Under shadcn/ui it is the bordered Alert card with an outlined
 // (lucide-style) icon; "error" is the destructive variant.
 func Alert(c *Context, status, title string) *AlertW {
 	th := c.ThemeFor(theme.CompAlert)
-	return &AlertW{c: c, status: status, title: title, showIcon: Prop(c, "Alert", "showIcon", true), closable: Prop(c, "Alert", "closable", false),
-		banner: Prop(c, "Alert", "banner", false), th: th, tk: &th.Components.Alert}
+	_, iconSet := c.ConfigProp("Alert", "showIcon")
+	return &AlertW{c: c, status: status, title: title, showIcon: Prop(c, "Alert", "showIcon", false), iconSet: iconSet,
+		closable: Prop(c, "Alert", "closable", false), banner: Prop(c, "Alert", "banner", false),
+		variant: Prop(c, "Alert", "variant", "outlined"), th: th, tk: &th.Components.Alert}
 }
 
 // alertLook is the box and icon colors of an alert status.
@@ -489,9 +617,49 @@ func (a *AlertW) actionArea() {
 }
 
 func (a *AlertW) Description(d string) *AlertW { a.desc = d; return a }
-func (a *AlertW) NoIcon() *AlertW              { a.showIcon = false; return a }
-func (a *AlertW) Closable() *AlertW            { a.closable = true; return a }
-func (a *AlertW) Banner() *AlertW              { a.banner = true; return a }
+
+// NoIcon hides the status icon (same as ShowIcon(false)).
+func (a *AlertW) NoIcon() *AlertW { a.showIcon, a.iconSet = false, true; return a }
+
+// Closable adds the close button.
+func (a *AlertW) Closable() *AlertW { a.closable = true; return a }
+
+// Banner styles the alert as a page-top banner: no border or radius, and
+// the icon on unless ShowIcon(false) (antd banner).
+func (a *AlertW) Banner() *AlertW { a.banner = true; return a }
+
+// ShowIcon shows or hides the status icon (antd showIcon, EP show-icon;
+// default off, on for a Banner).
+func (a *AlertW) ShowIcon(on bool) *AlertW { a.showIcon, a.iconSet = on, true; return a }
+
+// Icon replaces the status icon (antd icon) and shows it.
+func (a *AlertW) Icon(ic *icon.Icon) *AlertW { a.ic, a.showIcon, a.iconSet = ic, true, true; return a }
+
+// Variant selects "outlined" (default, status border) or "filled" (no
+// border) (antd 6.4 variant). Element and shadcn alerts are drawn
+// without / with their own border either way.
+func (a *AlertW) Variant(v string) *AlertW { a.variant = v; return a }
+
+// CloseIcon replaces the close icon and makes the alert closable (antd
+// closable.closeIcon).
+func (a *AlertW) CloseIcon(ic *icon.Icon) *AlertW { a.closeIc, a.closable = ic, true; return a }
+
+// CloseText shows text instead of the close icon and makes the alert
+// closable (EP close-text).
+func (a *AlertW) CloseText(s string) *AlertW { a.closeText, a.closable = s, true; return a }
+
+// CloseDisabled disables the close button (antd closable.disabled);
+// ConfigProvider.ComponentDisabled disables it too.
+func (a *AlertW) CloseDisabled(on bool) *AlertW { a.closeOff = on; return a }
+
+// iconShown reports whether the status icon is drawn: explicit settings
+// win, a banner shows it by default.
+func (a *AlertW) iconShown() bool {
+	if a.iconSet {
+		return a.showIcon
+	}
+	return a.showIcon || a.banner
+}
 
 // Effect selects the fill: AlertEffectLight (default) or AlertEffectDark,
 // the solid status color with contrasting text (Element effect="dark").
@@ -529,18 +697,60 @@ func (a *AlertW) trailSpacer() {
 	}
 }
 
-// closeButton adds the close icon button, in fg under the dark effect.
+// closeButton adds the close icon (or CloseText) button, in fg under the
+// dark effect.
 func (a *AlertW) closeButton(lk alertLook) {
 	if !a.closable {
 		return
 	}
-	ib := IconButton(a.c, icon.Close, a.c.Locale().Close).Size(16, 12).NoHoverBg()
-	if fg, ok := a.darkText(lk); ok {
-		ib.Color(fg)
-	}
-	if ib.Clicked() {
-		a.closed = true
-	}
+	c, tk := a.c, a.tk
+	fg, dark := a.darkText(lk)
+	Disabled(c, a.closeOff, func() {
+		if a.closeText != "" {
+			var t *Label
+			b := Row(c, func() { t = Text(c, a.closeText).Size(tk.CloseFontSize).NoWrap() }, layout.Margin(geom.Insets{Left: 8}))
+			b.Semantics(a11y.RoleButton, a.closeText)
+			ia := b.Focusable(input.CursorPointer)
+			col := tk.CloseColor
+			switch {
+			case b.n.disabled:
+				col = a.th.TextDisabled
+			case dark:
+				col = fg
+			case ia.Hovered:
+				col = tk.CloseHoverColor
+			}
+			t.Color(col)
+			if ia.FocusVisible {
+				th := a.th
+				b.PaintOver(func(l *paint.List, r geom.Rect) { drawFocusRing(l, th, r, geom.Rad(th.RadiusSM)) })
+			}
+			if ia.Clicked {
+				a.closed = true
+			}
+			return
+		}
+		ic := a.closeIc
+		if ic == nil {
+			ic = icon.Close
+		}
+		ib := IconButton(c, ic, c.Locale().Close).Size(max(16, tk.CloseIconSize), tk.CloseIconSize).NoHoverBg()
+		ib.n.ln.Margin.Left = 8
+		col := tk.CloseColor
+		if ib.Hovered() {
+			col = tk.CloseHoverColor
+		}
+		if dark {
+			col = fg
+		}
+		if ib.n.disabled {
+			col = a.th.TextDisabled
+		}
+		ib.Color(col)
+		if ib.Clicked() {
+			a.closed = true
+		}
+	})
 }
 
 // grow is the text column's main-axis option: it fills the row unless the
@@ -566,11 +776,10 @@ func (a *AlertW) Closed() bool { return a.closed }
 // Show builds the alert.
 func (a *AlertW) Show() *AlertW {
 	c, th, tk := a.c, a.th, a.tk
-	lk := a.look()
+	lk := a.frame()
 	if th.Flavor == theme.StyleShadcn {
 		return a.showShadcn(lk)
 	}
-	el := th.Flavor == theme.Element
 	big := a.desc != ""
 	fg, dark := a.darkText(lk)
 	pad := geom.VH(tk.DefaultPaddingBlock, tk.DefaultPaddingInline)
@@ -579,7 +788,7 @@ func (a *AlertW) Show() *AlertW {
 	}
 	b := Row(c, func() {
 		a.leadSpacer()
-		if a.showIcon {
+		if a.iconShown() {
 			is, mr := tk.IconSize, tk.IconMarginInlineEnd
 			if big {
 				is, mr = tk.WithDescriptionIconSize, tk.WithDescriptionIconMarginEnd
@@ -588,9 +797,14 @@ func (a *AlertW) Show() *AlertW {
 			if dark {
 				glyph = lk.bg
 			}
-			n := alertIcon(c, a.status, is, lk.icon, glyph)
+			var n *node
+			if a.ic != nil {
+				n = alertCustomIcon(c, a.ic, is, lk.icon)
+			} else {
+				n = alertIcon(c, a.status, is, lk.icon, glyph)
+			}
 			n.ln.Margin.Right = mr
-			if !big {
+			if !big || tk.WithDescriptionIconCenter {
 				n.ln.AlignSelf = layout.AlignCenter
 			}
 		}
@@ -598,12 +812,15 @@ func (a *AlertW) Show() *AlertW {
 			t := Text(c, a.title).Align(a.textAlign())
 			if big {
 				t.Size(tk.TitleFontSize).Weight(text.Weight(tk.TitleFontWeight))
-				d := Text(c, a.desc).Size(tk.DescriptionFontSize).Color(tk.DescriptionColor).Align(a.textAlign())
-				if dark {
+				t.Layout(layout.Margin(geom.Insets{Bottom: tk.TitleMarginBottom}))
+				d := Text(c, a.desc).Size(tk.DescriptionFontSize).Align(a.textAlign())
+				switch {
+				case dark:
 					d.Color(fg)
-				}
-				if !el {
-					t.Layout(layout.Margin(geom.Insets{Bottom: tk.TitleMarginBottom}))
+				case tk.DescriptionColor.A > 0:
+					d.Color(tk.DescriptionColor)
+				default:
+					d.Color(lk.icon) // Element: the status color
 				}
 			}
 			switch {
@@ -621,13 +838,32 @@ func (a *AlertW) Show() *AlertW {
 	}, layout.Padding(pad), layout.AlignItems(layout.AlignStart))
 	a.annotate(b)
 	b.Bg(lk.bg).Radius(tk.Radius)
-	if lk.border.A > 0 {
+	switch {
+	case a.banner:
+		b.Radius(0) // antd banner: border 0, radius 0
+	case lk.border.A > 0:
 		b.Border(1, lk.border)
-		if a.banner {
-			b.Radius(0).Border(0, theme.Color{})
-		}
 	}
 	return a
+}
+
+// frame is the look with the variant applied: "filled" drops the border
+// (antd .ant-alert-filled: border-color transparent).
+func (a *AlertW) frame() alertLook {
+	lk := a.look()
+	if a.variant == "filled" {
+		lk.border = theme.Color{}
+	}
+	return lk
+}
+
+// alertCustomIcon adds the Icon replacement of size px in col.
+func alertCustomIcon(c *Context, ic *icon.Icon, size float32, col theme.Color) *node {
+	n := c.add("alert-icon", "")
+	n.aHidden = true
+	n.ln.Width, n.ln.Height = size, size
+	n.paint = func(l *paint.List, r geom.Rect) { c.paintIcon(l, ic, r, col, 0) }
+	return n
 }
 
 // annotate exposes the alert box as a live region: errors and warnings as
@@ -643,7 +879,7 @@ func (a *AlertW) annotate(b *Box) {
 
 // showShadcn draws shadcn's Alert: a bordered card (rounded-lg, px-4 py-3)
 // with the icon at the top left, a medium title and a muted description;
-// the destructive (error) variant colors text and border red.
+// the destructive (error) variant colors text and icon red.
 func (a *AlertW) showShadcn(lk alertLook) *AlertW {
 	c, tk := a.c, a.tk
 	danger := a.status == "error" || a.status == "danger"
@@ -655,12 +891,17 @@ func (a *AlertW) showShadcn(lk alertLook) *AlertW {
 	}
 	b := Row(c, func() {
 		a.leadSpacer()
-		if a.showIcon {
+		if a.iconShown() {
 			is, mr := tk.IconSize, tk.IconMarginInlineEnd
 			if big {
 				is, mr = tk.WithDescriptionIconSize, tk.WithDescriptionIconMarginEnd
 			}
-			n := shad2cStatusNodeColor(c, a.status, is, lk.icon) // lucide-style outline glyph
+			var n *node
+			if a.ic != nil {
+				n = alertCustomIcon(c, a.ic, is, lk.icon)
+			} else {
+				n = shad2cStatusNodeColor(c, a.status, is, lk.icon) // lucide-style outline glyph
+			}
 			n.ln.Margin = geom.Insets{Right: mr, Top: 2}
 		}
 		Column(c, func() {
@@ -842,6 +1083,8 @@ type modalState struct {
 	from     geom.Point
 	dragFrom geom.Point
 	full     bool
+	shown    bool // the open transition finished (AfterOpenChanged)
+	opened   bool // shown since the last close (AfterOpenChanged on close)
 }
 
 // ModalW is a dialog over a mask: centered or top placement, draggable,
@@ -868,15 +1111,25 @@ type ModalW struct {
 	fullToggle bool
 	top        float32
 	mask       bool
+	keyboard   bool
+	skeleton   bool
+	settled    bool
 }
 
 // Modal starts a dialog shown while *open; chain options, then Body.
+//
+// The default width, top and centering come from theme.ModalToken (Ant
+// 520 / 100, Element 50% / 15%, shadcn 512 centered). Besides the keys
+// read in shad2c_defaults.go, ConfigProvider.Defaults("Modal", ...) reads
+// "keyboard" (bool).
 func Modal(c *Context, open *bool, title string) *ModalW {
-	w := float32(520)
-	if navEl(c) {
-		w = max(320, c.size.W*0.5)
+	tk := &c.ThemeFor(theme.CompModal).Components.Modal
+	w := tk.Width
+	if tk.WidthRatio > 0 {
+		w = max(w, c.size.W*float32(tk.WidthRatio))
 	}
-	m := &ModalW{c: c, open: open, title: title, width: w, maskClose: true, closable: true, mask: true}
+	m := &ModalW{c: c, open: open, title: title, width: w, maskClose: true, closable: true, mask: true,
+		keyboard: Prop(c, "Modal", "keyboard", true)}
 	m.defaults() // ConfigProvider.Defaults("Modal", ...), see shad2c_defaults.go
 	return m
 }
@@ -909,6 +1162,19 @@ func (m *ModalW) Fullscreen(on *bool) *ModalW { m.full = on; return m }
 // FullscreenToggle shows a maximize button in the header.
 func (m *ModalW) FullscreenToggle() *ModalW { m.fullToggle = true; return m }
 
+// Keyboard sets whether Escape closes the dialog (default true; antd
+// keyboard, Element close-on-press-escape).
+func (m *ModalW) Keyboard(on bool) *ModalW { m.keyboard = on; return m }
+
+// Loading shows an active Skeleton instead of the content and hides the
+// footer (antd loading).
+func (m *ModalW) Loading(on bool) *ModalW { m.skeleton = on; return m }
+
+// AfterOpenChanged reports, after Body, that the open or close transition
+// finished this frame (antd afterOpenChange; read *open for the new
+// state, false is antd afterClose).
+func (m *ModalW) AfterOpenChanged() bool { return m.settled }
+
 // Ok reports the OK button this frame.
 func (m *ModalW) Ok() bool { return m.ok }
 
@@ -922,12 +1188,22 @@ func (m *ModalW) Body(fn func()) *ModalW {
 	tk := &th.Components.Modal
 	id := hashID(c.scope, "modal", m.title)
 	mo, live := modalMotion(c, id, *m.open)
+	st := State[modalState](c, id, nil)
 	if !live {
+		if st.shown || st.opened {
+			// Also after a close during the open transition (antd
+			// afterClose fires on every close).
+			st.shown, st.opened, m.settled = false, false, true
+		}
 		return m
 	}
+	if *m.open {
+		st.opened = true
+		if mo.a >= 1 && !st.shown {
+			st.shown, m.settled = true, true
+		}
+	}
 	leaving := mo.leaving
-	el := navEl(c)
-	shad := th.Flavor == theme.StyleShadcn
 	loc := c.Locale()
 	if m.okText == "" {
 		m.okText = loc.OK
@@ -935,7 +1211,6 @@ func (m *ModalW) Body(fn func()) *ModalW {
 	if m.cancelText == "" {
 		m.cancelText = loc.Cancel
 	}
-	st := State[modalState](c, id, nil)
 	if mo.opening {
 		st.off = geom.Point{} // a dragged dialog reopens at its home position
 	}
@@ -952,19 +1227,27 @@ func (m *ModalW) Body(fn func()) *ModalW {
 	}
 	top := m.top
 	if top == 0 {
-		top = 100
-		if el {
-			top = c.size.H * 0.15
+		top = tk.Top
+		if tk.TopRatio > 0 {
+			top = c.size.H * float32(tk.TopRatio)
 		}
 	}
 	place := ScreenTopCenter
-	if m.centered || (shad && m.top == 0) {
+	if m.centered || (tk.Centered && m.top == 0) {
 		place = ScreenCenter // shadcn dialogs are always centered
 	}
 	var header *node
-	width := m.width
+	// antd max-width calc(100vw - 2 * margin), shadcn
+	// max-w-[calc(100%-2rem)].
+	width := min(m.width, max(0, c.size.W-32))
 	if full {
 		place, top, width = ScreenFill, 0, c.size.W
+	}
+	// The close button sits over the header's inline end; the header
+	// keeps clear of it.
+	closeReserve := float32(0)
+	if m.closable {
+		closeReserve = max(0, tk.CloseInsetEnd+tk.CloseBtnSize-tk.Padding)
 	}
 	dlg := Overlay(c, mo.place(OverlayOptions{Place: place, Margin: top, ShiftX: st.off.X, ShiftY: st.off.Y}), func() {
 		pad := geom.VH(tk.PaddingBlock, tk.Padding)
@@ -992,29 +1275,28 @@ func (m *ModalW) Body(fn func()) *ModalW {
 						c.invalid = true
 					}
 				}
-				if m.closable {
-					ib := IconButton(c, icon.Close, loc.Close)
-					if shad {
-						ib.NoHoverBg()
-					}
-					if tk.CloseIconColor.A > 0 {
-						ib.Color(tk.CloseIconColor)
-					}
-					if ib.Clicked() {
-						m.cancel = true
-					}
-				}
 			}, layout.Middle(), layout.Gap(4))
 			header = hb.n
 			if tk.HeaderBg.A > 0 {
 				hb.Bg(tk.HeaderBg)
 			}
 			hb.n.ln.Margin.Bottom = tk.HeaderMarginBottom
-			body := Column(c, fn)
+			hb.n.ln.Margin.Right = closeReserve // inline end (mirrored in RTL)
+			if m.closable && modalCloseButton(c, tk) {
+				// First in Tab order, as in the header before.
+				m.cancel = true
+			}
+			body := Column(c, func() {
+				if m.skeleton {
+					Skeleton(c).Active().Show()
+					return
+				}
+				fn()
+			})
 			if full {
 				body.n.ln.Grow = 1
 			}
-			if !m.noFooter {
+			if !m.noFooter && !m.skeleton {
 				fr := Row(c, func() {
 					if m.footer != nil {
 						m.footer()
@@ -1083,7 +1365,7 @@ func (m *ModalW) Body(fn func()) *ModalW {
 			}
 		}
 	}
-	if c.EscapeAt(dlg.n.id) {
+	if c.EscapeAt(dlg.n.id) && m.keyboard {
 		m.cancel = true
 	}
 	if m.cancel {
@@ -1091,6 +1373,28 @@ func (m *ModalW) Body(fn func()) *ModalW {
 		c.invalid = true
 	}
 	return m
+}
+
+// modalCloseButton builds the close button of a Modal, absolutely placed
+// CloseInsetTop / CloseInsetEnd from the panel's corner, and reports a
+// click.
+func modalCloseButton(c *Context, tk *theme.ModalToken) bool {
+	ib := IconButton(c, icon.Close, c.Locale().Close).Size(tk.CloseBtnSize, tk.CloseIconSize)
+	if tk.CloseNoHoverBg {
+		ib.NoHoverBg() // Element headerbtn / shadcn: transparent
+	}
+	switch {
+	case tk.CloseHoverColor.A > 0 && (ib.Hovered() || ib.ia.FocusVisible):
+		ib.Color(tk.CloseHoverColor) // Element primary, shadcn opacity-100
+	case tk.CloseIconColor.A > 0:
+		ib.Color(tk.CloseIconColor)
+	}
+	ln := &ib.n.ln
+	ln.Absolute = true
+	// Pos is relative to the panel column's outer box; Right is the
+	// inline end (mirrored in RTL).
+	ln.Pos = flexbox.Pos{Left: layout.Unset, Top: tk.CloseInsetTop, Right: tk.CloseInsetEnd, Bottom: layout.Unset}
+	return ib.Clicked()
 }
 
 // dialogSem lets screen readers close a dialog (Escape).
@@ -1184,6 +1488,12 @@ type DrawerW struct {
 	bind             *float32
 	resized          bool
 	cur              float32 // size used this frame
+
+	closePlace string // "start" / "end"; "": the theme's (DrawerToken.CloseAtEnd)
+	keyboard   bool
+	skeleton   bool
+	push       float32
+	settled    bool
 }
 
 // drawerResize is the retained state of a resizable drawer.
@@ -1195,8 +1505,14 @@ type drawerResize struct {
 
 // Drawer starts a drawer shown while *open; chain options, then Body.
 // A Drawer opened inside another one's Body pushes the parent aside.
+//
+// Besides the keys read in shad2c_defaults.go, ConfigProvider.Defaults(
+// "Drawer", ...) reads "keyboard" (bool) and "closablePlacement"
+// ("start" / "end").
 func Drawer(c *Context, open *bool, title string) *DrawerW {
-	d := &DrawerW{c: c, open: open, title: title, closable: true, mask: true, maskClose: true}
+	d := &DrawerW{c: c, open: open, title: title, closable: true, mask: true, maskClose: true, push: 180,
+		keyboard:   Prop(c, "Drawer", "keyboard", true),
+		closePlace: Prop(c, "Drawer", "closablePlacement", "")}
 	d.defaults() // ConfigProvider.Defaults("Drawer", ...), see shad2c_defaults.go
 	return d
 }
@@ -1204,8 +1520,9 @@ func Drawer(c *Context, open *bool, title string) *DrawerW {
 // Placement selects the edge (DrawerEnd default: right, left in RTL).
 func (d *DrawerW) Placement(p DrawerPlacement) *DrawerW { d.place = p; return d }
 
-// Size sets the width (left/right) or height (top/bottom); default 378
-// (Ant) or 30% of the window (Element).
+// Size sets the width (left/right) or height (top/bottom); default from
+// theme.DrawerToken: 378 (Ant), 30% of the window (Element), 384 but at
+// most 75% (shadcn Sheet).
 func (d *DrawerW) Size(px float32) *DrawerW { d.size = px; return d }
 
 // Large uses the large preset (736).
@@ -1217,6 +1534,26 @@ func (d *DrawerW) Closable(on bool) *DrawerW     { d.closable = on; return d }
 func (d *DrawerW) Mask(on bool) *DrawerW         { d.mask = on; return d }
 func (d *DrawerW) MaskClosable(on bool) *DrawerW { d.maskClose = on; return d }
 func (d *DrawerW) NoHeader() *DrawerW            { d.noHeader = true; return d }
+
+// ClosablePlacement puts the close button "start" (before the title) or
+// "end" (after the title and extra); default from the theme (Ant start,
+// Element and shadcn end; antd closable.placement).
+func (d *DrawerW) ClosablePlacement(p string) *DrawerW { d.closePlace = p; return d }
+
+// Keyboard sets whether Escape closes the drawer (default true; antd
+// keyboard, Element close-on-press-escape).
+func (d *DrawerW) Keyboard(on bool) *DrawerW { d.keyboard = on; return d }
+
+// Loading shows an active Skeleton instead of the content (antd loading).
+func (d *DrawerW) Loading(on bool) *DrawerW { d.skeleton = on; return d }
+
+// Push sets how far a nested drawer pushes this one aside (default 180;
+// 0 turns it off; antd push.distance).
+func (d *DrawerW) Push(px float32) *DrawerW { d.push = px; return d }
+
+// AfterOpenChanged reports, after Body, that the open or close slide
+// finished this frame (antd afterOpenChange; read *open for the state).
+func (d *DrawerW) AfterOpenChanged() bool { return d.settled }
 
 // Closed reports close / mask / Escape this frame.
 func (d *DrawerW) Closed() bool { return d.closed }
@@ -1263,28 +1600,39 @@ func (d *DrawerW) Body(fn func()) *DrawerW {
 	c := d.c
 	th := c.ThemeFor(theme.CompDrawer)
 	tk := &th.Components.Drawer
-	el := navEl(c)
 	stack := State[[]*drawerCtx](c, drawerStackKey, nil)
 	if len(*stack) > 0 && *d.open {
 		(*stack)[len(*stack)-1].childOpen = true
 	}
 	id := hashID(c.scope, "drawer", d.title)
 	a, live := drawerMotion(c, id, *d.open)
+	// 1: open since the last close, 2: the open slide finished.
+	shown := State[uint8](c, hashID(id, "shown"), nil)
 	if !live {
+		if *shown != 0 {
+			*shown, d.settled = 0, true // every close, as antd afterOpenChange(false)
+		}
 		return d
+	}
+	if *d.open {
+		if a >= 1 && *shown != 2 {
+			*shown, d.settled = 2, true
+		} else if *shown == 0 {
+			*shown = 1
+		}
 	}
 	leaving := !*d.open
 	place := d.place.resolve(c.IsRTL()) // physical edge
 	horiz := place == DrawerLeft || place == DrawerRight
 	size := d.size
 	if size == 0 {
-		size = 378
-		if el {
-			if horiz {
-				size = c.size.W * 0.3
-			} else {
-				size = c.size.H * 0.3
-			}
+		ext := c.size.H
+		if horiz {
+			ext = c.size.W
+		}
+		size = tk.Size
+		if r := float32(tk.SizeRatio) * ext; tk.SizeRatio > 0 && (size == 0 || r < size) {
+			size = r
 		}
 	}
 	var rs *drawerResize
@@ -1313,7 +1661,11 @@ func (d *DrawerW) Body(fn func()) *DrawerW {
 				d.header()
 			}
 			*stack = append(*stack, ctx)
-			body := Scroll(c, fn, layout.Grow(1), layout.Pad(tk.Padding))
+			content := fn
+			if d.skeleton {
+				content = func() { Skeleton(c).Active().Show() }
+			}
+			body := Scroll(c, content, layout.Grow(1), layout.Pad(tk.Padding))
 			body.n.ln.Padding.Top = tk.BodyPaddingTop
 			stack = State[[]*drawerCtx](c, drawerStackKey, nil)
 			*stack = (*stack)[:len(*stack)-1]
@@ -1357,7 +1709,7 @@ func (d *DrawerW) Body(fn func()) *DrawerW {
 	}
 	holder.n.hit, holder.n.blocks = false, false
 	d.cur = size
-	push := c.Anim(id, "push", b2f(ctx.childOpen)*180, th.DurationSlow)
+	push := c.Anim(id, "push", b2f(ctx.childOpen)*d.push, th.DurationSlow)
 	ln := &panel.ln
 	ln.Absolute = true
 	// The panel is laid out at its open position; the slide (and the push
@@ -1399,7 +1751,7 @@ func (d *DrawerW) Body(fn func()) *DrawerW {
 		d.closed = false // sliding out: the panel no longer acts
 		return d
 	}
-	if c.EscapeAt(holder.n.id) {
+	if c.EscapeAt(holder.n.id) && d.keyboard {
 		d.closed = true
 	}
 	if d.closed {
@@ -1534,7 +1886,11 @@ func (d *DrawerW) resizeHandle(rs *drawerResize, place DrawerPlacement, size flo
 		on := c.Anim(id, "hover", b2f(ia.Hovered || c.Dragging(id)), th.DurationMid)
 		if on > 0.01 {
 			w := tk.ResizeLineSize
-			col := theme.Fade(tk.ResizeLineColor, float64(on))
+			col := tk.ResizeLineColor
+			if c.Dragging(id) && tk.ResizeLineActiveColor.A > 0 {
+				col = tk.ResizeLineActiveColor
+			}
+			col = theme.Fade(col, float64(on))
 			var lr geom.Rect
 			switch place {
 			case DrawerRight:
@@ -1565,7 +1921,7 @@ func (d *DrawerW) header() {
 		if !d.closable {
 			return
 		}
-		ib := IconButton(c, icon.Close, c.Locale().Close)
+		ib := IconButton(c, icon.Close, c.Locale().Close).Size(tk.CloseBtnSize, tk.CloseIconSize)
 		if shad {
 			ib.NoHoverBg()
 		}
@@ -1583,28 +1939,27 @@ func (d *DrawerW) header() {
 		}
 	}
 	pad := layout.Padding(geom.Insets{Top: tk.HeaderPaddingTop, Right: tk.HeaderPaddingInline, Bottom: tk.HeaderPaddingBottom, Left: tk.HeaderPaddingInline})
-	var hd *Box
-	if el || shad {
-		// Title first, close button at the end.
-		hd = Row(c, func() {
-			title()
-			if d.extra != nil {
-				Row(c, d.extra, layout.Gap(8), layout.Middle())
-			}
-			close()
-		}, pad, layout.Gap(8), layout.Middle())
-		if el {
-			hd.n.ln.Margin.Bottom = 12
+	atEnd := tk.CloseAtEnd
+	switch d.closePlace {
+	case "end":
+		atEnd = true
+	case "start":
+		atEnd = false
+	}
+	hd := Row(c, func() {
+		if !atEnd {
+			close() // Ant: before the title
 		}
-	} else {
-		// Ant: close button before the title.
-		hd = Row(c, func() {
+		title()
+		if d.extra != nil {
+			Row(c, d.extra, layout.Gap(8), layout.Middle())
+		}
+		if atEnd {
 			close()
-			title()
-			if d.extra != nil {
-				Row(c, d.extra, layout.Gap(8), layout.Middle())
-			}
-		}, pad, layout.Gap(12), layout.Middle())
+		}
+	}, pad, layout.Gap(tk.HeaderGap), layout.Middle())
+	if el {
+		hd.n.ln.Margin.Bottom = 12
 	}
 	if hb := tk.HeaderBorderColor; hb.A > 0 {
 		hd.Paint(func(l *paint.List, r geom.Rect) { navHLine(l, r.X, r.Bottom()-1, r.W, hb) })
@@ -1624,7 +1979,8 @@ type popState struct {
 // the build finishes (or at Confirmed / Cancelled).
 //
 // ConfigProvider.Defaults("Popconfirm", ...) keys: "okText", "cancelText",
-// "placement" (string), "showCancel" (bool).
+// "placement", "okType", "cancelType" (string), "showCancel", "arrow",
+// "disabled" (bool), "width" (float32).
 type PopconfirmW struct {
 	_ [0]func()
 
@@ -1639,21 +1995,40 @@ type PopconfirmW struct {
 	disabled             bool
 	okDanger             bool
 	noCancel             bool
+	arrow                bool
+	width                float32
+	okType, cancelType   string
 	z                    *lazy
 	confirmed, cancelled bool
 	isOpen               bool
 }
 
 // Popconfirm wraps trigger content; clicking it opens a confirm bubble.
+// The default placement, width, arrow and cancel button type come from
+// theme.PopoverToken (Ant top; Element bottom, 150 wide, text cancel
+// button; shadcn no arrow).
 func Popconfirm(c *Context, title, desc string, trigger func()) *PopconfirmW {
 	b := c.box("popconfirm", layout.Row, nil)
 	b.n.ln.NoStretch = true
 	b.Body(trigger)
+	tk := &c.ThemeFor(theme.CompPopover).Components.Popover
+	place, cancelType := "top", ""
+	if tk.PopconfirmBottom {
+		place = "bottom"
+	}
+	if tk.PopconfirmCancelText {
+		cancelType = "text"
+	}
 	p := &PopconfirmW{c: c, b: b, title: title, desc: desc,
 		okText:     Prop(c, "Popconfirm", "okText", ""),
 		cancelText: Prop(c, "Popconfirm", "cancelText", ""),
-		place:      Prop(c, "Popconfirm", "placement", "top"),
+		place:      Prop(c, "Popconfirm", "placement", place),
 		noCancel:   !Prop(c, "Popconfirm", "showCancel", true),
+		arrow:      Prop(c, "Popconfirm", "arrow", tk.Arrow),
+		disabled:   Prop(c, "Popconfirm", "disabled", false),
+		width:      Prop(c, "Popconfirm", "width", tk.PopconfirmWidth),
+		okType:     Prop(c, "Popconfirm", "okType", "primary"),
+		cancelType: Prop(c, "Popconfirm", "cancelType", cancelType),
 	}
 	p.z = c.lazy(b.n, p.build)
 	return p
@@ -1685,6 +2060,23 @@ func (p *PopconfirmW) OkDanger() *PopconfirmW { p.okDanger = true; return p }
 
 // ShowCancel shows or hides the cancel button (default shown).
 func (p *PopconfirmW) ShowCancel(on bool) *PopconfirmW { p.noCancel = !on; return p }
+
+// Arrow shows or hides the bubble arrow (default from the theme; antd
+// arrow).
+func (p *PopconfirmW) Arrow(on bool) *PopconfirmW { p.arrow = on; return p }
+
+// Width fixes the bubble width (Element width, default 150 there; zero
+// fits the content).
+func (p *PopconfirmW) Width(px float32) *PopconfirmW { p.width = px; return p }
+
+// OkType sets the confirm button type: "primary" (default), "default",
+// "dashed", "text", "link" or "danger" (antd okType, Element
+// confirm-button-type).
+func (p *PopconfirmW) OkType(t string) *PopconfirmW { p.okType = t; return p }
+
+// CancelType sets the cancel button type, as OkType (default "default";
+// Element "text", its cancel-button-type).
+func (p *PopconfirmW) CancelType(t string) *PopconfirmW { p.cancelType = t; return p }
 
 // IsOpen reports whether the bubble is shown.
 func (p *PopconfirmW) IsOpen() bool { p.z.run(); return p.isOpen }
@@ -1724,9 +2116,12 @@ func (p *PopconfirmW) build() {
 	}
 	title, desc := p.title, p.desc
 	a := c.AnimFrom(b.n.id, "open", 0, 1, th.DurationMid)
-	shad := th.Flavor == theme.StyleShadcn
 	place, _ := c.popPlacement(p.place)
-	ov := Overlay(c, OverlayOptions{Anchor: b.n.id, Place: place, Offset: map[bool]float32{true: 4, false: 10}[shad], Flip: true}, func() {
+	off := tk.OffsetNoArrow // as Popover (antd Popconfirm renders a Popover)
+	if p.arrow {
+		off = tk.Offset
+	}
+	ov := Overlay(c, OverlayOptions{Anchor: b.n.id, Place: place, Offset: off, Flip: true}, func() {
 		Row(c, func() {
 			switch {
 			case !p.icSet:
@@ -1746,12 +2141,12 @@ func (p *PopconfirmW) build() {
 			}, layout.Gap(4))
 		}, layout.Gap(8), layout.AlignItems(layout.AlignStart), layout.Margin(geom.Insets{Bottom: 8}))
 		Row(c, func() {
-			if !p.noCancel && Button(c, cancelText).Small().Clicked() {
+			if !p.noCancel && popButtonType(Button(c, cancelText).Small(), p.cancelType).Clicked() {
 				p.cancelled = true
 				st.open = false
 				popRestore(c, st)
 			}
-			ok := Button(c, okText).Small().Primary()
+			ok := popButtonType(Button(c, okText).Small(), p.okType)
 			if p.okDanger {
 				ok.Danger()
 			}
@@ -1770,6 +2165,9 @@ func (p *PopconfirmW) build() {
 			}
 		}, layout.Gap(8), layout.End())
 	}, layout.Pad(tk.InnerPadding))
+	if p.width > 0 {
+		ov.n.ln.Width = p.width
+	}
 	ov.n.setRole(a11y.RoleAlertDialog).setName(title)
 	if c.a11yOn {
 		ov.n.fill(semFunc(func(s *a11y.Node) {
@@ -1777,34 +2175,37 @@ func (p *PopconfirmW) build() {
 			dialogSem(s)
 		}))
 	}
-	ov.Bg(tk.Bg).Radius(th.RadiusLG).Shadow(tk.Shadow).Opacity(a)
+	// The Popover panel: radius, border (shadcn, Element) and arrow.
+	ov.Bg(tk.Bg).Radius(tk.Radius).Shadow(tk.Shadow).Opacity(a)
+	if tk.BorderColor.A > 0 {
+		ov.Border(1, tk.BorderColor)
+	}
 	st.panel = ov.n.id
-	if shad {
-		// shadcn Popover: bordered rounded-md panel, p-4, no arrow.
-		ov.Radius(tk.Radius)
-		if tk.BorderColor.A > 0 {
-			ov.Border(1, tk.BorderColor)
-		}
+	if !p.arrow {
 		return
 	}
 	ov.n.over = func(l *paint.List, r geom.Rect) {
-		ar, ok := c.anchorRect(b.n.id)
-		if !ok {
-			return
+		if ar, ok := c.anchorRect(b.n.id); ok {
+			drawPopupArrow(l, r, ar, tk.Bg, tk.BorderColor)
 		}
-		if r.Bottom() > ar.Y+1 && r.Y < ar.Bottom()-1 {
-			popDrawArrow(l, r, ar, tk.Bg, theme.Color{}) // left / right
-			return
-		}
-		cx := max(r.X+12+7, min(ar.X+ar.W/2, r.Right()-12-7))
-		p := paint.NewPath()
-		if r.Bottom() <= ar.Y+1 {
-			p.MoveTo(cx-7, r.Bottom()-0.5).LineTo(cx, r.Bottom()+6).LineTo(cx+7, r.Bottom()-0.5).Close()
-		} else {
-			p.MoveTo(cx-7, r.Y+0.5).LineTo(cx, r.Y-6).LineTo(cx+7, r.Y+0.5).Close()
-		}
-		l.Path(p, tk.Bg)
 	}
+}
+
+// popButtonType styles a Popconfirm button by its antd / Element type
+// name: "danger" is a primary danger button, Element "success" /
+// "warning" / "info" are the solid status buttons.
+func popButtonType(b *ButtonW, t string) *ButtonW {
+	switch t {
+	case "danger":
+		return b.Primary().Danger()
+	case "success":
+		return b.Success()
+	case "warning":
+		return b.Warning()
+	case "info":
+		return b.Info()
+	}
+	return b.Variant(buttonVariantOf(t, VariantDefault))
 }
 
 // popRestore gives keyboard focus back to the trigger when the bubble

@@ -31,7 +31,7 @@ import (
 
 // ProtoVersion changes whenever a message changes incompatibly. A worker
 // with another version is refused, and tan dev restarts the host.
-const ProtoVersion = 2
+const ProtoVersion = 3
 
 // Marker is a string tan dev looks for in a built binary to tell whether
 // it links the dev host (package uihost built with tango_dev).
@@ -105,6 +105,7 @@ type WindowOpts struct {
 	NoClose             bool
 	NoMinimize          bool
 	NoMaximize          bool
+	AllSpaces           bool
 }
 
 // ---- worker → host ----
@@ -135,6 +136,12 @@ type SetTextInput struct {
 	Win     int
 	Enabled bool
 	Caret   geom.Rect
+}
+
+// SetShortcutCapture mirrors ui.ShortcutCaptureWindow without enabling IME.
+type SetShortcutCapture struct {
+	Win     int
+	Enabled bool
 }
 
 // ShmAttach announces a new frame segment for a window. Frames that follow
@@ -247,7 +254,7 @@ type WorkerLeft struct {
 
 func init() {
 	for _, m := range []any{
-		Hello{}, Welcome{}, OpenWindow{}, CloseWindow{}, Invalidate{}, SetCursor{}, SetTextInput{},
+		Hello{}, Welcome{}, OpenWindow{}, CloseWindow{}, Invalidate{}, SetCursor{}, SetTextInput{}, SetShortcutCapture{},
 		ShmAttach{}, FrameReady{}, ReadClipboard{}, WriteClipboard{}, SnapshotGet{}, SnapshotReply{},
 		Opened{}, Input{}, Focus{}, FrameRequest{}, FrameAck{}, WindowClosed{}, ClipboardText{},
 		SnapshotReq{}, SnapshotData{}, Status{}, Swapped{}, WorkerLeft{},

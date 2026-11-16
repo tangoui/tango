@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tangoui/tango/internal/downq"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/fake"
 )
@@ -504,18 +505,17 @@ func TestSendBuffersUntilLoaded(t *testing.T) {
 	fb.Load(s.ID())
 	ev := ns.Evals()
 	want := []string{
-		`window.__tango._recv("one")`,
-		`window.__tango._recv("two\u2028\u2029\u003c/script\u003e")`,
+		`window.__tango._recvSeq(1,[[1,0,"one"],[2,0,"two\u2028\u2029\u003c/script\u003e"]])`,
 	}
 	if fmt.Sprint(ev) != fmt.Sprint(want) {
 		t.Fatalf("evals\n%q\nwant\n%q", ev, want)
 	}
-	if Await(a, func() string { return strings.Join(order, ",") }) != "2" {
+	if Await(a, func() string { return strings.Join(order, ",") }) != "1" {
 		t.Fatal("OnLoaded ran before flush")
 	}
 	s.Send("three")
 	Await(a, func() int { return 0 })
-	if ev := ns.Evals(); len(ev) != 3 || ev[2] != `window.__tango._recv("three")` {
+	if ev := ns.Evals(); len(ev) != 2 || ev[1] != `window.__tango._recvSeq(1,[[3,0,"three"]])` {
 		t.Fatalf("after load: %q", ev)
 	}
 
@@ -523,14 +523,14 @@ func TestSendBuffersUntilLoaded(t *testing.T) {
 	s.Navigate("/other.html")
 	s.Send("four")
 	Await(a, func() int { return 0 })
-	if len(ns.Evals()) != 3 {
+	if len(ns.Evals()) != 2 {
 		t.Fatal("sent during navigation")
 	}
 	if ns.URL() != "tango://app/other.html" {
 		t.Fatalf("navigated to %q", ns.URL())
 	}
 	fb.Load(s.ID())
-	if ev := ns.Evals(); len(ev) != 4 || ev[3] != `window.__tango._recv("four")` {
+	if ev := ns.Evals(); len(ev) != 3 || ev[2] != `window.__tango._recvSeq(2,[[1,0,"four"]])` {
 		t.Fatalf("after reload: %q", ev)
 	}
 }
@@ -548,19 +548,27 @@ func TestSendConcurrentOrderAndEval(t *testing.T) {
 		s.Send(fmt.Sprint(i))
 	}
 	Await(a, func() int { return 0 })
-	ev := ns.Evals()
-	if len(ev) != 55 {
-		t.Fatalf("%d evals", len(ev))
-	}
+	// Each Eval comes after the messages sent before it and before the
+	// ones sent after it.
 	n := 0
-	for _, e := range ev {
+	evals := 0
+	for _, e := range ns.Evals() {
 		if strings.HasPrefix(e, "e") {
+			if e != fmt.Sprintf("e%d", n) {
+				t.Fatalf("eval %q after %d messages", e, n)
+			}
+			evals++
 			continue
 		}
-		if e != fmt.Sprintf(`window.__tango._recv("%d")`, n) {
-			t.Fatalf("out of order: %q at %d", e, n)
+		for _, m := range sentMsgs(t, []string{e}) {
+			if m != fmt.Sprint(n) {
+				t.Fatalf("out of order: %q at %d", m, n)
+			}
+			n++
 		}
-		n++
+	}
+	if n != 50 || evals != 5 {
+		t.Fatalf("%d messages, %d evals", n, evals)
 	}
 }
 
@@ -699,11 +707,15 @@ func TestServeAsset(t *testing.T) {
 }
 
 func TestRecvJSEscapes(t *testing.T) {
-	js := recvJS("a\u2028b\u2029c\"\\\n")
+	js := recvSeqJS(3, []downq.Item{
+		{Seq: 4, Kind: downq.Msg, Data: []byte("a\u2028b\u2029c\"\\\n</script>")},
+		{Seq: 5, Kind: downq.Packet, Data: []byte{0, 1, 0xff}},
+		{Seq: 6, Kind: downq.Barrier, Data: []byte{0, 0, 0, 0, 0, 0, 1, 2}},
+	})
 	if strings.ContainsAny(js, "\u2028\u2029\n") {
 		t.Fatalf("unescaped: %q", js)
 	}
-	if js != `window.__tango._recv("a\u2028b\u2029c\"\\\n")` {
+	if js != `window.__tango._recvSeq(3,[[4,0,"a\u2028b\u2029c\"\\\n\u003c/script\u003e"],[5,1,"AAH/"],[6,2,258]])` {
 		t.Fatalf("%q", js)
 	}
 }

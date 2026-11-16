@@ -4,6 +4,7 @@ package metal
 
 import (
 	"errors"
+	"fmt"
 	"image"
 	"runtime"
 	"slices"
@@ -16,21 +17,31 @@ import (
 // offscreen CAMetalLayer at a Retina window size. The layer has no display,
 // so this measures how long the CPU is blocked on command-buffer
 // completion (what bounded in-flight changes), not vsync or display
-// latency. Metrics: ns/op and the p50/p95/p99 of single iterations.
+// latency. Metrics: ns/op and the p50/p95/p99 of single iterations; in the
+// paced arms the wait for the next tick is excluded from both.
 func BenchmarkPresentLoop(b *testing.B) {
 	for _, arm := range []struct {
 		name  string
 		drain bool
 	}{{"drain", true}, {"a1", false}} {
-		b.Run(arm.name+"/editor", func(b *testing.B) { presentLoop(b, arm.drain, true) })
-		b.Run(arm.name+"/editor-nosync", func(b *testing.B) { presentLoop(b, arm.drain, false) })
+		b.Run(arm.name+"/editor", func(b *testing.B) { presentLoop(b, arm.drain, true, 0) })
+		b.Run(arm.name+"/editor-nosync", func(b *testing.B) { presentLoop(b, arm.drain, false, 0) })
+	}
+	// Paced like the app: one frame per display tick (the darwin canvas
+	// renders from a CADisplayLink), not back to back. 120 Hz and 60 Hz.
+	for _, hz := range []int{120, 60} {
+		b.Run(fmt.Sprintf("a1/editor-paced%d", hz), func(b *testing.B) {
+			presentLoop(b, false, true, time.Second/time.Duration(hz))
+		})
 	}
 }
 
 // presentLoop runs the loop; with vsync false the layer's displaySyncEnabled
 // is turned off, so nextDrawable stops pacing the loop to the display and
-// what is left is CPU encode plus command-buffer back-pressure.
-func presentLoop(b *testing.B, drain, vsync bool) {
+// what is left is CPU encode plus command-buffer back-pressure. A non-zero
+// tick starts each frame on its own tick of that period (skipping ticks a
+// slow frame overran), as a display link would.
+func presentLoop(b *testing.B, drain, vsync bool, tick time.Duration) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if err := loadPresenter(); err != nil {
@@ -89,7 +100,18 @@ func presentLoop(b *testing.B, drain, vsync bool) {
 	})
 	lat := make([]time.Duration, 0, b.N)
 	b.ResetTimer()
+	next := time.Now()
 	for range b.N {
+		if tick > 0 {
+			// The wait for the tick is not frame work: keep it out of
+			// ns/op, which otherwise would just be the tick period.
+			b.StopTimer()
+			for now := time.Now(); next.Before(now); {
+				next = next.Add(tick) // the first tick not yet passed
+			}
+			time.Sleep(time.Until(next))
+			b.StartTimer()
+		}
 		t := time.Now()
 		frame()
 		lat = append(lat, time.Since(t))

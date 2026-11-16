@@ -52,6 +52,10 @@ type tblState struct {
 	edit      tblEdit
 	rowDrafts map[string]map[string]*tblDraft // row key → column key → draft
 
+	filterInit bool   // DefaultFilter applied
+	expInit    bool   // DefaultExpandAllRows applied
+	lastSel    string // key of the last row checked by pointer (Shift+click range)
+
 	drag tblDrag
 	vh   tblVarH // variable row heights (Wrap columns)
 
@@ -150,6 +154,8 @@ type tblFrame struct {
 	footY   float32      // sticky summary shift (<= 0)
 	stickyS *scrollState // container of a sticky table
 
+	byKey bool // the selection change comes from the keyboard (no Shift range)
+
 	// Accessibility: the active cell (ActiveDescendant of the grid) and
 	// the expand / tree toggle of the row being built (its Expand action).
 	actID     ID
@@ -209,10 +215,15 @@ func (f *tblFrame) metrics() {
 	small := t.sizeSet && t.size == Small
 	if small {
 		f.fs = tk.CellFontSizeSM
+	} else if t.sizeSet && t.size == Middle {
+		f.fs = tk.CellFontSizeMD
+	}
+	f.lh = tk.CellLineHeight
+	if f.lh <= 0 {
+		f.lh = 22
 	}
 	if f.el {
 		// Element: the default density is Middle.
-		f.lh = 23
 		switch {
 		case small:
 			f.pv, f.ph = tk.CellPaddingBlockSM, tk.CellPaddingInlineSM
@@ -222,7 +233,6 @@ func (f *tblFrame) metrics() {
 			f.pv, f.ph = tk.CellPaddingBlockMD, tk.CellPaddingInlineMD
 		}
 	} else {
-		f.lh = 22
 		switch {
 		case t.sizeSet && t.size == Middle:
 			f.pv, f.ph = tk.CellPaddingBlockMD, tk.CellPaddingInlineMD
@@ -237,8 +247,20 @@ func (f *tblFrame) metrics() {
 	if f.shad {
 		f.shad2bMetrics()
 	}
+	if t.virtual {
+		// Element Plus Table V2 row-height / header-height (50 / 50).
+		if tk.VirtualRowHeight > 0 {
+			f.rh = tk.VirtualRowHeight
+		}
+		if tk.VirtualHeaderHeight > 0 {
+			f.hh = tk.VirtualHeaderHeight
+		}
+	}
 	if t.rowH > 0 {
 		f.rh = t.rowH
+	}
+	if t.headH > 0 {
+		f.hh = t.headH
 	}
 }
 
@@ -256,22 +278,38 @@ func (f *tblFrame) columns() {
 		cs = &st.colState
 	}
 	f.cols = tblArrange(t.cols, cs)
+	if t.ellipsisAll {
+		f.cols = tblEllipsisAll(f.cols)
+	}
 	var specials []tblLeaf
 	if t.dragSort != nil {
 		specials = append(specials, tblLeaf{kind: tkDrag, w: 40, key: "__drag"})
 	}
+	// Ant Design puts the expand column first and the selection column
+	// right after it (useSelection: "Always after expand icon").
+	if t.expRender != nil && !t.hideExpandCol {
+		specials = append(specials, tblLeaf{kind: tkExpand, w: f.tk.ExpandColumnWidth, key: "__expand"})
+	}
 	if t.selection != nil || t.selKeys != nil {
-		w := max(48, 16+2*f.ph)
-		if f.el {
-			w = 48
-		}
+		// antd selection.js: selectionColumnWidth (32), + fontSizeIcon +
+		// padding/4 (16) with the selections dropdown, + 2 × paddingXS
+		// (SelectionBorderedExtra) in a bordered table.
+		w := f.tk.SelectionColumnWidth
 		if t.selMenu && !t.single && !t.hideAll {
-			w += 18 // the selections menu arrow
+			w += 16 // the selections menu arrow
+		}
+		if t.bordered {
+			w += f.tk.SelectionBorderedExtra
+		}
+		if t.selColW > 0 {
+			w = t.selColW
 		}
 		specials = append(specials, tblLeaf{kind: tkSelect, w: w, key: "__select"})
 	}
-	if t.expRender != nil {
-		specials = append(specials, tblLeaf{kind: tkExpand, w: 48, key: "__expand"})
+	if t.selFixed {
+		for i := range specials {
+			specials[i].fixed = tfLeft
+		}
 	}
 	f.leaves, f.heads, f.depth = tblFlatten(f.cols, specials)
 	widths := st.widths
@@ -351,7 +389,7 @@ func (f *tblFrame) loadSorts() {
 // clickSort applies a sorter click on col.
 func (f *tblFrame) clickSort(col *TableColumn) {
 	t, st := f.t, f.st
-	next := tblNextOrder(f.sortOf[col.Key])
+	next := f.nextOrder(col)
 	multi := col.SortMultiple > 0 && (t.multiSort != nil || (t.sort == nil && t.multiSort == nil))
 	var list []SortState
 	if multi {
@@ -602,6 +640,15 @@ func (f *tblFrame) setSelected(r tblRow, on bool) {
 	if f.linked {
 		f.linkedCheck([]int{r.data}, on)
 		return
+	}
+	if !t.single && !f.byKey {
+		if f.c.PressMods().Has(input.ModShift) && f.rangeSelect(r) {
+			return
+		}
+		f.st.lastSel = ""
+		if on {
+			f.st.lastSel = r.key
+		}
 	}
 	if t.selection != nil {
 		s := *t.selection
@@ -855,6 +902,16 @@ func (f *tblFrame) linkedCheck(ids []int, on bool) {
 func (f *tblFrame) build() {
 	c, t, th, st := f.c, f.t, f.th, f.st
 	f.metrics()
+	if t.title != nil {
+		f.titleBar(t.title, false)
+	}
+	var topPager *Box
+	if t.page != nil {
+		if top, _ := f.pagerPlaces(); top != "" {
+			// Filled after the rows are known (Body can run later).
+			topPager = c.box("table-pager-top", layout.Column, nil)
+		}
+	}
 	frame := c.box("table-frame", layout.Column, nil)
 	border := float32(0)
 	if t.bordered {
@@ -873,10 +930,21 @@ func (f *tblFrame) build() {
 	}
 	f.viewW = vw
 	f.columns()
-	if t.tp != nil && t.tp.header == nil {
-		f.depth, f.heads = 0, nil // Transposed without TransposedHeader: no header row
+	if (t.tp != nil && t.tp.header == nil) || t.noHeader {
+		f.depth, f.heads = 0, nil // HideHeader, or Transposed without TransposedHeader: no header row
 	}
 	f.loadSorts()
+	f.initFilters()
+	f.initExpanded()
+	if t.showSum && len(t.summary) == 0 {
+		// Element Plus renders summary-method or the default sums, never
+		// both (table-footer/index.mjs:49-53).
+		t.summary = append(t.summary, f.defaultSummary)
+	}
+	if t.curKey != nil {
+		st.cur, st.curOn = *t.curKey, *t.curKey != ""
+	}
+	prevCur, prevCurOn := st.cur, st.curOn
 	f.view()
 	f.loadSelection()
 	f.loadLinkage()
@@ -918,20 +986,28 @@ func (f *tblFrame) build() {
 			f.summaryBar()
 		}
 	})
+	// Corners: the header's top radius, the bordered bottom radius (antd
+	// radius.js); a Title / Footer bar takes the outer corners instead.
 	rad := f.tk.HeaderBorderRadius
+	radii := geom.Radii{TL: rad, TR: rad}
 	if t.bordered {
-		frame.Radius(rad)
-	} else {
-		frame.Radii(geom.Radii{TL: rad, TR: rad})
+		radii.BL, radii.BR = f.tk.BottomRadius, f.tk.BottomRadius
 	}
+	if t.title != nil {
+		radii.TL, radii.TR = 0, 0
+	}
+	if t.footer != nil {
+		radii.BL, radii.BR = 0, 0
+	}
+	frame.Radii(radii)
 	// Background below the header as plain rectangles (cheap to raster);
 	// only the bottom corner strip of a bordered table is rounded.
 	frame.Paint(func(l *paint.List, r geom.Rect) {
 		top := r.Y + f.hh*float32(f.depth)
 		bot := r.Bottom()
-		if t.bordered && rad > 0 {
-			bot -= rad
-			l.Fill(geom.Rect{X: r.X, Y: bot - rad, W: r.W, H: 2 * rad}, geom.Radii{BL: rad, BR: rad}, th.BgContainer)
+		if br := radii.BL; br > 0 {
+			bot -= br
+			l.Fill(geom.Rect{X: r.X, Y: bot - br, W: r.W, H: 2 * br}, geom.Radii{BL: br, BR: br}, th.BgContainer)
 		}
 		l.Fill(geom.Rect{X: r.X, Y: top, W: r.W, H: max(0, bot-top)}, geom.Radii{}, th.BgContainer)
 	})
@@ -949,39 +1025,87 @@ func (f *tblFrame) build() {
 			f.fixedShadow(l, s.X(f.cx(f.firstRight())-f.sx, 0), r.Y, r.H, f.rtl)
 		}
 		if t.bordered {
-			l.Stroke(r, geom.Rad(rad), 1, f.spl)
+			l.Stroke(r, radii, 1, f.spl)
 		} else if f.el {
 			l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, f.spl)
 		}
 		if t.loading {
-			l.Fill(r, geom.Rad(rad), theme.Fade(th.BgContainer, 0.5))
+			l.Fill(r, radii, theme.Fade(th.BgContainer, 0.5))
 			drawSpinner(c, l, geom.Rect{X: r.X + r.W/2 - 10, Y: r.Y + min(r.H/2, 160) - 10, W: 20, H: 20})
 		}
 	})
 	if t.loading {
 		frame.n.hit, frame.n.blocks = true, true
 	}
+	if t.footer != nil {
+		f.titleBar(t.footer, true)
+	}
 	if t.page != nil {
-		f.pager()
+		top, bottom := f.pagerPlaces()
+		if topPager != nil {
+			topPager.Body(func() { f.pager(top) })
+		}
+		if bottom != "" {
+			f.pager(bottom)
+		}
+	}
+	f.expandClicked()
+	if st.curOn && (!prevCurOn || st.cur != prevCur) {
+		// Element Plus current-change: the current row moved (click or
+		// Enter), bound or not.
+		t.curCh = true
+		if t.curKey != nil {
+			*t.curKey = st.cur
+		}
+	}
+	if t.selCh {
+		f.pruneSelection()
+	}
+	if t.scrollTop && (t.sortedCh || t.filterCh || t.pageCh) && f.scroll != nil {
+		f.scroll.off.Y = 0
 	}
 	f.flushTips()
 }
 
-func (f *tblFrame) pager() {
+// pager builds the pager at placement place (PageTopStart …). Like Ant
+// Design's table it is hidden when there are no rows, has no total unless
+// PaginationConfig asks for one and is small for Small and Middle tables
+// (getPaginationSize).
+func (f *tblFrame) pager(place string) {
 	c, t := f.c, f.t
 	total := f.allN
 	if t.serverPage {
 		total = t.total
 	}
+	if total <= 0 {
+		return
+	}
 	if t.pageSize == nil {
 		ps := 10
 		t.pageSize = &ps
 	}
+	just := layout.End()
+	switch place {
+	case PageTopStart, PageBottomStart:
+		just = layout.JustifyContent(layout.JustifyStart)
+	case PageTopCenter, PageBottomCenter:
+		just = layout.JustifyContent(layout.JustifyCenter)
+	}
+	m := geom.Insets{Top: 16}
+	if strings.HasPrefix(place, "top") {
+		m = geom.Insets{Bottom: 16}
+	}
 	Row(c, func() {
 		before, beforeSize := *t.page, *t.pageSize
-		p := Pagination(c, t.page, total, f.pageSize()).ShowTotal()
+		p := Pagination(c, t.page, total, f.pageSize())
+		if t.sizeSet && (t.size == Small || t.size == Middle) {
+			p.Small()
+		}
 		if len(t.pageSizes) > 0 || total > 50 {
 			p.SizeChanger(t.pageSize)
+		}
+		if t.pageCfg != nil {
+			t.pageCfg(p)
 		}
 		p.Show()
 		if *t.page != before || *t.pageSize != beforeSize {
@@ -989,7 +1113,7 @@ func (f *tblFrame) pager() {
 			f.st.actOn = false
 			c.invalid = true
 		}
-	}, layout.End(), layout.Margin(geom.Insets{Top: 16}))
+	}, just, layout.Margin(m))
 }
 
 // ---------------------------------------------------------------------------
@@ -1234,3 +1358,378 @@ func (f *tblFrame) flushTips() {
 }
 
 var _ = time.Second
+
+// ---------------------------------------------------------------------------
+// Ant Design / Element Plus behaviours (spec alignment, batch 2).
+
+// sortDirs returns the sort cycle of col.
+func (f *tblFrame) sortDirs(col *TableColumn) []SortOrder {
+	if len(col.SortDirections) > 0 {
+		return col.SortDirections
+	}
+	return f.t.sortDirs
+}
+
+// nextOrder is the order a sorter click on col applies.
+func (f *tblFrame) nextOrder(col *TableColumn) SortOrder {
+	return tblNextOrderIn(f.sortDirs(col), f.sortOf[col.Key])
+}
+
+// sorterTip returns the tooltip of a sortable header: the action of the
+// next click (Ant Design triggerAsc / triggerDesc / cancelSort) and
+// whether it shows (ShowSorterTooltip over TableToken.SorterTooltip;
+// Element Plus draws none).
+func (f *tblFrame) sorterTip(col *TableColumn) (string, bool) {
+	if !f.t.sortTip || !f.tk.SorterTooltip {
+		return "", false
+	}
+	loc := f.c.Locale()
+	switch f.nextOrder(col) {
+	case SortAsc:
+		return loc.SortAsc, true
+	case SortDesc:
+		return loc.SortDesc, true
+	}
+	return loc.CancelSort, true
+}
+
+// filterResetValues is what the filter's reset button applies: nothing,
+// or DefaultFilter with FilterResetToDefault.
+func (f *tblFrame) filterResetValues(col *TableColumn) []string {
+	if col.FilterResetToDefault && len(col.DefaultFilter) > 0 {
+		return append([]string(nil), col.DefaultFilter...)
+	}
+	return nil
+}
+
+// initFilters applies DefaultFilter once, to columns the filter state has
+// no entry for.
+func (f *tblFrame) initFilters() {
+	st := f.st
+	if st.filterInit {
+		return
+	}
+	st.filterInit = true
+	for _, lf := range f.leaves {
+		if lf.col == nil || len(lf.col.DefaultFilter) == 0 {
+			continue
+		}
+		if _, ok := f.filterOf[lf.key]; !ok {
+			f.filterOf[lf.key] = append([]string(nil), lf.col.DefaultFilter...)
+		}
+	}
+}
+
+// initExpanded applies DefaultExpandAllRows once to the table-owned
+// expansion and tree state.
+func (f *tblFrame) initExpanded() {
+	t, st := f.t, f.st
+	if !t.expandAll || st.expInit {
+		return
+	}
+	st.expInit = true
+	if t.treeKids != nil && t.treeOpen == nil {
+		var keys []string
+		seen := map[int]bool{}
+		var walk func(ids []int)
+		walk = func(ids []int) {
+			for _, id := range ids {
+				if seen[id] {
+					continue
+				}
+				seen[id] = true
+				if kids := t.treeKids(id); len(kids) > 0 {
+					keys = append(keys, tblKey(t.rowKey, id))
+					walk(kids)
+				}
+			}
+		}
+		walk(t.treeRoots)
+		st.treeOpen = keys
+	}
+	if t.expRender != nil && t.expKeys == nil {
+		var keys []string
+		for i := 0; i < t.rows; i++ {
+			if t.expAllow == nil || t.expAllow(i) {
+				keys = append(keys, tblKey(t.rowKey, i))
+			}
+		}
+		st.expanded = keys
+	}
+}
+
+// posOf returns the page position of the row with key, or -1.
+func (f *tblFrame) posOf(key string) int {
+	for i := 0; i < f.n; i++ {
+		if f.row(i).key == key {
+			return i
+		}
+	}
+	return -1
+}
+
+// rangeSelect handles Shift+click on a row checkbox (Ant Design
+// useMultipleSelect): the rows between the last checked row and r are all
+// checked, or all unchecked when every one of them already is. Disabled
+// rows keep their state. It reports false when there is no range.
+func (f *tblFrame) rangeSelect(r tblRow) bool {
+	st := f.st
+	if st.lastSel == "" {
+		return false
+	}
+	a, b := f.posOf(st.lastSel), f.posOf(r.key)
+	if a < 0 || b < 0 || a == b {
+		return false
+	}
+	if a > b {
+		a, b = b, a
+	}
+	was := f.selected(r)
+	var rows []tblRow
+	on := false
+	for i := a; i <= b; i++ {
+		rr := f.row(i)
+		if !f.selectable(rr) {
+			continue
+		}
+		rows = append(rows, rr)
+		if !f.selected(rr) {
+			on = true
+		}
+	}
+	f.setRows(rows, on)
+	// antd useSelection.js: the anchor becomes the clicked row when it
+	// was unchecked, none when it was checked (overriding
+	// useMultipleSelect's range end).
+	st.lastSel = ""
+	if !was {
+		st.lastSel = r.key
+	}
+	return true
+}
+
+// setRows checks or unchecks rows of a multi-select (no tree linkage).
+func (f *tblFrame) setRows(rows []tblRow, on bool) {
+	t := f.t
+	if t.selection != nil {
+		s := *t.selection
+		if on {
+			for _, r := range rows {
+				if !f.selInts[r.data] {
+					s = append(s, r.data)
+					f.selInts[r.data] = true
+				}
+			}
+		} else {
+			drop := map[int]bool{}
+			for _, r := range rows {
+				drop[r.data] = true
+			}
+			out := s[:0]
+			for _, v := range s {
+				if !drop[v] {
+					out = append(out, v)
+				}
+			}
+			s = out
+		}
+		*t.selection = s
+	} else if t.selKeys != nil {
+		s := *t.selKeys
+		for _, r := range rows {
+			s = tblToggle(s, r.key, on)
+		}
+		*t.selKeys = s
+	}
+	f.loadSelection()
+	t.selCh = true
+	f.c.invalid = true
+}
+
+// pruneSelection drops selected rows that are not in the data (Ant Design
+// without preserveSelectedRowKeys): data indices outside 0..rows-1 or off
+// the tree, keys of no such row.
+func (f *tblFrame) pruneSelection() {
+	t := f.t
+	if t.preserveSel || !f.hasSelection() {
+		return
+	}
+	var inTree map[int]bool
+	if t.treeKids != nil {
+		inTree = map[int]bool{}
+		var walk func(ids []int)
+		walk = func(ids []int) {
+			for _, id := range ids {
+				if !inTree[id] {
+					inTree[id] = true
+					walk(t.treeKids(id))
+				}
+			}
+		}
+		walk(t.treeRoots)
+	}
+	valid := func(row int) bool {
+		if inTree != nil {
+			return inTree[row]
+		}
+		return row >= 0 && row < t.rows
+	}
+	if t.selection != nil {
+		s := *t.selection
+		out := s[:0]
+		for _, v := range s {
+			if valid(v) {
+				out = append(out, v)
+			}
+		}
+		*t.selection = out
+	} else {
+		keys := map[string]bool{}
+		if inTree != nil {
+			for id := range inTree {
+				keys[tblKey(t.rowKey, id)] = true
+			}
+		} else {
+			for i := 0; i < t.rows; i++ {
+				keys[tblKey(t.rowKey, i)] = true
+			}
+		}
+		s := *t.selKeys
+		out := s[:0]
+		for _, k := range s {
+			if keys[k] {
+				out = append(out, k)
+			}
+		}
+		*t.selKeys = out
+	}
+	f.loadSelection()
+}
+
+// expandClicked toggles the clicked row's detail panel or tree children
+// (ExpandRowByClick).
+func (f *tblFrame) expandClicked() {
+	t := f.t
+	if !t.expandByClick || t.clickRow < 0 {
+		return
+	}
+	key := tblKey(t.rowKey, t.clickRow)
+	pos := f.posOf(key)
+	if pos < 0 {
+		return
+	}
+	r := f.row(pos)
+	switch {
+	case f.tree != nil && r.kids:
+		ks := f.openKeys()
+		*ks = tblToggle(*ks, r.key, !r.open)
+	case t.expRender != nil && f.canExpand(r):
+		ks := f.expKeys()
+		*ks = tblToggle(*ks, r.key, !f.expSet[r.key])
+		f.expSet = keySet(*ks)
+	default:
+		return
+	}
+	t.expCh = true
+	f.c.invalid = true
+}
+
+// defaultSummary is Element Plus' show-summary row (ShowSummary).
+func (f *tblFrame) defaultSummary(key string, rows []int) string {
+	if len(f.data) > 0 && f.leaves[f.data[0]].key == key {
+		return f.c.Locale().Table.SumText
+	}
+	col := f.colByKey(key)
+	if col == nil || col.Text == nil {
+		return ""
+	}
+	texts := make([]string, len(rows))
+	for i, r := range rows {
+		texts[i] = col.Text(r)
+	}
+	return tblSumTexts(texts)
+}
+
+// titleBar builds the Ant Design title / footer bar: cell padding, the
+// header colors for the footer, a border around it in a bordered table.
+func (f *tblFrame) titleBar(fn func(), footer bool) {
+	c, t, tk := f.c, f.t, f.tk
+	kind := "table-title"
+	if footer {
+		kind = "table-footer"
+	}
+	b := c.box(kind, layout.Column, nil)
+	b.n.ln.Padding = geom.VH(f.pv, f.ph)
+	if footer {
+		// antd footerBg / footerColor (Element and shadcn: no tint).
+		b.Bg(tk.FooterAreaBg)
+	}
+	rad := tk.HeaderBorderRadius
+	radii := geom.Radii{TL: rad, TR: rad}
+	if footer {
+		// antd radius.js: &-footer 0 0 tableRadius tableRadius, bordered
+		// or not.
+		radii = geom.Radii{BL: rad, BR: rad}
+	}
+	b.Radii(radii)
+	if t.bordered {
+		// antd bordered.js: the title has no bottom border and the footer
+		// no top border (the table frame draws that edge): stroke a box
+		// one pixel taller with that edge clipped off.
+		b.PaintOver(func(l *paint.List, r geom.Rect) {
+			box := geom.Rect{X: r.X, Y: r.Y, W: r.W, H: r.H + 1}
+			if footer {
+				box.Y--
+			}
+			l.Clip(r, geom.Radii{})
+			l.Stroke(box, radii, 1, f.spl)
+			l.Pop()
+		})
+	}
+	// The bar's text color (antd footerColor / colorTextHeading, Element
+	// text-color-regular, shadcn caption muted-foreground): a scoped theme
+	// whose Text is the token, cached per base theme.
+	base := c.Theme
+	if col := tk.FooterAreaColor; col != (theme.Color{}) && col != base.Text {
+		cc := State[tblBarTheme](c, hashID(b.n.id, "bar-theme"), nil)
+		if cc.base != base || cc.col != col {
+			cp := *base
+			cp.Text = col
+			cc.base, cc.col, cc.th = base, col, &cp
+		}
+		b.Body(func() { ConfigProvider(c).Theme(cc.th).Body(fn) })
+		return
+	}
+	b.Body(fn)
+}
+
+// tblBarTheme caches the Title / Footer bar theme.
+type tblBarTheme struct {
+	base, th *theme.Theme
+	col      theme.Color
+}
+
+// pagerPlaces resolves PaginationPlacement into the top and bottom
+// placements ("" = none there).
+func (f *tblFrame) pagerPlaces() (top, bottom string) {
+	pl := f.t.pagePlace
+	if len(pl) == 0 {
+		return "", PageBottomEnd
+	}
+	none := true
+	for _, p := range pl {
+		switch {
+		case strings.HasPrefix(p, "top") && top == "":
+			top = p
+		case strings.HasPrefix(p, "bottom") && bottom == "":
+			bottom = p
+		}
+		if p != PageNone {
+			none = false
+		}
+	}
+	if top == "" && bottom == "" && !none {
+		bottom = PageBottomEnd
+	}
+	return top, bottom
+}

@@ -66,6 +66,7 @@ type UploadW struct {
 	kind      int
 	onPick    func()
 	maxCount  int
+	noList    bool // ShowUploadList(false)
 	disabled  bool
 	dragOver  bool
 	loc       *Locale // captured at build; paint runs outside ConfigProvider
@@ -140,8 +141,15 @@ func (w *UploadW) Dragger() *UploadW { w.kind = upDrag; return w }
 func (w *UploadW) OnPick(fn func()) *UploadW { w.onPick = fn; return w }
 
 // MaxCount limits the number of files; the trigger is disabled (cards:
-// hidden) once reached.
+// hidden) once reached and further files are rejected (see Rejections;
+// Element limit / on-exceed). MaxCount(1) replaces the current file with
+// the new one instead, like antd maxCount={1}: the trigger stays enabled.
 func (w *UploadW) MaxCount(n int) *UploadW { w.maxCount = n; return w }
+
+// ShowUploadList shows (true, the default) or hides the file list (antd
+// showUploadList, Element show-file-list); the trigger, tip and
+// rejections stay.
+func (w *UploadW) ShowUploadList(on bool) *UploadW { w.noList = !on; return w }
 
 // Tip shows a help line under the trigger.
 func (w *UploadW) Tip(s string) *UploadW { w.tip = s; return w }
@@ -181,7 +189,19 @@ func (w *UploadW) Changed() bool { w.z.run(); return w.removed >= 0 }
 
 func (w *UploadW) isDisabled() bool { return w.disabled || w.n.disabled }
 
-func (w *UploadW) full() bool { return w.maxCount > 0 && len(*w.files) >= w.maxCount }
+// full reports a list at MaxCount (never with MaxCount(1), which
+// replaces).
+func (w *UploadW) full() bool { return w.maxCount > 1 && len(*w.files) >= w.maxCount }
+
+// replaceAll empties the list before a MaxCount(1) upload replaces the
+// file, cancelling its request.
+func (w *UploadW) replaceAll() {
+	for _, old := range *w.files {
+		w.cancelJob(old.UID)
+	}
+	*w.files = nil // a new array: the app may still hold the old slice
+	w.removed = -1
+}
 
 func (w *UploadW) pick() {
 	if w.isDisabled() || w.full() {
@@ -223,6 +243,9 @@ func (w *UploadW) build() {
 		w.n.ln.NoStretch = true
 		Row(c, func() {
 			for i := range *w.files {
+				if w.noList {
+					break
+				}
 				i := i
 				Key(c, i, func() { w.card(i) })
 			}
@@ -248,7 +271,7 @@ func (w *UploadW) build() {
 		Text(c, w.tip).Size(12).LineHeight(20).Color(tk.TipColor).Layout(layout.Margin(geom.Insets{Top: 7}))
 	}
 	w.rejections()
-	if w.kind != upCard && len(*w.files) > 0 {
+	if w.kind != upCard && len(*w.files) > 0 && !w.noList {
 		Column(c, func() {
 			for i := range *w.files {
 				i := i

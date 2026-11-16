@@ -53,7 +53,12 @@ func TestA11yImage(t *testing.T) {
 	if !dlg.States.Has(a11y.Modal) || !dlg.Actions.Has(a11y.Dismiss) {
 		t.Errorf("preview dialog: %s %s", dlg, dlg.Actions)
 	}
-	for _, name := range []string{loc.Image.ClosePreview, loc.Image.ZoomIn, loc.Image.ZoomOut, loc.Image.RotateLeft, loc.Image.Next} {
+	// At antd's minScale 1 the preview opens fully zoomed out: "zoom out"
+	// is there but disabled (rc-image).
+	if b := mustNode(t, d, a11y.RoleButton, loc.Image.ZoomOut); !b.States.Has(a11y.Disabled) {
+		t.Errorf("zoom out at the minimum scale: %s", b)
+	}
+	for _, name := range []string{loc.Image.ClosePreview, loc.Image.ZoomIn, loc.Image.RotateLeft, loc.Image.Next} {
 		b := mustNode(t, d, a11y.RoleButton, name)
 		if !b.States.Has(a11y.Focusable) {
 			t.Errorf("%q not focusable: %s", name, b)

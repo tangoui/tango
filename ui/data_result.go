@@ -95,7 +95,14 @@ func (w *ResultW) Body(fn func()) *Box {
 			tt.Size(tk.TitleFontSize).LineHeight(tk.TitleLineHeight)
 		}
 		if w.subTitle != "" {
-			sn := dataCenterText(c, w.subTitle, tk.SubtitleFontSize, tk.SubtitleColor, layout.Margin(geom.Insets{Top: tk.SubtitleMarginTop}))
+			var sn *node
+			if tk.SubtitleLineHeight > 0 {
+				st := Text(c, w.subTitle).Align(AlignCenter).Size(tk.SubtitleFontSize).LineHeight(tk.SubtitleLineHeight).Color(tk.SubtitleColor)
+				st.Layout(layout.Margin(geom.Insets{Top: tk.SubtitleMarginTop}))
+				sn = st.n
+			} else {
+				sn = dataCenterText(c, w.subTitle, tk.SubtitleFontSize, tk.SubtitleColor, layout.Margin(geom.Insets{Top: tk.SubtitleMarginTop}))
+			}
 			sn.setRole(a11y.RoleParagraph)
 		}
 		if w.extra != nil {
@@ -268,6 +275,7 @@ type EmptyW struct {
 	b       *Box
 	desc    string
 	noDesc  bool
+	title   string
 	simple  bool
 	size    float32
 	image   func()
@@ -296,6 +304,10 @@ func Empty(c *Context) *EmptyW {
 // Description sets the text ("" hides it).
 func (e *EmptyW) Description(s string) *EmptyW { e.desc, e.noDesc = s, s == ""; return e }
 
+// Title adds a heading between the picture and the description (shadcn
+// EmptyTitle: text-lg font-medium).
+func (e *EmptyW) Title(s string) *EmptyW { e.title = s; return e }
+
 // Simple uses the compact picture and spacing (Ant PRESENTED_IMAGE_SIMPLE;
 // used inside selects, tables and lists in both design systems).
 func (e *EmptyW) Simple() *EmptyW { e.simple = true; return e }
@@ -321,13 +333,10 @@ func (e *EmptyW) build() {
 	c := e.c
 	th := c.ThemeFor(theme.CompEmpty)
 	tk := &th.Components.Empty
-	el := th.Flavor == theme.Element && !e.simple
-	pad := geom.VH(0, 8)
-	switch {
-	case e.simple:
+	el := tk.Picture == theme.EmptyPictureElement && !e.simple
+	pad := geom.VH(tk.PaddingBlock, tk.PaddingInline)
+	if e.simple {
 		pad = geom.VH(8, 8)
-	case el:
-		pad = geom.VH(40, 0)
 	}
 	e.b.n.ln.Padding = pad
 	size := e.size
@@ -371,21 +380,30 @@ func (e *EmptyW) build() {
 			}
 		}
 	}
-	if !e.noDesc {
-		t := Text(c, e.desc).Align(AlignCenter)
-		switch {
-		case el:
-			t.Color(tk.DescriptionColor).Layout(layout.Margin(geom.Insets{Top: 20}))
-		case e.simple:
-			t.Color(tk.DescriptionColorSM).Layout(layout.Margin(geom.Insets{Top: 8}))
-		default:
-			t.Color(tk.DescriptionColor).Layout(layout.Margin(geom.Insets{Top: 8}))
+	gapTop := tk.DescriptionMarginTop
+	if e.simple {
+		gapTop = 8
+	}
+	if e.title != "" {
+		t := Text(c, e.title).Align(AlignCenter).Color(tk.TitleColor).Size(tk.TitleFontSize)
+		t.n.setRole(a11y.RoleHeading)
+		if tk.TitleFontWeight != 0 {
+			t.Weight(text.Weight(tk.TitleFontWeight))
 		}
+		t.Layout(layout.Margin(geom.Insets{Top: gapTop}))
+		gapTop = 8 // header gap-2 between the title and the description
+	}
+	if !e.noDesc {
+		col := tk.DescriptionColor
+		if e.simple {
+			col = tk.DescriptionColorSM
+		}
+		Text(c, e.desc).Align(AlignCenter).Color(col).Layout(layout.Margin(geom.Insets{Top: gapTop}))
 	}
 	if e.actions != nil {
-		mt := float32(16)
-		if el {
-			mt = 20
+		mt := tk.FooterMarginTop
+		if e.simple {
+			mt = 16
 		}
 		Row(c, e.actions, layout.Gap(8), layout.JustifyContent(layout.JustifyCenter), layout.Margin(geom.Insets{Top: mt}))
 	}

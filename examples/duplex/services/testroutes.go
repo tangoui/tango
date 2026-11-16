@@ -25,11 +25,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/tangoui/tango/internal/downq"
 	"github.com/tangoui/tango/ipc"
 )
 
 // Probe reports whether the test hooks are on (TANGO_SCHEME_PROBE=1).
 var Probe = sync.OnceValue(func() bool { return os.Getenv("TANGO_SCHEME_PROBE") == "1" })
+
+// TraceEnabled reports whether the development pipeline trace is requested.
+var TraceEnabled = sync.OnceValue(downq.TraceEnabled)
 
 // Stats is the result of Debug.Stats. Later counters are added as fields;
 // the page reads them by name.
@@ -54,13 +58,19 @@ type Stats struct {
 	// ios.LaneDownStats; zero on other platforms, and on macOS in builds
 	// without -tags tango_dev): lane requests it saw and
 	// how they were answered.
-	DownRequests int64 `json:"downRequests"` // GET /__tango/lane/down
-	DownConns    int64 `json:"downConns"`    // of them answered 200
-	DownActive   int64 `json:"downActive"`   // accepted and still open
-	DownWrites   int64 `json:"downWrites"`   // data blocks handed to WebKit on accepted ones
-	UpRequests   int64 `json:"upRequests"`   // POST /__tango/lane/up
-	UpAccepted   int64 `json:"upAccepted"`   // of them answered 2xx
-	UpActive     int64 `json:"upActive"`     // started and not yet finished or stopped
+	DownRequests      int64 `json:"downRequests"` // GET /__tango/lane/poll (macOS; /__tango/lane/down on iOS)
+	DownConns         int64 `json:"downConns"`    // of them answered 200
+	DownActive        int64 `json:"downActive"`   // answered 200 and still open
+	DownWrites        int64 `json:"downWrites"`   // data blocks handed to WebKit on those answered 200
+	DownRefused       int64 `json:"downRefused"`  // of them answered 403 (macOS only)
+	DownOpen          int64 `json:"downOpen"`     // of them not finished yet, held ones included (macOS only)
+	DownResponseNanos int64 `json:"downResponseNanos,omitempty"`
+	DownDataNanos     int64 `json:"downDataNanos,omitempty"`
+	DownFinishNanos   int64 `json:"downFinishNanos,omitempty"`
+	DownDataCalls     int64 `json:"downDataCalls,omitempty"`
+	UpRequests        int64 `json:"upRequests"` // POST /__tango/lane/up
+	UpAccepted        int64 `json:"upAccepted"` // of them answered 2xx
+	UpActive          int64 `json:"upActive"`   // started and not yet finished or stopped
 	// Main-thread time the macOS scheme handler spent on up requests
 	// before their handler goroutine started (summed, largest), and their
 	// body bytes; zero on iOS and elsewhere.
@@ -77,6 +87,10 @@ type Stats struct {
 	LaneUpRefused   int64 `json:"laneUpRefused"`   // refused by the core (answered [1])
 	LaneDownDropped int64 `json:"laneDownDropped"` // down packets dropped (other generation, no proxy)
 	LaneDownQueued  int64 `json:"laneDownQueued"`  // down packets queued now
+
+	// IpcTraceEnabled is true only for a tango_dev run with TANGO_IPC_TRACE=1.
+	IpcTraceEnabled bool               `json:"ipcTraceEnabled,omitempty"`
+	IpcTrace        []downq.TraceBatch `json:"ipcTrace,omitempty"`
 }
 
 var (
@@ -95,7 +109,62 @@ func debugStats(context.Context, json.RawMessage) (any, error) {
 		UpBytes:      upBytes.Load(),
 	}
 	backendLaneStats(&st)
+	if TraceEnabled() {
+		st.IpcTraceEnabled = true
+		st.IpcTrace = downq.TraceStats()
+	}
 	return st, nil
+}
+
+func debugTraceReset(context.Context, json.RawMessage) (any, error) {
+	downq.TraceReset()
+	return struct{}{}, nil
+}
+
+// Sample is one Debug.Sample measurement.
+type Sample struct {
+	At         int64 `json:"at"` // wall clock, Unix ms
+	Goroutines int   `json:"goroutines"`
+	DownOpen   int64 `json:"downOpen"`
+}
+
+var (
+	samplesMu sync.Mutex
+	samples   []Sample
+)
+
+// debugSample ([ms, stepMs]) starts sampling runtime.NumGoroutine and
+// the open poll requests every stepMs for ms on a goroutine of its own
+// (counted in the samples), replacing earlier samples; Debug.Samples
+// returns them. It outlives the page that asked, so a test can see what
+// happens across a reload.
+func debugSample(_ context.Context, args json.RawMessage) (any, error) {
+	ms, step := 0, 10
+	if err := decodeArgs(args, &ms, &step); err != nil || ms <= 0 || step <= 0 {
+		return nil, ipc.NewError(ipc.CodeBadArgs, "Debug.Sample(ms int, stepMs int)")
+	}
+	samplesMu.Lock()
+	samples = nil
+	samplesMu.Unlock()
+	go func() {
+		end := time.Now().Add(time.Duration(ms) * time.Millisecond)
+		for t := time.Now(); t.Before(end); t = time.Now() {
+			var st Stats
+			backendLaneStats(&st)
+			s := Sample{At: t.UnixMilli(), Goroutines: runtime.NumGoroutine(), DownOpen: st.DownOpen}
+			samplesMu.Lock()
+			samples = append(samples, s)
+			samplesMu.Unlock()
+			time.Sleep(time.Duration(step) * time.Millisecond)
+		}
+	}()
+	return struct{}{}, nil
+}
+
+func debugSamples(context.Context, json.RawMessage) (any, error) {
+	samplesMu.Lock()
+	defer samplesMu.Unlock()
+	return append([]Sample{}, samples...), nil
 }
 
 // CountMessage counts m in Debug.Stats if it is a runtime hello. The

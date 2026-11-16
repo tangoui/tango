@@ -271,7 +271,7 @@ func (s *Surface) Appearance() (ap Appearance) {
 // for the reloaded page.
 func (s *Surface) Reload() error {
 	return capDo(s, func(p platform.PageControl) {
-		s.loaded = false
+		s.pageGone() // downpoll.go
 		p.Reload()
 	})
 }
@@ -383,9 +383,9 @@ func (s *Surface) handleExtEvent(ev platform.SurfaceEvent) {
 		// The current page is about to go away: hold messages until the
 		// next one has loaded instead of evaluating them in a page that is
 		// unloading.
-		s.loaded = false
-		// Likewise no fast lane bytes for whatever page comes next until
-		// it says hello (lanes.go).
+		s.pageGone() // downpoll.go: the generation ends, down:poll's too
+		// Likewise no platform lane bytes for whatever page comes next
+		// until it says hello (lanes.go).
 		s.lane.SuspendDown()
 		s.ext.navSeq++
 		fire(s, &s.ext.onNavigating, func(fn func(string)) { fn(ev.URL) })
@@ -445,9 +445,8 @@ func (s *Surface) handleFrameMsg(cmd string) {
 		}
 	case strings.HasPrefix(cmd, "alive:"):
 		seq, err := strconv.ParseUint(cmd[len("alive:"):], 10, 64)
-		if err == nil && seq == s.ext.navSeq && !s.loaded {
-			s.loaded = true
-			s.flush()
+		if err == nil && seq == s.ext.navSeq && !s.loaded.Load() {
+			s.pageReady() // a new generation for the page still there
 		}
 	}
 }

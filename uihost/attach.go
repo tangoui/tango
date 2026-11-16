@@ -120,6 +120,7 @@ func AttachWith(s *tango.Surface, layer Layer, opts Options, page func(*ui.Conte
 	s.OnClosed(h.close)
 	watchMemory(s.App(), r) // memory.go
 	at.stop = fl.start(r, s)
+	frameTraceSkipped(h.id, "an attached layer (Attach) is drawn by the CPU; only GPU windows are traced")
 	cv.Invalidate()
 	return r, at, nil
 }

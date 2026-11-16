@@ -132,7 +132,8 @@ func (t *TableW) showTransposed() *TableW {
 	v := &TableW{c: c, rows: len(fields), clickRow: -1, dblRow: -1, indent: t.indent, tp: tp,
 		bordered: t.bordered, striped: t.striped, size: t.size, sizeSet: t.sizeSet,
 		maxH: t.maxH, scrollW: t.scrollW, rowH: t.rowH, loading: t.loading, noHover: t.noHover,
-		emptyText: t.emptyText, a11yName: t.a11yName, revision: t.revision}
+		emptyText: t.emptyText, a11yName: t.a11yName, revision: t.revision,
+		title: t.title, footer: t.footer, headH: t.headH, strict: true}
 	if t.rows == 0 {
 		v.rows = 0 // no records: the empty state
 	}

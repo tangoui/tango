@@ -176,6 +176,26 @@ func openRemote(t *testing.T, so tango.SurfaceOptions) (*tango.App, *fake.Backen
 	return wa, hfb, hfb.Surfaces()[0], o
 }
 
+func TestRemoteAllSpacesCreationAndUpdates(t *testing.T) {
+	_, _, hs, o := openRemote(t, tango.SurfaceOptions{Width: 300, Height: 200, Appearance: tango.Appearance{AllSpaces: true}})
+	ex, ok := hs.Extras()
+	if !ok || !ex.Appearance.AllSpaces || !o.s.Appearance().AllSpaces {
+		t.Fatal("AllSpaces was lost while creating the remote surface")
+	}
+	for _, on := range []bool{false, true} {
+		if err := o.s.SetAppearance(tango.Appearance{AllSpaces: on}); err != nil {
+			t.Fatal(err)
+		}
+		eventually(t, "remote AllSpaces update", func() bool {
+			ap, _ := hs.CurrentAppearance()
+			return ap.AllSpaces == on
+		})
+		if o.s.Appearance().AllSpaces != on {
+			t.Fatalf("remote appearance did not remember AllSpaces=%v", on)
+		}
+	}
+}
+
 func TestRemoteSurfaceCalls(t *testing.T) {
 	wa, hfb, hs, o := openRemote(t, tango.SurfaceOptions{Title: "Calls", Width: 300, Height: 200, Hidden: true})
 	s := o.s

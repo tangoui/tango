@@ -9,6 +9,8 @@ package uihost
 //
 //   - Accelerators use the sys/menu / sys/hotkey syntax and are parsed by
 //     hotkey.Parse, so CmdOrCtrl is Command on macOS and Control elsewhere.
+//   - While a HotkeyInput records, all bindings yield to it, including
+//     InTextInput bindings. Native menu accelerators yield as well.
 //   - Nothing fires while an input method is composing (between a
 //     non-empty input.Composition and its commit or cancel).
 //   - While a text field has the keyboard focus (the runner turned text
@@ -19,7 +21,7 @@ package uihost
 //     Tab and the edit combinations stay with the text field.
 //   - Menu accelerators win: the platform handles them before the canvas
 //     sees the key (macOS key equivalents, Windows TranslateAccelerator,
-//     GtkWindow accel groups), so a shortcut with the same accelerator as
+//     GtkWindow accel groups), except during shortcut recording. A shortcut with the same accelerator as
 //     a menu item never fires. Edit menu roles (Copy, Paste, ...) reach the
 //     canvas as a single Cmd/Ctrl+key press; with no text field focused, a
 //     shortcut on that combination fires once for it.
@@ -181,6 +183,8 @@ type shortcuts struct {
 	mu    sync.Mutex
 	binds []*shortcut
 
+	captureOn bool
+	captured  map[input.Key]bool // keys begun while recording; do not fire on repeat after recording
 	textOn    bool               // the runner turned text input on
 	composing bool               // an input method is composing
 	held      map[input.Key]bool // keys whose press fired: repeats and release are swallowed
@@ -225,6 +229,13 @@ func (t *shortcuts) setText(on bool) {
 	}
 }
 
+// setCapture changes recorder mode without altering the registered bindings.
+func (t *shortcuts) setCapture(on bool) {
+	if t != nil {
+		t.captureOn = on
+	}
+}
+
 // handle matches ev against the table, runs a hit and reports whether ev
 // was consumed (must not reach the runner). Main thread; t may be nil.
 func (t *shortcuts) handle(ev input.Event) bool {
@@ -238,6 +249,7 @@ func (t *shortcuts) handle(ev input.Event) bool {
 		t.composing = false
 	case input.WindowFocus:
 		clear(t.held) // releases may never come
+		clear(t.captured)
 		t.composing = false
 	case input.KeyEvent:
 		return t.key(ev)
@@ -246,6 +258,29 @@ func (t *shortcuts) handle(ev input.Event) bool {
 }
 
 func (t *shortcuts) key(ev input.KeyEvent) bool {
+	if !ev.Down {
+		delete(t.captured, ev.Key)
+	}
+	if t.captureOn {
+		if ev.Down {
+			if t.captured == nil {
+				t.captured = make(map[input.Key]bool)
+			}
+			t.captured[ev.Key] = true
+		}
+		// A shortcut pressed before capture began still owns its release.
+		if t.held[ev.Key] {
+			if !ev.Down {
+				delete(t.held, ev.Key)
+			}
+			return true
+		}
+		return false
+	}
+	if ev.Down && ev.Repeat && t.captured[ev.Key] {
+		return true
+	}
+
 	if !ev.Down {
 		if t.held[ev.Key] {
 			delete(t.held, ev.Key)

@@ -32,6 +32,16 @@ type propReader struct {
 var propReaders = []propReader{
 	{pkg: "ui", name: "Prop", comp: 1, key: 2},
 	{pkg: "ui", recv: "Context", name: "ConfigProp", comp: 0, key: 1, typ: "any"},
+	// Typed wrappers around ConfigProp / Prop with computed arguments.
+	{pkg: "ui", name: "propBool", comp: 1, key: 2, typ: "bool"},
+	{pkg: "ui", name: "propFloat", comp: 1, key: 2, typ: "number"},
+	{pkg: "ui", name: "propInt64", comp: 1, key: 2, typ: "number"},
+	{pkg: "ui", name: "p2bBool", comp: 1, key: 2, typ: "bool"},
+	{pkg: "ui", name: "p2bNum", comp: 1, key: 2, typ: "number"},
+	{pkg: "ui", name: "p2bStr", comp: 1, key: 2, typ: "string"},
+	{pkg: "ui", name: "p2bDur", comp: 1, key: 2, typ: "time.Duration|number"},
+	{pkg: "ui", name: "proPropInt", comp: 1, key: 2, typ: "number"},
+	{pkg: "ui", name: "dataPropCols", comp: 1, key: 2, typ: "int|map[Breakpoint]int"},
 	// ui/mobile's readers add the "mobile." prefix (ui/mobile/config.go).
 	{pkg: "ui/mobile", name: "cfgBool", comp: 1, key: 2, prefix: "mobile.", typ: "bool"},
 	{pkg: "ui/mobile", name: "cfgNum", comp: 1, key: 2, prefix: "mobile.", typ: "number"},

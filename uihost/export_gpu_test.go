@@ -41,3 +41,11 @@ func setGPUHooks(target func(platform.Canvas) (uintptr, error), release func(pla
 func SetGPUHooksGL(np func(glarea uintptr) (paint.Renderer, func(image.Point, float32) error, error), logf func(string, ...any)) func() {
 	return setGPUHooks(glAreaTarget, glAreaRelease, np, logf)
 }
+
+// SetFrameTraceHooks makes TANGO_FRAME_TRACE summaries cover every n
+// frames and go to logf. It returns a restore function.
+func SetFrameTraceHooks(n int, logf func(string, ...any)) func() {
+	oldN, oldLog := frameTraceEvery, frameTraceLogf
+	frameTraceEvery, frameTraceLogf = n, logf
+	return func() { frameTraceEvery, frameTraceLogf = oldN, oldLog }
+}

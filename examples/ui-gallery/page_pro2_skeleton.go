@@ -6,8 +6,11 @@ import (
 )
 
 func pro2SkeletonPage(c *ui.Context) {
-	gallery.Demo(c, "列表页 list", "页头、统计、工具栏与列表行。", func() {
-		pro2Canvas(c, func() { ui.ProSkeleton(c, ui.SkeletonList).Statistic(4).List(3).Active(false).Show() })
+	gallery.Demo(c, "列表页 list", "默认 2 个统计位（按 Pro v3 浏览器实际行为），工具栏与列表行独立控制。", func() {
+		pro2Canvas(c, func() { ui.ProSkeleton(c, ui.SkeletonList).List(3).Active(false).Show() })
+	})
+	gallery.Demo(c, "toolbar only", "List(0) 只隐藏列表行；工具栏单独由 Toolbar 控制。", func() {
+		pro2Canvas(c, func() { ui.ProSkeleton(c, ui.SkeletonList).PageHeader(false).Statistic(0).List(0).Active(false).Show() })
 	})
 	gallery.Demo(c, "结果页 result", "", func() {
 		pro2Canvas(c, func() { ui.ProSkeleton(c, ui.SkeletonResult).PageHeader(false).Active(false).Show() })

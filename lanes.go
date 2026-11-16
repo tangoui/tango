@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/tangoui/tango/internal/downq"
 	"github.com/tangoui/tango/internal/lane"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/ipc"
@@ -80,9 +81,12 @@ func normOrigin(origin string) string {
 }
 
 // initLanes sets up s's lane state; navOrigin is the creation URL's
-// origin. Before the native surface exists.
+// origin. Before the native surface exists, after initDown: down:poll
+// hands its packets to s.downq (as downq.Packet items), and only while the
+// page polls; otherwise the frames go as messages, which the downstream
+// queue orders with the rest.
 func (s *Surface) initLanes(navOrigin string) {
-	s.lane = lane.New(s.sendLanePacket)
+	s.lane = lane.New(s.sendLanePacket, s.sendPollPacket)
 	s.lanes.origin = navOrigin
 }
 
@@ -125,6 +129,17 @@ func (s *Surface) sendLanePacket(gen uint64, p []byte) bool {
 	return bl != nil && bl.SendLanePacket(gen, p)
 }
 
+// sendPollPacket is lane.State's pollSend: down:poll takes p only while the
+// page's downstream generation polls (downq.State.Active) and gen, the lane
+// generation p was admitted in, is still current with its downstream lanes
+// not suspended (lane.State.DownCurrent), both checked atomically with the
+// push. A packet of a page that has gone (navigated, reloaded) thus never
+// reaches the next page's downstream generation, as platformSend's
+// backends do for the platform lanes (lane.New).
+func (s *Surface) sendPollPacket(gen uint64, p []byte) bool {
+	return s.downq.PushActive(downq.Packet, p, func() bool { return s.lane.DownCurrent(gen) }) != 0
+}
+
 // LaneHello implements ipc.BinaryConn: it starts a new lane generation for
 // the page's hello and returns the hello reply's "lanes" field, or nil when
 // the page gets no fast lanes. It does not concern applications; use
@@ -146,6 +161,17 @@ func (s *Surface) LaneHello() json.RawMessage {
 // goroutine.
 func (s *Surface) SendBinary(packet []byte) bool {
 	return !s.closed.Load() && s.lane.Send(packet)
+}
+
+// SendBinaryOrdered implements ipc.OrderedBinaryConn: SendBinary that
+// also reports whether down:poll took packet (it then travels in the
+// page's one sequenced downstream queue with every later message, so ipc
+// sends no boundary after it). Safe from any goroutine.
+func (s *Surface) SendBinaryOrdered(packet []byte) (sent, ordered bool) {
+	if s.closed.Load() {
+		return false, false
+	}
+	return s.lane.SendOrdered(packet)
 }
 
 // BinaryMinSize implements ipc.BinaryConn: the smallest byte frame worth
@@ -187,18 +213,18 @@ func (a *App) deliverBinary(s *Surface, gen uint64, p []byte) {
 	}
 }
 
-// lanePathPrefix is the asset origin path under which the scheme lanes are
-// served (down:scheme, up:post); host.ServeAsset hands these requests to
-// serveLane instead of Options.Assets.
+// lanePathPrefix is the asset origin path under which the core's HTTP
+// lanes are served (down:poll, up:post); host.ServeAsset hands these
+// requests to serveLane instead of Options.Assets.
 const lanePathPrefix = "/__tango/lane/"
 
-// serveLane serves GET /__tango/lane/down and POST /__tango/lane/up for
-// surface id (lane.State.ServeDown, ServeUp; upstream packets go to the
-// OnBinary handlers). A request whose Origin header names another origin
-// is refused (403) whatever its method and whatever
+// serveLane serves GET /__tango/lane/poll and POST /__tango/lane/up for
+// surface id (downq.State.Serve, lane.State.ServeUpSession; upstream
+// packets go to the OnBinary handlers). A request whose Origin header names
+// another origin is refused (403) whatever its method and whatever
 // Options.AllowCrossOriginAssets says: the lanes are the core's, not the
-// application's. The token check is ServeDown's and ServeUp's; a surface
-// whose page has no lane generation refuses every request. Any thread,
+// application's. The token checks are Serve's and ServeUpSession's; a
+// surface whose page has no generation refuses every request. Any thread,
 // like ServeAsset.
 func (a *App) serveLane(id platform.SurfaceID, w http.ResponseWriter, r *http.Request) {
 	if !a.laneRequestAllowed(r) {
@@ -211,8 +237,8 @@ func (a *App) serveLane(id platform.SurfaceID, w http.ResponseWriter, r *http.Re
 		return
 	}
 	switch r.URL.Path {
-	case lanePathPrefix + "down":
-		s.lane.ServeDown(w, r)
+	case lanePathPrefix + "poll":
+		s.downq.Serve(w, r) // down:poll; downpoll.go
 	case lanePathPrefix + "up":
 		s.lane.ServeUpSession(w, r, func(gen uint64, p []byte) {
 			if !s.closed.Load() {
@@ -243,6 +269,11 @@ func (s *Surface) BinarySession() (uint64, ipc.BinaryConn) {
 	return gen, &surfaceBinarySession{Surface: s, gen: gen}
 }
 
+var (
+	_ ipc.OrderedBinaryConn = (*Surface)(nil)
+	_ ipc.OrderedBinaryConn = (*surfaceBinarySession)(nil)
+)
+
 type surfaceBinarySession struct {
 	*Surface
 	gen uint64
@@ -250,6 +281,12 @@ type surfaceBinarySession struct {
 
 func (s *surfaceBinarySession) SendBinary(p []byte) bool {
 	return !s.closed.Load() && s.lane.SendGeneration(s.gen, p)
+}
+func (s *surfaceBinarySession) SendBinaryOrdered(p []byte) (sent, ordered bool) {
+	if s.closed.Load() {
+		return false, false
+	}
+	return s.lane.SendGenerationOrdered(s.gen, p)
 }
 func (s *surfaceBinarySession) BinaryMinSize() int {
 	if s.closed.Load() || s.gen != s.lane.Generation() {

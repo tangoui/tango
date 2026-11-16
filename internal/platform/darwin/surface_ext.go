@@ -15,7 +15,11 @@ package darwin
 //     the time the page's drag request arrives, [NSApp currentEvent] has
 //     moved on. A local event monitor remembers the last left mouse-down.
 //   - Dropped files are taken in a WKWebView subclass's NSDraggingDestination
-//     methods when AcceptFiles is set, before WebKit would open them.
+//     methods when AcceptFiles is set, before WebKit would open them. The
+//     hover still goes to WebKit, so the page gets dragenter / dragover /
+//     dragleave (to highlight a drop target) as on Windows and Linux; at the
+//     drop WebKit is told the drag left (the page sees dragleave, not drop)
+//     and the files go to the host as SurfaceFilesDropped.
 
 import (
 	"math"
@@ -43,6 +47,8 @@ const (
 	nsNormalWindowLevel   = 0
 	nsFloatingWindowLevel = 3
 
+	nsWindowCollectionBehaviorCanJoinAllSpaces    = 1 << 0
+	nsWindowCollectionBehaviorIgnoresCycle        = 1 << 6
 	nsWindowCollectionBehaviorFullScreenPrimary   = 1 << 7
 	nsWindowCollectionBehaviorFullScreenAuxiliary = 1 << 8
 
@@ -139,12 +145,8 @@ func (s *surface) initExt(opts platform.SurfaceOptions, ex *platform.SurfaceExtr
 	ensureMouseMonitor()
 	s.ext.resizable = opts.Resizable
 	s.ext.appearance = defaultAppearance
-	behavior := uint(nsWindowCollectionBehaviorFullScreenPrimary)
-	if ex != nil && ex.Kind == platform.KindPanel {
-		behavior = nsWindowCollectionBehaviorFullScreenAuxiliary
-	}
-	withPool(func() { send(s.win, "setCollectionBehavior:", uintptr(behavior)) })
 	if ex == nil {
+		s.applyCollectionBehavior(false)
 		s.ext.lastState = s.State()
 		return
 	}
@@ -427,12 +429,37 @@ func (s *surface) applyAppearance(a platform.Appearance, initial bool) {
 			level = nsFloatingWindowLevel
 		}
 		send(s.win, "setLevel:", level)
+		s.applyCollectionBehavior(a.AllSpaces)
 		op := a.Opacity
 		if op <= 0 || op > 1 {
 			op = 1
 		}
 		msgSetFloat(s.win, sel("setAlphaValue:"), op)
 	})
+}
+
+// applyCollectionBehavior sets how the window takes part in Spaces,
+// full screen and window cycling. Panels behave as on Windows (tool
+// windows) and Linux (utility windows that skip the taskbar and pager):
+// they are left out of Cmd-` cycling and the Window menu, and can sit beside
+// a full-screen window. allSpaces (Appearance.AllSpaces) puts the window on
+// every Space. Main thread.
+func (s *surface) applyCollectionBehavior(allSpaces bool) {
+	behavior := windowCollectionBehavior(s.ext.panel, allSpaces)
+	withPool(func() { send(s.win, "setCollectionBehavior:", uintptr(behavior)) })
+}
+
+func windowCollectionBehavior(panel, allSpaces bool) uint {
+	behavior := uint(nsWindowCollectionBehaviorFullScreenPrimary)
+	if panel {
+		behavior = nsWindowCollectionBehaviorFullScreenAuxiliary | nsWindowCollectionBehaviorIgnoresCycle
+	}
+	if allSpaces {
+		// A window on every Space cannot own a full-screen Space itself.
+		behavior = behavior&^nsWindowCollectionBehaviorFullScreenPrimary |
+			nsWindowCollectionBehaviorCanJoinAllSpaces | nsWindowCollectionBehaviorFullScreenAuxiliary
+	}
+	return behavior
 }
 
 func (s *surface) applyMaterial(m platform.Material) {
@@ -548,6 +575,7 @@ func (s *surface) StartResize(string) {}
 
 func registerExtClasses() {
 	classDef("TangoPanel", "NSPanel", nil, []objc.MethodDef{
+		shortcutEquivalentMethod("TangoPanel"),
 		method("canBecomeKeyWindow", func(self id, _ objc.SEL) bool { return true }),
 	})
 
@@ -580,27 +608,28 @@ func registerExtClasses() {
 			}
 			return ok
 		}),
+		// Forward hover to WebKit while the host takes the eventual file drop.
 		method("draggingEntered:", func(self id, _ objc.SEL, info id) uint {
 			s := of(self)
-			if taking(s, info) {
-				s.ext.dropping = true
+			if s != nil {
+				s.ext.dropping = taking(s, info)
+			}
+			op := uint(super(self, "draggingEntered:", info))
+			if s != nil && s.ext.dropping {
 				return nsDragOperationCopy
 			}
-			if s != nil {
-				s.ext.dropping = false
-			}
-			return uint(super(self, "draggingEntered:", info))
+			return op
 		}),
 		method("draggingUpdated:", func(self id, _ objc.SEL, info id) uint {
+			op := uint(super(self, "draggingUpdated:", info))
 			if s := of(self); s != nil && s.ext.dropping {
 				return nsDragOperationCopy
 			}
-			return uint(super(self, "draggingUpdated:", info))
+			return op
 		}),
 		method("draggingExited:", func(self id, _ objc.SEL, info id) {
-			if s := of(self); s != nil && s.ext.dropping {
+			if s := of(self); s != nil {
 				s.ext.dropping = false
-				return
 			}
 			super(self, "draggingExited:", info)
 		}),
@@ -616,6 +645,9 @@ func registerExtClasses() {
 				return byte(super(self, "performDragOperation:", info)) != 0
 			}
 			s.ext.dropping = false
+			// End WebKit's side of the drag: the page gets dragleave and
+			// WebKit never performs (navigates to) the drop.
+			super(self, "draggingExited:", info)
 			paths := draggedFiles(info)
 			if len(paths) == 0 {
 				return false

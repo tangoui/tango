@@ -103,23 +103,20 @@ func minimapGlyphIndex(g string) int {
 // has none to draw); colorAt gives the color of the character at a byte
 // of s (called with increasing bytes).
 func miniCharsAt(s string, tab int, g *miniGlyphs, colorAt func(i int) color.NRGBA) *miniBitmap {
-	type cell struct {
-		col, n, glyph int
-		c             color.NRGBA
-	}
-	var cells []cell
+	// Measure the last drawable column first. Keeping a growable cell list
+	// allocated several buffers per miniature; two allocation-free walks
+	// leave only the owned bitmap and pixels. Color lookup happens once,
+	// during the drawing walk, because its token cursor is stateful.
 	col, end := 0, 0
 	for i := 0; i < len(s); {
 		j := nextGrapheme(s, i)
 		next := advanceCol(col, s[i:j], tab)
 		if gr := s[i:j]; gr != " " && gr != "\t" {
-			if gi := minimapGlyphIndex(gr); gi >= 0 && next > col {
-				cells = append(cells, cell{col, next - col, gi, colorAt(i)})
+			if minimapGlyphIndex(gr) >= 0 && next > col {
 				end = next
 			}
 		}
-		col = next
-		i = j
+		col, i = next, j
 	}
 	if end == 0 {
 		return nil
@@ -128,17 +125,26 @@ func miniCharsAt(s string, tab int, g *miniGlyphs, colorAt func(i int) color.NRG
 	b := &miniBitmap{w: end * cw, h: 2 * cw}
 	b.pix = make([]byte, 4*b.w*b.h)
 	size := cw * 2 * cw
-	for _, c := range cells {
-		src := g.alpha[c.glyph*size : (c.glyph+1)*size]
-		for k := range c.n {
-			x0 := (c.col + k) * cw
-			for y := range 2 * cw {
-				for x := range cw {
-					p := b.pix[4*(y*b.w+x0+x):]
-					p[0], p[1], p[2], p[3] = c.c.R, c.c.G, c.c.B, src[y*cw+x]
+	col = 0
+	for i := 0; i < len(s); {
+		j := nextGrapheme(s, i)
+		next := advanceCol(col, s[i:j], tab)
+		if gr := s[i:j]; gr != " " && gr != "\t" {
+			if gi := minimapGlyphIndex(gr); gi >= 0 && next > col {
+				c := colorAt(i)
+				src := g.alpha[gi*size : (gi+1)*size]
+				for k := range next - col {
+					x0 := (col + k) * cw
+					for y := range 2 * cw {
+						for x := range cw {
+							p := b.pix[4*(y*b.w+x0+x):]
+							p[0], p[1], p[2], p[3] = c.R, c.G, c.B, src[y*cw+x]
+						}
+					}
 				}
 			}
 		}
+		col, i = next, j
 	}
 	return b
 }
@@ -172,10 +178,16 @@ func relativeLuminance(c color.NRGBA) float64 {
 // miniStrip is one strip image of the character minimap.
 type miniStrip struct {
 	rows [minimapStripRows]*miniLine // the lines composed (nil: blank)
-	img  *image.NRGBA                // nil: nothing to draw
+	img  *image.RGBA                 // premultiplied, ready for either renderer
 	gen  uint64                      // composition number (damage key)
 	tall float32                     // row pitch in device pixels when rows exceed a glyph (0: packed)
 	used bool                        // drawn this frame
+}
+
+type miniStripWant struct {
+	id   int
+	rows [minimapStripRows]*miniLine
+	vis  [minimapStripRows]bool
 }
 
 // miniGlyphsFor returns the cells the view's minimap draws with now,
@@ -198,8 +210,19 @@ func (w *ViewW) miniGlyphsFor(th *theme.Theme) *miniGlyphs {
 	for _, ln := range m.cache {
 		ln.bmp, ln.bmpDone = nil, false
 	}
-	m.strips = nil
+	w.dropMiniStrips()
 	return m.glyphs
+}
+
+// Strip images are private immutable values. Once discarded, no future
+// minimap frame draws them: retire their renderer copies immediately.
+func (w *ViewW) dropMiniStrips() {
+	for _, s := range w.vs.mini.strips {
+		if s.img != nil {
+			w.c.InvalidateImage(s.img)
+		}
+	}
+	w.vs.mini.strips = nil
 }
 
 // ensureMiniBitmap draws ln's bitmap when characters are on and it has
@@ -226,7 +249,8 @@ func (w *ViewW) paintMinimapChars(l *paint.List, r geom.Rect) {
 	unit, offset, _ := w.miniCanvas()
 	sampling := unit < 1
 	if sampling != m.stripSampling {
-		m.strips, m.stripSampling = nil, sampling
+		w.dropMiniStrips()
+		m.stripSampling = sampling
 	}
 	if m.strips == nil {
 		m.strips = map[int]*miniStrip{}
@@ -235,12 +259,8 @@ func (w *ViewW) paintMinimapChars(l *paint.List, r geom.Rect) {
 		s.used = false
 	}
 	// The rows of each strip drawn this frame, in order.
-	type want struct {
-		id   int
-		rows [minimapStripRows]*miniLine
-		vis  [minimapStripRows]bool
-	}
-	var wants []want
+	clear(m.stripWants)
+	wants := m.stripWants[:0]
 	prev := -1
 	for k, row := range vs.miniRows {
 		slot := row.vrow
@@ -253,11 +273,12 @@ func (w *ViewW) paintMinimapChars(l *paint.List, r geom.Rect) {
 		prev = slot
 		id, j := slot/minimapStripRows, slot%minimapStripRows
 		if n := len(wants); n == 0 || wants[n-1].id != id {
-			wants = append(wants, want{id: id})
+			wants = append(wants, miniStripWant{id: id})
 		}
 		wt := &wants[len(wants)-1]
 		wt.rows[j], wt.vis[j] = m.cache[row.key], true
 	}
+	m.stripWants = wants
 	scale := max(0.01, w.c.Window().Scale())
 	colScale := min(1, r.W/float32(w.miniColumns()))
 	for i := range wants {
@@ -288,6 +309,9 @@ func (w *ViewW) paintMinimapChars(l *paint.List, r geom.Rect) {
 			// Rows not drawn this frame lie outside the minimap (clipped):
 			// they are left out and composed when they come into view.
 			s.rows, s.tall = wt.rows, tall
+			if s.img != nil {
+				w.c.InvalidateImage(s.img)
+			}
 			s.img = composeMiniStrip(&s.rows, cw, tall)
 			m.stripGen++
 			s.gen = m.stripGen
@@ -312,9 +336,14 @@ func (w *ViewW) paintMinimapChars(l *paint.List, r geom.Rect) {
 	}
 	for id, s := range m.strips {
 		if !s.used {
+			if s.img != nil {
+				w.c.InvalidateImage(s.img)
+			}
 			delete(m.strips, id)
 		}
 	}
+	// Do not retain rows which the minimap cache drops next frame.
+	clear(m.stripWants)
 }
 
 // composeMiniStrip copies the rows' bitmaps into a new strip image (nil
@@ -324,7 +353,7 @@ func (w *ViewW) paintMinimapChars(l *paint.List, r geom.Rect) {
 // plus Monaco's innerLinePadding, floor((round(tall) − glyph height) / 2),
 // the image ending below the last row drawn (it is drawn one image pixel
 // per device pixel).
-func composeMiniStrip(rows *[minimapStripRows]*miniLine, cw int, tall float32) *image.NRGBA {
+func composeMiniStrip(rows *[minimapStripRows]*miniLine, cw int, tall float32) *image.RGBA {
 	h := 2 * cw
 	top := func(j int) int { return j * h }
 	if tall > 0 {
@@ -344,14 +373,25 @@ func composeMiniStrip(rows *[minimapStripRows]*miniLine, cw int, tall float32) *
 	if tall == 0 {
 		bottom = minimapStripRows * h
 	}
-	img := image.NewNRGBA(image.Rect(0, 0, w, bottom))
+	img := image.NewRGBA(image.Rect(0, 0, w, bottom))
 	for j, ln := range rows {
 		if ln == nil || ln.bmp == nil {
 			continue
 		}
 		b := ln.bmp
 		for y := range min(h, b.h) {
-			copy(img.Pix[(top(j)+y)*img.Stride:], b.pix[y*4*b.w:(y+1)*4*b.w])
+			dst := img.Pix[(top(j)+y)*img.Stride:][:4*b.w]
+			src := b.pix[y*4*b.w : (y+1)*4*b.w]
+			for x := 0; x < len(src); x += 4 {
+				s, d := src[x:x+4:x+4], dst[x:x+4:x+4]
+				// Match image/draw's NRGBA -> RGBA rounding exactly. The
+				// completed strip is immutable and needs no renderer copy.
+				a := uint32(s[3]) * 0x101
+				d[0] = uint8(uint32(s[0]) * a / 0xff >> 8)
+				d[1] = uint8(uint32(s[1]) * a / 0xff >> 8)
+				d[2] = uint8(uint32(s[2]) * a / 0xff >> 8)
+				d[3] = s[3]
+			}
 		}
 	}
 	return img

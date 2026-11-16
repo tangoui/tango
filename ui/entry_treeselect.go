@@ -87,7 +87,25 @@ func TreeSelect(c *Context, val *string, nodes []TreeSelectNode) *TreeSelectW {
 	w.n = w.box.n
 	w.st = State(c, w.n.id, func() tsState { return tsState{expanded: map[string]bool{}} })
 	w.treeSelectDefaults()
+	selDefaults(c, "TreeSelect", &w.box.variant, &w.box.place)
 	w.z = c.lazy(w.n, w.finish)
+	return w
+}
+
+// Placement sets where the dropdown opens: BottomStart (default),
+// BottomEnd, TopStart or TopEnd (Ant placement, Element placement); it
+// flips when there is no room. ConfigProvider.Defaults("TreeSelect",
+// "placement") takes the Ant names.
+func (w *TreeSelectW) Placement(p Placement) *TreeSelectW { w.box.place = p; return w }
+
+// NotFoundContent sets the text of an empty dropdown (Ant
+// notFoundContent, Element no-data-text).
+func (w *TreeSelectW) NotFoundContent(s string) *TreeSelectW { w.box.notFound = s; return w }
+
+// MaxTagPlaceholder builds the text of the collapsed tag from the hidden
+// labels (Ant maxTagPlaceholder; default "+ N ...").
+func (w *TreeSelectW) MaxTagPlaceholder(fn func(omitted []string) string) *TreeSelectW {
+	w.box.tagRest = fn
 	return w
 }
 
@@ -630,9 +648,9 @@ func (w *TreeSelectW) dropdown(rows []tsRow) {
 	el := w.th.Flavor == theme.Element
 	set := w.valueSet()
 	w.box.listID, w.box.activeID = 0, 0
-	ov := entPanel(c, w.box.n.id, &st.pop, true, func() {
+	ov := selPanel(c, w.box.n.id, &st.pop, true, w.box.place, func() {
 		if len(rows) == 0 {
-			Empty(c).Simple().Description(c.Locale().NoData)
+			Empty(c).Simple().Description(selEmptyText(c, w.box.notFound))
 			return
 		}
 		if w.virtualOn(len(rows)) {
