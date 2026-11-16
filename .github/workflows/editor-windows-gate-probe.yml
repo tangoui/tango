@@ -27,6 +27,19 @@ jobs:
           set -o pipefail
           go version
           go test ./ui/editor -run '^(TestBracketFrameTimingOverruns|TestMatchManyCursorsBounded)$' -count=10 -v 2>&1 | tee "$RUNNER_TEMP/unscaled.log"
+      - name: Diagnose Windows frame phases and scheduling
+        continue-on-error: true
+        env:
+          CGO_ENABLED: "0"
+          TANGO_SMOKE_TIMEOUT_SCALE: ""
+        run: |
+          python .github/windows-frame-probe.py
+          set +e
+          go test -overlay="$RUNNER_TEMP/frame-diag/overlay.json" ./ui/editor -run '^TestMatchManyCursorsBounded$' -count=3 -v -trace="$RUNNER_TEMP/frame-diag/run.trace" > "$RUNNER_TEMP/diagnostic.log" 2>&1
+          result=$?
+          cat "$RUNNER_TEMP/diagnostic.log"
+          go tool trace -d=parsed "$RUNNER_TEMP/frame-diag/run.trace" > "$RUNNER_TEMP/frame-diag/trace.txt"
+          exit "$result"
       - name: Native CI scale with race, 3 repetitions
         id: raced
         continue-on-error: true
@@ -65,7 +78,9 @@ jobs:
         uses: actions/upload-artifact@v6.0.0
         with:
           name: windows-frame-gate-logs
-          path: ${{ runner.temp }}/*.log
+          path: |
+            ${{ runner.temp }}/*.log
+            ${{ runner.temp }}/frame-diag/**
       - name: Require all three probes
         if: always()
         env:
