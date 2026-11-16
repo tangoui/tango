@@ -103,6 +103,18 @@ func (a *App) Invalidate()
 - 真实构建：`CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' ./examples/macoslite-counter`；
 - `/tmp/fwbench` 同口径 footprint 基准，目标 <31 MiB。
 
+## 第一阶段实测（2026-11-16）
+
+`scripts/macoslite-memory.sh --rounds 3`，Apple Silicon Retina，屏幕解锁：
+
+- 空闲 physical footprint 中位数 **26.3 MiB**（25.7 / 26.3 / 26.4），低于 31 MiB 目标；同机此前测得 mygo 31.2 MiB、NSGo 26.3 MiB、Tango 完整自绘 CPU 约 49 MiB；
+- 启动到首帧 175–240 ms；二进制 2.2 MiB；
+- 不加载 WebKit、Metal；依赖只有 `macoslite` 与 purego。
+
+实现与草案的差异：窗口 view 走 `wantsUpdateLayer`/`updateLayer`，帧以 CGImage 作为 layer contents（与 Tango 自绘 CPU 路径一致），不走 `drawRect:`；用户关窗同样结束 `Run`（单窗口宿主）；文字用 CTLine 直接画进帧的 RGBA 像素。
+
+已知限制：单窗口；无布局、控件、IME、无障碍、文本测量 API；字体固定为系统 UI 字体。
+
 ## 后续扩展
 
 第一阶段达标后，再增加 `TextField`、Button、Stack/Column 等少量原生控件，并评估是否用 `macoslite` 承载 Tango 设置/更新器窗口；每次扩展都必须重新测空闲和首帧内存。

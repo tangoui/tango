@@ -43,6 +43,10 @@ Android 同样用 `tango_selftest`：`GOFLAGS=-tags=tango_selftest bash mobile/a
 
 仍被当前页面、`Layout` 或编辑器 `LineCache` 引用的字体继续有效，不会被提前销毁；macOS 的原生字体资源随最后一个拥有者不可达，由 Go cleanup 释放。回收不强制全局 GC，也不承诺物理内存立即下降。当前没有默认空闲计时器，避免多个活动窗口频繁丢弃彼此正在使用的字体链。
 
+## macOS 原生轻量宿主（`macoslite`）
+
+`macoslite` 是独立于 `uihost.Open` 的 macOS 小窗口宿主：只通过 purego 调 AppKit、CoreGraphics、CoreText，不加载 Tango App、WebView、`ui.Runner`、布局、无障碍或 GPU 渲染器，用于设置、更新器、提示这类小型工具窗口。非 macOS 平台 `New` 返回 `ErrUnsupported`。参考窗口 `examples/macoslite-counter` 空闲约 26 MiB（`scripts/macoslite-memory.sh`）；设计见 `docs/specs/macos-native-lite-design.md`。
+
 ## `tango_release` 已废弃
 
 `tango_release` 以前是"发布构建"的标签；默认构建现在就是生产构建，它**不再起任何作用**，只作为兼容别名保留：`tan build` 仍会传它，手写的 `-tags tango_release` 也不会出错。`-tags tango_release,tango_dev` 等同于 `-tags tango_dev`。
