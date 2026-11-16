@@ -375,6 +375,14 @@ pkg github.com/tangoui/tango/ui/theme, type CardToken struct, HoverBorderColor C
 pkg github.com/tangoui/tango/ui/theme, type CardToken struct, HoverShadow []ui/paint.Shadow
 pkg github.com/tangoui/tango/ui/theme, type CardToken struct, InnerBodyPaddingBlock float32
 pkg github.com/tangoui/tango/ui/theme, type CardToken struct, InnerHeaderBg Color
+pkg github.com/tangoui/tango/ui/theme, type CardToken struct, ProBodyPaddingBlock float32
+pkg github.com/tangoui/tango/ui/theme, type CardToken struct, ProBodyPaddingBlockSM float32
+pkg github.com/tangoui/tango/ui/theme, type CardToken struct, ProHeaderPaddingBlock float32
+pkg github.com/tangoui/tango/ui/theme, type CardToken struct, ProHeaderPaddingBlockSM float32
+pkg github.com/tangoui/tango/ui/theme, type CardToken struct, ProHeaderPaddingInline float32
+pkg github.com/tangoui/tango/ui/theme, type CardToken struct, ProHeaderPaddingInlineSM float32
+pkg github.com/tangoui/tango/ui/theme, type CardToken struct, ProHoverBorderColor Color
+pkg github.com/tangoui/tango/ui/theme, type CardToken struct, ProHoverShadow []ui/paint.Shadow
 pkg github.com/tangoui/tango/ui/theme, type CardToken struct, Radius float32
 pkg github.com/tangoui/tango/ui/theme, type CardToken struct, Shadow []ui/paint.Shadow
 pkg github.com/tangoui/tango/ui/theme, type CardToken struct, ShadowAlways bool
@@ -979,6 +987,8 @@ pkg github.com/tangoui/tango/ui/theme, type FooterToolbarToken struct
 pkg github.com/tangoui/tango/ui/theme, type FooterToolbarToken struct, Bg Color
 pkg github.com/tangoui/tango/ui/theme, type FooterToolbarToken struct, BlurRadius float32
 pkg github.com/tangoui/tango/ui/theme, type FooterToolbarToken struct, FrostedBg Color
+pkg github.com/tangoui/tango/ui/theme, type FooterToolbarToken struct, MinHeight float32
+pkg github.com/tangoui/tango/ui/theme, type FooterToolbarToken struct, PaddingInline float32
 pkg github.com/tangoui/tango/ui/theme, type FooterToolbarToken struct, embedded Alias
 pkg github.com/tangoui/tango/ui/theme, type FormToken struct
 pkg github.com/tangoui/tango/ui/theme, type FormToken struct, ErrorColor Color `contrast:"text:@Page"`
@@ -1168,6 +1178,10 @@ pkg github.com/tangoui/tango/ui/theme, type JSONViewToken struct, ValueFontSize 
 pkg github.com/tangoui/tango/ui/theme, type JSONViewToken struct, embedded Alias
 pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct
 pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, BodyBg Color
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, DefaultFooterLinkGap float32
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, DefaultFooterMarginBottom float32
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, DefaultFooterMarginTop float32
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, DefaultFooterPaddingInline float32
 pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, FooterBg Color
 pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, FooterPadding float32
 pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, FooterPaddingInline float32
@@ -1178,8 +1192,22 @@ pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, HeaderPaddingInl
 pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, LightSiderBg Color
 pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, LightTriggerBg Color
 pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, LightTriggerColor Color `contrast:"text:LightTriggerBg"`
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, PageBg Color
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, PageFixedBg Color
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, PageHeaderPaddingBottom float32
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, PageHeaderPaddingTop float32
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, PagePaddingBlock float32
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, PagePaddingInline float32
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, ProFixedWidth float32
 pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, ProHeaderBg Color
 pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, ProHeaderHeight float32
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, ProHeaderTitleFontSize float32
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, ProLogoSize float32
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, ProLogoTitleGap float32
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, ProMenuPadding float32
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, ProMixSiderWidth float32
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, ProSiderWidth float32
+pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, ProTopNavPaddingInline float32
 pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, SiderBg Color
 pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, SiderCollapsedWidth float32
 pkg github.com/tangoui/tango/ui/theme, type LayoutToken struct, SiderWidth float32
