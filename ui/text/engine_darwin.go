@@ -791,8 +791,11 @@ func fvarAxesOfCT(f uintptr) []uint32 {
 
 // ctRaster draws the glyphs of one CTFont.
 type ctRaster struct {
+<<<<<<< HEAD
 	nativeMetrics   map[nativeGlyphMetricKey]cgRect
 	nativePositions []cgPoint
+=======
+>>>>>>> origin/perf/ui-memory
 	*ctFontOwner
 	tables *ot.Loader // immutable shaping tables for fixed-instance specialization
 	upem   float32
