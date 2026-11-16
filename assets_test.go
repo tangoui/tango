@@ -33,8 +33,8 @@ func TestServeAssetCrossOrigin(t *testing.T) {
 		ok             bool
 	}{
 		{"GET", "", true},
-		{"GET", "https://evil.example", true}, // must be side-effect free
-		{"HEAD", "https://evil.example", true},
+		{"GET", "https://evil.example", false},
+		{"HEAD", "https://evil.example", false},
 		{"POST", "", true}, // no page behind it
 		{"POST", origin, true},
 		{"PUT", strings.ToUpper(origin), true},

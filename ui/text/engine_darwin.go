@@ -662,19 +662,12 @@ func (e *ctEngine) load(name string) []*Face {
 				owner.release()
 				return nil, nil, nil
 			}
-			// Instances of a variable font need their own *font.Font:
-			// go-text's HarfbuzzShaper caches its shaping font per *font.Font,
-			// so instances sharing one would shape with the first one's
-			// variation coordinates (all weights measuring alike).
-			fn := sh.fn
-			if len(sh.axes) > 0 {
-				sh.mu.Lock()
-				if f2, err := font.NewFont(sh.ld); err == nil {
-					fn = f2
-				}
-				sh.mu.Unlock()
-			}
-			gt := font.NewFace(fn)
+			// Instances share the parsed *font.Font (immutable after
+			// load); each gets its own *font.Face carrying its variation
+			// coordinates. Shapers must key shaping fonts by face and
+			// coordinates, not by *font.Font (see compactShaper and
+			// fastPath.shapeUnit).
+			gt := font.NewFace(sh.fn)
 			axes := sh.axes
 			var vals map[uint32]float32
 			if len(axes) > 0 {

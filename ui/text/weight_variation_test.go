@@ -8,8 +8,8 @@ import (
 )
 
 // Weights of one variable font (SF Pro on macOS, ...) must measure
-// differently: each weight needs its own *font.Font because go-text's
-// HarfbuzzShaper caches shaping fonts per *font.Font. Regression test for
+// differently. On macOS they share one parsed *font.Font, so every shaper
+// must key its shaping fonts by face and coordinates. Regression test for
 // all weights shaping with the first-shaped weight's coordinates.
 func TestVariableWeightsMeasureDifferently(t *testing.T) {
 	for _, eng := range []bool{false, true} {

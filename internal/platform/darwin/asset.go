@@ -29,6 +29,10 @@ type nativeRequest struct {
 	URL    string
 	Header [][2]string
 	Body   []byte
+	// BodyStream is retained by the scheme task and drained off the main
+	// thread. It is zero when WebKit supplied an inline HTTPBody.
+	BodyStream   id
+	BodyTooLarge bool
 }
 
 // withOrigin adds an Origin header naming the origin of docURL to h unless

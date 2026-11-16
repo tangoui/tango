@@ -279,7 +279,7 @@ type fastPath struct {
 	nunits int // memoized units, all tables
 	langs  map[langKey]language.Language
 	safe   map[*Face]bool
-	shaper shaping.HarfbuzzShaper
+	shaper compactShaper
 	split  shaping.Segmenter
 	graph  segmenter.Segmenter
 	lv     []bidi.Level
@@ -623,10 +623,13 @@ func (fp *fastPath) shapeUnit(runes []rune, a, b int, k asciiKey) []sg {
 	if shapeHook != nil {
 		shapeHook(in)
 	}
-	o := fp.shaper.Shape(in)
-	gl := make([]sg, len(o.Glyphs))
-	for i, g := range o.Glyphs {
-		gl[i] = sg{face: k.face, gid: uint32(g.GlyphID), adv: fx(g.XAdvance), xoff: fx(g.XOffset), yoff: fx(g.YOffset), cluster: g.ClusterIndex - a}
+	// The face's parsed *font.Font is shared by every weight of a variable
+	// font; go-text's HarfbuzzShaper would key its shaping font by that Font
+	// and shape every weight with the first one's coordinates. compactShaper
+	// keys by face and coordinates and produces identical glyphs.
+	gl := fp.shaper.append(nil, in, k.face, 0)
+	for i := range gl {
+		gl[i].cluster -= a
 	}
 	return gl
 }
