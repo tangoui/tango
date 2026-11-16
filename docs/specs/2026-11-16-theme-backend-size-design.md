@@ -1,7 +1,7 @@
 # Theme and Backend Size Profiles Design
 
-**Date:** 2026-11-16  
-**Status:** Draft for approval  
+**Date:** 2026-11-16
+**Status:** Approved scope after self-check (2026-11-16)
 **Base:** `b7a963c` (`origin/main`)
 
 ## Intent
@@ -17,10 +17,11 @@ The design deliberately separates two kinds of optimization:
 
 - Preserve the behavior of `theme.AntDesign`, `theme.ElementPlus`, `theme.Shadcn`, aliases, dynamic primary colors, high contrast, and system theme following.
 - Reduce the static reachability of icon maps and component derivation during internal theme color reconstruction.
-- Let a WebView-only build omit self-drawn backend code and let a canvas-only build omit WebView backend code.
-- Keep a mixed `webview,canvas` build equivalent to today's default behavior.
+- Let a WebView-only macOS build omit self-drawn backend code and let a canvas-only macOS build omit WebView backend code.
+- Keep a mixed `webview,canvas` macOS build equivalent to today's default behavior.
+- On Windows and Linux, keep `all` fully supported and reject non-`all` profiles before compilation until their backend boundaries are separately implemented.
 - Make profile selection reproducible from `tan.json` and overridable from `tan build` / `tan package`.
-- Produce a three-profile size matrix (WebView, canvas, mixed) for minimal and default samples.
+- Produce a three-profile macOS size matrix (WebView, canvas, mixed) and an all-profile cross-platform baseline.
 - Fail clearly when an application asks for a mode excluded from its build profile.
 
 ## Non-goals
@@ -35,9 +36,11 @@ The design deliberately separates two kinds of optimization:
 ## Constraints
 
 - Existing `tango.New(opts)` and `uihost.Open(...)` source compatibility remains for the default profile.
+- No `NewWithBackend` API is introduced in this phase; build tags and the existing `native.NewBackend()` selection remain the backend boundary.
 - A missing profile in existing `tan.json` means `all` (the current behavior).
 - `webview,canvas` means mixed support and is the compatibility-equivalent profile.
 - A feature profile is a build-time choice; a runtime `Options` field alone is insufficient because it cannot remove code from a Go binary.
+- On Windows and Linux, `webview` and `canvas` are rejected by CLI validation in this phase; only `all` is supported there.
 - The current design baseline remains Ant Design 6.7 + Pro v6, Element Plus 2.14.8, and shadcn/ui v4.
 - A profile that excludes a mode must return the existing `tango.ErrUnsupported`-compatible error at the public boundary, not panic or silently create a blank window.
 - API changes are allowed when required, but the default profile must not require an application migration. New profile APIs are experimental until a later stability review.
@@ -51,7 +54,9 @@ Split theme constructors and platform registration internally, but keep one all-
 
 ### B. Explicit compile-time profiles (selected)
 
-Add a `features` configuration to `tan.json` and a `-features` override to `tan build` / `tan package`. The Go build receives stable profile tags and platform source files select the smallest backend graph. The default is `all`, so existing applications keep their behavior. This is the selected approach because installed-size reduction requires a static dependency boundary; a runtime feature switch would only change behavior, not link reachability.
+Add a `features` configuration to `tan.json` and a `-features` override to `tan build` / `tan package`. The exact CLI spelling is `-features webview,canvas`; it is a single comma-separated value and cannot be repeated. `tan package` passes the normalized value to its internal build. The Go build receives stable profile tags and platform source files select the smallest graph. The default is `all`, so existing applications keep their behavior. This is the selected approach because installed-size reduction requires a static dependency boundary; a runtime feature switch would only change behavior, not link reachability.
+
+The profile owns its build tags. User `GOFLAGS` tags are preserved unless they name a Tango backend profile tag; conflicting or duplicate profile tags fail with a clear error instead of silently producing a different graph.
 
 ### C. Delete automatic backend selection and require a new backend constructor
 
@@ -106,13 +111,13 @@ Desktop platform implementations are split by build tags at the static dependenc
 - The all profile composes both paths and preserves the current mixed-window behavior.
 - Profile-specific stubs implement the same internal interfaces and return unsupported errors where a mode is absent, allowing `tango.New` and `uihost.Open` to give deterministic diagnostics.
 
-The implementation starts with Darwin because it is the measured primary platform and has the clearest common delegate coupling. Windows and Linux follow the same file-boundary pattern only where a measured profile build confirms a reduction; a profile that is not yet implemented on a platform fails at `tan build` validation rather than silently producing a partial binary.
+The implementation is scoped to Darwin in this phase because it is the measured primary platform and has the clearest common delegate coupling. Windows and Linux retain `all` only; `tan build -features webview` or `canvas` fails during target/profile validation with an explicit "profile not implemented on <platform>" error. This is intentional, not a partial binary. A later phase can split those backends after the Darwin boundary and size benefit are proven.
 
 ### 4. Measurement and release behavior
 
-`tan.json` profile selection affects `tan build` and `tan package`; package metadata and artifacts include the selected profile only when needed to distinguish outputs. Existing artifact names without a profile remain unchanged for `all`.
+`tan.json` profile selection affects `tan build` and `tan package`; package metadata and artifacts include the selected profile for non-`all` outputs so they cannot overwrite each other. Existing artifact names remain unchanged for `all`.
 
-The size report adds minimal WebView, minimal canvas and minimal mixed samples for Darwin arm64, Linux amd64 and Windows amd64. It records:
+The size report adds minimal WebView, minimal canvas and minimal mixed samples for Darwin arm64, plus the all-profile cross-platform baseline for Linux amd64 and Windows amd64. It records:
 
 - raw executable bytes,
 - gzip-9 estimate,
@@ -121,7 +126,7 @@ The size report adds minimal WebView, minimal canvas and minimal mixed samples f
 - Linux tar.gz bytes and uncompressed payload bytes,
 - capability smoke results for each profile.
 
-A profile is accepted only if its capability smoke passes and its target's raw executable or actual download decreases. A profile with no measurable benefit is documented and not advertised as an optimization.
+A profile is accepted only if its capability smoke passes and its Darwin target's raw executable or actual download decreases. Windows/Linux non-`all` profiles are not in this phase's size acceptance matrix because CLI validation rejects them. A profile with no measurable benefit is documented and not advertised as an optimization.
 
 ## Compatibility and failure behavior
 
@@ -129,15 +134,17 @@ A profile is accepted only if its capability smoke passes and its target's raw e
 - Existing project explicitly using mixed WebView + canvas: set `features` to both; no API migration.
 - WebView-only application calling `uihost.Open`: returns unsupported with a message naming `canvas` and the profile.
 - Canvas-only application creating a surface with a URL: returns unsupported with a message naming `webview` and the profile.
+- On Windows/Linux, any non-`all` profile fails before compilation with the platform/profile validation error.
 - Calling APIs unrelated to the missing mode remains valid.
 - The profile is compile-time and cannot be changed after the binary is built.
+- `features: null`, `features: []`, unknown values, repeated values, and repeated `-features` flags are errors; explicit `features: ["webview", "canvas"]` is the mixed profile.
 
 ## Verification plan
 
 1. Theme token and icon/component parity tests; size comparison for an alias-heavy self-drawn sample.
-2. CLI config, override, normalization, invalid values, and generated Schema tests.
-3. Profile matrix compile tests for all/default/webview/canvas on supported desktop targets.
-4. Runtime boundary tests for unsupported WebView/canvas operations.
+2. CLI config, override, normalization, invalid values, platform rejection, and generated Schema tests.
+3. Darwin profile matrix compile tests for all/default/webview/canvas; Windows/Linux tests that non-`all` profiles fail validation before compilation.
+4. Runtime boundary tests for unsupported WebView/canvas operations in Darwin profiles.
 5. Real macOS WebView-only, canvas-only, and mixed smoke applications; existing automation and accessibility smoke must remain green in `all`.
 6. API snapshot, root short-mode tests, CLI tests, docs links, package archive verification, and exact before/after size report.
 
