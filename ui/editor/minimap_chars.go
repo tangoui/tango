@@ -103,23 +103,20 @@ func minimapGlyphIndex(g string) int {
 // has none to draw); colorAt gives the color of the character at a byte
 // of s (called with increasing bytes).
 func miniCharsAt(s string, tab int, g *miniGlyphs, colorAt func(i int) color.NRGBA) *miniBitmap {
-	type cell struct {
-		col, n, glyph int
-		c             color.NRGBA
-	}
-	var cells []cell
+	// Measure the last drawable column first. Keeping a growable cell list
+	// allocated several buffers per miniature; two allocation-free walks
+	// leave only the owned bitmap and pixels. Color lookup happens once,
+	// during the drawing walk, because its token cursor is stateful.
 	col, end := 0, 0
 	for i := 0; i < len(s); {
 		j := nextGrapheme(s, i)
 		next := advanceCol(col, s[i:j], tab)
 		if gr := s[i:j]; gr != " " && gr != "\t" {
-			if gi := minimapGlyphIndex(gr); gi >= 0 && next > col {
-				cells = append(cells, cell{col, next - col, gi, colorAt(i)})
+			if minimapGlyphIndex(gr) >= 0 && next > col {
 				end = next
 			}
 		}
-		col = next
-		i = j
+		col, i = next, j
 	}
 	if end == 0 {
 		return nil
@@ -128,17 +125,26 @@ func miniCharsAt(s string, tab int, g *miniGlyphs, colorAt func(i int) color.NRG
 	b := &miniBitmap{w: end * cw, h: 2 * cw}
 	b.pix = make([]byte, 4*b.w*b.h)
 	size := cw * 2 * cw
-	for _, c := range cells {
-		src := g.alpha[c.glyph*size : (c.glyph+1)*size]
-		for k := range c.n {
-			x0 := (c.col + k) * cw
-			for y := range 2 * cw {
-				for x := range cw {
-					p := b.pix[4*(y*b.w+x0+x):]
-					p[0], p[1], p[2], p[3] = c.c.R, c.c.G, c.c.B, src[y*cw+x]
+	col = 0
+	for i := 0; i < len(s); {
+		j := nextGrapheme(s, i)
+		next := advanceCol(col, s[i:j], tab)
+		if gr := s[i:j]; gr != " " && gr != "\t" {
+			if gi := minimapGlyphIndex(gr); gi >= 0 && next > col {
+				c := colorAt(i)
+				src := g.alpha[gi*size : (gi+1)*size]
+				for k := range next - col {
+					x0 := (col + k) * cw
+					for y := range 2 * cw {
+						for x := range cw {
+							p := b.pix[4*(y*b.w+x0+x):]
+							p[0], p[1], p[2], p[3] = c.R, c.G, c.B, src[y*cw+x]
+						}
+					}
 				}
 			}
 		}
+		col, i = next, j
 	}
 	return b
 }
