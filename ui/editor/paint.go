@@ -6,6 +6,8 @@ import (
 	"slices"
 	"sort"
 	"time"
+
+	"github.com/tangoui/tango/ui/editor/internal/frameclock"
 	"unicode/utf8"
 
 	"github.com/tangoui/tango/ui"
@@ -161,7 +163,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	showAll, showFolded := w.foldControls()
 	st.foldPrepare((showAll || w.stickyOn()) && w.foldRangesNow())
 	st.measureViewport()
-	hlDeadline := time.Now().Add(highlightBudget)
+	hlDeadline := frameclock.Now().Add(highlightBudget)
 	vs.highlightDeadline = hlDeadline
 	w.prepareSticky(snap)
 	vl := st.lines()
@@ -182,7 +184,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 				break
 			}
 		}
-		hl.HighlightFor(st.hlKey, snap, upTo, max(0, time.Until(hlDeadline)))
+		hl.HighlightFor(st.hlKey, snap, upTo, max(0, frameclock.Until(hlDeadline)))
 	}
 
 	// Spend the remaining token budget before bracket work, shaping and
@@ -192,7 +194,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	// The frame's bracket work shares one budget, spent before layout:
 	// first the carets' matched brackets, then the colors of the brackets
 	// of the lines about to be laid out (bracketpairs.go).
-	brDeadline := time.Now().Add(bracketFrameBudget)
+	brDeadline := frameclock.Now().Add(bracketFrameBudget)
 	st.Model.beginBracketFrame()
 	var match []brange
 	if w.ia.Focused {

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/tangoui/tango/ui/editor/internal/frameclock"
 	"unicode/utf8"
 
 	"github.com/tangoui/tango/ui/editor/buffer"
@@ -284,7 +286,7 @@ func (s *State) cheapTokens(snap buffer.Snapshot, line int) bool {
 	}
 	g := s.gate
 	if g == nil || g.ver != snap.Version() {
-		now := time.Now()
+		now := frameclock.Now()
 		g = &tokGate{ver: snap.Version(), start: now, deadline: now.Add(assistBudget)}
 		s.gate = g
 	}
@@ -298,7 +300,7 @@ func (s *State) cheapTokens(snap buffer.Snapshot, line int) bool {
 	if line < assistNear {
 		g.deadline = later(g.deadline, g.start.Add(assistNearBudget))
 	}
-	left := time.Until(g.deadline)
+	left := frameclock.Until(g.deadline)
 	if left <= 0 {
 		g.spent = true
 		return false

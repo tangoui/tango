@@ -5,6 +5,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/tangoui/tango/ui/editor/internal/frameclock"
+
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/monarch"
@@ -68,7 +70,7 @@ func (s modelBrackets) startState(snap buffer.Snapshot, line int) monarch.State 
 // own token windows stay where they are.
 func (s modelBrackets) advance(snap buffer.Snapshot, upTo int, deadline time.Time) {
 	if hl := s.m.Highlighter(); hl != nil {
-		hl.Highlight(snap, upTo, time.Until(deadline))
+		hl.Highlight(snap, upTo, frameclock.Until(deadline))
 	}
 }
 
@@ -315,7 +317,7 @@ func (s *State) nextBracket(off int, deadline time.Time) (brange, bool) {
 		if found {
 			return r, true
 		}
-		if time.Now().After(deadline) {
+		if frameclock.Now().After(deadline) {
 			break
 		}
 	}
@@ -387,7 +389,7 @@ func (s *State) legacySearch(off int, forward bool, step func(*bracketDef) int, 
 				return b, true
 			}
 		}
-		if time.Now().After(deadline) {
+		if frameclock.Now().After(deadline) {
 			break
 		}
 		if forward {
@@ -503,7 +505,7 @@ func (m *Model) beginBracketFrame() {
 // next bracket (Monaco's jumpToBracket).
 func (s *State) jumpToBracket() {
 	s.beginBracketCommand()
-	deadline := time.Now().Add(bracketCommandBudget)
+	deadline := frameclock.Now().Add(bracketCommandBudget)
 	snap := s.Snapshot()
 	sels := s.sels()
 	out := make([]Selection, len(sels))
@@ -533,7 +535,7 @@ func (s *State) jumpToBracket() {
 // selectBrackets).
 func (s *State) selectToBracket(sel bool) {
 	s.beginBracketCommand()
-	deadline := time.Now().Add(bracketCommandBudget)
+	deadline := frameclock.Now().Add(bracketCommandBudget)
 	snap := s.Snapshot()
 	var out []Selection
 	for _, x := range s.sels() {
@@ -1008,7 +1010,7 @@ func (w *ViewW) matched(caretShown bool, deadline time.Time) []brange {
 		t.unsure = false
 	} else {
 		// The local search, debounced above, has a budget of its own.
-		deadline = time.Now().Add(bracketBudget)
+		deadline = frameclock.Now().Add(bracketBudget)
 	}
 	unsure := st.matchCarets(mode, deadline, vs.matchFrom, vs.matchRes)
 	// Only decided matches are shown, and they stay decided for the key:

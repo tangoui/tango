@@ -57,6 +57,7 @@ import (
 	"time"
 
 	"github.com/tangoui/tango/ui/editor/buffer"
+	"github.com/tangoui/tango/ui/editor/internal/frameclock"
 	"github.com/tangoui/tango/ui/editor/monarch"
 )
 
@@ -274,6 +275,7 @@ func (h *Highlighter) Highlight(snap buffer.Snapshot, upToLine int, budget time.
 
 // HighlightFor is Highlight for view: upToLine moves view's token window.
 func (h *Highlighter) HighlightFor(view ViewKey, snap buffer.Snapshot, upToLine int, budget time.Duration) bool {
+	budgetStart := frameclock.Now()
 	start := time.Now()
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -285,14 +287,14 @@ func (h *Highlighter) HighlightFor(view ViewKey, snap buffer.Snapshot, upToLine 
 	upTo := min(max(upToLine, 0), n)
 	h.setFocus(view, max(upTo-1, 0))
 	h.st.promoteDue(upTo, start)
-	deadline := start.Add(budget)
+	deadline := budgetStart.Add(budget)
 	for budget > 0 {
 		i := h.st.nextDirty()
 		if i >= upTo {
 			break
 		}
 		h.tokenizeLine(i)
-		if !time.Now().Before(deadline) {
+		if !frameclock.Now().Before(deadline) {
 			break
 		}
 	}
