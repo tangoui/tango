@@ -40,7 +40,11 @@ func init() {
 		perfFixture{Name: "DefaultFooter", Build: func(c *Context) { DefaultFooter(c) }},
 		perfFixture{Name: "SettingDrawer", Overlay: true, Build: func(c *Context) {
 			s := &ProSettings{}
-			SettingDrawer(c, s).Open(State(c, hashID("perf.pro.open"), func() bool { return true })).Show()
+			open := State(c, hashID("perf.pro.open"), func() bool { return true })
+			if Button(c, "打开页面设置").Clicked() {
+				*open = true
+			}
+			SettingDrawer(c, s).Open(open).NoTrigger().Show()
 		}},
 		perfFixture{Name: "ProSettingsProvider", Build: func(c *Context) { ProSettingsProvider(c, &ProSettings{}, func() { Button(c, "设置") }) }},
 		perfFixture{Name: "RouteContext", Build: func(c *Context) { _ = RouteContext(c); Button(c, "路由") }},
@@ -82,10 +86,16 @@ func init() {
 		perfFixture{Name: "StepsForm", Build: func(c *Context) { StepsForm(c, nil).Show() }},
 		perfFixture{Name: "ModalForm", Overlay: true, Build: func(c *Context) {
 			o := State(c, hashID("modalform"), func() bool { return true })
+			if Button(c, "打开表单").Clicked() {
+				*o = true
+			}
 			ModalForm(c, o, "表单", perfProFields()).Show()
 		}},
 		perfFixture{Name: "DrawerForm", Overlay: true, Build: func(c *Context) {
 			o := State(c, hashID("drawerform"), func() bool { return true })
+			if Button(c, "打开抽屉").Clicked() {
+				*o = true
+			}
 			DrawerForm(c, o, "表单", perfProFields()).Show()
 		}},
 		perfFixture{Name: "LoginForm", Build: func(c *Context) { LoginForm(c).Show() }},
@@ -175,22 +185,35 @@ func init() {
 }
 
 func TestPerfProOverlayOpenCloseReopen(t *testing.T) {
-	tests := []struct{ name, trigger string }{{"SettingDrawer", "打开设置"}, {"ModalForm", "打开表单"}, {"DrawerForm", "打开抽屉"}}
+	tests := []struct {
+		name, initial, trigger string
+	}{
+		{"SettingDrawer", "整体风格", "打开页面设置"},
+		{"ModalForm", "名称", "打开表单"},
+		{"DrawerForm", "名称", "打开抽屉"},
+	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			fx := perfRegistry[tc.name]
 			d := newPerfDriver(perfPage(fx.Build), false)
 			d.Settle()
-			if _, ok := d.FindText("表单"); !ok && tc.name != "SettingDrawer" {
-				t.Fatal("overlay content is not visible at rest")
+			if _, ok := d.FindText(tc.initial); !ok {
+				t.Fatalf("%s identifying content is not visible initially", tc.name)
 			}
-			d.ClickLabel(map[string]string{"SettingDrawer": "关闭设置", "ModalForm": "关闭表单", "DrawerForm": "关闭抽屉"}[tc.name])
+			d.Click(perfOutside)
 			d.Settle()
-
-			d.ClickLabel(tc.trigger)
+			if d.NeedsFrame() {
+				t.Fatal("overlay close did not settle")
+			}
+			if _, ok := d.FindText(tc.initial); ok {
+				t.Fatalf("%s identifying content remained visible after close", tc.name)
+			}
+			if err := d.ClickLabel(tc.trigger); err != nil {
+				t.Fatalf("reopen %s: %v", tc.name, err)
+			}
 			d.Settle()
-			if len(d.r.c.overlays) == 0 {
-				t.Fatal("trigger did not reopen overlay")
+			if _, ok := d.FindText(tc.initial); !ok {
+				t.Fatalf("%s identifying content did not return after reopen", tc.name)
 			}
 		})
 	}
@@ -203,11 +226,34 @@ func TestPerfProLargeRenderedAndScrolled(t *testing.T) {
 			fx := perfRegistry[name]
 			d := newPerfDriver(perfPage(fx.Large(n)), false)
 			d.Settle()
-			if _, ok := d.FindText(perfCollItem(0)); !ok {
-				t.Fatal("first item not rendered")
+			first := perfCollItem(0)
+			if name == "ProTable" {
+				first = "项目 1"
+			}
+			firstRect, ok := d.FindText(first)
+			if !ok {
+				t.Fatalf("%s first item not rendered", name)
 			}
 			if perfCollExtent(d, false) < float64(n*16) {
 				t.Fatalf("large %s extent is too short", name)
+			}
+			before := perfCollScrollOffsets(d)
+			d.Inject(input.Scroll{Pos: firstRect.Center(), DY: 240})
+			d.Settle()
+			down := perfCollScrollOffsets(d)
+			downDY := perfCollScrollDY(before, down)
+			if downDY == 0 {
+				t.Fatalf("%s wheel did not move the retained viewport", name)
+			}
+			if name != "BubbleList" {
+				viewport := perfTarget(d)
+				d.Inject(input.Scroll{Pos: viewport.Center(), DY: -240})
+				d.Settle()
+				up := perfCollScrollOffsets(d)
+				upDY := perfCollScrollDY(down, up)
+				if upDY == 0 || downDY*upDY >= 0 {
+					t.Fatalf("%s reverse wheel did not move the retained viewport in the opposite direction (down %.0f, up %.0f)", name, downDY, upDY)
+				}
 			}
 		})
 	}
