@@ -568,3 +568,52 @@ func TestSessionToken(t *testing.T) {
 		t.Fatalf("handshake with %s: %v", devhost.EnvToken, err)
 	}
 }
+
+// Recorder state belongs to the currently presented worker, not a pending
+// reload. A replacement without a recorder must release native capture.
+func TestShortcutCaptureFollowsOwner(t *testing.T) {
+	e := start(t)
+	w1 := e.worker()
+	o := w1.open("Main", 0)
+	w1.frame(o.Win, red)
+	cv := e.canvas()
+	ctlNext[devhost.Swapped](e)
+	w1.cl.Send(devhost.SetShortcutCapture{Win: o.Win, Enabled: true})
+	eventually(t, "recorder capture", cv.ShortcutCapture)
+	w2 := e.worker()
+	o2 := w2.open("Main", 0)
+	w2.cl.Send(devhost.SetShortcutCapture{Win: o2.Win, Enabled: false})
+	// A round trip ensures the pending request has been processed.
+	_ = w2.get(o2.Win)
+	if !cv.ShortcutCapture() {
+		t.Fatal("pending worker changed active capture")
+	}
+	w2.frame(o2.Win, blue)
+	ctlNext[devhost.Swapped](e)
+	eventually(t, "capture reset on swap", func() bool { return !cv.ShortcutCapture() })
+	w2.cl.Send(devhost.SetShortcutCapture{Win: o2.Win, Enabled: true})
+	eventually(t, "new worker capture", cv.ShortcutCapture)
+	w2.cl.Close()
+	eventually(t, "capture reset after crash", func() bool { return !cv.ShortcutCapture() })
+}
+
+func TestShortcutCaptureNotInheritedFromClosedPendingWindow(t *testing.T) {
+	e := start(t)
+	w1 := e.worker()
+	o1 := w1.open("Main", 0)
+	w1.frame(o1.Win, red)
+	ctlNext[devhost.Swapped](e)
+	cv := e.canvas()
+	w2 := e.worker()
+	o2 := w2.open("Main", 0)
+	w2.cl.Send(devhost.SetShortcutCapture{Win: o2.Win, Enabled: true})
+	w2.cl.Send(devhost.CloseWindow{Win: o2.Win})
+	_ = w2.get(o2.Win) // the pending Close has been applied
+	w3 := e.worker()
+	o3 := w3.open("Main", 0)
+	w3.frame(o3.Win, blue)
+	ctlNext[devhost.Swapped](e)
+	if cv.ShortcutCapture() {
+		t.Fatal("new worker inherited capture from abandoned window")
+	}
+}

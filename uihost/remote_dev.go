@@ -441,6 +441,11 @@ func (w *remoteWin) SetCursor(c input.Cursor) {
 	_ = w.cl.Send(devhost.SetCursor{Win: w.id, Cursor: c})
 }
 
+func (w *remoteWin) SetShortcutCapture(on bool) {
+	w.sc.setCapture(on)
+	_ = w.cl.Send(devhost.SetShortcutCapture{Win: w.id, Enabled: on})
+}
+
 func (w *remoteWin) SetTextInput(on bool, caret geom.Rect) {
 	w.sc.setText(on)
 	if w.textSet && on == w.textOn && caret == w.caret {

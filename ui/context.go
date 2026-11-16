@@ -193,6 +193,10 @@ type Context struct {
 	composeCursor int
 	escape        bool
 	scrollQ       []input.Scroll
+
+	shortcutCapture, shortcutCaptureNext ID   // shortcut recorder owner (shortcut_capture.go)
+	shortcutBlurred                      bool // a WindowFocus(false) arrived in this frame, even if followed by true
+
 	wantText      bool
 	textCaret     geom.Rect
 	cursorShape   input.Cursor

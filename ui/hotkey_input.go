@@ -69,6 +69,11 @@ type hotkeyState struct {
 // (not recording) reaches it. (Popovers and dropdowns check Esc before
 // building their content, so inside one Esc closes the panel.) Tab is not
 // recorded: it moves focus as everywhere else.
+//
+// Hosts implementing ShortcutCaptureWindow (including uihost) yield window
+// shortcuts and menu accelerators while recording, without enabling IME.
+// Capture ends on completion, cancel, blur, disable or removal. System
+// shortcuts and global OS hotkeys cannot be overridden by this widget.
 func HotkeyInput(c *Context, accel *string) *HotkeyInputW {
 	w := &HotkeyInputW{c: c, val: accel, status: c.itemStatus, size: c.defaultSize()}
 	w.th = c.ThemeFor(theme.CompHotkeyInput)
@@ -164,15 +169,18 @@ func (w *HotkeyInputW) build() {
 	st := State[hotkeyState](c, f.id, nil)
 	focused := !disabled && c.focus == f.id
 	switch {
-	case !focused:
+	case !focused || c.winBlurred || c.shortcutBlurred:
 		st.recording, st.mods = false, 0
 	case !st.focused || (w.ia.PressedNow && !st.recording):
 		st.recording, st.mods = true, 0
 		c.invalid = true
 	}
 	st.focused = focused
-	if focused {
+	if focused && !c.winBlurred && !c.shortcutBlurred {
 		w.keys(st)
+	}
+	if focused && st.recording {
+		c.shortcutCaptureNext = f.id
 	}
 	if w.conflict != nil && *w.val != "" {
 		w.msg = w.conflict(*w.val)

@@ -4568,6 +4568,8 @@ pkg github.com/tangoui/tango/ui, type SettingDrawerLocale struct, Top string
 pkg github.com/tangoui/tango/ui, type SettingDrawerLocale struct, noncomparable
 pkg github.com/tangoui/tango/ui, type SettingDrawerW struct
 pkg github.com/tangoui/tango/ui, type SettingDrawerW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type ShortcutCaptureWindow interface { SetShortcutCapture }
+pkg github.com/tangoui/tango/ui, type ShortcutCaptureWindow interface, SetShortcutCapture(bool)
 pkg github.com/tangoui/tango/ui, type SiderBoxW struct
 pkg github.com/tangoui/tango/ui, type SiderBoxW struct, embedded *Box
 pkg github.com/tangoui/tango/ui, type SiderBoxW struct, noncomparable
