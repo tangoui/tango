@@ -52,10 +52,16 @@ func (c *Canvas) a11y() *a11yState {
 	return s.(*a11yState)
 }
 
-func (c *Canvas) record(call A11yCall) {
+// record appends call, applying change (if any) to the state in the same
+// critical section: whatever a test reads through the accessors is already
+// in A11yCalls.
+func (c *Canvas) record(call A11yCall, change func(*a11yState)) {
 	call.Main = c.b.IsMainThread()
 	s := c.a11y()
 	s.mu.Lock()
+	if change != nil {
+		change(s)
+	}
 	s.calls = append(s.calls, call)
 	s.mu.Unlock()
 }
@@ -70,34 +76,24 @@ func (c *Canvas) AccessibilityActive() bool {
 }
 
 func (c *Canvas) SetAccessibilityTree(tree *a11y.Tree) {
-	s := c.a11y()
-	s.mu.Lock()
-	s.tree = tree
-	if tree == nil {
-		s.focus = 0
-	}
-	s.mu.Unlock()
-	c.record(A11yCall{Op: "set", Tree: tree})
+	c.record(A11yCall{Op: "set", Tree: tree}, func(s *a11yState) {
+		s.tree = tree
+		if tree == nil {
+			s.focus = 0
+		}
+	})
 }
 
 func (c *Canvas) UpdateAccessibilityNodes(tree *a11y.Tree, changed []a11y.NodeID) {
-	s := c.a11y()
-	s.mu.Lock()
-	s.tree = tree
-	s.mu.Unlock()
-	c.record(A11yCall{Op: "update", Tree: tree, Changed: slices.Clone(changed)})
+	c.record(A11yCall{Op: "update", Tree: tree, Changed: slices.Clone(changed)}, func(s *a11yState) { s.tree = tree })
 }
 
 func (c *Canvas) AccessibilityFocusChanged(id a11y.NodeID) {
-	s := c.a11y()
-	s.mu.Lock()
-	s.focus = id
-	s.mu.Unlock()
-	c.record(A11yCall{Op: "focus", Focus: id})
+	c.record(A11yCall{Op: "focus", Focus: id}, func(s *a11yState) { s.focus = id })
 }
 
 func (c *Canvas) AccessibilityAnnounce(text string, live a11y.Live, source a11y.NodeID) {
-	c.record(A11yCall{Op: "announce", Text: text, Live: live, Source: source})
+	c.record(A11yCall{Op: "announce", Text: text, Live: live, Source: source}, nil)
 }
 
 // ---- simulation ----
