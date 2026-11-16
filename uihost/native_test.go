@@ -151,3 +151,32 @@ func TestNativeWrapperForwardsImageInvalidation(t *testing.T) {
 		t.Fatal("invalidation dropped")
 	}
 }
+
+type largeNativeCanvasTest struct{ nativeCanvasTest }
+
+func (*largeNativeCanvasTest) Size() (float32, float32) { return 1000, 800 }
+func TestNativeDefaultKeepsLargeAnimatedSurfacesOnVerifiedGPU(t *testing.T) {
+	t.Setenv("TANGO_RENDERER", "")
+	r := &nativeRenderTest{}
+	nativeTestHooks(t, r)
+	oldTarget, oldNP := gpuTarget, newPresenter
+	gpuTarget = func(platform.Canvas) (uintptr, error) { return 7, nil }
+	newPresenter = func(uintptr) (paint.Renderer, func(image.Point, float32) error, error) {
+		return &nativeRenderTest{}, func(image.Point, float32) error { return nil }, nil
+	}
+	t.Cleanup(func() { gpuTarget, newPresenter = oldTarget, oldNP })
+	cv := &largeNativeCanvasTest{}
+	g := setupGPU(cv, ui.RunnerOptions{})
+	if g != nil {
+		defer g.Close()
+	}
+	if cv.targets != 0 || g == nil || g.nativeMode || g.gpu == nil {
+		t.Fatal("unaccepted large-window native policy replaced verified GPU default")
+	}
+	t.Setenv("TANGO_RENDERER", "native")
+	forced := setupGPU(cv, ui.RunnerOptions{})
+	if forced == nil || !forced.nativeMode || forced.native != nil {
+		t.Fatal("explicit native mode should remain available without promotion")
+	}
+	forced.Close()
+}

@@ -73,7 +73,7 @@ func loadNative() error {
 		if e != nil {
 			panic(e)
 		}
-		nativeNearest = objc.ID(*(*uintptr)(unsafe.Pointer(nearest)))
+		nativeNearest = objc.ID(nativeWord(nearest))
 		purego.RegisterFunc(&setNativeRect, send)
 		purego.RegisterFunc(&setNativeFloat, send)
 		for _, entry := range []struct {
@@ -95,7 +95,7 @@ func loadNative() error {
 		if e != nil {
 			panic(e)
 		}
-		nativeSRGB = nativeSpaceCreate(*(*uintptr)(unsafe.Pointer(p)))
+		nativeSRGB = nativeSpaceCreate(nativeWord(p))
 		if nativeSRGB == 0 {
 			panic("no sRGB color space")
 		}
@@ -151,4 +151,12 @@ func nativeImage(img *image.RGBA) (uintptr, error) {
 		return 0, fmt.Errorf("quartz: cannot create native image")
 	}
 	return image, nil
+}
+
+// nativeWord reads a pointer-valued exported C constant. The owning system
+// framework remains loaded for the process lifetime. Match the platform FFI's
+// address-bit conversion; this is never used for a Go-managed allocation.
+func nativeWord(addr uintptr) uintptr {
+	p := *(*unsafe.Pointer)(unsafe.Pointer(&addr))
+	return *(*uintptr)(p)
 }

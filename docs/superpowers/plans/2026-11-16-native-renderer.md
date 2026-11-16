@@ -1,6 +1,6 @@
 # Native macOS Renderer Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Reduce native-UI process memory toward NSGo without dropping drawing operations or trading away sustained frame performance.
 
@@ -34,9 +34,9 @@
 
 **Interfaces:** `nativeglyph.Run { Source paint.GlyphSource; Size, Skew float32; IDs []uint16; Positions []geom.Point }`, positions in device-pixel CoreGraphics y-up coordinates. Global immutable `CoreGraphics Provider` registered by ui/text on Darwin. Provider has `Available(paint.GlyphSource) bool`, `Key(paint.GlyphSource) uintptr`, `Bounds(Run) (image.Rectangle,bool)`, `Draw(uintptr,Run) bool`. Calls borrow the context and slices synchronously, preserve source/owner liveness, use existing font/variation/hinting, and decline unsupported sources.
 
-- [ ] Write real CoreText tests for visible ink, Latin/CJK/RTL, quarter-pixel placement, size/skew, and native bounds containing the existing RasterGlyph ink; observe RED before provider implementation.
-- [ ] Implement stateless registration and synchronized per-raster bounded native metrics/position scratch. Do not alter public Face methods or existing raster behavior.
-- [ ] Test bridge and existing font ownership/variation/layout suites, then commit.
+- [x] Write real CoreText tests for visible ink, Latin/CJK/RTL, quarter-pixel placement, size/skew, and native bounds containing the existing RasterGlyph ink; observe RED before provider implementation.
+- [x] Implement stateless registration and synchronized per-raster bounded native metrics/position scratch. Do not alter public Face methods or existing raster behavior.
+- [x] Test bridge and existing font ownership/variation/layout suites, then commit.
 
 ## Task 2: Retained native display-list rendering
 
@@ -44,11 +44,11 @@
 
 **Interfaces:** `NewPresenter(uintptr) (paint.Renderer, func(image.Point,float32) error,error)`; renderer supports Close, Trim, InvalidateImage and `FrameMetrics() (time.Duration,bool)` (work and full-software-fallback). Plan normalizes glyph positions and immutable content keys independently of integer layer movement; native registry/layer owners are private.
 
-- [ ] Write RED tests for identical content reuse, moving text without repaint, changed/mutated glyphs, complete fallbacks, clip semantics and bounded retirement.
-- [ ] Implement retained layers: native square fills; bounded cached CPU patches for rounded fills/borders/shadows/paths/gradients/checker/images; bounded text content layers with native batches. Reuse matching content across order changes, not only by slice index.
-- [ ] Normalize pointer ops safely. Use correct full-frame CPU fallback for transforms, opacity groups, rounded clips, backdrop blur or unsupported native glyph runs; never omit an op.
-- [ ] Deep-own changing glyph data, retain only current layers/resources, and invalidate image snapshots when notified. Avoid rerasterizing unchanged text/patches or rebuilding native colors/paths each frame.
-- [ ] Run real offscreen layer rendering tests at scales 1,1.5,2; text ink/bounds, clipping, alpha, patch pixel parity, reused buffers, close/trim and all existing renderer conformance scenes; commit.
+- [x] Write RED tests for identical content reuse, moving text without repaint, changed/mutated glyphs, complete fallbacks, clip semantics and bounded retirement.
+- [x] Implement retained layers: native square fills; bounded cached CPU patches for rounded fills/borders/shadows/paths/gradients/checker/images; bounded text content layers with native batches. Reuse matching content across order changes, not only by slice index.
+- [x] Normalize pointer ops safely. Use correct full-frame CPU fallback for transforms, opacity groups, rounded clips, backdrop blur or unsupported native glyph runs; never omit an op.
+- [x] Deep-own changing glyph data, retain only current layers/resources, and invalidate image snapshots when notified. Avoid rerasterizing unchanged text/patches or rebuilding native colors/paths each frame.
+- [x] Run real offscreen layer rendering tests at scales 1,1.5,2; text ink/bounds, clipping, alpha, patch pixel parity, reused buffers, close/trim and all existing renderer conformance scenes; commit.
 
 ## Task 3: Canvas lifecycle and renderer selection
 
@@ -56,10 +56,10 @@
 
 **Interfaces:** `CanvasCoreGraphics.UseCoreGraphicsLayer() (uintptr,error)` returns a distinct hosted CALayer, UI thread only. Keep native and Metal identities separate. Eligibility/factory failure uses existing GPU/CPU paths. Native default is overridable; explicit native does not promote.
 
-- [ ] Write RED tests for idempotent acquisition, no frame before ready, Present(nil), resize/scale, close and separate layer identities.
-- [ ] Implement native canvas hosting using existing display-link/coalescing/input paths; ensure references/delegates are released and Metal switching clears obsolete native identity.
-- [ ] Write RED policy tests: six >8ms frames within 100ms gaps promote; spaced/cold/fast native frames do not; six rapid full-fallback frames may promote; force-native never promotes; promotion failure is visible and sticky.
-- [ ] Integrate default-native eligible surfaces, preserve explicit modes and caller renderers, report native correctly and forward image invalidation. Exercise existing GPU/fallback/IME/input tests; commit.
+- [x] Write RED tests for idempotent acquisition, no frame before ready, Present(nil), resize/scale, close and separate layer identities.
+- [x] Implement native canvas hosting using existing display-link/coalescing/input paths; ensure references/delegates are released and Metal switching clears obsolete native identity.
+- [x] Write RED policy tests: six >8ms frames within 100ms gaps promote; spaced/cold/fast native frames do not; six rapid full-fallback frames may promote; force-native never promotes; promotion failure is visible and sticky.
+- [x] Integrate default-native eligible surfaces, preserve explicit modes and caller renderers, report native correctly and forward image invalidation. Exercise existing GPU/fallback/IME/input tests; commit.
 
 ## Task 4: Verification and measured acceptance
 
@@ -67,5 +67,5 @@
 
 - [ ] Run native window image/resize/input smoke checks; compare matched GPU/native and pinned current NSGo scenes, three alternating-order rounds plus minute scrolling, no diagnostic GC in headline results.
 - [ ] Verify all text/rows are actually drawn before accepting memory numbers. Record CPU, WindowServer increment, process footprint, callbacks and tails; reject a default that substantially regresses sustained CPU/frame behavior.
-- [ ] Run complete Go suite with CPU-heavy packages serialized as CI, development builds, vet, relevant race tests, and Linux/Windows/Intel-mac cross builds; preserve existing thresholds.
+- [x] Run complete Go suite with CPU-heavy packages serialized as CI, development builds, vet, relevant race tests, and Linux/Windows/Intel-mac cross builds; preserve existing thresholds.
 - [ ] Independent whole-branch review, fix important findings with RED/GREEN, document limitations and reproducible results, then integrate only verified code into main.

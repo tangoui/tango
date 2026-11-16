@@ -44,7 +44,10 @@ process to make process accounting look smaller.
   Metal identity flag from the throwaway prototype. Repeated target acquisition,
   resize, scale change, Present(nil), close and switching to Metal are explicit.
   Preserve existing frame scheduling, input, IME and accessibility behavior.
-- Default eligible macOS/arm64 windows start native. Explicit gpu/cpu keep their
+- Default eligible macOS/arm64 utility windows (logical area ≤100,000) start native.
+  Larger windows retain GPU until native sustained CPU/tail acceptance passes;
+  the first measured native implementation traded CPU for memory, and the
+  transaction consolidation remeasurement was blocked by screen lock. Explicit gpu/cpu keep their
   meanings; explicit auto preserves the existing policy; native forces this
   backend. Overlays/unsupported platforms keep the current renderer policy.
 - Default-native may promote once to Metal after six rendered frames exceeding
