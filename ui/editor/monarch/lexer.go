@@ -508,6 +508,10 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 	stack := ls.stack
 	pos := 0
 	var gm *groupMatching
+	// Group actions drain before the next match. Reuse call-local storage;
+	// recursive embedded tokenizers still get independent containers.
+	var groupState groupMatching
+	var smallGroups []groupEntry // allocated only if a small group is used
 	// Context and its single capture have the same call-local lifetime.
 	// Keep one frame per invocation, including recursive embedded languages.
 	frame := struct {
@@ -549,6 +553,7 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 			matched, act, r = ge.matched.s, ge.action, gm.rule
 			if len(gm.groups) == 0 {
 				gm = nil
+				groupState = groupMatching{} // release large groups after draining
 			}
 		} else {
 			if !force && pos >= lineLen {
@@ -601,7 +606,8 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 			}
 		}
 		if matches == nil {
-			matches = []capt{{"", true}}
+			frame.single[0] = capt{"", true}
+			matches = frame.single[:]
 			matched = ""
 		}
 		if act == nil {
@@ -609,7 +615,8 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 			if pos < lineLen {
 				_, size := decodeRune(line[pos:])
 				matched = line[pos : pos+size]
-				matches = []capt{{matched, true}}
+				frame.single[0] = capt{matched, true}
+				matches = frame.single[:]
 			}
 			act = g.defAction
 		}
@@ -716,7 +723,17 @@ func (l *Lexer) myTokenize(lineNoLF string, hasEOL bool, ls lineState, off int, 
 			if total != len(matched) {
 				return ls, l.errorf("with groups, all characters should be matched in consecutive groups in rule: %s", ruleName(r))
 			}
-			gm = &groupMatching{rule: r, matches: matches, groups: make([]groupEntry, len(group))}
+			var entries []groupEntry
+			if len(group) <= 4 {
+				if cap(smallGroups) < len(group) {
+					smallGroups = make([]groupEntry, len(group))
+				}
+				entries = smallGroups[:len(group)]
+			} else {
+				entries = make([]groupEntry, len(group))
+			}
+			groupState = groupMatching{rule: r, matches: matches, groups: entries}
+			gm = &groupState
 			for i, a := range group {
 				gm.groups[i] = groupEntry{action: a, matched: matches[i+1]}
 			}

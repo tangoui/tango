@@ -122,7 +122,8 @@ func Compile(source, flags string) (Regexp, error) {
 	if fl.i {
 		opts |= regexp2.IgnoreCase
 	}
-	re, err := regexp2.Compile(anchorBacktrack(out), opts)
+	anchored := anchorBacktrack(out)
+	re, err := regexp2.Compile(anchored, opts)
 	if err != nil {
 		return nil, fmt.Errorf("regex: compile %q: %w", source, err)
 	}
@@ -139,7 +140,8 @@ func Compile(source, flags string) (Regexp, error) {
 		}
 	}
 	nBacktrack.Add(1)
-	return &backtrackRegexp{re: re, src: source, nums: nums}, nil
+	first, hasFirst := compileBacktrackFirst(anchored, opts)
+	return &backtrackRegexp{re: re, src: source, nums: nums, first: first, hasFirst: hasFirst}, nil
 }
 
 type stdRegexp struct {
@@ -177,9 +179,11 @@ func (r *stdRegexp) Source() string { return r.src }
 func (r *stdRegexp) NumGroups() int { return r.ngroups }
 
 type backtrackRegexp struct {
-	re   *regexp2.Regexp
-	src  string
-	nums []int // JS 组 i+1 对应的 regexp2 组号
+	re       *regexp2.Regexp
+	src      string
+	nums     []int // JS 组 i+1 对应的 regexp2 组号
+	first    asciiSet
+	hasFirst bool
 }
 
 func (r *backtrackRegexp) Engine() Engine { return Backtrack }
@@ -187,7 +191,7 @@ func (r *backtrackRegexp) Source() string { return r.src }
 func (r *backtrackRegexp) NumGroups() int { return len(r.nums) }
 
 func (r *backtrackRegexp) MatchStart(s string) []int {
-	return r.MatchStartRunes(s, []rune(s))
+	return r.MatchStartRunes(s, nil)
 }
 
 func (r *backtrackRegexp) MatchStartRunes(s string, rs []rune) []int {
@@ -196,6 +200,9 @@ func (r *backtrackRegexp) MatchStartRunes(s string, rs []rune) []int {
 }
 
 func (r *backtrackRegexp) TryMatchStart(s string, rs []rune) ([]int, error) {
+	if r.rejectASCII(s) {
+		return nil, nil
+	}
 	return r.tryMatchStart(s, rs, r.re.FindRunesMatch, time.Now)
 }
 
