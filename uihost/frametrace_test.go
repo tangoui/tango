@@ -3,6 +3,7 @@ package uihost_test
 import (
 	"fmt"
 	"image"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -118,9 +119,19 @@ func (g *timelineGPU) Render(l *paint.List, size geom.Size, scale float32) error
 	return nil
 }
 
+// needTimeline skips t where no presenter has a timeline: attachTimeline
+// is a no-op off macOS (frametrace_other.go).
+func needTimeline(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS != "darwin" {
+		t.Skip("only the Metal presenter (macOS) has a timeline")
+	}
+}
+
 // TestFrameTraceTimeline (review M5): a renderer with a timeline adds the
 // drawable, misses and gpu fields.
 func TestFrameTraceTimeline(t *testing.T) {
+	needTimeline(t)
 	t.Setenv("TANGO_RENDERER", "")
 	t.Setenv("TANGO_FRAME_TRACE", "1")
 	lr := traceHooks(t, 4)
@@ -145,6 +156,7 @@ func TestFrameTraceTimeline(t *testing.T) {
 // summaries say renderer=cpu and carry no timeline fields (a bare misses=0
 // would read as "no drawable misses").
 func TestFrameTraceAfterFallback(t *testing.T) {
+	needTimeline(t)
 	t.Setenv("TANGO_RENDERER", "")
 	t.Setenv("TANGO_FRAME_TRACE", "1")
 	lr := traceHooks(t, 1) // every frame is summarized: the losing frame too
