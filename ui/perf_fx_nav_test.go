@@ -341,15 +341,19 @@ func init() {
 			},
 		},
 		perfFixture{
-			// The button toggles the help panel it stands for.
+			// The button toggles the help it stands for and shows the
+			// state on itself (question mark / close), so the visible
+			// change stays at the button, not elsewhere on the page.
 			Name: "FloatButton",
 			Build: func(c *Context) {
 				open := State[bool](c, perfNavID("float"), nil)
-				if FloatButton(c).Icon(icon.Question).Primary().A11yLabel("帮助").Clicked() {
-					*open = !*open
-				}
+				ic, label := icon.Question, "帮助"
 				if *open {
-					Text(c, "帮助中心 Help center")
+					ic, label = icon.Close, "关闭帮助"
+				}
+				if FloatButton(c).Icon(ic).Primary().A11yLabel(label).Clicked() {
+					*open = !*open
+					c.Invalidate()
 				}
 			},
 			Interact: func(r *perfRun, _ int) {
@@ -657,7 +661,9 @@ func perfNavHas(d *Driver, text string) string {
 
 // perfNavShown is FindText restricted to visible nodes: a node inside a
 // fully faded group (a toast leaving under NoAnimations stays in the tree
-// at opacity ~0 until its exit time) does not count.
+// at opacity ~0 until its exit time) does not count, and the search goes
+// on to the next match in the same layer. Layers are searched top-most
+// first, exact labels before containing ones.
 func perfNavShown(d *Driver, text string) (geom.Rect, bool) {
 	c := d.r.c
 	roots := []*node{}
@@ -667,19 +673,24 @@ func perfNavShown(d *Driver, text string) (geom.Rect, bool) {
 	if c.root != nil {
 		roots = append(roots, c.root)
 	}
+	var find func(n *node, exact bool) *node
+	find = func(n *node, exact bool) *node {
+		if n.opacity > 0 && n.opacity < 0.01 {
+			return nil // the whole faded subtree is invisible
+		}
+		if !n.abs.Empty() && n.label != "" && (n.label == text || !exact && strings.Contains(n.label, text)) {
+			return n
+		}
+		for _, k := range n.kids {
+			if m := find(k, exact); m != nil {
+				return m
+			}
+		}
+		return nil
+	}
 	for _, exact := range []bool{true, false} {
 		for _, r := range roots {
-			n := findLabel(r, text, exact)
-			if n == nil {
-				continue
-			}
-			visible := true
-			for p := n; p != nil; p = p.parent {
-				if p.opacity > 0 && p.opacity < 0.01 {
-					visible = false
-				}
-			}
-			if visible {
+			if n := find(r, exact); n != nil {
 				return n.abs, true
 			}
 		}
@@ -689,7 +700,8 @@ func perfNavShown(d *Driver, text string) (geom.Rect, bool) {
 
 // TestPerfNavOverlayOpenClose checks every popup / overlay fixture through
 // its own Interact: the identifying content is (not) shown at rest, step 0
-// flips it, step 1 restores it, and when shown it lies in an overlay.
+// flips it, step 1 restores it, and when shown it lies in an overlay's
+// visible content (perfOverlayContent).
 func TestPerfNavOverlayOpenClose(t *testing.T) {
 	tests := []struct {
 		name, text string
@@ -723,12 +735,14 @@ func TestPerfNavOverlayOpenClose(t *testing.T) {
 				if !ok {
 					return
 				}
+				// Inside what an overlay shows, not merely inside a
+				// transparent full-window carrier layer.
 				for _, o := range d.r.c.overlays {
-					if o.root.abs.Intersect(r) == r {
+					if perfOverlayContent(o).Intersect(r) == r {
 						return
 					}
 				}
-				t.Fatalf("%s: %q is not inside an overlay", when, tc.text)
+				t.Fatalf("%s: %q is not inside an overlay's visible content", when, tc.text)
 			}
 			check("at rest", tc.openAtRest)
 			r := &perfRun{D: d}
@@ -783,7 +797,9 @@ func TestPerfNavInteractOutcome(t *testing.T) {
 			_, ok := d.Find("回到顶部")
 			return strconv.FormatBool(ok)
 		}, [3]string{"false", "true", "false"}},
-		{"FloatButton", has("帮助中心 Help center"), [3]string{"no", "yes", "no"}},
+		{"FloatButton", func(d *Driver) string {
+			return strconv.FormatBool(*State[bool](d.r.c, perfNavID("float"), nil))
+		}, [3]string{"false", "true", "false"}},
 		{"FloatButtonGroup", func(d *Driver) string {
 			n := 0
 			for _, h := range d.r.c.hits {

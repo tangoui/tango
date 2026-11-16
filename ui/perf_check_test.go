@@ -398,3 +398,67 @@ func TestPerfBudgets(t *testing.T) {
 		}
 	}
 }
+
+// TestPerfBBoxVisibleContent checks that the damage bbox and the default
+// scroll point follow what an overlay shows, not its carrier layer: some
+// components build a transparent, input-transparent full-window layer
+// (ScreenFill, no hit, no block) and place their content inside it.
+func TestPerfBBoxVisibleContent(t *testing.T) {
+	sz := geom.Size{W: 1440, H: 900}
+	view := sz.W * sz.H
+	run := func(name string, steps int) *perfRun {
+		fx := perfRegistry[name]
+		d := newPerfDriver(perfPage(fx.Build), false)
+		d.Settle()
+		r := &perfRun{D: d}
+		for i := 0; i < steps; i++ {
+			perfStep(r, fx.Interact, i)
+		}
+		r.Target = perfTarget(d)
+		return r
+	}
+	t.Run("FloatButton", func(t *testing.T) {
+		r := run("FloatButton", 0)
+		if a := rectArea(perfBBox(r.D)); a <= 0 || a >= view/4 {
+			t.Fatalf("bbox %v of a lone float button covers %.0f%% of the window", perfBBox(r.D), 100*a/view)
+		}
+	})
+	t.Run("ContextMenuAt", func(t *testing.T) {
+		r := run("ContextMenuAt", 1) // menu open
+		item, ok := r.D.FindText("复制")
+		if !ok {
+			t.Fatal("context menu not open")
+		}
+		box := perfBBox(r.D)
+		first, _ := r.D.FindText("撤销")
+		last, _ := r.D.FindText("删除行")
+		// Target is the full-width row of the area and its status line
+		// (top 160px); the menu adds its panel below the pointer.
+		if box.H >= sz.H/2 || box.Bottom() > last.Bottom()+16 {
+			t.Errorf("bbox %v of an area with its context menu reaches beyond the menu (%.0f%% of the window)", box, 100*rectArea(box)/view)
+		}
+		if box.Intersect(item) != item {
+			t.Errorf("bbox %v does not contain the menu item %v", box, item)
+		}
+		panel := first.Union(last)
+		if p := perfScrollPoint(r); !panel.Contains(p) {
+			t.Errorf("scroll point %v is not on the menu panel %v", p, panel)
+		}
+	})
+	t.Run("Modal", func(t *testing.T) {
+		r := run("Modal", 0)
+		if box := perfBBox(r.D); box != (geom.Rect{W: sz.W, H: sz.H}) {
+			t.Fatalf("modal mask bbox %v, want the window", box)
+		}
+	})
+	t.Run("Select", func(t *testing.T) {
+		r := run("Select", 1) // dropdown open
+		opt, ok := r.D.FindText("定时调度")
+		if !ok {
+			t.Fatal("select list not open")
+		}
+		if box := perfBBox(r.D); box.Intersect(opt) != opt {
+			t.Fatalf("bbox %v does not contain the open list option %v", box, opt)
+		}
+	})
+}

@@ -110,15 +110,40 @@ func perfTarget(d *Driver) geom.Rect {
 	return r
 }
 
-// perfBBox is Target united with the rects of all open overlay roots,
-// clipped to the window (dirty rects never reach beyond it).
+// perfBBox is Target united with the visible content of all open
+// overlays (perfOverlayContent), clipped to the window (dirty rects never
+// reach beyond it).
 func perfBBox(d *Driver) geom.Rect {
 	r := perfTarget(d)
 	for _, o := range d.r.c.overlays {
-		r = r.Union(o.root.abs)
+		r = r.Union(perfOverlayContent(o))
 	}
 	sz := d.r.win.Size()
 	return r.Intersect(geom.Rect{W: sz.W, H: sz.H})
+}
+
+// perfOverlayContent is what an overlay shows. A layer that takes input
+// (hit) or blocks it (a modal mask) counts whole. Otherwise it is a
+// transparent carrier (Affix, float buttons, context menus, notifications
+// build a ScreenFill layer and place their content inside, often only at
+// paint time): its rect is the union of its descendants' rects, recursive
+// because pinned Affix content sits under a 1×1 clip node; a carrier
+// without descendants (Affix's watcher) contributes nothing. abs is set
+// while painting, so after a frame it holds the final positions.
+func perfOverlayContent(o *overlay) geom.Rect {
+	if o.root.hit || o.root.blocks {
+		return o.root.abs
+	}
+	var r geom.Rect
+	var walk func(n *node)
+	walk = func(n *node) {
+		for _, k := range n.kids {
+			r = r.Union(k.abs)
+			walk(k)
+		}
+	}
+	walk(o.root)
+	return r
 }
 
 // perfDirtyArea is the area (logical px²) of the union of the last frame's
@@ -249,14 +274,23 @@ func perfStep(r *perfRun, interact func(r *perfRun, i int), i int) {
 	}
 }
 
-// perfScroll is the default large-data interaction: wheel scrolling at
-// the center of the top-most open overlay (a dropdown list), or of Target
-// when none is open; 20 steps down, then 20 up.
-func perfScroll(r *perfRun, i int) {
-	p := r.Center()
-	if ov := r.D.r.c.overlays; len(ov) > 0 {
-		p = ov[len(ov)-1].root.abs.Center()
+// perfScrollPoint is where perfScroll wheels: the center of the top-most
+// open overlay that shows something (perfOverlayContent), else of Target.
+func perfScrollPoint(r *perfRun) geom.Point {
+	ov := r.D.r.c.overlays
+	for i := len(ov) - 1; i >= 0; i-- {
+		if c := perfOverlayContent(ov[i]); !c.Empty() {
+			return c.Center()
+		}
 	}
+	return r.Center()
+}
+
+// perfScroll is the default large-data interaction: wheel scrolling at
+// perfScrollPoint (the top-most open overlay's content, such as a
+// dropdown list, or Target when none is open); 20 steps down, then 20 up.
+func perfScroll(r *perfRun, i int) {
+	p := perfScrollPoint(r)
 	dy := float32(120)
 	if i%40 >= 20 {
 		dy = -120

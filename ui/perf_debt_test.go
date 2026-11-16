@@ -9,7 +9,9 @@ type perfDebt struct {
 	Why      string
 }
 
-// perfDamageDebt is keyed by fixture name.
+// perfDamageDebt is keyed by fixture name. Every entry (all families) was
+// regenerated from one verbose TestPerfDamage run (task-5-fix-1-damage.log)
+// after perfBBox stopped counting transparent overlay carrier layers.
 var perfDamageDebt = map[string]perfDebt{
 	// Task 3 display/feedback: measured after reversible interactions pass.
 	"Alert":          {Measured: "dirty 10.34×", Why: "baseline"},
@@ -81,9 +83,9 @@ var perfDamageDebt = map[string]perfDebt{
 	"Title":            {Measured: "dirty 24.50×", Why: "baseline"},
 	"Watermark":        {Measured: "dirty 6.33×", Why: "baseline"},
 
-	"Button":                   {Measured: "dirty 454.1×", Why: "baseline"},
-	"Input":                    {Measured: "dirty 112.5×", Why: "baseline"},
-	"Select":                   {Measured: "dirty 26.5×", Why: "baseline"},
+	"Button":                   {Measured: "dirty 454.10×", Why: "baseline"},
+	"Input":                    {Measured: "dirty 112.50×", Why: "baseline"},
+	"Select":                   {Measured: "dirty 26.47×", Why: "baseline"},
 	"Addon":                    {Measured: "dirty 14.55×", Why: "baseline"},
 	"AutoComplete":             {Measured: "dirty 25.71×", Why: "baseline"},
 	"Checkbox":                 {Measured: "dirty 725.59×", Why: "baseline"},
@@ -125,15 +127,21 @@ var perfDamageDebt = map[string]perfDebt{
 	"ToggleGroup":              {Measured: "dirty 238.92×", Why: "baseline"},
 	"Upload":                   {Measured: "dirty 4.56×", Why: "baseline"},
 
-	// Task 5 navigation/overlays: regenerated from task-5-damage.log.
+	// Task 5 navigation/overlays.
+	"Affix":              {Measured: "dirty 5.62×", Why: "baseline"},
 	"Anchor":             {Measured: "dirty 2.59×", Why: "baseline"},
 	"Breadcrumb":         {Measured: "dirty 21.16×", Why: "baseline"},
 	"BreadcrumbItems":    {Measured: "dirty 9.50×", Why: "baseline"},
 	"Command":            {Measured: "dirty 11.14×", Why: "baseline"},
+	"ContextMenuAt":      {Measured: "dirty 3.61×", Why: "baseline"},
+	"ContextMenuAtWith":  {Measured: "dirty 15.70×", Why: "baseline"},
 	"Dropdown":           {Measured: "dirty 47.54×", Why: "baseline"},
+	"FloatButton":        {Measured: "dirty 810.00×", Why: "baseline"},
+	"FloatButtonGroup":   {Measured: "dirty 213.16×", Why: "baseline"},
 	"Menu":               {Measured: "dirty 18.24×", Why: "baseline"},
 	"Menubar":            {Measured: "dirty 6.25×", Why: "baseline"},
 	"Message":            {Measured: "dirty 19.40×", Why: "baseline"},
+	"Notification":       {Measured: "dirty 8.46×", Why: "baseline"},
 	"NotificationCenter": {Measured: "dirty 10.65×", Why: "baseline"},
 	"Overlay":            {Measured: "dirty 51.06×", Why: "baseline"},
 	"Pagination":         {Measured: "dirty 29.09×", Why: "baseline"},
