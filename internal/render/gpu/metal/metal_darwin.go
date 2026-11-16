@@ -154,7 +154,10 @@ type Device struct {
 	copyTargetIdle     int
 	copyKeep, copyNext []image.Rectangle // bounded, reusable complement-planning buffers
 	copyStats          *copyStats        // nil normally; opt-in internal test counters, no atomics
-	lastRetiredGPU     time.Duration
+	lastRetiredGPU     time.Duration     // GPU time of the last retired command buffer
+	submits, frames    uint64            // command buffers committed / frames committed by Execute
+	failedFrame        uint64            // frame of the last counted command-buffer failure
+	failedSeen         bool              // failedFrame is set
 }
 
 // copyStats counts the actual scroll-copy commands of the last encoded
@@ -334,7 +337,7 @@ func (d *Device) Execute(f *gpu.Frame) error {
 	defer runtime.UnlockOSThread()
 	defer autoreleasePool()()
 
-	d.wait()
+	d.retireForFrame()
 	if err := d.pendingErr; err != nil {
 		d.pendingErr = nil
 		if d.lost != nil {
@@ -559,7 +562,8 @@ func (d *Device) Execute(f *gpu.Frame) error {
 		}
 		enc.Send(sel("endEncoding"))
 	}
-	d.commit(cb)
+	d.frames++
+	d.commitAs(cb, submitFrame)
 	d.commits++
 	d.hasFrame = true
 	clear(d.staged)
@@ -1298,33 +1302,69 @@ func ensureBuffer(dev id, buf *id, capacity *int, n int, opts uint64) error {
 	return nil
 }
 
-// commit commits cb and keeps it (retained) until retirement.
-func (d *Device) commit(cb id) {
+// commit commits cb as a submission that is neither a frame nor a present
+// (readback, test references) and keeps it (retained) until retirement.
+func (d *Device) commit(cb id) { d.commitAs(cb, submitOther) }
+
+// commitAs commits cb and keeps it (retained) until it is retired, in
+// commit order, by waitOldest or wait.
+func (d *Device) commitAs(cb id, kind submissionKind) {
 	cb.Send(sel("commit"))
-	retained := retain(cb)
-	d.inflight.push(submission{
-		id: uint64(d.commits),
-		cb: retained,
-		retire: func() error {
-			return d.retireCommand(retained)
-		},
-	})
+	d.submits++
+	s := submission{id: d.submits, kind: kind, frame: d.frames, cb: retain(cb)}
+	s.retire = func() error { return d.retireCommand(s) }
+	d.inflight.push(s)
 }
 
-// retireCommand waits for one command buffer, records its completion error and
-// releases its Objective-C reference. The Device mutex is held by callers.
-func (d *Device) retireCommand(cb id) error {
+// retireCommand waits for one command buffer, records its outcome and
+// releases it. The Device mutex is held by callers.
+func (d *Device) retireCommand(s submission) error {
+	cb := s.cb
+	defer release(cb)
 	cb.Send(sel("waitUntilCompleted"))
 	if st := msgU64(cb, sel("status")); st != cbStatusCompleted {
 		e := cb.Send(sel("error"))
 		err := nsError(fmt.Sprintf("metal: command buffer status %d", st), e)
-		d.gpuFailed(err, cbErrorLost(e))
-		release(cb)
+		d.noteRetired(s, err, cbErrorLost(e))
 		return err
 	}
 	d.lastRetiredGPU = time.Duration((msgF64(cb, sel("GPUEndTime")) - msgF64(cb, sel("GPUStartTime"))) * float64(time.Second))
-	release(cb)
+	d.noteRetired(s, nil, false)
 	return nil
+}
+
+// noteRetired records a retired submission's outcome. A failure marks the
+// target as not holding a frame and is reported by the next Execute; the
+// failures of one frame's submissions (its draw and its present) count as
+// one toward maxFailures, as when they were waited for together. A frame
+// (or readback) that completed resets the count; a present alone does not.
+func (d *Device) noteRetired(s submission, err error, removed bool) {
+	if err == nil {
+		if s.kind != submitPresent {
+			d.failures = 0
+		}
+		return
+	}
+	if d.failedSeen && d.failedFrame == s.frame {
+		d.hasFrame = false
+		d.pendingErr = err
+		if removed && d.lost == nil {
+			d.lost = fmt.Errorf("%w: %w", ErrDeviceLost, err)
+		}
+		return
+	}
+	d.failedSeen, d.failedFrame = true, s.frame
+	d.gpuFailed(err, removed)
+}
+
+// retireForFrame retires what Execute must not overlap: every frame (it
+// reuses their instance and staging buffers) and readback, then presents
+// while the queue is at asyncInflightLimit. In-flight presents only read
+// the target; the queue orders this frame's writes after them.
+func (d *Device) retireForFrame() {
+	for d.inflight.hasNonPresent() || len(d.inflight.items) >= asyncInflightLimit {
+		d.waitOldest()
+	}
 }
 
 // waitOldest retires only the oldest submission.

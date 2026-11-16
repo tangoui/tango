@@ -279,9 +279,10 @@ func (d *Device) encodeCopy(cb, dst id) {
 // (maxTextureSize). CAMetalLayer ignores a larger drawableSize.
 const maxDrawable = maxTextureSize
 
-// maxInflight bounds the command buffers present lets pile up when it is
-// called without Execute in between (Execute waits for all of them).
-const maxInflight = 4
+// maxInflight is shared by frame and present command buffers. The device's
+// retained target and upload buffers remain safe because the next Execute
+// drains when it has a dependency; this cap bounds present-only bursts.
+const maxInflight = asyncInflightLimit
 
 func (p *presenter) present(size image.Point, scale float32) error {
 	d := p.dev
@@ -300,8 +301,8 @@ func (p *presenter) present(size image.Point, scale float32) error {
 	defer runtime.UnlockOSThread()
 	defer autoreleasePool()()
 
-	if len(d.inflight.items) >= maxInflight {
-		d.wait()
+	for len(d.inflight.items) >= maxInflight {
+		d.waitOldest() // a failure is recorded (pendingErr/lost) and reported below
 	}
 	if d.lost != nil {
 		return d.lost
@@ -327,7 +328,7 @@ func (p *presenter) present(size image.Point, scale float32) error {
 	}
 	d.encodeCopy(cb, drawable.Send(sel("texture")))
 	msgSetID(cb, sel("presentDrawable:"), drawable)
-	d.commit(cb)
+	d.commitAs(cb, submitPresent)
 	d.commits++
 	p.presented++
 	return nil
