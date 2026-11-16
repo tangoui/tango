@@ -180,26 +180,36 @@ func TestWorktreeOwnerRejectsSymlinkParentAndTree(t *testing.T) {
 func TestRunABJoinsBenchmarkAndCleanupErrors(t *testing.T) {
 	oldCmd, oldGit := runCmd, runGit
 	defer func() { runCmd, runGit = oldCmd, oldGit }()
-	addErr := errors.New("benchmark setup failed")
+	compileErr := errors.New("head compile failed")
 	cleanupErr := errors.New("cleanup remove failed")
 	var addedPath string
 	runCmd = func(_ string, args ...string) error {
 		if len(args) >= 5 && args[0] == "git" && args[1] == "worktree" && args[2] == "add" {
 			addedPath = args[4]
-			return addErr
+			return os.Mkdir(addedPath, 0o755)
+		}
+		if len(args) >= 3 && args[0] == "go" && args[1] == "test" && args[2] == "-c" {
+			return compileErr
 		}
 		return nil
 	}
 	runGit = func(_ string, args ...string) ([]byte, error) {
-		if len(args) >= 3 && args[0] == "worktree" && args[1] == "list" {
+		if len(args) >= 2 && args[0] == "worktree" && args[1] == "list" {
 			return []byte("worktree " + addedPath + "\n"), nil
 		}
 		return nil, cleanupErr
 	}
 	var out strings.Builder
 	err := runAB("HEAD", "BenchmarkNoop", ".", 1, &out)
-	if !errors.Is(err, addErr) || !errors.Is(err, cleanupErr) {
-		t.Fatalf("error does not expose benchmark and cleanup failures: %v", err)
+	if addedPath != "" {
+		parent := filepath.Dir(addedPath)
+		if _, statErr := os.Stat(parent); statErr != nil {
+			t.Errorf("parent should be preserved after failed cleanup: %v", statErr)
+		}
+		os.RemoveAll(parent)
+	}
+	if !errors.Is(err, compileErr) || !errors.Is(err, cleanupErr) {
+		t.Fatalf("error does not expose compile and cleanup failures: %v", err)
 	}
 }
 
@@ -270,6 +280,9 @@ func TestWorktreeOwnerExactCleanupWithGit(t *testing.T) {
 	defer os.RemoveAll(parent)
 	path := filepath.Join(parent, "tree")
 	git("worktree", "add", "-q", "--detach", path, "HEAD")
+	if present, err := registrationPresent(repo, path); err != nil || !present {
+		t.Fatalf("registration before cleanup present=%v err=%v", present, err)
+	}
 	o := &worktreeOwner{root: repo, parent: parent, path: path, addAttempted: true, registered: true}
 	if err := o.cleanup(); err != nil {
 		t.Fatal(err)

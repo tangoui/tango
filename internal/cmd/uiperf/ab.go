@@ -235,12 +235,28 @@ func registrationPresent(root, path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	want := normalizeWorktreePath(path)
 	for _, line := range strings.Split(string(out), "\n") {
-		if line == "worktree "+path {
+		listed, ok := strings.CutPrefix(line, "worktree ")
+		if ok && normalizeWorktreePath(listed) == want {
 			return true, nil
 		}
 	}
 	return false, nil
+}
+
+// normalizeWorktreePath resolves symlinks so a requested path such as
+// /var/... matches git's registered /private/var/... on macOS. If the path
+// itself no longer exists, its parent is resolved and the base name re-joined.
+func normalizeWorktreePath(path string) string {
+	path = filepath.Clean(path)
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		return filepath.Clean(resolved)
+	}
+	if dir, err := filepath.EvalSymlinks(filepath.Dir(path)); err == nil {
+		return filepath.Join(dir, filepath.Base(path))
+	}
+	return path
 }
 func (o *worktreeOwner) cleanup() error {
 	if err := o.validate(); err != nil {
