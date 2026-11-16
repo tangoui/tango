@@ -31,7 +31,21 @@ A1 明确不做资源 ring。Execute 每帧都会改写单份共享的 instance 
 | display sync 关 | drain | 8.35 ms | 9.12 | 9.46 | 1.83 | 0.28 | 7.36 |
 | display sync 关 | a1 | 8.31 ms | 9.24 | 9.49 | 1.84 | 0.28 | 7.32 |
 
-这些是单轮试跑，测量时 1 分钟负载 10–14（其他会话在跑测试），高于计划的 6 阈值。20 轮低负载配对脚本（`.perf/metal-async/present_ab.sh`，负载 ≥6 自动作废重跑）已就绪，见 §5。
+这些是单轮试跑，测量时 1 分钟负载 10–14（其他会话在跑测试），高于计划的 6 阈值。
+
+### 20 轮低负载配对（display sync 开）
+
+`.perf/metal-async/present_ab.sh`：同一二进制，每轮两臂各一个新进程（每臂 200 帧），轮间交替先后顺序；轮前后 1 分钟负载 ≥6 即作废重跑（共作废 6 轮，有效 20 轮，有效轮负载约 5.1–5.3）。差值为每轮 a1−drain，95% CI 为配对差值中位数的 bootstrap（5000 次）。
+
+| 指标 | drain 中位数 | a1 中位数 | 配对差中位数 | 95% CI |
+|---|---|---|---|---|
+| 单帧 p50 | 8.357 ms | 8.369 ms | +0.003 ms | [−0.010, +0.016] |
+| 单帧 p95 | 9.270 ms | 9.305 ms | +0.058 ms | [−0.031, +0.138] |
+| 单帧 p99 | 9.590 ms | 9.601 ms | +0.006 ms | [−0.058, +0.113] |
+| drawable 等待 p50 | 7.168 ms | 7.135 ms | −0.033 ms | [−0.135, +0.054] |
+| frame GPU p50 | 1.829 ms | 1.831 ms | +0.002 ms | [+0.000, +0.145] |
+
+所有区间都覆盖 0 或贴近 0：A1 在这个场景下既没有改善也没有退化。
 
 ## 4. 结论
 
@@ -45,7 +59,7 @@ A1 明确不做资源 ring。Execute 每帧都会改写单份共享的 instance 
 - **与已批准决策的偏差 1：drawable 有界等待没有实现。** 设计 §5 要求 `nextDrawable` 超过上限就跳过 present、不阻塞约 1 秒。`allowsNextDrawableTimeout` 默认就是 YES，显式设置它不改变行为；`nextDrawable` 仍可能在持有 Device 锁时阻塞约 1 秒（窗口不可见、drawable 全部被占用时），这与 A1 之前相同。要有更短的上限，必须把 drawable 获取移出加锁的同步路径，属于新设计，未做。
 - **与已批准决策的偏差 2：resize 不先 drain。** 设计 §6 写"resize 先 drain 再释放 target/spare"。实现里 present 仍在 GPU 上时，`ensureTextures`/`dropCopyTarget` 就会 `release` 旧 target。这是安全的：所有 command buffer 都用 `commandBuffer`（保留引用、默认 hazard tracking），GPU 用完前纹理不会真正释放。
 - **审查修复**：最终审查发现失败计数两处回归（present 持续失败、draw 成功时设备永不判定丢失；已计过的旧失败在新帧提交后再次上报并清掉新帧的 `hasFrame`），已用 `TestMetalAlternatingFailuresLoseDevice`、`TestMetalStaleFailureKeepsNewFrame` 复现并修复。
-- **20 轮低负载配对**：机器负载持续 >6，脚本在等负载降下来；结论目前基于单轮试跑。差值远小于噪声，预期不会改变结论，但未证明。
+- 20 轮低负载配对已完成（§3），确认无差异。
 - **真实窗口**：没有在前台真实窗口测；离屏 layer 的 drawable 节奏不等于真实显示器。CAMetalLayer 没有逐帧"已显示"反馈，所以任何 "photon latency" 都 not proven。
 - **编辑器 perfab ABAB**（`BenchmarkTypeTS20k` 等）：那套 harness 每帧显式 `Wait()`，A1 对它在定义上不改变行为（Wait 仍 drain 全部），所以没跑。
 - device lost / resize / Close / ReadPixels / drawable 缺失由现有与新增测试覆盖，没有单独的性能场景。
