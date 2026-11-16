@@ -2,4 +2,4 @@
 
 package text
 
-func coreTextShape(string,Style,Options)*Layout{return nil}
+func coreTextShape(string, Style, Options) *Layout { return nil }

@@ -327,8 +327,13 @@ func (r *CPU) pop() {
 	if len(r.stack) == 0 {
 		return
 	}
-	l := r.stack[len(r.stack)-1]
-	r.stack = r.stack[:len(r.stack)-1]
+	i := len(r.stack) - 1
+	l := r.stack[i]
+	// A shortened slice still owns its backing array. Clear the popped
+	// references so an old, larger target or clip mask can be collected
+	// when subsequent frames use fewer layers or a smaller viewport.
+	r.stack[i] = layer{}
+	r.stack = r.stack[:i]
 	if l.isGroup {
 		src := r.cur
 		compositeLayer(l.target, src, l.mask, l.maskAt, l.alpha, l.clip)
@@ -349,15 +354,58 @@ func (r *CPU) rrectMask(g geom.Rect, rad geom.Radii, bounds image.Rectangle) (*i
 	s := r.scale
 	dr := geom.Rect{X: g.X * s, Y: g.Y * s, W: g.W * s, H: g.H * s}
 	drad := geom.Radii{TL: rad.TL * s, TR: rad.TR * s, BR: rad.BR * s, BL: rad.BL * s}
+	// Beyond the largest (clamped) corner radius, coverage is constant
+	// across a row. Keep a pixel of margin so float32 rounding cannot put
+	// an edge of the band back into a corner quadrant.
+	rmax := max(float32(0), min(max(drad.TL, drad.TR, drad.BR, drad.BL), min(dr.W, dr.H)/2))
+	x0 := int(math.Ceil(float64(dr.X+rmax))) + 1
+	x1 := int(math.Floor(float64(dr.X+dr.W-rmax))) - 1
+	y0 := int(math.Ceil(float64(dr.Y+rmax))) + 1
+	y1 := int(math.Floor(float64(dr.Y+dr.H-rmax))) - 1
+	if dr.W > 0 && dr.H > 0 &&
+		((bounds.Min.X >= x0 && bounds.Max.X <= x1 && float32(bounds.Min.Y) >= dr.Y+1 && float32(bounds.Max.Y) <= dr.Y+dr.H-1) ||
+			(bounds.Min.Y >= y0 && bounds.Max.Y <= y1 && float32(bounds.Min.X) >= dr.X+1 && float32(bounds.Max.X) <= dr.X+dr.W-1)) {
+		// The rectangular scissor already excludes every partial pixel of
+		// this rounded clip. Its only remaining coverage is the parent mask.
+		return r.cmask, r.cmaskAt
+	}
+	bx0, bx1 := max(bounds.Min.X, x0), min(bounds.Max.X, x1)
 	m := image.NewAlpha(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		row := m.Pix[(y-bounds.Min.Y)*m.Stride:]
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			cv := float64(RRectCoverage(float32(x)+0.5, float32(y)+0.5, dr, drad))
+		put := func(x int, coverage float32) {
+			cv := float64(coverage)
 			if r.cmask != nil {
 				cv *= float64(r.clipCov(x, y)) / 255
 			}
 			row[x-bounds.Min.X] = uint8(cv*255 + 0.5)
+		}
+		py := float32(y) + 0.5
+		if bx0 >= bx1 {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				put(x, RRectCoverage(float32(x)+0.5, py, dr, drad))
+			}
+			continue
+		}
+		for x := bounds.Min.X; x < bx0; x++ {
+			put(x, RRectCoverage(float32(x)+0.5, py, dr, drad))
+		}
+		band := RRectCoverage(float32(bx0)+0.5, py, dr, drad)
+		if r.cmask == nil {
+			if alpha := uint8(float64(band)*255 + 0.5); alpha != 0 {
+				p := row[bx0-bounds.Min.X : bx1-bounds.Min.X]
+				p[0] = alpha
+				for n := 1; n < len(p); n *= 2 {
+					copy(p[n:], p[:n])
+				}
+			}
+		} else {
+			for x := bx0; x < bx1; x++ {
+				put(x, band)
+			}
+		}
+		for x := bx1; x < bounds.Max.X; x++ {
+			put(x, RRectCoverage(float32(x)+0.5, py, dr, drad))
 		}
 	}
 	return m, bounds.Min
