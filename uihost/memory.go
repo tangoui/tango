@@ -2,10 +2,10 @@ package uihost
 
 // Low-memory warnings (docs/specs/mobile-canvas.md §3.4): on
 // platform.AppMemoryWarning (iOS memory warning, Android onTrimMemory) the
-// GPU renderers of every window drop what they can rebuild (gpu.Renderer
-// Trim: the glyph atlas and image textures), the shaped-text caches are
-// emptied (text.TrimCaches; editors' LineCaches stay) and every window
-// draws a frame, which re-uploads what it shows. The subscription is made
+// GPU and CPU renderers of every window drop what they can rebuild (glyph
+// masks, image and shadow caches, the GPU atlas). Discovered font chains and
+// shaped-text caches are emptied (text.TrimFontCaches; editors' LineCaches
+// stay) and every window redraws. The subscription is made
 // once per app, by the first Open or Attach.
 
 import (
@@ -39,13 +39,9 @@ func watchMemory(app *tango.App, r *ui.Runner) {
 
 // trimMemory runs on the main thread after AppMemoryWarning.
 func trimMemory() {
-	renderers.Range(func(_, v any) bool {
-		v.(*gpuRenderer).trim()
-		return true
-	})
 	text.TrimFontCaches()
 	memRunners.Range(func(k, _ any) bool {
-		k.(*ui.Runner).Invalidate()
+		k.(*ui.Runner).TrimCaches()
 		return true
 	})
 }
@@ -53,7 +49,11 @@ func trimMemory() {
 // trim releases the GPU renderer's rebuildable caches and the CPU buffer
 // of an oversized frame. Main thread.
 func (g *gpuRenderer) trim() {
-	if g.closed || g.cpu != nil {
+	if g.closed {
+		return
+	}
+	if g.cpu != nil {
+		g.cpu.Trim()
 		return
 	}
 	if t, ok := g.gpu.(trimmer); ok {
@@ -61,5 +61,12 @@ func (g *gpuRenderer) trim() {
 	}
 	if !g.bigFrame {
 		g.big, g.bigNoted = nil, false
+	} else if g.big != nil {
+		// The current oversized frame must remain presentable, but its
+		// rebuildable masks must not keep old font faces alive.
+		g.big.Trim()
 	}
 }
+
+// Trim implements the runner-owned cache reclamation contract.
+func (g *gpuRenderer) Trim() { g.trim() }

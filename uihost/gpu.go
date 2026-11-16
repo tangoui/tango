@@ -42,6 +42,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/render/gpu"
@@ -173,8 +174,13 @@ func setupGPU(cv platform.Canvas, ropts ui.RunnerOptions) *gpuRenderer {
 	}
 	forced := mode == "gpu"
 	if mode == "auto" && autoCPUWindow(cv) {
-		return nil
+		return &gpuRenderer{cpu: paint.NewCPU(), auto: &autoRendererState{canvas: cv}}
 	}
+	return startGPU(cv, forced)
+}
+
+// startGPU attempts presentation setup without applying the automatic policy.
+func startGPU(cv platform.Canvas, forced bool) *gpuRenderer {
 	target, err := gpuTarget(cv)
 	if err != nil {
 		logGPUUnavailable(err, forced)
@@ -214,6 +220,7 @@ type gpuRenderer struct {
 	present func(size image.Point, scale float32) error
 	cpu     *paint.CPU // non-nil: CPU mode
 	closed  bool
+	auto    *autoRendererState // CPU-first policy; cleared after promotion or failed attempt
 
 	// Oversized frames: a frame beyond a device limit (texture size,
 	// instance count; gpu.ErrTargetTooLarge) is drawn by
@@ -226,7 +233,17 @@ type gpuRenderer struct {
 func (g *gpuRenderer) lost() bool { return g.cpu != nil }
 
 func (g *gpuRenderer) Render(l *paint.List, size geom.Size, scale float32) error {
+	if g.closed {
+		return nil
+	}
 	g.bigFrame = false
+	if g.auto != nil && g.auto.shouldPromote(l, size, time.Now()) {
+		cv := g.auto.canvas
+		g.auto = nil // try once; failures never cause a retry storm
+		if promoted := startGPU(cv, false); promoted != nil && promoted.gpu != nil {
+			g.gpu, g.present, g.cpu = promoted.gpu, promoted.present, nil
+		}
+	}
 	if g.cpu != nil {
 		return g.cpu.Render(l, size, scale)
 	}
@@ -271,7 +288,7 @@ func (g *gpuRenderer) Close() error {
 	}
 	g.closed = true
 	g.releaseGPU()
-	g.cpu, g.big = nil, nil
+	g.cpu, g.big, g.auto = nil, nil, nil
 	return nil
 }
 

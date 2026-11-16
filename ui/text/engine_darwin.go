@@ -5,6 +5,7 @@ package text
 import (
 	"image"
 	"math"
+	"runtime"
 	"strings"
 	"sync"
 	"unicode/utf16"
@@ -614,6 +615,7 @@ func (e *ctEngine) load(name string) []*Face {
 			return
 		}
 		seen[faceKey{w, italic}] = true
+		owner := newCTFontOwner(f, cfRelease)
 		key := tableKey(f)
 		sh := shared[key]
 		if sh == nil {
@@ -621,13 +623,17 @@ func (e *ctEngine) load(name string) []*Face {
 			shared[key] = sh
 		}
 		out = append(out, newLazyEngineFace(name, w, italic, func() (*font.Face, glyphEngine, func(uint32) *paint.Path) {
+			// The lazy closure owns the font until its raster takes over the
+			// same owner. Raw uintptr handles alone do not keep ownership alive.
+			defer runtime.KeepAlive(owner)
+			f := owner.base
 			sh.once.Do(func() {
 				if gt, ld, err := goTextFace(ctTables(f)); err == nil {
 					sh.fn, sh.ld, sh.axes = gt.Font, ld, fvarAxes(ld)
 				}
 			})
 			if sh.fn == nil {
-				cfRelease(f)
+				owner.release()
 				return nil, nil, nil
 			}
 			// Instances of a variable font need their own *font.Font:
@@ -662,12 +668,12 @@ func (e *ctEngine) load(name string) []*Face {
 				if len(vals) == 0 {
 					// keep f: the default instance
 				} else if nf := withVariation(f, vals); nf != 0 {
+					owner.base = nf
 					cfRelease(f)
-					f = nf
 				}
 				setDesignCoords(gt, axes, vals)
 			}
-			r := newCTRaster(f, vals)
+			r := newCTRasterOwned(owner, vals)
 			r.tables = sh.ld
 			return gt, r, r.unitPath
 		}))
@@ -766,23 +772,24 @@ func fvarAxesOfCT(f uintptr) []uint32 {
 
 // ctRaster draws the glyphs of one CTFont.
 type ctRaster struct {
+	*ctFontOwner
 	tables *ot.Loader // immutable shaping tables for fixed-instance specialization
-	base   uintptr    // retained, size 16, no matrix
 	upem   float32
-	desc   uintptr // variable faces: the pinned instance, applied to every sized copy
-	color  bool    // colour glyphs (Apple Color Emoji): mask = luminance
-
-	mu    sync.Mutex
-	sized map[ctSizeKey]uintptr // per (size, skew) copies, retained
-	unit  uintptr               // at size upem: outlines in font units
+	color  bool // colour glyphs (Apple Color Emoji): mask = luminance
 }
 
 func (r *ctRaster) shapingTables() *ot.Loader { return r.tables }
 
 type ctSizeKey struct{ size, skew float32 }
 
+// newCTRaster takes ownership of f, including when no Face wraps the raster.
 func newCTRaster(f uintptr, vals map[uint32]float32) *ctRaster {
-	r := &ctRaster{base: f, upem: float32(ctFontGetUnitsPerEm(f)), sized: map[ctSizeKey]uintptr{}}
+	return newCTRasterOwned(newCTFontOwner(f, cfRelease), vals)
+}
+
+func newCTRasterOwned(owner *ctFontOwner, vals map[uint32]float32) *ctRaster {
+	f := owner.base
+	r := &ctRaster{ctFontOwner: owner, upem: float32(ctFontGetUnitsPerEm(f))}
 	for _, t := range []string{"sbix", "COLR", "CBDT", "SVG "} {
 		if d := ctFontCopyTable(f, tag4(t), 0); d != 0 {
 			cfRelease(d)
@@ -796,6 +803,7 @@ func newCTRaster(f uintptr, vals map[uint32]float32) *ctRaster {
 }
 
 func (r *ctRaster) font(size, skew float32) uintptr {
+	defer runtime.KeepAlive(r)
 	k := ctSizeKey{size, skew}
 	if f, ok := r.sized[k]; ok {
 		return f
@@ -820,6 +828,7 @@ func (r *ctRaster) font(size, skew float32) uintptr {
 }
 
 func (r *ctRaster) raster(id uint32, size float32, subx uint8, skew float32) (*image.Alpha, image.Point, bool) {
+	defer runtime.KeepAlive(r)
 	if id > 0xFFFF || size <= 0 {
 		return nil, image.Point{}, false
 	}
@@ -909,6 +918,7 @@ func (r *ctRaster) raster(id uint32, size float32, subx uint8, skew float32) (*i
 // advance returns CoreText's advance of glyph id at size (tests compare it
 // with go-text's).
 func (r *ctRaster) advance(id uint32, size float32) float32 {
+	defer runtime.KeepAlive(r)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	f := r.font(size, 0)
@@ -920,6 +930,7 @@ func (r *ctRaster) advance(id uint32, size float32) float32 {
 
 // unitPath returns the outline of glyph id in font units, y down.
 func (r *ctRaster) unitPath(id uint32) *paint.Path {
+	defer runtime.KeepAlive(r)
 	if id > 0xFFFF {
 		return nil
 	}

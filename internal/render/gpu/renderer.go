@@ -312,6 +312,7 @@ func (r *Renderer) InvalidateImage(img image.Image) {
 // texture, at its new size), so it costs more than usual but draws the
 // same pixels. Main thread, between frames.
 func (r *Renderer) Trim() {
+	r.cpu.Trim() // masks retain GlyphSource/Face even after the atlas is cleared
 	r.atlas.Reset()
 	r.maskSent = image.Point{} // upload the shrunken atlas whole
 	for _, t := range r.images.byKey {
