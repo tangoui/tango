@@ -18,17 +18,13 @@ import (
 // iframe) could otherwise send a form POST to <asset origin>/api and have
 // it run with the app's authority.
 //
-// GET and HEAD always pass: they must not change state, and pages load
-// their resources with them. Other methods pass when the Origin header is
-// the asset origin itself, or absent (requests the WebView or the core make
-// without a page behind them; browsers always send Origin on these methods
-// from pages). "null" (sandboxed frames, data: URLs, no-referrer pages)
-// and every other origin are refused.
+// Requests without an Origin header pass (requests the WebView or the core
+// make without a page behind them). When a browser supplies Origin, every
+// method must name the asset origin, including GET/HEAD: a remote frame must
+// not be able to read private asset responses merely because the method is
+// read-only. "null" (sandboxed frames, data: URLs, no-referrer pages) and
+// every other origin are refused.
 func (a *App) assetRequestAllowed(r *http.Request) bool {
-	switch r.Method {
-	case http.MethodGet, http.MethodHead, "":
-		return true
-	}
 	o, ok := r.Header["Origin"]
 	if !ok || len(o) == 0 {
 		return true

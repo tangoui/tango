@@ -90,6 +90,6 @@ Android 同样用 `tango_selftest`：`GOFLAGS=-tags=tango_selftest bash mobile/a
 
 ## 与生产构建都有关的：资源源的跨源写请求
 
-`Options.Assets` 不知道请求来自哪个页面，外站页面（用户点链接打开的、iframe 里的）可以向 `<资源源>/api` 发表单 POST。核心在请求到达 `Options.Assets` 之前检查：GET、HEAD 总是放行；其他方法的 `Origin` 必须是资源源本身（没有 `Origin` 头的请求放行），否则回 403。WebKit（macOS、iOS）对自定义 scheme 请求不带 `Origin`，后端用主文档 URL（`NSURLRequest.mainDocumentURL`）补上；Windows（WebView2）与 Android 的资源源是 `https://tango.localhost`，由 Chromium 内核按规范带 `Origin`（尚未在这两个平台上实测）。Linux（WebKitGTK）暂未补，请求不带 `Origin` 时放行。确实需要跨源写请求（自己做 CORS 或 token 校验）时设置 `tango.Options.AllowCrossOriginAssets`。
+`Options.Assets` 不知道请求来自哪个页面，外站页面（用户点链接打开的、iframe 里的）可能尝试访问 `<资源源>`。核心在请求到达 `Options.Assets` 之前检查：只要请求带 `Origin`，其值就必须是资源源本身，GET、HEAD 也不例外；没有 `Origin` 头的请求放行（例如 WebView 或核心自身发起的请求），否则回 403。WebKit（macOS、iOS）对自定义 scheme 请求不带 `Origin`，后端用主文档 URL（`NSURLRequest.mainDocumentURL`）补上；Windows（WebView2）与 Android 的资源源是 `https://tango.localhost`，由 Chromium 内核按规范带 `Origin`（尚未在这两个平台上实测）。Linux（WebKitGTK）暂未补，请求不带 `Origin` 时放行。确实需要跨源请求（自己做 CORS 或 token 校验）时设置 `tango.Options.AllowCrossOriginAssets`。
 
 已知限制：补上的是主文档的来源，后端分不清请求来自哪个 frame，所以应用页面里嵌的跨源 iframe 发往资源源的写请求也能通过这项检查（IPC 快速通道的请求另有每世代令牌保护，不受影响）。不要在资源页面里嵌不可信的 frame。
