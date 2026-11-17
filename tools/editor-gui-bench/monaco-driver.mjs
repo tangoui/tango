@@ -27,6 +27,9 @@ const cfg = {
   out: opt('--out', ''),
   scenarios: opt('--scenarios', 'type,scroll,multi').split(','),
   keys: Number(opt('--keys', 10)),
+  multiKeys: Number(opt('--multi-keys', opt('--keys', 10))),
+  // reuse an earlier run's record pass (<dir>/<scenario>/{record,templates,regions.json})
+  templatesFrom: opt('--templates-from', ''),
   scrolls: Number(opt('--scrolls', 30)),
   templates: argv.includes('--templates'), // record -> templates -> measure
   monaco: opt('--monaco', '/Users/admin/min/mincode/vue-app/node_modules/monaco-editor'),
@@ -149,7 +152,10 @@ const SETUP = (text, offsets) => `(async () => {
   const ed = bench.ed, m = bench.model;
   // No popups over the body: Tango's editor has no suggest/hover widgets
   // here, and a suggest list would cover the other carets' rows.
-  ed.updateOptions({ fontSize: 14, quickSuggestions: false, suggestOnTriggerCharacters: false, wordBasedSuggestions: 'off', parameterHints: { enabled: false }, hover: { enabled: false } });
+  ed.updateOptions({ fontSize: 14, quickSuggestions: false, suggestOnTriggerCharacters: false, wordBasedSuggestions: 'off', parameterHints: { enabled: false }, hover: { enabled: false },
+    // Nor word/selection highlights: a caret inside "export" would light up
+    // every line's "export" and typing would change the body around it.
+    occurrencesHighlight: 'off', selectionHighlight: false });
   ed.layout();
   const sels = ${JSON.stringify(offsets)}.map((o) => { const p = m.getPositionAt(o); return new monaco.Selection(p.lineNumber, p.column, p.lineNumber, p.column); });
   ed.setSelections(sels);
@@ -179,7 +185,7 @@ function probeRun(dir, name, job) {
   const jf = path.join(dir, name + '.json');
   fs.writeFileSync(jf, JSON.stringify(job));
   try {
-    execFileSync(cfg.probe, ['--job', jf, '--out', path.join(dir, name)], { stdio: ['ignore', 'ignore', 'pipe'], timeout: 60000 });
+    execFileSync(cfg.probe, ['--job', jf, '--out', path.join(dir, name)], { stdio: ['ignore', 'ignore', 'pipe'], timeout: 900000 });
     return { exit: 0, err: '' };
   } catch (e) {
     return { exit: e.status ?? -1, err: String(e.stderr || e.message).slice(-300) };
@@ -279,43 +285,61 @@ function nodeTool(script, args) {
 // the measure pass with the templates and its latency bounds.
 async function templatesFlow(name, dir, cdp, win, before, text, offsets) {
   const res = {};
+  const keys = name === 'multi' ? cfg.multiKeys : cfg.keys;
   const [fx, fy, fw, fh] = win.frame;
   const top = fh - before.viewport[1]; // the app window's titlebar in the capture
   let regions, inputs, recWait, settle;
   if (name === 'scroll') {
-    regions = [{ x: 0, y: Math.floor((top + before.viewport[1] * 0.6) * SCALE), width: 800, height: 120 }];
+    // Inset from the window edge: an aligned patch may move up to 4 px.
+    regions = [{ x: 16, y: Math.floor((top + before.viewport[1] * 0.6) * SCALE), width: 800, height: 120 }];
     inputs = (extra) => Array.from({ length: cfg.scrolls }, (_, i) => ({ id: i + 1, kind: 'scroll', dy: -40, x: fx + fw / 2, y: fy + fh / 2, ...extra }));
     recWait = 700; settle = 250;
   } else {
     if (before.rows.some((r) => !r)) throw new Error('a caret row is not visible');
-    regions = before.rows.map(([t, h]) => ({ x: 0, y: Math.floor((top + t) * SCALE), width: 1600, height: Math.ceil(h * SCALE) }));
-    inputs = (extra) => Array.from({ length: cfg.keys }, (_, i) => ({ id: i + 1, kind: 'key', keycode: 7, ...extra }));
+    // Whole window width: 100 typed columns run past 800 points.
+    regions = before.rows.map(([t, h]) => ({ x: 0, y: Math.floor((top + t) * SCALE), width: Math.round(before.viewport[0] * SCALE), height: Math.ceil(h * SCALE) }));
+    inputs = (extra) => Array.from({ length: keys }, (_, i) => ({ id: i + 1, kind: 'key', keycode: 7, ...extra }));
     recWait = 1300; settle = 300;
   }
   res.regions = regions;
   const job = (actions, extra = {}) => ({ pid: live.edge.pid, windowID: win.windowID, isolatedWindow: true, inputSource: 'com.apple.keylayout.ABC', actions, ...extra });
-  const rec = [{ id: 0, kind: 'wait', waitMS: recWait, settleMS: settle, record: regions }, ...inputs({ waitMS: recWait, settleMS: settle, record: regions })];
-  res.recordProbe = probeRun(dir, 'record', job(rec));
-  if (res.recordProbe.exit) throw new Error('record probe failed: ' + res.recordProbe.err);
-  const cols = offsets.map((o) => o - (text.lastIndexOf('\n', o - 1) + 1)).join(',');
-  const t = nodeTool('./make-templates.mjs', ['--capture', path.join(dir, 'record'), '--kind', name === 'scroll' ? 'scroll' : 'key', '--columns', cols, '--out', path.join(dir, 'templates')]);
-  res.templates = t.out || { ok: false, err: t.err };
-  if (!t.ok) throw new Error('templates unusable');
-  const patches = new Map(JSON.parse(fs.readFileSync(path.join(dir, 'templates', 'patches.json'), 'utf8')).map((p) => [p.id, p.patches]));
-  await evaluate(cdp, SETUP(text, offsets));
+  let tdir = path.join(dir, 'templates'), rdir = path.join(dir, 'record');
+  if (cfg.templatesFrom) {
+    const src = path.resolve(cfg.templatesFrom, name);
+    if (!fs.existsSync(path.join(src, 'templates', 'patches.json'))) throw new Error('the reused record pass is missing: ' + src);
+    const saved = JSON.parse(fs.readFileSync(path.join(src, 'regions.json'), 'utf8'));
+    // A relaunched editor may lay its rows out a pixel off: keep the recorded
+    // regions when they match closely, alignment does the rest.
+    if (saved.length !== regions.length || saved.some((a, i) => a.width !== regions[i].width || a.height !== regions[i].height || Math.abs(a.x - regions[i].x) > 4 || Math.abs(a.y - regions[i].y) > 4)) {
+      throw new Error('regions differ from the reused record pass');
+    }
+    regions = saved; res.regions = regions;
+    tdir = path.join(src, 'templates'); rdir = path.join(src, 'record'); res.templatesFrom = src;
+  } else {
+    const rec = [{ id: 0, kind: 'wait', waitMS: recWait, settleMS: settle, record: regions }, ...inputs({ waitMS: recWait, settleMS: settle, record: regions })];
+    res.recordProbe = probeRun(dir, 'record', job(rec));
+    if (res.recordProbe.exit) throw new Error('record probe failed: ' + res.recordProbe.err);
+    fs.writeFileSync(path.join(dir, 'regions.json'), JSON.stringify(regions));
+    const cols = offsets.map((o) => o - (text.lastIndexOf('\n', o - 1) + 1)).join(',');
+    const t = nodeTool('./make-templates.mjs', ['--capture', rdir, '--kind', name === 'scroll' ? 'scroll' : 'key', '--columns', cols, '--out', tdir]);
+    res.templates = t.out || { ok: false, err: t.err };
+    if (!t.ok) throw new Error('templates unusable');
+    await evaluate(cdp, SETUP(text, offsets));
+  }
+  const patches = new Map(JSON.parse(fs.readFileSync(path.join(tdir, 'patches.json'), 'utf8')).map((p) => [p.id, p.patches]));
   // Same lead-in as the record pass (its baseline wait), so both passes
   // start their inputs equally long after activation.
   res.measureProbe = probeRun(dir, 'measure', job([{ id: 0, kind: 'wait', waitMS: recWait, settleMS: settle, record: regions }, ...inputs({ waitMS: 1000 }).map((a) => ({ ...a, patches: patches.get(a.id) })),
     { id: 999, kind: 'wait', waitMS: recWait, settleMS: settle, record: regions }],
     // Align to the record pass's baseline; a failed alignment fails the pass.
-    { alignTo: regions.map((_, i) => path.join(dir, 'record', `rec-0-${i}.bgra`)), alignAfter: 0 }));
+    { alignTo: regions.map((_, i) => path.join(rdir, `rec-0-${i}.bgra`)), alignAfter: 0 }));
   try {
     res.align = fs.readFileSync(path.join(dir, 'measure', 'capture.ndjson'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)).find((r) => r.type === 'align') || null;
   } catch { res.align = null; }
   const l = nodeTool('./latency.mjs', [path.join(dir, 'measure', 'capture.ndjson')]);
   res.latency = l.out || { err: l.err };
   const after = await evaluate(cdp, STATE);
-  res.pass = res.measureProbe.exit === 0 && (name === 'scroll' ? after.text === text : after.text === insertAll(text, offsets, 'x'.repeat(cfg.keys)));
+  res.pass = res.measureProbe.exit === 0 && (name === 'scroll' ? after.text === text : after.text === insertAll(text, offsets, 'x'.repeat(keys)));
   return res;
 }
 
