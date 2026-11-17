@@ -46,7 +46,9 @@ import (
 // without a new frame uses a command buffer of its own. When drawables are
 // scarce (a nextDrawable wait over drawableWaitSplit), the next
 // splitPresents presents commit the frame before nextDrawable and present
-// separately, so the GPU renders while the CPU waits (drawableBackoff). present does not
+// separately, so the GPU renders while the CPU waits (drawableBackoff); a
+// wait right after the layer's drawables were (re)sized does not count,
+// since it may be the allocation of new drawables. present does not
 // wait for the GPU. The command buffer is waited for by the next Execute,
 // so its errors are reported the same way (see Device). nextDrawable is
 // the back-pressure: it blocks while all the layer's drawables (3 by
@@ -186,6 +188,9 @@ type presenter struct {
 
 	presented    int // drawables presented (tests)
 	drawableSets int // drawableSize changes (tests)
+
+	// nextDrawable is [layer nextDrawable] (tests wrap it to make it slow).
+	nextDrawable func(layer id) id
 }
 
 // presenterRenderer is the Renderer NewPresenter returns: a gpu.Renderer
@@ -252,7 +257,7 @@ func newPresenter(layer uintptr) (*presenter, error) {
 		}
 	}
 	dev.deferFrameCommit = true // present commits the frame with its drawable copy
-	p := &presenter{layer: retain(l), dev: dev}
+	p := &presenter{layer: retain(l), dev: dev, nextDrawable: func(l id) id { return l.Send(sel("nextDrawable")) }}
 	p.r = &presenterRenderer{Renderer: gpu.NewRenderer(dev), p: p}
 	return p, nil
 }
@@ -340,22 +345,38 @@ func (p *presenter) present(size image.Point, scale float32) error {
 		return d.pendingErr // Execute reports it too and resets the Renderer
 	}
 	size = image.Pt(min(size.X, maxDrawable), min(size.Y, maxDrawable))
+	// fresh: the drawables may be allocated by this nextDrawable (first
+	// present, or new size), so its wait says nothing about scarcity.
+	fresh := p.presented == 0
 	if cur := msgSize(p.layer, sel("drawableSize")); cur.W != float64(size.X) || cur.H != float64(size.Y) {
 		msgSetSize(p.layer, sel("setDrawableSize:"), cgSize{float64(size.X), float64(size.Y)})
 		p.drawableSets++
+		fresh = true
 	}
 	if !d.hasFrame {
 		return nil
 	}
 	if d.openCB != 0 && d.drawables.split() {
 		// Drawables have been scarce: let the GPU start on the frame
-		// while nextDrawable blocks, and present it separately.
+		// while nextDrawable blocks, and present it separately. The frame
+		// counts toward the in-flight cap like the pre-merge path's.
 		d.flushOpen()
+		for len(d.inflight.items) >= maxInflight {
+			d.waitOldest()
+		}
+		if d.lost != nil {
+			return d.lost
+		}
+		if d.pendingErr != nil {
+			return d.pendingErr
+		}
 	}
 	waitStart := time.Now()
-	drawable := p.layer.Send(sel("nextDrawable"))
+	drawable := p.nextDrawable(p.layer)
 	d.drawableWait = time.Since(waitStart)
-	d.drawables.observe(d.drawableWait)
+	if !fresh {
+		d.drawables.observe(d.drawableWait)
+	}
 	if drawable == 0 {
 		if d.timeline != nil {
 			d.timeline(Timing{Kind: submitPresent.String(), Frame: d.frames, DrawableWait: d.drawableWait})

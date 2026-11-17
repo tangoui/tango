@@ -204,6 +204,66 @@ func TestMetalPresentSplitsAfterDrawableWait(t *testing.T) {
 	}
 }
 
+// TestMetalPresentObservesDrawableWait: a slow nextDrawable through the
+// real present path arms the split (present feeds its measured wait to the
+// backoff), split presents keep at most maxInflight command buffers in
+// flight, and waits on the first present or right after a drawable resize
+// (drawable allocation) do not count.
+func TestMetalPresentObservesDrawableWait(t *testing.T) {
+	layer := newTestLayer(t, image.Pt(10, 10))
+	p := startPresenter(t, layer)
+	l := gputest.Scenes[0].Make(t)
+	size := devicePixels(gputest.SceneSize, 1)
+	fast := p.nextDrawable
+	slow := func(l id) id { time.Sleep(3 * drawableWaitSplit); return fast(l) }
+	left := func() int {
+		p.dev.mu.Lock()
+		defer p.dev.mu.Unlock()
+		return p.dev.drawables.left
+	}
+	frame := func(sz image.Point) {
+		t.Helper()
+		if err := p.r.Render(l, gputest.SceneSize, 1); err != nil {
+			t.Fatal(err)
+		}
+		if err := p.present(sz, 1); err != nil {
+			t.Fatal(err)
+		}
+		p.dev.mu.Lock()
+		n := len(p.dev.inflight.items)
+		p.dev.mu.Unlock()
+		if n > maxInflight {
+			t.Fatalf("%d command buffers in flight, cap %d", n, maxInflight)
+		}
+	}
+	p.nextDrawable = slow
+	frame(size) // first present: drawables are allocated
+	if left() != 0 {
+		t.Fatal("the first present's drawable wait armed the split")
+	}
+	frame(size)
+	if left() != splitPresents {
+		t.Fatalf("after a slow nextDrawable: %d presents to split, want %d (present must observe its wait)", left(), splitPresents)
+	}
+	for range 3 { // split frames, still starved
+		frame(size)
+	}
+	if left() != splitPresents {
+		t.Fatalf("starved split presents: %d left, want the count restarted (%d)", left(), splitPresents)
+	}
+	p.dev.mu.Lock()
+	p.dev.drawables = drawableBackoff{}
+	p.dev.mu.Unlock()
+	frame(size.Add(image.Pt(4, 4))) // resized: new drawables
+	if left() != 0 {
+		t.Fatal("the wait right after a drawable resize armed the split")
+	}
+	p.nextDrawable = fast
+	if err := p.dev.Wait(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestMetalPresentWithoutDrawableCommitsFrame: every present that shows
 // nothing (empty size, no drawable) still submits the open frame.
 func TestMetalPresentWithoutDrawableCommitsFrame(t *testing.T) {
