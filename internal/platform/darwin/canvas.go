@@ -303,6 +303,7 @@ func (c *canvas) installScheduling() {
 	var tctx [5]uintptr // CFRunLoopTimerContext: version, info, retain, release, copyDescription
 	tctx[1] = c.key
 	c.timer = cfRunLoopTimerCreate(0, farFuture, farFuture, 0, 0, canvasTimerCB, unsafe.Pointer(&tctx[0]))
+	c.armed.reset() // a new timer: nothing armed through it yet
 	cfRunLoopAddTimer(cfRunLoopGetMain(), c.timer, kCFRunLoopCommonModes)
 }
 
