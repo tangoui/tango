@@ -214,7 +214,9 @@ type fillWidthCache struct {
 // fillWidest returns the largest rowW(i) of n rows, measured once and
 // remembered for the list id while key and the theme stay the same. key
 // identifies the row data (a comparable value such as the slice's first
-// element pointer and length); nil measures every call.
+// element pointer and length); nil measures every call. The theme is
+// compared by pointer: a theme (font size, tokens) mutated in place keeps
+// the old width until the key or the theme pointer changes.
 func fillWidest(c *Context, id ID, key any, n int, rowW func(i int) float32) float32 {
 	st := State[fillWidthCache](c, hashID(id, "fill-widest"), nil)
 	if key != nil && st.key == key && st.theme == c.Theme {

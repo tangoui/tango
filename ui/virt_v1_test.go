@@ -542,3 +542,172 @@ func TestV1CascaderKeepAndKeyboard(t *testing.T) {
 		t.Fatalf("keyboard row %v not in view %v", moved.abs, pr)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Fix round 1: live fields, cache gating, pointer on a scrolled window
+
+// v1ACPage is an AutoComplete over opts that records picks.
+func v1ACPage(opts []Option, val *string, picked *string) (func(*Context), **AutoCompleteW) {
+	var w *AutoCompleteW
+	return func(c *Context) {
+		Column(c, func() {
+			w = AutoComplete(c, val, opts).Width(240)
+			if v, ok := w.Selected(); ok {
+				*picked = v
+			}
+		}, layout.Pad(20))
+	}, &w
+}
+
+// TestV1AutoCompleteLiveFields: above the threshold the matches are
+// cached, but an option changed in place shows its new label, cannot be
+// picked once disabled, and a pick inserts its current value.
+func TestV1AutoCompleteLiveFields(t *testing.T) {
+	opts := v1Opts(500)
+	val, picked := "", ""
+	page, w := v1ACPage(opts, &val, &picked)
+	d := driver(page)
+	d.Frame()
+	d.Click(v1Center(d, (*w).in.ed.id))
+	d.Type("o") // all 500 match: virtual
+	if got := v1Count(d, "ms-option"); got > v1Window {
+		t.Fatalf("%d rows built", got)
+	}
+	opts[0].Label = "renamed option"
+	opts[1].Disabled = true
+	opts[2].Value = "fresh-value"
+	d.Frame()
+	d.Settle()
+	if v1Built(d, "ms-option", "renamed option") == nil {
+		t.Fatal("in-place label change not shown")
+	}
+	dis := v1Built(d, "ms-option", "option-2")
+	if dis == nil {
+		t.Fatal("option-2 not built")
+	}
+	d.Click(geom.Pt(dis.abs.X+dis.abs.W/2, dis.abs.Y+dis.abs.H/2))
+	if picked != "" || val != "o" {
+		t.Fatalf("disabled option picked: %q / %q", picked, val)
+	}
+	d.Click(v1Center(d, (*w).in.ed.id))
+	d.Key(input.KeyDown, 0) // skips the disabled option-2
+	d.Key(input.KeyEnter, 0)
+	if val != "fresh-value" || picked != "fresh-value" {
+		t.Fatalf("pick inserted %q (picked %q), want the current value", val, picked)
+	}
+}
+
+// TestV1AutoCompleteGate: a query with at most 100 matches is a full list,
+// matched again every frame, so an option renamed in place joins it.
+func TestV1AutoCompleteGate(t *testing.T) {
+	opts := v1Opts(500)
+	val, picked := "", ""
+	page, w := v1ACPage(opts, &val, &picked)
+	d := driver(page)
+	d.Frame()
+	d.Click(v1Center(d, (*w).in.ed.id))
+	d.Type("option-49") // option-49, option-490..499
+	if got := v1Count(d, "ms-option"); got != 11 {
+		t.Fatalf("%d rows built, want the 11 matches", got)
+	}
+	opts[0].Label = "option-49 renamed"
+	d.Frame()
+	d.Settle()
+	if got := v1Count(d, "ms-option"); got != 12 || v1Built(d, "ms-option", "option-49 renamed") == nil {
+		t.Fatalf("renamed option did not join the short list (%d rows)", got)
+	}
+}
+
+func TestV1MentionsLiveFields(t *testing.T) {
+	opts := v1Opts(500)
+	val := "@o"
+	var w *MentionsW
+	d := driver(func(c *Context) {
+		Column(c, func() { w = Mentions(c, &val, opts).Width(240).Open() }, layout.Pad(20))
+	})
+	d.Settle()
+	if got := v1Count(d, "ms-option"); got == 0 || got > v1Window {
+		t.Fatalf("%d rows built", got)
+	}
+	opts[0].Label = "renamed option"
+	d.Frame()
+	d.Settle()
+	if v1Built(d, "ms-option", "renamed option") == nil {
+		t.Fatal("in-place label change not shown")
+	}
+	_ = w
+}
+
+// TestV1AutoCompleteScrolledClick: a click on a row of a scrolled window
+// picks that row.
+func TestV1AutoCompleteScrolledClick(t *testing.T) {
+	opts := v1Opts(1000)
+	val, picked := "", ""
+	page, w := v1ACPage(opts, &val, &picked)
+	d := driver(page)
+	d.Frame()
+	d.Click(v1Center(d, (*w).in.ed.id))
+	first, ok := d.Find("option-1")
+	if !ok {
+		t.Fatal("list not open")
+	}
+	v1ScrollAll(d, float64(first.H)*40)
+	row := v1Built(d, "ms-option", "option-41")
+	if row == nil {
+		t.Fatal("option-41 not built after scrolling 40 rows")
+	}
+	if lr := d.r.c.rects[(*w).listID]; !lr.Contains(geom.Pt(row.abs.X+1, row.abs.Y+row.abs.H/2)) {
+		t.Fatalf("option-41 %v not in the list %v", row.abs, lr)
+	}
+	d.Click(geom.Pt(row.abs.X+row.abs.W/2, row.abs.Y+row.abs.H/2))
+	if picked != "option-41" || val != "option-41" {
+		t.Fatalf("picked %q / %q, want option-41", picked, val)
+	}
+}
+
+func TestV1MentionsKeyboardAcrossWindow(t *testing.T) {
+	opts := v1Opts(1000)
+	val := "@"
+	var w *MentionsW
+	d := driver(func(c *Context) {
+		Column(c, func() { w = Mentions(c, &val, opts).Width(240) }, layout.Pad(20))
+	})
+	d.EnableAccessibility()
+	d.Settle()
+	er := d.r.c.rects[w.ed.id]
+	d.Click(geom.Pt(er.Right()-4, er.Y+er.H/2)) // caret after "@"
+	d.Settle()
+	if !w.IsOpen() {
+		t.Fatal("suggestions not open")
+	}
+	d.Key(input.KeyUp, 0) // wraps to the last
+	d.Settle()
+	last := v1Built(d, "ms-option", "option-1000")
+	if last == nil || v1Built(d, "ms-option", "option-1") != nil {
+		t.Fatal("window did not follow the keyboard to the end")
+	}
+	tb := d.AccessibilityTree().Node(a11y.NodeID(w.ed.id))
+	if tb == nil || tb.ActiveDescendant != a11y.NodeID(last.id) {
+		t.Fatalf("ActiveDescendant %v, want %d", tb, last.id)
+	}
+}
+
+// TestV1CommandKeepGroup: the active item built out of view stays inside
+// a node of its group.
+func TestV1CommandKeepGroup(t *testing.T) {
+	d, w := v1Command(v1CommandItems(1000, "group"), nil)
+	d.EnableAccessibility()
+	d.Settle()
+	d.Click(v1Center(d, (*w).in.ed.id))
+	d.Key(input.KeyEnd, 0)
+	d.Settle()
+	v1ScrollAll(d, 0)
+	keep := v1Built(d, "commanditem", "command 1000")
+	if keep == nil {
+		t.Fatal("active item not built while out of view")
+	}
+	g := d.AccessibilityTree().Ancestor(a11y.NodeID(keep.id), a11y.RoleGroup)
+	if g == nil || g.Name != "group" {
+		t.Fatalf("kept item's group %v, want \"group\"", g)
+	}
+}

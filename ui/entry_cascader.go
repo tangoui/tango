@@ -662,7 +662,7 @@ func (w *CascaderW) dropdown() {
 				}
 				entPaintOption(c, l, r, "", entOptState{selected: sel, active: st.sactive == i, disabled: h.opt.Disabled, check: w.multi != nil})
 				acPaintMatch(c, l, r, strings.Join(h.labels, w.separator()), b.st.query, h.opt.Disabled)
-			}, func(i int) { w.pickHit(hits[i]); c.SetFocus(b.ed.id) }, w.virt, nil)
+			}, func(i int) { w.pickHit(hits[i]); c.SetFocus(b.ed.id) }, msVirt{mode: w.virt}) // hits are rebuilt each frame: widths measured each frame
 		})
 		ov.Style(layout.Padding(entListPad(c)))
 		if len(hits) > 0 {

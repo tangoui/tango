@@ -453,7 +453,7 @@ func (w *SenderW) popup(pos int, tr *senderTrigger, opts []Option) {
 			return opts[i].Value, label(opts[i]), opts[i].Disabled
 		}, &st.active, nil, &w.optIDs, func(i int, l *paint.List, r geom.Rect) {
 			w.paintOption(l, r, tr.prefix, opts[i], st.active == i)
-		}, func(i int) { w.insert(pos, tr, opts[i]) }, 0, nil)
+		}, func(i int) { w.insert(pos, tr, opts[i]) }, msVirt{}) // auto; rebuilt slices: widths measured each frame
 	}, layout.MinW(240))
 	entStylePanel(c, ov)
 	ov.Style(layout.Padding(entListPad(c)))

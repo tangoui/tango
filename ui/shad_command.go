@@ -272,7 +272,9 @@ func (w *CommandW) filter() {
 	}
 	w.visible = nil // a new slice: the cached one is never written
 	w.filterItems()
-	w.st.fkey, w.st.vis, w.st.fok = k, w.visible, true
+	// Keep the matches only while the list is virtual: a shorter list is
+	// filtered again every frame, as before.
+	w.st.fkey, w.st.vis, w.st.fok = k, w.visible, p2bVirtualOn(w.virt, len(w.visible))
 }
 
 func (w *CommandW) filterItems() {
@@ -638,10 +640,23 @@ func (w *CommandW) buildVirtual(pad float32) {
 		Key(c, it.Value+"\x00"+it.Label, func() { n = w.item(it, vi) })
 		return n
 	}
+	// keepRow builds the active item outside the window, inside a node of
+	// its group (when titled) so assistive technology keeps the context.
+	keepRow := func() {
+		run := l.runs[l.rows[keep].run]
+		if run.g == "" {
+			win.place(item(keep), keep, geom.Insets{})
+			return
+		}
+		Key(c, "keep", func() {
+			grp := Column(c, func() { item(keep) }).Semantics(a11y.RoleGroup, run.g)
+			win.place(grp.n, keep, geom.Insets{})
+		})
+	}
 	sb.Body(func() {
 		lb := Column(c, func() {
 			if keep >= 0 && keep < win.first {
-				win.place(item(keep), keep, geom.Insets{})
+				keepRow()
 			}
 			for r := win.first; r < win.end; {
 				row := l.rows[r]
@@ -669,7 +684,10 @@ func (w *CommandW) buildVirtual(pad float32) {
 					seg()
 				} else {
 					// The group node exists for its visible part only; it
-					// reports the size of the whole group.
+					// reports the size of the whole group. Items keep the
+					// list-wide PosInSet / SetSize of the full list (cmdk
+					// numbers options across groups), so the two scopes
+					// differ on purpose.
 					Key(c, row.run, func() {
 						grp := Column(c, seg).Semantics(a11y.RoleGroup, run.g)
 						if c.a11yOn {
@@ -681,7 +699,7 @@ func (w *CommandW) buildVirtual(pad float32) {
 				r = e
 			}
 			if keep >= win.end {
-				win.place(item(keep), keep, geom.Insets{})
+				keepRow()
 			}
 			fillStrut(c, wd)
 		})

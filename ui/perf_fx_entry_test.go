@@ -411,6 +411,11 @@ func TestPerfLargeEntryLists(t *testing.T) {
 					t.Fatalf("%s Large%d did not render its candidate list", name, n)
 				}
 			}
+			// All n candidates reached the list: its scroll extent spans
+			// n rows (16 px is below every theme's option height).
+			if ext := perfCollExtent(d, false); ext < float64(n*16) {
+				t.Fatalf("%s Large%d: scroll extent %.0f px is shorter than %d rows", name, n, ext, n)
+			}
 		}
 	}
 }

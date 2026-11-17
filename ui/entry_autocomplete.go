@@ -21,7 +21,8 @@ type acState struct {
 	remote remoteSearch // debounce of Remote calls
 	// hadFocus: the editor had focus at the last build (TriggerOnFocus).
 	hadFocus bool
-	filt     msFilterCache // filtered static options of a long list
+	filt     msFilterCache // matches of a long list of static options
+	textW    msTextW       // label widths of the static options
 }
 
 // AutoCompleteW is a text input with a suggestion dropdown.
@@ -155,9 +156,12 @@ func (w *AutoCompleteW) NotFoundContent(s string) *AutoCompleteW { w.notFound = 
 // longer than 100 suggestions are virtual (only the visible rows and the
 // keyboard row are built; the dropdown keeps the width, height and scroll
 // range of the full list, but suggestions out of view are not in the
-// accessibility tree). A virtual list of static options reuses its
-// filtered list and width while the options slice (identity and length)
-// and the typed text stay the same; Virtual(false) builds every row.
+// accessibility tree). A virtual list of static options keeps which
+// options match, and its width, while the options slice (identity and
+// length) and the typed text stay the same: labels, values and Disabled
+// are read live, but an option renamed in place may not join or leave
+// the matches, or widen the list, until the text or the slice changes.
+// Virtual(false) builds every row.
 func (w *AutoCompleteW) Virtual(on bool) *AutoCompleteW { w.virt = p2bVirtualMode(on); return w }
 
 // Open forces the dropdown open (screenshots, tests).
@@ -173,22 +177,20 @@ func (w *AutoCompleteW) Changed() bool { w.z.run(); return w.changed }
 // Selected returns the value picked this frame and whether one was picked.
 func (w *AutoCompleteW) Selected() (string, bool) { w.z.run(); return w.selected, w.picked }
 
-func (w *AutoCompleteW) options() []Option {
+func (w *AutoCompleteW) options() msView {
 	if w.source != nil {
-		return w.source(*w.val)
+		return msAll(w.source(*w.val))
 	}
 	if w.remote != nil {
-		return w.opts // already filtered by the server
+		return msAll(w.opts) // already filtered by the server
 	}
-	if p2bVirtualOn(w.virt, len(w.opts)) {
-		return w.st.filt.get(w.opts, *w.val, func() []Option { return filterOptions(w.opts, *w.val, nil) })
-	}
-	return filterOptions(w.opts, *w.val, nil)
+	q := strings.ToLower(*w.val)
+	return w.st.filt.get(w.opts, *w.val, w.virt, func(o *Option) bool { return strings.Contains(strings.ToLower(o.Label), q) })
 }
 
 // busy reports whether the dropdown shows the loading row instead of opts.
-func (w *AutoCompleteW) busy(opts []Option) bool {
-	return w.loading && (len(opts) == 0 || w.remote != nil)
+func (w *AutoCompleteW) busy(opts msView) bool {
+	return w.loading && (opts.len() == 0 || w.remote != nil)
 }
 
 // keepOpen reports whether an empty suggestion list may leave the popup
@@ -216,7 +218,7 @@ func (w *AutoCompleteW) finish() {
 	opts := w.options()
 	if typed {
 		w.changed = true
-		st.pop.open = len(opts) > 0 || w.keepOpen()
+		st.pop.open = opts.len() > 0 || w.keepOpen()
 		st.active = 0
 		if w.remote != nil {
 			st.remote.schedule(c, w.debounce)
@@ -227,7 +229,7 @@ func (w *AutoCompleteW) finish() {
 			w.remote(*w.val)
 		}
 	})
-	if (w.in.edIA.Clicked || w.in.boxIA.Clicked) && !st.pop.open && (len(opts) > 0 || w.loading || w.notFound != "") {
+	if (w.in.edIA.Clicked || w.in.boxIA.Clicked) && !st.pop.open && (opts.len() > 0 || w.loading || w.notFound != "") {
 		st.pop.open = true
 		st.active = 0
 	}
@@ -237,7 +239,7 @@ func (w *AutoCompleteW) finish() {
 			w.remote(*w.val)
 			c.invalid = true
 		}
-		if len(opts) > 0 || w.keepOpen() {
+		if opts.len() > 0 || w.keepOpen() {
 			st.pop.open = true
 			st.active = 0
 		}
@@ -251,36 +253,36 @@ func (w *AutoCompleteW) finish() {
 	}
 	list := opts // pickable suggestions (none behind the loading row)
 	if w.busy(opts) {
-		list = nil
+		list = msView{}
 	}
 	for _, k := range w.keys {
 		switch k.Key {
 		case input.KeyDown, input.KeyUp:
 			if !st.pop.open {
-				st.pop.open = len(list) > 0
+				st.pop.open = list.len() > 0
 				st.active = 0
 				continue
 			}
-			st.active = msStep(list, st.active, k.Key == input.KeyDown)
+			st.active = msStepBy(list.len(), st.active, k.Key == input.KeyDown, func(i int) bool { return list.at(i).Disabled })
 		case input.KeyEnter:
-			if st.pop.open && st.active >= 0 && st.active < len(list) && !list[st.active].Disabled {
-				w.pick(list[st.active])
+			if st.pop.open && st.active >= 0 && st.active < list.len() && !list.at(st.active).Disabled {
+				w.pick(list.at(st.active))
 				opts = w.options()
 				list = opts
 				if w.busy(opts) {
-					list = nil
+					list = msView{}
 				}
 			}
 		}
 	}
-	if len(opts) == 0 && !w.keepOpen() {
+	if opts.len() == 0 && !w.keepOpen() {
 		st.pop.open = false
 	}
-	if st.active >= len(list) {
+	if st.active >= list.len() {
 		st.active = 0
 	}
 	busy := w.busy(opts)
-	if st.pop.open && (len(list) > 0 || busy || w.notFound != "") {
+	if st.pop.open && (list.len() > 0 || busy || w.notFound != "") {
 		w.shown = true
 		w.dropdown(list, busy)
 	} else {
@@ -288,7 +290,7 @@ func (w *AutoCompleteW) finish() {
 	}
 }
 
-func (w *AutoCompleteW) dropdown(opts []Option, busy bool) {
+func (w *AutoCompleteW) dropdown(opts msView, busy bool) {
 	c, st := w.c, w.st
 	q := *w.val
 	loc := c.Locale()
@@ -297,14 +299,15 @@ func (w *AutoCompleteW) dropdown(opts []Option, busy bool) {
 			entLoadingRow(c, loc.Loading, entOptionH(c))
 			return
 		}
-		if len(opts) == 0 {
+		if opts.len() == 0 {
 			Empty(c).Simple().Description(w.notFound)
 			return
 		}
-		msOptionList(c, len(opts), func(i int) (string, string, bool) {
-			return opts[i].Value, opts[i].Label, opts[i].Disabled
-		}, &st.active, func(i int) bool { return opts[i].Value == *w.val }, &w.optIDs, func(i int, l *paint.List, r geom.Rect) {
-			o := opts[i]
+		msOptionList(c, opts.len(), func(i int) (string, string, bool) {
+			o := opts.at(i)
+			return o.Value, o.Label, o.Disabled
+		}, &st.active, func(i int) bool { return opts.at(i).Value == *w.val }, &w.optIDs, func(i int, l *paint.List, r geom.Rect) {
+			o := opts.at(i)
 			s := entOptState{active: st.active == i, disabled: o.Disabled}
 			if !w.highlight || q == "" {
 				entPaintOption(c, l, r, o.Label, s)
@@ -312,25 +315,27 @@ func (w *AutoCompleteW) dropdown(opts []Option, busy bool) {
 			}
 			entPaintOption(c, l, r, "", s)
 			acPaintMatch(c, l, r, o.Label, q, o.Disabled)
-		}, func(i int) { w.pick(opts[i]) }, w.virt, w.widthKey(opts))
+		}, func(i int) { w.pick(opts.at(i)) }, w.virtual(opts))
 	})
 	ov.Style(layout.Padding(entListPad(c)))
 	w.listID = 0
-	if !busy && len(opts) > 0 { // the loading row is a status, not a list
+	if !busy && opts.len() > 0 { // the loading row is a status, not a list
 		ov.n.setRole(a11y.RoleListbox).setName(popupName(c, w.in.ed, w.in.placeholder))
 		w.listID = ov.n.id
 	}
 }
 
-// widthKey identifies the shown suggestions for the width cache of a
-// virtual list: the static options (filtered through st.filt, so the
-// slice is the same while the text is), never what Source or Remote
-// return (their slices may be reused for new results).
-func (w *AutoCompleteW) widthKey(opts []Option) any {
-	if w.source != nil || w.remote != nil {
-		return nil
+// virtual is the virtual mode of the suggestion list: the static
+// options' matches keep their widest row per query, from label widths
+// measured once per options slice; what Source or Remote return is
+// measured every frame (their slices may be reused for new results).
+func (w *AutoCompleteW) virtual(opts msView) msVirt {
+	v := msVirt{mode: w.virt}
+	if w.source == nil && w.remote == nil {
+		v.key = opts.key(*w.val)
+		v.textW = func(i int) float32 { return w.st.textW.of(w.c, w.opts)[opts.srcIndex(i)] }
 	}
-	return msOptKeyOf(opts)
+	return v
 }
 
 // acPaintMatch draws label in an option row with the first case-insensitive

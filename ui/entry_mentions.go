@@ -22,7 +22,8 @@ type mtState struct {
 	skip   int // trigger position dismissed with Escape / outside click (-1 none)
 	init   bool
 	remote remoteSearch  // debounce of Remote calls
-	filt   msFilterCache // suggestions of a long list for the current query
+	filt   msFilterCache // matches of a long list for the current query
+	textW  msTextW       // label widths of the options
 }
 
 // MentionsW is a multi-line input that suggests options after a trigger
@@ -195,9 +196,11 @@ func (w *MentionsW) Disabled(on bool) *MentionsW {
 // longer than 100 suggestions are virtual (only the visible rows and the
 // keyboard row are built; the list keeps the width, height and scroll
 // range of the full list, but suggestions out of view are not in the
-// accessibility tree). A virtual list reuses its matches and width while
-// the options slice (identity and length) and the query stay the same;
-// Virtual(false) builds every row.
+// accessibility tree). A virtual list keeps which options match, and
+// its width, while the options slice (identity and length) and the query
+// stay the same: labels, values and Disabled are read live, but an option
+// renamed in place may not join or leave the matches, or widen the list,
+// until the query or the slice changes. Virtual(false) builds every row.
 func (w *MentionsW) Virtual(on bool) *MentionsW { w.virt = p2bVirtualMode(on); return w }
 
 // Open forces the suggestions open when a trigger is at the caret (tests,
@@ -252,27 +255,16 @@ func (w *MentionsW) trigger() (int, string, string) {
 	return -1, "", ""
 }
 
-func (w *MentionsW) filtered(q string) []Option {
+// filtered returns the options whose label or value contains q
+// (case-insensitive), read live from the options slice.
+func (w *MentionsW) filtered(q string) msView {
 	if w.remote != nil {
-		return w.opts // already filtered by the server
+		return msAll(w.opts) // already filtered by the server
 	}
-	if p2bVirtualOn(w.virt, len(w.opts)) {
-		return w.st.filt.get(w.opts, q, func() []Option { return w.match(q) })
-	}
-	return w.match(q)
-}
-
-// match returns the options whose label or value contains q
-// (case-insensitive).
-func (w *MentionsW) match(q string) []Option {
-	q = strings.ToLower(q)
-	var out []Option
-	for _, o := range w.opts {
-		if q == "" || strings.Contains(strings.ToLower(o.Label), q) || strings.Contains(strings.ToLower(o.Value), q) {
-			out = append(out, o)
-		}
-	}
-	return out
+	lq := strings.ToLower(q)
+	return w.st.filt.get(w.opts, q, w.virt, func(o *Option) bool {
+		return strings.Contains(strings.ToLower(o.Label), lq) || strings.Contains(strings.ToLower(o.Value), lq)
+	})
 }
 
 func (w *MentionsW) font() text.Style { return w.c.style(w.c.controlFont(w.size), text.Regular) }
@@ -308,10 +300,10 @@ func (w *MentionsW) finish() {
 		for _, k := range keys {
 			switch k.Key {
 			case input.KeyUp, input.KeyDown:
-				st.active = msStep(opts, st.active, k.Key == input.KeyDown)
+				st.active = msStepBy(opts.len(), st.active, k.Key == input.KeyDown, func(i int) bool { return opts.at(i).Disabled })
 			case input.KeyEnter:
-				if st.active >= 0 && st.active < len(opts) {
-					w.insert(opts[st.active])
+				if st.active >= 0 && st.active < opts.len() {
+					w.insert(opts.at(st.active))
 				}
 			}
 		}
@@ -348,12 +340,12 @@ func (w *MentionsW) finish() {
 	busy := w.busy(all)
 	opts = w.pickable(all)
 	focused := c.focus == w.ed.id || (c.focus == 0 && st.pop.open)
-	st.pop.open = pos >= 0 && pos != st.skip && (focused || w.forced) && (len(opts) > 0 || busy)
-	if st.active >= len(opts) {
+	st.pop.open = pos >= 0 && pos != st.skip && (focused || w.forced) && (opts.len() > 0 || busy)
+	if st.active >= opts.len() {
 		st.active = 0
 	}
 	if st.pop.open {
-		w.dropdown(pos, opts, busy)
+		w.dropdown(pos, q, opts, busy)
 	}
 }
 
@@ -451,15 +443,15 @@ func (w *MentionsW) wholeDelete() bool {
 }
 
 // busy reports whether the loading row replaces the suggestions.
-func (w *MentionsW) busy(opts []Option) bool {
-	return w.loading && (len(opts) == 0 || w.remote != nil)
+func (w *MentionsW) busy(opts msView) bool {
+	return w.loading && (opts.len() == 0 || w.remote != nil)
 }
 
 // pickable returns the suggestions that can be chosen: none while the
 // loading row replaces them.
-func (w *MentionsW) pickable(opts []Option) []Option {
+func (w *MentionsW) pickable(opts msView) msView {
 	if w.busy(opts) {
-		return nil
+		return msView{}
 	}
 	return opts
 }
@@ -495,7 +487,7 @@ func (w *MentionsW) caretAt(i int) (geom.Point, bool) {
 	return geom.Pt(r.X-w.st.edit.scroll.X+x, r.Y-w.st.edit.scroll.Y+top+h), true
 }
 
-func (w *MentionsW) dropdown(pos int, opts []Option, busy bool) {
+func (w *MentionsW) dropdown(pos int, q string, opts msView, busy bool) {
 	c, st := w.c, w.st
 	loc := c.Locale()
 	th := c.Theme
@@ -524,11 +516,13 @@ func (w *MentionsW) dropdown(pos int, opts []Option, busy bool) {
 			entLoadingRow(c, loc.Loading, entOptionH(c))
 			return
 		}
-		msOptionList(c, len(opts), func(i int) (string, string, bool) {
-			return opts[i].Value, opts[i].Label, opts[i].Disabled
+		msOptionList(c, opts.len(), func(i int) (string, string, bool) {
+			o := opts.at(i)
+			return o.Value, o.Label, o.Disabled
 		}, &st.active, nil, &w.optIDs, func(i int, l *paint.List, r geom.Rect) {
-			entPaintOption(c, l, r, opts[i].Label, entOptState{active: st.active == i, disabled: opts[i].Disabled})
-		}, func(i int) { w.insert(opts[i]) }, w.virt, w.widthKey(opts))
+			o := opts.at(i)
+			entPaintOption(c, l, r, o.Label, entOptState{active: st.active == i, disabled: o.Disabled})
+		}, func(i int) { w.insert(opts.at(i)) }, w.virtual(opts, q))
 	}, layout.MinW(120))
 	entStylePanel(c, ov)
 	ov.Style(layout.Padding(entListPad(c)))
@@ -540,14 +534,16 @@ func (w *MentionsW) dropdown(pos int, opts []Option, busy bool) {
 	}
 }
 
-// widthKey identifies the shown suggestions for the width cache of a
-// virtual list: the static options' matches (the same slice while the
-// query is, see filtered), never what Remote supplies.
-func (w *MentionsW) widthKey(opts []Option) any {
-	if w.remote != nil {
-		return nil
+// virtual is the virtual mode of the suggestion list: the matches of q
+// keep their widest row, from label widths measured once per options
+// slice; what Remote supplies is measured every frame.
+func (w *MentionsW) virtual(opts msView, q string) msVirt {
+	v := msVirt{mode: w.virt}
+	if w.remote == nil {
+		v.key = opts.key(q)
+		v.textW = func(i int) float32 { return w.st.textW.of(w.c, w.opts)[opts.srcIndex(i)] }
 	}
-	return msOptKeyOf(opts)
+	return v
 }
 
 func (w *MentionsW) paintBox(l *paint.List, r geom.Rect) {
