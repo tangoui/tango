@@ -74,7 +74,7 @@ type SenderW struct {
 	header      func()
 
 	frameIA, edIA Interaction
-	optIDs        []ID
+	optIDs        fillIDs
 	listID        ID
 
 	submitted, stopped, attachClicked, changed bool
@@ -205,8 +205,8 @@ func (w *SenderW) semantics(s *a11y.Node) {
 	}
 	if w.st.pop.open && w.listID != 0 {
 		s.Controls = a11y.NodeID(w.listID)
-		if a := w.st.active; a >= 0 && a < len(w.optIDs) {
-			s.ActiveDescendant = a11y.NodeID(w.optIDs[a])
+		if id := w.optIDs.at(w.st.active); id != 0 {
+			s.ActiveDescendant = a11y.NodeID(id)
 		}
 	}
 }
@@ -453,7 +453,7 @@ func (w *SenderW) popup(pos int, tr *senderTrigger, opts []Option) {
 			return opts[i].Value, label(opts[i]), opts[i].Disabled
 		}, &st.active, nil, &w.optIDs, func(i int, l *paint.List, r geom.Rect) {
 			w.paintOption(l, r, tr.prefix, opts[i], st.active == i)
-		}, func(i int) { w.insert(pos, tr, opts[i]) })
+		}, func(i int) { w.insert(pos, tr, opts[i]) }, 0, nil)
 	}, layout.MinW(240))
 	entStylePanel(c, ov)
 	ov.Style(layout.Padding(entListPad(c)))

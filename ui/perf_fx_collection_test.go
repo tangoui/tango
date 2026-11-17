@@ -909,8 +909,8 @@ func TestPerfCollLarge(t *testing.T) {
 		{name: "MultiSelect", first: perfCollItem(0), rows: n},
 		{name: "VirtualSelect", first: perfCollItem(0), rows: n},
 		{name: "TreeSelect", first: perfCollItem(0), rows: n},
-		{name: "Cascader", first: perfCollItem(0), last: perfCollItem(n - 1)},
-		{name: "CascaderPanel", first: perfCollItem(0), last: perfCollItem(n - 1)},
+		{name: "Cascader", first: perfCollItem(0), rows: n},      // columns > 100 options are virtual
+		{name: "CascaderPanel", first: perfCollItem(0), rows: n}, // (batch 3 V1)
 		{name: "Transfer", first: perfCollItem(0), rows: n},
 		{name: "List", first: perfCollItem(0), last: perfCollItem(n - 1)},
 		{name: "Listy", first: perfCollItem(0), rows: n},

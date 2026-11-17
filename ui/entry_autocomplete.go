@@ -21,6 +21,7 @@ type acState struct {
 	remote remoteSearch // debounce of Remote calls
 	// hadFocus: the editor had focus at the last build (TriggerOnFocus).
 	hadFocus bool
+	filt     msFilterCache // filtered static options of a long list
 }
 
 // AutoCompleteW is a text input with a suggestion dropdown.
@@ -45,10 +46,11 @@ type AutoCompleteW struct {
 	selected  string
 	picked    bool
 	z         *lazy
-	optIDs    []ID // option nodes of the open list
+	optIDs    fillIDs // option nodes of the open list
 	listID    ID
 	place     Placement // dropdown placement (Ant placement, Element placement)
 	notFound  string    // text of an empty dropdown ("" = close it, as Ant)
+	virt      int       // Virtual: 0 auto (long lists), 1 always, -1 never
 }
 
 // AutoComplete adds an input bound to *val that suggests opts (filtered by
@@ -86,8 +88,8 @@ func (w *AutoCompleteW) semantics(s *a11y.Node) {
 	if w.shown && w.listID != 0 {
 		s.States |= a11y.Expanded
 		s.Controls = a11y.NodeID(w.listID)
-		if a := w.st.active; a >= 0 && a < len(w.optIDs) {
-			s.ActiveDescendant = a11y.NodeID(w.optIDs[a])
+		if id := w.optIDs.at(w.st.active); id != 0 {
+			s.ActiveDescendant = a11y.NodeID(id)
 		}
 	}
 }
@@ -149,6 +151,15 @@ func (w *AutoCompleteW) Placement(p Placement) *AutoCompleteW { w.place = p; ret
 // matches (Ant notFoundContent; without it an empty list closes).
 func (w *AutoCompleteW) NotFoundContent(s string) *AutoCompleteW { w.notFound = s; return w }
 
+// Virtual forces the virtual suggestion list on or off; by default lists
+// longer than 100 suggestions are virtual (only the visible rows and the
+// keyboard row are built; the dropdown keeps the width, height and scroll
+// range of the full list, but suggestions out of view are not in the
+// accessibility tree). A virtual list of static options reuses its
+// filtered list and width while the options slice (identity and length)
+// and the typed text stay the same; Virtual(false) builds every row.
+func (w *AutoCompleteW) Virtual(on bool) *AutoCompleteW { w.virt = p2bVirtualMode(on); return w }
+
 // Open forces the dropdown open (screenshots, tests).
 func (w *AutoCompleteW) Open() *AutoCompleteW { w.st.pop.open, w.forced = true, true; return w }
 
@@ -168,6 +179,9 @@ func (w *AutoCompleteW) options() []Option {
 	}
 	if w.remote != nil {
 		return w.opts // already filtered by the server
+	}
+	if p2bVirtualOn(w.virt, len(w.opts)) {
+		return w.st.filt.get(w.opts, *w.val, func() []Option { return filterOptions(w.opts, *w.val, nil) })
 	}
 	return filterOptions(w.opts, *w.val, nil)
 }
@@ -298,7 +312,7 @@ func (w *AutoCompleteW) dropdown(opts []Option, busy bool) {
 			}
 			entPaintOption(c, l, r, "", s)
 			acPaintMatch(c, l, r, o.Label, q, o.Disabled)
-		}, func(i int) { w.pick(opts[i]) })
+		}, func(i int) { w.pick(opts[i]) }, w.virt, w.widthKey(opts))
 	})
 	ov.Style(layout.Padding(entListPad(c)))
 	w.listID = 0
@@ -306,6 +320,17 @@ func (w *AutoCompleteW) dropdown(opts []Option, busy bool) {
 		ov.n.setRole(a11y.RoleListbox).setName(popupName(c, w.in.ed, w.in.placeholder))
 		w.listID = ov.n.id
 	}
+}
+
+// widthKey identifies the shown suggestions for the width cache of a
+// virtual list: the static options (filtered through st.filt, so the
+// slice is the same while the text is), never what Source or Remote
+// return (their slices may be reused for new results).
+func (w *AutoCompleteW) widthKey(opts []Option) any {
+	if w.source != nil || w.remote != nil {
+		return nil
+	}
+	return msOptKeyOf(opts)
 }
 
 // acPaintMatch draws label in an option row with the first case-insensitive

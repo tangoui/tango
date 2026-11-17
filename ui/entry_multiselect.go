@@ -50,7 +50,7 @@ type MultiSelectW struct {
 	changed bool
 	forced  bool
 	z       *lazy
-	optIDs  []ID // option nodes of the open list
+	optIDs  fillIDs // option nodes of the open list
 
 	wasOpen    bool // dropdown state before this build
 	openChange bool // the dropdown opened or closed this frame
@@ -300,51 +300,123 @@ func msStep(opts []Option, i int, down bool) int {
 
 // msOptionList renders an option list (scrolling when long) into the current
 // overlay. paintRow draws row i; onClick handles a click. Rows are options
-// (sel reports the selected ones, nil: none); their IDs are appended to
+// (sel reports the selected ones, nil: none); their IDs are recorded in
 // *ids (nil: not collected) for the trigger's ActiveDescendant. The caller
 // marks the overlay box as the listbox.
-func msOptionList(c *Context, n int, labels func(i int) (key, label string, disabled bool), active *int, sel func(i int) bool, ids *[]ID, row func(i int, l *paint.List, r geom.Rect), onClick func(i int)) {
+//
+// virt is the Virtual(on bool) tri-state (p2bVirtualOn): a long list then
+// builds only the rows in view plus the keyboard row, and sizes itself by
+// the widest label measured once per wkey (the identity of the option
+// data, comparable; nil measures every frame), so its width, height and
+// scroll range stay those of the full list.
+func msOptionList(c *Context, n int, labels func(i int) (key, label string, disabled bool), active *int, sel func(i int) bool, ids *fillIDs, row func(i int, l *paint.List, r geom.Rect), onClick func(i int), virt int, wkey any) {
 	th := c.Theme
 	if ids != nil {
-		*ids = (*ids)[:0]
+		ids.reset()
 	}
-	build := func() {
+	optW := func(label string) float32 { return entTextW(c, label, th.FontSize, text.Semibold) + 2*20 + 18 }
+	one := func(i int) *node {
+		var it *node
+		key, label, dis := labels(i)
+		Key(c, key, func() {
+			it = c.add("ms-option", label)
+			it.setRole(a11y.RoleOption).setState(a11y.Selectable).stateIf(sel != nil && sel(i), a11y.Selected)
+			if ids != nil {
+				ids.add(i, it.id)
+			}
+			it.aKbd = true // the trigger's arrow keys move the highlight
+			it.ln.Height = entOptionH(c)
+			it.ln.Measure = func(_, _ float32) geom.Size {
+				return geom.Size{W: optW(label), H: entOptionH(c)}
+			}
+			cur := input.CursorPointer
+			if dis {
+				it.disabled = true
+				cur = input.CursorNotAllowed
+			}
+			ia := c.interact(it, false, cur)
+			if ia.Hovered && !dis {
+				*active = i
+			}
+			if ia.Clicked && !dis {
+				onClick(i)
+			}
+			it.paint = func(l *paint.List, r geom.Rect) { row(i, l, r) }
+		})
+		return it
+	}
+	if n <= 8 {
 		for i := range n {
-			key, label, dis := labels(i)
-			Key(c, key, func() {
-				it := c.add("ms-option", label)
-				it.setRole(a11y.RoleOption).setState(a11y.Selectable).stateIf(sel != nil && sel(i), a11y.Selected)
-				if ids != nil {
-					*ids = append(*ids, it.id)
-				}
-				it.aKbd = true // the trigger's arrow keys move the highlight
-				it.ln.Height = entOptionH(c)
-				it.ln.Measure = func(_, _ float32) geom.Size {
-					return geom.Size{W: entTextW(c, label, th.FontSize, text.Semibold) + 2*20 + 18, H: entOptionH(c)}
-				}
-				cur := input.CursorPointer
-				if dis {
-					it.disabled = true
-					cur = input.CursorNotAllowed
-				}
-				ia := c.interact(it, false, cur)
-				if ia.Hovered && !dis {
-					*active = i
-				}
-				if ia.Clicked && !dis {
-					onClick(i)
-				}
-				it.paint = func(l *paint.List, r geom.Rect) { row(i, l, r) }
-			})
+			one(i)
 		}
+		return
 	}
-	if n > 8 {
-		idx := *active
-		sb := Scroll(c, build, layout.MaxH(entOptionH(c)*8))
-		followRow(c, sb, idx, *active, 0, entOptionH(c)) // keep the keyboard row in view
-	} else {
-		build()
+	rowH := entOptionH(c)
+	idx := *active
+	if !p2bVirtualOn(virt, n) {
+		sb := Scroll(c, func() {
+			for i := range n {
+				one(i)
+			}
+		}, layout.MaxH(rowH*8))
+		followRow(c, sb, idx, *active, 0, rowH) // keep the keyboard row in view
+		return
 	}
+	sb := fillViewport(c, "scroll", []layout.Option{layout.MaxH(rowH * 8)})
+	wd := fillWidest(c, sb.n.id, wkey, n, func(i int) float32 {
+		_, label, _ := labels(i)
+		return optW(label)
+	})
+	win := fillWin{rowH: float64(rowH)}
+	win.build(c, sb, n, idx, func(i int) *node {
+		it := one(i)
+		if c.a11yOn {
+			// Position in the whole list, not among the built rows.
+			pos := i + 1
+			it.fill(semFunc(func(s *a11y.Node) { s.PosInSet, s.SetSize = pos, n }))
+		}
+		return it
+	})
+	sb.Body(func() { fillStrut(c, wd) })
+	followRow(c, sb, idx, *active, 0, rowH)
+}
+
+// msOptKey identifies an option slice for msOptionList's width cache.
+type msOptKey struct {
+	p *Option
+	n int
+}
+
+func msOptKeyOf(opts []Option) any {
+	if len(opts) == 0 {
+		return nil
+	}
+	return msOptKey{&opts[0], len(opts)}
+}
+
+// msFilterCache keeps a filtered option list while its source slice
+// (identity and length) and query stay the same, so a long windowed list
+// is not filtered again, and its width not measured again, every frame.
+type msFilterCache struct {
+	src *Option
+	n   int
+	q   string
+	out []Option
+	ok  bool
+}
+
+// get returns filter()'s result for src and q, from the cache when they
+// did not change.
+func (fc *msFilterCache) get(src []Option, q string, filter func() []Option) []Option {
+	var p *Option
+	if len(src) > 0 {
+		p = &src[0]
+	}
+	if fc.ok && fc.src == p && fc.n == len(src) && fc.q == q {
+		return fc.out
+	}
+	fc.src, fc.n, fc.q, fc.out, fc.ok = p, len(src), q, filter(), true
+	return fc.out
 }
 
 func (w *MultiSelectW) dropdown(opts []Option) {
@@ -363,7 +435,7 @@ func (w *MultiSelectW) dropdown(opts []Option) {
 			w.toggle(opts[i].Value)
 			w.box.st.query = ""
 			c.SetFocus(w.box.ed.id)
-		})
+		}, -1, nil) // long lists use the engine (finishRich) unless Virtual(false)
 	})
 	ov.Style(layout.Padding(entListPad(c)))
 	if len(opts) > 0 {
@@ -371,8 +443,8 @@ func (w *MultiSelectW) dropdown(opts []Option) {
 		ov.n.setName(w.box.popupName())
 		w.box.listID = ov.n.id
 		w.box.activeID = 0
-		if st.active >= 0 && st.active < len(w.optIDs) {
-			w.box.activeID = w.optIDs[st.active]
+		if st.active >= 0 {
+			w.box.activeID = w.optIDs.at(st.active)
 		}
 	}
 }

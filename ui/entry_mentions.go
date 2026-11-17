@@ -21,7 +21,8 @@ type mtState struct {
 	active int
 	skip   int // trigger position dismissed with Escape / outside click (-1 none)
 	init   bool
-	remote remoteSearch // debounce of Remote calls
+	remote remoteSearch  // debounce of Remote calls
+	filt   msFilterCache // suggestions of a long list for the current query
 }
 
 // MentionsW is a multi-line input that suggests options after a trigger
@@ -53,10 +54,11 @@ type MentionsW struct {
 	wholeCheck  func(prefix, value string) bool
 	boxIA, edIA Interaction
 	z           *lazy
-	optIDs      []ID // suggestion nodes (ActiveDescendant)
+	optIDs      fillIDs // suggestion nodes (ActiveDescendant)
 	listID      ID
 	split       string    // text inserted after a mention (Ant split, " ")
 	place       Placement // BottomStart (default) or TopStart (Ant placement)
+	virt        int       // Virtual: 0 auto (long lists), 1 always, -1 never
 }
 
 // Mentions adds a mention input bound to *val with candidate opts.
@@ -107,8 +109,8 @@ func (w *MentionsW) semantics(s *a11y.Node) {
 	}
 	if w.st.pop.open && w.listID != 0 {
 		s.Controls = a11y.NodeID(w.listID)
-		if a := w.st.active; a >= 0 && a < len(w.optIDs) {
-			s.ActiveDescendant = a11y.NodeID(w.optIDs[a])
+		if id := w.optIDs.at(w.st.active); id != 0 {
+			s.ActiveDescendant = a11y.NodeID(id)
 		}
 	}
 }
@@ -189,6 +191,15 @@ func (w *MentionsW) Disabled(on bool) *MentionsW {
 	return w
 }
 
+// Virtual forces the virtual suggestion list on or off; by default lists
+// longer than 100 suggestions are virtual (only the visible rows and the
+// keyboard row are built; the list keeps the width, height and scroll
+// range of the full list, but suggestions out of view are not in the
+// accessibility tree). A virtual list reuses its matches and width while
+// the options slice (identity and length) and the query stay the same;
+// Virtual(false) builds every row.
+func (w *MentionsW) Virtual(on bool) *MentionsW { w.virt = p2bVirtualMode(on); return w }
+
 // Open forces the suggestions open when a trigger is at the caret (tests,
 // screenshots).
 func (w *MentionsW) Open() *MentionsW {
@@ -245,6 +256,15 @@ func (w *MentionsW) filtered(q string) []Option {
 	if w.remote != nil {
 		return w.opts // already filtered by the server
 	}
+	if p2bVirtualOn(w.virt, len(w.opts)) {
+		return w.st.filt.get(w.opts, q, func() []Option { return w.match(q) })
+	}
+	return w.match(q)
+}
+
+// match returns the options whose label or value contains q
+// (case-insensitive).
+func (w *MentionsW) match(q string) []Option {
 	q = strings.ToLower(q)
 	var out []Option
 	for _, o := range w.opts {
@@ -508,7 +528,7 @@ func (w *MentionsW) dropdown(pos int, opts []Option, busy bool) {
 			return opts[i].Value, opts[i].Label, opts[i].Disabled
 		}, &st.active, nil, &w.optIDs, func(i int, l *paint.List, r geom.Rect) {
 			entPaintOption(c, l, r, opts[i].Label, entOptState{active: st.active == i, disabled: opts[i].Disabled})
-		}, func(i int) { w.insert(opts[i]) })
+		}, func(i int) { w.insert(opts[i]) }, w.virt, w.widthKey(opts))
 	}, layout.MinW(120))
 	entStylePanel(c, ov)
 	ov.Style(layout.Padding(entListPad(c)))
@@ -518,6 +538,16 @@ func (w *MentionsW) dropdown(pos int, opts []Option, busy bool) {
 		ov.n.setRole(a11y.RoleListbox).setName(popupName(c, w.ed, w.placeholder))
 		w.listID = ov.n.id
 	}
+}
+
+// widthKey identifies the shown suggestions for the width cache of a
+// virtual list: the static options' matches (the same slice while the
+// query is, see filtered), never what Remote supplies.
+func (w *MentionsW) widthKey(opts []Option) any {
+	if w.remote != nil {
+		return nil
+	}
+	return msOptKeyOf(opts)
 }
 
 func (w *MentionsW) paintBox(l *paint.List, r geom.Rect) {

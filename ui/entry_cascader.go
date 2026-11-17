@@ -49,7 +49,7 @@ type CascaderW struct {
 	changed        bool
 	chipPaths      [][]string
 	z              *lazy
-	hitIDs         []ID // search result options (ActiveDescendant)
+	hitIDs         fillIDs // search result options (ActiveDescendant)
 	loadData       func(path []string, done func([]CascaderOption))
 	strategy       CheckedStrategy
 	stratVal       bool // the bound value follows the checked strategy
@@ -65,6 +65,7 @@ type CascaderW struct {
 	// the popup Cascader, the panel of a CascaderPanel.
 	focusID ID
 	colH    float32 // column height (0: the token's DropdownHeight)
+	virt    int     // Virtual: 0 auto (long columns), 1 always, -1 never
 }
 
 // Cascader adds a cascading select bound to *val (the selected value path).
@@ -137,6 +138,15 @@ func (w *CascaderW) MaxTagPlaceholder(fn func(omitted []string) string) *Cascade
 	w.box.tagRest = fn
 	return w
 }
+
+// Virtual forces virtual columns on or off; by default a column (or a
+// search result list) longer than 100 options is virtual: only its visible
+// rows and the row on the expanded path are built. The column keeps the
+// width, height and scroll range of the full list (its width is measured
+// once while the options slice, identity and length, stays the same), but
+// options out of view are not in the accessibility tree. Virtual(false)
+// builds every row.
+func (w *CascaderW) Virtual(on bool) *CascaderW { w.virt = p2bVirtualMode(on); return w }
 
 // Open forces the menus open (screenshots, tests).
 func (w *CascaderW) Open() *CascaderW { w.st.pop.open, w.forced = true, true; return w }
@@ -652,14 +662,14 @@ func (w *CascaderW) dropdown() {
 				}
 				entPaintOption(c, l, r, "", entOptState{selected: sel, active: st.sactive == i, disabled: h.opt.Disabled, check: w.multi != nil})
 				acPaintMatch(c, l, r, strings.Join(h.labels, w.separator()), b.st.query, h.opt.Disabled)
-			}, func(i int) { w.pickHit(hits[i]); c.SetFocus(b.ed.id) })
+			}, func(i int) { w.pickHit(hits[i]); c.SetFocus(b.ed.id) }, w.virt, nil)
 		})
 		ov.Style(layout.Padding(entListPad(c)))
 		if len(hits) > 0 {
 			ov.n.setRole(a11y.RoleListbox).setName(b.popupName()).stateIf(w.multi != nil, a11y.Multiselectable)
 			b.listID, b.activeID = ov.n.id, 0
-			if st.sactive >= 0 && st.sactive < len(w.hitIDs) {
-				b.activeID = w.hitIDs[st.sactive]
+			if st.sactive >= 0 {
+				b.activeID = w.hitIDs.at(st.sactive)
 			}
 		}
 		return
@@ -700,12 +710,17 @@ func (w *CascaderW) columnsView(name0 string) {
 				return -1
 			}
 			idx := act()
-			sb := Scroll(c, func() {
-				for _, o := range list {
-					o := o
-					Key(c, o.Value, func() { w.item(ci, o, prefix, set) })
-				}
-			}, layout.H(colH), layout.MinW(w.colWidth()), layout.Padding(pad))
+			var sb *ScrollBox
+			if len(list) > 0 && p2bVirtualOn(w.virt, len(list)) {
+				sb = w.virtualColumn(ci, list, prefix, set, idx, layout.H(colH), layout.MinW(w.colWidth()), layout.Padding(pad))
+			} else {
+				sb = Scroll(c, func() {
+					for _, o := range list {
+						o := o
+						Key(c, o.Value, func() { w.item(ci, o, prefix, set) })
+					}
+				}, layout.H(colH), layout.MinW(w.colWidth()), layout.Padding(pad))
+			}
 			// Each column is a listbox named after the option it expands.
 			name := name0
 			if ci > 0 {
@@ -729,8 +744,75 @@ func (w *CascaderW) columnsView(name0 string) {
 	})
 }
 
-// item builds one menu row.
-func (w *CascaderW) item(ci int, o CascaderOption, prefix []string, set map[string]bool) {
+// casColKey identifies a column's options for its width cache: the slice,
+// the selection mode (check boxes widen the rows) and the lazily loaded
+// children (they decide which rows show an expand arrow).
+type casColKey struct {
+	p      *CascaderOption
+	n      int
+	multi  bool
+	loaded int
+}
+
+// virtualColumn builds column ci (options list under prefix) as a virtual
+// list: the rows in view plus the row on the expanded path (keep), sized
+// like the full column by its widest row.
+func (w *CascaderW) virtualColumn(ci int, list []CascaderOption, prefix []string, set map[string]bool, keep int, opts ...layout.Option) *ScrollBox {
+	c := w.c
+	sb := fillViewport(c, "scroll", opts)
+	key := casColKey{p: &list[0], n: len(list), multi: w.multi != nil}
+	if w.st.lazy != nil {
+		key.loaded = len(w.st.lazy.loaded)
+	}
+	plain := w.loadData == nil && w.st.lazy == nil // children only from Children
+	wd := fillWidest(c, sb.n.id, key, len(list), func(i int) float32 {
+		o := list[i]
+		if plain {
+			return w.itemW(o, len(o.Children) > 0)
+		}
+		path := append(append([]string(nil), prefix...), o.Value)
+		return w.itemW(o, len(w.kids(o, path)) > 0 || w.pendingLazy(o, path))
+	})
+	win := fillWin{rowH: float64(w.tk.OptionHeight)}
+	win.build(c, sb, len(list), keep, func(i int) *node {
+		var it *node
+		o := list[i]
+		Key(c, o.Value, func() { it = w.item(ci, o, prefix, set) })
+		if c.a11yOn {
+			// Position in the whole column, not among the built rows.
+			pos, size := i+1, len(list)
+			it.fill(semFunc(func(s *a11y.Node) { s.PosInSet, s.SetSize = pos, size }))
+		}
+		return it
+	})
+	sb.Body(func() { fillStrut(c, wd) })
+	return sb
+}
+
+// itemW is the width a menu row asks for: its label between the row's
+// paddings, plus the expand arrow's room when it has children.
+func (w *CascaderW) itemW(o CascaderOption, hasKids bool) float32 {
+	c, th, tk := w.c, w.th, w.tk
+	el := th.Flavor == theme.Element
+	shad := shadTree(th)
+	padL, padR := tk.OptionPadding, float32(12)
+	if el {
+		padR = 30
+	} else if shad {
+		padR = 8 + shadTreeIcon + 8
+	}
+	if w.multi != nil {
+		padL += c.boxSize() + 8
+	}
+	wd := entTextW(c, o.Label, th.FontSize, text.Semibold) + padL + padR
+	if hasKids && !el && !shad {
+		wd += 18
+	}
+	return wd
+}
+
+// item builds one menu row and returns its node.
+func (w *CascaderW) item(ci int, o CascaderOption, prefix []string, set map[string]bool) *node {
 	c, st := w.c, w.st
 	th, tk := w.th, w.tk
 	el := th.Flavor == theme.Element
@@ -753,11 +835,7 @@ func (w *CascaderW) item(ci int, o CascaderOption, prefix []string, set map[stri
 	loading := lazyKids && w.isLoading(path)
 	hasKids := len(w.kids(o, path)) > 0 || lazyKids
 	it.ln.Measure = func(_, _ float32) geom.Size {
-		w := entTextW(c, o.Label, th.FontSize, text.Semibold) + padL + padR
-		if hasKids && !el && !shad {
-			w += 18
-		}
-		return geom.Size{W: w, H: tk.OptionHeight}
+		return geom.Size{W: w.itemW(o, hasKids), H: tk.OptionHeight}
 	}
 	cur := input.CursorPointer
 	if o.Disabled {
@@ -892,4 +970,5 @@ func (w *CascaderW) item(ci int, o CascaderOption, prefix []string, set map[stri
 			c.drawIconAt(l, icon.Right, ar.X, r.Y+(r.H-is)/2, is, ac)
 		}
 	}
+	return it
 }

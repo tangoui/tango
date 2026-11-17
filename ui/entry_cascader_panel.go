@@ -104,6 +104,10 @@ func (p *CascaderPanelW) Expand(path ...string) *CascaderPanelW {
 // DropdownHeight).
 func (p *CascaderPanelW) Height(px float32) *CascaderPanelW { p.cas.colH = px; return p }
 
+// Virtual forces virtual columns on or off (see CascaderW.Virtual; by
+// default columns longer than 100 options are virtual).
+func (p *CascaderPanelW) Virtual(on bool) *CascaderPanelW { p.cas.virt = p2bVirtualMode(on); return p }
+
 // Border toggles the panel frame (default on).
 func (p *CascaderPanelW) Border(on bool) *CascaderPanelW { p.border = on; return p }
 
