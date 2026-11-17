@@ -273,8 +273,12 @@ one.
 without error, not disturbed, not screen-locked and with a known renderer
 (not empty or `unknown`; `mixed` is known), and returns:
 
-- `Invalid` when either side has fewer such rounds than `-rounds` (never
-  fewer than 3: with one round Q1 = Q3 = the median and the interquartile
+- `Invalid` when either side has fewer such rounds than `-min-rounds`
+  (absent: `-rounds`; above `-rounds` the runner exits 2; recorded as
+  `meta.min_rounds` and in the "usable rounds … need N each (min-rounds
+  M)" reason; R55 runs `-rounds 7 -min-rounds 5`, so one exhausted-retry
+  round does not make a scene Invalid), never
+  fewer than 3 (with one round Q1 = Q3 = the median and the interquartile
   condition would hold by itself), a framework changed its
   renderer between rounds (by the per-round summary above), or the work per frame (work/s ÷ fps) differs by
   more than the work tolerance: 5%, or for a scene that changes only every

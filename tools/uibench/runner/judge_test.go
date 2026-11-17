@@ -295,3 +295,36 @@ func TestCPUBarMinGap(t *testing.T) {
 		}
 	}
 }
+
+// R55: -rounds 7 -min-rounds 5 judges a scene with 5 usable rounds; 4 are
+// Invalid. Absent, -min-rounds is -rounds; above -rounds it is rejected.
+func TestMinRounds(t *testing.T) {
+	need, err := resolveMinRounds(7, 5)
+	if err != nil || need != 5 {
+		t.Fatalf("resolveMinRounds(7, 5) = %d, %v; want 5", need, err)
+	}
+	o := rounds("mygo", 7, 1.0, 0.1, nil)
+	tg := rounds("tango", 7, 0.45, 0.1, func(i int, r *Round) { r.Disturbed = i >= 5 })
+	if v, why := judgeWhy(tg, o, need); v == Invalid {
+		t.Fatalf("5 of 7 usable, min-rounds 5: Invalid (%s), want judged", why)
+	}
+	tg = rounds("tango", 7, 0.45, 0.1, func(i int, r *Round) { r.Disturbed = i >= 4 })
+	v, why := judgeWhy(tg, o, need)
+	if v != Invalid || !strings.Contains(why, "need 5 each") {
+		t.Fatalf("4 of 7 usable, min-rounds 5: %s (%s), want Invalid needing 5", v, why)
+	}
+
+	if need, err := resolveMinRounds(7, 0); err != nil || need != 7 {
+		t.Fatalf("resolveMinRounds(7, absent) = %d, %v; want 7 (-rounds)", need, err)
+	}
+	tg = rounds("tango", 7, 0.45, 0.1, func(i int, r *Round) { r.Disturbed = i >= 6 })
+	if v := judge(tg, o, 7); v != Invalid {
+		t.Fatalf("6 of 7 usable, default min-rounds: verdict %s, want Invalid", v)
+	}
+
+	for _, m := range []int{8, -1} {
+		if _, err := resolveMinRounds(7, m); err == nil {
+			t.Fatalf("resolveMinRounds(7, %d): no error", m)
+		}
+	}
+}

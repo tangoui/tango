@@ -614,6 +614,9 @@ type Meta struct {
 	Args     []string `json:"args"`
 	Settle   string   `json:"settle"`
 	Seconds  string   `json:"seconds"`
+	// MinRounds is -min-rounds as resolved (absent: -rounds): the usable
+	// rounds each side needs, before the judge's floor of 3.
+	MinRounds int `json:"min_rounds"`
 	// Manifest is bin/manifest.json as verified at startup (spec §5).
 	Manifest Manifest `json:"manifest"`
 	// ClearedEnv: inherited variables removed from the scene programs'
@@ -702,6 +705,7 @@ func main() {
 	scenesFlag := flag.String("scenes", "counter,list,grid", "scenes, comma-separated")
 	fwFlag := flag.String("frameworks", "tango,mygo,nsgo", "frameworks, comma-separated; tango is judged against the others")
 	rounds := flag.Int("rounds", 5, "rounds per scene")
+	minRoundsFlag := flag.Int("min-rounds", 0, "usable rounds each side needs to be judged (never fewer than 3); 0 or absent: -rounds. At most -rounds (R55: -rounds 7 -min-rounds 5)")
 	settle := flag.Duration("settle", 3*time.Second, "wait after ready before sampling")
 	seconds := flag.Int("seconds", 10, "sampling seconds")
 	out := flag.String("out", "../results/"+time.Now().Format("2006-01-02-150405")+".json", "results file")
@@ -782,6 +786,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "runner: need scenes, frameworks, rounds ≥ 1 and seconds ≥ 1")
 		os.Exit(2)
 	}
+	minRounds, err := resolveMinRounds(*rounds, *minRoundsFlag)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "runner:", err)
+		os.Exit(2)
+	}
 	self, err := os.Executable()
 	if err != nil {
 		fatal(err)
@@ -843,6 +852,7 @@ func main() {
 	cfg := config{bin: stagedBin, settle: *settle, seconds: time.Duration(*seconds) * time.Second,
 		loadRead: systemLoad, manifest: manifest, binSrc: *bin, profileDir: *profileDir, tangoEnv: tangoEnv}
 	res := &Results{Meta: newMeta(cfg)}
+	res.Meta.MinRounds = minRounds
 	res.Meta.ClearedEnv = append([]string{}, cleared...)
 	res.Meta.DirtyBuild = manifest.dirty()
 	res.Meta.UnverifiedRunner = *unverifiedRunner
@@ -914,7 +924,7 @@ func main() {
 					continue
 				}
 				o := pick(res.Rounds, scene, fw)
-				v, why := judgeWhy(t, o, *rounds)
+				v, why := judgeWhy(t, o, minRounds)
 				why = annotateWhy(why, manifest, *unverifiedRunner)
 				why += compositor[scene]
 				if *cpuMetric == metricProcess {

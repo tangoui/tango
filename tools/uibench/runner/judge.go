@@ -80,6 +80,20 @@ const (
 	minCPUGap = 0.02
 )
 
+// resolveMinRounds is -min-rounds against -rounds: absent (0) means
+// -rounds, so every round must be usable; otherwise 1 ≤ minRounds ≤ rounds
+// (R55: -rounds 7 -min-rounds 5 lets one exhausted-retry round go). The
+// judge still floors it at minRoundsFloor.
+func resolveMinRounds(rounds, minRounds int) (int, error) {
+	if minRounds == 0 {
+		return rounds, nil
+	}
+	if minRounds < 0 || minRounds > rounds {
+		return 0, fmt.Errorf("-min-rounds %d must be between 1 and -rounds %d", minRounds, rounds)
+	}
+	return minRounds, nil
+}
+
 // judge compares Tango's rounds t with an opponent's rounds o of the same
 // scene. Each side needs at least minRounds usable rounds (never fewer than
 // minRoundsFloor): with one round, Q1 = Q3 = the median and the
@@ -104,7 +118,7 @@ func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
 	t, o = usable(t), usable(o)
 	need := max(minRounds, minRoundsFloor)
 	if len(t) < need || len(o) < need {
-		return Invalid, fmt.Sprintf("usable rounds: tango %d, opponent %d, need %d each", len(t), len(o), need)
+		return Invalid, fmt.Sprintf("usable rounds: tango %d, opponent %d, need %d each (min-rounds %d)", len(t), len(o), need, minRounds)
 	}
 	// The same path in every round, by the per-round summary: a mixed
 	// round matches only rounds that switched in the same sequence.
