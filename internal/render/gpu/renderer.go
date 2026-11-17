@@ -176,13 +176,14 @@ type Renderer struct {
 	logf func(format string, args ...any)
 	ops  []paint.Op // this frame's ops with pointer ops dereferenced (when there are any)
 
-	patchSize int       // patch page side in texels
-	patchUsed bool      // this frame contains patch-page uploads
-	patchIdle int       // rendered frames since the last patch-page use
-	patches   patchPage // this frame's packing of the patch page
-	flushed   bool      // the patch page was flushed: color uploads go to pending
-	newBatch  bool      // the next instance must start a new batch
-	pending   []Upload  // color uploads for the next emitted instance's batch
+	patchSize int          // patch page side in texels
+	patchUsed bool         // this frame contains patch-page uploads
+	patchIdle int          // rendered frames since the last patch-page use
+	patches   patchPage    // this frame's packing of the patch page
+	flushed   bool         // the patch page was flushed: color uploads go to pending
+	newBatch  bool         // the next instance must start a new batch
+	pending   []Upload     // color uploads for the next emitted instance's batch
+	bigPaths  bigPathCache // rasterized patches of paths too big for the atlas (bigpath.go)
 
 	// glyphMask is paint.CPU.GlyphMask (tests count calls through it).
 	glyphMask func(g paint.Glyph, size float32, sub uint8) (*image.Alpha, image.Point)
@@ -353,6 +354,7 @@ func (r *Renderer) syncResourceStats(f *Frame) {
 func (r *Renderer) Trim() {
 	r.cpu.Trim() // masks retain GlyphSource/Face even after the atlas is cleared
 	r.atlas.Reset()
+	r.bigPaths.reset()
 	r.maskSent = image.Point{} // upload the shrunken atlas whole
 	r.ramps = newRampCache()
 	r.patchSize, r.patchIdle = patchPageMin, 0
@@ -417,8 +419,10 @@ func (r *Renderer) frame1(bg color.NRGBA, ops []paint.Op, fs image.Point, scale 
 	r.cpu.BeginFrame(scale)
 	if scale != r.atlasScale {
 		r.atlas.Reset() // glyphs are rasterized at device size
+		r.bigPaths.reset()
 		r.atlasScale = scale
 	}
+	r.bigPaths.beginFrame()
 	r.atlas.BeginFrame()
 	r.applyBudgetPolicy(fs, scale)
 	r.ramps.beginFrame()
@@ -1384,7 +1388,7 @@ func (r *Renderer) fillPath(o paint.FillPath) {
 	e, at, st := r.pathMask(o.Path)
 	switch st {
 	case pathPatch:
-		r.patch(r.inXform([]paint.Op{o}), r.opBounds(o), 1)
+		r.patchOf(r.inXform([]paint.Op{o}), r.opBounds(o), 1, &o)
 	case pathOK:
 		dr := image.Rectangle{Min: at, Max: at.Add(e.Rect.Size())}
 		r.emit(shaders.Instance{
@@ -1602,6 +1606,12 @@ func (r *Renderer) hoistLayers() {
 // current scissor and draws the result with opacity alpha: one KindPatch
 // instance per patch-page-sized tile of its inked area.
 func (r *Renderer) patch(ops []paint.Op, bounds image.Rectangle, alpha float32) {
+	r.patchOf(ops, bounds, alpha, nil)
+}
+
+// patchOf is patch; fp, when set, is the big FillPath ops draw (ops is fp
+// under the current transform), whose rasterization bigPaths caches.
+func (r *Renderer) patchOf(ops []paint.Op, bounds image.Rectangle, alpha float32, fp *paint.FillPath) {
 	c := r.clip()
 	region := bounds.Intersect(c.scissor)
 	if region.Empty() || len(ops) == 0 {
@@ -1625,11 +1635,29 @@ func (r *Renderer) patch(ops []paint.Op, bounds image.Rectangle, alpha float32) 
 		// instance is the same either way.
 		raster = bounds.Intersect(c.full)
 	}
-	if r.onRaster != nil {
-		r.onRaster(raster)
+	var img *image.RGBA
+	var ink image.Rectangle
+	var key bigPathKey
+	if fp != nil {
+		key = bigPathKey{hash: segsHash(fp.Path.Segs), color: fp.Color, raster: raster, scale: r.scale}
+		if c.xf {
+			key.m, key.xf = c.m, true
+		}
+		if e := r.bigPaths.get(key, fp.Path.Segs); e != nil {
+			img, ink = e.img, e.ink
+		}
 	}
-	img := r.cpu.RenderRegion(ops, raster, r.scale)
-	ink := inkBounds(img).Intersect(region)
+	if img == nil {
+		if r.onRaster != nil {
+			r.onRaster(raster)
+		}
+		img = r.cpu.RenderRegion(ops, raster, r.scale)
+		ink = inkBounds(img)
+		if fp != nil {
+			r.bigPaths.put(key, fp.Path.Segs, img, ink)
+		}
+	}
+	ink = ink.Intersect(region)
 	if ink.Empty() {
 		return
 	}
