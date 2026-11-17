@@ -101,6 +101,9 @@ func (k *clock) next(c *ui.Context) bool {
 // reportHook, set by the tests only, sees every frame report() counts.
 var reportHook func(work int)
 
+// profile is UIBENCH_CPUPROFILE's CPU profile (profile.go), nil when unset.
+var profile *cpuProfile
+
 func report(work int) {
 	if runner != nil { // nil only before uihost.Open returned, and in the headless tests
 		proto.Renderer(uihost.Renderer(runner))
@@ -109,6 +112,7 @@ func report(work int) {
 		reportHook(work)
 	}
 	proto.Frame(work)
+	profile.start() // the first frame is ready; later calls do nothing
 }
 
 // useEnglish shows the components' built-in texts (buttons, month and
@@ -129,6 +133,10 @@ func main() {
 		os.Exit(2)
 	}
 	useEnglish()
+	if profile = newCPUProfile(os.Getenv); profile != nil {
+		profile.handleSignals()
+		defer profile.stop()
+	}
 	proto.Scene(*name, s.width, s.height)
 	quit := true
 	app := tango.New(tango.Options{Name: "uibench tango", ID: "local.tango.uibench", QuitOnLastClose: &quit})
@@ -143,6 +151,7 @@ func main() {
 		surface.Focus()
 	})
 	if err := app.Run(); err != nil {
+		profile.stop() // log.Fatal skips the deferred stop
 		log.Fatal(err)
 	}
 }

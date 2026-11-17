@@ -65,3 +65,37 @@ func screenLocked() bool {
 	out, err := exec.Command("ioreg", "-n", "Root", "-d1", "-w0").Output()
 	return err == nil && strings.Contains(string(out), `"CGSSessionScreenIsLocked"=Yes`)
 }
+
+// frontmostPID is the unix id of the frontmost process, from System Events,
+// or from lsappinfo when osascript fails.
+func frontmostPID() (int, error) {
+	script := `tell application "System Events" to get unix id of first process whose frontmost is true`
+	out, err := exec.Command("osascript", "-e", script).Output()
+	if err == nil {
+		if pid, perr := strconv.Atoi(strings.TrimSpace(string(out))); perr == nil {
+			return pid, nil
+		}
+	}
+	asn, lerr := exec.Command("lsappinfo", "front").Output()
+	if lerr != nil {
+		return 0, fmt.Errorf("osascript: %v; lsappinfo front: %v", err, lerr)
+	}
+	info, lerr := exec.Command("lsappinfo", "info", "-only", "pid", strings.TrimSpace(string(asn))).Output()
+	if lerr != nil {
+		return 0, fmt.Errorf("osascript: %v; lsappinfo info: %v", err, lerr)
+	}
+	return parseLsappinfoPID(string(info))
+}
+
+// parseLsappinfoPID reads `lsappinfo info -only pid`: `"pid"=1234`.
+func parseLsappinfoPID(s string) (int, error) {
+	_, v, ok := strings.Cut(strings.TrimSpace(s), "=")
+	if !ok {
+		return 0, fmt.Errorf("lsappinfo pid %q", s)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || pid <= 0 {
+		return 0, fmt.Errorf("lsappinfo pid %q", s)
+	}
+	return pid, nil
+}

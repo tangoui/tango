@@ -84,9 +84,12 @@ type Round struct {
 	Disturbed  bool    `json:"disturbed"`
 	// ScreenLocked: the session's screen was locked, so windows were
 	// occluded and frame-clock-driven frameworks may not draw at all.
-	ScreenLocked bool     `json:"screen_locked,omitempty"`
-	Error        string   `json:"error,omitempty"`
-	Notes        []string `json:"notes,omitempty"`
+	ScreenLocked bool `json:"screen_locked,omitempty"`
+	// FrontmostVerified: just before sampling the scene's window was
+	// raised and its process was the frontmost one (R51).
+	FrontmostVerified bool     `json:"frontmost_verified"`
+	Error             string   `json:"error,omitempty"`
+	Notes             []string `json:"notes,omitempty"`
 }
 
 // Input identifies what a round measured: the scene, the window the
@@ -424,6 +427,9 @@ type config struct {
 	loadRead func() (float64, error)
 	manifest Manifest
 	binSrc   string // -bin, where build.sh put the binaries; bin is the private copy
+	// profileDir is -profile-dir: the Tango program writes its CPU profile
+	// there (sceneCommand); empty in measurement runs.
+	profileDir string
 }
 
 // runOnce starts one scene program, measures it and stops it.
@@ -474,6 +480,12 @@ func runOnce(cfg config, fw, scene string) Round {
 		r.Notes = append(r.Notes, "frontmost: "+err.Error())
 	}
 	time.Sleep(cfg.settle)
+
+	// R51: raise again just before sampling (another app may have come to
+	// the front while settling) and verify the scene is frontmost.
+	var notes []string
+	r.FrontmostVerified, notes = raiseVerified(frontProbe{raise: bringToFront, front: frontmostPID, sleep: time.Sleep}, pid)
+	r.Notes = append(r.Notes, notes...)
 
 	r.LoadBefore, _ = cfg.loadRead()
 	c0, err1 := procCPU(pid)
@@ -624,6 +636,9 @@ type Meta struct {
 	AcceptedBusyCompositor bool `json:"accepted_busy_compositor"`
 	// CPUMetric is -cpu-metric: "process+ws" (default) or "process" (R50).
 	CPUMetric string `json:"cpu_metric"`
+	// ProfileDir is -profile-dir: a diagnostic run with Tango's CPU
+	// profiles, never a measurement (not adoptable, no verdicts).
+	ProfileDir string `json:"profile_dir,omitempty"`
 	// SceneIdleCores: each scene's median idle WindowServer (usable rounds).
 	SceneIdleCores map[string]float64 `json:"scene_idle_cores,omitempty"`
 }
@@ -679,6 +694,8 @@ func main() {
 	cpuMetric := flag.String("cpu-metric", metricProcessWS, "what the judge's cpu is: process+ws (process + net WindowServer over the idle compositor) or process (process CPU only; WindowServer recorded as information, no idle samples, WindowServer never disturbs a round; favours compositor-drawn NSGo)")
 	acceptBusy := flag.Bool("accept-busy-compositor", false, "measure the normal desktop as it is: a scene whose median idle WindowServer is above 0.1 cores is noted (accepted by user), not marked not adoptable; the drift guard and the 0.6-core round cap still apply")
 	checkIdleMode := flag.Bool("check-idle", false, "open no window, launch nothing: wait -settle, sample the idle WindowServer for -seconds, print it against the 0.1-core threshold and the screen-share programs found; exit 0 on pass, 1 on fail. Runs before (without) manifest verification")
+	fromInvalid := flag.String("scenes-from-invalid", "", "a previous results file: run only the scenes whose verdict was Invalid against any opponent (in place of -scenes)")
+	profileDir := flag.String("profile-dir", "", "diagnostic, not a measurement: run each scene once per framework, give the Tango program UIBENCH_CPUPROFILE and keep its CPU profile as <dir>/tango-<scene>.pprof; no verdicts, not adoptable")
 	buildMode := flag.Bool("build", false, "build.sh's step: build the scene programs and the runner into -bin with the pinned toolchain and write -bin/manifest.json")
 	flag.Parse()
 
@@ -722,6 +739,23 @@ func main() {
 		os.Exit(2)
 	}
 	scenes, fws := split(*scenesFlag), split(*fwFlag)
+	if *fromInvalid != "" {
+		explicit := false
+		flag.Visit(func(f *flag.Flag) { explicit = explicit || f.Name == "scenes" })
+		if explicit {
+			fmt.Fprintln(os.Stderr, "runner: give -scenes or -scenes-from-invalid, not both")
+			os.Exit(2)
+		}
+		var err error
+		if scenes, err = scenesFromInvalid(*fromInvalid); err != nil {
+			fatal(err)
+		}
+		if len(scenes) == 0 {
+			fmt.Println("runner: -scenes-from-invalid:", *fromInvalid, "has no Invalid verdict; nothing to run")
+			return
+		}
+		fmt.Printf("runner: -scenes-from-invalid %s: %s\n", *fromInvalid, strings.Join(scenes, ","))
+	}
 	if len(scenes) == 0 || len(fws) == 0 || *rounds < 1 || *seconds < 1 {
 		fmt.Fprintln(os.Stderr, "runner: need scenes, frameworks, rounds ≥ 1 and seconds ≥ 1")
 		os.Exit(2)
@@ -747,9 +781,20 @@ func main() {
 	}
 	_, cleared := childEnv(os.Environ())
 	if len(cleared) > 0 {
-		fmt.Printf("runner: cleared inherited %s from the scene programs' environment (Tango runs its default policy, no Tango-only diagnostics)\n", strings.Join(cleared, ", "))
+		fmt.Printf("runner: cleared inherited %s from the scene programs' environment (Tango runs its default policy, no Tango-only diagnostics, no CPU profile)\n", strings.Join(cleared, ", "))
 	} else {
-		fmt.Println("runner: no TANGO_* variable inherited; the scene programs run without any (Tango's default renderer policy)")
+		fmt.Println("runner: no TANGO_* or UIBENCH_CPUPROFILE variable inherited; the scene programs run without any (Tango's default renderer policy)")
+	}
+	if *profileDir != "" {
+		dir, err := filepath.Abs(*profileDir)
+		if err == nil {
+			err = os.MkdirAll(dir, 0o755)
+		}
+		if err != nil {
+			fatal(err)
+		}
+		*profileDir = dir
+		fmt.Println("runner: -profile-dir: a diagnostic run, not a measurement; Tango's CPU profiles go to", dir)
 	}
 	if err := checkScreen(screenLocked); err != nil {
 		fatal(err)
@@ -774,7 +819,7 @@ func main() {
 	defer staged.cleanup()
 	fmt.Println("runner: launching private copies of the verified binaries from", stagedBin)
 	cfg := config{bin: stagedBin, settle: *settle, seconds: time.Duration(*seconds) * time.Second,
-		loadRead: systemLoad, manifest: manifest, binSrc: *bin}
+		loadRead: systemLoad, manifest: manifest, binSrc: *bin, profileDir: *profileDir}
 	res := &Results{Meta: newMeta(cfg)}
 	res.Meta.ClearedEnv = append([]string{}, cleared...)
 	res.Meta.DirtyBuild = manifest.dirty()
@@ -784,6 +829,10 @@ func main() {
 	res.Meta.CPUMetric = *cpuMetric
 	if *unverifiedRunner {
 		res.Meta.NotAdoptable = append(res.Meta.NotAdoptable, "unverified runner")
+	}
+	if *profileDir != "" {
+		res.Meta.ProfileDir = *profileDir
+		res.Meta.markNotAdoptable("profiling run")
 	}
 	if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
 		fatal(err)
@@ -808,6 +857,15 @@ func main() {
 		res.Rounds = append(res.Rounds, r)
 		printRound(r)
 		return write(*out, res)
+	}
+	if *profileDir != "" {
+		profileScenes(deps, scenes, fws, *profileDir, emit)
+		res.Meta.Finished = time.Now().Format(time.RFC3339)
+		if err := write(*out, res); err != nil {
+			fatal(err)
+		}
+		fmt.Println("results (diagnostic, no verdicts):", *out)
+		return
 	}
 	for _, scene := range scenes {
 		for round := range *rounds {

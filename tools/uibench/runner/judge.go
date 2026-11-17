@@ -32,6 +32,11 @@ type sceneMeta struct {
 	// unequalMotion: the frameworks animate the scene's change for
 	// different times by default (scenes.md, "Default motion").
 	unequalMotion bool
+	// sparseFrames: the protocol defines the scene's frame rate below
+	// 60 fps (it draws only now and then), so the R51 drawing check
+	// (checkDrawing) does not apply. The periodic scenes (period 10, 30)
+	// still draw every frame and are checked.
+	sparseFrames bool
 }
 
 // scenes the judge treats specially; every other scene changes on every

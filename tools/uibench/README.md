@@ -128,7 +128,11 @@ started afresh, in an order that rotates by one each round. For each:
 1. Load gate before the round (1-minute load < 6, waiting up to 10 min,
    as uiperf's gate).
 2. Start, wait for `bench ready` (30 s timeout; startup = exec to ready),
-   bring the window to the front with `osascript`, wait `-settle`.
+   bring the window to the front with `osascript`, wait `-settle`, then
+   raise it again just before sampling and verify the frontmost process's
+   unix id is the scene's (System Events, or `lsappinfo` if osascript
+   fails), raising up to 3 more times; `frontmost_verified` records the
+   outcome (ruling R51, below).
 3. Sample `-seconds`: process CPU (`proc_pid_rusage` flavor 2,
    user+system, Mach time converted with `mach_timebase_info`);
    WindowServer CPU (`ps -o time=` before and after); fps and work/s
@@ -136,6 +140,15 @@ started afresh, in an order that rotates by one each round. For each:
    over all intervals reported); phys_footprint at the end and its peak.
 4. Load ≥ 6 before or after sampling marks the attempt `disturbed`; it is
    measured again, up to 3 more times. Every attempt stays in the file.
+   Ruling R51: so does a ready attempt that drew below half of the
+   expected 60 fps, noted "occluded or not drawing". MyGo pauses its
+   animation frames while its window is occluded (mygo@v0.9.0
+   ui/runtime.go, `rt.held` when `rt.host.occluded()`) and drew 0 frames
+   after ready with another app frontmost, while Tango and NSGo keep
+   drawing, so such an attempt measured a different state. Exempt:
+   counter (expected fps 0) and any scene marked `sparseFrames` in
+   runner/judge.go (frame rate defined by the protocol; none today: the
+   period-10/30 scenes still draw every frame and are checked).
 5. Idle compositor (ruling R44). Before each scene round's launches, and
    again after them, the runner waits `-settle` (so a closing window's
    animation and the focus change are not counted) and samples WindowServer
@@ -201,6 +214,41 @@ WindowServer excluded by user choice — favours compositor-drawn NSGo)".
 Caveat: a framework that hands drawing to the compositor (NSGo's Core
 Animation layers) moves cost out of its own process, so process-only CPU
 understates it relative to frameworks that draw in-process.
+
+### Rerunning the Invalid scenes
+
+`-scenes-from-invalid <results.json>` (in place of `-scenes`) reads a
+previous results file and runs only the scenes whose verdict was Invalid
+against any opponent, in that file's order; the other flags are as usual:
+
+```sh
+../bin/runner -bin ../bin -scenes-from-invalid ../results/12b-proc-20261117-1222.json \
+	-cpu-metric process -accept-busy-compositor -out ../results/12b-rerun-$(date +%H%M).json
+```
+
+### Profiling the Tango program
+
+The Tango program (tango/) writes a pprof CPU profile from ready until it
+exits when `UIBENCH_CPUPROFILE=<path>` is set; SIGTERM or SIGINT stops the
+profile before it exits. It is a manual diagnostic aid, never part of a
+measurement: the runner clears `UIBENCH_CPUPROFILE` (as every `TANGO_*`)
+from every scene program's environment. Only `-profile-dir <dir>` sets it:
+the runner then runs each requested scene once per framework (load gate,
+sampled as usual, no retries or idle samples), gives the Tango program
+alone `UIBENCH_CPUPROFILE=<dir>/tango-<scene>.pprof`, notes in each Tango
+round whether the profile was written, writes no verdicts and marks the
+results not adoptable ("profiling run"; profiling costs CPU).
+
+```sh
+../bin/runner -bin ../bin -scenes list,grid -frameworks tango -profile-dir ../results/prof \
+	-seconds 10 -out ../results/prof/run.json
+go tool pprof -top ../bin/tango ../results/prof/tango-list.pprof
+# by hand, without the runner:
+UIBENCH_CPUPROFILE=/tmp/tango-list.pprof ../bin/tango -scene list   # Ctrl-C to stop
+```
+
+bin/tango is built with `-ldflags "-s -w"`, so pprof reads its symbols
+from the profile itself (Go records function names in it).
 
 ### Quiet-machine check
 

@@ -173,3 +173,35 @@ func TestChildEnvClearsTangoRenderer(t *testing.T) {
 	}
 	var _ *exec.Cmd = cmd
 }
+
+// UIBENCH_CPUPROFILE never reaches a measurement run; -profile-dir sets it
+// for the Tango program only, to the scene's file.
+func TestChildEnvProfile(t *testing.T) {
+	env, cleared := childEnv([]string{"HOME=/h", "UIBENCH_CPUPROFILE=/tmp/x.pprof", "UIBENCH_OTHER=1"})
+	if !reflect.DeepEqual(env, []string{"HOME=/h", "UIBENCH_OTHER=1"}) || !reflect.DeepEqual(cleared, []string{"UIBENCH_CPUPROFILE=/tmp/x.pprof"}) {
+		t.Fatalf("childEnv = %v, cleared %v", env, cleared)
+	}
+	t.Setenv("UIBENCH_CPUPROFILE", "/tmp/inherited.pprof")
+	profiles := func(cmd *exec.Cmd) (out []string) {
+		for _, kv := range cmd.Env {
+			if strings.HasPrefix(kv, "UIBENCH_CPUPROFILE=") {
+				out = append(out, kv)
+			}
+		}
+		return out
+	}
+	for _, fw := range []string{"tango", "mygo", "nsgo"} {
+		if got := profiles(sceneCommand(config{bin: "/b"}, fw, "list")); len(got) != 0 {
+			t.Fatalf("measurement run of %s inherits %v", fw, got)
+		}
+	}
+	cfg := config{bin: "/b", profileDir: "/p"}
+	if got := profiles(sceneCommand(cfg, "tango", "list")); !reflect.DeepEqual(got, []string{"UIBENCH_CPUPROFILE=/p/tango-list.pprof"}) {
+		t.Fatalf("-profile-dir tango env %v", got)
+	}
+	for _, fw := range []string{"mygo", "nsgo"} {
+		if got := profiles(sceneCommand(cfg, fw, "list")); len(got) != 0 {
+			t.Fatalf("-profile-dir gives %s %v", fw, got)
+		}
+	}
+}

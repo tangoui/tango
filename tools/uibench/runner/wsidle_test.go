@@ -116,6 +116,7 @@ type fakeBench struct {
 	log      []string
 	measured map[string]int
 	disturb  map[string]int // fw: attempts that come back load-disturbed
+	stalled  map[string]int // fw: attempts that draw 0 fps (occluded, R51)
 }
 
 func (f *fakeBench) deps() roundDeps {
@@ -149,7 +150,7 @@ func (f *fakeBench) deps() roundDeps {
 			defer f.g.remove(pid)
 			f.log = append(f.log, "run "+fw)
 			f.measured[fw]++
-			r := Round{Scene: scene, Framework: fw, Ready: true, Renderer: "native", Seconds: 10, CPUSeconds: 1, WindowServerSeconds: 4.5}
+			r := Round{Scene: scene, Framework: fw, Ready: true, Renderer: "native", Seconds: 10, CPUSeconds: 1, WindowServerSeconds: 4.5, FPS: 60}
 			f.now = f.now.Add(4 * time.Second) // start, ready, settle
 			r.SampleStartNs = f.now.UnixNano()
 			f.now = f.now.Add(10 * time.Second)
@@ -158,13 +159,17 @@ func (f *fakeBench) deps() roundDeps {
 				f.disturb[fw]--
 				r.Disturbed = true
 			}
+			if f.stalled[fw] > 0 {
+				f.stalled[fw]--
+				r.FPS, r.WorkPerSec = 0, 0
+			}
 			return r
 		},
 	}
 }
 
 func newFakeBench(t *testing.T, idle ...float64) *fakeBench {
-	return &fakeBench{t: t, now: time.Unix(1, 0), idle: idle, measured: map[string]int{}, disturb: map[string]int{}, wsErr: map[int]error{}}
+	return &fakeBench{t: t, now: time.Unix(1, 0), idle: idle, measured: map[string]int{}, disturb: map[string]int{}, stalled: map[string]int{}, wsErr: map[int]error{}}
 }
 
 func TestIdleSampledWithNoChild(t *testing.T) {

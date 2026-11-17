@@ -118,10 +118,12 @@ func describeRenderer(rs []Round) string {
 // childEnv is the scene programs' environment: the runner's, without any
 // TANGO_* variable, so that Tango takes its default renderer policy (spec
 // §6.3: TANGO_RENDERER) and pays for no Tango-only diagnostics (such as
-// TANGO_FRAME_TRACE). cleared lists what was removed.
+// TANGO_FRAME_TRACE), and without UIBENCH_CPUPROFILE, the Tango program's
+// opt-in CPU profile, which only -profile-dir sets. cleared lists what was
+// removed.
 func childEnv(parent []string) (env, cleared []string) {
 	for _, kv := range parent {
-		if strings.HasPrefix(kv, "TANGO_") {
+		if strings.HasPrefix(kv, "TANGO_") || strings.HasPrefix(kv, profileEnv+"=") {
 			cleared = append(cleared, kv)
 			continue
 		}
@@ -130,10 +132,24 @@ func childEnv(parent []string) (env, cleared []string) {
 	return env, cleared
 }
 
-// sceneCommand is the command that starts one scene program.
+// profileEnv is the Tango program's CPU profile variable (tango/profile.go).
+const profileEnv = "UIBENCH_CPUPROFILE"
+
+// profilePath is where -profile-dir has the Tango program write scene's
+// CPU profile.
+func profilePath(dir, scene string) string {
+	return filepath.Join(dir, "tango-"+scene+".pprof")
+}
+
+// sceneCommand is the command that starts one scene program. Only with
+// -profile-dir (cfg.profileDir) does the Tango program get
+// UIBENCH_CPUPROFILE; no other program and no measurement run ever does.
 func sceneCommand(cfg config, fw, scene string) *exec.Cmd {
 	cmd := exec.Command(filepath.Join(cfg.bin, fw), "-scene", scene)
 	cmd.Env, _ = childEnv(os.Environ())
+	if cfg.profileDir != "" && fw == "tango" {
+		cmd.Env = append(cmd.Env, profileEnv+"="+profilePath(cfg.profileDir, scene))
+	}
 	if cmd.Env == nil {
 		cmd.Env = []string{} // an empty environment, not the runner's
 	}

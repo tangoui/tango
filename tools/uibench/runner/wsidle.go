@@ -186,6 +186,7 @@ func runSceneRound(d roundDeps, scene string, round int, fws []string, emit func
 		for _, fw := range rotate(fws, round) {
 			for a := 0; a <= maxRetries; a++ {
 				r := d.measure(fw, scene)
+				checkDrawing(&r) // R51: occluded or not drawing is disturbed, measured again
 				r.Round, r.Attempt = round, next[fw]
 				if d.processOnly {
 					r.CPUMetric = metricProcess
