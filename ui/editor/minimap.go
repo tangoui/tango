@@ -90,6 +90,14 @@ type minimapState struct {
 	// Cached tokens below are cloned before the next row reuses this slice.
 	tokenScratch []monarch.Token
 	keep         map[int]bool
+	// byText indexes the previous frame's rows by miniature text, so a row
+	// whose line number changed (a line inserted or deleted above it) is
+	// found again; it is reused only when nothing else about it changed.
+	// It is built lazily on a frame's first miss: a frame where every row
+	// is found by its key (typing, the caret blinking) never builds it.
+	byText  map[string][]*miniLine
+	indexed bool // byText holds this frame's previous rows
+	misses  int  // rows this frame the key did not find (takeMoved)
 	// The character minimap (minimap_chars.go): the glyph cells in use,
 	// the strip images by strip number, whether the strips are numbered
 	// by sample (rows thinner than a pixel), the last composition number,
@@ -314,6 +322,7 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 		clear(m.keep)
 	}
 	keep := m.keep
+	m.indexed, m.misses = false, 0 // byText is built on the frame's second miss (takeMoved)
 	// Don't retain token strings from an old grammar when the view is idle.
 	// A later query can shorten the slice; clear the whole backing array
 	// so earlier queries cannot keep an old grammar's token strings alive.
@@ -382,6 +391,15 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 			m.tokenScratch = toks
 		}
 		dirty := ln == nil || ln.text != prefix || ln.start != start || ln.final != final || (cached && !slices.Equal(ln.tokens, toks))
+		if dirty && cached {
+			// A line inserted or deleted above moves rows to other line
+			// numbers unchanged: take over the previous frame's row with
+			// the same miniature, start state and tokens, if there is one.
+			if moved := m.takeMoved(prefix, start, final, from, toks); moved != nil {
+				ln, dirty = moved, false
+				m.cache[key] = ln
+			}
+		}
 		if !dirty {
 			w.ensureMiniBitmap(ln, th, tab)
 			continue
@@ -408,6 +426,8 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 			delete(m.cache, i)
 		}
 	}
+	// Do not keep the previous frame's rows reachable through the index.
+	clear(m.byText)
 	// Rows left for later ask for the next frame (ui.Invalidate, not a
 	// timer: the caret's blink timer stays; what the rows draw is declared
 	// as damage through navPaint, damage.go). The lines in view may all be
@@ -449,6 +469,51 @@ type miniRow struct {
 
 func miniBlocks(s string, toks []monarch.Token, th *theme.Theme, tab int) []miniBlock {
 	return miniBlocksAt(s, 0, toks, th, tab)
+}
+
+// indexMoved indexes the cached rows by miniature text (see byText). It
+// runs once per frame, on the second row the key does not find; rows are
+// taken out of the index as they are reused, so one cached row serves one
+// new row at most. Rows the frame already rebuilt under a key are in the
+// cache too: they match only rows with their exact contents, which a
+// rebuild would give the same miniature.
+func (m *minimapState) indexMoved() {
+	if m.byText == nil {
+		m.byText = make(map[string][]*miniLine, len(m.cache))
+	}
+	clear(m.byText)
+	for _, ln := range m.cache {
+		m.byText[ln.text] = append(m.byText[ln.text], ln)
+	}
+	m.indexed = true
+}
+
+// takeMoved returns and removes from the index a previous frame's row
+// whose miniature, start state, finality, token base and tokens are the
+// ones a rebuild would give the row being built (prefix, start, final,
+// from and toks): everything the row and its bitmap are made from, as the
+// dirty check compares for a row found by key. Nil when there is none.
+//
+// Typing changes one row: its key misses once and the row is rebuilt as
+// before, with no index. Moved rows miss together (every row below an
+// inserted or deleted line), so the index is built on the frame's second
+// miss; the first one is rebuilt without it.
+func (m *minimapState) takeMoved(prefix string, start monarch.State, final bool, from int, toks []monarch.Token) *miniLine {
+	m.misses++
+	if m.misses < 2 {
+		return nil
+	}
+	if !m.indexed {
+		m.indexMoved()
+	}
+	rows := m.byText[prefix]
+	for i, ln := range rows {
+		if ln.start == start && ln.final == final && ln.base == from && slices.Equal(ln.tokens, toks) {
+			m.byText[prefix] = slices.Delete(rows, i, i+1)
+			return ln
+		}
+	}
+	return nil
 }
 func miniBlocksAt(s string, base int, toks []monarch.Token, th *theme.Theme, tab int) []miniBlock {
 	var out []miniBlock
