@@ -142,3 +142,27 @@ func TestNativeGlyphDrawVisibleAndBorrowsBuffers(t *testing.T) {
 		t.Fatal("accepted non-finite size")
 	}
 }
+
+// TestNativeGlyphBoundsSteadyStateAllocsNothing: a grid redraws the same
+// digits every frame; once their metrics are cached, Bounds must not
+// allocate (a re-growing metrics map was a large share of a dashboard
+// frame's garbage).
+func TestNativeGlyphBoundsSteadyStateAllocsNothing(t *testing.T) {
+	p := requireNativeGlyphProvider(t)
+	l := Shape("0123456789.-", Style{Size: 11}, Options{NoWrap: true})
+	if len(l.Glyphs) == 0 || !p.Available(l.Glyphs[0].Src) {
+		t.Skip("digits are not CoreText glyphs here")
+	}
+	ids := make([]uint16, len(l.Glyphs))
+	pos := make([]geom.Point, len(l.Glyphs))
+	for i, g := range l.Glyphs {
+		ids[i], pos[i] = uint16(g.ID), geom.Pt(g.X*2, 0)
+	}
+	run := nativeglyph.Run{Source: l.Glyphs[0].Src, Size: 22, IDs: ids, Positions: pos}
+	if _, ok := p.Bounds(run); !ok {
+		t.Fatal("bounds rejected")
+	}
+	if a := testing.AllocsPerRun(100, func() { p.Bounds(run) }); a != 0 {
+		t.Fatalf("cached Bounds allocated %.1f times per call", a)
+	}
+}
