@@ -6,7 +6,9 @@ package ui
 // new-york v4 marks keyboard focus with "focus-visible:border-ring
 // focus-visible:ring-[3px] focus-visible:ring-ring/50": a 3px halo of the
 // ring color at half opacity right outside the border box, plus the border
-// itself switching to the ring color. Invalid controls (aria-invalid) use a
+// itself switching to the ring color. Tango narrows the halo to 1px at 15%
+// (theme ControlOutline / ControlOutlineWidth): the neutral ring at 3px/50%
+// read as a heavy shadow. Invalid controls (aria-invalid) use a
 // destructive border and a destructive/20 halo.
 
 import (
@@ -20,11 +22,12 @@ import (
 // shad reports whether the active theme is the shadcn/ui flavor.
 func (c *Context) shad() bool { return c.Theme.Flavor == theme.StyleShadcn }
 
-// shadRingW is the width of the ring-[3px] focus halo.
-const shadRingW = 3
+// shadRingW is the width of the focus halo (shadcn ring-[3px], narrowed to
+// 1px: see the file comment).
+const shadRingW = 1
 
-// shadFocusRing paints the new-york focus indication around r: the 3px
-// ring/50 halo (destructive/20 when invalid) and a 1px border in the ring
+// shadFocusRing paints the new-york focus indication around r: the 1px
+// ring halo (destructive/20 when invalid) and a 1px border in the ring
 // color. The border uses th.FocusRing, which the theme lifts to 3:1
 // against the page (WCAG 1.4.11) so the indicator stays visible even
 // though the halo itself is faint.

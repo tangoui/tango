@@ -426,7 +426,12 @@ func shadcnCore(o ShadcnOptions, full bool, comps Components) *Theme {
 	t.TextOnSolid = Hex("#ffffff")
 
 	t.ControlFocusBorder = v.Ring
-	t.ControlOutline, t.ControlOutlineWidth, t.ControlOutlineOffset = Fade(v.Ring, .5), 3, 0
+	// new-york v4 marks focus with ring-[3px] ring-ring/50. Its neutral
+	// --ring at that width reads as a heavy gray shadow around a focused
+	// control, so the halo is 1px at 15% (a deliberate deviation chosen by
+	// the user); the focused border (ControlFocusBorder, below) carries the
+	// visible indication and stays lifted to 3:1.
+	t.ControlOutline, t.ControlOutlineWidth, t.ControlOutlineOffset = Fade(v.Ring, .15), 1, 0
 	t.ControlOutlineError, t.ControlOutlineWarning = Fade(v.Destructive, .2), Fade(warning, .2)
 	t.FocusRing = v.Ring
 	t.FocusOutline, t.FocusRingWidth, t.FocusRingOffset = v.Ring, 2, 2
