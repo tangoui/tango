@@ -612,6 +612,11 @@ type Meta struct {
 	// CompositorNotes: per scene, screen-share programs running (with the
 	// idle load) or an unknown screen-share state; not adoptability (R46).
 	CompositorNotes []string `json:"compositor_notes,omitempty"`
+	// AcceptedBusyCompositor: -accept-busy-compositor (R49), a busy idle
+	// compositor (the normal desktop) does not make the run not adoptable.
+	AcceptedBusyCompositor bool `json:"accepted_busy_compositor"`
+	// SceneIdleCores: each scene's median idle WindowServer (usable rounds).
+	SceneIdleCores map[string]float64 `json:"scene_idle_cores,omitempty"`
 }
 
 func (m *Meta) addCompositorNote(n string) {
@@ -662,6 +667,7 @@ func main() {
 	out := flag.String("out", "../results/"+time.Now().Format("2006-01-02-150405")+".json", "results file")
 	verifyOnly := flag.Bool("verify", false, "verify -bin/manifest.json against the binaries and exit, opening no window")
 	unverifiedRunner := flag.Bool("unverified-runner", false, "allow a runner that is not the manifest's (go run); the results are marked not adoptable and every verdict line says so")
+	acceptBusy := flag.Bool("accept-busy-compositor", false, "measure the normal desktop as it is: a scene whose median idle WindowServer is above 0.1 cores is noted (accepted by user), not marked not adoptable; the drift guard and the 0.6-core round cap still apply")
 	checkIdleMode := flag.Bool("check-idle", false, "open no window, launch nothing: wait -settle, sample the idle WindowServer for -seconds, print it against the 0.1-core threshold and the screen-share programs found; exit 0 on pass, 1 on fail. Runs before (without) manifest verification")
 	buildMode := flag.Bool("build", false, "build.sh's step: build the scene programs and the runner into -bin with the pinned toolchain and write -bin/manifest.json")
 	flag.Parse()
@@ -760,6 +766,7 @@ func main() {
 	res.Meta.DirtyBuild = manifest.dirty()
 	res.Meta.UnverifiedRunner = *unverifiedRunner
 	res.Meta.Adoptable = !*unverifiedRunner
+	res.Meta.AcceptedBusyCompositor = *acceptBusy
 	if *unverifiedRunner {
 		res.Meta.NotAdoptable = append(res.Meta.NotAdoptable, "unverified runner")
 	}
@@ -800,7 +807,7 @@ func main() {
 	}
 	compositor := map[string]string{} // scene: what its verdict lines append
 	for _, scene := range scenes {
-		compositor[scene] = assessCompositor(&res.Meta, scene, pickScene(res.Rounds, scene))
+		compositor[scene] = assessCompositor(&res.Meta, scene, pickScene(res.Rounds, scene), *acceptBusy)
 	}
 	if contains(fws, "tango") {
 		for _, scene := range scenes {

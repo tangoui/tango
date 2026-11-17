@@ -160,7 +160,20 @@ started afresh, in an order that rotates by one each round. For each:
    adoptable. A screen-share program running (a daemon can stay with no
    viewer connected) only adds "(screen-share app running: <names>, idle X
    cores)" to the verdicts and `meta.compositor_notes`; a failed `ps` adds
-   "screen-share state unknown".
+   "screen-share state unknown". Known look-alikes are skipped by path:
+   `parsecd` / `parsec-fbf` under
+   /System/Library/PrivateFrameworks/CoreParsec.framework are Apple's
+   Spotlight suggestion daemons (the Parsec app under /Applications
+   still counts).
+   `-accept-busy-compositor` (R49) is for measuring the normal desktop as
+   it is (browser and other apps visible, by the user's choice): a scene
+   whose median idle is above 0.1 cores is then not marked not adoptable;
+   its verdicts and `meta.compositor_notes` say "(normal desktop, idle
+   WindowServer X cores, accepted by user)", and
+   `meta.accepted_busy_compositor` is true. `meta.scene_idle_cores` holds
+   every scene's idle median in either case. The drift guard and the
+   0.6-core per-round cap apply unchanged: a drifting background is
+   rerun, and one that never settles leaves the scene Invalid.
    A round's attempts are written to the results file only once its
    second idle sample is in, so Ctrl-C loses the scene round in progress.
 

@@ -215,13 +215,28 @@ func sceneIdle(rs []Round) (float64, int) {
 // only: a median idle above busyIdleCores marks the run not adoptable
 // ("compositor busy"). A screen-share program running (a daemon may stay
 // with no viewer) is a note, as is an unknown screen-share state (ps
-// failed); the notes also go to m.CompositorNotes.
-func assessCompositor(m *Meta, scene string, rs []Round) string {
+// failed); the notes also go to m.CompositorNotes. With accept
+// (-accept-busy-compositor, R49: the user measures the normal desktop as it
+// is) a busy idle compositor is a note instead of not adoptable. Each
+// scene's idle median goes to m.SceneIdleCores.
+func assessCompositor(m *Meta, scene string, rs []Round, accept bool) string {
 	idle, n := sceneIdle(rs)
 	var parts []string
+	if n > 0 {
+		if m.SceneIdleCores == nil {
+			m.SceneIdleCores = map[string]float64{}
+		}
+		m.SceneIdleCores[scene] = idle
+	}
 	if n > 0 && idle > busyIdleCores {
-		parts = append(parts, fmt.Sprintf("compositor busy: idle WindowServer %.3f cores > %.2f", idle, busyIdleCores))
-		m.markNotAdoptable("compositor busy")
+		if accept {
+			note := fmt.Sprintf("normal desktop, idle WindowServer %.3f cores, accepted by user", idle)
+			parts = append(parts, note)
+			m.addCompositorNote(scene + ": " + note)
+		} else {
+			parts = append(parts, fmt.Sprintf("compositor busy: idle WindowServer %.3f cores > %.2f", idle, busyIdleCores))
+			m.markNotAdoptable("compositor busy")
+		}
 	}
 	var names []string
 	for _, x := range append(append([]string{}, m.ScreenSharing...), m.ScreenSharingFinish...) {
@@ -282,12 +297,26 @@ var screenSharingNames = []string{
 	"splashtop", "srstreamer", "vncserver", "remoting_me2me_host", "jump desktop",
 }
 
+// screenSharingNotIn are directories whose programs match a name above
+// but are not screen sharing: CoreParsec's parsecd and parsec-fbf are
+// Apple's Spotlight suggestion daemons, not the Parsec app
+// (/Applications/Parsec.app).
+var screenSharingNotIn = []string{"/System/Library/PrivateFrameworks/CoreParsec.framework/"}
+
 // matchScreenSharing picks the known screen-sharing programs from `ps -axo
 // comm=` output (full paths), each name once, sorted.
 func matchScreenSharing(ps string) []string {
 	seen := map[string]bool{}
 	for _, line := range strings.Split(ps, "\n") {
-		name := filepath.Base(strings.TrimSpace(line))
+		path := strings.TrimSpace(line)
+		excluded := false
+		for _, dir := range screenSharingNotIn {
+			excluded = excluded || strings.HasPrefix(path, dir)
+		}
+		if excluded {
+			continue
+		}
+		name := filepath.Base(path)
 		low := strings.ToLower(name)
 		for _, k := range screenSharingNames {
 			if strings.HasPrefix(low, k) {

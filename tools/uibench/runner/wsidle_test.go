@@ -331,17 +331,17 @@ func usableIdle(cores float64) Round {
 func TestCompositorBusyByIdleOnly(t *testing.T) {
 	busy := []Round{usableIdle(0.38), usableIdle(0.36), usableIdle(0.40)}
 	m := Meta{Adoptable: true}
-	got := assessCompositor(&m, "list", busy)
+	got := assessCompositor(&m, "list", busy, false)
 	if !strings.Contains(got, "compositor busy: idle WindowServer 0.380 cores") || m.Adoptable || len(m.NotAdoptable) != 1 || m.NotAdoptable[0] != "compositor busy" {
 		t.Fatalf("busy idle: %q, adoptable %v %v", got, m.Adoptable, m.NotAdoptable)
 	}
-	assessCompositor(&m, "grid", busy)
+	assessCompositor(&m, "grid", busy, false)
 	if len(m.NotAdoptable) != 1 {
 		t.Fatalf("reason recorded twice: %v", m.NotAdoptable)
 	}
 	calm := []Round{usableIdle(0.02), usableIdle(0.03), usableIdle(0.05)}
 	m = Meta{Adoptable: true}
-	if got := assessCompositor(&m, "list", calm); got != "" || !m.Adoptable {
+	if got := assessCompositor(&m, "list", calm, false); got != "" || !m.Adoptable {
 		t.Fatalf("calm: %q, adoptable %v", got, m.Adoptable)
 	}
 }
@@ -351,7 +351,7 @@ func TestCompositorBusyByIdleOnly(t *testing.T) {
 func TestScreenShareNoteWhenIdleLow(t *testing.T) {
 	calm := []Round{usableIdle(0.02), usableIdle(0.03), usableIdle(0.04)}
 	m := Meta{Adoptable: true, ScreenSharing: []string{"UURemoteServer"}, ScreenSharingFinish: []string{"UURemoteServer", "AnyDesk"}}
-	got := assessCompositor(&m, "list", calm)
+	got := assessCompositor(&m, "list", calm, false)
 	if got != " (screen-share app running: UURemoteServer, AnyDesk, idle 0.030 cores)" {
 		t.Fatalf("note %q", got)
 	}
@@ -363,7 +363,7 @@ func TestScreenShareNoteWhenIdleLow(t *testing.T) {
 	}
 	// ps failed: the state is unknown, still adoptable.
 	m = Meta{Adoptable: true, ScreenSharingFinishError: "ps: exit 1"}
-	if got := assessCompositor(&m, "list", calm); !strings.Contains(got, "screen-share state unknown") || !m.Adoptable {
+	if got := assessCompositor(&m, "list", calm, false); !strings.Contains(got, "screen-share state unknown") || !m.Adoptable {
 		t.Fatalf("unknown state: %q adoptable %v", got, m.Adoptable)
 	}
 }
@@ -381,7 +381,7 @@ func TestSceneIdleExcludesDisturbed(t *testing.T) {
 		t.Fatalf("median %v over %d rounds, want 0.32 over 3", v, n)
 	}
 	m := Meta{Adoptable: true}
-	if assessCompositor(&m, "list", rs); m.Adoptable {
+	if assessCompositor(&m, "list", rs, false); m.Adoptable {
 		t.Fatal("disturbed zero baselines hid a busy compositor")
 	}
 }
@@ -416,5 +416,47 @@ func TestCheckIdle(t *testing.T) {
 	var out strings.Builder
 	if checkIdle(f.deps(), nil, errFake, &out) || !strings.Contains(out.String(), "unknown") {
 		t.Fatalf("failed sample passed:\n%s", out.String())
+	}
+}
+
+// R49: with -accept-busy-compositor a busy idle compositor is a note, the
+// run stays adoptable, and the scene's idle median is recorded.
+func TestAcceptBusyCompositor(t *testing.T) {
+	busy := []Round{usableIdle(0.38), usableIdle(0.36), usableIdle(0.40)}
+	m := Meta{Adoptable: true, AcceptedBusyCompositor: true}
+	got := assessCompositor(&m, "list", busy, true)
+	if got != " (normal desktop, idle WindowServer 0.380 cores, accepted by user)" {
+		t.Fatalf("note %q", got)
+	}
+	if !m.Adoptable || len(m.NotAdoptable) != 0 {
+		t.Fatalf("accepted busy compositor made the run not adoptable: %v", m.NotAdoptable)
+	}
+	if m.SceneIdleCores["list"] != 0.38 || len(m.CompositorNotes) != 1 {
+		t.Fatalf("meta idle %v notes %v", m.SceneIdleCores, m.CompositorNotes)
+	}
+	// Without the flag: unchanged, not adoptable.
+	m = Meta{Adoptable: true}
+	if assessCompositor(&m, "list", busy, false); m.Adoptable {
+		t.Fatal("busy compositor adoptable without the flag")
+	}
+	// The flag does not touch the drift guard or the round cap.
+	if b := combineBaseline(idleSample{cores: 0.30}, idleSample{cores: 0.50}); b.Disturbed == "" {
+		t.Fatal("drift not disturbed")
+	}
+	if b := combineBaseline(idleSample{cores: 0.65}, idleSample{cores: 0.65}); b.Disturbed == "" {
+		t.Fatal("0.65 cores not disturbed")
+	}
+}
+
+// Apple's CoreParsec daemons are not the Parsec remote-desktop app.
+func TestScreenSharingIgnoresCoreParsec(t *testing.T) {
+	ps := "/System/Library/PrivateFrameworks/CoreParsec.framework/parsecd\n" +
+		"/System/Library/PrivateFrameworks/CoreParsec.framework/Versions/A/parsec-fbf\n"
+	if got := matchScreenSharing(ps); len(got) != 0 {
+		t.Fatalf("CoreParsec matched: %v", got)
+	}
+	ps += "/Applications/Parsec.app/Contents/MacOS/parsecd\n"
+	if got := matchScreenSharing(ps); strings.Join(got, ",") != "parsecd" {
+		t.Fatalf("Parsec app: %v, want parsecd", got)
 	}
 }
