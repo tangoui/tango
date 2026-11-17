@@ -2,7 +2,7 @@
 
 本文是 UI 组件极限性能项目的结果文档。设计稿：[`docs/superpowers/specs/2026-11-16-ui-component-performance-design.md`](../superpowers/specs/2026-11-16-ui-component-performance-design.md)。
 
-当前版本是 **R1 基线（合并后）**：合并 origin/main 后在 `1969e04` 上重测的进程内基线（第一层），是第 1 批优化的对比基准。Task 12a 在 `5f115d3` 上测的基线保留在文末“历史：Task 12a 基线”一节。跨框架基线（第二层，Task 12b）尚未运行，本文**不包含**任何“比 MyGo / NSGo 快”的结论，跨框架列一律“待测”。
+当前版本是 **R1 基线（合并后）**：合并 origin/main 后在 `1969e04` 上重测的进程内基线（第一层），是第 1 批优化的对比基准。Task 12a 在 `5f115d3` 上测的基线保留在文末“历史：Task 12a 基线”一节。跨框架基线（第二层，Task 12b）的结果和第 1 批进度见“跨框架基线（Task 12b）与第 1 批进度”一节，那里按场景列出对 MyGo / NSGo 的结论；逐组件状态表中的跨框架列仍记“待测”，组件对应的场景见该表的“跨框架场景”列。
 
 ## 方法
 
@@ -424,6 +424,86 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
    - Tour/Interact：1.45×。
    - 这三项不在债表内，作为低成本附带项。
 6. **局部重绘：** `perfDamageDebt` 153 项（含 M1 新增 7 项），与时间预算分开处理。
+
+## 跨框架基线（Task 12b）与第 1 批进度
+
+### 口径与用户决定
+
+- 场景、对手构建与判定见 [`tools/uibench/scenes.md`](../../tools/uibench/scenes.md)。42 个场景，除 counter（360×260）外均为 800×600。Tango、MyGo、NSGo 统一用 go1.27.3、CGO=0 构建，每轮带 manifest（SHA-256 与 `go version -m`）。NSGo 固定在 `7eba948`（见 `tools/uibench/third_party/nsgo.version`），比设计时的快照新。
+- **只比进程 CPU（用户决定）**：第一次带 WindowServer 的运行（`process+ws`）中，WindowServer 空闲基线在 0.09–0.35 核之间漂移，82 次尝试有 73 次受扰，无法采信。因此按用户决定改用 `-cpu-metric process`。代价：NSGo 经系统合成器（AppKit）绘制，排除 WindowServer 对 NSGo 有利；Tango 与 MyGo 都是自绘，两者之间是同口径比较。
+- **在用户正常桌面上测（用户决定）**：不隐藏、不关闭其他应用，加 `-accept-busy-compositor`。1 分钟负载 ≥ 6 的轮次记为受扰并重跑。
+- 采样前把场景窗口抬到最前并核验（R51）。fps < 30 记为“被遮挡或未绘制”并重跑，因为 MyGo 的窗口被遮挡时会暂停出帧。
+- 主运行 `12b-proc-20261117-1222`（12:22–15:44，748 次尝试，144 次受扰）之后，对 Invalid 场景补测 `12b-rerun-20261117-1714`（17:14–18:57）。下表每个场景、每个对手取最近一次有效结论；两次都 Invalid 的保留 Invalid。结果 JSON 和日志在 `tools/uibench/results/`（被 git 忽略）。
+- 结论含义：Faster 表示满足停止条件（CPU 中位数 ≤ 0.50×、IQR 不重叠、fps 与 p99 不劣）。NotFaster 表示可比较但没达到。Info 表示对手每帧开销太小（< 0.05 核），或两边运动量不同，只作参考。Invalid 表示可用轮数不足。
+
+### 结果（第 1 批之前）
+
+84 个结论（42 场景 × 2 对手）：Faster 2，NotFaster 42，Info 24，Invalid 16。**没有任何场景同时快过两个对手各 50%，停止条件一项都未满足。**
+
+| 场景 | 对 MyGo：结论 Tango/对手核数（倍数） | 对 NSGo：结论 Tango/对手核数（倍数） | 来源 |
+|---|---|---|---|
+| counter | Info 0.0001/0.0013 (0.08×) | Info 0.0001/0.0001 (0.87×) | 12b-proc |
+| list | Invalid | NotFaster 0.1311/0.0843 (1.55×) | 12b-proc, 12b-rerun |
+| grid | Invalid | Invalid | 12b-proc |
+| buttons | NotFaster 0.0797/0.0843 (0.95×) | NotFaster 0.0797/0.1350 (0.59×) | 12b-rerun |
+| inputs | NotFaster 0.1534/0.1525 (1.01×) | NotFaster 0.1534/0.1465 (1.05×) | 12b-proc |
+| textarea | NotFaster 0.2650/0.1377 (1.92×) | NotFaster 0.2650/0.3373 (0.79×) | 12b-proc |
+| checkboxes | NotFaster 0.2236/0.2021 (1.11×) | NotFaster 0.2236/0.2077 (1.08×) | 12b-proc |
+| radios | NotFaster 0.2114/0.1465 (1.44×) | NotFaster 0.2114/0.1406 (1.50×) | 12b-proc |
+| switches | NotFaster 0.1506/0.1365 (1.10×) | NotFaster 0.1506/0.1260 (1.19×) | 12b-proc |
+| sliders | NotFaster 0.1507/0.1102 (1.37×) | NotFaster 0.1507/0.1243 (1.21×) | 12b-proc |
+| progress | Info 0.1244/0.1245 (1.00×) | Info 0.1244/0.2978 (0.42×) | 12b-proc |
+| tabs | Info 0.1330/0.0824 (1.61×) | Info 0.1330/0.1162 (1.15×) | 12b-proc |
+| menu | NotFaster 0.1133/0.1049 (1.08×) | NotFaster 0.1133/0.0790 (1.43×) | 12b-proc |
+| dialog | Info 0.2008/0.0611 (3.29×) | Info 0.2008/0.0675 (2.97×) | 12b-proc |
+| toast | Info 0.1381/0.1102 (1.25×) | Info 0.1381/0.0799 (1.73×) | 12b-proc |
+| tree | NotFaster 0.1230/0.1478 (0.83×) | Faster 0.1230/0.9551 (0.13×) | 12b-proc |
+| datepicker | NotFaster 0.1037/0.1119 (0.93×) | NotFaster 0.1037/0.1017 (1.02×) | 12b-proc |
+| colorpicker | NotFaster 0.1253/0.1036 (1.21×) | NotFaster 0.1253/0.2116 (0.59×) | 12b-proc |
+| select | NotFaster 0.1104/0.1196 (0.92×) | NotFaster 0.1104/0.1146 (0.96×) | 12b-proc |
+| tooltip | Info 0.0379/0.0167 (2.26×) | Info 0.0379/0.0164 (2.31×) | 12b-rerun |
+| table | Invalid | Invalid | 12b-proc |
+| pagination | NotFaster 0.1386/0.1087 (1.28×) | Faster 0.1386/0.3278 (0.42×) | 12b-rerun |
+| cascader | NotFaster 0.1240/0.1422 (0.87×) | NotFaster 0.1240/0.1823 (0.68×) | 12b-rerun |
+| transfer | Invalid | Invalid | 12b-proc |
+| treeselect | NotFaster 0.1207/0.1119 (1.08×) | NotFaster 0.1207/0.1176 (1.03×) | 12b-proc |
+| calendar | Info 0.1223/0.0448 (2.73×) | NotFaster 0.1223/0.0971 (1.26×) | 12b-rerun |
+| steps | Info 0.0977/0.0211 (4.63×) | Info 0.0977/0.2071 (0.47×) | 12b-proc |
+| timeline | NotFaster 0.1468/0.1229 (1.19×) | NotFaster 0.1468/0.0796 (1.84×) | 12b-rerun |
+| descriptions | NotFaster 0.1204/0.0625 (1.93×) | NotFaster 0.1204/0.0819 (1.47×) | 12b-proc |
+| form | Invalid | Invalid | 12b-proc |
+| upload | Invalid | Info 0.0977/0.0758 (1.29×) | 12b-proc |
+| carousel | Invalid | Info 0.1064/0.0536 (1.98×) | 12b-proc, 12b-rerun |
+| collapse | Info 0.0993/0.0659 (1.51×) | Info 0.0993/0.0657 (1.51×) | 12b-rerun |
+| drawer | Invalid | Info 0.0973/0.0472 (2.06×) | 12b-proc, 12b-rerun |
+| tour | Info 0.4866/0.0097 (50.06×) | Info 0.4866/0.0468 (10.39×) | 12b-proc |
+| protable | Invalid | NotFaster 0.1125/0.0641 (1.75×) | 12b-proc, 12b-rerun |
+| segmented | Info 0.0708/0.0671 (1.06×) | Info 0.0708/0.1265 (0.56×) | 12b-rerun |
+| rate | Invalid | NotFaster 0.0702/0.0817 (0.86×) | 12b-proc, 12b-rerun |
+| tags | Invalid | NotFaster 0.0959/0.0994 (0.97×) | 12b-proc, 12b-rerun |
+| badges | Invalid | NotFaster 0.1113/0.0966 (1.15×) | 12b-proc, 12b-rerun |
+| cards | NotFaster 0.1156/0.0866 (1.34×) | NotFaster 0.1156/0.0733 (1.58×) | 12b-rerun |
+| statistics | NotFaster 0.1055/0.0679 (1.55×) | NotFaster 0.1055/0.0761 (1.39×) | 12b-proc |
+
+单元格格式为“结论 Tango 核数/对手核数（倍数）”，倍数 < 1 表示 Tango 更省。
+
+### 差距在哪里（P1 剖析）
+
+在真实窗口里给 statistics、select、badges、tour 采 CPU profile，结果：
+
+- 简单场景每帧有约 0.07–0.15 核的固定开销，其中 82–91% 在渲染器、present 和平台层：经 purego 的 Metal encode/commit、每帧一次的 `armTimer`（CFRunLoopTimerSetNextFireDate）、`nextDrawable` 以及原生线程。UI 管线（构建、布局、绘制列表、脏区）合计 ≤ 0.004 核。按设计稿 §6.3，这部分标为 **“受限于渲染器/平台，已转交”**。转交文档（B3）已交给 min-0f；它不在 min-0f 当前的范围内，已转请用户指派负责人。
+- tour 的大头是渲染器对整窗大小的遮罩路径逐帧做 pathPatch，可以在组件侧消除，见 B1。
+- grid 的大头是文字 shaping 加 GC。整数标签由 min-5a 的数字快速路径覆盖，合并后再测。
+
+### 第 1 批
+
+- **B1 Tour 遮罩**（d144547、be923f0）：遮罩不再是一条整窗大小的路径，改为 8 个矩形加 4 个小圆角路径，接缝按设备像素对齐，遮罩绘制操作带缓存。
+  - 像素等价：在 1、1.1、1.25、1.33125、1.37、1.5、2、2.625 八种缩放下，CPU 渲染器和 GPU 渲染器与旧实现的最大差值都 ≤ 1。真实窗口截图中无接缝。
+  - 效果：`uiperf ab` 中 Raster/Tour/Interact 51.35 → 37.48 ms/op（−27%，keep）。真实窗口 tour 场景的进程 CPU 从 0.49 降到 0.098 核（−80%），对 MyGo 从 50× 降到 2.4×，对 NSGo 从 10× 降到 2.0×。剩下约 0.1 核是上面的固定开销。**保留。**
+- **B2 短文本 shaping 缓存**（cb85da5、de21e6c）：缓存 ≤ 64 字符文本段的 HarfBuzz 结果。键包含字体实例、ppem、可变轴坐标、字号、方向、文种、语言、OpenType 特性、文本本身以及两侧各 5 个字符的上下文（等于 go-text 的上下文长度，有测试锁定）。上限 4096 项 / 2 MiB，FIFO 淘汰，最坏约 3 MiB。与不走缓存的输出逐字形比对一致。
+  - A/B（`uiperf ab`，基准 `0e5f24e`，交替 5 轮）：Button、Menu、Tag、Checkbox、Radio、Statistic、Descriptions、Segmented 的 Mount、Unchanged、Interact 和 Raster 全部是 noise。只有 Segmented/Large1k 为 keep（−13%）。Descriptions 与 Segmented 的 Large10k/Large100k 为 regress（+8% 到 +15%）：大集合里的文本段几乎都不重复，缓存只增加了建键、存储和淘汰的开销。按 R43 **回退**（029637b）。
+  - 结论：标签类场景每步的 shaping 本来就不在瓶颈上。后续的文字优化应针对大集合的首次 shaping 本身，而不是加缓存。
+- **B3 渲染器/平台固定开销**：已转交，待用户指派（见上）。
 
 ## 历史：Task 12a 基线（5f115d3）
 
