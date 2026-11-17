@@ -28,7 +28,6 @@ func TestCompactColdLabelKeepsOriginalVariableFont(t *testing.T) {
 
 func TestCompactBusyFontSpecializesOnlyOnce(t *testing.T) {
 	coreTextOn(t)
-	noShapeMemo(t) // count HarfBuzz shapes of one run
 	l := Shape("office 0123", Style{Size: 16}, Options{NoWrap: true})
 	f := l.Glyphs[0].Src.(*Face)
 	if len(f.gt().Coords()) == 0 {

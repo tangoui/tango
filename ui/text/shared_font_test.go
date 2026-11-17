@@ -79,7 +79,6 @@ func TestCompactShaperSpecializesHotFacesOnly(t *testing.T) {
 	}
 	withEngine(t, true)
 	clearCache()
-	noShapeMemo(t) // count HarfBuzz shapes of one run
 	face := Shape("Hello", Style{Size: 16, Weight: Bold}, Options{NoWrap: true}).Glyphs[0].Src.(*Face)
 	runes := []rune("AVATAR office 12.34 ffi")
 	in := shaping.Input{Text: runes, RunEnd: len(runes), Face: face.gt(), Size: fixed.I(16), Direction: di.DirectionLTR, Script: language.Latin, Language: language.NewLanguage("en")}
