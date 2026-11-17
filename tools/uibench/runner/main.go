@@ -607,8 +607,17 @@ type Meta struct {
 	// ScreenSharingFinishError: ps failed at the finish.
 	ScreenSharingFinishError string `json:"screen_sharing_finish_error,omitempty"`
 	// NotAdoptable says why Adoptable is false: "unverified runner",
-	// "compositor busy" (R44: recorded, not adoptable).
+	// "compositor busy" (R44/R46: recorded, not adoptable).
 	NotAdoptable []string `json:"not_adoptable,omitempty"`
+	// CompositorNotes: per scene, screen-share programs running (with the
+	// idle load) or an unknown screen-share state; not adoptability (R46).
+	CompositorNotes []string `json:"compositor_notes,omitempty"`
+}
+
+func (m *Meta) addCompositorNote(n string) {
+	if !contains(m.CompositorNotes, n) {
+		m.CompositorNotes = append(m.CompositorNotes, n)
+	}
 }
 
 // markNotAdoptable clears Adoptable and records why, once per reason.
@@ -653,6 +662,7 @@ func main() {
 	out := flag.String("out", "../results/"+time.Now().Format("2006-01-02-150405")+".json", "results file")
 	verifyOnly := flag.Bool("verify", false, "verify -bin/manifest.json against the binaries and exit, opening no window")
 	unverifiedRunner := flag.Bool("unverified-runner", false, "allow a runner that is not the manifest's (go run); the results are marked not adoptable and every verdict line says so")
+	checkIdleMode := flag.Bool("check-idle", false, "open no window, launch nothing: wait -settle, sample the idle WindowServer for -seconds, print it against the 0.1-core threshold and the screen-share programs found; exit 0 on pass, 1 on fail. Runs before (without) manifest verification")
 	buildMode := flag.Bool("build", false, "build.sh's step: build the scene programs and the runner into -bin with the pinned toolchain and write -bin/manifest.json")
 	flag.Parse()
 
@@ -671,6 +681,23 @@ func main() {
 			fmt.Printf("%-6s %s\n       sha256=%s\n", e.Name, e.Build.Line, e.SHA256)
 		}
 		fmt.Println("manifest:", filepath.Join(b.bin, manifestName))
+		return
+	}
+
+	if *checkIdleMode {
+		// Before manifest verification: it starts no scene program, so the
+		// binaries do not matter, and it works without a build.
+		if *seconds < 1 {
+			fmt.Fprintln(os.Stderr, "runner: need seconds ≥ 1")
+			os.Exit(2)
+		}
+		d := roundDeps{seconds: time.Duration(*seconds) * time.Second, settle: *settle, wsClock: windowServerCPU,
+			now: time.Now, sleep: time.Sleep, children: running.count}
+		procs, perr := screenSharingRunning()
+		fmt.Printf("runner: -check-idle: settle %s, then %s idle WindowServer sample\n", *settle, d.seconds)
+		if !checkIdle(d, procs, perr, os.Stdout) {
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -771,9 +798,12 @@ func main() {
 	if res.Meta.ScreenSharingFinish, err2 = screenSharingRunning(); err2 != nil {
 		res.Meta.ScreenSharingFinishError = err2.Error()
 	}
+	compositor := map[string]string{} // scene: what its verdict lines append
+	for _, scene := range scenes {
+		compositor[scene] = assessCompositor(&res.Meta, scene, pickScene(res.Rounds, scene))
+	}
 	if contains(fws, "tango") {
 		for _, scene := range scenes {
-			busy := compositorBusy(res.Meta, pickScene(res.Rounds, scene))
 			t := pick(res.Rounds, scene, "tango")
 			for _, fw := range fws {
 				if fw == "tango" {
@@ -782,10 +812,7 @@ func main() {
 				o := pick(res.Rounds, scene, fw)
 				v, why := judgeWhy(t, o, *rounds)
 				why = annotateWhy(why, manifest, *unverifiedRunner)
-				if busy != "" {
-					why += " (compositor busy: " + busy + ")"
-					res.Meta.markNotAdoptable("compositor busy")
-				}
+				why += compositor[scene]
 				tk, ts := rendererSummary(t)
 				ok, osw := rendererSummary(o)
 				res.Verdicts = append(res.Verdicts, VerdictLine{Scene: scene, Opponent: fw, Verdict: v, Why: why,

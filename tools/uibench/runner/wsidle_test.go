@@ -322,23 +322,99 @@ func TestIdleFailureRerunsRound(t *testing.T) {
 	}
 }
 
-func TestCompositorBusy(t *testing.T) {
-	calm := []Round{{WSBaseline: &WSBaseline{MeanCores: 0.02}}, {WSBaseline: &WSBaseline{MeanCores: 0.03}}, {}}
-	if got := compositorBusy(Meta{}, calm); got != "" {
-		t.Fatalf("calm: %q", got)
+// usableIdle is a calm, usable round with idle compositor cores.
+func usableIdle(cores float64) Round {
+	return Round{Ready: true, Renderer: "native", WSBaseline: &WSBaseline{MeanCores: cores}}
+}
+
+// R46: adoptability follows the measured idle compositor only.
+func TestCompositorBusyByIdleOnly(t *testing.T) {
+	busy := []Round{usableIdle(0.38), usableIdle(0.36), usableIdle(0.40)}
+	m := Meta{Adoptable: true}
+	got := assessCompositor(&m, "list", busy)
+	if !strings.Contains(got, "compositor busy: idle WindowServer 0.380 cores") || m.Adoptable || len(m.NotAdoptable) != 1 || m.NotAdoptable[0] != "compositor busy" {
+		t.Fatalf("busy idle: %q, adoptable %v %v", got, m.Adoptable, m.NotAdoptable)
 	}
-	busy := []Round{{WSBaseline: &WSBaseline{MeanCores: 0.38}}, {WSBaseline: &WSBaseline{MeanCores: 0.36}}, {WSBaseline: &WSBaseline{MeanCores: 0.02}}}
-	if got := compositorBusy(Meta{}, busy); !strings.Contains(got, "idle WindowServer 0.360 cores") {
-		t.Fatalf("busy idle: %q", got)
+	assessCompositor(&m, "grid", busy)
+	if len(m.NotAdoptable) != 1 {
+		t.Fatalf("reason recorded twice: %v", m.NotAdoptable)
 	}
-	m := Meta{ScreenSharing: []string{"UURemoteServer"}, ScreenSharingFinish: []string{"UURemoteServer", "AnyDesk"}}
-	if got := compositorBusy(m, calm); got != "UURemoteServer, AnyDesk" {
-		t.Fatalf("screen sharing: %q", got)
+	calm := []Round{usableIdle(0.02), usableIdle(0.03), usableIdle(0.05)}
+	m = Meta{Adoptable: true}
+	if got := assessCompositor(&m, "list", calm); got != "" || !m.Adoptable {
+		t.Fatalf("calm: %q, adoptable %v", got, m.Adoptable)
 	}
-	m.Adoptable = true
-	m.markNotAdoptable("compositor busy")
-	m.markNotAdoptable("compositor busy")
-	if m.Adoptable || len(m.NotAdoptable) != 1 {
-		t.Fatalf("markNotAdoptable: %+v %v", m.Adoptable, m.NotAdoptable)
+}
+
+// A screen-share daemon left running with nobody connected is a note, not
+// a busy compositor.
+func TestScreenShareNoteWhenIdleLow(t *testing.T) {
+	calm := []Round{usableIdle(0.02), usableIdle(0.03), usableIdle(0.04)}
+	m := Meta{Adoptable: true, ScreenSharing: []string{"UURemoteServer"}, ScreenSharingFinish: []string{"UURemoteServer", "AnyDesk"}}
+	got := assessCompositor(&m, "list", calm)
+	if got != " (screen-share app running: UURemoteServer, AnyDesk, idle 0.030 cores)" {
+		t.Fatalf("note %q", got)
+	}
+	if !m.Adoptable || len(m.NotAdoptable) != 0 {
+		t.Fatalf("a screen-share process alone made the run not adoptable: %v", m.NotAdoptable)
+	}
+	if len(m.CompositorNotes) != 1 || !strings.HasPrefix(m.CompositorNotes[0], "list: screen-share app running") {
+		t.Fatalf("meta notes %v", m.CompositorNotes)
+	}
+	// ps failed: the state is unknown, still adoptable.
+	m = Meta{Adoptable: true, ScreenSharingFinishError: "ps: exit 1"}
+	if got := assessCompositor(&m, "list", calm); !strings.Contains(got, "screen-share state unknown") || !m.Adoptable {
+		t.Fatalf("unknown state: %q adoptable %v", got, m.Adoptable)
+	}
+}
+
+// Disturbed rounds (a failed sample leaves a 0 baseline) do not pull the
+// median down.
+func TestSceneIdleExcludesDisturbed(t *testing.T) {
+	rs := []Round{usableIdle(0.30), usableIdle(0.32), usableIdle(0.34)}
+	for range 4 {
+		r := usableIdle(0)
+		r.Disturbed = true
+		rs = append(rs, r)
+	}
+	if v, n := sceneIdle(rs); n != 3 || v != 0.32 {
+		t.Fatalf("median %v over %d rounds, want 0.32 over 3", v, n)
+	}
+	m := Meta{Adoptable: true}
+	if assessCompositor(&m, "list", rs); m.Adoptable {
+		t.Fatal("disturbed zero baselines hid a busy compositor")
+	}
+}
+
+func TestCheckIdle(t *testing.T) {
+	for _, tc := range []struct {
+		cores float64
+		pass  bool
+	}{{0.04, true}, {0.10, true}, {0.38, false}} {
+		f := newFakeBench(t, tc.cores)
+		var out strings.Builder
+		got := checkIdle(f.deps(), []string{"UURemoteServer"}, nil, &out)
+		if got != tc.pass {
+			t.Fatalf("idle %v: pass %v, want %v\n%s", tc.cores, got, tc.pass, out.String())
+		}
+		want := "FAIL"
+		if tc.pass {
+			want = "PASS"
+		}
+		for _, part := range []string{want, "threshold 0.10", "UURemoteServer"} {
+			if !strings.Contains(out.String(), part) {
+				t.Fatalf("idle %v: output lacks %q:\n%s", tc.cores, part, out.String())
+			}
+		}
+		if f.measured["tango"]+f.measured["mygo"]+f.measured["nsgo"] != 0 || f.samples != 2 {
+			t.Fatalf("check-idle launched a program or read the clock %d times", f.samples)
+		}
+	}
+	// A failed sample fails the check; an unknown screen-share state is said.
+	f := newFakeBench(t, 0.01)
+	f.wsErr[0] = errFake
+	var out strings.Builder
+	if checkIdle(f.deps(), nil, errFake, &out) || !strings.Contains(out.String(), "unknown") {
+		t.Fatalf("failed sample passed:\n%s", out.String())
 	}
 }

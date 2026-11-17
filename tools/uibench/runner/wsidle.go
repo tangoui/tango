@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"os/exec"
 	"path/filepath"
@@ -193,35 +194,83 @@ func runSceneRound(d roundDeps, scene string, round int, fws []string, emit func
 	return nil
 }
 
-// compositorBusy says why a scene's verdicts were measured on a busy
-// compositor ("" when not): screen-sharing programs running at the start
-// or the finish, or the median idle WindowServer of its rounds above
-// busyIdleCores.
-func compositorBusy(m Meta, rs []Round) string {
-	var why []string
-	procs := map[string]bool{}
-	var names []string
-	for _, n := range append(append([]string{}, m.ScreenSharing...), m.ScreenSharingFinish...) {
-		if !procs[n] {
-			procs[n] = true
-			names = append(names, n)
-		}
-	}
-	if len(names) > 0 {
-		why = append(why, strings.Join(names, ", "))
-	}
+// sceneIdle is the median idle compositor (cores) of a scene's usable
+// rounds (ready, not disturbed: a disturbed round's baseline may be a
+// failed 0), and how many rounds it covers.
+func sceneIdle(rs []Round) (float64, int) {
 	var idle []float64
-	for _, r := range rs {
+	for _, r := range usable(rs) {
 		if r.WSBaseline != nil {
 			idle = append(idle, r.WSBaseline.MeanCores)
 		}
 	}
-	if len(idle) > 0 {
-		if v := median(idle); v > busyIdleCores {
-			why = append(why, fmt.Sprintf("idle WindowServer %.3f cores", v))
+	if len(idle) == 0 {
+		return 0, 0
+	}
+	return median(idle), len(idle)
+}
+
+// assessCompositor judges a scene's compositor (R46) and returns what its
+// verdict lines append. Adoptability follows the measured idle compositor
+// only: a median idle above busyIdleCores marks the run not adoptable
+// ("compositor busy"). A screen-share program running (a daemon may stay
+// with no viewer) is a note, as is an unknown screen-share state (ps
+// failed); the notes also go to m.CompositorNotes.
+func assessCompositor(m *Meta, scene string, rs []Round) string {
+	idle, n := sceneIdle(rs)
+	var parts []string
+	if n > 0 && idle > busyIdleCores {
+		parts = append(parts, fmt.Sprintf("compositor busy: idle WindowServer %.3f cores > %.2f", idle, busyIdleCores))
+		m.markNotAdoptable("compositor busy")
+	}
+	var names []string
+	for _, x := range append(append([]string{}, m.ScreenSharing...), m.ScreenSharingFinish...) {
+		if !contains(names, x) {
+			names = append(names, x)
 		}
 	}
-	return strings.Join(why, "; ")
+	var notes []string
+	if len(names) > 0 {
+		notes = append(notes, fmt.Sprintf("screen-share app running: %s, idle %.3f cores", strings.Join(names, ", "), idle))
+	}
+	if m.ScreenSharingError != "" || m.ScreenSharingFinishError != "" {
+		notes = append(notes, "screen-share state unknown")
+	}
+	for _, note := range notes {
+		m.addCompositorNote(scene + ": " + note)
+	}
+	parts = append(parts, notes...)
+	if len(parts) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(parts, "; ") + ")"
+}
+
+// checkIdle is -check-idle: one settle wait and one idle WindowServer
+// sample, no window and no program; it prints the idle load, the
+// threshold, pass or fail and the screen-share programs found, and passes
+// when the sample worked and the idle load is at most busyIdleCores.
+func checkIdle(d roundDeps, procs []string, procErr error, w io.Writer) bool {
+	s := sampleIdle(d)
+	switch {
+	case procErr != nil:
+		fmt.Fprintf(w, "screen-share processes: unknown (%v)\n", procErr)
+	case len(procs) == 0:
+		fmt.Fprintln(w, "screen-share processes: none")
+	default:
+		fmt.Fprintf(w, "screen-share processes: %s (left alone)\n", strings.Join(procs, ", "))
+	}
+	if s.err != nil {
+		fmt.Fprintf(w, "idle WindowServer: sample failed: %v\nFAIL\n", s.err)
+		return false
+	}
+	pass := s.cores <= busyIdleCores
+	verdict := "PASS"
+	if !pass {
+		verdict = "FAIL"
+	}
+	fmt.Fprintf(w, "idle WindowServer: %.3f cores over %s (threshold %.2f)\n%s\n", s.cores, d.seconds, busyIdleCores, verdict)
+	return pass
 }
 
 // screenSharingNames are processes of known screen-sharing and remote-

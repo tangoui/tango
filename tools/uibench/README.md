@@ -152,11 +152,15 @@ started afresh, in an order that rotates by one each round. For each:
    `meta.screen_sharing_processes` (and `_finish`) list the known
    screen-sharing / remote-desktop programs running (UURemoteServer,
    screensharingd, Screen Sharing, AnyDesk, TeamViewer, ToDesk, …); the
-   runner never touches them. When any ran, or a scene's median idle
-   compositor is above 0.1 cores, each of its verdict lines ends with
+   runner never touches them. Adoptability follows the measured idle
+   compositor only (R46): when a scene's median idle over its usable
+   (calm) rounds is above 0.1 cores, its verdict lines end with
    "(compositor busy: …)" and `meta.adoptable` is false
    (`meta.not_adoptable`: "compositor busy"): the data is recorded, not
-   adoptable.
+   adoptable. A screen-share program running (a daemon can stay with no
+   viewer connected) only adds "(screen-share app running: <names>, idle X
+   cores)" to the verdicts and `meta.compositor_notes`; a failed `ps` adds
+   "screen-share state unknown".
    A round's attempts are written to the results file only once its
    second idle sample is in, so Ctrl-C loses the scene round in progress.
 
@@ -167,6 +171,17 @@ SIGTERM stops the running scene program's process group before the runner
 exits (status 130), so no orphaned scene keeps drawing; once stopping,
 the runner starts no further program (the start runs under the same lock
 as the stop, so none can slip in between).
+
+### Quiet-machine check
+
+`runner -check-idle [-settle 3s] [-seconds 10]` opens no window and
+launches nothing: it waits `-settle`, samples the idle WindowServer for
+`-seconds`, and prints the idle cores, the 0.1-core threshold, PASS or
+FAIL and the screen-share programs found; it exits 0 on pass, 1 on fail.
+Run it (e.g. after disconnecting a remote viewer) before a long
+measurement. It runs before, and without, manifest verification: it
+starts no scene program, so it needs no build and proves nothing about
+one.
 
 ## Judge
 
