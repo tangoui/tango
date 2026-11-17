@@ -268,19 +268,55 @@ type activeKey struct {
 // function scrolled away from the caret): the block is computed whole
 // instead (bounded by Monaco's 50 000 lines), once per text and caret,
 // and only its part on the rows is drawn, as Monaco's search stopping at
-// the view gives.
+// the view gives. An edit that changes no line's indentation carries the
+// block to the new text (activeCarries) instead of searching again.
 func (w *ViewW) activeGuide(g *guideCtx, line, lo, hi int) (s, e, lv int) {
 	if line >= lo && line <= hi {
 		return g.active(line, lo, hi)
 	}
 	c := &w.vs.guideActive
 	k := activeKey{buf: w.st.Model.Buffer(), ver: g.snap.Version(), line: line, tab: g.tab, offSide: g.offSide, valid: true}
-	if c.valid && c.buf == k.buf && c.ver == k.ver && c.line == k.line && c.tab == k.tab && c.offSide == k.offSide {
+	same := c.valid && c.buf == k.buf && c.line == k.line && c.tab == k.tab && c.offSide == k.offSide
+	if same && c.ver == k.ver {
+		return c.s, c.e, c.lv
+	}
+	if same && activeCarries(k.buf, g.snap, c.ver, g.tab) {
+		c.ver = k.ver
 		return c.s, c.e, c.lv
 	}
 	k.s, k.e, k.lv = g.active(line, 0, g.snap.LineCount()-1)
+	w.vs.guideScans++
 	*c = k
 	return k.s, k.e, k.lv
+}
+
+// activeCarries reports whether the active block computed on version ver
+// of b holds for snap too: snap is b's current snapshot, its last change
+// started from version ver, and that change kept every line's number and
+// indentation. A block depends only on the lines' indentations (blank or
+// not, and how deep) and their numbers (guideCtx.level, guideCtx.active),
+// so it is then the same block; any other change searches again. Each
+// edit must stay inside one line, insert no line break, and leave that
+// line's indentOf unchanged (typing after the indentation, the usual edit
+// in another view of the text).
+func activeCarries(b *buffer.Buffer, snap buffer.Snapshot, ver uint64, tab int) bool {
+	if b == nil || b.Snapshot().Version() != snap.Version() {
+		return false
+	}
+	old, edits := b.LastChange()
+	if len(edits) == 0 || old.Version() != ver || old.LineCount() != snap.LineCount() {
+		return false
+	}
+	for _, e := range edits {
+		l := old.LineOf(e.Start)
+		if old.LineOf(e.End) != l || strings.ContainsAny(e.Text, "\n\r") {
+			return false
+		}
+		if indentOf(old.Line(l), tab) != indentOf(snap.Line(l), tab) {
+			return false
+		}
+	}
+	return true
 }
 
 // guideColors are the inactive and active guide colors of the levels

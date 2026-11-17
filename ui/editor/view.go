@@ -134,8 +134,10 @@ type viewState struct {
 	bgOn    bool
 	bgRows  []bgRow
 	bgc     bgCache
-	// guideActive caches the active guide of a caret outside the view.
+	// guideActive caches the active guide of a caret outside the view;
+	// guideScans counts its whole-block searches (tests).
 	guideActive activeKey
+	guideScans  uint64
 	wsMarks     *whitespaceMarks
 	match       []brange
 	matchRes    []caretMatch // per selection, for matchKey
