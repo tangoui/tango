@@ -102,10 +102,10 @@ func TestJudgeCounterIgnoresFrames(t *testing.T) {
 			r.Scene, r.FPS, r.WorkPerSec, r.P50us, r.P99us, r.Footprint = "counter", 0, 0, 0, 0, mem
 		})
 	}
-	if v := judge(idle("tango", 0.004, 30<<20), idle("mygo", 0.01, 40<<20), 5); v != Faster {
+	if v := judge(idle("tango", 0.04, 30<<20), idle("mygo", 0.10, 40<<20), 5); v != Faster {
 		t.Fatalf("counter, cheaper and smaller: verdict %s, want Faster", v)
 	}
-	if v := judge(idle("tango", 0.004, 50<<20), idle("mygo", 0.01, 40<<20), 5); v != NotFaster {
+	if v := judge(idle("tango", 0.04, 50<<20), idle("mygo", 0.10, 40<<20), 5); v != NotFaster {
 		t.Fatalf("counter, more memory: verdict %s, want NotFaster", v)
 	}
 }
@@ -262,5 +262,36 @@ func TestJudgeUnequalMotionInfo(t *testing.T) {
 	}
 	if metaOf("grid").unequalMotion || metaOf("grid").period != 1 {
 		t.Fatal("grid has special meta")
+	}
+}
+
+// An opponent below minJudgedCPU is too cheap to compare: Info, whatever
+// the ratio.
+func TestJudgeTooCheapInfo(t *testing.T) {
+	// cpu() = 1.1 × the process share (rounds adds a tenth for WindowServer).
+	tg := rounds("tango", 5, 0.004, 0.1, nil)
+	o := rounds("mygo", 5, 0.04, 0.1, nil) // ≈ 0.044 cores
+	v, why := judgeWhy(tg, o, 5)
+	if v != Info || !strings.Contains(why, "too cheap to compare") {
+		t.Fatalf("verdict %s (%s), want Info too cheap to compare", v, why)
+	}
+}
+
+// Faster needs the opponent at least minCPUGap above Tango, besides half.
+// With the present constants a judged opponent (≥ minJudgedCPU) at half
+// always clears the gap, so the bar is tested directly.
+func TestCPUBarMinGap(t *testing.T) {
+	for _, tc := range []struct {
+		t, o float64
+		miss string
+	}{
+		{0.01, 0.025, "below 0.02 cores"}, // 0.4x, 0.015 apart
+		{0.02, 0.05, ""},                  // 0.4x, 0.03 apart
+		{0.03, 0.05, "above half"},
+	} {
+		got := cpuBarMissed(tc.t, tc.o)
+		if (tc.miss == "") != (got == "") || !strings.Contains(got, tc.miss) {
+			t.Errorf("cpuBarMissed(%v, %v) = %q, want %q", tc.t, tc.o, got, tc.miss)
+		}
 	}
 }

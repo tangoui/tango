@@ -604,6 +604,30 @@ type Meta struct {
 	ScreenSharing       []string `json:"screen_sharing_processes"`
 	ScreenSharingFinish []string `json:"screen_sharing_processes_finish"`
 	ScreenSharingError  string   `json:"screen_sharing_error,omitempty"`
+	// ScreenSharingFinishError: ps failed at the finish.
+	ScreenSharingFinishError string `json:"screen_sharing_finish_error,omitempty"`
+	// NotAdoptable says why Adoptable is false: "unverified runner",
+	// "compositor busy" (R44: recorded, not adoptable).
+	NotAdoptable []string `json:"not_adoptable,omitempty"`
+}
+
+// markNotAdoptable clears Adoptable and records why, once per reason.
+func (m *Meta) markNotAdoptable(why string) {
+	m.Adoptable = false
+	if !contains(m.NotAdoptable, why) {
+		m.NotAdoptable = append(m.NotAdoptable, why)
+	}
+}
+
+// pickScene is every round of a scene, all frameworks.
+func pickScene(rs []Round, scene string) []Round {
+	var out []Round
+	for _, r := range rs {
+		if r.Scene == scene {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 type VerdictLine struct {
@@ -709,12 +733,21 @@ func main() {
 	res.Meta.DirtyBuild = manifest.dirty()
 	res.Meta.UnverifiedRunner = *unverifiedRunner
 	res.Meta.Adoptable = !*unverifiedRunner
+	if *unverifiedRunner {
+		res.Meta.NotAdoptable = append(res.Meta.NotAdoptable, "unverified runner")
+	}
 	if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
 		fatal(err)
 	}
 
 	deps := roundDeps{
-		seconds:  cfg.seconds,
+		seconds: cfg.seconds,
+		settle:  cfg.settle,
+		gate: func() {
+			if err := loadGate(systemLoad, time.Sleep, loadLimit, loadWaitMax); err != nil {
+				fmt.Fprintln(os.Stderr, "runner: load gate:", err, "(attempts will be marked disturbed)")
+			}
+		},
 		wsClock:  windowServerCPU,
 		now:      time.Now,
 		sleep:    time.Sleep,
@@ -728,17 +761,19 @@ func main() {
 	}
 	for _, scene := range scenes {
 		for round := range *rounds {
-			if err := loadGate(systemLoad, time.Sleep, loadLimit, loadWaitMax); err != nil {
-				fmt.Fprintln(os.Stderr, "runner: load gate:", err, "(attempts will be marked disturbed)")
-			}
 			if err := runSceneRound(deps, scene, round, fws, emit); err != nil {
 				fatal(err)
 			}
 		}
 	}
 
+	var err2 error
+	if res.Meta.ScreenSharingFinish, err2 = screenSharingRunning(); err2 != nil {
+		res.Meta.ScreenSharingFinishError = err2.Error()
+	}
 	if contains(fws, "tango") {
 		for _, scene := range scenes {
+			busy := compositorBusy(res.Meta, pickScene(res.Rounds, scene))
 			t := pick(res.Rounds, scene, "tango")
 			for _, fw := range fws {
 				if fw == "tango" {
@@ -747,6 +782,10 @@ func main() {
 				o := pick(res.Rounds, scene, fw)
 				v, why := judgeWhy(t, o, *rounds)
 				why = annotateWhy(why, manifest, *unverifiedRunner)
+				if busy != "" {
+					why += " (compositor busy: " + busy + ")"
+					res.Meta.markNotAdoptable("compositor busy")
+				}
 				tk, ts := rendererSummary(t)
 				ok, osw := rendererSummary(o)
 				res.Verdicts = append(res.Verdicts, VerdictLine{Scene: scene, Opponent: fw, Verdict: v, Why: why,
@@ -756,7 +795,6 @@ func main() {
 		}
 	}
 	res.Meta.Finished = time.Now().Format(time.RFC3339)
-	res.Meta.ScreenSharingFinish, _ = screenSharingRunning()
 	if err := write(*out, res); err != nil {
 		fatal(err)
 	}

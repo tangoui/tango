@@ -137,20 +137,28 @@ started afresh, in an order that rotates by one each round. For each:
 4. Load ≥ 6 before or after sampling marks the attempt `disturbed`; it is
    measured again, up to 3 more times. Every attempt stays in the file.
 5. Idle compositor (ruling R44). Before each scene round's launches, and
-   again after them, the runner samples WindowServer for `-seconds` with no
-   scene program running (it refuses to sample while one runs). The
-   round's idle rate is the mean of the two; every round in it records the
-   raw `windowserver_s`, `windowserver_idle_s` (idle rate × sampled
-   seconds), `windowserver_net_s` = max(0, raw − idle) and the samples
-   (`windowserver_idle`). An idle sample above 0.6 cores, before and after
-   differing by more than 30% of the larger (and by at least 0.02 cores,
-   below which it is `ps` resolution), or a failed sample marks the whole
-   round `disturbed` (background WindowServer: e.g. a remote viewer
-   connecting), and the round is measured again, up to 3 more times.
+   again after them, the runner waits `-settle` (so a closing window's
+   animation and the focus change are not counted) and samples WindowServer
+   for `-seconds` with no scene program running (it refuses to sample while
+   one runs). Each attempt's idle rate is the two samples interpolated
+   linearly at its sample midpoint (the mean when it has none); every round
+   records the raw `windowserver_s`, `windowserver_idle_s` (idle rate ×
+   sampled seconds), `windowserver_net_s` = max(0, raw − idle) and the
+   samples (`windowserver_idle`). An idle sample above 0.6 cores, before
+   and after differing by more than max(0.02, 0.10 × the larger) cores, or
+   a failed sample marks the whole round `disturbed` (background
+   WindowServer: e.g. a remote viewer connecting), and the round is
+   measured again after the load gate, up to 3 more times.
    `meta.screen_sharing_processes` (and `_finish`) list the known
    screen-sharing / remote-desktop programs running (UURemoteServer,
    screensharingd, Screen Sharing, AnyDesk, TeamViewer, ToDesk, …); the
-   runner never touches them.
+   runner never touches them. When any ran, or a scene's median idle
+   compositor is above 0.1 cores, each of its verdict lines ends with
+   "(compositor busy: …)" and `meta.adoptable` is false
+   (`meta.not_adoptable`: "compositor busy"): the data is recorded, not
+   adoptable.
+   A round's attempts are written to the results file only once its
+   second idle sample is in, so Ctrl-C loses the scene round in progress.
 
 Per-second reports arrive as groups (frames, work, intervals). A group is
 taken whole or not at all, and the first group completed after sampling
@@ -176,12 +184,14 @@ without error, not disturbed, not screen-locked and with a known renderer
   being the frames sampled ÷ `period` (R35: one change more or less at a
   report's edge is not a difference in work); with less than one expected
   change the rounds are `Invalid` ("too few sampled frames");
+- `Info` when the opponent's median (process + net WindowServer) CPU is
+  below 0.05 cores: "too cheap to compare" (timer and compositor noise);
 - `Info` for a valid comparison of a scene whose default motion differs
   between the frameworks (tabs, dialog, toast, progress, tooltip,
   carousel, collapse, drawer, segmented, steps, upload; scenes.md
   "Default motion", ruling R37): CPU, fps and frame-interval p99 are reported, not judged;
 - `Faster` when Tango's median (process + net WindowServer) CPU is at most half
-  the opponent's, Tango's third quartile is below the opponent's first,
+  the opponent's and at least 0.02 cores below it, Tango's third quartile is below the opponent's first,
   median fps is at least the opponent's and median frame-interval p99 at
   most the opponent's (counter: footprint median at most the opponent's in
   place of fps and p99);

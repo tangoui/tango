@@ -20,7 +20,7 @@ func TestWSNetClamps(t *testing.T) {
 	// applyBaseline scales the idle rate to the round's sampled seconds and
 	// keeps the raw delta.
 	r := Round{Seconds: 10, CPUSeconds: 1, WindowServerSeconds: 4.2}
-	applyBaseline(&r, combineBaseline(idleSample{cores: 0.36}, idleSample{cores: 0.40}))
+	applyBaseline(&r, combineBaseline(idleSample{cores: 0.37}, idleSample{cores: 0.39}))
 	if r.WindowServerSeconds != 4.2 {
 		t.Fatalf("raw windowserver_s changed to %v", r.WindowServerSeconds)
 	}
@@ -74,9 +74,11 @@ func TestBaselineDisturbed(t *testing.T) {
 		before, after idleSample
 		disturbed     bool
 	}{
-		{"calm", idleSample{cores: 0.35}, idleSample{cores: 0.40}, false},
-		{"drift", idleSample{cores: 0.30}, idleSample{cores: 0.50}, true}, // 40% of the larger
-		{"busy", idleSample{cores: 0.65}, idleSample{cores: 0.66}, true},  // above 0.6 cores
+		{"calm", idleSample{cores: 0.37}, idleSample{cores: 0.40}, false},
+		{"drift above 10%", idleSample{cores: 0.35}, idleSample{cores: 0.40}, true}, // 0.05 > max(0.02, 0.04)
+		{"floor", idleSample{cores: 0.10}, idleSample{cores: 0.115}, false},         // 0.015 < 0.02
+		{"drift", idleSample{cores: 0.30}, idleSample{cores: 0.50}, true},
+		{"busy", idleSample{cores: 0.65}, idleSample{cores: 0.66}, true}, // above 0.6 cores
 		{"tiny noise", idleSample{cores: 0.010}, idleSample{cores: 0.020}, false},
 		{"failed", idleSample{err: errFake}, idleSample{cores: 0.3}, true},
 	} {
@@ -109,6 +111,8 @@ type fakeBench struct {
 	idle     []float64 // cores for each idle sample, in turn
 	idleRate float64
 	samples  int
+	gates    int
+	wsErr    map[int]error // ws read number: error
 	log      []string
 	measured map[string]int
 	disturb  map[string]int // fw: attempts that come back load-disturbed
@@ -117,6 +121,8 @@ type fakeBench struct {
 func (f *fakeBench) deps() roundDeps {
 	return roundDeps{
 		seconds:  10 * time.Second,
+		settle:   3 * time.Second,
+		gate:     func() { f.gates++ },
 		children: func() int { f.g.mu.Lock(); defer f.g.mu.Unlock(); return len(f.g.pids) },
 		now:      func() time.Time { return f.now },
 		sleep: func(d time.Duration) {
@@ -131,7 +137,11 @@ func (f *fakeBench) deps() roundDeps {
 				// A sample's first read: pick this sample's rate.
 				f.idleRate = f.idle[min(f.samples/2, len(f.idle)-1)]
 			}
+			n := f.samples
 			f.samples++
+			if err := f.wsErr[n]; err != nil {
+				return 0, err
+			}
 			return f.ws, nil
 		},
 		measure: func(fw, scene string) Round {
@@ -140,6 +150,10 @@ func (f *fakeBench) deps() roundDeps {
 			f.log = append(f.log, "run "+fw)
 			f.measured[fw]++
 			r := Round{Scene: scene, Framework: fw, Ready: true, Renderer: "native", Seconds: 10, CPUSeconds: 1, WindowServerSeconds: 4.5}
+			f.now = f.now.Add(4 * time.Second) // start, ready, settle
+			r.SampleStartNs = f.now.UnixNano()
+			f.now = f.now.Add(10 * time.Second)
+			r.SampleEndNs = f.now.UnixNano()
 			if f.disturb[fw] > 0 {
 				f.disturb[fw]--
 				r.Disturbed = true
@@ -150,7 +164,7 @@ func (f *fakeBench) deps() roundDeps {
 }
 
 func newFakeBench(t *testing.T, idle ...float64) *fakeBench {
-	return &fakeBench{t: t, now: time.Unix(1, 0), idle: idle, measured: map[string]int{}, disturb: map[string]int{}}
+	return &fakeBench{t: t, now: time.Unix(1, 0), idle: idle, measured: map[string]int{}, disturb: map[string]int{}, wsErr: map[int]error{}}
 }
 
 func TestIdleSampledWithNoChild(t *testing.T) {
@@ -163,11 +177,18 @@ func TestIdleSampledWithNoChild(t *testing.T) {
 		f.log = append(f.log, "ws")
 		return inner()
 	}
+	innerSleep := d.sleep
+	d.sleep = func(dur time.Duration) {
+		f.log = append(f.log, "sleep "+dur.String())
+		innerSleep(dur)
+	}
+	d.gate = func() { f.log = append(f.log, "gate") }
 	var got []Round
 	if err := runSceneRound(d, "list", 0, []string{"tango", "mygo", "nsgo"}, func(r Round) error { got = append(got, r); return nil }); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"ws", "ws", "run tango", "run mygo", "run nsgo", "ws", "ws"}
+	// Load gate, settle, idle sample; the launches; settle, idle sample.
+	want := []string{"gate", "sleep 3s", "ws", "sleep 10s", "ws", "run tango", "run mygo", "run nsgo", "sleep 3s", "ws", "sleep 10s", "ws"}
 	if strings.Join(f.log, ",") != strings.Join(want, ",") {
 		t.Fatalf("order %v, want %v (one idle sample before the round's launches, one after)", f.log, want)
 	}
@@ -214,6 +235,9 @@ func TestDriftRerunsRound(t *testing.T) {
 			t.Fatalf("attempt %d: %s attempt %d, want %d", i, r.Framework, r.Attempt, i/2)
 		}
 	}
+	if f.gates != 2 {
+		t.Fatalf("load gate ran %d times, want once per attempt of the round (2)", f.gates)
+	}
 	// Always busy (above the idle limit): 1 + maxRetries attempts, then give up.
 	f = newFakeBench(t, 0.7)
 	got = nil
@@ -237,5 +261,84 @@ func TestScreenSharingMatch(t *testing.T) {
 	want := "TeamViewer,UURemoteServer,screensharingd"
 	if strings.Join(got, ",") != want {
 		t.Fatalf("matched %v, want %s", got, want)
+	}
+}
+
+// Each attempt's idle rate is before and after interpolated at its sample
+// midpoint.
+func TestIdleInterpolated(t *testing.T) {
+	b := combineBaseline(idleSample{cores: 0.36, midNs: 1000}, idleSample{cores: 0.39, midNs: 2000})
+	for _, tc := range []struct {
+		start, end int64
+		want       float64
+	}{
+		{1250, 1350, 0.369}, // midpoint 1300: 30% of the way
+		{500, 700, 0.36},    // before the first sample: clamped
+		{0, 0, 0.375},       // no sample window: the mean
+	} {
+		r := Round{Seconds: 10, WindowServerSeconds: 5, SampleStartNs: tc.start, SampleEndNs: tc.end}
+		applyBaseline(&r, b)
+		if d := r.WSBaseline.Cores - tc.want; d > 1e-9 || d < -1e-9 {
+			t.Errorf("window %d..%d: idle %v cores, want %v", tc.start, tc.end, r.WSBaseline.Cores, tc.want)
+		}
+		if d := r.WindowServerIdleSeconds - tc.want*10; d > 1e-9 || d < -1e-9 {
+			t.Errorf("window %d..%d: idle_s %v, want %v", tc.start, tc.end, r.WindowServerIdleSeconds, tc.want*10)
+		}
+	}
+	// In a round: later attempts get a larger idle on a rising compositor.
+	f := newFakeBench(t, 0.36, 0.38)
+	var got []Round
+	_ = runSceneRound(f.deps(), "list", 0, []string{"tango", "mygo", "nsgo"}, func(r Round) error { got = append(got, r); return nil })
+	if len(got) != 3 || !(got[0].WindowServerIdleSeconds < got[1].WindowServerIdleSeconds && got[1].WindowServerIdleSeconds < got[2].WindowServerIdleSeconds) {
+		t.Fatalf("idle not rising across the round: %+v", got)
+	}
+	if got[0].Disturbed {
+		t.Fatalf("calm round disturbed: %v", got[0].Notes)
+	}
+}
+
+// A failed idle sample disturbs the whole round, which is measured again
+// after the load gate; the attempts of the failed round stay, with a note.
+func TestIdleFailureRerunsRound(t *testing.T) {
+	f := newFakeBench(t, 0.38)
+	f.wsErr[0] = errFake // the round's first idle read
+	var got []Round
+	if err := runSceneRound(f.deps(), "list", 1, []string{"tango", "mygo"}, func(r Round) error { got = append(got, r); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 4 || f.gates != 2 {
+		t.Fatalf("%d attempts, %d gates; want 4 and 2", len(got), f.gates)
+	}
+	for i, r := range got {
+		if i < 2 {
+			if !r.Disturbed || len(r.Notes) == 0 || !strings.Contains(r.Notes[0], "before: ps failed") {
+				t.Fatalf("attempt %d: disturbed %v notes %v, want disturbed by the failed sample", i, r.Disturbed, r.Notes)
+			}
+			continue
+		}
+		if r.Disturbed || r.Attempt != 1 {
+			t.Fatalf("rerun attempt %d: disturbed %v attempt %d", i, r.Disturbed, r.Attempt)
+		}
+	}
+}
+
+func TestCompositorBusy(t *testing.T) {
+	calm := []Round{{WSBaseline: &WSBaseline{MeanCores: 0.02}}, {WSBaseline: &WSBaseline{MeanCores: 0.03}}, {}}
+	if got := compositorBusy(Meta{}, calm); got != "" {
+		t.Fatalf("calm: %q", got)
+	}
+	busy := []Round{{WSBaseline: &WSBaseline{MeanCores: 0.38}}, {WSBaseline: &WSBaseline{MeanCores: 0.36}}, {WSBaseline: &WSBaseline{MeanCores: 0.02}}}
+	if got := compositorBusy(Meta{}, busy); !strings.Contains(got, "idle WindowServer 0.360 cores") {
+		t.Fatalf("busy idle: %q", got)
+	}
+	m := Meta{ScreenSharing: []string{"UURemoteServer"}, ScreenSharingFinish: []string{"UURemoteServer", "AnyDesk"}}
+	if got := compositorBusy(m, calm); got != "UURemoteServer, AnyDesk" {
+		t.Fatalf("screen sharing: %q", got)
+	}
+	m.Adoptable = true
+	m.markNotAdoptable("compositor busy")
+	m.markNotAdoptable("compositor busy")
+	if m.Adoptable || len(m.NotAdoptable) != 1 {
+		t.Fatalf("markNotAdoptable: %+v %v", m.Adoptable, m.NotAdoptable)
 	}
 }

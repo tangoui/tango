@@ -67,6 +67,12 @@ const (
 	cpuRatio       = 0.50 // Tango's median CPU at most this share of the opponent's
 	workTolerance  = 0.05 // work per frame may differ this much, at least (see workToleranceFor)
 	minRoundsFloor = 3    // fewer usable rounds never judge: quartiles need them
+	// minJudgedCPU (cores): an opponent cheaper than this is not judged
+	// (Info): at that level proc + ws_net is timer and compositor noise.
+	minJudgedCPU = 0.05
+	// minCPUGap (cores): Faster also needs the opponent's median at least
+	// this much above Tango's, not just a ratio of two small numbers.
+	minCPUGap = 0.02
 )
 
 // judge compares Tango's rounds t with an opponent's rounds o of the same
@@ -84,7 +90,9 @@ func judge(t, o []Round, minRounds int) Verdict {
 // (Round.cpu: the WindowServer delta less the round's idle compositor) at most half
 // the opponent's; Tango's third quartile below the opponent's first (the
 // interquartile ranges do not overlap); median fps at least the
-// opponent's; median frame-interval p99 at most the opponent's. The counter
+// opponent's; median frame-interval p99 at most the opponent's; and the
+// opponent's median at least minCPUGap above Tango's. An opponent below
+// minJudgedCPU is too cheap to compare (Info). The counter
 // scene draws no frames after ready, so there fps and p99 give way to the
 // median physical footprint, which must be at most the opponent's.
 func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
@@ -122,8 +130,11 @@ func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
 	if meta.unequalMotion {
 		return Info, why + frames + paths + "; not judged (unequal default motion)"
 	}
-	if !(tc <= oc*cpuRatio) {
-		return NotFaster, why + paths + ": cpu above half"
+	if oc < minJudgedCPU {
+		return Info, why + frames + paths + fmt.Sprintf("; too cheap to compare (opponent %.4f < %.2f cores)", oc, minJudgedCPU)
+	}
+	if miss := cpuBarMissed(tc, oc); miss != "" {
+		return NotFaster, why + paths + miss
 	}
 	if !(tq3 < oq1) {
 		return NotFaster, why + paths + ": interquartile ranges overlap"
@@ -145,6 +156,21 @@ func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
 		return NotFaster, why + ": worse p99"
 	}
 	return Faster, why
+}
+
+// cpuBarMissed is why Tango's median tc misses the CPU bar against the
+// opponent's oc ("" when it meets it): at most cpuRatio of it, and at least
+// minCPUGap cores below it. With the present constants the ratio implies
+// the gap for any judged opponent (oc ≥ 0.05 and tc ≤ oc/2 give a gap ≥
+// 0.025); the gap guards the bar should either constant change.
+func cpuBarMissed(tc, oc float64) string {
+	if !(tc <= oc*cpuRatio) {
+		return ": cpu above half"
+	}
+	if !(oc-tc >= minCPUGap) {
+		return fmt.Sprintf(": cpu difference %.4f below %.2f cores", oc-tc, minCPUGap)
+	}
+	return ""
 }
 
 // workToleranceFor is R35's work tolerance: max(5%, 1/expected events),
