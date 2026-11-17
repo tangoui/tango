@@ -65,7 +65,18 @@ type roundDeps struct {
 	sleep    func(time.Duration)
 	children func() int                   // scene programs running
 	measure  func(fw, scene string) Round // one attempt (runOnce)
+	// processOnly is -cpu-metric process (R50): no idle samples or settle
+	// waits, WindowServer never disturbs a round; each attempt keeps its raw
+	// WindowServer delta.
+	processOnly bool
 }
+
+// -cpu-metric values.
+const (
+	metricProcessWS = "process+ws"
+	metricProcess   = "process"
+	processOnlyNote = " (process CPU only; WindowServer excluded by user choice — favours compositor-drawn NSGo)"
+)
 
 // wsNet is the compositor CPU a round added over the idle compositor.
 func wsNet(raw, idle float64) float64 { return math.Max(0, raw-idle) }
@@ -167,18 +178,32 @@ func runSceneRound(d roundDeps, scene string, round int, fws []string, emit func
 		if d.gate != nil {
 			d.gate()
 		}
-		before := sampleIdle(d)
+		var before idleSample
+		if !d.processOnly {
+			before = sampleIdle(d)
+		}
 		var rs []Round
 		for _, fw := range rotate(fws, round) {
 			for a := 0; a <= maxRetries; a++ {
 				r := d.measure(fw, scene)
 				r.Round, r.Attempt = round, next[fw]
+				if d.processOnly {
+					r.CPUMetric = metricProcess
+				}
 				next[fw]++
 				rs = append(rs, r)
 				if !r.Disturbed {
 					break
 				}
 			}
+		}
+		if d.processOnly {
+			for _, r := range rs {
+				if err := emit(r); err != nil {
+					return err
+				}
+			}
+			return nil
 		}
 		b := combineBaseline(before, sampleIdle(d))
 		for i := range rs {

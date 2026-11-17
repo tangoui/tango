@@ -67,13 +67,17 @@ type Round struct {
 	WindowServerIdleSeconds float64     `json:"windowserver_idle_s"`
 	WindowServerNetSeconds  float64     `json:"windowserver_net_s"`
 	WSBaseline              *WSBaseline `json:"windowserver_idle,omitempty"`
-	FPS                     float64     `json:"fps"`            // mean of the per-second reports
-	WorkPerSec              float64     `json:"work_per_s"`     // mean of the per-second reports
-	P50us                   float64     `json:"p50_us"`         // frame interval
-	P99us                   float64     `json:"p99_us"`         // frame interval
-	Intervals               int         `json:"intervals"`      // interval samples
-	Footprint               int64       `json:"footprint"`      // phys_footprint at the end
-	PeakFootprint           int64       `json:"peak_footprint"` // highest seen while sampling
+	// CPUMetric is -cpu-metric: "process" makes cpu() process CPU only
+	// (R50; WindowServer still recorded, idle not sampled); empty or
+	// "process+ws" is proc + ws_net.
+	CPUMetric     string  `json:"cpu_metric,omitempty"`
+	FPS           float64 `json:"fps"`            // mean of the per-second reports
+	WorkPerSec    float64 `json:"work_per_s"`     // mean of the per-second reports
+	P50us         float64 `json:"p50_us"`         // frame interval
+	P99us         float64 `json:"p99_us"`         // frame interval
+	Intervals     int     `json:"intervals"`      // interval samples
+	Footprint     int64   `json:"footprint"`      // phys_footprint at the end
+	PeakFootprint int64   `json:"peak_footprint"` // highest seen while sampling
 
 	LoadBefore float64 `json:"load_before"`
 	LoadAfter  float64 `json:"load_after"`
@@ -115,6 +119,9 @@ func inputOf(cfg config, scene string) Input {
 func (r Round) cpu() float64 {
 	if r.Seconds <= 0 {
 		return 0
+	}
+	if r.CPUMetric == metricProcess {
+		return r.CPUSeconds / r.Seconds
 	}
 	return (r.CPUSeconds + wsNet(r.WindowServerSeconds, r.WindowServerIdleSeconds)) / r.Seconds
 }
@@ -615,6 +622,8 @@ type Meta struct {
 	// AcceptedBusyCompositor: -accept-busy-compositor (R49), a busy idle
 	// compositor (the normal desktop) does not make the run not adoptable.
 	AcceptedBusyCompositor bool `json:"accepted_busy_compositor"`
+	// CPUMetric is -cpu-metric: "process+ws" (default) or "process" (R50).
+	CPUMetric string `json:"cpu_metric"`
 	// SceneIdleCores: each scene's median idle WindowServer (usable rounds).
 	SceneIdleCores map[string]float64 `json:"scene_idle_cores,omitempty"`
 }
@@ -667,6 +676,7 @@ func main() {
 	out := flag.String("out", "../results/"+time.Now().Format("2006-01-02-150405")+".json", "results file")
 	verifyOnly := flag.Bool("verify", false, "verify -bin/manifest.json against the binaries and exit, opening no window")
 	unverifiedRunner := flag.Bool("unverified-runner", false, "allow a runner that is not the manifest's (go run); the results are marked not adoptable and every verdict line says so")
+	cpuMetric := flag.String("cpu-metric", metricProcessWS, "what the judge's cpu is: process+ws (process + net WindowServer over the idle compositor) or process (process CPU only; WindowServer recorded as information, no idle samples, WindowServer never disturbs a round; favours compositor-drawn NSGo)")
 	acceptBusy := flag.Bool("accept-busy-compositor", false, "measure the normal desktop as it is: a scene whose median idle WindowServer is above 0.1 cores is noted (accepted by user), not marked not adoptable; the drift guard and the 0.6-core round cap still apply")
 	checkIdleMode := flag.Bool("check-idle", false, "open no window, launch nothing: wait -settle, sample the idle WindowServer for -seconds, print it against the 0.1-core threshold and the screen-share programs found; exit 0 on pass, 1 on fail. Runs before (without) manifest verification")
 	buildMode := flag.Bool("build", false, "build.sh's step: build the scene programs and the runner into -bin with the pinned toolchain and write -bin/manifest.json")
@@ -707,6 +717,10 @@ func main() {
 		return
 	}
 
+	if *cpuMetric != metricProcess && *cpuMetric != metricProcessWS {
+		fmt.Fprintln(os.Stderr, "runner: -cpu-metric must be process or process+ws")
+		os.Exit(2)
+	}
 	scenes, fws := split(*scenesFlag), split(*fwFlag)
 	if len(scenes) == 0 || len(fws) == 0 || *rounds < 1 || *seconds < 1 {
 		fmt.Fprintln(os.Stderr, "runner: need scenes, frameworks, rounds ≥ 1 and seconds ≥ 1")
@@ -767,6 +781,7 @@ func main() {
 	res.Meta.UnverifiedRunner = *unverifiedRunner
 	res.Meta.Adoptable = !*unverifiedRunner
 	res.Meta.AcceptedBusyCompositor = *acceptBusy
+	res.Meta.CPUMetric = *cpuMetric
 	if *unverifiedRunner {
 		res.Meta.NotAdoptable = append(res.Meta.NotAdoptable, "unverified runner")
 	}
@@ -782,11 +797,12 @@ func main() {
 				fmt.Fprintln(os.Stderr, "runner: load gate:", err, "(attempts will be marked disturbed)")
 			}
 		},
-		wsClock:  windowServerCPU,
-		now:      time.Now,
-		sleep:    time.Sleep,
-		children: running.count,
-		measure:  func(fw, scene string) Round { return runOnce(cfg, fw, scene) },
+		wsClock:     windowServerCPU,
+		now:         time.Now,
+		sleep:       time.Sleep,
+		children:    running.count,
+		measure:     func(fw, scene string) Round { return runOnce(cfg, fw, scene) },
+		processOnly: *cpuMetric == metricProcess,
 	}
 	emit := func(r Round) error {
 		res.Rounds = append(res.Rounds, r)
@@ -820,6 +836,9 @@ func main() {
 				v, why := judgeWhy(t, o, *rounds)
 				why = annotateWhy(why, manifest, *unverifiedRunner)
 				why += compositor[scene]
+				if *cpuMetric == metricProcess {
+					why += processOnlyNote
+				}
 				tk, ts := rendererSummary(t)
 				ok, osw := rendererSummary(o)
 				res.Verdicts = append(res.Verdicts, VerdictLine{Scene: scene, Opponent: fw, Verdict: v, Why: why,

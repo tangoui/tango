@@ -460,3 +460,56 @@ func TestScreenSharingIgnoresCoreParsec(t *testing.T) {
 		t.Fatalf("Parsec app: %v, want parsecd", got)
 	}
 }
+
+// R50: -cpu-metric process judges on process CPU only, takes no idle
+// samples, and WindowServer never disturbs a round.
+func TestProcessMetric(t *testing.T) {
+	// Tango 0.10 process but a heavy compositor; opponent 0.30 process.
+	mk := func(fw string, proc, ws float64, metric string) []Round {
+		return rounds(fw, 5, 0, 0, func(i int, r *Round) {
+			r.Scene, r.CPUMetric = "list", metric
+			k := 1 + 0.01*float64(i)
+			r.CPUSeconds, r.WindowServerSeconds = proc*10*k, ws*10*k
+		})
+	}
+	v, why := judgeWhy(mk("tango", 0.10, 0.5, metricProcess), mk("mygo", 0.30, 0.0, metricProcess), 3)
+	if v != Faster || !strings.Contains(why, "process only") {
+		t.Fatalf("process metric: %s (%s), want Faster on process CPU", v, why)
+	}
+	// Default metric: the same rounds count WindowServer, NotFaster.
+	if v, why := judgeWhy(mk("tango", 0.10, 0.5, ""), mk("mygo", 0.30, 0.0, ""), 3); v != NotFaster || !strings.Contains(why, "proc + ws_net") {
+		t.Fatalf("default metric: %s (%s), want NotFaster", v, why)
+	}
+	// The cheap gate reads process CPU: 0.04 process + 1 core WS is too cheap.
+	if v, why := judgeWhy(mk("tango", 0.01, 0, metricProcess), mk("mygo", 0.04, 1, metricProcess), 3); v != Info {
+		t.Fatalf("cheap gate on process: %s (%s), want Info", v, why)
+	}
+
+	// A drifting, busy compositor (0.2 → 0.7) does not disturb anything and
+	// is never sampled; the raw WindowServer delta stays.
+	f := newFakeBench(t, 0.2, 0.7)
+	d := f.deps()
+	d.processOnly = true
+	var got []Round
+	if err := runSceneRound(d, "list", 0, []string{"tango", "mygo", "nsgo"}, func(r Round) error { got = append(got, r); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if f.samples != 0 || len(got) != 3 || f.gates != 1 {
+		t.Fatalf("process mode: %d WS idle reads, %d attempts, %d gates; want 0, 3, 1", f.samples, len(got), f.gates)
+	}
+	for _, r := range got {
+		if r.Disturbed || r.WSBaseline != nil || r.WindowServerSeconds != 4.5 || r.CPUMetric != metricProcess {
+			t.Fatalf("process mode round %+v", r)
+		}
+	}
+	// Load ≥ 6 still disturbs and retries.
+	f = newFakeBench(t, 0.2)
+	f.disturb["mygo"] = 1
+	d = f.deps()
+	d.processOnly = true
+	got = nil
+	_ = runSceneRound(d, "list", 0, []string{"tango", "mygo"}, func(r Round) error { got = append(got, r); return nil })
+	if len(got) != 3 || !got[1].Disturbed || got[2].Disturbed {
+		t.Fatalf("load retry in process mode: %d attempts", len(got))
+	}
+}

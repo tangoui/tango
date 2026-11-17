@@ -123,7 +123,11 @@ func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
 	tc, oc := median(each(t, Round.cpu)), median(each(o, Round.cpu))
 	_, tq3 := quartiles(each(t, Round.cpu))
 	oq1, _ := quartiles(each(o, Round.cpu))
-	why := fmt.Sprintf("cpu (proc + ws_net) %.4f vs %.4f cores (%.2fx), tango q3 %.4f vs opponent q1 %.4f", tc, oc, ratio(tc, oc), tq3, oq1)
+	label := "proc + ws_net"
+	if t[0].CPUMetric == metricProcess {
+		label = "process only"
+	}
+	why := fmt.Sprintf("cpu (%s) %.4f vs %.4f cores (%.2fx), tango q3 %.4f vs opponent q1 %.4f", label, tc, oc, ratio(tc, oc), tq3, oq1)
 	tf, of := median(each(t, Round.fps)), median(each(o, Round.fps))
 	tp, op := median(each(t, Round.p99)), median(each(o, Round.p99))
 	frames := fmt.Sprintf("; fps %.1f vs %.1f; p99 %.0f vs %.0f µs", tf, of, tp, op)

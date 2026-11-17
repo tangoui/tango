@@ -185,6 +185,23 @@ exits (status 130), so no orphaned scene keeps drawing; once stopping,
 the runner starts no further program (the start runs under the same lock
 as the stop, so none can slip in between).
 
+### CPU metric
+
+`-cpu-metric process+ws` (the default) is everything above: the judge's
+cpu is process + `windowserver_net_s`. `-cpu-metric process` (R50, the
+user's choice when the normal desktop's idle compositor drifts too much
+to subtract) makes the judge, the verdict lines and every cpu figure,
+including the 0.05-core cheap gate and the 0.02-core gap, process CPU
+only. The raw WindowServer delta is still sampled, recorded and printed
+per attempt, but no idle samples (or their settle waits) are taken, so
+`windowserver_idle_s` / `windowserver_net_s` are 0 and WindowServer never
+marks a round disturbed (load ≥ 6 still does). `meta.cpu_metric` records
+the choice and every verdict line ends with "(process CPU only;
+WindowServer excluded by user choice — favours compositor-drawn NSGo)".
+Caveat: a framework that hands drawing to the compositor (NSGo's Core
+Animation layers) moves cost out of its own process, so process-only CPU
+understates it relative to frameworks that draw in-process.
+
 ### Quiet-machine check
 
 `runner -check-idle [-settle 3s] [-seconds 10]` opens no window and
