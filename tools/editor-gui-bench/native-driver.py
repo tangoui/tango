@@ -121,17 +121,20 @@ def run(name):
             inputs = lambda extra: [dict({'id': i + 1, 'kind': 'scroll', 'dy': -40, 'x': fx + fw / 2, 'y': fy + fh / 2}, **extra) for i in range(opt.scrolls)]
             rec_wait, settle = 700, 250
         else:
-            # The body's width (the window frame can be a point wider than the
-            # capture): 100 typed columns run past 800 points.
-            regions = [{'x': 0, 'y': math.floor(t * SCALE), 'width': int(bw * SCALE), 'height': math.ceil(h * SCALE)} for t, h in st['rows']]
+            # 1200 points: 100 typed columns end near 940, and the minimap at
+            # the right edge (it changes with every key) stays outside.
+            regions = [{'x': 0, 'y': math.floor(t * SCALE), 'width': min(int(bw * SCALE), 2400), 'height': math.ceil(h * SCALE)} for t, h in st['rows']]
             inputs = lambda extra: [dict({'id': i + 1, 'kind': 'key', 'keycode': 7}, **extra) for i in range(keys)]
-            rec_wait, settle = 1300, 300
+            # Settle past re-highlighting: a key inside "export" turns the word
+            # from a keyword into an identifier, recolored asynchronously.
+            rec_wait, settle = 1500, 600
         res['regions'] = regions
         before = st
         if opt.templates_from:
             src = pathlib.Path(opt.templates_from).resolve() / name
-            if not (src / 'templates' / 'patches.json').exists():
-                raise RuntimeError('the reused record pass is missing: ' + str(src))
+            rep_ = src / 'templates' / 'report.json'
+            if not rep_.exists() or not json.loads(rep_.read_text()).get('ok'):
+                raise RuntimeError('the reused record pass is missing or its templates are unusable: ' + str(src))
             saved = json.loads((src / 'regions.json').read_text())
             # A relaunched editor may lay its rows out a pixel off: keep the
             # recorded regions when they match closely, alignment does the rest.

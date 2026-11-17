@@ -296,17 +296,22 @@ async function templatesFlow(name, dir, cdp, win, before, text, offsets) {
     recWait = 700; settle = 250;
   } else {
     if (before.rows.some((r) => !r)) throw new Error('a caret row is not visible');
-    // Whole window width: 100 typed columns run past 800 points.
-    regions = before.rows.map(([t, h]) => ({ x: 0, y: Math.floor((top + t) * SCALE), width: Math.round(before.viewport[0] * SCALE), height: Math.ceil(h * SCALE) }));
+    // 1200 points: 100 typed columns end near 940, and the minimap at the
+    // right edge (it changes with every key) stays outside.
+    regions = before.rows.map(([t, h]) => ({ x: 0, y: Math.floor((top + t) * SCALE), width: Math.min(Math.round(before.viewport[0] * SCALE), 2400), height: Math.ceil(h * SCALE) }));
     inputs = (extra) => Array.from({ length: keys }, (_, i) => ({ id: i + 1, kind: 'key', keycode: 7, ...extra }));
-    recWait = 1300; settle = 300;
+    // Settle past re-highlighting: a key inside "export" turns the word from
+    // a keyword into an identifier, recolored asynchronously.
+    recWait = 1500; settle = 600;
   }
   res.regions = regions;
   const job = (actions, extra = {}) => ({ pid: live.edge.pid, windowID: win.windowID, isolatedWindow: true, inputSource: 'com.apple.keylayout.ABC', actions, ...extra });
   let tdir = path.join(dir, 'templates'), rdir = path.join(dir, 'record');
   if (cfg.templatesFrom) {
     const src = path.resolve(cfg.templatesFrom, name);
-    if (!fs.existsSync(path.join(src, 'templates', 'patches.json'))) throw new Error('the reused record pass is missing: ' + src);
+    let okTpl = false;
+    try { okTpl = JSON.parse(fs.readFileSync(path.join(src, 'templates', 'report.json'), 'utf8')).ok === true; } catch {}
+    if (!okTpl) throw new Error('the reused record pass is missing or its templates are unusable: ' + src);
     const saved = JSON.parse(fs.readFileSync(path.join(src, 'regions.json'), 'utf8'));
     // A relaunched editor may lay its rows out a pixel off: keep the recorded
     // regions when they match closely, alignment does the rest.
