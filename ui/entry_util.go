@@ -197,7 +197,11 @@ func entArrowLook(c *Context) (size, right float32, col theme.Color) {
 	case theme.StyleShadcn:
 		return 16, th.ControlPaddingH, theme.Fade(th.Text, .5)
 	}
-	return 12, 11, th.TextQuaternary
+	// antd colors the suffix arrow colorTextQuaternary (select/style
+	// select-input.js); Tango uses colorTextTertiary so the 12px
+	// DownOutlined reads as a control affordance rather than faded text.
+	// Deliberate deviation from the antd baseline, chosen by the user.
+	return 12, 11, th.TextTertiary
 }
 
 // ---------------------------------------------------------------------------
