@@ -109,9 +109,11 @@ type canvas struct {
 	link        id // CADisplayLink, 0 when unavailable
 	linkRunning bool
 	idleTicks   int
-	timer       uintptr   // CFRunLoopTimer
-	timerAt     time.Time // pending InvalidateAt deadline
-	throttleAt  time.Time // fallback pacing (no display link)
+	timer       uintptr    // CFRunLoopTimer
+	timerAt     time.Time  // pending InvalidateAt deadline
+	throttleAt  time.Time  // fallback pacing (no display link)
+	armed       timerArm   // what timer is set to (canvas_sched.go)
+	ticks       tickPeriod // display-link refresh interval estimate
 	lastFrame   time.Time
 	inFrame     bool
 	missed      bool         // AppKit displayed the view before NewCanvasSurface returned
@@ -413,10 +415,14 @@ func canvasPerform() {
 				c.focusMaybeChanged()
 			}
 			if !r.at.IsZero() {
-				if c.timerAt.IsZero() || r.at.Before(c.timerAt) {
-					c.timerAt = r.at
+				if linkCovers(r.at, time.Now(), c.link != 0, c.linkRunning, c.ticks.lastTick(), c.ticks.get()) {
+					r.frame = true // the next refresh is no later than the deadline
+				} else {
+					if c.timerAt.IsZero() || r.at.Before(c.timerAt) {
+						c.timerAt = r.at
+					}
+					c.armTimer()
 				}
-				c.armTimer()
 			}
 			if r.frame {
 				c.requestFrame()
@@ -461,6 +467,7 @@ func (c *canvas) displayTick() {
 	if c.closed {
 		return
 	}
+	c.ticks.tick(time.Now())
 	if c.frameWanted {
 		c.frameWanted = false
 		c.idleTicks = 0
@@ -470,18 +477,20 @@ func (c *canvas) displayTick() {
 	c.idleTicks++
 	if c.idleTicks >= linkIdleTicks && c.linkRunning {
 		c.linkRunning = false
+		c.ticks.pause()
 		send(c.link, "setPaused:", 1)
 	}
 }
 
-// armTimer sets the timer to the earliest of the pending deadlines.
+// armTimer sets the timer to the earliest of the pending deadlines,
+// unless it is set to that already.
 func (c *canvas) armTimer() {
 	if c.timer == 0 {
 		return
 	}
-	t := c.timerAt
-	if !c.throttleAt.IsZero() && (t.IsZero() || c.throttleAt.Before(t)) {
-		t = c.throttleAt
+	t := timerTarget(c.timerAt, c.throttleAt)
+	if !c.armed.need(t) {
+		return
 	}
 	fire := float64(farFuture)
 	if !t.IsZero() {
@@ -495,6 +504,7 @@ func canvasTimerFired(key uintptr) {
 	if c == nil || c.closed {
 		return
 	}
+	c.armed.fired()
 	withPool(func() {
 		now := time.Now().Add(timerTolerance)
 		if !c.throttleAt.IsZero() && !now.Before(c.throttleAt) {
