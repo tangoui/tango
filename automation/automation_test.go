@@ -126,3 +126,33 @@ func TestFilterEnv(t *testing.T) {
 		t.Fatalf("%v", got)
 	}
 }
+
+// The program under test starts in the background unless the caller's
+// environment or Options.Env says otherwise; the channel variables are
+// always Launch's own.
+func TestLaunchEnv(t *testing.T) {
+	last := func(env []string, key string) string {
+		v := ""
+		for _, kv := range env {
+			if k, val, ok := strings.Cut(kv, "="); ok && k == key {
+				v = val
+			}
+		}
+		return v
+	}
+	env := launchEnv([]string{"A=1", "TANGO_AUTOMATION=stale"}, nil, "127.0.0.1:0", "/tmp/t.json")
+	if last(env, EnvLaunchBackground) != "1" || last(env, "A") != "1" {
+		t.Fatalf("default env %v", env)
+	}
+	if last(env, "TANGO_AUTOMATION") != "127.0.0.1:0" || last(env, "TANGO_AUTOMATION_TOKEN_FILE") != "/tmp/t.json" {
+		t.Fatalf("channel env %v", env)
+	}
+	env = launchEnv([]string{EnvLaunchBackground + "=0"}, nil, "a", "b")
+	if last(env, EnvLaunchBackground) != "0" {
+		t.Fatalf("environment override lost: %v", env)
+	}
+	env = launchEnv(nil, []string{EnvLaunchBackground + "=0"}, "a", "b")
+	if last(env, EnvLaunchBackground) != "0" {
+		t.Fatalf("Options.Env override lost: %v", env)
+	}
+}

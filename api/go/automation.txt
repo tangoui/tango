@@ -1,5 +1,6 @@
 pkg github.com/tangoui/tango/automation, const DefaultTimeout time.Duration = 10000000000
 pkg github.com/tangoui/tango/automation, const EnvE2E untyped string = "TANGO_E2E"
+pkg github.com/tangoui/tango/automation, const EnvLaunchBackground untyped string = "TANGO_LAUNCH_BACKGROUND"
 pkg github.com/tangoui/tango/automation, const KindCanvas untyped string = "canvas"
 pkg github.com/tangoui/tango/automation, const KindWebView untyped string = "webview"
 pkg github.com/tangoui/tango/automation, const MatchContains untyped string = "contains"

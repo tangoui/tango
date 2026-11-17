@@ -75,6 +75,11 @@ const DefaultTimeout = 10 * time.Second
 // EnvE2E must be set for Launch to run (it skips the test otherwise).
 const EnvE2E = "TANGO_E2E"
 
+// EnvLaunchBackground is set to 1 for the launched program: on macOS it
+// starts without activating and shows its windows behind the others.
+// Pass EnvLaunchBackground+"=0" in Options.Env to launch it in front.
+const EnvLaunchBackground = "TANGO_LAUNCH_BACKGROUND"
+
 // Options configure Launch.
 type Options struct {
 	// Args are the program's arguments.
@@ -146,8 +151,7 @@ func LaunchOptions(t testing.TB, target string, opts Options) *App {
 	}
 	cmd := exec.Command(bin, opts.Args...)
 	cmd.Dir = opts.Dir
-	cmd.Env = append(filterEnv(os.Environ()), opts.Env...)
-	cmd.Env = append(cmd.Env, wire.EnvAddr+"="+addr, wire.EnvTokenFile+"="+tokenFile)
+	cmd.Env = launchEnv(os.Environ(), opts.Env, addr, tokenFile)
 	a := &App{t: t, timeout: opts.Timeout, cmd: cmd, out: &tailBuffer{max: 256 << 10}, exited: make(chan struct{})}
 	if a.timeout <= 0 {
 		a.timeout = DefaultTimeout
@@ -451,6 +455,18 @@ func hasChannel(path string) bool {
 		return true
 	}
 	return bytes.Contains(b, []byte(wire.EnvTokenFile))
+}
+
+// launchEnv is the environment of the program under test. It starts in
+// the background (macOS: no activation, its windows behind the others) so
+// a test run does not take focus from the user or cover windows other
+// tools measure; environ and extra come after, so
+// TANGO_LAUNCH_BACKGROUND=0 there restores the activation (exec keeps the
+// last value of a key). The channel address and token file always win.
+func launchEnv(environ, extra []string, addr, tokenFile string) []string {
+	env := append([]string{EnvLaunchBackground + "=1"}, filterEnv(environ)...)
+	env = append(env, extra...)
+	return append(env, wire.EnvAddr+"="+addr, wire.EnvTokenFile+"="+tokenFile)
 }
 
 func filterEnv(env []string) []string {

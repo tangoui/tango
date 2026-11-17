@@ -309,7 +309,8 @@ func registerAppDelegate() {
 		activate bool // bring the app forward first
 	}{
 		// A bare executable (go run, no bundle) is not activated by
-		// LaunchServices, so do it here.
+		// LaunchServices, so do it here (not with
+		// TANGO_LAUNCH_BACKGROUND=1, launchbg.go).
 		{"applicationDidFinishLaunching:", platform.LifecycleStarted, true},
 		{"applicationDidBecomeActive:", platform.LifecycleForeground, false},
 		{"applicationDidResignActive:", platform.LifecycleBackground, false},
@@ -319,7 +320,7 @@ func registerAppDelegate() {
 		l := l
 		methods = append(methods, method(l.selector, func(_ id, _ objc.SEL, _ id) {
 			b := theBackend
-			if l.activate && !devWorker {
+			if l.activate && !devWorker && !launchBackground {
 				send(b.app, "activateIgnoringOtherApps:", boolArg(true))
 			}
 			b.h.OnLifecycle(l.event)
