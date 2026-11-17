@@ -17,6 +17,52 @@ type numericFaceKey struct {
 type numericFaceValue struct {
 	face  *Face
 	feats []shaping.FontFeature
+	table numericGlyphTable
+}
+
+// numericChars are the runes simpleNumericText accepts; numericIndex maps a
+// rune to its slot in numericGlyphTable.
+const numericChars = "0123456789.-+"
+
+func numericIndex(r rune) int {
+	switch {
+	case r >= '0' && r <= '9':
+		return int(r - '0')
+	case r == '.':
+		return 10
+	case r == '-':
+		return 11
+	case r == '+':
+		return 12
+	}
+	return -1
+}
+
+// numericGlyphTable holds, per numeric rune, the face's glyph and its
+// advance in font units at the face's variation instance. Reading it avoids
+// re-evaluating variable-font advance deltas for every label every frame.
+type numericGlyphTable struct {
+	ok  bool
+	gid [len(numericChars)]uint32
+	adv [len(numericChars)]float32 // font units
+}
+
+func buildNumericTable(face *Face) numericGlyphTable {
+	var t numericGlyphTable
+	gt := face.gt()
+	if gt == nil {
+		return t
+	}
+	for i, r := range numericChars {
+		gid, ok := gt.NominalGlyph(r)
+		if !ok {
+			return numericGlyphTable{}
+		}
+		t.gid[i] = uint32(gid)
+		t.adv[i] = gt.HorizontalAdvance(gid)
+	}
+	t.ok = true
+	return t
 }
 
 var numericFaces = map[numericFaceKey]numericFaceValue{}
@@ -54,6 +100,9 @@ func numericFaceFor(st Style, lang string, version int) (numericFaceValue, bool)
 		}
 	}
 	v := numericFaceValue{face: face, feats: append([]shaping.FontFeature(nil), fm.feats...)}
+	if len(v.feats) == 0 {
+		v.table = buildNumericTable(face)
+	}
 	numericFaces[k] = v
 	return v, true
 }
@@ -71,18 +120,14 @@ func directNumericLayoutInto(dst *Layout, s string, st Style, opt Options, versi
 		return nil // preserve feature-bearing shaping semantics
 	}
 	face := nf.face
-	if face == nil {
-		return nil
-	}
-	gt := face.gt()
-	if gt == nil {
+	if face == nil || !nf.table.ok {
 		return nil
 	}
 	if dst == nil {
 		dst = &Layout{}
 	}
 	l := dst
-	oldRunes, oldGlyphs, oldClusters, oldRuns := l.Runes, l.Glyphs, l.GlyphCluster, l.GlyphRun
+	oldRunes, oldGlyphs, oldClusters, oldRuns, oldLines := l.Runes, l.Glyphs, l.GlyphCluster, l.GlyphRun, l.Lines
 	*l = Layout{Text: s, Style: st, LineHeight: st.LineHeight}
 	l.Runes = oldRunes[:0]
 	l.Glyphs = oldGlyphs[:0]
@@ -90,23 +135,28 @@ func directNumericLayoutInto(dst *Layout, s string, st Style, opt Options, versi
 	l.GlyphRun = oldRuns[:0]
 	asc, desc := face.Metrics(st.Size)
 	l.Ascent, l.Height = asc, st.LineHeight
+	base := (st.LineHeight-(asc+desc))/2 + asc
+	unit := st.Size / face.upem
 	pen := float32(0)
 	for _, r := range s {
-		gid, exists := gt.NominalGlyph(r)
-		if !exists {
-			return nil
-		}
-		adv := gt.HorizontalAdvance(gid) * st.Size / face.upem
+		i := numericIndex(r)
 		l.Runes = append(l.Runes, r)
-		l.Glyphs = append(l.Glyphs, paint.Glyph{Src: face, ID: uint32(gid), Size: st.Size, X: pen, Y: (st.LineHeight-(asc+desc))/2 + asc})
-		pen += adv
+		l.Glyphs = append(l.Glyphs, paint.Glyph{Src: face, ID: nf.table.gid[i], Size: st.Size, X: pen, Y: base})
+		l.GlyphCluster = append(l.GlyphCluster, int32(len(l.Glyphs)-1))
+		l.GlyphRun = append(l.GlyphRun, 0)
+		pen += nf.table.adv[i] * unit
 	}
-	l.GlyphCluster = make([]int32, len(l.Glyphs))
-	l.GlyphRun = make([]int32, len(l.Glyphs))
-	for i := range l.GlyphCluster {
-		l.GlyphCluster[i] = int32(i)
+	var carets []float32
+	if len(oldLines) > 0 {
+		carets = oldLines[0].carets[:0]
 	}
-	l.Lines = []Line{{Start: 0, End: len(l.Runes), Width: pen, Baseline: (st.LineHeight-(asc+desc))/2 + asc}}
+	cx := float32(0)
+	for _, r := range l.Runes {
+		carets = append(carets, cx)
+		cx += nf.table.adv[numericIndex(r)] * unit
+	}
+	carets = append(carets, pen)
+	l.Lines = append(oldLines[:0], Line{Start: 0, End: len(l.Runes), Width: pen, Baseline: base, carets: carets})
 	l.Width = pen
 	return l
 }
