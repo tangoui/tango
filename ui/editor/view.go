@@ -127,6 +127,8 @@ type viewState struct {
 	// the matched brackets for matchKey.
 	brk map[int][]brSpan
 	brc brCache
+	// brcLines counts the lines bracketSpans colored afresh (tests).
+	brcLines int
 	// bgPairs is this frame's bracket pairs with guides (bgOn: bracket
 	// pair guides are on), bgRows their guides on the laid out rows,
 	// bgc their cache (bracketguides.go).
