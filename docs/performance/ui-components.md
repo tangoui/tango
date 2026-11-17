@@ -31,11 +31,11 @@
 
 ### 批次 A/B 对比口径
 
-优化批次判断前后快慢，只用基准中位数（`uiperf bench` 写出的 `bench.json`）或 `uiperf ab`（固定测试二进制、每轮新进程、交替多轮取中位数）。`perfTimeDebt` 里的 Measured 字符串是门槛单次运行的记录值，只用于棘轮登记，不得用作 A/B 对比的依据。
+优化批次判断前后快慢、决定保留还是回退，**只用 `uiperf ab`**（固定测试二进制、每轮新进程、交替多轮取中位数；裁定 R43）。不得拿批次后的基准中位数直接减 R1（或任何更早基线）的 `bench.json` 中位数。`uiperf bench` 写出的 `bench.json` 只是状态快照，用来记录各项当时的位置、达标情况和热点输入，不作为批次决策依据。`perfTimeDebt` 里的 Measured 字符串是门槛单次运行的记录值，只用于棘轮登记，不得用作 A/B 对比的依据。
 
 ## R1 基线（合并后，当前对比基准）
 
-R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，**第 1 批优化的 A/B 对比以本节为 BASE**。下文“12a”指历史一节的 Task 12a 基线（5f115d3）。跨框架列仍为“待测”，本节不包含任何与 MyGo / NSGo 快慢有关的结论。
+R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，是第 1 批的**状态基线**（超标集合、债表、热点输入以本节为准）。**按裁定 R43，批次保留或回退只依据 `uiperf ab`（固定二进制、交替多轮）的结果；本节 `bench.json` 中位数只是状态快照，不得与批次后的中位数直接相减作为决策证据。**下文“12a”指历史一节的 Task 12a 基线（5f115d3）。跨框架列仍为“待测”，本节不包含任何与 MyGo / NSGo 快慢有关的结论。
 
 ### 证据与环境
 
@@ -57,7 +57,7 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，*
 | bench 第 1 次，**受干扰，作废** | `go run ./internal/cmd/uiperf bench -count 3 -out baseline-R1` | 06:17:54–06:45:24 | 2.09 2.25 2.23 → 2.46 2.70 2.67 |
 | **bench 第 2 次**（基准 `-count 3`、内置预算测试 `-p 1 -count=1`、冷启动） | 同上 | 07:18:26–08:29:15 | 3.93 2.59 2.34 → 2.14 2.53 2.69（每分钟采样，最高 4.05） |
 | `uiperf hot`（35 个超标场景，0 失败） | `go run ./internal/cmd/uiperf hot -out baseline-R1` | 08:29:46–08:32:10 | 2.17 2.50 2.68 → 3.04 2.59 2.67 |
-| 门槛第 1 次，**受干扰，作废**（已输出 278 行 PERF 时被停掉） | `TANGO_PERF_BUDGET=1 go test ./ui ./examples/ui-gallery -run 'Test(Perf\|GalleryPage)Budgets' -count=1 -p 1 -timeout 0 -v` | 08:32:39–08:41:25 | 2.37 2.47 2.62 → 6.34 4.11 3.24（08:41:06 为 6.82） |
+| 门槛第 1 次，**受干扰，作废**（已输出 287 行 PERF 时被停掉） | `TANGO_PERF_BUDGET=1 go test ./ui ./examples/ui-gallery -run 'Test(Perf\|GalleryPage)Budgets' -count=1 -p 1 -timeout 0 -v` | 08:32:39–08:41:25 | 2.37 2.47 2.62 → 6.34 4.11 3.24（08:41:06 为 6.82） |
 | **门槛 1**，PASS（ui 793.5 s，gallery 3.2 s） | 同上 | 08:46:18–08:59:37 | 3.68 3.67 3.27 → 4.23 3.34 3.21（采样最高 4.37） |
 | **门槛 2**，PASS（ui 791.5 s，gallery 3.3 s） | 同上 | 08:59:50–09:13:07 | 4.20 3.36 3.22 → 3.19 3.00 3.08 |
 
@@ -65,7 +65,7 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，*
 - **两次受干扰的运行：**
   - bench 第 1 次：06:45:08 另一个会话启动了 `tango-scenes grid`（`/Users/admin/min/outputs/tango-combined-gate-20261117`，随后还有 `/tmp/tango-memprof/probe.sh`）。按协调安排停掉，等对方结束后重跑。
   - 门槛第 1 次：另一个会话在 `/private/tmp/tango-ed` 跑 `go test -race ./ui/editor -run 'Minimap|Miniature'`，负载升到 6.82，停掉。等没有外部 `go test` 且 1 分钟负载 < 4 连续 2 分钟后，再从头跑门槛 1。
-- **07:17 的重叠：** min-0f 在约 07:17 跑了约 1 分钟的完整 `go test`，CPU 余波可能与 bench 第 2 次开头重叠，开始时负载为 3.93（之前约 2.1）。按协调规则检查了 A 开头的夹具：45 项 R1/12a 中位数比的中位数为 1.12，四分位 1.04–1.15，单项最高 1.29（App/Interact），没有一项超过 1.5 倍；其余 835 项比值的中位数为 1.07。A 开头的夹具没有明显被抬高，所以保留原始结果，没有补测。
+- **07:17 的重叠：** min-0f 在约 07:17 跑了约 1 分钟的完整 `go test`，CPU 余波可能与 bench 第 2 次开头重叠，开始时负载为 3.93（之前约 2.1）。按协调规则检查了 A 开头的夹具：45 项 R1/12a 中位数比的中位数为 1.12，四分位 1.04–1.15，单项最高 1.29（App/Interact），没有一项超过 1.5 倍；其余 835 项比值的中位数为 1.06。A 开头的夹具没有明显被抬高，所以保留原始结果，没有补测。但 A 开头夹具的跨运行差值可信度较低：一是开头可能有 07:17 的重叠，二是 `-count 3` 会把同一基准的 3 次连着跑完，3 次都落在同一个时间窗口里，中位数挡不住这段时间的系统负载。
 - 步骤全部串行。门槛与内置预算测试都带 `-p 1`，`./ui` 与 gallery 不再并行。
 
 ### 结果概要
@@ -94,6 +94,8 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，*
 
 **跨过预算线的项：无。** 12a 的 396 个有预算场景在 R1 的判定与 12a 完全相同，超标集合仍是那 33 项。新增的超标只来自新夹具。
 
+**本小节只作参考，不是决策证据。** 比值里混有机器漂移（R1 开始时 1 分钟负载 3.9，12a 约 1.3），批次决策按 R43 只用 `uiperf ab`。
+
 **整体漂移：** 880 个共有基准项的 R1/12a 中位数比如下。比值同时混有上游代码变化和机器状态差异：12a 在 01:45–02:50 运行，负载约 1.3–1.9；R1 在 07:18–08:16 运行，负载约 2.1–4.0。
 
 | 场景 | 项数 | ns/op 比中位数 | allocs/op 比中位数 |
@@ -109,7 +111,7 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，*
 - Mount 普遍慢约 10%，allocs/op 多约 3%。这与上游 antd 6.7 对齐批次给许多组件加的节点和属性一致。热路径的 Unchanged / Interact / Large* 基本持平（+2% 左右，在机器漂移范围内）。
 - 3898e06（变量字体共享、HVAR 延迟特化）没有看到可单独归因的进程内时间变化。它的提交说明针对的是常驻内存（空闲 footprint 49.8 → 38.2 MiB），不属于本基准测的内容。
 - 9b9d853 是可选路径，默认关闭，本次没有启用，对 R1 数值没有贡献。
-- 文字和布局的 Large100k 超标项（Tabs、CheckAll、RadioGroup 等）比值都在 0.99–1.06 之间，说明上游文字提交没有改变每步的 shaping 和布局开销，第 1 批的公共管线目标不变。
+- 文字和布局的 Large100k 超标项（Tabs、CheckAll、RadioGroup 等）比值都在 0.99–1.06 之间，未见上游文字提交对每步 shaping 和布局开销有可分辨的影响，第 1 批的公共管线目标不变。
 
 **单项相对变化最大的（基准中位数，12a → R1）：**
 
@@ -353,6 +355,8 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，*
 
 **与 12a 的口径差异：** F1 修正后，flat = 0 的纯调用者行会保留，所以前几名是计时框架和调用链上层的函数：`Runner.Frame`、`Driver.Frame`、`benchPerfScene`、`testing.(*B).runN`、`perfStep`、`perfScenes.func2.func1.1`、`runtime.systemstack`。它们只说明所有超标场景都经过帧管线，本身不是优化目标。另外 `pprof -nodecount=30` 是在每个 profile 内截取的，这些调用者行占掉了名额，一些 12a 进过前 30 的叶子函数在 `hot.md` 中排名靠后，例如 `(*TabsW).tab.func10`、`(*CommandW).item.func1`、`runtime.gcDrain`。所以 12a 与 R1 的得分和名次不能直接比较。
 
+**后续（裁定 R42，F2）：** uiperf hot 将改为 `-nodecount=200`、排除计时框架和调用链行、并输出平铺（flat）表。第 1 批选题之前，会用 F2 重新打分的表替换下面的排名；下表只作为 R1 时点的记录。
+
 | # | 函数 | 得分 | 组件数 | 组件/场景 | 非目标区 |
 |---:|---|---:|---:|---|:---:|
 | 1 | `github.com/tangoui/tango/ui.(*Runner).Frame` | 10030.4751 | 35 | AutoComplete/Large100k, AvatarGroup/Large100k, BubbleList/Large100k, Carousel/Large100k, Cascader/Large100k, CascaderPanel/Large100k, CellEditorTable/Large100k, CheckAll/Large100k, CheckboxGroup/Large100k, Collapse/Large100k, Command/Large100k, Conversations/Large100k, Descriptions/Large100k, Image/Mount, InfiniteScroll/Large100k, InputTag/Large100k, List/Large100k, Markdown/Large100k, Masonry/Large100k, Mentions/Large100k, Menu/Large100k, ProList/Large100k, ProTable/Large100k, RadioGroup/Large100k, RichText/Large100k, RowEditorTable/Large100k, Scroll/Large100k, ScrollH/Large100k, Segmented/Large100k, Tabs/Large100k, Timeline/Large100k, ToggleGroup/Large100k, Transfer/Large100k, Tree/Large100k, TreeSelect/Large100k | 否 |
@@ -412,7 +416,7 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，*
 2. **已虚拟化但仍超预算：**
    - Transfer 81.52 ms：12a 为 43.67 ms，1ceffa2 之后翻倍。按 `targetKeys` 排序时的全量映射构建是第一个要处理的点，并且必须保持 antd `unshift` 语义。
    - AvatarGroup 19.16 ms、TreeSelect 7.07 ms、BubbleList 5.85 ms、Masonry 443 µs（门槛预算约 97 µs）。
-3. **公共管线：** 布局（`flexbox.flex` / `measure*` / `arrange`）和文字（`text.Shape` / `layoutRuns` / `prepareText` / `shapeItems` / `compactShaper.append` + harfbuzz）仍是多个组件共享的首要目标。上游文字提交（acb8e99、3898e06）只改善了冷启动和内存，没有改变每步的 shaping 开销。
+3. **公共管线：** 布局（`flexbox.flex` / `measure*` / `arrange`）和文字（`text.Shape` / `layoutRuns` / `prepareText` / `shapeItems` / `compactShaper.append` + harfbuzz）仍是多个组件共享的首要目标。上游文字提交（acb8e99、3898e06）最可能只作用于冷启动和内存，未见它们改变每步的 shaping 开销。
 4. **Image/Mount：** 基准 660.2 µs（门槛较差值 689 µs），仍是唯一超标的首次构建。它的 Interact 是全部 Interact 中最慢的（588.1 µs）。
 5. **新观察项（达标，但上游合并后明显变慢）：**
    - QRCode/Mount：281.5 µs，3.16×，约为预算的 67%，boostLevel 每次构建都重复编码，可以缓存。
