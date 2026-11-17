@@ -76,6 +76,12 @@ type miniLine struct {
 	bmp    *miniBitmap // the characters (minimap_chars.go; nil: none)
 	// bmpDone: bmp is drawn (characters were on).
 	bmpDone bool
+	// seen is the snapshot version text was last found current at, for
+	// line seenLine (prepareMinimap skips reading the source of a line no
+	// edit since touched). The line is part of it: a row moved to another
+	// line (takeMoved) is still its old line's row until that is visited.
+	seen     uint64
+	seenLine int
 }
 type minimapState struct {
 	cache       map[int]*miniLine
@@ -85,6 +91,8 @@ type minimapState struct {
 	buf         *buffer.Buffer
 	column, tab int
 	rebuilt     uint64 // cache-line builds, also used by incremental regression tests
+	sourceReads uint64 // rows whose source text was read (tests)
+	touched     []int  // scratch: the lines the last edit touched (miniSourceCarry)
 	idle        int    // frames in a row that left rows and built none
 	// Query scratch belongs to this view, never to a cached miniature row.
 	// Cached tokens below are cloned before the next row reuses this slice.
@@ -330,6 +338,9 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 	left := false // rows left for a later frame (the deadline passed)
 	built := m.rebuilt
 	hl := w.st.Highlighter()
+	ver := snap.Version()
+	carryVer, touched := miniSourceCarry(w.st.Model.Buffer(), snap, m.touched[:0])
+	m.touched = touched
 	for k := 0; k < count; k++ {
 		pos := float32(k) * step
 		// Rows of a pixel or more step one view row per sample, exactly:
@@ -371,14 +382,27 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 		// The source decides the miniature: a row whose source is the
 		// cached one's (a row of a long line the key did not change, or
 		// moved without changing) is not walked again.
-		raw, short := miniatureSource(snap, line, from, cols)
-		raw = trimMiniSource(raw, short)
-		var prefix string
-		dep := 0
-		if ln != nil && ln.short == short && ln.rawLen == len(raw) && strings.HasPrefix(raw, ln.dep) {
-			prefix, dep = ln.text, len(ln.dep)
+		var prefix, depText string
+		var rawLen int
+		var short bool
+		if ln != nil && key == line && ln.seenLine == line && (ln.seen == ver || carryVer != 0 && ln.seen == carryVer && !slices.Contains(touched, line)) {
+			// The line's text is the one ln was made from: no edit since
+			// touched it (a whole line's row: its source does not depend
+			// on the wrapping).
+			prefix, depText, rawLen, short = ln.text, ln.dep, ln.rawLen, ln.short
 		} else {
-			prefix, dep = miniatureDep(raw, short, cols, tab)
+			m.sourceReads++
+			var raw string
+			raw, short = miniatureSource(snap, line, from, cols)
+			raw = trimMiniSource(raw, short)
+			rawLen = len(raw)
+			if ln != nil && ln.short == short && ln.rawLen == len(raw) && strings.HasPrefix(raw, ln.dep) {
+				prefix, depText = ln.text, ln.dep
+			} else {
+				var dep int
+				prefix, dep = miniatureDep(raw, short, cols, tab)
+				depText = strings.Clone(raw[:dep])
+			}
 		}
 		var start monarch.State
 		final := true
@@ -396,11 +420,17 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 			// numbers unchanged: take over the previous frame's row with
 			// the same miniature, start state and tokens, if there is one.
 			if moved := m.takeMoved(prefix, start, final, from, toks); moved != nil {
-				ln, dirty = moved, false
+				// A copy: the previous frame's row may still be its old
+				// line's (rows with the same text), each keeps its own seen.
+				c := *moved
+				ln, dirty = &c, false
 				m.cache[key] = ln
 			}
 		}
 		if !dirty {
+			if ln.text == prefix && ln.dep == depText && ln.rawLen == rawLen && ln.short == short {
+				ln.seen, ln.seenLine = ver, line
+			}
 			w.ensureMiniBitmap(ln, th, tab)
 			continue
 		}
@@ -416,7 +446,7 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 			toks = hl.TokenizeSpan(snap, line, prefix, m.tokenScratch[:0])
 			m.tokenScratch = toks
 		}
-		ln = &miniLine{text: prefix, dep: strings.Clone(raw[:dep]), rawLen: len(raw), short: short, start: start, final: final, tokens: slices.Clone(toks), blocks: miniBlocksAt(prefix, base, toks, th, tab), base: base}
+		ln = &miniLine{text: prefix, dep: depText, rawLen: rawLen, short: short, seen: ver, seenLine: line, start: start, final: final, tokens: slices.Clone(toks), blocks: miniBlocksAt(prefix, base, toks, th, tab), base: base}
 		m.cache[key] = ln
 		m.rebuilt++
 		w.ensureMiniBitmap(ln, th, tab)
@@ -452,6 +482,29 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 	bottom := min(float32(n), rawScroll+v.Height/max(1, v.LineHeight))
 	height := max(0, min(extent-sy, (bottom-scroll)*unit))
 	vs.minimapSlider = geom.Rect{X: r.X, Y: r.Y + sy, W: r.W, H: height}
+}
+
+// miniSourceCarry reports the version before b's last change and the
+// lines that change touched (appended to dst), when snap is b's current
+// snapshot and every edit of the change stayed inside one line, adding
+// and removing no line break: a row made at that version from a line not
+// touched has the same source now. It returns 0 otherwise.
+func miniSourceCarry(b *buffer.Buffer, snap buffer.Snapshot, dst []int) (uint64, []int) {
+	if b.Snapshot().Version() != snap.Version() {
+		return 0, dst
+	}
+	old, edits := b.LastChange()
+	if len(edits) == 0 || old.Version() == snap.Version() {
+		return 0, dst
+	}
+	for _, e := range edits {
+		l := old.LineOf(e.Start)
+		if old.LineOf(e.End) != l || lineBreakCount(e.Text) > 0 {
+			return 0, dst
+		}
+		dst = append(dst, l)
+	}
+	return old.Version(), dst
 }
 
 // maxMiniFrames bounds the frames in a row the minimap asks for without
