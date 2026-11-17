@@ -37,9 +37,10 @@ func bigPathList(p *paint.Path, c color.NRGBA, m *geom.Affine) *paint.List {
 }
 
 // TestBigPathPatchCached: a path too large for an atlas page is rasterized
-// on the CPU once and its patch reused while the same content is drawn at
-// the same scale, transform, color and region, with the same pixels; any
-// change rasterizes again.
+// on the CPU and, once the same content has been drawn on two consecutive
+// frames, its patch is reused while it is drawn at the same scale,
+// transform, color and region, with the same pixels; any change rasterizes
+// again.
 func TestBigPathPatchCached(t *testing.T) {
 	half := color.NRGBA{0, 0, 0, 128}
 	dev := &cpuDevice{}
@@ -53,53 +54,87 @@ func TestBigPathPatchCached(t *testing.T) {
 		}
 		return clonePix(dev.img)
 	}
-	first := render(bigPathList(maskPath(0), half, nil), 1)
+	// check renders l (a fresh list and Path each time, as a widget
+	// rebuilding them every frame makes) on len(want) consecutive frames,
+	// wanting want[i] new rasters on frame i and paint.CPU's pixels.
+	check := func(name string, mk func() *paint.List, scale float32, want ...int) *image.RGBA {
+		t.Helper()
+		var got *image.RGBA
+		for i, w := range want {
+			before := rasters
+			l := mk()
+			got = render(l, scale)
+			if rasters-before != w {
+				t.Fatalf("%s, frame %d: %d new rasters, want %d", name, i+1, rasters-before, w)
+			}
+			ref := paint.NewCPU()
+			ref.Render(l, bigPathSize, scale)
+			gputest.Check(t, name, l, scale, ref.Image(), got, 2)
+		}
+		return got
+	}
+	static := func() *paint.List { return bigPathList(maskPath(0), half, nil) }
+	first := render(static(), 1)
 	if rasters != 1 {
 		t.Fatalf("first frame: %d rasters, want 1 (the big path is a patch)", rasters)
 	}
-	second := render(bigPathList(maskPath(0), half, nil), 1) // equal content, new Path
-	if rasters != 1 {
-		t.Fatalf("second frame re-rasterized the unchanged big path (%d rasters)", rasters)
-	}
-	if !bytes.Equal(first.Pix, second.Pix) {
+	// Seen on the previous frame: rasterized once more and stored; the
+	// third frame reuses it.
+	if cached := check("static", static, 1, 1, 0); !bytes.Equal(first.Pix, cached.Pix) {
 		t.Fatal("the cached patch draws different pixels")
 	}
-	ref := paint.NewCPU()
-	l := bigPathList(maskPath(0), half, nil)
-	ref.Render(l, bigPathSize, 1)
-	gputest.Check(t, "cached big path", l, 1, ref.Image(), second, 2)
-
-	check := func(name string, l *paint.List, scale float32, wantRasters int) *image.RGBA {
-		t.Helper()
-		before := rasters
-		got := render(l, scale)
-		if rasters-before != wantRasters {
-			t.Fatalf("%s: %d new rasters, want %d", name, rasters-before, wantRasters)
-		}
-		ref := paint.NewCPU()
-		ref.Render(l, bigPathSize, scale)
-		gputest.Check(t, name, l, scale, ref.Image(), got, 2)
-		return got
-	}
 	dim := color.NRGBA{0, 0, 0, 100}
-	check("moved hole", bigPathList(maskPath(8), half, nil), 1, 1)
-	check("color", bigPathList(maskPath(8), dim, nil), 1, 1)
+	check("moved hole", func() *paint.List { return bigPathList(maskPath(8), half, nil) }, 1, 1, 1, 0)
+	check("color", func() *paint.List { return bigPathList(maskPath(8), dim, nil) }, 1, 1, 1, 0)
 	// Back to the first content: still cached (bounded LRU, not one entry).
-	if again := check("first content again", bigPathList(maskPath(0), half, nil), 1, 0); !bytes.Equal(first.Pix, again.Pix) {
+	if again := check("first content again", static, 1, 0); !bytes.Equal(first.Pix, again.Pix) {
 		t.Fatal("first content again: different pixels")
 	}
-	check("transform", bigPathList(maskPath(8), dim, &geom.Affine{A: 1, D: 1, E: 3, F: 2}), 1, 1)
-	check("transform again", bigPathList(maskPath(8), dim, &geom.Affine{A: 1, D: 1, E: 3, F: 2}), 1, 0)
-	// A scale change drops the cache.
-	check("scale", bigPathList(maskPath(8), dim, nil), 2, 1)
-	check("scale again", bigPathList(maskPath(8), dim, nil), 2, 0)
-	check("first content at the old scale", bigPathList(maskPath(0), half, nil), 1, 1)
-	before := rasters
+	m := geom.Affine{A: 1, D: 1, E: 3, F: 2}
+	check("transform", func() *paint.List { return bigPathList(maskPath(8), dim, &m) }, 1, 1, 1, 0)
+	// A scale change drops the cache (entries and sightings).
+	check("scale", func() *paint.List { return bigPathList(maskPath(8), dim, nil) }, 2, 1, 1, 0)
+	check("first content at the old scale", static, 1, 1, 1, 0)
 	// Trim (low memory) drops it.
 	r.Trim()
-	render(bigPathList(maskPath(0), half, nil), 1)
-	if rasters != before+1 {
-		t.Fatalf("after Trim: %d new rasters, want 1", rasters-before)
+	check("after Trim", static, 1, 1, 1, 0)
+}
+
+// TestBigPathAnimatingNotCached: a big path whose content changes every
+// frame stores no raster (the cache stays empty, one pending sighting);
+// once it stops changing it is cached from its second frame.
+func TestBigPathAnimatingNotCached(t *testing.T) {
+	dev := &cpuDevice{}
+	r := NewRenderer(dev)
+	rasters := 0
+	r.onRaster = func(image.Rectangle) { rasters++ }
+	c := color.NRGBA{0, 0, 0, 115}
+	for i := 0; i < 12; i++ {
+		if err := r.Render(bigPathList(maskPath(float32(i)), c, nil), bigPathSize, 1); err != nil {
+			t.Fatal(err)
+		}
+		if len(r.bigPaths.m) != 0 || r.bigPaths.bytes != 0 || len(r.bigPaths.cur) > 1 {
+			t.Fatalf("animating frame %d: %d entries, %d bytes, %d pending sightings; want 0, 0, ≤ 1",
+				i, len(r.bigPaths.m), r.bigPaths.bytes, len(r.bigPaths.cur))
+		}
+	}
+	if rasters != 12 {
+		t.Fatalf("%d rasters for 12 animating frames", rasters)
+	}
+	var pix [][]byte
+	for i := 0; i < 3; i++ { // the animation stops at maskPath(11)
+		if err := r.Render(bigPathList(maskPath(11), c, nil), bigPathSize, 1); err != nil {
+			t.Fatal(err)
+		}
+		pix = append(pix, clonePix(dev.img).Pix)
+	}
+	// Frame 1 of the still path: its key was sighted on the last animating
+	// frame (same content), so it is stored at once; frames 2-3 hit.
+	if rasters != 13 || len(r.bigPaths.m) != 1 {
+		t.Fatalf("still path: %d rasters (want 13), %d entries (want 1)", rasters, len(r.bigPaths.m))
+	}
+	if !bytes.Equal(pix[0], pix[2]) {
+		t.Fatal("the cached still path draws different pixels")
 	}
 }
 
@@ -144,6 +179,13 @@ func TestBigPathCacheBounded(t *testing.T) {
 	q.Segs[1].P[0].X += 1e-3
 	if b.get(key(3), q.Segs) != nil {
 		t.Fatal("different path content matched")
+	}
+	// Sightings per frame are bounded too.
+	for i := 0; i < 3*bigPathMaxEntries; i++ {
+		b.sighted(key(100 + i))
+	}
+	if len(b.cur) > bigPathMaxEntries {
+		t.Fatalf("%d sightings in a frame, want ≤ %d", len(b.cur), bigPathMaxEntries)
 	}
 	// Idle entries are dropped.
 	for i := 0; i <= bigPathIdleFrames; i++ {

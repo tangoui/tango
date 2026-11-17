@@ -1653,7 +1653,7 @@ func (r *Renderer) patchOf(ops []paint.Op, bounds image.Rectangle, alpha float32
 		}
 		img = r.cpu.RenderRegion(ops, raster, r.scale)
 		ink = inkBounds(img)
-		if fp != nil {
+		if fp != nil && r.bigPaths.sighted(key) {
 			r.bigPaths.put(key, fp.Path.Segs, img, ink)
 		}
 	}

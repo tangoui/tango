@@ -20,6 +20,12 @@ import (
 // the native transform, the raster region and the scale. A hit draws the
 // same pixels (the same image) without rasterizing; the upload still
 // happens, the patch page being per frame.
+//
+// An entry is admitted only when its key was also drawn (and missed) on the
+// previous frame: a static path is rasterized on two frames and hits from
+// the third, while a path that changes every frame (an animating mask, a
+// live resize) stores no image at all and only leaves its key among the
+// last frame's sightings.
 
 // Bounds of bigPathCache.
 const (
@@ -52,11 +58,17 @@ type bigPathCache struct {
 	m     map[bigPathKey]*bigPathEntry
 	bytes int
 	frame uint64
+	// Keys that missed on the previous frame (prev) and on this one (cur),
+	// at most bigPathMaxEntries each: the admission rule (see above).
+	prev, cur map[bigPathKey]struct{}
 }
 
-// beginFrame advances the frame clock and drops idle entries.
+// beginFrame advances the frame clock, rotates the sightings and drops
+// idle entries.
 func (c *bigPathCache) beginFrame() {
 	c.frame++
+	c.prev, c.cur = c.cur, c.prev
+	clear(c.cur)
 	for k, e := range c.m {
 		if c.frame-e.used > bigPathIdleFrames {
 			c.drop(k, e)
@@ -73,6 +85,19 @@ func (c *bigPathCache) get(k bigPathKey, segs []paint.Seg) *bigPathEntry {
 	}
 	e.used = c.frame
 	return e
+}
+
+// sighted records a miss of k on this frame and reports whether k also
+// missed on the previous frame, i.e. whether its raster may be stored.
+func (c *bigPathCache) sighted(k bigPathKey) bool {
+	_, again := c.prev[k]
+	if c.cur == nil {
+		c.cur = make(map[bigPathKey]struct{})
+	}
+	if len(c.cur) < bigPathMaxEntries {
+		c.cur[k] = struct{}{}
+	}
+	return again
 }
 
 // put stores img (with its ink bounds) for k and segs, evicting the least
@@ -108,8 +133,8 @@ func (c *bigPathCache) drop(k bigPathKey, e *bigPathEntry) {
 	delete(c.m, k)
 }
 
-// reset drops every entry (Trim).
-func (c *bigPathCache) reset() { c.m, c.bytes = nil, 0 }
+// reset drops every entry and sighting (Trim, scale change).
+func (c *bigPathCache) reset() { c.m, c.bytes, c.prev, c.cur = nil, 0, nil, nil }
 
 // segsHash is FNV-1a over the segments' ops and coordinate bits.
 func segsHash(segs []paint.Seg) uint64 {
