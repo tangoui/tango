@@ -736,6 +736,8 @@ type IconButtonW struct {
 	colSet bool
 	noBg   bool
 	ia     Interaction
+	// glyph, when set, paints the glyph in place of ic (antd CSS chevrons).
+	glyph func(l *paint.List, r geom.Rect, col theme.Color)
 }
 
 // IconButton adds an icon button; label is used for tests and accessibility.
@@ -756,7 +758,11 @@ func IconButton(c *Context, ic *icon.Icon, label string) *IconButtonW {
 		if b.colSet {
 			col = b.col
 		}
-		c.paintIcon(l, b.ic, geom.Rect{X: r.X + (r.W-b.is)/2, Y: r.Y + (r.H-b.is)/2, W: b.is, H: b.is}, col, 0)
+		if b.glyph != nil {
+			b.glyph(l, r, col)
+		} else {
+			c.paintIcon(l, b.ic, geom.Rect{X: r.X + (r.W-b.is)/2, Y: r.Y + (r.H-b.is)/2, W: b.is, H: b.is}, col, 0)
+		}
 		if b.ia.FocusVisible {
 			l.Stroke(r, geom.Rad(th.RadiusSM), 2, th.FocusRing)
 		}

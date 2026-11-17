@@ -767,6 +767,24 @@ func (w *CarouselW) arrow(left, disabled bool, fn func()) {
 		if bg.A > 0 {
 			l.Path(paint.NewPath().Circle(r.X+r.W/2, r.Y+r.H/2, r.W/2), theme.Fade(bg, float64(op)))
 		}
+		if th.Flavor == theme.Ant {
+			// antd draws the arrow with CSS (carousel/style genArrowsStyle):
+			// a border box arrowSize/√2 wide with 2px top and start borders,
+			// rotated -45deg / 135deg (vertical 45deg / -135deg), centered
+			// in the arrowSize button. The start border flips in RTL, so
+			// prev keeps pointing to the start edge.
+			d := chevronLeft
+			switch {
+			case w.vertical && left:
+				d = chevronUp
+			case w.vertical:
+				d = chevronDown
+			case left == c.IsRTL():
+				d = chevronRight
+			}
+			antdCSSChevron(l, geom.Pt(r.X+r.W/2, r.Y+r.H/2), r.W/math.Sqrt2, 2, d, theme.Fade(col, float64(op)))
+			return
+		}
 		c.paintIcon(l, ic, r.Inset(geom.All(tk.ArrowIconInset)), theme.Fade(col, float64(op)), 0)
 	}
 }

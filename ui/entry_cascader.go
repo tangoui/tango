@@ -868,7 +868,9 @@ func (w *CascaderW) item(ci int, o CascaderOption, prefix []string, set map[stri
 		}
 		treeText(c, l, r, x, o.Label, c.style(th.FontSize, wt), r.Right()-padR-x, treeMid, col)
 		if hasKids {
-			is := float32(10)
+			// antd cascader/style/columns.js: the expand icon is
+			// RightOutlined at fontSizeIcon (fontSizeSM, 12px).
+			is := th.FontSizeSM
 			ac := tk.ExpandIconColor
 			if el {
 				is = 14

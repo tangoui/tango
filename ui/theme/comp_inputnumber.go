@@ -35,7 +35,8 @@ type InputNumberToken struct {
 func deriveInputNumber(t *Theme) InputNumberToken {
 	k := InputNumberToken{
 		ControlWidth: 90,
-		HandleWidth:  22, HandleFontSize: 10,
+		// antd input-number/style/token.js handleFontSize: fontSize / 2.
+		HandleWidth: 22, HandleFontSize: t.FontSize / 2,
 		HandleColor: t.TextTertiary, HandleHoverColor: t.Primary.Hover, HandleDisabledColor: t.TextDisabled,
 		HandleBorderColor: t.Border,
 		SideHandleBg:      t.FillTertiary, SideHandleColor: t.TextSecondary, SideHandleHoverColor: t.Primary.Base,

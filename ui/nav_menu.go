@@ -501,8 +501,12 @@ func (m *MenuW) list(items []MenuItem, level, parent int) {
 					switch {
 					case m.expandIcon != nil:
 						c.paintIcon(l, m.expandIcon, ar, col, 0)
+					case th.Flavor == theme.Ant && m.popupMode():
+						antdSubmenuArrow(l, s, r, th, col, 0, chevronRight)
 					case m.popupMode():
 						c.paintIcon(l, icon.Right, ar, col, 0)
+					case th.Flavor == theme.Ant:
+						antdSubmenuArrow(l, s, r, th, col, arrow, chevronDown)
 					default:
 						icon.Draw(l, icon.Down, ar, col, float64(arrow)*math.Pi)
 					}

@@ -101,6 +101,22 @@ func splitterToggleIcon(vertical, start, collapsed bool) *icon.Icon {
 	return icon.CaretRight
 }
 
+// splitterAntChevron maps a collapse caret to the chevron antd's SplitBar
+// draws for the same direction (Left/Right/Up/DownOutlined).
+func splitterAntChevron(g *icon.Icon) *icon.Icon {
+	switch g {
+	case icon.CaretLeft:
+		return icon.Left
+	case icon.CaretRight:
+		return icon.Right
+	case icon.CaretUp:
+		return icon.Up
+	case icon.CaretDown:
+		return icon.Down
+	}
+	return g
+}
+
 // Resizable(false) locks the bars next to this pane.
 func (p *SplitterPanelW) Resizable(on bool) *SplitterPanelW { p.fixed = !on; return p }
 
@@ -675,7 +691,15 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 				}
 				// Horizontal carets point to the start / end pane (mirrored
 				// in RTL).
-				c.paintIcon(l, g, ar.Expand(-1), theme.Fade(tk.CollapseColor, float64(ah)), 0)
+				gr := ar.Expand(-1)
+				if th.Flavor == theme.Ant && th.Icons != nil {
+					// antd SplitBar: Left/Right/Up/DownOutlined at fontSizeSM
+					// (12px), centered in the collapse bar, not carets.
+					g = splitterAntChevron(g)
+					is := th.FontSizeSM
+					gr = geom.Rect{X: ar.X + (ar.W-is)/2, Y: ar.Y + (ar.H-is)/2, W: is, H: is}
+				}
+				c.paintIcon(l, g, gr, theme.Fade(tk.CollapseColor, float64(ah)), 0)
 			}
 		}
 	}

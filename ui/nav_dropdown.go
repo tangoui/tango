@@ -652,8 +652,15 @@ func (p *navMenuPopup) items(items []MenuItem, level int, parent ID) {
 					ac = col
 				}
 				// The submenu chevron points towards the end (mirrored in RTL).
-				as := p.arrowSize()
-				c.paintIcon(l, icon.Right, s.Rect(r.W-tk.SubmenuArrowInset-as, r.Y+(r.H-as)/2, as, as), ac, 0)
+				// A Menu's pop-out submenus are antd Menu items: CSS bars
+				// (menu/style genSubMenuArrowStyle), not Dropdown's
+				// RightOutlined.
+				if p.menu != nil && th.Flavor == theme.Ant {
+					antdSubmenuArrow(l, s, r, th, ac, 0, chevronRight)
+				} else {
+					as := p.arrowSize()
+					c.paintIcon(l, icon.Right, s.Rect(r.W-tk.SubmenuArrowInset-as, r.Y+(r.H-as)/2, as, as), ac, 0)
+				}
 			}
 		}
 		if open {
