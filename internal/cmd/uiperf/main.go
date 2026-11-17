@@ -45,16 +45,17 @@ func benchCLI(a []string) error {
 }
 func hotCLI(a []string) error {
 	f := flag.NewFlagSet("hot", flag.ContinueOnError)
-	top := f.Int("top", 30, "")
+	top := f.Int("top", defaultHotNodeCount, "pprof -nodecount per profile")
 	o := f.String("out", "", "")
-	_ = top
+	reuse := f.Bool("reuse-profiles", false, "score existing <out>/prof/*.pprof; do not re-run benchmarks")
+	md := f.String("md", "hot.md", "report file name inside -out")
 	if e := f.Parse(a); e != nil {
 		return e
 	}
 	if *o == "" {
 		return fmt.Errorf("-out is required")
 	}
-	return runHot(*o, *top)
+	return runHot(*o, hotOptions{NodeCount: *top, ReuseProfiles: *reuse, Output: *md})
 }
 func abCLI(a []string) error {
 	f := flag.NewFlagSet("ab", flag.ContinueOnError)
