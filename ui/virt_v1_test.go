@@ -711,3 +711,39 @@ func TestV1CommandKeepGroup(t *testing.T) {
 		t.Fatalf("kept item's group %v, want \"group\"", g)
 	}
 }
+
+// TestV1MentionsEmptyQueryLive: with an empty query ("@") every option is
+// shown straight from the slice: an in-place label, Disabled or Value
+// change shows (and picks) at once.
+func TestV1MentionsEmptyQueryLive(t *testing.T) {
+	opts := v1Opts(500)
+	val := "@"
+	var w *MentionsW
+	d := driver(func(c *Context) {
+		Column(c, func() { w = Mentions(c, &val, opts).Width(240) }, layout.Pad(20))
+	})
+	d.Settle()
+	er := d.r.c.rects[w.ed.id]
+	d.Click(geom.Pt(er.Right()-4, er.Y+er.H/2)) // caret after "@"
+	d.Settle()
+	if !w.IsOpen() {
+		t.Fatal("suggestions not open")
+	}
+	opts[0].Label = "renamed option"
+	opts[1].Disabled = true
+	opts[2].Value = "fresh"
+	d.Frame()
+	d.Settle()
+	if v1Built(d, "ms-option", "renamed option") == nil {
+		t.Fatal("in-place label change not shown")
+	}
+	dis := v1Built(d, "ms-option", "option-2")
+	if dis == nil || !dis.disabled {
+		t.Fatal("in-place Disabled not shown")
+	}
+	d.Key(input.KeyDown, 0) // skips the disabled option-2
+	d.Key(input.KeyEnter, 0)
+	if !strings.HasPrefix(val, "@fresh") {
+		t.Fatalf("pick inserted %q, want the current value", val)
+	}
+}

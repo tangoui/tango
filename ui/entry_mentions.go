@@ -196,11 +196,13 @@ func (w *MentionsW) Disabled(on bool) *MentionsW {
 // longer than 100 suggestions are virtual (only the visible rows and the
 // keyboard row are built; the list keeps the width, height and scroll
 // range of the full list, but suggestions out of view are not in the
-// accessibility tree). A virtual list keeps which options match, and
-// its width, while the options slice (identity and length) and the query
-// stay the same: labels, values and Disabled are read live, but an option
-// renamed in place may not join or leave the matches, or widen the list,
-// until the query or the slice changes. Virtual(false) builds every row.
+// accessibility tree). Labels, values and Disabled are always read live.
+// A virtual list keeps which options match while the options slice
+// (identity and length) and the query stay the same, and measures label
+// widths once per slice and theme: an option renamed in place may not
+// join or leave the matches until the query or the slice changes, nor
+// change the list's width until the slice (or the theme pointer)
+// changes. Virtual(false) builds every row.
 func (w *MentionsW) Virtual(on bool) *MentionsW { w.virt = p2bVirtualMode(on); return w }
 
 // Open forces the suggestions open when a trigger is at the caret (tests,
