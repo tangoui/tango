@@ -12,8 +12,8 @@ import (
 )
 
 // galleryTimeDebt lists pages whose Interact frame is over 4ms. Empty:
-// the Task 12a baseline (5f115d3, 1-min load < 6) measured every
-// non-variant page within budget.
+// the Task R1 baseline (merged tree 1969e04, -p 1, 1-min load < 6, two
+// gate runs) measured every non-variant page within budget.
 var galleryTimeDebt = map[string]string{}
 
 type galleryPerfWin struct{ hintWin }
