@@ -430,6 +430,9 @@ type config struct {
 	// profileDir is -profile-dir: the Tango program writes its CPU profile
 	// there (sceneCommand); empty in measurement runs.
 	profileDir string
+	// tangoEnv is -tango-env (only with -profile-dir): KEY=VAL pairs given
+	// to the Tango program alone (sceneCommand).
+	tangoEnv []string
 }
 
 // runOnce starts one scene program, measures it and stops it.
@@ -443,6 +446,16 @@ func runOnce(cfg config, fw, scene string) Round {
 	cmd := sceneCommand(cfg, fw, scene)
 	stderr := &tail{}
 	cmd.Stderr = stderr
+	if cfg.profileDir != "" && fw == "tango" {
+		// -profile-dir keeps the Tango program's whole stderr (e.g. the
+		// TANGO_FRAME_TRACE lines -tango-env asks for), not just the tail.
+		if f, err := os.Create(stderrPath(cfg.profileDir, scene)); err == nil {
+			defer f.Close()
+			cmd.Stderr = io.MultiWriter(stderr, f)
+		} else {
+			r.Notes = append(r.Notes, "stderr file: "+err.Error())
+		}
+	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		r.Error = err.Error()
@@ -639,6 +652,9 @@ type Meta struct {
 	// ProfileDir is -profile-dir: a diagnostic run with Tango's CPU
 	// profiles, never a measurement (not adoptable, no verdicts).
 	ProfileDir string `json:"profile_dir,omitempty"`
+	// TangoEnv is -tango-env: diagnostic variables given to the Tango
+	// program in a profiling run.
+	TangoEnv []string `json:"tango_env,omitempty"`
 	// SceneIdleCores: each scene's median idle WindowServer (usable rounds).
 	SceneIdleCores map[string]float64 `json:"scene_idle_cores,omitempty"`
 }
@@ -696,6 +712,8 @@ func main() {
 	checkIdleMode := flag.Bool("check-idle", false, "open no window, launch nothing: wait -settle, sample the idle WindowServer for -seconds, print it against the 0.1-core threshold and the screen-share programs found; exit 0 on pass, 1 on fail. Runs before (without) manifest verification")
 	fromInvalid := flag.String("scenes-from-invalid", "", "a previous results file: run only the scenes whose verdict was Invalid against any opponent (in place of -scenes)")
 	profileDir := flag.String("profile-dir", "", "diagnostic, not a measurement: run each scene once per framework, give the Tango program UIBENCH_CPUPROFILE and keep its CPU profile as <dir>/tango-<scene>.pprof; no verdicts, not adoptable")
+	var tangoEnv envList
+	flag.Var(&tangoEnv, "tango-env", "diagnostic, only with -profile-dir (repeatable): give the Tango program alone KEY=VAL (e.g. TANGO_FRAME_TRACE=1); its stderr is kept as <dir>/tango-<scene>.stderr")
 	buildMode := flag.Bool("build", false, "build.sh's step: build the scene programs and the runner into -bin with the pinned toolchain and write -bin/manifest.json")
 	flag.Parse()
 
@@ -734,6 +752,10 @@ func main() {
 		return
 	}
 
+	if err := checkTangoEnv(tangoEnv, *profileDir); err != nil {
+		fmt.Fprintln(os.Stderr, "runner:", err)
+		os.Exit(2)
+	}
 	if *cpuMetric != metricProcess && *cpuMetric != metricProcessWS {
 		fmt.Fprintln(os.Stderr, "runner: -cpu-metric must be process or process+ws")
 		os.Exit(2)
@@ -819,7 +841,7 @@ func main() {
 	defer staged.cleanup()
 	fmt.Println("runner: launching private copies of the verified binaries from", stagedBin)
 	cfg := config{bin: stagedBin, settle: *settle, seconds: time.Duration(*seconds) * time.Second,
-		loadRead: systemLoad, manifest: manifest, binSrc: *bin, profileDir: *profileDir}
+		loadRead: systemLoad, manifest: manifest, binSrc: *bin, profileDir: *profileDir, tangoEnv: tangoEnv}
 	res := &Results{Meta: newMeta(cfg)}
 	res.Meta.ClearedEnv = append([]string{}, cleared...)
 	res.Meta.DirtyBuild = manifest.dirty()
@@ -832,6 +854,7 @@ func main() {
 	}
 	if *profileDir != "" {
 		res.Meta.ProfileDir = *profileDir
+		res.Meta.TangoEnv = append([]string{}, tangoEnv...)
 		res.Meta.markNotAdoptable("profiling run")
 	}
 	if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {

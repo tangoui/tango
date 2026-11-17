@@ -247,6 +247,12 @@ go tool pprof -top ../bin/tango ../results/prof/tango-list.pprof
 UIBENCH_CPUPROFILE=/tmp/tango-list.pprof ../bin/tango -scene list   # Ctrl-C to stop
 ```
 
+`-tango-env KEY=VAL` (repeatable, allowed only with `-profile-dir`) gives
+the Tango program alone a diagnostic variable such as `TANGO_FRAME_TRACE=1`
+(the runner otherwise clears every `TANGO_*`); in a profiling run the Tango
+program's whole stderr is kept as `<dir>/tango-<scene>.stderr`. Keep a
+frame-trace run separate from a CPU-profile comparison: the trace costs CPU.
+
 bin/tango is built with `-ldflags "-s -w"`, so pprof reads its symbols
 from the profile itself (Go records function names in it).
 

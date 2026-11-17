@@ -205,3 +205,50 @@ func TestChildEnvProfile(t *testing.T) {
 		}
 	}
 }
+
+// -tango-env: KEY=VAL only, allowed only with -profile-dir, and reaches the
+// Tango program alone.
+func TestTangoEnv(t *testing.T) {
+	var l envList
+	for _, bad := range []string{"", "NOEQ", "=1", "A B=1"} {
+		if err := l.Set(bad); err == nil {
+			t.Fatalf("Set(%q) accepted", bad)
+		}
+	}
+	if err := l.Set("TANGO_FRAME_TRACE=1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Set("TANGO_X="); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkTangoEnv(l, ""); err == nil {
+		t.Fatal("-tango-env without -profile-dir accepted")
+	}
+	if err := checkTangoEnv(l, "/p"); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkTangoEnv(nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TANGO_FRAME_TRACE", "inherited")
+	has := func(cmd *exec.Cmd) (out []string) {
+		for _, kv := range cmd.Env {
+			if strings.HasPrefix(kv, "TANGO_") {
+				out = append(out, kv)
+			}
+		}
+		return out
+	}
+	cfg := config{bin: "/b", profileDir: "/p", tangoEnv: l}
+	if got := has(sceneCommand(cfg, "tango", "list")); !reflect.DeepEqual(got, []string{"TANGO_FRAME_TRACE=1", "TANGO_X="}) {
+		t.Fatalf("tango env %v", got)
+	}
+	for _, fw := range []string{"mygo", "nsgo"} {
+		if got := has(sceneCommand(cfg, fw, "list")); len(got) != 0 {
+			t.Fatalf("%s got %v", fw, got)
+		}
+	}
+	if got := stderrPath("/p", "list"); got != "/p/tango-list.stderr" {
+		t.Fatal(got)
+	}
+}

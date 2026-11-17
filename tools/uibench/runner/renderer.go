@@ -6,6 +6,7 @@ package main
 // its Renderer is the one path seen in the sample window, or "mixed".
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -141,6 +142,34 @@ func profilePath(dir, scene string) string {
 	return filepath.Join(dir, "tango-"+scene+".pprof")
 }
 
+// stderrPath is where -profile-dir keeps the Tango program's stderr.
+func stderrPath(dir, scene string) string {
+	return filepath.Join(dir, "tango-"+scene+".stderr")
+}
+
+// envList is -tango-env: repeatable KEY=VAL.
+type envList []string
+
+func (l *envList) String() string { return strings.Join(*l, ",") }
+
+func (l *envList) Set(v string) error {
+	k, _, ok := strings.Cut(v, "=")
+	if !ok || k == "" || strings.ContainsAny(k, " \t") {
+		return fmt.Errorf("want KEY=VAL, got %q", v)
+	}
+	*l = append(*l, v)
+	return nil
+}
+
+// checkTangoEnv allows -tango-env only in a profiling run (-profile-dir):
+// a diagnostic variable must never reach a measurement.
+func checkTangoEnv(env []string, profileDir string) error {
+	if len(env) > 0 && profileDir == "" {
+		return errors.New("-tango-env is a diagnostic: allowed only with -profile-dir")
+	}
+	return nil
+}
+
 // sceneCommand is the command that starts one scene program. Only with
 // -profile-dir (cfg.profileDir) does the Tango program get
 // UIBENCH_CPUPROFILE; no other program and no measurement run ever does.
@@ -149,6 +178,7 @@ func sceneCommand(cfg config, fw, scene string) *exec.Cmd {
 	cmd.Env, _ = childEnv(os.Environ())
 	if cfg.profileDir != "" && fw == "tango" {
 		cmd.Env = append(cmd.Env, profileEnv+"="+profilePath(cfg.profileDir, scene))
+		cmd.Env = append(cmd.Env, cfg.tangoEnv...)
 	}
 	if cmd.Env == nil {
 		cmd.Env = []string{} // an empty environment, not the runner's
