@@ -136,6 +136,21 @@ started afresh, in an order that rotates by one each round. For each:
    over all intervals reported); phys_footprint at the end and its peak.
 4. Load ≥ 6 before or after sampling marks the attempt `disturbed`; it is
    measured again, up to 3 more times. Every attempt stays in the file.
+5. Idle compositor (ruling R44). Before each scene round's launches, and
+   again after them, the runner samples WindowServer for `-seconds` with no
+   scene program running (it refuses to sample while one runs). The
+   round's idle rate is the mean of the two; every round in it records the
+   raw `windowserver_s`, `windowserver_idle_s` (idle rate × sampled
+   seconds), `windowserver_net_s` = max(0, raw − idle) and the samples
+   (`windowserver_idle`). An idle sample above 0.6 cores, before and after
+   differing by more than 30% of the larger (and by at least 0.02 cores,
+   below which it is `ps` resolution), or a failed sample marks the whole
+   round `disturbed` (background WindowServer: e.g. a remote viewer
+   connecting), and the round is measured again, up to 3 more times.
+   `meta.screen_sharing_processes` (and `_finish`) list the known
+   screen-sharing / remote-desktop programs running (UURemoteServer,
+   screensharingd, Screen Sharing, AnyDesk, TeamViewer, ToDesk, …); the
+   runner never touches them.
 
 Per-second reports arrive as groups (frames, work, intervals). A group is
 taken whole or not at all, and the first group completed after sampling
@@ -165,12 +180,19 @@ without error, not disturbed, not screen-locked and with a known renderer
   between the frameworks (tabs, dialog, toast, progress, tooltip,
   carousel, collapse, drawer, segmented, steps, upload; scenes.md
   "Default motion", ruling R37): CPU, fps and frame-interval p99 are reported, not judged;
-- `Faster` when Tango's median (process + WindowServer) CPU is at most half
+- `Faster` when Tango's median (process + net WindowServer) CPU is at most half
   the opponent's, Tango's third quartile is below the opponent's first,
   median fps is at least the opponent's and median frame-interval p99 at
   most the opponent's (counter: footprint median at most the opponent's in
   place of fps and p99);
 - `NotFaster` otherwise.
+
+Every "cpu" the judge, the verdict line (`cpu (proc + ws_net)`) and the
+round line print is process CPU plus `windowserver_net_s`, the
+WindowServer delta less the round's idle compositor, never the raw delta:
+on a machine whose compositor idles at ~0.38 cores (a remote-desktop
+server running) the raw sum carries that constant for every framework and
+no framework could be half of another.
 
 ## Methodology choices
 
@@ -202,7 +224,7 @@ without error, not disturbed, not screen-locked and with a known renderer
 
 - **Counter CPU is mostly noise.** At rest the process uses almost no CPU,
   and WindowServer's `ps` time has 10 ms resolution, so the counter's
-  (process + WindowServer) sum is dominated by compositor noise. Process
+  (process + net WindowServer) sum is dominated by compositor noise. Process
   CPU (`cpu_s`) and WindowServer CPU (`windowserver_s`) are recorded
   separately in every round so the two can be read apart.
 

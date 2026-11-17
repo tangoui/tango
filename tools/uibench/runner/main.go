@@ -60,14 +60,20 @@ type Round struct {
 
 	Seconds             float64 `json:"seconds"`        // sampled wall time
 	CPUSeconds          float64 `json:"cpu_s"`          // process user+system
-	WindowServerSeconds float64 `json:"windowserver_s"` // compositor delta
-	FPS                 float64 `json:"fps"`            // mean of the per-second reports
-	WorkPerSec          float64 `json:"work_per_s"`     // mean of the per-second reports
-	P50us               float64 `json:"p50_us"`         // frame interval
-	P99us               float64 `json:"p99_us"`         // frame interval
-	Intervals           int     `json:"intervals"`      // interval samples
-	Footprint           int64   `json:"footprint"`      // phys_footprint at the end
-	PeakFootprint       int64   `json:"peak_footprint"` // highest seen while sampling
+	WindowServerSeconds float64 `json:"windowserver_s"` // compositor delta, raw
+	// WindowServerIdleSeconds is the round's idle compositor (WSBaseline's
+	// cores × Seconds); WindowServerNetSeconds = max(0, raw - idle), what
+	// the judge reads (R44).
+	WindowServerIdleSeconds float64     `json:"windowserver_idle_s"`
+	WindowServerNetSeconds  float64     `json:"windowserver_net_s"`
+	WSBaseline              *WSBaseline `json:"windowserver_idle,omitempty"`
+	FPS                     float64     `json:"fps"`            // mean of the per-second reports
+	WorkPerSec              float64     `json:"work_per_s"`     // mean of the per-second reports
+	P50us                   float64     `json:"p50_us"`         // frame interval
+	P99us                   float64     `json:"p99_us"`         // frame interval
+	Intervals               int         `json:"intervals"`      // interval samples
+	Footprint               int64       `json:"footprint"`      // phys_footprint at the end
+	PeakFootprint           int64       `json:"peak_footprint"` // highest seen while sampling
 
 	LoadBefore float64 `json:"load_before"`
 	LoadAfter  float64 `json:"load_after"`
@@ -103,11 +109,14 @@ func inputOf(cfg config, scene string) Input {
 	return Input{Scene: scene, Work: work, Period: meta.period, Settle: cfg.settle.String(), Seconds: cfg.seconds.String()}
 }
 
+// cpu is the judge's CPU in cores: process CPU plus the net WindowServer
+// CPU over the round's idle compositor (proc + ws_net, R44), never the raw
+// WindowServer delta.
 func (r Round) cpu() float64 {
 	if r.Seconds <= 0 {
 		return 0
 	}
-	return (r.CPUSeconds + r.WindowServerSeconds) / r.Seconds
+	return (r.CPUSeconds + wsNet(r.WindowServerSeconds, r.WindowServerIdleSeconds)) / r.Seconds
 }
 
 // workPerFrame is what the judge compares between frameworks: the same
@@ -589,6 +598,12 @@ type Meta struct {
 	LoadStart        float64 `json:"load_start"`
 	// ScreenLocked at the start: the run cannot produce usable rounds.
 	ScreenLocked bool `json:"screen_locked"`
+	// ScreenSharing: known screen-sharing or remote-desktop programs
+	// running at the start and at the finish (they keep WindowServer busy;
+	// the runner never touches them). ScreenSharingError: ps failed.
+	ScreenSharing       []string `json:"screen_sharing_processes"`
+	ScreenSharingFinish []string `json:"screen_sharing_processes_finish"`
+	ScreenSharingError  string   `json:"screen_sharing_error,omitempty"`
 }
 
 type VerdictLine struct {
@@ -698,24 +713,26 @@ func main() {
 		fatal(err)
 	}
 
+	deps := roundDeps{
+		seconds:  cfg.seconds,
+		wsClock:  windowServerCPU,
+		now:      time.Now,
+		sleep:    time.Sleep,
+		children: running.count,
+		measure:  func(fw, scene string) Round { return runOnce(cfg, fw, scene) },
+	}
+	emit := func(r Round) error {
+		res.Rounds = append(res.Rounds, r)
+		printRound(r)
+		return write(*out, res)
+	}
 	for _, scene := range scenes {
 		for round := range *rounds {
 			if err := loadGate(systemLoad, time.Sleep, loadLimit, loadWaitMax); err != nil {
 				fmt.Fprintln(os.Stderr, "runner: load gate:", err, "(attempts will be marked disturbed)")
 			}
-			for _, fw := range rotate(fws, round) {
-				for attempt := 0; attempt <= maxRetries; attempt++ {
-					r := runOnce(cfg, fw, scene)
-					r.Round, r.Attempt = round, attempt
-					res.Rounds = append(res.Rounds, r)
-					printRound(r)
-					if err := write(*out, res); err != nil {
-						fatal(err)
-					}
-					if !r.Disturbed {
-						break
-					}
-				}
+			if err := runSceneRound(deps, scene, round, fws, emit); err != nil {
+				fatal(err)
 			}
 		}
 	}
@@ -739,6 +756,7 @@ func main() {
 		}
 	}
 	res.Meta.Finished = time.Now().Format(time.RFC3339)
+	res.Meta.ScreenSharingFinish, _ = screenSharingRunning()
 	if err := write(*out, res); err != nil {
 		fatal(err)
 	}
@@ -773,9 +791,10 @@ func printRound(r Round) {
 	if r.ScreenLocked {
 		status += " screen-locked"
 	}
-	fmt.Printf("%-8s %-6s round %d.%d %s renderer=%s switches=%d startup=%.0fms fps=%.1f work/s=%.0f cpu=%.3f ws=%.3f cores p50=%.0fus p99=%.0fus footprint=%.1fMiB load=%.2f/%.2f\n",
+	fmt.Printf("%-8s %-6s round %d.%d %s renderer=%s switches=%d startup=%.0fms fps=%.1f work/s=%.0f cpu=%.3f ws_net=%.3f (raw %.3f, idle %.3f) cores p50=%.0fus p99=%.0fus footprint=%.1fMiB load=%.2f/%.2f\n",
 		r.Scene, r.Framework, r.Round, r.Attempt, status, rendererKey(r), r.SampleSwitches, r.StartupMs, r.FPS, r.WorkPerSec,
-		safeDiv(r.CPUSeconds, r.Seconds), safeDiv(r.WindowServerSeconds, r.Seconds),
+		safeDiv(r.CPUSeconds, r.Seconds), safeDiv(r.WindowServerNetSeconds, r.Seconds),
+		safeDiv(r.WindowServerSeconds, r.Seconds), safeDiv(r.WindowServerIdleSeconds, r.Seconds),
 		r.P50us, r.P99us, float64(r.Footprint)/(1<<20), r.LoadBefore, r.LoadAfter)
 }
 
@@ -855,6 +874,13 @@ func newMeta(cfg config) Meta {
 	}
 	m.LoadStart, _ = systemLoad()
 	m.ScreenLocked = screenLocked()
+	var err error
+	if m.ScreenSharing, err = screenSharingRunning(); err != nil {
+		m.ScreenSharingError = err.Error()
+	}
+	if len(m.ScreenSharing) > 0 {
+		fmt.Printf("runner: screen sharing / remote desktop running (left alone): %s\n", strings.Join(m.ScreenSharing, ", "))
+	}
 	return m
 }
 

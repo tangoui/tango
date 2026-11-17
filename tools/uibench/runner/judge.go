@@ -80,7 +80,8 @@ func judge(t, o []Round, minRounds int) Verdict {
 
 // judgeWhy is judge with the reason, for the results file.
 //
-// Faster needs all of: the median of process+WindowServer CPU at most half
+// Faster needs all of: the median of process + net WindowServer CPU
+// (Round.cpu: the WindowServer delta less the round's idle compositor) at most half
 // the opponent's; Tango's third quartile below the opponent's first (the
 // interquartile ranges do not overlap); median fps at least the
 // opponent's; median frame-interval p99 at most the opponent's. The counter
@@ -114,7 +115,7 @@ func judgeWhy(t, o []Round, minRounds int) (Verdict, string) {
 	tc, oc := median(each(t, Round.cpu)), median(each(o, Round.cpu))
 	_, tq3 := quartiles(each(t, Round.cpu))
 	oq1, _ := quartiles(each(o, Round.cpu))
-	why := fmt.Sprintf("cpu %.4f vs %.4f cores (%.2fx), tango q3 %.4f vs opponent q1 %.4f", tc, oc, ratio(tc, oc), tq3, oq1)
+	why := fmt.Sprintf("cpu (proc + ws_net) %.4f vs %.4f cores (%.2fx), tango q3 %.4f vs opponent q1 %.4f", tc, oc, ratio(tc, oc), tq3, oq1)
 	tf, of := median(each(t, Round.fps)), median(each(o, Round.fps))
 	tp, op := median(each(t, Round.p99)), median(each(o, Round.p99))
 	frames := fmt.Sprintf("; fps %.1f vs %.1f; p99 %.0f vs %.0f µs", tf, of, tp, op)
