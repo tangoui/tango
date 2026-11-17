@@ -71,6 +71,9 @@ func (st *formState) ensure() {
 	if st.restore == nil {
 		st.restore = map[string]func(any){}
 	}
+	if st.rebase == nil {
+		st.rebase = map[string]bool{}
+	}
 }
 
 // configDefaults applies ConfigProvider Defaults("Form", ...): "layout"
@@ -168,6 +171,7 @@ func (f *FormW) ClearValidate(names ...string) {
 		delete(st.checked, k)
 		delete(st.force, k)
 		delete(st.touched, k)
+		st.rebase[k] = true // a value set from code now is not an edit
 		if st.scrollTo == k {
 			st.scrollTo = ""
 		}

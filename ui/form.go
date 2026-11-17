@@ -453,9 +453,10 @@ func (it *FormItemW) Body(fn func()) {
 		}
 		v := it.value()
 		changed := false
-		if old, seen := st.last[key]; seen && old != v {
+		if old, seen := st.last[key]; seen && old != v && !st.rebase[key] {
 			changed = true
 		}
+		delete(st.rebase, key)
 		st.last[key] = v
 		run := false
 		switch {
@@ -697,6 +698,11 @@ type formState struct {
 	submit   bool
 	finished bool
 	scrollTo string
+
+	// rebase marks items whose next value change is not an edit: the
+	// values were set from code together with ResetValidation /
+	// ClearValidate (a submit handler clearing the form).
+	rebase map[string]bool
 }
 
 // formAsync is the state of an item's asynchronous rules.
@@ -741,8 +747,14 @@ func (f *FormW) validate(want map[string]bool) bool {
 	return ok
 }
 
-// ResetValidation clears errors and touched flags.
+// ResetValidation clears errors and touched flags. Values changed from
+// code in the same frame (a submit handler clearing the fields) are not
+// edits: they are not validated on the next build, as antd does not
+// validate setFieldsValue.
 func (f *FormW) ResetValidation() {
+	for k := range f.st.last {
+		f.st.rebase[k] = true
+	}
 	clear(f.st.errs)
 	clear(f.st.warns)
 	clear(f.st.checked)
