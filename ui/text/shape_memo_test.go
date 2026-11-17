@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/go-text/typesetting/di"
+	ot "github.com/go-text/typesetting/font/opentype"
 	"github.com/go-text/typesetting/font/opentype/tables"
 	"github.com/go-text/typesetting/language"
 	"github.com/go-text/typesetting/shaping"
@@ -248,6 +249,14 @@ func TestShapeMemoKeysShapingState(t *testing.T) {
 		{"kern off", func(in *shaping.Input) {
 			in.FontFeatures = []shaping.FontFeature{{Tag: noLigaFeatures[0].Tag, Value: 1}, {Tag: 0x6b65726e, Value: 0}}
 		}, nil},
+		// Same tags, other value (kern=1 vs kern=0 above): pins value encoding.
+		{"kern on", func(in *shaping.Input) {
+			in.FontFeatures = []shaping.FontFeature{{Tag: noLigaFeatures[0].Tag, Value: 1}, {Tag: ot.NewTag('k', 'e', 'r', 'n'), Value: 1}}
+		}, nil},
+		// Same count and values as "kern off", other tag: pins tag encoding.
+		{"mark off", func(in *shaping.Input) {
+			in.FontFeatures = []shaping.FontFeature{{Tag: noLigaFeatures[0].Tag, Value: 1}, {Tag: ot.NewTag('m', 'a', 'r', 'k'), Value: 0}}
+		}, nil},
 		{"ppem", func(*shaping.Input) {}, func() { gt.SetPpem(30, 30) }},
 	}
 	if len(coords) > 0 {
@@ -396,5 +405,59 @@ func TestShapeMemoHitDoesNotAllocate(t *testing.T) {
 	allocs := testing.AllocsPerRun(100, func() { out = s.append(out[:0], in, face, 0) })
 	if allocs != 0 || s.memo.hits < 100 {
 		t.Fatalf("hit path: %v allocs, %d hits", allocs, s.memo.hits)
+	}
+}
+
+// HarfBuzz reads exactly five runes of context before a run (Arabic joining
+// skips transparent marks within it). A joining letter followed by four
+// harakat still joins the run's letter; one more haraka puts it out of
+// reach. If go-text widens its window, the uncached checks below fail
+// (shapeMemoContext must then follow); if shapeMemoContext is narrower
+// than the window, the memo replays the wrong joining form.
+func TestShapeMemoContextMatchesHarfBuzz(t *testing.T) {
+	face := memoFace(t, "بب")
+	defer func() { shapeMemoOff = false }()
+	if shapeMemoContext != 5 {
+		t.Fatalf("shapeMemoContext = %d, harfbuzz.contextLength is 5", shapeMemoContext)
+	}
+	input := func(lead string, marks int) shaping.Input {
+		rs := []rune(lead)
+		for range marks {
+			rs = append(rs, '\u064e') // fatha: transparent for joining
+		}
+		rs = append(rs, 'ب')
+		return shaping.Input{Text: rs, RunStart: len(rs) - 1, RunEnd: len(rs), Face: face.gt(), Size: fixed.I(14), Direction: di.DirectionRTL, Script: language.Arabic, Language: language.NewLanguage("ar")}
+	}
+	plain := func(in shaping.Input) uint32 {
+		shapeMemoOff = true
+		var s compactShaper
+		gl := s.append(nil, in, face, 0)
+		shapeMemoOff = false
+		if len(gl) != 1 {
+			t.Fatalf("%q: %d glyphs", string(in.Text), len(gl))
+		}
+		return gl[0].gid
+	}
+	isolated := plain(input(" ", 0))
+	if plain(input("ب", 0)) == isolated {
+		t.Skip("font has no Arabic joining forms")
+	}
+	if plain(input("ب", shapeMemoContext-1)) == isolated {
+		t.Fatalf("a joining letter %d runes back did not join: HarfBuzz reads less context than shapeMemoContext", shapeMemoContext)
+	}
+	if plain(input("ب", shapeMemoContext)) != isolated {
+		t.Fatalf("a joining letter %d runes back joined: HarfBuzz reads more context than shapeMemoContext=%d", shapeMemoContext+1, shapeMemoContext)
+	}
+	// The memo must tell the joined and the unjoined run apart.
+	var memo compactShaper
+	for round := range 2 {
+		for _, in := range []shaping.Input{input("ب", 4), input(" ", 4), input("ب", 5), input(" ", 5)} {
+			shapeMemoOff = true
+			var p compactShaper
+			want := p.append(nil, in, face, 0)
+			shapeMemoOff = false
+			got := memo.append(nil, in, face, 0)
+			sameMemoGlyphs(t, fmt.Sprintf("round %d %q", round, string(in.Text)), want, got, nil, nil)
+		}
 	}
 }
