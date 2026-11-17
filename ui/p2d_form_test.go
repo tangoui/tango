@@ -240,3 +240,63 @@ func TestP2DFormConfigDefaults(t *testing.T) {
 		t.Fatal("validated before submit")
 	}
 }
+
+// A submit handler that clears the fields and calls ResetValidation in the
+// same frame must not see the cleared values validated as edits on the next
+// build (antd: values set from code are not validated); a later change
+// still validates.
+func TestP2DFormResetValidationAfterClear(t *testing.T) {
+	p2dThemes(t, func(t *testing.T, th *theme.Theme) {
+		name, email := "Bob", "bob@example.com"
+		var f *FormW
+		submit, clearOne := false, false
+		d := p2dDriver(th, func(c *Context) {
+			f = Form(c)
+			f.Body(func() {
+				f.Item("名称").Rules(&name, Required("必填名称")).Body(func() { Input(c, &name) })
+				f.Item("邮箱").Rules(&email, Required("必填邮箱")).Body(func() { Input(c, &email) })
+			})
+			if submit {
+				submit = false
+				if f.Validate() {
+					name, email = "", ""
+					f.ResetValidation()
+				}
+			}
+			if clearOne {
+				clearOne = false
+				email = ""
+				f.ClearValidate("邮箱")
+			}
+		})
+		submit = true
+		d.r.Invalidate()
+		d.Settle()
+		if name != "" || email != "" {
+			t.Fatalf("submit did not clear: %q %q", name, email)
+		}
+		if errs := f.Errors(); errs["名称"] != "" || errs["邮箱"] != "" {
+			t.Fatalf("cleared after ResetValidation but validated: %v", errs)
+		}
+		// ClearValidate(name) re-baselines that item the same way.
+		email = "x@example.com"
+		d.r.Invalidate()
+		d.Settle()
+		clearOne = true
+		d.r.Invalidate()
+		d.Settle()
+		if errs := f.Errors(); errs["邮箱"] != "" {
+			t.Fatalf("cleared after ClearValidate but validated: %v", errs)
+		}
+		// A change after the reset is an edit again.
+		name = "A"
+		d.r.Invalidate()
+		d.Settle()
+		name = ""
+		d.r.Invalidate()
+		d.Settle()
+		if f.Errors()["名称"] != "必填名称" {
+			t.Fatalf("later change not validated: %v", f.Errors())
+		}
+	})
+}

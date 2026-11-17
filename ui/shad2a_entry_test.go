@@ -97,16 +97,17 @@ func TestShad2aFocusRing(t *testing.T) {
 	}, DriverOptions{Theme: th})
 	d.Settle()
 	r := shad2aRect(t, d, id)
-	in0, out0 := shad2aPx(d, r.X-2, r.Y+r.H/2), shad2aPx(d, r.X-5, r.Y+r.H/2)
+	in0, out0 := shad2aPx(d, r.X-0.5, r.Y+r.H/2), shad2aPx(d, r.X-3, r.Y+r.H/2)
 	d.Key(input.KeyTab, 0)
 	d.Settle()
-	// ring-[3px]: the halo covers the 3px right outside the border box …
-	if shad2aPx(d, r.X-2, r.Y+r.H/2) == in0 {
-		t.Errorf("no 3px focus halo outside the button")
+	// The halo (shadcn ring-[3px], narrowed to 1px) covers the pixel right
+	// outside the border box …
+	if shad2aPx(d, r.X-0.5, r.Y+r.H/2) == in0 {
+		t.Errorf("no 1px focus halo outside the button")
 	}
-	// … and stops there (no offset ring further out).
-	if shad2aPx(d, r.X-5, r.Y+r.H/2) != out0 {
-		t.Errorf("focus ring extends beyond 3px")
+	// … and stops there (no wide halo or offset ring further out).
+	if shad2aPx(d, r.X-3, r.Y+r.H/2) != out0 {
+		t.Errorf("focus ring extends beyond 1px")
 	}
 }
 

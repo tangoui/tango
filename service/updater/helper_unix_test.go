@@ -107,7 +107,7 @@ func TestHelperScriptWaitsForExit(t *testing.T) {
 	if err := sleeper.Start(); err != nil {
 		t.Fatal(err)
 	}
-	j, _ := shJob(t, 0)
+	j, log := shJob(t, 0)
 	j.PID, j.State = sleeper.Process.Pid, ""
 	helper := exec.Command("/bin/sh", helperArgs(j)...)
 	if err := helper.Start(); err != nil {
@@ -124,6 +124,10 @@ func TestHelperScriptWaitsForExit(t *testing.T) {
 	if b, _ := os.ReadFile(j.Target); string(b) != "new" {
 		t.Fatal("helper did not swap after exit")
 	}
+	// The helper starts the new version in the background and exits; that
+	// launch still writes the log in the temp dir. Wait for it, or the temp
+	// dir cleanup races its write ("directory not empty").
+	waitFor(t, "launch", func() bool { return launches(log) == "new" })
 }
 
 // TestApplyDirConfirm runs Apply for a Linux-style install directory end

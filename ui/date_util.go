@@ -212,6 +212,7 @@ func dtMonthPanel(c *Context, m dtMonth) (picked time.Time, ok bool) {
 					if shad {
 						dtShadcnNav(c, b)
 					}
+					dtAntNav(c, b, ic)
 					dtNavOff(b, off)
 				})
 				if b.Clicked() && m.onNav != nil {
@@ -837,6 +838,22 @@ func (b dtBounds) pageOut(a time.Time, level PickerType, back bool) bool {
 
 // dtNavOff dims a header arrow that cannot move further
 // (DatePickerToken.NavDisabledOpacity / NavDisabledColor).
+// dtAntNav draws an Ant DatePicker header arrow the way antd does: a CSS
+// border chevron (date-picker/style/panel.js prev/next/super icons, 7px,
+// 1.5px borders), not a shrunk LeftOutlined. ic is the arrow the other
+// flavors draw; it picks the direction and the single or double form.
+func dtAntNav(c *Context, b *IconButtonW, ic *icon.Icon) {
+	if c.Theme.Flavor != theme.Ant {
+		return
+	}
+	next := ic == icon.Right || ic == icon.DoubleRight
+	double := ic == icon.DoubleLeft || ic == icon.DoubleRight
+	rtl := c.IsRTL()
+	b.glyph = func(l *paint.List, r geom.Rect, col theme.Color) {
+		antdPickerArrow(l, r, next, double, rtl, col)
+	}
+}
+
 func dtNavOff(b *IconButtonW, off bool) {
 	if !off {
 		return

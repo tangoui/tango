@@ -3,7 +3,6 @@ package regex
 import (
 	"bytes"
 	"regexp/syntax"
-	"time"
 	"unicode"
 	"unicode/utf8"
 )
@@ -250,6 +249,11 @@ func (r *stdRegexp) rejectASCII(s string) bool {
 // existing independent capture results. Unknown implementations use that API.
 func TryMatchStartNoCaptures(re Regexp, s string, rs []rune, dst []int) ([]int, error) {
 	switch r := re.(type) {
+	case *literalRegexp:
+		if len(s) < len(r.literal) || !bytes.Equal([]byte(s[:len(r.literal)]), r.literal) {
+			return nil, nil
+		}
+		return append(dst[:0], 0, len(r.literal)), nil
 	case *stdRegexp:
 		if r.rejectASCII(s) {
 			return nil, nil
@@ -283,7 +287,7 @@ func TryMatchStartNoCaptures(re Regexp, s string, rs []rune, dst []int) ([]int, 
 			}
 			return append(dst[:0], 0, len(r.assertion.consume)), nil
 		}
-		return r.tryMatchStartWithCaptures(s, rs, r.re.FindRunesMatch, time.Now, false, dst)
+		return r.tryMatchStartNoCaptures(s, rs, dst)
 	default:
 		m, err := re.TryMatchStart(s, rs)
 		if m != nil {

@@ -54,10 +54,17 @@ func g3Texts(d *Driver, r geom.Rect) []geom.Point {
 // are drawn as a translated path).
 func g3IconAt(d *Driver, r geom.Rect) (geom.Point, bool) {
 	for _, op := range d.r.List().Ops {
-		if t, ok := op.(paint.PushTransform); ok {
-			p := geom.Pt(t.M.E, t.M.F)
+		switch o := op.(type) {
+		case paint.PushTransform:
+			p := geom.Pt(o.M.E, o.M.F)
 			if r.Contains(p) {
 				return p, true
+			}
+		case paint.FillPath:
+			// Glyphs drawn as paths in place (the Ant submenu chevron's
+			// bars) rather than a transformed icon.
+			if b := o.Path.Bounds(); b.W > 0 && b.W < 24 && r.Contains(geom.Pt(b.X+b.W/2, b.Y+b.H/2)) {
+				return geom.Pt(b.X, b.Y), true
 			}
 		}
 	}
@@ -171,11 +178,47 @@ func TestG3MenuPopupRTL(t *testing.T) {
 		if rtl && pr.Right() > mr.X || !rtl && pr.X < mr.Right() {
 			t.Errorf("rtl=%v: submenu %+v next to menu %+v", rtl, pr, mr)
 		}
-		// The submenu chevron of "Deeper" points to the end.
+		// The submenu chevron of "Deeper" sits at the end edge and points
+		// to the end (Ant: antd's CSS bar arrow, drawn as a path whose tip
+		// is its end-most point).
 		dr, _ := d.FindText("Deeper")
-		want := g3IconPath(icon.Right, geom.Rect{W: 10, H: 10}, rtl)
-		if !g3HasPath(d, want) {
-			t.Errorf("rtl=%v: Deeper chevron not drawn mirrored=%v (%+v)", rtl, rtl, dr)
+		row := geom.Rect{X: pr.X - 80, Y: dr.Y - 8, W: 400, H: dr.H + 16}
+		var tip *paint.Path
+		for _, op := range d.r.List().Ops {
+			if f, ok := op.(paint.FillPath); ok {
+				b := f.Path.Bounds()
+				if b.W > 0 && b.W < 12 && b.H < 12 && row.Contains(geom.Pt(b.X+b.W/2, b.Y+b.H/2)) {
+					if rtl == (b.X+b.W/2 < dr.X+dr.W/2) {
+						tip = f.Path
+					}
+				}
+			}
+		}
+		if tip == nil {
+			t.Fatalf("rtl=%v: no chevron at the end of Deeper (%+v)", rtl, dr)
+		}
+		// The tip is the extreme point along the end direction; the bars'
+		// open ends lie towards the start, so the tip's row is mid-height.
+		b := tip.Bounds()
+		endX := b.Right()
+		if rtl {
+			endX = b.X
+		}
+		var tipY float32
+		best := float32(-1)
+		for _, sp := range tip.Flatten(0.1) {
+			for _, p := range sp.Pts {
+				dist := p.X - b.X
+				if rtl {
+					dist = b.Right() - p.X
+				}
+				if dist > best {
+					best, tipY = dist, p.Y
+				}
+			}
+		}
+		if mid := b.Y + b.H/2; tipY < mid-b.H/3 || tipY > mid+b.H/3 {
+			t.Errorf("rtl=%v: chevron %+v does not point to the end (tip y %v at x %v)", rtl, b, tipY, endX)
 		}
 	}
 }

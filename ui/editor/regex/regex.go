@@ -18,6 +18,7 @@
 package regex
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"regexp"
@@ -101,6 +102,12 @@ func Compile(source, flags string) (Regexp, error) {
 	if err != nil {
 		return nil, err
 	}
+	if flags == "" {
+		if literal, ok := parseASCIILiteral(source); ok {
+			nStd.Add(1)
+			return &literalRegexp{src: source, literal: literal}, nil
+		}
+	}
 	out, groups, err := translate(source, fl, toRE2)
 	switch {
 	case err == nil:
@@ -156,6 +163,25 @@ type stdRegexp struct {
 	first    asciiSet
 	hasFirst bool
 }
+
+type literalRegexp struct {
+	src     string
+	literal []byte
+}
+
+func (r *literalRegexp) MatchStart(s string) []int {
+	if len(s) < len(r.literal) || !bytes.Equal([]byte(s[:len(r.literal)]), r.literal) {
+		return nil
+	}
+	return []int{0, len(r.literal)}
+}
+func (r *literalRegexp) MatchStartRunes(s string, _ []rune) []int { return r.MatchStart(s) }
+func (r *literalRegexp) TryMatchStart(s string, _ []rune) ([]int, error) {
+	return r.MatchStart(s), nil
+}
+func (r *literalRegexp) Engine() Engine { return Std }
+func (r *literalRegexp) Source() string { return r.src }
+func (r *literalRegexp) NumGroups() int { return 0 }
 
 func (r *stdRegexp) MatchStart(s string) []int {
 	if r.rejectASCII(s) {
@@ -215,6 +241,53 @@ func (r *backtrackRegexp) TryMatchStart(s string, rs []rune) ([]int, error) {
 // Regexp, the regexp2 process clock, or a global hook used by other goroutines.
 func (r *backtrackRegexp) tryMatchStart(s string, rs []rune, find func([]rune) (*regexp2.Match, error), now func() time.Time) ([]int, error) {
 	return r.tryMatchStartWithCaptures(s, rs, find, now, true, nil)
+}
+
+func (r *backtrackRegexp) tryMatchStartNoCaptures(s string, rs []rune, dst []int) ([]int, error) {
+	if rs == nil {
+		rs = []rune(s)
+	}
+	start := time.Now()
+	confirmed := false
+	for {
+		from, length, ok, err := r.re.FindRunesMatchLength(rs)
+		if err == nil {
+			if !ok {
+				return nil, nil
+			}
+			to := from + length
+			if to <= len(s) {
+				ascii := true
+				for i := 0; i < to; i++ {
+					if s[i] >= utf8.RuneSelf {
+						ascii = false
+						break
+					}
+				}
+				if ascii {
+					return append(dst[:0], from, to), nil
+				}
+			}
+			byteOff := make([]int, 0, to+1)
+			for b := 0; len(byteOff) <= to; {
+				byteOff = append(byteOff, b)
+				_, size := utf8.DecodeRuneInString(s[b:])
+				b += size
+			}
+			return append(dst[:0], byteOff[from], byteOff[to]), nil
+		}
+		if !strings.Contains(err.Error(), "timeout") {
+			return nil, fmt.Errorf("regex: match %q: %w", r.src, err)
+		}
+		if now := time.Now(); now.Sub(start) >= matchTimeout {
+			if confirmed {
+				nTimeouts.Add(1)
+				return nil, ErrTimeout
+			}
+			confirmed = true
+			start = now
+		}
+	}
 }
 
 func (r *backtrackRegexp) tryMatchStartWithCaptures(s string, rs []rune, find func([]rune) (*regexp2.Match, error), now func() time.Time, captures bool, dst []int) ([]int, error) {

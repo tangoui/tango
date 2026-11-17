@@ -555,6 +555,7 @@ func (w *DatePickerPanelW) header(anchor time.Time, prev, next bool, titles func
 			if shad {
 				dtShadcnNav(c, b)
 			}
+			dtAntNav(c, b, ic)
 			dtNavOff(b, off)
 		})
 		if b.Clicked() {

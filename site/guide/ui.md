@@ -53,20 +53,39 @@ func main() {
 
 ## 组件库
 
-组件按 Ant Design / Element Plus 的设计规范实现，每个组件只有一个公开入口，按通用、布局、导航、数据录入、数据展示、反馈分组。每个组件的文档和在线示例见 [组件](/components/)，静态截图见 [组件截图目录](/components/screenshots)。
+组件以 Ant Design 6.7 和 Ant Design Pro v6 为设计基线实现，Element Plus 主题对照 Element Plus 2.14.8，shadcn 主题对照 shadcn/ui v4（见 [设计基线](https://github.com/tangoui/tango/blob/main/docs/design-baseline.md)）。每个组件只有一个公开入口，按通用、布局、导航、数据录入、数据展示、反馈分组。每个组件的文档和在线示例见 [组件](/components/)，静态截图见 [组件截图目录](/components/screenshots)。
 
 编写新组件的约定（文件命名、节点与保留状态、布局、主题令牌、绘制、焦点与输入法、浮层、测试）在仓库的 [ui/AUTHORING.md](https://github.com/tangoui/tango/blob/main/ui/AUTHORING.md)。
 
 ## 主题
 
-`ui/theme` 提供两套设计令牌：`theme.AntDesign()`（默认）和 `theme.ElementPlus()`，都接受选项：
+`ui/theme` 提供三套设计令牌：`theme.AntDesign()`（默认）、`theme.ElementPlus()` 和 `theme.Shadcn()`。三者都接受通用选项 `theme.Dark()`（深色）、`theme.WithPrimary(...)`（主色）和 `theme.Compact()`（紧凑尺寸）：
 
 ```go
 t := theme.AntDesign(theme.Dark(), theme.WithPrimary(theme.Hex("#13c2c2")))
 r, _, _ := uihost.Open(app, opts, page, ui.RunnerOptions{Theme: t}) // 显式主题：固定，不跟随系统
 ```
 
-语义色由一个主色按各自设计系统的算法派生，`theme.Compact()` 是紧凑尺寸。
+语义色由一个主色按各自设计系统的算法派生。
+
+`theme.Shadcn()` 另外接受 `theme.ShadcnOptions`，可以和通用选项混用：
+
+```go
+theme.Shadcn()                                                  // 浅色 neutral 灰阶，圆角 10 px
+theme.Shadcn(theme.Dark())                                      // 深色
+theme.Shadcn(theme.ShadcnOptions{Base: "zinc", Radius: 8})      // 换基础灰阶和圆角
+theme.Shadcn(theme.ShadcnOptions{Color: "blue"}, theme.Dark())  // 叠加 shadcn/ui 的颜色主题
+```
+
+| 字段 | 含义 |
+|---|---|
+| `Base` | 基础灰阶：`neutral`（默认）、`stone`、`zinc`、`mauve`、`olive`、`mist`、`taupe`；v4 已移除的 `slate`、`gray` 保留 v3 的颜色 |
+| `Radius` | 对应 shadcn 的 `--radius`，单位 px，默认 10；卡片用 Radius+4，对话框用 Radius，按钮和输入框用 Radius−2 |
+| `Color` | 叠加 shadcn/ui v4 的颜色主题（`blue`、`amber` 等，见 `theme.ShadcnColors`），影响主色、次要色、图表色和侧边栏主色 |
+| `Primary` | 用品牌色替换默认的近黑（深色模式下近白）主色，焦点环随之变化；同时设置时优先于 `Color` |
+| `Dark` / `Compact` | 与 `theme.Dark()` / `theme.Compact()` 相同 |
+
+shadcn 主题的颜色与 shadcn/ui 公布的 CSS 变量一致，`t.Shadcn` 保留这些原始值，`t.CSSVars()` 按同名变量导出。
 
 ### 跟随系统深浅色与语言
 

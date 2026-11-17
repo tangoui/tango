@@ -351,7 +351,7 @@ func macValue(n *a11y.Node) id {
 		return send(class("NSNumber"), "numberWithInteger:", uintptr(boolInt(n.States.Has(a11y.Selected))))
 	case n.HasRange:
 		return msgNumberFloat(class("NSNumber"), sel("numberWithDouble:"), n.ValueNow)
-	case n.Value != "":
+	case n.Value != "" || a11ybridge.MacTextField(n):
 		return nsString(n.Value)
 	case textRole(n) && n.Name != "":
 		return nsString(n.Name)

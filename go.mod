@@ -9,3 +9,5 @@ require (
 	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0
 )
+
+replace github.com/dlclark/regexp2 => ./third_party/regexp2

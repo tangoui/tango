@@ -19,6 +19,7 @@ import (
 
 var shad2dDemo struct {
 	settings    ui.ProSettings
+	followTheme string // NavTheme last set from the page's light/dark mode
 	drawerOpen  bool
 	sel         string
 	collapsed   bool
@@ -35,7 +36,7 @@ var shad2dDemo struct {
 func shad2dReset() {
 	d := &shad2dDemo
 	d.settings = ui.DefaultProSettings()
-	d.settings.NavTheme = "light"
+	d.followTheme = d.settings.NavTheme
 	d.drawerOpen = true
 	d.sel = "analysis"
 	d.collapsed = false
@@ -61,6 +62,17 @@ func shad2dMenu() []ui.MenuItem {
 
 func shad2dSettingPage(c *ui.Context) {
 	s := &shad2dDemo
+	// Follow the page's light/dark mode: the provider applies NavTheme's
+	// algorithm to the whole preview, so "light" would force a light layout
+	// into a dark gallery. A style picked in the drawer is kept.
+	want := "light"
+	if c.Theme.Dark {
+		want = "realDark"
+	}
+	if s.settings.NavTheme == s.followTheme && s.settings.NavTheme != want {
+		s.settings.NavTheme = want
+	}
+	s.followTheme = want
 	gallery.Demo(c, "页面设置抽屉", "SettingDrawer 编辑 ProSettings：整体风格、主题色、导航模式、内容宽度、固定顶栏、色弱与紧凑模式；ProSettingsProvider 与 Apply 让改动立即作用到 ProLayout。", func() {
 		ui.Column(c, func() {
 			ui.ProSettingsProvider(c, &s.settings, func() {

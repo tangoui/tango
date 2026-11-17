@@ -501,8 +501,12 @@ func (m *MenuW) list(items []MenuItem, level, parent int) {
 					switch {
 					case m.expandIcon != nil:
 						c.paintIcon(l, m.expandIcon, ar, col, 0)
+					case th.Flavor == theme.Ant && m.popupMode():
+						antdSubmenuArrow(l, s, r, th, col, 0, chevronRight)
 					case m.popupMode():
 						c.paintIcon(l, icon.Right, ar, col, 0)
+					case th.Flavor == theme.Ant:
+						antdSubmenuArrow(l, s, r, th, col, arrow, chevronDown)
 					default:
 						icon.Draw(l, icon.Down, ar, col, float64(arrow)*math.Pi)
 					}
@@ -852,7 +856,7 @@ func (m *MenuW) horizontal() {
 				}
 				c.drawIconAt(l, ic, r.X+(r.W-16)/2, r.Y+(r.H-16)/2, 16, col)
 				if ia.FocusVisible {
-					l.Stroke(r.Inset(geom.Insets{Top: 2, Bottom: 2}), geom.Rad(th.RadiusSM), 2, th.FocusRing)
+					menuHFocusRing(l, th, r)
 				}
 				return
 			}
@@ -878,7 +882,7 @@ func (m *MenuW) horizontal() {
 				icon.Draw(l, ic, s.Rect(x+lay.Width+tk.HorizontalArrowGap, r.Y+(r.H-as)/2, as, as), col, rot)
 			}
 			if ia.FocusVisible {
-				l.Stroke(r.Inset(geom.Insets{Top: 2, Bottom: 2}), geom.Rad(th.RadiusSM), 2, th.FocusRing)
+				menuHFocusRing(l, th, r)
 			}
 		}
 	}
@@ -1153,4 +1157,17 @@ func menuPopupToken(k *theme.MenuToken) *theme.DropdownToken {
 		ShortcutColor: k.PopupShortcutColor, ShortcutFontSize: k.PopupShortcutFontSize,
 		ShortcutLetterSpacing: k.PopupShortcutLetterSpacing, ShortcutGap: k.PopupShortcutGap,
 	}
+}
+
+// menuHFocusRing outlines a focused horizontal menu item. antd puts its
+// focus outline (genFocusOutline: outlineOffset 1) on the whole
+// .ant-menu-item, active bar included: the ring encloses the bar instead of
+// crossing it. An inset ring drew its lower edge across the bar and left
+// the bar's ends sticking out below it like a stray underline.
+// It keeps the menu's 2px FocusRing (as the inline items) with antd's 1px
+// outline offset, so the line sits 1px outside the item.
+func menuHFocusRing(l *paint.List, th *theme.Theme, r geom.Rect) {
+	const w, offset = 2, 1
+	g := float32(offset + w/2)
+	l.Stroke(r.Expand(g), geom.Rad(th.RadiusSM).Grow(g), w, th.FocusRing)
 }
