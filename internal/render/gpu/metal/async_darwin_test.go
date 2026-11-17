@@ -7,6 +7,7 @@ import (
 	"image"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/tangoui/tango/internal/render/gpu/internal/gputest"
 )
@@ -79,6 +80,9 @@ func TestMetalPresentSharesFrameCommandBuffer(t *testing.T) {
 	if err := p.r.Render(l, gputest.SceneSize, 1); err != nil {
 		t.Fatal(err)
 	}
+	p.dev.mu.Lock()
+	p.dev.drawables = drawableBackoff{} // the common case: drawables are not scarce
+	p.dev.mu.Unlock()
 	open, kinds, _, commits := state()
 	if !open || len(kinds) != 0 || commits != 0 {
 		t.Fatalf("after Render: open=%v in flight=%v commits=%d, want an open frame, nothing committed", open, kinds, commits)
@@ -118,6 +122,82 @@ func TestMetalPresentSharesFrameCommandBuffer(t *testing.T) {
 	}
 	if _, kinds, presents, _ = state(); !slices.Equal(kinds, []submissionKind{submitPresent}) || !slices.Equal(presents, []bool{false}) {
 		t.Fatalf("re-present: in flight=%v presents=%v, want one present", kinds, presents)
+	}
+	if err := p.dev.Wait(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestDrawableBackoff: short nextDrawable waits keep the shared command
+// buffer; a long one splits the next splitPresents presents, and another
+// long wait restarts the count.
+func TestDrawableBackoff(t *testing.T) {
+	var b drawableBackoff
+	b.observe(0)
+	b.observe(drawableWaitSplit) // not over the threshold
+	if b.split() {
+		t.Fatal("split without a long drawable wait")
+	}
+	b.observe(drawableWaitSplit + time.Microsecond)
+	for i := 0; i < splitPresents-10; i++ {
+		if !b.split() {
+			t.Fatalf("present %d after a long wait not split", i)
+		}
+	}
+	b.observe(5 * time.Millisecond) // still starved: restart
+	n := 0
+	for b.split() {
+		n++
+	}
+	if n != splitPresents {
+		t.Fatalf("%d presents split after the second long wait, want %d", n, splitPresents)
+	}
+	b.observe(100 * time.Microsecond)
+	if b.split() {
+		t.Fatal("split after the count ran out with short waits")
+	}
+}
+
+// TestMetalPresentSplitsAfterDrawableWait: after a long nextDrawable wait
+// present commits the open frame first and presents in a command buffer
+// of its own; when the count runs out it shares the frame's again.
+func TestMetalPresentSplitsAfterDrawableWait(t *testing.T) {
+	layer := newTestLayer(t, image.Pt(10, 10))
+	p := startPresenter(t, layer)
+	l := gputest.Scenes[0].Make(t)
+	size := devicePixels(gputest.SceneSize, 1)
+	state := func() (kinds []submissionKind, presents []bool) {
+		p.dev.mu.Lock()
+		defer p.dev.mu.Unlock()
+		for _, s := range p.dev.inflight.items {
+			presents = append(presents, s.presents)
+		}
+		return p.dev.inflight.kinds(), presents
+	}
+	p.dev.mu.Lock()
+	p.dev.drawables.observe(5 * time.Millisecond)
+	p.dev.mu.Unlock()
+	if err := p.r.Render(l, gputest.SceneSize, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.present(size, 1); err != nil {
+		t.Fatal(err)
+	}
+	if kinds, presents := state(); !slices.Equal(kinds, []submissionKind{submitFrame, submitPresent}) || !slices.Equal(presents, []bool{false, false}) || p.presented != 1 {
+		t.Fatalf("split present: in flight %v presents %v presented %d, want [frame present], no shared buffer", kinds, presents, p.presented)
+	}
+	p.dev.mu.Lock()
+	p.dev.drawables = drawableBackoff{} // the count ran out
+	p.dev.mu.Unlock()
+	if err := p.r.Render(l, gputest.SceneSize, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.present(size, 1); err != nil {
+		t.Fatal(err)
+	}
+	kinds, presents := state()
+	if n := len(kinds); n == 0 || kinds[n-1] != submitFrame || !presents[n-1] {
+		t.Fatalf("after the backoff: in flight %v presents %v, want the shared frame last", kinds, presents)
 	}
 	if err := p.dev.Wait(); err != nil {
 		t.Fatal(err)

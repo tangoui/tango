@@ -43,7 +43,10 @@ import (
 // submission, completion and frame-pacing queues). A frame nobody
 // presents is committed by whatever comes next (Execute, Wait,
 // ReadPixels, Close, or a present that shows nothing); presenting again
-// without a new frame uses a command buffer of its own. present does not
+// without a new frame uses a command buffer of its own. When drawables are
+// scarce (a nextDrawable wait over drawableWaitSplit), the next
+// splitPresents presents commit the frame before nextDrawable and present
+// separately, so the GPU renders while the CPU waits (drawableBackoff). present does not
 // wait for the GPU. The command buffer is waited for by the next Execute,
 // so its errors are reported the same way (see Device). nextDrawable is
 // the back-pressure: it blocks while all the layer's drawables (3 by
@@ -344,15 +347,15 @@ func (p *presenter) present(size image.Point, scale float32) error {
 	if !d.hasFrame {
 		return nil
 	}
-	var waitStart time.Time
-	if d.timeline != nil {
-		waitStart = time.Now()
+	if d.openCB != 0 && d.drawables.split() {
+		// Drawables have been scarce: let the GPU start on the frame
+		// while nextDrawable blocks, and present it separately.
+		d.flushOpen()
 	}
+	waitStart := time.Now()
 	drawable := p.layer.Send(sel("nextDrawable"))
-	d.drawableWait = 0
-	if d.timeline != nil {
-		d.drawableWait = time.Since(waitStart)
-	}
+	d.drawableWait = time.Since(waitStart)
+	d.drawables.observe(d.drawableWait)
 	if drawable == 0 {
 		if d.timeline != nil {
 			d.timeline(Timing{Kind: submitPresent.String(), Frame: d.frames, DrawableWait: d.drawableWait})

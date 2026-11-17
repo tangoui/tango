@@ -180,7 +180,8 @@ type Device struct {
 	// frame costs one command buffer and one commit instead of two (see
 	// flushOpen).
 	deferFrameCommit bool
-	openCB           id // retained; Execute's uncommitted frame (0: none)
+	openCB           id              // retained; Execute's uncommitted frame (0: none)
+	drawables        drawableBackoff // when present commits the open frame before nextDrawable
 }
 
 // SetTimeline installs fn (nil removes it) to receive the Timing of every
