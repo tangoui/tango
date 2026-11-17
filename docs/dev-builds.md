@@ -34,13 +34,13 @@ Android 同样用 `tango_selftest`：`GOFLAGS=-tags=tango_selftest bash mobile/a
 
 `TANGO_RENDERER` 是窗口创建时读取的运行参数，`ui.RunnerOptions.Renderer` 显式指定的渲染器始终优先：
 
-- 未设置：macOS Apple Silicon 上面积不超过 100,000 逻辑像素的普通自绘窗口先使用原生 Core Animation 图层和 CoreText；较大窗口和其他平台保持 GPU 优先，失败回退 CPU。透明/材质窗口、WebView 附加画布和调用方自选渲染器保留原路径。原生路径的连续六帧绘制和呈现工作超过 8 ms，或连续六帧整窗软件回退时，尝试单向升级 Metal；相邻帧间的空闲时间需不超过 100 ms，单次冷启动/零散操作不触发。升级失败立即呈现 CPU 图像且不反复尝试。
+- 未设置：macOS Apple Silicon 上的普通自绘窗口（不论大小）先使用原生 Core Animation 图层和 CoreText；其他平台保持 GPU 优先，失败回退 CPU。透明/材质窗口、WebView 附加画布和调用方自选渲染器保留原路径。原生路径的连续六帧绘制和呈现工作超过 8 ms，或连续六帧整窗软件回退时，尝试单向升级 Metal；相邻帧间的空闲时间需不超过 100 ms，单次冷启动/零散操作不触发。升级失败立即呈现 CPU 图像且不反复尝试。
 - `cpu`：始终使用 CPU，不创建原生 GPU 呈现目标。
 - `gpu`：尝试 GPU（包括软件 OpenGL），失败仍回退 CPU。
 - `native`：在支持的 macOS Apple Silicon 普通自绘窗口强制原生图层，不自动升级 Metal；不支持时沿用 GPU/CPU 回退。`uihost.Renderer(r)` 会报告 `native`、`gpu` 或 `cpu`。
 - `auto`：面积不超过 100,000 逻辑像素的小窗口先使用 CPU；其他窗口 GPU 优先。CPU 起步的窗口在放大超过阈值、绘制列表达到 256 项或连续六个实际绘制帧的间隔不超过 100 ms 时，尝试升级 GPU。升级单向生效，不随缩小窗口来回切换；升级失败也不逐帧重试。这是保守的工作量启发式，不是对 CPU/GPU 快慢的保证。小型编辑器、终端或持续动画也可直接设 `gpu`。
 
-较大窗口的默认原生渲染尚未通过 CPU/尾部帧间隔验收，因此保留 GPU 默认；可用 `native` 显式比较低内存路径。
+大窗口原先默认走 GPU，现在也默认使用原生图层。2026-11-17 在 Apple M4 上和 NSGo、Viva、mygo 交错实测（quotes 560×860、list 480×800，各 5 轮）：原生图层的 physical footprint 比 Metal 低 63–71%（list 39 对 135 MB，quotes 54 对 147 MB），回调间隔 P99 相同（16.8 ms），进程 CPU 高 1.5–3.5 个百分点。持续高负载的窗口仍按上面的条件单向升级 Metal：800×600、每帧重画 600 个格子的 grid 在约 1 秒内（前 60 帧）升级，之后与固定 `gpu` 基本相同（进程 CPU 32.3% 对 32.0%，P99 都是 16.73 ms，内存多约 2 MB，首帧中位数慢约 15 ms）；同一场景固定 `native` 的 CPU 是 81%。需要固定使用 Metal 时设 `gpu`。
 
 GPU 默认路径还会对可重建的 atlas 页和闲置 Metal image texture 施加有界预算，在 frame boundary 淘汰未被当前 frame/command buffer 使用的资源；当前 glyph、present target 和活动图片不会被淘汰。`TANGO_GPU_BUDGET=off` 可关闭这项预算并恢复旧的资源常驻策略。该开关不改变 `TANGO_RENDERER` 的选择，也不保证每种场景都降低物理 footprint；如果重新上传导致帧尾部恶化，应先用 `TANGO_FRAME_TRACE=1` 对照。
 

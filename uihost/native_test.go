@@ -155,24 +155,26 @@ func TestNativeWrapperForwardsImageInvalidation(t *testing.T) {
 type largeNativeCanvasTest struct{ nativeCanvasTest }
 
 func (*largeNativeCanvasTest) Size() (float32, float32) { return 1000, 800 }
-func TestNativeDefaultKeepsLargeAnimatedSurfacesOnVerifiedGPU(t *testing.T) {
+func TestNativeDefaultCoversLargeWindows(t *testing.T) {
 	t.Setenv("TANGO_RENDERER", "")
 	r := &nativeRenderTest{}
 	nativeTestHooks(t, r)
 	oldTarget, oldNP := gpuTarget, newPresenter
-	gpuTarget = func(platform.Canvas) (uintptr, error) { return 7, nil }
+	gpuCalls := 0
+	gpuTarget = func(platform.Canvas) (uintptr, error) { gpuCalls++; return 7, nil }
 	newPresenter = func(uintptr) (paint.Renderer, func(image.Point, float32) error, error) {
 		return &nativeRenderTest{}, func(image.Point, float32) error { return nil }, nil
 	}
 	t.Cleanup(func() { gpuTarget, newPresenter = oldTarget, oldNP })
 	cv := &largeNativeCanvasTest{}
 	g := setupGPU(cv, ui.RunnerOptions{})
-	if g != nil {
-		defer g.Close()
+	if g == nil || !g.nativeMode || cv.targets != 1 || gpuCalls != 0 {
+		t.Fatalf("large window: native=%v targets=%d gpu calls=%d, want native layers without Metal", g != nil && g.nativeMode, cv.targets, gpuCalls)
 	}
-	if cv.targets != 0 || g == nil || g.nativeMode || g.gpu == nil {
-		t.Fatal("unaccepted large-window native policy replaced verified GPU default")
+	if g.native == nil {
+		t.Fatal("default native on a large window lost its sustained-cost promotion to Metal")
 	}
+	g.Close()
 	t.Setenv("TANGO_RENDERER", "native")
 	forced := setupGPU(cv, ui.RunnerOptions{})
 	if forced == nil || !forced.nativeMode || forced.native != nil {
