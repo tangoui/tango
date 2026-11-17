@@ -275,6 +275,34 @@ type bracketEvent struct {
 	def    *bracketDef
 }
 
+// outerSigSeed starts outerSig (never 0: 0 is "not scanned" in
+// bracketTree.outer).
+const outerSigSeed uint64 = 14695981039346656037
+
+// outerSig adds event e of a line that started at depth d0 to the line's
+// outer signature: what the line does to the brackets of the lines before
+// it. Only the closing events of entries that were on the stack when the
+// line started count — which outer pairs it closes or leaves unclosed, at
+// which depth, with which closing bracket (colorization depends on it).
+// The line's own pairs, its unexpected brackets and the brackets' bytes
+// do not: they only change the line's own colors. Together with the
+// line's lowest depth, end stack and tokenizer end state, the signature
+// decides every other line's colors.
+func outerSig(sig uint64, d0 int32, e bracketEvent) uint64 {
+	if (e.kind != evClose && e.kind != evUnclosed) || e.node == nil || e.node.depth > d0 {
+		return sig
+	}
+	mix := func(v uint64) { sig = (sig ^ v) * 1099511628211 }
+	mix(uint64(e.kind) + 1)
+	mix(uint64(e.node.depth))
+	mix(uint64(e.node.open) + 1)
+	for i := 0; i < len(e.def.text); i++ {
+		mix(uint64(e.def.text[i]))
+	}
+	mix(uint64(len(e.def.text)))
+	return sig
+}
+
 // scanLine runs the bracket parser over one line from stack s. toks are
 // the line's tokens (none: all text is Other). It returns the stack at the
 // line end and the lowest depth reached; ev, when not nil, receives every
@@ -451,9 +479,19 @@ type bracketTree struct {
 	start []*bnode        // start[i]: the stack at line i's start
 	minD  []int32         // minD[i]: the lowest depth line i reaches
 	tokSt []monarch.State // tokSt[i]: the tokenizer state line i was scanned from
-	dirty []int           // sorted lines to scan again
-	toks  []monarch.Token
-	long  map[int]*brIndex // the long lines' checkpoints (brackets_long.go)
+	// outer[i]: a hash of what line i does to the brackets of the lines
+	// before it (outerSig); 0 for a line not scanned since it changed.
+	outer []uint64
+	dirty []int // sorted lines to scan again
+	// gen changes whenever the bracket structure seen from outside a line
+	// may have changed: a line's start stack, tokenizer start state,
+	// lowest depth or outer brackets (outerSig) differ from before, lines
+	// were added, removed or replaced, or the tree was rebuilt. While gen
+	// stays, an edit inside one line changes the bracket colors of that
+	// line only (bracketSpans keeps the others').
+	gen  uint64
+	toks []monarch.Token
+	long map[int]*brIndex // the long lines' checkpoints (brackets_long.go)
 
 	// A run of lines read at once (lineText): reading line by line costs
 	// a rope walk per line.
@@ -518,6 +556,9 @@ func (t *bracketTree) reset(snap buffer.Snapshot) {
 	t.start = slices.Grow(t.start[:0], n)[:n]
 	t.minD = slices.Grow(t.minD[:0], n)[:n]
 	t.tokSt = slices.Grow(t.tokSt[:0], n)[:n]
+	t.outer = slices.Grow(t.outer[:0], n)[:n]
+	clear(t.outer)
+	t.gen++
 	for i := range t.start {
 		t.start[i] = unknownStack
 	}
@@ -568,16 +609,27 @@ func (t *bracketTree) ensure(src bracketSource, upTo int, deadline time.Time) bo
 		text := t.lineText(src, i)
 		var end *bnode
 		var md int32
+		var sig uint64
 		if len(text) > maxTokenizationLineLength && !bracketLongIndexOff {
 			end, md = t.scanLong(i, text) // no tokens (forBrackets)
+			t.gen++                       // no events: assume its outer brackets changed
 		} else {
 			delete(t.long, i)
 			t.toks = src.tokens(t.snap, i, text, t.toks[:0])
-			end, md = t.conf.scanLine(t.start[i], text, t.toks, nil)
+			d0 := stackDepth(t.start[i])
+			sig = outerSigSeed
+			end, md = t.conf.scanLine(t.start[i], text, t.toks, func(e bracketEvent) { sig = outerSig(sig, d0, e) })
 		}
 		t.scanned++
 		bytes += len(text) + 1
+		if t.outer[i] != 0 && (t.outer[i] != sig || t.minD[i] != md) {
+			// A line scanned before (not a new or replaced one, whose
+			// edit already changed gen) now does something else to the
+			// brackets of the lines before it.
+			t.gen++
+		}
 		t.minD[i] = md
+		t.outer[i] = sig
 		t.tokSt[i] = src.startState(t.snap, i)
 		switch {
 		case i+1 >= n:
@@ -586,6 +638,9 @@ func (t *bracketTree) ensure(src bracketSource, upTo int, deadline time.Time) bo
 			// Same stack and same tokens from here on: the rest holds.
 			t.dirty = t.dirty[1:]
 		default:
+			if t.start[i+1] != unknownStack {
+				t.gen++ // a known line starts with another stack or tokens
+			}
 			t.start[i+1] = end
 			if len(t.dirty) > 1 && t.dirty[1] == i+1 {
 				t.dirty = t.dirty[1:]
@@ -703,8 +758,12 @@ func (t *bracketTree) edit(old, new buffer.Snapshot, edits []buffer.Edit) {
 		}
 		for _, r := range regs {
 			t.markDirty(r.sl)
+			if r.el > r.sl {
+				t.gen++ // lines replaced: their outer brackets are not compared
+			}
 			for i := r.sl + 1; i <= r.el; i++ {
 				t.start[i] = unknownStack
+				t.outer[i] = 0
 			}
 		}
 		return
@@ -719,9 +778,11 @@ func (t *bracketTree) edit(old, new buffer.Snapshot, edits []buffer.Edit) {
 		t.moveLong(lr)
 	}
 	n := new.LineCount()
+	t.gen++ // lines added or removed
 	start := make([]*bnode, 0, n)
 	minD := make([]int32, 0, n)
 	tokSt := make([]monarch.State, 0, n)
+	outer := make([]uint64, 0, n)
 	var dirty []int
 	di := 0
 	prev := 0
@@ -730,6 +791,7 @@ func (t *bracketTree) edit(old, new buffer.Snapshot, edits []buffer.Edit) {
 		start = append(start, t.start[prev:r.sl+1]...)
 		minD = append(minD, t.minD[prev:r.sl+1]...)
 		tokSt = append(tokSt, t.tokSt[prev:r.sl+1]...)
+		outer = append(outer, t.outer[prev:r.sl+1]...)
 		for ; di < len(t.dirty) && t.dirty[di] < r.sl; di++ {
 			dirty = append(dirty, t.dirty[di]+shift)
 		}
@@ -740,6 +802,7 @@ func (t *bracketTree) edit(old, new buffer.Snapshot, edits []buffer.Edit) {
 			start = append(start, unknownStack)
 			minD = append(minD, 0)
 			tokSt = append(tokSt, 0)
+			outer = append(outer, 0)
 		}
 		shift += r.m - (r.el - r.sl + 1)
 		prev = r.el + 1
@@ -747,10 +810,11 @@ func (t *bracketTree) edit(old, new buffer.Snapshot, edits []buffer.Edit) {
 	start = append(start, t.start[prev:]...)
 	minD = append(minD, t.minD[prev:]...)
 	tokSt = append(tokSt, t.tokSt[prev:]...)
+	outer = append(outer, t.outer[prev:]...)
 	for ; di < len(t.dirty); di++ {
 		dirty = append(dirty, t.dirty[di]+shift)
 	}
-	t.start, t.minD, t.tokSt, t.dirty = start, minD, tokSt, dirty
+	t.start, t.minD, t.tokSt, t.outer, t.dirty = start, minD, tokSt, outer, dirty
 }
 
 // lineEvents scans line i (known) and returns its bracket events.

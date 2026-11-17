@@ -34,7 +34,7 @@ TANGO_E2E=1 TANGO_E2E_VERBOSE=1 go test -tags tango_dev ./examples/hello -run E2
 `Launch(t, target, args...)`：
 
 1. `target` 是 Go 包（`"."`、`"./examples/ledger"`、导入路径）时先 `go build -tags tango_dev` 到临时目录（开发构建；`Options.BuildFlags` 里已有 `-tags` 时合并进去）；是可执行文件路径时直接运行，该文件必须用 `-tags tango_dev` 构建，否则 Launch 直接报错 "has no automation channel: build it with -tags tango_dev"（程序启动后未开启通道时的超时/退出错误也会提示这一点）。
-2. 以 `TANGO_AUTOMATION=127.0.0.1:0`、`TANGO_AUTOMATION_TOKEN_FILE=<临时目录>/automation.json` 启动，等应用写出 token 文件后连接。
+2. 以 `TANGO_AUTOMATION=127.0.0.1:0`、`TANGO_AUTOMATION_TOKEN_FILE=<临时目录>/automation.json` 启动，等应用写出 token 文件后连接。同时设置 `TANGO_LAUNCH_BACKGROUND=1`（常量 `automation.EnvLaunchBackground`）：macOS 上应用启动时不激活，窗口排在其他应用的窗口后面，跑测试不抢用户的焦点，也不遮挡别的工具正在测量的窗口。所有操作走自动化通道、在进程内完成，截图也是进程内渲染，所以窗口在后面不影响测试。需要窗口在前台时（例如测真实呈现或输入法），在环境变量或 `Options.Env` 里设 `TANGO_LAUNCH_BACKGROUND=0`。
 3. `t.Cleanup` 里请求应用退出，5 秒不退就杀进程；测试失败时把被测程序的输出（最后 256 KiB）写进测试日志。
 
 已经在运行的应用用 `automation.Connect(t, addr, token)` 连接（地址与 token 见下文）。

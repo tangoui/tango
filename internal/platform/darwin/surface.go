@@ -201,6 +201,14 @@ func (s *surface) Show() {
 		return
 	}
 	withPool(func() {
+		if launchBackground && !sendBool(s.b.app, "isActive") {
+			// Started in the background (TANGO_LAUNCH_BACKGROUND=1): an
+			// inactive app's makeKeyAndOrderFront still puts the window
+			// above every other app's but the active one, covering
+			// windows other tools are measuring. Stay behind them.
+			send(s.win, "orderBack:", 0)
+			return
+		}
 		send(s.win, "makeKeyAndOrderFront:", 0)
 	})
 	s.afterShow()

@@ -828,12 +828,48 @@ func (s *State) bracketColorsIn(t *bracketTree, lines []int, wins map[int][][2]i
 var bracketFrameBudget = 1500 * time.Microsecond // a variable for tests
 
 // brCache holds the final bracket colors of lines of one text and theme.
+// gen is the tree's bracket structure (bracketTree.gen) the colors were
+// computed on: an edit that keeps it changes the edited lines' colors
+// only (brCache.carry).
 type brCache struct {
 	tree  *bracketTree // a language change makes a new tree
 	buf   *buffer.Buffer
 	ver   uint64
+	gen   uint64
 	th    *theme.Theme
 	lines map[int][]brSpan
+}
+
+// carry moves the cache to snap, the Buffer's current text, when its last
+// change started from the cached text, stayed inside single lines without
+// line breaks and left the tree's bracket structure as it was (gen, after
+// the edited lines are scanned again): the other lines' colors hold, the
+// edited lines' are dropped. It reports false otherwise.
+func (c *brCache) carry(t *bracketTree, src modelBrackets, snap buffer.Snapshot, deadline time.Time) bool {
+	b := src.m.Buffer()
+	if b.Snapshot().Version() != snap.Version() {
+		return false
+	}
+	old, edits := b.LastChange()
+	if old.Version() != c.ver || len(edits) == 0 || old.LineCount() != snap.LineCount() {
+		return false
+	}
+	last := 0
+	for _, e := range edits {
+		l := old.LineOf(e.Start)
+		if old.LineOf(e.End) != l || lineBreakCount(e.Text) > 0 {
+			return false
+		}
+		last = max(last, l)
+	}
+	if !t.ensure(src, last+1, deadline) || t.gen != c.gen {
+		return false
+	}
+	for _, e := range edits {
+		delete(c.lines, old.LineOf(e.Start))
+	}
+	c.ver = snap.Version()
+	return true
 }
 
 // bracketSpans returns the colored brackets of the model lines of view
@@ -853,8 +889,11 @@ func (w *ViewW) bracketSpans(snap buffer.Snapshot, vl *viewLines, lo, hi, mhi in
 		return nil
 	}
 	c := &vs.brc
-	if c.tree != t || c.buf != st.Model.Buffer() || c.ver != snap.Version() || c.th != th || c.lines == nil {
-		*c = brCache{tree: t, buf: st.Model.Buffer(), ver: snap.Version(), th: th, lines: map[int][]brSpan{}}
+	src := modelBrackets{st.Model}
+	t.tokenize = false // colors follow the Highlighter (bracketTreeFor)
+	if c.tree != t || c.buf != st.Model.Buffer() || c.th != th || c.lines == nil ||
+		c.ver != snap.Version() && !c.carry(t, src, snap, deadline) {
+		*c = brCache{tree: t, buf: st.Model.Buffer(), ver: snap.Version(), gen: t.gen, th: th, lines: map[int][]brSpan{}}
 	}
 	out := map[int][]brSpan{}
 	var lines []int
@@ -924,12 +963,17 @@ func (w *ViewW) bracketSpans(snap buffer.Snapshot, vl *viewLines, lo, hi, mhi in
 	if len(lines) == 0 {
 		return out
 	}
-	src := modelBrackets{st.Model}
-	t.tokenize = false // colors follow the Highlighter (bracketTreeFor)
 	t.ensure(src, mhi+1, deadline)
+	vs.brcLines += len(lines)
 	spans, sure := st.bracketColorsIn(t, lines, wins, paletteOf(th), deadline, func(i int, sp []brSpan) { c.lines[i] = sp })
 	for i, sp := range spans {
 		out[i] = sp
+	}
+	if t.gen != c.gen {
+		// The bracket structure changed during this frame (a line scanned
+		// again found other brackets): keep no colors computed before.
+		clear(c.lines)
+		c.gen = t.gen
 	}
 	if !sure && !t.complete() && t.known() < src.finalLines(snap) {
 		ui.Invalidate(w.c.Window())
