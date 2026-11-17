@@ -23,6 +23,7 @@ type compactShaper struct {
 	buffer   *harfbuzz.Buffer
 	fonts    map[*font.Face]shapingFont
 	features []harfbuzz.Feature
+	memo     shapeMemo // short runs already shaped (shape_memo.go)
 }
 
 // The source Face can change coordinates or ppem through go-text's API.
@@ -42,6 +43,19 @@ type shapingFont struct {
 const hotShapingUses = 64
 
 func (s *compactShaper) append(dst []sg, in shaping.Input, face *Face, run int32) []sg {
+	xPpem, yPpem := in.Face.Ppem()
+	coords := in.Face.Coords()
+	dst, hit := s.memo.lookup(dst, in, face, run, xPpem, yPpem, coords)
+	if hit {
+		return dst
+	}
+	first := len(dst)
+	dst = s.shape(dst, in, face, run, xPpem, yPpem, coords)
+	s.memo.store(dst[first:], in, face, xPpem, yPpem)
+	return dst
+}
+
+func (s *compactShaper) shape(dst []sg, in shaping.Input, face *Face, run int32, xPpem, yPpem uint16, coords []tables.Coord) []sg {
 	if s.buffer == nil {
 		s.buffer = harfbuzz.NewBuffer()
 	} else {
@@ -53,8 +67,6 @@ func (s *compactShaper) append(dst []sg, in shaping.Input, face *Face, run int32
 	b.Props.Script = in.Script
 	b.Props.Language = in.Language
 	entry, ok := s.fonts[in.Face]
-	xPpem, yPpem := in.Face.Ppem()
-	coords := in.Face.Coords()
 	changed := !ok || entry.xPpem != xPpem || entry.yPpem != yPpem || !slices.Equal(entry.coords, coords)
 	if changed {
 		// Retain only a bounded set of immutable face instances. In particular,
