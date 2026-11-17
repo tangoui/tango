@@ -36,12 +36,18 @@ import (
 // both can lag a resize) repeat the target's last row/column instead of
 // showing garbage; the excess of a smaller drawable is cropped.
 //
-// The copy is encoded in its own command buffer on the Device's queue
-// after the frame's, so Metal orders it after the frame's draws; present
-// does not wait for the GPU. Its command buffer is waited for, like the
-// frame's, by the next Execute, so its errors are reported the same way
-// (see Device). nextDrawable is the back-pressure: it blocks while all the
-// layer's drawables (3 by default) are in flight.
+// The copy is encoded into the frame's own command buffer, which Execute
+// leaves open on a presenter's Device (deferFrameCommit), after the
+// frame's draws; present then commits it, so a presented frame costs one
+// command buffer and one commit (each command buffer wakes Metal's
+// submission, completion and frame-pacing queues). A frame nobody
+// presents is committed by whatever comes next (Execute, Wait,
+// ReadPixels, Close, or a present that shows nothing); presenting again
+// without a new frame uses a command buffer of its own. present does not
+// wait for the GPU. The command buffer is waited for by the next Execute,
+// so its errors are reported the same way (see Device). nextDrawable is
+// the back-pressure: it blocks while all the layer's drawables (3 by
+// default) are in flight.
 //
 // The layer's colorspace is sRGB and the target holds sRGB-encoded bytes
 // (blending happens on those bytes, as in paint.CPU), so the drawable is
@@ -242,6 +248,7 @@ func newPresenter(layer uintptr) (*presenter, error) {
 			cgColorSpaceRelease(cs)
 		}
 	}
+	dev.deferFrameCommit = true // present commits the frame with its drawable copy
 	p := &presenter{layer: retain(l), dev: dev}
 	p.r = &presenterRenderer{Renderer: gpu.NewRenderer(dev), p: p}
 	return p, nil
@@ -307,15 +314,18 @@ func (p *presenter) present(size image.Point, scale float32) error {
 	if d.closed {
 		return ErrClosed
 	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	defer autoreleasePool()()
+	// Every return without a drawable copy still submits the frame
+	// Execute left open (deferFrameCommit).
+	defer d.flushOpen()
 	if d.lost != nil {
 		return d.lost
 	}
 	if size.X <= 0 || size.Y <= 0 {
 		return d.pendingErr // minimized or empty: nothing to show
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	defer autoreleasePool()()
 
 	for len(d.inflight.items) >= maxInflight {
 		d.waitOldest() // a failure is recorded (pendingErr/lost) and reported below
@@ -348,6 +358,17 @@ func (p *presenter) present(size image.Point, scale float32) error {
 			d.timeline(Timing{Kind: submitPresent.String(), Frame: d.frames, DrawableWait: d.drawableWait})
 		}
 		return nil // not visible, or every drawable busy until the timeout
+	}
+	if cb := d.openCB; cb != 0 {
+		// The frame's own command buffer: the copy follows its draws.
+		d.openCB = 0
+		d.encodeCopy(cb, drawable.Send(sel("texture")))
+		msgSetID(cb, sel("presentDrawable:"), drawable)
+		d.commitSubmission(cb, submitFrame, true)
+		release(cb)
+		d.commits++
+		p.presented++
+		return nil
 	}
 	cb := d.queue.Send(sel("commandBuffer"))
 	if cb == 0 {

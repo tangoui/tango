@@ -39,6 +39,7 @@ type submission struct {
 	// Diagnostics (filled only while a timeline callback is installed).
 	commit       time.Time
 	drawableWait time.Duration
+	presents     bool // a frame whose command buffer also presents (deferFrameCommit)
 }
 
 // submissionQueue holds submissions in commit order; retirement is FIFO.
