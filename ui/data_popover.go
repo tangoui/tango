@@ -528,6 +528,20 @@ type TourW struct {
 // tourState is the retained state of a Tour.
 type tourState struct {
 	revealed int // 1 + the step whose target was scrolled into view (0: none)
+	mask     struct {
+		key tourMaskKey
+		ops []paint.Op
+		ok  bool
+	}
+}
+
+// tourMaskKey is what a Tour mask's paint ops depend on.
+type tourMaskKey struct {
+	r, hole   geom.Rect
+	holeR     float32
+	hasTarget bool
+	col       theme.Color
+	scale     float32
 }
 
 // Tour starts a tour bound to *open and *current; call Show.
@@ -729,10 +743,24 @@ func (t *TourW) Show() *TourW {
 		}
 	}, layout.Grow(1))
 	mask.n.hit, mask.n.blocks = false, false
+	// The mask's ops are kept while its geometry holds, so the GPU
+	// renderer finds the corner paths in its atlas (keyed by the path).
+	st := State[tourState](c, t.id, nil)
 	mask.n.paint = func(l *paint.List, r geom.Rect) {
-		if showMask {
-			paintTourMask(l, r, hole, holeR, hasTarget, maskCol)
+		if !showMask {
+			return
 		}
+		scale := float32(1)
+		if c.win != nil {
+			scale = c.win.Scale()
+		}
+		k := tourMaskKey{r, hole, holeR, hasTarget, maskCol, scale}
+		if mc := &st.mask; !mc.ok || mc.key != k {
+			var ml paint.List
+			paintTourMask(&ml, r, hole, holeR, hasTarget, maskCol, scale)
+			mc.key, mc.ops, mc.ok = k, ml.Ops, true
+		}
+		l.Ops = append(l.Ops, st.mask.ops...)
 	}
 	// Panel.
 	stepPlace := step.Placement
@@ -900,30 +928,33 @@ func tourWidth(tk *theme.TourToken) layout.Option {
 	return layout.W(tk.Width)
 }
 
-// tourMaskGrid is the logical-pixel grid the Tour mask's seams snap to.
-// Multiples of 4 are whole device pixels at every quarter scale (1, 1.25,
-// 1.5, 1.75, 2, 2.5, 3), so abutting pieces never share a partly covered
-// pixel (which would blend it twice and show a line along the seam).
-const tourMaskGrid = 4
-
 // paintTourMask paints the Tour's dimming mask over r with a hole of
-// radius holeR around hole (no hole when hasTarget is false).
+// radius holeR around hole (no hole when hasTarget is false), for a
+// window at the given device scale.
 //
 // It paints the pixels of one path "r minus the rounded hole" without a
 // window-sized path, which the GPU renderer cannot atlas and would
 // rasterize on the CPU every frame: solid rects around the hole, thin
 // rects along its straight edges, and at each corner a small path of the
-// corner box minus the hole. Pieces tile the area without overlap; their
-// seams lie on tourMaskGrid, so only the hole's own edges are
-// anti-aliased, as before.
-func paintTourMask(l *paint.List, r, hole geom.Rect, holeR float32, hasTarget bool, col theme.Color) {
+// corner box minus the hole. Pieces tile the area without overlap and
+// their seams are snapped to whole device pixels, so no pixel is blended
+// twice (a seam at a fractional device position would show as a line)
+// and only the hole's own edges are anti-aliased, as before.
+//
+// Renderers round a FillRect's blend slightly differently from a
+// FillPath's, so the solid area may differ from the single path by one
+// color level; the shape and the anti-aliasing are the same.
+func paintTourMask(l *paint.List, r, hole geom.Rect, holeR float32, hasTarget bool, col theme.Color, scale float32) {
 	if !hasTarget {
 		l.Fill(r, geom.Radii{}, col)
 		return
 	}
-	const g = tourMaskGrid
-	fl := func(v float32) float32 { return float32(math.Floor(float64(v)/g)) * g }
-	ce := func(v float32) float32 { return float32(math.Ceil(float64(v)/g)) * g }
+	if scale <= 0 {
+		scale = 1
+	}
+	s := float64(scale)
+	fl := func(v float32) float32 { return float32(math.Floor(float64(v)*s) / s) }
+	ce := func(v float32) float32 { return float32(math.Ceil(float64(v)*s) / s) }
 	hole.W, hole.H = max(hole.W, 0), max(hole.H, 0)
 	rad := geom.Rad(holeR).Clamp(hole.W, hole.H).TL
 	x0, y0, x1, y1 := hole.X, hole.Y, hole.Right(), hole.Bottom()
