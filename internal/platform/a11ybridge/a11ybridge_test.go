@@ -63,6 +63,22 @@ func TestRoleRefinements(t *testing.T) {
 	if CheckValue(mixed) != 2 || !MacToggle(mixed) {
 		t.Errorf("mixed checkbox %d", CheckValue(mixed))
 	}
+	// An empty editable text field reports AXValue "" like NSTextField,
+	// not no value (clients then show the placeholder as the value).
+	for _, c := range []struct {
+		n    *a11y.Node
+		want bool
+	}{
+		{&a11y.Node{Role: a11y.RoleTextbox}, true},
+		{&a11y.Node{Role: a11y.RoleSearchbox}, true},
+		{&a11y.Node{Role: a11y.RoleTextbox, States: a11y.Protected}, false},
+		{&a11y.Node{Role: a11y.RoleButton}, false},
+		{&a11y.Node{Role: a11y.RoleText}, false},
+	} {
+		if got := MacTextField(c.n); got != c.want {
+			t.Errorf("MacTextField(%v) = %v, want %v", c.n.Role, got, c.want)
+		}
+	}
 }
 
 func TestATSPIStates(t *testing.T) {

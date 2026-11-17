@@ -49,6 +49,18 @@ func MacToggle(n *a11y.Node) bool {
 	return n.States.Has(a11y.Checkable) && n.Role == a11y.RoleMenuItem
 }
 
+// MacTextField reports whether n is an editable text field whose AXValue
+// is its text even when empty: NSTextField reports "" there, and a missing
+// value makes clients fall back to the placeholder. Password fields expose
+// no value.
+func MacTextField(n *a11y.Node) bool {
+	switch n.Role {
+	case a11y.RoleTextbox, a11y.RoleSearchbox:
+		return !n.States.Has(a11y.Protected)
+	}
+	return false
+}
+
 // CheckValue is the tri-state value of a checkable node: 0 off, 1 on, 2
 // mixed.
 func CheckValue(n *a11y.Node) int {
