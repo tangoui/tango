@@ -377,20 +377,10 @@ func (c *canvas) enqueue(set func(c *canvas)) {
 }
 
 // Invalidate implements platform.Canvas. Any goroutine.
-func (c *canvas) Invalidate() {
-	if c.inLinkedFrame() {
-		c.schedule(true, time.Time{})
-		return
-	}
-	c.enqueue(func(c *canvas) { c.qFrame = true })
-}
+func (c *canvas) Invalidate() { c.enqueue(func(c *canvas) { c.qFrame = true }) }
 
 // InvalidateAt implements platform.Canvas. Any goroutine.
 func (c *canvas) InvalidateAt(t time.Time) {
-	if c.inLinkedFrame() {
-		c.schedule(false, t)
-		return
-	}
 	c.enqueue(func(c *canvas) {
 		if c.qAt.IsZero() || t.Before(c.qAt) {
 			c.qAt = t
@@ -424,39 +414,21 @@ func canvasPerform() {
 			if r.focus {
 				c.focusMaybeChanged()
 			}
-			c.schedule(r.frame, r.at)
+			if !r.at.IsZero() {
+				if linkCovers(r.at, time.Now(), c.link != 0, c.linkRunning, c.ticks.lastTick(), c.ticks.get()) {
+					r.frame = true // the next refresh is no later than the deadline
+				} else {
+					if c.timerAt.IsZero() || r.at.Before(c.timerAt) {
+						c.timerAt = r.at
+					}
+					c.armTimer()
+				}
+			}
+			if r.frame {
+				c.requestFrame()
+			}
 		}
 	})
-}
-
-// inLinkedFrame reports whether the caller is the main thread inside the
-// CanvasFrame of a canvas paced by a display link: the frame's own
-// requests for the next one (the runner asks every animating frame) are
-// then applied at once instead of signalling the run loop source, which
-// costs a run-loop wake-up and pass per frame. Without a display link
-// requestFrame could display synchronously, which must not happen inside
-// a frame, so those canvases keep the queue. Any goroutine (the canvas
-// fields are read only on the main thread).
-func (c *canvas) inLinkedFrame() bool {
-	return isMainThread() && c.inFrame && c.link != 0 && !c.closed
-}
-
-// schedule applies a frame request (frame) and an InvalidateAt deadline
-// (at, zero: none). Main thread.
-func (c *canvas) schedule(frame bool, at time.Time) {
-	if !at.IsZero() {
-		if linkCovers(at, time.Now(), c.link != 0, c.linkRunning, c.ticks.lastTick(), c.ticks.get()) {
-			frame = true // the next refresh is no later than the deadline
-		} else {
-			if c.timerAt.IsZero() || at.Before(c.timerAt) {
-				c.timerAt = at
-			}
-			c.armTimer()
-		}
-	}
-	if frame {
-		c.requestFrame()
-	}
 }
 
 // requestFrame asks for a CanvasFrame at the next display refresh.
