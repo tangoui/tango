@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"math"
 	"time"
 
 	"github.com/tangoui/tango/ui/a11y"
@@ -729,14 +730,9 @@ func (t *TourW) Show() *TourW {
 	}, layout.Grow(1))
 	mask.n.hit, mask.n.blocks = false, false
 	mask.n.paint = func(l *paint.List, r geom.Rect) {
-		if !showMask {
-			return
+		if showMask {
+			paintTourMask(l, r, hole, holeR, hasTarget, maskCol)
 		}
-		p := paint.NewPath().Rect(r)
-		if hasTarget {
-			p.Append(paint.NewPath().RRect(hole, geom.Rad(holeR)).Reversed())
-		}
-		l.Path(p, maskCol)
 	}
 	// Panel.
 	stepPlace := step.Placement
@@ -902,6 +898,121 @@ func tourWidth(tk *theme.TourToken) layout.Option {
 		return layout.MaxW(tk.Width)
 	}
 	return layout.W(tk.Width)
+}
+
+// tourMaskGrid is the logical-pixel grid the Tour mask's seams snap to.
+// Multiples of 4 are whole device pixels at every quarter scale (1, 1.25,
+// 1.5, 1.75, 2, 2.5, 3), so abutting pieces never share a partly covered
+// pixel (which would blend it twice and show a line along the seam).
+const tourMaskGrid = 4
+
+// paintTourMask paints the Tour's dimming mask over r with a hole of
+// radius holeR around hole (no hole when hasTarget is false).
+//
+// It paints the pixels of one path "r minus the rounded hole" without a
+// window-sized path, which the GPU renderer cannot atlas and would
+// rasterize on the CPU every frame: solid rects around the hole, thin
+// rects along its straight edges, and at each corner a small path of the
+// corner box minus the hole. Pieces tile the area without overlap; their
+// seams lie on tourMaskGrid, so only the hole's own edges are
+// anti-aliased, as before.
+func paintTourMask(l *paint.List, r, hole geom.Rect, holeR float32, hasTarget bool, col theme.Color) {
+	if !hasTarget {
+		l.Fill(r, geom.Radii{}, col)
+		return
+	}
+	const g = tourMaskGrid
+	fl := func(v float32) float32 { return float32(math.Floor(float64(v)/g)) * g }
+	ce := func(v float32) float32 { return float32(math.Ceil(float64(v)/g)) * g }
+	hole.W, hole.H = max(hole.W, 0), max(hole.H, 0)
+	rad := geom.Rad(holeR).Clamp(hole.W, hole.H).TL
+	x0, y0, x1, y1 := hole.X, hole.Y, hole.Right(), hole.Bottom()
+	X0, Y0, X1, Y1 := fl(x0), fl(y0), ce(x1), ce(y1)
+	// Inner grid lines: between xa and xb (ya and yb) the hole's edges are
+	// straight. When the corners leave no room, both meet at the middle.
+	split := func(lo, hi, a0, a1 float32) (float32, float32) {
+		a, b := ce(lo+rad), fl(hi-rad)
+		if a > b {
+			m := min(max(fl((lo+hi)/2), a0), a1)
+			return m, m
+		}
+		return a, b
+	}
+	xa, xb := split(x0, x1, X0, X1)
+	ya, yb := split(y0, y1, Y0, Y1)
+	rect := func(ax, ay, bx, by float32) {
+		l.Fill(geom.Rect{X: ax, Y: ay, W: bx - ax, H: by - ay}.Intersect(r), geom.Radii{}, col)
+	}
+	// Around the hole's grid-snapped box.
+	rect(r.X, r.Y, r.Right(), Y0)
+	rect(r.X, Y0, X0, Y1)
+	rect(X1, Y0, r.Right(), Y1)
+	rect(r.X, Y1, r.Right(), r.Bottom())
+	// Along the straight edges, up to the hole.
+	rect(xa, Y0, xb, y0)
+	rect(X0, ya, x0, yb)
+	rect(x1, ya, X1, yb)
+	rect(xa, y1, xb, Y1)
+	// Corners: the box minus the hole (non-zero rule), from the same
+	// flattened outline the single path used.
+	var outline []geom.Point
+	corner := func(bx0, by0, bx1, by1 float32) {
+		box := geom.Rect{X: bx0, Y: by0, W: bx1 - bx0, H: by1 - by0}
+		if box.Empty() || box.Intersect(r).Empty() {
+			return
+		}
+		if outline == nil {
+			if pl := paint.NewPath().RRect(hole, geom.Rad(holeR)).Flatten(0.1); len(pl) > 0 {
+				outline = pl[0].Pts
+			}
+		}
+		in := clipToRect(outline, box)
+		if len(in) < 3 {
+			l.Fill(box, geom.Radii{}, col)
+			return
+		}
+		p := paint.NewPath().Rect(box)
+		p.MoveTo(in[len(in)-1].X, in[len(in)-1].Y)
+		for i := len(in) - 2; i >= 0; i-- {
+			p.LineTo(in[i].X, in[i].Y)
+		}
+		l.Path(p.Close(), col)
+	}
+	corner(X0, Y0, xa, ya)
+	corner(xb, Y0, X1, ya)
+	corner(xb, yb, X1, Y1)
+	corner(X0, yb, xa, Y1)
+}
+
+// clipToRect clips the convex polygon pts to b (Sutherland–Hodgman).
+// Points on b's edges get b's exact coordinates.
+func clipToRect(pts []geom.Point, b geom.Rect) []geom.Point {
+	edge := func(in []geom.Point, inside func(geom.Point) bool, cross func(p, q geom.Point) geom.Point) []geom.Point {
+		var out []geom.Point
+		for i, q := range in {
+			p := in[(i+len(in)-1)%len(in)]
+			switch qi, pi := inside(q), inside(p); {
+			case qi && pi:
+				out = append(out, q)
+			case qi:
+				out = append(out, cross(p, q), q)
+			case pi:
+				out = append(out, cross(p, q))
+			}
+		}
+		return out
+	}
+	atX := func(x float32) func(p, q geom.Point) geom.Point {
+		return func(p, q geom.Point) geom.Point { return geom.Pt(x, p.Y+(x-p.X)/(q.X-p.X)*(q.Y-p.Y)) }
+	}
+	atY := func(y float32) func(p, q geom.Point) geom.Point {
+		return func(p, q geom.Point) geom.Point { return geom.Pt(p.X+(y-p.Y)/(q.Y-p.Y)*(q.X-p.X), y) }
+	}
+	x0, y0, x1, y1 := b.X, b.Y, b.Right(), b.Bottom()
+	pts = edge(pts, func(p geom.Point) bool { return p.X >= x0 }, atX(x0))
+	pts = edge(pts, func(p geom.Point) bool { return p.X <= x1 }, atX(x1))
+	pts = edge(pts, func(p geom.Point) bool { return p.Y >= y0 }, atY(y0))
+	return edge(pts, func(p geom.Point) bool { return p.Y <= y1 }, atY(y1))
 }
 
 // tourBlockers builds the four pointer-blocking strips of a Tour mask
