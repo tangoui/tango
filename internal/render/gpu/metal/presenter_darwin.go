@@ -174,6 +174,7 @@ type presenter struct {
 	layer id // retained until Close
 	dev   *Device
 	r     paint.Renderer
+	trace *presentationTrace // opt-in platform presented feedback, separate from CB timeline
 
 	presented    int // drawables presented (tests)
 	drawableSets int // drawableSize changes (tests)
@@ -242,7 +243,7 @@ func newPresenter(layer uintptr) (*presenter, error) {
 			cgColorSpaceRelease(cs)
 		}
 	}
-	p := &presenter{layer: retain(l), dev: dev}
+	p := &presenter{layer: retain(l), dev: dev, trace: nativePresentationTrace()}
 	p.r = &presenterRenderer{Renderer: gpu.NewRenderer(dev), p: p}
 	return p, nil
 }
@@ -354,6 +355,7 @@ func (p *presenter) present(size image.Point, scale float32) error {
 		return d.syncFailed(errors.New("metal: commandBuffer failed"))
 	}
 	d.encodeCopy(cb, drawable.Send(sel("texture")))
+	p.trace.watchDrawable(drawable, d.frames)
 	msgSetID(cb, sel("presentDrawable:"), drawable)
 	d.commitAs(cb, submitPresent)
 	d.commits++
@@ -364,6 +366,9 @@ func (p *presenter) present(size image.Point, scale float32) error {
 // Close closes the Device and releases the layer. Safe to call more than
 // once.
 func (p *presenter) Close() {
+	if p.trace != nil {
+		p.trace.close()
+	}
 	p.dev.Close()
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
