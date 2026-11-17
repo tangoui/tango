@@ -40,3 +40,12 @@ func TestASCIIAssertionPlanRejectsComplexForms(t *testing.T) {
 		}
 	}
 }
+
+func TestASCIILiteralUsesDirectEngine(t *testing.T) {
+	for _, source := range []string{"<", `\/script`, "abc"} {
+		re := mustCompile(t, source, "")
+		if _, ok := re.(*literalRegexp); !ok {
+			t.Fatalf("%q engine = %T, want *literalRegexp", source, re)
+		}
+	}
+}
