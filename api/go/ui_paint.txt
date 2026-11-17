@@ -54,6 +54,7 @@ pkg github.com/tangoui/tango/ui/paint, method (*CPU) InvalidateImage(image.Image
 pkg github.com/tangoui/tango/ui/paint, method (*CPU) PathMask(*Path) (*image.Alpha, image.Point)
 pkg github.com/tangoui/tango/ui/paint, method (*CPU) Render(*List, ui/geom.Size, float32) error
 pkg github.com/tangoui/tango/ui/paint, method (*CPU) RenderRegion([]Op, image.Rectangle, float32) *image.RGBA
+pkg github.com/tangoui/tango/ui/paint, method (*CPU) RenderRegionInto(*image.RGBA, []Op, image.Rectangle, float32) *image.RGBA
 pkg github.com/tangoui/tango/ui/paint, method (*CPU) Trim()
 pkg github.com/tangoui/tango/ui/paint, method (*List) Add(Op)
 pkg github.com/tangoui/tango/ui/paint, method (*List) BackdropBlur(ui/geom.Rect, ui/geom.Radii, float32)
