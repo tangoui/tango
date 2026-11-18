@@ -18,7 +18,7 @@
 
 - macOS 自绘 UI 新增可选 `TANGO_TEXT_ENGINE=coretext` 轻量文字路径：无换行短文本使用 CoreText glyph-run 与系统字体回退，复杂排版自动继续使用 go-text/HarfBuzz；默认文字引擎和输出路径不变。
 
-- macOS 新增可选构建标签 `tango_coretext`（CoreText 文字引擎）：`ui/text` 的整形、断行、双向文字、字体回退和光栅化都交给 CoreText，`text.RegisterFont` 的字体也由 CoreText 读取，不链接 `github.com/go-text/typesetting`。最小自绘样本（darwin/arm64，`-trimpath -ldflags='-s -w'`）可执行文件 10,520,354 → 8,544,834 B（-1.88 MiB，-18.8%），`tan init -template ui` 的 `.dmg` 3,720,203 → 3,198,304 B（见 [体积报告](docs/package-size-optimization.md)）。这个构建忽略 `TANGO_TEXT_ENGINE`，`text.UseSystemEngine(false)` 不关掉系统引擎，`text.Engine()` 总是 `"coretext"`；换行位置（中文禁则、URL、数字串）、字距和回退字体跟随系统，可能与 Windows/Linux 不同。性能：行情帧基准 0.20 ms（go-text 0.60 ms），但编辑器行缓存未命中仍比 go-text 慢 3–12 倍，所以默认构建继续用 go-text。默认构建和其他平台不变。
+- macOS 新增可选构建标签 `tango_coretext`（CoreText 文字引擎）：`ui/text` 的整形、断行、双向文字、字体回退和光栅化都交给 CoreText，`text.RegisterFont` 的字体也由 CoreText 读取，不链接 `github.com/go-text/typesetting`。最小自绘样本（darwin/arm64，`-trimpath -ldflags='-s -w'`）可执行文件 10,520,354 → 8,544,834 B（-1.88 MiB，-18.8%），`tan init -template ui` 的 `.dmg` 3,720,203 → 3,198,304 B（见 [体积报告](docs/package-size-optimization.md)）。这个构建忽略 `TANGO_TEXT_ENGINE`，`text.UseSystemEngine(false)` 不关掉系统引擎，`text.Engine()` 总是 `"coretext"`；换行位置（中文禁则、URL、数字串）、字距和回退字体跟随系统，可能与 Windows/Linux 不同。性能：行情帧基准 0.20 ms（go-text 0.60 ms），但编辑器行缓存未命中仍比 go-text 慢：Mono/Mixed 普通路径未命中慢 3–15 倍，混排行快速路径未命中约 50 倍，所以默认构建继续用 go-text。默认构建和其他平台不变。
 
 - 自绘窗口支持可选 `TANGO_RENDERER=auto`：小窗口先用 CPU，放大、内容复杂或持续高频刷新后单向升级 GPU；保持默认 GPU 优先和显式 Renderer 优先级不变。系统字体链可由 `text.TrimFontCaches()` 丢弃，平台低内存通知也会触发回收；仍被页面或编辑器持有的字体继续有效，macOS 原生字体句柄在最后一个拥有者不可达后释放（见 `docs/dev-builds.md`）。
 

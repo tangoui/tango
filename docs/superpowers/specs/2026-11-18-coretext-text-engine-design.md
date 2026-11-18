@@ -1,5 +1,7 @@
 # macOS 文字引擎改用 CoreText（不链接 go-text）设计
 
+> 最终决定：方案 2——CoreText 引擎改为可选构建标签 `tango_coretext`，默认构建保持 go-text；见 CHANGELOG.md 和 docs/dev-builds.md。
+
 日期：2026-11-18 · 状态：待用户审阅
 
 ## 背景与目的

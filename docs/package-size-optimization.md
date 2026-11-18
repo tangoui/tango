@@ -102,7 +102,7 @@ go build -o /tmp/tan-size ./cmd/tan
 
 ## 2026-11-18 macOS 可选 CoreText 文字引擎（`-tags tango_coretext`）
 
-带构建标签 `tango_coretext` 时，macOS 的自绘文字（整形、断行、双向文字、字体回退、光栅化）全部交给 CoreText，不链接 `github.com/go-text/typesetting`；默认构建仍是 go-text。下表的“改后”是带该标签的构建（当时还是默认构建，代码相同）。测量条件：Go 1.27.3，darwin/arm64，`CGO_ENABLED=0 -trimpath -ldflags='-s -w'`；改前 origin/main `9f0d478`，改后 `feat/coretext-engine` `c2b3493`。最小自绘样本即 `scripts/size-report.sh` 的 `ui` 应用（`uihost.Open` + 一个 `ui.Button`）；模板样本由 `tan init -yes -template ui -local <checkout>` 生成，`.app`/`.dmg` 由同一棵源码树构建的 `tan package -platform darwin/arm64` 生成。
+带构建标签 `tango_coretext` 时，macOS 的自绘文字（整形、断行、双向文字、字体回退、光栅化）全部交给 CoreText，不链接 `github.com/go-text/typesetting`；默认构建仍是 go-text。下表的“改后”在 `c2b3493` 测量（当时 CoreText 还是默认构建，在 `1bc44c9` 的性能改动之前），相当于现在带该标签的构建。测量条件：Go 1.27.3，darwin/arm64，`CGO_ENABLED=0 -trimpath -ldflags='-s -w'`；改前 origin/main `9f0d478`，改后 `feat/coretext-engine` `c2b3493`。最小自绘样本即 `scripts/size-report.sh` 的 `ui` 应用（`uihost.Open` + 一个 `ui.Button`）；模板样本由 `tan init -yes -template ui -local <checkout>` 生成，`.app`/`.dmg` 由同一棵源码树构建的 `tan package -platform darwin/arm64` 生成。
 
 | 样本 | 改前 B | 改后 B | 差值 B | 变化 |
 |---|---:|---:|---:|---:|
@@ -121,4 +121,4 @@ go build -o /tmp/tan-size ./cmd/tan
 - `ui/text` 行缓存基准（各 5 次取中位数，改前 → 改后）：`LineCacheMono200/hit` 53 → 42 ns，`hit-tokens` 276 → 281 ns，`miss-fast` 4.7 → 7.1 µs（+53%），`miss-fast-tokens` 8.7 → 11.7 µs（+35%），`miss-general` 26 → 97 µs（+267%），`miss-general-tokens` 35 → 359 µs（+914%）；`LineCacheMixed200/miss-fast` 14 → 780 µs，`miss-general` 36 → 476 µs。门槛为耗时增幅不超过 20%。
 - 6 路基准的 Tango 程序，5 轮交错（改前 → 改后，中位数）：进程 CPU counter 0.1% → 0%、quotes 15.8% → 37.4%（+21.6 个百分点）、list 8.6% → 12.4%（+3.8）、grid 19.2% → 19.1%；内存 counter 32.3 → 27.6 MB、quotes 146.9 → 137.2 MB、list 133.4 → 127.0 MB、grid 146.9 → 138.5 MB；首帧 254/291/268/293 ms → 218/265/236/231 ms；帧间隔 P99 16.76–16.89 ms，两边相同。门槛为 CPU 增幅不超过 2 个百分点，quotes 和 list 超出。
 
-之后的优化（`outputs/coretext-perf-20261118/`，nice 19 的相对数字）：能放下的标签不再求断行机会、纯左到右文本不再建 bidi CTLine、短标签进 prepared 缓存、数字快路径覆盖 `%` `,` 和放得下的换行标签。新增的行情帧基准 `BenchmarkCTQuotesFrame` 从 4.27 ms 降到 0.20 ms（go-text 0.60 ms）。行缓存未命中仍慢：`LineCacheMono200/miss-general` 约 88–107 µs、`miss-general-tokens` 约 350 µs、`LineCacheMixed200` 约 0.35–0.9 ms，是 go-text 的 3–12 倍；单是一条 200 字符 CTLine 的创建就超过 go-text 整条路径，无法在保持精确的前提下缓存掉。因此按用户的规则（时限内未达门槛走方案 2）CoreText 引擎改为可选构建标签，默认构建保持 go-text。
+之后的优化（`outputs/coretext-perf-20261118/`，nice 19 的相对数字）：能放下的标签不再求断行机会、纯左到右文本不再建 bidi CTLine、短标签进 prepared 缓存、数字快路径覆盖 `%` `,` 和放得下的换行标签。新增的行情帧基准 `BenchmarkCTQuotesFrame` 从 4.27 ms 降到 0.20 ms（go-text 0.60 ms）。行缓存未命中仍慢：`LineCacheMono200/miss-general` 约 88–107 µs、`miss-general-tokens` 约 350 µs、`LineCacheMixed200` 约 0.35–0.9 ms，是 go-text 的 3–15 倍（普通路径），混排行快速路径未命中约 50 倍（`LineCacheMixed200/miss-fast` 约 0.66–0.88 ms 对 14 µs）；单是一条 200 字符 CTLine 的创建就超过 go-text 整条路径，无法在保持精确的前提下缓存掉。因此按用户的规则（时限内未达门槛走方案 2）CoreText 引擎改为可选构建标签，默认构建保持 go-text。

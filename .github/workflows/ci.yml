@@ -82,7 +82,7 @@ jobs:
           done
           exit $status
 
-      - name: Default macOS UI build links no go-text
+      - name: CoreText (tango_coretext) macOS build links no go-text
         run: bash scripts/check-gotext-free.sh
 
       - name: runtime-js (npm ci, npm test)
