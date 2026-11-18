@@ -7,18 +7,27 @@ import (
 	"testing"
 )
 
-// saveUserFonts restores the registered families after the test: they go
-// first in every chain.
+// saveUserFonts restores the registered families after the test (they go
+// first in every chain) and the Face table of faceForCTFont, which starts
+// empty for the test: registered faces built during the test must not
+// answer faceForCTFont in later tests.
 func saveUserFonts(t *testing.T) {
 	t.Helper()
 	reg.mu.Lock()
 	saved := append([]*family(nil), reg.user...)
 	reg.mu.Unlock()
+	ctFaces.mu.Lock()
+	savedFaces := ctFaces.byKey
+	ctFaces.byKey = nil
+	ctFaces.mu.Unlock()
 	t.Cleanup(func() {
 		reg.mu.Lock()
 		reg.user = saved
 		reg.version++
 		reg.mu.Unlock()
+		ctFaces.mu.Lock()
+		ctFaces.byKey = savedFaces
+		ctFaces.mu.Unlock()
 		clearCache()
 	})
 }
@@ -224,6 +233,33 @@ func TestCTTrimFontCachesKeepsLiveFaces(t *testing.T) {
 	}
 	if p := old.GlyphPath(id, 15); p == nil {
 		t.Error("old face lost its outlines after TrimFontCaches")
+	}
+}
+
+func TestCTTrimFontCachesDropsRegisteredFaces(t *testing.T) {
+	data, err := os.ReadFile("/System/Library/Fonts/Geneva.ttf")
+	if err != nil {
+		t.Skip("no Geneva.ttf on this machine")
+	}
+	sys := ctTestFont(t, "Geneva")
+	saveUserFonts(t)
+	if err := RegisterFont("T", data); err != nil {
+		t.Fatal(err)
+	}
+	rf, _ := userFamily(t, "T").pick(Regular, false)
+	if !rf.usable() {
+		t.Fatal("registered face cannot be built")
+	}
+	if got := faceForCTFont(sys); got != rf {
+		t.Fatalf("before TrimFontCaches: faceForCTFont(Geneva) = %p %q, want the registered face %p", got, got.Family, rf)
+	}
+	TrimFontCaches()
+	got := faceForCTFont(sys)
+	if got == nil || got == rf || got.Family != "Geneva" {
+		t.Fatalf("after TrimFontCaches: faceForCTFont(Geneva) = %p %q, want a new Geneva face (registered %p)", got, got.Family, rf)
+	}
+	if f, _ := userFamily(t, "T").pick(Regular, false); f != rf || !f.HasRune('A') {
+		t.Error("registered face no longer reachable through its family")
 	}
 }
 

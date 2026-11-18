@@ -35,7 +35,6 @@ type faceImpl struct {
 	asc    float32 // font units, positive
 	desc   float32 // font units, positive
 	italic bool    // the CTFont has the italic trait (a designed italic or oblique)
-	user   bool    // registered with RegisterFont: kept in the Face table across TrimFontCaches
 
 	// Lazily built faces (newCTFace): returns the raster, nil when the
 	// face cannot be built.
@@ -194,11 +193,7 @@ func parseFaces(name string, data []byte) ([]*Face, error) {
 	if len(fonts) == 0 {
 		return nil, fmt.Errorf("text: parse font %s: CoreText cannot read the font data", name)
 	}
-	faces := ctFacesFromFonts(name, fonts, nil)
-	for _, f := range faces {
-		f.user = true
-	}
-	return faces, nil
+	return ctFacesFromFonts(name, fonts, nil), nil
 }
 
 // fontsFromDescriptors creates a 16pt CTFont for every descriptor of arr.
@@ -368,8 +363,9 @@ func ctEngineRaster(owner *ctFontOwner) *ctRaster {
 
 // The Face table maps CoreText fonts to Faces: faces register when built,
 // and faceForCTFont maps the fonts CoreText picks itself (a shaped run's
-// font) to them, or to new faces. TrimFontCaches drops every entry but
-// the faces of RegisterFont; faces already handed out stay usable.
+// font) to them, or to new faces. TrimFontCaches drops every entry
+// (registered faces stay reachable through their family); faces already
+// handed out stay usable.
 var ctFaces struct {
 	mu    sync.Mutex
 	byKey map[string]*Face
@@ -390,16 +386,11 @@ func registerCTFace(key string, f *Face) *Face {
 	return f
 }
 
-// trimFaceTable drops the Face table but for registered fonts
-// (TrimFontCaches).
+// trimFaceTable drops the whole Face table (TrimFontCaches).
 func trimFaceTable() {
 	ctFaces.mu.Lock()
 	defer ctFaces.mu.Unlock()
-	for k, f := range ctFaces.byKey {
-		if !f.user {
-			delete(ctFaces.byKey, k)
-		}
-	}
+	ctFaces.byKey = nil
 }
 
 // ctFaceKey identifies a CoreText font independently of its size: its
