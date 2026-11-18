@@ -6,7 +6,7 @@
 
 `3acc4cd` 把 macOS 大窗口的默认渲染器改成 native（Core Animation 图层），省下 63–71% 的内存。但 min-78 实测，native 下编辑器的“输入→画面”延迟比 Metal 慢约 2 帧（打字 78.8 对 47.2 ms，三光标 87.6 对 47.2 ms，滚动约 80 对 46 ms），所以已在 `a8f5cd4` 回退。
 
-用户决定：大窗口仍默认用 native，**窗口一收到键盘输入就自动切到 Metal**。滚动不算触发条件。这样，有键盘输入的窗口（编辑器、终端、表单）预期恢复 Metal 的输入延迟（待配对复测），只看不打字的窗口（数据表格、行情、列表、仪表盘）保住 native 的内存优势。
+用户决定：大窗口仍默认用 native，**窗口一收到键盘输入就自动切到 Metal**。滚动不算触发条件。这样，有键盘输入的窗口（编辑器、终端、表单）恢复 Metal 的输入延迟（验收实测见“2026-11-18 修订”一节末尾），只看不打字的窗口（数据表格、行情、列表、仪表盘）保住 native 的内存优势。
 
 ## 行为
 
@@ -69,3 +69,5 @@
 4. `TANGO_RENDERER=native` 强制 native，永不升级；`gpu`、`cpu`、`auto` 以及 `RunnerOptions.Renderer` 的优先级都不变。
 
 实现方式：`startNative` 把 `ropts.Content` 记进 `nativeRendererState.content`，`keyboardInput` 遇到 `ContentData` 时什么也不做。测试见 `TestContentDataIgnoresKeyboard`、`TestContentGeneralPromotesOnKeyboard`。
+
+验收实测：2026-11-18 在 Apple M4 上用 1920×944 的编辑器夹具实测（CGEvent 输入、ScreenCaptureKit 窗口采样，默认设置对 `TANGO_RENDERER=gpu`，同一会话内 AB/BA/AB 交替）：打字 100 键，从第 2 键起中位数 32.5 对 31.9 ms（p95 48.3 对 48.9）；三光标 30 次 32.7 对 31.8 ms（p95 45.5 对 45.2）；第一次按键（切换到 Metal 的那一帧）一次性多约 30–90 ms（默认 75–134 ms，gpu 41–46 ms）。默认设置和 `gpu` 的中位数差距在 1 帧以内，验收通过。
