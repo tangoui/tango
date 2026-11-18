@@ -57,6 +57,19 @@ func nativeRunValid(run nativeglyph.Run) bool {
 	}
 	return true
 }
+
+// nativeGlyphBounds asks CoreText for one glyph's bounding rectangle. It is
+// its own function so that only a cache miss passes addresses to the C call:
+// taking &gid and &b in Bounds' loop moved both to the heap on every glyph,
+// cache hit or not.
+//
+//go:noinline
+func nativeGlyphBounds(font uintptr, gid uint16) cgRect {
+	var b cgRect
+	ctFontGetBoundingRectsForGlyphs(font, ctFontOrientationHorz, &gid, &b, 1)
+	return b
+}
+
 func finiteNative(v float32) bool { return !math.IsNaN(float64(v)) && !math.IsInf(float64(v), 0) }
 
 func (coreGraphicsGlyphs) Bounds(run nativeglyph.Run) (image.Rectangle, bool) {
@@ -83,7 +96,7 @@ func (coreGraphicsGlyphs) Bounds(run nativeglyph.Run) (image.Rectangle, bool) {
 		key := nativeGlyphMetricKey{gid, run.Size, run.Skew}
 		b, ok := r.nativeMetrics[key]
 		if !ok {
-			ctFontGetBoundingRectsForGlyphs(font, ctFontOrientationHorz, &gid, &b, 1)
+			b = nativeGlyphBounds(font, gid)
 			if len(r.nativeMetrics) >= nativeGlyphMetricLimit {
 				clear(r.nativeMetrics)
 			}

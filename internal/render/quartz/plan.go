@@ -39,6 +39,17 @@ type item struct {
 	clip  image.Rectangle
 	refs  []any
 	image *image.RGBA
+	// bulkOps: a window raster of these text ops, each with its own clip
+	// (see bulkText). The item is a patch keyed by frame serial.
+	bulkOps []bulkOp
+	parts   []bulkOp // coalesced text: each part's source op and clip
+	hash    uint64   // text identity for bulk change detection
+}
+
+type bulkOp struct {
+	op   paint.Text
+	src  paint.Op // op as found in the display list (already boxed)
+	clip image.Rectangle
 }
 
 type scene struct {
@@ -52,7 +63,36 @@ type scene struct {
 	full               bool
 	serial, imageEpoch uint64
 	identitySeq        uint64
+
+	// Bulk text (bulkText): previous frame's text identities and the mode.
+	bulk        bool
+	bulkMerged  bool // this frame's text was merged into one bulk raster
+	bulkOff     bool // tests: never merge (the per-layer reference)
+	calm        int
+	prevText    map[uint64]int
+	nextText    map[uint64]int
+	prevLazy    bool // prevText holds lazy (op) hashes, not native-key hashes
+	replan      bool // re-planning a lazy bulk frame that could not merge
+	liftBackoff int  // frames left planning text natively after a failed lift
+	bulkScratch []paint.Op
+	keepScratch []item
+	opsScratch  []bulkOp
+	inkScratch  []image.Rectangle
+	inkTiles    map[image.Point][]int32
+	keys        map[string]string // interned solid keys (few distinct)
+	kbuf        keyData
+	bulkBuf     *image.RGBA // CGImage fallback raster of bulk text
+	bulkBufUsed uint64      // serial of the last frame that used bulkBuf
 }
+
+const bulkCalmFrames = 30
+
+// bulkLiftBackoff is how many frames text is planned natively, without the
+// lazy pass, after bulk text could not be lifted above later items.
+const bulkLiftBackoff = 30
+
+// bulkBufKeepFrames is how long the fallback raster outlives its last use.
+const bulkBufKeepFrames = 120
 
 func newScene(provider nativeglyph.Provider) *scene {
 	return &scene{provider: provider, cpu: paint.NewCPU()}
@@ -70,6 +110,9 @@ func (s *scene) plan(l *paint.List, size geom.Size, scale float32) error {
 	}
 	s.serial++
 	s.identitySeq = 0
+	// Only a frame that reaches bulkText can merge text: full-frame and
+	// empty frames return earlier and must not inherit the last frame's mode.
+	s.bulkMerged = false
 	s.scale = scale
 	s.background = l.Background
 	s.full = false
@@ -116,6 +159,7 @@ func (s *scene) plan(l *paint.List, size geom.Size, scale float32) error {
 	}
 
 	s.cpu.BeginFrame(scale)
+	lazy := s.bulk && !s.replan && !s.bulkOff && s.liftBackoff == 0
 	clip := s.bounds
 	var clips []image.Rectangle
 	for _, op := range s.ops {
@@ -137,6 +181,14 @@ func (s *scene) plan(l *paint.List, size geom.Size, scale float32) error {
 			continue
 		}
 		if text, ok := op.(paint.Text); ok {
+			if lazy {
+				// Bulk frames draw text in Tango's rasterizer: native glyph
+				// runs, bounds and layer keys would be built and discarded.
+				if text.Color.A != 0 {
+					s.items = append(s.items, item{kind: itemText, op: op, clip: clip, hash: s.textHash(text)})
+				}
+				continue
+			}
 			if e := s.textItem(text, clip); e != nil {
 				return e
 			}
@@ -151,12 +203,13 @@ func (s *scene) plan(l *paint.List, size geom.Size, scale float32) error {
 			continue
 		}
 		if fill, ok := op.(paint.FillRect); ok && fill.Radii.IsZero() && integralRect(fill.Rect, scale) {
-			k := keyData{}
+			k := s.kbuf[:0]
 			k.tag(byte(itemSolid))
 			k.rgba(fill.Color)
 			k.i(frame.Dx())
 			k.i(frame.Dy())
-			s.items = append(s.items, item{kind: itemSolid, key: string(k), frame: frame, color: fill.Color})
+			s.kbuf = k
+			s.items = append(s.items, item{kind: itemSolid, key: s.intern(k), frame: frame, color: fill.Color})
 			continue
 		}
 		k, refs, e := s.patchKey(op, frame, clip)
@@ -165,7 +218,29 @@ func (s *scene) plan(l *paint.List, size geom.Size, scale float32) error {
 		}
 		s.items = append(s.items, item{kind: itemPatch, key: k, frame: frame, op: op, clip: clip, refs: refs})
 	}
-	s.coalesceText()
+	if !lazy {
+		s.coalesceText()
+	}
+	if s.replan {
+		s.bulkMerged = false
+	} else {
+		s.bulkText(lazy)
+	}
+	if s.liftBackoff > 0 {
+		s.liftBackoff--
+	}
+	if lazy && !s.bulkMerged {
+		// Bulk mode ended or text cannot be lifted: plan native text layers.
+		// Change tracking already counted this frame. A lift that fails
+		// while bulk mode stays on (an overlay covering a label) would fail
+		// every frame: plan text natively for a while instead of twice.
+		if s.bulk {
+			s.liftBackoff = bulkLiftBackoff
+		}
+		s.replan = true
+		defer func() { s.replan = false }()
+		return s.plan(l, size, scale)
+	}
 	// Text backing stores and immutable image snapshots must stay bounded even
 	// when a display list stacks many large, partially transparent contents.
 	// A complete software frame preserves ordering and alpha within one bitmap.
@@ -193,6 +268,7 @@ func (s *scene) fullFrame(l *paint.List, size geom.Size) error {
 		return err
 	}
 	s.full = true
+	s.bulkMerged = false // the bitmap-budget fallback replaces merged text too
 	clear(s.items)
 	s.items = s.items[:0]
 	k := keyData{}
@@ -270,6 +346,13 @@ func (s *scene) pixels(it item) *image.RGBA {
 	if it.image != nil {
 		return it.image
 	}
+	if it.bulkOps != nil {
+		// Fallback for a frame with no free surface: nativeImage copies the
+		// pixels, so one window-sized buffer serves every such frame.
+		s.bulkBuf = s.cpu.RenderRegionInto(s.bulkBuf, s.bulkList(it), it.frame, s.scale)
+		s.bulkBufUsed = s.serial
+		return s.bulkBuf
+	}
 	// Reconstruct the integer device clip as logical geometry; the reference
 	// renderer rounds its rectangular clips back to these exact device pixels.
 	c := it.clip
@@ -277,13 +360,46 @@ func (s *scene) pixels(it item) *image.RGBA {
 	cr := geom.Rect{X: float32(c.Min.X) / f, Y: float32(c.Min.Y) / f, W: float32(c.Dx()) / f, H: float32(c.Dy()) / f}
 	return s.cpu.RenderRegion([]paint.Op{paint.PushClip{Rect: cr}, it.op, paint.Pop{}}, it.frame, s.scale)
 }
+
+var popOp paint.Op = paint.Pop{}
+
+// bulkList is the bulk raster's drawing: each text op inside its own clip.
+func (s *scene) bulkList(it item) []paint.Op {
+	f := s.scale
+	ops := s.bulkScratch[:0]
+	for _, b := range it.bulkOps {
+		src := b.src
+		if src == nil {
+			src = b.op
+		}
+		c := b.clip
+		if c.Intersect(it.frame) == it.frame {
+			ops = append(ops, src) // the raster's own bounds already clip
+			continue
+		}
+		cr := geom.Rect{X: float32(c.Min.X) / f, Y: float32(c.Min.Y) / f, W: float32(c.Dx()) / f, H: float32(c.Dy()) / f}
+		ops = append(ops, paint.PushClip{Rect: cr}, src, popOp)
+	}
+	s.bulkScratch = ops
+	return ops
+}
+
 func (s *scene) releaseScratch() {
+	clear(s.bulkScratch)
+	s.bulkScratch = s.bulkScratch[:0]
+	clear(s.opsScratch) // drop the frame's glyph slices
+	s.opsScratch = s.opsScratch[:0]
 	clear(s.items)
 	s.items = s.items[:0]
 	clear(s.ops)
 	s.ops = s.ops[:0]
 }
-func (s *scene) trim()                           { s.cpu = paint.NewCPU(); s.imageEpoch++; s.releaseScratch() }
+func (s *scene) trim() {
+	s.cpu = paint.NewCPU()
+	s.bulkBuf = nil
+	s.imageEpoch++
+	s.releaseScratch()
+}
 func (s *scene) invalidateImage(img image.Image) { s.cpu.InvalidateImage(img); s.imageEpoch++ }
 
 // Small ink changes (especially changing digits) must not repeatedly resize a
@@ -295,6 +411,213 @@ func keepTextBacking(previous, need image.Point) image.Point {
 		return need
 	}
 	return kept
+}
+
+// Thresholds for bulk text. A frame whose changed text items reach
+// bulkMinChanged (and at least half of all text items) is a dashboard
+// updating in place: every changed label would otherwise re-render its own
+// CALayer backing store, one Objective-C round trip and one bitmap upload per
+// label. Bulk mode draws all text into one window-sized layer instead.
+const (
+	bulkMinChanged = 32
+	bulkMinText    = 32
+)
+
+// bulkText merges every text item into one retained layer, drawn last, when
+// many labels change every frame. It only does so when no later non-text item
+// overlaps a text frame, so lifting text above the remaining items cannot
+// change any pixel. It leaves bulk mode after bulkCalmFrames frames in which
+// few labels changed, returning to per-label layers (which move without
+// redrawing).
+func (s *scene) bulkText(lazy bool) {
+	if s.nextText == nil {
+		s.nextText = map[uint64]int{}
+	}
+	// prevText stays nil until the first frame has been recorded. Lazy and
+	// native hashes describe the same text differently: a frame that switches
+	// between them has nothing to compare with either.
+	clear(s.nextText)
+	texts, changed := 0, 0
+	compared := s.prevText != nil && s.prevLazy == lazy
+	for _, it := range s.items {
+		if it.kind != itemText {
+			continue
+		}
+		texts++
+		s.nextText[it.hash]++
+		if s.prevText[it.hash] > 0 {
+			s.prevText[it.hash]--
+		} else {
+			changed++
+		}
+	}
+	s.prevText, s.nextText = s.nextText, s.prevText
+	s.prevLazy = lazy
+	busy := compared && texts >= bulkMinText && changed >= bulkMinChanged && 2*changed >= texts
+	switch {
+	case busy:
+		s.bulk, s.calm = true, 0
+	case s.bulk:
+		s.calm++
+		if s.calm >= bulkCalmFrames {
+			s.bulk, s.calm = false, 0
+		}
+	}
+	s.bulkMerged = false
+	if s.bulkOff || !s.bulk || texts < 2 || !s.textLiftSafe() {
+		return
+	}
+	// One window-sized raster in Tango's own CPU renderer. Its glyph masks
+	// are cached across frames, so a changed label costs a mask copy, not a
+	// CoreGraphics text draw into a freshly allocated CALayer backing store.
+	batch := item{kind: itemPatch, frame: s.bounds, clip: s.bounds, bulkOps: s.opsScratch[:0]}
+	out := s.items[:0]
+	keep := s.keepScratch[:0]
+	for _, it := range s.items {
+		if it.kind != itemText {
+			keep = append(keep, it)
+			continue
+		}
+		if len(it.texts) > 0 {
+			batch.bulkOps = append(batch.bulkOps, it.parts...)
+			continue
+		}
+		batch.bulkOps = append(batch.bulkOps, bulkOp{op: it.op.(paint.Text), src: it.op, clip: it.clip})
+	}
+	k := keyData{}
+	k.tag(252)
+	k.u64(s.serial) // the window raster changes every bulk frame
+	batch.key = string(k)
+	s.bulkMerged = true
+	out = append(out, keep...)
+	out = append(out, batch)
+	clear(s.items[len(out):])
+	s.items = out
+	clear(keep)
+	s.keepScratch = keep[:0]
+	s.opsScratch = batch.bulkOps
+}
+
+// textLiftSafe reports whether every text item can be drawn after every item
+// that follows it: no non-text item overlaps the ink of any text item that
+// precedes it in paint order. Earlier backgrounds stay below text either way.
+// Ink is the exact coverage of the CPU glyph masks the bulk raster draws
+// (clipped), not the native bounds, which carry a smoothing allowance that
+// reaches into neighbouring cells.
+func (s *scene) textLiftSafe() bool {
+	// Text ink painted so far, indexed by liftTile-pixel tiles: a data grid
+	// checks each cell background against its neighbours, not every label.
+	before := s.inkScratch[:0]
+	if s.inkTiles == nil {
+		s.inkTiles = map[image.Point][]int32{}
+	}
+	for k, v := range s.inkTiles {
+		s.inkTiles[k] = v[:0]
+	}
+	defer func() { s.inkScratch = before[:0] }()
+	var union image.Rectangle
+	for _, it := range s.items {
+		if it.kind == itemText {
+			ink := s.textInk(it)
+			if ink.Empty() {
+				continue
+			}
+			i := int32(len(before))
+			before = append(before, ink)
+			union = union.Union(ink)
+			for ty := ink.Min.Y / liftTile; ty <= (ink.Max.Y-1)/liftTile; ty++ {
+				for tx := ink.Min.X / liftTile; tx <= (ink.Max.X-1)/liftTile; tx++ {
+					t := image.Pt(tx, ty)
+					s.inkTiles[t] = append(s.inkTiles[t], i)
+				}
+			}
+			continue
+		}
+		f := it.frame.Intersect(union)
+		if f.Empty() {
+			continue
+		}
+		for ty := f.Min.Y / liftTile; ty <= (f.Max.Y-1)/liftTile; ty++ {
+			for tx := f.Min.X / liftTile; tx <= (f.Max.X-1)/liftTile; tx++ {
+				for _, i := range s.inkTiles[image.Pt(tx, ty)] {
+					if it.frame.Overlaps(before[i]) {
+						return false
+					}
+				}
+			}
+		}
+	}
+	return true
+}
+
+// intern returns k as a string shared across frames, so the keys of the
+// few distinct solid fills are not reallocated per item per frame.
+func (s *scene) intern(k keyData) string {
+	if v, ok := s.keys[string(k)]; ok {
+		return v
+	}
+	if s.keys == nil || len(s.keys) >= 4096 {
+		s.keys = map[string]string{}
+	}
+	v := string(k)
+	s.keys[v] = v
+	return v
+}
+
+// liftTile is textLiftSafe's index tile size in device pixels.
+const liftTile = 64
+
+// textHash identifies a lazily planned text op's appearance independent of
+// integer movement, like the native text key. It only drives the bulk
+// heuristic; pixels never depend on it.
+func (s *scene) textHash(op paint.Text) uint64 {
+	h := uint64(14695981039346656037)
+	mix := func(v uint64) { h ^= v; h *= 1099511628211 }
+	mix(uint64(op.Color.R) | uint64(op.Color.G)<<8 | uint64(op.Color.B)<<16 | uint64(op.Color.A)<<24)
+	fx := op.Origin.X*s.scale - float32(math.Floor(float64(op.Origin.X*s.scale)))
+	fy := op.Origin.Y*s.scale - float32(math.Floor(float64(op.Origin.Y*s.scale)))
+	mix(uint64(math.Float32bits(fx)) | uint64(math.Float32bits(fy))<<32)
+	for _, g := range op.Glyphs {
+		mix(uint64(g.ID) | uint64(math.Float32bits(g.Size))<<32)
+		mix(uint64(math.Float32bits(g.X)) | uint64(math.Float32bits(g.Y))<<32)
+		mix(uint64(math.Float32bits(g.Skew)))
+	}
+	return h
+}
+
+// keyHash is the bulk change-detection identity of a native text key.
+func keyHash(k string) uint64 {
+	h := uint64(14695981039346656037)
+	for i := 0; i < len(k); i++ {
+		h ^= uint64(k[i])
+		h *= 1099511628211
+	}
+	return h
+}
+
+// textInk is the device rectangle the CPU rasterizer covers for a text item.
+func (s *scene) textInk(it item) image.Rectangle {
+	ops := []bulkOp{{}}
+	if len(it.parts) > 0 {
+		ops = it.parts
+	} else {
+		ops[0] = bulkOp{op: it.op.(paint.Text), clip: it.clip}
+	}
+	var ink image.Rectangle
+	for _, b := range ops {
+		var r image.Rectangle
+		for _, g := range b.op.Glyphs {
+			if g.Src == nil {
+				continue
+			}
+			x, y, sub := paint.GlyphPlacement(b.op.Origin, g, s.scale)
+			if mask, off := s.cpu.GlyphMask(g, g.Size*s.scale, sub); mask != nil {
+				r = r.Union(mask.Rect.Add(image.Pt(x, y).Add(off)))
+			}
+		}
+		ink = ink.Union(r.Intersect(b.clip))
+	}
+	return ink
 }
 
 // Coalesce only adjacent same-row text. Each part keeps its own exact clip and
@@ -345,8 +668,10 @@ func (s *scene) coalesceText() {
 			k.i(len(part.key))
 			k = append(k, part.key...)
 			batch.texts = append(batch.texts, textPart{frame: local, color: part.color, runs: part.runs})
+			batch.parts = append(batch.parts, bulkOp{op: part.op.(paint.Text), src: part.op, clip: part.clip})
 		}
 		batch.key = string(k)
+		batch.hash = keyHash(batch.key)
 		out = append(out, batch)
 		i = j
 	}

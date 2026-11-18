@@ -47,6 +47,7 @@ type renderer struct {
 	drawErr                error
 	renderCost, lastWork   time.Duration
 	fallback, metricsReady bool
+	surfaces               surfaces
 }
 
 // NewPresenter attaches retained content layers to an existing hosted CALayer.
@@ -173,7 +174,10 @@ func (r *renderer) apply(size geom.Size) (err error) {
 	for i, it := range s.items {
 		needed[it.key]--
 		var n *node
-		if i < len(old) && old[i].used != r.epoch && old[i].key == it.key {
+		if i < len(old) && old[i].used != r.epoch && (old[i].key == it.key || it.kind == itemSolid && old[i].kind == itemSolid && old[i].frame == it.frame) {
+			// A solid at the same place keeps its layer and is only recolored:
+			// borrowing a same-colored layer from elsewhere would move it and
+			// reorder the sublayers (data grids recolor cells every frame).
 			n = old[i]
 		} else if b := buckets[it.key]; b != nil {
 			n = b.take(r.epoch)
@@ -222,6 +226,19 @@ func (r *renderer) apply(size geom.Size) (err error) {
 		if n.used != r.epoch {
 			n.close()
 		}
+	}
+	// Surfaces outlive a frame that had to fall back to a CGImage (all of
+	// them still read by the window server): releasing the ring then would
+	// make the next frame allocate new window-sized surfaces, and a loaded
+	// machine would churn them every few frames. Only leaving bulk mode
+	// releases them.
+	if !r.scene.bulkMerged {
+		r.surfaces.release()
+		r.scene.bulkBuf = nil
+	}
+	// The CGImage fallback raster is kept only while fallbacks recur.
+	if r.scene.bulkBuf != nil && r.scene.serial-r.scene.bulkBufUsed > bulkBufKeepFrames {
+		r.scene.bulkBuf = nil
 	}
 	for key, resource := range r.images {
 		if resource.used != r.epoch {
@@ -287,6 +304,12 @@ func (r *renderer) update(n *node, it item) error {
 			n.layer.Send(sel("setNeedsDisplay"))
 		}
 	case itemPatch:
+		if it.bulkOps != nil {
+			if id := r.bulkSurface(it); id != 0 {
+				n.layer.Send(sel("setContents:"), id)
+				break
+			}
+		}
 		resource := r.images[it.key]
 		if resource == nil {
 			id, err := nativeImage(r.scene.pixels(it))
@@ -415,6 +438,7 @@ func (r *renderer) Trim() {
 		return
 	}
 	r.scene.trim()
+	r.surfaces.release()
 	for _, resource := range r.images {
 		cgImageRelease(resource.id)
 	}
@@ -450,6 +474,8 @@ func (r *renderer) Close() error {
 		cgImageRelease(resource.id)
 	}
 	clear(r.images)
+	r.surfaces.release()
+	r.scene.bulkBuf = nil
 	r.scene.releaseScratch()
 	r.scene.cpu = nil
 	r.layer.Send(sel("setBackgroundColor:"), uintptr(0))

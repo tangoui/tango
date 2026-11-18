@@ -8,6 +8,7 @@
 
 - `List`、`ProList`、`Conversations` 新增 opt-in 虚拟滚动：`Height(px)` 固定视口高度，再加 `Virtual()` 只构建视口内的项（默认形态不变）。`List` 另有 `ItemHeight`、`EstimatedItemHeight`、`RowKey`、`ScrollToKey`、`Range`，`ProList` 透传 `EstimatedItemHeight`，`Conversations` 有 `ScrollToKey`，键盘上下移动跨越窗口时自动滚动。
 - 下拉 / 弹层选项列表在超过 100 项时只构建可见行（与 `Select` 相同）：`AutoComplete`、`Mentions`、`Command`、`Cascader`、`CascaderPanel`；新增三态逃生口 `Virtual(on bool)`（不调用为自动，`true` 强制开，`false` 强制关）。
+- `ui/paint`（实验性）：新增 `(*CPU).RenderRegionInto(dst, ops, region, scale)`，区域与 `dst` 边界相同时清零并复用 `dst`，结果与 `RenderRegion` 一致；每帧重绘同一区域时不再每次新分配位图。
 - 实验性 `macoslite` 包：独立的 macOS 原生轻量窗口宿主，只用 purego 调 AppKit/CoreGraphics/CoreText，不加载 WebView、`ui.Runner` 或 GPU 渲染器；提供窗口生命周期、鼠标键盘事件、`Canvas` 填充/圆角矩形/CoreText 文本。参考窗口 `examples/macoslite-counter` 空闲 physical footprint 约 26 MiB，测量脚本 `scripts/macoslite-memory.sh`。
 - macOS 新增 `TANGO_LAUNCH_BACKGROUND=1`（常量 `automation.EnvLaunchBackground`）：应用启动时不激活，窗口显示在其他应用窗口之后，相当于 `open -g`。`automation.Launch` 默认设置它，端到端测试不再抢用户焦点、也不遮挡别的窗口；需要前台时在 `Options.Env` 里设为 `0`。
 - `Appearance.AllSpaces`：窗口出现在每个桌面空间。macOS 上会出现在所有 Space，包括全屏应用旁边；Linux 上是粘滞窗口；Windows 没有对应 API，忽略这个字段。
@@ -97,7 +98,7 @@
 
 ### 变更
 
-- macOS Apple Silicon 上的大型自绘窗口（面积超过 100,000 逻辑像素）默认渲染器由 Metal 改为原生 Core Animation 图层，与小窗口一致：实测动态列表/行情窗口内存降低 63–71%，帧间隔 P99 不变，CPU 略升；连续六帧绘制超过 8 ms 时仍单向升级 Metal（每帧重画 600 格的 grid 约 1 秒内升级，之后与原 GPU 默认相当）。需要固定 Metal 时设 `TANGO_RENDERER=gpu`（见 `docs/dev-builds.md`）。
+- macOS Apple Silicon 上的大型自绘窗口（面积超过 100,000 逻辑像素）默认渲染器由 Metal 改为原生 Core Animation 图层，与小窗口一致：实测动态列表/行情窗口内存降低 63–71%，帧间隔 P99 不变，CPU 略升；连续六帧绘制超过 8 ms 时仍单向升级 Metal（每帧重画 600 格的数据网格把变化的文字合并画进一块窗口 IOSurface，实测全程留在原生图层，内存 69 对 mygo 102 MB，进程 CPU 16% 对 33%）。需要固定 Metal 时设 `TANGO_RENDERER=gpu`（见 `docs/dev-builds.md`）。
 
 - **删除 `down:scheme`**：单个长流式响应的下行通道（`GET /__tango/lane/down`）和 runtime-js 的对应模块删除，由 `down:poll` 取代；它在 Apple 上本来就因 WebKit 扣住大块突发而停用，其他平台没有接入。`TANGO_IPC_LANE_FAULT=down:scheme:N` 改为 `down:poll:N`（把带第 N+1 个字节包的轮询响应截断）。
 - **`TANGO_IPC_LANES_DARWIN` 新取值**（macOS）：`up`、`down` 只开其一（排查用）；`1` 和 `all` 都表示 `down:poll` + `up:post`。**`all` 含义改变**：以前只在开发构建里开实验性的 `down:scheme`、生产构建等同默认，现在在任何构建里都开 `down:poll` + `up:post`。iOS 上 `all` 与 `1` 相同（`up:post`），也不再依赖自测构建。

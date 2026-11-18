@@ -173,11 +173,23 @@ func (r *CPU) BeginFrame(scale float32) {
 // It does not count as a frame for cache eviction: call BeginFrame once per
 // frame, so the patches of one frame do not age each other's glyphs.
 func (r *CPU) RenderRegion(ops []Op, region image.Rectangle, scale float32) *image.RGBA {
+	return r.RenderRegionInto(nil, ops, region, scale)
+}
+
+// RenderRegionInto is RenderRegion drawing into dst when dst's bounds are
+// exactly region: dst is cleared and reused, so a caller that redraws the
+// same region every frame does not allocate a new raster each time. A nil
+// dst or one of other bounds gets a fresh image, as RenderRegion does.
+func (r *CPU) RenderRegionInto(dst *image.RGBA, ops []Op, region image.Rectangle, scale float32) *image.RGBA {
 	if scale <= 0 {
 		scale = 1
 	}
 	r.prepare(scale)
-	dst := image.NewRGBA(region)
+	if dst == nil || dst.Rect != region {
+		dst = image.NewRGBA(region)
+	} else {
+		clear(dst.Pix)
+	}
 	saveCur, saveClip, saveStack, saveMask, saveMaskAt := r.cur, r.clip, r.stack, r.cmask, r.cmaskAt
 	saveM, saveIdent, saveFrame := r.m, r.ident, r.frame
 	r.cur, r.clip, r.stack, r.cmask, r.frame = dst, region, nil, nil, region

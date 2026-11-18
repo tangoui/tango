@@ -21,7 +21,20 @@ type nativeRect struct {
 	Size   nativeSize
 }
 
-var sel = objc.RegisterName
+// sel interns selector names: objc.RegisterName copies the name into a C
+// string on every call, and frames send thousands of messages. Renderers
+// belong to their UI thread, but tests and multiple windows may share it.
+var selCache sync.Map // string -> objc.SEL
+
+func sel(name string) objc.SEL {
+	if v, ok := selCache.Load(name); ok {
+		return v.(objc.SEL)
+	}
+	v := objc.RegisterName(name)
+	selCache.Store(name, v)
+	return v
+}
+
 var nativeOnce sync.Once
 var nativeErr error
 var nativeSRGB uintptr
