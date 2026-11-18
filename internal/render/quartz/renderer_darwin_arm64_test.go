@@ -566,6 +566,55 @@ func TestNativeRecoloredSolidsKeepTheirLayers(t *testing.T) {
 	nearImage(t, nativeSnapshot(t, r), nativeSnapshot(t, fresh), 0)
 }
 
+// When the window server still reads every surface, a bulk frame falls back
+// to a CGImage. That frame must keep the surfaces (releasing them would make
+// the next frames allocate new window-sized ones) and reuse one fallback
+// raster across such frames; leaving bulk mode releases both.
+func TestNativeBulkFallbackKeepsSurfacesAndRaster(t *testing.T) {
+	r := newNativeTestRenderer(t)
+	size := geom.Size{W: 740, H: 190}
+	for f := 0; f < 5; f++ {
+		nativeFrame(t, r, bulkTextList(f), size, 1)
+	}
+	ring := append([]surface(nil), r.surfaces.ring...)
+	if len(ring) == 0 {
+		t.Fatal("no surfaces before fallback")
+	}
+	old := surfaceBusy
+	surfaceBusy = func(uintptr) bool { return true }
+	defer func() { surfaceBusy = old }()
+	for len(r.surfaces.ring) < surfaceMax {
+		nativeFrame(t, r, bulkTextList(len(r.surfaces.ring)+10), size, 1)
+	}
+	ring = append(ring[:0], r.surfaces.ring...)
+	var buf *image.RGBA
+	for f := 0; f < 3; f++ {
+		nativeFrame(t, r, bulkTextList(20+f), size, 1)
+		if !r.scene.bulkMerged {
+			t.Fatal("fallback frame left bulk mode")
+		}
+		if len(r.surfaces.ring) != len(ring) || r.surfaces.ring[0] != ring[0] {
+			t.Fatalf("fallback frame %d released or replaced the surfaces", f)
+		}
+		if r.scene.bulkBuf == nil || buf != nil && r.scene.bulkBuf != buf {
+			t.Fatalf("fallback frame %d did not reuse the raster", f)
+		}
+		buf = r.scene.bulkBuf
+	}
+	ref := newNativeTestRenderer(t)
+	ref.scene.bulkOff = true
+	nativeFrame(t, ref, bulkTextList(22), size, 1)
+	nearImage(t, nativeSnapshot(t, r), nativeSnapshot(t, ref), 2)
+	surfaceBusy = old
+	for f := 0; f < bulkCalmFrames+1; f++ {
+		nativeFrame(t, r, bulkTextList(9), size, 1)
+	}
+	if len(r.surfaces.ring) != 0 || r.scene.bulkBuf != nil {
+		t.Fatal("leaving bulk mode kept surfaces or the fallback raster")
+	}
+}
+
+// Resizing the window during bulk mode replaces every surface with ones of
 // the new size: none of the old size stays in the ring.
 func TestNativeBulkSurfacesFollowWindowSize(t *testing.T) {
 	r := newNativeTestRenderer(t)
@@ -592,4 +641,36 @@ func TestNativeBulkSurfacesFollowWindowSize(t *testing.T) {
 	ref.scene.bulkOff = true
 	nativeFrame(t, ref, bulkTextList(8), large, 1)
 	nearImage(t, nativeSnapshot(t, r), nativeSnapshot(t, ref), 2)
+}
+
+// The CGImage fallback raster is released once fallbacks stop, even while
+// bulk mode continues, so one busy moment does not pin a window-sized
+// buffer for the rest of the session.
+func TestNativeBulkFallbackRasterAgesOut(t *testing.T) {
+	r := newNativeTestRenderer(t)
+	size := geom.Size{W: 740, H: 190}
+	for f := 0; f < 5; f++ {
+		nativeFrame(t, r, bulkTextList(f), size, 1)
+	}
+	old := surfaceBusy
+	surfaceBusy = func(uintptr) bool { return true }
+	for len(r.surfaces.ring) < surfaceMax || r.scene.bulkBuf == nil {
+		nativeFrame(t, r, bulkTextList(len(r.surfaces.ring)+10), size, 1)
+	}
+	surfaceBusy = old
+	for f := 0; f < bulkBufKeepFrames; f++ {
+		nativeFrame(t, r, bulkTextList(30+f%7), size, 1)
+	}
+	if r.scene.bulkBuf == nil {
+		t.Fatal("fallback raster released too early")
+	}
+	for f := 0; f < 3; f++ {
+		nativeFrame(t, r, bulkTextList(40+f), size, 1)
+	}
+	if !r.scene.bulkMerged {
+		t.Fatal("test left bulk mode")
+	}
+	if r.scene.bulkBuf != nil {
+		t.Fatal("fallback raster kept after fallbacks stopped")
+	}
 }

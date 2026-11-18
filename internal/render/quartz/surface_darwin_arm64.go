@@ -22,7 +22,12 @@ import (
 // written; the renderer alternates between surfaces and allocates at most
 // surfaceMax of them, falling back to the CGImage path beyond that.
 
-const surfaceMax = 3
+// surfaceMax bounds the ring. A loaded window server can hold three
+// surfaces at once (one shown, two in flight); the fourth is created only
+// then. Falling back to a CGImage instead costs more: Core Animation copies
+// the image, and the freed window-sized malloc blocks stay resident in the
+// allocator's large-block cache for the life of the process.
+const surfaceMax = 4
 
 var surfaceOnce sync.Once
 var surfaceErr error
@@ -116,7 +121,7 @@ func (r *surfaces) take(size image.Point) (surface, bool) {
 	for range r.ring {
 		s := r.ring[r.next%len(r.ring)]
 		r.next++
-		if s.id != r.shown && !surfaceInUse(s.id) {
+		if s.id != r.shown && !surfaceBusy(s.id) {
 			r.shown = s.id
 			return s, true
 		}
@@ -142,6 +147,10 @@ func (r *surfaces) release() {
 	r.next = 0
 	r.shown = 0
 }
+
+// surfaceBusy reports whether the window server may still read a surface.
+// Tests replace it to simulate a compositor that holds every surface.
+var surfaceBusy = func(id uintptr) bool { return surfaceInUse(id) }
 
 const pixelRGBA = 0x52474241 // 'RGBA': paint.CPU's premultiplied byte order
 

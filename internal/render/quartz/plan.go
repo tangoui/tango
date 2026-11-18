@@ -80,9 +80,14 @@ type scene struct {
 	inkTiles    map[image.Point][]int32
 	keys        map[string]string // interned solid keys (few distinct)
 	kbuf        keyData
+	bulkBuf     *image.RGBA // CGImage fallback raster of bulk text
+	bulkBufUsed uint64      // serial of the last frame that used bulkBuf
 }
 
 const bulkCalmFrames = 30
+
+// bulkBufKeepFrames is how long the fallback raster outlives its last use.
+const bulkBufKeepFrames = 120
 
 func newScene(provider nativeglyph.Provider) *scene {
 	return &scene{provider: provider, cpu: paint.NewCPU()}
@@ -325,7 +330,11 @@ func (s *scene) pixels(it item) *image.RGBA {
 		return it.image
 	}
 	if it.bulkOps != nil {
-		return s.cpu.RenderRegion(s.bulkList(it), it.frame, s.scale)
+		// Fallback for a frame with no free surface: nativeImage copies the
+		// pixels, so one window-sized buffer serves every such frame.
+		s.bulkBuf = s.cpu.RenderRegionInto(s.bulkBuf, s.bulkList(it), it.frame, s.scale)
+		s.bulkBufUsed = s.serial
+		return s.bulkBuf
 	}
 	// Reconstruct the integer device clip as logical geometry; the reference
 	// renderer rounds its rectangular clips back to these exact device pixels.
@@ -370,6 +379,7 @@ func (s *scene) releaseScratch() {
 }
 func (s *scene) trim() {
 	s.cpu = paint.NewCPU()
+	s.bulkBuf = nil
 	s.imageEpoch++
 	s.releaseScratch()
 }

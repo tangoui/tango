@@ -48,7 +48,6 @@ type renderer struct {
 	renderCost, lastWork   time.Duration
 	fallback, metricsReady bool
 	surfaces               surfaces
-	surfaceUsed            bool
 }
 
 // NewPresenter attaches retained content layers to an existing hosted CALayer.
@@ -228,10 +227,19 @@ func (r *renderer) apply(size geom.Size) (err error) {
 			n.close()
 		}
 	}
-	if !r.surfaceUsed {
+	// Surfaces outlive a frame that had to fall back to a CGImage (all of
+	// them still read by the window server): releasing the ring then would
+	// make the next frame allocate new window-sized surfaces, and a loaded
+	// machine would churn them every few frames. Only leaving bulk mode
+	// releases them.
+	if !r.scene.bulkMerged {
 		r.surfaces.release()
+		r.scene.bulkBuf = nil
 	}
-	r.surfaceUsed = false
+	// The CGImage fallback raster is kept only while fallbacks recur.
+	if r.scene.bulkBuf != nil && r.scene.serial-r.scene.bulkBufUsed > bulkBufKeepFrames {
+		r.scene.bulkBuf = nil
+	}
 	for key, resource := range r.images {
 		if resource.used != r.epoch {
 			cgImageRelease(resource.id)
@@ -298,7 +306,6 @@ func (r *renderer) update(n *node, it item) error {
 	case itemPatch:
 		if it.bulkOps != nil {
 			if id := r.bulkSurface(it); id != 0 {
-				r.surfaceUsed = true
 				n.layer.Send(sel("setContents:"), id)
 				break
 			}
@@ -468,6 +475,7 @@ func (r *renderer) Close() error {
 	}
 	clear(r.images)
 	r.surfaces.release()
+	r.scene.bulkBuf = nil
 	r.scene.releaseScratch()
 	r.scene.cpu = nil
 	r.layer.Send(sel("setBackgroundColor:"), uintptr(0))
