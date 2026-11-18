@@ -27,6 +27,10 @@ type store struct {
 	states []monarch.State
 	dirty  []byte
 	lo     int
+	// sums[i] is line i's summary (Highlighter.SetLineSummary; nil:
+	// unknown), valid while the line stays clean; nil (no function) or of
+	// n() lines, following the edits as states does.
+	sums [][]uint64
 
 	wins  []window
 	clock uint64 // LRU 计数
@@ -86,6 +90,7 @@ func (s *store) reset(n int) {
 		s.dirty[i] = 1
 	}
 	s.lo = 0
+	s.sums = nil
 	for k := range s.wins {
 		clear(s.wins[k].slots)
 	}
@@ -317,6 +322,11 @@ func (s *store) splice(regs []region, keep int) {
 		s.deg = out
 	}
 
+	if len(s.sums) != oldN {
+		s.sums = nil
+	} else {
+		s.sums = spliceSums(s.sums, regs)
+	}
 	if !shifts {
 		// 每段行数都不变：原地改写各段。
 		for _, r := range regs {
@@ -424,4 +434,32 @@ func mapLine(regs []region, j int) int {
 	}
 	p := regs[k-1]
 	return j + p.nsl + p.m() - (p.el + 1)
+}
+
+// spliceSums returns sums after regs: the lines of each region (old lines
+// sl..el, now m) unknown, the others moved to their new numbers. Like the
+// states: in place when no region changes its line count, one move for a
+// single region, one copy otherwise.
+func spliceSums(sums [][]uint64, regs []region) [][]uint64 {
+	shifts := slices.ContainsFunc(regs, func(r region) bool { return r.delta != 0 })
+	switch {
+	case !shifts:
+		for _, r := range regs {
+			clear(sums[r.sl : r.el+1])
+		}
+		return sums
+	case len(regs) == 1:
+		r := regs[0]
+		return slices.Replace(sums, r.sl, r.el+1, make([][]uint64, r.m())...)
+	}
+	out := make([][]uint64, 0, len(sums)+64)
+	prev := 0
+	for _, r := range regs {
+		out = append(out, sums[prev:r.sl]...)
+		for range r.m() {
+			out = append(out, nil)
+		}
+		prev = r.el + 1
+	}
+	return append(out, sums[prev:]...)
 }

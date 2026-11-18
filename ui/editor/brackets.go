@@ -81,6 +81,9 @@ type bracketConf struct {
 	colorized []bool                 // per opener id: closed colorized by some closing bracket
 	opener    []string               // opener texts by id
 	maxLen    int                    // the longest text's bytes
+	// The definitions numbered for the lines' summaries (summary).
+	ids  map[*bracketDef]uint16
+	byID []*bracketDef
 }
 
 // plainBrackets is Monaco's plaintext language configuration: brackets
@@ -169,6 +172,15 @@ func newBracketConf(conf *langs.Conf) *bracketConf {
 	for _, d := range closes {
 		bc.byText[d.text] = d
 		texts[d.text] = true
+	}
+	bc.ids = map[*bracketDef]uint16{}
+	for _, m := range []map[string]*bracketDef{opens, closes} {
+		for _, d := range m {
+			if _, ok := bc.ids[d]; !ok {
+				bc.ids[d] = uint16(len(bc.byID))
+				bc.byID = append(bc.byID, d)
+			}
+		}
 	}
 	keys := make([]string, 0, len(texts))
 	for t := range texts {
@@ -307,6 +319,31 @@ func outerSig(sig uint64, d0 int32, e bracketEvent) uint64 {
 // the line's tokens (none: all text is Other). It returns the stack at the
 // line end and the lowest depth reached; ev, when not nil, receives every
 // bracket.
+// summary appends the brackets of line with its tokens (those forBrackets
+// finds: not in strings or comments) to dst, one per bracket: its first
+// byte, its length and its definition (byID), packed. It is the
+// Highlighter's line summary (Model.brackets), from which scanSummary
+// gives what scanLine gives without the tokens.
+func (bc *bracketConf) summary(line string, toks []monarch.Token, dst []uint64) []uint64 {
+	if len(line) > maxTokenizationLineLength {
+		return nil // none: long lines are scanned without tokens (scanLong)
+	}
+	bc.forBrackets(line, toks, func(d *bracketDef, b0, b1 int) {
+		dst = append(dst, uint64(uint32(b0))|uint64(uint16(b1-b0))<<32|uint64(bc.ids[d])<<48)
+	})
+	return dst
+}
+
+// scanSummary is scanLine on a line's summary (summary).
+func (bc *bracketConf) scanSummary(s *bnode, sum []uint64, ev func(bracketEvent)) (*bnode, int32) {
+	st := brState{s: s, minD: stackDepth(s)}
+	for _, x := range sum {
+		b0 := int(uint32(x))
+		bc.apply(&st, bc.byID[x>>48], b0, b0+int(uint16(x>>32)), ev)
+	}
+	return st.s, st.minD
+}
+
 func (bc *bracketConf) scanLine(s *bnode, line string, toks []monarch.Token, ev func(bracketEvent)) (*bnode, int32) {
 	st := brState{s: s, minD: stackDepth(s)}
 	if len(bc.defs) == 0 {
@@ -465,6 +502,9 @@ type bracketSource interface {
 	// tokenizer): a line whose start state changed has other tokens, so
 	// other brackets, although its text did not change.
 	startState(snap buffer.Snapshot, line int) monarch.State
+	// summary returns line's summary (bracketConf.summary) when its
+	// tokens are final and summarized, without tokenizing it.
+	summary(snap buffer.Snapshot, line int, dst []uint64) ([]uint64, bool)
 	// advance tokenizes lines before upTo until deadline (the bracket
 	// commands and matching, which do not wait for the Highlighter's
 	// background goroutine).
@@ -491,6 +531,7 @@ type bracketTree struct {
 	// line only (bracketSpans keeps the others').
 	gen  uint64
 	toks []monarch.Token
+	sum  []uint64         // scratch: a line's summary (bracketSource.summary)
 	long map[int]*brIndex // the long lines' checkpoints (brackets_long.go)
 
 	// A run of lines read at once (lineText): reading line by line costs
@@ -615,10 +656,16 @@ func (t *bracketTree) ensure(src bracketSource, upTo int, deadline time.Time) bo
 			t.gen++                       // no events: assume its outer brackets changed
 		} else {
 			delete(t.long, i)
-			t.toks = src.tokens(t.snap, i, text, t.toks[:0])
 			d0 := stackDepth(t.start[i])
 			sig = outerSigSeed
-			end, md = t.conf.scanLine(t.start[i], text, t.toks, func(e bracketEvent) { sig = outerSig(sig, d0, e) })
+			ev := func(e bracketEvent) { sig = outerSig(sig, d0, e) }
+			if sum, ok := src.summary(t.snap, i, t.sum[:0]); ok {
+				t.sum = sum
+				end, md = t.conf.scanSummary(t.start[i], sum, ev)
+			} else {
+				t.toks = src.tokens(t.snap, i, text, t.toks[:0])
+				end, md = t.conf.scanLine(t.start[i], text, t.toks, ev)
+			}
 		}
 		t.scanned++
 		bytes += len(text) + 1

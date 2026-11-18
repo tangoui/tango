@@ -38,7 +38,7 @@ func TestCleanRetryClearsTransientDegradation(t *testing.T) {
 	h.RetryDelay = 0
 	h.MaxRetries = 1
 	highlightAll(t, h, s)
-	h.apply(0, lx.Initial(), lx.Initial(), true, []monarch.Token{{}}, true, time.Time{})
+	h.apply(0, lx.Initial(), lx.Initial(), true, []monarch.Token{{}}, true, nil, time.Time{})
 	if h.Done(s) || h.FinalBefore(s, 1) || h.st.minPending() != 0 {
 		t.Fatal("injected degraded line was final")
 	}

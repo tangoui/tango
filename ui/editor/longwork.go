@@ -21,6 +21,7 @@ var (
 	workMiniBytes    atomic.Int64 // bytes boundedMiniature read
 	workMiniScan     atomic.Int64 // bytes boundedMiniature walked grapheme by grapheme
 	workLineCopies   atomic.Int64 // long lines lineMemo copied out of the rope
+	workBracketToks  atomic.Int64 // lines the bracket tree tokenized (no summary, no cached tokens)
 )
 
 // resetWork zeroes the work counters.
@@ -31,6 +32,7 @@ func resetWork() {
 	workMiniBytes.Store(0)
 	workMiniScan.Store(0)
 	workLineCopies.Store(0)
+	workBracketToks.Store(0)
 }
 
 // countAdd adds n to c when countWork is on.
