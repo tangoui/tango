@@ -226,18 +226,17 @@ func RegisterFont(familyName string, data []byte) error {
 	// Lock order: layout holds mu and then takes reg.mu (engine fallback),
 	// so reg.mu must be released before clearCache takes mu.
 	reg.mu.Lock()
-	found := false
-	for _, fm := range reg.user {
-		if fm.name == familyName {
-			fm.faces = append(fm.faces, faces...)
-			sort.Slice(fm.faces, func(i, j int) bool { return fm.faces[i].Weight < fm.faces[j].Weight })
-			found = true
-			break
-		}
+	// Shapers retain family pointers after releasing reg.mu. Publish a new
+	// family rather than changing the faces of one already in use.
+	fm := &family{name: familyName, faces: faces, loaded: true, user: true}
+	i := slices.IndexFunc(reg.user, func(old *family) bool { return old.name == familyName })
+	if i >= 0 {
+		fm.faces = append(slices.Clone(reg.user[i].faces), faces...)
 	}
-	if !found {
-		fm := &family{name: familyName, faces: faces, loaded: true, user: true}
-		sort.Slice(fm.faces, func(i, j int) bool { return fm.faces[i].Weight < fm.faces[j].Weight })
+	sort.Slice(fm.faces, func(i, j int) bool { return fm.faces[i].Weight < fm.faces[j].Weight })
+	if i >= 0 {
+		reg.user[i] = fm
+	} else {
 		reg.user = append(reg.user, fm)
 	}
 	reg.version++

@@ -268,7 +268,7 @@ func TestPerfEntryInteractionEvents(t *testing.T) {
 
 func TestPerfHotkeyCapture(t *testing.T) {
 	value := "Ctrl+K"
-	d := newPerfDriver(func(c *Context) { HotkeyInput(c, &value) }, false)
+	d := newPerfDriver(func(c *Context) { HotkeyInput(c, &value).Literal() }, false)
 	d.Settle()
 	d.Click(perfTarget(d).Center())
 	d.Key(input.KeyP, input.ModCtrl)
@@ -708,7 +708,7 @@ func init() {
 		}, Interact: func(r *perfRun, i int) { perfEntryHoverText(r, i, "https://") }},
 		perfFixture{Name: "HotkeyInput", Build: func(c *Context) {
 			v := State[string](c, hashID("perf.entry.hotkey"), func() string { return "Ctrl+K" })
-			HotkeyInput(c, v).Width(260)
+			HotkeyInput(c, v).Literal().Width(260)
 		}, Interact: perfEntryHotkey},
 		perfFixture{Name: "MarkdownEditor", Build: func(c *Context) {
 			perfEntryMarkdownBuild(c)

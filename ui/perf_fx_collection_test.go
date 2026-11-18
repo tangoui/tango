@@ -207,10 +207,19 @@ func perfCollOpenPick(r *perfRun, pick string) {
 	perfCollClick(r, pick)
 }
 
-// perfCollOpen clicks the trigger field 40px before its end: past the
-// selected tags, before the arrow.
+// perfCollOpen clicks the trigger's trailing padding, outside the selected
+// chips. The trailing edge is on the left in an RTL scope.
 func perfCollOpen(r *perfRun) {
-	r.D.Click(geom.Pt(r.Target.Right()-40, r.Target.Y+r.Target.H/2))
+	c := r.D.r.c
+	rtl := c.envRoot.rtl
+	for _, n := range c.root.kids[0].kids {
+		if n.abs == r.Target && n.env != nil {
+			rtl = n.env.rtl
+			break
+		}
+	}
+	span := inlineSpan{r: r.Target, rtl: rtl}
+	r.D.Click(geom.Pt(span.End()-12*span.Sign(), r.Target.Center().Y))
 }
 
 // perfCollBlur clicks the page padding: blur and unhover.
