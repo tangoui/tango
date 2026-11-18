@@ -14,7 +14,10 @@
 // returns [ErrUnsupported].
 //
 // The program's environment defaults to the current process's, and
-// TERM=xterm-256color and COLORTERM=truecolor are always set.
+// TERM=xterm-256color and COLORTERM=truecolor are always set. On macOS
+// and Linux, an environment without a locale (no LC_ALL, LC_CTYPE or
+// LANG, as for an app opened from Finder or the Dock) also gets a UTF-8
+// LC_CTYPE, so the shell reads typed non-ASCII text as characters.
 //
 // Experimental: this package's API may change in any 0.x release (see docs/release.md, "API 稳定性").
 package pty
@@ -51,7 +54,8 @@ type Options struct {
 	// Env is the environment, as "key=value" strings; nil means
 	// os.Environ(). TERM and COLORTERM are replaced either way. On
 	// Windows SYSTEMROOT is added from the current environment if Env
-	// lacks it, as os/exec does.
+	// lacks it, as os/exec does. On macOS and Linux a UTF-8 LC_CTYPE is
+	// added when Env sets no LC_ALL, LC_CTYPE or LANG.
 	Env []string
 	// Cols and Rows are the initial terminal size in cells; 0 means
 	// 80×24.
@@ -158,14 +162,26 @@ func (o Options) normalize() (Options, error) {
 }
 
 // environ returns env without its TERM and COLORTERM entries, followed
-// by termEnv. Windows keys are case-insensitive.
+// by termEnv. Windows keys are case-insensitive. When env sets no locale
+// (LC_ALL, LC_CTYPE and LANG all unset or empty, as for an app started
+// from Finder or the Dock), LC_CTYPE=utf8Ctype is added on macOS and
+// Linux: in the C locale a shell takes typed UTF-8 (Chinese, emoji) as
+// separate bytes, shows them as <00e4>… and edits the line byte by byte.
 func environ(env []string) []string {
-	out := make([]string, 0, len(env)+len(termEnv))
+	out := make([]string, 0, len(env)+len(termEnv)+1)
+	locale := false
 	for _, kv := range env {
-		key, _, _ := strings.Cut(kv, "=")
-		if !isTermKey(key) {
-			out = append(out, kv)
+		key, val, _ := strings.Cut(kv, "=")
+		if isTermKey(key) {
+			continue
 		}
+		if val != "" && (key == "LC_ALL" || key == "LC_CTYPE" || key == "LANG") {
+			locale = true
+		}
+		out = append(out, kv)
+	}
+	if !locale && utf8Ctype != "" {
+		out = append(out, "LC_CTYPE="+utf8Ctype)
 	}
 	return append(out, termEnv...)
 }
