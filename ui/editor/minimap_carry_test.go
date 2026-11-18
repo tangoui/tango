@@ -172,3 +172,27 @@ func TestMinimapShiftAfterTwoEdits(t *testing.T) {
 	w.prepareMinimap(snap, st.Theme, time.Now().Add(time.Second))
 	assertMinimapFresh(t, st, w)
 }
+
+// TestMinimapNoSourceReadsAfterShiftFrame: after the frame that carried
+// the rows of a line break added above them, the next frames (no edit:
+// the caret blinking) read no row's source; the carry applies to the frame
+// right after the change only, not to every frame until the next edit.
+func TestMinimapNoSourceReadsAfterShiftFrame(t *testing.T) {
+	st, w := minimapShiftView(t)
+	m := &w.vs.mini
+	a := st.Snapshot().LineStart(200)
+	if err := st.Edit([]buffer.Edit{{Start: a, End: a, Text: "\tinserted()\n"}}, Selection{}); err != nil {
+		t.Fatal(err)
+	}
+	snap := st.Snapshot()
+	st.Highlighter().HighlightFor(st.hlKey, snap, snap.LineCount(), time.Second)
+	w.prepareMinimap(snap, st.Theme, time.Now().Add(time.Second))
+	for k := range 3 {
+		reads := m.sourceReads
+		w.prepareMinimap(snap, st.Theme, time.Now().Add(time.Second))
+		if got := m.sourceReads - reads; got != 0 {
+			t.Fatalf("frame %d after the change read %d rows' source, want 0", k+1, got)
+		}
+	}
+	assertMinimapFresh(t, st, w)
+}
