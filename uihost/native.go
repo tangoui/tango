@@ -2,6 +2,7 @@ package uihost
 
 import (
 	"github.com/tangoui/tango/internal/platform"
+	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/paint"
 	"image"
 	"time"
@@ -96,5 +97,31 @@ func (g *gpuRenderer) InvalidateImage(img image.Image) {
 	}
 	if r, ok := g.gpu.(interface{ InvalidateImage(image.Image) }); ok {
 		r.InvalidateImage(img)
+	}
+}
+
+// isKeyboardInput reports input that means the user is typing into the
+// window: a non-modifier key press (auto-repeats and shortcuts included),
+// committed text, or an IME composition. Scrolling, pointers, touches,
+// focus changes, key releases and lone modifiers or Caps Lock are not.
+func isKeyboardInput(ev input.Event) bool {
+	switch ev := ev.(type) {
+	case input.KeyEvent:
+		return ev.Down && ev.Key != 0 && ev.Key.Modifier() == 0 && ev.Key != input.KeyCapsLock
+	case input.TextInput:
+		return ev.Text != ""
+	case input.Composition:
+		return ev.Text != ""
+	}
+	return false
+}
+
+// keyboardInput promotes a default native window to Metal on its next
+// Render: Metal's input-to-photon latency is about two frames lower. It does
+// nothing for a nil renderer, forced native, a window already promoted or one
+// whose promotion failed (native is nil in all of those).
+func (g *gpuRenderer) keyboardInput() {
+	if g != nil && g.native != nil {
+		g.native.ready = true
 	}
 }

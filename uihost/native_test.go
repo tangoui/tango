@@ -5,6 +5,7 @@ import (
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/paint"
 	"image"
 	"testing"
@@ -155,24 +156,20 @@ func TestNativeWrapperForwardsImageInvalidation(t *testing.T) {
 type largeNativeCanvasTest struct{ nativeCanvasTest }
 
 func (*largeNativeCanvasTest) Size() (float32, float32) { return 1000, 800 }
-func TestNativeDefaultKeepsLargeAnimatedSurfacesOnVerifiedGPU(t *testing.T) {
+func TestNativeDefaultCoversLargeWindows(t *testing.T) {
 	t.Setenv("TANGO_RENDERER", "")
 	r := &nativeRenderTest{}
 	nativeTestHooks(t, r)
-	oldTarget, oldNP := gpuTarget, newPresenter
-	gpuTarget = func(platform.Canvas) (uintptr, error) { return 7, nil }
-	newPresenter = func(uintptr) (paint.Renderer, func(image.Point, float32) error, error) {
-		return &nativeRenderTest{}, func(image.Point, float32) error { return nil }, nil
-	}
-	t.Cleanup(func() { gpuTarget, newPresenter = oldTarget, oldNP })
+	gpuCalls := metalTestHooks(t, nil)
 	cv := &largeNativeCanvasTest{}
 	g := setupGPU(cv, ui.RunnerOptions{})
-	if g != nil {
-		defer g.Close()
+	if g == nil || !g.nativeMode || cv.targets != 1 || *gpuCalls != 0 {
+		t.Fatalf("large window: native=%v targets=%d gpu calls=%d, want native layers without Metal", g != nil && g.nativeMode, cv.targets, *gpuCalls)
 	}
-	if cv.targets != 0 || g == nil || g.nativeMode || g.gpu == nil {
-		t.Fatal("unaccepted large-window native policy replaced verified GPU default")
+	if g.native == nil {
+		t.Fatal("default native on a large window lost its promotion to Metal")
 	}
+	g.Close()
 	t.Setenv("TANGO_RENDERER", "native")
 	forced := setupGPU(cv, ui.RunnerOptions{})
 	if forced == nil || !forced.nativeMode || forced.native != nil {
@@ -181,22 +178,177 @@ func TestNativeDefaultKeepsLargeAnimatedSurfacesOnVerifiedGPU(t *testing.T) {
 	forced.Close()
 }
 
-func TestDataWindowsUseNativeLayersAtAnySize(t *testing.T) {
-	r := &nativeRenderTest{}
-	nativeTestHooks(t, r)
+// metalTestHooks stands in for Metal target acquisition and presenter
+// creation; targetErr makes every acquisition fail. It returns the number
+// of acquisitions.
+func metalTestHooks(t *testing.T, targetErr error) *int {
+	t.Helper()
 	oldTarget, oldNP := gpuTarget, newPresenter
-	gpuCalls := 0
-	gpuTarget = func(platform.Canvas) (uintptr, error) { gpuCalls++; return 7, nil }
+	calls := 0
+	gpuTarget = func(platform.Canvas) (uintptr, error) {
+		calls++
+		if targetErr != nil {
+			return 0, targetErr
+		}
+		return 7, nil
+	}
 	newPresenter = func(uintptr) (paint.Renderer, func(image.Point, float32) error, error) {
 		return &nativeRenderTest{}, func(image.Point, float32) error { return nil }, nil
 	}
 	t.Cleanup(func() { gpuTarget, newPresenter = oldTarget, oldNP })
+	return &calls
+}
+
+// nativeKeyboardSetup returns a default (promotable) native renderer on a
+// large window with Metal stubbed out.
+func nativeKeyboardSetup(t *testing.T, mode string, targetErr error) (*gpuRenderer, *largeNativeCanvasTest, *int) {
+	t.Helper()
+	t.Setenv("TANGO_RENDERER", mode)
+	nativeTestHooks(t, &nativeRenderTest{})
+	calls := metalTestHooks(t, targetErr)
+	cv := &largeNativeCanvasTest{}
+	g := setupGPU(cv, ui.RunnerOptions{})
+	if g == nil || !g.nativeMode {
+		t.Fatalf("TANGO_RENDERER=%q: native not selected", mode)
+	}
+	t.Cleanup(func() { g.Close() })
+	return g, cv, calls
+}
+
+func renderNativeTestFrame(t *testing.T, g *gpuRenderer, cv platform.Canvas) {
+	t.Helper()
+	if err := g.Render(&paint.List{}, geom.Size{W: 1000, H: 800}, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.presentFrame(cv, 1); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestKeyEventPromotesOnNextFrame(t *testing.T) {
+	g, cv, calls := nativeKeyboardSetup(t, "", nil)
+	renderNativeTestFrame(t, g, cv) // an ordinary native frame first
+	for i := 0; i < 3; i++ {        // a held key: press, then two auto-repeats
+		ev := input.KeyEvent{Key: input.KeyA, Down: true, Repeat: i > 0}
+		if !isKeyboardInput(ev) {
+			t.Fatalf("press %d not keyboard input", i)
+		}
+		g.keyboardInput()
+	}
+	if !g.nativeMode || *calls != 0 {
+		t.Fatal("keyboard input promoted before the next frame")
+	}
+	renderNativeTestFrame(t, g, cv)
+	if g.nativeMode || g.gpu == nil || *calls != 1 {
+		t.Fatalf("after a key: native=%v gpu=%v metal targets=%d, want Metal", g.nativeMode, g.gpu != nil, *calls)
+	}
+	g.keyboardInput()
+	renderNativeTestFrame(t, g, cv)
+	if *calls != 1 {
+		t.Fatalf("promoted %d times, want once", *calls)
+	}
+}
+
+func TestIsKeyboardInput(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		ev   input.Event
+		want bool
+	}{
+		{"key down", input.KeyEvent{Key: input.KeyA, Down: true}, true},
+		{"key repeat", input.KeyEvent{Key: input.KeyA, Down: true, Repeat: true}, true},
+		{"shortcut", input.KeyEvent{Key: input.KeyS, Down: true, Mods: input.ModMeta}, true},
+		{"key up", input.KeyEvent{Key: input.KeyA}, false},
+		{"shift", input.KeyEvent{Key: input.KeyShiftLeft, Down: true, Mods: input.ModShift}, false},
+		{"command", input.KeyEvent{Key: input.KeyMetaLeft, Down: true, Mods: input.ModMeta}, false},
+		{"caps lock", input.KeyEvent{Key: input.KeyCapsLock, Down: true}, false},
+		{"unknown key", input.KeyEvent{Down: true}, false},
+		{"text", input.TextInput{Text: "a"}, true},
+		{"empty text", input.TextInput{}, false},
+		{"composition", input.Composition{Text: "ni", Cursor: 2}, true},
+		{"composition end", input.Composition{}, false},
+		{"scroll", input.Scroll{DY: 3}, false},
+		{"pointer", input.Pointer{}, false},
+		{"touch", input.TouchEvent{}, false},
+		{"focus", input.WindowFocus{Focused: true}, false},
+	} {
+		if got := isKeyboardInput(tc.ev); got != tc.want {
+			t.Errorf("%s: %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestForcedNativeIgnoresKeyboard(t *testing.T) {
+	g, cv, calls := nativeKeyboardSetup(t, "native", nil)
+	g.keyboardInput()
+	renderNativeTestFrame(t, g, cv)
+	if !g.nativeMode || *calls != 0 {
+		t.Fatalf("forced native: native=%v metal targets=%d, want native", g.nativeMode, *calls)
+	}
+}
+
+func TestKeyboardPromotesOnlyThatWindow(t *testing.T) {
+	typed, cv1, _ := nativeKeyboardSetup(t, "", nil)
+	viewed, cv2, _ := nativeKeyboardSetup(t, "", nil)
+	typed.keyboardInput()
+	renderNativeTestFrame(t, typed, cv1)
+	renderNativeTestFrame(t, viewed, cv2)
+	if typed.nativeMode || !viewed.nativeMode || viewed.native == nil {
+		t.Fatalf("typed native=%v, viewed native=%v: want only the typed window on Metal", typed.nativeMode, viewed.nativeMode)
+	}
+}
+
+func TestKeyBeforeFirstFrameStillPromotes(t *testing.T) {
+	var none *gpuRenderer // a CPU window, or one whose renderer does not exist yet
+	none.keyboardInput()
+	g, cv, calls := nativeKeyboardSetup(t, "", nil)
+	g.keyboardInput()
+	renderNativeTestFrame(t, g, cv)
+	if g.nativeMode || g.gpu == nil || *calls != 1 {
+		t.Fatalf("first frame: native=%v metal targets=%d, want Metal", g.nativeMode, *calls)
+	}
+}
+
+func TestKeyAfterFailedPromotionDoesNotRetry(t *testing.T) {
+	g, cv, calls := nativeKeyboardSetup(t, "", errors.New("no GPU"))
+	g.keyboardInput()
+	renderNativeTestFrame(t, g, cv)
+	if g.cpu == nil || g.nativeMode || *calls != 1 || cv.presented == nil {
+		t.Fatalf("failed promotion: cpu=%v native=%v targets=%d visible=%v", g.cpu != nil, g.nativeMode, *calls, cv.presented != nil)
+	}
+	g.keyboardInput()
+	renderNativeTestFrame(t, g, cv)
+	if *calls != 1 {
+		t.Fatalf("retried Metal after a failed promotion: %d targets", *calls)
+	}
+}
+
+func TestCanvasInputRoutesKeyboard(t *testing.T) {
+	g, _, _ := nativeKeyboardSetup(t, "", nil)
+	h := &host{r: ui.NewRunner(func(*ui.Context) {}, ui.RunnerOptions{Renderer: g}), gpu: g}
+	h.CanvasInput(input.Scroll{DY: 3})
+	h.CanvasInput(input.Pointer{Kind: input.Move})
+	h.CanvasInput(input.KeyEvent{Key: input.KeyShiftLeft, Down: true, Mods: input.ModShift})
+	if g.native.ready {
+		t.Fatal("scroll, pointer or a modifier asked for Metal")
+	}
+	h.CanvasInput(input.KeyEvent{Key: input.KeyA, Down: true})
+	if !g.native.ready {
+		t.Fatal("key press did not ask for Metal")
+	}
+	(&host{}).CanvasInput(input.KeyEvent{Key: input.KeyA, Down: true}) // no surface yet
+}
+
+func TestDataWindowsUseNativeLayersAtAnySize(t *testing.T) {
+	r := &nativeRenderTest{}
+	nativeTestHooks(t, r)
+	gpuCalls := metalTestHooks(t, nil)
 
 	t.Setenv("TANGO_RENDERER", "")
 	cv := &largeNativeCanvasTest{}
 	g := setupGPU(cv, ui.RunnerOptions{Content: ui.ContentData})
-	if g == nil || !g.nativeMode || cv.targets != 1 || gpuCalls != 0 {
-		t.Fatalf("large data window: native=%v targets=%d gpu calls=%d, want native layers without Metal", g != nil && g.nativeMode, cv.targets, gpuCalls)
+	if g == nil || !g.nativeMode || cv.targets != 1 || *gpuCalls != 0 {
+		t.Fatalf("large data window: native=%v targets=%d gpu calls=%d, want native layers without Metal", g != nil && g.nativeMode, cv.targets, *gpuCalls)
 	}
 	if g.native == nil {
 		t.Fatal("data window lost the promotion to Metal for expensive frames")
@@ -205,8 +357,8 @@ func TestDataWindowsUseNativeLayersAtAnySize(t *testing.T) {
 
 	general := &largeNativeCanvasTest{}
 	g = setupGPU(general, ui.RunnerOptions{})
-	if g == nil || g.nativeMode || general.targets != 0 {
-		t.Fatal("large general window left the Metal default")
+	if g == nil || !g.nativeMode || general.targets != 1 || *gpuCalls != 0 {
+		t.Fatal("large general window did not start on native layers")
 	}
 	g.Close()
 

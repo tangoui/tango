@@ -34,13 +34,13 @@ Android 同样用 `tango_selftest`：`GOFLAGS=-tags=tango_selftest bash mobile/a
 
 `TANGO_RENDERER` 是窗口创建时读取的运行参数，`ui.RunnerOptions.Renderer` 显式指定的渲染器始终优先：
 
-- 未设置：macOS Apple Silicon 上面积不超过 100,000 逻辑像素的普通自绘窗口，以及 `ui.RunnerOptions.Content` 设为 `ui.ContentData` 的数据窗口（不限大小），先使用原生 Core Animation 图层和 CoreText；较大窗口和其他平台保持 GPU 优先，失败回退 CPU。透明/材质窗口、WebView 附加画布和调用方自选渲染器保留原路径。原生路径的连续六帧绘制和呈现工作超过 8 ms，或连续六帧整窗软件回退时，尝试单向升级 Metal；相邻帧间的空闲时间需不超过 100 ms，单次冷启动/零散操作不触发。升级失败立即呈现 CPU 图像且不反复尝试。
+- 未设置：macOS Apple Silicon 上的普通自绘窗口不论大小都先使用原生 Core Animation 图层和 CoreText；其他平台保持 GPU 优先，失败回退 CPU。透明/材质窗口、WebView 附加画布和调用方自选渲染器保留原路径。窗口收到键盘输入（按下非修饰键，包括自动重复和被窗口快捷键处理的按键；提交文字；输入法组字）时，下一帧单向升级 Metal；只按 Shift、Control、Option、Command、Caps Lock，以及滚动、指针、触摸和窗口焦点变化都不触发升级。原生路径的连续六帧绘制和呈现工作超过 8 ms，或连续六帧整窗软件回退时，也尝试单向升级 Metal；相邻帧间的空闲时间需不超过 100 ms，单次冷启动/零散操作不触发。升级只作用于这一个窗口，只尝试一次：失败立即呈现 CPU 图像且不反复尝试，之后的按键也不再触发。
 - `cpu`：始终使用 CPU，不创建原生 GPU 呈现目标。
 - `gpu`：尝试 GPU（包括软件 OpenGL），失败仍回退 CPU。
 - `native`：在支持的 macOS Apple Silicon 普通自绘窗口强制原生图层，不自动升级 Metal；不支持时沿用 GPU/CPU 回退。`uihost.Renderer(r)` 会报告 `native`、`gpu` 或 `cpu`。
 - `auto`：面积不超过 100,000 逻辑像素的小窗口先使用 CPU；其他窗口 GPU 优先。CPU 起步的窗口在放大超过阈值、绘制列表达到 256 项或连续六个实际绘制帧的间隔不超过 100 ms 时，尝试升级 GPU。升级单向生效，不随缩小窗口来回切换；升级失败也不逐帧重试。这是保守的工作量启发式，不是对 CPU/GPU 快慢的保证。小型编辑器、终端或持续动画也可直接设 `gpu`。
 
-较大窗口默认仍走 GPU。原生图层在大窗口上内存更低：2026-11-17 在 Apple M4 上和 NSGo、Viva、mygo 交错实测（quotes 560×860、list 480×800，各 5 轮），physical footprint 比 Metal 低 63–71%（list 39 对 135 MB，quotes 54 对 147 MB），回调间隔 P99 相同。数据网格把变化的文字合并画进一块窗口 IOSurface 后，800×600 grid 也能全程留在原生图层（内存 69 对 mygo 102 MB，进程 CPU 16% 对 33%）。但 2026-11-18 在 1920×944 的编辑器窗口上配对实测输入到画面的延迟（真实窗口、CGEvent 输入、ScreenCaptureKit 采样），原生图层比 Metal 慢约 2 帧：打字 78.8 对 47.2 ms、三光标 87.6 对 47.2 ms、滚动约 80 对 46 ms（中位数）。所以大窗口默认仍走 Metal，按窗口类型区分：表格、网格、行情、列表、仪表盘这类主要展示自行变化数据的窗口，在 `ui.RunnerOptions` 里设 `Content: ui.ContentData`，不限大小都走原生图层（仍保留上面的单向升级 Metal）；编辑器、终端、绘图画布这类输入密集的窗口保持默认 `ui.ContentGeneral`。2026-11-18 在 Apple M4 上和 mygo 同批配对实测 800×600 grid（原生图层，5 组 AB/BA + 65 秒长跑）：physical footprint 69.2 对 107.1 MB（长跑 68.4 对 111.5），CPU 22.1% 对 39.1%（长跑 20.2% 对 37.6%），更新间隔 P99 17.9 对 18.0 ms（长跑 18.9 对 18.0，在 mygo 1 ms 计时分辨率内）。`native` 仍可对任意窗口显式使用低内存路径。
+大窗口也默认使用原生图层，因为它在内存上明显占优：2026-11-17 在 Apple M4 上和 NSGo、Viva、mygo 交错实测（quotes 560×860、list 480×800，各 5 轮），physical footprint 比 Metal 低 63–71%（list 39 对 135 MB，quotes 54 对 147 MB），回调间隔 P99 相同。数据网格把变化的文字合并画进一块窗口 IOSurface 后，800×600 grid 也能全程留在原生图层（内存 69 对 mygo 102 MB，进程 CPU 16% 对 33%）。但原生图层的输入到画面延迟比 Metal 慢约 2 帧：2026-11-18 在 1920×944 的编辑器窗口上配对实测（真实窗口、CGEvent 输入、ScreenCaptureKit 采样），打字 78.8 对 47.2 ms、三光标 87.6 对 47.2 ms、滚动约 80 对 46 ms（中位数）。所以收到键盘输入的窗口（编辑器、终端、表单）在第一次按键后切到 Metal，换回 Metal 的输入延迟；第一次按键的那一帧要建立 Metal 设备、管线和 atlas，有一次性开销，此后这个窗口一直留在 Metal，不再有原生图层的内存优势。只滚动浏览、不打字的窗口（数据表格、行情、列表、仪表盘）保留原生图层的内存优势，滚动仍按原生图层的延迟运行。需要固定使用 Metal 时设 `gpu`，需要固定使用原生图层时设 `native`。
 
 GPU 默认路径还会对可重建的 atlas 页和闲置 Metal image texture 施加有界预算，在 frame boundary 淘汰未被当前 frame/command buffer 使用的资源；当前 glyph、present target 和活动图片不会被淘汰。`TANGO_GPU_BUDGET=off` 可关闭这项预算并恢复旧的资源常驻策略。该开关不改变 `TANGO_RENDERER` 的选择，也不保证每种场景都降低物理 footprint；如果重新上传导致帧尾部恶化，应先用 `TANGO_FRAME_TRACE=1` 对照。
 
