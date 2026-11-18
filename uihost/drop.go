@@ -23,8 +23,10 @@ func (h *host) CanvasDragOver(x, y float32) {
 	if h.closed || h.r == nil {
 		return
 	}
-	h.r.FileDragOver(geom.Pt(x, y))
-	h.invalidate()
+	h.onUI(func() {
+		h.r.FileDragOver(geom.Pt(x, y))
+		h.invalidate()
+	})
 }
 
 // CanvasDragLeave reports that the drag left the canvas, was cancelled or
@@ -33,6 +35,8 @@ func (h *host) CanvasDragLeave() {
 	if h.closed || h.r == nil {
 		return
 	}
-	h.r.FileDragLeave()
-	h.invalidate()
+	h.onUI(func() {
+		h.r.FileDragLeave()
+		h.invalidate()
+	})
 }
