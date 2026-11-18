@@ -14,6 +14,7 @@ import (
 	"github.com/tangoui/tango/internal/downq"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/fake"
+	"github.com/tangoui/tango/internal/uithread"
 )
 
 const timeout = 5 * time.Second
@@ -372,7 +373,7 @@ func TestLifecycleEvents(t *testing.T) {
 func TestMainGoroutineBeforeRun(t *testing.T) {
 	// Simulate being the process' main goroutine.
 	old := mainGoroutine
-	mainGoroutine = goroutineID()
+	mainGoroutine = uithread.GoroutineID()
 	defer func() { mainGoroutine = old }()
 	a := newWithBackend(Options{}, fake.New())
 	if _, err := a.NewSurface(SurfaceOptions{}); !errors.Is(err, ErrNotRunning) {

@@ -7,14 +7,12 @@
 package tango
 
 import (
-	"bytes"
 	"errors"
-	"runtime"
-	"strconv"
 	"sync"
 
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/native"
+	"github.com/tangoui/tango/internal/uithread"
 )
 
 // mainLoop is the FIFO of functions waiting to run on the main thread. The
@@ -111,18 +109,7 @@ func (l *mainLoop) close() {
 
 // mainGoroutine is the id of the goroutine that ran package initialization:
 // the process' main goroutine. Used only to catch Await on it before Run.
-var mainGoroutine = goroutineID()
-
-func goroutineID() uint64 {
-	var buf [64]byte
-	n := runtime.Stack(buf[:], false)
-	s := bytes.TrimPrefix(buf[:n], []byte("goroutine "))
-	if i := bytes.IndexByte(s, ' '); i >= 0 {
-		s = s[:i]
-	}
-	id, _ := strconv.ParseUint(string(s), 10, 64)
-	return id
-}
+var mainGoroutine = uithread.GoroutineID()
 
 // isMainGoroutine reports whether the caller is the goroutine running
 // main.main. On desktop that is the one that ran package initialization;
@@ -130,10 +117,10 @@ func goroutineID() uint64 {
 // whose id the backend reports (native.MainGoroutine).
 func isMainGoroutine() bool {
 	if native.RunOwnsMainThread {
-		return goroutineID() == mainGoroutine
+		return uithread.GoroutineID() == mainGoroutine
 	}
 	id := native.MainGoroutine()
-	return id != 0 && goroutineID() == id
+	return id != 0 && uithread.GoroutineID() == id
 }
 
 func noop() {}
@@ -144,14 +131,14 @@ func (a *App) enterMain() func() {
 	if a.mainG.Load() != 0 {
 		return noop
 	}
-	a.mainG.Store(goroutineID())
+	a.mainG.Store(uithread.GoroutineID())
 	return func() { a.mainG.Store(0) }
 }
 
 // isMain reports whether the caller runs on the main thread.
 func (a *App) isMain() bool {
 	m := a.mainG.Load()
-	return m != 0 && goroutineID() == m
+	return m != 0 && uithread.GoroutineID() == m
 }
 
 // mainBeforeRun reports whether the caller is the main goroutine and Run
