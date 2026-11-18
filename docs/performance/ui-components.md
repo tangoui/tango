@@ -495,7 +495,7 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 
 在真实窗口里给 statistics、select、badges、tour 采 CPU profile，结果：
 
-- 简单场景每帧有约 0.07–0.15 核的固定开销，其中 82–91% 在渲染器、present 和平台层：经 purego 的 Metal encode/commit、每帧一次的 `armTimer`（CFRunLoopTimerSetNextFireDate）、`nextDrawable` 以及原生线程。UI 管线（构建、布局、绘制列表、脏区）合计 ≤ 0.004 核。按设计稿 §6.3，这部分标为 **“受限于渲染器/平台，已转交”**。转交文档（B3）已交给 min-0f；它不在 min-0f 当前的范围内，已转请用户指派负责人。
+- 简单场景每帧有约 0.07–0.15 核的固定开销，其中 82–91% 在渲染器、present 和平台层：经 purego 的 Metal encode/commit、每帧一次的 `armTimer`（CFRunLoopTimerSetNextFireDate）、`nextDrawable` 以及原生线程。UI 管线（构建、布局、绘制列表、脏区）合计 ≤ 0.004 核。按设计稿 §6.3，这部分先标为“受限于渲染器/平台，转交”；之后用户决定在本分支里做，见下文“第 2 批：B3 渲染器/平台固定开销”。
 - tour 的大头是渲染器对整窗大小的遮罩路径逐帧做 pathPatch，可以在组件侧消除，见 B1。
 - grid 的大头是文字 shaping 加 GC。整数标签由 min-5a 的数字快速路径覆盖，合并后再测。
 
@@ -507,11 +507,41 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 - **B2 短文本 shaping 缓存**（cb85da5、de21e6c）：缓存 ≤ 64 字符文本段的 HarfBuzz 结果。键包含字体实例、ppem、可变轴坐标、字号、方向、文种、语言、OpenType 特性、文本本身以及两侧各 5 个字符的上下文（等于 go-text 的上下文长度，有测试锁定）。上限 4096 项 / 2 MiB，FIFO 淘汰，最坏约 3 MiB。与不走缓存的输出逐字形比对一致。
   - A/B（`uiperf ab`，基准 `0e5f24e`，交替 5 轮）：Button、Menu、Tag、Checkbox、Radio、Statistic、Descriptions、Segmented 的 Mount、Unchanged、Interact 和 Raster 全部是 noise。只有 Segmented/Large1k 为 keep（−13%）。Descriptions 与 Segmented 的 Large10k/Large100k 为 regress（+8% 到 +15%）：大集合里的文本段几乎都不重复，缓存只增加了建键、存储和淘汰的开销。按 R43 **回退**（029637b）。
   - 结论：标签类场景每步的 shaping 本来就不在瓶颈上。后续的文字优化应针对大集合的首次 shaping 本身，而不是加缓存。
-- **B3 渲染器/平台固定开销**：已转交，待用户指派（见上）。
+- **B3 渲染器/平台固定开销**：用户决定在本分支做，见下一节。
+
+### 第 2 批：B3 渲染器/平台固定开销
+
+- **用户决定**：P1 找到的每帧固定开销（渲染器、present、平台层）不再转交，在本分支里做。归别人负责的文件（`internal/render/quartz/**`、`uihost/gpu.go`、`uihost/native.go`）不动，所以“没有损伤时跳过 Render + Present”留给负责人那边。
+- **怎么判定保留还是回退（R59）**：`uiperf ab` 用的是空操作渲染器，看不到渲染器和平台层的开销，所以改用真实窗口的 Tango 自身 A/B：同一批场景程序分别用基准版和候选版编译，交替运行，每个版本至少 5 轮有效数据，比较进程 CPU。中位数至少省 5 %，并且 fps 和 p99 不变差，才算保留。
+- **5 轮真实窗口 A/B**（8 个场景，第 1–3 轮和第 4–5 轮之间屏幕锁过一次，锁屏期间的两轮作废重测；每格是 5 轮进程 CPU 的中位数，单位：核）：
+
+| 场景 | base（e829769） | c1（034a78b） | c2（f9dae1b） | head |
+|---|---|---|---|---|
+| badges | 0.1068 | 0.1126 | 0.1003 | 0.0989 |
+| buttons | 0.1390 | 0.1363 | 0.1251 | 0.1234 |
+| cards | 0.1247 | 0.1179 | 0.1159 | 0.1135 |
+| menu | 0.1029 | 0.1043 | 0.0932 | 0.0924 |
+| select | 0.1049 | 0.1046 | 0.0928 | 0.0905 |
+| sliders | 0.1236 | 0.1285 | 0.1208 | 0.1194 |
+| statistics | 0.1022 | 0.1022 | 0.0888 | 0.0966 |
+| tour | 0.1179 | 0.1190 | 0.1033 | 0.1020 |
+| 合计 | 0.922 | 0.925 | 0.840 | 0.837 |
+
+  - base → c1（034a78b）：CPU +0.4 %，等于没变；但 p99 帧间隔在 7/8 个场景上从 33 ms 降到 18 ms，也就是每个窗口原来固定掉的一帧没了。
+  - c1 → c2（f9dae1b）：合计 −9.2 %，tour 和 sliders 的四分位区间完全分开；p99 有时 18 ms、有时 32 ms，是偶发的单帧丢失。
+  - c2 → head（大路径缓存 + 当时还在的 87bd3e6）：−0.4 %，没变。
+  - 总体 base → head：0.922 → 0.837 核，−9.2 %。
+- **保留的提交**：
+  - 034a78b（darwin：临近帧截止时由 display link 出帧，计时器触发时间没变就不再重设）与 4cdc591（在创建计时器的地方重置这份缓存）。依据 R62：CPU 省不到 5 %，但 p99 的改善是实打实的，所以这里偏离了 R59 只看 CPU 的门槛。做错的代价：多一点小代码。
+  - f9dae1b（metal：present 放进这一帧的命令缓冲，基准 BenchmarkPresentTrivial −18 %）+ 06c8bd9（上一次 present 等 drawable 超过 1 ms 时，接下来 60 次 present 与帧分开提交，避免 GPU 繁忙时卡在 nextDrawable）+ 6a84cc3（评审小修）。依据 R62：−9.2 % 保留，前提是补上自适应退避和单测（已完成）。退避的阈值没有调过，可能吃掉一部分收益，所以要用最终版再测一次真实窗口。
+  - e8e0cee（gpu：缓存比 atlas 页还大的路径的 CPU 光栅结果）+ 2e1b761（连续两帧都出现才缓存，避免动画路径反复写入）。依据 R61：B1 之后场景里已经测不出它的收益，按 R59 本该去掉；但基准测试从 18.8 ms 降到 1 µs，所以保留。这一点偏离了 R59。做错的代价：多一点代码和内存。终审之后又收紧了一次：每帧结束时只留下这一帧用到的条目，Trim、缩放变化和设备丢失时整表清空，空闲窗口不会再长期占着几十 MB。
+- **回退的提交**：87bd3e6（darwin：帧内提出的下一帧请求不经过 run loop source 直接生效）由 7a91be4 回退。依据 R60：A/B 里看不出收益（c2 → head 合计 +1 %，其中还包含 e8e0cee），而且评审指出这条路径没有测试覆盖。做错的代价：丢掉一点没测出来的收益。
+- **待测**：最终版的真实窗口复核放在项目收尾的跨框架复测里一起做（需要用户先断开 UU Remote），尚未进行。另外上游 3acc4cd 之后，macOS arm64 的大窗口默认用原生图层渲染器，Metal 只在连续多帧超过 8 ms 后才切换，所以复测要同时看默认路径和强制 Metal 的结果。
+- **顺带发现的上游问题**：合并 origin/main 后 `TestPerfThemesRTL` 的 FieldSet/rtl、InputNumber/rtl 两个子测试失败。原因是上游数字快速路径（`ui/text/simple_numeric.go`）只按 LTR 计算、不取整、不做字距调整，而 RTL 走 HarfBuzz，同一段数字在两个方向上量出来的宽度不同（如 "42" 是 17.459 和 17.469）。复现交给了该文件的负责人，上游在 9f0d478 修复，合并后两个子测试恢复通过。本分支没有在自己这边绕过这个问题。
 
 ## 第 3 批：虚拟化
 
-依据 `virtualization-api-proposal.md`（`.superpowers/sdd/2026-11-16-ui-component-performance/`），用户 2026-11-17 批准。目标：第 1 批之后仍超标的 `Large100k` 要么让组件窗口化，要么写明为什么不适用。
+依据虚拟化 API 提案（工作区，不入库），用户 2026-11-17 批准，决定摘要如下。目标：第 1 批之后仍超标的 `Large100k` 要么让组件窗口化，要么写明为什么不适用。
 
 ### 用户决定
 
@@ -537,6 +567,14 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
   - Tabs：更多菜单里的隐藏标签只在下拉打开时生成。关闭的 Dropdown 本来就不读菜单项，测试在 antd / Element / shadcn 三种风格、顶部和左侧两种位置下逐步比对像素、无障碍树和选中标签：关闭、点击打开、键盘移动、回车选择、悬停打开、点击选择。
   - Carousel：只构建当前张及相邻张不是“显然等价”（切换动画、圆点、无障碍树都会受影响），没有做。
 - **测量框架**：夹具新增 `NA`（场景 → 理由）和 `LargeVirtual` 两个字段。`TestPerfCoverage` 检查不适用标记：只能用于 Large10k / Large100k，场景必须存在，理由不能为空，不能同时在 `perfTimeDebt` 里；夹具要么有 `LargeVirtual` 场景，要么理由以 `unrealistic:`、`closure:` 或 `covered:`（写明测虚拟形态的夹具）开头。`TestPerfNARules` 覆盖每一种拒绝情况。
+
+### 终审修复
+
+- **a 类 `DataVersion(v int)`（用户决定 Q-V1a）**：AutoComplete、Mentions、Command、Cascader、CascaderPanel 新增，签名和语义与 `SelectW.DataVersion` 相同。自动虚拟形态按选项切片（身份与长度）缓存匹配结果、排序和列表宽度；原地改同一切片里的选项而长度不变时，要改 `DataVersion`（或换新切片），下一帧才重新匹配和测宽。不改时保持缓存的结果，文档注释写明了这一点。缓存键里的 `&src[0]` 会让上一份选项切片在被替换前不能回收，这是为了不被复用地址的新切片误命中，注释里写明了内存代价。
+- **Tree `DataVersion(v int)`（R65，用户授权裁定）**：只在同时设了 `Height` 时生效。缓存父节点表、键索引、`Filter` 可见集合、展平后的可见行（按展开键的内容比较）和勾选状态，每帧开销跟随视口；节点字段始终实时读取，不复制节点。不调用时行为和开销与之前完全相同。新增场景 `LargeVersioned1k / 10k / 100k`（`Height(760)` + `DataVersion`），预算同 `Large*`：LargeVersioned100k TODO_TREE_V100K / 预算 TODO_TREE_VBUDGET。原 `Tree/LargeVirtual100k`（不带 `DataVersion`）的时间债不变。测试让带与不带 `DataVersion` 的两棵树执行同一组操作（滚动、选择、跨窗口的键盘移动、展开收起、勾选和半选、外部改展开键、过滤），每一步比对无障碍树和像素。
+- **Sender / Cascader 搜索结果**：超过 100 项同样自动窗口化，没有 `Virtual(bool)` 开关（每帧重新匹配和测宽），已写进 CHANGELOG。
+- **编辑表的保留行**：`EditableRows` 里残留的键（行已被外部删除或不在当前页）不再每帧扫描整页；行数、`Revision`、分页范围或排序结果变化时重新查找。
+- **债表棘轮**：`TestPerfBudgets`（`TANGO_PERF_BUDGET=1`）中，已登记的时间债如果实测超过登记值的 1.5 倍就失败，防止已知的债继续恶化。
 
 ## 历史：Task 12a 基线（5f115d3）
 
