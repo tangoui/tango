@@ -7,7 +7,9 @@ package uihost
 // force keeps the tree built without an assistive technology. The host is
 // the platform.CanvasAccessibleSink that hands actions to the runner.
 //
-// Everything runs on the main thread, which is the UI thread.
+// Everything runs on the window's UI thread: the main thread, or a
+// threaded window's own thread (threaded.go), where AccessibilityAction,
+// which arrives on the main thread, is queued.
 
 import (
 	"errors"
@@ -279,10 +281,17 @@ var _ platform.CanvasAccessibleSink = (*host)(nil)
 var errA11yClosed = errors.New("uihost: window closed")
 
 // AccessibilityAction hands an assistive technology's request to the
-// runner; it runs at the start of the next frame.
+// runner; it runs at the start of the next frame. A threaded window queues
+// it on its UI thread (spec §5.8) and accepts it: the main thread does not
+// wait for the runner's answer, and an action the runner refuses (a node
+// gone since the platform's copy of the tree) is dropped there.
 func (h *host) AccessibilityAction(id a11y.NodeID, act a11y.Action, arg string) error {
 	if h.closed || h.r == nil {
 		return errA11yClosed
+	}
+	if h.t != nil {
+		h.onUI(func() { _ = h.r.PerformAction(id, act, arg) })
+		return nil
 	}
 	return h.r.PerformAction(id, act, arg)
 }

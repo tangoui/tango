@@ -29,6 +29,7 @@ package uihost
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/corehook"
@@ -177,15 +178,17 @@ func (b *shortcut) allowedInText(ev input.KeyEvent) bool {
 }
 
 // shortcuts is the table of one window. binds is guarded by mu (Shortcut
-// may run anywhere); the rest is main-thread state.
+// may run anywhere); captureOn and textOn are set by the runner, on the
+// window's UI thread; the rest is main-thread state (handle runs on the
+// main thread, also for a threaded window).
 type shortcuts struct {
 	app   *tango.App
 	mu    sync.Mutex
 	binds []*shortcut
 
-	captureOn bool
+	captureOn atomic.Bool
 	captured  map[input.Key]bool // keys begun while recording; do not fire on repeat after recording
-	textOn    bool               // the runner turned text input on
+	textOn    atomic.Bool        // the runner turned text input on
 	composing bool               // an input method is composing
 	held      map[input.Key]bool // keys whose press fired: repeats and release are swallowed
 }
@@ -222,17 +225,19 @@ func (t *shortcuts) remove(b *shortcut) {
 	}
 }
 
-// setText records the runner's text input state. Main thread; t may be nil.
+// setText records the runner's text input state. The window's UI thread;
+// t may be nil.
 func (t *shortcuts) setText(on bool) {
 	if t != nil {
-		t.textOn = on
+		t.textOn.Store(on)
 	}
 }
 
-// setCapture changes recorder mode without altering the registered bindings.
+// setCapture changes recorder mode without altering the registered
+// bindings. The window's UI thread; t may be nil.
 func (t *shortcuts) setCapture(on bool) {
 	if t != nil {
-		t.captureOn = on
+		t.captureOn.Store(on)
 	}
 }
 
@@ -261,7 +266,7 @@ func (t *shortcuts) key(ev input.KeyEvent) bool {
 	if !ev.Down {
 		delete(t.captured, ev.Key)
 	}
-	if t.captureOn {
+	if t.captureOn.Load() {
 		if ev.Down {
 			if t.captured == nil {
 				t.captured = make(map[input.Key]bool)
@@ -297,7 +302,7 @@ func (t *shortcuts) key(ev input.KeyEvent) bool {
 	var fn func()
 	t.mu.Lock()
 	for _, b := range t.binds {
-		if b.matches(ev) && (!t.textOn || b.allowedInText(ev)) {
+		if b.matches(ev) && (!t.textOn.Load() || b.allowedInText(ev)) {
 			fn = b.fn
 			break
 		}

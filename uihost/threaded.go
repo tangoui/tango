@@ -9,24 +9,28 @@ package uihost
 // order and return at once. Other canvases, Attach and the tan dev host
 // keep the main thread as the UI thread.
 //
-// Not threaded yet (later steps of the plan): shortcut functions and the
-// window's main-thread calls (cursor, text input, clipboard, window state)
-// run on the UI thread as the runner makes them; global theme, contrast,
-// motion and memory notifications still call the runner on the main
-// thread; embedded WebViews are not placed (the window has no embeds);
-// accessibility actions and automation reach the runner from the main
-// thread.
+// The window's main-thread calls (cursor, text input, clipboard, window
+// state) are posted to the main thread (window.onMain); shortcuts are
+// matched and run on the main thread; accessibility actions and the
+// global theme, locale, contrast, motion and memory notifications reach
+// the runner on its UI thread (callRunner).
+//
+// Not threaded yet (later steps of the plan): embedded WebViews are not
+// placed (the window has no embeds); automation reaches the runner from
+// the main thread.
 
 import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/uithread"
 	"github.com/tangoui/tango/ui"
+	"github.com/tangoui/tango/ui/theme"
 )
 
 // threadedHost is the UI-thread side of a host whose canvas implements
@@ -35,6 +39,11 @@ type threadedHost struct {
 	th        *uithread.Thread
 	request   func() // asks the frame clock for a tick; any goroutine
 	stopClock func() // UI thread
+
+	// theme is the runner's theme as of the last frame, for main-thread
+	// readers (FollowingSystemTheme). TODO(Task 8): part of the per-frame
+	// UI-state snapshot.
+	theme atomic.Pointer[theme.Theme]
 }
 
 // threadedRunners maps the runner of each open threaded window to its
@@ -47,6 +56,20 @@ func threadedOf(r *ui.Runner) *threadedHost {
 		return t.(*threadedHost)
 	}
 	return nil
+}
+
+// callRunner runs fn, main-thread code that calls r's UI-thread methods
+// (a system notification arrived), on r's UI thread: now on a main-thread
+// window, queued with Runner.Post on a threaded one (spec §5.9), where it
+// is dropped once the window closed. threaded is threadedOf(r) != nil as
+// the caller recorded it when it registered r, so it stays right after
+// the window closed. Main thread.
+func callRunner(threaded bool, r *ui.Runner, fn func()) {
+	if threaded {
+		r.Post(fn)
+		return
+	}
+	fn()
 }
 
 // post queues fn on the UI thread; a panic in it goes to app's panic
@@ -87,13 +110,14 @@ func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page f
 		ropts.Renderer = h.gpu
 	}
 	r := ui.NewRunner(page, ropts)
+	threadedRunners.Store(r, t) // before newA11y: followMotion records it
+	t.theme.Store(r.Context().Theme)
 	h.ax = newA11y(h.app, h.cv, r, ropts)
 	r.BindThread(t.th)
 	h.win = &window{app: h.app, cv: h.cv, id: h.id, gpu: h.gpu, sc: h.sc, ax: h.ax, t: t, geo: ct}
 	h.win.watchFrame(s) // frame.go
 	r.Attach(h.win)
 	h.watchRenderer(r)
-	threadedRunners.Store(r, t)
 	// Until here sink callbacks took the main-thread path, which ignores
 	// them while h.r is nil. From here they are queued on the UI thread.
 	h.t, h.r = t, r

@@ -191,6 +191,9 @@ func (h *host) frame() {
 	if !corehook.Guard(h.app, "ui frame", func() { err = h.r.Frame() }) {
 		return
 	}
+	if h.t != nil {
+		h.t.theme.Store(h.r.Context().Theme) // FollowingSystemTheme (follow.go)
+	}
 	if err != nil {
 		// Keep running; log each distinct error once in a row so a failing
 		// animation does not flood the log.
@@ -218,13 +221,24 @@ func (h *host) CanvasInput(ev input.Event) {
 		return
 	}
 	guiprobe.Observe(ev) // no-op unless built explicitly with tango_guiprobe
+	// A window shortcut consumes its key (shortcuts.go). The table is
+	// matched on the main thread and its functions run there (spec §5.7),
+	// so a threaded window matches before queuing: a consumed key never
+	// reaches the UI thread. TODO(Task 8): the text-input and recording
+	// state it matches against is what the UI thread last reported
+	// (atomics in shortcuts); the per-frame UI-state snapshot replaces it.
+	var consumed bool
+	if h.t != nil {
+		consumed = h.sc.handle(ev)
+	}
 	h.onUI(func() {
 		if isKeyboardInput(ev) { // typing: native windows move to Metal (native.go)
 			h.gpu.keyboardInput()
 		}
-		// TODO(Task 5): on a threaded window a shortcut's function runs on
-		// the UI thread here; it is documented to run on the main thread.
-		if !h.sc.handle(ev) { // a window shortcut consumes its key (shortcuts.go)
+		if h.t == nil {
+			consumed = h.sc.handle(ev) // the main thread is the UI thread
+		}
+		if !consumed {
 			h.r.HandleEvent(ev)
 		}
 		h.invalidate()
@@ -249,8 +263,13 @@ func (h *host) CanvasFocus(focused bool) {
 	if h.closed || h.r == nil {
 		return
 	}
+	if h.t != nil {
+		h.sc.handle(input.WindowFocus{Focused: focused}) // main thread, as in CanvasInput
+	}
 	h.onUI(func() {
-		h.sc.handle(input.WindowFocus{Focused: focused})
+		if h.t == nil {
+			h.sc.handle(input.WindowFocus{Focused: focused})
+		}
 		h.r.HandleEvent(input.WindowFocus{Focused: focused})
 		h.invalidate()
 	})
@@ -322,9 +341,33 @@ type window struct {
 	geo platform.CanvasThreaded // with t: size and scale as the main thread last set them
 }
 
-// The ui.Window methods run on the window's UI thread. TODO(Task 5): on a
-// threaded window SetCursor, SetTextInput, the clipboard and the window
-// state still reach the canvas and the app from that thread.
+// The ui.Window methods run on the window's UI thread. On a threaded
+// window the calls that need the main thread are posted to it (onMain)
+// without waiting, except ReadClipboard, which waits for its answer (spec
+// §4.2, §5.3).
+
+// onMain runs fn, a call that needs the main thread and whose result
+// nobody waits for (cursor, input method, window state, clipboard
+// writes): now on a main-thread window, posted to the main thread in call
+// order on a threaded one. The last call wins.
+func (w *window) onMain(fn func()) {
+	if w.t != nil {
+		w.app.Post(fn)
+		return
+	}
+	fn()
+}
+
+// awaitMain marks a threaded window's UI thread as waiting for the main
+// thread until the returned function is called (spec §5.3: the main thread
+// then never waits for it). No-op on a main-thread window.
+func (w *window) awaitMain() (done func()) {
+	if w.t == nil {
+		return func() {}
+	}
+	w.t.th.SetAwaitingMain(true)
+	return func() { w.t.th.SetAwaitingMain(false) }
+}
 
 func (w *window) Size() geom.Size {
 	if w.geo != nil {
@@ -357,17 +400,17 @@ func (w *window) Invalidate() {
 func (w *window) PostUI(fn func()) { w.app.Post(fn) }
 
 func (w *window) InvalidateAt(t time.Time) { w.cv.InvalidateAt(t) }
-func (w *window) SetCursor(c input.Cursor) { w.cv.SetCursor(c) }
+func (w *window) SetCursor(c input.Cursor) { w.onMain(func() { w.cv.SetCursor(c) }) }
 func (w *window) SetShortcutCapture(on bool) {
 	w.sc.setCapture(on)
 	if cv, ok := w.cv.(platform.CanvasShortcutCapture); ok {
-		cv.SetShortcutCapture(on)
+		w.onMain(func() { cv.SetShortcutCapture(on) })
 	}
 }
 
 func (w *window) SetTextInput(on bool, caret geom.Rect) {
 	w.sc.setText(on)
-	w.cv.SetTextInput(on, caret)
+	w.onMain(func() { w.cv.SetTextInput(on, caret) })
 }
 func (w *window) Present(img *image.RGBA) error {
 	if img == nil && w.gpu != nil {
@@ -377,10 +420,14 @@ func (w *window) Present(img *image.RGBA) error {
 }
 
 // ReadClipboard returns the clipboard's text, "" when it holds none or
-// cannot be read.
+// cannot be read. A threaded window's UI thread waits for the main thread
+// (clipboard.ReadText awaits it).
 func (w *window) ReadClipboard() string {
+	defer w.awaitMain()()
 	s, _ := clipboard.ReadText(w.app)
 	return s
 }
 
-func (w *window) WriteClipboard(s string) { _ = clipboard.WriteText(w.app, s) }
+func (w *window) WriteClipboard(s string) {
+	w.onMain(func() { _ = clipboard.WriteText(w.app, s) })
+}

@@ -16,16 +16,18 @@ import (
 // the maximize / restore button follows.
 func (w *window) watchFrame(s *tango.Surface) {
 	w.s = s
-	s.OnStateChanged(func(tango.WindowState) { w.cv.Invalidate() })
+	s.OnStateChanged(func(tango.WindowState) { w.Invalidate() })
 }
 
 func (w *window) FrameInfo() ui.WindowFrameInfo {
 	if w.s == nil {
 		return ui.WindowFrameInfo{}
 	}
-	ap := w.s.Appearance()
+	done := w.awaitMain() // Appearance and State ask the main thread
+	ap, state := w.s.Appearance(), w.s.State()
+	done()
 	var st ui.WindowState
-	switch w.s.State() {
+	switch state {
 	case tango.StateMinimized:
 		st = ui.WindowMinimized
 	case tango.StateMaximized:
@@ -46,21 +48,24 @@ func (w *window) SetWindowState(st ui.WindowState) {
 	if w.s == nil {
 		return
 	}
-	switch st {
-	case ui.WindowMinimized:
-		_ = w.s.Minimize()
-	case ui.WindowMaximized:
-		_ = w.s.Maximize()
-	case ui.WindowFullscreen:
-		_ = w.s.Fullscreen()
-	default:
-		_ = w.s.Restore()
-	}
+	s := w.s
+	w.onMain(func() {
+		switch st {
+		case ui.WindowMinimized:
+			_ = s.Minimize()
+		case ui.WindowMaximized:
+			_ = s.Maximize()
+		case ui.WindowFullscreen:
+			_ = s.Fullscreen()
+		default:
+			_ = s.Restore()
+		}
+	})
 }
 
 func (w *window) CloseWindow() {
-	if w.s != nil {
-		w.s.Close()
+	if s := w.s; s != nil {
+		w.onMain(s.Close)
 	}
 }
 

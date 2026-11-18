@@ -26,8 +26,10 @@ import (
 
 // threadedCanvas wraps a fake canvas as a platform.CanvasThreaded. The
 // frame clock never ticks by itself: a test runs the requested frame with
-// flush (or a frame regardless with tick), on the clock's thread. Present,
-// SetCursor and SetTextInput only record, from any thread.
+// flush (or a frame regardless with tick), on the clock's thread. Present
+// only records, from any thread; SetCursor, SetTextInput and
+// SetTextInputState record their goroutine and reach the fake canvas only
+// on the main thread (off it the fake would panic).
 type threadedCanvas struct {
 	platform.Canvas
 	sink     platform.CanvasSink
@@ -44,6 +46,9 @@ type threadedCanvas struct {
 	presents   int
 	presentGID uint64 // goroutine of the last Present
 	metalGIDs  []uint64
+	cursorGIDs []uint64 // SetCursor callers
+	textGIDs   []uint64 // SetTextInput callers
+	reqGIDs    []uint64 // frame request callers
 }
 
 // UseMetalLayer implements platform.CanvasMetal through the fake canvas,
@@ -82,6 +87,7 @@ func (c *threadedCanvas) request() {
 	c.mu.Lock()
 	c.pending = true
 	c.requests++
+	c.reqGIDs = append(c.reqGIDs, uithread.GoroutineID())
 	eager, th, fn := c.eager, c.th, c.tickFn
 	c.mu.Unlock()
 	if eager {
@@ -113,8 +119,23 @@ func (c *threadedCanvas) Present(*image.RGBA) error {
 	return nil
 }
 
-func (c *threadedCanvas) SetCursor(input.Cursor)       {}
-func (c *threadedCanvas) SetTextInput(bool, geom.Rect) {}
+func (c *threadedCanvas) SetCursor(cur input.Cursor) {
+	c.mu.Lock()
+	c.cursorGIDs = append(c.cursorGIDs, uithread.GoroutineID())
+	c.mu.Unlock()
+	if uithread.Current() == nil {
+		c.Canvas.SetCursor(cur)
+	}
+}
+
+func (c *threadedCanvas) SetTextInput(on bool, caret geom.Rect) {
+	c.mu.Lock()
+	c.textGIDs = append(c.textGIDs, uithread.GoroutineID())
+	c.mu.Unlock()
+	if uithread.Current() == nil {
+		c.Canvas.SetTextInput(on, caret)
+	}
+}
 
 // started reports whether StartFrameClock succeeded.
 func (c *threadedCanvas) started() bool {
@@ -227,7 +248,25 @@ func openThreaded(t *testing.T, a *tango.App, fb *fake.Backend, page func(*ui.Co
 	if tc == nil || !tc.started() {
 		t.Fatal("no threaded canvas with a running frame clock")
 	}
+	closeAtEnd(t, fb, o.s, tc)
 	return o.r, o.s, tc, fb.Canvas(o.s.ID())
+}
+
+// closeAtEnd closes a threaded window when the test ends and waits for its
+// UI thread to exit. Windows of different tests must not draw at the same
+// time: package-level layout and cache state is not safe for concurrent
+// frames yet (plan Task 9), and the memory warning reaches the runners of
+// every app.
+func closeAtEnd(t *testing.T, fb *fake.Backend, s *tango.Surface, tc *threadedCanvas) {
+	t.Helper()
+	t.Cleanup(func() {
+		fb.RequestClose(s.ID())
+		select {
+		case <-tc.th.Done():
+		case <-time.After(faketest.Timeout):
+			t.Error("UI thread did not exit after close")
+		}
+	})
 }
 
 // mainGID returns the goroutine id of a's main thread.
@@ -534,7 +573,7 @@ func TestThreadedDropRunsAfterDragOver(t *testing.T) {
 // A clock that ticks as soon as Open's hand-over asks for the first frame
 // finds the host complete (run with -race).
 func TestThreadedEagerClockFirstFrame(t *testing.T) {
-	a, _ := faketest.Run(t, tango.Options{})
+	a, fb := faketest.Run(t, tango.Options{})
 	canvases := useThreadedCanvases(t, false, clockCfg{eager: true})
 	ran := make(chan struct{}, 1)
 	o := tango.Await(a, func() opened {
@@ -558,6 +597,7 @@ func TestThreadedEagerClockFirstFrame(t *testing.T) {
 		t.Fatal("first frame did not run the page")
 	}
 	tc := canvases(o.s.ID())
+	closeAtEnd(t, fb, o.s, tc)
 	tc.sync(t)
 	tc.mu.Lock()
 	defer tc.mu.Unlock()

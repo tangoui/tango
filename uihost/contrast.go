@@ -86,10 +86,10 @@ func (af *appFollow) contrastChanged() {
 		if !f.theme || f.opts.Contrast != ContrastSystem || f.hc == on {
 			continue
 		}
-		if f.r.Context().Theme != f.last {
+		if f.replaced() {
 			f.theme = false // the app set its own theme: leave it alone
 			continue
 		}
-		f.applyContrast(f.sys, on)
+		f.applyContrast(f.sys, on, true)
 	}
 }

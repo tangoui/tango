@@ -134,6 +134,7 @@ func FollowSystemTheme(r *ui.Runner, on bool) {
 		return
 	}
 	f.theme = on
+	f.gen++
 	if !on {
 		return
 	}
@@ -141,42 +142,90 @@ func FollowSystemTheme(r *ui.Runner, on bool) {
 	if err != nil {
 		sys = systheme.Theme{}
 	}
-	f.apply(sys)
+	f.apply(sys, false)
 }
 
 // FollowingSystemTheme reports whether r currently follows the system
-// theme. Main thread.
+// theme. Main thread. For a window with its own UI thread the answer uses
+// the theme of its last frame.
 func FollowingSystemTheme(r *ui.Runner) bool {
 	f := followerOf(r)
-	return f != nil && f.theme && f.r.Context().Theme == f.last
+	return f != nil && f.theme && f.current() == f.last
 }
 
 // follower is one window's following state. Main thread, except that the
-// registry (follows) is locked when lists change.
+// registry (follows) is locked when lists change. A threaded window's
+// runner is only called through Runner.Post (setTheme, localeChanged).
 type follower struct {
-	app    *tango.App
-	r      *ui.Runner
-	opts   Options // Theme is never ThemeFixed here
-	theme  bool    // following the system theme
-	last   *theme.Theme
-	sys    systheme.Theme // appearance last applied
-	hc     bool           // last is the high-contrast variant
-	locale bool           // following i18n.Locale
+	app      *tango.App
+	r        *ui.Runner
+	threaded bool    // r has its own UI thread (threaded.go)
+	opts     Options // Theme is never ThemeFixed here
+	theme    bool    // following the system theme
+	gen      int     // FollowSystemTheme calls, for setTheme's late answers
+	last     *theme.Theme
+	sys      systheme.Theme // appearance last applied
+	hc       bool           // last is the high-contrast variant
+	locale   bool           // following i18n.Locale
 }
 
-// apply sets the theme for sys and the current system contrast. Main
-// thread.
-func (f *follower) apply(sys systheme.Theme) {
+// current returns r's theme: read now on the main thread, which is the UI
+// thread, or as of the last frame of a threaded window.
+func (f *follower) current() *theme.Theme {
+	if f.threaded {
+		if t := threadedOf(f.r); t != nil {
+			return t.theme.Load()
+		}
+		return nil // closed
+	}
+	return f.r.Context().Theme
+}
+
+// replaced reports, before a system change is applied, whether the app set
+// its own theme: following then stops. A threaded window cannot tell on
+// the main thread; setTheme checks on its UI thread instead.
+func (f *follower) replaced() bool {
+	return !f.threaded && f.r.Context().Theme != f.last
+}
+
+// apply sets the theme for sys and the current system contrast; check:
+// as in setTheme. Main thread.
+func (f *follower) apply(sys systheme.Theme, check bool) {
 	on, _ := systemHighContrast(f.app)
-	f.applyContrast(sys, f.opts.highContrast(on))
+	f.applyContrast(sys, f.opts.highContrast(on), check)
 }
 
 // applyContrast sets the theme for sys, high-contrast or not. Main
 // thread.
-func (f *follower) applyContrast(sys systheme.Theme, hc bool) {
+func (f *follower) applyContrast(sys systheme.Theme, hc, check bool) {
 	th := f.opts.themeForContrast(sys, hc)
+	prev := f.last
 	f.last, f.sys, f.hc = th, sys, hc
-	f.r.SetTheme(th)
+	f.setTheme(prev, th, check)
+}
+
+// setTheme gives the runner th. A threaded window does it on its UI thread
+// (spec §5.9); with check it first makes sure the runner's theme is still
+// prev, the one uihost set last: if the app set its own meanwhile, the
+// runner keeps it and following stops (on the main thread, unless
+// FollowSystemTheme was called since). Main thread.
+func (f *follower) setTheme(prev, th *theme.Theme, check bool) {
+	if !f.threaded {
+		f.r.SetTheme(th)
+		return
+	}
+	gen := f.gen
+	f.r.Post(func() {
+		if check && f.r.Context().Theme != prev {
+			f.app.Post(func() {
+				if f.gen == gen {
+					f.theme = false
+				}
+			})
+			return
+		}
+		f.r.SetTheme(th)
+	})
 }
 
 // appFollow is the shared subscription of one app's windows.
@@ -256,7 +305,7 @@ func localeFor(code string) *ui.Locale {
 // start registers the window's follower and returns the function that
 // removes it; it also runs when s closes (s may be nil). Main thread.
 func (p *pendingFollow) start(r *ui.Runner, s *tango.Surface) (stop func()) {
-	f := &follower{app: p.app, r: r, opts: p.opts, theme: p.theme, last: p.last, sys: p.sys, hc: p.hc, locale: p.locale}
+	f := &follower{app: p.app, r: r, threaded: threadedOf(r) != nil, opts: p.opts, theme: p.theme, last: p.last, sys: p.sys, hc: p.hc, locale: p.locale}
 	follows.mu.Lock()
 	if follows.apps == nil {
 		follows.apps = map[*tango.App]*appFollow{}
@@ -317,35 +366,50 @@ func (af *appFollow) themeChanged(sys systheme.Theme) {
 		if !f.theme {
 			continue
 		}
-		if f.r.Context().Theme != f.last {
+		if f.replaced() {
 			f.theme = false // the app set its own theme: leave it alone
 			continue
 		}
 		if f.opts.Theme != ThemeSystem && !f.opts.AccentFromSystem {
 			continue // nothing to follow
 		}
-		f.apply(sys)
+		f.apply(sys, true)
 	}
 }
 
-// localeChanged runs on the main thread when i18n.Locale changed.
+// localeChanged runs on the main thread when i18n.Locale changed. The
+// locale a window draws is read from a window on the main thread when
+// there is one; a threaded window's runner is asked on its UI thread
+// (Runner.Post), and the decision is made back on the main thread.
 func (af *appFollow) localeChanged(code string) {
-	list := af.snapshot()
 	var first *follower
-	for _, f := range list {
-		if f.locale {
+	for _, f := range af.snapshot() {
+		if f.locale && (first == nil || first.threaded && !f.threaded) {
 			first = f
-			break
 		}
 	}
 	if first == nil {
 		return
 	}
 	l := localeFor(code)
+	if first.threaded {
+		first.r.Post(func() {
+			cur := first.r.Context().Locale()
+			af.app.Post(func() { af.setLocale(l, cur) })
+		})
+		return
+	}
+	af.setLocale(l, first.r.Context().Locale())
+}
+
+// setLocale makes l the default locale unless cur, the locale a following
+// window draws, shows the app set its own. Main thread.
+func (af *appFollow) setLocale(l, cur *ui.Locale) {
+	list := af.snapshot()
 	follows.mu.Lock()
 	last := follows.lastLocale
 	follows.mu.Unlock()
-	if cur := first.r.Context().Locale(); last != nil && cur != last && cur != l {
+	if last != nil && cur != last && cur != l {
 		// The app called ui.SetDefaultLocale itself: stop following.
 		for _, f := range list {
 			f.locale = false

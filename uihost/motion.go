@@ -16,8 +16,9 @@ import (
 )
 
 type motionWin struct {
-	r     *ui.Runner
-	fixed bool // RunnerOptions.ReduceMotion: always on
+	r        *ui.Runner
+	fixed    bool // RunnerOptions.ReduceMotion: always on
+	threaded bool // r has its own UI thread (callRunner)
 }
 
 type appMotion struct {
@@ -44,7 +45,8 @@ func systemReduceMotion(app *tango.App) (on, ok bool) {
 }
 
 // followMotion applies the system preference to r now and on every change
-// until the returned stop is called. Main thread.
+// until the returned stop is called. Main thread, before r is attached (a
+// threaded window's runner is not bound to its thread yet).
 func followMotion(app *tango.App, r *ui.Runner, ropts ui.RunnerOptions) (stop func()) {
 	on, ok := systemReduceMotion(app)
 	if !ok {
@@ -53,7 +55,7 @@ func followMotion(app *tango.App, r *ui.Runner, ropts ui.RunnerOptions) (stop fu
 	if on && !ropts.ReduceMotion {
 		r.SetReduceMotion(true)
 	}
-	w := &motionWin{r: r, fixed: ropts.ReduceMotion}
+	w := &motionWin{r: r, fixed: ropts.ReduceMotion, threaded: threadedOf(r) != nil}
 	motions.mu.Lock()
 	if motions.apps == nil {
 		motions.apps = map[*tango.App]*appMotion{}
@@ -95,6 +97,6 @@ func motionChanged(app *tango.App) {
 	list := slices.Clone(am.list)
 	motions.mu.Unlock()
 	for _, w := range list {
-		w.r.SetReduceMotion(on || w.fixed)
+		callRunner(w.threaded, w.r, func() { w.r.SetReduceMotion(on || w.fixed) })
 	}
 }

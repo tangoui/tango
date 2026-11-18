@@ -23,8 +23,9 @@ type trimmer interface{ Trim() }
 
 var memWatch sync.Map // *tango.App -> struct{}: subscribed
 
-// memRunners are the open runners, for the frame that follows a trim.
-var memRunners sync.Map // *ui.Runner -> struct{}
+// memRunners are the open runners, for the frame that follows a trim,
+// with whether each has its own UI thread (callRunner).
+var memRunners sync.Map // *ui.Runner -> bool
 
 // watchMemory subscribes app to memory warnings (once) and registers r;
 // host.close unregisters it. Main thread.
@@ -34,14 +35,16 @@ func watchMemory(app *tango.App, r *ui.Runner) {
 			app.OnEventKind(platform.AppMemoryWarning, func(tango.AppEvent) { trimMemory() })
 		}
 	}
-	memRunners.Store(r, struct{}{})
+	memRunners.Store(r, threadedOf(r) != nil)
 }
 
-// trimMemory runs on the main thread after AppMemoryWarning.
+// trimMemory runs on the main thread after AppMemoryWarning. A threaded
+// window trims on its UI thread.
 func trimMemory() {
 	text.TrimFontCaches()
-	memRunners.Range(func(k, _ any) bool {
-		k.(*ui.Runner).TrimCaches()
+	memRunners.Range(func(k, v any) bool {
+		r := k.(*ui.Runner)
+		callRunner(v.(bool), r, r.TrimCaches)
 		return true
 	})
 }
