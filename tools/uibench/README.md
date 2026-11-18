@@ -90,7 +90,8 @@ program's environment before starting it, says which on startup and lists
 them in `meta.cleared_env`: no Tango-only diagnostics (`TANGO_FRAME_TRACE`
 adds per-frame cost), and with `TANGO_RENDERER` gone Tango runs its default policy, which may start
 native or cpu and move to gpu (or fall back) during a run, so the window
-size does not tell the path. Each round keeps:
+size does not tell the path (unless `-tango-renderer` forces it; see
+below). Each round keeps:
 
 - `renderer_timeline`: every renderer line, (t_ns, name);
 - `renderer_switches`: each change, with its time and `in_sample`;
@@ -255,6 +256,29 @@ frame-trace run separate from a CPU-profile comparison: the trace costs CPU.
 
 bin/tango is built with `-ldflags "-s -w"`, so pprof reads its symbols
 from the profile itself (Go records function names in it).
+
+### Forcing Tango's renderer
+
+`-tango-renderer <auto|cpu|gpu|native>` gives the Tango program alone
+`TANGO_RENDERER=<value>` (after the inherited `TANGO_*` are cleared; MyGo
+and NSGo get nothing), in measurement runs as well as with `-profile-dir`.
+The values are exactly those Tango reads (`uihost/gpu.go`,
+`docs/dev-builds.md`); any other is refused, as is `-tango-env
+TANGO_RENDERER=...` alongside it. The runner prints `runner: tango renderer
+forced: <value>` on stderr at the start and records `meta.tango_renderer`.
+Rounds are measured and recorded as usual, for a Tango-only A/B
+(`-frameworks tango`, one run per value); verdicts against MyGo or NSGo
+still run but are prefixed `TANGO RENDERER FORCED (<value>, not
+adoptable):` and the run is marked not adoptable (`meta.not_adoptable`:
+"tango renderer forced"), since the comparison must use Tango's default
+policy.
+
+```sh
+../bin/runner -bin ../bin -scenes list,grid -frameworks tango -tango-renderer gpu \
+	-out ../results/ab-gpu-$(date +%H%M).json
+../bin/runner -bin ../bin -scenes list,grid -frameworks tango -tango-renderer native \
+	-out ../results/ab-native-$(date +%H%M).json
+```
 
 ### Quiet-machine check
 

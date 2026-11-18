@@ -170,12 +170,66 @@ func checkTangoEnv(env []string, profileDir string) error {
 	return nil
 }
 
+// tangoRenderers are the TANGO_RENDERER values Tango accepts
+// (uihost/gpu.go setupGPU; docs/dev-builds.md): any other value, like an
+// unset one, runs the default policy, so -tango-renderer refuses it.
+var tangoRenderers = []string{"auto", "cpu", "gpu", "native"}
+
+// rendererEnv is the variable -tango-renderer sets for the Tango program.
+const rendererEnv = "TANGO_RENDERER"
+
+// forcedRendererReason is the meta.not_adoptable reason of a run with
+// -tango-renderer.
+const forcedRendererReason = "tango renderer forced"
+
+// checkTangoRenderer validates -tango-renderer: empty (Tango's default
+// policy) or one of tangoRenderers, and not also given as -tango-env.
+func checkTangoRenderer(v string, tangoEnv []string) error {
+	if v == "" {
+		return nil
+	}
+	if !contains(tangoRenderers, v) {
+		return fmt.Errorf("-tango-renderer %q: want one of %s (Tango's TANGO_RENDERER values)", v, strings.Join(tangoRenderers, ", "))
+	}
+	for _, kv := range tangoEnv {
+		if strings.HasPrefix(kv, rendererEnv+"=") {
+			return fmt.Errorf("-tango-renderer and -tango-env %s both set the renderer: give one", kv)
+		}
+	}
+	return nil
+}
+
+// forceTangoRenderer records -tango-renderer in the results meta and, when
+// set, marks the run not adoptable: a verdict against MyGo or NSGo must
+// compare Tango's default policy. The rounds are kept as usual (Tango-only
+// A/B with -frameworks tango).
+func forceTangoRenderer(m *Meta, v string) {
+	if v == "" {
+		return
+	}
+	m.TangoRenderer = v
+	m.markNotAdoptable(forcedRendererReason)
+}
+
+// forcedRendererWhy marks a verdict reason measured with -tango-renderer.
+func forcedRendererWhy(why, v string) string {
+	if v == "" {
+		return why
+	}
+	return "TANGO RENDERER FORCED (" + v + ", not adoptable): " + why
+}
+
 // sceneCommand is the command that starts one scene program. Only with
 // -profile-dir (cfg.profileDir) does the Tango program get
 // UIBENCH_CPUPROFILE; no other program and no measurement run ever does.
+// -tango-renderer (cfg.tangoRenderer) gives the Tango program alone
+// TANGO_RENDERER, in measurement and profiling runs.
 func sceneCommand(cfg config, fw, scene string) *exec.Cmd {
 	cmd := exec.Command(filepath.Join(cfg.bin, fw), "-scene", scene)
 	cmd.Env, _ = childEnv(os.Environ())
+	if cfg.tangoRenderer != "" && fw == "tango" {
+		cmd.Env = append(cmd.Env, rendererEnv+"="+cfg.tangoRenderer)
+	}
 	if cfg.profileDir != "" && fw == "tango" {
 		cmd.Env = append(cmd.Env, profileEnv+"="+profilePath(cfg.profileDir, scene))
 		cmd.Env = append(cmd.Env, cfg.tangoEnv...)

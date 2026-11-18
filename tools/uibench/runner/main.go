@@ -433,6 +433,9 @@ type config struct {
 	// tangoEnv is -tango-env (only with -profile-dir): KEY=VAL pairs given
 	// to the Tango program alone (sceneCommand).
 	tangoEnv []string
+	// tangoRenderer is -tango-renderer: TANGO_RENDERER for the Tango
+	// program alone (sceneCommand); empty: Tango's default policy.
+	tangoRenderer string
 }
 
 // runOnce starts one scene program, measures it and stops it.
@@ -620,7 +623,8 @@ type Meta struct {
 	// Manifest is bin/manifest.json as verified at startup (spec §5).
 	Manifest Manifest `json:"manifest"`
 	// ClearedEnv: inherited variables removed from the scene programs'
-	// environment (TANGO_RENDERER), so Tango ran its default policy.
+	// environment (TANGO_RENDERER), so Tango ran its default policy unless
+	// TangoRenderer says otherwise.
 	ClearedEnv []string `json:"cleared_env"`
 	// DirtyBuild: a binary was built from a work tree that differed from
 	// its commit (manifest source.dirty); every verdict says so.
@@ -642,7 +646,8 @@ type Meta struct {
 	// ScreenSharingFinishError: ps failed at the finish.
 	ScreenSharingFinishError string `json:"screen_sharing_finish_error,omitempty"`
 	// NotAdoptable says why Adoptable is false: "unverified runner",
-	// "compositor busy" (R44/R46: recorded, not adoptable).
+	// "compositor busy" (R44/R46: recorded, not adoptable), "profiling
+	// run", "tango renderer forced" (-tango-renderer).
 	NotAdoptable []string `json:"not_adoptable,omitempty"`
 	// CompositorNotes: per scene, screen-share programs running (with the
 	// idle load) or an unknown screen-share state; not adoptability (R46).
@@ -658,6 +663,10 @@ type Meta struct {
 	// TangoEnv is -tango-env: diagnostic variables given to the Tango
 	// program in a profiling run.
 	TangoEnv []string `json:"tango_env,omitempty"`
+	// TangoRenderer is -tango-renderer: the TANGO_RENDERER the Tango
+	// program alone ran with; absent: Tango's default policy. Set, the run
+	// is not adoptable ("tango renderer forced").
+	TangoRenderer string `json:"tango_renderer,omitempty"`
 	// SceneIdleCores: each scene's median idle WindowServer (usable rounds).
 	SceneIdleCores map[string]float64 `json:"scene_idle_cores,omitempty"`
 }
@@ -718,6 +727,7 @@ func main() {
 	profileDir := flag.String("profile-dir", "", "diagnostic, not a measurement: run each scene once per framework, give the Tango program UIBENCH_CPUPROFILE and keep its CPU profile as <dir>/tango-<scene>.pprof; no verdicts, not adoptable")
 	var tangoEnv envList
 	flag.Var(&tangoEnv, "tango-env", "diagnostic, only with -profile-dir (repeatable): give the Tango program alone KEY=VAL (e.g. TANGO_FRAME_TRACE=1); its stderr is kept as <dir>/tango-<scene>.stderr")
+	tangoRenderer := flag.String("tango-renderer", "", "force Tango's renderer: give the Tango program alone TANGO_RENDERER=<auto|cpu|gpu|native> (MyGo and NSGo get nothing); rounds are recorded as usual for a Tango-only A/B (-frameworks tango), verdicts against the others are marked not adoptable")
 	buildMode := flag.Bool("build", false, "build.sh's step: build the scene programs and the runner into -bin with the pinned toolchain and write -bin/manifest.json")
 	flag.Parse()
 
@@ -759,6 +769,13 @@ func main() {
 	if err := checkTangoEnv(tangoEnv, *profileDir); err != nil {
 		fmt.Fprintln(os.Stderr, "runner:", err)
 		os.Exit(2)
+	}
+	if err := checkTangoRenderer(*tangoRenderer, tangoEnv); err != nil {
+		fmt.Fprintln(os.Stderr, "runner:", err)
+		os.Exit(2)
+	}
+	if *tangoRenderer != "" {
+		fmt.Fprintln(os.Stderr, "runner: tango renderer forced:", *tangoRenderer)
 	}
 	if *cpuMetric != metricProcess && *cpuMetric != metricProcessWS {
 		fmt.Fprintln(os.Stderr, "runner: -cpu-metric must be process or process+ws")
@@ -811,10 +828,14 @@ func main() {
 		return
 	}
 	_, cleared := childEnv(os.Environ())
+	policy := "Tango's default renderer policy"
+	if *tangoRenderer != "" {
+		policy = "then the Tango program alone gets TANGO_RENDERER=" + *tangoRenderer
+	}
 	if len(cleared) > 0 {
-		fmt.Printf("runner: cleared inherited %s from the scene programs' environment (Tango runs its default policy, no Tango-only diagnostics, no CPU profile)\n", strings.Join(cleared, ", "))
+		fmt.Printf("runner: cleared inherited %s from the scene programs' environment (%s, no Tango-only diagnostics, no CPU profile)\n", strings.Join(cleared, ", "), policy)
 	} else {
-		fmt.Println("runner: no TANGO_* or UIBENCH_CPUPROFILE variable inherited; the scene programs run without any (Tango's default renderer policy)")
+		fmt.Printf("runner: no TANGO_* or UIBENCH_CPUPROFILE variable inherited; the scene programs run without any (%s)\n", policy)
 	}
 	if *profileDir != "" {
 		dir, err := filepath.Abs(*profileDir)
@@ -850,7 +871,8 @@ func main() {
 	defer staged.cleanup()
 	fmt.Println("runner: launching private copies of the verified binaries from", stagedBin)
 	cfg := config{bin: stagedBin, settle: *settle, seconds: time.Duration(*seconds) * time.Second,
-		loadRead: systemLoad, manifest: manifest, binSrc: *bin, profileDir: *profileDir, tangoEnv: tangoEnv}
+		loadRead: systemLoad, manifest: manifest, binSrc: *bin, profileDir: *profileDir, tangoEnv: tangoEnv,
+		tangoRenderer: *tangoRenderer}
 	res := &Results{Meta: newMeta(cfg)}
 	res.Meta.MinRounds = minRounds
 	res.Meta.ClearedEnv = append([]string{}, cleared...)
@@ -867,6 +889,7 @@ func main() {
 		res.Meta.TangoEnv = append([]string{}, tangoEnv...)
 		res.Meta.markNotAdoptable("profiling run")
 	}
+	forceTangoRenderer(&res.Meta, *tangoRenderer)
 	if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
 		fatal(err)
 	}
@@ -926,6 +949,7 @@ func main() {
 				o := pick(res.Rounds, scene, fw)
 				v, why := judgeWhy(t, o, minRounds)
 				why = annotateWhy(why, manifest, *unverifiedRunner)
+				why = forcedRendererWhy(why, *tangoRenderer)
 				why += compositor[scene]
 				if *cpuMetric == metricProcess {
 					why += processOnlyNote

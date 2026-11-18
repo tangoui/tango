@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os/exec"
 	"reflect"
 	"strings"
@@ -250,5 +251,119 @@ func TestTangoEnv(t *testing.T) {
 	}
 	if got := stderrPath("/p", "list"); got != "/p/tango-list.stderr" {
 		t.Fatal(got)
+	}
+}
+
+// -tango-renderer accepts exactly Tango's TANGO_RENDERER values (or none),
+// and not together with a -tango-env that also sets the renderer.
+func TestCheckTangoRenderer(t *testing.T) {
+	for _, ok := range []string{"", "auto", "cpu", "gpu", "native"} {
+		if err := checkTangoRenderer(ok, nil); err != nil {
+			t.Fatalf("checkTangoRenderer(%q): %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"GPU", "metal", "opengl", " gpu", "gpu ", "native,gpu", "default"} {
+		err := checkTangoRenderer(bad, nil)
+		if err == nil {
+			t.Fatalf("checkTangoRenderer(%q) accepted", bad)
+		}
+		if !strings.Contains(err.Error(), "auto, cpu, gpu, native") {
+			t.Fatalf("checkTangoRenderer(%q) error does not list the values: %v", bad, err)
+		}
+	}
+	if err := checkTangoRenderer("gpu", []string{"TANGO_FRAME_TRACE=1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkTangoRenderer("gpu", []string{"TANGO_RENDERER=cpu"}); err == nil {
+		t.Fatal("-tango-renderer with -tango-env TANGO_RENDERER accepted")
+	}
+	if err := checkTangoRenderer("", []string{"TANGO_RENDERER=cpu"}); err != nil {
+		t.Fatal(err) // -tango-env alone is checkTangoEnv's business
+	}
+}
+
+// -tango-renderer gives TANGO_RENDERER to the Tango program alone, in a
+// measurement run (no -profile-dir) and in a profiling run; an inherited
+// TANGO_RENDERER is still cleared everywhere.
+func TestTangoRendererEnv(t *testing.T) {
+	t.Setenv("TANGO_RENDERER", "cpu")
+	t.Setenv("TANGO_FRAME_TRACE", "1")
+	tangoVars := func(cmd *exec.Cmd) (out []string) {
+		for _, kv := range cmd.Env {
+			if strings.HasPrefix(kv, "TANGO_") {
+				out = append(out, kv)
+			}
+		}
+		return out
+	}
+	for _, fw := range []string{"tango", "mygo", "nsgo"} {
+		if got := tangoVars(sceneCommand(config{bin: "/b"}, fw, "list")); len(got) != 0 {
+			t.Fatalf("default run: %s got %v", fw, got)
+		}
+	}
+	for _, cfg := range []config{
+		{bin: "/b", tangoRenderer: "gpu"},
+		{bin: "/b", tangoRenderer: "gpu", profileDir: "/p"},
+	} {
+		if got := tangoVars(sceneCommand(cfg, "tango", "list")); !reflect.DeepEqual(got, []string{"TANGO_RENDERER=gpu"}) {
+			t.Fatalf("profileDir %q: tango env %v", cfg.profileDir, got)
+		}
+		for _, fw := range []string{"mygo", "nsgo"} {
+			if got := tangoVars(sceneCommand(cfg, fw, "list")); len(got) != 0 {
+				t.Fatalf("profileDir %q: %s got %v", cfg.profileDir, fw, got)
+			}
+		}
+	}
+	cfg := config{bin: "/b", tangoRenderer: "native"}
+	if got := tangoVars(sceneCommand(cfg, "tango", "grid")); !reflect.DeepEqual(got, []string{"TANGO_RENDERER=native"}) {
+		t.Fatalf("native: tango env %v", got)
+	}
+}
+
+// A forced renderer is recorded in the meta and makes the run not
+// adoptable, once; without it the meta is unchanged.
+func TestForceTangoRendererMeta(t *testing.T) {
+	m := Meta{Adoptable: true}
+	forceTangoRenderer(&m, "")
+	if !m.Adoptable || m.TangoRenderer != "" || len(m.NotAdoptable) != 0 {
+		t.Fatalf("no -tango-renderer changed the meta: %+v", m)
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "tango_renderer") {
+		t.Fatalf("unforced meta has tango_renderer: %s", b)
+	}
+	forceTangoRenderer(&m, "gpu")
+	forceTangoRenderer(&m, "gpu")
+	if m.Adoptable || m.TangoRenderer != "gpu" || !reflect.DeepEqual(m.NotAdoptable, []string{"tango renderer forced"}) {
+		t.Fatalf("forced meta: adoptable %v, renderer %q, not adoptable %v", m.Adoptable, m.TangoRenderer, m.NotAdoptable)
+	}
+	if b, err = json.Marshal(m); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"tango_renderer":"gpu"`) || !strings.Contains(string(b), `"not_adoptable":["tango renderer forced"]`) {
+		t.Fatalf("forced meta JSON: %s", b)
+	}
+
+	// Alongside another reason: both kept, not adoptable.
+	p := Meta{Adoptable: true}
+	p.markNotAdoptable("profiling run")
+	forceTangoRenderer(&p, "native")
+	if p.Adoptable || !reflect.DeepEqual(p.NotAdoptable, []string{"profiling run", "tango renderer forced"}) {
+		t.Fatalf("profiling + forced: %v %v", p.Adoptable, p.NotAdoptable)
+	}
+}
+
+// Verdict lines of a forced-renderer run say so; the reason is otherwise
+// untouched.
+func TestForcedRendererWhy(t *testing.T) {
+	if got := forcedRendererWhy("cpu 0.20 vs 0.30", ""); got != "cpu 0.20 vs 0.30" {
+		t.Fatalf("unforced why %q", got)
+	}
+	got := forcedRendererWhy("cpu 0.20 vs 0.30", "gpu")
+	if got != "TANGO RENDERER FORCED (gpu, not adoptable): cpu 0.20 vs 0.30" {
+		t.Fatalf("forced why %q", got)
 	}
 }
