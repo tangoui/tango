@@ -212,7 +212,9 @@ func (s *state) control(req request) (any, error) {
 		}
 		return map[string]any{"version": snap.Version(), "checksum": checksum(snap.String()), "text": snap.String(), "selections": sels, "trace": trace, "focused": focused, "ready": ready,
 			"body": []float32{body.X, body.Y, body.W, body.H}, "line20": snap.Line(20), "rows": rows,
-			"scroll": map[string]float32{"topLine": float32(s.st.Viewport.TopLine), "offsetY": s.st.Viewport.OffsetY, "lineHeight": s.st.Viewport.LineHeight}}, nil
+			// The renderer now: a native-layer window may have promoted to Metal.
+			"renderer": uihost.Renderer(s.runner),
+			"scroll":   map[string]float32{"topLine": float32(s.st.Viewport.TopLine), "offsetY": s.st.Viewport.OffsetY, "lineHeight": s.st.Viewport.LineHeight}}, nil
 	})
 }
 

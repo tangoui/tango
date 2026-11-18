@@ -179,6 +179,7 @@ def run(name):
         rc, line, e = node(HERE / 'latency.mjs', d / 'measure' / 'capture.ndjson')
         res['latency'] = json.loads(line) if line.startswith('{') else {'err': e}
         after = call(cfg, '/state')
+        res['rendererAfter'] = after.get('renderer')
         offs = [x['head'] for x in before['selections']]
         b = before['text'].encode()
         if name != 'scroll':
