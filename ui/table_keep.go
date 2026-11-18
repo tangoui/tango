@@ -91,10 +91,11 @@ func (f *tblFrame) posOfKey(k string) int {
 }
 
 // tblMissKey identifies the page data a key was not found in: the row
-// count, Revision, the page bounds and the cached sort / filter order. A
-// key that later appears without any of them changing (a row re-keyed in
-// place at the same row count) is found once the row count or Revision
-// changes, as the table's cached sorting already requires. Tree data is
+// count, Revision, the caller's rows (keepData), the page bounds and the
+// cached sort / filter order. A key that later appears without any of them
+// changing (a row re-keyed in place at the same row count) is found once
+// the row count, Revision or rows slice changes, as the table's cached
+// sorting already requires. Tree data is
 // flattened every frame and is not cached (cacheable false).
 type tblMissKey struct {
 	rows     int
@@ -102,13 +103,14 @@ type tblMissKey struct {
 	start, n int
 	ids      *int
 	nids     int
+	data     any // keepData (a pointer: comparable)
 }
 
 func (f *tblFrame) missKey() (tblMissKey, bool) {
 	if f.tree != nil {
 		return tblMissKey{}, false
 	}
-	k := tblMissKey{rows: f.t.rows, revision: f.t.revision, start: f.start, n: f.n, nids: len(f.ids)}
+	k := tblMissKey{rows: f.t.rows, revision: f.t.revision, start: f.start, n: f.n, nids: len(f.ids), data: f.t.keepData}
 	if len(f.ids) > 0 {
 		k.ids = &f.ids[0] // the table's own cached order, not caller data
 	}

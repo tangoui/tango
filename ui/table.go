@@ -283,6 +283,9 @@ type TableW struct {
 	// one scrolls it into view (table_keep.go). Plain TableW.ScrollY
 	// keeps destroying them (editor blurred, cell committed).
 	keepEdit bool
+	// keepData identifies the caller's rows for keepEdit's not-found
+	// cache (tblMissKey; EditableProTable: its rows slice), nil: none.
+	keepData any
 	// rowsHook, when set, is called right before the bounded body builds
 	// its rows with the window and the kept rows (EditableProTable's
 	// frame-local snapshot).

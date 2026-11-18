@@ -241,8 +241,12 @@ func (e *EditableProTableW[T]) ScrollX(w float32) *EditableProTableW[T] { e.scro
 // fast. Rows being edited are always built, even scrolled out of view, so
 // their drafts and focus survive; starting to edit a row (Edit, AddRow),
 // focus moving into an edited row (Tab), typing in one and a failed
-// validation scroll it into view. The toolbar and the add button stay
-// outside the scrolling body. Default 0: unbounded, every row is built.
+// validation scroll it into view. An edited key not found among the rows
+// is not looked up again every frame: a key that reappears in place (a
+// row re-keyed at the same row count) is picked up once the row count
+// changes or a new rows slice is passed. The toolbar and the add button
+// stay outside the scrolling body. Default 0: unbounded, every row is
+// built.
 func (e *EditableProTableW[T]) ScrollY(maxH float32) *EditableProTableW[T] {
 	e.scrollY = maxH
 	return e
@@ -859,6 +863,9 @@ func (e *EditableProTableW[T]) tableView() {
 		t.ScrollY(e.scrollY)
 		t.keepEdit = true
 		t.rowsHook = e.snapRows
+		if len(*e.rows) > 0 {
+			t.keepData = &(*e.rows)[0] // a new rows slice looks edited keys up again
+		}
 	}
 	if e.virtual {
 		t.Virtual()
