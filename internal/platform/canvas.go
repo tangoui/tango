@@ -77,8 +77,9 @@ type CanvasThreaded interface {
 	// refresh (frameAtOnce semantics apply). tick runs on that thread.
 	StartFrameClock(tick func()) (request func(), stop func(), err error)
 	// MainGeometry returns the latest size and scale as set on the main
-	// thread; safe from any thread. uihost seeds its frame geometry from
-	// this at open, then uses the sizes delivered by CanvasResized.
+	// thread; safe from any thread. Update it before dispatching resize
+	// callbacks; uihost uses it to reject stale, reentrant CanvasResized
+	// notifications as well as to seed the initial frame geometry.
 	MainGeometry() (w, h, scale float32)
 }
 

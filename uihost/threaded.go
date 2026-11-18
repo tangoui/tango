@@ -38,6 +38,7 @@ import (
 // platform.CanvasThreaded.
 type threadedHost struct {
 	host      *host
+	geometry  platform.CanvasThreaded
 	windows   map[*host]struct{} // this app's open threaded windows; main thread
 	th        *uithread.Thread
 	request   func() // asks the frame clock for a tick; any goroutine
@@ -121,7 +122,7 @@ func (t *threadedHost) post(app *tango.App, fn func()) {
 // runner, before BindThread. After BindThread nothing here calls a checked
 // runner method; the first frame is the UI thread's.
 func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page func(*ui.Context), ropts ui.RunnerOptions) {
-	t := &threadedHost{host: h, th: uithread.Start(fmt.Sprintf("tango uihost surface %d", h.id))}
+	t := &threadedHost{host: h, geometry: ct, th: uithread.Start(fmt.Sprintf("tango uihost surface %d", h.id))}
 	attached := false // UI thread: ticks before the hand-over draw nothing
 	tick := func() {
 		if attached && !t.closing.Load() {
@@ -174,6 +175,13 @@ const resizeWait = 16700 * time.Microsecond
 // its UI thread from returning to the clock, so skip the wait entirely.
 func (t *threadedHost) resizedOnMain(w, hgt, scale float32) {
 	h := t.host
+	// A Surface.OnResized callback can resize again before the backend
+	// delivers this notification. Never overwrite the newer geometry.
+	if currentW, currentH, currentScale := t.geometry.MainGeometry(); w != currentW || hgt != currentH || scale != currentScale {
+		return
+	}
+	awaiting, entered := t.th.WatchAwaitingMain()
+	deadline := time.Now().Add(resizeWait)
 	presented := make(chan struct{})
 	if !t.th.Post(func() {
 		if t.closing.Load() {
@@ -185,13 +193,14 @@ func (t *threadedHost) resizedOnMain(w, hgt, scale float32) {
 			h.win.resized()
 			t.request()
 		})
-	}) || t.th.AwaitingMain() {
+	}) || awaiting {
 		return
 	}
-	timer := time.NewTimer(resizeWait)
+	timer := time.NewTimer(time.Until(deadline))
 	defer timer.Stop()
 	select {
 	case <-presented:
+	case <-entered:
 	case <-timer.C:
 	}
 }

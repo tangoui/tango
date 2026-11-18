@@ -196,6 +196,9 @@ func await[T any](a *App, fn func() T) (T, bool) {
 	// close is deferred so a panicking fn (reported by drain) releases
 	// the caller too.
 	if !a.loop.post(func() { defer close(done); v = fn(); ok = true }) {
+		// Shutdown seals the queue before stopping the runners. A late
+		// Await must not resume a runner any earlier than queued waits.
+		<-a.closedCh
 		return zero, false
 	}
 	select {
@@ -290,6 +293,7 @@ func TryAwaitAsync[T any](a *App, start func(done func(T))) (T, error) {
 			once.Do(func() { close(panicked) })
 		}
 	}) {
+		<-a.closedCh // same shutdown barrier as synchronous Await
 		return zero, ErrNotRunning
 	}
 	select {
@@ -352,7 +356,7 @@ func (a *App) afterUIThread(done <-chan struct{}, release func()) {
 		case <-done:
 			a.Post(func() { a.releaseUIThread(done) })
 		case <-a.closedCh:
-			// runQuitHooks now owns the registration.
+			// Shutdown now owns the registration.
 		}
 	}()
 }
@@ -365,16 +369,20 @@ func (a *App) releaseUIThread(done <-chan struct{}) {
 	}
 }
 
-// runQuitHooks runs after the backend returned, without draining any more
-// application work. All stop requests go out before any wait. A stuck
-// thread must not prevent us from releasing other threads that did finish.
-func (a *App) runQuitHooks() {
+// notifyQuitHooks sends all stop requests before releasing Await callers.
+// Notification time counts toward the one shared quit deadline.
+func (a *App) notifyQuitHooks() time.Time {
 	deadline := time.Now().Add(quitWait)
 	hooks := a.onQuit
 	a.onQuit = nil
 	for _, fn := range hooks {
 		a.guard(whereEvent, fn)
 	}
+	return deadline
+}
+
+// A stuck thread must not prevent release of other threads that did finish.
+func (a *App) waitForUIThreads(deadline time.Time) {
 	if len(a.uiClosing) == 0 {
 		return
 	}

@@ -217,10 +217,12 @@ func (a *App) shutdown() {
 		return
 	}
 	a.loop.close()
+	deadline := a.notifyQuitHooks()
+	// Stop all runners before waking UI threads blocked in Await, so none
+	// can run queued business work while the app is closing. Await calls
+	// cannot reach the main thread now; release them before waiting for Done.
 	close(a.closedCh)
-	// Await calls queued when Backend.Run returned cannot reach the main
-	// thread. Release them before waiting for any window thread to exit.
-	a.runQuitHooks()
+	a.waitForUIThreads(deadline)
 	a.mu.Lock()
 	ss := a.surfaces
 	a.surfaces = map[platform.SurfaceID]*Surface{}

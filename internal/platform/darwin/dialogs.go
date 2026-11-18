@@ -160,6 +160,12 @@ func (b *backend) beginSheet(obj, win, sheetWin id, done func(resp int)) {
 }
 
 func (b *backend) MessageDialog(parent platform.SurfaceID, opts platform.MessageOptions, done func(button int, err error)) {
+	// Quit and a pending dialog start can run in the same main-queue drain.
+	// In particular, Quit cannot abort a nested modal loop started after it.
+	if b.quitting {
+		done(-1, platform.ErrCanceled)
+		return
+	}
 	withPool(func() {
 		alert, buttons := newAlert(opts)
 		report := func(resp int) { done(alertResult(resp, buttons)) }
@@ -269,6 +275,10 @@ func (b *backend) runPanel(panel id, parent platform.SurfaceID, done func(resp i
 }
 
 func (b *backend) OpenFileDialog(parent platform.SurfaceID, opts platform.FileOptions, done func(paths []string, err error)) {
+	if b.quitting {
+		done(nil, platform.ErrCanceled)
+		return
+	}
 	withPool(func() {
 		panel := send(class("NSOpenPanel"), "openPanel")
 		for selector, on := range map[string]bool{
@@ -299,6 +309,10 @@ func urlPaths(urls id) []string {
 }
 
 func (b *backend) SaveFileDialog(parent platform.SurfaceID, opts platform.FileOptions, done func(path string, err error)) {
+	if b.quitting {
+		done("", platform.ErrCanceled)
+		return
+	}
 	withPool(func() {
 		panel := send(class("NSSavePanel"), "savePanel")
 		if opts.Filename != "" {

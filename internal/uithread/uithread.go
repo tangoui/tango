@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
-	"sync/atomic"
 )
 
 // Thread is a goroutine locked to an OS thread and the FIFO of tasks it runs.
@@ -20,9 +19,11 @@ type Thread struct {
 	queue   []func()
 	stopped bool
 
-	wake     chan struct{} // capacity 1: "the queue may be non-empty"
-	done     chan struct{}
-	awaiting atomic.Bool
+	wake chan struct{} // capacity 1: "the queue may be non-empty"
+	done chan struct{}
+
+	awaiting bool          // guarded by mu
+	entered  chan struct{} // guarded by mu; closed on the next entry
 }
 
 // registry maps the goroutine id of each running Thread to the Thread.
@@ -149,10 +150,39 @@ func (t *Thread) Done() <-chan struct{} { return t.done }
 
 // SetAwaitingMain records whether the thread is blocked waiting for the main
 // thread, so the main thread does not in turn wait for it.
-func (t *Thread) SetAwaitingMain(on bool) { t.awaiting.Store(on) }
+func (t *Thread) SetAwaitingMain(on bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.awaiting == on {
+		return
+	}
+	t.awaiting = on
+	if on && t.entered != nil {
+		close(t.entered)
+		t.entered = nil
+	}
+}
 
 // AwaitingMain reports what SetAwaitingMain last recorded.
-func (t *Thread) AwaitingMain() bool { return t.awaiting.Load() }
+func (t *Thread) AwaitingMain() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.awaiting
+}
+
+// WatchAwaitingMain atomically checks whether the thread is awaiting main
+// and, if not, returns a channel closed the next time it starts to wait.
+func (t *Thread) WatchAwaitingMain() (awaiting bool, entered <-chan struct{}) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.awaiting {
+		return true, nil
+	}
+	if t.entered == nil {
+		t.entered = make(chan struct{})
+	}
+	return false, t.entered
+}
 
 // Current returns the Thread the caller runs on, or nil if it is not on one.
 func Current() *Thread {

@@ -1,11 +1,14 @@
 package uihost_test
 
 import (
+	"errors"
 	"image"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/tangoui/tango"
+	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/fake/faketest"
 	"github.com/tangoui/tango/sys/dialog"
@@ -253,4 +256,131 @@ func TestQuitWaitsAtMostOneSecond(t *testing.T) {
 			t.Error("quit did not stop a blocked UI thread")
 		}
 	}
+}
+
+func TestResizeReentrantKeepsLatestGeometry(t *testing.T) {
+	t.Setenv("TANGO_RENDERER", "cpu")
+	a, fb := faketest.Run(t, tango.Options{})
+	_, s, tc, cv := openThreaded(t, a, fb, func(*ui.Context) {})
+	presented := make(chan image.Point, 1)
+	tc.mu.Lock()
+	tc.presentHook = func(img *image.RGBA) { presented <- img.Bounds().Size() }
+	tc.mu.Unlock()
+	s.OnResized(func(w, h int) {
+		if w == 120 && h == 80 {
+			cv.Resize(150, 90, 2) // delivered to the sink before the outer resize
+		}
+	})
+	if !cv.Resize(120, 80, 1) || !tc.flush(t) {
+		t.Fatal("resize did not produce a frame")
+	}
+	if got := <-presented; got != image.Pt(300, 180) {
+		t.Errorf("last Present = %v, want latest geometry 300x180", got)
+	}
+}
+
+func TestQuitStopsQueuedRunnerWorkBeforeUnblockingAwait(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	var tc *threadedCanvas
+	var waitersReleasedFirst bool
+	// Installed before the window's quit notification. If shutdown already
+	// woke the UI, let it consume its queue before the window can stop it.
+	fb.Do(func() {
+		corehook.OnQuit(a, func() {
+			select {
+			case <-corehook.Done(a):
+				waitersReleasedFirst = true
+				tc.th.Do(func() {})
+			default:
+			}
+		})
+	})
+	r, _, canvas, _ := openThreaded(t, a, fb, func(*ui.Context) {})
+	tc = canvas
+	started := make(chan struct{})
+	result := make(chan error, 1)
+	r.Post(func() {
+		_, err := tango.TryAwaitAsync(a, func(func(bool)) { close(started) })
+		result <- err
+	})
+	lifecycleDone(t, started, "async wait did not start")
+	queued := make(chan struct{}, 1)
+	r.Post(func() { queued <- struct{}{} })
+	a.Quit()
+	lifecycleDone(t, tc.th.Done(), "quit did not unblock the UI thread")
+	if err := <-result; !errors.Is(err, tango.ErrNotRunning) {
+		t.Errorf("await returned %v, want ErrNotRunning", err)
+	}
+	if waitersReleasedFirst || len(queued) != 0 {
+		t.Errorf("waiters released before stop=%t; queued business tasks run=%d", waitersReleasedFirst, len(queued))
+	}
+}
+
+func TestResizeStopsWaitingWhenUIThreadStartsAwait(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		a, fb := faketest.Run(t, tango.Options{})
+		r, _, tc, cv := openThreaded(t, a, fb, func(*ui.Context) {})
+		tc.flush(t)
+		enterAwait := make(chan struct{})
+		awaited := make(chan struct{})
+		r.Post(func() {
+			<-enterAwait
+			tango.Await(a, func() bool { return true })
+			close(awaited)
+		})
+		resized := make(chan bool, 1)
+		go func() { resized <- cv.Resize(120, 80, 1) }()
+		synctest.Wait() // main and UI are both blocked; virtual time has not advanced
+		select {
+		case <-resized:
+			close(enterAwait)
+			t.Fatal("main skipped waiting before the UI started Await")
+		default:
+		}
+		start := time.Now()
+		close(enterAwait)
+		if !<-resized {
+			t.Fatal("resize did not run")
+		}
+		if elapsed := time.Since(start); elapsed != 0 {
+			t.Errorf("resize waited %v after UI entered Await, want no timeout", elapsed)
+		}
+		lifecycleDone(t, awaited, "UI did not finish its main-thread call")
+	})
+}
+
+func TestQuitDoesNotReleaseNewRejectedAwaitBeforeStoppingRunner(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		a, fb := faketest.Run(t, tango.Options{})
+		enterAwait := make(chan struct{})
+		result := make(chan error, 1)
+		queued := make(chan struct{}, 1)
+		var ranEarly bool
+		fb.Do(func() {
+			corehook.OnQuit(a, func() {
+				// The main queue is already closed, but the window's stop
+				// hook has not run. Starting an Await must not resume work.
+				close(enterAwait)
+				synctest.Wait()
+				ranEarly = len(result) != 0 || len(queued) != 0
+			})
+		})
+		r, _, tc, _ := openThreaded(t, a, fb, func(*ui.Context) {})
+		r.Post(func() {
+			<-enterAwait
+			_, err := tango.TryAwaitAsync(a, func(func(bool)) {
+				t.Error("late Await started work on the main thread")
+			})
+			result <- err
+		})
+		r.Post(func() { queued <- struct{}{} })
+		a.Quit()
+		lifecycleDone(t, tc.th.Done(), "quit did not unblock the late Await")
+		if err := <-result; !errors.Is(err, tango.ErrNotRunning) {
+			t.Errorf("late Await returned %v, want ErrNotRunning", err)
+		}
+		if ranEarly || len(queued) != 0 {
+			t.Errorf("rejected Await returned before stop=%t; queued business tasks run=%d", ranEarly, len(queued))
+		}
+	})
 }

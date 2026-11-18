@@ -42,8 +42,8 @@ var DetachMenu func(key any)
 
 // OnQuit registers a nonblocking stop notification on app (*tango.App).
 // Main thread only, both to register and to call. Notifications run in
-// order after Backend.Run and its Terminating event, once the main queue
-// has closed and unblocked its waiters. Use AfterUIThread for any wait.
+// order after Backend.Run and its Terminating event, after closing the
+// main queue but before releasing its waiters. Use AfterUIThread for any wait.
 var OnQuit func(app any, fn func())
 
 // AfterUIThread registers a stopped UI thread and an optional nonblocking
