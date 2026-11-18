@@ -26,12 +26,14 @@ type safeState struct {
 // told about inset changes (iOS safeAreaInsetsDidChange, Android
 // WindowInsets listeners) call it instead of implementing SafeAreaWindow.
 func (r *Runner) SetSafeArea(in geom.Insets) {
+	r.checkThread()
 	r.c.safe.override, r.c.safe.set = in, true
 	r.Invalidate()
 }
 
 // ClearSafeArea removes the SetSafeArea override.
 func (r *Runner) ClearSafeArea() {
+	r.checkThread()
 	r.c.safe.set = false
 	r.Invalidate()
 }

@@ -1,0 +1,176 @@
+package ui
+
+import (
+	"sync"
+	"sync/atomic"
+	"testing"
+
+	"github.com/tangoui/tango/internal/uithread"
+)
+
+// threadWin is a test Window whose Invalidate, like a real host's, may be
+// called from any goroutine; it counts the calls.
+type threadWin struct {
+	damageWin
+	invalidates atomic.Int32
+}
+
+func (w *threadWin) Invalidate() { w.invalidates.Add(1) }
+
+func newThreadWin() *threadWin { return &threadWin{damageWin: *newWin()} }
+
+// startUIThread starts a UI thread that the test stops when it ends.
+func startUIThread(t *testing.T) *uithread.Thread {
+	t.Helper()
+	th := uithread.Start(t.Name())
+	t.Cleanup(func() {
+		th.Stop()
+		<-th.Done()
+	})
+	return th
+}
+
+func TestPostAfterCloseDropped(t *testing.T) {
+	for _, bound := range []bool{false, true} {
+		r := NewRunner(func(*Context) {}, RunnerOptions{})
+		var th *uithread.Thread
+		if bound {
+			th = startUIThread(t)
+			r.BindThread(th)
+		}
+		w := newThreadWin()
+		r.Attach(w)
+		r.Close()
+		ran := false
+		r.Post(func() { ran = true })
+		if th != nil {
+			th.Do(func() {}) // FIFO: a task Post queued has run by now
+		}
+		if ran {
+			t.Fatalf("bound=%v: Post ran fn after Close", bound)
+		}
+		if n := w.invalidates.Load(); n != 0 {
+			t.Fatalf("bound=%v: Post after Close requested %d frames", bound, n)
+		}
+	}
+
+	// Posted before Close, run after it: dropped too.
+	th := startUIThread(t)
+	r := NewRunner(func(*Context) {}, RunnerOptions{})
+	r.BindThread(th)
+	w := newThreadWin()
+	r.Attach(w)
+	gate := make(chan struct{})
+	th.Post(func() { <-gate }) // hold the thread
+	ran := false
+	r.Post(func() { ran = true })
+	r.Close()
+	close(gate)
+	th.Do(func() {})
+	if ran {
+		t.Fatal("a task posted before Close ran after it")
+	}
+	if n := w.invalidates.Load(); n != 0 {
+		t.Fatalf("dropped task requested %d frames", n)
+	}
+}
+
+func TestPostFromUIThreadRunsAfterFrame(t *testing.T) {
+	th := startUIThread(t)
+	var r *Runner
+	posted, ran := false, false
+	r = NewRunner(func(c *Context) {
+		if !posted {
+			posted = true
+			r.Post(func() { ran = true })
+		}
+	}, RunnerOptions{})
+	r.BindThread(th)
+	w := newThreadWin()
+	r.Attach(w)
+
+	var err error
+	ranInFrame := false
+	var before int32
+	th.Do(func() {
+		err = r.Frame()
+		ranInFrame = ran
+		before = w.invalidates.Load() // the posted task is still queued
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !posted {
+		t.Fatal("the page did not run")
+	}
+	if ranInFrame {
+		t.Fatal("fn posted from the page ran before Frame returned")
+	}
+	th.Do(func() {}) // FIFO: the posted task runs first
+	if !ran {
+		t.Fatal("fn posted from the page did not run after the frame")
+	}
+	if w.invalidates.Load() <= before {
+		t.Fatal("the posted task did not request a frame")
+	}
+}
+
+func TestPostUnboundRunsInline(t *testing.T) {
+	r := NewRunner(func(*Context) {}, RunnerOptions{})
+	w := newThreadWin()
+	r.Attach(w)
+	ran := false
+	r.Post(func() {
+		ran = true
+		if n := w.invalidates.Load(); n != 0 {
+			t.Errorf("frame requested before fn ran (%d)", n)
+		}
+	})
+	if !ran {
+		t.Fatal("unbound Post did not run fn before returning")
+	}
+	if n := w.invalidates.Load(); n != 1 {
+		t.Fatalf("unbound Post requested %d frames, want 1", n)
+	}
+}
+
+func TestInvalidateSafeFromAnyGoroutine(t *testing.T) {
+	th := startUIThread(t)
+	r := NewRunner(func(c *Context) { Div(c) }, RunnerOptions{})
+	r.BindThread(th)
+	w := newThreadWin()
+	r.Attach(w)
+
+	const goroutines, calls = 8, 100
+	var posted atomic.Int32
+	var wg sync.WaitGroup
+	for range goroutines {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range calls {
+				r.Invalidate()
+				r.Post(func() { posted.Add(1) })
+			}
+		}()
+	}
+	wg.Add(1)
+	go func() { // frames run on the UI thread meanwhile
+		defer wg.Done()
+		for range 20 {
+			th.Do(func() {
+				if err := r.Frame(); err != nil {
+					t.Error(err)
+				}
+			})
+		}
+	}()
+	wg.Wait()
+	th.Do(func() {}) // run the tasks still queued
+	if n := posted.Load(); n != goroutines*calls {
+		t.Fatalf("%d posted tasks ran, want %d", n, goroutines*calls)
+	}
+	if n := w.invalidates.Load(); n < 2*goroutines*calls {
+		t.Fatalf("%d Invalidate calls reached the window, want >= %d", n, 2*goroutines*calls)
+	}
+}

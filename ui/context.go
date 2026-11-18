@@ -125,6 +125,7 @@ type Context struct {
 	Theme *theme.Theme
 
 	win     Window
+	runner  *Runner // owner, for the thread check (nil for bare test contexts)
 	now     time.Time
 	pass    uint64
 	size    geom.Size
@@ -294,7 +295,10 @@ func (c *Context) Window() Window { return c.win }
 // changing state that widgets built earlier in this frame read). It must be
 // called on the UI goroutine during a frame; from other goroutines use the
 // function returned by Invalidator.
-func (c *Context) Invalidate() { c.invalid = true }
+func (c *Context) Invalidate() {
+	c.checkThread()
+	c.invalid = true
+}
 
 // Invalidator returns a function that requests a new frame. Unlike
 // Invalidate it is safe to call from any goroutine (background loaders,
@@ -318,6 +322,7 @@ func Invalidate(w Window) {
 
 // WakeAt asks for a frame at t (timers, auto-dismiss, caret blink).
 func (c *Context) WakeAt(t time.Time) {
+	c.checkThread()
 	if c.wakeAt.IsZero() || t.Before(c.wakeAt) {
 		c.wakeAt = t
 	}
@@ -393,6 +398,7 @@ func (c *Context) body(n *node, fn func()) {
 // State returns retained per-widget state, creating it with init on first
 // use. State that is not requested for a while is dropped.
 func State[T any](c *Context, id ID, init func() T) *T {
+	c.checkThread()
 	if e, ok := c.states[id]; ok {
 		e.seen = c.pass
 		if p, ok := e.v.(*T); ok {
@@ -485,6 +491,7 @@ func (c *Context) hovered(id ID) bool {
 
 // SetFocus moves keyboard focus to id (0 clears it).
 func (c *Context) SetFocus(id ID) {
+	c.checkThread()
 	if c.focus != id {
 		c.focus = id
 		c.invalid = true

@@ -2600,6 +2600,7 @@ pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Validating(string)
 pkg github.com/tangoui/tango/ui, method (*Runner) AccessibilityTree() *ui/a11y.Tree
 pkg github.com/tangoui/tango/ui, method (*Runner) Animating() bool
 pkg github.com/tangoui/tango/ui, method (*Runner) Attach(Window)
+pkg github.com/tangoui/tango/ui, method (*Runner) BindThread(*internal/uithread.Thread)
 pkg github.com/tangoui/tango/ui, method (*Runner) ClearKeyboardInset()
 pkg github.com/tangoui/tango/ui, method (*Runner) ClearSafeArea()
 pkg github.com/tangoui/tango/ui, method (*Runner) Close()
@@ -2617,6 +2618,7 @@ pkg github.com/tangoui/tango/ui, method (*Runner) NativeRegions() []NativeRegion
 pkg github.com/tangoui/tango/ui, method (*Runner) NextWake() time.Time
 pkg github.com/tangoui/tango/ui, method (*Runner) PerformAction(ui/a11y.NodeID, ui/a11y.Action, string) error
 pkg github.com/tangoui/tango/ui, method (*Runner) PointerPos() (ui/geom.Point, bool)
+pkg github.com/tangoui/tango/ui, method (*Runner) Post(func())
 pkg github.com/tangoui/tango/ui, method (*Runner) SetKeyboardInset(ui/geom.Insets)
 pkg github.com/tangoui/tango/ui, method (*Runner) SetReduceMotion(bool)
 pkg github.com/tangoui/tango/ui, method (*Runner) SetSafeArea(ui/geom.Insets)

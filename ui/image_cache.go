@@ -16,6 +16,7 @@ type imageInvalidator interface {
 // Damage (or a full redraw); replacing a drawn image value changes its
 // paint fingerprint normally. Recorded image pixels remain caller-owned.
 func (c *Context) InvalidateImage(img image.Image) {
+	c.checkThread()
 	if c != nil && img != nil && c.imageCache != nil {
 		c.imageCache.InvalidateImage(img)
 	}

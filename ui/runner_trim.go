@@ -5,7 +5,8 @@ package ui
 // clear application state, editor LineCaches, current Layouts or the current
 // presented pixels. A renderer without Trim() is left alone.
 func (r *Runner) TrimCaches() {
-	if r.closed {
+	r.checkThread()
+	if r.closed.Load() {
 		return
 	}
 	if trimmer, ok := r.renderer.(interface{ Trim() }); ok {

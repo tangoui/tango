@@ -48,7 +48,10 @@ type touchState struct {
 // SetTouchPointerEmulation turns the pointer events synthesized from the
 // first finger of a touch gesture on (the default) or off. Hosts that
 // already deliver emulated mouse events for touches turn it off.
-func (r *Runner) SetTouchPointerEmulation(on bool) { r.c.ptr.touch.noEmu = !on }
+func (r *Runner) SetTouchPointerEmulation(on bool) {
+	r.checkThread()
+	r.c.ptr.touch.noEmu = !on
+}
 
 // expandTouches routes the queued touch events (against the last frame's
 // hits) and inserts the pointer events synthesized for the primary

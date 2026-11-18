@@ -130,6 +130,7 @@ func (b *Box) ScrollShift(r geom.Rect, d geom.Point) {
 //
 // UI thread only, during the page build or paint.
 func (c *Context) WakeAtDamaged(t time.Time) {
+	c.checkThread()
 	w := c.declaredWake()
 	if w.at.IsZero() || t.Before(w.at) {
 		w.at = t

@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"sync/atomic"
 	"time"
 
+	"github.com/tangoui/tango/internal/uithread"
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
@@ -36,8 +38,11 @@ type RunnerOptions struct {
 }
 
 // Runner drives one window: it queues input, runs the page function, lays
-// out, paints and presents. All methods except Invalidate must be called on
-// the UI thread; Invalidate is safe from any goroutine.
+// out, paints and presents. All methods except Invalidate, Post and Close
+// must be called on the UI thread; those three are safe from any goroutine.
+// The UI thread is the one bound with BindThread, or the caller's (the main
+// thread) when none is bound. Development builds (-tags tango_dev) panic
+// when a bound runner is used off its thread.
 type Runner struct {
 	_ [0]func()
 
@@ -52,7 +57,9 @@ type Runner struct {
 	lastCur   input.Cursor
 	textOn    bool
 	lastCaret geom.Rect
-	closed    bool
+	closed    atomic.Bool // read by Post from any goroutine
+
+	thread atomic.Pointer[uithread.Thread] // BindThread; nil: the caller's thread
 
 	shortcutCaptureOn bool
 
@@ -81,6 +88,7 @@ func NewRunner(page func(*Context), o RunnerOptions) *Runner {
 		th = theme.AntDesign()
 	}
 	r := &Runner{page: page, c: newContext(th), clock: o.Clock, renderer: o.Renderer}
+	r.c.runner = r
 	if r.clock == nil {
 		r.clock = time.Now
 	}
@@ -112,6 +120,7 @@ func rendererBlurs(renderer paint.Renderer) bool {
 // SetReduceMotion turns the reduced-motion preference on or off (see
 // RunnerOptions.ReduceMotion) and requests a frame.
 func (r *Runner) SetReduceMotion(on bool) {
+	r.checkThread()
 	r.c.reduceMotion = on
 	r.Invalidate()
 }
@@ -121,6 +130,7 @@ func (r *Runner) SetReduceMotion(on bool) {
 // automation and hosts that enable it explicitly. Off again leaves the
 // decision to the host.
 func (r *Runner) EnableAccessibility(on bool) {
+	r.checkThread()
 	r.a11yForce = on
 	r.Invalidate()
 }
@@ -149,6 +159,7 @@ func (r *Runner) Context() *Context { return r.c }
 
 // SetTheme switches the theme and requests a frame.
 func (r *Runner) SetTheme(t *theme.Theme) {
+	r.checkThread()
 	r.c.Theme = t
 	r.Invalidate()
 }
@@ -164,6 +175,7 @@ func (r *Runner) Invalidate() {
 
 // HandleEvent queues an input event and requests a frame.
 func (r *Runner) HandleEvent(e input.Event) {
+	r.checkThread()
 	if !r.pendingFocusChange() {
 		if fn := r.c.terminalEvents[r.c.focus]; fn != nil && fn(e) {
 			r.Invalidate()
@@ -184,15 +196,41 @@ func (r *Runner) pendingFocusChange() bool {
 	return false
 }
 
-// Close releases resources.
-func (r *Runner) Close() { r.closed = true }
+// Post runs fn on the UI thread, then requests a frame. It may be called
+// from any goroutine and never blocks. On a bound runner (BindThread) fn is
+// queued and runs after the current task, so Post from the page function
+// runs fn once Frame returns. Without a bound thread fn runs on the calling
+// goroutine before Post returns: the caller must be on the UI thread. After
+// Close, fn is dropped, also when it was queued before.
+func (r *Runner) Post(fn func()) {
+	if r.closed.Load() {
+		return
+	}
+	t := r.thread.Load()
+	if t == nil {
+		fn()
+		r.Invalidate()
+		return
+	}
+	t.Post(func() {
+		if r.closed.Load() {
+			return
+		}
+		fn()
+		r.Invalidate()
+	})
+}
+
+// Close releases resources. It may be called from any goroutine.
+func (r *Runner) Close() { r.closed.Store(true) }
 
 // List returns the display list of the last frame (debugging, GPU hosts).
 func (r *Runner) List() *paint.List { return &r.list }
 
 // Frame processes queued input, rebuilds the UI and presents it.
 func (r *Runner) Frame() error {
-	if r.closed || r.win == nil {
+	r.checkThread()
+	if r.closed.Load() || r.win == nil {
 		return nil
 	}
 	c := r.c

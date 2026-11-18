@@ -576,6 +576,7 @@ type a11yAction struct {
 // of the next frame, which this call requests. It must be called on the UI
 // thread.
 func (r *Runner) PerformAction(id a11y.NodeID, act a11y.Action, arg string) error {
+	r.checkThread()
 	t := r.a11yTree
 	if t == nil {
 		return fmt.Errorf("ui: accessibility is not enabled")

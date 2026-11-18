@@ -58,6 +58,7 @@ func fileDragOf(c *Context, create bool) *fileDragState {
 // pixels), when the drag enters and as it moves. Hosts call it on the UI
 // thread (uihost does from platform.CanvasDropTarget).
 func (r *Runner) FileDragOver(p geom.Point) {
+	r.checkThread()
 	st := fileDragOf(r.c, true)
 	if st.over && st.pos == p {
 		return
@@ -69,6 +70,7 @@ func (r *Runner) FileDragOver(p geom.Point) {
 // FileDragLeave reports that the file drag left the window, was cancelled
 // or was dropped (hosts call it before DropFiles).
 func (r *Runner) FileDragLeave() {
+	r.checkThread()
 	st := fileDragOf(r.c, false)
 	if st == nil || !st.over {
 		return
@@ -93,6 +95,7 @@ func (r *Runner) FileDrag() (geom.Point, bool) { return r.c.FileDrag() }
 // DropZone under it: its Dropped returns them during the next frame.
 // Files dropped outside every zone are discarded. UI thread only.
 func (r *Runner) DropFiles(p geom.Point, paths []string) {
+	r.checkThread()
 	if len(paths) == 0 {
 		return
 	}

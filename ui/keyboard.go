@@ -76,12 +76,14 @@ func (k KeyboardReveal) Target(top float32) geom.Rect {
 // that are told about keyboard changes call it instead of implementing
 // KeyboardInsetWindow. UI thread.
 func (r *Runner) SetKeyboardInset(in geom.Insets) {
+	r.checkThread()
 	r.c.kb.override, r.c.kb.set = in, true
 	r.Invalidate()
 }
 
 // ClearKeyboardInset removes the SetKeyboardInset override. UI thread.
 func (r *Runner) ClearKeyboardInset() {
+	r.checkThread()
 	r.c.kb.set = false
 	r.Invalidate()
 }
