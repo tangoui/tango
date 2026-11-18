@@ -40,15 +40,15 @@ type faceImpl struct {
 	// face cannot be built.
 	build func() *ctRaster
 
-	// The fast paths' table check (plainAdvances), made once.
+	// The fast paths' table check (readTables), made once.
 	tablesOnce sync.Once
 	noKern     bool // no kern, kerx or GPOS table (any GPOS counts as kerning)
 	noMorx     bool // no AAT morx table
-	gposOnly   bool // GPOS is the only kerning table (no kern, kerx)
+	substTrak  bool // a GSUB or trak table: CoreText may change glyphs or advances
 }
 
 // readTables reads the font's table directory (CTFontCopyAvailableTables)
-// once for plainAdvances and gposKernOnly.
+// once for plainAdvances, simpleSubst and noMorxTable.
 func (f *Face) readTables() {
 	f.tablesOnce.Do(func() {
 		f.ready()
@@ -61,37 +61,41 @@ func (f *Face) readTables() {
 			return
 		}
 		defer cfRelease(arr)
-		kern, gpos, morx := false, false, false
+		kern, morx, subst := false, false, false
 		for i := int64(0); i < cfArrayGetCount(arr); i++ {
 			switch uint32(cfArrayGetValueAtIndex(arr, i)) {
-			case tag4("kern"), tag4("kerx"):
+			case tag4("kern"), tag4("kerx"), tag4("GPOS"):
 				kern = true
-			case tag4("GPOS"):
-				gpos = true
 			case tag4("morx"):
 				morx = true
+			case tag4("GSUB"), tag4("trak"):
+				subst = true
 			}
 		}
-		f.noKern, f.noMorx, f.gposOnly = !kern && !gpos, !morx, gpos && !kern
+		f.noKern, f.noMorx, f.substTrak = !kern, !morx, subst
 	})
 }
 
-// plainAdvances reports whether the face lays out a simple left-to-right
-// run (no ligatures) as its character map's glyphs at their own advances,
-// so the fast paths may place them without CoreText's typesetter: no
-// kerning tables (noKern: kern, kerx, or a GPOS table, conservatively taken
-// as kerning) and no AAT morx substitutions (noMorx).
+// plainAdvances reports whether the face has no kerning tables (noKern:
+// kern, kerx, or a GPOS table, conservatively taken as kerning) and no AAT
+// morx substitutions (noMorx): the monospace fast path's table rule.
 func (f *Face) plainAdvances() bool {
 	f.readTables()
 	return f.noKern && f.noMorx
 }
 
-// gposKernOnly reports a face whose only possible kerning is GPOS (no
-// kern, kerx or morx table): the numeric path probes such a face's numeric
-// pairs (numericUnkerned) instead of ruling it out.
-func (f *Face) gposKernOnly() bool {
+// needsProbe reports a face with a GSUB or trak table, whose default
+// features (ccmp, locl) or tracking CoreText may apply: the fast paths set
+// its glyphs only where a probe against CoreText's own shaping agreed.
+func (f *Face) needsProbe() bool {
 	f.readTables()
-	return f.gposOnly && f.noMorx
+	return f.substTrak
+}
+
+// noMorxTable reports a face without an AAT morx table.
+func (f *Face) noMorxTable() bool {
+	f.readTables()
+	return f.noMorx
 }
 
 // ready builds a lazy face on first use; a no-op for faces built eagerly.

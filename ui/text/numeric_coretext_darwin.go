@@ -9,11 +9,14 @@ import "github.com/tangoui/tango/ui/paint"
 // language, registry version) and its glyph ids and advances are kept in a
 // numericGlyphTable, read with CTFontGetGlyphsForCharacters and
 // CTFontGetAdvancesForGlyphs at the style's size; a label is then placed
-// glyph by glyph without building a CTLine. Faces with plain advances (no
-// kerning tables, no morx) qualify, and so do faces whose only kerning
-// table is GPOS when a one-time probe (numericUnkerned) finds their numeric
-// runes unkerned; for the others Shape takes the general path and
-// ShapeInto shapes with CoreText into the destination.
+// glyph by glyph without building a CTLine. Every table is verified against
+// CoreText's own shaping at the style's size and language when it is built
+// (probeNumeric), which also measures the kerning of every ordered pair of
+// numeric runes: the table places each glyph with the advance CoreText
+// gives it before its successor. Faces with morx tables, and faces whose
+// numeric shaping the pair model does not reproduce, get no table; for
+// them Shape takes the general path and ShapeInto shapes with CoreText
+// into the destination.
 
 type numericFaceValue struct {
 	face  *Face
@@ -23,20 +26,38 @@ type numericFaceValue struct {
 
 // numericGlyphTable holds, per numeric rune, the face's glyph and its
 // advance in px at the size of the key's style (CoreText's advance of the
-// sized font, which the general path's CTLine reports too).
+// sized font), and per ordered pair of numeric runes the advance of the
+// first when the second follows it (kerned by the font's GPOS or kern
+// table).
 type numericGlyphTable struct {
-	ok  bool
-	gid [len(numericChars)]uint32
-	adv [len(numericChars)]float32 // px at the style's size
+	ok   bool
+	gid  [len(numericChars)]uint32
+	adv  [len(numericChars)]float32                    // px at the style's size
+	kadv [len(numericChars)][len(numericChars)]float32 // px: adv of the first rune of a pair
+}
+
+// advance returns the advance of numeric rune index a followed by rune
+// index next (-1: the last rune).
+func (t *numericGlyphTable) advance(a, next int) float32 {
+	if next < 0 {
+		return t.adv[a]
+	}
+	return t.kadv[a][next]
 }
 
 // buildNumericTable reads the glyphs and advances of numericChars in face
-// at size; not ok when the face lacks a numeric rune or may kern them.
-func buildNumericTable(face *Face, fm *fontmap, size float32) numericGlyphTable {
-	if !face.plainAdvances() && !(face.gposKernOnly() && numericUnkerned(face, fm)) {
+// at st.Size and verifies them, with the pair advances, against CoreText's
+// shaping in lang (probeNumeric); not ok when the face lacks a numeric
+// rune, has a morx table or shapes them otherwise.
+func buildNumericTable(face *Face, fm *fontmap, st Style, lang string) numericGlyphTable {
+	if !face.noMorxTable() {
 		return numericGlyphTable{}
 	}
-	return numericTableAt(face, size)
+	t := numericTableAt(face, st.Size)
+	if !t.ok || !probeNumeric(&t, face, fm, st, lang) {
+		return numericGlyphTable{}
+	}
+	return t
 }
 
 // numericTableAt reads the character map's glyphs of numericChars in face
@@ -72,67 +93,74 @@ func numericTableAt(face *Face, size float32) numericGlyphTable {
 	return t
 }
 
-// numericProbes caches numericUnkerned per face; guarded by mu, cleared
-// with numericFaces.
-var numericProbes = map[*Face]bool{}
-
 // numericProbeHook, when set (tests), runs on every probe.
-var numericProbeHook func(*Face)
+var numericProbeHook func(f *Face, st Style, lang string)
 
-// numericProbeSize is the size the probe shapes at: large enough that a
-// kerning of one font unit (1/2048 em) shows well above the tolerance.
-const numericProbeSize = 64
+// numericTriples is how many random triples probeNumeric checks against
+// the pair model (contextual kerning or substitution beyond pairs).
+const numericTriples = 50
 
-// numericUnkerned reports whether CoreText sets every numeric rune of face
-// alone and every ordered pair of them as their character map's glyphs at
-// their own advances, with no offsets: the face's GPOS does not kern its
-// numeric set. fm resolves every numeric rune to face. The answer is
-// probed once per face (182 short CTLines).
-func numericUnkerned(face *Face, fm *fontmap) bool {
-	if ok, done := numericProbes[face]; done {
-		return ok
-	}
-	ok := probeNumeric(face, fm)
-	numericProbes[face] = ok
-	return ok
-}
+// numericProbeEps bounds the difference the probe accepts between
+// CoreText's values and the model's (px): well below the 1e-3 the placed
+// glyphs of a 31-rune label may drift from the general path.
+const numericProbeEps = 1e-5
 
-func probeNumeric(face *Face, fm *fontmap) bool {
+// probeNumeric shapes, with the general path's CoreText shaping (shapeItems)
+// at st's size in lang, every numeric rune alone, every ordered pair and
+// numericTriples triples (fixed sequence). It fills t.kadv and reports
+// whether CoreText sets them all as t's glyphs, unshifted, each at the
+// advance the pair model gives (t.adv, or t.kadv before a successor). Run
+// once per table: 13 + 169 + 50 one-to-three-rune CTLines.
+func probeNumeric(t *numericGlyphTable, face *Face, fm *fontmap, st Style, lang string) bool {
 	if numericProbeHook != nil {
-		numericProbeHook(face)
+		numericProbeHook(face, st, lang)
 	}
-	t := numericTableAt(face, numericProbeSize)
-	if !t.ok {
-		return false
-	}
-	st := Style{Size: numericProbeSize}.norm()
-	var buf [2]rune
-	var adv [3]float32
-	near := func(a, b float32) bool { return a-b <= 1e-3 && b-a <= 1e-3 }
-	plain := func(rs []rune) bool {
+	var adv [4]float32
+	near := func(a, b float32) bool { return a-b <= numericProbeEps && b-a <= numericProbeEps }
+	shape := func(rs []rune) []sg {
 		clear(adv[:])
-		gl := shapeItems(rs, []item{{start: 0, end: len(rs), st: st}}, []*fontmap{fm}, adv[:len(rs)+1])
+		gl := shapeItems(rs, []item{{start: 0, end: len(rs), st: st, lang: lang}}, []*fontmap{fm}, adv[:len(rs)+1])
 		if len(gl) != len(rs) {
-			return false
+			return nil
 		}
 		for k, g := range gl {
-			i := numericIndex(rs[k])
-			if g.face != face || g.gid != t.gid[i] || g.cluster != k || !near(g.adv, t.adv[i]) || !near(g.xoff, 0) || !near(g.yoff, 0) {
-				return false
+			if g.face != face || g.cluster != k || g.gid != t.gid[numericIndex(rs[k])] || !near(g.xoff, 0) || !near(g.yoff, 0) {
+				return nil
 			}
 		}
-		return true
+		return gl
 	}
-	for _, a := range numericChars {
+	var buf [3]rune
+	for i, a := range numericChars {
 		buf[0] = a
-		if !plain(buf[:1]) {
+		gl := shape(buf[:1])
+		if gl == nil || !near(gl[0].adv, t.adv[i]) {
 			return false
 		}
-		for _, b := range numericChars {
-			buf[1] = b
-			if !plain(buf[:2]) {
+		t.adv[i] = gl[0].adv // CoreText's own value, as the general path sees it
+	}
+	for i, a := range numericChars {
+		for j, b := range numericChars {
+			buf[0], buf[1] = a, b
+			gl := shape(buf[:2])
+			if gl == nil || !near(gl[1].adv, t.adv[j]) {
 				return false
 			}
+			t.kadv[i][j] = gl[0].adv
+		}
+	}
+	// A fixed pseudo-random sequence (64-bit LCG) of triples.
+	x := uint64(0x9E3779B97F4A7C15)
+	next := func() int {
+		x = x*6364136223846793005 + 1442695040888963407
+		return int(x>>33) % len(numericChars)
+	}
+	for range numericTriples {
+		a, b, c := next(), next(), next()
+		buf[0], buf[1], buf[2] = rune(numericChars[a]), rune(numericChars[b]), rune(numericChars[c])
+		gl := shape(buf[:3])
+		if gl == nil || !near(gl[0].adv, t.kadv[a][b]) || !near(gl[1].adv, t.kadv[b][c]) || !near(gl[2].adv, t.adv[c]) {
+			return false
 		}
 	}
 	return true
@@ -142,10 +170,7 @@ func probeNumeric(face *Face, fm *fontmap) bool {
 // (resetShaper) and when it grows past 1024 styles.
 var numericFaces = map[numericFaceKey]numericFaceValue{}
 
-func clearNumericFaces() {
-	numericFaces = map[numericFaceKey]numericFaceValue{}
-	numericProbes = map[*Face]bool{}
-}
+func clearNumericFaces() { numericFaces = map[numericFaceKey]numericFaceValue{} }
 
 // numericFaceFor returns the face every numeric rune of st resolves to;
 // false when they resolve to different faces, to none, or to a face the
@@ -169,10 +194,10 @@ func numericFaceFor(st Style, lang string, version int) (numericFaceValue, bool)
 	}
 	v := numericFaceValue{face: face, fm: fm}
 	if face != nil {
-		v.table = buildNumericTable(face, fm, st.Size)
+		v.table = buildNumericTable(face, fm, st, lang)
 	}
 	if len(numericFaces) >= 1024 {
-		numericFaces = map[numericFaceKey]numericFaceValue{} // the probes stay: per face, few
+		clearNumericFaces()
 	}
 	numericFaces[k] = v
 	return v, face != nil
@@ -222,15 +247,20 @@ func directNumericLayoutInto(dst *Layout, s string, st Style, opt Options, versi
 	if len(oldLines) > 0 {
 		carets = oldLines[0].carets[:0]
 	}
-	pen := float32(0)
 	for _, r := range s {
-		i := numericIndex(r)
-		carets = append(carets, pen)
 		l.Runes = append(l.Runes, r)
+	}
+	pen := float32(0)
+	for k, r := range l.Runes {
+		i, next := numericIndex(r), -1
+		if k+1 < len(l.Runes) {
+			next = numericIndex(l.Runes[k+1])
+		}
+		carets = append(carets, pen)
 		l.Glyphs = append(l.Glyphs, paint.Glyph{Src: face, ID: nf.table.gid[i], Size: st.Size, X: pen, Y: base, Skew: skew})
-		l.GlyphCluster = append(l.GlyphCluster, int32(len(l.Glyphs)-1))
+		l.GlyphCluster = append(l.GlyphCluster, int32(k))
 		l.GlyphRun = append(l.GlyphRun, 0)
-		pen += nf.table.adv[i]
+		pen += nf.table.advance(i, next)
 	}
 	carets = append(carets, pen)
 	l.Lines = append(oldLines[:0], Line{Start: 0, End: len(l.Runes), Width: pen, Baseline: base, carets: carets})

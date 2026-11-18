@@ -4,6 +4,7 @@ package text
 
 import (
 	"math"
+	"math/rand/v2"
 	"os"
 	"testing"
 	"unicode/utf8"
@@ -78,9 +79,13 @@ func numericFastMatches(t *testing.T, st Style) {
 
 func TestCTNumericFastMatchesGeneral(t *testing.T) {
 	needCT(t)
-	// The default monospace face (SF Mono) has no kerning tables.
+	// The default monospace face (SF Mono): no kerning tables.
 	numericFastMatches(t, Style{Mono: true})
 	numericFastMatches(t, Style{Mono: true, Weight: Bold, Italic: true})
+	// The default sans face (SF Pro): GPOS kerning of digit pairs ("74",
+	// "1."), placed from the probe's pair advances.
+	numericFastMatches(t, Style{})
+	numericFastMatches(t, Style{Weight: Semibold})
 	// "100%" is outside simpleNumericText: the general path lays it out.
 	mu.Lock()
 	pct := simpleNumericLayout("100%", Style{Size: 13, Mono: true}.norm(), Options{NoWrap: true}, regVersion())
@@ -90,9 +95,105 @@ func TestCTNumericFastMatchesGeneral(t *testing.T) {
 	}
 }
 
-// A face whose only kerning table is GPOS takes the fast path when the
-// probe finds its numeric pairs unkerned (Comic Sans MS: GPOS, no digit
-// kerning).
+// Random numeric labels in the system UI font (SF Pro, which kerns digit
+// pairs) at several sizes and languages take the fast path and lay out
+// exactly as the general path.
+func TestCTNumericFastSFProRandom(t *testing.T) {
+	needCT(t)
+	rng := rand.New(rand.NewPCG(1, 2))
+	opt := Options{NoWrap: true}
+	v := regVersion()
+	buf := make([]byte, 0, 12)
+	for _, size := range []float32{11, 13, 16, 24} {
+		for _, lang := range []string{"", "en", "zh-Hans"} {
+			st := Style{Size: size, Lang: lang}.norm()
+			for range 1000 {
+				buf = buf[:0]
+				for range 1 + rng.IntN(12) {
+					buf = append(buf, numericChars[rng.IntN(len(numericChars))])
+				}
+				s := string(buf)
+				mu.Lock()
+				fast := simpleNumericLayout(s, st, opt, v)
+				general := shapeRunsUncached(s, []Run{{0, len(s), st}}, opt)
+				mu.Unlock()
+				if fast == nil {
+					t.Fatalf("size %v lang %q: %q took the general path", size, lang, s)
+				}
+				sameLayout(t, s, fast, general)
+				if t.Failed() {
+					t.Fatalf("size %v lang %q: %q differs", size, lang, s)
+				}
+			}
+		}
+	}
+}
+
+// The probe runs once per numeric table: per style (with its size) and
+// language, not per label.
+func TestCTNumericProbeOncePerStyle(t *testing.T) {
+	needCT(t)
+	type key struct {
+		size float32
+		lang string
+	}
+	probes := map[key]int{}
+	numericProbeHook = func(f *Face, st Style, lang string) { probes[key{st.Size, lang}]++ }
+	t.Cleanup(func() { numericProbeHook = nil })
+	mu.Lock()
+	clearNumericFaces()
+	mu.Unlock()
+	opt := Options{NoWrap: true}
+	v := regVersion()
+	for _, s := range []string{"1", "12.5", "-7474", "+0.01"} {
+		for _, size := range []float32{11, 13} {
+			st := Style{Size: size}.norm()
+			mu.Lock()
+			fast := simpleNumericLayout(s, st, opt, v)
+			mu.Unlock()
+			if fast == nil {
+				t.Fatalf("%q size %v took the general path", s, size)
+			}
+			var l Layout
+			if got := ShapeInto(&l, s, st, opt); got != &l {
+				t.Fatal("ShapeInto did not return the destination")
+			}
+		}
+	}
+	if len(probes) != 2 {
+		t.Fatalf("probes = %v, want one per size", probes)
+	}
+	for k, n := range probes {
+		if n != 1 {
+			t.Errorf("%+v probed %d times, want 1", k, n)
+		}
+	}
+}
+
+// The probe rejects a table CoreText does not reproduce: advances read at
+// another size than the one shaped.
+func TestCTNumericProbeRejectsMismatch(t *testing.T) {
+	needCT(t)
+	fm := &fontmap{chain: reg.chain(false), w: Regular}
+	face := fm.primary()
+	mu.Lock()
+	defer mu.Unlock()
+	tb := numericTableAt(face, 13)
+	if !tb.ok {
+		t.Fatal("no numeric table")
+	}
+	if probeNumeric(&tb, face, fm, Style{Size: 26}.norm(), "") {
+		t.Error("probe accepted advances of another size")
+	}
+	tb = numericTableAt(face, 13)
+	tb.gid[3]++
+	if probeNumeric(&tb, face, fm, Style{Size: 13}.norm(), "") {
+		t.Error("probe accepted a wrong glyph")
+	}
+}
+
+// A face whose only kerning table is GPOS and whose digits do not kern
+// (Comic Sans MS) takes the fast path too.
 func TestCTNumericFastGPOSUnkerned(t *testing.T) {
 	needCT(t)
 	data, err := os.ReadFile("/System/Library/Fonts/Supplemental/Comic Sans MS.ttf")
@@ -103,79 +204,42 @@ func TestCTNumericFastGPOSUnkerned(t *testing.T) {
 	if err := RegisterFont("ProbeGPOS", data); err != nil {
 		t.Fatal(err)
 	}
-	f, _ := userFamily(t, "ProbeGPOS").pick(Regular, false)
-	if f.plainAdvances() || !f.gposKernOnly() {
-		t.Skip("Comic Sans MS is not a GPOS-only font here")
-	}
 	numericFastMatches(t, Style{})
 }
 
-// The system UI font (SF Pro) has GPOS and kerns some digit pairs ("74",
-// "1."): the probe runs once per face, and the fast path stays off.
-func TestCTNumericFastSkipsKerningFont(t *testing.T) {
+// A face with a morx table (Geneva) gets no numeric table; ShapeInto still
+// fills the destination, shaped by CoreText.
+func TestCTNumericFastSkipsMorxFont(t *testing.T) {
 	needCT(t)
-	sans := (&fontmap{chain: reg.chain(false), w: Regular}).primary()
-	if sans.plainAdvances() {
-		t.Skip("system UI font has no kerning tables")
-	}
-	probes := 0
-	numericProbeHook = func(f *Face) {
-		if f == sans {
-			probes++
-		}
-	}
-	t.Cleanup(func() { numericProbeHook = nil })
-	mu.Lock()
-	clearNumericFaces()
-	mu.Unlock()
-	opt := Options{NoWrap: true}
-	v := regVersion()
-	var unkerned bool
-	for _, size := range []float32{11, 13, 20} {
-		st := Style{Size: size}.norm()
-		mu.Lock()
-		fast := simpleNumericLayout("12345.67", st, opt, v)
-		unkerned = numericProbes[sans]
-		mu.Unlock()
-		if (fast != nil) != unkerned {
-			t.Fatalf("size %v: fast path %v, probe says unkerned %v", size, fast != nil, unkerned)
-		}
-		// ShapeInto fills the destination either way.
-		var l Layout
-		got := ShapeInto(&l, "7474.1", st, opt)
-		if got != &l {
-			t.Fatal("ShapeInto did not return the destination")
-		}
-		mu.Lock()
-		general := shapeRunsUncached("7474.1", []Run{{0, 6, st}}, opt)
-		mu.Unlock()
-		sameLayout(t, "ShapeInto", got, general)
-	}
-	if probes != 1 {
-		t.Errorf("SF Pro probed %d times, want 1", probes)
-	}
-	if sans.gposKernOnly() && unkerned {
-		t.Log("SF Pro numeric set probed as unkerned on this system")
-	}
-	// A face with a kern table never qualifies.
-	data, err := os.ReadFile("/System/Library/Fonts/Supplemental/Arial.ttf")
+	data, err := os.ReadFile("/System/Library/Fonts/Geneva.ttf")
 	if err != nil {
-		return
+		t.Skip("Geneva not installed")
 	}
-	faces, err := parseFaces("Arial", data)
-	if err != nil || len(faces) == 0 {
-		t.Fatal("cannot read Arial", err)
+	saveUserFonts(t)
+	if err := RegisterFont("ProbeMorx", data); err != nil {
+		t.Fatal(err)
 	}
-	if !ctFontHasTable(faces[0], "kern") {
-		return
+	f, _ := userFamily(t, "ProbeMorx").pick(Regular, false)
+	if f.noMorxTable() {
+		t.Skip("Geneva has no morx table here")
 	}
-	fam := &family{name: "Arial", faces: faces, loaded: true, user: true}
+	st := Style{Size: 13}.norm()
+	opt := Options{NoWrap: true}
 	mu.Lock()
-	tb := buildNumericTable(faces[0], &fontmap{chain: []*family{fam}}, 13)
+	fast := simpleNumericLayout("12345.67", st, opt, regVersion())
 	mu.Unlock()
-	if tb.ok {
-		t.Error("a face with a kern table got a numeric glyph table")
+	if fast != nil {
+		t.Fatal("simpleNumericLayout took the fast path for a morx font")
 	}
+	var l Layout
+	got := ShapeInto(&l, "12345.67", st, opt)
+	if got != &l {
+		t.Fatal("ShapeInto did not return the destination")
+	}
+	mu.Lock()
+	general := shapeRunsUncached("12345.67", []Run{{0, 8, st}}, opt)
+	mu.Unlock()
+	sameLayout(t, "ShapeInto", got, general)
 }
 
 func TestCTNoKernTables(t *testing.T) {
@@ -344,6 +408,26 @@ func TestCTMonoFastFallsBackOnIgnorables(t *testing.T) {
 		mu.Unlock()
 		if fast != nil {
 			t.Errorf("fastShape(%q) took the fast path", line)
+		}
+	}
+}
+
+// SF Mono's GSUB applies ccmp and locl by default: "ŀ" and "Ŀ" decompose
+// (ccmp), and Catalan's "l·l" gets a zero-width middle dot (locl). The fast
+// path leaves non-ASCII lines in such faces to the general path, so these
+// lay out exactly as there.
+func TestCTMonoFastGSUBLines(t *testing.T) {
+	needCT(t)
+	for _, tc := range []struct{ line, lang string }{
+		{"\u0140", ""}, {"\u013f", "en"}, {"l\u00b7l", "ca"}, {"x = \u0140 + l\u00b7l", "ca"},
+	} {
+		runs := []Run{{0, utf8.RuneCountInString(tc.line), Style{Size: 13, Mono: true, Lang: tc.lang}}}
+		c := NewLineCache(8)
+		l := c.Shape(tc.line, runs, LineOptions{})
+		sameLayout(t, tc.line, l, monoGeneral(tc.line, runs, LineOptions{}))
+		mono := (&fontmap{chain: reg.chain(true), w: Regular}).primary()
+		if mono.needsProbe() && c.stats.fast != 0 {
+			t.Errorf("%q (%s): non-ASCII line in a GSUB face took the fast path", tc.line, tc.lang)
 		}
 	}
 }

@@ -14,7 +14,11 @@ import "github.com/tangoui/tango/ui/paint"
 // (CTFontGetGlyphsForCharacters, CTFontGetAdvancesForGlyphs), which is what
 // the general path's CTLine gives; tabs take expandTabs' advances. Default
 // ignorable and control characters (CoreText may hide them) take the
-// general path.
+// general path. A face with a GSUB or trak table (Face.needsProbe), whose
+// default features (ccmp, locl) CoreText applies, takes only lines of
+// ASCII, and only in the (size, language) where a probe found CoreText
+// setting the whole printable ASCII range as the character map's glyphs
+// at their own advances (asciiProbe).
 
 // fastPath memoizes the fast path's font resolution and glyph metrics; it
 // lives as long as the font registry version (LineCache.flush).
@@ -45,6 +49,7 @@ type primaryRune struct{ ok, done bool }
 type monoTable struct {
 	ascii [128]monoGlyph
 	other map[rune]monoGlyph
+	plain map[string]bool // asciiProbe per resolved language
 }
 
 type monoGlyph struct {
@@ -135,6 +140,47 @@ func (fp *fastPath) glyph(f *Face, size float32, r rune) (monoGlyph, bool) {
 	return g, g.gid != 0
 }
 
+// asciiProbe reports whether CoreText, shaping the printable ASCII range
+// as one item of face f at size in lang with ligatures off (the general
+// path), sets every rune as the glyph and advance fp.glyph gives it, with
+// no offset; memoized per (face, size, lang).
+func (fp *fastPath) asciiProbe(ff *fastFont, st Style, lang string) bool {
+	f := ff.primary
+	k := ctSizedFace{f, st.Size}
+	t := fp.tables[k]
+	if t != nil {
+		if ok, done := t.plain[lang]; done {
+			return ok
+		}
+	}
+	runes := make([]rune, 0, '~'-' '+1)
+	for r := rune(' '); r <= '~'; r++ {
+		runes = append(runes, r)
+	}
+	n := len(runes)
+	adv := make([]float32, n+1)
+	gl := shapeItems(runes, []item{{start: 0, end: n, st: st, lang: lang}}, []*fontmap{ff.fm}, adv)
+	ok := len(gl) == n
+	for i := 0; ok && i < n; i++ {
+		g := gl[i]
+		mg, mapped := fp.glyph(f, st.Size, runes[i])
+		ok = mapped && g.face == f && g.cluster == i && g.gid == mg.gid &&
+			near5(g.adv, mg.adv) && near5(g.xoff, 0) && near5(g.yoff, 0)
+	}
+	t = fp.tables[k] // fp.glyph made it (or cleared the tables)
+	if t == nil {
+		t = &monoTable{}
+		fp.tables[k] = t
+	}
+	if t.plain == nil {
+		t.plain = map[string]bool{}
+	}
+	t.plain[lang] = ok
+	return ok
+}
+
+func near5(a, b float32) bool { return a-b <= 1e-5 && b-a <= 1e-5 }
+
 // ctIgnorable reports control and default ignorable characters, which
 // CoreText may set without the font's glyph or advance.
 func ctIgnorable(r rune) bool {
@@ -181,10 +227,25 @@ func (c *LineCache) fastShape(line string, runs []Run, opt Options) *Layout {
 		c.fp = &fastPath{fonts: map[fastFontKey]*fastFont{}, tables: map[ctSizedFace]*monoTable{}}
 	}
 	fp := c.fp
+	ascii := true
+	for _, r := range runes {
+		ascii = ascii && r < 0x80
+	}
 	ffs := make([]*fastFont, len(p.rs))
 	for k, r := range p.rs {
 		ffs[k] = fp.font(r.st.Weight, r.st.Italic)
 		if ffs[k].primary == nil {
+			return nil
+		}
+	}
+	// Faces CoreText may substitute or track in: ASCII lines in a probed
+	// (size, language) only, for every run the line is shaped with (run 0
+	// when all runs shape alike).
+	for k, r := range p.rs {
+		if p.shapeOf == nil && k > 0 || p.shapeOf != nil && !usedShaping(p.shapeOf, int32(k)) {
+			continue
+		}
+		if ffs[k].primary.needsProbe() && (!ascii || !fp.asciiProbe(ffs[k], r.st, r.lang)) {
 			return nil
 		}
 	}
@@ -247,4 +308,14 @@ func (c *LineCache) fastShape(line string, runs []Run, opt Options) *Layout {
 	l.Lines = []Line{ln}
 	l.Height = lh
 	return l
+}
+
+// usedShaping reports whether some rune is shaped with run k.
+func usedShaping(shapeOf []int32, k int32) bool {
+	for _, s := range shapeOf {
+		if s == k {
+			return true
+		}
+	}
+	return false
 }
