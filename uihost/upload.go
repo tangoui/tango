@@ -63,6 +63,9 @@ func AcceptDrops(r *ui.Runner, s *tango.Surface) {
 	if r == nil || s == nil {
 		return
 	}
+	// A threaded window's drops go to its UI thread, also after it closed
+	// (the thread then drops them).
+	t := threadedOf(r)
 	s.OnFilesDropped(func(paths []string, x, y int) {
 		drop := func() {
 			p := geom.Pt(float32(x), float32(y))
@@ -75,7 +78,7 @@ func AcceptDrops(r *ui.Runner, s *tango.Surface) {
 			}
 			r.DropFiles(p, paths)
 		}
-		if t := threadedOf(r); t != nil {
+		if t != nil {
 			// The runner is the UI thread's: queue the drop after the drag
 			// feedback the host queued before it (threaded.go).
 			t.post(s.App(), drop)

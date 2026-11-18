@@ -100,14 +100,13 @@ func Open(app *tango.App, opts Options, page func(*ui.Context), ropts ui.RunnerO
 	h.id = s.ID()
 	h.cv = cv
 	h.sc = newShortcuts(app, s) // shortcuts.go
-	var r *ui.Runner
 	if ct, ok := cv.(platform.CanvasThreaded); ok {
-		r = h.openThreaded(s, ct, page, ropts) // threaded.go; nil: no frame clock
+		h.openThreaded(s, ct, page, ropts) // threaded.go; h.r stays nil without a frame clock
 	}
-	if r == nil {
-		r = h.openMain(s, page, ropts)
+	if h.r == nil {
+		h.openMain(s, page, ropts)
 	}
-	h.r = r
+	r := h.r
 	s.OnClosed(h.close)
 	watchMemory(app, r) // memory.go
 	fl.start(r, s)
@@ -117,9 +116,9 @@ func Open(app *tango.App, opts Options, page func(*ui.Context), ropts ui.RunnerO
 	return r, s, nil
 }
 
-// openMain creates the runner of a window whose UI thread is the main
-// thread.
-func (h *host) openMain(s *tango.Surface, page func(*ui.Context), ropts ui.RunnerOptions) *ui.Runner {
+// openMain creates the runner (h.r) of a window whose UI thread is the
+// main thread.
+func (h *host) openMain(s *tango.Surface, page func(*ui.Context), ropts ui.RunnerOptions) {
 	h.gpu = setupGPU(h.cv, ropts) // gpu.go; nil: CPU
 	if h.gpu != nil {
 		ropts.Renderer = h.gpu
@@ -131,7 +130,7 @@ func (h *host) openMain(s *tango.Surface, page func(*ui.Context), ropts ui.Runne
 	h.win.watchFrame(s)         // frame.go: ui.WindowFrame
 	r.Attach(h.win)
 	h.watchRenderer(r)
-	return r
+	h.r = r
 }
 
 // watchRenderer registers r's GPU renderer (Renderer) and starts its frame
@@ -168,7 +167,7 @@ type host struct {
 }
 
 func (h *host) CanvasFrame() {
-	if h.closed || h.cv == nil {
+	if h.closed || h.r == nil { // nil: a callback while Open sets up
 		return
 	}
 	if h.t != nil { // the frame clock draws on the UI thread

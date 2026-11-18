@@ -56,9 +56,9 @@ func (t *threadedHost) post(app *tango.App, fn func()) {
 }
 
 // openThreaded starts a UI thread for a threaded window and the canvas's
-// frame clock on it, then creates the runner on the main thread and hands
-// it to the UI thread. It returns nil, with the thread stopped and h
-// unchanged, when the clock cannot start: the window then uses the main
+// frame clock on it, then creates the runner (h.r) on the main thread and
+// hands it to the UI thread. It leaves h unchanged, with the thread stopped,
+// when the clock cannot start: the window then uses the main
 // thread. Main thread.
 //
 // Only StartFrameClock waits for the UI thread (it must not wait for the
@@ -67,7 +67,7 @@ func (t *threadedHost) post(app *tango.App, fn func()) {
 // system's reduce-motion preference) and everything else that calls the
 // runner, before BindThread. After BindThread nothing here calls a checked
 // runner method; the first frame is the UI thread's.
-func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page func(*ui.Context), ropts ui.RunnerOptions) *ui.Runner {
+func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page func(*ui.Context), ropts ui.RunnerOptions) {
 	t := &threadedHost{th: uithread.Start(fmt.Sprintf("tango uihost surface %d", h.id))}
 	attached := false // UI thread: ticks before the hand-over draw nothing
 	tick := func() {
@@ -80,9 +80,8 @@ func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page f
 	if err != nil {
 		t.th.Stop()
 		log.Printf("tango: uihost: surface %d: no frame clock, drawing on the main thread: %v", h.id, err)
-		return nil
+		return
 	}
-	h.t = t
 	h.gpu = setupGPU(h.cv, ropts) // gpu.go; nil: CPU
 	if h.gpu != nil {
 		ropts.Renderer = h.gpu
@@ -95,13 +94,17 @@ func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page f
 	r.Attach(h.win)
 	h.watchRenderer(r)
 	threadedRunners.Store(r, t)
-	// The hand-over: everything above happens before the UI thread's first
-	// frame, which this task asks for (a tick that came earlier drew nothing).
+	// Until here sink callbacks took the main-thread path, which ignores
+	// them while h.r is nil. From here they are queued on the UI thread.
+	h.t, h.r = t, r
+	// The hand-over, posted once every host field a frame reads is written:
+	// all of it happens before the UI thread's first frame, which this task
+	// asks for (a tick that came earlier drew nothing). Open writes no host
+	// field the UI thread reads after this.
 	t.th.Post(func() {
 		attached = true
 		t.request()
 	})
-	return r
 }
 
 // closeThreaded stops the clock and releases the window's renderer and

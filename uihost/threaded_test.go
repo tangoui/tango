@@ -32,6 +32,7 @@ type threadedCanvas struct {
 	platform.Canvas
 	sink     platform.CanvasSink
 	clockErr error // returned by StartFrameClock
+	eager    bool  // request queues the tick on the UI thread at once
 
 	mu         sync.Mutex
 	th         *uithread.Thread // the thread StartFrameClock ran on
@@ -81,7 +82,16 @@ func (c *threadedCanvas) request() {
 	c.mu.Lock()
 	c.pending = true
 	c.requests++
+	eager, th, fn := c.eager, c.th, c.tickFn
 	c.mu.Unlock()
+	if eager {
+		th.Post(func() {
+			c.mu.Lock()
+			c.pending = false
+			c.mu.Unlock()
+			fn()
+		})
+	}
 }
 
 func (c *threadedCanvas) stop() {
@@ -153,10 +163,16 @@ func (c *threadedCanvas) sync(t *testing.T) {
 	}
 }
 
+// clockCfg configures the frame clock of threadedCanvases.
+type clockCfg struct {
+	err   error // StartFrameClock's result
+	eager bool  // tick as soon as a frame is requested
+}
+
 // useThreadedCanvases makes the canvases of the following uihost.Open
-// (and, with attached, uihost.Attach) calls threadedCanvases with err as
-// StartFrameClock's result, and returns them by surface.
-func useThreadedCanvases(t *testing.T, attached bool, err error) func(platform.SurfaceID) *threadedCanvas {
+// (and, with attached, uihost.Attach) calls threadedCanvases with clock
+// cfg, and returns them by surface.
+func useThreadedCanvases(t *testing.T, attached bool, cfg clockCfg) func(platform.SurfaceID) *threadedCanvas {
 	t.Helper()
 	var mu sync.Mutex
 	byID := map[platform.SurfaceID]*threadedCanvas{}
@@ -166,7 +182,7 @@ func useThreadedCanvases(t *testing.T, attached bool, err error) func(platform.S
 		if e != nil {
 			return s, cv, e
 		}
-		tc := &threadedCanvas{Canvas: cv, sink: sink, clockErr: err}
+		tc := &threadedCanvas{Canvas: cv, sink: sink, clockErr: cfg.err, eager: cfg.eager}
 		mu.Lock()
 		byID[s.(*tango.Surface).ID()] = tc
 		mu.Unlock()
@@ -178,7 +194,7 @@ func useThreadedCanvases(t *testing.T, attached bool, err error) func(platform.S
 			if e != nil {
 				return cv, e
 			}
-			tc := &threadedCanvas{Canvas: cv, sink: sink, clockErr: err}
+			tc := &threadedCanvas{Canvas: cv, sink: sink, clockErr: cfg.err, eager: cfg.eager}
 			mu.Lock()
 			byID[s.(*tango.Surface).ID()] = tc
 			mu.Unlock()
@@ -196,7 +212,7 @@ func useThreadedCanvases(t *testing.T, attached bool, err error) func(platform.S
 // openThreaded opens a window on a threadedCanvas without running a frame.
 func openThreaded(t *testing.T, a *tango.App, fb *fake.Backend, page func(*ui.Context)) (*ui.Runner, *tango.Surface, *threadedCanvas, *fake.Canvas) {
 	t.Helper()
-	canvases := useThreadedCanvases(t, false, nil)
+	canvases := useThreadedCanvases(t, false, clockCfg{})
 	o := tango.Await(a, func() opened {
 		r, s, err := uihost.Open(a, uihost.Options{
 			Surface: tango.SurfaceOptions{Title: "UI", Width: 200, Height: 100},
@@ -355,7 +371,7 @@ func TestMainThreadWindowImplementsUIPoster(t *testing.T) {
 
 func TestAttachNeverBindsThread(t *testing.T) {
 	a, fb := faketest.Run(t, tango.Options{})
-	canvases := useThreadedCanvases(t, true, nil)
+	canvases := useThreadedCanvases(t, true, clockCfg{})
 	s := webSurface(t, a, 300, 200)
 	r, _, _ := attach(t, a, fb, s, uihost.Layer{Above: true}, func(c *ui.Context) {})
 	tc := canvases(s.ID())
@@ -407,7 +423,7 @@ func TestFrameRunsOnUIThread(t *testing.T) {
 
 func TestThreadedClockErrorKeepsMainThreadModel(t *testing.T) {
 	a, fb := faketest.Run(t, tango.Options{})
-	canvases := useThreadedCanvases(t, false, errors.New("no display link"))
+	canvases := useThreadedCanvases(t, false, clockCfg{err: errors.New("no display link")})
 	var mu sync.Mutex
 	var pageGID uint64
 	o := tango.Await(a, func() opened {
@@ -512,5 +528,40 @@ func TestThreadedDropRunsAfterDragOver(t *testing.T) {
 	})
 	if n != 1 || name != "drop.png" {
 		t.Fatalf("files after drop: %d %q", n, name)
+	}
+}
+
+// A clock that ticks as soon as Open's hand-over asks for the first frame
+// finds the host complete (run with -race).
+func TestThreadedEagerClockFirstFrame(t *testing.T) {
+	a, _ := faketest.Run(t, tango.Options{})
+	canvases := useThreadedCanvases(t, false, clockCfg{eager: true})
+	ran := make(chan struct{}, 1)
+	o := tango.Await(a, func() opened {
+		r, s, err := uihost.Open(a, uihost.Options{
+			Surface: tango.SurfaceOptions{Title: "UI", Width: 100, Height: 100},
+		}, func(c *ui.Context) {
+			ui.Text(c, "eager")
+			select {
+			case ran <- struct{}{}:
+			default:
+			}
+		}, ui.RunnerOptions{})
+		return opened{r, s, err}
+	})
+	if o.err != nil {
+		t.Fatal(o.err)
+	}
+	select {
+	case <-ran:
+	case <-time.After(faketest.Timeout):
+		t.Fatal("first frame did not run the page")
+	}
+	tc := canvases(o.s.ID())
+	tc.sync(t)
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	if tc.presents < 1 {
+		t.Fatal("first frame not presented")
 	}
 }
