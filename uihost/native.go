@@ -34,7 +34,8 @@ func (s *nativeRendererState) record(work time.Duration, full bool, start, end t
 		s.full = 0
 	}
 	s.lastEnd = end
-	s.ready = s.slow >= 6 || s.full >= 6
+	// Sticky: a keyboardInput request survives frames recorded before Render.
+	s.ready = s.ready || s.slow >= 6 || s.full >= 6
 	return s.ready
 }
 func startNative(cv platform.Canvas, forced bool) *gpuRenderer {

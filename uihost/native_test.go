@@ -376,3 +376,18 @@ func TestDataWindowsUseNativeLayersAtAnySize(t *testing.T) {
 		})
 	}
 }
+
+// A fast presented frame between the key and the next Render must not
+// cancel the keyboard's request for Metal.
+func TestKeyboardRequestSurvivesFrameRecord(t *testing.T) {
+	g, cv, calls := nativeKeyboardSetup(t, "", nil)
+	g.keyboardInput()
+	now := time.Unix(100, 0)
+	if !g.native.record(time.Millisecond, false, now, now.Add(time.Millisecond)) || !g.native.ready {
+		t.Fatal("a cheap frame cleared the keyboard promotion request")
+	}
+	renderNativeTestFrame(t, g, cv)
+	if g.nativeMode || *calls != 1 {
+		t.Fatalf("after record: native=%v metal targets=%d, want Metal", g.nativeMode, *calls)
+	}
+}
