@@ -61,7 +61,7 @@ func (s modelBrackets) tokens(snap buffer.Snapshot, line int, text string, dst [
 
 func (s modelBrackets) summary(snap buffer.Snapshot, line int, dst []uint64) ([]uint64, bool) {
 	if hl := s.m.Highlighter(); hl != nil {
-		return hl.LineSummary(snap, line, dst)
+		return hl.LineSummary(bracketConfOf(s.m.Conf()), snap, line, dst)
 	}
 	return dst[:0], false
 }
@@ -123,6 +123,9 @@ func (m *Model) brackets() *bracketTree {
 
 // bracketsEdited passes a change to the bracket tree.
 func (m *Model) bracketsEdited(old, ns buffer.Snapshot, edits []buffer.Edit) {
+	if (old.Len() > maxBracketTreeLen) != (ns.Len() > maxBracketTreeLen) {
+		m.syncLineSummary()
+	}
 	if m.brk != nil {
 		m.brk.edit(old, ns, edits)
 	}

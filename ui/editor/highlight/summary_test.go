@@ -3,6 +3,7 @@ package highlight
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ func lenSummary(text string, toks []monarch.Token, dst []uint64) []uint64 {
 
 func wantSummary(t *testing.T, lx *monarch.Lexer, h *Highlighter, s buffer.Snapshot, line int) {
 	t.Helper()
-	got, ok := h.LineSummary(s, line, nil)
+	got, ok := h.LineSummary("len", s, line, nil)
 	if !ok {
 		t.Fatalf("line %d: no summary", line)
 	}
@@ -37,7 +38,7 @@ func TestLineSummaryFollowsFinalLines(t *testing.T) {
 	s := buffer.NewSnapshot(tsDoc(t, 400))
 	h := New(lx)
 	h.SetLineSummary("len", lenSummary)
-	if _, ok := h.LineSummary(s, 10, nil); ok {
+	if _, ok := h.LineSummary("len", s, 10, nil); ok {
 		t.Fatal("a summary before tokenizing")
 	}
 	highlightAll(t, h, s)
@@ -49,7 +50,7 @@ func TestLineSummaryFollowsFinalLines(t *testing.T) {
 	edits := []buffer.Edit{{Start: at, End: at, Text: "q"}}
 	ns, _ := s.Apply(edits)
 	h.Edit(s, ns, edits)
-	if _, ok := h.LineSummary(ns, 100, nil); ok {
+	if _, ok := h.LineSummary("len", ns, 100, nil); ok {
 		t.Fatal("the edited line kept its summary")
 	}
 	wantSummary(t, lx, h, ns, 99)
@@ -63,7 +64,7 @@ func TestLineSummaryFollowsFinalLines(t *testing.T) {
 	ns, _ = s.Apply(edits)
 	h.Edit(s, ns, edits)
 	h.Highlight(ns, 121, time.Hour) // line 120 only: its end state changed
-	if _, ok := h.LineSummary(ns, 125, nil); ok {
+	if _, ok := h.LineSummary("len", ns, 125, nil); ok {
 		t.Fatal("a line below a new block comment kept its summary before it was tokenized")
 	}
 	highlightAll(t, h, ns)
@@ -87,7 +88,7 @@ func TestLineSummaryFollowsFinalLines(t *testing.T) {
 	}
 	// Another function: none until tokenized again.
 	h.SetLineSummary("other", lenSummary)
-	if _, ok := h.LineSummary(ns, 300, nil); ok {
+	if _, ok := h.LineSummary("len", ns, 300, nil); ok {
 		t.Fatal("a summary of the previous function")
 	}
 	// The same key again keeps them.
@@ -117,5 +118,27 @@ func TestLineSummaryFollowsFinalLines(t *testing.T) {
 	}
 	for _, l := range []int{0, 250, 401} {
 		wantSummary(t, lx, h, ns, l)
+	}
+}
+
+func TestLineSummaryInvalidatedPastTokenCut(t *testing.T) {
+	s := buffer.NewSnapshot(strings.Repeat(" ", cutSafe+10))
+	h := New(tsLexer(t))
+	h.SetLineSummary("len", lenSummary)
+	highlightAll(t, h, s)
+	if _, ok := h.LineSummary("len", s, 0, nil); !ok {
+		t.Fatal("missing initial summary")
+	}
+	edit := buffer.Edit{Start: s.Len(), End: s.Len(), Text: "x"}
+	ns, err := s.Apply([]buffer.Edit{edit})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Edit(s, ns, []buffer.Edit{edit})
+	if got, ok := h.LineSummary("len", ns, 0, nil); ok {
+		t.Fatalf("edit beyond token cut retained stale summary %v", got)
+	}
+	if !h.FinalBefore(ns, 1) {
+		t.Fatal("edit beyond token cut unnecessarily invalidated tokens")
 	}
 }

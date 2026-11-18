@@ -586,7 +586,7 @@ func (m *minimapState) shiftRows(b *buffer.Buffer, snap buffer.Snapshot) uint64 
 		}
 		if k >= 0 && ln.seen == ov && ln.seenLine == k {
 			if nk := newLine(k); nk >= 0 {
-				ln.seenLine = nk
+				ln.seen, ln.seenLine = nv, nk
 				carried = append(carried, ln)
 				continue
 			}

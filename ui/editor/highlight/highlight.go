@@ -213,6 +213,10 @@ func (h *Highlighter) Edit(old, new buffer.Snapshot, edits []buffer.Edit) {
 		}
 		sl, el := old.LineOf(e.Start), old.LineOf(e.End)
 		if sl == el && pastCut(old, sl, e) {
+			// A summary may depend on text past the tokenization cut.
+			if sl < len(h.st.sums) {
+				h.st.sums[sl] = nil
+			}
 			// The line's tokens and end state stay as they are. A
 			// consequence: such an edit no longer marks the line dirty, so
 			// a line whose degraded result was accepted (retries used up)
@@ -334,7 +338,7 @@ func (h *Highlighter) summarize(fn LineSummaryFunc, text string, toks []monarch.
 
 // SetLineSummary sets the function that summarizes each line tokenized
 // from now on (nil: none), identified by key: another key drops the lines'
-// summaries, the same key keeps them.
+// summaries, the same key keeps them. The key must be comparable.
 func (h *Highlighter) SetLineSummary(key any, fn LineSummaryFunc) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -348,12 +352,12 @@ func (h *Highlighter) SetLineSummary(key any, fn LineSummaryFunc) {
 
 // LineSummary appends line's summary (SetLineSummary) to dst[:0] and
 // reports whether it has one: the line is final in snap (the current
-// snapshot) and was summarized when it was tokenized.
-func (h *Highlighter) LineSummary(snap buffer.Snapshot, line int, dst []uint64) ([]uint64, bool) {
+// snapshot), the key matches, and the line was summarized when tokenized.
+func (h *Highlighter) LineSummary(key any, snap buffer.Snapshot, line int, dst []uint64) ([]uint64, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	dst = dst[:0]
-	if h.lx == nil || h.sumFn == nil || !h.have || h.snap != snap || line < 0 || line >= len(h.st.sums) ||
+	if h.lx == nil || h.sumFn == nil || h.sumKey != key || !h.have || h.snap != snap || line < 0 || line >= len(h.st.sums) ||
 		line >= h.st.n() || !h.st.final(line) || h.st.acceptedDegraded(line) {
 		return dst, false
 	}

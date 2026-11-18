@@ -196,3 +196,23 @@ func TestMinimapNoSourceReadsAfterShiftFrame(t *testing.T) {
 	}
 	assertMinimapFresh(t, st, w)
 }
+
+func TestMinimapShiftDoesNotMoveRowAwaitingRecolourAgain(t *testing.T) {
+	b := buffer.New("a\nb\nc\nd")
+	old := b.Snapshot()
+	row := &miniLine{text: "c", seen: old.Version(), seenLine: 2}
+	m := minimapState{cache: map[int]*miniLine{2: row}}
+	snap, err := b.Edit([]buffer.Edit{{Start: 0, Text: "new\n"}}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.shiftRows(b, snap)
+	if m.cache[3] != row {
+		t.Fatal("row did not move to line 3")
+	}
+	// Preparation can defer recolouring this row past the deadline.
+	m.shiftRows(b, snap)
+	if m.cache[3] != row || m.cache[4] != nil {
+		t.Fatal("row moved twice for the same change")
+	}
+}
