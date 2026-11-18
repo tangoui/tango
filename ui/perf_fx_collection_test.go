@@ -574,6 +574,15 @@ func init() {
 					Column(c, func() { Tree(c, nodes).Expanded(exp).Height(760).Show() }, layout.W(960))
 				}
 			},
+			// The Height viewport with DataVersion: the walk and the
+			// flattened rows are cached, so a frame follows the viewport.
+			LargeVersioned: func(n int) func(*Context) {
+				nodes, keys := perfCollTreeNodes(n)
+				return func(c *Context) {
+					exp := State(c, perfCollID("tree.versioned.exp"), func() []string { return append([]string(nil), keys...) })
+					Column(c, func() { Tree(c, nodes).Expanded(exp).Height(760).DataVersion(1).Show() }, layout.W(960))
+				}
+			},
 			NA: map[string]string{"Large100k": perfNANonVirtual},
 		},
 		perfFixture{

@@ -53,6 +53,7 @@ type treeState struct {
 	targets    map[ID]string // click target -> key (previous build)
 	rows       map[string]ID // key -> row id (previous build)
 	cursor     string        // keyboard focus row
+	vc         treeVerCache  // Height + DataVersion cache (data_tree_cache.go)
 }
 
 // TreeW is a hierarchical list with expand, select, check, drag and search.
@@ -109,6 +110,12 @@ type TreeW struct {
 	sb                    *ScrollBox
 	built                 int  // rows built by the last Show
 	reveal                bool // the keyboard moved the cursor this build
+	version               int  // DataVersion
+	verSet                bool // DataVersion called: Height caches (data_tree_cache.go)
+	// Set while the cache is in use: key → node (find) and, while the
+	// cache flattens the rows, the expanded keys as a set (isExpanded).
+	index  map[string]*TreeNode
+	expIdx map[string]bool
 }
 
 // Tree starts a tree over nodes; configure with modifiers and call Show.
@@ -151,10 +158,12 @@ func Tree(c *Context, nodes []TreeNode) *TreeW {
 // Height turns the tree into a scrolling viewport of px that builds only
 // the rows in view (Ant height / virtual). Every frame still walks all
 // nodes and flattens the visible rows, so the cost stays O(n) in the node
-// count even though only the rows in view are built; for large trees
-// (tens of thousands of nodes) use VirtualTree, whose cost follows the
-// viewport. Expand / collapse jump without the height animation in this
-// mode. VirtualTree also offers custom row renderers and Range.
+// count even though only the rows in view are built, unless DataVersion
+// is set: then the walk and the flattened rows are cached and a frame
+// follows the viewport (see DataVersion for what an in-place edit needs).
+// VirtualTree's cost always follows the viewport, and it also offers
+// custom row renderers and Range. Expand / collapse jump without the
+// height animation in this mode.
 func (w *TreeW) Height(px float32) *TreeW { w.height = max(0, px); return w }
 
 // Built returns how many rows the last Show built (all visible rows
@@ -545,7 +554,12 @@ func (w *TreeW) metrics() (rowH, gap, indent, sw float32) {
 	return tk.TitleHeight, tk.NodeGap, tk.IndentSize, tk.SwitcherSize
 }
 
-func (w *TreeW) isExpanded(k string) bool { return contains(*w.expanded, k) }
+func (w *TreeW) isExpanded(k string) bool {
+	if w.expIdx != nil {
+		return w.expIdx[k] // rowsNow: the same keys as a set
+	}
+	return contains(*w.expanded, k)
+}
 
 func (w *TreeW) setExpanded(k string, on bool) {
 	if on == w.isExpanded(k) {
@@ -635,13 +649,23 @@ func (w *TreeW) show() *TreeW {
 			w.expCh = true
 		}
 	}
-	w.parents = map[string]string{}
-	treeWalk(w.nodes, func(n *TreeNode, path []string) {
-		if len(path) > 0 {
-			w.parents[n.Key] = path[len(path)-1]
+	var vc *treeVerCache
+	if w.cached() {
+		vc = w.syncData()
+		w.parents, w.index = vc.parents, vc.index
+	} else {
+		w.parents = map[string]string{}
+		treeWalk(w.nodes, func(n *TreeNode, path []string) {
+			if len(path) > 0 {
+				w.parents[n.Key] = path[len(path)-1]
+			}
+		})
+	}
+	if vc != nil {
+		if w.filter && w.search != "" {
+			w.visible = w.cachedVisible(vc)
 		}
-	})
-	if w.filter && w.search != "" {
+	} else if w.filter && w.search != "" {
 		w.visible = map[string]bool{}
 		treeWalk(w.nodes, func(n *TreeNode, path []string) {
 			if w.matches(n) {
@@ -701,7 +725,7 @@ func (w *TreeW) show() *TreeW {
 		empty = c.Locale().NoData
 	}
 	switch {
-	case empty != "" && len(w.visibleRows()) == 0:
+	case empty != "" && w.noRows():
 		// Element el-tree__empty-block: the text centered in 60px.
 		w.box.Body(func() {
 			Row(c, func() { Text(c, empty).Color(tk.EmptyTextColor) }, layout.MinH(60), layout.Center())
@@ -713,6 +737,14 @@ func (w *TreeW) show() *TreeW {
 	}
 	st.targets, st.rows = w.targets, w.rows
 	return w
+}
+
+// noRows reports whether the tree shows no row (visibleRows is empty).
+func (w *TreeW) noRows() bool {
+	if w.cached() {
+		return len(w.rowsNow()) == 0 // the same rows, flattened
+	}
+	return len(w.visibleRows()) == 0
 }
 
 // semantics points the tree at its keyboard row (the focus stays on the
@@ -734,6 +766,15 @@ func (w *TreeW) semantics(s *a11y.Node) {
 // out), in display order.
 func (w *TreeW) visibleRows() []*TreeNode {
 	var out []*TreeNode
+	if w.cached() {
+		// The cached flattened rows hold the same nodes in the same order.
+		rows := w.rowsNow()
+		out = make([]*TreeNode, len(rows))
+		for i, r := range rows {
+			out[i] = r.nd
+		}
+		return out
+	}
 	var rec func(ns []TreeNode)
 	rec = func(ns []TreeNode) {
 		for i := range ns {
@@ -853,6 +894,10 @@ func (w *TreeW) handleKeys(keys []input.KeyEvent) {
 
 // refreshChecks recomputes the drawn check states from *w.checked.
 func (w *TreeW) refreshChecks() {
+	if w.cached() {
+		w.full, w.half = w.cachedChecks(w.syncData())
+		return
+	}
 	if w.strict {
 		w.full, w.half = map[string]bool{}, map[string]bool{}
 		for _, k := range *w.checked {
@@ -886,6 +931,9 @@ func (w *TreeW) selectNode(nd *TreeNode) {
 }
 
 func (w *TreeW) find(key string) *TreeNode {
+	if w.index != nil {
+		return w.index[key]
+	}
 	var out *TreeNode
 	treeWalk(w.nodes, func(n *TreeNode, _ []string) {
 		if n.Key == key {
@@ -1440,7 +1488,7 @@ func (w *TreeW) virtualBody() {
 	ih := float64(rowH + gap)
 	w.box.n.ln.ScrollY = true
 	w.box.n.ln.Height = w.height
-	rows := w.flatRows()
+	rows := w.rowsNow()
 	w.sb = c.finishScroll(w.box, func() {
 		s := State[scrollState](c, w.box.n.id, nil) // the viewport's scroll state
 		s.extent.Y = float64(len(rows)) * ih
@@ -1449,7 +1497,7 @@ func (w *TreeW) virtualBody() {
 			view = float64(s.view.H)
 		}
 		// Keep the keyboard row in view.
-		if i := treeFlatIndex(rows, w.st.cursor); i >= 0 && w.reveal {
+		if i := w.rowIndex(rows, w.st.cursor); i >= 0 && w.reveal {
 			top := float64(i) * ih
 			switch {
 			case top < s.off.Y:

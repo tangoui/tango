@@ -408,7 +408,7 @@ func perfBudget(fx perfFixture, scene string, large1k time.Duration) time.Durati
 		return 500 * time.Microsecond
 	case "Interact":
 		return 2 * time.Millisecond
-	case "Large100k", "LargeVirtual100k": // large1k: the 1k scene of the same form
+	case "Large100k", "LargeVirtual100k", "LargeVersioned100k": // large1k: the 1k scene of the same form
 		b := 4 * time.Millisecond
 		if large1k > 0 {
 			b = min(b, large1k*3/2)

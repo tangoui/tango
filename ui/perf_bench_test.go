@@ -76,6 +76,15 @@ func perfScenes(fx perfFixture, raster bool) []perfScene {
 			sc = append(sc, perfScene{"LargeVirtual" + strings.TrimPrefix(l.name, "Large"), interact(perfPage(fx.LargeVirtual(l.n)), act)})
 		}
 	}
+	if fx.LargeVersioned != nil {
+		act := fx.LargeInteract
+		if act == nil {
+			act = perfScroll
+		}
+		for _, l := range perfLargeSizes {
+			sc = append(sc, perfScene{"LargeVersioned" + strings.TrimPrefix(l.name, "Large"), interact(perfPage(fx.LargeVersioned(l.n)), act)})
+		}
+	}
 	return sc
 }
 

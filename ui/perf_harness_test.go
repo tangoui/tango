@@ -37,6 +37,10 @@ type perfFixture struct {
 	// the like): scenes LargeVirtual1k / 10k / 100k, interacted with
 	// LargeInteract, budgeted like Large (perfBudget).
 	LargeVirtual func(n int) func(c *Context)
+	// LargeVersioned is LargeVirtual with the component's opt-in data
+	// cache on (Tree Height + DataVersion): scenes LargeVersioned1k / 10k
+	// / 100k, interacted with LargeInteract, budgeted like Large.
+	LargeVersioned func(n int) func(c *Context)
 	// NA marks single scenes 不适用 (not applicable), scene name → reason
 	// (e.g. "Large100k": perfNANonVirtual). Such a scene still runs in
 	// BenchmarkComponents for reference, but TestPerfBudgets does not time
