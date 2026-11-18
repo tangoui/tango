@@ -564,6 +564,17 @@ func init() {
 					perfCollScrollBox(c, func() { Tree(c, nodes).Expanded(exp).Show() })
 				}
 			},
+			// The same nodes in Tree's own Height(760) viewport, which builds
+			// only the rows in view (data_tree.go's windowed path, not
+			// VirtualTree's: the VirtualTree fixture times that one).
+			LargeVirtual: func(n int) func(*Context) {
+				nodes, keys := perfCollTreeNodes(n)
+				return func(c *Context) {
+					exp := State(c, perfCollID("tree.virtual.exp"), func() []string { return append([]string(nil), keys...) })
+					Column(c, func() { Tree(c, nodes).Expanded(exp).Height(760).Show() }, layout.W(960))
+				}
+			},
+			NA: map[string]string{"Large100k": perfNANonVirtual},
 		},
 		perfFixture{
 			// Clicking a node makes it current; step 1 clicks the first one
@@ -618,6 +629,9 @@ func init() {
 					}).Height(760).Done(true).Layout(layout.W(960))
 				}
 			},
+			// The virtual infinite list is Listy(...).Virtual().LoadMore +
+			// EndReached, timed by the Listy fixture.
+			NA: map[string]string{"Large100k": "closure: 接收任意闭包，组件看不到“项”，无法窗口化；虚拟版无限滚动用 Listy(...).Virtual().LoadMore + EndReached（Listy 已计时）"},
 		},
 		perfFixture{
 			// The viewer follows the newest line: step 0 wheels up (it stops

@@ -101,7 +101,8 @@ func (w *ConversationsW) Height(px float32) *ConversationsW { w.height = max(0, 
 // its first element and the day, and checked against the conversations
 // in view every frame, so Time or Group edited in place (a conversation
 // moved to today, the slice sorted in place) shows right as it comes into
-// view.
+// view. When the selected key is not in the list (a filtered list without
+// the current conversation), every frame scans the list once for it.
 func (w *ConversationsW) Virtual() *ConversationsW { w.virtual = true; return w }
 
 // ScrollToKey scrolls the list (needs Height) to the conversation with

@@ -128,12 +128,17 @@ func (w *ConversationsW) layout(th *theme.Theme, tk *theme.ChatToken) *convLayou
 
 // relayout rebuilds the row table now.
 func (w *ConversationsW) relayout(th *theme.Theme, tk *theme.ChatToken) *convLayout {
-	w.st.lay.key = convLayoutKey{}
+	if w.st.lay != nil {
+		w.st.lay.key = convLayoutKey{}
+	}
 	return w.layout(th, tk)
 }
 
 // headAbove reports whether the default form puts a group header above
-// item i (buildAll: the group differs from the last non-empty group).
+// item i (buildAll: the group differs from the last non-empty group). It
+// scans back over ungrouped items (zero Time, empty Group), so one call
+// costs O(that run): O(1) unless many ungrouped conversations sit right
+// above a grouped one.
 func (w *ConversationsW) headAbove(i int) bool {
 	if w.noGroups {
 		return false
@@ -214,13 +219,11 @@ func (w *ConversationsW) buildView(th *theme.Theme, tk *theme.ChatToken) {
 		sb := Scroll(c, nil, opts...)
 		sb.n.ln.Gap = convRowGap
 		if w.req.set {
-			L, view := w.layout(th, tk), fillViewH(sb, w.height)
-			key, _ := w.req.key.(string)
-			var f convFind
-			f.idx = -1
-			if i := f.find(w.items, key); !w.verify(L, sb, view, i) {
-				L = w.relayout(th, tk)
-			}
+			// This form builds every row anyway (O(n)), so the row table
+			// is rebuilt outright: headers above the viewport that a local
+			// verify cannot see (a one-item group gone after an in-place
+			// sort) would offset a far target by a header.
+			L, view := w.relayout(th, tk), fillViewH(sb, w.height)
 			w.scroll(sb, L, view)
 		}
 		sb.Body(func() { w.buildAll(th, tk) })

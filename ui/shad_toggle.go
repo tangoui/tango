@@ -305,8 +305,9 @@ func (g *ToggleGroupW) build() {
 	g.n.setState(a11y.Horizontal)
 	g.nodes = g.nodes[:0]
 	cur := -1
+	in := newSelIndex(g.sel)
 	for i, o := range g.opts {
-		on := contains(*g.sel, o.Value)
+		on := in.has(o.Value)
 		t := Toggle(c, o.Label, &on).Size(g.size).Disabled(o.Disabled)
 		t.grouped = true
 		g.nodes = append(g.nodes, t.n)
@@ -349,10 +350,13 @@ func (g *ToggleGroupW) build() {
 			switch {
 			case on && g.single:
 				*g.sel = []string{o.Value}
+				in.reset(o.Value)
 			case on:
 				*g.sel = append(*g.sel, o.Value)
+				in.add(o.Value)
 			default:
 				*g.sel = remove(*g.sel, o.Value)
+				in.del(o.Value)
 			}
 		}
 	}

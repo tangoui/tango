@@ -295,6 +295,7 @@ func init() {
 			perfDisplayClick(r, label)
 		}}
 	carousel.LargeInteract = carousel.Interact
+	carousel.NA = map[string]string{"Large100k": "unrealistic: 10 万张幻灯片和 10 万个圆点没有意义"}
 	// Skeleton shimmer and Spin rotation honor Context.still(): NoAnimations
 	// freezes decoration. Unlike the three live timers above they should idle.
 	registerPerf(
@@ -389,8 +390,10 @@ func init() {
 				func() { CardAction(c, icon.Setting, "设置") }, func() { CardAction(c, icon.Edit, "编辑") },
 			).Body(func() { CardMeta(c, func() { Avatar(c, "T") }, perfDisplayLabel(changed), "This is the description") })
 		}, "CardMeta", "CardAction"),
-		perfDisplayCollection("Descriptions", 6, perfDisplayDescriptions),
-		perfDisplayCollection("Timeline", 4, perfDisplayTimeline),
+		perfNA100k(perfDisplayCollection("Descriptions", 6, perfDisplayDescriptions),
+			"unrealistic: 描述列表是字段表格，10 万个字段不现实；表格数据用 Table（已虚拟）"),
+		perfNA100k(perfDisplayCollection("Timeline", 4, perfDisplayTimeline),
+			"unrealistic: 时间轴没有 10 万个节点的场景；大规模活动流用 Listy / LogView（已虚拟）"),
 		perfFixture{Name: "Tooltip", Overlay: true, Build: func(c *Context) {
 			t := Tooltip(c, "这是一段文字提示 Tooltip", func() { Button(c, "查看提示") }).Trigger("click").Placement("bottom")
 			// Tooltip has no controlled Open API. Seed its actual retained
@@ -433,7 +436,8 @@ func init() {
 		}},
 		perfFixture{Name: "Collapse", Build: perfDisplayCollapse(3, false),
 			Large:    func(n int) func(*Context) { return perfDisplayCollapse(n, true) },
-			Interact: func(r *perfRun, _ int) { perfDisplayClick(r, "面板 Panel 1") }},
+			Interact: func(r *perfRun, _ int) { perfDisplayClick(r, "面板 Panel 1") },
+			NA:       map[string]string{"Large100k": "unrealistic: 折叠面板没有 10 万个的场景；长列表用 List / Listy（已虚拟）"}},
 		carousel,
 		perfDisplayFixture("Calendar", func(c *Context, changed bool) {
 			v := State(c, hashID("perf.display.calendar"), func() time.Time { return time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC) })
@@ -461,7 +465,7 @@ func init() {
 					dx = -dx
 				}
 				r.D.Inject(input.Scroll{Pos: r.Center(), DX: dx})
-			}},
+			}, NA: map[string]string{"Large100k": "unrealistic: 分段控制器只有几段"}},
 		perfFixture{Name: "Rate", Build: func(c *Context) {
 			Rate(c, State(c, hashID("perf.display.rate"), func() float64 { return 2.5 })).AllowHalf().ShowScore()
 		},
@@ -473,12 +477,12 @@ func init() {
 				r.D.r.Invalidate()
 				r.D.Frame()
 			}},
-		perfDisplayDocumentFixture("Markdown", func(c *Context, changed bool) {
+		perfNA100k(perfDisplayDocumentFixture("Markdown", func(c *Context, changed bool) {
 			Markdown(c, "# "+perfDisplayLabel(changed)+"\n\n中英混合 **Markdown** 文档。\n\n- 规则一\n- 规则二\n\n```go\nfmt.Println(\"hello\")\n```", layout.W(640))
-		}),
-		perfDisplayDocumentFixture("RichText", func(c *Context, changed bool) {
+		}), "unrealistic: 10 万段的文档不是 Markdown 组件的规模，大文本用 CodeBlock / LogView（已虚拟）；分块虚拟要处理目录锚点、查找、跨块选区，代价大"),
+		perfNA100k(perfDisplayDocumentFixture("RichText", func(c *Context, changed bool) {
 			RichText(c, Span{Text: perfDisplayLabel(changed), Bold: true}, Span{Text: "：中英混排 Rich text "}, Span{Text: "inline code", Code: true}, Span{Text: " 高亮", Mark: true}).Layout(layout.W(640))
-		}),
+		}), "unrealistic: 行内富文本组件，大文本用 CodeBlock / LogView / 文本查看器（已虚拟）"),
 		perfDisplayDocumentFixture("CodeBlock", func(c *Context, changed bool) {
 			CodeBlock(c, "package main\n\nfunc main() {\n\tprintln(\""+perfDisplayLabel(changed)+"\")\n}\n", layout.W(760)).Lang("go").Title("main.go").Height(280)
 		}),

@@ -42,8 +42,10 @@ type perfFixture struct {
 	// BenchmarkComponents for reference, but TestPerfBudgets does not time
 	// it: it prints "PERF <Name/Scene> 0 0 n/a <reason>", which uiperf
 	// bench shows in status.md. Rules (perfNAProblems, run by
-	// TestPerfCoverage): only Large10k / Large100k (Large1k is always
-	// measured; other scenes over budget go to perfTimeDebt); the scene
+	// TestPerfCoverage): only Large10k / Large100k (Large1k cannot be NA
+	// and still runs in BenchmarkComponents, though TestPerfBudgets skips
+	// it when its 100k is NA, having nothing to be the reference of;
+	// other scenes over budget go to perfTimeDebt); the scene
 	// exists, the reason is set, the scene is not in perfTimeDebt; and the
 	// fixture either has LargeVirtual scenes (the default form is O(n) by
 	// design, its virtual form is budgeted) or the reason starts with
@@ -58,6 +60,19 @@ type perfFixture struct {
 // component's default, non-virtual form, which is O(n) by design; its
 // opt-in virtual form is timed by the LargeVirtual scenes.
 const perfNANonVirtual = "非虚拟形态按设计是 O(n)；虚拟形态由 LargeVirtual 场景计时"
+
+// Batch 3 V4 NA reasons (virtualization proposal §5) shared by several
+// fixtures.
+const (
+	perfNAClosure     = "closure: 通用闭包容器，看不到“项”，无法窗口化；大列表用 VirtualList / Listy（已计时）"
+	perfNAOptionGroup = "unrealistic: 表单内联选项组，几十项已是上限；大集合用 MultiSelect / Transfer（已虚拟）"
+)
+
+// perfNA100k marks fx's Large100k 不适用 with why (see perfFixture.NA).
+func perfNA100k(fx perfFixture, why string) perfFixture {
+	fx.NA = map[string]string{"Large100k": why}
+	return fx
+}
 
 type perfRun struct {
 	D      *Driver

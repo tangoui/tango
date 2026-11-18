@@ -15,7 +15,7 @@
   - `Interact`：组件最常见的一次交互。
   - `Large1k` / `Large10k` / `Large100k`：集合类与可放大组件，n 取 1 000 / 10 000 / 100 000，默认交互是滚动。
   - `LargeVirtual1k` / `LargeVirtual10k` / `LargeVirtual100k`（第 3 批起，夹具的 `LargeVirtual` 字段）：默认形态不窗口化、另有 opt-in 虚拟形态（`Height` + `Virtual()` 等）的组件，用虚拟形态放同样的数据，预算同 `Large*`（`LargeVirtual100k` ≤ 4 ms 且 ≤ `LargeVirtual1k` 的 1.5 倍）。
-  - 单个场景“不适用”：夹具的 `NA` 字段（场景名 → 理由）。该场景仍在 `BenchmarkComponents` 里跑、数字留作参考，但 `TestPerfBudgets` 不计时、不进债表，输出 `PERF <组件/场景> 0 0 n/a <理由>`，`uiperf bench` 的 status.md 在 pass 列显示 `n/a: 理由`；`TestPerfCoverage` 检查场景存在、理由非空、不在 `perfTimeDebt`。第 3 批起 List、ProList、Conversations、ProTable、CellEditorTable、RowEditorTable 的 `Large100k` 标为不适用（非虚拟形态按设计 O(n)）。
+  - 单个场景“不适用”：夹具的 `NA` 字段（场景名 → 理由）。该场景仍在 `BenchmarkComponents` 里跑、数字留作参考，但 `TestPerfBudgets` 不计时、不进债表，输出 `PERF <组件/场景> 0 0 n/a <理由>`，`uiperf bench` 的 status.md 在 pass 列显示 `n/a: 理由`；`TestPerfCoverage` 检查场景存在、理由非空、不在 `perfTimeDebt`。第 3 批起 List、ProList、Conversations、ProTable、CellEditorTable、RowEditorTable、Tree 的 `Large100k` 标为不适用（非虚拟形态按设计 O(n)，虚拟形态由 `LargeVirtual*` 计时），另有 17 个 c 类组件的 `Large100k` 以 `unrealistic:` / `closure:` 理由标为不适用，见“第 3 批：虚拟化”一节。
 - **第二层：进程外跨框架 runner**（`tools/uibench`）。发布构建、新进程，比较进程 CPU + WindowServer CPU、帧率、帧间隔 p99 和 footprint，至少 5 轮交替。判定“更快”要求 Tango 各轮中位数 ≤ 对手中位数 × 0.50，四分位区间不重叠，帧率不低于对手，p99 不高于对手；对 MyGo、NSGo 分别判定。**本版未运行。**
 
 ### 硬预算（只收紧不放宽）
@@ -139,6 +139,8 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 
 统计：待优化 161，无对手只看预算 48。
 
+第 3 批（虚拟化，V1–V4）之后，下表中 30 个相关组件的“进程内时间预算达标”列已按批次结果改写，括注批次、新数字（`perfTime` 单次计时）或不适用理由；其余各列仍是 R1 快照，状态列不变（这些组件仍有脏区债或跨框架场景）。
+
 | 组件 | Mount | Unchanged | Interact | Large 1k / 10k / 100k | 冷启动 | 脏区债 | 进程内时间预算达标 | 跨框架场景 | 对 MyGo | 对 NSGo | 状态 |
 |---|---:|---:|---:|---:|---:|---:|---|---|---|---|---|
 | Addon | 56.4 µs | 2.9 µs | 4.0 µs | — | 5.34 ms | 27.72× | 是 | — | 待测 | 待测 | 待优化 |
@@ -148,7 +150,7 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 | App | 51.3 µs | 2.4 µs | 4.0 µs | — | 7.99 ms | 18.00× | 是 | — | 待测 | 待测 | 待优化 |
 | Approval | 57.0 µs | 5.8 µs | — | — | 7.77 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | AspectRatio | 51.4 µs | 1.6 µs | 1.6 µs | — | 7.17 ms | 14.40× | 是 | — | 待测 | 待测 | 待优化 |
-| AutoComplete | 50.3 µs | 1.6 µs | 10.7 µs | 1.21 ms / 63.39 ms / 1.41 s | 5.21 ms | 26.47× | 否（Large100k） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
+| AutoComplete | 50.3 µs | 1.6 µs | 10.7 µs | 1.21 ms / 63.39 ms / 1.41 s | 5.21 ms | 26.47× | 是（第 3 批 V1：超过 100 项自动窗口化，Large100k 21.8 µs / 预算 30.0 µs） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | Avatar | 50.1 µs | 885 ns | 933 ns | — | 7.36 ms | 810.00× | 是 | — | 待测 | 待测 | 待优化 |
 | AvatarGroup | 55.4 µs | 4.6 µs | 4.6 µs | 155.4 µs / 1.62 ms / 19.16 ms | 7.21 ms | 316.41× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
 | BackTop | 59.1 µs | 6.6 µs | 29.2 µs | — | 7.60 ms | 5.59× | 是 | — | 待测 | 待测 | 待优化 |
@@ -163,38 +165,38 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 | ButtonGroup | 52.1 µs | 2.7 µs | 3.8 µs | — | 7.28 ms | 210.08× | 是 | counter（12b 待测） | 待测 | 待测 | 待优化 |
 | Calendar | 112.5 µs | 47.9 µs | 47.9 µs | — | 7.55 ms | 14.06× | 是 | — | 待测 | 待测 | 待优化 |
 | Card | 57.2 µs | 5.7 µs | 5.8 µs | — | 7.47 ms | 21.18× | 是 | — | 待测 | 待测 | 待优化 |
-| Carousel | 64.0 µs | 5.2 µs | 17.0 µs | 1.42 ms / 15.09 ms / 263.52 ms | 7.32 ms | 4.66× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
-| Cascader | 51.4 µs | 2.1 µs | 28.3 µs | 1.17 ms / 51.29 ms / 613.28 ms | 7.14 ms | 168.75× | 否（Large100k） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
-| CascaderPanel | 61.9 µs | 8.6 µs | 20.3 µs | 1.08 ms / 51.28 ms / 614.09 ms | 7.79 ms | 21.62× | 否（Large100k） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
-| CellEditorTable | 68.1 µs | 13.5 µs | 171.9 µs | 2.49 ms / 31.05 ms / 393.06 ms | 7.80 ms | 2.82× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
-| CheckAll | 53.8 µs | 4.3 µs | 14.2 µs | 1.42 ms / 221.54 ms / 2.53 s | 7.29 ms | 17.90× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| Carousel | 64.0 µs | 5.2 µs | 17.0 µs | 1.42 ms / 15.09 ms / 263.52 ms | 7.32 ms | 4.66× | 不适用（第 3 批 V4，Large100k：10 万张幻灯片没有意义） | — | 待测 | 待测 | 待优化 |
+| Cascader | 51.4 µs | 2.1 µs | 28.3 µs | 1.17 ms / 51.29 ms / 613.28 ms | 7.14 ms | 168.75× | 是（第 3 批 V1：自动窗口化，Large100k 18.2 µs / 预算 27.1 µs） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
+| CascaderPanel | 61.9 µs | 8.6 µs | 20.3 µs | 1.08 ms / 51.28 ms / 614.09 ms | 7.79 ms | 21.62× | 是（第 3 批 V1：自动窗口化，Large100k 13.8 µs / 预算 21.4 µs） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
+| CellEditorTable | 68.1 µs | 13.5 µs | 171.9 µs | 2.49 ms / 31.05 ms / 393.06 ms | 7.80 ms | 2.82× | 是（第 3 批 V3：Large100k 不适用，非虚拟形态 O(n)；LargeVirtual100k 45.7 µs / 预算约 75 µs） | — | 待测 | 待测 | 待优化 |
+| CheckAll | 53.8 µs | 4.3 µs | 14.2 µs | 1.42 ms / 221.54 ms / 2.53 s | 7.29 ms | 17.90× | 不适用（第 3 批 V4，Large100k：内联选项组，大集合用 MultiSelect / Transfer） | — | 待测 | 待测 | 待优化 |
 | CheckCard | 53.1 µs | 2.8 µs | — | — | 8.67 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | CheckCardGroup | 49.8 µs | 768 ns | — | — | 144.9 µs | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | CheckableTag | 49.9 µs | 1.1 µs | 3.3 µs | — | 7.27 ms | 1042.64× | 是 | — | 待测 | 待测 | 待优化 |
 | CheckableTagGroup | 54.2 µs | 3.7 µs | 10.1 µs | — | 7.28 ms | 316.72× | 是 | — | 待测 | 待测 | 待优化 |
 | Checkbox | 50.0 µs | 1.2 µs | 4.1 µs | — | 7.60 ms | 725.59× | 是 | 计划 T10/T11 | 待测 | 待测 | 待优化 |
-| CheckboxGroup | 53.6 µs | 3.3 µs | 9.1 µs | 1.42 ms / 223.75 ms / 2.55 s | 5.27 ms | 200.98× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| CheckboxGroup | 53.6 µs | 3.3 µs | 9.1 µs | 1.42 ms / 223.75 ms / 2.55 s | 5.27 ms | 200.98× | 不适用（第 3 批 V4，Large100k：内联选项组，大集合用 MultiSelect / Transfer） | — | 待测 | 待测 | 待优化 |
 | CodeBlock | 118.4 µs | 4.0 µs | 4.2 µs | 6.4 µs / 6.4 µs / 6.4 µs | 10.37 ms | 5.50× | 是 | — | 待测 | 待测 | 待优化 |
-| Collapse | 58.2 µs | 6.4 µs | 18.3 µs | 2.64 ms / 140.87 ms / 1.74 s | 7.30 ms | 10.55× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| Collapse | 58.2 µs | 6.4 µs | 18.3 µs | 2.64 ms / 140.87 ms / 1.74 s | 7.30 ms | 10.55× | 不适用（第 3 批 V4，Large100k：没有 10 万个面板，长列表用 List / Listy） | — | 待测 | 待测 | 待优化 |
 | CollapsibleSider | 53.2 µs | 2.7 µs | 11.3 µs | — | 7.35 ms | 5.33× | 是 | — | 待测 | 待测 | 待优化 |
 | ColorPicker | 51.2 µs | 1.8 µs | 10.1 µs | — | 5.26 ms | 18.35× | 是 | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | ColorPickerGradient | 52.0 µs | 2.4 µs | 17.4 µs | — | 5.19 ms | 13.88× | 是 | — | 待测 | 待测 | 待优化 |
 | ColorPickerPanel | 65.7 µs | 11.8 µs | 33.7 µs | — | 7.42 ms | 15.13× | 是 | — | 待测 | 待测 | 待优化 |
 | ColorPickerPanelGradient | 78.4 µs | 22.8 µs | 59.0 µs | — | 7.40 ms | 12.56× | 是 | — | 待测 | 待测 | 待优化 |
-| Command | 61.1 µs | 8.2 µs | 23.4 µs | 723.2 µs / 67.79 ms / 777.73 ms | 7.66 ms | 11.14× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| Command | 61.1 µs | 8.2 µs | 23.4 µs | 723.2 µs / 67.79 ms / 777.73 ms | 7.66 ms | 11.14× | 是（第 3 批 V1：自动窗口化，Large100k 20.3 µs / 预算 30.7 µs） | — | 待测 | 待测 | 待优化 |
 | Compact | 55.6 µs | 5.6 µs | 6.9 µs | — | 7.44 ms | 198.54× | 是 | — | 待测 | 待测 | 待优化 |
 | ConfigProvider | 50.9 µs | 1.9 µs | 2.0 µs | — | 7.31 ms | 284.91× | 是 | — | 待测 | 待测 | 待优化 |
 | Confirm | 64.5 µs | 8.8 µs | 40.1 µs | — | 7.76 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | ContextMenuAt | 51.7 µs | 2.2 µs | 19.1 µs | — | 7.22 ms | 5.39× | 是 | — | 待测 | 待测 | 待优化 |
 | ContextMenuAtWith | 50.4 µs | 1.3 µs | 15.4 µs | — | 7.16 ms | 18.75× | 是 | — | 待测 | 待测 | 待优化 |
-| Conversations | 52.0 µs | 2.4 µs | — | 1.62 ms / 57.81 ms / 701.08 ms | 7.27 ms | — | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| Conversations | 52.0 µs | 2.4 µs | — | 1.62 ms / 57.81 ms / 701.08 ms | 7.27 ms | — | 是（第 3 批 V2：Large100k 不适用，非虚拟形态 O(n)；LargeVirtual100k 27.1 µs / 预算 40.9 µs） | — | 待测 | 待测 | 待优化 |
 | Countdown | 50.0 µs | 1.3 µs | 1.5 µs | — | 7.20 ms | 16.05× | 是 | — | 待测 | 待测 | 待优化 |
 | Custom | 50.5 µs | 1.5 µs | 1.5 µs | — | 7.23 ms | 14.55× | 是 | — | 待测 | 待测 | 待优化 |
 | DatePicker | 50.7 µs | 1.3 µs | 29.4 µs | — | 7.23 ms | 12.23× | 是 | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | DatePickerPanel | 89.5 µs | 29.6 µs | 48.7 µs | — | 7.97 ms | 14.61× | 是 | — | 待测 | 待测 | 待优化 |
 | DateTimePicker | 51.4 µs | 1.6 µs | 75.2 µs | — | 5.12 ms | 7.85× | 是 | — | 待测 | 待测 | 待优化 |
 | DefaultFooter | 48.9 µs | 443 ns | — | — | 120.6 µs | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
-| Descriptions | 68.3 µs | 13.1 µs | 13.1 µs | 2.61 ms / 172.46 ms / 2.15 s | 7.64 ms | 6.13× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| Descriptions | 68.3 µs | 13.1 µs | 13.1 µs | 2.61 ms / 172.46 ms / 2.15 s | 7.64 ms | 6.13× | 不适用（第 3 批 V4，Large100k：10 万个字段不现实，用 Table） | — | 待测 | 待测 | 待优化 |
 | Disabled | 50.0 µs | 1.3 µs | 1.3 µs | — | 9.94 ms | 391.36× | 是 | — | 待测 | 待测 | 待优化 |
 | Div | 49.7 µs | 1.1 µs | 1.1 µs | — | 7.65 ms | 40.50× | 是 | — | 待测 | 待测 | 待优化 |
 | Divider | 49.4 µs | 952 ns | 963 ns | — | 7.32 ms | 38.79× | 是 | — | 待测 | 待测 | 待优化 |
@@ -203,7 +205,7 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 | DrawerForm | 67.5 µs | 12.8 µs | — | — | 7.95 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | DropZone | 50.3 µs | 1.3 µs | 1.7 µs | — | 7.08 ms | 20.77× | 是 | — | 待测 | 待测 | 待优化 |
 | Dropdown | 50.6 µs | 1.8 µs | 12.3 µs | — | 7.23 ms | 49.44× | 是 | — | 待测 | 待测 | 待优化 |
-| EditableProTable | 81.4 µs | 22.6 µs | — | — | 7.84 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
+| EditableProTable | 81.4 µs | 22.6 µs | — | — | 7.84 ms | — | 是（第 3 批 V3 新增 ScrollY / Virtual；夹具无 Large 场景） | — | 待测 | 待测 | 无对手只看预算 |
 | Empty | 55.1 µs | 5.7 µs | 5.8 µs | — | 7.31 ms | 5.23× | 是 | — | 待测 | 待测 | 待优化 |
 | FieldSet | 60.1 µs | 7.5 µs | 32.1 µs | — | 7.40 ms | 29.09× | 是 | — | 待测 | 待测 | 待优化 |
 | Flex | 53.0 µs | 3.6 µs | 3.6 µs | — | 7.39 ms | 84.38× | 是 | — | 待测 | 待测 | 待优化 |
@@ -217,10 +219,10 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 | Icon | 49.7 µs | 743 ns | 792 ns | — | 140.0 µs | 2250.00× | 是 | — | 待测 | 待测 | 待优化 |
 | IconButton | 50.0 µs | 868 ns | 1.3 µs | — | 156.0 µs | 2677.69× | 是 | — | 待测 | 待测 | 待优化 |
 | Image | 660.2 µs | 939 ns | 588.1 µs | — | 835.4 µs | 33.75× | 否（Mount） | — | 待测 | 待测 | 待优化 |
-| InfiniteScroll | 72.6 µs | 17.5 µs | 220.2 µs | 2.39 ms / 72.45 ms / 889.86 ms | 7.62 ms | 10.38× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| InfiniteScroll | 72.6 µs | 17.5 µs | 220.2 µs | 2.39 ms / 72.45 ms / 889.86 ms | 7.62 ms | 10.38× | 不适用（第 3 批 V4，Large100k：任意闭包，无法窗口化；虚拟无限滚动用 Listy） | — | 待测 | 待测 | 待优化 |
 | Input | 50.5 µs | 1.5 µs | 5.1 µs | — | 7.34 ms | 112.50× | 是 | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | InputNumber | 51.4 µs | 1.9 µs | 8.2 µs | — | 4.96 ms | 184.09× | 是 | — | 待测 | 待测 | 待优化 |
-| InputTag | 53.6 µs | 3.9 µs | 21.9 µs | 5.47 ms / 194.78 ms / 2.27 s | 5.99 ms | 112.50× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| InputTag | 53.6 µs | 3.9 µs | 21.9 µs | 5.47 ms / 194.78 ms / 2.27 s | 5.99 ms | 112.50× | 不适用（第 3 批 V4，Large100k：10 万个标签不现实，用 MaxTagCount） | — | 待测 | 待测 | 待优化 |
 | Item | 51.6 µs | 2.1 µs | 8.6 µs | — | 7.57 ms | 11.64× | 是 | — | 待测 | 待测 | 待优化 |
 | ItemGroup | 55.5 µs | 4.1 µs | 16.4 µs | — | 7.61 ms | 5.82× | 是 | — | 待测 | 待测 | 待优化 |
 | JSONView | 79.0 µs | 17.5 µs | 27.3 µs | 20.8 µs / 28.1 µs / 20.8 µs | 8.87 ms | 5.33× | 是 | — | 待测 | 待测 | 待优化 |
@@ -230,7 +232,7 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 | Layout | 55.0 µs | 4.1 µs | 4.2 µs | — | 7.13 ms | 4.74× | 是 | — | 待测 | 待测 | 待优化 |
 | LightFilter | 54.5 µs | 3.0 µs | — | — | 7.41 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | Link | 50.2 µs | 1.1 µs | 1.6 µs | — | 7.18 ms | 42.32× | 是 | — | 待测 | 待测 | 待优化 |
-| List | 67.4 µs | 12.9 µs | 38.1 µs | 2.64 ms / 82.04 ms / 1.08 s | 5.60 ms | 3.75× | 否（Large100k） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
+| List | 67.4 µs | 12.9 µs | 38.1 µs | 2.64 ms / 82.04 ms / 1.08 s | 5.60 ms | 3.75× | 是（第 3 批 V2：Large100k 不适用，非虚拟形态 O(n)；LargeVirtual100k 50.9 µs / 预算 91.3 µs） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | ListActions | 71.5 µs | 16.6 µs | 44.3 µs | — | 7.44 ms | 4.31× | 是 | — | 待测 | 待测 | 待优化 |
 | ListToolBar | 63.8 µs | 10.8 µs | 30.2 µs | — | 7.39 ms | 9.90× | 是 | — | 待测 | 待测 | 待优化 |
 | Listy | 73.5 µs | 13.1 µs | 41.2 µs | 31.2 µs / 31.4 µs / 34.0 µs | 7.47 ms | 2.59× | 是 | list（12b 待测） | 待测 | 待测 | 待优化 |
@@ -238,11 +240,11 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 | LogView | 92.8 µs | 13.5 µs | 37.9 µs | 25.0 µs / 25.0 µs / 25.0 µs | 9.02 ms | 4.22× | 是 | — | 待测 | 待测 | 待优化 |
 | LoginForm | 67.1 µs | 12.3 µs | — | — | 7.17 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | LoginFormPage | 68.6 µs | 13.6 µs | — | — | 7.27 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
-| Markdown | 85.7 µs | 21.4 µs | 22.6 µs | 8.61 ms / 96.86 ms / 1.10 s | 8.92 ms | 9.00× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| Markdown | 85.7 µs | 21.4 µs | 22.6 µs | 8.61 ms / 96.86 ms / 1.10 s | 8.92 ms | 9.00× | 不适用（第 3 批 V4，Large100k：大文本用 CodeBlock / LogView） | — | 待测 | 待测 | 待优化 |
 | MarkdownEditor | 75.0 µs | 20.5 µs | 65.6 µs | — | 7.45 ms | 4.63× | 是 | — | 待测 | 待测 | 待优化 |
 | Masonry | 84.4 µs | 24.5 µs | 24.6 µs | 65.7 µs / 101.8 µs / 442.7 µs | 7.89 ms | — | 否（Large100k） | — | 待测 | 待测 | 待优化 |
-| Mentions | 50.6 µs | 1.7 µs | 6.9 µs | 1.25 ms / 65.16 ms / 1.43 s | 5.47 ms | 112.50× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
-| Menu | 56.1 µs | 4.6 µs | 13.5 µs | 514.8 µs / 5.79 ms / 96.12 ms | 7.38 ms | 18.24× | 否（Large100k） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
+| Mentions | 50.6 µs | 1.7 µs | 6.9 µs | 1.25 ms / 65.16 ms / 1.43 s | 5.47 ms | 112.50× | 是（第 3 批 V1：自动窗口化，Large100k 19.7 µs / 预算 28.9 µs） | — | 待测 | 待测 | 待优化 |
+| Menu | 56.1 µs | 4.6 µs | 13.5 µs | 514.8 µs / 5.79 ms / 96.12 ms | 7.38 ms | 18.24× | 不适用（第 3 批 V4，Large100k：导航菜单没有 10 万项） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | Menubar | 53.6 µs | 3.1 µs | 15.5 µs | — | 7.15 ms | 18.40× | 是 | — | 待测 | 待测 | 待优化 |
 | Message | 58.6 µs | 5.2 µs | 11.2 µs | — | 7.41 ms | 26.30× | 是 | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | MessageBox | 62.9 µs | 7.3 µs | 33.6 µs | — | 7.80 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
@@ -271,30 +273,30 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 | ProFormGroup | 52.7 µs | 2.8 µs | — | — | 8.48 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | ProFormItems | 58.3 µs | 6.3 µs | — | — | 7.22 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | ProLayout | 59.1 µs | 6.2 µs | — | — | 7.22 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
-| ProList | 64.0 µs | 10.2 µs | — | 4.79 ms / 151.53 ms / 2.02 s | 217.2 µs | — | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| ProList | 64.0 µs | 10.2 µs | — | 4.79 ms / 151.53 ms / 2.02 s | 217.2 µs | — | 是（第 3 批 V2：Large100k 不适用，非虚拟形态 O(n)；LargeVirtual100k 69.4 µs / 预算 104.8 µs） | — | 待测 | 待测 | 待优化 |
 | ProSettingsProvider | 206.6 µs | 85.9 µs | — | — | 7.26 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | ProSkeleton | 49.3 µs | 503 ns | — | — | 143.0 µs | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | ProStatistic | 55.4 µs | 4.4 µs | — | — | 7.30 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
-| ProTable | 115.0 µs | 43.2 µs | — | 1.90 ms / 21.96 ms / 288.02 ms | 8.02 ms | — | 否（Large100k） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
+| ProTable | 115.0 µs | 43.2 µs | — | 1.90 ms / 21.96 ms / 288.02 ms | 8.02 ms | — | 是（第 3 批 V3：Large100k 不适用，非虚拟形态 O(n)；LargeVirtual100k 61.7 µs / 预算约 94 µs） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | Progress | 62.6 µs | 12.6 µs | 14.2 µs | — | 5.89 ms | 19.53× | 是 | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | Prompt | 64.9 µs | 8.6 µs | 46.0 µs | — | 8.03 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | Prompts | 52.2 µs | 2.3 µs | — | — | 7.53 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | QRCode | 281.5 µs | 6.6 µs | 6.7 µs | — | 612.4 µs | 50.62× | 是 | — | 待测 | 待测 | 待优化 |
 | QueryFilter | 61.0 µs | 8.2 µs | — | — | 7.28 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | Radio | 51.5 µs | 2.4 µs | 8.8 µs | — | 7.94 ms | 362.80× | 是 | 计划 T10/T11 | 待测 | 待测 | 待优化 |
-| RadioGroup | 53.1 µs | 3.2 µs | 8.7 µs | 1.49 ms / 219.09 ms / 2.51 s | 5.27 ms | 200.98× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| RadioGroup | 53.1 µs | 3.2 µs | 8.7 µs | 1.49 ms / 219.09 ms / 2.51 s | 5.27 ms | 200.98× | 不适用（第 3 批 V4，Large100k：内联选项组，大集合用 MultiSelect / Transfer） | — | 待测 | 待测 | 待优化 |
 | RangePicker | 51.7 µs | 1.6 µs | 50.8 µs | — | 7.60 ms | 6.98× | 是 | — | 待测 | 待测 | 待优化 |
 | Rate | 52.1 µs | 1.9 µs | 1.9 µs | — | 5.18 ms | 366.75× | 是 | — | 待测 | 待测 | 待优化 |
 | Result | 55.8 µs | 4.7 µs | 4.8 µs | — | 7.30 ms | 6.53× | 是 | — | 待测 | 待测 | 待优化 |
-| RichText | 61.1 µs | 11.0 µs | 11.0 µs | 12.88 ms / 184.68 ms / 2.05 s | 9.11 ms | 89.01× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| RichText | 61.1 µs | 11.0 µs | 11.0 µs | 12.88 ms / 184.68 ms / 2.05 s | 9.11 ms | 89.01× | 不适用（第 3 批 V4，Large100k：大文本用 CodeBlock / LogView） | — | 待测 | 待测 | 待优化 |
 | RouteContext | 52.2 µs | 1.3 µs | — | — | 7.45 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | Row | 55.8 µs | 3.9 µs | 4.0 µs | — | 7.24 ms | 36.16× | 是 | — | 待测 | 待测 | 待优化 |
-| RowEditorTable | 70.5 µs | 14.0 µs | 188.3 µs | 2.52 ms / 31.17 ms / 392.85 ms | 8.38 ms | 2.82× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| RowEditorTable | 70.5 µs | 14.0 µs | 188.3 µs | 2.52 ms / 31.17 ms / 392.85 ms | 8.38 ms | 2.82× | 是（第 3 批 V3：Large100k 不适用，非虚拟形态 O(n)；LargeVirtual100k 46.7 µs / 预算约 71 µs） | — | 待测 | 待测 | 待优化 |
 | SchemaForm | 63.5 µs | 9.2 µs | — | — | 7.25 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
-| Scroll | 66.6 µs | 11.7 µs | 19.2 µs | 329.1 µs / 3.48 ms / 51.64 ms | 7.28 ms | 6.33× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
-| ScrollH | 64.9 µs | 10.9 µs | 18.3 µs | 330.4 µs / 3.46 ms / 51.68 ms | 7.27 ms | 16.88× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| Scroll | 66.6 µs | 11.7 µs | 19.2 µs | 329.1 µs / 3.48 ms / 51.64 ms | 7.28 ms | 6.33× | 不适用（第 3 批 V4，Large100k：通用闭包容器；大列表用 VirtualList / Listy） | — | 待测 | 待测 | 待优化 |
+| ScrollH | 64.9 µs | 10.9 µs | 18.3 µs | 330.4 µs / 3.46 ms / 51.68 ms | 7.27 ms | 16.88× | 不适用（第 3 批 V4，Large100k：通用闭包容器；大列表用 VirtualList / Listy） | — | 待测 | 待测 | 待优化 |
 | Search | 52.9 µs | 2.8 µs | 9.8 µs | — | 7.29 ms | 155.77× | 是 | — | 待测 | 待测 | 待优化 |
-| Segmented | 53.1 µs | 3.0 µs | 8.7 µs | 865.7 µs / 95.01 ms / 1.13 s | 7.32 ms | 208.36× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| Segmented | 53.1 µs | 3.0 µs | 8.7 µs | 865.7 µs / 95.01 ms / 1.13 s | 7.32 ms | 208.36× | 不适用（第 3 批 V4，Large100k：分段控制器只有几段） | — | 待测 | 待测 | 待优化 |
 | Select | 50.9 µs | 1.5 µs | 6.1 µs | 15.4 µs / 15.4 µs / 15.4 µs | 7.44 ms | 27.00× | 是 | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | Sender | 53.5 µs | 3.1 µs | 22.0 µs | — | 7.16 ms | 11.35× | 是 | — | 待测 | 待测 | 待优化 |
 | SettingDrawer | 84.5 µs | 25.3 µs | — | — | 7.79 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
@@ -323,7 +325,7 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 | SwitchValue | 51.3 µs | 2.0 µs | 5.2 µs | — | 5.23 ms | 545.38× | 是 | — | 待测 | 待测 | 待优化 |
 | Table | 192.7 µs | 114.3 µs | 199.6 µs | 96.6 µs / 96.7 µs / 96.6 µs | 10.65 ms | — | 是 | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | TableDropdown | 51.5 µs | 1.3 µs | 7.1 µs | — | 223.8 µs | 93.94× | 是 | — | 待测 | 待测 | 待优化 |
-| Tabs | 57.8 µs | 6.3 µs | 18.2 µs | 2.34 ms / 376.67 ms / 4.48 s | 7.25 ms | 20.24× | 否（Large100k） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
+| Tabs | 57.8 µs | 6.3 µs | 18.2 µs | 2.34 ms / 376.67 ms / 4.48 s | 7.25 ms | 20.24× | 不适用（第 3 批 V4，Large100k：10 万个标签页不是真实规模） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | Tag | 50.1 µs | 1.1 µs | 1.1 µs | — | 7.41 ms | 467.47× | 是 | — | 待测 | 待测 | 待优化 |
 | Text | 49.7 µs | 912 ns | 922 ns | — | 7.12 ms | 42.32× | 是 | — | 待测 | 待测 | 待优化 |
 | TextArea | 52.6 µs | 2.5 µs | 9.1 µs | — | 7.22 ms | 30.86× | 是 | 计划 T10/T11 | 待测 | 待测 | 待优化 |
@@ -332,17 +334,17 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 | TimePicker | 51.0 µs | 1.5 µs | 48.2 µs | — | 7.06 ms | 26.01× | 是 | — | 待测 | 待测 | 待优化 |
 | TimeRangePicker | 51.3 µs | 1.6 µs | 91.8 µs | — | 7.27 ms | 10.65× | 是 | — | 待测 | 待测 | 待优化 |
 | TimeSelect | 53.7 µs | 2.9 µs | 16.6 µs | — | 5.09 ms | 28.12× | 是 | — | 待测 | 待测 | 待优化 |
-| Timeline | 79.9 µs | 26.6 µs | 26.8 µs | 3.20 ms / 110.03 ms / 1.36 s | 7.30 ms | 3.88× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| Timeline | 79.9 µs | 26.6 µs | 26.8 µs | 3.20 ms / 110.03 ms / 1.36 s | 7.30 ms | 3.88× | 不适用（第 3 批 V4，Large100k：大规模活动流用 Listy / LogView） | — | 待测 | 待测 | 待优化 |
 | Title | 50.3 µs | 918 ns | 928 ns | — | 7.25 ms | 24.50× | 是 | — | 待测 | 待测 | 待优化 |
 | TitleBar | 79.4 µs | 27.8 µs | — | — | 5.30 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | Toggle | 50.6 µs | 1.2 µs | 3.7 µs | — | 7.14 ms | 908.20× | 是 | — | 待测 | 待测 | 待优化 |
-| ToggleGroup | 53.7 µs | 3.4 µs | 9.7 µs | 906.3 µs / 217.07 ms / 2.49 s | 5.10 ms | 218.31× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
+| ToggleGroup | 53.7 µs | 3.4 µs | 9.7 µs | 906.3 µs / 217.07 ms / 2.49 s | 5.10 ms | 218.31× | 不适用（第 3 批 V4，Large100k：内联选项组，大集合用 MultiSelect / Transfer） | — | 待测 | 待测 | 待优化 |
 | ToolCall | 61.6 µs | 9.8 µs | — | — | 7.65 ms | — | 是 | — | 待测 | 待测 | 无对手只看预算 |
 | Tooltip | 54.8 µs | 3.6 µs | 2.8 µs | — | 7.20 ms | 143.33× | 是 | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | TopNavHeader | 59.7 µs | 6.3 µs | 19.9 µs | — | 7.20 ms | 16.63× | 是 | — | 待测 | 待测 | 待优化 |
 | Tour | 65.3 µs | 11.3 µs | 44.4 µs | — | 7.73 ms | — | 是 | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | Transfer | 69.9 µs | 12.1 µs | 61.7 µs | 623.3 µs / 6.41 ms / 81.52 ms | 7.99 ms | 16.20× | 否（Large100k） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
-| Tree | 85.3 µs | 21.6 µs | 84.0 µs | 4.86 ms / 87.65 ms / 1.25 s | 5.68 ms | 4.16× | 否（Large100k） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
+| Tree | 85.3 µs | 21.6 µs | 84.0 µs | 4.86 ms / 87.65 ms / 1.25 s | 5.68 ms | 4.16× | 否（第 3 批 V4：Large100k 不适用，非虚拟形态 O(n)；LargeVirtual100k（`Height(760)`）25.09 ms / 预算 365 µs，进 `perfTimeDebt`） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | TreeSelect | 53.4 µs | 2.0 µs | 24.2 µs | 50.2 µs / 537.9 µs / 7.07 ms | 12.05 ms | 168.75× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
 | Upload | 57.8 µs | 3.3 µs | 13.6 µs | — | 7.27 ms | 10.35× | 是 | — | 待测 | 待测 | 待优化 |
 | VirtualList | 74.7 µs | 16.4 µs | 53.5 µs | 40.1 µs / 40.3 µs / 40.3 µs | 7.96 ms | 8.44× | 是 | list（12b 待测） | 待测 | 待测 | 待优化 |
@@ -506,6 +508,35 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
   - A/B（`uiperf ab`，基准 `0e5f24e`，交替 5 轮）：Button、Menu、Tag、Checkbox、Radio、Statistic、Descriptions、Segmented 的 Mount、Unchanged、Interact 和 Raster 全部是 noise。只有 Segmented/Large1k 为 keep（−13%）。Descriptions 与 Segmented 的 Large10k/Large100k 为 regress（+8% 到 +15%）：大集合里的文本段几乎都不重复，缓存只增加了建键、存储和淘汰的开销。按 R43 **回退**（029637b）。
   - 结论：标签类场景每步的 shaping 本来就不在瓶颈上。后续的文字优化应针对大集合的首次 shaping 本身，而不是加缓存。
 - **B3 渲染器/平台固定开销**：已转交，待用户指派（见上）。
+
+## 第 3 批：虚拟化
+
+依据 `virtualization-api-proposal.md`（`.superpowers/sdd/2026-11-16-ui-component-performance/`），用户 2026-11-17 批准。目标：第 1 批之后仍超标的 `Large100k` 要么让组件窗口化，要么写明为什么不适用。
+
+### 用户决定
+
+1. a / b / c 三类照提案执行。Timeline 和 Menu 不加新 API。
+2. b 类和 Tree 的原 `Large100k`（默认非虚拟形态）标为不适用，原夹具不改；每个组件另加一个虚拟形态场景（`LargeVirtual*`）进预算。
+3. a 类超过 100 项自动窗口化，阈值与 Select 相同（`p2bVirtualMin`）。屏外选项不在无障碍树和 FindText 里（与 Select 一致），用户接受。另加逃生口 `Virtual(on bool)`，三态语义同 `SelectW.Virtual`：不调用 = 自动（> 100），true = 强制开，false = 强制关。
+4. 命名不变：容器用无参的 `Virtual()`（同 Listy / Table），下拉用 `Virtual(on bool)`（同 Select）。
+
+### 改了什么
+
+- **a 类（只改内部，V1）**：AutoComplete、Mentions、Command、Cascader、CascaderPanel 的选项列表超过 100 项时只构建视口内的行，共用内部助手 `fillWin`（`ui/fill_util.go`）。激活行始终构建，`PosInSet` / `SetSize` 按整个列表报告。新增 `Virtual(bool)`。Large100k 从 0.66–0.83 s 降到 14–22 µs，5 条时间债删除。
+- **b 类（新增 opt-in API，V2、V3）**：不调用新方法时行为不变。
+  - List：`Height`、`Virtual`、`ItemHeight`、`EstimatedItemHeight`、`RowKey`、`ScrollToKey`、`Range`。
+  - ProList：`Height`、`Virtual`、`EstimatedItemHeight`。
+  - Conversations：`Height`、`Virtual`、`ScrollToKey`。
+  - ProTable：`ScrollY`、`Virtual`、`RowHeight`。
+  - EditableProTable、CellEditorTable、RowEditorTable：`ScrollY`、`Virtual`。正在编辑的行即使在窗口外也始终构建，焦点和草稿保留。
+  - 虚拟形态的 `LargeVirtual100k` 都在 28–70 µs，与 n 无关。
+- **c 类（不适用，V4）**：InfiniteScroll、Scroll、ScrollH 记 `closure:`（任意闭包，组件看不到“项”，无法窗口化；虚拟替代是 Listy / VirtualList）。Tabs、Menu、CheckAll、CheckboxGroup、RadioGroup、ToggleGroup、InputTag、Segmented、Collapse、Descriptions、Timeline、Carousel、RichText、Markdown 记 `unrealistic:`（n = 10 万不是这些组件的真实规模）。理由逐条写在夹具的 `NA` 里。只标 `Large100k`；`Large1k` 不能标不适用，`Large10k` 本来就没有预算，照常在基准里跑。这 17 条加上 Tree，一共 18 条 `Large100k` 时间债删除。
+- **Tree（V4）**：原 `Large100k` 不适用（非虚拟形态按设计 O(n)），新增 `LargeVirtual` 场景，用 Tree 自己的 `Height(760)` 视口。这是 `data_tree.go` 的窗口化路径，和 VirtualTree（`fill_virtual_tree.go`，已有 Large 场景）是两套代码，所以不算重复。实测 LargeVirtual100k 25.09 ms，超出预算 365 µs，登记为 `perfTimeDebt` 的 `Tree/LargeVirtual100k`。原因是 Height 形态虽然只构建视口内的行，但每帧仍要遍历整棵树（`treeWalk`）并把可见行展平（`flatRows`），每帧 O(n)、91 MB/op。这是后续的优化项；同样数据下 VirtualTree 是 69 µs。
+- **V4 的内部小修（行为不变）**：
+  - CheckboxGroup、CheckAll、ToggleGroup：判断每项是否选中，原来每项都对选中切片做一次 `contains`，总共 O(n·k)，全选时退化为 O(n²)。现在每次构建建一次集合，选中数 < 8 时仍按原方式扫描。集合跟着本次构建里对选中切片的追加、删除、替换同步更新。测试逐帧比对新旧两条路径的选中值与顺序、Changed、像素和无障碍树，覆盖重复选项值、未知值、Min / Max、Buttons、Border、ToggleGroup 单选。RadioGroup 没有这个问题（单值），没有改动。
+  - Tabs：更多菜单里的隐藏标签只在下拉打开时生成。关闭的 Dropdown 本来就不读菜单项，测试在 antd / Element / shadcn 三种风格、顶部和左侧两种位置下逐步比对像素、无障碍树和选中标签：关闭、点击打开、键盘移动、回车选择、悬停打开、点击选择。
+  - Carousel：只构建当前张及相邻张不是“显然等价”（切换动画、圆点、无障碍树都会受影响），没有做。
+- **测量框架**：夹具新增 `NA`（场景 → 理由）和 `LargeVirtual` 两个字段。`TestPerfCoverage` 检查不适用标记：只能用于 Large10k / Large100k，场景必须存在，理由不能为空，不能同时在 `perfTimeDebt` 里；夹具要么有 `LargeVirtual` 场景，要么理由以 `unrealistic:`、`closure:` 或 `covered:`（写明测虚拟形态的夹具）开头。`TestPerfNARules` 覆盖每一种拒绝情况。
 
 ## 历史：Task 12a 基线（5f115d3）
 

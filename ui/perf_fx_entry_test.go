@@ -435,7 +435,7 @@ func init() {
 					values := State[[]string](c, hashID("perf.entry.tags.large"), func() []string { return perfEntryTags(n) })
 					InputTag(c, values).Width(520)
 				}
-			}},
+			}, NA: map[string]string{"Large100k": "unrealistic: 输入框里放 10 万个标签不现实；已有 MaxTagCount(n) 折叠显示"}},
 		perfFixture{Name: "TextArea", Build: func(c *Context) {
 			TextArea(c, perfEntryString(c, "textarea", "多行输入 TextArea")).ShowCount().Layout(layout.Size(420, 100))
 		}, Interact: perfEntryText},
@@ -483,7 +483,7 @@ func init() {
 				selected := State[[]string](c, hashID("perf.entry.checkbox.group.large"), func() []string { return nil })
 				CheckboxGroup(c, selected, opts)
 			}
-		}},
+		}, NA: map[string]string{"Large100k": perfNAOptionGroup}},
 		perfFixture{Name: "CheckAll", Build: func(c *Context) {
 			selected := State[[]string](c, hashID("perf.entry.checkall"), func() []string { return nil })
 			CheckAll(c, selected, perfEntryOptions())
@@ -496,7 +496,7 @@ func init() {
 				selected := State[[]string](c, hashID("perf.entry.checkall.large"), func() []string { return nil })
 				CheckAll(c, selected, opts)
 			}
-		}}, perfFixture{Name: "Radio", Build: func(c *Context) {
+		}, NA: map[string]string{"Large100k": perfNAOptionGroup}}, perfFixture{Name: "Radio", Build: func(c *Context) {
 			selected := State[int](c, hashID("perf.entry.radio.single"), func() int { return 0 })
 			a := Radio(c, "备选方案", *selected == 0)
 			b := Radio(c, "其他方案", *selected == 1)
@@ -531,7 +531,7 @@ func init() {
 				value := State[string](c, hashID("perf.entry.radio.large"), func() string { return opts[0].Value })
 				RadioGroup(c, value, opts)
 			}
-		}},
+		}, NA: map[string]string{"Large100k": perfNAOptionGroup}},
 		perfFixture{Name: "Switch", Build: func(c *Context) {
 			v := State[bool](c, hashID("perf.entry.switch"), func() bool { return false })
 			Switch(c, v).OuterTexts("启用", "停用")
@@ -559,7 +559,7 @@ func init() {
 				selected := State[[]string](c, hashID("perf.entry.toggle.group.large"), func() []string { return []string{opts[0].Value} })
 				ToggleGroup(c, selected, opts)
 			}
-		}},
+		}, NA: map[string]string{"Large100k": perfNAOptionGroup}},
 		perfFixture{Name: "Slider", Build: func(c *Context) {
 			v := State[float64](c, hashID("perf.entry.slider"), func() float64 { return 0 })
 			Slider(c, v, 0, 100).Marks(map[float64]string{0: "0", 100: "100"})

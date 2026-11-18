@@ -256,10 +256,12 @@ func init() {
 		perfFixture{
 			Name: "Scroll", Build: perfGeneralScrollPage(50, false), Interact: perfGeneralWheel(false, false),
 			Large: func(n int) func(*Context) { return perfGeneralScrollPage(n, false) },
+			NA:    map[string]string{"Large100k": perfNAClosure},
 		},
 		perfFixture{
 			Name: "ScrollH", Build: perfGeneralScrollPage(50, true), Interact: perfGeneralWheel(true, false),
 			Large: func(n int) func(*Context) { return perfGeneralScrollPage(n, true) }, LargeInteract: perfGeneralWheel(true, true),
+			NA: map[string]string{"Large100k": perfNAClosure},
 		},
 		perfFixture{
 			Name: "Masonry", Build: perfGeneralMasonryPage(16, false), Interact: perfGeneralToggle,

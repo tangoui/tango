@@ -1011,17 +1011,20 @@ func (t *TabsW) overflow(st *tabsState, sb *ScrollBox, nodes []*node) {
 		return
 	}
 	vr := c.rects[sb.n.id]
-	var hidden []MenuItem
-	for i, n := range nodes {
-		r, ok := c.rects[n.id]
-		out := !ok || r.X < vr.X-0.5 || r.Right() > vr.Right()+0.5
-		if vert {
-			out = !ok || r.Y < vr.Y-0.5 || r.Bottom() > vr.Bottom()+0.5
+	hidden := func() []MenuItem {
+		var out []MenuItem
+		for i, n := range nodes {
+			r, ok := c.rects[n.id]
+			off := !ok || r.X < vr.X-0.5 || r.Right() > vr.Right()+0.5
+			if vert {
+				off = !ok || r.Y < vr.Y-0.5 || r.Bottom() > vr.Bottom()+0.5
+			}
+			if off {
+				it := t.items[i]
+				out = append(out, MenuItem{Key: it.Key, Label: it.Label, Icon: it.Icon, Disabled: it.Disabled})
+			}
 		}
-		if out {
-			it := t.items[i]
-			hidden = append(hidden, MenuItem{Key: it.Key, Label: it.Label, Icon: it.Icon, Disabled: it.Disabled})
-		}
+		return out
 	}
 	var dd *DropdownW
 	box := Row(c, func() { dd = t.moreMenu(hidden) })
@@ -1031,10 +1034,22 @@ func (t *TabsW) overflow(st *tabsState, sb *ScrollBox, nodes []*node) {
 	}
 }
 
-// moreMenu builds the more button and its dropdown of hidden tabs.
-func (t *TabsW) moreMenu(hidden []MenuItem) *DropdownW {
+// tabsMoreEager builds the more menu's items on every frame like before
+// the lazy list (tests compare both).
+var tabsMoreEager = false
+
+// moreMenu builds the more button and its dropdown of hidden tabs. The
+// hidden tabs are listed only while the menu shows: a closed Dropdown
+// never reads its items (O(tabs) MenuItems per frame saved). They are
+// read from the same rects (last frame's layout) either way.
+func (t *TabsW) moreMenu(hidden func() []MenuItem) *DropdownW {
 	c := t.c
-	dd := Dropdown(c, hidden).Selected(*t.active)
+	dd := Dropdown(c, nil).Selected(*t.active)
+	if tabsMoreEager {
+		dd.items = hidden()
+	} else {
+		dd.lazy = hidden
+	}
 	if t.vertical() {
 		// Towards the panel: a Left (start) bar opens its menu at the end.
 		dd.Placement(map[bool]Placement{true: InlineEndTop, false: InlineStartTop}[t.place == Left])

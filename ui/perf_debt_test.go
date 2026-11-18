@@ -195,30 +195,22 @@ var perfDamageDebt = map[string]perfDebt{
 // Batch 3 V2: List, ProList and Conversations Large100k are NA (default
 // non-virtual form, O(n) by design; perfNANonVirtual) and left this table;
 // their LargeVirtual scenes are budgeted instead. Batch 3 V3: the same for
-// ProTable, CellEditorTable and RowEditorTable.
+// ProTable, CellEditorTable and RowEditorTable. Batch 3 V4: Tree the same
+// (its Height viewport is the LargeVirtual scene, in debt below); the c-class Large100k
+// scenes (InfiniteScroll, Scroll, ScrollH, Tabs, Menu, CheckAll,
+// CheckboxGroup, RadioGroup, ToggleGroup, InputTag, Segmented, Collapse,
+// Descriptions, Timeline, Carousel, RichText, Markdown) are NA with an
+// "unrealistic:" / "closure:" reason (virtualization proposal §5).
 var perfTimeDebt = map[string]perfDebt{
-	"AvatarGroup/Large100k":    {Measured: "26.50ms (budget 237µs)", Why: "baseline"},
-	"BubbleList/Large100k":     {Measured: "6.77ms (budget 562µs)", Why: "baseline"},
-	"Carousel/Large100k":       {Measured: "360.46ms (budget 2.24ms)", Why: "baseline"},
-	"CheckAll/Large100k":       {Measured: "2.65s (budget 2.22ms)", Why: "baseline"},
-	"CheckboxGroup/Large100k":  {Measured: "2.66s (budget 2.22ms)", Why: "baseline"},
-	"Collapse/Large100k":       {Measured: "1.91s (budget 4.00ms)", Why: "baseline"},
-	"Descriptions/Large100k":   {Measured: "2.22s (budget 4.00ms)", Why: "baseline"},
-	"Image/Mount":              {Measured: "689µs (budget 500µs)", Why: "baseline"},
-	"InfiniteScroll/Large100k": {Measured: "1.02s (budget 3.92ms)", Why: "baseline"},
-	"InputTag/Large100k":       {Measured: "2.36s (budget 4.00ms)", Why: "baseline"},
-	"Markdown/Large100k":       {Measured: "1.23s (budget 4.00ms)", Why: "baseline"},
-	"Masonry/Large100k":        {Measured: "478µs (budget 97µs)", Why: "baseline"},
-	"Menu/Large100k":           {Measured: "135.50ms (budget 826µs)", Why: "baseline"},
-	"RadioGroup/Large100k":     {Measured: "2.63s (budget 2.35ms)", Why: "baseline"},
-	"RichText/Large100k":       {Measured: "2.18s (budget 4.00ms)", Why: "baseline"},
-	"Scroll/Large100k":         {Measured: "62.59ms (budget 494µs)", Why: "baseline"},
-	"ScrollH/Large100k":        {Measured: "63.11ms (budget 501µs)", Why: "baseline"},
-	"Segmented/Large100k":      {Measured: "1.18s (budget 1.38ms)", Why: "baseline"},
-	"Tabs/Large100k":           {Measured: "4.73s (budget 3.88ms)", Why: "baseline"},
-	"Timeline/Large100k":       {Measured: "1.55s (budget 4.00ms)", Why: "baseline"},
-	"ToggleGroup/Large100k":    {Measured: "2.62s (budget 1.42ms)", Why: "baseline"},
-	"Transfer/Large100k":       {Measured: "86.12ms (budget 940µs)", Why: "baseline"},
-	"Tree/Large100k":           {Measured: "1.28s (budget 4.00ms)", Why: "baseline"},
-	"TreeSelect/Large100k":     {Measured: "7.75ms (budget 65µs)", Why: "baseline"},
+	"AvatarGroup/Large100k": {Measured: "26.50ms (budget 237µs)", Why: "baseline"},
+	"BubbleList/Large100k":  {Measured: "6.77ms (budget 562µs)", Why: "baseline"},
+	"Image/Mount":           {Measured: "689µs (budget 500µs)", Why: "baseline"},
+	"Masonry/Large100k":     {Measured: "478µs (budget 97µs)", Why: "baseline"},
+	"Transfer/Large100k":    {Measured: "86.12ms (budget 940µs)", Why: "baseline"},
+	"TreeSelect/Large100k":  {Measured: "7.75ms (budget 65µs)", Why: "baseline"},
+	// Batch 3 V4 (perfTime, nice 10, LargeVirtual1k 244µs): Tree's
+	// Height viewport builds only the rows in view, but every frame still
+	// walks the whole tree (treeWalk) and flattens the visible rows
+	// (flatRows): O(n) per frame, 91 MB/op at 100k.
+	"Tree/LargeVirtual100k": {Measured: "25.09ms (budget 365µs)", Why: "Tree Height: per-frame treeWalk + flatRows over all nodes"},
 }

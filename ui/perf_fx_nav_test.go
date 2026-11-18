@@ -248,6 +248,7 @@ func init() {
 					Scroll(c, func() { Menu(c, items, sel).Width(240).Show() }, layout.Size(280, 760))
 				}
 			},
+			NA: map[string]string{"Large100k": "unrealistic: 导航菜单没有 10 万项的场景（1k 项约 1 ms，已够用）"},
 		},
 		perfFixture{
 			Name:     "Menubar",
@@ -271,6 +272,7 @@ func init() {
 				}
 			},
 			LargeInteract: perfNavSwitch("标签 2", "标签 1"),
+			NA:            map[string]string{"Large100k": "unrealistic: 10 万个标签页不是真实规模（antd / Element 都不虚拟化标签栏）"},
 		},
 		perfFixture{
 			// Clicking a crumb navigates up (the path is cut there); the
