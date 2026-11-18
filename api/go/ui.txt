@@ -5673,6 +5673,8 @@ pkg github.com/tangoui/tango/ui, type TreeSelectW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type TreeW struct
 pkg github.com/tangoui/tango/ui, type TreeW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type Trigger uint8
+pkg github.com/tangoui/tango/ui, type UIPoster interface { PostUI }
+pkg github.com/tangoui/tango/ui, type UIPoster interface, PostUI(func())
 pkg github.com/tangoui/tango/ui, type UploadFile struct
 pkg github.com/tangoui/tango/ui, type UploadFile struct, Err string
 pkg github.com/tangoui/tango/ui, type UploadFile struct, Name string

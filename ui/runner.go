@@ -39,10 +39,13 @@ type RunnerOptions struct {
 
 // Runner drives one window: it queues input, runs the page function, lays
 // out, paints and presents. All methods except Invalidate, Post and Close
-// must be called on the UI thread; those three are safe from any goroutine.
-// The UI thread is the one bound with BindThread, or the caller's (the main
-// thread) when none is bound. Development builds (-tags tango_dev) panic
-// when a bound runner is used off its thread.
+// must be called on the UI thread. Invalidate and Close are safe from any
+// goroutine; so is Post when a thread is bound or the window implements
+// UIPoster, while on a headless runner (neither) Post runs fn inline on the
+// caller, which must then be on the UI thread. The UI thread is the one
+// bound with BindThread, or the host's main thread when none is bound.
+// Development builds (-tags tango_dev) panic when a bound runner is used off
+// its thread.
 type Runner struct {
 	_ [0]func()
 
@@ -60,6 +63,7 @@ type Runner struct {
 	closed    atomic.Bool // read by Post from any goroutine
 
 	thread atomic.Pointer[uithread.Thread] // BindThread; nil: the caller's thread
+	poster atomic.Pointer[uiPosterRef]     // the attached window's UIPoster, read by Post
 
 	shortcutCaptureOn bool
 
@@ -152,7 +156,15 @@ func (r *Runner) accessibilityOn() (AccessibilityHost, bool) {
 }
 
 // Attach binds the runner to its window.
-func (r *Runner) Attach(w Window) { r.win = w; r.c.win = w }
+func (r *Runner) Attach(w Window) {
+	r.win = w
+	r.c.win = w
+	if p, ok := w.(UIPoster); ok {
+		r.poster.Store(&uiPosterRef{p})
+	} else {
+		r.poster.Store(nil)
+	}
+}
 
 // Context exposes the context (tests, advanced integrations).
 func (r *Runner) Context() *Context { return r.c }
@@ -196,29 +208,32 @@ func (r *Runner) pendingFocusChange() bool {
 	return false
 }
 
-// Post runs fn on the UI thread, then requests a frame. It may be called
-// from any goroutine and never blocks. On a bound runner (BindThread) fn is
-// queued and runs after the current task, so Post from the page function
-// runs fn once Frame returns. Without a bound thread fn runs on the calling
-// goroutine before Post returns: the caller must be on the UI thread. After
-// Close, fn is dropped, also when it was queued before.
+// Post runs fn on the UI thread, then requests a frame. It never blocks.
+// On a bound runner (BindThread) fn is queued on that thread; otherwise,
+// when the attached window implements UIPoster, it is queued through
+// PostUI. Either way any goroutine may call Post, and a Post from the page
+// function runs fn after the frame. A headless runner (no bound thread, no
+// UIPoster: Driver, tests) runs fn on the calling goroutine before Post
+// returns, so the caller must be on the UI thread. After Close, fn is
+// dropped, also when it was queued before.
 func (r *Runner) Post(fn func()) {
 	if r.closed.Load() {
 		return
 	}
-	t := r.thread.Load()
-	if t == nil {
-		fn()
-		r.Invalidate()
-		return
-	}
-	t.Post(func() {
+	run := func() {
 		if r.closed.Load() {
 			return
 		}
 		fn()
 		r.Invalidate()
-	})
+	}
+	if t := r.thread.Load(); t != nil {
+		t.Post(run)
+	} else if p := r.poster.Load(); p != nil {
+		p.PostUI(run)
+	} else {
+		run()
+	}
 }
 
 // Close releases resources. It may be called from any goroutine.

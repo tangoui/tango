@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -173,4 +175,118 @@ func TestInvalidateSafeFromAnyGoroutine(t *testing.T) {
 	if n := w.invalidates.Load(); n < 2*goroutines*calls {
 		t.Fatalf("%d Invalidate calls reached the window, want >= %d", n, 2*goroutines*calls)
 	}
+}
+
+// posterWin is a threadWin whose host posts UI work (UIPoster): PostUI
+// records fn without running it, or forwards it to fwd when set.
+type posterWin struct {
+	threadWin
+	mu     sync.Mutex
+	queued []func()
+	fwd    chan func()
+}
+
+func (w *posterWin) PostUI(fn func()) {
+	if w.fwd != nil {
+		w.fwd <- fn
+		return
+	}
+	w.mu.Lock()
+	w.queued = append(w.queued, fn)
+	w.mu.Unlock()
+}
+
+// runQueued runs the recorded fns, as the host's UI thread would.
+func (w *posterWin) runQueued() {
+	w.mu.Lock()
+	q := w.queued
+	w.queued = nil
+	w.mu.Unlock()
+	for _, fn := range q {
+		fn()
+	}
+}
+
+func TestPostUnboundWithPosterQueues(t *testing.T) {
+	r := NewRunner(func(*Context) {}, RunnerOptions{})
+	w := &posterWin{threadWin: threadWin{damageWin: *newWin()}}
+	r.Attach(w)
+	ran := false
+	r.Post(func() { ran = true })
+	if ran {
+		t.Fatal("Post ran fn inline although the window posts UI work")
+	}
+	if n := w.invalidates.Load(); n != 0 {
+		t.Fatalf("Post requested %d frames before fn ran", n)
+	}
+	w.runQueued()
+	if !ran {
+		t.Fatal("the posted fn did not run on the host's UI thread")
+	}
+	if n := w.invalidates.Load(); n != 1 {
+		t.Fatalf("the posted fn requested %d frames, want 1", n)
+	}
+
+	// Queued, then Close, then run: dropped.
+	ran = false
+	r.Post(func() { ran = true })
+	r.Close()
+	w.runQueued()
+	if ran {
+		t.Fatal("a fn posted before Close ran after it")
+	}
+	if n := w.invalidates.Load(); n != 1 {
+		t.Fatalf("the dropped fn requested a frame (%d)", n)
+	}
+}
+
+func TestPostUnboundWithPosterFromGoroutine(t *testing.T) {
+	r := NewRunner(func(c *Context) { Div(c) }, RunnerOptions{})
+	w := &posterWin{threadWin: threadWin{damageWin: *newWin()}, fwd: make(chan func())}
+	r.Attach(w)
+
+	const goroutines, calls = 8, 100
+	done := make(chan struct{})
+	count := 0  // touched only by the "UI" goroutine below
+	go func() { // the host's UI thread
+		defer close(done)
+		for fn := range w.fwd {
+			fn()
+			if err := r.Frame(); err != nil {
+				t.Error(err)
+			}
+		}
+	}()
+	var wg sync.WaitGroup
+	for range goroutines {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range calls {
+				r.Post(func() { count++ })
+			}
+		}()
+	}
+	wg.Wait()
+	close(w.fwd)
+	<-done
+	if count != goroutines*calls {
+		t.Fatalf("%d posted fns ran, want %d", count, goroutines*calls)
+	}
+}
+
+func TestBindThreadAfterAttachPanics(t *testing.T) {
+	th := startUIThread(t)
+	r := NewRunner(func(*Context) {}, RunnerOptions{})
+	r.Attach(newWin())
+	defer func() {
+		v := recover()
+		if v == nil {
+			t.Fatal("BindThread after Attach did not panic")
+		}
+		if msg := fmt.Sprint(v); !strings.Contains(msg, "Attach") {
+			t.Fatalf("panic %q does not mention Attach", msg)
+		}
+	}()
+	r.BindThread(th)
 }

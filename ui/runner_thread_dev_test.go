@@ -15,6 +15,8 @@ import (
 	"github.com/tangoui/tango/ui/theme"
 )
 
+// offThreadText intentionally repeats the message literal (offThreadMsg)
+// instead of referencing it, to pin the exact text the brief requires.
 const offThreadText = "ui: called off the window's UI thread; use Runner.Post"
 
 type threadEntry struct {
