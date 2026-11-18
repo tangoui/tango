@@ -37,24 +37,26 @@ var (
 	ctOnce sync.Once
 	ctOK   bool
 
-	cfRelease                                 func(uintptr)
-	cfRetain                                  func(uintptr) uintptr
-	cfAttributedStringCreate                  func(uintptr, uintptr, uintptr) uintptr
-	cfStringCreateWithBytes                   func(alloc uintptr, b *byte, n int64, enc uint32, ext bool) uintptr
-	cfStringGetLength                         func(uintptr) int64
-	cfStringGetCString                        func(s uintptr, buf *byte, n int64, enc uint32) bool
-	cfArrayGetCount                           func(uintptr) int64
-	cfArrayGetValueAtIndex                    func(uintptr, int64) uintptr
-	cfDataGetLength                           func(uintptr) int64
-	cfDataGetBytePtr                          func(uintptr) unsafe.Pointer
-	cfDictionaryCreate                        func(alloc uintptr, keys, vals *uintptr, n int64, kcb, vcb uintptr) uintptr
-	cfDictionaryGetValue                      func(d, k uintptr) uintptr
-	cfDictionaryGetCount                      func(uintptr) int64
-	cfDictionaryGetKeysValues                 func(d uintptr, keys, vals *uintptr)
-	cfNumberCreate                            func(alloc uintptr, typ int64, v unsafe.Pointer) uintptr
-	cfNumberGetValue                          func(n uintptr, typ int64, v unsafe.Pointer) bool
-	cfURLCreateFromFileSystemRepresentation   func(alloc uintptr, b *byte, n int64, dir bool) uintptr
-	ctFontManagerCreateFontDescriptorsFromURL func(url uintptr) uintptr
+	cfRelease                                  func(uintptr)
+	cfRetain                                   func(uintptr) uintptr
+	cfAttributedStringCreate                   func(uintptr, uintptr, uintptr) uintptr
+	cfStringCreateWithBytes                    func(alloc uintptr, b *byte, n int64, enc uint32, ext bool) uintptr
+	cfStringGetLength                          func(uintptr) int64
+	cfStringGetCString                         func(s uintptr, buf *byte, n int64, enc uint32) bool
+	cfArrayGetCount                            func(uintptr) int64
+	cfArrayGetValueAtIndex                     func(uintptr, int64) uintptr
+	cfDataGetLength                            func(uintptr) int64
+	cfDataGetBytePtr                           func(uintptr) unsafe.Pointer
+	cfDictionaryCreate                         func(alloc uintptr, keys, vals *uintptr, n int64, kcb, vcb uintptr) uintptr
+	cfDictionaryGetValue                       func(d, k uintptr) uintptr
+	cfDictionaryGetCount                       func(uintptr) int64
+	cfDictionaryGetKeysValues                  func(d uintptr, keys, vals *uintptr)
+	cfNumberCreate                             func(alloc uintptr, typ int64, v unsafe.Pointer) uintptr
+	cfNumberGetValue                           func(n uintptr, typ int64, v unsafe.Pointer) bool
+	cfURLCreateFromFileSystemRepresentation    func(alloc uintptr, b *byte, n int64, dir bool) uintptr
+	ctFontManagerCreateFontDescriptorsFromURL  func(url uintptr) uintptr
+	cfDataCreate                               func(alloc uintptr, b *byte, n int64) uintptr
+	ctFontManagerCreateFontDescriptorsFromData func(data uintptr) uintptr
 
 	ctFontDescriptorCreateWithAttributes          func(uintptr) uintptr
 	ctFontDescriptorCreateMatchingFontDescriptors func(desc, mandatory uintptr) uintptr
@@ -64,6 +66,9 @@ var (
 	ctFontCreateWithName                          func(name uintptr, size float64, m *cgAffine) uintptr
 	ctFontCreateUIFontForLanguage                 func(typ uint32, size float64, lang uintptr) uintptr
 	ctFontCopyFamilyName                          func(uintptr) uintptr
+	ctFontCopyPostScriptName                      func(uintptr) uintptr
+	ctFontGetGlyphsForCharacters                  func(f uintptr, chars *uint16, glyphs *uint16, n int64) bool
+	ctFontGetSize                                 func(uintptr) float64
 	ctFontCopyTraits                              func(uintptr) uintptr
 	ctFontGetSymbolicTraits                       func(uintptr) uint32
 	ctFontCopyVariation                           func(uintptr) uintptr
@@ -152,6 +157,8 @@ func loadCoreText() (ok bool) {
 	reg(&cfNumberGetValue, cf, "CFNumberGetValue")
 	reg(&cfURLCreateFromFileSystemRepresentation, cf, "CFURLCreateFromFileSystemRepresentation")
 	reg(&ctFontManagerCreateFontDescriptorsFromURL, ct, "CTFontManagerCreateFontDescriptorsFromURL")
+	reg(&cfDataCreate, cf, "CFDataCreate")
+	reg(&ctFontManagerCreateFontDescriptorsFromData, ct, "CTFontManagerCreateFontDescriptorsFromData") // macOS 10.13
 
 	reg(&ctFontDescriptorCreateWithAttributes, ct, "CTFontDescriptorCreateWithAttributes")
 	reg(&ctFontDescriptorCreateMatchingFontDescriptors, ct, "CTFontDescriptorCreateMatchingFontDescriptors")
@@ -161,6 +168,9 @@ func loadCoreText() (ok bool) {
 	reg(&ctFontCreateUIFontForLanguage, ct, "CTFontCreateUIFontForLanguage")
 	reg(&ctFontCreateWithName, ct, "CTFontCreateWithName")
 	reg(&ctFontCopyFamilyName, ct, "CTFontCopyFamilyName")
+	reg(&ctFontCopyPostScriptName, ct, "CTFontCopyPostScriptName")
+	reg(&ctFontGetGlyphsForCharacters, ct, "CTFontGetGlyphsForCharacters")
+	reg(&ctFontGetSize, ct, "CTFontGetSize")
 	reg(&ctFontCopyTraits, ct, "CTFontCopyTraits")
 	reg(&ctFontGetSymbolicTraits, ct, "CTFontGetSymbolicTraits")
 	reg(&ctFontCopyVariation, ct, "CTFontCopyVariation")

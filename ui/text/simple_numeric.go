@@ -8,7 +8,6 @@ import (
 	"github.com/go-text/typesetting/shaping"
 	"github.com/tangoui/tango/ui/paint"
 	"golang.org/x/image/math/fixed"
-	"unicode/utf8"
 )
 
 type numericFaceKey struct {
@@ -116,17 +115,6 @@ func buildNumericTable(face *Face, st Style, lang string) numericGlyphTable {
 var numericFaces = map[numericFaceKey]numericFaceValue{}
 
 func clearNumericFaces() { numericFaces = map[numericFaceKey]numericFaceValue{} }
-func simpleNumericText(s string) bool {
-	if s == "" || len(s) > 31 || !utf8.ValidString(s) {
-		return false
-	}
-	for _, r := range s {
-		if !(r >= '0' && r <= '9' || r == '.' || r == '-' || r == '+') {
-			return false
-		}
-	}
-	return true
-}
 func numericFaceFor(st Style, lang string, version int) (numericFaceValue, bool) {
 	k := numericFaceKey{st, lang, version}
 	if v, ok := numericFaces[k]; ok {

@@ -1,3 +1,5 @@
+//go:build !darwin || ios || !tango_coretext
+
 package text
 
 // legacy_layout_test.go keeps a frozen copy of the pre-bidi layout (layout

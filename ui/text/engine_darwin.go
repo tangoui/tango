@@ -307,26 +307,17 @@ var wghtTag = tag4("wght")
 
 func (e *ctEngine) load(name string) []*Face {
 	seen := map[faceKey]bool{}
-	// Named instances of one variable font share its tables (see
-	// ctSharedTables).
-	shared := map[string]*ctSharedTables{}
+	lazy := newCTLazyFaces(name)
 	var out []*Face
-	// add registers the style; its tables are read when a layout first
-	// uses it (newLazyEngineFace).
+	// add registers the style; it is built when a layout first uses it
+	// (newCTLazyFaces).
 	add := func(f uintptr, w Weight, italic bool) {
 		if seen[faceKey{w, italic}] {
 			cfRelease(f)
 			return
 		}
 		seen[faceKey{w, italic}] = true
-		owner := newCTFontOwner(f, cfRelease)
-		key := tableKey(f)
-		sh := shared[key]
-		if sh == nil {
-			sh = &ctSharedTables{}
-			shared[key] = sh
-		}
-		out = append(out, ctLazyFace(name, w, italic, owner, sh))
+		out = append(out, lazy(w, italic, newCTFontOwner(f, cfRelease)))
 	}
 	if name == ctSystemUI {
 		// The system UI font is reachable only through the UI font API

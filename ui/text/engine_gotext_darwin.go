@@ -31,6 +31,22 @@ type ctSharedTables struct {
 	axes []tables.VariationAxisRecord
 }
 
+// newCTLazyFaces returns the constructor of the lazy faces of family name
+// (ctEngine.load): named instances of one variable font share its tables
+// (ctSharedTables).
+func newCTLazyFaces(name string) func(w Weight, italic bool, owner *ctFontOwner) *Face {
+	shared := map[string]*ctSharedTables{}
+	return func(w Weight, italic bool, owner *ctFontOwner) *Face {
+		key := tableKey(owner.base)
+		sh := shared[key]
+		if sh == nil {
+			sh = &ctSharedTables{}
+			shared[key] = sh
+		}
+		return ctLazyFace(name, w, italic, owner, sh)
+	}
+}
+
 // ctLazyFace registers a style of family name; its tables are read when a
 // layout first uses it (newLazyEngineFace). owner holds the CTFont.
 func ctLazyFace(name string, w Weight, italic bool, owner *ctFontOwner, sh *ctSharedTables) *Face {

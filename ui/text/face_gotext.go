@@ -55,6 +55,10 @@ func (f *Face) gt() *font.Face {
 	return f.face
 }
 
+// trimFaceTable drops the engine's font-to-Face table (TrimFontCaches);
+// go-text keeps none.
+func trimFaceTable() {}
+
 func newFace(family string, w Weight, f *font.Face) *Face {
 	fc := &Face{Family: family, Weight: w, paths: map[uint32]*paint.Path{}}
 	fc.setFont(f)
