@@ -30,6 +30,7 @@ import (
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/uithread"
 	"github.com/tangoui/tango/ui"
+	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/theme"
 )
 
@@ -44,6 +45,9 @@ type threadedHost struct {
 	// readers (FollowingSystemTheme). TODO(Task 8): part of the per-frame
 	// UI-state snapshot.
 	theme atomic.Pointer[theme.Theme]
+
+	frameInfo atomic.Pointer[ui.WindowFrameInfo] // published by main, read by UI
+	a11yTree  atomic.Pointer[a11y.Tree]          // immutable completed frame, published by UI
 }
 
 // threadedRunners maps the runner of each open threaded window to its

@@ -13,6 +13,7 @@ package uihost
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 
@@ -282,14 +283,25 @@ var errA11yClosed = errors.New("uihost: window closed")
 
 // AccessibilityAction hands an assistive technology's request to the
 // runner; it runs at the start of the next frame. A threaded window queues
-// it on its UI thread (spec §5.8) and accepts it: the main thread does not
-// wait for the runner's answer, and an action the runner refuses (a node
-// gone since the platform's copy of the tree) is dropped there.
+// it on its UI thread (spec §5.8) after validating it against the last
+// published tree. The runner revalidates when it receives the task, since
+// a later frame can remove the node before the action runs.
 func (h *host) AccessibilityAction(id a11y.NodeID, act a11y.Action, arg string) error {
 	if h.closed || h.r == nil {
 		return errA11yClosed
 	}
 	if h.t != nil {
+		tree := h.t.a11yTree.Load()
+		if tree == nil {
+			return errors.New("uihost: accessibility is not enabled")
+		}
+		n := tree.Node(id)
+		if n == nil {
+			return fmt.Errorf("uihost: no accessibility node %d", id)
+		}
+		if !n.Actions.Has(act) {
+			return fmt.Errorf("uihost: node %d does not support %s", id, act)
+		}
 		h.onUI(func() { _ = h.r.PerformAction(id, act, arg) })
 		return nil
 	}

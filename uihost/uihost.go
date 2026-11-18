@@ -193,6 +193,7 @@ func (h *host) frame() {
 	}
 	if h.t != nil {
 		h.t.theme.Store(h.r.Context().Theme) // FollowingSystemTheme (follow.go)
+		h.t.a11yTree.Store(h.r.AccessibilityTree())
 	}
 	if err != nil {
 		// Keep running; log each distinct error once in a row so a failing
@@ -402,10 +403,12 @@ func (w *window) PostUI(fn func()) { w.app.Post(fn) }
 func (w *window) InvalidateAt(t time.Time) { w.cv.InvalidateAt(t) }
 func (w *window) SetCursor(c input.Cursor) { w.onMain(func() { w.cv.SetCursor(c) }) }
 func (w *window) SetShortcutCapture(on bool) {
-	w.sc.setCapture(on)
-	if cv, ok := w.cv.(platform.CanvasShortcutCapture); ok {
-		w.onMain(func() { cv.SetShortcutCapture(on) })
-	}
+	w.onMain(func() {
+		w.sc.setCapture(on)
+		if cv, ok := w.cv.(platform.CanvasShortcutCapture); ok {
+			cv.SetShortcutCapture(on)
+		}
+	})
 }
 
 func (w *window) SetTextInput(on bool, caret geom.Rect) {

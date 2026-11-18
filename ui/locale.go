@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/ui/text"
 )
 
@@ -604,6 +605,7 @@ var (
 )
 
 func init() {
+	corehook.DefaultUILocale = func() any { return defaultLocaleNow() }
 	// The built-in packs are complete (TestLocalePacksComplete), so they
 	// are registered without FillLocale: a missing text shows up in tests
 	// instead of silently falling back to English.

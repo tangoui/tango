@@ -10,6 +10,10 @@ import (
 // frame shim's "move" message.
 
 func init() {
+	corehook.WatchAppearance = func(surface any, fn func()) {
+		s := surface.(*Surface)
+		s.ext.onAppearance = append(s.ext.onAppearance, fn)
+	}
 	corehook.StartWindowMove = func(surface any) {
 		s, ok := surface.(*Surface)
 		if !ok {

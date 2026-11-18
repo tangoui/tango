@@ -137,6 +137,10 @@ func (c *threadedCanvas) SetTextInput(on bool, caret geom.Rect) {
 	}
 }
 
+func (c *threadedCanvas) SetShortcutCapture(on bool) {
+	c.Canvas.(platform.CanvasShortcutCapture).SetShortcutCapture(on)
+}
+
 // started reports whether StartFrameClock succeeded.
 func (c *threadedCanvas) started() bool {
 	c.mu.Lock()

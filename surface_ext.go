@@ -86,11 +86,12 @@ type Appearance = platform.Appearance
 // surfaceExt is the round-2 state of a Surface.
 type surfaceExt struct {
 	// Main thread only.
-	appearance Appearance
-	resizable  bool
-	edges      bool   // the page's edges resize the window (frameless + resizable)
-	edgesSent  bool   // value of edges last sent to the current page
-	navSeq     uint64 // bumped by every navigation start; tags liveness probes
+	appearance   Appearance
+	onAppearance []func() // internal listeners for the self-drawn title bar
+	resizable    bool
+	edges        bool   // the page's edges resize the window (frameless + resizable)
+	edgesSent    bool   // value of edges last sent to the current page
+	navSeq       uint64 // bumped by every navigation start; tags liveness probes
 
 	// Guarded by Surface.mu.
 	onResized    []func(w, h int)
@@ -253,6 +254,9 @@ func (s *Surface) SetAppearance(ap Appearance) error {
 			err = nil
 		}
 		s.updateEdges()
+		for _, fn := range s.ext.onAppearance {
+			fn()
+		}
 	})
 	if s.closed.Load() && errors.Is(err, ErrUnsupported) {
 		return nil

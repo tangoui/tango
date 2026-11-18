@@ -16,6 +16,7 @@ import (
 
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/i18n"
+	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/platform"
 	systheme "github.com/tangoui/tango/sys/theme"
 	"github.com/tangoui/tango/ui"
@@ -378,34 +379,15 @@ func (af *appFollow) themeChanged(sys systheme.Theme) {
 }
 
 // localeChanged runs on the main thread when i18n.Locale changed. The
-// locale a window draws is read from a window on the main thread when
-// there is one; a threaded window's runner is asked on its UI thread
-// (Runner.Post), and the decision is made back on the main thread.
+// default locale is global, so don't depend on a window's lifetime or
+// read its Context (which may be building under a ConfigProvider).
 func (af *appFollow) localeChanged(code string) {
-	var first *follower
-	for _, f := range af.snapshot() {
-		if f.locale && (first == nil || first.threaded && !f.threaded) {
-			first = f
-		}
-	}
-	if first == nil {
+	list := af.snapshot()
+	if !slices.ContainsFunc(list, func(f *follower) bool { return f.locale }) {
 		return
 	}
 	l := localeFor(code)
-	if first.threaded {
-		first.r.Post(func() {
-			cur := first.r.Context().Locale()
-			af.app.Post(func() { af.setLocale(l, cur) })
-		})
-		return
-	}
-	af.setLocale(l, first.r.Context().Locale())
-}
-
-// setLocale makes l the default locale unless cur, the locale a following
-// window draws, shows the app set its own. Main thread.
-func (af *appFollow) setLocale(l, cur *ui.Locale) {
-	list := af.snapshot()
+	cur := corehook.DefaultUILocale().(*ui.Locale)
 	follows.mu.Lock()
 	last := follows.lastLocale
 	follows.mu.Unlock()
@@ -421,6 +403,6 @@ func (af *appFollow) setLocale(l, cur *ui.Locale) {
 	follows.lastLocale = l
 	follows.mu.Unlock()
 	for _, f := range list {
-		f.r.Invalidate()
+		f.r.Invalidate() // safe from the main thread; no Runner state read
 	}
 }

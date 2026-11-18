@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/tangoui/tango"
+	"github.com/tangoui/tango/i18n"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/fake/faketest"
 	"github.com/tangoui/tango/internal/uithread"
@@ -14,6 +15,7 @@ import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/text"
 	"github.com/tangoui/tango/uihost"
 )
 
@@ -269,6 +271,9 @@ func TestAccessibilityActionRunsOnUIThread(t *testing.T) {
 			mu.Unlock()
 		}
 	})
+	if err := tango.Await(a, func() error { return tc.sink.(platform.CanvasAccessibleSink).AccessibilityAction(1, a11y.Press, "") }); err == nil {
+		t.Error("accepted an action before a tree was published")
+	}
 	tc.th.Do(func() {
 		uihost.A11yForce(r)
 		uihost.A11yTap(r, func(tr *a11y.Tree, _ []a11y.NodeID) {
@@ -295,7 +300,15 @@ func TestAccessibilityActionRunsOnUIThread(t *testing.T) {
 	before := len(tc.reqGIDs)
 	tc.mu.Unlock()
 	var err error
-	fb.Do(func() { err = sink.AccessibilityAction(btn.ID, a11y.Press, "") })
+	fb.Do(func() {
+		if sink.AccessibilityAction(0, a11y.Press, "") == nil {
+			t.Error("accepted an unknown node")
+		}
+		if sink.AccessibilityAction(btn.ID, a11y.SetValue, "") == nil {
+			t.Error("accepted an unsupported action")
+		}
+		err = sink.AccessibilityAction(btn.ID, a11y.Press, "")
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,4 +369,69 @@ func TestThreadedShortcutRunsOnMain(t *testing.T) {
 		t.Fatalf("unbound key did not reach the runner: %v", keys)
 	}
 	pl.check(t)
+}
+
+func TestThreadedLocaleSurvivesCloseAndConsecutiveChanges(t *testing.T) {
+	resetLocale(t)
+	a, fb := faketest.Run(t, tango.Options{})
+	i18n.SetLocale("en")
+	_, s, tc, _ := openThreaded(t, a, fb, func(*ui.Context) {})
+	release := blockUI(t, tc)
+	defer release()
+	i18n.SetLocale("ja")
+	i18n.SetLocale("zh-TW")
+	fb.Do(func() {
+		if got := text.DefaultLang(); got != ui.ZhTW.Code {
+			t.Errorf("consecutive changes left language %q", got)
+		}
+		s.Close()
+	})
+	release()
+	if got := text.DefaultLang(); got != ui.ZhTW.Code {
+		t.Errorf("closing the window left language %q", got)
+	}
+}
+
+func TestThreadedFrameInfoDoesNotWaitForMain(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	r, s, tc, _ := openThreaded(t, a, fb, func(*ui.Context) {})
+	check := func(want ui.WindowState, noClose bool) {
+		t.Helper()
+		release := blockMain(t, a)
+		var got ui.WindowFrameInfo
+		ok := onUIWithin(tc, faketest.Timeout/2, func() { got = r.Context().Window().(ui.WindowFrame).FrameInfo() })
+		release()
+		if !ok {
+			t.Fatal("FrameInfo waited for the main thread")
+		}
+		if got.State != want || got.NoClose != noClose {
+			t.Fatalf("FrameInfo = %+v, want state %v NoClose %v", got, want, noClose)
+		}
+	}
+	check(ui.WindowNormal, false)
+	fb.Do(func() { _ = s.Maximize() })
+	check(ui.WindowMaximized, false)
+	fb.Do(func() { _ = s.SetAppearance(tango.Appearance{NoClose: true}) })
+	check(ui.WindowMaximized, true)
+}
+
+func TestThreadedCaptureCommitsOnMain(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	r, s, tc, cv := openThreaded(t, a, fb, func(*ui.Context) {})
+	fired := 0
+	shortcut(t, s, "F5", uihost.ShortcutOptions{}, func() { fired++ })
+	fb.Do(func() {
+		tc.th.Do(func() { r.Context().Window().(ui.ShortcutCaptureWindow).SetShortcutCapture(true) })
+		tc.sink.CanvasInput(input.KeyEvent{Key: input.KeyF5, Down: true})
+		tc.sink.CanvasInput(input.KeyEvent{Key: input.KeyF5, Down: false})
+		if fired != 1 || cv.ShortcutCapture() {
+			t.Errorf("capture committed before main task: fired=%d native=%v", fired, cv.ShortcutCapture())
+		}
+	})
+	press(cv, input.KeyF5, 0)
+	fb.Do(func() {
+		if fired != 1 || !cv.ShortcutCapture() {
+			t.Errorf("capture not committed together: fired=%d native=%v", fired, cv.ShortcutCapture())
+		}
+	})
 }

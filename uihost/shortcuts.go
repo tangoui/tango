@@ -178,9 +178,8 @@ func (b *shortcut) allowedInText(ev input.KeyEvent) bool {
 }
 
 // shortcuts is the table of one window. binds is guarded by mu (Shortcut
-// may run anywhere); captureOn and textOn are set by the runner, on the
-// window's UI thread; the rest is main-thread state (handle runs on the
-// main thread, also for a threaded window).
+// may run anywhere); textOn comes from the window's UI thread. Capture
+// changes and matching run on the main thread for local windows.
 type shortcuts struct {
 	app   *tango.App
 	mu    sync.Mutex
@@ -234,7 +233,7 @@ func (t *shortcuts) setText(on bool) {
 }
 
 // setCapture changes recorder mode without altering the registered
-// bindings. The window's UI thread; t may be nil.
+// bindings. Main thread for local windows; t may be nil.
 func (t *shortcuts) setCapture(on bool) {
 	if t != nil {
 		t.captureOn.Store(on)
@@ -299,10 +298,11 @@ func (t *shortcuts) key(ev input.KeyEvent) bool {
 	if t.composing || ev.Key.Modifier() != 0 {
 		return false
 	}
+	textOn := t.textOn.Load()
 	var fn func()
 	t.mu.Lock()
 	for _, b := range t.binds {
-		if b.matches(ev) && (!t.textOn.Load() || b.allowedInText(ev)) {
+		if b.matches(ev) && (!textOn || b.allowedInText(ev)) {
 			fn = b.fn
 			break
 		}

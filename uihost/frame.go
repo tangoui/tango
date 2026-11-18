@@ -16,16 +16,36 @@ import (
 // the maximize / restore button follows.
 func (w *window) watchFrame(s *tango.Surface) {
 	w.s = s
-	s.OnStateChanged(func(tango.WindowState) { w.Invalidate() })
+	if w.t == nil {
+		s.OnStateChanged(func(tango.WindowState) { w.Invalidate() })
+		return
+	}
+	refresh := func() {
+		info := readFrameInfo(s)
+		w.t.frameInfo.Store(&info)
+	}
+	changed := func() {
+		refresh()
+		w.Invalidate()
+	}
+	refresh() // before handing the window to its UI thread
+	s.OnStateChanged(func(tango.WindowState) { changed() })
+	corehook.WatchAppearance(s, changed)
 }
 
 func (w *window) FrameInfo() ui.WindowFrameInfo {
 	if w.s == nil {
 		return ui.WindowFrameInfo{}
 	}
-	done := w.awaitMain() // Appearance and State ask the main thread
-	ap, state := w.s.Appearance(), w.s.State()
-	done()
+	if w.t != nil {
+		return *w.t.frameInfo.Load()
+	}
+	return readFrameInfo(w.s)
+}
+
+// readFrameInfo reads the native window on the main thread.
+func readFrameInfo(s *tango.Surface) ui.WindowFrameInfo {
+	ap, state := s.Appearance(), s.State()
 	var st ui.WindowState
 	switch state {
 	case tango.StateMinimized:
