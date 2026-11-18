@@ -532,6 +532,30 @@ func TestThreadedA11yDropsQueuedActionOnClose(t *testing.T) {
 	}
 }
 
+func TestThreadedA11yDropsQueuedActionOnRunnerClose(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	r, _, tc, cv := openThreaded(t, a, fb, func(c *ui.Context) { ui.Button(c, "Go") })
+	tc.th.Do(func() { uihost.A11yForce(r) })
+	tc.tick(t)
+	var id a11y.NodeID
+	tc.th.Do(func() { id = r.AccessibilityTree().Find(a11y.RoleButton, "Go").ID })
+	release := blockUI(t, tc)
+	count := func() int { tc.mu.Lock(); defer tc.mu.Unlock(); return tc.requests }
+	before := count()
+	if err := cv.A11yAction(id, a11y.Press, ""); err != nil {
+		t.Fatal(err)
+	}
+	r.Close() // Close only the runner while the valid action is still queued.
+	release()
+	tc.sync(t)
+	if cv.Surface().Closed() {
+		t.Fatal("closing the runner closed the window")
+	}
+	if got := count() - before; got != 0 {
+		t.Errorf("queued action requested %d frames after runner close; want 0", got)
+	}
+}
+
 func TestThreadedA11yActionFrameRequests(t *testing.T) {
 	a, fb := faketest.Run(t, tango.Options{})
 	shown := true // UI thread only after Open

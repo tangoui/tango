@@ -96,6 +96,19 @@ func TestA11yTreeRolesAndStates(t *testing.T) {
 	}
 }
 
+func TestA11yPerformActionRejectsClosedRunner(t *testing.T) {
+	d := NewDriver(func(c *Context) { Button(c, "Go") }, DriverOptions{})
+	d.EnableAccessibility()
+	btn := mustNode(t, d, a11y.RoleButton, "Go")
+	d.r.Close()
+	if err := d.r.PerformAction(btn.ID, a11y.Press, ""); err == nil {
+		t.Error("closed runner accepted a valid accessibility action")
+	}
+	if got := len(d.r.actions); got != 0 {
+		t.Errorf("closed runner queued %d accessibility actions; want 0", got)
+	}
+}
+
 func TestA11yIncrementalUpdates(t *testing.T) {
 	on := false
 	page := func(c *Context) {

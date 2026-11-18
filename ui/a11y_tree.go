@@ -588,6 +588,9 @@ func (r *Runner) PerformAction(id a11y.NodeID, act a11y.Action, arg string) erro
 	if !n.Actions.Has(act) {
 		return fmt.Errorf("ui: %s does not support %s", n, act)
 	}
+	if r.closed.Load() {
+		return fmt.Errorf("ui: runner closed")
+	}
 	r.actions = append(r.actions, a11yAction{id: ID(id), act: act, arg: arg})
 	r.Invalidate()
 	return nil
