@@ -3,14 +3,14 @@
 package editor
 
 // User-visible editor timings for choosing the macOS text engine: run the
-// same tests in the default build (go-text) and with -tags tango_coretext
-// (CoreText) and compare (docs/dev-builds.md, text engine). They reuse the
+// same tests in the default build (CoreText on macOS) and with
+// -tags tango_gotext (go-text) and compare (docs/dev-builds.md, text engine). They reuse the
 // offscreen Metal host of perf_test.go with partial redraws (a retained
 // target, as in an application window after its first keystroke), at
 // 1920×944 logical points, scale 2. No window is opened.
 //
 //	TANGO_EDITOR_TEXTENGINE=1 go test ./ui/editor -run 'TestPerfTextEngine' -count 1 -v
-//	TANGO_EDITOR_TEXTENGINE=1 go test -tags tango_coretext ./ui/editor -run 'TestPerfTextEngine' -count 1 -v
+//	TANGO_EDITOR_TEXTENGINE=1 go test -tags tango_gotext ./ui/editor -run 'TestPerfTextEngine' -count 1 -v
 //
 //   - TestPerfTextEngineTyping: one keystroke (key down, committed text,
 //     key up) plus the frame it causes, 600 timed keys after 20 warm-up
@@ -28,8 +28,8 @@ package editor
 // Every frame's time is from the event to the GPU finishing the frame
 // ("total"); "cpu" is the event handling plus Runner.Frame alone. Each
 // test logs one line per case starting with "TEXTENGINE" (build=default or
-// build=tango_coretext; engine= is text.Engine, "coretext" in both). Times depend on the machine load: only compare runs
-// interleaved in one session.
+// build=tango_gotext; engine= is text.Engine, "coretext" in both). Times
+// depend on the machine load: only compare runs interleaved in one session.
 
 import (
 	"fmt"
@@ -180,14 +180,14 @@ func (h *perfHost) timedEvent(tb testing.TB, ev func()) (cpu, total time.Duratio
 	return t1.Sub(start), end.Sub(start)
 }
 
-// textEngineBuild names the build: "tango_coretext" (CoreText shapes,
-// breaks and rasterizes) or "default" (go-text shapes and breaks; text.Engine
+// textEngineBuild names the build: "default" (CoreText shapes, breaks and
+// rasterizes) or "tango_gotext" (go-text shapes and breaks; text.Engine
 // still reports the CoreText rasterizer of system fonts).
 func textEngineBuild() string {
 	if bi, ok := debug.ReadBuildInfo(); ok {
 		for _, s := range bi.Settings {
-			if s.Key == "-tags" && slices.Contains(strings.Split(s.Value, ","), "tango_coretext") {
-				return "tango_coretext"
+			if s.Key == "-tags" && slices.Contains(strings.Split(s.Value, ","), "tango_gotext") {
+				return "tango_gotext"
 			}
 		}
 	}

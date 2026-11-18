@@ -22,9 +22,7 @@
 
 - `@tangoui/runtime` 的 `ErrorCode` 加入 `busy`（更新器在已有检查或下载进行时返回）。
 
-- macOS 自绘 UI 新增可选 `TANGO_TEXT_ENGINE=coretext` 轻量文字路径：无换行短文本使用 CoreText glyph-run 与系统字体回退，复杂排版自动继续使用 go-text/HarfBuzz；默认文字引擎和输出路径不变。
-
-- macOS 新增可选构建标签 `tango_coretext`（CoreText 文字引擎）：`ui/text` 的整形、断行、双向文字、字体回退和光栅化都交给 CoreText，`text.RegisterFont` 的字体也由 CoreText 读取，不链接 `github.com/go-text/typesetting`。最小自绘样本（darwin/arm64，`-trimpath -ldflags='-s -w'`）可执行文件 10,520,354 → 8,544,834 B（-1.88 MiB，-18.8%），`tan init -template ui` 的 `.dmg` 3,720,203 → 3,198,304 B（见 [体积报告](docs/package-size-optimization.md)）。这个构建忽略 `TANGO_TEXT_ENGINE`，`text.UseSystemEngine(false)` 不关掉系统引擎，`text.Engine()` 总是 `"coretext"`；换行位置（中文禁则、URL、数字串）、字距和回退字体跟随系统，可能与 Windows/Linux 不同。性能：行情帧基准 0.20 ms（go-text 0.60 ms），但编辑器行缓存未命中仍比 go-text 慢：Mono/Mixed 普通路径未命中慢 3–15 倍，混排行快速路径未命中约 50–60 倍，所以默认构建继续用 go-text。默认构建和其他平台不变。
+- macOS 自绘 UI 新增可选 `TANGO_TEXT_ENGINE=coretext` 轻量文字路径（只在 `-tags tango_gotext` 的 go-text 构建里有效，默认 macOS 构建已全部使用 CoreText，见“变更”）：无换行短文本使用 CoreText glyph-run 与系统字体回退，复杂排版自动继续使用 go-text/HarfBuzz。
 
 - 自绘窗口支持可选 `TANGO_RENDERER=auto`：小窗口先用 CPU，放大、内容复杂或持续高频刷新后单向升级 GPU；保持默认 GPU 优先和显式 Renderer 优先级不变。系统字体链可由 `text.TrimFontCaches()` 丢弃，平台低内存通知也会触发回收；仍被页面或编辑器持有的字体继续有效，macOS 原生字体句柄在最后一个拥有者不可达后释放（见 `docs/dev-builds.md`）。
 
@@ -106,6 +104,8 @@
   - gallery：登录、查询列表、基础表单、详情、结果、设置抽屉六种完整 Pro v6 页面组合，全部使用真实 Tango API 和本地示例数据。复核旧 28 项的结果与尚缺能力见 `docs/specs/align/4-*.md`，不再将其解释为全部 v3 API 已完整。
 
 ### 变更
+
+- **macOS 自绘文字默认改用 CoreText**：`ui/text` 的整形（CTLine）、断行（CFStringTokenizer）、双向文字、字体回退和光栅化都交给 CoreText，`text.RegisterFont` 的字体也由 CoreText 读取；macOS（非 iOS）构建不再链接 `github.com/go-text/typesetting`。构建标签 `tango_gotext` 恢复以前的 go-text 引擎（go-text 整形加 CoreText 光栅化、`TANGO_TEXT_ENGINE` 和 `text.UseSystemEngine` 开关、纯 Go 金样图测试）。其他平台和 iOS 不变。行为差异：默认 macOS 构建忽略 `TANGO_TEXT_ENGINE`，`text.UseSystemEngine(false)` 不关掉 CoreText（返回 `true`），`text.Engine()` 总是 `"coretext"`；换行位置（中文禁则、URL、数字串）、字距和回退字体跟随系统，可能与 Windows/Linux 不同。体积：最小自绘样本（darwin/arm64，`-trimpath -ldflags='-s -w'`）可执行文件 10,520,354 → 8,544,834 B（见 [体积报告](docs/package-size-optimization.md)）。性能（2026-11-18，Apple M4，同一会话交替测量，go-text → CoreText）：编辑器无窗口打字、滚动、打开文件全部在 1 帧以内（Markdown 每帧一页滚动 p99 12.25 → 12.69 ms）；应用进程 CPU counter +0、quotes −1.5、list +0.9、grid +1.8 个百分点，内存 −4.9…−8.3 MB，首帧 −51…+2 ms，帧间隔 P99 差 ±0.03 ms 以内；编辑器输入延迟打字 32.6 → 33.0 ms，三光标 35.7 → 32.4 ms。编辑器行缓存新增精确快速路径：中英混排等宽行逐字符排版，字体表证明不受上下文影响、CoreText 探针实测字形与宽度，结果与通用路径逐字形一致。已知限制：日语（`ja`）含 CJK 的行仍走通用路径（CoreText 的日文排版按相邻字符调整间距）；数字和等宽快速路径的探针在全局排版锁内执行。
 
 - macOS Apple Silicon 上的自绘窗口不论大小、不论 `Content` 取值都默认用原生 Core Animation 图层：大型窗口（面积超过 100,000 逻辑像素）由 Metal 改为原生图层，与小窗口一致。数据窗口（`Content: ui.ContentData`）一直留在原生图层，只在连续六帧绘制超过 8 ms 或连续六帧整窗软件回退时单向升级 Metal。普通窗口（默认 `ui.ContentGeneral`）在第一次收到键盘输入（按下非修饰键、提交文字、输入法组字）后，下一帧单向升级 Metal，满足上面两个条件之一时也会升级；这一条对原本就默认用原生图层的小窗口同样生效，所以小窗口打字之后内存会上升到 Metal 的水平。实测列表/行情窗口在原生图层上内存降低 63–71%（list 39 对 135 MB，quotes 54 对 147 MB），800×600 数据网格约 69 MB（mygo 107 MB）。原生图层的输入到画面延迟比 Metal 慢约 2 帧（编辑器打字 78.8 对 47.2 ms、三光标 87.6 对 47.2 ms、滚动约 80 对 46 ms），普通窗口打字后改用 Metal，输入延迟和固定用 Metal 相当：2026-11-18 在 Apple M4 上用 1920×944 的编辑器夹具实测（CGEvent 输入、ScreenCaptureKit 窗口采样，默认设置对 `TANGO_RENDERER=gpu`，同一会话内 AB/BA/AB 交替）：打字 100 键，从第 2 键起中位数 32.5 对 31.9 ms（p95 48.3 对 48.9）；三光标 30 次 32.7 对 31.8 ms（p95 45.5 对 45.2）；第一次按键（切换到 Metal 的那一帧）一次性多约 30–90 ms（默认 75–134 ms，gpu 41–46 ms）；只滚动不打字的普通窗口和所有数据窗口仍按原生图层的延迟运行。原生图层起不来的窗口改用 Metal。Intel Mac 默认仍用 Metal。需要固定 Metal 时设 `TANGO_RENDERER=gpu`，固定原生图层时设 `native`（见 `docs/dev-builds.md`）。
 

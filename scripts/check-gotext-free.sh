@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Fails if any package of the module links go-text in the macOS build with
-# the opt-in CoreText text engine (-tags tango_coretext).
+# Fails if any package of the module links go-text in the default macOS
+# build, whose text engine is CoreText (-tags tango_gotext restores go-text).
 set -euo pipefail
-deps=$(GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go list -tags tango_coretext -deps ./...)
+deps=$(GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go list -deps ./...)
 if grep -q '^github.com/go-text/' <<<"$deps"; then
-  echo "go-text is linked into the darwin tango_coretext build:" >&2
+  echo "go-text is linked into the default darwin build:" >&2
   grep '^github.com/go-text/' <<<"$deps" >&2
   exit 1
 fi

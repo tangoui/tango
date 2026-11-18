@@ -1,4 +1,4 @@
-//go:build !darwin || ios || !tango_coretext
+//go:build !darwin || ios || tango_gotext
 
 package editor
 
@@ -16,9 +16,9 @@ import (
 )
 
 // Golden images of the View, recorded with the pure-Go (go-text) text
-// engine: exact pixels of its shaping and rasterization. The opt-in macOS
-// build tag tango_coretext has only CoreText (text.UseSystemEngine(false) is
-// a no-op there), so they do not build with it.
+// engine: exact pixels of its shaping and rasterization. The default macOS
+// build has only CoreText (text.UseSystemEngine(false) is a no-op there),
+// so on macOS they build only with -tags tango_gotext.
 
 // goldenSource is the document of the golden images: keywords, strings,
 // comments, numbers, a tab, CJK and a selection over two lines.

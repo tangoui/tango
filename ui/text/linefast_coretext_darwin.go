@@ -1,4 +1,4 @@
-//go:build darwin && !ios && tango_coretext
+//go:build darwin && !ios && !tango_gotext
 
 package text
 
@@ -25,7 +25,8 @@ import (
 // table (Face.needsProbe), whose default features (ccmp, locl) CoreText
 // applies, only lines of ASCII take this route, and only in the (size,
 // language) where a probe found CoreText setting the whole printable ASCII
-// range as the character map's glyphs at their own advances (asciiProbe).
+// range as the character map's glyphs at their own advances (asciiProbe),
+// and the layout tables prove the glyphs are independent of context.
 //
 // Exact route: every other rune (CJK and other fallback faces, non-ASCII
 // runes of a GSUB or trak face, faces with GPOS) is set in the face the
@@ -317,10 +318,12 @@ func (fp *fastPath) asciiProbe(ff *fastFont, st Style, lang string) bool {
 	adv := make([]float32, n+1)
 	gl := shapeItems(runes, []item{{start: 0, end: n, st: st, lang: lang}}, []*fontmap{ff.fm}, adv)
 	ok := len(gl) == n
+	o := fp.otlOf(f, lang)
 	for i := 0; ok && i < n; i++ {
 		g := gl[i]
 		mg, mapped := fp.glyph(f, st.Size, runes[i])
-		ok = mapped && g.face == f && g.cluster == i && g.gid == mg.gid &&
+		ok = mapped && o.allows(mg.gid, otlScriptOf(runes[i])) &&
+			g.face == f && g.cluster == i && g.gid == mg.gid &&
 			near5(g.adv, mg.adv) && near5(g.xoff, 0) && near5(g.yoff, 0)
 	}
 	t = fp.tables[k] // fp.glyph made it (or cleared the tables)

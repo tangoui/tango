@@ -1,4 +1,4 @@
-//go:build !darwin || ios || !tango_coretext
+//go:build !darwin || ios || tango_gotext
 
 package text
 
@@ -7,7 +7,8 @@ import (
 	"strings"
 )
 
-// The switchable engine (every build but macOS with -tags tango_coretext):
+// The switchable engine (every platform but macOS, and macOS with
+// -tags tango_gotext):
 // UseSystemEngine and TANGO_TEXT_ENGINE choose between the system engine
 // and the pure-Go path.
 
@@ -50,6 +51,6 @@ func engineName() string {
 	return "go"
 }
 
-// coreTextOnly reports the macOS tango_coretext build, where CoreText is
+// coreTextOnly reports the macOS build (not tango_gotext), where CoreText is
 // the only engine and no go-text code is linked.
 const coreTextOnly = false

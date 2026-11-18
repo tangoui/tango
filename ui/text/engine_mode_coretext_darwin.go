@@ -1,15 +1,15 @@
-//go:build darwin && !ios && tango_coretext
+//go:build darwin && !ios && !tango_gotext
 
 package text
 
-// The macOS build with -tags tango_coretext has one engine, CoreText:
+// The macOS build (without -tags tango_gotext) has one engine, CoreText:
 // there is no pure-Go path to switch to, so UseSystemEngine changes nothing
 // and TANGO_TEXT_ENGINE is not read (see UseSystemEngine).
 
 // engineMode keeps the engine on for good.
 const engineMode = true
 
-// coreTextOnly reports the macOS tango_coretext build, where CoreText is
+// coreTextOnly reports the macOS build (not tango_gotext), where CoreText is
 // the only engine and no go-text code is linked.
 const coreTextOnly = true
 

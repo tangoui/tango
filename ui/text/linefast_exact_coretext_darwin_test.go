@@ -1,12 +1,15 @@
-//go:build darwin && !ios && tango_coretext
+//go:build darwin && !ios && !tango_gotext
 
 package text
 
 import (
+	"encoding/binary"
 	"math/rand/v2"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"golang.org/x/image/font/gofont/gomono"
 )
 
 // The exact route of the monospace fast path (linefast_coretext_darwin.go)
@@ -55,8 +58,9 @@ func randomExactLine(rng *rand.Rand) string {
 }
 
 // TestCTMonoExactRandomLines compares the fast path with the general path
-// on 1 200 random lines per language (zh-Hans, ja, zh-Hant, en, ko) (single style and token runs, two
-// sizes) and checks that most of them take the fast path.
+// on 1 200 random lines per language, with single-style and token runs
+// at two sizes. The fast path should handle most lines in zh-Hans, en and
+// ko, and still fire on safe zh-Hant lines.
 func TestCTMonoExactRandomLines(t *testing.T) {
 	needCT(t)
 	rng := rand.New(rand.NewPCG(20261118, 2))
@@ -85,8 +89,18 @@ func TestCTMonoExactRandomLines(t *testing.T) {
 			}
 		}
 		t.Logf("%s: fast %d, slow %d, probe CTLines %d", lang, c.stats.fast, c.stats.slow, c.fp.probes)
-		if lang != "ja" && c.stats.fast < c.stats.slow {
-			t.Errorf("%s: fast path took %d of %d lines", lang, c.stats.fast, c.stats.fast+c.stats.slow)
+		switch lang {
+		case "ja": // CJK lines use the general path (exactLang).
+		case "zh-Hant":
+			// PingFang's hani/latn locl lookups can differ from DFLT. The
+			// guard must not count such substitutions as script-independent.
+			if c.stats.fast == 0 {
+				t.Error("zh-Hant: no lines used the fast path")
+			}
+		default:
+			if c.stats.fast < c.stats.slow {
+				t.Errorf("%s: fast path took %d of %d lines", lang, c.stats.fast, c.stats.fast+c.stats.slow)
+			}
 		}
 	}
 }
@@ -156,4 +170,308 @@ func hasContextual(o *otlInfo) bool {
 		}
 	}
 	return false
+}
+
+func TestCTOTLIncludesDefaultScript(t *testing.T) {
+	// latn is advertised but has no feature. DFLT has a contextual ccmp.
+	o := fixtureOTL(t, fixtureGSUB("DFLT", true, 1,
+		fixtureLookup(6, fixtureChain(60, 10, 60, 1)),
+		fixtureLookup(1, fixtureSingle(10, 20))))
+	if o.allows(10, "latn") {
+		t.Error("latn discarded contextual DFLT coverage of glyph 10")
+	}
+	if !o.allows(80, "latn") {
+		t.Error("uncovered glyph sent to the general path")
+	}
+}
+
+func TestCTOTLRejectsIntermediateContext(t *testing.T) {
+	// 10 → 20; 20 → 30 between two 60s; otherwise the final lookup
+	// maps 20 → 40 (or 30 → 50 in context). Neither 10 nor the probe's
+	// final 40 is in the contextual lookup's coverage.
+	o := fixtureOTL(t, fixtureGSUB("latn", false, 3,
+		fixtureLookup(1, fixtureSingle(10, 20)),
+		fixtureLookup(6, fixtureChain(60, 20, 60, 3)),
+		fixtureLookup(1, fixtureSingle(20, 40), fixtureSingle(30, 50)),
+		fixtureLookup(1, fixtureSingle(20, 30))))
+	if !o.allows(40, "latn") {
+		t.Fatal("fixture's probe output is not uncovered")
+	}
+	if o.allows(10, "latn") {
+		t.Error("cmap glyph 10 allowed despite contextual coverage of intermediate glyph 20")
+	}
+}
+
+func TestCTOTLAllowsIsolatedSingleSubstitution(t *testing.T) {
+	o := fixtureOTL(t, fixtureGSUB("latn", false, 2,
+		fixtureLookup(1, fixtureSingle(10, 20)),
+		fixtureLookup(6, fixtureChain(60, 30, 60, 2)),
+		fixtureLookup(1, fixtureSingle(30, 40))))
+	if !o.allows(10, "latn") {
+		t.Error("isolated single substitution sent to the general path")
+	}
+}
+
+func TestCTOTLRejectsUnknownContextFormat(t *testing.T) {
+	// A future contextual format need not have coverage at offset +2.
+	// Accepting it as format 1/2 could silently miss affected glyphs.
+	gsub := fixtureGSUB("latn", false, 1,
+		fixtureLookup(6, fixtureU16(4, 4, 1, 1, 20)))
+	if _, ok := parseOTL(gsub, false, true, nil); ok {
+		t.Error("unknown contextual subtable format allowed")
+	}
+}
+
+func TestCTOTLNumericLigaturesRespectAlphabet(t *testing.T) {
+	// 10 → 20 can feed a ligature with 60. None of the substitutes
+	// are cmap glyphs, so checking only cmap glyphs would miss it.
+	gsub := fixtureGSUB("latn", false, 2,
+		fixtureLookup(1, fixtureSingle(10, 20)),
+		fixtureLookup(4, fixtureU16(1, 18, 1, 8, 1, 4, 30, 2, 60, 1, 1, 20)))
+	for _, tc := range []struct {
+		other uint16
+		want  bool
+	}{{60, false}, {70, true}} {
+		ls, ok := parseOTL(gsub, false, false, nil)
+		if !ok {
+			t.Fatal("numeric ligature fixture failed to parse")
+		}
+		o := &otlInfo{ok: true, lookups: ls.lookups}
+		o.restrictLigatures(map[uint16]bool{10: true, tc.other: true})
+		if got := o.allows(10, ""); got != tc.want {
+			t.Errorf("alphabet {10, %d}: allows = %v, want %v", tc.other, got, tc.want)
+		}
+	}
+}
+
+func TestCTOTLBoundsExpandedLookupWork(t *testing.T) {
+	// Each reference is small enough to parse on its own. Traversing two
+	// lookups must share a budget, including when records alias each other.
+	const refs, components = 32, 96
+	lig := fixtureU16(1, 8, 1, 14, 1, 1, 10, refs)
+	for range refs {
+		lig = binary.BigEndian.AppendUint16(lig, 2+2*refs)
+	}
+	lig = append(lig, fixtureU16(20, components)...)
+	for range components - 1 {
+		lig = binary.BigEndian.AppendUint16(lig, 30)
+	}
+	// Coverage format 2 encodes a long contiguous range in one record.
+	single := fixtureU16(1, 6, 1, 2, 1, 10, 3009, 0)
+	for _, tc := range []struct {
+		name   string
+		lookup []byte
+	}{
+		{"repeated-ligature-record", fixtureLookup(4, lig)},
+		{"single-substitution-range", fixtureLookup(1, single)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, ok := parseOTL(fixtureGSUB("latn", false, 1, tc.lookup), false, false, nil); !ok {
+				t.Fatal("one lookup should fit the parse budget")
+			}
+			if _, ok := parseOTL(fixtureGSUB("latn", false, 2, tc.lookup, tc.lookup), false, false, nil); ok {
+				t.Error("two lookups exceeded the cumulative parse budget but were accepted")
+			}
+		})
+	}
+}
+
+func TestCTMonoASCIIFallsBackOnContextualGSUB(t *testing.T) {
+	gid := fixtureMono(t)
+	a, x, A := gid('a'), gid('x'), gid('A')
+	gsub := fixtureGSUB("latn", false, 1,
+		fixtureLookup(6, fixtureChain(x, a, x, 1)),
+		fixtureLookup(1, fixtureSingle(a, A)))
+	if err := RegisterFont("ASCIIContextFixture", fixtureFont(gsub)); err != nil {
+		t.Fatal(err)
+	}
+	// The ascending ASCII probe contains no xax; contextual ccmp does
+	// apply to this line despite the probe reporting cmap equality.
+	line := "xax"
+	runs := []Run{{0, len(line), Style{Size: 13, Mono: true, Lang: "en"}}}
+	opt := LineOptions{}
+	general := monoGeneral(line, runs, opt)
+	if len(general.Glyphs) != 3 || general.Glyphs[1].ID != uint32(A) {
+		t.Fatalf("CoreText did not apply the fixture's contextual substitution: %+v", general.Glyphs)
+	}
+	c := NewLineCache(8)
+	got := c.Shape(line, runs, opt)
+	if c.stats.fast != 0 {
+		t.Errorf("ASCII cmap route bypassed contextual GSUB (glyph %d instead of %d)", got.Glyphs[1].ID, A)
+	}
+	sameLayout(t, line, got, general)
+}
+
+func TestCTNumericFallsBackOnContextualGSUB(t *testing.T) {
+	gid := fixtureMono(t)
+	one, two, three := gid('1'), gid('2'), gid('3')
+	// Change 1 to 3 when preceded and followed by two 2s. This context
+	// is longer than any of the numeric table's probe strings.
+	chain := fixtureU16(3, 2, 24, 24, 1, 30, 2, 24, 24, 1, 0, 1, 1, 1, two, 1, 1, one)
+	gsub := fixtureGSUB("latn", false, 1,
+		fixtureLookup(6, chain), fixtureLookup(1, fixtureSingle(one, three)))
+	if err := RegisterFont("NumericContextFixture", fixtureFont(gsub)); err != nil {
+		t.Fatal(err)
+	}
+	line := "22122"
+	st := Style{Size: 13, Mono: true, Lang: "en"}
+	runs := []Run{{0, len(line), st}}
+	opt := Options{NoWrap: true}
+	mu.Lock()
+	general := shapeRunsUncached(line, runs, opt)
+	fast := directNumericLayout(line, st, opt, regVersion())
+	mu.Unlock()
+	if len(general.Glyphs) != 5 || general.Glyphs[2].ID != uint32(three) {
+		t.Fatalf("CoreText did not apply the fixture's contextual substitution: %+v", general.Glyphs)
+	}
+	if fast != nil {
+		t.Errorf("numeric table bypassed contextual GSUB (glyph %d instead of %d)", fast.Glyphs[2].ID, three)
+	}
+	var dst Layout
+	sameLayout(t, line, ShapeInto(&dst, line, st, opt), general)
+}
+
+func TestCTMonoExactTraditionalChineseScriptDependentLocl(t *testing.T) {
+	needCT(t)
+	st := Style{Size: 13, Mono: true, Lang: "zh-Hant"}
+	for _, tc := range []struct {
+		line string
+		fast bool
+	}{
+		{"中文和English一", true},
+		{"中文和English排", false}, // PingFang's 排 has hani but not DFLT locl.
+	} {
+		runs := []Run{{0, utf8.RuneCountInString(tc.line), st}}
+		opt := LineOptions{}
+		c := NewLineCache(8)
+		got := c.Shape(tc.line, runs, opt)
+		sameLayout(t, tc.line, got, monoGeneral(tc.line, runs, opt))
+		if (c.stats.fast == 1) != tc.fast {
+			t.Errorf("%q: fast/slow %d/%d, want fast %v", tc.line, c.stats.fast, c.stats.slow, tc.fast)
+		}
+	}
+}
+
+func fixtureMono(t *testing.T) func(rune) uint16 {
+	t.Helper()
+	needCT(t)
+	saveUserFonts(t)
+	faces, err := parseFaces("UnmodifiedGoMono", gomono.TTF)
+	if err != nil || len(faces) != 1 {
+		t.Fatalf("opening Go Mono fixture: %d faces, %v", len(faces), err)
+	}
+	reg.mu.Lock()
+	disabled := reg.disabled
+	reg.mu.Unlock()
+	t.Cleanup(func() { UseSystemFonts(!disabled) })
+	UseSystemFonts(false)
+	return func(r rune) uint16 {
+		g, ok := faces[0].glyphFor(r)
+		if !ok {
+			t.Fatalf("fixture missing glyph %q", r)
+		}
+		return uint16(g)
+	}
+}
+
+func fixtureOTL(t *testing.T, gsub []byte) *otlInfo {
+	t.Helper()
+	ls, ok := parseOTL(gsub, false, true, nil)
+	if !ok {
+		t.Fatal("fixture GSUB failed to parse")
+	}
+	return &otlInfo{ok: true, lookups: ls.lookups}
+}
+
+// A single default ccmp feature references the first n lookups. Remaining
+// lookups can be invoked from contextual rules but aren't top-level.
+func fixtureGSUB(script string, emptyLatn bool, n int, lookups ...[]byte) []byte {
+	var sl []byte
+	if emptyLatn { // DFLT plus a latn default LangSys without features
+		sl = append(fixtureU16(2), "DFLT"...)
+		sl = append(sl, fixtureU16(14)...)
+		sl = append(sl, "latn"...)
+		sl = append(sl, fixtureU16(26, 4, 0, 0, 0xffff, 1, 0, 4, 0, 0, 0xffff, 0)...)
+	} else {
+		sl = append(fixtureU16(1), script...)
+		sl = append(sl, fixtureU16(8, 4, 0, 0, 0xffff, 1, 0)...)
+	}
+	fl := append(fixtureU16(1), "ccmp"...)
+	fl = append(fl, fixtureU16(8, 0, uint16(n))...)
+	for i := range n {
+		fl = binary.BigEndian.AppendUint16(fl, uint16(i))
+	}
+	b := fixtureU16(1, 0, 10, uint16(10+len(sl)), uint16(10+len(sl)+len(fl)))
+	b = append(append(b, sl...), fl...)
+	return append(b, fixtureOffsetList(fixtureU16(uint16(len(lookups))), lookups...)...)
+}
+
+func fixtureLookup(kind uint16, subtables ...[]byte) []byte {
+	return fixtureOffsetList(fixtureU16(kind, 0, uint16(len(subtables))), subtables...)
+}
+
+func fixtureOffsetList(header []byte, entries ...[]byte) []byte {
+	off := len(header) + 2*len(entries)
+	for _, entry := range entries {
+		header = binary.BigEndian.AppendUint16(header, uint16(off))
+		off += len(entry)
+	}
+	for _, entry := range entries {
+		header = append(header, entry...)
+	}
+	return header
+}
+
+func fixtureSingle(in, out uint16) []byte {
+	return fixtureU16(2, 8, 1, out, 1, 1, in) // format 2; one glyph in coverage
+}
+
+func fixtureChain(before, in, after, lookup uint16) []byte {
+	return fixtureU16(3, 1, 20, 1, 26, 1, 32, 1, 0, lookup,
+		1, 1, before, 1, 1, in, 1, 1, after)
+}
+
+func fixtureU16(vals ...uint16) []byte {
+	var b []byte
+	for _, x := range vals {
+		b = binary.BigEndian.AppendUint16(b, x)
+	}
+	return b
+}
+
+// Append GSUB to the bundled Go Mono font: reuse its glyphs and cmap,
+// omitting layout tables that would otherwise disable the ASCII route.
+func fixtureFont(gsub []byte) []byte {
+	src := gomono.TTF
+	dir := src[12 : 12+16*int(binary.BigEndian.Uint16(src[4:]))]
+	type entry struct {
+		tag string
+		b   []byte
+	}
+	tables := []entry{{"GSUB", gsub}}
+	for i := 0; i < len(dir); i += 16 {
+		tag := string(dir[i : i+4])
+		switch tag {
+		case "GSUB", "GPOS", "kern", "DSIG":
+			continue
+		}
+		off := binary.BigEndian.Uint32(dir[i+8:])
+		n := binary.BigEndian.Uint32(dir[i+12:])
+		tables = append(tables, entry{tag, src[off : off+n]})
+	}
+	// CoreText needs the directory and aligned tables, not checksums.
+	b := make([]byte, 12+16*len(tables))
+	copy(b, src[:4])
+	binary.BigEndian.PutUint16(b[4:], uint16(len(tables)))
+	for k, table := range tables {
+		i := 12 + 16*k
+		copy(b[i:], table.tag)
+		binary.BigEndian.PutUint32(b[i+8:], uint32(len(b)))
+		binary.BigEndian.PutUint32(b[i+12:], uint32(len(table.b)))
+		b = append(b, table.b...)
+		for len(b)%4 != 0 {
+			b = append(b, 0)
+		}
+	}
+	return b
 }

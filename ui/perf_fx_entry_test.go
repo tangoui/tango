@@ -45,8 +45,24 @@ func perfEntryOpenClose(r *perfRun, i int, label string) {
 }
 
 func perfEntryTagEdit(r *perfRun, i int) {
-	p := r.At(0.9, 0.5)
-	r.D.Click(p)
+	// Target the text field: a fractional point in the selector can hit
+	// a chip's remove button, depending on direction and font metrics.
+	var editor *node
+	for _, n := range r.D.r.c.root.kids[0].kids { // perfPage's column
+		if n.kind != "inputtag" {
+			continue
+		}
+		for _, child := range n.kids {
+			if child.kind == "ms-input" {
+				editor = child
+				break
+			}
+		}
+	}
+	if editor == nil || editor.abs.Empty() {
+		panic("InputTag fixture has no visible text field")
+	}
+	r.D.Click(editor.abs.Center())
 	if i%2 == 0 {
 		r.D.Type("new")
 		r.D.Key(input.KeyEnter, 0)

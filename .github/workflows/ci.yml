@@ -82,7 +82,7 @@ jobs:
           done
           exit $status
 
-      - name: CoreText (tango_coretext) macOS build links no go-text
+      - name: default macOS build (CoreText) links no go-text
         run: bash scripts/check-gotext-free.sh
 
       - name: runtime-js (npm ci, npm test)
@@ -154,12 +154,12 @@ jobs:
           # three times) has its own job below; -short skips it here.
           bash scripts/ci-go-test.sh -short -timeout 40m ./examples/ui-gallery/...
 
-      # The opt-in CoreText text engine (-tags tango_coretext: CoreText
-      # shapes, breaks and rasterizes, no go-text linked) keeps building and
-      # passing on macOS.
-      - name: go test -tags tango_coretext (ui, render/gpu, macOS)
+      # The go-text text engine on macOS (-tags tango_gotext: go-text shapes
+      # and breaks, the golden images of the pure-Go path) keeps building
+      # and passing; the default macOS build above uses CoreText.
+      - name: go test -tags tango_gotext (ui, render/gpu, macOS)
         if: runner.os == 'macOS'
-        run: bash scripts/ci-go-test.sh -p 1 -tags tango_coretext -timeout 40m ./ui/... ./internal/render/gpu/...
+        run: bash scripts/ci-go-test.sh -p 1 -tags tango_gotext -timeout 40m ./ui/... ./internal/render/gpu/...
 
       # Development features (hot reload, automation, dev proxy) are only
       # built with -tags tango_dev; the default build above is production.

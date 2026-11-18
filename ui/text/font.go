@@ -1,9 +1,10 @@
 // Package text shapes and lays out text for the Tango self-drawn UI.
 //
 // It uses go-text/typesetting (HarfBuzz port) for shaping and UAX #14 line
-// breaking on every platform. On macOS the opt-in build tag tango_coretext
-// hands all of it to CoreText instead (shaping, UAX #14 line breaking, bidi
-// levels and glyph rasterization) and links no go-text code. Both give correct per-character
+// breaking on every platform but macOS. On macOS (not iOS) CoreText does
+// all of it instead (shaping, UAX #14 line breaking, bidi
+// levels and glyph rasterization) and no go-text code is linked; the build
+// tag tango_gotext restores go-text there. Both give correct per-character
 // breaking for Chinese and the basic kinsoku rules (no break before
 // "，。！？）" or after "（「"). Fonts are resolved per rune through a
 // fallback chain: fonts registered by the application with RegisterFont
@@ -12,7 +13,7 @@
 // Segoe UI + Microsoft YaHei on Windows; fontconfig + FreeType: Noto /
 // DejaVu + Noto Sans CJK / WenQuanYi on Linux), with its hinting, and
 // per-rune platform fallback; see engine.go and UseSystemEngine. Without
-// the engine (never with -tags tango_coretext), font files are parsed and
+// the engine (never on macOS without tango_gotext), font files are parsed and
 // rasterized in pure Go (SF + Hiragino on macOS,
 // Segoe UI + Microsoft YaHei on Windows, Noto/DejaVu/WenQuanYi on Linux).
 // No font files are bundled. On platforms with no discoverable fonts
