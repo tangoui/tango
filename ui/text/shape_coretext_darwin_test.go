@@ -6,6 +6,8 @@ import (
 	"math"
 	"os"
 	"testing"
+
+	"github.com/ebitengine/purego"
 )
 
 // ctAdvances returns the per-rune advances the shared pipeline computes
@@ -81,6 +83,154 @@ func TestCTShapeNoLigatures(t *testing.T) {
 	on := c.Shape("ffi", runs, LineOptions{Ligatures: true})
 	if n := len(on.Glyphs); n < 1 || n > 3 {
 		t.Errorf("Ligatures:true: %d glyphs for ffi, want 1..3", n)
+	}
+}
+
+// noLiga shapes with a font copy whose feature settings turn liga, clig
+// and calt off (kCTLigatureAttributeName alone leaves calt on).
+func TestCTNoLigaFontFeatureSettings(t *testing.T) {
+	needCT(t)
+	if !loadCTShape() {
+		t.Skip("CoreText shaping symbols unavailable")
+	}
+	// CTFontCopyFeatureSettings lists only features the font has, so use
+	// the system sans (SF Pro has liga, clig and calt), not SF Mono.
+	f := (&fontmap{chain: reg.chain(false), w: Regular}).primary()
+	if f == nil {
+		t.Fatal("no sans face")
+	}
+	fc := noLigaFont(f, 13)
+	if fc == 0 {
+		t.Fatal("noLigaFont = 0")
+	}
+	defer cfRelease(fc)
+	if again := noLigaFont(f, 13); again != fc {
+		t.Errorf("noLigaFont not cached: %#x, %#x", again, fc)
+		cfRelease(again)
+	} else {
+		cfRelease(again)
+	}
+	settings := func(arr uintptr) map[string]float64 {
+		got := map[string]float64{}
+		for i := int64(0); i < cfArrayGetCount(arr); i++ {
+			d := cfArrayGetValueAtIndex(arr, i)
+			tag := goStr(cfDictionaryGetValue(d, kCTFontOpenTypeFeatureTag))
+			if v, ok := cfFloat(cfDictionaryGetValue(d, kCTFontOpenTypeFeatureValue)); ok && tag != "" {
+				got[tag] = v
+			}
+		}
+		return got
+	}
+	// The descriptor asks for all three off.
+	ct, err := purego.Dlopen("/System/Library/Frameworks/CoreText.framework/CoreText", purego.RTLD_GLOBAL|purego.RTLD_NOW)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var copyAttr func(desc, name uintptr) uintptr
+	purego.RegisterLibFunc(&copyAttr, ct, "CTFontDescriptorCopyAttribute")
+	desc := noLigaDesc()
+	if desc == 0 {
+		t.Fatal("noLigaDesc = 0")
+	}
+	defer cfRelease(desc)
+	da := copyAttr(desc, kCTFontFeatureSettingsAttribute)
+	if da == 0 {
+		t.Fatal("descriptor has no feature settings")
+	}
+	defer cfRelease(da)
+	want := settings(da)
+	for _, tag := range []string{"liga", "clig", "calt"} {
+		if v, ok := want[tag]; !ok || v != 0 {
+			t.Errorf("descriptor feature settings %v: want %s = 0", want, tag)
+		}
+	}
+	// The copy keeps those the font has (CoreText normalizes the list to
+	// the font's features: SF Pro has liga and calt, no clig).
+	arr := ctFontCopyFeatureSettings(fc)
+	if arr == 0 {
+		t.Fatal("CTFontCopyFeatureSettings = NULL")
+	}
+	defer cfRelease(arr)
+	got := settings(arr)
+	if v, ok := got["calt"]; !ok || v != 0 {
+		t.Errorf("font feature settings %v: want calt = 0", got)
+	}
+	for _, tag := range []string{"liga", "clig", "calt"} {
+		if v, ok := got[tag]; ok && v != 0 {
+			t.Errorf("font feature settings %v: %s = %v, want 0", got, tag, v)
+		}
+	}
+	// The shaper uses the copy, and maps runs set in it back to the face.
+	var sh ctShaper
+	defer sh.release()
+	if c := sh.font(f, 13, true); c != fc {
+		t.Errorf("ctShaper.font(noLiga) = %#x, want the copy %#x", c, fc)
+	}
+	if got := sh.faceOf(fc); got != f {
+		t.Errorf("faceOf(copy) = %p, want %p", got, f)
+	}
+}
+
+// End to end with a font whose ligatures are contextual alternates (calt):
+// Ligatures:false draws every rune with its own cmap glyph.
+func TestCTNoLigaCaltFont(t *testing.T) {
+	needCT(t)
+	home, _ := os.UserHomeDir()
+	var data []byte
+	for _, dir := range []string{home + "/Library/Fonts", "/Library/Fonts"} {
+		for _, n := range []string{"FiraCode-Regular.ttf", "FiraCode-VF.ttf", "JetBrainsMono-Regular.ttf", "JetBrainsMono[wght].ttf", "CascadiaCode.ttf", "CascadiaCode-Regular.ttf"} {
+			if b, err := os.ReadFile(dir + "/" + n); err == nil {
+				data = b
+				break
+			}
+		}
+		if data != nil {
+			break
+		}
+	}
+	if data == nil {
+		t.Skip("no calt ligature font (Fira Code, JetBrains Mono, Cascadia Code) installed")
+	}
+	saveUserFonts(t)
+	if err := RegisterFont("CaltCode", data); err != nil {
+		t.Fatal(err)
+	}
+	line := "a -> b != c"
+	runs := []Run{{0, len([]rune(line)), Style{Size: 14}}}
+	c := NewLineCache(8)
+	off := c.Shape(line, runs, LineOptions{Ligatures: false})
+	on := c.Shape(line, runs, LineOptions{Ligatures: true})
+	differ := false
+	for g, k := range off.GlyphCluster {
+		f := glyphFace(t, off, g)
+		want, _ := f.glyphFor(off.Runes[k])
+		if off.Glyphs[g].ID != want {
+			t.Errorf("Ligatures:false: glyph %d of %q is %d, want the cmap glyph %d", g, off.Runes[k], off.Glyphs[g].ID, want)
+		}
+	}
+	for g := range on.Glyphs {
+		if g >= len(off.Glyphs) || on.Glyphs[g].ID != off.Glyphs[g].ID {
+			differ = true
+		}
+	}
+	if !differ {
+		t.Log("Ligatures:true drew the same glyphs (font without calt arrows?)")
+	}
+}
+
+// Style.Lang is caller input: an invalid UTF-8 tag is skipped, not passed
+// to CoreText as a NULL string.
+func TestCTInvalidLangTag(t *testing.T) {
+	needCT(t)
+	for _, s := range []string{"Hello", "直"} {
+		l := Shape(s, Style{Size: 16, Lang: "\xff\xfe"}, Options{})
+		if len(l.Glyphs) == 0 {
+			t.Errorf("%q with an invalid Lang: no glyphs", s)
+		}
+	}
+	c := NewLineCache(4)
+	if l := c.Shape("ffi", []Run{{0, 3, Style{Size: 16}}}, LineOptions{Lang: "\xff\xfe"}); len(l.Glyphs) == 0 {
+		t.Error("LineCache with an invalid Lang: no glyphs")
 	}
 }
 

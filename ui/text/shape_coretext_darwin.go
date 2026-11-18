@@ -42,6 +42,14 @@ var (
 	kCTLigatureAttributeName uintptr
 	kCTLanguageAttributeName uintptr // 0 when the OS lacks it
 
+	cfArrayCreate             func(alloc uintptr, vals *uintptr, n int64, cb uintptr) uintptr
+	ctFontCopyFeatureSettings func(uintptr) uintptr
+	kCFTypeArrayCallBacks     uintptr
+
+	kCTFontFeatureSettingsAttribute uintptr
+	kCTFontOpenTypeFeatureTag       uintptr
+	kCTFontOpenTypeFeatureValue     uintptr
+
 	// CTFontCreateForStringWithLanguage (macOS 10.15); nil when missing.
 	ctFontCreateForStringWithLanguage func(f, s uintptr, r cfRange, lang uintptr) uintptr
 )
@@ -69,6 +77,11 @@ func loadCTShape() bool {
 		purego.RegisterLibFunc(&cfAttributedStringSetAttribute, cf, "CFAttributedStringSetAttribute")
 		purego.RegisterLibFunc(&cfAttributedStringBeginEditing, cf, "CFAttributedStringBeginEditing")
 		purego.RegisterLibFunc(&cfAttributedStringEndEditing, cf, "CFAttributedStringEndEditing")
+		purego.RegisterLibFunc(&cfArrayCreate, cf, "CFArrayCreate")
+		purego.RegisterLibFunc(&ctFontCopyFeatureSettings, ct, "CTFontCopyFeatureSettings")
+		if p, err := purego.Dlsym(cf, "kCFTypeArrayCallBacks"); err == nil {
+			kCFTypeArrayCallBacks = p // the structure's address
+		}
 		val := func(name string) uintptr {
 			p, err := purego.Dlsym(ct, name)
 			if err != nil {
@@ -81,7 +94,11 @@ func loadCTShape() bool {
 		}
 		kCTLigatureAttributeName = val("kCTLigatureAttributeName")
 		kCTLanguageAttributeName = val("kCTLanguageAttributeName")
-		ctShapeOK = kCTLigatureAttributeName != 0
+		kCTFontFeatureSettingsAttribute = val("kCTFontFeatureSettingsAttribute")
+		kCTFontOpenTypeFeatureTag = val("kCTFontOpenTypeFeatureTag")
+		kCTFontOpenTypeFeatureValue = val("kCTFontOpenTypeFeatureValue")
+		ctShapeOK = kCTLigatureAttributeName != 0 && kCFTypeArrayCallBacks != 0 &&
+			kCTFontFeatureSettingsAttribute != 0 && kCTFontOpenTypeFeatureTag != 0 && kCTFontOpenTypeFeatureValue != 0
 	})
 	return ctShapeOK
 }
@@ -91,6 +108,7 @@ func resetShaper() {
 	langFaces.mu.Lock()
 	langFaces.m = nil
 	langFaces.mu.Unlock()
+	clearNoLigaFonts()
 }
 
 // fontmapImpl is the engine part of fontmap: CoreText needs no reverse
@@ -151,9 +169,10 @@ type ctShaper struct {
 }
 
 type ctSized struct {
-	face *Face
-	size float32
-	font uintptr // retained
+	face   *Face
+	size   float32
+	noLiga bool
+	font   uintptr // retained
 }
 
 func (sh *ctShaper) release() {
@@ -166,19 +185,127 @@ func (sh *ctShaper) release() {
 	sh.fonts, sh.byFont = nil, nil
 }
 
-// font returns the retained CTFont of face at size (0 when the face cannot
-// be built); it stays valid until release.
-func (sh *ctShaper) font(f *Face, size float32) uintptr {
+// font returns the retained CTFont of face at size, with liga, clig and
+// calt off when noLiga (noLigaFont); 0 when the face cannot be built. It
+// stays valid until release.
+func (sh *ctShaper) font(f *Face, size float32, noLiga bool) uintptr {
 	for _, s := range sh.fonts {
-		if s.face == f && s.size == size {
+		if s.face == f && s.size == size && s.noLiga == noLiga {
 			return s.font
 		}
 	}
-	c := f.ctFont(size)
+	var c uintptr
+	if noLiga {
+		c = noLigaFont(f, size)
+	} else {
+		c = f.ctFont(size)
+	}
 	if c != 0 {
-		sh.fonts = append(sh.fonts, ctSized{f, size, c})
+		sh.fonts = append(sh.fonts, ctSized{f, size, noLiga, c})
 	}
 	return c
+}
+
+// Options.noLiga turns off the OpenType features liga, clig and calt, as
+// the go-text engine does. kCTLigatureAttributeName alone leaves calt
+// (contextual alternates, which code fonts use for their ligatures) on, so
+// the font itself is copied with kCTFontFeatureSettingsAttribute setting
+// the three to 0. The copies are kept per face and size (at most 64; all
+// dropped by clearPrepared).
+var noLigaFonts struct {
+	mu sync.Mutex
+	m  map[ctSizedFace]uintptr // owned
+}
+
+type ctSizedFace struct {
+	f    *Face
+	size float32
+}
+
+func clearNoLigaFonts() {
+	noLigaFonts.mu.Lock()
+	defer noLigaFonts.mu.Unlock()
+	for _, c := range noLigaFonts.m {
+		cfRelease(c)
+	}
+	noLigaFonts.m = nil
+}
+
+// noLigaFont returns face f's CTFont at size with liga, clig and calt off,
+// retained for the caller; 0 when the face cannot be built.
+func noLigaFont(f *Face, size float32) uintptr {
+	k := ctSizedFace{f, size}
+	noLigaFonts.mu.Lock()
+	defer noLigaFonts.mu.Unlock()
+	if c, ok := noLigaFonts.m[k]; ok {
+		cfRetain(c)
+		return c
+	}
+	base := f.ctFont(size)
+	if base == 0 {
+		return 0
+	}
+	defer cfRelease(base)
+	desc := noLigaDesc()
+	if desc == 0 {
+		cfRetain(base)
+		return base
+	}
+	defer cfRelease(desc)
+	c := ctFontCreateCopyWithAttributes(base, 0, nil, desc)
+	if c == 0 {
+		cfRetain(base)
+		return base
+	}
+	if noLigaFonts.m == nil || len(noLigaFonts.m) >= 64 {
+		for _, o := range noLigaFonts.m {
+			cfRelease(o)
+		}
+		noLigaFonts.m = map[ctSizedFace]uintptr{}
+	}
+	noLigaFonts.m[k] = c
+	cfRetain(c)
+	return c
+}
+
+// noLigaDesc is a font descriptor setting the OpenType features liga,
+// clig and calt to 0; 0 on failure. The caller releases it.
+func noLigaDesc() uintptr {
+	var zero int32
+	off := cfNumberCreate(0, cfNumberSInt32Type, unsafe.Pointer(&zero))
+	if off == 0 {
+		return 0
+	}
+	defer cfRelease(off)
+	var feats []uintptr
+	defer func() {
+		for _, d := range feats {
+			cfRelease(d)
+		}
+	}()
+	for _, tag := range []string{"liga", "clig", "calt"} {
+		t := cfStr(tag)
+		if t == 0 {
+			return 0
+		}
+		d := cfDict([]uintptr{kCTFontOpenTypeFeatureTag, kCTFontOpenTypeFeatureValue}, []uintptr{t, off})
+		cfRelease(t)
+		if d == 0 {
+			return 0
+		}
+		feats = append(feats, d)
+	}
+	arr := cfArrayCreate(0, &feats[0], int64(len(feats)), kCFTypeArrayCallBacks)
+	if arr == 0 {
+		return 0
+	}
+	defer cfRelease(arr)
+	attrs := cfDict([]uintptr{kCTFontFeatureSettingsAttribute}, []uintptr{arr})
+	if attrs == 0 {
+		return 0
+	}
+	defer cfRelease(attrs)
+	return ctFontDescriptorCreateWithAttributes(attrs)
 }
 
 // faceOf maps the font c of a run (in an item whose segments use the faces
@@ -241,7 +368,7 @@ func (sh *ctShaper) item(out []sg, runes []rune, it item, fm *fontmap, adv []flo
 		return out
 	}
 	for i := range segs {
-		segs[i].font = sh.font(segs[i].face, it.st.Size)
+		segs[i].font = sh.font(segs[i].face, it.st.Size, fm.noLiga)
 	}
 	toRune := utf16Index(runes, a, b)
 	line := ctItemLine(runes, a, b, it, fm.noLiga, segs)
@@ -470,6 +597,9 @@ func ctLangFace(r rune, lang string, w Weight) *Face {
 	}
 	defer cfRelease(s)
 	l := cfStr(lang)
+	if l == 0 {
+		return nil
+	}
 	defer cfRelease(l)
 	c := ctFontCreateForStringWithLanguage(base, s, cfRange{0, cfStringGetLength(s)}, l)
 	if c == 0 {
@@ -513,15 +643,18 @@ func ctItemLine(runes []rune, a, b int, it item, noLiga bool, segs []ctSegment) 
 		cfRelease(ps)
 	}
 	if it.lang != "" && kCTLanguageAttributeName != 0 {
-		l := cfStr(it.lang)
-		cfAttributedStringSetAttribute(as, all, kCTLanguageAttributeName, l)
-		cfRelease(l)
+		// Style.Lang is caller input: invalid UTF-8 gives no string.
+		if l := cfStr(it.lang); l != 0 {
+			cfAttributedStringSetAttribute(as, all, kCTLanguageAttributeName, l)
+			cfRelease(l)
+		}
 	}
 	if noLiga {
 		var zero int32
-		n := cfNumberCreate(0, cfNumberSInt32Type, unsafe.Pointer(&zero))
-		cfAttributedStringSetAttribute(as, all, kCTLigatureAttributeName, n)
-		cfRelease(n)
+		if n := cfNumberCreate(0, cfNumberSInt32Type, unsafe.Pointer(&zero)); n != 0 {
+			cfAttributedStringSetAttribute(as, all, kCTLigatureAttributeName, n)
+			cfRelease(n)
+		}
 	}
 	for _, sg := range segs {
 		if sg.font != 0 {
