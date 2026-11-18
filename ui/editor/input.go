@@ -675,6 +675,17 @@ func (w *ViewW) foldControlAt(pt geom.Point) (int, bool) {
 	return line, true
 }
 
+// gutterHover reports whether the pointer is over the gutter (line
+// numbers, glyph margin and folding controls) of the last paint.
+func (w *ViewW) gutterHover() bool {
+	p, in := w.c.Pointer()
+	if !in || !w.vs.gutter.Contains(p) {
+		return false
+	}
+	_, over := w.c.RectOf(w.box.ID())
+	return over
+}
+
 // foldHover reports whether the pointer is over something folding acts on
 // when clicked: a folding control where a region starts (folded or not)
 // or a folded line's placeholder. They show the pointer cursor, as

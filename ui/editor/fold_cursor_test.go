@@ -11,8 +11,9 @@ import (
 
 // TestFoldControlPointerCursor: the pointer over a folding control (a
 // line where a foldable region starts, folded or not) and over a folded
-// line's placeholder is a hand, as Monaco's folding icons and "⋯"; next
-// to them (a line without a region, the line numbers, the text) it is not.
+// line's placeholder is a hand, as Monaco's folding icons and "⋯"; the
+// rest of the gutter (a line without a region, the line numbers) shows
+// the arrow, as Monaco's margin, and the text the text cursor.
 func TestFoldControlPointerCursor(t *testing.T) {
 	goText(t)
 	src := "func a() {\n\tx := 1\n\ty := 2\n}\n\nvar z = 3\n" + strings.Repeat("// pad\n", 20)
@@ -37,11 +38,11 @@ func TestFoldControlPointerCursor(t *testing.T) {
 	if c := at(control(0)); c != input.CursorPointer {
 		t.Fatalf("over the folding control of line 0: cursor %v, want the pointer", c)
 	}
-	if c := at(control(5)); c == input.CursorPointer {
-		t.Fatal("over the control column of a line without a region: the pointer")
+	if c := at(control(5)); c != input.CursorDefault {
+		t.Fatalf("over the control column of a line without a region: cursor %v, want the arrow", c)
 	}
-	if c := at(geom.Pt(g.X+2, rowY(0))); c == input.CursorPointer {
-		t.Fatal("over the line numbers: the pointer")
+	if c := at(geom.Pt(g.X+2, rowY(0))); c != input.CursorDefault {
+		t.Fatalf("over the line numbers: cursor %v, want the arrow (Monaco's margin)", c)
 	}
 	if c := at(geom.Pt((*vw).vs.text.X+4, rowY(0))); c != input.CursorText {
 		t.Fatalf("over the text: cursor %v, want the text cursor", c)
