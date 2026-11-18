@@ -10,6 +10,7 @@ var StartWindowMove func(surface any)
 // *tango.Surface). Registration and notifications run on the main thread.
 var WatchAppearance func(surface any, fn func())
 
-// DefaultUILocale returns the current global default as a *ui.Locale,
-// independently of any Context's provider stack. Set by package ui.
-var DefaultUILocale func() any
+// FollowUILocale installs next if the current default is last or next.
+// Both arguments are *ui.Locale. A nil last permits the first update.
+// Set by package ui.
+var FollowUILocale func(last, next any) bool

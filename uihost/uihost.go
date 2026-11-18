@@ -193,7 +193,6 @@ func (h *host) frame() {
 	}
 	if h.t != nil {
 		h.t.theme.Store(h.r.Context().Theme) // FollowingSystemTheme (follow.go)
-		h.t.a11yTree.Store(h.r.AccessibilityTree())
 	}
 	if err != nil {
 		// Keep running; log each distinct error once in a row so a failing

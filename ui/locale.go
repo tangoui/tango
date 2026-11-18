@@ -605,7 +605,9 @@ var (
 )
 
 func init() {
-	corehook.DefaultUILocale = func() any { return defaultLocaleNow() }
+	corehook.FollowUILocale = func(last, next any) bool {
+		return followDefaultLocale(last.(*Locale), next.(*Locale))
+	}
 	// The built-in packs are complete (TestLocalePacksComplete), so they
 	// are registered without FillLocale: a missing text shows up in tests
 	// instead of silently falling back to English.
@@ -753,8 +755,24 @@ func defaultLocaleNow() *Locale {
 func SetDefaultLocale(l *Locale) {
 	if l != nil {
 		localeMu.Lock()
-		defaultLocale = l
+		setDefaultLocaleLocked(l)
 		localeMu.Unlock()
-		text.SetDefaultLang(l.Code) // shaping language of text without Style.Lang
 	}
+}
+
+// followDefaultLocale checks for an explicit override and writes the new
+// default under the same lock as SetDefaultLocale.
+func followDefaultLocale(last, next *Locale) bool {
+	localeMu.Lock()
+	defer localeMu.Unlock()
+	if last != nil && defaultLocale != last && defaultLocale != next {
+		return false
+	}
+	setDefaultLocaleLocked(next)
+	return true
+}
+
+func setDefaultLocaleLocked(l *Locale) {
+	defaultLocale = l
+	text.SetDefaultLang(l.Code) // shaping language of text without Style.Lang
 }

@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"sync/atomic"
 
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/corehook"
@@ -45,6 +46,8 @@ type a11yBridge struct {
 	taps   []*a11yTapEntry // subscribers, in subscription order
 	on     bool            // the last AccessibilityEnabled answer
 	tree   *a11y.Tree      // last tree received (nil while off)
+
+	published atomic.Pointer[a11y.Tree] // immutable tree, read by the threaded sink on main
 
 	// Platform side.
 	platOn bool        // the platform reported an assistive technology
@@ -125,6 +128,10 @@ func (b *a11yBridge) enabled() bool {
 		return false
 	}
 	plat := b.ca != nil && b.ca.AccessibilityActive()
+	on := plat || b.forced > 0
+	if !on {
+		b.published.Store(nil) // withdraw before platform callbacks
+	}
 	switch {
 	case plat && !b.platOn && b.tree != nil:
 		// The platform attached while the tree was already built (force):
@@ -139,7 +146,6 @@ func (b *a11yBridge) enabled() bool {
 		b.sent, b.focus = false, 0
 	}
 	b.platOn = plat
-	on := plat || b.forced > 0
 	if !on && b.on && b.tree != nil {
 		b.tree = nil
 		b.fanOut(nil, nil)
@@ -155,6 +161,12 @@ func (b *a11yBridge) update(tree *a11y.Tree, changed []a11y.NodeID) {
 	}
 	prev := b.tree
 	b.tree = tree
+	// Publish the same immutable tree before exposing it through the
+	// platform or taps; callbacks may ask about it before this frame ends.
+	// Task 7 (Darwin): when native installation moves to main, install the
+	// native tree and its action-validation snapshot together on main,
+	// including withdrawals, before sending focus/live notifications.
+	b.published.Store(tree)
 	if b.platOn && b.ca != nil {
 		if !b.sent {
 			b.sendFull(tree)
@@ -215,6 +227,7 @@ func (b *a11yBridge) close() {
 		return
 	}
 	b.closed = true
+	b.published.Store(nil)
 	a11yBridges.mu.Lock()
 	delete(a11yBridges.m, b.r)
 	a11yBridges.mu.Unlock()
@@ -234,6 +247,7 @@ func (b *a11yBridge) reset() {
 	if b.closed {
 		return
 	}
+	b.published.Store(nil)
 	if b.sent && b.ca != nil {
 		b.ca.SetAccessibilityTree(nil)
 	}
@@ -291,7 +305,7 @@ func (h *host) AccessibilityAction(id a11y.NodeID, act a11y.Action, arg string) 
 		return errA11yClosed
 	}
 	if h.t != nil {
-		tree := h.t.a11yTree.Load()
+		tree := h.ax.published.Load()
 		if tree == nil {
 			return errors.New("uihost: accessibility is not enabled")
 		}
@@ -302,7 +316,7 @@ func (h *host) AccessibilityAction(id a11y.NodeID, act a11y.Action, arg string) 
 		if !n.Actions.Has(act) {
 			return fmt.Errorf("uihost: node %d does not support %s", id, act)
 		}
-		h.onUI(func() { _ = h.r.PerformAction(id, act, arg) })
+		h.r.Post(func() { _ = h.r.PerformAction(id, act, arg) })
 		return nil
 	}
 	return h.r.PerformAction(id, act, arg)

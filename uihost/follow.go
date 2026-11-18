@@ -285,8 +285,8 @@ func followSetup(app *tango.App, opts Options, ropts ui.RunnerOptions) (ui.Runne
 	}
 	if p.locale {
 		l := localeFor(i18n.Locale())
-		ui.SetDefaultLocale(l)
 		follows.mu.Lock()
+		ui.SetDefaultLocale(l)
 		follows.lastLocale = l
 		follows.mu.Unlock()
 	}
@@ -322,9 +322,10 @@ func (p *pendingFollow) start(r *ui.Runner, s *tango.Surface) (stop func()) {
 	hook := !af.hooked
 	af.hooked = true
 	if af.cancelI18n == nil {
-		af.cancelI18n = i18n.OnChange(func(code string) {
-			// Any goroutine: hop to the app's main thread.
-			p.app.Post(func() { af.localeChanged(code) })
+		af.cancelI18n = i18n.OnChange(func(string) {
+			// Callbacks can arrive out of order. Read the current locale
+			// when the posted main-thread task runs, not the event's code.
+			p.app.Post(af.localeChanged)
 		})
 	}
 	follows.mu.Unlock()
@@ -381,27 +382,25 @@ func (af *appFollow) themeChanged(sys systheme.Theme) {
 // localeChanged runs on the main thread when i18n.Locale changed. The
 // default locale is global, so don't depend on a window's lifetime or
 // read its Context (which may be building under a ConfigProvider).
-func (af *appFollow) localeChanged(code string) {
+func (af *appFollow) localeChanged() {
 	list := af.snapshot()
 	if !slices.ContainsFunc(list, func(f *follower) bool { return f.locale }) {
 		return
 	}
-	l := localeFor(code)
-	cur := corehook.DefaultUILocale().(*ui.Locale)
 	follows.mu.Lock()
-	last := follows.lastLocale
+	l := localeFor(i18n.Locale())
+	applied := corehook.FollowUILocale(follows.lastLocale, l)
+	if applied {
+		follows.lastLocale = l
+	}
 	follows.mu.Unlock()
-	if last != nil && cur != last && cur != l {
+	if !applied {
 		// The app called ui.SetDefaultLocale itself: stop following.
 		for _, f := range list {
 			f.locale = false
 		}
 		return
 	}
-	ui.SetDefaultLocale(l)
-	follows.mu.Lock()
-	follows.lastLocale = l
-	follows.mu.Unlock()
 	for _, f := range list {
 		f.r.Invalidate() // safe from the main thread; no Runner state read
 	}

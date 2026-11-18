@@ -354,7 +354,8 @@ func (s *Surface) OnLoadFailed(fn func(url, err string)) {
 	s.mu.Unlock()
 }
 
-func (s *Surface) clearExtHandlers() { // s.mu held
+func (s *Surface) clearExtHandlers() { // main thread, s.mu held
+	s.ext.onAppearance = nil
 	s.ext.onResized, s.ext.onMoved, s.ext.onState, s.ext.onFiles = nil, nil, nil, nil
 	s.ext.onNavigating, s.ext.onLoadFailed = nil, nil
 }

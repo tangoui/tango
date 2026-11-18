@@ -48,6 +48,9 @@ func (l *panicLog) check(t *testing.T) {
 	}
 }
 
+// syncAppPosts is a barrier in the App.Post queue, not the fake's queue.
+func syncAppPosts(a *tango.App) { tango.Await(a, func() struct{} { return struct{}{} }) }
+
 // blockMain parks a's main thread until the returned release is called.
 func blockMain(t *testing.T, a *tango.App) (release func()) {
 	t.Helper()
@@ -108,7 +111,7 @@ func TestCursorAndTextInputPostedToMain(t *testing.T) {
 		w.SetCursor(input.CursorPointer)
 		w.SetTextInput(true, caret)
 	})
-	fb.Do(func() {}) // the posted calls
+	syncAppPosts(a)
 	main := mainGID(a)
 	tc.mu.Lock()
 	cursor, text := slices.Clone(tc.cursorGIDs), slices.Clone(tc.textGIDs)
@@ -143,7 +146,7 @@ func TestWindowStatePostedToMainWithoutWaiting(t *testing.T) {
 		t.Fatal("a final-state call waited for the main thread")
 	}
 	release()
-	fb.Do(func() {})
+	syncAppPosts(a)
 	if st := s.State(); st != tango.StateMaximized {
 		t.Fatalf("state %v", st)
 	}
@@ -207,7 +210,7 @@ func TestThemeChangePostedToUIThread(t *testing.T) {
 	}
 	release := blockUI(t, tc)
 	fb.SetTheme(platform.Theme{Dark: true})
-	fb.Do(func() {})
+	syncAppPosts(a)
 	// The UI thread is parked: the notification may only have queued work.
 	if r.Context().Theme.Dark {
 		t.Fatal("theme switched on the main thread")
@@ -241,7 +244,7 @@ func TestSystemPreferencesPostedToUIThread(t *testing.T) {
 	fb.SetHighContrast(true)
 	fb.SetReduceMotion(true)
 	fb.AppEvent(platform.AppEvent{Kind: platform.AppMemoryWarning})
-	fb.Do(func() {})
+	syncAppPosts(a)
 	if c := r.Context(); c.Theme.HighContrast || c.ReduceMotion() {
 		t.Fatal("preference applied on the main thread")
 	}
@@ -380,6 +383,7 @@ func TestThreadedLocaleSurvivesCloseAndConsecutiveChanges(t *testing.T) {
 	defer release()
 	i18n.SetLocale("ja")
 	i18n.SetLocale("zh-TW")
+	syncAppPosts(a)
 	fb.Do(func() {
 		if got := text.DefaultLang(); got != ui.ZhTW.Code {
 			t.Errorf("consecutive changes left language %q", got)
@@ -428,10 +432,102 @@ func TestThreadedCaptureCommitsOnMain(t *testing.T) {
 			t.Errorf("capture committed before main task: fired=%d native=%v", fired, cv.ShortcutCapture())
 		}
 	})
+	syncAppPosts(a)
 	press(cv, input.KeyF5, 0)
 	fb.Do(func() {
 		if fired != 1 || !cv.ShortcutCapture() {
 			t.Errorf("capture not committed together: fired=%d native=%v", fired, cv.ShortcutCapture())
 		}
 	})
+}
+
+func TestThreadedLocaleLateCallbackUsesLatest(t *testing.T) {
+	resetLocale(t)
+	a, fb := faketest.Run(t, tango.Options{})
+	i18n.SetLocale("en")
+	parked, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	cancel := i18n.OnChange(func(code string) {
+		if code == "ja" {
+			close(parked)
+			<-release
+		}
+	})
+	defer cancel()
+	openThreaded(t, a, fb, func(*ui.Context) {})
+	go func() { defer close(done); i18n.SetLocale("ja") }()
+	select {
+	case <-parked:
+	case <-time.After(faketest.Timeout):
+		close(release)
+		t.Fatal("older listener did not start")
+	}
+	i18n.SetLocale("zh-TW")
+	syncAppPosts(a)
+	close(release)
+	<-done
+	cancel()
+	syncAppPosts(a)
+	if got := text.DefaultLang(); got != ui.ZhTW.Code {
+		t.Errorf("late callback restored language %q", got)
+	}
+	ui.SetDefaultLocale(ui.EnUS)
+	i18n.SetLocale("ja")
+	syncAppPosts(a)
+	if got := text.DefaultLang(); got != ui.EnUS.Code {
+		t.Errorf("follow overwrote explicit language with %q", got)
+	}
+}
+
+func TestThreadedA11yAcceptsDuringPublication(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	r, _, tc, cv := openThreaded(t, a, fb, func(c *ui.Context) { ui.Button(c, "Go") })
+	tc.th.Do(func() {
+		cancel := uihost.A11yTap(r, func(tree *a11y.Tree, _ []a11y.NodeID) {
+			if tree == nil {
+				return
+			}
+			btn := tree.Find(a11y.RoleButton, "Go")
+			if btn == nil {
+				t.Error("published without the button")
+				return
+			}
+			if err := cv.A11yAction(btn.ID, a11y.Press, ""); err != nil {
+				t.Errorf("published action rejected inside frame: %v", err)
+			}
+		})
+		t.Cleanup(func() { tc.th.Do(cancel) })
+		uihost.A11yForce(r)
+	})
+	tc.tick(t)
+}
+
+func TestThreadedA11yDropsQueuedActionOnClose(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	r, s, tc, cv := openThreaded(t, a, fb, func(c *ui.Context) { ui.Button(c, "Go") })
+	tc.th.Do(func() { uihost.A11yForce(r) })
+	tc.tick(t)
+	var id a11y.NodeID
+	tc.th.Do(func() { id = r.AccessibilityTree().Find(a11y.RoleButton, "Go").ID })
+	release := blockUI(t, tc)
+	tc.mu.Lock()
+	before := tc.requests
+	tc.mu.Unlock()
+	if err := cv.A11yAction(id, a11y.Press, ""); err != nil {
+		t.Fatal(err)
+	}
+	if !fb.RequestClose(s.ID()) {
+		t.Fatal("window did not close")
+	}
+	syncAppPosts(a)
+	release()
+	select {
+	case <-tc.th.Done():
+	case <-time.After(faketest.Timeout):
+		t.Fatal("UI thread did not stop")
+	}
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	if tc.requests != before {
+		t.Error("queued action requested a frame after close")
+	}
 }

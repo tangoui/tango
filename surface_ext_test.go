@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/fake"
 )
@@ -380,4 +381,26 @@ func TestDragMessages(t *testing.T) {
 	if n := Await(a, func() int { return len(user) }); n != 0 {
 		t.Fatalf("OnMessage got %q", user)
 	}
+}
+
+func TestSurfaceCloseReleasesAppearanceListener(t *testing.T) {
+	a, fb := newTestApp(t)
+	s, err := a.NewSurface(SurfaceOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var updates int
+	a.awaitVoid(func() { corehook.WatchAppearance(s, func() { updates++ }) })
+	_ = s.SetAppearance(Appearance{NoClose: true})
+	if updates != 1 {
+		t.Fatalf("got %d appearance callbacks", updates)
+	}
+	if !fb.RequestClose(s.ID()) {
+		t.Fatal("window did not close")
+	}
+	a.awaitVoid(func() {
+		if len(s.ext.onAppearance) != 0 {
+			t.Error("closed surface still retains the appearance listener")
+		}
+	})
 }
