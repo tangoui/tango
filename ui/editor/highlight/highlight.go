@@ -113,6 +113,7 @@ type Highlighter struct {
 	wake chan struct{}
 
 	tokenized atomic.Int64 // lines tokenized (tests)
+	bg        atomic.Int32 // background goroutines running (Start)
 }
 
 // New returns a Highlighter for lx. A nil lx means plain text: every line is
@@ -299,6 +300,37 @@ func (h *Highlighter) HighlightFor(view ViewKey, snap buffer.Snapshot, upToLine 
 		}
 	}
 	return h.st.nextDirty() >= upTo && h.st.minPending() >= upTo
+}
+
+// viewCatchUpLines is how far above a view's last line the first line not
+// final may lie for HighlightViewFor to spend its budget: a frame's budget
+// tokenizes about that many lines, so closer the view is reached this frame.
+const viewCatchUpLines = 2000
+
+// HighlightViewFor is HighlightFor for a view's frame (the editor's paint):
+// while the background goroutine runs (Start) and the first line not final
+// lies more than viewCatchUpLines above upToLine, it tokenizes nothing and
+// reports false. The goroutine is catching up on the lines above the view
+// (a large document just opened): a frame's budget spent there would not
+// reach the view, only repeat the goroutine's work. The view draws its
+// lines from their stored start states meanwhile (Tokens: not final), as
+// Monaco does. Otherwise (no goroutine, or the lines before the view final
+// up to an edit close to it) it is HighlightFor.
+func (h *Highlighter) HighlightViewFor(view ViewKey, snap buffer.Snapshot, upToLine int, budget time.Duration) bool {
+	if h.bg.Load() > 0 {
+		h.mu.Lock()
+		if h.lx != nil {
+			h.sync(snap)
+			upTo := min(max(upToLine, 0), h.st.n())
+			if h.st.nextDirty() < upTo-viewCatchUpLines {
+				h.setFocus(view, max(upTo-1, 0))
+				h.mu.Unlock()
+				return false
+			}
+		}
+		h.mu.Unlock()
+	}
+	return h.HighlightFor(view, snap, upToLine, budget)
 }
 
 // Done reports whether every line of snap is final: snap is the current
@@ -536,7 +568,11 @@ func (h *Highlighter) TokenizeSpan(snap buffer.Snapshot, line int, span string, 
 // the goroutine. ready is called from the background goroutine. Call Start
 // at most once.
 func (h *Highlighter) Start(ctx context.Context, snapshots <-chan buffer.Snapshot, ready func()) {
-	go h.run(ctx, snapshots, ready)
+	h.bg.Add(1)
+	go func() {
+		defer h.bg.Add(-1)
+		h.run(ctx, snapshots, ready)
+	}()
 }
 
 func (h *Highlighter) run(ctx context.Context, snapshots <-chan buffer.Snapshot, ready func()) {
