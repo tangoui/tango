@@ -96,7 +96,7 @@
 
 ### 变更
 
-- macOS Apple Silicon 上的大型自绘窗口（面积超过 100,000 逻辑像素）默认渲染器由 Metal 改为原生 Core Animation 图层，与小窗口一致：实测动态列表/行情窗口内存降低 63–71%，帧间隔 P99 不变，CPU 略升；连续六帧绘制超过 8 ms 时仍单向升级 Metal（每帧重画 600 格的 grid 约 1 秒内升级，之后与原 GPU 默认相当）。需要固定 Metal 时设 `TANGO_RENDERER=gpu`（见 `docs/dev-builds.md`）。
+- macOS Apple Silicon 上的大型自绘窗口（面积超过 100,000 逻辑像素）默认渲染器由 Metal 改为原生 Core Animation 图层，与小窗口一致：实测动态列表/行情窗口内存降低 63–71%，帧间隔 P99 不变，CPU 略升；连续六帧绘制超过 8 ms 时仍单向升级 Metal（每帧重画 600 格的数据网格把变化的文字合并画进一块窗口 IOSurface，实测全程留在原生图层，内存 69 对 mygo 102 MB，进程 CPU 16% 对 33%）。需要固定 Metal 时设 `TANGO_RENDERER=gpu`（见 `docs/dev-builds.md`）。
 
 - **删除 `down:scheme`**：单个长流式响应的下行通道（`GET /__tango/lane/down`）和 runtime-js 的对应模块删除，由 `down:poll` 取代；它在 Apple 上本来就因 WebKit 扣住大块突发而停用，其他平台没有接入。`TANGO_IPC_LANE_FAULT=down:scheme:N` 改为 `down:poll:N`（把带第 N+1 个字节包的轮询响应截断）。
 - **`TANGO_IPC_LANES_DARWIN` 新取值**（macOS）：`up`、`down` 只开其一（排查用）；`1` 和 `all` 都表示 `down:poll` + `up:post`。**`all` 含义改变**：以前只在开发构建里开实验性的 `down:scheme`、生产构建等同默认，现在在任何构建里都开 `down:poll` + `up:post`。iOS 上 `all` 与 `1` 相同（`up:post`），也不再依赖自测构建。
