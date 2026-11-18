@@ -36,19 +36,20 @@ type threadedCanvas struct {
 	clockErr error // returned by StartFrameClock
 	eager    bool  // request queues the tick on the UI thread at once
 
-	mu         sync.Mutex
-	th         *uithread.Thread // the thread StartFrameClock ran on
-	gid        uint64           // its goroutine id
-	tickFn     func()
-	pending    bool // request since the last frame
-	requests   int
-	stopped    bool
-	presents   int
-	presentGID uint64 // goroutine of the last Present
-	metalGIDs  []uint64
-	cursorGIDs []uint64 // SetCursor callers
-	textGIDs   []uint64 // SetTextInput callers
-	reqGIDs    []uint64 // frame request callers
+	mu           sync.Mutex
+	th           *uithread.Thread // the thread StartFrameClock ran on
+	gid          uint64           // its goroutine id
+	tickFn       func()
+	pending      bool // request since the last frame
+	requests     int
+	requestPanic any
+	stopped      bool
+	presents     int
+	presentGID   uint64 // goroutine of the last Present
+	metalGIDs    []uint64
+	cursorGIDs   []uint64 // SetCursor callers
+	textGIDs     []uint64 // SetTextInput callers
+	reqGIDs      []uint64 // frame request callers
 }
 
 // UseMetalLayer implements platform.CanvasMetal through the fake canvas,
@@ -89,7 +90,12 @@ func (c *threadedCanvas) request() {
 	c.requests++
 	c.reqGIDs = append(c.reqGIDs, uithread.GoroutineID())
 	eager, th, fn := c.eager, c.th, c.tickFn
+	panicValue := c.requestPanic
+	c.requestPanic = nil
 	c.mu.Unlock()
+	if panicValue != nil {
+		panic(panicValue)
+	}
 	if eager {
 		th.Post(func() {
 			c.mu.Lock()

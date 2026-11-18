@@ -303,6 +303,7 @@ func (h *host) close() {
 	}
 	h.closed = true
 	if h.t != nil {
+		h.t.closing.Store(true)
 		h.r.Close() // Post drops tasks from now on; queued frames draw nothing
 		renderers.Delete(h.r)
 		memRunners.Delete(h.r)

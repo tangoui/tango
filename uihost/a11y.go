@@ -316,7 +316,12 @@ func (h *host) AccessibilityAction(id a11y.NodeID, act a11y.Action, arg string) 
 		if !n.Actions.Has(act) {
 			return fmt.Errorf("uihost: node %d does not support %s", id, act)
 		}
-		h.r.Post(func() { _ = h.r.PerformAction(id, act, arg) })
+		h.onUI(func() {
+			if !h.t.closing.Load() {
+				// PerformAction revalidates and requests a frame only on success.
+				_ = h.r.PerformAction(id, act, arg)
+			}
+		})
 		return nil
 	}
 	return h.r.PerformAction(id, act, arg)

@@ -46,6 +46,7 @@ type threadedHost struct {
 	theme atomic.Pointer[theme.Theme]
 
 	frameInfo atomic.Pointer[ui.WindowFrameInfo] // published by main, read by UI
+	closing   atomic.Bool                        // set by main before draining queued work
 }
 
 // threadedRunners maps the runner of each open threaded window to its

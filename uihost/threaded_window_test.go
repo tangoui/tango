@@ -531,3 +531,69 @@ func TestThreadedA11yDropsQueuedActionOnClose(t *testing.T) {
 		t.Error("queued action requested a frame after close")
 	}
 }
+
+func TestThreadedA11yActionFrameRequests(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	shown := true // UI thread only after Open
+	r, _, tc, cv := openThreaded(t, a, fb, func(c *ui.Context) {
+		if shown {
+			ui.Button(c, "Go")
+		}
+	})
+	tc.th.Do(func() { uihost.A11yForce(r) })
+	tc.tick(t)
+	var id a11y.NodeID
+	tc.th.Do(func() { id = r.AccessibilityTree().Find(a11y.RoleButton, "Go").ID })
+	count := func() int { tc.mu.Lock(); defer tc.mu.Unlock(); return tc.requests }
+	before := count()
+	if err := cv.A11yAction(id, a11y.Press, ""); err != nil {
+		t.Fatal(err)
+	}
+	tc.sync(t)
+	if got := count() - before; got != 1 {
+		t.Errorf("valid action requested %d frames; want 1", got)
+	}
+
+	release := blockUI(t, tc)
+	tc.th.Post(func() {
+		shown = false
+		tc.tickFn()
+		before = count()
+	})
+	// The main thread still sees the button, but the queued frame removes it
+	// before the action is revalidated by the runner.
+	if err := cv.A11yAction(id, a11y.Press, ""); err != nil {
+		t.Fatal(err)
+	}
+	release()
+	tc.sync(t)
+	if got := count() - before; got != 0 {
+		t.Errorf("stale action requested %d frames; want 0", got)
+	}
+}
+
+func TestThreadedA11yRequestPanicGoesToOnPanic(t *testing.T) {
+	panics := make(chan tango.Panic, 1)
+	a, fb := faketest.Run(t, tango.Options{OnPanic: func(p tango.Panic) bool { panics <- p; return true }})
+	r, _, tc, cv := openThreaded(t, a, fb, func(c *ui.Context) { ui.Button(c, "Go") })
+	tc.th.Do(func() { uihost.A11yForce(r) })
+	tc.tick(t)
+	var id a11y.NodeID
+	tc.th.Do(func() { id = r.AccessibilityTree().Find(a11y.RoleButton, "Go").ID })
+	const boom = "controlled accessibility frame request panic"
+	tc.mu.Lock()
+	tc.requestPanic = boom
+	tc.mu.Unlock()
+	if err := cv.A11yAction(id, a11y.Press, ""); err != nil {
+		t.Fatal(err)
+	}
+	tc.sync(t)
+	select {
+	case p := <-panics:
+		if p.Value != boom || p.Where != "event handler" {
+			t.Fatalf("unexpected panic report: %+v", p)
+		}
+	default:
+		t.Fatal("frame request panic did not reach OnPanic")
+	}
+}

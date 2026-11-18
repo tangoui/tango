@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/platform"
@@ -384,7 +385,10 @@ func TestDragMessages(t *testing.T) {
 }
 
 func TestSurfaceCloseReleasesAppearanceListener(t *testing.T) {
-	a, fb := newTestApp(t)
+	quit := true
+	fb := fake.New()
+	a := newWithBackend(Options{Name: "Test", QuitOnLastClose: &quit}, fb)
+	runApp(t, a)
 	s, err := a.NewSurface(SurfaceOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -395,12 +399,17 @@ func TestSurfaceCloseReleasesAppearanceListener(t *testing.T) {
 	if updates != 1 {
 		t.Fatalf("got %d appearance callbacks", updates)
 	}
+	remaining := make(chan int, 1)
+	s.OnClosed(func() { remaining <- len(s.ext.onAppearance) })
 	if !fb.RequestClose(s.ID()) {
 		t.Fatal("window did not close")
 	}
-	a.awaitVoid(func() {
-		if len(s.ext.onAppearance) != 0 {
-			t.Error("closed surface still retains the appearance listener")
+	select {
+	case n := <-remaining:
+		if n != 0 {
+			t.Errorf("closed surface still retains %d appearance listeners", n)
 		}
-	})
+	case <-time.After(timeout):
+		t.Fatal("OnClosed did not run")
+	}
 }
