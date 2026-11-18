@@ -12,6 +12,7 @@ pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) FinalLin
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) GrammarGeneration() uint64
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Highlight(ui/editor/buffer.Snapshot, int, time.Duration) bool
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) HighlightFor(ViewKey, ui/editor/buffer.Snapshot, int, time.Duration) bool
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) HighlightViewFor(ViewKey, ui/editor/buffer.Snapshot, int, time.Duration) bool
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) LexerIdentity() *ui/editor/monarch.Lexer
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) PeekCompleteTokens(ui/editor/buffer.Snapshot, int, []ui/editor/monarch.Token) ([]ui/editor/monarch.Token, bool)
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) PeekTokenRange(ui/editor/buffer.Snapshot, int, int, int, []ui/editor/monarch.Token) ([]ui/editor/monarch.Token, bool)
