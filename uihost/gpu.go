@@ -176,13 +176,14 @@ func setupGPU(cv platform.Canvas, ropts ui.RunnerOptions) *gpuRenderer {
 	if mode == "cpu" {
 		return nil
 	}
-	// Native layers are the default at every window size: they avoid Metal's
-	// fixed residency cost. A window promotes itself to Metal once, on the
+	// Native layers are the default at every window size and for every
+	// ui.ContentKind: they avoid Metal's fixed residency cost. A window
+	// promotes itself to Metal once, after its frames stay expensive
+	// (nativeRendererState) or, unless it is a ui.ContentData window, on the
 	// frame after it receives keyboard input (keyboardInput: Metal's input
-	// latency is about two frames lower) or after its frames stay expensive
-	// (nativeRendererState). Forced native never promotes.
+	// latency is about two frames lower). Forced native never promotes.
 	if mode == "native" || mode == "" {
-		if g := startNative(cv, mode == "native"); g != nil {
+		if g := startNative(cv, mode == "native", ropts.Content); g != nil {
 			return g
 		}
 	}

@@ -7,7 +7,7 @@
 ### 新增
 
 - `tan.json` 新增 `"cgo": true`：`tan build`、`tan package`、`tan dev`（含热重载）以 `CGO_ENABLED=1` 编译，供链接 C 库（duckdb 等）或带 cgo 文件的应用使用；默认仍是 `CGO_ENABLED=0`，桌面后端走 purego、交叉编译不需要 C 工具链。开启后交叉编译需要在环境里提供目标平台的 `CC`。
-- `ui.RunnerOptions.Content`（实验性）：用 `ui.ContentData` 标明窗口主要展示自行变化的数据（表格、网格、行情、列表、仪表盘）。macOS 上这类窗口不限大小默认走原生图层，列表、行情窗口 physical footprint 39–54 MB（Metal 135–147 MB），800×600 数据网格约 69 MB（mygo 107 MB），帧持续超过 8 ms 时仍单向升级 Metal；默认 `ui.ContentGeneral` 不变，大窗口仍走 Metal。`TANGO_RENDERER` 和 `RunnerOptions.Renderer` 优先。
+- `ui.RunnerOptions.Content`（实验性）：用 `ui.ContentData` 标明窗口主要展示自行变化的数据（表格、网格、行情、列表、仪表盘）。macOS 上这类窗口收到键盘输入也不升级 Metal，一直保留原生图层的内存优势，只在帧持续超过 8 ms 时单向升级；默认是 `ui.ContentGeneral`。渲染器规则见下方“变更”。`TANGO_RENDERER` 和 `RunnerOptions.Renderer` 优先。
 - `ui/paint`（实验性）：新增 `(*CPU).RenderRegionInto(dst, ops, region, scale)`，区域与 `dst` 边界相同时清零并复用 `dst`，结果与 `RenderRegion` 一致；每帧重绘同一区域时不再每次新分配位图。
 - 实验性 `macoslite` 包：独立的 macOS 原生轻量窗口宿主，只用 purego 调 AppKit/CoreGraphics/CoreText，不加载 WebView、`ui.Runner` 或 GPU 渲染器；提供窗口生命周期、鼠标键盘事件、`Canvas` 填充/圆角矩形/CoreText 文本。参考窗口 `examples/macoslite-counter` 空闲 physical footprint 约 26 MiB，测量脚本 `scripts/macoslite-memory.sh`。
 - macOS 新增 `TANGO_LAUNCH_BACKGROUND=1`（常量 `automation.EnvLaunchBackground`）：应用启动时不激活，窗口显示在其他应用窗口之后，相当于 `open -g`。`automation.Launch` 默认设置它，端到端测试不再抢用户焦点、也不遮挡别的窗口；需要前台时在 `Options.Env` 里设为 `0`。
@@ -98,7 +98,7 @@
 
 ### 变更
 
-- macOS Apple Silicon 上的大型自绘窗口（面积超过 100,000 逻辑像素）默认渲染器由 Metal 改为原生 Core Animation 图层，与小窗口一致；所有自绘窗口（包括原本就默认用原生图层的小窗口）收到键盘输入（按下非修饰键、提交文字、输入法组字）后，下一帧单向升级 Metal，所以小窗口打字之后内存会上升到 Metal 的水平。实测列表/行情窗口在原生图层上内存降低 63–71%（list 39 对 135 MB，quotes 54 对 147 MB）；原生图层的输入到画面延迟比 Metal 慢约 2 帧（编辑器打字 78.8 对 47.2 ms、三光标 87.6 对 47.2 ms、滚动约 80 对 46 ms），打字的窗口改用 Metal 后预期恢复 Metal 的输入延迟，待配对复测确认；只滚动不打字的窗口仍按原生图层的延迟运行。连续六帧绘制超过 8 ms 时仍单向升级 Metal。需要固定 Metal 时设 `TANGO_RENDERER=gpu`，固定原生图层时设 `native`（见 `docs/dev-builds.md`）。
+- macOS Apple Silicon 上的自绘窗口不论大小、不论 `Content` 取值都默认用原生 Core Animation 图层：大型窗口（面积超过 100,000 逻辑像素）由 Metal 改为原生图层，与小窗口一致。数据窗口（`Content: ui.ContentData`）一直留在原生图层，只在连续六帧绘制超过 8 ms 时单向升级 Metal。普通窗口（默认 `ui.ContentGeneral`）在第一次收到键盘输入（按下非修饰键、提交文字、输入法组字）后，下一帧单向升级 Metal；这一条对原本就默认用原生图层的小窗口同样生效，所以小窗口打字之后内存会上升到 Metal 的水平。实测列表/行情窗口在原生图层上内存降低 63–71%（list 39 对 135 MB，quotes 54 对 147 MB），800×600 数据网格约 69 MB（mygo 107 MB）。原生图层的输入到画面延迟比 Metal 慢约 2 帧（编辑器打字 78.8 对 47.2 ms、三光标 87.6 对 47.2 ms、滚动约 80 对 46 ms），普通窗口打字后改用 Metal，预期恢复 Metal 的输入延迟，待配对复测确认；只滚动不打字的普通窗口和所有数据窗口仍按原生图层的延迟运行。需要固定 Metal 时设 `TANGO_RENDERER=gpu`，固定原生图层时设 `native`（见 `docs/dev-builds.md`）。
 
 - **删除 `down:scheme`**：单个长流式响应的下行通道（`GET /__tango/lane/down`）和 runtime-js 的对应模块删除，由 `down:poll` 取代；它在 Apple 上本来就因 WebKit 扣住大块突发而停用，其他平台没有接入。`TANGO_IPC_LANE_FAULT=down:scheme:N` 改为 `down:poll:N`（把带第 N+1 个字节包的轮询响应截断）。
 - **`TANGO_IPC_LANES_DARWIN` 新取值**（macOS）：`up`、`down` 只开其一（排查用）；`1` 和 `all` 都表示 `down:poll` + `up:post`。**`all` 含义改变**：以前只在开发构建里开实验性的 `down:scheme`、生产构建等同默认，现在在任何构建里都开 `down:poll` + `up:post`。iOS 上 `all` 与 `1` 相同（`up:post`），也不再依赖自测构建。

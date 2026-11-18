@@ -2,6 +2,7 @@ package uihost
 
 import (
 	"github.com/tangoui/tango/internal/platform"
+	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/paint"
 	"image"
@@ -13,6 +14,7 @@ var nativeNewPresenter presenterFunc = platformNativePresenter
 
 type nativeRendererState struct {
 	canvas     platform.Canvas
+	content    ui.ContentKind // ContentData ignores keyboardInput
 	lastEnd    time.Time
 	start      time.Time
 	slow, full int
@@ -38,7 +40,7 @@ func (s *nativeRendererState) record(work time.Duration, full bool, start, end t
 	s.ready = s.ready || s.slow >= 6 || s.full >= 6
 	return s.ready
 }
-func startNative(cv platform.Canvas, forced bool) *gpuRenderer {
+func startNative(cv platform.Canvas, forced bool, content ui.ContentKind) *gpuRenderer {
 	if nativeNewPresenter == nil {
 		return nil
 	}
@@ -57,7 +59,7 @@ func startNative(cv platform.Canvas, forced bool) *gpuRenderer {
 	}
 	g := &gpuRenderer{gpu: r, present: present, nativeMode: true}
 	if !forced {
-		g.native = &nativeRendererState{canvas: cv}
+		g.native = &nativeRendererState{canvas: cv, content: content}
 	}
 	return g
 }
@@ -120,9 +122,11 @@ func isKeyboardInput(ev input.Event) bool {
 // keyboardInput promotes a default native window to Metal on its next
 // Render: Metal's input-to-photon latency is about two frames lower. It does
 // nothing for a nil renderer, forced native, a window already promoted or one
-// whose promotion failed (native is nil in all of those).
+// whose promotion failed (native is nil in all of those), or a data window
+// (ui.ContentData), which keyboard browsing leaves on native layers and only
+// sustained frame cost promotes.
 func (g *gpuRenderer) keyboardInput() {
-	if g != nil && g.native != nil {
+	if g != nil && g.native != nil && g.native.content != ui.ContentData {
 		g.native.ready = true
 	}
 }

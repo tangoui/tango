@@ -203,11 +203,18 @@ func metalTestHooks(t *testing.T, targetErr error) *int {
 // large window with Metal stubbed out.
 func nativeKeyboardSetup(t *testing.T, mode string, targetErr error) (*gpuRenderer, *largeNativeCanvasTest, *int) {
 	t.Helper()
+	return nativeContentSetup(t, mode, ui.ContentGeneral, &nativeRenderTest{}, targetErr)
+}
+
+// nativeContentSetup is nativeKeyboardSetup for a window showing content,
+// drawn natively by r.
+func nativeContentSetup(t *testing.T, mode string, content ui.ContentKind, r *nativeRenderTest, targetErr error) (*gpuRenderer, *largeNativeCanvasTest, *int) {
+	t.Helper()
 	t.Setenv("TANGO_RENDERER", mode)
-	nativeTestHooks(t, &nativeRenderTest{})
+	nativeTestHooks(t, r)
 	calls := metalTestHooks(t, targetErr)
 	cv := &largeNativeCanvasTest{}
-	g := setupGPU(cv, ui.RunnerOptions{})
+	g := setupGPU(cv, ui.RunnerOptions{Content: content})
 	if g == nil || !g.nativeMode {
 		t.Fatalf("TANGO_RENDERER=%q: native not selected", mode)
 	}
@@ -389,5 +396,42 @@ func TestKeyboardRequestSurvivesFrameRecord(t *testing.T) {
 	renderNativeTestFrame(t, g, cv)
 	if g.nativeMode || *calls != 1 {
 		t.Fatalf("after record: native=%v metal targets=%d, want Metal", g.nativeMode, *calls)
+	}
+}
+
+func TestContentGeneralPromotesOnKeyboard(t *testing.T) {
+	g, cv, calls := nativeContentSetup(t, "", ui.ContentGeneral, &nativeRenderTest{}, nil)
+	g.keyboardInput()
+	renderNativeTestFrame(t, g, cv)
+	if g.nativeMode || g.gpu == nil || *calls != 1 {
+		t.Fatalf("general window after a key: native=%v metal targets=%d, want Metal", g.nativeMode, *calls)
+	}
+}
+
+// Data windows (tables, quote boards, dashboards) are often browsed with
+// the keyboard; only sustained frame cost moves them to Metal.
+func TestContentDataIgnoresKeyboard(t *testing.T) {
+	r := &nativeRenderTest{}
+	g, cv, calls := nativeContentSetup(t, "", ui.ContentData, r, nil)
+	for _, ev := range []input.Event{
+		input.KeyEvent{Key: input.KeyDown, Down: true},
+		input.KeyEvent{Key: input.KeyA, Down: true},
+		input.TextInput{Text: "a"},
+	} {
+		if !isKeyboardInput(ev) {
+			t.Fatalf("%#v not keyboard input", ev)
+		}
+		g.keyboardInput()
+		renderNativeTestFrame(t, g, cv)
+	}
+	if !g.nativeMode || g.native == nil || *calls != 0 {
+		t.Fatalf("data window after keys: native=%v metal targets=%d, want native", g.nativeMode, *calls)
+	}
+	r.work = 9 * time.Millisecond // six expensive frames in a row
+	for i := 0; i < 7 && g.nativeMode; i++ {
+		renderNativeTestFrame(t, g, cv)
+	}
+	if g.nativeMode || *calls != 1 {
+		t.Fatalf("data window after slow frames: native=%v metal targets=%d, want Metal", g.nativeMode, *calls)
 	}
 }

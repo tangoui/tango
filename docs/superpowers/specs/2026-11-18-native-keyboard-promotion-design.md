@@ -58,3 +58,14 @@
 2. 请 min-78 用同样的方法（真实窗口、CGEvent 输入、ScreenCaptureKit 采样、AB/BA/AB 配对）复测编辑器的打字和三光标场景，比较默认设置和 `TANGO_RENDERER=gpu`：两者的中位数差距在 1 帧（16.7 ms）以内。第一次按键单独记录，不计入中位数。
 3. quotes、list 这类不打字的窗口仍是 native：日志里没有升级，内存和 11-17 的实测相当。
 4. 更新 `docs/dev-builds.md` 和 `CHANGELOG.md`，写明新规则、内存数据和延迟数据。
+
+## 2026-11-18 修订：与 `ui.RunnerOptions.Content` 合并
+
+`36b6d3b`（origin/main）新增了实验性的 `ui.RunnerOptions.Content`：`ui.ContentData` 标明表格、网格、行情、列表、仪表盘这类数据窗口，让它们不限大小走 native；默认的 `ui.ContentGeneral` 让大窗口留在 Metal。用户决定把它和本设计合并，最终行为如下：
+
+1. `TANGO_RENDERER` 未设置时（支持的 macOS），所有窗口不论大小、不论 `Content` 都先用 native。
+2. `ContentGeneral` 窗口按上面“行为”一节的规则，收到键盘输入后在下一帧升级 Metal。
+3. `ContentData` 窗口收到键盘输入不升级，只有“连续 6 帧超过 8 ms”这条规则会让它升级。这样用方向键、翻页键浏览的数据表格能一直保住 native 的内存优势，代价是它的输入延迟按 native 计。
+4. `TANGO_RENDERER=native` 强制 native，永不升级；`gpu`、`cpu`、`auto` 以及 `RunnerOptions.Renderer` 的优先级都不变。
+
+实现方式：`startNative` 把 `ropts.Content` 记进 `nativeRendererState.content`，`keyboardInput` 遇到 `ContentData` 时什么也不做。测试见 `TestContentDataIgnoresKeyboard`、`TestContentGeneralPromotesOnKeyboard`。
