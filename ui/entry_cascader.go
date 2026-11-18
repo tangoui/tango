@@ -66,6 +66,7 @@ type CascaderW struct {
 	focusID ID
 	colH    float32 // column height (0: the token's DropdownHeight)
 	virt    int     // Virtual: 0 auto (long columns), 1 always, -1 never
+	version int     // DataVersion
 }
 
 // Cascader adds a cascading select bound to *val (the selected value path).
@@ -143,10 +144,19 @@ func (w *CascaderW) MaxTagPlaceholder(fn func(omitted []string) string) *Cascade
 // search result list) longer than 100 options is virtual: only its visible
 // rows and the row on the expanded path are built. The column keeps the
 // width, height and scroll range of the full list (its width is measured
-// once while the options slice, identity and length, stays the same), but
-// options out of view are not in the accessibility tree. Virtual(false)
-// builds every row.
+// once while the column's options slice, identity and length, and the
+// DataVersion stay the same: an option renamed in place does not change
+// the column's width until one of them changes), but options out of view
+// are not in the accessibility tree. Search results are matched and
+// measured every frame. Virtual(false) builds every row.
 func (w *CascaderW) Virtual(on bool) *CascaderW { w.virt = p2bVirtualMode(on); return w }
+
+// DataVersion tells the cascader that the options were modified in place
+// (a virtual column caches its width by slice identity, length and this
+// number): after editing options of the same slice without changing its
+// length, change v (or pass a new slice) so the widths are recomputed on
+// the next frame.
+func (w *CascaderW) DataVersion(v int) *CascaderW { w.version = v; return w }
 
 // Open forces the menus open (screenshots, tests).
 func (w *CascaderW) Open() *CascaderW { w.st.pop.open, w.forced = true, true; return w }
@@ -745,11 +755,15 @@ func (w *CascaderW) columnsView(name0 string) {
 }
 
 // casColKey identifies a column's options for its width cache: the slice,
-// the selection mode (check boxes widen the rows) and the lazily loaded
-// children (they decide which rows show an expand arrow).
+// the DataVersion, the selection mode (check boxes widen the rows) and the
+// lazily loaded children (they decide which rows show an expand arrow).
+// p (&list[0]) keeps the caller's previous options slice reachable (not
+// collected) until the key is replaced or the column's state is dropped:
+// the price of never matching a new slice that reuses the old address.
 type casColKey struct {
 	p      *CascaderOption
 	n      int
+	ver    int
 	multi  bool
 	loaded int
 }
@@ -760,7 +774,7 @@ type casColKey struct {
 func (w *CascaderW) virtualColumn(ci int, list []CascaderOption, prefix []string, set map[string]bool, keep int, opts ...layout.Option) *ScrollBox {
 	c := w.c
 	sb := fillViewport(c, "scroll", opts)
-	key := casColKey{p: &list[0], n: len(list), multi: w.multi != nil}
+	key := casColKey{p: &list[0], n: len(list), ver: w.version, multi: w.multi != nil}
 	if w.st.lazy != nil {
 		key.loaded = len(w.st.lazy.loaded)
 	}

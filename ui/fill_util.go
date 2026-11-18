@@ -248,7 +248,12 @@ type fillWidthCache struct {
 // identifies the row data (a comparable value such as the slice's first
 // element pointer and length); nil measures every call. The theme is
 // compared by pointer: a theme (font size, tokens) mutated in place keeps
-// the old width until the key or the theme pointer changes.
+// the old width until the key or the theme pointer changes. A key holding
+// a pointer to the caller's data (&src[0]) keeps that slice reachable,
+// not collected, until the key is replaced or the list's state is
+// dropped: the price of never matching a new slice that reuses the old
+// one's address. Callers include the component's DataVersion in key so
+// in-place edits can refresh the width.
 func fillWidest(c *Context, id ID, key any, n int, rowW func(i int) float32) float32 {
 	st := State[fillWidthCache](c, hashID(id, "fill-widest"), nil)
 	if key != nil && st.key == key && st.theme == c.Theme {

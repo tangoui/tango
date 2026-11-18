@@ -48,6 +48,7 @@ type CommandW struct {
 	list    ID      // listbox node (0 when nothing matches)
 	optIDs  fillIDs // option nodes by visible index (ActiveDescendant)
 	virt    int     // Virtual: 0 auto (long lists), 1 always, -1 never
+	version int     // DataVersion
 
 	th         *theme.Theme // ThemeFor(CompCommand)
 	tk         *theme.CommandToken
@@ -71,7 +72,8 @@ type commandState struct {
 	val    string // value of the active item at the end of the last build
 
 	// Long (virtual) lists: the filtered items and the row layout, kept
-	// while the items slice (identity and length) and the search stay.
+	// while the items slice (identity and length), the search and the
+	// DataVersion stay.
 	fkey cmdFilterKey
 	fok  bool
 	vis  []int
@@ -164,10 +166,20 @@ func (w *CommandW) DisablePointerSelection(on bool) *CommandW { w.noPointer = on
 // item are built (groups only for their visible part), the list keeps the
 // width, height and scroll range of the full list and follows the active
 // item when it moves with the keyboard, but items out of view are not in
-// the accessibility tree. Without a Filter function the matches and the
-// width are reused while the items slice (identity and length) and the
-// search stay the same; Virtual(false) builds every row.
+// the accessibility tree. Without a Filter function the matches, their
+// order and the width are reused while the items slice (identity and
+// length), the search and the DataVersion stay the same: an item edited
+// in place (same slice, same length) does not join or leave the matches,
+// nor change the list's width, until one of them changes. Virtual(false)
+// builds every row.
 func (w *CommandW) Virtual(on bool) *CommandW { w.virt = p2bVirtualMode(on); return w }
+
+// DataVersion tells the palette that the items slice was modified in
+// place (a virtual list caches its matches, layout and width by slice
+// identity, length and this number): after editing items of the same
+// slice without changing its length, change v (or pass a new slice) so
+// they are recomputed on the next frame.
+func (w *CommandW) DataVersion(v int) *CommandW { w.version = v; return w }
 
 // Layout applies layout options to the palette box.
 func (w *CommandW) Layout(opts ...layout.Option) *CommandW { w.box.Style(opts...); return w }
@@ -250,10 +262,14 @@ func commandMatch(s, q string) float64 {
 	return 0.1 + 0.5*float64(len(qr))/span
 }
 
-// cmdFilterKey identifies the input of a cached filter.
+// cmdFilterKey identifies the input of a cached filter. items (&items[0])
+// keeps the caller's previous items slice reachable (not collected) until
+// the key is replaced or the palette's state is dropped: the price of
+// never matching a new slice that reuses the old one's address.
 type cmdFilterKey struct {
 	items    *CommandItem
 	n        int
+	ver      int // DataVersion
 	query    string
 	noFilter bool
 }
@@ -265,7 +281,7 @@ func (w *CommandW) filter() {
 		w.filterItems()
 		return
 	}
-	k := cmdFilterKey{items: &w.items[0], n: len(w.items), query: w.st.query, noFilter: w.noFilter}
+	k := cmdFilterKey{items: &w.items[0], n: len(w.items), ver: w.version, query: w.st.query, noFilter: w.noFilter}
 	if w.st.fok && w.st.fkey == k {
 		w.visible = w.st.vis
 		return
@@ -532,7 +548,8 @@ type cmdRun struct {
 	g              string
 }
 
-// cmdLayoutKey identifies the input of a row layout.
+// cmdLayoutKey identifies the input of a row layout (vis is the
+// palette's own visible slice, rebuilt whenever the filter runs).
 type cmdLayoutKey struct {
 	vis                 *int
 	n                   int

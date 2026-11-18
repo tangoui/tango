@@ -108,6 +108,11 @@ func (p *CascaderPanelW) Height(px float32) *CascaderPanelW { p.cas.colH = px; r
 // default columns longer than 100 options are virtual).
 func (p *CascaderPanelW) Virtual(on bool) *CascaderPanelW { p.cas.virt = p2bVirtualMode(on); return p }
 
+// DataVersion tells the panel that the options were modified in place
+// (see CascaderW.DataVersion): change v after editing options of the same
+// slice without changing its length.
+func (p *CascaderPanelW) DataVersion(v int) *CascaderPanelW { p.cas.version = v; return p }
+
 // Border toggles the panel frame (default on).
 func (p *CascaderPanelW) Border(on bool) *CascaderPanelW { p.border = on; return p }
 

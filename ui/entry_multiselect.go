@@ -410,38 +410,47 @@ func (v msView) srcIndex(i int) int {
 func (v msView) at(i int) Option { return v.src[v.srcIndex(i)] }
 
 // key identifies the rows of v for the widest-row cache; q is the query
-// they matched (filters cached by msFilterCache keep their rows while the
-// source and the query stay the same).
-func (v msView) key(q string) any {
+// they matched and ver the component's DataVersion (filters cached by
+// msFilterCache keep their rows while the source, the query and the
+// version stay the same).
+func (v msView) key(q string, ver int) any {
 	if len(v.src) == 0 {
 		return nil
 	}
-	return msViewKey{&v.src[0], len(v.src), q}
+	return msViewKey{&v.src[0], len(v.src), q, ver}
 }
 
-// msViewKey identifies the rows of a msView: source slice and query.
+// msViewKey identifies the rows of a msView: source slice, query and
+// DataVersion. Holding &src[0] keeps the caller's previous option slice
+// reachable (not collected) until the key is replaced or the component's
+// state is dropped: the price of never matching a new slice that reuses
+// the old one's address.
 type msViewKey struct {
-	p *Option
-	n int
-	q string
+	p   *Option
+	n   int
+	q   string
+	ver int
 }
 
 // msFilterCache keeps the indices of the options matching a query while
 // the list is virtual (more than p2bVirtualMin matches, or any number
-// with Virtual(true)) and the source slice (identity and length) and the
-// query stay the same; a shorter list is matched again every frame. Only
-// indices are kept: fields are read live from the source.
+// with Virtual(true)) and the source slice (identity and length), the
+// query and the DataVersion ver stay the same; a shorter list is matched
+// again every frame. Only indices are kept: fields are read live from the
+// source. src (&src[0]) keeps the previous option slice reachable until it
+// is replaced (see msViewKey).
 type msFilterCache struct {
 	src *Option
 	n   int
 	q   string
+	ver int
 	idx []int32
 	ok  bool
 }
 
 // get returns the options of src that match q (all of them for an empty
-// query); mode is the Virtual tri-state.
-func (fc *msFilterCache) get(src []Option, q string, mode int, match func(o *Option) bool) msView {
+// query); ver is the DataVersion, mode the Virtual tri-state.
+func (fc *msFilterCache) get(src []Option, q string, ver, mode int, match func(o *Option) bool) msView {
 	if q == "" {
 		return msAll(src)
 	}
@@ -449,7 +458,7 @@ func (fc *msFilterCache) get(src []Option, q string, mode int, match func(o *Opt
 	if len(src) > 0 {
 		p = &src[0]
 	}
-	if fc.ok && fc.src == p && fc.n == len(src) && fc.q == q {
+	if fc.ok && fc.src == p && fc.n == len(src) && fc.q == q && fc.ver == ver {
 		return msView{src: src, idx: fc.idx}
 	}
 	var idx []int32
@@ -458,29 +467,32 @@ func (fc *msFilterCache) get(src []Option, q string, mode int, match func(o *Opt
 			idx = append(idx, int32(i))
 		}
 	}
-	fc.src, fc.n, fc.q, fc.idx = p, len(src), q, idx
+	fc.src, fc.n, fc.q, fc.ver, fc.idx = p, len(src), q, ver, idx
 	fc.ok = p2bVirtualOn(mode, len(idx))
 	return msView{src: src, idx: idx}
 }
 
 // msTextW is the label text width of every option of a source slice,
-// measured once per slice (identity and length) and theme, so a virtual
-// list finds its widest row after a query change without measuring text.
+// measured once per slice (identity and length), DataVersion and theme, so
+// a virtual list finds its widest row after a query change without
+// measuring text. src (&src[0]) keeps the previous option slice reachable
+// until it is replaced (see msViewKey).
 type msTextW struct {
 	src   *Option
 	n     int
+	ver   int
 	theme *theme.Theme
 	w     []float32
 }
 
-// of returns the label widths of src (measuring them when src or the
-// theme changed).
-func (m *msTextW) of(c *Context, src []Option) []float32 {
+// of returns the label widths of src (measuring them when src, the
+// DataVersion ver or the theme changed).
+func (m *msTextW) of(c *Context, src []Option, ver int) []float32 {
 	var p *Option
 	if len(src) > 0 {
 		p = &src[0]
 	}
-	if m.w != nil && m.src == p && m.n == len(src) && m.theme == c.Theme {
+	if m.w != nil && m.src == p && m.n == len(src) && m.ver == ver && m.theme == c.Theme {
 		return m.w
 	}
 	th := c.Theme
@@ -488,7 +500,7 @@ func (m *msTextW) of(c *Context, src []Option) []float32 {
 	for i := range src {
 		w[i] = entTextW(c, src[i].Label, th.FontSize, text.Semibold)
 	}
-	m.src, m.n, m.theme, m.w = p, len(src), c.Theme, w
+	m.src, m.n, m.ver, m.theme, m.w = p, len(src), ver, c.Theme, w
 	return w
 }
 

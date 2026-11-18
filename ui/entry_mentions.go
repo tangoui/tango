@@ -60,6 +60,7 @@ type MentionsW struct {
 	split       string    // text inserted after a mention (Ant split, " ")
 	place       Placement // BottomStart (default) or TopStart (Ant placement)
 	virt        int       // Virtual: 0 auto (long lists), 1 always, -1 never
+	version     int       // DataVersion
 }
 
 // Mentions adds a mention input bound to *val with candidate opts.
@@ -198,12 +199,21 @@ func (w *MentionsW) Disabled(on bool) *MentionsW {
 // range of the full list, but suggestions out of view are not in the
 // accessibility tree). Labels, values and Disabled are always read live.
 // A virtual list keeps which options match while the options slice
-// (identity and length) and the query stay the same, and measures label
-// widths once per slice and theme: an option renamed in place may not
-// join or leave the matches until the query or the slice changes, nor
-// change the list's width until the slice (or the theme pointer)
-// changes. Virtual(false) builds every row.
+// (identity and length), the query and the DataVersion stay the same, and
+// measures label widths once per slice, DataVersion and theme: an option
+// renamed in place (same slice, same length) does not join or leave the
+// matches, nor change the list's width, until the query, the slice or the
+// DataVersion (or the theme pointer) changes. Virtual(false) builds every
+// row.
 func (w *MentionsW) Virtual(on bool) *MentionsW { w.virt = p2bVirtualMode(on); return w }
+
+// DataVersion tells the mentions input that the options slice was
+// modified in place (a virtual list caches its matches and label widths
+// by slice identity, length and this number): after editing options of
+// the same slice without changing its length, change v (or pass a new
+// slice) so the matches and the list's width are recomputed on the next
+// frame.
+func (w *MentionsW) DataVersion(v int) *MentionsW { w.version = v; return w }
 
 // Open forces the suggestions open when a trigger is at the caret (tests,
 // screenshots).
@@ -264,7 +274,7 @@ func (w *MentionsW) filtered(q string) msView {
 		return msAll(w.opts) // already filtered by the server
 	}
 	lq := strings.ToLower(q)
-	return w.st.filt.get(w.opts, q, w.virt, func(o *Option) bool {
+	return w.st.filt.get(w.opts, q, w.version, w.virt, func(o *Option) bool {
 		return strings.Contains(strings.ToLower(o.Label), lq) || strings.Contains(strings.ToLower(o.Value), lq)
 	})
 }
@@ -542,8 +552,8 @@ func (w *MentionsW) dropdown(pos int, q string, opts msView, busy bool) {
 func (w *MentionsW) virtual(opts msView, q string) msVirt {
 	v := msVirt{mode: w.virt}
 	if w.remote == nil {
-		v.key = opts.key(q)
-		v.textW = func(i int) float32 { return w.st.textW.of(w.c, w.opts)[opts.srcIndex(i)] }
+		v.key = opts.key(q, w.version)
+		v.textW = func(i int) float32 { return w.st.textW.of(w.c, w.opts, w.version)[opts.srcIndex(i)] }
 	}
 	return v
 }

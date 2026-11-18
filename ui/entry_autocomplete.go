@@ -52,6 +52,7 @@ type AutoCompleteW struct {
 	place     Placement // dropdown placement (Ant placement, Element placement)
 	notFound  string    // text of an empty dropdown ("" = close it, as Ant)
 	virt      int       // Virtual: 0 auto (long lists), 1 always, -1 never
+	version   int       // DataVersion
 }
 
 // AutoComplete adds an input bound to *val that suggests opts (filtered by
@@ -158,12 +159,20 @@ func (w *AutoCompleteW) NotFoundContent(s string) *AutoCompleteW { w.notFound = 
 // range of the full list, but suggestions out of view are not in the
 // accessibility tree). Labels, values and Disabled are always read live.
 // A virtual list of static options keeps which options match while the
-// options slice (identity and length) and the typed text stay the same,
-// and measures label widths once per slice and theme: an option renamed
-// in place may not join or leave the matches until the text or the slice
-// changes, nor change the list's width until the slice (or the theme
-// pointer) changes. Virtual(false) builds every row.
+// options slice (identity and length), the typed text and the DataVersion
+// stay the same, and measures label widths once per slice, DataVersion and
+// theme: an option renamed in place (same slice, same length) does not
+// join or leave the matches, nor change the list's width, until the text,
+// the slice or the DataVersion (or the theme pointer) changes.
+// Virtual(false) builds every row.
 func (w *AutoCompleteW) Virtual(on bool) *AutoCompleteW { w.virt = p2bVirtualMode(on); return w }
+
+// DataVersion tells the autocomplete that the options slice was modified
+// in place (a virtual list caches its matches and label widths by slice
+// identity, length and this number): after editing options of the same
+// slice without changing its length, change v (or pass a new slice) so
+// the matches and the list's width are recomputed on the next frame.
+func (w *AutoCompleteW) DataVersion(v int) *AutoCompleteW { w.version = v; return w }
 
 // Open forces the dropdown open (screenshots, tests).
 func (w *AutoCompleteW) Open() *AutoCompleteW { w.st.pop.open, w.forced = true, true; return w }
@@ -186,7 +195,7 @@ func (w *AutoCompleteW) options() msView {
 		return msAll(w.opts) // already filtered by the server
 	}
 	q := strings.ToLower(*w.val)
-	return w.st.filt.get(w.opts, *w.val, w.virt, func(o *Option) bool { return strings.Contains(strings.ToLower(o.Label), q) })
+	return w.st.filt.get(w.opts, *w.val, w.version, w.virt, func(o *Option) bool { return strings.Contains(strings.ToLower(o.Label), q) })
 }
 
 // busy reports whether the dropdown shows the loading row instead of opts.
@@ -333,8 +342,8 @@ func (w *AutoCompleteW) dropdown(opts msView, busy bool) {
 func (w *AutoCompleteW) virtual(opts msView) msVirt {
 	v := msVirt{mode: w.virt}
 	if w.source == nil && w.remote == nil {
-		v.key = opts.key(*w.val)
-		v.textW = func(i int) float32 { return w.st.textW.of(w.c, w.opts)[opts.srcIndex(i)] }
+		v.key = opts.key(*w.val, w.version)
+		v.textW = func(i int) float32 { return w.st.textW.of(w.c, w.opts, w.version)[opts.srcIndex(i)] }
 	}
 	return v
 }
