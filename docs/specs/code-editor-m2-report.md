@@ -406,7 +406,7 @@ P 的原生纹理成本必须单独计入：启用过大型 retained-copy 路径
 | 中文输入法组字中Cmd+D、多个光标提交、撤销 | 待用户真实输入法实测 | 合成composition事件通过不等于拼音输入法验收 |
 | 选区拖动、Option复制、同帧松开/移动、撤销 | 待解锁实测 | `dnd_test.go`真实事件路径，仅Driver |
 | `-wrap` + 折叠 + sticky + resize，CJK/tab/emoji跨行点击与导航 | 待解锁实测 | mixed script、fold、strict damage组合测试 |
-| 百万行GPU `-auto`，滚动/输入显示节拍，关闭后无残留进程 | **窗口 callback/screenshot smoke 已完成；逐帧 present/vsync、GPU fence、按键到屏幕延迟待验收** | 本轮已记录解锁后的 1920×1080/DPR2/Metal/100MB smoke 与约60Hz回调；这不是硬件呈现结果 |
+| 百万行GPU `-auto`，滚动/输入显示节拍，关闭后无残留进程 | **窗口 callback/screenshot smoke 已完成；按键到画面延迟已在隔离窗口测量并修复一帧（见 [GUI 验收报告](2026-11-16-editor-gui-acceptance-report.md)）；显示器级 present/vsync、GPU fence 待验收** | 本轮已记录解锁后的 1920×1080/DPR2/Metal/100MB smoke 与约60Hz回调；这不是硬件呈现结果 |
 | 四主题、系统字体、读屏名称和多行角色 | 待实窗/辅助技术复测 | 四张纯Go截图、语义树单测；不等于完整VoiceOver文本编辑支持 |
 | 括号对参考线：`Guides.BracketPairs` 设为 `true` 与 `active`，在嵌套 `{}`/`()` 中移动光标，看活动对变色、水平线到括号；折叠一段、开换行后参考线不越过折叠、续行连续；输入未闭合 `{` 时不画 | 待解锁实测 | `TestBracketGuides*`、`TestViewDamageVerified/bracketGuides`、金样图 |
 | 颜色占位：CSS 文件中 `#ff0000`、`rgb(...)` 前出现间隙与色块；点击间隙左/右半、左右键/上下键/Home 经过间隙，光标不进间隙；点色块打开选择器、改色、撤销；换行窄窗口下有颜色的行断行正确；在该行用中文输入法组字 | 待解锁实测（IME 部分待用户输入法） | `TestColorInjected*`、`TestColorSwatchPointer`、金样图 `view_vs*_colors.png` |
@@ -523,3 +523,6 @@ P 的原生纹理成本必须单独计入：启用过大型 retained-copy 路径
 **不计入正式功能的诊断提交：** `c075cbc`、`831c5ab`、`8e835ba`、`942fb5d`、`de255ca`、`6e09eb3`、`2ad62b7`、`2ff7eba` 主要用于 overrun/trace/QPC/ETW 定位；`156235e`、`34801c9` 只修 feature 分支 mutation workflow 编码/匹配，不属于产品实现。它们即使出现在合并历史中，也不应单列为验收功能或性能收益。
 
 **最终边界：** 本报告现在可以宣称 Windows **编辑器帧预算自动化 gate PASS**，不能宣称 Windows **硬件窗口 present/vsync PASS**；不能把 60Hz 回调、QPC 墙钟或 ETW 调度证据升级为真实显示器 FrameDisplayed/光子级完成。
+### 4.16 2026-11-18 真实窗口输入到画面延迟（GUI 验收）
+
+详见 [GUI 验收报告](2026-11-16-editor-gui-acceptance-report.md)。要点：隔离窗口（WindowServer 合成画面）+ ScreenCaptureKit + 预期正文模板，1920×944@2x，Metal。修复前 Tango 打字中位 47 ms，mygo 31、Monaco 30 ms；原因是停顿后的输入要等 CADisplayLink 下一拍才出帧。b25960c `frameAtOnce` 修复后，同时段 AB/BA/AB 配对在两种合成状态下都快约 1 帧：快状态打字 47.5 → 32.1 ms、滚动 48.6 → 30.7 ms，与 mygo、Monaco 持平。native 默认比 Metal 慢约 2 帧，导致 3acc4cd 回退。边界：不是显示器级、不是物理光子，Windows 硬件未测；中文输入法只做了功能验证。
