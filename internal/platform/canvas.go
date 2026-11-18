@@ -61,11 +61,16 @@ type Canvas interface {
 // Package uihost discovers it with a type assertion on the Canvas from
 // CanvasCreator.NewCanvasSurface (never for attached canvases) and then
 // drives the window from its own UI thread: frames come from the clock,
-// not from CanvasSink.CanvasFrame, and Present, PresentDamage, the GPU
-// switch calls (UseMetalLayer, UseCoreGraphicsLayer) and Invalidate's
-// replacement, request, are called there. The sink callbacks still arrive
-// on the main thread. request may be called from any goroutine; stop is
-// called once, on the UI thread. Experimental.
+// not from CanvasSink.CanvasFrame, and Present and PresentDamage are
+// called there; request replaces Invalidate. The sink callbacks still
+// arrive on the main thread, and the GPU switch calls (UseMetalLayer,
+// UseCoreGraphicsLayer) stay main-thread calls: uihost makes them on the
+// main thread while it opens the window, and a UI thread that needs one
+// later asks the main thread for it and waits (tango.Await, with
+// uithread.Thread.SetAwaitingMain). The main thread may be waiting for
+// StartFrameClock to return, so StartFrameClock must not wait for the main
+// thread. request may be called from any goroutine; stop is called once, on
+// the UI thread. Experimental.
 type CanvasThreaded interface {
 	// StartFrameClock starts per-refresh callbacks on the calling thread
 	// (the window's UI thread); request asks for a callback at the next

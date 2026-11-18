@@ -64,14 +64,23 @@ func AcceptDrops(r *ui.Runner, s *tango.Surface) {
 		return
 	}
 	s.OnFilesDropped(func(paths []string, x, y int) {
-		p := geom.Pt(float32(x), float32(y))
-		if x == 0 && y == 0 {
-			if fp, ok := r.FileDrag(); ok {
-				p = fp
-			} else if pp, ok := r.PointerPos(); ok {
-				p = pp
+		drop := func() {
+			p := geom.Pt(float32(x), float32(y))
+			if x == 0 && y == 0 {
+				if fp, ok := r.FileDrag(); ok {
+					p = fp
+				} else if pp, ok := r.PointerPos(); ok {
+					p = pp
+				}
 			}
+			r.DropFiles(p, paths)
 		}
-		r.DropFiles(p, paths)
+		if t := threadedOf(r); t != nil {
+			// The runner is the UI thread's: queue the drop after the drag
+			// feedback the host queued before it (threaded.go).
+			t.post(s.App(), drop)
+			return
+		}
+		drop()
 	})
 }

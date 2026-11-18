@@ -3,6 +3,9 @@ package uihost_test
 import (
 	"errors"
 	"image"
+	"os"
+	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -27,6 +30,7 @@ import (
 // SetCursor and SetTextInput only record, from any thread.
 type threadedCanvas struct {
 	platform.Canvas
+	sink     platform.CanvasSink
 	clockErr error // returned by StartFrameClock
 
 	mu         sync.Mutex
@@ -38,6 +42,25 @@ type threadedCanvas struct {
 	stopped    bool
 	presents   int
 	presentGID uint64 // goroutine of the last Present
+	metalGIDs  []uint64
+}
+
+// UseMetalLayer implements platform.CanvasMetal through the fake canvas,
+// recording the caller's goroutine. Called on a UI thread it fails, as on
+// macOS, where the switch is main-thread only (the fake would panic).
+func (c *threadedCanvas) UseMetalLayer() (uintptr, error) {
+	c.mu.Lock()
+	c.metalGIDs = append(c.metalGIDs, uithread.GoroutineID())
+	c.mu.Unlock()
+	if uithread.Current() != nil {
+		return 0, errors.New("threadedCanvas: UseMetalLayer off the main thread")
+	}
+	return c.Canvas.(platform.CanvasMetal).UseMetalLayer()
+}
+
+// dragOver reports a file drag at (x, y) to the sink, on the main thread.
+func (c *threadedCanvas) dragOver(fb *fake.Backend, x, y float32) {
+	fb.Do(func() { c.sink.(platform.CanvasDropTarget).CanvasDragOver(x, y) })
 }
 
 func (c *threadedCanvas) StartFrameClock(tick func()) (request, stop func(), err error) {
@@ -143,7 +166,7 @@ func useThreadedCanvases(t *testing.T, attached bool, err error) func(platform.S
 		if e != nil {
 			return s, cv, e
 		}
-		tc := &threadedCanvas{Canvas: cv, clockErr: err}
+		tc := &threadedCanvas{Canvas: cv, sink: sink, clockErr: err}
 		mu.Lock()
 		byID[s.(*tango.Surface).ID()] = tc
 		mu.Unlock()
@@ -155,7 +178,7 @@ func useThreadedCanvases(t *testing.T, attached bool, err error) func(platform.S
 			if e != nil {
 				return cv, e
 			}
-			tc := &threadedCanvas{Canvas: cv, clockErr: err}
+			tc := &threadedCanvas{Canvas: cv, sink: sink, clockErr: err}
 			mu.Lock()
 			byID[s.(*tango.Surface).ID()] = tc
 			mu.Unlock()
@@ -429,5 +452,65 @@ func TestThreadedCloseStopsClockAndThread(t *testing.T) {
 	defer tc.mu.Unlock()
 	if !tc.stopped {
 		t.Fatal("frame clock not stopped")
+	}
+}
+
+func TestThreadedGPUSetupOnMainThread(t *testing.T) {
+	t.Setenv("TANGO_RENDERER", "gpu")
+	g := &fakeGPU{}
+	hooks(t, g)
+	a, fb := faketest.Run(t, tango.Options{})
+	fb.EnableCanvasMetal(0)
+	r, _, tc, _ := openThreaded(t, a, fb, func(c *ui.Context) { ui.Text(c, "gpu") })
+	main := mainGID(a)
+	tc.mu.Lock()
+	gids := slices.Clone(tc.metalGIDs)
+	tc.mu.Unlock()
+	if len(gids) != 1 || gids[0] != main {
+		t.Fatalf("UseMetalLayer on goroutines %v, main is %d", gids, main)
+	}
+	if !tc.flush(t) {
+		t.Fatal("no first frame")
+	}
+	if layers, renders, presents := g.stats(); layers != 1 || renders < 1 || len(presents) != renders {
+		t.Fatalf("presenter calls %d, renders %d, presents %v", layers, renders, presents)
+	}
+	if got := rendererOf(a, r); got != "gpu" {
+		t.Fatalf("Renderer = %q", got)
+	}
+}
+
+func TestThreadedDropRunsAfterDragOver(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	dir := t.TempDir()
+	p := filepath.Join(dir, "drop.png")
+	if err := os.WriteFile(p, []byte("png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var files []ui.UploadFile
+	r, s, tc, _ := openThreaded(t, a, fb, func(c *ui.Context) {
+		ui.Upload(c, &files).Dragger()
+	})
+	tango.Await(a, func() struct{} { uihost.AcceptDrops(r, s); return struct{}{} })
+	for tc.flush(t) {
+	}
+	// The drop reports no position: it lands where the queued drag-over
+	// left the drag, so it must run on the UI thread after it.
+	tc.dragOver(fb, 100, 30)
+	if !fb.DropFiles(s.ID(), []string{p}, 0, 0) {
+		t.Fatal("drop not delivered")
+	}
+	for tc.flush(t) {
+	}
+	var n int
+	var name string
+	tc.th.Do(func() {
+		n = len(files)
+		if n > 0 {
+			name = files[0].Name
+		}
+	})
+	if n != 1 || name != "drop.png" {
+		t.Fatalf("files after drop: %d %q", n, name)
 	}
 }

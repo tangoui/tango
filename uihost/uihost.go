@@ -135,7 +135,7 @@ func (h *host) openMain(s *tango.Surface, page func(*ui.Context), ropts ui.Runne
 }
 
 // watchRenderer registers r's GPU renderer (Renderer) and starts its frame
-// trace. On the window's UI thread, before its first frame.
+// trace. Main thread, before the window's first frame.
 func (h *host) watchRenderer(r *ui.Runner) {
 	if h.gpu == nil {
 		frameTraceSkipped(h.id, "drawn by the CPU (TANGO_RENDERER=cpu, no GPU presenter, or a renderer set in RunnerOptions); only GPU windows are traced")

@@ -20,6 +20,7 @@ package uihost
 import (
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/corehook"
@@ -36,57 +37,69 @@ type threadedHost struct {
 	stopClock func() // UI thread
 }
 
+// threadedRunners maps the runner of each open threaded window to its
+// threadedHost (AcceptDrops).
+var threadedRunners sync.Map // *ui.Runner -> *threadedHost
+
+// threadedOf returns r's threadedHost, nil for a runner on the main thread.
+func threadedOf(r *ui.Runner) *threadedHost {
+	if t, ok := threadedRunners.Load(r); ok {
+		return t.(*threadedHost)
+	}
+	return nil
+}
+
 // post queues fn on the UI thread; a panic in it goes to app's panic
 // handling. Dropped once the thread stopped (the window closed).
 func (t *threadedHost) post(app *tango.App, fn func()) {
 	t.th.Post(func() { corehook.Guard(app, "event handler", fn) })
 }
 
-// openThreaded creates the runner of a threaded window on a new UI thread
-// and starts the canvas's frame clock there. It returns nil, with the
-// thread stopped and h unchanged, when the clock cannot start: the window
-// then uses the main thread. Main thread.
+// openThreaded starts a UI thread for a threaded window and the canvas's
+// frame clock on it, then creates the runner on the main thread and hands
+// it to the UI thread. It returns nil, with the thread stopped and h
+// unchanged, when the clock cannot start: the window then uses the main
+// thread. Main thread.
+//
+// Only StartFrameClock waits for the UI thread (it must not wait for the
+// main thread). The GPU switch (UseMetalLayer, UseCoreGraphicsLayer) needs
+// the main thread, so setupGPU runs here; so do newA11y (it reads the
+// system's reduce-motion preference) and everything else that calls the
+// runner, before BindThread. After BindThread nothing here calls a checked
+// runner method; the first frame is the UI thread's.
 func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page func(*ui.Context), ropts ui.RunnerOptions) *ui.Runner {
 	t := &threadedHost{th: uithread.Start(fmt.Sprintf("tango uihost surface %d", h.id))}
-	h.t = t // before the thread can tick: h.invalidate reads it there
-	var r *ui.Runner
-	var err error
-	attached := false // UI thread: ticks before Attach draw nothing
+	attached := false // UI thread: ticks before the hand-over draw nothing
 	tick := func() {
 		if attached {
 			h.frame() // CanvasFrame of a main-thread window
 		}
 	}
-	t.th.Do(func() {
-		t.request, t.stopClock, err = ct.StartFrameClock(tick)
-		if err != nil {
-			return
-		}
-		// The GPU switch (UseMetalLayer, UseCoreGraphicsLayer) and the
-		// presenter are made on the UI thread, which presents with them.
-		h.gpu = setupGPU(h.cv, ropts)
-		if h.gpu != nil {
-			ropts.Renderer = h.gpu
-		}
-		r = ui.NewRunner(page, ropts)
-	})
+	var err error
+	t.th.Do(func() { t.request, t.stopClock, err = ct.StartFrameClock(tick) })
 	if err != nil {
 		t.th.Stop()
-		h.t = nil
 		log.Printf("tango: uihost: surface %d: no frame clock, drawing on the main thread: %v", h.id, err)
 		return nil
 	}
-	// newA11y reads the system's reduce-motion preference, which needs the
-	// main thread, and applies it to the runner: before BindThread, so the
-	// runner is not yet checked.
+	h.t = t
+	h.gpu = setupGPU(h.cv, ropts) // gpu.go; nil: CPU
+	if h.gpu != nil {
+		ropts.Renderer = h.gpu
+	}
+	r := ui.NewRunner(page, ropts)
 	h.ax = newA11y(h.app, h.cv, r, ropts)
 	r.BindThread(t.th)
 	h.win = &window{app: h.app, cv: h.cv, id: h.id, gpu: h.gpu, sc: h.sc, ax: h.ax, t: t, geo: ct}
 	h.win.watchFrame(s) // frame.go
-	t.th.Do(func() {
-		r.Attach(h.win)
-		h.watchRenderer(r)
+	r.Attach(h.win)
+	h.watchRenderer(r)
+	threadedRunners.Store(r, t)
+	// The hand-over: everything above happens before the UI thread's first
+	// frame, which this task asks for (a tick that came earlier drew nothing).
+	t.th.Post(func() {
 		attached = true
+		t.request()
 	})
 	return r
 }
@@ -99,6 +112,7 @@ func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page f
 // thread exits, app quit waiting for UI threads).
 func (h *host) closeThreaded() {
 	t, ax, gpu := h.t, h.ax, h.gpu
+	threadedRunners.Delete(h.r)
 	t.th.Post(func() {
 		t.stopClock()
 		ax.close()
