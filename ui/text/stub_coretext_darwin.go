@@ -5,22 +5,13 @@ package text
 // Interim stubs of the engine primitives the CoreText build does not
 // implement yet. Each later task deletes the stubs it replaces:
 //
-//   - Task 3: lineEnds, paraLevels
 //   - Task 4: shapeItems, fontmapImpl, (*fontmap).rememberFace, resetShaper,
 //     coreTextShape (the shaping path makes it unnecessary)
 //   - Task 5: simpleNumericLayout, simpleNumericLayoutInto, fastPath,
 //     (*LineCache).fastShape
 
 func shapeItems(runes []rune, items []item, fms []*fontmap, adv []float32) []sg {
-	panic("ui/text: CoreText shapeItems not implemented yet (Task 3/4)")
-}
-
-func lineEnds(runes []rune, a, b int) []int {
-	panic("ui/text: CoreText lineEnds not implemented yet (Task 3/4)")
-}
-
-func paraLevels(runes []rune, a, b int, dir Direction, lv []level) (base level, mixed bool) {
-	panic("ui/text: CoreText paraLevels not implemented yet (Task 3/4)")
+	panic("ui/text: CoreText shapeItems not implemented yet (Task 4)")
 }
 
 // fontmapImpl is the engine part of fontmap.

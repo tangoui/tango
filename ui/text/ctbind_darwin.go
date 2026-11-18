@@ -22,6 +22,13 @@ const (
 	ctFontMonoSpaceTrait  = 1 << 10
 	cgImageAlphaNone      = 0
 	ctFontOrientationHorz = 1
+
+	cfStringTokenizerUnitLineBreak         = 3
+	ctParagraphStyleSpecifierBaseDirection = 13 // kCTParagraphStyleSpecifierBaseWritingDirection
+	ctWritingDirectionNatural              = -1
+	ctWritingDirectionLeftToRight          = 0
+	ctWritingDirectionRightToLeft          = 1
+	ctRunStatusRightToLeft                 = 1 << 0
 )
 
 type cgPoint struct{ X, Y float64 }
@@ -32,6 +39,14 @@ type cgRect struct {
 }
 type cgAffine struct{ A, B, C, D, Tx, Ty float64 }
 type cfRange struct{ Loc, Len int64 }
+
+// ctParagraphStyleSetting is CTParagraphStyleSetting.
+type ctParagraphStyleSetting struct {
+	Spec  uint32
+	_     uint32
+	Size  uint64
+	Value unsafe.Pointer
+}
 
 var (
 	ctOnce sync.Once
@@ -91,6 +106,16 @@ var (
 	ctFontGetAscent                               func(uintptr) float64
 	ctFontGetDescent                              func(uintptr) float64
 
+	cfStringCreateWithCharacters           func(alloc uintptr, chars *uint16, n int64) uintptr
+	cfStringTokenizerCreate                func(alloc, s uintptr, r cfRange, opts uint64, locale uintptr) uintptr
+	cfStringTokenizerAdvanceToNextToken    func(uintptr) uint64
+	cfStringTokenizerGetCurrentTokenRange  func(uintptr) cfRange
+	ctParagraphStyleCreate                 func(settings *ctParagraphStyleSetting, n uint64) uintptr
+	ctTypesetterCreateWithAttributedString func(uintptr) uintptr
+	ctTypesetterCreateLine                 func(ts uintptr, r cfRange) uintptr
+	ctRunGetStatus                         func(uintptr) uint32
+	ctRunGetStringRange                    func(uintptr) cfRange
+
 	cgColorSpaceCreateDeviceGray               func() uintptr
 	cgColorSpaceRelease                        func(uintptr)
 	cgBitmapContextCreate                      func(data uintptr, w, h, bpc, bpr int64, cs uintptr, info uint32) uintptr
@@ -115,6 +140,7 @@ var (
 	kCTFontWeightTrait                   uintptr
 	kCTFontTraitsAttribute               uintptr
 	kCTFontOpticalSizeAttribute          uintptr // 0 when the OS lacks it
+	kCTParagraphStyleAttributeName       uintptr
 
 	pathApplyCB uintptr
 	pathMu      sync.Mutex
@@ -192,6 +218,15 @@ func loadCoreText() (ok bool) {
 	reg(&ctRunGetAttributes, ct, "CTRunGetAttributes")
 	reg(&ctFontGetAscent, ct, "CTFontGetAscent")
 	reg(&ctFontGetDescent, ct, "CTFontGetDescent")
+	reg(&cfStringCreateWithCharacters, cf, "CFStringCreateWithCharacters")
+	reg(&cfStringTokenizerCreate, cf, "CFStringTokenizerCreate")
+	reg(&cfStringTokenizerAdvanceToNextToken, cf, "CFStringTokenizerAdvanceToNextToken")
+	reg(&cfStringTokenizerGetCurrentTokenRange, cf, "CFStringTokenizerGetCurrentTokenRange")
+	reg(&ctParagraphStyleCreate, ct, "CTParagraphStyleCreate")
+	reg(&ctTypesetterCreateWithAttributedString, ct, "CTTypesetterCreateWithAttributedString")
+	reg(&ctTypesetterCreateLine, ct, "CTTypesetterCreateLine")
+	reg(&ctRunGetStatus, ct, "CTRunGetStatus")
+	reg(&ctRunGetStringRange, ct, "CTRunGetStringRange")
 
 	reg(&cgColorSpaceCreateDeviceGray, cg, "CGColorSpaceCreateDeviceGray")
 	reg(&cgColorSpaceRelease, cg, "CGColorSpaceRelease")
@@ -228,6 +263,7 @@ func loadCoreText() (ok bool) {
 	kCTFontVariationAttribute = val(ct, "kCTFontVariationAttribute")
 	kCTFontWeightTrait = val(ct, "kCTFontWeightTrait")
 	kCTFontTraitsAttribute = val(ct, "kCTFontTraitsAttribute")
+	kCTParagraphStyleAttributeName = val(ct, "kCTParagraphStyleAttributeName")
 	if p, err := purego.Dlsym(ct, "kCTFontOpticalSizeAttribute"); err == nil {
 		kCTFontOpticalSizeAttribute = **(**uintptr)(unsafe.Pointer(&p))
 	}
