@@ -162,8 +162,10 @@ type Renderer struct {
 	frame Frame
 
 	atlas      *atlas.Atlas
-	atlasScale float32     // scale the atlas glyphs were rasterized at
-	maskSent   image.Point // MaskSize the device holds all atlas pixels for; zero = unknown
+	atlasScale float32 // scale the atlas glyphs were rasterized at
+	// glyphsPlaced counts the glyphs text placed one by one (tests).
+	glyphsPlaced int
+	maskSent     image.Point // MaskSize the device holds all atlas pixels for; zero = unknown
 
 	ramps *rampCache // gradient ramp rows (TexRamp)
 
@@ -1235,6 +1237,52 @@ func (r *Renderer) glyphPlace(o paint.Text, g paint.Glyph, m geom.Affine, xf boo
 	return int(fx), int(py), uint8(math.Floor((px - fx) * 4)), g.Size * k
 }
 
+// textMayTouchDirty reports whether a glyph of o may pass
+// glyphMayTouchDirty: whether the union of the glyphs' reach boxes (their
+// device pen positions, as glyphPlace computes them, a pixel wider for its
+// rounding, grown by the largest glyph's reach) overlaps sc and, when that
+// test applies, a dirty rectangle. Every glyph's own box lies within the
+// union, so a false answer culls exactly the glyphs the per-glyph test
+// would.
+func (r *Renderer) textMayTouchDirty(o paint.Text, m geom.Affine, xf bool, sc image.Rectangle) bool {
+	k, ex, ey := r.scale, float32(0), float32(0)
+	if xf {
+		k, ex, ey = r.scale*m.A, r.scale*m.E, r.scale*m.F
+	}
+	x0, y0 := math.Inf(1), math.Inf(1)
+	x1, y1 := math.Inf(-1), math.Inf(-1)
+	reach := 0.0
+	for _, g := range o.Glyphs {
+		if g.Src == nil {
+			continue
+		}
+		px := float64((o.Origin.X+g.X)*k + ex)
+		py := float64((o.Origin.Y+g.Y)*k + ey)
+		d := float64(g.Size*k)*glyphReach*(1+math.Abs(float64(g.Skew))) + 2
+		if !(d < 1<<20) || px != px || py != py || math.IsInf(px, 0) || math.IsInf(py, 0) {
+			return true // NaN or huge: let the per-glyph test decide
+		}
+		x0, x1 = min(x0, px), max(x1, px)
+		y0, y1 = min(y0, py), max(y1, py)
+		reach = max(reach, d)
+	}
+	if x0 > x1 {
+		return false // no glyph to draw
+	}
+	if !(x1-x0 < 1<<30 && y1-y0 < 1<<30) {
+		return true
+	}
+	d := int(math.Ceil(reach)) + 1
+	box := image.Rect(int(math.Floor(x0))-d, int(math.Floor(y0))-d, int(math.Ceil(x1))+d, int(math.Ceil(y1))+d)
+	if !box.Overlaps(sc) {
+		return false
+	}
+	if r.target != 0 || len(r.dirty) < 2 {
+		return true
+	}
+	return overlapsAny(box, r.dirty)
+}
+
 func (r *Renderer) text(o paint.Text) {
 	if o.Color.A == 0 {
 		return
@@ -1244,12 +1292,18 @@ func (r *Renderer) text(o paint.Text) {
 	if sc.Empty() {
 		return
 	}
+	if r.partial && !r.textMayTouchDirty(o, cs.m, cs.xf, sc) {
+		// A partial frame draws a few rows: most text lies far from them,
+		// and one pass over the op's glyph positions drops it whole.
+		return
+	}
 	c := premul(o.Color)
 	for i, g := range o.Glyphs {
 		if g.Src == nil {
 			continue
 		}
 		ix, iy, sub, size := r.glyphPlace(o, g, cs.m, cs.xf)
+		r.glyphsPlaced++
 		if r.partial && !r.glyphMayTouchDirty(ix, iy, size, g.Skew, sc) {
 			// A partial frame's scissor is small: culling by reach first
 			// saves most atlas lookups.
