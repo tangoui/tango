@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/tangoui/tango/automation"
+	"github.com/tangoui/tango/internal/platform/darwin"
 )
 
 // The whole-app tests launch examples/duplex many times. automation.Launch
@@ -54,6 +55,13 @@ func duplexApp(t *testing.T) string {
 }
 
 func TestMain(m *testing.M) {
+	// Main-thread child processes of in-package tests (e.g. the
+	// tango_offmainprobe probe) run here, after package initialisation.
+	if hook := darwin.MainThreadTestHook; hook != nil {
+		if code, handled := hook(); handled {
+			os.Exit(code)
+		}
+	}
 	code := m.Run()
 	if duplexBin.dir != "" {
 		os.RemoveAll(duplexBin.dir)
