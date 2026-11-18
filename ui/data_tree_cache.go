@@ -70,7 +70,10 @@ type treeVerCache struct {
 // view) instead of O(nodes). Titles and the other node fields are read
 // live; a structural change made in place (children added, removed or
 // replaced, keys changed, a title edit that changes a Filter match) shows
-// only after v changes (or with a new slice). Without DataVersion the tree
+// only after v changes (or with a new slice). The check states, parents'
+// checked and half-checked marks included, are cached too: a child's
+// Disabled or DisableCheckbox changed in place (which changes how checks
+// cascade) also needs a change of v. Without DataVersion the tree
 // rebuilds all of this every frame, as before.
 func (w *TreeW) DataVersion(v int) *TreeW { w.version, w.verSet = v, true; return w }
 

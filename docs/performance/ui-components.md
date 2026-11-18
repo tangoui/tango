@@ -536,7 +536,7 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
   - 034a78b（darwin：临近帧截止时由 display link 出帧，计时器触发时间没变就不再重设）与 4cdc591（在创建计时器的地方重置这份缓存）。依据 R62：CPU 省不到 5 %，但 p99 的改善是实打实的，所以这里偏离了 R59 只看 CPU 的门槛。做错的代价：多一点小代码。
   - f9dae1b（metal：present 放进这一帧的命令缓冲，基准 BenchmarkPresentTrivial −18 %）+ 06c8bd9（上一次 present 等 drawable 超过 1 ms 时，接下来 60 次 present 与帧分开提交，避免 GPU 繁忙时卡在 nextDrawable）+ 6a84cc3（评审小修）。依据 R62：−9.2 % 保留，前提是补上自适应退避和单测（已完成）。退避的阈值没有调过，可能吃掉一部分收益，所以要用最终版再测一次真实窗口。
   - e8e0cee（gpu：缓存比 atlas 页还大的路径的 CPU 光栅结果）+ 2e1b761（连续两帧都出现才缓存，避免动画路径反复写入）。依据 R61：B1 之后场景里已经测不出它的收益，按 R59 本该去掉；但基准测试从 18.8 ms 降到 1 µs，所以保留。这一点偏离了 R59。做错的代价：多一点代码和内存。终审之后又收紧了一次：每帧结束时只留下这一帧用到的条目，Trim、缩放变化和设备丢失时整表清空，空闲窗口不会再长期占着几十 MB。
-- **回退的提交**：87bd3e6（darwin：帧内提出的下一帧请求不经过 run loop source 直接生效）由 7a91be4 回退。依据 R60：A/B 里看不出收益（c2 → head 合计 +1 %，其中还包含 e8e0cee），而且评审指出这条路径没有测试覆盖。做错的代价：丢掉一点没测出来的收益。
+- **回退的提交**：87bd3e6（darwin：帧内提出的下一帧请求不经过 run loop source 直接生效）由 7a91be4 回退。依据 R60：5 轮 A/B 里看不出收益（c2 → head 合计 −0.4 %，等于没变，其中还包含 e8e0cee），而且评审指出这条路径没有测试覆盖。做错的代价：丢掉一点没测出来的收益。
 - **待测**：最终版的真实窗口复核放在项目收尾的跨框架复测里一起做（需要用户先断开 UU Remote），尚未进行。另外上游 3acc4cd 之后，macOS arm64 的大窗口默认用原生图层渲染器，Metal 只在连续多帧超过 8 ms 后才切换，所以复测要同时看默认路径和强制 Metal 的结果。
 - **顺带发现的上游问题**：合并 origin/main 后 `TestPerfThemesRTL` 的 FieldSet/rtl、InputNumber/rtl 两个子测试失败。原因是上游数字快速路径（`ui/text/simple_numeric.go`）只按 LTR 计算、不取整、不做字距调整，而 RTL 走 HarfBuzz，同一段数字在两个方向上量出来的宽度不同（如 "42" 是 17.459 和 17.469）。复现交给了该文件的负责人，上游在 9f0d478 修复，合并后两个子测试恢复通过。本分支没有在自己这边绕过这个问题。
 
@@ -572,7 +572,7 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 ### 终审修复
 
 - **a 类 `DataVersion(v int)`（用户决定 Q-V1a）**：AutoComplete、Mentions、Command、Cascader、CascaderPanel 新增，签名和语义与 `SelectW.DataVersion` 相同。自动虚拟形态按选项切片（身份与长度）缓存匹配结果、排序和列表宽度；原地改同一切片里的选项而长度不变时，要改 `DataVersion`（或换新切片），下一帧才重新匹配和测宽。不改时保持缓存的结果，文档注释写明了这一点。缓存键里的 `&src[0]` 会让上一份选项切片在被替换前不能回收，这是为了不被复用地址的新切片误命中，注释里写明了内存代价。
-- **Tree `DataVersion(v int)`（R65，用户授权裁定）**：只在同时设了 `Height` 时生效。缓存父节点表、键索引、`Filter` 可见集合、展平后的可见行（按展开键的内容比较）和勾选状态，每帧开销跟随视口；节点字段始终实时读取，不复制节点。不调用时行为和开销与之前完全相同。新增场景 `LargeVersioned1k / 10k / 100k`（`Height(760)` + `DataVersion`），预算同 `Large*`：实测（`BenchmarkComponents`，200 次，nice 10）LargeVersioned1k / 10k / 100k 为 92 / 103 / 126 µs，预算约 139 µs（1k 的 1.5 倍），在预算内，余量不大；同一轮不带 `DataVersion` 的 LargeVirtual100k 为 20.7 ms、91 MB/op，带上后为 91 KB/op。100k 比 1k 多出的约 30 µs 来自展开键从 10 个变成 1000 个（每帧比较一次展开键，构建的每行查一次是否展开）。原 `Tree/LargeVirtual100k`（不带 `DataVersion`）的时间债不变。测试让带与不带 `DataVersion` 的两棵树执行同一组操作（滚动、选择、跨窗口的键盘移动、展开收起、勾选和半选、外部改展开键、过滤），每一步比对无障碍树和像素。
+- **Tree `DataVersion(v int)`（R65，用户授权裁定）**：只在同时设了 `Height` 时生效。缓存父节点表、键索引、`Filter` 可见集合、展平后的可见行（按展开键的内容比较）和勾选状态（含父节点的全选 / 半选），每帧开销跟随视口；节点字段始终实时读取，不复制节点，但子节点的 `Disabled` / `DisableCheckbox` 原地修改会影响勾选级联，需要改变 `DataVersion`。不调用时行为和开销与之前完全相同。新增场景 `LargeVersioned1k / 10k / 100k`（`Height(760)` + `DataVersion`），预算同 `Large*`：实测（`BenchmarkComponents`，200 次，nice 10）LargeVersioned1k / 10k / 100k 为 92 / 103 / 126 µs，预算约 139 µs（1k 的 1.5 倍），在预算内，余量不大；同一轮不带 `DataVersion` 的 LargeVirtual100k 为 20.7 ms、91 MB/op，带上后为 91 KB/op。100k 比 1k 多出的约 30 µs 来自展开键从 10 个变成 1000 个（每帧比较一次展开键，构建的每行查一次是否展开）。原 `Tree/LargeVirtual100k`（不带 `DataVersion`）的时间债不变。测试让带与不带 `DataVersion` 的两棵树执行同一组操作（滚动、选择、跨窗口的键盘移动、展开收起、勾选和半选、外部改展开键、过滤），每一步比对无障碍树和像素。
 - **Sender / Cascader 搜索结果**：超过 100 项同样自动窗口化，没有 `Virtual(bool)` 开关（每帧重新匹配和测宽），已写进 CHANGELOG。
 - **编辑表的保留行**：`EditableRows` 里残留的键（行已被外部删除或不在当前页）不再每帧扫描整页；行数、`Revision`、分页范围或排序结果变化时重新查找。
 - **债表棘轮**：`TestPerfBudgets`（`TANGO_PERF_BUDGET=1`）中，已登记的时间债如果实测超过登记值的 1.5 倍就失败，防止已知的债继续恶化。
