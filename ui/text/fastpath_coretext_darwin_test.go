@@ -86,12 +86,45 @@ func TestCTNumericFastMatchesGeneral(t *testing.T) {
 	// "1."), placed from the probe's pair advances.
 	numericFastMatches(t, Style{})
 	numericFastMatches(t, Style{Weight: Semibold})
-	// "100%" is outside simpleNumericText: the general path lays it out.
-	mu.Lock()
-	pct := simpleNumericLayout("100%", Style{Size: 13, Mono: true}.norm(), Options{NoWrap: true}, regVersion())
-	mu.Unlock()
-	if pct != nil {
-		t.Errorf("simpleNumericLayout(100%%) took the fast path")
+	// '%' and ',' join the table when the face maps them and the probe
+	// verified them.
+	for _, st := range []Style{{Size: 13, Mono: true}, {Size: 13}, {Size: 13, Weight: Semibold}} {
+		st := st.norm()
+		for _, s := range []string{"100%", "+0.12%", "-1.03%", "1,234,567", "%,%"} {
+			mu.Lock()
+			fast := simpleNumericLayout(s, st, Options{NoWrap: true}, regVersion())
+			general := shapeRunsUncached(s, []Run{{0, len(s), st}}, Options{NoWrap: true})
+			mu.Unlock()
+			if fast == nil {
+				t.Fatalf("simpleNumericLayout(%q, %+v) = nil", s, st)
+			}
+			sameLayout(t, s, fast, general)
+		}
+	}
+}
+
+// A wrapping numeric label that fits its width takes the fast path and
+// lays out what the general path does; one that does not fit (or ends
+// within numericWrapMargin of the width) is left to the general path.
+func TestCTNumericFastWrapping(t *testing.T) {
+	needCT(t)
+	st := Style{Size: 13, LineHeight: 18}.norm()
+	v := regVersion()
+	for _, s := range []string{"123.45", "-1.03", "+0.12%", "1,234,567"} {
+		mu.Lock()
+		w := simpleNumericLayout(s, st, Options{NoWrap: true}, v).Width
+		fits := simpleNumericLayout(s, st, Options{MaxWidth: 80}, v)
+		general := shapeRunsUncached(s, []Run{{0, len(s), st}}, Options{MaxWidth: 80})
+		tight := simpleNumericLayout(s, st, Options{MaxWidth: w}, v)
+		narrow := simpleNumericLayout(s, st, Options{MaxWidth: w / 2}, v)
+		mu.Unlock()
+		if fits == nil {
+			t.Fatalf("%q (width %v) in 80: general path", s, w)
+		}
+		sameLayout(t, s, fits, general)
+		if tight != nil || narrow != nil {
+			t.Errorf("%q: fast path at width %v / %v", s, w, w/2)
+		}
 	}
 }
 
@@ -178,14 +211,14 @@ func TestCTNumericProbeRejectsMismatch(t *testing.T) {
 	face := fm.primary()
 	mu.Lock()
 	defer mu.Unlock()
-	tb := numericTableAt(face, 13)
+	tb := numericTableAt(face, 13, true)
 	if !tb.ok {
 		t.Fatal("no numeric table")
 	}
 	if probeNumeric(&tb, face, fm, Style{Size: 26}.norm(), "") {
 		t.Error("probe accepted advances of another size")
 	}
-	tb = numericTableAt(face, 13)
+	tb = numericTableAt(face, 13, true)
 	tb.gid[3]++
 	if probeNumeric(&tb, face, fm, Style{Size: 13}.norm(), "") {
 		t.Error("probe accepted a wrong glyph")

@@ -487,7 +487,7 @@ func layoutRuns(s string, rs []runStyle, runOf, shapeOf []int32, opt Options) *L
 	var paras []paragraphInfo
 	for pi, p := range prep.paras {
 		n0 := len(spans)
-		if !wrap || p.a == p.b {
+		if !wrap || p.a == p.b || fitsLine(runes, p.a, p.b, adv, maxW) {
 			spans = append(spans, span{p.a, p.b})
 		} else {
 			spans = append(spans, breakAt(runes, p.a, adv, maxW, prep.lineEnds(pi))...)
@@ -665,6 +665,21 @@ func spanWidth(adv []float32, a, b int, runes []rune) float32 {
 
 type span struct{ a, b int }
 
+// fitsLine reports whether breakAt would keep runes[a:b] on one line
+// whatever its break opportunities: with no negative advance every prefix
+// of the paragraph is at most as wide as the whole (spanWidth adds the
+// same advances in the same order, trailing spaces left out), so when the
+// whole fits maxW every segment does, and the break opportunities need not
+// be found.
+func fitsLine(runes []rune, a, b int, adv []float32, maxW float32) bool {
+	for _, x := range adv[a:b] {
+		if x < 0 {
+			return false
+		}
+	}
+	return spanWidth(adv, a, b, runes) <= maxW
+}
+
 // breakLines greedily fills lines using UAX #14 break opportunities, falling
 // back to per-character breaks for segments wider than a line.
 func breakLines(runes []rune, a, b int, adv []float32, maxW float32) []span {
@@ -706,7 +721,7 @@ func TrimSpaceRight(s string) string { return strings.TrimRight(s, " \t") }
 func ShapeInto(dst *Layout, s string, st Style, opt Options) *Layout {
 	st = st.norm()
 	opt = normOptions(opt)
-	if !simpleNumericText(s) || !opt.NoWrap || opt.Ellipsis || opt.MaxLines != 0 || opt.Direction == DirRTL {
+	if !numericLabel(s) || !opt.NoWrap || opt.Ellipsis || opt.MaxLines != 0 || opt.Direction == DirRTL {
 		return Shape(s, st, opt)
 	}
 	reg.mu.Lock()

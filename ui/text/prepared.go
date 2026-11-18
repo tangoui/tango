@@ -37,7 +37,14 @@ func prepareText(s string, rs []runStyle, runOf, shapeOf []int32, opt Options) *
 	var key cacheKey
 	// Multi-style runs have additional identity. Leave those on the general
 	// path; single-style paragraphs cover labels and ordinary wrapped text.
-	memo := len(rs) == 1 && len(s) >= 32
+	// With CoreText, where shaping a paragraph costs a CTLine, short labels
+	// are kept too: a label is measured and painted at slightly different
+	// widths, and each would otherwise be shaped again.
+	minLen := 32
+	if coreTextOnly {
+		minLen = 1
+	}
+	memo := len(rs) == 1 && len(s) >= minLen
 	if memo {
 		shapeOpt := opt
 		shapeOpt.MaxWidth, shapeOpt.MaxLines, shapeOpt.NoWrap, shapeOpt.Ellipsis = 0, 0, false, false

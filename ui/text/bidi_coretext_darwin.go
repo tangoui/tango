@@ -172,6 +172,13 @@ func pieceLevels(runes []rune, a, b int, dir Direction, lv []level) level {
 	if b <= a {
 		return base
 	}
+	if base == 0 && !maybeRTL(runes[a:b]) {
+		// No right-to-left or explicit bidi character in a left-to-right
+		// piece: every level is 0 (CoreText's line has left-to-right runs
+		// only), without laying the piece out.
+		fill(0)
+		return 0
+	}
 	if !ctLoaded() {
 		fill(base)
 		return base

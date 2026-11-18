@@ -92,6 +92,9 @@ func buildNumericTable(face *Face, st Style, lang string) numericGlyphTable {
 var numericFaces = map[numericFaceKey]numericFaceValue{}
 
 func clearNumericFaces() { numericFaces = map[numericFaceKey]numericFaceValue{} }
+// numericLabel reports text ShapeInto lays out with the numeric path.
+func numericLabel(s string) bool { return simpleNumericText(s) }
+
 func numericFaceFor(st Style, lang string, version int) (numericFaceValue, bool) {
 	k := numericFaceKey{st, lang, version}
 	if v, ok := numericFaces[k]; ok {
