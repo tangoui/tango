@@ -61,3 +61,13 @@ func TestFixtureAuthenticationAndExactSetup(t *testing.T) {
 		t.Fatalf("redo text = %q", got)
 	}
 }
+
+// The observer's host time shares the probe's and the Metal trace's clock
+// (uptime nanoseconds on macOS), so input records line up with frames.
+func TestHostNSIsMonotonic(t *testing.T) {
+	a := hostNS()
+	b := hostNS()
+	if a <= 0 || b < a {
+		t.Fatalf("hostNS %d then %d", a, b)
+	}
+}

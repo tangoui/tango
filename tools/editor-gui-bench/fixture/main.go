@@ -240,9 +240,9 @@ func main() {
 		var r inputRecord
 		switch e := ev.(type) {
 		case input.Composition:
-			r = inputRecord{"composition", e.Text, e.Cursor, time.Now().UnixNano()}
+			r = inputRecord{"composition", e.Text, e.Cursor, hostNS()}
 		case input.TextInput:
-			r = inputRecord{"text", e.Text, 0, time.Now().UnixNano()}
+			r = inputRecord{"text", e.Text, 0, hostNS()}
 		default:
 			return
 		}
