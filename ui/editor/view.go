@@ -245,6 +245,9 @@ func View(c *ui.Context, st *State) *ViewW {
 	if w.linkHover() {
 		cur = input.CursorPointer // over a link with the trigger modifier (links.go)
 	}
+	if w.vs.dnd == nil && w.foldHover() {
+		cur = input.CursorPointer // a folding control or placeholder (input.go)
+	}
 	if p, in := c.Pointer(); in {
 		if zc, ok := w.zoneCursor(p); ok {
 			cur = zc // over a view zone (zones.go)
