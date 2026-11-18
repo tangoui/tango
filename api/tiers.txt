@@ -56,3 +56,4 @@ ui/terminal/...         experimental
 # Not API.
 examples/...            exclude
 site/...                exclude
+tools/...               exclude
