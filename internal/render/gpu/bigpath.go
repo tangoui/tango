@@ -26,12 +26,18 @@ import (
 // the third, while a path that changes every frame (an animating mask, a
 // live resize) stores no image at all and only leaves its key among the
 // last frame's sightings.
+//
+// Only the last frame's working set stays: at the end of every frame
+// (endFrame) the entries that frame did not draw are dropped, so a window
+// that stops drawing a big path (or goes idle after a frame without one)
+// does not keep megabytes of rasters; the next frame that draws it again
+// rasterizes it as on a first sighting. The whole cache is also dropped on
+// Trim, a scale change and device loss.
 
 // Bounds of bigPathCache.
 const (
 	bigPathMaxEntries = 8
 	bigPathMaxBytes   = 48 << 20 // a 4K window's RGBA mask fits
-	bigPathIdleFrames = 120      // frames an entry may go unused
 )
 
 // bigPathKey is what a big path patch's pixels depend on besides the
@@ -63,14 +69,18 @@ type bigPathCache struct {
 	prev, cur map[bigPathKey]struct{}
 }
 
-// beginFrame advances the frame clock, rotates the sightings and drops
-// idle entries.
+// beginFrame advances the frame clock and rotates the sightings.
 func (c *bigPathCache) beginFrame() {
 	c.frame++
 	c.prev, c.cur = c.cur, c.prev
 	clear(c.cur)
+}
+
+// endFrame drops every entry this frame did not use (get or put): only
+// the last frame's working set stays cached.
+func (c *bigPathCache) endFrame() {
 	for k, e := range c.m {
-		if c.frame-e.used > bigPathIdleFrames {
+		if e.used != c.frame {
 			c.drop(k, e)
 		}
 	}
@@ -133,7 +143,7 @@ func (c *bigPathCache) drop(k bigPathKey, e *bigPathEntry) {
 	delete(c.m, k)
 }
 
-// reset drops every entry and sighting (Trim, scale change).
+// reset drops every entry and sighting (Trim, scale change, device loss).
 func (c *bigPathCache) reset() { c.m, c.bytes, c.prev, c.cur = nil, 0, nil, nil }
 
 // segsHash is FNV-1a over the segments' ops and coordinate bits.

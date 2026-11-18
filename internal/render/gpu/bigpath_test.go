@@ -2,6 +2,8 @@ package gpu
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"testing"
@@ -86,8 +88,10 @@ func TestBigPathPatchCached(t *testing.T) {
 	dim := color.NRGBA{0, 0, 0, 100}
 	check("moved hole", func() *paint.List { return bigPathList(maskPath(8), half, nil) }, 1, 1, 1, 0)
 	check("color", func() *paint.List { return bigPathList(maskPath(8), dim, nil) }, 1, 1, 1, 0)
-	// Back to the first content: still cached (bounded LRU, not one entry).
-	if again := check("first content again", static, 1, 0); !bytes.Equal(first.Pix, again.Pix) {
+	// Back to the first content: the frames in between did not draw it, so
+	// it was dropped (only the last frame's working set stays) and is
+	// rasterized again as on a first sighting.
+	if again := check("first content again", static, 1, 1, 1, 0); !bytes.Equal(first.Pix, again.Pix) {
 		t.Fatal("first content again: different pixels")
 	}
 	m := geom.Affine{A: 1, D: 1, E: 3, F: 2}
@@ -98,6 +102,66 @@ func TestBigPathPatchCached(t *testing.T) {
 	// Trim (low memory) drops it.
 	r.Trim()
 	check("after Trim", static, 1, 1, 1, 0)
+}
+
+// TestBigPathCacheKeepsLastFrameOnly: an entry the frame did not draw is
+// dropped at the end of that frame, so a window that stops drawing a big
+// path (then goes idle) keeps no raster; device loss drops the cache too.
+func TestBigPathCacheKeepsLastFrameOnly(t *testing.T) {
+	dev := &lostDevice{}
+	r := NewRenderer(dev)
+	c := color.NRGBA{0, 0, 0, 128}
+	render := func(l *paint.List) error { return r.Render(l, bigPathSize, 1) }
+	withPath := func() *paint.List { return bigPathList(maskPath(0), c, nil) }
+	without := func() *paint.List {
+		l := &paint.List{Background: white}
+		l.Fill(geom.R(20, 20, 60, 40), geom.Rad(4), blue)
+		return l
+	}
+	for i := 0; i < 3; i++ {
+		if err := render(withPath()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(r.bigPaths.m) != 1 || r.bigPaths.bytes == 0 {
+		t.Fatalf("static big path: %d entries, %d bytes; want 1 entry", len(r.bigPaths.m), r.bigPaths.bytes)
+	}
+	if err := render(without()); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.bigPaths.m) != 0 || r.bigPaths.bytes != 0 {
+		t.Fatalf("frame without the big path: %d entries, %d bytes kept; want 0, 0", len(r.bigPaths.m), r.bigPaths.bytes)
+	}
+	// Device loss: the frame that fails drops what it had just stored.
+	for i := 0; i < 2; i++ {
+		if err := render(withPath()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(r.bigPaths.m) != 1 {
+		t.Fatalf("static big path again: %d entries, want 1", len(r.bigPaths.m))
+	}
+	dev.lost = true
+	if err := render(withPath()); !errors.Is(err, ErrDeviceLost) {
+		t.Fatalf("lost device: Render returned %v", err)
+	}
+	if len(r.bigPaths.m) != 0 || r.bigPaths.bytes != 0 {
+		t.Fatalf("after device loss: %d entries, %d bytes; want 0, 0", len(r.bigPaths.m), r.bigPaths.bytes)
+	}
+}
+
+// lostDevice is a cpuDevice whose Execute fails with ErrDeviceLost once
+// lost is set.
+type lostDevice struct {
+	cpuDevice
+	lost bool
+}
+
+func (d *lostDevice) Execute(f *Frame) error {
+	if d.lost {
+		return fmt.Errorf("test: %w", ErrDeviceLost)
+	}
+	return d.cpuDevice.Execute(f)
 }
 
 // TestBigPathAnimatingNotCached: a big path whose content changes every
@@ -140,7 +204,7 @@ func TestBigPathAnimatingNotCached(t *testing.T) {
 
 // TestBigPathCacheBounded: the cache keeps at most bigPathMaxEntries
 // entries and bigPathMaxBytes of pixels, evicting the least recently used,
-// and forgets entries unused for bigPathIdleFrames frames.
+// and forgets entries the last frame did not use.
 func TestBigPathCacheBounded(t *testing.T) {
 	var c bigPathCache
 	img := func(w, h int) *image.RGBA { return image.NewRGBA(image.Rect(0, 0, w, h)) }
@@ -187,10 +251,14 @@ func TestBigPathCacheBounded(t *testing.T) {
 	if len(b.cur) > bigPathMaxEntries {
 		t.Fatalf("%d sightings in a frame, want ≤ %d", len(b.cur), bigPathMaxEntries)
 	}
-	// Idle entries are dropped.
-	for i := 0; i <= bigPathIdleFrames; i++ {
-		b.beginFrame()
+	// Entries used on this frame survive its end; the next frame's end
+	// drops them unless it uses them.
+	b.endFrame()
+	if b.get(key(3), p.Segs) == nil {
+		t.Fatal("an entry used on this frame was dropped at its end")
 	}
+	b.beginFrame()
+	b.endFrame()
 	if len(b.m) != 0 || b.bytes != 0 {
 		t.Fatalf("idle entries kept: %d entries, %d bytes", len(b.m), b.bytes)
 	}

@@ -564,6 +564,7 @@ func (r *Renderer) frame1(bg color.NRGBA, ops []paint.Op, fs image.Point, scale 
 		r.endGroup()
 	}
 	r.hoistLayers()
+	r.bigPaths.endFrame() // keep only the big path rasters this frame drew
 
 	px := r.atlas.Pixels()
 	f.MaskSize = px.Rect.Size()
@@ -626,6 +627,11 @@ func (r *Renderer) frame1(bg color.NRGBA, ops []paint.Op, fs image.Point, scale 
 		}
 	}
 	if err := r.dev.Execute(f); err != nil {
+		if errors.Is(err, ErrDeviceLost) {
+			// The caller falls back to another renderer: release the
+			// rasters instead of keeping them until this one is dropped.
+			r.bigPaths.reset()
+		}
 		r.maskSent = image.Point{} // the device may have missed this frame's uploads
 		r.ramps.sent = false
 		r.images.executed(false)
