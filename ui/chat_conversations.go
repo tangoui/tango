@@ -93,9 +93,11 @@ func (w *ConversationsW) Height(px float32) *ConversationsW { w.height = max(0, 
 
 // Virtual builds only the rows in view (and a few past each edge) instead
 // of every conversation; it needs Height and is ignored without it. The
-// selected row, the row being renamed and the focused row are always
-// built; Up / Down / Home / End move over every conversation and scroll
-// the target into view. Rows out of view are missing from the
+// selected row and the row being renamed are always built, and the
+// focused row is built on the frame it leaves the view, but focus inside
+// a row clipped out of view is lost, as in the non-virtual Height form;
+// Up / Down / Home / End move over every conversation and scroll the
+// target into view. Rows out of view are missing from the
 // accessibility tree (each option reports its position in the whole
 // list) and FindText. The group layout is cached by the list's length,
 // its first element and the day, and checked against the conversations

@@ -159,7 +159,9 @@ func (w *ListW) Height(px float32) *ListW { w.height = max(0, px); return w }
 // edge) instead of every item; it needs Height and is ignored without it.
 // With Pagination it windows the current page; with Grid it windows rows
 // of columns items (a row is as high as its tallest item). The item that
-// holds the keyboard focus is always built. Items scrolled out of view
+// holds the keyboard focus is built on the frame it leaves the viewport,
+// but once its focused control is clipped out of view the focus is lost,
+// exactly as in the non-virtual Height form. Items scrolled out of view
 // are not built, so state kept inside them (State, an input's text)
 // is dropped after a while and they are missing from the accessibility
 // tree, FindText and the Tab order, as with Listy and VirtualList.

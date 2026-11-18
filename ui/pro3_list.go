@@ -149,7 +149,8 @@ func (p *ProListW[T]) Height(px float32) *ProListW[T] { p.height = px; return p 
 // Virtual builds only the items in view (List.Virtual; needs Height).
 // Item heights, expanded items included, are measured as they come into
 // view and cached by RowKey; selection and expansion are kept by key and
-// do not depend on which items are built.
+// do not depend on which items are built. Keyboard focus in an item
+// scrolled out of view is lost, as in the non-virtual Height form.
 func (p *ProListW[T]) Virtual() *ProListW[T] { p.virtual = true; return p }
 
 // EstimatedItemHeight is the height Virtual assumes for an item not
