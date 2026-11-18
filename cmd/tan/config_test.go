@@ -57,6 +57,23 @@ func TestParseConfig(t *testing.T) {
 	}
 }
 
+func TestConfigCGO(t *testing.T) {
+	base := `{"name":"A","id":"a.b","version":"1.0.0","frontend":{"dir":"f","dist":"."}`
+	for _, c := range []struct{ json, want string }{
+		{base + `}`, "CGO_ENABLED=0"},
+		{base + `,"cgo":false}`, "CGO_ENABLED=0"},
+		{base + `,"cgo":true}`, "CGO_ENABLED=1"},
+	} {
+		cfg, err := ParseConfig([]byte(c.json))
+		if err != nil {
+			t.Fatalf("%s: %v", c.json, err)
+		}
+		if got := cfg.cgoEnv(); got != c.want {
+			t.Errorf("%s: cgoEnv = %s, want %s", c.json, got, c.want)
+		}
+	}
+}
+
 func TestConfigRoundTrip(t *testing.T) {
 	c := &Config{Name: "Hello", ID: "com.example.hello", Version: "0.1.0", Frontend: Frontend{Dir: "frontend", Dist: "."}}
 	out := string(c.Marshal())

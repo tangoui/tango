@@ -6,6 +6,7 @@
 
 ### 新增
 
+- `tan.json` 新增 `"cgo": true`：`tan build`、`tan package`、`tan dev`（含热重载）以 `CGO_ENABLED=1` 编译，供链接 C 库（duckdb 等）或带 cgo 文件的应用使用；默认仍是 `CGO_ENABLED=0`，桌面后端走 purego、交叉编译不需要 C 工具链。开启后交叉编译需要在环境里提供目标平台的 `CC`。
 - `ui.RunnerOptions.Content`（实验性）：用 `ui.ContentData` 标明窗口主要展示自行变化的数据（表格、网格、行情、列表、仪表盘）。macOS 上这类窗口不限大小默认走原生图层，列表、行情窗口 physical footprint 39–54 MB（Metal 135–147 MB），800×600 数据网格约 69 MB（mygo 107 MB），帧持续超过 8 ms 时仍单向升级 Metal；默认 `ui.ContentGeneral` 不变，大窗口仍走 Metal。`TANGO_RENDERER` 和 `RunnerOptions.Renderer` 优先。
 - `ui/paint`（实验性）：新增 `(*CPU).RenderRegionInto(dst, ops, region, scale)`，区域与 `dst` 边界相同时清零并复用 `dst`，结果与 `RenderRegion` 一致；每帧重绘同一区域时不再每次新分配位图。
 - 实验性 `macoslite` 包：独立的 macOS 原生轻量窗口宿主，只用 purego 调 AppKit/CoreGraphics/CoreText，不加载 WebView、`ui.Runner` 或 GPU 渲染器；提供窗口生命周期、鼠标键盘事件、`Canvas` 填充/圆角矩形/CoreText 文本。参考窗口 `examples/macoslite-counter` 空闲 physical footprint 约 26 MiB，测量脚本 `scripts/macoslite-memory.sh`。

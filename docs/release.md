@@ -178,6 +178,7 @@ apidiff 视为不兼容的情况比"编译不过"更宽：给函数追加可变�
 - **命令与参数**：`cmd/tan/testdata/cli.golden` 记录 `tan help` 和每个子命令的 `-h`，由 `TestCLIGolden` 检查，参考站的参数列表也由它生成（`site/tools/clidoc.mjs`）。命令和参数不删除、不改名、不改语义；默认值的变化写进 CHANGELOG；弃用的参数保留并打印警告，至少保留一个 MINOR。改动后运行 `cd cmd/tan && go test -run TestCLIGolden -update`，审查 diff。
 - **`tan.json`**：JSON Schema 在 `cmd/tan/tan.schema.json`，由 `TestConfigSchema` 从 `Config` 的 json 标签和字段注释生成并检查（`-update` 重写），文档站发布在 `/schema/tan.schema.json`，`tan init` 写入 `"$schema"`。字段只增不删；改名时旧名继续解析并告警。未知字段会报错，所以按新版 tan 写的 `tan.json` 需要同样新的 tan，错误信息会提示这一点。
 - **编译 profile**：`tan.json` 的 `features` 只接受非空数组中的 `webview` / `canvas`；省略表示 `all`，不能写 `all` 数组。CLI 用单个 `-features webview,canvas` 值覆盖配置，重复参数和 `GOFLAGS` 中冲突的 `tango_backend_*` 标签会失败。当前仅 Darwin 实现非 `all` profile；Windows/Linux 会在编译前拒绝。profile 属于实验性构建契约，默认 `all` 保持旧项目行为。
+- **cgo**：`tan.json` 的 `cgo` 默认 `false`，tan 的所有 go build（build、package、dev、热重载）都带 `CGO_ENABLED=0`；设为 `true` 时改为 `CGO_ENABLED=1`，交叉编译需要调用方提供目标平台的 `CC`。
 - **Profile 体积口径**：只有 capability smoke 通过且实际 raw executable 或下载包减少的 profile 才能在体积文档中作为优化宣传；没有收益的 profile 只记录为能力边界实验。
 - **CLI 依赖的运行时符号**：`tan dev` 在构建出的程序里查找 `internal/devhost.AttachSymbol`（`uihost.AttachWith` 的符号名），`uihost` 的 `TestAttachSymbol` 固定它。
 

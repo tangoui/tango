@@ -60,10 +60,14 @@ type Config struct {
 	ID      string `json:"id"`      // reverse-DNS identifier, e.g. com.example.hello
 	Version string `json:"version"` // x.y.z
 	// Features selects the compile-time desktop backend profile. Omitted means all capabilities.
-	Features  []string `json:"features,omitempty"`
-	Icon      string   `json:"icon,omitempty"` // master icon: square, full-bleed PNG, ideally 1024×1024 (see Icons)
-	Icons     Icons    `json:"icons,omitzero"` // per-platform overrides; see icons_config.go
-	Copyright string   `json:"copyright,omitempty"`
+	Features []string `json:"features,omitempty"`
+	// CGO builds with cgo enabled, for apps linking C libraries (duckdb, …).
+	// Default false: the desktop backends are purego and cross-compile without
+	// a C toolchain. Cross-compiling with CGO true needs a matching CC in env.
+	CGO       bool   `json:"cgo,omitempty"`
+	Icon      string `json:"icon,omitempty"` // master icon: square, full-bleed PNG, ideally 1024×1024 (see Icons)
+	Icons     Icons  `json:"icons,omitzero"` // per-platform overrides; see icons_config.go
+	Copyright string `json:"copyright,omitempty"`
 	// Localizations are the languages the app declares to Apple platforms
 	// (CFBundleLocalizations); system-provided menu items and dialogs are
 	// localized only into these. Default: en, zh-Hans, zh-Hant, ja (the
@@ -224,6 +228,15 @@ var (
 	// shell or cmd.exe would interpret.
 	keyAliasPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 )
+
+// cgoEnv is the CGO_ENABLED setting of every go build tan runs for the app
+// (build, dev, hot reload): off unless tan.json sets "cgo": true.
+func (c *Config) cgoEnv() string {
+	if c.CGO {
+		return "CGO_ENABLED=1"
+	}
+	return "CGO_ENABLED=0"
+}
 
 // SchemaURL is where the JSON Schema of tan.json (tan.schema.json, kept in
 // sync by TestConfigSchema) is published; tan init writes it as "$schema".
