@@ -129,6 +129,11 @@ type viewState struct {
 	brc brCache
 	// brcLines counts the lines bracketSpans colored afresh (tests).
 	brcLines int
+	// runMemo keeps the rows' style runs across paints (memoRuns), runGen
+	// numbers the paints, runsBuilt counts the runs computed (tests).
+	runMemo   map[runKey]*runMemo
+	runGen    uint64
+	runsBuilt uint64
 	// bgPairs is this frame's bracket pairs with guides (bgOn: bracket
 	// pair guides are on), bgRows their guides on the laid out rows,
 	// bgc their cache (bracketguides.go).

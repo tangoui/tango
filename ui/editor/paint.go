@@ -123,6 +123,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		w.c.CaptureTab(w.box.ID()) // see input.go, "Tab"
 	}
 	th := themeOf(st)
+	vs.pruneRunMemo()
 	snap := st.Snapshot()
 	n := snap.LineCount()
 	lh := w.lineHeight()
@@ -866,13 +867,78 @@ func (w *ViewW) shapeSeg(i int, s string, r0, r1, b0 int, toks []monarch.Token, 
 	if sp, ok := w.activeLinkSpan(i); ok {
 		over = withSpan(over, sp) // the link under the pointer (links.go)
 	}
-	runs, paints := w.styleRuns(s, b0, toks, th, over)
+	runs, paints := w.memoRuns(i, s, b0, toks, th, over)
 	if shapeHook != nil {
 		shapeHook(i, s)
 	}
 	lay := w.vs.lines.Shape(shaped, runs, w.lineOptions())
 	return seg{lay: lay, r0: r0, r1: r1, b0: b0, b1: b0 + len(s), paints: paints}
 }
+
+// runMemo is a row's style runs (styleRuns) and the inputs they were made
+// from, kept across frames: a row whose text, tokens, color spans, theme
+// and text style did not change takes them instead of walking its tokens
+// again.
+type runMemo struct {
+	s      string
+	b0     int
+	toks   []monarch.Token
+	over   []brSpan
+	th     *theme.Theme
+	base   text.Style
+	runs   []text.Run
+	paints []runPaint // read only (segs share them)
+	used   uint64     // the paint that last used it (viewState.runGen)
+}
+
+// runKey identifies a row's memo: its line and first byte.
+type runKey struct{ i, b0 int }
+
+// memoRuns returns styleRuns(s, b0, toks, th, over) for the row of line i
+// at byte b0, from the row's memo when its inputs are unchanged. The runs
+// are valid until the next call on this view; the paints are shared with
+// the memo (never written).
+func (w *ViewW) memoRuns(i int, s string, b0 int, toks []monarch.Token, th *theme.Theme, over []brSpan) ([]text.Run, []runPaint) {
+	vs := w.vs
+	base := w.monoStyle()
+	k := runKey{i, b0}
+	if e := vs.runMemo[k]; e != nil && e.s == s && e.b0 == b0 && e.th == th && e.base == base &&
+		slices.Equal(e.toks, toks) && slices.Equal(e.over, over) {
+		e.used = vs.runGen
+		return e.runs, e.paints
+	}
+	runs, paints := w.styleRuns(s, b0, toks, th, over)
+	vs.runsBuilt++
+	if vs.runMemo == nil {
+		vs.runMemo = map[runKey]*runMemo{}
+	}
+	e := vs.runMemo[k]
+	if e == nil {
+		e = &runMemo{}
+		vs.runMemo[k] = e
+	}
+	*e = runMemo{s: s, b0: b0, toks: append(e.toks[:0], toks...), over: append(e.over[:0], over...), th: th, base: base,
+		runs: append(e.runs[:0], runs...), paints: paints, used: vs.runGen}
+	return e.runs, e.paints
+}
+
+// pruneRunMemo starts a paint for the row memos (memoRuns), dropping the
+// rows the last two paints did not lay out.
+func (vs *viewState) pruneRunMemo() {
+	vs.runGen++
+	if len(vs.runMemo) <= runMemoKeep {
+		return
+	}
+	for k, e := range vs.runMemo {
+		if vs.runGen-e.used > 2 {
+			delete(vs.runMemo, k)
+		}
+	}
+}
+
+// runMemoKeep is how many row memos a view keeps before pruning the ones
+// the last paints did not use: a few screens of rows.
+const runMemoKeep = 256
 
 // styleRuns turns the tokens over s (bytes [b0, b0+len(s)) of its line)
 // into style runs, merging neighbours with the same theme style.
