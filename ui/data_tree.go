@@ -149,10 +149,12 @@ func Tree(c *Context, nodes []TreeNode) *TreeW {
 }
 
 // Height turns the tree into a scrolling viewport of px that builds only
-// the rows in view (Ant height / virtual): use it for large trees, cost
-// then stays proportional to the viewport instead of the node count.
-// Expand / collapse jump without the height animation in this mode.
-// For more control (custom row renderers, Range) see VirtualTree.
+// the rows in view (Ant height / virtual). Every frame still walks all
+// nodes and flattens the visible rows, so the cost stays O(n) in the node
+// count even though only the rows in view are built; for large trees
+// (tens of thousands of nodes) use VirtualTree, whose cost follows the
+// viewport. Expand / collapse jump without the height animation in this
+// mode. VirtualTree also offers custom row renderers and Range.
 func (w *TreeW) Height(px float32) *TreeW { w.height = max(0, px); return w }
 
 // Built returns how many rows the last Show built (all visible rows
