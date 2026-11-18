@@ -159,8 +159,9 @@ func Renderer(r *ui.Runner) string {
 	return "cpu"
 }
 
-// autoCPUWindow is TANGO_RENDERER=auto's CPU-first threshold: small utility
-// windows avoid Metal's drawable, heap and atlas residency cost.
+// autoCPUWindow keeps small utility windows from paying Metal's drawable,
+// heap and atlas residency cost. Native utility-window eligibility reuses this
+// threshold; explicit auto retains its existing CPU-first policy.
 func autoCPUWindow(cv platform.Canvas) bool {
 	w, h := cv.Size()
 	return w > 0 && h > 0 && w*h <= 100000
@@ -176,10 +177,10 @@ func setupGPU(cv platform.Canvas, ropts ui.RunnerOptions) *gpuRenderer {
 	if mode == "cpu" {
 		return nil
 	}
-	// Native layers are the default at every window size: they avoid Metal's
-	// fixed residency cost, and a window whose frames stay expensive promotes
-	// itself to Metal once (nativeRendererState). Forced native never promotes.
-	if mode == "native" || mode == "" {
+	// Large continuous-update scenes retain the verified GPU default until
+	// native CPU/tail-latency acceptance is established. Utility surfaces can
+	// avoid its fixed residency cost; explicit native remains available at any size.
+	if mode == "native" || mode == "" && autoCPUWindow(cv) {
 		if g := startNative(cv, mode == "native"); g != nil {
 			return g
 		}
