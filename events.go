@@ -1,6 +1,7 @@
 package tango
 
 import (
+	"path/filepath"
 	"slices"
 	"sync"
 
@@ -37,6 +38,13 @@ type appExt struct {
 	// app's own OnOpenURL registers for a moment later.
 	settleHooked bool
 	settled      bool
+
+	// launchSeen holds the files and links delivered during launch (until
+	// the OnReady callbacks have run), so the same one arriving twice —
+	// from the command line (dispatchLaunchArgs) and from the OS (macOS
+	// application:openURLs:) — is delivered once. nil once launch is over.
+	launchSeen map[string]bool
+	launchOver bool
 
 	quitOnClose bool // last-window policy already quit the app; see lifecycle.go
 }
@@ -107,6 +115,13 @@ func (a *App) OnQuitRequest(fn func() bool) {
 // emitAppEvent is also used by core features (single instance forwarding).
 func (a *App) emitAppEvent(ev AppEvent) {
 	a.ext.mu.Lock()
+	if !a.ext.launchOver {
+		var fresh bool
+		if ev, fresh = a.dropLaunchRepeatsLocked(ev); !fresh {
+			a.ext.mu.Unlock()
+			return
+		}
+	}
 	var fns []func(AppEvent)
 	for _, l := range a.ext.onEvent {
 		if l.wants(ev.Kind) {
@@ -123,6 +138,55 @@ func (a *App) emitAppEvent(ev AppEvent) {
 	for _, fn := range fns {
 		a.guard(whereEvent, func() { fn(ev) })
 	}
+}
+
+// dropLaunchRepeatsLocked removes the links and files of ev that were
+// already delivered during launch; fresh is false when nothing is left.
+// Files compare by their resolved path (/var vs /private/var on macOS).
+// a.ext.mu held.
+func (a *App) dropLaunchRepeatsLocked(ev AppEvent) (out AppEvent, fresh bool) {
+	if a.ext.launchSeen == nil {
+		a.ext.launchSeen = map[string]bool{}
+	}
+	seen := func(key string) bool {
+		if a.ext.launchSeen[key] {
+			return true
+		}
+		a.ext.launchSeen[key] = true
+		return false
+	}
+	switch ev.Kind {
+	case platform.AppOpenURL:
+		return ev, !seen("url\x00" + ev.URL)
+	case platform.AppOpenFiles:
+		var paths []string
+		for _, p := range ev.Paths {
+			if !seen("file\x00" + launchFileKey(p)) {
+				paths = append(paths, p)
+			}
+		}
+		if len(paths) == 0 {
+			return ev, false
+		}
+		ev.Paths = paths
+	}
+	return ev, true
+}
+
+func launchFileKey(p string) string {
+	if real, err := filepath.EvalSymlinks(p); err == nil {
+		return real
+	}
+	return filepath.Clean(p)
+}
+
+// endLaunchRepeats closes the launch window of dropLaunchRepeatsLocked:
+// later opens of the same file or link are new requests.
+func (a *App) endLaunchRepeats() {
+	a.ext.mu.Lock()
+	a.ext.launchOver = true
+	a.ext.launchSeen = nil
+	a.ext.mu.Unlock()
 }
 
 func (h host) OnAppEvent(ev platform.AppEvent) {

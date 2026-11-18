@@ -192,6 +192,13 @@ func (a *App) Run() error {
 	a.origin = strings.TrimSuffix(a.b.AssetOrigin(), "/")
 	a.mu.Unlock()
 	a.loop.start()
+	// Launch-time files and links are de-duplicated until the OnReady
+	// callbacks (dispatchLaunchArgs among them) have run; see events.go.
+	a.OnLifecycle(func(ev Lifecycle) {
+		if ev == platform.LifecycleStarted {
+			a.Post(a.endLaunchRepeats)
+		}
+	})
 	a.OnReady(a.dispatchLaunchArgs)
 	err := a.b.Run()
 	a.shutdown()
