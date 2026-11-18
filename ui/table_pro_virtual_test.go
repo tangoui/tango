@@ -89,6 +89,10 @@ func TestProTableVirtualPassthrough(t *testing.T) {
 	scrollY = 300
 	d.r.Invalidate()
 	d.Settle()
+	// Plain TableW.ScrollY turned on at run time keeps the last
+	// unbounded viewport for one frame (unchanged by batch 3).
+	d.r.Invalidate()
+	d.Settle()
 	got := countKind(d.r.c.root, "row:")
 	if got < 5 || got > 20 {
 		t.Fatalf("ScrollY+Virtual: built %d rows, want the visible ones", got)
@@ -286,27 +290,121 @@ func TestRowEditorTableVirtualAddRowAndKeyboard(t *testing.T) {
 	}
 }
 
-func TestTableScrollYKeepsEditedCell(t *testing.T) {
+// Plain TableW.ScrollY is unchanged by batch 3 V3 (keepEdit is only for
+// EditableProTable and its presets): an edited cell whose row leaves the
+// window is not built any more and loses the focus, as before.
+func TestTableScrollYDropsEditedCell(t *testing.T) {
 	names := make([]string, 2000)
 	for i := range names {
 		names[i] = "n" + strconv.Itoa(i)
 	}
+	var tw *TableW
 	d := tblDriver(func(c *Context) {
 		cols := []TableColumn{{Key: "name", Title: "Name", Width: 200, Text: func(i int) string { return names[i] },
 			Editor: &TableEditor{Set: func(i int, v string) { names[i] = v }}}}
-		Table(c, cols, len(names)).ScrollY(300).Show()
+		tw = Table(c, cols, len(names)).ScrollY(300).Show()
 	})
 	b4dDoubleClick(d, mustFindText(t, d, "n1").Center())
 	if !v3FocusIn(d, "1") {
 		t.Fatal("cell editor not focused")
 	}
-	d.Type("Z")
 	v3Wheel(d, 30000)
-	if v3Node(d.r.c.root, "row:1") == nil || !v3FocusIn(d, "1") || names[1] != "n1" {
-		t.Fatalf("scrolled away: kept %v focused %v name %q", v3Node(d.r.c.root, "row:1") != nil, v3FocusIn(d, "1"), names[1])
+	if v3Node(d.r.c.root, "row:1") != nil || d.r.c.focus != 0 {
+		t.Fatalf("plain ScrollY kept the edited row: built %v focus %v", v3Node(d.r.c.root, "row:1") != nil, d.r.c.focus)
 	}
-	d.Key(input.KeyEnter, 0)
-	if names[1] != "n1Z" {
-		t.Fatalf("commit offscreen: %q", names[1])
+	if tw.keepEdit || tw.st.revOn {
+		t.Fatal("plain table in keep-edit mode")
+	}
+}
+
+// v3PtrRow tables use a pointer row type: a zero T handed to Value or
+// Render would be a nil dereference.
+type v3PtrRow struct{ ID, Name string }
+
+func v3PtrCols() []ProColumn[*v3PtrRow] {
+	return []ProColumn[*v3PtrRow]{
+		{Key: "name", Title: "Name", Width: 200, Value: func(r *v3PtrRow) any { return r.Name },
+			Editor: &ProField{}, Set: func(r **v3PtrRow, v any) { (*r).Name, _ = v.(string) }},
+		{Key: "id", Title: "ID", Width: 120, Value: func(r *v3PtrRow) any { return "id-" + r.ID }},
+		{Key: "op", Title: "Actions", ValueType: ValueOption},
+	}
+}
+
+// Deleting a row or cancelling a new row changes the rows while the body
+// is being built (the action runs inside a cell); the rest of that build
+// must not see a missing row (C1), in the default and the bounded form.
+func TestEditableProTablePointerRowsDeleteCancel(t *testing.T) {
+	for _, bounded := range []bool{false, true} {
+		t.Run(map[bool]string{false: "default", true: "bounded"}[bounded], func(t *testing.T) {
+			for _, top := range []bool{false, true} {
+				rows := []*v3PtrRow{{"a", "Alice"}, {"b", "Bob"}, {"c", "Carol"}}
+				seq := 0
+				var e *EditableProTableW[*v3PtrRow]
+				d := pro3Driver(b4dAnt, 900, 600, func(c *Context) {
+					e = EditableProTable(c, v3PtrCols(), &rows).RowKey(func(r *v3PtrRow) string { return r.ID }).
+						NewRow(func() *v3PtrRow { seq++; return &v3PtrRow{ID: "n" + strconv.Itoa(seq)} })
+					if top {
+						e.AddAtTop()
+					}
+					if bounded {
+						e.ScrollY(300)
+					}
+					e.Show()
+				})
+				p2eClickInRow(t, d, "a", ZhCN.Delete)
+				if err := d.ClickLabel(ZhCN.OK); err != nil {
+					t.Fatal(err)
+				}
+				d.Settle()
+				if len(rows) != 2 || rows[0].ID != "b" || pro3HasText(d, "Alice") || !pro3HasText(d, "id-c") {
+					t.Fatalf("delete: rows %v", rows)
+				}
+				// A new row, cancelled: dropped while its row is built.
+				k := e.AddRow()
+				d.Settle()
+				p2eClickInRow(t, d, k, ZhCN.Cancel)
+				d.Settle()
+				if e.Editing(k) || len(rows) != 2 || !pro3HasText(d, "Bob") {
+					t.Fatalf("cancel new row: editing %v rows %v", e.Editing(k), rows)
+				}
+				// A new row saved (top: it joins the data at index 0).
+				k = e.AddRow()
+				d.Settle()
+				e.st.drafts[k]["name"] = "Dan"
+				p2eClickInRow(t, d, k, ZhCN.Save)
+				d.Settle()
+				if len(rows) != 3 || e.Editing(k) || !pro3HasText(d, "Dan") {
+					t.Fatalf("save new row (top %v): rows %v", top, rows)
+				}
+			}
+		})
+	}
+}
+
+func TestRowEditorTableVirtualTypingReveals(t *testing.T) {
+	rows := v3Rows(3000)
+	var w *RowEditorTableW[b4dRow]
+	d := pro3Driver(b4dAnt, 900, 700, func(c *Context) {
+		w = RowEditorTable(c, b4dCols(), &rows).RowKey(func(r b4dRow) string { return r.ID }).ScrollY(300).Virtual().Show()
+	})
+	b4dDoubleClick(d, mustFindText(t, d, "N2").Center())
+	if w.EditingKey() != "r2" {
+		t.Fatalf("editing %q", w.EditingKey())
+	}
+	v3Wheel(d, 20000)
+	if v3InView(d, "r2") || !v3FocusIn(d, "r2") {
+		t.Fatal("setup: row in view or focus lost")
+	}
+	// Typing into the editor scrolled out of view brings its row back.
+	d.Type("Q")
+	d.Settle()
+	if !v3InView(d, "r2") || w.e.st.drafts["r2"]["name"] != "N2Q" && w.e.st.drafts["r2"]["name"] != "Q" {
+		t.Fatalf("typing: in view %v draft %v", v3InView(d, "r2"), w.e.st.drafts["r2"]["name"])
+	}
+	// Wheel scrolling alone does not pull it back.
+	v3Wheel(d, 20000)
+	d.Settle()
+	if v3InView(d, "r2") {
+		t.Fatal("scrolling pulled the edited row back")
 	}
 }

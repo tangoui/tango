@@ -3,14 +3,21 @@ package ui
 import (
 	"slices"
 
+	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 )
 
-// Bounded tables (ScrollY) build only the rows in the window. Rows being
+// Bounded tables (ScrollY) build only the rows in the window. With
+// keepEdit (EditableProTable and its presets given ScrollY) rows being
 // edited (EditableRows, the cell editor) are built even outside it, so
 // their editors keep their drafts and focus while scrolled away; focus
-// moving into one of them scrolls it back into view.
+// moving into one of them, or typing in it, scrolls it into view. Plain
+// TableW.ScrollY is unchanged: such a row is destroyed when it leaves the
+// window.
+
+// keeping reports the keep-edited-rows mode (bounded body and keepEdit).
+func (f *tblFrame) keeping() bool { return f.bounded && f.t.keepEdit }
 
 // editRow reports a row being edited (row edit mode or the edited cell).
 func (f *tblFrame) editRow(r tblRow) bool {
@@ -24,7 +31,7 @@ func (f *tblFrame) editRow(r tblRow) bool {
 // keepRows returns the sorted positions of the rows being edited that lie
 // outside the window [first, last] (bounded tables only).
 func (f *tblFrame) keepRows() []int {
-	if !f.bounded || f.n == 0 {
+	if !f.keeping() || f.n == 0 {
 		return nil
 	}
 	var keys []string
@@ -85,10 +92,15 @@ func (f *tblFrame) buildKeep(pos int) {
 
 // noteFocus asks for the edited row r (node n, just built) to be scrolled
 // into view on the next build when the focus moved into it since the last
-// build (Tab between its editors, an editor focused by Edit or AddRow).
+// build (Tab between its editors, an editor focused by Edit or AddRow) or
+// the user types in it this frame (keys, text or IME input to an editor
+// scrolled out of view, as a browser reveals the caret).
 func (f *tblFrame) noteFocus(n *node, r tblRow) {
 	c, st := f.c, f.st
-	if !f.bounded || n == nil || c.focus == 0 || c.focus == st.focusSeen || !f.editRow(r) || !c.focusWithin(n) {
+	if !f.keeping() || n == nil || c.focus == 0 || !f.editRow(r) {
+		return
+	}
+	if (c.focus == st.focusSeen && !tblTyping(c)) || !c.focusWithin(n) {
 		return
 	}
 	leaf := -1
@@ -112,7 +124,7 @@ func (f *tblFrame) pendingReveal() {
 		return
 	}
 	st.revOn = false
-	if !f.bounded {
+	if !f.keeping() {
 		return
 	}
 	if p := f.posOfKey(st.revKey); p >= 0 {
@@ -120,10 +132,25 @@ func (f *tblFrame) pendingReveal() {
 	}
 }
 
+// tblTyping reports keyboard, text or IME input this frame.
+func tblTyping(c *Context) bool {
+	for _, ev := range c.events {
+		switch ev := ev.(type) {
+		case input.KeyEvent:
+			if ev.Down {
+				return true
+			}
+		case input.TextInput, input.Composition, input.TextEdit:
+			return true
+		}
+	}
+	return false
+}
+
 // revealRow scrolls the row with key k into view on the next build of a
-// bounded table (no-op otherwise or before the first Show).
+// keepEdit table (no-op otherwise or before the first Show).
 func (t *TableW) revealRow(k string) {
-	if t == nil || t.st == nil || k == "" {
+	if t == nil || t.st == nil || k == "" || !t.keepEdit {
 		return
 	}
 	t.st.revKey, t.st.revLeaf, t.st.revOn = k, -1, true

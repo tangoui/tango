@@ -1185,7 +1185,7 @@ func (p *ProTableW[T]) tableView() {
 		if pc.HideInTable {
 			continue
 		}
-		cols = append(cols, p.tableColumn(pc, func(i int) T { return rows[i] }))
+		cols = append(cols, p.tableColumn(pc, func(i int) (T, bool) { return rows[i], true }))
 	}
 	p.colState().Order = p.columnOrder()
 	t := Table(c, cols, len(rows)).
@@ -1244,8 +1244,9 @@ func (p *ProTableW[T]) tableView() {
 }
 
 // tableColumn converts a ProColumn into a TableColumn with value-type
-// formatting; at returns the row at a table row index.
-func (p *ProTableW[T]) tableColumn(pc ProColumn[T], at func(int) T) TableColumn {
+// formatting; at returns the row at a table row index (ok false: the row
+// went away during this build; its cell stays empty).
+func (p *ProTableW[T]) tableColumn(pc ProColumn[T], at func(int) (T, bool)) TableColumn {
 	c := p.c
 	col := TableColumn{Key: pc.Key, Title: pc.Title, Width: pc.Width, MinWidth: pc.MinWidth, Fixed: pc.Fixed,
 		Align: pc.Align, Ellipsis: pc.Ellipsis, Hidden: pc.Hidden, Sortable: pc.Sortable}
@@ -1261,14 +1262,22 @@ func (p *ProTableW[T]) tableColumn(pc ProColumn[T], at func(int) T) TableColumn 
 		}
 	}
 	if pc.Render != nil {
-		col.Render = func(i int) { pc.Render(at(i), i) }
+		col.Render = func(i int) {
+			if r, ok := at(i); ok {
+				pc.Render(r, i)
+			}
+		}
 		return col
 	}
 	val := func(i int) any {
 		if pc.Value == nil {
 			return nil
 		}
-		return pc.Value(at(i))
+		r, ok := at(i)
+		if !ok {
+			return nil
+		}
+		return pc.Value(r)
 	}
 	switch pc.ValueType {
 	case ValueStatus:
@@ -1297,7 +1306,9 @@ func (p *ProTableW[T]) tableColumn(pc ProColumn[T], at func(int) T) TableColumn 
 	case ValueLink:
 		col.Render = func(i int) {
 			if Link(c, ProFormat(ValueText, nil, val(i))).Clicked() && pc.OnClick != nil {
-				pc.OnClick(at(i))
+				if r, ok := at(i); ok {
+					pc.OnClick(r)
+				}
 			}
 		}
 	case ValueColor:

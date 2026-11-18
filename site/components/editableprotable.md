@@ -263,7 +263,7 @@ func main() {}
 
 `ScrollY(px)` 固定表体高度，只构建视口内的行；`Virtual()` 表明意图（Element Plus 主题下用 Table V2 的 50px 行高），行高默认跟随 `Size`。`CellEditorTable` 和 `RowEditorTable` 有同样的两个方法。
 
-正在编辑的行（或格所在的行）总是构建，即使滚出视口，草稿和焦点也不会丢。开始编辑某行（`Edit`、`AddRow`）、焦点移进正在编辑的行（例如 Tab 到它的下一个编辑器），以及校验失败时，表格会把这一行滚进视口。工具栏和添加按钮留在滚动区外。不设 `ScrollY` 时与原来一样，每一行都构建。
+正在编辑的行（或格所在的行）总是构建，即使滚出视口，草稿和焦点也不会丢。开始编辑某行（`Edit`、`AddRow`）、焦点移进正在编辑的行（例如 Tab 到它的下一个编辑器）、在滚出视口的编辑器里输入，以及校验失败时，表格会把这一行滚进视口。工具栏和添加按钮留在滚动区外。不设 `ScrollY` 时与原来一样，每一行都构建。
 
 ```go
 func bigTable(c *ui.Context, cols []ui.ProColumn[row], rows *[]row) {

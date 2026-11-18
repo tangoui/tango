@@ -78,7 +78,9 @@ type node struct {
 	noTab    bool // focusable by pointer only; Tab skips it
 	// keepFocus keeps the focusable nodes of the subtree in the focus
 	// order while it is clipped out of view (a virtual table's edited row
-	// scrolled away keeps its editor focused and Tab-reachable).
+	// scrolled away keeps its editor focused and Tab-reachable). So inside
+	// such a subtree, being in focusOrder does not mean painted: code that
+	// uses focusOrder.Contains as "drawn" must not rely on it there.
 	keepFocus bool
 
 	// Accessibility (a11y_tree.go). Plain field stores so annotating costs

@@ -277,6 +277,16 @@ type TableW struct {
 	fr  *tblFrame
 	id  ID
 	vis []int // data rows displayed (current page), for callbacks
+
+	// keepEdit (bounded body only, set by EditableProTable's ScrollY):
+	// rows being edited stay built outside the window, focus or typing in
+	// one scrolls it into view (table_keep.go). Plain TableW.ScrollY
+	// keeps destroying them (editor blurred, cell committed).
+	keepEdit bool
+	// rowsHook, when set, is called right before the bounded body builds
+	// its rows with the window and the kept rows (EditableProTable's
+	// frame-local snapshot).
+	rowsHook func(first, last int, keeps []int)
 }
 
 // Table starts a table over rows data rows; chain modifiers, then Show.

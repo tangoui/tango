@@ -53,7 +53,10 @@ type EditableProTableW[T any] struct {
 	id    ID
 	st    *p2eEditState[T]
 	table *TableW
-	vw    p2eView // displayed rows (viewAt)
+	view  []p2eEditRow[T] // displayed rows, copied per Show (default form)
+	vw    p2eView         // shape of the displayed rows (bounded form)
+	lazy  bool            // bounded form (ScrollY): vw, read live
+	snap  p2eSnap[T]      // bounded form: rows the table builds this frame
 
 	saved, deleted, moved bool
 
@@ -64,13 +67,27 @@ type EditableProTableW[T any] struct {
 	disabled  bool        // the table is inside a disabled subtree
 }
 
-// p2eView is the shape of the displayed rows of a Show: the keys of the
-// new rows not saved yet (shown at the top or the bottom) and the number
-// of data rows. The rows themselves are read live by index (viewAt), so
-// nothing of *rows is copied per frame and an in-place edit shows at once.
+// p2eView is the shape of the displayed rows of a bounded (ScrollY) Show:
+// the keys of the new rows not saved yet (shown at the top or the bottom)
+// and the number of data rows. The rows are read by index (viewAt), so
+// nothing of *rows is copied for rows the table does not build.
 type p2eView struct {
 	news []string
 	n    int
+}
+
+// p2eSnap is the bounded form's frame-local copy of the rows the table
+// builds (its window [first, first+len(rows)) and the kept edited rows),
+// taken right before it builds them (TableW.rowsHook): a row deleted or a
+// new row dropped while the body is being built leaves the rest of that
+// build as consistent as the default form's per-Show copy. on is false
+// until the hook ran in this Show (rows are then read live).
+type p2eSnap[T any] struct {
+	on    bool
+	first int
+	rows  []p2eEditRow[T]
+	ok    []bool
+	keep  map[int]p2eEditRow[T]
 }
 
 type p2eEditRow[T any] struct {
@@ -223,9 +240,9 @@ func (e *EditableProTableW[T]) ScrollX(w float32) *EditableProTableW[T] { e.scro
 // in place and only the visible rows are built, so many thousand rows stay
 // fast. Rows being edited are always built, even scrolled out of view, so
 // their drafts and focus survive; starting to edit a row (Edit, AddRow),
-// focus moving into an edited row (Tab) and a failed validation scroll
-// it into view. The toolbar and the add button stay outside the scrolling
-// body. Default 0: unbounded, every row is built.
+// focus moving into an edited row (Tab), typing in one and a failed
+// validation scroll it into view. The toolbar and the add button stay
+// outside the scrolling body. Default 0: unbounded, every row is built.
 func (e *EditableProTableW[T]) ScrollY(maxH float32) *EditableProTableW[T] {
 	e.scrollY = maxH
 	return e
@@ -451,6 +468,7 @@ func (e *EditableProTableW[T]) Show() *EditableProTableW[T] {
 	if e.pageSize > 0 {
 		st.pageSz = e.pageSize
 	}
+	e.lazy = e.scrollY > 0
 	e.buildView()
 	e.poll()
 	e.buildView() // results may have changed the rows
@@ -477,19 +495,42 @@ func (e *EditableProTableW[T]) Show() *EditableProTableW[T] {
 	return e
 }
 
-// buildView takes the shape of the displayed rows: new rows (top or
-// bottom) and data.
+// buildView lists the displayed rows: new rows (top or bottom) and data.
+// The bounded form takes only their shape (rows are read by index).
 func (e *EditableProTableW[T]) buildView() {
-	e.vw.news = append(e.vw.news[:0], e.st.newOrder...)
-	e.vw.n = len(*e.rows)
+	st := e.st
+	if e.lazy {
+		e.vw.news = append(e.vw.news[:0], st.newOrder...)
+		e.vw.n = len(*e.rows)
+		return
+	}
+	e.view = e.view[:0]
+	news := make([]p2eEditRow[T], 0, len(st.newOrder))
+	for _, k := range st.newOrder {
+		news = append(news, p2eEditRow[T]{row: st.pending[k], index: -1, key: k})
+	}
+	if e.top {
+		e.view = append(e.view, news...)
+	}
+	for i, r := range *e.rows {
+		e.view = append(e.view, p2eEditRow[T]{row: r, index: i, key: e.key(r, i)})
+	}
+	if !e.top {
+		e.view = append(e.view, news...)
+	}
 }
 
 // viewLen is the number of displayed rows.
-func (e *EditableProTableW[T]) viewLen() int { return len(e.vw.news) + e.vw.n }
+func (e *EditableProTableW[T]) viewLen() int {
+	if e.lazy {
+		return len(e.vw.news) + e.vw.n
+	}
+	return len(e.view)
+}
 
-// viewRow returns displayed row i and its index into *rows (-1: a new
-// row), read live; ok is false when the row went away since buildView
-// (deleted or saved during this build).
+// viewRow returns displayed row i of the bounded form and its index into
+// *rows (-1: a new row), read live; ok is false when the row went away
+// since buildView (deleted or saved during this build).
 func (e *EditableProTableW[T]) viewRow(i int) (row T, index int, key string, ok bool) {
 	nn := len(e.vw.news)
 	if e.top {
@@ -514,8 +555,15 @@ func (e *EditableProTableW[T]) pendingRow(k string) (T, int, string, bool) {
 	return row, -1, k, ok
 }
 
-// viewAt returns displayed row i with its key (see viewRow).
+// viewAt returns displayed row i with its key: the default form's copy,
+// or the bounded form's row read live (see viewRow).
 func (e *EditableProTableW[T]) viewAt(i int) (p2eEditRow[T], bool) {
+	if !e.lazy {
+		if i < 0 || i >= len(e.view) {
+			return p2eEditRow[T]{}, false
+		}
+		return e.view[i], true
+	}
 	row, idx, k, ok := e.viewRow(i)
 	if ok && idx >= 0 {
 		k = e.key(row, idx)
@@ -734,12 +782,29 @@ func (e *EditableProTableW[T]) addButton() {
 func (e *EditableProTableW[T]) tableView() {
 	c, st := e.c, e.st
 	loc := c.Locale()
-	rowAt := func(i int) T {
-		row, _, _, _ := e.viewRow(i)
-		return row
+	// The default form copies the rows per Show (closures see this
+	// Show's copy, as before batch 3); the bounded form reads the rows the
+	// table builds from its frame-local snapshot (snapAt).
+	var at func(i int) (p2eEditRow[T], bool)
+	var rowAt func(i int) (T, bool)
+	if e.lazy {
+		e.snap.on = false
+		at = e.snapAt
+		rowAt = func(i int) (T, bool) {
+			r, ok := e.snapAt(i)
+			return r.row, ok
+		}
+	} else {
+		view := e.view
+		rowsT := make([]T, len(view))
+		for i, r := range view {
+			rowsT[i] = r.row
+		}
+		at = func(i int) (p2eEditRow[T], bool) { return view[i], true }
+		rowAt = func(i int) (T, bool) { return rowsT[i], true }
 	}
 	keyAt := func(i int) string {
-		r, _ := e.viewAt(i)
+		r, _ := at(i)
 		return r.key
 	}
 	pt := &ProTableW[T]{c: c}
@@ -753,7 +818,7 @@ func (e *EditableProTableW[T]) tableView() {
 		}
 		if pc.ValueType == ValueOption && pc.Render == nil {
 			actions = true
-			cols = append(cols, e.actionColumn(pc.Key, pc.Title, pc.Width))
+			cols = append(cols, e.actionColumn(pc.Key, pc.Title, pc.Width, at))
 			continue
 		}
 		col := pt.tableColumn(*pc, rowAt)
@@ -763,8 +828,8 @@ func (e *EditableProTableW[T]) tableView() {
 			key := pc.Key
 			col.Editor = &TableEditor{
 				Render: func(i int) {
-					if k := keyAt(i); k != "" {
-						e.cell(k, &fd)
+					if r, ok := at(i); ok {
+						e.cell(r.key, &fd)
 					}
 				},
 				Error: func(i int) string { return st.errs[keyAt(i)][key] },
@@ -773,7 +838,7 @@ func (e *EditableProTableW[T]) tableView() {
 		cols = append(cols, col)
 	}
 	if !actions {
-		cols = append(cols, e.actionColumn("__actions", loc.EditableTable.Actions, 0))
+		cols = append(cols, e.actionColumn("__actions", loc.EditableTable.Actions, 0, at))
 	}
 	t := Table(c, cols, e.viewLen()).
 		RowKey(keyAt).
@@ -790,8 +855,10 @@ func (e *EditableProTableW[T]) tableView() {
 	if e.scrollX > 0 {
 		t.ScrollX(e.scrollX)
 	}
-	if e.scrollY > 0 {
+	if e.lazy {
 		t.ScrollY(e.scrollY)
+		t.keepEdit = true
+		t.rowsHook = e.snapRows
 	}
 	if e.virtual {
 		t.Virtual()
@@ -803,8 +870,9 @@ func (e *EditableProTableW[T]) tableView() {
 	}
 	if e.sortable {
 		t.DragSort(func(from, to int) {
-			_, fi, _, fok := e.viewRow(from)
-			_, ti, _, tok := e.viewRow(to)
+			fr, fok := at(from)
+			tr, tok := at(to)
+			fi, ti := fr.index, tr.index
 			if !fok || !tok || fi < 0 || ti < 0 {
 				return // new rows stay where they are until saved
 			}
@@ -819,6 +887,42 @@ func (e *EditableProTableW[T]) tableView() {
 	t.Show()
 	e.table = t
 	e.preset(t, enter)
+}
+
+// snapRows is the bounded table's rowsHook: it copies the rows the table
+// is about to build (window [first, last] and the kept rows) for snapAt.
+func (e *EditableProTableW[T]) snapRows(first, last int, keeps []int) {
+	sn := &e.snap
+	sn.on, sn.first = true, first
+	n := max(0, last-first+1)
+	sn.rows = slices.Grow(sn.rows[:0], n)[:n]
+	sn.ok = slices.Grow(sn.ok[:0], n)[:n]
+	for j := range n {
+		sn.rows[j], sn.ok[j] = e.viewAt(first + j)
+	}
+	clear(sn.keep)
+	for _, k := range keeps {
+		if r, ok := e.viewAt(k); ok {
+			if sn.keep == nil {
+				sn.keep = map[int]p2eEditRow[T]{}
+			}
+			sn.keep[k] = r
+		}
+	}
+}
+
+// snapAt returns displayed row i of the bounded form: from this frame's
+// snapshot once the table took it, else read live (viewAt).
+func (e *EditableProTableW[T]) snapAt(i int) (p2eEditRow[T], bool) {
+	if sn := &e.snap; sn.on {
+		if j := i - sn.first; j >= 0 && j < len(sn.rows) {
+			return sn.rows[j], sn.ok[j]
+		}
+		if r, ok := sn.keep[i]; ok {
+			return r, true
+		}
+	}
+	return e.viewAt(i)
 }
 
 // tblMoveSlice moves element from to the position of element to.
@@ -866,13 +970,13 @@ func (f p2eCellField) field() (string, ID, bool, string) { return f.label, 0, f.
 func (f p2eCellField) semantics(*a11y.Node)              {}
 
 // actionColumn builds the edit / save / cancel / delete links.
-func (e *EditableProTableW[T]) actionColumn(key, title string, width float32) TableColumn {
+func (e *EditableProTableW[T]) actionColumn(key, title string, width float32, at func(int) (p2eEditRow[T], bool)) TableColumn {
 	c := e.c
 	if width == 0 {
 		width = 150
 	}
 	return TableColumn{Key: key, Title: title, Width: width, Render: func(i int) {
-		r, ok := e.viewAt(i)
+		r, ok := at(i)
 		if !ok {
 			return
 		}

@@ -6,7 +6,7 @@
 
 ### 新增
 
-- `ProTable`、`EditableProTable`、`CellEditorTable`、`RowEditorTable` 新增 opt-in 虚拟滚动：`ScrollY(px)` 固定表体高度、只构建视口内的行，`Virtual()` 表明意图（透传 `Table`），`ProTable` 另有 `RowHeight`；行高默认跟随密度。正在编辑的行即使滚出视口也保持构建（草稿、焦点和 Tab 顺序不丢），开始编辑、焦点移入和校验失败时自动滚到该行。不设 `ScrollY` 时行为不变。`Table` 设了 `ScrollY` 时同样保留正在编辑的行。
+- `ProTable`、`EditableProTable`、`CellEditorTable`、`RowEditorTable` 新增 opt-in 虚拟滚动：`ScrollY(px)` 固定表体高度、只构建视口内的行，`Virtual()` 表明意图（透传 `Table`），`ProTable` 另有 `RowHeight`；行高默认跟随密度。正在编辑的行即使滚出视口也保持构建（草稿、焦点和 Tab 顺序不丢），开始编辑、焦点移入、在其中输入和校验失败时自动滚到该行。不设 `ScrollY` 时行为不变；普通 `Table` 的 `ScrollY` 行为也不变。
 - `List`、`ProList`、`Conversations` 新增 opt-in 虚拟滚动：`Height(px)` 固定视口高度，再加 `Virtual()` 只构建视口内的项（默认形态不变）。`List` 另有 `ItemHeight`、`EstimatedItemHeight`、`RowKey`、`ScrollToKey`、`Range`，`ProList` 透传 `EstimatedItemHeight`，`Conversations` 有 `ScrollToKey`，键盘上下移动跨越窗口时自动滚动。
 - 下拉 / 弹层选项列表在超过 100 项时只构建可见行（与 `Select` 相同）：`AutoComplete`、`Mentions`、`Command`、`Cascader`、`CascaderPanel`；新增三态逃生口 `Virtual(on bool)`（不调用为自动，`true` 强制开，`false` 强制关）。
 - `ui/paint`（实验性）：新增 `(*CPU).RenderRegionInto(dst, ops, region, scale)`，区域与 `dst` 边界相同时清零并复用 `dst`，结果与 `RenderRegion` 一致；每帧重绘同一区域时不再每次新分配位图。

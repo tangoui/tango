@@ -42,9 +42,10 @@ func (f *tblFrame) setupScroll(frameID ID) {
 	s := f.scroll
 	f.bounded = t.maxH > 0
 	f.viewH = s.view.H
-	if f.viewH <= 0 || !f.bounded || f.viewH > t.maxH {
-		// The body is never taller than maxH: a larger viewport is
-		// left from an unbounded build (ScrollY just turned on).
+	if f.viewH <= 0 || !f.bounded || t.keepEdit && f.viewH > t.maxH {
+		// keepEdit: the body is never taller than maxH, a larger
+		// viewport is left from an unbounded build (ScrollY just turned
+		// on). Plain tables keep their earlier one-frame behaviour.
 		f.viewH = t.maxH
 	}
 	f.offsets()
@@ -372,6 +373,9 @@ func (f *tblFrame) body() {
 			return
 		}
 		keeps := f.keepRows()
+		if t.rowsHook != nil && f.bounded {
+			t.rowsHook(f.first, f.last, keeps)
+		}
 		for _, p := range keeps {
 			if p < f.first {
 				f.buildKeep(p)
@@ -399,7 +403,7 @@ func (f *tblFrame) body() {
 				f.buildKeep(p)
 			}
 		}
-		if f.bounded {
+		if f.keeping() {
 			st.focusSeen = c.focus
 		}
 		f.scrollThumbs()
