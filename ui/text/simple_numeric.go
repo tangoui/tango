@@ -38,28 +38,74 @@ func numericIndex(r rune) int {
 	return -1
 }
 
-// numericGlyphTable holds, per numeric rune, the face's glyph and its
-// advance in font units at the face's variation instance. Reading it avoids
-// re-evaluating variable-font advance deltas for every label every frame.
+// numericGlyphTable lays out numeric labels without shaping each one, yet
+// exactly as HarfBuzz would: it is built by shaping, once per style, every
+// numeric rune alone (its glyph and 26.6-rounded advance) and every ordered
+// pair (the pair kerning added to the first glyph's advance), and is only
+// used when a probe set laid out from it matches full shaping glyph for
+// glyph (numericProbes). A numeric label thus measures and places the same
+// on the fast path, through HarfBuzz, and in either base direction.
 type numericGlyphTable struct {
-	ok  bool
-	gid [len(numericChars)]uint32
-	adv [len(numericChars)]float32 // font units
+	ok   bool
+	gid  [len(numericChars)]uint32
+	adv  [len(numericChars)]float32                    // px, as shaped alone
+	kern [len(numericChars)][len(numericChars)]float32 // px added to the first glyph's advance
 }
 
-func buildNumericTable(face *Face) numericGlyphTable {
+// numericProbes check a table against full shaping: kerning around the dot
+// and signs, repeated digits, and longer runs.
+var numericProbes = []string{"12.34", "1.1", "-0.5", "+7", "100.00", "-123.45", "99.99", "7.7.7", "1-1", "+-0", "0123456789", "452.79"}
+
+// shapeNumeric shapes runes as the general path does for a feature-free
+// numeric face.
+func shapeNumeric(face *Face, runes []rune, st Style, lang string) []sg {
+	in := shaping.Input{Text: runes, RunEnd: len(runes), Direction: di.DirectionLTR, Script: language.Latin, Language: language.NewLanguage(lang), Face: face.gt(), Size: fixed.Int26_6(st.Size * 64)}
+	return advanceShaper.append(nil, in, face, 0)
+}
+
+func buildNumericTable(face *Face, st Style, lang string) numericGlyphTable {
 	var t numericGlyphTable
-	gt := face.gt()
-	if gt == nil {
+	if face.gt() == nil {
 		return t
 	}
-	for i, r := range numericChars {
-		gid, ok := gt.NominalGlyph(r)
-		if !ok {
+	chars := []rune(numericChars)
+	for i, r := range chars {
+		gl := shapeNumeric(face, []rune{r}, st, lang)
+		if len(gl) != 1 || gl[0].face != face || gl[0].xoff != 0 || gl[0].yoff != 0 {
 			return numericGlyphTable{}
 		}
-		t.gid[i] = uint32(gid)
-		t.adv[i] = gt.HorizontalAdvance(gid)
+		t.gid[i], t.adv[i] = gl[0].gid, gl[0].adv
+	}
+	for i, a := range chars {
+		for j, b := range chars {
+			gl := shapeNumeric(face, []rune{a, b}, st, lang)
+			if len(gl) != 2 || gl[0].gid != t.gid[i] || gl[1].gid != t.gid[j] || gl[1].xoff != 0 || gl[1].yoff != 0 {
+				return numericGlyphTable{}
+			}
+			t.kern[i][j] = gl[0].adv - t.adv[i]
+		}
+	}
+	for _, p := range numericProbes {
+		runes := []rune(p)
+		gl := shapeNumeric(face, runes, st, lang)
+		if len(gl) != len(runes) {
+			return numericGlyphTable{}
+		}
+		x, want := float32(0), float32(0)
+		for k, r := range runes {
+			i := numericIndex(r)
+			if gl[k].gid != t.gid[i] || gl[k].xoff != 0 || x != want {
+				return numericGlyphTable{}
+			}
+			x += t.adv[i]
+			if k+1 < len(runes) {
+				x += t.kern[i][numericIndex(runes[k+1])]
+			}
+			want += gl[k].adv
+		}
+		if x != want {
+			return numericGlyphTable{}
+		}
 	}
 	t.ok = true
 	return t
@@ -101,7 +147,7 @@ func numericFaceFor(st Style, lang string, version int) (numericFaceValue, bool)
 	}
 	v := numericFaceValue{face: face, feats: append([]shaping.FontFeature(nil), fm.feats...)}
 	if len(v.feats) == 0 {
-		v.table = buildNumericTable(face)
+		v.table = buildNumericTable(face, st, lang)
 	}
 	numericFaces[k] = v
 	return v, true
@@ -136,24 +182,23 @@ func directNumericLayoutInto(dst *Layout, s string, st Style, opt Options, versi
 	asc, desc := face.Metrics(st.Size)
 	l.Ascent, l.Height = asc, st.LineHeight
 	base := (st.LineHeight-(asc+desc))/2 + asc
-	unit := st.Size / face.upem
-	pen := float32(0)
-	for _, r := range s {
-		i := numericIndex(r)
-		l.Runes = append(l.Runes, r)
-		l.Glyphs = append(l.Glyphs, paint.Glyph{Src: face, ID: nf.table.gid[i], Size: st.Size, X: pen, Y: base})
-		l.GlyphCluster = append(l.GlyphCluster, int32(len(l.Glyphs)-1))
-		l.GlyphRun = append(l.GlyphRun, 0)
-		pen += nf.table.adv[i] * unit
-	}
 	var carets []float32
 	if len(oldLines) > 0 {
 		carets = oldLines[0].carets[:0]
 	}
-	cx := float32(0)
-	for _, r := range l.Runes {
-		carets = append(carets, cx)
-		cx += nf.table.adv[numericIndex(r)] * unit
+	pen, prev := float32(0), -1
+	for _, r := range s {
+		i := numericIndex(r)
+		if prev >= 0 {
+			pen += nf.table.kern[prev][i]
+		}
+		carets = append(carets, pen)
+		l.Runes = append(l.Runes, r)
+		l.Glyphs = append(l.Glyphs, paint.Glyph{Src: face, ID: nf.table.gid[i], Size: st.Size, X: pen, Y: base})
+		l.GlyphCluster = append(l.GlyphCluster, int32(len(l.Glyphs)-1))
+		l.GlyphRun = append(l.GlyphRun, 0)
+		pen += nf.table.adv[i]
+		prev = i
 	}
 	carets = append(carets, pen)
 	l.Lines = append(oldLines[:0], Line{Start: 0, End: len(l.Runes), Width: pen, Baseline: base, carets: carets})
