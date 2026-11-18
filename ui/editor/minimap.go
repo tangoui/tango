@@ -76,6 +76,9 @@ type miniLine struct {
 	bmp    *miniBitmap // the characters (minimap_chars.go; nil: none)
 	// bmpDone: bmp is drawn (characters were on).
 	bmpDone bool
+	// blocksDone: blocks are made (only when characters are off: the
+	// character minimap does not draw them).
+	blocksDone bool
 	// spanned: tokens are text's own from start (TokenizeSpan; the
 	// line's tokens were not cached), so they depend on text and start
 	// only.
@@ -457,7 +460,10 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 			toks = hl.TokenizeSpan(snap, line, prefix, m.tokenScratch[:0])
 			m.tokenScratch = toks
 		}
-		ln = &miniLine{spanned: !cached, text: prefix, dep: depText, rawLen: rawLen, short: short, seen: ver, seenLine: line, start: start, final: final, tokens: slices.Clone(toks), blocks: miniBlocksAt(prefix, base, toks, th, tab), base: base}
+		ln = &miniLine{spanned: !cached, text: prefix, dep: depText, rawLen: rawLen, short: short, seen: ver, seenLine: line, start: start, final: final, tokens: slices.Clone(toks), base: base}
+		if !w.opts.Minimap.RenderCharacters {
+			ln.blocks, ln.blocksDone = miniBlocksAt(prefix, base, toks, th, tab), true
+		}
 		m.cache[key] = ln
 		m.rebuilt++
 		w.ensureMiniBitmap(ln, th, tab)
@@ -691,6 +697,11 @@ func (w *ViewW) paintMinimap(l *paint.List, th *theme.Theme) {
 		scale := min(1, r.W/float32(w.miniColumns()))
 		for _, row := range vs.miniRows {
 			if ln := vs.mini.cache[row.key]; ln != nil {
+				if !ln.blocksDone {
+					// Made while characters were on (blocks are made only
+					// for this view).
+					ln.blocks, ln.blocksDone = miniBlocksAt(ln.text, ln.base, ln.tokens, th, max(1, w.tabs())), true
+				}
 				for _, b := range ln.blocks {
 					w.navigationFill(l, geom.Rect{X: r.X + float32(b.a)*scale, Y: row.y, W: float32(b.b-b.a) * scale, H: min(1, row.h)}, b.color)
 				}
