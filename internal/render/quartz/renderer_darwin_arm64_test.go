@@ -3,6 +3,7 @@
 package quartz
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"math"
@@ -425,4 +426,170 @@ func TestNativeBatchedOverlappingAlphaMatchesSeparateLayers(t *testing.T) {
 			}
 		}
 	}
+}
+
+// bulkTextList is a grid of labels on backgrounds; seed changes every label.
+func bulkTextList(seed int) *paint.List {
+	var ops []paint.Op
+	for i := 0; i < 48; i++ {
+		x, y := float32(i%8)*90+4, float32(i/8)*30+4
+		ops = append(ops, paint.FillRect{Rect: geom.Rect{X: x, Y: y, W: 80, H: 24}, Color: color.NRGBA{R: 240, G: 232, B: 184, A: 255}})
+		t := textOp(fmt.Sprintf("%d.%02d", (i*7919+seed*31)%1000, (i+seed)%100), x+4, y+4)
+		t.Color = color.NRGBA{R: 160, G: 16, B: 40, A: 255} // asymmetric: catches channel order
+		ops = append(ops, t)
+	}
+	return &paint.List{Background: color.NRGBA{R: 255, G: 255, B: 255, A: 255}, Ops: ops}
+}
+
+// Bulk text must draw exactly what one layer per label draws, through the
+// transition into bulk mode, across changing content, and back out of it.
+func TestNativeBulkTextMatchesSeparateLayers(t *testing.T) {
+	for _, scale := range []float32{1, 2} {
+		r, ref := newNativeTestRenderer(t), newNativeTestRenderer(t)
+		ref.scene.bulkOff = true
+		size := geom.Size{W: 740, H: 190}
+		frames := 4 + bulkCalmFrames + 2
+		for f := 0; f < frames; f++ {
+			seed := f
+			if f >= 4 {
+				seed = 3 // content stops changing: bulk mode must end
+			}
+			l := bulkTextList(seed)
+			nativeFrame(t, r, l, size, scale)
+			nativeFrame(t, ref, l, size, scale)
+			if f == 2 && !r.scene.bulk {
+				t.Fatal("changing labels did not enter bulk mode")
+			}
+			if f == 2 || f == frames-1 {
+				nearImage(t, nativeSnapshot(t, r), nativeSnapshot(t, ref), 2)
+			}
+		}
+		if r.scene.bulk {
+			t.Fatal("static labels stayed in bulk mode")
+		}
+		texts := 0
+		for _, n := range r.nodes {
+			if n.kind == itemText {
+				texts++
+			}
+		}
+		if texts < 40 {
+			t.Fatalf("after bulk mode, %d text layers; want per-label layers back", texts)
+		}
+	}
+}
+
+func TestNativeBulkSurfacesAlternateAndRelease(t *testing.T) {
+	r := newNativeTestRenderer(t)
+	size := geom.Size{W: 740, H: 190}
+	var shown []uintptr
+	for f := 0; f < 4; f++ {
+		nativeFrame(t, r, bulkTextList(f), size, 1)
+		if f > 0 {
+			if !r.scene.bulkMerged || r.surfaces.shown == 0 {
+				t.Fatalf("frame %d: bulk text not drawn into a surface", f)
+			}
+			shown = append(shown, r.surfaces.shown)
+		}
+	}
+	for i := 1; i < len(shown); i++ {
+		if shown[i] == shown[i-1] {
+			t.Fatal("consecutive bulk frames reused the displayed surface")
+		}
+	}
+	if len(r.surfaces.ring) > surfaceMax {
+		t.Fatalf("%d surfaces, want at most %d", len(r.surfaces.ring), surfaceMax)
+	}
+	for f := 0; f < bulkCalmFrames+1; f++ {
+		nativeFrame(t, r, bulkTextList(9), size, 1)
+	}
+	if len(r.surfaces.ring) != 0 {
+		t.Fatalf("bulk mode ended with %d surfaces retained", len(r.surfaces.ring))
+	}
+}
+
+// Labels cut by a clip (a scrolled table, a narrow column) must stay cut in
+// the bulk raster exactly as in their own layers.
+func TestNativeBulkTextKeepsPartialClips(t *testing.T) {
+	clipped := func(seed int) *paint.List {
+		l := bulkTextList(seed)
+		var ops []paint.Op
+		for i, op := range l.Ops {
+			if txt, ok := op.(paint.Text); ok && i%4 == 1 {
+				r := geom.Rect{X: txt.Origin.X, Y: txt.Origin.Y - 2, W: 14, H: 9}
+				ops = append(ops, paint.PushClip{Rect: r}, txt, paint.Pop{})
+				continue
+			}
+			ops = append(ops, op)
+		}
+		l.Ops = ops
+		return l
+	}
+	for _, scale := range []float32{1, 2} {
+		r, ref := newNativeTestRenderer(t), newNativeTestRenderer(t)
+		ref.scene.bulkOff = true
+		size := geom.Size{W: 740, H: 190}
+		for f := 0; f < 4; f++ {
+			nativeFrame(t, r, clipped(f), size, scale)
+			nativeFrame(t, ref, clipped(f), size, scale)
+		}
+		if !r.scene.bulkMerged {
+			t.Fatal("clipped grid did not merge")
+		}
+		nearImage(t, nativeSnapshot(t, r), nativeSnapshot(t, ref), 2)
+	}
+}
+
+// Recoloring cells in place keeps each background's layer where it is: the
+// sublayer order does not change and the result matches a fresh renderer.
+func TestNativeRecoloredSolidsKeepTheirLayers(t *testing.T) {
+	cells := func(seed int) *paint.List {
+		colors := []color.NRGBA{{255, 0, 0, 255}, {0, 255, 0, 255}, {0, 0, 255, 255}}
+		l := &paint.List{Background: color.NRGBA{255, 255, 255, 255}}
+		for i := 0; i < 30; i++ {
+			l.Ops = append(l.Ops, paint.FillRect{Rect: geom.Rect{X: float32(i%6) * 20, Y: float32(i/6) * 10, W: 20, H: 10}, Color: colors[(i*7+seed)%3]})
+		}
+		return l
+	}
+	r := newNativeTestRenderer(t)
+	size := geom.Size{W: 120, H: 50}
+	nativeFrame(t, r, cells(0), size, 1)
+	before := append([]*node(nil), r.nodes...)
+	nativeFrame(t, r, cells(1), size, 1)
+	for i := range before {
+		if r.nodes[i] != before[i] {
+			t.Fatalf("cell %d changed layer when only recolored", i)
+		}
+	}
+	fresh := newNativeTestRenderer(t)
+	nativeFrame(t, fresh, cells(1), size, 1)
+	nearImage(t, nativeSnapshot(t, r), nativeSnapshot(t, fresh), 0)
+}
+
+// the new size: none of the old size stays in the ring.
+func TestNativeBulkSurfacesFollowWindowSize(t *testing.T) {
+	r := newNativeTestRenderer(t)
+	small, large := geom.Size{W: 740, H: 190}, geom.Size{W: 760, H: 220}
+	for f := 0; f < 5; f++ {
+		nativeFrame(t, r, bulkTextList(f), small, 1)
+	}
+	if len(r.surfaces.ring) == 0 {
+		t.Fatal("no surfaces before resize")
+	}
+	for f := 5; f < 9; f++ {
+		nativeFrame(t, r, bulkTextList(f), large, 1)
+	}
+	want := image.Pt(760, 220)
+	if len(r.surfaces.ring) == 0 {
+		t.Fatal("no surfaces after resize")
+	}
+	for _, s := range r.surfaces.ring {
+		if s.size != want {
+			t.Fatalf("surface of size %v kept after resize to %v", s.size, want)
+		}
+	}
+	ref := newNativeTestRenderer(t)
+	ref.scene.bulkOff = true
+	nativeFrame(t, ref, bulkTextList(8), large, 1)
+	nearImage(t, nativeSnapshot(t, r), nativeSnapshot(t, ref), 2)
 }

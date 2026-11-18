@@ -76,7 +76,8 @@ func (s *scene) textItem(op paint.Text, clip image.Rectangle) error {
 			k.f(run.Positions[i].Y)
 		}
 	}
-	s.items = append(s.items, item{kind: itemText, key: string(k), frame: frame, color: op.Color, runs: runs, clip: clip})
+	key := string(k)
+	s.items = append(s.items, item{kind: itemText, key: key, hash: keyHash(key), frame: frame, color: op.Color, runs: runs, clip: clip, op: op})
 	return nil
 }
 func (s *scene) rasterText(op paint.Text, clip image.Rectangle) error {
