@@ -6,6 +6,7 @@
 
 ### 新增
 
+- `ui.RunnerOptions.Content`（实验性）：用 `ui.ContentData` 标明窗口主要展示自行变化的数据（表格、网格、行情、列表、仪表盘）。macOS 上这类窗口不限大小默认走原生图层，列表、行情窗口 physical footprint 39–54 MB（Metal 135–147 MB），800×600 数据网格约 69 MB（mygo 107 MB），帧持续超过 8 ms 时仍单向升级 Metal；默认 `ui.ContentGeneral` 不变，大窗口仍走 Metal。`TANGO_RENDERER` 和 `RunnerOptions.Renderer` 优先。
 - `ui/paint`（实验性）：新增 `(*CPU).RenderRegionInto(dst, ops, region, scale)`，区域与 `dst` 边界相同时清零并复用 `dst`，结果与 `RenderRegion` 一致；每帧重绘同一区域时不再每次新分配位图。
 - 实验性 `macoslite` 包：独立的 macOS 原生轻量窗口宿主，只用 purego 调 AppKit/CoreGraphics/CoreText，不加载 WebView、`ui.Runner` 或 GPU 渲染器；提供窗口生命周期、鼠标键盘事件、`Canvas` 填充/圆角矩形/CoreText 文本。参考窗口 `examples/macoslite-counter` 空闲 physical footprint 约 26 MiB，测量脚本 `scripts/macoslite-memory.sh`。
 - macOS 新增 `TANGO_LAUNCH_BACKGROUND=1`（常量 `automation.EnvLaunchBackground`）：应用启动时不激活，窗口显示在其他应用窗口之后，相当于 `open -g`。`automation.Launch` 默认设置它，端到端测试不再抢用户焦点、也不遮挡别的窗口；需要前台时在 `Options.Env` 里设为 `0`。

@@ -89,6 +89,8 @@ pkg github.com/tangoui/tango/ui, const CodeVariable CodeTokenKind = 7
 pkg github.com/tangoui/tango/ui, const ConfirmActionCancel ConfirmAction = "cancel"
 pkg github.com/tangoui/tango/ui, const ConfirmActionClose ConfirmAction = "close"
 pkg github.com/tangoui/tango/ui, const ConfirmActionConfirm ConfirmAction = "confirm"
+pkg github.com/tangoui/tango/ui, const ContentData ContentKind = 1
+pkg github.com/tangoui/tango/ui, const ContentGeneral ContentKind = 0
 pkg github.com/tangoui/tango/ui, const DirAuto Direction = 0
 pkg github.com/tangoui/tango/ui, const DockBottom DockSide = 4
 pkg github.com/tangoui/tango/ui, const DockCenter DockSide = 0
@@ -4359,6 +4361,7 @@ pkg github.com/tangoui/tango/ui, type ConfirmOptions struct, Width float32
 pkg github.com/tangoui/tango/ui, type ConfirmOptions struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ConfirmRef struct
 pkg github.com/tangoui/tango/ui, type ConfirmRef struct, noncomparable
+pkg github.com/tangoui/tango/ui, type ContentKind int
 pkg github.com/tangoui/tango/ui, type Context struct
 pkg github.com/tangoui/tango/ui, type Context struct, Theme *ui/theme.Theme
 pkg github.com/tangoui/tango/ui, type Context struct, noncomparable
@@ -5322,6 +5325,7 @@ pkg github.com/tangoui/tango/ui, type Runner struct
 pkg github.com/tangoui/tango/ui, type Runner struct, noncomparable
 pkg github.com/tangoui/tango/ui, type RunnerOptions struct
 pkg github.com/tangoui/tango/ui, type RunnerOptions struct, Clock func() time.Time
+pkg github.com/tangoui/tango/ui, type RunnerOptions struct, Content ContentKind
 pkg github.com/tangoui/tango/ui, type RunnerOptions struct, NoAnimations bool
 pkg github.com/tangoui/tango/ui, type RunnerOptions struct, ReduceMotion bool
 pkg github.com/tangoui/tango/ui, type RunnerOptions struct, Renderer ui/paint.Renderer

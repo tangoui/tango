@@ -180,3 +180,47 @@ func TestNativeDefaultKeepsLargeAnimatedSurfacesOnVerifiedGPU(t *testing.T) {
 	}
 	forced.Close()
 }
+
+func TestDataWindowsUseNativeLayersAtAnySize(t *testing.T) {
+	r := &nativeRenderTest{}
+	nativeTestHooks(t, r)
+	oldTarget, oldNP := gpuTarget, newPresenter
+	gpuCalls := 0
+	gpuTarget = func(platform.Canvas) (uintptr, error) { gpuCalls++; return 7, nil }
+	newPresenter = func(uintptr) (paint.Renderer, func(image.Point, float32) error, error) {
+		return &nativeRenderTest{}, func(image.Point, float32) error { return nil }, nil
+	}
+	t.Cleanup(func() { gpuTarget, newPresenter = oldTarget, oldNP })
+
+	t.Setenv("TANGO_RENDERER", "")
+	cv := &largeNativeCanvasTest{}
+	g := setupGPU(cv, ui.RunnerOptions{Content: ui.ContentData})
+	if g == nil || !g.nativeMode || cv.targets != 1 || gpuCalls != 0 {
+		t.Fatalf("large data window: native=%v targets=%d gpu calls=%d, want native layers without Metal", g != nil && g.nativeMode, cv.targets, gpuCalls)
+	}
+	if g.native == nil {
+		t.Fatal("data window lost the promotion to Metal for expensive frames")
+	}
+	g.Close()
+
+	general := &largeNativeCanvasTest{}
+	g = setupGPU(general, ui.RunnerOptions{})
+	if g == nil || g.nativeMode || general.targets != 0 {
+		t.Fatal("large general window left the Metal default")
+	}
+	g.Close()
+
+	for _, mode := range []string{"gpu", "cpu", "auto"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Setenv("TANGO_RENDERER", mode)
+			cv := &largeNativeCanvasTest{}
+			g := setupGPU(cv, ui.RunnerOptions{Content: ui.ContentData})
+			if g != nil {
+				defer g.Close()
+			}
+			if cv.targets != 0 {
+				t.Fatalf("TANGO_RENDERER=%s: data window took native layers", mode)
+			}
+		})
+	}
+}

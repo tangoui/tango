@@ -177,10 +177,11 @@ func setupGPU(cv platform.Canvas, ropts ui.RunnerOptions) *gpuRenderer {
 	if mode == "cpu" {
 		return nil
 	}
-	// Large continuous-update scenes retain the verified GPU default until
-	// native CPU/tail-latency acceptance is established. Utility surfaces can
-	// avoid its fixed residency cost; explicit native remains available at any size.
-	if mode == "native" || mode == "" && autoCPUWindow(cv) {
+	// Large windows default to Metal: native layers reach the screen about
+	// two frames later after input. Small utility windows and data windows
+	// (ui.ContentData) avoid Metal's fixed residency cost; explicit native
+	// remains available at any size.
+	if mode == "native" || mode == "" && (ropts.Content == ui.ContentData || autoCPUWindow(cv)) {
 		if g := startNative(cv, mode == "native"); g != nil {
 			return g
 		}

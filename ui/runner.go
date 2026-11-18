@@ -28,6 +28,9 @@ type RunnerOptions struct {
 	// timers such as hover delays. Hosts that track the OS setting call
 	// Runner.SetReduceMotion when it changes.
 	ReduceMotion bool
+	// Content says what the window mostly shows, which lets the host pick
+	// a renderer suited to it (see ContentData).
+	Content ContentKind
 }
 
 // Runner drives one window: it queues input, runs the page function, lays
