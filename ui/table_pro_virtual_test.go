@@ -308,12 +308,26 @@ func TestTableScrollYDropsEditedCell(t *testing.T) {
 	if !v3FocusIn(d, "1") {
 		t.Fatal("cell editor not focused")
 	}
+	d.Key(input.KeyEnd, 0)
+	d.Type("Z")
 	v3Wheel(d, 30000)
 	if v3Node(d.r.c.root, "row:1") != nil || d.r.c.focus != 0 {
 		t.Fatalf("plain ScrollY kept the edited row: built %v focus %v", v3Node(d.r.c.root, "row:1") != nil, d.r.c.focus)
 	}
 	if tw.keepEdit || tw.st.revOn {
 		t.Fatal("plain table in keep-edit mode")
+	}
+	// Pre-V3 result: nothing is committed while the row is away; the
+	// draft stays in the table's cell-edit state.
+	if e := tw.st.edit; names[1] != "n1" || !e.on || e.key != "1" || e.d.v != "n1Z" {
+		t.Fatalf("scrolled away: name %q edit %+v", names[1], e)
+	}
+	// Scrolling back rebuilds the editor without the focus: the blur
+	// commits the draft.
+	v3Wheel(d, -1e7)
+	d.Settle()
+	if names[1] != "n1Z" || tw.st.edit.on {
+		t.Fatalf("scrolled back: name %q editing %v", names[1], tw.st.edit.on)
 	}
 }
 
@@ -406,5 +420,14 @@ func TestRowEditorTableVirtualTypingReveals(t *testing.T) {
 	d.Settle()
 	if v3InView(d, "r2") {
 		t.Fatal("scrolling pulled the edited row back")
+	}
+	// A TextEdit alone (a mobile IME's delete or autocorrect, which the
+	// editor consumes while it builds) brings it back too.
+	before := w.e.st.drafts["r2"]["name"].(string)
+	d.Inject(input.TextEdit{Start: len([]rune(before)) - 1, End: len([]rune(before)), Text: ""})
+	d.Settle()
+	d.Settle()
+	if got := w.e.st.drafts["r2"]["name"]; got == before || !v3InView(d, "r2") {
+		t.Fatalf("TextEdit: draft %v (was %q) in view %v", got, before, v3InView(d, "r2"))
 	}
 }

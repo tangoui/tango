@@ -100,7 +100,7 @@ func (f *tblFrame) noteFocus(n *node, r tblRow) {
 	if !f.keeping() || n == nil || c.focus == 0 || !f.editRow(r) {
 		return
 	}
-	if (c.focus == st.focusSeen && !tblTyping(c)) || !c.focusWithin(n) {
+	if (c.focus == st.focusSeen && !f.typing) || !c.focusWithin(n) {
 		return
 	}
 	leaf := -1
@@ -132,8 +132,14 @@ func (f *tblFrame) pendingReveal() {
 	}
 }
 
-// tblTyping reports keyboard, text or IME input this frame.
+// tblTyping reports keyboard, text or IME input this frame. It is read
+// before the rows are built (tblFrame.typing): an editor consumes the
+// frame's events while it builds (a TextEdit, from a mobile IME's delete
+// or autocorrect, clears them).
 func tblTyping(c *Context) bool {
+	if len(c.ime.edits) > 0 {
+		return true
+	}
 	for _, ev := range c.events {
 		switch ev := ev.(type) {
 		case input.KeyEvent:

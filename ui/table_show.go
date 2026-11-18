@@ -153,6 +153,7 @@ type tblFrame struct {
 	focused  bool
 	rowPaint bool  // rows paint their background and bottom line once (no merged cells)
 	rowIDs   []ID  // cells of the row buildRow built last
+	typing   bool  // keepEdit: key, text or IME input this frame (tblTyping)
 	rowLeaf  []int // and their leaves
 	tips     []tblTip
 

@@ -57,6 +57,7 @@ func (f *tblFrame) setupScroll(frameID ID) {
 		s.off.Y = 0
 	}
 	f.sx, f.sy = float32(s.off.X), s.off.Y
+	f.typing = f.keeping() && tblTyping(f.c) // before any editor takes the events
 	f.updateRange()
 	if f.vh != nil {
 		f.measureWindow()
