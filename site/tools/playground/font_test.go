@@ -26,7 +26,8 @@ func TestBundledFontContainsChineseGalleryLabels(t *testing.T) {
 }
 
 // Every Han character in the gallery and ui sources must be in the subset;
-// otherwise the online demos drop it. Regenerate with
+// otherwise the online demos drop it. Test files are not compiled into the
+// demos, so their text is not checked. Regenerate with
 // site/tools/subset-gallery-font.py (see fonts/README.md) when this fails.
 func TestBundledFontCoversGallerySources(t *testing.T) {
 	f, err := font.ParseTTF(bytes.NewReader(demoChineseFont))
@@ -36,7 +37,7 @@ func TestBundledFontCoversGallerySources(t *testing.T) {
 	missing := map[rune]bool{}
 	for _, dir := range []string{"../../../ui", "../../../examples/ui-gallery"} {
 		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") {
+			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 				return err
 			}
 			b, err := os.ReadFile(path)

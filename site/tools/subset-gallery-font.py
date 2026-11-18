@@ -13,7 +13,8 @@ from fontTools.varLib.instancer import instantiateVariableFont
 repo = Path(__file__).resolve().parents[2]
 source = Path(sys.argv[1])
 characters = {ord(c) for directory in [repo/'ui', repo/'examples/ui-gallery']
-              for path in directory.rglob('*.go') for c in path.read_text()
+              for path in directory.rglob('*.go') if not path.name.endswith('_test.go')
+              for c in path.read_text()
               if ord(c) > 127}
 font = TTFont(source, recalcTimestamp=False)
 options = subset.Options()
