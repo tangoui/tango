@@ -99,3 +99,24 @@ go build -o /tmp/tan-size ./cmd/tan
 | Mixed | webview,canvas | 10,178,034 | 4,036,900 |
 
 结论：Go 链接器已经自动裁掉了最小样本中没有被调用的多数后端代码。`webview` profile 只减少 16–48 B，canvas/mixed 没有安装后体积收益；因此本轮不把 backend profile 宣传成瘦身方案，也不做高风险的 Darwin 全文件拆分。profile 保留为后续平台拆分和能力校验的实验性基础。
+
+## 2026-11-18 macOS 文字引擎改用 CoreText
+
+默认 macOS 构建的自绘文字（整形、断行、双向文字、字体回退、光栅化）全部交给 CoreText，不再链接 `github.com/go-text/typesetting`（`-tags tango_gotext` 恢复 go-text）。测量条件：Go 1.27.3，darwin/arm64，`CGO_ENABLED=0 -trimpath -ldflags='-s -w'`；改前 origin/main `9f0d478`，改后 `feat/coretext-engine` `c2b3493`。最小自绘样本即 `scripts/size-report.sh` 的 `ui` 应用（`uihost.Open` + 一个 `ui.Button`）；模板样本由 `tan init -yes -template ui -local <checkout>` 生成，`.app`/`.dmg` 由同一棵源码树构建的 `tan package -platform darwin/arm64` 生成。
+
+| 样本 | 改前 B | 改后 B | 差值 B | 变化 |
+|---|---:|---:|---:|---:|
+| 最小自绘样本，可执行文件 | 10,520,354 | 8,544,834 | -1,975,520 | -18.8% |
+| 最小自绘样本，gzip -9 | 4,168,007 | 3,459,328 | -708,679 | -17.0% |
+| `tan init -template ui`，可执行文件 | 11,975,746 | 10,000,386 | -1,975,360 | -16.5% |
+| `tan init -template ui`，gzip -9 | 4,807,190 | 4,098,485 | -708,705 | -14.7% |
+| `tan init -template ui`，`.app` 内全部文件 | 12,100,962 | 10,137,090 | -1,963,872 | -16.2% |
+| `tan init -template ui`，`.dmg` | 3,720,203 | 3,198,304 | -521,899 | -14.0% |
+| 6 路基准 Tango counter（`outputs/tango-6way-full-20261117/bench`，`-buildvcs=false`） | 10,553,698 | 8,578,226 | -1,975,472 | -18.7% |
+
+按包汇总代码量（pclntab，最小样本）：总代码 4.25 MB → 3.48 MB。改前 go-text 各包合计约 732 KB（`font/opentype/tables` 340 KB、`harfbuzz` 242 KB、`font` 72 KB、`font/cff` 28 KB、`font/cff/interpreter` 12 KB、`bidi` 12 KB、`font/opentype` 9 KB、`segmenter` 7 KB、`shaping` 7 KB、`internal/unicodedata` 3 KB），另有只被它用到的 `golang.org/x/image/tiff`、`ccitt`、`tiff/lzw` 约 27 KB；改后两个样本的包列表和 `go version -m` 的依赖里都没有 `github.com/go-text/`，`ui/text` 自身从 101 KB 增至 105 KB。段大小：`__text` 4,248,868 → 3,475,556 B，`__gopclntab` 3,493,870 → 2,836,637 B，`__noptrdata` 405,025 → 296,129 B。`scripts/check-gotext-free.sh` 在整个模块的 `go list -deps ./...`（darwin/arm64）上确认没有 go-text。
+
+同批性能测量（`outputs/coretext-bench-20261118/`，**超出验收门槛，待用户决定**）：
+
+- `ui/text` 行缓存基准（各 5 次取中位数，改前 → 改后）：`LineCacheMono200/hit` 53 → 42 ns，`hit-tokens` 276 → 281 ns，`miss-fast` 4.7 → 7.1 µs（+53%），`miss-fast-tokens` 8.7 → 11.7 µs（+35%），`miss-general` 26 → 97 µs（+267%），`miss-general-tokens` 35 → 359 µs（+914%）；`LineCacheMixed200/miss-fast` 14 → 780 µs，`miss-general` 36 → 476 µs。门槛为耗时增幅不超过 20%。
+- 6 路基准的 Tango 程序，5 轮交错（改前 → 改后，中位数）：进程 CPU counter 0.1% → 0%、quotes 15.8% → 37.4%（+21.6 个百分点）、list 8.6% → 12.4%（+3.8）、grid 19.2% → 19.1%；内存 counter 32.3 → 27.6 MB、quotes 146.9 → 137.2 MB、list 133.4 → 127.0 MB、grid 146.9 → 138.5 MB；首帧 254/291/268/293 ms → 218/265/236/231 ms；帧间隔 P99 16.76–16.89 ms，两边相同。门槛为 CPU 增幅不超过 2 个百分点，quotes 和 list 超出。
