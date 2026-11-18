@@ -76,6 +76,10 @@ type miniLine struct {
 	bmp    *miniBitmap // the characters (minimap_chars.go; nil: none)
 	// bmpDone: bmp is drawn (characters were on).
 	bmpDone bool
+	// spanned: tokens are text's own from start (TokenizeSpan; the
+	// line's tokens were not cached), so they depend on text and start
+	// only.
+	spanned bool
 	// seen is the snapshot version text was last found current at, for
 	// line seenLine (prepareMinimap skips reading the source of a line no
 	// edit since touched). The line is part of it: a row moved to another
@@ -415,11 +419,13 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 			m.tokenScratch = toks
 		}
 		dirty := ln == nil || ln.text != prefix || ln.start != start || ln.final != final || (cached && !slices.Equal(ln.tokens, toks))
-		if dirty && cached {
+		if dirty {
 			// A line inserted or deleted above moves rows to other line
 			// numbers unchanged: take over the previous frame's row with
-			// the same miniature, start state and tokens, if there is one.
-			if moved := m.takeMoved(prefix, start, final, from, toks); moved != nil {
+			// the same miniature, start state and tokens, if there is one
+			// (without cached tokens: a row tokenized on its own from the
+			// same start, whose tokens are this row's).
+			if moved := m.takeMoved(prefix, start, final, from, toks, cached); moved != nil {
 				// A copy: the previous frame's row may still be its old
 				// line's (rows with the same text), each keeps its own seen.
 				c := *moved
@@ -446,7 +452,7 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 			toks = hl.TokenizeSpan(snap, line, prefix, m.tokenScratch[:0])
 			m.tokenScratch = toks
 		}
-		ln = &miniLine{text: prefix, dep: depText, rawLen: rawLen, short: short, seen: ver, seenLine: line, start: start, final: final, tokens: slices.Clone(toks), blocks: miniBlocksAt(prefix, base, toks, th, tab), base: base}
+		ln = &miniLine{spanned: !cached, text: prefix, dep: depText, rawLen: rawLen, short: short, seen: ver, seenLine: line, start: start, final: final, tokens: slices.Clone(toks), blocks: miniBlocksAt(prefix, base, toks, th, tab), base: base}
 		m.cache[key] = ln
 		m.rebuilt++
 		w.ensureMiniBitmap(ln, th, tab)
@@ -551,7 +557,7 @@ func (m *minimapState) indexMoved() {
 // before, with no index. Moved rows miss together (every row below an
 // inserted or deleted line), so the index is built on the frame's second
 // miss; the first one is rebuilt without it.
-func (m *minimapState) takeMoved(prefix string, start monarch.State, final bool, from int, toks []monarch.Token) *miniLine {
+func (m *minimapState) takeMoved(prefix string, start monarch.State, final bool, from int, toks []monarch.Token, cached bool) *miniLine {
 	m.misses++
 	if m.misses < 2 {
 		return nil
@@ -561,7 +567,13 @@ func (m *minimapState) takeMoved(prefix string, start monarch.State, final bool,
 	}
 	rows := m.byText[prefix]
 	for i, ln := range rows {
-		if ln.start == start && ln.final == final && ln.base == from && slices.Equal(ln.tokens, toks) {
+		same := ln.start == start && ln.final == final
+		if cached {
+			same = same && ln.base == from && slices.Equal(ln.tokens, toks)
+		} else {
+			same = same && ln.spanned && ln.base == 0
+		}
+		if same {
 			m.byText[prefix] = slices.Delete(rows, i, i+1)
 			return ln
 		}

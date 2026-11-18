@@ -19,8 +19,12 @@ package darwin
 //     macOS 14+). Each tick marks the view as needing display when a frame
 //     is wanted, then AppKit calls updateLayer in the same run loop pass,
 //     which calls CanvasFrame. A link idle for a few ticks pauses itself,
-//     so a still window costs nothing. Without a display link a 16 ms
-//     timer throttles instead.
+//     so a still window costs nothing. A frame asked for after a pause (the
+//     last tick drew nothing, or the link is paused) draws at once instead
+//     of waiting a refresh for the next tick (frameAtOnce): the window
+//     server composites at the refresh, so a key typed into a still window
+//     shows a refresh sooner; frames that follow each other stay paced by
+//     the link. Without a display link a 16 ms timer throttles instead.
 //   - InvalidateAt arms one CFRunLoopTimer per canvas, re-set to the
 //     earliest pending deadline; when it fires it goes through
 //     requestFrame too. Any frame satisfies a pending deadline.
@@ -439,10 +443,14 @@ func (c *canvas) requestFrame() {
 	}
 	c.frameWanted = true
 	if c.link != 0 {
+		atOnce := frameAtOnce(c.idleTicks, c.linkRunning, c.inFrame)
 		c.idleTicks = 0
 		if !c.linkRunning {
 			c.linkRunning = true
 			send(c.link, "setPaused:", 0)
+		}
+		if atOnce {
+			c.setNeedsDisplay() // the frame clears frameWanted
 		}
 		return
 	}
@@ -461,6 +469,16 @@ func (c *canvas) setNeedsDisplay() {
 		return
 	}
 	send(c.view, "setNeedsDisplay:", 1)
+}
+
+// frameAtOnce reports whether a frame asked for now draws at once rather
+// than at the display link's next tick: after a pause, when the last tick
+// drew nothing (idleTicks > 0) or the link is paused, and not from inside
+// a frame (that request waits for the next refresh). A frame drawn at once
+// resets idleTicks, so a second request before the next tick waits for it:
+// at most one frame drawn at once between two ticks.
+func frameAtOnce(idleTicks int, linkRunning, inFrame bool) bool {
+	return !inFrame && (!linkRunning || idleTicks > 0)
 }
 
 // displayTick runs on every display refresh while the link is unpaused.

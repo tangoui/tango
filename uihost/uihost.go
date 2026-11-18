@@ -21,6 +21,7 @@ import (
 
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/corehook"
+	"github.com/tangoui/tango/internal/guiprobe"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/sys/clipboard"
 	"github.com/tangoui/tango/ui"
@@ -183,6 +184,7 @@ func (h *host) CanvasInput(ev input.Event) {
 	if h.closed || h.r == nil {
 		return
 	}
+	guiprobe.Observe(ev)  // no-op unless built explicitly with tango_guiprobe
 	if !h.sc.handle(ev) { // a window shortcut consumes its key (shortcuts.go)
 		h.r.HandleEvent(ev)
 	}
