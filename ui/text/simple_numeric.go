@@ -1,3 +1,5 @@
+//go:build !darwin || ios || !tango_coretext
+
 package text
 
 import (
@@ -6,36 +8,12 @@ import (
 	"github.com/go-text/typesetting/shaping"
 	"github.com/tangoui/tango/ui/paint"
 	"golang.org/x/image/math/fixed"
-	"unicode/utf8"
 )
 
-type numericFaceKey struct {
-	st      Style
-	lang    string
-	version int
-}
 type numericFaceValue struct {
 	face  *Face
 	feats []shaping.FontFeature
 	table numericGlyphTable
-}
-
-// numericChars are the runes simpleNumericText accepts; numericIndex maps a
-// rune to its slot in numericGlyphTable.
-const numericChars = "0123456789.-+"
-
-func numericIndex(r rune) int {
-	switch {
-	case r >= '0' && r <= '9':
-		return int(r - '0')
-	case r == '.':
-		return 10
-	case r == '-':
-		return 11
-	case r == '+':
-		return 12
-	}
-	return -1
 }
 
 // numericGlyphTable lays out numeric labels without shaping each one, yet
@@ -114,17 +92,9 @@ func buildNumericTable(face *Face, st Style, lang string) numericGlyphTable {
 var numericFaces = map[numericFaceKey]numericFaceValue{}
 
 func clearNumericFaces() { numericFaces = map[numericFaceKey]numericFaceValue{} }
-func simpleNumericText(s string) bool {
-	if s == "" || len(s) > 31 || !utf8.ValidString(s) {
-		return false
-	}
-	for _, r := range s {
-		if !(r >= '0' && r <= '9' || r == '.' || r == '-' || r == '+') {
-			return false
-		}
-	}
-	return true
-}
+// numericLabel reports text ShapeInto lays out with the numeric path.
+func numericLabel(s string) bool { return simpleNumericText(s) }
+
 func numericFaceFor(st Style, lang string, version int) (numericFaceValue, bool) {
 	k := numericFaceKey{st, lang, version}
 	if v, ok := numericFaces[k]; ok {
@@ -145,7 +115,7 @@ func numericFaceFor(st Style, lang string, version int) (numericFaceValue, bool)
 			return numericFaceValue{}, false
 		}
 	}
-	v := numericFaceValue{face: face, feats: append([]shaping.FontFeature(nil), fm.feats...)}
+	v := numericFaceValue{face: face, feats: append([]shaping.FontFeature(nil), fm.features()...)}
 	if len(v.feats) == 0 {
 		v.table = buildNumericTable(face, st, lang)
 	}

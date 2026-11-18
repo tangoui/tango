@@ -1,20 +1,12 @@
 package text
 
 import (
-	"bytes"
 	"image"
 	"math"
-	"os"
-	"sort"
 	"strings"
 	"sync"
 	"unicode"
 	"unsafe"
-
-	"github.com/go-text/typesetting/font"
-	ot "github.com/go-text/typesetting/font/opentype"
-	"github.com/go-text/typesetting/font/opentype/tables"
-	"github.com/tangoui/tango/ui/paint"
 )
 
 // The system text engine.
@@ -36,31 +28,31 @@ import (
 // elsewhere), so glyph ids and advances agree by construction. Fonts
 // registered with RegisterFont always use the pure-Go path.
 //
+// The opt-in macOS build tag tango_coretext is the exception: CoreText is
+// then the only engine. It also shapes (CTLine runs), finds line breaks
+// (CFStringTokenizer) and orders bidi text, RegisterFont fonts are read by
+// CoreText too, and no go-text code is linked (a smaller binary; long
+// uncached lines shape slower than with go-text).
+//
 // Every engine face is a distinct *Face (a distinct paint.GlyphSource) that
 // implements paint.GlyphRasterizer; pure-Go faces never rasterize through
 // it. Switching the engine rebuilds the system chain with new Face values,
 // so a glyph source never changes rasterization path (the GPU atlas keys
 // masks by source).
 
-// engineMode is the requested engine: TANGO_TEXT_ENGINE=go|system sets the
-// initial value, UseSystemEngine changes it.
-var engineMode = engineFromEnv(os.Getenv("TANGO_TEXT_ENGINE"))
-
-// engineFromEnv parses TANGO_TEXT_ENGINE: "go" (or off/0/false) selects the
-// pure-Go path; anything else, including unset and "system", the engine.
-func engineFromEnv(v string) bool {
-	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "go", "off", "0", "false":
-		return false
-	}
-	return true
-}
-
 // UseSystemEngine enables (the default) or disables the system text engine
 // for system fonts. Disabled, system font files are parsed and rasterized
 // in pure Go, which renders identically on every machine with the same
 // fonts (golden images, CPU/GPU comparison tests). The environment variable
 // TANGO_TEXT_ENGINE=go or =system sets the initial state.
+//
+// On macOS (not iOS) built with -tags tango_coretext there is a single text
+// engine, CoreText, which shapes, breaks and rasterizes; no pure-Go text
+// engine is linked. There UseSystemEngine changes nothing and returns true
+// (UseSystemEngine(false) does not turn CoreText off), Engine always
+// reports "coretext", and TANGO_TEXT_ENGINE is ignored. The default build
+// keeps the go-text engine and this switch (golden images and other tests
+// that need the pure-Go path).
 //
 // It is a process-wide switch (all windows, renderers and goroutines) and
 // takes effect through new glyph sources: a switch drops the layout cache
@@ -70,36 +62,17 @@ func engineFromEnv(v string) bool {
 // through the engine (paint.GlyphRasterizer), pure-Go faces always through
 // their outlines. Layouts shaped before the switch keep their old faces and
 // draw exactly as before; reshape (or let the UI re-run its frame) to pick
-// up the new engine. Fonts added with RegisterFont always use the pure-Go
-// path. Call it before rendering starts when possible (tests: at the top of
+// up the new engine. Fonts added with RegisterFont use the pure-Go path,
+// except with -tags tango_coretext on macOS, where CoreText reads them like
+// system fonts. Call it before rendering starts when possible (tests: at the top of
 // the test or in TestMain). It returns the previous setting, for restoring.
-func UseSystemEngine(on bool) (prev bool) {
-	reg.mu.Lock()
-	prev = reg.engineOn
-	changed := prev != on
-	reg.engineOn = on
-	if changed {
-		reg.version++
-	}
-	reg.mu.Unlock()
-	if changed {
-		clearCache()
-	}
-	return prev
-}
+func UseSystemEngine(on bool) (prev bool) { return useSystemEngine(on) }
 
 // Engine names the text engine rendering system fonts: "coretext",
 // "directwrite", "freetype", or "go" when the system engine is disabled or
-// unavailable.
-func Engine() string {
-	reg.chain(false)
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
-	if reg.eng != nil {
-		return reg.eng.eng.name()
-	}
-	return "go"
-}
+// unavailable. With -tags tango_coretext on macOS it always reports
+// "coretext" (see UseSystemEngine).
+func Engine() string { return engineName() }
 
 // sysEngine is a platform text engine (engine_<os>.go).
 type sysEngine interface {
@@ -231,26 +204,6 @@ func (f *Face) SystemRasterized() bool {
 	return f.ras != nil
 }
 
-// newEngineFace wraps an engine face: gt shapes (same tables the engine
-// renders), ras rasterizes, unitPath (optional) supplies outlines in font
-// units when go-text cannot read them.
-func newEngineFace(family string, w Weight, italic bool, gt *font.Face, ras glyphEngine, unitPath func(uint32) *paint.Path) *Face {
-	f := newFace(family, w, gt)
-	f.Italic = italic
-	f.ras = ras
-	f.unitPath = unitPath
-	return f
-}
-
-// newLazyEngineFace is newEngineFace for a face built on first use: build
-// returns what newEngineFace takes (gt nil when the face cannot be built).
-// Loading a family registers every style it has; a UI uses a few of them,
-// and parsing a face's tables (a CJK font's character map, a variable
-// font's variation data) costs megabytes.
-func newLazyEngineFace(family string, w Weight, italic bool, build func() (*font.Face, glyphEngine, func(uint32) *paint.Path)) *Face {
-	return &Face{Family: family, Weight: w, Italic: italic, paths: map[uint32]*paint.Path{}, build: build}
-}
-
 // runeClass is the script group a rune prefers a font for.
 type runeClass uint8
 
@@ -350,21 +303,6 @@ func roundWeight(w int) Weight {
 	return Weight(max(100, min(900, w)))
 }
 
-// sfntFromTables builds an in-memory OpenType file from tables (tag →
-// data), skipping glyph data the shaper does not need (outlines and
-// bitmaps: the engine renders those).
-func sfntFromTables(tabs map[uint32][]byte) []byte {
-	var list []ot.Table
-	for tag, data := range tabs {
-		if skipTable(tag) {
-			continue
-		}
-		list = append(list, ot.Table{Tag: ot.Tag(tag), Content: data})
-	}
-	sort.Slice(list, func(i, j int) bool { return list[i].Tag < list[j].Tag })
-	return ot.WriteTTF(list)
-}
-
 func tag4(s string) uint32 {
 	return uint32(s[0])<<24 | uint32(s[1])<<16 | uint32(s[2])<<8 | uint32(s[3])
 }
@@ -379,49 +317,6 @@ func skipTable(tag uint32) bool {
 		return true
 	}
 	return false
-}
-
-// goTextFace parses an in-memory font (one face) for shaping.
-func goTextFace(data []byte) (*font.Face, *ot.Loader, error) {
-	ld, err := ot.NewLoader(bytes.NewReader(data))
-	if err != nil {
-		return nil, nil, err
-	}
-	fn, err := font.NewFont(ld)
-	if err != nil {
-		return nil, nil, err
-	}
-	return font.NewFace(fn), ld, nil
-}
-
-// fvarAxes returns the variation axes of a font (nil when not variable).
-func fvarAxes(ld *ot.Loader) []tables.VariationAxisRecord {
-	raw, err := ld.RawTable(ot.MustNewTag("fvar"))
-	if err != nil {
-		return nil
-	}
-	fv, _, err := tables.ParseFvar(raw)
-	if err != nil {
-		return nil
-	}
-	return fv.Axis
-}
-
-// setDesignCoords sets the variation of face to the engine's axis values
-// (tag → design value; missing axes keep their default), so shaping uses
-// the instance the engine draws.
-func setDesignCoords(face *font.Face, axes []tables.VariationAxisRecord, vals map[uint32]float32) {
-	if len(axes) == 0 {
-		return
-	}
-	coords := make([]float32, len(axes))
-	for i, a := range axes {
-		coords[i] = float32(a.Default)
-		if v, ok := vals[uint32(a.Tag)]; ok {
-			coords[i] = v
-		}
-	}
-	face.SetCoords(face.Font.NormalizeVariations(coords))
 }
 
 // applyGammaLUT maps every coverage value of m through lut.

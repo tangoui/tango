@@ -32,6 +32,7 @@ pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) Line(int) *Line
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) ScrollDown(int, int)
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) ScrollUp(int, int)
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) ScrollbackLen() int
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) Search(string, bool) []Match
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) SetViewOffset(int)
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) Size() (int, int)
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) Styles() *StyleTable
@@ -79,6 +80,10 @@ pkg github.com/tangoui/tango/ui/terminal/vt, type Line struct, Cells []Cell
 pkg github.com/tangoui/tango/ui/terminal/vt, type Line struct, Dirty bool
 pkg github.com/tangoui/tango/ui/terminal/vt, type Line struct, Wrapped bool
 pkg github.com/tangoui/tango/ui/terminal/vt, type Line struct, noncomparable
+pkg github.com/tangoui/tango/ui/terminal/vt, type Match struct
+pkg github.com/tangoui/tango/ui/terminal/vt, type Match struct, From int
+pkg github.com/tangoui/tango/ui/terminal/vt, type Match struct, Line int
+pkg github.com/tangoui/tango/ui/terminal/vt, type Match struct, To int
 pkg github.com/tangoui/tango/ui/terminal/vt, type Modes struct
 pkg github.com/tangoui/tango/ui/terminal/vt, type Modes struct, AppCursor bool
 pkg github.com/tangoui/tango/ui/terminal/vt, type Modes struct, AutoWrap bool

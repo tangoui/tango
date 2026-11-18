@@ -2,14 +2,11 @@ package text
 
 import (
 	"math"
-	"reflect"
 	"slices"
 	"sort"
 	"sync/atomic"
 	"unicode"
 
-	"github.com/go-text/typesetting/bidi"
-	"github.com/go-text/typesetting/language"
 	"github.com/tangoui/tango/ui/geom"
 )
 
@@ -86,87 +83,15 @@ func resolveLang(st Style) string {
 type item struct {
 	start, end int
 	st         Style
-	lang       language.Language
-	level      bidi.Level // odd: right-to-left
-	run        int32      // style run (ShapeRuns); 0 for Shape
+	lang       string // BCP 47 language tag
+	level      level  // odd: right-to-left
+	run        int32  // style run (ShapeRuns); 0 for Shape
 }
 
-func (it item) rtl() bool { return it.level&1 == 1 }
-
-// bpara is reused by paraLevels; it is only used under mu (from layout).
-var bpara bidi.Paragraph
-
-// runLevels copies the per-rune embedding levels out of runs into dst.
-//
-// go-text's bidi package (the UAX #9 implementation shaping.Segmenter
-// itself uses) resolves exact levels but only exposes runs cut where the
-// direction flips, labelled with the level of their first rune: in
-// "abc שלום 123 def" the run "123 def" is reported at level 2 although
-// " def" is at 0, and L2 needs the exact levels. Runs keeps them in its
-// unexported levels field, read here with reflect (read-only, no unsafe).
-// TestBidiExactLevels fails if a go-text update moves it; the fallback
-// (run levels) then still gets every rune's direction right.
-func runLevels(runs bidi.Runs, dst []bidi.Level) {
-	if f := reflect.ValueOf(runs).FieldByName("levels"); f.IsValid() && f.Kind() == reflect.Slice && f.Len() >= len(dst) {
-		for i := range dst {
-			dst[i] = bidi.Level(f.Index(i).Int())
-		}
-		return
-	}
-	for k := 0; k < runs.NumRuns(); k++ {
-		r := runs.Run(k)
-		for i := r.Start; i < r.End && i < len(dst); i++ {
-			dst[i] = r.Level
-		}
-	}
-}
-
-// paraLevels resolves the embedding levels of runes[a:b] (one paragraph,
-// no '\n') into lv[a:b] and returns the paragraph level. mixed reports
-// whether the paragraph needs bidi treatment at all (a rune at a non-zero
-// level or a right-to-left paragraph).
-func paraLevels(runes []rune, a, b int, dir Direction, lv []bidi.Level) (base bidi.Level, mixed bool) {
-	def := bidi.Neutral
-	switch dir {
-	case DirLTR:
-		def = bidi.LeftToRight
-	case DirRTL:
-		def = bidi.RightToLeft
-		base = 1
-	}
-	first := true
-	for a < b {
-		// go-text stops at bidi paragraph separators other than '\n'
-		// (U+2029, '\r', U+001C..1E, U+0085); resolve each piece and give
-		// the separator the paragraph level.
-		runs := bpara.Segment(runes[a:b], def)
-		n := 0
-		if k := runs.NumRuns(); k > 0 {
-			n = runs.Run(k - 1).End
-		}
-		runLevels(runs, lv[a:a+n])
-		lo := bidi.Level(127)
-		for _, v := range lv[a : a+n] {
-			lo = min(lo, v)
-			mixed = mixed || v != 0
-		}
-		if first && dir == DirAuto && n > 0 {
-			// Rules P2/P3 make the first strong character's level the
-			// paragraph level, and no rune resolves below it.
-			base = lo
-		}
-		first = false
-		a += n
-		if a < b { // a separator
-			lv[a] = base
-			a++
-		}
-	}
-	return base, mixed || base != 0
-}
+func (it item) rtl() bool { return it.level.rtl() }
 
 // itemize cuts runes[a:b] into items of constant embedding level.
-func itemize(a, b int, lv []bidi.Level, st Style, lang language.Language, out []item) []item {
+func itemize(a, b int, lv []level, st Style, lang string, out []item) []item {
 	for i := a; i < b; {
 		j := i + 1
 		for j < b && lv[j] == lv[i] {
@@ -190,8 +115,8 @@ func isSegSep(r rune) bool { return r == '\t' || r == 0x0b || r == 0x1f }
 // lineLevels returns the levels of runes[a:e] for display, after rule L1:
 // segment separators, whitespace before them and trailing whitespace go
 // back to the paragraph level.
-func lineLevels(runes []rune, a, e int, lv []bidi.Level, base bidi.Level) []bidi.Level {
-	out := append([]bidi.Level(nil), lv[a:e]...)
+func lineLevels(runes []rune, a, e int, lv []level, base level) []level {
+	out := append([]level(nil), lv[a:e]...)
 	reset := true
 	for i := e - 1; i >= a; i-- {
 		r := runes[i]
@@ -210,13 +135,13 @@ func lineLevels(runes []rune, a, e int, lv []bidi.Level, base bidi.Level) []bidi
 
 // visualOrder applies rule L2: it returns the logical offsets (into lv) in
 // left-to-right display order.
-func visualOrder(lv []bidi.Level) []int {
+func visualOrder(lv []level) []int {
 	n := len(lv)
 	idx := make([]int, n)
 	for i := range idx {
 		idx[i] = i
 	}
-	hi, lo := bidi.Level(0), bidi.Level(127)
+	hi, lo := level(0), level(127)
 	for _, l := range lv {
 		hi = max(hi, l)
 		if l&1 == 1 {
@@ -226,7 +151,7 @@ func visualOrder(lv []bidi.Level) []int {
 	if lo == 127 {
 		return idx
 	}
-	cur := append([]bidi.Level(nil), lv...)
+	cur := append([]level(nil), lv...)
 	for lvl := hi; lvl >= lo; lvl-- {
 		for i := 0; i < n; {
 			if cur[i] < lvl {

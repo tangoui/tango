@@ -15,5 +15,6 @@ func TrimFontCaches() {
 	reg.system, reg.mono, reg.eng = nil, nil, nil
 	reg.version++
 	reg.mu.Unlock()
+	trimFaceTable()
 	clearCache()
 }

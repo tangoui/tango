@@ -1,3 +1,5 @@
+//go:build !darwin || ios || !tango_coretext
+
 package text
 
 import (

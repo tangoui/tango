@@ -2,17 +2,13 @@ package editor
 
 import (
 	"math"
-	"os"
-	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/tangoui/tango/ui/editor/theme"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
-	"github.com/tangoui/tango/ui/text"
 )
 
 // injHost shows doc (CSS, color decorators on by default) focused.
@@ -339,45 +335,6 @@ func TestColorInjectedLargeFile(t *testing.T) {
 		if a != b {
 			t.Fatalf("column %d: x %v, %v with colors off", col, a, b)
 		}
-	}
-}
-
-// goldenColorSource is the document of the color golden images.
-const goldenColorSource = "a {\n" +
-	"  color: #ff0000;\n" +
-	"  background: rgba(0, 0, 255, 0.5);\n" +
-	"  border: 1px solid hsl(120, 100%, 25%);\n" +
-	"}\n" +
-	"#fff at the line start, \"#0f08\" in quotes\n"
-
-// TestColorInjectedGolden: the swatches in their gaps (Monaco's
-// .colorpicker-color-decoration: a 0.8em box with a 0.1em border, black or
-// #eee on dark themes, 0.2em margins), a translucent one over the
-// background, a selection across a gap (covered), one of a literal's "#"
-// (not covered) and its caret right of the gap after Shift+Left.
-func TestColorInjectedGolden(t *testing.T) {
-	goText(t)
-	if want, err := os.ReadFile(filepath.Join("testdata", "golden_fonts.txt")); err != nil || string(want) != strings.Join(text.Families(), "\n") {
-		t.Skip("golden images were recorded with different fonts")
-	}
-	for _, name := range []string{"vs", "vs-dark"} {
-		t.Run(name, func(t *testing.T) {
-			st := NewState(goldenColorSource, "demo.css", theme.Base(name))
-			d, _ := viewDriver(st, 520, 200, nil)
-			d.Frame()
-			d.Click(geom.Pt(400, 190)) // focus
-			snap := st.Snapshot()
-			a := snap.LineStart(3) + strings.Index(snap.Line(3), "solid")
-			st.SetSelections([]Selection{
-				{Anchor: a, Head: a + len("solid hsl")},
-				{Anchor: snap.LineStart(1) + 10, Head: snap.LineStart(1) + 10},
-			})
-			d.Frame()
-			// Shift+Left: the selection still crosses its gap; the caret
-			// selects "#" and is drawn right of its gap.
-			d.Key(input.KeyLeft, input.ModShift)
-			checkGolden(t, d.Frame(), "view_"+strings.ReplaceAll(name, "-", "_")+"_colors.png")
-		})
 	}
 }
 

@@ -22,7 +22,7 @@ func systemFamilies() (sans, mono []*family) {
 			if err != nil {
 				continue
 			}
-			faces, err := parseFaces("Segoe UI", f, "")
+			faces, err := parseFaceResource("Segoe UI", f, "")
 			if err != nil {
 				f.Close()
 				continue
@@ -38,7 +38,7 @@ func systemFamilies() (sans, mono []*family) {
 			if err != nil {
 				continue
 			}
-			faces, err := parseFaces("Microsoft YaHei", f, "Microsoft YaHei\x00Microsoft YaHei UI\x00微软雅黑")
+			faces, err := parseFaceResource("Microsoft YaHei", f, "Microsoft YaHei\x00Microsoft YaHei UI\x00微软雅黑")
 			if err != nil || len(faces) == 0 {
 				f.Close()
 				continue

@@ -49,7 +49,7 @@ func systemFamilies() (sans, mono []*family) {
 				if err != nil {
 					continue
 				}
-				faces, err := parseFaces(name, f, keep)
+				faces, err := parseFaceResource(name, f, keep)
 				if err != nil || len(faces) == 0 {
 					f.Close()
 					continue

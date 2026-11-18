@@ -7,7 +7,6 @@ import (
 	"image/color"
 	"image/png"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -391,118 +390,6 @@ func TestViewThemeDefaults(t *testing.T) {
 	}
 	if _, ok := lookupColor(vs, "editor.lineHighlightBackground"); ok {
 		t.Errorf("vs: lineHighlightBackground has no default in Monaco (a border is drawn instead)")
-	}
-}
-
-// goldenSource is the document of the golden images: keywords, strings,
-// comments, numbers, a tab, CJK and a selection over two lines.
-const goldenSource = `// Package demo 演示高亮
-package demo
-
-import "fmt"
-
-func Sum(xs []int) (n int) {
-	for _, x := range xs {
-		n += x * 2 // double
-	}
-	fmt.Println("sum:", n, 0x1F)
-	return
-}
-`
-
-func TestViewGolden(t *testing.T) {
-	goText(t)
-	got := strings.Join(text.Families(), "\n")
-	fonts := filepath.Join("testdata", "golden_fonts.txt")
-	if *update {
-		os.MkdirAll("testdata", 0o755)
-		os.WriteFile(fonts, []byte(got), 0o644)
-	} else if want, err := os.ReadFile(fonts); err != nil || string(want) != got {
-		t.Skip("golden images were recorded with different fonts")
-	}
-	for _, name := range []string{"vs", "vs-dark"} {
-		t.Run(name, func(t *testing.T) {
-			st := NewState(goldenSource, "demo.go", theme.Base(name))
-			d, _ := viewDriver(st, 520, 300, nil)
-			d.Frame()
-			d.Click(geom.Pt(400, 280)) // focus
-			snap := st.Snapshot()
-			// Select from "range" on line 6 to "x * 2" on line 7.
-			a := snap.LineStart(6) + strings.Index(snap.Line(6), "range")
-			b := snap.LineStart(7) + strings.Index(snap.Line(7), "x *")
-			st.MoveCaret(a, false)
-			st.MoveCaret(b, true)
-			checkGolden(t, d.Frame(), "view_"+strings.ReplaceAll(name, "-", "_")+".png")
-		})
-		// Every display decoration of Task 12 on: relative line numbers,
-		// whitespace marks, a control character, indentation guides with
-		// the active one, colored brackets (an unexpected one), the matched
-		// pair at the caret, the line highlight in the gutter and the text,
-		// and a top padding.
-		t.Run(name+"/decorations", func(t *testing.T) {
-			st := NewState(goldenDecoSource, "demo.go", theme.Base(name))
-			o := &st.Options
-			o.LineNumbers = LineNumbersRelative
-			o.RenderWhitespace = RenderWhitespaceAll
-			o.RenderLineHighlight = RenderLineHighlightAll
-			o.Padding = PaddingOptions{Top: 6}
-			d, _ := viewDriver(st, 520, 300, nil)
-			d.Frame()
-			d.Click(geom.Pt(400, 280)) // focus
-			snap := st.Snapshot()
-			// The caret after the "{" of the for loop (line 4).
-			st.MoveCaret(snap.LineStart(4)+strings.Index(snap.Line(4), "{")+1, false)
-			checkGolden(t, d.Frame(), "view_"+strings.ReplaceAll(name, "-", "_")+"_decorations.png")
-		})
-		// Bracket pair guides for every pair, the caret's pair (the if
-		// block) highlighted with its horizontal lines.
-		t.Run(name+"/bracketguides", func(t *testing.T) {
-			st := NewState(goldenDecoSource, "demo.go", theme.Base(name))
-			st.Options.Guides.BracketPairs = BracketGuidesOn
-			d, _ := viewDriver(st, 520, 300, nil)
-			d.Frame()
-			d.Click(geom.Pt(400, 280)) // focus
-			snap := st.Snapshot()
-			st.MoveCaret(snap.LineStart(6)+3, false) // in the if block
-			checkGolden(t, d.Frame(), "view_"+strings.ReplaceAll(name, "-", "_")+"_bracketguides.png")
-		})
-	}
-}
-
-// goldenDecoSource is the document of the decorations golden images.
-const goldenDecoSource = "// Package demo 演示装饰\n" +
-	"package demo\n" +
-	"\n" +
-	"func Sum(xs []int) (n int) {\n" +
-	"\tfor _, x := range xs {\n" +
-	"\t\tif x > 0 {\n" +
-	"\t\t\tn += x  // twice\n" +
-	"\n" +
-	"\t\t}\n" +
-	"\t}\n" +
-	"\treturn n \x01\n" +
-	"}\n" +
-	"\n" +
-	"var bad = [1, 2)\n"
-
-// checkGolden compares img with testdata/file (rewritten with -update).
-func checkGolden(t *testing.T, img image.Image, file string) {
-	t.Helper()
-	path := filepath.Join("testdata", file)
-	if *update {
-		if err := savePNG(path, img); err != nil {
-			t.Fatal(err)
-		}
-		return
-	}
-	want, err := loadPNG(path)
-	if err != nil {
-		t.Fatalf("missing golden (go test ./ui/editor -run Golden -update): %v", err)
-	}
-	if diff := comparePNG(img, want, 24); diff > 0.005 {
-		out := filepath.Join(t.TempDir(), filepath.Base(path))
-		savePNG(out, img)
-		t.Fatalf("%.2f%% pixels differ; got %s", diff*100, out)
 	}
 }
 

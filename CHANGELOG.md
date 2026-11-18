@@ -10,6 +10,7 @@
 - `List`、`ProList`、`Conversations` 新增 opt-in 虚拟滚动：`Height(px)` 固定视口高度，再加 `Virtual()` 只构建视口内的项（默认形态不变）。`List` 另有 `ItemHeight`、`EstimatedItemHeight`、`RowKey`、`ScrollToKey`、`Range`，`ProList` 透传 `EstimatedItemHeight`，`Conversations` 有 `ScrollToKey`，键盘上下移动跨越窗口时自动滚动。
 - `Tree` 新增 `DataVersion(v int)`：只在同时设了 `Height` 时生效，缓存父节点表、`Filter` 可见集合、展平后的可见行和勾选状态，每帧开销跟随视口而不是节点总数。节点字段（标题等）始终实时读取；同一切片内原地增删子节点、改键、改动影响 `Filter` 匹配的标题，或原地修改子节点的 `Disabled` / `DisableCheckbox`（勾选状态含父节点的全选 / 半选也被缓存）时，需要改变 `DataVersion`（或换新切片）。不调用 `DataVersion` 时行为和开销与之前完全相同。
 - 下拉 / 弹层选项列表在超过 100 项时只构建可见行（与 `Select` 相同）：`AutoComplete`、`Mentions`、`Command`、`Cascader`、`CascaderPanel`；新增三态逃生口 `Virtual(on bool)`（不调用为自动，`true` 强制开，`false` 强制关）和 `DataVersion(v int)`（与 `Select.DataVersion` 相同）：虚拟形态按选项切片（身份与长度）缓存匹配结果和列表宽度，原地修改同一切片里选项的 `Label` 等字段而长度不变时，需要改变 `DataVersion`（或换一个新切片），下一帧才会重新匹配和测宽。`Sender` 的 @ / 建议列表和 `Cascader` 的搜索结果超过 100 项时同样自动窗口化，它们没有 `Virtual(bool)` 开关（每帧重新匹配和测宽）。
+- 终端搜索：`ui/terminal` 的 `ViewW.Search(query, caseSensitive)` 在历史滚动区和当前屏幕中查找，滚动到命中处并用选区颜色高亮当前命中（Cmd+C 可直接复制）；`SearchStep(±1)` 前后跳转（循环），`SearchInfo` 返回命中数和当前位置，`ClearSearch` 结束搜索。底层为 `vt.Screen.Search`，返回 `[]vt.Match`（稳定行号与列范围，宽字符按单元格计）。
 - `tan.json` 新增 `"cgo": true`：`tan build`、`tan package`、`tan dev`（含热重载）以 `CGO_ENABLED=1` 编译，供链接 C 库（duckdb 等）或带 cgo 文件的应用使用；默认仍是 `CGO_ENABLED=0`，桌面后端走 purego、交叉编译不需要 C 工具链。开启后交叉编译需要在环境里提供目标平台的 `CC`。
 - `ui.RunnerOptions.Content`（实验性）：用 `ui.ContentData` 标明窗口主要展示自行变化的数据（表格、网格、行情、列表、仪表盘）。Apple Silicon macOS 上这类窗口收到键盘输入也不升级 Metal，一直保留原生图层的内存优势，只在连续六帧绘制超过 8 ms 或连续六帧整窗软件回退时单向升级；默认是 `ui.ContentGeneral`。Intel Mac 默认用 Metal，不受影响。渲染器规则见下方“变更”。`TANGO_RENDERER` 和 `RunnerOptions.Renderer` 优先。
 - `ui/paint`（实验性）：新增 `(*CPU).RenderRegionInto(dst, ops, region, scale)`，区域与 `dst` 边界相同时清零并复用 `dst`，结果与 `RenderRegion` 一致；每帧重绘同一区域时不再每次新分配位图。
@@ -20,6 +21,8 @@
 - `@tangoui/runtime` 的 `ErrorCode` 加入 `busy`（更新器在已有检查或下载进行时返回）。
 
 - macOS 自绘 UI 新增可选 `TANGO_TEXT_ENGINE=coretext` 轻量文字路径：无换行短文本使用 CoreText glyph-run 与系统字体回退，复杂排版自动继续使用 go-text/HarfBuzz；默认文字引擎和输出路径不变。
+
+- macOS 新增可选构建标签 `tango_coretext`（CoreText 文字引擎）：`ui/text` 的整形、断行、双向文字、字体回退和光栅化都交给 CoreText，`text.RegisterFont` 的字体也由 CoreText 读取，不链接 `github.com/go-text/typesetting`。最小自绘样本（darwin/arm64，`-trimpath -ldflags='-s -w'`）可执行文件 10,520,354 → 8,544,834 B（-1.88 MiB，-18.8%），`tan init -template ui` 的 `.dmg` 3,720,203 → 3,198,304 B（见 [体积报告](docs/package-size-optimization.md)）。这个构建忽略 `TANGO_TEXT_ENGINE`，`text.UseSystemEngine(false)` 不关掉系统引擎，`text.Engine()` 总是 `"coretext"`；换行位置（中文禁则、URL、数字串）、字距和回退字体跟随系统，可能与 Windows/Linux 不同。性能：行情帧基准 0.20 ms（go-text 0.60 ms），但编辑器行缓存未命中仍比 go-text 慢：Mono/Mixed 普通路径未命中慢 3–15 倍，混排行快速路径未命中约 50–60 倍，所以默认构建继续用 go-text。默认构建和其他平台不变。
 
 - 自绘窗口支持可选 `TANGO_RENDERER=auto`：小窗口先用 CPU，放大、内容复杂或持续高频刷新后单向升级 GPU；保持默认 GPU 优先和显式 Renderer 优先级不变。系统字体链可由 `text.TrimFontCaches()` 丢弃，平台低内存通知也会触发回收；仍被页面或编辑器持有的字体继续有效，macOS 原生字体句柄在最后一个拥有者不可达后释放（见 `docs/dev-builds.md`）。
 
@@ -214,6 +217,7 @@
 
 ### 修复
 
+- `tan dev` 热重载的自绘窗口：标题栏隐藏（`TitleBarHidden`）的 macOS 窗口保留系统红绿灯时，worker 端绘制的自绘标题栏不再在其上再画一组窗口按钮（热重载窗口实现 `ui.WindowFrame`，报告系统按钮与窗口状态）。
 - macOS 自绘窗口：停顿之后的输入（打字、滚动、点击）不再等显示刷新的下一拍才出帧，而是在请求它的那一轮 run loop 里立即画；连续变化的帧仍由 CADisplayLink 控制节奏，两拍之间最多立即出一帧。真实窗口实测（1920×944 编辑器，Metal），修复前的中位延迟随窗口服务器的合成状态在约 48 ms 和约 61 ms 之间切换，两种状态下分别做了修复前后 AB/BA/AB 配对，都快了约一帧：约 48 ms 状态下打字 47.5 → 32.1 ms、三光标 54.0 → 32.7 ms、滚动 48.6 → 30.7 ms；约 61 ms 状态下打字 61.5 → 44.8 ms、三光标 61.7 → 43.5 ms、滚动 62.9 → 46.8 ms。
 - `HotkeyInput`：录制期间窗口快捷键、原生菜单加速键及 Menubar 的 Alt/F10 不再抢走按键；确认、取消、失焦、禁用或移除后自动恢复，保持输入法关闭。`tan dev` 同步录制状态，热重载或 worker 退出后不会遗留快捷键拦截；系统保留键和 OS 级全局热键不在拦截范围内。
 - WebView 菜单图标：`menu.popup` 的 base64 PNG 先用 `DecodeConfig` 校验，像素总数超过 4M 或格式异常时拒绝，避免声明超大尺寸导致解码分配爆炸。

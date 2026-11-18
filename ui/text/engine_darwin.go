@@ -11,10 +11,6 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
-	"github.com/ebitengine/purego"
-	"github.com/go-text/typesetting/font"
-	ot "github.com/go-text/typesetting/font/opentype"
-	"github.com/go-text/typesetting/font/opentype/tables"
 	"github.com/tangoui/tango/ui/paint"
 )
 
@@ -56,110 +52,6 @@ type ctEngine struct {
 	hidden map[string]uintptr // "."-named fallback fonts (CTFontCreateForString), not matchable by name
 }
 
-const (
-	cfStringEncodingUTF8  = 0x08000100
-	cfNumberSInt32Type    = 3
-	cfNumberFloat64Type   = 6
-	ctFontUIFontSystem    = 2
-	ctFontItalicTrait     = 1 << 0
-	ctFontMonoSpaceTrait  = 1 << 10
-	cgImageAlphaNone      = 0
-	ctFontOrientationHorz = 1
-)
-
-type cgPoint struct{ X, Y float64 }
-type cgSize struct{ W, H float64 }
-type cgRect struct {
-	Origin cgPoint
-	Size   cgSize
-}
-type cgAffine struct{ A, B, C, D, Tx, Ty float64 }
-type cfRange struct{ Loc, Len int64 }
-
-var (
-	ctOnce sync.Once
-	ctOK   bool
-
-	cfRelease                                 func(uintptr)
-	cfRetain                                  func(uintptr) uintptr
-	cfAttributedStringCreate                  func(uintptr, uintptr, uintptr) uintptr
-	cfStringCreateWithBytes                   func(alloc uintptr, b *byte, n int64, enc uint32, ext bool) uintptr
-	cfStringGetLength                         func(uintptr) int64
-	cfStringGetCString                        func(s uintptr, buf *byte, n int64, enc uint32) bool
-	cfArrayGetCount                           func(uintptr) int64
-	cfArrayGetValueAtIndex                    func(uintptr, int64) uintptr
-	cfDataGetLength                           func(uintptr) int64
-	cfDataGetBytePtr                          func(uintptr) unsafe.Pointer
-	cfDictionaryCreate                        func(alloc uintptr, keys, vals *uintptr, n int64, kcb, vcb uintptr) uintptr
-	cfDictionaryGetValue                      func(d, k uintptr) uintptr
-	cfDictionaryGetCount                      func(uintptr) int64
-	cfDictionaryGetKeysValues                 func(d uintptr, keys, vals *uintptr)
-	cfNumberCreate                            func(alloc uintptr, typ int64, v unsafe.Pointer) uintptr
-	cfNumberGetValue                          func(n uintptr, typ int64, v unsafe.Pointer) bool
-	cfURLCreateFromFileSystemRepresentation   func(alloc uintptr, b *byte, n int64, dir bool) uintptr
-	ctFontManagerCreateFontDescriptorsFromURL func(url uintptr) uintptr
-
-	ctFontDescriptorCreateWithAttributes          func(uintptr) uintptr
-	ctFontDescriptorCreateMatchingFontDescriptors func(desc, mandatory uintptr) uintptr
-	ctFontCreateWithFontDescriptor                func(desc uintptr, size float64, m *cgAffine) uintptr
-	ctFontCreateCopyWithAttributes                func(f uintptr, size float64, m *cgAffine, desc uintptr) uintptr
-	ctFontCreateCopyWithSymbolicTraits            func(f uintptr, size float64, m *cgAffine, val, mask uint32) uintptr
-	ctFontCreateWithName                          func(name uintptr, size float64, m *cgAffine) uintptr
-	ctFontCreateUIFontForLanguage                 func(typ uint32, size float64, lang uintptr) uintptr
-	ctFontCopyFamilyName                          func(uintptr) uintptr
-	ctFontCopyTraits                              func(uintptr) uintptr
-	ctFontGetSymbolicTraits                       func(uintptr) uint32
-	ctFontCopyVariation                           func(uintptr) uintptr
-	ctFontCopyAvailableTables                     func(f uintptr, opt uint32) uintptr
-	ctFontCopyTable                               func(f uintptr, tag uint32, opt uint32) uintptr
-	ctFontGetUnitsPerEm                           func(uintptr) uint32
-	ctFontGetBoundingRectsForGlyphs               func(f uintptr, o uint32, g *uint16, r *cgRect, n int64) cgRect
-	ctFontGetAdvancesForGlyphs                    func(f uintptr, o uint32, g *uint16, a *cgSize, n int64) float64
-	ctFontCreatePathForGlyph                      func(f uintptr, g uint16, m *cgAffine) uintptr
-	ctFontDrawGlyphs                              func(f uintptr, g *uint16, p *cgPoint, n int64, ctx uintptr)
-	ctFontCreateForString                         func(f, s uintptr, r cfRange) uintptr
-	ctLineCreateWithAttributedString              func(uintptr) uintptr
-	ctLineGetGlyphRuns                            func(uintptr) uintptr
-	ctRunGetGlyphCount                            func(uintptr) int64
-	ctRunGetGlyphs                                func(uintptr, cfRange, *uint16)
-	ctRunGetPositions                             func(uintptr, cfRange, *cgPoint)
-	ctRunGetAdvances                              func(uintptr, cfRange, *cgSize)
-	ctRunGetStringIndices                         func(uintptr, cfRange, *int64)
-	ctRunGetAttributes                            func(uintptr) uintptr
-	ctFontGetAscent                               func(uintptr) float64
-	ctFontGetDescent                              func(uintptr) float64
-
-	cgColorSpaceCreateDeviceGray               func() uintptr
-	cgColorSpaceRelease                        func(uintptr)
-	cgBitmapContextCreate                      func(data uintptr, w, h, bpc, bpr int64, cs uintptr, info uint32) uintptr
-	cgBitmapContextGetData                     func(uintptr) unsafe.Pointer
-	cgBitmapContextGetBytesPerRow              func(uintptr) int64
-	cgContextRelease                           func(uintptr)
-	cgContextSetGrayFillColor                  func(ctx uintptr, g, a float64)
-	cgContextSetShouldAntialias                func(uintptr, bool)
-	cgContextSetAllowsFontSmoothing            func(uintptr, bool)
-	cgContextSetShouldSmoothFonts              func(uintptr, bool)
-	cgContextSetAllowsFontSubpixelPositioning  func(uintptr, bool)
-	cgContextSetShouldSubpixelPositionFonts    func(uintptr, bool)
-	cgContextSetAllowsFontSubpixelQuantization func(uintptr, bool)
-	cgContextSetShouldSubpixelQuantizeFonts    func(uintptr, bool)
-	cgPathApply                                func(path, info, fn uintptr)
-	cgPathRelease                              func(uintptr)
-
-	kCFTypeDictKeyCB, kCFTypeDictValueCB uintptr
-	kCTFontFamilyNameAttribute           uintptr
-	kCTFontAttributeName                 uintptr
-	kCTFontVariationAttribute            uintptr
-	kCTFontWeightTrait                   uintptr
-	kCTFontTraitsAttribute               uintptr
-	kCTFontOpticalSizeAttribute          uintptr // 0 when the OS lacks it
-
-	pathApplyCB uintptr
-	pathMu      sync.Mutex
-	pathCur     *paint.Path
-	pathOpen    bool
-)
-
 func init() { openEngine = openCoreText }
 
 func openCoreText() sysEngine {
@@ -172,185 +64,6 @@ func openCoreText() sysEngine {
 		return nil
 	}
 	return &ctEngine{sysUI: ui, hidden: map[string]uintptr{}}
-}
-
-func loadCoreText() (ok bool) {
-	defer func() {
-		if recover() != nil { // a missing symbol panics in RegisterLibFunc
-			ok = false
-		}
-	}()
-	open := func(p string) uintptr {
-		h, err := purego.Dlopen(p, purego.RTLD_GLOBAL|purego.RTLD_NOW)
-		if err != nil {
-			panic(err)
-		}
-		return h
-	}
-	cf := open("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
-	ct := open("/System/Library/Frameworks/CoreText.framework/CoreText")
-	cg := open("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
-	reg := func(fn any, lib uintptr, name string) { purego.RegisterLibFunc(fn, lib, name) }
-	reg(&cfRelease, cf, "CFRelease")
-	reg(&cfRetain, cf, "CFRetain")
-	reg(&cfAttributedStringCreate, cf, "CFAttributedStringCreate")
-	reg(&cfStringCreateWithBytes, cf, "CFStringCreateWithBytes")
-	reg(&cfStringGetLength, cf, "CFStringGetLength")
-	reg(&cfStringGetCString, cf, "CFStringGetCString")
-	reg(&cfArrayGetCount, cf, "CFArrayGetCount")
-	reg(&cfArrayGetValueAtIndex, cf, "CFArrayGetValueAtIndex")
-	reg(&cfDataGetLength, cf, "CFDataGetLength")
-	reg(&cfDataGetBytePtr, cf, "CFDataGetBytePtr")
-	reg(&cfDictionaryCreate, cf, "CFDictionaryCreate")
-	reg(&cfDictionaryGetValue, cf, "CFDictionaryGetValue")
-	reg(&cfDictionaryGetCount, cf, "CFDictionaryGetCount")
-	reg(&cfDictionaryGetKeysValues, cf, "CFDictionaryGetKeysAndValues")
-	reg(&cfNumberCreate, cf, "CFNumberCreate")
-	reg(&cfNumberGetValue, cf, "CFNumberGetValue")
-	reg(&cfURLCreateFromFileSystemRepresentation, cf, "CFURLCreateFromFileSystemRepresentation")
-	reg(&ctFontManagerCreateFontDescriptorsFromURL, ct, "CTFontManagerCreateFontDescriptorsFromURL")
-
-	reg(&ctFontDescriptorCreateWithAttributes, ct, "CTFontDescriptorCreateWithAttributes")
-	reg(&ctFontDescriptorCreateMatchingFontDescriptors, ct, "CTFontDescriptorCreateMatchingFontDescriptors")
-	reg(&ctFontCreateWithFontDescriptor, ct, "CTFontCreateWithFontDescriptor")
-	reg(&ctFontCreateCopyWithAttributes, ct, "CTFontCreateCopyWithAttributes")
-	reg(&ctFontCreateCopyWithSymbolicTraits, ct, "CTFontCreateCopyWithSymbolicTraits")
-	reg(&ctFontCreateUIFontForLanguage, ct, "CTFontCreateUIFontForLanguage")
-	reg(&ctFontCreateWithName, ct, "CTFontCreateWithName")
-	reg(&ctFontCopyFamilyName, ct, "CTFontCopyFamilyName")
-	reg(&ctFontCopyTraits, ct, "CTFontCopyTraits")
-	reg(&ctFontGetSymbolicTraits, ct, "CTFontGetSymbolicTraits")
-	reg(&ctFontCopyVariation, ct, "CTFontCopyVariation")
-	reg(&ctFontCopyAvailableTables, ct, "CTFontCopyAvailableTables")
-	reg(&ctFontCopyTable, ct, "CTFontCopyTable")
-	reg(&ctFontGetUnitsPerEm, ct, "CTFontGetUnitsPerEm")
-	reg(&ctFontGetBoundingRectsForGlyphs, ct, "CTFontGetBoundingRectsForGlyphs")
-	reg(&ctFontCreatePathForGlyph, ct, "CTFontCreatePathForGlyph")
-	reg(&ctFontGetAdvancesForGlyphs, ct, "CTFontGetAdvancesForGlyphs")
-	reg(&ctFontDrawGlyphs, ct, "CTFontDrawGlyphs")
-	reg(&ctFontCreateForString, ct, "CTFontCreateForString")
-	reg(&ctLineCreateWithAttributedString, ct, "CTLineCreateWithAttributedString")
-	reg(&ctLineGetGlyphRuns, ct, "CTLineGetGlyphRuns")
-	reg(&ctRunGetGlyphCount, ct, "CTRunGetGlyphCount")
-	reg(&ctRunGetGlyphs, ct, "CTRunGetGlyphs")
-	reg(&ctRunGetPositions, ct, "CTRunGetPositions")
-	reg(&ctRunGetAdvances, ct, "CTRunGetAdvances")
-	reg(&ctRunGetStringIndices, ct, "CTRunGetStringIndices")
-	reg(&ctRunGetAttributes, ct, "CTRunGetAttributes")
-	reg(&ctFontGetAscent, ct, "CTFontGetAscent")
-	reg(&ctFontGetDescent, ct, "CTFontGetDescent")
-
-	reg(&cgColorSpaceCreateDeviceGray, cg, "CGColorSpaceCreateDeviceGray")
-	reg(&cgColorSpaceRelease, cg, "CGColorSpaceRelease")
-	reg(&cgBitmapContextCreate, cg, "CGBitmapContextCreate")
-	reg(&cgBitmapContextGetData, cg, "CGBitmapContextGetData")
-	reg(&cgBitmapContextGetBytesPerRow, cg, "CGBitmapContextGetBytesPerRow")
-	reg(&cgContextRelease, cg, "CGContextRelease")
-	reg(&cgContextSetGrayFillColor, cg, "CGContextSetGrayFillColor")
-	reg(&cgContextSetShouldAntialias, cg, "CGContextSetShouldAntialias")
-	reg(&cgContextSetAllowsFontSmoothing, cg, "CGContextSetAllowsFontSmoothing")
-	reg(&cgContextSetShouldSmoothFonts, cg, "CGContextSetShouldSmoothFonts")
-	reg(&cgContextSetAllowsFontSubpixelPositioning, cg, "CGContextSetAllowsFontSubpixelPositioning")
-	reg(&cgContextSetShouldSubpixelPositionFonts, cg, "CGContextSetShouldSubpixelPositionFonts")
-	reg(&cgContextSetAllowsFontSubpixelQuantization, cg, "CGContextSetAllowsFontSubpixelQuantization")
-	reg(&cgContextSetShouldSubpixelQuantizeFonts, cg, "CGContextSetShouldSubpixelQuantizeFonts")
-	reg(&cgPathApply, cg, "CGPathApply")
-	reg(&cgPathRelease, cg, "CGPathRelease")
-
-	sym := func(lib uintptr, name string) uintptr {
-		p, err := purego.Dlsym(lib, name)
-		if err != nil {
-			panic(err)
-		}
-		return p
-	}
-	val := func(lib uintptr, name string) uintptr {
-		p := sym(lib, name)
-		return **(**uintptr)(unsafe.Pointer(&p)) // the variable's value, not its address
-	}
-	kCFTypeDictKeyCB = sym(cf, "kCFTypeDictionaryKeyCallBacks")
-	kCFTypeDictValueCB = sym(cf, "kCFTypeDictionaryValueCallBacks")
-	kCTFontFamilyNameAttribute = val(ct, "kCTFontFamilyNameAttribute")
-	kCTFontAttributeName = val(ct, "kCTFontAttributeName")
-	kCTFontVariationAttribute = val(ct, "kCTFontVariationAttribute")
-	kCTFontWeightTrait = val(ct, "kCTFontWeightTrait")
-	kCTFontTraitsAttribute = val(ct, "kCTFontTraitsAttribute")
-	if p, err := purego.Dlsym(ct, "kCTFontOpticalSizeAttribute"); err == nil {
-		kCTFontOpticalSizeAttribute = **(**uintptr)(unsafe.Pointer(&p))
-	}
-	pathApplyCB = purego.NewCallback(pathApplier)
-	return true
-}
-
-// cgPathElement is CGPathElement.
-type cgPathElement struct {
-	Type   int32
-	_      int32
-	Points *cgPoint
-}
-
-// pathApplier is the CGPathApplierFunction collecting a glyph outline into
-// pathCur (pathMu held by the caller of CGPathApply).
-func pathApplier(info uintptr, e *cgPathElement) {
-	p := pathCur
-	pts := unsafe.Slice(e.Points, 3)
-	switch e.Type {
-	case 0: // moveTo
-		if pathOpen {
-			p.Close()
-		}
-		p.MoveTo(float32(pts[0].X), float32(-pts[0].Y))
-		pathOpen = true
-	case 1:
-		p.LineTo(float32(pts[0].X), float32(-pts[0].Y))
-	case 2:
-		p.QuadTo(float32(pts[0].X), float32(-pts[0].Y), float32(pts[1].X), float32(-pts[1].Y))
-	case 3:
-		p.CubeTo(float32(pts[0].X), float32(-pts[0].Y), float32(pts[1].X), float32(-pts[1].Y), float32(pts[2].X), float32(-pts[2].Y))
-	case 4:
-		if pathOpen {
-			p.Close()
-			pathOpen = false
-		}
-	}
-}
-
-func cfStr(s string) uintptr {
-	b := []byte(s)
-	if len(b) == 0 {
-		b = []byte{0}
-		return cfStringCreateWithBytes(0, &b[0], 0, cfStringEncodingUTF8, false)
-	}
-	return cfStringCreateWithBytes(0, &b[0], int64(len(b)), cfStringEncodingUTF8, false)
-}
-
-func goStr(s uintptr) string {
-	if s == 0 {
-		return ""
-	}
-	n := cfStringGetLength(s)*4 + 1
-	buf := make([]byte, n)
-	if !cfStringGetCString(s, &buf[0], n, cfStringEncodingUTF8) {
-		return ""
-	}
-	for i, c := range buf {
-		if c == 0 {
-			return string(buf[:i])
-		}
-	}
-	return string(buf)
-}
-
-func cfFloat(n uintptr) (float64, bool) {
-	var v float64
-	if n == 0 || !cfNumberGetValue(n, cfNumberFloat64Type, unsafe.Pointer(&v)) {
-		return 0, false
-	}
-	return v, true
-}
-
-func cfDict(keys, vals []uintptr) uintptr {
-	return cfDictionaryCreate(0, &keys[0], &vals[0], int64(len(keys)), kCFTypeDictKeyCB, kCFTypeDictValueCB)
 }
 
 func (e *ctEngine) name() string { return "coretext" }
@@ -594,86 +307,17 @@ var wghtTag = tag4("wght")
 
 func (e *ctEngine) load(name string) []*Face {
 	seen := map[faceKey]bool{}
-	// Named instances of one variable font share its tables: they are
-	// parsed once, by the first instance built.
-	type sharedFont struct {
-		once sync.Once
-		fn   *font.Font
-		ld   *ot.Loader
-		axes []tables.VariationAxisRecord
-	}
-	shared := map[string]*sharedFont{}
+	lazy := newCTLazyFaces(name)
 	var out []*Face
-	// add registers the style; its tables are read when a layout first
-	// uses it (newLazyEngineFace).
+	// add registers the style; it is built when a layout first uses it
+	// (newCTLazyFaces).
 	add := func(f uintptr, w Weight, italic bool) {
 		if seen[faceKey{w, italic}] {
 			cfRelease(f)
 			return
 		}
 		seen[faceKey{w, italic}] = true
-		owner := newCTFontOwner(f, cfRelease)
-		key := tableKey(f)
-		sh := shared[key]
-		if sh == nil {
-			sh = &sharedFont{}
-			shared[key] = sh
-		}
-		out = append(out, newLazyEngineFace(name, w, italic, func() (*font.Face, glyphEngine, func(uint32) *paint.Path) {
-			// The lazy closure owns the font until its raster takes over the
-			// same owner. Raw uintptr handles alone do not keep ownership alive.
-			defer runtime.KeepAlive(owner)
-			f := owner.base
-			sh.once.Do(func() {
-				source := ctTables(f)
-				ld, err := ot.NewLoader(source)
-				if err != nil {
-					if source.owner != nil {
-						source.owner.release()
-					}
-					return
-				}
-				if fn, err := font.NewFont(ld); err == nil {
-					sh.fn, sh.ld, sh.axes = fn, ld, fvarAxes(ld)
-				} else {
-					source.owner.release()
-				}
-			})
-			if sh.fn == nil {
-				owner.release()
-				return nil, nil, nil
-			}
-			// Font tables are read-only. Each Face owns its coordinates and
-			// glyph caches; runtime shapers key by Face and instance state.
-			gt := font.NewFace(sh.fn)
-			axes := sh.axes
-			var vals map[uint32]float32
-			if len(axes) > 0 {
-				vals = ctVariation(f)
-				if vals == nil {
-					vals = map[uint32]float32{}
-				}
-				// Pin the optical size: CoreText would otherwise follow the
-				// point size, drawing other designs than go-text measured.
-				for _, a := range axes {
-					if uint32(a.Tag) == opszTag {
-						if _, ok := vals[opszTag]; !ok {
-							vals[opszTag] = 16
-						}
-					}
-				}
-				if len(vals) == 0 {
-					// keep f: the default instance
-				} else if nf := withVariation(f, vals); nf != 0 {
-					owner.base = nf
-					cfRelease(f)
-				}
-				setDesignCoords(gt, axes, vals)
-			}
-			r := newCTRasterOwned(owner, vals)
-			r.tables = sh.ld
-			return gt, r, r.unitPath
-		}))
+		out = append(out, lazy(w, italic, newCTFontOwner(f, cfRelease)))
 	}
 	if name == ctSystemUI {
 		// The system UI font is reachable only through the UI font API
@@ -772,12 +416,10 @@ type ctRaster struct {
 	nativeMetrics   map[nativeGlyphMetricKey]cgRect
 	nativePositions []cgPoint
 	*ctFontOwner
-	tables *ot.Loader // immutable shaping tables for fixed-instance specialization
-	upem   float32
-	color  bool // colour glyphs (Apple Color Emoji): mask = luminance
+	ctRasterImpl // the text engine's part (engine_<engine>_darwin.go)
+	upem         float32
+	color        bool // colour glyphs (Apple Color Emoji): mask = luminance
 }
-
-func (r *ctRaster) shapingTables() *ot.Loader { return r.tables }
 
 type ctSizeKey struct{ size, skew float32 }
 
