@@ -214,6 +214,15 @@ type HostEx interface {
 }
 
 // ---------------------------------------------------------------------------
+// HostQuit is notified on main when the backend commits to exit, before
+// aborting modal loops or completing requests canceled by the exit. It is
+// not a veto and can be called repeatedly. Backends that support threaded
+// windows must notify it even if their event loop ends without Quit.
+type HostQuit interface {
+	OnQuitStarted()
+}
+
+// ---------------------------------------------------------------------------
 // Optional Backend capabilities
 
 type Display struct {

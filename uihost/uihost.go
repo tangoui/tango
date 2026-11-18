@@ -111,6 +111,9 @@ func Open(app *tango.App, opts Options, page func(*ui.Context), ropts ui.RunnerO
 	watchMemory(app, r) // memory.go
 	fl.start(r, s)
 	automationWatch(app, s, r, h) // TANGO_AUTOMATION (automation_dev.go)
+	if h.t != nil {
+		h.startThreaded()
+	}
 	// Callbacks before Attach found no window; make sure a frame follows.
 	h.invalidate()
 	return r, s, nil

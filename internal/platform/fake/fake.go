@@ -157,6 +157,9 @@ func (b *Backend) Quit() {
 	b.mu.Lock()
 	b.quits++
 	b.mu.Unlock()
+	if h, ok := b.h.(platform.HostQuit); ok {
+		h.OnQuitStarted()
+	}
 	b.qonce.Do(func() { close(b.quit) })
 }
 

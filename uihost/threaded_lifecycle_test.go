@@ -10,6 +10,9 @@ import (
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/platform"
+	"github.com/tangoui/tango/internal/platform/fake"
+	"github.com/tangoui/tango/internal/platform/fake/apphook"
+
 	"github.com/tangoui/tango/internal/platform/fake/faketest"
 	"github.com/tangoui/tango/sys/dialog"
 	"github.com/tangoui/tango/ui"
@@ -218,10 +221,13 @@ func TestQuitWaitsAtMostOneSecond(t *testing.T) {
 			}
 		}
 	})
+	awaitTaskStarted := make(chan struct{})
 	waiting.th.Post(func() {
+		close(awaitTaskStarted)
 		<-terminated // the fake has stopped draining main tasks at this point
 		waitResult <- tango.Await(a, func() bool { return true })
 	})
+	lifecycleDone(t, awaitTaskStarted, "waiting task did not start")
 	start := time.Now()
 	a.Quit()
 	select {
@@ -358,8 +364,8 @@ func TestQuitDoesNotReleaseNewRejectedAwaitBeforeStoppingRunner(t *testing.T) {
 		var ranEarly bool
 		fb.Do(func() {
 			corehook.OnQuit(a, func() {
-				// The main queue is already closed, but the window's stop
-				// hook has not run. Starting an Await must not resume work.
+				// The main queue is sealed but the release barrier is
+				// not open yet. A rejected Await must still wait.
 				close(enterAwait)
 				synctest.Wait()
 				ranEarly = len(result) != 0 || len(queued) != 0
@@ -374,6 +380,7 @@ func TestQuitDoesNotReleaseNewRejectedAwaitBeforeStoppingRunner(t *testing.T) {
 			result <- err
 		})
 		r.Post(func() { queued <- struct{}{} })
+		synctest.Wait() // the first task must have passed the runner's closed check
 		a.Quit()
 		lifecycleDone(t, tc.th.Done(), "quit did not unblock the late Await")
 		if err := <-result; !errors.Is(err, tango.ErrNotRunning) {
@@ -383,4 +390,79 @@ func TestQuitDoesNotReleaseNewRejectedAwaitBeforeStoppingRunner(t *testing.T) {
 			t.Errorf("rejected Await returned before stop=%t; queued business tasks run=%d", ranEarly, len(queued))
 		}
 	})
+}
+
+// quitDialogBackend models both a late start in the current main queue
+// drain and a previously accepted dialog canceled before Run returns.
+type quitDialogBackend struct {
+	*fake.Backend
+	start func(func(int, error))
+}
+
+func (b quitDialogBackend) MessageDialog(_ platform.SurfaceID, _ platform.MessageOptions, done func(int, error)) {
+	b.start(done)
+}
+
+func TestQuitStopsRunnerBeforeDialogCancellation(t *testing.T) {
+	for _, mode := range []string{"late-start", "native-quit-active", "normal-cancel"} {
+		t.Run(mode, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				fb := fake.New()
+				started := make(chan struct{})
+				cancelled := make(chan struct{})
+				var cancel func()
+				b := quitDialogBackend{fb, func(done func(int, error)) {
+					cancel = func() {
+						done(-1, platform.ErrCanceled)
+						synctest.Wait() // let the UI resume before backend shutdown continues
+						close(cancelled)
+					}
+					close(started)
+					if mode == "late-start" {
+						cancel()
+					}
+				}}
+				a := apphook.NewApp(b, tango.Options{}).(*tango.App)
+				if mode == "native-quit-active" {
+					a.OnLifecycle(func(ev tango.Lifecycle) {
+						if ev == tango.Terminating {
+							cancel() // backend is quitting; App.shutdown has not started
+						}
+					})
+				}
+				faketest.Start(t, a, fb)
+				r, _, _, _ := openThreaded(t, a, fb, func(*ui.Context) {})
+				answer := make(chan error, 1)
+				queued := make(chan struct{}, 1)
+				mainGate := make(chan struct{})
+				if mode == "late-start" {
+					a.Post(func() { <-mainGate })
+					a.Quit() // ahead of the dialog start in the same App.Post drain
+				}
+				r.Post(func() {
+					_, err := dialog.Message(a, dialog.MessageOptions{Buttons: []string{"Continue", "Stop"}})
+					answer <- err
+				})
+				r.Post(func() { queued <- struct{}{} })
+				synctest.Wait()
+				close(mainGate)
+				lifecycleDone(t, started, "dialog start did not run")
+				switch mode {
+				case "native-quit-active":
+					if !fb.RequestQuit() {
+						t.Fatal("native quit was not accepted")
+					}
+				case "normal-cancel":
+					fb.Do(cancel)
+				}
+				lifecycleDone(t, cancelled, "dialog was not canceled")
+				if err := <-answer; !errors.Is(err, dialog.ErrCanceled) {
+					t.Errorf("dialog returned %v, want ErrCanceled", err)
+				}
+				if ran := len(queued) != 0; ran != (mode == "normal-cancel") {
+					t.Errorf("queued Runner.Post ran=%t after cancellation (%s)", ran, mode)
+				}
+			})
+		})
+	}
 }

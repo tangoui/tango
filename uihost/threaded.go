@@ -43,6 +43,7 @@ type threadedHost struct {
 	th        *uithread.Thread
 	request   func() // asks the frame clock for a tick; any goroutine
 	stopClock func() // UI thread
+	attached  bool   // UI thread: ticks before hand-over draw nothing
 
 	// theme is the runner's theme as of the last frame, for main-thread
 	// readers (FollowingSystemTheme). TODO(Task 8): part of the per-frame
@@ -59,21 +60,29 @@ var threadedRunners sync.Map // *ui.Runner -> *threadedHost
 
 // Only the main thread accesses each app's set; distinct apps in tests
 // can run their main loops on different goroutines.
-var threadedApps sync.Map // *tango.App -> map[*host]struct{}
+type threadedApp struct {
+	windows  map[*host]struct{}
+	stopping bool
+}
+
+var threadedApps sync.Map // *tango.App -> *threadedApp
 
 func (h *host) watchThreadedQuit() {
 	app := h.app
-	v, loaded := threadedApps.LoadOrStore(app, make(map[*host]struct{}))
-	windows := v.(map[*host]struct{})
-	h.t.windows = windows
-	windows[h] = struct{}{}
+	v, loaded := threadedApps.LoadOrStore(app, &threadedApp{windows: make(map[*host]struct{})})
+	state := v.(*threadedApp)
+	h.t.windows = state.windows
+	state.windows[h] = struct{}{}
 	if !loaded {
-		corehook.OnQuit(app, func() {
-			threadedApps.Delete(app)
-			for window := range windows {
+		corehook.OnQuit(app, func() { threadedApps.Delete(app) })
+		corehook.OnQuitStart(app, func() {
+			state.stopping = true
+			for window := range state.windows {
 				window.close()
 			}
 		})
+	} else if state.stopping {
+		h.close()
 	}
 }
 
@@ -123,9 +132,8 @@ func (t *threadedHost) post(app *tango.App, fn func()) {
 // runner method; the first frame is the UI thread's.
 func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page func(*ui.Context), ropts ui.RunnerOptions) {
 	t := &threadedHost{host: h, geometry: ct, th: uithread.Start(fmt.Sprintf("tango uihost surface %d", h.id))}
-	attached := false // UI thread: ticks before the hand-over draw nothing
 	tick := func() {
-		if attached && !t.closing.Load() {
+		if t.attached && !t.closing.Load() {
 			h.frame() // CanvasFrame of a main-thread window
 		}
 	}
@@ -154,14 +162,23 @@ func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page f
 	// Until here sink callbacks took the main-thread path, which ignores
 	// them while h.r is nil. From here they are queued on the UI thread.
 	h.t, h.r = t, r
+}
+
+// startThreaded hands the window to its UI thread after the main-thread
+// registrations are complete. A quit already in progress closes it instead.
+func (h *host) startThreaded() {
+	t := h.t
 	h.watchThreadedQuit()
+	if h.closed {
+		return
+	}
 	// The hand-over, posted once every host field a frame reads is written:
 	// all of it happens before the UI thread's first frame, which this task
 	// asks for (a tick that came earlier drew nothing). Open writes no host
 	// field the UI thread reads after this.
 	t.th.Post(func() {
 		if !t.closing.Load() {
-			attached = true
+			t.attached = true
 			t.request()
 		}
 	})

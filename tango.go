@@ -120,8 +120,10 @@ type App struct {
 	loop mainLoop
 
 	// Main-thread window shutdown; loop.go.
-	onQuit    []func()
-	uiClosing map[<-chan struct{}]func()
+	quitStarted bool
+	onQuitStart []func()
+	onQuit      []func()
+	uiClosing   map[<-chan struct{}]func()
 
 	mu       sync.Mutex // guards the fields below
 	started  bool
@@ -217,6 +219,7 @@ func (a *App) shutdown() {
 		return
 	}
 	a.loop.close()
+	a.beginQuit()
 	deadline := a.notifyQuitHooks()
 	// Stop all runners before waking UI threads blocked in Await, so none
 	// can run queued business work while the app is closing. Await calls
@@ -240,7 +243,10 @@ func (a *App) Quit() {
 	if a.b == nil {
 		return
 	}
-	a.run(a.b.Quit)
+	a.run(func() {
+		a.beginQuit()
+		a.b.Quit()
+	})
 }
 
 // OnReady registers fn to run on the main thread once the app has started.
@@ -347,6 +353,11 @@ func (a *App) assetOrigin() string {
 // host implements platform.Host for an App, keeping Drain and friends off
 // App's public method set.
 type host struct{ a *App }
+
+func (h host) OnQuitStarted() {
+	defer h.a.enterMain()()
+	h.a.beginQuit()
+}
 
 func (h host) Drain() {
 	defer h.a.enterMain()()

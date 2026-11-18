@@ -233,6 +233,7 @@ func (b *backend) Run() error {
 		send(b.app, "run")
 		b.running = false
 	}
+	b.beginQuit()
 	b.cancelDialogs()
 	b.terminate()
 	return nil
@@ -245,8 +246,18 @@ func (b *backend) terminate() {
 	}
 }
 
-func (b *backend) Quit() {
+func (b *backend) beginQuit() {
+	if b.quitting {
+		return
+	}
 	b.quitting = true
+	if h, ok := b.h.(platform.HostQuit); ok {
+		h.OnQuitStarted()
+	}
+}
+
+func (b *backend) Quit() {
+	b.beginQuit()
 	if b.modalDepth > 0 {
 		// Inside runModal, -stop: would only end the modal session. Abort
 		// it; runModalAlert stops the app once the session has unwound.

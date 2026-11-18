@@ -40,6 +40,11 @@ var AttachMenu func(app any, key any, m any, apply func(items []platform.MenuIte
 // package menu.
 var DetachMenu func(key any)
 
+// OnQuitStart registers a nonblocking stop request for window work on main.
+// It runs when quit is committed, before backend cancellation can resume an
+// Await. A registration made during quit runs immediately.
+var OnQuitStart func(app any, fn func())
+
 // OnQuit registers a nonblocking stop notification on app (*tango.App).
 // Main thread only, both to register and to call. Notifications run in
 // order after Backend.Run and its Terminating event, after closing the

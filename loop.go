@@ -334,12 +334,35 @@ func (a *App) wakeIfRunning() {
 const quitWait = time.Second
 
 func init() {
+	corehook.OnQuitStart = func(app any, fn func()) {
+		a := app.(*App)
+		if a.quitStarted {
+			a.guard(whereEvent, fn)
+			return
+		}
+		a.onQuitStart = append(a.onQuitStart, fn)
+	}
 	corehook.OnQuit = func(app any, fn func()) {
 		a := app.(*App)
 		a.onQuit = append(a.onQuit, fn)
 	}
 	corehook.AfterUIThread = func(app any, done <-chan struct{}, release func()) {
 		app.(*App).afterUIThread(done, release)
+	}
+}
+
+// beginQuit stops window work without sealing the queue or waking any
+// waiters. The backend can still finish native requests and run its usual
+// Terminating callbacks. Only shutdown waits for stopped UI threads.
+func (a *App) beginQuit() {
+	if a.quitStarted {
+		return
+	}
+	a.quitStarted = true
+	hooks := a.onQuitStart
+	a.onQuitStart = nil
+	for _, fn := range hooks {
+		a.guard(whereEvent, fn)
 	}
 }
 
@@ -354,7 +377,13 @@ func (a *App) afterUIThread(done <-chan struct{}, release func()) {
 	go func() {
 		select {
 		case <-done:
-			a.Post(func() { a.releaseUIThread(done) })
+			a.Post(func() {
+				// A quitting backend can still be unwinding a native modal
+				// or delivering Terminating; release after Run returns.
+				if !a.quitStarted {
+					a.releaseUIThread(done)
+				}
+			})
 		case <-a.closedCh:
 			// Shutdown now owns the registration.
 		}
