@@ -32,7 +32,24 @@ type perfFixture struct {
 	Interact      func(r *perfRun, i int)      // step i: even steps act, odd steps undo
 	Large         func(n int) func(c *Context) // collections only: a page with n items
 	LargeInteract func(r *perfRun, i int)      // nil = default scroll (perfScroll)
+	// LargeVirtual is the opt-in virtual form of Large (a component whose
+	// default form is not windowed and that offers Height + Virtual or
+	// the like): scenes LargeVirtual1k / 10k / 100k, interacted with
+	// LargeInteract, budgeted like Large (perfBudget).
+	LargeVirtual func(n int) func(c *Context)
+	// NA marks single scenes 不适用 (not applicable), scene name → reason
+	// (e.g. "Large100k": perfNANonVirtual). Such a scene still runs in
+	// BenchmarkComponents for reference, but TestPerfBudgets does not time
+	// it: it prints "PERF <Name/Scene> 0 0 n/a <reason>", which uiperf
+	// bench shows in status.md. TestPerfCoverage checks that the scene
+	// exists, the reason is set and the scene is not in perfTimeDebt.
+	NA map[string]string
 }
+
+// perfNANonVirtual is the NA reason of a Large100k scene that measures a
+// component's default, non-virtual form, which is O(n) by design; its
+// opt-in virtual form is timed by the LargeVirtual scenes.
+const perfNANonVirtual = "非虚拟形态按设计是 O(n)；虚拟形态由 LargeVirtual 场景计时"
 
 type perfRun struct {
 	D      *Driver

@@ -46,7 +46,7 @@ func writeBenchReport(dir string, r []benchResult, budget budgetRun) error {
 	fmt.Fprintln(f, "\n\n| Component | Scene | ns/op | allocs/op | B/op | dirty/op | budget | pass | cold ns | cold status |")
 	fmt.Fprintln(f, "|---|---:|---:|---:|---:|---:|---:|:---:|---:|---|")
 	for _, x := range r {
-		fmt.Fprintf(f, "| %s | %s | %.0f | %.0f | %.0f | %.4f | %.0f | %t | %s | %s |\n", x.Name, x.Scene, x.NsOp, x.AllocsOp, x.BOp, x.Dirty, x.Budget, x.Pass, coldCell(x), coldStatusCell(x))
+		fmt.Fprintf(f, "| %s | %s | %.0f | %.0f | %.0f | %.4f | %.0f | %s | %s | %s |\n", x.Name, x.Scene, x.NsOp, x.AllocsOp, x.BOp, x.Dirty, x.Budget, passCell(x), coldCell(x), coldStatusCell(x))
 	}
 	return nil
 }
@@ -67,4 +67,13 @@ func coldStatusCell(x benchResult) string {
 		msg = append(msg[:120], '…')
 	}
 	return x.ColdStatus + ": " + strings.ReplaceAll(string(msg), "|", "\\|")
+}
+
+// passCell is the pass column: true / false, or "n/a: reason" for a scene
+// marked not applicable.
+func passCell(x benchResult) string {
+	if x.NA != "" {
+		return "n/a: " + strings.ReplaceAll(x.NA, "|", "\\|")
+	}
+	return fmt.Sprint(x.Pass)
 }

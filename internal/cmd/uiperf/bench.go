@@ -107,6 +107,9 @@ func runBudget(results []benchResult) budgetRun {
 			if results[i].Name+"/"+results[i].Scene == b.Key {
 				results[i].Budget = b.Budget
 				results[i].Pass = b.Status == "ok"
+				if b.Status == "n/a" {
+					results[i].NA = b.Reason
+				}
 			}
 		}
 	}

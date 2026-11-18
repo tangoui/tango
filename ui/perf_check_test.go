@@ -91,6 +91,25 @@ func TestPerfCoverage(t *testing.T) {
 		t.Errorf("%d ui entries have no perf fixture (register one, Covers it, or add a Skip fixture): %s",
 			len(missing), strings.Join(missing, ", "))
 	}
+	// NA scenes: an existing scene, a reason, no time debt.
+	for _, fx := range perfFixtures() {
+		for scene, why := range fx.NA {
+			key := fx.Name + "/" + scene
+			found := false
+			for _, sc := range perfScenes(fx, false) {
+				found = found || sc.Name == scene
+			}
+			switch {
+			case !found:
+				t.Errorf("%s: NA names a scene the fixture does not have", key)
+			case strings.TrimSpace(why) == "":
+				t.Errorf("%s: NA without a reason", key)
+			}
+			if _, debt := perfTimeDebt[key]; debt {
+				t.Errorf("%s: NA scene still in perfTimeDebt (remove the debt entry)", key)
+			}
+		}
+	}
 }
 
 // perfLive returns the fixtures that render something.
@@ -323,7 +342,7 @@ func perfBudget(fx perfFixture, scene string, large1k time.Duration) time.Durati
 		return 500 * time.Microsecond
 	case "Interact":
 		return 2 * time.Millisecond
-	case "Large100k":
+	case "Large100k", "LargeVirtual100k": // large1k: the 1k scene of the same form
 		b := 4 * time.Millisecond
 		if large1k > 0 {
 			b = min(b, large1k*3/2)
@@ -427,20 +446,24 @@ func TestPerfBudgets(t *testing.T) {
 		t.Skip("set TANGO_PERF_BUDGET=1 to check the time budgets")
 	}
 	for _, fx := range perfLive() {
-		var large1k time.Duration
+		ref := map[string]time.Duration{} // Large1k / LargeVirtual1k
 		for _, sc := range perfScenes(fx, false) {
 			if sc.Name == "MountCold" || sc.Name == "Unchanged" {
 				continue
 			}
-			ns := perfTime(sc)
-			if sc.Name == "Large1k" {
-				large1k = ns
+			key := fx.Name + "/" + sc.Name
+			if why, na := fx.NA[sc.Name]; na {
+				fmt.Printf("PERF %s 0 0 n/a %s\n", key, why)
+				continue
 			}
-			budget := perfBudget(fx, sc.Name, large1k)
+			ns := perfTime(sc)
+			if strings.HasSuffix(sc.Name, "1k") {
+				ref[strings.TrimSuffix(sc.Name, "1k")] = ns
+			}
+			budget := perfBudget(fx, sc.Name, ref[strings.TrimSuffix(sc.Name, "100k")])
 			if budget == 0 {
 				continue
 			}
-			key := fx.Name + "/" + sc.Name
 			over := ns > budget
 			status := "ok"
 			if over {

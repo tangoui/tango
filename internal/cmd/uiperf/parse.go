@@ -18,11 +18,13 @@ type benchResult struct {
 	ColdError     string `json:",omitempty"`
 	Budget        float64
 	Pass          bool
+	NA            string `json:",omitempty"` // 不适用: the reason (no budget)
 }
 type budgetResult struct {
 	Key        string
 	NS, Budget float64
 	Status     string
+	Reason     string // status "n/a": why the scene has no budget
 }
 
 var benchmarkNameRE = regexp.MustCompile(`^BenchmarkComponents/(.+)/(.+)$`)
@@ -70,9 +72,13 @@ func parseBenchLine(s string) (benchResult, error) {
 	return benchResult{Name: parts[1], Scene: parts[2], NsOp: values["ns/op"], Dirty: values["dirty/op"], BOp: values["B/op"], AllocsOp: values["allocs/op"]}, nil
 }
 
+// parseBudgetLine parses "PERF <Name/Scene> <ns> <budget ns> <ok|over>",
+// or "PERF <Name/Scene> 0 0 n/a <reason…>" for a scene marked not
+// applicable (perfFixture.NA in ui).
 func parseBudgetLine(s string) (budgetResult, error) {
 	f := strings.Fields(s)
-	if len(f) != 5 || f[0] != "PERF" {
+	na := len(f) > 5 && f[0] == "PERF" && f[4] == "n/a"
+	if (len(f) != 5 && !na) || f[0] != "PERF" {
 		return budgetResult{}, fmt.Errorf("invalid budget line: %q", s)
 	}
 	ns, err := strconv.ParseFloat(f[2], 64)
@@ -83,7 +89,11 @@ func parseBudgetLine(s string) (budgetResult, error) {
 	if err != nil {
 		return budgetResult{}, err
 	}
-	return budgetResult{Key: f[1], NS: ns, Budget: budget, Status: f[4]}, nil
+	r := budgetResult{Key: f[1], NS: ns, Budget: budget, Status: f[4]}
+	if na {
+		r.Reason = strings.Join(f[5:], " ")
+	}
+	return r, nil
 }
 
 func median(v []float64) float64 {

@@ -70,7 +70,15 @@ func init() {
 					ProList[int](c, perfProRows(n), ProListMetas[int]{Title: func(i int) string { return perfCollItem(i) }}).Show()
 				}, layout.Size(640, 300))
 			}
-		}},
+		}, LargeVirtual: func(n int) func(*Context) {
+			// The rows are made once: the timed steps scroll the list.
+			return func(c *Context) {
+				rows := State(c, hashID("prolist.virtual", n), func() []int { return perfProRows(n) })
+				Column(c, func() {
+					ProList[int](c, *rows, ProListMetas[int]{Title: func(i int) string { return perfCollItem(i) }}).Height(300).Virtual().Show()
+				}, layout.W(640))
+			}
+		}, NA: map[string]string{"Large100k": perfNANonVirtual}},
 		perfFixture{Name: "ProCard", Build: func(c *Context) { ProCard(c, "卡片").Body(func() { Text(c, "内容") }) }},
 		perfFixture{Name: "ProDescriptions", Build: func(c *Context) {
 			ProDescriptions(c, []ProDescItem{{Label: "名称", Render: func(c *Context, v any, all ProValues) { Text(c, "Tango") }}}).Show()
@@ -136,7 +144,20 @@ func init() {
 				}
 				Scroll(c, func() { Conversations(c, xs, a) }, layout.Size(520, 300))
 			}
-		}},
+		}, LargeVirtual: func(n int) func(*Context) {
+			// The conversations are made once: the timed steps scroll the list.
+			return func(c *Context) {
+				a := State(c, hashID("conv.virtual"), func() string { return "0" })
+				xs := State(c, hashID("conv.virtual", n), func() []Conversation {
+					xs := make([]Conversation, n)
+					for i := range xs {
+						xs[i] = Conversation{Key: strconv.Itoa(i), Title: perfCollItem(i)}
+					}
+					return xs
+				})
+				Column(c, func() { Conversations(c, *xs, a).Height(300).Virtual() }, layout.W(520))
+			}
+		}, NA: map[string]string{"Large100k": perfNANonVirtual}},
 		perfFixture{Name: "Sender", Build: func(c *Context) {
 			v := State(c, hashID("sender"), func() string { return "" })
 			Sender(c, v).Placeholder("输入")

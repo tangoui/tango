@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -64,6 +65,15 @@ func perfScenes(fx perfFixture, raster bool) []perfScene {
 		}
 		for _, l := range perfLargeSizes {
 			sc = append(sc, perfScene{l.name, interact(perfPage(fx.Large(l.n)), act)})
+		}
+	}
+	if fx.LargeVirtual != nil {
+		act := fx.LargeInteract
+		if act == nil {
+			act = perfScroll
+		}
+		for _, l := range perfLargeSizes {
+			sc = append(sc, perfScene{"LargeVirtual" + strings.TrimPrefix(l.name, "Large"), interact(perfPage(fx.LargeVirtual(l.n)), act)})
 		}
 	}
 	return sc

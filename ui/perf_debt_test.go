@@ -191,6 +191,10 @@ var perfDamageDebt = map[string]perfDebt{
 // Task R1 baseline (merged tree 1969e04, adaptive perfTime, Apple M4,
 // 1-min load < 6): the worse of 2 TestPerfBudgets runs (-p 1). A
 // Large100k budget is min(4ms, 1.5 × Large1k) of the same run.
+//
+// Batch 3 V2: List, ProList and Conversations Large100k are NA (default
+// non-virtual form, O(n) by design; perfNANonVirtual) and left this table;
+// their LargeVirtual scenes are budgeted instead.
 var perfTimeDebt = map[string]perfDebt{
 	"AvatarGroup/Large100k":     {Measured: "26.50ms (budget 237µs)", Why: "baseline"},
 	"BubbleList/Large100k":      {Measured: "6.77ms (budget 562µs)", Why: "baseline"},
@@ -199,16 +203,13 @@ var perfTimeDebt = map[string]perfDebt{
 	"CheckAll/Large100k":        {Measured: "2.65s (budget 2.22ms)", Why: "baseline"},
 	"CheckboxGroup/Large100k":   {Measured: "2.66s (budget 2.22ms)", Why: "baseline"},
 	"Collapse/Large100k":        {Measured: "1.91s (budget 4.00ms)", Why: "baseline"},
-	"Conversations/Large100k":   {Measured: "805.75ms (budget 2.59ms)", Why: "baseline"},
 	"Descriptions/Large100k":    {Measured: "2.22s (budget 4.00ms)", Why: "baseline"},
 	"Image/Mount":               {Measured: "689µs (budget 500µs)", Why: "baseline"},
 	"InfiniteScroll/Large100k":  {Measured: "1.02s (budget 3.92ms)", Why: "baseline"},
 	"InputTag/Large100k":        {Measured: "2.36s (budget 4.00ms)", Why: "baseline"},
-	"List/Large100k":            {Measured: "1.16s (budget 4.00ms)", Why: "baseline"},
 	"Markdown/Large100k":        {Measured: "1.23s (budget 4.00ms)", Why: "baseline"},
 	"Masonry/Large100k":         {Measured: "478µs (budget 97µs)", Why: "baseline"},
 	"Menu/Large100k":            {Measured: "135.50ms (budget 826µs)", Why: "baseline"},
-	"ProList/Large100k":         {Measured: "2.24s (budget 4.00ms)", Why: "baseline"},
 	"ProTable/Large100k":        {Measured: "361.55ms (budget 3.09ms)", Why: "baseline"},
 	"RadioGroup/Large100k":      {Measured: "2.63s (budget 2.35ms)", Why: "baseline"},
 	"RichText/Large100k":        {Measured: "2.18s (budget 4.00ms)", Why: "baseline"},

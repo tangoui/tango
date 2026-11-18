@@ -7,6 +7,7 @@ package ui
 
 import (
 	"math"
+	"slices"
 	"sort"
 
 	"github.com/tangoui/tango/ui/a11y"
@@ -180,6 +181,37 @@ func (w *fillWin) build(c *Context, sb *ScrollBox, n, keep int, row func(i int) 
 		}
 		if keep >= w.end && keep < n {
 			w.place(row(keep), keep, pad)
+		}
+	})
+}
+
+// buildKeeps is build with several rows that are always built (the
+// current, focused or edited rows of a list; -1 and duplicates are
+// ignored). The ones outside the window are placed like build's keep row,
+// in row order before or after the window.
+func (w *fillWin) buildKeeps(c *Context, sb *ScrollBox, n int, keeps []int, row func(i int) *node) {
+	w.span(sb, n)
+	pad := sb.n.ln.Padding
+	ks := make([]int, 0, len(keeps))
+	for _, k := range keeps {
+		if k >= 0 && k < n && (k < w.first || k >= w.end) && !slices.Contains(ks, k) {
+			ks = append(ks, k)
+		}
+	}
+	slices.Sort(ks)
+	sb.Body(func() {
+		for _, k := range ks {
+			if k < w.first {
+				w.place(row(k), k, pad)
+			}
+		}
+		for i := w.first; i < w.end; i++ {
+			row(i)
+		}
+		for _, k := range ks {
+			if k >= w.end {
+				w.place(row(k), k, pad)
+			}
 		}
 	})
 }

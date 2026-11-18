@@ -447,6 +447,15 @@ func init() {
 					})
 				}
 			},
+			// The same items in List's own 960×760 virtual viewport.
+			LargeVirtual: func(n int) func(*Context) {
+				return func(c *Context) {
+					Column(c, func() {
+						List(c, n).Height(760).Virtual().Item(func(i int) { ListItemMeta(c, nil, perfCollItem(i), perfCollDesc) })
+					}, layout.W(960))
+				}
+			},
+			NA: map[string]string{"Large100k": perfNANonVirtual},
 		},
 		perfFixture{
 			// An action link toggles the row's favourite flag (its label).

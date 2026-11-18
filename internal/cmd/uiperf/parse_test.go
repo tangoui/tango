@@ -21,6 +21,22 @@ func TestParseBudgetLine(t *testing.T) {
 	}
 }
 
+func TestParseBudgetLineNA(t *testing.T) {
+	got, err := parseBudgetLine("PERF List/Large100k 0 0 n/a 非虚拟形态 O(n)；见 LargeVirtual")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Key != "List/Large100k" || got.Status != "n/a" || got.Reason != "非虚拟形态 O(n)；见 LargeVirtual" {
+		t.Fatalf("got %+v", got)
+	}
+	if _, err := parseBudgetLine("PERF Button/Interact 1 2 ok extra"); err == nil {
+		t.Fatal("a 6-field line that is not n/a parsed")
+	}
+	if got := passCell(benchResult{NA: "a|b"}); got != "n/a: a\\|b" {
+		t.Fatalf("passCell %q", got)
+	}
+}
+
 func TestParseBenchLineMetricOrderAndHyphen(t *testing.T) {
 	got, err := parseBenchLine("BenchmarkComponents/Date-Range/Large-100k-10  3  17 allocs/op  2048 B/op  0.125 dirty/op  812345 ns/op")
 	if err != nil {
