@@ -50,6 +50,8 @@ var (
 	kCTFontOpenTypeFeatureTag       uintptr
 	kCTFontOpenTypeFeatureValue     uintptr
 
+	ctLineGetTrailingWhitespaceWidth func(line uintptr) float64
+
 	// CTFontCreateForStringWithLanguage (macOS 10.15); nil when missing.
 	ctFontCreateForStringWithLanguage func(f, s uintptr, r cfRange, lang uintptr) uintptr
 )
@@ -79,6 +81,7 @@ func loadCTShape() bool {
 		purego.RegisterLibFunc(&cfAttributedStringEndEditing, cf, "CFAttributedStringEndEditing")
 		purego.RegisterLibFunc(&cfArrayCreate, cf, "CFArrayCreate")
 		purego.RegisterLibFunc(&ctFontCopyFeatureSettings, ct, "CTFontCopyFeatureSettings")
+		purego.RegisterLibFunc(&ctLineGetTrailingWhitespaceWidth, ct, "CTLineGetTrailingWhitespaceWidth")
 		if p, err := purego.Dlsym(cf, "kCFTypeArrayCallBacks"); err == nil {
 			kCFTypeArrayCallBacks = p // the structure's address
 		}
@@ -380,7 +383,15 @@ func (sh *ctShaper) item(out []sg, runes []rune, it item, fm *fontmap, adv []flo
 	defer cfRelease(line)
 	sh.clusterStarts(runes, a, b)
 	first := len(out)
-	pen := 0.0                      // CoreText's pen: sum of the advances of the line so far
+	// CoreText's pen: sum of the advances of the line so far. A
+	// right-to-left line hangs its trailing whitespace (visually first)
+	// left of the origin: every position is moved left by its width, which
+	// the pen starts at so that offsets stay relative to the glyph's own
+	// place (the item's glyphs are placed from 0 by the caller).
+	pen := 0.0
+	if it.rtl() {
+		pen = -ctLineGetTrailingWhitespaceWidth(line)
+	}
 	arr := ctLineGetGlyphRuns(line) // owned by line
 	last := int64(len(toRune) - 1)
 	for k, nr := int64(0), cfArrayGetCount(arr); k < nr; k++ {
