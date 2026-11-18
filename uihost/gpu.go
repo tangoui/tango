@@ -159,9 +159,8 @@ func Renderer(r *ui.Runner) string {
 	return "cpu"
 }
 
-// autoCPUWindow keeps small utility windows from paying Metal's drawable,
-// heap and atlas residency cost. Native utility-window eligibility reuses this
-// threshold; explicit auto retains its existing CPU-first policy.
+// autoCPUWindow is TANGO_RENDERER=auto's CPU-first threshold: small utility
+// windows avoid Metal's drawable, heap and atlas residency cost.
 func autoCPUWindow(cv platform.Canvas) bool {
 	w, h := cv.Size()
 	return w > 0 && h > 0 && w*h <= 100000
@@ -177,12 +176,14 @@ func setupGPU(cv platform.Canvas, ropts ui.RunnerOptions) *gpuRenderer {
 	if mode == "cpu" {
 		return nil
 	}
-	// Large windows default to Metal: native layers reach the screen about
-	// two frames later after input. Small utility windows and data windows
-	// (ui.ContentData) avoid Metal's fixed residency cost; explicit native
-	// remains available at any size.
-	if mode == "native" || mode == "" && (ropts.Content == ui.ContentData || autoCPUWindow(cv)) {
-		if g := startNative(cv, mode == "native"); g != nil {
+	// Native layers are the default at every window size and for every
+	// ui.ContentKind: they avoid Metal's fixed residency cost. A window
+	// promotes itself to Metal once, after its frames stay expensive
+	// (nativeRendererState) or, unless it is a ui.ContentData window, on the
+	// frame after it receives keyboard input (keyboardInput: Metal's input
+	// latency is about two frames lower). Forced native never promotes.
+	if mode == "native" || mode == "" {
+		if g := startNative(cv, mode == "native", ropts.Content); g != nil {
 			return g
 		}
 	}

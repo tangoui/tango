@@ -141,7 +141,7 @@ func (h *hotSession) buildWorker(ctx context.Context) (string, string, error) {
 	var out bytes.Buffer
 	cmd := exec.CommandContext(ctx, "go", "build", "-tags", buildTags(true), "-o", path, ".")
 	cmd.Dir = h.cfg.dir
-	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
+	cmd.Env = append(os.Environ(), h.cfg.cgoEnv())
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = io.MultiWriter(os.Stderr, &out)
 	start := time.Now()

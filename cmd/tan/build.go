@@ -235,10 +235,11 @@ func goBuildArgs(t target, out string, debug bool, features ...buildFeatures) []
 	return append(args, "-o", out, ".")
 }
 
-// goBuild compiles without cgo: the desktop backends call the OS through
-// purego/syscall, so cross-compiling needs no C toolchain.
+// goBuild compiles without cgo by default: the desktop backends call the OS
+// through purego/syscall, so cross-compiling needs no C toolchain. Apps that
+// link C libraries set "cgo": true in tan.json (cross builds then need CC).
 func goBuild(ctx context.Context, cfg *Config, t target, out string, debug bool, features ...buildFeatures) error {
-	env := []string{"CGO_ENABLED=0", "GOOS=" + t.OS, "GOARCH=" + t.Arch}
+	env := []string{cfg.cgoEnv(), "GOOS=" + t.OS, "GOARCH=" + t.Arch}
 	return runIn(ctx, cfg.dir, env, "go", goBuildArgs(t, out, debug, features...)...)
 }
 

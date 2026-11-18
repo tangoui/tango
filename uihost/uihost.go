@@ -184,7 +184,10 @@ func (h *host) CanvasInput(ev input.Event) {
 	if h.closed || h.r == nil {
 		return
 	}
-	guiprobe.Observe(ev)  // no-op unless built explicitly with tango_guiprobe
+	guiprobe.Observe(ev)     // no-op unless built explicitly with tango_guiprobe
+	if isKeyboardInput(ev) { // typing: native windows move to Metal (native.go)
+		h.gpu.keyboardInput()
+	}
 	if !h.sc.handle(ev) { // a window shortcut consumes its key (shortcuts.go)
 		h.r.HandleEvent(ev)
 	}

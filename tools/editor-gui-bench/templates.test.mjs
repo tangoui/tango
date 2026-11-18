@@ -104,3 +104,27 @@ test('buildKeyTemplatesAt checks given patches against shifting text', () => {
   const wrong = [3, 4, 5].map((col) => centerPatch({ x0: 10 + 12 * col + 2, x1: 10 + 12 * col + 9, y0: 4, y1: 15 }));
   assert.equal(buildKeyTemplatesAt(s, W + 120, wrong).ok, false);
 });
+
+// A renderer switch on the first key (native layers to Metal) repaints the
+// whole line a little differently: step 1 has no single new glyph, but its
+// cell follows from the other steps' column advance.
+test('buildKeyTemplates places a repainted step from the column advance', () => {
+  const steps = Array.from({ length: 4 }, (_, s) => img(W, H, [
+    [2, 4, 6, 12, s === 0 ? 30 : 80], // existing text, repainted on step 1
+    ...Array.from({ length: s }, (_, k) => glyph(k)),
+  ]));
+  const r = buildKeyTemplates(steps, W, H);
+  assert.equal(r.ok, true, r.errors.join('; '));
+  assert.deepEqual(r.templates.map((t) => t.patch.x), [14, 26, 38]);
+  assert.equal(r.templates[0].derived, true);
+  assert.ok(r.templates.every((t) => t.before >= 20 && t.persist <= 1));
+});
+
+test('buildKeyTemplates does not derive a step without two found steps', () => {
+  const steps = Array.from({ length: 3 }, (_, s) => img(W, H, [
+    [2, 4, 6, 12, s === 0 ? 30 : 80],
+    ...Array.from({ length: s }, (_, k) => glyph(k)),
+  ]));
+  steps[2] = steps[1]; // the second key changed nothing either
+  assert.equal(buildKeyTemplates(steps, W, H).ok, false);
+});

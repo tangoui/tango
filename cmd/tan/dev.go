@@ -174,7 +174,7 @@ type devSession struct {
 func (s *devSession) build(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, "go", "build", "-tags", buildTags(true), "-o", s.out, ".")
 	cmd.Dir = s.cfg.dir
-	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
+	cmd.Env = append(os.Environ(), s.cfg.cgoEnv())
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return err

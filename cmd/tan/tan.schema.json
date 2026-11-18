@@ -441,6 +441,10 @@
       },
       "type": "array"
     },
+    "cgo": {
+      "description": "CGO builds with cgo enabled, for apps linking C libraries (duckdb, …). Default false: the desktop backends are purego and cross-compile without a C toolchain. Cross-compiling with CGO true needs a matching CC in env.",
+      "type": "boolean"
+    },
     "copyright": {
       "type": "string"
     },

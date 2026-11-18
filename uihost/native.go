@@ -2,6 +2,8 @@ package uihost
 
 import (
 	"github.com/tangoui/tango/internal/platform"
+	"github.com/tangoui/tango/ui"
+	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/paint"
 	"image"
 	"time"
@@ -12,6 +14,7 @@ var nativeNewPresenter presenterFunc = platformNativePresenter
 
 type nativeRendererState struct {
 	canvas     platform.Canvas
+	content    ui.ContentKind // ContentData ignores keyboardInput
 	lastEnd    time.Time
 	start      time.Time
 	slow, full int
@@ -33,10 +36,11 @@ func (s *nativeRendererState) record(work time.Duration, full bool, start, end t
 		s.full = 0
 	}
 	s.lastEnd = end
-	s.ready = s.slow >= 6 || s.full >= 6
+	// Sticky: a keyboardInput request survives frames recorded before Render.
+	s.ready = s.ready || s.slow >= 6 || s.full >= 6
 	return s.ready
 }
-func startNative(cv platform.Canvas, forced bool) *gpuRenderer {
+func startNative(cv platform.Canvas, forced bool, content ui.ContentKind) *gpuRenderer {
 	if nativeNewPresenter == nil {
 		return nil
 	}
@@ -50,12 +54,17 @@ func startNative(cv platform.Canvas, forced bool) *gpuRenderer {
 	}
 	r, present, err := nativeNewPresenter(layer)
 	if err != nil {
-		gpuLogf("tango: native renderer unavailable, using CPU: %v", err)
+		// Metal can take over the layer (as in promoteNative); a large or
+		// typing window would move there anyway. Both targets show CPU frames.
+		gpuLogf("tango: native renderer unavailable, trying Metal: %v", err)
+		if g := startGPU(cv, false); g != nil {
+			return g
+		}
 		return &gpuRenderer{cpu: paint.NewCPU()}
 	}
 	g := &gpuRenderer{gpu: r, present: present, nativeMode: true}
 	if !forced {
-		g.native = &nativeRendererState{canvas: cv}
+		g.native = &nativeRendererState{canvas: cv, content: content}
 	}
 	return g
 }
@@ -96,5 +105,33 @@ func (g *gpuRenderer) InvalidateImage(img image.Image) {
 	}
 	if r, ok := g.gpu.(interface{ InvalidateImage(image.Image) }); ok {
 		r.InvalidateImage(img)
+	}
+}
+
+// isKeyboardInput reports input that means the user is typing into the
+// window: a non-modifier key press (auto-repeats and shortcuts included),
+// committed text, or an IME composition. Scrolling, pointers, touches,
+// focus changes, key releases and lone modifiers or Caps Lock are not.
+func isKeyboardInput(ev input.Event) bool {
+	switch ev := ev.(type) {
+	case input.KeyEvent:
+		return ev.Down && ev.Key != 0 && ev.Key.Modifier() == 0 && ev.Key != input.KeyCapsLock
+	case input.TextInput:
+		return ev.Text != ""
+	case input.Composition:
+		return ev.Text != ""
+	}
+	return false
+}
+
+// keyboardInput promotes a default native window to Metal on its next
+// Render: Metal's input-to-photon latency is about two frames lower. It does
+// nothing for a nil renderer, forced native, a window already promoted or one
+// whose promotion failed (native is nil in all of those), or a data window
+// (ui.ContentData), which keyboard browsing leaves on native layers and only
+// sustained frame cost promotes.
+func (g *gpuRenderer) keyboardInput() {
+	if g != nil && g.native != nil && g.native.content != ui.ContentData {
+		g.native.ready = true
 	}
 }
