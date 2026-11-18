@@ -213,6 +213,17 @@ func fontsFromDescriptors(arr uintptr) []uintptr {
 // 300-700 it supports, its other axes at their defaults; the first face of
 // each (weight, slant) wins.
 func ctFacesFromFonts(name string, fonts []uintptr, keep map[string]bool) []*Face {
+	// CoreText ignores a variation value equal to the axis default and
+	// keeps the coordinate of the font it copies: instantiating wght 400
+	// from SF's Ultralight named instance stays Ultralight. Instantiate
+	// from the instance nearest the default, the one with the fewest
+	// explicit coordinates (stable, so file order decides ties).
+	nvar := make(map[uintptr]int, len(fonts))
+	for _, f := range fonts {
+		nvar[f] = len(ctVariation(f))
+	}
+	fonts = append([]uintptr(nil), fonts...)
+	sort.SliceStable(fonts, func(i, j int) bool { return nvar[fonts[i]] < nvar[fonts[j]] })
 	seen := map[faceKey]bool{}
 	var out []*Face
 	add := func(f uintptr, w Weight, italic bool, vals map[uint32]float32) {
@@ -394,7 +405,9 @@ func trimFaceTable() {
 }
 
 // ctFaceKey identifies a CoreText font independently of its size: its
-// PostScript name, weight, slant and variation coordinates.
+// PostScript name, weight, slant and variation coordinates except the
+// optical size, which CoreText moves with the point size of fonts it picks
+// itself (the system UI font, fallback fonts): one face serves every size.
 func ctFaceKey(f uintptr) string {
 	n := ctFontCopyPostScriptName(f)
 	var b strings.Builder
@@ -410,7 +423,9 @@ func ctFaceKey(f uintptr) string {
 	vals := ctVariation(f)
 	tags := make([]uint32, 0, len(vals))
 	for t := range vals {
-		tags = append(tags, t)
+		if t != opszTag {
+			tags = append(tags, t)
+		}
 	}
 	sort.Slice(tags, func(i, j int) bool { return tags[i] < tags[j] })
 	for _, t := range tags {
@@ -422,9 +437,20 @@ func ctFaceKey(f uintptr) string {
 	return b.String()
 }
 
+// ctFaceRaceHook, when set (tests), runs in faceForCTFont between the
+// table miss and the registration of the new face.
+var ctFaceRaceHook func()
+
+// ctFaceRelease releases the CTFont of a face faceForCTFont builds (a
+// variable so tests can count releases).
+var ctFaceRelease = func(f uintptr) { cfRelease(f) }
+
 // faceForCTFont returns the Face of CoreText font f (any size): the same
 // *Face for the same font until TrimFontCaches. f stays owned by the
-// caller. nil when f is 0 or unusable.
+// caller. nil when f is 0 or unusable. A variable font keeps its axis
+// values with the optical size pinned to 16, like the engine's faces (the
+// key ignores it). When two callers race on a new font, the face that
+// loses the registration releases its CTFont at once.
 func faceForCTFont(f uintptr) *Face {
 	if f == 0 {
 		return nil
@@ -446,8 +472,21 @@ func faceForCTFont(f uintptr) *Face {
 		cfRelease(fn)
 	}
 	fc.Italic = ctFontGetSymbolicTraits(c)&ctFontItalicTrait != 0
-	if !fc.setRaster(newCTRasterOwned(newCTFontOwner(c, cfRelease), ctVariation(f))) {
+	vals := ctVariation(f)
+	if _, ok := vals[opszTag]; ok {
+		vals[opszTag] = 16
+	}
+	owner := newCTFontOwner(c, ctFaceRelease)
+	if !fc.setRaster(newCTRasterOwned(owner, vals)) {
+		owner.release()
 		return nil
 	}
-	return registerCTFace(key, fc)
+	if ctFaceRaceHook != nil {
+		ctFaceRaceHook()
+	}
+	if got := registerCTFace(key, fc); got != fc {
+		owner.release()
+		return got
+	}
+	return fc
 }
