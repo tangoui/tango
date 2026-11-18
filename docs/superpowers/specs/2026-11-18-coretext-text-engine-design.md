@@ -79,6 +79,13 @@ Tango 自绘应用的 macOS 二进制约 10.5 MB，Viva 只有 3.8 MB。按包�
 6. **填充 `Layout`**：`Glyphs`、`GlyphCluster`、`GlyphRun`、`Lines`（`Start`、`End`、`Top`、`Baseline`、`Width`、`RTL`），行高和 `Ascent` 沿用现有的 `Style.norm()` 规则（多 run 时取最大 `LineHeight`），和 go-text 引擎一致。
 7. **双向文字的光标、命中测试和选区**：公共层的 `bidiLine` 现在依赖 go-text 给出的 embedding level。CoreText 引擎改为从 run 的可见顺序和方向生成同等信息（每个 rune 的视觉位置和 caret 边），喂给公共层。行为以现有的 bidi 测试为准。
 
+> **实施计划阶段的修订（2026-11-18）**：上面第 3、4、7 步的具体做法在实施计划中改为保留 Tango 共用的断行、省略号和光标代码，CoreText 只提供以下原语：
+> - 断行机会：`CFStringTokenizer` 的 `kCFStringTokenizerUnitLineBreak`，系统的 Unicode 断行规则。
+> - 段落 bidi level：由 CTLine run 的方向推导。
+> - 整形：按单一方向、单一字体的片段建 CTLine。
+>
+> 字体仍由 Tango 的回退链逐 rune 选择。目标和验收不变。理由见计划开头“与设计的一处偏差”。
+
 ### 3. 字体
 
 - `Face` 的内部字段按引擎区分：CoreText 引擎保存 CTFont 句柄（复用 `ctFontOwner` 的所有权和回收），没有 go-text 的 `*font.Face`。
