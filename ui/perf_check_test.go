@@ -551,7 +551,42 @@ func TestPerfBudgets(t *testing.T) {
 				t.Errorf("%s: %v over budget %v; fix or add to perfTimeDebt", key, ns, budget)
 			case !over && inDebt:
 				t.Errorf("%s: %v within budget %v now (debt says %s): remove it from perfTimeDebt", key, ns, budget, debt.Measured)
+			case over && inDebt:
+				// A debt may not grow: more than perfDebtSlack × its
+				// recorded time fails (fix it, or re-record with a reason).
+				if rec, ok := perfDebtTime(debt.Measured); ok && float64(ns) > perfDebtSlack*float64(rec) {
+					t.Errorf("%s: %v is over %.1f× its recorded debt %s: a regression of a known debt", key, ns, perfDebtSlack, debt.Measured)
+				}
 			}
+		}
+	}
+}
+
+// perfDebtSlack is how far a time debt may exceed its recorded Measured
+// before TestPerfBudgets fails (timing noise on a loaded machine stays
+// well under it).
+const perfDebtSlack = 1.5
+
+// perfDebtTime parses the recorded time of a perfTimeDebt entry: the
+// duration before the first space ("25.09ms (budget 365µs)" → 25.09ms).
+func perfDebtTime(measured string) (time.Duration, bool) {
+	f, _, _ := strings.Cut(strings.TrimSpace(measured), " ")
+	d, err := time.ParseDuration(f)
+	return d, err == nil && d > 0
+}
+
+// TestPerfDebtTimesParse: every time debt records a time the ratchet in
+// TestPerfBudgets can read (runs by default: no timing).
+func TestPerfDebtTimesParse(t *testing.T) {
+	if d, ok := perfDebtTime("25.09ms (budget 365µs)"); !ok || d != 25090*time.Microsecond {
+		t.Fatalf("parsed %v %v", d, ok)
+	}
+	if _, ok := perfDebtTime("dirty 4.16×"); ok {
+		t.Fatal("a damage ratio parsed as a time")
+	}
+	for key, debt := range perfTimeDebt {
+		if _, ok := perfDebtTime(debt.Measured); !ok {
+			t.Errorf("%s: Measured %q does not start with a duration", key, debt.Measured)
 		}
 	}
 }
