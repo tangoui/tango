@@ -1,4 +1,4 @@
-//go:build darwin && !ios && tango_coretext
+//go:build darwin && !ios && !tango_gotext
 
 package text
 
@@ -40,7 +40,7 @@ func cfStringRunes(runes []rune, a, b int) uintptr {
 		case utf16Len(r) == 2:
 			r -= 0x10000
 			u = append(u, uint16(0xD800+(r>>10)), uint16(0xDC00+(r&0x3FF)))
-		case r < 0 || (r >= 0xD800 && r <= 0xDFFF):
+		case r < 0 || r > utf8.MaxRune || (r >= 0xD800 && r <= 0xDFFF):
 			u = append(u, 0xFFFD)
 		default:
 			u = append(u, uint16(r))
@@ -69,6 +69,9 @@ func lineEnds(runes []rune, a, b int) []int {
 	}
 	toRune := utf16Index(runes, a, b)
 	s := cfStringRunes(runes, a, b)
+	if s == 0 {
+		return []int{b}
+	}
 	defer cfRelease(s)
 	tk := cfStringTokenizerCreate(0, s, cfRange{0, int64(len(toRune) - 1)}, cfStringTokenizerUnitLineBreak, 0)
 	if tk == 0 {

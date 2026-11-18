@@ -1,20 +1,24 @@
 // Package text shapes and lays out text for the Tango self-drawn UI.
 //
-// It uses go-text/typesetting (HarfBuzz port) for shaping and UAX #14 line
-// breaking, which gives correct per-character breaking for Chinese and the
-// basic kinsoku rules (no break before "，。！？）" or after "（「"). Fonts are
-// resolved per rune through a fallback chain: fonts registered by the
-// application with RegisterFont first, then platform fonts. By default the
-// platform text engine finds and rasterizes them (CoreText: SF Pro +
-// PingFang SC on macOS; DirectWrite: Segoe UI + Microsoft YaHei on Windows;
-// fontconfig + FreeType: Noto / DejaVu + Noto Sans CJK / WenQuanYi on
-// Linux), with its hinting, and per-rune platform fallback; see engine.go
-// and UseSystemEngine. Without the engine, font files are parsed and
-// rasterized in pure Go (SF + Hiragino on macOS, Segoe UI + Microsoft
-// YaHei on Windows, Noto/DejaVu/WenQuanYi on Linux). No font files are
-// bundled. On platforms with no discoverable fonts (js/wasm) text is
-// measured with approximate metrics and not drawn until the app registers
-// a font.
+// On macOS (the default build) CoreText does all of it: shaping, UAX #14
+// line breaking, bidi levels and glyph rasterization, with no go-text code
+// linked; build with -tags tango_gotext to use go-text there as well.
+// Everywhere else (and on iOS) it uses go-text/typesetting (HarfBuzz port)
+// for shaping and UAX #14 line breaking. Both give correct per-character
+// breaking for Chinese and the basic kinsoku rules (no break before
+// "，。！？）" or after "（「"). Fonts are resolved per rune through a
+// fallback chain: fonts registered by the application with RegisterFont
+// first, then platform fonts. By default the platform text engine finds and
+// rasterizes them (CoreText: SF Pro + PingFang SC on macOS; DirectWrite:
+// Segoe UI + Microsoft YaHei on Windows; fontconfig + FreeType: Noto /
+// DejaVu + Noto Sans CJK / WenQuanYi on Linux), with its hinting, and
+// per-rune platform fallback; see engine.go and UseSystemEngine. Without
+// the engine (never in the default macOS build), font files are parsed and
+// rasterized in pure Go (SF + Hiragino on macOS with -tags tango_gotext,
+// Segoe UI + Microsoft YaHei on Windows, Noto/DejaVu/WenQuanYi on Linux).
+// No font files are bundled. On platforms with no discoverable fonts
+// (js/wasm) text is measured with approximate metrics and not drawn until
+// the app registers a font.
 //
 // API tiers: only the symbols listed in api/stable/ui_text.txt are covered
 // by the compatibility promise of docs/release.md ("API 稳定性"); every

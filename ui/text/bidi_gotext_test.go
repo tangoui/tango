@@ -1,4 +1,4 @@
-//go:build !darwin || ios || !tango_coretext
+//go:build !darwin || ios || tango_gotext
 
 package text
 
@@ -14,7 +14,7 @@ import (
 
 // Bidi tests that look into the go-text engine (shapeHook, the frozen
 // pre-bidi layout of legacy_layout_test.go); moved out of bidi_test.go so
-// the engine-neutral bidi tests also build with tango_coretext.
+// the engine-neutral bidi tests also build in the default CoreText build.
 
 func TestShapeLanguage(t *testing.T) {
 	UseSystemFonts(true)

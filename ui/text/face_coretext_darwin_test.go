@@ -1,4 +1,4 @@
-//go:build darwin && !ios && tango_coretext
+//go:build darwin && !ios && !tango_gotext
 
 package text
 
@@ -251,12 +251,12 @@ func TestCTTrimFontCachesDropsRegisteredFaces(t *testing.T) {
 		t.Fatal("registered face cannot be built")
 	}
 	if got := faceForCTFont(sys); got != rf {
-		t.Fatalf("before TrimFontCaches: faceForCTFont(Geneva) = %p %q, want the registered face %p", got, got.Family, rf)
+		t.Fatalf("before TrimFontCaches: faceForCTFont(Geneva) = %p %q, want the registered face %p", got, faceFamily(got), rf)
 	}
 	TrimFontCaches()
 	got := faceForCTFont(sys)
 	if got == nil || got == rf || got.Family != "Geneva" {
-		t.Fatalf("after TrimFontCaches: faceForCTFont(Geneva) = %p %q, want a new Geneva face (registered %p)", got, got.Family, rf)
+		t.Fatalf("after TrimFontCaches: faceForCTFont(Geneva) = %p %q, want a new Geneva face (registered %p)", got, faceFamily(got), rf)
 	}
 	if f, _ := userFamily(t, "T").pick(Regular, false); f != rf || !f.HasRune('A') {
 		t.Error("registered face no longer reachable through its family")
@@ -294,4 +294,12 @@ func ctGlyph(t *testing.T, f *Face, r rune) uint32 {
 		t.Fatalf("no glyph for %q", r)
 	}
 	return id
+}
+
+// faceFamily is f.Family, or "<nil>" for a nil face (failure messages).
+func faceFamily(f *Face) string {
+	if f == nil {
+		return "<nil>"
+	}
+	return f.Family
 }

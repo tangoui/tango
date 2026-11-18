@@ -1,3 +1,5 @@
+//go:build !darwin || ios || tango_gotext
+
 package ui
 
 import (
@@ -23,6 +25,8 @@ var update = flag.Bool("update", false, "rewrite golden images in testdata/")
 // the font list is stored next to them and the comparison is skipped on
 // machines with a different list. They are drawn with the pure-Go text path
 // (the system text engine is off), which renders identically everywhere.
+// The default macOS build has only CoreText (UseSystemEngine(false) is a
+// no-op there), so on macOS they run with -tags tango_gotext.
 func goldenFonts(t *testing.T) {
 	t.Helper()
 	prev := text.UseSystemEngine(false)

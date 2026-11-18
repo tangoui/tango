@@ -4,6 +4,8 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -57,5 +59,36 @@ func TestSharedFilesImportNoGoText(t *testing.T) {
 	sort.Strings(bad)
 	if len(bad) > 0 {
 		t.Fatalf("shared files import go-text: %s", strings.Join(bad, ", "))
+	}
+}
+
+// TestDefaultDarwinBuildHasNoGoText checks that the default macOS build of
+// this package links no go-text package at all (go list -deps, with the
+// caller's GOFLAGS). Skipped elsewhere and under -tags tango_gotext.
+func TestDefaultDarwinBuildHasNoGoText(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("default macOS build only")
+	}
+	if !coreTextOnly {
+		t.Skip("go-text build (-tags tango_gotext)")
+	}
+	gobin, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("no go command")
+	}
+	cmd := exec.Command(gobin, "list", "-deps", "-f", "{{.ImportPath}}", ".")
+	cmd.Env = append(os.Environ(), "GOOS=darwin", "CGO_ENABLED=0")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("go list: %v\n%s", err, out)
+	}
+	var bad []string
+	for _, p := range strings.Fields(string(out)) {
+		if strings.HasPrefix(p, "github.com/go-text/") {
+			bad = append(bad, p)
+		}
+	}
+	if len(bad) > 0 {
+		t.Fatalf("the default darwin build links go-text: %s", strings.Join(bad, ", "))
 	}
 }

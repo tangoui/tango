@@ -1,4 +1,4 @@
-//go:build darwin && !ios && tango_coretext
+//go:build darwin && !ios && !tango_gotext
 
 package text
 
