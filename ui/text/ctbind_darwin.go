@@ -25,7 +25,6 @@ const (
 
 	cfStringTokenizerUnitLineBreak         = 3
 	ctParagraphStyleSpecifierBaseDirection = 13 // kCTParagraphStyleSpecifierBaseWritingDirection
-	ctWritingDirectionNatural              = -1
 	ctWritingDirectionLeftToRight          = 0
 	ctWritingDirectionRightToLeft          = 1
 	ctRunStatusRightToLeft                 = 1 << 0

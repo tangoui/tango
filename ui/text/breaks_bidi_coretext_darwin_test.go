@@ -164,3 +164,61 @@ func TestCTParaLevelsSeparator(t *testing.T) {
 		}
 	}
 }
+
+// Strong characters that are not letters set the DirAuto level too (rules
+// P2/P3): Arabic and Hebrew punctuation are R/AL, Roman numerals and
+// circled letters are L.
+func TestCTParaLevelsAutoStrongPunct(t *testing.T) {
+	for _, c := range []struct {
+		s    string
+		base level
+	}{
+		{"؟ abc", 1},
+		{"؟123", 1},
+		{"־ abc", 1},
+		{"۔ abc", 1},
+		{"אְ", 1},    // a letter with a mark
+		{"ְ abc", 0}, // a mark alone is weak (NSM)
+		{"٠ abc", 0}, // Arabic-Indic digit is weak (AN)
+		{"، abc", 0}, // Arabic comma is weak (CS)
+		{"Ⅻ שלום", 0},
+		{"Ⓐ שלום", 0},
+		{"⁧שלום⁩ abc", 0}, // isolates are skipped
+		{"‏123", 1},       // RLM
+	} {
+		r, lv, base, _ := ctLevels(c.s, DirAuto)
+		if base != c.base {
+			t.Errorf("%q: base %d, want %d (lv %v)", c.s, base, c.base, lv)
+		}
+		for i, v := range lv {
+			if v < base {
+				t.Errorf("%q: rune %d (%q) level %d below base %d", c.s, i, r[i], v, base)
+			}
+		}
+	}
+}
+
+// A nested left-to-right stretch split into several glyph runs (font
+// fallback for the full-width digit) stays nested as a whole.
+func TestCTParaLevelsSplitNestedRun(t *testing.T) {
+	s := "abc שלום 12３ def"
+	r := []rune(s)
+	n := 0
+	for _, ru := range ctDirRuns(r, 0, len(r), ctWritingDirectionLeftToRight) {
+		if ru.start >= 9 && ru.end <= 12 {
+			n++
+		}
+	}
+	if n < 2 {
+		t.Fatalf("digits not split into several runs (%d); the test needs a split", n)
+	}
+	_, lv, base, mixed := ctLevels(s, DirAuto)
+	want := []level{0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 0, 0, 0, 0}
+	if base != 0 || !mixed || !slices.Equal(lv, want) {
+		t.Errorf("base %d mixed %v lv %v, want %v", base, mixed, lv, want)
+	}
+	wantVis := []int{0, 1, 2, 3, 9, 10, 11, 8, 7, 6, 5, 4, 12, 13, 14, 15}
+	if got := visualOrder(lv); !slices.Equal(got, wantVis) {
+		t.Errorf("visualOrder %v, want %v", got, wantVis)
+	}
+}
