@@ -1,4 +1,4 @@
-//go:build darwin && (ios || tango_gotext)
+//go:build darwin && (ios || !tango_coretext)
 
 package text
 
@@ -8,7 +8,7 @@ import (
 )
 
 // go-text build only: the opt-in short-text CoreText path (coreTextShape
-// with TANGO_TEXT_ENGINE=coretext) exists only there; the default macOS
+// with TANGO_TEXT_ENGINE=coretext) exists only there; the tango_coretext
 // build shapes everything with CoreText (shapeItems) and its coreTextShape
 // always declines.
 

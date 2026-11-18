@@ -1,4 +1,4 @@
-//go:build darwin && (ios || tango_gotext)
+//go:build darwin && (ios || !tango_coretext)
 
 package metal
 
@@ -10,8 +10,8 @@ import (
 )
 
 // Compared with ui's golden images, which are exact pixels of the pure-Go
-// (go-text) text engine: the default macOS build has only CoreText, so
-// this runs with -tags tango_gotext.
+// (go-text) text engine: the macOS build with -tags tango_coretext has only
+// CoreText, so this does not build with it.
 
 // TestGalleryPageIsGoldenPage checks that galleryPage (this package's copy
 // of ui's goldenPage) still draws ui's golden images at scale 1 with

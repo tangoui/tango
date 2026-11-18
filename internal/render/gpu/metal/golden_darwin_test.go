@@ -110,7 +110,7 @@ const goldenFileThr = 24
 func goldenFonts(t *testing.T) bool {
 	t.Helper()
 	if !gputest.PureGoText() {
-		t.Logf("text engine %q only (default macOS build): ui's golden images need -tags tango_gotext", text.Engine())
+		t.Logf("text engine %q only (-tags tango_coretext): ui's golden images need the go-text engine", text.Engine())
 		return false
 	}
 	if e := text.Engine(); e != "go" {

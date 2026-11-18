@@ -2,8 +2,8 @@
 
 package text
 
-// systemFamilies is the chain from font files (UseSystemEngine(false) under
-// -tags tango_gotext, or CoreText unavailable). PingFang is missing here:
+// systemFamilies is the chain from font files (UseSystemEngine(false), or
+// CoreText unavailable; not used with -tags tango_coretext). PingFang is missing here:
 // its .ttc is not readable by go-text; the CoreText engine (engine_darwin.go)
 // provides it.
 func systemFamilies() (sans, mono []*family) {

@@ -156,10 +156,10 @@ func SplitCorners(a, b *image.RGBA, thr int, boxes []image.Rectangle) (corner, o
 // they must not run in parallel with other text tests (no gputest
 // package uses t.Parallel).
 //
-// The default macOS build has no pure-Go engine (CoreText is its only text
-// engine and UseSystemEngine(false) is a no-op): there Main pins CoreText,
-// the parity tests compare CoreText glyphs, and the comparisons with ui's
-// golden images are built only with -tags tango_gotext.
+// The macOS build with -tags tango_coretext has no pure-Go engine (CoreText
+// is its only text engine and UseSystemEngine(false) is a no-op): there
+// Main pins CoreText, the parity tests compare CoreText glyphs, and the
+// comparisons with ui's golden images are not built.
 
 // systemText is the engine the current test asked for: false (Main) for
 // the Go engine, true inside SystemText or when the build has no pure-Go
@@ -167,7 +167,7 @@ func SplitCorners(a, b *image.RGBA, thr int, boxes []image.Rectangle) (corner, o
 var systemText bool
 
 // Main pins the pure-Go text engine for the whole test binary and runs the
-// tests; where the build has none (the default macOS build: CoreText only)
+// tests; where the build has none (macOS with -tags tango_coretext)
 // the system engine is what is pinned. Call it from TestMain:
 //
 //	func TestMain(m *testing.M) { gputest.Main(m) }
@@ -182,7 +182,7 @@ func Main(m *testing.M) {
 var noPureGo bool
 
 // PureGoText reports whether Main pinned the pure-Go text engine: false in
-// the default macOS build (CoreText only; -tags tango_gotext has it), so
+// the macOS tango_coretext build (CoreText only), so
 // comparisons with images recorded by the pure-Go engine do not apply.
 func PureGoText() bool { return !noPureGo }
 

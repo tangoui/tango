@@ -16,7 +16,9 @@
 
 - `@tangoui/runtime` 的 `ErrorCode` 加入 `busy`（更新器在已有检查或下载进行时返回）。
 
-- macOS 自绘 UI 新增可选 `TANGO_TEXT_ENGINE=coretext` 轻量文字路径（仅 `-tags tango_gotext` 构建）：无换行短文本使用 CoreText glyph-run 与系统字体回退，复杂排版继续使用 go-text/HarfBuzz。
+- macOS 自绘 UI 新增可选 `TANGO_TEXT_ENGINE=coretext` 轻量文字路径：无换行短文本使用 CoreText glyph-run 与系统字体回退，复杂排版自动继续使用 go-text/HarfBuzz；默认文字引擎和输出路径不变。
+
+- macOS 新增可选构建标签 `tango_coretext`（CoreText 文字引擎）：`ui/text` 的整形、断行、双向文字、字体回退和光栅化都交给 CoreText，`text.RegisterFont` 的字体也由 CoreText 读取，不链接 `github.com/go-text/typesetting`。最小自绘样本（darwin/arm64，`-trimpath -ldflags='-s -w'`）可执行文件 10,520,354 → 8,544,834 B（-1.88 MiB，-18.8%），`tan init -template ui` 的 `.dmg` 3,720,203 → 3,198,304 B（见 [体积报告](docs/package-size-optimization.md)）。这个构建忽略 `TANGO_TEXT_ENGINE`，`text.UseSystemEngine(false)` 不关掉系统引擎，`text.Engine()` 总是 `"coretext"`；换行位置（中文禁则、URL、数字串）、字距和回退字体跟随系统，可能与 Windows/Linux 不同。性能：行情帧基准 0.20 ms（go-text 0.60 ms），但编辑器行缓存未命中仍比 go-text 慢 3–12 倍，所以默认构建继续用 go-text。默认构建和其他平台不变。
 
 - 自绘窗口支持可选 `TANGO_RENDERER=auto`：小窗口先用 CPU，放大、内容复杂或持续高频刷新后单向升级 GPU；保持默认 GPU 优先和显式 Renderer 优先级不变。系统字体链可由 `text.TrimFontCaches()` 丢弃，平台低内存通知也会触发回收；仍被页面或编辑器持有的字体继续有效，macOS 原生字体句柄在最后一个拥有者不可达后释放（见 `docs/dev-builds.md`）。
 
@@ -101,7 +103,6 @@
 
 - macOS Apple Silicon 上的自绘窗口不论大小、不论 `Content` 取值都默认用原生 Core Animation 图层：大型窗口（面积超过 100,000 逻辑像素）由 Metal 改为原生图层，与小窗口一致。数据窗口（`Content: ui.ContentData`）一直留在原生图层，只在连续六帧绘制超过 8 ms 或连续六帧整窗软件回退时单向升级 Metal。普通窗口（默认 `ui.ContentGeneral`）在第一次收到键盘输入（按下非修饰键、提交文字、输入法组字）后，下一帧单向升级 Metal，满足上面两个条件之一时也会升级；这一条对原本就默认用原生图层的小窗口同样生效，所以小窗口打字之后内存会上升到 Metal 的水平。实测列表/行情窗口在原生图层上内存降低 63–71%（list 39 对 135 MB，quotes 54 对 147 MB），800×600 数据网格约 69 MB（mygo 107 MB）。原生图层的输入到画面延迟比 Metal 慢约 2 帧（编辑器打字 78.8 对 47.2 ms、三光标 87.6 对 47.2 ms、滚动约 80 对 46 ms），普通窗口打字后改用 Metal，输入延迟和固定用 Metal 相当：2026-11-18 在 Apple M4 上用 1920×944 的编辑器夹具实测（CGEvent 输入、ScreenCaptureKit 窗口采样，默认设置对 `TANGO_RENDERER=gpu`，同一会话内 AB/BA/AB 交替）：打字 100 键，从第 2 键起中位数 32.5 对 31.9 ms（p95 48.3 对 48.9）；三光标 30 次 32.7 对 31.8 ms（p95 45.5 对 45.2）；第一次按键（切换到 Metal 的那一帧）一次性多约 30–90 ms（默认 75–134 ms，gpu 41–46 ms）；只滚动不打字的普通窗口和所有数据窗口仍按原生图层的延迟运行。原生图层起不来的窗口改用 Metal。Intel Mac 默认仍用 Metal。需要固定 Metal 时设 `TANGO_RENDERER=gpu`，固定原生图层时设 `native`（见 `docs/dev-builds.md`）。
 
-- **macOS 自绘文字默认改用 CoreText**：默认 macOS 构建的 `ui/text` 整形、断行、双向文字、字体回退和光栅化都交给 CoreText，`text.RegisterFont` 的字体也由 CoreText 读取，不再链接 `github.com/go-text/typesetting`。最小自绘样本（darwin/arm64，`-trimpath -ldflags='-s -w'`）可执行文件 10,520,354 → 8,544,834 B（-1.88 MiB，-18.8%），`tan init -template ui` 的 `.dmg` 3,720,203 → 3,198,304 B（见 [体积报告](docs/package-size-optimization.md)）。这个构建忽略 `TANGO_TEXT_ENGINE`，`text.UseSystemEngine(false)` 不再关掉系统引擎，`text.Engine()` 总是 `"coretext"`；`-tags tango_gotext` 恢复以前的 go-text 引擎和开关（金样图测试用）。行为差异：换行位置（中文禁则、URL、数字串）、字距和回退字体跟随系统，可能与 Windows/Linux 不同。其他平台不变。同批性能测量中行缓存未命中和 quotes/list 场景的 CPU 超出验收门槛，待决定（数字见体积报告）。
 - **删除 `down:scheme`**：单个长流式响应的下行通道（`GET /__tango/lane/down`）和 runtime-js 的对应模块删除，由 `down:poll` 取代；它在 Apple 上本来就因 WebKit 扣住大块突发而停用，其他平台没有接入。`TANGO_IPC_LANE_FAULT=down:scheme:N` 改为 `down:poll:N`（把带第 N+1 个字节包的轮询响应截断）。
 - **`TANGO_IPC_LANES_DARWIN` 新取值**（macOS）：`up`、`down` 只开其一（排查用）；`1` 和 `all` 都表示 `down:poll` + `up:post`。**`all` 含义改变**：以前只在开发构建里开实验性的 `down:scheme`、生产构建等同默认，现在在任何构建里都开 `down:poll` + `up:post`。iOS 上 `all` 与 `1` 相同（`up:post`），也不再依赖自测构建。
 - **`Surface.Eval` 与 `Send` 对任意 goroutine 都保序**：页面加载完成后，`Send` 的消息按序号进下行序列；`Eval` 只在当前页面开启了 `down:poll` 时进同一序列，作为栅栏，页面把它之前的消息交付完才执行（多一次页面到 Go 的往返，约 0.06 ms；通道空闲时直接走 `Eval`，没有这笔开销）。没开 `down:poll` 的页面（iOS、Windows、Linux、Android，以及默认的 macOS）`Eval` 不带序号，仍是一次普通的 `evaluateJavaScript`，与 `Send` 经同一个出队队列按调用顺序交给页面。所以"与 `Send` 保序"的承诺对任意 goroutine 都成立。主线程上调用 `Send`/`Eval` 且走 `Eval` 路径时，返回前已经交给页面（与以前一致）。

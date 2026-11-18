@@ -62,21 +62,22 @@ func TestSharedFilesImportNoGoText(t *testing.T) {
 	}
 }
 
-// TestDefaultDarwinBuildHasNoGoText checks that the default macOS build of
-// this package links no go-text package at all (go list -deps, with the
-// caller's GOFLAGS). Skipped elsewhere and under -tags tango_gotext.
-func TestDefaultDarwinBuildHasNoGoText(t *testing.T) {
+// TestCoreTextBuildHasNoGoText checks that the macOS build of this package
+// with -tags tango_coretext links no go-text package at all (go list -deps
+// -tags tango_coretext, with the caller's GOFLAGS). Run only by that build
+// on macOS; skipped otherwise.
+func TestCoreTextBuildHasNoGoText(t *testing.T) {
 	if runtime.GOOS != "darwin" {
-		t.Skip("default macOS build only")
+		t.Skip("macOS only")
 	}
 	if !coreTextOnly {
-		t.Skip("go-text build (-tags tango_gotext)")
+		t.Skip("go-text build (run with -tags tango_coretext)")
 	}
 	gobin, err := exec.LookPath("go")
 	if err != nil {
 		t.Skip("no go command")
 	}
-	cmd := exec.Command(gobin, "list", "-deps", "-f", "{{.ImportPath}}", ".")
+	cmd := exec.Command(gobin, "list", "-tags", "tango_coretext", "-deps", "-f", "{{.ImportPath}}", ".")
 	cmd.Env = append(os.Environ(), "GOOS=darwin", "CGO_ENABLED=0")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -89,6 +90,6 @@ func TestDefaultDarwinBuildHasNoGoText(t *testing.T) {
 		}
 	}
 	if len(bad) > 0 {
-		t.Fatalf("the default darwin build links go-text: %s", strings.Join(bad, ", "))
+		t.Fatalf("the tango_coretext darwin build links go-text: %s", strings.Join(bad, ", "))
 	}
 }
