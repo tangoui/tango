@@ -157,9 +157,9 @@ jobs:
       # The default macOS build shapes and rasterizes text with CoreText
       # alone; -tags tango_gotext keeps the go-text engine (and the
       # pure-Go golden images) building and passing there.
-      - name: go test -tags tango_gotext (ui, macOS)
+      - name: go test -tags tango_gotext (ui, render/gpu, macOS)
         if: runner.os == 'macOS'
-        run: bash scripts/ci-go-test.sh -p 1 -tags tango_gotext -timeout 40m ./ui/...
+        run: bash scripts/ci-go-test.sh -p 1 -tags tango_gotext -timeout 40m ./ui/... ./internal/render/gpu/...
 
       # Development features (hot reload, automation, dev proxy) are only
       # built with -tags tango_dev; the default build above is production.

@@ -231,7 +231,8 @@ func fastScript(s language.Script) bool {
 
 // enforced returns the Language shaping.Segmenter gives a run of script
 // in text of language tag (enforceLanguages), found by splitting a probe.
-func (fp *fastPath) enforced(tag string, lang language.Language, script language.Script, fm *fontmap) language.Language {
+// The tag is parsed only on a cache miss.
+func (fp *fastPath) enforced(tag string, script language.Script, fm *fontmap) language.Language {
 	k := langKey{tag, script}
 	if l, ok := fp.langs[k]; ok {
 		return l
@@ -240,7 +241,7 @@ func (fp *fastPath) enforced(tag string, lang language.Language, script language
 	if script == language.Latin {
 		probe[0] = 'a'
 	}
-	out := fp.split.Split(shaping.Input{Text: probe, RunEnd: 1, Direction: di.DirectionLTR, Size: fixed.I(14), Language: lang}, fm)
+	out := fp.split.Split(shaping.Input{Text: probe, RunEnd: 1, Direction: di.DirectionLTR, Size: fixed.I(14), Language: language.NewLanguage(tag)}, fm)
 	l := out[0].Language
 	fp.langs[k] = l
 	return l
@@ -404,7 +405,7 @@ func (c *LineCache) fastShape(line string, runs []Run, opt Options) *Layout {
 					}
 				}
 			}
-			k := asciiKey{face, size, script, fp.enforced(p.rs[it.run].lang, language.NewLanguage(it.lang), script, ff.fm)}
+			k := asciiKey{face, size, script, fp.enforced(it.lang, script, ff.fm)}
 			t := fp.table(k)
 			for i := it.start; i < it.end; i++ {
 				add(fp.unit(t, runes, i, i+1, k), i, it.run)

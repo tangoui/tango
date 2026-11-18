@@ -78,7 +78,7 @@ func TestDefaultDarwinBuildHasNoGoText(t *testing.T) {
 	}
 	cmd := exec.Command(gobin, "list", "-deps", "-f", "{{.ImportPath}}", ".")
 	cmd.Env = append(os.Environ(), "GOOS=darwin", "CGO_ENABLED=0")
-	out, err := cmd.Output()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("go list: %v\n%s", err, out)
 	}

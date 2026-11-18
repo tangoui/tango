@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Fails if the default macOS build of the self-drawn UI links go-text.
+# Fails if any package of the module links go-text in the default macOS build.
 set -euo pipefail
-deps=$(GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go list -deps ./ui/... ./uihost/...)
+deps=$(GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go list -deps ./...)
 if grep -q '^github.com/go-text/' <<<"$deps"; then
   echo "go-text is linked into the default darwin build:" >&2
   grep '^github.com/go-text/' <<<"$deps" >&2

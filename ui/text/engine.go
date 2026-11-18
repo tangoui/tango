@@ -62,8 +62,9 @@ import (
 // through the engine (paint.GlyphRasterizer), pure-Go faces always through
 // their outlines. Layouts shaped before the switch keep their old faces and
 // draw exactly as before; reshape (or let the UI re-run its frame) to pick
-// up the new engine. Fonts added with RegisterFont always use the pure-Go
-// path. Call it before rendering starts when possible (tests: at the top of
+// up the new engine. Fonts added with RegisterFont use the pure-Go path,
+// except in the default macOS build, where CoreText reads them like system
+// fonts. Call it before rendering starts when possible (tests: at the top of
 // the test or in TestMain). It returns the previous setting, for restoring.
 func UseSystemEngine(on bool) (prev bool) { return useSystemEngine(on) }
 
