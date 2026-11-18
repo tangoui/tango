@@ -96,6 +96,7 @@ type viewState struct {
 	stickyLines                                          []int
 	stickyY                                              []float32
 	stickyClips                                          []geom.Rect
+	stickyScopes                                         []FoldingRange // scratch: the ranges enclosing the view's top (sticky.go)
 	stickyTokens                                         map[int]*stickyTokenLine
 	highlightDeadline                                    time.Time
 	stickyRect, minimapRect, overviewRect, minimapSlider geom.Rect

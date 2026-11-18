@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"cmp"
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/monarch"
 	"github.com/tangoui/tango/ui/editor/theme"
@@ -8,6 +9,7 @@ import (
 	"github.com/tangoui/tango/ui/paint"
 	"image/color"
 	"math"
+	"slices"
 
 	"github.com/tangoui/tango/ui/editor/internal/frameclock"
 	"unicode/utf8"
@@ -47,7 +49,14 @@ func (w *ViewW) prepareSticky(snap buffer.Snapshot) {
 	lh := w.lineHeight()
 	scroll := float32(st.Viewport.scrollY())
 	var parents []int
-	for _, scope := range fs.rs {
+	chain, tail := w.stickyCandidates(scroll, lh)
+	for k := range len(chain) + len(tail) {
+		var scope FoldingRange
+		if k < len(chain) {
+			scope = chain[k]
+		} else {
+			scope = tail[k-len(chain)]
+		}
 		for len(parents) > 0 && parents[len(parents)-1] < scope.Start {
 			parents = parents[:len(parents)-1]
 		}
@@ -82,6 +91,38 @@ func (w *ViewW) prepareSticky(snap buffer.Snapshot) {
 	}
 	bottom := vs.stickyClips[len(vs.stickyClips)-1].Bottom()
 	vs.stickyRect = geom.Rect{X: vs.gutter.X, Y: vs.text.Y, W: vs.gutter.W + vs.text.W, H: bottom - vs.text.Y}
+}
+
+// stickyCandidates returns the folding ranges prepareSticky walks, in
+// order: those enclosing the line above the view's top (the chain of
+// ranges around it) and every range starting from there on. The ranges
+// before them all end above the view: walking them only pushes and pops
+// the nesting stack, which the enclosing chain rebuilds. Scrolled into a
+// long document, the walk no longer starts at its first line.
+func (w *ViewW) stickyCandidates(scroll, lh float32) (chain, tail []FoldingRange) {
+	fs, vs := &w.st.fold, w.vs
+	rs := fs.rs
+	if len(fs.rsUp) != len(rs) || len(rs) == 0 || lh <= 0 {
+		return nil, rs
+	}
+	v0 := int(math.Floor(float64(scroll/lh))) - 1
+	if v0 <= 0 {
+		return nil, rs
+	}
+	l0, _ := w.st.vl.find(v0)
+	idx, _ := slices.BinarySearchFunc(rs, l0, func(r FoldingRange, l int) int { return cmp.Compare(r.Start, l) })
+	if idx == 0 {
+		return nil, rs
+	}
+	out := vs.stickyScopes[:0]
+	for j := idx - 1; j >= 0; j = fs.rsUp[j] {
+		if rs[j].End >= l0 {
+			out = append(out, rs[j])
+		}
+	}
+	slices.Reverse(out)
+	vs.stickyScopes = out
+	return out, rs[idx:]
 }
 
 // layoutStickyRows lays out the sticky lines prepareSticky chose.
