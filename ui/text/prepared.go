@@ -1,8 +1,6 @@
 package text
 
 import (
-	"github.com/go-text/typesetting/bidi"
-	"github.com/go-text/typesetting/language"
 	"unsafe"
 )
 
@@ -13,7 +11,7 @@ const preparedBudget = 4 << 20
 
 type paragraphInfo struct {
 	a, b      int
-	base      bidi.Level
+	base      level
 	mixed     bool
 	ends      []int
 	endsReady bool
@@ -25,7 +23,7 @@ type preparedText struct {
 	runes                        []rune
 	adv                          []float32
 	glyphs                       []sg
-	lv                           []bidi.Level
+	lv                           []level
 	paras                        []paragraphInfo
 	byCluster                    glyphClusters
 	fms                          []*fontmap
@@ -50,7 +48,7 @@ func prepareText(s string, rs []runStyle, runOf, shapeOf []int32, opt Options) *
 	}
 	runes := []rune(s)
 	st := rs[0].st
-	lang := language.NewLanguage(rs[0].lang)
+	lang := rs[0].lang
 	var fmBuf [1]*fontmap
 	fms := newFontmaps(rs, opt, &fmBuf)
 	lh, asc, desc := lineMetrics(rs, fms, runOf, len(runes))
@@ -58,7 +56,7 @@ func prepareText(s string, rs []runStyle, runOf, shapeOf []int32, opt Options) *
 	var paras []paragraphInfo
 	var glyphs []sg
 	var items []item
-	lv := make([]bidi.Level, len(runes))
+	lv := make([]level, len(runes))
 	pa := 0
 	for pa <= len(runes) {
 		pb := pa
@@ -94,7 +92,7 @@ func prepareText(s string, rs []runStyle, runOf, shapeOf []int32, opt Options) *
 	if memo {
 		// Account capacities, not lengths: long runs of empty paragraphs
 		// allocate paragraph records even though they contain no glyphs.
-		bytes := len(s) + int(unsafe.Sizeof(*p)) + cap(runes)*4 + cap(adv)*4 + cap(lv)*int(unsafe.Sizeof(bidi.Level(0))) + cap(glyphs)*int(unsafe.Sizeof(sg{})) + cap(paras)*int(unsafe.Sizeof(paragraphInfo{})) + (cap(byCluster.first)+cap(byCluster.next))*4 + cap(fms)*int(unsafe.Sizeof((*fontmap)(nil)))
+		bytes := len(s) + int(unsafe.Sizeof(*p)) + cap(runes)*4 + cap(adv)*4 + cap(lv)*int(unsafe.Sizeof(level(0))) + cap(glyphs)*int(unsafe.Sizeof(sg{})) + cap(paras)*int(unsafe.Sizeof(paragraphInfo{})) + (cap(byCluster.first)+cap(byCluster.next))*4 + cap(fms)*int(unsafe.Sizeof((*fontmap)(nil)))
 		// Font maps are tiny compared with glyphs, but include a conservative
 		// allowance for their map buckets and resolved-face references.
 		bytes += len(fms) * 512
@@ -114,8 +112,7 @@ func prepareText(s string, rs []runStyle, runOf, shapeOf []int32, opt Options) *
 func clearPrepared() {
 	preparedCache = map[cacheKey]*preparedText{}
 	preparedBytes = 0
-	clearNumericFaces()
-	advanceShaper = compactShaper{}
+	resetShaper()
 }
 
 // Equal line breaks yield identical placement even at different widths.

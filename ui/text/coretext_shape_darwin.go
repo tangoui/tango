@@ -1,4 +1,4 @@
-//go:build darwin
+//go:build darwin && (ios || !tango_coretext)
 
 package text
 
@@ -112,7 +112,7 @@ func coreTextShape(s string, st Style, opt Options) *Layout {
 		}
 		own := newCTFontOwner(cfRetain(rf), cfRelease)
 		r := newCTRasterOwned(own, nil)
-		face := &Face{Family: "CoreText", Weight: st.Weight, face: nil, upem: r.upem, asc: float32(ctFontGetAscent(rf)), desc: float32(ctFontGetDescent(rf)), ras: r, unitPath: r.unitPath, paths: map[uint32]*paint.Path{}}
+		face := &Face{Family: "CoreText", Weight: st.Weight, faceImpl: faceImpl{face: nil, upem: r.upem, asc: float32(ctFontGetAscent(rf)), desc: float32(ctFontGetDescent(rf)), unitPath: r.unitPath}, ras: r, paths: map[uint32]*paint.Path{}}
 		if face.asc > asc {
 			asc = face.asc
 		}

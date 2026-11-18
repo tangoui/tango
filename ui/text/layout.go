@@ -6,16 +6,8 @@ import (
 	"sync"
 	"unicode"
 
-	"github.com/go-text/typesetting/bidi"
-	"github.com/go-text/typesetting/di"
-	"github.com/go-text/typesetting/font"
-	ot "github.com/go-text/typesetting/font/opentype"
-	"github.com/go-text/typesetting/language"
-	"github.com/go-text/typesetting/segmenter"
-	"github.com/go-text/typesetting/shaping"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/paint"
-	"golang.org/x/image/math/fixed"
 )
 
 // Style selects font and size.
@@ -194,11 +186,7 @@ var (
 	mu     sync.Mutex
 	cache  = map[cacheKey]*Layout{}
 	cacheV = -1
-
-	advanceShaper compactShaper
-	segm          shaping.Segmenter
-	breaker       segmenter.Segmenter
-	hits          int
+	hits   int
 )
 
 func clearCache() {
@@ -255,64 +243,13 @@ func Width(s string, st Style) float32 { return Shape(s, st, Options{NoWrap: tru
 func LineHeightOf(st Style) float32 { return st.norm().LineHeight }
 
 type fontmap struct {
-	chain      []*family
-	eng        *engineState // system engine: per-rune platform fallback
-	w          Weight
-	italic     bool
-	byFF       map[*font.Face]*Face
-	inlineFont *font.Face
-	inlineFace *Face
-	first      *Face
-	feats      []shaping.FontFeature // Input.FontFeatures of every shaped run
-}
-
-// Most labels use one typeface. Keep its reverse mapping inline and
-// allocate a map only when fallback introduces a second font.
-func (m *fontmap) remember(gt *font.Face, f *Face) {
-	if m.inlineFont == nil {
-		m.inlineFont, m.inlineFace = gt, f
-	}
-	if gt == m.inlineFont {
-		m.inlineFace = f
-		if m.byFF != nil {
-			m.byFF[gt] = f
-		}
-		return
-	}
-	if m.byFF == nil {
-		m.byFF = map[*font.Face]*Face{m.inlineFont: m.inlineFace}
-	}
-	m.byFF[gt] = f
-}
-func (m *fontmap) fromFont(gt *font.Face) *Face {
-	if gt == m.inlineFont {
-		return m.inlineFace
-	}
-	return m.byFF[gt]
-}
-
-// noLigaFeatures turns off the ligature features HarfBuzz enables by
-// default (Options.noLiga).
-var noLigaFeatures = []shaping.FontFeature{
-	{Tag: ot.NewTag('l', 'i', 'g', 'a'), Value: 0},
-	{Tag: ot.NewTag('c', 'l', 'i', 'g'), Value: 0},
-	{Tag: ot.NewTag('c', 'a', 'l', 't'), Value: 0},
-}
-
-// ResolveFace picks the font for r: app-registered fonts first; then, for
-// CJK and emoji, the system families meant for that script (so 「，」 comes
-// from PingFang / YaHei / Noto CJK rather than a Latin font that happens to
-// map it); then the chain in order; then the platform's own fallback for
-// the rune (CTFontCreateForString, fontconfig charset match).
-func (m *fontmap) ResolveFace(r rune) *font.Face {
-	if f, _ := m.resolve(r); f != nil {
-		return f.gt()
-	}
-	if m.first != nil {
-		m.remember(m.first.gt(), m.first)
-		return m.first.gt()
-	}
-	return nil
+	chain  []*family
+	eng    *engineState // system engine: per-rune platform fallback
+	w      Weight
+	italic bool
+	first  *Face
+	noLiga bool // shape with liga, clig and calt off (Options.noLiga)
+	fontmapImpl
 }
 
 // resolve is ResolveFace without the last resort (the first face tried,
@@ -328,7 +265,7 @@ func (m *fontmap) resolve(r rune) (*Face, *family) {
 			m.first = f
 		}
 		if f.HasRune(r) {
-			m.remember(f.gt(), f)
+			m.rememberFace(f)
 			return f
 		}
 		return nil
@@ -375,67 +312,12 @@ type sg struct {
 	run        int32 // style run (index into layoutRuns' runs)
 }
 
-func fx(v fixed.Int26_6) float32 { return float32(v) / 64 }
-
 // shapeRange shapes runes[a:b] left-to-right and returns glyphs plus
 // per-rune advances.
 func shapeRange(runes []rune, a, b int, st Style, fm *fontmap, adv []float32) []sg {
-	items := [1]item{{start: a, end: b, st: st, lang: language.NewLanguage(resolveLang(st))}}
+	items := [1]item{{start: a, end: b, st: st, lang: resolveLang(st)}}
 	fms := [1]*fontmap{fm}
 	return shapeItems(runes, items[:], fms[:], adv)
-}
-
-// shapeHook, when set (tests), sees every run handed to the shaper.
-var shapeHook func(shaping.Input)
-
-// shapeItems shapes each item (one embedding level, one style) with the
-// font map of its style run (fms[it.run]) and returns the glyphs plus
-// per-rune advances (added into adv). Glyphs of a right-to-left item come
-// in the shaper's visual order; the clusters are placed by the caller in
-// line visual order. Without any font (every chain is empty, so fms[0]
-// tells) advances are approximated from each item's size.
-func shapeItems(runes []rune, items []item, fms []*fontmap, adv []float32) []sg {
-	if fms[0].primary() == nil {
-		for _, it := range items {
-			for i := it.start; i < it.end; i++ {
-				adv[i] = approxAdvance(runes[i], it.st.Size)
-			}
-		}
-		return nil
-	}
-	var out []sg
-	for _, it := range items {
-		a, b := it.start, it.end
-		if a >= b {
-			continue
-		}
-		fm := fms[it.run]
-		dir := di.DirectionLTR
-		if it.rtl() {
-			dir = di.DirectionRTL
-		}
-		// Split re-runs bidi on the item alone (a single level, so it stays
-		// one direction), then cuts it by script (detected per rune) and
-		// face, and resolves Language per script.
-		in := shaping.Input{Text: runes, RunStart: a, RunEnd: b, Direction: dir, Size: fixed.Int26_6(it.st.Size * 64), Language: it.lang, FontFeatures: fm.feats}
-		for _, run := range segm.Split(in, fm) {
-			if run.Face == nil {
-				continue
-			}
-			if shapeHook != nil {
-				shapeHook(run)
-			}
-			face := fm.fromFont(run.Face)
-			first := len(out)
-			out = advanceShaper.append(out, run, face, it.run)
-			for _, gl := range out[first:] {
-				if gl.cluster >= a && gl.cluster < b {
-					adv[gl.cluster] += gl.adv
-				}
-			}
-		}
-	}
-	return out
 }
 
 func approxAdvance(r rune, size float32) float32 {
@@ -469,10 +351,6 @@ func newFontmaps(rs []runStyle, opt Options, buf *[1]*fontmap) []*fontmap {
 	if len(rs) > 1 {
 		fms = make([]*fontmap, len(rs))
 	}
-	var feats []shaping.FontFeature
-	if opt.noLiga {
-		feats = noLigaFeatures
-	}
 	var distinct []int // first run of each font map
 	for k, r := range rs {
 		for _, p := range distinct {
@@ -482,7 +360,7 @@ func newFontmaps(rs []runStyle, opt Options, buf *[1]*fontmap) []*fontmap {
 			}
 		}
 		if fms[k] == nil {
-			fms[k] = &fontmap{chain: r.chain, w: r.st.Weight, italic: r.st.Italic, feats: feats}
+			fms[k] = &fontmap{chain: r.chain, w: r.st.Weight, italic: r.st.Italic, noLiga: opt.noLiga}
 			if len(r.chain) > 0 {
 				fms[k].eng = reg.engineFallback()
 			}
@@ -675,7 +553,7 @@ func layoutRuns(s string, rs []runStyle, runOf, shapeOf []int32, opt Options) *L
 		}
 		pi := paras[n]
 		ln.RTL = pi.base&1 == 1
-		var llv []bidi.Level
+		var llv []level
 		if pi.mixed {
 			llv = lineLevels(runes, sp.a, end, lv, pi.base)
 			mixed := ln.RTL
@@ -789,17 +667,6 @@ type span struct{ a, b int }
 
 // breakLines greedily fills lines using UAX #14 break opportunities, falling
 // back to per-character breaks for segments wider than a line.
-func lineEnds(runes []rune, a, b int) []int {
-	breaker.Init(runes[a:b])
-	it := breaker.LineIterator()
-	var ends []int
-	for it.Next() {
-		ln := it.Line()
-		ends = append(ends, a+ln.Offset+len(ln.Text))
-	}
-	return ends
-}
-
 func breakLines(runes []rune, a, b int, adv []float32, maxW float32) []span {
 	return breakAt(runes, a, adv, maxW, lineEnds(runes, a, b))
 }

@@ -5,7 +5,6 @@ import (
 	"math"
 	"unicode/utf8"
 
-	"github.com/go-text/typesetting/language"
 	"github.com/tangoui/tango/ui/geom"
 )
 
@@ -197,7 +196,6 @@ func encodeRuns(runs []Run, rs []runStyle, n int) string {
 // each piece that run's style, language and index.
 func splitRuns(items []item, shapeOf []int32, rs []runStyle) []item {
 	out := make([]item, 0, len(items))
-	langs := make(map[int32]language.Language, len(rs))
 	for _, it := range items {
 		if it.start >= it.end {
 			out = append(out, it)
@@ -209,12 +207,7 @@ func splitRuns(items []item, shapeOf []int32, rs []runStyle) []item {
 			for b < it.end && shapeOf[b] == r {
 				b++
 			}
-			lg, ok := langs[r]
-			if !ok {
-				lg = language.NewLanguage(rs[r].lang)
-				langs[r] = lg
-			}
-			out = append(out, item{start: a, end: b, st: rs[r].st, lang: lg, level: it.level, run: r})
+			out = append(out, item{start: a, end: b, st: rs[r].st, lang: rs[r].lang, level: it.level, run: r})
 			a = b
 		}
 	}

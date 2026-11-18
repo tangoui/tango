@@ -1,20 +1,13 @@
 package text
 
 import (
-	"bytes"
 	"image"
 	"math"
 	"os"
-	"sort"
 	"strings"
 	"sync"
 	"unicode"
 	"unsafe"
-
-	"github.com/go-text/typesetting/font"
-	ot "github.com/go-text/typesetting/font/opentype"
-	"github.com/go-text/typesetting/font/opentype/tables"
-	"github.com/tangoui/tango/ui/paint"
 )
 
 // The system text engine.
@@ -231,26 +224,6 @@ func (f *Face) SystemRasterized() bool {
 	return f.ras != nil
 }
 
-// newEngineFace wraps an engine face: gt shapes (same tables the engine
-// renders), ras rasterizes, unitPath (optional) supplies outlines in font
-// units when go-text cannot read them.
-func newEngineFace(family string, w Weight, italic bool, gt *font.Face, ras glyphEngine, unitPath func(uint32) *paint.Path) *Face {
-	f := newFace(family, w, gt)
-	f.Italic = italic
-	f.ras = ras
-	f.unitPath = unitPath
-	return f
-}
-
-// newLazyEngineFace is newEngineFace for a face built on first use: build
-// returns what newEngineFace takes (gt nil when the face cannot be built).
-// Loading a family registers every style it has; a UI uses a few of them,
-// and parsing a face's tables (a CJK font's character map, a variable
-// font's variation data) costs megabytes.
-func newLazyEngineFace(family string, w Weight, italic bool, build func() (*font.Face, glyphEngine, func(uint32) *paint.Path)) *Face {
-	return &Face{Family: family, Weight: w, Italic: italic, paths: map[uint32]*paint.Path{}, build: build}
-}
-
 // runeClass is the script group a rune prefers a font for.
 type runeClass uint8
 
@@ -350,21 +323,6 @@ func roundWeight(w int) Weight {
 	return Weight(max(100, min(900, w)))
 }
 
-// sfntFromTables builds an in-memory OpenType file from tables (tag →
-// data), skipping glyph data the shaper does not need (outlines and
-// bitmaps: the engine renders those).
-func sfntFromTables(tabs map[uint32][]byte) []byte {
-	var list []ot.Table
-	for tag, data := range tabs {
-		if skipTable(tag) {
-			continue
-		}
-		list = append(list, ot.Table{Tag: ot.Tag(tag), Content: data})
-	}
-	sort.Slice(list, func(i, j int) bool { return list[i].Tag < list[j].Tag })
-	return ot.WriteTTF(list)
-}
-
 func tag4(s string) uint32 {
 	return uint32(s[0])<<24 | uint32(s[1])<<16 | uint32(s[2])<<8 | uint32(s[3])
 }
@@ -379,49 +337,6 @@ func skipTable(tag uint32) bool {
 		return true
 	}
 	return false
-}
-
-// goTextFace parses an in-memory font (one face) for shaping.
-func goTextFace(data []byte) (*font.Face, *ot.Loader, error) {
-	ld, err := ot.NewLoader(bytes.NewReader(data))
-	if err != nil {
-		return nil, nil, err
-	}
-	fn, err := font.NewFont(ld)
-	if err != nil {
-		return nil, nil, err
-	}
-	return font.NewFace(fn), ld, nil
-}
-
-// fvarAxes returns the variation axes of a font (nil when not variable).
-func fvarAxes(ld *ot.Loader) []tables.VariationAxisRecord {
-	raw, err := ld.RawTable(ot.MustNewTag("fvar"))
-	if err != nil {
-		return nil
-	}
-	fv, _, err := tables.ParseFvar(raw)
-	if err != nil {
-		return nil
-	}
-	return fv.Axis
-}
-
-// setDesignCoords sets the variation of face to the engine's axis values
-// (tag → design value; missing axes keep their default), so shaping uses
-// the instance the engine draws.
-func setDesignCoords(face *font.Face, axes []tables.VariationAxisRecord, vals map[uint32]float32) {
-	if len(axes) == 0 {
-		return
-	}
-	coords := make([]float32, len(axes))
-	for i, a := range axes {
-		coords[i] = float32(a.Default)
-		if v, ok := vals[uint32(a.Tag)]; ok {
-			coords[i] = v
-		}
-	}
-	face.SetCoords(face.Font.NormalizeVariations(coords))
 }
 
 // applyGammaLUT maps every coverage value of m through lut.

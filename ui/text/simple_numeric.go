@@ -1,3 +1,5 @@
+//go:build !darwin || ios || !tango_coretext
+
 package text
 
 import (
@@ -145,7 +147,7 @@ func numericFaceFor(st Style, lang string, version int) (numericFaceValue, bool)
 			return numericFaceValue{}, false
 		}
 	}
-	v := numericFaceValue{face: face, feats: append([]shaping.FontFeature(nil), fm.feats...)}
+	v := numericFaceValue{face: face, feats: append([]shaping.FontFeature(nil), fm.features()...)}
 	if len(v.feats) == 0 {
 		v.table = buildNumericTable(face, st, lang)
 	}

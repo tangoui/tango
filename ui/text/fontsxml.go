@@ -1,3 +1,5 @@
+//go:build !darwin || ios || !tango_coretext
+
 package text
 
 // Android system font configuration (docs/specs/mobile-canvas.md §4.2).

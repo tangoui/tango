@@ -49,7 +49,7 @@ func legacyShapeRange(runes []rune, a, b int, st Style, fm *fontmap, adv []float
 
 func legacyLayout(s string, st Style, opt Options, chain []*family) *Layout {
 	runes := []rune(s)
-	fm := &fontmap{chain: chain, w: st.Weight, italic: st.Italic, byFF: map[*font.Face]*Face{}}
+	fm := &fontmap{chain: chain, w: st.Weight, italic: st.Italic, fontmapImpl: gtFaceMap{byFF: map[*font.Face]*Face{}}}
 	if len(chain) > 0 {
 		fm.eng = reg.engineFallback()
 	}

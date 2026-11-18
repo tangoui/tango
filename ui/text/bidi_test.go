@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-text/typesetting/bidi"
 	"github.com/go-text/typesetting/shaping"
 )
 
@@ -75,20 +74,20 @@ func TestVisualOrderNoFonts(t *testing.T) {
 // per direction run (see runLevels).
 func TestBidiExactLevels(t *testing.T) {
 	r := []rune("abc שלום 123 def")
-	lv := make([]bidi.Level, len(r))
+	lv := make([]level, len(r))
 	mu.Lock()
 	base, mixed := paraLevels(r, 0, len(r), DirAuto, lv)
 	mu.Unlock()
-	want := []bidi.Level{0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 0, 0, 0, 0}
+	want := []level{0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 0, 0, 0, 0}
 	if base != 0 || !mixed || !reflect.DeepEqual(lv, want) {
 		t.Fatalf("levels %v base %d, want %v", lv, base, want)
 	}
 	r = []rune("مرحبا 123 abc")
-	lv = make([]bidi.Level, len(r))
+	lv = make([]level, len(r))
 	mu.Lock()
 	base, _ = paraLevels(r, 0, len(r), DirAuto, lv)
 	mu.Unlock()
-	want = []bidi.Level{1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2}
+	want = []level{1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2}
 	if base != 1 || !reflect.DeepEqual(lv, want) {
 		t.Fatalf("levels %v base %d, want %v", lv, base, want)
 	}
