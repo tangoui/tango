@@ -35,21 +35,17 @@ type convLayoutKey struct {
 	first                *Conversation
 	day                  int
 	tz                   *time.Location
-	loc                  *Locale
+	labels               [5]string // Locale.Chat group labels (by value: a fresh Locale each frame keeps the table)
 	noGroups             bool
 	itemH, headH, headH0 float32
 }
 
-// convFind remembers where a key was found.
-type convFind struct {
-	key   string
-	n     int
-	first *Conversation
-	idx   int
-}
+// convFind remembers where a key was found last.
+type convFind struct{ idx int }
 
 // find returns the index of the item with key (-1: none or key ""),
-// checking the last answer first.
+// checking the last answer first. A miss is not remembered: a key that is
+// not in the list costs a scan every frame (keys may change in place).
 func (f *convFind) find(items []Conversation, key string) int {
 	if key == "" || len(items) == 0 {
 		return -1
@@ -57,10 +53,7 @@ func (f *convFind) find(items []Conversation, key string) int {
 	if f.idx >= 0 && f.idx < len(items) && items[f.idx].Key == key {
 		return f.idx
 	}
-	if f.idx < 0 && f.key == key && f.n == len(items) && f.first == &items[0] {
-		return -1 // missed before on the same data
-	}
-	f.key, f.n, f.first, f.idx = key, len(items), &items[0], -1
+	f.idx = -1
 	for i := range items {
 		if items[i].Key == key {
 			f.idx = i
@@ -90,8 +83,10 @@ func (w *ConversationsW) layout(th *theme.Theme, tk *theme.ChatToken) *convLayou
 	// The header is a line of FontSizeSM text padded 12 above (0 for the
 	// first row) and 4 below (header).
 	lh := th.LineHeightFor(th.FontSizeSM)
-	k := convLayoutKey{n: len(w.items), day: y*10000 + int(m)*100 + d, tz: now.Location(), loc: w.loc, noGroups: w.noGroups,
-		itemH: tk.ConvItemHeight, headH: lh + 16, headH0: lh + 4}
+	cl := &w.loc.Chat
+	k := convLayoutKey{n: len(w.items), day: y*10000 + int(m)*100 + d, tz: now.Location(), noGroups: w.noGroups,
+		labels: [5]string{cl.Today, cl.Yesterday, cl.Last7Days, cl.Last30Days, cl.Earlier},
+		itemH:  tk.ConvItemHeight, headH: lh + 16, headH0: lh + 4}
 	if len(w.items) > 0 {
 		k.first = &w.items[0]
 	}
@@ -131,6 +126,63 @@ func (w *ConversationsW) layout(th *theme.Theme, tk *theme.ChatToken) *convLayou
 	return L
 }
 
+// relayout rebuilds the row table now.
+func (w *ConversationsW) relayout(th *theme.Theme, tk *theme.ChatToken) *convLayout {
+	w.st.lay.key = convLayoutKey{}
+	return w.layout(th, tk)
+}
+
+// headAbove reports whether the default form puts a group header above
+// item i (buildAll: the group differs from the last non-empty group).
+func (w *ConversationsW) headAbove(i int) bool {
+	if w.noGroups {
+		return false
+	}
+	g := w.groupOf(i)
+	if g == "" {
+		return false
+	}
+	for j := i - 1; j >= 0; j-- {
+		if p := w.groupOf(j); p != "" {
+			return p != g
+		}
+	}
+	return true
+}
+
+// verify checks the row table against the live items for the rows around
+// the viewport (and items extra): the table is cached by length, first
+// element and day, so a Time or Group edited in place (a conversation
+// moved to today and the slice sorted in place) is caught as soon as it
+// is in view. O(window).
+func (w *ConversationsW) verify(L *convLayout, sb *ScrollBox, view float64, extra ...int) bool {
+	if len(L.rows) == 0 {
+		return true
+	}
+	off := sb.s.off.Y
+	from := max(0, fillFind(L.offs, off)-fillWinOverscan-1)
+	to := min(len(L.rows), fillFind(L.offs, off+view)+fillWinOverscan+2)
+	ok := func(i int) bool {
+		if i < 0 || i >= len(L.at) {
+			return true
+		}
+		r := int(L.at[i])
+		has := r > 0 && L.rows[r-1] == ^int32(i)
+		return has == w.headAbove(i)
+	}
+	for r := from; r < to; r++ {
+		if v := L.rows[r]; v >= 0 && !ok(int(v)) {
+			return false
+		}
+	}
+	for _, i := range extra {
+		if !ok(i) {
+			return false
+		}
+	}
+	return true
+}
+
 // rowOf is the row of item i (-1 for -1).
 func (L *convLayout) rowOf(i int) int {
 	if i < 0 || i >= len(L.at) {
@@ -162,7 +214,14 @@ func (w *ConversationsW) buildView(th *theme.Theme, tk *theme.ChatToken) {
 		sb := Scroll(c, nil, opts...)
 		sb.n.ln.Gap = convRowGap
 		if w.req.set {
-			w.scroll(sb, w.layout(th, tk), fillViewH(sb, w.height))
+			L, view := w.layout(th, tk), fillViewH(sb, w.height)
+			key, _ := w.req.key.(string)
+			var f convFind
+			f.idx = -1
+			if i := f.find(w.items, key); !w.verify(L, sb, view, i) {
+				L = w.relayout(th, tk)
+			}
+			w.scroll(sb, L, view)
 		}
 		sb.Body(func() { w.buildAll(th, tk) })
 		return
@@ -185,6 +244,10 @@ func convNavKey(k input.KeyEvent) bool {
 func (w *ConversationsW) buildWindow(sb *ScrollBox, th *theme.Theme, tk *theme.ChatToken) {
 	c, st := w.c, w.st
 	L := w.layout(th, tk)
+	view := fillViewH(sb, w.height)
+	if !w.verify(L, sb, view) {
+		L = w.relayout(th, tk)
+	}
 	n := len(w.items)
 	renaming := ""
 	if !w.noRename {
@@ -248,10 +311,16 @@ func (w *ConversationsW) buildWindow(sb *ScrollBox, th *theme.Theme, tk *theme.C
 			}
 		}
 	}
-	view := fillViewH(sb, w.height)
-	w.scroll(sb, L, view)
-	if r := L.rowOf(to); r >= 0 {
-		fillReveal(c, sb, L.offs[r], float64(L.key.itemH), view)
+	place := func() {
+		w.scroll(sb, L, view)
+		if r := L.rowOf(to); r >= 0 {
+			fillReveal(c, sb, L.offs[r], float64(L.key.itemH), view)
+		}
+	}
+	place()
+	if !w.verify(L, sb, view, act, ren, tab, focused, to) {
+		L = w.relayout(th, tk) // the window moved onto stale rows
+		place()
 	}
 	win := fillWin{offs: L.offs}
 	var nodes []*node

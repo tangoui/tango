@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"image"
 	"image/color"
+	"maps"
 	"os"
 	"slices"
 	"sort"
@@ -91,23 +92,88 @@ func TestPerfCoverage(t *testing.T) {
 		t.Errorf("%d ui entries have no perf fixture (register one, Covers it, or add a Skip fixture): %s",
 			len(missing), strings.Join(missing, ", "))
 	}
-	// NA scenes: an existing scene, a reason, no time debt.
 	for _, fx := range perfFixtures() {
-		for scene, why := range fx.NA {
-			key := fx.Name + "/" + scene
-			found := false
-			for _, sc := range perfScenes(fx, false) {
-				found = found || sc.Name == scene
-			}
-			switch {
-			case !found:
-				t.Errorf("%s: NA names a scene the fixture does not have", key)
-			case strings.TrimSpace(why) == "":
-				t.Errorf("%s: NA without a reason", key)
-			}
-			if _, debt := perfTimeDebt[key]; debt {
-				t.Errorf("%s: NA scene still in perfTimeDebt (remove the debt entry)", key)
-			}
+		for _, p := range perfNAProblems(fx) {
+			t.Error(p)
+		}
+	}
+}
+
+// perfNAReasonKinds are the reason prefixes a Large NA needs when the
+// fixture has no LargeVirtual scenes (see perfFixture.NA).
+var perfNAReasonKinds = []string{"unrealistic:", "closure:", "covered:"}
+
+// perfNAProblems checks fx.NA (perfFixture.NA documents the rule): only
+// Large10k / Large100k, an existing scene, a reason, no time debt, and
+// either LargeVirtual scenes on the fixture or a categorised reason.
+func perfNAProblems(fx perfFixture) []string {
+	var out []string
+	scenes := map[string]bool{}
+	if len(fx.NA) > 0 {
+		for _, sc := range perfScenes(fx, false) {
+			scenes[sc.Name] = true
+		}
+	}
+	for _, scene := range slices.Sorted(maps.Keys(fx.NA)) {
+		why := strings.TrimSpace(fx.NA[scene])
+		key := fx.Name + "/" + scene
+		switch {
+		case scene != "Large10k" && scene != "Large100k":
+			out = append(out, key+": NA is only for Large10k / Large100k (use Skip or perfTimeDebt)")
+		case !scenes[scene]:
+			out = append(out, key+": NA names a scene the fixture does not have")
+		case why == "":
+			out = append(out, key+": NA without a reason")
+		case fx.LargeVirtual == nil && !slices.ContainsFunc(perfNAReasonKinds, func(k string) bool { return strings.HasPrefix(why, k) }):
+			out = append(out, key+": NA needs LargeVirtual scenes on the fixture or a reason starting with "+strings.Join(perfNAReasonKinds, " / "))
+		}
+		if _, debt := perfTimeDebt[key]; debt {
+			out = append(out, key+": NA scene still in perfTimeDebt (remove the debt entry)")
+		}
+	}
+	return out
+}
+
+// TestPerfNARules: every rejection of perfNAProblems.
+func TestPerfNARules(t *testing.T) {
+	large := func(n int) func(*Context) { return func(*Context) {} }
+	base := perfFixture{Name: "X", Build: func(*Context) {}, Large: large}
+	for _, tc := range []struct {
+		name string
+		fx   func(f perfFixture) perfFixture
+		want string // "" = accepted
+	}{
+		{"virtual", func(f perfFixture) perfFixture {
+			f.LargeVirtual, f.NA = large, map[string]string{"Large100k": perfNANonVirtual}
+			return f
+		}, ""},
+		{"unrealistic", func(f perfFixture) perfFixture {
+			f.NA = map[string]string{"Large100k": "unrealistic: 10 万个标签页", "Large10k": "closure: 任意内容"}
+			return f
+		}, ""},
+		{"covered", func(f perfFixture) perfFixture {
+			f.NA = map[string]string{"Large100k": "covered: VirtualTree"}
+			return f
+		}, ""},
+		{"interact", func(f perfFixture) perfFixture { f.NA = map[string]string{"Interact": "unrealistic: x"}; return f }, "only for Large10k"},
+		{"large1k", func(f perfFixture) perfFixture { f.NA = map[string]string{"Large1k": "unrealistic: x"}; return f }, "only for Large10k"},
+		{"missing scene", func(f perfFixture) perfFixture {
+			f.Large, f.NA = nil, map[string]string{"Large100k": "unrealistic: x"}
+			return f
+		}, "does not have"},
+		{"no reason", func(f perfFixture) perfFixture {
+			f.LargeVirtual, f.NA = large, map[string]string{"Large100k": " "}
+			return f
+		}, "without a reason"},
+		{"uncategorised", func(f perfFixture) perfFixture { f.NA = map[string]string{"Large100k": "too slow"}; return f }, "needs LargeVirtual"},
+		{"debt", func(f perfFixture) perfFixture {
+			f.Name, f.NA = "AvatarGroup", map[string]string{"Large100k": "unrealistic: x"}
+			return f
+		}, "perfTimeDebt"},
+	} {
+		got := strings.Join(perfNAProblems(tc.fx(base)), "\n")
+		if tc.want == "" && got != "" || tc.want != "" && !strings.Contains(got, tc.want) {
+			t.Errorf("%s: problems %q, want %q", tc.name, got, tc.want)
 		}
 	}
 }
@@ -454,6 +520,15 @@ func TestPerfBudgets(t *testing.T) {
 			key := fx.Name + "/" + sc.Name
 			if why, na := fx.NA[sc.Name]; na {
 				fmt.Printf("PERF %s 0 0 n/a %s\n", key, why)
+				continue
+			}
+			// Time only budgeted scenes and the 1k reference of a
+			// budgeted 100k scene (Large10k has no budget).
+			if strings.HasSuffix(sc.Name, "1k") {
+				if _, na := fx.NA[strings.TrimSuffix(sc.Name, "1k")+"100k"]; na {
+					continue
+				}
+			} else if perfBudget(fx, sc.Name, time.Nanosecond) == 0 {
 				continue
 			}
 			ns := perfTime(sc)

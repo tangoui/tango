@@ -41,8 +41,16 @@ type perfFixture struct {
 	// (e.g. "Large100k": perfNANonVirtual). Such a scene still runs in
 	// BenchmarkComponents for reference, but TestPerfBudgets does not time
 	// it: it prints "PERF <Name/Scene> 0 0 n/a <reason>", which uiperf
-	// bench shows in status.md. TestPerfCoverage checks that the scene
-	// exists, the reason is set and the scene is not in perfTimeDebt.
+	// bench shows in status.md. Rules (perfNAProblems, run by
+	// TestPerfCoverage): only Large10k / Large100k (Large1k is always
+	// measured; other scenes over budget go to perfTimeDebt); the scene
+	// exists, the reason is set, the scene is not in perfTimeDebt; and the
+	// fixture either has LargeVirtual scenes (the default form is O(n) by
+	// design, its virtual form is budgeted) or the reason starts with
+	// "unrealistic:" (n items is not a real size for the widget),
+	// "closure:" (arbitrary content, use VirtualList / Listy) or
+	// "covered:" (the virtual form is measured by another fixture: name
+	// it).
 	NA map[string]string
 }
 

@@ -4,6 +4,7 @@ package ui
 // Conversations (Height + Virtual).
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
+	"github.com/tangoui/tango/ui/theme"
 )
 
 // v2Label returns the node labelled exactly s in the page (nil: not built).
@@ -525,5 +527,125 @@ func TestV2ConversationsDayChange(t *testing.T) {
 		if f == nil || v == nil || !v1Near(f.abs, v.abs) {
 			t.Fatalf("%q after a day: full %v, virtual %v", s, f, v)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Fix round 1
+
+// TestV2ConversationsInPlaceSort: an old conversation moved to today and
+// the same slice sorted in place (length and backing array unchanged)
+// regroups like the default form on the next frame.
+func TestV2ConversationsInPlaceSort(t *testing.T) {
+	full, virt := newV2Conv(1000, false), newV2Conv(1000, true)
+	for _, p := range []*v2ConvPage{full, virt} {
+		now := p.d.r.c.Now()
+		p.xs[900].Time = now
+		slices.SortStableFunc(p.xs, func(a, b Conversation) int { return b.Time.Compare(a.Time) })
+		p.d.Settle()
+	}
+	loc := full.d.r.c.Locale().Chat
+	if virt.xs[3].Title != v2Conv(900) {
+		t.Fatalf("sort did not move conversation 900 up (row 3 is %q)", virt.xs[3].Title)
+	}
+	for _, s := range []string{loc.Today, v2Conv(900), loc.Yesterday, v2Conv(3), v2Conv(6), loc.Earlier} {
+		f, v := v2Label(full.d, s), v2Label(virt.d, s)
+		if f == nil || v == nil || !v1Near(f.abs, v.abs) {
+			t.Fatalf("%q after the in-place sort: full %v, virtual %v", s, f, v)
+		}
+	}
+}
+
+func TestV2ConversationsNoGroupsRowCount(t *testing.T) {
+	var w *ConversationsW
+	active := ""
+	var xs []Conversation
+	d := driver(func(c *Context) {
+		if xs == nil {
+			xs = v2Convs(500, c.Now())
+		}
+		Column(c, func() { w = Conversations(c, xs, &active).NoGroups().Height(300).Virtual() }, layout.W(400))
+	})
+	d.EnableAccessibility()
+	d.Settle()
+	if v2Label(d, d.r.c.Locale().Chat.Today) != nil {
+		t.Fatal("NoGroups list built a group header")
+	}
+	r0, r1 := v2Label(d, v2Conv(0)), v2Label(d, v2Conv(1))
+	if r0 == nil || r1 == nil || r1.abs.Y-r0.abs.Y != d.r.c.ThemeFor(theme.CompChat).Components.Chat.ConvItemHeight+convRowGap {
+		t.Fatalf("rows 0 / 1 at %v / %v", r0, r1)
+	}
+	lb := d.AccessibilityTree().Node(a11y.NodeID(w.b.n.id))
+	if lb == nil || lb.RowCount != 500 {
+		t.Fatalf("listbox %+v, want RowCount 500", lb)
+	}
+}
+
+// TestV2ListGridScrollToKey: ScrollToKey on a grid, windowed and full,
+// puts the item's row at the viewport top.
+func TestV2ListGridScrollToKey(t *testing.T) {
+	to := -1
+	cfg := func(virt bool) func(w *ListW) {
+		return func(w *ListW) {
+			w.Grid(4, 16).Height(300)
+			if virt {
+				w.Virtual()
+			}
+			if to >= 0 {
+				w.ScrollToKey(to, AlignTop, 0)
+			}
+		}
+	}
+	full, virt := newV2List(1000, cfg(false), nil), newV2List(1000, cfg(true), nil)
+	to = 402 // row 100
+	full.d.Frame()
+	virt.d.Frame()
+	to = -1
+	full.d.Settle()
+	virt.d.Settle()
+	f, v := v2Label(full.d, v2Item(402)), v2Label(virt.d, v2Item(402))
+	if f == nil || v == nil || !v1Near(f.abs, v.abs) {
+		t.Fatalf("item 402: full %v, virtual %v", f, v)
+	}
+	if a, b := virt.w.Range(); a > 400 || b <= 403 || a%4 != 0 {
+		t.Fatalf("Range %d..%d", a, b)
+	}
+}
+
+// TestV2ListMeasuredHeights: items much taller than the estimate are
+// measured as they come into view; scrolled to the end, the windowed
+// list's extent and the last item's position equal the full list's.
+func TestV2ListMeasuredHeights(t *testing.T) {
+	item := func(c *Context, i int) {
+		Column(c, func() {
+			Text(c, v2Item(i))
+			Text(c, "second")
+			Text(c, "third")
+		})
+	}
+	full := newV2List(300, func(w *ListW) { w.Height(300) }, item)
+	virt := newV2List(300, func(w *ListW) { w.Height(300).Virtual().EstimatedItemHeight(20) }, item)
+	// Walk the whole list so that every item is measured once.
+	for y := 0.0; y < 300*100; y += 200 {
+		for _, s := range v1Scrolls(virt.d) {
+			s.off.Y = y
+		}
+		virt.d.Frame()
+	}
+	v1ScrollAll(virt.d, 1e9)
+	v1ScrollAll(full.d, 1e9)
+	f, v := v2Label(full.d, v2Item(299)), v2Label(virt.d, v2Item(299))
+	if f == nil || v == nil || !v1Near(f.abs, v.abs) {
+		t.Fatalf("last item: full %v, virtual %v", f, v)
+	}
+	var fe, ve float64
+	for _, s := range v1Scrolls(full.d) {
+		fe = s.content.Y
+	}
+	for _, s := range v1Scrolls(virt.d) {
+		ve = s.extent.Y
+	}
+	if d := fe - ve; d > 0.5 || d < -0.5 {
+		t.Fatalf("extent %v (virtual) vs content %v (full)", ve, fe)
 	}
 }

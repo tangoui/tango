@@ -108,7 +108,11 @@ func runBudget(results []benchResult) budgetRun {
 				results[i].Budget = b.Budget
 				results[i].Pass = b.Status == "ok"
 				if b.Status == "n/a" {
+					// Pass stays false for an n/a scene: consumers check NA first.
 					results[i].NA = b.Reason
+					if results[i].NA == "" {
+						results[i].NA = "n/a"
+					}
 				}
 			}
 		}

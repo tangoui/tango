@@ -178,7 +178,8 @@ func (w *ListW) ItemHeight(px float32) *ListW { w.itemH = max(0, px); return w }
 func (w *ListW) EstimatedItemHeight(px float32) *ListW { w.est = max(1, px); return w }
 
 // RowKey gives items stable identities for the heights Virtual measures
-// (default: the index). It does not change how items are keyed; wrap the
+// (default: the index; the measured heights are kept for every key seen,
+// as Listy does). It does not change how items are keyed; wrap the
 // item content in Key for state that follows the data.
 func (w *ListW) RowKey(fn func(i int) any) *ListW { w.rowKey = fn; return w }
 
@@ -315,8 +316,10 @@ func (w *ListW) Item(fn func(i int)) *ListW {
 					w.itemScope(func() { w.virtItems(sb, a, b, after, fn) })
 				}
 				lb, w.view = sb.Box, sb.n.id
-				n := w.n
-				lb.n.fill(semFunc(func(s *a11y.Node) { s.RowCount = n }))
+				if c.a11yOn {
+					n := w.n
+					lb.n.fill(semFunc(func(s *a11y.Node) { s.RowCount = n }))
+				}
 			case w.height > 0:
 				sb := Scroll(c, body, layout.H(w.height))
 				w.scrollFull(sb, a, b)

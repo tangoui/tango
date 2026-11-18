@@ -61,7 +61,8 @@ type ConversationsW struct {
 }
 
 // Conversations adds a conversation list; *active holds the selected key.
-// Put it in a Scroll for long lists.
+// Put it in a Scroll for long lists, or give it Height (and Virtual for
+// thousands of conversations).
 //
 //	cv := ui.Conversations(c, convs, &cur)
 //	if k, t, ok := cv.Renamed(); ok { rename(k, t) }
@@ -97,9 +98,10 @@ func (w *ConversationsW) Height(px float32) *ConversationsW { w.height = max(0, 
 // the target into view. Rows out of view are missing from the
 // accessibility tree (each option reports its position in the whole
 // list) and FindText. The group layout is cached by the list's length,
-// its first element and the day; edit Time or Group of a conversation in
-// place without changing either and the groups follow on the next day or
-// length change only.
+// its first element and the day, and checked against the conversations
+// in view every frame, so Time or Group edited in place (a conversation
+// moved to today, the slice sorted in place) shows right as it comes into
+// view.
 func (w *ConversationsW) Virtual() *ConversationsW { w.virtual = true; return w }
 
 // ScrollToKey scrolls the list (needs Height) to the conversation with

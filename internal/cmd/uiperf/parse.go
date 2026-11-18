@@ -18,7 +18,7 @@ type benchResult struct {
 	ColdError     string `json:",omitempty"`
 	Budget        float64
 	Pass          bool
-	NA            string `json:",omitempty"` // 不适用: the reason (no budget)
+	NA            string `json:",omitempty"` // 不适用: the reason (no budget; Pass is false, check NA first)
 }
 type budgetResult struct {
 	Key        string
