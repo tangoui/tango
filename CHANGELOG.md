@@ -6,6 +6,7 @@
 
 ### 新增
 
+- 终端搜索：`ui/terminal` 的 `ViewW.Search(query, caseSensitive)` 在历史滚动区和当前屏幕中查找，滚动到命中处并用选区颜色高亮当前命中（Cmd+C 可直接复制）；`SearchStep(±1)` 前后跳转（循环），`SearchInfo` 返回命中数和当前位置，`ClearSearch` 结束搜索。底层为 `vt.Screen.Search`，返回 `[]vt.Match`（稳定行号与列范围，宽字符按单元格计）。
 - `tan.json` 新增 `"cgo": true`：`tan build`、`tan package`、`tan dev`（含热重载）以 `CGO_ENABLED=1` 编译，供链接 C 库（duckdb 等）或带 cgo 文件的应用使用；默认仍是 `CGO_ENABLED=0`，桌面后端走 purego、交叉编译不需要 C 工具链。开启后交叉编译需要在环境里提供目标平台的 `CC`。
 - `ui.RunnerOptions.Content`（实验性）：用 `ui.ContentData` 标明窗口主要展示自行变化的数据（表格、网格、行情、列表、仪表盘）。Apple Silicon macOS 上这类窗口收到键盘输入也不升级 Metal，一直保留原生图层的内存优势，只在连续六帧绘制超过 8 ms 或连续六帧整窗软件回退时单向升级；默认是 `ui.ContentGeneral`。Intel Mac 默认用 Metal，不受影响。渲染器规则见下方“变更”。`TANGO_RENDERER` 和 `RunnerOptions.Renderer` 优先。
 - `ui/paint`（实验性）：新增 `(*CPU).RenderRegionInto(dst, ops, region, scale)`，区域与 `dst` 边界相同时清零并复用 `dst`，结果与 `RenderRegion` 一致；每帧重绘同一区域时不再每次新分配位图。

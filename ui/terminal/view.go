@@ -118,6 +118,14 @@ type viewState struct {
 	wheelAcc float32
 	bar      barState
 
+	// Search state (search.go): hits in stable line numbers, the current
+	// hit highlighted through sel.
+	searchOn    bool
+	searchQuery string
+	searchCase  bool
+	searchHits  []searchHit
+	searchAt    int
+
 	cache    *segCache
 	rowCache *rowCache
 

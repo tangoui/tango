@@ -11,11 +11,15 @@ pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Snapshot() ui/termi
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Start(int, int, func())
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Unlock()
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Box() *ui.Box
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) ClearSearch()
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) FontSize(float32) *ViewW
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Layout(...ui/layout.Option) *ViewW
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) OnOpenLink(func(string)) *ViewW
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) OptionAsMeta(bool) *ViewW
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Scheme(Scheme) *ViewW
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Search(string, bool) (int, int)
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) SearchInfo() (int, int)
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) SearchStep(int) (int, int)
 pkg github.com/tangoui/tango/ui/terminal, type Conn interface { Close, Read, Resize, Write }
 pkg github.com/tangoui/tango/ui/terminal, type Conn interface, Close() error
 pkg github.com/tangoui/tango/ui/terminal, type Conn interface, Read([]byte) (int, error)
