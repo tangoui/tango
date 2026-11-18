@@ -6,8 +6,8 @@ package uihost
 // (internal/uithread): the runner is bound to that thread, the canvas's
 // frame clock ticks there, and the sink callbacks that arrive on the main
 // thread (input, resize, focus, frame requests) are queued onto it in
-// order and return at once. Other canvases, Attach and the tan dev host
-// keep the main thread as the UI thread.
+// order; only resize may wait up to one refresh. Other canvases, Attach
+// and the tan dev host keep the main thread as the UI thread.
 //
 // The window's main-thread calls (cursor, text input, clipboard, window
 // state) are posted to the main thread (window.onMain); shortcuts are
@@ -15,27 +15,30 @@ package uihost
 // global theme, locale, contrast, motion and memory notifications reach
 // the runner on its UI thread (callRunner).
 //
-// Not threaded yet (later steps of the plan): embedded WebViews are not
-// placed (the window has no embeds); automation reaches the runner from
-// the main thread.
+// Not threaded yet (later steps of the plan): embedded WebViews and
+// automation are not supported on these windows.
 
 import (
 	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/uithread"
 	"github.com/tangoui/tango/ui"
+	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/theme"
 )
 
 // threadedHost is the UI-thread side of a host whose canvas implements
 // platform.CanvasThreaded.
 type threadedHost struct {
+	host      *host
+	windows   map[*host]struct{} // this app's open threaded windows; main thread
 	th        *uithread.Thread
 	request   func() // asks the frame clock for a tick; any goroutine
 	stopClock func() // UI thread
@@ -52,6 +55,26 @@ type threadedHost struct {
 // threadedRunners maps the runner of each open threaded window to its
 // threadedHost (AcceptDrops).
 var threadedRunners sync.Map // *ui.Runner -> *threadedHost
+
+// Only the main thread accesses each app's set; distinct apps in tests
+// can run their main loops on different goroutines.
+var threadedApps sync.Map // *tango.App -> map[*host]struct{}
+
+func (h *host) watchThreadedQuit() {
+	app := h.app
+	v, loaded := threadedApps.LoadOrStore(app, make(map[*host]struct{}))
+	windows := v.(map[*host]struct{})
+	h.t.windows = windows
+	windows[h] = struct{}{}
+	if !loaded {
+		corehook.OnQuit(app, func() {
+			threadedApps.Delete(app)
+			for window := range windows {
+				window.close()
+			}
+		})
+	}
+}
 
 // threadedOf returns r's threadedHost, nil for a runner on the main thread.
 func threadedOf(r *ui.Runner) *threadedHost {
@@ -78,7 +101,11 @@ func callRunner(threaded bool, r *ui.Runner, fn func()) {
 // post queues fn on the UI thread; a panic in it goes to app's panic
 // handling. Dropped once the thread stopped (the window closed).
 func (t *threadedHost) post(app *tango.App, fn func()) {
-	t.th.Post(func() { corehook.Guard(app, "event handler", fn) })
+	t.th.Post(func() {
+		if !t.closing.Load() {
+			corehook.Guard(app, "event handler", fn)
+		}
+	})
 }
 
 // openThreaded starts a UI thread for a threaded window and the canvas's
@@ -94,10 +121,10 @@ func (t *threadedHost) post(app *tango.App, fn func()) {
 // runner, before BindThread. After BindThread nothing here calls a checked
 // runner method; the first frame is the UI thread's.
 func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page func(*ui.Context), ropts ui.RunnerOptions) {
-	t := &threadedHost{th: uithread.Start(fmt.Sprintf("tango uihost surface %d", h.id))}
+	t := &threadedHost{host: h, th: uithread.Start(fmt.Sprintf("tango uihost surface %d", h.id))}
 	attached := false // UI thread: ticks before the hand-over draw nothing
 	tick := func() {
-		if attached {
+		if attached && !t.closing.Load() {
 			h.frame() // CanvasFrame of a main-thread window
 		}
 	}
@@ -117,38 +144,80 @@ func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page f
 	t.theme.Store(r.Context().Theme)
 	h.ax = newA11y(h.app, h.cv, r, ropts)
 	r.BindThread(t.th)
-	h.win = &window{app: h.app, cv: h.cv, id: h.id, gpu: h.gpu, sc: h.sc, ax: h.ax, t: t, geo: ct}
+	w, ht, scale := ct.MainGeometry()
+	h.win = &window{app: h.app, cv: h.cv, id: h.id, gpu: h.gpu, sc: h.sc, ax: h.ax, t: t,
+		size: geom.Size{W: w, H: ht}, scale: scale}
 	h.win.watchFrame(s) // frame.go
 	r.Attach(h.win)
 	h.watchRenderer(r)
 	// Until here sink callbacks took the main-thread path, which ignores
 	// them while h.r is nil. From here they are queued on the UI thread.
 	h.t, h.r = t, r
+	h.watchThreadedQuit()
 	// The hand-over, posted once every host field a frame reads is written:
 	// all of it happens before the UI thread's first frame, which this task
 	// asks for (a tick that came earlier drew nothing). Open writes no host
 	// field the UI thread reads after this.
 	t.th.Post(func() {
-		attached = true
-		t.request()
+		if !t.closing.Load() {
+			attached = true
+			t.request()
+		}
 	})
 }
 
+const resizeWait = 16700 * time.Microsecond
+
+// resizedOnMain queues a resize and waits at most one refresh for the
+// matching Present call to return. The clock still schedules the frame.
+// In a nested main-thread call from this window, waiting would prevent
+// its UI thread from returning to the clock, so skip the wait entirely.
+func (t *threadedHost) resizedOnMain(w, hgt, scale float32) {
+	h := t.host
+	presented := make(chan struct{})
+	if !t.th.Post(func() {
+		if t.closing.Load() {
+			return
+		}
+		corehook.Guard(h.app, "event handler", func() {
+			h.win.size, h.win.scale = geom.Size{W: w, H: hgt}, scale
+			h.win.resizePresented = presented
+			h.win.resized()
+			t.request()
+		})
+	}) || t.th.AwaitingMain() {
+		return
+	}
+	timer := time.NewTimer(resizeWait)
+	defer timer.Stop()
+	select {
+	case <-presented:
+	case <-timer.C:
+	}
+}
+
 // closeThreaded stops the clock and releases the window's renderer and
-// accessibility bridge on the UI thread, then lets the thread exit. It does
-// not wait. Main thread; the runner is already closed.
-//
-// TODO(Task 6): the full teardown rules (native objects released after the
-// thread exits, app quit waiting for UI threads).
+// accessibility bridge on the UI thread, then lets it exit. Main thread;
+// the runner is already closed and no new window work can reach its UI.
 func (h *host) closeThreaded() {
 	t, ax, gpu := h.t, h.ax, h.gpu
+	delete(t.windows, h)
 	threadedRunners.Delete(h.r)
 	t.th.Post(func() {
-		t.stopClock()
-		ax.close()
-		if gpu != nil {
-			_ = gpu.Close()
-		}
+		corehook.Guard(h.app, "event handler", func() {
+			if gpu != nil {
+				defer gpu.Close()
+			}
+			// The bridge (including fanOut and tap cancellation) is owned
+			// by the UI thread. It must not publish native AX from close.
+			defer ax.close()
+			t.stopClock()
+		})
 	})
 	t.th.Stop()
+	var release func()
+	if cv, ok := h.cv.(platform.CanvasThreadedRelease); ok {
+		release = cv.ReleaseThreadedOnMain
+	}
+	corehook.AfterUIThread(h.app, t.th.Done(), release)
 }

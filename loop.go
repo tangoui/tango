@@ -9,7 +9,9 @@ package tango
 import (
 	"errors"
 	"sync"
+	"time"
 
+	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/native"
 	"github.com/tangoui/tango/internal/uithread"
@@ -186,6 +188,7 @@ func await[T any](a *App, fn func() T) (T, bool) {
 		return fn(), true
 	}
 	a.checkWait("Await")
+	defer markAwaitingMain()()
 	var zero T
 	var v T
 	var ok bool
@@ -279,6 +282,7 @@ func TryAwaitAsync[T any](a *App, start func(done func(T))) (T, error) {
 		}
 	}
 	a.checkWait("AwaitAsync")
+	defer markAwaitingMain()()
 	done := func(v T) { once.Do(func() { ch <- v }) }
 	panicked := make(chan struct{})
 	if !a.loop.post(func() {
@@ -303,6 +307,16 @@ func TryAwaitAsync[T any](a *App, start func(done func(T))) (T, error) {
 	}
 }
 
+// Mark both synchronous and asynchronous main-thread waits, including those
+// reached through sys/*, before posting anything the main thread might run.
+func markAwaitingMain() func() {
+	if th := uithread.Current(); th != nil && !th.AwaitingMain() {
+		th.SetAwaitingMain(true)
+		return func() { th.SetAwaitingMain(false) }
+	}
+	return noop
+}
+
 func (a *App) wakeIfRunning() {
 	a.loop.mu.Lock()
 	running := a.loop.running
@@ -310,4 +324,77 @@ func (a *App) wakeIfRunning() {
 	if running {
 		a.b.Wake()
 	}
+}
+
+// quitWait bounds the wait for all UI threads together, not each one.
+const quitWait = time.Second
+
+func init() {
+	corehook.OnQuit = func(app any, fn func()) {
+		a := app.(*App)
+		a.onQuit = append(a.onQuit, fn)
+	}
+	corehook.AfterUIThread = func(app any, done <-chan struct{}, release func()) {
+		app.(*App).afterUIThread(done, release)
+	}
+}
+
+// afterUIThread registers a close already initiated on main. Posting after
+// Done is the normal path; retain the registration so shutdown can finish
+// it on main even if Run stopped before the post was drained.
+func (a *App) afterUIThread(done <-chan struct{}, release func()) {
+	if a.uiClosing == nil {
+		a.uiClosing = make(map[<-chan struct{}]func())
+	}
+	a.uiClosing[done] = release
+	go func() {
+		select {
+		case <-done:
+			a.Post(func() { a.releaseUIThread(done) })
+		case <-a.closedCh:
+			// runQuitHooks now owns the registration.
+		}
+	}()
+}
+
+func (a *App) releaseUIThread(done <-chan struct{}) {
+	release := a.uiClosing[done]
+	delete(a.uiClosing, done)
+	if release != nil {
+		a.guard(whereEvent, release)
+	}
+}
+
+// runQuitHooks runs after the backend returned, without draining any more
+// application work. All stop requests go out before any wait. A stuck
+// thread must not prevent us from releasing other threads that did finish.
+func (a *App) runQuitHooks() {
+	deadline := time.Now().Add(quitWait)
+	hooks := a.onQuit
+	a.onQuit = nil
+	for _, fn := range hooks {
+		a.guard(whereEvent, fn)
+	}
+	if len(a.uiClosing) == 0 {
+		return
+	}
+	timer := time.NewTimer(time.Until(deadline))
+	defer timer.Stop()
+wait:
+	for done := range a.uiClosing {
+		select {
+		case <-done:
+		case <-timer.C:
+			break wait
+		}
+	}
+	for done := range a.uiClosing {
+		select {
+		case <-done:
+			a.releaseUIThread(done)
+		default:
+			// Leave native resources alone if their thread is still using them.
+		}
+	}
+	a.uiClosing = nil
 }

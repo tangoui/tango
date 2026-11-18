@@ -66,10 +66,10 @@ type Canvas interface {
 // arrive on the main thread, and the GPU switch calls (UseMetalLayer,
 // UseCoreGraphicsLayer) stay main-thread calls: uihost makes them on the
 // main thread while it opens the window, and a UI thread that needs one
-// later asks the main thread for it and waits (tango.Await, with
-// uithread.Thread.SetAwaitingMain). The main thread may be waiting for
-// StartFrameClock to return, so StartFrameClock must not wait for the main
-// thread. request may be called from any goroutine; stop is called once, on
+// later asks the main thread for it and waits (tango.Await marks that wait).
+// The main thread may be waiting for StartFrameClock to return, so
+// StartFrameClock must not wait for the main thread. request may be called
+// from any goroutine; stop is called once, on
 // the UI thread. Experimental.
 type CanvasThreaded interface {
 	// StartFrameClock starts per-refresh callbacks on the calling thread
@@ -77,8 +77,22 @@ type CanvasThreaded interface {
 	// refresh (frameAtOnce semantics apply). tick runs on that thread.
 	StartFrameClock(tick func()) (request func(), stop func(), err error)
 	// MainGeometry returns the latest size and scale as set on the main
-	// thread; safe from any thread.
+	// thread; safe from any thread. uihost seeds its frame geometry from
+	// this at open, then uses the sizes delivered by CanvasResized.
 	MainGeometry() (w, h, scale float32)
+}
+
+// CanvasThreadedRelease is optional on a CanvasThreaded. Once a threaded
+// window starts closing, the backend stops delivering its callbacks but
+// keeps the canvas and any native objects a frame can still use alive.
+// uihost calls ReleaseThreadedOnMain once, on main after stopping the clock,
+// closing the renderer and observing that the UI thread exited. This also
+// applies on app quit (even without a native close event); it must not need
+// a running native loop or block. If the thread misses the quit deadline,
+// this method is not called. A canvas that fell back to the main thread
+// still uses its ordinary native teardown path.
+type CanvasThreadedRelease interface {
+	ReleaseThreadedOnMain()
 }
 
 // CanvasDamagePresenter is optionally implemented by a Canvas that can

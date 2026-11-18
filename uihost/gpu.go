@@ -364,12 +364,16 @@ func (g *gpuRenderer) fallback(cv platform.Canvas, id platform.SurfaceID, err er
 
 // presentFrame is window.Present(nil) on a GPU window.
 func (g *gpuRenderer) presentFrame(cv platform.Canvas, id platform.SurfaceID) error {
+	return g.presentFrameAt(cv, id, geom.Size{}, 0, false)
+}
+
+func (g *gpuRenderer) presentFrameAt(cv platform.Canvas, id platform.SurfaceID, size geom.Size, scale float32, threaded bool) error {
 	return g.trace.timed(g.traceSlot(func(t *frameTrace) *[]time.Duration { return &t.present }), func() error {
-		return g.presentFrame1(cv, id)
+		return g.presentFrame1(cv, id, size, scale, threaded)
 	})
 }
 
-func (g *gpuRenderer) presentFrame1(cv platform.Canvas, id platform.SurfaceID) error {
+func (g *gpuRenderer) presentFrame1(cv platform.Canvas, id platform.SurfaceID, size geom.Size, scale float32, threaded bool) error {
 	if g.cpu != nil {
 		return cv.Present(g.cpu.Image())
 	}
@@ -379,10 +383,12 @@ func (g *gpuRenderer) presentFrame1(cv platform.Canvas, id platform.SurfaceID) e
 	if g.present == nil { // closed
 		return nil
 	}
-	w, h := cv.Size()
-	s := cv.Scale()
-	px := image.Pt(int(math.Round(float64(w*s))), int(math.Round(float64(h*s))))
-	if err := g.present(px, s); err != nil {
+	if !threaded {
+		size.W, size.H = cv.Size()
+		scale = cv.Scale()
+	}
+	px := image.Pt(int(math.Round(float64(size.W*scale))), int(math.Round(float64(size.H*scale))))
+	if err := g.present(px, scale); err != nil {
 		if g.nativeMode || errors.Is(err, gpu.ErrDeviceLost) {
 			g.fallback(cv, id, err)
 			return nil

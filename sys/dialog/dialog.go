@@ -2,7 +2,8 @@
 //
 // Each function blocks its caller until the user answers. Called on the
 // main thread (from a callback) it keeps the app's event loop running while
-// it waits. Errors: ErrCanceled when the user dismissed a file dialog (or
+// it waits. A window's own UI thread instead waits for the main-thread
+// dialog result without pumping frames of that window. Errors: ErrCanceled when the user dismissed a file dialog (or
 // a message dialog with several buttons),
 // ErrUnsupported when the backend has no dialogs, tango.ErrNotRunning after
 // the app quit (or if it quits while the dialog is open).

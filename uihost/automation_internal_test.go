@@ -6,7 +6,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/automation"
+	"github.com/tangoui/tango/internal/platform/fake/faketest"
+
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/input"
@@ -31,5 +34,17 @@ func TestAutomationHotReloadUnsupported(t *testing.T) {
 		if _, err := c.Snapshot(); !errors.Is(err, automation.ErrHotReload) {
 			t.Fatalf("Snapshot: %v", err)
 		}
+	}
+}
+
+func TestCloseKeepsThreadedAXTapsOffMain(t *testing.T) {
+	r := ui.NewRunner(func(c *ui.Context) { ui.Button(c, "OK") }, ui.RunnerOptions{})
+	a, _ := faketest.NewApp(tango.Options{})
+	b := newA11y(a, nil, r, ui.RunnerOptions{})
+	t.Cleanup(b.close)
+	c := &autoCanvas{r: r, h: &host{r: r, t: &threadedHost{}}}
+	var e *automation.Error
+	if _, _, err := c.Tree(); !errors.As(err, &e) || e.Code != automation.CodeUnsupported {
+		t.Fatalf("main-thread automation must not attach a tap to a threaded AX bridge: %v", err)
 	}
 }

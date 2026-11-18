@@ -34,7 +34,10 @@ func automationWatch(app *tango.App, s *tango.Surface, r *ui.Runner, h *host) {
 	})
 }
 
-var errAutoClosed = &automation.Error{Code: automation.CodeNoWindow, Msg: "automation: the window has closed"}
+var (
+	errAutoClosed   = &automation.Error{Code: automation.CodeNoWindow, Msg: "automation: the window has closed"}
+	errAutoThreaded = &automation.Error{Code: automation.CodeUnsupported, Msg: "automation: threaded canvas operations are not yet supported"}
+)
 
 // autoCanvas implements automation.Canvas. Main thread.
 type autoCanvas struct {
@@ -54,6 +57,12 @@ func (c *autoCanvas) bridge() (*a11yBridge, error) {
 	}
 	if c.h.closed {
 		return nil, errAutoClosed
+	}
+	// Task 8 moves automation onto the window's UI thread. Until then,
+	// do not attach main-thread taps that the UI thread would call and
+	// drop during frame publication and close.
+	if c.h.t != nil {
+		return nil, errAutoThreaded
 	}
 	b := a11yFor(c.r)
 	if b == nil {

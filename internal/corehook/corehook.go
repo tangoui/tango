@@ -39,3 +39,15 @@ var AttachMenu func(app any, key any, m any, apply func(items []platform.MenuIte
 // DetachMenu forgets key without calling its apply function. Set by
 // package menu.
 var DetachMenu func(key any)
+
+// OnQuit registers a nonblocking stop notification on app (*tango.App).
+// Main thread only, both to register and to call. Notifications run in
+// order after Backend.Run and its Terminating event, once the main queue
+// has closed and unblocked its waiters. Use AfterUIThread for any wait.
+var OnQuit func(app any, fn func())
+
+// AfterUIThread registers a stopped UI thread and an optional nonblocking
+// release callback on the main thread. The callback runs there after done
+// closes, including during quit if the regular queue has already stopped.
+// Threads that miss the common quit deadline are abandoned without release.
+var AfterUIThread func(app any, done <-chan struct{}, release func())

@@ -36,7 +36,8 @@ type a11yTapEntry struct {
 	dead bool
 }
 
-// a11yBridge is the accessibility state of one canvas window. Main thread.
+// a11yBridge is the accessibility state of one canvas window. UI thread
+// (the main thread for windows without a bound thread).
 type a11yBridge struct {
 	app *tango.App
 	r   *ui.Runner

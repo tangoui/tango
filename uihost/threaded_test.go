@@ -44,6 +44,8 @@ type threadedCanvas struct {
 	requests     int
 	requestPanic any
 	stopped      bool
+	presentHook  func(*image.RGBA)
+	releaseHook  func()
 	presents     int
 	presentGID   uint64 // goroutine of the last Present
 	metalGIDs    []uint64
@@ -117,12 +119,24 @@ func (c *threadedCanvas) MainGeometry() (w, h, scale float32) {
 	return w, h, c.Canvas.Scale()
 }
 
-func (c *threadedCanvas) Present(*image.RGBA) error {
+func (c *threadedCanvas) Present(img *image.RGBA) error {
+	c.mu.Lock()
+	hook := c.presentHook
+	c.mu.Unlock()
+	if hook != nil {
+		hook(img)
+	}
 	c.mu.Lock()
 	c.presents++
 	c.presentGID = uithread.GoroutineID()
 	c.mu.Unlock()
 	return nil
+}
+
+func (c *threadedCanvas) ReleaseThreadedOnMain() {
+	if c.releaseHook != nil {
+		c.releaseHook()
+	}
 }
 
 func (c *threadedCanvas) SetCursor(cur input.Cursor) {

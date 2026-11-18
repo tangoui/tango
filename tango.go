@@ -119,6 +119,10 @@ type App struct {
 
 	loop mainLoop
 
+	// Main-thread window shutdown; loop.go.
+	onQuit    []func()
+	uiClosing map[<-chan struct{}]func()
+
 	mu       sync.Mutex // guards the fields below
 	started  bool
 	onReady  []func()
@@ -214,6 +218,9 @@ func (a *App) shutdown() {
 	}
 	a.loop.close()
 	close(a.closedCh)
+	// Await calls queued when Backend.Run returned cannot reach the main
+	// thread. Release them before waiting for any window thread to exit.
+	a.runQuitHooks()
 	a.mu.Lock()
 	ss := a.surfaces
 	a.surfaces = map[platform.SurfaceID]*Surface{}

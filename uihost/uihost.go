@@ -211,7 +211,7 @@ func (h *host) frame() {
 	if h.r.Animating() {
 		h.invalidate()
 	}
-	if t := h.r.NextWake(); !t.IsZero() {
+	if t := h.r.NextWake(); !t.IsZero() && (h.t == nil || !h.t.closing.Load()) {
 		h.cv.InvalidateAt(t)
 	}
 }
@@ -251,8 +251,10 @@ func (h *host) CanvasResized(w, hgt, scale float32) {
 	if h.closed {
 		return
 	}
-	// TODO(Task 6): a threaded window makes the main thread wait, bounded,
-	// for the frame of the new size (spec §5.5).
+	if h.t != nil {
+		h.t.resizedOnMain(w, hgt, scale)
+		return
+	}
 	h.onUI(func() {
 		h.win.resized() // the first frame after a resize is presented whole (damage.go)
 		h.invalidate()
@@ -289,7 +291,9 @@ func (h *host) onUI(fn func()) {
 // main thread.
 func (h *host) invalidate() {
 	if h.t != nil {
-		h.t.request()
+		if !h.t.closing.Load() {
+			h.t.request()
+		}
 		return
 	}
 	if h.cv != nil {
@@ -338,8 +342,13 @@ type window struct {
 	emb *embeds        // embedded WebViews (webview.go); nil: not supported here
 	s   *tango.Surface // the window's surface (frame.go); nil for Attach
 
-	t   *threadedHost           // non-nil: the window has its own UI thread (threaded.go)
-	geo platform.CanvasThreaded // with t: size and scale as the main thread last set them
+	t *threadedHost // non-nil: the window has its own UI thread (threaded.go)
+
+	// Threaded geometry and acknowledgment are set together on the UI
+	// thread. An in-flight frame cannot consume a later resize's ack.
+	size            geom.Size
+	scale           float32
+	resizePresented chan struct{}
 }
 
 // The ui.Window methods run on the window's UI thread. On a threaded
@@ -353,43 +362,36 @@ type window struct {
 // order on a threaded one. The last call wins.
 func (w *window) onMain(fn func()) {
 	if w.t != nil {
-		w.app.Post(fn)
+		w.app.Post(func() {
+			if !w.t.closing.Load() {
+				fn()
+			}
+		})
 		return
 	}
 	fn()
 }
 
-// awaitMain marks a threaded window's UI thread as waiting for the main
-// thread until the returned function is called (spec §5.3: the main thread
-// then never waits for it). No-op on a main-thread window.
-func (w *window) awaitMain() (done func()) {
-	if w.t == nil {
-		return func() {}
-	}
-	w.t.th.SetAwaitingMain(true)
-	return func() { w.t.th.SetAwaitingMain(false) }
-}
-
 func (w *window) Size() geom.Size {
-	if w.geo != nil {
-		x, y, _ := w.geo.MainGeometry()
-		return geom.Size{W: x, H: y}
+	if w.t != nil {
+		return w.size
 	}
 	x, y := w.cv.Size()
 	return geom.Size{W: x, H: y}
 }
 
 func (w *window) Scale() float32 {
-	if w.geo != nil {
-		_, _, s := w.geo.MainGeometry()
-		return s
+	if w.t != nil {
+		return w.scale
 	}
 	return w.cv.Scale()
 }
 
 func (w *window) Invalidate() {
 	if w.t != nil {
-		w.t.request()
+		if !w.t.closing.Load() {
+			w.t.request()
+		}
 		return
 	}
 	w.cv.Invalidate()
@@ -416,17 +418,26 @@ func (w *window) SetTextInput(on bool, caret geom.Rect) {
 	w.onMain(func() { w.cv.SetTextInput(on, caret) })
 }
 func (w *window) Present(img *image.RGBA) error {
-	if img == nil && w.gpu != nil {
-		return w.gpu.presentFrame(w.cv, w.id) // gpu.go
+	var err error
+	switch {
+	case img == nil && w.gpu != nil && w.t != nil:
+		err = w.gpu.presentFrameAt(w.cv, w.id, w.size, w.scale, true)
+	case img == nil && w.gpu != nil:
+		err = w.gpu.presentFrame(w.cv, w.id)
+	default:
+		err = w.presentFull(img) // damage.go
 	}
-	return w.presentFull(img) // damage.go
+	if w.resizePresented != nil {
+		close(w.resizePresented)
+		w.resizePresented = nil
+	}
+	return err
 }
 
 // ReadClipboard returns the clipboard's text, "" when it holds none or
 // cannot be read. A threaded window's UI thread waits for the main thread
 // (clipboard.ReadText awaits it).
 func (w *window) ReadClipboard() string {
-	defer w.awaitMain()()
 	s, _ := clipboard.ReadText(w.app)
 	return s
 }
