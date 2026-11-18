@@ -53,11 +53,19 @@ func (f *tblFrame) keepRows() []int {
 
 // posOfKey returns the position of the row with key k on the page (-1:
 // not shown). The last position found is tried first and checked against
-// the live key, so reordered or edited rows are found again by a scan.
+// the live key, so reordered or edited rows are found again by a scan. A
+// key the scan did not find (a row deleted outside the table, or on
+// another page, left in EditableRows) is not scanned for again while the
+// page data stays the same (tblMissKey), so it does not cost a scan of
+// the whole page every frame.
 func (f *tblFrame) posOfKey(k string) int {
 	st := f.st
 	if p, ok := st.keepPos[k]; ok && p >= 0 && p < f.n && f.row(p).key == k {
 		return p
+	}
+	mk, cacheable := f.missKey()
+	if m, ok := st.keepMiss[k]; ok && cacheable && m == mk {
+		return -1
 	}
 	for p := 0; p < f.n; p++ {
 		if f.row(p).key == k {
@@ -68,11 +76,43 @@ func (f *tblFrame) posOfKey(k string) int {
 				clear(st.keepPos)
 			}
 			st.keepPos[k] = p
+			delete(st.keepMiss, k)
 			return p
 		}
 	}
 	delete(st.keepPos, k)
+	if cacheable {
+		if st.keepMiss == nil || len(st.keepMiss) > 64 {
+			st.keepMiss = map[string]tblMissKey{}
+		}
+		st.keepMiss[k] = mk
+	}
 	return -1
+}
+
+// tblMissKey identifies the page data a key was not found in: the row
+// count, Revision, the page bounds and the cached sort / filter order. A
+// key that later appears without any of them changing (a row re-keyed in
+// place at the same row count) is found once the row count or Revision
+// changes, as the table's cached sorting already requires. Tree data is
+// flattened every frame and is not cached (cacheable false).
+type tblMissKey struct {
+	rows     int
+	revision uint64
+	start, n int
+	ids      *int
+	nids     int
+}
+
+func (f *tblFrame) missKey() (tblMissKey, bool) {
+	if f.tree != nil {
+		return tblMissKey{}, false
+	}
+	k := tblMissKey{rows: f.t.rows, revision: f.t.revision, start: f.start, n: f.n, nids: len(f.ids)}
+	if len(f.ids) > 0 {
+		k.ids = &f.ids[0] // the table's own cached order, not caller data
+	}
+	return k, true
 }
 
 // buildKeep builds the kept row at position pos outside the window,

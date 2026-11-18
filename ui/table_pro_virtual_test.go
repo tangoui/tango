@@ -431,3 +431,49 @@ func TestRowEditorTableVirtualTypingReveals(t *testing.T) {
 		t.Fatalf("TextEdit: draft %v (was %q) in view %v", got, before, v3InView(d, "r2"))
 	}
 }
+
+// TestTableKeepMissNotRescanned (final review minor 3): a key left in
+// EditableRows whose row is gone is not looked for in every row each
+// frame while the data stays the same; it is found again once its row
+// comes back (the row count changes) or the table's Revision changes.
+func TestTableKeepMissNotRescanned(t *testing.T) {
+	keys := make([]string, 2000)
+	for i := range keys {
+		keys[i] = "k" + strconv.Itoa(i)
+	}
+	edit := []string{"gone"}
+	var rev uint64
+	calls := 0
+	d := tblDriver(func(c *Context) {
+		cols := []TableColumn{{Key: "name", Title: "Name", Width: 200, Text: func(i int) string { return keys[i] }}}
+		tw := Table(c, cols, len(keys)).RowKey(func(i int) string { calls++; return keys[i] }).
+			EditableRows(&edit).Revision(rev).ScrollY(300)
+		tw.keepEdit = true // as EditableProTable's ScrollY sets it
+		tw.Show()
+	})
+	d.Frame()
+	calls = 0
+	d.Frame()
+	if calls >= len(keys) {
+		t.Fatalf("a steady frame called RowKey %d times for a missing edited key (a scan of all %d rows)", calls, len(keys))
+	}
+	// The row comes back at the end: found (and kept out of view).
+	keys = append(keys, "gone")
+	d.Frame()
+	if v3Node(d.r.c.root, "row:gone") == nil {
+		t.Fatal("the edited row was not found once it was added")
+	}
+	// Re-keyed in place at the same row count: found after Revision.
+	edit = []string{"renamed"}
+	d.Frame()
+	keys[len(keys)-1] = "renamed"
+	d.Frame()
+	if v3Node(d.r.c.root, "row:renamed") != nil {
+		t.Fatal("documented: a key appearing in place is found only once the row count or Revision changes")
+	}
+	rev++
+	d.Frame()
+	if v3Node(d.r.c.root, "row:renamed") == nil {
+		t.Fatal("the edited row was not found after a Revision change")
+	}
+}
