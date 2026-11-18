@@ -59,7 +59,17 @@ func init() {
 					ProTable(c, perfProCols()).PageSize(n).Request(func(req ProRequest, done func(ProResult[int])) { done(ProResult[int]{Rows: perfProRows(n), Total: n}) }).Show()
 				}, layout.Size(640, 300))
 			}
-		}},
+		}, LargeVirtual: func(n int) func(*Context) {
+			// The same page in the table's own 300px body (ScrollY +
+			// Virtual); the rows are made once.
+			return func(c *Context) {
+				rows := State(c, hashID("protable.virtual", n), func() []int { return perfProRows(n) })
+				Column(c, func() {
+					ProTable(c, perfProCols()).PageSize(n).ScrollY(300).Virtual().
+						Request(func(req ProRequest, done func(ProResult[int])) { done(ProResult[int]{Rows: *rows, Total: n}) }).Show()
+				}, layout.W(640))
+			}
+		}, NA: map[string]string{"Large100k": perfNANonVirtual}},
 		perfFixture{Name: "EditableProTable", Build: func(c *Context) {
 			rows := State(c, hashID("editable"), func() []int { return perfProRows(5) })
 			EditableProTable(c, perfProCols(), rows).Show()
@@ -343,12 +353,24 @@ func perfProEdit(r *perfRun, i int) {
 }
 
 // perfProEditLarge is a page with n editable rows in a bounded scroll
-// region (the editor tables have no virtual mode: every row is built).
+// region (the editor tables' default, non-virtual form: every row is
+// built).
 func perfProEditLarge(id string, show func(c *Context, rows *[]perfProEditRow)) func(n int) func(*Context) {
 	return func(n int) func(*Context) {
 		return func(c *Context) {
 			rows := State(c, hashID(id), func() []perfProEditRow { return perfProEditRows(n, perfCollItem) })
 			Scroll(c, func() { show(c, rows) }, layout.Size(640, 300))
+		}
+	}
+}
+
+// perfProEditLargeVirtual is perfProEditLarge in the table's own 300px
+// body: show gets the rows and adds ScrollY + Virtual.
+func perfProEditLargeVirtual(id string, show func(c *Context, rows *[]perfProEditRow)) func(n int) func(*Context) {
+	return func(n int) func(*Context) {
+		return func(c *Context) {
+			rows := State(c, hashID(id, n), func() []perfProEditRow { return perfProEditRows(n, perfCollItem) })
+			Column(c, func() { show(c, rows) }, layout.W(640))
 		}
 	}
 }
@@ -364,22 +386,32 @@ func init() {
 	rowShow := func(c *Context, rows *[]perfProEditRow) {
 		RowEditorTable(c, perfProEditCols(), rows).RowKey(func(r perfProEditRow) string { return r.ID }).Show()
 	}
+	cellShowVirtual := func(c *Context, rows *[]perfProEditRow) {
+		CellEditorTable(c, perfProEditCols(), rows).RowKey(func(r perfProEditRow) string { return r.ID }).ScrollY(300).Virtual().Show()
+	}
+	rowShowVirtual := func(c *Context, rows *[]perfProEditRow) {
+		RowEditorTable(c, perfProEditCols(), rows).RowKey(func(r perfProEditRow) string { return r.ID }).ScrollY(300).Virtual().Show()
+	}
 	registerPerf(
 		perfFixture{
 			Name: "CellEditorTable",
 			Build: func(c *Context) {
 				cellShow(c, State(c, hashID("perf.pro.celledit"), func() []perfProEditRow { return perfProEditRows(5, perfProEditName) }))
 			},
-			Interact: perfProEdit,
-			Large:    perfProEditLarge("perf.pro.celledit.large", cellShow),
+			Interact:     perfProEdit,
+			Large:        perfProEditLarge("perf.pro.celledit.large", cellShow),
+			LargeVirtual: perfProEditLargeVirtual("perf.pro.celledit.virtual", cellShowVirtual),
+			NA:           map[string]string{"Large100k": perfNANonVirtual},
 		},
 		perfFixture{
 			Name: "RowEditorTable",
 			Build: func(c *Context) {
 				rowShow(c, State(c, hashID("perf.pro.rowedit"), func() []perfProEditRow { return perfProEditRows(5, perfProEditName) }))
 			},
-			Interact: perfProEdit,
-			Large:    perfProEditLarge("perf.pro.rowedit.large", rowShow),
+			Interact:     perfProEdit,
+			Large:        perfProEditLarge("perf.pro.rowedit.large", rowShow),
+			LargeVirtual: perfProEditLargeVirtual("perf.pro.rowedit.virtual", rowShowVirtual),
+			NA:           map[string]string{"Large100k": perfNANonVirtual},
 		},
 		perfFixture{
 			// The toolbar's header menu (Pro ListToolBar menu type "tab")

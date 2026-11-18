@@ -259,6 +259,19 @@ func main() {}
 
 `NoDelete()` 会隐藏删除动作，因此上述示例只演示回调签名；要启用删除时移除它。远程保存使用 `OnSave`，返回非空错误会让当前行保持编辑状态。
 
+### 大量数据：虚拟滚动
+
+`ScrollY(px)` 固定表体高度，只构建视口内的行；`Virtual()` 表明意图（Element Plus 主题下用 Table V2 的 50px 行高），行高默认跟随 `Size`。`CellEditorTable` 和 `RowEditorTable` 有同样的两个方法。
+
+正在编辑的行（或格所在的行）总是构建，即使滚出视口，草稿和焦点也不会丢。开始编辑某行（`Edit`、`AddRow`）、焦点移进正在编辑的行（例如 Tab 到它的下一个编辑器），以及校验失败时，表格会把这一行滚进视口。工具栏和添加按钮留在滚动区外。不设 `ScrollY` 时与原来一样，每一行都构建。
+
+```go
+func bigTable(c *ui.Context, cols []ui.ProColumn[row], rows *[]row) {
+    ui.RowEditorTable(c, cols, rows).RowKey(func(r row) string { return r.ID }).
+        ScrollY(480).Virtual().Show()
+}
+```
+
 ## 主题与样式
 
 EditableProTable 的单元格、编辑控件和操作链接复用 `ProTable`、`Table`、`ProField` 的主题令牌。可通过 `ConfigProvider.Defaults("EditableProTable", ui.Props{...})` 设置 `size`、`bordered`、`pagination`、`maxLength` 默认值；`Bordered`、`Size`、`Pagination` 等实例方法优先。三套主题会调整表格边框、编辑态控件和操作按钮，不改变 `Set` 或校验流程。
@@ -268,7 +281,7 @@ EditableProTable 的单元格、编辑控件和操作链接复用 `ProTable`、`
 - `rows` 是应用拥有的切片，只有校验和 `OnSave` 成功后才会写回；不要在 `OnSave` 之前直接修改原行来模拟草稿。
 - `RowKey` 在新增、删除和拖拽排序时必须稳定且唯一；默认索引只适合不会重排的静态数据。
 - `OnSave`、`OnDelete` 和异步校验完成后都要调用回调；异步保存未完成时 `Validating(key)` 为 `true`，不要重复提交同一行。
-- 大数据量应使用 `Pagination` 或上层的服务端分页；编辑器列应只放真正需要修改的字段。
+- 大数据量应使用 `Pagination`、上层的服务端分页或 `ScrollY(px).Virtual()`；编辑器列应只放真正需要修改的字段。虚拟滚动时视口外的行不构建，它们不在无障碍树里（表格的行数仍报告全部行）。
 - 操作列和编辑控件已有键盘语义；自定义 `Render` 或 `ToolBar` 中的图标按钮要设置 `A11yLabel`。
 
 ## 示例代码

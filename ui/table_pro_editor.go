@@ -101,10 +101,13 @@ func (e *EditableProTableW[T]) preset(t *TableW, enter bool) {
 		return
 	}
 	row, col, ok := tblActivated(t)
-	if !ok || row < 0 || row >= len(e.view) {
+	if !ok {
 		return
 	}
-	r := e.view[row]
+	r, ok := e.viewAt(row)
+	if !ok {
+		return
+	}
 	if e.canEdit != nil && !e.canEdit(r.row) {
 		return
 	}
@@ -256,6 +259,19 @@ func (w *CellEditorTableW[T]) Pagination(n int) *CellEditorTableW[T] { w.e.Pagin
 // ScrollX sets the table's scroll width.
 func (w *CellEditorTableW[T]) ScrollX(px float32) *CellEditorTableW[T] { w.e.ScrollX(px); return w }
 
+// ScrollY bounds the table body to maxH (EditableProTableW.ScrollY): only
+// the visible rows are built. The edited cell's row is always built, even
+// scrolled out of view, so its draft and focus survive; starting to edit
+// it (Edit), focus moving into it (Tab) and a failed validation scroll it
+// into view. Default 0: unbounded, every row is built.
+func (w *CellEditorTableW[T]) ScrollY(maxH float32) *CellEditorTableW[T] { w.e.ScrollY(maxH); return w }
+
+// Virtual is TableW.Virtual for the inner table (see
+// EditableProTableW.Virtual): with ScrollY the body is windowed either
+// way; rows keep the height of the density (Size) unless the theme has a
+// Table V2 row height (Element Plus).
+func (w *CellEditorTableW[T]) Virtual() *CellEditorTableW[T] { w.e.Virtual(); return w }
+
 // Show builds the table.
 func (w *CellEditorTableW[T]) Show() *CellEditorTableW[T] { w.e.Show(); return w }
 
@@ -397,6 +413,19 @@ func (w *RowEditorTableW[T]) Pagination(n int) *RowEditorTableW[T] { w.e.Paginat
 
 // ScrollX sets the table's scroll width.
 func (w *RowEditorTableW[T]) ScrollX(px float32) *RowEditorTableW[T] { w.e.ScrollX(px); return w }
+
+// ScrollY bounds the table body to maxH (EditableProTableW.ScrollY): only
+// the visible rows are built. The edited row is always built, even
+// scrolled out of view, so its draft and focus survive; starting to edit
+// it (Edit), focus moving into it (Tab) and a failed validation scroll it
+// into view. Default 0: unbounded, every row is built.
+func (w *RowEditorTableW[T]) ScrollY(maxH float32) *RowEditorTableW[T] { w.e.ScrollY(maxH); return w }
+
+// Virtual is TableW.Virtual for the inner table (see
+// EditableProTableW.Virtual): with ScrollY the body is windowed either
+// way; rows keep the height of the density (Size) unless the theme has a
+// Table V2 row height (Element Plus).
+func (w *RowEditorTableW[T]) Virtual() *RowEditorTableW[T] { w.e.Virtual(); return w }
 
 // Show builds the table.
 func (w *RowEditorTableW[T]) Show() *RowEditorTableW[T] {

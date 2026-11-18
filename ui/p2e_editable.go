@@ -46,12 +46,14 @@ type EditableProTableW[T any] struct {
 	sizeSet  bool
 	pageSize int
 	scrollX  float32
+	scrollY  float32
+	virtual  bool
 	noDelete bool
 
 	id    ID
 	st    *p2eEditState[T]
 	table *TableW
-	view  []p2eEditRow[T]
+	vw    p2eView // displayed rows (viewAt)
 
 	saved, deleted, moved bool
 
@@ -60,6 +62,15 @@ type EditableProTableW[T any] struct {
 	noActions bool        // no automatic action column
 	edNodes   []p2eEdNode // editor cells built this frame
 	disabled  bool        // the table is inside a disabled subtree
+}
+
+// p2eView is the shape of the displayed rows of a Show: the keys of the
+// new rows not saved yet (shown at the top or the bottom) and the number
+// of data rows. The rows themselves are read live by index (viewAt), so
+// nothing of *rows is copied per frame and an in-place edit shows at once.
+type p2eView struct {
+	news []string
+	n    int
 }
 
 type p2eEditRow[T any] struct {
@@ -208,6 +219,24 @@ func (e *EditableProTableW[T]) Pagination(n int) *EditableProTableW[T] {
 // ScrollX sets the table's scroll width.
 func (e *EditableProTableW[T]) ScrollX(w float32) *EditableProTableW[T] { e.scrollX = w; return e }
 
+// ScrollY bounds the table body to maxH (TableW.ScrollY): the header stays
+// in place and only the visible rows are built, so many thousand rows stay
+// fast. Rows being edited are always built, even scrolled out of view, so
+// their drafts and focus survive; starting to edit a row (Edit, AddRow),
+// focus moving into an edited row (Tab) and a failed validation scroll
+// it into view. The toolbar and the add button stay outside the scrolling
+// body. Default 0: unbounded, every row is built.
+func (e *EditableProTableW[T]) ScrollY(maxH float32) *EditableProTableW[T] {
+	e.scrollY = maxH
+	return e
+}
+
+// Virtual is TableW.Virtual for the inner table: with ScrollY the body is
+// windowed either way, Virtual states the intent (and takes the theme's
+// Table V2 row height where it has one, as TableW.Virtual). Otherwise
+// rows keep the height of the density (Size).
+func (e *EditableProTableW[T]) Virtual() *EditableProTableW[T] { e.virtual = true; return e }
+
 // Saved reports a row written back in the last Show.
 func (e *EditableProTableW[T]) Saved() bool { return e.saved }
 
@@ -250,11 +279,8 @@ func (e *EditableProTableW[T]) Edit(k string) {
 	if e.st == nil {
 		return
 	}
-	for _, r := range e.view {
-		if r.key == k {
-			e.startEdit(r)
-			return
-		}
+	if r, ok := e.find(k); ok {
+		e.startEdit(r)
 	}
 }
 
@@ -382,6 +408,7 @@ func (e *EditableProTableW[T]) startEdit(r p2eEditRow[T]) {
 	if !slices.Contains(*keys, r.key) {
 		*keys = append(*keys, r.key)
 	}
+	e.table.revealRow(r.key) // bounded table: show the row (Edit, AddRow)
 	e.c.invalid = true
 }
 
@@ -450,23 +477,50 @@ func (e *EditableProTableW[T]) Show() *EditableProTableW[T] {
 	return e
 }
 
-// buildView lists the displayed rows: new rows (top or bottom) and data.
+// buildView takes the shape of the displayed rows: new rows (top or
+// bottom) and data.
 func (e *EditableProTableW[T]) buildView() {
-	st := e.st
-	e.view = e.view[:0]
-	news := make([]p2eEditRow[T], 0, len(st.newOrder))
-	for _, k := range st.newOrder {
-		news = append(news, p2eEditRow[T]{row: st.pending[k], index: -1, key: k})
-	}
+	e.vw.news = append(e.vw.news[:0], e.st.newOrder...)
+	e.vw.n = len(*e.rows)
+}
+
+// viewLen is the number of displayed rows.
+func (e *EditableProTableW[T]) viewLen() int { return len(e.vw.news) + e.vw.n }
+
+// viewRow returns displayed row i and its index into *rows (-1: a new
+// row), read live; ok is false when the row went away since buildView
+// (deleted or saved during this build).
+func (e *EditableProTableW[T]) viewRow(i int) (row T, index int, key string, ok bool) {
+	nn := len(e.vw.news)
 	if e.top {
-		e.view = append(e.view, news...)
+		if i >= 0 && i < nn {
+			return e.pendingRow(e.vw.news[i])
+		}
+		i -= nn
+	} else if i >= e.vw.n {
+		if j := i - e.vw.n; j < nn {
+			return e.pendingRow(e.vw.news[j])
+		}
+		return row, -1, "", false
 	}
-	for i, r := range *e.rows {
-		e.view = append(e.view, p2eEditRow[T]{row: r, index: i, key: e.key(r, i)})
+	if i < 0 || i >= e.vw.n || i >= len(*e.rows) {
+		return row, -1, "", false
 	}
-	if !e.top {
-		e.view = append(e.view, news...)
+	return (*e.rows)[i], i, "", true
+}
+
+func (e *EditableProTableW[T]) pendingRow(k string) (T, int, string, bool) {
+	row, ok := e.st.pending[k]
+	return row, -1, k, ok
+}
+
+// viewAt returns displayed row i with its key (see viewRow).
+func (e *EditableProTableW[T]) viewAt(i int) (p2eEditRow[T], bool) {
+	row, idx, k, ok := e.viewRow(i)
+	if ok && idx >= 0 {
+		k = e.key(row, idx)
 	}
+	return p2eEditRow[T]{row: row, index: idx, key: k}, ok
 }
 
 // poll applies async validation and save results.
@@ -488,6 +542,8 @@ func (e *EditableProTableW[T]) poll() {
 			delete(st.waiting, r.key)
 			if len(st.errs[r.key]) == 0 {
 				e.commit(r.key)
+			} else {
+				e.table.revealRow(r.key)
 			}
 		}
 		e.c.invalid = true
@@ -520,8 +576,8 @@ func (e *EditableProTableW[T]) setErr(k, col, msg string) {
 }
 
 func (e *EditableProTableW[T]) find(k string) (p2eEditRow[T], bool) {
-	for _, r := range e.view {
-		if r.key == k {
+	for i, n := 0, e.viewLen(); i < n; i++ {
+		if r, ok := e.viewAt(i); ok && r.key == k {
 			return r, true
 		}
 	}
@@ -560,6 +616,7 @@ func (e *EditableProTableW[T]) save(k string) {
 	}
 	c.invalid = true
 	if len(st.errs[k]) > 0 {
+		e.table.revealRow(k) // bounded table: show the failing row
 		return
 	}
 	if len(async) == 0 {
@@ -657,7 +714,7 @@ func (e *EditableProTableW[T]) remove(r p2eEditRow[T]) {
 // addButton is the dashed full-width "add a row" button.
 func (e *EditableProTableW[T]) addButton() {
 	c := e.c
-	if e.newRow == nil || (e.maxLen > 0 && len(e.view) >= e.maxLen) {
+	if e.newRow == nil || (e.maxLen > 0 && e.viewLen() >= e.maxLen) {
 		return
 	}
 	busy := !e.multiple && len(*e.editKeys()) > 0
@@ -677,10 +734,13 @@ func (e *EditableProTableW[T]) addButton() {
 func (e *EditableProTableW[T]) tableView() {
 	c, st := e.c, e.st
 	loc := c.Locale()
-	view := e.view
-	rowsT := make([]T, len(view))
-	for i, r := range view {
-		rowsT[i] = r.row
+	rowAt := func(i int) T {
+		row, _, _, _ := e.viewRow(i)
+		return row
+	}
+	keyAt := func(i int) string {
+		r, _ := e.viewAt(i)
+		return r.key
 	}
 	pt := &ProTableW[T]{c: c}
 	var cols []TableColumn
@@ -693,26 +753,30 @@ func (e *EditableProTableW[T]) tableView() {
 		}
 		if pc.ValueType == ValueOption && pc.Render == nil {
 			actions = true
-			cols = append(cols, e.actionColumn(pc.Key, pc.Title, pc.Width, view))
+			cols = append(cols, e.actionColumn(pc.Key, pc.Title, pc.Width))
 			continue
 		}
-		col := pt.tableColumn(*pc, rowsT)
+		col := pt.tableColumn(*pc, rowAt)
 		if e.editable(pc) {
 			fd := e.field(pc)
 			fd.Key = pc.Key
 			key := pc.Key
 			col.Editor = &TableEditor{
-				Render: func(i int) { e.cell(view[i].key, &fd) },
-				Error:  func(i int) string { return st.errs[view[i].key][key] },
+				Render: func(i int) {
+					if k := keyAt(i); k != "" {
+						e.cell(k, &fd)
+					}
+				},
+				Error: func(i int) string { return st.errs[keyAt(i)][key] },
 			}
 		}
 		cols = append(cols, col)
 	}
 	if !actions {
-		cols = append(cols, e.actionColumn("__actions", loc.EditableTable.Actions, 0, view))
+		cols = append(cols, e.actionColumn("__actions", loc.EditableTable.Actions, 0))
 	}
-	t := Table(c, cols, len(view)).
-		RowKey(func(i int) string { return view[i].key }).
+	t := Table(c, cols, e.viewLen()).
+		RowKey(keyAt).
 		EditableRows(e.editKeys())
 	if e.title != "" {
 		t.A11yLabel(e.title)
@@ -726,6 +790,12 @@ func (e *EditableProTableW[T]) tableView() {
 	if e.scrollX > 0 {
 		t.ScrollX(e.scrollX)
 	}
+	if e.scrollY > 0 {
+		t.ScrollY(e.scrollY)
+	}
+	if e.virtual {
+		t.Virtual()
+	}
 	if e.pageSize > 0 {
 		// EditableProTable is a ProTable: the total shows by default
 		// (pro-components table/utils mergePagination showTotal).
@@ -733,8 +803,9 @@ func (e *EditableProTableW[T]) tableView() {
 	}
 	if e.sortable {
 		t.DragSort(func(from, to int) {
-			fi, ti := view[from].index, view[to].index
-			if fi < 0 || ti < 0 {
+			_, fi, _, fok := e.viewRow(from)
+			_, ti, _, tok := e.viewRow(to)
+			if !fok || !tok || fi < 0 || ti < 0 {
 				return // new rows stay where they are until saved
 			}
 			*e.rows = tblMoveSlice(*e.rows, fi, ti)
@@ -795,13 +866,16 @@ func (f p2eCellField) field() (string, ID, bool, string) { return f.label, 0, f.
 func (f p2eCellField) semantics(*a11y.Node)              {}
 
 // actionColumn builds the edit / save / cancel / delete links.
-func (e *EditableProTableW[T]) actionColumn(key, title string, width float32, view []p2eEditRow[T]) TableColumn {
+func (e *EditableProTableW[T]) actionColumn(key, title string, width float32) TableColumn {
 	c := e.c
 	if width == 0 {
 		width = 150
 	}
 	return TableColumn{Key: key, Title: title, Width: width, Render: func(i int) {
-		r := view[i]
+		r, ok := e.viewAt(i)
+		if !ok {
+			return
+		}
 		st := e.st
 		loc := c.Locale()
 		if slices.Contains(*e.editKeys(), r.key) {

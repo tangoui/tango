@@ -316,6 +316,21 @@ func detailTable(c *ui.Context, cols []ui.ProColumn[rule]) {
 }
 ```
 
+### 大量数据：虚拟滚动
+
+一页有成千上万行时，`ScrollY(px)` 固定表体高度，只构建视口内的行（同 [Table](/components/table) 的 `ScrollY`），表头留在原处；`Virtual()` 表明意图（Element Plus 主题下用 Table V2 的 50px 行高），`RowHeight(px)` 覆盖行高。行高默认跟随密度，切换密度后随之改变。工具栏、查询表单、选择提示和分页器留在滚动区外。不设 `ScrollY` 时与原来一样，本页每一行都构建。
+
+```go
+func bigPage(c *ui.Context, cols []ui.ProColumn[rule]) {
+    ui.ProTable(c, cols).RowKey(func(r rule) string { return r.Key }).PageSize(10000).
+        ScrollY(480).Virtual().
+        Request(func(req ui.ProRequest, done func(ui.ProResult[rule])) {
+            rows, total := queryRules(req)
+            done(ui.ProResult[rule]{Rows: rows, Total: total})
+        }).Show()
+}
+```
+
 ## 主题与样式
 
 | 风格 | 差异 |

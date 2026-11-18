@@ -120,6 +120,9 @@ type ProTableW[T any] struct {
 	selection     *[]string
 	pageSize      int
 	scrollX       float32
+	scrollY       float32
+	virtual       bool
+	rowH          float32
 	bordered      bool
 	expand        func(row T)
 	dragSort      func(from, to int)
@@ -372,6 +375,24 @@ func (p *ProTableW[T]) PageSize(n int) *ProTableW[T] { p.pageSize = n; return p 
 
 // ScrollX sets the table's scroll width.
 func (p *ProTableW[T]) ScrollX(w float32) *ProTableW[T] { p.scrollX = w; return p }
+
+// ScrollY bounds the table body to maxH (TableW.ScrollY): the header stays
+// in place and only the visible rows of the page are built, so a page of
+// many thousand rows stays fast. The toolbar, search form, alert and
+// pager stay outside the scrolling body. Default 0: unbounded, every row
+// of the page is built.
+func (p *ProTableW[T]) ScrollY(maxH float32) *ProTableW[T] { p.scrollY = maxH; return p }
+
+// Virtual is TableW.Virtual for the inner table: with ScrollY the body is
+// windowed either way, Virtual states the intent and, like TableW.Virtual,
+// takes the theme's Table V2 row height where it has one (Element Plus).
+// Otherwise rows keep the height of the density (the density setting)
+// unless RowHeight overrides it.
+func (p *ProTableW[T]) Virtual() *ProTableW[T] { p.virtual = true; return p }
+
+// RowHeight overrides the row height derived from the density
+// (TableW.RowHeight).
+func (p *ProTableW[T]) RowHeight(h float32) *ProTableW[T] { p.rowH = h; return p }
 
 // Bordered draws cell borders.
 func (p *ProTableW[T]) Bordered() *ProTableW[T] { p.bordered = true; return p }
@@ -1164,7 +1185,7 @@ func (p *ProTableW[T]) tableView() {
 		if pc.HideInTable {
 			continue
 		}
-		cols = append(cols, p.tableColumn(pc, rows))
+		cols = append(cols, p.tableColumn(pc, func(i int) T { return rows[i] }))
 	}
 	p.colState().Order = p.columnOrder()
 	t := Table(c, cols, len(rows)).
@@ -1190,6 +1211,15 @@ func (p *ProTableW[T]) tableView() {
 	if p.scrollX > 0 {
 		t.ScrollX(p.scrollX)
 	}
+	if p.scrollY > 0 {
+		t.ScrollY(p.scrollY)
+	}
+	if p.virtual {
+		t.Virtual()
+	}
+	if p.rowH > 0 {
+		t.RowHeight(p.rowH)
+	}
 	if p.bordered {
 		t.Bordered()
 	}
@@ -1214,8 +1244,8 @@ func (p *ProTableW[T]) tableView() {
 }
 
 // tableColumn converts a ProColumn into a TableColumn with value-type
-// formatting.
-func (p *ProTableW[T]) tableColumn(pc ProColumn[T], rows []T) TableColumn {
+// formatting; at returns the row at a table row index.
+func (p *ProTableW[T]) tableColumn(pc ProColumn[T], at func(int) T) TableColumn {
 	c := p.c
 	col := TableColumn{Key: pc.Key, Title: pc.Title, Width: pc.Width, MinWidth: pc.MinWidth, Fixed: pc.Fixed,
 		Align: pc.Align, Ellipsis: pc.Ellipsis, Hidden: pc.Hidden, Sortable: pc.Sortable}
@@ -1231,14 +1261,14 @@ func (p *ProTableW[T]) tableColumn(pc ProColumn[T], rows []T) TableColumn {
 		}
 	}
 	if pc.Render != nil {
-		col.Render = func(i int) { pc.Render(rows[i], i) }
+		col.Render = func(i int) { pc.Render(at(i), i) }
 		return col
 	}
 	val := func(i int) any {
 		if pc.Value == nil {
 			return nil
 		}
-		return pc.Value(rows[i])
+		return pc.Value(at(i))
 	}
 	switch pc.ValueType {
 	case ValueStatus:
@@ -1267,7 +1297,7 @@ func (p *ProTableW[T]) tableColumn(pc ProColumn[T], rows []T) TableColumn {
 	case ValueLink:
 		col.Render = func(i int) {
 			if Link(c, ProFormat(ValueText, nil, val(i))).Clicked() && pc.OnClick != nil {
-				pc.OnClick(rows[i])
+				pc.OnClick(at(i))
 			}
 		}
 	case ValueColor:

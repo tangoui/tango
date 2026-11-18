@@ -990,12 +990,14 @@ pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) RowKey(func(T) st
 pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Save()
 pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Saved() bool
 pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) ScrollX(float32) *CellEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) ScrollY(float32) *CellEditorTableW[T]
 pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Show() *CellEditorTableW[T]
 pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Size(ControlSize) *CellEditorTableW[T]
 pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Table() *TableW
 pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Title(string) *CellEditorTableW[T]
 pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) ToolBar(func()) *CellEditorTableW[T]
 pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Validating(string) bool
+pkg github.com/tangoui/tango/ui, method (*CellEditorTableW[T]) Virtual() *CellEditorTableW[T]
 pkg github.com/tangoui/tango/ui, method (*CheckAllW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Body(func()) *CheckCardGroupW
 pkg github.com/tangoui/tango/ui, method (*CheckCardGroupW) Borderless() *CheckCardGroupW
@@ -1481,12 +1483,14 @@ pkg github.com/tangoui/tango/ui, method (*EditableProTableW[T]) RowKey(func(T) s
 pkg github.com/tangoui/tango/ui, method (*EditableProTableW[T]) Save(string)
 pkg github.com/tangoui/tango/ui, method (*EditableProTableW[T]) Saved() bool
 pkg github.com/tangoui/tango/ui, method (*EditableProTableW[T]) ScrollX(float32) *EditableProTableW[T]
+pkg github.com/tangoui/tango/ui, method (*EditableProTableW[T]) ScrollY(float32) *EditableProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*EditableProTableW[T]) Show() *EditableProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*EditableProTableW[T]) Size(ControlSize) *EditableProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*EditableProTableW[T]) Table() *TableW
 pkg github.com/tangoui/tango/ui, method (*EditableProTableW[T]) Title(string) *EditableProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*EditableProTableW[T]) ToolBar(func()) *EditableProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*EditableProTableW[T]) Validating(string) bool
+pkg github.com/tangoui/tango/ui, method (*EditableProTableW[T]) Virtual() *EditableProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*EmptyW) Body(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*EmptyW) Description(string) *EmptyW
 pkg github.com/tangoui/tango/ui, method (*EmptyW) Image(func()) *EmptyW
@@ -2445,9 +2449,11 @@ pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) Reload()
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) Request(func(ProRequest, func(ProResult[T]))) *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) ResumePolling()
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) RowClass(func(T) RowStyle) *ProTableW[T]
+pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) RowHeight(float32) *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) RowKey(func(T) string) *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) Rows() []T
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) ScrollX(float32) *ProTableW[T]
+pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) ScrollY(float32) *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) Selection(*[]string) *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) Show() *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) Table() *TableW
@@ -2456,6 +2462,7 @@ pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) TableAlertRender(func([]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) Title(string) *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) ToolBar(func()) *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) Toolbar(func(*ListToolBarW)) *ProTableW[T]
+pkg github.com/tangoui/tango/ui, method (*ProTableW[T]) Virtual() *ProTableW[T]
 pkg github.com/tangoui/tango/ui, method (*ProgressW) A11yLabel(string) *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Circle(float32) *ProgressW
 pkg github.com/tangoui/tango/ui, method (*ProgressW) Color(ui/theme.Color) *ProgressW
@@ -2607,12 +2614,14 @@ pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) RowKey(func(T) str
 pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Save()
 pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Saved() bool
 pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) ScrollX(float32) *RowEditorTableW[T]
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) ScrollY(float32) *RowEditorTableW[T]
 pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Show() *RowEditorTableW[T]
 pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Size(ControlSize) *RowEditorTableW[T]
 pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Table() *TableW
 pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Title(string) *RowEditorTableW[T]
 pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) ToolBar(func()) *RowEditorTableW[T]
 pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Validating(string) bool
+pkg github.com/tangoui/tango/ui, method (*RowEditorTableW[T]) Virtual() *RowEditorTableW[T]
 pkg github.com/tangoui/tango/ui, method (*Runner) AccessibilityTree() *ui/a11y.Tree
 pkg github.com/tangoui/tango/ui, method (*Runner) Animating() bool
 pkg github.com/tangoui/tango/ui, method (*Runner) Attach(Window)

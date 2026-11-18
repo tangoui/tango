@@ -15,7 +15,7 @@
   - `Interact`：组件最常见的一次交互。
   - `Large1k` / `Large10k` / `Large100k`：集合类与可放大组件，n 取 1 000 / 10 000 / 100 000，默认交互是滚动。
   - `LargeVirtual1k` / `LargeVirtual10k` / `LargeVirtual100k`（第 3 批起，夹具的 `LargeVirtual` 字段）：默认形态不窗口化、另有 opt-in 虚拟形态（`Height` + `Virtual()` 等）的组件，用虚拟形态放同样的数据，预算同 `Large*`（`LargeVirtual100k` ≤ 4 ms 且 ≤ `LargeVirtual1k` 的 1.5 倍）。
-  - 单个场景“不适用”：夹具的 `NA` 字段（场景名 → 理由）。该场景仍在 `BenchmarkComponents` 里跑、数字留作参考，但 `TestPerfBudgets` 不计时、不进债表，输出 `PERF <组件/场景> 0 0 n/a <理由>`，`uiperf bench` 的 status.md 在 pass 列显示 `n/a: 理由`；`TestPerfCoverage` 检查场景存在、理由非空、不在 `perfTimeDebt`。第 3 批起 List、ProList、Conversations 的 `Large100k` 标为不适用（非虚拟形态按设计 O(n)）。
+  - 单个场景“不适用”：夹具的 `NA` 字段（场景名 → 理由）。该场景仍在 `BenchmarkComponents` 里跑、数字留作参考，但 `TestPerfBudgets` 不计时、不进债表，输出 `PERF <组件/场景> 0 0 n/a <理由>`，`uiperf bench` 的 status.md 在 pass 列显示 `n/a: 理由`；`TestPerfCoverage` 检查场景存在、理由非空、不在 `perfTimeDebt`。第 3 批起 List、ProList、Conversations、ProTable、CellEditorTable、RowEditorTable 的 `Large100k` 标为不适用（非虚拟形态按设计 O(n)）。
 - **第二层：进程外跨框架 runner**（`tools/uibench`）。发布构建、新进程，比较进程 CPU + WindowServer CPU、帧率、帧间隔 p99 和 footprint，至少 5 轮交替。判定“更快”要求 Tango 各轮中位数 ≤ 对手中位数 × 0.50，四分位区间不重叠，帧率不低于对手，p99 不高于对手；对 MyGo、NSGo 分别判定。**本版未运行。**
 
 ### 硬预算（只收紧不放宽）
