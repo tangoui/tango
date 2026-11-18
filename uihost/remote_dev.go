@@ -20,6 +20,7 @@ import (
 	"image"
 	"log"
 	"os"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -622,3 +623,64 @@ func Persist(ptr any) {
 }
 
 func devRegistry() (r devhost.Registry) { return }
+
+var _ ui.WindowFrame = (*remoteWin)(nil)
+
+// FrameInfo implements ui.WindowFrame so the self-drawn title bar knows the
+// host window keeps the system traffic lights (TitleBarHidden on macOS) and
+// does not draw a second set over them in the worker-rendered frame.
+func (w *remoteWin) FrameInfo() ui.WindowFrameInfo {
+	if w.proxy == nil {
+		return ui.WindowFrameInfo{}
+	}
+	ap := w.proxy.Appearance()
+	var st ui.WindowState
+	switch w.proxy.State() {
+	case tango.StateMinimized:
+		st = ui.WindowMinimized
+	case tango.StateMaximized:
+		st = ui.WindowMaximized
+	case tango.StateFullscreen:
+		st = ui.WindowFullscreen
+	}
+	return ui.WindowFrameInfo{
+		State:          st,
+		SystemTitleBar: ap.TitleBar == tango.TitleBarDefault,
+		SystemButtons:  ap.TitleBar == tango.TitleBarHidden && (runtime.GOOS == "darwin" || runtime.GOOS == "ios"),
+		NoMinimize:     ap.NoMinimize, NoMaximize: ap.NoMaximize, NoClose: ap.NoClose,
+	}
+}
+
+// SetWindowState implements ui.WindowFrame through the proxy surface.
+func (w *remoteWin) SetWindowState(st ui.WindowState) {
+	if w.proxy == nil {
+		return
+	}
+	switch st {
+	case ui.WindowMinimized:
+		_ = w.proxy.Minimize()
+	case ui.WindowMaximized:
+		_ = w.proxy.Maximize()
+	case ui.WindowFullscreen:
+		_ = w.proxy.Fullscreen()
+	default:
+		_ = w.proxy.Restore()
+	}
+}
+
+// CloseWindow implements ui.WindowFrame through the proxy surface.
+func (w *remoteWin) CloseWindow() {
+	if w.proxy != nil {
+		w.proxy.Close()
+	}
+}
+
+// StartWindowMove implements ui.WindowFrame: hand the in-progress press to
+// the host window manager through the proxy surface, like frame.go does.
+func (w *remoteWin) StartWindowMove() {
+	if w.proxy == nil || corehook.StartWindowMove == nil {
+		return
+	}
+	s := w.proxy
+	w.proxy.App().Post(func() { corehook.StartWindowMove(s) })
+}
