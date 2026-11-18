@@ -180,6 +180,8 @@ def run(name):
         res['latency'] = json.loads(line) if line.startswith('{') else {'err': e}
         after = call(cfg, '/state')
         res['rendererAfter'] = after.get('renderer')
+        # Observed input (uptime ns on macOS) for present attribution.
+        (d / 'input-trace.json').write_text(json.dumps(after.get('trace') or []))
         offs = [x['head'] for x in before['selections']]
         b = before['text'].encode()
         if name != 'scroll':
