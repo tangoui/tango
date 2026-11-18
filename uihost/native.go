@@ -54,7 +54,12 @@ func startNative(cv platform.Canvas, forced bool, content ui.ContentKind) *gpuRe
 	}
 	r, present, err := nativeNewPresenter(layer)
 	if err != nil {
-		gpuLogf("tango: native renderer unavailable, using CPU: %v", err)
+		// Metal can take over the layer (as in promoteNative); a large or
+		// typing window would move there anyway. Both targets show CPU frames.
+		gpuLogf("tango: native renderer unavailable, trying Metal: %v", err)
+		if g := startGPU(cv, false); g != nil {
+			return g
+		}
 		return &gpuRenderer{cpu: paint.NewCPU()}
 	}
 	g := &gpuRenderer{gpu: r, present: present, nativeMode: true}

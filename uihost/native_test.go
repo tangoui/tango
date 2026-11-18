@@ -435,3 +435,45 @@ func TestContentDataIgnoresKeyboard(t *testing.T) {
 		t.Fatalf("data window after slow frames: native=%v metal targets=%d, want Metal", g.nativeMode, *calls)
 	}
 }
+
+// A default window whose native presenter cannot start takes Metal, the
+// renderer it would otherwise reach on its first key press; only when Metal
+// is unavailable too does it draw on the CPU.
+func TestNativePresenterFailureFallsBackToMetal(t *testing.T) {
+	t.Setenv("TANGO_RENDERER", "")
+	old := nativeNewPresenter
+	nativeNewPresenter = func(uintptr) (paint.Renderer, func(image.Point, float32) error, error) {
+		return nil, nil, errors.New("no native presenter")
+	}
+	t.Cleanup(func() { nativeNewPresenter = old })
+	calls := metalTestHooks(t, nil)
+	cv := &largeNativeCanvasTest{}
+	g := setupGPU(cv, ui.RunnerOptions{})
+	if g == nil || g.nativeMode || g.gpu == nil || g.cpu != nil || cv.targets != 1 || *calls != 1 {
+		t.Fatalf("presenter failure: renderer=%v native=%v gpu=%v cpu=%v targets=%d metal=%d, want Metal",
+			g != nil, g != nil && g.nativeMode, g != nil && g.gpu != nil, g != nil && g.cpu != nil, cv.targets, *calls)
+	}
+	g.Close()
+
+	metalTestHooks(t, errors.New("no GPU"))
+	g = setupGPU(&largeNativeCanvasTest{}, ui.RunnerOptions{})
+	if g == nil || g.cpu == nil || g.nativeMode {
+		t.Fatal("presenter and Metal failure: want a visible CPU renderer")
+	}
+	g.Close()
+}
+
+func TestKeyboardPromotesGeneralNotData(t *testing.T) {
+	general, cvG, _ := nativeContentSetup(t, "", ui.ContentGeneral, &nativeRenderTest{}, nil)
+	data, cvD, _ := nativeContentSetup(t, "", ui.ContentData, &nativeRenderTest{}, nil)
+	general.keyboardInput()
+	data.keyboardInput()
+	renderNativeTestFrame(t, general, cvG)
+	renderNativeTestFrame(t, data, cvD)
+	if general.nativeMode || general.gpu == nil {
+		t.Fatal("general window stayed native after a key")
+	}
+	if !data.nativeMode || data.native == nil {
+		t.Fatal("data window left native layers on a key")
+	}
+}

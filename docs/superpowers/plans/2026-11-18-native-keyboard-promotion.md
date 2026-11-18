@@ -95,3 +95,5 @@ git -c user.name=tango -c user.email=903300326@qq.com commit -m "feat(uihost): n
 1. 请 min-78 在本分支上做配对复测：编辑器打字 100 键、三光标 30 次，比较默认设置和 `TANGO_RENDERER=gpu`，按 AB/BA/AB 交替。中位数差距不超过 16.7 ms；第一次按键单独记录。
 2. 用后台 automation 打开 list 示例，不按任何键，确认 stderr 里渲染器一直是 native。
 3. 通过后，把分支 rebase 到 origin/main 并推送，然后通知各会话拉取。
+
+> 2026-11-18 修订：与 `ui.RunnerOptions.Content` 合并后的最终行为（ContentData 窗口不按键升级）见设计文档的“2026-11-18 修订”一节：`docs/superpowers/specs/2026-11-18-native-keyboard-promotion-design.md`。

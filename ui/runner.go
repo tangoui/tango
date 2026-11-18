@@ -29,7 +29,9 @@ type RunnerOptions struct {
 	// Runner.SetReduceMotion when it changes.
 	ReduceMotion bool
 	// Content says what the window mostly shows, which lets the host pick
-	// a renderer suited to it (see ContentData).
+	// a renderer suited to it (see ContentData). The host reads it once,
+	// when the window is created; it is ignored when Renderer or the
+	// TANGO_RENDERER environment variable selects a renderer.
 	Content ContentKind
 }
 
