@@ -31,7 +31,6 @@ func TestDataVersionAutoComplete(t *testing.T) {
 	if got := v1Count(d, "ms-option"); got == 0 || got > v1Window {
 		t.Fatalf("%d rows built, want a window of the 111 matches", got)
 	}
-	width := d.r.c.rects[w.listID].W
 	opts[0].Label = "option-4 joined"
 	d.Frame()
 	d.Settle()
@@ -44,10 +43,16 @@ func TestDataVersionAutoComplete(t *testing.T) {
 	if v1Built(d, "ms-option", "option-4 joined") == nil {
 		t.Fatal("DataVersion change: the option renamed in place did not join the matches")
 	}
-	// Width: a matching label made long in place.
-	opts[0].Label = "option-4 " + strings.Repeat("long label ", 4)
+	width := d.r.c.rects[w.listID].W // the joined label is the widest now
+	// Width: a matching label out of view (option-441, about the 53rd
+	// match) made long in place.
+	long := "option-441 " + strings.Repeat("long label ", 4)
+	opts[440].Label = long
 	d.Frame()
 	d.Settle()
+	if v1Built(d, "ms-option", long) != nil {
+		t.Fatal("the lengthened option should be out of view")
+	}
 	if got := d.r.c.rects[w.listID].W; got != width {
 		t.Fatalf("without a DataVersion change the width changed: %v, was %v", got, width)
 	}
@@ -103,7 +108,6 @@ func TestDataVersionCommand(t *testing.T) {
 	if slices.Contains(w.visible, 0) {
 		t.Fatal("command 1 matches \"command 4\"")
 	}
-	width := d.r.c.rects[w.list].W
 	items[0].Label = "command 4 joined"
 	d.Frame()
 	d.Settle()
@@ -116,9 +120,15 @@ func TestDataVersionCommand(t *testing.T) {
 	if !slices.Contains(w.visible, 0) {
 		t.Fatal("DataVersion change: the item renamed in place did not join the matches")
 	}
-	items[0].Label = "command 4 " + strings.Repeat("long command label ", 3)
+	width := d.r.c.rects[w.list].W
+	// Width: a match near the end (out of view) made long in place.
+	long := "command 949 " + strings.Repeat("long command label ", 3)
+	items[948].Label = long
 	d.Frame()
 	d.Settle()
+	if v1Built(d, "commanditem", long) != nil {
+		t.Fatal("the lengthened item should be out of view")
+	}
 	if got := d.r.c.rects[w.list].W; got != width {
 		t.Fatalf("without a DataVersion change the width changed: %v, was %v", got, width)
 	}
