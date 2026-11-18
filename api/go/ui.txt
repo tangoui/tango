@@ -699,6 +699,7 @@ pkg github.com/tangoui/tango/ui, method (*AspectRatioW) Rect() ui/geom.Rect
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) A11yLabel(string) *AutoCompleteW
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) AllowClear() *AutoCompleteW
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Changed() bool
+pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) DataVersion(int) *AutoCompleteW
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Debounce(time.Duration) *AutoCompleteW
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Disabled(bool) *AutoCompleteW
 pkg github.com/tangoui/tango/ui, method (*AutoCompleteW) Highlight() *AutoCompleteW
@@ -939,6 +940,7 @@ pkg github.com/tangoui/tango/ui, method (*CascaderPanelW) Border(bool) *Cascader
 pkg github.com/tangoui/tango/ui, method (*CascaderPanelW) ChangeOnSelect() *CascaderPanelW
 pkg github.com/tangoui/tango/ui, method (*CascaderPanelW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*CascaderPanelW) CheckedPaths() [][]string
+pkg github.com/tangoui/tango/ui, method (*CascaderPanelW) DataVersion(int) *CascaderPanelW
 pkg github.com/tangoui/tango/ui, method (*CascaderPanelW) Disabled(bool) *CascaderPanelW
 pkg github.com/tangoui/tango/ui, method (*CascaderPanelW) Expand(...string) *CascaderPanelW
 pkg github.com/tangoui/tango/ui, method (*CascaderPanelW) ExpandOnHover() *CascaderPanelW
@@ -954,6 +956,7 @@ pkg github.com/tangoui/tango/ui, method (*CascaderW) AllowClear() *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) ChangeOnSelect() *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*CascaderW) CheckedPaths() [][]string
+pkg github.com/tangoui/tango/ui, method (*CascaderW) DataVersion(int) *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) Disabled(bool) *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) DisplayRender(func([]string, []CascaderOption) string) *CascaderW
 pkg github.com/tangoui/tango/ui, method (*CascaderW) Expand(...string) *CascaderW
@@ -1123,6 +1126,7 @@ pkg github.com/tangoui/tango/ui, method (*ColorPickerW) ShowText() *ColorPickerW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) Size(ControlSize) *ColorPickerW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) Status(string) *ColorPickerW
 pkg github.com/tangoui/tango/ui, method (*ColorPickerW) Trigger(Trigger) *ColorPickerW
+pkg github.com/tangoui/tango/ui, method (*CommandW) DataVersion(int) *CommandW
 pkg github.com/tangoui/tango/ui, method (*CommandW) DisablePointerSelection(bool) *CommandW
 pkg github.com/tangoui/tango/ui, method (*CommandW) Empty(string) *CommandW
 pkg github.com/tangoui/tango/ui, method (*CommandW) Filter(func(string, string, []string) float64) *CommandW
@@ -2002,6 +2006,7 @@ pkg github.com/tangoui/tango/ui, method (*MentionsW) A11yLabel(string) *Mentions
 pkg github.com/tangoui/tango/ui, method (*MentionsW) AllowClear() *MentionsW
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Cleared() bool
+pkg github.com/tangoui/tango/ui, method (*MentionsW) DataVersion(int) *MentionsW
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Debounce(time.Duration) *MentionsW
 pkg github.com/tangoui/tango/ui, method (*MentionsW) Disabled(bool) *MentionsW
 pkg github.com/tangoui/tango/ui, method (*MentionsW) IsOpen() bool
@@ -3328,6 +3333,7 @@ pkg github.com/tangoui/tango/ui, method (*TreeW) CheckOnClick(bool) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) CheckOnClickLeaf(bool) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) CheckStrictly() *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) Checkable(*[]string) *TreeW
+pkg github.com/tangoui/tango/ui, method (*TreeW) DataVersion(int) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) DefaultExpandAll() *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) Disabled(bool) *TreeW
 pkg github.com/tangoui/tango/ui, method (*TreeW) Draggable() *TreeW
