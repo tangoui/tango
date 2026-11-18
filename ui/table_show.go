@@ -62,10 +62,10 @@ type tblState struct {
 	// Bounded body (ScrollY): rows being edited stay built outside the
 	// window (keep rows). keepPos remembers where their keys were last
 	// found; each use checks the live key at that position first.
-	keepPos   map[string]int
+	keepPos map[string]int
 	// keepMiss remembers keys posOfKey did not find, with the page data
 	// they were looked up in (see tblMissKey).
-	keepMiss map[string]tblMissKey
+	keepMiss  map[string]tblMissKey
 	focusSeen ID     // focus after the last bounded build
 	revKey    string // row to scroll into view on the next build
 	revLeaf   int    // and its leaf (-1: vertical only)
