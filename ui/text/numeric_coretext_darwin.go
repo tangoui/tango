@@ -72,7 +72,7 @@ type numericGlyphTable struct {
 	ok   bool
 	has  [len(ctNumericChars)]bool
 	gid  [len(ctNumericChars)]uint32
-	adv  [len(ctNumericChars)]float32                       // px at the style's size
+	adv  [len(ctNumericChars)]float32                      // px at the style's size
 	kadv [len(ctNumericChars)][len(ctNumericChars)]float32 // px: adv of the first rune of a pair
 }
 
