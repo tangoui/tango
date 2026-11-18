@@ -58,19 +58,35 @@ export function centerPatch(b) {
   return { x: b.x0 + q, y: b.y0, width: Math.max(2, w - 2 * q), height: b.y1 - b.y0 + 1 };
 }
 
+// A step whose difference is not one glyph (a renderer switch on the first
+// key repaints the whole line) takes its cell from the column advance of the
+// steps found directly, when there are two; it is checked like the others
+// and marked derived.
 export function buildKeyTemplates(steps, w, h) {
   const templates = [], errors = [];
+  const found = new Map(); // step -> patch
   for (let k = 1; k < steps.length; k++) {
     const box = glyphBox(steps[k - 1], steps[k], w, h);
-    if (!box) { errors.push(`step ${k}: no single new glyph`); continue; }
-    const patch = centerPatch(box);
+    if (box) found.set(k, centerPatch(box));
+  }
+  const known = [...found.keys()];
+  const first = known[0], last = known.at(-1);
+  const adv = known.length >= 2 ? (found.get(last).x - found.get(first).x) / (last - first) : 0;
+  for (let k = 1; k < steps.length; k++) {
+    let patch = found.get(k), derived = false;
+    if (!patch && known.length >= 2) {
+      const near = known.reduce((a, b) => (Math.abs(b - k) < Math.abs(a - k) ? b : a));
+      patch = { ...found.get(near), x: Math.round(found.get(first).x + (k - first) * adv) };
+      derived = true;
+    }
+    if (!patch || patch.x < 0 || patch.x + patch.width > w) { errors.push(`step ${k}: no single new glyph`); continue; }
     const pixels = cropImage(steps[k], w, patch);
     const before = distance(cropImage(steps[k - 1], w, patch), pixels);
     let persist = 0;
     for (let j = k + 1; j < steps.length; j++) persist = Math.max(persist, distance(cropImage(steps[j], w, patch), pixels));
     if (before < KEY_SEP) errors.push(`step ${k}: template too close to the state before (${before.toFixed(1)})`);
     if (persist > 1) errors.push(`step ${k}: a later step changed the glyph (${persist.toFixed(1)})`);
-    templates.push({ step: k, patch, pixels, before, persist });
+    templates.push({ step: k, patch, pixels, before, persist, derived });
   }
   return { ok: errors.length === 0 && templates.length === steps.length - 1, templates, errors };
 }
