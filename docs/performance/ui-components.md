@@ -15,6 +15,7 @@
   - `Interact`：组件最常见的一次交互。
   - `Large1k` / `Large10k` / `Large100k`：集合类与可放大组件，n 取 1 000 / 10 000 / 100 000，默认交互是滚动。
   - `LargeVirtual1k` / `LargeVirtual10k` / `LargeVirtual100k`（第 3 批起，夹具的 `LargeVirtual` 字段）：默认形态不窗口化、另有 opt-in 虚拟形态（`Height` + `Virtual()` 等）的组件，用虚拟形态放同样的数据，预算同 `Large*`（`LargeVirtual100k` ≤ 4 ms 且 ≤ `LargeVirtual1k` 的 1.5 倍）。
+  - `LargeVersioned1k` / `LargeVersioned10k` / `LargeVersioned100k`（终审修复起，夹具的 `LargeVersioned` 字段）：`LargeVirtual` 再打开组件自己的数据缓存（目前只有 Tree 的 `Height` + `DataVersion`），预算同 `Large*`。
   - 单个场景“不适用”：夹具的 `NA` 字段（场景名 → 理由）。该场景仍在 `BenchmarkComponents` 里跑、数字留作参考，但 `TestPerfBudgets` 不计时、不进债表，输出 `PERF <组件/场景> 0 0 n/a <理由>`，`uiperf bench` 的 status.md 在 pass 列显示 `n/a: 理由`；`TestPerfCoverage` 检查场景存在、理由非空、不在 `perfTimeDebt`。第 3 批起 List、ProList、Conversations、ProTable、CellEditorTable、RowEditorTable、Tree 的 `Large100k` 标为不适用（非虚拟形态按设计 O(n)，虚拟形态由 `LargeVirtual*` 计时），另有 17 个 c 类组件的 `Large100k` 以 `unrealistic:` / `closure:` 理由标为不适用，见“第 3 批：虚拟化”一节。
 - **第二层：进程外跨框架 runner**（`tools/uibench`）。发布构建、新进程，比较进程 CPU + WindowServer CPU、帧率、帧间隔 p99 和 footprint，至少 5 轮交替。判定“更快”要求 Tango 各轮中位数 ≤ 对手中位数 × 0.50，四分位区间不重叠，帧率不低于对手，p99 不高于对手；对 MyGo、NSGo 分别判定。**本版未运行。**
 
@@ -344,7 +345,7 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 | TopNavHeader | 59.7 µs | 6.3 µs | 19.9 µs | — | 7.20 ms | 16.63× | 是 | — | 待测 | 待测 | 待优化 |
 | Tour | 65.3 µs | 11.3 µs | 44.4 µs | — | 7.73 ms | — | 是 | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | Transfer | 69.9 µs | 12.1 µs | 61.7 µs | 623.3 µs / 6.41 ms / 81.52 ms | 7.99 ms | 16.20× | 否（Large100k） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
-| Tree | 85.3 µs | 21.6 µs | 84.0 µs | 4.86 ms / 87.65 ms / 1.25 s | 5.68 ms | 4.16× | 否（第 3 批 V4：Large100k 不适用，非虚拟形态 O(n)；LargeVirtual100k（`Height(760)`）25.09 ms / 预算 365 µs，进 `perfTimeDebt`） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
+| Tree | 85.3 µs | 21.6 µs | 84.0 µs | 4.86 ms / 87.65 ms / 1.25 s | 5.68 ms | 4.16× | 否（第 3 批 V4：Large100k 不适用，非虚拟形态 O(n)；LargeVirtual100k（`Height(760)`）25.09 ms / 预算 365 µs，进 `perfTimeDebt`；终审修复：`Height` + `DataVersion` 的 LargeVersioned100k 126 µs / 预算约 139 µs） | 计划 T10/T11 | 待测 | 待测 | 待优化 |
 | TreeSelect | 53.4 µs | 2.0 µs | 24.2 µs | 50.2 µs / 537.9 µs / 7.07 ms | 12.05 ms | 168.75× | 否（Large100k） | — | 待测 | 待测 | 待优化 |
 | Upload | 57.8 µs | 3.3 µs | 13.6 µs | — | 7.27 ms | 10.35× | 是 | — | 待测 | 待测 | 待优化 |
 | VirtualList | 74.7 µs | 16.4 µs | 53.5 µs | 40.1 µs / 40.3 µs / 40.3 µs | 7.96 ms | 8.44× | 是 | list（12b 待测） | 待测 | 待测 | 待优化 |
@@ -571,7 +572,7 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 ### 终审修复
 
 - **a 类 `DataVersion(v int)`（用户决定 Q-V1a）**：AutoComplete、Mentions、Command、Cascader、CascaderPanel 新增，签名和语义与 `SelectW.DataVersion` 相同。自动虚拟形态按选项切片（身份与长度）缓存匹配结果、排序和列表宽度；原地改同一切片里的选项而长度不变时，要改 `DataVersion`（或换新切片），下一帧才重新匹配和测宽。不改时保持缓存的结果，文档注释写明了这一点。缓存键里的 `&src[0]` 会让上一份选项切片在被替换前不能回收，这是为了不被复用地址的新切片误命中，注释里写明了内存代价。
-- **Tree `DataVersion(v int)`（R65，用户授权裁定）**：只在同时设了 `Height` 时生效。缓存父节点表、键索引、`Filter` 可见集合、展平后的可见行（按展开键的内容比较）和勾选状态，每帧开销跟随视口；节点字段始终实时读取，不复制节点。不调用时行为和开销与之前完全相同。新增场景 `LargeVersioned1k / 10k / 100k`（`Height(760)` + `DataVersion`），预算同 `Large*`：LargeVersioned100k TODO_TREE_V100K / 预算 TODO_TREE_VBUDGET。原 `Tree/LargeVirtual100k`（不带 `DataVersion`）的时间债不变。测试让带与不带 `DataVersion` 的两棵树执行同一组操作（滚动、选择、跨窗口的键盘移动、展开收起、勾选和半选、外部改展开键、过滤），每一步比对无障碍树和像素。
+- **Tree `DataVersion(v int)`（R65，用户授权裁定）**：只在同时设了 `Height` 时生效。缓存父节点表、键索引、`Filter` 可见集合、展平后的可见行（按展开键的内容比较）和勾选状态，每帧开销跟随视口；节点字段始终实时读取，不复制节点。不调用时行为和开销与之前完全相同。新增场景 `LargeVersioned1k / 10k / 100k`（`Height(760)` + `DataVersion`），预算同 `Large*`：实测（`BenchmarkComponents`，200 次，nice 10）LargeVersioned1k / 10k / 100k 为 92 / 103 / 126 µs，预算约 139 µs（1k 的 1.5 倍），在预算内，余量不大；同一轮不带 `DataVersion` 的 LargeVirtual100k 为 20.7 ms、91 MB/op，带上后为 91 KB/op。100k 比 1k 多出的约 30 µs 来自展开键从 10 个变成 1000 个（每帧比较一次展开键，构建的每行查一次是否展开）。原 `Tree/LargeVirtual100k`（不带 `DataVersion`）的时间债不变。测试让带与不带 `DataVersion` 的两棵树执行同一组操作（滚动、选择、跨窗口的键盘移动、展开收起、勾选和半选、外部改展开键、过滤），每一步比对无障碍树和像素。
 - **Sender / Cascader 搜索结果**：超过 100 项同样自动窗口化，没有 `Virtual(bool)` 开关（每帧重新匹配和测宽），已写进 CHANGELOG。
 - **编辑表的保留行**：`EditableRows` 里残留的键（行已被外部删除或不在当前页）不再每帧扫描整页；行数、`Revision`、分页范围或排序结果变化时重新查找。
 - **债表棘轮**：`TestPerfBudgets`（`TANGO_PERF_BUDGET=1`）中，已登记的时间债如果实测超过登记值的 1.5 倍就失败，防止已知的债继续恶化。
