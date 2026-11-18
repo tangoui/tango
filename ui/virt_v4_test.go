@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
 )
@@ -137,6 +138,59 @@ func TestV4SelIndexGroupsIdentical(t *testing.T) {
 		}
 		if !moved || old[0].sel == old[len(old)-1].sel {
 			t.Fatalf("%s: the clicks changed nothing (%s → %s): the test would pass vacuously", k.name, old[0].sel, old[len(old)-1].sel)
+		}
+	}
+}
+
+// TestV4SelIndexSameBuildDuplicates (V4 review m2): dupA and dupB share
+// the value "dup" and are both clicked before one frame, so one build
+// pass changes both: dupB must see the selection as dupA's change left
+// it. CheckboxGroup and ToggleGroup on the scan and the set paths end
+// with the same *sel. A set out of step with the build's own append /
+// remove (a missing add / del) makes the two differ.
+func TestV4SelIndexSameBuildDuplicates(t *testing.T) {
+	defer func(m int) { selIndexMin = m }(selIndexMin)
+	opts := Opts("o0", "o1", "o2", "o3", "o4", "o5", "o6", "o7", "o8", "o9")
+	opts = append(opts, Option{Label: "dupA", Value: "dup"}, Option{Label: "dupB", Value: "dup"})
+	kinds := []struct {
+		name string
+		show func(c *Context, sel *[]string)
+	}{
+		{"CheckboxGroup", func(c *Context, sel *[]string) { CheckboxGroup(c, sel, opts) }},
+		{"ToggleGroup", func(c *Context, sel *[]string) { ToggleGroup(c, sel, opts) }},
+	}
+	for _, k := range kinds {
+		for _, tc := range []struct{ start, want []string }{
+			// Both on: dupA unchecks (every "dup" removed), so dupB is off
+			// and checks, appending "dup" at the end.
+			{[]string{"dup", "o0", "o1", "o2", "o3", "o4", "o5", "o6", "o7"}, []string{"o0", "o1", "o2", "o3", "o4", "o5", "o6", "o7", "dup"}},
+			// Both off: dupA checks, so dupB is on and unchecks: net none.
+			{[]string{"o0", "o1", "o2", "o3", "o4", "o5", "o6", "o7", "o8"}, []string{"o0", "o1", "o2", "o3", "o4", "o5", "o6", "o7", "o8"}},
+		} {
+			start := tc.start
+			run := func(min int) string {
+				selIndexMin = min
+				sel := append([]string(nil), start...)
+				d := NewDriver(func(c *Context) { k.show(c, &sel) }, DriverOptions{Width: 900, Height: 400})
+				d.Settle()
+				ra, okA := d.Find("dupA")
+				rb, okB := d.Find("dupB")
+				if !okA || !okB {
+					t.Fatalf("%s: dupA / dupB not found", k.name)
+				}
+				for _, p := range []geom.Point{ra.Center(), rb.Center()} {
+					d.Inject(input.Pointer{Kind: input.Move, Pos: p})
+					d.Inject(input.Pointer{Kind: input.Press, Pos: p})
+					d.Inject(input.Pointer{Kind: input.Release, Pos: p})
+				}
+				d.Frame()
+				d.Settle()
+				return fmt.Sprint(sel)
+			}
+			scan, set := run(1<<30), run(0)
+			if want := fmt.Sprint(tc.want); scan != want || set != want {
+				t.Fatalf("%s from %v: scan %s, set %s, want %s", k.name, start, scan, set, want)
+			}
 		}
 	}
 }

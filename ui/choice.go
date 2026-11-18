@@ -627,7 +627,7 @@ func (g *CheckboxGroupW) build() {
 
 // selIndexMin is the selection size from which selIndex builds a set;
 // smaller selections are scanned (no map allocation).
-var selIndexMin = 8 // a var so tests can force either path
+var selIndexMin = 8 // test-only override (forces either path); don't mutate in parallel tests
 
 // selIndex answers contains(*sel, v) for every option of a group build in
 // O(1) after one O(k) pass instead of O(k) per option (O(n·k), O(n²) with

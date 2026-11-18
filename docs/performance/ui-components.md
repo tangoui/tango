@@ -529,7 +529,7 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
   - Conversations：`Height`、`Virtual`、`ScrollToKey`。
   - ProTable：`ScrollY`、`Virtual`、`RowHeight`。
   - EditableProTable、CellEditorTable、RowEditorTable：`ScrollY`、`Virtual`。正在编辑的行即使在窗口外也始终构建，焦点和草稿保留。
-  - 虚拟形态的 `LargeVirtual100k` 都在 28–70 µs，与 n 无关。
+  - 虚拟形态的 `LargeVirtual100k` 都在 27–70 µs，与 n 无关。
 - **c 类（不适用，V4）**：InfiniteScroll、Scroll、ScrollH 记 `closure:`（任意闭包，组件看不到“项”，无法窗口化；虚拟替代是 Listy / VirtualList）。Tabs、Menu、CheckAll、CheckboxGroup、RadioGroup、ToggleGroup、InputTag、Segmented、Collapse、Descriptions、Timeline、Carousel、RichText、Markdown 记 `unrealistic:`（n = 10 万不是这些组件的真实规模）。理由逐条写在夹具的 `NA` 里。只标 `Large100k`；`Large1k` 不能标不适用，`Large10k` 本来就没有预算，照常在基准里跑。这 17 条加上 Tree，一共 18 条 `Large100k` 时间债删除。
 - **Tree（V4）**：原 `Large100k` 不适用（非虚拟形态按设计 O(n)），新增 `LargeVirtual` 场景，用 Tree 自己的 `Height(760)` 视口。这是 `data_tree.go` 的窗口化路径，和 VirtualTree（`fill_virtual_tree.go`，已有 Large 场景）是两套代码，所以不算重复。实测 LargeVirtual100k 25.09 ms，超出预算 365 µs，登记为 `perfTimeDebt` 的 `Tree/LargeVirtual100k`。原因是 Height 形态虽然只构建视口内的行，但每帧仍要遍历整棵树（`treeWalk`）并把可见行展平（`flatRows`），每帧 O(n)、91 MB/op。这是后续的优化项；同样数据下 VirtualTree 是 69 µs。
 - **V4 的内部小修（行为不变）**：

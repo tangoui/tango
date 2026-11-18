@@ -195,12 +195,12 @@ var perfDamageDebt = map[string]perfDebt{
 // Batch 3 V2: List, ProList and Conversations Large100k are NA (default
 // non-virtual form, O(n) by design; perfNANonVirtual) and left this table;
 // their LargeVirtual scenes are budgeted instead. Batch 3 V3: the same for
-// ProTable, CellEditorTable and RowEditorTable. Batch 3 V4: Tree the same
-// (its Height viewport is the LargeVirtual scene, in debt below); the c-class Large100k
-// scenes (InfiniteScroll, Scroll, ScrollH, Tabs, Menu, CheckAll,
-// CheckboxGroup, RadioGroup, ToggleGroup, InputTag, Segmented, Collapse,
-// Descriptions, Timeline, Carousel, RichText, Markdown) are NA with an
-// "unrealistic:" / "closure:" reason (virtualization proposal §5).
+// ProTable, CellEditorTable and RowEditorTable. Batch 3 V4: Tree the same;
+// its Height viewport is the LargeVirtual scene (in debt below). The
+// c-class Large100k scenes (InfiniteScroll, Scroll, ScrollH, Tabs, Menu,
+// CheckAll, CheckboxGroup, RadioGroup, ToggleGroup, InputTag, Segmented,
+// Collapse, Descriptions, Timeline, Carousel, RichText, Markdown) are NA
+// with an "unrealistic:" / "closure:" reason (virtualization proposal §5).
 var perfTimeDebt = map[string]perfDebt{
 	"AvatarGroup/Large100k": {Measured: "26.50ms (budget 237µs)", Why: "baseline"},
 	"BubbleList/Large100k":  {Measured: "6.77ms (budget 562µs)", Why: "baseline"},

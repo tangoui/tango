@@ -1035,7 +1035,8 @@ func (t *TabsW) overflow(st *tabsState, sb *ScrollBox, nodes []*node) {
 }
 
 // tabsMoreEager builds the more menu's items on every frame like before
-// the lazy list (tests compare both).
+// the lazy list. Test-only (tests compare both); don't mutate in parallel
+// tests.
 var tabsMoreEager = false
 
 // moreMenu builds the more button and its dropdown of hidden tabs. The
