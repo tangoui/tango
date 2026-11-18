@@ -73,6 +73,7 @@ type scene struct {
 	nextText    map[uint64]int
 	prevLazy    bool // prevText holds lazy (op) hashes, not native-key hashes
 	replan      bool // re-planning a lazy bulk frame that could not merge
+	liftBackoff int  // frames left planning text natively after a failed lift
 	bulkScratch []paint.Op
 	keepScratch []item
 	opsScratch  []bulkOp
@@ -85,6 +86,10 @@ type scene struct {
 }
 
 const bulkCalmFrames = 30
+
+// bulkLiftBackoff is how many frames text is planned natively, without the
+// lazy pass, after bulk text could not be lifted above later items.
+const bulkLiftBackoff = 30
 
 // bulkBufKeepFrames is how long the fallback raster outlives its last use.
 const bulkBufKeepFrames = 120
@@ -105,6 +110,9 @@ func (s *scene) plan(l *paint.List, size geom.Size, scale float32) error {
 	}
 	s.serial++
 	s.identitySeq = 0
+	// Only a frame that reaches bulkText can merge text: full-frame and
+	// empty frames return earlier and must not inherit the last frame's mode.
+	s.bulkMerged = false
 	s.scale = scale
 	s.background = l.Background
 	s.full = false
@@ -151,7 +159,7 @@ func (s *scene) plan(l *paint.List, size geom.Size, scale float32) error {
 	}
 
 	s.cpu.BeginFrame(scale)
-	lazy := s.bulk && !s.replan && !s.bulkOff
+	lazy := s.bulk && !s.replan && !s.bulkOff && s.liftBackoff == 0
 	clip := s.bounds
 	var clips []image.Rectangle
 	for _, op := range s.ops {
@@ -218,9 +226,17 @@ func (s *scene) plan(l *paint.List, size geom.Size, scale float32) error {
 	} else {
 		s.bulkText(lazy)
 	}
+	if s.liftBackoff > 0 {
+		s.liftBackoff--
+	}
 	if lazy && !s.bulkMerged {
 		// Bulk mode ended or text cannot be lifted: plan native text layers.
-		// Change tracking already counted this frame.
+		// Change tracking already counted this frame. A lift that fails
+		// while bulk mode stays on (an overlay covering a label) would fail
+		// every frame: plan text natively for a while instead of twice.
+		if s.bulk {
+			s.liftBackoff = bulkLiftBackoff
+		}
 		s.replan = true
 		defer func() { s.replan = false }()
 		return s.plan(l, size, scale)
@@ -252,6 +268,7 @@ func (s *scene) fullFrame(l *paint.List, size geom.Size) error {
 		return err
 	}
 	s.full = true
+	s.bulkMerged = false // the bitmap-budget fallback replaces merged text too
 	clear(s.items)
 	s.items = s.items[:0]
 	k := keyData{}

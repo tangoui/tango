@@ -37,11 +37,7 @@ func labels(s *scene) (labels, bulks int) {
 		if it.kind != itemText {
 			continue
 		}
-		if false {
-			bulks++
-		} else {
-			labels++
-		}
+		labels++
 	}
 	return
 }
@@ -191,5 +187,30 @@ func TestPlanBulkReplansWhenLiftBecomesUnsafe(t *testing.T) {
 	}
 	if _, b := labels(s); b != 1 {
 		t.Fatal("bulk did not resume once lifting was safe again")
+	}
+}
+
+// A changing grid whose text can never be lifted (a later overlay covers a
+// label) must not plan every frame twice: after a failed lift it stops
+// planning lazily for a while, and retries later.
+func TestPlanBulkBacksOffWhenLiftKeepsFailing(t *testing.T) {
+	s := newScene(planGlyphs{})
+	size := geom.Size{W: 800, H: 600}
+	s.plan(bulkGrid(40, 100, true), size, 1)
+	replans := 0
+	for f := 0; f < 40; f++ {
+		before := s.serial
+		if e := s.plan(bulkGrid(40, uint32(1000*(f+1)), true), size, 1); e != nil {
+			t.Fatal(e)
+		}
+		if s.serial-before > 1 {
+			replans++
+		}
+		if l, _ := labels(s); l != 40 {
+			t.Fatalf("frame %d: %d per-label items, want 40", f, l)
+		}
+	}
+	if replans > 2 {
+		t.Fatalf("planned twice on %d of 40 frames with an unliftable grid", replans)
 	}
 }

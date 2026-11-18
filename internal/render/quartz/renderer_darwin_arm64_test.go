@@ -674,3 +674,84 @@ func TestNativeBulkFallbackRasterAgesOut(t *testing.T) {
 		t.Fatal("fallback raster kept after fallbacks stopped")
 	}
 }
+
+// A frame that leaves bulk text for a complete software frame (an opacity
+// group, here) or an empty window must release the bulk surfaces: they are
+// window-sized and nothing displays them any more.
+func TestNativeBulkSurfacesReleasedByFullAndEmptyFrames(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		list func(int) *paint.List
+		size geom.Size
+	}{
+		{"full frame", func(f int) *paint.List {
+			l := bulkTextList(f)
+			l.Ops = append([]paint.Op{paint.PushOpacity{Alpha: 0.5}}, append(l.Ops, paint.Pop{})...)
+			return l
+		}, geom.Size{W: 740, H: 190}},
+		{"empty window", bulkTextList, geom.Size{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newNativeTestRenderer(t)
+			for f := 0; f < 5; f++ {
+				nativeFrame(t, r, bulkTextList(f), geom.Size{W: 740, H: 190}, 1)
+			}
+			if len(r.surfaces.ring) == 0 {
+				t.Fatal("no surfaces in bulk mode")
+			}
+			if e := r.Render(tc.list(9), tc.size, 1); e != nil {
+				t.Fatal(e)
+			}
+			if r.scene.bulkMerged || len(r.surfaces.ring) != 0 || r.scene.bulkBuf != nil {
+				t.Fatalf("merged=%v surfaces=%d buf=%v after a frame with no bulk text", r.scene.bulkMerged, len(r.surfaces.ring), r.scene.bulkBuf != nil)
+			}
+		})
+	}
+}
+
+// Pixel parity with per-label layers for the cases the bulk lift must not
+// change: translucent labels over backgrounds, a later translucent fill
+// covering labels (the frame re-plans with per-label text), and the frame
+// that enters bulk mode.
+func TestNativeBulkTextParityAlphaOverlapAndEntry(t *testing.T) {
+	translucent := func(f int) *paint.List {
+		l := bulkTextList(f)
+		for i, op := range l.Ops {
+			if txt, ok := op.(paint.Text); ok {
+				txt.Color.A = 120
+				l.Ops[i] = txt
+			}
+		}
+		return l
+	}
+	covered := func(f int) *paint.List {
+		l := bulkTextList(f)
+		l.Ops = append(l.Ops, paint.FillRect{Rect: geom.Rect{X: 0, Y: 0, W: 300, H: 70}, Color: color.NRGBA{R: 20, G: 60, B: 200, A: 110}})
+		return l
+	}
+	for _, scale := range []float32{1, 2} {
+		r, ref := newNativeTestRenderer(t), newNativeTestRenderer(t)
+		ref.scene.bulkOff = true
+		size := geom.Size{W: 740, H: 190}
+		check := func(name string, l *paint.List) {
+			t.Helper()
+			nativeFrame(t, r, l, size, scale)
+			nativeFrame(t, ref, l, size, scale)
+			nearImage(t, nativeSnapshot(t, r), nativeSnapshot(t, ref), 2)
+		}
+		check("first", translucent(0))
+		check("entry", translucent(1)) // enters bulk mode
+		if !r.scene.bulkMerged {
+			t.Fatal("translucent grid did not merge on entry")
+		}
+		check("translucent", translucent(2))
+		check("covered", covered(3)) // lift unsafe: re-planned per label
+		if r.scene.bulkMerged {
+			t.Fatal("covered labels were lifted above the translucent fill")
+		}
+		check("uncovered", translucent(4))
+		if !r.scene.bulkMerged {
+			t.Fatal("bulk did not resume after the fill went away")
+		}
+	}
+}

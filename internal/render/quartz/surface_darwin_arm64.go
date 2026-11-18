@@ -115,6 +115,7 @@ func (r *surfaces) take(size image.Point) (surface, bool) {
 		if r.ring[i].size != size {
 			cfRelease(r.ring[i].id)
 			r.ring = append(r.ring[:i], r.ring[i+1:]...)
+			r.ring[len(r.ring):cap(r.ring)][0] = surface{} // drop the released id
 			return r.take(size)
 		}
 	}
