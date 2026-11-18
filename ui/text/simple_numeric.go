@@ -10,33 +10,10 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-type numericFaceKey struct {
-	st      Style
-	lang    string
-	version int
-}
 type numericFaceValue struct {
 	face  *Face
 	feats []shaping.FontFeature
 	table numericGlyphTable
-}
-
-// numericChars are the runes simpleNumericText accepts; numericIndex maps a
-// rune to its slot in numericGlyphTable.
-const numericChars = "0123456789.-+"
-
-func numericIndex(r rune) int {
-	switch {
-	case r >= '0' && r <= '9':
-		return int(r - '0')
-	case r == '.':
-		return 10
-	case r == '-':
-		return 11
-	case r == '+':
-		return 12
-	}
-	return -1
 }
 
 // numericGlyphTable lays out numeric labels without shaping each one, yet

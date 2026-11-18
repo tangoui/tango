@@ -39,6 +39,59 @@ type faceImpl struct {
 	// Lazily built faces (newCTFace): returns the raster, nil when the
 	// face cannot be built.
 	build func() *ctRaster
+
+	// The fast paths' table check (plainAdvances), made once.
+	tablesOnce sync.Once
+	noKern     bool // no kern, kerx or GPOS table (any GPOS counts as kerning)
+	noMorx     bool // no AAT morx table
+	gposOnly   bool // GPOS is the only kerning table (no kern, kerx)
+}
+
+// readTables reads the font's table directory (CTFontCopyAvailableTables)
+// once for plainAdvances and gposKernOnly.
+func (f *Face) readTables() {
+	f.tablesOnce.Do(func() {
+		f.ready()
+		if f.own == nil {
+			return
+		}
+		defer runtime.KeepAlive(f)
+		arr := ctFontCopyAvailableTables(f.own.base, 0)
+		if arr == 0 {
+			return
+		}
+		defer cfRelease(arr)
+		kern, gpos, morx := false, false, false
+		for i := int64(0); i < cfArrayGetCount(arr); i++ {
+			switch uint32(cfArrayGetValueAtIndex(arr, i)) {
+			case tag4("kern"), tag4("kerx"):
+				kern = true
+			case tag4("GPOS"):
+				gpos = true
+			case tag4("morx"):
+				morx = true
+			}
+		}
+		f.noKern, f.noMorx, f.gposOnly = !kern && !gpos, !morx, gpos && !kern
+	})
+}
+
+// plainAdvances reports whether the face lays out a simple left-to-right
+// run (no ligatures) as its character map's glyphs at their own advances,
+// so the fast paths may place them without CoreText's typesetter: no
+// kerning tables (noKern: kern, kerx, or a GPOS table, conservatively taken
+// as kerning) and no AAT morx substitutions (noMorx).
+func (f *Face) plainAdvances() bool {
+	f.readTables()
+	return f.noKern && f.noMorx
+}
+
+// gposKernOnly reports a face whose only possible kerning is GPOS (no
+// kern, kerx or morx table): the numeric path probes such a face's numeric
+// pairs (numericUnkerned) instead of ruling it out.
+func (f *Face) gposKernOnly() bool {
+	f.readTables()
+	return f.gposOnly && f.noMorx
 }
 
 // ready builds a lazy face on first use; a no-op for faces built eagerly.

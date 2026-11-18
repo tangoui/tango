@@ -105,6 +105,7 @@ func loadCTShape() bool {
 
 // resetShaper drops the shaping caches (clearPrepared).
 func resetShaper() {
+	clearNumericFaces()
 	langFaces.mu.Lock()
 	langFaces.m = nil
 	langFaces.mu.Unlock()
