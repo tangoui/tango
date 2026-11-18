@@ -302,9 +302,53 @@ func TestDefaultShellFallback(t *testing.T) {
 }
 
 func TestEnviron(t *testing.T) {
-	got := environ([]string{"A=1", "TERM=dumb", "COLORTERM=no", "B=2"})
-	want := []string{"A=1", "B=2", "TERM=xterm-256color", "COLORTERM=truecolor"}
+	got := environ([]string{"A=1", "TERM=dumb", "COLORTERM=no", "B=2", "LANG=en_US.UTF-8"})
+	want := []string{"A=1", "B=2", "LANG=en_US.UTF-8", "TERM=xterm-256color", "COLORTERM=truecolor"}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("environ = %q, want %q", got, want)
+	}
+}
+
+// A GUI app started from Finder, the Dock or another app has no LANG:
+// the program gets a UTF-8 character type so a shell reads typed Chinese
+// as characters, not bytes. A locale the environment sets is kept.
+func TestEnvironLocale(t *testing.T) {
+	ctype := "LC_CTYPE=" + utf8Ctype
+	for _, c := range []struct {
+		env  []string
+		want string // the added entry, "" for none
+	}{
+		{[]string{"A=1"}, ctype},
+		{[]string{"LANG="}, ctype},
+		{[]string{"LANG=zh_CN.UTF-8"}, ""},
+		{[]string{"LC_ALL=C"}, ""},
+		{[]string{"LC_CTYPE=en_US.UTF-8"}, ""},
+	} {
+		got := environ(c.env)
+		added := ""
+		for _, kv := range got {
+			if strings.HasPrefix(kv, "LC_CTYPE=") && !strings.Contains(strings.Join(c.env, "\n"), kv) {
+				added = kv
+			}
+		}
+		if added != c.want {
+			t.Errorf("environ(%q) added %q, want %q (got %q)", c.env, added, c.want, got)
+		}
+	}
+}
+
+func TestPTYUTF8WithoutLocale(t *testing.T) {
+	p, err := Start(Options{
+		Path: "/bin/sh",
+		Args: []string{"sh", "-c", "printf '中' | wc -m"},
+		Env:  []string{"PATH=/usr/bin:/bin"}, // no LANG, LC_ALL or LC_CTYPE
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer p.Close()
+	out, _ := readAll(t, p)
+	if strings.TrimSpace(out) != "1" {
+		t.Errorf("wc -m of one Chinese character = %q, want 1 (a UTF-8 locale)", strings.TrimSpace(out))
 	}
 }

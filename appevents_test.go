@@ -269,3 +269,69 @@ func TestLaunchEventReachesAllLaunchListeners(t *testing.T) {
 	default:
 	}
 }
+
+// The same file or link can reach the core twice during launch: from the
+// command line (dispatchLaunchArgs) and from the OS (macOS
+// application:openURLs:, here simulated in OnReady). Listeners see it once,
+// files compared by their resolved path; after launch the same file or
+// link is a new request and is delivered again.
+func TestLaunchOpenDeliveredOnce(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "doc.txt")
+	if err := os.WriteFile(file, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(t.TempDir(), "alias")
+	if err := os.Symlink(dir, alias); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	other := filepath.Join(dir, "other.txt")
+	if err := os.WriteFile(other, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	old := osArgs
+	osArgs = func() []string { return []string{file, "demo://launch"} }
+	defer func() { osArgs = old }()
+
+	fb := fake.New()
+	a := newWithBackend(Options{Name: "T", URLSchemes: []string{"demo"}}, fb)
+	files := make(chan []string, 4)
+	urls := make(chan string, 4)
+	a.OnOpenFiles(func(p []string) { files <- p })
+	a.OnOpenURL(func(u string) { urls <- u })
+	a.OnReady(func() {
+		// The OS reports the launch file again (through a symlinked
+		// directory) together with a file it alone knows, and the link.
+		a.emitAppEvent(AppEvent{Kind: EventOpenFiles, Paths: []string{filepath.Join(alias, "doc.txt"), other}})
+		a.emitAppEvent(AppEvent{Kind: EventOpenURL, URL: "demo://launch"})
+	})
+	runApp(t, a)
+
+	// The OS reports first (as on macOS, before launch finishes); the
+	// command line's copy of the same file and link is then dropped.
+	alsoFile := filepath.Join(alias, "doc.txt")
+	if p := recv(t, files); !slices.Equal(p, []string{alsoFile, other}) {
+		t.Fatalf("launch files %v, want %v", p, []string{alsoFile, other})
+	}
+	if u := recv(t, urls); u != "demo://launch" {
+		t.Fatalf("url %q", u)
+	}
+	Await(a, func() struct{} { return struct{}{} }) // flush the launch turn
+	select {
+	case p := <-files:
+		t.Fatalf("launch file delivered again: %v", p)
+	case u := <-urls:
+		t.Fatalf("launch link delivered again: %q", u)
+	default:
+	}
+
+	// After launch: opening the same file or link again is a new request.
+	fb.OpenFiles(file)
+	if p := recv(t, files); !slices.Equal(p, []string{file}) {
+		t.Fatalf("later open %v", p)
+	}
+	fb.DeepLink("demo://launch")
+	if u := recv(t, urls); u != "demo://launch" {
+		t.Fatalf("later link %q", u)
+	}
+}

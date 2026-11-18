@@ -185,7 +185,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 				break
 			}
 		}
-		hl.HighlightFor(st.hlKey, snap, upTo, max(0, frameclock.Until(hlDeadline)))
+		hl.HighlightViewFor(st.hlKey, snap, upTo, max(0, frameclock.Until(hlDeadline)))
 	}
 
 	// Spend the remaining token budget before bracket work, shaping and

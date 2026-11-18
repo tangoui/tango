@@ -69,6 +69,7 @@ type foldState struct {
 
 	// The folding ranges of text version rsKey.ver, of rsLines lines.
 	rs      []FoldingRange
+	rsUp    []int // rsUp[i]: the range enclosing rs[i] (-1: none; foldParents)
 	rsKey   foldRangesKey
 	rsOK    bool
 	rsLines int
@@ -179,6 +180,7 @@ func (s *State) foldRanges() []FoldingRange {
 		rs = indentRangesOf(snap, long, s.indentSize(), off, markersOf(conf), foldingMaximumRegions)
 	}
 	fs.rs, fs.rsKey, fs.rsOK, fs.rsLines = rs, key, true, snap.LineCount()
+	fs.rsUp = foldParents(rs)
 	s.mergeFolds()
 	return fs.rs
 }
@@ -860,4 +862,23 @@ func inSpans(spans []lineSpan, l int) bool {
 		return 0
 	})
 	return ok && i < len(spans)
+}
+
+// foldParents returns, for each of the sorted, nested ranges rs, the index
+// of the range enclosing it (the last earlier range not ended before its
+// start), -1 for none.
+func foldParents(rs []FoldingRange) []int {
+	up := make([]int, len(rs))
+	var stack []int
+	for i, r := range rs {
+		for len(stack) > 0 && rs[stack[len(stack)-1]].End < r.Start {
+			stack = stack[:len(stack)-1]
+		}
+		up[i] = -1
+		if len(stack) > 0 {
+			up[i] = stack[len(stack)-1]
+		}
+		stack = append(stack, i)
+	}
+	return up
 }

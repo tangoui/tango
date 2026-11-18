@@ -9,6 +9,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// utf8Ctype is the LC_CTYPE a program gets when the environment sets no
+// locale (glibc 2.35 and later, musl, and distributions patching older
+// glibc all have C.UTF-8).
+const utf8Ctype = "C.UTF-8"
+
 // unlock unlocks the subsidiary device of the /dev/ptmx descriptor fd
 // and returns its path.
 func unlock(fd int) (string, error) {

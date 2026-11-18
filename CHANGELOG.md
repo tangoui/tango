@@ -217,7 +217,9 @@
 
 ### 修复
 
+- `sys/pty` 与 Tango 终端：从 Finder、Dock 或其他应用（如 MinCode）启动、环境里没有 `LANG` 的应用，shell 在 C 语言环境下把输入的中文等 UTF-8 文字当成单个字节——命令行显示 `<00e4>` 之类的乱码、退格按字节删、回车执行被拆坏的命令。环境里 `LC_ALL`、`LC_CTYPE`、`LANG` 都没设时，macOS 和 Linux 上补 `LC_CTYPE=C.UTF-8`（没有 `C.UTF-8` 的旧版 macOS 补 `UTF-8`；不用 Terminal.app 那样的裸 `UTF-8`，因为 ssh 会把 `LC_*` 转发到 Linux 主机，那里不认这个名字）；已设置的语言环境保持不变，不改程序输出的语言。
 - `tan dev` 热重载的自绘窗口：标题栏隐藏（`TitleBarHidden`）的 macOS 窗口保留系统红绿灯时，worker 端绘制的自绘标题栏不再在其上再画一组窗口按钮（热重载窗口实现 `ui.WindowFrame`，报告系统按钮与窗口状态）。
+- 启动时打开的文件和链接不再偶发投递两次：同一文件（按解析软链后的路径比较）或链接在启动期间（`OnReady` 回调跑完之前）从命令行（`dispatchLaunchArgs`）和系统（macOS `application:openURLs:`）各到一次时，`OnOpenFiles` / `OnOpenURL` 只收到一次；启动之后再次打开同一文件或链接仍照常送达。
 - macOS 自绘窗口：停顿之后的输入（打字、滚动、点击）不再等显示刷新的下一拍才出帧，而是在请求它的那一轮 run loop 里立即画；连续变化的帧仍由 CADisplayLink 控制节奏，两拍之间最多立即出一帧。真实窗口实测（1920×944 编辑器，Metal），修复前的中位延迟随窗口服务器的合成状态在约 48 ms 和约 61 ms 之间切换，两种状态下分别做了修复前后 AB/BA/AB 配对，都快了约一帧：约 48 ms 状态下打字 47.5 → 32.1 ms、三光标 54.0 → 32.7 ms、滚动 48.6 → 30.7 ms；约 61 ms 状态下打字 61.5 → 44.8 ms、三光标 61.7 → 43.5 ms、滚动 62.9 → 46.8 ms。
 - `HotkeyInput`：录制期间窗口快捷键、原生菜单加速键及 Menubar 的 Alt/F10 不再抢走按键；确认、取消、失焦、禁用或移除后自动恢复，保持输入法关闭。`tan dev` 同步录制状态，热重载或 worker 退出后不会遗留快捷键拦截；系统保留键和 OS 级全局热键不在拦截范围内。
 - WebView 菜单图标：`menu.popup` 的 base64 PNG 先用 `DecodeConfig` 校验，像素总数超过 4M 或格式异常时拒绝，避免声明超大尺寸导致解码分配爆炸。

@@ -96,6 +96,7 @@ type viewState struct {
 	stickyLines                                          []int
 	stickyY                                              []float32
 	stickyClips                                          []geom.Rect
+	stickyScopes                                         []FoldingRange // scratch: the ranges enclosing the view's top (sticky.go)
 	stickyTokens                                         map[int]*stickyTokenLine
 	highlightDeadline                                    time.Time
 	stickyRect, minimapRect, overviewRect, minimapSlider geom.Rect
@@ -243,6 +244,14 @@ func View(c *ui.Context, st *State) *ViewW {
 	}
 	if w.linkHover() {
 		cur = input.CursorPointer // over a link with the trigger modifier (links.go)
+	}
+	if w.vs.dnd == nil {
+		if w.gutterHover() {
+			cur = input.CursorDefault // the gutter: the arrow, as Monaco's margin
+		}
+		if w.foldHover() {
+			cur = input.CursorPointer // a folding control or placeholder (input.go)
+		}
 	}
 	if p, in := c.Pointer(); in {
 		if zc, ok := w.zoneCursor(p); ok {

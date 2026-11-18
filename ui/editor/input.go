@@ -650,23 +650,59 @@ func (w *ViewW) press(p pending) {
 // recursively, Monaco's FoldingController.onEditorMouseUp), and reports
 // whether it did. The caret does not move.
 func (w *ViewW) foldControlPress(p pending) bool {
+	line, ok := w.foldControlAt(p.pressPos)
+	return ok && w.st.toggleFoldAt(line, p.shift)
+}
+
+// foldControlAt returns the line whose folding control box (the gutter's
+// column of controls, on the line's first row) holds window point pt.
+func (w *ViewW) foldControlAt(pt geom.Point) (int, bool) {
 	vs, st := w.vs, w.st
 	if vs.foldX < 0 || !st.foldingOn() {
-		return false
+		return 0, false
 	}
-	pt := p.pressPos
 	if !vs.gutter.Contains(pt) || pt.X < vs.foldX || pt.X >= vs.foldX+foldControlW {
-		return false
+		return 0, false
 	}
 	r := w.pointRow(pt)
 	if r < 0 || r >= st.viewCount() {
-		return false
+		return 0, false
 	}
 	line, row := st.lines().find(r)
 	if row != 0 {
+		return 0, false
+	}
+	return line, true
+}
+
+// gutterHover reports whether the pointer is over the gutter (line
+// numbers, glyph margin and folding controls) of the last paint.
+func (w *ViewW) gutterHover() bool {
+	p, in := w.c.Pointer()
+	if !in || !w.vs.gutter.Contains(p) {
 		return false
 	}
-	return st.toggleFoldAt(line, p.shift)
+	_, over := w.c.RectOf(w.box.ID())
+	return over
+}
+
+// foldHover reports whether the pointer is over something folding acts on
+// when clicked: a folding control where a region starts (folded or not)
+// or a folded line's placeholder. They show the pointer cursor, as
+// Monaco's folding icons and "⋯".
+func (w *ViewW) foldHover() bool {
+	p, in := w.c.Pointer()
+	if !in {
+		return false
+	}
+	if _, over := w.c.RectOf(w.box.ID()); !over {
+		return false
+	}
+	if line, ok := w.foldControlAt(p); ok {
+		fs := &w.st.fold
+		return fs.foldAt(line) >= 0 || fs.rsOK && fs.rangeAt(line)
+	}
+	return w.placeholderAt(p) >= 0
 }
 
 // placeholderAt returns the folded line whose placeholder is at window

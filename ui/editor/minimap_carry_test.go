@@ -106,3 +106,69 @@ func TestMinimapSourceCarryLinesMovedInPlace(t *testing.T) {
 	w.prepareMinimap(snap, st.Theme, time.Now().Add(time.Second))
 	assertMinimapFresh(t, st, w)
 }
+
+// TestMinimapSkipsSourceOfShiftedRows: a line break added or removed above
+// the miniature rows moves them by a line; their rows are carried to the
+// new lines without reading their source again (only the lines the edit
+// touched are read), and match a fresh build.
+func TestMinimapSkipsSourceOfShiftedRows(t *testing.T) {
+	st, w := minimapShiftView(t)
+	m := &w.vs.mini
+	for _, c := range []struct {
+		name  string
+		edits func(s buffer.Snapshot) []buffer.Edit
+	}{
+		{"insert a line", func(s buffer.Snapshot) []buffer.Edit {
+			a := s.LineStart(200)
+			return []buffer.Edit{{Start: a, End: a, Text: "\tinserted()\n"}}
+		}},
+		{"Enter at a line end", func(s buffer.Snapshot) []buffer.Edit {
+			a := s.LineStart(201) - 1
+			return []buffer.Edit{{Start: a, End: a, Text: "\n\t"}}
+		}},
+		{"join two lines", func(s buffer.Snapshot) []buffer.Edit {
+			a := s.LineStart(201) - 1
+			return []buffer.Edit{{Start: a, End: a + 1}}
+		}},
+		{"delete two lines", func(s buffer.Snapshot) []buffer.Edit {
+			return []buffer.Edit{{Start: s.LineStart(150), End: s.LineStart(152)}}
+		}},
+		{"two edits", func(s buffer.Snapshot) []buffer.Edit {
+			a, b := s.LineStart(100), s.LineStart(250)
+			return []buffer.Edit{{Start: a, End: a, Text: "\n\n"}, {Start: b, End: b, Text: "x\n"}}
+		}},
+	} {
+		if err := st.Edit(c.edits(st.Snapshot()), Selection{}); err != nil {
+			t.Fatal(err)
+		}
+		snap := st.Snapshot()
+		st.Highlighter().HighlightFor(st.hlKey, snap, snap.LineCount(), time.Second)
+		reads := m.sourceReads
+		w.prepareMinimap(snap, st.Theme, time.Now().Add(time.Second))
+		if got := m.sourceReads - reads; got > 4 {
+			t.Fatalf("%s: read %d rows' source, want at most 4", c.name, got)
+		}
+		assertMinimapFresh(t, st, w)
+	}
+}
+
+// TestMinimapShiftAfterTwoEdits: two changes before a frame (a letter
+// typed on a line, then a line inserted above it): the last change alone
+// does not say the typed line changed, but its row was made before the
+// first change, so it is read again, not carried.
+func TestMinimapShiftAfterTwoEdits(t *testing.T) {
+	st, w := minimapShiftView(t)
+	snap := st.Snapshot()
+	at := snap.LineStart(320) + 3
+	if err := st.Edit([]buffer.Edit{{Start: at, End: at, Text: "TYPED"}}, Selection{}); err != nil {
+		t.Fatal(err)
+	}
+	a := st.Snapshot().LineStart(200)
+	if err := st.Edit([]buffer.Edit{{Start: a, End: a, Text: "\tinserted()\n"}}, Selection{}); err != nil {
+		t.Fatal(err)
+	}
+	snap = st.Snapshot()
+	st.Highlighter().HighlightFor(st.hlKey, snap, snap.LineCount(), time.Second)
+	w.prepareMinimap(snap, st.Theme, time.Now().Add(time.Second))
+	assertMinimapFresh(t, st, w)
+}

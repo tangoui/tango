@@ -76,6 +76,9 @@ type miniLine struct {
 	bmp    *miniBitmap // the characters (minimap_chars.go; nil: none)
 	// bmpDone: bmp is drawn (characters were on).
 	bmpDone bool
+	// blocksDone: blocks are made (only when characters are off: the
+	// character minimap does not draw them).
+	blocksDone bool
 	// spanned: tokens are text's own from start (TokenizeSpan; the
 	// line's tokens were not cached), so they depend on text and start
 	// only.
@@ -345,6 +348,11 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 	ver := snap.Version()
 	carryVer, touched := miniSourceCarry(w.st.Model.Buffer(), snap, m.touched[:0])
 	m.touched = touched
+	if carryVer == 0 {
+		// Lines added or removed: the rows of the lines the change did not
+		// touch move to their new lines, still current.
+		carryVer = m.shiftRows(w.st.Model.Buffer(), snap)
+	}
 	for k := 0; k < count; k++ {
 		pos := float32(k) * step
 		// Rows of a pixel or more step one view row per sample, exactly:
@@ -452,7 +460,10 @@ func (w *ViewW) prepareMinimap(snap buffer.Snapshot, th *theme.Theme, deadline t
 			toks = hl.TokenizeSpan(snap, line, prefix, m.tokenScratch[:0])
 			m.tokenScratch = toks
 		}
-		ln = &miniLine{spanned: !cached, text: prefix, dep: depText, rawLen: rawLen, short: short, seen: ver, seenLine: line, start: start, final: final, tokens: slices.Clone(toks), blocks: miniBlocksAt(prefix, base, toks, th, tab), base: base}
+		ln = &miniLine{spanned: !cached, text: prefix, dep: depText, rawLen: rawLen, short: short, seen: ver, seenLine: line, start: start, final: final, tokens: slices.Clone(toks), base: base}
+		if !w.opts.Minimap.RenderCharacters {
+			ln.blocks, ln.blocksDone = miniBlocksAt(prefix, base, toks, th, tab), true
+		}
 		m.cache[key] = ln
 		m.rebuilt++
 		w.ensureMiniBitmap(ln, th, tab)
@@ -511,6 +522,70 @@ func miniSourceCarry(b *buffer.Buffer, snap buffer.Snapshot, dst []int) (uint64,
 		dst = append(dst, l)
 	}
 	return old.Version(), dst
+}
+
+// shiftRows moves the cached rows of the lines b's last change did not
+// touch to those lines' numbers in snap (b's current snapshot), when the
+// change added or removed line breaks and the rows were found current at
+// the version before it; their text is the same, so they stay current
+// there (prepareMinimap does not read their source). It returns that
+// version, or 0 when it moved nothing. Rows it does not move keep their
+// keys: they are checked against their lines' source as before.
+func (m *minimapState) shiftRows(b *buffer.Buffer, snap buffer.Snapshot) uint64 {
+	if len(m.cache) == 0 || b.Snapshot().Version() != snap.Version() {
+		return 0
+	}
+	old, edits := b.LastChange()
+	if len(edits) == 0 || old.Version() == snap.Version() {
+		return 0
+	}
+	type span struct{ sl, el, delta int } // old lines sl..el replaced; lines after move by delta
+	spans := make([]span, 0, len(edits))
+	moved := false
+	for _, e := range edits {
+		sl, el := old.LineOf(e.Start), old.LineOf(e.End)
+		d := lineBreakCount(e.Text) - (el - sl)
+		moved = moved || d != 0
+		spans = append(spans, span{sl, el, d})
+	}
+	if !moved {
+		return 0
+	}
+	newLine := func(o int) int { // -1: touched
+		d := 0
+		for _, sp := range spans {
+			if o < sp.sl {
+				break
+			}
+			if o <= sp.el {
+				return -1
+			}
+			d += sp.delta
+		}
+		return o + d
+	}
+	ov := old.Version()
+	next := make(map[int]*miniLine, len(m.cache))
+	var carried []*miniLine
+	for k, ln := range m.cache {
+		if k >= 0 && ln.seen == ov && ln.seenLine == k {
+			if nk := newLine(k); nk >= 0 {
+				ln.seenLine = nk
+				carried = append(carried, ln)
+				continue
+			}
+		}
+		ln.seen = 0 // not known current: its line may have changed or moved
+		next[k] = ln
+	}
+	if len(carried) == 0 {
+		return 0
+	}
+	for _, ln := range carried {
+		next[ln.seenLine] = ln // over a stale row left at that key
+	}
+	m.cache = next
+	return ov
 }
 
 // maxMiniFrames bounds the frames in a row the minimap asks for without
@@ -622,6 +697,11 @@ func (w *ViewW) paintMinimap(l *paint.List, th *theme.Theme) {
 		scale := min(1, r.W/float32(w.miniColumns()))
 		for _, row := range vs.miniRows {
 			if ln := vs.mini.cache[row.key]; ln != nil {
+				if !ln.blocksDone {
+					// Made while characters were on (blocks are made only
+					// for this view).
+					ln.blocks, ln.blocksDone = miniBlocksAt(ln.text, ln.base, ln.tokens, th, max(1, w.tabs())), true
+				}
 				for _, b := range ln.blocks {
 					w.navigationFill(l, geom.Rect{X: r.X + float32(b.a)*scale, Y: row.y, W: float32(b.b-b.a) * scale, H: min(1, row.h)}, b.color)
 				}
