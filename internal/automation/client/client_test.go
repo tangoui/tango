@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"net"
 	"os"
@@ -153,11 +154,35 @@ func TestLaunchNotDevBuild(t *testing.T) {
 func TestWaitTokenFileExited(t *testing.T) {
 	exited := make(chan struct{})
 	close(exited)
-	_, err := waitTokenFile(filepath.Join(t.TempDir(), "automation.json"), exited,
+	_, err := waitTokenFile(context.Background(), filepath.Join(t.TempDir(), "automation.json"), exited,
 		func() error { return errors.New("exit status 1") }, time.Minute)
 	const want = "the program exited before opening its control channel (exit status 1); is it a Tango app built with -tags tango_dev?"
 	if err == nil || err.Error() != want {
 		t.Fatalf("err %v, want %q", err, want)
+	}
+}
+
+// A done context ends the wait for the token file at once (LaunchContext
+// then kills the program).
+func TestWaitTokenFileContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(50*time.Millisecond, cancel)
+	start := time.Now()
+	_, err := waitTokenFile(ctx, filepath.Join(t.TempDir(), "automation.json"), make(chan struct{}), nil, time.Minute)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err %v, want context.Canceled", err)
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("returned after %v", d)
+	}
+}
+
+// LaunchContext with a done context starts nothing.
+func TestLaunchContextDone(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := LaunchContext(ctx, LaunchOptions{Target: "./does-not-exist", TempDir: t.TempDir()}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err %v, want context.Canceled", err)
 	}
 }
 

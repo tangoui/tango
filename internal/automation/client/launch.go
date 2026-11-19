@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -56,6 +57,9 @@ type LaunchOptions struct {
 type Process struct {
 	Conn *Conn
 	Cmd  *exec.Cmd
+	// Channel is the address and token the program wrote to its token
+	// file: a second connection can be dialed with them.
+	Channel wire.TokenFile
 
 	exited chan struct{}
 	runErr error // set before exited is closed
@@ -64,11 +68,24 @@ type Process struct {
 // Launch builds target if it is a package, starts it with the automation
 // channel on and connects to it. On error nothing is left running.
 func Launch(o LaunchOptions) (*Process, error) {
+	return LaunchContext(context.Background(), o)
+}
+
+// LaunchContext is Launch, given up when ctx is done: the build is
+// stopped, or the started program killed, and ctx's error returned. A
+// done ctx does not affect the program once LaunchContext has returned.
+func LaunchContext(ctx context.Context, o LaunchOptions) (*Process, error) {
 	if o.TempDir == "" {
 		return nil, errors.New("LaunchOptions.TempDir is empty")
 	}
-	bin, err := Build(o.Target, o.Dir, o.BuildFlags, o.TempDir)
+	bin, err := build(ctx, o.Target, o.Dir, o.BuildFlags, o.TempDir)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	tokenFile := filepath.Join(o.TempDir, "automation.json")
@@ -92,7 +109,8 @@ func Launch(o LaunchOptions) (*Process, error) {
 	if start <= 0 {
 		start = 30 * time.Second
 	}
-	tf, err := waitTokenFile(tokenFile, p.exited, p.ExitErr, start)
+	tf, err := waitTokenFile(ctx, tokenFile, p.exited, p.ExitErr, start)
+	p.Channel = tf
 	if err == nil {
 		if p.Conn, err = Dial(tf.Addr, tf.Token); err != nil {
 			err = fmt.Errorf("connect to %s: %v", o.Target, err)
@@ -146,12 +164,12 @@ func (p *Process) Quit(timeout time.Duration) error {
 // program with the automation channel writes once the channel is open; a
 // close of exited ends the wait early.
 func WaitTokenFile(path string, exited <-chan struct{}, timeout time.Duration) (wire.TokenFile, error) {
-	return waitTokenFile(path, exited, nil, timeout)
+	return waitTokenFile(context.Background(), path, exited, nil, timeout)
 }
 
 // waitTokenFile is WaitTokenFile naming the program's exit error, when
-// exitErr is set, in the message.
-func waitTokenFile(path string, exited <-chan struct{}, exitErr func() error, timeout time.Duration) (wire.TokenFile, error) {
+// exitErr is set, in the message, and giving up when ctx is done.
+func waitTokenFile(ctx context.Context, path string, exited <-chan struct{}, exitErr func() error, timeout time.Duration) (wire.TokenFile, error) {
 	deadline := time.Now().Add(timeout)
 	for {
 		tf, err := wire.ReadTokenFile(path)
@@ -170,7 +188,11 @@ func waitTokenFile(path string, exited <-chan struct{}, exitErr func() error, ti
 		if time.Now().After(deadline) {
 			return tf, fmt.Errorf("no control channel after %v (does the program create a tango.App, and was it built with -tags tango_dev?)", timeout)
 		}
-		time.Sleep(20 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			return tf, ctx.Err()
+		case <-time.After(20 * time.Millisecond):
+		}
 	}
 }
 
@@ -180,6 +202,11 @@ func waitTokenFile(path string, exited <-chan struct{}, exitErr func() error, ti
 // package target built with `go build -tags tango_dev` (plus buildFlags)
 // in dir into outDir/app (app.exe on Windows).
 func Build(target, dir string, buildFlags []string, outDir string) (string, error) {
+	return build(context.Background(), target, dir, buildFlags, outDir)
+}
+
+// build is Build, stopping go build when ctx is done.
+func build(ctx context.Context, target, dir string, buildFlags []string, outDir string) (string, error) {
 	p := target
 	if dir != "" && !filepath.IsAbs(p) {
 		p = filepath.Join(dir, p)
@@ -202,7 +229,7 @@ func Build(target, dir string, buildFlags []string, outDir string) (string, erro
 	}
 	args := append([]string{"build", "-o", bin}, WithDevTag(buildFlags)...)
 	args = append(args, target)
-	cmd := exec.Command(goTool, args...)
+	cmd := exec.CommandContext(ctx, goTool, args...)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
