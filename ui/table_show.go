@@ -59,6 +59,18 @@ type tblState struct {
 	drag tblDrag
 	vh   tblVarH // variable row heights (Wrap columns)
 
+	// Bounded body (ScrollY): rows being edited stay built outside the
+	// window (keep rows). keepPos remembers where their keys were last
+	// found; each use checks the live key at that position first.
+	keepPos map[string]int
+	// keepMiss remembers keys posOfKey did not find, with the page data
+	// they were looked up in (see tblMissKey).
+	keepMiss  map[string]tblMissKey
+	focusSeen ID     // focus after the last bounded build
+	revKey    string // row to scroll into view on the next build
+	revLeaf   int    // and its leaf (-1: vertical only)
+	revOn     bool
+
 	// View cache.
 	cacheSig  string
 	cacheIDs  []int
@@ -142,7 +154,10 @@ type tblFrame struct {
 	bodyRect geom.Rect
 	frameID  ID
 	focused  bool
-	rowPaint bool // rows paint their background and bottom line once (no merged cells)
+	rowPaint bool  // rows paint their background and bottom line once (no merged cells)
+	rowIDs   []ID  // cells of the row buildRow built last
+	typing   bool  // keepEdit: key, text or IME input this frame (tblTyping)
+	rowLeaf  []int // and their leaves
 	tips     []tblTip
 
 	frameN  *node
@@ -965,6 +980,7 @@ func (f *tblFrame) build() {
 	f.focused = fia.Focused
 	f.setupScroll(frame.n.id)
 	f.keys()
+	f.pendingReveal()
 	f.frameN = frame.n
 	f.stickyShift(frame.n)
 	frame.Body(func() {

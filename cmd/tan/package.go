@@ -50,7 +50,9 @@ func runPackage(args []string) error {
 		return err
 	}
 	warnedUnsigned = false // winsign.go: warn once per run
-	ctx := context.Background()
+	// build.go: a signal stops the front-end commands.
+	ctx, stop := signalContext()
+	defer stop()
 	arts, err := build(ctx, cfg, buildOptions{targets: ts, out: *out, features: features})
 	if err != nil {
 		return err

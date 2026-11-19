@@ -43,6 +43,21 @@ func (r *p2bRich) on(opts []Option) bool {
 	return p2bHasGroups(opts)
 }
 
+// p2bVirtualOn reports whether a list of n options in mode (the
+// Virtual(on bool) tri-state: 0 auto, 1 always, -1 never) builds only its
+// visible rows: always with 1, above p2bVirtualMin options by default.
+func p2bVirtualOn(mode, n int) bool {
+	return mode > 0 || mode == 0 && n > p2bVirtualMin
+}
+
+// p2bVirtualMode maps Virtual(on bool) to its tri-state value.
+func p2bVirtualMode(on bool) int {
+	if on {
+		return 1
+	}
+	return -1
+}
+
 func (r *p2bRich) defaults(c *Context) {
 	r.debounce = remoteDebounce
 	if v, ok := p2bBool(c, "Select", "virtual"); ok {

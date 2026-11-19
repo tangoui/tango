@@ -38,6 +38,25 @@ type ListW struct {
 	gridAt   dataRespCols
 	th       *theme.Theme
 	tk       *theme.ListToken
+
+	// Viewport and virtual form (Height, Virtual, ItemHeight,
+	// EstimatedItemHeight, RowKey, ScrollToKey).
+	height     float32
+	virtual    bool
+	itemH      float32
+	est        float32
+	rowKey     func(i int) any
+	req        listScroll
+	first, end int
+	view       ID // the items' viewport (Height)
+}
+
+// listScroll is a ScrollToKey request.
+type listScroll struct {
+	set    bool
+	key    any
+	align  string
+	offset float64
 }
 
 // List starts a list of n items; render each with Item.
@@ -131,6 +150,56 @@ func (w *ListW) Layout(o ...layout.Option) *ListW {
 	return w
 }
 
+// Height fixes the height of the items' viewport (antd height); longer
+// content scrolls inside it. Header, Footer, LoadMore and the pager stay
+// outside it. Default 0: the list grows with its items.
+func (w *ListW) Height(px float32) *ListW { w.height = max(0, px); return w }
+
+// Virtual builds only the items in the viewport (and a few past each
+// edge) instead of every item; it needs Height and is ignored without it.
+// With Pagination it windows the current page; with Grid it windows rows
+// of columns items (a row is as high as its tallest item). The item that
+// holds the keyboard focus is built on the frame it leaves the viewport,
+// but once its focused control is clipped out of view the focus is lost,
+// exactly as in the non-virtual Height form. Items scrolled out of view
+// are not built, so state kept inside them (State, an input's text)
+// is dropped after a while and they are missing from the accessibility
+// tree, FindText and the Tab order, as with Listy and VirtualList.
+// Heights are measured as items come into view and cached by RowKey; an
+// item never measured counts EstimatedItemHeight, so the scroll bar can
+// adjust the first time a taller item appears.
+func (w *ListW) Virtual() *ListW { w.virtual = true; return w }
+
+// ItemHeight fixes every item's height, padding included (the fast path
+// of Virtual: nothing is measured). Default 0: items size to their content.
+func (w *ListW) ItemHeight(px float32) *ListW { w.itemH = max(0, px); return w }
+
+// EstimatedItemHeight is the height Virtual assumes for an item not
+// measured yet. Default: one line of text plus the item padding (46 at
+// the middle size, as Listy).
+func (w *ListW) EstimatedItemHeight(px float32) *ListW { w.est = max(1, px); return w }
+
+// RowKey gives items stable identities for the heights Virtual measures
+// (default: the index; the measured heights are kept for every key seen,
+// as Listy does). It does not change how items are keyed; wrap the
+// item content in Key for state that follows the data.
+func (w *ListW) RowKey(fn func(i int) any) *ListW { w.rowKey = fn; return w }
+
+// ScrollToKey scrolls the viewport (Height) to the item with key (RowKey;
+// the index without one) using align (AlignTop, AlignBottom or AlignAuto)
+// plus offset pixels. An item of the current page only; under Virtual an
+// item not measured yet is placed by its estimate first and corrected over
+// the next frames, as Listy.
+func (w *ListW) ScrollToKey(key any, align string, offset float64) *ListW {
+	w.req = listScroll{set: true, key: key, align: align, offset: offset}
+	return w
+}
+
+// Range returns the item indexes [first, end) built by the last Item
+// call: the current page, or under Virtual the window (the focused item
+// aside, which is built even outside it).
+func (w *ListW) Range() (first, end int) { return w.first, w.end }
+
 // listRange returns the half-open item range shown for the current page.
 func listRange(n, page, pageSize int) (int, int) {
 	if pageSize <= 0 {
@@ -174,7 +243,6 @@ func (w *ListW) edgePad() (v, h float32) {
 // Item builds the list, calling fn for every visible item index.
 func (w *ListW) Item(fn func(i int)) *ListW {
 	c, tk := w.c, w.tk
-	pv, ph := w.pad()
 	ev, eh := w.edgePad()
 	a, b := 0, w.n
 	if w.page != nil {
@@ -209,34 +277,7 @@ func (w *ListW) Item(fn func(i int)) *ListW {
 	}
 	items := func() {
 		for i := a; i < b; i++ {
-			i := i
-			lastRow := i == b-1
-			Key(c, i, func() {
-				var row *Box
-				if w.vertical {
-					// antd vertical: item-main (content + actions) and
-					// item-extra side by side, aligned to the top.
-					row = Row(c, func() {
-						Column(c, func() { fn(i) }, layout.Grow(1), layout.MinW(0))
-						if w.extra != nil {
-							Column(c, func() { w.extra(i) }, layout.Margin(geom.Insets{Left: tk.VerticalExtraMarginInlineStart}))
-						}
-					}, layout.PadVH(pv, ph), layout.AlignItems(layout.AlignStart))
-				} else {
-					row = Row(c, func() {
-						fn(i)
-						if w.extra != nil {
-							w.extra(i)
-						}
-					}, layout.PadVH(pv, ph), layout.Middle(), layout.JustifyContent(layout.JustifySpaceBetween))
-				}
-				w.itemSem(row.n, i)
-				if w.split && (!lastRow || after) {
-					row.Paint(func(l *paint.List, r geom.Rect) {
-						dataHLine(l, r.X, r.Bottom()-1, r.W, tk.SplitColor)
-					})
-				}
-			})
+			w.itemRow(i, fn, i == b-1, after)
 		}
 	}
 	inner := func() {
@@ -265,8 +306,29 @@ func (w *ListW) Item(fn func(i int)) *ListW {
 			}
 			w.itemScope(items)
 		}
+		w.first, w.end = a, b
 		list := func() {
-			lb := Column(c, body)
+			var lb *Box
+			switch {
+			case w.height > 0 && w.virtual && w.n > 0:
+				sb := fillViewport(c, "list-view", []layout.Option{layout.H(w.height)})
+				if w.grid > 0 {
+					w.virtItems(sb, a, b, after, fn)
+				} else {
+					w.itemScope(func() { w.virtItems(sb, a, b, after, fn) })
+				}
+				lb, w.view = sb.Box, sb.n.id
+				if c.a11yOn {
+					n := w.n
+					lb.n.fill(semFunc(func(s *a11y.Node) { s.RowCount = n }))
+				}
+			case w.height > 0:
+				sb := Scroll(c, body, layout.H(w.height))
+				w.scrollFull(sb, a, b)
+				lb, w.view = sb.Box, sb.n.id
+			default:
+				lb = Column(c, body)
+			}
 			if w.n > 0 {
 				lb.n.setRole(a11y.RoleList)
 			}
@@ -329,30 +391,77 @@ func (w *ListW) itemScope(fn func()) {
 func (w *ListW) gridItems(a, b int, fn func(i int)) {
 	c := w.c
 	cols := w.gridAt.resolve(c, w.grid)
-	gap := w.gridGap
-	mb := w.tk.GridItemMarginBottom
 	Column(c, func() {
 		for r := a; r < b; r += cols {
-			r := r
-			Row(c, func() {
-				for i := r; i < r+cols; i++ {
-					i := i
-					if i >= b {
-						Column(c, nil, layout.Grow(1))
-						continue
-					}
-					Key(c, i, func() { w.itemSem(Column(c, func() { fn(i) }, layout.Grow(1), layout.MinW(0)).n, i) })
-				}
-			}, layout.Gap(gap), layout.AlignItems(layout.AlignStretch), layout.Margin(geom.Insets{Bottom: mb}))
+			w.gridRow(r, b, cols, fn)
 		}
 	})
+}
+
+// itemRow builds the row of item i (keyed by its index) and returns it;
+// lastRow and after (something follows the items) decide its divider.
+func (w *ListW) itemRow(i int, fn func(i int), lastRow, after bool) *node {
+	c, tk := w.c, w.tk
+	pv, ph := w.pad()
+	var row *Box
+	Key(c, i, func() {
+		var hopt []layout.Option
+		if w.itemH > 0 {
+			hopt = []layout.Option{layout.H(w.itemH)}
+		}
+		if w.vertical {
+			// antd vertical: item-main (content + actions) and
+			// item-extra side by side, aligned to the top.
+			row = Row(c, func() {
+				Column(c, func() { fn(i) }, layout.Grow(1), layout.MinW(0))
+				if w.extra != nil {
+					Column(c, func() { w.extra(i) }, layout.Margin(geom.Insets{Left: tk.VerticalExtraMarginInlineStart}))
+				}
+			}, append([]layout.Option{layout.PadVH(pv, ph), layout.AlignItems(layout.AlignStart)}, hopt...)...)
+		} else {
+			row = Row(c, func() {
+				fn(i)
+				if w.extra != nil {
+					w.extra(i)
+				}
+			}, append([]layout.Option{layout.PadVH(pv, ph), layout.Middle(), layout.JustifyContent(layout.JustifySpaceBetween)}, hopt...)...)
+		}
+		w.itemSem(row.n, i)
+		if w.split && (!lastRow || after) {
+			row.Paint(func(l *paint.List, r geom.Rect) {
+				dataHLine(l, r.X, r.Bottom()-1, r.W, tk.SplitColor)
+			})
+		}
+	})
+	return row.n
+}
+
+// gridRow builds the grid row of items [r, r+cols) (cut at b) and returns it.
+func (w *ListW) gridRow(r, b, cols int, fn func(i int)) *node {
+	c := w.c
+	var hopt []layout.Option
+	if w.itemH > 0 {
+		hopt = []layout.Option{layout.H(w.itemH)}
+	}
+	return Row(c, func() {
+		for i := r; i < r+cols; i++ {
+			i := i
+			if i >= b {
+				Column(c, nil, layout.Grow(1))
+				continue
+			}
+			Key(c, i, func() {
+				w.itemSem(Column(c, func() { fn(i) }, append([]layout.Option{layout.Grow(1), layout.MinW(0)}, hopt...)...).n, i)
+			})
+		}
+	}, layout.Gap(w.gridGap), layout.AlignItems(layout.AlignStretch), layout.Margin(geom.Insets{Bottom: w.tk.GridItemMarginBottom})).n
 }
 
 // itemSem marks n as list item i; with pagination it carries its
 // position in the whole data set.
 func (w *ListW) itemSem(n *node, i int) {
 	n.setRole(a11y.RoleListItem)
-	if w.page != nil && w.c.a11yOn {
+	if (w.page != nil || w.virtualOn()) && w.c.a11yOn {
 		total := w.n
 		n.fill(semFunc(func(s *a11y.Node) { s.PosInSet, s.SetSize = i+1, total }))
 	}

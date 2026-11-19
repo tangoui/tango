@@ -8,7 +8,7 @@ License: SIL Open Font License 1.1, reproduced in `OFL.txt` and the public
 playground's `NOTO-SANS-SC-LICENSE.txt`. The font has been subset and
 instantiated at weight 400; this is not the full upstream distribution.
 The subset contains non-ASCII glyphs used in `ui/**/*.go` and
-`examples/ui-gallery/**/*.go` at generation time (1790 requested code points).
+`examples/ui-gallery/**/*.go` (test files excluded) at generation time (1790 requested code points).
 Go Regular remains the Latin fallback. Arbitrary additional characters can
 be provided through the preview's local font import.
 

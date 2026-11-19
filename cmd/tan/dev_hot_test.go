@@ -42,16 +42,31 @@ func TestHasDevHost(t *testing.T) {
 }
 
 func TestTailBuffer(t *testing.T) {
-	b := &tailBuffer{max: 32}
+	b := newTailBuffer(32)
 	for i := range 10 {
 		b.Write([]byte(strings.Repeat("x", i) + "\n"))
 	}
 	b.Write([]byte("panic: boom\n"))
-	if got := b.Tail(2); got != "xxxxxxxxx\npanic: boom" {
+	if got := b.lastLines(2); got != "xxxxxxxxx\npanic: boom" {
 		t.Fatalf("tail %q", got)
 	}
-	if len(b.b) > 32 {
-		t.Fatalf("kept %d bytes", len(b.b))
+	if got, _ := b.Tail(0); len(got) > 32 {
+		t.Fatalf("kept %d bytes", len(got))
+	}
+	// Trailing blank lines do not take the place of output.
+	c := newTailBuffer(64)
+	c.Write([]byte("one\ntwo\nthree\n\n\n\n"))
+	if got := c.lastLines(2); got != "two\nthree" {
+		t.Fatalf("tail with blank lines %q", got)
+	}
+	if got := c.lastLines(5); got != "one\ntwo\nthree" {
+		t.Fatalf("all lines %q", got)
+	}
+	if got := c.lastLines(1); got != "three" {
+		t.Fatalf("one line %q", got)
+	}
+	if got := newTailBuffer(8).lastLines(3); got != "" {
+		t.Fatalf("empty %q", got)
 	}
 }
 

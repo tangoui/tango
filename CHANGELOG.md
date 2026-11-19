@@ -12,6 +12,14 @@
 
 ### 新增
 
+- `tan mcp`：给 AI 代理用的 MCP 服务器，提供项目工具和运行中应用的界面工具（语义树、动作、输入、截图、WebView 选择器），应用在后台启动，见 [docs/mcp.md](docs/mcp.md)。
+- `ProTable`、`EditableProTable`、`CellEditorTable`、`RowEditorTable` 新增 opt-in 虚拟滚动：`ScrollY(px)` 固定表体高度、只构建视口内的行，`Virtual()` 表明意图（透传 `Table`），`ProTable` 另有 `RowHeight`；行高默认跟随密度。正在编辑的行即使滚出视口也保持构建（草稿、焦点和 Tab 顺序不丢），开始编辑、焦点移入、在其中输入和校验失败时自动滚到该行。不设 `ScrollY` 时行为不变；普通 `Table` 的 `ScrollY` 行为也不变。
+- `List`、`ProList`、`Conversations` 新增 opt-in 虚拟滚动：`Height(px)` 固定视口高度，再加 `Virtual()` 只构建视口内的项（默认形态不变）。`List` 另有 `ItemHeight`、`EstimatedItemHeight`、`RowKey`、`ScrollToKey`、`Range`，`ProList` 透传 `EstimatedItemHeight`，`Conversations` 有 `ScrollToKey`，键盘上下移动跨越窗口时自动滚动。
+- `Tree` 新增 `DataVersion(v int)`：只在同时设了 `Height` 时生效，缓存父节点表、`Filter` 可见集合、展平后的可见行和勾选状态，每帧开销跟随视口而不是节点总数。节点字段（标题等）始终实时读取；同一切片内原地增删子节点、改键、改动影响 `Filter` 匹配的标题，或原地修改子节点的 `Disabled` / `DisableCheckbox`（勾选状态含父节点的全选 / 半选也被缓存）时，需要改变 `DataVersion`（或换新切片）。不调用 `DataVersion` 时行为和开销与之前完全相同。
+- 下拉 / 弹层选项列表在超过 100 项时只构建可见行（与 `Select` 相同）：`AutoComplete`、`Mentions`、`Command`、`Cascader`、`CascaderPanel`；新增三态逃生口 `Virtual(on bool)`（不调用为自动，`true` 强制开，`false` 强制关）和 `DataVersion(v int)`（与 `Select.DataVersion` 相同）：虚拟形态按选项切片（身份与长度）缓存匹配结果和列表宽度，原地修改同一切片里选项的 `Label` 等字段而长度不变时，需要改变 `DataVersion`（或换一个新切片），下一帧才会重新匹配和测宽。`Sender` 的 @ / 建议列表和 `Cascader` 的搜索结果超过 100 项时同样自动窗口化，它们没有 `Virtual(bool)` 开关（每帧重新匹配和测宽）。
+- `ui/editor/highlight`（实验性）：新增 `(*Highlighter).HighlightViewFor`，后台协程还在远处补着色时不在帧内重复着色，`View` 改用它（大文件刚打开时每次按键的着色耗时约从 4.1 ms 降到 1.0 ms）。
+- `ui/editor/highlight`（实验性）：新增 `(*Highlighter).SetLineSummary`、`(*Highlighter).LineSummary` 与 `LineSummaryFunc`：着色时顺带为每行记一份摘要，行保持最终结果期间可直接读取。编辑器用它记录各行括号，括号树建树不再重新分词（2 万行 TypeScript 建树约从 6.6 µs/行降到 0.2 µs/行，打开大文件或大段粘贴后括号着色和配对更快出现）。
+- `ui/editor/highlight`（实验性）：新增 `(*Highlighter).BackgroundBehind`，报告后台协程在跑且某行尚未着色完成。编辑器的括号匹配在这种情况下不再在帧内同步着色去追，交给后台补完后再显示配对（粘贴大段内容后那一帧约少 1–2 ms，配对晚一两帧出现；括号跳转等命令照旧当场完成）。
 - 终端搜索：`ui/terminal` 的 `ViewW.Search(query, caseSensitive)` 在历史滚动区和当前屏幕中查找，滚动到命中处并用选区颜色高亮当前命中（Cmd+C 可直接复制）；`SearchStep(±1)` 前后跳转（循环），`SearchInfo` 返回命中数和当前位置，`ClearSearch` 结束搜索。底层为 `vt.Screen.Search`，返回 `[]vt.Match`（稳定行号与列范围，宽字符按单元格计）。
 - `tan.json` 新增 `"cgo": true`：`tan build`、`tan package`、`tan dev`（含热重载）以 `CGO_ENABLED=1` 编译，供链接 C 库（duckdb 等）或带 cgo 文件的应用使用；默认仍是 `CGO_ENABLED=0`，桌面后端走 purego、交叉编译不需要 C 工具链。开启后交叉编译需要在环境里提供目标平台的 `CC`。
 - `ui.RunnerOptions.Content`（实验性）：用 `ui.ContentData` 标明窗口主要展示自行变化的数据（表格、网格、行情、列表、仪表盘）。Apple Silicon macOS 上这类窗口收到键盘输入也不升级 Metal，一直保留原生图层的内存优势，只在连续六帧绘制超过 8 ms 或连续六帧整窗软件回退时单向升级；默认是 `ui.ContentGeneral`。Intel Mac 默认用 Metal，不受影响。渲染器规则见下方“变更”。`TANGO_RENDERER` 和 `RunnerOptions.Renderer` 优先。
@@ -22,9 +30,7 @@
 
 - `@tangoui/runtime` 的 `ErrorCode` 加入 `busy`（更新器在已有检查或下载进行时返回）。
 
-- macOS 自绘 UI 新增可选 `TANGO_TEXT_ENGINE=coretext` 轻量文字路径：无换行短文本使用 CoreText glyph-run 与系统字体回退，复杂排版自动继续使用 go-text/HarfBuzz；默认文字引擎和输出路径不变。
-
-- macOS 新增可选构建标签 `tango_coretext`（CoreText 文字引擎）：`ui/text` 的整形、断行、双向文字、字体回退和光栅化都交给 CoreText，`text.RegisterFont` 的字体也由 CoreText 读取，不链接 `github.com/go-text/typesetting`。最小自绘样本（darwin/arm64，`-trimpath -ldflags='-s -w'`）可执行文件 10,520,354 → 8,544,834 B（-1.88 MiB，-18.8%），`tan init -template ui` 的 `.dmg` 3,720,203 → 3,198,304 B（见 [体积报告](docs/package-size-optimization.md)）。这个构建忽略 `TANGO_TEXT_ENGINE`，`text.UseSystemEngine(false)` 不关掉系统引擎，`text.Engine()` 总是 `"coretext"`；换行位置（中文禁则、URL、数字串）、字距和回退字体跟随系统，可能与 Windows/Linux 不同。性能：行情帧基准 0.20 ms（go-text 0.60 ms），但编辑器行缓存未命中仍比 go-text 慢：Mono/Mixed 普通路径未命中慢 3–15 倍，混排行快速路径未命中约 50–60 倍，所以默认构建继续用 go-text。默认构建和其他平台不变。
+- macOS 自绘 UI 新增可选 `TANGO_TEXT_ENGINE=coretext` 轻量文字路径（只在 `-tags tango_gotext` 的 go-text 构建里有效，默认 macOS 构建已全部使用 CoreText，见“变更”）：无换行短文本使用 CoreText glyph-run 与系统字体回退，复杂排版自动继续使用 go-text/HarfBuzz。
 
 - 自绘窗口支持可选 `TANGO_RENDERER=auto`：小窗口先用 CPU，放大、内容复杂或持续高频刷新后单向升级 GPU；保持默认 GPU 优先和显式 Renderer 优先级不变。系统字体链可由 `text.TrimFontCaches()` 丢弃，平台低内存通知也会触发回收；仍被页面或编辑器持有的字体继续有效，macOS 原生字体句柄在最后一个拥有者不可达后释放（见 `docs/dev-builds.md`）。
 
@@ -106,6 +112,8 @@
   - gallery：登录、查询列表、基础表单、详情、结果、设置抽屉六种完整 Pro v6 页面组合，全部使用真实 Tango API 和本地示例数据。复核旧 28 项的结果与尚缺能力见 `docs/specs/align/4-*.md`，不再将其解释为全部 v3 API 已完整。
 
 ### 变更
+
+- **macOS 自绘文字默认改用 CoreText**：`ui/text` 的整形（CTLine）、断行（CFStringTokenizer）、双向文字、字体回退和光栅化都交给 CoreText，`text.RegisterFont` 的字体也由 CoreText 读取；macOS（非 iOS）构建不再链接 `github.com/go-text/typesetting`。构建标签 `tango_gotext` 恢复以前的 go-text 引擎（go-text 整形加 CoreText 光栅化、`TANGO_TEXT_ENGINE` 和 `text.UseSystemEngine` 开关、纯 Go 金样图测试）。其他平台和 iOS 不变。行为差异：默认 macOS 构建忽略 `TANGO_TEXT_ENGINE`，`text.UseSystemEngine(false)` 不关掉 CoreText（返回 `true`），`text.Engine()` 总是 `"coretext"`；换行位置（中文禁则、URL、数字串）、字距和回退字体跟随系统，可能与 Windows/Linux 不同。体积：最小自绘样本（darwin/arm64，`-trimpath -ldflags='-s -w'`）可执行文件 10,520,354 → 8,544,834 B（见 [体积报告](docs/package-size-optimization.md)）。性能（2026-11-18，Apple M4，同一会话交替测量，go-text → CoreText）：编辑器无窗口打字、滚动、打开文件全部在 1 帧以内（Markdown 每帧一页滚动 p99 12.25 → 12.69 ms）；应用进程 CPU counter +0、quotes −1.5、list +0.9、grid +1.8 个百分点，内存 −4.9…−8.3 MB，首帧 −51…+2 ms，帧间隔 P99 差 ±0.03 ms 以内；编辑器输入延迟打字 32.6 → 33.0 ms，三光标 35.7 → 32.4 ms。编辑器行缓存新增精确快速路径：中英混排等宽行逐字符排版，字体表证明不受上下文影响、CoreText 探针实测字形与宽度，结果与通用路径逐字形一致。已知限制：日语（`ja`）含 CJK 的行仍走通用路径（CoreText 的日文排版按相邻字符调整间距）；数字和等宽快速路径的探针在全局排版锁内执行。
 
 - macOS Apple Silicon 上的自绘窗口不论大小、不论 `Content` 取值都默认用原生 Core Animation 图层：大型窗口（面积超过 100,000 逻辑像素）由 Metal 改为原生图层，与小窗口一致。数据窗口（`Content: ui.ContentData`）一直留在原生图层，只在连续六帧绘制超过 8 ms 或连续六帧整窗软件回退时单向升级 Metal。普通窗口（默认 `ui.ContentGeneral`）在第一次收到键盘输入（按下非修饰键、提交文字、输入法组字）后，下一帧单向升级 Metal，满足上面两个条件之一时也会升级；这一条对原本就默认用原生图层的小窗口同样生效，所以小窗口打字之后内存会上升到 Metal 的水平。实测列表/行情窗口在原生图层上内存降低 63–71%（list 39 对 135 MB，quotes 54 对 147 MB），800×600 数据网格约 69 MB（mygo 107 MB）。原生图层的输入到画面延迟比 Metal 慢约 2 帧（编辑器打字 78.8 对 47.2 ms、三光标 87.6 对 47.2 ms、滚动约 80 对 46 ms），普通窗口打字后改用 Metal，输入延迟和固定用 Metal 相当：2026-11-18 在 Apple M4 上用 1920×944 的编辑器夹具实测（CGEvent 输入、ScreenCaptureKit 窗口采样，默认设置对 `TANGO_RENDERER=gpu`，同一会话内 AB/BA/AB 交替）：打字 100 键，从第 2 键起中位数 32.5 对 31.9 ms（p95 48.3 对 48.9）；三光标 30 次 32.7 对 31.8 ms（p95 45.5 对 45.2）；第一次按键（切换到 Metal 的那一帧）一次性多约 30–90 ms（默认 75–134 ms，gpu 41–46 ms）；只滚动不打字的普通窗口和所有数据窗口仍按原生图层的延迟运行。原生图层起不来的窗口改用 Metal。Intel Mac 默认仍用 Metal。需要固定 Metal 时设 `TANGO_RENDERER=gpu`，固定原生图层时设 `native`（见 `docs/dev-builds.md`）。
 
@@ -219,6 +227,8 @@
 
 ### 修复
 
+- `tan dev`：应用启动的交互式 shell（例如带 `-i` 读取登录 PATH）把终端前台抢走后退出时，Ctrl-C 不再失效；`tan dev` 发现前台进程组已不存在会把终端收回。
+- `sys/pty` 与 Tango 终端：从 Finder、Dock 或其他应用（如 MinCode）启动、环境里没有 `LANG` 的应用，shell 在 C 语言环境下把输入的中文等 UTF-8 文字当成单个字节——命令行显示 `<00e4>` 之类的乱码、退格按字节删、回车执行被拆坏的命令。环境里 `LC_ALL`、`LC_CTYPE`、`LANG` 都没设时，macOS 和 Linux 上补 `LC_CTYPE=C.UTF-8`（没有 `C.UTF-8` 的旧版 macOS 补 `UTF-8`；不用 Terminal.app 那样的裸 `UTF-8`，因为 ssh 会把 `LC_*` 转发到 Linux 主机，那里不认这个名字）；已设置的语言环境保持不变，不改程序输出的语言。
 - `tan dev` 热重载的自绘窗口：标题栏隐藏（`TitleBarHidden`）的 macOS 窗口保留系统红绿灯时，worker 端绘制的自绘标题栏不再在其上再画一组窗口按钮（热重载窗口实现 `ui.WindowFrame`，报告系统按钮与窗口状态）。
 - 启动时打开的文件和链接不再偶发投递两次：同一文件（按解析软链后的路径比较）或链接在启动期间（`OnReady` 回调跑完之前）从命令行（`dispatchLaunchArgs`）和系统（macOS `application:openURLs:`）各到一次时，`OnOpenFiles` / `OnOpenURL` 只收到一次；启动之后再次打开同一文件或链接仍照常送达。
 - macOS 自绘窗口：停顿之后的输入（打字、滚动、点击）不再等显示刷新的下一拍才出帧，而是在请求它的那一轮 run loop 里立即画；连续变化的帧仍由 CADisplayLink 控制节奏，两拍之间最多立即出一帧。真实窗口实测（1920×944 编辑器，Metal），修复前的中位延迟随窗口服务器的合成状态在约 48 ms 和约 61 ms 之间切换，两种状态下分别做了修复前后 AB/BA/AB 配对，都快了约一帧：约 48 ms 状态下打字 47.5 → 32.1 ms、三光标 54.0 → 32.7 ms、滚动 48.6 → 30.7 ms；约 61 ms 状态下打字 61.5 → 44.8 ms、三光标 61.7 → 43.5 ms、滚动 62.9 → 46.8 ms。

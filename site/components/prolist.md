@@ -63,13 +63,24 @@ func remote(c *ui.Context, metas ui.ProListMetas[project]) {
 }
 ```
 
+### 长列表：虚拟滚动
+
+`Height(px)` 固定条目区高度，再加 `Virtual()` 只构建视口内的条目（同 [List](/components/list) 的虚拟形态）；工具栏、选择提示和分页器留在区外。条目高度（含展开后的高度）滚到时实测、按 `RowKey` 缓存，未测到的按 `EstimatedItemHeight(px)` 估算。选择和展开状态按键保存，与条目是否被构建无关。
+
+```go
+func longProList(c *ui.Context, rows []project, metas ui.ProListMetas[project]) {
+    ui.ProList(c, rows, metas).RowKey(func(r project) string { return r.Key }).
+        Height(480).Virtual().Show()
+}
+```
+
 ## 主题与样式
 
 ProList 复用 List、Card 和 Pro 工具栏令牌；`Bordered`、`Split`、`Grid` 控制列表和卡片形态。
 
 ## 注意事项
 
-`RowKey` 用于保存选择和展开状态，应返回稳定唯一值。远程请求在页码变化时触发，`Reload` 可手动刷新；大量本地数据应启用分页或远程请求。
+`RowKey` 用于保存选择和展开状态，应返回稳定唯一值。远程请求在页码变化时触发，`Reload` 可手动刷新；大量本地数据应启用分页、远程请求或 `Height(px).Virtual()`。
 
 ## 示例代码
 

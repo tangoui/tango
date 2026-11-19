@@ -32,8 +32,9 @@ type Conversation struct {
 type convState struct {
 	renaming string // key being renamed
 	draft    string
-	focusIn  bool   // focus the rename input next frame
-	refocus  string // give focus back to this row after a rename
+	focusIn  bool        // focus the rename input next frame
+	refocus  string      // give focus back to this row after a rename
+	lay      *convLayout // row table of the Height form (nil before)
 }
 
 // ConversationsW is a list of conversations grouped by time (today,
@@ -52,12 +53,16 @@ type ConversationsW struct {
 	noGroups bool
 	noRename bool
 	noDelete bool
+	height   float32
+	virtual  bool
+	req      listScroll
 
 	selected, renamedKey, renamedTitle, deleted string
 }
 
 // Conversations adds a conversation list; *active holds the selected key.
-// Put it in a Scroll for long lists.
+// Put it in a Scroll for long lists, or give it Height (and Virtual for
+// thousands of conversations).
 //
 //	cv := ui.Conversations(c, convs, &cur)
 //	if k, t, ok := cv.Renamed(); ok { rename(k, t) }
@@ -80,6 +85,34 @@ func (w *ConversationsW) NoRename() *ConversationsW { w.noRename = true; return 
 
 // NoDelete hides the delete action.
 func (w *ConversationsW) NoDelete() *ConversationsW { w.noDelete = true; return w }
+
+// Height fixes the list's height; longer lists scroll inside it. Default
+// 0: the list grows with its rows (put it in a Scroll), as before. Call
+// it, Virtual and ScrollToKey before Selected, Renamed and Deleted.
+func (w *ConversationsW) Height(px float32) *ConversationsW { w.height = max(0, px); return w }
+
+// Virtual builds only the rows in view (and a few past each edge) instead
+// of every conversation; it needs Height and is ignored without it. The
+// selected row and the row being renamed are always built, and the
+// focused row is built on the frame it leaves the view, but focus inside
+// a row clipped out of view is lost, as in the non-virtual Height form;
+// Up / Down / Home / End move over every conversation and scroll the
+// target into view. Rows out of view are missing from the
+// accessibility tree (each option reports its position in the whole
+// list) and FindText. The group layout is cached by the list's length,
+// its first element and the day, and checked against the conversations
+// in view every frame, so Time or Group edited in place (a conversation
+// moved to today, the slice sorted in place) shows right as it comes into
+// view. When the selected key is not in the list (a filtered list without
+// the current conversation), every frame scans the list once for it.
+func (w *ConversationsW) Virtual() *ConversationsW { w.virtual = true; return w }
+
+// ScrollToKey scrolls the list (needs Height) to the conversation with
+// key using align (AlignTop, AlignBottom or AlignAuto) plus offset pixels.
+func (w *ConversationsW) ScrollToKey(key string, align string, offset float64) *ConversationsW {
+	w.req = listScroll{set: true, key: key, align: align, offset: offset}
+	return w
+}
 
 // A11yLabel sets the accessible name (default Locale.Chat.Conversations).
 func (w *ConversationsW) A11yLabel(s string) *ConversationsW { w.b.n.setName(s); return w }
@@ -127,6 +160,16 @@ func (w *ConversationsW) build() {
 	c := w.c
 	th := c.ThemeFor(theme.CompChat)
 	tk := &th.Components.Chat
+	if w.height > 0 {
+		w.buildView(th, tk)
+		return
+	}
+	w.buildAll(th, tk)
+}
+
+// buildAll builds every row.
+func (w *ConversationsW) buildAll(th *theme.Theme, tk *theme.ChatToken) {
+	c := w.c
 	var nodes []*node
 	var ids []ID
 	cur := -1
@@ -140,15 +183,7 @@ func (w *ConversationsW) build() {
 			}
 			if g != group && g != "" {
 				group = g
-				Key(c, "g:"+g, func() {
-					in := geom.Insets{Left: 12, Right: 12, Top: 12, Bottom: 4}
-					if i == 0 {
-						in.Top = 0
-					}
-					Row(c, func() {
-						Text(c, g).Size(th.FontSizeSM).Color(tk.ConvGroupColor).NoWrap()
-					}, layout.Padding(in))
-				})
+				w.header(th, tk, g, i)
 			}
 		}
 		Key(c, it.Key, func() {
@@ -166,6 +201,20 @@ func (w *ConversationsW) build() {
 	if to := rovingStep(c, ids, func(i int) bool { return !nodes[i].disabled }, rovingVertical); to >= 0 {
 		navFocus(c, ids[to])
 	}
+}
+
+// header builds the header of group g above item i.
+func (w *ConversationsW) header(th *theme.Theme, tk *theme.ChatToken, g string, i int) {
+	c := w.c
+	Key(c, "g:"+g, func() {
+		in := geom.Insets{Left: 12, Right: 12, Top: 12, Bottom: 4}
+		if i == 0 {
+			in.Top = 0
+		}
+		Row(c, func() {
+			Text(c, g).Size(th.FontSizeSM).Color(tk.ConvGroupColor).NoWrap()
+		}, layout.Padding(in))
+	})
 }
 
 // item builds one row and returns its node (nil while renaming).

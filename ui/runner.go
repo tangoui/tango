@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image"
 	"sync/atomic"
 	"time"
 
@@ -89,7 +90,8 @@ type Runner struct {
 	a11yUpdates int          // AccessibilityUpdate calls (tests)
 	actions     []a11yAction // queued PerformAction requests
 
-	dmg damageState // redraw-hint change tracking (damage.go)
+	dmg       damageState       // redraw-hint change tracking (damage.go)
+	lastDirty []image.Rectangle // dirty rects of the last frame, nil = whole frame (perf tests)
 
 	backOn bool // last value sent to BackWindow (back.go)
 }
@@ -300,6 +302,7 @@ func (r *Runner) Frame() error {
 	r.layoutAndPaint()
 	scale := r.win.Scale()
 	dirty := r.collectDamage(scale)
+	r.lastDirty = dirty
 	r.afterFrame()
 	if a11yOn {
 		r.reportA11y(host)
@@ -633,7 +636,14 @@ func (c *Context) paintNode(l *paint.List, n *node, ox, oy float32, clip geom.Re
 		// box scrolled or clipped out of view stays reachable (Offscreen)
 		// for screen readers, not only the box's direct children.
 		c.recordRects(n, r)
+		if c.keepFocusIn > 0 {
+			c.keepFocusables(n, layer)
+		}
 		return
+	}
+	if n.keepFocus {
+		c.keepFocusIn++
+		defer func() { c.keepFocusIn-- }()
 	}
 	n.drawn, n.scr = c.pass, c.screenRect(r)
 	region := c.openRegion(n, vis, layer) // touch / takeover declarations (pointer_capture.go)
@@ -736,6 +746,23 @@ func (c *Context) screenRect(r geom.Rect) geom.Rect {
 		return r
 	}
 	return c.paintXf.Bounds(r)
+}
+
+// keepFocusables adds the focusable nodes of n's subtree, clipped out of
+// view inside a keepFocus node, to the next focus order (no hit areas:
+// the pointer cannot reach them), as paintNode would if they were seen.
+func (c *Context) keepFocusables(n *node, layer int) {
+	if n.hit && n.focus {
+		if n.noTab {
+			c.nextFocusOrder.AddNoTab(n.id)
+		} else {
+			c.nextFocusOrder.Add(n.id)
+		}
+		c.nextFocus = append(c.nextFocus, focusEntry{id: n.id, layer: layer, tab: !n.noTab})
+	}
+	for _, k := range n.kids {
+		c.keepFocusables(k, layer)
+	}
 }
 
 // recordRects records the screen boxes of n's descendants (n's own box r

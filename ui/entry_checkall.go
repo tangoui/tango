@@ -26,12 +26,13 @@ func checkAll(c *Context, label string, selected *[]string, opts []Option) bool 
 	changed := false
 	Column(c, func() {
 		enabled, on := 0, 0
+		in := newSelIndex(selected)
 		for _, o := range opts {
 			if o.Disabled {
 				continue
 			}
 			enabled++
-			if contains(*selected, o.Value) {
+			if in.has(o.Value) {
 				on++
 			}
 		}

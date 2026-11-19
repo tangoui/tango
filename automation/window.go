@@ -8,6 +8,7 @@ import (
 	"time"
 
 	wire "github.com/tangoui/tango/internal/automation"
+	"github.com/tangoui/tango/internal/automation/client"
 	"github.com/tangoui/tango/ui/a11y"
 )
 
@@ -200,34 +201,18 @@ func (w *Window) EvalString(expr string) string {
 	return string(raw)
 }
 
-// waitJS is the page-side wait for a CSS selector: it resolves with the
-// first matching element.
-func waitJS(sel string, to time.Duration) string {
-	return `new Promise(function(res,rej){var s=` + jsQuote(sel) + `,t0=Date.now();` +
-		`(function p(){var e=document.querySelector(s);if(e)return res(e);` +
-		`if(Date.now()-t0>` + fmt.Sprint(to.Milliseconds()) + `)return rej(new Error("no element matches "+s+" after ` + to.String() + `"));` +
-		`setTimeout(p,30)})()})`
-}
-
-func jsQuote(s string) string {
-	b, _ := json.Marshal(s)
-	return string(b)
-}
-
 // WaitSelector waits until an element matches the CSS selector sel.
 func (w *Window) WaitSelector(sel string) {
 	w.app.t.Helper()
 	to := w.app.timeout
-	w.evalTimeout(waitJS(sel, to)+`.then(function(){return true})`, to+2*time.Second)
+	w.evalTimeout(client.WaitSelectorJS(sel, to), to+2*time.Second)
 }
 
 // WaitJS waits until the JavaScript expression expr is truthy.
 func (w *Window) WaitJS(expr string) {
 	w.app.t.Helper()
 	to := w.app.timeout
-	w.evalTimeout(`new Promise(function(res,rej){var t0=Date.now();(function p(){var v;try{v=(`+expr+`)}catch(e){}`+
-		`if(v)return res(true);if(Date.now()-t0>`+fmt.Sprint(to.Milliseconds())+`)return rej(new Error(`+
-		jsQuote("condition not met after "+to.String()+": "+expr)+`));setTimeout(p,30)})()})`, to+2*time.Second)
+	w.evalTimeout(client.WaitExprJS(expr, to), to+2*time.Second)
 }
 
 // ClickSelector waits for the element matching sel, scrolls it into view
@@ -235,8 +220,7 @@ func (w *Window) WaitJS(expr string) {
 func (w *Window) ClickSelector(sel string) {
 	w.app.t.Helper()
 	to := w.app.timeout
-	w.evalTimeout(waitJS(sel, to)+`.then(function(e){e.scrollIntoView({block:"center",inline:"center"});`+
-		`if(e.focus)e.focus();e.click();return true})`, to+2*time.Second)
+	w.evalTimeout(client.ClickJS(sel, to), to+2*time.Second)
 }
 
 // Fill waits for the input, textarea or contenteditable element matching
@@ -245,11 +229,7 @@ func (w *Window) ClickSelector(sel string) {
 func (w *Window) Fill(sel, text string) {
 	w.app.t.Helper()
 	to := w.app.timeout
-	w.evalTimeout(waitJS(sel, to)+`.then(function(e){var v=`+jsQuote(text)+`;if(e.focus)e.focus();`+
-		`if(e.isContentEditable){e.textContent=v}else{var d=Object.getOwnPropertyDescriptor(Object.getPrototypeOf(e),"value");`+
-		`if(d&&d.set){d.set.call(e,v)}else{e.value=v}}`+
-		`e.dispatchEvent(new Event("input",{bubbles:true}));e.dispatchEvent(new Event("change",{bubbles:true}));return true})`,
-		to+2*time.Second)
+	w.evalTimeout(client.FillJS(sel, text, to), to+2*time.Second)
 }
 
 // TextOf waits for the element matching sel and returns its innerText.
@@ -257,7 +237,7 @@ func (w *Window) TextOf(sel string) string {
 	w.app.t.Helper()
 	to := w.app.timeout
 	var s string
-	raw := w.evalTimeout(waitJS(sel, to)+`.then(function(e){return e.innerText!==undefined?e.innerText:e.textContent})`, to+2*time.Second)
+	raw := w.evalTimeout(client.TextJS(sel, to), to+2*time.Second)
 	if err := json.Unmarshal(raw, &s); err != nil {
 		w.app.t.Fatalf("automation: %s: text of %s: %v", w, sel, err)
 	}

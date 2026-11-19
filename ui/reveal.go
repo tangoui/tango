@@ -14,6 +14,14 @@ type rowFollow struct {
 // the list under the mouse. top is the content y of row 0. The first call
 // for a list (opening a dropdown) also reveals idx.
 func followRow(c *Context, sb *ScrollBox, idx, cur int, top, rowH float32) {
+	followRowBy(c, sb, idx, cur, func(i int) (y, h float64) {
+		return float64(top) + float64(i)*float64(rowH), float64(rowH)
+	})
+}
+
+// followRowBy is followRow for rows of any height: span returns the
+// content y and height of row i.
+func followRowBy(c *Context, sb *ScrollBox, idx, cur int, span func(i int) (y, h float64)) {
 	if sb == nil {
 		return
 	}
@@ -31,7 +39,7 @@ func followRow(c *Context, sb *ScrollBox, idx, cur int, top, rowH float32) {
 		return
 	}
 	st.pending = false
-	sb.Reveal(float64(top)+float64(idx)*float64(rowH), float64(rowH))
+	sb.Reveal(span(idx))
 }
 
 // scrollAncestor returns the nearest vertically scrolling ancestor of n

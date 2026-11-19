@@ -82,7 +82,7 @@ func TestMinimapLanguageAndTokenState(t *testing.T) {
 	st.Highlighter().Highlight(st.Snapshot(), st.Snapshot().LineCount(), time.Second)
 	d.Frame()
 	ln := (*vw).vs.mini.cache[1]
-	if ln == nil || len(ln.blocks) == 0 || ln.blocks[0].color != st.Theme.Style("comment.go").Foreground {
+	if ln == nil || len(miniRowBlocks(ln, st)) == 0 || miniRowBlocks(ln, st)[0].color != st.Theme.Style("comment.go").Foreground {
 		t.Fatal("start state recolor missing")
 	}
 }
@@ -103,7 +103,7 @@ func TestMinimapLexerReplacement(t *testing.T) {
 	if before == nil {
 		t.Fatal("minimap line not cached")
 	}
-	old := before.blocks[0].color
+	old := miniRowBlocks(before, st)[0].color
 	if err := reg.Add("go", json.RawMessage(`{"tokenizer":{"root":[[".+","string"]]}}`)); err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestMinimapLexerReplacement(t *testing.T) {
 		d.Frame()
 	}
 	after := (*vw).vs.mini.cache[100]
-	if after == nil || after.blocks[0].color == old {
+	if after == nil || miniRowBlocks(after, st)[0].color == old {
 		t.Fatal("offscreen minimap retained old lexer colors")
 	}
 	lo, hi := hl.WindowRangeFor(st.hlKey)
@@ -138,4 +138,14 @@ func TestNavigationLargeFile(t *testing.T) {
 	if st.Highlighter() == nil {
 		t.Fatal("large-file highlighter disabled")
 	}
+}
+
+// miniRowBlocks returns the token-colored blocks of a miniature row: what
+// the block minimap draws for it, made from the row's text and tokens
+// (rows made while characters are on keep none).
+func miniRowBlocks(ln *miniLine, st *State) []miniBlock {
+	if ln.blocksDone {
+		return ln.blocks
+	}
+	return miniBlocksAt(ln.text, ln.base, ln.tokens, st.Theme, max(1, st.tabSize()))
 }

@@ -1,6 +1,6 @@
 # macOS CoreText 文字引擎实施计划
 
-> 最终决定：方案 2——CoreText 引擎改为可选构建标签 `tango_coretext`，默认构建保持 go-text；见 CHANGELOG.md 和 docs/dev-builds.md。
+> 最终决定：先按方案 2 改为可选构建标签 `tango_coretext`；随后按用户可见指标验收通过，CoreText 改为 macOS 默认，`-tags tango_gotext` 恢复 go-text（见 CHANGELOG.md 和 docs/dev-builds.md）。下文的 `tango_coretext` 是历史记录。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

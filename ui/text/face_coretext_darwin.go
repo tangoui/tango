@@ -1,4 +1,4 @@
-//go:build darwin && !ios && tango_coretext
+//go:build darwin && !ios && !tango_gotext
 
 package text
 
@@ -43,12 +43,12 @@ type faceImpl struct {
 	// The fast paths' table check (readTables), made once.
 	tablesOnce sync.Once
 	noKern     bool // no kern, kerx or GPOS table (any GPOS counts as kerning)
-	noMorx     bool // no AAT morx table
+	noMorx     bool // no AAT morx or mort table
 	substTrak  bool // a GSUB or trak table: CoreText may change glyphs or advances
 }
 
 // readTables reads the font's table directory (CTFontCopyAvailableTables)
-// once for plainAdvances, simpleSubst and noMorxTable.
+// once for plainAdvances, needsProbe and noMorxTable.
 func (f *Face) readTables() {
 	f.tablesOnce.Do(func() {
 		f.ready()
@@ -66,7 +66,7 @@ func (f *Face) readTables() {
 			switch uint32(cfArrayGetValueAtIndex(arr, i)) {
 			case tag4("kern"), tag4("kerx"), tag4("GPOS"):
 				kern = true
-			case tag4("morx"):
+			case tag4("morx"), tag4("mort"):
 				morx = true
 			case tag4("GSUB"), tag4("trak"):
 				subst = true
@@ -78,7 +78,7 @@ func (f *Face) readTables() {
 
 // plainAdvances reports whether the face has no kerning tables (noKern:
 // kern, kerx, or a GPOS table, conservatively taken as kerning) and no AAT
-// morx substitutions (noMorx): the monospace fast path's table rule.
+// morx/mort substitutions (noMorx): the monospace fast path's table rule.
 func (f *Face) plainAdvances() bool {
 	f.readTables()
 	return f.noKern && f.noMorx
@@ -92,7 +92,7 @@ func (f *Face) needsProbe() bool {
 	return f.substTrak
 }
 
-// noMorxTable reports a face without an AAT morx table.
+// noMorxTable reports a face without AAT morx or mort tables.
 func (f *Face) noMorxTable() bool {
 	f.readTables()
 	return f.noMorx

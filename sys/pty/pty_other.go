@@ -5,6 +5,9 @@ package pty
 // sysPTY is never created on platforms without local terminals.
 type sysPTY struct{}
 
+// utf8Ctype is empty: nothing is started here.
+const utf8Ctype = ""
+
 // Start returns ErrUnsupported: this platform has no local
 // pseudo-terminals.
 func Start(o Options) (*PTY, error) { return nil, ErrUnsupported }

@@ -12,10 +12,11 @@
 //	tan applinks            apple-app-site-association and assetlinks.json for tan.json "appLinks"
 //	tan generate bindings   TypeScript clients for bind.Register services
 //	tan doctor              check the toolchain
+//	tan mcp                 MCP server for AI agents (stdio, or loopback HTTP)
 //	tan version             print the CLI version
 //
 // Every command reads tan.json from the current directory (or the one
-// given by -C) except init, keygen, doctor and version.
+// given by -C) except init, keygen, doctor, mcp and version.
 package main
 
 import (
@@ -51,6 +52,7 @@ func commands() []command {
 		{"applinks", "write the Universal Links / App Links files for /.well-known/", runAppLinks},
 		{"generate", "generate code (bindings)", runGenerate},
 		{"doctor", "check the toolchain and platform dependencies", runDoctor},
+		{"mcp", "run an MCP server for AI agents (project and UI tools)", runMCP},
 		{"version", "print the version", runVersion},
 	}
 }

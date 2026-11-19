@@ -39,6 +39,7 @@ type submission struct {
 	// Diagnostics (filled only while a timeline callback is installed).
 	commit       time.Time
 	drawableWait time.Duration
+	presents     bool // a frame whose command buffer also presents (deferFrameCommit)
 }
 
 // submissionQueue holds submissions in commit order; retirement is FIFO.
@@ -97,4 +98,40 @@ func (q *submissionQueue) kinds() []submissionKind {
 		ks[i] = s.kind
 	}
 	return ks
+}
+
+// drawableBackoff decides whether present keeps the frame's work in the
+// command buffer that waits for the drawable (deferFrameCommit), or
+// commits it before nextDrawable. Sharing one command buffer saves a
+// submission per frame, but the frame's GPU work then starts only once
+// nextDrawable returns; when drawables are scarce (a GPU-bound or
+// drawable-starved window) that serializes rendering behind the wait. So
+// once a nextDrawable wait exceeds drawableWaitSplit, the next
+// splitPresents presents with an open frame commit it first and present
+// in a separate command buffer (the pre-merge pipelining); each further
+// long wait restarts the count.
+type drawableBackoff struct {
+	left int // presents still to split
+}
+
+const (
+	drawableWaitSplit = time.Millisecond
+	splitPresents     = 60 // about a second at 60 Hz
+)
+
+// observe records how long a nextDrawable call blocked.
+func (b *drawableBackoff) observe(wait time.Duration) {
+	if wait > drawableWaitSplit {
+		b.left = splitPresents
+	}
+}
+
+// split reports whether a present with an open frame commits the frame
+// before nextDrawable, and counts that present.
+func (b *drawableBackoff) split() bool {
+	if b.left > 0 {
+		b.left--
+		return true
+	}
+	return false
 }

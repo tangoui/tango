@@ -36,12 +36,23 @@ import (
 // both can lag a resize) repeat the target's last row/column instead of
 // showing garbage; the excess of a smaller drawable is cropped.
 //
-// The copy is encoded in its own command buffer on the Device's queue
-// after the frame's, so Metal orders it after the frame's draws; present
-// does not wait for the GPU. Its command buffer is waited for, like the
-// frame's, by the next Execute, so its errors are reported the same way
-// (see Device). nextDrawable is the back-pressure: it blocks while all the
-// layer's drawables (3 by default) are in flight.
+// The copy is encoded into the frame's own command buffer, which Execute
+// leaves open on a presenter's Device (deferFrameCommit), after the
+// frame's draws; present then commits it, so a presented frame costs one
+// command buffer and one commit (each command buffer wakes Metal's
+// submission, completion and frame-pacing queues). A frame nobody
+// presents is committed by whatever comes next (Execute, Wait,
+// ReadPixels, Close, or a present that shows nothing); presenting again
+// without a new frame uses a command buffer of its own. When drawables are
+// scarce (a nextDrawable wait over drawableWaitSplit), the next
+// splitPresents presents commit the frame before nextDrawable and present
+// separately, so the GPU renders while the CPU waits (drawableBackoff); a
+// wait right after the layer's drawables were (re)sized does not count,
+// since it may be the allocation of new drawables. present does not
+// wait for the GPU. The command buffer is waited for by the next Execute,
+// so its errors are reported the same way (see Device). nextDrawable is
+// the back-pressure: it blocks while all the layer's drawables (3 by
+// default) are in flight.
 //
 // The layer's colorspace is sRGB and the target holds sRGB-encoded bytes
 // (blending happens on those bytes, as in paint.CPU), so the drawable is
@@ -179,6 +190,9 @@ type presenter struct {
 
 	presented    int // drawables presented (tests)
 	drawableSets int // drawableSize changes (tests)
+
+	// nextDrawable is [layer nextDrawable] (tests wrap it to make it slow).
+	nextDrawable func(layer id) id
 }
 
 // presenterRenderer is the Renderer NewPresenter returns: a gpu.Renderer
@@ -247,7 +261,8 @@ func newPresenter(layer uintptr) (*presenter, error) {
 			cgColorSpaceRelease(cs)
 		}
 	}
-	p := &presenter{layer: retain(l), dev: dev, trace: nativePresentationTrace()}
+	dev.deferFrameCommit = true // present commits the frame with its drawable copy
+	p := &presenter{layer: retain(l), dev: dev, trace: nativePresentationTrace(), nextDrawable: func(l id) id { return l.Send(sel("nextDrawable")) }}
 	p.r = &presenterRenderer{Renderer: gpu.NewRenderer(dev), p: p}
 	return p, nil
 }
@@ -312,15 +327,18 @@ func (p *presenter) present(size image.Point, scale float32) error {
 	if d.closed {
 		return ErrClosed
 	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	defer autoreleasePool()()
+	// Every return without a drawable copy still submits the frame
+	// Execute left open (deferFrameCommit).
+	defer d.flushOpen()
 	if d.lost != nil {
 		return d.lost
 	}
 	if size.X <= 0 || size.Y <= 0 {
 		return d.pendingErr // minimized or empty: nothing to show
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	defer autoreleasePool()()
 
 	for len(d.inflight.items) >= maxInflight {
 		d.waitOldest() // a failure is recorded (pendingErr/lost) and reported below
@@ -332,27 +350,54 @@ func (p *presenter) present(size image.Point, scale float32) error {
 		return d.pendingErr // Execute reports it too and resets the Renderer
 	}
 	size = image.Pt(min(size.X, maxDrawable), min(size.Y, maxDrawable))
+	// fresh: the drawables may be allocated by this nextDrawable (first
+	// present, or new size), so its wait says nothing about scarcity.
+	fresh := p.presented == 0
 	if cur := msgSize(p.layer, sel("drawableSize")); cur.W != float64(size.X) || cur.H != float64(size.Y) {
 		msgSetSize(p.layer, sel("setDrawableSize:"), cgSize{float64(size.X), float64(size.Y)})
 		p.drawableSets++
+		fresh = true
 	}
 	if !d.hasFrame {
 		return nil
 	}
-	var waitStart time.Time
-	if d.timeline != nil {
-		waitStart = time.Now()
+	if d.openCB != 0 && d.drawables.split() {
+		// Drawables have been scarce: let the GPU start on the frame
+		// while nextDrawable blocks, and present it separately. The frame
+		// counts toward the in-flight cap like the pre-merge path's.
+		d.flushOpen()
+		for len(d.inflight.items) >= maxInflight {
+			d.waitOldest()
+		}
+		if d.lost != nil {
+			return d.lost
+		}
+		if d.pendingErr != nil {
+			return d.pendingErr
+		}
 	}
-	drawable := p.layer.Send(sel("nextDrawable"))
-	d.drawableWait = 0
-	if d.timeline != nil {
-		d.drawableWait = time.Since(waitStart)
+	waitStart := time.Now()
+	drawable := p.nextDrawable(p.layer)
+	d.drawableWait = time.Since(waitStart)
+	if !fresh {
+		d.drawables.observe(d.drawableWait)
 	}
 	if drawable == 0 {
 		if d.timeline != nil {
 			d.timeline(Timing{Kind: submitPresent.String(), Frame: d.frames, DrawableWait: d.drawableWait})
 		}
 		return nil // not visible, or every drawable busy until the timeout
+	}
+	if cb := d.openCB; cb != 0 {
+		// The frame's own command buffer: the copy follows its draws.
+		d.openCB = 0
+		d.encodeCopy(cb, drawable.Send(sel("texture")))
+		msgSetID(cb, sel("presentDrawable:"), drawable)
+		d.commitSubmission(cb, submitFrame, true)
+		release(cb)
+		d.commits++
+		p.presented++
+		return nil
 	}
 	cb := d.queue.Send(sel("commandBuffer"))
 	if cb == 0 {

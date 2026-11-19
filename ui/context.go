@@ -76,6 +76,12 @@ type node struct {
 	disabled bool
 	ownKeys  bool // widget handles Enter/Space itself (no implicit click)
 	noTab    bool // focusable by pointer only; Tab skips it
+	// keepFocus keeps the focusable nodes of the subtree in the focus
+	// order while it is clipped out of view (a virtual table's edited row
+	// scrolled away keeps its editor focused and Tab-reachable). So inside
+	// such a subtree, being in focusOrder does not mean painted: code that
+	// uses focusOrder.Contains as "drawn" must not rely on it there.
+	keepFocus bool
 
 	// Accessibility (a11y_tree.go). Plain field stores so annotating costs
 	// nothing when no tree is built.
@@ -181,6 +187,7 @@ type Context struct {
 	focusVisible   bool
 	focusOrder     input.FocusOrder[ID]
 	nextFocusOrder input.FocusOrder[ID]
+	keepFocusIn    int // paintNode depth inside keepFocus nodes
 	keys           []input.KeyEvent
 	// frameKeys are the key events of this frame, never consumed (KeysFor
 	// empties keys): for window-wide shortcuts handled by widgets built

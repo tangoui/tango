@@ -2,6 +2,8 @@
 
 `ui.Driver` 在进程内无头地测试组件；整机自动化则驱动一个**真实运行中的 Tango 应用**：独立进程、真实窗口，自绘 UI 和 WebView 都能操作，类似 Playwright 之于浏览器。测试用 `go test` 写，客户端是 `github.com/tangoui/tango/automation` 包。
 
+AI 代理可以通过 `tan mcp` 使用同一条通道：它以开发构建在后台启动应用，把语义树、节点动作、输入、截图和 WebView 选择器作为 MCP 工具提供给代理，见 [tan mcp](mcp.md)。
+
 ```go
 func TestE2EAddRecord(t *testing.T) {
 	app := automation.Launch(t, ".", "-data", filepath.Join(t.TempDir(), "ledger.json"))

@@ -113,6 +113,14 @@ type Highlighter struct {
 	wake chan struct{}
 
 	tokenized atomic.Int64 // lines tokenized (tests)
+	bg        atomic.Int32 // background goroutines running (Start)
+
+	// The lines' summaries (SetLineSummary): the function, its key and a
+	// generation counting its changes (a background batch made with an
+	// older one stores none).
+	sumFn  LineSummaryFunc
+	sumKey any
+	sumGen uint64
 }
 
 // New returns a Highlighter for lx. A nil lx means plain text: every line is
@@ -205,6 +213,10 @@ func (h *Highlighter) Edit(old, new buffer.Snapshot, edits []buffer.Edit) {
 		}
 		sl, el := old.LineOf(e.Start), old.LineOf(e.End)
 		if sl == el && pastCut(old, sl, e) {
+			// A summary may depend on text past the tokenization cut.
+			if sl < len(h.st.sums) {
+				h.st.sums[sl] = nil
+			}
 			// The line's tokens and end state stay as they are. A
 			// consequence: such an edit no longer marks the line dirty, so
 			// a line whose degraded result was accepted (retries used up)
@@ -299,6 +311,110 @@ func (h *Highlighter) HighlightFor(view ViewKey, snap buffer.Snapshot, upToLine 
 		}
 	}
 	return h.st.nextDirty() >= upTo && h.st.minPending() >= upTo
+}
+
+// LineSummaryFunc summarizes a line from its final tokens, appending to dst
+// (the editor's brackets: where they are, those in strings and comments
+// left out). The Highlighter keeps each line's summary while the line stays
+// final, so a reader of every line (the editor's bracket tree, built from
+// the document's start) need not tokenize lines again outside the token
+// windows. It returns nil for a line it does not summarize (the reader
+// then looks at the line itself) and must not keep text or toks.
+type LineSummaryFunc func(text string, toks []monarch.Token, dst []uint64) []uint64
+
+// noSummary is the summary of a line with none (not nil: nil is unknown).
+var noSummary = make([]uint64, 0)
+
+// summarize returns line text's summary from its tokens with fn (nil for
+// none: no function, or a degraded result, which is not final).
+func (h *Highlighter) summarize(fn LineSummaryFunc, text string, toks []monarch.Token, degraded bool) []uint64 {
+	if fn == nil || degraded {
+		return nil
+	}
+	// dst is empty but not nil: a line without anything to summarize has
+	// an empty summary, nil is none.
+	return fn(text, toks, noSummary[:0:0])
+}
+
+// SetLineSummary sets the function that summarizes each line tokenized
+// from now on (nil: none), identified by key: another key drops the lines'
+// summaries, the same key keeps them. The key must be comparable.
+func (h *Highlighter) SetLineSummary(key any, fn LineSummaryFunc) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if key == h.sumKey && (fn == nil) == (h.sumFn == nil) {
+		return
+	}
+	h.sumKey, h.sumFn = key, fn
+	h.sumGen++
+	h.st.sums = nil
+}
+
+// LineSummary appends line's summary (SetLineSummary) to dst[:0] and
+// reports whether it has one: the line is final in snap (the current
+// snapshot), the key matches, and the line was summarized when tokenized.
+func (h *Highlighter) LineSummary(key any, snap buffer.Snapshot, line int, dst []uint64) ([]uint64, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	dst = dst[:0]
+	if h.lx == nil || h.sumFn == nil || h.sumKey != key || !h.have || h.snap != snap || line < 0 || line >= len(h.st.sums) ||
+		line >= h.st.n() || !h.st.final(line) || h.st.acceptedDegraded(line) {
+		return dst, false
+	}
+	sum := h.st.sums[line]
+	if sum == nil {
+		return dst, false
+	}
+	return append(dst, sum...), true
+}
+
+// viewCatchUpLines is how far above a view's last line the first line not
+// final may lie for HighlightViewFor to spend its budget: a frame's budget
+// tokenizes about that many lines, so closer the view is reached this frame.
+const viewCatchUpLines = 2000
+
+// HighlightViewFor is HighlightFor for a view's frame (the editor's paint):
+// while the background goroutine runs (Start) and the first line not final
+// lies more than viewCatchUpLines above upToLine, it tokenizes nothing and
+// reports false. The goroutine is catching up on the lines above the view
+// (a large document just opened): a frame's budget spent there would not
+// reach the view, only repeat the goroutine's work. The view draws its
+// lines from their stored start states meanwhile (Tokens: not final), as
+// Monaco does. Otherwise (no goroutine, or the lines before the view final
+// up to an edit close to it) it is HighlightFor.
+func (h *Highlighter) HighlightViewFor(view ViewKey, snap buffer.Snapshot, upToLine int, budget time.Duration) bool {
+	if h.bg.Load() > 0 {
+		h.mu.Lock()
+		if h.lx != nil {
+			h.sync(snap)
+			upTo := min(max(upToLine, 0), h.st.n())
+			if h.st.nextDirty() < upTo-viewCatchUpLines {
+				h.setFocus(view, max(upTo-1, 0))
+				h.mu.Unlock()
+				return false
+			}
+		}
+		h.mu.Unlock()
+	}
+	return h.HighlightFor(view, snap, upToLine, budget)
+}
+
+// BackgroundBehind reports whether the background goroutine (Start) runs
+// and line of snap is not final yet: it will be, without the caller
+// tokenizing the lines before it. A frame's work that can wait a frame or
+// two (the editor's bracket matching) leaves them to the goroutine, whose
+// ready callback asks for the next frame, instead of tokenizing them on
+// the UI thread at the same time.
+func (h *Highlighter) BackgroundBehind(snap buffer.Snapshot, line int) bool {
+	if h.bg.Load() == 0 {
+		return false
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.lx == nil || !h.have || h.snap != snap {
+		return false
+	}
+	return min(h.st.nextDirty(), h.st.minPending()) < min(line, h.st.n())
 }
 
 // Done reports whether every line of snap is final: snap is the current
@@ -412,21 +528,28 @@ func (h *Highlighter) tokenizeLine(i int) {
 	if sl != nil {
 		dst = sl.toks[:0]
 	}
-	toks, end, info := h.lx.TokenizeLineInfo(h.snap.Line(i), start, dst)
+	text := h.snap.Line(i)
+	toks, end, info := h.lx.TokenizeLineInfo(text, start, dst)
 	h.tokenized.Add(1)
 	if sl == nil {
 		h.scratch = toks
 	}
-	h.apply(i, start, end, info.Degraded, toks, sl != nil, time.Now())
+	h.apply(i, start, end, info.Degraded, toks, sl != nil, h.summarize(h.sumFn, text, toks, info.Degraded), time.Now())
 }
 
 // apply records the result of tokenizing line i from start. keep says toks
 // may be stored in the window.
-func (h *Highlighter) apply(i int, start, end monarch.State, isDegraded bool, toks []monarch.Token, keep bool, now time.Time) {
+func (h *Highlighter) apply(i int, start, end monarch.State, isDegraded bool, toks []monarch.Token, keep bool, sum []uint64, now time.Time) {
 	st := &h.st
 	old := st.states[i]
 	st.states[i] = end
 	st.dirty[i] = 0
+	if h.sumFn != nil {
+		if len(st.sums) != st.n() {
+			st.sums = make([][]uint64, st.n())
+		}
+		st.sums[i] = sum
+	}
 	first := true
 	for k := range st.wins {
 		w := &st.wins[k]
@@ -536,7 +659,11 @@ func (h *Highlighter) TokenizeSpan(snap buffer.Snapshot, line int, span string, 
 // the goroutine. ready is called from the background goroutine. Call Start
 // at most once.
 func (h *Highlighter) Start(ctx context.Context, snapshots <-chan buffer.Snapshot, ready func()) {
-	go h.run(ctx, snapshots, ready)
+	h.bg.Add(1)
+	go func() {
+		defer h.bg.Add(-1)
+		h.run(ctx, snapshots, ready)
+	}()
 }
 
 func (h *Highlighter) run(ctx context.Context, snapshots <-chan buffer.Snapshot, ready func()) {
@@ -621,6 +748,7 @@ type lineResult struct {
 	start, end monarch.State
 	degraded   bool
 	toks       []monarch.Token // nil: computed into scratch, not kept
+	sum        []uint64        // the line's summary (nil: none)
 }
 
 // testHookBatchTokenized, when set by a test, runs after a background batch
@@ -642,6 +770,7 @@ func (h *Highlighter) batch() batchResult {
 		return batchResult{done: true, retryAt: retryAt}
 	}
 	gen, snap, lx := h.gen, h.snap, h.lx
+	sumFn, sumGen := h.sumFn, h.sumGen
 	st := h.startState(first)
 	last := min(first+batchLines, n) // exclusive
 	oldStates := append([]monarch.State(nil), h.st.states[first:last]...)
@@ -664,9 +793,10 @@ func (h *Highlighter) batch() batchResult {
 		if !inWin {
 			dst = scratch[:0]
 		}
-		toks, end, info := lx.TokenizeLineInfo(snap.Line(j), st, dst)
+		text := snap.Line(j)
+		toks, end, info := lx.TokenizeLineInfo(text, st, dst)
 		h.tokenized.Add(1)
-		r := lineResult{start: st, end: end, degraded: info.Degraded}
+		r := lineResult{start: st, end: end, degraded: info.Degraded, sum: h.summarize(sumFn, text, toks, info.Degraded)}
 		if inWin {
 			r.toks = toks
 		} else {
@@ -704,7 +834,11 @@ func (h *Highlighter) batch() batchResult {
 			// line's retry twice (or reset its retry time).
 			continue
 		}
-		h.apply(j, r.start, r.end, r.degraded, r.toks, r.toks != nil, now)
+		sum := r.sum
+		if h.sumGen != sumGen {
+			sum = nil // made with another summary function
+		}
+		h.apply(j, r.start, r.end, r.degraded, r.toks, r.toks != nil, sum, now)
 		res.applied++
 		if h.st.slot(j) != nil {
 			res.inWindow = true

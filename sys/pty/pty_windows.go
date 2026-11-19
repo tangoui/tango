@@ -17,6 +17,9 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// utf8Ctype is empty: Windows programs do not read POSIX locale variables.
+const utf8Ctype = ""
+
 // The ConPTY functions are looked up at run time so that the package
 // still loads on Windows versions older than 10 1809, where Start then
 // fails with errConPTY.

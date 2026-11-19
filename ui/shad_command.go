@@ -45,8 +45,10 @@ type CommandW struct {
 	picked  *CommandItem
 	visible []int
 	z       *lazy
-	list    ID   // listbox node (0 when nothing matches)
-	optIDs  []ID // option nodes, parallel to visible (ActiveDescendant)
+	list    ID      // listbox node (0 when nothing matches)
+	optIDs  fillIDs // option nodes by visible index (ActiveDescendant)
+	virt    int     // Virtual: 0 auto (long lists), 1 always, -1 never
+	version int     // DataVersion
 
 	th         *theme.Theme // ThemeFor(CompCommand)
 	tk         *theme.CommandToken
@@ -68,6 +70,14 @@ type commandState struct {
 	moved  bool
 	bound  string // search text last written to Search
 	val    string // value of the active item at the end of the last build
+
+	// Long (virtual) lists: the filtered items and the row layout, kept
+	// while the items slice (identity and length), the search and the
+	// DataVersion stay.
+	fkey cmdFilterKey
+	fok  bool
+	vis  []int
+	lay  cmdLayout
 }
 
 // Command adds a command palette over items. Typing filters and ranks the
@@ -151,6 +161,26 @@ func (w *CommandW) Search(q *string) *CommandW { w.searchPtr = q; return w }
 // (cmdk disablePointerSelection); clicks still pick.
 func (w *CommandW) DisablePointerSelection(on bool) *CommandW { w.noPointer = on; return w }
 
+// Virtual forces the virtual list on or off; by default lists showing
+// more than 100 items are virtual: only the rows in view and the active
+// item are built (groups only for their visible part), the list keeps the
+// width, height and scroll range of the full list and follows the active
+// item when it moves with the keyboard, but items out of view are not in
+// the accessibility tree. Without a Filter function the matches, their
+// order and the width are reused while the items slice (identity and
+// length), the search and the DataVersion stay the same: an item edited
+// in place (same slice, same length) does not join or leave the matches,
+// nor change the list's width, until one of them changes. Virtual(false)
+// builds every row.
+func (w *CommandW) Virtual(on bool) *CommandW { w.virt = p2bVirtualMode(on); return w }
+
+// DataVersion tells the palette that the items slice was modified in
+// place (a virtual list caches its matches, layout and width by slice
+// identity, length and this number): after editing items of the same
+// slice without changing its length, change v (or pass a new slice) so
+// they are recomputed on the next frame.
+func (w *CommandW) DataVersion(v int) *CommandW { w.version = v; return w }
+
 // Layout applies layout options to the palette box.
 func (w *CommandW) Layout(opts ...layout.Option) *CommandW { w.box.Style(opts...); return w }
 
@@ -232,7 +262,38 @@ func commandMatch(s, q string) float64 {
 	return 0.1 + 0.5*float64(len(qr))/span
 }
 
+// cmdFilterKey identifies the input of a cached filter. items (&items[0])
+// keeps the caller's previous items slice reachable (not collected) until
+// the key is replaced or the palette's state is dropped: the price of
+// never matching a new slice that reuses the old one's address.
+type cmdFilterKey struct {
+	items    *CommandItem
+	n        int
+	ver      int // DataVersion
+	query    string
+	noFilter bool
+}
+
+// filter sets visible, reusing the last result for a long list (see
+// Virtual) while the items and the search are unchanged.
 func (w *CommandW) filter() {
+	if w.filterFn != nil || len(w.items) == 0 || !p2bVirtualOn(w.virt, len(w.items)) {
+		w.filterItems()
+		return
+	}
+	k := cmdFilterKey{items: &w.items[0], n: len(w.items), ver: w.version, query: w.st.query, noFilter: w.noFilter}
+	if w.st.fok && w.st.fkey == k {
+		w.visible = w.st.vis
+		return
+	}
+	w.visible = nil // a new slice: the cached one is never written
+	w.filterItems()
+	// Keep the matches only while the list is virtual: a shorter list is
+	// filtered again every frame, as before.
+	w.st.fkey, w.st.vis, w.st.fok = k, w.visible, p2bVirtualOn(w.virt, len(w.visible))
+}
+
+func (w *CommandW) filterItems() {
 	q := strings.ToLower(strings.TrimSpace(w.st.query))
 	if w.filterFn != nil {
 		q = strings.TrimSpace(w.st.query)
@@ -394,7 +455,7 @@ func (w *CommandW) build() {
 		}
 		c.invalid = true
 	}
-	w.optIDs = w.optIDs[:0]
+	w.optIDs.reset()
 	w.list = 0
 	defer w.syncValue()
 	if len(w.visible) == 0 {
@@ -407,12 +468,7 @@ func (w *CommandW) build() {
 		g := w.items[w.visible[from]].Group
 		body := func() {
 			if g != "" {
-				hs := c.style(tk.GroupTitleFontSize, themeWeight(tk.GroupTitleFontWeight))
-				px := tk.GroupTitlePadding
-				Custom(c, func(_, _ float32) geom.Size { return geom.Size{W: text.Width(g, hs) + 2*px, H: tk.GroupTitleHeight} }, func(l *paint.List, r geom.Rect) {
-					lay := text.Shape(g, hs, c.textOpts(text.Options{NoWrap: true}))
-					l.Glyphs(geom.Pt(c.inline(r).X(px, lay.Width), r.Y+(r.H-lay.Height)/2), lay.Glyphs, tk.GroupTitleColor)
-				}).A11yHidden() // the group's name
+				w.heading(g)
 			}
 			for vi := from; vi < to; vi++ {
 				it, vi := w.items[w.visible[vi]], vi
@@ -426,6 +482,10 @@ func (w *CommandW) build() {
 		Column(c, body).Semantics(a11y.RoleGroup, g)
 	}
 	pad := tk.ListPadding
+	if p2bVirtualOn(w.virt, len(w.visible)) {
+		w.buildVirtual(pad)
+		return
+	}
 	Scroll(c, func() {
 		lb := Column(c, func() {
 			from := 0
@@ -434,9 +494,7 @@ func (w *CommandW) build() {
 					continue
 				}
 				if from > 0 {
-					Custom(c, func(_, _ float32) geom.Size { return geom.Size{H: 2*pad + 1} }, func(l *paint.List, r geom.Rect) {
-						l.Fill(geom.Rect{X: r.X - pad, Y: r.Y + pad, W: r.W + 2*pad, H: 1}, geom.Radii{}, tk.SeparatorColor)
-					}).A11yHidden()
+					w.separator(pad)
 				}
 				groupRun(from, vi)
 				from = vi
@@ -445,6 +503,233 @@ func (w *CommandW) build() {
 		lb.Semantics(a11y.RoleListbox, w.place)
 		w.list = lb.n.id
 	}, layout.MaxH(w.maxH), layout.Pad(pad))
+}
+
+// heading adds the title row of group g (hidden: it names the group).
+func (w *CommandW) heading(g string) *Box {
+	c, tk := w.c, w.tk
+	hs := c.style(tk.GroupTitleFontSize, themeWeight(tk.GroupTitleFontWeight))
+	px := tk.GroupTitlePadding
+	return Custom(c, func(_, _ float32) geom.Size { return geom.Size{W: text.Width(g, hs) + 2*px, H: tk.GroupTitleHeight} }, func(l *paint.List, r geom.Rect) {
+		lay := text.Shape(g, hs, c.textOpts(text.Options{NoWrap: true}))
+		l.Glyphs(geom.Pt(c.inline(r).X(px, lay.Width), r.Y+(r.H-lay.Height)/2), lay.Glyphs, tk.GroupTitleColor)
+	}).A11yHidden() // the group's name
+}
+
+// separator adds the line between two groups (pad: the list padding).
+func (w *CommandW) separator(pad float32) {
+	tk := w.tk
+	Custom(w.c, func(_, _ float32) geom.Size { return geom.Size{H: 2*pad + 1} }, func(l *paint.List, r geom.Rect) {
+		l.Fill(geom.Rect{X: r.X - pad, Y: r.Y + pad, W: r.W + 2*pad, H: 1}, geom.Radii{}, tk.SeparatorColor)
+	}).A11yHidden()
+}
+
+// ---------------------------------------------------------------------------
+// Virtual list
+
+// Row kinds of the virtual list.
+const (
+	cmdRowItem uint8 = iota
+	cmdRowTitle
+	cmdRowSep
+)
+
+// cmdRow is a row of the virtual list: item visible[vi], the heading of
+// group run run, or the separator before it.
+type cmdRow struct {
+	kind uint8
+	run  int32
+	vi   int32
+}
+
+// cmdRun is a group's items visible[from:to]; their rows start at item.
+type cmdRun struct {
+	from, to, item int
+	g              string
+}
+
+// cmdLayoutKey identifies the input of a row layout (vis is the
+// palette's own visible slice, rebuilt whenever the filter runs).
+type cmdLayoutKey struct {
+	vis                 *int
+	n                   int
+	itemH, titleH, sepH float32
+}
+
+// cmdLayout is the row layout of the virtual list: one row per item,
+// heading and separator in the order of the full list, with the prefix
+// sums of their heights.
+type cmdLayout struct {
+	key  cmdLayoutKey
+	ok   bool
+	rows []cmdRow
+	runs []cmdRun
+	offs []float64
+}
+
+// rowOf returns the row of item visible[vi] (-1 when out of range).
+func (l *cmdLayout) rowOf(vi int) int {
+	k := sort.Search(len(l.runs), func(k int) bool { return l.runs[k].to > vi })
+	if vi < 0 || k >= len(l.runs) {
+		return -1
+	}
+	return l.runs[k].item + vi - l.runs[k].from
+}
+
+// layout returns the row layout of visible (rebuilt when visible or the
+// row heights changed).
+func (w *CommandW) layout(pad float32) *cmdLayout {
+	tk := w.tk
+	k := cmdLayoutKey{vis: &w.visible[0], n: len(w.visible), itemH: tk.ItemHeight, titleH: tk.GroupTitleHeight, sepH: 2*pad + 1}
+	l := &w.st.lay
+	if l.ok && l.key == k {
+		return l
+	}
+	l.key, l.ok = k, true
+	l.rows, l.runs = l.rows[:0], l.runs[:0]
+	group := func(vi int) string { return w.items[w.visible[vi]].Group }
+	from := 0
+	for vi := 1; vi <= len(w.visible); vi++ {
+		if vi < len(w.visible) && group(vi) == group(from) {
+			continue
+		}
+		run := int32(len(l.runs))
+		if from > 0 {
+			l.rows = append(l.rows, cmdRow{kind: cmdRowSep, run: run})
+		}
+		g := group(from)
+		if g != "" {
+			l.rows = append(l.rows, cmdRow{kind: cmdRowTitle, run: run})
+		}
+		l.runs = append(l.runs, cmdRun{from: from, to: vi, item: len(l.rows), g: g})
+		for j := from; j < vi; j++ {
+			l.rows = append(l.rows, cmdRow{kind: cmdRowItem, run: run, vi: int32(j)})
+		}
+		from = vi
+	}
+	l.offs = append(l.offs[:0], 0)
+	y := 0.0
+	for _, r := range l.rows {
+		switch r.kind {
+		case cmdRowItem:
+			y += float64(k.itemH)
+		case cmdRowTitle:
+			y += float64(k.titleH)
+		default:
+			y += float64(k.sepH)
+		}
+		l.offs = append(l.offs, y)
+	}
+	return l
+}
+
+// rowW is the width row r asks for (as its node's Measure does).
+func (w *CommandW) rowW(l *cmdLayout, r int) float32 {
+	c, th, tk := w.c, w.th, w.tk
+	row := l.rows[r]
+	switch row.kind {
+	case cmdRowItem:
+		return text.Width(w.items[w.visible[row.vi]].Label, c.style(th.FontSize, text.Regular)) + 2*tk.ItemPaddingInline
+	case cmdRowTitle:
+		hs := c.style(tk.GroupTitleFontSize, themeWeight(tk.GroupTitleFontWeight))
+		return text.Width(l.runs[row.run].g, hs) + 2*tk.GroupTitlePadding
+	}
+	return 0
+}
+
+// buildVirtual builds a long list: only the rows in view (inside their
+// group for the visible part of a titled group) and the active item, with
+// the width of the widest row and the active row kept in view while it
+// moves with the keyboard.
+func (w *CommandW) buildVirtual(pad float32) {
+	c := w.c
+	l := w.layout(pad)
+	sb := fillViewport(c, "scroll", []layout.Option{layout.MaxH(w.maxH), layout.Pad(pad)})
+	wd := fillWidest(c, sb.n.id, cmdLayoutKey{vis: &w.visible[0], n: len(w.visible)}, len(l.rows), func(r int) float32 { return w.rowW(l, r) })
+	idx := w.st.active
+	keep := l.rowOf(idx)
+	win := fillWin{offs: l.offs}
+	win.span(sb, len(l.rows))
+	item := func(r int) *node {
+		vi := int(l.rows[r].vi)
+		it := w.items[w.visible[vi]]
+		var n *node
+		Key(c, it.Value+"\x00"+it.Label, func() { n = w.item(it, vi) })
+		return n
+	}
+	// keepRow builds the active item outside the window, inside a node of
+	// its group (when titled) so assistive technology keeps the context.
+	keepRow := func() {
+		run := l.runs[l.rows[keep].run]
+		if run.g == "" {
+			win.place(item(keep), keep, geom.Insets{})
+			return
+		}
+		Key(c, "keep", func() {
+			grp := Column(c, func() { item(keep) }).Semantics(a11y.RoleGroup, run.g)
+			win.place(grp.n, keep, geom.Insets{})
+		})
+	}
+	sb.Body(func() {
+		lb := Column(c, func() {
+			if keep >= 0 && keep < win.first {
+				keepRow()
+			}
+			for r := win.first; r < win.end; {
+				row := l.rows[r]
+				if row.kind == cmdRowSep {
+					w.separator(pad)
+					r++
+					continue
+				}
+				e := r + 1
+				for e < win.end && l.rows[e].run == row.run {
+					e++
+				}
+				from, to := r, e
+				seg := func() {
+					for k := from; k < to; k++ {
+						if l.rows[k].kind == cmdRowTitle {
+							w.heading(l.runs[row.run].g)
+						} else {
+							item(k)
+						}
+					}
+				}
+				run := l.runs[row.run]
+				if run.g == "" {
+					seg()
+				} else {
+					// The group node exists for its visible part only; it
+					// reports the size of the whole group. Items keep the
+					// list-wide PosInSet / SetSize of the full list (cmdk
+					// numbers options across groups), so the two scopes
+					// differ on purpose.
+					Key(c, row.run, func() {
+						grp := Column(c, seg).Semantics(a11y.RoleGroup, run.g)
+						if c.a11yOn {
+							size := run.to - run.from
+							grp.n.fill(semFunc(func(s *a11y.Node) { s.SetSize = size }))
+						}
+					})
+				}
+				r = e
+			}
+			if keep >= win.end {
+				keepRow()
+			}
+			fillStrut(c, wd)
+		})
+		lb.Semantics(a11y.RoleListbox, w.place)
+		w.list = lb.n.id
+	})
+	followRowBy(c, sb, idx, w.st.active, func(vi int) (float64, float64) {
+		r := l.rowOf(vi)
+		if r < 0 {
+			return 0, 0
+		}
+		return float64(pad) + l.offs[r], l.offs[r+1] - l.offs[r]
+	})
 }
 
 // syncValue reports a change of the active item since the last build and
@@ -471,12 +756,12 @@ func (w *CommandW) semantics(s *a11y.Node) {
 	}
 	s.States |= a11y.Expanded
 	s.Controls = a11y.NodeID(w.list)
-	if w.st.active < len(w.optIDs) {
-		s.ActiveDescendant = a11y.NodeID(w.optIDs[w.st.active])
+	if id := w.optIDs.at(w.st.active); id != 0 {
+		s.ActiveDescendant = a11y.NodeID(id)
 	}
 }
 
-func (w *CommandW) item(it CommandItem, vi int) {
+func (w *CommandW) item(it CommandItem, vi int) *node {
 	c, th, tk := w.c, w.th, w.tk
 	n := c.add("commanditem", it.Label)
 	st := c.style(th.FontSize, text.Regular)
@@ -494,7 +779,7 @@ func (w *CommandW) item(it CommandItem, vi int) {
 	// Options are reached with the arrow keys of the search field.
 	n.aKbd = true
 	n.setRole(a11y.RoleOption).setState(a11y.Selectable).stateIf(vi == w.st.active, a11y.Selected)
-	w.optIDs = append(w.optIDs, n.id)
+	w.optIDs.add(vi, n.id)
 	if c.a11yOn {
 		pos, size, sc := vi+1, len(w.visible), it.Shortcut
 		n.fill(semFunc(func(s *a11y.Node) { s.PosInSet, s.SetSize, s.Shortcut = pos, size, sc }))
@@ -546,4 +831,5 @@ func (w *CommandW) item(it CommandItem, vi int) {
 			l.Glyphs(geom.Pt(s.X(r.W-tk.ItemPaddingInline-sw, sw), r.Y+(r.H-sl.Height)/2), glyphs, tk.ShortcutColor)
 		}
 	}
+	return n
 }

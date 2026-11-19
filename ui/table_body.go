@@ -42,7 +42,10 @@ func (f *tblFrame) setupScroll(frameID ID) {
 	s := f.scroll
 	f.bounded = t.maxH > 0
 	f.viewH = s.view.H
-	if f.viewH <= 0 || !f.bounded {
+	if f.viewH <= 0 || !f.bounded || t.keepEdit && f.viewH > t.maxH {
+		// keepEdit: the body is never taller than maxH, a larger
+		// viewport is left from an unbounded build (ScrollY just turned
+		// on). Plain tables keep their earlier one-frame behaviour.
 		f.viewH = t.maxH
 	}
 	f.offsets()
@@ -54,6 +57,7 @@ func (f *tblFrame) setupScroll(frameID ID) {
 		s.off.Y = 0
 	}
 	f.sx, f.sy = float32(s.off.X), s.off.Y
+	f.typing = f.keeping() && tblTyping(f.c) // before any editor takes the events
 	f.updateRange()
 	if f.vh != nil {
 		f.measureWindow()
@@ -369,6 +373,15 @@ func (f *tblFrame) body() {
 			f.empty()
 			return
 		}
+		keeps := f.keepRows()
+		if t.rowsHook != nil && f.bounded {
+			t.rowsHook(f.first, f.last, keeps)
+		}
+		for _, p := range keeps {
+			if p < f.first {
+				f.buildKeep(p)
+			}
+		}
 		cells := f.spanWindow()
 		k := 0
 		for pos := f.first; pos <= f.last; pos++ {
@@ -381,10 +394,18 @@ func (f *tblFrame) body() {
 			rowCells := cells[k:j]
 			k = j
 			r := f.row(pos)
-			Key(c, r.key, func() { f.buildRow(pos, r, rowCells) })
+			Key(c, r.key, func() { f.noteFocus(f.buildRow(pos, r, rowCells), r) })
 			if t.expRender != nil && f.expSet[r.key] {
 				Key(c, r.key, func() { f.panel(r) })
 			}
+		}
+		for _, p := range keeps {
+			if p > f.last {
+				f.buildKeep(p)
+			}
+		}
+		if f.keeping() {
+			st.focusSeen = c.focus
 		}
 		f.scrollThumbs()
 	})
@@ -433,11 +454,14 @@ func (f *tblFrame) empty() {
 }
 
 // spanWindow resolves the cells to draw for the visible rows.
-func (f *tblFrame) spanWindow() []tblCell {
+func (f *tblFrame) spanWindow() []tblCell { return f.spanCells(f.first, f.last) }
+
+// spanCells resolves the cells to draw for rows [first, last].
+func (f *tblFrame) spanCells(first, last int) []tblCell {
 	t := f.t
 	nl := len(f.leaves)
 	if t.span == nil {
-		return tblSpanCells(f.first, f.last, nl, nil, 0)
+		return tblSpanCells(first, last, nl, nil, 0)
 	}
 	cache := map[int]tblRow{}
 	rowAt := func(p int) tblRow {
@@ -459,7 +483,7 @@ func (f *tblFrame) spanWindow() []tblCell {
 		}
 		return rs, cs
 	}
-	cells := tblSpanCells(f.first, f.last, nl, fn, 64)
+	cells := tblSpanCells(first, last, nl, fn, 64)
 	sort.SliceStable(cells, func(i, j int) bool { return cells[i].pos < cells[j].pos })
 	return cells
 }
@@ -503,7 +527,7 @@ func (f *tblFrame) rowStyle(d int) *RowStyle {
 
 // buildRow builds one body row: a fixed-height strip whose cells are
 // absolutely positioned (normal cells first, then sticky ones on top).
-func (f *tblFrame) buildRow(pos int, r tblRow, cells []tblCell) {
+func (f *tblFrame) buildRow(pos int, r tblRow, cells []tblCell) *node {
 	c, t, st := f.c, f.t, f.st
 	n := c.add("tr", "")
 	n.label = "row:" + r.key
@@ -575,6 +599,7 @@ func (f *tblFrame) buildRow(pos int, r tblRow, cells []tblCell) {
 			}
 		}
 	})
+	f.rowIDs, f.rowLeaf = cellIDs, cellLeaf
 	// Expand / Collapse actions on the row click its toggle.
 	n.aTarget = f.rowToggle
 	if ia.PressedNow {
@@ -601,6 +626,7 @@ func (f *tblFrame) buildRow(pos int, r tblRow, cells []tblCell) {
 		}
 		c.invalid = true
 	}
+	return n
 }
 
 // cell builds one body cell; it returns the cell's ID unless culled.

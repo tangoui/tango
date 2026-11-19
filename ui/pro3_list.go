@@ -56,6 +56,9 @@ type ProListW[T any] struct {
 	empty         string
 	onClick       func(row T)
 	request       func(page, size int) ([]T, int, error)
+	height        float32
+	virtual       bool
+	est           float32
 
 	id      ID
 	st      *pro3ListState
@@ -138,6 +141,21 @@ func (p *ProListW[T]) RowExpandable(fn func(T) bool) *ProListW[T] { p.rowExpanda
 
 // ItemLayout selects horizontal (default) or vertical item actions.
 func (p *ProListW[T]) ItemLayout(s string) *ProListW[T] { p.vertical = s == "vertical"; return p }
+
+// Height fixes the height of the items' viewport (List.Height); the
+// toolbar, selection bar and pager stay outside it.
+func (p *ProListW[T]) Height(px float32) *ProListW[T] { p.height = px; return p }
+
+// Virtual builds only the items in view (List.Virtual; needs Height).
+// Item heights, expanded items included, are measured as they come into
+// view and cached by RowKey; selection and expansion are kept by key and
+// do not depend on which items are built. Keyboard focus in an item
+// scrolled out of view is lost, as in the non-virtual Height form.
+func (p *ProListW[T]) Virtual() *ProListW[T] { p.virtual = true; return p }
+
+// EstimatedItemHeight is the height Virtual assumes for an item not
+// measured yet (List.EstimatedItemHeight).
+func (p *ProListW[T]) EstimatedItemHeight(px float32) *ProListW[T] { p.est = px; return p }
 
 // Pagination shows n items per page with a pager.
 func (p *ProListW[T]) Pagination(n int) *ProListW[T] { p.pageSize = max(1, n); return p }
@@ -312,6 +330,18 @@ func (p *ProListW[T]) Show() *ProListW[T] {
 		}
 		if p.pageSize > 0 && p.request == nil {
 			w.Pagination(&st.page, p.pageSize)
+		}
+		if p.height > 0 {
+			w.Height(p.height)
+			if p.virtual {
+				w.Virtual()
+				if p.rowKey != nil {
+					w.RowKey(func(i int) any { return p.key(i) })
+				}
+			}
+		}
+		if p.est > 0 {
+			w.EstimatedItemHeight(p.est)
 		}
 		p.list = w
 		w.Item(func(i int) {

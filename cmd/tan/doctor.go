@@ -40,7 +40,7 @@ func runDoctor(args []string) error {
 	if err := noArgs(fs); err != nil {
 		return err
 	}
-	checks := doctorChecks()
+	checks := doctorChecksIn(".")
 	printChecks(os.Stdout, checks)
 	for _, c := range checks {
 		if c.required && c.status == statusMissing {
@@ -70,7 +70,9 @@ func printChecks(w io.Writer, checks []check) {
 	tw.Flush()
 }
 
-func doctorChecks() []check {
+// doctorChecksIn returns the toolchain checks, plus the project checks for
+// the project in dir.
+func doctorChecksIn(dir string) []check {
 	cs := []check{
 		{name: "OS", status: statusOK, detail: runtime.GOOS + "/" + runtime.GOARCH},
 		toolCheck("Go", true, "go", "version"),
@@ -88,8 +90,8 @@ func doctorChecks() []check {
 	}
 	cs = append(cs, androidChecks()...)
 	cs = append(cs, toolCheck("NSIS (makensis)", false, "makensis", "-VERSION"))
-	cs = append(cs, iconChecks(".")...)    // tan.json's icons, in a project (doctor_icons.go)
-	cs = append(cs, appLinksCheck(".")...) // "appLinks" vs the iOS provisioning profile (applinks.go)
+	cs = append(cs, iconChecks(dir)...)    // tan.json's icons, in a project (doctor_icons.go)
+	cs = append(cs, appLinksCheck(dir)...) // "appLinks" vs the iOS provisioning profile (applinks.go)
 	return cs
 }
 

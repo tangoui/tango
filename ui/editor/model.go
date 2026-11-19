@@ -337,6 +337,7 @@ func (m *Model) setLanguage(id string) {
 		return
 	}
 	m.hl.Reset(lx)
+	m.syncLineSummary()
 	if wasPlain {
 		// Edits were not passed on while it was plain text.
 		m.hl.Sync(m.buf.Snapshot())

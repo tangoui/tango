@@ -156,6 +156,7 @@ func (h *hotSession) buildWorker(ctx context.Context) (string, string, error) {
 
 func (h *hotSession) loop(ctx context.Context) error {
 	w := newWatcher(h.cfg.dir, h.cfg.FrontendDir())
+	tty := newTTYGuard() // tty_unix.go
 	h.mods = newFileSet(goModFiles(h.cfg.dir))
 	// First build: decides the mode.
 	for {
@@ -205,10 +206,12 @@ func (h *hotSession) loop(ctx context.Context) error {
 		case ev := <-h.events:
 			h.event(ev)
 		case wp := <-h.exited:
+			tty.check()
 			if done := h.workerExited(wp); done {
 				return nil
 			}
 		case <-tick.C:
+			tty.check()
 			if !w.changed() {
 				continue
 			}
@@ -404,7 +407,7 @@ func (h *hotSession) startWorker(path string) error {
 	cmd.Env = append(os.Environ(), h.env...)
 	cmd.Env = append(cmd.Env, devhost.EnvRole+"="+devhost.RoleWorker, devhost.EnvAddr+"="+h.addr, devhost.EnvDir+"="+h.tmp,
 		devhost.EnvToken+"="+h.token)
-	tail := &tailBuffer{max: 4 << 10}
+	tail := newTailBuffer(4 << 10)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, io.MultiWriter(os.Stderr, tail)
 	p, err := startProcess(cmd)
 	if err != nil {
@@ -471,11 +474,11 @@ func (h *hotSession) workerExited(wp *workerProc) bool {
 			return true
 		}
 		warnf("The app exited: %v; waiting for changes", wp.err)
-		h.status("crash", fmt.Sprintf("%v\n%s", wp.err, wp.stderr.Tail(12)))
+		h.status("crash", fmt.Sprintf("%v\n%s", wp.err, wp.stderr.lastLines(12)))
 	case h.pending:
 		h.pending = nil
 		warnf("The new build exited before showing a frame: %v; the previous one stays on screen", wp.err)
-		h.status("start", fmt.Sprintf("%v\n%s", wp.err, wp.stderr.Tail(12)))
+		h.status("start", fmt.Sprintf("%v\n%s", wp.err, wp.stderr.lastLines(12)))
 	}
 	return false
 }
@@ -538,32 +541,24 @@ func installBinary(src, dst string) error {
 	return os.Rename(tmp, dst) // a new inode: never rewrite a running binary
 }
 
-// tailBuffer keeps the last max bytes written to it.
-type tailBuffer struct {
-	mu  sync.Mutex
-	max int
-	b   []byte
-}
-
-func (t *tailBuffer) Write(p []byte) (int, error) {
-	t.mu.Lock()
-	t.b = append(t.b, p...)
-	if len(t.b) > t.max {
-		t.b = append([]byte(nil), t.b[len(t.b)-t.max:]...)
+// lastLines returns the last n lines of t, not counting trailing blank
+// lines, without the final newline.
+func (t *tailBuffer) lastLines(n int) string {
+	s, truncated := t.Tail(0)
+	if truncated { // the first line was cut by the buffer
+		if k := strings.IndexByte(s, '\n'); k >= 0 {
+			s = s[k+1:]
+		}
 	}
-	t.mu.Unlock()
-	return len(p), nil
-}
-
-// Tail returns the last n lines.
-func (t *tailBuffer) Tail(n int) string {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	lines := strings.Split(strings.TrimRight(string(t.b), "\n"), "\n")
-	if len(lines) > n {
-		lines = lines[len(lines)-n:]
+	s = strings.TrimRight(s, "\r\n")
+	end := len(s) // s[end:] holds the lines taken so far
+	for i := 0; i < n && end > 0; i++ {
+		end = strings.LastIndexByte(s[:end], '\n') + 1
+		if i < n-1 && end > 0 {
+			end-- // step over the newline to the line before
+		}
 	}
-	return strings.Join(lines, "\n")
+	return s[end:]
 }
 
 // fileSet fingerprints a list of files or directories (a directory's

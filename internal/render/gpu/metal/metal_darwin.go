@@ -174,6 +174,14 @@ type Device struct {
 	// command buffer, presents included). Set only by same-binary A/B
 	// benchmarks (BenchmarkPresentLoop); never in product code.
 	drainOnExecute bool
+
+	// Presenter devices keep the frame's command buffer open (encoded, not
+	// committed) until present appends the drawable copy to it, so a
+	// frame costs one command buffer and one commit instead of two (see
+	// flushOpen).
+	deferFrameCommit bool
+	openCB           id              // retained; Execute's uncommitted frame (0: none)
+	drawables        drawableBackoff // when present commits the open frame before nextDrawable
 }
 
 // SetTimeline installs fn (nil removes it) to receive the Timing of every
@@ -363,6 +371,7 @@ func (d *Device) Execute(f *gpu.Frame) error {
 	defer runtime.UnlockOSThread()
 	defer autoreleasePool()()
 
+	d.flushOpen() // a frame nobody presented: submit it before reusing its buffers
 	d.retireForFrame()
 	if err := d.pendingErr; err != nil {
 		d.pendingErr = nil
@@ -598,8 +607,12 @@ func (d *Device) Execute(f *gpu.Frame) error {
 		enc.Send(sel("endEncoding"))
 	}
 	d.frames++
-	d.commitAs(cb, submitFrame)
-	d.commits++
+	if d.deferFrameCommit {
+		d.openCB = retain(cb) // present (or flushOpen) commits it
+	} else {
+		d.commitAs(cb, submitFrame)
+		d.commits++
+	}
 	d.hasFrame = true
 	d.stagingUsage.record(d.stagingCap, d.stagedBytes)
 	d.instUsage.record(d.instCap, (nInst+nClear)*instanceSize)
@@ -1347,15 +1360,35 @@ func ensureBuffer(dev id, buf *id, capacity *int, n int, opts uint64) error {
 // (readback, test references) and keeps it (retained) until retirement.
 func (d *Device) commit(cb id) { d.commitAs(cb, submitOther) }
 
+// flushOpen commits the frame command buffer Execute left open for present
+// (deferFrameCommit), if any: whatever waits for, reads or replaces the
+// frame's work calls it first. The Device mutex is held by callers, on a
+// locked OS thread.
+func (d *Device) flushOpen() {
+	if d.openCB == 0 {
+		return
+	}
+	cb := d.openCB
+	d.openCB = 0
+	d.commitAs(cb, submitFrame)
+	d.commits++
+	release(cb)
+}
+
 // commitAs commits cb and keeps it (retained) until it is retired, in
 // commit order, by waitOldest or wait.
-func (d *Device) commitAs(cb id, kind submissionKind) {
+func (d *Device) commitAs(cb id, kind submissionKind) { d.commitSubmission(cb, kind, false) }
+
+// commitSubmission is commitAs; presents marks a frame command buffer that
+// also presents a drawable (its Timing is reported as a frame and a
+// present).
+func (d *Device) commitSubmission(cb id, kind submissionKind, presents bool) {
 	cb.Send(sel("commit"))
 	d.submits++
-	s := submission{id: d.submits, kind: kind, frame: d.frames, cb: retain(cb)}
+	s := submission{id: d.submits, kind: kind, frame: d.frames, cb: retain(cb), presents: presents}
 	if d.timeline != nil {
 		s.commit = time.Now()
-		if kind == submitPresent {
+		if kind == submitPresent || presents {
 			s.drawableWait = d.drawableWait
 		}
 	}
@@ -1394,6 +1427,15 @@ func (d *Device) report(s submission, cb id, err error) {
 		t.GPUStart = time.Duration(start * float64(time.Second))
 		t.GPUEnd = time.Duration(end * float64(time.Second))
 		t.GPUKnown = true
+	}
+	if s.presents {
+		// One command buffer drew the frame and presented it: report the
+		// frame (with the GPU time of both) and then the present.
+		t.Drawable, t.DrawableWait = false, 0
+		d.timeline(t)
+		d.timeline(Timing{Kind: submitPresent.String(), Frame: s.frame, Commit: s.commit, Err: err,
+			Drawable: true, DrawableWait: s.drawableWait})
+		return
 	}
 	d.timeline(t)
 }
@@ -1460,6 +1502,7 @@ func (d *Device) waitOldest() (time.Duration, error) {
 // the GPU time of the last one. A failed buffer is recorded and its error is
 // returned; when all succeeded the failure count resets.
 func (d *Device) wait() (time.Duration, error) {
+	d.flushOpen()
 	if len(d.inflight.items) == 0 {
 		return 0, nil
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
+	"github.com/tangoui/tango/ui/theme"
 )
 
 // msTakeKeys removes the key-down events of focused id accepted by want
@@ -50,7 +51,7 @@ type MultiSelectW struct {
 	changed bool
 	forced  bool
 	z       *lazy
-	optIDs  []ID // option nodes of the open list
+	optIDs  fillIDs // option nodes of the open list
 
 	wasOpen    bool // dropdown state before this build
 	openChange bool // the dropdown opened or closed this frame
@@ -281,7 +282,231 @@ func (w *MultiSelectW) finish() {
 
 // msStep moves an option index to the next enabled option.
 func msStep(opts []Option, i int, down bool) int {
-	n := len(opts)
+	return msStepBy(len(opts), i, down, func(i int) bool { return opts[i].Disabled })
+}
+
+// msOptionList renders an option list (scrolling when long) into the current
+// overlay. paintRow draws row i; onClick handles a click. Rows are options
+// (sel reports the selected ones, nil: none); their IDs are recorded in
+// *ids (nil: not collected) for the trigger's ActiveDescendant. The caller
+// marks the overlay box as the listbox.
+//
+// v sets the virtual mode (msVirt): a long list then builds only the
+// rows in view plus the keyboard row, and sizes itself by its widest
+// label, so its width, height and scroll range stay those of the full
+// list.
+func msOptionList(c *Context, n int, labels func(i int) (key, label string, disabled bool), active *int, sel func(i int) bool, ids *fillIDs, row func(i int, l *paint.List, r geom.Rect), onClick func(i int), v msVirt) {
+	th := c.Theme
+	if ids != nil {
+		ids.reset()
+	}
+	optW := func(label string) float32 { return entTextW(c, label, th.FontSize, text.Semibold) + 2*20 + 18 }
+	one := func(i int) *node {
+		var it *node
+		key, label, dis := labels(i)
+		Key(c, key, func() {
+			it = c.add("ms-option", label)
+			it.setRole(a11y.RoleOption).setState(a11y.Selectable).stateIf(sel != nil && sel(i), a11y.Selected)
+			if ids != nil {
+				ids.add(i, it.id)
+			}
+			it.aKbd = true // the trigger's arrow keys move the highlight
+			it.ln.Height = entOptionH(c)
+			it.ln.Measure = func(_, _ float32) geom.Size {
+				return geom.Size{W: optW(label), H: entOptionH(c)}
+			}
+			cur := input.CursorPointer
+			if dis {
+				it.disabled = true
+				cur = input.CursorNotAllowed
+			}
+			ia := c.interact(it, false, cur)
+			if ia.Hovered && !dis {
+				*active = i
+			}
+			if ia.Clicked && !dis {
+				onClick(i)
+			}
+			it.paint = func(l *paint.List, r geom.Rect) { row(i, l, r) }
+		})
+		return it
+	}
+	if n <= 8 {
+		for i := range n {
+			one(i)
+		}
+		return
+	}
+	rowH := entOptionH(c)
+	idx := *active
+	if !p2bVirtualOn(v.mode, n) {
+		sb := Scroll(c, func() {
+			for i := range n {
+				one(i)
+			}
+		}, layout.MaxH(rowH*8))
+		followRow(c, sb, idx, *active, 0, rowH) // keep the keyboard row in view
+		return
+	}
+	sb := fillViewport(c, "scroll", []layout.Option{layout.MaxH(rowH * 8)})
+	wd := fillWidest(c, sb.n.id, v.key, n, func(i int) float32 {
+		if v.textW != nil {
+			return v.textW(i) + 2*20 + 18 // as optW
+		}
+		_, label, _ := labels(i)
+		return optW(label)
+	})
+	win := fillWin{rowH: float64(rowH)}
+	win.build(c, sb, n, idx, func(i int) *node {
+		it := one(i)
+		if c.a11yOn {
+			// Position in the whole list, not among the built rows.
+			pos := i + 1
+			it.fill(semFunc(func(s *a11y.Node) { s.PosInSet, s.SetSize = pos, n }))
+		}
+		return it
+	})
+	sb.Body(func() { fillStrut(c, wd) })
+	followRow(c, sb, idx, *active, 0, rowH)
+}
+
+// msVirt is the virtual mode of msOptionList.
+type msVirt struct {
+	mode int // Virtual tri-state (p2bVirtualOn)
+	// key identifies the rows for the widest-row cache (comparable; nil:
+	// every label is measured each frame, as for Sender's and Cascader's
+	// search results, whose slices are rebuilt by the caller).
+	key any
+	// textW returns the label text width of row i (nil: measured).
+	textW func(i int) float32
+}
+
+// msView is a list of options read live from src: all of src, or
+// src[idx[i]]. Labels, values and Disabled are never copied, so an
+// option changed in place shows (and picks) its current fields.
+type msView struct {
+	src []Option
+	idx []int32
+	all bool
+}
+
+func msAll(src []Option) msView { return msView{src: src, all: true} }
+
+func (v msView) len() int {
+	if v.all {
+		return len(v.src)
+	}
+	return len(v.idx)
+}
+
+// srcIndex is the index in src of row i.
+func (v msView) srcIndex(i int) int {
+	if v.all {
+		return i
+	}
+	return int(v.idx[i])
+}
+
+func (v msView) at(i int) Option { return v.src[v.srcIndex(i)] }
+
+// key identifies the rows of v for the widest-row cache; q is the query
+// they matched and ver the component's DataVersion (filters cached by
+// msFilterCache keep their rows while the source, the query and the
+// version stay the same).
+func (v msView) key(q string, ver int) any {
+	if len(v.src) == 0 {
+		return nil
+	}
+	return msViewKey{&v.src[0], len(v.src), q, ver}
+}
+
+// msViewKey identifies the rows of a msView: source slice, query and
+// DataVersion. Holding &src[0] keeps the caller's previous option slice
+// reachable (not collected) until the key is replaced or the component's
+// state is dropped: the price of never matching a new slice that reuses
+// the old one's address.
+type msViewKey struct {
+	p   *Option
+	n   int
+	q   string
+	ver int
+}
+
+// msFilterCache keeps the indices of the options matching a query while
+// the list is virtual (more than p2bVirtualMin matches, or any number
+// with Virtual(true)) and the source slice (identity and length), the
+// query and the DataVersion ver stay the same; a shorter list is matched
+// again every frame. Only indices are kept: fields are read live from the
+// source. src (&src[0]) keeps the previous option slice reachable until it
+// is replaced (see msViewKey).
+type msFilterCache struct {
+	src *Option
+	n   int
+	q   string
+	ver int
+	idx []int32
+	ok  bool
+}
+
+// get returns the options of src that match q (all of them for an empty
+// query); ver is the DataVersion, mode the Virtual tri-state.
+func (fc *msFilterCache) get(src []Option, q string, ver, mode int, match func(o *Option) bool) msView {
+	if q == "" {
+		return msAll(src)
+	}
+	var p *Option
+	if len(src) > 0 {
+		p = &src[0]
+	}
+	if fc.ok && fc.src == p && fc.n == len(src) && fc.q == q && fc.ver == ver {
+		return msView{src: src, idx: fc.idx}
+	}
+	var idx []int32
+	for i := range src {
+		if match(&src[i]) {
+			idx = append(idx, int32(i))
+		}
+	}
+	fc.src, fc.n, fc.q, fc.ver, fc.idx = p, len(src), q, ver, idx
+	fc.ok = p2bVirtualOn(mode, len(idx))
+	return msView{src: src, idx: idx}
+}
+
+// msTextW is the label text width of every option of a source slice,
+// measured once per slice (identity and length), DataVersion and theme, so
+// a virtual list finds its widest row after a query change without
+// measuring text. src (&src[0]) keeps the previous option slice reachable
+// until it is replaced (see msViewKey).
+type msTextW struct {
+	src   *Option
+	n     int
+	ver   int
+	theme *theme.Theme
+	w     []float32
+}
+
+// of returns the label widths of src (measuring them when src, the
+// DataVersion ver or the theme changed).
+func (m *msTextW) of(c *Context, src []Option, ver int) []float32 {
+	var p *Option
+	if len(src) > 0 {
+		p = &src[0]
+	}
+	if m.w != nil && m.src == p && m.n == len(src) && m.ver == ver && m.theme == c.Theme {
+		return m.w
+	}
+	th := c.Theme
+	w := make([]float32, len(src))
+	for i := range src {
+		w[i] = entTextW(c, src[i].Label, th.FontSize, text.Semibold)
+	}
+	m.src, m.n, m.ver, m.theme, m.w = p, len(src), ver, c.Theme, w
+	return w
+}
+
+// msStepBy moves an index among n options to the next enabled one
+// (disabled reports option i; see msStep).
+func msStepBy(n, i int, down bool, disabled func(i int) bool) int {
 	if n == 0 {
 		return 0
 	}
@@ -291,60 +516,11 @@ func msStep(opts []Option, i int, down bool) int {
 		} else {
 			i = (i - 1 + n) % n
 		}
-		if !opts[i].Disabled {
+		if !disabled(i) {
 			return i
 		}
 	}
 	return i
-}
-
-// msOptionList renders an option list (scrolling when long) into the current
-// overlay. paintRow draws row i; onClick handles a click. Rows are options
-// (sel reports the selected ones, nil: none); their IDs are appended to
-// *ids (nil: not collected) for the trigger's ActiveDescendant. The caller
-// marks the overlay box as the listbox.
-func msOptionList(c *Context, n int, labels func(i int) (key, label string, disabled bool), active *int, sel func(i int) bool, ids *[]ID, row func(i int, l *paint.List, r geom.Rect), onClick func(i int)) {
-	th := c.Theme
-	if ids != nil {
-		*ids = (*ids)[:0]
-	}
-	build := func() {
-		for i := range n {
-			key, label, dis := labels(i)
-			Key(c, key, func() {
-				it := c.add("ms-option", label)
-				it.setRole(a11y.RoleOption).setState(a11y.Selectable).stateIf(sel != nil && sel(i), a11y.Selected)
-				if ids != nil {
-					*ids = append(*ids, it.id)
-				}
-				it.aKbd = true // the trigger's arrow keys move the highlight
-				it.ln.Height = entOptionH(c)
-				it.ln.Measure = func(_, _ float32) geom.Size {
-					return geom.Size{W: entTextW(c, label, th.FontSize, text.Semibold) + 2*20 + 18, H: entOptionH(c)}
-				}
-				cur := input.CursorPointer
-				if dis {
-					it.disabled = true
-					cur = input.CursorNotAllowed
-				}
-				ia := c.interact(it, false, cur)
-				if ia.Hovered && !dis {
-					*active = i
-				}
-				if ia.Clicked && !dis {
-					onClick(i)
-				}
-				it.paint = func(l *paint.List, r geom.Rect) { row(i, l, r) }
-			})
-		}
-	}
-	if n > 8 {
-		idx := *active
-		sb := Scroll(c, build, layout.MaxH(entOptionH(c)*8))
-		followRow(c, sb, idx, *active, 0, entOptionH(c)) // keep the keyboard row in view
-	} else {
-		build()
-	}
 }
 
 func (w *MultiSelectW) dropdown(opts []Option) {
@@ -363,7 +539,7 @@ func (w *MultiSelectW) dropdown(opts []Option) {
 			w.toggle(opts[i].Value)
 			w.box.st.query = ""
 			c.SetFocus(w.box.ed.id)
-		})
+		}, msVirt{mode: -1}) // long lists use the engine (finishRich) unless Virtual(false)
 	})
 	ov.Style(layout.Padding(entListPad(c)))
 	if len(opts) > 0 {
@@ -371,8 +547,8 @@ func (w *MultiSelectW) dropdown(opts []Option) {
 		ov.n.setName(w.box.popupName())
 		w.box.listID = ov.n.id
 		w.box.activeID = 0
-		if st.active >= 0 && st.active < len(w.optIDs) {
-			w.box.activeID = w.optIDs[st.active]
+		if st.active >= 0 {
+			w.box.activeID = w.optIDs.at(st.active)
 		}
 	}
 }

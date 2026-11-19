@@ -568,15 +568,16 @@ func (g *CheckboxGroupW) build() {
 			g.n.ln.Gap = 30
 		}
 	}
+	in := newSelIndex(g.sel)
 	count := 0
 	for _, o := range g.opts {
-		if contains(*g.sel, o.Value) {
+		if in.has(o.Value) {
 			count++
 		}
 	}
 	boxes := make([]*CheckboxW, len(g.opts))
 	for i, o := range g.opts {
-		on := contains(*g.sel, o.Value)
+		on := in.has(o.Value)
 		dis := o.Disabled || (g.max > 0 && !on && count >= g.max) || (g.min > 0 && on && count <= g.min)
 		cb := Checkbox(c, o.Label, &on).Disabled(dis).Size(g.size)
 		boxes[i] = cb
@@ -594,8 +595,10 @@ func (g *CheckboxGroupW) build() {
 			g.changed = true
 			if on {
 				*g.sel = append(*g.sel, o.Value)
+				in.add(o.Value)
 			} else {
 				*g.sel = remove(*g.sel, o.Value)
+				in.del(o.Value)
 			}
 		}
 	}
@@ -619,6 +622,62 @@ func (g *CheckboxGroupW) build() {
 			}
 			l.Stroke(cb.n.abs, segRadii(c, th, g.size, i == 0, i == len(boxes)-1), 1, col)
 		}
+	}
+}
+
+// selIndexMin is the selection size from which selIndex builds a set;
+// smaller selections are scanned (no map allocation).
+var selIndexMin = 8 // test-only override (forces either path); don't mutate in parallel tests
+
+// selIndex answers contains(*sel, v) for every option of a group build in
+// O(1) after one O(k) pass instead of O(k) per option (O(n·k), O(n²) with
+// everything selected). It lives for one build only and never outlives
+// the slice it indexes: add / del / reset mirror the build's own append /
+// remove / replace on *sel, so has always equals contains on the live
+// slice (duplicate option values included).
+type selIndex struct {
+	sel *[]string
+	m   map[string]struct{}
+}
+
+func newSelIndex(sel *[]string) selIndex {
+	x := selIndex{sel: sel}
+	if len(*sel) >= selIndexMin {
+		x.m = make(map[string]struct{}, len(*sel))
+		for _, v := range *sel {
+			x.m[v] = struct{}{}
+		}
+	}
+	return x
+}
+
+func (x selIndex) has(v string) bool {
+	if x.m == nil {
+		return contains(*x.sel, v)
+	}
+	_, ok := x.m[v]
+	return ok
+}
+
+// add mirrors *sel = append(*sel, v).
+func (x selIndex) add(v string) {
+	if x.m != nil {
+		x.m[v] = struct{}{}
+	}
+}
+
+// del mirrors *sel = remove(*sel, v) (every occurrence).
+func (x selIndex) del(v string) {
+	if x.m != nil {
+		delete(x.m, v)
+	}
+}
+
+// reset mirrors *sel = []string{v}.
+func (x selIndex) reset(v string) {
+	if x.m != nil {
+		clear(x.m)
+		x.m[v] = struct{}{}
 	}
 }
 

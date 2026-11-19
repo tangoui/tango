@@ -544,6 +544,10 @@ func damageRecolour(t *testing.T) {
 	doc := strings.Split(longGoDoc(n), "\n")
 	doc[end] = "var x = 1 */ + 2"
 	st := NewState(strings.Join(doc, "\n"), "main.go", th)
+	// This case measures syntax recolouring. Bracket colours can also
+	// become available for the entire viewport in one frame once the
+	// bracket tree catches up, legitimately requiring a full redraw.
+	st.Options.BracketPairColorization = false
 	h := newHintHost(t, st, geom.Size{W: 480, H: 360}, 1.25)
 	h.focusAt(3)
 	hl := st.Highlighter()

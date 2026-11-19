@@ -55,7 +55,15 @@ func (s modelBrackets) tokens(snap buffer.Snapshot, line int, text string, dst [
 	if toks, ok := hl.PeekCompleteTokens(snap, line, dst); ok {
 		return toks
 	}
+	countAdd(&workBracketToks, 1)
 	return hl.TokenizeSpan(snap, line, text, dst)
+}
+
+func (s modelBrackets) summary(snap buffer.Snapshot, line int, dst []uint64) ([]uint64, bool) {
+	if hl := s.m.Highlighter(); hl != nil {
+		return hl.LineSummary(bracketConfOf(s.m.Conf()), snap, line, dst)
+	}
+	return dst[:0], false
 }
 
 func (s modelBrackets) startState(snap buffer.Snapshot, line int) monarch.State {
@@ -74,11 +82,28 @@ func (s modelBrackets) advance(snap buffer.Snapshot, upTo int, deadline time.Tim
 	}
 }
 
+func (s modelBrackets) catchingUp(snap buffer.Snapshot, line int) bool {
+	hl := s.m.Highlighter()
+	return hl != nil && hl.BackgroundBehind(snap, line)
+}
+
 func (s modelBrackets) finalLines(snap buffer.Snapshot) int {
 	if hl := s.m.Highlighter(); hl != nil {
 		return hl.FinalLines(snap)
 	}
 	return snap.LineCount()
+}
+
+// syncLineSummary has the Highlighter summarize the brackets of the lines
+// it tokenizes (bracketConf.summary), so the bracket tree scans them
+// without tokenizing them again; not for a document too large for a tree.
+func (m *Model) syncLineSummary() {
+	if m.buf.Snapshot().Len() > maxBracketTreeLen {
+		m.hl.SetLineSummary(nil, nil)
+		return
+	}
+	bc := bracketConfOf(m.conf)
+	m.hl.SetLineSummary(bc, bc.summary)
 }
 
 // brackets returns the Model's bracket tree, nil when the document is too
@@ -87,12 +112,14 @@ func (m *Model) brackets() *bracketTree {
 	snap := m.buf.Snapshot()
 	if snap.Len() > maxBracketTreeLen {
 		m.brk = nil
+		m.syncLineSummary()
 		return nil
 	}
 	gen := m.hl.GrammarGeneration()
 	if m.brk == nil || m.brGrammar != gen {
 		m.brGrammar = gen
 		m.brk = newBracketTree(bracketConfOf(m.conf), snap)
+		m.syncLineSummary()
 	} else if m.brk.snap.Version() != snap.Version() {
 		m.brk.reset(snap) // a change that bypassed edit (not expected)
 	}
@@ -101,6 +128,9 @@ func (m *Model) brackets() *bracketTree {
 
 // bracketsEdited passes a change to the bracket tree.
 func (m *Model) bracketsEdited(old, ns buffer.Snapshot, edits []buffer.Edit) {
+	if (old.Len() > maxBracketTreeLen) != (ns.Len() > maxBracketTreeLen) {
+		m.syncLineSummary()
+	}
 	if m.brk != nil {
 		m.brk.edit(old, ns, edits)
 	}
@@ -486,7 +516,7 @@ func init() {
 // beginBracketCommand starts a bracket command's work (its own budget).
 func (s *State) beginBracketCommand() {
 	if t := s.Model.brackets(); t != nil {
-		t.beginFrame()
+		t.beginCommand()
 	}
 }
 

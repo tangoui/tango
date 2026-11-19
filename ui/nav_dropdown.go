@@ -951,6 +951,7 @@ type DropdownW struct {
 	th       *theme.Theme         // ThemeFor(CompDropdown)
 	tk       *theme.DropdownToken // &th.Components.Dropdown
 	items    []MenuItem
+	lazy     func() []MenuItem // internal: items built only when the menu shows (Tabs' more menu)
 	trigger  Trigger
 	place    Placement
 	placeSet bool
@@ -1356,6 +1357,9 @@ func (d *DropdownW) Body(trigger func()) *DropdownW {
 	off := d.tk.PopupOffset
 	if d.arrow {
 		off += 6
+	}
+	if d.lazy != nil {
+		d.items = d.lazy() // closed menus never read the items
 	}
 	var root ID
 	if d.trigger == TriggerContextMenu || d.st.atPointer {

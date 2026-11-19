@@ -120,6 +120,25 @@ func gridList(c *ui.Context) {
 }
 ```
 
+### 长列表：虚拟滚动
+
+`Height(px)` 给条目区一个固定高度，超出部分在区内滚动（页头、页脚、加载更多和分页器留在区外）；再加 `Virtual()`，只构建视口内的条目（上下各多建几项），上万条数据也只付出一屏的代价。没有 `Height` 时 `Virtual()` 不生效，列表照旧逐项构建。
+
+```go
+func longList(c *ui.Context, items []article) {
+    ui.List(c, len(items)).Height(480).Virtual().
+        RowKey(func(i int) any { return items[i].Title }).
+        Item(func(i int) {
+            ui.ListItemMeta(c, nil, items[i].Title, items[i].Desc)
+        })
+}
+```
+
+- 条目高度在首次滚到时实测并按 `RowKey`（默认下标）缓存，未测到的条目按 `EstimatedItemHeight`（默认一行文字加条目内边距，中号为 46）估算，滚动条在第一次遇到更高的条目时会微调；条目等高时用 `ItemHeight(px)` 走固定行高快路径，不再实测。
+- `ScrollToKey(key, ui.AlignTop, 0)` 滚到指定条目（`AlignTop` / `AlignBottom` / `AlignAuto`），`Range()` 返回本帧实际构建的下标区间。
+- 与 `Pagination` 同用时只在当前页内窗口化；与 `Grid` 同用时按“行”窗口化，一行的高度取该行最高的条目。
+- 视口外的条目不会构建：它们内部的 `State`、输入框内容会被回收，也不在无障碍树、`FindText` 和 Tab 顺序里（与 `Listy`、`VirtualList` 相同）。持有键盘焦点的条目总会构建。
+
 ### 空状态
 
 条目数为 0 时显示空状态，`EmptyText` 自定义描述文字（默认随语言包显示「暂无数据」）。
@@ -154,7 +173,7 @@ func listDefaults(c *ui.Context) {
 
 - **调用顺序**：`Item` 会立即构建列表，所以 `Header`、`Footer`、`Pagination`、`LoadMore`、`Grid` 等选项要在它之前设置；`Layout`、`LoadMoreClicked`、`PageChanged` 在它之后调用。
 - **状态放在哪**：页码、已加载条数等由应用持有。条目里有输入框、折叠面板等自带状态的组件，并且列表会插入或删除条目时，在 `Item` 回调里用 `ui.Key(c, 稳定的键, fn)` 包住条目内容，状态才会跟着数据走。
-- **性能**：`List` 每帧构建当前页的全部条目，适合几百条以内的数据；更长的列表用分页或 `VirtualList`。
+- **性能**：默认形态每帧构建当前页的全部条目，适合几百条以内的数据；更长的列表用分页，或 `Height(px).Virtual()`（见上文“长列表：虚拟滚动”）、`VirtualList`。
 - **RTL**：在 RTL 布局中头像、操作区和分隔线位置自动镜像。
 
 ## 示例代码

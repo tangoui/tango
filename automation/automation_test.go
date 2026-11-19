@@ -43,35 +43,6 @@ func TestReleaseBuildHasNoChannel(t *testing.T) {
 	}
 }
 
-func TestWithDevTag(t *testing.T) {
-	for in, want := range map[string]string{
-		"":                       "-tags tango_dev",
-		"-race":                  "-tags tango_dev -race",
-		"-tags a,b":              "-tags a,b,tango_dev",
-		"-tags=a -mod=mod":       "-tags=a,tango_dev -mod=mod",
-		"-tags a -tags=b":        "-tags a -tags=b,tango_dev",
-		"--tags=tango_dev":       "--tags=tango_dev",
-		"-tags tango_release -v": "-tags tango_release,tango_dev -v",
-	} {
-		if got := strings.Join(withDevTag(strings.Fields(in)), " "); got != want {
-			t.Errorf("withDevTag(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
-func TestHasChannel(t *testing.T) {
-	dir := t.TempDir()
-	yes, no := dir+"/yes", dir+"/no"
-	os.WriteFile(yes, []byte("\x7fELF..TANGO_AUTOMATION_TOKEN_FILE.."), 0o755)
-	os.WriteFile(no, []byte("\x7fELF.. production .."), 0o755)
-	if !hasChannel(yes) || hasChannel(no) {
-		t.Fatal("hasChannel wrong")
-	}
-	if _, err := resolveTarget(no, Options{}, dir); err == nil || !strings.Contains(err.Error(), "-tags tango_dev") {
-		t.Fatalf("production executable: err %v", err)
-	}
-}
-
 func TestLaunchSkipsWithoutE2E(t *testing.T) {
 	t.Setenv(EnvE2E, "")
 	os.Unsetenv(EnvE2E)
@@ -117,42 +88,5 @@ func TestTailBuffer(t *testing.T) {
 	b.Write([]byte("world"))
 	if b.String() != "lo world" {
 		t.Fatalf("%q", b.String())
-	}
-}
-
-func TestFilterEnv(t *testing.T) {
-	got := filterEnv([]string{"A=1", "TANGO_AUTOMATION=x", "TANGO_AUTOMATION_TOKEN_FILE=y", "TANGO_AUTOMATIONX=z"})
-	if strings.Join(got, " ") != "A=1 TANGO_AUTOMATIONX=z" {
-		t.Fatalf("%v", got)
-	}
-}
-
-// The program under test starts in the background unless the caller's
-// environment or Options.Env says otherwise; the channel variables are
-// always Launch's own.
-func TestLaunchEnv(t *testing.T) {
-	last := func(env []string, key string) string {
-		v := ""
-		for _, kv := range env {
-			if k, val, ok := strings.Cut(kv, "="); ok && k == key {
-				v = val
-			}
-		}
-		return v
-	}
-	env := launchEnv([]string{"A=1", "TANGO_AUTOMATION=stale"}, nil, "127.0.0.1:0", "/tmp/t.json")
-	if last(env, EnvLaunchBackground) != "1" || last(env, "A") != "1" {
-		t.Fatalf("default env %v", env)
-	}
-	if last(env, "TANGO_AUTOMATION") != "127.0.0.1:0" || last(env, "TANGO_AUTOMATION_TOKEN_FILE") != "/tmp/t.json" {
-		t.Fatalf("channel env %v", env)
-	}
-	env = launchEnv([]string{EnvLaunchBackground + "=0"}, nil, "a", "b")
-	if last(env, EnvLaunchBackground) != "0" {
-		t.Fatalf("environment override lost: %v", env)
-	}
-	env = launchEnv(nil, []string{EnvLaunchBackground + "=0"}, "a", "b")
-	if last(env, EnvLaunchBackground) != "0" {
-		t.Fatalf("Options.Env override lost: %v", env)
 	}
 }
