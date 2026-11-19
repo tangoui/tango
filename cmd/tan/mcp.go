@@ -54,12 +54,14 @@ func newMCPServer(root string) (*mcpServer, error) {
 	} else if !fi.IsDir() {
 		return nil, fmt.Errorf("-root %s: not a directory", root)
 	}
-	return &mcpServer{
+	s := &mcpServer{
 		root: real,
 		srv:  mcp.NewServer(&mcp.Implementation{Name: "tango", Version: version}, nil),
 		jobs: newJobManager(),
 		apps: newAppManager(),
-	}, nil
+	}
+	s.addProjectTools()
+	return s, nil
 }
 
 // close stops every job and app the server started.
