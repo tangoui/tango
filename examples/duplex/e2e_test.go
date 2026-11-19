@@ -22,10 +22,19 @@ import (
 //
 //	TANGO_E2E=1 go test ./examples/duplex -run E2E -v
 func TestE2EDuplex(t *testing.T) {
-	windowsLanes := runtime.GOOS == "windows" && os.Getenv("TANGO_E2E_LANES") == "1"
-	var opts automation.Options
-	if windowsLanes {
-		opts.Env = []string{"TANGO_IPC_LANES_WINDOWS=1"}
+	opts := automation.Options{Env: []string{
+		"TANGO_IPC_LANES_DARWIN=", "TANGO_IPC_LANES_LINUX=", "TANGO_IPC_LANES_WINDOWS=",
+	}}
+	var wantLanes string
+	if os.Getenv("TANGO_E2E_LANES") == "1" {
+		switch runtime.GOOS {
+		case "linux":
+			opts.Env = append(opts.Env, "TANGO_IPC_LANES_LINUX=1")
+			wantLanes = `{"down":"down:poll","up":"up:post"}`
+		case "windows":
+			opts.Env = append(opts.Env, "TANGO_IPC_LANES_WINDOWS=1")
+			wantLanes = `{"down":"down:shm","up":"up:shm"}`
+		}
 	}
 	app := automation.LaunchOptions(t, ".", opts)
 	win := app.Window("Tango Duplex")
@@ -34,8 +43,7 @@ func TestE2EDuplex(t *testing.T) {
 	}
 	win.WaitJS(`document.readyState === "complete" && !!window.tango && !!window.duplex`)
 
-	const wantLanes = `{"down":"down:shm","up":"up:shm"}`
-	if windowsLanes {
+	if wantLanes != "" {
 		win.WaitJS("JSON.stringify(tango.lanes()) === '" + wantLanes + "'")
 	}
 	if got := win.EvalString(`window.duplex.echoOnce("ping")`); got != "ping" {
@@ -68,7 +76,7 @@ func TestE2EDuplex(t *testing.T) {
 		t.Fatalf("uploaded file %q: %v %v", up.Path, st, err)
 	}
 	os.Remove(up.Path)
-	if windowsLanes {
+	if wantLanes != "" {
 		if got := win.EvalString(`JSON.stringify(tango.lanes())`); got != wantLanes {
 			t.Errorf("tango.lanes() after duplex traffic = %s, want %s", got, wantLanes)
 		}
@@ -87,7 +95,10 @@ func benchSmoke(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "go", "run", ".", "-bench")
-	cmd.Env = append(os.Environ(), "TANGO_IPC_LANES_DARWIN=", "TANGO_IPC_LANES=", "TANGO_SCHEME_PROBE=")
+	cmd.Env = append(os.Environ(),
+		"TANGO_IPC_LANES_DARWIN=", "TANGO_IPC_LANES_LINUX=", "TANGO_IPC_LANES_WINDOWS=",
+		"TANGO_IPC_LANES=", "TANGO_SCHEME_PROBE=",
+	)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {

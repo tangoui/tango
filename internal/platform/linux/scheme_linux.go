@@ -16,6 +16,7 @@
 package linux
 
 import (
+	"net/http"
 	"slices"
 	"unsafe"
 
@@ -91,9 +92,10 @@ func (b *backend) serveScheme(req ptr) {
 	if b.streamScheme(req, sid, r) {
 		return
 	}
-	w := newAssetWriter()
-	b.host.ServeAsset(sid, w, r)
-	finishScheme(req, w.finish(r.Method))
+	resp := bufferedAssetResponse(r, func(w http.ResponseWriter, r *http.Request) {
+		b.host.ServeAsset(sid, w, r)
+	})
+	finishScheme(req, resp)
 }
 
 // soupHeaders lists the name/value pairs of a SoupMessageHeaders. The

@@ -109,6 +109,19 @@ func TestAssetWriterIsHandlerCompatible(t *testing.T) {
 	}
 }
 
+func TestBufferedAssetRejectsLanePoll(t *testing.T) {
+	r, err := newAssetRequest("GET", "tango://app/__tango/lane/poll?gen=1&tok=token&ack=0", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := bufferedAssetResponse(r, func(http.ResponseWriter, *http.Request) {
+		t.Fatal("a buffered poll must not call the asset handler")
+	})
+	if got.Status != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want %d", got.Status, http.StatusServiceUnavailable)
+	}
+}
+
 func TestOriginOf(t *testing.T) {
 	cases := map[string]string{
 		"tango://app/index.html":       "tango://app",
