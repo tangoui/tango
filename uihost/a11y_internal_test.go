@@ -24,3 +24,29 @@ func TestA11yActionAfterClose(t *testing.T) {
 	b.tap(func(*a11y.Tree, []a11y.NodeID) {})()
 	b.force()()
 }
+
+func TestThreadedNativeAXPublishesInOneMainTask(t *testing.T) {
+	first := &a11y.Tree{}
+	var tasks []func()
+	b := a11yBridge{postNative: func(fn func()) { tasks = append(tasks, fn) }}
+	seen := false
+	b.publishNative(first, func() {
+		seen = true
+		if b.published.Load() != first {
+			t.Error("action validation was not published before native notification")
+		}
+	})
+	if seen || b.published.Load() != nil || len(tasks) != 1 {
+		t.Fatal("publication escaped its main task")
+	}
+	tasks[0]()
+	b.publishNative(nil, func() {
+		if b.published.Load() != nil {
+			t.Error("withdrawal left stale action validation")
+		}
+	})
+	if !seen || b.published.Load() != first || len(tasks) != 2 {
+		t.Fatal("withdrawal escaped its own main task")
+	}
+	tasks[1]()
+}

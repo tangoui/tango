@@ -143,7 +143,9 @@ func (h *host) watchRenderer(r *ui.Runner) {
 		frameTraceSkipped(h.id, "drawn by the CPU (TANGO_RENDERER=cpu, no GPU presenter, or a renderer set in RunnerOptions); only GPU windows are traced")
 		return
 	}
-	renderers.Store(r, h.gpu)
+	if threadedOf(r) == nil {
+		renderers.Store(r, h.gpu)
+	}
 	if frameTraceOn() {
 		h.trace = newFrameTrace(h.id)
 		h.gpu.setTrace(h.trace)
@@ -186,7 +188,10 @@ func (h *host) frame() {
 		h.trace.begin()
 		// The renderer is read when the frame ends: a frame that loses the
 		// GPU is summarized as cpu.
-		defer func() { h.trace.end(Renderer(h.r)) }()
+		defer func() { h.trace.end(h.gpu.kind()) }()
+	}
+	if h.t != nil {
+		defer func() { h.t.renderer.Store(h.gpu.kind()) }()
 	}
 	var err error
 	// A panic in the frame (page functions included) goes to the app's
@@ -311,6 +316,9 @@ func (h *host) close() {
 	h.closed = true
 	if h.t != nil {
 		h.t.closing.Store(true)
+		if h.ax.postNative != nil {
+			h.ax.published.Store(nil)
+		}
 		h.r.Close() // Post drops tasks from now on; queued frames draw nothing
 		renderers.Delete(h.r)
 		memRunners.Delete(h.r)

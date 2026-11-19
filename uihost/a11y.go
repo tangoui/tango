@@ -48,7 +48,8 @@ type a11yBridge struct {
 	on     bool            // the last AccessibilityEnabled answer
 	tree   *a11y.Tree      // last tree received (nil while off)
 
-	published atomic.Pointer[a11y.Tree] // immutable tree, read by the threaded sink on main
+	postNative func(func())              // non-nil for a threaded canvas with main-thread AX
+	published  atomic.Pointer[a11y.Tree] // immutable tree, read by the threaded sink on main
 
 	// Platform side.
 	platOn bool        // the platform reported an assistive technology
@@ -122,6 +123,23 @@ func (b *a11yBridge) force() (release func()) {
 	}
 }
 
+// publishNative pairs the immutable validation snapshot with native tree
+// installation/withdrawal. Publish before the backend can post layout or
+// focus notifications (and before those can synchronously query actions).
+func (b *a11yBridge) publishNative(tree *a11y.Tree, install func()) {
+	apply := func() {
+		b.published.Store(tree)
+		if install != nil {
+			install()
+		}
+	}
+	if b.postNative == nil {
+		apply()
+	} else {
+		b.postNative(apply)
+	}
+}
+
 // enabled answers ui.AccessibilityHost.AccessibilityEnabled at the start
 // of a frame (inside CanvasFrame).
 func (b *a11yBridge) enabled() bool {
@@ -130,8 +148,8 @@ func (b *a11yBridge) enabled() bool {
 	}
 	plat := b.ca != nil && b.ca.AccessibilityActive()
 	on := plat || b.forced > 0
-	if !on {
-		b.published.Store(nil) // withdraw before platform callbacks
+	if !on && !(b.platOn && b.sent) && b.on {
+		b.publishNative(nil, nil)
 	}
 	switch {
 	case plat && !b.platOn && b.tree != nil:
@@ -142,7 +160,11 @@ func (b *a11yBridge) enabled() bool {
 	case !plat && b.platOn:
 		b.platOn = false
 		if b.sent {
-			b.ca.SetAccessibilityTree(nil)
+			var validation *a11y.Tree
+			if on && b.postNative == nil {
+				validation = b.tree
+			}
+			b.publishNative(validation, func() { b.ca.SetAccessibilityTree(nil) })
 		}
 		b.sent, b.focus = false, 0
 	}
@@ -162,22 +184,23 @@ func (b *a11yBridge) update(tree *a11y.Tree, changed []a11y.NodeID) {
 	}
 	prev := b.tree
 	b.tree = tree
-	// Publish the same immutable tree before exposing it through the
-	// platform or taps; callbacks may ask about it before this frame ends.
-	// Task 7 (Darwin): when native installation moves to main, install the
-	// native tree and its action-validation snapshot together on main,
-	// including withdrawals, before sending focus/live notifications.
-	b.published.Store(tree)
 	if b.platOn && b.ca != nil {
 		if !b.sent {
 			b.sendFull(tree)
 		} else {
-			b.ca.UpdateAccessibilityNodes(tree, changed)
-			b.notify(tree)
-			for _, lc := range a11ybridge.LiveChanges(prev, tree, changed) {
-				b.ca.AccessibilityAnnounce(lc.Text, lc.Live, lc.Root)
-			}
+			notify := b.notifications(tree)
+			live := a11ybridge.LiveChanges(prev, tree, changed)
+			changed = slices.Clone(changed)
+			b.publishNative(tree, func() {
+				b.ca.UpdateAccessibilityNodes(tree, changed)
+				notify()
+				for _, lc := range live {
+					b.ca.AccessibilityAnnounce(lc.Text, lc.Live, lc.Root)
+				}
+			})
 		}
+	} else if b.postNative == nil {
+		b.publishNative(tree, nil)
 	}
 	b.fanOut(tree, changed)
 }
@@ -185,18 +208,24 @@ func (b *a11yBridge) update(tree *a11y.Tree, changed []a11y.NodeID) {
 // sendFull gives the platform the whole tree, then focus and this frame's
 // announcements (live regions are not announced for a first tree).
 func (b *a11yBridge) sendFull(tree *a11y.Tree) {
-	b.ca.SetAccessibilityTree(tree)
 	b.sent, b.focus = true, 0
-	b.notify(tree)
+	notify := b.notifications(tree)
+	b.publishNative(tree, func() { b.ca.SetAccessibilityTree(tree); notify() })
 }
 
-func (b *a11yBridge) notify(tree *a11y.Tree) {
-	if f := a11ybridge.EffectiveFocus(tree); f != b.focus {
-		b.focus = f
-		b.ca.AccessibilityFocusChanged(f)
-	}
-	for _, a := range tree.Announcements {
-		b.ca.AccessibilityAnnounce(a.Text, a.Live, 0)
+// Compute the focus transition on the UI thread; the returned function
+// touches only immutable data and the platform's main-thread interface.
+func (b *a11yBridge) notifications(tree *a11y.Tree) func() {
+	f := a11ybridge.EffectiveFocus(tree)
+	changed := f != b.focus
+	b.focus = f
+	return func() {
+		if changed {
+			b.ca.AccessibilityFocusChanged(f)
+		}
+		for _, a := range tree.Announcements {
+			b.ca.AccessibilityAnnounce(a.Text, a.Live, 0)
+		}
 	}
 }
 
@@ -248,10 +277,12 @@ func (b *a11yBridge) reset() {
 	if b.closed {
 		return
 	}
-	b.published.Store(nil)
-	if b.sent && b.ca != nil {
-		b.ca.SetAccessibilityTree(nil)
-	}
+	hadNative := b.sent && b.ca != nil
+	b.publishNative(nil, func() {
+		if hadNative {
+			b.ca.SetAccessibilityTree(nil)
+		}
+	})
 	b.sent, b.focus = false, 0
 	if b.tree != nil {
 		b.tree = nil

@@ -42,8 +42,10 @@ import (
 	"os"
 	"strings"
 	"sync"
+
 	"time"
 
+	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/render/gpu"
 	"github.com/tangoui/tango/ui"
@@ -150,6 +152,9 @@ var renderers sync.Map // *ui.Runner -> *gpuRenderer
 // TANGO_RENDERER=cpu, a fallback after the GPU
 // was lost, or a runner uihost did not open). Main thread.
 func Renderer(r *ui.Runner) string {
+	if t := threadedOf(r); t != nil {
+		return t.renderer.Load().(string)
+	}
 	if g, ok := renderers.Load(r); ok && !g.(*gpuRenderer).lost() {
 		if g.(*gpuRenderer).nativeMode {
 			return "native"
@@ -195,8 +200,33 @@ func setupGPU(cv platform.Canvas, ropts ui.RunnerOptions) *gpuRenderer {
 }
 
 // startGPU attempts presentation setup without applying the automatic policy.
-func startGPU(cv platform.Canvas, forced bool) *gpuRenderer {
-	target, err := gpuTarget(cv)
+type layerResult struct {
+	layer uintptr
+	err   error
+}
+
+func acquireLayer(app *tango.App, fn func() (uintptr, error)) (uintptr, error) {
+	if app == nil {
+		return fn()
+	}
+	result := tango.Await(app, func() layerResult {
+		layer, err := fn()
+		return layerResult{layer, err}
+	})
+	if result.layer == 0 && result.err == nil {
+		return 0, platform.ErrUnsupported
+	}
+	return result.layer, result.err
+}
+
+func startGPU(cv platform.Canvas, forced bool) *gpuRenderer { return startGPUOn(nil, cv, forced) }
+
+func startGPUOn(app *tango.App, cv platform.Canvas, forced bool) *gpuRenderer {
+	target, err := acquireLayer(app, func() (uintptr, error) { return gpuTarget(cv) })
+	return buildGPU(cv, forced, target, err)
+}
+
+func buildGPU(cv platform.Canvas, forced bool, target uintptr, err error) *gpuRenderer {
 	if err != nil {
 		logGPUUnavailable(err, forced)
 		return nil
@@ -231,6 +261,8 @@ func startGPU(cv platform.Canvas, forced bool) *gpuRenderer {
 // gpuRenderer renders with the GPU renderer until the device is lost,
 // then with a paint.CPU. Main thread.
 type gpuRenderer struct {
+	main *tango.App // non-nil for a threaded window: layer replacement awaits main
+
 	gpu        paint.Renderer
 	present    func(size image.Point, scale float32) error
 	cpu        *paint.CPU // non-nil: CPU mode
@@ -267,6 +299,16 @@ func (g *gpuRenderer) attachTimeline() {
 
 func (g *gpuRenderer) lost() bool { return g.cpu != nil }
 
+func (g *gpuRenderer) kind() string {
+	if g == nil || g.lost() {
+		return "cpu"
+	}
+	if g.nativeMode {
+		return "native"
+	}
+	return "gpu"
+}
+
 func (g *gpuRenderer) Render(l *paint.List, size geom.Size, scale float32) error {
 	if g.closed {
 		return nil
@@ -283,7 +325,7 @@ func (g *gpuRenderer) Render(l *paint.List, size geom.Size, scale float32) error
 	if g.auto != nil && g.auto.shouldPromote(l, size, time.Now()) {
 		cv := g.auto.canvas
 		g.auto = nil // try once; failures never cause a retry storm
-		if promoted := startGPU(cv, false); promoted != nil && promoted.gpu != nil {
+		if promoted := startGPUOn(g.main, cv, false); promoted != nil && promoted.gpu != nil {
 			g.gpu, g.present, g.cpu = promoted.gpu, promoted.present, nil
 			g.attachTimeline()
 		}

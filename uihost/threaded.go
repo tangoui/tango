@@ -21,6 +21,7 @@ package uihost
 import (
 	"fmt"
 	"log"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/tangoui/tango/internal/uithread"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
 )
 
@@ -48,7 +50,8 @@ type threadedHost struct {
 	// theme is the runner's theme as of the last frame, for main-thread
 	// readers (FollowingSystemTheme). TODO(Task 8): part of the per-frame
 	// UI-state snapshot.
-	theme atomic.Pointer[theme.Theme]
+	theme    atomic.Pointer[theme.Theme]
+	renderer atomic.Value // string, published after each frame
 
 	frameInfo atomic.Pointer[ui.WindowFrameInfo] // published by main, read by UI
 	closing   atomic.Bool                        // set by main before draining queued work
@@ -124,7 +127,7 @@ func (t *threadedHost) post(app *tango.App, fn func()) {
 // when the clock cannot start: the window then uses the main
 // thread. Main thread.
 //
-// Only StartFrameClock waits for the UI thread (it must not wait for the
+// Clock/presenter startup waits for the UI thread (it must not wait for the
 // main thread). The GPU switch (UseMetalLayer, UseCoreGraphicsLayer) needs
 // the main thread, so setupGPU runs here; so do newA11y (it reads the
 // system's reduce-motion preference) and everything else that calls the
@@ -144,7 +147,14 @@ func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page f
 		log.Printf("tango: uihost: surface %d: no frame clock, drawing on the main thread: %v", h.id, err)
 		return
 	}
-	h.gpu = setupGPU(h.cv, ropts) // gpu.go; nil: CPU
+	build := prepareThreadedGPU(h.cv, ropts)
+	if build != nil {
+		t.th.Do(func() { h.gpu = build() })
+	}
+	if h.gpu != nil {
+		h.gpu.main = h.app
+	}
+	t.renderer.Store(h.gpu.kind())
 	if h.gpu != nil {
 		ropts.Renderer = h.gpu
 	}
@@ -152,6 +162,15 @@ func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page f
 	threadedRunners.Store(r, t) // before newA11y: followMotion records it
 	t.theme.Store(r.Context().Theme)
 	h.ax = newA11y(h.app, h.cv, r, ropts)
+	if _, ok := h.cv.(interface{ MainThreadAccessibility() }); ok {
+		h.ax.postNative = func(fn func()) {
+			h.app.Post(func() {
+				if !t.closing.Load() {
+					fn()
+				}
+			})
+		}
+	}
 	r.BindThread(t.th)
 	w, ht, scale := ct.MainGeometry()
 	h.win = &window{app: h.app, cv: h.cv, id: h.id, gpu: h.gpu, sc: h.sc, ax: h.ax, t: t,
@@ -246,4 +265,34 @@ func (h *host) closeThreaded() {
 		release = cv.ReleaseThreadedOnMain
 	}
 	corehook.AfterUIThread(h.app, t.th.Done(), release)
+}
+
+// prepareThreadedGPU selects the same initial policy as setupGPU, but splits
+// AppKit layer installation from presenter creation. Neither builder nor the
+// clock may await main: main is still in Open. If native construction fails
+// after its layer was installed, CPU can use that layer without a second hop.
+func prepareThreadedGPU(cv platform.Canvas, opts ui.RunnerOptions) func() *gpuRenderer {
+	mode := os.Getenv("TANGO_RENDERER")
+	if opts.Renderer != nil || mode == "cpu" {
+		return nil
+	}
+	if (mode == "native" || mode == "") && nativeNewPresenter != nil {
+		if target, ok := cv.(platform.CanvasCoreGraphics); ok {
+			if layer, err := target.UseCoreGraphicsLayer(); err == nil {
+				return func() *gpuRenderer {
+					g, err := buildNative(cv, mode == "native", opts.Content, layer)
+					if err == nil {
+						return g
+					}
+					logGPUUnavailable(err, false)
+					return &gpuRenderer{cpu: paint.NewCPU()}
+				}
+			}
+		}
+	}
+	if mode == "auto" && autoCPUWindow(cv) {
+		return func() *gpuRenderer { return &gpuRenderer{cpu: paint.NewCPU(), auto: &autoRendererState{canvas: cv}} }
+	}
+	target, err := gpuTarget(cv)
+	return func() *gpuRenderer { return buildGPU(cv, mode == "gpu", target, err) }
 }

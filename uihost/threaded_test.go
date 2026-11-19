@@ -20,6 +20,7 @@ import (
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
+	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
 	"github.com/tangoui/tango/uihost"
 )
@@ -537,10 +538,17 @@ func TestThreadedCloseStopsClockAndThread(t *testing.T) {
 func TestThreadedGPUSetupOnMainThread(t *testing.T) {
 	t.Setenv("TANGO_RENDERER", "gpu")
 	g := &fakeGPU{}
-	hooks(t, g)
+	var createdOn *uithread.Thread
+	t.Cleanup(uihost.SetGPUHooks(func(layer uintptr) (paint.Renderer, func(image.Point, float32) error, error) {
+		createdOn = uithread.Current()
+		return g.newPresenter(layer)
+	}, nil))
 	a, fb := faketest.Run(t, tango.Options{})
 	fb.EnableCanvasMetal(0)
 	r, _, tc, _ := openThreaded(t, a, fb, func(c *ui.Context) { ui.Text(c, "gpu") })
+	if createdOn != tc.th {
+		t.Fatal("GPU presenter not created on its frame thread")
+	}
 	main := mainGID(a)
 	tc.mu.Lock()
 	gids := slices.Clone(tc.metalGIDs)

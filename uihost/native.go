@@ -52,7 +52,7 @@ func startNative(cv platform.Canvas, forced bool, content ui.ContentKind) *gpuRe
 	if err != nil {
 		return nil
 	}
-	r, present, err := nativeNewPresenter(layer)
+	g, err := buildNative(cv, forced, content, layer)
 	if err != nil {
 		// Metal can take over the layer (as in promoteNative); a large or
 		// typing window would move there anyway. Both targets show CPU frames.
@@ -62,16 +62,24 @@ func startNative(cv platform.Canvas, forced bool, content ui.ContentKind) *gpuRe
 		}
 		return &gpuRenderer{cpu: paint.NewCPU()}
 	}
+	return g
+}
+
+func buildNative(cv platform.Canvas, forced bool, content ui.ContentKind, layer uintptr) (*gpuRenderer, error) {
+	r, present, err := nativeNewPresenter(layer)
+	if err != nil {
+		return nil, err
+	}
 	g := &gpuRenderer{gpu: r, present: present, nativeMode: true}
 	if !forced {
 		g.native = &nativeRendererState{canvas: cv, content: content}
 	}
-	return g
+	return g, nil
 }
 func (g *gpuRenderer) promoteNative() {
 	cv := g.native.canvas
 	g.native = nil // attempt once, including a failed target/presenter
-	promoted := startGPU(cv, false)
+	promoted := startGPUOn(g.main, cv, false)
 	g.releaseGPU()
 	if promoted != nil && promoted.gpu != nil {
 		g.gpu, g.present = promoted.gpu, promoted.present

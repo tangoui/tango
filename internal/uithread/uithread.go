@@ -15,9 +15,10 @@ type Thread struct {
 	gid     uint64 // goroutine id; set before Start returns, then read-only
 	onPanic func(any)
 
-	mu      sync.Mutex
-	queue   []func()
-	stopped bool
+	mu             sync.Mutex
+	queue          []func()
+	stopped        bool
+	pump, wakePump func()
 
 	wake chan struct{} // capacity 1: "the queue may be non-empty"
 	done chan struct{}
@@ -62,14 +63,18 @@ func (t *Thread) run(started chan<- struct{}) {
 
 	for {
 		t.mu.Lock()
-		batch, stopped := t.queue, t.stopped
+		batch, stopped, pump := t.queue, t.stopped, t.pump
 		t.queue = nil
 		t.mu.Unlock()
 		if len(batch) == 0 {
 			if stopped {
 				return
 			}
-			<-t.wake
+			if pump != nil {
+				pump()
+			} else {
+				<-t.wake
+			}
 			continue
 		}
 		for i, fn := range batch {
@@ -106,7 +111,23 @@ func (t *Thread) Post(fn func()) bool {
 	return true
 }
 
+// SetIdlePump installs (or clears) the UI thread's native event pump.
+// Only the owned thread may call it. wake must latch a signal even if pump
+// has not entered the native loop yet; it must not execute callbacks.
+// On return from clearing it, no concurrent Post/Stop can call the old wake.
+func (t *Thread) SetIdlePump(pump, wake func()) {
+	t.mu.Lock()
+	t.pump, t.wakePump = pump, wake
+	t.mu.Unlock()
+}
+
 func (t *Thread) signal() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.wakePump != nil {
+		t.wakePump()
+		return
+	}
 	select {
 	case t.wake <- struct{}{}:
 	default:

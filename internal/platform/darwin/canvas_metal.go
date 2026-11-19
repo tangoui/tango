@@ -71,7 +71,7 @@ func (c *canvas) UseMetalLayer() (uintptr, error) {
 	}
 	// The layer starts empty and AppKit will not display the view any more:
 	// ask for the first GPU frame (from the run loop, never re-entrantly).
-	c.enqueue(func(c *canvas) { c.qFrame = true })
+	c.Invalidate()
 	return uintptr(c.metalLayer), nil
 }
 
@@ -98,6 +98,9 @@ func (c *canvas) syncHostedLayer() {
 	layer := c.metalLayer
 	if layer == 0 {
 		layer = c.nativeLayer
+	}
+	if layer == 0 {
+		layer = c.threadCPULayer
 	}
 	if layer == 0 {
 		return
@@ -129,7 +132,7 @@ func noActions() id {
 // sublayer above the drawables, shown until the next Present(nil).
 func (c *canvas) presentLayer() id {
 	if c.metalLayer == 0 {
-		return send(c.view, "layer")
+		return c.cpuContentLayer()
 	}
 	const kCALayerWidthSizable, kCALayerHeightSizable = 1 << 1, 1 << 4
 	ca := class("CATransaction")
@@ -163,7 +166,7 @@ func (c *canvas) hideCPULayer() {
 		send(ca, "setDisableActions:", 1)
 		send(c.cpuLayer, "setHidden:", 1)
 		send(c.cpuLayer, "setContents:", 0)
-		send(ca, "commit")
+		c.commitPresentation(ca)
 	})
 }
 

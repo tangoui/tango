@@ -80,14 +80,14 @@ func (c *canvas) tileLayer(i int) id {
 	send(l, "setActions:", uintptr(noActions()))
 	send(l, "setOpaque:", 1)
 	send(l, "setHidden:", 1)
-	send(send(c.view, "layer"), "addSublayer:", uintptr(l))
+	send(c.cpuContentLayer(), "addSublayer:", uintptr(l))
 	t.layers[i] = l
 	return l
 }
 
 // PresentDamage implements platform.CanvasDamagePresenter.
 func (c *canvas) PresentDamage(img *image.RGBA, dirty []image.Rectangle) error {
-	if c.closed {
+	if c.closing.Load() {
 		return errCanvasClosed
 	}
 	if img == nil || (c.metalLayer != 0 || c.nativeLayer != 0) || c.tiles == nil {
@@ -138,24 +138,25 @@ func (c *canvas) PresentDamage(img *image.RGBA, dirty []image.Rectangle) error {
 		imgs = append(imgs, cg)
 	}
 	withPool(func() {
-		parent := send(c.view, "layer")
+		parent := c.cpuContentLayer()
 		flipped := sendBool(parent, "contentsAreFlipped")
 		layerH := msgRect(parent, sel("bounds")).Size.Height
+		scale := c.presentationScale()
 		ca := class("CATransaction")
 		send(ca, "begin")
 		send(ca, "setDisableActions:", 1)
 		for k, i := range tiles {
 			l := c.tileLayer(i)
-			x, y, w, h := canvasTileFrame(t.grid.rect(i), c.scale, flipped, layerH)
+			x, y, w, h := canvasTileFrame(t.grid.rect(i), scale, flipped, layerH)
 			msgSetRect(l, sel("setFrame:"), nsRect{Origin: nsPoint{X: x, Y: y}, Size: nsSize{Width: w, Height: h}})
 			send(l, "setContents:", imgs[k])
-			msgSetFloat(l, sel("setContentsScale:"), c.scale)
+			msgSetFloat(l, sel("setContentsScale:"), scale)
 			if sendBool(l, "isHidden") {
 				send(l, "setHidden:", 0)
 				t.shown = append(t.shown, i)
 			}
 		}
-		send(ca, "commit")
+		c.commitPresentation(ca)
 	})
 	release()
 	return nil

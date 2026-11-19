@@ -141,7 +141,8 @@ func loadPresenter() error {
 }
 
 // NewPresenter attaches a GPU renderer to a CAMetalLayer obtained from
-// platform.CanvasMetal.UseMetalLayer. Main thread only. On non-darwin it
+// platform.CanvasMetal.UseMetalLayer. Create, render, present and close
+// on one owning thread (the main thread or a locked window UI thread). On non-darwin it
 // returns an error wrapping ErrUnsupported.
 //
 // It creates a Device (failing with ErrNoDevice without a Metal GPU),
@@ -149,7 +150,7 @@ func loadPresenter() error {
 // (YES) and colorspace (sRGB), and leaves contentsScale, frame, opacity
 // and actions to the platform. r is a gpu.Renderer over the Device; it
 // also implements interface{ Close() error }, which releases the Device
-// and the layer reference (main thread; r and present fail with ErrClosed
+// and the layer reference (owning thread; r and present fail with ErrClosed
 // afterwards).
 //
 // present(size, scale) shows the frame r rendered last: size is the
@@ -192,6 +193,9 @@ func (r *presenterRenderer) Close() error {
 	r.p.Close()
 	return nil
 }
+
+// ReadPixels reads the last rendered Metal target (not the compositor).
+func (r *presenterRenderer) ReadPixels() (*image.RGBA, error) { return r.p.dev.ReadPixels() }
 
 // SetTimeline is Device.SetTimeline on the presenter's Device: fn (nil
 // removes it) receives the Timing of every retired command buffer and of

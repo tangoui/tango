@@ -40,6 +40,7 @@ import (
 	"image"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -124,7 +125,15 @@ type canvas struct {
 	cpuLayer    id           // Metal mode: sublayer showing Present(img) frames (canvas_metal.go)
 	tiles       *canvasTiles // CPU mode: tile sublayers of partial frames (canvas_damage.go)
 
-	ax *canvasA11y // accessibility bridge, nil until first used (canvas_a11y.go)
+	// The retained view and hosted layers outlive native close until Done.
+	threadClock                                  atomic.Pointer[threadFrameClock]
+	geometrySnapshot                             atomic.Pointer[threadedGeometry]
+	closing                                      atomic.Bool
+	threadPrepared, threadReleased               bool // main thread
+	threadLink, threadLinkTarget, threadCPULayer id
+
+	ax       *canvasA11y // main-thread accessibility bridge, nil until first used
+	axActive atomic.Bool // read by the frame thread
 
 	// Guarded by canvasQueue.mu.
 	queued    bool
@@ -350,6 +359,9 @@ func (c *canvas) checkGeometry() bool {
 		return false
 	}
 	c.w, c.h, c.scale = w, h, scale
+	if c.threadPrepared {
+		c.publishGeometry()
+	}
 	c.syncHostedLayer()
 	if c.ready {
 		c.sink.CanvasResized(float32(w), float32(h), float32(scale))
@@ -379,10 +391,20 @@ func (c *canvas) enqueue(set func(c *canvas)) {
 }
 
 // Invalidate implements platform.Canvas. Any goroutine.
-func (c *canvas) Invalidate() { c.enqueue(func(c *canvas) { c.qFrame = true }) }
+func (c *canvas) Invalidate() {
+	if f := c.threadClock.Load(); f != nil {
+		f.request()
+		return
+	}
+	c.enqueue(func(c *canvas) { c.qFrame = true })
+}
 
 // InvalidateAt implements platform.Canvas. Any goroutine.
 func (c *canvas) InvalidateAt(t time.Time) {
+	if f := c.threadClock.Load(); f != nil {
+		f.requestAt(t)
+		return
+	}
 	c.enqueue(func(c *canvas) {
 		if c.qAt.IsZero() || t.Before(c.qAt) {
 			c.qAt = t
@@ -423,7 +445,11 @@ func canvasPerform() {
 				c.armTimer()
 			}
 			if r.frame {
-				c.requestFrame()
+				if f := c.threadClock.Load(); f != nil {
+					f.request()
+				} else {
+					c.requestFrame()
+				}
 			}
 		}
 	})
@@ -457,6 +483,13 @@ func (c *canvas) requestFrame() {
 }
 
 func (c *canvas) setNeedsDisplay() {
+	if f := c.threadClock.Load(); f != nil {
+		f.request()
+		return
+	}
+	if c.threadPrepared {
+		return
+	}
 	if c.metalLayer != 0 || c.nativeLayer != 0 {
 		c.metalDisplay() // layer-hosting: no updateLayer (canvas_metal.go)
 		return
@@ -531,7 +564,7 @@ func canvasTimerFired(key uintptr) {
 
 // frame runs from updateLayer: AppKit is displaying the view.
 func (c *canvas) frame() {
-	if c.closed || c.inFrame {
+	if c.closed || c.inFrame || c.threadPrepared {
 		return
 	}
 	c.frameWanted = false
@@ -595,7 +628,7 @@ func (c *canvas) SetTextInput(enabled bool, caret geom.Rect) {
 
 // Present copies img into a CGImage and makes it the layer's contents.
 func (c *canvas) Present(img *image.RGBA) error {
-	if c.closed {
+	if c.closing.Load() {
 		return errCanvasClosed
 	}
 	if img == nil {
@@ -628,9 +661,11 @@ func (c *canvas) Present(img *image.RGBA) error {
 		send(ca, "begin")
 		send(ca, "setDisableActions:", 1)
 		send(layer, "setContents:", cg)
-		msgSetFloat(layer, sel("setContentsScale:"), c.scale)
+		if c.threadClock.Load() == nil || c.metalLayer != 0 {
+			msgSetFloat(layer, sel("setContentsScale:"), c.presentationScale())
+		}
 		c.tilesReset(image.Pt(w, h)) // canvas_damage.go: the whole frame covers every tile
-		send(ca, "commit")
+		c.commitPresentation(ca)
 	})
 	cgImageRelease(cg)
 	return nil
@@ -664,8 +699,14 @@ func (c *canvas) destroy() {
 		return
 	}
 	c.closed = true
-	c.nativeLayer, c.metalLayer, c.cpuLayer = 0, 0, 0
-	c.tiles = nil
+	c.closing.Store(true)
+	if f := c.threadClock.Load(); f != nil {
+		f.stop()
+	}
+	if !c.threadPrepared {
+		c.nativeLayer, c.metalLayer, c.cpuLayer = 0, 0, 0
+		c.tiles = nil
+	}
 	if c.link != 0 {
 		send(c.link, "invalidate") // drops its reference to the view
 		release(c.link)

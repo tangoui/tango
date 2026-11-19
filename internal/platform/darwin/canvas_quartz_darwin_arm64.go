@@ -46,7 +46,7 @@ func (c *canvas) UseCoreGraphicsLayer() (uintptr, error) {
 	if c.nativeLayer == 0 {
 		return 0, errors.New("tango/darwin: cannot create native content layer")
 	}
-	c.enqueue(func(c *canvas) { c.qFrame = true })
+	c.Invalidate()
 	return uintptr(c.nativeLayer), nil
 }
 

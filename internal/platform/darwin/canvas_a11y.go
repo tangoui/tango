@@ -24,7 +24,6 @@ package darwin
 import (
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -40,11 +39,10 @@ var _ platform.CanvasAccessible = (*canvas)(nil)
 // canvasA11y is the accessibility state of one canvas. Main thread, except
 // active.
 type canvasA11y struct {
-	c      *canvas
-	active atomic.Bool
-	tree   *a11y.Tree
-	elems  map[a11y.NodeID]id // TangoA11yElement objects (retained)
-	focus  a11y.NodeID        // effective focus from the core
+	c     *canvas
+	tree  *a11y.Tree
+	elems map[a11y.NodeID]id // TangoA11yElement objects (retained)
+	focus a11y.NodeID        // effective focus from the core
 	// axAsked is the node an assistive technology just asked to focus
 	// (setAccessibilityFocused:). Its focus change is announced even when
 	// the window is not key (display asleep, app in the background): the
@@ -104,7 +102,7 @@ func (c *canvas) a11yState() *canvasA11y {
 
 // activate marks the canvas as read by an assistive technology.
 func (ax *canvasA11y) activate() {
-	if !ax.active.Swap(true) && !ax.c.closed {
+	if !ax.c.axActive.Swap(true) && !ax.c.closed {
 		ax.c.Invalidate()
 	}
 }
@@ -112,8 +110,7 @@ func (ax *canvasA11y) activate() {
 // ---- platform.CanvasAccessible ----
 
 func (c *canvas) AccessibilityActive() bool {
-	ax := c.ax
-	return ax != nil && ax.active.Load()
+	return c.axActive.Load()
 }
 
 func (c *canvas) SetAccessibilityTree(tree *a11y.Tree) {
@@ -219,7 +216,7 @@ func (c *canvas) a11yDestroy() {
 	}
 	c.ax.dropAll()
 	c.ax.tree = nil
-	c.ax.active.Store(false)
+	c.axActive.Store(false)
 }
 
 // ---- elements ----

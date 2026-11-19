@@ -55,7 +55,10 @@ func registerCanvasView() {
 
 		methods := []objc.MethodDef{
 			method("isFlipped", yes),
-			method("wantsUpdateLayer", yes),
+			method("wantsUpdateLayer", func(self id, _ objc.SEL) bool {
+				c := canvasOf(self)
+				return c == nil || !c.threadPrepared
+			}),
 			method("acceptsFirstResponder", yes),
 			method("acceptsFirstMouse:", func(self id, _ objc.SEL, ev id) bool { return true }),
 			method("updateLayer", func(self id, _ objc.SEL) {
@@ -65,13 +68,13 @@ func registerCanvasView() {
 			}),
 			method("setFrameSize:", func(self id, _ objc.SEL, sz nsSize) {
 				msgSuperSize(superOf(self), sel("setFrameSize:"), sz)
-				if c := canvasOf(self); c != nil && c.checkGeometry() {
+				if c := canvasOf(self); c != nil && c.checkGeometry() && !c.threadPrepared {
 					c.setNeedsDisplay()
 				}
 			}),
 			method("viewDidChangeBackingProperties", func(self id, _ objc.SEL) {
 				msgSuper(superOf(self), sel("viewDidChangeBackingProperties"))
-				if c := canvasOf(self); c != nil && c.checkGeometry() {
+				if c := canvasOf(self); c != nil && c.checkGeometry() && !c.threadPrepared {
 					c.setNeedsDisplay()
 				}
 			}),

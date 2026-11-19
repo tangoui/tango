@@ -12,6 +12,7 @@ import (
 
 	"github.com/ebitengine/purego"
 	"github.com/ebitengine/purego/objc"
+	"github.com/tangoui/tango/internal/uithread"
 )
 
 type nativePoint struct{ X, Y float64 }
@@ -42,7 +43,17 @@ var nativeDelegate objc.ID
 var nativeNearest objc.ID
 var nativePoolPush func() uintptr
 var nativePoolPop func(uintptr)
-var nativeDrawers = map[objc.ID]*node{}
+
+// A display callback can be delivered independently of the renderer's
+// explicit displayIfNeeded. Never read mutable node state from another thread.
+var nativeDrawersMu sync.RWMutex
+var nativeDrawers = map[objc.ID]nativeDrawer{}
+
+type nativeDrawer struct {
+	node   *node
+	thread *uithread.Thread
+}
+
 var setNativeRect func(objc.ID, objc.SEL, nativeRect)
 var setNativeFloat func(objc.ID, objc.SEL, float64)
 var cgSave, cgRestore, cgContextRelease func(uintptr)
@@ -114,8 +125,11 @@ func loadNative() error {
 			panic("no sRGB color space")
 		}
 		cls, e := objc.RegisterClass("TangoCoreGraphicsLayerDrawer", objc.GetClass("NSObject"), nil, nil, []objc.MethodDef{{Cmd: sel("drawLayer:inContext:"), Fn: func(_ objc.ID, _ objc.SEL, layer objc.ID, ctx uintptr) {
-			if n := nativeDrawers[layer]; n != nil {
-				n.draw(ctx)
+			nativeDrawersMu.RLock()
+			d := nativeDrawers[layer]
+			nativeDrawersMu.RUnlock()
+			if d.node != nil && (d.thread == nil || d.thread.On()) {
+				d.node.draw(ctx)
 			}
 		}}})
 		if e != nil {

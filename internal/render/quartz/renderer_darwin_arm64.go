@@ -11,6 +11,7 @@ import (
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/tangoui/tango/internal/nativeglyph"
+	"github.com/tangoui/tango/internal/uithread"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/paint"
 )
@@ -36,6 +37,7 @@ type imageResource struct {
 	used uint64
 }
 type renderer struct {
+	thread                 *uithread.Thread // nil on the legacy main-thread path
 	layer                  objc.ID
 	scene                  *scene
 	nodes, spare           []*node
@@ -68,7 +70,7 @@ func NewPresenter(target uintptr) (paint.Renderer, func(image.Point, float32) er
 		return nil, nil, fmt.Errorf("quartz: target is not a CALayer")
 	}
 	layer.Send(sel("retain"))
-	r := &renderer{layer: layer, scene: newScene(nativeglyph.CoreGraphics), images: map[string]*imageResource{}}
+	r := &renderer{layer: layer, thread: uithread.Current(), scene: newScene(nativeglyph.CoreGraphics), images: map[string]*imageResource{}}
 	done := nativeTransaction()
 	defer done()
 	layer.Send(sel("setGeometryFlipped:"), true)
@@ -259,7 +261,9 @@ func (r *renderer) newNode(kind itemKind) *node {
 	if kind == itemText {
 		n.layer.Send(sel("setDrawsAsynchronously:"), false)
 		n.layer.Send(sel("setDelegate:"), nativeDelegate)
-		nativeDrawers[n.layer] = n
+		nativeDrawersMu.Lock()
+		nativeDrawers[n.layer] = nativeDrawer{n, r.thread}
+		nativeDrawersMu.Unlock()
 	}
 	n.layer.Send(sel("setMasksToBounds:"), true)
 	if kind == itemPatch {
@@ -404,6 +408,10 @@ func (r *renderer) present(_ image.Point, _ float32) error {
 	defer nativePoolPop(pool)
 	start := time.Now()
 
+	if r.thread != nil {
+		objc.ID(objc.GetClass("CATransaction")).Send(sel("flush"))
+	}
+
 	if r.metricsReady {
 		r.lastWork = r.renderCost + time.Since(start)
 	} else {
@@ -424,7 +432,9 @@ func (n *node) close() {
 	if n.layer == 0 {
 		return
 	}
+	nativeDrawersMu.Lock()
 	delete(nativeDrawers, n.layer)
+	nativeDrawersMu.Unlock()
 	n.layer.Send(sel("setDelegate:"), objc.ID(0))
 	n.layer.Send(sel("removeFromSuperlayer"))
 	n.layer.Send(sel("release"))
