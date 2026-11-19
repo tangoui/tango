@@ -5,6 +5,7 @@ package quartz
 import (
 	"image/color"
 	"testing"
+	"time"
 
 	"github.com/ebitengine/purego"
 	"github.com/ebitengine/purego/objc"
@@ -73,4 +74,44 @@ func nativeBounds(layer objc.ID) nativeSize {
 		purego.RegisterFunc(&getNativeRect, send)
 	}
 	return getNativeRect(layer, sel("bounds")).Size
+}
+
+// The native→Metal promotion policy (uihost nativeRendererState) reads
+// FrameMetrics. On a UI thread present flushes the Core Animation
+// transaction, which the main-thread path leaves to the run loop; that
+// commit must not count as frame work, or the threaded path promotes on
+// frames the main-thread path calls cheap.
+func TestThreadedFrameMetricsExcludeFlush(t *testing.T) {
+	if err := loadNative(); err != nil {
+		t.Skipf("CoreGraphics unavailable: %v", err)
+	}
+	slow := 30 * time.Millisecond
+	orig := flushTransaction
+	flushTransaction = func() { time.Sleep(slow); orig() }
+	defer func() { flushTransaction = orig }()
+	th := uithread.Start("quartz metrics")
+	defer th.Stop()
+	root := objc.ID(objc.GetClass("CALayer")).Send(sel("new"))
+	defer root.Send(sel("release"))
+	th.Do(func() {
+		pr, present, err := NewPresenter(uintptr(root))
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := pr.(*renderer)
+		defer r.Close()
+		var l paint.List
+		l.Background = color.NRGBA{G: 200, A: 255}
+		if err := r.Render(&l, geom.Size{W: 40, H: 30}, 1); err != nil {
+			t.Fatal(err)
+		}
+		cost := r.renderCost
+		if err := present(r.scene.bounds.Size(), 1); err != nil {
+			t.Fatal(err)
+		}
+		work, _ := r.FrameMetrics()
+		if work >= slow || work > cost+5*time.Millisecond {
+			t.Fatalf("FrameMetrics work %v includes the %v transaction flush (render %v)", work, slow, cost)
+		}
+	})
 }

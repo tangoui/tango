@@ -416,6 +416,11 @@ func (r *renderer) drawText() {
 	}
 }
 
+// flushTransaction commits this thread's Core Animation transaction (a
+// window UI thread has no run-loop commit like the main thread's).
+// A variable for tests.
+var flushTransaction = func() { objc.ID(objc.GetClass("CATransaction")).Send(sel("flush")) }
+
 func (r *renderer) present(_ image.Point, _ float32) error {
 	if r.closed {
 		return nil
@@ -424,11 +429,14 @@ func (r *renderer) present(_ image.Point, _ float32) error {
 	defer runtime.UnlockOSThread()
 	pool := nativePoolPush()
 	defer nativePoolPop(pool)
-	start := time.Now()
-
 	if r.thread != nil {
-		objc.ID(objc.GetClass("CATransaction")).Send(sel("flush"))
+		// Not frame work: the main-thread path commits the same transaction
+		// from its run loop, outside FrameMetrics. Counting it here would
+		// promote a window UI thread to Metal on frames the main-thread
+		// path keeps native (uihost nativeRendererState).
+		flushTransaction()
 	}
+	start := time.Now()
 
 	if r.metricsReady {
 		r.lastWork = r.renderCost + time.Since(start)
