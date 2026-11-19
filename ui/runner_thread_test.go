@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/uithread"
 )
 
@@ -314,5 +315,32 @@ func TestPostToStoppedThreadFallsBackToPoster(t *testing.T) {
 	w.runQueued()
 	if ran {
 		t.Fatal("Post after Close ran")
+	}
+}
+
+// A Post the stopped thread refused is dropped when the window has no
+// UIPoster, even if the host cleared the binding meanwhile: it never runs
+// on the posting goroutine.
+func TestFailedPostWithoutPosterDropped(t *testing.T) {
+	r := NewRunner(func(*Context) {}, RunnerOptions{})
+	th := uithread.Start(t.Name())
+	r.BindThread(th)
+	r.Attach(newThreadWin()) // no UIPoster
+	th.Stop()
+	<-th.Done()
+	afterFailedPost = func(r *Runner) { corehook.ReturnRunnerToMain(r) } // the handover races the Post
+	t.Cleanup(func() { afterFailedPost = nil })
+	ran := false
+	r.Post(func() { ran = true })
+	if ran {
+		t.Fatal("a refused Post ran inline on the posting goroutine")
+	}
+	afterFailedPost = nil
+	// Unbound from the start and no poster: the headless inline path.
+	h := NewRunner(func(*Context) {}, RunnerOptions{})
+	h.Attach(newThreadWin())
+	h.Post(func() { ran = true })
+	if !ran {
+		t.Fatal("headless Post did not run inline")
 	}
 }

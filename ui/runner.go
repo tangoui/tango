@@ -234,10 +234,17 @@ func (r *Runner) Post(fn func()) {
 		if t.Post(run) || r.closed.Load() {
 			return
 		}
+		if afterFailedPost != nil {
+			afterFailedPost(r)
+		}
+		if p := r.poster.Load(); p != nil {
+			p.PostUI(run)
+		} // no poster: dropped, never run on the caller
+		return
 	}
 	if p := r.poster.Load(); p != nil {
 		p.PostUI(run)
-	} else if r.thread.Load() == nil {
+	} else {
 		run()
 	}
 }

@@ -40,6 +40,16 @@ func PlacementTasks(r *ui.Runner) int {
 	return t.embeds.frames
 }
 
+// PlacementPosts returns how many placement tasks r's threaded window has
+// queued on the main thread. Any goroutine.
+func PlacementPosts(r *ui.Runner) int {
+	t := threadedOf(r)
+	if t == nil {
+		return -1
+	}
+	return int(t.embeds.posts.Load())
+}
+
 // MainFallback reports whether r's window started threaded and went back
 // to the main-thread model. Any goroutine.
 func MainFallback(r *ui.Runner) bool {

@@ -59,3 +59,7 @@ func init() {
 		r.dmg.started = false // the next frame is presented whole
 	}
 }
+
+// afterFailedPost, when set (tests only), runs in Post right after the
+// bound thread refused the work.
+var afterFailedPost func(r *Runner)

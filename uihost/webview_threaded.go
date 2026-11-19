@@ -14,6 +14,7 @@ package uihost
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tangoui/tango"
@@ -48,7 +49,8 @@ type mainEmbeds struct {
 	views  map[ui.ID]*mainView
 	dead   map[*embedView]bool // closed by the app: never recreate for this UI view
 	closed bool
-	frames int // placement tasks applied (tests)
+	frames int          // placement tasks applied (tests)
+	posts  atomic.Int32 // placement tasks queued on main (tests)
 }
 
 // mainView is one native WebView on the main thread.
@@ -148,6 +150,7 @@ func (me *mainEmbeds) post(fr *embedFrame) {
 	me.posted = true
 	me.mu.Unlock()
 	if queue {
+		me.posts.Add(1)
 		me.h.app.Post(me.apply)
 	}
 }

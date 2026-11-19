@@ -240,6 +240,9 @@ func TestWindowWithoutWebViewQueuesNoPlacementTasks(t *testing.T) {
 	if got := tango.Await(a, func() int { return uihost.PlacementTasks(r) }); got != 0 {
 		t.Fatalf("%d placement tasks for a window without WebViews", got)
 	}
+	if got := uihost.PlacementPosts(r); got != 0 {
+		t.Fatalf("%d placement tasks queued on main for a window without WebViews", got)
+	}
 }
 
 // Frames coalesced while main is busy keep the focus request one of them
