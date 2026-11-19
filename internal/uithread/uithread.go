@@ -56,6 +56,9 @@ func StartWith(name string, onPanic func(any)) *Thread {
 func (t *Thread) run(started chan<- struct{}) {
 	// Never unlocked: the OS thread exits with the goroutine.
 	runtime.LockOSThread()
+	// The thread exits with the goroutine, so its QoS goes with it
+	// (darwin: user-interactive, like the main thread; qos_darwin.go).
+	raiseQoS()
 	t.gid = GoroutineID()
 	registry.Store(t.gid, t)
 	defer func() {
