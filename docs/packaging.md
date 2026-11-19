@@ -31,6 +31,28 @@
 
 路径都相对于项目目录。
 
+## 桌面构建标签
+
+`tan.json` 的可选字段 `desktopBuildTags`（例如 `["production"]`）适用于 `tan build`（含 `-debug`）和 `tan package` 的桌面主程序。每项必须是一个 Go 构建标签。tan 将它们与 `GOFLAGS` 中的标签合并，重复项只传一次。Tango 保留 `tango_dev`、`tango_release` 和 `tango_backend_` 前缀的标签。后端配置由 `features` 或 `-features` 选择，CGO 由 `cgo` 字段开关。
+
+`tan dev` 和移动端构建会校验这项配置，编译时沿用各自的标签设置。桌面开发构建的额外标签可通过 `GOFLAGS` 提供。
+
+## 随包命令行工具
+
+`tan.json` 的 `desktopHelpers` 是可选列表。每项设置 `name`（不带扩展名）和 `build`（从项目根目录执行的构建命令）。例如：
+
+```json
+"desktopHelpers": [{ "name": "helper", "build": "node scripts/build-helper.mjs" }]
+```
+
+`tan build`、`tan package` 对每个桌面目标传入 `TAN_TARGET_OS`、`TAN_TARGET_ARCH` 和绝对路径 `TAN_HELPER_OUTPUT`。构建命令须自行按目标设置交叉编译参数并写出该文件。Windows 输出路径已含 `.exe`，macOS 通用包的目标架构为 `universal`。移动端构建跳过这些命令。
+
+- macOS 的辅助工具位于 `.app/Contents/Helpers/`。对 `.app` 运行 `tan sign` 时，tan 先用同一身份签此目录中的可执行文件，再签整个 `.app`。应用的 entitlements 只用于外层 `.app`。
+- Windows：主程序旁的 `cli/`，内置 NSIS 脚本会安装并卸载这些文件，MSIX 布局也会包含它们。
+- Linux：构建目录、AppImage 和解压的 tar 包在主程序旁的 `cli/`；已安装的 tar 包、DEB、RPM、Flatpak 使用 `lib/<应用可执行名>/`。
+
+使用 `desktopHelpers` 构建 Linux 目标时，主程序名须避开辅助工具的 `cli` 目录名（忽略大小写）。
+
 ## Windows（NSIS）
 
 | 字段 | 默认 | 说明 |
@@ -102,6 +124,7 @@
 | `.Arch` | `amd64` / `arm64` / `386` |
 | `.Exe` | 安装后的文件名，例如 `Hello.exe` |
 | `.ExeSource` | 构建产物的绝对路径（`File` 指令的参数） |
+| `.Helpers` | 随包命令行工具，每项含 `.Name` 和绝对路径 `.Source`；自定义模板需自行安装和卸载 |
 | `.OutFile` | 要生成的 setup.exe 的路径 |
 | `.Scope` `.RegRoot` `.ExecutionLevel` | `user`/`HKCU`/`user`，或 `machine`/`HKLM`/`admin` |
 | `.InstallDir` | NSIS 表达式，例如 `$LOCALAPPDATA\Programs\Hello` |

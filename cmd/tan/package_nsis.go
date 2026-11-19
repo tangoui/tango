@@ -101,6 +101,7 @@ type nsisVars struct {
 	VersionQuad                        string // VIProductVersion: 1.2.3.0
 	Exe                                string // installed file name, e.g. Hello.exe
 	ExeSource                          string // the built executable
+	Helpers                            []nsisHelper
 	OutFile                            string // the setup.exe to write
 	Scope                              string // user | machine
 	RegRoot                            string // HKCU | HKLM
@@ -126,6 +127,8 @@ type nsisVars struct {
 	// LangStrings are the LangString lines of the script's own texts.
 	LangStrings string
 }
+
+type nsisHelper struct{ Name, Source string }
 
 // nsisAssets are the files tan prepared for the script.
 type nsisAssets struct {
@@ -166,11 +169,16 @@ func shortcutName(name string) string {
 // newNSISVars computes the template variables.
 func newNSISVars(cfg *Config, a artifact, outFile string, as nsisAssets) nsisVars {
 	w := cfg.Installer.Windows
+	helpers := make([]nsisHelper, 0, len(a.helpers))
+	for _, file := range a.helpers {
+		helpers = append(helpers, nsisHelper{Name: filepath.Base(file), Source: file})
+	}
 	v := nsisVars{
 		Name: cfg.Name, ID: cfg.ID, Version: cfg.Version, Copyright: cfg.Copyright, Arch: a.target.Arch,
 		VersionQuad:     winVersionString(winVersion(cfg.Version)),
 		Exe:             cfg.Exe() + ".exe",
 		ExeSource:       a.exe,
+		Helpers:         helpers,
 		OutFile:         outFile,
 		Scope:           "user",
 		RegRoot:         "HKCU",
@@ -365,6 +373,13 @@ FunctionEnd
 Section "Install"
   SetOutPath "$INSTDIR"
   File {{q .ExeSource}}
+{{- if .Helpers}}
+  SetOutPath "$INSTDIR\cli"
+{{- range .Helpers}}
+  File {{q .Source}}
+{{- end}}
+  SetOutPath "$INSTDIR"
+{{- end}}
   WriteUninstaller "$INSTDIR\uninstall.exe"
   CreateShortcut "$SMPROGRAMS\{{lit .ShortcutName}}.lnk" "$INSTDIR\{{.Exe}}"
 {{- if eq .DesktopShortcut "always"}}
@@ -411,6 +426,12 @@ Section "Uninstall"
     !insertmacro customUnInstall
   !endif
 {{.UnregisterAssociations}}  Delete "$INSTDIR\{{.Exe}}"
+{{- if .Helpers}}
+{{- range .Helpers}}
+  Delete "$INSTDIR\cli\{{.Name}}"
+{{- end}}
+  RMDir "$INSTDIR\cli"
+{{- end}}
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
   Delete "$SMPROGRAMS\{{lit .ShortcutName}}.lnk"

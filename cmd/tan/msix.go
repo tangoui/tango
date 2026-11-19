@@ -154,6 +154,9 @@ func writeMSIXLayout(cfg *Config, a artifact, layout string) error {
 	if err := copyFile(a.exe, filepath.Join(layout, cfg.Exe()+".exe"), 0o755); err != nil {
 		return err
 	}
+	if err := copyDesktopHelpers(a.helpers, filepath.Join(layout, "cli")); err != nil {
+		return err
+	}
 	if err := os.WriteFile(filepath.Join(layout, "AppxManifest.xml"), appxManifest(cfg, a.target.Arch), 0o644); err != nil {
 		return err
 	}
@@ -200,8 +203,10 @@ func packageMSIX(ctx context.Context, cfg *Config, a artifact) ([]string, error)
 		return nil, err
 	}
 	if sign {
-		if err := signWindowsFile(ctx, signer, a.exe); err != nil {
-			return nil, err
+		for _, executable := range append([]string{a.exe}, a.helpers...) {
+			if err := signWindowsFile(ctx, signer, executable); err != nil {
+				return nil, err
+			}
 		}
 	}
 	base := filepath.Join(filepath.Dir(a.dir), artifactBaseOf(cfg, a))

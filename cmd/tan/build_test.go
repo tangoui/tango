@@ -85,12 +85,38 @@ func TestParseTargets(t *testing.T) {
 
 func TestGoBuildArgs(t *testing.T) {
 	t.Setenv("GOFLAGS", "")
-	rel := strings.Join(goBuildArgs(target{"windows", "amd64"}, "out.exe", false), " ")
+	cfg := &Config{}
+	rel := strings.Join(cfg.goBuildArgs(target{"windows", "amd64"}, "out.exe", false), " ")
 	if rel != "build -tags tango_release -trimpath -ldflags -s -w -H windowsgui -o out.exe ." {
 		t.Errorf("release = %q", rel)
 	}
-	dbg := strings.Join(goBuildArgs(target{"linux", "amd64"}, "out", true), " ")
+	dbg := strings.Join(cfg.goBuildArgs(target{"linux", "amd64"}, "out", true), " ")
 	if dbg != "build -tags tango_release -o out ." {
 		t.Errorf("debug = %q", dbg)
+	}
+}
+
+func TestDesktopBuildTags(t *testing.T) {
+	t.Setenv("GOFLAGS", "-tags=extra,nocoredrivers,tango_dev")
+	cfg, err := ParseConfig([]byte(`{"name":"App","id":"com.example.app","version":"1.0.0","desktopBuildTags":["production","nocoredrivers"],"features":["webview"]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	features, err := configFeatures(cfg.Features)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := cfg.goBuildArgs(target{"darwin", "arm64"}, "out", false, features)
+	if got, want := args[2], "extra,nocoredrivers,production,tango_release,tango_backend_webview"; got != want {
+		t.Fatalf("desktop build tags = %q, want %q", got, want)
+	}
+}
+
+func TestInvalidDesktopBuildTags(t *testing.T) {
+	for _, tags := range []string{`[""]`, `["foo,bar"]`, `["foo bar"]`, `["tango_dev"]`, `["tango_release"]`, `["tango_backend_canvas"]`} {
+		_, err := ParseConfig([]byte(`{"name":"App","id":"com.example.app","version":"1.0.0","desktopBuildTags":` + tags + `}`))
+		if err == nil || !strings.Contains(err.Error(), `"desktopBuildTags": invalid Go build tag`) {
+			t.Errorf("desktopBuildTags %s: expected a config error, got %v", tags, err)
+		}
 	}
 }

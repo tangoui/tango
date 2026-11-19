@@ -142,3 +142,45 @@ func TestCodesignAndNotaryArgs(t *testing.T) {
 		t.Errorf("env auth %v %v", a, err)
 	}
 }
+
+func TestRunSignMacHelpers(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("tan sign calls codesign on macOS only")
+	}
+	dir := t.TempDir()
+	app := filepath.Join(dir, "Desk.app")
+	helpers := filepath.Join(app, "Contents", "Helpers")
+	if err := os.MkdirAll(helpers, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	helper := filepath.Join(helpers, "helper")
+	if err := os.WriteFile(helper, []byte("helper"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(helpers, "README"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	log := filepath.Join(dir, "codesign.log")
+	t.Setenv("TAN_TEST_CODESIGN_LOG", log)
+	t.Setenv("PATH", dir)
+	if err := os.WriteFile(filepath.Join(dir, "codesign"), []byte(`#!/bin/sh
+printf '%s\t' "$@" >> "$TAN_TEST_CODESIGN_LOG"
+printf '\n' >> "$TAN_TEST_CODESIGN_LOG"
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const identity, entitlements = "Developer ID Application: Test", "app.plist"
+	if err := runSign([]string{"-C", dir, "-identity", identity, "-entitlements", entitlements, app}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.Join(codesignArgs(identity, "", helper), "\t") + "\t\n" +
+		strings.Join(codesignArgs(identity, entitlements, app), "\t") + "\t\n" +
+		"--verify\t--strict\t--verbose=2\t" + app + "\t\n"
+	if string(got) != want {
+		t.Fatalf("codesign calls:\n%s\nwant:\n%s", got, want)
+	}
+}

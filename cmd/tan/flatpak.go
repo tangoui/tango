@@ -85,9 +85,13 @@ func flatpakTree(cfg *Config, icons map[string][]byte) map[string][]byte {
 }
 
 // flatpakManifestFor renders the manifest for the tree from flatpakTree.
-func flatpakManifestFor(cfg *Config, tree map[string][]byte) flatpakManifest {
+func flatpakManifestFor(cfg *Config, tree map[string][]byte, helpers ...string) flatpakManifest {
 	exe := cfg.Exe()
 	cmds := []string{"install -Dm755 bin/" + exe + " ${FLATPAK_DEST}/bin/" + exe}
+	for _, helper := range helpers {
+		relative := linuxHelperPath(cfg, filepath.Base(helper))
+		cmds = append(cmds, "install -Dm755 "+relative+" ${FLATPAK_DEST}/"+relative)
+	}
 	for _, p := range sortedKeys(tree) {
 		cmds = append(cmds, "install -Dm644 "+p+" ${FLATPAK_DEST}/"+p)
 	}
@@ -127,6 +131,9 @@ func packageFlatpak(ctx context.Context, cfg *Config, a artifact, icons map[stri
 	if err := copyFile(a.exe, filepath.Join(files, "bin", cfg.Exe()), 0o755); err != nil {
 		return nil, err
 	}
+	if err := copyDesktopHelpers(a.helpers, filepath.Join(files, "lib", cfg.Exe())); err != nil {
+		return nil, err
+	}
 	tree := flatpakTree(cfg, icons)
 	for p, b := range tree {
 		dst := filepath.Join(files, filepath.FromSlash(p))
@@ -137,7 +144,7 @@ func packageFlatpak(ctx context.Context, cfg *Config, a artifact, icons map[stri
 			return nil, err
 		}
 	}
-	m := flatpakManifestFor(cfg, tree)
+	m := flatpakManifestFor(cfg, tree, a.helpers...)
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return nil, err
