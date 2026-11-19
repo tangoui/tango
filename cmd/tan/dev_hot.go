@@ -407,7 +407,7 @@ func (h *hotSession) startWorker(path string) error {
 	cmd.Env = append(os.Environ(), h.env...)
 	cmd.Env = append(cmd.Env, devhost.EnvRole+"="+devhost.RoleWorker, devhost.EnvAddr+"="+h.addr, devhost.EnvDir+"="+h.tmp,
 		devhost.EnvToken+"="+h.token)
-	tail := &tailBuffer{max: 4 << 10}
+	tail := newTailBuffer(4 << 10)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, io.MultiWriter(os.Stderr, tail)
 	p, err := startProcess(cmd)
 	if err != nil {
@@ -474,11 +474,11 @@ func (h *hotSession) workerExited(wp *workerProc) bool {
 			return true
 		}
 		warnf("The app exited: %v; waiting for changes", wp.err)
-		h.status("crash", fmt.Sprintf("%v\n%s", wp.err, wp.stderr.Tail(12)))
+		h.status("crash", fmt.Sprintf("%v\n%s", wp.err, wp.stderr.lastLines(12)))
 	case h.pending:
 		h.pending = nil
 		warnf("The new build exited before showing a frame: %v; the previous one stays on screen", wp.err)
-		h.status("start", fmt.Sprintf("%v\n%s", wp.err, wp.stderr.Tail(12)))
+		h.status("start", fmt.Sprintf("%v\n%s", wp.err, wp.stderr.lastLines(12)))
 	}
 	return false
 }
@@ -541,32 +541,10 @@ func installBinary(src, dst string) error {
 	return os.Rename(tmp, dst) // a new inode: never rewrite a running binary
 }
 
-// tailBuffer keeps the last max bytes written to it.
-type tailBuffer struct {
-	mu  sync.Mutex
-	max int
-	b   []byte
-}
-
-func (t *tailBuffer) Write(p []byte) (int, error) {
-	t.mu.Lock()
-	t.b = append(t.b, p...)
-	if len(t.b) > t.max {
-		t.b = append([]byte(nil), t.b[len(t.b)-t.max:]...)
-	}
-	t.mu.Unlock()
-	return len(p), nil
-}
-
-// Tail returns the last n lines.
-func (t *tailBuffer) Tail(n int) string {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	lines := strings.Split(strings.TrimRight(string(t.b), "\n"), "\n")
-	if len(lines) > n {
-		lines = lines[len(lines)-n:]
-	}
-	return strings.Join(lines, "\n")
+// lastLines returns the last n lines of t, without the final newline.
+func (t *tailBuffer) lastLines(n int) string {
+	s, _ := t.Lines(n, 0)
+	return strings.TrimRight(s, "\n")
 }
 
 // fileSet fingerprints a list of files or directories (a directory's

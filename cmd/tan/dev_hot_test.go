@@ -42,16 +42,16 @@ func TestHasDevHost(t *testing.T) {
 }
 
 func TestTailBuffer(t *testing.T) {
-	b := &tailBuffer{max: 32}
+	b := newTailBuffer(32)
 	for i := range 10 {
 		b.Write([]byte(strings.Repeat("x", i) + "\n"))
 	}
 	b.Write([]byte("panic: boom\n"))
-	if got := b.Tail(2); got != "xxxxxxxxx\npanic: boom" {
+	if got := b.lastLines(2); got != "xxxxxxxxx\npanic: boom" {
 		t.Fatalf("tail %q", got)
 	}
-	if len(b.b) > 32 {
-		t.Fatalf("kept %d bytes", len(b.b))
+	if got, _ := b.Tail(0); len(got) > 32 {
+		t.Fatalf("kept %d bytes", len(got))
 	}
 }
 

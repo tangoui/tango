@@ -30,15 +30,6 @@ type mcpServer struct {
 	apps *appManager
 }
 
-// jobManager runs the project tools' background jobs.
-// Placeholder: replaced with the real job manager in mcp_jobs.go.
-type jobManager struct{}
-
-func newJobManager() *jobManager { return &jobManager{} }
-
-// stopAll stops every running job.
-func (*jobManager) stopAll() {}
-
 // appManager holds the app sessions the UI tools started or attached to.
 // Placeholder: replaced with the real session manager.
 type appManager struct{}
