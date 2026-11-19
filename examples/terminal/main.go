@@ -208,17 +208,16 @@ func (a *autoRun) frame(c *ui.Context, cx, cy int) {
 	if a.typed%2 == 1 {
 		ev = []input.Event{input.KeyEvent{Key: input.KeyBackspace, Down: true}, input.KeyEvent{Key: input.KeyBackspace}}
 	}
-	app.Post(func() {
+	runner.Post(func() { // after this frame, on the window's UI thread
 		a.sent = time.Now()
 		for _, e := range ev {
 			runner.HandleEvent(e)
 		}
-		runner.Invalidate()
 	})
 }
 
-// keepFraming asks for another frame.
-func keepFraming() { app.Post(runner.Invalidate) }
+// keepFraming asks for another frame after this one. Called by the page.
+func keepFraming() { runner.Post(func() {}) } // Post requests the frame
 
 // benchCat runs cat on a file in the shell and waits for the title the
 // command line sets after it.

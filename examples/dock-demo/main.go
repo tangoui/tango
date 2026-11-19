@@ -9,6 +9,10 @@
 // in a window of its own (ui.DockW.OnTearOff), whose "dock back" button
 // returns it. The layout is saved as JSON in the user config directory and
 // restored on the next start (ui.ParseDockLayout).
+//
+// On macOS every window runs on its own UI thread: the layout belongs to
+// the main window's thread (reach it with mainRunner.Post), popouts to the
+// main thread (app.Post), and notes, used by every window, has a lock.
 package main
 
 import (
@@ -16,6 +20,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/ui"
@@ -28,9 +33,11 @@ import (
 var (
 	app     *tango.App
 	mainWin *tango.Surface
-	dock    *ui.DockLayout
-	popouts = map[string]*tango.Surface{} // torn-off tabs by key
-	notes   = map[string]string{}         // per-tab text, to show state survives moves
+	dock    *ui.DockLayout                // main window's UI thread
+	popouts = map[string]*tango.Surface{} // torn-off tabs by key; main thread
+
+	notesMu sync.Mutex
+	notes   = map[string]string{} // per-tab text, to show state survives moves; any window
 )
 
 var tabs = map[string]ui.TabItem{
@@ -81,9 +88,13 @@ func content(c *ui.Context, key string) {
 	ui.Column(c, func() {
 		ui.Text(c, tabs[key].Label).Strong()
 		ui.Text(c, "拖动标签页到其它组的边缘拆分、中间合并，或拖出窗口撕出成独立窗口。").Tertiary()
+		notesMu.Lock()
 		v := notes[key]
+		notesMu.Unlock()
 		if ui.TextArea(c, &v).Rows(8).Changed() {
+			notesMu.Lock()
 			notes[key] = v
+			notesMu.Unlock()
 		}
 	}, layout.Pad(12), layout.Gap(8), layout.Grow(1))
 }
@@ -106,7 +117,7 @@ func page(c *ui.Context) {
 func popOut(key string, pos geom.Point) {
 	b := mainWin.Bounds()
 	x, y := b.X+int(pos.X)-60, b.Y+int(pos.Y)-14
-	app.Post(func() { // after this frame: opening a window runs callbacks
+	app.Post(func() { // uihost.Open and popouts belong to the main thread
 		_, s, err := uihost.Open(app, uihost.Options{Surface: tango.SurfaceOptions{
 			Title: tabs[key].Label, Width: 560, Height: 420, Resizable: true, X: x, Y: y,
 		}}, func(c *ui.Context) { popoutPage(c, key) }, ui.RunnerOptions{})
@@ -131,11 +142,13 @@ func popoutPage(c *ui.Context, key string) {
 			ui.Text(c, tabs[key].Label).Strong()
 			ui.Spacer(c)
 			if ui.Button(c, "停靠回主窗口").Small().Clicked() {
-				if s := popouts[key]; s != nil {
-					delete(popouts, key)
-					s.Close()
-				}
-				dockBack(key)
+				app.Post(func() { // popouts belongs to the main thread
+					if s := popouts[key]; s != nil {
+						delete(popouts, key)
+						s.Close()
+					}
+					dockBack(key)
+				})
 			}
 		}, layout.Middle(), layout.Pad(8))
 		content(c, key)
@@ -143,20 +156,20 @@ func popoutPage(c *ui.Context, key string) {
 }
 
 // dockBack returns a torn-off tab to the focused group of the main window.
+// Main thread; the layout is changed on the main window's UI thread.
 func dockBack(key string) {
-	app.Post(func() {
-		dock.AddTab(key, "")
-		saveLayout()
-		if mainWin != nil {
-			mainWin.Focus()
-		}
-		if r := mainRunner; r != nil {
-			r.Invalidate()
-		}
-	})
+	if r := mainRunner; r != nil {
+		r.Post(func() {
+			dock.AddTab(key, "")
+			saveLayout()
+		})
+	}
+	if mainWin != nil {
+		mainWin.Focus()
+	}
 }
 
-var mainRunner *ui.Runner
+var mainRunner *ui.Runner // set on the main thread once the main window is open
 
 func main() {
 	dock = loadLayout()

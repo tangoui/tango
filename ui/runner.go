@@ -46,6 +46,14 @@ type RunnerOptions struct {
 // bound with BindThread, or the host's main thread when none is bound.
 // Development builds (-tags tango_dev) panic when a bound runner is used off
 // its thread.
+//
+// Package uihost binds each window opened with uihost.Open on macOS to a
+// UI thread of its own; elsewhere (other platforms, uihost.Attach, tan dev,
+// Driver) the UI thread is the main thread. Code on another thread, such
+// as an App.Post function, a shortcut, menu or tray callback, changes the
+// state the page reads and calls Runner methods through Post. The checks
+// cover the Runner and Context; the app's own variables are its own
+// responsibility (go test -race finds such races).
 type Runner struct {
 	_ [0]func()
 

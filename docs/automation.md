@@ -50,8 +50,8 @@ TANGO_E2E=1 TANGO_E2E_VERBOSE=1 go test -tags tango_dev ./examples/hello -run E2
 其他：
 
 - 读取后两个环境变量会从进程环境里删除，被测应用启动的子进程（包括其他 Tango 应用）不会继承。
-- 自动化处理中的 panic 走统一的 panic 处理（`Panic.Where = "automation"`，见 [panics.md](panics.md)），开发构建默认记日志后继续运行，对应请求返回 `internal` 错误，连接不断。被测应用自己设置的 `Options.OnPanic` 返回 false 时照常退出。
-- 所有对 runner、surface 的操作都在主线程执行（`App.Post`/`Await`）。
+- 自动化处理中的 panic 走统一的 panic 处理（见 [panics.md](panics.md)），开发构建默认记日志后继续运行，连接不断。在主线程上执行的请求 `Panic.Where = "automation"`；在窗口独立 UI 线程上执行的请求（macOS 的 `uihost.Open` 窗口，见下一条）与该线程上的其他任务一样报 `Panic.Where = "event handler"`，对应请求返回 `internal` 错误。被测应用自己设置的 `Options.OnPanic` 返回 false 时照常退出。
+- 线程：窗口列表、WebView 的 `Eval`/截图、`quit` 以及 UI 线程 = 主线程的自绘窗口（其他平台、`uihost.Attach`）都在主线程执行（`App.Post`/`Await`）。macOS 上 `uihost.Open` 的窗口有自己的 UI 线程（见 [canvas-surface.md](specs/canvas-surface.md#uihost-包)）：语义树、动作、输入和截图由主线程转交到该窗口的 UI 线程执行，控制通道的 goroutine 等结果，主线程不等待。
 
 ## 架构与协议
 
@@ -64,7 +64,8 @@ automation（客户端）  ── TCP/unix ──  internal/automation.Server（
 ```
 
 - 帧格式：4 字节大端长度 + JSON，鉴权后单帧上限 64 MiB（鉴权前 4 KiB）。客户端发 `Request{id, op, ...}`，服务端按顺序逐条回 `Response{id, error, code, ...}`。一个连接上请求串行处理；可以同时有多个连接（最多 4 个）。
-- 操作：`hello`、`ping`、`windows`、`tree`、`find`、`count`、`wait`、`action`、`input`、`eval`、`screenshot`、`quit`。错误码：`auth`、`bad_request`、`no_window`、`timeout`、`hot_reload`、`unsupported`、`action`、`script`、`quit`、`internal`。定义见 `internal/automation/proto.go`。
+- 操作：`hello`、`ping`、`windows`、`tree`、`find`、`count`、`wait`、`action`、`input`、`eval`、`screenshot`、`quit`。错误码：`auth`、`bad_request`、`no_window`、`timeout`、`hot_reload`、`unsupported`、`action`、`script`、`quit`、`internal`、`busy`。定义见 `internal/automation/proto.go`。
+- `busy`：窗口的 UI 线程在 5 秒内没有接手这条请求（正在跑很长的一帧，或阻塞在对话框等主线程调用上）。它不是"没找到"：`Locator.Exists` 只把 `timeout` 当作否，`busy` 直接让测试失败。`wait`/`find`（`Locator.Wait`、`Node` 等）在 UI 线程忙时以 `busy` 失败，不会等满请求自己的超时。**`action`、`input`（`Click`、`SetValue`、坐标输入等）收到 `busy` 后不要重试**：请求已经排进 UI 线程的队列，线程空出来后仍可能执行，重试会执行两次；应先等界面状态（`Wait*`）再决定。
 - 根包在 `New` 时（`automationAttach`）读取变量，`OnReady` 时开始监听，应用退出时关闭；`uihost.Open` 为每个窗口注册自绘适配器，窗口关闭时注销。
 
 ### 自绘窗口：语义树

@@ -43,13 +43,17 @@ import (
 
 const allMonths = "全部月份"
 
-// Ledger is the app: the store plus UI state. Main thread only.
+// Ledger is the app: the store plus UI state. The page and the fields it
+// reads belong to the window's UI thread (on macOS a thread of its own, see
+// uihost.Open); main-thread callbacks (shortcuts, tray menu, the export
+// goroutine) reach them through runner.Post. app, win, tray and quitting
+// are set or used on the main thread.
 type Ledger struct {
 	app *tango.App // nil in tests (no export dialog, no tray)
 	win *tango.Surface
 	// tray (nil without one; see tray.go)
 	tray     *tray.Tray
-	runner   *ui.Runner
+	runner   *ui.Runner // the window's; Post runs work on its UI thread
 	quitting bool
 	store    *Store
 
@@ -319,13 +323,15 @@ func (l *Ledger) breakdown(c *ui.Context) {
 // setupShortcuts binds the window's keyboard shortcuts (they also work
 // while a text field has the focus): CmdOrCtrl+N opens the editor for a
 // new record, CmdOrCtrl+F focuses the search box. Escape closing the
-// editor is the Modal's own.
+// editor is the Modal's own. Shortcuts fire on the main thread; the
+// actions change page state, so they run through runner.Post.
 func (l *Ledger) setupShortcuts(s *tango.Surface) {
 	for _, sc := range []struct {
 		accel string
 		fn    func()
 	}{{"CmdOrCtrl+N", l.newEntry}, {"CmdOrCtrl+F", l.findEntries}} {
-		if _, err := uihost.Shortcut(s, sc.accel, sc.fn); err != nil {
+		fn := sc.fn
+		if _, err := uihost.Shortcut(s, sc.accel, func() { l.runner.Post(fn) }); err != nil {
 			log.Print(err)
 		}
 	}
@@ -421,7 +427,7 @@ func (l *Ledger) editor(c *ui.Context) {
 
 // export asks for a file name and writes the filtered records as CSV. The
 // native dialog blocks, so it runs on its own goroutine and reports back
-// through app.Post.
+// through runner.Post: l.notice is page state, owned by the UI thread.
 func (l *Ledger) export(c *ui.Context) {
 	if l.app == nil {
 		return
@@ -435,7 +441,6 @@ func (l *Ledger) export(c *ui.Context) {
 	if l.month != allMonths {
 		name = "账本-" + l.month + ".csv"
 	}
-	wake := c.Invalidator()
 	go func() {
 		path, err := dialog.Save(l.app, dialog.FileOptions{
 			Parent: l.win, Title: "导出 CSV", Filename: name, CanCreateDirs: true,
@@ -447,7 +452,7 @@ func (l *Ledger) export(c *ui.Context) {
 		if err == nil {
 			err = writeCSVFile(path, entries)
 		}
-		l.app.Post(func() {
+		l.runner.Post(func() { // Post also asks for the frame that shows it
 			l.notice = func(c *ui.Context) {
 				if err != nil {
 					ui.Message(c, "error", "导出失败："+err.Error())
@@ -455,7 +460,6 @@ func (l *Ledger) export(c *ui.Context) {
 					ui.Message(c, "success", fmt.Sprintf("已导出 %d 条到 %s", len(entries), filepath.Base(path)))
 				}
 			}
-			wake()
 		})
 	}()
 }
@@ -526,7 +530,9 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		l.win = s
+		// Set in the callback that opened the window: its first frame comes
+		// after this callback returns, so the page sees them.
+		l.win, l.runner = s, r
 		l.setupShortcuts(s)
 		l.setupTray(r)
 	})

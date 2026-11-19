@@ -76,7 +76,8 @@ func webMessage(s *tango.Surface, msg string) {
 	}
 }
 
-// openWebPage opens the WebView surface and attaches the overlay.
+// openWebPage opens the WebView surface and attaches the overlay. Main
+// thread.
 func openWebPage() {
 	if webSurface != nil {
 		return

@@ -53,11 +53,13 @@ func main() {
 	app = tango.New(tango.Options{Name: "Tango Mobile UI", ID: "dev.tango.mobileui", Assets: webAssets()}) // web.go
 	app.OnMessage(webMessage)
 	app.OnEventKind(tango.EventMemoryWarning, func(tango.AppEvent) {
-		// uihost has already trimmed the GPU and text caches.
-		memWarnings++
-		log.Printf("mobile-ui: memory warning #%d", memWarnings)
+		// uihost has already trimmed the GPU and text caches. Main thread;
+		// memWarnings is page state, owned by the window's UI thread.
 		if runner != nil {
-			runner.Invalidate()
+			runner.Post(func() {
+				memWarnings++
+				log.Printf("mobile-ui: memory warning #%d", memWarnings)
+			})
 		}
 	})
 	app.OnReady(func() {

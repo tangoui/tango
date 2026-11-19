@@ -41,7 +41,9 @@ func overlayRows(c *ui.Context) {
 			log.Printf("mobile-ui: action sheet open")
 		}
 		if mobile.Cell(c, "WebView + 自绘浮层").Desc("uihost.Attach").Icon(icon.Global).Arrow().Clickable().Clicked() {
-			openWebPage()
+			// Main thread: uihost.Attach must run there, and the web page's
+			// variables belong to it (an attached canvas draws on main).
+			app.Post(openWebPage)
 		}
 	})
 }

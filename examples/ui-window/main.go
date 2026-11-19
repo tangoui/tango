@@ -73,7 +73,8 @@ func themeFor(n string, dark bool) *theme.Theme {
 
 // applyTheme switches the window to the chosen theme after this frame:
 // following the system (Ant, light or dark as the system is), or a fixed
-// design system with the dark switch.
+// design system with the dark switch. FollowSystemTheme runs on the main
+// thread (app.Post), Runner.SetTheme on the window's UI thread (Runner.Post).
 func applyTheme() {
 	name, dark := themeName, darkMode
 	app.Post(func() {
@@ -82,7 +83,7 @@ func applyTheme() {
 			return
 		}
 		uihost.FollowSystemTheme(runner, false) // a fixed theme from now on
-		runner.SetTheme(themeFor(name, dark))
+		runner.Post(func() { runner.SetTheme(themeFor(name, dark)) })
 	})
 }
 

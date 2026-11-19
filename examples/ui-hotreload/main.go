@@ -130,15 +130,18 @@ func setUp(s *tango.Surface, hidden bool) {
 	w, h := s.Size()
 	log.Printf("hotreload: window %dx%d at %+v title=%q", w, h, s.Bounds(), s.Title())
 
+	// Menu items fire on the main thread; st is page state, so the change
+	// runs on the window's UI thread.
 	bump := func(n int) func() {
 		return func() {
-			if n == 0 {
-				st.Count = 0
-			} else {
-				st.Count += n
-			}
-			log.Printf("hotreload: menu count=%d", st.Count)
-			runner.Invalidate()
+			runner.Post(func() {
+				if n == 0 {
+					st.Count = 0
+				} else {
+					st.Count += n
+				}
+				log.Printf("hotreload: menu count=%d", st.Count)
+			})
 		}
 	}
 	m := menu.New()
@@ -190,10 +193,9 @@ func main() {
 		if *tick {
 			go func() {
 				for range time.Tick(500 * time.Millisecond) {
-					app.Post(func() {
+					runner.Post(func() { // st is page state: the window's UI thread
 						st.Count++
 						log.Printf("hotreload: count=%d", st.Count)
-						runner.Invalidate()
 					})
 				}
 			}()

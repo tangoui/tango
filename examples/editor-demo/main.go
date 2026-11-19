@@ -209,12 +209,22 @@ func openDocumentDialog() {
 	}
 }
 
+// configureDocumentApp hands quit requests and opened files, which arrive
+// on the main thread, to the editor's UI thread (postFileAction). A quit is
+// refused at first and repeated with App.Quit once the user has answered.
 func configureDocumentApp(a *tango.App) {
-	a.OnQuitRequest(confirmDiscard)
+	a.OnQuitRequest(func() bool {
+		postFileAction(func() {
+			if confirmDiscard() {
+				a.Quit()
+			}
+		})
+		return false
+	})
 	a.OnOpenFiles(func(paths []string) {
 		for _, path := range paths {
 			if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
-				openDocumentPath(path)
+				postFileAction(func() { openDocumentPath(path) })
 				break
 			}
 		}
@@ -434,11 +444,10 @@ func (a *autoRun) frame(c *ui.Context) {
 		report("typing", a.typing)
 		return
 	}
-	app.Post(func() {
+	runner.Post(func() { // after this frame, on the window's UI thread
 		for _, e := range ev {
 			runner.HandleEvent(e)
 		}
-		runner.Invalidate()
 	})
 }
 
@@ -470,10 +479,19 @@ func openDemoWindow(title string, ropts ui.RunnerOptions) (*ui.Runner, *tango.Su
 	}
 	runner = r
 	surface = s
-	surface.OnClose(func() bool { return confirmDiscard() })
+	// Close requests, dropped files and shortcuts arrive on the main
+	// thread; the document belongs to the window's UI thread.
+	surface.OnClose(func() bool {
+		postFileAction(func() {
+			if confirmDiscard() {
+				s.Close() // without asking OnClose again
+			}
+		})
+		return false
+	})
 	surface.OnFilesDropped(func(paths []string, _, _ int) {
 		if len(paths) > 0 {
-			openDocumentPath(paths[0])
+			postFileAction(func() { openDocumentPath(paths[0]) })
 		}
 	})
 	for _, shortcut := range []struct {
@@ -487,7 +505,8 @@ func openDemoWindow(title string, ropts ui.RunnerOptions) (*ui.Runner, *tango.Su
 		{"CmdOrCtrl+Shift+S", func() { saveAsDocument() }},
 		{"CmdOrCtrl+Shift+P", func() { runShellAction("palette") }},
 	} {
-		if _, err := uihost.Shortcut(surface, shortcut.accelerator, shortcut.fn); err != nil {
+		fn := shortcut.fn
+		if _, err := uihost.Shortcut(surface, shortcut.accelerator, func() { postFileAction(fn) }); err != nil {
 			log.Printf("editor-demo: shortcut %s: %v", shortcut.accelerator, err)
 		}
 	}
@@ -604,11 +623,7 @@ func main() {
 		if diffOrigHL != nil {
 			orig := diffOrigHL
 			orig.SetNotify(func() {
-				app.Post(func() {
-					if !orig.isClosed() {
-						r.Invalidate()
-					}
-				})
+				r.Post(func() {}) // Post requests a frame on the window's UI thread
 			})
 		}
 		attachHighlightNotify(background, st.Model)

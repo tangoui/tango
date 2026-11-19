@@ -1,6 +1,9 @@
 // Command webview-embed puts native WebViews inside a self-drawn layout
 // (docs/specs/webview-embed.md): one fills the right side of the window,
 // another sits in a scrolling list on the left and is clipped by it.
+// The variables below are page state, owned by the window's UI thread;
+// main-thread callbacks (OnMessage, Created, OnLoaded) change them through
+// runner.Post.
 // Open the menu, hover the tooltip button or open the dialog to see a
 // covered WebView freeze into a snapshot under the layer; Tab moves focus
 // from the toolbar into the page and back out after its last field.
@@ -100,10 +103,10 @@ func page(c *ui.Context) {
 				if showInline {
 					inlineWeb = uihost.WebView(c, "inline", uihost.WebViewOptions{
 						URL: "/inline.html",
-						Created: func(s *tango.Surface) {
-							inlineClosed = false
-							s.OnLoaded(func() { loaded["inline"] = true })
-							s.OnClosed(func() { inlineClosed = true })
+						Created: func(s *tango.Surface) { // main thread
+							runner.Post(func() { inlineClosed = false })
+							s.OnLoaded(func() { runner.Post(func() { loaded["inline"] = true }) })
+							s.OnClosed(func() { runner.Post(func() { inlineClosed = true }) })
 						},
 					}, layout.H(180))
 					inlineWeb.Radius(8)
@@ -121,8 +124,8 @@ func page(c *ui.Context) {
 
 			mainWeb = uihost.WebView(c, "main", uihost.WebViewOptions{
 				URL: "/index.html",
-				Created: func(s *tango.Surface) {
-					s.OnLoaded(func() { loaded["main"] = true })
+				Created: func(s *tango.Surface) { // main thread
+					s.OnLoaded(func() { runner.Post(func() { loaded["main"] = true }) })
 				},
 			}, layout.Grow(1))
 			mainWeb.A11yLabel("网页")
@@ -169,19 +172,23 @@ func main() {
 
 	site, _ := fs.Sub(frontend, "frontend")
 	app = tango.New(tango.Options{Name: "WebView Embed", ID: "dev.tango.webview-embed", Assets: asset.FS(site, asset.Options{})})
-	app.OnMessage(func(s *tango.Surface, msg string) {
-		if mainWeb == nil || s != mainWeb.Surface() {
+	app.OnMessage(func(s *tango.Surface, msg string) { // main thread
+		if runner == nil {
 			return
 		}
-		switch {
-		case strings.HasPrefix(msg, "click:"):
-			fmt.Sscan(strings.TrimPrefix(msg, "click:"), &pageClicks)
-		case strings.HasPrefix(msg, "focus:"):
-			pageFocus = strings.TrimPrefix(msg, "focus:")
-		case strings.HasPrefix(msg, "key:"):
-			pageKeys++
-		}
-		runner.Invalidate()
+		runner.Post(func() {
+			if mainWeb == nil || s != mainWeb.Surface() {
+				return
+			}
+			switch {
+			case strings.HasPrefix(msg, "click:"):
+				fmt.Sscan(strings.TrimPrefix(msg, "click:"), &pageClicks)
+			case strings.HasPrefix(msg, "focus:"):
+				pageFocus = strings.TrimPrefix(msg, "focus:")
+			case strings.HasPrefix(msg, "key:"):
+				pageKeys++
+			}
+		})
 	})
 	app.OnReady(func() {
 		var err error

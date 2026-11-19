@@ -182,6 +182,45 @@ apidiff 视为不兼容的情况比"编译不过"更宽：给函数追加可变�
 - **Profile 体积口径**：只有 capability smoke 通过且实际 raw executable 或下载包减少的 profile 才能在体积文档中作为优化宣传；没有收益的 profile 只记录为能力边界实验。
 - **CLI 依赖的运行时符号**：`tan dev` 在构建出的程序里查找 `internal/devhost.AttachSymbol`（`uihost.AttachWith` 的符号名），`uihost` 的 `TestAttachSymbol` 固定它。
 
+## 迁移说明
+
+### 每窗口独立 UI 线程（macOS，未发布）
+
+macOS 上每个 `uihost.Open` 窗口有自己的 UI 线程：页面函数、`ui.Runner` 的方法和回调都在这条线程上运行，与主线程真正并行（设计见 `docs/superpowers/specs/2026-11-18-per-window-ui-thread-design.md`）。`App.Post` 的含义不变，是"在主线程上运行"；主线程回调（`App.Post`、`uihost.Shortcut`、菜单、托盘、`App.OnMessage`、`Surface.OnClose`、`OnFilesDropped`、`App.OnEventKind` 等）里修改页面状态的代码要改成 `Runner.Post`：
+
+```go
+// 之前：在主线程上改页面状态（现在与 UI 线程并行，数据竞争）
+go func() {
+	path, err := dialog.Save(app, opts)
+	app.Post(func() {
+		l.notice = result(path, err)
+		runner.Invalidate()
+	})
+}()
+
+// 之后：投递到窗口的 UI 线程；Post 之后自动请求一帧
+go func() {
+	path, err := dialog.Save(app, opts)
+	runner.Post(func() { l.notice = result(path, err) })
+}()
+
+// 快捷键、菜单、托盘的回调在主线程运行，改页面状态同样经 Runner.Post
+uihost.Shortcut(s, "CmdOrCtrl+N", func() { runner.Post(l.newEntry) })
+```
+
+规则：
+
+- **改页面读取的状态、调用 `Runner` 的方法**（`HandleEvent`、`SetTheme`、`PerformAction` 等）：`Runner.Post`。任何线程可调用；按调用顺序在两帧之间运行；在 UI 线程上调用时排到当前帧之后，不会立刻执行；窗口关闭后丢弃。
+- **必须在主线程的调用**（`uihost.Open`、`uihost.Attach`、`uihost.FollowSystemTheme`、AppKit 接口）：`App.Post` 或 `tango.Await`。页面里要开新窗口时写 `app.Post(func() { uihost.Open(...) })`。
+- `Runner.Invalidate`、`InvalidateAt`、`Close`、`tango.Surface` 的方法任何线程安全；`sys/dialog` 可以直接在 UI 线程上调用（只阻塞这个窗口，其他窗口照常出帧）。
+- 需要同步回答的主线程回调（`OnClose`、`OnQuitRequest`）不能等 UI 线程：先返回 `false`，在 `Runner.Post` 里问完用户后用 `Surface.Close()` / `App.Quit()` 重做（两者都不会再问回调），见 `examples/editor-demo`。
+- 第一帧在调用 `Open` 的主线程回调返回之后才运行，所以在同一个回调里 `Open` 之后赋值的变量（保存 `*ui.Runner`、`*tango.Surface` 的全局变量）页面可以直接读。
+- 多个窗口共享的应用状态由应用自己加锁或归属到某一个线程（`examples/dock-demo`：布局归主窗口的 UI 线程，`popouts` 归主线程，各窗口都写的 `notes` 加锁）。
+
+**框架查不到应用自己的变量。** 开发构建（`-tags tango_dev`，`tan dev`、`automation.Launch` 默认带）只在 `Runner` 方法和 `ui.Context` 的状态入口检查调用线程，违规时 panic（消息含 `ui: called off the window's UI thread; use Runner.Post`）；像 `l.notice` 这样应用自己的字段被主线程改写不会有任何提示。建议迁移后用 `go test -race ./...` 跑一遍自己的测试（需要 `CGO_ENABLED=1`），并在开发构建里把用到主线程回调的功能都点一遍。
+
+不受影响：`uihost.Attach`（叠在 WebView 上的自绘层）、`tan dev` 宿主里的窗口、Windows、Linux、iOS、Android、无头 `ui.Driver`，这些仍是"UI 线程 = 主线程"，`Runner.Post` 在它们上面投递到主线程（无头 `Driver` 直接在调用者上运行）。
+
 ## 发布前提（一次性）
 
 - 仓库 Settings → Pages → Source 选 **GitHub Actions**（文档站由 `release.yml` 的 `docs` 作业部署）。

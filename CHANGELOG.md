@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 不兼容变更
+
+- **macOS 上每个 `uihost.Open` 窗口有自己的 UI 线程**：页面函数、布局、绘制、渲染和上屏都在该窗口的线程上运行，主线程被 AppKit 占住（菜单跟踪、模态对话框、拖动改大小）时窗口照常出帧，多个窗口可以同时出帧。不论渲染路径（Metal、原生图层、CPU、透明和 Material 窗口）。**以前在主线程上修改页面状态的代码要改**：`App.Post`、`uihost.Shortcut`、菜单、托盘、`App.OnMessage`、`Surface.OnClose`/`OnFilesDropped`、`App.OnEventKind` 等回调仍在主线程运行，与 UI 线程真正并行；要改页面读取的状态或调用 `Runner` 的方法（`HandleEvent`、`SetTheme` 等），改用新的 `(*ui.Runner).Post(fn)`（实验性；任何线程可调用，在 UI 线程两帧之间按调用顺序运行，之后自动请求一帧，窗口关闭后丢弃）。必须在主线程的调用（`uihost.Open`、`uihost.Attach`、`uihost.FollowSystemTheme`）继续用 `App.Post` 或 `tango.Await`；`sys/dialog` 可以直接在 UI 线程上调用，只阻塞这个窗口。`Runner.Invalidate`、`InvalidateAt`、`Close` 仍然任何线程安全。开发构建（`-tags tango_dev`，`tan dev` 和 `automation.Launch` 默认带）在 UI 线程之外调用 `Runner` 方法或修改 `ui.Context` 状态时 panic（消息含 `ui: called off the window's UI thread; use Runner.Post`）；应用自己的变量框架查不到，建议用 `go test -race` 跑一遍。`uihost.Attach`、`tan dev` 宿主里的窗口、其他平台和无头 `ui.Driver` 保持"UI 线程 = 主线程"，行为不变。迁移方法和示例见 [docs/release.md](docs/release.md#迁移说明)；仓库示例（ledger、editor-demo、dock-demo、ui-window、terminal、terminal-workspace、ui-hotreload、webview-embed、mobile-ui）已按新约定修改。
+- 自动化（`TANGO_AUTOMATION`）：新增错误码 `busy`，表示窗口的 UI 线程 5 秒内没有接手请求；`Wait`/`Find` 遇到它立即失败，`action`/`input` 收到它后不要重试（可能仍会执行）。这类窗口上请求里的 panic 报 `Panic.Where = "event handler"`。见 [docs/automation.md](docs/automation.md)。
+- `tan dev` 里的窗口实现了 `ui.UIPoster`：其他 goroutine 调用 `Runner.Post` 时投递到主线程运行，不再在调用者的 goroutine 上直接运行。
+
 ### 新增
 
 - 终端搜索：`ui/terminal` 的 `ViewW.Search(query, caseSensitive)` 在历史滚动区和当前屏幕中查找，滚动到命中处并用选区颜色高亮当前命中（Cmd+C 可直接复制）；`SearchStep(±1)` 前后跳转（循环），`SearchInfo` 返回命中数和当前位置，`ClearSearch` 结束搜索。底层为 `vt.Screen.Search`，返回 `[]vt.Match`（稳定行号与列范围，宽字符按单元格计）。

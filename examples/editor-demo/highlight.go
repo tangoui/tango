@@ -112,16 +112,15 @@ func attachHighlightNotify(life *modelHighlight, m *editor.Model) {
 	if app == nil || runner == nil || life == nil {
 		return
 	}
-	a, r := app, runner
+	r := runner
 	life.SetNotify(func() {
-		a.Post(func() {
+		r.Post(func() { // hlDone and the model belong to the window's UI thread
 			if life.isClosed() {
 				return
 			}
 			if h := m.Highlighter(); h != nil && h.Done(m.Snapshot()) {
 				hlDone = true
 			}
-			r.Invalidate()
 		})
 	})
 }

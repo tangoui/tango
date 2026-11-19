@@ -3,10 +3,25 @@
 // ui.Runner from the backend's canvas callbacks. See
 // docs/specs/canvas-surface.md.
 //
-// The UI thread is the app's main thread: the page function, Runner
-// methods and the returned Runner's callbacks all run there. A platform
-// whose canvas implements platform.CanvasThreaded gives each Open window
-// its own UI thread instead (threaded.go); use Runner.Post to reach it.
+// Threads: on macOS each Open window has its own UI thread, started before
+// Open returns and ended after the window closes. The page function, the
+// returned Runner's methods and its callbacks run there, in parallel with
+// the main thread and with other windows (threaded.go). Everywhere else
+// (other platforms, Attach, windows shown by the tan dev host) the UI
+// thread is the app's main thread.
+//
+// Main-thread callbacks (App.Post, Shortcut, menus, tray, App.OnMessage,
+// Surface.OnClose) must not change page state directly: use Runner.Post,
+// which runs fn on the window's UI thread between frames and then asks
+// for a frame, from any goroutine, on every platform. Calls that need the
+// main thread (Open, Attach, FollowSystemTheme) use App.Post or
+// tango.Await. Runner.Invalidate, InvalidateAt and Close are safe from any
+// goroutine. Development builds (-tags tango_dev) panic when a window's
+// Runner or ui.Context state is used off its UI thread; the app's own
+// variables cannot be checked, so run the app's tests with go test -race.
+// A window's first frame runs after the main-thread callback that called
+// Open returns, so variables set right after Open in that callback are
+// visible to the page.
 //
 // API tiers: only the symbols listed in api/stable/uihost.txt are covered
 // by the compatibility promise of docs/release.md ("API 稳定性"); every

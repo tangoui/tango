@@ -18,8 +18,10 @@
 // screen or a window that cannot become key) to SKIP;
 // A11Y_SMOKE_INPROCESS=1 uses the in-process checks even when trusted.
 // When the display link does not fire (locked screen) the check drives
-// frames itself with -displayIfNeeded; that only works with the CPU
-// renderer (TANGO_RENDERER=cpu), a Metal layer draws nothing then.
+// frames itself with -displayIfNeeded; that only works for a window drawn
+// by AppKit on the main thread with the CPU renderer. A macOS window with
+// its own UI thread (the default) is not drawn by AppKit, so it gets no
+// extra frames from this fallback, and neither does a Metal layer.
 package main
 
 import (

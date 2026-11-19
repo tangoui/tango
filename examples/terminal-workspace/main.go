@@ -64,7 +64,7 @@ func main() {
 		}
 		a.invalidate = runner.Invalidate
 		surface.OnClosed(a.workspace.close)
-		registerShortcuts(surface, a)
+		registerShortcuts(surface, runner, a)
 		if *quitAfter > 0 {
 			time.AfterFunc(*quitAfter, func() { app.Post(app.Quit) })
 		}
@@ -74,7 +74,10 @@ func main() {
 	}
 }
 
-func registerShortcuts(surface *tango.Surface, a *terminalApp) {
+// registerShortcuts binds the workspace shortcuts. They fire on the main
+// thread and change the workspace, which belongs to the window's UI thread,
+// so each runs through runner.Post.
+func registerShortcuts(surface *tango.Surface, runner *ui.Runner, a *terminalApp) {
 	primary := "Ctrl+Shift"
 	if runtime.GOOS == "darwin" {
 		primary = "Cmd"
@@ -95,7 +98,8 @@ func registerShortcuts(surface *tango.Surface, a *terminalApp) {
 		{"CmdOrCtrl+0", func() { a.changed(func() { a.fontSize = 13 }) }},
 	}
 	for _, binding := range bindings {
-		if _, err := uihost.ShortcutWith(surface, binding.accelerator, uihost.ShortcutOptions{InTextInput: true}, binding.run); err != nil {
+		run := binding.run
+		if _, err := uihost.ShortcutWith(surface, binding.accelerator, uihost.ShortcutOptions{InTextInput: true}, func() { runner.Post(run) }); err != nil {
 			log.Printf("terminal workspace: shortcut %s: %v", binding.accelerator, err)
 		}
 	}

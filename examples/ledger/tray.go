@@ -31,14 +31,13 @@ func (l *Ledger) setupTray(r *ui.Runner) {
 		log.Printf("tray unavailable (%v): closing the window quits", err)
 		return
 	}
-	l.tray, l.runner = t, r
+	l.tray = t
 
 	m := menu.New()
 	m.Add("显示记账本", l.showWindow)
-	m.Add("记一笔…", func() {
+	m.Add("记一笔…", func() { // main thread; the editor is page state
 		l.showWindow()
-		l.openEditor(Entry{})
-		r.Invalidate()
+		r.Post(func() { l.openEditor(Entry{}) })
 	})
 	m.Separator()
 	m.Add("退出", func() {
@@ -70,7 +69,8 @@ func (l *Ledger) showWindow() {
 	l.win.Focus()
 }
 
-// trayTip summarises the current month for the tray tooltip.
+// trayTip summarises the current month for the tray tooltip. UI thread, or
+// the main thread before the first frame (setupTray).
 func (l *Ledger) trayTip() string {
 	month := time.Now().Format("2006-01")
 	var in, out int64
@@ -87,7 +87,8 @@ func (l *Ledger) trayTip() string {
 	return "记账本 · 本月支出 " + money(out) + " · 结余 " + money(in-out)
 }
 
-// refreshTray updates the tooltip after the data changed.
+// refreshTray updates the tooltip after the data changed. UI thread
+// (Tray methods are safe from any goroutine).
 func (l *Ledger) refreshTray() {
 	if l.tray != nil {
 		l.tray.SetTooltip(l.trayTip())

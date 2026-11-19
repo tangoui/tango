@@ -83,7 +83,11 @@ type CanvasLayer struct {
 - `uihost.Open(app, Options, page, ui.RunnerOptions) (*ui.Runner, *tango.Surface, error)`，必须在主线程（如 OnReady 里）或通过 `app.Post` 调用。
 - 内部的 `window` 实现 `ui.Window`：Size/Scale/Invalidate/InvalidateAt/SetCursor/SetTextInput/Present 转给 `platform.Canvas`；ReadClipboard/WriteClipboard 走 `clipboard` 能力。
 - sink：`CanvasFrame` → `Runner.Frame()`，帧后若 `Runner.Animating()` 则再 Invalidate，若 `NextWake()` 非零则 InvalidateAt；`CanvasInput` → `Runner.HandleEvent` 后 Invalidate；`CanvasFocus` → `input.WindowFocus`；Surface 关闭 → `Runner.Close()`。
-- UI 线程 = 主线程。
+- UI 线程按平台和入口不同（2026-11-18 每窗口独立 UI 线程，设计见 `docs/superpowers/specs/2026-11-18-per-window-ui-thread-design.md`）：
+  - **macOS 的 `uihost.Open` 窗口**：每个窗口一条独立 UI 线程（锁定 OS 线程），从 `Open` 返回前启动、窗口关闭后退出。页面函数、`Runner` 的方法和回调、渲染器和上屏都在这条线程上运行；帧由该线程上的显示链接驱动（`platform.CanvasThreaded`），不再走 `updateLayer`/`CanvasFrame`。sink 回调仍在主线程收到，由 uihost 转成任务投递到 UI 线程。后端在 `NewCanvasSurface` 里看 sink 是否实现 `platform.CanvasThreadedSink` 且 `WantsUIThread()` 为真（uihost 的 Open 是），是才返回线程化的 canvas。
+  - **其他平台、`uihost.Attach`、`tan dev` 宿主（`remote_dev.go`）、无头 `ui.Driver`**：UI 线程 = 主线程，行为不变。
+  - 应用代码：改页面读取的状态、调用 `Runner` 方法用 `Runner.Post`（任何线程可调用，在 UI 线程两帧之间运行，之后自动请求一帧）；调用必须在主线程的系统接口（`uihost.Open`、`FollowSystemTheme`、`Attach`）用 `App.Post` 或 `tango.Await`。`uihost.Shortcut`、菜单、托盘、`OnMessage`、`OnClose` 等回调在主线程运行。`Invalidate`/`InvalidateAt`/`Close` 任何线程安全。`sys/dialog` 在 UI 线程上调用时阻塞该窗口的 UI 线程、不阻塞主线程。
+  - 第一帧在调用 `Open` 的主线程回调返回之后才运行，所以在同一个回调里 `Open` 之后设置的变量（如保存 `*ui.Runner` 的全局变量）对页面可见。
 
 ## A 步：macOS 实现（先做）
 

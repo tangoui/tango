@@ -53,8 +53,9 @@ type ShortcutOptions struct {
 // "Alt+F4", "F5", "Escape") call fn while s, a window opened with Open,
 // has the keyboard focus. The key press (with its repeats and release)
 // does not reach the UI; holding the key fires fn once. fn runs on the
-// main thread; a panic in it goes to the app's panic handling
-// (tango.Options.OnPanic, Where "event handler").
+// main thread, not the window's UI thread: to change page state or call
+// the Runner, have fn call Runner.Post. A panic in fn goes to the app's
+// panic handling (tango.Options.OnPanic, Where "event handler").
 //
 // While a text field is focused only CmdOrCtrl combinations that are not
 // text editing keys and F1–F12 fire (see ShortcutWith for the rest). A
