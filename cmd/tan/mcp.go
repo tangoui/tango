@@ -53,6 +53,7 @@ func newMCPServer(root string) (*mcpServer, error) {
 	}
 	s.addProjectTools()
 	s.addUITools()
+	s.addWebTools()
 	return s, nil
 }
 
