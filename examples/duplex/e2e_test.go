@@ -161,7 +161,7 @@ func TestE2ELaneSelftest(t *testing.T) {
 // benchSmoke runs go run . -bench (docs/ipc-bench.md) and checks that it
 // prints its result as one JSON line with the fields the benchmark
 // analysis reads, then quits on its own. With the lane switches cleared,
-// macOS uses its default (up:post on).
+// macOS uses up:post and Windows uses both shared-buffer lanes.
 func benchSmoke(t *testing.T) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
@@ -201,6 +201,9 @@ func benchSmoke(t *testing.T) {
 	}
 	if runtime.GOOS == "darwin" && res.Lane.Up != "up:post" {
 		t.Errorf("-bench on macOS with default switches: up lane %q, want up:post (on by default)", res.Lane.Up)
+	}
+	if runtime.GOOS == "windows" && (res.Lane.Down != "down:shm" || res.Lane.Up != "up:shm") {
+		t.Errorf("-bench on Windows with default switches: lanes %+v, want down:shm and up:shm", res.Lane)
 	}
 }
 

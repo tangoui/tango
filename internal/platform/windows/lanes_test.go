@@ -21,7 +21,8 @@ func TestLaneCapsFromEnvWindows(t *testing.T) {
 		supported bool
 		want      []string
 	}{
-		{"", true, nil},
+		{"", true, []string{"down:shm", "up:shm"}}, // enabled by default when supported
+		{"", false, nil},
 		{"1", true, []string{"down:shm", "up:shm"}},
 		{"1", false, nil},
 		{" OFF ", true, nil},

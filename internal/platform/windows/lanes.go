@@ -16,13 +16,15 @@ import (
 const (
 	shmSwitchEnv = "TANGO_IPC_LANES_WINDOWS"
 	shmBytesEnv  = "TANGO_IPC_SHM_BYTES"
-	shmDefault   = false
+	shmDefault   = true
 	shmCapacity  = 4 << 20 // data bytes, in addition to the shared header
 	shmQueueMax  = 8 << 20 // unsent down bytes per surface
 
 	shmLanePrefix = corehook.InternalPrefix + "lane:"
 )
 
+// laneCapsFromEnv enables both shared-buffer lanes by default on a
+// supported WebView2. TANGO_IPC_LANES_WINDOWS can disable them together.
 func laneCapsFromEnv(getenv func(string) string, supported bool) []string {
 	if !supported {
 		return nil
