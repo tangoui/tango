@@ -87,7 +87,7 @@ func page(c *ui.Context) {
 
 ### 使用图片水印
 
-调用 `Image` 后使用图片代替文字；参数是图片对象和绘制尺寸，默认图片不旋转并以 20% 不透明度绘制，可用 `ImageOpacity` 覆盖。
+调用 `Image` 后使用图片代替文字，参数是图片对象和绘制尺寸。图片默认旋转 -22°，按原始透明度绘制。用 `Rotate` 和 `ImageOpacity` 分别调整角度和整体不透明度。
 
 ```go
 import (
@@ -97,8 +97,7 @@ import (
     "github.com/tangoui/tango/ui/layout"
 )
 
-func page(c *ui.Context) {
-    logo := image.NewRGBA(image.Rect(0, 0, 48, 48))
+func page(c *ui.Context, logo image.Image) {
     ui.Watermark(c).Image(logo, 48, 48).ImageOpacity(0.14).Gap(96, 96).Body(func() {
         ui.Text(c, "带图片水印的预览").Layout(layout.W(420), layout.H(180))
     })

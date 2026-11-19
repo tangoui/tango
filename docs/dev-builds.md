@@ -1,6 +1,6 @@
 # 开发功能与生产构建
 
-Tango 只有一个构建开关：`tango_dev` 构建标签。
+`tango_dev` 构建标签开启 Tango 的开发功能。
 
 | | 默认构建（生产） | `-tags tango_dev`（开发） |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ Tango 只有一个构建开关：`tango_dev` 构建标签。
 | 未处理的 panic（`Options.OnPanic` 为 nil） | 弹错误框后以退出码 2 退出 | 记日志、继续运行 |
 | `i18n` 缺失 key 警告、`env.Info().Debug` | 关闭 / `false` | 打开 / `true` |
 | GPU 渲染校验（`internal/render/gpu` verify 模式）默认值 | 见 `internal/render/gpu/verify_release.go` | 打开 |
-| IPC 快速通道的测试开关（`TANGO_IPC_LANE_FAULT`；macOS/iOS 另有 `TANGO_SCHEME_PROBE` 的探测路由和通道计数器） | 无效 | 生效 |
+| macOS 通道计数器（`TANGO_SCHEME_PROBE`） | 无效 | 生效 |
 | iOS 模拟器自测钩子（`TANGO_SCHEME_PROBE`、`TANGO_CANVAS_IME_SELFTEST`、`TANGO_CANVAS_A11Y_SELFTEST`）和通道故障注入 `TANGO_IPC_LANE_FAULT`（所有平台） | 无效；`-tags tango_selftest` 时生效（见下文） | 生效 |
 | Android 模拟器自测钩子：启动参数 `TANGO_TEST_ENV`（还要求可调试 APK）、`TANGO_ANDROID_NO_ARRAYBUFFER`、快速通道计数（`android.LaneStatsSnapshot`） | 无效；`-tags tango_selftest` 时生效（见下文） | 生效 |
 
@@ -75,7 +75,7 @@ GPU 默认路径还会对可重建的 atlas 页和闲置 Metal image texture 施
 
 ## 开发与测试
 
-- `tan dev`：桌面、`-platform android|ios-simulator` 的构建都带 `-tags tango_dev`（与 `GOFLAGS` 里的 `-tags` 合并）。`tan build`、`tan build -debug` 去掉 `tango_dev`，保持生产语义。
+- `tan dev`：桌面、`-platform android|ios-simulator` 的构建都带 `-tags tango_dev`（与 `GOFLAGS` 里的 `-tags` 合并）。`tan build`、`tan build -debug` 去掉 `tango_dev`，保持生产语义。桌面 `tan build` 和 `tan package` 还会合并 `tan.json` 中的 `desktopBuildTags`。桌面构建与热加载默认关闭 cgo，可在 `tan.json` 中设 `"cgo": true` 开启，交叉编译时需要目标平台的 C 编译器（`CC`）。见[桌面构建标签](packaging.md#桌面构建标签)。
 - 测试有两种状态，都要通过：
 
   ```bash

@@ -80,7 +80,9 @@ func page(c *ui.Context) {
 }
 ```
 
-水平菜单高度跟随设计语言：Ant Design 46px，Element Plus 60px；浅色模式下底部有一条分割线。
+水平菜单高度跟随设计语言。Ant Design 为 46px，Element Plus 为 60px，shadcn 为 36px。
+
+`OverflowedIndicator(ic)` 可替换“…”图标，`Ellipsis(false)` 保留全部顶层条目。`ItemPanel(key, fn)` 可为水平菜单的顶层条目提供自定义下拉内容，替代该条目的子菜单。
 
 ### 内嵌、垂直弹出与折叠
 
@@ -134,11 +136,11 @@ func page(c *ui.Context) {
 
 ### 子菜单的展开状态
 
-展开哪些子菜单属于 Menu 内部保留的状态（按菜单的位置标识保存），不需要调用方维护：
+Menu 默认在内部保留内嵌子菜单的展开状态。调用 `OpenKeys(&keys)` 后则每帧读取 `[]string`，用户展开或收起时写回该切片，`OpenChanged()` 报告本帧的变化。绑定的切片优先于 `DefaultOpen` 和首次按选中项展开的行为。
 
 - `DefaultOpen(keys...)`：首次构建时展开指定子菜单，之后由用户操作决定。
 - 首次构建时，包含当前选中项的顶层子菜单会自动展开。
-- `Accordion()`：手风琴模式，同一时间只保留一个内嵌子菜单展开（Element Plus 的 `unique-opened`）。
+- `Accordion()`：点击打开内嵌子菜单时收起其他分支（Element Plus 的 `unique-opened`）。
 
 ```go
 import (
@@ -169,7 +171,9 @@ func page(c *ui.Context) {
 }
 ```
 
-子菜单可以任意嵌套；内嵌模式下深层条目逐级缩进，弹出模式下深层子菜单继续向右弹出。
+内嵌模式下深层条目逐级缩进，可用 `InlineIndent(px)` 设置每级缩进。弹出模式下深层子菜单向行尾弹出。`ExpandIcon(ic)` 替换子菜单箭头，`Tooltip(false)` 关闭折叠菜单叶子项的文字提示。
+
+弹出子菜单默认悬停时展开。`TriggerSubMenuAction(ui.TriggerClick)` 改为点击切换，选择叶子、按 Esc 或点击外部时关闭。`SubMenuOpenDelay(d)` 和 `SubMenuCloseDelay(d)` 设置悬停打开和离开后关闭的延时，分别默认使用主题令牌（Ant Design 100 / 100ms、Element Plus 300 / 300ms、shadcn 200 / 150ms）。
 
 ### 分组、分割线与危险项
 
@@ -303,10 +307,10 @@ func page(c *ui.Context) {
 | 内嵌条目 | 圆角（`RadiusLG`）、左右各留 4px 的选中块 | 通栏选中，无圆角、无留白 | Sidebar 风格：圆角条目、左右留 8px、16px 图标 |
 | 水平菜单 | 高 46px，选中项底部 2px 下划线 | 高 60px，通栏下划线，子菜单项带下拉箭头 | NavigationMenu 风格：悬停 / 选中显示圆角底色，无下划线 |
 | 暗色 | `Dark()` 生效 | `Dark()` 生效 | 忽略 `Dark()`，随主题深浅色 |
-| 折叠宽度 | 80px | 主题 `SiderCollapsed` | 80px |
+| 折叠宽度 | 80px | 主题 `SiderCollapsed`（64px） | 主题 `SiderCollapsed`（48px） |
 
 - 组件令牌：`theme.Components.Menu`（`theme.MenuToken`），包括条目高度 `ItemHeight`、圆角 `ItemBorderRadius`、亮色与暗色两套条目颜色（`ItemSelectedBg`、`DarkItemSelectedBg`……）以及弹出层 `PopupBg`、`PopupRadius` 等。用 `ui.ConfigProvider(c).Components(...)` 局部覆盖，零值字段沿用主题。
-- `ConfigProvider.Defaults("Menu", ...)` 键：`"mode"`（`ui.MenuMode`）、`"theme"`（`"dark"` / `"light"`）、`"accordion"`、`"inlineCollapsed"`（bool）。
+- `ConfigProvider.Defaults("Menu", ...)` 支持 `mode`（`ui.MenuMode`）、`theme`（`"light"` / `"dark"`）、`accordion`、`inlineCollapsed`、`selectable`、`tooltip`、`ellipsis`（`bool`）、`inlineIndent`（`float32`）、`subMenuOpenDelay`、`subMenuCloseDelay`（`time.Duration`）以及 `triggerSubMenuAction`（`"hover"` / `"click"`）。
 
 ```go
 import (
@@ -332,8 +336,8 @@ func page(c *ui.Context) {
 
 - **状态放在哪**：选中项由调用方的 `*string` 持有，放在包级变量或页面状态结构里，不要在页面函数里用局部变量（每帧都会被重置）。展开的子菜单、键盘焦点、弹出层由 Menu 内部按自身标识保留；同一位置的菜单如果会被条件分支替换，或同一列表里动态插入了兄弟控件，用 `ui.Key(c, "side-menu", func() { ... })` 包住，保持标识稳定。长时间不构建的菜单，其内部状态会被回收，再次出现时按 `DefaultOpen` 和选中项重新初始化。
 - **Key 唯一**：所有层级的 `Key` 必须全局唯一，选中、展开、`MenuPath` 都按 Key 查找。分组（`Group`）和分割线不需要 Key。
-- **Clicked 只报叶子**：点击带子菜单的条目只是展开/收起，不会改变选中值，`Clicked()` 也不会返回它。
-- **键盘**：整个菜单只占一个 Tab 停靠点（落在聚焦项，否则选中项）。↑/↓ 在可见条目间移动；内嵌模式 → 展开子菜单（再按进入）、← 收起或回到父级；垂直与折叠模式 → 或回车打开弹出子菜单并进入；水平模式 ←/→ 沿菜单条移动，↓ 或回车打开下拉；回车/空格选中叶子，Esc 关闭弹出子菜单。
+- **Clicked 只报叶子**：点击带子菜单的条目只操作子菜单。`Selectable(false)` 让叶子点击只报告 `Clicked()`，保留调用方的选中值。
+- **键盘**：菜单只有一个 Tab 停靠点，依次优先聚焦项、选中项、首个可聚焦项。纵向菜单用 ↑/↓ 在可见条目间移动，Home / End 移到两端。内嵌模式用 → 展开或进入子菜单，用 ← 收起或回到父级。垂直与折叠模式用 →、回车或空格打开弹出子菜单并进入。水平模式用 ←/→ 移动，用 ↓、回车或空格打开下拉。回车或空格激活叶子项，Esc 关闭弹出子菜单。RTL 下横向键的逻辑方向会镜像。
 - **无障碍**：内嵌/垂直菜单暴露为 menu 角色，水平菜单为 menubar；子菜单的展开状态、禁用状态和 `Shortcut` 文本都会报告给读屏软件。折叠模式只显示图标，`Label` 仍是条目的无障碍名称，所以不要留空。
 - **RTL**：在从右到左的作用域里，分割线、缩进与弹出方向自动镜像。
 

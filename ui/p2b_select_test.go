@@ -277,3 +277,29 @@ func BenchmarkMultiSelect100k(b *testing.B) {
 		d.Frame()
 	}
 }
+
+func TestSelectVirtualFalseBuildsAllOptions(t *testing.T) {
+	options := v1Opts(120)
+	for _, tc := range []struct {
+		name      string
+		kind      string
+		configure func(*Context, *SelectW)
+	}{
+		{"plain", "option", func(*Context, *SelectW) {}},
+		{"grouped", "fill-vs-option", func(_ *Context, w *SelectW) { w.Groups([]OptionGroup{{Label: "Group", Options: options}}) }},
+		{"remote", "fill-vs-option", func(_ *Context, w *SelectW) { w.Remote(func(string) {}) }},
+		{"custom-row", "fill-vs-option", func(c *Context, w *SelectW) { w.OptionRender(func(o Option, _ OptionState) { Text(c, o.Label) }) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var value string
+			d := newPerfDriver(func(c *Context) {
+				w := Select(c, &value, options).Virtual(false).Open()
+				tc.configure(c, w)
+			}, false)
+			d.Settle()
+			if got := v1Count(d, tc.kind); got != len(options) {
+				t.Errorf("Virtual(false) built %d of %d options", got, len(options))
+			}
+		})
+	}
+}

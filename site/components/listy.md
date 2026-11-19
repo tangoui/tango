@@ -72,6 +72,8 @@ func groupedList(c *ui.Context) {
 
 默认会在绘制后测量行高；`EstimatedItemHeight` 是还没有测量到的行所使用的估计值。数据会插入、删除或重排时，用 `RowKey` 返回稳定键，避免行内状态跟着索引错位。
 
+条目总数不变时，如果调整了数据顺序、`RowKey` 或 `Group` 的结果，递增并传入 `DataVersion(version)`，让列表重算分组与滚动偏移。
+
 ```go
 type notice struct {
     ID      string
@@ -94,7 +96,7 @@ func variableRows(c *ui.Context) {
 
 ### 加载更多
 
-`LoadMore(hasMore, loading)` 加入底部状态，滚动到距底部 100 像素以内时 `EndReached()` 返回 `true`。请求完成后增加 `n` 或更新数据，并让 `loading` 回到 `false`。
+`LoadMore(hasMore, loading)` 加入底部状态。有更多数据且未加载时，滚动到距底部 100px 以内会让 `EndReached()` 返回 `true`。发起请求时马上设置 `loading`，追加数据后设回 `false`。
 
 ```go
 var (

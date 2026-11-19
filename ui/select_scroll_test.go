@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/tangoui/tango/ui/input"
@@ -43,6 +44,54 @@ func TestSelectLongListScrolls(t *testing.T) {
 		d.Key(input.KeyEnter, 0)
 		if val != "选项 38" {
 			t.Fatalf("%s: picked %q", th.Name, val)
+		}
+	}
+}
+
+func TestSelectAndTreeSelectListHeight(t *testing.T) {
+	options := v1Opts(30)
+	nodes := make([]TreeSelectNode, len(options))
+	for i, o := range options {
+		nodes[i] = TreeSelectNode{Value: o.Value, Label: o.Label}
+	}
+	for _, name := range []string{"Select", "TreeSelect"} {
+		for _, virtual := range []bool{true, false} {
+			for _, tc := range []struct {
+				name  string
+				n     int
+				limit float32
+				want  float32
+			}{
+				{"custom-limit", len(options), 80, 80},
+				{"default-limit", len(options), 0, 256},
+				{"short-list", 1, 80, 0}, // natural height of one row
+			} {
+				t.Run(name+"/virtual="+strconv.FormatBool(virtual)+"/"+tc.name, func(t *testing.T) {
+					var value string
+					want := tc.want
+					d := newPerfDriver(func(c *Context) {
+						if name == "Select" {
+							w := Select(c, &value, options[:tc.n]).Virtual(virtual).ListHeight(tc.limit).Open()
+							if tc.n == 1 {
+								want = w.th.Components.Select.OptionHeight
+							}
+						} else {
+							w := TreeSelect(c, &value, nodes[:tc.n]).Virtual(virtual).ListHeight(tc.limit).Open()
+							if tc.n == 1 {
+								want = w.rowH()
+							}
+						}
+					}, false)
+					d.Settle()
+					scrolls := v1Scrolls(d)
+					if len(scrolls) != 1 {
+						t.Fatalf("want one dropdown scroll state, got %d", len(scrolls))
+					}
+					if got := scrolls[0].view.H; got != want {
+						t.Errorf("dropdown viewport = %gpx, want %gpx", got, want)
+					}
+				})
+			}
 		}
 	}
 }

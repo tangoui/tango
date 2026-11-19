@@ -33,6 +33,7 @@ func navAbsRect(n *node) geom.Rect {
 
 type affixState struct {
 	affixed bool
+	changed bool // a paint-time transition for the next build
 }
 
 // AffixW pins its content to the viewport (or to a scroll container) once
@@ -78,7 +79,7 @@ func (a *AffixW) Target(id ID) *AffixW { a.target = id; return a }
 // Affixed reports whether the content is currently pinned.
 func (a *AffixW) Affixed() bool { return a.st != nil && a.st.affixed }
 
-// Changed reports a pin state change detected in the previous frame.
+// Changed reports a pin state change on the first build after it was detected.
 func (a *AffixW) Changed() bool { return a.changed }
 
 func (a *AffixW) view() geom.Rect {
@@ -115,7 +116,7 @@ func (a *AffixW) Body(fn func()) *AffixW {
 	ph := c.add("affix", "")
 	ph.ln.Dir = layout.Column
 	a.st = State[affixState](c, ph.id, nil)
-	prev := a.st.affixed
+	a.changed, a.st.changed = a.st.changed, false
 	if !a.st.affixed {
 		// In flow: content scrolls with the page until it reaches the edge.
 		navBodyScoped(c, ph, ph.id, fn)
@@ -123,7 +124,7 @@ func (a *AffixW) Body(fn func()) *AffixW {
 		ov.n.hit, ov.n.blocks = false, false
 		ov.n.paint = func(l *paint.List, _ geom.Rect) {
 			if on, _ := a.want(navAbsRect(ph)); on {
-				a.st.affixed = true
+				a.st.affixed, a.st.changed = true, true
 				c.WakeAt(c.now)
 			}
 		}
@@ -153,7 +154,7 @@ func (a *AffixW) Body(fn func()) *AffixW {
 		r := navAbsRect(ph)
 		on, y := a.want(r)
 		if !on {
-			a.st.affixed = false
+			a.st.affixed, a.st.changed = false, true
 			c.WakeAt(c.now)
 		}
 		v := a.view()
@@ -164,7 +165,6 @@ func (a *AffixW) Body(fn func()) *AffixW {
 		flexbox.Solve(&inner.ln, r.W, r.H)
 		inner.ln.Rect.X, inner.ln.Rect.Y = r.X-v.X, y-v.Y
 	}
-	a.changed = prev != a.st.affixed
 	return a
 }
 

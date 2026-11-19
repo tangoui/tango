@@ -230,6 +230,7 @@
 
 ### 修复
 
+- `Notify.onClick`：在支持通知冷启动的平台上，页面订阅后能收到启动应用的那次通知点击，即使本轮没有发送新通知。
 - `tan dev`：应用启动的交互式 shell（例如带 `-i` 读取登录 PATH）把终端前台抢走后退出时，Ctrl-C 不再失效；`tan dev` 发现前台进程组已不存在会把终端收回。
 - `sys/pty` 与 Tango 终端：从 Finder、Dock 或其他应用（如 MinCode）启动、环境里没有 `LANG` 的应用，shell 在 C 语言环境下把输入的中文等 UTF-8 文字当成单个字节——命令行显示 `<00e4>` 之类的乱码、退格按字节删、回车执行被拆坏的命令。环境里 `LC_ALL`、`LC_CTYPE`、`LANG` 都没设时，macOS 和 Linux 上补 `LC_CTYPE=C.UTF-8`（没有 `C.UTF-8` 的旧版 macOS 补 `UTF-8`；不用 Terminal.app 那样的裸 `UTF-8`，因为 ssh 会把 `LC_*` 转发到 Linux 主机，那里不认这个名字）；已设置的语言环境保持不变，不改程序输出的语言。
 - `tan dev` 热重载的自绘窗口：标题栏隐藏（`TitleBarHidden`）的 macOS 窗口保留系统红绿灯时，worker 端绘制的自绘标题栏不再在其上再画一组窗口按钮（热重载窗口实现 `ui.WindowFrame`，报告系统按钮与窗口状态）。
@@ -256,6 +257,14 @@
 - **水波图文字**：`chart.Liquid` 水位过半时，数值和标题的颜色按合成后的水色明暗选白色或深色，不再固定为白色（shadcn/ui v4 neutral 的 chart-1 是浅灰，白字看不清）。
 - Android：资源响应不再带两个 `Content-Length`（以前是 `585, 585`，流式响应是 `0, 3145728`）。WebView 自己按响应体流的 `available()` 设置这个头，后端改为通过它报告处理函数的长度，不再另传头；HEAD 响应报告 GET 的长度。资源处理函数 panic 时返回 `tango: asset handler panic: <原因>`，与 macOS/iOS 一致（以前是 `tango: asset handler panicked`）。
 - **FooterToolbar 吸底回退**：渲染器不支持背景模糊时，吸底工具栏改用不透明的 `BgContainer`，避免底部内容从工具栏后穿透；HighContrast 下也保持不透明。
+- `Cascader`、`CascaderPanel` 根选项为空时忽略上下方向键，避免下标越界崩溃。
+- `Affix.Changed()` 在固定和解除固定后的首次构建中各报告一次变化。
+- `Menu.Accordion()` 用方向键和点击展开菜单时都只保留当前分支，嵌套菜单的父级保持展开。
+- 可变行高的虚拟 `List` 原地重排行时沿用各 `RowKey` 的实测高度，修正滚动位置和 `ScrollToKey` 的定位。
+- 带分组、远程搜索或自定义选项的 `Select` 和 `MultiSelect` 可通过 `Virtual(false)` 关闭窗口化。
+- 定高 `Tree` 支持通过 `Defaults("Tree", Props{"virtual": false})` 关闭窗口化，保留滚轮和键盘滚动。
+- `Select` 和 `TreeSelect` 的 `ListHeight` 同样适用于非虚拟下拉，短列表按内容高度显示。
+- 漏斗图悬停提示按前一可见阶段计算转化率，前一阶段为 0 时省略转化率。
 
 ### 安全
 

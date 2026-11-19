@@ -3,7 +3,7 @@
 `power` 定义了三类电源相关能力：读取电源状态（交流电还是电池、电量、是否充电、省电模式）、在系统睡眠和唤醒时通知应用、在播放视频或执行长任务时阻止系统空闲休眠。
 
 ::: info 平台支持
-macOS（IOKit 电源信息、IOPMAssertion）、Windows（GetSystemPowerStatus、PowerCreateRequest，退回 SetThreadExecutionState）、Linux（UPower、systemd-logind、power-profiles-daemon）已实现；iOS、Android 暂不支持，调用返回 `ErrUnsupported`。Windows 和 Linux 还没有在实机上验证（实验性）。
+macOS（IOKit 电源信息、IOPMAssertion）、Windows（GetSystemPowerStatus、PowerCreateRequest，退回 SetThreadExecutionState）、Linux（UPower、systemd-logind、power-profiles-daemon）已实现；iOS 和 Android 也提供电池状态、省电模式与空闲休眠控制。Windows 和 Linux 还没有在实机上验证（实验性）。
 :::
 
 ```go
@@ -47,9 +47,9 @@ if err == nil {
 
 | macOS | Windows | Linux | iOS | Android |
 |---|---|---|---|---|
-| 未实现 | 未实现 | 未实现 | 未实现 | 未实现 |
+| IOKit、IOPMAssertion | Win32 电源通知与请求 | UPower、logind、power-profiles-daemon | `UIDevice` 电池状态、低电量模式和空闲计时器 | 电池广播、省电模式、常亮和部分唤醒锁 |
 
-> 当前所有平台都返回 `ErrUnsupported`，回调不会触发。
+移动端的 `OnSuspend` / `OnResume` 不触发，请用应用生命周期回调。iOS 的两种 `Block` 都禁用屏幕自动锁定。Android 的 `KeepAwake` 在应用声明 `android.permission.WAKE_LOCK` 时持有部分唤醒锁，否则保持屏幕常亮。
 
 ## 在页面里调用
 
@@ -65,6 +65,6 @@ bind.Register(r, "Power", Power{app})
 
 ## 注意
 
-- 设计上：函数在应用运行后可在任意 goroutine 调用，回调在主线程运行；`On*` 可以在 `Run` 之前注册；应用退出后 `Get` 返回 `tango.ErrNotRunning`。
-- 设计上：用户主动的睡眠（合盖、选「睡眠」）不会被阻止，`Block` 只阻止空闲休眠；进程退出时系统自动释放。
+- 函数在应用运行后可在任意 goroutine 调用，回调在主线程运行；`On*` 可以在 `Run` 之前注册；应用退出后 `Get` 返回 `tango.ErrNotRunning`。
+- 用户主动的睡眠（合盖、选「睡眠」）不会被阻止，`Block` 只阻止空闲休眠；进程退出时系统自动释放。
 - `OnSuspend` 触发后系统不会等太久，保存状态要快。

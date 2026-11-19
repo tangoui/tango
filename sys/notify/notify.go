@@ -137,10 +137,10 @@ func Send(a *tango.App, m Message) (string, error) {
 }
 
 // OnClick registers fn to run on the main thread when the user clicks a
-// notification this app sent. That includes, where the platform reports
-// them (macOS), notifications sent by an earlier run of the app — the
-// click that launched it among them: register before Run or in OnReady
-// so that one is not missed. Ids stay unique across runs.
+// notification this app sent. On macOS, iOS and Android, this includes
+// notifications sent by an earlier run, including the click that launched
+// the app. Register before Run or in OnReady to receive the launch click.
+// IDs stay unique across runs.
 func OnClick(a *tango.App, fn func(id string)) {
 	st := state(a)
 	st.mu.Lock()

@@ -29,7 +29,7 @@ func page(c *ui.Context) {
 }
 ```
 
-`selectedDay` 为零值时显示今天且无选中日期。
+`selectedDay` 初始为零值时从当前月份开始显示，高亮今天且没有选中日期。
 
 ## 常见用法
 
@@ -65,7 +65,11 @@ func modes(c *ui.Context, day *time.Time) {
 
 ## 主题与样式
 
-Calendar 令牌控制日期格高度、今天、选中、禁用和头部样式。`CellHeight`、`Range`、`NoHeader` 可调整全屏日历形态。
+Calendar 令牌控制日期格高度、今天、选中、禁用和头部样式。用 `CellHeight` 调整全屏日历的日期格高度，用 `NoHeader` 隐藏头部。
+
+`Range(start, end)` 显示包含该区间的完整周，区间外的日期不可选，视图固定在月模式。`ValidRange(start, end)` 保留月份导航，并把可浏览和选择的日期限制在区间内。
+
+`ConfigProvider.Defaults("Calendar", ...)` 支持 `fullscreen`（默认 `true`，`false` 使用卡片模式）、`showWeek`（默认 `false`）和 `controllerType`（Element Plus 主题的 `"button"` 或 `"select"`，默认 `"button"`）。
 
 ## 注意事项
 

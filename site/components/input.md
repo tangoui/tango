@@ -39,6 +39,7 @@ func page(c *ui.Context) {
 | `MaxLength(int)` | 限制输入长度 |
 | `ReadOnly()` | 允许查看但不可编辑 |
 | `Disabled(bool)` | 禁用输入框 |
+| `Password().VisibilityToggle(false)` | 密码输入，隐藏默认的可见性切换按钮 |
 | `Changed() bool` | 读取当前帧是否发生内容修改 |
 
 ## 使用说明

@@ -3,6 +3,7 @@ package ui
 import (
 	"reflect"
 	"sort"
+	"strconv"
 	"testing"
 
 	"github.com/tangoui/tango/ui/geom"
@@ -292,5 +293,42 @@ func TestTreeClickFocusesForKeys(t *testing.T) {
 	d.Settle()
 	if w.st.cursor != "p" {
 		t.Fatalf("Up after clicking the last row should move to the first, cursor=%q", w.st.cursor)
+	}
+}
+
+func TestTreeVirtualDefaultFalseKeepsFullScrollViewport(t *testing.T) {
+	nodes := make([]TreeNode, 50)
+	for i := range nodes {
+		name := strconv.Itoa(i)
+		nodes[i] = TreeNode{Key: name, Title: name}
+	}
+	var w *TreeW
+	d := newPerfDriver(func(c *Context) {
+		ConfigProvider(c).Defaults("Tree", Props{"height": 96, "virtual": false}).Body(func() {
+			w = Tree(c, nodes).Show()
+		})
+	}, false)
+	d.Settle()
+	r := d.r.c.rects[w.box.n.id]
+	if r.H != 96 || w.sb == nil {
+		t.Fatalf("fixture did not produce a 96px scrolling tree: rect=%+v, scroll=%t", r, w.sb != nil)
+	}
+	if got := w.Built(); got != len(nodes) {
+		t.Errorf("height=%g and virtual=false: built %d of %d rows, want all rows", r.H, got, len(nodes))
+	}
+	d.Scroll(r.Center(), 300)
+	_, before := w.sb.Offset()
+	if before <= 0 {
+		t.Fatal("wheel did not scroll the tree")
+	}
+	d.r.c.SetFocus(w.box.n.id)
+	d.Key(input.KeyEnd, 0)
+	d.Settle()
+	if _, after := w.sb.Offset(); after <= before {
+		t.Errorf("End scrolled to %g, want an offset past %g", after, before)
+	}
+	last, ok := d.r.c.rects[w.rows[nodes[len(nodes)-1].Key]]
+	if !ok || last.Y < r.Y || last.Bottom() > r.Bottom() {
+		t.Errorf("last row %v is outside viewport %v after End", last, r)
 	}
 }

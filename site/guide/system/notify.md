@@ -1,6 +1,6 @@
 # notify：系统通知
 
-`notify` 发送系统通知（macOS 通知中心、Windows 通知区域、Linux freedesktop 通知服务），并报告用户点击了哪一条。发送前先用 `RequestPermission` 请求许可；`Send` 返回通知 id，点击时 `OnClick` 收到同一个 id。
+`notify` 发送系统通知（macOS 和 iOS 通知中心、Windows 通知区域、Linux freedesktop 通知服务、Android 通知渠道），并报告用户点击了哪一条。发送前先用 `RequestPermission` 请求许可；`Send` 返回通知 id，点击时 `OnClick` 收到同一个 id。
 
 ```go
 import "github.com/tangoui/tango/sys/notify"
@@ -43,9 +43,9 @@ app.OnReady(func() {
 
 | macOS | Windows | Linux | iOS | Android |
 |---|---|---|---|---|
-| ✓ 通知中心（需从 .app 运行） | ✓ 通知区域气泡（Windows 10+ 显示为 toast） | ✓ D-Bus `org.freedesktop.Notifications` | — | — |
+| ✓ 通知中心（需从 .app 运行） | ✓ 通知区域气泡（Windows 10+ 显示为 toast） | ✓ D-Bus `org.freedesktop.Notifications` | ✓ `UNUserNotificationCenter` | ✓ 通知渠道，Android 13+ 需声明 `notifications` |
 
-> Windows、Linux 实现尚未实机验证。移动端目前没有实现本地通知；远程推送见 [push](/guide/system/push)。
+> Windows、Linux 实现尚未实机验证。移动端本地通知使用 `notify`。远程推送见 [push](/guide/system/push)。
 
 ## 在页面里调用
 
@@ -69,6 +69,6 @@ const off = Notify.onClick((id) => console.log("clicked", id));
 ## 注意
 
 - **macOS 需要 .app**：通知要求应用以带 bundle identifier 的 .app 运行，直接 `go run` 的裸二进制会得到一个明确的错误（不会崩溃）；用户还必须在系统设置中允许。开发时用 `tan dev` / `tan build` 生成的包测试，见 [命令行](/reference/cli)。
-- macOS 还会报告上一次运行发出的通知被点击（包括点通知启动应用的那次），id 在多次运行之间保持唯一。其他平台只报告本次运行发出的通知。
+- macOS、iOS 和 Android 也会报告前次运行的通知点击，包括通过通知启动应用。id 在多次运行之间保持唯一。
 - Windows 走通知区域气泡，不需要 AUMID 或安装程序。
-- 应用运行后可在任意 goroutine 调用；`RequestPermission` 在主线程调用时会在等待期间继续运转事件循环。应用退出后返回 `tango.ErrNotRunning`。
+- 应用运行后可在任意 goroutine 调用；Android 上用 goroutine 调用 `RequestPermission`，因为主线程不能嵌套等待。应用退出后返回 `tango.ErrNotRunning`。

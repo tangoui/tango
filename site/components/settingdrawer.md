@@ -54,7 +54,7 @@ func settingDrawerPage(c *ui.Context) {
 }
 ```
 
-默认会显示右下角的设置浮动按钮；点击后打开右侧 320px 抽屉。
+默认显示右下角的设置浮动按钮。点击后打开宽 300 逻辑像素的右侧抽屉。
 
 ## 常见用法
 
@@ -176,8 +176,8 @@ func settingChangePage(c *ui.Context) {
 
 ## 主题与样式
 
-- Ant Design Pro 默认是深色菜单、side 布局、Fluid 内容、固定顶栏和固定侧栏；`NavTheme` 可选 `"light"`、`"dark"`、`"realDark"`。
-- Element Plus 使用对应主题令牌和亮色布局；shadcn 侧栏使用其 dashboard 风格，`Light()` 等经典深色侧栏选项不改变 shadcn 的固定外观。
+- `DefaultProSettings()` 按 Pro v3 默认使用亮色菜单、`side` 布局、`Fluid` 内容和固定侧栏，`FixedHeader` 默认是 `false`。`NavTheme` 可选 `"light"`、`"dark"`、`"realDark"`。
+- Element Plus 使用对应主题令牌和亮色布局。shadcn 侧栏采用 dashboard 风格，跟随主题的侧栏令牌。
 - `ProSettingsProvider` 会把 `realDark` 转成暗色主题、`PrimaryColor` 转成主色、`Compact` 转成紧凑尺寸、`ColorWeak` 转成高对比主题；TanGo 没有 CSS 滤镜，色弱模式使用 `theme.HighContrast`。
 - SettingDrawer 自身的默认隐藏项来自 `ConfigProvider.Defaults("SettingDrawer", ...)`：`hideColors`、`hideLayout`、`hideOther`。
 

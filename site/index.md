@@ -55,7 +55,7 @@ hero:
 
 ### Go 自绘 GUI
 
-组件用 Go 写状态和逻辑，由 TanGo 负责布局和绘制。默认走 GPU 渲染（Metal、Direct3D 11、OpenGL、OpenGL ES），设备起不来时回退到 CPU。
+组件用 Go 写状态和逻辑，由 TanGo 负责布局和绘制。Apple Silicon 上的 macOS 自绘窗口默认走原生图层，按输入和帧耗时切换到 Metal。其他平台的完整自绘窗口或页面默认用 GPU，设备不可用时回退到 CPU。 [平台支持](/guide/platforms)
 
 </div>
 <div class="home-card">
@@ -76,7 +76,7 @@ hero:
 
 ### 从模板到安装包
 
-`tan` 一个命令行工具负责模板、热重载、构建、打包（dmg、NSIS、MSIX、deb、rpm、AppImage、Flatpak、apk、aab、ipa）、签名和签名的自动更新。
+`tan` 一个命令行工具负责模板、热重载、构建、打包（dmg、NSIS、MSIX、deb、rpm、AppImage、Flatpak、apk、aab、ipa）、签名和更新清单，也提供项目与界面的 MCP 工具。 [命令行 tan](/reference/cli)
 
 </div>
 </div>

@@ -155,13 +155,15 @@ func lazyTree(c *ui.Context) {
 
 ### 大数据量：虚拟滚动
 
-`Height(px)` 把树变成固定高度的滚动视口，只构建视口内的行，开销与视口大小而不是节点总数成正比；`Built()` 返回本帧实际构建的行数。
+`Height(px)` 设置固定高度的滚动视口，只构建视口及邻近缓冲区内的行。`Built()` 返回本次 `Show()` 实际构建的行数。单独设置 `Height` 时，每帧仍会遍历节点并展平可见行。
+
+同时设置 `DataVersion(v)` 后，树会缓存父节点表、`Filter` 的可见集合、展平后的可见行和勾选状态。数据和展开、搜索、勾选状态稳定时，每帧开销主要随视口大小变化。原地增删或替换子节点、修改键、改变 `Filter` 的匹配结果，或修改影响勾选联动的 `Disabled` / `DisableCheckbox` 时，请递增 `v` 或换用新的顶层切片。懒加载原地写回子节点也要更新版本。
 
 ```go
 var bigOpen []string
 
-func bigTree(c *ui.Context, nodes []ui.TreeNode) {
-    ui.Tree(c, nodes).Expanded(&bigOpen).Height(320).A11yLabel("部门树").Show()
+func bigTree(c *ui.Context, nodes []ui.TreeNode, version int) {
+    ui.Tree(c, nodes).Expanded(&bigOpen).Height(320).DataVersion(version).A11yLabel("部门树").Show()
 }
 ```
 
@@ -175,7 +177,7 @@ func bigTree(c *ui.Context, nodes []ui.TreeNode) {
 
 组件令牌在 `theme.Components.Tree`（`theme.TreeToken`）：`TitleHeight`、`NodeGap`、`IndentSize`、`SwitcherSize`、`NodeBorderRadius`、`NodeHoverBg`、`NodeSelectedBg`、`NodeSelectedColor`、`LineColor`、`SearchHighlightColor`、`SearchHighlightBg`、`DropIndicatorColor` 等。`ExpandOnClick(on)` 可以在任何风格下单独开关「点击标题展开」。
 
-`ConfigProvider.Defaults("Tree", ...)` 支持的键：`"showLine"`、`"showIcon"`、`"blockNode"`、`"checkable"`、`"multiple"`、`"draggable"`（bool），`"height"`（虚拟滚动视口高度，px），`"virtual"`（false 时 `height` 只是普通滚动区域）。
+`ConfigProvider.Defaults("Tree", ...)` 的布尔键包括 `showLine`、`showIcon`、`blockNode`、`checkable`、`multiple`、`draggable`、`selectable`、`defaultExpandAll`、`accordion`、`checkOnClickNode` 和 `checkOnClickLeaf`。`height` 设置虚拟滚动视口高度，单位为逻辑像素。
 
 ```go
 func treeDefaults(c *ui.Context) {
@@ -190,7 +192,7 @@ func treeDefaults(c *ui.Context) {
 - **Key 唯一**：节点 `Key` 在整棵树里必须唯一，同一棵树不要出现两个相同的键。
 - **状态放在哪**：需要在别处读取或预设展开、选择、勾选时，用 `Expanded`、`Selected`、`Checkable` 绑定应用变量；不绑定时状态由树按自身的组件 ID 保存。条件分支或循环里渲染多棵树时，用 `ui.Key(c, key, fn)` 区分。
 - **数据不可变**：拖拽、懒加载等改变结构的操作都由应用改 `nodes`；`ui.TreeMove` 返回新切片，不修改原树。
-- **性能**：节点多于几百个时设置 `Height` 开启虚拟滚动；需要过滤高亮、可变高度等更多能力的超大树，可用 `VirtualTree`。
+- **性能**：节点多于几百个时，可设置 `Height` 并按需提供 `DataVersion`。超大树需要自定义行内容、按键定位或查询构建范围时，可用 `VirtualTree`。
 - **键盘与无障碍**：整棵树是一个 Tab 停靠点。↑ / ↓ 移动焦点行，Home / End 跳到首行 / 末行，→ 展开（或进入第一个子节点），← 收起（或回到父节点），Enter 选择，空格在可勾选时勾选、否则选择。用 `A11yLabel` 为树命名（放在 `FormItem` 里时自动使用表单项标签）。
 - **RTL**：缩进、展开箭头和连接线在 RTL 布局中自动镜像。
 

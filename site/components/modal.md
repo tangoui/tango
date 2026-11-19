@@ -178,7 +178,7 @@ func page(c *ui.Context) {
 }
 ```
 
-加载中确定按钮不会再触发 `Ok()`；示例同时关掉了右上角关闭和遮罩关闭，避免请求未完成就关闭。默认页脚的“取消”和 Esc 仍可关闭对话框，需要完全禁止时改用自定义页脚（见下一节）。命令式的 [Confirm](/components/confirm#异步关闭) 也支持同样的异步关闭。
+确认加载期间，确定按钮暂停触发 `Ok()`。示例在加载期间关闭标题栏按钮和遮罩关闭，默认页脚的“取消”和 Esc 仍可关闭对话框。也可配合自定义页脚和 `Keyboard(false)` 控制这些入口。命令式确认框也支持异步关闭。[Confirm](/components/confirm#异步关闭)
 
 ### 自定义页脚
 
@@ -299,11 +299,13 @@ func page(c *ui.Context) {
 
 对话框的无障碍角色是 `dialog`，名称取自标题，状态带 `modal`；读屏软件的“关闭”动作同样走取消逻辑。
 
+`Keyboard(false)` 禁止 Esc 关闭。`AfterOpenChanged()` 在 `Body` 后报告打开或关闭动画是否在本帧结束，再从绑定的 `open` 读取状态。`Loading(true)` 用骨架屏替换内容并隐藏页脚，`ConfirmLoading(true)` 仅让确定按钮进入加载状态。
+
 ## 主题与样式
 
 | | Ant Design | Element Plus | shadcn |
 | --- | --- | --- | --- |
-| 默认宽度 | 520 | 窗口宽度 50%（最少 320） | 520 |
+| 默认宽度 | 520 | 窗口宽度 50%（最少 320） | 512 |
 | 默认位置 | 距顶部 100 | 距顶部 15% 窗口高度 | 始终居中（设置了 `Top` 时除外） |
 | 标题 | 16px 加粗 | 18px 常规字重 | 18px 半粗（600） |
 | 内边距 | 左右 24、上下 20 | 16 | 24 |
@@ -311,7 +313,7 @@ func page(c *ui.Context) {
 
 组件令牌在 `theme.Components.Modal`（`theme.ModalToken`），同时作用于 Confirm / MessageBox / Prompt：`ContentBg`、`HeaderBg`、`FooterBg`、`TitleColor`、`TitleFontSize`、`TitleFontWeight`、`Padding`、`PaddingBlock`、`HeaderMarginBottom`、`FooterMarginTop`、`CloseIconColor`、`Radius`、`BorderColor`、`MaskBg`、`Shadow`。用 `ui.ConfigProvider(c).Components(theme.Components{Modal: theme.ModalToken{Radius: 12}})` 在一个作用域内覆盖，零值字段继承主题。
 
-`ConfigProvider.Defaults("Modal", ui.Props{...})` 支持的键：`width`、`centered`、`closable`、`mask`、`maskClosable`、`okText`、`cancelText`；链式方法优先。
+`ConfigProvider.Defaults("Modal", ui.Props{...})` 支持 `width`、`centered`、`closable`、`mask`、`maskClosable`、`keyboard`、`okText` 和 `cancelText`。链式方法优先。
 
 ```go
 import (

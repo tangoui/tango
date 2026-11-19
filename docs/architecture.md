@@ -1,8 +1,8 @@
-# Tango 架构（第一阶段：核心运行时 + 桌面 WebView）
+# Tango 架构
 
-Tango 是开源的通用 Go 应用框架：一套 Go 代码跑在桌面（macOS / Windows / Linux）和移动端（iOS / Android），界面可以是系统 WebView，也可以是 Go 自绘（第二阶段），两者能放在同一界面里。
+Tango 是开源的通用 Go 应用框架：一套 Go 代码跑在桌面（macOS / Windows / Linux）和移动端（iOS / Android），界面可以是系统 WebView 或 Go 自绘，也可以在支持的平台上把两者放在同一界面里。移动端宿主见 [mobile.md](mobile.md)，自绘组件的编写约定见 [ui/AUTHORING.md](../ui/AUTHORING.md)。
 
-模块路径：`github.com/tangoui/tango`（占位，开源前可改）。Go 1.27。协议 MIT。
+模块路径：`github.com/tangoui/tango`。Go 1.27。协议 MIT。
 
 ## 借鉴与取舍
 
@@ -24,11 +24,11 @@ Tango 是开源的通用 Go 应用框架：一套 Go 代码跑在桌面（macOS 
   │
   ├─ tango（根包）        App / Surface / Post / Await / AwaitAsync / 生命周期 / 原始消息
   ├─ ipc / bind / asset  调用、事件、流；可选反射绑定；资源服务
-  ├─ dialog / clipboard / menu ...   一个能力一个包，不支持返回 platform.ErrUnsupported
+  ├─ sys/...              dialog、clipboard、menu 等能力包
   │
   └─ internal/platform   Backend 契约（backend.go / types.go / caps.go）
         ├─ darwin  windows  linux   （无 cgo）
-        ├─ ios  android             （cgo，build tag 隔离，第三子项目）
+        ├─ ios  android             （cgo，由原生宿主管理主线程）
         └─ fake                     （无界面，测核心）
 ```
 
@@ -36,21 +36,18 @@ Tango 是开源的通用 Go 应用框架：一套 Go 代码跑在桌面（macOS 
 
 ## 线程模型
 
-- `tango.Run` 必须在 main goroutine 调用；根包 `init()` 里 `runtime.LockOSThread()`（桌面）。移动端主线程归原生宿主，不锁（第三子项目处理）。
+- `(*tango.App).Run` 必须在 main goroutine 调用。桌面由 `internal/platform/native` 的 `init()` 调用 `runtime.LockOSThread()`，移动端主线程归原生宿主管理。
 - 主线程队列在核心层：`Post(fn)` 入队后调用 `Backend.Wake()`；后端在主线程调 `Host.Drain()` 执行队列。
 - `Await(fn)`：从任意 goroutine 同步在主线程执行并取回结果；若调用方已在主线程则直接执行。
-- `AwaitAsync(start)`：在主线程调用 `start(done)`，阻塞调用方直到 `done(v)`。若调用方就在主线程，则循环 `Backend.Step(true)` 泵事件直到完成（对话框等嵌套场景不死锁）。
-- 后端回调（`Host.*`）里运行的用户回调都在主线程。
+- `AwaitAsync(start)`：在主线程调用 `start(done)`，阻塞调用方直到 `done(v)`。调用方在支持嵌套事件循环的主线程时，循环调用 `Backend.Step(true)` 处理事件直到完成。Android 主线程不能嵌套处理原生事件，`AwaitAsync` 在该线程立即返回零值，`TryAwaitAsync` 返回 `ErrNestedWait`。
+- 生命周期、窗口和普通消息回调在主线程。`Host.ServeAsset` 可在任意线程调用，`App.OnBinary` 处理函数在收包的 goroutine 上运行。
 
-## 根包公开 API（核心子 agent 实现）
+## 根包常用 API
 
 ```go
 package tango
 
-type Options struct {
-    Name, ID string
-    Assets   http.Handler // 挂在 Backend.AssetOrigin 下；nil 则 404
-}
+// Options 的 Assets 挂在 Backend.AssetOrigin 下。未提供时，应用资源请求返回 404。
 
 func New(opts Options) *App
 func (a *App) Run() error                 // main goroutine，阻塞到退出
@@ -58,6 +55,7 @@ func (a *App) Quit()                      // 任意 goroutine
 func (a *App) Post(fn func())             // 任意 goroutine
 func Await[T any](a *App, fn func() T) T
 func AwaitAsync[T any](a *App, start func(done func(T))) T
+func TryAwaitAsync[T any](a *App, start func(done func(T))) (T, error)
 func (a *App) OnReady(fn func())          // LifecycleStarted 后在主线程调用
 func (a *App) OnLifecycle(fn func(Lifecycle))
 func (a *App) NewSurface(opts SurfaceOptions) (*Surface, error) // 任意 goroutine
@@ -70,20 +68,17 @@ func (a *App) Go(fn func())               // 启动 goroutine，panic 走 Option
 
 type Lifecycle = platform.LifecycleEvent // 并导出 Started/Foreground/Background/Terminating 常量
 
-type SurfaceOptions struct {
-    Title                    string
-    Width, Height            int
-    MinWidth, MinHeight      int
-    Resizable                bool
-    Hidden                   bool   // 默认创建后即显示
-    URL                      string // "/index.html" 这类相对路径按 AssetOrigin 解析；空为 "/"；也可绝对 URL
-    Debug                    bool
-}
+// SurfaceOptions.URL 的相对路径按 AssetOrigin 解析。空值为 "/"，也可使用绝对 URL。
 
 // Surface 的方法任意 goroutine 可调（内部 Post/Await）
 func (s *Surface) ID() platform.SurfaceID
-func (s *Surface) Show() / Hide() / Close() / Focus()
-func (s *Surface) SetTitle(string) / SetSize(w, h int) / Size() (w, h int)
+func (s *Surface) Show()
+func (s *Surface) Hide()
+func (s *Surface) Close()
+func (s *Surface) Focus()
+func (s *Surface) SetTitle(title string)
+func (s *Surface) SetSize(w, h int)
+func (s *Surface) Size() (w, h int)
 func (s *Surface) Navigate(url string)     // 相对路径同上解析
 func (s *Surface) Eval(js string)
 func (s *Surface) Send(msg string)         // Go→JS 原始消息；页面未 Loaded 前缓存，Loaded 后按序冲刷
@@ -93,13 +88,13 @@ func (s *Surface) OnLoaded(fn func())
 func (s *Surface) Native() uintptr
 ```
 
-测试用的 fake 后端注入方式由核心子 agent 定（模块内未导出构造函数或 internal 包）。
+测试用的 fake 后端通过 `internal/platform/fake/apphook` 注入。
 
 ## JS 桥
 
-1. 后端 shim（各后端实现，文档开始时注入，先于一切页面脚本）：
+1. 后端 shim（各后端实现，Android 的注入时机见 [mobile.md](mobile.md#js-桥)）：
    `window.__tangoNative = { post(str) }` → 原生 postMessage → `Host.OnMessage`。
-2. 核心 shim（核心子 agent 写在 Go 字符串里，作为 BridgeScript 开头）：
+2. 核心 shim（`bridge.go` 中的 `coreShim`，作为 `BridgeScript` 开头）：
    ```js
    window.__tango = {
      post(str),            // 调 __tangoNative.post
@@ -107,7 +102,7 @@ func (s *Surface) Native() uintptr
      _recv(str),           // 核心通过 Eval 调用：window.__tango._recv(<JSON 字符串字面量>)
    }
    ```
-   `_recv` 前到达的消息不存在（核心在 Loaded 前缓存），但 `onMessage` 订阅前收到的消息要在 JS 侧缓存，首个订阅者注册时冲刷。
+   核心在页面加载前缓存 `Surface.Send` 的消息。JS 侧也会缓存订阅前收到的消息，注册订阅后在微任务里按序交付。
 3. `AddBridgeScript` 追加的脚本（如 ipc 运行时）放在核心 shim 之后。
 4. 页面调用系统能力（窗口、剪贴板、对话框……）走 `jsapi` 包 + `@tangoui/runtime` 的 `Window`/`App`/... 模块，见 [runtime-api.md](runtime-api.md)。
 
@@ -155,22 +150,22 @@ func (s *Surface) Native() uintptr
 规格见 [specs/2026-11-13-ipc-duplex-streams.md](specs/2026-11-13-ipc-duplex-streams.md) §6.1，包格式和协议规则写在 `ipc` 包注释的 "Fast lanes" 一节。
 
 - **是什么**：挨着消息通道的二进制旁路，只承载流的**字节数据帧**（不做 JSON、不做 base64）；JSON 帧、全部控制消息、握手仍走消息通道。两个方向分别协商。同一条流的帧可以分走两条路，接收方按 `seq` 重排，语义不变。包格式 `count:u16 | (streamID:u64 | seq:u64 | len:u32 | payload)*count`（大端），快速通道上的帧不带 `c`，计费固定为 `len + 64`。
-- **通道名**：`down:poll` / `up:post`（核心在资源来源的 `/__tango/lane/poll`、`/__tango/lane/up` 上服务：GET 轮询、POST 一包一请求，`gen` + `tok` 校验，Origin 不是资源来源一律 403），`down:android` / `up:android`、`down:shm` / `up:shm`（平台后端经 `platform.BinaryLane` / `platform.LaneHost` 实现）。`down:poll` 取代了已删除的 `down:scheme`（单个长流式响应，WebKit 会扣住大块突发）。`BinaryMinSize`：`down:poll` 和平台通道 0；`up:post` 只接 16 KiB 以上、包不超过 1 MiB 的帧，攒 16 KiB 或 4 ms 发一次，同一页面同时只有一个 POST 在途。
+- **通道名**：`down:poll` / `up:post`（核心在资源来源的 `/__tango/lane/poll`、`/__tango/lane/up` 上服务：GET 轮询、POST 一包一请求，`gen` + `tok` 校验，Origin 不是资源来源一律 403），`down:android` / `up:android`（Android 后端经 `platform.BinaryLane` / `platform.LaneHost` 实现）。`down:shm` / `up:shm` 是规划中的通道。`down:poll` 取代了已删除的 `down:scheme`（单个长流式响应，WebKit 会扣住大块突发）。`BinaryMinSize`：`down:poll` 和平台通道 0；`up:post` 只接 16 KiB 以上、包不超过 1 MiB 的帧，攒 16 KiB 或 4 ms 发一次，同一页面同时只有一个 POST 在途。
 - **分层**：`ipc.Router` 只管协议（`BinaryConn`：`LaneHello` / `SendBinary` / `BinaryMinSize`；可复用文档的连接另实现 `SessionBinaryConn`，上行入口 `Router.HandleBinarySession`），不知道平台；它不自己管理世代，只在发布连接状态时记下 `SessionBinaryConn.BinarySession()` 给出的世代和发送句柄，上行包按授权时捕获的世代匹配，旧世代的包不进新文档的流。`Router.HandleBinary` 只用于不复用文档的简单连接，对 `SessionBinaryConn`（如 `*tango.Surface`）丢包并按 Router 记一次 `slog.Warn`。一个 surface 只接一个 Router（每次 `hello` 都换通道世代，两个 Router 会互相作废，不支持）。`*tango.Surface`（根包 `lanes.go`）实现 `SessionBinaryConn`，包着 `internal/lane.State`——每页面世代号、每世代令牌（同一世代内的每个通道请求都用它，换世代才换）、每条通道的状态，是通道状态的唯一拥有者；平台后端只报告能力（`LaneCaps`）、发下行包、交上行包。runtime-js 的 `lanes.ts` 是通道模块注册表，`lanes/scheme.ts` 是 `up:post` 模块，`lanes/poll.ts` 是 `down:poll` 模块（只订阅核心 `__tango._onPacket` 的字节包，轮询本身在核心的页面脚本里）。
-- **开启条件**（每次握手由 `Surface.LaneHello` 判断，四个都满足才在 `hello` 回复里带 `lanes` 字段）：应用注册了至少一个 `App.OnBinary` 处理函数（应用接线 `app.OnBinary(func(s *tango.Surface, gen uint64, p []byte){ r.HandleBinarySession(s, gen, p) })`，处理函数在收包的 goroutine 上跑，不在主线程）；页面来自资源来源（直接从开发服务器加载的页面永远没有，`tan dev` 经 `asset.FromEnv` 代理的页面有）；后端报告了能力；没有被 `Options.DisableFastLanes` 或 `TANGO_IPC_LANES=0`（任何构建）关掉。**macOS 后端默认报告 `up:post`**（`TANGO_IPC_LANES_DARWIN=0`/`false`/`off` 关闭；`1`/`all` 另报 `down:poll`，`up`、`down` 只报其一，任何构建都生效；`down:poll` 没达到设计第 6 节的门槛，默认不报，见 [ipc-bench.md](ipc-bench.md)）；**iOS 后端默认不报告**，需 `TANGO_IPC_LANES_DARWIN=1`，只报 `up:post`；其他平台后端还不报告能力，走消息通道，直到各平台计划落地。runtime-js 的 `up:post` 启动时先 POST 一个空包（`count=0`，Go 回 204），收到 204 才报告 `ready`，所以页面 CSP 挡住资源来源时通道在启动时就失败、不会有帧丢在上面。
+- **开启条件**（每次握手由 `Surface.LaneHello` 判断，四个都满足才在 `hello` 回复里带 `lanes` 字段）：应用注册了至少一个 `App.OnBinary` 处理函数（应用接线 `app.OnBinary(func(s *tango.Surface, gen uint64, p []byte){ r.HandleBinarySession(s, gen, p) })`，处理函数在收包的 goroutine 上跑，不在主线程）；页面来自资源来源（直接从开发服务器加载的页面永远没有，`tan dev` 经 `asset.FromEnv` 代理的页面有）；后端报告了能力；没有被 `Options.DisableFastLanes` 或 `TANGO_IPC_LANES=0`（任何构建）关掉。**macOS 后端默认报告 `up:post`**（`TANGO_IPC_LANES_DARWIN=0`/`false`/`off` 关闭；`1`/`all` 另报 `down:poll`，`up`、`down` 只报其一，任何构建都生效；`down:poll` 没达到设计第 6 节的门槛，默认不报，见 [ipc-bench.md](ipc-bench.md)）；**iOS 后端默认不报告**，`TANGO_IPC_LANES_DARWIN=up` 等非空且非关闭值只启用 `up:post`。**Android 后端默认报告 `down:android` 和 `up:android`**，要求 WebView 支持 `WEB_MESSAGE_LISTENER` 和 `WEB_MESSAGE_ARRAY_BUFFER`，可用 `TANGO_IPC_LANES_ANDROID=0`、`false` 或 `off` 关闭。Windows 和 Linux 走消息通道。runtime-js 的 `up:post` 启动时先 POST 一个空包（`count=0`，Go 回 204），收到 204 才报告 `ready`，所以页面 CSP 挡住资源来源时通道在启动时就失败、不会有帧丢在上面。
 - **控制消息**：JS 在核心内部频道上报告通道就绪/失败：`"\x00tango-int:lane:"` + `{"op":"ready"|"fail","lane":"<名>","gen":<n>}`，由 `App.dispatchInternal` 交给 `lane.State.Control`，不进 Router 和 `OnMessage`；`gen` 不是当前世代的丢弃。Go 只在 `ready` 之后往该通道发。JS 每个方向按 `list` 顺序一次启动一个模块，前一个失败才试下一个。
 - **打开方等 `accept`**：流的打开方收到 `accept` 之前不把字节帧放上快速通道（否则包可能先于 `open` 到达、被当成未知流丢掉）；接收方可以立即用。Go、JS 规则相同。
 - **导航**：`SurfaceNavigating` 时暂停下行通道（`SendBinary` false、`BinaryMinSize` -1；`down:poll` 的下行世代结束，挂起的轮询以 410 结束）直到下次 `hello`，上行保留；核心导航到、或页面加载完成于资源来源以外时整个世代作废（`lane.State.Reset`）。上行包（`OnLanePacket`、`up:post`）只接受资源来源。
 - **丢帧**：通道一出错，该方向立即停用，后续帧走消息通道。接收方有乱序帧缓存（或 `end`/`close`/`error` 在等之前的帧）而期待的那一帧连续 5 秒（`ipc.GapTimeout` / JS `GAP_TIMEOUT_MS`）没到，该流以 `transport` 失败，照常通知对端。不重传。
 - **边界（`boundary`）**：每个通道帧发出后，发送方在消息通道上发 `boundary`（`seq` = 该帧序号 + 1），所以即使双工流丢的是最后一帧、之后没有数据也没有 `end`，接收方也能发现；只有接收序号确实没补齐的流在 5 秒后失败，其他流不受牵连。例外：Go 的包由 `down:poll` 接受时不发（`ipc.OrderedBinaryConn`：消息和包在同一个带序号的下行队列里，包不会在后面的消息到达时丢失）。JS 在帧**真正发出**时才发 `boundary`（`up:post`：所在批次交给 `fetch` 时，不是排进队列时），同一条流之后经消息通道发的帧（JSON 或字节数据、`end`、`close`）也等它之前的通道帧发出后才发，页面主线程卡住时 Go 不会因为还排在页面里的帧提前开始计时。JS 的缺口计时器和 `up:post` 的请求计时器若晚触发超过 1 秒（主线程卡顿），用完整超时重新计时一次，第二次到期照常失败。中止路径（writable abort、被拒的写入、`cancel()`、本地出错，`_close`）的 `close`/`error` 仍立即发出，卡顿超过 5 秒时 Go 可能报 `transport` 而不是中止原因。
 - **请求约束**：通道交付绑定文档会话（世代）。`up:post` 每个请求 4 秒超时（低于 5 秒的缺口超时：卡住的 POST 先让通道失败、后续帧回退）；连同在途包在内保留的编码字节最多 8 MiB，超出的帧不改 seq 和信用、直接走消息通道。请求只相对文档的真实位置解析（不受 HTML `<base>` 影响），拒绝重定向。
-- **故障注入**（只在 `tango_dev` 构建）：`TANGO_IPC_LANE_FAULT=<通道名>:<N>`，该通道在每个世代成功发送（下行）/接收（上行）N 个数据包后进入故障（空包 `count=0` 不计：`up:post` 的启动探测；故障后的通道照样拒绝空包，探测因此失败；`down:poll:<N>` 把带第 N+1 个字节包的轮询响应截断在条目中间，页面解码失败后退回 Eval），之后的包被拒绝/丢弃，按通道坏掉处理；格式不对时 `slog.Warn` 后忽略。各平台计划的"通道中途坏掉"验收用它。
+- **故障注入**（`tango_dev` 或 `tango_selftest` 构建）：`TANGO_IPC_LANE_FAULT=<通道名>:<N>`，该通道在每个世代成功发送（下行）/接收（上行）N 个数据包后进入故障（空包 `count=0` 不计：`up:post` 的启动探测；故障后的通道照样拒绝空包，探测因此失败；`down:poll:<N>` 把带第 N+1 个字节包的轮询响应截断在条目中间，页面解码失败后退回 Eval），之后的包被拒绝/丢弃，按通道坏掉处理；格式不对时 `slog.Warn` 后忽略。各平台计划的"通道中途坏掉"验收用它。
 - **`down:poll` 是核心的下行传输**（设计 [superpowers/specs/2026-11-14-down-poll-design.md](superpowers/specs/2026-11-14-down-poll-design.md)，根包 `downpoll.go`、`downshim.go`，`internal/downq`）：开启时 `Surface.Send` 的所有消息、ipc 字节包和 `Surface.Eval` 的栅栏按同一个序号序列排进每页面的队列，页面挂着的 `GET /__tango/lane/poll?gen=&tok=&ack=` 每次带走一批（`firstSeq:u64 | count:u32 | (kind:u8 | len:u32 | payload)*count`，最多 4 MiB / 4096 条，空闲最多挂 25 s）。它不要求注册 `OnBinary`（字符串消息不依赖它），只要求页面来自资源来源、后端报告能力、没被关掉；令牌由核心在页面加载后用 `Eval` 只发给主 frame。轮询失败、页面 1 s 不来取（看门狗）或通道关闭时条目带序号改走 `Eval`（`__tango._recvSeq`，同一轮合成一次），页面按序号交付；通道空闲时 ≤ 1 KiB 的条目也直接走 `Eval`（每轮最多 8 条，延迟更低）。`Eval` 在轮询时是栅栏：页面交付到它时停下，Go 执行脚本后放行，仍与 `Send` 保序。导航开始（`SurfaceNavigating`、`Navigate`）结束当前世代，丢弃未写出和未确认的条目。
 - **诊断**：页面里 `tango.lanes()` 返回 `{down, up}`，没有通道的方向是 `"fallback"`；`examples/duplex -bench` 的 `lane` 字段就是它。
 
 ## 能力包
 
-`clipboard`、`dialog`、`menu` 第一批；签名接受 `*tango.App`，内部对 `a.Backend()` 做类型断言，没实现返回 `platform.ErrUnsupported`。对话框函数阻塞调用方（内部 `AwaitAsync`）。
+`sys/clipboard`、`sys/dialog`、`sys/menu` 等能力包通过 `a.Backend()` 的可选接口调用系统能力，未实现时返回 `platform.ErrUnsupported`。对话框函数通过 `TryAwaitAsync` 阻塞调用方。
 
 ## 平台后端要点
 
@@ -180,7 +175,7 @@ func (s *Surface) Native() uintptr
 | windows | Win32 | WebView2 (COM, syscall) | `https://tango.localhost`（WebResourceRequested 拦截） | 隐藏消息窗口 PostMessage |
 | linux | GTK3 | WebKitGTK 4.1（webkit_web_context_register_uri_scheme） | `tango://app` | g_idle_add / g_main_context_wakeup |
 
-第一阶段只在 macOS 实机验证；Windows / Linux 需 `GOOS=windows|linux CGO_ENABLED=0 go build ./... && go vet` 通过，实机验证后补。
+Windows 和 Linux 后端有交叉检查和真实窗口 CI 冒烟。移动端宿主、资源来源和验证范围见 [mobile.md](mobile.md)。
 
 ## 契约第二轮（功能移植）
 

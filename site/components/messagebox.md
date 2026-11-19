@@ -136,7 +136,7 @@ MessageBox 与 Confirm、Prompt、Modal 共用 `theme.Components.Modal` 令牌�
 - **只在事件中调用**：不要在页面函数每帧无条件调用 `MessageBox`，否则会不断创建新对话框。
 - **单按钮语义**：MessageBox 只有确定按钮；需要用户在两个动作间选择时改用 `Confirm`。
 - **回调线程**：`OnOk`、`OnCancel` 和 `OnClose` 在 UI 线程执行，可以直接更新页面状态。
-- **关闭方式**：默认关闭按钮、Esc 和遮罩点击会按取消处理；若要区分关闭与取消，使用 `DistinguishCancelAndClose` 及 `OnClose`。
+- **关闭方式**：关闭按钮、Esc 和显式启用的遮罩关闭都走取消回调。`NoKeyboard: true` 禁止 Esc 关闭。启用 `DistinguishCancelAndClose` 时，这些关闭方式会调用 `OnClose`。
 - **焦点与无障碍**：打开后焦点进入模态对话框并被限制在其中，关闭后恢复到打开它的控件。
 
 ## 示例代码

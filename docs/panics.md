@@ -15,6 +15,7 @@
 | `background task` | `background.OnTask` 的任务函数（只报告：任务照常按失败报告给系统，不退出） |
 | `canvas callback` | 画布窗口的帧、输入、尺寸、焦点、拖放回调 |
 | `ui frame` | uihost 的 Go 自绘帧（含页面函数） |
+| `automation` | 开发构建的自动化请求（见 [整机自动化](automation.md)） |
 | `goroutine` | `App.Go` 启动的 goroutine |
 | `binding Svc.Method` / `stream Svc.Method` | ipc 绑定调用与流（只报告，见下） |
 

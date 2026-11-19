@@ -51,7 +51,7 @@ func page(c *ui.Context) {
 
 ### 选择任意一级与悬停展开
 
-默认只有选到叶子才算完成选择。`ChangeOnSelect()` 允许点击任意一级就选中（例如只选到“浙江 / 杭州”）；`ExpandOnHover()` 让鼠标悬停时展开下一级，点击只用于选中。
+默认只有选到叶子才算完成选择。`ChangeOnSelect()` 允许点击任意一级就选中（例如只选到“浙江 / 杭州”）。`ExpandOnHover()` 让鼠标悬停时也能展开下一级。
 
 ```go
 import (
@@ -175,7 +175,7 @@ func page(c *ui.Context) {
 
 ### 内嵌面板
 
-`CascaderPanel` 是不带输入框的级联面板，直接嵌在页面中，支持 `ChangeOnSelect`、`Multiple`、`LoadData`、`Height` 等同类设置。
+`CascaderPanel` 把级联列直接嵌在页面中，支持 `ChangeOnSelect`、`Multiple` 和 `LoadData`。用 `Height(px)` 调整列高，默认取 Cascader 令牌的 `DropdownHeight`。
 
 ```go
 import (
@@ -199,15 +199,17 @@ func page(c *ui.Context) {
 
 - 输入框外观与 Select 一致，支持 `Variant(ui.FieldFilled)` 等外观、`Size`、`Status("error" | "warning")`。
 - 组件令牌：`theme.Components.Cascader`（`CascaderToken`），包括 `OptionHeight`、`ColumnWidth`、`DropdownHeight`、`OptionHoverBg`、`OptionSelectedBg`、`ColumnDividerColor` 等；三套风格的选中背景、列分隔线不同，切换风格无需改代码。
-- `ConfigProvider.Defaults("Cascader", ui.Props{...})` 支持 `size`、`status`、`allowClear`、`showSearch`、`placeholder`、`expandTrigger`（`"hover"`）、`changeOnSelect`、`maxTagCount`、`showCheckedStrategy`、`strategyValue`。
+- `ConfigProvider.Defaults("Cascader", ui.Props{...})` 支持 `size`、`status`、`allowClear`、`showSearch`、`placeholder`、`expandTrigger`（`"hover"`）、`changeOnSelect`、`maxTagCount`、`showCheckedStrategy`、`strategyValue`、`variant` 和 `placement`。
 
 ## 注意事项
 
 - **状态**：值就是你绑定的路径切片；菜单展开状态、搜索词由组件按调用位置保存。选项树在代码中变化后，不再存在的值会以原始值显示，必要时自行清空。
 - **选项数据**：同一层级中 `Value` 必须唯一。选项树很大时把它放在包级变量或缓存中，避免每帧重新构造。
-- **大列**：一列（或搜索结果）多于 100 项时自动虚拟化，只构建可见行和展开路径上的行；列宽按全部标签量一次（切片身份和长度不变时复用），与完整列一致，视口外的选项不在无障碍树里。`Cascader` 和 `CascaderPanel` 都可用 `Virtual(false)` 关闭、`Virtual(true)` 强制开启。
+- **大列**。一列多于 100 项时自动虚拟化，只构建可见行和展开路径上的行，保留完整列的尺寸与滚动范围。无障碍树只暴露已构建的选项。`Cascader` 和 `CascaderPanel` 都可用 `Virtual(true)` 强制开启，或用 `Virtual(false)` 构建所有行。
+- **原地更新选项**。虚拟列会缓存宽度。修改同一选项切片且长度不变时，给 `Cascader` 或 `CascaderPanel` 传入递增的 `DataVersion(version)`，或替换切片，下一帧会重新测量列宽。
+- **大量搜索结果**。`Cascader` 的路径搜索在结果多于 100 项时也自动虚拟化，受 `Virtual(bool)` 控制，并在每帧重新匹配和测量结果宽度。
 - **表单校验**：放进 [Form](/components/form) 时用 `ui.RulesOf` 绑定路径切片，规则用 `ui.RequiredItems[string]`（参数为提示文字）。
-- **无障碍与键盘**：Enter / 空格打开，↑ / ↓ 在当前列移动，→ 展开下一级、← 返回上一级，Home / End 跳到首尾，Enter 选中；在表单项里自动以表单项标签命名，否则使用 `A11yLabel` 或占位符。
+- **无障碍与键盘**。Enter 或 ↑ / ↓ 打开下拉框，未开启搜索时也可按空格打开。↑ / ↓ 在当前列移动，→ 展开下一级、← 返回上一级（RTL 下互换），Enter 可选中叶子。在表单项里自动以表单项标签命名，也可用 `A11yLabel` 显式命名。
 - **截图与测试**：`Open()`、`Expand(path...)` 用于强制展开菜单，只在截图和测试中使用。
 
 ## 示例代码
@@ -220,6 +222,6 @@ func page(c *ui.Context) {
 
 ## 相关链接
 
-- [源码 ui/entry_cascader.go](https://github.com/tangoui/tango/blob/main/ui/entry_cascader.go)、[ui/p2b_cascader.go](https://github.com/tangoui/tango/blob/main/ui/p2b_cascader.go)
+- [源码 ui/entry_cascader.go](https://github.com/tangoui/tango/blob/main/ui/entry_cascader.go)、[ui/entry_cascader_panel.go](https://github.com/tangoui/tango/blob/main/ui/entry_cascader_panel.go)、[ui/p2b_cascader.go](https://github.com/tangoui/tango/blob/main/ui/p2b_cascader.go)
 - [ui Go API](/reference/api/ui)
 - [TreeSelect 树选择](/components/treeselect)、[Select 选择器](/components/select)、[Form 表单](/components/form)

@@ -50,11 +50,11 @@ TanGo is a Go application framework for **macOS, Windows, Linux, iOS and Android
 | **Go-drawn UI** | Desktop interfaces built from Go components, without a web frontend. | `ui` |
 | **Hybrid** | A WebView with an attached Go-drawn panel in the same desktop window. | `hybrid` |
 
-Go-drawn UI currently targets desktop. Mobile uses WebView pages; hybrid apps restart on Go changes instead of using canvas hot reload.
+iOS and Android also support experimental Go-drawn pages alongside WebView pages. See [mobile setup](docs/mobile.md). Desktop hybrid apps restart on Go changes instead of using canvas hot reload.
 
 ## Start building
 
-Requires **Go 1.27+**. Desktop builds do not require cgo; the target platform still needs its system WebView libraries. Mobile builds need the relevant SDKs.
+Requires **Go 1.27+**. TanGo’s desktop backends do not require cgo. Apps that link C libraries can enable it in `tan.json` with `"cgo": true`. WebView apps still need the target system’s WebView libraries. Mobile builds need the relevant SDKs.
 
 ```bash
 go install github.com/tangoui/tango/cmd/tan@latest
@@ -122,7 +122,7 @@ Use `tan generate bindings` for a typed TypeScript client. The runnable [hello e
 | **Windows** | System WebView · Go-drawn UI · hybrid | Implemented; cross-compilation and CI smoke coverage. Systematic hardware validation is pending. |
 | **Linux** | System WebView · Go-drawn UI · hybrid | Implemented; cross-compilation and CI smoke coverage. Systematic hardware validation is pending. |
 | **iOS** | System WebView · Go-drawn UI | Experimental; simulator validation, plus one hardware run (iPhone 12 Pro, iOS 27): WebView and Go-drawn example apps, touch, input method, Metal and CPU rendering, accessibility. Broader hardware validation is pending. |
-| **Android** | System WebView | Experimental; emulator validation. Hardware validation is pending. |
+| **Android** | System WebView · Go-drawn UI | Experimental. WebView and Go-drawn samples have run in the emulator. Hardware validation is pending. |
 
 Capabilities differ by platform. Check [WebView support](docs/webview.md), [mobile capabilities](docs/mobile.md) and [runtime APIs](docs/runtime-api.md) before relying on a feature. Android push requires app-provided FCM integration; Play Billing and iOS widgets are not built in.
 
@@ -165,7 +165,7 @@ go run ./examples/showcase
 | Core and bridge | [Architecture](docs/architecture.md) · [Runtime API](docs/runtime-api.md) · [WebView](docs/webview.md) |
 | Build and ship | [Release](docs/release.md) · [Packaging](docs/packaging.md) · [Windows](docs/windows.md) · [Linux packages](docs/linux-packaging.md) · [Auto-updates](docs/updates.md) |
 | System integration | [Mobile](docs/mobile.md) · [Permissions](docs/mobile-permissions.md) · [Icons](docs/icons.md) · [Printing](docs/print.md) |
-| Quality and tooling | [Dev features vs production builds](docs/dev-builds.md) · [Accessibility](docs/accessibility.md) · [Automation](docs/automation.md) · [Panic handling](docs/panics.md) · [CI and smoke tests](docs/ci.md) |
+| Quality and tooling | [Dev features vs production builds](docs/dev-builds.md) · [Accessibility](docs/accessibility.md) · [Automation](docs/automation.md) · [tan mcp](docs/mcp.md) · [Panic handling](docs/panics.md) · [CI and smoke tests](docs/ci.md) |
 
 README translations cover English, Simplified Chinese, Traditional Chinese and Japanese. Most detailed documentation is currently in Chinese; English guides and the generated Go API reference are available.
 

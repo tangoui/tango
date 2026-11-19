@@ -128,7 +128,8 @@ var (
 func page(c *ui.Context) {
     ui.MultiSelect(c, &remoteMembers, remoteOptions).
         Remote(func(q string) {
-            // 根据 q 请求数据，替换 remoteOptions，并在完成后调用 c.Invalidate()。
+            // 根据 q 请求数据，通过通道把结果交回 UI 线程，再替换 remoteOptions。
+            // 后台请求完成后可调用事先取得的 c.Invalidator() 返回值唤醒 UI。
         }).Debounce(500 * time.Millisecond).Loading(remoteLoading).
         Searchable().Placeholder("远程搜索成员")
 }
@@ -144,13 +145,12 @@ import "github.com/tangoui/tango/ui"
 var (
     allOptions []ui.Option
     dataVersion int
-    selected string
+    selected []string
 )
 
 func page(c *ui.Context) {
-    ui.MultiSelect(c, &[]string{}, allOptions).Virtual(true).
+    ui.MultiSelect(c, &selected, allOptions).Virtual(true).
         ListHeight(320).DataVersion(dataVersion).A11yLabel("大量选项")
-    _ = selected
 }
 ```
 
@@ -163,7 +163,7 @@ func page(c *ui.Context) {
 ## 注意事项
 
 - **状态**：把 `[]string` 放在页面函数外或 `ui.State` 中；组件会写入绑定切片，但不会替应用持久化远程选项。
-- **性能**：大量选项默认会切换虚拟下拉；需要行高稳定时用 `ListHeight`，自定义复杂行时避免每次构建都做昂贵计算。
+- **性能**：`ListHeight(px)` 限制下拉列表的可见高度。自定义复杂行时避免每次构建都做昂贵计算。
 - **键盘**：打开后方向键移动，Enter 切换选项，Escape 关闭；搜索模式下 Backspace 在搜索词为空时删除最后一个标签。
 - **无障碍**：独立使用时设置 `A11yLabel`，表单中可由 `FormItem` 标签命名；禁用选项不会被选中。
 - **事件**：`Changed()` 和 `Created()` 都表示当前帧事件，若要记录最终选择，应复制 `[]string` 或在应用状态中保存。

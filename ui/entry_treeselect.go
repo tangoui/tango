@@ -666,7 +666,7 @@ func (w *TreeSelectW) dropdown(rows []tsRow) {
 					w.row(i, row, set)
 				})
 			}
-		}, layout.MaxH(256))
+		}, layout.MaxH(w.listHeight()))
 		followRow(c, sb, idx, st.active, 0, w.rowH())
 		sb.n.setRole(a11y.RoleTree).setName(w.box.popupName()).stateIf(w.multiple(), a11y.Multiselectable)
 		w.box.listID = sb.n.id

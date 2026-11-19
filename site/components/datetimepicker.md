@@ -38,7 +38,7 @@ func page(c *ui.Context) {
 
 ### 自定义格式与步长
 
-`Format` 使用 Go 的时间布局；省略秒会隐藏秒列。`Steps` 分别设置时、分、秒列的步长。
+`Format` 使用 Go 的时间布局，默认为 `"2006-01-02 15:04:05"`，省略秒会隐藏秒列。`Steps` 分别设置时、分、秒列的步长。`DefaultTime(t)` 在选日期时为尚未指定的时刻提供默认值，只读取 `t` 的时、分、秒，默认为 `00:00:00`。`ShowNow(false)` 隐藏页脚的“现在”。
 
 ```go
 import (
@@ -61,6 +61,8 @@ func page(c *ui.Context) {
 ### 禁用日期和时间
 
 `DisabledDate` 收到 UTC 午夜时间；`DisabledTime` 收到当前草稿日期，并返回需要禁用的时、分、秒。禁用规则也会阻止手动输入或预设值提交。
+
+`MinDate(t)` 和 `MaxDate(t)` 同时约束可提交的日期和面板翻月范围。
 
 ```go
 import (

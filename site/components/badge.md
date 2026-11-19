@@ -3,7 +3,7 @@ title: Badge 徽章
 ---
 # Badge 徽章
 
-在对象右上角显示数量、状态点或简短提醒。
+在对象的右上角（RTL 下为左上角）显示数量、状态点或简短提醒。
 
 ## 何时使用
 
@@ -25,7 +25,7 @@ func page(c *ui.Context) {
 }
 ```
 
-`Body` 把徽章叠加到内容右上角；不调用 `Body` 时显示独立徽标。
+`Body` 把徽章叠加到内容的顶部末端。省略 `Body` 时显示独立徽标。
 
 ## 常见用法
 
@@ -56,7 +56,7 @@ func compact(c *ui.Context) {
 
 ## 主题与样式
 
-`Badge` 的令牌控制颜色、气泡高度和状态间距。全局默认键为 `size`、`overflowCount`、`showZero`、`color`、`dot`；主题会处理 RTL 下的角落位置。
+`Badge` 的令牌控制颜色、气泡高度和状态间距。全局默认键为 `size`、`overflowCount`、`showZero`、`color`、`dot`。计数默认上限为 99，超出显示为 `99+`。主题会处理 RTL 下的角落位置。
 
 ## 注意事项
 

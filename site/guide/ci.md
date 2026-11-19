@@ -7,7 +7,7 @@ TanGo 的 CI 配置在 `.github/workflows/ci.yml`。冒烟测试入口 `scripts/
 ```bash
 bash scripts/smoke.sh                          # 本平台全部桌面冒烟程序
 bash scripts/smoke.sh list                     # 列出程序名
-bash scripts/smoke.sh desktop hello smokeext   # 只跑指定的几个
+bash scripts/smoke.sh desktop hello            # 只跑指定的程序
 bash scripts/smoke.sh ios                      # examples/mobile-hello 在 iPhone 模拟器里运行
 bash scripts/smoke.sh android                  # 构建 APK，装到已连接的设备 / 模拟器上运行
 pwsh scripts/smoke.ps1                         # Windows
@@ -30,6 +30,7 @@ go run ./examples/showcase -smoke
 | `SMOKE_OUT` | 日志、截图、汇总目录 | `build/smoke` |
 | `SMOKE_TIMEOUT` | 每个程序的硬超时（秒） | 120 |
 | `SMOKE_SCREENSHOT=1` | 运行中截一张整屏图（macOS 需要终端有屏幕录制权限） | 关 |
+| `SMOKE_SHOT_DELAY` | 启动后等待多少秒再截图 | 2 |
 | `TANGO_SMOKE_TIMEOUT_SCALE` | 冒烟程序**自己的**超时乘以这个倍数，给慢机器用；CI 设为 3 | 1 |
 | `TANGO_SMOKE_SKIP` | notify-demo 跳过的检查组：`clipboard`、`hotkey`、`notify`、`shortcut` | 不跳过 |
 | `SMOKE_IOS_DEVICE` | 模拟器名称或 UDID | 第一个可用 iPhone |
@@ -41,10 +42,11 @@ go run ./examples/showcase -smoke
 | 作业 | 环境 | 内容 |
 |---|---|---|
 | `lint` | ubuntu | `gofmt -l`；`go vet ./...`（根模块与 `cmd/tan`）；`CGO_ENABLED=0` 下对 windows/linux/darwin × amd64/arm64 交叉 vet；`runtime-js` 的 `npm ci && npm test`，并检查提交的 IIFE 与源码构建结果一致 |
-| `test` | ubuntu / macos / windows | `go test -race ./...` 与 `cmd/tan` 的测试 |
+| `test` | ubuntu / macos / windows | 根模块生产和 `tango_dev` 构建的测试、`cmd/tan` 测试。macOS 另测 `tango_gotext`。耗时渲染包会串行执行 |
+| `gallery-contrast` | ubuntu | 推送到 `main` 或手动运行时，检查组件示例在各主题下的文字对比度 |
 | `smoke` | ubuntu / macos / windows | 真实窗口冒烟。Linux 装 GTK、WebKitGTK、AppIndicator、xvfb，在 `xvfb-run` 下运行 |
 | `mobile-ios` | macos | 构建 mobile-hello，在 iPhone 模拟器里运行并截图 |
-| `mobile-android` | ubuntu | 打 APK 并上传为产物；在 API 34 模拟器里运行（目前 `continue-on-error`） |
+| `mobile-android` | ubuntu | 打 APK 并上传为产物；在 API 34 模拟器里运行（默认允许失败，仓库变量 `ANDROID_EMULATOR_REQUIRED=true` 可设为必过） |
 
 发布相关的工作流（`release.yml`）见 [docs/release.md](https://github.com/tangoui/tango/blob/main/docs/release.md)。
 

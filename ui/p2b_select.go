@@ -58,6 +58,13 @@ func p2bVirtualMode(on bool) int {
 	return -1
 }
 
+func selectListHeight(px, fallback float32) float32 {
+	if px > 0 {
+		return px
+	}
+	return fallback
+}
+
 func (r *p2bRich) defaults(c *Context) {
 	r.debounce = remoteDebounce
 	if v, ok := p2bBool(c, "Select", "virtual"); ok {
@@ -81,7 +88,7 @@ func (r *p2bRich) engine(c *Context, id ID, opts []Option, search bool) *Virtual
 		c: c, opts: opts, groups: r.groups, st: fillVSStateOf(c, id),
 		filterable: search, filterFn: r.filter, remote: r.remote, debounce: r.debounce, loading: r.loading,
 		allowCreate: r.allowCreate, render: r.render, maxCount: r.maxCount,
-		listH: r.listH, version: r.version,
+		listH: r.listH, version: r.version, fullList: r.virtual < 0,
 	}
 }
 
@@ -128,6 +135,7 @@ func (w *SelectW) OptionRender(fn func(o Option, s OptionState)) *SelectW {
 
 // Virtual forces the virtual dropdown on or off; by default lists longer
 // than 100 options are virtual (only the visible rows are built).
+// With false, grouped and custom-rendered lists also build every row.
 func (w *SelectW) Virtual(on bool) *SelectW {
 	w.rx.virtual = -1
 	if on {
@@ -136,7 +144,8 @@ func (w *SelectW) Virtual(on bool) *SelectW {
 	return w
 }
 
-// ListHeight sets the maximum dropdown height (Ant listHeight, 256).
+// ListHeight sets the maximum dropdown height with or without virtual
+// scrolling (Ant listHeight, 256).
 func (w *SelectW) ListHeight(px float32) *SelectW { w.rx.listH = px; return w }
 
 // DataVersion tells the select that the option slice was modified in
@@ -254,7 +263,7 @@ func (w *MultiSelectW) OptionRender(fn func(o Option, s OptionState)) *MultiSele
 func (w *MultiSelectW) MaxCount(n int) *MultiSelectW { w.rx.maxCount = n; return w }
 
 // Virtual forces the virtual dropdown on or off (default: lists longer
-// than 100 options).
+// than 100 options). With false, the dropdown builds every row.
 func (w *MultiSelectW) Virtual(on bool) *MultiSelectW {
 	w.rx.virtual = -1
 	if on {

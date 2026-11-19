@@ -133,7 +133,9 @@ func page(c *ui.Context) {
 
 ### 按钮位置、尺寸与状态
 
-`ControlsPosition("sides")` 把 − / + 放在两侧（Element Plus 的默认样式），`"right"` 为右侧上下堆叠（Ant Design 的样式）。`Size(ui.Small)` / `Size(ui.Large)` 设置尺寸，`Variant` 设置外观（`"outlined"`、`"filled"`、`"borderless"`、`"underlined"`），`Status("error" | "warning")` 设置校验状态。
+antd 6 的 `Mode("spinner")` 把 − / + 放在两侧，等同于 `ControlsPosition("sides")`。`Mode("input")` 对应 `ControlsPosition("right")`，按钮在行尾上下堆叠。`Size(ui.Small)` / `Size(ui.Large)` 设置尺寸，`Variant` 设置外观（`"outlined"`、`"filled"`、`"borderless"`、`"underlined"`），`Status("error" | "warning")` 设置校验状态。
+
+`Controls(false)` 隐藏步进按钮，`Keyboard(false)` 关闭方向键步进。`ReadOnly()` 允许选择和复制数值，并禁止编辑和步进。`StepStrictly()` 将提交的 `float64` 值取整到最近的步长倍数。
 
 ```go
 import (
@@ -154,7 +156,7 @@ func page(c *ui.Context) {
 
 - 步进按钮的默认位置随设计体系变化：Element Plus 下为两侧（`sides`），Ant Design 与 shadcn 下为右侧堆叠（`right`）。
 - 组件令牌：`theme.Components.InputNumber`（`InputNumberToken`）控制默认宽度 `ControlWidth`、步进按钮宽度与颜色（`HandleWidth`、`HandleColor`、`HandleHoverBg`、`HandleBorderColor`…）以及两侧按钮（`SideHandleBg`、`SideHandleColor`）；边框、文字、占位符沿用 Input 令牌。
-- `ConfigProvider.Defaults("InputNumber", ui.Props{...})` 支持 `controlsPosition`、`variant`、`wheel`。
+- `ConfigProvider.Defaults("InputNumber", ui.Props{...})` 支持 `controlsPosition`、`mode`、`variant`、`wheel`、`controls` 和 `keyboard`。
 
 ## 注意事项
 

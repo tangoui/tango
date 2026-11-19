@@ -106,7 +106,8 @@ type TreeW struct {
 	box                   *Box
 	focusVis              bool // keyboard focus: draw the cursor row
 	aName                 string
-	height                float32 // >0: virtual scrolling viewport height
+	height                float32 // >0: scrolling viewport height
+	virtual               bool
 	sb                    *ScrollBox
 	built                 int  // rows built by the last Show
 	reveal                bool // the keyboard moved the cursor this build
@@ -135,9 +136,8 @@ func Tree(c *Context, nodes []TreeNode) *TreeW {
 	// ConfigProvider.Defaults("Tree", ...) keys: "showLine", "showIcon",
 	// "blockNode", "checkable", "multiple", "draggable", "selectable",
 	// "defaultExpandAll", "accordion", "checkOnClickNode",
-	// "checkOnClickLeaf", "height" (virtual scrolling
-	// viewport, px) and "virtual" (false turns the height into a plain
-	// scroll area).
+	// "checkOnClickLeaf", "height" (scrolling viewport, px) and "virtual"
+	// (default true, false builds every visible row inside the viewport).
 	w.showLine = Prop(c, "Tree", "showLine", false)
 	w.showIcon = Prop(c, "Tree", "showIcon", false)
 	w.block = Prop(c, "Tree", "blockNode", false)
@@ -149,25 +149,24 @@ func Tree(c *Context, nodes []TreeNode) *TreeW {
 	w.accordion = Prop(c, "Tree", "accordion", false)
 	w.chkClick = Prop(c, "Tree", "checkOnClickNode", false)
 	w.chkLeaf = Prop(c, "Tree", "checkOnClickLeaf", false)
+	w.virtual = Prop(c, "Tree", "virtual", true)
 	if h, ok := p2bNum(c, "Tree", "height"); ok && h > 0 {
 		w.height = float32(h)
 	}
 	return w
 }
 
-// Height turns the tree into a scrolling viewport of px that builds only
-// the rows in view (Ant height / virtual). Every frame still walks all
-// nodes and flattens the visible rows, so the cost stays O(n) in the node
-// count even though only the rows in view are built, unless DataVersion
-// is set: then the walk and the flattened rows are cached and a frame
-// follows the viewport (see DataVersion for what an in-place edit needs).
-// VirtualTree's cost always follows the viewport, and it also offers
-// custom row renderers and Range. Expand / collapse jump without the
-// height animation in this mode.
+// Height turns the tree into a scrolling viewport of px. By default it
+// builds only the rows in view (Ant height / virtual) and expands or
+// collapses without a height animation. Set virtual: false in
+// ConfigProvider.Defaults("Tree", ...) to build every expanded branch
+// inside the scroll area. The virtual tree walks and flattens the nodes
+// each frame unless DataVersion is set, which caches that work.
+// VirtualTree also supports custom row renderers and Range.
 func (w *TreeW) Height(px float32) *TreeW { w.height = max(0, px); return w }
 
-// Built returns how many rows the last Show built (all visible rows
-// without Height, only those in the viewport with it).
+// Built returns how many rows the last Show built. With virtual scrolling
+// it counts the viewport rows and overscan.
 func (w *TreeW) Built() int { return w.built }
 
 // A11yLabel sets the tree's accessible name (inside a FormItem the item
@@ -731,7 +730,16 @@ func (w *TreeW) show() *TreeW {
 			Row(c, func() { Text(c, empty).Color(tk.EmptyTextColor) }, layout.MinH(60), layout.Center())
 		})
 	case w.height > 0:
-		w.virtualBody()
+		w.box.n.ln.ScrollY = true
+		w.box.n.ln.Height = w.height
+		if w.virtual {
+			w.virtualBody()
+		} else {
+			w.sb = c.finishScroll(w.box, func() { w.level(w.nodes, 0, nil) })
+			if w.reveal {
+				c.ScrollIntoView(w.box.n.id, w.rows[st.cursor])
+			}
+		}
 	default:
 		w.box.Body(func() { w.level(w.nodes, 0, nil) })
 	}
@@ -1486,8 +1494,6 @@ func (w *TreeW) virtualBody() {
 	c := w.c
 	rowH, gap, _, _ := w.metrics()
 	ih := float64(rowH + gap)
-	w.box.n.ln.ScrollY = true
-	w.box.n.ln.Height = w.height
 	rows := w.rowsNow()
 	w.sb = c.finishScroll(w.box, func() {
 		s := State[scrollState](c, w.box.n.id, nil) // the viewport's scroll state

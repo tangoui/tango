@@ -94,7 +94,7 @@ func fluidPage(c *ui.Context) {
 
 ### 居中定宽内容
 
-`Fixed()` 内容默认最大宽度为 `ui.GridContentFixedWidth`，也可以用 `MaxWidth` 覆盖；`Body` 返回内部内容盒，适合继续设置布局。
+`ContentWidth("Fixed")` 在 `top` 布局或独立使用时居中限制宽度，默认最大宽度为 `ui.GridContentFixedWidth`，可用 `MaxWidth` 覆盖。`Fixed()` 返回是否启用了居中限宽，`Body` 返回内部内容盒。
 
 ```go
 import (
@@ -115,7 +115,7 @@ func fixedPage(c *ui.Context) {
 
 ## 主题与样式
 
-- Ant Design：`Fixed` 内容默认以 `1200px` 为最大宽度并居中，`Fluid` 填满内容区。
+- Ant Design：`Fixed` 内容默认以 `1152px` 为最大宽度并居中，`Fluid` 填满内容区。
 - Element Plus：同样保留 Fluid / Fixed 语义，页面间距由外层布局和主题令牌决定。
 - shadcn：`GridContent` 只负责内容宽度，不额外绘制卡片背景；需要分组背景时在 `Body` 中使用 `ProCard` 或普通布局容器。
 - `ConfigProvider.Defaults("GridContent", ui.Props{"contentWidth": "Fixed"})` 可设置默认宽度；`ProLayout` 也支持 `contentWidth`、`layout` 等默认键。

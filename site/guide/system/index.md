@@ -10,7 +10,7 @@
 页面里的 JS 通过 `jsapi` 使用其中一部分，开关见 [安全模型](/guide/concepts/security#_2-jsapi-能力白名单)，函数见 [前端运行时 API](/reference/js-api)。
 
 ::: warning 验证状态
-桌面三平台的后端都有实现，但只有 **macOS 实机验证过**；Windows、Linux 尚未实机验证。移动端能力在 iOS 模拟器 / Android 模拟器上验证过一部分，**没有上真机**，属于实验性。
+桌面三平台的后端都有实现，但只有 **macOS 实机验证过**；Windows、Linux 尚未实机验证。移动端能力属于实验性。iOS 在模拟器和一台 iPhone 12 Pro 上运行过，Android 在模拟器上测过。 [验证范围](/guide/platforms)
 :::
 
 ## 桌面
@@ -30,7 +30,7 @@
 | [recent](./recent) | 最近打开的文档 | — |
 | [single](./single) | 单实例与参数转交 | `App.onSecondInstance`（Info） |
 | [windowstate](./windowstate) | 记住窗口位置和大小 | — |
-| [power](./power) | 电源状态、休眠/唤醒、阻止休眠（macOS、Windows、Linux；移动端暂不支持） | — |
+| [power](./power) | 电源状态、休眠/唤醒、阻止休眠（移动端可读电池状态和阻止空闲休眠） | — |
 | [menu](./menu) | 应用菜单、窗口菜单、右键菜单 | `Menu`（Menu，仅编辑类 role） |
 | [tray](./tray) | 托盘图标 | — |
 
@@ -64,4 +64,4 @@
 | `service/fileserver` | 把本地目录安全地挂到资源服务下 |
 | `service/updater` | 签名的自动更新，见 [打包、签名与自动更新](/guide/packaging#自动更新) |
 
-`sys/` 下还有几个正在开发的包，接口可能变化，以 [API 参考](/reference/api/) 为准。
+其他能力包括移动端后台任务 `sys/background`、设备设置 `sys/device`、小组件 `sys/widget`、应用内购买 `sys/purchase`，以及网络状态 `sys/network`、托盘弹窗 `sys/flyout`、快捷任务 `sys/jumplist`、打印 `sys/print` 和伪终端 `sys/pty`。 [API 参考](/reference/api/)

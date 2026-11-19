@@ -47,7 +47,7 @@ html[data-tango-theme="dark"] .card { border-color: #333; }
 
 | macOS | Windows | Linux | iOS | Android |
 |---|---|---|---|---|
-| ✓ | ✓ | ✓ | — | — |
+| ✓ | ✓ | ✓ | 深浅色 | 深浅色 |
 
 > Windows、Linux 实现尚未实机验证。移动端页面仍可用 `prefers-color-scheme`。
 

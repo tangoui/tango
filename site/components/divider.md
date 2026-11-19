@@ -39,14 +39,14 @@ func dividerPage(c *ui.Context) {
 
 ### 虚线与标题位置
 
-`Dashed` 把实线改为虚线；`Orientation` 支持 `"left"`、`"right"` 和默认的 `"center"`。`Plain` 使用普通文本字重，适合不强调标题的分隔。
+`Dashed()` 把实线改为虚线，`Variant` 可选 `"solid"`、`"dashed"` 或 `"dotted"`。`Orientation("vertical")` 创建无标题的竖分隔线，默认方向是水平。水平标题用 `TitlePlacement` 放在逻辑起始或结束边（`"start"` / `"end"`）、物理左或右（`"left"` / `"right"`）或中央（`"center"`，默认）。`Plain()` 使用普通文本字重，`Size` 调整水平分隔线的上下间距。
 
 ```go
 import "github.com/tangoui/tango/ui"
 
 func dividerVariantsPage(c *ui.Context) {
-    ui.Divider(c, "左侧标题").Orientation("left")
-    ui.Divider(c, "右侧标题").Orientation("right").Plain()
+    ui.Divider(c, "左侧标题").TitlePlacement("left")
+    ui.Divider(c, "右侧标题").TitlePlacement("right").Plain()
     ui.Divider(c, "居中虚线").Dashed()
 }
 ```
@@ -98,7 +98,7 @@ import "github.com/tangoui/tango/ui"
 func dividerDefaultsPage(c *ui.Context) {
     ui.ConfigProvider(c).Defaults("Divider", ui.Props{
         "dashed":      true,
-        "orientation": "left",
+        "titlePlacement": "left",
         "plain":       true,
     }).Body(func() {
         ui.Divider(c, "默认左对齐虚线")
@@ -110,14 +110,14 @@ func dividerDefaultsPage(c *ui.Context) {
 
 - Ant Design 使用主题的分割线色、标题间距和标题字重；Element Plus 对应 `el-divider` 的内容位置语义；shadcn 使用较轻的边框色和普通文本样式。
 - Divider 的令牌位于 `theme.Components.Divider`（`theme.DividerToken`），包括 `Color`、`LineWidth`、`VerticalHeight`、`MarginBlock`、`TextMarginBlock`、`TextPaddingInline`、`TextColor` 和 `PlainTextColor`。
-- `ConfigProvider.Defaults("Divider", ...)` 支持 `dashed`（bool）、`orientation`（`"left"` / `"right"` / `"center"`）和 `plain`（bool）；也兼容 `variant: "dashed"`。
+- `ConfigProvider.Defaults("Divider", ...)` 支持 `variant`、`orientation`、`titlePlacement`、`size`，以及 `dashed`、`plain`、`vertical`（`bool`）。`Orientation("left")` 等旧标题位置写法仍可用。
 
 ## 注意事项
 
 - **状态放在哪**：Divider 没有业务状态；标题和变体由当前帧参数决定，动态标题应来自页面状态而不是组件内部状态。
 - **语义**：水平 Divider 暴露为水平分隔线，`VDivider` 暴露为垂直分隔线；不要把它当作可点击控件。
 - **布局**：Divider 自带主题的上下间距，嵌入紧凑工具栏时可以继续使用返回的 `Box` 设置布局；不要用多个空 Divider 代替间距系统。
-- **RTL**：`left` / `right` 是逻辑起止方向，RTL 下会自动镜像；需要物理位置时应改用布局和文本组合表达。
+- **RTL**：`start` / `end` 会随阅读方向镜像，`left` / `right` 始终是物理左、右。
 
 ## 示例代码
 

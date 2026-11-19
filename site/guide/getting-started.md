@@ -3,7 +3,7 @@
 本页从零做出一个 TanGo 应用：安装命令行工具 `tan`，用模板创建项目，开发模式运行，再做发布构建。桌面和移动端各走一遍。
 
 ::: warning 当前状态
-TanGo 是 0.x 早期版本。桌面端只在 **macOS** 上实机验证过；Windows、Linux 的后端已实现并通过交叉编译与 CI 冒烟，但尚未在实机上系统验证。移动端（iOS、Android）属于**实验性**，只在模拟器上验证过，没有上真机。
+TanGo 是 0.x 早期版本。桌面端只在 **macOS** 上实机验证过；Windows、Linux 的后端已实现并通过交叉编译与 CI 冒烟，但尚未在实机上系统验证。移动端（iOS、Android）属于**实验性**，iOS 在模拟器和一台 iPhone 12 Pro 上测过，Android 只在模拟器上测过。
 :::
 
 ## 准备环境
@@ -30,11 +30,13 @@ tan doctor        # 检查工具链和平台依赖，缺什么会列出来
 
 也可以从 [Releases](https://github.com/tangoui/tango/releases) 下载对应平台的 `tan` 二进制。
 
-::: details 还没有发布版本时：从源码安装
+::: details 使用主分支的新功能时，从源码安装
 ```bash
 git clone https://github.com/tangoui/tango
 cd tango/cmd/tan && go install .
 ```
+`@latest` 安装最新发布的版本。如果它还没有文档里的某项命令或配置，可从源码安装，例如 `v0.1.0` 尚无 `tan mcp` 和 `desktopBuildTags`。
+
 用本地仓库创建项目时加 `-local`，生成的 go.mod 会用 replace 指向这个目录：`tan init -local ~/src/tango hello`。
 :::
 
@@ -67,7 +69,7 @@ cd hello
 | `vue-ts` | Vue + TypeScript + Vite |
 | `shadcn` | React + TypeScript + Vite，带 Tailwind CSS 与 shadcn/ui 组件，隐藏标题栏 |
 | `ui` | Go 自绘界面（`ui` 包），没有 WebView、不需要 npm（实验性） |
-| `hybrid` | WebView 页面（TypeScript + Vite）上叠一个自绘工具面板（实验性，同窗叠放目前只在 macOS 实现） |
+| `hybrid` | WebView 页面（TypeScript + Vite）上叠一个自绘工具面板（实验性） |
 
 模板列表以 `tan init -h` 为准。
 
@@ -155,6 +157,10 @@ tan build -platform android/arm64,android/amd64   # release：签名的 APK 和 
 ```
 
 `tan run -platform android` 没有连接设备时会启动第一个 AVD（`-avd` 指定）。运行模型、能力列表、签名配置见 [移动端](/guide/mobile)。
+
+## 用 MCP 操作项目与界面
+
+`tan mcp -root .` 可让支持 MCP 的客户端调用项目工具或操作开发构建的界面。界面工具启动独立的 `tango_dev` 构建。 [配置与工具清单](/reference/cli#mcp-服务器)
 
 ## 下一步
 

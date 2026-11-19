@@ -1,5 +1,10 @@
 package ui
 
+import (
+	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/paint"
+)
+
 // The virtual form of List (Height + Virtual): only the items in the
 // viewport are built, with heights measured as they come into view and
 // cached by RowKey, as Listy does. The windowing is fillWin's.
@@ -7,14 +12,16 @@ package ui
 // listVirtState is the retained state of a virtual List, keyed by its
 // viewport.
 type listVirtState struct {
-	key   listVirtKey
-	hs    []float32       // unit heights (item rows, or grid rows plus their margin)
-	offs  []float64       // prefix sums of hs, len units+1
-	byKey map[any]float32 // measured unit heights by RowKey (margin excluded)
-	byIdx map[int]float32 // measured unit heights by first item (no RowKey)
-	built []listBuilt     // units built by the last frame
-	keep  int             // unit that held the focus at the end of the last build (-1 none)
-	kept  any             // its key
+	key     listVirtKey
+	keys    []any           // RowKeys in the order of the height table
+	hs      []float32       // unit heights (item rows, or grid rows plus their margin)
+	offs    []float64       // prefix sums of hs, len units+1
+	byKey   map[any]float32 // measured unit heights by RowKey (margin excluded)
+	byIdx   map[int]float32 // measured unit heights by first item (no RowKey)
+	built   []listBuilt     // units built by the last build
+	laidOut bool            // built matches the last frame's rectangles
+	keep    int             // unit that held the focus at the end of the last build (-1 none)
+	kept    any             // its key
 
 	pending       listScroll // last ScrollToKey (re-applied while heights settle)
 	pendingFrames int
@@ -84,10 +91,16 @@ func (w *ListW) virtItems(sb *ScrollBox, a, b int, after bool, fn func(i int)) {
 	if w.itemH > 0 {
 		win.rowH = float64(w.itemH + extra)
 		st.key, st.hs, st.offs = k, nil, nil
+		st.keys = nil
 	} else {
 		w.measure(st, k, m, est, extra)
 		win.offs = st.offs
 		top = func(u int) (y, h float64) { return st.offs[u], st.offs[u+1] - st.offs[u] }
+		over := sb.n.over
+		sb.n.over = func(l *paint.List, r geom.Rect) {
+			st.laidOut = true
+			over(l, r)
+		}
 	}
 	view = fillViewH(sb, w.height)
 	w.applyScroll(st, sb, a, b, cols, m, top, view)
@@ -124,20 +137,36 @@ func (w *ListW) virtItems(sb *ScrollBox, a, b int, after bool, fn func(i int)) {
 
 // measure brings the unit heights up to date: the units built by the last
 // frame are measured, and the prefix sums are recomputed from the first
-// one whose height changed (all of them when the units changed).
+// one whose height changed. A new unit layout or RowKey order rebuilds
+// the table using the measurements saved by key or index.
 func (w *ListW) measure(st *listVirtState, k listVirtKey, m int, est, extra float32) {
 	c := w.c
 	dirty := m
 	same := k == st.key && len(st.hs) == m
-	for _, bt := range st.built {
+	if same && k.keyed {
+		for u, key := range st.keys {
+			if w.keyOf(k.a+u*k.cols) != key {
+				same = false
+				break
+			}
+		}
+	}
+	built := st.built
+	if !st.laidOut {
+		// Followers can trigger another build before the new rows have
+		// rectangles. Those still belong to the old keys at each position.
+		built = nil
+	}
+	st.laidOut = false
+	for _, bt := range built {
 		r, ok := c.rects[bt.id]
 		if !ok || r.H <= 0 {
 			continue
 		}
-		if i, isIdx := bt.key.(int); isIdx && !k.keyed {
-			st.byIdx[i] = r.H
-		} else {
+		if st.key.keyed {
 			st.byKey[bt.key] = r.H
+		} else {
+			st.byIdx[bt.key.(int)] = r.H
 		}
 		if same && bt.u < m && st.hs[bt.u] != r.H+extra {
 			st.hs[bt.u] = r.H + extra
@@ -146,21 +175,21 @@ func (w *ListW) measure(st *listVirtState, k listVirtKey, m int, est, extra floa
 	}
 	if !same {
 		st.key = k
+		st.keys = st.keys[:0]
 		st.hs = st.hs[:0]
 		for u := 0; u < m; u++ {
-			h := est
-			if len(st.byKey) > 0 || len(st.byIdx) > 0 {
-				i := k.a + u*k.cols
-				var ok bool
-				var mh float32
-				if k.keyed {
-					mh, ok = st.byKey[w.keyOf(i)]
-				} else {
-					mh, ok = st.byIdx[i]
-				}
-				if ok {
-					h = mh
-				}
+			i := k.a + u*k.cols
+			var h float32
+			var ok bool
+			if k.keyed {
+				key := w.keyOf(i)
+				st.keys = append(st.keys, key)
+				h, ok = st.byKey[key]
+			} else {
+				h, ok = st.byIdx[i]
+			}
+			if !ok {
+				h = est
 			}
 			st.hs = append(st.hs, h+extra)
 		}

@@ -3973,6 +3973,7 @@ pkg github.com/tangoui/tango/ui, prop "Tree" "multiple" bool
 pkg github.com/tangoui/tango/ui, prop "Tree" "selectable" bool
 pkg github.com/tangoui/tango/ui, prop "Tree" "showIcon" bool
 pkg github.com/tangoui/tango/ui, prop "Tree" "showLine" bool
+pkg github.com/tangoui/tango/ui, prop "Tree" "virtual" bool
 pkg github.com/tangoui/tango/ui, prop "TreeSelect" "allowClear" bool
 pkg github.com/tangoui/tango/ui, prop "TreeSelect" "listHeight" number
 pkg github.com/tangoui/tango/ui, prop "TreeSelect" "maxTagCount" number

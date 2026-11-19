@@ -19,7 +19,7 @@ Gallery 在 Gauge 页面中展示低水位和高水位水波图；同一 gallery
 
 ## 基本用法
 
-`Liquid()` 接收 0 到 1 的比例，默认显示百分比和动态波纹；`Title()` 为比例添加说明。
+`Liquid()` 接收 0 到 1 的比例，默认显示两位小数的百分比和动态波纹。`Title()` 为比例添加说明。
 
 ```go
 package main
@@ -38,7 +38,7 @@ func page(c *ui.Context) {
 
 ### 静态水波
 
-`Still()` 停止波纹运动，适合截图、静态报告和用户启用减少动效时的场景。
+`Still()` 停止波纹运动，适合截图和静态报告。启用减少动效或设置 `Animate(false)` 时，波纹也会保持静止。
 
 ```go
 package main

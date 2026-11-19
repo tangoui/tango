@@ -159,6 +159,8 @@ func page(c *ui.Context) {
 
 `Open(&v)` 绑定打开状态，`OpenChanged()` 报告本帧打开或关闭，`IsOpen()` 返回当前状态；`MinWidth` 设置菜单最小宽度，`MaxHeight` 限制高度（超出滚动，键盘移动时自动滚到当前项）；`Placement` 取 `ui.BottomStart`（默认）、`ui.Bottom`、`ui.BottomEnd`、`ui.TopStart`、`ui.Top`、`ui.TopEnd`。
 
+`OpenChanged()` 为真时可用 `OpenSource()` 区分菜单项选中关闭（`"menu"`）和其他开关动作（`"trigger"`）。`HideOnClick(false)` 让选中菜单项后保持展开。`AutoFocus(true)` 让指针打开菜单时也聚焦首个可用项。
+
 ```go
 import (
 	"fmt"
@@ -222,7 +224,7 @@ func page(c *ui.Context) {
 
 组件令牌在 `theme.Components.Dropdown`（`theme.DropdownToken`，与 Menu 的弹出子菜单共用）：面板 `PopupBg`、`PopupBorderColor`、`PopupRadius`、`PopupShadow`、`PaddingBlock`、`PaddingInline`；菜单项 `ItemHeight`、`ItemPaddingInline`、`ItemBorderRadius`、`ItemColor`、`ItemHoverBg`、`ItemHoverColor`、`ItemSelectedBg`、`ItemSelectedColor`、`ItemIconColor`、`IconSize`；危险项 `DangerColor`、`DangerHoverBg`、`DangerHoverColor`；以及 `SubmenuArrowColor`、`GroupTitle*`、`DividerColor`、`Shortcut*`。
 
-`ConfigProvider.Defaults("Dropdown", ui.Props{...})` 支持：`trigger`（`ui.Trigger` 或字符串 `"hover"` / `"click"` / `"contextMenu"`）、`placement`、`arrow`、`disabled`。
+`ConfigProvider.Defaults("Dropdown", ui.Props{...})` 支持 `trigger`（`ui.Trigger` 或 `"hover"` / `"click"` / `"contextMenu"`）、`placement`、`arrow`、`disabled`、`mouseEnterDelay`、`mouseLeaveDelay`（`time.Duration`）、`autoFocus` 和 `hideOnClick`。
 
 ## 注意事项
 

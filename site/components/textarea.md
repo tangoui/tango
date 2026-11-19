@@ -8,7 +8,7 @@ title: TextArea 文本域
 ## 何时使用
 
 - 备注、简介、描述、代码片段等需要换行的文本输入使用 `TextArea`。
-- 单行短文本使用 [Input 输入框](/components/input)，搜索使用 [Input 输入框](/components/input)。
+- 单行短文本使用 [Input 输入框](/components/input)，搜索使用 [Search 搜索框](/components/search)。
 - 需要结构化的多字段编辑和统一校验时，使用 [Form 表单](/components/form) 包裹 TextArea。
 - 需要富文本、Markdown 或协同编辑时，使用对应的编辑器组件，而不是把 TextArea 当富文本编辑器。
 

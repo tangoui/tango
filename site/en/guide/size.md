@@ -42,8 +42,17 @@ Windows installer of the same sample (`tan package -platform windows/amd64`, NSI
 
 ## Reproduce
 
+Run the size script from a Tango checkout. It writes both samples and cross-compiles them for three desktop targets.
+
 ```bash
-bash scripts/size-report.sh          # builds both samples for the three desktop targets
-tan build -platform darwin/arm64 && tan package -platform darwin/arm64
-tan package -platform windows/amd64   # NSIS installer; needs makensis
+bash scripts/size-report.sh
 ```
+
+To reproduce the installer measurements, put the minimal WebView program in its own Go module with a `replace` pointing to the Tango checkout. Put `{"name":"Min","id":"com.example.min","version":"0.1.0"}` in its `tan.json` and run these commands from the sample's directory.
+
+```bash
+tan package -platform darwin/arm64   # on macOS; requires hdiutil
+tan package -platform windows/amd64  # requires makensis
+```
+
+The source revision, compiler, signing, icons and embedded resources can change the results. [Sample source](/guide/size#复现)

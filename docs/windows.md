@@ -74,7 +74,7 @@ Windows 文件不需要 tan.json；有 tan.json 时会读取其中的 `windows.c
 
 `tan package -platform windows/amd64`（NSIS 安装包）（安装界面、语言、钩子与模板见 [packaging.md](packaging.md)）：
 
-1. 配置了证书（`TANGO_WINDOWS_CERT` 或 `windows.certificate`）时：先签名构建出的 app exe，再交给 NSIS 打包，最后签名生成的 `*-setup.exe`。此时缺少密码或签名工具会直接报错。
+1. 配置了证书（`TANGO_WINDOWS_CERT` 或 `windows.certificate`）时：先签名构建出的主程序和 `desktopHelpers` 辅助工具，再交给 NSIS 打包，最后签名生成的 `*-setup.exe`。此时缺少密码或签名工具会直接报错。
 2. 未配置证书时：跳过签名，每次运行只警告一次（未签名的程序会触发 SmartScreen 提示）。
 
 ## MSIX
@@ -87,7 +87,7 @@ tan package -platform windows/amd64 -format msix
 
 tan 生成布局目录 `build/<Exe>-<版本>-windows-<arch>-msix/`：
 
-- `<Exe>.exe`（配置了证书时先签名）
+- `<Exe>.exe` 与 `cli/` 下配置的 `desktopHelpers`（配置了证书时均先签名）
 - `AppxManifest.xml`：
   - `Identity`：`Name` = tan.json `id`（MSIX 要求 3–50 个字符），`Publisher` = `windows.publisher`，`Version` = 版本号的 `a.b.c.0` 形式（丢弃预发布/构建后缀），`ProcessorArchitecture` = `x64` / `arm64`
   - `Properties`：显示名、发布者显示名（取自 `publisher` 的 CN）、商店徽标

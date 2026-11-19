@@ -16,7 +16,8 @@ file := m.Submenu("文件")
 file.Add("新建", newDoc).Accelerator = "CmdOrCtrl+N"
 file.Add("打开…", openDoc).Accelerator = "CmdOrCtrl+O"
 file.Separator()
-wrap := file.Check("自动换行", true, func() { setWrap(wrap.IsChecked()) })
+var wrap *menu.Item
+wrap = file.Check("自动换行", true, func() { setWrap(wrap.IsChecked()) })
 
 view := m.Submenu("视图")
 view.Radio("size", "小", false, func() { setSize(12) })
@@ -66,7 +67,7 @@ menu.RegisterContextFunc(app, "file", func(c menu.Context) *menu.Menu {
 **页面描述、原生弹出**（jsapi 的 `Menu`，默认开启，只允许编辑类 role）：
 
 ```js
-import { Menu } from "@tangoui/runtime";
+import { Menu, Window } from "@tangoui/runtime";
 Menu.bindContextMenu(document.body, () => [
   { label: "复制", role: "copy" },
   { type: "separator" },

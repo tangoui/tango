@@ -11,6 +11,8 @@ title: List 列表
 - 需要以卡片栅格展示同类内容时（`Grid`）。
 - 数据有统一的列结构、需要排序筛选时，用 [Table 表格](/components/table)；上万条以上的长列表用 `VirtualList` 虚拟列表；需要按 Pro 规范从数据自动生成标题、描述、操作的列表，用 `ProList`。
 
+Ant Design 6.7 已将 List 标为弃用，TanGo 保留此组件及其分页、栅格和虚拟滚动接口。
+
 ## 在线体验
 
 示例包含头像元信息 + 操作 + 分页、加载更多，以及带边框和页头页脚的列表。
@@ -71,7 +73,7 @@ func borderedList(c *ui.Context) {
 
 ### 分页
 
-`Pagination(&page, pageSize)` 在列表下方显示分页器，`Item` 只对当前页的条目调用回调；回调里的 `i` 仍是全部数据中的下标。`PageChanged()` 报告翻页。
+`Pagination(&page, pageSize)` 从第 1 页计数，仅在数据超过一页时显示分页器。`Item` 只构建当前页，回调里的 `i` 仍是全部数据中的下标。`PageChanged()` 报告翻页。`PaginationPosition` 可设为 `"bottom"`（默认）、`"top"` 或 `"both"`，`PaginationAlign` 可设为 `"start"`、`"center"` 或 `"end"`（默认）。
 
 ```go
 var listPage = 1
@@ -88,7 +90,7 @@ func pagedList(c *ui.Context) {
 
 ### 加载更多
 
-`LoadMore(label, busy)` 在列表底部居中显示一个「加载更多」按钮，`busy` 为 true 时按钮显示加载状态；用 `LoadMoreClicked()` 读取点击。`Loading(true)` 则在整个列表上显示加载遮罩，常用于首屏加载。
+`LoadMore(label, busy)` 在有条目时于列表底部居中显示「加载更多」按钮，`busy` 为 true 时按钮显示加载状态，用 `LoadMoreClicked()` 读取点击。`Loading(true)` 在条目区显示加载遮罩，常用于首屏加载。
 
 ```go
 var (
@@ -127,17 +129,17 @@ func gridList(c *ui.Context) {
 ```go
 func longList(c *ui.Context, items []article) {
     ui.List(c, len(items)).Height(480).Virtual().
-        RowKey(func(i int) any { return items[i].Title }).
         Item(func(i int) {
             ui.ListItemMeta(c, nil, items[i].Title, items[i].Desc)
         })
 }
 ```
 
-- 条目高度在首次滚到时实测并按 `RowKey`（默认下标）缓存，未测到的条目按 `EstimatedItemHeight`（默认一行文字加条目内边距，中号为 46）估算，滚动条在第一次遇到更高的条目时会微调；条目等高时用 `ItemHeight(px)` 走固定行高快路径，不再实测。
-- `ScrollToKey(key, ui.AlignTop, 0)` 滚到指定条目（`AlignTop` / `AlignBottom` / `AlignAuto`），`Range()` 返回本帧实际构建的下标区间。
+- 条目高度在构建后实测并按 `RowKey(func(i int) any)` 缓存，默认键为下标。自定义键必须可比较，适合用稳定且唯一的 ID。栅格行使用首项的键。条目控件仍需用 `ui.Key` 管理自身状态。
+- 未测到的条目按 `EstimatedItemHeight(px)` 估算，默认值为一行文字加条目内边距（Ant Design 中号为 46）。行高一致时可用 `ItemHeight(px)` 固定条目高度并跳过实测。
+- 在 `Item` 之前调用 `ScrollToKey(key, ui.AlignTop, offset)`，可在有 `Height` 的列表中滚到当前页内的条目。对齐支持 `AlignTop`、`AlignBottom`、`AlignAuto`，`offset` 以像素计。`Item` 之后调用 `Range()` 读取半开区间 `[first, end)`，虚拟模式下是构建窗口的下标范围，单独保留的焦点项可能在这个区间之外。
 - 与 `Pagination` 同用时只在当前页内窗口化；与 `Grid` 同用时按“行”窗口化，一行的高度取该行最高的条目。
-- 视口外的条目不会构建：它们内部的 `State`、输入框内容会被回收，也不在无障碍树、`FindText` 和 Tab 顺序里（与 `Listy`、`VirtualList` 相同）。持有键盘焦点的条目总会构建。
+- 持有键盘焦点的条目在滚出视口的那一帧仍会构建。焦点控件被裁剪后会失去焦点。离开构建窗口的条目随后从无障碍树、`FindText` 和 Tab 顺序中移除，其内部保留状态会在一段时间后被回收。
 
 ### 空状态
 
@@ -159,7 +161,7 @@ func emptyList(c *ui.Context) {
 
 组件令牌在 `theme.Components.List`（`theme.ListToken`）：`HeaderBg`、`FooterBg`、`SplitColor`、`BorderColor`、`Radius`，三档尺寸的 `ItemPaddingBlock` / `ItemPaddingInline`（`SM`、`LG` 后缀），以及 `ListItemMeta` / `ListActions` 用到的 `AvatarMarginInlineEnd`、`TitleColor`、`TitleFontWeight`、`DescriptionColor`、`ActionsMarginInlineStart`、`ActionsSplitColor`。
 
-`ConfigProvider.Defaults("List", ...)` 支持的键：`"size"`、`"bordered"`、`"split"`。
+`ConfigProvider.Defaults("List", ...)` 支持 `size`、`bordered`、`split` 和 `itemLayout`。普通条目的 `ItemLayout("vertical")` 将 `ListActions` 放到主体下方。`ItemExtra(func(i int))` 在行尾添加内容，纵向布局时会为它留出独立一列。
 
 ```go
 func listDefaults(c *ui.Context) {
