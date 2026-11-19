@@ -68,3 +68,29 @@ func TestStartCountsBackground(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 }
+
+// TestBackgroundBehind: true only while a goroutine runs and the line
+// asked for is not final.
+func TestBackgroundBehind(t *testing.T) {
+	lx := tsLexer(t)
+	s := buffer.NewSnapshot(tsDoc(t, 3000))
+	h := New(lx)
+	h.Highlight(s, 1, time.Hour) // adopt s; lines from 1 on not final
+	if h.BackgroundBehind(s, 1500) {
+		t.Fatal("behind without a goroutine")
+	}
+	h.bg.Add(1)
+	defer h.bg.Add(-1)
+	if !h.BackgroundBehind(s, 1500) {
+		t.Fatal("not behind with line 1 not final")
+	}
+	if !h.Highlight(s, 1500, time.Hour) {
+		t.Fatal("setup: not highlighted")
+	}
+	if h.BackgroundBehind(s, 1500) {
+		t.Fatal("behind with the lines before 1500 final")
+	}
+	if !h.BackgroundBehind(s, 1501) {
+		t.Fatal("not behind with line 1500 not final")
+	}
+}

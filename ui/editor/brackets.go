@@ -505,6 +505,9 @@ type bracketSource interface {
 	// summary returns line's summary (bracketConf.summary) when its
 	// tokens are final and summarized, without tokenizing it.
 	summary(snap buffer.Snapshot, line int, dst []uint64) ([]uint64, bool)
+	// catchingUp reports whether the lines before line are left to a
+	// background tokenizer (a frame does not tokenize them).
+	catchingUp(snap buffer.Snapshot, line int) bool
 	// advance tokenizes lines before upTo until deadline (the bracket
 	// commands and matching, which do not wait for the Highlighter's
 	// background goroutine).
@@ -545,6 +548,13 @@ type bracketTree struct {
 	// tokenize: ensure may advance the tokenization (src.advance) to reach
 	// the lines asked for (queries of the commands and of matching).
 	tokenize bool
+	// command: the queries are a bracket command's (beginCommand), which
+	// has no later frame: it always tokenizes to reach its lines. A
+	// frame's matching leaves the lines not final to the Highlighter's
+	// background goroutine when one runs (bracketSource.catchingUp): the
+	// match shows a frame or two later instead of the frame tokenizing
+	// them (after a paste, the same lines the goroutine is tokenizing).
+	command bool
 	// overrun: since beginFrame, the frame's one overrun was used. Work
 	// asked for after the deadline gets, once a frame, minOverrun more
 	// (tokenizing and scanning), so a frame whose budget layout or other
@@ -637,7 +647,7 @@ func (t *bracketTree) ensure(src bracketSource, upTo int, deadline time.Time) bo
 	for len(t.dirty) > 0 && t.dirty[0] < upTo {
 		i := t.dirty[0]
 		if final < 0 || i >= final {
-			if final = src.finalLines(t.snap); i >= final && t.tokenize && !deadline.IsZero() {
+			if final = src.finalLines(t.snap); i >= final && t.tokenize && !deadline.IsZero() && (t.command || !src.catchingUp(t.snap, upTo)) {
 				if !t.pastDeadline(deadline) {
 					src.advance(t.snap, min(upTo, i+1024), deadline)
 					final = src.finalLines(t.snap)
@@ -739,7 +749,10 @@ const minOverrun = 250 * time.Microsecond
 
 // beginFrame starts a frame's bracket work (the View's paint) or a
 // bracket command's: see overrun.
-func (t *bracketTree) beginFrame() { t.overrun = false }
+func (t *bracketTree) beginFrame() { t.overrun, t.command = false, false }
+
+// beginCommand starts a bracket command's work (see command).
+func (t *bracketTree) beginCommand() { t.overrun, t.command = false, true }
 
 // markDirty adds line i to the dirty lines.
 func (t *bracketTree) markDirty(i int) {

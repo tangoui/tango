@@ -399,6 +399,24 @@ func (h *Highlighter) HighlightViewFor(view ViewKey, snap buffer.Snapshot, upToL
 	return h.HighlightFor(view, snap, upToLine, budget)
 }
 
+// BackgroundBehind reports whether the background goroutine (Start) runs
+// and line of snap is not final yet: it will be, without the caller
+// tokenizing the lines before it. A frame's work that can wait a frame or
+// two (the editor's bracket matching) leaves them to the goroutine, whose
+// ready callback asks for the next frame, instead of tokenizing them on
+// the UI thread at the same time.
+func (h *Highlighter) BackgroundBehind(snap buffer.Snapshot, line int) bool {
+	if h.bg.Load() == 0 {
+		return false
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.lx == nil || !h.have || h.snap != snap {
+		return false
+	}
+	return min(h.st.nextDirty(), h.st.minPending()) < min(line, h.st.n())
+}
+
 // Done reports whether every line of snap is final: snap is the current
 // snapshot, no line is dirty and no Degraded line awaits a retry. Unlike
 // Highlight(snap, snap.LineCount(), 0) it changes nothing: it tokenizes

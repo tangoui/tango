@@ -82,6 +82,11 @@ func (s modelBrackets) advance(snap buffer.Snapshot, upTo int, deadline time.Tim
 	}
 }
 
+func (s modelBrackets) catchingUp(snap buffer.Snapshot, line int) bool {
+	hl := s.m.Highlighter()
+	return hl != nil && hl.BackgroundBehind(snap, line)
+}
+
 func (s modelBrackets) finalLines(snap buffer.Snapshot) int {
 	if hl := s.m.Highlighter(); hl != nil {
 		return hl.FinalLines(snap)
@@ -511,7 +516,7 @@ func init() {
 // beginBracketCommand starts a bracket command's work (its own budget).
 func (s *State) beginBracketCommand() {
 	if t := s.Model.brackets(); t != nil {
-		t.beginFrame()
+		t.beginCommand()
 	}
 }
 

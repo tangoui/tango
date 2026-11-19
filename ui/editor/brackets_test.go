@@ -112,6 +112,7 @@ func (plainSource) tokens(buffer.Snapshot, int, string, []monarch.Token) []monar
 func (plainSource) finalLines(s buffer.Snapshot) int                                     { return s.LineCount() }
 func (plainSource) startState(buffer.Snapshot, int) monarch.State                        { return 0 }
 func (plainSource) advance(buffer.Snapshot, int, time.Time)                              {}
+func (plainSource) catchingUp(buffer.Snapshot, int) bool                                 { return false }
 func (plainSource) summary(_ buffer.Snapshot, _ int, d []uint64) ([]uint64, bool) {
 	return d[:0], false
 }

@@ -4,6 +4,7 @@ pkg github.com/tangoui/tango/ui/editor/highlight, const DefaultTokenWindow untyp
 pkg github.com/tangoui/tango/ui/editor/highlight, const DefaultView ViewKey = 0
 pkg github.com/tangoui/tango/ui/editor/highlight, func New(*ui/editor/monarch.Lexer) *Highlighter
 pkg github.com/tangoui/tango/ui/editor/highlight, func NewViewKey() ViewKey
+pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) BackgroundBehind(ui/editor/buffer.Snapshot, int) bool
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Done(ui/editor/buffer.Snapshot) bool
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) DropView(ViewKey)
 pkg github.com/tangoui/tango/ui/editor/highlight, method (*Highlighter) Edit(ui/editor/buffer.Snapshot, ui/editor/buffer.Snapshot, []ui/editor/buffer.Edit)
