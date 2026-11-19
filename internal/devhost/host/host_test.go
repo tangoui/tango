@@ -10,6 +10,7 @@ import (
 
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/devhost"
+	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/fake"
 	"github.com/tangoui/tango/internal/platform/fake/faketest"
 	"github.com/tangoui/tango/ui/geom"
@@ -615,5 +616,14 @@ func TestShortcutCaptureNotInheritedFromClosedPendingWindow(t *testing.T) {
 	ctlNext[devhost.Swapped](e)
 	if cv.ShortcutCapture() {
 		t.Fatal("new worker inherited capture from abandoned window")
+	}
+}
+
+// The tan dev host draws on the main thread: its windows' sink must not ask
+// the backend for a threaded canvas.
+func TestDevHostSinkNotThreaded(t *testing.T) {
+	var sink platform.CanvasSink = &win{}
+	if _, ok := sink.(platform.CanvasThreadedSink); ok {
+		t.Fatal("tan dev host window asks for a UI thread")
 	}
 }

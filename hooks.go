@@ -211,6 +211,13 @@ func (c canvasSink) CanvasDragLeave() {
 	}
 }
 
+// WantsUIThread forwards platform.CanvasThreadedSink to the wrapped sink:
+// the backend decides from it whether to return a threaded canvas.
+func (c canvasSink) WantsUIThread() bool {
+	ts, ok := c.sink.(platform.CanvasThreadedSink)
+	return ok && ts.WantsUIThread()
+}
+
 var errCanvasNoA11y = errors.New("tango: canvas sink has no accessibility actions")
 
 // AccessibilityAction forwards platform.CanvasAccessibleSink to the

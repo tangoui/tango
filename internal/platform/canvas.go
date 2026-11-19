@@ -83,6 +83,18 @@ type CanvasThreaded interface {
 	MainGeometry() (w, h, scale float32)
 }
 
+// CanvasThreadedSink is optionally implemented by a CanvasSink that can
+// drive a CanvasThreaded canvas from its own UI thread (package uihost's
+// Open windows). A backend that supports threaded canvases returns one from
+// CanvasCreator.NewCanvasSurface only when the sink implements this
+// interface and WantsUIThread reports true. Every other sink (the tan dev
+// host's windows, for example) gets an ordinary main-thread canvas, because
+// a threaded canvas does not draw until a UI thread starts its frame clock.
+// Experimental.
+type CanvasThreadedSink interface {
+	WantsUIThread() bool
+}
+
 // CanvasThreadedRelease is optional on a CanvasThreaded. Once a threaded
 // window starts closing, the backend stops delivering its callbacks but
 // keeps the canvas and any native objects a frame can still use alive.

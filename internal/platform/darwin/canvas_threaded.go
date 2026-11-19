@@ -4,8 +4,8 @@ package darwin
 
 // The display clock uses NSView's CADisplayLink on the window UI thread's
 // run loop (macOS 14+), with timer pacing when a display link is unavailable.
-// The real-window callback rate and thread affinity must be verified before
-// enabling it by default. CVDisplayLink is the alternative if AppKit cannot
+// The real-window tests in canvas_threaded_darwin_test.go check its callback
+// rate and thread affinity. CVDisplayLink is the alternative if AppKit cannot
 // drive the link on the window's run loop.
 
 import (
@@ -162,9 +162,12 @@ type threadedCanvas struct {
 var _ platform.CanvasThreaded = (*threadedCanvas)(nil)
 var _ platform.CanvasThreadedRelease = (*threadedCanvas)(nil)
 
-// ThreadedCanvas is the internal test adapter. Do not advertise the threaded
-// capabilities on ordinary windows until snapshot, embedding and shared
-// layout-cache ownership are fixed and multi-window race coverage passes.
+// ThreadedCanvas adapts a canvas from NewCanvasSurface to
+// platform.CanvasThreaded. NewCanvasSurface applies it by default when the
+// sink asks for a UI thread (platform.CanvasThreadedSink: uihost.Open
+// windows); attached canvases and other sinks (the tan dev host) stay on the
+// main thread. Tests also call it directly; any other canvas is returned
+// unchanged. Main thread, right after NewCanvasSurface.
 func ThreadedCanvas(cv platform.Canvas) platform.Canvas {
 	if c, ok := cv.(*canvas); ok {
 		tc := &threadedCanvas{canvas: c}
@@ -177,6 +180,13 @@ func ThreadedCanvas(cv platform.Canvas) platform.Canvas {
 // MainThreadAccessibility asks uihost to publish all native AX updates
 // together with its action-validation snapshot on main.
 func (*threadedCanvas) MainThreadAccessibility() {}
+
+// wantsUIThread reports whether NewCanvasSurface should return a threaded
+// canvas for sink.
+func wantsUIThread(sink platform.CanvasSink) bool {
+	ts, ok := sink.(platform.CanvasThreadedSink)
+	return ok && ts.WantsUIThread()
+}
 
 func (c *threadedCanvas) MainGeometry() (float32, float32, float32) {
 	g := c.geometrySnapshot.Load()

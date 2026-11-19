@@ -297,6 +297,12 @@ func (h *host) CanvasFocus(focused bool) {
 	})
 }
 
+// WantsUIThread implements platform.CanvasThreadedSink: an Open window
+// takes a threaded canvas when the backend offers one (macOS). Attach uses
+// the same sink, but AttachCanvas never returns a threaded canvas; the tan
+// dev host's windows use their own sink, which does not implement it.
+func (h *host) WantsUIThread() bool { return true }
+
 // onUI runs fn, a sink callback's work, on the window's UI thread: now on
 // the main thread, or queued in order on a threaded window's thread.
 func (h *host) onUI(fn func()) {
