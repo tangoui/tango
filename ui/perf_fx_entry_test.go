@@ -45,8 +45,24 @@ func perfEntryOpenClose(r *perfRun, i int, label string) {
 }
 
 func perfEntryTagEdit(r *perfRun, i int) {
-	p := r.At(0.9, 0.5)
-	r.D.Click(p)
+	// Target the text field: a fractional point in the selector can hit
+	// a chip's remove button, depending on direction and font metrics.
+	var editor *node
+	for _, n := range r.D.r.c.root.kids[0].kids { // perfPage's column
+		if n.kind != "inputtag" {
+			continue
+		}
+		for _, child := range n.kids {
+			if child.kind == "ms-input" {
+				editor = child
+				break
+			}
+		}
+	}
+	if editor == nil || editor.abs.Empty() {
+		panic("InputTag fixture has no visible text field")
+	}
+	r.D.Click(editor.abs.Center())
 	if i%2 == 0 {
 		r.D.Type("new")
 		r.D.Key(input.KeyEnter, 0)
@@ -252,7 +268,7 @@ func TestPerfEntryInteractionEvents(t *testing.T) {
 
 func TestPerfHotkeyCapture(t *testing.T) {
 	value := "Ctrl+K"
-	d := newPerfDriver(func(c *Context) { HotkeyInput(c, &value) }, false)
+	d := newPerfDriver(func(c *Context) { HotkeyInput(c, &value).Literal() }, false)
 	d.Settle()
 	d.Click(perfTarget(d).Center())
 	d.Key(input.KeyP, input.ModCtrl)
@@ -692,7 +708,7 @@ func init() {
 		}, Interact: func(r *perfRun, i int) { perfEntryHoverText(r, i, "https://") }},
 		perfFixture{Name: "HotkeyInput", Build: func(c *Context) {
 			v := State[string](c, hashID("perf.entry.hotkey"), func() string { return "Ctrl+K" })
-			HotkeyInput(c, v).Width(260)
+			HotkeyInput(c, v).Literal().Width(260)
 		}, Interact: perfEntryHotkey},
 		perfFixture{Name: "MarkdownEditor", Build: func(c *Context) {
 			perfEntryMarkdownBuild(c)

@@ -198,6 +198,7 @@ func (s *devSession) app() string { return filepath.Dir(filepath.Dir(filepath.Di
 // project's Go files change. A failed build keeps the running app.
 func (s *devSession) loop(ctx context.Context) error {
 	w := newWatcher(s.cfg.dir, s.cfg.FrontendDir())
+	tty := newTTYGuard() // tty_unix.go
 	var app *process
 	defer func() {
 		if app != nil {
@@ -241,6 +242,7 @@ func (s *devSession) loop(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-exited:
+			tty.check()
 			if app.err == nil {
 				logf("The app quit")
 				return nil
@@ -248,6 +250,7 @@ func (s *devSession) loop(ctx context.Context) error {
 			warnf("The app exited: %v; waiting for changes", app.err)
 			app = nil
 		case <-tick.C:
+			tty.check()
 			if w.changed() {
 				// Let editors finish writing a batch of files.
 				time.Sleep(150 * time.Millisecond)

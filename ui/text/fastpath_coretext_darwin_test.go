@@ -1,4 +1,4 @@
-//go:build darwin && !ios && tango_coretext
+//go:build darwin && !ios && !tango_gotext
 
 package text
 
@@ -374,25 +374,18 @@ func TestCTMonoFastMatchesGeneralASCIIAndLanguages(t *testing.T) {
 	}
 }
 
-func TestCTMonoFastFallsBackOnCJK(t *testing.T) {
+// A line with CJK takes the exact route (see linefast_coretext_darwin.go)
+// and lays out as the general path does.
+func TestCTMonoFastTakesCJK(t *testing.T) {
 	needCT(t)
 	line := "x := \"中文\""
-	runs := []Run{{0, utf8.RuneCountInString(line), Style{Size: 13, Mono: true}}}
+	runs := []Run{{0, utf8.RuneCountInString(line), Style{Size: 13, Mono: true, Lang: "zh-Hans"}}}
 	c := NewLineCache(8)
-	rs, sopt := lineShapeArgs(runs, LineOptions{})
-	mu.Lock()
-	fast := c.fastShape(line, rs, sopt)
-	mu.Unlock()
-	if fast != nil {
-		t.Fatal("fastShape laid out a line with CJK")
-	}
 	l := c.Shape(line, runs, LineOptions{})
-	if c.stats.slow != 1 || c.stats.fast != 0 {
-		t.Fatalf("stats fast/slow = %d/%d, want 0/1", c.stats.fast, c.stats.slow)
+	if c.stats.fast != 1 || c.stats.slow != 0 {
+		t.Fatalf("stats fast/slow = %d/%d, want 1/0", c.stats.fast, c.stats.slow)
 	}
-	if len(l.Glyphs) == 0 {
-		t.Fatal("general path laid out no glyphs")
-	}
+	sameLayout(t, line, l, monoGeneral(line, runs, LineOptions{}))
 }
 
 func TestCTMonoFastFallsBackOnRTL(t *testing.T) {

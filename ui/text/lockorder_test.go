@@ -5,6 +5,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"golang.org/x/image/font/gofont/gobold"
+	"golang.org/x/image/font/gofont/goregular"
 )
 
 // RegisterFont must not hold reg.mu while taking mu (via clearCache):
@@ -49,5 +52,42 @@ func TestRegisterFontWhileShaping(t *testing.T) {
 	case <-done:
 	case <-time.After(20 * time.Second):
 		t.Fatal("RegisterFont and Shape deadlocked")
+	}
+}
+
+// A shaper can retain its chain after dropping the registry lock.
+func TestRegisterFontPreservesPublishedFamily(t *testing.T) {
+	const name = "RegistrationSnapshotTest"
+	reg.mu.Lock()
+	saved := append([]*family(nil), reg.user...)
+	reg.mu.Unlock()
+	t.Cleanup(func() {
+		reg.mu.Lock()
+		reg.user = saved
+		reg.version++
+		reg.mu.Unlock()
+		clearCache()
+	})
+	find := func() *family {
+		for _, fm := range reg.chain(false) {
+			if fm.name == name {
+				return fm
+			}
+		}
+		t.Fatal("registered family not found")
+		return nil
+	}
+	if err := RegisterFont(name, goregular.TTF); err != nil {
+		t.Fatal(err)
+	}
+	old := find()
+	if err := RegisterFont(name, gobold.TTF); err != nil {
+		t.Fatal(err)
+	}
+	if len(old.faces) != 1 {
+		t.Fatalf("published family changed: got %d faces, want 1", len(old.faces))
+	}
+	if got := len(find().faces); got != 2 {
+		t.Fatalf("current family has %d faces, want 2", got)
 	}
 }

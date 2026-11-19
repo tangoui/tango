@@ -48,7 +48,7 @@ func TestEditPastTokenizationCut(t *testing.T) {
 	// Deterministically exercise the accepted-degraded case that caused
 	// the contention failure: final does not mean fully tokenized.
 	h.mu.Lock()
-	h.apply(1, h.startState(1), h.startState(1), true, nil, true, time.Now())
+	h.apply(1, h.startState(1), h.startState(1), true, nil, true, nil, time.Now())
 	h.mu.Unlock()
 	highlightAll(t, h, s) // degradation also dirties the following line
 	if !h.FinalBefore(s, s.LineCount()) {

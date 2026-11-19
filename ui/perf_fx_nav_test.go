@@ -161,7 +161,8 @@ func perfNavChapters(c *Context, anchored bool) {
 			}
 		}
 		if anchored {
-			AnchorSection(c, s.key, body, layout.Gap(8), layout.Margin(geom.Insets{Top: 16}))
+			// Keep the wheel step in the second section even when platform fonts wrap differently.
+			AnchorSection(c, s.key, body, layout.H(200), layout.Gap(8), layout.Margin(geom.Insets{Top: 16}))
 		} else {
 			Column(c, body, layout.Gap(8), layout.Margin(geom.Insets{Top: 16}))
 		}

@@ -13,8 +13,9 @@
 | 原生图层（native）默认 | 在编辑器上比 Metal 慢约 2 帧（打字 78.8 对 47.2 ms），3acc4cd 因此回退为 a8f5cd4（第 4 节）。 |
 | “3acc4cd..a8f5cd4 回退一帧” | 不是代码回退：同一时段新旧版本交替，二者一起在约 48 ms 和约 61 ms 两种合成状态间切换（第 7 节）。 |
 | 键盘升级方案 4b59345 | 通过：默认对 `TANGO_RENDERER=gpu` 打字中位差 0.6 ms、三光标 0.9 ms，标准 ≤ 16.7 ms；首键升级那一帧多 30–90 ms，只发生一次（第 8 节）。已随 1ef979c4 进 main。 |
-| 中文输入法 | 只做了功能验证，部分通过；“不点击就不组字”现象未查清（第 9 节）。 |
-| 未证 | 显示器级（非隔离窗口）延迟、物理光子、Windows 真实硬件、Monaco 内部 GPU 完成时间（第 10 节）。 |
+| CoreText 文字引擎 57e33bd6 | 默认 go-text 对 `-tags tango_coretext` 无可区分差异：打字第 2 键起中位 32.6 对 33.0 ms，三光标 35.7 对 32.4 ms（第 9 节）。 |
+| 中文输入法 | 只做了功能验证，部分通过；“不点击就不组字”现象未查清（第 10 节）。 |
+| 未证 | 显示器级（非隔离窗口）延迟、物理光子、Windows 真实硬件、Monaco 内部 GPU 完成时间（第 11 节）。 |
 
 ## 2. 方法
 
@@ -122,7 +123,21 @@ min-84 的 `feat/native-keyboard-promotion` 4b59345（基于 2f1c4f5，已含工
 - 首键升级会让整行重绘，原来的模板规则因此拒收第 1 步。已修工具（e22c4be9）：至少两步能直接定位时，按列宽推算其余步骤，再做同样的校验。
 - 该方案已由 min-84 推到 main（1ef979c4），1ef979c4 的 CI、API 和文档构建都通过。
 
-## 9. 中文输入法（功能验证，非延迟）
+## 9. CoreText 文字引擎配对（替 min-84，用户同意）
+
+min-84 的 `perf/coretext-default` 57e33bd6（`perf(text): exact CoreText fast path for mixed CJK/Latin editor lines`）：比较默认构建（go-text）与 `-tags tango_coretext`。两边都用默认渲染器（native 起步、首键升 Metal），每臂先各录一遍自己的模板（不计入，两种引擎的字形光栅化可能不同），再 AB/BA/AB 三对，每次都是新进程。2026-11-18 19:07–19:18，load 4.2–5.7，UU 远程进程在。12/12 文本精确、全部完成、0 漏。
+
+| 场景 | go-text（第 2 键起中位，三对） | CoreText | 差 |
+|---|---|---|---|
+| 打字 100 | 32.6（33.0/32.6/32.6），p95 49.4–50.8 | 33.0（34.2/32.8/33.0），p95 48.2–49.7 | +0.4 |
+| 三光标 30 | 35.7（34.5/35.7/44.2），p95 48.6–58.0 | 32.4（32.1/32.4/36.9），p95 49.4–49.8 | −3.3 |
+
+- 首键（触发升级）：打字 go-text 83.3 / 42.7 / 75.5，CoreText 60.8 / 72.1 / 46.2；三光标 go-text 74.5 / 86.7 / 98.6，CoreText 73.3 / 65.1 / 68.9。
+- 渲染器：12 次都是按键前 native、测完 gpu（`/state` 的 `uihost.Renderer`）。
+- 三光标 −3.3 ms 主要来自 go-text 第 3 对的 44.2，像合成状态波动（第 7 节），没有单独验证；两组打字差 0.4 ms。
+- 结论：两种文字引擎在打字和三光标的上屏延迟上无可区分差异，远在 16.7 ms 标准内。证据 `coretext-pairs/`，脚本 `coretext-pairs.sh`。
+
+## 10. 中文输入法（功能验证，非延迟）
 
 输入法用百度拼音（`com.baidu.inputmethod.BaiduIM.pinyin`；系统简体拼音在本机的 TIS 列表里取不到），真实按键 `n i h a o` 后按空格或回车提交，不直接调用 `setMarkedText`，候选列表不落盘。
 
@@ -137,7 +152,7 @@ min-84 的 `feat/native-keyboard-promotion` 4b59345（基于 2f1c4f5，已含工
 - 未定现象：先点击聚焦、在另一次 probe 里再打字时，百度拼音完全不组字。Tango 一侧的状态（textOn、当前输入上下文、上下文选中的输入法）在点击和不点击两种情况下完全一致；原生 `NSTextView` 对照同样不组字，不能作为判据。所以这不认定为 Tango 缺陷，宿主没有改动。
 - 所有用例都在隔离窗口模式下运行，计划中的“候选选择、移动后再组字、失焦”还没测。
 
-## 10. 局限与未证
+## 11. 局限与未证
 
 1. **显示器级延迟**：全部是隔离窗口（WindowServer 合成出的窗口画面），不是显示器扫出的画面，也不是物理光子。显示器裁剪模式需要屏幕上没有其他窗口遮挡目标，本次一直达不到。
 2. **60 Hz 采集**：上界的分辨率约 16.7 ms；严格区间判定在第 3 节仍是“无法区分”，结论依靠多轮、多场景方向一致与同时段配对。
@@ -146,8 +161,8 @@ min-84 的 `feat/native-keyboard-promotion` 4b59345（基于 2f1c4f5，已含工
 5. **Windows 真实硬件**、Monaco 内部 GPU 完成时间、`CAMetalDisplayLink`、显示器级 present：均未测。
 6. **切换前台时的 P99**：min-0f 发现切换前台时 Tango 主线程本身被堵 34–99 ms，显示链接晚到是被它连带的；其补帧修复改善有限，后台线程出帧原型在验证中。这超出本报告范围。
 
-## 11. 提交与复现
+## 12. 提交与复现
 
 - 工具：8c25419、a5a845d、85cdb16、867603c、098d29c、c26f75d、e22c4be9；修复：b25960c；min-5a 的后续修复：140cad3（`tools/...` 归为非 API）、2f1c4f5（`canvas_pacing_test.go` 补 `//go:build darwin && !ios`）。main 在 2f1c4f5 与 1ef979c4 上 CI 全绿。
-- 证据（未入库，被 git 忽略）：editor-m2-perf worktree 的 `.superpowers/sdd/2026-11-16-editor-gui-acceptance/`，台账 `progress.md`；正式矩阵 `matrix-formal/`，配对 `renderer-pairs/`、`key-pairs/`、`atonce-pairs/`、`fast-pairs/`、`old-vs-new*/`、`bisect/`、`kbd-pairs/`，归因 `present-attrib/`、`frame-trace/`。
+- 证据（未入库，被 git 忽略）：editor-m2-perf worktree 的 `.superpowers/sdd/2026-11-16-editor-gui-acceptance/`，台账 `progress.md`；正式矩阵 `matrix-formal/`，配对 `renderer-pairs/`、`key-pairs/`、`atonce-pairs/`、`fast-pairs/`、`old-vs-new*/`、`bisect/`、`kbd-pairs/`、`coretext-pairs/`，归因 `present-attrib/`、`frame-trace/`。
 - 复现：构建 `go build -tags tango_guiprobe -o <bin>/tango-fixture ./tools/editor-gui-bench/fixture`、`swiftc -swift-version 5 -parse-as-library CaptureCore.swift main.swift -o <bin>/gui-probe`、`(cd tools/editor-gui-bench/mygo-fixture && GOWORK=off go build -o <bin>/mygo-fixture .)`；矩阵 `python3 tools/editor-gui-bench/matrix.py --bin <bin> --out <dir>`；单引擎 `native-driver.py --engine tango|mygo`、`monaco-driver.mjs --templates`；归因 `TANGO_RENDERER=gpu TANGO_PRESENT_TRACE=1 native-driver.py … --keys 30` 后运行 `present-attrib.py <dir>/type`。运行前确认没有其他前台或计时测量，1 分钟负载 < 6，并且屏幕没有人在操作。

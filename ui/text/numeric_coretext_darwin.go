@@ -1,4 +1,4 @@
-//go:build darwin && !ios && tango_coretext
+//go:build darwin && !ios && !tango_gotext
 
 package text
 
@@ -13,10 +13,9 @@ import "github.com/tangoui/tango/ui/paint"
 // CoreText's own shaping at the style's size and language when it is built
 // (probeNumeric), which also measures the kerning of every ordered pair of
 // numeric runes: the table places each glyph with the advance CoreText
-// gives it before its successor. Faces with morx tables, and faces whose
-// numeric shaping the pair model does not reproduce, get no table; for
-// them Shape takes the general path and ShapeInto shapes with CoreText
-// into the destination.
+// gives it before its successor. Faces with unsupported substitutions or
+// shaping the pair model cannot reproduce get no table. For them Shape
+// takes the general path and ShapeInto shapes with CoreText into dst.
 
 // The CoreText table covers ctNumericChars: simpleNumericText's runes plus
 // '%' and ',' ("+0.12%", "1,234,567"), which a table places only when the
@@ -102,14 +101,30 @@ func (t *numericGlyphTable) covers(s string) bool {
 // buildNumericTable reads the glyphs and advances of ctNumericChars in face
 // at st.Size and verifies them, with the pair advances, against CoreText's
 // shaping in lang (probeNumeric); not ok when the face lacks a
-// simpleNumericText rune, has a morx table or shapes them otherwise. extra
+// simpleNumericText rune, or if the layout guard or probe rejects it. extra
 // allows '%' and ',' (which fm resolves to face); they are dropped again
 // when the face lacks them or the probe with them fails.
 func buildNumericTable(face *Face, fm *fontmap, st Style, lang string, extra bool) numericGlyphTable {
-	if !face.noMorxTable() {
+	o := readOTL(face, lang, true)
+	if !o.ok {
 		return numericGlyphTable{}
 	}
 	t := numericTableAt(face, st.Size, extra)
+	alphabet := make(map[uint16]bool, len(t.gid))
+	for i, g := range t.gid {
+		if t.has[i] {
+			alphabet[uint16(g)] = true
+		}
+	}
+	o.restrictLigatures(alphabet)
+	for i, r := range ctNumericChars {
+		if t.has[i] && !o.allows(t.gid[i], otlScriptOf(r)) {
+			if i < ctNumericBase {
+				return numericGlyphTable{}
+			}
+			t.has[i] = false
+		}
+	}
 	if t.ok && probeNumeric(&t, face, fm, st, lang) {
 		return t
 	}

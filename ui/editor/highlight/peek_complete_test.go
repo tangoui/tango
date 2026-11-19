@@ -47,7 +47,7 @@ func TestPeekCompleteTokensValidity(t *testing.T) {
 					h.MaxRetries = 0
 				}
 				start := h.startState(0)
-				h.apply(0, start, start, true, []monarch.Token{{Type: "preview"}}, true, time.Now())
+				h.apply(0, start, start, true, []monarch.Token{{Type: "preview"}}, true, nil, time.Now())
 				if name == "accepted-degraded" && (!h.st.final(0) || !h.st.acceptedDegraded(0)) {
 					t.Fatal("setup must be final but degraded")
 				}

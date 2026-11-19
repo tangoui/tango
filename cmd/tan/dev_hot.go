@@ -156,6 +156,7 @@ func (h *hotSession) buildWorker(ctx context.Context) (string, string, error) {
 
 func (h *hotSession) loop(ctx context.Context) error {
 	w := newWatcher(h.cfg.dir, h.cfg.FrontendDir())
+	tty := newTTYGuard() // tty_unix.go
 	h.mods = newFileSet(goModFiles(h.cfg.dir))
 	// First build: decides the mode.
 	for {
@@ -205,10 +206,12 @@ func (h *hotSession) loop(ctx context.Context) error {
 		case ev := <-h.events:
 			h.event(ev)
 		case wp := <-h.exited:
+			tty.check()
 			if done := h.workerExited(wp); done {
 				return nil
 			}
 		case <-tick.C:
+			tty.check()
 			if !w.changed() {
 				continue
 			}

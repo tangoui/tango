@@ -1,4 +1,4 @@
-//go:build darwin && (ios || !tango_coretext)
+//go:build darwin && (ios || tango_gotext)
 
 package text
 
@@ -7,9 +7,9 @@ import (
 	"testing"
 )
 
-// go-text build only: the opt-in short-text CoreText path (coreTextShape
-// with TANGO_TEXT_ENGINE=coretext) exists only there; the tango_coretext
-// build shapes everything with CoreText (shapeItems) and its coreTextShape
+// go-text build only (-tags tango_gotext): the opt-in short-text CoreText
+// path (coreTextShape with TANGO_TEXT_ENGINE=coretext) exists only there;
+// the default macOS build shapes everything with CoreText (shapeItems) and its coreTextShape
 // always declines.
 
 func TestCoreTextLightweightShapeOptIn(t *testing.T) {

@@ -1,9 +1,10 @@
 // Package text shapes and lays out text for the Tango self-drawn UI.
 //
 // It uses go-text/typesetting (HarfBuzz port) for shaping and UAX #14 line
-// breaking on every platform. On macOS the opt-in build tag tango_coretext
-// hands all of it to CoreText instead (shaping, UAX #14 line breaking, bidi
-// levels and glyph rasterization) and links no go-text code. Both give correct per-character
+// breaking on every platform but macOS. On macOS (not iOS) CoreText does
+// all of it instead (shaping, UAX #14 line breaking, bidi
+// levels and glyph rasterization) and no go-text code is linked; the build
+// tag tango_gotext restores go-text there. Both give correct per-character
 // breaking for Chinese and the basic kinsoku rules (no break before
 // "，。！？）" or after "（「"). Fonts are resolved per rune through a
 // fallback chain: fonts registered by the application with RegisterFont
@@ -12,7 +13,7 @@
 // Segoe UI + Microsoft YaHei on Windows; fontconfig + FreeType: Noto /
 // DejaVu + Noto Sans CJK / WenQuanYi on Linux), with its hinting, and
 // per-rune platform fallback; see engine.go and UseSystemEngine. Without
-// the engine (never with -tags tango_coretext), font files are parsed and
+// the engine (never on macOS without tango_gotext), font files are parsed and
 // rasterized in pure Go (SF + Hiragino on macOS,
 // Segoe UI + Microsoft YaHei on Windows, Noto/DejaVu/WenQuanYi on Linux).
 // No font files are bundled. On platforms with no discoverable fonts
@@ -225,18 +226,17 @@ func RegisterFont(familyName string, data []byte) error {
 	// Lock order: layout holds mu and then takes reg.mu (engine fallback),
 	// so reg.mu must be released before clearCache takes mu.
 	reg.mu.Lock()
-	found := false
-	for _, fm := range reg.user {
-		if fm.name == familyName {
-			fm.faces = append(fm.faces, faces...)
-			sort.Slice(fm.faces, func(i, j int) bool { return fm.faces[i].Weight < fm.faces[j].Weight })
-			found = true
-			break
-		}
+	// Shapers retain family pointers after releasing reg.mu. Publish a new
+	// family rather than changing the faces of one already in use.
+	fm := &family{name: familyName, faces: faces, loaded: true, user: true}
+	i := slices.IndexFunc(reg.user, func(old *family) bool { return old.name == familyName })
+	if i >= 0 {
+		fm.faces = append(slices.Clone(reg.user[i].faces), faces...)
 	}
-	if !found {
-		fm := &family{name: familyName, faces: faces, loaded: true, user: true}
-		sort.Slice(fm.faces, func(i, j int) bool { return fm.faces[i].Weight < fm.faces[j].Weight })
+	sort.Slice(fm.faces, func(i, j int) bool { return fm.faces[i].Weight < fm.faces[j].Weight })
+	if i >= 0 {
+		reg.user[i] = fm
+	} else {
 		reg.user = append(reg.user, fm)
 	}
 	reg.version++

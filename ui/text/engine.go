@@ -22,17 +22,18 @@ import (
 //     font collection by family name; glyphs from IDWriteGlyphRunAnalysis.
 //   - Linux: fontconfig + FreeType (purego dlopen), FT_LOAD_TARGET_LIGHT.
 //
-// Shaping and line breaking stay on go-text (HarfBuzz port) on every
-// platform, fed with the very same font tables the engine renders from
+// Except on macOS (below), shaping and line breaking stay on go-text
+// (HarfBuzz port), fed with the very same font tables the engine renders from
 // (CTFontCopyTable on macOS, the font file DirectWrite / fontconfig name
 // elsewhere), so glyph ids and advances agree by construction. Fonts
 // registered with RegisterFont always use the pure-Go path.
 //
-// The opt-in macOS build tag tango_coretext is the exception: CoreText is
-// then the only engine. It also shapes (CTLine runs), finds line breaks
-// (CFStringTokenizer) and orders bidi text, RegisterFont fonts are read by
-// CoreText too, and no go-text code is linked (a smaller binary; long
-// uncached lines shape slower than with go-text).
+// macOS (not iOS) is the exception: CoreText is the only engine. It also
+// shapes (CTLine runs), finds line breaks (CFStringTokenizer) and orders
+// bidi text, RegisterFont fonts are read by CoreText too, and no go-text
+// code is linked (a smaller binary). The build tag tango_gotext restores
+// the go-text engine on macOS (go-text shaping, CoreText rasterization,
+// the switch below), as on the other platforms.
 //
 // Every engine face is a distinct *Face (a distinct paint.GlyphSource) that
 // implements paint.GlyphRasterizer; pure-Go faces never rasterize through
@@ -46,13 +47,13 @@ import (
 // fonts (golden images, CPU/GPU comparison tests). The environment variable
 // TANGO_TEXT_ENGINE=go or =system sets the initial state.
 //
-// On macOS (not iOS) built with -tags tango_coretext there is a single text
-// engine, CoreText, which shapes, breaks and rasterizes; no pure-Go text
-// engine is linked. There UseSystemEngine changes nothing and returns true
-// (UseSystemEngine(false) does not turn CoreText off), Engine always
-// reports "coretext", and TANGO_TEXT_ENGINE is ignored. The default build
-// keeps the go-text engine and this switch (golden images and other tests
-// that need the pure-Go path).
+// On macOS (not iOS) there is a single text engine, CoreText, which
+// shapes, breaks and rasterizes; no pure-Go text engine is linked. There
+// UseSystemEngine changes nothing and returns true (UseSystemEngine(false)
+// does not turn CoreText off), Engine always reports "coretext", and
+// TANGO_TEXT_ENGINE is ignored. Built with -tags tango_gotext, macOS keeps
+// the go-text engine and this switch (golden images and other tests that
+// need the pure-Go path), like every other platform.
 //
 // It is a process-wide switch (all windows, renderers and goroutines) and
 // takes effect through new glyph sources: a switch drops the layout cache
@@ -63,14 +64,14 @@ import (
 // their outlines. Layouts shaped before the switch keep their old faces and
 // draw exactly as before; reshape (or let the UI re-run its frame) to pick
 // up the new engine. Fonts added with RegisterFont use the pure-Go path,
-// except with -tags tango_coretext on macOS, where CoreText reads them like
+// except on macOS (without tango_gotext), where CoreText reads them like
 // system fonts. Call it before rendering starts when possible (tests: at the top of
 // the test or in TestMain). It returns the previous setting, for restoring.
 func UseSystemEngine(on bool) (prev bool) { return useSystemEngine(on) }
 
 // Engine names the text engine rendering system fonts: "coretext",
 // "directwrite", "freetype", or "go" when the system engine is disabled or
-// unavailable. With -tags tango_coretext on macOS it always reports
+// unavailable. On macOS (without tango_gotext) it always reports
 // "coretext" (see UseSystemEngine).
 func Engine() string { return engineName() }
 

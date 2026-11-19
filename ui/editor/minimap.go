@@ -564,13 +564,29 @@ func (m *minimapState) shiftRows(b *buffer.Buffer, snap buffer.Snapshot) uint64 
 		}
 		return o + d
 	}
-	ov := old.Version()
+	ov, nv := old.Version(), snap.Version()
+	before := false
+	for _, ln := range m.cache {
+		if ln.seen == ov {
+			before = true
+			break
+		}
+	}
+	if !before {
+		// No row is from before the change: a frame after the one that
+		// carried them (the change stays the Buffer's last until the next).
+		return 0
+	}
 	next := make(map[int]*miniLine, len(m.cache))
 	var carried []*miniLine
 	for k, ln := range m.cache {
+		if ln.seen == nv {
+			next[k] = ln // current already (this frame's version)
+			continue
+		}
 		if k >= 0 && ln.seen == ov && ln.seenLine == k {
 			if nk := newLine(k); nk >= 0 {
-				ln.seenLine = nk
+				ln.seen, ln.seenLine = nv, nk
 				carried = append(carried, ln)
 				continue
 			}
