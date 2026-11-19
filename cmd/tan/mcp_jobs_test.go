@@ -94,7 +94,10 @@ func TestJobOutputTruncated(t *testing.T) {
 }
 
 func TestJobStopAll(t *testing.T) {
-	m := jobScript(t, "sleep 60")
+	// "ready" comes after the shell forked sleep: a SIGTERM sent while
+	// dash forks (it blocks signals around the fork) misses the new child,
+	// which then holds the output until the kill after jobStopGrace.
+	m := jobScript(t, "sleep 60 & echo ready; wait")
 	a, err := m.start("dev", t.TempDir(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -105,6 +108,21 @@ func TestJobStopAll(t *testing.T) {
 	}
 	if a.ID == b.ID {
 		t.Fatalf("same id %s", a.ID)
+	}
+	for _, id := range []string{a.ID, b.ID} {
+		for deadline := time.Now().Add(10 * time.Second); ; {
+			info, err := m.status(id, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(info.Output, "ready") {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("%s never ready: %+v", id, info)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
 	start := time.Now()
 	m.stopAll()
