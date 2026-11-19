@@ -14,6 +14,7 @@ Commands:
   applinks     write the Universal Links / App Links files for /.well-known/
   generate     generate code (bindings)
   doctor       check the toolchain and platform dependencies
+  mcp          run an MCP server for AI agents (project and UI tools)
   version      print the version
 
 Run "tan <command> -h" for a command's flags.
@@ -198,3 +199,16 @@ Usage: tan generate bindings [flags]
 
 $ tan doctor -h
 Usage: tan doctor 
+
+$ tan mcp -h
+Usage: tan mcp [-root dir] [-stdio | -http [-addr addr] [-token token]]
+  -addr address
+    	with -http: loopback address to listen on (127.0.0.1, localhost or [::1]) (default "127.0.0.1:0")
+  -http
+    	serve MCP over streamable HTTP on a loopback address instead of stdio
+  -root dir
+    	project dir the tools work in; paths outside it are refused (default ".")
+  -stdio
+    	serve MCP over standard input and output (the default)
+  -token token
+    	with -http: bearer token clients must send (default: a random one, printed to stderr)
