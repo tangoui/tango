@@ -8,6 +8,8 @@ import (
 	"image/color"
 	"image/png"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -429,5 +431,68 @@ func TestUIAttach(t *testing.T) {
 	}
 	if msg := callErr(t, cs, "tango_app_attach", map[string]any{"addr": "10.1.2.3:80", "token": "x"}); !strings.Contains(msg, "loopback") {
 		t.Errorf("non-loopback attach: %s", msg)
+	}
+}
+
+// A token file outside the root is fine: the token decides.
+func TestUIAttachTokenFileOutsideRoot(t *testing.T) {
+	_, cs := projectServer(t)
+	addr, token, _ := newFakeApp(t, canvasWindow, nil)
+	tf := filepath.Join(t.TempDir(), "automation.json")
+	if err := wire.WriteTokenFile(tf, wire.TokenFile{Addr: addr, Token: token, Version: wire.Version}); err != nil {
+		t.Fatal(err)
+	}
+	var out struct {
+		Session string            `json:"session"`
+		Windows []wire.WindowInfo `json:"windows"`
+	}
+	callOK(t, cs, "tango_app_attach", map[string]any{"tokenFile": tf}, &out)
+	if out.Session == "" || len(out.Windows) != 1 {
+		t.Fatalf("attach %+v", out)
+	}
+}
+
+// A relative token file is taken from the root.
+func TestUIAttachTokenFileRelative(t *testing.T) {
+	s, cs := projectServer(t)
+	addr, token, _ := newFakeApp(t, canvasWindow, nil)
+	os.MkdirAll(filepath.Join(s.root, "tmp"), 0o755)
+	if err := wire.WriteTokenFile(filepath.Join(s.root, "tmp", "t.json"), wire.TokenFile{Addr: addr, Token: token}); err != nil {
+		t.Fatal(err)
+	}
+	callOK(t, cs, "tango_app_attach", map[string]any{"tokenFile": "tmp/t.json"}, nil)
+}
+
+// A session that comes in after closeAll (an app_start finishing during
+// shutdown) is stopped, not left running.
+func TestUIAdoptAfterCloseAllStops(t *testing.T) {
+	s, _ := projectServer(t)
+	s.apps.closeAll()
+	addr, token, got := newFakeApp(t, canvasWindow, nil)
+	conn, err := client.Dial(addr, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &appSession{conn: conn, started: true, exited: make(chan struct{}), exitErr: func() error { return nil }}
+	if err := s.apps.adopt(a); err == nil || !strings.Contains(err.Error(), "shutting down") {
+		t.Fatalf("adopt after closeAll: %v", err)
+	}
+	if !strings.Contains(strings.Join(ops(got()), " "), wire.OpQuit) {
+		t.Errorf("requests %v, want quit", ops(got()))
+	}
+	if s.apps.add(&appSession{}) {
+		t.Error("add after closeAll succeeded")
+	}
+	if n := len(s.apps.list()); n != 0 {
+		t.Errorf("%d sessions", n)
+	}
+}
+
+func TestUIStartRejectsTagsForExecutable(t *testing.T) {
+	s, cs := projectServer(t)
+	os.WriteFile(filepath.Join(s.root, "app"), []byte("TANGO_AUTOMATION_TOKEN_FILE"), 0o755)
+	msg := callErr(t, cs, "tango_app_start", map[string]any{"target": "app", "tags": []string{"x"}})
+	if !strings.Contains(msg, "tags") || !strings.Contains(msg, "executable") {
+		t.Fatalf("error %q", msg)
 	}
 }

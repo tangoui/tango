@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"math"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -44,9 +45,10 @@ const (
 
 // appManager holds the app sessions the UI tools started or attached to.
 type appManager struct {
-	mu   sync.Mutex
-	n    int
-	apps map[string]*appSession
+	mu     sync.Mutex
+	n      int
+	apps   map[string]*appSession
+	closed bool // closeAll has run: no more sessions
 }
 
 func newAppManager() *appManager { return &appManager{apps: map[string]*appSession{}} }
@@ -66,14 +68,28 @@ type appSession struct {
 	tempDir string // build and token file of a started app; removed on stop
 }
 
-// add registers a and gives it the next ID (app-1, app-2, ...).
-func (m *appManager) add(a *appSession) string {
+// add registers a and gives it the next ID (app-1, app-2, ...); after
+// closeAll it refuses (false).
+func (m *appManager) add(a *appSession) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.closed {
+		return false
+	}
 	m.n++
 	a.ID = "app-" + strconv.Itoa(m.n)
 	m.apps[a.ID] = a
-	return a.ID
+	return true
+}
+
+// adopt adds a, or stops it when the server is shutting down (an app that
+// finished starting after closeAll would be left running).
+func (m *appManager) adopt(a *appSession) error {
+	if !m.add(a) {
+		a.stop()
+		return errors.New("tan mcp: the server is shutting down")
+	}
+	return nil
 }
 
 func (m *appManager) get(id string) (*appSession, error) {
@@ -124,6 +140,7 @@ func (m *appManager) closeAll() {
 	m.mu.Lock()
 	all := m.apps
 	m.apps = map[string]*appSession{}
+	m.closed = true
 	m.mu.Unlock()
 	var wg sync.WaitGroup
 	for _, a := range all {
@@ -241,7 +258,12 @@ func (a *appSession) windows(ctx context.Context) ([]wire.WindowInfo, error) {
 // window finds the window ref names: its ID in decimal or its exact title.
 // "" is the only window, else the focused one, else the first.
 func (a *appSession) window(ref string) (wire.WindowInfo, error) {
-	ws, err := a.windows(context.Background())
+	return a.windowCtx(context.Background(), ref)
+}
+
+// windowCtx is window, giving up when ctx is done.
+func (a *appSession) windowCtx(ctx context.Context, ref string) (wire.WindowInfo, error) {
+	ws, err := a.windows(ctx)
 	if err != nil {
 		return wire.WindowInfo{}, err
 	}
@@ -276,8 +298,8 @@ func (a *appSession) window(ref string) (wire.WindowInfo, error) {
 }
 
 // canvas is window refusing WebView windows.
-func (a *appSession) canvas(ref string) (wire.WindowInfo, error) {
-	w, err := a.window(ref)
+func (a *appSession) canvas(ctx context.Context, ref string) (wire.WindowInfo, error) {
+	w, err := a.windowCtx(ctx, ref)
 	if err == nil && w.Kind == wire.KindWebView {
 		return w, webViewError(w)
 	}
@@ -384,7 +406,7 @@ type appStartInput struct {
 }
 
 type appAttachInput struct {
-	TokenFile string `json:"tokenFile,omitempty" jsonschema:"token file the app wrote (TANGO_AUTOMATION_TOKEN_FILE), relative to the MCP root"`
+	TokenFile string `json:"tokenFile,omitempty" jsonschema:"token file the app wrote (TANGO_AUTOMATION_TOKEN_FILE); a relative path is taken from the MCP root, and the file may be anywhere"`
 	Addr      string `json:"addr,omitempty" jsonschema:"control channel address (loopback), with token, instead of tokenFile"`
 	Token     string `json:"token,omitempty" jsonschema:"control channel token, with addr"`
 }
@@ -560,7 +582,7 @@ func (s *mcpServer) addUITools() {
 		Name:        "tango_ui_tree",
 		Description: "A self-drawn window's semantics tree as an indented outline, one node per line: role, \"name\", value, [states].",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in uiTreeInput) (*mcp.CallToolResult, uiTreeOutput, error) {
-		a, w, err := s.canvasTarget(in.Session, in.Window)
+		a, w, err := s.canvasTarget(ctx, in.Session, in.Window)
 		if err != nil {
 			return nil, uiTreeOutput{}, err
 		}
@@ -654,12 +676,12 @@ func (s *mcpServer) addUITools() {
 }
 
 // canvasTarget finds the session and its self-drawn window ref.
-func (s *mcpServer) canvasTarget(session, ref string) (*appSession, wire.WindowInfo, error) {
+func (s *mcpServer) canvasTarget(ctx context.Context, session, ref string) (*appSession, wire.WindowInfo, error) {
 	a, err := s.apps.get(session)
 	if err != nil {
 		return nil, wire.WindowInfo{}, err
 	}
-	w, err := a.canvas(ref)
+	w, err := a.canvas(ctx, ref)
 	return a, w, err
 }
 
@@ -668,7 +690,7 @@ func (s *mcpServer) queryOp(ctx context.Context, session, ref string, q *wire.Qu
 	if q == nil {
 		return nil, errors.New("query: required")
 	}
-	a, w, err := s.canvasTarget(session, ref)
+	a, w, err := s.canvasTarget(ctx, session, ref)
 	if err != nil {
 		return nil, err
 	}
@@ -677,7 +699,7 @@ func (s *mcpServer) queryOp(ctx context.Context, session, ref string, q *wire.Qu
 }
 
 func (s *mcpServer) input(ctx context.Context, session, ref string, in *wire.Input) error {
-	a, w, err := s.canvasTarget(session, ref)
+	a, w, err := s.canvasTarget(ctx, session, ref)
 	if err != nil {
 		return err
 	}
@@ -690,7 +712,7 @@ func (s *mcpServer) screenshot(ctx context.Context, in uiScreenshotInput) ([]byt
 	if err != nil {
 		return nil, err
 	}
-	w, err := a.window(in.Window)
+	w, err := a.windowCtx(ctx, in.Window)
 	if err != nil {
 		return nil, err
 	}
@@ -780,6 +802,8 @@ func (s *mcpServer) startApp(ctx context.Context, in appStartInput) (appSessionO
 	target, dir := p, s.root
 	if fi.IsDir() {
 		target, dir = ".", p
+	} else if len(in.Tags) > 0 {
+		return appSessionOutput{}, errors.New("tags: target is an executable, which is not built")
 	}
 	tmp, err := os.MkdirTemp("", "tan-mcp-app-")
 	if err != nil {
@@ -804,7 +828,9 @@ func (s *mcpServer) startApp(ctx context.Context, in appStartInput) (appSessionO
 		return appSessionOutput{}, err
 	}
 	a := &appSession{conn: proc.Conn, proc: proc, out: out, started: true, exited: proc.Exited(), exitErr: proc.ExitErr, tempDir: tmp}
-	s.apps.add(a)
+	if err := s.apps.adopt(a); err != nil {
+		return appSessionOutput{}, err
+	}
 	// The channel opens before the first window may have: give it a moment.
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -817,7 +843,14 @@ func (s *mcpServer) startApp(ctx context.Context, in appStartInput) (appSessionO
 		if len(ws) > 0 || time.Now().After(deadline) {
 			return appSessionOutput{Session: a.ID, Windows: ws}, nil
 		}
-		time.Sleep(100 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			// The caller will not learn the session id: do not keep the app.
+			s.apps.remove(a.ID)
+			a.stop()
+			return appSessionOutput{}, ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
 	}
 }
 
@@ -828,9 +861,11 @@ func (s *mcpServer) attachApp(ctx context.Context, in appAttachInput) (appSessio
 		if addr != "" || token != "" {
 			return appSessionOutput{}, errors.New("give tokenFile, or addr and token, not both")
 		}
-		p, err := s.resolve(in.TokenFile)
-		if err != nil {
-			return appSessionOutput{}, err
+		// The file may be outside the root: the token in it decides
+		// whether the app lets us in.
+		p := in.TokenFile
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(s.root, p)
 		}
 		tf, err := wire.ReadTokenFile(p)
 		if err != nil {
@@ -850,6 +885,8 @@ func (s *mcpServer) attachApp(ctx context.Context, in appAttachInput) (appSessio
 		conn.Close()
 		return appSessionOutput{}, err
 	}
-	s.apps.add(a)
+	if err := s.apps.adopt(a); err != nil {
+		return appSessionOutput{}, err
+	}
 	return appSessionOutput{Session: a.ID, Windows: ws}, nil
 }
