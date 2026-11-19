@@ -254,6 +254,7 @@
 - `Affix.Changed()` 在固定和解除固定后的首次构建中各报告一次变化。
 - `Menu.Accordion()` 用方向键和点击展开菜单时都只保留当前分支，嵌套菜单的父级保持展开。
 - 可变行高的虚拟 `List` 原地重排行时沿用各 `RowKey` 的实测高度，修正滚动位置和 `ScrollToKey` 的定位。
+- 带分组、远程搜索或自定义选项的 `Select` 和 `MultiSelect` 可通过 `Virtual(false)` 关闭窗口化。
 
 ### 安全
 

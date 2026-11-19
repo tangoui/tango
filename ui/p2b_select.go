@@ -81,7 +81,7 @@ func (r *p2bRich) engine(c *Context, id ID, opts []Option, search bool) *Virtual
 		c: c, opts: opts, groups: r.groups, st: fillVSStateOf(c, id),
 		filterable: search, filterFn: r.filter, remote: r.remote, debounce: r.debounce, loading: r.loading,
 		allowCreate: r.allowCreate, render: r.render, maxCount: r.maxCount,
-		listH: r.listH, version: r.version,
+		listH: r.listH, version: r.version, fullList: r.virtual < 0,
 	}
 }
 
@@ -128,6 +128,7 @@ func (w *SelectW) OptionRender(fn func(o Option, s OptionState)) *SelectW {
 
 // Virtual forces the virtual dropdown on or off; by default lists longer
 // than 100 options are virtual (only the visible rows are built).
+// With false, grouped and custom-rendered lists also build every row.
 func (w *SelectW) Virtual(on bool) *SelectW {
 	w.rx.virtual = -1
 	if on {
@@ -254,7 +255,7 @@ func (w *MultiSelectW) OptionRender(fn func(o Option, s OptionState)) *MultiSele
 func (w *MultiSelectW) MaxCount(n int) *MultiSelectW { w.rx.maxCount = n; return w }
 
 // Virtual forces the virtual dropdown on or off (default: lists longer
-// than 100 options).
+// than 100 options). With false, the dropdown builds every row.
 func (w *MultiSelectW) Virtual(on bool) *MultiSelectW {
 	w.rx.virtual = -1
 	if on {
