@@ -582,6 +582,9 @@ func (w *CascaderW) key(k input.Key) {
 	cols := w.columns()
 	col := min(st.kcol, len(cols)-1)
 	list := cols[col]
+	if len(list) == 0 {
+		return
+	}
 	cur := -1
 	if col < len(st.path) {
 		_, cur = casFind(list, st.path[col])
