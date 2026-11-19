@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tangoui/tango/internal/render/gpu/shaders"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/theme"
@@ -21,6 +22,32 @@ import (
 )
 
 var updateMinimapBlocks = flag.Bool("update-minimap-blocks", false, "rewrite testdata/minimap/blocks_ops.txt")
+
+func TestMinimapStripsUseSingleTexel(t *testing.T) {
+	for _, scale := range []float32{1, 2} {
+		t.Run(fmt.Sprint(scale), func(t *testing.T) {
+			st := NewState(strings.Repeat("func f() { return 1 }\n", 300), "a.go", theme.Base("vs-dark"))
+			t.Cleanup(st.Close)
+			h := newHintHost(t, st, geom.Size{W: 640, H: 300}, scale)
+			h.frame()
+			var strips, aligned int
+			for _, b := range h.dev.Last().Batches {
+				for _, in := range b.Instances {
+					if in.Kind.X == shaders.KindImage {
+						strips++
+						if in.Params.Z == 1 {
+							aligned++
+						}
+					}
+				}
+			}
+			if strips < 2 || aligned != strips {
+				t.Fatalf("single-texel strips %d of %d, want all of at least two strips", aligned, strips)
+			}
+			t.Logf("single-texel strips %d of %d", aligned, strips)
+		})
+	}
+}
 
 // minimapOps returns the minimap's paint ops of the view's last frame,
 // one per line, by painting the minimap again into a fresh list.

@@ -36,6 +36,16 @@ func SampleCatmullRom(uv, size sl.Vec2) sl.Vec4 {
 	return sl.V4(sl.Clamp(c.X, 0, a), sl.Clamp(c.Y, 0, a), sl.Clamp(c.Z, 0, a), a)
 }
 
+// ImageTexel is SampleCatmullRom of an aligned image (paint.ImageAligned)
+// at the pixel whose center is p from the image's corner: the texel
+// there, clamped to valid premultiplied color as SampleCatmullRom's
+// result is (paint.ImageTexelF).
+func ImageTexel(p, size sl.Vec2) sl.Vec4 {
+	c := imgTexel(sl.Floor(p.X), sl.Floor(p.Y), size)
+	a := sl.Clamp(c.W, 0, 1)
+	return sl.V4(sl.Clamp(c.X, 0, a), sl.Clamp(c.Y, 0, a), sl.Clamp(c.Z, 0, a), a)
+}
+
 // catmullRomRow filters texel row y horizontally: texels x0 … x0+3
 // weighted by w (paint's catmullRomRow).
 func catmullRomRow(x0, y float32, w sl.Vec4, size sl.Vec2) sl.Vec4 {

@@ -264,16 +264,22 @@ float StrokeCoverage(float2 p, float2 origin, float2 size, float4 radii, float w
     return ring * strokeDash(s + dashPhase, dash);
 }
 
-float4 CatmullRomWeights(float f) {
-    float f2 = f * f;
-    float f3 = f2 * f;
-    return float4((((-0.5f) * f3) + f2) - (0.5f * f), ((1.5f * f3) - (2.5f * f2)) + 1.0f, (((-1.5f) * f3) + (2.0f * f2)) + (0.5f * f), (0.5f * f3) - (0.5f * f2));
-}
-
 float4 imgTexel(float x, float y, float2 size, texture2d<float> Img) {
     float cx = clamp(x, 0.0f, size.x - 1.0f);
     float cy = clamp(y, 0.0f, size.y - 1.0f);
     return Img.sample(Img_sampler, float2((cx + 0.5f) / size.x, (cy + 0.5f) / size.y));
+}
+
+float4 ImageTexel(float2 p, float2 size, texture2d<float> Img) {
+    float4 c = imgTexel(floor(p.x), floor(p.y), size, Img);
+    float a = clamp(c.w, 0.0f, 1.0f);
+    return float4(clamp(c.x, 0.0f, a), clamp(c.y, 0.0f, a), clamp(c.z, 0.0f, a), a);
+}
+
+float4 CatmullRomWeights(float f) {
+    float f2 = f * f;
+    float f3 = f2 * f;
+    return float4((((-0.5f) * f3) + f2) - (0.5f * f), ((1.5f * f3) - (2.5f * f2)) + 1.0f, (((-1.5f) * f3) + (2.0f * f2)) + (0.5f * f), (0.5f * f3) - (0.5f * f2));
 }
 
 float4 catmullRomRow(float x0, float y, float4 w, float2 size, texture2d<float> Img) {
@@ -522,6 +528,9 @@ fragment float4 fs_main(Varyings in [[stage_in]], texture2d<float> Mask [[textur
         return in.Color * cov;
     }
     if (in.Kind.x > 6.5f) {
+        if (in.Params.z > 0.5f) {
+            return ImageTexel(pc - in.Rect.xy, in.Params.xy, Img) * cov;
+        }
         float2 t = (pc - in.Rect.xy) / in.Rect.zw;
         return SampleCatmullRom(t, in.Params.xy, Img) * cov;
     }
