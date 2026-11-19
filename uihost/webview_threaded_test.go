@@ -13,6 +13,7 @@ import (
 	"github.com/tangoui/tango/internal/uithread"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/uihost"
 )
@@ -183,5 +184,100 @@ func TestNativeViewWindowCanOptOut(t *testing.T) {
 	}
 	if n := cancels.Load(); n != 1 {
 		t.Fatalf("native rollback ran %d times, want 1", n)
+	}
+}
+
+// A shortcut pressed while a window is being handed back to main (R2)
+// fires once: the buffered event does not match again on main.
+func TestShortcutFiresOnceAcrossSwitchBack(t *testing.T) {
+	t.Cleanup(uihost.SetThreadedNativeViews(false))
+	a, fb := faketest.Run(t, tango.Options{})
+	var show atomic.Bool
+	var w *uihost.WebViewW
+	top := float32(0)
+	web := webPage(&top, &w)
+	r, s, tc, _ := openThreaded(t, a, fb, func(c *ui.Context) {
+		if show.Load() {
+			web(c)
+		}
+	})
+	tc.flush(t)
+	fired := 0
+	shortcut(t, s, "CmdOrCtrl+K", uihost.ShortcutOptions{}, func() { fired++ })
+	gate := make(chan struct{})
+	a.Post(func() { // runs after the switch began, before the handover
+		<-gate
+		tc.sink.CanvasInput(input.KeyEvent{Key: input.KeyK, Mods: cmd(), Down: true})
+		tc.sink.CanvasInput(input.KeyEvent{Key: input.KeyK, Mods: cmd()})
+	})
+	show.Store(true)
+	r.Post(func() {})
+	tc.flush(t) // the switch frame posts the handover behind the gate
+	close(gate)
+	<-tc.th.Done()
+	cv := fb.Canvas(s.ID())
+	for deadline := time.Now().Add(faketest.Timeout); !uihost.MainFallback(r) && time.Now().Before(deadline); {
+		fb.Do(func() {})
+	}
+	settle(cv)
+	fb.Do(func() {
+		if fired != 1 {
+			t.Errorf("shortcut fired %d times across the switch, want 1", fired)
+		}
+	})
+}
+
+// A threaded window without WebViews queues no placement work on main.
+func TestWindowWithoutWebViewQueuesNoPlacementTasks(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	n := 0
+	r, _, tc, _ := openThreaded(t, a, fb, func(c *ui.Context) { ui.Text(c, "no web") })
+	for range 4 {
+		r.Post(func() { n++ })
+		tc.flush(t)
+	}
+	syncAppPosts(a)
+	if got := tango.Await(a, func() int { return uihost.PlacementTasks(r) }); got != 0 {
+		t.Fatalf("%d placement tasks for a window without WebViews", got)
+	}
+}
+
+// Frames coalesced while main is busy keep the focus request one of them
+// made: the page gets focus once.
+func TestWebViewCoalescedFrameKeepsFocus(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	var w *uihost.WebViewW
+	r, s, tc, _ := openThreaded(t, a, fb, func(c *ui.Context) {
+		ui.Column(c, func() {
+			ui.Button(c, "before")
+			w = uihost.WebView(c, "web", uihost.WebViewOptions{}, layout.W(200), layout.H(100))
+		})
+	})
+	fb.EmitFocus(s.ID(), true)
+	for tc.flush(t) {
+	}
+	syncAppPosts(a)
+	tc.sync(t)
+	e := threadedEmbed(t, fb, tc, &w)
+	tab := func() {
+		tc.th.Do(func() {
+			r.HandleEvent(input.KeyEvent{Key: input.KeyTab, Down: true})
+			r.HandleEvent(input.KeyEvent{Key: input.KeyTab})
+		})
+	}
+	tab() // the button
+	for tc.flush(t) {
+	}
+	syncAppPosts(a)
+	release := blockMain(t, a)
+	tab() // the WebView box: a focus request, then more frames
+	for tc.flush(t) {
+	}
+	r.Post(func() {})
+	tc.flush(t)
+	release()
+	syncAppPosts(a)
+	if f, _ := e.FocusCalls(); f != 1 {
+		t.Fatalf("FocusWeb calls = %d after coalesced frames, want 1", f)
 	}
 }

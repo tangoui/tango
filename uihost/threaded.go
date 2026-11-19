@@ -182,7 +182,7 @@ func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page f
 	}
 	w, ht, scale := ct.MainGeometry()
 	h.win = &window{app: h.app, cv: h.cv, id: h.id, sc: h.sc, ax: h.ax, t: t, startup: t, size: geom.Size{W: w, H: ht}, scale: scale}
-	h.win.emb, t.embeds = newThreadedEmbeds(h, s) // webview_threaded.go
+	h.win.emb, t.embeds = newThreadedEmbeds(h, t, s) // webview_threaded.go
 	h.win.watchFrame(s)
 	r.Attach(h.win)
 	h.t, h.r = t, r

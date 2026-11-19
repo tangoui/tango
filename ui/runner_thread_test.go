@@ -290,3 +290,29 @@ func TestBindThreadAfterAttachPanics(t *testing.T) {
 	}()
 	r.BindThread(th)
 }
+
+// A Post that finds the bound thread already stopped while the runner is
+// still open (the host is handing the window back to its main thread) goes
+// through the window's UIPoster instead of being dropped.
+func TestPostToStoppedThreadFallsBackToPoster(t *testing.T) {
+	r := NewRunner(func(*Context) {}, RunnerOptions{})
+	th := uithread.Start(t.Name())
+	r.BindThread(th)
+	w := &posterWin{threadWin: threadWin{damageWin: *newWin()}}
+	r.Attach(w)
+	th.Stop()
+	<-th.Done()
+	ran := false
+	r.Post(func() { ran = true })
+	w.runQueued()
+	if !ran {
+		t.Fatal("Post to a stopped thread was dropped while the runner is open")
+	}
+	r.Close()
+	ran = false
+	r.Post(func() { ran = true })
+	w.runQueued()
+	if ran {
+		t.Fatal("Post after Close ran")
+	}
+}

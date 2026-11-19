@@ -58,8 +58,8 @@ func (h *host) publishSnapshot() {
 // window, as ui.TitleBar does. Main thread, threaded windows.
 func (h *host) dragOnMain(ev input.Event) bool {
 	p, ok := ev.(input.Pointer)
-	if !ok || p.Kind != input.Press || p.Button != input.ButtonLeft || h.win.s == nil {
-		return false
+	if !ok || p.Kind != input.Press || p.Button != input.ButtonLeft || h.win.s == nil || corehook.StartWindowMove == nil {
+		return false // no platform move: the UI handles the press
 	}
 	in := false
 	for _, r := range h.t.snapshot().dragRegions {
@@ -75,23 +75,27 @@ func (h *host) dragOnMain(ev input.Event) bool {
 	last, lastPos := h.t.dragPress, h.t.dragPos
 	if !last.IsZero() && now.Sub(last) < titleBarDoubleClick && abs(p.Pos.X-lastPos.X) < 5 && abs(p.Pos.Y-lastPos.Y) < 5 {
 		h.t.dragPress = time.Time{}
-		info := readFrameInfo(s)
-		if !info.NoMaximize {
+		var act ui.WindowAction
+		if info := readFrameInfo(s); !info.NoMaximize {
 			switch info.State {
 			case ui.WindowMaximized:
+				act = ui.WindowActionRestore
 				_ = s.Restore()
 			case ui.WindowNormal:
+				act = ui.WindowActionMaximize
 				_ = s.Maximize()
 			}
+		}
+		if act != "" { // TitleBarW.Action reports it in the next frame
+			pos, t := p.Pos, h.t
+			t.post(h.app, func() { h.r.TitleBarActed(pos, act); h.invalidate() })
 		}
 		return true
 	}
 	h.t.dragPress, h.t.dragPos = now, p.Pos
-	if corehook.StartWindowMove != nil {
-		// In the press's own native callback: the platform's move loop
-		// (macOS performWindowDragWithEvent:) gets the mouse-down it needs.
-		corehook.StartWindowMove(s)
-	}
+	// In the press's own native callback: the platform's move loop (macOS
+	// performWindowDragWithEvent:) gets the mouse-down it needs.
+	corehook.StartWindowMove(s)
 	return true
 }
 

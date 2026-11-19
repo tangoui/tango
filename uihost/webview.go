@@ -225,6 +225,7 @@ type embeds struct {
 	frame  uint64 // frames synced so far; builds mark views with it
 	closed bool
 	main   *mainEmbeds // threaded window: the native side
+	idle   bool        // threaded: the last frame posted to main was empty (or none was)
 }
 
 // embedView is one embedded WebView, on the window's UI thread. On a

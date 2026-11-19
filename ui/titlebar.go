@@ -306,6 +306,14 @@ type TitleBarW struct {
 	ia     Interaction
 	act    WindowAction
 	z      *lazy
+
+	hostDone bool // act was performed by the host (Runner.TitleBarActed)
+}
+
+// hostBarAct is a title bar double click the host handled itself.
+type hostBarAct struct {
+	pos geom.Point
+	act WindowAction
 }
 
 type titleBarState struct {
@@ -371,7 +379,10 @@ func (t *TitleBarW) Layout(o ...layout.Option) *TitleBarW {
 }
 
 // Action reports the window action the user asked for this frame (a
-// window button, or a double click on the bar), "" for none.
+// window button, or a double click on the bar), "" for none. A host that
+// handles double clicks on the bar itself (uihost windows with their own UI
+// thread) has already performed the action when Action reports it, one
+// frame later.
 func (t *TitleBarW) Action() WindowAction { t.z.run(); return t.act }
 
 // ID returns the bar's ID.
@@ -407,6 +418,12 @@ func (t *TitleBarW) build() {
 			c.dragBars.nodes = c.dragBars.nodes[:0]
 		}
 		c.dragBars.nodes = append(c.dragBars.nodes, n)
+	}
+	if a := c.hostBarAct; a.act != "" {
+		if r, ok := c.rects[n.id]; ok && r.Contains(a.pos) {
+			t.act, t.hostDone = a.act, true // already performed by the host
+			c.hostBarAct = hostBarAct{}
+		}
 	}
 	if t.ia.PressedNow {
 		st := State[titleBarState](c, hashID(n.id, "titlebar"), nil)
@@ -478,7 +495,7 @@ func (t *TitleBarW) build() {
 	if style == WindowControlsCaption {
 		t.controls(style)
 	}
-	if t.act != "" && !t.manual {
+	if t.act != "" && !t.manual && !t.hostDone {
 		applyWindowAction(f, t.act)
 		c.invalid = true
 	}

@@ -228,10 +228,16 @@ func (r *Runner) Post(fn func()) {
 		r.Invalidate()
 	}
 	if t := r.thread.Load(); t != nil {
-		t.Post(run)
-	} else if p := r.poster.Load(); p != nil {
+		// A stopped thread with the runner still open: the host is handing
+		// the window back to its main thread (ReturnRunnerToMain); its
+		// UIPoster takes the work.
+		if t.Post(run) || r.closed.Load() {
+			return
+		}
+	}
+	if p := r.poster.Load(); p != nil {
 		p.PostUI(run)
-	} else {
+	} else if r.thread.Load() == nil {
 		run()
 	}
 }
@@ -333,6 +339,7 @@ func (r *Runner) clearFrameInput() {
 	c.actNow = c.actNow[:0]
 	c.clearCapFrame()
 	c.clearTouchFrame()
+	c.hostBarAct = hostBarAct{}
 }
 
 func (r *Runner) processEvents() bool {
@@ -892,4 +899,16 @@ func subtractRect(rs []geom.Rect, cut geom.Rect) []geom.Rect {
 		add(geom.Rect{X: in.Right(), Y: in.Y, W: r.Right() - in.Right(), H: in.H})  // right
 	}
 	return out
+}
+
+// TitleBarActed tells the runner that the host itself performed act
+// (WindowActionMaximize or WindowActionRestore) for a double click at p on
+// a TitleBar's drag area (see DragRegions): the next frame's
+// TitleBarW.Action of the bar under p reports act without performing it
+// again. UI thread; it does not request a frame.
+//
+// Experimental: used by the platform host (uihost).
+func (r *Runner) TitleBarActed(p geom.Point, act WindowAction) {
+	r.checkThread()
+	r.c.hostBarAct = hostBarAct{pos: p, act: act}
 }

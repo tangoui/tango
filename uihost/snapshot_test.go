@@ -3,10 +3,12 @@ package uihost_test
 import (
 	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/tangoui/tango"
+	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/platform/fake/faketest"
 	"github.com/tangoui/tango/internal/uithread"
 	"github.com/tangoui/tango/ui"
@@ -197,5 +199,134 @@ func TestDragRegionStartsMoveOnMain(t *testing.T) {
 	})
 	if m := moves(); m != 2 {
 		t.Fatalf("moves after the double click: %d, want 2", m)
+	}
+}
+
+// A composition the UI still has blocks shortcuts through the snapshot
+// alone, without a text field and after main forgot it (a focus change).
+func TestShortcutBlockedBySnapshotComposition(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	r, s, tc, cv := openThreaded(t, a, fb, func(c *ui.Context) {})
+	n := 0
+	shortcut(t, s, "F5", uihost.ShortcutOptions{}, func() { n++ })
+	cv.Input(input.Composition{Text: "に", Cursor: 1})
+	fb.Do(func() { tc.sink.CanvasFocus(true) }) // main clears its own composition state
+	for tc.flush(t) {
+	}
+	if st := snapshotOf(t, r); !st.Composing || st.EditableFocus {
+		t.Fatalf("snapshot %+v: want composing without editable focus", st)
+	}
+	press(cv, input.KeyF5, 0)
+	fb.Do(func() {
+		if n != 0 {
+			t.Errorf("F5 fired %d times during a composition", n)
+		}
+	})
+}
+
+// Without a platform window move the press goes to the UI.
+func TestDragWithoutWindowMoveGoesToUI(t *testing.T) {
+	old := corehook.StartWindowMove
+	corehook.StartWindowMove = nil
+	t.Cleanup(func() { corehook.StartWindowMove = old })
+	a, fb := faketest.Run(t, tango.Options{})
+	var presses atomic.Int32
+	r, _, tc, _ := openThreaded(t, a, fb, func(c *ui.Context) {
+		ui.TitleBar(c).Title("App").Controls(ui.WindowControlsCaption)
+		if c.PressedOutside() {
+			presses.Add(1)
+		}
+	})
+	for tc.flush(t) {
+	}
+	if len(snapshotOf(t, r).DragRegions) == 0 {
+		t.Fatal("no drag regions")
+	}
+	fb.Do(func() {
+		tc.sink.CanvasInput(input.Pointer{Kind: input.Press, Pos: geom.Pt(30, 18), Button: input.ButtonLeft})
+	})
+	for tc.flush(t) {
+	}
+	if presses.Load() != 1 {
+		t.Fatalf("UI saw %d presses, want 1", presses.Load())
+	}
+}
+
+// Title bars the host must not move from main (an open overlay, Manual, an
+// explicit Frame) publish no drag regions: their presses reach the UI,
+// which moves the window with StartWindowMove.
+func TestDragRegionExclusions(t *testing.T) {
+	for _, mode := range []string{"overlay", "manual", "frame"} {
+		t.Run(mode, func(t *testing.T) {
+			a, fb := faketest.Run(t, tango.Options{})
+			r, s, tc, _ := openThreaded(t, a, fb, func(c *ui.Context) {
+				tb := ui.TitleBar(c).Title("App").Controls(ui.WindowControlsCaption)
+				switch mode {
+				case "manual":
+					tb.Manual()
+				case "frame":
+					tb.Frame(c.Window().(ui.WindowFrame))
+				}
+				tb.Action()
+				if mode == "overlay" {
+					b := ui.Div(c, layout.W(20), layout.H(20))
+					ui.Overlay(c, ui.OverlayOptions{Anchor: b.ID(), Place: ui.BottomStart}, func() {
+						ui.Div(c, layout.W(20), layout.H(20))
+					})
+				}
+			})
+			for tc.flush(t) {
+			}
+			if regs := snapshotOf(t, r).DragRegions; len(regs) != 0 {
+				t.Fatalf("drag regions %v, want none", regs)
+			}
+			bar := geom.Pt(30, 18)
+			fb.Do(func() {
+				tc.sink.CanvasInput(input.Pointer{Kind: input.Move, Pos: bar})
+				tc.sink.CanvasInput(input.Pointer{Kind: input.Press, Pos: bar, Button: input.ButtonLeft})
+				tc.sink.CanvasInput(input.Pointer{Kind: input.Release, Pos: bar, Button: input.ButtonLeft})
+			})
+			for tc.flush(t) {
+			}
+			syncAppPosts(a)
+			if _, _, _, m := fb.Canvas(s.ID()).Surface().WindowCounts(); m != 1 {
+				t.Fatalf("moves %d, want 1 through StartWindowMove", m)
+			}
+		})
+	}
+}
+
+// A double click the main thread performed is reported by the next frame's
+// TitleBarW.Action (without performing it again).
+func TestTitleBarDoubleClickActionReported(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	var mu sync.Mutex
+	var acts []ui.WindowAction
+	_, s, tc, _ := openThreaded(t, a, fb, func(c *ui.Context) {
+		if act := ui.TitleBar(c).Title("App").Controls(ui.WindowControlsCaption).Action(); act != "" {
+			mu.Lock()
+			acts = append(acts, act)
+			mu.Unlock()
+		}
+	})
+	for tc.flush(t) {
+	}
+	bar := geom.Pt(30, 18)
+	fb.Do(func() {
+		for range 2 {
+			tc.sink.CanvasInput(input.Pointer{Kind: input.Press, Pos: bar, Button: input.ButtonLeft})
+			tc.sink.CanvasInput(input.Pointer{Kind: input.Release, Pos: bar, Button: input.ButtonLeft})
+		}
+	})
+	for tc.flush(t) {
+	}
+	syncAppPosts(a)
+	if st := tango.Await(a, s.State); st != tango.StateMaximized {
+		t.Fatalf("state %v after the double click", st)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !slices.Equal(acts, []ui.WindowAction{ui.WindowActionMaximize}) {
+		t.Fatalf("Action reported %v, want one maximize", acts)
 	}
 }

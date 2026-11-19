@@ -240,8 +240,11 @@ func (h *host) CanvasInput(ev input.Event) {
 	// its latest frame (snapshot.go): a consumed key never reaches the UI
 	// thread. A press on a title bar's drag area moves the window from
 	// here as well.
+	// threaded is decided now: queued work may run on main after a
+	// fallback (stopStarting) and must not match the key a second time.
 	var consumed bool
-	if h.t != nil {
+	threaded := h.t != nil
+	if threaded {
 		if h.dragOnMain(ev) {
 			return
 		}
@@ -251,7 +254,7 @@ func (h *host) CanvasInput(ev input.Event) {
 		if isKeyboardInput(ev) { // typing: native windows move to Metal (native.go)
 			h.gpu.keyboardInput()
 		}
-		if h.t == nil {
+		if !threaded {
 			consumed = h.sc.handle(ev) // the main thread is the UI thread
 		}
 		if !consumed {
@@ -281,11 +284,12 @@ func (h *host) CanvasFocus(focused bool) {
 	if h.closed || h.r == nil {
 		return
 	}
-	if h.t != nil {
+	threaded := h.t != nil // as in CanvasInput
+	if threaded {
 		h.sc.handleSnapshot(input.WindowFocus{Focused: focused}, h.t.snapshot()) // main thread, as in CanvasInput
 	}
 	h.onUI(func() {
-		if h.t == nil {
+		if !threaded {
 			h.sc.handle(input.WindowFocus{Focused: focused})
 		}
 		h.r.HandleEvent(input.WindowFocus{Focused: focused})

@@ -19,7 +19,9 @@ type uiPosterRef struct{ UIPoster }
 
 // BindThread makes t the runner's UI thread: Post queues work there and, in
 // development builds, the UI-thread entry points panic when called from
-// elsewhere. Call it once, before Attach; the binding cannot change.
+// elsewhere. Call it once, before Attach; only the host can end the binding
+// (corehook.ReturnRunnerToMain, when it hands the window back to its main
+// thread), never bind it again.
 // Experimental: used by the platform host (uihost).
 func (r *Runner) BindThread(t *uithread.Thread) {
 	if t == nil {

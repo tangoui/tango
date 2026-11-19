@@ -260,8 +260,9 @@ type Context struct {
 	kb  kbState
 	ime imeState
 
-	natives  nativeState // native views of the latest build (native_view.go)
-	dragBars nativeState // title bars that move the window (Runner.DragRegions)
+	natives    nativeState // native views of the latest build (native_view.go)
+	dragBars   nativeState // title bars that move the window (Runner.DragRegions)
+	hostBarAct hostBarAct  // a double click the host performed (Runner.TitleBarActed)
 }
 
 func newContext(th *theme.Theme) *Context {

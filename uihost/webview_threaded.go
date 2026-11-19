@@ -37,6 +37,7 @@ type embedFrame struct {
 // mainEmbeds is the main-thread side of a threaded window's WebViews.
 type mainEmbeds struct {
 	h      *host
+	t      *threadedHost // immutable: h.t changes on main during a fallback
 	parent *tango.Surface
 
 	mu      sync.Mutex
@@ -60,9 +61,10 @@ type mainView struct {
 }
 
 // newThreadedEmbeds creates both sides for a threaded window. Main thread.
-func newThreadedEmbeds(h *host, parent *tango.Surface) (*embeds, *mainEmbeds) {
+func newThreadedEmbeds(h *host, t *threadedHost, parent *tango.Surface) (*embeds, *mainEmbeds) {
 	e := newEmbeds(h, parent)
-	me := &mainEmbeds{h: h, parent: parent, views: map[ui.ID]*mainView{}, dead: map[*embedView]bool{}}
+	e.idle = true // main has nothing yet
+	me := &mainEmbeds{h: h, t: t, parent: parent, views: map[ui.ID]*mainView{}, dead: map[*embedView]bool{}}
 	e.main = me
 	return e, me
 }
@@ -78,9 +80,7 @@ func (e *embeds) toUI(fn func()) {
 }
 
 func (me *mainEmbeds) toUI(fn func()) {
-	if t := me.h.t; t != nil {
-		t.post(me.h.app, fn)
-	}
+	me.t.post(me.h.app, fn) // dropped once closed; on main after a fallback
 }
 
 // syncThreaded is sync for a threaded window: it decides this frame's
@@ -118,6 +118,11 @@ func (e *embeds) syncThreaded() {
 		v.s = nil // closed by the main thread: it is not in fr
 	}
 	e.frame++
+	empty := len(fr.views) == 0
+	if empty && e.idle {
+		return // nothing on main to place or close
+	}
+	e.idle = empty
 	e.main.post(fr)
 }
 
@@ -156,6 +161,10 @@ func (me *mainEmbeds) apply() {
 	me.mu.Unlock()
 	h := me.h
 	if fr == nil || me.closed || h.closed || h.t == nil || h.t.closing.Load() {
+		return
+	}
+	if len(fr.views) == 0 && len(me.views) == 0 {
+		clear(me.dead)
 		return
 	}
 	me.frames++
