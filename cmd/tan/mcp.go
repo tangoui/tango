@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
 	"net"
 	"net/http"
@@ -91,6 +92,13 @@ func runMCP(args []string) error {
 	}
 	if *stdio && *useHTTP {
 		return errors.New("-stdio and -http cannot be used together")
+	}
+	if !*useHTTP {
+		var httpOnly bool
+		fs.Visit(func(f *flag.Flag) { httpOnly = httpOnly || f.Name == "addr" || f.Name == "token" })
+		if httpOnly {
+			return errors.New("-addr and -token need -http")
+		}
 	}
 	if *useHTTP {
 		if err := checkLoopbackAddr(*addr); err != nil {
@@ -183,14 +191,14 @@ func checkLoopbackAddr(addr string) error {
 }
 
 // httpGuard passes on requests that carry "Authorization: Bearer token"
-// (401 otherwise) and whose Host, and Origin when present, are loopback
+// (scheme in any case; 401 otherwise) and whose Host, and Origin when present, are loopback
 // (403 otherwise; a page on another site reaching the port through DNS
 // rebinding sends its own Host and Origin).
 func httpGuard(token string, next http.Handler) http.Handler {
-	want := []byte("Bearer " + token)
+	want := []byte(token)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got := []byte(r.Header.Get("Authorization"))
-		if token == "" || subtle.ConstantTimeCompare(got, want) != 1 {
+		scheme, got, _ := strings.Cut(r.Header.Get("Authorization"), " ")
+		if token == "" || !strings.EqualFold(scheme, "Bearer") || subtle.ConstantTimeCompare([]byte(got), want) != 1 {
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return

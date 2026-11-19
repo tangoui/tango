@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -94,6 +95,55 @@ func TestHTTPRejectsForeignOrigin(t *testing.T) {
 	}
 }
 
+// TestHTTPGuardEdgeCases calls the guard directly, so Host can be anything
+// (including empty).
+func TestHTTPGuardEdgeCases(t *testing.T) {
+	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	guard := httpGuard("s3cret", ok)
+	for _, c := range []struct {
+		host, origin, auth string
+		want               int
+	}{
+		{"localhost.evil.com", "", "Bearer s3cret", http.StatusForbidden},
+		{"localhost.evil.com:80", "", "Bearer s3cret", http.StatusForbidden},
+		{"", "", "Bearer s3cret", http.StatusForbidden},
+		{"127.0.0.1.evil.com", "", "Bearer s3cret", http.StatusForbidden},
+		{"[::1]:9", "", "Bearer s3cret", http.StatusOK},
+		{"127.0.0.1:9", "http://localhost.evil.com", "Bearer s3cret", http.StatusForbidden},
+		{"127.0.0.1:9", "null", "Bearer s3cret", http.StatusForbidden},
+		{"127.0.0.1:9", "http://localhost:5173", "Bearer s3cret", http.StatusOK},
+		{"127.0.0.1:9", "", "bearer s3cret", http.StatusOK},
+		{"127.0.0.1:9", "", "BEARER s3cret", http.StatusOK},
+		{"127.0.0.1:9", "", "Basic s3cret", http.StatusUnauthorized},
+		{"127.0.0.1:9", "", "Bearer", http.StatusUnauthorized},
+		{"127.0.0.1:9", "", "Bearer ", http.StatusUnauthorized},
+		{"127.0.0.1:9", "", "s3cret", http.StatusUnauthorized},
+	} {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.Host = c.host
+		if c.origin != "" {
+			r.Header.Set("Origin", c.origin)
+		}
+		if c.auth != "" {
+			r.Header.Set("Authorization", c.auth)
+		}
+		w := httptest.NewRecorder()
+		guard.ServeHTTP(w, r)
+		if w.Code != c.want {
+			t.Errorf("Host %q Origin %q Authorization %q: status %d, want %d", c.host, c.origin, c.auth, w.Code, c.want)
+		}
+	}
+	// An empty token accepts nothing.
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.Host = "127.0.0.1:9"
+	r.Header.Set("Authorization", "Bearer ")
+	w := httptest.NewRecorder()
+	httpGuard("", ok).ServeHTTP(w, r)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("empty token: status %d, want 401", w.Code)
+	}
+}
+
 func TestMCPInitializeListsServer(t *testing.T) {
 	s, err := newMCPServer(t.TempDir())
 	if err != nil {
@@ -120,6 +170,11 @@ func TestMCPInitializeListsServer(t *testing.T) {
 func TestMCPFlagsExclusive(t *testing.T) {
 	if err := runMCP([]string{"-stdio", "-http"}); err == nil {
 		t.Fatal("runMCP(-stdio -http) = nil, want an error")
+	}
+	for _, args := range [][]string{{"-addr", "127.0.0.1:1"}, {"-stdio", "-token", "x"}} {
+		if err := runMCP(args); err == nil || !strings.Contains(err.Error(), "need -http") {
+			t.Errorf("runMCP(%q) = %v, want the need -http error", args, err)
+		}
 	}
 }
 
