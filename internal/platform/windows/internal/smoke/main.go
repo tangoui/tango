@@ -2,9 +2,10 @@
 
 // Command smoke exercises the Windows backend without the tango root
 // package: it opens a window, serves a page through ServeAsset, exchanges
-// messages with it, sets a menu, and quits after 3 seconds. Exit status 0
-// means the page loaded and its message round-tripped.
-// TANGO_SMOKE_TIMEOUT_SCALE=3 stretches the 3 seconds for slow machines (CI).
+// messages with it, sets a menu, and quits once the page has loaded and its
+// message round-tripped (or after a 30-second timeout). Exit status 0 means
+// both happened. TANGO_SMOKE_TIMEOUT_SCALE=3 stretches the timeout for slow
+// machines (CI), where WebView2 can take several seconds to start.
 //
 //	GOOS=windows go build -o smoke.exe ./internal/platform/windows/internal/smoke
 package main
@@ -51,6 +52,14 @@ type host struct {
 	loaded, gotMessage, gotAck bool
 }
 
+// checkDone quits once every check has passed; the callbacks that set the
+// flags run on the UI thread, as does this.
+func (h *host) checkDone() {
+	if h.loaded && h.gotMessage && h.gotAck {
+		h.b.Quit()
+	}
+}
+
 func (h *host) post(fn func()) {
 	h.mu.Lock()
 	h.queue = append(h.queue, fn)
@@ -81,6 +90,7 @@ func (h *host) OnSurfaceEvent(id platform.SurfaceID, ev platform.SurfaceEvent) {
 	case platform.SurfaceLoaded:
 		h.loaded = true
 		h.surface.Eval(`window.__tangoNative.post('bridge ran first: ' + window.__smokeBridge)`)
+		h.checkDone()
 	case platform.SurfaceClosed:
 		h.b.Quit()
 	}
@@ -94,6 +104,7 @@ func (h *host) OnMessage(id platform.SurfaceID, origin, msg string) {
 	}
 	if len(msg) >= 4 && msg[:4] == "ack:" {
 		h.gotAck = true
+		h.checkDone()
 		return
 	}
 	if !h.gotMessage {
@@ -157,8 +168,10 @@ func main() {
 	w, hgt := s.Size()
 	fmt.Printf("logical size %dx%d, hwnd %#x\n", w, hgt, s.Native())
 
+	// Quit as soon as the page has loaded and round-tripped (checkDone);
+	// the timeout only bounds a hung WebView2.
 	go func() {
-		time.Sleep(scaled(3 * time.Second))
+		time.Sleep(scaled(30 * time.Second))
 		h.post(b.Quit)
 	}()
 	if err := b.Run(); err != nil {
