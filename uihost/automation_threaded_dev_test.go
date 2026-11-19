@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"image/png"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/automation"
 	iauto "github.com/tangoui/tango/internal/automation"
+	"github.com/tangoui/tango/internal/platform/fake"
 	"github.com/tangoui/tango/internal/platform/fake/faketest"
 	"github.com/tangoui/tango/internal/uithread"
 	"github.com/tangoui/tango/ui"
@@ -110,8 +113,8 @@ func TestAutomationFindAndPerformOnUIThread(t *testing.T) {
 	err = <-res
 	close(unblock)
 	var ae *iauto.Error
-	if !errors.As(err, &ae) || ae.Code != iauto.CodeTimeout {
-		t.Fatalf("Tree with a blocked UI thread: %v, want a timeout", err)
+	if !errors.As(err, &ae) || ae.Code != iauto.CodeBusy {
+		t.Fatalf("Tree with a blocked UI thread: %v, want CodeBusy", err)
 	}
 
 	// Unblocked, the same canvas works: its tree has the button.
@@ -136,5 +139,83 @@ func TestAutomationFindAndPerformOnUIThread(t *testing.T) {
 	}
 	if sz := snap.Bounds().Size(); sz.X != 240 || sz.Y != 160 {
 		t.Fatalf("snapshot %v", sz)
+	}
+}
+
+// openThreadedAuto opens a window titled "UI" on a threaded canvas whose
+// clock ticks on request, and waits for its UI thread to start.
+func openThreadedAuto(t *testing.T, a *tango.App, fb *fake.Backend, page func(*ui.Context)) (*ui.Runner, *threadedCanvas) {
+	t.Helper()
+	canvases := useThreadedCanvases(t, false, clockCfg{eager: true})
+	o := tango.Await(a, func() opened {
+		r, s, err := uihost.Open(a, uihost.Options{
+			Surface: tango.SurfaceOptions{Title: "UI", Width: 240, Height: 160},
+		}, page, ui.RunnerOptions{})
+		return opened{r, s, err}
+	})
+	if o.err != nil {
+		t.Fatal(o.err)
+	}
+	for deadline := time.Now().Add(faketest.Timeout); !tango.Await(a, func() bool { return uihost.ThreadedStarted(o.r) }) && time.Now().Before(deadline); {
+		fb.Do(func() {})
+	}
+	tc := canvases(o.s.ID())
+	if tc == nil || !tc.started() {
+		t.Fatal("no threaded canvas with a running frame clock")
+	}
+	closeAtEnd(t, fb, o.s, tc)
+	return o.r, tc
+}
+
+// fatalRecorder is a testing.TB whose Fatal and Fatalf record the message
+// and end the calling goroutine, so a test can check that a client call
+// failed.
+type fatalRecorder struct {
+	testing.TB
+	mu  sync.Mutex
+	msg string
+}
+
+func (r *fatalRecorder) Helper() {}
+func (r *fatalRecorder) Fatalf(format string, args ...any) {
+	r.mu.Lock()
+	r.msg = fmt.Sprintf(format, args...)
+	r.mu.Unlock()
+	runtime.Goexit()
+}
+func (r *fatalRecorder) Fatal(args ...any) { r.Fatalf("%s", fmt.Sprint(args...)) }
+
+// A node that exists in a window whose UI thread is busy is not reported
+// as missing: Exists fails with the busy error instead of returning false.
+func TestAutomationExistsReportsBusyUIThread(t *testing.T) {
+	t.Cleanup(uihost.SetAutoWaitForTest(200 * time.Millisecond)) // runs after the app's cleanup
+	a, fb, dial := connectAutoTB(t)
+	r, _ := openThreadedAuto(t, a, fb, func(c *ui.Context) { ui.Button(c, "Add") })
+	app := dial(t)
+	app.Window("UI").Find(a11y.RoleButton, "Add").Node() // the tree is on and has the button
+
+	blocked, unblock := make(chan struct{}), make(chan struct{})
+	r.Post(func() { close(blocked); <-unblock })
+	<-blocked
+	rec := &fatalRecorder{TB: t}
+	busy := dial(rec)
+	got := make(chan bool, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		got <- busy.Window("UI").Find(a11y.RoleButton, "Add").Exists()
+	}()
+	<-done
+	close(unblock)
+	select {
+	case v := <-got:
+		t.Fatalf("Exists returned %v while the UI thread was busy; want an error", v)
+	default:
+	}
+	rec.mu.Lock()
+	msg := rec.msg
+	rec.mu.Unlock()
+	if !strings.Contains(msg, "busy") {
+		t.Fatalf("Exists failed with %q, want the busy UI thread error", msg)
 	}
 }

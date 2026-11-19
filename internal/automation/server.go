@@ -53,11 +53,34 @@ type Canvas interface {
 	Snapshot() (*image.RGBA, error)
 }
 
-// OffMain is implemented by canvases whose methods route each operation to
-// the thread that owns it and wait for it themselves (windows on their own
-// UI threads): the server calls them on its own goroutine instead of on the
-// main thread, so the main thread never waits for a window's UI thread.
-type OffMain interface{ OffMain() }
+// OffMain is implemented by canvases whose methods may route each
+// operation to the thread that owns it and wait for it themselves (windows
+// on their own UI threads). When OffMain reports true the server calls the
+// canvas on its own goroutine instead of on the main thread, so the main
+// thread never waits for a window's UI thread; when false (or for canvases
+// without the method) it calls it on the main thread.
+type OffMain interface{ OffMain() bool }
+
+// Settler is implemented by OffMain canvases whose actions run on another
+// thread: PerformSettle and InputSettle are Perform and Input that also
+// return the tree generation read on that thread after the action was
+// handed to it, in the same task, as the base settle compares with (a
+// separate Tree call could see a frame that slipped in before the action).
+type Settler interface {
+	PerformSettle(id a11y.NodeID, act a11y.Action, arg string) (gen0 uint64, err error)
+	InputSettle(evs []input.Event) (gen0 uint64, err error)
+}
+
+func offMain(c Canvas) bool {
+	o, ok := c.(OffMain)
+	return ok && o.OffMain()
+}
+
+// settler returns c's Settler when the server calls c off the main thread.
+func settler(c Canvas) (Settler, bool) {
+	st, ok := c.(Settler)
+	return st, ok && offMain(c)
+}
 
 // ErrHotReload is what Canvas implementations return under tan dev.
 var ErrHotReload = &Error{Code: CodeHotReload,
@@ -299,7 +322,7 @@ func (s *Server) main(fn func()) error {
 // onCanvas runs fn, which calls c, on the main thread, or on the calling
 // goroutine when c is OffMain.
 func (s *Server) onCanvas(c Canvas, fn func()) error {
-	if _, ok := c.(OffMain); !ok {
+	if !offMain(c) {
 		return s.main(fn)
 	}
 	if !s.host.Guard(fn) {
@@ -467,7 +490,11 @@ func (s *Server) canvasOp(c Canvas, req *Request) *Response {
 				time.Sleep(20 * time.Millisecond) // let a frame run between drag steps
 			}
 			var ierr error
-			if e := s.onCanvas(c, func() {
+			if st, ok := settler(c); ok {
+				if e := s.onCanvas(c, func() { gen0, ierr = st.InputSettle(b) }); e != nil {
+					return failErr(e)
+				}
+			} else if e := s.onCanvas(c, func() {
 				if i == 0 {
 					_, gen0, _ = c.Tree()
 				}
@@ -524,6 +551,10 @@ func (s *Server) canvasOp(c Canvas, req *Request) *Response {
 		var gen0 uint64
 		var perr error
 		if e := s.onCanvas(c, func() {
+			if st, ok := settler(c); ok {
+				gen0, perr = st.PerformSettle(node.ID, act, req.Arg)
+				return
+			}
 			_, gen0, _ = c.Tree()
 			perr = c.Perform(node.ID, act, req.Arg)
 		}); e != nil {

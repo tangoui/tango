@@ -19,3 +19,13 @@ func AutoCanvasForTest(r *ui.Runner, wait time.Duration) automation.Canvas {
 	c.wait = wait
 	return c
 }
+
+// SetAutoWaitForTest sets how long the automation canvases of windows
+// opened from now on wait for their UI thread; it returns a function
+// restoring the old value. Call it before opening windows, on the test
+// goroutine, and restore once they are closed.
+func SetAutoWaitForTest(d time.Duration) func() {
+	old := autoWait
+	autoWait = d
+	return func() { autoWait = old }
+}

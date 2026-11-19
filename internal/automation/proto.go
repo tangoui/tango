@@ -90,6 +90,10 @@ const (
 	CodeScript      = "script"
 	CodeQuit        = "quit"
 	CodeInternal    = "internal"
+	// CodeBusy: the window's UI thread did not take the request in time
+	// (busy or blocked). Not a timeout of the request itself: the client
+	// must not read it as "not found".
+	CodeBusy = "busy"
 )
 
 // Window kinds (WindowInfo.Kind).

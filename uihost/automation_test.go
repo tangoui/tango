@@ -41,13 +41,20 @@ func pump(t *testing.T, cv *fake.Canvas) {
 // public client to it.
 func connectAuto(t *testing.T) (*tango.App, *fake.Backend, func() *automation.App) {
 	t.Helper()
+	a, fb, dial := connectAutoTB(t)
+	return a, fb, func() *automation.App { t.Helper(); return dial(t) }
+}
+
+// connectAutoTB is connectAuto with a client that reports to tb.
+func connectAutoTB(t *testing.T) (*tango.App, *fake.Backend, func(tb testing.TB) *automation.App) {
+	t.Helper()
 	tokenFile := filepath.Join(t.TempDir(), "auto.json")
 	t.Setenv("TANGO_AUTOMATION", "127.0.0.1:0")
 	t.Setenv("TANGO_AUTOMATION_TOKEN_FILE", tokenFile)
 	keep := false // closing the last window must not quit (default on Linux/Windows)
 	a, fb := faketest.Run(t, tango.Options{QuitOnLastClose: &keep})
-	return a, fb, func() *automation.App {
-		t.Helper()
+	return a, fb, func(tb testing.TB) *automation.App {
+		tb.Helper()
 		var addr, token string
 		deadline := time.Now().Add(5 * time.Second)
 		for {
@@ -60,7 +67,7 @@ func connectAuto(t *testing.T) (*tango.App, *fake.Backend, func() *automation.Ap
 			}
 			time.Sleep(5 * time.Millisecond)
 		}
-		app := automation.Connect(t, addr, token)
+		app := automation.Connect(tb, addr, token)
 		app.SetTimeout(3 * time.Second)
 		return app
 	}

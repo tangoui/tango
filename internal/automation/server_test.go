@@ -451,3 +451,41 @@ func TestServerConnLimit(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 }
+
+// offMainCanvas is a fakeCanvas reporting OffMain.
+type offMainCanvas struct {
+	*fakeCanvas
+	off bool
+}
+
+func (c *offMainCanvas) OffMain() bool { return c.off }
+
+// A canvas not driven off the main thread keeps the main-thread path: a
+// panic in it reports CodeQuit as before. Only an OffMain canvas, called
+// on the server's goroutine, reports CodeInternal.
+func TestServerPanicCodeByThread(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		wrap func(*fakeCanvas) Canvas
+		want string
+	}{
+		{"plain", func(c *fakeCanvas) Canvas { return c }, CodeQuit},
+		{"offmain-false", func(c *fakeCanvas) Canvas { return &offMainCanvas{c, false} }, CodeQuit},
+		{"offmain-true", func(c *fakeCanvas) Canvas { return &offMainCanvas{c, true} }, CodeInternal},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			h := &fakeHost{quit: make(chan struct{}), windows: []WindowInfo{{ID: 1, Title: "Canvas"}}}
+			app := new(int)
+			t.Cleanup(Register(app, 1, tt.wrap(&fakeCanvas{h: h, panic: true})))
+			s, err := Listen(app, h, "127.0.0.1:0", filepath.Join(t.TempDir(), "token.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { s.Close() })
+			tc, _ := connect(t, s, s.Token())
+			if r := tc.do(&Request{Op: OpCount, Window: 1, Query: &Query{}}); r.Code != tt.want {
+				t.Fatalf("panic reported as %+v, want code %q", r, tt.want)
+			}
+		})
+	}
+}

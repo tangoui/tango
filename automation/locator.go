@@ -106,7 +106,8 @@ func (l *Locator) WaitValue(v string) a11y.Node {
 }
 
 // Exists reports whether the node exists now (no waiting beyond the first
-// tree of the window).
+// tree of the window). Only a timeout means "no": any other error, such as
+// code "busy" (the window's UI thread did not answer), fails the test.
 func (l *Locator) Exists() bool {
 	l.w.app.t.Helper()
 	_, err := l.w.app.try(l.req(wire.OpFind, 0))
