@@ -19,6 +19,9 @@ type Thread struct {
 	queue          []func()
 	stopped        bool
 	pump, wakePump func()
+	// pumping: the thread is inside pump (guarded by mu). Only then does a
+	// Post need wakePump; otherwise the loop sees the queue before pumping.
+	pumping bool
 
 	wake chan struct{} // capacity 1: "the queue may be non-empty"
 	done chan struct{}
@@ -65,6 +68,9 @@ func (t *Thread) run(started chan<- struct{}) {
 		t.mu.Lock()
 		batch, stopped, pump := t.queue, t.stopped, t.pump
 		t.queue = nil
+		// Set with the empty-queue check, under the same lock: a Post
+		// either lands before it (and runs next) or sees pumping and wakes.
+		t.pumping = len(batch) == 0 && !stopped && pump != nil
 		t.mu.Unlock()
 		if len(batch) == 0 {
 			if stopped {
@@ -72,6 +78,9 @@ func (t *Thread) run(started chan<- struct{}) {
 			}
 			if pump != nil {
 				pump()
+				t.mu.Lock()
+				t.pumping = false
+				t.mu.Unlock()
 			} else {
 				<-t.wake
 			}
@@ -106,6 +115,12 @@ func (t *Thread) Post(fn func()) bool {
 		return false
 	}
 	t.queue = append(t.queue, fn)
+	if t.wakePump != nil && !t.pumping {
+		// Running a task or about to look at the queue: no native wake
+		// (each one costs the pump an extra run-loop turn).
+		t.mu.Unlock()
+		return true
+	}
 	t.mu.Unlock()
 	t.signal()
 	return true
