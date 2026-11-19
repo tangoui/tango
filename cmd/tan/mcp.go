@@ -30,15 +30,6 @@ type mcpServer struct {
 	apps *appManager
 }
 
-// appManager holds the app sessions the UI tools started or attached to.
-// Placeholder: replaced with the real session manager.
-type appManager struct{}
-
-func newAppManager() *appManager { return &appManager{} }
-
-// closeAll ends every app session.
-func (*appManager) closeAll() {}
-
 // newMCPServer returns the server for the project directory root.
 func newMCPServer(root string) (*mcpServer, error) {
 	abs, err := filepath.Abs(root)
@@ -61,6 +52,7 @@ func newMCPServer(root string) (*mcpServer, error) {
 		apps: newAppManager(),
 	}
 	s.addProjectTools()
+	s.addUITools()
 	return s, nil
 }
 

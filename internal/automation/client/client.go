@@ -77,12 +77,13 @@ func (c *Conn) Do(req *wire.Request, timeout time.Duration) (*wire.Response, err
 	return &r, nil
 }
 
-// Close closes the connection; later requests fail.
+// Close closes the connection; later requests fail, and so does a request
+// in flight (the socket is closed before Close waits for it).
 func (c *Conn) Close() {
+	c.conn.Close()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.broken == nil {
 		c.broken = errors.New("connection closed")
 	}
-	c.conn.Close()
 }

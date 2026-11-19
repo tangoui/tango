@@ -2,6 +2,7 @@ package client
 
 import (
 	"errors"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	wire "github.com/tangoui/tango/internal/automation"
 )
 
 func TestWithDevTag(t *testing.T) {
@@ -155,5 +158,52 @@ func TestWaitTokenFileExited(t *testing.T) {
 	const want = "the program exited before opening its control channel (exit status 1); is it a Tango app built with -tags tango_dev?"
 	if err == nil || err.Error() != want {
 		t.Fatalf("err %v, want %q", err, want)
+	}
+}
+
+// Close ends a request that is waiting for its answer instead of waiting
+// for the request's deadline.
+func TestCloseEndsDoInFlight(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		var req wire.Request
+		if wire.ReadFrame(c, &req) != nil {
+			return
+		}
+		wire.WriteFrame(c, &wire.Response{ID: req.ID, Version: wire.Version})
+		for wire.ReadFrame(c, &req) == nil { // never answers
+		}
+	}()
+	conn, err := Dial(ln.Addr().String(), "t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := conn.Do(&wire.Request{Op: wire.OpPing}, time.Minute)
+		done <- err
+	}()
+	time.Sleep(50 * time.Millisecond)
+	start := time.Now()
+	conn.Close()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("Do succeeded after Close")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Do still waiting after Close")
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("Close took %v", d)
 	}
 }
