@@ -87,7 +87,17 @@ for await (const line of tango.stream("Logs.Tail")) { if (enough) break; } // br
   3. the platform backend reports lanes;
   4. they are not turned off with `tango.Options{DisableFastLanes: true}` or `TANGO_IPC_LANES=0` (any build; for troubleshooting).
 
-  **macOS and Android turn lanes on by default** (macOS `up:post`, upstream byte frames; Android `down:android` and `up:android`, both directions); iOS can opt in and is off by default; Windows and Linux still use the message channel until each platform's backend passes its benchmark. Wire `OnBinary` now and nothing changes later.
+  | Platform | On by default | Opt-in lanes |
+  | --- | --- | --- |
+  | macOS | `up:post` | `down:poll` |
+  | iOS | Off | `up:post` (device testing pending) |
+  | Android | `down:android`, `up:android` | — |
+  | Windows | `down:shm`, `up:shm` | — |
+  | Linux | Off | `down:poll`, `up:post` |
+
+  **Windows** uses one WebView2 SharedBuffer ring in each direction when SharedBuffer is available. Set `TANGO_IPC_LANES_WINDOWS=0`, `false`, or `off` to disable both lanes. `TANGO_IPC_SHM_BYTES` sets each ring's data capacity, which defaults to 4 MiB.
+
+  **Linux** can opt in to downstream polling (`down:poll`, WebKitGTK 2.36 or later) and upstream POSTs (`up:post`, 2.40 or later). Set `TANGO_IPC_LANES_LINUX=1` or `all` for both, or `down` or `up` for one direction. Both directions fell short of the 64 KiB throughput threshold in CI. See `docs/ipc-bench.md`.
 
   `down:poll` is more than a byte-frame lane: it is the core's downstream transport, so once it is on, **every** `Surface.Send` message (ipc JSON frames and control messages, call replies, jsapi events, messages read with `__tango.onMessage`) travels on it in one numbered sequence with the byte frames. The page keeps one `GET /__tango/lane/poll` pending and Go ends it with a batch; when polling fails, the page stops polling (for example throttled in the background), or the lane is idle with one small message, messages go by `Eval` instead, still numbered, and the page delivers them in `Send` order. `Surface.Eval` joins the same sequence as a barrier, so it stays in order with `Send`. It does not need `OnBinary`.
 

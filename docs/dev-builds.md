@@ -32,6 +32,12 @@ iOS 模拟器自测要用这些钩子，但 `tan build`（`mobile/ios/build.sh` 
 
 Android 同样用 `tango_selftest`：`GOFLAGS=-tags=tango_selftest bash mobile/android/build.sh <应用>`（`scripts/smoke.sh android-selftest`、`android-lanefault` 就这样构建）。Android 进程没法从外部拿到环境变量，所以测试钩子构建另读启动 Intent 的字符串数组 extra `TANGO_TEST_ENV`：`adb shell am start -n <包名>/org.tango.host.TangoActivity --esa TANGO_TEST_ENV TANGO_A=1,TANGO_B=2`（`am` 按逗号拆分，所以值里不能有逗号），只接受 `TANGO_` 开头的键，在 `main.main` 运行之前 `os.Setenv`。Java 侧只在可调试 APK（`tan build -debug`，`mobile/android/build.sh` 的默认）里交出这个 extra。`TANGO_ANDROID_NO_ARRAYBUFFER=1` 让 Go 把 WebView 当成不支持 ArrayBuffer 消息（测试没有通道时的回退）。不带这两个标签的 Android 构建不读这些输入，`android.LaneStatsSnapshot` 始终为零；`TANGO_IPC_LANES_ANDROID` 是正式开关，任何构建都读。
 
+Windows 和 Linux 构建也会读取以下设置。`TANGO_IPC_LANES=0` 和 `Options.DisableFastLanes` 优先于平台开关。
+
+- `TANGO_IPC_LANES_WINDOWS` 在 WebView2 支持 SharedBuffer 时默认开启 `down:shm` 和 `up:shm`，设 `0`、`false` 或 `off` 关闭。
+- `TANGO_IPC_LANES_LINUX` 默认关闭。`1` 或 `all` 开启 WebKitGTK 所支持的通道，`up` 只开 `up:post`，`down` 只开 `down:poll`，`0`、`false` 或 `off` 关闭。其他值使用默认设置。两个平台的开关都忽略大小写和首尾空白。
+- `TANGO_IPC_SHM_BYTES` 设置 Windows 上、下行共享环各自的数据区容量（十进制字节数，环头另计），默认 4 MiB。取值为 64 KiB 到 2 GiB 的 2 的幂（容量加环头须能放进 Go `int`），例如 `8388608` 表示每个环 8 MiB。无效取值记录日志并使用默认值。
+
 ## 自绘窗口的渲染分级与字体回收
 
 `TANGO_RENDERER` 是窗口创建时读取的运行参数，`ui.RunnerOptions.Renderer` 显式指定的渲染器始终优先：

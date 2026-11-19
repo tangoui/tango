@@ -194,7 +194,7 @@ defer s.Close()
 
 ## 快速通道
 
-默认情况下所有 IPC 都走原始消息通道：每帧是一条 JSON 字符串，字节帧编成 base64。**快速通道**是挨着消息通道的二进制旁路，只承载流的**字节帧**，省掉 JSON 和 base64；JSON 帧、`open`/`accept`/`ack`/`end` 等控制消息和握手仍然走消息通道。两个方向分别协商，同一条流的帧可以一部分走快速通道、一部分走消息通道，接收方按序号重排，所以语义完全不变：应用代码除了接线，什么都不用改。
+IPC 的兜底传输使用原始消息通道，每帧是一条 JSON 字符串，字节帧编成 base64。**快速通道**是挨着消息通道的二进制旁路，只承载流的**字节帧**，省掉 JSON 和 base64。JSON 帧、`open`/`accept`/`ack`/`end` 等控制消息和握手仍走消息通道。两个方向分别协商，同一条流的帧可以一部分走快速通道、一部分走消息通道，接收方按序号重排。
 
 快速通道按名字区分：`down:poll` / `up:post`（资源来源上的 `/__tango/lane/poll` 轮询和 `/__tango/lane/up` POST），以及平台各自的 `down:android` / `up:android`、`down:shm` / `up:shm`。`down:poll` 接所有字节帧，`up:post` 只接 16 KiB 到约 1 MiB 的帧，更小的帧照旧走消息通道（延迟更低）。
 
@@ -206,18 +206,27 @@ defer s.Close()
 
 1. 应用用 `app.OnBinary` 注册了至少一个处理函数（上面「接线」里那一行，把包交给 `r.HandleBinarySession(s, gen, p)`）。没人接收上行包，核心就不开通道。
 2. 页面来自应用的资源来源（macOS/iOS/Linux 是 `tango://app`，Windows/Android 是 `https://tango.localhost`）。**直接从开发服务器加载的页面**（`SurfaceOptions.URL` 指向 `http://localhost:5173` 之类）永远拿不到快速通道，全部走消息通道；`tan dev` 通过 `asset.FromEnv` 反向代理开发服务器，页面仍在资源来源上，不受影响。
-3. 平台后端报告了支持的通道（页面的 CSP 还得允许 `connect-src` 到资源来源，见下文「macOS / iOS」）。
+3. 平台后端报告了支持的通道（`up:post` 的页面 CSP 还得允许 `connect-src` 到资源来源，见下文「macOS / iOS」）。
 4. 没有被关掉：`tango.Options{DisableFastLanes: true}`，或环境变量 `TANGO_IPC_LANES=0`（任何构建都生效，排查问题用）。
 
-::: warning 目前只有 macOS 和 Android 默认开启
-公共设施（协议、核心、`@tangoui/runtime` 的 `down:poll` / `up:post` 等通道模块）已经就绪。**macOS 默认报告 `up:post`**（上行字节帧走快速通道），**Android 默认报告 `down:android` / `up:android`**（两个方向）；iOS 可以用环境变量试用，默认关闭（见下文「macOS / iOS」「Android」）；Windows、Linux 仍然全部走消息通道，通过基准对比后才会逐个默认开启。现在就把 `OnBinary` 接上，到时候无需改代码。
-:::
+| 平台 | 默认开启 | 可选开启 |
+| --- | --- | --- |
+| macOS | `up:post` | `down:poll` |
+| iOS | 关闭 | `up:post`（等真机） |
+| Android | `down:android`、`up:android` | — |
+| Windows | `down:shm`、`up:shm` | — |
+| Linux | 关闭 | `down:poll`、`up:post` |
 
 `OnBinary` 的处理函数在收到包的 goroutine 上调用，不在主线程；包只在调用期间有效。`r.HandleBinarySession` 满足这两点。`gen` 是包通过校验时所属的页面世代，原样交给 `HandleBinarySession`，旧页面的包就不会进新页面的流。不要用 `r.HandleBinary`：它只给不复用页面的简单连接用，对 `*tango.Surface` 会丢掉所有包（并记一条警告）。一个 surface 只接一个 `Router`：每次握手都会换通道世代，两个 Router 会互相作废，不支持。
 
 快速通道的投递绑定页面会话（世代）：通道令牌每个世代一个，这个世代里的每个通道请求都带它，页面重新加载或离开资源来源后旧令牌失效。`up:post` 每个请求最多等 4 秒（比 5 秒的缺口超时短：卡住的请求先让通道失败、之后的帧改走消息通道，而不是先让流失败）；排队和在途的 POST 数据合计最多 8 MiB，超出的帧直接走消息通道，序号和信用都不变。通道请求只相对页面的真实地址发出（不受 HTML `<base>` 影响），并拒绝重定向。
 
 页面导航时核心会立即暂停下行通道，页面离开资源来源时整个通道作废，新页面握手后重新协商；流的打开方在收到对方 `accept` 之前不用快速通道。这些都由核心和运行时处理，应用不用管。
+
+### Windows / Linux
+
+- **Windows** 在支持 SharedBuffer 的 WebView2 上默认开启 `down:shm` 和 `up:shm`。两条通道各使用一个共享环。`TANGO_IPC_LANES_WINDOWS=0`、`false` 或 `off` 关闭两条通道，`TANGO_IPC_SHM_BYTES` 设置每个环的数据区容量，默认 4 MiB。
+- **Linux** 默认关闭快速通道。`TANGO_IPC_LANES_LINUX=1` 或 `all` 可开启下行轮询 `down:poll`（WebKitGTK 2.36+）与上行 POST `up:post`（2.40+），`down` 或 `up` 可分别开启。CI 的 64 KiB 吞吐增幅低于默认开启门槛。[基准结果](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)
 
 ### macOS / iOS
 

@@ -1,6 +1,6 @@
 # IPC 双向流与二进制负载
 
-状态：设计稿，待审 · 2026-11-13
+状态：已实现（第一期全部；第二期 macOS、Android、Windows、Linux；iOS 等真机）· 2026-11-19
 
 ## 1. 背景与目的
 
@@ -407,7 +407,8 @@ OnLanePacket(id SurfaceID, origin string, gen uint64, p []byte) bool
 - 同步靠门铃消息：写方推进写位置后，如果读方休眠标志为真，发一条 `op:"wake"` 门铃（下行 `PostWebMessageAsString("{\"tango\":\"lane\",\"op\":\"wake\"}")`，由页面侧平台通道模块接收；上行 `chrome.webview.postMessage` 发送 `"\x00tango-int:lane:"` + `{"op":"wake"}`，走 §6.1 的核心内部频道，而不是 Router）。环满时写方阻塞，等读方推进读位置后发回同样的 `wake` 门铃。跨进程消息本身充当内存屏障；文档里写明这一依赖。
 - 单个包大于环容量的一半时，这个包走消息通道（不在环里拆包）。
 - 重载/导航：旧世代的环在 Go 侧 `Close()`，JS 侧 `releaseBuffer`；新世代重新创建。
-- `BinaryMinSize`：0。门铃合并之后，小帧也不比消息通道慢；如果基准不支持这一点，改成按基准结果设阈值。
+- `BinaryMinSize` 为 0。上行环读包失败或核心拒收时，Go 通知当前页面停用 `up:shm`，后续上行帧走消息通道。
+- **状态（2026-11-19）**：`down:shm` 和 `up:shm` 在支持 SharedBuffer 的 WebView2 上默认开启。`TANGO_IPC_LANES_WINDOWS=0`、`false` 或 `off` 关闭两条通道。`TANGO_IPC_SHM_BYTES` 设置每个环的数据区字节数，默认 4 MiB，接受从 64 KiB 到 2 GiB 的 2 的幂（另受 Go `int` 和环头空间限制）。三次 GitHub 托管 CI 中，x64 的 64 KiB 上行吞吐为兜底的 8.63–10.69 倍、下行 8.18–8.90 倍，ARM64 上行 11.70–12.68 倍、下行 6.50–6.90 倍。六组 64 B 分批 p99 均未变差，达到 §6.3 门槛。[基准明细](../ipc-bench.md)
 
 #### macOS：下行走 `down:poll`（轮询，取代 `down:scheme`）
 
@@ -416,11 +417,16 @@ OnLanePacket(id SurfaceID, origin string, gen uint64, p []byte) bool
 - 序号从每个页面世代的 1 开始，页面按序号交付；轮询失败（网络错误、非 200、解码失败、CSP 拦截）、页面 1 s 没来取（看门狗）、通道关闭时，条目带序号改走 `Eval`（同一轮多条合成一次），不丢、不重、不乱序。`Surface.Eval` 在轮询时成为栅栏：页面交付到它时停下，Go 执行脚本后放行，所以 `Eval` 仍与 `Send` 保序。导航开始时当前世代结束，未写出和未确认的条目丢弃（与改造前"Eval 给即将离开的页面"一致）；所以别的 goroutine 上与用户导航赛跑的 `Send` 会在世代结束处被丢弃。
 - 空闲规则（设计第 6 节的延迟退路）：有轮询请求挂着、没有待送也没有未确认的条目时，≤ 1 KiB 的条目改走 `Eval`，每轮主线程最多 8 条，其余照常排队；一次轮询响应在 WKWebView 上比一次 `evaluateJavaScript` 多约 40 µs。
 - `BinaryMinSize`：0（字节帧全部走它，不做 base64）。
-- **状态（2026-11-15）：macOS 默认关闭**，`TANGO_IPC_LANES_DARWIN=1`/`all`（两条都开）或 `down`（只开它）打开；iOS、Windows、Linux、Android 不报告。§6.3 式的交替测量（改造前 Tango、`down:poll`、Wails v3.1.0 各 5 次，负载 < 4，[docs/ipc-bench.md](../ipc-bench.md)）：下行 64 KiB 1017 MB/s（改造前 306，Wails 1766），1 KiB 小帧 50.0 万帧/s（4.5 万，Wails 62.5 万），2.3 KB JSON 11.1 万帧/s（3.4 万，Wails 10.8 万）；64 B 平均延迟 0.139 ms（改造前 0.127，+9.4%），分批 p99 0.14 ms（持平），上行 818 MB/s（860，−4.9%）。设计第 6 节的门槛里，64 KiB 和小帧没有达到 Wails，上行按字面略低，所以不默认开启。字节帧的瓶颈是 §5.3 的 1 MiB 信用窗口：每次轮询正好带半个窗口，吞吐被"窗口 / 往返"封顶（临时把窗口改成 8 MiB 时 64 KiB 到 1400～1560 MB/s）；窗口和归还规则属于协议，没有改。真实 WebKit 场景（重载不泄漏、页面卡住 6 s、窗口最小化、CSP 拦截退回、iframe 拿不到令牌、故障注入后退回不丢帧、64 MiB 连续下行 5 次、`Eval` 与 `Send` 保序）全部通过（`TANGO_E2E=1 go test ./internal/platform/darwin -run 'Poll|Lanes|Lane|EvalOrdered'`）。
+- **状态（2026-11-15）：macOS 默认关闭**，`TANGO_IPC_LANES_DARWIN=1`/`all`（两条都开）或 `down`（只开它）打开。§6.3 式的交替测量（改造前 Tango、`down:poll`、Wails v3.1.0 各 5 次，负载 < 4，[docs/ipc-bench.md](../ipc-bench.md)）：下行 64 KiB 1017 MB/s（改造前 306，Wails 1766），1 KiB 小帧 50.0 万帧/s（4.5 万，Wails 62.5 万），2.3 KB JSON 11.1 万帧/s（3.4 万，Wails 10.8 万）；64 B 平均延迟 0.139 ms（改造前 0.127，+9.4%），分批 p99 0.14 ms（持平），上行 818 MB/s（860，−4.9%）。设计第 6 节的门槛里，64 KiB 和小帧没有达到 Wails，上行按字面略低，所以不默认开启。字节帧的瓶颈是 §5.3 的 1 MiB 信用窗口：每次轮询正好带半个窗口，吞吐被"窗口 / 往返"封顶（临时把窗口改成 8 MiB 时 64 KiB 到 1400～1560 MB/s）；窗口和归还规则属于协议，没有改。真实 WebKit 场景（重载不泄漏、页面卡住 6 s、窗口最小化、CSP 拦截退回、iframe 拿不到令牌、故障注入后退回不丢帧、64 MiB 连续下行 5 次、`Eval` 与 `Send` 保序）全部通过（`TANGO_E2E=1 go test ./internal/platform/darwin -run 'Poll|Lanes|Lane|EvalOrdered'`）。
+
+#### Linux：下行走 `down:poll`，上行走 `up:post`
+
+- `down:poll` 复用 macOS 的短响应轮询，每次请求以一批数据完整结束，需要 WebKitGTK 2.36+ 的流式协议处理。`up:post` 走资源来源上的 POST，需要 WebKitGTK 2.40+ 读取请求体。后端按运行时能力分别报告两条通道。
+- **状态（2026-11-19）**：两条通道默认关闭，可用 `TANGO_IPC_LANES_LINUX=1` 或 `all` 开启，也可用 `up` 或 `down` 单独开启。Linux 使用 `tango://` 请求传输，Windows 的 `TANGO_IPC_SHM_BYTES` 只配置共享环。两次 Ubuntu CI 中，64 KiB 上行吞吐为兜底的 1.71 和 1.99 倍，下行为 1.91 和 1.84 倍，64 B 分批 p99 分别从 0.28 降至 0.22 ms、持平于 0.48 ms。Linux 的兜底传输相对较快，两次吞吐增幅均低于 §6.3 门槛。[基准明细](../ipc-bench.md)
 
 #### macOS / iOS / Linux：下行走 `tango://` 流式响应（`down:scheme`，已删除）
 
-（历史记录：下面是 `down:scheme` 的原设计与 Apple 平台上的实测，结论是在 Apple 上不可用；2026-11-15 起由上一节的 `down:poll` 取代，服务端与 runtime-js 模块都已删除，Linux 将来接入时也走 `down:poll`。）
+（历史记录：下面是 `down:scheme` 的原设计与 Apple 平台上的实测。2026-11-15 起服务端与 runtime-js 的 `down:scheme` 已删除。当前 macOS 和 Linux 下行通道均为 `down:poll`。）
 
 - 条件：
   - macOS/iOS：**先写一个实测用例**，确认 `didReceiveData` 的每一块都会被页面 `fetch` 的 `ReadableStream` 单独读到（而不是攒到 `finish`）。确认之前这条通道默认关闭。
@@ -443,7 +449,7 @@ OnLanePacket(id SurfaceID, origin string, gen uint64, p []byte) bool
 #### macOS / iOS / Linux：上行走 POST
 
 - 条件：macOS/iOS 都可用（ArrayBuffer 请求体能到达）；Linux 需要 WebKitGTK ≥ 2.40（`webkit_uri_scheme_request_get_http_body`）。
-- **状态（2026-11-14）**：macOS/iOS 已接入，是 Apple 平台上唯一报告的通道。**macOS 默认开启**（§6.3 基准，Apple 通道计划 Task 7：上传 64 KiB 帧吞吐 2.73 倍，64 B 帧 p99 两种配置走的都是消息通道，见 [docs/ipc-bench.md](../ipc-bench.md)）；`TANGO_IPC_LANES_DARWIN=0`/`false`/`off` 关闭，`1`/`all` 另开 `down:poll`（默认关闭，见 §6.2 `down:poll`）。**iOS 默认关闭**，等真机测量，`TANGO_IPC_LANES_DARWIN=1` 开启（两个平台的取值见 `internal/platform/darwin/lanes.go`、`internal/platform/ios/lanes.go`）。runtime-js 的 `up:post` 启动时先 POST 空包（`count=0`），收到 204 才就绪：页面 CSP 不允许 `connect-src` 到资源来源时通道在启动时失败、帧全部走消息通道，不会丢帧（`TestLaneCSPBlocked`）。实测（macOS 26.6、iOS 27.2 模拟器）：8 MiB 双向回显、大小帧交替、页面卡住 6 s、页面重新加载均通过；iframe 拿不到令牌（macOS 实测：不透明来源与同源 frame 的通道请求全部被拒；iOS 未单独测）；iOS 真机与 iOS 上的通道故障场景未测。
+- **状态（2026-11-14）**：macOS/iOS 已接入 `up:post`。**macOS 默认开启**（§6.3 基准，Apple 通道计划 Task 7：上传 64 KiB 帧吞吐 2.73 倍，64 B 帧 p99 两种配置走的都是消息通道，见 [docs/ipc-bench.md](../ipc-bench.md)）；`TANGO_IPC_LANES_DARWIN=0`/`false`/`off` 关闭，`1`/`all` 另开 `down:poll`（默认关闭，见 §6.2 `down:poll`）。**iOS 默认关闭**，等真机测量，`TANGO_IPC_LANES_DARWIN=1` 开启（两个平台的取值见 `internal/platform/darwin/lanes.go`、`internal/platform/ios/lanes.go`）。runtime-js 的 `up:post` 启动时先 POST 空包（`count=0`），收到 204 才就绪：页面 CSP 不允许 `connect-src` 到资源来源时通道在启动时失败、帧全部走消息通道，不会丢帧（`TestLaneCSPBlocked`）。实测（macOS 26.6、iOS 27.2 模拟器）：8 MiB 双向回显、大小帧交替、页面卡住 6 s、页面重新加载均通过；iframe 拿不到令牌（macOS 实测：不透明来源与同源 frame 的通道请求全部被拒；iOS 未单独测）；iOS 真机与 iOS 上的通道故障场景未测。
 - JS 把待发的字节帧攒成包，`fetch("tango://app/__tango/lane/up?gen=N&tok=…", {method:"POST", body: arrayBuffer})`。**必须用 ArrayBuffer 作为 body，不能用 Blob**（WebKit bug 197237）。iOS 现有的 `bodyshim` 只处理 Blob/File/FormData，ArrayBuffer 不受影响。
 - 同一时刻每个页面只有一个上行 POST 在途；在途期间新帧继续攒进下一个包。包大小上限 1 MiB。
 - 只有攒够 `BinaryMinSize`（初始 16 KiB）或者已经攒了 4 ms 才发包；小帧（例如按键）直接走消息通道，延迟不受影响。
@@ -463,6 +469,7 @@ OnLanePacket(id SurfaceID, origin string, gen uint64, p []byte) bool
   - 64 B 帧的 p99 延迟不比兜底差。
   - 不满足的通道保留代码但默认关闭，文档里写明原因和数据。
   - **状态（2026-11-14）**：macOS `up:post` 达标（上传 2.73×；64 B 帧在两种配置下都走消息通道，p99 只说明没有变差），**默认开启**，`TANGO_IPC_LANES_DARWIN=0` 关闭。iOS `up:post` 只有模拟器数据（2.26×，参考），**默认关闭**，等真机。Apple 上的 `down:scheme` 不达标（WebKit 扣住大块突发，§6.2），已删除；取代它的 `down:poll`（**状态 2026-11-15**）按设计第 6 节的门槛（下行三项不低于 Wails v3.1.0，延迟不比改造前差 10% 以上，上行不降）测量：下行比改造前快 3.3～11 倍、延迟在 10% 以内，但 64 KiB 和 1 KiB 小帧低于 Wails（流控窗口所限），**默认关闭**，`TANGO_IPC_LANES_DARWIN=1` 开启。Android `down:android` / `up:android` 达标（模拟器：上行 6.11×、下行 4.39×，分批 p99 0.16），**默认开启**，`TANGO_IPC_LANES_ANDROID=0` 关闭；没有真机数据。数据见 [docs/ipc-bench.md](../ipc-bench.md)。
+  - **状态（2026-11-19）**：Windows x64、ARM64 的 `down:shm` / `up:shm` 在三次 CI 中均达标，默认开启。Linux `down:poll` / `up:post` 的分批 p99 达标，两次 64 KiB 吞吐均低于 2 倍，默认关闭。Windows 两种架构和 Linux 都通过了上行和下行的故障自测。[基准和 CI 记录](../ipc-bench.md)
 - 每个平台都要有"通道中途坏掉"的测试：强制让通道失败，验证后续帧自动走消息通道、丢帧的流报 `transport` 错误、其他流不受影响。
 - 提供关闭快速通道的开关（`tango.Options` 或环境变量），方便排查问题。
 
@@ -470,7 +477,7 @@ OnLanePacket(id SurfaceID, origin string, gen uint64, p []byte) bool
 
 - 选方案 C，分两期；第二期各平台通道都要设计，都写进本文档。
 - 二进制和 JSON 两种负载都是一等公民（用户的要求）。
-- 第二期各平台通道选型以 §3 已核实的事实为准：Android 用 ArrayBuffer 消息，Windows 用 SharedBuffer，macOS/iOS/Linux 下行用流式响应、上行用 POST。
+- 第二期 Android 用 ArrayBuffer 消息，Windows 用 SharedBuffer，macOS 和 Linux 下行用 `down:poll`，macOS、iOS 和 Linux 上行用 `up:post`。
 - 多条通道并存时用每帧序号保证顺序，第一期就实现。
 - 第一期加入进程内客户端（Go 自绘界面使用同一批服务），并补写 Go 自绘界面"后台数据与线程"的文档。
 

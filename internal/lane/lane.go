@@ -3,6 +3,10 @@
 // channel (see the ipc package comment, "Fast lanes", and
 // docs/specs/2026-11-13-ipc-duplex-streams.md §6.1).
 //
+// Backends choose which lanes to offer. Windows defaults to both shared
+// buffer lanes when supported, and Linux offers polling and POST on opt-in
+// where the WebKitGTK runtime supports them.
+//
 // A State belongs to one surface. Every hello from runtime-js starts a new
 // generation (Hello): a fresh token, the lanes the page may use, all of them
 // pending until the page reports them ready (Control). The core's
