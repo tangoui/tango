@@ -132,11 +132,6 @@ func LaunchOptions(t testing.TB, target string, opts Options) *App {
 	if testing.Short() {
 		t.Skip("whole-app test skipped with -short")
 	}
-	dir := t.TempDir()
-	bin, err := client.Build(target, opts.Dir, opts.BuildFlags, dir)
-	if err != nil {
-		t.Fatalf("automation: %v", err)
-	}
 	a := &App{t: t, timeout: opts.Timeout, out: &tailBuffer{max: 256 << 10}}
 	if a.timeout <= 0 {
 		a.timeout = DefaultTimeout
@@ -149,17 +144,21 @@ func LaunchOptions(t testing.TB, target string, opts Options) *App {
 	}
 	t.Cleanup(a.cleanup)
 	p, err := client.Launch(client.LaunchOptions{
-		Target:       bin,
+		Target:       target,
 		Dir:          opts.Dir,
 		Args:         opts.Args,
 		Env:          opts.Env,
+		BuildFlags:   opts.BuildFlags,
 		Addr:         opts.Addr,
 		Output:       w,
 		StartTimeout: opts.StartTimeout,
-		TempDir:      dir,
+		TempDir:      t.TempDir(),
 	})
 	if err != nil {
-		t.Fatalf("automation: %v\n%s", err, a.outputTail())
+		if a.out.String() != "" {
+			t.Fatalf("automation: %v\n%s", err, a.outputTail())
+		}
+		t.Fatalf("automation: %v", err)
 	}
 	a.proc, a.c = p, p.Conn
 	return a

@@ -121,9 +121,11 @@ func (p *Process) ExitErr() error {
 }
 
 // Quit asks the app to quit (unless it has exited), closes the connection
-// and waits up to timeout for the program to exit, killing it after that
-// (and reporting so).
+// and waits for the program to exit. If it has not exited when timeout
+// has passed since the call (the quit request included), it is killed and
+// Quit reports so.
 func (p *Process) Quit(timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
 	select {
 	case <-p.exited:
 	default:
@@ -133,7 +135,7 @@ func (p *Process) Quit(timeout time.Duration) error {
 	select {
 	case <-p.exited:
 		return nil
-	case <-time.After(timeout):
+	case <-time.After(time.Until(deadline)):
 		p.Cmd.Process.Kill()
 		<-p.exited
 		return fmt.Errorf("the app did not exit within %v after quit", timeout)

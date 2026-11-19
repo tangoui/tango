@@ -1,6 +1,7 @@
 package client
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -118,8 +119,12 @@ func TestLaunchNotDevBuild(t *testing.T) {
 		t.Skip("no go tool")
 	}
 	src := t.TempDir()
-	os.WriteFile(filepath.Join(src, "go.mod"), []byte("module plain\n\ngo 1.21\n"), 0o644)
-	os.WriteFile(filepath.Join(src, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(src, "go.mod"), []byte("module plain\n\ngo 1.21\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	bin := filepath.Join(src, "plain")
 	if runtime.GOOS == "windows" {
 		bin += ".exe"
@@ -137,5 +142,18 @@ func TestLaunchNotDevBuild(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "build it with -tags tango_dev") {
 		t.Fatalf("err %v", err)
+	}
+}
+
+// A program that exits before writing its token file is reported with its
+// exit status, in the words automation has always used.
+func TestWaitTokenFileExited(t *testing.T) {
+	exited := make(chan struct{})
+	close(exited)
+	_, err := waitTokenFile(filepath.Join(t.TempDir(), "automation.json"), exited,
+		func() error { return errors.New("exit status 1") }, time.Minute)
+	const want = "the program exited before opening its control channel (exit status 1); is it a Tango app built with -tags tango_dev?"
+	if err == nil || err.Error() != want {
+		t.Fatalf("err %v, want %q", err, want)
 	}
 }
