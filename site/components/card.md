@@ -44,7 +44,7 @@ func page(c *ui.Context) {
 }
 ```
 
-`ui.Card(c, title)` 开始一张卡片，`title` 为空字符串时没有头部。先链式设置 `Extra`、`Cover`、`Actions` 等选项，最后调用 `Body(fn)`：它构建整张卡片，`fn` 里放卡片内容。宽度等布局用 `Layout(layout.W(...))`、`Layout(layout.Grow(1))` 设置。
+`ui.Card(c, title)` 开始一张卡片。标题、`Extra` 和 `Tabs` 都为空时省略头部。先链式设置 `Extra`、`Cover`、`Actions` 等选项，最后调用 `Body(fn)` 构建整张卡片，`fn` 里放卡片内容。宽度等布局用 `Layout(layout.W(...))`、`Layout(layout.Grow(1))` 设置。
 
 ## 常见用法
 
@@ -52,7 +52,7 @@ func page(c *ui.Context) {
 
 ### 尺寸、边框与阴影
 
-`Small()` 使用紧凑的头部和内边距；`Borderless()` 去掉边框（常用于灰色背景上）；`Shadow(mode)` 设置阴影：`"always"` 始终显示、`"hover"` 悬停时显示、`"never"` 不显示（Ant Design 默认 never，Element Plus 与 shadcn 默认 always）。`Hoverable()` 让卡片悬停时浮起，并且可以点击：用 `Clicked()` 读取。
+`Small()` 使用紧凑的头部和内边距。`Borderless()` 去掉边框，Ant Design 的无边框卡片默认仍有浅阴影。`Shadow(mode)` 接收 `"always"`、`"hover"` 或 `"never"`。`Hoverable()` 让卡片悬停时浮起，并且可以用 `Clicked()` 读取点击。
 
 ```go
 func cardVariants(c *ui.Context) {

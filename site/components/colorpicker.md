@@ -9,7 +9,7 @@ title: ColorPicker 颜色选择器
 
 - 用户需要从色板或预设色中选择颜色时。
 - 需要编辑 HEX、RGB、HSB 或透明度时。
-- 只需嵌在页面中、不需要弹出触发器时，用 ColorPickerPanel 取色面板；颜色值只是普通文本（如 CSS 变量名）时用 [Input 输入框](/components/input)。
+- 需要将取色面板直接嵌入页面时，用 [ColorPickerPanel 取色面板](/components/colorpickerpanel)。颜色值只是普通文本（如 CSS 变量名）时用 [Input 输入框](/components/input)。
 
 ## 在线体验
 
@@ -36,7 +36,7 @@ func page(c *ui.Context) {
 
 ### 指定编辑格式与透明度
 
-`Format` 控制面板中的编辑格式；`NoAlpha` 隐藏透明度控制。`AllowClear` 允许恢复零值。
+`Format` 控制面板中的编辑格式，支持 `hex`、`rgb`、`hsb` 和 `hsv`。`NoAlpha` 隐藏透明度控制，`AllowClear` 允许恢复零值。
 
 ```go
 import (
@@ -117,7 +117,7 @@ func page(c *ui.Context) {
 - 组件令牌：`theme.Components.ColorPicker`（`ColorPickerToken`），包括 `PanelWidth`、`PaletteHeight`、`BarHeight`、`HandleSize`、`SwatchSize` 等；Ant、Element Plus、shadcn 会分别调整面板圆角、输入控件和预设色布局。
 - `Size` 支持 `ui.Small`、默认值和 `ui.Large`；`Status("error" | "warning")` 用于表单反馈。
 - 渐变和单色选择器共用颜色编辑器令牌，渐变额外包含色标轨道和角度输入。
-- `ConfigProvider.Defaults("ColorPicker", ui.Props{...})` 支持 `size`、`showText`、`allowClear`、`disabledAlpha`、`format`（`"hex"`、`"rgb"`、`"hsb"`）。
+- `ConfigProvider.Defaults("ColorPicker", ui.Props{...})` 支持 `size`、`showText`、`allowClear`、`disabledAlpha`、`format`（`"hex"`、`"rgb"`、`"hsb"`、`"hsv"`）。
 
 ## 注意事项
 

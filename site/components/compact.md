@@ -85,7 +85,7 @@ func page(c *ui.Context) {
 
 ### 竖向按钮组与撑满
 
-`Vertical()` 上下拼接，`Block()` 让组合宽度撑满容器。
+`Vertical()` 或 `Orientation("vertical")` 上下拼接，`Orientation("horizontal")` 切回水平拼接。`Block()` 让组合宽度撑满容器。
 
 ```go
 import "github.com/tangoui/tango/ui"
@@ -101,7 +101,7 @@ func page(c *ui.Context) {
 
 ## 主题与样式
 
-Compact 不改变子控件自己的颜色和尺寸，只处理拼接边缘和外侧圆角；三套主题会沿用 Input、Select、Button 和 Addon 的视觉。`ConfigProvider.Defaults("Compact", ui.Props{"block": true})` 可设置默认撑满。
+Compact 处理拼接边缘和外侧圆角，各控件沿用当前主题的样式。可用 `Size(ui.Small)` 设置组内控件的默认尺寸，单个控件显式设置的尺寸优先。`ConfigProvider.Defaults("Compact", ui.Props{"block": true})` 可设置默认撑满。
 
 ## 注意事项
 

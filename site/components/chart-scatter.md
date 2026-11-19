@@ -66,7 +66,7 @@ func bubbles(c *ui.Context) {
 
 ### 坐标范围和格式
 
-`NoZero()` 让坐标轴贴近数据范围，`Zero()` 让两个轴都包含零；`XFormat()` 只格式化横轴和对应提示值，`Format()` 格式化纵轴。
+坐标轴默认贴近数据范围，`Zero()` 让两个轴都包含零。`XFormat()` 格式化横轴和对应提示值，`Format()` 格式化纵轴和对应提示值。
 
 ```go
 package main

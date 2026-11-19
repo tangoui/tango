@@ -18,7 +18,7 @@ title: Command 命令面板
 
 ## 基本用法
 
-`Command` 接收 `[]ui.CommandItem`，输入会匹配 `Label`、`Value` 和 `Keywords`；按 Enter 或点击条目后，用 `Selected()` 读取本帧选中的项目。
+`Command` 接收 `[]ui.CommandItem`，默认在 `Label`、`Value` 和 `Keywords` 中做不区分大小写的匹配，并按匹配程度排序。按 Enter 或点击条目后，用 `Selected()` 读取本帧选中的项目。
 
 ```go
 import (
@@ -46,7 +46,7 @@ func commandPage(c *ui.Context) {
 
 ### 分组、图标和快捷键
 
-`Group` 按连续分组显示标题，`Icon` 放置前置图标，`Shortcut` 是右侧的快捷键提示；这些字段不会自动执行命令，执行逻辑仍由 `Selected()` 处理。
+相同 `Group` 的条目会归在一起。没有查询时按组首次出现的顺序排列，搜索时按各组排名最高的条目排列。`Icon` 放置前置图标，`Shortcut` 是右侧的快捷键提示；执行逻辑由 `Selected()` 处理。
 
 ```go
 import (
@@ -117,14 +117,15 @@ func queryCommandPage(c *ui.Context) {
 - Ant Design：面板使用悬浮容器、分隔线和主题的选中背景。
 - Element Plus：仍保留分组、禁用和键盘选择行为，颜色来自 Element 主题令牌。
 - shadcn：Command 是 shadcn 风格的搜索框、列表项和选中背景；`Shadow()` 只增加浮层阴影。
-- `ConfigProvider.Defaults("Command", ui.Props{"placeholder": "搜索", "emptyText": "无结果"})` 可设置默认提示文案；单个实例可用 `Placeholder`、`Empty` 覆盖。
+- `ConfigProvider.Defaults("Command", ui.Props{"placeholder": "搜索", "emptyText": "无结果"})` 可设置默认提示文案。还可设置 `loop`（默认 `false`）、`shouldFilter`（默认 `true`）和 `vimBindings`（默认 `true`）。
 
 ## 注意事项
 
 - **状态**：Command 内部保留查询和活动行；业务选中值要在 `Selected()` 成功后写入页面外部状态。
-- **键盘**：输入框聚焦后使用 Up / Down 移动、Enter 选择；禁用项会被跳过，不要仅靠鼠标说明操作方式。
+- **键盘**。输入框聚焦后使用 ↑ / ↓ 移动、Home / End 跳到首尾、Enter 选择。默认也支持 Ctrl+N/J 向下和 Ctrl+P/K 向上，移动时跳过禁用项。
 - **性能**：大量条目应提供简洁的 `Label`、稳定的 `Value` 和必要的关键词，避免在每帧生成昂贵的字符串或图标对象。
-- **大列表**：显示的条目多于 100 项时列表自动虚拟化：只构建可见行和活动行（分组只为可见部分建节点，并报告整组大小），键盘移动时列表跟随活动行；视口外的条目不在无障碍树里。未设置 `Filter` 时，条目切片（身份和长度）与查询不变就复用过滤结果。`Virtual(false)` 关闭，`Virtual(true)` 强制开启。
+- **大列表**。显示的条目多于 100 项时自动虚拟化，只构建可见行和活动行，键盘移动时列表跟随活动行。无障碍树只暴露已构建的条目。用 `Virtual(false)` 构建所有行，或用 `Virtual(true)` 强制开启虚拟化。
+- **原地更新条目**。虚拟化且未设置 `Filter` 时会复用匹配结果、顺序、布局和宽度。原地修改同一切片且长度不变时，给 `DataVersion(version)` 传入新版本，或替换切片，下一帧会重新计算。
 - **无障碍**：组件提供 combobox、listbox 和 option 语义；`Shortcut` 只是可读提示，真正的全局快捷键需要单独注册。
 - **RTL**：列表和快捷键提示会按主题方向布局，`CommandItem.Value` 不应依赖视觉顺序。
 

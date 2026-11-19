@@ -25,7 +25,7 @@ func page(c *ui.Context) {
 }
 ```
 
-头像会从文本生成缩写；`label` 为空时可用 `Icon` 或 `Image` 提供内容。
+头像会从 `label` 生成缩写。可用 `Icon` 显示图标，或用 `Image` 显示图片。两者都设置时优先显示图片。
 
 ## 常见用法
 
@@ -60,7 +60,7 @@ func members(c *ui.Context) {
 
 ## 主题与样式
 
-三套主题分别通过头像背景、文字和组重叠令牌适配 Ant Design、Element Plus、shadcn；`ConfigProvider.Defaults("AvatarGroup", ...)` 支持 `maxCount`。
+三套主题分别通过头像背景、文字和组重叠令牌适配 Ant Design、Element Plus、shadcn。`ConfigProvider.Defaults("Avatar", ...)` 支持 `size`、`shape` 和 `gap`，`ConfigProvider.Defaults("AvatarGroup", ...)` 支持 `maxCount`。
 
 ## 注意事项
 

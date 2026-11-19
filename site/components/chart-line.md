@@ -110,7 +110,7 @@ func timeSeries(c *ui.Context) {
 
 ### 固定坐标范围和数据点
 
-`YMin()` / `YMax()` 固定数值轴边界，`Points()` 显示每个点；若要隐藏悬停十字线和提示，可使用 `NoTooltip()`。
+`YMin()` / `YMax()` 固定数值轴边界。`Points()` 在绘图区有足够空间时为绘制的数据点加上标记。`NoTooltip()` 隐藏悬停十字线和提示框。
 
 ```go
 package main
