@@ -257,6 +257,7 @@
 - 带分组、远程搜索或自定义选项的 `Select` 和 `MultiSelect` 可通过 `Virtual(false)` 关闭窗口化。
 - 定高 `Tree` 支持通过 `Defaults("Tree", Props{"virtual": false})` 关闭窗口化，保留滚轮和键盘滚动。
 - `Select` 和 `TreeSelect` 的 `ListHeight` 同样适用于非虚拟下拉，短列表按内容高度显示。
+- 漏斗图悬停提示按前一可见阶段计算转化率，前一阶段为 0 时省略转化率。
 
 ### 安全
 

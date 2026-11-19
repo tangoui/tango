@@ -101,7 +101,7 @@ func (w *FunnelW) Show() View {
 		i := vis[k]
 		h := &hover{index: i, series: i, anchor: p}
 		h.tip = Tip{Index: i, Title: g.cats[i], Items: []TipItem{{Name: w.yf, Value: vf(raw[i]), Color: st.Color(i)}}}
-		if k > 0 && raw[vis[0]] > 0 {
+		if k > 0 && raw[vis[k-1]] > 0 {
 			h.tip.Items = append(h.tip.Items, TipItem{Name: rateName, Value: Percent(1)(raw[i] / raw[vis[k-1]]), Color: st.Color(i)})
 		}
 		return h
