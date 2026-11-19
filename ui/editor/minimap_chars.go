@@ -107,8 +107,28 @@ func miniCharsAt(s string, tab int, g *miniGlyphs, colorAt func(i int) color.NRG
 	// allocated several buffers per miniature; two allocation-free walks
 	// leave only the owned bitmap and pixels. Color lookup happens once,
 	// during the drawing walk, because its token cursor is stateful.
+	//
+	// Both walks take an ASCII character followed by another ASCII
+	// character (or ending the text) as a one-column cluster of its own,
+	// as nextGrapheme and advanceCol do, without slicing it out of s
+	// (asciiCluster); anything else goes through them.
 	col, end := 0, 0
 	for i := 0; i < len(s); {
+		if c := s[i]; asciiCluster(s, i) {
+			switch c {
+			case '\t':
+				col = (col/tab + 1) * tab
+			case ' ':
+				col++
+			default:
+				col++
+				if minimapASCIIGlyph[c] >= 0 {
+					end = col
+				}
+			}
+			i++
+			continue
+		}
 		j := nextGrapheme(s, i)
 		next := advanceCol(col, s[i:j], tab)
 		if gr := s[i:j]; gr != " " && gr != "\t" {
@@ -125,29 +145,66 @@ func miniCharsAt(s string, tab int, g *miniGlyphs, colorAt func(i int) color.NRG
 	b := &miniBitmap{w: end * cw, h: 2 * cw}
 	b.pix = make([]byte, 4*b.w*b.h)
 	size := cw * 2 * cw
+	// cell draws glyph gi in color c over columns col..next.
+	cell := func(gi, col, next int, c color.NRGBA) {
+		src := g.alpha[gi*size : (gi+1)*size]
+		for k := col; k < next; k++ {
+			x0 := 4 * k * cw
+			for y := range 2 * cw {
+				row := b.pix[4*y*b.w+x0:][:4*cw]
+				a := src[y*cw:][:cw]
+				for x, ax := range a {
+					p := row[4*x : 4*x+4 : 4*x+4]
+					p[0], p[1], p[2], p[3] = c.R, c.G, c.B, ax
+				}
+			}
+		}
+	}
 	col = 0
-	for i := 0; i < len(s); {
+	for i := 0; i < len(s) && col < end; {
+		if c := s[i]; asciiCluster(s, i) {
+			switch c {
+			case '\t':
+				col = (col/tab + 1) * tab
+			case ' ':
+				col++
+			default:
+				if gi := minimapASCIIGlyph[c]; gi >= 0 {
+					cell(int(gi), col, col+1, colorAt(i))
+				}
+				col++
+			}
+			i++
+			continue
+		}
 		j := nextGrapheme(s, i)
 		next := advanceCol(col, s[i:j], tab)
 		if gr := s[i:j]; gr != " " && gr != "\t" {
 			if gi := minimapGlyphIndex(gr); gi >= 0 && next > col {
-				c := colorAt(i)
-				src := g.alpha[gi*size : (gi+1)*size]
-				for k := range next - col {
-					x0 := (col + k) * cw
-					for y := range 2 * cw {
-						for x := range cw {
-							p := b.pix[4*(y*b.w+x0+x):]
-							p[0], p[1], p[2], p[3] = c.R, c.G, c.B, src[y*cw+x]
-						}
-					}
-				}
+				cell(gi, col, next, colorAt(i))
 			}
 		}
 		col, i = next, j
 	}
 	return b
 }
+
+// asciiCluster reports whether the byte at i of s is a grapheme cluster
+// of one ASCII character: one followed by another ASCII character, or the
+// last byte, and not a CR (which a following LF joins). A non-ASCII byte
+// after it may be a combining mark joining it (nextGrapheme's rules).
+func asciiCluster(s string, i int) bool {
+	c := s[i]
+	return c < utf8.RuneSelf && c != '\r' && (i+1 == len(s) || s[i+1] < utf8.RuneSelf)
+}
+
+// minimapASCIIGlyph is minimapGlyphIndex of each ASCII character.
+var minimapASCIIGlyph = func() (t [utf8.RuneSelf]int8) {
+	for c := range t {
+		t[c] = int8(minimapGlyphIndex(string(rune(c))))
+	}
+	return
+}()
 
 // miniLineBitmap draws the miniature line s (at byte base of its line)
 // in its tokens' foreground colors.
