@@ -65,7 +65,7 @@ func remote(c *ui.Context, metas ui.ProListMetas[project]) {
 
 ### 长列表：虚拟滚动
 
-`Height(px)` 固定条目区高度，再加 `Virtual()` 只构建视口内的条目（同 [List](/components/list) 的虚拟形态）；工具栏、选择提示和分页器留在区外。条目高度（含展开后的高度）滚到时实测、按 `RowKey` 缓存，未测到的按 `EstimatedItemHeight(px)` 估算。选择和展开状态按键保存，与条目是否被构建无关。
+`Height(px)` 固定条目区高度，再加 `Virtual()` 只构建视口内的条目（同 [List](/components/list) 的虚拟形态）；工具栏、选择提示和分页器留在区外。条目高度（含展开后的高度）滚到时实测、按 `RowKey` 缓存，未测到的按 `EstimatedItemHeight(px)` 估算。选择和展开状态按键保存，与条目是否被构建无关。条目内的控件滚出视口时会失去键盘焦点。
 
 ```go
 func longProList(c *ui.Context, rows []project, metas ui.ProListMetas[project]) {

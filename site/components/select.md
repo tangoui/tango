@@ -41,10 +41,15 @@ func page(c *ui.Context) {
 | `AllowClear()` | 允许清空当前选择 |
 | `Disabled(bool)` | 禁用选择器 |
 | `Changed() bool` | 当前帧是否发生选择变化 |
+| `Virtual(bool)` | 控制普通选项列表是否启用虚拟滚动。省略时超过 100 项自动启用 |
+| `ListHeight(float32)` | 设置虚拟下拉面板的最大高度 |
+| `DataVersion(int)` | 在原地修改虚拟列表数据后使选项缓存失效 |
 
 ## 使用说明
 
 自定义选项时使用 ui.Option 的 Value 和 Label 区分存储值与显示文字。键盘 Enter 展开，方向键移动，Enter 选择，Escape 关闭。
+
+虚拟下拉只构建视口附近的选项行，按切片身份、长度和版本缓存选项。原地修改选项的 `Label`、`Value` 或 `Disabled` 等字段后，递增 `DataVersion`，或传入新切片。普通选项列表可用 `Virtual(true)` 强制启用、用 `Virtual(false)` 关闭。分组、远程搜索和自定义选项行等功能会使用虚拟下拉。虚拟下拉的最大高度默认是 256，Element Plus 主题下为 274，单位为逻辑像素。
 
 ## 更多场景
 

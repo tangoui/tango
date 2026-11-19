@@ -295,7 +295,7 @@ func wideTable(c *ui.Context) {
 
 ### 虚拟滚动
 
-设置 `ScrollY` 后表格只构建视口内可见的行；再加 `Virtual()`（对应 Element Plus 的 Table V2）连可见范围外的列也不构建，适合 10 万行 × 几十列的数据。固定列、选择、键盘导航照常工作；`Wrap` 列的可变行高在虚拟滚动下同样可用：可见行测量后缓存，未测量的行按均值估算。
+设置正数 `ScrollY(px)` 后，表体只构建视口附近的行，表头保持固定。横向滚动时，表格跳过视口外的非固定单元格。`Virtual()` 表明虚拟化意图，并在 Element Plus 主题下采用 Table V2 的 50px 行高和表头高度。`RowHeight(px)` 和 `HeaderHeight(px)` 可分别覆盖这两个高度。固定列、选择和键盘导航照常工作。`Wrap` 列支持可变行高，测量过的行高会缓存，尚未测量的行按均值估算。
 
 ```go
 func bigTable(c *ui.Context) {
@@ -424,7 +424,7 @@ func themedTable(c *ui.Context, cols []ui.TableColumn) {
 - **状态放在哪**：数据和受控绑定的变量（`page`、`selected`、`sortState`……）放在包级或页面闭包里，每帧都是同一个变量。没有绑定的排序、筛选、展开等由表格按自身的组件 ID 保存；在循环或条件分支里渲染多张表格时，用 `ui.Key(c, key, fn)` 包住每张表格，避免插入或删除兄弟组件后状态串位。
 - **行键**：选择、展开、编辑都依赖 `RowKey`；没有设置时用数据下标作键，数据增删后会错位。
 - **原地修改数据**：表格会缓存本地排序与筛选的结果。行数不变但数据内容变了（例如编辑后某列值改变）时，调用 `Revision(v)` 并递增 `v`，让表格重新计算。
-- **性能**：数据量大时设置 `ScrollY`，列也多时再加 `Virtual()`；纯文本列用 `Text` 而不是 `Render`，后者每个单元格都会构建组件。
+- **性能**：数据量大时用 `ScrollY` 限定表体高度。纯文本列优先使用 `Text`，这样每个单元格只需构建文本。
 - **无障碍与键盘**：用 `A11yLabel` 为表格命名。表格是一个 Tab 停靠点：方向键移动当前单元格，Home / End 跳到首列 / 末列，PageUp / PageDown 翻屏，空格切换当前行的选择，Enter 编辑或展开，Ctrl/Cmd+C 复制单元格；可排序表头可聚焦，Enter 或空格排序；列宽拖拽手柄也能用方向键调整。
 - **RTL**：`FixedLeft` / `FixedRight` 和 `AlignLeft` / `AlignRight` 都是逻辑方向，在 RTL 布局中自动镜像；需要物理方向时用 `AlignPhysicalLeft` / `AlignPhysicalRight`。
 

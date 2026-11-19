@@ -134,7 +134,7 @@ func page(c *ui.Context) {
 
 ### 自定义虚拟列表尺寸
 
-`ItemHeight` 和 `ListHeight` 要与实际行高匹配，避免滚动位置估算偏差；`DataVersion` 用于原地修改选项切片后使缓存失效。
+`ItemHeight` 设置固定选项行高，自定义行内容需要放得下。`ListHeight` 设置下拉视口的最大高度，默认 256，Element Plus 主题下为 274，单位为逻辑像素。`DataVersion` 用于原地修改选项切片后使缓存失效。
 
 ```go
 import "github.com/tangoui/tango/ui"

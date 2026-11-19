@@ -55,6 +55,10 @@ func disabled(c *ui.Context, items []ui.TransferItem, target *[]string) {
 }
 ```
 
+### 长列表
+
+两侧的普通列表按搜索、分页后的条目数各自判断。当前页超过 100 项时自动启用虚拟滚动，只构建视口附近的行。`Virtual(true)` 强制启用，`Virtual(false)` 关闭。`ListSize(width, height)` 调整列表大小。
+
 ## 主题与样式
 
 Transfer 令牌控制列表尺寸、头部、选中项、操作按钮和错误状态。条目的 `Disabled` 可禁止移动。

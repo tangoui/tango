@@ -29,7 +29,7 @@ func page(c *ui.Context) {
 }
 ```
 
-`ProSkeleton` 接受 `SkeletonList`、`SkeletonResult` 或 `SkeletonDescriptions`，默认显示活动动画、页头、4 个统计占位、工具栏和 5 行列表。最后调用 `Show()` 构建页面骨架。
+`ProSkeleton` 接受 `SkeletonList`、`SkeletonResult` 或 `SkeletonDescriptions`，列表类型默认显示活动动画、页头、2 个统计占位、工具栏和 5 行列表。最后调用 `Show()` 构建页面骨架。
 
 ## 常见用法
 
