@@ -125,16 +125,24 @@ type helloLanes struct {
 // names dropped), or nil when enabled is false, no known lane is left, or
 // the State is closed; the previous generation ends in every case.
 func (s *State) Hello(caps []string, enabled bool) json.RawMessage {
+	raw, _, _ := s.HelloGeneration(caps, enabled)
+	return raw
+}
+
+// HelloGeneration also returns the generation and its offered lanes from
+// the same state transition. A closed State returns generation zero. The
+// offered slice is read-only and nil when the generation has no lanes.
+func (s *State) HelloGeneration(caps []string, enabled bool) (json.RawMessage, uint64, []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
-		return nil
+		return nil, 0, nil
 	}
 	s.gen++
 	s.tok, s.caps, s.st, s.count = "", nil, nil, 0
 	s.downOff = false
 	if !enabled {
-		return nil
+		return nil, s.gen, nil
 	}
 	st := map[string]status{}
 	var list []string
@@ -146,13 +154,13 @@ func (s *State) Hello(caps []string, enabled bool) json.RawMessage {
 		list = append(list, c)
 	}
 	if len(list) == 0 {
-		return nil
+		return nil, s.gen, nil
 	}
 	var b [16]byte
 	rand.Read(b[:]) // never fails (crypto/rand)
 	s.tok, s.caps, s.st = hex.EncodeToString(b[:]), list, st
 	raw, _ := json.Marshal(helloLanes{Gen: s.gen, Tok: s.tok, List: list})
-	return raw
+	return raw, s.gen, list
 }
 
 type control struct {

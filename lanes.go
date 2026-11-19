@@ -150,10 +150,16 @@ func (s *Surface) LaneHello() json.RawMessage {
 	}
 	a := s.app
 	bl, origin := s.laneNative()
-	if bl == nil || a.lanesOff() || len(a.binaryHandlers()) == 0 || !a.isAssetOrigin(origin) {
-		return s.lane.Hello(nil, false)
+	enabled := bl != nil && !a.lanesOff() && len(a.binaryHandlers()) != 0 && a.isAssetOrigin(origin)
+	var caps []string
+	if enabled {
+		caps = bl.LaneCaps()
 	}
-	return s.lane.Hello(bl.LaneCaps(), true)
+	raw, gen, offered := s.lane.HelloGeneration(caps, enabled)
+	if notify, ok := bl.(platform.LaneGenerations); ok && gen != 0 {
+		notify.LaneGeneration(gen, slices.Clone(offered))
+	}
+	return raw
 }
 
 // SendBinary implements ipc.BinaryConn: it hands packet to the page's ready
