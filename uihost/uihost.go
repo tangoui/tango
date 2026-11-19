@@ -16,12 +16,15 @@
 // for a frame, from any goroutine, on every platform. Calls that need the
 // main thread (Open, Attach, FollowSystemTheme) use App.Post or
 // tango.Await. Runner.Invalidate, InvalidateAt and Close are safe from any
-// goroutine. Development builds (-tags tango_dev) panic when a window's
-// Runner or ui.Context state is used off its UI thread; the app's own
-// variables cannot be checked, so run the app's tests with go test -race.
-// A window's first frame runs after the main-thread callback that called
-// Open returns, so variables set right after Open in that callback are
-// visible to the page.
+// goroutine. Development builds (-tags tango_dev) panic when a macOS Open
+// window's Runner or ui.Context state is used off its UI thread (windows
+// run directly; tan dev windows, Attach and other platforms are not
+// checked); the app's own variables cannot be checked at all, so run the
+// app's tests with go test -race. On macOS a window's first frame runs
+// after the main-thread callback that called Open returns, so variables
+// set right after Open in that callback are visible to the page, unless
+// the callback first runs a nested event loop (a dialog, or AwaitAsync on
+// main), during which frames may already start.
 //
 // API tiers: only the symbols listed in api/stable/uihost.txt are covered
 // by the compatibility promise of docs/release.md ("API 稳定性"); every

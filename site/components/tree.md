@@ -131,7 +131,7 @@ var (
     arrived = map[string][]ui.TreeNode{} // 后台请求写入，UI 线程读取
 )
 
-// requestChildren 在 goroutine 里请求子节点，结果经 app.Post 写入 arrived[key]。
+// requestChildren 在 goroutine 里请求子节点，结果经 Runner.Post 在窗口的 UI 线程上写入 arrived[key]。
 func requestChildren(key string) {}
 
 func lazyTree(c *ui.Context) {

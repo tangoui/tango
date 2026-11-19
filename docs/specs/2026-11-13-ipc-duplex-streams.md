@@ -269,7 +269,7 @@ func (r *Router) Call(ctx context.Context, method string, args ...any) (json.Raw
 在 `site/guide/ui.md`（以及英文版 `site/en/guide/ui.md`）新增"后台数据与线程"一节，内容要点：
 
 - Go 自绘界面和后端在同一个进程里，直接调用 Go 函数、读 Go 结构体，不需要序列化，也不需要 IPC。
-- **线程规则**：界面状态只在 UI 线程读写（page 函数运行在 UI 线程）。耗时或阻塞的操作放到 goroutine 里做；结果用 `app.Post` 切回 UI 线程写进状态，再调用 `r.Invalidate()` 请求重绘（`Invalidate` 任何 goroutine 都能安全调用）。
+- **线程规则**：界面状态只在 UI 线程读写（page 函数运行在 UI 线程）。耗时或阻塞的操作放到 goroutine 里做；结果用 `app.Post` 切回 UI 线程写进状态，再调用 `r.Invalidate()` 请求重绘（`Invalidate` 任何 goroutine 都能安全调用）。（2026-11-18 更新：macOS 的 `uihost.Open` 窗口有自己的 UI 线程，结果改用 `Runner.Post` 交回，见 `site/guide/ui.md` 与 `docs/release.md` 迁移说明。）
 - **流式数据**就是 Go 原生的 channel、`io.Reader`/`io.Writer`、回调，背压由阻塞读写自然提供。给一个终端的例子：goroutine 读 pty → `app.Post` 追加到缓冲区 → `Invalidate`；按键在事件处理里直接写 pty。
 - **高频数据**：每来一块数据就 `app.Post` 一次会在 UI 线程上堆积。示例里演示合并：goroutine 把数据追加到加锁的缓冲区，只在"还没有待处理的刷新"时才 `Post` 一次。
 - **复用 WebView 的服务**：服务已经用 `Handle`/`HandleDuplex` 注册过的，Go 界面用 §5.9 的 `r.Call` / `r.Open` 接入，配合上面的线程规则使用；混合界面里页面和 Go 面板因此共用同一个服务实例。

@@ -87,7 +87,8 @@ type CanvasLayer struct {
   - **macOS 的 `uihost.Open` 窗口**：每个窗口一条独立 UI 线程（锁定 OS 线程），从 `Open` 返回前启动、窗口关闭后退出。页面函数、`Runner` 的方法和回调、渲染器和上屏都在这条线程上运行；帧由该线程上的显示链接驱动（`platform.CanvasThreaded`），不再走 `updateLayer`/`CanvasFrame`。sink 回调仍在主线程收到，由 uihost 转成任务投递到 UI 线程。后端在 `NewCanvasSurface` 里看 sink 是否实现 `platform.CanvasThreadedSink` 且 `WantsUIThread()` 为真（uihost 的 Open 是），是才返回线程化的 canvas。
   - **其他平台、`uihost.Attach`、`tan dev` 宿主（`remote_dev.go`）、无头 `ui.Driver`**：UI 线程 = 主线程，行为不变。
   - 应用代码：改页面读取的状态、调用 `Runner` 方法用 `Runner.Post`（任何线程可调用，在 UI 线程两帧之间运行，之后自动请求一帧）；调用必须在主线程的系统接口（`uihost.Open`、`FollowSystemTheme`、`Attach`）用 `App.Post` 或 `tango.Await`。`uihost.Shortcut`、菜单、托盘、`OnMessage`、`OnClose` 等回调在主线程运行。`Invalidate`/`InvalidateAt`/`Close` 任何线程安全。`sys/dialog` 在 UI 线程上调用时阻塞该窗口的 UI 线程、不阻塞主线程。
-  - 第一帧在调用 `Open` 的主线程回调返回之后才运行，所以在同一个回调里 `Open` 之后设置的变量（如保存 `*ui.Runner` 的全局变量）对页面可见。
+  - macOS 上第一帧在调用 `Open` 的主线程回调返回之后才运行，所以在同一个回调里 `Open` 之后设置的变量（如保存 `*ui.Runner` 的全局变量）对页面可见；例外是回调先跑了嵌套事件循环（对话框、主线程上的 `AwaitAsync`），这期间第一帧可能已经开始。
+  - 开发构建的线程检查只对 macOS 上直接运行的 `uihost.Open` 窗口生效；`tan dev`、`Attach`、其他平台不检查。
 
 ## A 步：macOS 实现（先做）
 

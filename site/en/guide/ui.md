@@ -12,9 +12,10 @@ A Go-drawn UI runs in the same process as the backend: call Go functions and rea
 
 **Thread rules**
 
-- UI state is read and written only on the UI thread. The page function runs on the UI thread (the app's main thread).
+- UI state is read and written only on the UI thread. The page function runs on the window's UI thread: on macOS every `uihost.Open` window has a UI thread of its own, running in parallel with the main thread and other windows; on other platforms, with `uihost.Attach` and under `tan dev` the UI thread is the app's main thread.
 - Slow or blocking work (files, network, child processes, `ipc` streams) goes on a goroutine, never into the page function, or the whole window freezes.
-- Hand results back with `app.Post`, write them into the state there, and call `Runner.Invalidate()` to request a frame. `Invalidate` is safe from any goroutine; the frame itself still runs on the UI thread.
+- Hand results back with `Runner.Post` and write them into the state there: `runner.Post(func() { rows = res })`. `Post` is safe from any goroutine, runs functions between frames in call order and then requests a frame. `App.Post` means "run on the main thread": use it only for calls that need the main thread (`uihost.Open`, `uihost.FollowSystemTheme`), never to change page state. `Invalidate` is safe from any goroutine.
+- Main-thread callbacks (`uihost.Shortcut`, menus, tray, `App.OnMessage`, `Surface.OnClose`) also change page state through `Runner.Post`, for example `app.Post(func() { uihost.FollowSystemTheme(r, false); r.Post(func() { r.SetTheme(th) }) })`. In development builds (`-tags tango_dev`), a macOS `uihost.Open` window run directly panics when its `Runner` or `ui.Context` state is used off its UI thread; your own variables cannot be checked, so run `go test -race`.
 
 **Streaming data** uses plain Go: channels, `io.Reader`/`io.Writer`, callbacks. Blocking reads and writes are the back-pressure: when the goroutine reads slowly, the producer is held back. A terminal panel, for example, has a goroutine read the shell's output and hand it to the UI thread, which appends it to a buffer and calls `Invalidate`; key presses are written to the shell from the event handler. Writing to a local pipe is usually quick but may block; a target that can make writes wait (such as an `ipc` stream waiting for credit, below) should get them through a channel read by a goroutine that does the writing.
 

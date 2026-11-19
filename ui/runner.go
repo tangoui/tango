@@ -48,8 +48,9 @@ type RunnerOptions struct {
 // its thread.
 //
 // Package uihost binds each window opened with uihost.Open on macOS to a
-// UI thread of its own; elsewhere (other platforms, uihost.Attach, tan dev,
-// Driver) the UI thread is the main thread. Code on another thread, such
+// UI thread of its own; elsewhere (other platforms, uihost.Attach, tan dev)
+// the UI thread is the main thread, and for a headless Driver it is the
+// caller's thread. Code on another thread, such
 // as an App.Post function, a shortcut, menu or tray callback, changes the
 // state the page reads and calls Runner methods through Post. The checks
 // cover the Runner and Context; the app's own variables are its own

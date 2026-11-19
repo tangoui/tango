@@ -40,6 +40,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/tangoui/tango"
@@ -209,17 +210,49 @@ func openDocumentDialog() {
 	}
 }
 
+// Published for main-thread callbacks that must answer at once (OnClose,
+// OnQuitRequest), which may not wait for the UI thread.
+var (
+	docDirty     atomic.Bool // the document has unsaved edits; set by the UI thread after each frame
+	windowClosed atomic.Bool // the editor window has closed (main thread)
+)
+
+// publishDirty records the document's state for the main thread. UI
+// thread, at the end of each frame; the answer may be one frame old.
+func publishDirty() {
+	docDirty.Store(documents != nil && documents.session != nil && documents.session.dirty())
+}
+
+// askDiscard answers a close or quit request on the main thread. Without a
+// window (tests) the main thread is the UI thread and asks at once. With a
+// clean document it allows at once. Otherwise it refuses, asks on the
+// window's UI thread and calls then if the user allows; then must not ask
+// again (Surface.Close, App.Quit).
+func askDiscard(then func()) bool {
+	if runner == nil {
+		return confirmDiscard()
+	}
+	if !docDirty.Load() {
+		return true
+	}
+	postFileAction(func() {
+		if confirmDiscard() {
+			then()
+		}
+	})
+	return false
+}
+
 // configureDocumentApp hands quit requests and opened files, which arrive
-// on the main thread, to the editor's UI thread (postFileAction). A quit is
-// refused at first and repeated with App.Quit once the user has answered.
+// on the main thread, to the editor's UI thread (postFileAction). Once the
+// window has closed (its own close already asked) a quit goes ahead:
+// Runner.Post drops work after the window closes.
 func configureDocumentApp(a *tango.App) {
 	a.OnQuitRequest(func() bool {
-		postFileAction(func() {
-			if confirmDiscard() {
-				a.Quit()
-			}
-		})
-		return false
+		if windowClosed.Load() {
+			return true
+		}
+		return askDiscard(a.Quit)
 	})
 	a.OnOpenFiles(func(paths []string) {
 		for _, path := range paths {
@@ -314,6 +347,7 @@ func diffStatus() string {
 
 func page(c *ui.Context) {
 	defer syncTitle()
+	defer publishDirty()
 	if st == nil {
 		return
 	}
@@ -481,14 +515,9 @@ func openDemoWindow(title string, ropts ui.RunnerOptions) (*ui.Runner, *tango.Su
 	surface = s
 	// Close requests, dropped files and shortcuts arrive on the main
 	// thread; the document belongs to the window's UI thread.
-	surface.OnClose(func() bool {
-		postFileAction(func() {
-			if confirmDiscard() {
-				s.Close() // without asking OnClose again
-			}
-		})
-		return false
-	})
+	windowClosed.Store(false)
+	surface.OnClose(func() bool { return askDiscard(s.Close) }) // Close does not ask again
+	surface.OnClosed(func() { windowClosed.Store(true) })
 	surface.OnFilesDropped(func(paths []string, _, _ int) {
 		if len(paths) > 0 {
 			postFileAction(func() { openDocumentPath(paths[0]) })

@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/tangoui/tango"
@@ -44,13 +45,30 @@ func main() {
 	quitOnClose := true
 	app := tango.New(tango.Options{Name: windowTitle, ID: "dev.tango.terminal.workspace", QuitOnLastClose: &quitOnClose})
 	a := &terminalApp{dark: !*light, fontSize: 13, focusPending: true}
+	// Every session ever opened, so that closing the window can end them
+	// from the main thread without touching the workspace, which belongs
+	// to the window's UI thread (session.close runs once).
+	var sessionsMu sync.Mutex
+	var sessions []*session
 	a.workspace.openSession = func(id string) (*session, error) {
 		conn, err := pty.Start(pty.Options{Path: path, Args: args, Dir: *dir, Cols: 80, Rows: 24})
 		if err != nil {
 			return nil, fmt.Errorf("could not start %s: %w", path, err)
 		}
 		term := terminal.New(terminal.Options{Conn: conn})
-		return &session{id: id, pid: conn.Pid(), term: term, closeConn: term.Close}, nil
+		s := &session{id: id, pid: conn.Pid(), term: term, closeConn: term.Close}
+		sessionsMu.Lock()
+		sessions = append(sessions, s)
+		sessionsMu.Unlock()
+		return s, nil
+	}
+	closeSessions := func() {
+		sessionsMu.Lock()
+		all := sessions
+		sessionsMu.Unlock()
+		for _, s := range all {
+			s.close()
+		}
 	}
 	defer a.workspace.close()
 	a.action(a.workspace.newTab)
@@ -63,7 +81,7 @@ func main() {
 			log.Fatal(err)
 		}
 		a.invalidate = runner.Invalidate
-		surface.OnClosed(a.workspace.close)
+		surface.OnClosed(closeSessions)
 		registerShortcuts(surface, runner, a)
 		if *quitAfter > 0 {
 			time.AfterFunc(*quitAfter, func() { app.Post(app.Quit) })

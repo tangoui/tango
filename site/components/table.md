@@ -126,7 +126,7 @@ var (
     srvLoading       bool
 )
 
-// fetchPage 在 goroutine 里请求第 page 页，结果经 app.Post 写回 srvRows / srvTotal，
+// fetchPage 在 goroutine 里请求第 page 页，结果经 Runner.Post 写回 srvRows / srvTotal（在窗口的 UI 线程上），
 // 并把 srvLoading 置回 false。
 func fetchPage(page, size int) { srvLoading = true }
 

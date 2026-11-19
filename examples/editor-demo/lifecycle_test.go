@@ -4,8 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/tangoui/tango"
+	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/fake"
 	"github.com/tangoui/tango/internal/platform/fake/faketest"
@@ -106,15 +108,128 @@ func TestSaveSeparatesUndoHistory(t *testing.T) {
 	}
 }
 
+// Without a window the main thread is the UI thread: the quit request is
+// answered at once from the user's choice.
 func TestQuitCancelKeepsDirtyDocument(t *testing.T) {
 	a, fb := testDocumentApp(t, "")
 	tango.Await(a, func() bool { configureDocumentApp(a); return true })
-	fb.OnMessageDialog = func(_ platform.SurfaceID, _ platform.MessageOptions) (int, error) { return 2, nil }
+	prompts := 0
+	fb.OnMessageDialog = func(_ platform.SurfaceID, _ platform.MessageOptions) (int, error) { prompts++; return 2, nil }
 	if fb.RequestQuit() {
 		t.Fatal("Quit ignored Cancel")
 	}
+	if prompts != 1 {
+		t.Fatalf("unsaved-changes prompts=%d want 1", prompts)
+	}
 	if !tango.Await(a, func() bool { return documents.session.dirty() }) {
 		t.Fatal("Quit lost current edits")
+	}
+}
+
+func TestQuitDontSaveQuits(t *testing.T) {
+	a, fb := testDocumentApp(t, "")
+	t.Cleanup(resetAfterQuit)
+	tango.Await(a, func() bool { configureDocumentApp(a); return true })
+	fb.OnMessageDialog = func(_ platform.SurfaceID, _ platform.MessageOptions) (int, error) { return 1, nil }
+	if !fb.RequestQuit() {
+		t.Fatal("Don't Save did not quit")
+	}
+}
+
+// openEditorWindow opens the demo window on the fake backend and runs a
+// frame, so the document state is published for the main thread.
+func openEditorWindow(t *testing.T, a *tango.App, fb *fake.Backend) *tango.Surface {
+	t.Helper()
+	t.Setenv("TANGO_RENDERER", "cpu")
+	var sf *tango.Surface
+	var err error
+	tango.Await(a, func() bool {
+		configureDocumentApp(a)
+		_, sf, err = openDemoWindow("Editor test", ui.RunnerOptions{})
+		return true
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cv := fb.Canvas(sf.ID())
+	cv.Invalidate()
+	cv.FlushFrame()
+	tango.Await(a, func() bool { return true })
+	return sf
+}
+
+// resetAfterQuit clears the demo's globals once the app has quit (the
+// testDocumentApp cleanup cannot reach the main thread any more).
+func resetAfterQuit() {
+	app, surface, runner, documents = nil, nil, nil, nil
+	background, st, second, active = nil, nil, nil, nil
+	paletteOpen, focused = false, false
+	docDirty.Store(false)
+	windowClosed.Store(false)
+}
+
+// With a window the request is refused at first, asked on the window's UI
+// thread, and "Don't Save" then quits.
+func TestWindowQuitDontSaveQuits(t *testing.T) {
+	a, fb := testDocumentApp(t, "")
+	t.Cleanup(resetAfterQuit)
+	prompts := 0
+	fb.OnMessageDialog = func(_ platform.SurfaceID, _ platform.MessageOptions) (int, error) { prompts++; return 1, nil }
+	openEditorWindow(t, a, fb)
+	if !docDirty.Load() {
+		t.Fatal("dirty document not published")
+	}
+	if fb.RequestQuit() {
+		t.Fatal("quit with unsaved edits did not wait for the answer")
+	}
+	select {
+	case <-corehook.Done(a):
+	case <-time.After(5 * time.Second):
+		t.Fatalf("Don't Save did not quit (prompts=%d)", prompts)
+	}
+	if prompts != 1 {
+		t.Fatalf("prompts=%d want 1", prompts)
+	}
+}
+
+// Cancel keeps the app running; once the window has closed, quitting is
+// no longer refused (Runner.Post would drop the question).
+func TestWindowQuitCancelThenClosedWindowQuits(t *testing.T) {
+	a, fb := testDocumentApp(t, "")
+	t.Cleanup(resetAfterQuit)
+	prompts := 0
+	fb.OnMessageDialog = func(_ platform.SurfaceID, _ platform.MessageOptions) (int, error) { prompts++; return 2, nil }
+	sf := openEditorWindow(t, a, fb)
+	if fb.RequestQuit() {
+		t.Fatal("quit with unsaved edits did not wait for the answer")
+	}
+	for deadline := time.Now().Add(5 * time.Second); tango.Await(a, func() bool { return prompts == 0 }) && time.Now().Before(deadline); {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !tango.Await(a, func() bool { return prompts == 1 && documents.session.dirty() }) {
+		t.Fatal("Cancel was not asked or lost the edits")
+	}
+	tango.Await(a, func() bool { sf.Close(); return true })
+	if !fb.RequestQuit() {
+		t.Fatal("quit refused after the window closed")
+	}
+}
+
+// A clean document closes and quits at once, without a prompt.
+func TestCleanDocumentAnswersAtOnce(t *testing.T) {
+	a, fb := testDocumentApp(t, "")
+	t.Cleanup(resetAfterQuit)
+	fb.OnMessageDialog = func(_ platform.SurfaceID, _ platform.MessageOptions) (int, error) {
+		t.Error("clean document asked about unsaved changes")
+		return 2, nil
+	}
+	tango.Await(a, func() bool { documents.install(newDocumentSession("", "clean", nil)); return true })
+	openEditorWindow(t, a, fb)
+	if docDirty.Load() {
+		t.Fatal("clean document published as dirty")
+	}
+	if !fb.RequestQuit() {
+		t.Fatal("clean document refused to quit")
 	}
 }
 
@@ -151,12 +266,20 @@ func TestWindowDropAndReplacementHighlightNotify(t *testing.T) {
 	if !fb.DropFiles(sf.ID(), []string{path}, 0, 0) {
 		t.Fatal("drop not delivered")
 	}
-	if !tango.Await(a, func() bool { return documents.session.path == path }) {
+	// The drop is handed to the window's UI thread (Runner.Post), which
+	// does not keep order with Await from this goroutine: poll.
+	opened := func() bool { return tango.Await(a, func() bool { return documents.session.path == path }) }
+	for deadline := time.Now().Add(5 * time.Second); !opened() && time.Now().Before(deadline); {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !opened() {
 		t.Fatal("drop did not open file")
 	}
 	before := native.Invalidates()
 	tango.Await(a, func() bool { background.ready(); return true })
-	tango.Await(a, func() bool { return true })
+	for deadline := time.Now().Add(5 * time.Second); native.Invalidates() <= before && time.Now().Before(deadline); {
+		tango.Await(a, func() bool { return true }) // the notify reaches the window through Runner.Post
+	}
 	if native.Invalidates() <= before {
 		t.Fatal("replacement highlighter did not request repaint")
 	}

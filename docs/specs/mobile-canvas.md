@@ -24,7 +24,7 @@
 - **契约尽量不改**：后端照常实现已有的 `platform.CanvasCreator` / `CanvasAttacher` / `CanvasAccessible` / `CanvasMetal`（`internal/platform/canvas.go:18-305`）。新增内容只有可选接口，放在新文件 `internal/platform/canvas_mobile.go`。
 - **iOS**：Objective-C 写的 `TGCanvasView`，每帧由 `CADisplayLink` 驱动。GPU 路径直接复用 `ui/gpu/metal`：它的构建标签是 `darwin`，GOOS=ios 也满足。CPU 回退用 `CALayer.contents`。文字复用 CoreText 引擎，需要去掉 `!ios` 标签。
 - **Android**：Java 宿主新增 `CanvasPage`，整页用 SurfaceView，叠放层用 TextureView，两者都经 JNI 取得 `ANativeWindow`。第一阶段用 CPU 光栅化，再 `ANativeWindow_lock/unlockAndPost` 上屏。第二阶段推荐 **OpenGL ES 3.0 + EGL**，不选 Vulkan，理由见 1.3 节。文字走纯 Go 路径，字体由解析 `fonts.xml` 发现，不打包 FreeType。
-- **线程**：所有 canvas 回调都在平台主线程（UI 线程）上执行，与桌面一致，`uihost.go:6` 写明"UI 线程 = 主线程"。`Invalidate` 可以从任意 goroutine 调用，只置原子标志并唤醒主线程。
+- **线程**：所有 canvas 回调都在平台主线程（UI 线程）上执行，移动端保持"UI 线程 = 主线程"（2026-11-18 起 macOS 的 `uihost.Open` 窗口改为每窗口独立 UI 线程，见 `docs/superpowers/specs/2026-11-18-per-window-ui-thread-design.md`；移动端按平台顺序以后单独设计）。`Invalidate` 可以从任意 goroutine 调用，只置原子标志并唤醒主线程。
 - **里程碑**：M1 iOS 上屏 + 触摸 + 安全区；M2 Android 同样内容；M3 两端输入法与键盘避让；M4 两端无障碍；M5 Android GPU、WebView 叠放、收尾。总工作量约 19–24 人周（见第 8 节）。
 
 ---
