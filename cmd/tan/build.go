@@ -8,10 +8,12 @@ import (
 	"html"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
+	"syscall"
 )
 
 // target is a GOOS/GOARCH pair. Arch "universal" (darwin only) builds
@@ -102,8 +104,21 @@ func runBuild(args []string) error {
 	if err != nil {
 		return err
 	}
-	_, err = build(context.Background(), cfg, buildOptions{targets: ts, out: *out, debug: *debug, xcode: *xcode, features: features})
+	ctx, stop := signalContext()
+	defer stop()
+	_, err = build(ctx, cfg, buildOptions{targets: ts, out: *out, debug: *debug, xcode: *xcode, features: features})
 	return err
+}
+
+// signalContext is the context of tan build and tan package: SIGINT or
+// SIGTERM cancels it. runShell starts the tan.json front-end commands in
+// their own process group, which a signal to tan's group (tango_job_stop,
+// tan mcp shutting down, Ctrl+C) does not reach; the cancel makes it end
+// that group. After the first signal a second one ends tan at once.
+func signalContext() (context.Context, context.CancelFunc) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	context.AfterFunc(ctx, stop)
+	return ctx, stop
 }
 
 // artifact is one target's build output.
@@ -477,29 +492,38 @@ func runIn(ctx context.Context, dir string, env []string, name string, args ...s
 	return runCmd(cmd, dir, env)
 }
 
-// runShell runs a configured command line through the shell.
+// runShell runs a configured command line through the shell, in a process
+// group of its own that is killed when ctx is done.
 func runShell(ctx context.Context, dir string, env []string, line string) error {
 	cmd := shellCommand(line)
 	newGroup(cmd)
-	done := make(chan struct{})
-	defer close(done)
-	go func() {
-		select {
-		case <-ctx.Done():
-			signalGroup(cmd, true)
-		case <-done:
-		}
-	}()
-	return runCmd(cmd, dir, env)
+	prepareCmd(cmd, dir, env)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("%s: %w", strings.Join(cmd.Args, " "), err)
+	}
+	// After Start, so cmd.Process is set; a ctx already done kills at once.
+	stop := context.AfterFunc(ctx, func() { signalGroup(cmd, true) })
+	err := cmd.Wait()
+	stop()
+	if err != nil {
+		return fmt.Errorf("%s: %w", strings.Join(cmd.Args, " "), err)
+	}
+	return nil
 }
 
 func runCmd(cmd *exec.Cmd, dir string, env []string) error {
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), env...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	prepareCmd(cmd, dir, env)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s: %w", strings.Join(cmd.Args, " "), err)
 	}
 	return nil
+}
+
+// prepareCmd sets cmd's directory and environment (env added) and passes
+// its output through.
+func prepareCmd(cmd *exec.Cmd, dir string, env []string) {
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), env...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 }
