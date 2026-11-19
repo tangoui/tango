@@ -13,17 +13,37 @@ import (
 // root. Relative paths are taken from the root. Symlinks are resolved, and a
 // path that does not exist yet is resolved through its nearest existing
 // parent, so neither ".." nor a symlink can lead a tool outside the root.
+//
+// Callers must use the returned path, never the original argument: the check
+// is a lexical Clean followed by EvalSymlinks, and holds only for the path it
+// returns. On a case-insensitive filesystem a path spelled with a different
+// case than the root fails closed (it is reported as outside).
 func (s *mcpServer) resolve(p string) (string, error) {
-	abs := p
-	if !filepath.IsAbs(abs) {
-		abs = filepath.Join(s.root, abs)
+	var abs string
+	switch {
+	case filepath.IsAbs(p):
+		abs = filepath.Clean(p)
+	case filepath.VolumeName(p) != "" || (p != "" && os.IsPathSeparator(p[0])):
+		// Windows only: \foo (current drive) and C:foo (drive-relative)
+		// are not relative to the root; take them where they really point.
+		a, err := filepath.Abs(p)
+		if err != nil {
+			return "", fmt.Errorf("path %q: %w", p, err)
+		}
+		abs = a
+	default:
+		abs = filepath.Join(s.root, p)
 	}
-	abs = filepath.Clean(abs)
 	real, err := evalExisting(abs)
 	if err != nil {
 		return "", fmt.Errorf("path %q: %w", p, err)
 	}
-	if real != s.root && !strings.HasPrefix(real, s.root+string(filepath.Separator)) {
+	prefix := s.root
+	if !strings.HasSuffix(prefix, string(filepath.Separator)) {
+		// A filesystem or volume root already ends with a separator.
+		prefix += string(filepath.Separator)
+	}
+	if real != s.root && !strings.HasPrefix(real, prefix) {
 		return "", fmt.Errorf("path %q is outside the MCP root %s (resolves to %s)", p, s.root, real)
 	}
 	return real, nil

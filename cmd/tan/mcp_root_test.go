@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -45,7 +46,19 @@ func TestResolveRootInside(t *testing.T) {
 
 func TestResolveRootOutside(t *testing.T) {
 	s := newResolveTestServer(t)
-	for _, in := range []string{"..", "/etc", "../x"} {
+	other, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	outside := []string{"..", "../x", filepath.Dir(s.root), other, filepath.Join(other, "x")}
+	if runtime.GOOS == "windows" {
+		// Rooted on the current drive, and drive-relative: neither is
+		// relative to the MCP root.
+		outside = append(outside, `\x`, filepath.VolumeName(s.root)+"x")
+	} else {
+		outside = append(outside, "/etc")
+	}
+	for _, in := range outside {
 		got, err := s.resolve(in)
 		if err == nil {
 			t.Errorf("resolve(%q) = %q, want error", in, got)
@@ -64,7 +77,7 @@ func TestResolveRootSymlinkEscape(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.Symlink(other, filepath.Join(s.root, "link")); err != nil {
-		t.Fatal(err)
+		t.Skip(err)
 	}
 	got, err := s.resolve("link/x")
 	if err == nil {
@@ -90,11 +103,28 @@ func TestResolveRootDanglingSymlink(t *testing.T) {
 	s := newResolveTestServer(t)
 	target := filepath.Join(t.TempDir(), "missing")
 	if err := os.Symlink(target, filepath.Join(s.root, "dangling")); err != nil {
-		t.Fatal(err)
+		t.Skip(err)
 	}
 	for _, in := range []string{"dangling", "dangling/x"} {
 		if got, err := s.resolve(in); err == nil {
 			t.Errorf("resolve(%q) = %q, want error", in, got)
 		}
+	}
+}
+
+func TestResolveRootFilesystemRoot(t *testing.T) {
+	inner := newResolveTestServer(t)
+	vol := filepath.VolumeName(inner.root) + string(filepath.Separator)
+	s, err := newMCPServer(vol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.close)
+	got, err := s.resolve(inner.root)
+	if err != nil {
+		t.Fatalf("resolve(%q) under root %s: %v", inner.root, s.root, err)
+	}
+	if got != inner.root {
+		t.Errorf("resolve(%q) = %q", inner.root, got)
 	}
 }
