@@ -9,6 +9,7 @@ import (
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/automation"
 	"github.com/tangoui/tango/internal/platform/fake/faketest"
+	"github.com/tangoui/tango/internal/uithread"
 
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/a11y"
@@ -37,14 +38,27 @@ func TestAutomationHotReloadUnsupported(t *testing.T) {
 	}
 }
 
-func TestCloseKeepsThreadedAXTapsOffMain(t *testing.T) {
+// The accessibility bridge of a threaded window belongs to its UI thread:
+// automation attaches its tap there and refuses from any other thread
+// (frame publication and close would race with it).
+func TestAutomationTapOnlyOnUIThread(t *testing.T) {
 	r := ui.NewRunner(func(c *ui.Context) { ui.Button(c, "OK") }, ui.RunnerOptions{})
 	a, _ := faketest.NewApp(tango.Options{})
 	b := newA11y(a, nil, r, ui.RunnerOptions{})
 	t.Cleanup(b.close)
-	c := &autoCanvas{r: r, h: &host{r: r, t: &threadedHost{}}}
-	var e *automation.Error
-	if _, _, err := c.Tree(); !errors.As(err, &e) || e.Code != automation.CodeUnsupported {
-		t.Fatalf("main-thread automation must not attach a tap to a threaded AX bridge: %v", err)
+	th := uithread.Start("automation test")
+	t.Cleanup(th.Stop)
+	c := newAutoCanvas(r, &host{app: a, r: r, t: &threadedHost{th: th}})
+	if err := c.subscribe(); !errors.Is(err, errAutoOffUI) {
+		t.Fatalf("tap attached off the UI thread: %v", err)
+	}
+	var err error
+	var taps int
+	th.Do(func() {
+		err = c.subscribe()
+		taps = len(b.taps)
+	})
+	if err != nil || taps != 1 {
+		t.Fatalf("subscribe on the UI thread: %v, %d taps", err, taps)
 	}
 }

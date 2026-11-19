@@ -295,10 +295,8 @@ func openThreaded(t *testing.T, a *tango.App, fb *fake.Backend, page func(*ui.Co
 }
 
 // closeAtEnd closes a threaded window when the test ends and waits for its
-// UI thread to exit. Windows of different tests must not draw at the same
-// time: package-level layout and cache state is not safe for concurrent
-// frames yet (plan Task 9), and the memory warning reaches the runners of
-// every app.
+// UI thread to exit, so windows of one test do not outlive it: the memory
+// warning reaches the runners of every app.
 func closeAtEnd(t *testing.T, fb *fake.Backend, s *tango.Surface, tc *threadedCanvas) {
 	t.Helper()
 	t.Cleanup(func() {

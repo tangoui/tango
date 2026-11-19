@@ -38,7 +38,8 @@ type Host interface {
 }
 
 // Canvas is a self-drawn window (package uihost registers one per
-// window). Its methods run on the main thread.
+// window). Its methods run on the main thread, or on the server's
+// goroutine for a canvas that is also OffMain.
 type Canvas interface {
 	// Tree returns the window's current semantics tree (nil until the
 	// first frame that builds one) and a generation that changes with
@@ -51,6 +52,12 @@ type Canvas interface {
 	// Snapshot draws the window's last frame.
 	Snapshot() (*image.RGBA, error)
 }
+
+// OffMain is implemented by canvases whose methods route each operation to
+// the thread that owns it and wait for it themselves (windows on their own
+// UI threads): the server calls them on its own goroutine instead of on the
+// main thread, so the main thread never waits for a window's UI thread.
+type OffMain interface{ OffMain() }
 
 // ErrHotReload is what Canvas implementations return under tan dev.
 var ErrHotReload = &Error{Code: CodeHotReload,
@@ -289,6 +296,18 @@ func (s *Server) main(fn func()) error {
 	return nil
 }
 
+// onCanvas runs fn, which calls c, on the main thread, or on the calling
+// goroutine when c is OffMain.
+func (s *Server) onCanvas(c Canvas, fn func()) error {
+	if _, ok := c.(OffMain); !ok {
+		return s.main(fn)
+	}
+	if !s.host.Guard(fn) {
+		return &Error{Code: CodeInternal, Msg: "automation: the call panicked (see the app's log)"}
+	}
+	return nil
+}
+
 func (s *Server) dispatch(req *Request) *Response {
 	switch req.Op {
 	case OpPing:
@@ -330,7 +349,7 @@ func (s *Server) dispatch(req *Request) *Response {
 		if c := lookup(s.app, req.Window); c != nil {
 			var img *image.RGBA
 			var err error
-			if e := s.main(func() { img, err = c.Snapshot() }); e != nil {
+			if e := s.onCanvas(c, func() { img, err = c.Snapshot() }); e != nil {
 				return failErr(e)
 			}
 			if err != nil {
@@ -378,11 +397,11 @@ func (s *Server) windowExists(id uint64) bool {
 // pollEvery is the interval of tree polling while waiting.
 var pollEvery = 15 * time.Millisecond
 
-// snapshot reads c's tree on the main thread and calls fn there with it
-// (nil: no tree yet).
+// snapshot reads c's tree on the main thread (on the calling goroutine
+// for an OffMain canvas) and calls fn there with it (nil: no tree yet).
 func (s *Server) snapshot(c Canvas, fn func(t *a11y.Tree, gen uint64)) error {
 	var err error
-	if e := s.main(func() {
+	if e := s.onCanvas(c, func() {
 		var t *a11y.Tree
 		var gen uint64
 		t, gen, err = c.Tree()
@@ -448,7 +467,7 @@ func (s *Server) canvasOp(c Canvas, req *Request) *Response {
 				time.Sleep(20 * time.Millisecond) // let a frame run between drag steps
 			}
 			var ierr error
-			if e := s.main(func() {
+			if e := s.onCanvas(c, func() {
 				if i == 0 {
 					_, gen0, _ = c.Tree()
 				}
@@ -504,7 +523,7 @@ func (s *Server) canvasOp(c Canvas, req *Request) *Response {
 		}
 		var gen0 uint64
 		var perr error
-		if e := s.main(func() {
+		if e := s.onCanvas(c, func() {
 			_, gen0, _ = c.Tree()
 			perr = c.Perform(node.ID, act, req.Arg)
 		}); e != nil {

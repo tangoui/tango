@@ -10,10 +10,10 @@ import (
 func TestMeasureMemoConstraintsAndGeneration(t *testing.T) {
 	calls := 0
 	leaf := &Node{Measure: func(w, h float32) geom.Size { calls++; return geom.Size{W: w / 2, H: h / 2} }}
-	gen++
+	g := newPass()
 	for i := 1; i <= 8; i++ {
 		w := float32(i * 10)
-		if got := measure(leaf, w, 100, false, false); got != (geom.Size{W: w / 2, H: 50}) {
+		if got := g.measure(leaf, w, 100, false, false); got != (geom.Size{W: w / 2, H: 50}) {
 			t.Fatalf("constraint %d: %+v", i, got)
 		}
 	}
@@ -21,7 +21,7 @@ func TestMeasureMemoConstraintsAndGeneration(t *testing.T) {
 	// The cache still holds all six most recent constraints, including
 	// entries that spill beyond the small inline prefix.
 	for i := 3; i <= 8; i++ {
-		measure(leaf, float32(i*10), 100, false, false)
+		g.measure(leaf, float32(i*10), 100, false, false)
 	}
 	if calls != before {
 		t.Fatal("six-entry memo capacity was not preserved")
@@ -29,8 +29,8 @@ func TestMeasureMemoConstraintsAndGeneration(t *testing.T) {
 	// Another solve must not reuse the old measurement, including when a
 	// different tree has been solved between uses of this node.
 	Solve(&Node{}, 10, 10)
-	gen++
-	measure(leaf, 80, 100, false, false)
+	g = newPass()
+	g.measure(leaf, 80, 100, false, false)
 	if calls != before+1 {
 		t.Fatal("memo survived a solve generation")
 	}

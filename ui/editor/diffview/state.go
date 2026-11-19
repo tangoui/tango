@@ -3,6 +3,7 @@ package diffview
 import (
 	"github.com/tangoui/tango/ui"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -151,7 +152,20 @@ type scrollPos struct {
 }
 
 // live maps the editor states of open diff views to them (commands).
-var live = map[*editor.State]*State{}
+// Diff views of windows on different UI threads open and close at the
+// same time, so it is locked; it is touched only when a view opens or
+// closes and when a diff command runs.
+var live struct {
+	sync.Mutex
+	m map[*editor.State]*State
+}
+
+// liveView returns the open diff view showing st, or nil.
+func liveView(st *editor.State) *State {
+	live.Lock()
+	defer live.Unlock()
+	return live.m[st]
+}
 
 // New starts a diff view of original and modified, both drawn with th.
 // The two Models are independent; modified may be open in other editors
@@ -181,11 +195,16 @@ func New(original, modified *editor.Model, th *theme.Theme) *State {
 		side := diff.Side(s)
 		d.unsub = append(d.unsub, m.Subscribe(func(ch editor.ModelChange) { d.modelChanged(side, ch) }))
 	}
+	live.Lock()
+	if live.m == nil {
+		live.m = map[*editor.State]*State{}
+	}
 	for s, st := range d.sides() {
 		side := diff.Side(s)
 		d.unsub = append(d.unsub, st.OnDidScroll(func(ev editor.ScrollEvent) { d.scrolled(side, ev) }))
-		live[st] = d
+		live.m[st] = d
 	}
+	live.Unlock()
 	d.run.now(original.Snapshot(), modified.Snapshot())
 	return d
 }
@@ -219,8 +238,12 @@ func (d *State) Close() {
 	for _, f := range d.unsub {
 		f()
 	}
+	live.Lock()
 	for _, st := range d.sides() {
-		delete(live, st)
+		delete(live.m, st)
+	}
+	live.Unlock()
+	for _, st := range d.sides() {
 		st.Close()
 	}
 }

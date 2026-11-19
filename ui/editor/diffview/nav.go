@@ -36,7 +36,7 @@ var diffRules = []keymap.Rule{
 func init() {
 	cmd := func(id, label string, run func(d *State, st *editor.State) bool) {
 		editor.RegisterCommand(editor.Command{ID: id, Label: label, Precondition: "isInDiffEditor", Run: func(st *editor.State, _ any) bool {
-			d := live[st]
+			d := liveView(st)
 			if d == nil {
 				return false
 			}

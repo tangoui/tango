@@ -15,6 +15,7 @@ package flexbox
 
 import (
 	"math"
+	"sync/atomic"
 
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/internal/flexbox/flexstyle"
@@ -63,22 +64,33 @@ type memoEntry struct {
 	out    geom.Size
 }
 
-var gen uint32
+// solves numbers the solves of every tree. Windows on their own UI threads
+// solve their trees at the same time, so the counter is atomic and each
+// solve captures its number once (a pass) and carries it down instead of
+// reading a shared global per node.
+var solves atomic.Uint32
+
+// pass is one solve's generation: a node's measurement memo is valid only
+// within the pass that filled it. Numbers are unique across trees, so a
+// node never mistakes another tree's solve for its own.
+type pass uint32
+
+func newPass() pass { return pass(solves.Add(1)) }
 
 // Solve lays out root to exactly w×h.
 func Solve(root *Node, w, h float32) {
-	gen++
+	g := newPass()
 	root.Rect = geom.Rect{W: w, H: h}
-	arrange(root, w, h)
+	g.arrange(root, w, h)
 }
 
 // SolveAt lays out root in a box of up to w×h, sizing it to content on
 // axes not forced (used for overlays). Returns the chosen size.
 func SolveAt(root *Node, w, h float32, fw, fh bool) geom.Size {
-	gen++
-	sz := measure(root, w, h, fw, fh)
+	g := newPass()
+	sz := g.measure(root, w, h, fw, fh)
 	root.Rect.W, root.Rect.H = sz.W, sz.H
-	arrange(root, sz.W, sz.H)
+	g.arrange(root, sz.W, sz.H)
 	return sz
 }
 
@@ -94,9 +106,9 @@ func clamp(v, lo, hi float32) float32 {
 
 // measure returns the border-box size of n. cw/ch are the available sizes;
 // fw/fh force the size on that axis to exactly cw/ch.
-func measure(n *Node, cw, ch float32, fw, fh bool) geom.Size {
-	if n.gen != gen {
-		n.gen = gen
+func (g pass) measure(n *Node, cw, ch float32, fw, fh bool) geom.Size {
+	if n.gen != uint32(g) {
+		n.gen = uint32(g)
 		n.nmemo = 0
 	}
 	for i := 0; i < n.nmemo; i++ {
@@ -105,7 +117,7 @@ func measure(n *Node, cw, ch float32, fw, fh bool) geom.Size {
 			return m.out
 		}
 	}
-	out := measureUncached(n, cw, ch, fw, fh)
+	out := g.measureUncached(n, cw, ch, fw, fh)
 	m := memoEntry{cw, ch, fw, fh, out}
 	if n.nmemo < 6 {
 		if n.nmemo == len(n.memo) && n.memoMore == nil {
@@ -129,7 +141,7 @@ func (n *Node) memoAt(i int) *memoEntry {
 	return &n.memoMore[i-len(n.memo)]
 }
 
-func measureUncached(n *Node, cw, ch float32, fw, fh bool) geom.Size {
+func (g pass) measureUncached(n *Node, cw, ch float32, fw, fh bool) geom.Size {
 	s := &n.Style
 	w, h := float32(0), float32(0)
 	knownW, knownH := false, false
@@ -176,7 +188,7 @@ func measureUncached(n *Node, cw, ch float32, fw, fh bool) geom.Size {
 		if s.ScrollY {
 			innerH = geom.Inf
 		}
-		content = flex(n, innerW, innerH, knownW && !s.ScrollX, knownH && !s.ScrollY, false)
+		content = g.flex(n, innerW, innerH, knownW && !s.ScrollX, knownH && !s.ScrollY, false)
 	}
 	if !knownW {
 		w = clamp(content.W+s.Padding.Horizontal(), s.MinW, s.MaxW)
@@ -188,7 +200,7 @@ func measureUncached(n *Node, cw, ch float32, fw, fh bool) geom.Size {
 }
 
 // arrange positions n's children for a final size w×h.
-func arrange(n *Node, w, h float32) {
+func (g pass) arrange(n *Node, w, h float32) {
 	s := &n.Style
 	innerW := max(0, w-s.Padding.Horizontal())
 	innerH := max(0, h-s.Padding.Vertical())
@@ -201,7 +213,7 @@ func arrange(n *Node, w, h float32) {
 	}
 	var c geom.Size
 	if len(n.Children) > 0 {
-		c = flex(n, innerW, innerH, defW, defH, true)
+		c = g.flex(n, innerW, innerH, defW, defH, true)
 	} else if n.Measure != nil && (s.ScrollX || s.ScrollY) {
 		c = n.Measure(innerW, innerH)
 	}
@@ -217,7 +229,7 @@ func arrange(n *Node, w, h float32) {
 		if !ch.Absolute {
 			continue
 		}
-		placeAbsolute(ch, w, h)
+		g.placeAbsolute(ch, w, h)
 	}
 	if s.RTL {
 		mirror(n, w)
@@ -240,7 +252,7 @@ func mirror(n *Node, w float32) {
 	}
 }
 
-func placeAbsolute(ch *Node, w, h float32) {
+func (g pass) placeAbsolute(ch *Node, w, h float32) {
 	p := ch.Pos
 	cw, fw := w, false
 	if set(p.Left) && set(p.Right) {
@@ -250,7 +262,7 @@ func placeAbsolute(ch *Node, w, h float32) {
 	if set(p.Top) && set(p.Bottom) {
 		chh, fh = max(0, h-p.Top-p.Bottom), true
 	}
-	sz := measure(ch, cw, chh, fw, fh)
+	sz := g.measure(ch, cw, chh, fw, fh)
 	x := float32(0)
 	switch {
 	case set(p.Left):
@@ -266,7 +278,7 @@ func placeAbsolute(ch *Node, w, h float32) {
 		y = h - p.Bottom - sz.H
 	}
 	ch.Rect = geom.Rect{X: x, Y: y, W: sz.W, H: sz.H}
-	arrange(ch, sz.W, sz.H)
+	g.arrange(ch, sz.W, sz.H)
 }
 
 type item struct {
@@ -308,10 +320,10 @@ func wrapLines(items []item, mainAvail, gap float32) [][]int {
 
 // flex lays out in-flow children inside an inner box and returns the content
 // size. When commit is set, child Rects are written and children arranged.
-func flex(n *Node, innerW, innerH float32, defW, defH, commit bool) geom.Size {
+func (g pass) flex(n *Node, innerW, innerH float32, defW, defH, commit bool) geom.Size {
 	s := &n.Style
 	if s.Dir == layout.Stack {
-		return stack(n, innerW, innerH, defW, defH, commit)
+		return g.stack(n, innerW, innerH, defW, defH, commit)
 	}
 	row := s.Dir == layout.Row
 	mainAvail, crossAvail := innerH, innerW
@@ -373,7 +385,7 @@ func flex(n *Node, innerW, innerH float32, defW, defH, commit bool) geom.Size {
 		case fixedMain > 0:
 			it.basis = fixedMain
 		default:
-			sz := measureAxis(c, row, geom.Inf, crossForSizing, false, stretchCross)
+			sz := g.measureAxis(c, row, geom.Inf, crossForSizing, false, stretchCross)
 			if row {
 				it.basis = sz.W
 			} else {
@@ -449,7 +461,7 @@ func flex(n *Node, innerW, innerH float32, defW, defH, commit bool) geom.Size {
 			it := &items[i]
 			crossFor := max(0, crossAvail-it.mCrs)
 			stretch := it.align == layout.AlignStretch && !it.fixedCross && defCross && len(lines) == 1
-			sz := measureAxis(it.n, row, it.main, crossFor, true, stretch)
+			sz := g.measureAxis(it.n, row, it.main, crossFor, true, stretch)
 			if row {
 				it.cross = sz.H
 			} else {
@@ -520,7 +532,7 @@ func flex(n *Node, innerW, innerH float32, defW, defH, commit bool) geom.Size {
 			} else {
 				it.n.Rect = geom.Rect{X: padL + cp, Y: padT + mp, W: cross, H: it.main}
 			}
-			arrange(it.n, it.n.Rect.W, it.n.Rect.H)
+			g.arrange(it.n, it.n.Rect.W, it.n.Rect.H)
 			pos += it.main + it.mMain
 		}
 		crossPos += lc + s.LineGap
@@ -532,11 +544,11 @@ func flex(n *Node, innerW, innerH float32, defW, defH, commit bool) geom.Size {
 }
 
 // measureAxis measures a child with main size either forced or unbounded.
-func measureAxis(c *Node, row bool, main, cross float32, forceMain, forceCross bool) geom.Size {
+func (g pass) measureAxis(c *Node, row bool, main, cross float32, forceMain, forceCross bool) geom.Size {
 	if row {
-		return measure(c, main, cross, forceMain, forceCross)
+		return g.measure(c, main, cross, forceMain, forceCross)
 	}
-	return measure(c, cross, main, forceCross, forceMain)
+	return g.measure(c, cross, main, forceCross, forceMain)
 }
 
 func resolveFlexible(items []item, ln []int, free float32, row bool) {
@@ -621,7 +633,7 @@ func justify(j layout.Justify, free float32, n int) (start, between float32) {
 	return 0, 0
 }
 
-func stack(n *Node, innerW, innerH float32, defW, defH, commit bool) geom.Size {
+func (g pass) stack(n *Node, innerW, innerH float32, defW, defH, commit bool) geom.Size {
 	s := &n.Style
 	var cw, chh float32
 	for _, c := range n.Children {
@@ -635,7 +647,7 @@ func stack(n *Node, innerW, innerH float32, defW, defH, commit bool) geom.Size {
 		stretch := (al == layout.AlignAuto || al == layout.AlignStretch) && !c.NoStretch
 		fw := stretch && c.Width == 0 && defW
 		fh := stretch && c.Height == 0 && defH
-		sz := measure(c, max(0, innerW-c.Margin.Horizontal()), max(0, innerH-c.Margin.Vertical()), fw, fh)
+		sz := g.measure(c, max(0, innerW-c.Margin.Horizontal()), max(0, innerH-c.Margin.Vertical()), fw, fh)
 		cw = max(cw, sz.W+c.Margin.Horizontal())
 		chh = max(chh, sz.H+c.Margin.Vertical())
 		if commit {
@@ -656,7 +668,7 @@ func stack(n *Node, innerW, innerH float32, defW, defH, commit bool) geom.Size {
 				y += bh - c.Margin.Vertical() - sz.H
 			}
 			c.Rect = geom.Rect{X: s.Padding.Left + x, Y: s.Padding.Top + y, W: sz.W, H: sz.H}
-			arrange(c, sz.W, sz.H)
+			g.arrange(c, sz.W, sz.H)
 		}
 	}
 	return geom.Size{W: cw, H: chh}

@@ -66,6 +66,11 @@ func Draw(insts []shaders.Instance, t Target, tex Textures, dst *image.RGBA) {
 	if w <= 0 || h <= 0 {
 		return
 	}
+	// The shader's uniform and textures are package variables (they stand
+	// for the GPU's bindings), so draws of devices on different window UI
+	// threads take turns, as passes on one GPU queue would.
+	drawMu.Lock()
+	defer drawMu.Unlock()
 	shaders.FrameU = shaders.Frame{ViewSize: sl.V2(float32(w), float32(h)), Origin: sl.V2(float32(t.Origin.X), float32(t.Origin.Y))}
 	shaders.Mask = texture(tex.Mask, sl.Nearest)
 	shaders.Color = texture(tex.Color, sl.Nearest)
@@ -95,6 +100,9 @@ func Draw(insts []shaders.Instance, t Target, tex Textures, dst *image.RGBA) {
 		drawTriangle(dst, b, [3]shaders.Varyings{v[1], v[3], v[2]}, [3]sl.Vec2{px[1], px[3], px[2]})
 	}
 }
+
+// drawMu serializes Draw: see there.
+var drawMu sync.Mutex
 
 func texture(img image.Image, f sl.Filter) sl.Texture2D {
 	if img == nil {
