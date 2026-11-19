@@ -4,6 +4,13 @@ package windows
 
 import "unsafe"
 
+// SharedBuffer interfaces from WebView2.h, Microsoft.Web.WebView2 1.0.4314.35.
+var (
+	iidICoreWebView2Environment12 = guid("f503db9b-739f-48dd-b151-fdfcf253f54e")
+	iidICoreWebView2_17           = guid("702e75d4-fd44-434d-9d70-1a68a6b1192a")
+	iidICoreWebView2SharedBuffer  = guid("B747A495-0C6F-449E-97B8-2F81E9D6AB43") // returned directly by CreateSharedBuffer
+)
+
 // WebView2 interface layouts, transcribed from the method declarations in
 // WebView2.h (the Microsoft.Web.WebView2 SDK), in declaration order. Only
 // the pointer-sized position of each field matters: a field is one vtable
@@ -116,6 +123,31 @@ type vtICoreWebView2 struct {
 	RemoveWindowCloseRequested             uintptr
 }
 
+// Base slots 0–7, plus Environment2 through Environment11 additions
+// (1 + 2 + 1 + 2 + 1 + 1 + 3 + 1 + 3 + 1 = 16).
+type vtICoreWebView2Environment12 struct {
+	vtICoreWebView2Environment
+	_                  [16]uintptr
+	CreateSharedBuffer uintptr // 24
+}
+
+// Base slots 0–60, plus _2 through _16 additions
+// (7 + 5 + 4 + 2 + 1 + 1 + 7 + 9 + 2 + 3 + 3 + 1 + 3 + 4 + 3 = 55).
+type vtICoreWebView2_17 struct {
+	vtICoreWebView2
+	_                        [55]uintptr
+	PostSharedBufferToScript uintptr // 116
+}
+
+type vtICoreWebView2SharedBuffer struct {
+	vtIUnknown
+	GetSize              uintptr // 3
+	GetBuffer            uintptr // 4
+	OpenStream           uintptr
+	GetFileMappingHandle uintptr
+	Close                uintptr // 7
+}
+
 type vtICoreWebView2Settings struct {
 	vtIUnknown
 	GetIsScriptEnabled                uintptr
@@ -222,13 +254,24 @@ const (
 	wvGetSource                           = int(unsafe.Offsetof(vtICoreWebView2{}.GetSource) / slotSize)
 	wvNavigate                            = int(unsafe.Offsetof(vtICoreWebView2{}.Navigate) / slotSize)
 	wvAddNavigationCompleted              = int(unsafe.Offsetof(vtICoreWebView2{}.AddNavigationCompleted) / slotSize)
+	wvAddContentLoading                   = int(unsafe.Offsetof(vtICoreWebView2{}.AddContentLoading) / slotSize)
 	wvAddScriptToExecuteOnDocumentCreated = int(unsafe.Offsetof(vtICoreWebView2{}.AddScriptToExecuteOnDocumentCreated) / slotSize)
 	wvExecuteScript                       = int(unsafe.Offsetof(vtICoreWebView2{}.ExecuteScript) / slotSize)
+	wvPostWebMessageAsString              = int(unsafe.Offsetof(vtICoreWebView2{}.PostWebMessageAsString) / slotSize)
 	wvAddWebMessageReceived               = int(unsafe.Offsetof(vtICoreWebView2{}.AddWebMessageReceived) / slotSize)
 	wvCallDevToolsProtocolMethod          = int(unsafe.Offsetof(vtICoreWebView2{}.CallDevToolsProtocolMethod) / slotSize)
 	wvOpenDevToolsWindow                  = int(unsafe.Offsetof(vtICoreWebView2{}.OpenDevToolsWindow) / slotSize)
 	wvAddWebResourceRequested             = int(unsafe.Offsetof(vtICoreWebView2{}.AddWebResourceRequested) / slotSize)
 	wvAddWebResourceRequestedFilter       = int(unsafe.Offsetof(vtICoreWebView2{}.AddWebResourceRequestedFilter) / slotSize)
+)
+
+const (
+	envCreateSharedBuffer      = int(unsafe.Offsetof(vtICoreWebView2Environment12{}.CreateSharedBuffer) / slotSize)
+	wvPostSharedBufferToScript = int(unsafe.Offsetof(vtICoreWebView2_17{}.PostSharedBufferToScript) / slotSize)
+	sharedBufferGetSize        = int(unsafe.Offsetof(vtICoreWebView2SharedBuffer{}.GetSize) / slotSize)
+	sharedBufferGetBuffer      = int(unsafe.Offsetof(vtICoreWebView2SharedBuffer{}.GetBuffer) / slotSize)
+	sharedBufferClose          = int(unsafe.Offsetof(vtICoreWebView2SharedBuffer{}.Close) / slotSize)
+	sharedBufferReadWrite      = 1 // COREWEBVIEW2_SHARED_BUFFER_ACCESS_READ_WRITE, WebView2.h:2921
 )
 
 // Settings and event-argument slots.
