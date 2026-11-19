@@ -509,3 +509,69 @@ func TestThreadedCPUFrameTopLeftDuringResize(t *testing.T) {
 		t.Fatalf("%v\n%s", err, out)
 	}
 }
+
+func TestThreadClockLetsRefreshServeNearDeadline(t *testing.T) {
+	th := uithread.Start("near deadline")
+	defer th.Stop()
+	frames := 0 // UI thread only
+	clock := newThreadFrameClock(th, func() { frames++ }, func(bool) {})
+	defer th.Do(clock.stop)
+	th.Do(func() { clock.request() }) // running, first frame drawn at once
+	th.Do(func() {})
+	now := time.Now()
+	clock.mu.Lock()
+	clock.ticks.tick(now.Add(-20 * time.Millisecond))
+	clock.ticks.tick(now.Add(-4 * time.Millisecond)) // 16 ms refreshes, next at ~now+12ms
+	clock.mu.Unlock()
+	clock.requestAt(now.Add(10 * time.Millisecond))
+	th.Do(func() {})
+	clock.mu.Lock()
+	armed := clock.timer != nil || !clock.deadline.IsZero()
+	clock.mu.Unlock()
+	if armed {
+		t.Fatal("deadline before the next refresh armed a timer")
+	}
+	th.Do(func() {
+		if !clock.wanted {
+			t.Error("covered deadline did not request the next refresh's frame")
+		}
+	})
+
+	// A deadline past the next refresh still needs the timer.
+	clock.requestAt(time.Now().Add(time.Hour))
+	clock.mu.Lock()
+	armed = clock.timer != nil
+	clock.mu.Unlock()
+	if !armed {
+		t.Fatal("far deadline did not arm a timer")
+	}
+}
+
+func TestThreadClockPauseForgetsRefreshInterval(t *testing.T) {
+	th := uithread.Start("paused ticks")
+	defer th.Stop()
+	clock := newThreadFrameClock(th, func() {}, func(bool) {})
+	defer th.Do(clock.stop)
+	th.Do(func() { clock.request() })
+	th.Do(func() {})
+	now := time.Now()
+	clock.mu.Lock()
+	clock.ticks.tick(now.Add(-20 * time.Millisecond))
+	clock.ticks.tick(now.Add(-4 * time.Millisecond))
+	clock.mu.Unlock()
+	th.Do(func() {
+		for range linkIdleTicks {
+			clock.refresh() // idle refreshes pause the clock
+		}
+		if clock.running {
+			t.Fatal("clock still running after idle refreshes")
+		}
+	})
+	clock.requestAt(time.Now().Add(10 * time.Millisecond))
+	clock.mu.Lock()
+	armed := clock.timer != nil
+	clock.mu.Unlock()
+	if !armed {
+		t.Fatal("paused clock trusted its old refresh interval")
+	}
+}

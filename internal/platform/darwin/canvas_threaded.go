@@ -34,6 +34,11 @@ type threadFrameClock struct {
 	deadline                       time.Time
 	generation                     uint64
 	lastDraw, refreshAt            time.Time
+	// ticks estimates the refresh interval from refresh callbacks
+	// (canvas_sched.go), so requestAt can let the next refresh serve a
+	// near deadline instead of arming a timer, like the main-thread clock.
+	// Reset when the clock pauses.
+	ticks tickPeriod
 }
 
 func newThreadFrameClock(th *uithread.Thread, tick func(), pause func(bool)) *threadFrameClock {
@@ -77,6 +82,13 @@ func (f *threadFrameClock) requestAt(at time.Time) {
 	if f.stopped || at.IsZero() || (!f.deadline.IsZero() && !at.Before(f.deadline)) {
 		return
 	}
+	if linkCovers(at, time.Now(), true, true, f.ticks.lastTick(), f.ticks.get()) {
+		// The next refresh is no later than the deadline: ask for that
+		// frame now, without a timer wake-up (an animating window calls
+		// InvalidateAt(now+16ms) every frame). An earlier deadline stays.
+		f.queueLocked()
+		return
+	}
 	f.clearDeadline()
 	f.deadline = at
 	gen := f.generation
@@ -102,6 +114,7 @@ func (f *threadFrameClock) queueRefresh() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.refreshAt = time.Now()
+	f.ticks.tick(f.refreshAt)
 	if f.stopped || f.refreshQueued {
 		return
 	}
@@ -128,6 +141,9 @@ func (f *threadFrameClock) refresh() {
 	} else {
 		f.idle++
 		if f.idle >= linkIdleTicks {
+			f.mu.Lock()
+			f.ticks.pause() // the next callback is not one interval after the last
+			f.mu.Unlock()
 			f.running = false
 			f.pause(true)
 		}
