@@ -520,3 +520,25 @@ func TestUIStartRejectsTagsForExecutable(t *testing.T) {
 		t.Fatalf("error %q", msg)
 	}
 }
+
+// A window whose UI thread does not answer reports code "busy": that is an
+// error of its own, not "no node matched" (no query or tree dump).
+func TestUIFindBusyIsNotNotFound(t *testing.T) {
+	s, cs := projectServer(t)
+	trees := 0
+	a, _ := fakeSession(t, s, canvasWindow, map[string]func(*wire.Request) *wire.Response{
+		wire.OpFind: func(*wire.Request) *wire.Response {
+			// "busy" is wire.CodeBusy; spelled out so this builds against
+			// a pinned tango that predates the constant.
+			return &wire.Response{Code: "busy", Error: "automation: find: the window's UI thread is busy or blocked"}
+		},
+		wire.OpTree: func(*wire.Request) *wire.Response {
+			trees++
+			return &wire.Response{Dump: "window \"Main\"\n  button \"Save\"\n"}
+		},
+	})
+	msg := callErr(t, cs, "tango_ui_find", map[string]any{"session": a.ID, "query": map[string]any{"role": "checkbox"}, "timeoutMs": 50})
+	if !strings.Contains(msg, "busy") || strings.Contains(msg, "query:") || strings.Contains(msg, "button \"Save\"") || trees != 0 {
+		t.Fatalf("busy read as not found (trees %d):\n%s", trees, msg)
+	}
+}

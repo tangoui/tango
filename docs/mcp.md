@@ -121,6 +121,8 @@ WebView 应用（例如默认模板 `vanilla`、`examples/hello`）把第 2–4 
 
 会等待的工具 `timeoutMs` 默认 10000，最多 120000。找不到节点时，错误信息里带查询条件和当前语义树（前 200 行）。
 
+窗口的 UI 线程忙或阻塞（长帧、等对话框）时，工具以 `busy` 错误失败，这不是“找不到节点”；`tango_ui_act`、`tango_ui_click`、`tango_ui_type` 等动作收到 `busy` 后不要直接重试，请求可能已排进 UI 线程稍后执行，应先用 `tango_ui_find`/`tango_ui_wait` 确认界面状态。
+
 ### 界面工具：WebView 窗口
 
 | 工具 | 主要输入 | 输出 |
