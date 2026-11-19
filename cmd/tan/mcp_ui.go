@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -33,8 +34,11 @@ const (
 	appStartDefault  = 60 * time.Second
 	appStartMax      = 300 * time.Second
 	// connSlack is added to a request's own wait for the connection
-	// deadline: the app answers a timed-out wait itself.
-	connSlack = 5 * time.Second
+	// deadline: the app answers a timed-out wait itself, and before the
+	// window's first semantics tree exists it waits up to the automation
+	// server's treeTimeout (5 s) for it on top of the request's timeout.
+	// A deadline that fired first would break the connection for good.
+	connSlack = 10 * time.Second
 	// appStopTimeout bounds a polite quit before the process is killed.
 	appStopTimeout = 5 * time.Second
 
@@ -45,10 +49,11 @@ const (
 
 // appManager holds the app sessions the UI tools started or attached to.
 type appManager struct {
-	mu     sync.Mutex
-	n      int
-	apps   map[string]*appSession
-	closed bool // closeAll has run: no more sessions
+	mu      sync.Mutex
+	n       int
+	apps    map[string]*appSession
+	closed  bool          // closeAll has run: no more sessions
+	closing []*appSession // what closeAll (or adopt after it) is stopping, for killAll
 }
 
 func newAppManager() *appManager { return &appManager{apps: map[string]*appSession{}} }
@@ -66,6 +71,10 @@ type appSession struct {
 	exited  <-chan struct{}
 	exitErr func() error
 	tempDir string // build and token file of a started app; removed on stop
+	// addr and token dial a second connection, for a quit while a
+	// request holds conn; addr is "" when they are unknown.
+	addr, token string
+	busy        atomic.Int32 // requests in flight on conn
 }
 
 // add registers a and gives it the next ID (app-1, app-2, ...); after
@@ -86,8 +95,11 @@ func (m *appManager) add(a *appSession) bool {
 // finished starting after closeAll would be left running).
 func (m *appManager) adopt(a *appSession) error {
 	if !m.add(a) {
+		m.mu.Lock()
+		m.closing = append(m.closing, a)
+		m.mu.Unlock()
 		a.stop()
-		return errors.New("tan mcp: the server is shutting down")
+		return errShuttingDown
 	}
 	return nil
 }
@@ -141,12 +153,32 @@ func (m *appManager) closeAll() {
 	all := m.apps
 	m.apps = map[string]*appSession{}
 	m.closed = true
+	for _, a := range all {
+		m.closing = append(m.closing, a)
+	}
 	m.mu.Unlock()
 	var wg sync.WaitGroup
 	for _, a := range all {
 		wg.Go(func() { a.stop() })
 	}
 	wg.Wait()
+}
+
+// killAll kills the process of every started app at once, also those
+// closeAll is still stopping (a second signal), and refuses new sessions.
+func (m *appManager) killAll() {
+	m.mu.Lock()
+	m.closed = true
+	all := slices.Clone(m.closing)
+	for _, a := range m.apps {
+		all = append(all, a)
+	}
+	m.mu.Unlock()
+	for _, a := range all {
+		if a.proc != nil {
+			a.proc.Cmd.Process.Kill()
+		}
+	}
 }
 
 // stop ends the session: a started app is asked to quit (its process,
@@ -156,27 +188,57 @@ func (a *appSession) stop() (exitCode *int, err error) {
 	if a.tempDir != "" {
 		defer os.RemoveAll(a.tempDir)
 	}
-	switch {
-	case a.proc != nil:
-		// A request still in flight holds the connection: the kill ends it.
+	if !a.started {
+		a.conn.Close()
+		return nil, nil
+	}
+	deadline := time.Now().Add(appStopTimeout)
+	if a.proc != nil {
+		// A quit stuck behind a request that slipped in: the kill ends it.
 		kill := time.AfterFunc(2*appStopTimeout, func() { a.proc.Cmd.Process.Kill() })
-		err = a.proc.Quit(appStopTimeout)
-		kill.Stop()
-		if ps := a.proc.Cmd.ProcessState; ps != nil {
-			c := ps.ExitCode()
-			exitCode = &c
-		}
-	case a.started:
-		select {
-		case <-a.exited:
-		default:
-			a.conn.Do(&wire.Request{Op: wire.OpQuit}, appStopTimeout)
-		}
-		a.conn.Close()
+		defer kill.Stop()
+	}
+	select {
+	case <-a.exited:
 	default:
-		a.conn.Close()
+		a.quit()
+	}
+	a.conn.Close()
+	if a.proc == nil {
+		return nil, nil
+	}
+	select {
+	case <-a.exited:
+	case <-time.After(time.Until(deadline)):
+		a.proc.Cmd.Process.Kill()
+		<-a.exited
+		err = fmt.Errorf("the app did not exit within %v after quit", appStopTimeout)
+	}
+	if ps := a.proc.Cmd.ProcessState; ps != nil {
+		c := ps.ExitCode()
+		exitCode = &c
 	}
 	return exitCode, err
+}
+
+// quit asks the app to quit. A request in flight (a long wait) holds conn
+// until it ends: conn is then closed, which fails that request at once,
+// and the quit goes over a second connection.
+func (a *appSession) quit() {
+	if a.busy.Load() == 0 {
+		a.conn.Do(&wire.Request{Op: wire.OpQuit}, appStopTimeout)
+		return
+	}
+	a.conn.Close()
+	if a.addr == "" {
+		return
+	}
+	c, err := client.Dial(a.addr, a.token)
+	if err != nil {
+		return
+	}
+	defer c.Close()
+	c.Do(&wire.Request{Op: wire.OpQuit}, appStopTimeout)
 }
 
 // exitError describes the exited app, with the end of its output.
@@ -211,7 +273,9 @@ func (a *appSession) do(ctx context.Context, req *wire.Request, timeout time.Dur
 		err error
 	}
 	ch := make(chan result, 1)
+	a.busy.Add(1)
 	go func() {
+		defer a.busy.Add(-1)
 		r, err := a.conn.Do(req, timeout)
 		ch <- result{r, err}
 	}()
@@ -255,13 +319,9 @@ func (a *appSession) windows(ctx context.Context) ([]wire.WindowInfo, error) {
 	return r.Windows, nil
 }
 
-// window finds the window ref names: its ID in decimal or its exact title.
-// "" is the only window, else the focused one, else the first.
-func (a *appSession) window(ref string) (wire.WindowInfo, error) {
-	return a.windowCtx(context.Background(), ref)
-}
-
-// windowCtx is window, giving up when ctx is done.
+// windowCtx finds the window ref names: its ID in decimal or its exact
+// title. "" is the only window, else the focused one, else the first. It
+// gives up when ctx is done.
 func (a *appSession) windowCtx(ctx context.Context, ref string) (wire.WindowInfo, error) {
 	ws, err := a.windows(ctx)
 	if err != nil {
@@ -721,7 +781,7 @@ func (s *mcpServer) screenshot(ctx context.Context, in uiScreenshotInput) ([]byt
 		if w.Kind == wire.KindWebView {
 			return nil, webViewError(w)
 		}
-		r, err := a.waitOp(ctx, &wire.Request{Op: wire.OpFind, Window: w.ID, Query: in.Query}, 0)
+		r, err := a.waitOp(ctx, &wire.Request{Op: wire.OpFind, Window: w.ID, Query: in.Query}, uiTimeoutDefault)
 		if err != nil {
 			return nil, err
 		}
@@ -783,6 +843,11 @@ func checkAppEnv(env []string) error {
 }
 
 func (s *mcpServer) startApp(ctx context.Context, in appStartInput) (appSessionOutput, error) {
+	ctx, done, err := s.track(ctx)
+	if err != nil {
+		return appSessionOutput{}, err
+	}
+	defer done()
 	if err := checkAppEnv(in.Env); err != nil {
 		return appSessionOutput{}, err
 	}
@@ -810,7 +875,9 @@ func (s *mcpServer) startApp(ctx context.Context, in appStartInput) (appSessionO
 		return appSessionOutput{}, err
 	}
 	o := client.LaunchOptions{
-		Target: target, Dir: dir, Args: in.Args, Env: in.Env,
+		// Env comes after tan mcp's own environment, which cannot turn
+		// off the background launch then (in.Env has no TANGO_ entry).
+		Target: target, Dir: dir, Args: in.Args, Env: append(slices.Clone(in.Env), client.EnvLaunchBackground+"=1"),
 		Output:       newTailBuffer(appOutputMax),
 		StartTimeout: timeoutMs(in.TimeoutMs, appStartDefault, appStartMax),
 		TempDir:      tmp,
@@ -819,15 +886,19 @@ func (s *mcpServer) startApp(ctx context.Context, in appStartInput) (appSessionO
 		o.BuildFlags = []string{"-tags", strings.Join(in.Tags, ",")}
 	}
 	out := o.Output.(*tailBuffer)
-	proc, err := client.Launch(o)
+	proc, err := client.LaunchContext(ctx, o)
 	if err != nil {
 		os.RemoveAll(tmp)
+		if ctx.Err() != nil {
+			return appSessionOutput{}, context.Cause(ctx)
+		}
 		if tail, _ := out.Tail(appExitTail); tail != "" {
 			err = fmt.Errorf("%v\nthe app's last output:\n%s", err, tail)
 		}
 		return appSessionOutput{}, err
 	}
-	a := &appSession{conn: proc.Conn, proc: proc, out: out, started: true, exited: proc.Exited(), exitErr: proc.ExitErr, tempDir: tmp}
+	a := &appSession{conn: proc.Conn, proc: proc, out: out, started: true, exited: proc.Exited(), exitErr: proc.ExitErr, tempDir: tmp,
+		addr: proc.Channel.Addr, token: proc.Channel.Token}
 	if err := s.apps.adopt(a); err != nil {
 		return appSessionOutput{}, err
 	}
@@ -836,8 +907,10 @@ func (s *mcpServer) startApp(ctx context.Context, in appStartInput) (appSessionO
 	for {
 		ws, err := a.windows(ctx)
 		if err != nil {
-			s.apps.remove(a.ID)
-			a.stop()
+			// Not found: closeAll or tango_app_stop has it and stops it.
+			if _, rerr := s.apps.remove(a.ID); rerr == nil {
+				a.stop()
+			}
 			return appSessionOutput{}, err
 		}
 		if len(ws) > 0 || time.Now().After(deadline) {
@@ -846,9 +919,10 @@ func (s *mcpServer) startApp(ctx context.Context, in appStartInput) (appSessionO
 		select {
 		case <-ctx.Done():
 			// The caller will not learn the session id: do not keep the app.
-			s.apps.remove(a.ID)
-			a.stop()
-			return appSessionOutput{}, ctx.Err()
+			if _, rerr := s.apps.remove(a.ID); rerr == nil {
+				a.stop()
+			}
+			return appSessionOutput{}, context.Cause(ctx)
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
@@ -874,12 +948,19 @@ func (s *mcpServer) attachApp(ctx context.Context, in appAttachInput) (appSessio
 		addr, token = tf.Addr, tf.Token
 	case addr == "" || token == "":
 		return appSessionOutput{}, errors.New("tokenFile, or addr and token: required")
+	default:
+		// Checked before dialing, so nothing goes to another machine: a
+		// loopback host:port, or a unix socket (wire.ParseAddr, which
+		// Dial uses too, accepts only these).
+		if _, _, err := wire.ParseAddr(addr); err != nil {
+			return appSessionOutput{}, fmt.Errorf("addr: %w", err)
+		}
 	}
 	conn, err := client.Dial(addr, token)
 	if err != nil {
 		return appSessionOutput{}, fmt.Errorf("connect to %s: %w", addr, err)
 	}
-	a := &appSession{conn: conn, exited: make(chan struct{}), exitErr: func() error { return nil }}
+	a := &appSession{conn: conn, exited: make(chan struct{}), exitErr: func() error { return nil }, addr: addr, token: token}
 	ws, err := a.windows(ctx)
 	if err != nil {
 		conn.Close()

@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -28,7 +29,22 @@ type mcpServer struct {
 	srv  *mcp.Server
 	jobs *jobManager
 	apps *appManager
+
+	// ctx is done once close (or kill) has started; handlers that start
+	// children merge it into their own context (see track).
+	ctx       context.Context
+	cancel    context.CancelFunc
+	mu        sync.Mutex
+	closing   bool           // guards inflight.Add
+	inflight  sync.WaitGroup // tracked handlers still running
+	closeOnce sync.Once
 }
+
+// errShuttingDown is the error of tools called while tan mcp shuts down.
+var errShuttingDown = errors.New("tan mcp: the server is shutting down")
+
+// mcpExit ends the process after a second signal; tests replace it.
+var mcpExit = os.Exit
 
 // newMCPServer returns the server for the project directory root.
 func newMCPServer(root string) (*mcpServer, error) {
@@ -51,16 +67,111 @@ func newMCPServer(root string) (*mcpServer, error) {
 		jobs: newJobManager(),
 		apps: newAppManager(),
 	}
+	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.addProjectTools()
 	s.addUITools()
 	s.addWebTools()
 	return s, nil
 }
 
-// close stops every job and app the server started.
+// track registers a handler that starts children (an app being launched,
+// tan init) so that close waits for it, and returns its context merged
+// with the server's: shutting down cancels it, which kills what it
+// started. done must be called when the handler returns. After close has
+// started it refuses.
+func (s *mcpServer) track(ctx context.Context) (_ context.Context, done func(), err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closing {
+		return nil, nil, errShuttingDown
+	}
+	s.inflight.Add(1)
+	ctx, cancel := context.WithCancelCause(ctx)
+	stop := context.AfterFunc(s.ctx, func() { cancel(errShuttingDown) })
+	return ctx, func() {
+		stop()
+		cancel(nil)
+		s.inflight.Done()
+	}, nil
+}
+
+// startClosing refuses new tracked handlers and cancels the running ones.
+func (s *mcpServer) startClosing() {
+	s.mu.Lock()
+	s.closing = true
+	s.mu.Unlock()
+	s.cancel()
+}
+
+// close stops every job and app the server started, and waits for the
+// tracked handlers, whose launches it cancels. Later calls wait for the
+// first one to finish.
 func (s *mcpServer) close() {
-	s.jobs.stopAll()
-	s.apps.closeAll()
+	s.closeOnce.Do(func() {
+		s.startClosing()
+		var wg sync.WaitGroup
+		wg.Go(s.jobs.stopAll)
+		wg.Go(s.apps.closeAll)
+		wg.Wait()
+		s.inflight.Wait()
+	})
+}
+
+// kill ends every child at once (a second signal while close runs): the
+// jobs' process groups and the started apps' processes. It waits a moment
+// for the cancelled launches to kill theirs.
+func (s *mcpServer) kill() {
+	s.startClosing()
+	s.jobs.killAll()
+	s.apps.killAll()
+	done := make(chan struct{})
+	go func() {
+		s.inflight.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+	}
+}
+
+// serveUntilSignal runs serve until it returns or the first signal comes
+// in sigs, which cancels its context; then it closes s, stopping every
+// job and app it started. A second signal while that runs kills them all
+// at once and exits.
+func (s *mcpServer) serveUntilSignal(sigs <-chan os.Signal, serve func(context.Context) error) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	served := make(chan error, 1)
+	go func() { served <- serve(ctx) }()
+	var err error
+	signalled := false
+	select {
+	case err = <-served:
+	case <-sigs:
+		signalled = true
+		cancel()
+	}
+	// Cleanup starts now, while serve winds down: Conn.Close fails the UI
+	// requests in flight, and the server context cancels launches.
+	closed := make(chan struct{})
+	go func() {
+		s.close()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-sigs:
+		fmt.Fprintln(os.Stderr, "tan mcp: second signal: killing the apps and jobs")
+		s.kill()
+		mcpExit(1)
+		return errors.New("tan mcp: killed by a second signal")
+	}
+	if signalled {
+		<-served
+		return nil
+	}
+	return err
 }
 
 func runMCP(args []string) error {
@@ -95,22 +206,27 @@ func runMCP(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer s.close()
+	defer s.close() // serveUntilSignal has closed it, unless listening failed
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	// The handler stays installed until cleanup is over: a second signal
+	// kills the children instead of tan mcp alone.
+	sigs := make(chan os.Signal, 2)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigs)
 	if !*useHTTP {
-		// Run returns nil when stdin reaches EOF and ctx.Err() on a signal.
-		if err := s.srv.Run(ctx, &mcp.StdioTransport{}); err != nil && ctx.Err() == nil {
-			return err
-		}
-		return nil
+		return s.serveUntilSignal(sigs, func(ctx context.Context) error {
+			// Run returns nil when stdin reaches EOF and ctx.Err() on a signal.
+			if err := s.srv.Run(ctx, &mcp.StdioTransport{}); err != nil && ctx.Err() == nil {
+				return err
+			}
+			return nil
+		})
 	}
 	ln, err := listenLoopback(*addr)
 	if err != nil {
 		return err
 	}
-	return s.serveHTTP(ctx, ln, *token)
+	return s.serveUntilSignal(sigs, func(ctx context.Context) error { return s.serveHTTP(ctx, ln, *token) })
 }
 
 // listenLoopback listens on addr, which checkLoopbackAddr accepted.

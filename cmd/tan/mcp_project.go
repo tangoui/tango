@@ -350,6 +350,12 @@ func (s *mcpServer) initProject(ctx context.Context, in projectInitInput) (proje
 		args = append(args, "-module", in.Module)
 	}
 	args = append(args, dir)
+	// Tracked: shutting down kills tan init and waits for it.
+	ctx, done, err := s.track(ctx)
+	if err != nil {
+		return projectInitOutput{}, err
+	}
+	defer done()
 	out, err := runTan(ctx, s.root, args, projectInitTimeout)
 	if err != nil {
 		return projectInitOutput{}, fmt.Errorf("tan init: %w\n%s", err, out)
@@ -358,8 +364,9 @@ func (s *mcpServer) initProject(ctx context.Context, in projectInitInput) (proje
 }
 
 // runTan runs "tan args..." in dir and waits at most timeout for it,
-// returning the end of its output. On timeout or cancellation the process
-// and its children are killed.
+// returning the end of its output. On timeout or cancellation (also by
+// the server shutting down, see mcpServer.track) the process and its
+// children are killed.
 func runTan(ctx context.Context, dir string, args []string, timeout time.Duration) (string, error) {
 	exe, err := selfExe()
 	if err != nil {
@@ -392,7 +399,7 @@ func runTan(ctx context.Context, dir string, args []string, timeout time.Duratio
 	case <-ctx.Done():
 		group.kill()
 		<-done
-		err = ctx.Err()
+		err = context.Cause(ctx)
 	}
 	s, _ := out.Tail(0)
 	return s, err

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -278,6 +279,11 @@ func TestUICloseAllQuitsStarted(t *testing.T) {
 	}
 }
 
+// window is windowCtx without a context.
+func (a *appSession) window(ref string) (wire.WindowInfo, error) {
+	return a.windowCtx(context.Background(), ref)
+}
+
 func TestUISessionWindow(t *testing.T) {
 	s, _ := projectServer(t)
 	wins := []wire.WindowInfo{
@@ -351,9 +357,11 @@ func TestUIScreenshotCrops(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	png.Encode(&buf, img)
+	var findTimeout int64 // read after the call that sets it returned
 	a, _ := fakeSession(t, s, canvasWindow, map[string]func(*wire.Request) *wire.Response{
 		wire.OpScreenshot: func(*wire.Request) *wire.Response { return &wire.Response{PNG: buf.Bytes()} },
-		wire.OpFind: func(*wire.Request) *wire.Response {
+		wire.OpFind: func(r *wire.Request) *wire.Response {
+			findTimeout = r.Timeout
 			return &wire.Response{Node: &a11y.Node{ID: 2, Role: a11y.RoleButton, Bounds: a11y.Rect{X: 10, Y: 10, W: 20, H: 10}}, Count: 1}
 		},
 	})
@@ -382,6 +390,20 @@ func TestUIScreenshotCrops(t *testing.T) {
 	}
 	if r, g, _, _ := im.At(b.Min.X+1, b.Min.Y+1).RGBA(); r>>8 != 255 || g != 0 {
 		t.Errorf("cropped pixel not red")
+	}
+	// A zero wait would leave the app looking once; the node may still be
+	// coming.
+	if findTimeout != uiTimeoutDefault.Milliseconds() {
+		t.Errorf("find for the crop: timeout %d ms, want %d", findTimeout, uiTimeoutDefault.Milliseconds())
+	}
+}
+
+// The app may wait the request's timeout plus its treeTimeout (5 s, for
+// the first tree) before it answers a timed-out wait; the connection
+// deadline must outlast that, or the answer breaks the connection.
+func TestConnSlackCoversTreeTimeout(t *testing.T) {
+	if connSlack < 10*time.Second {
+		t.Fatalf("connSlack %v, want at least treeTimeout (5 s) + 5 s", connSlack)
 	}
 }
 
@@ -429,8 +451,10 @@ func TestUIAttach(t *testing.T) {
 	if err != nil || a.started || a.proc != nil {
 		t.Fatalf("session %+v, %v", a, err)
 	}
-	if msg := callErr(t, cs, "tango_app_attach", map[string]any{"addr": "10.1.2.3:80", "token": "x"}); !strings.Contains(msg, "loopback") {
-		t.Errorf("non-loopback attach: %s", msg)
+	for _, bad := range []string{"10.1.2.3:80", "example.com:80", "127.0.0.1"} {
+		if msg := callErr(t, cs, "tango_app_attach", map[string]any{"addr": bad, "token": "x"}); !strings.HasPrefix(msg, "addr: ") {
+			t.Errorf("attach to %s: %s", bad, msg)
+		}
 	}
 }
 

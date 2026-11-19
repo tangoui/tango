@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -79,7 +78,7 @@ func (m *jobManager) start(kind, dir string, args []string, env []string) (jobIn
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed {
-		return jobInfo{}, errors.New("the server is shutting down")
+		return jobInfo{}, errShuttingDown
 	}
 
 	cmd := exec.Command(exe, args...)
@@ -196,6 +195,19 @@ func (m *jobManager) stopAll() {
 		})
 	}
 	wg.Wait()
+}
+
+// killAll kills every job's process group at once and refuses new jobs
+// (a second signal while stopAll runs).
+func (m *jobManager) killAll() {
+	m.mu.Lock()
+	m.closed = true
+	jobs := slices.Clone(m.order)
+	m.mu.Unlock()
+	for _, j := range jobs {
+		j.group.kill()
+		j.group.release()
+	}
 }
 
 func (j *job) stop() {
