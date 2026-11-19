@@ -726,7 +726,7 @@ func (w *ViewW) placeholderAt(pt geom.Point) int {
 		return -1
 	}
 	x0, x1 := w.placeholderX(&lv)
-	if x := pt.X - vs.text.X + st.Viewport.ScrollX; x >= x0-1 && x < x1 {
+	if x := pt.X - vs.text.X + w.displayViewport().ScrollX; x >= x0-1 && x < x1 {
 		return line
 	}
 	return -1
@@ -739,7 +739,7 @@ func (w *ViewW) placeholderAt(pt geom.Point) int {
 // row plus those into it after its indentation; column selection works on
 // model lines).
 func (w *ViewW) visualAt(snap buffer.Snapshot, p geom.Point) (line, col int) {
-	vs, v := w.vs, w.st.Viewport
+	vs, v := w.vs, w.displayViewport()
 	x := p.X - vs.text.X + v.ScrollX
 	line, row := w.st.lines().find(w.pointRow(p))
 	if w.st.vl.cfg.inj.on() {
@@ -758,7 +758,7 @@ func (w *ViewW) visualAt(snap buffer.Snapshot, p geom.Point) (line, col int) {
 
 // pointRow returns the view line at window y of p (not clamped).
 func (w *ViewW) pointRow(p geom.Point) int {
-	vs, v := w.vs, w.st.Viewport
+	vs, v := w.vs, w.displayViewport()
 	return v.TopLine + int(math.Floor(float64((p.Y-vs.text.Y+v.OffsetY)/v.LineHeight)))
 }
 
@@ -882,7 +882,7 @@ func (w *ViewW) hitAt(snap buffer.Snapshot, p geom.Point) (off int, up bool) {
 // injected gap (the offset is the gap's column, the caret drawn right of
 // it: injected.go).
 func (w *ViewW) hitSide(snap buffer.Snapshot, p geom.Point) (off int, up, right bool) {
-	vs, v := w.vs, w.st.Viewport
+	vs := w.vs
 	r := w.pointRow(p)
 	switch {
 	case r < 0:
@@ -900,7 +900,7 @@ func (w *ViewW) hitSide(snap buffer.Snapshot, p geom.Point) (off int, up, right 
 		return lineEnd(snap, line), false, false
 	}
 	lv := w.rowAt(snap, line, row)
-	col, right := w.colAtXSide(&lv, p.X-vs.text.X+v.ScrollX)
+	col, right := w.colAtXSide(&lv, p.X-vs.text.X+w.displayViewport().ScrollX)
 	return snap.LineStart(line) + col, !lv.last() && col == lv.b1, right
 }
 

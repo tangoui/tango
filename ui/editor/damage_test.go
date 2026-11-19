@@ -212,7 +212,7 @@ func TestViewDamageVerified(t *testing.T) {
 
 			// Horizontal scrolling (the current line's highlight does not
 			// scroll with the text).
-			for _, dx := range []float32{8, 16, -8} {
+			for _, dx := range []float32{8, 16, -8, 7.25, -7.25} {
 				h.r.HandleEvent(input.Scroll{Pos: p, DX: dx})
 				h.step(fmt.Sprintf("scroll x %v", dx))
 			}

@@ -8,6 +8,7 @@ import (
 	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/theme"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/paint"
 )
 
 // Redraw hints (spec 6.2).
@@ -109,14 +110,15 @@ type damageRec struct {
 	g       damageGlobal
 	topLine int
 	// aLine, aRow: the model line and row at the top (topLine's anchor).
-	aLine, aRow int
-	offsetY     float32
-	scrollX     float32
-	lo          int      // first row, -1 for none
-	rows        []uint64 // fingerprints of rows lo, lo+1, ...
-	marks       []geom.Rect
-	sticky      geom.Rect // fixed header in this paint, never carried by ScrollShift
-	fixed       []fixedPaint
+	aLine, aRow     int
+	offsetY         float32
+	scrollX         float32
+	scrollRemainder bool     // the input position differs from the drawn position
+	lo              int      // first row, -1 for none
+	rows            []uint64 // fingerprints of rows lo, lo+1, ...
+	marks           []geom.Rect
+	sticky          geom.Rect // fixed header in this paint, never carried by ScrollShift
+	fixed           []fixedPaint
 }
 
 // paintFrame is what paint drew this frame, for declareDamage.
@@ -129,6 +131,7 @@ type paintFrame struct {
 	curG      []bool // rows with the gutter's current-line highlight (nil: none)
 	cmp       compView
 	caretLine int
+	offsetY   float32
 	scrollX   float32
 	marks     []geom.Rect
 	// aLine, aRow: the model line and row at the top.
@@ -292,16 +295,17 @@ func (w *ViewW) rowHashes(pf *paintFrame, dst []uint64) []uint64 {
 
 // declareDamage declares what changed since the View's last paint (see
 // above) and records this paint.
-func (w *ViewW) declareDamage(pf *paintFrame) {
+func (w *ViewW) declareDamage(l *paint.List, pf *paintFrame) {
 	vs, c := w.vs, w.c
 	prev := &vs.dmg
 	v := w.st.Viewport
 	// cur reuses the buffers of the paint before last.
-	cur := damageRec{ok: true, g: pf.g, topLine: v.TopLine, aLine: pf.aLine, aRow: pf.aRow, offsetY: v.OffsetY, scrollX: v.ScrollX, lo: -1,
-		rows:   w.rowHashes(pf, vs.dmgSpare.rows),
-		sticky: vs.stickyRect,
-		marks:  append(vs.dmgSpare.marks[:0], pf.marks...),
-		fixed:  append(vs.dmgSpare.fixed[:0], vs.navPaint...)}
+	cur := damageRec{ok: true, g: pf.g, topLine: v.TopLine, aLine: pf.aLine, aRow: pf.aRow, offsetY: pf.offsetY, scrollX: pf.scrollX, lo: -1,
+		scrollRemainder: pf.offsetY != v.OffsetY || pf.scrollX != v.ScrollX,
+		rows:            w.rowHashes(pf, vs.dmgSpare.rows),
+		sticky:          vs.stickyRect,
+		marks:           append(vs.dmgSpare.marks[:0], pf.marks...),
+		fixed:           append(vs.dmgSpare.fixed[:0], vs.navPaint...)}
 	// Fixed decorations are compared in screen space, independently of
 	// scrolling rows. Blink-only frames must still damage only the caret.
 	var fixedDirty [3]geom.Rect
@@ -365,8 +369,8 @@ func (w *ViewW) declareDamage(pf *paintFrame) {
 		}
 		ptop = t
 	}
-	dy := float32(float64(v.TopLine-ptop)*float64(lh) + float64(v.OffsetY-prev.offsetY))
-	dx := v.ScrollX - prev.scrollX
+	dy := float32(float64(cur.topLine-ptop)*float64(lh) + float64(cur.offsetY) - float64(prev.offsetY))
+	dx := cur.scrollX - prev.scrollX
 	var shift geom.Point
 	switch {
 	case dy != 0 && dx != 0, dy != 0 && absf(dy) >= g.rect.H, dx != 0 && absf(dx) >= g.text.W:
@@ -386,6 +390,11 @@ func (w *ViewW) declareDamage(pf *paintFrame) {
 		body.H = max(0, body.Bottom()-top)
 		body.Y = top
 		w.box.ScrollShift(body, shift)
+	case cur.scrollRemainder || prev.scrollRemainder:
+		// The input can move within one device pixel without moving the
+		// drawn rows. An empty damage hint lets a retaining renderer skip
+		// the frame if the Runner and other paint changes add no damage.
+		l.Ops = append(l.Ops, paint.Damage{})
 	}
 
 	if !prev.sticky.Empty() && shift != (geom.Point{}) {
@@ -396,7 +405,7 @@ func (w *ViewW) declareDamage(pf *paintFrame) {
 
 	// Rows, at their place in this paint; runs of adjacent rows are
 	// declared as one rectangle.
-	ty := g.text.Y - v.OffsetY
+	ty := g.text.Y - cur.offsetY
 	pad := rowPad(lh)
 	run0, run1 := 0, -1 // the pending run of rows [run0, run1]
 	var strip geom.Rect // the strip a horizontal shift uncovers

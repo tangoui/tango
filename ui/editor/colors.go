@@ -390,7 +390,7 @@ func (w *ViewW) colorPicker() {
 			// Wheel input has already updated the viewport, but this
 			// frame has not painted yet. Translate the last paint's
 			// swatch by that scroll before placing the overlay.
-			v, old := st.Viewport, vs.dmg
+			v, old := w.displayViewport(), vs.dmg
 			dx := old.scrollX - v.ScrollX
 			dy := float32(old.topLine-v.TopLine)*v.LineHeight + old.offsetY - v.OffsetY
 			r := h.r.Offset(dx, dy).Intersect(vs.text)

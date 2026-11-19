@@ -108,6 +108,7 @@
 ### 变更
 
 - 自绘渲染器对整设备像素放置、每个像素恰好对应一个纹素的图片只读取一次纹素（如编辑器小地图条带），减少 Catmull–Rom 滤波开销。
+- 编辑器保留触控板的连续滚动位置，将绘制和命中测试对齐到设备像素，让 GPU 在小数位移时复用上帧像素，只重绘新露出和内容有变化的区域。
 
 - **macOS 自绘文字默认改用 CoreText**：`ui/text` 的整形（CTLine）、断行（CFStringTokenizer）、双向文字、字体回退和光栅化都交给 CoreText，`text.RegisterFont` 的字体也由 CoreText 读取；macOS（非 iOS）构建不再链接 `github.com/go-text/typesetting`。构建标签 `tango_gotext` 恢复以前的 go-text 引擎（go-text 整形加 CoreText 光栅化、`TANGO_TEXT_ENGINE` 和 `text.UseSystemEngine` 开关、纯 Go 金样图测试）。其他平台和 iOS 不变。行为差异：默认 macOS 构建忽略 `TANGO_TEXT_ENGINE`，`text.UseSystemEngine(false)` 不关掉 CoreText（返回 `true`），`text.Engine()` 总是 `"coretext"`；换行位置（中文禁则、URL、数字串）、字距和回退字体跟随系统，可能与 Windows/Linux 不同。体积：最小自绘样本（darwin/arm64，`-trimpath -ldflags='-s -w'`）可执行文件 10,520,354 → 8,544,834 B（见 [体积报告](docs/package-size-optimization.md)）。性能（2026-11-18，Apple M4，同一会话交替测量，go-text → CoreText）：编辑器无窗口打字、滚动、打开文件全部在 1 帧以内（Markdown 每帧一页滚动 p99 12.25 → 12.69 ms）；应用进程 CPU counter +0、quotes −1.5、list +0.9、grid +1.8 个百分点，内存 −4.9…−8.3 MB，首帧 −51…+2 ms，帧间隔 P99 差 ±0.03 ms 以内；编辑器输入延迟打字 32.6 → 33.0 ms，三光标 35.7 → 32.4 ms。编辑器行缓存新增精确快速路径：中英混排等宽行逐字符排版，字体表证明不受上下文影响、CoreText 探针实测字形与宽度，结果与通用路径逐字形一致。已知限制：日语（`ja`）含 CJK 的行仍走通用路径（CoreText 的日文排版按相邻字符调整间距）；数字和等宽快速路径的探针在全局排版锁内执行。
 

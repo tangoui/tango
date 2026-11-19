@@ -47,6 +47,8 @@ func (w *ViewW) prepareSticky(snap buffer.Snapshot) {
 		return
 	}
 	lh := w.lineHeight()
+	// The header is outside the scroll copy and declares its own damage,
+	// so its push-off animation can follow the continuous input position.
 	scroll := float32(st.Viewport.scrollY())
 	var parents []int
 	chain, tail := w.stickyCandidates(scroll, lh)
@@ -193,7 +195,7 @@ func (w *ViewW) layoutSticky(snap buffer.Snapshot, i int, th *theme.Theme) lineV
 	return lineView{i: i, vi: i, rows: 1, text: s, runes: nr, b1: len(s), r1: nr, segs: []seg{sg}, endX: sg.lay.Width}
 }
 
-func (w *ViewW) paintSticky(l *paint.List, rows []lineView, th *theme.Theme) {
+func (w *ViewW) paintSticky(l *paint.List, rows []lineView, th *theme.Theme, scrollX float32) {
 	vs := w.vs
 	if len(rows) == 0 {
 		return
@@ -209,11 +211,11 @@ func (w *ViewW) paintSticky(l *paint.List, rows []lineView, th *theme.Theme) {
 	l.Fill(r, geom.Radii{}, bg)
 	for k, lv := range rows {
 		clip := vs.stickyClips[k]
-		vs.navPaint = append(vs.navPaint, fixedPaint{clip, keys[k] ^ uint64(math.Float32bits(w.st.Viewport.ScrollX)) ^ uint64(math.Float32bits(vs.stickyY[k]))<<32})
+		vs.navPaint = append(vs.navPaint, fixedPaint{clip, keys[k] ^ uint64(math.Float32bits(scrollX)) ^ uint64(math.Float32bits(vs.stickyY[k]))<<32})
 		l.Clip(clip, geom.Radii{})
 		l.Clip(vs.text.Intersect(clip), geom.Radii{})
 		for _, sg := range lv.segs {
-			drawSeg(l, sg, vs.text.X-w.st.Viewport.ScrollX, vs.stickyY[k])
+			drawSeg(l, sg, vs.text.X-scrollX, vs.stickyY[k])
 		}
 		l.Pop()
 		l.Clip(vs.gutter.Intersect(clip), geom.Radii{})
