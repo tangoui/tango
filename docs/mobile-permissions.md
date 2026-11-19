@@ -30,8 +30,8 @@ iOS 上缺用途说明键时直接调用相关 API 会让系统终止应用；Ta
 - **分享文件 / 拍照（Android）**：宿主自带的 `org.tango.host.TangoFileProvider`（`android:authorities="${applicationId}.tango.files"`、`exported="false"`、`grantUriPermissions="true"`）已在 `mobile/android` 的清单里，生成清单时保留。
 - **方向锁定（iOS）**：只能在 `UISupportedInterfaceOrientations` 声明的方向里选；iPad 支持分屏多任务时系统忽略锁定（需要锁定就加 `UIRequiresFullScreen`）。
 - **Keychain（iOS 模拟器）**：ad-hoc 签名、没有任何 entitlement 的模拟器包调用 Keychain 返回 `errSecMissingEntitlement`（`securestore` 报 `ErrNotConfigured`）。Xcode 的做法是把模拟器用的 entitlements（`application-identifier`、`keychain-access-groups`）作为 `__TEXT,__entitlements` 段链接进可执行文件（`-Wl,-sectcreate,__TEXT,__entitlements,<plist>`），再 ad-hoc 签名；已验证这样 `securestore` 在模拟器上读写正常。真机用描述文件签名即可。
-- **通用链接（iOS）**：entitlement `com.apple.developer.associated-domains` = `applinks:example.com`，网站放 `/.well-known/apple-app-site-association`。打开后走 `EventOpenURL`（冷启动、热启动都处理）。自定义 scheme 用 `tan.json` 的 `urlSchemes`（`CFBundleURLTypes`）。
-- **App Links（Android）**：给 `TangoActivity` 加
+- **通用链接（iOS）**：在 `tan.json` 中设置 `appLinks` 和可选的 `appLinkPaths`。entitlement `com.apple.developer.associated-domains` = `applinks:example.com`，网站放 `/.well-known/apple-app-site-association`。打开后走 `EventOpenURL`（冷启动、热启动都处理）。自定义 scheme 用 `tan.json` 的 `urlSchemes`（`CFBundleURLTypes`）。
+- **App Links（Android）**：`tan build` 根据 `appLinks` 和可选的 `appLinkPaths` 生成 `TangoActivity` 的 intent filter，例如
   ```xml
   <intent-filter android:autoVerify="true">
       <action android:name="android.intent.action.VIEW" />

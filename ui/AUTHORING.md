@@ -410,6 +410,13 @@ func init() {
 
 已合并删除的旧名（不要再引入）：`StepBar`、`DropdownMenu`、`DropdownButton`、`NavMenu`、`Dialog`、`DrawerPanel`、`Spinner`、`LoadingMask`、`SpaceBox`、`SpaceCompact`、`InputGroup`、`MessageOpen`、`MessageLoading`、`Notify`、`NotificationClose`、`ProgressX`、`CardX`、`DescriptionsX`、`BadgeX`、`BadgeDot`、`StatusDot`、`EmptyX`、`Textarea`、`CalendarView`、`Scrollbar`、`AppLayout`、`HLayout`、`Container*`、`CheckAllLabel`；`DecodeImage`/`ResizeBilinear` 已移到 `ui/paint`。
 
+### 虚拟化与数据版本
+
+- `AutoComplete`、`Mentions`、`Command`、`Cascader`、`CascaderPanel` 默认在列表或列超过 100 项时启用虚拟化。`.Virtual(bool)` 可显式开关。原地改动选项后，递增 `.DataVersion(int)` 或换用新切片，让匹配结果和测量缓存重新计算。
+- `List`、`ProList`、`Conversations` 通过 `.Height(px).Virtual()` 只构建视口附近的条目。`List` 的 `.ItemHeight(px)` 固定行高，变高条目可用 `.EstimatedItemHeight(px)` 和 `.RowKey(func(int) any)` 做估算和缓存。`.ScrollToKey(key, align, offset)` 请求定位，`.Range()` 返回上次 `Item` 构建的半开区间。条目滚出视口后，条目内的键盘焦点会丢失。
+- `ProTable`、`EditableProTable`、`CellEditorTable`、`RowEditorTable` 的 `.ScrollY(px)` 会对表体按可见范围构建行。`.Virtual()` 可启用主题中的 Table V2 行高，`ProTable` 可用 `.RowHeight(px)` 覆盖。
+- `Tree` 的 `.Height(px).DataVersion(v)` 会缓存父节点映射、筛选、扁平行和勾选状态。原地修改节点结构、影响筛选的字段或影响勾选传递的 `Disabled` / `DisableCheckbox` 后，递增 `v` 或换用新切片。
+
 ## 15. 文案与多语言
 
 组件里所有给用户看的文字——按钮、占位符、空状态、提示气泡、无障碍名（`c.add(kind, label)`、`IconButton(c, ic, label)` 的 label）、日期面板标题与星期——**一律从 `c.Locale()` 取**，不写字面量。

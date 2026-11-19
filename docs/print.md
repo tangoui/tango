@@ -27,7 +27,7 @@ if errors.Is(err, printing.ErrCanceled) { /* 用户取消 */ }
 `Options`：
 
 - `Title`：打印任务名（打印队列里显示；Linux 上用作“打印到文件”的默认文件名）。为空时由平台决定，通常是页面标题。
-- `Copies`：对话框里预置的份数，0 表示用系统默认值。用户可以在对话框里修改。
+- `Copies`：对话框里预置的份数，0 表示用系统默认值，负数返回错误。用户可以在对话框里修改。
 - `Parent`：`PDF`、`File`、`Image` 的对话框挂在哪个窗口上；`Page` 总是挂在自己的窗口上。
 
 `File` 和 `Image` 先在 Go 里把图片转成 PDF（`ImagePDF`：按 96 dpi 换算页面尺寸，透明部分铺白底），然后走 `PDF` 的同一路径，所以各平台只需要能打印 PDF。
@@ -60,7 +60,7 @@ if errors.Is(err, printing.ErrCanceled) { /* 用户取消 */ }
 
 ```go
 // 用无窗口的 ui.Driver 按打印尺寸渲染同一个页面函数
-d := ui.NewDriver(invoicePage, ui.DriverOptions{Width: 794, Height: 1123, Scale: 2}) // A4 @96dpi，2 倍清晰度
+d := ui.NewDriver(invoicePage, ui.DriverOptions{Width: 794, Height: 1123, Scale: 1}) // A4 @96dpi，ImagePDF 按输出像素计算纸张尺寸
 img := d.Settle()                                   // *image.RGBA
 err := printing.Image(app, img, printing.Options{Parent: s, Title: "发票"})
 // 或者保存为 PDF：doc, _ := printing.ImagePDF(img); os.WriteFile("invoice.pdf", doc, 0o644)

@@ -65,6 +65,7 @@ tan.json 的 `version` 是 SemVer 风格（`1.2.3-rc.1+build.5`）。deb 和 rpm
 | 文件 | 位置 |
 |---|---|
 | 程序 | `/usr/bin/<Exe>` |
+| `desktopHelpers` 随包工具 | `/usr/lib/<Exe>/` |
 | 桌面文件 | `/usr/share/applications/<id>.desktop`（以应用 id 命名，与 GTK 的 Wayland app id 一致） |
 | 图标 | `/usr/share/icons/hicolor/<n>x<n>/apps/<Exe>.png`，以及 `scalable/apps/<Exe>-symbolic.svg` |
 | MIME 定义 | `/usr/share/mime/packages/<id>.xml`（有不带 `mime` 的文件关联时） |

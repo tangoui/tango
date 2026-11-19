@@ -9,7 +9,6 @@
 | 组件、设计令牌、交互细节 | **Ant Design 6.7**（`antd@6.7.0`） | npm `antd` 的 latest 是 6.7.0；官网 https://ant.design/index-cn |
 | 中后台页面与布局模式（ProLayout、菜单、页头、设置抽屉、登录页、列表页/表单页/详情页模板） | **Ant Design Pro v6**（`ant-design-pro` v6.0.3，2026-08-17 发布） | https://pro.ant.design 、GitHub `ant-design/ant-design-pro` master 的 package.json |
 | Pro 组件（ProTable、ProForm、ProLayout、ProCard、ProDescriptions、ProList 等） | **Pro Components v3**（`@ant-design/pro-components` 3.1.x，Ant Design Pro v6 用的就是这一版） | Ant Design Pro v6 的 package.json 依赖 `^3.1.14-2`；npm 上 3.x 目前挂在 `beta` 标签（3.1.15-9），`latest` 标签还是 2.8.10 |
-
 | Element Plus 主题（只用于 `theme.Element` 风格及其组件变体） | **Element Plus 2.14.8**（`element-plus@2.14.8`） | npm `element-plus` 的 latest 是 2.14.8；官网组件页显示的也是 2.14.8 |
 | shadcn 主题（只用于 `theme.Shadcn`） | **shadcn/ui v4**（registry `new-york-v4`，仓库 commit e62c943，CLI `shadcn@4.23.0`；颜色取自 `apps/v4/registry/themes.ts`，灰阶取自 `tailwindcss@4.3.5` 的 `theme.css`） | 2026-11-14 核对 GitHub `shadcn-ui/ui` main |
 
