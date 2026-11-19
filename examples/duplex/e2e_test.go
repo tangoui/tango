@@ -22,20 +22,25 @@ import (
 //
 //	TANGO_E2E=1 go test ./examples/duplex -run E2E -v
 func TestE2EDuplex(t *testing.T) {
-	app := automation.Launch(t, ".")
+	windowsLanes := runtime.GOOS == "windows" && os.Getenv("TANGO_E2E_LANES") == "1"
+	var opts automation.Options
+	if windowsLanes {
+		opts.Env = []string{"TANGO_IPC_LANES_WINDOWS=1"}
+	}
+	app := automation.LaunchOptions(t, ".", opts)
 	win := app.Window("Tango Duplex")
 	if win.Kind() != automation.KindWebView {
 		t.Fatalf("kind %q", win.Kind())
 	}
 	win.WaitJS(`document.readyState === "complete" && !!window.tango && !!window.duplex`)
 
+	const wantLanes = `{"down":"down:shm","up":"up:shm"}`
+	if windowsLanes {
+		win.WaitJS("JSON.stringify(tango.lanes()) === '" + wantLanes + "'")
+	}
 	if got := win.EvalString(`window.duplex.echoOnce("ping")`); got != "ping" {
 		t.Fatalf("echo %q", got)
 	}
-	// Which lanes the page got depends on the backend (macOS: up:post by
-	// default; elsewhere fallback until the backend reports fast lane
-	// capabilities) and on the inherited environment; logged, not asserted
-	// (benchSmoke asserts the macOS default with the switches cleared).
 	t.Logf("tango.lanes(): %s", win.EvalString(`JSON.stringify(tango.lanes())`))
 
 	// The Echo buttons go through a tango.socket.
@@ -63,6 +68,11 @@ func TestE2EDuplex(t *testing.T) {
 		t.Fatalf("uploaded file %q: %v %v", up.Path, st, err)
 	}
 	os.Remove(up.Path)
+	if windowsLanes {
+		if got := win.EvalString(`JSON.stringify(tango.lanes())`); got != wantLanes {
+			t.Errorf("tango.lanes() after duplex traffic = %s, want %s", got, wantLanes)
+		}
+	}
 	app.Quit()
 
 	benchSmoke(t)
