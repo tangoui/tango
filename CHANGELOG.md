@@ -6,6 +6,7 @@
 
 ### 新增
 
+- `tan mcp`：给 AI 代理用的 MCP 服务器，提供项目工具和运行中应用的界面工具（语义树、动作、输入、截图、WebView 选择器），应用在后台启动，见 [docs/mcp.md](docs/mcp.md)。
 - `ProTable`、`EditableProTable`、`CellEditorTable`、`RowEditorTable` 新增 opt-in 虚拟滚动：`ScrollY(px)` 固定表体高度、只构建视口内的行，`Virtual()` 表明意图（透传 `Table`），`ProTable` 另有 `RowHeight`；行高默认跟随密度。正在编辑的行即使滚出视口也保持构建（草稿、焦点和 Tab 顺序不丢），开始编辑、焦点移入、在其中输入和校验失败时自动滚到该行。不设 `ScrollY` 时行为不变；普通 `Table` 的 `ScrollY` 行为也不变。
 - `List`、`ProList`、`Conversations` 新增 opt-in 虚拟滚动：`Height(px)` 固定视口高度，再加 `Virtual()` 只构建视口内的项（默认形态不变）。`List` 另有 `ItemHeight`、`EstimatedItemHeight`、`RowKey`、`ScrollToKey`、`Range`，`ProList` 透传 `EstimatedItemHeight`，`Conversations` 有 `ScrollToKey`，键盘上下移动跨越窗口时自动滚动。
 - `Tree` 新增 `DataVersion(v int)`：只在同时设了 `Height` 时生效，缓存父节点表、`Filter` 可见集合、展平后的可见行和勾选状态，每帧开销跟随视口而不是节点总数。节点字段（标题等）始终实时读取；同一切片内原地增删子节点、改键、改动影响 `Filter` 匹配的标题，或原地修改子节点的 `Disabled` / `DisableCheckbox`（勾选状态含父节点的全选 / 半选也被缓存）时，需要改变 `DataVersion`（或换新切片）。不调用 `DataVersion` 时行为和开销与之前完全相同。
