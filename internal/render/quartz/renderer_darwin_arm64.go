@@ -37,6 +37,7 @@ type imageResource struct {
 	used uint64
 }
 type renderer struct {
+	root                   objc.ID          // retained hosted root when layer is the UI thread's child
 	thread                 *uithread.Thread // nil on the legacy main-thread path
 	layer                  objc.ID
 	scene                  *scene
@@ -73,6 +74,19 @@ func NewPresenter(target uintptr) (paint.Renderer, func(image.Point, float32) er
 	r := &renderer{layer: layer, thread: uithread.Current(), scene: newScene(nativeglyph.CoreGraphics), images: map[string]*imageResource{}}
 	done := nativeTransaction()
 	defer done()
+	if r.thread != nil {
+		// The hosted root's frame and scale belong to the main thread, which
+		// AppKit resizes; a window UI thread draws into its own child.
+		r.root = layer
+		child := objc.ID(objc.GetClass("CALayer")).Send(sel("new"))
+		if child == 0 {
+			layer.Send(sel("release"))
+			return nil, nil, fmt.Errorf("quartz: cannot create content layer")
+		}
+		layer.Send(sel("addSublayer:"), child)
+		r.layer = child
+		layer = child
+	}
 	layer.Send(sel("setGeometryFlipped:"), true)
 	layer.Send(sel("setMasksToBounds:"), true)
 	layer.Send(sel("setContents:"), uintptr(0))
@@ -489,6 +503,12 @@ func (r *renderer) Close() error {
 	r.scene.releaseScratch()
 	r.scene.cpu = nil
 	r.layer.Send(sel("setBackgroundColor:"), uintptr(0))
+	if r.root != 0 {
+		r.layer.Send(sel("removeFromSuperlayer"))
+		r.layer.Send(sel("release"))
+		r.layer = r.root
+		r.root = 0
+	}
 	r.layer.Send(sel("release"))
 	r.layer = 0
 	return nil

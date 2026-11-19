@@ -46,7 +46,18 @@ func (w *window) resized() {
 }
 
 // presentFull presents img whole and records what is on screen.
+// frameScaler is implemented by a threaded canvas that must place a CPU
+// frame with the scale it was drawn at, not the newest main geometry.
+type frameScaler interface{ SetFrameScale(float32) }
+
+func (w *window) setFrameScale() {
+	if fs, ok := w.cv.(frameScaler); ok && w.t != nil {
+		fs.SetFrameScale(w.scale)
+	}
+}
+
 func (w *window) presentFull(img *image.RGBA) error {
+	w.setFrameScale()
 	err := w.cv.Present(img)
 	if err != nil || img == nil {
 		w.dmg.shown = false
@@ -62,6 +73,7 @@ func (w *window) PresentDamage(img *image.RGBA, dirty []image.Rectangle) error {
 	if !ok || img == nil || w.gpu != nil || w.dmg.off || !w.dmg.shown || w.dmg.px != img.Bounds().Size() {
 		return w.Present(img)
 	}
+	w.setFrameScale()
 	if err := dp.PresentDamage(img, dirty); err != nil {
 		w.dmg.fails++
 		if w.dmg.fails >= damageMaxFails {

@@ -57,11 +57,24 @@ func (c *threadedCanvas) startCoreVideo(th *uithread.Thread, tick func()) (func(
 		cvRelease(link)
 		return c.startTimerClock(th, tick)
 	}
-	f := newThreadFrameClock(th, tick, func(paused bool) {
+	var f *threadFrameClock
+	var timer func(bool) // UI thread; non-nil once CoreVideo stopped working
+	usingLink := true
+	f = newThreadFrameClock(th, tick, func(paused bool) {
+		if timer != nil {
+			timer(paused)
+			return
+		}
 		if paused {
 			cvStop(link)
-		} else {
-			cvStart(link)
+			return
+		}
+		if cvStart(link) != 0 {
+			// Keep f (wanted, idle and deadline): only its refresh source changes.
+			usingLink = false
+			cvClocks.Delete(key)
+			timer = timerRefresh(f)
+			timer(false)
 		}
 	})
 	cvClocks.Store(key, f)
@@ -75,7 +88,12 @@ func (c *threadedCanvas) startCoreVideo(th *uithread.Thread, tick func()) (func(
 	return f.request, func() {
 		f.stop()
 		cvClocks.Delete(key)
-		cvStop(link)
+		if timer != nil {
+			timer(true)
+		}
+		if usingLink {
+			cvStop(link)
+		}
 		cvRelease(link)
 	}, nil
 }

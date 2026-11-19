@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/tangoui/tango/internal/uithread"
+import (
+	"github.com/tangoui/tango/internal/corehook"
+	"github.com/tangoui/tango/internal/uithread"
+	"github.com/tangoui/tango/ui/paint"
+)
 
 // offThreadMsg is the panic of a development-build thread check.
 const offThreadMsg = "ui: called off the window's UI thread; use Runner.Post"
@@ -26,5 +30,21 @@ func (r *Runner) BindThread(t *uithread.Thread) {
 	}
 	if !r.thread.CompareAndSwap(nil, t) {
 		panic("ui: Runner.BindThread: runner already bound to a thread")
+	}
+}
+
+func init() {
+	corehook.FinishRunnerStartup = func(runner, owner, renderer any) {
+		r := runner.(*Runner)
+		if r.win == nil || r.thread.Load() != nil {
+			panic("ui: invalid startup handoff")
+		}
+		if renderer != nil {
+			r.renderer = renderer.(paint.Renderer)
+			r.cpu, _ = r.renderer.(*paint.CPU)
+			r.c.noBlur = !rendererBlurs(r.renderer)
+			r.c.imageCache, _ = r.renderer.(imageInvalidator)
+		}
+		r.thread.Store(owner.(*uithread.Thread))
 	}
 }

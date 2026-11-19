@@ -34,6 +34,7 @@ import (
 type threadedCanvas struct {
 	platform.Canvas
 	sink     platform.CanvasSink
+	before   func() error
 	clockErr error // returned by StartFrameClock
 	eager    bool  // request queues the tick on the UI thread at once
 
@@ -74,6 +75,11 @@ func (c *threadedCanvas) dragOver(fb *fake.Backend, x, y float32) {
 }
 
 func (c *threadedCanvas) StartFrameClock(tick func()) (request, stop func(), err error) {
+	if c.before != nil {
+		if err := c.before(); err != nil {
+			return nil, nil, err
+		}
+	}
 	if c.clockErr != nil {
 		return nil, nil, c.clockErr
 	}
@@ -211,8 +217,9 @@ func (c *threadedCanvas) sync(t *testing.T) {
 
 // clockCfg configures the frame clock of threadedCanvases.
 type clockCfg struct {
-	err   error // StartFrameClock's result
-	eager bool  // tick as soon as a frame is requested
+	before func() error
+	err    error // StartFrameClock's result
+	eager  bool  // tick as soon as a frame is requested
 }
 
 // useThreadedCanvases makes the canvases of the following uihost.Open
@@ -228,7 +235,7 @@ func useThreadedCanvases(t *testing.T, attached bool, cfg clockCfg) func(platfor
 		if e != nil {
 			return s, cv, e
 		}
-		tc := &threadedCanvas{Canvas: cv, sink: sink, clockErr: cfg.err, eager: cfg.eager}
+		tc := &threadedCanvas{Canvas: cv, sink: sink, before: cfg.before, clockErr: cfg.err, eager: cfg.eager}
 		mu.Lock()
 		byID[s.(*tango.Surface).ID()] = tc
 		mu.Unlock()
@@ -240,7 +247,7 @@ func useThreadedCanvases(t *testing.T, attached bool, cfg clockCfg) func(platfor
 			if e != nil {
 				return cv, e
 			}
-			tc := &threadedCanvas{Canvas: cv, sink: sink, clockErr: cfg.err, eager: cfg.eager}
+			tc := &threadedCanvas{Canvas: cv, sink: sink, before: cfg.before, clockErr: cfg.err, eager: cfg.eager}
 			mu.Lock()
 			byID[s.(*tango.Surface).ID()] = tc
 			mu.Unlock()
@@ -268,8 +275,10 @@ func openThreaded(t *testing.T, a *tango.App, fb *fake.Backend, page func(*ui.Co
 	if o.err != nil {
 		t.Fatal(o.err)
 	}
-	fb.Do(func() {}) // the canvas's first CanvasFrame, queued on the main thread
 	tc := canvases(o.s.ID())
+	for deadline := time.Now().Add(faketest.Timeout); !tango.Await(a, func() bool { return uihost.ThreadedStarted(o.r) }) && time.Now().Before(deadline); {
+		fb.Do(func() {}) // finishes the asynchronous handoff on main
+	}
 	if tc == nil || !tc.started() {
 		t.Fatal("no threaded canvas with a running frame clock")
 	}
@@ -507,8 +516,17 @@ func TestThreadedClockErrorKeepsMainThreadModel(t *testing.T) {
 	if canvases(o.s.ID()) == nil {
 		t.Fatal("canvas was not wrapped")
 	}
-	fb.Canvas(o.s.ID()).FlushFrame()
 	main := mainGID(a)
+	for deadline := time.Now().Add(faketest.Timeout); time.Now().Before(deadline); {
+		fb.Canvas(o.s.ID()).FlushFrame() // fallback is committed after the UI thread exits
+		mu.Lock()
+		got := pageGID
+		mu.Unlock()
+		if got != 0 {
+			break
+		}
+		fb.Do(func() {})
+	}
 	mu.Lock()
 	defer mu.Unlock()
 	if pageGID != main {
@@ -635,5 +653,89 @@ func TestThreadedEagerClockFirstFrame(t *testing.T) {
 	defer tc.mu.Unlock()
 	if tc.presents < 1 {
 		t.Fatal("first frame not presented")
+	}
+}
+
+func TestThreadedStartupDoesNotBlockMain(t *testing.T) {
+	for _, mode := range []string{"success", "fallback", "close"} {
+		t.Run(mode, func(t *testing.T) {
+			a, fb := faketest.Run(t, tango.Options{})
+			entered, unblock := make(chan struct{}), make(chan struct{})
+			var once sync.Once
+			release := func() { once.Do(func() { close(unblock) }) }
+			defer release()
+			cfg := clockCfg{before: func() error {
+				close(entered)
+				<-unblock
+				if mode == "fallback" {
+					return errors.New("clock denied")
+				}
+				return nil
+			}, eager: true}
+			useThreadedCanvases(t, false, cfg)
+			openedCh := make(chan opened, 1)
+			pageRan := make(chan bool, 16)
+			a.Post(func() {
+				r, s, err := uihost.Open(a, uihost.Options{Surface: tango.SurfaceOptions{Width: 150, Height: 100}}, func(*ui.Context) {
+					select {
+					case pageRan <- uithread.Current() != nil:
+					default:
+					}
+				}, ui.RunnerOptions{Renderer: paint.NewCPU()})
+				openedCh <- opened{r, s, err}
+			})
+			<-entered
+			var o opened
+			select {
+			case o = <-openedCh:
+			case <-time.After(300 * time.Millisecond):
+				t.Fatal("Open waited for clock initialization")
+			}
+			if o.err != nil {
+				t.Fatal(o.err)
+			}
+			posted := make(chan uint64, 1)
+			o.r.Post(func() { posted <- uithread.GoroutineID() })
+			main := mainGID(a)
+			select {
+			case <-posted:
+				t.Fatal("Runner.Post ran before startup completed")
+			default:
+			}
+			if mode == "close" {
+				fb.RequestClose(o.s.ID())
+			}
+			release()
+			if mode == "close" {
+				select {
+				case <-posted:
+					t.Fatal("closed runner ran buffered work")
+				case <-pageRan:
+					t.Fatal("closed runner drew")
+				case <-time.After(50 * time.Millisecond):
+				}
+				return
+			}
+			select {
+			case gid := <-posted:
+				if (gid == main) != (mode == "fallback") {
+					t.Fatal("same runner did not post to chosen owner")
+				}
+			case <-time.After(time.Second):
+				t.Fatal("buffered Post was lost")
+			}
+			if mode == "fallback" {
+				fb.Canvas(o.s.ID()).FlushFrame()
+			}
+			select {
+			case threaded := <-pageRan:
+				if threaded != (mode == "success") {
+					t.Fatal("page ran on wrong owner")
+				}
+			case <-time.After(time.Second):
+				t.Fatal("first frame missing")
+			}
+			fb.RequestClose(o.s.ID())
+		})
 	}
 }

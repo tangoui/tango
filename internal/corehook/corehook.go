@@ -56,3 +56,7 @@ var OnQuit func(app any, fn func())
 // closes, including during quit if the regular queue has already stopped.
 // Threads that miss the common quit deadline are abandoned without release.
 var AfterUIThread func(app any, done <-chan struct{}, release func())
+
+// FinishRunnerStartup finalizes uihost's one-time ownership handoff on main,
+// before any frame or application task can run. ui installs this hook.
+var FinishRunnerStartup func(runner, thread, renderer any)

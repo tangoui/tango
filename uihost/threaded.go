@@ -39,13 +39,18 @@ import (
 // threadedHost is the UI-thread side of a host whose canvas implements
 // platform.CanvasThreaded.
 type threadedHost struct {
-	host      *host
-	geometry  platform.CanvasThreaded
-	windows   map[*host]struct{} // this app's open threaded windows; main thread
-	th        *uithread.Thread
-	request   func() // asks the frame clock for a tick; any goroutine
-	stopClock func() // UI thread
-	attached  bool   // UI thread: ticks before hand-over draw nothing
+	host       *host
+	geometry   platform.CanvasThreaded
+	windows    map[*host]struct{} // this app's open threaded windows; main thread
+	th         *uithread.Thread
+	request    func()       // asks the frame clock for a tick; any goroutine
+	stopClock  func()       // UI thread
+	attached   bool         // UI thread: ticks before hand-over draw nothing
+	gpu        *gpuRenderer // UI thread, including cancelled initialization
+	startMu    sync.Mutex
+	startQueue []func()
+	phase      atomic.Int32
+	finishing  bool // main: a failed or closed startup already owns Done cleanup
 
 	// theme is the runner's theme as of the last frame, for main-thread
 	// readers (FollowingSystemTheme). TODO(Task 8): part of the per-frame
@@ -114,52 +119,42 @@ func callRunner(threaded bool, r *ui.Runner, fn func()) {
 // post queues fn on the UI thread; a panic in it goes to app's panic
 // handling. Dropped once the thread stopped (the window closed).
 func (t *threadedHost) post(app *tango.App, fn func()) {
-	t.th.Post(func() {
+	t.dispatch(func() {
 		if !t.closing.Load() {
 			corehook.Guard(app, "event handler", fn)
 		}
 	})
 }
 
-// openThreaded starts a UI thread for a threaded window and the canvas's
-// frame clock on it, then creates the runner (h.r) on the main thread and
-// hands it to the UI thread. It leaves h unchanged, with the thread stopped,
-// when the clock cannot start: the window then uses the main
-// thread. Main thread.
-//
-// Clock/presenter startup waits for the UI thread (it must not wait for the
-// main thread). The GPU switch (UseMetalLayer, UseCoreGraphicsLayer) needs
-// the main thread, so setupGPU runs here; so do newA11y (it reads the
-// system's reduce-motion preference) and everything else that calls the
-// runner, before BindThread. After BindThread nothing here calls a checked
-// runner method; the first frame is the UI thread's.
-func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page func(*ui.Context), ropts ui.RunnerOptions) {
-	t := &threadedHost{host: h, geometry: ct, th: uithread.Start(fmt.Sprintf("tango uihost surface %d", h.id))}
-	tick := func() {
-		if t.attached && !t.closing.Load() {
-			h.frame() // CanvasFrame of a main-thread window
-		}
-	}
-	var err error
-	t.th.Do(func() { t.request, t.stopClock, err = ct.StartFrameClock(tick) })
-	if err != nil {
-		t.th.Stop()
-		log.Printf("tango: uihost: surface %d: no frame clock, drawing on the main thread: %v", h.id, err)
+const (
+	starting int32 = iota
+	running
+	mainFallback
+)
+
+// dispatch shares a queue for main-thread events and Runner.Post until the
+// owner is committed; the initial batch is posted before publishing ownership.
+func (t *threadedHost) dispatch(fn func()) {
+	t.startMu.Lock()
+	defer t.startMu.Unlock()
+	if t.closing.Load() {
 		return
 	}
-	build := prepareThreadedGPU(h.cv, ropts)
-	if build != nil {
-		t.th.Do(func() { h.gpu = build() })
+	switch t.phase.Load() {
+	case starting:
+		t.startQueue = append(t.startQueue, fn)
+	case running:
+		t.th.Post(fn)
+	case mainFallback:
+		t.host.app.Post(fn)
 	}
-	if h.gpu != nil {
-		h.gpu.main = h.app
-	}
-	t.renderer.Store(h.gpu.kind())
-	if h.gpu != nil {
-		ropts.Renderer = h.gpu
-	}
+}
+
+func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page func(*ui.Context), ropts ui.RunnerOptions) {
+	t := &threadedHost{host: h, geometry: ct}
 	r := ui.NewRunner(page, ropts)
-	threadedRunners.Store(r, t) // before newA11y: followMotion records it
+	t.renderer.Store("cpu")
+	threadedRunners.Store(r, t)
 	t.theme.Store(r.Context().Theme)
 	h.ax = newA11y(h.app, h.cv, r, ropts)
 	if _, ok := h.cv.(interface{ MainThreadAccessibility() }); ok {
@@ -171,35 +166,147 @@ func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page f
 			})
 		}
 	}
-	r.BindThread(t.th)
 	w, ht, scale := ct.MainGeometry()
-	h.win = &window{app: h.app, cv: h.cv, id: h.id, gpu: h.gpu, sc: h.sc, ax: h.ax, t: t,
-		size: geom.Size{W: w, H: ht}, scale: scale}
-	h.win.watchFrame(s) // frame.go
+	h.win = &window{app: h.app, cv: h.cv, id: h.id, sc: h.sc, ax: h.ax, t: t, startup: t, size: geom.Size{W: w, H: ht}, scale: scale}
+	h.win.watchFrame(s)
 	r.Attach(h.win)
-	h.watchRenderer(r)
-	// Until here sink callbacks took the main-thread path, which ignores
-	// them while h.r is nil. From here they are queued on the UI thread.
 	h.t, h.r = t, r
+	t.th = uithread.Start(fmt.Sprintf("tango uihost surface %d", h.id))
 }
 
-// startThreaded hands the window to its UI thread after the main-thread
-// registrations are complete. A quit already in progress closes it instead.
 func (h *host) startThreaded() {
 	t := h.t
 	h.watchThreadedQuit()
 	if h.closed {
 		return
 	}
-	// The hand-over, posted once every host field a frame reads is written:
-	// all of it happens before the UI thread's first frame, which this task
-	// asks for (a tick that came earlier drew nothing). Open writes no host
-	// field the UI thread reads after this.
+	// Install AppKit layers on main, then do all presenter work off-main.
+	build := prepareThreadedGPU(h.cv, h.startOpts)
+	h.startOpts = ui.RunnerOptions{}
 	t.th.Post(func() {
-		if !t.closing.Load() {
-			t.attached = true
-			t.request()
+		if t.closing.Load() {
+			return
 		}
+		var err error
+		ok := corehook.Guard(h.app, "ui startup", func() {
+			t.request, t.stopClock, err = t.geometry.StartFrameClock(func() {
+				if t.attached && !t.closing.Load() {
+					h.frame()
+				}
+			})
+			if err != nil || t.closing.Load() {
+				return
+			}
+			if build != nil {
+				t.gpu = build()
+			}
+			if t.gpu != nil {
+				t.gpu.main = h.app
+			}
+		})
+		if !ok {
+			err = fmt.Errorf("UI initialization panicked")
+		}
+		if !t.closing.Load() {
+			h.app.Post(func() { h.finishThreadedStartup(t, err) })
+		}
+	})
+}
+
+func (h *host) finishThreadedStartup(t *threadedHost, err error) {
+	if h.closed || t.closing.Load() {
+		return
+	}
+	if err != nil {
+		log.Printf("tango: uihost: surface %d: UI startup failed, drawing on main: %v", h.id, err)
+		h.stopStarting(t)
+		return
+	}
+	t.startMu.Lock()
+	defer t.startMu.Unlock()
+	batch := t.startQueue
+	t.startQueue = nil
+	var trace *frameTrace
+	if t.gpu != nil && frameTraceOn() {
+		trace = newFrameTrace(h.id)
+	}
+	h.trace = trace // written before the UI task that reads it is posted
+	// Queued before binding; the lock keeps even an eager UI thread from
+	// observing partially published host fields or rendering before the batch.
+	t.th.Post(func() {
+		t.startMu.Lock()
+		t.startMu.Unlock()
+		if t.closing.Load() {
+			return
+		}
+		if trace != nil {
+			t.gpu.setTrace(trace) // presenter timeline belongs to the UI thread
+		}
+		for _, fn := range batch {
+			if !t.closing.Load() {
+				corehook.Guard(h.app, "event handler", fn)
+			}
+		}
+		t.attached = true
+		t.request()
+	})
+	h.gpu, h.win.gpu = t.gpu, t.gpu
+	t.renderer.Store(t.gpu.kind())
+	var renderer any
+	if t.gpu != nil {
+		renderer = t.gpu
+	}
+	corehook.FinishRunnerStartup(h.r, t.th, renderer)
+	t.phase.Store(running)
+}
+
+// stopStarting handles an unpublished UI owner. AfterUIThread both drains
+// normal completion and supports shutdown without pumping the native loop.
+func (h *host) stopStarting(t *threadedHost) {
+	if t.finishing {
+		return
+	}
+	t.finishing = true
+	t.th.Post(func() {
+		if t.stopClock != nil {
+			t.stopClock()
+		}
+		if t.gpu != nil {
+			_ = t.gpu.Close()
+		}
+	})
+	t.th.Stop()
+	corehook.AfterUIThread(h.app, t.th.Done(), func() {
+		if h.closed {
+			h.ax.close()
+			if cv, ok := h.cv.(platform.CanvasThreadedRelease); ok {
+				cv.ReleaseThreadedOnMain()
+			}
+			return
+		}
+		if cv, ok := h.cv.(interface{ CancelThreadedOnMain() }); ok {
+			cv.CancelThreadedOnMain()
+		}
+		t.startMu.Lock()
+		batch := t.startQueue
+		t.startQueue = nil
+		h.t, h.win.t = nil, nil
+		h.ax.postNative = nil
+		h.win.emb = newEmbeds(h, h.win.s)
+		threadedRunners.Delete(h.r)
+		h.app.Post(func() {
+			if h.closed {
+				return
+			}
+			for _, fn := range batch {
+				if !h.closed {
+					corehook.Guard(h.app, "event handler", fn)
+				}
+			}
+			h.invalidate()
+		})
+		t.phase.Store(mainFallback)
+		t.startMu.Unlock()
 	})
 }
 
@@ -214,6 +321,10 @@ func (t *threadedHost) resizedOnMain(w, hgt, scale float32) {
 	// A Surface.OnResized callback can resize again before the backend
 	// delivers this notification. Never overwrite the newer geometry.
 	if currentW, currentH, currentScale := t.geometry.MainGeometry(); w != currentW || hgt != currentH || scale != currentScale {
+		return
+	}
+	if t.phase.Load() == starting {
+		t.post(h.app, func() { h.win.size, h.win.scale = geom.Size{W: w, H: hgt}, scale; h.win.resized() })
 		return
 	}
 	awaiting, entered := t.th.WatchAwaitingMain()

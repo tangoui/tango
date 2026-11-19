@@ -4,6 +4,7 @@ import (
 	"image"
 
 	"github.com/tangoui/tango/internal/platform"
+	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/paint"
 )
 
@@ -48,4 +49,10 @@ func SetFrameTraceHooks(n int, logf func(string, ...any)) func() {
 	oldN, oldLog := frameTraceEvery, frameTraceLogf
 	frameTraceEvery, frameTraceLogf = n, logf
 	return func() { frameTraceEvery, frameTraceLogf = oldN, oldLog }
+}
+
+// ThreadedStarted reports whether r's UI-thread startup handoff completed.
+func ThreadedStarted(r *ui.Runner) bool {
+	t := threadedOf(r)
+	return t != nil && t.phase.Load() == running
 }

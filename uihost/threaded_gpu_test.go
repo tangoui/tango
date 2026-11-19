@@ -81,6 +81,14 @@ type task7Canvas struct {
 
 func (*task7Canvas) MainThreadAccessibility() {}
 
+func (c *task7Canvas) SetFrameScale(scale float32) {
+	c.Canvas.(interface{ SetFrameScale(float32) }).SetFrameScale(scale)
+}
+
+func (c *task7Canvas) CancelThreadedOnMain() {
+	c.Canvas.(interface{ CancelThreadedOnMain() }).CancelThreadedOnMain()
+}
+
 func (c *task7Canvas) UseCoreGraphicsLayer() (uintptr, error) {
 	if n, ok := c.Canvas.(platform.CanvasCoreGraphics); ok {
 		return n.UseCoreGraphicsLayer()

@@ -416,6 +416,9 @@ func (g *gpuRenderer) presentFrameAt(cv platform.Canvas, id platform.SurfaceID, 
 }
 
 func (g *gpuRenderer) presentFrame1(cv platform.Canvas, id platform.SurfaceID, size geom.Size, scale float32, threaded bool) error {
+	if fs, ok := cv.(frameScaler); ok && threaded {
+		fs.SetFrameScale(scale)
+	}
 	if g.cpu != nil {
 		return cv.Present(g.cpu.Image())
 	}

@@ -95,7 +95,9 @@ func (c *canvas) PresentDamage(img *image.RGBA, dirty []image.Rectangle) error {
 	}
 	b := img.Bounds()
 	t := c.tiles
-	if b.Size() != t.grid.px {
+	if b.Size() != t.grid.px || c.tileScale != c.presentationScale() {
+		// Tiles belong to the whole frame's geometry; never compose another
+		// generation's pixels onto it.
 		return c.Present(img)
 	}
 	rects, full := platform.DamageRects(dirty, b, canvasDamageMaxRects)
@@ -140,8 +142,8 @@ func (c *canvas) PresentDamage(img *image.RGBA, dirty []image.Rectangle) error {
 	withPool(func() {
 		parent := c.cpuContentLayer()
 		flipped := sendBool(parent, "contentsAreFlipped")
-		layerH := msgRect(parent, sel("bounds")).Size.Height
-		scale := c.presentationScale()
+		scale := c.tileScale
+		layerH := float64(t.grid.px.Y) / scale // the whole frame's height, not the root's
 		ca := class("CATransaction")
 		send(ca, "begin")
 		send(ca, "setDisableActions:", 1)

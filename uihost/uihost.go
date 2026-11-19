@@ -101,7 +101,8 @@ func Open(app *tango.App, opts Options, page func(*ui.Context), ropts ui.RunnerO
 	h.cv = cv
 	h.sc = newShortcuts(app, s) // shortcuts.go
 	if ct, ok := cv.(platform.CanvasThreaded); ok {
-		h.openThreaded(s, ct, page, ropts) // threaded.go; h.r stays nil without a frame clock
+		h.openThreaded(s, ct, page, ropts)
+		h.startOpts = ropts
 	}
 	if h.r == nil {
 		h.openMain(s, page, ropts)
@@ -157,18 +158,19 @@ func (h *host) watchRenderer(r *ui.Runner) {
 // ax, win and trace belong to the UI thread once Open returns, and the
 // callbacks below queue their work onto it.
 type host struct {
-	app     *tango.App
-	r       *ui.Runner      // nil until the surface exists
-	cv      platform.Canvas // nil until the surface exists
-	gpu     *gpuRenderer    // nil: CPU path
-	id      platform.SurfaceID
-	sc      *shortcuts // window shortcuts (shortcuts.go); nil for Attach
-	closed  bool
-	lastErr string // last frame error logged
-	ax      *a11yBridge
-	win     *window       // the runner's window; nil until attached
-	trace   *frameTrace   // TANGO_FRAME_TRACE (frametrace.go); nil: off
-	t       *threadedHost // non-nil: the window has its own UI thread
+	app       *tango.App
+	r         *ui.Runner      // nil until the surface exists
+	cv        platform.Canvas // nil until the surface exists
+	gpu       *gpuRenderer    // nil: CPU path
+	id        platform.SurfaceID
+	sc        *shortcuts // window shortcuts (shortcuts.go); nil for Attach
+	closed    bool
+	lastErr   string // last frame error logged
+	ax        *a11yBridge
+	win       *window       // the runner's window; nil until attached
+	trace     *frameTrace   // TANGO_FRAME_TRACE (frametrace.go); nil: off
+	t         *threadedHost // non-nil: the window has its own UI thread
+	startOpts ui.RunnerOptions
 }
 
 func (h *host) CanvasFrame() {
@@ -176,7 +178,7 @@ func (h *host) CanvasFrame() {
 		return
 	}
 	if h.t != nil { // the frame clock draws on the UI thread
-		h.t.request()
+		h.win.Invalidate()
 		return
 	}
 	h.frame()
@@ -299,9 +301,7 @@ func (h *host) onUI(fn func()) {
 // main thread.
 func (h *host) invalidate() {
 	if h.t != nil {
-		if !h.t.closing.Load() {
-			h.t.request()
-		}
+		h.win.Invalidate()
 		return
 	}
 	if h.cv != nil {
@@ -322,7 +322,13 @@ func (h *host) close() {
 		h.r.Close() // Post drops tasks from now on; queued frames draw nothing
 		renderers.Delete(h.r)
 		memRunners.Delete(h.r)
-		h.closeThreaded() // threaded.go
+		if h.t.phase.Load() == starting {
+			threadedRunners.Delete(h.r)
+			delete(h.t.windows, h)
+			h.stopStarting(h.t)
+		} else {
+			h.closeThreaded()
+		}
 		return
 	}
 	h.ax.close()
@@ -360,6 +366,7 @@ type window struct {
 	size            geom.Size
 	scale           float32
 	resizePresented chan struct{}
+	startup         *threadedHost // immutable once attached; serializes Runner.Post across startup
 }
 
 // The ui.Window methods run on the window's UI thread. On a threaded
@@ -399,19 +406,28 @@ func (w *window) Scale() float32 {
 }
 
 func (w *window) Invalidate() {
-	if w.t != nil {
-		if !w.t.closing.Load() {
-			w.t.request()
+	if t := w.startup; t != nil {
+		if t.closing.Load() {
+			return
 		}
-		return
+		switch t.phase.Load() {
+		case starting:
+			return // handoff asks for the first frame
+		case running:
+			t.request()
+			return
+		}
 	}
 	w.cv.Invalidate()
 }
 
-// PostUI implements ui.UIPoster for a runner without a bound thread (a
-// main-thread window, Attach): fn runs on the main thread later. A
-// threaded window's runner posts to its thread and never calls it.
-func (w *window) PostUI(fn func()) { w.app.Post(fn) }
+func (w *window) PostUI(fn func()) {
+	if w.startup != nil {
+		w.startup.dispatch(fn)
+		return
+	}
+	w.app.Post(fn)
+}
 
 func (w *window) InvalidateAt(t time.Time) { w.cv.InvalidateAt(t) }
 func (w *window) SetCursor(c input.Cursor) { w.onMain(func() { w.cv.SetCursor(c) }) }

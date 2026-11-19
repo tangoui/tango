@@ -201,6 +201,14 @@ func TestQuitWaitsAtMostOneSecond(t *testing.T) {
 		if tc == nil {
 			t.Fatal("no threaded canvas")
 		}
+		for deadline := time.Now().Add(faketest.Timeout); !tc.started() && time.Now().Before(deadline); {
+			fb.Do(func() {})
+		}
+		fb.Do(func() {}) // startup handoff
+		fb.Do(func() {})
+		if !tc.started() {
+			t.Fatal("no frame clock")
+		}
 		t.Cleanup(tc.th.Stop)
 		return tc
 	}

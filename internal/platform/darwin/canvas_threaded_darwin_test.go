@@ -5,6 +5,7 @@ package darwin
 import (
 	"context"
 	"fmt"
+	"image"
 	"os"
 	"os/exec"
 	"runtime"
@@ -63,6 +64,25 @@ func TestFrameAtOnceSemanticsOnUIThread(t *testing.T) {
 }
 
 func init() {
+	if os.Getenv("TANGO_TASK7_CANCEL_CHILD") != "" {
+		runtime.LockOSThread()
+		MainThreadTestHook = func() (code int, handled bool) {
+			handled = true
+			e := &cancelErr{}
+			defer func() {
+				if v := recover(); v != nil && v != e {
+					panic(v)
+				}
+				if e.err != nil {
+					fmt.Fprintln(os.Stderr, e.err)
+					code = 1
+				}
+			}()
+			checkCancelThreaded(e)
+			return 0, handled
+		}
+		return
+	}
 	if os.Getenv("TANGO_TASK7_CLOCK_CHILD") != "" {
 		runtime.LockOSThread()
 		MainThreadTestHook = func() (int, bool) {
@@ -204,4 +224,216 @@ func TestThreadFrameClockQueuesRefreshAndStopsRequests(t *testing.T) {
 			t.Error("request reached tick after cancellation")
 		}
 	})
+}
+
+func TestThreadClockPreservesFutureDeadline(t *testing.T) {
+	th := uithread.Start("deadline")
+	defer th.Stop()
+	frames := 0
+	clock := newThreadFrameClock(th, func() { frames++ }, func(bool) {})
+	deadline := time.Now().Add(time.Hour)
+	clock.requestAt(deadline)
+	clock.request()
+	th.Do(func() {
+		if frames != 1 || clock.deadline != deadline {
+			t.Errorf("ordinary frame consumed independent deadline: %v", clock.deadline)
+		}
+		clock.stop()
+	})
+}
+
+func TestThreadClockQueuedOldRefreshCannotRestoreImmediateFrame(t *testing.T) {
+	th := uithread.Start("old refresh")
+	defer th.Stop()
+	frames := 0
+	clock := newThreadFrameClock(th, func() { frames++ }, func(bool) {})
+	th.Do(func() {
+		clock.request()      // queued immediate frame
+		clock.queueRefresh() // issued before that frame actually ran
+		clock.th.Post(clock.requestOnUI)
+	})
+	th.Do(func() {})
+	th.Do(func() {
+		if frames != 1 {
+			t.Errorf("old refresh gave a second immediate frame: %d", frames)
+		}
+		clock.stop()
+	})
+}
+
+func TestCoreVideoRestartFailureFallsBackToTimer(t *testing.T) {
+	cvOnce.Do(func() {})
+	oldCreate, oldOutput, oldStart, oldStop, oldRelease := cvCreate, cvOutput, cvStart, cvStop, cvRelease
+	defer func() {
+		cvCreate, cvOutput, cvStart, cvStop, cvRelease = oldCreate, oldOutput, oldStart, oldStop, oldRelease
+	}()
+	var starts atomic.Int32
+	cvCreate = func(link *uintptr) int32 { *link = 1; return 0 }
+	cvOutput = func(_, _, _ uintptr) int32 { return 0 }
+	cvStart = func(uintptr) int32 {
+		if starts.Add(1) == 1 {
+			return 0 // probe at startup
+		}
+		return -1 // display went away while paused
+	}
+	cvStop = func(uintptr) int32 { return 0 }
+	cvRelease = func(uintptr) {}
+	th := uithread.Start("cv restart")
+	defer th.Stop()
+	frames := make(chan struct{}, 8)
+	c := &threadedCanvas{canvas: &canvas{}}
+	var request, stop func()
+	var err error
+	th.Do(func() { request, stop, err = c.startCoreVideo(th, func() { frames <- struct{}{} }) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer th.Do(stop)
+	deadline := time.Now().Add(time.Hour)
+	c.threadClock.Load().requestAt(deadline)
+	request() // immediate frame; the restart fails
+	<-frames
+	request() // waits for a refresh, which only the fallback timer can provide
+	select {
+	case <-frames:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("failed CVDisplayLink restart dropped pending request")
+	}
+	th.Do(func() {
+		if c.threadClock.Load().deadline != deadline {
+			t.Error("fallback lost InvalidateAt deadline")
+		}
+	})
+}
+
+// A CPU frame and its partial updates use the scale the pixels were drawn
+// at, in a UI-owned child layer; the main-owned root keeps its geometry.
+func TestThreadedCPUPresentUsesFrameGeometry(t *testing.T) {
+	load()
+	loadCanvas()
+	withPool(func() {
+		root := retain(send(class("CALayer"), "layer"))
+		defer release(root)
+		rootBounds := nsRect{Size: nsSize{Width: 300, Height: 200}}
+		msgSetRect(root, sel("setBounds:"), rootBounds)
+		msgSetFloat(root, sel("setContentsScale:"), 1)
+		th := uithread.Start("cpu geometry")
+		defer th.Stop()
+		c := &canvas{threadPrepared: true, threadCPULayer: root, scale: 1}
+		c.publishGeometry() // main geometry moved on to scale 1
+		c.threadClock.Store(newThreadFrameClock(th, func() {}, func(bool) {}))
+		img := image.NewRGBA(image.Rect(0, 0, 1024, 1024))
+		for i := range img.Pix {
+			img.Pix[i] = 0xff
+		}
+		c.SetFrameScale(2) // the frame was rendered at scale 2
+		if err := c.Present(img); err != nil {
+			t.Fatal(err)
+		}
+		content := c.cpuContentLayer()
+		if content == root {
+			t.Fatal("UI frame wrote the main-owned root layer")
+		}
+		if got := msgGetFloat(content, sel("contentsScale")); got != 2 {
+			t.Fatalf("contentsScale %v, want the frame's 2", got)
+		}
+		if got := msgRect(content, sel("bounds")).Size; got != (nsSize{Width: 512, Height: 512}) {
+			t.Fatalf("content bounds %v, want 512x512 points", got)
+		}
+		if msgRect(root, sel("bounds")) != rootBounds || msgGetFloat(root, sel("contentsScale")) != 1 {
+			t.Fatal("UI frame changed root geometry")
+		}
+		if err := c.PresentDamage(img, []image.Rectangle{image.Rect(260, 260, 270, 270)}); err != nil {
+			t.Fatal(err)
+		}
+		if len(c.tiles.shown) != 1 {
+			t.Fatalf("shown tiles %v", c.tiles.shown)
+		}
+		f := msgRect(c.tiles.layers[c.tiles.shown[0]], sel("frame"))
+		if f.Origin.X != 128 || f.Size.Width != 128 {
+			t.Fatalf("tile frame %v uses another generation's scale", f)
+		}
+		// A partial frame of another scale is never composed onto this one.
+		c.SetFrameScale(1)
+		if err := c.PresentDamage(img, []image.Rectangle{image.Rect(0, 0, 4, 4)}); err != nil {
+			t.Fatal(err)
+		}
+		if len(c.tiles.shown) != 0 || msgGetFloat(content, sel("contentsScale")) != 1 {
+			t.Fatal("stale-scale partial frame was composed instead of a whole frame")
+		}
+	})
+}
+
+// A failed startup returns the same canvas to main-thread drawing and
+// balances every reference preparation took (no window needed: the view
+// is never shown).
+// AppKit releases a view's display link references on the main thread, so
+// the check runs in a child whose main goroutine stays on it (no window).
+func TestCancelThreadedRestoresMainDrawing(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^$")
+	cmd.Env = append(os.Environ(), "TANGO_TASK7_CANCEL_CHILD=1")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+}
+
+type cancelT interface{ Fatal(...any) }
+
+type cancelErr struct{ err error }
+
+func (c *cancelErr) Fatal(v ...any) {
+	if c.err == nil {
+		c.err = fmt.Errorf("%s", fmt.Sprint(v...))
+	}
+	panic(c)
+}
+
+func checkCancelThreaded(t cancelT) {
+	load()
+	loadCanvas()
+	loadThreadLink()
+	var initWeak func(*uintptr, id) id
+	var loadWeak func(*uintptr) id
+	var destroyWeak func(*uintptr)
+	purego.RegisterLibFunc(&initWeak, libObjC, "objc_initWeak")
+	purego.RegisterLibFunc(&loadWeak, libObjC, "objc_loadWeak")
+	purego.RegisterLibFunc(&destroyWeak, libObjC, "objc_destroyWeak")
+	var weak uintptr
+	defer destroyWeak(&weak)
+	c := &threadedCanvas{canvas: &canvas{s: &surface{}, scale: 1, w: 100, h: 80}}
+	withPool(func() {
+		view := msgInitRect(send(class("TangoCanvasView"), "alloc"), sel("initWithFrame:"), nsRect{Size: nsSize{Width: 100, Height: 80}})
+		initWeak(&weak, view)
+		c.view = view
+		canvasByView[view] = c.canvas
+		send(view, "setWantsLayer:", 1)
+		c.prepareThreaded()
+		if sendBool(view, "wantsUpdateLayer") {
+			t.Fatal("prepared view still asks AppKit for updateLayer")
+		}
+		hosted := c.threadCPULayer
+		c.CancelThreadedOnMain()
+		if c.threadPrepared || c.threadClock.Load() != nil {
+			t.Fatal("canvas still prepared for a UI thread")
+		}
+		if !sendBool(view, "wantsUpdateLayer") {
+			t.Fatal("view did not return to AppKit drawing")
+		}
+		if l := send(view, "layer"); l == 0 || l == hosted {
+			t.Fatal("view kept the UI thread's hosted layer")
+		}
+		if c.link != 0 { // the restored main display link targets the view
+			send(c.link, "invalidate")
+			release(c.link)
+			c.link = 0
+		}
+		delete(canvasByView, view)
+		release(view) // the creator's reference: the last one if cancel balanced its own
+	})
+	withPool(func() {})
+	if loadWeak(&weak) != 0 {
+		t.Fatal("cancel left an unbalanced reference to the view")
+	}
 }

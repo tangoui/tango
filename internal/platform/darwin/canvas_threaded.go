@@ -33,6 +33,7 @@ type threadFrameClock struct {
 	timer                          *time.Timer
 	deadline                       time.Time
 	generation                     uint64
+	lastDraw, refreshAt            time.Time
 }
 
 func newThreadFrameClock(th *uithread.Thread, tick func(), pause func(bool)) *threadFrameClock {
@@ -100,14 +101,18 @@ func (f *threadFrameClock) clearDeadline() {
 func (f *threadFrameClock) queueRefresh() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.refreshAt = time.Now()
 	if f.stopped || f.refreshQueued {
 		return
 	}
 	f.refreshQueued = f.th.Post(func() {
 		f.mu.Lock()
 		f.refreshQueued = false
+		at := f.refreshAt
 		f.mu.Unlock()
-		f.refresh()
+		if at.After(f.lastDraw) {
+			f.refresh()
+		}
 	})
 }
 
@@ -132,7 +137,10 @@ func (f *threadFrameClock) refresh() {
 func (f *threadFrameClock) draw() {
 	f.wanted, f.idle = false, 0
 	f.mu.Lock()
-	f.clearDeadline() // this frame will publish the runner's next wake
+	f.lastDraw = time.Now()
+	if !f.deadline.IsZero() && !f.lastDraw.Before(f.deadline) {
+		f.clearDeadline()
+	}
 	f.mu.Unlock()
 	withPool(f.tick)
 }
@@ -258,9 +266,18 @@ func (c *threadedCanvas) StartFrameClock(tick func()) (func(), func(), error) {
 
 func (c *threadedCanvas) startTimerClock(th *uithread.Thread, tick func()) (func(), func(), error) {
 	var f *threadFrameClock
-	var stop func()
+	var pause func(bool)
+	f = newThreadFrameClock(th, tick, func(paused bool) { pause(paused) })
+	pause = timerRefresh(f)
+	c.threadClock.Store(f)
+	return f.request, func() { f.stop(); pause(true) }, nil
+}
+
+// timerRefresh returns a pause function driving f at the fallback cadence.
+// It is called only on f's UI thread.
+func timerRefresh(f *threadFrameClock) func(bool) {
 	var quit chan struct{}
-	pause := func(paused bool) {
+	return func(paused bool) {
 		if quit != nil {
 			close(quit)
 			quit = nil
@@ -270,22 +287,18 @@ func (c *threadedCanvas) startTimerClock(th *uithread.Thread, tick func()) (func
 		}
 		quit = make(chan struct{})
 		go func(done <-chan struct{}) {
-			timer := time.NewTicker(frameInterval)
-			defer timer.Stop()
+			ticker := time.NewTicker(frameInterval)
+			defer ticker.Stop()
 			for {
 				select {
 				case <-done:
 					return
-				case <-timer.C:
+				case <-ticker.C:
 					f.queueRefresh()
 				}
 			}
 		}(quit)
 	}
-	f = newThreadFrameClock(th, tick, pause)
-	stop = func() { f.stop(); pause(true) }
-	c.threadClock.Store(f)
-	return f.request, stop, nil
 }
 
 func (c *canvas) publishGeometry() {
@@ -297,7 +310,11 @@ func (c *threadedCanvas) prepareThreaded() {
 	loadThreadLink()
 	c.threadPrepared = true
 	c.publishGeometry()
+	// A display link created from the view refers to its window; keep both
+	// alive for frames still in flight after close. Balanced only once the
+	// UI thread is Done (ReleaseThreadedOnMain or CancelThreadedOnMain).
 	retain(c.view)
+	c.threadWindow = retain(c.s.win)
 	withPool(func() {
 		if c.link != 0 {
 			send(c.link, "invalidate")
@@ -336,15 +353,77 @@ func (c *threadedCanvas) ReleaseThreadedOnMain() {
 			if c.threadLink != 0 {
 				send(c.threadLink, "invalidate")
 			}
-			release(c.threadLink)
-			release(c.threadLinkTarget)
-			release(c.view)
+			c.releaseThreadRefs()
 		}
+	})
+}
+
+// SetFrameScale records the scale the next presented frame was drawn at
+// (UI thread; uihost calls it before Present/PresentDamage).
+func (c *canvas) SetFrameScale(scale float32) { c.frameScale = float64(scale) }
+
+// releaseThreadRefs balances prepareThreaded's references. Main thread,
+// after the UI thread is Done.
+func (c *canvas) releaseThreadRefs() {
+	release(c.threadLink)
+	release(c.threadLinkTarget)
+	if c.threadContent != 0 {
+		send(c.threadContent, "removeFromSuperlayer")
+		release(c.threadContent)
+	}
+	c.threadLink, c.threadLinkTarget, c.threadContent = 0, 0, 0
+	release(c.view)
+	release(c.threadWindow)
+	c.threadWindow = 0
+}
+
+// CancelThreadedOnMain undoes prepareThreaded after a failed startup, once
+// the UI thread is Done: the view goes back to an AppKit-backed layer and
+// the main thread's display link, so the same canvas draws on main.
+func (c *threadedCanvas) CancelThreadedOnMain() {
+	if !c.threadPrepared || c.threadReleased {
+		return
+	}
+	withPool(func() {
+		c.threadReleased = true
+		if c.threadLink != 0 {
+			send(c.threadLink, "invalidate")
+		}
+		c.threadClock.Store(nil)
+		c.threadPrepared = false
+		c.frameScale, c.tileScale = 0, 0
+		c.releaseThreadRefs()
+		if c.closed {
+			return
+		}
+		c.tiles = nil
+		if c.nativeLayer == 0 && c.metalLayer == 0 {
+			// Back to a layer-backed view: AppKit owns the layer and calls
+			// updateLayer, as before preparation.
+			send(c.view, "setWantsLayer:", 0)
+			send(c.view, "setLayer:", 0)
+			send(c.view, "setWantsLayer:", 1)
+			send(c.view, "setLayerContentsRedrawPolicy:", nsViewLayerContentsRedrawOnSetNeedsDisplay)
+			c.setGravity()
+		}
+		c.threadCPULayer = 0
+		if respondsTo(c.view, "displayLinkWithTarget:selector:") && nsRunLoopCommon != 0 {
+			c.link = retain(send(c.view, "displayLinkWithTarget:selector:", uintptr(c.view), uintptr(sel("tangoDisplayTick:"))))
+			if c.link != 0 {
+				send(c.link, "setPaused:", 1)
+				send(c.link, "addToRunLoop:forMode:", uintptr(send(class("NSRunLoop"), "mainRunLoop")), nsRunLoopCommon)
+			}
+		}
+		c.linkRunning, c.idleTicks = false, 0
+		c.Invalidate()
 	})
 }
 
 func (c *canvas) presentationScale() float64 {
 	if c.threadClock.Load() != nil {
+		if c.frameScale > 0 {
+			return c.frameScale
+		}
 		return float64(c.geometrySnapshot.Load().scale)
 	}
 	return c.scale
@@ -360,9 +439,29 @@ func (c *canvas) commitPresentation(transaction id) {
 func (c *canvas) cpuContentLayer() id {
 	if c.threadClock.Load() != nil {
 		if c.nativeLayer != 0 {
-			return c.nativeLayer
+			return c.threadChild(c.nativeLayer)
 		}
-		return c.threadCPULayer
+		return c.threadChild(c.threadCPULayer)
 	}
 	return send(c.view, "layer")
+}
+
+// threadChild returns the UI thread's own CPU content layer under root.
+// Only the UI thread sets its frame and scale; the main thread owns root.
+func (c *canvas) threadChild(root id) id {
+	if c.threadContent != 0 && send(c.threadContent, "superlayer") == root {
+		return c.threadContent
+	}
+	if c.threadContent != 0 {
+		send(c.threadContent, "removeFromSuperlayer")
+		release(c.threadContent)
+		c.tiles = nil
+	}
+	l := retain(send(class("CALayer"), "layer"))
+	send(l, "setActions:", uintptr(noActions()))
+	send(l, "setOpaque:", 1)
+	send(l, "setGeometryFlipped:", 1)
+	send(root, "addSublayer:", uintptr(l))
+	c.threadContent = l
+	return l
 }

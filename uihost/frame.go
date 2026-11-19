@@ -20,9 +20,10 @@ func (w *window) watchFrame(s *tango.Surface) {
 		s.OnStateChanged(func(tango.WindowState) { w.Invalidate() })
 		return
 	}
+	t := w.t
 	refresh := func() {
 		info := readFrameInfo(s)
-		w.t.frameInfo.Store(&info)
+		t.frameInfo.Store(&info)
 	}
 	changed := func() {
 		refresh()

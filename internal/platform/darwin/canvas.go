@@ -131,6 +131,11 @@ type canvas struct {
 	closing                                      atomic.Bool
 	threadPrepared, threadReleased               bool // main thread
 	threadLink, threadLinkTarget, threadCPULayer id
+	// UI thread: CPU frames go to a child of the main-owned root.
+	threadContent id
+	threadWindow  id      // retained with view until the UI thread is Done
+	frameScale    float64 // scale of the frame being presented; 0: main geometry
+	tileScale     float64 // scale of the whole frame the tiles belong to
 
 	ax       *canvasA11y // main-thread accessibility bridge, nil until first used
 	axActive atomic.Bool // read by the frame thread
@@ -661,10 +666,15 @@ func (c *canvas) Present(img *image.RGBA) error {
 		send(ca, "begin")
 		send(ca, "setDisableActions:", 1)
 		send(layer, "setContents:", cg)
-		if c.threadClock.Load() == nil || c.metalLayer != 0 {
-			msgSetFloat(layer, sel("setContentsScale:"), c.presentationScale())
+		scale := c.presentationScale()
+		msgSetFloat(layer, sel("setContentsScale:"), scale)
+		if layer == c.threadContent {
+			// Size the UI-owned child in the frame's own points; the root's
+			// bounds and scale stay main-thread state.
+			msgSetRect(layer, sel("setFrame:"), nsRect{Size: nsSize{Width: float64(w) / scale, Height: float64(h) / scale}})
 		}
 		c.tilesReset(image.Pt(w, h)) // canvas_damage.go: the whole frame covers every tile
+		c.tileScale = scale
 		c.commitPresentation(ca)
 	})
 	cgImageRelease(cg)
