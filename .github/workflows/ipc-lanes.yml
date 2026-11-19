@@ -1,0 +1,82 @@
+name: ipc-lanes
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['feat/ipc-lanes-*']
+
+permissions:
+  contents: read
+
+jobs:
+  ipc-lanes:
+    name: ipc-lanes (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, windows-11-arm]
+    defaults:
+      run:
+        shell: bash
+    env:
+      GDK_BACKEND: x11
+      NO_AT_BRIDGE: "1"
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+      GOWORK: "off"
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: "**/go.sum"
+
+      - name: Install GTK, WebKitGTK and Xvfb (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-0 libwebkit2gtk-4.1-0 libayatana-appindicator3-1 \
+            xvfb xauth dbus dbus-x11 imagemagick weston
+          # Ubuntu 24.04 restricts unprivileged user namespaces, which
+          # WebKit's sandboxed web process may need.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
+      - name: Run duplex E2E
+        env:
+          TANGO_E2E: "1"
+        run: |
+          run=(go test -p 1 -count=1 ./examples/duplex -run 'E2E' -v)
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            run=(dbus-run-session -- xvfb-run -a -s "-screen 0 1280x1024x24" "${run[@]}")
+          fi
+
+          status=0
+          unset TANGO_E2E_LANES
+          echo "=== Default lanes ===" | tee -a e2e.log
+          "${run[@]}" 2>&1 | tee -a e2e.log || status=$?
+          echo "=== Enabled lanes ===" | tee -a e2e.log
+          TANGO_E2E_LANES=1 "${run[@]}" 2>&1 | tee -a e2e.log || status=$?
+          exit "$status"
+
+      - name: Run interleaved IPC benchmark
+        if: ${{ !cancelled() }}
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            dbus-run-session -- xvfb-run -a -s "-screen 0 1280x1024x24" bash scripts/ipc-bench-ab.sh 5 bench.jsonl
+          else
+            bash scripts/ipc-bench-ab.sh 5 bench.jsonl
+          fi
+
+      - name: Upload IPC lane results
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: ipc-lanes-${{ matrix.os }}
+          path: |
+            e2e.log
+            bench.jsonl
