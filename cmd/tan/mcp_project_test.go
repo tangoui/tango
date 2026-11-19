@@ -179,10 +179,12 @@ func TestToolOutputSchemasAreObjects(t *testing.T) {
 	if len(res.Tools) == 0 {
 		t.Fatal("no tools")
 	}
+	withSchema := 0
 	for _, tool := range res.Tools {
 		if tool.OutputSchema == nil {
 			continue
 		}
+		withSchema++
 		b, err := json.Marshal(tool.OutputSchema)
 		if err != nil {
 			t.Fatal(err)
@@ -196,6 +198,10 @@ func TestToolOutputSchemasAreObjects(t *testing.T) {
 		if schema.Type != "object" {
 			t.Errorf("tool %s: output schema type %v, want object", tool.Name, schema.Type)
 		}
+	}
+	// Otherwise the loop above checked nothing.
+	if withSchema == 0 {
+		t.Error("no tool has an output schema")
 	}
 }
 

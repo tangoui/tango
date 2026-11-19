@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	wire "github.com/tangoui/tango/internal/automation"
@@ -17,6 +18,9 @@ import (
 // page-side script gives up after timeoutMs itself and the app answers
 // with its rejection (the same margin package automation uses).
 const webEvalSlack = 2 * time.Second
+
+// webEvalMax caps the serialized value tango_web_eval returns.
+const webEvalMax = 64 << 10
 
 type webEvalInput struct {
 	Session   string `json:"session" jsonschema:"app session id from tango_app_start or tango_app_attach"`
@@ -51,7 +55,9 @@ type webWaitInput struct {
 type webEvalOutput struct {
 	// Value is any so that its schema is unrestricted; it holds the
 	// page's json.RawMessage, written out as is.
-	Value any `json:"value" jsonschema:"the expression's value as JSON (null for undefined)"`
+	Value any `json:"value" jsonschema:"the expression's value as JSON (null for undefined); when truncated, a string holding the first 64 KiB of that JSON"`
+	// Truncated says Value is a preview of a larger value.
+	Truncated bool `json:"truncated,omitempty" jsonschema:"the value's JSON was over 64 KiB: value is a string with its beginning"`
 }
 
 type webTextOutput struct {
@@ -74,7 +80,7 @@ func (s *mcpServer) addWebTools() {
 		if err != nil {
 			return nil, webEvalOutput{}, err
 		}
-		return nil, webEvalOutput{Value: v}, nil
+		return nil, evalOutput(v), nil
 	})
 
 	mcp.AddTool(s.srv, &mcp.Tool{
@@ -161,6 +167,24 @@ func (s *mcpServer) webEval(ctx context.Context, session, ref string, ms int, sc
 		return json.RawMessage("null"), nil
 	}
 	return r.Value, nil
+}
+
+// evalOutput returns v as is, or when its JSON is over webEvalMax, a
+// string with the first webEvalMax bytes of it (cut on a rune boundary).
+func evalOutput(v json.RawMessage) webEvalOutput {
+	if len(v) <= webEvalMax {
+		return webEvalOutput{Value: v}
+	}
+	b := v[:webEvalMax]
+	for i := len(b) - 1; i >= 0 && i >= len(b)-utf8.UTFMax; i-- {
+		if utf8.RuneStart(b[i]) {
+			if !utf8.FullRune(b[i:]) {
+				b = b[:i]
+			}
+			break
+		}
+	}
+	return webEvalOutput{Value: string(b), Truncated: true}
 }
 
 func selfDrawnError(w wire.WindowInfo) error {

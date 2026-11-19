@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	wire "github.com/tangoui/tango/internal/automation"
 	"github.com/tangoui/tango/internal/automation/client"
@@ -166,5 +168,36 @@ func TestWebScriptErrorSurfaced(t *testing.T) {
 		if msg := callErr(t, cs, c.tool, args); !strings.Contains(msg, "ReferenceError: x is not defined") {
 			t.Errorf("%s: %s", c.tool, msg)
 		}
+	}
+}
+
+// A value over 64 KiB comes back as a string preview with truncated set;
+// smaller ones as is.
+func TestWebEvalTruncatesLargeValue(t *testing.T) {
+	s, cs := projectServer(t)
+	big := `"` + strings.Repeat("é", webEvalMax) + `"`
+	a, _ := fakeSession(t, s, webWindow, map[string]func(*wire.Request) *wire.Response{
+		wire.OpEval: func(r *wire.Request) *wire.Response {
+			if r.Script == "small" {
+				return &wire.Response{Value: json.RawMessage(`{"a":1}`)}
+			}
+			return &wire.Response{Value: json.RawMessage(big)}
+		},
+	})
+	var small struct {
+		Value     map[string]int `json:"value"`
+		Truncated bool           `json:"truncated"`
+	}
+	callOK(t, cs, "tango_web_eval", map[string]any{"session": a.ID, "expr": "small"}, &small)
+	if small.Value["a"] != 1 || small.Truncated {
+		t.Errorf("small value: %+v", small)
+	}
+	var out struct {
+		Value     string `json:"value"`
+		Truncated bool   `json:"truncated"`
+	}
+	callOK(t, cs, "tango_web_eval", map[string]any{"session": a.ID, "expr": "big"}, &out)
+	if !out.Truncated || len(out.Value) > webEvalMax || len(out.Value) < webEvalMax-utf8.UTFMax || !utf8.ValidString(out.Value) || !strings.HasPrefix(out.Value, `"éé`) {
+		t.Errorf("big value: truncated %v, %d bytes, valid %v", out.Truncated, len(out.Value), utf8.ValidString(out.Value))
 	}
 }
