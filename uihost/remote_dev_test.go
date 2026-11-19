@@ -400,3 +400,32 @@ func TestRemoteMenus(t *testing.T) {
 		return len(items) == 0 || items[0].Label != "File"
 	})
 }
+
+// Runner.Post from another goroutine runs on the worker's main thread (the
+// UI thread of a tan dev window), never inline on the caller.
+func TestRemoteRunnerPostRunsOnMain(t *testing.T) {
+	wa, _, _, o := openRemote(t, tango.SurfaceOptions{Width: 300, Height: 200})
+	ran := make(chan struct{})
+	early := tango.Await(wa, func() bool {
+		posted := make(chan struct{})
+		go func() {
+			o.r.Post(func() { close(ran) })
+			close(posted)
+		}()
+		<-posted // the main thread is busy here, so fn cannot have run yet
+		select {
+		case <-ran:
+			return true
+		default:
+			return false
+		}
+	})
+	if early {
+		t.Fatal("Runner.Post ran fn on the calling goroutine")
+	}
+	select {
+	case <-ran:
+	case <-time.After(5 * time.Second):
+		t.Fatal("posted function never ran")
+	}
+}

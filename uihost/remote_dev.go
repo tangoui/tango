@@ -416,6 +416,10 @@ func (w *remoteWin) Invalidate() {
 	}
 }
 
+// PostUI implements ui.UIPoster: Runner.Post from any goroutine runs fn on
+// the main thread, the UI thread of a window shown by the tan dev host.
+func (w *remoteWin) PostUI(fn func()) { devPost(fn) }
+
 // InvalidateAt invalidates at t. Any goroutine.
 func (w *remoteWin) InvalidateAt(t time.Time) {
 	w.wakeMu.Lock()
