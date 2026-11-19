@@ -577,6 +577,80 @@ R1 是合并 origin/main 之后在同一台机器上重测的进程内基线，�
 - **编辑表的保留行**：`EditableRows` 里残留的键（行已被外部删除或不在当前页）不再每帧扫描整页；行数、`Revision`、分页范围或排序结果变化时重新查找。
 - **债表棘轮**：`TestPerfBudgets`（`TANGO_PERF_BUDGET=1`）中，已登记的时间债如果实测超过登记值的 1.5 倍就失败，防止已知的债继续恶化。
 
+## 优化后跨框架复测（Tango `4df85335`）
+
+本轮从 22:23:08 到次日 00:53:30，覆盖 42 个场景、三个框架，各 5 轮，至少 4 轮有效才判定。Tango 和 runner 使用经清单校验的 `4df85335` 预编译产物，未加构建标签，仍是 go-text，不代表后来 `main` 的 CoreText 默认路径。只比较进程 CPU（不计 WindowServer，口径相对有利于使用 AppKit 合成的 NSGo）。
+
+UU 远程保持连接。按用户要求跳过外部键鼠空闲与负载等待，但保留 runner 自身的负载门槛、受扰判定和重试。实际记录 648 次采样尝试，其中 19 次因负载受扰，18 次为追加重试。远程连接期间的 p99 只作参考，不作为达标依据；下表保留 runner 原判，不把远程干扰当作框架差异。
+
+**没有场景达到同时比两个对手都至少节省 50% CPU、且满足帧率和 p99 条件的目标。** 84 项原判中：57 项 NotFaster、24 项 Info、2 项 Invalid、1 项 Faster（Tree 对 NSGo）。Tree 对 MyGo 的进程 CPU 为 0.58×，对 NSGo 为 0.12×。对 NSGo 的 Pagination（0.36×）和 Transfer（0.28×）均因 runner 记录的 p99 较高而未判 Faster。Grid 的 Tango 样本混用了原生图层和单向升级到 Metal 的模式，对两家都未出有效判定。
+
+| 场景 | 对 MyGo | 对 NSGo |
+|---|---|---|
+| counter | Info 0.74× | Info 0.70× |
+| list | NotFaster 0.95× | NotFaster 1.52× |
+| grid | Invalid | Invalid |
+| buttons | NotFaster 1.86× | NotFaster 1.30× |
+| inputs | NotFaster 0.70× | NotFaster 0.71× |
+| textarea | NotFaster 1.92× | NotFaster 0.71× |
+| checkboxes | NotFaster 1.01× | NotFaster 1.21× |
+| radios | NotFaster 1.69× | NotFaster 1.79× |
+| switches | NotFaster 1.85× | NotFaster 2.13× |
+| sliders | NotFaster 0.93× | NotFaster 1.11× |
+| progress | Info 2.28× | Info 0.93× |
+| tabs | Info 1.39× | Info 1.21× |
+| menu | NotFaster 0.70× | NotFaster 1.10× |
+| dialog | Info 3.89× | Info 3.16× |
+| toast | Info 1.17× | Info 1.67× |
+| tree | NotFaster 0.58× | Faster 0.12× |
+| datepicker | NotFaster 0.84× | NotFaster 0.98× |
+| colorpicker | NotFaster 1.03× | NotFaster 0.61× |
+| select | NotFaster 0.93× | NotFaster 0.99× |
+| tooltip | Info 2.20× | Info 2.17× |
+| table | NotFaster 0.60× | NotFaster 1.42× |
+| pagination | NotFaster 1.23× | NotFaster 0.36× |
+| cascader | NotFaster 0.82× | NotFaster 0.60× |
+| transfer | NotFaster 0.98× | NotFaster 0.28× |
+| treeselect | NotFaster 0.95× | NotFaster 0.99× |
+| calendar | NotFaster 1.00× | NotFaster 1.13× |
+| steps | Info 2.67× | Info 0.98× |
+| timeline | NotFaster 0.85× | NotFaster 1.53× |
+| descriptions | NotFaster 0.90× | NotFaster 1.49× |
+| form | NotFaster 0.65× | NotFaster 0.67× |
+| upload | Info 1.21× | Info 1.33× |
+| carousel | Info 5.97× | Info 5.06× |
+| collapse | Info 1.35× | Info 1.58× |
+| drawer | Info 2.10× | Info 1.98× |
+| tour | NotFaster 2.23× | NotFaster 1.98× |
+| protable | NotFaster 0.66× | NotFaster 1.44× |
+| segmented | Info 2.24× | Info 1.48× |
+| rate | NotFaster 0.85× | NotFaster 1.11× |
+| tags | NotFaster 1.06× | NotFaster 1.37× |
+| badges | NotFaster 0.95× | NotFaster 1.24× |
+| cards | NotFaster 0.72× | NotFaster 1.35× |
+| statistics | NotFaster 0.70× | NotFaster 1.10× |
+
+倍数是 Tango / 对手的进程 CPU 中位数之比，小于 1 表示 Tango 的进程 CPU 更低。原始 JSON 与日志保存在 `tools/uibench/results/final5-uu-direct-20261118-222308.*`（本地忽略目录）。此轮与 12b 的渲染器和远程会话环境不同，不宜直接用不同时间段的 CPU 比率归因到单个提交。
+
+### Tango 强制 Metal 前后对照（诊断）
+
+同一 runner 交替测基线 `e829769` 和复测版本 `4df85335`，双方均用 `-tango-renderer gpu`；基线场景二进制按清单校验，统一 runner 用 `-unverified-runner` 跳过基线清单对 runner 自身版本的约束。每个版本、每个场景各 5 个有效样本，共 80 次采样，无受扰轮次。UU 保持连接。
+
+8 个场景的进程 CPU 中位数合计从 1.2397 核降到 1.1318 核（−8.7%），8 个场景的 CPU 四分位区间均不重叠。两版都约 60 fps，p99 在 16.81–16.87 ms；这是带 UU 的诊断数据，不作 p99 达标依据。两个版本之间还包含组件和其他上游改动，不能把全部收益归因于 B3，也不能把本轮用于跨框架判定。
+
+| 场景 | 进程 CPU（核） | 变化 | fps | p99（ms） |
+|---|---:|---:|---:|---:|
+| badges | 0.1492 → 0.1405 | -5.9% | 60.0 → 60.0 | 16.86 → 16.87 |
+| buttons | 0.1693 → 0.1662 | -1.8% | 60.0 → 60.0 | 16.86 → 16.86 |
+| cards | 0.1660 → 0.1454 | -12.4% | 60.0 → 60.0 | 16.84 → 16.84 |
+| menu | 0.1418 → 0.1261 | -11.1% | 60.0 → 60.0 | 16.86 → 16.85 |
+| select | 0.1432 → 0.1275 | -11.0% | 60.0 → 60.0 | 16.81 → 16.81 |
+| sliders | 0.1703 → 0.1625 | -4.6% | 60.0 → 60.0 | 16.83 → 16.83 |
+| statistics | 0.1454 → 0.1274 | -12.4% | 60.0 → 60.0 | 16.83 → 16.82 |
+| tour | 0.1544 → 0.1363 | -11.7% | 60.0 → 60.0 | 16.82 → 16.82 |
+
+原始 JSON 和日志在本地台账目录的 `ab-B3/forced-metal-final-005503/`。
+
 ## 历史：Task 12a 基线（5f115d3）
 
 以下为 Task 12a 的原始记录（含 F1 的更正），保留作对照，数值不再更新。12a 的时间判定与本文 R1 一致的部分见上文“与 12a 的差异”。
