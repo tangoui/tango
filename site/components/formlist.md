@@ -49,7 +49,7 @@ func page(c *ui.Context) {
 
 ### 行级校验与列表规则
 
-行内字段通过 `FormItem.Rules` 校验，`Rule` 接收当前行数并校验列表整体。`Min` 和 `Max` 同时控制按钮是否可用。
+行内字段通过 `FormItem.Rules` 校验，`Rule` 接收当前行数并校验列表整体。`Min` 在构建时补足行数，并禁止删到下限以下。`Max` 限制继续添加，默认不限制行数。
 
 ```go
 import "github.com/tangoui/tango/ui"
@@ -144,7 +144,7 @@ func page(c *ui.Context) {
 
 ### 读取列表变化
 
-`Changed` 在本次 `Body` 构建中有行添加、删除或移动时返回 `true；`适合触发摘要刷新，而不是替代对切片本身的读取。
+`Changed()` 在添加、删除或移动操作改变列表的这次 `Body` 构建中返回 `true`，可用来触发摘要刷新。
 
 ```go
 import (

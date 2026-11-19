@@ -204,6 +204,7 @@ func page(c *ui.Context) {
 
 - 组件令牌：`theme.Components.Layout`（`theme.LayoutToken`）：`HeaderBg`、`HeaderHeight`、`HeaderPaddingInline`、`FooterBg`、`FooterPadding`、`SiderBg`、`LightSiderBg`、`SiderWidth`、`SiderCollapsedWidth`、`TriggerBg`、`TriggerHeight` 等，用 `ui.ConfigProvider(c).Components(theme.Components{Layout: ...})` 覆盖。
 - `ConfigProvider.Defaults("Sider", ...)` 键：`"breakpoint"`（`ui.Breakpoint`）、`"collapsedWidth"`（数值）、`"theme"`（`"light"` / `"dark"`）。
+- Ant Design 主题的 `Sider` 默认收起宽度为 64px。它与 `ProLayout` 共用侧栏，采用 Ant Design Pro v6 的收起尺寸。antd 6.7 的 `Layout.Sider` 默认收起宽度为 80px。[设计基线](https://github.com/tangoui/tango/blob/main/docs/design-baseline.md)
 
 ## 注意事项
 

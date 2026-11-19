@@ -3,7 +3,7 @@ title: Message 全局提示
 ---
 # Message 全局提示
 
-在窗口顶部居中弹出的轻量提示，用来反馈操作结果（保存成功、网络错误、正在加载……），几秒后自动消失，不打断用户操作。
+用几秒钟的轻量提示反馈保存成功、网络错误、正在加载等状态。Ant Design 和 Element Plus 默认在窗口顶部居中显示，shadcn 默认在底部结束角显示。
 
 ## 何时使用
 
@@ -135,7 +135,7 @@ func page(c *ui.Context) {
 
 ### 位置、偏移与朴素样式
 
-`Placement` 选择出现位置：`ui.MessageTop`（默认）、`ui.MessageTopStart`、`ui.MessageTopEnd`、`ui.MessageBottom`、`ui.MessageBottomStart`、`ui.MessageBottomEnd`；每个位置单独堆叠，底部位置向上堆叠。`Offset(px)` 设置离窗口上（或下）边缘的距离。`Plain()` 使用中性底色，只有图标带状态色（Element Plus 的 plain 样式；Ant Design 的提示本来就是这种外观）。
+`Placement` 选择出现位置，可设为 `ui.MessageTop`、`ui.MessageTopStart`、`ui.MessageTopEnd`、`ui.MessageBottom`、`ui.MessageBottomStart` 或 `ui.MessageBottomEnd`。各位置分别堆叠，底部位置向上堆叠。Ant Design 和 Element Plus 中，最新一条提示的 `Offset(px)` 决定该堆栈到窗口边缘的距离。shadcn 的 Sonner 堆栈使用自己的边距。`Plain()` 使用中性底色，图标保留状态色。
 
 ```go
 import (
@@ -164,7 +164,7 @@ func page(c *ui.Context) {
 
 组件令牌在 `theme.Components.Message`（`theme.MessageToken`）：`ContentBg`、`Color`、`PaddingBlock`、`PaddingInline`、`Width`、`Radius`、`BorderColor`、`Shadow`、`Top`（默认离窗口边缘的距离）、`MarginInline`、`CloseColor`，以及 `Plain()` 使用的 `PlainBg`、`PlainColor`、`PlainBorderColor`、`PlainShadow`。
 
-`ConfigProvider.Defaults("Message", ui.Props{...})` 支持：`duration`（秒数，或 `time.Duration`；`<= 0` 不自动关闭）和 `maxCount`（同时显示的最大条数，超出时移除最早的）。全局默认时长也可以改包级变量 `ui.MessageDuration`。
+`ConfigProvider.Defaults("Message", ui.Props{...})` 支持 `duration`（秒数或 `time.Duration`，`<= 0` 持续显示）、`maxCount`（超过上限时移除最早的提示）和 `pauseOnHover`（默认 `true`）。包级变量 `ui.MessageDuration` 控制全局默认时长。
 
 ```go
 import (
@@ -185,7 +185,7 @@ func page(c *ui.Context) {
 - **只在事件里调用**：`ui.Message` 每调用一次就新开一条提示。把它放在 `if ...Clicked()`、`Ok()`、channel 收到结果等只执行一次的分支里，不要放在每帧都会执行的位置。
 - **返回值不用保存**：`*ui.MessageRef` 只用于同一条链式调用；以后要更新或关闭，用 `Key` 和 `ui.MessageDestroy`。
 - **线程**：只能在 UI 线程的帧内调用；后台 goroutine 通过 channel 加 `c.Invalidator()` 把结果交回来，见上面的示例。
-- **无障碍**：提示是读屏软件的实时区域：`error` / `warning` 以 alert 角色立即播报，其余以 status 角色礼貌播报；悬停在提示上不会暂停计时，需要用户阅读较长内容时用 `Duration(0)` 加 `ShowClose()`，或改用 Notification。
+- **无障碍**：`error` / `warning` 以 alert 角色立即播报，其余以 status 角色礼貌播报。悬停默认暂停计时，单条提示可用 `PauseOnHover(false)` 关闭。
 - **RTL**：`Start` / `End` 位置随方向镜像。
 
 ## 示例代码

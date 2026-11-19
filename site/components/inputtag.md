@@ -3,7 +3,7 @@ title: InputTag 标签输入
 ---
 # InputTag 标签输入
 
-把用户输入的文本转换为可删除的标签，默认在 Enter 或逗号后提交。
+把用户输入的文本转换为可删除的标签，默认按 Enter 或键入半角、全角逗号后提交。
 
 ## 何时使用
 
@@ -50,7 +50,7 @@ func page(c *ui.Context) {
 
 ### 自定义分隔符
 
-`Separators` 接收任意多个字符串；调用 `Separators()` 不传参数时只保留 Enter 作为提交方式。空字符串会被忽略。
+`Separators` 接收任意多个字符串，空字符串会被忽略。无参调用 `Separators()` 会停用字符分隔符，保留提交键。提交键默认为 Enter，`Trigger("Space")` 可改为空格键。
 
 ```go
 import "github.com/tangoui/tango/ui"
@@ -118,14 +118,14 @@ func page(c *ui.Context) {
 ## 主题与样式
 
 - InputTag 使用选择器外壳和标签令牌，主题来源是 `theme.Components.Select`（`SelectToken`），其中 `MultipleItemBg`、`MultipleItemColor` 和标签高度控制标签外观。
-- `ConfigProvider.Defaults("InputTag", ui.Props{...})` 支持 `size`、`placeholder`、`allowClear` 和 `maxTagCount` 等默认值；显式方法优先。
+- `ConfigProvider.Defaults("InputTag", ui.Props{...})` 支持 `size`、`placeholder`、`allowClear`、`maxTagCount` 和 `trigger`（`"Enter"` / `"Space"`）等默认值。显式方法优先。
 - Ant Design、Element Plus 和 shadcn 的边框、焦点环、标签颜色会随当前主题切换，不需要在页面里判断主题。
 
 ## 注意事项
 
 - **状态**：标签切片放在页面函数外或 `ui.State` 中；组件会复制切片后写回，应用不要在同一帧用旧切片覆盖结果。
 - **重复值**：空白标签和已经存在的标签会被忽略；`Added()` 返回空字符串不代表删除事件。
-- **键盘**：Enter 提交当前输入，输入为空时 Backspace 删除最后一个标签；拖动排序适合鼠标或触摸场景，仍应保留键盘删除路径。
+- **键盘**：Enter 默认提交当前输入，`Trigger("Space")` 下改用空格键。输入为空时 Backspace 删除最后一个标签。
 - **无障碍**：`A11yLabel` 命名的是文本编辑器；标签删除按钮会以各自的标签值暴露给辅助技术。
 - **输入法**：分隔符会处理粘贴文本；需要允许带空格的标签时，不要把空格加入 `Separators`。
 

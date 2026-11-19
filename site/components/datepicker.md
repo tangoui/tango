@@ -44,6 +44,8 @@ func page(c *ui.Context) {
 
 `Picker` 切换粒度：`ui.PickerWeek`、`ui.PickerMonth`、`ui.PickerQuarter`、`ui.PickerYear`。值为对应周期的第一天（UTC 零点）。
 
+`ShowWeek(true)` 在日视图显示 ISO 周数，周选择器始终显示这一列。`ShowNow(false)` 隐藏面板底部的“今天”。
+
 ```go
 import (
 	"time"
@@ -63,7 +65,7 @@ func page(c *ui.Context) {
 
 ### 日期范围 RangePicker
 
-`RangePicker` 绑定 `*[2]time.Time`：第一次点击选一端，第二次点击选另一端，结果自动按先后排序。`Placeholder(开始, 结束)` 设置两端占位符；`Picker` 同样适用于范围；`ShowTime()` 在面板下方加入开始 / 结束时间列，点“确定”后提交。
+`RangePicker` 绑定 `*[2]time.Time`。第一次点击选一端，第二次点击选另一端，结果默认自动排序。`Order(false)` 按选择顺序保存两端。`Placeholder(开始, 结束)` 设置两端占位符，`Separator(s)` 设置两端之间的分隔文字。日粒度下 `ShowTime()` 在面板下方加入开始 / 结束时间列，点“确定”后提交。
 
 ```go
 import (
@@ -118,6 +120,8 @@ func page(c *ui.Context) {
 ### 禁用日期与时间
 
 `DisabledDate(func(time.Time) bool)` 返回 `true` 的日期不可选也不可键入（使用 `Picker` 时传入的是周期的第一天）。带时间的选择器还可以用 `DisabledTime` 返回 `ui.DisabledTimes`，按天禁用小时、分钟、秒；`RangePicker` 的回调多一个 `end` 参数区分开始和结束端。
+
+`DatePicker`、`RangePicker` 和 `DateTimePicker` 都可用 `MinDate(t)`、`MaxDate(t)` 限制可选范围及面板翻页范围。`Placement` 设置面板的弹出位置，默认 `ui.BottomStart`，空间不足时自动翻转。
 
 ```go
 import (

@@ -95,6 +95,8 @@ func page(c *ui.Context) {
 
 `DisabledDate` 接收周期的第一天，返回 `true` 的周期不可选择。`Border(false)` 适合已经有卡片或表单边框的布局，`Disabled(true)` 则禁用整个面板。
 
+`MinDate(t)` 和 `MaxDate(t)` 限制可选日期和标题栏翻页范围。日视图可用 `ShowWeek(true)` 显示 ISO 周数，周选择器始终显示周数。
+
 ```go
 import (
     "time"
