@@ -56,6 +56,7 @@ type nativeDrawer struct {
 
 var setNativeRect func(objc.ID, objc.SEL, nativeRect)
 var setNativeFloat func(objc.ID, objc.SEL, float64)
+var setNativePoint func(objc.ID, objc.SEL, nativePoint)
 var cgSave, cgRestore, cgContextRelease func(uintptr)
 var cgScale, cgTranslate func(uintptr, float64, float64)
 var cgClip func(uintptr, nativeRect)
@@ -101,6 +102,7 @@ func loadNative() error {
 		nativeNearest = objc.ID(nativeWord(nearest))
 		purego.RegisterFunc(&setNativeRect, send)
 		purego.RegisterFunc(&setNativeFloat, send)
+		purego.RegisterFunc(&setNativePoint, send)
 		for _, entry := range []struct {
 			fn   any
 			name string

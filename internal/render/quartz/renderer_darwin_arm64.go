@@ -83,6 +83,10 @@ func NewPresenter(target uintptr) (paint.Renderer, func(image.Point, float32) er
 			layer.Send(sel("release"))
 			return nil, nil, fmt.Errorf("quartz: cannot create content layer")
 		}
+		// Pin the child's top-left corner to the root's: setBounds alone would
+		// centre it on the default position (0,0).
+		setNativePoint(child, sel("setAnchorPoint:"), nativePoint{})
+		setNativePoint(child, sel("setPosition:"), nativePoint{})
 		layer.Send(sel("addSublayer:"), child)
 		r.layer = child
 		layer = child

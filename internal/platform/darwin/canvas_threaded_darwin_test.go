@@ -64,6 +64,11 @@ func TestFrameAtOnceSemanticsOnUIThread(t *testing.T) {
 }
 
 func init() {
+	if os.Getenv("TANGO_TASK7_TOPLEFT_CHILD") != "" {
+		runtime.LockOSThread()
+		MainThreadTestHook = mainThreadCheck(checkThreadedCPUFrameTopLeft)
+		return
+	}
 	if os.Getenv("TANGO_TASK7_CANCEL_CHILD") != "" {
 		runtime.LockOSThread()
 		MainThreadTestHook = func() (code int, handled bool) {
@@ -381,6 +386,25 @@ func TestCancelThreadedRestoresMainDrawing(t *testing.T) {
 
 type cancelT interface{ Fatal(...any) }
 
+// mainThreadCheck runs check as a MainThreadTestHook child.
+func mainThreadCheck(check func(cancelT)) func() (int, bool) {
+	return func() (code int, handled bool) {
+		handled = true
+		e := &cancelErr{}
+		defer func() {
+			if v := recover(); v != nil && v != e {
+				panic(v)
+			}
+			if e.err != nil {
+				fmt.Fprintln(os.Stderr, e.err)
+				code = 1
+			}
+		}()
+		check(e)
+		return 0, handled
+	}
+}
+
 type cancelErr struct{ err error }
 
 func (c *cancelErr) Fatal(v ...any) {
@@ -435,5 +459,53 @@ func checkCancelThreaded(t cancelT) {
 	withPool(func() {})
 	if loadWeak(&weak) != 0 {
 		t.Fatal("cancel left an unbalanced reference to the view")
+	}
+}
+
+// During live resize a CPU frame can be smaller than the root layer; it must
+// sit at the root's visual top-left, not slide to the bottom.
+func checkThreadedCPUFrameTopLeft(t cancelT) {
+	load()
+	loadCanvas()
+	loadThreadLink()
+	c := &threadedCanvas{canvas: &canvas{s: &surface{}, scale: 1, w: 300, h: 200}}
+	withPool(func() {
+		view := msgInitRect(send(class("TangoCanvasView"), "alloc"), sel("initWithFrame:"), nsRect{Size: nsSize{Width: 300, Height: 200}})
+		defer release(view)
+		c.view = view
+		canvasByView[view] = c.canvas
+		defer delete(canvasByView, view)
+		send(view, "setWantsLayer:", 1)
+		c.prepareThreaded()
+		defer c.CancelThreadedOnMain()
+		root := c.threadCPULayer
+		th := uithread.Start("top-left")
+		defer th.Stop()
+		c.threadClock.Store(newThreadFrameClock(th, func() {}, func(bool) {}))
+		c.SetFrameScale(1)
+		img := image.NewRGBA(image.Rect(0, 0, 100, 50)) // smaller than the 300x200 root
+		if err := c.Present(img); err != nil {
+			t.Fatal(err)
+		}
+		content := c.cpuContentLayer()
+		r := msgConvertRect(content, sel("convertRect:toLayer:"), msgRect(content, sel("bounds")), root)
+		// The root's visual top edge is minY when it is flipped, maxY otherwise.
+		top := r.Origin.Y
+		if !sendBool(root, "isGeometryFlipped") {
+			top = 200 - (r.Origin.Y + r.Size.Height)
+		}
+		if r.Origin.X != 0 || top != 0 {
+			t.Fatal(fmt.Sprintf("frame at %v in root (visual top %v), want the top-left corner", r, top))
+		}
+	})
+}
+
+func TestThreadedCPUFrameTopLeftDuringResize(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^$")
+	cmd.Env = append(os.Environ(), "TANGO_TASK7_TOPLEFT_CHILD=1")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
 	}
 }

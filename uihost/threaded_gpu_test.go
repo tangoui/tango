@@ -123,7 +123,7 @@ func runThreadedRender(mode string) error {
 	frames := make(chan task7Frame, 128)
 	metalFrames := make(chan task7Frame, 128)
 	nativeFrames := make(chan *uithread.Thread, 128)
-	var capture func(uint32) ([3]byte, error)
+	var capture func(uint32) ([4][3]byte, error)
 	if mode == "promote" || mode == "fallback" {
 		var err error
 		capture, err = task7WindowCapture()
@@ -246,11 +246,7 @@ func runThreadedRender(mode string) error {
 						return fmt.Errorf("no native frame")
 					}
 					if mode == "native" {
-						rgb := tango.Await(app, task7LayerPixel)
-						if !matchesTask7(rgb, [3]byte{240, 50, 30}) {
-							return fmt.Errorf("renderInContext pixel=%v", rgb)
-						}
-						return nil
+						return task7AllCorners(tango.Await(app, task7LayerCorners), [3]byte{240, 50, 30})
 					}
 					tango.Await(app, func() struct{} { sink.CanvasInput(input.KeyEvent{Key: input.KeyA, Down: true}); return struct{}{} })
 				}
@@ -274,15 +270,14 @@ func runThreadedRender(mode string) error {
 					}
 				}
 				if mode == "cpu" {
-					rgb := tango.Await(app, task7LayerPixel)
-					if !matchesTask7(rgb, [3]byte{240, 50, 30}) {
-						return fmt.Errorf("CPU layer pixel=%v", rgb)
+					if err := task7AllCorners(tango.Await(app, task7LayerCorners), [3]byte{240, 50, 30}); err != nil {
+						return fmt.Errorf("CPU layer: %w", err)
 					}
 				}
 				if capture != nil {
 					for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-						rgb, err := capture(window)
-						if err == nil && matchesTask7(rgb, [3]byte{35, 220, 75}) {
+						px, err := capture(window)
+						if err == nil && task7AllCorners(px, [3]byte{35, 220, 75}) == nil {
 							return nil
 						}
 					}
@@ -342,16 +337,39 @@ func task7Bitmap(draw func(uintptr)) [3]byte {
 	return [3]byte{px[0], px[1], px[2]}
 }
 
-func task7LayerPixel() [3]byte {
+// task7LayerCorners samples the view's layer tree (renderInContext) 8
+// points inside each corner of the 350x300 window. A content layer that is
+// offset or pinned to the wrong edge leaves at least one corner unpainted.
+func task7LayerCorners() [4][3]byte {
 	sel := objc.RegisterName
 	layer := task7Window().Send(sel("contentView")).Send(sel("subviews")).Send(sel("lastObject")).Send(sel("layer"))
 	lib, _ := purego.Dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", purego.RTLD_NOW|purego.RTLD_LOCAL)
 	var translate func(uintptr, float64, float64)
 	purego.RegisterLibFunc(&translate, lib, "CGContextTranslateCTM")
-	return task7Bitmap(func(ctx uintptr) { translate(ctx, -120, -120); layer.Send(sel("renderInContext:"), ctx) })
+	var out [4][3]byte
+	for i, p := range task7Corners(350, 300) {
+		out[i] = task7Bitmap(func(ctx uintptr) { translate(ctx, -p[0], -p[1]); layer.Send(sel("renderInContext:"), ctx) })
+	}
+	return out
 }
 
-func task7WindowCapture() (func(uint32) ([3]byte, error), error) {
+// task7Corners lists points 8 px inside each corner of a w x h area,
+// bottom-right included.
+func task7Corners(w, h float64) [4][2]float64 {
+	const in = 8
+	return [4][2]float64{{in, in}, {w - in, in}, {in, h - in}, {w - in, h - in}}
+}
+
+func task7AllCorners(px [4][3]byte, want [3]byte) error {
+	for i, rgb := range px {
+		if !matchesTask7(rgb, want) {
+			return fmt.Errorf("corner %d (TL, TR, BL, BR) pixel=%v, want %v", i, rgb, want)
+		}
+	}
+	return nil
+}
+
+func task7WindowCapture() (func(uint32) ([4][3]byte, error), error) {
 	lib, err := purego.Dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", purego.RTLD_NOW|purego.RTLD_LOCAL)
 	if err != nil {
 		return nil, err
@@ -371,13 +389,24 @@ func task7WindowCapture() (func(uint32) ([3]byte, error), error) {
 	var draw func(uintptr, task7Rect, uintptr)
 	purego.RegisterLibFunc(&release, lib, "CGImageRelease")
 	purego.RegisterLibFunc(&draw, lib, "CGContextDrawImage")
-	return func(id uint32) ([3]byte, error) {
+	var imgW, imgH func(uintptr) uintptr
+	purego.RegisterLibFunc(&imgW, lib, "CGImageGetWidth")
+	purego.RegisterLibFunc(&imgH, lib, "CGImageGetHeight")
+	return func(id uint32) ([4][3]byte, error) {
 		// CGRectNull; include this window only; ignore framing/shadow.
 		img := capture(task7Rect{X: math.Inf(1), Y: math.Inf(1)}, 1<<3, id, 1|1<<4)
 		if img == 0 {
-			return [3]byte{}, fmt.Errorf("CGWindowListCreateImage returned NULL")
+			return [4][3]byte{}, fmt.Errorf("CGWindowListCreateImage returned NULL")
 		}
 		defer release(img)
-		return task7Bitmap(func(ctx uintptr) { draw(ctx, task7Rect{X: -10, Y: -10, W: 21, H: 21}, img) }), nil
+		// Nominal resolution: the image is in points. It includes the title
+		// bar at its top; CGContextDrawImage puts the image's bottom at y=0,
+		// so the 300-point-high content area is y in [0, 300).
+		w, h := float64(imgW(img)), float64(imgH(img))
+		var out [4][3]byte
+		for i, p := range task7Corners(w, min(h, 300)) {
+			out[i] = task7Bitmap(func(ctx uintptr) { draw(ctx, task7Rect{X: -p[0], Y: -p[1], W: w, H: h}, img) })
+		}
+		return out, nil
 	}, nil
 }

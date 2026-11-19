@@ -285,8 +285,12 @@ func (h *host) stopStarting(t *threadedHost) {
 			return
 		}
 		if cv, ok := h.cv.(interface{ CancelThreadedOnMain() }); ok {
-			cv.CancelThreadedOnMain()
+			cv.CancelThreadedOnMain() // does not ask for a frame: the drain below does
 		}
+		// This callback is itself a main-thread task: switching to the
+		// main-thread model and running the work queued during startup here,
+		// in one step, leaves no point where new native input (which reads
+		// h.t) or a frame could run ahead of that work.
 		t.startMu.Lock()
 		batch := t.startQueue
 		t.startQueue = nil
@@ -294,19 +298,15 @@ func (h *host) stopStarting(t *threadedHost) {
 		h.ax.postNative = nil
 		h.win.emb = newEmbeds(h, h.win.s)
 		threadedRunners.Delete(h.r)
-		h.app.Post(func() {
-			if h.closed {
-				return
-			}
-			for _, fn := range batch {
-				if !h.closed {
-					corehook.Guard(h.app, "event handler", fn)
-				}
-			}
-			h.invalidate()
-		})
+		delete(t.windows, h) // the quit hook no longer closes it as threaded
 		t.phase.Store(mainFallback)
 		t.startMu.Unlock()
+		for _, fn := range batch {
+			if !h.closed {
+				corehook.Guard(h.app, "event handler", fn)
+			}
+		}
+		h.invalidate()
 	})
 }
 

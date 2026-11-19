@@ -330,6 +330,10 @@ func (c *threadedCanvas) prepareThreaded() {
 		send(c.view, "setWantsLayer:", 0)
 		send(c.view, "setLayer:", uintptr(layer))
 		send(c.view, "setWantsLayer:", 1)
+		// Flip the root ourselves (main thread, once): UI-thread content
+		// children are placed at (0,0) and must sit at the visual top-left
+		// when a frame is smaller than the view during live resize.
+		send(layer, "setGeometryFlipped:", 1)
 		c.threadCPULayer = layer
 		c.setGravity()
 		send(ca, "commit")
@@ -415,7 +419,8 @@ func (c *threadedCanvas) CancelThreadedOnMain() {
 			}
 		}
 		c.linkRunning, c.idleTicks = false, 0
-		c.Invalidate()
+		// No Invalidate here: uihost asks for the first main-thread frame
+		// after it has run the work queued during startup.
 	})
 }
 

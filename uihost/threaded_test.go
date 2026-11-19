@@ -48,6 +48,7 @@ type threadedCanvas struct {
 	stopped      bool
 	presentHook  func(*image.RGBA)
 	releaseHook  func()
+	cancelHook   func() // main thread, when a failed startup hands back
 	presents     int
 	presentGID   uint64 // goroutine of the last Present
 	metalGIDs    []uint64
@@ -138,6 +139,13 @@ func (c *threadedCanvas) Present(img *image.RGBA) error {
 	c.presentGID = uithread.GoroutineID()
 	c.mu.Unlock()
 	return nil
+}
+
+// CancelThreadedOnMain runs cancelHook on main (the fallback handover).
+func (c *threadedCanvas) CancelThreadedOnMain() {
+	if c.cancelHook != nil {
+		c.cancelHook()
+	}
 }
 
 func (c *threadedCanvas) ReleaseThreadedOnMain() {
@@ -738,4 +746,57 @@ func TestThreadedStartupDoesNotBlockMain(t *testing.T) {
 			fb.RequestClose(o.s.ID())
 		})
 	}
+}
+
+// A failed startup hands the window to main in one step: native input that
+// arrives during the handover runs after the work queued while starting,
+// and the first main-thread frame comes after both.
+func TestThreadedFallbackRunsQueuedWorkFirst(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	entered, unblock := make(chan struct{}), make(chan struct{})
+	cfg := clockCfg{before: func() error { close(entered); <-unblock; return errors.New("clock denied") }}
+	canvases := useThreadedCanvases(t, false, cfg)
+	var mu sync.Mutex
+	var order []string
+	record := func(s string) { mu.Lock(); order = append(order, s); mu.Unlock() }
+	o := tango.Await(a, func() opened {
+		r, s, err := uihost.Open(a, uihost.Options{Surface: tango.SurfaceOptions{Width: 150, Height: 100}},
+			func(c *ui.Context) { record("frame") }, ui.RunnerOptions{Renderer: paint.NewCPU()})
+		return opened{r, s, err}
+	})
+	if o.err != nil {
+		t.Fatal(o.err)
+	}
+	<-entered
+	o.r.Post(func() { record("post") })
+	tc := canvases(o.s.ID())
+	// A window shortcut runs on main as soon as its key is handled there,
+	// so it shows exactly when native input took effect.
+	if _, err := uihost.Shortcut(o.s, "Cmd+K", func() { record("input") }); err != nil {
+		t.Fatal(err)
+	}
+	// Native input that reaches main right after the window is handed back
+	// (the next main task) must not overtake the work queued while starting.
+	tc.cancelHook = func() {
+		a.Post(func() {
+			tc.sink.CanvasInput(input.KeyEvent{Key: input.KeyK, Mods: input.ModMeta, Down: true})
+		})
+	}
+	close(unblock)
+	for deadline := time.Now().Add(faketest.Timeout); time.Now().Before(deadline); {
+		fb.Canvas(o.s.ID()).FlushFrame()
+		mu.Lock()
+		n := len(order)
+		mu.Unlock()
+		if n >= 3 {
+			break
+		}
+		fb.Do(func() {})
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(order) < 2 || order[0] != "post" || order[1] != "input" {
+		t.Fatalf("order %v: want the queued startup work, then the new input", order)
+	}
+	fb.RequestClose(o.s.ID())
 }

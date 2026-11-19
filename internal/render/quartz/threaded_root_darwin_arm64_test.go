@@ -46,10 +46,19 @@ func TestThreadedRendererLeavesRootGeometryToMain(t *testing.T) {
 		if r.layer == root || nativeBounds(r.layer) != (nativeSize{150, 100}) {
 			t.Fatalf("frame geometry not on Quartz's child layer")
 		}
+		// Pinned to the root's top-left corner, not centred on its origin.
+		if f := layerFrame(r.layer); f != (nativeRect{Size: nativeSize{150, 100}}) {
+			t.Fatalf("child frame %v, want origin (0,0) size 150x100", f)
+		}
 	})
 }
 
 var getNativeRect func(objc.ID, objc.SEL) nativeRect
+
+func layerFrame(layer objc.ID) nativeRect {
+	nativeBounds(layer) // binds getNativeRect
+	return getNativeRect(layer, sel("frame"))
+}
 
 func nativeBounds(layer objc.ID) nativeSize {
 	if getNativeRect == nil {
