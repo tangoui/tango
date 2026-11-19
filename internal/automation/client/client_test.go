@@ -33,7 +33,7 @@ func TestWithDevTag(t *testing.T) {
 
 func TestHasChannel(t *testing.T) {
 	dir := t.TempDir()
-	yes, no := dir+"/yes", dir+"/no"
+	yes, no := filepath.Join(dir, "yes"), filepath.Join(dir, "no") // Build returns a cleaned path
 	os.WriteFile(yes, []byte("\x7fELF..TANGO_AUTOMATION_TOKEN_FILE.."), 0o755)
 	os.WriteFile(no, []byte("\x7fELF.. production .."), 0o755)
 	if !HasChannel(yes) || HasChannel(no) {
