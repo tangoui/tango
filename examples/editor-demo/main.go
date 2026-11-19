@@ -213,12 +213,16 @@ func openDocumentDialog() {
 // Published for main-thread callbacks that must answer at once (OnClose,
 // OnQuitRequest), which may not wait for the UI thread.
 var (
-	docDirty     atomic.Bool // the document has unsaved edits; set by the UI thread after each frame
+	docDirty     atomic.Bool // unsaved edits, as of the last page the UI thread built
 	windowClosed atomic.Bool // the editor window has closed (main thread)
 )
 
 // publishDirty records the document's state for the main thread. UI
-// thread, at the end of each frame; the answer may be one frame old.
+// thread, at the end of each page build, after the editor views applied
+// the frame's input (renderEditorPanes calls ViewW.Changed). It covers the
+// input the UI thread has processed; input still queued for it (typed
+// just before the request, or behind a slow frame) is not covered, which
+// is the price of answering without waiting for the UI thread.
 func publishDirty() {
 	docDirty.Store(documents != nil && documents.session != nil && documents.session.dirty())
 }

@@ -290,6 +290,9 @@ func renderEditorPanes(c *ui.Context) {
 	ui.Row(c, func() {
 		show := func(target *editor.State) {
 			vw := editor.View(c, target)
+			// Apply this frame's input now, not at paint time, so that
+			// publishDirty (end of page) already sees the edit.
+			vw.Changed()
 			if !focused && (target == focusTarget || focusTarget == nil) {
 				c.SetFocus(vw.Box().ID())
 				focused = true

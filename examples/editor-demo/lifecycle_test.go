@@ -14,6 +14,7 @@ import (
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/editor"
 	"github.com/tangoui/tango/ui/editor/theme"
+	"github.com/tangoui/tango/ui/input"
 )
 
 func testDocumentApp(t *testing.T, path string) (*tango.App, *fake.Backend) {
@@ -215,6 +216,33 @@ func TestWindowQuitCancelThenClosedWindowQuits(t *testing.T) {
 	}
 }
 
+// Typing into a clean document marks it dirty in the same frame: a quit
+// right after that frame asks instead of quitting.
+func TestTypingThenQuitAsks(t *testing.T) {
+	a, fb := testDocumentApp(t, "")
+	t.Cleanup(func() { docDirty.Store(false); windowClosed.Store(false) }) // the app keeps running (Cancel)
+	prompts := 0
+	fb.OnMessageDialog = func(_ platform.SurfaceID, _ platform.MessageOptions) (int, error) { prompts++; return 2, nil }
+	tango.Await(a, func() bool { documents.install(newDocumentSession("", "clean", nil)); return true })
+	sf := openEditorWindow(t, a, fb)
+	if docDirty.Load() {
+		t.Fatal("clean document published as dirty")
+	}
+	cv := fb.Canvas(sf.ID())
+	cv.Input(input.TextInput{Text: "x"})
+	cv.FlushFrame()
+	tango.Await(a, func() bool { return true })
+	if fb.RequestQuit() {
+		t.Fatal("quit right after typing did not ask about the edit")
+	}
+	for deadline := time.Now().Add(5 * time.Second); tango.Await(a, func() bool { return prompts == 0 }) && time.Now().Before(deadline); {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !tango.Await(a, func() bool { return prompts == 1 && documents.session.dirty() }) {
+		t.Fatal("typed edit was not asked about")
+	}
+}
+
 // A clean document closes and quits at once, without a prompt.
 func TestCleanDocumentAnswersAtOnce(t *testing.T) {
 	a, fb := testDocumentApp(t, "")
@@ -266,8 +294,9 @@ func TestWindowDropAndReplacementHighlightNotify(t *testing.T) {
 	if !fb.DropFiles(sf.ID(), []string{path}, 0, 0) {
 		t.Fatal("drop not delivered")
 	}
-	// The drop is handed to the window's UI thread (Runner.Post), which
-	// does not keep order with Await from this goroutine: poll.
+	// The dirty document makes the drop ask confirmDiscard first; that
+	// dialog runs a nested wait on the fake backend's main loop, so an
+	// Await from this goroutine can run before the file is open: poll.
 	opened := func() bool { return tango.Await(a, func() bool { return documents.session.path == path }) }
 	for deadline := time.Now().Add(5 * time.Second); !opened() && time.Now().Before(deadline); {
 		time.Sleep(5 * time.Millisecond)

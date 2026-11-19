@@ -48,6 +48,7 @@ Called on the main thread itself, `Await` runs directly and `AwaitAsync` keeps p
 
 - To change state the page reads or call `Runner` methods, use `r.Post(fn)`. It is safe from any goroutine, runs between frames in call order, then requests a frame, and is dropped after the window closes.
 - The main-thread callbacks above (menus, tray, `uihost.Shortcut`, `OnMessage`, `Surface.OnClose`) are not on the UI thread: call `r.Post` from them.
+- `Runner` methods are UI-thread only, except `Post`, `Invalidate`, `InvalidateAt` and `Close`, which are safe from any goroutine.
 - Calls that need the main thread (`uihost.Open`, `uihost.Attach`, `uihost.FollowSystemTheme`) go through `app.Post` or `tango.Await`, e.g. `app.Post(func() { uihost.FollowSystemTheme(r, false); r.Post(func() { r.SetTheme(th) }) })`.
 - Dialogs may be called on the UI thread and block only that window. `Surface` methods called there wait for the main thread.
 

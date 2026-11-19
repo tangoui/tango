@@ -45,28 +45,38 @@ func main() {
 	quitOnClose := true
 	app := tango.New(tango.Options{Name: windowTitle, ID: "dev.tango.terminal.workspace", QuitOnLastClose: &quitOnClose})
 	a := &terminalApp{dark: !*light, fontSize: 13, focusPending: true}
-	// Every session ever opened, so that closing the window can end them
-	// from the main thread without touching the workspace, which belongs
-	// to the window's UI thread (session.close runs once).
+	// The open sessions, so that closing the window can end them from the
+	// main thread without touching the workspace, which belongs to the
+	// window's UI thread. A session leaves the set when it closes
+	// (session.close runs once), so closed tabs free their terminal.
 	var sessionsMu sync.Mutex
-	var sessions []*session
+	sessions := map[*session]bool{}
 	a.workspace.openSession = func(id string) (*session, error) {
 		conn, err := pty.Start(pty.Options{Path: path, Args: args, Dir: *dir, Cols: 80, Rows: 24})
 		if err != nil {
 			return nil, fmt.Errorf("could not start %s: %w", path, err)
 		}
 		term := terminal.New(terminal.Options{Conn: conn})
-		s := &session{id: id, pid: conn.Pid(), term: term, closeConn: term.Close}
+		s := &session{id: id, pid: conn.Pid(), term: term}
+		s.closeConn = func() error {
+			sessionsMu.Lock()
+			delete(sessions, s)
+			sessionsMu.Unlock()
+			return term.Close()
+		}
 		sessionsMu.Lock()
-		sessions = append(sessions, s)
+		sessions[s] = true
 		sessionsMu.Unlock()
 		return s, nil
 	}
 	closeSessions := func() {
 		sessionsMu.Lock()
-		all := sessions
+		open := make([]*session, 0, len(sessions))
+		for s := range sessions {
+			open = append(open, s)
+		}
 		sessionsMu.Unlock()
-		for _, s := range all {
+		for _, s := range open {
 			s.close()
 		}
 	}

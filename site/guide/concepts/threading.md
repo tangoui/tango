@@ -42,7 +42,7 @@ path := tango.AwaitAsync(app, func(done func(string)) {
 
 1. 改页面读取的状态、调用 `Runner` 的方法：`r.Post(fn)`。任何 goroutine 可调用，在两帧之间按调用顺序运行，之后自动请求一帧；在 UI 线程上调用时排到当前帧之后；窗口关闭后丢弃。
 2. 上面"都在主线程"的回调（菜单、托盘、`uihost.Shortcut`、`OnMessage`、`Surface.OnClose`）**不在** UI 线程上；要改页面状态就在回调里 `r.Post`。
-3. 必须在主线程的调用（`uihost.Open`、`uihost.Attach`、`uihost.FollowSystemTheme`）从页面里用 `app.Post` 或 `tango.Await` 送过去。
+3. 必须在主线程的调用（`uihost.Open`、`uihost.Attach`、`uihost.FollowSystemTheme`）从页面里用 `app.Post` 或 `tango.Await` 送过去。反过来，`Runner` 的方法只能在 UI 线程上调用，`Post`、`Invalidate`、`InvalidateAt`、`Close` 除外（任何 goroutine 都安全）。
 4. `dialog` 等阻塞接口可以直接在 UI 线程上调用：只阻塞这个窗口。`Surface` 的方法在 UI 线程上调用时同步等主线程执行，主线程忙时这个窗口也跟着等。
 5. 需要同步回答的主线程回调（`OnClose`、`OnQuitRequest`）不能等 UI 线程，见 [迁移说明](https://github.com/tangoui/tango/blob/main/docs/release.md#迁移说明) 的退出写法。
 
