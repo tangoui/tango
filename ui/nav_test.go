@@ -520,3 +520,48 @@ func TestNavFloatGroupToggle(t *testing.T) {
 	}
 	mustFind(t, d, "成员")
 }
+
+func TestAffixReportsEachPinTransitionOnce(t *testing.T) {
+	type sample struct{ affixed, changed bool }
+	var target ID
+	var seen []sample
+	d := newPerfDriver(func(c *Context) {
+		sb := Scroll(c, func() {
+			Gap(c, 50)
+			a := Affix(c).Target(target).Body(func() { Button(c, "Pinned button") })
+			seen = append(seen, sample{a.Affixed(), a.Changed()})
+			Gap(c, 1000)
+		}, layout.H(300))
+		target = sb.ID()
+	}, false)
+	d.Frame()
+	d.Frame()
+	if seen[len(seen)-1].affixed {
+		t.Fatal("fixture starts pinned")
+	}
+
+	transition := func(delta float32, want bool) {
+		t.Helper()
+		seen = nil
+		d.Scroll(geom.Pt(100, 100), delta)
+		d.Frame()
+		d.Frame()
+		if seen[len(seen)-1].affixed != want {
+			t.Fatalf("fixture did not transition to Affixed()=%v: %v", want, seen)
+		}
+		count := 0
+		for _, s := range seen {
+			if s.changed {
+				if s.affixed != want {
+					t.Errorf("Changed() reported Affixed()=%v, want %v", s.affixed, want)
+				}
+				count++
+			}
+		}
+		if count != 1 {
+			t.Errorf("Affixed() transitioned to %v; Changed() true %d times, want 1; samples (affixed, changed)=%v", want, count, seen)
+		}
+	}
+	transition(200, true)
+	transition(-200, false)
+}
