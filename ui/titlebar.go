@@ -399,6 +399,15 @@ func (t *TitleBarW) build() {
 	// The bar itself is the drag area: presses that land on no control
 	// inside it move the window; a double click maximizes or restores.
 	t.ia = c.interact(n, false, input.CursorDefault)
+	if f != nil && t.frame == nil && !t.manual {
+		// The host may start the move itself (Runner.DragRegions); a
+		// double click there still maximizes or restores.
+		if c.dragBars.pass != c.pass {
+			c.dragBars.pass = c.pass
+			c.dragBars.nodes = c.dragBars.nodes[:0]
+		}
+		c.dragBars.nodes = append(c.dragBars.nodes, n)
+	}
 	if t.ia.PressedNow {
 		st := State[titleBarState](c, hashID(n.id, "titlebar"), nil)
 		p := c.pressPos

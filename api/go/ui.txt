@@ -2604,7 +2604,9 @@ pkg github.com/tangoui/tango/ui, method (*Runner) BindThread(*internal/uithread.
 pkg github.com/tangoui/tango/ui, method (*Runner) ClearKeyboardInset()
 pkg github.com/tangoui/tango/ui, method (*Runner) ClearSafeArea()
 pkg github.com/tangoui/tango/ui, method (*Runner) Close()
+pkg github.com/tangoui/tango/ui, method (*Runner) Composing() bool
 pkg github.com/tangoui/tango/ui, method (*Runner) Context() *Context
+pkg github.com/tangoui/tango/ui, method (*Runner) DragRegions() []ui/geom.Rect
 pkg github.com/tangoui/tango/ui, method (*Runner) DropFiles(ui/geom.Point, []string)
 pkg github.com/tangoui/tango/ui, method (*Runner) EnableAccessibility(bool)
 pkg github.com/tangoui/tango/ui, method (*Runner) FileDrag() (ui/geom.Point, bool)

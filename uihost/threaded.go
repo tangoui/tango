@@ -15,8 +15,11 @@ package uihost
 // global theme, locale, contrast, motion and memory notifications reach
 // the runner on its UI thread (callRunner).
 //
-// Not threaded yet (later steps of the plan): embedded WebViews and
-// automation are not supported on these windows.
+// Main-thread decisions that need UI state (shortcut matching, title bar
+// drags) read the snapshot the UI thread publishes after every frame
+// (snapshot.go); embedded WebViews are placed on main from a per-frame
+// placement list (webview_threaded.go). Not threaded yet (later steps of
+// the plan): automation is not supported on these windows.
 
 import (
 	"fmt"
@@ -33,7 +36,6 @@ import (
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/paint"
-	"github.com/tangoui/tango/ui/theme"
 )
 
 // threadedHost is the UI-thread side of a host whose canvas implements
@@ -52,11 +54,19 @@ type threadedHost struct {
 	phase      atomic.Int32
 	finishing  bool // main: a failed or closed startup already owns Done cleanup
 
-	// theme is the runner's theme as of the last frame, for main-thread
-	// readers (FollowingSystemTheme). TODO(Task 8): part of the per-frame
-	// UI-state snapshot.
-	theme    atomic.Pointer[theme.Theme]
-	renderer atomic.Value // string, published after each frame
+	// snap is the UI state of the latest frame for main-thread decisions
+	// (snapshot.go); dragPress and dragPos are the last press that moved
+	// the window from there (main thread).
+	snap      atomic.Pointer[uiSnapshot]
+	dragPress time.Time
+	dragPos   geom.Point
+	renderer  atomic.Value // string, published after each frame
+
+	// switching is set on the UI thread when a frame with a native view
+	// hands the window back to the main thread (threadedNativeViews,
+	// webview_threaded.go); main embeds are the WebView side on main.
+	switching atomic.Bool
+	embeds    *mainEmbeds
 
 	frameInfo atomic.Pointer[ui.WindowFrameInfo] // published by main, read by UI
 	closing   atomic.Bool                        // set by main before draining queued work
@@ -65,6 +75,10 @@ type threadedHost struct {
 // threadedRunners maps the runner of each open threaded window to its
 // threadedHost (AcceptDrops).
 var threadedRunners sync.Map // *ui.Runner -> *threadedHost
+
+// fallbackRunners holds the runners of open windows that started threaded
+// and went back to the main-thread model (stopStarting).
+var fallbackRunners sync.Map // *ui.Runner -> struct{}
 
 // Only the main thread accesses each app's set; distinct apps in tests
 // can run their main loops on different goroutines.
@@ -155,7 +169,7 @@ func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page f
 	r := ui.NewRunner(page, ropts)
 	t.renderer.Store("cpu")
 	threadedRunners.Store(r, t)
-	t.theme.Store(r.Context().Theme)
+	t.snap.Store(&uiSnapshot{theme: r.Context().Theme})
 	h.ax = newA11y(h.app, h.cv, r, ropts)
 	if _, ok := h.cv.(interface{ MainThreadAccessibility() }); ok {
 		h.ax.postNative = func(fn func()) {
@@ -168,6 +182,7 @@ func (h *host) openThreaded(s *tango.Surface, ct platform.CanvasThreaded, page f
 	}
 	w, ht, scale := ct.MainGeometry()
 	h.win = &window{app: h.app, cv: h.cv, id: h.id, sc: h.sc, ax: h.ax, t: t, startup: t, size: geom.Size{W: w, H: ht}, scale: scale}
+	h.win.emb, t.embeds = newThreadedEmbeds(h, s) // webview_threaded.go
 	h.win.watchFrame(s)
 	r.Attach(h.win)
 	h.t, h.r = t, r
@@ -260,8 +275,10 @@ func (h *host) finishThreadedStartup(t *threadedHost, err error) {
 	t.phase.Store(running)
 }
 
-// stopStarting handles an unpublished UI owner. AfterUIThread both drains
-// normal completion and supports shutdown without pumping the native loop.
+// stopStarting handles an unpublished UI owner: a failed startup, or a
+// running window that switchToMain handed back (webview_threaded.go).
+// AfterUIThread both drains normal completion and supports shutdown without
+// pumping the native loop.
 func (h *host) stopStarting(t *threadedHost) {
 	if t.finishing {
 		return
@@ -296,8 +313,17 @@ func (h *host) stopStarting(t *threadedHost) {
 		t.startQueue = nil
 		h.t, h.win.t = nil, nil
 		h.ax.postNative = nil
+		t.embeds.close()
 		h.win.emb = newEmbeds(h, h.win.s)
+		// A running window also leaves its renderer (closed above; the
+		// runner draws on the CPU, ReturnRunnerToMain) and gives its UI
+		// state back to the main-thread shortcut table.
+		h.gpu, h.win.gpu, h.trace = nil, nil, nil
+		h.sc.setText(h.win.textOn)
+		h.sc.setCapture(h.win.capturing)
+		h.win.resized() // the first main-thread frame is presented whole
 		threadedRunners.Delete(h.r)
+		fallbackRunners.Store(h.r, struct{}{})
 		delete(t.windows, h) // the quit hook no longer closes it as threaded
 		t.phase.Store(mainFallback)
 		t.startMu.Unlock()

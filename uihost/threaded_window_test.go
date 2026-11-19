@@ -419,6 +419,9 @@ func TestThreadedFrameInfoDoesNotWaitForMain(t *testing.T) {
 	check(ui.WindowMaximized, true)
 }
 
+// Recording reaches the main thread's decisions with the frame snapshot
+// (snapshot.go) and native menu accelerators with a main-thread task;
+// neither takes effect while main is still running the press.
 func TestThreadedCaptureCommitsOnMain(t *testing.T) {
 	a, fb := faketest.Run(t, tango.Options{})
 	r, s, tc, cv := openThreaded(t, a, fb, func(*ui.Context) {})
@@ -433,10 +436,11 @@ func TestThreadedCaptureCommitsOnMain(t *testing.T) {
 		}
 	})
 	syncAppPosts(a)
+	tc.tick(t) // publishes the recording state
 	press(cv, input.KeyF5, 0)
 	fb.Do(func() {
 		if fired != 1 || !cv.ShortcutCapture() {
-			t.Errorf("capture not committed together: fired=%d native=%v", fired, cv.ShortcutCapture())
+			t.Errorf("capture not committed: fired=%d native=%v", fired, cv.ShortcutCapture())
 		}
 	})
 }

@@ -47,4 +47,13 @@ func init() {
 		}
 		r.thread.Store(owner.(*uithread.Thread))
 	}
+	corehook.ReturnRunnerToMain = func(runner any) {
+		r := runner.(*Runner)
+		r.thread.Store(nil)
+		r.cpu = paint.NewCPU()
+		r.renderer = r.cpu
+		r.c.noBlur = !rendererBlurs(r.renderer)
+		r.c.imageCache, _ = r.renderer.(imageInvalidator)
+		r.dmg.started = false // the next frame is presented whole
+	}
 }

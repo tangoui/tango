@@ -60,3 +60,10 @@ var AfterUIThread func(app any, done <-chan struct{}, release func())
 // FinishRunnerStartup finalizes uihost's one-time ownership handoff on main,
 // before any frame or application task can run. ui installs this hook.
 var FinishRunnerStartup func(runner, thread, renderer any)
+
+// ReturnRunnerToMain undoes FinishRunnerStartup when uihost hands a running
+// window back to the main thread: the runner (any) drops its thread binding,
+// so Post goes through the window's UIPoster again, and draws with a new CPU
+// renderer. Called on the runner's UI thread, outside Frame, before that
+// thread stops. ui installs this hook.
+var ReturnRunnerToMain func(runner any)

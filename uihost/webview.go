@@ -101,8 +101,8 @@ var ErrNoEmbedding = fmt.Errorf("uihost: embedded WebViews need a window opened 
 // both.
 //
 // WebView only works in windows opened with Open; elsewhere the box shows
-// its background and Err reports ErrNoEmbedding. Main thread, from a page
-// function.
+// its background and Err reports ErrNoEmbedding. The window's UI thread,
+// from a page function.
 //
 // Experimental: see docs/release.md.
 func WebView(c *ui.Context, key string, opts WebViewOptions, lopts ...layout.Option) *WebViewW {
@@ -215,16 +215,20 @@ if(!l.length||(e.shiftKey?i===0:i===l.length-1)){e.preventDefault();P(e.shiftKey
 window.__tangoEmbedFocus=function(last){var l=L(),el=last?l[l.length-1]:l[0];if(el)el.focus()};
 })();`
 
-// embeds holds the embedded WebViews of one window. Main thread only.
+// embeds holds the embedded WebViews of one window, on its UI thread: the
+// main thread, or a threaded window's own UI thread (main non-nil), where
+// the native views live on main in main (webview_threaded.go).
 type embeds struct {
 	h      *host
 	parent *tango.Surface
 	views  map[ui.ID]*embedView
 	frame  uint64 // frames synced so far; builds mark views with it
 	closed bool
+	main   *mainEmbeds // threaded window: the native side
 }
 
-// embedView is one embedded WebView. Main thread only.
+// embedView is one embedded WebView, on the window's UI thread. On a
+// threaded window s and err mirror the native side, ev stays nil.
 type embedView struct {
 	e     *embeds
 	id    ui.ID
@@ -253,7 +257,10 @@ type embedView struct {
 
 // bySurface maps embedded surfaces to their views for the focus
 // script's messages. Main thread.
-var bySurface = map[*tango.Surface]*embedView{}
+var bySurface = map[*tango.Surface]focusLeaver{}
+
+// focusLeaver handles the focus script's request to leave the page.
+type focusLeaver interface{ focusOut(back bool) }
 
 func newEmbeds(h *host, parent *tango.Surface) *embeds {
 	corehook.HandleInternal(h.app, embedChannel, func(surface any, payload string) {
@@ -268,6 +275,10 @@ func newEmbeds(h *host, parent *tango.Surface) *embeds {
 // sync places every embedded WebView after a frame.
 func (e *embeds) sync() {
 	if e == nil || e.closed || e.h.r == nil {
+		return
+	}
+	if e.main != nil {
+		e.syncThreaded() // webview_threaded.go
 		return
 	}
 	now := time.Now()
@@ -307,6 +318,35 @@ func (e *embeds) sync() {
 
 // place applies one frame's region to the view.
 func (v *embedView) place(reg ui.NativeRegion, focusedWin bool) {
+	p := v.decide(reg)
+	v.ev.SetPlacement(p.placement)
+	if p.focus && focusedWin {
+		v.ev.FocusWeb()
+		if p.keyboard {
+			v.s.Eval(enterScript(p.last))
+		}
+	}
+}
+
+// embedPlace is what one frame asks of a native view: where it goes and
+// whether it takes the keyboard focus.
+type embedPlace struct {
+	id        ui.ID
+	v         *embedView     // the UI side (identity only off the UI thread)
+	opts      WebViewOptions // to create it
+	placement platform.WebPlacement
+	focus     bool // the UI's focus moved onto the box: focus the page
+	keyboard  bool // ... by keyboard: focus its first (last) element
+	last      bool
+}
+
+func enterScript(last bool) string {
+	return fmt.Sprintf("window.__tangoEmbedFocus&&window.__tangoEmbedFocus(%t)", last)
+}
+
+// decide works out one frame's placement of the view from its region and
+// cover state. The window's UI thread.
+func (v *embedView) decide(reg ui.NativeRegion) embedPlace {
 	covered := (reg.Covered || v.manual) && !reg.Visible.Empty()
 	hide := false
 	if covered {
@@ -319,7 +359,7 @@ func (v *embedView) place(reg ui.NativeRegion, focusedWin bool) {
 				hide = true // the canvas shows the snapshot under the layer
 			case v.snapFailed:
 				hide = true
-			case v.snap == nil && !v.snapWait:
+			case v.snap == nil && !v.snapWait && v.s != nil:
 				v.takeSnapshot()
 			}
 		}
@@ -335,17 +375,14 @@ func (v *embedView) place(reg ui.NativeRegion, focusedWin bool) {
 	if hide {
 		clip = geom.Rect{}
 	}
-	v.ev.SetPlacement(platform.WebPlacement{Frame: rectF(reg.Rect), Clip: rectF(clip)})
-
+	p := embedPlace{id: v.id, v: v, opts: v.opts, placement: platform.WebPlacement{Frame: rectF(reg.Rect), Clip: rectF(clip)}}
 	if v.enter {
 		v.enter = false
-		if reg.Focused && !v.webFocused && focusedWin && !hide {
-			v.ev.FocusWeb()
-			if v.enterKeyboard {
-				v.s.Eval(fmt.Sprintf("window.__tangoEmbedFocus&&window.__tangoEmbedFocus(%t)", v.enterLast))
-			}
+		if reg.Focused && !v.webFocused && !hide {
+			p.focus, p.keyboard, p.last = true, v.enterKeyboard, v.enterLast
 		}
 	}
+	return p
 }
 
 func rectF(r geom.Rect) platform.RectF {
@@ -398,7 +435,7 @@ func (v *embedView) takeSnapshot() {
 		if err == nil {
 			img, err = png.Decode(bytes.NewReader(data))
 		}
-		h.app.Post(func() {
+		v.e.toUI(func() {
 			v.snapWait = false
 			if v.s != s {
 				return

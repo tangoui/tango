@@ -175,7 +175,10 @@ type follower struct {
 func (f *follower) current() *theme.Theme {
 	if f.threaded {
 		if t := threadedOf(f.r); t != nil {
-			return t.theme.Load()
+			return t.snapshot().theme
+		}
+		if _, ok := fallbackRunners.Load(f.r); ok {
+			return f.r.Context().Theme // back on the main thread (stopStarting)
 		}
 		return nil // closed
 	}

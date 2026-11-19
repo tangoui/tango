@@ -178,8 +178,10 @@ func (b *shortcut) allowedInText(ev input.KeyEvent) bool {
 }
 
 // shortcuts is the table of one window. binds is guarded by mu (Shortcut
-// may run anywhere); textOn comes from the window's UI thread. Capture
-// changes and matching run on the main thread for local windows.
+// may run anywhere). Matching runs on the main thread; captureOn and
+// textOn are the UI's state for windows whose UI thread is the main thread
+// (and the tan dev host), while threaded windows match against their
+// per-frame snapshot instead (handleSnapshot).
 type shortcuts struct {
 	app   *tango.App
 	mu    sync.Mutex
@@ -241,11 +243,28 @@ func (t *shortcuts) setCapture(on bool) {
 }
 
 // handle matches ev against the table, runs a hit and reports whether ev
-// was consumed (must not reach the runner). Main thread; t may be nil.
+// was consumed (must not reach the runner). Main thread, for windows whose
+// UI thread is the main thread; t may be nil.
 func (t *shortcuts) handle(ev input.Event) bool {
 	if t == nil {
 		return false
 	}
+	return t.match(ev, t.captureOn.Load(), t.textOn.Load(), false)
+}
+
+// handleSnapshot is handle for a threaded window: the recording and
+// text-input state come from the UI thread's latest frame (snapshot.go),
+// at most one frame old. Composition events are seen here before they are
+// queued, so a composition the snapshot does not show yet still blocks
+// shortcuts. Main thread; t may be nil.
+func (t *shortcuts) handleSnapshot(ev input.Event, st *uiSnapshot) bool {
+	if t == nil {
+		return false
+	}
+	return t.match(ev, st.capturing, st.editableFocus, st.composing)
+}
+
+func (t *shortcuts) match(ev input.Event, capture, textOn, composing bool) bool {
 	switch ev := ev.(type) {
 	case input.Composition:
 		t.composing = ev.Text != ""
@@ -256,16 +275,16 @@ func (t *shortcuts) handle(ev input.Event) bool {
 		clear(t.captured)
 		t.composing = false
 	case input.KeyEvent:
-		return t.key(ev)
+		return t.key(ev, capture, textOn, composing)
 	}
 	return false
 }
 
-func (t *shortcuts) key(ev input.KeyEvent) bool {
+func (t *shortcuts) key(ev input.KeyEvent, capture, textOn, composing bool) bool {
 	if !ev.Down {
 		delete(t.captured, ev.Key)
 	}
-	if t.captureOn.Load() {
+	if capture {
 		if ev.Down {
 			if t.captured == nil {
 				t.captured = make(map[input.Key]bool)
@@ -295,10 +314,9 @@ func (t *shortcuts) key(ev input.KeyEvent) bool {
 	if t.held[ev.Key] && ev.Repeat {
 		return true
 	}
-	if t.composing || ev.Key.Modifier() != 0 {
+	if t.composing || composing || ev.Key.Modifier() != 0 {
 		return false
 	}
-	textOn := t.textOn.Load()
 	var fn func()
 	t.mu.Lock()
 	for _, b := range t.binds {

@@ -201,9 +201,6 @@ func (h *host) frame() {
 	if !corehook.Guard(h.app, "ui frame", func() { err = h.r.Frame() }) {
 		return
 	}
-	if h.t != nil {
-		h.t.theme.Store(h.r.Context().Theme) // FollowingSystemTheme (follow.go)
-	}
 	if err != nil {
 		// Keep running; log each distinct error once in a row so a failing
 		// animation does not flood the log.
@@ -218,6 +215,12 @@ func (h *host) frame() {
 		h.lastErr = ""
 	}
 	h.win.emb.sync() // place embedded WebViews on this frame's layout (webview.go)
+	if h.t != nil {
+		if h.t.switching.Load() {
+			return // handed back to the main thread (webview_threaded.go)
+		}
+		h.publishSnapshot() // main-thread decisions (snapshot.go)
+	}
 	if h.r.Animating() {
 		h.invalidate()
 	}
@@ -233,13 +236,16 @@ func (h *host) CanvasInput(ev input.Event) {
 	guiprobe.Observe(ev) // no-op unless built explicitly with tango_guiprobe
 	// A window shortcut consumes its key (shortcuts.go). The table is
 	// matched on the main thread and its functions run there (spec §5.7),
-	// so a threaded window matches before queuing: a consumed key never
-	// reaches the UI thread. TODO(Task 8): the text-input and recording
-	// state it matches against is what the UI thread last reported
-	// (atomics in shortcuts); the per-frame UI-state snapshot replaces it.
+	// so a threaded window matches before queuing, against the UI state of
+	// its latest frame (snapshot.go): a consumed key never reaches the UI
+	// thread. A press on a title bar's drag area moves the window from
+	// here as well.
 	var consumed bool
 	if h.t != nil {
-		consumed = h.sc.handle(ev)
+		if h.dragOnMain(ev) {
+			return
+		}
+		consumed = h.sc.handleSnapshot(ev, h.t.snapshot())
 	}
 	h.onUI(func() {
 		if isKeyboardInput(ev) { // typing: native windows move to Metal (native.go)
@@ -276,7 +282,7 @@ func (h *host) CanvasFocus(focused bool) {
 		return
 	}
 	if h.t != nil {
-		h.sc.handle(input.WindowFocus{Focused: focused}) // main thread, as in CanvasInput
+		h.sc.handleSnapshot(input.WindowFocus{Focused: focused}, h.t.snapshot()) // main thread, as in CanvasInput
 	}
 	h.onUI(func() {
 		if h.t == nil {
@@ -314,8 +320,10 @@ func (h *host) close() {
 		return
 	}
 	h.closed = true
+	fallbackRunners.Delete(h.r)
 	if h.t != nil {
 		h.t.closing.Store(true)
+		h.t.embeds.close() // queued placements are dropped (webview_threaded.go)
 		if h.ax.postNative != nil {
 			h.ax.published.Store(nil)
 		}
@@ -367,6 +375,11 @@ type window struct {
 	scale           float32
 	resizePresented chan struct{}
 	startup         *threadedHost // immutable once attached; serializes Runner.Post across startup
+
+	// The UI state of a threaded window that its snapshot publishes
+	// (snapshot.go); UI thread.
+	textOn    bool // text input on (SetTextInput)
+	capturing bool // shortcut recording on (SetShortcutCapture)
 }
 
 // The ui.Window methods run on the window's UI thread. On a threaded
@@ -431,9 +444,18 @@ func (w *window) PostUI(fn func()) {
 
 func (w *window) InvalidateAt(t time.Time) { w.cv.InvalidateAt(t) }
 func (w *window) SetCursor(c input.Cursor) { w.onMain(func() { w.cv.SetCursor(c) }) }
+
+// SetShortcutCapture: window shortcuts yield to the recorder from the
+// frame that publishes it (threaded windows: the snapshot, snapshot.go),
+// native menu accelerators once the main thread applies it.
 func (w *window) SetShortcutCapture(on bool) {
+	if w.t != nil {
+		w.capturing = on
+	}
 	w.onMain(func() {
-		w.sc.setCapture(on)
+		if w.t == nil {
+			w.sc.setCapture(on)
+		}
 		if cv, ok := w.cv.(platform.CanvasShortcutCapture); ok {
 			cv.SetShortcutCapture(on)
 		}
@@ -441,7 +463,11 @@ func (w *window) SetShortcutCapture(on bool) {
 }
 
 func (w *window) SetTextInput(on bool, caret geom.Rect) {
-	w.sc.setText(on)
+	if w.t != nil {
+		w.textOn = on
+	} else {
+		w.sc.setText(on)
+	}
 	w.onMain(func() { w.cv.SetTextInput(on, caret) })
 }
 func (w *window) Present(img *image.RGBA) error {

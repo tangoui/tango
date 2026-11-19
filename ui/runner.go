@@ -820,3 +820,76 @@ func (r *Runner) Animating() bool { return r.c.animating }
 
 // NextWake returns the requested wake time (zero if none).
 func (r *Runner) NextWake() time.Time { return r.c.wakeAt }
+
+// Composing reports whether an input method is composing (a non-empty
+// input.Composition has not been committed or cancelled yet) as of the
+// latest frame. A host whose main thread decides on keys without the UI
+// thread (window shortcuts) reads it after Frame.
+//
+// Experimental: used by the platform host (uihost).
+func (r *Runner) Composing() bool { return r.c.composing != "" }
+
+// DragRegions returns the parts of the window, in window logical pixels,
+// where a primary-button press in the latest frame lands on a self-drawn
+// TitleBar's drag area (not on a control inside it or on anything drawn
+// above it) and so would move the window. Only title bars that act on the
+// runner's own window (no TitleBarW.Frame, not Manual) count, and the list
+// is empty while any layer (Overlay) is open, since a press then may
+// first have to close it. Call it after Frame; it allocates a new slice.
+//
+// Experimental: used by the platform host (uihost), which may start the
+// move itself on the main thread.
+func (r *Runner) DragRegions() []geom.Rect {
+	c := r.c
+	if c.dragBars.pass != c.pass || len(c.dragBars.nodes) == 0 || len(c.overlays) > 0 {
+		return nil
+	}
+	var out []geom.Rect
+	for _, n := range c.dragBars.nodes {
+		at := -1
+		for i := range c.hits {
+			if c.hits[i].id == n.id {
+				at = i
+				break
+			}
+		}
+		if at < 0 || c.hits[at].rect.Empty() {
+			continue
+		}
+		parts := []geom.Rect{c.hits[at].rect}
+		for _, h := range c.hits[at+1:] { // hit last wins: everything after covers the bar
+			parts = subtractRect(parts, h.rect)
+			if len(parts) == 0 {
+				break
+			}
+		}
+		out = append(out, parts...)
+	}
+	return out
+}
+
+// subtractRect returns rs with cut taken out of each rectangle, split
+// into up to four rectangles each.
+func subtractRect(rs []geom.Rect, cut geom.Rect) []geom.Rect {
+	if cut.Empty() {
+		return rs
+	}
+	out := rs[:0:0]
+	for _, r := range rs {
+		in := r.Intersect(cut)
+		if in.Empty() {
+			out = append(out, r)
+			continue
+		}
+		add := func(x geom.Rect) {
+			if !x.Empty() {
+				out = append(out, x)
+			}
+		}
+		add(geom.Rect{X: r.X, Y: r.Y, W: r.W, H: in.Y - r.Y})                       // above
+		add(geom.Rect{X: r.X, Y: in.Bottom(), W: r.W, H: r.Bottom() - in.Bottom()}) // below
+		add(geom.Rect{X: r.X, Y: in.Y, W: in.X - r.X, H: in.H})                     // left
+		add(geom.Rect{X: in.Right(), Y: in.Y, W: r.Right() - in.Right(), H: in.H})  // right
+	}
+	return out
+}
