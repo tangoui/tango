@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -101,6 +102,13 @@ func linuxSystemFiles(cfg *Config, a artifact, icons map[string][]byte) ([]sysFi
 	files := []sysFile{
 		{path: "/usr/bin/" + cfg.Exe(), data: exe, mode: 0o755},
 		{path: "/usr/share/applications/" + cfg.ID + ".desktop", data: []byte(desktopEntry(cfg)), mode: 0o644},
+	}
+	for _, helper := range a.helpers {
+		data, err := os.ReadFile(helper)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, sysFile{path: "/usr/" + linuxHelperPath(cfg, filepath.Base(helper)), data: data, mode: 0o755})
 	}
 	for p, b := range icons {
 		files = append(files, sysFile{path: "/usr/share/" + p, data: b, mode: 0o644})

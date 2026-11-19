@@ -250,8 +250,9 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		selBg = defaultColor(th, "editor.inactiveSelectionBackground")
 	}
 
-	tx, ty := vs.text.X-v.ScrollX, vs.text.Y-v.OffsetY
-	lineY := func(r int) float32 { return ty + float32(r-v.TopLine)*lh }
+	display := w.displayViewport()
+	tx, ty := vs.text.X-display.ScrollX, vs.text.Y-display.OffsetY
+	lineY := func(r int) float32 { return ty + float32(r-display.TopLine)*lh }
 	a, b := st.selRange()
 	head := clampOff(snap, st.Primary().Head)
 	caretLine := snap.LineOf(head)
@@ -416,7 +417,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	w.paintDecoOver(l, snap, lines, decos, tx, colW, lh, lineY)
 	// The view zones' text area parts (zones.go).
 	clear(vs.zfp)
-	w.paintZones(l, lines, lineY, false)
+	w.paintZones(l, lines, lineY, tx, false)
 
 	// 5. Composition and caret.
 	if cmp.on {
@@ -468,20 +469,20 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		vs.foldX = w.foldControlX(vs.gutter.X, dg, n)
 		paintFoldControls(l, vs.foldX, lines, fold, lineY, lh, defaultColor(th, "editorGutter.foldingControlForeground"))
 	}
-	w.paintZones(l, lines, lineY, true)
+	w.paintZones(l, lines, lineY, tx, true)
 	l.Pop()
 
 	vs.navPaint = vs.navPaint[:0]
-	w.paintSticky(l, sticky, th)
+	w.paintSticky(l, sticky, th, display.ScrollX)
 	w.paintMinimap(l, th)
 	w.paintOverview(l, th)
 
 	aLine, aRow := vl.find(v.TopLine)
-	w.declareDamage(&paintFrame{
+	w.declareDamage(l, &paintFrame{
 		g: damageGlobal{rect: r, gutter: vs.gutter, text: vs.text, colW: colW, lh: lh, theme: th, opts: w.opts,
 			tab: w.tabs(), focused: focused, wrap: wcfg, numW: w.numbersWidth(dg, n), foldGen: st.fold.gen, hidGen: st.hidGen, zoneGen: st.zgen, zoneOpaque: vs.zoneOpaque,
 			lnFn: w.lnFn != nil, lnGen: w.lnGen},
-		snap: snap, lines: lines, vis: vis, cur: cur, curG: curG, cmp: cmp, caretLine: caretLine, scrollX: v.ScrollX, marks: marks,
+		snap: snap, lines: lines, vis: vis, cur: cur, curG: curG, cmp: cmp, caretLine: caretLine, offsetY: display.OffsetY, scrollX: display.ScrollX, marks: marks,
 		aLine: aLine, aRow: aRow, fold: fold, guides: guides, bguides: vs.bgRows, match: matchRows, decos: decoSigs, udecos: ud,
 	})
 	st.checkScroll() // what paint itself scrolled (scroll.go)

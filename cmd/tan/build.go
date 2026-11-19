@@ -129,12 +129,16 @@ type artifact struct {
 	path     string   // the .app bundle, the executable, or the APK
 	exe      string   // the executable itself
 	extra    []string // more outputs (.ipa, .aab)
+	helpers  []string // built helper executable paths for desktop packaging
 }
 
 // build runs the front-end build once, then builds every target.
 func build(ctx context.Context, cfg *Config, o buildOptions) ([]artifact, error) {
 	desktop, mobile := splitTargets(o.targets)
 	for _, t := range o.targets {
+		if t.OS == "linux" && len(cfg.DesktopHelpers) > 0 && strings.EqualFold(cfg.Exe(), "cli") {
+			return nil, fmt.Errorf(`%s: executable name %q conflicts with the "cli" helper directory`, t, cfg.Exe())
+		}
 		if _, err := featureTags(o.features, t); err != nil {
 			return nil, err
 		}
@@ -185,20 +189,29 @@ func buildTarget(ctx context.Context, cfg *Config, t target, dir string, debug b
 		if err := writeBundle(cfg, a.path); err != nil {
 			return a, err
 		}
+		if err := buildDesktopHelpers(ctx, cfg, &a); err != nil {
+			return a, err
+		}
 		return a, adhocSign(ctx, a.path)
 	case "windows":
 		// The icon, manifest and version information go in as a .syso
 		// that exists only while go build runs (winres.go).
 		a.exe = filepath.Join(dir, cfg.Exe()+".exe")
 		a.path = a.exe
-		return a, withWindowsResources(cfg, t.Arch, func() error {
+		if err := withWindowsResources(cfg, t.Arch, func() error {
 			return goBuild(ctx, cfg, t, a.exe, debug, features)
-		})
+		}); err != nil {
+			return a, err
+		}
 	default:
 		a.exe = filepath.Join(dir, cfg.Exe())
+		a.path = a.exe
+		if err := goBuild(ctx, cfg, t, a.exe, debug, features); err != nil {
+			return a, err
+		}
 	}
-	a.path = a.exe
-	return a, goBuild(ctx, cfg, t, a.exe, debug, features)
+	err := buildDesktopHelpers(ctx, cfg, &a)
+	return a, err
 }
 
 func goBuildDarwin(ctx context.Context, cfg *Config, arch, exe string, debug bool, features buildFeatures) error {
@@ -222,7 +235,7 @@ func goBuildDarwin(ctx context.Context, cfg *Config, arch, exe string, debug boo
 
 // goBuildArgs returns the go build arguments for a release (or debug)
 // build of the project's main package.
-func goBuildArgs(t target, out string, debug bool, features ...buildFeatures) []string {
+func (cfg *Config) goBuildArgs(t target, out string, debug bool, features ...buildFeatures) []string {
 	f := featureAll
 	if len(features) > 0 {
 		f = features[0]
@@ -231,7 +244,7 @@ func goBuildArgs(t target, out string, debug bool, features ...buildFeatures) []
 	if err != nil {
 		profileTags = nil
 	}
-	tags := buildTags(false)
+	tags := buildTags(false, cfg.DesktopBuildTags...)
 	if len(profileTags) > 0 {
 		tags += "," + strings.Join(profileTags, ",")
 	}
@@ -255,7 +268,7 @@ func goBuildArgs(t target, out string, debug bool, features ...buildFeatures) []
 // link C libraries set "cgo": true in tan.json (cross builds then need CC).
 func goBuild(ctx context.Context, cfg *Config, t target, out string, debug bool, features ...buildFeatures) error {
 	env := []string{cfg.cgoEnv(), "GOOS=" + t.OS, "GOARCH=" + t.Arch}
-	return runIn(ctx, cfg.dir, env, "go", goBuildArgs(t, out, debug, features...)...)
+	return runIn(ctx, cfg.dir, env, "go", cfg.goBuildArgs(t, out, debug, features...)...)
 }
 
 // buildFrontend installs dependencies when needed and runs frontend.build.

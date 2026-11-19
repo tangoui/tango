@@ -322,14 +322,14 @@ func zoneGroups(lines []lineView, fn func(p *zonePlaced, k0, first int)) {
 // paintZones draws the zones of the laid out rows in the text area (gutter
 // false) or in the gutter, and records the fingerprints of the drawings
 // of zones without a Version (vs.zfp, by zone).
-func (w *ViewW) paintZones(l *paint.List, lines []lineView, lineY func(int) float32, gutter bool) {
+func (w *ViewW) paintZones(l *paint.List, lines []lineView, lineY func(int) float32, tx float32, gutter bool) {
 	vs, st := w.vs, w.st
 	lh := st.Viewport.LineHeight
 	th := themeOf(st)
 	zoneGroups(lines, func(p *zonePlaced, k0, first int) {
 		z := p.z
 		fn := z.Paint
-		area, origin := vs.text, vs.text.X-st.Viewport.ScrollX
+		area, origin := vs.text, tx
 		if z.Fixed {
 			origin = vs.text.X
 		}
@@ -408,7 +408,7 @@ func (w *ViewW) zoneUnder(p geom.Point) (zoneHit, bool) {
 	if !ok {
 		return zoneHit{}, false
 	}
-	v := st.Viewport
+	v := w.displayViewport()
 	top := vs.text.Y - v.OffsetY + float32(r-z.k-v.TopLine)*v.LineHeight
 	h := zoneHit{z: z, area: ZoneText}
 	part := vs.text

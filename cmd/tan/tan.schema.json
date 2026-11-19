@@ -85,6 +85,24 @@
       },
       "type": "object"
     },
+    "DesktopHelper": {
+      "additionalProperties": false,
+      "properties": {
+        "build": {
+          "description": "project-root command that writes $TAN_HELPER_OUTPUT",
+          "type": "string"
+        },
+        "name": {
+          "description": "executable name without a platform suffix",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "build"
+      ],
+      "type": "object"
+    },
     "FileAssociation": {
       "additionalProperties": false,
       "description": "FileAssociation registers the app for files with an extension.",
@@ -447,6 +465,20 @@
     },
     "copyright": {
       "type": "string"
+    },
+    "desktopBuildTags": {
+      "description": "DesktopBuildTags adds Go build tags to desktop builds from tan build and tan package.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "desktopHelpers": {
+      "description": "DesktopHelpers are executables built for each desktop target and shipped with the application.",
+      "items": {
+        "$ref": "#/$defs/DesktopHelper"
+      },
+      "type": "array"
     },
     "features": {
       "description": "Features selects the compile-time desktop backend profile. Omitted means all capabilities.",

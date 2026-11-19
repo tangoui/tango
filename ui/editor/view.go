@@ -476,6 +476,19 @@ func (w *ViewW) lineHeight() float32 {
 	return float32(math.Round(float64(w.opts.fontSize()) * lineHeightRatio))
 }
 
+// displayViewport uses whole device pixels for the scroll displacement so
+// the renderer can copy the previous frame. Keep the input position in
+// State continuous, including the part of a wheel delta still below a pixel.
+// Keep the same top row so it still refers to the same view-line anchor.
+func (w *ViewW) displayViewport() Viewport {
+	v := w.st.Viewport
+	scale := float64(max(0.01, w.c.Window().Scale()))
+	top := float64(v.TopLine) * float64(v.LineHeight) * scale
+	v.OffsetY = float32((math.Round(top+float64(v.OffsetY)*scale) - top) / scale)
+	v.ScrollX = float32(math.Round(float64(v.ScrollX)*scale) / scale)
+	return v
+}
+
 // monoStyle returns the text style of the document text.
 func (w *ViewW) monoStyle() text.Style {
 	return text.Style{Size: w.opts.fontSize(), LineHeight: w.lineHeight(), Mono: true}

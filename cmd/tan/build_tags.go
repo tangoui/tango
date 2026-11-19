@@ -18,13 +18,17 @@ const devTag = "tango_dev"
 const releaseTag = "tango_release"
 
 // buildTags returns the -tags value for a go build of the app: the tags
-// the user set in GOFLAGS (-tags=a,b), which an explicit -tags flag would
-// otherwise override, plus tango_dev for tan dev (dev) or, for tan build,
-// without tango_dev and with the compatibility tag tango_release.
-func buildTags(dev bool) string {
+// the user set in GOFLAGS (-tags=a,b), the project defaults, and the
+// Tango mode tag (tango_dev for dev or tango_release for builds).
+func buildTags(dev bool, defaults ...string) string {
 	tags := slices.DeleteFunc(goflagsTags(os.Getenv("GOFLAGS")), func(t string) bool {
 		return t == devTag || t == releaseTag
 	})
+	for _, tag := range defaults {
+		if !slices.Contains(tags, tag) {
+			tags = append(tags, tag)
+		}
+	}
 	if dev {
 		tags = append(tags, devTag)
 	} else {

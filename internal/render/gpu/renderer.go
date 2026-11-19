@@ -1133,11 +1133,15 @@ func (r *Renderer) image(o paint.Image) {
 		return
 	}
 	size := t.pix.Rect.Size()
+	one := float32(0)
+	if paint.ImageAligned(geom.Rect{X: dr.X, Y: dr.Y, W: dr.Z, H: dr.W}, size) {
+		one = 1 // a texel per pixel: read it alone (paint.ImageAligned)
+	}
 	r.emitImage(shaders.Instance{
 		Rect:   dr,
 		Radii:  sl.V4(o.Radii.TL*s, o.Radii.TR*s, o.Radii.BR*s, o.Radii.BL*s),
 		Kind:   sl.V4(shaders.KindImage, 0, 0, 0),
-		Params: sl.V4(float32(size.X), float32(size.Y), 0, 0),
+		Params: sl.V4(float32(size.X), float32(size.Y), one, 0),
 	}, b, t.id)
 }
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go/build/constraint"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -61,6 +62,8 @@ type Config struct {
 	Version string `json:"version"` // x.y.z
 	// Features selects the compile-time desktop backend profile. Omitted means all capabilities.
 	Features []string `json:"features,omitempty"`
+	// DesktopBuildTags adds Go build tags to desktop builds from tan build and tan package.
+	DesktopBuildTags []string `json:"desktopBuildTags,omitempty"`
 	// CGO builds with cgo enabled, for apps linking C libraries (duckdb, …).
 	// Default false: the desktop backends are purego and cross-compile without
 	// a C toolchain. Cross-compiling with CGO true needs a matching CC in env.
@@ -80,6 +83,8 @@ type Config struct {
 	// Installer customises the installers tan package makes: the NSIS
 	// setup.exe and the macOS disk image. See docs/packaging.md.
 	Installer Installer `json:"installer,omitzero"`
+	// DesktopHelpers are executables built for each desktop target and shipped with the application.
+	DesktopHelpers []DesktopHelper `json:"desktopHelpers,omitempty"`
 
 	// URLSchemes are the deep-link schemes the app opens (myapp for
 	// myapp://...); the app declares the same list in tango.Options.
@@ -113,6 +118,11 @@ type Frontend struct {
 	Dev     string `json:"dev,omitempty"`     // dev server command; its first printed http URL is used
 	DevURL  string `json:"devURL,omitempty"`  // dev server URL, when it cannot be read from the output
 	Build   string `json:"build,omitempty"`   // production build command
+}
+
+type DesktopHelper struct {
+	Name  string `json:"name"`  // executable name without a platform suffix
+	Build string `json:"build"` // project-root command that writes $TAN_HELPER_OUTPUT
 }
 
 // FileAssociation registers the app for files with an extension.
@@ -285,6 +295,13 @@ func (c *Config) validate() error {
 	if _, err := configFeatures(c.Features); err != nil {
 		errs = append(errs, fmt.Errorf(`"features": %w`, err))
 	}
+	for _, tag := range c.DesktopBuildTags {
+		expr, _ := constraint.Parse("//go:build " + tag)
+		single, ok := expr.(*constraint.TagExpr)
+		if !ok || single.Tag != tag || tag == devTag || tag == releaseTag || strings.HasPrefix(tag, "tango_backend_") {
+			errs = append(errs, fmt.Errorf(`"desktopBuildTags": invalid Go build tag %q`, tag))
+		}
+	}
 	if c.HasFrontend() { // no "frontend" at all: a self-drawn UI app (package uihost)
 		if c.Frontend.Dir == "" {
 			errs = append(errs, errors.New(`"frontend.dir" is required`))
@@ -325,6 +342,7 @@ func (c *Config) validate() error {
 	errs = append(errs, c.validateWindows()...)
 	errs = append(errs, c.validateLinux()...)
 	errs = append(errs, c.Installer.validate()...)
+	errs = append(errs, validateDesktopHelpers(c.DesktopHelpers)...)
 	for _, p := range []string{c.Icon, c.Frontend.Dir, c.Frontend.Dist, c.MacOS.Entitlements,
 		c.IOS.ProvisioningProfile, c.IOS.Entitlements, c.Android.Keystore, c.Windows.Certificate} {
 		if configPathAbs(p) {
