@@ -252,6 +252,7 @@
 - **FooterToolbar 吸底回退**：渲染器不支持背景模糊时，吸底工具栏改用不透明的 `BgContainer`，避免底部内容从工具栏后穿透；HighContrast 下也保持不透明。
 - `Cascader`、`CascaderPanel` 根选项为空时忽略上下方向键，避免下标越界崩溃。
 - `Affix.Changed()` 在固定和解除固定后的首次构建中各报告一次变化。
+- `Menu.Accordion()` 用方向键和点击展开菜单时都只保留当前分支，嵌套菜单的父级保持展开。
 
 ### 安全
 

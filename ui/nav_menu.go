@@ -2,6 +2,7 @@ package ui
 
 import (
 	"math"
+	"slices"
 	"time"
 
 	"github.com/tangoui/tango/ui/a11y"
@@ -180,7 +181,7 @@ func (m *MenuW) Dark() *MenuW { m.dark = true; return m }
 // Collapsed shows icons only; submenus pop out on hover.
 func (m *MenuW) Collapsed(on bool) *MenuW { m.collapsed = on; return m }
 
-// Accordion keeps only one inline submenu open (Element unique-opened).
+// Accordion keeps only one branch of inline submenus open (Element unique-opened).
 func (m *MenuW) Accordion() *MenuW { m.accordion = true; return m }
 
 // DefaultOpen opens inline submenus initially.
@@ -394,7 +395,7 @@ func (m *MenuW) list(items []MenuItem, level, parent int) {
 		if ia.Clicked && !disabled {
 			switch {
 			case hasKids && !m.popupMode():
-				m.toggle(it, !open)
+				m.setOpen(it.Key, !open)
 			case hasKids:
 				m.a11yPop(n.id, it.Key)
 			default:
@@ -709,21 +710,32 @@ func (m *MenuW) a11yPop(id ID, key string) {
 	}
 }
 
-// toggle opens or closes an inline submenu (accordion closes the others).
-func (m *MenuW) toggle(it MenuItem, open bool) {
+// menuSubmenuBranch finds the submenu's path and its children.
+func menuSubmenuBranch(items []MenuItem, key string) ([]string, []MenuItem) {
+	for _, it := range items {
+		if !it.Group && !it.Divider && it.Key == key {
+			return []string{key}, it.Children
+		}
+		if path, children := menuSubmenuBranch(it.Children, key); path != nil {
+			if !it.Group {
+				path = append(path, it.Key)
+			}
+			return path, children
+		}
+	}
+	return nil, nil
+}
+
+// setOpen handles both pointer and keyboard changes to inline submenus.
+func (m *MenuW) setOpen(key string, open bool) {
 	if open && m.accordion {
+		path, children := menuSubmenuBranch(m.items, key)
 		for k := range m.st.open {
-			if k != it.Key && !containsKey(it.Children, k) {
+			if !slices.Contains(path, k) && !containsKey(children, k) {
 				delete(m.st.open, k)
 			}
 		}
 	}
-	m.st.open[it.Key] = open
-	m.syncOpen()
-}
-
-// setOpen opens or closes the inline submenu key from the keyboard.
-func (m *MenuW) setOpen(key string, open bool) {
 	m.st.open[key] = open
 	m.syncOpen()
 }
