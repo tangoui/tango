@@ -797,13 +797,10 @@ func (w *VirtualSelectW) rowH() float32 {
 }
 
 func (w *VirtualSelectW) listHeight() float32 {
-	if w.listH > 0 {
-		return w.listH
-	}
 	if w.c.ThemeFor(theme.CompSelect).Flavor == theme.Element {
-		return 274
+		return selectListHeight(w.listH, 274)
 	}
-	return 256
+	return selectListHeight(w.listH, 256)
 }
 
 // popupName names the listbox.

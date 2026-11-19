@@ -58,6 +58,13 @@ func p2bVirtualMode(on bool) int {
 	return -1
 }
 
+func selectListHeight(px, fallback float32) float32 {
+	if px > 0 {
+		return px
+	}
+	return fallback
+}
+
 func (r *p2bRich) defaults(c *Context) {
 	r.debounce = remoteDebounce
 	if v, ok := p2bBool(c, "Select", "virtual"); ok {
@@ -137,7 +144,8 @@ func (w *SelectW) Virtual(on bool) *SelectW {
 	return w
 }
 
-// ListHeight sets the maximum dropdown height (Ant listHeight, 256).
+// ListHeight sets the maximum dropdown height with or without virtual
+// scrolling (Ant listHeight, 256).
 func (w *SelectW) ListHeight(px float32) *SelectW { w.rx.listH = px; return w }
 
 // DataVersion tells the select that the option slice was modified in

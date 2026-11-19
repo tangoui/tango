@@ -409,12 +409,13 @@ func (w *SelectW) dropdown(opts []Option) {
 	follow := !st.listShown || st.active != st.shown
 	moved := c.pointer != st.ptr
 	optH := tk.OptionHeight
+	listH := selectListHeight(w.rx.listH, 256)
 	ov := Overlay(c, OverlayOptions{Anchor: w.n.id, Place: w.place, Offset: 4, MatchWidth: true, Flip: true}, func() {
 		if len(opts) == 0 {
 			Empty(c).Simple().Description(selEmptyText(c, w.notFound))
 			return
 		}
-		sb := Scroll(c, func() { w.options(opts, moved, optH) }, layout.MaxH(256))
+		sb := Scroll(c, func() { w.options(opts, moved, optH) }, layout.MaxH(listH))
 		sb.n.setRole(a11y.RoleListbox)
 		if c.a11yOn {
 			// The page (and the combobox) is visited before this overlay.
@@ -424,10 +425,7 @@ func (w *SelectW) dropdown(opts []Option) {
 		if follow && st.active >= 0 {
 			// Keep the highlighted option (the value on open) in view.
 			s := sb.s
-			view := float64(s.view.H)
-			if view <= 0 {
-				view = 256
-			}
+			view := min(fillViewH(sb, listH), float64(listH))
 			top, h := float64(st.active)*float64(optH), float64(optH)
 			if top < s.off.Y {
 				s.off.Y = top
