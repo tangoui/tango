@@ -169,7 +169,10 @@ func (m *jobManager) list() []jobInfo {
 
 // stop ends the job's process group: a polite signal first, then a kill
 // after 5 s. Stopping a job that already ended only kills what it left
-// running in its group.
+// running in its group. Processes the job put in groups of their own (tan
+// build and tan package run the tan.json front-end commands so) are not
+// signalled here: tan ends them itself when the polite signal cancels its
+// context (signalContext in build.go).
 func (m *jobManager) stop(id string) (jobInfo, error) {
 	j, err := m.get(id)
 	if err != nil {

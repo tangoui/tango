@@ -63,6 +63,8 @@ Claude Code 的配置：
 4. `tango_ui_type`、`tango_ui_wait`、`tango_ui_find` 继续操作和断言，`tango_ui_screenshot` 看结果
 5. `tango_app_stop {"session": "app-1"}` → `{"exitCode": 0}`
 
+前端用 Vite 等工具构建的模板，Go 代码通过 `go:embed` 嵌入 `dist`：先 `tango_project_build`（或至少让前端构建跑一次）再 `tango_app_start`，否则 `dist` 不存在，编译失败或页面是旧的。
+
 WebView 应用（例如默认模板 `vanilla`、`examples/hello`）把第 2–4 步换成 `tango_web_fill {"selector": "#name", "text": "..."}`、`tango_web_click {"selector": "#go"}`、`tango_web_text {"selector": "#out"}`。
 
 完整的端到端例子见 `cmd/tan/mcp_e2e_test.go`（`TANGO_E2E=1 go test -run TestMCPE2E -v ./cmd/tan`）。
@@ -88,14 +90,16 @@ WebView 应用（例如默认模板 `vanilla`、`examples/hello`）把第 2–4 
 
 后台任务的工具立即返回任务对象（`id` 形如 `job-1`），用 `tango_job_status` 跟进。
 
+`tan build`、`tan package` 把 `tan.json` 里的前端命令（`frontend.install`、`frontend.build`）放在单独的进程组里运行，`tango_job_stop` 的信号不直接到达它们；tan 收到信号后自己结束这些进程组，`tan mcp` 退出时同样如此。
+
 ### 界面工具：会话
 
 | 工具 | 主要输入 | 输出 |
 |---|---|---|
 | `tango_app_start` | `target`（包目录或开发构建的可执行文件，默认根目录）、`args`、`env`（`KEY=VALUE`，不能是 `TANGO_` 变量）、`tags`、`timeoutMs`（构建后等控制通道，默认 60000，最多 300000） | `session`、`windows` |
-| `tango_app_attach` | `tokenFile`（应用写出的 token 文件），或 `addr` + `token` | `session`、`windows` |
+| `tango_app_attach` | `tokenFile`（应用写出的 token 文件），或 `addr`（回环地址 `127.0.0.1:端口` 等，或 `unix:` 套接字；其他地址在连接前就拒绝）+ `token` | `session`、`windows` |
 | `tango_app_stop` | `session` | `exitCode`（连接的应用没有）、`warning`；启动的应用先请求退出，5 秒不退就结束进程，连接的应用只断开 |
-| `tango_app_output` | `session`、`bytes`（默认 16384，最多 262144） | `output`、`truncated`；保留最近 256 KiB 的 stdout 和 stderr |
+| `tango_app_output` | `session`、`bytes`（默认 16384，最多 262144） | `output`、`truncated`；保留最近 256 KiB 的 stdout 和 stderr；`tango_app_attach` 连上的会话不捕获输出，调用直接报错 |
 | `tango_ui_windows` | `session` | `windows`：每个窗口 `id`、`title`、`kind`（`canvas` 自绘、`webview`）、`visible`、`focused`、`width`、`height` |
 | `tango_ui_screenshot` | `session`、`window`、`query`（只截该节点区域，自绘窗口） | PNG 图片；自绘和 WebView 窗口都可用 |
 
@@ -105,7 +109,7 @@ WebView 应用（例如默认模板 `vanilla`、`examples/hello`）把第 2–4 
 
 | 工具 | 主要输入 | 输出 |
 |---|---|---|
-| `tango_ui_tree` | `session`、`window`、`maxNodes`（默认 400） | `tree`（缩进文本，每行一个节点：角色、"名称"、值、[状态]）、`truncated`（省略的节点数） |
+| `tango_ui_tree` | `session`、`window`、`maxNodes`（默认 400，最多 20000） | `tree`（缩进文本，每行一个节点：角色、"名称"、值、[状态]）、`truncated`（省略的节点数） |
 | `tango_ui_find` | `session`、`window`、`query`、`timeoutMs` | `node`、`count`（匹配数） |
 | `tango_ui_act` | `session`、`window`、`query`、`action`（`press`、`increment`、`decrement`、`expand`、`collapse`、`setValue`、`focus`、`scrollIntoView`、`dismiss`）、`arg`（`setValue` 的值）、`timeoutMs` | `node` |
 | `tango_ui_wait` | `session`、`window`、`query`、`gone`（等到不匹配）、`timeoutMs` | `node`（`gone` 时没有） |
@@ -121,7 +125,7 @@ WebView 应用（例如默认模板 `vanilla`、`examples/hello`）把第 2–4 
 
 | 工具 | 主要输入 | 输出 |
 |---|---|---|
-| `tango_web_eval` | `session`、`window`、`expr`（JavaScript 表达式，Promise 会等待；多条语句包成 `(() => { ...; return x })()`）、`timeoutMs` | `value`（JSON，`undefined` 为 `null`） |
+| `tango_web_eval` | `session`、`window`、`expr`（JavaScript 表达式，Promise 会等待；多条语句包成 `(() => { ...; return x })()`）、`timeoutMs` | `value`（JSON，`undefined` 为 `null`）；序列化后超过 64 KiB 时 `value` 改为该 JSON 前 64 KiB 的字符串，并带 `"truncated": true` |
 | `tango_web_click` | `session`、`window`、`selector`、`timeoutMs` | `{}`；等元素出现，滚到可见、聚焦并点击 |
 | `tango_web_fill` | `session`、`window`、`selector`、`text`、`timeoutMs` | `{}`；替换 input / textarea / contenteditable 的值，触发 `input` 和 `change` |
 | `tango_web_text` | `session`、`window`、`selector`、`timeoutMs` | `text`（元素的 `innerText`） |
@@ -131,12 +135,14 @@ WebView 应用（例如默认模板 `vanilla`、`examples/hello`）把第 2–4 
 
 ## 安全模型
 
+**允许这些工具，就等于允许代理运行项目里的代码。** `tango_project_build`、`tango_project_package`、`tango_project_dev` 会执行 `tan.json` 里配置的前端命令（`frontend.install`、`frontend.build`、`frontend.dev` 都是交给 shell 运行的命令行），`tango_app_start` 会编译并运行根目录下任意 Go 包或开发构建，`go build` 本身也会执行项目的构建逻辑。在 Claude Code 里放行 `mcp__tango__*`，和放行代理在这个项目里执行这些命令是一回事：只对你信任其内容的项目这样做，`tan.json` 和代码来自他人时先审阅。下面的限制约束的是工具参数（路径、选项、环境变量），不限制项目自身配置的命令能做什么。
+
 - **根目录限制**：工具参数里的路径（项目目录、`init` 目标、`tango_app_start` 的包或可执行文件）都按 `-root` 解析，解析后（包括跟随符号链接，不存在的路径按最近的已存在父目录解析）必须仍在根目录内，否则拒绝。例外：tan 自己的临时目录（构建出的开发版、token 文件）和 Go 的模块缓存、构建缓存——`go build` 本来就会读写它们，也会执行项目里的构建逻辑，这属于“构建你自己的项目”。`tango_app_attach` 的 token 文件可以在根目录外：能否连上由文件里的令牌决定，与路径无关。
-- **参数不能变成选项**：`platforms`、`tags` 等列表值不能以 `-` 开头或含空白，工具输入不会给命令行多加参数。
+- **参数不能变成选项**：`platforms`、`tags` 等列表值不能以 `-` 开头或含空白，工具输入不能给 tan 的命令行多加选项或参数。这只防止参数注入；项目配置的命令照样会执行（见上）。
 - **`TANGO_` 环境变量不可覆盖**：`tango_app_start` 的 `env` 拒绝 `TANGO_` 开头的变量。控制通道地址、token 文件和后台启动由 `tan mcp` 设置。
 - **HTTP 只监听回环、校验令牌和来源**：监听地址只能是回环地址；每个请求必须带正确的 Bearer 令牌（常量时间比较）；`Host`，以及有 `Origin` 时的 `Origin`，必须是回环地址，否则返回 403——防止网页通过 DNS 重绑定访问本机端口。
 - **发布构建没有通道**：界面工具依赖开发构建的控制通道，发布构建里这部分代码整个编译掉（见 [开发功能与生产构建](dev-builds.md)、[整机自动化](automation.md#应用侧启用条件与安全)），`tan mcp` 不改变这一点。连接应用时同样要过控制通道自己的令牌鉴权。
-- **退出时清理**：`tan mcp` 退出时停止它启动的所有后台任务（连同子进程）和应用；`tango_app_attach` 连上的应用只断开，不关闭。
+- **退出时清理**：`tan mcp` 退出时停止它启动的所有后台任务（连同子进程）和应用，包括正在启动中的应用和 `tango_project_init`；`tango_app_attach` 连上的应用只断开，不关闭。收到第一个 Ctrl+C / SIGTERM 立即开始清理，进行中的界面请求马上失败；清理期间再收到一次信号，直接强制结束所有子进程后退出。
 
 ## 限制
 
