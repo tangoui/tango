@@ -136,6 +136,17 @@ func TestJobEnvHasLaunchBackground(t *testing.T) {
 	}
 }
 
+func TestJobEnvCannotUnsetLaunchBackground(t *testing.T) {
+	m := jobScript(t, `printf %s "$TANGO_LAUNCH_BACKGROUND"`)
+	info, err := m.start("dev", t.TempDir(), nil, []string{"TANGO_LAUNCH_BACKGROUND=0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info = waitJob(t, m, info.ID); info.Output != "1" {
+		t.Fatalf("output = %q", info.Output)
+	}
+}
+
 func TestTailBufferLinesAndTail(t *testing.T) {
 	b := newTailBuffer(16)
 	b.Write([]byte("a\nb\nc\n"))

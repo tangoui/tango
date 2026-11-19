@@ -53,6 +53,21 @@ func TestTailBuffer(t *testing.T) {
 	if got, _ := b.Tail(0); len(got) > 32 {
 		t.Fatalf("kept %d bytes", len(got))
 	}
+	// Trailing blank lines do not take the place of output.
+	c := newTailBuffer(64)
+	c.Write([]byte("one\ntwo\nthree\n\n\n\n"))
+	if got := c.lastLines(2); got != "two\nthree" {
+		t.Fatalf("tail with blank lines %q", got)
+	}
+	if got := c.lastLines(5); got != "one\ntwo\nthree" {
+		t.Fatalf("all lines %q", got)
+	}
+	if got := c.lastLines(1); got != "three" {
+		t.Fatalf("one line %q", got)
+	}
+	if got := newTailBuffer(8).lastLines(3); got != "" {
+		t.Fatalf("empty %q", got)
+	}
 }
 
 func TestFileSet(t *testing.T) {

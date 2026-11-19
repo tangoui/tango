@@ -541,10 +541,24 @@ func installBinary(src, dst string) error {
 	return os.Rename(tmp, dst) // a new inode: never rewrite a running binary
 }
 
-// lastLines returns the last n lines of t, without the final newline.
+// lastLines returns the last n lines of t, not counting trailing blank
+// lines, without the final newline.
 func (t *tailBuffer) lastLines(n int) string {
-	s, _ := t.Lines(n, 0)
-	return strings.TrimRight(s, "\n")
+	s, truncated := t.Tail(0)
+	if truncated { // the first line was cut by the buffer
+		if k := strings.IndexByte(s, '\n'); k >= 0 {
+			s = s[k+1:]
+		}
+	}
+	s = strings.TrimRight(s, "\r\n")
+	end := len(s) // s[end:] holds the lines taken so far
+	for i := 0; i < n && end > 0; i++ {
+		end = strings.LastIndexByte(s[:end], '\n') + 1
+		if i < n-1 && end > 0 {
+			end-- // step over the newline to the line before
+		}
+	}
+	return s[end:]
 }
 
 // fileSet fingerprints a list of files or directories (a directory's

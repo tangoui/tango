@@ -84,8 +84,10 @@ func (m *jobManager) start(kind, dir string, args []string, env []string) (jobIn
 
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "TANGO_LAUNCH_BACKGROUND=1")
-	cmd.Env = append(cmd.Env, env...)
+	// os/exec keeps the last of duplicate variables: env cannot turn off
+	// the background launch.
+	cmd.Env = append(os.Environ(), env...)
+	cmd.Env = append(cmd.Env, "TANGO_LAUNCH_BACKGROUND=1")
 	cmd.Env = append(cmd.Env, selfEnv...)
 	// Our own pipe, not an io.Writer: Wait then returns when tan exits,
 	// not when the last process that inherited the output closes it.
@@ -178,8 +180,9 @@ func (m *jobManager) stop(id string) (jobInfo, error) {
 	return j.info(), nil
 }
 
-// stopAll stops every job, in parallel, and refuses new ones. Processes
-// that ended jobs left behind in their group are killed too.
+// stopAll stops every job, in parallel, and refuses new ones. Processes an
+// ended job left behind are killed too: on Unix only while they still hold
+// its output pipe; on Windows through the job object, which is closed.
 func (m *jobManager) stopAll() {
 	m.mu.Lock()
 	m.closed = true
@@ -317,9 +320,9 @@ func (t *tailBuffer) Lines(n, maxBytes int) (s string, truncated bool) {
 		b, truncated = b[end+1:], true
 	}
 	if maxBytes > 0 && len(b) > maxBytes {
-		cutAtLine := b[len(b)-maxBytes-1] != '\n'
+		partial := b[len(b)-maxBytes-1] != '\n'
 		b, truncated = b[len(b)-maxBytes:], true
-		b = afterLineStart(b, cutAtLine)
+		b = afterLineStart(b, partial)
 	}
 	return string(b), truncated
 }
