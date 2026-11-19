@@ -21,11 +21,7 @@ func streamHead(h http.Header, status int, first []byte, method string, done boo
 		status = http.StatusOK
 	}
 	h = h.Clone()
-	ct := h.Get("Content-Type")
-	if _, set := h["Content-Type"]; !set && len(first) > 0 {
-		ct = http.DetectContentType(first)
-	}
-	h.Del("Content-Type")
+	ct := setAssetContentType(h, first)
 	length := int64(-1)
 	if v := h.Get("Content-Length"); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n >= 0 {

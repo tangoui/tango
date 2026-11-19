@@ -84,7 +84,7 @@ type assetResponse struct {
 	Status      int
 	Reason      string
 	ContentType string
-	Headers     [][2]string // sorted by name, values in order; no Content-Type
+	Headers     [][2]string // sorted by name, values in order, including nonempty Content-Type
 	Body        []byte
 }
 
@@ -97,11 +97,7 @@ func (w *assetWriter) finish(method string) assetResponse {
 	}
 	h := w.header.Clone()
 	body := w.body.Bytes()
-	ct := h.Get("Content-Type")
-	if _, set := h["Content-Type"]; !set && len(body) > 0 {
-		ct = http.DetectContentType(body)
-	}
-	h.Del("Content-Type")
+	ct := setAssetContentType(h, body)
 	if len(body) > 0 || method != http.MethodHead {
 		h.Set("Content-Length", strconv.Itoa(len(body)))
 	}
@@ -112,6 +108,21 @@ func (w *assetWriter) finish(method string) assetResponse {
 		Headers:     headerPairs(h),
 		Body:        body,
 	}
+}
+
+// setAssetContentType resolves the MIME type for both the HTTP headers and
+// WebKit's separate content type field.
+func setAssetContentType(h http.Header, body []byte) string {
+	ct := h.Get("Content-Type")
+	if _, set := h["Content-Type"]; !set && len(body) > 0 {
+		ct = http.DetectContentType(body)
+	}
+	if ct == "" {
+		h.Del("Content-Type")
+	} else {
+		h.Set("Content-Type", ct)
+	}
+	return ct
 }
 
 // headerPairs flattens h into name/value pairs sorted by name, keeping the

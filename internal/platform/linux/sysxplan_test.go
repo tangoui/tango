@@ -224,18 +224,20 @@ func TestDBusMenu(t *testing.T) {
 	}
 }
 
-func TestStreamHead(t *testing.T) {
+func TestStreamHeadHeaders(t *testing.T) {
 	h := http.Header{}
 	resp, n := streamHead(h, 0, []byte("<!doctype html><p>hi"), http.MethodGet, true)
 	if resp.Status != 200 || !strings.HasPrefix(resp.ContentType, "text/html") || n != 20 {
 		t.Errorf("done: %+v %d", resp, n)
 	}
-	if len(resp.Headers) != 1 || resp.Headers[0] != [2]string{"Content-Length", "20"} {
+	if len(resp.Headers) != 2 || resp.Headers[0] != [2]string{"Content-Length", "20"} ||
+		resp.Headers[1] != [2]string{"Content-Type", resp.ContentType} {
 		t.Errorf("headers %v", resp.Headers)
 	}
 	sse := http.Header{"Content-Type": {"text/event-stream"}, "Cache-Control": {"no-cache"}}
 	resp, n = streamHead(sse, 0, nil, http.MethodGet, false)
-	if n != -1 || resp.ContentType != "text/event-stream" || len(resp.Headers) != 1 {
+	if n != -1 || resp.ContentType != "text/event-stream" || len(resp.Headers) != 2 ||
+		resp.Headers[1] != [2]string{"Content-Type", "text/event-stream"} {
 		t.Errorf("sse: %+v %d", resp, n)
 	}
 	cl := http.Header{"Content-Length": {"1000"}}

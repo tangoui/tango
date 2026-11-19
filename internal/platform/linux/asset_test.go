@@ -49,7 +49,7 @@ func TestAssetWriterDefaults(t *testing.T) {
 	if resp.ContentType != "text/html; charset=utf-8" {
 		t.Errorf("content type = %q", resp.ContentType)
 	}
-	if !reflect.DeepEqual(resp.Headers, [][2]string{{"Content-Length", "20"}}) {
+	if !reflect.DeepEqual(resp.Headers, [][2]string{{"Content-Length", "20"}, {"Content-Type", "text/html; charset=utf-8"}}) {
 		t.Errorf("headers = %v", resp.Headers)
 	}
 }
@@ -67,7 +67,7 @@ func TestAssetWriterExplicit(t *testing.T) {
 	if resp.Status != 404 || resp.Reason != "Not Found" || resp.ContentType != "application/json" || string(resp.Body) != "{}" {
 		t.Errorf("resp = %+v", resp)
 	}
-	want := [][2]string{{"Cache-Control", "no-cache"}, {"Content-Length", "2"}, {"Set-Cookie", "a=1"}, {"Set-Cookie", "b=2"}}
+	want := [][2]string{{"Cache-Control", "no-cache"}, {"Content-Length", "2"}, {"Content-Type", "application/json"}, {"Set-Cookie", "a=1"}, {"Set-Cookie", "b=2"}}
 	if !reflect.DeepEqual(resp.Headers, want) {
 		t.Errorf("headers = %v\nwant %v", resp.Headers, want)
 	}
@@ -91,8 +91,9 @@ func TestAssetWriterEmpty(t *testing.T) {
 	w = newAssetWriter()
 	w.Header()["Content-Type"] = nil
 	w.Write([]byte("<html>"))
-	if ct := w.finish("GET").ContentType; ct != "" {
-		t.Errorf("content type = %q", ct)
+	resp = w.finish("GET")
+	if resp.ContentType != "" || !reflect.DeepEqual(resp.Headers, [][2]string{{"Content-Length", "6"}}) {
+		t.Errorf("resp = %+v", resp)
 	}
 }
 

@@ -155,16 +155,20 @@ func finishScheme(req ptr, resp assetResponse) {
 
 	out := webkitURISchemeResponseNew(in, size)
 	defer gObjectUnref(out)
+	setSchemeResponseHead(out, resp)
+	webkitURISchemeRequestFinishWithResponse(req, out)
+}
+
+func setSchemeResponseHead(out ptr, resp assetResponse) {
 	webkitURISchemeResponseSetStatus(out, uint32(resp.Status), cstr(resp.Reason))
-	if resp.ContentType != "" {
-		webkitURISchemeResponseSetContentType(out, resp.ContentType)
-	}
 	hdrs := soupMessageHeadersNew(soupMessageHeadersResponse)
 	for _, kv := range resp.Headers {
 		soupMessageHeadersAppend(hdrs, kv[0], kv[1])
 	}
 	webkitURISchemeResponseSetHTTPHeaders(out, hdrs) // the response now owns hdrs
-	webkitURISchemeRequestFinishWithResponse(req, out)
+	if resp.ContentType != "" {
+		webkitURISchemeResponseSetContentType(out, resp.ContentType)
+	}
 }
 
 // finishSchemeError fails req with msg.
