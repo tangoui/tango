@@ -45,6 +45,16 @@ type doctorCheck struct {
 	Required bool   `json:"required"`
 }
 
+// doctorOutput and jobsOutput wrap lists: clients accept only object
+// output schemas.
+type doctorOutput struct {
+	Checks []doctorCheck `json:"checks"`
+}
+
+type jobsOutput struct {
+	Jobs []jobInfo `json:"jobs"`
+}
+
 type projectInitInput struct {
 	Dir      string `json:"dir" jsonschema:"directory to create, relative to the MCP root; must not exist or be empty"`
 	Template string `json:"template,omitempty" jsonschema:"project template (default vanilla)"`
@@ -94,11 +104,11 @@ func (s *mcpServer) addProjectTools() {
 
 	mcp.AddTool(s.srv, &mcp.Tool{
 		Name:        "tango_project_doctor",
-		Description: "Check the toolchain and platform dependencies (tan doctor): one row per check with its status (ok, missing, warn, or - for optional and absent).",
-	}, func(context.Context, *mcp.CallToolRequest, any) (*mcp.CallToolResult, []doctorCheck, error) {
-		var out []doctorCheck
-		for _, c := range doctorChecks() {
-			out = append(out, doctorCheck{Name: c.name, Status: string(c.status), Detail: c.detail, Required: c.required})
+		Description: "Check the toolchain and platform dependencies, and the project at the MCP root (tan doctor): one row per check with its status (ok, missing, warn, error, or - for optional and absent).",
+	}, func(context.Context, *mcp.CallToolRequest, any) (*mcp.CallToolResult, doctorOutput, error) {
+		out := doctorOutput{Checks: []doctorCheck{}}
+		for _, c := range doctorChecksIn(s.root) {
+			out.Checks = append(out.Checks, doctorCheck{Name: c.name, Status: string(c.status), Detail: c.detail, Required: c.required})
 		}
 		return nil, out, nil
 	})
@@ -179,8 +189,8 @@ func (s *mcpServer) addProjectTools() {
 	mcp.AddTool(s.srv, &mcp.Tool{
 		Name:        "tango_jobs",
 		Description: "List the background jobs (build, package, dev, generate), oldest first, without output.",
-	}, func(context.Context, *mcp.CallToolRequest, any) (*mcp.CallToolResult, []jobInfo, error) {
-		return nil, s.jobs.list(), nil
+	}, func(context.Context, *mcp.CallToolRequest, any) (*mcp.CallToolResult, jobsOutput, error) {
+		return nil, jobsOutput{Jobs: s.jobs.list()}, nil
 	})
 
 	mcp.AddTool(s.srv, &mcp.Tool{
@@ -304,13 +314,18 @@ func (s *mcpServer) initProject(ctx context.Context, in projectInitInput) (proje
 	if in.Template == "" {
 		in.Template = defaultTemplate
 	}
-	for _, f := range []struct{ name, v string }{{"template", in.Template}, {"name", in.Name}, {"module", in.Module}} {
-		if f.v == "" {
-			continue
-		}
-		if err := checkArgValue(f.name, f.v); err != nil {
+	if err := checkArgValue("template", in.Template); err != nil {
+		return projectInitOutput{}, err
+	}
+	if in.Module != "" {
+		if err := checkArgValue("module", in.Module); err != nil {
 			return projectInitOutput{}, err
 		}
+	}
+	// A display name may have spaces (there is no shell), but no flag look
+	// and no control characters.
+	if strings.HasPrefix(in.Name, "-") || strings.IndexFunc(in.Name, unicode.IsControl) >= 0 {
+		return projectInitOutput{}, fmt.Errorf("name: %q is not allowed (no leading - or control characters)", in.Name)
 	}
 	if _, ok := findTemplate(in.Template); !ok {
 		return projectInitOutput{}, fmt.Errorf("template: unknown template %q (have %s)", in.Template, templateNames())
@@ -352,7 +367,8 @@ func runTan(ctx context.Context, dir string, args []string, timeout time.Duratio
 	}
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), selfEnv...)
+	cmd.Env = append(os.Environ(), "TANGO_LAUNCH_BACKGROUND=1")
+	cmd.Env = append(cmd.Env, selfEnv...)
 	out := newTailBuffer(jobStatusMaxBytes)
 	cmd.Stdout, cmd.Stderr = out, out
 	cmd.WaitDelay = 5 * time.Second // a child left holding the output
