@@ -100,7 +100,7 @@ ap := s.Appearance()
 | `SetZoom(f)` / `Zoom()` | 页面缩放 |
 | `Print()` / `PrintToPDF(opts)` | 打印 / 导出 PDF |
 | `Screenshot()` | 页面截图（PNG） |
-| `Find(text, opts)` / `FindNext()` / `StopFind()` | 页内查找 |
+| `Find(text, opts)` / `FindNext()` / `FindPrevious()` / `StopFind()` | 页内查找 |
 | `OpenDevTools()` | 打开检查器（需要 `Debug`） |
 | `SetUserAgent` / `SetExtraHeaders` | 自定义 UA 与请求头 |
 | `Cookies` / `SetCookie` / `DeleteCookie` / `ClearBrowsingData` | Cookie 与网站数据 |
@@ -125,4 +125,4 @@ await Window.setSize(900, 600);
 const off = Window.onResize(({ width, height }) => layout(width, height));
 ```
 
-`Window` 能力默认开启，只作用于调用方自己的窗口。完整列表见 [前端运行时 API](/reference/js-api)。
+`Window` 能力默认开启，只作用于调用方自己的窗口。页内查找、PDF、截图、Cookie 等由 `Web` 模块提供，需要单独授权。完整列表见 [前端运行时 API](/reference/js-api)。

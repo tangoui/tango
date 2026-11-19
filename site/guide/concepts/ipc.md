@@ -269,10 +269,10 @@ tango.lanes(); // macOS 默认：{down: "fallback", up: "up:post"}；没有快�
 ## TypeScript 绑定生成
 
 ```bash
-tan generate bindings          # 默认写到 <frontend.dir>/src/bindings
+tan generate bindings          # 默认写到 <frontend.dir>/src/bindings，无前端配置时写到 bindings
 ```
 
-`tan generate bindings` 用 `go/types` 读主包，找到所有 `bind.Register(r, "常量名", svc)`，为每个服务生成调用 `call("Name.Method", ...)` 的 TS 函数，Go 结构体按 `encoding/json` 的规则映射成 interface（json 标签、`omitempty` → 可选、指针 → `T | null`、`time.Time` → `string` 等）。参数：`-pkg` 指定 Go 包目录，`-o` 指定输出目录，`-runtime` 指定导出 `call` 的模块（默认 `@tangoui/runtime`）。
+`tan generate bindings` 用 `go/types` 读指定 Go 包（默认项目根目录），查找 `bind.Register(r, "常量名", svc)`，为每个服务生成调用 `call("Name.Method", ...)` 的 TS 函数，Go 结构体按 `encoding/json` 的规则映射成 interface（json 标签、`omitempty` → 可选、指针 → `T | null`、`time.Time` → `string` 等）。参数：`-pkg` 指定 Go 包目录，`-o` 指定输出目录，`-runtime` 指定导出 `call` 的模块（默认 `@tangoui/runtime`）。
 
 ## 线上协议
 

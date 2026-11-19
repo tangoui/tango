@@ -26,7 +26,7 @@ At the bottom, pages and Go exchange **raw string messages**: `window.__tango.po
 
 System capabilities outside the window live in one package each under `sys/` (`sys/clipboard`, `sys/dialog`, `sys/tray`, …). Their first parameter is the `*tango.App`; they return the package's `ErrUnsupported` where the platform cannot help, and `tango.ErrNotRunning` after the app quit.
 
-Go-drawn UI (package `ui`) opens in its own window with `uihost.Open`, or on top of / below a WebView in the same window with `uihost.Attach` (macOS only so far).
+Go-drawn UI (package `ui`) opens in its own window with `uihost.Open`, or on top of / below a WebView in the same window or mobile page with `uihost.Attach`.
 
 ## Threading
 
@@ -99,7 +99,7 @@ for await (const line of tango.stream("Logs.Tail")) { if (enough) break; } // br
 
   Fast-lane delivery is bound to the document session (lane generation): the lane token is per generation and used by every lane request in it, and a reload or leaving the asset origin retires it. Hand `OnBinary`'s `gen` to `r.HandleBinarySession(s, gen, p)` so packets of a previous document never reach the new one; `r.HandleBinary` is only for simple connections that never host a second document, and drops every packet for a `*tango.Surface` (logging one warning). Feed a surface to one `Router` only: each handshake starts a new lane generation, so two Routers on one surface would invalidate each other. Reliable stream `boundary` messages (sent on the message channel once a lane frame is on its way) expose even a lost final frame of an open duplex; only streams with unresolved receive sequences fail after 5 seconds. For a stalled page (`alert()`, a long task) the guarantee is: the runtime sends a lane frame's boundary only once the frame actually went out (`up:post`: when its batch is handed to `fetch`), and every later message-channel post of that stream (data, end, close) waits for it too, so Go never starts timing a frame still queued in the page; the page's gap timer and the `up:post` request timer, when they fire more than 1 s late, wait one more full timeout, and a second expiry fails as usual. Abort paths (writable abort, a refused chunk, `cancel()`, a local error) still post their close/error at once, so under a stall longer than 5 s Go may report `transport` instead of the abort reason. Each `up:post` request aborts after 4 seconds (below the 5 s gap timeout, so a hung POST fails the lane and later frames fall back before streams fail); retained encoded POST bytes, in flight included, are capped at 8 MiB, and excess frames take the message channel without changing sequence or credit. Lane requests resolve against the document's actual location, independent of HTML `<base>`, and refuse redirects.
 - **Wire protocol**: version 2. The runtime and Go shake hands on load and Go rejects any other version ("runtime-js protocol mismatch"), so use the `@tangoui/runtime` release that matches the Go module. The message format is documented in the `ipc` package comment.
-- **TypeScript generation**: `tan generate bindings` finds every `bind.Register` call in the main package and writes typed clients, mapping Go types the way `encoding/json` encodes them.
+- **TypeScript generation**: `tan generate bindings` finds supported `bind.Register` calls in the selected Go package and writes typed clients, mapping Go types the way `encoding/json` encodes them.
 
 ## Asset serving
 
@@ -126,14 +126,16 @@ app.OnOpenFiles(func(paths []string) { open(paths) })
 
 App-level notifications arrive through `App.OnEvent`: open URL, open files, theme changed, displays changed, reopen (macOS Dock click), notification opened, and on mobile safe area, orientation, push and WebView-restored events. The deep link that launched the app is kept until a listener is registered. `sys/single` forwards a second launch's arguments to the running instance. `Options.QuitOnLastClose` decides whether closing the last window quits (default: no on macOS, yes on Windows and Linux); windows created with `SurfaceOptions{Auxiliary: true}` (an update window, a tool palette) do not count.
 
+Register long-lived Go objects with `service.Register(app, db, syncer)` or expose one to IPC with `service.Bind(app, r, "Notes", notes)`. `Startup(ctx)` runs in registration order and `Shutdown()` runs in reverse. Startup failure closes the services that already started, quits the app and is available via `service.Err(app)`.
+
 ## Security model
 
 TanGo assumes the page is **not fully trusted**:
 
 1. **Message origin check** — the core accepts messages only from the asset origin and from the origin it last navigated the surface to; everything else is dropped before `OnMessage`. Only main-frame messages are delivered.
-2. **jsapi allow-list** — page access to system capabilities is grouped (`Window`, `Menu`, `Info` on by default; `ClipboardRead`, `ClipboardWrite`, `Dialogs`, `Notify`, `OpenURL`, `OpenPath`, `AppControl`, `Hotkeys` off by default) and enabled in Go with `jsapi.Install(app, r, jsapi.Options{Allow: …})`. Disabled capabilities reject with `forbidden`. Window methods only ever act on the calling window.
+2. **jsapi allow-list** — page access to system capabilities is grouped (`Window`, `Menu`, `Info` on by default; `ClipboardRead`, `ClipboardWrite`, `Dialogs`, `Notify`, `OpenURL`, `OpenPath`, `AppControl`, `Hotkeys` and the five `Web` capabilities off by default) and enabled in Go with `jsapi.Install(app, r, jsapi.Options{Allow: …})`. Disabled capabilities reject with `forbidden`. Window methods only ever act on the calling window.
 3. **Narrowed operations** — `shell.OpenURL` accepts only `http`, `https` and `mailto` unless you change it (`file:` never); page-described menus may only use edit roles; global shortcuts belong to the page that registered them.
 4. **WebView policies** — `SetNavigationPolicy`, `SetPermissionPolicy` / `SetPermissionHandler` (camera, microphone, geolocation, …) and `SetNewWindowHandler` let Go decide; by default new windows for the app's own origin open as surfaces, `http(s)`/`mailto` go to the system browser, and anything else is denied.
-5. **Production by default** — every build without `-tags tango_dev` (plain `go build`, `go run .`, goreleaser, `tan build` including `-debug`) leaves out the development features (hot reload, automation channel, dev-server proxy) and ignores their environment variables, so another process of the same user cannot turn them on. Only `tan dev` adds `tango_dev`. The old `tango_release` tag no longer does anything.
+5. **Production by default** — every build without `-tags tango_dev` (plain `go build`, `go run .`, goreleaser, `tan build` including `-debug`) leaves out the development features (hot reload, automation channel, dev-server proxy) and ignores their environment variables, so another process of the same user cannot turn them on. `tan dev`, `automation.Launch` and MCP package launches add `tango_dev` to their development builds. The old `tango_release` tag no longer does anything.
 
 Methods you expose yourself with `bind` or `Handle` are reachable from the page too: validate their arguments. Report vulnerabilities privately as described in [SECURITY.md](https://github.com/tangoui/tango/blob/main/SECURITY.md).

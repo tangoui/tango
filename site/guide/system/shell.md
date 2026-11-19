@@ -45,7 +45,9 @@ shell.AllowSchemes()             // 恢复 DefaultSchemes
 
 | macOS | Windows | Linux | iOS | Android |
 |---|---|---|---|---|
-| ✓ | ✓ | ✓ | — | — |
+| ✓ | ✓ | ✓ | `OpenURL`，文件预览或「打开方式」 | `OpenURL`，经系统应用打开文件 |
+
+移动端的 `OpenPath` 仅接受文件，`RevealPath` 返回 `ErrUnsupported`。
 
 > Windows、Linux 实现尚未实机验证。
 

@@ -1,12 +1,14 @@
 # 命令行 tan
 
-`tan` 负责创建、运行、构建和发布 TanGo 应用。除 `init`、`keygen`、`doctor`、`version` 外，每个命令都读取当前目录（或 `-C <dir>` 指定目录）下的 [tan.json](/reference/tan-json)。
+`tan` 负责创建、运行、构建和发布 TanGo 应用。`dev`、`build`、`run`、`package`、`release-manifest` 和 `applinks` 读取当前目录下的项目配置。支持 `-C <dir>` 的命令可用它指定项目目录。`sign`、`generate bindings` 和 `doctor` 也可独立于项目使用。 [tan.json](/reference/tan-json)
 
 ```bash
 go install github.com/tangoui/tango/cmd/tan@latest
 tan help              # 命令列表
 tan <command> -h      # 某个命令的参数
 ```
+
+本文对应主分支的 CLI。若已发布版本还没有某项功能，可从源码安装。 [安装 tan](/guide/getting-started#安装-tan)
 
 ## 命令一览
 
@@ -16,18 +18,20 @@ tan <command> -h      # 某个命令的参数
 | `tan dev` | 开发模式：启动前端开发服务器（如有），编译运行应用，Go 改动后重建；自绘窗口热加载 |
 | `tan build` | 发布构建，一个或多个平台：桌面、iOS、Android |
 | `tan run` | 构建、安装并在 iOS 模拟器或 Android 设备 / 模拟器上运行，日志接到终端 |
-| `tan package` | 构建后生成安装包：`.dmg`、NSIS 安装器、MSIX、`.tar.gz` 与 AppImage |
+| `tan package` | 构建后生成安装包：macOS `.dmg`，Windows NSIS / MSIX，Linux `.tar.gz` / AppImage / deb / rpm / Flatpak |
 | `tan sign` | macOS 签名与公证；Windows exe / msi / msix 的 Authenticode 签名 |
 | `tan keygen` | 生成更新签名用的 Ed25519 密钥对 |
 | `tan release-manifest` | 为一次发布生成更新文件、二进制补丁和签名的 `latest.json` |
 | `tan sign-update` | 用 Ed25519 私钥签名更新清单 |
+| `tan applinks` | 生成发布到网站 `/.well-known/` 的 iOS Universal Links 和 Android App Links 验证文件 |
 | `tan generate bindings` | 为 `bind.Register` 注册的服务生成 TypeScript 客户端 |
 | `tan doctor` | 检查工具链和平台依赖 |
+| `tan mcp` | 为 AI 代理提供项目工具和开发构建的界面自动化工具 |
 | `tan version` | 打印版本 |
 
 ## 平台目标
 
-`tan build`、`tan package` 的 `-platform` 接受逗号分隔的目标：
+`tan build` 的 `-platform` 接受以下逗号分隔的目标。`tan package` 只接受桌面目标。
 
 | 写法 | 含义 |
 |---|---|
@@ -38,6 +42,12 @@ tan <command> -h      # 某个命令的参数
 | `android`、`android/arm64,android/amd64` | Android；只写 `android` 等于 arm64 + amd64 |
 
 桌面构建产物在 `build/<os>-<arch>/`，`-o` 修改输出根目录；`-debug` 保留符号、允许打开 Web 检查器（Android 上产出 debug APK）。`tan build`（含 `-debug`）都是生产构建：`GOFLAGS` 里已有的 `-tags` 会合并进去，但去掉 `tango_dev`（另外仍传一个已无作用的兼容标签 `tango_release`）。`tan dev` 的构建（桌面与移动端）加 `-tags tango_dev`，开启热加载、自动化、前端开发代理等开发功能。
+
+`tan build` 和 `tan package` 的 `-features` 可覆盖项目的桌面后端配置。`desktopBuildTags` 和 `cgo` 的应用范围见 [tan.json](/reference/tan-json#桌面构建)。
+
+## MCP 服务器
+
+`tan mcp -root .` 默认通过 stdio 提供 MCP 服务。`-root` 默认是当前目录，约束工具参数中的项目路径。需要 HTTP 时加 `-http`，用 `-addr` 指定回环监听地址（默认 `127.0.0.1:0`），用 `-token` 指定 Bearer 令牌（默认生成随机令牌并写到 stderr）。`-addr`、`-token` 只可和 `-http` 同用，`-stdio` 和 `-http` 互斥。界面工具依赖应用的 `tango_dev` 控制通道。 [工具清单和客户端配置](https://github.com/tangoui/tango/blob/main/docs/mcp.md)
 
 ## 常见流程
 
@@ -58,6 +68,7 @@ tan build -platform android/arm64,android/amd64
 |---|---|
 | `TANGO_DEV_URL` | `tan dev` 设置给应用的前端开发服务器地址（只有 `-tags tango_dev` 构建的 `asset.FromEnv` 读取，且只接受回环地址） |
 | `TANGO_HOTRELOAD=0` | 关闭自绘窗口热加载 |
+| `TANGO_LAUNCH_BACKGROUND=1` | macOS 应用启动时不激活，窗口排在其他应用之后。`tan mcp` 启动应用时自动设置 |
 | `TANGO_SIGN_IDENTITY`、`TANGO_NOTARY_PROFILE`、`TANGO_APPLE_ID`、`TANGO_APPLE_TEAM_ID`、`TANGO_APPLE_PASSWORD` | macOS 签名与公证 |
 | `TANGO_WINDOWS_CERT`、`TANGO_WINDOWS_CERT_PASSWORD` | Windows 签名证书与密码 |
 | `TANGO_UPDATE_KEY_FILE`、`TANGO_UPDATE_KEY` | `tan release-manifest`、`tan sign-update` 的私钥 |

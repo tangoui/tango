@@ -30,8 +30,8 @@ Surface 在桌面上是一个**窗口**，在移动端是一个**页面**（iOS 
 | macOS | WKWebView | `tango://app` |
 | Windows | WebView2 | `https://tango.localhost` |
 | Linux | WebKitGTK 4.1 | `tango://app` |
-| iOS | WKWebView | 见 [移动端](/guide/mobile) |
-| Android | 系统 WebView | 见 [移动端](/guide/mobile) |
+| iOS | WKWebView | `tango://app` |
+| Android | 系统 WebView | `https://tango.localhost` |
 
 ```go
 s, err := app.NewSurface(tango.SurfaceOptions{
@@ -56,7 +56,7 @@ runner, win, err := uihost.Open(app, uihost.Options{ /* 标题、尺寸 */ }, pa
 runner, att, err := uihost.Attach(webSurface, uihost.Layer{Above: true}, page, ui.RunnerOptions{})
 ```
 
-`uihost.Attach`（WebView 与自绘同窗）目前只在 macOS 实现。详见 [自绘 UI](/guide/ui)。
+`uihost.Attach` 可在桌面窗口或移动页面中叠放 WebView 与自绘内容。详见 [自绘 UI](/guide/ui)。
 
 ## 原始消息
 

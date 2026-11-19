@@ -3,9 +3,9 @@
 除了 WebView，TanGo 还可以用纯 Go 画界面：`github.com/tangoui/tango/ui` 是一个即时模式 API + 保留式场景的 UI 库，自带一套组件（按钮、表单、表格、日期选择、树、弹层……），`uihost` 把它放进原生窗口。不需要 HTML、JS，也不需要 WebView 进程。
 
 ::: warning 实验性
-- 自绘窗口目前只在 **macOS** 上实机验证；Windows（GDI 位图）和 Linux（GTK/cairo）的 canvas 上屏已实现但未实机验证；移动端还在推进中。
-- 默认用 CPU 渲染；GPU 渲染（`ui/gpu`，含 Go 写的着色器编译器 `ui/shader`）正在开发。
-- WebView 与自绘在同一窗口叠放（`uihost.Attach`）目前只有 macOS 实现。
+- 桌面自绘窗口已在 macOS 实机验证。Windows 和 Linux 有 CI 冒烟覆盖。iOS 在模拟器和一台 iPhone 12 Pro 上测过，Android 在模拟器上测过。 [平台支持](/guide/platforms)
+- Apple Silicon macOS 默认用原生 Core Animation 图层。在默认的 `ui.ContentGeneral` 窗口里，非修饰键按下、文字提交或输入法组合会触发单向切换到 Metal。`ui.RunnerOptions{Content: ui.ContentData}` 适合列表、表格和仪表盘，用键盘浏览时保留原生图层。两种窗口在连续六帧绘制耗时超过 8 ms 或连续六帧全窗口软件回退时也会切换到 Metal。
+- Intel Mac、Windows、Linux、iOS 和 Android 的完整自绘窗口或页面默认走 GPU（Metal、Direct3D 11、OpenGL 或 OpenGL ES），设备不可用时回退到 CPU。macOS 文字引擎默认只编译 CoreText，添加 `-tags tango_gotext` 可恢复 go-text 路径。
 :::
 
 ## 打开一个自绘窗口
@@ -56,6 +56,12 @@ func main() {
 组件以 Ant Design 6.7 和 Ant Design Pro v6 为设计基线实现，Element Plus 主题对照 Element Plus 2.14.8，shadcn 主题对照 shadcn/ui v4（见 [设计基线](https://github.com/tangoui/tango/blob/main/docs/design-baseline.md)）。每个组件只有一个公开入口，按通用、布局、导航、数据录入、数据展示、反馈分组。每个组件的文档和在线示例见 [组件](/components/)，静态截图见 [组件截图目录](/components/screenshots)。
 
 编写新组件的约定（文件命名、节点与保留状态、布局、主题令牌、绘制、焦点与输入法、浮层、测试）在仓库的 [ui/AUTHORING.md](https://github.com/tangoui/tango/blob/main/ui/AUTHORING.md)。
+
+### 大数据量组件
+
+- `AutoComplete`、`Mentions`、`Command`、`Cascader`、`CascaderPanel` 用 `Virtual(bool)` 显式开关虚拟化，原地修改选项时递增 `DataVersion(int)` 让缓存重算。
+- `List`、`ProList`、`Conversations` 可用 `Height(float32)` 加 `Virtual()` 限制渲染范围。`List` 可设固定 `ItemHeight(float32)` 或用 `EstimatedItemHeight(float32)` 估算未测量条目高度。`RowKey(func(int) any)` 为高度缓存提供稳定身份，`ScrollToKey(key, align, offset)` 定位条目，`Range()` 返回上次构建的半开区间 `[first, end)`。
+- `ProTable`、`EditableProTable`、`CellEditorTable`、`RowEditorTable` 用 `ScrollY(float32)` 加 `Virtual()` 虚拟化表体，`ProTable` 可设 `RowHeight(float32)`。`Tree` 的 `DataVersion(int)` 配合 `Height` 启用缓存，原地改节点结构、筛选结果或勾选规则后应更新版本。
 
 ## 主题
 
@@ -154,7 +160,9 @@ app.OnReady(func() { uihost.Open(app, opts, page, ui.RunnerOptions{}) })
 
 变量写在 `<style id="tango-ui-vars">` 里并放在文档最前，页面自己的样式可以覆盖。生成函数依赖应用自身状态（例如手动换了主题）时，状态变化后调用 `uivars.Refresh(app)`。页面脚本可用 `@tangoui/runtime` 的 `Theme.vars()` / `Theme.onVarsChange(fn)` 读取，详见 [theme](/guide/system/theme#与自绘-ui-共享令牌)。
 
-## 与 WebView 同窗（macOS）
+## 与 WebView 同窗
+
+桌面和移动端都可用 `uihost.Attach` 把自绘层放在 WebView 上方或下方。移动端叠放层由 CPU 渲染。
 
 ```go
 r, att, err := uihost.Attach(webSurface, uihost.Layer{
@@ -304,6 +312,8 @@ uihost.Persist(&state) // 可 gob 编码的值；类型变了就丢弃旧状态�
 ```
 
 WebView 窗口仍按重启处理（前端用 Vite HMR）。`tan dev -hot=false` 或 `TANGO_HOTRELOAD=0` 关闭热加载。宿主代码只在 `-tags tango_dev` 构建里（`tan dev` 自动加），默认构建与 `tan build` 不包含。示例：`examples/ui-hotreload`。
+
+自动化测试可通过 `automation.Launch` 或 `tan mcp` 启动独立的开发构建，用语义树查找节点、执行动作或截图。自绘热加载窗口由宿主进程绘制，控制通道无法读取它的语义树。 [整机自动化](https://github.com/tangoui/tango/blob/main/docs/automation.md)
 
 ## 相关
 

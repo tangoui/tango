@@ -33,6 +33,10 @@ stop, err := location.Watch(app, location.Options{DistanceFilter: 50}, func(l lo
 	}
 	updateMap(l)
 })
+if err != nil {
+	log.Print(err)
+	return
+}
 defer stop()
 ```
 

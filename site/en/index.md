@@ -39,7 +39,7 @@ Desktop is verified on **macOS hardware only**. Windows and Linux are cross-comp
 
 ### One Go codebase, desktop and mobile
 
-`App` and `Surface` are the same API on all five platforms. Differences between platforms are listed in capability tables; nothing fails without telling you.
+`App` and `Surface` are the same API on all five platforms. A Surface is a window on desktop and a page in the stack on mobile. Differences between platforms are listed in capability tables; nothing fails without telling you.
 
 </div>
 <div class="home-card">
@@ -53,7 +53,7 @@ TanGo uses WKWebView, WebView2, WebKitGTK and Android WebView. Bring any fronten
 
 ### Go-drawn GUI
 
-Components keep their state and logic in Go; TanGo does layout and drawing. Rendering defaults to the GPU (Metal, Direct3D 11, OpenGL, OpenGL ES) and falls back to the CPU.
+Components keep their state and logic in Go; TanGo does layout and drawing. On Apple Silicon macOS, Go-drawn windows start on native layers and can switch to Metal based on input or frame cost. Other platforms default to the GPU for standalone Go-drawn windows or pages, with CPU fallback. [Platform support](/en/guide/platforms)
 
 </div>
 <div class="home-card">
@@ -74,44 +74,7 @@ Ant Design, Element Plus and shadcn themes share one set of semantic tokens, eac
 
 ### From template to installer
 
-`tan` handles templates, hot reload, builds, packaging (dmg, NSIS, MSIX, deb, rpm, AppImage, Flatpak, apk, aab, ipa), signing and signed auto-updates.
-
-</div>
-</div>
-
-<div class="home-head">
-
-## Measured sizes, reproducible
-
-[Size details →](/en/guide/size)
-
-</div>
-
-<p class="home-lead">Measured 2026-11-14 with Go 1.27.2, cross-compiled on an Apple M4, <code>CGO_ENABLED=0</code>, <code>-trimpath -ldflags='-s -w -buildid='</code>. 1 MiB = 1,048,576 bytes. These are file sizes only; runtime memory and CPU were not measured.</p>
-
-<div class="home-grid">
-<div class="home-card">
-<span class="metric">1.80 <small>MiB</small></span>
-
-### Smallest installer (macOS .dmg)
-
-A minimal WebView app that loads one page, as the default `tan package` .dmg (LZMA, not formally signed). The Windows NSIS installer of the same app, also a default output, is 1.97 MiB. No Linux package was measured.
-
-</div>
-<div class="home-card">
-<span class="metric">5.56–5.70 <small>MiB</small></span>
-
-### Minimal WebView executable
-
-Stripped executables for darwin/arm64, linux/amd64 and windows/amd64. Most of it is the Go runtime, `net/http` and `crypto/tls`. With xz -9e they come to 1.75–1.92 MiB.
-
-</div>
-<div class="home-card">
-<span class="metric">9.68–10.09 <small>MiB</small></span>
-
-### Minimal Go-drawn app
-
-`uihost.Open` with one `ui.Button`. The extra size is the component and renderer code. With gzip -9 they come to 3.87–4.08 MiB.
+`tan` handles templates, hot reload, builds, packaging (dmg, NSIS, MSIX, deb, rpm, AppImage, Flatpak, apk, aab, ipa), signing and update manifests. It also serves MCP tools for projects and running apps. [tan CLI](/en/reference/cli)
 
 </div>
 </div>

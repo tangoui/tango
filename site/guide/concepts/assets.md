@@ -1,6 +1,6 @@
 # 资源服务
 
-页面的 HTML、JS、CSS、图片由 `Options.Assets` 提供，它就是一个普通的 `http.Handler`。后端把资源 origin（macOS / Linux 是 `tango://app`，Windows 是 `https://tango.localhost`）下的请求交给它，不开任何本地端口。
+页面的 HTML、JS、CSS、图片由 `Options.Assets` 提供，它就是一个普通的 `http.Handler`。后端把资源 origin（macOS、Linux 和 iOS 是 `tango://app`，Windows 和 Android 是 `https://tango.localhost`）下的请求交给它，不开任何本地端口。
 
 ## 静态文件：asset.FS
 
