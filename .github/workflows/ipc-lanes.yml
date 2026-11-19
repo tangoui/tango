@@ -50,9 +50,11 @@ jobs:
         env:
           TANGO_E2E: "1"
         run: |
-          run=(go test -p 1 -count=1 ./examples/duplex -run 'E2E' -v)
+          run=(go test -p 1 -count=1 ./examples/duplex -run 'E2E' -skip '^TestE2ELaneSelftest$' -v)
+          selftest=(go test -p 1 -count=1 -timeout 15m ./examples/duplex -run '^TestE2ELaneSelftest$' -v)
           if [[ "$RUNNER_OS" == Linux ]]; then
             run=(dbus-run-session -- xvfb-run -a -s "-screen 0 1280x1024x24" "${run[@]}")
+            selftest=(dbus-run-session -- xvfb-run -a -s "-screen 0 1280x1024x24" "${selftest[@]}")
           fi
 
           status=0
@@ -61,6 +63,8 @@ jobs:
           "${run[@]}" 2>&1 | tee -a e2e.log || status=$?
           echo "=== Enabled lanes ===" | tee -a e2e.log
           TANGO_E2E_LANES=1 "${run[@]}" 2>&1 | tee -a e2e.log || status=$?
+          echo "=== Lane self-test and fault injection ===" | tee -a e2e.log
+          "${selftest[@]}" 2>&1 | tee -a e2e.log || status=$?
           exit "$status"
 
       - name: Run interleaved IPC benchmark

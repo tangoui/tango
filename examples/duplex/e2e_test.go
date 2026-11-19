@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -84,6 +85,77 @@ func TestE2EDuplex(t *testing.T) {
 	app.Quit()
 
 	benchSmoke(t)
+}
+
+// TestE2ELaneSelftest runs the shared page scenarios in a fresh WebView
+// for each case, so a failed lane cannot carry over to the next case.
+func TestE2ELaneSelftest(t *testing.T) {
+	if os.Getenv("TANGO_E2E") != "1" {
+		t.Skip("set TANGO_E2E=1 to run the desktop lane self-test")
+	}
+	down, up := "down:poll", "up:post"
+	name := "duplex"
+	switch runtime.GOOS {
+	case "darwin", "linux":
+	case "windows":
+		name += ".exe"
+		down, up = "down:shm", "up:shm"
+	default:
+		t.Skipf("no desktop lane self-test for %s", runtime.GOOS)
+	}
+	bin := filepath.Join(t.TempDir(), name)
+	buildCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	if out, err := exec.CommandContext(buildCtx, "go", "build", "-tags", "tango_selftest", "-o", bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("build duplex self-test: %v\n%s", err, out)
+	}
+
+	const faultAfter = 20
+	for _, tc := range []struct{ name, lane string }{
+		{"selftest", ""},
+		{"fault-down", down},
+		{"fault-up", up},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fault := ""
+			if tc.lane != "" {
+				fault = tc.lane + ":" + strconv.Itoa(faultAfter)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, bin)
+			cmd.WaitDelay = 5 * time.Second
+			cmd.Env = append(os.Environ(),
+				"TANGO_IPC_LANES=", "TANGO_IPC_LANES_DARWIN=", "TANGO_IPC_LANES_LINUX=", "TANGO_IPC_LANES_WINDOWS=",
+				"TANGO_IPC_LANES_"+strings.ToUpper(runtime.GOOS)+"=1",
+				"TANGO_SCHEME_SELFTEST=1", "TANGO_IPC_LANE_FAULT="+fault, "TANGO_IPC_SHM_BYTES=",
+			)
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &stdout, &stderr
+			if err := cmd.Run(); err != nil {
+				t.Fatalf("duplex self-test: %v (context: %v)\nstdout:\n%s\nstderr:\n%s", err, ctx.Err(), stdout.String(), stderr.String())
+			}
+			var reports []string
+			for _, line := range strings.Split(stdout.String(), "\n") {
+				if strings.HasPrefix(line, "selftest: ") {
+					reports = append(reports, line)
+				}
+			}
+			if len(reports) != 1 {
+				t.Fatalf("got %d selftest lines, want one\nstdout:\n%s\nstderr:\n%s", len(reports), stdout.String(), stderr.String())
+			}
+			var result struct {
+				OK bool `json:"ok"`
+			}
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(reports[0], "selftest: ")), &result); err != nil || !result.OK {
+				t.Fatalf("duplex self-test failed (decode: %v)\n%s\nstderr:\n%s", err, reports[0], stderr.String())
+			}
+			if tc.lane == "down:poll" && !strings.Contains(stderr.String(), "injected fault: poll response cut off") {
+				t.Fatalf("down:poll did not report the injected cut\n%s\nstderr:\n%s", reports[0], stderr.String())
+			}
+			t.Log(reports[0])
+		})
+	}
 }
 
 // benchSmoke runs go run . -bench (docs/ipc-bench.md) and checks that it

@@ -57,7 +57,7 @@ func shmCapacityFromEnv(getenv func(string) string, warn func(string, ...any)) i
 type shmOps struct {
 	create  func(size int) (mem []byte, release func(), err error)
 	post    func(ring string, gen uint64, buf any) bool
-	wake    func(msg string)
+	message func(msg string)
 	onUI    func(fn func())
 	deliver func(gen uint64, p []byte) bool
 }
@@ -355,6 +355,7 @@ func (s *shmLanes) readUp(g *shmGeneration) {
 		}
 		for {
 			if !s.drainUp(g) {
+				s.failUp(g)
 				return
 			}
 			g.mapped.RLock()
@@ -410,6 +411,20 @@ type shmMessage struct {
 	Gen   uint64 `json:"gen"`
 }
 
+// failUp tells the page to stop writing a ring this worker no longer reads.
+// A navigation or a replacement hello may retire it before the UI callback.
+func (s *shmLanes) failUp(g *shmGeneration) {
+	if shmSignaled(g.stop) {
+		return
+	}
+	s.ops.onUI(func() {
+		if s.originForGeneration(g.gen) == assetOrigin {
+			msg, _ := json.Marshal(shmMessage{Tango: "lane", Op: "fail", Ring: "up", Gen: g.gen})
+			s.ops.message(string(msg))
+		}
+	})
+}
+
 func (s *shmLanes) wakePage(g *shmGeneration, ring string) {
 	pending := &g.downWake
 	if ring == "up" {
@@ -429,7 +444,7 @@ func (s *shmLanes) wakePage(g *shmGeneration, ring string) {
 		s.mu.Unlock()
 		if active {
 			msg, _ := json.Marshal(shmMessage{Tango: "lane", Op: "wake", Ring: ring, Gen: g.gen})
-			s.ops.wake(string(msg))
+			s.ops.message(string(msg))
 		}
 	})
 }

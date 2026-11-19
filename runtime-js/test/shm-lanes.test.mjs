@@ -61,6 +61,9 @@ async function page(t, withWebView = true) {
       // Go uses PostWebMessageAsString.
       listeners.get("message")({ data: JSON.stringify({ tango: "lane", op: "wake", ring, gen }) });
     },
+    failUp(gen) {
+      listeners.get("message")({ data: JSON.stringify({ tango: "lane", op: "fail", ring: "up", gen }) });
+    },
   };
 }
 
@@ -135,6 +138,34 @@ test("buffers before hello", async (t) => {
   assert.deepEqual(web.releases, []);
   lanes.stopAll();
   assert.deepEqual(web.releases, [down, up]);
+});
+
+test("only a current upstream failure stops the upstream lane", async (t) => {
+  const web = await page(t);
+  const gen = 10;
+  const down = mapping(gen);
+  const up = mapping(gen);
+  let stopped = 0;
+  const lanes = new web.Lanes({
+    post: (msg) => web.posts.push(msg),
+    onPacket: () => {},
+    onDispatched: () => {},
+    onUpStopped: () => stopped++,
+  });
+  web.receive("down", gen, down);
+  web.receive("up", gen, up);
+  lanes.offer({ gen, tok: "unused", list: ["down:shm", "up:shm"] });
+  await new Promise(setImmediate);
+  web.failUp(gen - 1);
+  assert.deepEqual(lanes.names(), { down: "down:shm", up: "up:shm" });
+  web.failUp(gen);
+  web.failUp(gen);
+  assert.deepEqual(lanes.names(), { down: "down:shm", up: "fallback" });
+  assert.equal(stopped, 1);
+  assert.deepEqual(web.releases, [up]);
+  assert.equal(web.posts.at(-1), prefix + JSON.stringify({ op: "fail", lane: "up:shm", gen }));
+  lanes.stopAll();
+  assert.deepEqual(web.releases, [up, down]);
 });
 
 test("buffers of another gen are released", async (t) => {

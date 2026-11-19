@@ -33,6 +33,9 @@
 // (go run -tags tango_dev ./examples/duplex); a plain build reports the
 // counters as zero and treats =all like the default. frontend/iframe.html
 // is a same-origin subframe page for TestLaneSubframeAccess.
+//
+// With -tags tango_selftest or tango_dev, TANGO_SCHEME_SELFTEST=1 runs
+// the desktop lane self-test, prints one selftest result and quits.
 package main
 
 import (
@@ -60,11 +63,24 @@ func main() {
 	flag.Parse()
 
 	site, _ := fs.Sub(frontend, "frontend")
-	app := tango.New(tango.Options{Name: "Tango Duplex", ID: "dev.tango.duplex", Assets: services.TestRoutes(services.BenchRoute(asset.FS(site, asset.Options{})))})
+	selftest := selftestBuild && os.Getenv("TANGO_SCHEME_SELFTEST") == "1"
+	if selftest {
+		if err := os.Setenv("TANGO_SCHEME_PROBE", "1"); err != nil {
+			log.Fatal(err)
+		}
+	}
+	assets := services.TestRoutes(services.BenchRoute(asset.FS(site, asset.Options{})))
+	if selftest {
+		assets = selftestAssets(assets)
+	}
+	app := tango.New(tango.Options{Name: "Tango Duplex", ID: "dev.tango.duplex", Assets: assets})
 
 	r := ipc.NewRouter()
 	registerServices(r)
-	if *bench {
+	fault := os.Getenv("TANGO_IPC_LANE_FAULT")
+	if selftest {
+		registerSelftest(r, app.Quit, fault)
+	} else if *bench {
 		services.SetBenchDone(app.Quit)
 	}
 
@@ -88,6 +104,11 @@ func main() {
 			url = "/"
 		}
 		switch {
+		case selftest:
+			url = "/index.html?selftest"
+			if fault != "" {
+				url += "&lanefault"
+			}
 		case *bench:
 			url = "/" + *page + "?bench"
 			time.AfterFunc(2*time.Minute, func() { log.Print("FAIL benchmark timeout"); os.Exit(1) })
@@ -99,7 +120,7 @@ func main() {
 			log.Fatal(err)
 		}
 		s.OnClosed(func() { r.Drop(s) })
-		if *panel {
+		if *panel && !selftest {
 			// The panel shares r with the page: one Echo service for both.
 			if err := attachPanel(app, s, r); err != nil {
 				log.Fatal(err)

@@ -125,7 +125,7 @@ func newShmTestPage(t *testing.T, deliver func(uint64, []byte) bool) *shmTestPag
 			p.mappings[ring] = mem
 			return p.onPost == nil || p.onPost(ring, r)
 		},
-		wake: func(msg string) { p.wakes = append(p.wakes, msg) },
+		message: func(msg string) { p.wakes = append(p.wakes, msg) },
 		onUI: func(fn func()) {
 			p.mu.Lock()
 			p.ui = append(p.ui, fn)
@@ -360,6 +360,31 @@ func TestShmUpStopsAfterCoreRefuses(t *testing.T) {
 	if len(calls) != 1 || <-calls != "refused" {
 		t.Fatal("reader kept delivering after the core refused a packet")
 	}
+	p.drainUI()
+	if want := `{"tango":"lane","op":"fail","ring":"up","gen":1}`; !slices.Equal(p.wakes, []string{want}) {
+		t.Fatalf("messages = %q, want only %s", p.wakes, want)
+	}
+	p.rings["down"].Sleep()
+	if !p.lanes.SendLanePacket(1, []byte("down still works")) {
+		t.Fatal("upstream failure stopped the downstream ring")
+	}
+	p.waitForWake("down", 1)
+}
+
+func TestShmUpFailureSkippedAfterNavigation(t *testing.T) {
+	p := newShmTestPage(t, func(uint64, []byte) bool { return false })
+	g := p.start(1)
+	if ok, _ := p.rings["up"].TryWrite([]byte("refused")); !ok {
+		t.Fatal("page could not write packet")
+	}
+	p.wake(assetOrigin, "up", 1)
+	waitShmExit(t, g.upDone)
+	p.lanes.navigationStarting()
+	p.lanes.documentLoaded(assetOrigin)
+	p.start(2)
+	if len(p.wakes) != 0 {
+		t.Fatalf("new document got messages from the old generation: %q", p.wakes)
+	}
 }
 
 func (p *shmTestPage) waitForDownWriter() {
@@ -415,8 +440,8 @@ func TestShmUpStopsAfterReadError(t *testing.T) {
 	p.wake(assetOrigin, "up", 1)
 	waitShmExit(t, g.upDone)
 	p.drainUI()
-	if len(p.delivered) != 0 || len(p.wakes) != 0 {
-		t.Fatal("corrupt ring caused delivery or an outgoing wake")
+	if want := `{"tango":"lane","op":"fail","ring":"up","gen":1}`; len(p.delivered) != 0 || !slices.Equal(p.wakes, []string{want}) {
+		t.Fatalf("corrupt ring caused %d deliveries and messages %q, want only %s", len(p.delivered), p.wakes, want)
 	}
 }
 

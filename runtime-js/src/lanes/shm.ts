@@ -1,6 +1,7 @@
 // Windows WebView2 shared-buffer lanes (Go: internal/platform/windows/lanes.go).
-// Buffer metadata identifies the ring and generation. Host wakes are JSON
-// strings from PostWebMessageAsString. Page wakes use the internal lane prefix.
+// Buffer metadata identifies the ring and generation. Host wakes and upstream
+// failures are JSON strings from PostWebMessageAsString. Page wakes use the
+// internal lane prefix.
 import { INTERNAL_PREFIX, registerLane, type DownLane, type LaneContext, type UpLane } from "../lanes.js";
 import { encodePacket, type PacketFrame } from "../packet.js";
 import { Ring } from "./ring.js";
@@ -123,8 +124,12 @@ class Connection {
     } catch {
       return;
     }
-    if (msg?.tango === "lane" && msg.op === "wake" && msg.gen === this.gen && isDirection(msg.ring)) {
-      this.slots[msg.ring].lane?.wake();
+    if (msg?.tango !== "lane" || msg.gen !== this.gen || !isDirection(msg.ring)) return;
+    const lane = this.slots[msg.ring].lane;
+    if (msg.op === "wake") {
+      lane?.wake();
+    } else if (msg.op === "fail" && msg.ring === "up") {
+      lane?.fail(new Error("shm lane: host stopped reading the upstream ring"));
     }
   }
 }
@@ -200,7 +205,7 @@ abstract class ShmLane {
 
   protected abstract handleWake(ring: Ring, ctx: LaneContext): void;
 
-  protected fail(err: unknown): void {
+  fail(err: unknown): void {
     const ctx = this.ctx;
     if (!ctx) return;
     this.finishStart?.(err ?? new Error("shm lane: failed"));

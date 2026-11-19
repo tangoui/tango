@@ -75,7 +75,7 @@ func (s *surface) initShmLanes() {
 			mem := buf.([]byte)
 			return postSharedBuffer(s.webview, buffers[&mem[0]], ring, gen)
 		},
-		wake: func(msg string) {
+		message: func(msg string) {
 			if !s.closed && s.shmSource() == assetOrigin {
 				comCall(s.webview, wvPostWebMessageAsString, uintptr(unsafe.Pointer(u16(msg))))
 			}
