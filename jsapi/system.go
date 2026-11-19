@@ -166,13 +166,18 @@ type noteJS struct {
 
 func (api *API) registerNotify() {
 	a := api.app
+	if api.Allowed(Notify) {
+		// The OS can report a click from an earlier run before any page
+		// exists. Install runs before the app starts.
+		notify.OnClick(a, api.noteClicked)
+		api.r.On(Prefix+"notify.clickReady", api.noteClickReady)
+	}
 	api.Handle(Notify, "notify.requestPermission", noArgs(func() (any, error) { return notify.RequestPermission(a) }))
 	api.Handle(Notify, "notify.send", func(_ context.Context, s *tango.Surface, args json.RawMessage) (any, error) {
 		var n noteJS
 		if err := decode(args, &n); err != nil {
 			return nil, err
 		}
-		api.noteOnce.Do(func() { notify.OnClick(a, api.noteClicked) })
 		id, err := notify.Send(a, notify.Message{Title: n.Title, Subtitle: n.Subtitle, Body: n.Body, Silent: n.Silent})
 		if err != nil {
 			return nil, err
@@ -186,18 +191,49 @@ func (api *API) registerNotify() {
 	})
 }
 
-// noteClicked tells the page that sent the notification, or every page
-// when that one is gone.
+// noteClickReady delivers waiting clicks to the first page to subscribe.
+// An IPC hello alone does not mean the page has installed its listener.
+func (api *API) noteClickReady(c ipc.Conn, _ json.RawMessage) {
+	s, ok := c.(*tango.Surface)
+	if !ok {
+		return
+	}
+	api.mu.Lock()
+	ps := api.surfaces[s]
+	if ps == nil {
+		api.mu.Unlock()
+		return
+	}
+	ps.noteReady = true
+	pending := api.pendingNoteClicks
+	api.pendingNoteClicks = nil
+	api.mu.Unlock()
+	for _, id := range pending {
+		api.Emit(s, "notify.click", map[string]string{"id": id})
+	}
+}
+
+// noteClicked tells the sending page or broadcasts once a page has subscribed.
 func (api *API) noteClicked(id string) {
+	data := map[string]string{"id": id}
 	api.mu.Lock()
 	s := api.notes[id]
-	api.mu.Unlock()
-	data := map[string]string{"id": id}
 	if s != nil {
+		api.mu.Unlock()
 		api.Emit(s, "notify.click", data)
 		return
 	}
-	api.Broadcast("notify.click", data)
+	for _, ps := range api.surfaces {
+		if ps.noteReady {
+			api.mu.Unlock()
+			api.Broadcast("notify.click", data)
+			return
+		}
+	}
+	if len(api.pendingNoteClicks) < maxPending {
+		api.pendingNoteClicks = append(api.pendingNoteClicks, id)
+	}
+	api.mu.Unlock()
 }
 
 // ---- shell ----

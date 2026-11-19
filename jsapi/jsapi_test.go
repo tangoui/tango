@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"hash/crc32"
 	"image"
 	"image/png"
@@ -470,6 +471,45 @@ func TestNotify(t *testing.T) {
 	if p2.count("notify.click") != 0 {
 		t.Fatal("click went to the other page")
 	}
+}
+
+func TestNotifyDeliversPriorRunClicksAfterSubscription(t *testing.T) {
+	e := setup(t, Options{Allow: Notify, Deny: Info})
+	e.fb.NotificationOpened("prior-run-at-launch")
+	p, other := e.open(), e.open()
+	hello := fmt.Sprintf(`{"tango":"hello","proto":%d}`, ipc.ProtoVersion)
+	const ready = `{"tango":"event","name":"tango:notify.clickReady"}`
+	p.post(hello)
+	other.post(hello)
+	e.fb.NotificationOpened("prior-run-before-subscription")
+	p.ok("window.id")
+	if got := p.count("notify.click"); got != 0 {
+		t.Fatalf("before subscription: got %d clicks, want 0", got)
+	}
+
+	p.post(ready)
+	p.ok("window.id")
+	if got := p.count("notify.click"); got != 2 {
+		t.Fatalf("after subscription without sending: got %d clicks, want 2", got)
+	}
+	jsonEq(t, p.event("notify.click", 1), `{"id":"prior-run-at-launch"}`)
+	jsonEq(t, p.event("notify.click", 2), `{"id":"prior-run-before-subscription"}`)
+
+	p.post(ready) // another onClick in the same page
+	other.post(ready)
+	e.fb.NotificationOpened("prior-run-while-subscribed")
+	jsonEq(t, p.event("notify.click", 3), `{"id":"prior-run-while-subscribed"}`)
+	jsonEq(t, other.event("notify.click", 1), `{"id":"prior-run-while-subscribed"}`)
+
+	p.post(hello) // a new document has not subscribed yet
+	other.post(hello)
+	e.fb.NotificationOpened("prior-run-after-reload")
+	p.ok("window.id")
+	if got := p.count("notify.click"); got != 3 {
+		t.Fatalf("before resubscribing after reload: got %d clicks, want 3", got)
+	}
+	p.post(ready)
+	jsonEq(t, p.event("notify.click", 4), `{"id":"prior-run-after-reload"}`)
 }
 
 func TestMenuPopup(t *testing.T) {

@@ -1,7 +1,8 @@
 // Notify: system notifications. Needs Notify (off by default). On macOS
 // the app must run from a signed .app bundle.
 
-import { invoke, listen } from "./internal.js";
+import { getClient } from "../client.js";
+import { invoke, listen, PREFIX } from "./internal.js";
 
 export interface Notification {
   title: string;
@@ -23,8 +24,10 @@ export function send(n: Notification): Promise<string> {
   return invoke("notify.send", n);
 }
 
-/** Called with the id of a notification this page sent when the user
- * clicks it. */
+/** Called with the ID of a notification the user clicks, including
+ * the click that launched the app on platforms that report it. */
 export function onClick(fn: (id: string) => void): () => void {
-  return listen<{ id: string }>("notify.click", (d) => fn(d.id));
+  const off = listen<{ id: string }>("notify.click", (d) => fn(d.id));
+  getClient().emit(PREFIX + "notify.clickReady");
+  return off;
 }

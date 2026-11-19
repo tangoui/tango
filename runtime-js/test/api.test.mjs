@@ -179,6 +179,41 @@ test("Theme, Screens and Notify events", async () => {
   assert.deepEqual(seen, [true, 2, "n-t"]);
 });
 
+test("Notify.onClick accepts a launch click without sending a notification", () => {
+  let receive;
+  const posted = [];
+  globalThis.__tango = {
+    onMessage(fn) {
+      receive = fn;
+      return () => {};
+    },
+    post(s) {
+      const msg = JSON.parse(s);
+      posted.push(msg);
+      if (msg.tango === "event" && msg.name === "tango:notify.clickReady") {
+        receive(JSON.stringify({
+          tango: "event",
+          name: "tango:notify.click",
+          data: { id: "prior-run" },
+        }));
+      }
+    },
+  };
+
+  const clicked = [];
+  const off = Notify.onClick((id) => clicked.push(id));
+  off();
+  receive(JSON.stringify({
+    tango: "event",
+    name: "tango:notify.click",
+    data: { id: "after-unsubscribe" },
+  }));
+  assert.deepEqual(clicked, ["prior-run"]);
+  assert.deepEqual(posted.filter((m) => m.tango !== "hello"), [
+    { tango: "event", name: "tango:notify.clickReady", data: null },
+  ]);
+});
+
 test("Theme.vars and onVarsChange read the injected design tokens", () => {
   assert.deepEqual(Theme.vars(), {});
   const target = new EventTarget();

@@ -224,6 +224,7 @@
 
 ### 修复
 
+- `Notify.onClick`：在支持通知冷启动的平台上，页面订阅后能收到启动应用的那次通知点击，即使本轮没有发送新通知。
 - `tan dev`：应用启动的交互式 shell（例如带 `-i` 读取登录 PATH）把终端前台抢走后退出时，Ctrl-C 不再失效；`tan dev` 发现前台进程组已不存在会把终端收回。
 - `sys/pty` 与 Tango 终端：从 Finder、Dock 或其他应用（如 MinCode）启动、环境里没有 `LANG` 的应用，shell 在 C 语言环境下把输入的中文等 UTF-8 文字当成单个字节——命令行显示 `<00e4>` 之类的乱码、退格按字节删、回车执行被拆坏的命令。环境里 `LC_ALL`、`LC_CTYPE`、`LANG` 都没设时，macOS 和 Linux 上补 `LC_CTYPE=C.UTF-8`（没有 `C.UTF-8` 的旧版 macOS 补 `UTF-8`；不用 Terminal.app 那样的裸 `UTF-8`，因为 ssh 会把 `LC_*` 转发到 Linux 主机，那里不认这个名字）；已设置的语言环境保持不变，不改程序输出的语言。
 - `tan dev` 热重载的自绘窗口：标题栏隐藏（`TitleBarHidden`）的 macOS 窗口保留系统红绿灯时，worker 端绘制的自绘标题栏不再在其上再画一组窗口按钮（热重载窗口实现 `ui.WindowFrame`，报告系统按钮与窗口状态）。
