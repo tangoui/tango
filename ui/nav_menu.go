@@ -1118,7 +1118,10 @@ func (m *MenuW) popups() {
 	m.st.panels = pop.panels
 	if pop.clicked != "" {
 		m.choose(pop.clicked)
+		// Restore focus without turning a pointer selection into keyboard focus.
+		visible := c.focusVisible
 		m.closePop(pop.hasFocus())
+		c.focusVisible = visible
 	}
 }
 

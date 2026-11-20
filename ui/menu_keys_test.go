@@ -149,6 +149,10 @@ func TestMenuKeyboardHorizontal(t *testing.T) {
 	if _, ok := d.Find("乙"); ok {
 		t.Fatal("dropdown stayed open after choosing")
 	}
+	wantFocus(t, d, "子菜单")
+	if !d.Runner().Context().focusVisible {
+		t.Fatal("keyboard selection hid the parent focus ring")
+	}
 }
 
 func TestMenuKeyboardVerticalPopup(t *testing.T) {
@@ -385,5 +389,28 @@ func TestConfirmCloseFromGoroutine(t *testing.T) {
 	w.mu.Unlock()
 	if n < 4 {
 		t.Fatalf("Invalidate called %d times", n)
+	}
+}
+
+func TestMenuMouseSelectionRestoresFocusWithoutRing(t *testing.T) {
+	var sel string
+	d := navDriver(func(c *Context) {
+		Menu(c, keyMenuItems, &sel).Mode(MenuHorizontal).TriggerSubMenuAction(TriggerClick).Show()
+	})
+	d.Settle()
+	for _, label := range []string{"子菜单", "甲"} {
+		if err := d.ClickLabel(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if sel != "a" {
+		t.Fatalf("selected %q, want a", sel)
+	}
+	if _, ok := d.Find("甲"); ok {
+		t.Fatal("dropdown stayed open after choosing")
+	}
+	wantFocus(t, d, "子菜单")
+	if d.Runner().Context().focusVisible {
+		t.Fatal("mouse selection displayed the parent's keyboard focus ring")
 	}
 }
