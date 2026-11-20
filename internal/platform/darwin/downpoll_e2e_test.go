@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/tangoui/tango/automation"
+	"github.com/tangoui/tango/internal/downq"
 )
 
 // End-to-end tests of the down:poll downstream transport on the real
@@ -336,22 +337,31 @@ func TestPollOccluded(t *testing.T) {
 			t.Fatal("the window was not restored")
 		}
 	}
+	// A burst of short messages can all ride the idle Eval fast path if
+	// the main thread drains each group before the next push. Use messages
+	// above that size limit to exercise polling, not the idle heuristic.
 	mid := readPollStats(t, win)
-	var cnt int
-	win.EvalInto(`(async () => {
-	  let k = 0;
-	  const off = __tango.onMessage((m) => { if (m.startsWith("r:")) k++; });
-	  await tango.call("Debug.Burst", 200, "r:");
-	  for (const t0 = Date.now(); k < 200 && Date.now() - t0 < 10000; ) await new Promise((r) => setTimeout(r, 20));
+	prefix := "r:" + strings.Repeat("x", downq.IdleEvalBytes)
+	var msgs []string
+	win.EvalInto(fmt.Sprintf(`(async () => {
+	  const prefix = %q, msgs = [];
+	  const off = __tango.onMessage((m) => { if (m.startsWith(prefix)) msgs.push(m.slice(prefix.length)); });
+	  await tango.call("Debug.Burst", 200, prefix);
+	  for (const t0 = Date.now(); msgs.length < 200 && Date.now() - t0 < 10000; ) await new Promise((r) => setTimeout(r, 20));
 	  off();
-	  return k;
-	})()`, &cnt)
+	  return msgs;
+	})()`, prefix), &msgs)
 	after := readPollStats(t, win)
-	if cnt != 200 {
-		t.Errorf("after the restore the page got %d of 200 messages", cnt)
+	if len(msgs) != 200 {
+		t.Errorf("after the restore the page got %d of 200 messages", len(msgs))
+	}
+	for i, msg := range msgs {
+		if msg != strconv.Itoa(i) {
+			t.Fatalf("after the restore message %d has suffix %q", i, msg)
+		}
 	}
 	if d := statDelta(mid, after, "downConns"); d < 1 {
-		t.Errorf("no poll request answered after the restore (downConns +%d)", d)
+		t.Errorf("no poll request answered after the restore (downConns +%d, downRequests +%d)", d, statDelta(mid, after, "downRequests"))
 	}
 	if l := win.EvalString(`tango.lanes().down`); l != "down:poll" {
 		t.Errorf("down lane after the restore: %q", l)
