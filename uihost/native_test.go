@@ -2,14 +2,19 @@ package uihost
 
 import (
 	"errors"
+	"image"
+	"testing"
+	"time"
+
+	"github.com/tangoui/tango"
+	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/platform"
+	"github.com/tangoui/tango/internal/platform/fake/faketest"
+	"github.com/tangoui/tango/internal/uithread"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/paint"
-	"image"
-	"testing"
-	"time"
 )
 
 type nativeCanvasTest struct {
@@ -19,9 +24,11 @@ type nativeCanvasTest struct {
 	targets     int
 }
 
-func (*nativeCanvasTest) Size() (float32, float32) { return 100, 100 }
-func (*nativeCanvasTest) Scale() float32           { return 1 }
-func (*nativeCanvasTest) Invalidate()              {}
+func (*nativeCanvasTest) Size() (float32, float32)     { return 100, 100 }
+func (*nativeCanvasTest) Scale() float32               { return 1 }
+func (*nativeCanvasTest) Invalidate()                  {}
+func (*nativeCanvasTest) SetCursor(input.Cursor)       {}
+func (*nativeCanvasTest) SetTextInput(bool, geom.Rect) {}
 func (c *nativeCanvasTest) Present(i *image.RGBA) error {
 	c.presented = i
 	if i == nil {
@@ -475,5 +482,115 @@ func TestKeyboardPromotesGeneralNotData(t *testing.T) {
 	}
 	if !data.nativeMode || data.native == nil {
 		t.Fatal("data window left native layers on a key")
+	}
+}
+
+func TestNativeAnimationPromotion(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		mode    string
+		content ui.ContentKind
+		delay   time.Duration
+		input   input.Event
+		resize  bool
+		want    int
+	}{
+		{name: "continued", want: 1},
+		{name: "idle", delay: time.Second},
+		{name: "scroll", input: input.Scroll{DY: 3}},
+		{name: "pointer", input: input.Pointer{Kind: input.Move}},
+		{name: "touch", input: input.TouchEvent{}},
+		{name: "resize", resize: true},
+		{name: "data", content: ui.ContentData},
+		{name: "forced", mode: "native"},
+		{name: "keyboard after idle", delay: time.Second, input: input.KeyEvent{Key: input.KeyA, Down: true}, want: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, cv, calls := nativeContentSetup(t, tc.mode, tc.content, &nativeRenderTest{}, nil)
+			w := &window{cv: cv, gpu: g}
+			r := ui.NewRunner(func(*ui.Context) {}, ui.RunnerOptions{Renderer: g})
+			r.Attach(w)
+			h := &host{r: r, win: w, cv: cv, gpu: g}
+			if s := g.native; s != nil {
+				seedNativeAnimation(s, time.Now().Add(-tc.delay))
+			}
+			if tc.input != nil {
+				h.CanvasInput(tc.input)
+			}
+			if tc.resize {
+				h.CanvasResized(1000, 800, 1)
+			}
+			if *calls != 0 {
+				t.Fatalf("before next frame: Metal attempted %d times", *calls)
+			}
+			h.CanvasFrame()
+			if *calls != tc.want {
+				t.Fatalf("after next frame: Metal attempted %d times, want %d", *calls, tc.want)
+			}
+		})
+	}
+}
+
+func seedNativeAnimation(s *nativeRendererState, end time.Time) {
+	start := end.Add(-(nativeAnimFrames-1)*16*time.Millisecond - time.Millisecond)
+	for range nativeAnimFrames {
+		s.record(time.Millisecond, false, start, start.Add(time.Millisecond))
+		start = start.Add(16 * time.Millisecond)
+	}
+}
+
+type nativeThreadedGeometryTest struct{ platform.CanvasThreaded }
+
+func (nativeThreadedGeometryTest) MainGeometry() (float32, float32, float32) {
+	return 800, 600, 2
+}
+
+func TestThreadedNativeAnimationExcludesInputAndResize(t *testing.T) {
+	app, _ := faketest.Run(t, tango.Options{})
+	g, cv, calls := nativeKeyboardSetup(t, "", nil)
+	owner := uithread.Start(t.Name())
+	t.Cleanup(func() {
+		owner.Stop()
+		<-owner.Done()
+	})
+	thr := &threadedHost{th: owner, geometry: nativeThreadedGeometryTest{}}
+	thr.phase.Store(running)
+	w := &window{app: app, cv: cv, gpu: g, t: thr, startup: thr}
+	r := ui.NewRunner(func(*ui.Context) {}, ui.RunnerOptions{Renderer: g})
+	r.Attach(w)
+	h := &host{app: app, r: r, win: w, cv: cv, gpu: g, t: thr}
+	thr.host = h
+	thr.request = func() {
+		if w.resizePresented != nil {
+			h.frame()
+		}
+	}
+
+	owner.Do(func() { seedNativeAnimation(g.native, time.Now()) })
+	h.CanvasInput(input.Scroll{DY: 3})
+	owner.Do(h.frame)
+	if *calls != 0 || g.native.anim != 0 {
+		t.Fatalf("queued scroll: Metal attempts=%d, want zero attempts and zero animation frames", *calls)
+	}
+
+	owner.Do(func() { seedNativeAnimation(g.native, time.Now()) })
+	h.CanvasResized(800, 600, 2)
+	owner.Do(func() {})
+	if *calls != 0 || g.native.anim != 0 || w.resizePresented != nil {
+		t.Fatalf("threaded resize: Metal attempts=%d, want zero attempts, zero animation frames and completed presentation", *calls)
+	}
+
+	owner.Do(func() { seedNativeAnimation(g.native, time.Now()) })
+	thr.snap.Store(&uiSnapshot{dragRegions: []geom.Rect{geom.R(0, 0, 100, 20)}})
+	w.s = &tango.Surface{}
+	atMove := -1
+	oldMove := corehook.StartWindowMove
+	corehook.StartWindowMove = func(any) {
+		owner.Do(func() { atMove = g.native.anim })
+	}
+	t.Cleanup(func() { corehook.StartWindowMove = oldMove })
+	h.CanvasInput(input.Pointer{Kind: input.Press, Button: input.ButtonLeft, Pos: geom.Pt(5, 5)})
+	if atMove != 0 {
+		t.Fatalf("animation frames when native move began: %d, want zero", atMove)
 	}
 }

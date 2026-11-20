@@ -199,6 +199,14 @@ func (h *host) CanvasFrame() {
 
 // frame renders and presents one frame. UI thread.
 func (h *host) frame() {
+	if h.gpu != nil {
+		if h.win.resizePresented != nil {
+			// Threaded resize records its acknowledgment on this same UI
+			// thread, before requesting the frame that presents the new size.
+			h.gpu.native.noteInput()
+		}
+		h.gpu.native.maybePromoteAnimation()
+	}
 	if h.trace != nil {
 		h.trace.begin()
 		// The renderer is read when the frame ends: a frame that loses the
@@ -255,17 +263,23 @@ func (h *host) CanvasInput(ev input.Event) {
 	// here as well.
 	// threaded is decided now: queued work may run on main after a
 	// fallback (stopStarting) and must not match the key a second time.
-	var consumed bool
+	var consumed, rendererInputQueued bool
 	threaded := h.t != nil
 	if threaded {
+		if p, ok := ev.(input.Pointer); ok && p.Kind == input.Press && p.Button == input.ButtonLeft {
+			// A native title-bar drag can run a nested event loop. Tell
+			// the renderer about the press before entering that loop.
+			h.onUI(func() { h.noteRendererInput(ev) })
+			rendererInputQueued = true
+		}
 		if h.dragOnMain(ev) {
 			return
 		}
 		consumed = h.sc.handleSnapshot(ev, h.t.snapshot())
 	}
 	h.onUI(func() {
-		if isKeyboardInput(ev) { // typing: native windows move to Metal (native.go)
-			h.gpu.keyboardInput()
+		if !rendererInputQueued {
+			h.noteRendererInput(ev)
 		}
 		if !threaded {
 			consumed = h.sc.handle(ev) // the main thread is the UI thread
@@ -275,6 +289,20 @@ func (h *host) CanvasInput(ev input.Event) {
 		}
 		h.invalidate()
 	})
+}
+
+// noteRendererInput runs on the window's UI thread, including for
+// input consumed before it reaches the runner.
+func (h *host) noteRendererInput(ev input.Event) {
+	if h.gpu == nil {
+		return
+	}
+	if isKeyboardInput(ev) {
+		h.gpu.keyboardInput()
+	}
+	if isUserDrivenInput(ev) {
+		h.gpu.native.noteInput()
+	}
 }
 
 // CanvasResized only asks for a frame: the runner reads the size and
@@ -289,6 +317,9 @@ func (h *host) CanvasResized(w, hgt, scale float32) {
 	}
 	h.onUI(func() {
 		h.win.resized() // the first frame after a resize is presented whole (damage.go)
+		if h.gpu != nil {
+			h.gpu.native.noteInput()
+		}
 		h.invalidate()
 	})
 }
