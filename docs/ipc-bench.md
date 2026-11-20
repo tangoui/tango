@@ -204,7 +204,7 @@ up:post 组再加 `SIMCTL_CHILD_TANGO_IPC_LANES_DARWIN=1`），交替各 5 次�
 
 ### iOS 真机
 
-iPhone 12 Pro（iOS 18.7），`examples/duplex-mobile`，5 轮交替对比兜底与 `up:post`：64 KiB 帧上传中位数 **171.63 → 528.42 MB/s（3.08×）**，64 B 往返分批 p99 **0.54 → 0.52 ms**（两组的小帧均走消息通道）。补上 iOS 导航开始事件后，模拟器及同一台 iPhone 的完整自测均通过，包括重载恢复、8 MiB 双向回显、混合帧和页面卡顿。真机注入 `up:post:3` 后自动回退，受影响的流报 `transport`，并行流完整。iOS 因此默认开启 `up:post`；下行仍走消息通道。
+iPhone 12 Pro（系统版本 iOS 27.0.1，由 `devicectl` 查询；WebView User-Agent 中的 `18_7` 并非实际系统版本），`examples/duplex-mobile`，5 轮交替对比兜底与 `up:post`：64 KiB 帧上传中位数 **171.63 → 528.42 MB/s（3.08×）**，64 B 往返分批 p99 **0.54 → 0.52 ms**（两组的小帧均走消息通道）。补上 iOS 导航开始事件后，模拟器及同一台 iPhone 的完整自测均通过，包括重载恢复、8 MiB 双向回显、混合帧和页面卡顿。真机注入 `up:post:3` 后自动回退，受影响的流报 `transport`，并行流完整。iOS 因此默认开启 `up:post`；下行仍走消息通道。
 
 ## 第二期 Android（down:android / up:android）
 
