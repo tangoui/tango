@@ -1,6 +1,6 @@
 # tan.json
 
-`tan.json` lives at the project root. File paths usually resolve from that directory. `frontend.dist` resolves from `frontend.dir`. `tan init` adds the optional `$schema` field for editor completion and validation. Tan rejects unknown fields, so a configuration that uses newly added fields needs a tan version that knows them.
+`tan.json` lives at the project root. File paths usually resolve from that directory. `frontend.dist` resolves from `frontend.dir`. `tan init` adds the optional `$schema` field for editor completion and validation. Applications may add custom top-level fields such as `cloud`. Tan ignores them; the application must read them itself. Built-in fields are still validated, and built-in objects such as `frontend` reject unknown members. Older versions of tan may reject custom top-level fields. Do not store passwords in the configuration.
 
 [JSON Schema](https://tangoui.github.io/tango/schema/tan.schema.json)
 

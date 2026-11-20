@@ -112,6 +112,7 @@
 ### 变更
 
 - `tan dev` 里的窗口实现了 `ui.UIPoster`：其他 goroutine 调用 `Runner.Post` 时投递到主线程运行，不再在调用者的 goroutine 上直接运行。
+- `tan.json` 允许应用自定义顶层字段；`tan` 忽略这些字段，仍严格校验内置配置对象。
 - Windows 在支持 SharedBuffer 的 WebView2 上默认开启 `down:shm` 和 `up:shm`。设 `TANGO_IPC_LANES_WINDOWS=0` 可回到消息通道。
 - macOS Metal 局部重绘按脏区筛选绘制实例，减少多光标编辑等场景中重复提交的实例。
 - 自绘渲染器对整设备像素放置、每个像素恰好对应一个纹素的图片只读取一次纹素（如编辑器小地图条带），减少 Catmull–Rom 滤波开销。

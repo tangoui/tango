@@ -439,8 +439,89 @@
   },
   "$id": "https://tangoui.github.io/tango/schema/tan.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
+  "additionalProperties": true,
   "description": "Config is tan.json. Paths are relative to the project directory.",
+  "patternProperties": {
+    "^[aA][nN][dD][rR][oO][iI][dD]$": {
+      "$ref": "#/properties/android"
+    },
+    "^[aA][pP][pP][Ll][iI][nN][kKK][Pp][aA][tT][hH][sſS]$": {
+      "$ref": "#/properties/appLinkPaths"
+    },
+    "^[aA][pP][pP][Ll][iI][nN][kKK][sſS]$": {
+      "$ref": "#/properties/appLinks"
+    },
+    "^[cC][gG][oO]$": {
+      "$ref": "#/properties/cgo"
+    },
+    "^[cC][oO][pP][yY][rR][iI][gG][hH][tT]$": {
+      "$ref": "#/properties/copyright"
+    },
+    "^[dD][eE][sſS][kKK][tT][oO][pP][Bb][uU][iI][lL][dD][Tt][aA][gG][sſS]$": {
+      "$ref": "#/properties/desktopBuildTags"
+    },
+    "^[dD][eE][sſS][kKK][tT][oO][pP][Hh][eE][lL][pP][eE][rR][sſS]$": {
+      "$ref": "#/properties/desktopHelpers"
+    },
+    "^[fF][eE][aA][tT][uU][rR][eE][sſS]$": {
+      "anyOf": [
+        {
+          "$ref": "#/properties/features"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "^[fF][iI][lL][eE][Aa][sſS][sſS][oO][cC][iI][aA][tT][iI][oO][nN][sſS]$": {
+      "$ref": "#/properties/fileAssociations"
+    },
+    "^[fF][rR][oO][nN][tT][eE][nN][dD]$": {
+      "$ref": "#/properties/frontend"
+    },
+    "^[iI][cC][oO][nN]$": {
+      "$ref": "#/properties/icon"
+    },
+    "^[iI][cC][oO][nN][sſS]$": {
+      "$ref": "#/properties/icons"
+    },
+    "^[iI][dD]$": {
+      "$ref": "#/properties/id"
+    },
+    "^[iI][nN][sſS][tT][aA][lL][lL][eE][rR]$": {
+      "$ref": "#/properties/installer"
+    },
+    "^[iI][oO][sſS]$": {
+      "$ref": "#/properties/ios"
+    },
+    "^[lL][iI][nN][uU][xX]$": {
+      "$ref": "#/properties/linux"
+    },
+    "^[lL][oO][cC][aA][lL][iI][zZ][aA][tT][iI][oO][nN][sſS]$": {
+      "$ref": "#/properties/localizations"
+    },
+    "^[mM][aA][cC][oO][sſS]$": {
+      "$ref": "#/properties/macos"
+    },
+    "^[nN][aA][mM][eE]$": {
+      "$ref": "#/properties/name"
+    },
+    "^[pP][eE][rR][mM][iI][sſS][sſS][iI][oO][nN][sſS]$": {
+      "$ref": "#/properties/permissions"
+    },
+    "^[uU][rR][lL][Ssſ][cC][hH][eE][mM][eE][sſS]$": {
+      "$ref": "#/properties/urlSchemes"
+    },
+    "^[vV][eE][rR][sſS][iI][oO][nN]$": {
+      "$ref": "#/properties/version"
+    },
+    "^[wW][iI][nN][dD][oO][wW][sſS]$": {
+      "$ref": "#/properties/windows"
+    },
+    "^\\$[sſS][cC][hH][eE][mM][aA]$": {
+      "$ref": "#/properties/$schema"
+    }
+  },
   "properties": {
     "$schema": {
       "description": "Schema is the URL of tan.json's JSON Schema, which editors use for completion and checks; tan ignores it.",

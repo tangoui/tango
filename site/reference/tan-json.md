@@ -1,8 +1,8 @@
 # tan.json
 
-`tan.json` 是项目配置文件，放在项目根目录。文件路径通常相对于项目目录。`frontend.dist` 相对于 `frontend.dir`。`tan init` 会生成一份；未知字段会报错（防止拼错，也防止把密码之类写进来）。
+`tan.json` 是项目配置文件，放在项目根目录。文件路径通常相对于项目目录。`frontend.dist` 相对于 `frontend.dir`。`tan init` 会生成一份；允许添加 `cloud` 等应用自定义的顶层字段，`tan` 会忽略它们，由应用自行读取。内置字段仍按原规则校验，`frontend`、`windows` 等内置对象内部仍拒绝未知字段。不要在配置中保存密码。
 
-`tan init` 生成的文件第一行是 `"$schema": "https://tangoui.github.io/tango/schema/tan.schema.json"`，VS Code 等编辑器据此补全字段、显示说明并标出拼错的字段。已有项目手动加上这一行即可；tan 会忽略它。未知字段报错也意味着按新版 tan 写的 `tan.json` 需要同样新的 tan。
+`tan init` 生成的文件第一行是 `"$schema": "https://tangoui.github.io/tango/schema/tan.schema.json"`，VS Code 等编辑器据此补全字段、显示说明并标出内置字段的类型错误和内置对象中的未知字段。已有项目手动加上这一行即可；tan 会忽略它。较旧的 `tan` 可能仍拒绝自定义顶层字段。
 
 ## 示例
 

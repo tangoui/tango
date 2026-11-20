@@ -9,6 +9,7 @@ import (
 	"go/build/constraint"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
@@ -253,15 +254,78 @@ func (c *Config) cgoEnv() string {
 // sync by TestConfigSchema) is published; tan init writes it as "$schema".
 const SchemaURL = "https://tangoui.github.io/tango/schema/tan.schema.json"
 
-// ParseConfig decodes and validates tan.json. Unknown fields are errors so
-// typos do not pass silently; a field added by a later tan is one too, and
-// the error says so.
-func ParseConfig(data []byte) (*Config, error) {
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err == nil {
-		if raw, ok := fields["features"]; ok && bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-			return nil, errors.New(`tan.json: "features" must be omitted or a non-empty array`)
+// configFieldNames comes from the same tags used to decode Config.
+var configFieldNames = func() []string {
+	var names []string
+	for f := range reflect.TypeFor[Config]().Fields() {
+		if !f.IsExported() {
+			continue
 		}
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		if name != "-" {
+			names = append(names, cmp.Or(name, f.Name))
+		}
+	}
+	return names
+}()
+
+// builtinConfigJSON filters only the top-level object. Keep recognized
+// members in input order so the standard decoder retains its handling of
+// duplicate keys and case-insensitive matches. Values remain untouched so
+// the strict decoder still validates the built-in objects recursively.
+func builtinConfigJSON(data []byte) ([]byte, error) {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, err
+	}
+	if tok != json.Delim('{') {
+		return nil, errors.New("expected a JSON object")
+	}
+	out := []byte{'{'}
+	var features json.RawMessage
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+		key := tok.(string) // a token at this position is an object key
+		var value json.RawMessage
+		if err := dec.Decode(&value); err != nil {
+			return nil, err
+		}
+		if !slices.ContainsFunc(configFieldNames, func(name string) bool { return strings.EqualFold(key, name) }) {
+			continue
+		}
+		if key == "features" {
+			features = value // retain the original last-exact-key null check
+		}
+		if len(out) > 1 {
+			out = append(out, ',')
+		}
+		encoded, _ := json.Marshal(key)
+		out = append(out, encoded...)
+		out = append(out, ':')
+		out = append(out, value...)
+	}
+	if _, err := dec.Token(); err != nil {
+		return nil, err
+	}
+	if len(bytes.Trim(data[dec.InputOffset():], " \r\n\t")) != 0 {
+		return nil, errors.New("unexpected data after the JSON object")
+	}
+	if bytes.Equal(bytes.TrimSpace(features), []byte("null")) {
+		return nil, errors.New(`"features" must be omitted or a non-empty array`)
+	}
+	return append(out, '}'), nil
+}
+
+// ParseConfig decodes and validates tan.json. Application-defined top-level
+// fields are ignored; unknown fields inside built-in objects are errors.
+func ParseConfig(data []byte) (*Config, error) {
+	data, err := builtinConfigJSON(data)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", ConfigFile, err)
 	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()

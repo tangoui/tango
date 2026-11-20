@@ -33,7 +33,7 @@ func TestParseConfig(t *testing.T) {
 		{`{"name":"A","id":"a.b","version":"one","frontend":{"dir":"f","dist":"."}}`, `"version"`},
 		{`{"name":"","id":"a.b","version":"1","frontend":{"dir":"f","dist":"."}}`, `"name"`},
 		{`{"name":"A","id":"a.b","version":"1","frontend":{"dir":"f"}}`, `frontend.dist`},
-		{`{"name":"A","id":"a.b","version":"1","frontend":{"dir":"f","dist":"."},"icn":"x"}`, `unknown field "icn"`},
+		{`{"name":"A","id":"a.b","version":"1","frontend":{"dir":"f","dist":".","icn":"x"}}`, `unknown field "icn"`},
 		{`{"name":"A","id":"a.b","version":"1","frontend":{"dir":"/abs","dist":"."}}`, `relative`},
 		{`{"name":"A","id":"a.b","version":"1","frontend":{"dir":"f","dist":"."},"urlSchemes":["https"]}`, `"urlSchemes"`},
 		{`{"name":"A","id":"a.b","version":"1","frontend":{"dir":"f","dist":"."},"urlSchemes":["My_App"]}`, `"urlSchemes"`},
@@ -172,5 +172,30 @@ func TestConfigPathAbs(t *testing.T) {
 		if got := configPathAbs(p); got != want {
 			t.Errorf("configPathAbs(%q) = %v, want %v", p, got, want)
 		}
+	}
+}
+
+func TestParseConfigAppFields(t *testing.T) {
+	const prefix = `{"name":"App","id":"com.example.app","version":"1.0.0",`
+	for _, fields := range []string{`"cloud":{"apiUrl":"https://example.com","nested":{"enabled":true}}`, `"custom":[null,true,1,{"frontend":42}]`, `"flag":false,"count":123456789012345678901,"s":"x","unused":null`} {
+		c, err := ParseConfig([]byte(prefix + fields + `}`))
+		if err != nil || c.Name != "App" {
+			t.Fatalf("%s: %+v, %v", fields, c, err)
+		}
+	}
+	for _, fields := range []string{`"cloud":true,"cgo":"yes"`, `"cloud":{},"features":null`, `"cloud":{},"frontend":{"parallelDevBuld":true}`, `"cloud":1} {`} {
+		if _, err := ParseConfig([]byte(prefix + fields + `}`)); err == nil {
+			t.Fatalf("accepted invalid config: %s", fields)
+		}
+	}
+}
+
+func TestParseConfigDuplicateFeatures(t *testing.T) {
+	const prefix = `{"name":"App","id":"com.example.app","version":"1.0.0","cloud":{},`
+	if _, err := ParseConfig([]byte(prefix + `"features":null,"features":["webview"]}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParseConfig([]byte(prefix + `"features":["webview"],"features":null}`)); err == nil {
+		t.Fatal("accepted final null features")
 	}
 }

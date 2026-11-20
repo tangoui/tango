@@ -8,9 +8,11 @@ import (
 	"go/token"
 	"os"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 // TestConfigSchema keeps tan.schema.json, the JSON Schema of tan.json that
@@ -47,7 +49,7 @@ func TestConfigSchemaParses(t *testing.T) {
 	if c.Schema != SchemaURL {
 		t.Fatalf("$schema: %q", c.Schema)
 	}
-	_, err = ParseConfig([]byte(`{"name": "Hello", "id": "com.example.hello", "version": "1.0.0", "fromTheFuture": 1}`))
+	_, err = ParseConfig([]byte(`{"name": "Hello", "id": "com.example.hello", "version": "1.0.0", "frontend": {"fromTheFuture": 1}}`))
 	if err == nil || !strings.Contains(err.Error(), "newer tan") {
 		t.Fatalf("unknown field: %v", err)
 	}
@@ -92,6 +94,18 @@ func configSchema(t *testing.T) []byte {
 			}
 			d := map[string]any{"type": "object", "properties": props, "additionalProperties": false}
 			if name == "Config" {
+				d["additionalProperties"] = true // application-defined top-level keys
+				// Reserve case-folded variants just as encoding/json does.
+				aliases := make(map[string]any, len(props))
+				for key := range props {
+					var rule any = map[string]string{"$ref": "#/properties/" + key}
+					if key == "features" {
+						// The exact key still has the non-null properties rule.
+						rule = map[string]any{"anyOf": []any{rule, map[string]string{"type": "null"}}}
+					}
+					aliases[configAliasPattern(key)] = rule
+				}
+				d["patternProperties"] = aliases
 				// The rest of validate: frontend is optional (self-drawn apps).
 				required = []string{"name", "id", "version"}
 			}
@@ -225,4 +239,91 @@ func fieldDocs(t *testing.T) map[string]string {
 		}
 	}
 	return docs
+}
+
+func TestConfigSchemaReservesBuiltinAliases(t *testing.T) {
+	var schema struct {
+		Patterns map[string]struct {
+			Ref string `json:"$ref"`
+		} `json:"patternProperties"`
+	}
+	b, err := os.ReadFile("tan.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &schema); err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{"CGO": "#/properties/cgo", "Frontend": "#/properties/frontend", "cloud": ""} {
+		var got []string
+		for pat, rule := range schema.Patterns {
+			if regexp.MustCompile(pat).MatchString(key) {
+				got = append(got, rule.Ref)
+			}
+		}
+		if want == "" && len(got) == 0 {
+			continue
+		}
+		if len(got) != 1 || got[0] != want {
+			t.Errorf("%q: got %v, want %q", key, got, want)
+		}
+	}
+}
+
+// configAliasPattern spells out Unicode simple folds without inline flags,
+// which are not portable in JSON Schema's ECMA-262 regular expressions.
+func configAliasPattern(name string) string {
+	var b strings.Builder
+	b.WriteByte('^')
+	for _, r := range name {
+		if next := unicode.SimpleFold(r); next != r {
+			b.WriteByte('[')
+			b.WriteRune(r)
+			for f := next; f != r; f = unicode.SimpleFold(f) {
+				b.WriteRune(f)
+			}
+			b.WriteByte(']')
+		} else {
+			b.WriteString(regexp.QuoteMeta(string(r)))
+		}
+	}
+	b.WriteByte('$')
+	return b.String()
+}
+
+func TestConfigSchemaFeaturesAliasNull(t *testing.T) {
+	const prefix = `{"name":"App","id":"com.example.app","version":"1.0.0",`
+	if _, err := ParseConfig([]byte(prefix + `"Features":null}`)); err != nil {
+		t.Fatal(err)
+	}
+	var schema struct {
+		Patterns map[string]struct {
+			AnyOf []struct {
+				Type string `json:"type"`
+				Ref  string `json:"$ref"`
+			} `json:"anyOf"`
+		} `json:"patternProperties"`
+		Properties map[string]struct {
+			Type string `json:"type"`
+		} `json:"properties"`
+	}
+	b, err := os.ReadFile("tan.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &schema); err != nil {
+		t.Fatal(err)
+	}
+	if schema.Properties["features"].Type != "array" {
+		t.Fatal("canonical features must still require an array")
+	}
+	for pat, rule := range schema.Patterns {
+		if !regexp.MustCompile(pat).MatchString("Features") {
+			continue
+		}
+		if len(rule.AnyOf) == 2 && rule.AnyOf[0].Ref == "#/properties/features" && rule.AnyOf[1].Type == "null" {
+			return
+		}
+	}
+	t.Fatal("Features alias does not allow null alongside the array rule")
 }
