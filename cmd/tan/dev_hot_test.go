@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -10,6 +14,155 @@ import (
 
 	"github.com/tangoui/tango/internal/devhost"
 )
+
+func TestDevHotSessionFallsBackWithFreshBuild(t *testing.T) {
+	d := newDevTest(t, `
+if [ "$version" = hot ]; then
+    /bin/mkdir -p "${out%/*}"
+    /bin/cat > "$out" <<'APP'
+#!/bin/sh
+# `+devhost.Marker+`
+printf '%s|%s\n' "$TANGO_DEV_ROLE" "$0" >> "$TAN_TEST_HOT_RUNS"
+if [ "$TANGO_DEV_ROLE" = host ]; then
+    exec "$TAN_TEST_SELF" -test.run '^TestDevHotHostHelper$'
+fi
+exec /bin/sleep 30
+APP
+    /bin/chmod 755 "$out"
+    exit 0
+fi`)
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	hotRuns := filepath.Join(t.TempDir(), "hot-runs")
+	t.Setenv("TAN_TEST_SELF", self)
+	t.Setenv("TAN_TEST_HOT_RUNS", hotRuns)
+	writeDevTestFile(t, d.cfg.Path("main.go"), "// hot\npackage main\nfunc main() {}\n", 0o644)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	done := d.start(ctx)
+	defer func() { cancel(); <-done }()
+	waitDevTestLines(t, ctx, hotRuns, 2)
+	d.checkBuilds(t, "probe")
+	worker := devTestLines(t, d.builds)[0]
+	if got, want := devTestLines(t, hotRuns), []string{"host|" + d.out, "worker|" + worker}; !slices.Equal(got, want) {
+		t.Fatalf("hot executions = %q, want %q", got, want)
+	}
+	writeDevTestFile(t, d.cfg.Path("main.go"), "// plain\npackage main\nfunc main() {}\n", 0o644)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if err := ctx.Err(); err != nil {
+		t.Fatal(err)
+	}
+	d.checkBuilds(t, "probe", "probe", "plain")
+	d.checkRuns(t, "plain", "")
+}
+
+// TestDevHotHostHelper is run by the hot fixture as a windowless host. It
+// acknowledges the controller handshake and holds the connection open.
+func TestDevHotHostHelper(t *testing.T) {
+	if os.Getenv(devhost.EnvRole) != devhost.RoleHost || os.Getenv("TAN_TEST_HOT_RUNS") == "" {
+		return
+	}
+	l, err := devhost.Listen(os.Getenv(devhost.EnvAddr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	raw, err := l.Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := devhost.NewConn(raw)
+	defer c.Close()
+	m, err := c.Recv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hello, ok := m.(devhost.Hello); !ok || hello.Role != devhost.RoleCtl || hello.Token != os.Getenv(devhost.EnvToken) {
+		t.Fatalf("unexpected handshake: %T", m)
+	}
+	if err := c.Send(devhost.Welcome{}); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = c.Recv()
+}
+
+func TestInstallBinaryCleansUpOnRenameFailure(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "src")
+	dst := filepath.Join(dir, "dst")
+	old := filepath.Join(dst, "old")
+	writeDevTestFile(t, src, "new", 0o755)
+	writeDevTestFile(t, old, "old", 0o644)
+	if err := installBinary(context.Background(), src, dst); err == nil {
+		t.Fatal("replaced a nonempty directory")
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 || entries[0].Name() != "dst" || entries[1].Name() != "src" {
+		t.Fatalf("temporary files remain after failed install: %v", entries)
+	}
+	if data, err := os.ReadFile(old); err != nil || string(data) != "old" {
+		t.Fatalf("old destination changed: %q, %v", data, err)
+	}
+}
+
+func TestInstallBinaryCancellationKeepsOldTarget(t *testing.T) {
+	for _, stage := range []string{"during copy", "before rename"} {
+		t.Run(stage, func(t *testing.T) {
+			if stage == "before rename" && runtime.GOOS == "windows" {
+				t.Skip("uses the executable mode to observe the pre-rename stage")
+			}
+			dir := t.TempDir()
+			src, dst := filepath.Join(dir, "src"), filepath.Join(dir, "dst")
+			data := bytes.Repeat([]byte("new"), 128<<10)
+			writeDevTestFile(t, src, string(data), 0o755)
+			writeDevTestFile(t, dst, "old", 0o755)
+			parent, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			// Cancel when the first bytes have been staged, or after the copy
+			// and chmod are both complete. No polling or timing is involved.
+			ctx := observedInstallContext{Context: parent, observe: func() {
+				paths, err := filepath.Glob(filepath.Join(dir, ".tango-bin-*"))
+				if err != nil || len(paths) != 1 {
+					return
+				}
+				info, err := os.Stat(paths[0])
+				if err != nil {
+					return
+				}
+				size := info.Size()
+				if stage == "during copy" && size > 0 && size < int64(len(data)) ||
+					stage == "before rename" && size == int64(len(data)) && info.Mode()&0o100 != 0 {
+					cancel()
+				}
+			}}
+			if err := installBinary(ctx, src, dst); !errors.Is(err, context.Canceled) {
+				t.Errorf("install = %v, want context.Canceled", err)
+			}
+			if got, err := os.ReadFile(dst); err != nil || !bytes.Equal(got, []byte("old")) {
+				t.Errorf("old target was replaced, target length %d (%v)", len(got), err)
+			}
+			if paths, err := filepath.Glob(filepath.Join(dir, ".tango-bin-*")); err != nil || len(paths) != 0 {
+				t.Errorf("temporary files remain: %v (%v)", paths, err)
+			}
+		})
+	}
+}
+
+type observedInstallContext struct {
+	context.Context
+	observe func()
+}
+
+func (c observedInstallContext) Err() error {
+	c.observe()
+	return c.Context.Err()
+}
 
 func TestBuildTags(t *testing.T) {
 	for goflags, want := range map[string][2]string{ // release, dev

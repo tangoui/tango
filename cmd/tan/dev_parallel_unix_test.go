@@ -204,7 +204,7 @@ func TestDevParallelStartupCancellation(t *testing.T) {
 		done := make(chan error, 1)
 		go func() {
 			defer close(done)
-			done <- s.loop(t.Context())
+			done <- s.loop(t.Context(), nil)
 		}()
 		defer func() {
 			startup.close()
@@ -365,7 +365,7 @@ exec sleep 60`
 			t.Fatal(err)
 		}
 		assertDevLaunch(t, cfg, fixtureDevURL)
-		for file, want := range map[string]string{"server-starts": "server", "build-count": "build\nbuild"} {
+		for file, want := range map[string]string{"server-starts": "server", "build-count": "build"} {
 			if got := waitDevMarker(t, cfg, file); got != want {
 				t.Errorf("%s = %q, want %q", file, got, want)
 			}

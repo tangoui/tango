@@ -129,7 +129,9 @@ func dev(ctx context.Context, cfg *Config, url string, appArgs []string, modes d
 		err = s.hotLoop(ctx, modes.watchFramework)
 	}
 	if !modes.hot || errors.Is(err, errNotHot) {
-		err = s.loop(ctx)
+		var initial *initialHotFallback
+		errors.As(err, &initial)
+		err = s.loop(ctx, initial)
 	}
 	if s.startup != nil {
 		if cause := s.startup.failure(); cause != nil {
@@ -187,7 +189,6 @@ type devSession struct {
 
 	startup     *frontendStartup
 	frontendURL string
-	bundled     bool // the macOS bundle around out has been written
 }
 
 func (s *devSession) setFrontendURL(url string) {
@@ -235,8 +236,13 @@ func (s *devSession) finishStartup() {
 	}
 }
 
-func (s *devSession) goBuild(ctx context.Context, path string, stderr io.Writer) error {
-	args := []string{"build", "-tags", buildTags(true), "-o", path, "."}
+func (s *devSession) goBuild(ctx context.Context, path string, probe bool, stderr io.Writer) error {
+	args := []string{"build", "-tags", buildTags(true), "-o", path}
+	if probe {
+		// A dry run can succeed while leaving the seeded output unchecked.
+		args = append(args, "-n=false")
+	}
+	args = append(args, ".")
 	var cmd *exec.Cmd
 	if s.startup == nil {
 		cmd = exec.CommandContext(ctx, "go", args...)
@@ -247,25 +253,9 @@ func (s *devSession) goBuild(ctx context.Context, path string, stderr io.Writer)
 	cmd.Env = append(os.Environ(), s.cfg.cgoEnv())
 	cmd.Stdout, cmd.Stderr = os.Stdout, stderr
 	if s.startup != nil {
-		return runStartupCommand(s.startup.ctx, cmd)
+		return runStartupCommand(ctx, cmd)
 	}
 	return cmd.Run()
-}
-
-func (s *devSession) build(ctx context.Context) error {
-	if err := s.goBuild(ctx, s.out, os.Stderr); err != nil {
-		return err
-	}
-	if runtime.GOOS == "darwin" && !s.bundled {
-		s.bundled = true
-		if err := writeBundle(s.cfg, s.app()); err != nil {
-			return err
-		}
-	}
-	if runtime.GOOS == "darwin" {
-		return adhocSign(ctx, s.app())
-	}
-	return nil
 }
 
 // app is the macOS bundle around out.
@@ -273,50 +263,56 @@ func (s *devSession) app() string { return filepath.Dir(filepath.Dir(filepath.Di
 
 // loop builds and runs the app, and rebuilds and restarts it when the
 // project's Go files change. A failed build keeps the running app.
-func (s *devSession) loop(ctx context.Context) error {
-	w := newWatcher(s.cfg.dir, s.cfg.FrontendDir())
-	tty := newTTYGuard() // tty_unix.go
-	var app *process
-	defer func() {
-		if app != nil {
-			app.stop(3 * time.Second)
-		}
-	}()
-	start := func() error {
-		buildCtx := s.startupContext(ctx)
-		logf("Building")
-		if err := s.build(buildCtx); err != nil {
-			if buildCtx.Err() == nil {
-				warnf("Build failed; waiting for changes")
-			}
-			return nil
-		}
+func (s *devSession) loop(ctx context.Context, initial *initialHotFallback) error {
+	var w *watcher
+	var initialBinary string
+	if initial != nil {
+		// Check for edits after waiting for the frontend, so a change made
+		// during parallel startup cannot launch a stale probe.
 		if err := s.prepareLaunch(); err != nil {
+			os.RemoveAll(filepath.Dir(initial.path))
 			return err
 		}
+		w = initial.watch
+		if !w.changed() {
+			initialBinary = initial.path
+		}
+	} else {
+		w = newWatcher(s.cfg.dir, s.cfg.FrontendDir())
+	}
+	tty := newTTYGuard() // tty_unix.go
+	var app *process
+	stopApp := func() {
 		if app != nil {
 			app.stop(3 * time.Second)
 			app = nil
 		}
-		cmd := exec.Command(s.out, s.args...)
-		cmd.Dir = s.cfg.dir
-		cmd.Env = append(os.Environ(), s.env...)
-		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-		if err := s.checkLaunch(); err != nil {
-			return err
+	}
+	defer stopApp()
+	start := func(binary string) {
+		command := func() *exec.Cmd {
+			cmd := exec.CommandContext(s.startupContext(ctx), s.out, s.args...)
+			// Check cancellation in Start; the loop stops the process group.
+			cmd.Cancel = nil
+			cmd.Dir = s.cfg.dir
+			cmd.Env = append(os.Environ(), s.env...)
+			cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+			return cmd
 		}
-		p, err := startProcess(cmd)
+		p, err := s.publishAndStart(ctx, binary, binary != "", command, stopApp)
 		if err != nil {
-			warnf("Starting the app: %v", err)
-			return nil
+			if s.startupContext(ctx).Err() == nil && s.checkLaunch() == nil {
+				warnf("Starting the app: %v; waiting for changes", err)
+			}
+			return
 		}
 		app = p
 		s.finishStartup()
-		logf("Running %s (pid %d); watching Go files", s.cfg.Name, cmd.Process.Pid)
-		return nil
+		logf("Running %s (pid %d); watching Go files", s.cfg.Name, p.cmd.Process.Pid)
 	}
-	if err := start(); err != nil {
-		return err
+	start(initialBinary)
+	if initial != nil {
+		os.RemoveAll(filepath.Dir(initial.path))
 	}
 	tick := time.NewTicker(400 * time.Millisecond)
 	defer tick.Stop()
@@ -342,9 +338,7 @@ func (s *devSession) loop(ctx context.Context) error {
 				// Let editors finish writing a batch of files.
 				time.Sleep(150 * time.Millisecond)
 				w.changed()
-				if err := start(); err != nil {
-					return err
-				}
+				start("")
 			}
 		}
 	}

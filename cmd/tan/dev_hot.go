@@ -12,6 +12,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"debug/buildinfo"
 	"errors"
 	"fmt"
 	"io"
@@ -30,6 +31,16 @@ import (
 
 // errNotHot means the app does not link the dev host: use plain restarts.
 var errNotHot = errors.New("the app does not link uihost")
+
+// initialHotFallback hands the first successful build and its watch baseline
+// to the plain loop. A running hot session falls back with errNotHot alone.
+type initialHotFallback struct {
+	path  string
+	watch *watcher
+}
+
+func (*initialHotFallback) Error() string { return errNotHot.Error() }
+func (*initialHotFallback) Unwrap() error { return errNotHot }
 
 // hasDevHost reports whether the binary at path links the dev host.
 func hasDevHost(path string) bool {
@@ -97,7 +108,7 @@ type workerProc struct {
 	stderr  *tailBuffer
 }
 
-func (s *devSession) hotLoop(ctx context.Context, watchFramework bool) error {
+func (s *devSession) hotLoop(ctx context.Context, watchFramework bool) (err error) {
 	h := &hotSession{devSession: s, watchFramework: watchFramework,
 		workers: map[*workerProc]bool{}, exited: make(chan *workerProc, 8)}
 	token, err := devhost.NewToken()
@@ -111,8 +122,61 @@ func (s *devSession) hotLoop(ctx context.Context, watchFramework bool) error {
 	}
 	h.tmp = tmp
 	defer os.RemoveAll(tmp)
+	// Probe from a private directory on the worker filesystem. Another
+	// session with the same app ID may build into the shared worker slots.
+	slot := h.workerPath(0)
+	parent := filepath.Dir(filepath.Dir(slot))
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		return err
+	}
+	probeDir, err := os.MkdirTemp(parent, "initial-")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		// The plain loop owns the directory once the build is handed over.
+		if _, handedOff := err.(*initialHotFallback); !handedOff {
+			os.RemoveAll(probeDir)
+		}
+	}()
 	defer h.stopAll()
-	return h.loop(ctx)
+	probePath := filepath.Join(probeDir, filepath.Base(slot))
+	if err := s.seedDevOutput(s.startupContext(ctx), probePath, true); err != nil {
+		return err
+	}
+	return h.loop(ctx, probePath)
+}
+
+// seedDevOutput gives Go a private copy of its last stable output to check
+// against the current inputs. The lock keeps Windows readers from blocking
+// another session's replacement of the executable.
+func (s *devSession) seedDevOutput(ctx context.Context, output string, probe bool) error {
+	src := s.out
+	info, err := os.Lstat(src)
+	if err != nil || !info.Mode().IsRegular() {
+		return nil
+	}
+	if runtime.GOOS != "windows" && info.Mode()&0o100 == 0 {
+		return nil
+	}
+	if !probe && s.mayDryRun(ctx) {
+		return nil
+	}
+	unlock, err := lockDevPublication(ctx, devDir(src))
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if err := installBinary(ctx, src, output); err != nil {
+		// No candidate was published. Go can build into the empty path.
+		return nil
+	}
+	// Go can refuse to replace a non-object file. Discard unusable copies
+	// before the build; Go still decides whether a readable binary is current.
+	if _, err := buildinfo.ReadFile(output); err != nil {
+		return os.Remove(output)
+	}
+	return nil
 }
 
 func (h *hotSession) workerPath(i int) string {
@@ -135,44 +199,56 @@ func (h *hotSession) buildWorker(ctx context.Context) (string, string, error) {
 		i ^= 1
 	}
 	path := h.workerPath(i)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", "", err
-	}
-	var out bytes.Buffer
-	start := time.Now()
-	err := h.goBuild(ctx, path, io.MultiWriter(os.Stderr, &out))
-	h.buildDur = time.Since(start)
+	out, err := h.buildWorkerAt(ctx, path, false)
 	if err != nil {
-		return "", strings.TrimSpace(out.String()), err
+		return "", out, err
 	}
 	h.slot = i ^ 1
 	return path, "", nil
 }
 
-func (h *hotSession) loop(ctx context.Context) error {
+func (h *hotSession) buildWorkerAt(ctx context.Context, path string, probe bool) (string, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	var out bytes.Buffer
+	start := time.Now()
+	err := h.goBuild(ctx, path, probe, io.MultiWriter(os.Stderr, &out))
+	h.buildDur = time.Since(start)
+	if err != nil {
+		return strings.TrimSpace(out.String()), err
+	}
+	return "", nil
+}
+
+func (h *hotSession) loop(ctx context.Context, probePath string) error {
 	w := newWatcher(h.cfg.dir, h.cfg.FrontendDir())
 	tty := newTTYGuard() // tty_unix.go
 	h.mods = newFileSet(goModFiles(h.cfg.dir))
 	buildCtx := h.startupContext(ctx)
 	// First build: decides the mode.
 	for {
+		if buildCtx.Err() != nil {
+			return nil
+		}
 		logf("Building")
 		h.changeAt = time.Now()
-		path, _, err := h.buildWorker(buildCtx)
+		_, err := h.buildWorkerAt(buildCtx, probePath, true)
+		if buildCtx.Err() != nil {
+			return nil
+		}
 		if err == nil {
 			if err := h.checkLaunch(); err != nil {
 				return err
 			}
-			if !hotCapable(path) {
-				return errNotHot
+			if !hotCapable(probePath) {
+				return &initialHotFallback{path: probePath, watch: w}
 			}
-			if err := h.startAll(ctx, path, nil); err != nil {
+			h.slot = 1
+			if err := h.startAll(ctx, probePath, nil); err != nil {
 				return err
 			}
 			break
-		}
-		if buildCtx.Err() != nil {
-			return nil
 		}
 		warnf("Build failed; waiting for changes")
 		if !waitChange(buildCtx, w) {
@@ -329,40 +405,24 @@ func (h *hotSession) startAll(ctx context.Context, path string, state []devhost.
 // startHost installs path as the host executable (the macOS bundle at
 // h.out; workers never overwrite it while it runs) and starts it.
 func (h *hotSession) startHost(ctx context.Context, path string) error {
-	if err := installBinary(path, h.out); err != nil {
-		return err
-	}
-	if runtime.GOOS == "darwin" {
-		if !h.bundled {
-			h.bundled = true
-			if err := writeBundle(h.cfg, h.app()); err != nil {
-				return err
-			}
-		}
-		if err := adhocSign(ctx, h.app()); err != nil {
-			return err
-		}
-	}
 	addr, err := h.newAddr()
 	if err != nil {
 		return err
 	}
 	h.addr = addr
-	if err := h.prepareLaunch(); err != nil {
-		return err
+	command := func() *exec.Cmd {
+		cmd := exec.CommandContext(ctx, h.out)
+		cmd.Cancel = nil
+		cmd.Dir = h.cfg.dir
+		cmd.Env = append(os.Environ(), h.env...)
+		cmd.Env = append(cmd.Env,
+			devhost.EnvRole+"="+devhost.RoleHost, devhost.EnvAddr+"="+addr,
+			devhost.EnvName+"="+h.cfg.Name, devhost.EnvID+"="+h.cfg.ID, devhost.EnvDir+"="+h.tmp,
+			devhost.EnvToken+"="+h.token)
+		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+		return cmd
 	}
-	cmd := exec.Command(h.out)
-	cmd.Dir = h.cfg.dir
-	cmd.Env = append(os.Environ(), h.env...)
-	cmd.Env = append(cmd.Env,
-		devhost.EnvRole+"="+devhost.RoleHost, devhost.EnvAddr+"="+addr,
-		devhost.EnvName+"="+h.cfg.Name, devhost.EnvID+"="+h.cfg.ID, devhost.EnvDir+"="+h.tmp,
-		devhost.EnvToken+"="+h.token)
-	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-	if err := h.checkLaunch(); err != nil {
-		return err
-	}
-	p, err := startProcess(cmd)
+	p, err := h.publishAndStart(ctx, path, false, command, nil)
 	if err != nil {
 		return fmt.Errorf("starting the dev host: %w", err)
 	}
@@ -387,7 +447,7 @@ func (h *hotSession) startHost(ctx context.Context, path string) error {
 			events <- m
 		}
 	}()
-	logf("Dev host running (pid %d); hot reload is on", cmd.Process.Pid)
+	logf("Dev host running (pid %d); hot reload is on", p.cmd.Process.Pid)
 	return nil
 }
 
@@ -581,19 +641,61 @@ func (h *hotSession) stopAll() {
 
 // ---- helpers ----
 
-func installBinary(src, dst string) error {
-	data, err := os.ReadFile(src)
+func installBinary(ctx context.Context, src, dst string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	bin, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer bin.Close()
+	info, err := bin.Stat()
 	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
-	tmp := dst + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o755); err != nil {
+	tmp, err := os.CreateTemp(filepath.Dir(dst), ".tango-bin-*")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, dst) // a new inode: never rewrite a running binary
+	defer os.Remove(tmp.Name())
+	defer tmp.Close()
+	n, err := io.Copy(tmp, cancelableBinaryReader{ctx: ctx, in: bin})
+	if err != nil {
+		return err
+	}
+	after, err := bin.Stat()
+	if err != nil {
+		return err
+	}
+	if n != info.Size() || after.Size() != info.Size() || !after.ModTime().Equal(info.ModTime()) {
+		return fmt.Errorf("%s changed during copying", src)
+	}
+	if err := tmp.Chmod(info.Mode().Perm()); err != nil {
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), dst) // a new inode: never rewrite a running binary
+}
+
+type cancelableBinaryReader struct {
+	ctx context.Context
+	in  io.Reader
+}
+
+func (r cancelableBinaryReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.in.Read(p)
 }
 
 // lastLines returns the last n lines of t, not counting trailing blank
