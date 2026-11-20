@@ -19,7 +19,10 @@ import (
 
 func testDocumentApp(t *testing.T, path string) (*tango.App, *fake.Backend) {
 	t.Helper()
-	a, fb := faketest.NewApp(tango.Options{})
+	// Exercise explicit quit requests even after the last window closes,
+	// regardless of the host OS's default last-window policy.
+	keepOpen := false
+	a, fb := faketest.NewApp(tango.Options{QuitOnLastClose: &keepOpen})
 	faketest.Start(t, a, fb)
 	tango.Await(a, func() bool {
 		app, surface, runner = a, nil, nil
