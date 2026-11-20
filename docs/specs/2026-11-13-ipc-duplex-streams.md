@@ -269,8 +269,8 @@ func (r *Router) Call(ctx context.Context, method string, args ...any) (json.Raw
 在 `site/guide/ui.md`（以及英文版 `site/en/guide/ui.md`）新增"后台数据与线程"一节，内容要点：
 
 - Go 自绘界面和后端在同一个进程里，直接调用 Go 函数、读 Go 结构体，不需要序列化，也不需要 IPC。
-- **线程规则**：界面状态只在 UI 线程读写（page 函数运行在 UI 线程）。耗时或阻塞的操作放到 goroutine 里做；结果用 `app.Post` 切回 UI 线程写进状态，再调用 `r.Invalidate()` 请求重绘（`Invalidate` 任何 goroutine 都能安全调用）。（2026-11-18 更新：macOS 的 `uihost.Open` 窗口有自己的 UI 线程，结果改用 `Runner.Post` 交回，见 `site/guide/ui.md` 与 `docs/release.md` 迁移说明。）
-- **流式数据**就是 Go 原生的 channel、`io.Reader`/`io.Writer`、回调，背压由阻塞读写自然提供。给一个终端的例子：goroutine 读 pty → 交回 UI 线程追加到缓冲区（macOS 上有独立 UI 线程的 `uihost.Open` 窗口用 `Runner.Post`；UI 线程是主线程的窗口 `app.Post` 也行，`Runner.Post` 两种都适用）→ `Invalidate`；按键在事件处理里直接写 pty。
+- **线程规则**。界面状态只在 UI 线程读写。普通 `uihost.Open` 窗口的 UI 线程是应用主线程。耗时或阻塞的操作放到 goroutine，结果用 `Runner.Post` 交回 UI 线程更新状态并请求一帧。见 [自绘界面指南](../../site/guide/ui.md#后台数据与线程)。
+- **流式数据**使用 Go 原生的 channel、`io.Reader`、`io.Writer` 和回调，由阻塞读写提供背压。例如终端在 goroutine 中读取 pty，再用 `Runner.Post` 把输出追加到 UI 缓冲区。事件处理函数把按键写回 pty。
 - **高频数据**：每来一块数据就投递一次（`Runner.Post`，或 UI 线程是主线程时的 `app.Post`）会在 UI 线程上堆积。示例里演示合并：goroutine 把数据追加到加锁的缓冲区，只在"还没有待处理的刷新"时才 `Post` 一次。
 - **复用 WebView 的服务**：服务已经用 `Handle`/`HandleDuplex` 注册过的，Go 界面用 §5.9 的 `r.Call` / `r.Open` 接入，配合上面的线程规则使用；混合界面里页面和 Go 面板因此共用同一个服务实例。
 - 文档里的每段示例代码都要能编译（放进 `examples/` 或有对应的测试）。

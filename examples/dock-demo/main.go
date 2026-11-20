@@ -10,9 +10,9 @@
 // returns it. The layout is saved as JSON in the user config directory and
 // restored on the next start (ui.ParseDockLayout).
 //
-// On macOS every window runs on its own UI thread: the layout belongs to
-// the main window's thread (reach it with mainRunner.Post), popouts to the
-// main thread (app.Post), and notes, used by every window, has a lock.
+// Layout updates go through mainRunner.Post. The app creates and tracks
+// popouts on the main thread (app.Post), and a lock protects the notes
+// shared by every window.
 package main
 
 import (

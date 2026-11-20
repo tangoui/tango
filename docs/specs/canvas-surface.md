@@ -83,12 +83,10 @@ type CanvasLayer struct {
 - `uihost.Open(app, Options, page, ui.RunnerOptions) (*ui.Runner, *tango.Surface, error)`，必须在主线程（如 OnReady 里）或通过 `app.Post` 调用。
 - 内部的 `window` 实现 `ui.Window`：Size/Scale/Invalidate/InvalidateAt/SetCursor/SetTextInput/Present 转给 `platform.Canvas`；ReadClipboard/WriteClipboard 走 `clipboard` 能力。
 - sink：`CanvasFrame` → `Runner.Frame()`，帧后若 `Runner.Animating()` 则再 Invalidate，若 `NextWake()` 非零则 InvalidateAt；`CanvasInput` → `Runner.HandleEvent` 后 Invalidate；`CanvasFocus` → `input.WindowFocus`；Surface 关闭 → `Runner.Close()`。
-- UI 线程按平台和入口不同（2026-11-18 每窗口独立 UI 线程，设计见 `docs/superpowers/specs/2026-11-18-per-window-ui-thread-design.md`）：
-  - **macOS 的 `uihost.Open` 窗口**：每个窗口一条独立 UI 线程（锁定 OS 线程），从 `Open` 返回前启动、窗口关闭后退出。页面函数、`Runner` 的方法和回调、渲染器和上屏都在这条线程上运行；帧由该线程上的显示链接驱动（`platform.CanvasThreaded`），不再走 `updateLayer`/`CanvasFrame`。sink 回调仍在主线程收到，由 uihost 转成任务投递到 UI 线程。后端在 `NewCanvasSurface` 里看 sink 是否实现 `platform.CanvasThreadedSink` 且 `WantsUIThread()` 为真（uihost 的 Open 是），是才返回线程化的 canvas。
-  - **其他平台、`uihost.Attach`、`tan dev` 宿主（`remote_dev.go`）、无头 `ui.Driver`**：UI 线程 = 主线程，行为不变。
-  - 应用代码：改页面读取的状态、调用 `Runner` 方法用 `Runner.Post`（任何线程可调用，在 UI 线程两帧之间运行，之后自动请求一帧）；调用必须在主线程的系统接口（`uihost.Open`、`FollowSystemTheme`、`Attach`）用 `App.Post` 或 `tango.Await`。`uihost.Shortcut`、菜单、托盘、`OnMessage`、`OnClose` 等回调在主线程运行。`Invalidate`/`InvalidateAt`/`Close` 任何线程安全。`sys/dialog` 在 UI 线程上调用时阻塞该窗口的 UI 线程、不阻塞主线程。
+- **默认线程模型**包括各平台的 `uihost.Open`、`uihost.Attach` 和 `tan dev` 宿主（`remote_dev.go`）。它们在应用主线程上驱动 UI。无头 `ui.Driver` 在调用者的线程上运行。
+  - 背景任务用 `Runner.Post` 把页面更新送到 UI 线程并请求一帧。`uihost.Open`、`FollowSystemTheme`、`Attach` 等调用可通过 `App.Post` 或 `tango.Await` 投递到主线程。`uihost.Shortcut`、菜单、托盘、`OnMessage`、`OnClose` 等回调在主线程运行。`Invalidate`、`InvalidateAt`、`Close` 可以从任意 goroutine 调用。
   - macOS 上第一帧在调用 `Open` 的主线程回调返回之后才运行，所以在同一个回调里 `Open` 之后设置的变量（如保存 `*ui.Runner` 的全局变量）对页面可见；例外是回调先跑了嵌套事件循环（对话框、主线程上的 `AwaitAsync`），这期间第一帧可能已经开始。
-  - 开发构建的线程检查只对 macOS 上直接运行的 `uihost.Open` 窗口生效；`tan dev`、`Attach`、其他平台不检查。
+- **macOS 内部验证路径**保留每窗口独立 UI 线程。Darwin 的 `NewCanvasSurface` 只在 sink 实现 `platform.CanvasThreadedSink` 且 `WantsUIThread()` 为真时返回线程化的 canvas。普通 `Open` 的 sink 返回 `false`，内部测试可以显式使用 `darwin.ThreadedCanvas`。线程化的 canvas 由窗口线程上的显示链接驱动，主线程收到的 sink 回调由 uihost 转交给窗口线程。开发构建只检查实际绑定了独立 UI 线程的 `Runner`。见 [分阶段设计](../superpowers/specs/2026-11-20-ui-thread-staged-rollout-design.md)。
 
 ## A 步：macOS 实现（先做）
 

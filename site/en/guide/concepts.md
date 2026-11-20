@@ -44,15 +44,14 @@ path := tango.AwaitAsync(app, func(done func(string)) {          // start async 
 
 Called on the main thread itself, `Await` runs directly and `AwaitAsync` keeps pumping native events until `done` is called, so a dialog opened from a menu callback does not deadlock. After `Run` returns, `Post` drops work and `Await`/`AwaitAsync` return zero values.
 
-**Go-drawn windows have a UI thread.** The page function and the `ui.Runner`'s methods and callbacks run on the window's UI thread. On macOS each `uihost.Open` window has its own, started before `Open` returns and running in parallel with the main thread and other windows. Elsewhere (other platforms, `uihost.Attach`, `tan dev`) it is the main thread; for a headless `ui.Driver` it is the caller's thread. Write code that works for both:
+Go-drawn windows opened with `uihost.Open`, attached with `uihost.Attach`, or hosted by `tan dev` run the page function and `ui.Runner` callbacks on the app's main thread. A headless `ui.Driver` runs on the caller's thread. Dedicated macOS UI threads are currently used only for internal testing.
 
-- To change state the page reads or call `Runner` methods, use `r.Post(fn)`. It is safe from any goroutine, runs between frames in call order, then requests a frame, and is dropped after the window closes.
-- The main-thread callbacks above (menus, tray, `uihost.Shortcut`, `OnMessage`, `Surface.OnClose`) are not on the UI thread: call `r.Post` from them.
+- To change state the page reads or call `Runner` methods from a background goroutine, use `r.Post(fn)`. It runs work in order on the UI thread and requests a frame afterward. Pending work is dropped when the window closes.
+- Main-thread callbacks such as menus, tray, `uihost.Shortcut`, `OnMessage`, and `Surface.OnClose` can also update page state through `r.Post`.
 - `Runner` methods are UI-thread only, except `Post`, `Invalidate`, `InvalidateAt` and `Close`, which are safe from any goroutine.
 - Calls that need the main thread (`uihost.Open`, `uihost.Attach`, `uihost.FollowSystemTheme`) go through `app.Post` or `tango.Await`, e.g. `app.Post(func() { uihost.FollowSystemTheme(r, false); r.Post(func() { r.SetTheme(th) }) })`.
-- Dialogs may be called on the UI thread and block only that window. `Surface` methods called there wait for the main thread.
 
-Development builds (`-tags tango_dev`) check the calling thread only for macOS `uihost.Open` windows run directly (`go run -tags tango_dev`, `automation.Launch`); `tan dev`, `Attach` and other platforms are not checked, and neither are your own variables. Run `go test -race`.
+Development builds (`-tags tango_dev`) check the calling thread only for runners bound to a dedicated UI thread during internal testing.
 
 On mobile the native host owns the main thread and Go's `main` runs on an ordinary goroutine; the rules for your code stay the same. Android cannot nest its main loop, so call functions that wait for the user (dialogs, share, permission requests) from a goroutine there.
 

@@ -44,10 +44,9 @@ import (
 const allMonths = "全部月份"
 
 // Ledger is the app: the store plus UI state. The page and the fields it
-// reads belong to the window's UI thread (on macOS a thread of its own, see
-// uihost.Open); main-thread callbacks (shortcuts, tray menu, the export
-// goroutine) reach them through runner.Post. app, win, tray and quitting
-// are set or used on the main thread.
+// reads belong to the window's UI thread. Shortcuts, the tray menu and
+// the export goroutine schedule page updates through runner.Post. app,
+// win, tray and quitting are set or used on the main thread.
 type Ledger struct {
 	app *tango.App // nil in tests (no export dialog, no tray)
 	win *tango.Surface

@@ -16,7 +16,7 @@ type uiThreadSink struct {
 func (s uiThreadSink) WantsUIThread() bool { return s.want }
 
 // NewCanvasSurface returns a threaded canvas only for sinks that ask for a
-// UI thread (uihost.Open); the tan dev host's sink and plain sinks do not.
+// UI thread explicitly.
 func TestWantsUIThread(t *testing.T) {
 	if wantsUIThread(&shortcutTestSink{}) {
 		t.Fatal("a plain sink got a UI thread")

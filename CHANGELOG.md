@@ -4,14 +4,10 @@
 
 ## [未发布]
 
-### 不兼容变更
-
-- **macOS 上每个 `uihost.Open` 窗口有自己的 UI 线程**：页面函数、布局、绘制、渲染和上屏都在该窗口的线程上运行，不论渲染路径（Metal、原生图层、CPU、透明和 Material 窗口）。设计目标是主线程被 AppKit 占住（菜单跟踪、模态对话框、拖动改大小）时窗口照常出帧、多个窗口同时出帧；这些在真实窗口上的效果尚待实测验证。**以前在主线程上修改页面状态的代码要改**：`App.Post`、`uihost.Shortcut`、菜单、托盘、`App.OnMessage`、`Surface.OnClose`/`OnFilesDropped`、`App.OnEventKind` 等回调仍在主线程运行，与 UI 线程真正并行；要改页面读取的状态或调用 `Runner` 的方法（`HandleEvent`、`SetTheme` 等），改用新的 `(*ui.Runner).Post(fn)`（实验性；任何线程可调用，在 UI 线程两帧之间按调用顺序运行，之后自动请求一帧，窗口关闭后丢弃）。必须在主线程的调用（`uihost.Open`、`uihost.Attach`、`uihost.FollowSystemTheme`）继续用 `App.Post` 或 `tango.Await`；`sys/dialog` 可以直接在 UI 线程上调用，只阻塞这个窗口。`Runner.Invalidate`、`InvalidateAt`、`Close` 仍然任何线程安全。开发构建（`-tags tango_dev`）里，macOS 上直接运行（`go run -tags tango_dev`、`automation.Launch`）的 `uihost.Open` 窗口在 UI 线程之外调用 `Runner` 方法或修改 `ui.Context` 状态时 panic（消息含 `ui: called off the window's UI thread; use Runner.Post`）；`tan dev` 里的窗口、`Attach` 和其他平台不检查（它们的 UI 线程就是主线程）。应用自己的变量框架查不到，建议用 `go test -race` 跑一遍。`uihost.Attach`、`tan dev` 宿主里的窗口、其他平台和无头 `ui.Driver` 保持"UI 线程 = 主线程"，行为不变。迁移方法和示例见 [docs/release.md](docs/release.md#迁移说明)；仓库示例（ledger、editor-demo、dock-demo、ui-window、terminal、terminal-workspace、ui-hotreload、webview-embed、mobile-ui）已按新约定修改。
-- 自动化（`TANGO_AUTOMATION`）：新增错误码 `busy`，表示 5 秒内没有从窗口的 UI 线程拿到结果；`Wait`/`Find` 遇到它立即失败，`action`/`input` 收到它后不要重试（可能仍会执行）。这类窗口上请求里的 panic 报 `Panic.Where = "event handler"`。见 [docs/automation.md](docs/automation.md)。
-- `tan dev` 里的窗口实现了 `ui.UIPoster`：其他 goroutine 调用 `Runner.Post` 时投递到主线程运行，不再在调用者的 goroutine 上直接运行。
-
 ### 新增
 
+- 实验性 API `(*ui.Runner).Post(fn)` 将后台任务投递到窗口的 UI 线程，按顺序更新页面状态并请求一帧。常规 `uihost.Open`、`uihost.Attach` 和 `tan dev` 窗口的 UI 线程是应用主线程。macOS 独立 UI 线程仅用于内部验证，默认开启留待 Task 11 通过验收后单独审查。见 [迁移说明](docs/release.md#迁移说明)。
+- 自动化内部验证路径新增错误码 `busy`，表示 5 秒内未收到独立 UI 线程上的结果。动作可能已排队，收到该错误后先检查界面状态。见 [自动化文档](docs/automation.md)。
 - `tan mcp`：给 AI 代理用的 MCP 服务器，提供项目工具和运行中应用的界面工具（语义树、动作、输入、截图、WebView 选择器），应用在后台启动，见 [docs/mcp.md](docs/mcp.md)。
 - `ProTable`、`EditableProTable`、`CellEditorTable`、`RowEditorTable` 新增 opt-in 虚拟滚动：`ScrollY(px)` 固定表体高度、只构建视口内的行，`Virtual()` 表明意图（透传 `Table`），`ProTable` 另有 `RowHeight`；行高默认跟随密度。正在编辑的行即使滚出视口也保持构建（草稿、焦点和 Tab 顺序不丢），开始编辑、焦点移入、在其中输入和校验失败时自动滚到该行。不设 `ScrollY` 时行为不变；普通 `Table` 的 `ScrollY` 行为也不变。
 - `List`、`ProList`、`Conversations` 新增 opt-in 虚拟滚动：`Height(px)` 固定视口高度，再加 `Virtual()` 只构建视口内的项（默认形态不变）。`List` 另有 `ItemHeight`、`EstimatedItemHeight`、`RowKey`、`ScrollToKey`、`Range`，`ProList` 透传 `EstimatedItemHeight`，`Conversations` 有 `ScrollToKey`，键盘上下移动跨越窗口时自动滚动。
@@ -115,6 +111,7 @@
 
 ### 变更
 
+- `tan dev` 里的窗口实现了 `ui.UIPoster`：其他 goroutine 调用 `Runner.Post` 时投递到主线程运行，不再在调用者的 goroutine 上直接运行。
 - Windows 在支持 SharedBuffer 的 WebView2 上默认开启 `down:shm` 和 `up:shm`。设 `TANGO_IPC_LANES_WINDOWS=0` 可回到消息通道。
 - macOS Metal 局部重绘按脏区筛选绘制实例，减少多光标编辑等场景中重复提交的实例。
 - 自绘渲染器对整设备像素放置、每个像素恰好对应一个纹素的图片只读取一次纹素（如编辑器小地图条带），减少 Catmull–Rom 滤波开销。

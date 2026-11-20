@@ -185,12 +185,14 @@ apidiff 视为不兼容的情况比"编译不过"更宽：给函数追加可变�
 
 ## 迁移说明
 
-### 每窗口独立 UI 线程（macOS，未发布）
+### 每窗口独立 UI 线程（macOS，分阶段合入）
 
-macOS 上每个 `uihost.Open` 窗口有自己的 UI 线程：页面函数、`ui.Runner` 的方法和回调都在这条线程上运行，与主线程真正并行（设计见 `docs/superpowers/specs/2026-11-18-per-window-ui-thread-design.md`）。`App.Post` 的含义不变，是"在主线程上运行"；主线程回调（`App.Post`、`uihost.Shortcut`、菜单、托盘、`App.OnMessage`、`Surface.OnClose`、`OnFilesDropped`、`App.OnEventKind` 等）里修改页面状态的代码要改成 `Runner.Post`：
+第一阶段，普通 `uihost.Open` 窗口在应用主线程上运行，`uihost.Attach` 和 `tan dev` 的 UI 线程也是主线程。macOS 独立 UI 线程只用于内部验证。第二阶段将在 Task 11 通过原有验收门槛后，单独审查是否默认开启。见 [分阶段设计](superpowers/specs/2026-11-20-ui-thread-staged-rollout-design.md)。
+
+`App.Post` 将任务投递到应用主线程。`Runner.Post` 将页面更新投递到该窗口的 UI 线程，并请求一帧。下面两个后台回调写法都适用于当前的主线程模式，使用 `Runner.Post` 的写法也适用于独立线程。
 
 ```go
-// 之前：在主线程上改页面状态（现在与 UI 线程并行，数据竞争）
+// 通过 App.Post 在主线程上修改页面状态并请求重绘。
 go func() {
 	path, err := dialog.Save(app, opts)
 	app.Post(func() {
@@ -199,7 +201,7 @@ go func() {
 	})
 }()
 
-// 之后：投递到窗口的 UI 线程；Post 之后自动请求一帧
+// 通过 Runner.Post 在窗口的 UI 线程上更新状态，并自动请求一帧。
 go func() {
 	path, err := dialog.Save(app, opts)
 	runner.Post(func() { l.notice = result(path, err) })
@@ -209,7 +211,7 @@ go func() {
 uihost.Shortcut(s, "CmdOrCtrl+N", func() { runner.Post(l.newEntry) })
 ```
 
-规则：
+在内部验证的独立线程模式下，页面函数与 `Runner` 回调在窗口的 UI 线程上运行。快捷键、菜单、托盘和应用事件等回调仍由主线程执行，更新页面状态需经 `Runner.Post`。以下是这一模式的调用约定。
 
 - **改页面读取的状态、调用 `Runner` 的方法**（`HandleEvent`、`SetTheme`、`PerformAction` 等）：`Runner.Post`。任何线程可调用；按调用顺序在两帧之间运行；在 UI 线程上调用时排到当前帧之后，不会立刻执行；窗口关闭后丢弃。
 - **必须在主线程的调用**（`uihost.Open`、`uihost.Attach`、`uihost.FollowSystemTheme`、AppKit 接口）：`App.Post` 或 `tango.Await`。页面里要开新窗口时写 `app.Post(func() { uihost.Open(...) })`。
@@ -223,34 +225,32 @@ uihost.Shortcut(s, "CmdOrCtrl+N", func() { runner.Post(l.newEntry) })
   var dirty, closed atomic.Bool // dirty：UI 线程在页面函数末尾写（已处理的输入）；closed：主线程写
   s.OnClosed(func() { closed.Store(true) })
   app.OnQuitRequest(func() bool {
-  	if closed.Load() || !dirty.Load() {
-  		return true
-  	}
-  	r.Post(func() {
-  		if askSave() { // 弹对话框、保存；在 UI 线程上
-  			app.Quit()
-  		}
-  	})
-  	return false
+      if closed.Load() || !dirty.Load() {
+          return true
+      }
+      r.Post(func() {
+          if askSave() { // 弹对话框、保存；在 UI 线程上
+              app.Quit()
+          }
+      })
+      return false
   })
   s.OnClose(func() bool {
-  	if !dirty.Load() {
-  		return true
-  	}
-  	r.Post(func() {
-  		if askSave() {
-  			s.Close()
-  		}
-  	})
-  	return false
+      if !dirty.Load() {
+          return true
+      }
+      r.Post(func() {
+          if askSave() {
+              s.Close()
+          }
+      })
+      return false
   })
   ```
 - macOS 上第一帧在调用 `Open` 的主线程回调返回之后才运行，所以在同一个回调里 `Open` 之后赋值的变量（保存 `*ui.Runner`、`*tango.Surface` 的全局变量）页面可以直接读。例外：回调在赋值之前先跑了嵌套的事件循环（弹对话框，或在主线程上 `tango.AwaitAsync`），这期间第一帧可能已经开始；这时先赋值再弹框。
 - 多个窗口共享的应用状态由应用自己加锁或归属到某一个线程（`examples/dock-demo`：布局归主窗口的 UI 线程，`popouts` 归主线程，各窗口都写的 `notes` 加锁）。
 
-**框架查不到应用自己的变量。** 开发构建（`-tags tango_dev`）只对 macOS 上直接运行（`go run -tags tango_dev`、`automation.Launch`）的 `uihost.Open` 窗口检查调用线程；`tan dev` 里的窗口、`uihost.Attach` 和其他平台的 UI 线程就是主线程，不检查。检查也只在 `Runner` 方法和 `ui.Context` 的状态入口，违规时 panic（消息含 `ui: called off the window's UI thread; use Runner.Post`）；像 `l.notice` 这样应用自己的字段被主线程改写不会有任何提示。建议迁移后用 `go test -race ./...` 跑一遍自己的测试（需要 `CGO_ENABLED=1`），并在开发构建里把用到主线程回调的功能都点一遍。
-
-不受影响：`uihost.Attach`（叠在 WebView 上的自绘层）、`tan dev` 宿主里的窗口、Windows、Linux、iOS、Android、无头 `ui.Driver`，这些仍是"UI 线程 = 主线程"，`Runner.Post` 在它们上面投递到主线程（无头 `Driver` 直接在调用者上运行）。
+开发构建（`-tags tango_dev`）只检查实际绑定了独立 UI 线程的 `Runner` 及对应 `ui.Context` 的状态入口，违规调用会 panic（消息含 `ui: called off the window's UI thread; use Runner.Post`）。应用自有字段的竞态可用 `CGO_ENABLED=1 go test -race ./...` 检查。无头 `ui.Driver` 的 `Runner.Post` 直接在调用者上运行。
 
 ## 发布前提（一次性）
 

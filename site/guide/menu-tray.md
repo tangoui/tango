@@ -1,6 +1,6 @@
 # 菜单与托盘
 
-菜单用 Go 描述（`sys/menu`），同一个 `*menu.Menu` 可以放到应用菜单栏、窗口菜单、托盘图标和右键菜单里；点击回调在主线程上运行；要改自绘窗口的页面状态，在回调里用 `Runner.Post`（macOS 上自绘窗口有自己的 UI 线程，见 [线程模型](/guide/concepts/threading#自绘窗口的-ui-线程)）。托盘图标是 `sys/tray`。
+菜单用 Go 描述（`sys/menu`），同一个 `*menu.Menu` 可以放到应用菜单栏、窗口菜单、托盘图标和右键菜单里。点击回调在主线程上运行，可以用 `Runner.Post` 更新自绘窗口的页面状态。托盘图标由 `sys/tray` 提供。见 [线程模型](/guide/concepts/threading#自绘窗口的-ui-线程)。
 
 ::: tip 平台状态
 macOS 已实机验证；Windows、Linux 的菜单与托盘已实现但尚未实机验证。移动端没有菜单和托盘（返回 `ErrUnsupported`）。

@@ -48,14 +48,11 @@ type RunnerOptions struct {
 // Development builds (-tags tango_dev) panic when a bound runner is used off
 // its thread.
 //
-// Package uihost binds each window opened with uihost.Open on macOS to a
-// UI thread of its own; elsewhere (other platforms, uihost.Attach, tan dev)
-// the UI thread is the main thread, and for a headless Driver it is the
-// caller's thread. Code on another thread, such
-// as an App.Post function, a shortcut, menu or tray callback, changes the
-// state the page reads and calls Runner methods through Post. The checks
-// cover the Runner and Context; the app's own variables are its own
-// responsibility (go test -race finds such races).
+// With uihost.Open, uihost.Attach and tan dev, the UI thread is the app's
+// main thread. Dedicated macOS UI threads are currently used only for
+// internal testing. A headless Driver runs on the caller's thread. Use Post
+// to update page state or call Runner methods from a background goroutine.
+// The thread checks cover Runner and Context state on bound runners.
 type Runner struct {
 	_ [0]func()
 

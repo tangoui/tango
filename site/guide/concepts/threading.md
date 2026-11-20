@@ -33,18 +33,11 @@ path := tango.AwaitAsync(app, func(done func(string)) {
 
 ## 自绘窗口的 UI 线程
 
-自绘界面（`ui` 包）的页面函数、`ui.Runner` 的方法和回调运行在窗口的 **UI 线程**上：
+`uihost.Open`、`uihost.Attach` 和 `tan dev` 的自绘窗口在应用主线程上运行页面函数和 `ui.Runner` 回调。无头 `ui.Driver` 在调用者的线程上运行。macOS 的独立 UI 线程目前只用于内部验证。
 
-- **macOS 上的 `uihost.Open` 窗口**：每个窗口一条自己的 UI 线程，从 `Open` 返回前启动、窗口关闭后退出，与主线程和其他窗口真正并行。按设计，主线程被 AppKit 占住（菜单跟踪、模态对话框）时窗口照常出帧。
-- **其他平台、`uihost.Attach`、`tan dev` 里的窗口、无头 `ui.Driver`**：UI 线程就是主线程（`Driver` 是调用者的线程）。
-
-规则（所有平台都这样写，代码就不用分平台）：
-
-1. 改页面读取的状态、调用 `Runner` 的方法：`r.Post(fn)`。任何 goroutine 可调用，在两帧之间按调用顺序运行，之后自动请求一帧；在 UI 线程上调用时排到当前帧之后；窗口关闭后丢弃。
-2. 上面"都在主线程"的回调（菜单、托盘、`uihost.Shortcut`、`OnMessage`、`Surface.OnClose`）**不在** UI 线程上；要改页面状态就在回调里 `r.Post`。
-3. 必须在主线程的调用（`uihost.Open`、`uihost.Attach`、`uihost.FollowSystemTheme`）从页面里用 `app.Post` 或 `tango.Await` 送过去。反过来，`Runner` 的方法只能在 UI 线程上调用，`Post`、`Invalidate`、`InvalidateAt`、`Close` 除外（任何 goroutine 都安全）。
-4. `dialog` 等阻塞接口可以直接在 UI 线程上调用：只阻塞这个窗口。`Surface` 的方法在 UI 线程上调用时同步等主线程执行，主线程忙时这个窗口也跟着等。
-5. 需要同步回答的主线程回调（`OnClose`、`OnQuitRequest`）不能等 UI 线程，见 [迁移说明](https://github.com/tangoui/tango/blob/main/docs/release.md#迁移说明) 的退出写法。
+1. 从后台 goroutine 修改页面读取的状态或调用 `Runner` 的方法时，用 `r.Post(fn)`。它在 UI 线程上按顺序执行任务，随后请求一帧。窗口关闭后任务会被丢弃。
+2. 菜单、托盘、`uihost.Shortcut`、`OnMessage`、`Surface.OnClose` 等主线程回调也可以用 `r.Post` 更新页面状态。
+3. `uihost.Open`、`uihost.Attach`、`uihost.FollowSystemTheme` 必须在主线程调用，可以用 `app.Post` 或 `tango.Await` 投递。`Runner` 的方法应在 UI 线程上调用，其中 `Post`、`Invalidate`、`InvalidateAt`、`Close` 可以从任意 goroutine 调用。
 
 ```go
 uihost.Shortcut(s, "CmdOrCtrl+N", func() { r.Post(newEntry) }) // 主线程回调 → UI 线程
@@ -54,7 +47,7 @@ app.Post(func() {
 })
 ```
 
-开发构建（`-tags tango_dev`）只对 macOS 上直接运行（`go run -tags tango_dev`、`automation.Launch`）的 `uihost.Open` 窗口检查调用线程，违规时 panic；`tan dev`、`Attach` 和其他平台不检查，应用自己的变量也查不到。建议用 `go test -race` 跑一遍。
+开发构建（`-tags tango_dev`）的线程检查只作用于内部验证中实际绑定了独立 UI 线程的 `Runner`。分阶段安排见 [迁移说明](https://github.com/tangoui/tango/blob/main/docs/release.md#迁移说明)。
 
 ## 移动端的差异
 

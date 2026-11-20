@@ -52,8 +52,8 @@ TANGO_E2E=1 TANGO_E2E_VERBOSE=1 go test -tags tango_dev ./examples/hello -run E2
 其他：
 
 - 读取后两个环境变量会从进程环境里删除，被测应用启动的子进程（包括其他 Tango 应用）不会继承。
-- 自动化处理中的 panic 走统一的 panic 处理（见 [panics.md](panics.md)），开发构建默认记日志后继续运行，连接不断。在主线程上执行的请求 `Panic.Where = "automation"`；在窗口独立 UI 线程上执行的请求（macOS 的 `uihost.Open` 窗口，见下一条）与该线程上的其他任务一样报 `Panic.Where = "event handler"`，对应请求返回 `internal` 错误；这类窗口启动失败或被交回主线程绘制后，请求在主线程上执行，panic 报 `Panic.Where = "main-thread callback"`。被测应用自己设置的 `Options.OnPanic` 返回 false 时照常退出。
-- 线程：窗口列表、WebView 的 `Eval`/截图、`quit` 以及 UI 线程 = 主线程的自绘窗口（其他平台、`uihost.Attach`）都在主线程执行（`App.Post`/`Await`）。macOS 上 `uihost.Open` 的窗口有自己的 UI 线程（见 [canvas-surface.md](specs/canvas-surface.md#uihost-包)）：语义树、动作、输入和截图由主线程转交到该窗口的 UI 线程执行，控制通道的 goroutine 等结果，主线程不等待。
+- 自动化处理中的 panic 走统一的 panic 处理，开发构建默认记日志后继续运行，连接不断。默认在主线程执行的请求报 `Panic.Where = "automation"`。内部验证路径上，独立 UI 线程执行的任务报 `Panic.Where = "event handler"`，请求返回 `internal`。已转入异步处理的请求在窗口回退到主线程后报 `Panic.Where = "main-thread callback"`。被测应用的 `Options.OnPanic` 返回 false 时退出。见 [panics.md](panics.md)。
+- 窗口列表、WebView 的 `Eval` 和截图、`quit` 以及普通自绘窗口的请求都在主线程执行（`App.Post` 或 `Await`）。macOS 独立 UI 线程只用于内部验证。该路径把语义树、动作、输入和截图任务交给窗口的 UI 线程，由控制通道的 goroutine 等结果。见 [canvas-surface.md](specs/canvas-surface.md#uihost-包)。
 
 ## 架构与协议
 
@@ -67,7 +67,7 @@ automation（客户端）  ── TCP/unix ──  internal/automation.Server（
 
 - 帧格式：4 字节大端长度 + JSON，鉴权后单帧上限 64 MiB（鉴权前 4 KiB）。客户端发 `Request{id, op, ...}`，服务端按顺序逐条回 `Response{id, error, code, ...}`。一个连接上请求串行处理；可以同时有多个连接（最多 4 个）。
 - 操作：`hello`、`ping`、`windows`、`tree`、`find`、`count`、`wait`、`action`、`input`、`eval`、`screenshot`、`quit`。错误码：`auth`、`bad_request`、`no_window`、`timeout`、`hot_reload`、`unsupported`、`action`、`script`、`quit`、`internal`、`busy`。定义见 `internal/automation/proto.go`。
-- `busy`：5 秒内没有从窗口的 UI 线程拿到这条请求的结果（线程正在跑很长的一帧，或阻塞在对话框等主线程调用上）。它不是"没找到"：`Locator.Exists` 只把 `timeout` 当作否，`busy` 直接让测试失败。`wait`/`find`（`Locator.Wait`、`Node` 等）在 UI 线程忙时以 `busy` 失败，不会等满请求自己的超时；反过来，请求超时短于 5 秒时，一次卡住的取树可能让 `wait`/`find` 超过这个超时才返回（最多约 5 秒）。**`action`、`input`（`Click`、`SetValue`、坐标输入等）收到 `busy` 后不要重试**：请求已经排进 UI 线程的队列，线程空出来后仍可能执行，重试会执行两次；应先等界面状态（`Wait*`）再决定。
+- `busy` 用于独立 UI 线程的内部验证路径，表示 5 秒内未收到窗口线程的结果（例如长帧或等待对话框）。`Locator.Exists` 遇到 `busy` 会报错。卡住的一次取树可使 `wait` 或 `find` 超过较短的请求超时。**动作或输入收到 `busy` 后，先用 `Wait*` 确认界面状态**，已排队的动作可能仍会执行，直接重试可能执行两次。
 - 根包在 `New` 时（`automationAttach`）读取变量，`OnReady` 时开始监听，应用退出时关闭；`uihost.Open` 为每个窗口注册自绘适配器，窗口关闭时注销。
 
 ### 自绘窗口：语义树

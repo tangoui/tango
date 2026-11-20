@@ -179,10 +179,10 @@ var _ platform.CanvasThreaded = (*threadedCanvas)(nil)
 var _ platform.CanvasThreadedRelease = (*threadedCanvas)(nil)
 
 // ThreadedCanvas adapts a canvas from NewCanvasSurface to
-// platform.CanvasThreaded. NewCanvasSurface applies it by default when the
-// sink asks for a UI thread (platform.CanvasThreadedSink: uihost.Open
-// windows); attached canvases and other sinks (the tan dev host) stay on the
-// main thread. Tests also call it directly; any other canvas is returned
+// platform.CanvasThreaded. NewCanvasSurface applies it when the sink
+// explicitly requests a UI thread via platform.CanvasThreadedSink. The
+// default uihost.Open path uses a main-thread canvas. Internal tests can
+// call the adapter directly; any other canvas is returned
 // unchanged. Main thread, right after NewCanvasSurface.
 func ThreadedCanvas(cv platform.Canvas) platform.Canvas {
 	if c, ok := cv.(*canvas); ok {

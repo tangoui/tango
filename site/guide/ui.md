@@ -47,7 +47,7 @@ func main() {
 }
 ```
 
-页面函数每帧调用一次：组件函数创建节点、读取上一帧的交互（`Clicked()`、`Changed()`），直接改你的 Go 变量。没有事件、动画或输入时不出帧。页面函数和 Runner 的回调都在窗口的 UI 线程上运行：macOS 上每个 `uihost.Open` 窗口有自己的 UI 线程，与主线程并行；其他平台、`uihost.Attach` 和 `tan dev` 里 UI 线程就是应用主线程。见下文[后台数据与线程](#后台数据与线程)。
+每一帧调用一次页面函数，创建组件节点、读取上一帧的交互（`Clicked()`、`Changed()`）并更新 Go 变量。没有事件、动画或输入时不出帧。页面函数和 `Runner` 回调默认在应用主线程上运行。见下文[后台数据与线程](#后台数据与线程)。
 
 更完整的例子：`examples/ui-window`（表单、表格、对话框、主题切换、中文输入法）、`examples/ui-gallery`（全部组件）。
 
@@ -182,10 +182,10 @@ att.Detach()
 
 **线程规则**
 
-- 界面状态只在 UI 线程上读写。页面函数运行在窗口的 UI 线程上：macOS 上每个 `uihost.Open` 窗口有自己的 UI 线程，与主线程、其他窗口真正并行；其他平台、`uihost.Attach` 和 `tan dev` 里 UI 线程是应用主线程。
+- 界面状态只在 UI 线程上读写。`uihost.Open`、`uihost.Attach` 和 `tan dev` 的 UI 线程是应用主线程。macOS 的独立 UI 线程目前只用于内部验证。
 - 耗时或会阻塞的操作（文件、网络、子进程、`ipc` 的流）放到 goroutine 里做，不要在页面函数里做，否则整个窗口卡住。
-- 结果用 `Runner.Post` 交回 UI 线程，在那里写进状态：`runner.Post(func() { rows = res })`。`Post` 任何 goroutine 都能调用，在两帧之间按调用顺序运行，之后自动请求一帧。`App.Post` 是"在主线程上运行"，只用来调用必须在主线程的接口（`uihost.Open`、`uihost.FollowSystemTheme`），不要在里面改页面状态。`Invalidate` 在任何 goroutine 上调用都安全。
-- 主线程回调（快捷键 `uihost.Shortcut`、菜单、托盘、`App.OnMessage`、`Surface.OnClose`）同样经 `Runner.Post` 改页面状态。开发构建（`-tags tango_dev`）里，macOS 上直接运行的 `uihost.Open` 窗口在 UI 线程之外调用 `Runner` 方法或改 `ui.Context` 状态会 panic；应用自己的变量查不到，用 `go test -race` 检查。迁移说明见 [docs/release.md](https://github.com/tangoui/tango/blob/main/docs/release.md#迁移说明)。
+- 在后台取得结果后，用 `runner.Post(func() { rows = res })` 交回 UI 线程更新状态。`Post` 可以从任意 goroutine 调用，在 UI 线程按顺序执行任务，之后请求一帧。`App.Post` 将任务投递到主线程，适用于 `uihost.Open`、`uihost.FollowSystemTheme` 等需要主线程的调用。`Invalidate` 可以从任意 goroutine 调用。
+- 快捷键、菜单、托盘、`App.OnMessage` 和 `Surface.OnClose` 等主线程回调也可以用 `Runner.Post` 更新页面状态。开发构建（`-tags tango_dev`）的线程检查只作用于实际绑定了独立 UI 线程的 `Runner`。分阶段安排见 [迁移说明](https://github.com/tangoui/tango/blob/main/docs/release.md#迁移说明)。
 
 **流式数据**用 Go 原生的手段：channel、`io.Reader`/`io.Writer`、回调。阻塞读写本身就是背压：goroutine 读得慢，生产者就会被挡住。比如一个终端面板：goroutine 读 shell 的输出，交回 UI 线程追加到缓冲区并 `Invalidate`；按键在事件处理里写给 shell。写本地管道一般很快，但它也可能阻塞，写入可能等待的目标（比如下面的 `ipc` 流，要等信用）应当经 channel 交给一个专门写的 goroutine。
 

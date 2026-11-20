@@ -3,26 +3,21 @@
 // ui.Runner from the backend's canvas callbacks. See
 // docs/specs/canvas-surface.md.
 //
-// Threads: on macOS each Open window has its own UI thread, started before
-// Open returns and ended after the window closes. The page function, the
-// returned Runner's methods and its callbacks run there, in parallel with
-// the main thread and with other windows (threaded.go). Everywhere else
-// (other platforms, Attach, windows shown by the tan dev host) the UI
-// thread is the app's main thread.
+// The UI thread for Open, Attach and windows shown by the tan dev host is
+// the app's main thread. Page functions, Runner methods and callbacks run
+// there. Dedicated macOS UI threads are currently used only for internal
+// testing.
 //
-// Main-thread callbacks (App.Post, Shortcut, menus, tray, App.OnMessage,
-// Surface.OnClose) must not change page state directly: use Runner.Post,
-// which runs fn on the window's UI thread between frames and then asks
-// for a frame, from any goroutine, on every platform. Calls that need the
-// main thread (Open, Attach, FollowSystemTheme) use App.Post or
+// Use Runner.Post to update page state from background goroutines. It runs
+// fn on the window's UI thread and then asks for a frame. Main-thread
+// callbacks can also use Runner.Post to queue page updates. Calls that need
+// the main thread (Open, Attach, FollowSystemTheme) use App.Post or
 // tango.Await. Runner.Invalidate, InvalidateAt and Close are safe from any
-// goroutine. Development builds (-tags tango_dev) panic when a macOS Open
-// window's Runner or ui.Context state is used off its UI thread (windows
-// run directly; tan dev windows, Attach and other platforms are not
-// checked); the app's own variables cannot be checked at all, so run the
-// app's tests with go test -race. On macOS a window's first frame runs
-// after the main-thread callback that called Open returns, so variables
-// set right after Open in that callback are visible to the page, unless
+// goroutine. Development builds (-tags tango_dev) enforce thread affinity
+// only for runners bound to a dedicated UI thread in internal tests. On
+// macOS a window's first frame runs after the main-thread callback that
+// called Open returns. Variables set right after Open in that callback
+// are visible to the page, unless
 // the callback first runs a nested event loop (a dialog, or AwaitAsync on
 // main), during which frames may already start.
 //
@@ -315,11 +310,9 @@ func (h *host) CanvasFocus(focused bool) {
 	})
 }
 
-// WantsUIThread implements platform.CanvasThreadedSink: an Open window
-// takes a threaded canvas when the backend offers one (macOS). Attach uses
-// the same sink, but AttachCanvas never returns a threaded canvas; the tan
-// dev host's windows use their own sink, which does not implement it.
-func (h *host) WantsUIThread() bool { return true }
+// WantsUIThread implements platform.CanvasThreadedSink. Open uses the
+// main-thread canvas while the dedicated UI thread is under validation.
+func (h *host) WantsUIThread() bool { return false }
 
 // onUI runs fn, a sink callback's work, on the window's UI thread: now on
 // the main thread, or queued in order on a threaded window's thread.

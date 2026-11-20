@@ -113,7 +113,7 @@ AccessibilityUpdate(tree, changed):
 
 | 步骤 | 线程 |
 |---|---|
-| 建树、Diff、`AccessibilityUpdate` → `CanvasAccessible` 各方法 | 窗口的 UI 线程（`CanvasFrame` 内；macOS `uihost.Open` 窗口是它自己的 UI 线程，原生 AX 发布在主线程，见 per-window-ui-thread 设计） |
+| 建树、Diff、`AccessibilityUpdate` → `CanvasAccessible` 各方法 | 默认在主线程的 `CanvasFrame` 内。在 macOS 独立 UI 线程的内部验证路径上，窗口线程建树并计算 Diff，主线程发布原生 AX 更新。 |
 | 原生查询（AX 属性、UIA provider 方法、AT-SPI D-Bus 方法） | 主线程：macOS AppKit 本就在主线程；Windows provider 返回 `ProviderOptions_UseComThreading`，UIA 把调用编组进主线程 STA；Linux 在主线程 GMainContext 上注册 D-Bus 对象 |
 | `AccessibilityAction` → `Runner.PerformAction` | 主线程（= UI 线程，直接调用）；动作在下一帧开头执行 |
 

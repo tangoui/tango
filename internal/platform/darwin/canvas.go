@@ -293,7 +293,7 @@ func (b *backend) NewCanvasSurface(sid platform.SurfaceID, opts platform.Surface
 		c.qFocus = true
 		c.qFrame = c.qFrame || c.missed
 	})
-	if wantsUIThread(sink) { // uihost.Open windows (canvas_threaded.go)
+	if wantsUIThread(sink) {
 		return s, ThreadedCanvas(c), nil
 	}
 	return s, c, nil

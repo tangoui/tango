@@ -211,7 +211,7 @@ func dockTear(c *ui.Context) {
 }
 ```
 
-回调在构建界面的过程中被调用，不要在里面直接打开窗口，而是用 `app.Post` 送到主线程去开（`uihost.Open` 必须在主线程调用；macOS 上页面运行在窗口自己的 UI 线程，不是主线程）；完整的“撕出 + 停靠回主窗口”流程见 `examples/dock-demo`。
+回调在构建界面的过程中被调用。用 `app.Post` 将 `uihost.Open` 排到当前回调结束后，在主线程创建窗口。完整的“撕出 + 停靠回主窗口”流程见 `examples/dock-demo`。
 
 ## 主题与样式
 
