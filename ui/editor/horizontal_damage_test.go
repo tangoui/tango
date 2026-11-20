@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 
 	"github.com/tangoui/tango/ui/editor/theme"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/text"
+	"golang.org/x/image/font/gofont/gomonoitalic"
 )
 
 func TestDenseCursorHorizontalDamage(t *testing.T) {
@@ -60,7 +64,23 @@ func requireNarrowRows(h *hintHost, label string) {
 }
 
 func TestHorizontalDamageIncludesGlyphOverhang(t *testing.T) {
+	// Font registration is process-wide; isolate it from the other editor tests.
+	const child = "TANGO_EDITOR_OVERHANG_TEST_CHILD"
+	if os.Getenv(child) != "1" {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestHorizontalDamageIncludesGlyphOverhang$")
+		cmd.Env = append(os.Environ(), child+"=1")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("fixed-font subprocess: %v\n%s", err, out)
+		}
+		return
+	}
 	goText(t)
+	text.UseSystemFonts(false)
+	// Go Mono Italic's f extends past its advance; system monospace faces
+	// need not have that property, even when their slanted variant is used.
+	if err := text.RegisterFont("Go Mono Italic Overhang Fixture", gomonoitalic.TTF); err != nil {
+		t.Fatal(err)
+	}
 	th, err := theme.Parse([]byte(`{
 		"base": "vs-dark", "inherit": true,
 		"rules": [{"token": "comment", "fontStyle": "italic"}]
