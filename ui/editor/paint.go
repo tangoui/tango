@@ -89,6 +89,8 @@ type lineView struct {
 	// follows (the first shown line for the zones before it), row is past
 	// its text rows (negative before the first line).
 	zone *zoneRow
+
+	damageInk rowInk
 }
 
 // last reports whether lv is its model line's last row.
@@ -271,6 +273,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	if focused && !w.opts.ReadOnly && vs.comp != "" && caretLV != nil {
 		cmp = w.compose(snap, caretLV, a, b, head, vs.comp, vs.compCur, th)
 	}
+	boundRows := !vl.mapped() && vs.comp == "" && w.lnFn == nil
 
 	// 1. Background.
 	l.Fill(r, geom.Radii{}, bg)
@@ -356,10 +359,18 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 				right = b - ls
 			}
 			lv.selRects(max(a, ls)-ls, min(b, le)-ls, right, func(x0, x1 float32) {
-				l.Fill(rectXYWH(tx+x0, y, x1-x0, lh), geom.Radii{}, selBg)
+				rect := rectXYWH(tx+x0, y, x1-x0, lh)
+				l.Fill(rect, geom.Radii{}, selBg)
+				if boundRows {
+					lv.damageInk.sel.add(rect.X, rect.Right())
+				}
 			})
 			if lv.breakSelected(b, le, n) {
-				l.Fill(rectXYWH(tx+lv.endX, y, colW/2, lh), geom.Radii{}, selBg)
+				rect := rectXYWH(tx+lv.endX, y, colW/2, lh)
+				l.Fill(rect, geom.Radii{}, selBg)
+				if boundRows {
+					lv.damageInk.sel.add(rect.X, rect.Right())
+				}
 			}
 		}
 	}
@@ -391,19 +402,23 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	if w.opts.RenderControlCharacters {
 		for k := range lines {
 			if lines[k].zone == nil {
+				start := len(l.Ops)
 				w.paintControlBackgrounds(l, &lines[k], tx, lineY(lines[k].vi), lh)
+				lines[k].damageInk.fallback = len(l.Ops) != start
 			}
 		}
 	}
 
 	// 4. Text, the whitespace marks and the placeholder after folded lines.
 	wsColor := defaultColor(th, "editorWhitespace.foreground")
+	textStart := len(l.Ops)
 	for k := range lines {
 		lv := &lines[k]
 		if lv.zone != nil {
 			continue
 		}
 		y := lineY(lv.vi)
+		lv.damageInk.start = len(l.Ops) - textStart
 		vs.udIn = inlineSpans(snap, lv, ud, k, vs.udIn[:0])
 		for _, sg := range lv.segs {
 			drawSegInline(l, sg, tx, y, vs.udIn)
@@ -412,6 +427,11 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		if fold[k]&foldPlaceholder != 0 {
 			w.paintPlaceholder(l, lv, tx, y, th)
 		}
+		lv.damageInk.end = len(l.Ops) - textStart
+	}
+	var rowOps []paint.Op
+	if boundRows {
+		rowOps = l.Ops[textStart:]
 	}
 	// Links' underlines and the color swatches.
 	w.paintDecoOver(l, snap, lines, decos, tx, colW, lh, lineY)
@@ -484,6 +504,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 			lnFn: w.lnFn != nil, lnGen: w.lnGen},
 		snap: snap, lines: lines, vis: vis, cur: cur, curG: curG, cmp: cmp, caretLine: caretLine, offsetY: display.OffsetY, scrollX: display.ScrollX, marks: marks,
 		aLine: aLine, aRow: aRow, fold: fold, guides: guides, bguides: vs.bgRows, match: matchRows, decos: decoSigs, udecos: ud,
+		boundRows: boundRows, rowOps: rowOps,
 	})
 	st.checkScroll() // what paint itself scrolled (scroll.go)
 }
