@@ -252,10 +252,23 @@ func (s *devSession) goBuild(ctx context.Context, path string, probe bool, stder
 	cmd.Dir = s.cfg.dir
 	cmd.Env = append(os.Environ(), s.cfg.cgoEnv())
 	cmd.Stdout, cmd.Stderr = os.Stdout, stderr
-	if s.startup != nil {
-		return runStartupCommand(ctx, cmd)
+	var filtered *devLinkWarningWriter
+	if runtime.GOOS == "darwin" && os.Getenv("TANGO_DEV_RAW_BUILD_LOGS") != "1" {
+		filtered = &devLinkWarningWriter{dst: stderr}
+		cmd.Stderr = filtered
 	}
-	return cmd.Run()
+	var err error
+	if s.startup != nil {
+		err = runStartupCommand(ctx, cmd)
+	} else {
+		err = cmd.Run()
+	}
+	if filtered != nil {
+		if flushErr := filtered.flush(); err == nil {
+			err = flushErr
+		}
+	}
+	return err
 }
 
 // app is the macOS bundle around out.
