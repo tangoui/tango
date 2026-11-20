@@ -11,7 +11,7 @@ go run ./examples/duplex -bench
 ```
 
 macOS 上 `up:post` 默认开启，这样跑测的就是 up:post 配置；测兜底传输（全部走消息通道）要加
-`TANGO_IPC_LANES_DARWIN=0`（iOS 相反：默认兜底，`TANGO_IPC_LANES_DARWIN=1` 才是 up:post）。
+`TANGO_IPC_LANES_DARWIN=0`（iOS 也默认开启，可用同一开关关闭）。
 macOS 的下行通道 `down:poll` 默认关闭，`TANGO_IPC_LANES_DARWIN=1`（或 `all`）同时开 `down:poll` 和
 `up:post`（见下文「down:poll」一节）。Android 在 WebView 支持 ArrayBuffer 消息时默认使用
 `down:android` 和 `up:android`，比较兜底传输时用 `TANGO_IPC_LANES_ANDROID=0`（传参方式见 [移动端](mobile.md#ipc-快速通道-1)）。
@@ -199,8 +199,12 @@ up:post 组再加 `SIMCTL_CHILD_TANGO_IPC_LANES_DARWIN=1`），交替各 5 次�
 模拟器上吞吐过了 2×，分批 p99 按字面没过（0.38 对 0.28）。但和 macOS 一样：64 B 帧小于 `up:post` 的门槛
 （16 KiB），两种配置下延迟测的都是消息通道；延迟在上传之前测，那时通道空闲（macOS 的 0.53 同理不算改进）；两组 p99 的范围
 （0.20～0.40 对 0.22～0.50）大面积重叠，1000 次往返的平均反而 up:post 略快（0.205 对 0.213）。
-这更像模拟器上的噪声，而不是 up:post 拖慢了小帧；但模拟器不能代替真机，iOS 的判定要等真机数据。
+这更像模拟器上的噪声，而不是 up:post 拖慢了小帧；但模拟器不能代替真机，默认值以以下真机数据为准。
 注意 iOS 上 `upMain` 没有计（主线程读请求体在 `bridge.m` 里）。
+
+### iOS 真机
+
+iPhone 12 Pro（iOS 18.7），`examples/duplex-mobile`，5 轮交替对比兜底与 `up:post`：64 KiB 帧上传中位数 **171.63 → 528.42 MB/s（3.08×）**，64 B 往返分批 p99 **0.54 → 0.52 ms**（两组的小帧均走消息通道）。补上 iOS 导航开始事件后，模拟器及同一台 iPhone 的完整自测均通过，包括重载恢复、8 MiB 双向回显、混合帧和页面卡顿。真机注入 `up:post:3` 后自动回退，受影响的流报 `transport`，并行流完整。iOS 因此默认开启 `up:post`；下行仍走消息通道。
 
 ## 第二期 Android（down:android / up:android）
 

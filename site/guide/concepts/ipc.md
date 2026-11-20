@@ -212,7 +212,7 @@ IPC 的兜底传输使用原始消息通道，每帧是一条 JSON 字符串，�
 | 平台 | 默认开启 | 可选开启 |
 | --- | --- | --- |
 | macOS | `up:post` | `down:poll` |
-| iOS | 关闭 | `up:post`（等真机） |
+| iOS | `up:post` | — |
 | Android | `down:android`、`up:android` | — |
 | Windows | `down:shm`、`up:shm` | — |
 | Linux | 关闭 | `down:poll`、`up:post` |
@@ -231,23 +231,23 @@ IPC 的兜底传输使用原始消息通道，每帧是一条 JSON 字符串，�
 ### macOS / iOS
 
 - **macOS 提供 `up:post` 和 `down:poll`，iOS 只提供 `up:post`**（上行字节帧经 `/__tango/lane/up` 的 POST 交给 Go）。早先的流式下行通道 `down:scheme` 已删除：WKWebView 会扣住 `tango://` 流式响应里大块突发的一部分，直到同一响应上有新数据才交出。`down:poll` 的每个响应都会结束，没有这个问题。
-- **macOS 默认只开 `up:post`**：`down:poll` 让下行比改造前快 3～11 倍（64 KiB 帧 306 → 1017 MB/s，1 KiB 小帧 4.5 万 → 50 万帧/s，2.3 KB JSON 3.4 万 → 11 万帧/s），小消息往返慢不到 10%，但 64 KiB 帧和小帧的吞吐还没赶上 Wails v3.1.0（流控窗口所限），所以默认关闭，用 `TANGO_IPC_LANES_DARWIN=1` 打开，数据见 [docs/ipc-bench.md](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)。**iOS 默认关闭**（只在模拟器上测过，等真机数据）。环境变量 `TANGO_IPC_LANES_DARWIN` 控制两个平台（每个窗口/页面创建时读一次；去掉首尾空白、不分大小写；所有取值在任何构建都生效）：
+- **macOS 默认只开 `up:post`**：`down:poll` 让下行比改造前快 3～11 倍（64 KiB 帧 306 → 1017 MB/s，1 KiB 小帧 4.5 万 → 50 万帧/s，2.3 KB JSON 3.4 万 → 11 万帧/s），小消息往返慢不到 10%，但 64 KiB 帧和小帧的吞吐还没赶上 Wails v3.1.0（流控窗口所限），所以默认关闭，用 `TANGO_IPC_LANES_DARWIN=1` 打开，数据见 [docs/ipc-bench.md](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)。**iOS 默认开启 `up:post`**（iPhone 12 Pro 实测上传 3.08 倍）。环境变量 `TANGO_IPC_LANES_DARWIN` 控制两个平台（每个窗口/页面创建时读一次；去掉首尾空白、不分大小写；所有取值在任何构建都生效）：
 
   | 取值 | macOS | iOS |
   |---|---|---|
-  | 未设置、空、其他值 | `up:post`（默认） | 关闭（默认；其他值见下） |
+  | 未设置、空、其他值 | `up:post`（默认） | `up:post`（默认） |
   | `1`、`all` | `down:poll` + `up:post` | `up:post` |
   | `up` | `up:post` | `up:post` |
   | `down` | `down:poll`（排查问题用） | `up:post` |
   | `0`、`false`、`off` | 关闭 | 关闭 |
 
-  iOS 上除了未设置、空和关闭值，其他取值都是 `up:post`。`TANGO_IPC_LANES=0` 或 `DisableFastLanes` 始终优先关闭。iOS 真机上没法从外部传环境变量，要试用就在 Go 里、创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "up")`（不用 `1`：同一份代码在 macOS 上 `1` 还会打开实验性的 `down:poll`）。macOS 默认时 `tango.lanes()` 返回 `{down: "fallback", up: "up:post"}`，`TANGO_IPC_LANES_DARWIN=1` 时返回 `{down: "down:poll", up: "up:post"}`。macOS 上传 64 MiB 的吞吐约为消息通道的 2.73 倍，见 [docs/ipc-bench.md](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)。
+  iOS 上除了明确的关闭值，其他取值都是 `up:post`。`TANGO_IPC_LANES=0` 或 `DisableFastLanes` 始终优先关闭。iOS 真机上没法从外部传环境变量，要试用就在 Go 里、创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "up")`（不用 `1`：同一份代码在 macOS 上 `1` 还会打开实验性的 `down:poll`）。macOS 默认时 `tango.lanes()` 返回 `{down: "fallback", up: "up:post"}`，`TANGO_IPC_LANES_DARWIN=1` 时返回 `{down: "down:poll", up: "up:post"}`。macOS 上传 64 MiB 的吞吐约为消息通道的 2.73 倍，见 [docs/ipc-bench.md](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)。
 - **CSP**：`up:post` 启动时先向 `/__tango/lane/up` POST 一个空包，收到 204 才算就绪。页面的 CSP 若不允许 `connect-src` 到资源来源（比如 `connect-src https://api.example.com`，或者不含 `'self'` 的 `default-src`），探测被拒，这个页面就不开快速通道，字节帧照常走消息通道，不会报错。想用快速通道，就在 `connect-src` 里加上 `'self'`。
 - 已知限制：
   - iframe 拿不到通道令牌。协议处理器看不到请求来自哪个 frame，安全性靠"令牌只经主框架的消息桥下发"；macOS 实测不透明来源的 frame（沙箱 `srcdoc`、`data:`）和同源 frame 发出的通道请求全部被拒（iOS 未单独测）。同源 frame 本来就能访问 `parent.tango`，那是应用自己的代码。
   - WebKit 不把 `tango://` 请求的 Blob 请求体交给处理器，所以 `up:post` 只用 ArrayBuffer。这条限制同样适用于应用自己的 fetch：iOS 有把 Blob/FormData 转成 ArrayBuffer 的注入脚本（见 [docs/mobile.md](https://github.com/tangoui/tango/blob/main/docs/mobile.md)），macOS 上请自己用 ArrayBuffer 或字符串作请求体（macOS 上 Blob 请求体没有单独测过，按 WebKit 的已知问题处理）。
   - WebKit 的 `tango://` 请求不带 `Origin`，TanGo 用主文档的来源补上；所以应用页面里嵌的跨源 iframe 发往资源来源的请求能通过资源 CSRF 检查（原有行为；通道请求仍受每世代令牌保护）。不要在资源页面里嵌不可信的 frame。
-  - iOS 只在模拟器上测过，未在真机上测。"通道中途坏掉"在 iOS 模拟器上有自动化测试：`bash scripts/smoke.sh ios-lanefault`（`up:post` 在第 3 个数据包后故障：丢帧的流报 `transport`，并行的流完整，之后的帧走消息通道）；Android 对应的是 `android-lanefault`。
+  - iOS 已通过真机完整自测和上行故障回退。"通道中途坏掉"在 iOS 模拟器上有自动化测试：`bash scripts/smoke.sh ios-lanefault`（`up:post` 在第 3 个数据包后故障：丢帧的流报 `transport`，并行的流完整，之后的帧走消息通道）；Android 对应的是 `android-lanefault`。
 
 ### Android
 

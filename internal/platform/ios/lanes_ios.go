@@ -12,10 +12,8 @@ package ios
 // downstream frames stay on the message channel. There is no platform lane
 // of our own.
 //
-// Default off: a surface reports lanes only when TANGO_IPC_LANES_DARWIN was
-// set to an "on" value (not empty, 0, false or off) when it was created, and
-// TANGO_IPC_LANES=0 still turns them off, until measured on a real device
-// (macOS is default-on). See laneCapsFromEnv (lanes.go).
+// Default on: TANGO_IPC_LANES_DARWIN=0/false/off or TANGO_IPC_LANES=0
+// turns the lane off. See laneCapsFromEnv (lanes.go).
 //
 // Frames: a WKURLSchemeTask does not say which frame asked, so a lane
 // request from a subframe cannot be refused here. The lanes rely on the

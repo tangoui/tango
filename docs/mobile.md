@@ -97,12 +97,12 @@ Go 运行时在 `TangoStart` 之前就已由 c-archive 的加载初始化启动�
 
 ### IPC 快速通道
 
-快速通道的整体说明见 [IPC：快速通道](../site/guide/concepts/ipc.md#快速通道)。iOS 与 macOS 读同一个环境变量，**但提供的通道和默认不同**：macOS 默认开启 `up:post`，另可开下行轮询通道 `down:poll`；iOS 只有 `up:post`，默认关闭（只在模拟器上测过，等真机数据）。下面写的是 iOS：
+快速通道的整体说明见 [IPC：快速通道](../site/guide/concepts/ipc.md#快速通道)。iOS 与 macOS 读同一个环境变量，**但提供的通道不同**：macOS 默认开启 `up:post`，另可开下行轮询通道 `down:poll`；iOS 只有 `up:post`，真机验收后默认开启。下面写的是 iOS：
 
 - **只提供 `up:post`**：流的上行字节帧以 `POST tango://app/__tango/lane/up`（ArrayBuffer 请求体）交给 Go。**下行仍走消息通道**（核心的带序号 `Eval`）：iOS 不报告 macOS 的 `down:poll`。早先的流式下行通道 `down:scheme` 因 WebKit 扣住大块突发（实测见 [规格 §6.2](specs/2026-11-13-ipc-duplex-streams.md)）已删除。
-- **iOS 默认关闭**，由环境变量 `TANGO_IPC_LANES_DARWIN` 控制，每个页面创建时读一次（任何构建都读；去掉首尾空白、不分大小写）：
-  - 未设置、空、`0`、`false`、`off`：关闭（iOS 默认，等真机测量；macOS 上未设置/空是开启）；
-  - 其他值（`up`、`1`、`all` 都一样）：`up:post`。
+- **iOS 默认开启 `up:post`**，由环境变量 `TANGO_IPC_LANES_DARWIN` 控制，每个页面创建时读一次（任何构建都读；去掉首尾空白、不分大小写）：
+  - `0`、`false`、`off`：关闭；
+  - 未设置、空或其他值（`up`、`1`、`all` 都一样）：`up:post`。
   - `TANGO_IPC_LANES=0`（或 `tango.Options{DisableFastLanes: true}`）始终优先关闭。
   - 模拟器上用 `SIMCTL_CHILD_TANGO_IPC_LANES_DARWIN=1 xcrun simctl launch …` 传给应用。
   - 真机上没法从外部给应用传环境变量：在 Go 里、创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "up")`（每个页面创建时读一次，之后再改只影响新页面）。用 `up` 而不是 `1`：同一份代码在 macOS 上跑时，`1` 会把实验性的 `down:poll` 也打开，`up` 在两个平台上都只开 `up:post`。

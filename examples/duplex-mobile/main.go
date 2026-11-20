@@ -39,9 +39,8 @@
 // examples/duplex/services, the same code as go run ./examples/duplex
 // -bench; "bench: {...}", docs/ipc-bench.md). TANGO_SCHEME_PROBE=1 may be
 // added for Debug.Stats' up:post counters in the result (the benchmark
-// verdict runs in docs/ipc-bench.md were made without it). On iOS add
-// TANGO_IPC_LANES_DARWIN=1 to measure up:post (off by default there); on
-// the desktop up:post is on by default and TANGO_IPC_LANES_DARWIN=0 gives
+// verdict runs in docs/ipc-bench.md were made without it). On iOS and macOS,
+// up:post is on by default and TANGO_IPC_LANES_DARWIN=0 gives
 // the fallback configuration. It also runs on the desktop
 // (go run ./examples/duplex-mobile).
 package main
