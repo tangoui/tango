@@ -179,6 +179,10 @@
         "install": {
           "description": "run when Dir has package.json but no node_modules; default \"npm install\"",
           "type": "string"
+        },
+        "parallelDevBuild": {
+          "description": "build Go while desktop tan dev waits for its own dev server URL",
+          "type": "boolean"
         }
       },
       "required": [

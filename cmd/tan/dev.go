@@ -55,10 +55,15 @@ type devModes struct {
 	noRestore      bool // do not keep window placement across restarts
 }
 
+const devURLTimeout = 90 * time.Second
+
+var errDevURLTimeout = errors.New(`no URL from the front-end dev server after 90s; set "frontend.devURL" or pass -url`)
+
 // dev serves the front end (its dev server, or the dist directory as is),
 // then builds and runs the app, rebuilding when Go sources change, until ctx
 // ends or the app exits cleanly.
 func dev(ctx context.Context, cfg *Config, url string, appArgs []string, modes devModes) error {
+	var startup *frontendStartup
 	if url == "" {
 		url = cfg.Frontend.DevURL
 	}
@@ -71,6 +76,19 @@ func dev(ctx context.Context, cfg *Config, url string, appArgs []string, modes d
 			return err
 		}
 		logf("Starting the front-end dev server: %s", cfg.Frontend.Dev)
+		if cfg.Frontend.ParallelDevBuild {
+			if ctx.Err() != nil {
+				return nil
+			}
+			srv, stop, err := startParallelDevServer(cfg.FrontendDir(), cfg.Frontend.Dev, os.Stdout)
+			if err != nil {
+				return err
+			}
+			defer stop()
+			startup = watchFrontend(ctx, srv, time.NewTimer(time.Until(srv.deadline)))
+			defer startup.close()
+			break
+		}
 		srv, err := startDevServer(cfg.FrontendDir(), cfg.Frontend.Dev, os.Stdout)
 		if err != nil {
 			return err
@@ -80,8 +98,8 @@ func dev(ctx context.Context, cfg *Config, url string, appArgs []string, modes d
 		case url = <-srv.url:
 		case <-srv.exited:
 			return errors.New("the front-end dev server exited before printing its URL")
-		case <-time.After(90 * time.Second):
-			return errors.New(`no URL from the front-end dev server after 90s; set "frontend.devURL" or pass -url`)
+		case <-time.After(devURLTimeout):
+			return errDevURLTimeout
 		case <-ctx.Done():
 			return nil
 		}
@@ -95,34 +113,33 @@ func dev(ctx context.Context, cfg *Config, url string, appArgs []string, modes d
 		defer closeFn()
 		url = u
 	}
-	if url != "" {
-		logf("Front end at %s", url)
-		if loopbackPort(url) == "" {
-			warnf("%s is not a loopback address: asset.FromEnv only proxies to localhost, 127.0.0.0/8 and ::1, so the app will not use it", url)
-		}
-	}
-
 	out, err := devBinary(cfg)
 	if err != nil {
 		return err
 	}
 	var env []string
-	if url != "" {
-		env = append(env, asset.DevURLEnv+"="+url)
-	}
 	if !modes.noRestore {
 		// The app (and the hot-reload host) restore their windows'
 		// placement from this file; see internal/devfeat/windowstate.go.
 		env = append(env, devWindowStateEnv+"="+filepath.Join(devDir(out), "windows.json"))
 	}
-	s := &devSession{cfg: cfg, out: out, env: env, args: appArgs}
+	s := &devSession{cfg: cfg, out: out, env: env, args: appArgs, startup: startup}
+	s.setFrontendURL(url)
 	if modes.hot {
-		err := s.hotLoop(ctx, modes.watchFramework)
-		if !errors.Is(err, errNotHot) {
-			return err
+		err = s.hotLoop(ctx, modes.watchFramework)
+	}
+	if !modes.hot || errors.Is(err, errNotHot) {
+		err = s.loop(ctx)
+	}
+	if s.startup != nil {
+		if cause := s.startup.failure(); cause != nil {
+			if cause == ctx.Err() {
+				return nil
+			}
+			return cause
 		}
 	}
-	return s.loop(ctx)
+	return err
 }
 
 // devBinary is where dev builds go: a fixed path per app id in the user
@@ -168,15 +185,75 @@ type devSession struct {
 	env  []string // added to the app's environment
 	args []string
 
-	bundled bool // the macOS bundle around out has been written
+	startup     *frontendStartup
+	frontendURL string
+	bundled     bool // the macOS bundle around out has been written
+}
+
+func (s *devSession) setFrontendURL(url string) {
+	if url == "" {
+		return
+	}
+	s.frontendURL = url
+	s.env = append(s.env, asset.DevURLEnv+"="+url)
+	logf("Front end at %s", url)
+	if loopbackPort(url) == "" {
+		warnf("%s is not a loopback address: asset.FromEnv only proxies to localhost, 127.0.0.0/8 and ::1, so the app will not use it", url)
+	}
+}
+
+func (s *devSession) startupContext(ctx context.Context) context.Context {
+	if s.startup != nil {
+		return s.startup.ctx
+	}
+	return ctx
+}
+
+func (s *devSession) prepareLaunch() error {
+	if s.startup == nil || s.frontendURL != "" {
+		return nil
+	}
+	url, err := s.startup.waitFrontend(s.startup.ctx)
+	if err != nil {
+		return err
+	}
+	s.setFrontendURL(url)
+	return nil
+}
+
+func (s *devSession) checkLaunch() error {
+	if s.startup != nil {
+		return s.startup.failure()
+	}
+	return nil
+}
+
+func (s *devSession) finishStartup() {
+	if s.startup != nil {
+		s.startup.close()
+		s.startup = nil
+	}
+}
+
+func (s *devSession) goBuild(ctx context.Context, path string, stderr io.Writer) error {
+	args := []string{"build", "-tags", buildTags(true), "-o", path, "."}
+	var cmd *exec.Cmd
+	if s.startup == nil {
+		cmd = exec.CommandContext(ctx, "go", args...)
+	} else {
+		cmd = exec.Command("go", args...)
+	}
+	cmd.Dir = s.cfg.dir
+	cmd.Env = append(os.Environ(), s.cfg.cgoEnv())
+	cmd.Stdout, cmd.Stderr = os.Stdout, stderr
+	if s.startup != nil {
+		return runStartupCommand(s.startup.ctx, cmd)
+	}
+	return cmd.Run()
 }
 
 func (s *devSession) build(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "go", "build", "-tags", buildTags(true), "-o", s.out, ".")
-	cmd.Dir = s.cfg.dir
-	cmd.Env = append(os.Environ(), s.cfg.cgoEnv())
-	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-	if err := cmd.Run(); err != nil {
+	if err := s.goBuild(ctx, s.out, os.Stderr); err != nil {
 		return err
 	}
 	if runtime.GOOS == "darwin" && !s.bundled {
@@ -205,13 +282,17 @@ func (s *devSession) loop(ctx context.Context) error {
 			app.stop(3 * time.Second)
 		}
 	}()
-	start := func() bool {
+	start := func() error {
+		buildCtx := s.startupContext(ctx)
 		logf("Building")
-		if err := s.build(ctx); err != nil {
-			if ctx.Err() == nil {
+		if err := s.build(buildCtx); err != nil {
+			if buildCtx.Err() == nil {
 				warnf("Build failed; waiting for changes")
 			}
-			return false
+			return nil
+		}
+		if err := s.prepareLaunch(); err != nil {
+			return err
 		}
 		if app != nil {
 			app.stop(3 * time.Second)
@@ -221,16 +302,22 @@ func (s *devSession) loop(ctx context.Context) error {
 		cmd.Dir = s.cfg.dir
 		cmd.Env = append(os.Environ(), s.env...)
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+		if err := s.checkLaunch(); err != nil {
+			return err
+		}
 		p, err := startProcess(cmd)
 		if err != nil {
 			warnf("Starting the app: %v", err)
-			return false
+			return nil
 		}
 		app = p
+		s.finishStartup()
 		logf("Running %s (pid %d); watching Go files", s.cfg.Name, cmd.Process.Pid)
-		return true
+		return nil
 	}
-	start()
+	if err := start(); err != nil {
+		return err
+	}
 	tick := time.NewTicker(400 * time.Millisecond)
 	defer tick.Stop()
 	for {
@@ -239,7 +326,7 @@ func (s *devSession) loop(ctx context.Context) error {
 			exited = app.done
 		}
 		select {
-		case <-ctx.Done():
+		case <-s.startupContext(ctx).Done():
 			return nil
 		case <-exited:
 			tty.check()
@@ -255,7 +342,9 @@ func (s *devSession) loop(ctx context.Context) error {
 				// Let editors finish writing a batch of files.
 				time.Sleep(150 * time.Millisecond)
 				w.changed()
-				start()
+				if err := start(); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -273,12 +362,16 @@ func startProcess(cmd *exec.Cmd) (*process, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
+	return waitProcess(cmd), nil
+}
+
+func waitProcess(cmd *exec.Cmd) *process {
 	p := &process{cmd: cmd, done: make(chan struct{})}
 	go func() {
 		p.err = cmd.Wait()
 		close(p.done)
 	}()
-	return p, nil
+	return p
 }
 
 // stop asks the group to terminate and kills it after grace.
@@ -346,17 +439,26 @@ func findURL(line string) string {
 // scanURL copies r to w line by line and sends the first URL found to
 // found. It keeps copying until r ends.
 func scanURL(r io.Reader, w io.Writer, found chan<- string) {
+	scanDevOutput(r, w, func(url string) { found <- url }, false)
+}
+
+func scanDevOutput(r io.Reader, w io.Writer, report func(string), reportBeforeLog bool) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 64<<10), 1<<20)
 	sent := false
 	for sc.Scan() {
 		line := sc.Text()
-		fmt.Fprintln(w, line)
+		if !reportBeforeLog {
+			fmt.Fprintln(w, line)
+		}
 		if !sent {
 			if u := findURL(line); u != "" {
-				found <- u
+				report(u)
 				sent = true
 			}
+		}
+		if reportBeforeLog {
+			fmt.Fprintln(w, line)
 		}
 	}
 	_, _ = io.Copy(w, r)

@@ -139,13 +139,8 @@ func (h *hotSession) buildWorker(ctx context.Context) (string, string, error) {
 		return "", "", err
 	}
 	var out bytes.Buffer
-	cmd := exec.CommandContext(ctx, "go", "build", "-tags", buildTags(true), "-o", path, ".")
-	cmd.Dir = h.cfg.dir
-	cmd.Env = append(os.Environ(), h.cfg.cgoEnv())
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = io.MultiWriter(os.Stderr, &out)
 	start := time.Now()
-	err := cmd.Run()
+	err := h.goBuild(ctx, path, io.MultiWriter(os.Stderr, &out))
 	h.buildDur = time.Since(start)
 	if err != nil {
 		return "", strings.TrimSpace(out.String()), err
@@ -158,12 +153,16 @@ func (h *hotSession) loop(ctx context.Context) error {
 	w := newWatcher(h.cfg.dir, h.cfg.FrontendDir())
 	tty := newTTYGuard() // tty_unix.go
 	h.mods = newFileSet(goModFiles(h.cfg.dir))
+	buildCtx := h.startupContext(ctx)
 	// First build: decides the mode.
 	for {
 		logf("Building")
 		h.changeAt = time.Now()
-		path, _, err := h.buildWorker(ctx)
+		path, _, err := h.buildWorker(buildCtx)
 		if err == nil {
+			if err := h.checkLaunch(); err != nil {
+				return err
+			}
 			if !hotCapable(path) {
 				return errNotHot
 			}
@@ -172,11 +171,11 @@ func (h *hotSession) loop(ctx context.Context) error {
 			}
 			break
 		}
-		if ctx.Err() != nil {
+		if buildCtx.Err() != nil {
 			return nil
 		}
 		warnf("Build failed; waiting for changes")
-		if !waitChange(ctx, w) {
+		if !waitChange(buildCtx, w) {
 			return nil
 		}
 	}
@@ -189,7 +188,7 @@ func (h *hotSession) loop(ctx context.Context) error {
 			hostDone = h.host.done
 		}
 		select {
-		case <-ctx.Done():
+		case <-h.startupContext(ctx).Done():
 			return nil
 		case <-hostDone:
 			if h.host.err == nil {
@@ -218,7 +217,7 @@ func (h *hotSession) loop(ctx context.Context) error {
 			h.changeAt = time.Now()
 			time.Sleep(150 * time.Millisecond) // let editors finish writing
 			w.changed()
-			if err := h.rebuild(ctx); err != nil {
+			if err := h.rebuild(h.startupContext(ctx)); err != nil {
 				return err
 			}
 		}
@@ -311,6 +310,7 @@ func (h *hotSession) saveState() []devhost.Entry {
 // startAll (re)starts the host and a first worker from the binary at path.
 // state, if any, seeds the new host's Persist state.
 func (h *hotSession) startAll(ctx context.Context, path string, state []devhost.Entry) error {
+	ctx = h.startupContext(ctx)
 	h.stopAll()
 	h.built = path
 	if err := h.startHost(ctx, path); err != nil {
@@ -320,7 +320,7 @@ func (h *hotSession) startAll(ctx context.Context, path string, state []devhost.
 		_ = h.ctl.Send(devhost.SnapshotData{Entries: state})
 	}
 	if h.watchFramework {
-		h.fw = newFileSet(frameworkFiles(ctx, h.cfg.dir))
+		h.fw = newFileSet(h.frameworkFiles(ctx))
 	}
 	h.mods = newFileSet(goModFiles(h.cfg.dir))
 	return h.startWorker(path)
@@ -348,6 +348,9 @@ func (h *hotSession) startHost(ctx context.Context, path string) error {
 		return err
 	}
 	h.addr = addr
+	if err := h.prepareLaunch(); err != nil {
+		return err
+	}
 	cmd := exec.Command(h.out)
 	cmd.Dir = h.cfg.dir
 	cmd.Env = append(os.Environ(), h.env...)
@@ -356,15 +359,15 @@ func (h *hotSession) startHost(ctx context.Context, path string) error {
 		devhost.EnvName+"="+h.cfg.Name, devhost.EnvID+"="+h.cfg.ID, devhost.EnvDir+"="+h.tmp,
 		devhost.EnvToken+"="+h.token)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	if err := h.checkLaunch(); err != nil {
+		return err
+	}
 	p, err := startProcess(cmd)
 	if err != nil {
 		return fmt.Errorf("starting the dev host: %w", err)
 	}
 	h.host = p
-	c, err := devhost.Dial(addr, 15*time.Second)
-	if err == nil {
-		_, err = devhost.HandshakeToken(c, devhost.RoleCtl, h.token)
-	}
+	c, err := h.connectHost(ctx, addr)
 	if err != nil {
 		p.stop(time.Second)
 		h.host = nil
@@ -388,6 +391,54 @@ func (h *hotSession) startHost(ctx context.Context, path string) error {
 	return nil
 }
 
+func (h *hotSession) connectHost(ctx context.Context, addr string) (*devhost.Conn, error) {
+	if h.startup == nil {
+		c, err := devhost.Dial(addr, 15*time.Second)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := devhost.HandshakeToken(c, devhost.RoleCtl, h.token); err != nil {
+			c.Close()
+			return nil, err
+		}
+		return c, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	network, target, _ := strings.Cut(addr, ":") // from newAddr
+	dialer := net.Dialer{Timeout: time.Second}
+	retry := time.NewTicker(20 * time.Millisecond)
+	defer retry.Stop()
+	for {
+		conn, err := dialer.DialContext(ctx, network, target)
+		if err == nil {
+			c := devhost.NewConn(conn)
+			// Unblock the handshake if startup fails before the worker starts.
+			done := make(chan struct{})
+			stop := context.AfterFunc(ctx, func() {
+				c.Close()
+				close(done)
+			})
+			_, err = devhost.HandshakeToken(c, devhost.RoleCtl, h.token)
+			if !stop() {
+				<-done
+				return nil, ctx.Err()
+			}
+			if err != nil {
+				c.Close()
+				return nil, err
+			}
+			return c, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("%w: %v", ctx.Err(), err)
+		case <-retry.C:
+		}
+	}
+}
+
 func (h *hotSession) newAddr() (string, error) {
 	if runtime.GOOS == "windows" {
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -409,6 +460,9 @@ func (h *hotSession) startWorker(path string) error {
 		devhost.EnvToken+"="+h.token)
 	tail := newTailBuffer(4 << 10)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, io.MultiWriter(os.Stderr, tail)
+	if err := h.checkLaunch(); err != nil {
+		return err
+	}
 	p, err := startProcess(cmd)
 	if err != nil {
 		warnf("Starting the app: %v", err)
@@ -418,6 +472,7 @@ func (h *hotSession) startWorker(path string) error {
 	h.workers[wp] = true
 	h.pending = wp
 	h.built = path
+	h.finishStartup()
 	go func() {
 		<-p.done
 		h.exited <- wp
@@ -619,17 +674,27 @@ func goModFiles(dir string) []string {
 // frameworkFiles lists the package directories of the Tango module that
 // the dev host links, when that module is a local checkout (a replace or
 // workspace) rather than a read-only module cache copy.
-func frameworkFiles(ctx context.Context, dir string) []string {
-	cmd := exec.CommandContext(ctx, "go", "list", "-deps",
+func (h *hotSession) frameworkFiles(ctx context.Context) []string {
+	goOutput := func(dir string, args ...string) ([]byte, error) {
+		if h.startup != nil {
+			var out bytes.Buffer
+			cmd := exec.Command("go", args...)
+			cmd.Dir, cmd.Stdout = dir, &out
+			err := runStartupCommand(ctx, cmd)
+			return out.Bytes(), err
+		}
+		cmd := exec.CommandContext(ctx, "go", args...)
+		cmd.Dir = dir
+		return cmd.Output()
+	}
+	out, err := goOutput(h.cfg.dir, "list", "-deps",
 		"-f", "{{if .Module}}{{.Module.Path}}\t{{.Dir}}{{end}}", "github.com/tangoui/tango/uihost")
-	cmd.Dir = dir
-	out, err := cmd.Output()
 	if err != nil {
 		return nil
 	}
 	cache := os.Getenv("GOMODCACHE")
 	if cache == "" {
-		if b, err := exec.Command("go", "env", "GOMODCACHE").Output(); err == nil {
+		if b, err := goOutput("", "env", "GOMODCACHE"); err == nil {
 			cache = strings.TrimSpace(string(b))
 		}
 	}
