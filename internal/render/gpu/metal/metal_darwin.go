@@ -68,9 +68,9 @@ import (
 // bounded: creating a texture first releases the free textures no
 // earlier pass of this frame used that it covers on both axes (a group
 // that grows leaves no trail of smaller textures) and, oldest first, free
-// textures while the pool would exceed layerPoolBytes; after each frame
+// textures while the pool would exceed its byte budget; after each frame
 // textures unused for layerIdleFrames frames are released and the pool
-// is trimmed to layerPoolBytes again (a single frame may need more: its
+// is trimmed to the budget again (a single frame may need more: its
 // textures are all busy at once). Metal's hazard tracking orders a
 // reused texture's new render pass after the passes that sampled it.
 // Execute starts a render pass wherever the target changes (or a batch has
@@ -146,10 +146,11 @@ type Device struct {
 	lost                                      error    // non-nil (wrapping ErrDeviceLost) once the device is lost
 	staged                                    []staged // per-frame scratch
 
-	layers      []layerTex    // layer texture pool (see Layers above)
-	layerTex    []id          // per frame: layerTex[n] is layer n's texture (0: none)
-	layerSize   []image.Point // per frame: layerSize[n] is the size of layerTex[n]
-	layerFrames int           // frames encoded (the pool's clock)
+	layers           []layerTex    // layer texture pool (see Layers above)
+	layerTex         []id          // per frame: layerTex[n] is layer n's texture (0: none)
+	layerSize        []image.Point // per frame: layerSize[n] is the size of layerTex[n]
+	layerFrames      int           // frames encoded (the pool's clock)
+	layerBudgetBytes int           // configured layer pool cap; zero uses layerPoolBytes
 
 	// Partial frames (gpu.Frame.Dirty; see Device).
 	clearPipeline id          // the quad pipeline without blending: clears dirty rectangles
@@ -233,6 +234,27 @@ func (d *Device) layerBytes() int {
 		n += texBytes(l.size)
 	}
 	return n
+}
+
+// SetLayerBudget changes the retained render-target pool cap. A non-positive
+// value restores the pre-budget cap; active/busy textures are never released
+// by this setter and are trimmed only when they become reusable.
+func (d *Device) SetLayerBudget(maxBytes int64) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	budget := int(min(max(maxBytes, 0), layerPoolBytes))
+	if d.layerBudgetBytes != budget {
+		d.layerBudgetBytes = budget
+		d.trimLayers(0)
+	}
+	return nil
+}
+
+func (d *Device) layerBudget() int {
+	if d.layerBudgetBytes > 0 {
+		return d.layerBudgetBytes
+	}
+	return layerPoolBytes
 }
 
 func texBytes(size image.Point) int { return size.X * size.Y * 4 }
@@ -1067,13 +1089,13 @@ func (d *Device) releaseLayers(drop func(l *layerTex) bool) {
 }
 
 // trimLayers releases free pooled textures, least recently used first,
-// while the pool's bytes plus extra exceed layerPoolBytes. Textures this
+// while the pool's bytes plus extra exceed its budget. Textures this
 // frame uses are kept (encoding still binds them), so after a frame that
-// needs more than layerPoolBytes at once the pool is trimmed when the next
+// needs more than the budget at once the pool is trimmed when the next
 // frame starts.
 func (d *Device) trimLayers(extra int) {
 	total := d.layerBytes() + extra
-	for total > layerPoolBytes {
+	for total > d.layerBudget() {
 		old := -1
 		for i := range d.layers {
 			if l := &d.layers[i]; !l.busy && l.used < d.layerFrames && (old < 0 || l.used < d.layers[old].used) {

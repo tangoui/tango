@@ -328,6 +328,9 @@ func (r *Renderer) applyBudgetPolicy(size image.Point, scale float32) {
 			_ = setter.SetImageBudget(p.ImageMaxBytes, p.ImageIdleFrames)
 		}
 	}
+	if setter, ok := r.dev.(interface{ SetLayerBudget(int64) error }); ok {
+		_ = setter.SetLayerBudget(p.LayerMaxBytes)
+	}
 }
 
 func (r *Renderer) syncResourceStats(f *Frame) {

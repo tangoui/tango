@@ -12,8 +12,8 @@ func TestBudgetPolicyScalesLargeWindow(t *testing.T) {
 	if small.AtlasMaxPages <= large.AtlasMaxPages || large.AtlasMaxPages <= 0 || large.ImageMaxBytes <= 0 {
 		t.Fatalf("small=%+v large=%+v", small, large)
 	}
-	if large.AtlasIdleFrames == 0 || large.ImageIdleFrames == 0 {
-		t.Fatal("idle budgets missing")
+	if large.AtlasIdleFrames == 0 || large.ImageIdleFrames == 0 || large.LayerMaxBytes <= 0 {
+		t.Fatal("idle/layer budgets missing")
 	}
 }
 func TestBudgetPolicyOffRestoresUnbounded(t *testing.T) {

@@ -13,6 +13,7 @@ type BudgetPolicy struct {
 	AtlasIdleFrames uint32
 	ImageMaxBytes   int64
 	ImageIdleFrames uint64
+	LayerMaxBytes   int64
 }
 
 func gpuBudgetEnabled() bool {
@@ -34,5 +35,5 @@ func budgetPolicy(size image.Point, scale float32) BudgetPolicy {
 	if area >= 2000000 {
 		pages = 8
 	}
-	return BudgetPolicy{AtlasMaxPages: pages, AtlasIdleFrames: 120, ImageMaxBytes: 2 << 20, ImageIdleFrames: 120}
+	return BudgetPolicy{AtlasMaxPages: pages, AtlasIdleFrames: 120, ImageMaxBytes: 2 << 20, ImageIdleFrames: 120, LayerMaxBytes: 48 << 20}
 }
