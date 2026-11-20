@@ -1,12 +1,14 @@
 package uihost
 
 import (
-	"github.com/tangoui/tango/internal/platform"
-	"github.com/tangoui/tango/ui"
-	"github.com/tangoui/tango/ui/input"
-	"github.com/tangoui/tango/ui/paint"
 	"image"
 	"time"
+
+	"github.com/tangoui/tango/internal/platform"
+	"github.com/tangoui/tango/ui"
+	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/paint"
 )
 
 // Nil on platforms whose native layer ABI has not been validated.
@@ -65,13 +67,20 @@ func (s *nativeRendererState) noteInput() {
 	}
 }
 
-// maybePromoteAnimation runs just before the window's next frame. Wait for
-// that frame before requesting Metal: an idle gap or input can end the
-// streak after the last presentation, and promotion must not wake a window.
-func (s *nativeRendererState) maybePromoteAnimation() {
-	if s != nil && s.anim >= nativeAnimFrames && !s.interrupted(time.Now()) {
-		s.ready = true
+// animationReady checks the streak when the next frame reaches Render.
+// Input or a resize can interrupt it during frame construction, and a frame
+// that aborts before Render leaves no pending animation request.
+func (s *nativeRendererState) animationReady(now time.Time, size geom.Size, scale float32) bool {
+	if s.anim < nativeAnimFrames || s.interrupted(now) {
+		return false
 	}
+	if cv, ok := s.canvas.(platform.CanvasThreaded); ok {
+		// A resize can arrive while frame construction is awaiting main.
+		// The UI thread will apply it and clear the streak after this frame.
+		w, h, latestScale := cv.MainGeometry()
+		return size.W == w && size.H == h && scale == latestScale
+	}
+	return true
 }
 
 func startNative(cv platform.Canvas, forced bool, content ui.ContentKind) *gpuRenderer {
@@ -167,11 +176,9 @@ func isKeyboardInput(ev input.Event) bool {
 }
 
 func isUserDrivenInput(ev input.Event) bool {
-	switch ev := ev.(type) {
-	case input.Pointer, input.Scroll, input.TouchEvent, input.TextInput, input.Composition:
+	switch ev.(type) {
+	case input.Pointer, input.Scroll, input.TouchEvent, input.TextInput, input.Composition, input.KeyEvent:
 		return true
-	case input.KeyEvent:
-		return ev.Down
 	}
 	return false
 }

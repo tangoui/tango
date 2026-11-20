@@ -24,6 +24,7 @@ func (h *host) CanvasDragOver(x, y float32) {
 		return
 	}
 	h.onUI(func() {
+		h.noteNativeInput()
 		h.r.FileDragOver(geom.Pt(x, y))
 		h.invalidate()
 	})
@@ -36,6 +37,7 @@ func (h *host) CanvasDragLeave() {
 		return
 	}
 	h.onUI(func() {
+		h.noteNativeInput()
 		h.r.FileDragLeave()
 		h.invalidate()
 	})

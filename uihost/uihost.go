@@ -199,13 +199,10 @@ func (h *host) CanvasFrame() {
 
 // frame renders and presents one frame. UI thread.
 func (h *host) frame() {
-	if h.gpu != nil {
-		if h.win.resizePresented != nil {
-			// Threaded resize records its acknowledgment on this same UI
-			// thread, before requesting the frame that presents the new size.
-			h.gpu.native.noteInput()
-		}
-		h.gpu.native.maybePromoteAnimation()
+	if h.win.resizePresented != nil {
+		// Threaded resize records its acknowledgment on this same UI
+		// thread, before requesting the frame that presents the new size.
+		h.noteNativeInput()
 	}
 	if h.trace != nil {
 		h.trace.begin()
@@ -294,13 +291,17 @@ func (h *host) CanvasInput(ev input.Event) {
 // noteRendererInput runs on the window's UI thread, including for
 // input consumed before it reaches the runner.
 func (h *host) noteRendererInput(ev input.Event) {
-	if h.gpu == nil {
-		return
-	}
 	if isKeyboardInput(ev) {
 		h.gpu.keyboardInput()
 	}
 	if isUserDrivenInput(ev) {
+		h.noteNativeInput()
+	}
+}
+
+// noteNativeInput resets the animation streak on the UI thread.
+func (h *host) noteNativeInput() {
+	if h.gpu != nil {
 		h.gpu.native.noteInput()
 	}
 }
@@ -317,9 +318,7 @@ func (h *host) CanvasResized(w, hgt, scale float32) {
 	}
 	h.onUI(func() {
 		h.win.resized() // the first frame after a resize is presented whole (damage.go)
-		if h.gpu != nil {
-			h.gpu.native.noteInput()
-		}
+		h.noteNativeInput()
 		h.invalidate()
 	})
 }

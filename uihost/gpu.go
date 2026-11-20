@@ -314,12 +314,12 @@ func (g *gpuRenderer) Render(l *paint.List, size geom.Size, scale float32) error
 		return nil
 	}
 	g.bigFrame = false
-	if g.native != nil {
-		if g.native.ready {
+	if s := g.native; s != nil {
+		now := time.Now()
+		if s.ready || s.animationReady(now, size, scale) {
 			g.promoteNative()
-		}
-		if g.native != nil {
-			g.native.start = time.Now()
+		} else {
+			s.start = now
 		}
 	}
 	if g.auto != nil && g.auto.shouldPromote(l, size, time.Now()) {

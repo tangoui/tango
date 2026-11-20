@@ -493,6 +493,7 @@ func TestNativeAnimationPromotion(t *testing.T) {
 		delay   time.Duration
 		input   input.Event
 		resize  bool
+		drag    func(*host)
 		want    int
 	}{
 		{name: "continued", want: 1},
@@ -500,6 +501,9 @@ func TestNativeAnimationPromotion(t *testing.T) {
 		{name: "scroll", input: input.Scroll{DY: 3}},
 		{name: "pointer", input: input.Pointer{Kind: input.Move}},
 		{name: "touch", input: input.TouchEvent{}},
+		{name: "key release", input: input.KeyEvent{Key: input.KeyShiftLeft, Down: false}},
+		{name: "file drag enter", drag: func(h *host) { h.CanvasDragOver(10, 20) }},
+		{name: "file drag leave", drag: func(h *host) { h.CanvasDragLeave() }},
 		{name: "resize", resize: true},
 		{name: "data", content: ui.ContentData},
 		{name: "forced", mode: "native"},
@@ -520,6 +524,9 @@ func TestNativeAnimationPromotion(t *testing.T) {
 			if tc.resize {
 				h.CanvasResized(1000, 800, 1)
 			}
+			if tc.drag != nil {
+				tc.drag(h)
+			}
 			if *calls != 0 {
 				t.Fatalf("before next frame: Metal attempted %d times", *calls)
 			}
@@ -531,6 +538,60 @@ func TestNativeAnimationPromotion(t *testing.T) {
 	}
 }
 
+func TestNativeAnimationInterruptedBeforeRender(t *testing.T) {
+	t.Run("synchronous resize", func(t *testing.T) {
+		g, cv, calls := nativeKeyboardSetup(t, "", nil)
+		w := &window{cv: cv, gpu: g}
+		h := &host{win: w, cv: cv, gpu: g}
+		h.r = ui.NewRunner(func(*ui.Context) {
+			h.CanvasResized(900, 700, 1)
+		}, ui.RunnerOptions{Renderer: g})
+		h.r.Attach(w)
+
+		seedNativeAnimation(g.native, time.Now())
+		h.CanvasFrame()
+		if *calls != 0 {
+			t.Fatalf("Metal attempts after resize during frame: %d, want zero", *calls)
+		}
+	})
+
+	t.Run("aborted frame followed by idle", func(t *testing.T) {
+		var recovered int
+		app, fb := faketest.Run(t, tango.Options{OnPanic: func(p tango.Panic) bool {
+			if p.Value == "abort frame" {
+				recovered++
+			}
+			return true
+		}})
+		g, cv, calls := nativeKeyboardSetup(t, "", nil)
+		w := &window{app: app, cv: cv, gpu: g}
+		h := &host{app: app, win: w, cv: cv, gpu: g}
+		abort := true
+		h.r = ui.NewRunner(func(*ui.Context) {
+			if abort {
+				panic("abort frame")
+			}
+		}, ui.RunnerOptions{Renderer: g})
+		h.r.Attach(w)
+
+		fb.Do(func() {
+			seedNativeAnimation(g.native, time.Now())
+			h.CanvasFrame()
+			abort = false
+		})
+		if recovered != 1 || *calls != 0 {
+			t.Fatalf("after aborted frame: recovered=%d, Metal attempts=%d, want one recovery and zero attempts", recovered, *calls)
+		}
+		fb.Do(func() {
+			g.native.lastEnd = g.native.lastEnd.Add(-time.Second)
+			h.CanvasFrame()
+		})
+		if *calls != 0 {
+			t.Fatalf("Metal attempts after idle: %d, want zero", *calls)
+		}
+	})
+}
+
 func seedNativeAnimation(s *nativeRendererState, end time.Time) {
 	start := end.Add(-(nativeAnimFrames-1)*16*time.Millisecond - time.Millisecond)
 	for range nativeAnimFrames {
@@ -539,24 +600,35 @@ func seedNativeAnimation(s *nativeRendererState, end time.Time) {
 	}
 }
 
-type nativeThreadedGeometryTest struct{ platform.CanvasThreaded }
+type nativeThreadedGeometryTest struct {
+	*largeNativeCanvasTest
+	platform.CanvasThreaded
+	width, height, scale float32
+}
 
-func (nativeThreadedGeometryTest) MainGeometry() (float32, float32, float32) {
-	return 800, 600, 2
+func (c *nativeThreadedGeometryTest) MainGeometry() (float32, float32, float32) {
+	return c.width, c.height, c.scale
 }
 
 func TestThreadedNativeAnimationExcludesInputAndResize(t *testing.T) {
 	app, _ := faketest.Run(t, tango.Options{})
-	g, cv, calls := nativeKeyboardSetup(t, "", nil)
+	g, base, calls := nativeKeyboardSetup(t, "", nil)
+	cv := &nativeThreadedGeometryTest{largeNativeCanvasTest: base, width: 800, height: 600, scale: 2}
+	g.native.canvas = cv
 	owner := uithread.Start(t.Name())
 	t.Cleanup(func() {
 		owner.Stop()
 		<-owner.Done()
 	})
-	thr := &threadedHost{th: owner, geometry: nativeThreadedGeometryTest{}}
+	thr := &threadedHost{th: owner, geometry: cv}
 	thr.phase.Store(running)
-	w := &window{app: app, cv: cv, gpu: g, t: thr, startup: thr}
-	r := ui.NewRunner(func(*ui.Context) {}, ui.RunnerOptions{Renderer: g})
+	w := &window{app: app, cv: cv, gpu: g, t: thr, startup: thr, size: geom.Size{W: 800, H: 600}, scale: 2}
+	var beforeRender func()
+	r := ui.NewRunner(func(*ui.Context) {
+		if beforeRender != nil {
+			beforeRender()
+		}
+	}, ui.RunnerOptions{Renderer: g})
 	r.Attach(w)
 	h := &host{app: app, r: r, win: w, cv: cv, gpu: g, t: thr}
 	thr.host = h
@@ -593,4 +665,62 @@ func TestThreadedNativeAnimationExcludesInputAndResize(t *testing.T) {
 	if atMove != 0 {
 		t.Fatalf("animation frames when native move began: %d, want zero", atMove)
 	}
+
+	// Consume the title press before seeding a fresh streak for each drag event.
+	owner.Do(h.frame)
+	for _, tc := range []struct {
+		name string
+		fire func()
+	}{
+		{name: "file drag enter", fire: func() { h.CanvasDragOver(10, 20) }},
+		{name: "file drag move", fire: func() { h.CanvasDragOver(20, 30) }},
+		{name: "file drag leave", fire: h.CanvasDragLeave},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var requests int
+			var interrupted, onOwner bool
+			owner.Do(func() {
+				seedNativeAnimation(g.native, time.Now())
+				thr.request = func() {
+					if requests == 0 {
+						onOwner = uithread.Current() == owner
+						interrupted = g.native.anim == 0
+					}
+					requests++
+				}
+			})
+			tc.fire()
+			owner.Do(func() {})
+			if requests == 0 || !interrupted || !onOwner {
+				t.Fatalf("frame requests=%d, animation interrupted before request=%t, on UI thread=%t", requests, interrupted, onOwner)
+			}
+			owner.Do(h.frame)
+			if *calls != 0 || g.native.anim != 0 {
+				t.Fatalf("Metal attempts=%d, want zero attempts and zero animation frames", *calls)
+			}
+		})
+	}
+
+	t.Run("resize while frame awaits main", func(t *testing.T) {
+		owner.Do(func() {
+			seedNativeAnimation(g.native, time.Now())
+			thr.request = func() {}
+			beforeRender = func() {
+				beforeRender = nil
+				tango.Await(app, func() struct{} {
+					cv.width = 640
+					h.CanvasResized(640, 600, 2)
+					return struct{}{}
+				})
+			}
+			h.frame()
+		})
+		if *calls != 0 {
+			t.Fatalf("Metal attempts on a frame using stale geometry: %d, want zero", *calls)
+		}
+		owner.Do(h.frame)
+		if *calls != 0 || w.resizePresented != nil {
+			t.Fatalf("Metal attempts=%d, resize acknowledgement pending=%t", *calls, w.resizePresented != nil)
+		}
+	})
 }
