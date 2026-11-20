@@ -138,9 +138,12 @@ exec sleep 60
 				writeDevGo(t, cfg, `test -f url-printed || exit 42
 `, "")
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			if err := dev(ctx, cfg, "", nil, devModes{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := ctx.Err(); err != nil {
 				t.Fatal(err)
 			}
 			assertDevLaunch(t, cfg, fixtureDevURL)
@@ -351,26 +354,76 @@ func killDevFixturePID(pid string) {
 	}
 }
 
-func TestDevParallelFallbackAndExternalURL(t *testing.T) {
-	t.Run("non-hot fallback", func(t *testing.T) {
-		cfg := parallelDevFixture(t, true)
-		cfg.Frontend.Dev = `printf "server\n" >> server-starts
-while [ ! -e building ]; do sleep .02; done
+func TestDevParallelInitialFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		parallel, fail bool
+	}{
+		{name: "parallel", parallel: true},
+		{name: "frontend failure", parallel: true, fail: true},
+		{name: "default serial"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := parallelDevFixture(t, tc.parallel)
+			cfg.Frontend.Dev = `printf 'waiting\n' > frontend-waiting
+while [ ! -e release-frontend ]; do sleep .02; done
+`
+			if tc.fail {
+				cfg.Frontend.Dev += "exit 23"
+			} else {
+				cfg.Frontend.Dev += `touch url-printed
 echo http://localhost:4321/
 exec sleep 60`
-		writeDevGo(t, cfg, `printf "build\n" >> build-count
-`, "")
-		_, done := launchDevFixture(t, cfg, "", devModes{hot: true})
-		if err := waitDevResult(t, done); err != nil {
-			t.Fatal(err)
-		}
-		assertDevLaunch(t, cfg, fixtureDevURL)
-		for file, want := range map[string]string{"server-starts": "server", "build-count": "build"} {
-			if got := waitDevMarker(t, cfg, file); got != want {
-				t.Errorf("%s = %q, want %q", file, got, want)
 			}
-		}
-	})
+			build := `printf 'build\n' >> build-count
+`
+			if !tc.parallel {
+				build += "test -f url-printed || exit 42\n"
+			}
+			writeDevGo(t, cfg, build, `test -f url-printed || { echo premature > launched; exit 43; }
+printf '%s\n' "$TANGO_DEV_URL" > launched`)
+			out, err := devBinary(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertPreviousOutput := func() {
+				t.Helper()
+				got, err := os.ReadFile(out)
+				if err != nil || string(got) != "#!/bin/sh\necho stale > launched\n" {
+					t.Fatalf("stable output changed before frontend readiness: %q (%v)", got, err)
+				}
+			}
+
+			_, done := launchDevFixture(t, cfg, "", devModes{hot: true})
+			waitDevMarker(t, cfg, "frontend-waiting")
+			if tc.parallel {
+				waitDevMarker(t, cfg, "build-completed")
+			} else if _, err := os.Stat(filepath.Join(cfg.dir, "building")); !os.IsNotExist(err) {
+				t.Fatalf("default serial mode built before frontend readiness: %v", err)
+			}
+			assertPreviousOutput()
+			assertNoDevLaunch(t, cfg)
+			writeDevFixtureFile(t, cfg, "release-frontend", "", 0o644)
+			if err := waitDevResult(t, done); tc.fail {
+				if err == nil || !strings.Contains(err.Error(), "23") {
+					t.Fatalf("dev = %v, want the frontend exit status", err)
+				}
+				assertPreviousOutput()
+				assertNoDevLaunch(t, cfg)
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertDevLaunch(t, cfg, fixtureDevURL)
+			}
+			if got := waitDevMarker(t, cfg, "build-count"); got != "build" {
+				t.Fatalf("build-count = %q, want one build", got)
+			}
+		})
+	}
+}
+
+func TestDevParallelExternalURL(t *testing.T) {
 	for _, flag := range []bool{false, true} {
 		t.Run(fmt.Sprintf("external flag=%t", flag), func(t *testing.T) {
 			cfg := parallelDevFixture(t, true)
@@ -413,6 +466,7 @@ cat > "$out" <<'APP'
 `+app+`
 APP
 chmod +x "$out"
+printf 'done\n' > build-completed
 `, 0o755)
 }
 
