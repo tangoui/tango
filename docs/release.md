@@ -215,7 +215,7 @@ uihost.Shortcut(s, "CmdOrCtrl+N", func() { runner.Post(l.newEntry) })
 
 - **改页面读取的状态、调用 `Runner` 的方法**（`HandleEvent`、`SetTheme`、`PerformAction` 等）：`Runner.Post`。任何线程可调用；按调用顺序在两帧之间运行；在 UI 线程上调用时排到当前帧之后，不会立刻执行；窗口关闭后丢弃。
 - **必须在主线程的调用**（`uihost.Open`、`uihost.Attach`、`uihost.FollowSystemTheme`、AppKit 接口）：`App.Post` 或 `tango.Await`。页面里要开新窗口时写 `app.Post(func() { uihost.Open(...) })`。
-- `Runner.Invalidate`、`InvalidateAt`、`Close`、`tango.Surface` 的方法任何线程安全；`sys/dialog` 可以直接在 UI 线程上调用（只阻塞这个窗口，其他窗口照常出帧）。注意 `tango.Surface` 的大多数方法（`Send`、`Eval` 除外）在 UI 线程上调用时同步等主线程执行，主线程忙（比如开着模态对话框）时这个窗口也跟着停住。
+- `Runner.Invalidate`、`Runner.Close` 和 `tango.Surface` 的方法可以从任意线程调用。`sys/dialog` 可以直接在 UI 线程上调用（只阻塞这个窗口，其他窗口照常出帧）。注意 `tango.Surface` 的大多数方法（`Send`、`Eval` 除外）在 UI 线程上调用时同步等主线程执行，主线程忙（比如开着模态对话框）时这个窗口也跟着停住。
 - 需要同步回答的主线程回调（`OnClose`、`OnQuitRequest`）不能等 UI 线程。做法（`examples/editor-demo`）：
   - UI 线程在页面函数里先让编辑区应用本帧输入（`editor.ViewW.Changed()`），再把"有没有未保存的改动"写进一个 `atomic.Bool`；主线程回调读它，没有改动就直接返回 `true`，不经过 UI 线程。这个值只反映 UI 线程已经处理过的输入；还在排队、尚未处理的输入（刚敲下就按 Cmd+Q，或排在一个很慢的帧后面）不在内，这是不等 UI 线程就作答的代价。
   - 有改动时返回 `false`，在 `Runner.Post` 里问用户，用户同意后调用 `Surface.Close()` / `App.Quit()`（两者都不会再问回调）。

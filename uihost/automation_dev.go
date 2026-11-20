@@ -147,6 +147,8 @@ func (c *autoCanvas) onMain(fn func() error) error {
 // window's own queue (threadedHost.post, which Runner.Post also reaches,
 // without its extra frame per poll), or runs it at once when the window
 // went back to drawing on main.
+// A nil return synchronizes with fn's completion. On error fn may still run,
+// so callers must only read results written by fn after a nil return.
 func (c *autoCanvas) onUI(what string, fn func() error) error {
 	if err := c.usable(); err != nil {
 		return err
@@ -302,7 +304,10 @@ func (c *autoCanvas) PerformSettle(id a11y.NodeID, act a11y.Action, arg string) 
 		_, gen = c.current()
 		return nil
 	})
-	return gen, err
+	if err != nil {
+		return 0, err
+	}
+	return gen, nil
 }
 
 // deliver hands evs to the window as the platform does: window shortcuts
@@ -349,7 +354,10 @@ func (c *autoCanvas) InputSettle(evs []input.Event) (uint64, error) {
 		_, gen = c.current()
 		return nil
 	})
-	return gen, err
+	if err != nil {
+		return 0, err
+	}
+	return gen, nil
 }
 
 // Snapshot paints the last frame's display list on the CPU, on the thread
@@ -376,7 +384,10 @@ func (c *autoCanvas) Snapshot() (*image.RGBA, error) {
 		img = cpu.Image()
 		return nil
 	})
-	return img, err
+	if err != nil {
+		return nil, err
+	}
+	return img, nil
 }
 
 // stop ends the subscription when the window closes. Main thread. The

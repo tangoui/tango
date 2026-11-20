@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/tangoui/tango"
@@ -217,5 +218,71 @@ func TestAutomationExistsReportsBusyUIThread(t *testing.T) {
 	rec.mu.Unlock()
 	if !strings.Contains(msg, "busy") {
 		t.Fatalf("Exists failed with %q, want the busy UI thread error", msg)
+	}
+}
+
+func TestAutomationThreadedBusyResult(t *testing.T) {
+	for _, method := range []string{"PerformSettle", "InputSettle", "Snapshot"} {
+		t.Run(method, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				a, fb := faketest.Run(t, tango.Options{})
+				r, _, tc, _ := openThreaded(t, a, fb, func(c *ui.Context) { ui.Button(c, "Add") })
+				const wait = 100 * time.Millisecond
+				c := uihost.AutoCanvasForTest(r, wait)
+				// Subscribe before ticking so the frame publishes its tree.
+				if _, _, err := c.Tree(); err != nil {
+					t.Fatal(err)
+				}
+				tc.tick(t)
+				tree, _, err := c.Tree()
+				if err != nil || tree == nil {
+					t.Fatalf("Tree after the first frame = %v, %v", tree, err)
+				}
+				var id a11y.NodeID
+				for _, n := range tree.Nodes() {
+					if n.Role == a11y.RoleButton && n.Name == "Add" && n.Actions.Has(a11y.Press) {
+						id = n.ID
+						break
+					}
+				}
+				if id == 0 {
+					t.Fatal("no actionable Add button")
+				}
+
+				blocked, release := make(chan struct{}), make(chan struct{})
+				r.Post(func() { close(blocked); <-release })
+				lifecycleDone(t, blocked, "UI thread did not enter the blocking task")
+				drained := make(chan struct{})
+				// Use an independent virtual timer so the caller's return
+				// does not synchronize with the late write to its result.
+				time.AfterFunc(2*wait, func() {
+					r.Post(func() { close(drained) })
+					close(release)
+				})
+
+				var hasResult bool
+				switch method {
+				case "PerformSettle":
+					gen, performErr := c.(iauto.Settler).PerformSettle(id, a11y.Press, "")
+					hasResult, err = gen != 0, performErr
+				case "InputSettle":
+					gen, inputErr := c.(iauto.Settler).InputSettle(nil)
+					hasResult, err = gen != 0, inputErr
+				case "Snapshot":
+					img, snapshotErr := c.Snapshot()
+					hasResult, err = img != nil, snapshotErr
+				}
+				var ae *iauto.Error
+				if hasResult || !errors.As(err, &ae) || ae.Code != iauto.CodeBusy {
+					t.Errorf("%s returned hasResult=%t, err=%v, want a zero result and CodeBusy", method, hasResult, err)
+				}
+				select {
+				case <-release:
+					t.Errorf("%s returned after the UI thread was released", method)
+				default:
+				}
+				lifecycleDone(t, drained, "late request did not drain")
+			})
+		})
 	}
 }

@@ -48,7 +48,7 @@ Go-drawn windows opened with `uihost.Open`, attached with `uihost.Attach`, or ho
 
 - To change state the page reads or call `Runner` methods from a background goroutine, use `r.Post(fn)`. It runs work in order on the UI thread and requests a frame afterward. Pending work is dropped when the window closes.
 - Main-thread callbacks such as menus, tray, `uihost.Shortcut`, `OnMessage`, and `Surface.OnClose` can also update page state through `r.Post`.
-- `Runner` methods are UI-thread only, except `Post`, `Invalidate`, `InvalidateAt` and `Close`, which are safe from any goroutine.
+- `Runner` methods are UI-thread only, except `Post`, `Invalidate` and `Close`, which are safe from any goroutine.
 - Calls that need the main thread (`uihost.Open`, `uihost.Attach`, `uihost.FollowSystemTheme`) go through `app.Post` or `tango.Await`, e.g. `app.Post(func() { uihost.FollowSystemTheme(r, false); r.Post(func() { r.SetTheme(th) }) })`.
 
 Development builds (`-tags tango_dev`) check the calling thread only for runners bound to a dedicated UI thread during internal testing.

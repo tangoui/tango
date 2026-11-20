@@ -37,7 +37,7 @@ path := tango.AwaitAsync(app, func(done func(string)) {
 
 1. 从后台 goroutine 修改页面读取的状态或调用 `Runner` 的方法时，用 `r.Post(fn)`。它在 UI 线程上按顺序执行任务，随后请求一帧。窗口关闭后任务会被丢弃。
 2. 菜单、托盘、`uihost.Shortcut`、`OnMessage`、`Surface.OnClose` 等主线程回调也可以用 `r.Post` 更新页面状态。
-3. `uihost.Open`、`uihost.Attach`、`uihost.FollowSystemTheme` 必须在主线程调用，可以用 `app.Post` 或 `tango.Await` 投递。`Runner` 的方法应在 UI 线程上调用，其中 `Post`、`Invalidate`、`InvalidateAt`、`Close` 可以从任意 goroutine 调用。
+3. `uihost.Open`、`uihost.Attach`、`uihost.FollowSystemTheme` 必须在主线程调用，可以用 `app.Post` 或 `tango.Await` 投递。`Runner` 的方法应在 UI 线程上调用，其中 `Post`、`Invalidate`、`Close` 可以从任意 goroutine 调用。
 
 ```go
 uihost.Shortcut(s, "CmdOrCtrl+N", func() { r.Post(newEntry) }) // 主线程回调 → UI 线程

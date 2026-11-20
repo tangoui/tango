@@ -218,9 +218,10 @@ func restoreEditorFocus() {
 }
 
 // postFileAction runs fn on the editor window's UI thread after the
-// current frame (Runner.Post). File actions change the document and show
-// dialogs, which block that thread, not the main thread. Main-thread
-// callbacks (shortcuts, dropped files, quit and close requests) use it too.
+// current frame (Runner.Post). The editor normally runs on the main thread.
+// In dedicated-thread testing, the editor's UI thread waits while the main
+// thread handles file dialogs. Main-thread callbacks (shortcuts, dropped
+// files, quit and close requests) use postFileAction too.
 // Before the window exists (tests) fn runs on the main thread, which is
 // then the UI thread.
 func postFileAction(fn func()) {
