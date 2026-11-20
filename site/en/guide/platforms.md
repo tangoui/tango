@@ -8,10 +8,10 @@ All five platforms share the `App` / `Surface` API, but each one uses different 
 
 | Platform | Stack | Interfaces | Packages | Verification |
 | --- | --- | --- | --- | --- |
-| macOS | Cocoa · WKWebView · Metal · CoreText | WebView · Go-drawn · hybrid | .dmg (signing, notarization) | Verified on macOS hardware |
+| macOS | Cocoa · WKWebView · Core Animation / Metal · CoreText | WebView · Go-drawn · hybrid | .dmg (signing, notarization) | Verified on macOS hardware |
 | Windows | Win32 · WebView2 · Direct3D 11 · DirectWrite | WebView · Go-drawn · hybrid | NSIS, MSIX (Authenticode) | Cross-compiled + CI smoke tests; no systematic hardware validation yet |
-| Linux | GTK 3 · WebKitGTK 4.1 · OpenGL 3.3 · FreeType/fontconfig | WebView · Go-drawn · hybrid | tar.gz, deb, rpm, AppImage, Flatpak | Cross-compiled + CI smoke tests; OpenGL tested in containers only |
-| iOS | UIKit · WKWebView · Metal · CoreText | WebView · Go-drawn | .app, .ipa | Experimental: simulators, plus one run on an iPhone 12 Pro (iOS 27, 2026-11-14) |
+| Linux | GTK 3 · WebKitGTK 4.1 · OpenGL 3.3 · FreeType/fontconfig | WebView · Go-drawn · hybrid | tar.gz, deb, rpm, AppImage, Flatpak | Cross-compiled + CI smoke tests; OpenGL tested with Mesa llvmpipe; headless Weston smoke tests; GPU hardware not yet validated |
+| iOS | UIKit · WKWebView · Metal · CoreText | WebView · Go-drawn | .app, .ipa | Experimental: simulators and iPhone 12 Pro (iOS 27.0.1), including IPC reload recovery and fault fallback; `up:post` on by default |
 | Android | View · WebView · OpenGL ES 3.0 · pure-Go text | WebView · Go-drawn | .apk, .aab | Experimental: emulator (API 36) only |
 
 On Apple Silicon macOS, Go-drawn windows start on native Core Animation layers. The default `ui.ContentGeneral` switches once to Metal on keyboard input or sustained high frame cost. `ui.ContentData` stays on native layers for keyboard browsing and switches only for sustained high frame cost. Intel Mac uses Metal by default. Desktop overrides include `TANGO_RENDERER=cpu` and `gpu`, with `native` also available on Apple Silicon macOS. macOS compiles only CoreText by default. Build with `-tags tango_gotext` to restore go-text.

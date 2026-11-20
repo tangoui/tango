@@ -1,7 +1,7 @@
 // duplex-mobile is the iOS and Android self-test of Tango's ipc streams: the duplex
 // examples' services (package examples/duplex/services: Echo, Upload,
 // Sink, Source, Bench.Report) behind an ipc.Router wired like
-// examples/duplex, and a page (web/selftest.js) that exercises them and
+// examples/duplex, and a page (services/selftest.js) that exercises them and
 // reports to Go, which logs one line per result.
 //
 //	bash mobile/ios/build.sh examples/duplex-mobile simulator
@@ -39,15 +39,13 @@
 // examples/duplex/services, the same code as go run ./examples/duplex
 // -bench; "bench: {...}", docs/ipc-bench.md). TANGO_SCHEME_PROBE=1 may be
 // added for Debug.Stats' up:post counters in the result (the benchmark
-// verdict runs in docs/ipc-bench.md were made without it). On iOS add
-// TANGO_IPC_LANES_DARWIN=1 to measure up:post (off by default there); on
-// the desktop up:post is on by default and TANGO_IPC_LANES_DARWIN=0 gives
+// verdict runs in docs/ipc-bench.md were made without it). On iOS and macOS,
+// up:post is on by default and TANGO_IPC_LANES_DARWIN=0 gives
 // the fallback configuration. It also runs on the desktop
 // (go run ./examples/duplex-mobile).
 package main
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
@@ -69,7 +67,8 @@ var web embed.FS
 
 func main() {
 	site, _ := fs.Sub(web, "web")
-	app := tango.New(tango.Options{Name: "Tango Duplex", ID: "dev.tango.duplexios", Assets: services.TestRoutes(services.BenchRoute(asset.FS(site, asset.Options{})))})
+	assets := services.TestRoutes(services.SelftestRoute(services.BenchRoute(asset.FS(site, asset.Options{}))))
+	app := tango.New(tango.Options{Name: "Tango Duplex", ID: "dev.tango.duplexios", Assets: assets})
 
 	r := ipc.NewRouter()
 	services.Register(r)
@@ -95,19 +94,7 @@ func main() {
 	// line at about 4 KB, a result over reportChunk bytes is split into
 	// "kind#1: ...", "kind#2: ", ... and a last line "kind#end";
 	// scripts/smoke.sh joins them.
-	r.Handle("Selftest.Report", func(_ context.Context, args json.RawMessage) (any, error) {
-		var a []json.RawMessage
-		var kind string
-		if err := json.Unmarshal(args, &a); err != nil || len(a) != 2 || json.Unmarshal(a[0], &kind) != nil {
-			return nil, ipc.NewError(ipc.CodeBadArgs, "Selftest.Report(kind string, result object)")
-		}
-		var line bytes.Buffer
-		if err := json.Compact(&line, a[1]); err != nil {
-			return nil, ipc.NewError(ipc.CodeBadArgs, err.Error())
-		}
-		report(kind, line.String())
-		return nil, nil
-	})
+	services.RegisterSelftestReport(r, report)
 
 	app.AddBridgeScript(runtimejs.Script)
 	app.OnMessage(func(s *tango.Surface, m string) {

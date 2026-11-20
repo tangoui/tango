@@ -11,10 +11,13 @@ go run ./examples/duplex -bench
 ```
 
 macOS 上 `up:post` 默认开启，这样跑测的就是 up:post 配置；测兜底传输（全部走消息通道）要加
-`TANGO_IPC_LANES_DARWIN=0`（iOS 相反：默认兜底，`TANGO_IPC_LANES_DARWIN=1` 才是 up:post）。
+`TANGO_IPC_LANES_DARWIN=0`（iOS 也默认开启，可用同一开关关闭）。
 macOS 的下行通道 `down:poll` 默认关闭，`TANGO_IPC_LANES_DARWIN=1`（或 `all`）同时开 `down:poll` 和
 `up:post`（见下文「down:poll」一节）。Android 在 WebView 支持 ArrayBuffer 消息时默认使用
 `down:android` 和 `up:android`，比较兜底传输时用 `TANGO_IPC_LANES_ANDROID=0`（传参方式见 [移动端](mobile.md#ipc-快速通道-1)）。
+
+Windows 默认开启 `down:shm` 和 `up:shm`，Linux 默认关闭 `down:poll` 和 `up:post`。测兜底可在任何平台设
+`TANGO_IPC_LANES=0`。Windows 和 Linux 的交替测量方法见下文。
 
 程序打开窗口，加载 `index.html?bench`，页面跑完下面几项后把结果交给 `Bench.Report`，
 Go 侧把它原样打印成一行 JSON 到 stdout，然后退出。基准代码在
@@ -50,12 +53,17 @@ Go 侧把它原样打印成一行 JSON 到 stdout，然后退出。基准代码�
 | 平台 | 机器 | 系统 / WebView | p50 (ms) | p99 (ms) | 平均 (ms) | JS→Go (MB/s) | Go→JS (MB/s) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | macOS | Mac16,10（Apple M4） | macOS 26.6 (25G72)，WKWebView | 0 † | 1 † | 0.124 | 255.17 | 328.97 |
-| Windows | 待测 | WebView2 | 待测 | 待测 | 待测 | 待测 | 待测 |
-| Linux | 待测 | WebKitGTK | 待测 | 待测 | 待测 | 待测 | 待测 |
+| Windows x64 | `windows-latest` | WebView2 Runtime 版本未记录 | 0.3 | 0.6 | 0.349 | 43.26 | 69.03 |
+| Windows ARM64 | `windows-11-arm` | WebView2 Runtime 版本未记录 | 0.7 | 1 | 0.710 | 31.00 | 66.48 |
+| Linux | `ubuntu-latest`（Ubuntu 24.04） | WebKitGTK 版本未记录 | 无数据 | 无数据 | 无数据 | 无数据 | 无数据 |
 | Android | 待测 | Android WebView | 待测 | 待测 | 待测 | 待测 | 待测 |
 | iOS | 待测 | WKWebView | 待测 | 待测 | 待测 | 待测 | 待测 |
 
 † 受 1 ms 计时精度限制，见上文。
+
+Windows 取无通道提交 `2a7895f0` 的 [CI run 44489941316](https://github.com/tangoui/tango/actions/runs/44489941316)
+中 A 组五次的各字段中位数（`latencyP50Ms`、`latencyP99Ms`、`latencyMeanMs`、`upMBps`、`downMBps`）。
+该次运行的 B 组也全为兜底。Linux 页面加载失败，A、B 均没有有效样本。第二期判定使用同一次运行的 A 组作为对照。
 
 macOS 原始输出（2026-11-13，连续三次，表里取第三次）：
 
@@ -191,8 +199,12 @@ up:post 组再加 `SIMCTL_CHILD_TANGO_IPC_LANES_DARWIN=1`），交替各 5 次�
 模拟器上吞吐过了 2×，分批 p99 按字面没过（0.38 对 0.28）。但和 macOS 一样：64 B 帧小于 `up:post` 的门槛
 （16 KiB），两种配置下延迟测的都是消息通道；延迟在上传之前测，那时通道空闲（macOS 的 0.53 同理不算改进）；两组 p99 的范围
 （0.20～0.40 对 0.22～0.50）大面积重叠，1000 次往返的平均反而 up:post 略快（0.205 对 0.213）。
-这更像模拟器上的噪声，而不是 up:post 拖慢了小帧；但模拟器不能代替真机，iOS 的判定要等真机数据。
+这更像模拟器上的噪声，而不是 up:post 拖慢了小帧；但模拟器不能代替真机，默认值以以下真机数据为准。
 注意 iOS 上 `upMain` 没有计（主线程读请求体在 `bridge.m` 里）。
+
+### iOS 真机
+
+iPhone 12 Pro（系统版本 iOS 27.0.1，由 `devicectl` 查询；WebView User-Agent 中的 `18_7` 并非实际系统版本），`examples/duplex-mobile`，5 轮交替对比兜底与 `up:post`：64 KiB 帧上传中位数 **171.63 → 528.42 MB/s（3.08×）**，64 B 往返分批 p99 **0.54 → 0.52 ms**（两组的小帧均走消息通道）。补上 iOS 导航开始事件后，模拟器及同一台 iPhone 的完整自测均通过，包括重载恢复、8 MiB 双向回显、混合帧和页面卡顿。真机注入 `up:post:3` 后自动回退，受影响的流报 `transport`，并行流完整。iOS 因此默认开启 `up:post`；下行仍走消息通道。
 
 ## 第二期 Android（down:android / up:android）
 
@@ -233,6 +245,53 @@ up:post 组再加 `SIMCTL_CHILD_TANGO_IPC_LANES_DARWIN=1`），交替各 5 次�
 - **小帧的中位延迟略差**：分批 p50 慢约 24%（0.648 对 0.522 ms），1000 次往返的平均慢约 43%。64 B 帧在通道上每帧要走一次 ArrayBuffer `postMessage`、一次 JNI 拷贝，下行还要排队等主线程 `drain`；兜底的字符串消息只有一次跨进程。§6.3 只要求 p99，这一点不影响判定，但如果应用大量收发很小的字节帧，打开通道的收益主要在吞吐和尾延迟上。没有做攒批（计划 Task 3：每帧一包）。
 
 **结论：Android 默认开启 `down:android` / `up:android`**（用户 2026-11-14 根据上面的数据决定）。`TANGO_IPC_LANES_ANDROID=0`（或 `false`、`off`）关闭，`TANGO_IPC_LANES=0` / `Options.DisableFastLanes` 关闭所有平台的通道。真机数据仍待补。
+
+## 第二期 Windows（down:shm / up:shm）
+
+机器为 GitHub 托管 `windows-latest`（x64）和 `windows-11-arm`（ARM64）。WebView2 Runtime 版本未记录。
+兜底传输用字符串消息和 base64，通道组的字节包走 WebView2 SharedBuffer。
+
+Windows 和 Linux 都由 [IPC lanes 工作流](../.github/workflows/ipc-lanes.yml) 执行
+`bash scripts/ipc-bench-ab.sh 5 bench.jsonl`（Linux 在 `dbus-run-session` 和 Xvfb 下运行）。脚本构建一次
+`examples/duplex`，每轮用同一二进制先跑 A 再跑 B，各自启动新进程。A 设 `TANGO_IPC_LANES=0`，B 设对应的
+`TANGO_IPC_LANES_WINDOWS=1` 或 `TANGO_IPC_LANES_LINUX=1`。各 runner 上传 `ipc-lanes-<runner>` 产物，包含
+`bench.jsonl` 和 `e2e.log`。
+
+下表对各 run、runner 和 `arm` 分别取中位数。每个字段的五个值升序排列，取第三个。吞吐字段为
+`upMBps` 与 `downMBps`，延迟为 `latencyBatchP50Ms` 与 `latencyBatchP99Ms`，1 KiB 下行为 `downSmallMBps`。
+分批 p99 先由每次运行的 20 个 64 B 往返批均值算出，再对五次的 p99 取中位数。表中箭头为 A → B，倍数为
+B 的中位数除以 A 的中位数，显示到两位小数。§6.3 按舍入前的比值判定，两个方向的 64 KiB 吞吐各需达到
+2 倍，64 B 分批 p99 需小于或等于 A 组。
+
+| CI run | 架构 | JS→Go 64 KiB (MB/s) | Go→JS 64 KiB (MB/s) | 分批 p50 (ms) | 分批 p99 (ms) | Go→JS 1 KiB (MB/s) |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| [44496482515](https://github.com/tangoui/tango/actions/runs/44496482515) | x64 | 27.03 → 289.01（10.69×） | 39.57 → 352.09（8.90×） | 0.566 → 0.514 | 0.608 → 0.558 | 15.87 → 13.68 |
+| [44496482515](https://github.com/tangoui/tango/actions/runs/44496482515) | ARM64 | 29.80 → 360.99（12.11×） | 63.76 → 414.25（6.50×） | 0.682 → 0.606 | 0.750 → 0.718 | 20.67 → 18.22 |
+| [44498753556](https://github.com/tangoui/tango/actions/runs/44498753556) | x64 | 25.27 → 218.03（8.63×） | 37.11 → 303.52（8.18×） | 0.652 → 0.640 | 0.696 → 0.682 | 15.11 → 11.04 |
+| [44498753556](https://github.com/tangoui/tango/actions/runs/44498753556) | ARM64 | 31.91 → 373.45（11.70×） | 57.58 → 377.44（6.56×） | 0.612 → 0.584 | 0.648 → 0.644 | 22.18 → 18.73 |
+| [44500592130](https://github.com/tangoui/tango/actions/runs/44500592130) | x64 | 26.91 → 245.73（9.13×） | 39.66 → 337.23（8.50×） | 0.636 → 0.634 | 0.682 → 0.674 | 14.55 → 11.17 |
+| [44500592130](https://github.com/tangoui/tango/actions/runs/44500592130) | ARM64 | 30.25 → 383.48（12.68×） | 61.29 → 422.87（6.90×） | 0.696 → 0.582 | 0.732 → 0.636 | 22.82 → 18.82 |
+
+**结论：三次运行的两种架构均满足 §6.3，Windows 默认开启两条通道。**
+`TANGO_IPC_LANES_WINDOWS=0`、`false` 或 `off` 关闭。1 KiB 下行吞吐在六组中都低于兜底，具体值见末列。
+§6.3 用 64 KiB 吞吐和 64 B 分批 p99 判定默认值。
+
+## 第二期 Linux（up:post / down:poll）
+
+机器为 GitHub 托管 `ubuntu-latest`（Ubuntu 24.04），WebKitGTK 版本未记录。A 组走消息通道，B 组下行走
+`down:poll` 短响应轮询，上行走 `up:post`。脚本和中位数取法与 Windows 相同。run 44496482515 只有 Windows
+通道的对照数据，Linux 的两次有效对照如下。
+
+| CI run | JS→Go 64 KiB (MB/s) | Go→JS 64 KiB (MB/s) | 分批 p50 (ms) | 分批 p99 (ms) |
+| --- | ---: | ---: | ---: | ---: |
+| [44498753556](https://github.com/tangoui/tango/actions/runs/44498753556) | 151.83 → 259.11（1.71×） | 119.20 → 227.49（1.91×） | 0.18 → 0.18 | 0.28 → 0.22 |
+| [44500592130](https://github.com/tangoui/tango/actions/runs/44500592130) | 87.72 → 174.31（1.99×） | 64.34 → 118.57（1.84×） | 0.46 → 0.44 | 0.48 → 0.48 |
+
+**结论：Linux 两条通道默认关闭，`TANGO_IPC_LANES_LINUX=1` 可同时开启。** 两次分批 p99 均不差于兜底。
+Linux 的兜底传输本身较快，两次对照的上行和下行吞吐增幅均低于 2 倍。
+
+Run 44500592130 的 `e2e.log` 记录了 Linux、Windows x64 和 Windows ARM64 的 `selftest`、`fault-down` 和
+`fault-up` 均通过。故障后后续帧走消息通道，丢帧的流报 `transport`，并行的流继续传输。
 
 ## down:poll（macOS 下行轮询通道）
 

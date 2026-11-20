@@ -165,6 +165,13 @@ func live(id C.uint64_t) (*backend, *surface) {
 	return b, s
 }
 
+//export tangoIOSNavigationStarted
+func tangoIOSNavigationStarted(id C.uint64_t, url *C.char) {
+	if b, s := live(id); s != nil {
+		b.h.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceNavigating, URL: C.GoString(url)})
+	}
+}
+
 //export tangoIOSLoaded
 func tangoIOSLoaded(id C.uint64_t, url *C.char) {
 	if b, s := live(id); s != nil {

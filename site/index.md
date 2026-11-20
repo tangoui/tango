@@ -25,7 +25,7 @@ hero:
 <HomeStats />
 
 ::: warning 当前状态：0.x，API 仍会变化
-桌面端只在 **macOS 实机**上验证过；Windows、Linux 做了交叉编译和 CI 冒烟测试，还没有系统的实机验证。移动端是**实验性**的：iOS 在模拟器上测过，另外在一台 iPhone 12 Pro（iOS 27）上做过一次真机运行（2026-11-14）；Android 只在模拟器上测过。各平台的具体情况见 [平台支持](/guide/platforms)。
+桌面端只在 **macOS 实机**上验证过；Windows、Linux 做了交叉编译和 CI 冒烟测试，还没有系统的实机验证。移动端是**实验性**的：iOS 在模拟器上测过，并在 iPhone 12 Pro 上验证了 WebView、自绘和 IPC；Android 只在模拟器上测过。各平台的具体情况见 [平台支持](/guide/platforms)。
 :::
 
 <div class="home-head">
@@ -94,9 +94,9 @@ hero:
 
 ### macOS <span class="home-badge ok">实机验证</span>
 
-<span class="stack">Cocoa · WKWebView · Metal · CoreText</span>
+<span class="stack">Cocoa · WKWebView · Core Animation / Metal · CoreText</span>
 
-支持 WebView、自绘和混合界面。打包为 .dmg，可签名和公证。最小 WebView 应用的 .dmg 为 1.80 MiB。
+支持 WebView、自绘和混合界面。打包为 .dmg，可签名和公证。最小 WebView 样本的 arm64 .dmg 实测为 1.80 MiB。
 
 </div>
 <div class="home-card">
@@ -105,7 +105,7 @@ hero:
 
 <span class="stack">Win32 · WebView2 · Direct3D 11 · DirectWrite</span>
 
-支持 WebView、自绘和混合界面。打包为 NSIS 或 MSIX，可做 Authenticode 签名。最小 WebView 应用的 NSIS 安装程序为 1.97 MiB。Direct3D 11 渲染还没有在实机上验收。
+支持 WebView、自绘和混合界面。打包为 NSIS 或 MSIX，可做 Authenticode 签名。最小 WebView 样本的 amd64 未签名 NSIS 安装包实测为 1.97 MiB。Direct3D 11 渲染还没有在实机上验收。
 
 </div>
 <div class="home-card">
@@ -114,7 +114,7 @@ hero:
 
 <span class="stack">GTK 3 · WebKitGTK 4.1 · OpenGL 3.3 · FreeType/fontconfig</span>
 
-支持 WebView、自绘和混合界面。打包为 tar.gz、deb、rpm、AppImage 或 Flatpak。OpenGL 渲染只在容器里（Mesa llvmpipe）测过。
+支持 WebView、自绘和混合界面。打包为 tar.gz、deb、rpm、AppImage 或 Flatpak。OpenGL 已在 Mesa llvmpipe 软件渲染环境验证；CI 也覆盖无头 Wayland 自绘冒烟，真实 GPU 尚未验收。
 
 </div>
 <div class="home-card">
@@ -123,7 +123,7 @@ hero:
 
 <span class="stack">UIKit · WKWebView · Metal · CoreText</span>
 
-支持 WebView 页和自绘页，产物为 .app 和 .ipa。在模拟器上测过，另在一台 iPhone 12 Pro 上做过一次真机运行。
+支持 WebView 页和自绘页，产物为 .app 和 .ipa。已在模拟器和 iPhone 12 Pro 上验证。真机通过 IPC 重载恢复和故障回退测试，默认开启上行快速通道 `up:post`。
 
 </div>
 <div class="home-card">

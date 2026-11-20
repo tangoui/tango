@@ -289,6 +289,9 @@ func (s *surface) initWebExt() {
 // accepted downloads end with DownloadCanceled, operations in flight get
 // an error, COM references are dropped.
 func (s *surface) closeWebExt() {
+	if lanes := s.shm.Swap(nil); lanes != nil {
+		lanes.close()
+	}
 	for _, d := range s.web.downloads {
 		comCall(d.op, dlCancel)
 		s.endDownload(d, platform.DownloadCanceled, "")

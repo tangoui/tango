@@ -216,12 +216,9 @@ func (p *navMenuPopup) colors() (bg, fg, hoverBg, hoverFg, selBg, selFg theme.Co
 func (p *navMenuPopup) style(ov *Box) {
 	_, tk := p.look()
 	bg, _, _, _, _, _ := p.colors()
-	op := p.opacity
-	if op == 0 {
-		op = 1
-	}
 	ov.n.ln.Padding = geom.VH(tk.PaddingBlock, tk.PaddingInline)
-	ov.Bg(bg).Radius(tk.PopupRadius).Shadow(tk.PopupShadow).Opacity(op)
+	// Zero is the first frame of the opening fade, not an opaque default.
+	ov.Bg(bg).Radius(tk.PopupRadius).Shadow(tk.PopupShadow).Opacity(p.opacity)
 	if tk.PopupBorderColor.A > 0 && !p.darkSider() {
 		ov.Border(1, tk.PopupBorderColor)
 	}

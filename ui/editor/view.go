@@ -159,6 +159,7 @@ type viewState struct {
 	// dmg is what the last paint drew, for the redraw hints (damage.go);
 	// dmgSpare holds the buffers of the paint before it, for reuse.
 	dmg, dmgSpare damageRec
+	glyphInk      map[glyphInkKey]spanX
 
 	// Display decorations (paint.go, occurrences.go, unicode.go, links.go,
 	// colors.go): the occurrences and selection match states, scratch

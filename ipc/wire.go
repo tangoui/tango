@@ -147,6 +147,11 @@
 // not know the stream yet, which drops it. The acceptor may use a lane at
 // once.
 //
+// Windows with WebView2 SharedBuffer support enables down:shm and up:shm
+// by default. Linux can opt in to down:poll and up:post where supported
+// by WebKitGTK. See docs/specs/2026-11-13-ipc-duplex-streams.md §6.2 for
+// platform defaults and settings.
+//
 // When a lane is available, the hello reply carries the connection's
 // BinaryConn.LaneHello JSON verbatim in "lanes"; without lanes the field
 // is absent:

@@ -25,7 +25,7 @@ hero:
 <HomeStats lang="en" />
 
 ::: warning Status: 0.x, the API still changes
-Desktop is verified on **macOS hardware only**. Windows and Linux are cross-compiled and covered by CI smoke tests, but have not been validated systematically on hardware. Mobile is **experimental**: iOS has run in simulators and once on a real iPhone 12 Pro (iOS 27, 2026-11-14); Android has run in emulators only. See [Platform support](/en/guide/platforms).
+Desktop is verified on **macOS hardware only**. Windows and Linux are cross-compiled and covered by CI smoke tests, but have not been validated systematically on hardware. Mobile is **experimental**: iOS has been tested in simulators and on an iPhone 12 Pro for WebView, Go-drawn UI, and IPC; Android has run in emulators only. See [Platform support](/en/guide/platforms).
 :::
 
 <div class="home-head">
@@ -92,9 +92,9 @@ Ant Design, Element Plus and shadcn themes share one set of semantic tokens, eac
 
 ### macOS <span class="home-badge ok">hardware-verified</span>
 
-<span class="stack">Cocoa · WKWebView · Metal · CoreText</span>
+<span class="stack">Cocoa · WKWebView · Core Animation / Metal · CoreText</span>
 
-WebView, Go-drawn and hybrid. Ships as .dmg, with signing and notarization.
+WebView, Go-drawn and hybrid. Ships as .dmg, with signing and notarization. The minimal WebView sample measured 1.80 MiB as an arm64 DMG.
 
 </div>
 <div class="home-card">
@@ -103,7 +103,7 @@ WebView, Go-drawn and hybrid. Ships as .dmg, with signing and notarization.
 
 <span class="stack">Win32 · WebView2 · Direct3D 11 · DirectWrite</span>
 
-WebView, Go-drawn and hybrid. Ships as NSIS or MSIX. Direct3D 11 rendering has not been checked on hardware yet.
+WebView, Go-drawn and hybrid. Ships as NSIS or MSIX, with Authenticode signing. The minimal WebView sample measured 1.97 MiB as an unsigned amd64 NSIS installer. Direct3D 11 rendering has not been checked on hardware yet.
 
 </div>
 <div class="home-card">
@@ -112,7 +112,7 @@ WebView, Go-drawn and hybrid. Ships as NSIS or MSIX. Direct3D 11 rendering has n
 
 <span class="stack">GTK 3 · WebKitGTK 4.1 · OpenGL 3.3 · FreeType/fontconfig</span>
 
-WebView, Go-drawn and hybrid. Ships as tar.gz, deb, rpm, AppImage or Flatpak. OpenGL has only been tested in containers.
+WebView, Go-drawn and hybrid. Ships as tar.gz, deb, rpm, AppImage or Flatpak. OpenGL was tested with Mesa llvmpipe; CI also smoke-tests Go-drawn UI on headless Wayland. GPU hardware is not yet validated.
 
 </div>
 <div class="home-card">
@@ -121,7 +121,7 @@ WebView, Go-drawn and hybrid. Ships as tar.gz, deb, rpm, AppImage or Flatpak. Op
 
 <span class="stack">UIKit · WKWebView · Metal · CoreText</span>
 
-WebView and Go-drawn pages; builds .app and .ipa. Tested in simulators, plus one run on a real iPhone 12 Pro.
+WebView and Go-drawn pages; builds .app and .ipa. Tested in simulators and on an iPhone 12 Pro. IPC reload recovery and fault fallback passed on hardware; `up:post` is on by default.
 
 </div>
 <div class="home-card">

@@ -194,7 +194,7 @@ defer s.Close()
 
 ## 快速通道
 
-默认情况下所有 IPC 都走原始消息通道：每帧是一条 JSON 字符串，字节帧编成 base64。**快速通道**是挨着消息通道的二进制旁路，只承载流的**字节帧**，省掉 JSON 和 base64；JSON 帧、`open`/`accept`/`ack`/`end` 等控制消息和握手仍然走消息通道。两个方向分别协商，同一条流的帧可以一部分走快速通道、一部分走消息通道，接收方按序号重排，所以语义完全不变：应用代码除了接线，什么都不用改。
+IPC 的兜底传输使用原始消息通道，每帧是一条 JSON 字符串，字节帧编成 base64。**快速通道**是挨着消息通道的二进制旁路，只承载流的**字节帧**，省掉 JSON 和 base64。JSON 帧、`open`/`accept`/`ack`/`end` 等控制消息和握手仍走消息通道。两个方向分别协商，同一条流的帧可以一部分走快速通道、一部分走消息通道，接收方按序号重排。
 
 快速通道按名字区分：`down:poll` / `up:post`（资源来源上的 `/__tango/lane/poll` 轮询和 `/__tango/lane/up` POST），以及平台各自的 `down:android` / `up:android`、`down:shm` / `up:shm`。`down:poll` 接所有字节帧，`up:post` 只接 16 KiB 到约 1 MiB 的帧，更小的帧照旧走消息通道（延迟更低）。
 
@@ -206,12 +206,16 @@ defer s.Close()
 
 1. 应用用 `app.OnBinary` 注册了至少一个处理函数（上面「接线」里那一行，把包交给 `r.HandleBinarySession(s, gen, p)`）。没人接收上行包，核心就不开通道。
 2. 页面来自应用的资源来源（macOS/iOS/Linux 是 `tango://app`，Windows/Android 是 `https://tango.localhost`）。**直接从开发服务器加载的页面**（`SurfaceOptions.URL` 指向 `http://localhost:5173` 之类）永远拿不到快速通道，全部走消息通道；`tan dev` 通过 `asset.FromEnv` 反向代理开发服务器，页面仍在资源来源上，不受影响。
-3. 平台后端报告了支持的通道（页面的 CSP 还得允许 `connect-src` 到资源来源，见下文「macOS / iOS」）。
+3. 平台后端报告了支持的通道（`up:post` 的页面 CSP 还得允许 `connect-src` 到资源来源，见下文「macOS / iOS」）。
 4. 没有被关掉：`tango.Options{DisableFastLanes: true}`，或环境变量 `TANGO_IPC_LANES=0`（任何构建都生效，排查问题用）。
 
-::: warning 目前只有 macOS 和 Android 默认开启
-公共设施（协议、核心、`@tangoui/runtime` 的 `down:poll` / `up:post` 等通道模块）已经就绪。**macOS 默认报告 `up:post`**（上行字节帧走快速通道），**Android 默认报告 `down:android` / `up:android`**（两个方向）；iOS 可以用环境变量试用，默认关闭（见下文「macOS / iOS」「Android」）；Windows、Linux 仍然全部走消息通道，通过基准对比后才会逐个默认开启。现在就把 `OnBinary` 接上，到时候无需改代码。
-:::
+| 平台 | 默认开启 | 可选开启 |
+| --- | --- | --- |
+| macOS | `up:post` | `down:poll` |
+| iOS | `up:post` | — |
+| Android | `down:android`、`up:android` | — |
+| Windows | `down:shm`、`up:shm` | — |
+| Linux | 关闭 | `down:poll`、`up:post` |
 
 `OnBinary` 的处理函数在收到包的 goroutine 上调用，不在主线程；包只在调用期间有效。`r.HandleBinarySession` 满足这两点。`gen` 是包通过校验时所属的页面世代，原样交给 `HandleBinarySession`，旧页面的包就不会进新页面的流。不要用 `r.HandleBinary`：它只给不复用页面的简单连接用，对 `*tango.Surface` 会丢掉所有包（并记一条警告）。一个 surface 只接一个 `Router`：每次握手都会换通道世代，两个 Router 会互相作废，不支持。
 
@@ -219,26 +223,31 @@ defer s.Close()
 
 页面导航时核心会立即暂停下行通道，页面离开资源来源时整个通道作废，新页面握手后重新协商；流的打开方在收到对方 `accept` 之前不用快速通道。这些都由核心和运行时处理，应用不用管。
 
+### Windows / Linux
+
+- **Windows** 在支持 SharedBuffer 的 WebView2 上默认开启 `down:shm` 和 `up:shm`。两条通道各使用一个共享环。`TANGO_IPC_LANES_WINDOWS=0`、`false` 或 `off` 关闭两条通道，`TANGO_IPC_SHM_BYTES` 设置每个环的数据区容量，默认 4 MiB。
+- **Linux** 默认关闭快速通道。`TANGO_IPC_LANES_LINUX=1` 或 `all` 可开启下行轮询 `down:poll`（WebKitGTK 2.36+）与上行 POST `up:post`（2.40+），`down` 或 `up` 可分别开启。CI 的 64 KiB 吞吐增幅低于默认开启门槛。[基准结果](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)
+
 ### macOS / iOS
 
 - **macOS 提供 `up:post` 和 `down:poll`，iOS 只提供 `up:post`**（上行字节帧经 `/__tango/lane/up` 的 POST 交给 Go）。早先的流式下行通道 `down:scheme` 已删除：WKWebView 会扣住 `tango://` 流式响应里大块突发的一部分，直到同一响应上有新数据才交出。`down:poll` 的每个响应都会结束，没有这个问题。
-- **macOS 默认只开 `up:post`**：`down:poll` 让下行比改造前快 3～11 倍（64 KiB 帧 306 → 1017 MB/s，1 KiB 小帧 4.5 万 → 50 万帧/s，2.3 KB JSON 3.4 万 → 11 万帧/s），小消息往返慢不到 10%，但 64 KiB 帧和小帧的吞吐还没赶上 Wails v3.1.0（流控窗口所限），所以默认关闭，用 `TANGO_IPC_LANES_DARWIN=1` 打开，数据见 [docs/ipc-bench.md](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)。**iOS 默认关闭**（只在模拟器上测过，等真机数据）。环境变量 `TANGO_IPC_LANES_DARWIN` 控制两个平台（每个窗口/页面创建时读一次；去掉首尾空白、不分大小写；所有取值在任何构建都生效）：
+- **macOS 默认只开 `up:post`**：`down:poll` 让下行比改造前快 3～11 倍（64 KiB 帧 306 → 1017 MB/s，1 KiB 小帧 4.5 万 → 50 万帧/s，2.3 KB JSON 3.4 万 → 11 万帧/s），小消息往返慢不到 10%，但 64 KiB 帧和小帧的吞吐还没赶上 Wails v3.1.0（流控窗口所限），所以默认关闭，用 `TANGO_IPC_LANES_DARWIN=1` 打开，数据见 [docs/ipc-bench.md](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)。**iOS 默认开启 `up:post`**（iPhone 12 Pro 实测上传 3.08 倍）。环境变量 `TANGO_IPC_LANES_DARWIN` 控制两个平台（每个窗口/页面创建时读一次；去掉首尾空白、不分大小写；所有取值在任何构建都生效）：
 
   | 取值 | macOS | iOS |
   |---|---|---|
-  | 未设置、空、其他值 | `up:post`（默认） | 关闭（默认；其他值见下） |
+  | 未设置、空、其他值 | `up:post`（默认） | `up:post`（默认） |
   | `1`、`all` | `down:poll` + `up:post` | `up:post` |
   | `up` | `up:post` | `up:post` |
   | `down` | `down:poll`（排查问题用） | `up:post` |
   | `0`、`false`、`off` | 关闭 | 关闭 |
 
-  iOS 上除了未设置、空和关闭值，其他取值都是 `up:post`。`TANGO_IPC_LANES=0` 或 `DisableFastLanes` 始终优先关闭。iOS 真机上没法从外部传环境变量，要试用就在 Go 里、创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "up")`（不用 `1`：同一份代码在 macOS 上 `1` 还会打开实验性的 `down:poll`）。macOS 默认时 `tango.lanes()` 返回 `{down: "fallback", up: "up:post"}`，`TANGO_IPC_LANES_DARWIN=1` 时返回 `{down: "down:poll", up: "up:post"}`。macOS 上传 64 MiB 的吞吐约为消息通道的 2.73 倍，见 [docs/ipc-bench.md](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)。
+  iOS 上除了明确的关闭值，其他取值都是 `up:post`。`TANGO_IPC_LANES=0` 或 `DisableFastLanes` 始终优先关闭。iOS 真机上没法从外部传环境变量，要试用就在 Go 里、创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "up")`（不用 `1`：同一份代码在 macOS 上 `1` 还会打开实验性的 `down:poll`）。macOS 默认时 `tango.lanes()` 返回 `{down: "fallback", up: "up:post"}`，`TANGO_IPC_LANES_DARWIN=1` 时返回 `{down: "down:poll", up: "up:post"}`。macOS 上传 64 MiB 的吞吐约为消息通道的 2.73 倍，见 [docs/ipc-bench.md](https://github.com/tangoui/tango/blob/main/docs/ipc-bench.md)。
 - **CSP**：`up:post` 启动时先向 `/__tango/lane/up` POST 一个空包，收到 204 才算就绪。页面的 CSP 若不允许 `connect-src` 到资源来源（比如 `connect-src https://api.example.com`，或者不含 `'self'` 的 `default-src`），探测被拒，这个页面就不开快速通道，字节帧照常走消息通道，不会报错。想用快速通道，就在 `connect-src` 里加上 `'self'`。
 - 已知限制：
   - iframe 拿不到通道令牌。协议处理器看不到请求来自哪个 frame，安全性靠"令牌只经主框架的消息桥下发"；macOS 实测不透明来源的 frame（沙箱 `srcdoc`、`data:`）和同源 frame 发出的通道请求全部被拒（iOS 未单独测）。同源 frame 本来就能访问 `parent.tango`，那是应用自己的代码。
   - WebKit 不把 `tango://` 请求的 Blob 请求体交给处理器，所以 `up:post` 只用 ArrayBuffer。这条限制同样适用于应用自己的 fetch：iOS 有把 Blob/FormData 转成 ArrayBuffer 的注入脚本（见 [docs/mobile.md](https://github.com/tangoui/tango/blob/main/docs/mobile.md)），macOS 上请自己用 ArrayBuffer 或字符串作请求体（macOS 上 Blob 请求体没有单独测过，按 WebKit 的已知问题处理）。
   - WebKit 的 `tango://` 请求不带 `Origin`，TanGo 用主文档的来源补上；所以应用页面里嵌的跨源 iframe 发往资源来源的请求能通过资源 CSRF 检查（原有行为；通道请求仍受每世代令牌保护）。不要在资源页面里嵌不可信的 frame。
-  - iOS 只在模拟器上测过，未在真机上测。"通道中途坏掉"在 iOS 模拟器上有自动化测试：`bash scripts/smoke.sh ios-lanefault`（`up:post` 在第 3 个数据包后故障：丢帧的流报 `transport`，并行的流完整，之后的帧走消息通道）；Android 对应的是 `android-lanefault`。
+  - iOS 已通过真机完整自测和上行故障回退。"通道中途坏掉"在 iOS 模拟器上有自动化测试：`bash scripts/smoke.sh ios-lanefault`（`up:post` 在第 3 个数据包后故障：丢帧的流报 `transport`，并行的流完整，之后的帧走消息通道）；Android 对应的是 `android-lanefault`。
 
 ### Android
 

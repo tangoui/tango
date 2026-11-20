@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/tangoui/tango/internal/platform"
@@ -32,6 +33,7 @@ type surface struct {
 	ready      bool    // webview set up; pending ran
 	failed     error
 	pending    []func()
+	shm        atomic.Pointer[shmLanes] // published once the WebView2 interfaces are available
 
 	lastW, lastH int // last reported logical client size
 
@@ -240,18 +242,13 @@ func (s *surface) setUp(controller uintptr) {
 	s.sxInstallFileDrop()  // sysx_drop_windows.go: every dropped file's path
 	s.installDragSession() // surface_ext_windows.go: drag sessions for file: drops
 
-	// add registers an event handler; the token is written to a local
-	// whose address is taken in the call (go:uintptrescapes).
-	add := func(obj uintptr, index int, fn func(sender, args uintptr)) {
-		var tok int64
-		withHandler(fn, func(h uintptr) uintptr { return comCall(obj, index, h, uintptr(unsafe.Pointer(&tok))) })
-	}
-	add(s.webview, wvAddNavigationStarting, s.navigationStarting)
-	add(s.webview, wvAddNavigationCompleted, s.navigationCompleted)
-	add(s.webview, wvAddWebMessageReceived, s.webMessageReceived)
-	add(s.webview, wvAddWebResourceRequested, s.webResourceRequested)
+	addWebViewEvent(s.webview, wvAddNavigationStarting, s.navigationStarting)
+	addWebViewEvent(s.webview, wvAddNavigationCompleted, s.navigationCompleted)
+	addWebViewEvent(s.webview, wvAddWebMessageReceived, s.webMessageReceived)
+	addWebViewEvent(s.webview, wvAddWebResourceRequested, s.webResourceRequested)
 	comCall(s.webview, wvAddWebResourceRequestedFilter, uintptr(unsafe.Pointer(u16(assetOrigin+"/*"))), webResourceContextAll)
-	add(controller, ctlAddAcceleratorKeyPressed, s.acceleratorKeyPressed)
+	addWebViewEvent(controller, ctlAddAcceleratorKeyPressed, s.acceleratorKeyPressed)
+	s.initShmLanes()
 	s.initWebExt() // WebHost events, user agent, extra headers: before the first navigation
 
 	if s.embed != nil {
@@ -278,6 +275,13 @@ func (s *surface) setUp(controller uintptr) {
 }
 
 func noopHandler(_, _ uintptr) {}
+
+func addWebViewEvent(obj uintptr, slot int, fn func(sender, args uintptr)) uintptr {
+	var token int64
+	return withHandler(fn, func(handler uintptr) uintptr {
+		return comCall(obj, slot, handler, uintptr(unsafe.Pointer(&token)))
+	})
+}
 
 func (s *surface) addDocumentScript(js string) {
 	withHandler(noopHandler, func(h uintptr) uintptr {
@@ -318,6 +322,9 @@ func (s *surface) webMessageReceived(_, args uintptr) {
 		return // not a string; the shim always posts strings
 	}
 	origin := originOf(comString(args, msgGetSource))
+	if s.shm.Load().handleWake(origin, text) {
+		return
+	}
 	if text == sxDropMessage || text == wxDragSessionMessage {
 		// Messages the host acts on itself. The drop message carries File
 		// objects whose full paths the host reads, and any page can post
@@ -487,6 +494,11 @@ func (s *surface) focusContent() {
 }
 
 func (s *surface) event(ev platform.SurfaceEvent) {
+	if ev.Kind == platform.SurfaceNavigating {
+		if lanes := s.shm.Load(); lanes != nil {
+			lanes.navigationStarting()
+		}
+	}
 	if s.created && !s.closed {
 		s.b.h.OnSurfaceEvent(s.id, ev)
 	}

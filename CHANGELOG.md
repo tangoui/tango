@@ -50,28 +50,28 @@
   - Go：`Router.HandleDuplex` 注册双向处理函数（类型 `ipc.DuplexFunc`）；`*ipc.Stream` 新增 `WriteBytes`、`Receive`（返回新类型 `ipc.Message`：`Binary`、`Bytes`、`JSON`）、`ReceiveBytes`、`ReceiveJSON`、`CloseSend`（半关闭）、`ReadWriter`（`io.ReadWriteCloser` 视图，可直接 `io.Copy`）；`Router.Open`、`Router.Call` 让同进程的 Go 代码（自绘界面）不经过页面直接使用同一批服务；`Router.SetStreamWindow` 设置 Go 的接收窗口；新增常量 `ProtoVersion`、`DefaultWindowBytes`、`FrameOverhead`、`MaxFrameBytes` 和错误码 `CodeTransport`（快速通道上丢帧时使用，见下）。
   - JS：`TangoStream` 新增 `accepted`、`send`、`sendBytes`、`end`、`bufferedAmount` 和 Web Streams 视图 `readable`/`writable`，迭代时字节帧产出 `Uint8Array`；新增 WebSocket 风格的 `socket()` / `TangoSocket`（`close()` 写完排队的消息后发 `close`，随即以 1000 关闭，不等 Go）；新增常量 `PROTO_VERSION`、`DEFAULT_WINDOW_BYTES`、`FRAME_OVERHEAD`、`MAX_FRAME_BYTES`。
   - 示例与基准：`examples/duplex`（回显、文件上传、小终端、`-panel` 进程内 Go 面板、`-bench` 基准），基线数据见 [docs/ipc-bench.md](docs/ipc-bench.md)。
-- **IPC 快速通道（公共设施）**：流的字节帧可以走挨着消息通道的二进制旁路，不做 JSON 和 base64；JSON 帧、控制消息和握手仍走消息通道，语义不变。**macOS 默认开启 `up:post`（上行），Android 默认开启 `down:android` / `up:android`（上下行）；iOS 可以试用（默认关闭），Windows、Linux 仍走消息通道**，各平台后端接入并通过基准对比后逐个开启。
+- **IPC 快速通道（公共设施）**：流的字节帧可以走挨着消息通道的二进制旁路，不做 JSON 和 base64；JSON 帧、控制消息和握手仍走消息通道，语义不变。macOS 默认开启 `up:post`，Android 默认开启 `down:android` 和 `up:android`，iOS 默认开启 `up:post`。
   - Go：`App.OnBinary` 注册上行包处理函数，应用接线 `app.OnBinary(func(s *tango.Surface, gen uint64, p []byte) { r.HandleBinarySession(s, gen, p) })`；`ipc.BinaryConn` 和 `ipc.SessionBinaryConn`（`*tango.Surface` 实现，后者把发送和上行投递绑定到页面世代）、`Router.HandleBinarySession`（`OnBinary` 用它，带授权时的世代）、`Router.HandleBinary`（只给不复用页面的简单 `BinaryConn`；对 `SessionBinaryConn` 丢包并记一次 `slog.Warn`）、`ipc.GapTimeout`；一个 surface 只接一个 `Router`；`Options.DisableFastLanes` 和环境变量 `TANGO_IPC_LANES=0` 关闭快速通道；开发构建里 `TANGO_IPC_LANE_FAULT=<通道名>:<N>` 让某条通道在 N 个数据包后故障（空包不计，比如 `up:post` 的启动探测），用来测通道中途坏掉。
   - 开启条件：注册了 `OnBinary`、页面来自资源来源（直接从开发服务器加载的页面没有快速通道）、后端报告了能力、没有被关闭。
   - 丢帧：某帧缺了 5 秒仍没到的流以 `transport` 错误失败（两端都看到）。
   - JS：`lanes()` 返回当前用的通道（`{down, up}`，没有时为 `"fallback"`）；新增常量 `GAP_TIMEOUT_MS` 和 `createClient` 的第二个参数 `ClientOptions`（`gapTimeoutMs`）；内置 `down:poll` / `up:post` 通道模块；`ErrorCode` 补上 `transport`。
   - 示例：`hello`、`runtime-demo`、`showcase`、`duplex` 接上 `OnBinary`；`examples/duplex -bench` 的 `lane` 字段改为 `lanes()` 的值（`{"down":…,"up":…}`）。
-- **macOS 默认开启 `up:post`；iOS 试用（默认关闭）**：WKWebView 后端接入 `up:post`（上行字节帧经 `tango://` POST，ArrayBuffer 请求体）。macOS 上传 64 MiB 吞吐约为消息通道的 2.73 倍（[docs/ipc-bench.md](docs/ipc-bench.md)）。下行默认仍走消息通道（macOS 可开 `down:poll`，见下一条）。环境变量 `TANGO_IPC_LANES_DARWIN`（窗口/页面创建时读一次；取值去掉首尾空白、不区分大小写；所有取值在任何构建都生效）：
+- **macOS 和 iOS 默认开启 `up:post`**：WKWebView 后端接入 `up:post`（上行字节帧经 `tango://` POST，ArrayBuffer 请求体）。macOS 上传 64 MiB 吞吐约为消息通道的 2.73 倍（[docs/ipc-bench.md](docs/ipc-bench.md)）。下行默认仍走消息通道（macOS 可开 `down:poll`，见下一条）。环境变量 `TANGO_IPC_LANES_DARWIN`（窗口/页面创建时读一次；取值去掉首尾空白、不区分大小写；所有取值在任何构建都生效）：
 
   | 取值 | macOS | iOS |
   |---|---|---|
-  | 未设置、空、未列出的值 | `up:post`（默认） | 关闭（默认；未列出的值见下） |
+  | 未设置、空、未列出的值 | `up:post`（默认） | `up:post`（默认） |
   | `1`、`all` | `down:poll` + `up:post` | `up:post` |
   | `up` | `up:post` | `up:post` |
   | `down` | `down:poll`（排查用） | `up:post` |
   | `0`、`false`、`off` | 关闭 | 关闭 |
 
-  iOS 上除了未设置、空和关闭值，其他取值都是 `up:post`。
+  iOS 上除了明确的关闭值，其他取值都是 `up:post`。
 
-  `TANGO_IPC_LANES=0` 和 `Options.DisableFastLanes` 在两个平台上都始终优先关闭。iOS 真机上没法从外部传环境变量，要试用就在创建第一个窗口/页面之前调用 `os.Setenv("TANGO_IPC_LANES_DARWIN", "up")`（不用 `1`：同一份代码在 macOS 上 `1` 还会打开实验性的 `down:poll`）。
+  `TANGO_IPC_LANES=0` 和 `Options.DisableFastLanes` 在两个平台上都始终优先关闭。iOS 真机验证上传吞吐为兜底的 3.08 倍；页面重载后恢复快速通道和故障回退均通过。
   - CSP：`up:post` 启动时先 POST 一个空包，收到 204 才算就绪。页面的 CSP 若不允许 `connect-src` 到资源来源（例如 `connect-src https://api.example.com`，或不含 `'self'` 的 `default-src`），这次探测被拒，通道不开启，字节帧照常走消息通道，不报错；想用快速通道就在 `connect-src` 里允许 `'self'`。
-  - 已知限制：iframe 拿不到通道令牌（macOS 实测：不透明来源和同源 frame 的通道请求全部被拒；iOS 未单独测；同源 frame 能访问 `parent.tango`，那是应用代码）；WebKit 的 `tango://` 请求不带 `Origin`，后端用主文档的来源补上，所以应用页面里嵌的跨源 iframe 发往资源来源的请求能通过资源 CSRF 检查（原有行为；通道请求仍受每世代令牌保护），不要在资源页面里嵌不可信的 frame；WebKit 不交付 Blob 请求体；iOS 只在模拟器上测过；通道中途坏掉的场景在 iOS 模拟器上由 `scripts/smoke.sh ios-lanefault` 自动测试（Android 为 `android-lanefault`）。见 [docs/mobile.md](docs/mobile.md)。
-- **macOS 下行轮询通道 `down:poll`（默认关闭，`TANGO_IPC_LANES_DARWIN=1` 开启）**：核心的下行传输整体换成轮询。页面始终挂一个 `GET tango://app/__tango/lane/poll`，Go 有消息时用一批消息结束这次响应，页面立即再发下一个；`Surface.Send` 的每条消息（ipc 的 JSON 帧和控制消息、调用回复、jsapi 事件、只用 `__tango.onMessage` 的应用收的消息）和 ipc 的字节帧（原始字节，不做 base64）都按同一个序号序列走它，不再每条消息占一次主线程、调一次 `evaluateJavaScript`。轮询失败、页面 1 s 不来取（例如在后台）或通道空闲只有小消息时，消息带序号改走 `Eval`，页面按序号交付，顺序不变。开启条件：页面来自资源来源、没有关闭快速通道；不要求注册 `OnBinary`。macOS 实测（[docs/ipc-bench.md](docs/ipc-bench.md)）：下行 64 KiB 帧 306 → 1017 MB/s，1 KiB 小帧 4.5 万 → 50 万帧/s，2.3 KB JSON 3.4 万 → 11 万帧/s，64 B 往返平均慢 9%；64 KiB 和小帧仍低于 Wails v3.1.0（受 1 MiB 流控窗口限制），没达到默认开启的门槛。iOS、Windows、Linux、Android 不报告 `down:poll`；它们的下行走带序号的 `Eval` 路径（合批、与导航赛跑时丢弃，见"变更"）；`Surface.Eval` 在这些平台上仍是一次普通的 `evaluateJavaScript`，不进序列。
+  - 已知限制：iframe 拿不到通道令牌（macOS 实测：不透明来源和同源 frame 的通道请求全部被拒；iOS 未单独测；同源 frame 能访问 `parent.tango`，那是应用代码）；WebKit 的 `tango://` 请求不带 `Origin`，后端用主文档的来源补上，所以应用页面里嵌的跨源 iframe 发往资源来源的请求能通过资源 CSRF 检查（原有行为；通道请求仍受每世代令牌保护），不要在资源页面里嵌不可信的 frame；WebKit 不交付 Blob 请求体；iOS 已完成真机验收；通道中途坏掉的场景在 iOS 模拟器上由 `scripts/smoke.sh ios-lanefault` 自动测试（Android 为 `android-lanefault`）。见 [docs/mobile.md](docs/mobile.md)。
+- **macOS 下行轮询通道 `down:poll`（默认关闭，`TANGO_IPC_LANES_DARWIN=1` 开启）**：核心的下行传输整体换成轮询。页面始终挂一个 `GET tango://app/__tango/lane/poll`，Go 有消息时用一批消息结束这次响应，页面立即再发下一个；`Surface.Send` 的每条消息（ipc 的 JSON 帧和控制消息、调用回复、jsapi 事件、只用 `__tango.onMessage` 的应用收的消息）和 ipc 的字节帧（原始字节，不做 base64）都按同一个序号序列走它，不再每条消息占一次主线程、调一次 `evaluateJavaScript`。轮询失败、页面 1 s 不来取（例如在后台）或通道空闲只有小消息时，消息带序号改走 `Eval`，页面按序号交付，顺序不变。开启条件：页面来自资源来源、没有关闭快速通道；不要求注册 `OnBinary`。macOS 实测（[docs/ipc-bench.md](docs/ipc-bench.md)）：下行 64 KiB 帧 306 → 1017 MB/s，1 KiB 小帧 4.5 万 → 50 万帧/s，2.3 KB JSON 3.4 万 → 11 万帧/s，64 B 往返平均慢 9%；64 KiB 和小帧仍低于 Wails v3.1.0（受 1 MiB 流控窗口限制），没达到默认开启的门槛。关闭 `down:poll` 时，消息下行走带序号的 `Eval` 路径（合批、与导航赛跑时丢弃，见「变更」），`Surface.Eval` 直接调用 `evaluateJavaScript`。
 - `Surface.Send` 只在消息真的要走主线程时才检查调用方是不是主 goroutine（这个检查每次约 10 µs）。
 - **页面通告流接收窗口**：runtime-js 的 `hello` 带 `win`（页面每流的接收窗口，1 MiB），`down:poll` 就绪后再发 `{"tango":"win","win":4194304}` 把窗口提到 4 MiB；Go 用它作为朝这个页面的发送窗口（新流用新值，已开的流只升不降）。没有 `win`（旧 runtime-js）或不合法时按 `ipc.DefaultWindowBytes`，超过新常量 `ipc.MaxPeerWindowBytes`（64 MiB）按 64 MiB；新增常量 `ipc.MinWindowBytes`（4096）。旧 Go 忽略这两处，照旧按 1 MiB 发。
 - runtime-js 读走四分之一窗口（原来是一半）就归还信用。
@@ -111,8 +111,12 @@
   - 卡片：ProCard `BoxShadow`；ProDescriptions `ColumnAt/Columns`；StatisticCard 布局和独立 `ProStatistic`、`StatisticCardDivider`、`StatisticCardOperation`；CheckCard/Group 非受控值、嵌套组、自定义内容和操作。
   - gallery：登录、查询列表、基础表单、详情、结果、设置抽屉六种完整 Pro v6 页面组合，全部使用真实 Tango API 和本地示例数据。复核旧 28 项的结果与尚缺能力见 `docs/specs/align/4-*.md`，不再将其解释为全部 v3 API 已完整。
 
+- Linux 支持可选的 IPC 快速通道 `down:poll` 和 `up:post`。两条通道默认关闭，`TANGO_IPC_LANES_LINUX=1` 可开启。
+
 ### 变更
 
+- Windows 在支持 SharedBuffer 的 WebView2 上默认开启 `down:shm` 和 `up:shm`。设 `TANGO_IPC_LANES_WINDOWS=0` 可回到消息通道。
+- macOS Metal 局部重绘按脏区筛选绘制实例，减少多光标编辑等场景中重复提交的实例。
 - 自绘渲染器对整设备像素放置、每个像素恰好对应一个纹素的图片只读取一次纹素（如编辑器小地图条带），减少 Catmull–Rom 滤波开销。
 - 编辑器保留触控板的连续滚动位置，将绘制和命中测试对齐到设备像素，让 GPU 在小数位移时复用上帧像素，只重绘新露出和内容有变化的区域。
 
@@ -122,7 +126,7 @@
 
 - **删除 `down:scheme`**：单个长流式响应的下行通道（`GET /__tango/lane/down`）和 runtime-js 的对应模块删除，由 `down:poll` 取代；它在 Apple 上本来就因 WebKit 扣住大块突发而停用，其他平台没有接入。`TANGO_IPC_LANE_FAULT=down:scheme:N` 改为 `down:poll:N`（把带第 N+1 个字节包的轮询响应截断）。
 - **`TANGO_IPC_LANES_DARWIN` 新取值**（macOS）：`up`、`down` 只开其一（排查用）；`1` 和 `all` 都表示 `down:poll` + `up:post`。**`all` 含义改变**：以前只在开发构建里开实验性的 `down:scheme`、生产构建等同默认，现在在任何构建里都开 `down:poll` + `up:post`。iOS 上 `all` 与 `1` 相同（`up:post`），也不再依赖自测构建。
-- **`Surface.Eval` 与 `Send` 对任意 goroutine 都保序**：页面加载完成后，`Send` 的消息按序号进下行序列；`Eval` 只在当前页面开启了 `down:poll` 时进同一序列，作为栅栏，页面把它之前的消息交付完才执行（多一次页面到 Go 的往返，约 0.06 ms；通道空闲时直接走 `Eval`，没有这笔开销）。没开 `down:poll` 的页面（iOS、Windows、Linux、Android，以及默认的 macOS）`Eval` 不带序号，仍是一次普通的 `evaluateJavaScript`，与 `Send` 经同一个出队队列按调用顺序交给页面。所以"与 `Send` 保序"的承诺对任意 goroutine 都成立。主线程上调用 `Send`/`Eval` 且走 `Eval` 路径时，返回前已经交给页面（与以前一致）。
+- **`Surface.Eval` 与 `Send` 对任意 goroutine 都保序**：页面加载完成后，`Send` 的消息按序号进下行序列；`Eval` 只在当前页面开启了 `down:poll` 时进同一序列，作为栅栏，页面把它之前的消息交付完才执行（多一次页面到 Go 的往返，约 0.06 ms；通道空闲时直接走 `Eval`，没有这笔开销）。没开 `down:poll` 的页面（含默认配置的 macOS 和 Linux）`Eval` 不带序号，仍是一次普通的 `evaluateJavaScript`，与 `Send` 经同一个出队队列按调用顺序交给页面。所以"与 `Send` 保序"的承诺对任意 goroutine 都成立。主线程上调用 `Send`/`Eval` 且走 `Eval` 路径时，返回前已经交给页面（与以前一致）。
 - **与页面导航赛跑的跨 goroutine `Send`、`Eval` 会被丢弃**：页面加载完成后，其他 goroutine 的 `Send` 和 `Eval` 现在调用时就进入当前页面世代的下行队列（以前先投递到主线程，执行时才看页面状态）。页面开始导航（用户点链接、重新加载，`SurfaceNavigating`；或 `Navigate`）时当前世代结束，已排队但还没交给页面的消息和脚本随之丢弃。以前这样的消息如果在导航开始后才轮到主线程执行，会暂存起来交给新页面，脚本则在新页面里执行；现在都不会。导航开始之后调用的 `Send` 照旧暂存，新页面加载完成后交付；这期间调用的 `Eval` 照旧在主线程上对当时的页面执行。需要新页面收到的消息或执行的脚本，在新页面加载后（例如 `Surface.OnLoaded` 的回调里）再发。
 - **macOS 自绘 UI 减少默认字体常驻开销**：同一可变系统字体的各字重共用一份解析后的字体数据，只各自保留字形缓存和变体坐标；HVAR 字宽变体的专用化改为字体 Face 被整形超过 64 次才做（整形结果不变）。等宽行缓存的快路径改用按 Face 和坐标做缓存键的整形器，各字重仍按自己的坐标整形。
 - **组件规范对齐 第 4 批：默认值和交互直接改为 Pro v3 规范**（逐项来源和测试见 `docs/specs/align/4-*.md`）：
@@ -230,6 +234,9 @@
 
 ### 修复
 
+- `Dropdown`、右键菜单和菜单栏：弹层打开时从透明平滑淡入，不再先闪现一帧。
+- Linux 的 `tango://` 响应现在保留 `Content-Type`，带 `X-Content-Type-Options: nosniff` 的外部脚本可以执行。
+- Windows 上行共享环读包失败或核心拒收时会通知页面，后续上行帧自动回退到消息通道。
 - `Notify.onClick`：在支持通知冷启动的平台上，页面订阅后能收到启动应用的那次通知点击，即使本轮没有发送新通知。
 - `tan dev`：应用启动的交互式 shell（例如带 `-i` 读取登录 PATH）把终端前台抢走后退出时，Ctrl-C 不再失效；`tan dev` 发现前台进程组已不存在会把终端收回。
 - `sys/pty` 与 Tango 终端：从 Finder、Dock 或其他应用（如 MinCode）启动、环境里没有 `LANG` 的应用，shell 在 C 语言环境下把输入的中文等 UTF-8 文字当成单个字节——命令行显示 `<00e4>` 之类的乱码、退格按字节删、回车执行被拆坏的命令。环境里 `LC_ALL`、`LC_CTYPE`、`LANG` 都没设时，macOS 和 Linux 上补 `LC_CTYPE=C.UTF-8`（没有 `C.UTF-8` 的旧版 macOS 补 `UTF-8`；不用 Terminal.app 那样的裸 `UTF-8`，因为 ssh 会把 `LC_*` 转发到 Linux 主机，那里不认这个名字）；已设置的语言环境保持不变，不改程序输出的语言。

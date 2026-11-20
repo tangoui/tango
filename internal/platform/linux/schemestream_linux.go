@@ -171,15 +171,7 @@ func (w *streamWriter) write(p []byte) (int, error) {
 func deliverStream(req ptr, rfd int, resp assetResponse, length int64) {
 	stream := ssx.unixInputNew(int32(rfd), true) // closes rfd with the stream
 	r := webkitURISchemeResponseNew(stream, length)
-	webkitURISchemeResponseSetStatus(r, uint32(resp.Status), cstr(resp.Reason))
-	if resp.ContentType != "" {
-		webkitURISchemeResponseSetContentType(r, resp.ContentType)
-	}
-	hdrs := soupMessageHeadersNew(soupMessageHeadersResponse)
-	for _, kv := range resp.Headers {
-		soupMessageHeadersAppend(hdrs, kv[0], kv[1])
-	}
-	webkitURISchemeResponseSetHTTPHeaders(r, hdrs) // takes ownership
+	setSchemeResponseHead(r, resp)
 	webkitURISchemeRequestFinishWithResponse(req, r)
 	gObjectUnref(r)
 	gObjectUnref(stream)

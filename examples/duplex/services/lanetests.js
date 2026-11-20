@@ -1,9 +1,7 @@
 // IPC fast lane scenarios on a real WebView, shared by the macOS lane tests
 // (internal/platform/darwin/lanes_flow_e2e_test.go, driving
-// examples/duplex) and the iOS simulator self-test (examples/duplex-mobile
-// web/selftest.js). TestRoutes serves this file as /__test/lanetests.js
-// (TANGO_SCHEME_PROBE=1); a page loads it with loadLaneTests below or a
-// <script> tag and gets window.laneTests.
+// examples/duplex) and the desktop and mobile self-tests (selftest.js).
+// TestRoutes serves this file as /__test/lanetests.js (TANGO_SCHEME_PROBE=1).
 //
 // On Apple platforms the app runs with up:post on (the macOS default; the
 // iOS self-test sets TANGO_IPC_LANES_DARWIN=1, iOS lanes being off by
@@ -101,7 +99,7 @@
     return r;
   }
 
-  const android = () => tango.lanes().up === "up:android";
+  const takesSmallFrames = (lane) => lane === "up:android" || lane === "up:shm";
 
   // bigBothWays: 8 MiB through Echo in 64 KiB frames (byte i of the stream
   // = i % 251), byte-exact both ways; at least half of the 128 frames
@@ -133,10 +131,10 @@
   // mixedOrder: 40 frames on one stream, alternately 100 B and 64 KiB,
   // echoed in send order. On up:post the 64 KiB frames (>= its 16 KiB
   // minimum) take the lane, the 100 B ones the message channel:
-  // upFrames == 20. up:android has no minimum: upFrames == 40.
+  // upFrames == 20. up:android and up:shm have no minimum: upFrames == 40.
   async function mixedOrder() {
     const n = 40, sizeOf = (k) => (k % 2 === 0 ? 100 : 64 * KiB);
-    const want = android() ? n : n / 2;
+    const want = takesSmallFrames(tango.lanes().up) ? n : n / 2;
     const before = await stats();
     const r = await echoFrames(n, (k) => fill(sizeOf(k), k * 7), (k, m) => same(m, sizeOf(k), k * 7));
     const after = await stats();
@@ -180,22 +178,11 @@
     ]);
   }
 
-  // fault needs a tango_dev build with TANGO_IPC_LANE_FAULT=up:post:3 (Go
-  // drops every up:post data packet after the third, answering 503). Stream B
-  // (Echo) is opened first and stays open throughout. Stream A (Echo) sends
-  // 64 KiB frames one at a time: frames 0-2 each ride their own up:post
-  // packet; frame 3's packet is refused, up:post fails and the page falls
-  // back to the message channel; frames 4-7 go there. A must fail with
-  // code transport (frame 3 is lost; nothing resends it) after echoing
-  // frames 0-2. B meanwhile sends 64 KiB frames, which now take the message
-  // channel, and must echo all of them, byte-exact, and end normally.
-  //
-  // With lane "up:android" (TANGO_IPC_LANE_FAULT=up:android:3) the same,
-  // except that up:android takes frames of any size: B's first (small)
-  // frame is the first data packet, so A's frames 0-1 ride the lane and
-  // frame 2's packet (the 4th) is refused; the page gets [1] and
-  // up:android falls back within 1 s.
-  async function fault(lane = "up:post") {
+  // fault sends one packet at a time until the upstream lane refuses a
+  // packet. Echo A loses that frame and must fail with transport. Echo B
+  // stays open across the fault and its later frames must all arrive over
+  // the message channel. Android additionally requires fallback within 1 s.
+  async function fault(lane = "up:post", afterPackets = 3) {
     const size = 64 * KiB, small = 100;
     const t0 = performance.now();
     const before = await stats();
@@ -220,9 +207,9 @@
     const bRead = read(b, r.b, (k, m) => same(m, bSize(k), 1000 + k));
     await b.sendBytes(fill(bSize(0), 1000));
     // On a lane without a minimum size B's frame 0 is a data packet too.
-    const bOnLane = lane === "up:android" &&
+    const bOnLane = takesSmallFrames(lane) &&
       !!(await until(async () => (await stats()).upFrames - before.upFrames >= 1, 5000));
-    const aLane = bOnLane ? 2 : 3; // A's frames before the refused one
+    const aLane = afterPackets - Number(bOnLane); // A's frames before the refused one
     r.bOnLane = bOnLane;
 
     const a = tango.stream("Echo");
@@ -240,9 +227,10 @@
     const fellBack = await until(() => tango.lanes().up === "fallback", 6000, 10);
     r.fallMs = Math.round(performance.now() - tFault);
     step(`A frame ${aLane} sent; ${lane} ${fellBack ? "failed, fallback" : "still " + tango.lanes().up}`);
-    for (let k = aLane + 1; k < 8; k++) await a.sendBytes(fill(size, k));
+    const end = Math.max(8, aLane + 5);
+    for (let k = aLane + 1; k < end; k++) await a.sendBytes(fill(size, k));
     a.end();
-    step(`A frames ${aLane + 1}-7 sent on the message channel, end`);
+    step(`A frames ${aLane + 1}-${end - 1} sent on the message channel, end`);
 
     for (let k = 1; k < 6; k++) await b.sendBytes(fill(bSize(k), 1000 + k));
     b.end();
@@ -263,13 +251,63 @@
       [r.lanesBefore.up === lane, `lanes before ${JSON.stringify(r.lanesBefore)}`],
       [fellBack, `${lane} did not fail after the faulted packet`],
       [lane !== "up:android" || r.fallMs <= 1000, `${lane} fell back after ${r.fallMs} ms, want <= 1000`],
-      [r.upFrames === 3, `upFrames ${r.upFrames}, want 3 (only the packets before the fault)`],
+      [r.upFrames === afterPackets, `upFrames ${r.upFrames}, want ${afterPackets} (only the packets before the fault)`],
       [r.a.err && r.a.err.code === "transport", `stream A ended with ${JSON.stringify(r.a.err)}, want code transport`],
       [r.a.frames === aLane && r.a.bad === 0, `stream A echoed ${r.a.frames} frames (${r.a.bad} wrong), want frames 0-${aLane - 1}`],
       [!r.b.err, `stream B failed: ${JSON.stringify(r.b.err)}`],
       [r.b.frames === 6 && r.b.bad === 0, `stream B echoed ${r.b.frames} frames (${r.b.bad} wrong), want 6`],
       [r.lanesAfter.up === "fallback", `lanes after ${JSON.stringify(r.lanesAfter)}`],
     ]);
+  }
+
+  // downTraffic runs two byte streams together and observes the ordinary
+  // IPC bin messages. A faulted poll replays the unacknowledged packets
+  // via Eval and later frames become bin messages. The shared-buffer
+  // sender refuses the next packet before taking ownership, so neither
+  // downstream fault should lose a frame or fail a stream.
+  async function downTraffic(afterPackets) {
+    const size = 64 * KiB, n = 64;
+    const lanes = tango.lanes();
+    const before = await stats();
+    let fallback = 0;
+    const off = window.__tango.onMessage((raw) => {
+      const m = JSON.parse(raw);
+      if (m.tango === "stream" && m.op === "data" && typeof m.bin === "string") fallback++;
+    });
+    const source = async () => {
+      const r = { frames: 0, bad: 0, err: null };
+      try {
+        for await (const m of tango.stream("Source", n, size, 251, 17)) {
+          if (!same(m, size, r.frames * size + 17)) r.bad++;
+          r.frames++;
+        }
+      } catch (e) {
+        r.err = errOf(e);
+      }
+      return r;
+    };
+    try {
+      const [echo, download] = await Promise.all([
+        echoFrames(n, (k) => fill(size, k * size), (k, m) => same(m, size, k * size)),
+        source(),
+      ]);
+      const lanesAfter = tango.lanes();
+      const upFrames = (await stats()).upFrames - before.upFrames;
+      const pollCut = afterPackets !== undefined && lanes.down === "down:poll";
+      const wantFallback = afterPackets === undefined ? 0 : 2 * n - afterPackets - Number(pollCut);
+      return verdict({ echo, download, fallback, upFrames, lanes, lanesAfter }, [
+        [!echo.err && echo.frames === n && echo.bad === 0, `Echo: ${JSON.stringify(echo)}`],
+        [!download.err && download.frames === n && download.bad === 0, `Source: ${JSON.stringify(download)}`],
+        // Polling can enqueue extra packets between the truncated response
+        // and the page's failure report, so it can replay more than one.
+        [pollCut ? fallback > 0 && fallback <= wantFallback : fallback === wantFallback,
+          `message frames ${fallback}, expected ${wantFallback}${pollCut ? " or fewer after replay" : ""}`],
+        [lanesAfter.up === lanes.up, `up lane after download: ${lanesAfter.up}, want ${lanes.up}`],
+        [upFrames >= n / 2, `upFrames ${upFrames}, want >= ${n / 2}`],
+      ]);
+    } finally {
+      off();
+    }
   }
 
   // faultDown needs TANGO_IPC_LANE_FAULT=down:android:3 (a tango_dev or
@@ -475,6 +513,6 @@
     ]);
   }
 
-  window.laneTests = { bigBothWays, mixedOrder, stall, fault, faultDown, reloadStart, reloadCheck, sameIDStart, sameIDCheck, subframe,
+  window.laneTests = { bigBothWays, mixedOrder, stall, fault, faultDown, downTraffic, reloadStart, reloadCheck, sameIDStart, sameIDCheck, subframe,
     uploaded: 0, downloaded: 0 };
 })();

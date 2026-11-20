@@ -16,12 +16,8 @@ import (
 // environment read through getenv:
 //
 //   - TANGO_IPC_LANES=0: none (the kill switch wins).
-//   - TANGO_IPC_LANES_DARWIN unset, empty, "0", "false" or "off" (any case,
-//     surrounding spaces ignored): none (off by default on iOS until measured
-//     on a real device; macOS is default-on, internal/platform/darwin/lanes.go,
-//     and differs from this on purpose).
-//   - any other value (normally "1", "all" included): up:post only. iOS
-//     does not offer down:poll (the core's downstream lane; macOS does).
+//   - TANGO_IPC_LANES_DARWIN "0", "false" or "off" (any case, trimmed): none.
+//   - Unset, empty or any other value: up:post only. iOS does not offer down:poll.
 //
 // hooks is testHooks (testhooks_on.go). It no longer changes anything:
 // with the hooks "all" used to add the removed down:scheme lane.
@@ -30,7 +26,7 @@ func laneCapsFromEnv(getenv func(string) string, hooks bool) []string {
 		return nil
 	}
 	switch v := strings.ToLower(strings.TrimSpace(getenv("TANGO_IPC_LANES_DARWIN"))); {
-	case v == "" || v == "0" || v == "false" || v == "off":
+	case v == "0" || v == "false" || v == "off":
 		return nil
 	default:
 		return []string{lane.UpPost}

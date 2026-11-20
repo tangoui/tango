@@ -1,5 +1,5 @@
-// Self-test of examples/duplex-mobile (iOS simulator, Android emulator;
-// also runs on the desktop). Every result goes to Go through
+// Shared self-test of examples/duplex and examples/duplex-mobile.
+// Every result goes to Go through
 // Selftest.Report(kind, result), which logs "kind: {json}" (on Android
 // long results in "kind#n:" pieces, see main.go).
 //
@@ -69,6 +69,7 @@
 "use strict";
 
 const out = document.getElementById("out");
+const desktop = document.currentScript.hasAttribute("data-desktop");
 
 async function runProbe() {
   const p = { chunks: [], done: false };
@@ -256,6 +257,40 @@ async function platform() {
   return { ...p, want };
 }
 
+// The desktop self-test focuses on IPC. The mobile scheme checks include
+// a never-ending response (unsupported by WebView2's buffered asset
+// handler), native memory counters and a mobile-specific reload sequence.
+async function runDesktopSelftest(q) {
+  const { goos, fault } = await tango.call("Debug.Platform");
+  const want = goos === "windows" ? { down: "down:shm", up: "up:shm" } : { down: "down:poll", up: "up:post" };
+  const lanes = await runLanes();
+  if (lanes.down !== want.down || lanes.up !== want.up) {
+    return { ok: false, failed: ["lanes"], lanes, want };
+  }
+
+  const lt = await loadLaneTests();
+  if (q.has("lanefault")) {
+    const sep = fault.lastIndexOf(":");
+    const name = fault.slice(0, sep);
+    const count = Number(fault.slice(sep + 1));
+    if (!Number.isSafeInteger(count) || count < 1 || (name !== want.down && name !== want.up)) {
+      return { ok: false, failed: ["fault"], lanes, fault };
+    }
+    const result = await laneScenario(() => name === want.down ? lt.downTraffic(count) : lt.fault(name, count));
+    return { ok: result.ok === true, lanes, fault, result };
+  }
+
+  const down = await laneScenario(() => lt.downTraffic());
+  const big = await laneScenario(() => lt.bigBothWays());
+  const mixed = await laneScenario(() => lt.mixedOrder());
+  const stall = await laneScenario(() => lt.stall(6000));
+  const echo = await runEcho();
+  const checks = { down: down.ok, big: big.ok, mixed: mixed.ok, stall: stall.ok,
+    echo: !!echo.echo && echo.echo.ping === "selftest" };
+  const failed = Object.keys(checks).filter(k => !checks[k]);
+  return { ok: failed.length === 0, failed, lanes, checks, down, big, mixed, stall, echo };
+}
+
 async function runSelftest(reloaded, plat, sameID) {
   const apple = plat.goos !== "android";
   const androidLanes = !apple && plat.want.up === "up:android";
@@ -313,7 +348,6 @@ async function runSelftest(reloaded, plat, sameID) {
     laneReload, laneBig, laneMixed, laneStall, laneSameID: sameID || null, laneSubframe };
 }
 
-// runLaneFault is index.html?selftest&lanefault: laneTests.fault only.
 // runLaneFault is index.html?selftest&lanefault[=down|up]: up:post's fault
 // scenario, or on Android faultDown (=down) / fault("up:android") (=up).
 async function runLaneFault(which) {
@@ -429,10 +463,11 @@ function runBench() {
 
 (async () => {
   const q = new URLSearchParams(location.search);
-  const kind = q.has("probe") ? "probe" : q.has("lanefault") ? "lanefault" : q.has("bench") ? "bench" : "selftest";
+  const kind = desktop ? "selftest" : q.has("probe") ? "probe" : q.has("lanefault") ? "lanefault" : q.has("bench") ? "bench" : "selftest";
   let res;
   try {
-    if (kind === "probe") res = await runProbe();
+    if (desktop) res = await runDesktopSelftest(q);
+    else if (kind === "probe") res = await runProbe();
     else if (kind === "bench") res = await runBench();
     else if (kind === "lanefault") res = await runLaneFault(q.get("lanefault"));
     else if (!q.has("selftest")) res = await runEcho();
@@ -460,6 +495,7 @@ function runBench() {
     }
   } catch (e) {
     res = { error: String((e && e.message) || e) };
+    if (desktop) res = { ok: false, ...res };
   }
   out.textContent = kind + ": " + JSON.stringify(res, null, 1);
   try {

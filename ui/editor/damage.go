@@ -44,10 +44,12 @@ import (
 //     drawing commands its callbacks emitted this frame (zone_fp.go), and a
 //     drawing it cannot describe redraws the whole view.
 //     A row whose fingerprint changed, or that is drawn in only one of the
-//     two paints, is damaged across the whole view (gutter and text) at its
-//     place in this paint, padded by rowPad for glyphs and strokes reaching
-//     past the line box. An edit thus damages the changed lines and, when
-//     the line count changed, every row below them (their line index now
+//     two paints, is damaged at its place in this paint, padded by rowPad for
+//     glyphs and strokes reaching past the line box. With an unchanged
+//     viewport and row mapping, damage can be limited to the old and new
+//     ink when neither paint has unbounded decorations and the full-line
+//     and gutter layers are unchanged. An edit damages the changed lines and,
+//     when the line count changed, every row below them (their line index now
 //     holds other text); a selection or cursor change damages the rows of
 //     the old and the new selections.
 //   - Marks drawn over rows that change on their own (the carets, which
@@ -83,7 +85,8 @@ import (
 //
 // A frame in which nothing changed declares nothing. Display elements added
 // to the View must be covered by these rules: fingerprinted with their row,
-// recorded as marks, or added to damageGlobal.
+// recorded as marks, or added to damageGlobal. Row layers must also be
+// included in the ink bounds or make the affected rows fall back.
 
 // damageGlobal is what makes the View's whole picture change when it
 // differs between two paints.
@@ -116,6 +119,10 @@ type damageRec struct {
 	scrollRemainder bool     // the input position differs from the drawn position
 	lo              int      // first row, -1 for none
 	rows            []uint64 // fingerprints of rows lo, lo+1, ...
+	lineCount       int
+	scale           float32
+	ink             []rowInk
+	rowOps          []paint.Op
 	marks           []geom.Rect
 	sticky          geom.Rect // fixed header in this paint, never carried by ScrollShift
 	fixed           []fixedPaint
@@ -142,6 +149,8 @@ type paintFrame struct {
 	match       []matchRow
 	decos       []uint64 // fingerprints of the rows' decorations (nil: none)
 	udecos      []udRow  // the Model's decorations of the rows (nil: none; decorations.go)
+	boundRows   bool
+	rowOps      []paint.Op
 }
 
 // rowPad is how far, in logical pixels, a row's damage reaches past its
@@ -303,9 +312,12 @@ func (w *ViewW) declareDamage(l *paint.List, pf *paintFrame) {
 	cur := damageRec{ok: true, g: pf.g, topLine: v.TopLine, aLine: pf.aLine, aRow: pf.aRow, offsetY: pf.offsetY, scrollX: pf.scrollX, lo: -1,
 		scrollRemainder: pf.offsetY != v.OffsetY || pf.scrollX != v.ScrollX,
 		rows:            w.rowHashes(pf, vs.dmgSpare.rows),
+		lineCount:       pf.snap.LineCount(),
+		scale:           c.Window().Scale(),
 		sticky:          vs.stickyRect,
 		marks:           append(vs.dmgSpare.marks[:0], pf.marks...),
 		fixed:           append(vs.dmgSpare.fixed[:0], vs.navPaint...)}
+	cur.recordInk(pf, &vs.dmgSpare)
 	// Fixed decorations are compared in screen space, independently of
 	// scrolling rows. Blink-only frames must still damage only the caret.
 	var fixedDirty [3]geom.Rect
@@ -408,6 +420,15 @@ func (w *ViewW) declareDamage(l *paint.List, pf *paintFrame) {
 	ty := g.text.Y - cur.offsetY
 	pad := rowPad(lh)
 	run0, run1 := 0, -1 // the pending run of rows [run0, run1]
+	var run spanX
+	full := spanX{g.gutter.X, g.gutter.X + g.gutter.W + g.text.W}
+	narrow := shift == (geom.Point{}) && cur.topLine == prev.topLine &&
+		cur.aLine == prev.aLine && cur.aRow == prev.aRow && cur.lo == prev.lo &&
+		cur.lineCount == prev.lineCount && len(cur.rows) == len(prev.rows) &&
+		len(cur.ink) == len(cur.rows) && len(prev.ink) == len(prev.rows) &&
+		cur.scale == prev.scale
+	checkedTransform := false
+	ink := rowInkMeasure{cache: &vs.glyphInk, scale: cur.scale}
 	var strip geom.Rect // the strip a horizontal shift uncovers
 	switch t := g.text; {
 	case shift.X < 0:
@@ -421,7 +442,7 @@ func (w *ViewW) declareDamage(l *paint.List, pf *paintFrame) {
 		}
 		y0 := ty + float32(run0-v.TopLine)*lh - pad
 		y1 := ty + float32(run1+1-v.TopLine)*lh + pad
-		r := geom.Rect{X: g.gutter.X, Y: y0, W: g.gutter.W + g.text.W, H: y1 - y0}.Intersect(g.rect)
+		r := geom.Rect{X: run.left, Y: y0, W: run.right - run.left, H: y1 - y0}.Intersect(g.rect)
 		if r.Empty() {
 			run0, run1 = 0, -1
 			return
@@ -442,13 +463,18 @@ func (w *ViewW) declareDamage(l *paint.List, pf *paintFrame) {
 		}
 		run0, run1 = 0, -1
 	}
-	row := func(i int) {
+	row := func(i int, x spanX) {
+		if x.empty() {
+			return
+		}
 		if run1 >= run0 && i == run1+1 {
 			run1 = i
+			run.add(x.left, x.right)
 			return
 		}
 		flush()
 		run0, run1 = i, i
+		run = x
 	}
 	old := func(i int) (uint64, bool) {
 		k := i - plo
@@ -462,18 +488,28 @@ func (w *ViewW) declareDamage(l *paint.List, pf *paintFrame) {
 	// are no longer drawn: the copy (or nothing) left their pixels there.
 	for k := range prev.rows {
 		if i := plo + k; !drawn(i) && (cur.lo < 0 || i < cur.lo) {
-			row(i)
+			row(i, full)
 		}
 	}
 	for k, hv := range cur.rows {
 		i := cur.lo + k
 		if ov, ok := old(i); !ok || ov != hv {
-			row(i)
+			x := full
+			if narrow && !checkedTransform {
+				checkedTransform = true
+				narrow = !transformedPaint(l)
+			}
+			if narrow {
+				if bounds, ok := ink.changedRows(prev, &cur, k); ok {
+					x = bounds
+				}
+			}
+			row(i, x)
 		}
 	}
 	for k := range prev.rows {
 		if i := plo + k; !drawn(i) && cur.lo >= 0 && i >= cur.lo {
-			row(i)
+			row(i, full)
 		}
 	}
 	flush()

@@ -483,6 +483,16 @@ type BinaryLane interface {
 	SendLanePacket(gen uint64, p []byte) bool
 }
 
+// LaneGenerations is optionally implemented by a BinaryLane whose lanes
+// need setting up for each page generation (Windows shared buffers).
+type LaneGenerations interface {
+	// LaneGeneration is called after the core started lane generation gen
+	// for the page's hello, with the lanes it offered (nil: none, the
+	// generation has no lanes). Any goroutine; must not block and must
+	// not call back into the core's lane state.
+	LaneGeneration(gen uint64, lanes []string)
+}
+
 // LaneHost is implemented by the core's Host. Backends type-assert their
 // Host to LaneHost to deliver packets their upstream lanes (up:android,
 // up:shm) received from surface id's page at origin, sent in lane

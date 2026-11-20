@@ -162,11 +162,12 @@ type Device struct {
 	copyTargetIdle     int
 	copyKeep, copyNext []image.Rectangle // bounded, reusable complement-planning buffers
 	copyStats          *copyStats        // nil normally; opt-in internal test counters, no atomics
-	lastRetiredGPU     time.Duration     // GPU time of the last retired command buffer
-	submits, frames    uint64            // command buffers committed / frames committed by Execute
-	retiringFrame      uint64            // frame of the submissions being retired (noteRetired)
-	retiringSet        bool              // retiringFrame is set
-	retiringFailed     bool              // a submission of retiringFrame failed (counted once)
+	dirtyDraws         dirtyDrawPlan
+	lastRetiredGPU     time.Duration // GPU time of the last retired command buffer
+	submits, frames    uint64        // command buffers committed / frames committed by Execute
+	retiringFrame      uint64        // frame of the submissions being retired (noteRetired)
+	retiringSet        bool          // retiringFrame is set
+	retiringFailed     bool          // a submission of retiringFrame failed (counted once)
 
 	timeline     func(Timing)  // diagnostics callback (SetTimeline); nil normally
 	drawableWait time.Duration // the next present submission's nextDrawable wait
@@ -441,18 +442,24 @@ func (d *Device) Execute(f *gpu.Frame) error {
 		return err
 	}
 	nInst := 0
-	for i := range f.Batches {
-		nInst += len(f.Batches[i].Instances)
-	}
 	nClear := 0
 	if partial {
+		nInst = d.dirtyDraws.build(f)
 		nClear = len(f.Dirty) // one clearing quad per dirty rectangle, after the batches'
+	} else {
+		for i := range f.Batches {
+			nInst += len(f.Batches[i].Instances)
+		}
 	}
 	if err := ensureBuffer(d.dev, &d.instBuf, &d.instCap, (nInst+nClear)*instanceSize, storageModeShared|cpuCacheModeWC); err != nil {
 		return d.syncFailed(err)
 	}
+	var instances []shaders.Instance
+	if nInst+nClear > 0 {
+		instances = unsafe.Slice((*shaders.Instance)(msgPtr(d.instBuf, sel("contents"))), nInst+nClear)
+	}
 	if nClear > 0 {
-		dst := unsafe.Slice((*shaders.Instance)(msgPtr(d.instBuf, sel("contents"))), nInst+nClear)[nInst:]
+		dst := instances[nInst:]
 		// paint.CPU fills the target with the 8-bit premultiplied clear
 		// color; c/255 converts back to exactly those bytes (the box
 		// coverage of a whole-pixel rectangle is exactly 1 inside it).
@@ -467,15 +474,21 @@ func (d *Device) Execute(f *gpu.Frame) error {
 		}
 	}
 	if nInst > 0 {
-		dst := unsafe.Slice((*shaders.Instance)(msgPtr(d.instBuf, sel("contents"))), nInst)
-		k := 0
+		k, run := 0, 0
 		for i := range f.Batches {
 			b := &f.Batches[i]
-			n := copy(dst[k:], b.Instances)
-			if b.Layer != 0 {
-				d.rescaleComposites(dst[k:k+n], f.Layers[b.Layer-1].Size, d.layerSize[b.Layer])
+			start := k
+			if partial && b.Target == 0 {
+				for ; run < d.dirtyDraws.batches[i].runEnd; run++ {
+					r := d.dirtyDraws.runs[run]
+					k += copy(instances[k:], b.Instances[r.first:r.end])
+				}
+			} else {
+				k += copy(instances[k:], b.Instances)
 			}
-			k += n
+			if b.Layer != 0 {
+				d.rescaleComposites(instances[start:k], f.Layers[b.Layer-1].Size, d.layerSize[b.Layer])
+			}
 		}
 	}
 
@@ -509,6 +522,7 @@ func (d *Device) Execute(f *gpu.Frame) error {
 	cur := -1                                // the open pass's target
 	started := make([]bool, len(f.Layers)+1) // targets cleared already
 	base := uint64(0)
+	nextDraw := 0
 	for i := range f.Batches {
 		b := &f.Batches[i]
 		if i > 0 && len(b.Uploads) > 0 {
@@ -552,23 +566,32 @@ func (d *Device) Execute(f *gpu.Frame) error {
 			}
 			started[b.Target] = true
 		}
-		n := uint64(len(b.Instances))
-		off := base
-		base += n * instanceSize
-		// The scissor in the target's texels.
-		full, origin := image.Rectangle{Max: f.Size}, image.Point{}
-		if b.Target != 0 {
-			ld := f.Layers[b.Target-1]
-			full, origin = image.Rectangle{Max: ld.Size}, ld.Bounds.Min
+		var sc image.Rectangle
+		var draws []dirtyDraw
+		off, n := base, uint64(len(b.Instances))
+		if partial && b.Target == 0 {
+			end := d.dirtyDraws.batches[i].drawEnd
+			draws = d.dirtyDraws.draws[nextDraw:end]
+			nextDraw = end
+			if len(draws) == 0 {
+				continue
+			}
+		} else {
+			base += n * instanceSize
+			// The scissor in the target's texels.
+			full, origin := image.Rectangle{Max: f.Size}, image.Point{}
+			if b.Target != 0 {
+				ld := f.Layers[b.Target-1]
+				full, origin = image.Rectangle{Max: ld.Size}, ld.Bounds.Min
+			}
+			sc = full
+			if !b.Scissor.Empty() {
+				sc = b.Scissor.Sub(origin).Intersect(full)
+			}
+			if n == 0 || sc.Empty() {
+				continue
+			}
 		}
-		sc := full
-		if !b.Scissor.Empty() {
-			sc = b.Scissor.Sub(origin).Intersect(full)
-		}
-		if n == 0 || sc.Empty() {
-			continue
-		}
-		setScissorRect(enc, mtlScissorRect{uint64(sc.Min.X), uint64(sc.Min.Y), uint64(sc.Dx()), uint64(sc.Dy())})
 		img := d.noImage
 		if b.Image != 0 {
 			img = d.images[b.Image] // present: checked by applyImages
@@ -579,20 +602,14 @@ func (d *Device) Execute(f *gpu.Frame) error {
 			layer = d.layerTex[b.Layer] // drawn by an earlier batch: checked by assignLayers
 		}
 		msgSetIDIdx(enc, sel("setFragmentTexture:atIndex:"), layer, gpu.TexLayer)
-		msgBufOffIdx(enc, sel("setVertexBuffer:offset:atIndex:"), d.instBuf, off, 0)
-		if partial && b.Target == 0 {
-			// Drawn once per dirty rectangle (disjoint: no pixel twice).
-			for _, r := range f.Dirty {
-				s := sc.Intersect(r)
-				if s.Empty() {
-					continue
-				}
-				setScissorRect(enc, mtlScissorRect{uint64(s.Min.X), uint64(s.Min.Y), uint64(s.Dx()), uint64(s.Dy())})
-				msgDraw(enc, sel("drawPrimitives:vertexStart:vertexCount:instanceCount:"), primitiveTriangleStrip, 0, 4, n)
-			}
+		if len(draws) == 0 {
+			d.drawInstances(enc, sc, off, n)
 			continue
 		}
-		msgDraw(enc, sel("drawPrimitives:vertexStart:vertexCount:instanceCount:"), primitiveTriangleStrip, 0, 4, n)
+		for _, draw := range draws {
+			d.drawInstances(enc, draw.scissor, base, uint64(draw.count))
+			base += uint64(draw.count) * instanceSize
+		}
 	}
 	if enc != 0 {
 		enc.Send(sel("endEncoding"))
@@ -618,6 +635,12 @@ func (d *Device) Execute(f *gpu.Frame) error {
 	d.instUsage.record(d.instCap, (nInst+nClear)*instanceSize)
 	clear(d.staged)
 	return nil
+}
+
+func (d *Device) drawInstances(enc id, sc image.Rectangle, off, n uint64) {
+	setScissorRect(enc, mtlScissorRect{uint64(sc.Min.X), uint64(sc.Min.Y), uint64(sc.Dx()), uint64(sc.Dy())})
+	msgBufOffIdx(enc, sel("setVertexBuffer:offset:atIndex:"), d.instBuf, off, 0)
+	msgDraw(enc, sel("drawPrimitives:vertexStart:vertexCount:instanceCount:"), primitiveTriangleStrip, 0, 4, n)
 }
 
 // grab encodes the grab batch b (gpu.Batch.Grab; its source was started
@@ -1664,6 +1687,7 @@ func (d *Device) release() {
 	d.imagePool.clear()
 	d.dropCopyTarget()
 	d.copyKeep, d.copyNext = nil, nil
+	d.dirtyDraws = dirtyDrawPlan{}
 	for k, t := range d.images {
 		release(t)
 		delete(d.images, k)

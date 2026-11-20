@@ -201,6 +201,12 @@ void tg_page_register(TGPage *p) { pages[@(p.sid)] = p; }
 
 // WKNavigationDelegate
 
+- (void)webView:(WKWebView *)webView didStartProvisionalNavigation:(WKNavigation *)navigation {
+	char *u = cstr(webView.URL.absoluteString);
+	tangoIOSNavigationStarted(self.sid, u);
+	free(u);
+}
+
 - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
 	tg_trace("didFinishNavigation (first page loaded)");
 	char *u = cstr(webView.URL.absoluteString);

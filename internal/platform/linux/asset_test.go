@@ -49,7 +49,7 @@ func TestAssetWriterDefaults(t *testing.T) {
 	if resp.ContentType != "text/html; charset=utf-8" {
 		t.Errorf("content type = %q", resp.ContentType)
 	}
-	if !reflect.DeepEqual(resp.Headers, [][2]string{{"Content-Length", "20"}}) {
+	if !reflect.DeepEqual(resp.Headers, [][2]string{{"Content-Length", "20"}, {"Content-Type", "text/html; charset=utf-8"}}) {
 		t.Errorf("headers = %v", resp.Headers)
 	}
 }
@@ -67,7 +67,7 @@ func TestAssetWriterExplicit(t *testing.T) {
 	if resp.Status != 404 || resp.Reason != "Not Found" || resp.ContentType != "application/json" || string(resp.Body) != "{}" {
 		t.Errorf("resp = %+v", resp)
 	}
-	want := [][2]string{{"Cache-Control", "no-cache"}, {"Content-Length", "2"}, {"Set-Cookie", "a=1"}, {"Set-Cookie", "b=2"}}
+	want := [][2]string{{"Cache-Control", "no-cache"}, {"Content-Length", "2"}, {"Content-Type", "application/json"}, {"Set-Cookie", "a=1"}, {"Set-Cookie", "b=2"}}
 	if !reflect.DeepEqual(resp.Headers, want) {
 		t.Errorf("headers = %v\nwant %v", resp.Headers, want)
 	}
@@ -91,8 +91,9 @@ func TestAssetWriterEmpty(t *testing.T) {
 	w = newAssetWriter()
 	w.Header()["Content-Type"] = nil
 	w.Write([]byte("<html>"))
-	if ct := w.finish("GET").ContentType; ct != "" {
-		t.Errorf("content type = %q", ct)
+	resp = w.finish("GET")
+	if resp.ContentType != "" || !reflect.DeepEqual(resp.Headers, [][2]string{{"Content-Length", "6"}}) {
+		t.Errorf("resp = %+v", resp)
 	}
 }
 
@@ -105,6 +106,19 @@ func TestAssetWriterIsHandlerCompatible(t *testing.T) {
 	h.ServeHTTP(w, r)
 	if resp := w.finish("GET"); resp.Status != 404 {
 		t.Errorf("status = %d", resp.Status)
+	}
+}
+
+func TestBufferedAssetRejectsLanePoll(t *testing.T) {
+	r, err := newAssetRequest("GET", "tango://app/__tango/lane/poll?gen=1&tok=token&ack=0", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := bufferedAssetResponse(r, func(http.ResponseWriter, *http.Request) {
+		t.Fatal("a buffered poll must not call the asset handler")
+	})
+	if got.Status != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want %d", got.Status, http.StatusServiceUnavailable)
 	}
 }
 

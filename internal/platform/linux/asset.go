@@ -45,10 +45,9 @@ func newAssetRequest(method, uri string, headers [][2]string, body []byte) (*htt
 	return r, nil
 }
 
-// assetWriter is the http.ResponseWriter handed to Host.ServeAsset. The
-// contract calls ServeAsset synchronously on the main thread, so the
-// response is buffered and given to WebKit as one GMemoryInputStream once
-// the handler returns.
+// assetWriter buffers the response when streaming is unavailable. The
+// handler then runs on the main thread and WebKit receives one
+// GMemoryInputStream after it returns.
 type assetWriter struct {
 	header http.Header
 	status int
@@ -56,6 +55,19 @@ type assetWriter struct {
 }
 
 func newAssetWriter() *assetWriter { return &assetWriter{header: http.Header{}} }
+
+// bufferedAssetResponse serves the request synchronously. A lane poll can
+// wait for 25 seconds, so it must fail promptly if streaming is unavailable
+// or creating the pipe failed.
+func bufferedAssetResponse(r *http.Request, serve http.HandlerFunc) assetResponse {
+	w := newAssetWriter()
+	if r.URL.Path == "/__tango/lane/poll" {
+		http.Error(w, "tango/linux: lane poll requires a streamed response", http.StatusServiceUnavailable)
+	} else {
+		serve(w, r)
+	}
+	return w.finish(r.Method)
+}
 
 func (w *assetWriter) Header() http.Header { return w.header }
 
@@ -84,7 +96,7 @@ type assetResponse struct {
 	Status      int
 	Reason      string
 	ContentType string
-	Headers     [][2]string // sorted by name, values in order; no Content-Type
+	Headers     [][2]string // sorted by name, values in order, including nonempty Content-Type
 	Body        []byte
 }
 
@@ -97,11 +109,7 @@ func (w *assetWriter) finish(method string) assetResponse {
 	}
 	h := w.header.Clone()
 	body := w.body.Bytes()
-	ct := h.Get("Content-Type")
-	if _, set := h["Content-Type"]; !set && len(body) > 0 {
-		ct = http.DetectContentType(body)
-	}
-	h.Del("Content-Type")
+	ct := setAssetContentType(h, body)
 	if len(body) > 0 || method != http.MethodHead {
 		h.Set("Content-Length", strconv.Itoa(len(body)))
 	}
@@ -112,6 +120,21 @@ func (w *assetWriter) finish(method string) assetResponse {
 		Headers:     headerPairs(h),
 		Body:        body,
 	}
+}
+
+// setAssetContentType resolves the MIME type for both the HTTP headers and
+// WebKit's separate content type field.
+func setAssetContentType(h http.Header, body []byte) string {
+	ct := h.Get("Content-Type")
+	if _, set := h["Content-Type"]; !set && len(body) > 0 {
+		ct = http.DetectContentType(body)
+	}
+	if ct == "" {
+		h.Del("Content-Type")
+	} else {
+		h.Set("Content-Type", ct)
+	}
+	return ct
 }
 
 // headerPairs flattens h into name/value pairs sorted by name, keeping the

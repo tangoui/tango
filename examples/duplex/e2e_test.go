@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -22,20 +23,33 @@ import (
 //
 //	TANGO_E2E=1 go test ./examples/duplex -run E2E -v
 func TestE2EDuplex(t *testing.T) {
-	app := automation.Launch(t, ".")
+	opts := automation.Options{Env: []string{
+		"TANGO_IPC_LANES_DARWIN=", "TANGO_IPC_LANES_LINUX=", "TANGO_IPC_LANES_WINDOWS=",
+	}}
+	var wantLanes string
+	if os.Getenv("TANGO_E2E_LANES") == "1" {
+		switch runtime.GOOS {
+		case "linux":
+			opts.Env = append(opts.Env, "TANGO_IPC_LANES_LINUX=1")
+			wantLanes = `{"down":"down:poll","up":"up:post"}`
+		case "windows":
+			opts.Env = append(opts.Env, "TANGO_IPC_LANES_WINDOWS=1")
+			wantLanes = `{"down":"down:shm","up":"up:shm"}`
+		}
+	}
+	app := automation.LaunchOptions(t, ".", opts)
 	win := app.Window("Tango Duplex")
 	if win.Kind() != automation.KindWebView {
 		t.Fatalf("kind %q", win.Kind())
 	}
 	win.WaitJS(`document.readyState === "complete" && !!window.tango && !!window.duplex`)
 
+	if wantLanes != "" {
+		win.WaitJS("JSON.stringify(tango.lanes()) === '" + wantLanes + "'")
+	}
 	if got := win.EvalString(`window.duplex.echoOnce("ping")`); got != "ping" {
 		t.Fatalf("echo %q", got)
 	}
-	// Which lanes the page got depends on the backend (macOS: up:post by
-	// default; elsewhere fallback until the backend reports fast lane
-	// capabilities) and on the inherited environment; logged, not asserted
-	// (benchSmoke asserts the macOS default with the switches cleared).
 	t.Logf("tango.lanes(): %s", win.EvalString(`JSON.stringify(tango.lanes())`))
 
 	// The Echo buttons go through a tango.socket.
@@ -63,21 +77,100 @@ func TestE2EDuplex(t *testing.T) {
 		t.Fatalf("uploaded file %q: %v %v", up.Path, st, err)
 	}
 	os.Remove(up.Path)
+	if wantLanes != "" {
+		if got := win.EvalString(`JSON.stringify(tango.lanes())`); got != wantLanes {
+			t.Errorf("tango.lanes() after duplex traffic = %s, want %s", got, wantLanes)
+		}
+	}
 	app.Quit()
 
 	benchSmoke(t)
 }
 
+// TestE2ELaneSelftest runs the shared page scenarios in a fresh WebView
+// for each case, so a failed lane cannot carry over to the next case.
+func TestE2ELaneSelftest(t *testing.T) {
+	if os.Getenv("TANGO_E2E") != "1" {
+		t.Skip("set TANGO_E2E=1 to run the desktop lane self-test")
+	}
+	down, up := "down:poll", "up:post"
+	name := "duplex"
+	switch runtime.GOOS {
+	case "darwin", "linux":
+	case "windows":
+		name += ".exe"
+		down, up = "down:shm", "up:shm"
+	default:
+		t.Skipf("no desktop lane self-test for %s", runtime.GOOS)
+	}
+	bin := filepath.Join(t.TempDir(), name)
+	buildCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	if out, err := exec.CommandContext(buildCtx, "go", "build", "-tags", "tango_selftest", "-o", bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("build duplex self-test: %v\n%s", err, out)
+	}
+
+	const faultAfter = 20
+	for _, tc := range []struct{ name, lane string }{
+		{"selftest", ""},
+		{"fault-down", down},
+		{"fault-up", up},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fault := ""
+			if tc.lane != "" {
+				fault = tc.lane + ":" + strconv.Itoa(faultAfter)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, bin)
+			cmd.WaitDelay = 5 * time.Second
+			cmd.Env = append(os.Environ(),
+				"TANGO_IPC_LANES=", "TANGO_IPC_LANES_DARWIN=", "TANGO_IPC_LANES_LINUX=", "TANGO_IPC_LANES_WINDOWS=",
+				"TANGO_IPC_LANES_"+strings.ToUpper(runtime.GOOS)+"=1",
+				"TANGO_SCHEME_SELFTEST=1", "TANGO_IPC_LANE_FAULT="+fault, "TANGO_IPC_SHM_BYTES=",
+			)
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &stdout, &stderr
+			if err := cmd.Run(); err != nil {
+				t.Fatalf("duplex self-test: %v (context: %v)\nstdout:\n%s\nstderr:\n%s", err, ctx.Err(), stdout.String(), stderr.String())
+			}
+			var reports []string
+			for _, line := range strings.Split(stdout.String(), "\n") {
+				if strings.HasPrefix(line, "selftest: ") {
+					reports = append(reports, line)
+				}
+			}
+			if len(reports) != 1 {
+				t.Fatalf("got %d selftest lines, want one\nstdout:\n%s\nstderr:\n%s", len(reports), stdout.String(), stderr.String())
+			}
+			var result struct {
+				OK bool `json:"ok"`
+			}
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(reports[0], "selftest: ")), &result); err != nil || !result.OK {
+				t.Fatalf("duplex self-test failed (decode: %v)\n%s\nstderr:\n%s", err, reports[0], stderr.String())
+			}
+			if tc.lane == "down:poll" && !strings.Contains(stderr.String(), "injected fault: poll response cut off") {
+				t.Fatalf("down:poll did not report the injected cut\n%s\nstderr:\n%s", reports[0], stderr.String())
+			}
+			t.Log(reports[0])
+		})
+	}
+}
+
 // benchSmoke runs go run . -bench (docs/ipc-bench.md) and checks that it
 // prints its result as one JSON line with the fields the benchmark
 // analysis reads, then quits on its own. With the lane switches cleared,
-// macOS uses its default (up:post on).
+// macOS uses up:post and Windows uses both shared-buffer lanes.
 func benchSmoke(t *testing.T) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "go", "run", ".", "-bench")
-	cmd.Env = append(os.Environ(), "TANGO_IPC_LANES_DARWIN=", "TANGO_IPC_LANES=", "TANGO_SCHEME_PROBE=")
+	cmd.Env = append(os.Environ(),
+		"TANGO_IPC_LANES_DARWIN=", "TANGO_IPC_LANES_LINUX=", "TANGO_IPC_LANES_WINDOWS=",
+		"TANGO_IPC_LANES=", "TANGO_SCHEME_PROBE=",
+	)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
@@ -108,6 +201,9 @@ func benchSmoke(t *testing.T) {
 	}
 	if runtime.GOOS == "darwin" && res.Lane.Up != "up:post" {
 		t.Errorf("-bench on macOS with default switches: up lane %q, want up:post (on by default)", res.Lane.Up)
+	}
+	if runtime.GOOS == "windows" && (res.Lane.Down != "down:shm" || res.Lane.Up != "up:shm") {
+		t.Errorf("-bench on Windows with default switches: lanes %+v, want down:shm and up:shm", res.Lane)
 	}
 }
 

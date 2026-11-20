@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -118,6 +119,72 @@ func TestSurfaceLaneHelloConditions(t *testing.T) {
 			want := fmt.Sprintf(`{"gen":1,"tok":%q,"list":["down:android","up:android"]}`, h.Tok)
 			if string(raw) != want {
 				t.Fatalf("LaneHello = %s, want %s", raw, want)
+			}
+		})
+	}
+}
+
+type generationLaneSurface struct {
+	*fake.Surface
+	notifications []laneHelloJSON
+}
+
+var (
+	_ platform.BinaryLane      = (*generationLaneSurface)(nil)
+	_ platform.LaneGenerations = (*generationLaneSurface)(nil)
+)
+
+func (s *generationLaneSurface) LaneGeneration(gen uint64, lanes []string) {
+	s.notifications = append(s.notifications, laneHelloJSON{Gen: gen, List: lanes})
+}
+
+func TestLaneHelloNotifiesGeneration(t *testing.T) {
+	t.Setenv("TANGO_IPC_LANES", "1")
+	caps := []string{lane.DownAndroid, lane.UpAndroid}
+	for _, c := range []struct {
+		name    string
+		opts    Options
+		caps    []string
+		offered []string
+	}{
+		{name: "enabled", caps: caps, offered: caps},
+		{name: "disabled", opts: Options{DisableFastLanes: true}, caps: caps},
+		{name: "filtered", caps: []string{lane.DownAndroid, "unknown", lane.DownAndroid}, offered: []string{lane.DownAndroid}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			a, fb := laneApp(t, c.opts)
+			a.OnBinary(func(*Surface, uint64, []byte) {})
+			s := laneSurface(t, a, fb, "", c.caps...)
+			bl := &generationLaneSurface{Surface: fb.Surface(s.ID())}
+			s.setLaneNative(bl)
+
+			prev := s.lane.Generation()
+			for i := range 2 {
+				raw := s.LaneHello()
+				if len(bl.notifications) != i+1 {
+					t.Fatalf("after hello %d got %d notifications, want %d", i+1, len(bl.notifications), i+1)
+				}
+				got := bl.notifications[i]
+				if current := s.lane.Generation(); got.Gen <= prev || got.Gen != current {
+					t.Fatalf("notified generation = %d, want current %d and greater than %d", got.Gen, current, prev)
+				}
+				prev = got.Gen
+				if !slices.Equal(got.List, c.offered) || (c.offered == nil && got.List != nil) {
+					t.Fatalf("notified lanes = %#v, want %#v", got.List, c.offered)
+				}
+				if c.offered == nil {
+					if raw != nil {
+						t.Fatalf("LaneHello = %s, want nil", raw)
+					}
+					continue
+				}
+				var h laneHelloJSON
+				if err := json.Unmarshal(raw, &h); err != nil {
+					t.Fatal(err)
+				}
+				if h.Gen != got.Gen || !slices.Equal(h.List, got.List) {
+					t.Fatalf("LaneHello = %s, want notified generation %d and lanes %v", raw, got.Gen, got.List)
+				}
 			}
 		})
 	}

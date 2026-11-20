@@ -4,6 +4,7 @@ package linux
 
 import (
 	"errors"
+	"os"
 	"unsafe"
 
 	"github.com/tangoui/tango/internal/platform"
@@ -38,6 +39,8 @@ type surface struct {
 	script ptr
 	bridge string
 
+	laneCaps []string // fixed at WebView surface creation
+
 	resizable  bool
 	minW, minH int
 	debug      bool
@@ -68,6 +71,7 @@ func (b *backend) newSurface(id platform.SurfaceID, o platform.SurfaceOptions, e
 		gtkWidgetDestroy(s.win)
 		return nil, err
 	}
+	s.laneCaps = laneCapsFromEnv(os.Getenv, webkitURISchemeRequestGetHTTPBody != nil, bindSchemeStream())
 	s.packWeb() // canvas_attach_linux.go: box -> GtkOverlay -> web view
 	s.wireWeb()
 	s.content = s.web
