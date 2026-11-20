@@ -159,6 +159,7 @@ type viewState struct {
 	// dmg is what the last paint drew, for the redraw hints (damage.go);
 	// dmgSpare holds the buffers of the paint before it, for reuse.
 	dmg, dmgSpare damageRec
+	glyphInk      map[glyphInkKey]spanX
 
 	// Display decorations (paint.go, occurrences.go, unicode.go, links.go,
 	// colors.go): the occurrences and selection match states, scratch
@@ -474,6 +475,19 @@ func (w *ViewW) measure(maxW, maxH float32) geom.Size {
 // lineHeight returns the line height for the font size.
 func (w *ViewW) lineHeight() float32 {
 	return float32(math.Round(float64(w.opts.fontSize()) * lineHeightRatio))
+}
+
+// displayViewport uses whole device pixels for the scroll displacement so
+// the renderer can copy the previous frame. Keep the input position in
+// State continuous, including the part of a wheel delta still below a pixel.
+// Keep the same top row so it still refers to the same view-line anchor.
+func (w *ViewW) displayViewport() Viewport {
+	v := w.st.Viewport
+	scale := float64(max(0.01, w.c.Window().Scale()))
+	top := float64(v.TopLine) * float64(v.LineHeight) * scale
+	v.OffsetY = float32((math.Round(top+float64(v.OffsetY)*scale) - top) / scale)
+	v.ScrollX = float32(math.Round(float64(v.ScrollX)*scale) / scale)
+	return v
 }
 
 // monoStyle returns the text style of the document text.

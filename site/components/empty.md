@@ -65,6 +65,8 @@ func emptyCustom(c *ui.Context) {
 
 `Image` 替换默认图片内容；`Body` 回调中构建按钮或其他轻量操作。
 
+`Title(s)` 在说明文字上方显示主标题，`Description(s)` 可提供补充信息。
+
 ### 放入布局
 
 ```go

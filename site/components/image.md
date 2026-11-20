@@ -50,9 +50,14 @@ func loading(c *ui.Context, img, fallback image.Image, pending, failed bool) {
 
 ```go
 func gallery(c *ui.Context, imgs []image.Image) {
-    ui.Image(c, imgs[0]).Size(160, 100).PreviewGroup(imgs, 0).Preview(true)
+    if len(imgs) == 0 {
+        return
+    }
+    ui.Image(c, imgs[0]).Size(160, 100).PreviewGroup(imgs, 0).Alt("相册封面")
 }
 ```
+
+`PreviewGroup` 启用点击预览并提供上一张 / 下一张操作。`PreviewSrc(img)` 为缩略图指定单独的预览原图，`OpenPreview()` 可在按钮点击等事件中打开预览。`MinScale`、`MaxScale` 和 `ScaleStep` 调整缩放，`Movable`、`MaskClosable`、`CloseOnEscape` 控制交互，`Infinite` 和 `ShowProgress` 控制图片组循环及页码。
 
 ## 主题与样式
 

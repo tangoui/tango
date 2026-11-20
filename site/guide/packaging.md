@@ -3,7 +3,7 @@
 本页讲从 `tan build` 的产物到可以分发给用户的安装包：安装包格式、macOS 签名与公证、Windows Authenticode 签名、自动更新。移动端的签名见 [移动端](/guide/mobile#构建与签名)。
 
 ::: warning 验证状态
-macOS 的打包、签名与公证流程已在本机使用；Windows（NSIS、MSIX、Authenticode）和 Linux（tar.gz、AppImage）的流程由单元测试覆盖（用假的外部工具），**尚未在真机上验证安装运行**。CI 里的发布流程目前也不签名。
+macOS 的打包、签名与公证流程已在本机使用；Windows（NSIS、MSIX、Authenticode）的安装运行尚未在实机验证。Linux 的 deb 和 AppImage 在 Debian 12 arm64 容器中用 Xvfb 运行过。CI 里的发布流程目前也不签名。
 :::
 
 ## 安装包：tan package
@@ -21,10 +21,16 @@ tan package -platform windows/amd64 -format msix
 |---|---|---|
 | macOS | `.dmg`（含应用和指向「应用程序」的链接） | `hdiutil`（只能在 macOS 上做） |
 | Windows | NSIS 安装器：按用户安装到 `%LOCALAPPDATA%\Programs`，开始菜单快捷方式，卸载项 | `makensis` |
-| Windows（`-format msix`） | MSIX 包，需要 `windows.publisher` | `makeappx` 或等价工具 |
+| Windows（`-format msix`） | MSIX 包，需要 `windows.publisher` | `makeappx`，缺少时只生成包目录 |
 | Linux | `.tar.gz`（可执行文件、图标、`.desktop`、按用户安装的脚本）与 AppImage | `appimagetool`（不在 PATH 时只生成 `.AppDir` 并提示） |
 
-文件名形如 `<Exe>-<version>-<os>-<arch>.<ext>`。`tan.json` 的 `urlSchemes`、`fileAssociations`、`icon`、`copyright` 会写进各平台的元数据（Info.plist、安装器注册表项、`.desktop` / MIME 包、AppxManifest）。
+桌面产物通常以 `<Exe>-<version>-<os>-<arch>` 开头，裁剪后端的构建还会加上配置名。`tan.json` 的 `urlSchemes`、`fileAssociations`、`icon`、`copyright` 会写进各平台的元数据（Info.plist、安装器注册表项、`.desktop` / MIME 包、AppxManifest）。
+
+Linux 可用 `-format tar,appimage,deb,rpm,flatpak` 中的任意子集。`deb` 和 `rpm` 由 tan 写出，`flatpak` 有 `flatpak-builder` 才会打出 bundle。 [Linux 打包](https://github.com/tangoui/tango/blob/main/docs/linux-packaging.md)
+
+### 桌面辅助程序
+
+`desktopHelpers` 为每个桌面目标运行配置里的构建命令。macOS 随 `.app` 放入 `Contents/Helpers/`。Windows 随 NSIS 或 MSIX 放入 `cli/`。Linux 的 tar 包将辅助程序放入 `cli/`，安装脚本安装到 `$PREFIX/lib/<Exe>/`。AppImage 放入 `usr/bin/cli/`，deb / rpm 放入 `/usr/lib/<Exe>/`，Flatpak 放入 `/app/lib/<Exe>/`。 [配置字段](/reference/tan-json#桌面构建)
 
 ## macOS：签名与公证
 
@@ -83,7 +89,9 @@ rel, err := u.Check(ctx)               // nil, nil：已是最新
 if rel != nil {
     p, err := u.Download(ctx, rel, "") // 先试补丁，失败回落到完整包
     if err == nil {
-        u.Apply(p)                      // 然后退出，新版本启动
+        if err := u.Apply(p); err == nil {
+            app.Quit()                  // 更新进程等待应用退出再安装
+        }
     }
 }
 ```

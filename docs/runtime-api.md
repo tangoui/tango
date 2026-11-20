@@ -77,7 +77,7 @@ try {
 
 ## JS API 一览
 
-平台列：✓ 支持；— 不支持（reject `unsupported` 或事件不触发）；“数字” 表示只支持数字徽标。桌面三平台的后端都实现了对应接口，但只有 macOS 实机验证过；移动端后端目前只有剪贴板文本和对话框。
+平台列：✓ 支持；— 不支持（reject `unsupported` 或事件不触发）；“数字” 表示只支持数字徽标。桌面与移动端各项能力的实现范围见各表，移动宿主的限制和验证记录见 [移动端](mobile.md)。
 
 ### Window（`Window`，默认开）
 
@@ -114,7 +114,7 @@ try {
 | JS | Cap | 对应 Go | macOS | Windows | Linux | 移动端 |
 |---|---|---|---|---|---|---|
 | `info(): Promise<Environment>` | Info | `env.Info` | ✓ | ✓ | ✓ | ✓ |
-| `onOpenURL(fn(url))` | Info | `EventOpenURL` | ✓ | ✓（启动参数/第二实例） | ✓（同左） | — |
+| `onOpenURL(fn(url))` | Info | `EventOpenURL` | ✓ | ✓（启动参数/第二实例） | ✓（同左） | ✓ |
 | `onOpenFiles(fn(paths))` | Info | `EventOpenFiles` | ✓ | ✓ | ✓ | — |
 | `onReopen(fn)` | Info | `EventReopen` | ✓ | — | — | — |
 | `onSecondInstance(fn({args, cwd}))` | Info | `single.OnSecondInstance`（`jsapi.Install` 自动注册；应用需调用 `single.Claim`） | ✓ | ✓ | ✓ | — |
@@ -130,8 +130,8 @@ try {
 
 | JS | 对应 Go | 桌面三平台 | 移动端 |
 |---|---|---|---|
-| `Theme.get(): Promise<{dark, accent}>` | `theme.System` | ✓ | — |
-| `Theme.onChange(fn(theme))` | `EventThemeChanged` | ✓ | — |
+| `Theme.get(): Promise<{dark, accent}>` | `theme.System` | ✓ | ✓ |
+| `Theme.onChange(fn(theme))` | `EventThemeChanged` | ✓ | ✓ |
 | `Theme.vars(): Record<string,string>` | `uivars.SyncPage` 注入的 CSS 变量 | ✓ | ✓ |
 | `Theme.onVarsChange(fn(vars))` | 页面上的 `tangouivars` 事件 | ✓ | ✓ |
 | `Screens.all()` / `primary()` | `screen.All` / `Primary` | ✓ | — |
@@ -160,7 +160,7 @@ try {
 |---|---|---|---|
 | `message({kind, title, message, buttons}): Promise<number>` | `dialog.Message` | ✓ | ✓ |
 | `open({title, directory, filters, multiple, folders, canCreateDirs, showHidden}): Promise<string[]>` | `dialog.Open` | ✓ | ✓ |
-| `save({title, directory, filename, filters, ...}): Promise<string>` | `dialog.Save` | ✓ | ✓ |
+| `save({title, directory, filename, filters, ...}): Promise<string>` | `dialog.Save` | ✓ | Android 支持，iOS 返回 `unsupported` |
 
 对话框挂在调用方窗口上。取消时 reject `canceled`（单按钮消息框除外，返回 0）。
 
@@ -168,18 +168,18 @@ try {
 
 | JS | 对应 Go | macOS | Windows | Linux | 移动端 |
 |---|---|---|---|---|---|
-| `requestPermission(): Promise<boolean>` | `notify.RequestPermission` | ✓（需 .app） | ✓ | ✓ | — |
-| `send({title, subtitle, body, silent}): Promise<string>` | `notify.Send` | ✓（需 .app） | ✓ | ✓ | — |
-| `onClick(fn(id))` | `notify.OnClick` | ✓ | ✓ | ✓ | — |
+| `requestPermission(): Promise<boolean>` | `notify.RequestPermission` | ✓（需签名的 .app） | ✓ | ✓ | ✓ |
+| `send({title, subtitle, body, silent}): Promise<string>` | `notify.Send` | ✓（需签名的 .app） | ✓ | ✓ | ✓ |
+| `onClick(fn(id))` | `notify.OnClick` | ✓ | ✓ | ✓ | ✓ |
 
-点击事件发给发送该通知的页面；那个窗口已关闭时发给所有页面。上一次运行发出的通知被点击（包括点通知启动应用）时，macOS 也会报告，id 照常传给 `onClick`。
+点击事件发给发送该通知的页面，那个窗口已关闭时发给所有页面。`jsapi` 在本次运行首次调用 `Notify.send` 时接上 Go 侧的点击处理器。Android 13+ 的权限声明见 [移动端权限](mobile-permissions.md)。
 
 ### Shell（`OpenURL` / `OpenPath`，默认关）
 
 | JS | Cap | 对应 Go | 桌面三平台 | 移动端 |
 |---|---|---|---|---|
-| `openURL(url)` | OpenURL | `shell.OpenURL`（协议白名单，否则 `forbidden`） | ✓ | — |
-| `openPath(path)` | OpenPath | `shell.OpenPath` | ✓ | — |
+| `openURL(url)` | OpenURL | `shell.OpenURL`（协议白名单，否则 `forbidden`） | ✓ | ✓ |
+| `openPath(path)` | OpenPath | `shell.OpenPath` | ✓ | 仅文件 |
 | `revealPath(path)` | OpenPath | `shell.RevealPath` | ✓ | — |
 
 ### Menu（`Menu`，默认开）
@@ -255,7 +255,7 @@ npm test          # 构建 + 单元测试 + API 报告与线上契约检查
 
 `@tangoui/runtime` 与 Go 侧 `jsapi` 一样是稳定 API（`docs/specs/api-stability.md` §6.1）。下面这些都是契约，改动即 API 变化，需要在 `CHANGELOG.md` 的「未发布」里写明，不兼容的改动按 [release.md 的「API 稳定性」](release.md#api-稳定性) 走 `api-break` 流程：
 
-- 包入口导出的名字与类型签名：`call`、`on`、`emit`、`stream`、`onStream`、`onRaw`、`postRaw`、`createClient`、`getClient`、`TangoError`、`ErrorCode`、`ACK_EVERY`、`WINDOW` 及各类型。
+- 包入口导出的名字与类型签名：`call`、`on`、`emit`、`stream`、`socket`、`TangoSocket`、`onStream`、`onRaw`、`postRaw`、`lanes`、`createClient`、`getClient`、`TangoError`、`ErrorCode`、`ACK_EVERY`、`WINDOW` 及各类型。
 - 命名空间（`Window`、`App`……`Web`）里每个成员的名字与签名，以及命名空间本身的名字。
 - 错误：`TangoError` 的 `code` 取值（上面的错误码表、`ErrorCode` 联合类型、`jsapi.Code*` 与 `ipc.Code*`）。
 - 线上名字：`tango:<模块>.<函数>` 方法名、`tango:<模块>.<事件>` 事件名、`jsapi.Cap` 的位值，以及参数与结果、事件数据的 JSON 形状（字段名、类型、取值）。
@@ -283,7 +283,7 @@ TS 封装调用了 Go 没有注册的方法（或把方法当事件用）、Go �
 **这些检查的边界**：它们只比较结构，不保证兼容。
 
 - API 报告只看名字和 TypeScript 类型。实现行为变了、默认值变了、`Promise` 何时 resolve 变了，报告都不会变。返回类型写成 `Promise<T>` 而 Go 实际返回的 JSON 换了字段，报告也看不出来。
-- 线上契约只核对名字（以及方法所需的 `Cap`）。参数个数与顺序、参数和结果的 JSON 形状、事件数据的字段，由 `jsapi` 与 `runtime-js` 各自的单元测试覆盖，没有统一的黄金文件；IPC 消息本身也还没有协议版本号。
+- 线上契约只核对名字（以及方法所需的 `Cap`）。参数个数与顺序、参数和结果的 JSON 形状、事件数据的字段，由 `jsapi` 与 `runtime-js` 各自的单元测试覆盖，没有统一的黄金文件；IPC 协议版本通过 `hello` 握手的 `proto` 字段协商，目前是 2。
 - 不在契约文件里的动态名字：应用自己的方法与事件（`call`/`on`/`emit`/`stream`、`Events.*`，名字由应用定）；其他包通过 `API.Handle` 注册的方法（`Cap` 第 32 位以上，目前仓库里没有）；`Theme.vars`/`onVarsChange` 读的页面全局变量 `__tangoUIVarsState` 和 DOM 事件 `tangouivars`（由 `sys/theme/uivars` 注入，不走 `jsapi`）。
 - 已知差异：`updater.*` 方法与 `updater.event` 事件在 runtime-js 里没有封装。
 

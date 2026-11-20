@@ -50,11 +50,11 @@ TanGo は **macOS、Windows、Linux、iOS、Android** 向けの Go アプリケ�
 | **Go 描画 UI** | Web フロントエンドを使わず、Go コンポーネントで作るデスクトップ UI。 | `ui` |
 | **ハイブリッド** | WebView と Go 描画パネルを同じデスクトップウィンドウに配置するアプリ。 | `hybrid` |
 
-Go 描画 UI は現在デスクトップ向けです。モバイルでは WebView を使用します。ハイブリッドアプリは Go コードの変更時に再起動し、Canvas のホットリロードは利用しません。
+iOS と Android では、WebView ページに加えて実験的な Go 描画ページも利用できます。詳しくは[モバイルのセットアップ](docs/mobile.md)を参照してください。デスクトップのハイブリッドアプリは Go コードの変更時に再起動し、Canvas のホットリロードは利用しません。
 
 ## 開発を始める
 
-**Go 1.27+** が必要です。デスクトップビルドに cgo は不要ですが、実行先にはシステム WebView のライブラリが必要です。モバイルビルドには各プラットフォームの SDK が必要です。
+**Go 1.27+** が必要です。TanGo のデスクトップバックエンドは cgo を必要としません。C ライブラリをリンクするアプリは `tan.json` で `"cgo": true` を指定できます。WebView アプリの実行先にはシステム WebView のライブラリが必要です。モバイルビルドには各プラットフォームの SDK が必要です。
 
 ```bash
 go install github.com/tangoui/tango/cmd/tan@latest
@@ -63,6 +63,8 @@ cd hello
 tan dev                 # Go コードの変更時に自動で再ビルド
 tan build               # build/ にリリースビルドを生成
 ```
+
+`go build` や `go run .` を直接実行した場合も本番ビルドになります。ホットリロード、自動化チャネル、フロントエンド開発サーバーのプロキシは `-tags tango_dev` 付きの開発ビルドで利用できます。`tan dev` はこのタグを自動で追加します。[開発機能と本番ビルド](docs/dev-builds.md)を参照してください。
 
 <details>
 <summary>別のテンプレートから始めることもできます。</summary>
@@ -120,7 +122,7 @@ const message = await window.tango.call("Greeter.Hello", "TanGo");
 | **Windows** | システム WebView · Go 描画 UI · ハイブリッド | 実装済み。クロスコンパイルと CI スモークテストに対応。体系的な実機検証は未完了。 |
 | **Linux** | システム WebView · Go 描画 UI · ハイブリッド | 実装済み。クロスコンパイルと CI スモークテストに対応。体系的な実機検証は未完了。 |
 | **iOS** | システム WebView · Go 描画 UI | 実験的。シミュレータで検証済み。加えて実機 1 台（iPhone 12 Pro、iOS 27）で WebView と Go 描画のサンプルを確認：タッチ、入力メソッド、Metal と CPU 描画、アクセシビリティ。より広い実機検証は未完了。 |
-| **Android** | システム WebView | 実験的。エミュレータで検証済み。実機検証は未完了。 |
+| **Android** | システム WebView · Go 描画 UI | 実験的。WebView と Go 描画のサンプルをエミュレータで動作確認済み。実機検証は未完了。 |
 
 機能はプラットフォームによって異なります。[WebView 対応表](docs/webview.md)、[モバイル機能](docs/mobile.md)、[ランタイム API](docs/runtime-api.md)をご確認ください。これらの詳細資料は中国語です。Android プッシュ通知にはアプリ側の FCM 統合が必要です。Play Billing と iOS Widget は内蔵していません。
 
@@ -161,7 +163,7 @@ go run ./examples/showcase
 | コアとブリッジ | [アーキテクチャ](docs/architecture.md) · [ランタイム API](docs/runtime-api.md) · [WebView](docs/webview.md) |
 | ビルドと配布 | [リリース](docs/release.md) · [パッケージ化](docs/packaging.md) · [Windows](docs/windows.md) · [Linux](docs/linux-packaging.md) · [自動更新](docs/updates.md) |
 | OS 連携 | [モバイル](docs/mobile.md) · [権限](docs/mobile-permissions.md) · [アイコン](docs/icons.md) · [印刷](docs/print.md) |
-| 品質とツール | [アクセシビリティ](docs/accessibility.md) · [自動化](docs/automation.md) · [Panic 処理](docs/panics.md) · [CI](docs/ci.md) |
+| 品質とツール | [開発機能と本番ビルド](docs/dev-builds.md) · [アクセシビリティ](docs/accessibility.md) · [自動化](docs/automation.md) · [tan mcp](docs/mcp.md) · [Panic 処理](docs/panics.md) · [CI](docs/ci.md) |
 
 README は英語・簡体字中国語・繁体字中国語・日本語で提供しています。詳細ドキュメントは主に中国語です。英語ガイドと自動生成の Go API リファレンスもあります。
 

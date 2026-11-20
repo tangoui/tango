@@ -77,7 +77,7 @@ func namedTinyLine(c *ui.Context) {
 
 ### 进度和目标线
 
-`TinyProgress()` 接收 0 到 1 的比例；`Target()` 添加目标标记线，适合卡片中的完成率和目标对比。
+`TinyProgress()` 接收 0 到 1 的比例，可用 `Target()` 添加同一比例范围内的目标标记线。迷你折线和面积图上的 `Target()` 使用与数据相同的单位。
 
 ```go
 package main

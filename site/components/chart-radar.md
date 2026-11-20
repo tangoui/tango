@@ -19,7 +19,7 @@ Gallery 展示多系列雷达图，以及圆形网格、仅描边和固定最大
 
 ## 基本用法
 
-`X()` 是维度字段，`Y()` 是数值字段，`Series()` 将多行拆成多个雷达轮廓。
+`X()` 是维度字段，`Y()` 是数值字段，`Series()` 将多行拆成多个雷达轮廓。少于三个维度时显示空状态。
 
 ```go
 package main
@@ -45,7 +45,7 @@ func page(c *ui.Context) {
 
 ### 固定最大值
 
-评分、百分比等有明确上限时用 `YMin()` / `YMax()` 固定量程，避免不同数据批次改变网格尺度。
+雷达图从零起算。评分、百分比等有明确上限时用 `YMax()` 固定上限，避免不同数据批次改变网格尺度。
 
 ```go
 package main
@@ -57,7 +57,7 @@ import (
 
 func fixedRadar(c *ui.Context) {
     rows := []chart.Row{{"item": "质量", "score": 82}, {"item": "速度", "score": 65}, {"item": "稳定性", "score": 91}}
-    chart.Radar(c, rows).X("item").Y("score").YMin(0).YMax(100).Format(chart.Thousands(0)).Show()
+    chart.Radar(c, rows).X("item").Y("score").YMax(100).Format(chart.Thousands(0)).Show()
 }
 ```
 

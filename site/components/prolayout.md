@@ -58,7 +58,7 @@ func page(c *ui.Context) {
 }
 ```
 
-默认是 side 布局：深色侧栏里放 Logo 与菜单，顶栏左侧是折叠按钮和面包屑，右侧是操作区与用户；内容区单独滚动，末尾是页脚。`ProLayout` 应放在窗口页面的最外层，让它占满整个窗口。
+默认是 `side` 布局。亮色侧栏里放 Logo 与菜单，顶栏左侧是折叠按钮和面包屑，右侧是操作区与用户。侧栏默认固定，顶栏随内容滚动，内容末尾是页脚。`ProLayout` 应放在窗口页面的最外层，让它占满整个窗口。
 
 ## 常见用法
 
@@ -72,7 +72,7 @@ func page(c *ui.Context) {
 | `"top"` | 只有顶栏：Logo、水平菜单、用户 | 水平菜单，放不下的条目折叠进“…” |
 | `"mix"` | 通栏顶栏（Logo、操作、用户）+ 下方侧栏 | 侧栏菜单，侧栏底部是折叠触发条 |
 
-side 和 mix 布局可以用 `Breakpoint` 在窄窗口自动折叠侧栏（需要同时给出 `Collapsed`），`SiderWidth` 覆盖侧栏展开宽度，`LightSider` 改用亮色侧栏（默认深色，经典 Pro 外观）。
+side 和 mix 布局可以用 `Breakpoint` 在窄窗口自动折叠侧栏（需要同时给出 `Collapsed`），`SiderWidth` 覆盖侧栏展开宽度，`NavTheme: "dark"` 切换到深色侧栏，`LightSider: true` 强制使用亮色侧栏。
 
 ```go
 import (
@@ -271,8 +271,8 @@ func page(c *ui.Context) {
 
 - 内容区默认有 24px 内边距；直接在内容区放 `ui.PageContainer` 时，内容区会自动去掉内边距，让页头背景横跨整个内容区。也可以用 `NoPadding: true` 手动去掉。
 - `PageTitle` 在内容顶部显示一个标题。
-- `ContentWidth: "Fixed"` 把内容限制在居中的 1200px 内（Pro 的 `contentWidth`）；页面内部可以用 `ui.GridContent(c)` 跟随这一设置。
-- `NoFixedHeader` 让顶栏随内容滚走，`NoFixSiderbar` 让侧栏和内容一起滚动（默认顶栏和侧栏固定、只有内容区滚动）。
+- `top` 布局中，`ContentWidth: "Fixed"` 把内容限制在居中的 1152px 内（Pro 的 `contentWidth`）。页面内部可以用 `ui.GridContent(c)` 跟随这一设置。
+- `side` 和 `top` 布局中，顶栏默认随内容滚动，`FixedHeader: true` 固定顶栏。`NoFixedHeader: true` 优先于 `FixedHeader`。`side` 和 `mix` 布局中，`NoFixSiderbar: true` 让侧栏和内容一起滚动。
 - 内容里调用 `ui.RouteContext(c)` 可以读到外壳的状态：当前布局、是否折叠、是否窄屏（`IsMobile`）、面包屑、选中项等，对应 Pro 的 RouteContext。
 
 ```go
@@ -350,11 +350,11 @@ func page(c *ui.Context) {
 
 ## 主题与样式
 
-- Ant Design：经典 Pro 外观，深色侧栏（`LightSider` 切换亮色），顶栏高度与背景来自主题的 `HeaderHeight` / `HeaderBg`。
+- Ant Design：默认使用 Pro v3 的亮色侧栏。顶栏高度和背景来自主题的 `ProHeaderHeight` / `ProHeaderBg`。
 - Element Plus：同样的结构，菜单、顶栏、侧栏使用 Element 的配色和尺寸。
 - shadcn：side 布局换成 shadcn 仪表盘外观（Sidebar + 站点顶栏）；侧栏只有一种随深浅色变化的外观，`LightSider` 与深色侧栏不适用。
-- 组件令牌：外壳使用 `theme.Components.Layout`（`ProHeaderBg`、`ProHeaderHeight`、`SiderBg`、`LightSiderBg`、`SiderWidth`、`SiderCollapsedWidth`、触发条颜色等），菜单使用 `theme.Components.Menu`。
-- `ConfigProvider.Defaults("ProLayout", ...)` 键：`"layout"`、`"title"`、`"footer"`、`"navTheme"`（`"light"` / `"dark"`）、`"contentWidth"`（`"Fluid"` / `"Fixed"`）为字符串，`"noPadding"`、`"fixedHeader"`、`"fixSiderbar"` 为 bool，`"siderWidth"` 为数值，`"breakpoint"` 为 `ui.Breakpoint`。`SettingDrawer` 另有 `"hideColors"`、`"hideLayout"`、`"hideOther"`（bool）隐藏对应分区。
+- 外壳使用 `theme.Components.Layout`（`ProHeaderBg`、`ProHeaderHeight`、`SiderBg`、`LightSiderBg`、`ProSiderWidth`、`ProMixSiderWidth`、`SiderCollapsedWidth`、触发条颜色等），菜单使用 `theme.Components.Menu`。
+- `ConfigProvider.Defaults("ProLayout", ...)` 键：`"layout"`、`"title"`、`"footer"`、`"navTheme"`（`"light"` / `"dark"`）、`"contentWidth"`（`"Fluid"` / `"Fixed"`）为字符串，`"noPadding"`、`"fixedHeader"`、`"fixSiderbar"` 为 bool，`"breakpoint"` 为 `ui.Breakpoint`。展开宽度可通过 `ProLayoutConfig.SiderWidth` 设置。`SettingDrawer` 另有 `"hideColors"`、`"hideLayout"`、`"hideOther"`（bool）隐藏对应分区。
 
 ## 注意事项
 

@@ -106,6 +106,8 @@ func measuredMasonry(c *ui.Context) {
 
 `Virtual(height)` 为瀑布流建立固定视口，只构建视口附近项目；`Built()` 可用于显示本帧实际构建数量。
 
+`Show()` 后可用 `Assignment()` 读取每个项目所在的列。项目数量或分列结果有变化时，`LayoutChanged()` 会报告变化。
+
 ```go
 import (
     "fmt"

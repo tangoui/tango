@@ -8,7 +8,7 @@ outline: [2, 3]
 TanGo 面向 macOS、Windows、Linux、iOS 和 Android 五个平台，五个平台共用 `App` 和 `Surface` 这套 API。各平台的系统接口不同，能用的功能也不完全一样。下面写清楚每个平台用了哪些系统技术、能打出什么包，以及**目前实际验证到哪一步**。
 
 ::: warning 0.x
-只有 macOS 做过实机验证。其他平台写着“已实现”，意思是代码写好了、单元测试和冒烟测试通过，不代表在真机上系统地测过。依赖某项功能之前，请先查 [WebView 能力表](https://github.com/tangoui/tango/blob/main/docs/webview.md)、[移动端文档](https://github.com/tangoui/tango/blob/main/docs/mobile.md) 和 [运行时 API](https://github.com/tangoui/tango/blob/main/docs/runtime-api.md)。
+桌面端只有 macOS 做过系统的实机验证。其他平台写着“已实现”，意思是代码写好了、单元测试和冒烟测试通过，不代表在真机上系统地测过。依赖某项功能之前，请先查 [WebView 能力表](https://github.com/tangoui/tango/blob/main/docs/webview.md)、[移动端文档](https://github.com/tangoui/tango/blob/main/docs/mobile.md) 和 [运行时 API](https://github.com/tangoui/tango/blob/main/docs/runtime-api.md)。
 :::
 
 ## 验证状态
@@ -26,7 +26,7 @@ TanGo 面向 macOS、Windows、Linux、iOS 和 Android 五个平台，五个平�
 ## macOS
 
 - **系统技术**：Cocoa（AppKit）窗口、WKWebView、Metal（`CAMetalLayer`）、CoreText。Cocoa 和 Metal 通过 purego 和 objc 运行时调用，不需要 cgo。
-- **自绘渲染**：Apple Silicon 上默认用原生图层（Core Animation），收到键盘输入或绘制持续变慢时升级 Metal；数据窗口（`ui.ContentData`）打字时仍留在原生图层，只在绘制持续变慢时升级；Intel Mac 默认用 Metal。起不来时回退到 CPU；设置 `TANGO_RENDERER=cpu` 可强制走 CPU，`gpu` 固定用 Metal，`native` 固定用原生图层。
+- **自绘渲染**：Apple Silicon 上默认用原生图层（Core Animation），收到键盘输入或绘制持续变慢时单向升级 Metal；数据窗口（`ui.ContentData`）打字时仍留在原生图层，只在绘制持续变慢时升级；Intel Mac 默认用 Metal。起不来时回退到 CPU；设置 `TANGO_RENDERER=cpu` 可强制走 CPU，`gpu` 固定用 Metal，`native` 固定用原生图层（Apple Silicon）。macOS 默认只编译 CoreText 文字引擎，构建时加 `-tags tango_gotext` 可恢复 go-text 路径。
 - **打包**：`tan package` 生成 `.dmg`，里面是应用和指向“应用程序”文件夹的链接。支持 `darwin/universal`。用 `tan sign` 签名和公证。最小 WebView 应用的默认 .dmg（LZMA）为 1.80 MiB（见 [性能与体积](./size)）。
 - **状态**：实机验证。
 

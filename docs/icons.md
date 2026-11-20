@@ -1,6 +1,6 @@
 # 应用图标
 
-一个 Tango 应用最少只需要一张图：`tan.json` 里的 `"icon"`。`tan build` / `tan package` 会从它派生出各平台需要的全部图标；某个平台派生的效果不满意时，再在 `"icons"` 段单独给图。托盘图标在运行时由代码提供，不经过 `tan.json`。
+应用可以用 `tan.json` 里的 `"icon"` 提供一张主图标。`tan init` 会生成这张图。`tan build` / `tan package` 会从它派生出各平台需要的全部图标；某个平台派生的效果不满意时，再在 `"icons"` 段单独给图。托盘图标在运行时由代码提供，不经过 `tan.json`。
 
 运行 `tan doctor` 会检查项目里的图标；有 error 时退出码为 1，可以放进 CI。
 

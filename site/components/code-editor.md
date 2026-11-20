@@ -67,6 +67,8 @@ go run ./examples/editor-demo -file main.go -theme vs
 go run ./examples/editor-demo -gen-lines 10000
 ```
 
+macOS 原生示例默认用 CoreText 排版。要切换到 go-text，用 `go run -tags tango_gotext ./examples/editor-demo`。
+
 ## 源码和 API
 
 - [Gallery 演示源码](https://github.com/tangoui/tango/blob/main/examples/ui-gallery/page_code_editor.go)

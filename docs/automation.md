@@ -114,6 +114,7 @@ func (a *App) Window(title string) *Window
 func (a *App) WindowMatching(what string, match func(WindowInfo) bool) *Window
 func (a *App) Windows() []WindowInfo
 func (a *App) SetTimeout(d time.Duration)
+func (a *App) Timeout() time.Duration
 func (a *App) Quit()
 func (a *App) Output() string
 func (a *App) Exited() bool
@@ -172,7 +173,7 @@ func (l *Locator) Type(text string)        // 聚焦后输入文本
 func (l *Locator) Expand()                 // Collapse、Increment、Decrement、Dismiss、ScrollIntoView
 ```
 
-所有方法出错或等待超时都 `t.Fatal`，消息里带窗口、查询条件，找不到节点时附上当前语义树（`a11y.Tree.Dump` 格式），便于对照名称和角色。需在测试 goroutine 里调用。
+执行操作的方法出错或等待超时会调用 `t.Fatal`，消息里带窗口、查询条件，找不到节点时附上当前语义树（`a11y.Tree.Dump` 格式），便于对照名称和角色。需在测试 goroutine 里调用。`Options.StartTimeout` 默认 30 秒，从启动应用起计算。
 
 写测试前想知道节点叫什么：`t.Log(win.Dump())`，或者先用 `ui.Driver` 的 `EnableAccessibility()` + `AccessibilityTree().Dump()` 在单测里看。
 

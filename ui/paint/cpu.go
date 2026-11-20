@@ -852,9 +852,40 @@ func (r *CPU) image(o Image) {
 	}
 	w, h := ImageReduction(o.Img.Bounds(), dr.W, dr.H)
 	src := r.preparedImage(o.Img, w, h)
+	if ImageAligned(dr, src.Rect.Size()) {
+		// Every pixel center is a texel center: the filter is the texel.
+		r.shadeRect(o.Rect, o.Radii, func(p geom.Point, _, _ int) [4]float32 {
+			return ImageTexelF(src, p.X-dr.X, p.Y-dr.Y)
+		})
+		return
+	}
 	r.shadeRect(o.Rect, o.Radii, func(p geom.Point, _, _ int) [4]float32 {
 		return SampleCatmullRomF(src, (p.X-dr.X)/dr.W, (p.Y-dr.Y)/dr.H)
 	})
+}
+
+// ImageAligned reports whether an image of size texels drawn on the device
+// rectangle dr maps its texels one to one onto device pixels: dr is at a
+// whole device pixel and has the same positive size as the image. Every
+// device pixel center is then a texel center, where the Catmull-Rom
+// filter's weights on each axis are 0, 1, 0, 0.
+func ImageAligned(dr geom.Rect, size image.Point) bool {
+	return size.X > 0 && size.Y > 0 && dr.W == float32(size.X) && dr.H == float32(size.Y) && finiteRect(dr) &&
+		dr.X == float32(math.Floor(float64(dr.X))) && dr.Y == float32(math.Floor(float64(dr.Y)))
+}
+
+// ImageTexelF is SampleCatmullRomF of an aligned image (ImageAligned) at
+// the device pixel whose center is (x, y) from the image's corner: the
+// texel there, with edge and premultiplied color clamping. An empty
+// image samples transparent.
+func ImageTexelF(src *image.RGBA, x, y float32) [4]float32 {
+	w, h := float32(src.Rect.Dx()), float32(src.Rect.Dy())
+	if !(w > 0) || !(h > 0) {
+		return [4]float32{}
+	}
+	c := texelF(src, float32(math.Floor(float64(x))), float32(math.Floor(float64(y))), w, h)
+	a := clampF(c[3], 0, 1)
+	return [4]float32{clampF(c[0], 0, a), clampF(c[1], 0, a), clampF(c[2], 0, a), a}
 }
 
 // ImageDrawable reports whether o draws anything: a non-nil image with

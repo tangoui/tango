@@ -73,29 +73,24 @@ func page(c *ui.Context) {
 
 ### 读取固定状态
 
-`Affixed()` 表示当前是否固定，`Changed()` 表示上一帧检测到固定状态变化。
+调用 `Body` 后用 `Affixed()` 读取当前是否固定。滚动后的固定位置在绘制时计算，状态会在下一帧反映到这里。
 
 ```go
 import "github.com/tangoui/tango/ui"
 
-var affixMessage = "未固定"
-
 func page(c *ui.Context) {
     affix := ui.Affix(c).OffsetTop(8).Body(func() { ui.Text(c, "工具条") })
-    if affix.Changed() {
-        if affix.Affixed() {
-            affixMessage = "已固定"
-        } else {
-            affixMessage = "未固定"
-        }
+    if affix.Affixed() {
+        ui.Text(c, "已固定")
+    } else {
+        ui.Text(c, "未固定")
     }
-    ui.Text(c, affixMessage)
 }
 ```
 
 ## 主题与样式
 
-Affix 只负责定位，不绘制默认背景；固定后的工具条应在 Body 内设置背景、边框、阴影或圆角。`ConfigProvider.Defaults("Affix", ui.Props{"offsetTop": 8})` 可设置默认顶部偏移。
+Affix 只负责定位，工具条的背景、边框、阴影和圆角可在 `Body` 内设置。`ConfigProvider.Defaults("Affix", ui.Props{"offsetTop": 8})` 可设置默认顶部偏移，也支持数值键 `offsetBottom`。
 
 ## 注意事项
 

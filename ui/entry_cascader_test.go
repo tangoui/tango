@@ -141,3 +141,42 @@ func TestEntryCascaderSearch(t *testing.T) {
 		t.Fatalf("search pick: %v", val)
 	}
 }
+
+func TestCascaderEmptyColumnsIgnoreArrowKeys(t *testing.T) {
+	for _, component := range []string{"Cascader", "CascaderPanel"} {
+		for _, arrow := range []struct {
+			name string
+			key  input.Key
+		}{{"Up", input.KeyUp}, {"Down", input.KeyDown}} {
+			t.Run(component+"/"+arrow.name, func(t *testing.T) {
+				var value []string
+				var dropdown *CascaderW
+				var focus ID
+				d := newPerfDriver(func(c *Context) {
+					if component == "Cascader" {
+						dropdown = Cascader(c, &value, nil).Open()
+					} else {
+						focus = CascaderPanel(c, &value, nil).ID()
+					}
+				}, false)
+				d.Frame()
+				if dropdown != nil {
+					if !dropdown.IsOpen() || dropdown.box.ed == nil {
+						t.Fatal("Cascader did not open with a focusable trigger")
+					}
+					focus = dropdown.box.ed.id
+				}
+				if focus == 0 {
+					t.Fatal("missing focus target")
+				}
+				d.r.c.SetFocus(focus)
+				defer func() {
+					if p := recover(); p != nil {
+						t.Errorf("empty root options panicked on %s: %v", arrow.name, p)
+					}
+				}()
+				d.Key(arrow.key, 0)
+			})
+		}
+	}
+}

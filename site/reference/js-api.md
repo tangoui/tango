@@ -96,14 +96,15 @@ ws.close();                                // 排队的 send 写完后发 close�
 |---|---|---|
 | `Window` | `Window`（默认开） | `setTitle`、`size`/`setSize`、`bounds`/`setBounds`、`center`、`state`/`setState`、`minimize`/`maximize`/`fullscreen`/`restore`、`setAlwaysOnTop`、`setZoom`、`reload`、`print`、`openDevTools`；事件 `onResize`、`onMove`、`onStateChange`、`onFocus`/`onBlur`、`onFilesDropped` |
 | `App` | `Info`（默认开）；控制类需 `AppControl` | `info()`；`onOpenURL`、`onOpenFiles`、`onReopen`、`onSecondInstance`；`quit`、`hide`/`show`、`setBadge`、`setProgress`、`requestAttention` |
-| `Theme` | `Info`（`vars`/`onVarsChange` 不需要） | `get()` → `{dark, accent}`、`onChange`；`vars()` 读取 `uivars.SyncPage` 注入的设计令牌 CSS 变量，`onVarsChange(fn)` 在变量变化时回调 |
+| `Theme` | `Info`（`vars`/`onVarsChange` 不需要） | `get()` → `Promise<{dark, accent}>`、`onChange`；`vars()` 读取 `uivars.SyncPage` 注入的设计令牌 CSS 变量，`onVarsChange(fn)` 在变量变化时回调 |
 | `Screens` | `Info` | `all`、`primary`、`current`、`onChange` |
 | `Clipboard` | `ClipboardRead` / `ClipboardWrite` | `readText`/`writeText`、`readImage`/`writeImage`（PNG base64）、`readFiles`/`writeFiles` |
 | `Dialog` | `Dialogs` | `message`、`open`、`save` |
 | `Notify` | `Notify` | `requestPermission`、`send`、`onClick` |
 | `Shell` | `OpenURL` / `OpenPath` | `openURL`（协议白名单）、`openPath`、`revealPath` |
 | `Menu` | `Menu`（默认开） | `popup(items, {x, y})`、`bindContextMenu(target, build)`；只允许编辑类 role |
-| `Hotkey` | `Hotkeys` | `register(accelerator, fn)` → 注销函数；归注册它的页面所有 |
+| `Hotkey` | `Hotkeys` | `register(accelerator, fn)` → `Promise<() => Promise<void>>`；归注册它的页面所有 |
+| `Web` | `WebFind` / `WebCapture` / `WebCookies` / `WebDownloads` / `WebControl` | 分别开放页内查找、PDF / PNG（返回 base64）、Cookie 与站点数据、下载进度和取消、设置 User-Agent |
 | `Events` | 总是可用 | `on`、`once`、`next`、`emit`（应用自己的事件） |
 
 ```ts
@@ -118,6 +119,8 @@ try {
 }
 ```
 
+`Web` 的每项能力默认关闭。`WebCookies` 可以访问 WebView 存储里的 HttpOnly Cookie 和其他站点的 Cookie，也可以清除所有站点数据。只给可信页面开启。 [Go 侧能力定义](https://github.com/tangoui/tango/blob/main/jsapi/webview.go)
+
 ## 错误码
 
 | code | 含义 |
@@ -129,11 +132,12 @@ try {
 | `not_found` | 方法不存在；或调用方不是本应用的窗口 |
 | `not_running` | 应用正在退出 |
 | `internal` | 其他 Go 侧错误 |
+| `busy` | 更新检查或下载正在进行（启用 `(*jsapi.API).InstallUpdater` 时） |
 | `transport` | 流的帧在[快速通道](/guide/concepts/ipc#快速通道)上丢了：某帧缺了 `GAP_TIMEOUT_MS` 仍没到（通道中途坏掉）。像断线一样重开这条流 |
 
 ## 平台差异
 
-桌面三平台的后端都实现了这些接口，但只有 macOS 实机验证过。移动端（实验性）支持 `Window` 的基本项（标题、显示、关闭、可见性）、`App.info`/`quit`、`Clipboard` 文本、`Dialog.message` 与 `Dialog.open`；`Dialog.save`、窗口几何、菜单、托盘、通知、快捷键在移动端不可用（reject `unsupported`）。
+桌面三平台的后端都实现了这些接口，但只有 macOS 实机验证过。移动端（实验性）支持 `Window` 的基本项（标题、显示、关闭、可见性）、`App.info`/`quit`、`Clipboard` 文本、`Dialog.message` 与 `Dialog.open`，也支持系统深浅色、本地通知和打开 URL / 文件。`Dialog.save`、窗口几何、菜单、托盘、`Shell.revealPath` 和全局快捷键在移动端不可用。
 
 每个函数在各平台的支持情况，见仓库里的完整对照表 [docs/runtime-api.md](https://github.com/tangoui/tango/blob/main/docs/runtime-api.md)。
 

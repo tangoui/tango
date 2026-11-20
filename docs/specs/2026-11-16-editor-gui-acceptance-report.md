@@ -135,7 +135,7 @@ min-84 的 `perf/coretext-default` 57e33bd6（`perf(text): exact CoreText fast p
 - 首键（触发升级）：打字 go-text 83.3 / 42.7 / 75.5，CoreText 60.8 / 72.1 / 46.2；三光标 go-text 74.5 / 86.7 / 98.6，CoreText 73.3 / 65.1 / 68.9。
 - 渲染器：12 次都是按键前 native、测完 gpu（`/state` 的 `uihost.Renderer`）。
 - 三光标 −3.3 ms 主要来自 go-text 第 3 对的 44.2，像合成状态波动（第 7 节），没有单独验证；两组打字差 0.4 ms。
-- 结论：两种文字引擎在打字和三光标的上屏延迟上无可区分差异，远在 16.7 ms 标准内。证据 `coretext-pairs/`，脚本 `coretext-pairs.sh`。
+- 结论：两种文字引擎在打字和三光标的上屏延迟上无可区分差异，远在 16.7 ms 标准内。原始数据和脚本已随证据目录丢失（见第 12 节）。
 
 ## 10. 中文输入法（功能验证，非延迟）
 
@@ -164,5 +164,5 @@ min-84 的 `perf/coretext-default` 57e33bd6（`perf(text): exact CoreText fast p
 ## 12. 提交与复现
 
 - 工具：8c25419、a5a845d、85cdb16、867603c、098d29c、c26f75d、e22c4be9；修复：b25960c；min-5a 的后续修复：140cad3（`tools/...` 归为非 API）、2f1c4f5（`canvas_pacing_test.go` 补 `//go:build darwin && !ios`）。main 在 2f1c4f5 与 1ef979c4 上 CI 全绿。
-- 证据（未入库，被 git 忽略）：editor-m2-perf worktree 的 `.superpowers/sdd/2026-11-16-editor-gui-acceptance/`，台账 `progress.md`；正式矩阵 `matrix-formal/`，配对 `renderer-pairs/`、`key-pairs/`、`atonce-pairs/`、`fast-pairs/`、`old-vs-new*/`、`bisect/`、`kbd-pairs/`、`coretext-pairs/`，归因 `present-attrib/`、`frame-trace/`。
+- 证据：原始数据曾放在 editor-m2-perf worktree 中被 git 忽略的 `.superpowers/sdd/2026-11-16-editor-gui-acceptance/`（台账 `progress.md`、正式矩阵、各组配对、归因数据和测量用二进制）。2026-11-19 清理 worktree 时该目录未经归档被一并删除，已无法恢复。本报告的结论和数字以正文为准；需要复核时按下面的复现步骤在同一时段配对重测。
 - 复现：构建 `go build -tags tango_guiprobe -o <bin>/tango-fixture ./tools/editor-gui-bench/fixture`、`swiftc -swift-version 5 -parse-as-library CaptureCore.swift main.swift -o <bin>/gui-probe`、`(cd tools/editor-gui-bench/mygo-fixture && GOWORK=off go build -o <bin>/mygo-fixture .)`；矩阵 `python3 tools/editor-gui-bench/matrix.py --bin <bin> --out <dir>`；单引擎 `native-driver.py --engine tango|mygo`、`monaco-driver.mjs --templates`；归因 `TANGO_RENDERER=gpu TANGO_PRESENT_TRACE=1 native-driver.py … --keys 30` 后运行 `present-attrib.py <dir>/type`。运行前确认没有其他前台或计时测量，1 分钟负载 < 6，并且屏幕没有人在操作。

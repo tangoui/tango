@@ -37,7 +37,7 @@ func page(c *ui.Context) {
 }
 ```
 
-`ui.Drawer(c, &open, title)` 在 `open` 为 `true` 时从右侧（RTL 下从左侧）滑出。右上角关闭按钮、点击遮罩和 Esc 会把 `open` 置为 `false`，本帧 `Closed()` 返回 `true`；其他关闭方式（例如页脚的“完成”按钮）由你把 `open` 设为 `false`。
+`ui.Drawer(c, &open, title)` 在 `open` 为 `true` 时从右侧（RTL 下从左侧）滑出。标题栏关闭按钮、点击遮罩和 Esc 默认会把 `open` 设为 `false`，本帧 `Closed()` 返回 `true`。页脚的“完成”等自定义按钮可直接将 `open` 设为 `false`。
 
 ## 常见用法
 
@@ -107,6 +107,8 @@ func page(c *ui.Context) {
 
 在一个抽屉的 `Body` 里再打开 `Drawer`，子抽屉滑出时父抽屉向外推开，层次清楚；关闭子抽屉后父抽屉回到原位。Esc 只关闭最上层的抽屉。
 
+在父抽屉上用 `Push(px)` 调整推出距离，默认为 180px，`Push(0)` 关闭推出效果。
+
 ```go
 import (
 	"github.com/tangoui/tango/ui"
@@ -158,7 +160,9 @@ func page(c *ui.Context) {
 
 ### 遮罩与关闭方式
 
-`Mask(false)` 不画遮罩，`MaskClosable(false)` 点击遮罩不关闭，`Closable(false)` 去掉关闭按钮，`NoHeader()` 去掉整个标题栏（这时需要在内容里自己提供关闭入口）。
+`Mask(false)` 关闭遮罩，`MaskClosable(false)` 禁止点击遮罩关闭，`Keyboard(false)` 禁止 Esc 关闭。`Closable(false)` 隐藏关闭按钮。`ClosablePlacement("start")` 或 `ClosablePlacement("end")` 将它移到标题栏的逻辑起始边或结束边，Ant Design 默认在起始边，Element Plus 和 shadcn 默认在结束边。`NoHeader()` 隐藏整个标题栏，可在内容里另设关闭入口。
+
+`Loading(true)` 在内容区显示骨架屏。`Body` 后可用 `AfterOpenChanged()` 判断打开或关闭动画是否在本帧结束，再从绑定的 `open` 读取状态。
 
 ```go
 import (
@@ -183,20 +187,20 @@ func page(c *ui.Context) {
 
 | | Ant Design | Element Plus | shadcn |
 | --- | --- | --- | --- |
-| 默认尺寸 | 378 | 窗口的 30% | 378 |
+| 默认尺寸 | 378px | 对应窗口边长的 30% | 384px，上限为对应窗口边长的 75% |
 | 标题 | 16px 加粗，标题栏下有分隔线 | 次要文字色、常规字重，无分隔线 | 18px 半粗（600），无分隔线（对应 Sheet） |
 | 页脚 | 上方有分隔线 | 无分隔线 | 无分隔线，四周 24 留白 |
 | 边框 | 无 | 无 | 面向页面的一侧有细边框 |
 
 组件令牌在 `theme.Components.Drawer`（`theme.DrawerToken`）：`Bg`、`TitleColor`、`TitleFontSize`、`TitleFontWeight`、`HeaderPaddingTop` / `HeaderPaddingBottom` / `HeaderPaddingInline`、`HeaderBorderColor`、`Padding`、`BodyPaddingTop`、`FooterPaddingTop` / `FooterPaddingBlock` / `FooterPaddingInline`、`FooterBorderColor`、`CloseIconColor`、`BorderColor`、`MaskBg`、`Shadow`，以及 Resizable 相关的 `ResizeHandleSize`、`ResizeLineColor`、`ResizeLineSize`。
 
-`ConfigProvider.Defaults("Drawer", ui.Props{...})` 支持的键：`placement`（`ui.DrawerPlacement` 或字符串 `"left"` / `"top"` / `"bottom"`，其中 `"left"` 是逻辑起始边）、`size`（数字或 `"large"`）、`width`、`closable`、`mask`、`maskClosable`。
+`ConfigProvider.Defaults("Drawer", ui.Props{...})` 支持 `placement`（`ui.DrawerPlacement` 或 `"start"` / `"end"` / `"left"` / `"right"` / `"top"` / `"bottom"`，字符串 `"left"` 和 `"right"` 表示逻辑起止边）、`size`（数字或 `"large"`）、`width`、`closable`、`mask`、`maskClosable`、`keyboard` 和 `closablePlacement`。
 
 ## 注意事项
 
 - **状态放在哪**：`open` 和抽屉里的表单数据放在包级变量或结构体字段里；`Resizable` 选出的尺寸在抽屉存在期间由组件保存，需要跨会话保留时用 `BindSize`。
 - **标题即身份**：抽屉的内部状态（动画、尺寸）由“作用域 + 标题”标识，打开期间不要改标题；同一作用域内不要有两个同名抽屉，必要时用 `ui.Key` 包住。
-- **焦点**：打开后焦点移入抽屉并被限制在抽屉内，关闭后回到打开前的控件；Esc 关闭最上层抽屉。
+- **焦点**：带遮罩的抽屉打开时，焦点移入抽屉并留在其中，关闭后回到打开前的控件。Esc 默认关闭最上层抽屉。
 - **RTL**：`DrawerEnd` / `DrawerStart` 随方向镜像，需要固定物理边时用 `DrawerRight` / `DrawerLeft`。
 
 ## 示例代码

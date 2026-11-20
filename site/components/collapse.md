@@ -10,7 +10,7 @@ title: Collapse 折叠面板
 - FAQ、设置分组、详情摘要等需要按需展开的内容。
 - 多个面板可同时打开时使用普通模式；需要一次只看一组内容时使用 `Accordion()`。
 - 页面级导航或滚动目录不要用 Collapse，应使用 [Anchor 锚点](/components/anchor)；互斥的视图切换使用 [Tabs 标签页](/components/tabs)。
-- 侧栏需要随窗口断点自动折叠时，使用本页的 `CollapsibleSider`，而不是把整个导航塞进 Collapse。
+- 侧栏需要随窗口断点自动折叠时，使用 [CollapsibleSider 可折叠侧栏](/components/collapsiblesider)。
 
 ## 在线体验
 

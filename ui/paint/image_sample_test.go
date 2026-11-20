@@ -20,6 +20,54 @@ func sampleTestImage() *image.RGBA {
 	return m
 }
 
+func TestImageAligned(t *testing.T) {
+	size := image.Pt(7, 5)
+	for _, tc := range []struct {
+		name string
+		rect geom.Rect
+		size image.Point
+		want bool
+	}{
+		{"integer", geom.R(4, -9, 7, 5), size, true},
+		{"fractional x", geom.R(4.25, -9, 7, 5), size, false},
+		{"fractional y", geom.R(4, -9.25, 7, 5), size, false},
+		{"scaled x", geom.R(4, -9, 7.25, 5), size, false},
+		{"scaled y", geom.R(4, -9, 7, 6), size, false},
+		{"empty", geom.R(4, -9, 7, 0), image.Pt(7, 0), false},
+		{"infinite origin", geom.R(float32(math.Inf(1)), 0, 7, 5), size, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ImageAligned(tc.rect, tc.size); got != tc.want {
+				t.Errorf("ImageAligned(%v, %v) = %v, want %v", tc.rect, tc.size, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestImageTexelF(t *testing.T) {
+	// Use a subimage to exercise a nonzero origin and a padded stride.
+	src := image.NewRGBA(image.Rect(0, 0, 8, 8)).SubImage(image.Rect(3, 4, 5, 6)).(*image.RGBA)
+	src.SetRGBA(3, 4, color.RGBA{64, 255, 0, 128})
+	src.SetRGBA(4, 5, color.RGBA{0, 255, 128, 255})
+	for _, tc := range []struct {
+		x, y float32
+		want [4]float32
+	}{
+		{0.5, 0.5, [4]float32{64.0 / 255, 128.0 / 255, 0, 128.0 / 255}},
+		{1.5, 0.5, [4]float32{}},
+		{1.5, 1.5, [4]float32{0, 1, 128.0 / 255, 1}},
+		{-0.5, -0.5, [4]float32{64.0 / 255, 128.0 / 255, 0, 128.0 / 255}},
+		{2.5, 2.5, [4]float32{0, 1, 128.0 / 255, 1}},
+	} {
+		if got := ImageTexelF(src, tc.x, tc.y); got != tc.want {
+			t.Errorf("ImageTexelF at (%v, %v) = %v, want %v", tc.x, tc.y, got, tc.want)
+		}
+	}
+	if got := ImageTexelF(&image.RGBA{}, 0.5, 0.5); got != [4]float32{} {
+		t.Errorf("empty image sampled as %v, want transparent", got)
+	}
+}
+
 // TestSampleCatmullRomTexelCenters: at texel centers the Catmull-Rom
 // weights are (0, 1, 0, 0), so the sample is exactly the texel.
 func TestSampleCatmullRomTexelCenters(t *testing.T) {

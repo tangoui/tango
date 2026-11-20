@@ -318,7 +318,9 @@ func detailTable(c *ui.Context, cols []ui.ProColumn[rule]) {
 
 ### 大量数据：虚拟滚动
 
-一页有成千上万行时，`ScrollY(px)` 固定表体高度，只构建视口内的行（同 [Table](/components/table) 的 `ScrollY`），表头留在原处；`Virtual()` 表明意图（Element Plus 主题下用 Table V2 的 50px 行高），`RowHeight(px)` 覆盖行高。行高默认跟随密度，切换密度后随之改变。工具栏、查询表单、选择提示和分页器留在滚动区外。不设 `ScrollY` 时与原来一样，本页每一行都构建。
+一页有成千上万行时，用正数 `ScrollY(px)` 限制表体高度，只构建视口附近的行。表头、工具栏、查询表单、选择提示和分页器留在滚动区外。省略 `ScrollY` 时会构建本页全部行。
+
+`Virtual()` 表明虚拟化意图，并在 Element Plus 主题下采用 Table V2 的 50px 行高和表头高度。其他情况下行高跟随密度。`RowHeight(px)` 可显式覆盖行高。内层表格的滚动行为见 [Table](/components/table#虚拟滚动)。
 
 ```go
 func bigPage(c *ui.Context, cols []ui.ProColumn[rule]) {

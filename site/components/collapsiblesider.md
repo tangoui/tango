@@ -51,7 +51,7 @@ func collapsibleSiderPage(c *ui.Context) {
 }
 ```
 
-`Body` 返回普通 `*ui.Box`，侧栏收起时宽度使用主题的折叠宽度，底部默认显示 48px 的切换触发条。
+`Body` 返回普通 `*ui.Box`。侧栏收起时宽度和底部触发条高度都由主题令牌决定。
 
 ## 常见用法
 
@@ -157,12 +157,13 @@ func siderProLayoutPage(c *ui.Context) {
 
 - Ant Design 默认是深色侧栏，`Light()` 对应 `theme="light"`；Element Plus 和 shadcn 风格通常使用亮色或页面背景色侧栏。
 - 相关令牌位于 `theme.Components.Layout`（`theme.LayoutToken`），包括 `SiderWidth`、`SiderCollapsedWidth`、`SiderBg`、`LightSiderBg`、`TriggerHeight`、`TriggerBg` 和触发器文字色。
+- Ant 主题的 `SiderCollapsedWidth` 默认是 64px，与 ProLayout 共用，沿用 Ant Design Pro v6 的折叠宽度。antd 6.7 的独立 `Layout.Sider` 默认是 80px。 [设计基线](https://github.com/tangoui/tango/blob/main/docs/design-baseline.md)
 - `ConfigProvider.Defaults("Sider", ...)` 支持 `breakpoint`（`ui.Breakpoint`）、`collapsedWidth`（数值）和 `theme`（`"light"` / `"dark"`）。
 
 ## 注意事项
 
 - **状态放在哪**：`collapsed` 必须由调用方持有，放在包级变量或页面状态结构里；菜单也应读取同一个 bool。不要在页面函数中每帧声明并重置它。
-- **断点语义**：组件只在跨越断点时改写折叠状态；用户在宽窗口手动折叠后，窗口仍宽时不会被下一帧自动展开。
+- **断点语义**。启用 `Breakpoint` 时，组件在首次构建和窗口跨越断点时同步折叠状态。在两次跨越断点之间，用户可以手动展开或折叠。
 - **布局方向**：`Layout` 只有在直接子节点中看到侧栏时才横向排列；外面再包 Row 或 Column 可能改变这一判断。
 - **无障碍**：侧栏暴露导航地标；触发条是带展开状态的按钮，可用 Tab 聚焦并用 Enter 或空格切换。自定义图标触发器必须提供 `A11yLabel`。
 - **RTL**：侧栏和触发箭头会镜像；需要位于内容末端时用 `ReverseArrow` 校正箭头方向。

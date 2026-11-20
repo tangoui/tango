@@ -97,7 +97,7 @@ func labeledInfinite(c *ui.Context) {
 
 ### 暂停加载与程序化滚动
 
-`Disabled(true)` 只停止触发，不显示页脚，适合暂时离线或用户暂停自动加载。`ScrollTo` 接受垂直像素偏移；`Offset` 可以读取当前偏移。
+`Disabled(true)` 暂停触发 `NeedMore()`。页脚仍由 `Loading` 和 `Done` 控制。`ScrollTo` 接受垂直像素偏移，`Offset` 读取当前偏移。
 
 ```go
 var pauseLoading bool
@@ -133,7 +133,7 @@ InfiniteScroll 使用滚动容器、文本和加载指示器的主题令牌；�
 
 ## 注意事项
 
-- **触发语义**：`NeedMore` 是帧级信号，同一内容高度只触发一次；处理完请求后必须追加内容或设置 `Done(true)`。
+- **触发语义**：停留在触发范围内时，同一内容高度只触发一次。内容高度变化，或滚离触发范围后重返底部，都可再次触发。数据已到末尾时设置 `Done(true)`。
 - **状态放在哪**：`loading`、`finished`、已加载条目和请求游标放在页面变量或 `ui.State` 中，不能在渲染函数里重置。
 - **并发请求**：先设置 `loading` 再发请求，回调结果在 UI 线程写回数据；不要在多个 `NeedMore` 分支中同时启动同一页请求。
 - **性能**：组件会构建滚动区域内的全部条目；条目非常多且不需要连续追加时改用 `VirtualList` 或 `Listy.Virtual`。

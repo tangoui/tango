@@ -129,7 +129,7 @@ func navigableTree(c *ui.Context) {
 
 ### 原地更新节点
 
-组件按切片身份和版本号缓存索引。若直接修改 `nodes` 中的标题、子节点或其他字段而不替换切片长度，用 `DataVersion` 递增通知组件重新索引。
+组件按顶层切片的身份、长度和数据版本缓存索引。原地修改键、子节点或影响过滤的字段后，递增 `DataVersion` 以重建索引和过滤结果。
 
 ```go
 var treeVersion int

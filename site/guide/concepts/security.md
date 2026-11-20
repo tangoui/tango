@@ -32,6 +32,7 @@ jsapi.Install(app, r, jsapi.Options{
 | `Notify` | 关 | 系统通知 |
 | `OpenURL` / `OpenPath` | 关 | 用默认程序打开 URL / 文件 |
 | `Hotkeys` | 关 | 全局快捷键 |
+| `WebFind` / `WebCapture` / `WebCookies` / `WebDownloads` / `WebControl` | 关 | 查找、截图和 PDF、Cookie 与站点数据、下载、User-Agent |
 
 没开的能力调用时 reject `forbidden`，相关事件也不转发。窗口类方法**只作用于发起调用的那个窗口**（`ipc.ConnFrom(ctx)` 识别），页面不能指定别的窗口。完整对照见 [前端运行时 API](/reference/js-api)。
 
@@ -66,7 +67,7 @@ app.SetNewWindowHandler(func(s *tango.Surface, req tango.NewWindowRequest) tango
 
 资源源上 GET/HEAD 以外的请求只接受资源源自身的 `Origin`，外站页面向 `<资源源>/api` 发的表单 POST 会得到 403（`tango.Options.AllowCrossOriginAssets` 可关闭）。
 
-不带 `-debug` 时页面不能打开 Web 检查器（还取决于 `SurfaceOptions.Debug`）。建议通过 `asset.Options.Headers` 给页面加 CSP。
+`tan build -debug` 允许启用 Web 检查器。应用仍需用 `SurfaceOptions.Debug` 请求启用。建议通过 `asset.Options.Headers` 给页面加 CSP。
 
 ## 你仍需要做的
 

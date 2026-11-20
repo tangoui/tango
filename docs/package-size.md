@@ -14,7 +14,7 @@ Tango 默认桌面模板的发布构建中，WebView 可执行文件约 **7.86�
 - 样本：用 `tan init` 生成默认 `vanilla` 和 `ui` 项目，名称分别为 `SizeWeb`、`SizeUI`；通过 `-local` 引用同一源码快照。
 - `vanilla` 包含默认 HTML/CSS/JS、IPC 与绑定服务；`ui` 包含默认的自绘表单、表格和主题切换。它们是入门应用样本，不是空程序，也不代表链接所有 Tango 扩展后的体积。
 - 发布参数：`tan package` 的默认生产构建，`CGO_ENABLED=0`、`-trimpath`、`-ldflags="-s -w"`；Windows 另有 `-H windowsgui`。没有启用 `tango_dev`，也没有使用 UPX。
-- 单位：**1 MB = 1,000,000 字节；1 MiB = 1,048,576 字节**。下文和 README 使用 MB，精确字节数见 [JSON](package-size-data.json)。
+- 单位：**1 MB = 1,000,000 字节；1 MiB = 1,048,576 字节**。下文使用 MB，精确字节数见 [JSON](package-size-data.json)。
 
 ## 安装包
 

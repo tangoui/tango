@@ -98,7 +98,7 @@ func page(c *ui.Context) {
 
 ### 多列和保留值
 
-`Columns` 把字段排成栅格列；默认关闭后再次打开会重置内部值，`KeepValues()` 可保留上次填写的内容。
+`Columns` 把字段排成栅格列。关闭后默认保留字段值，符合 Pro Components v3 的默认行为。`DestroyOnHidden(true)` 在关闭时把值恢复到首次打开时的初始快照，显式绑定的 `Values` 也会被重置。
 
 ```go
 import "github.com/tangoui/tango/ui"
@@ -116,7 +116,7 @@ func page(c *ui.Context) {
         openAdvanced = true
     }
     ui.ModalForm(c, &openAdvanced, "高级配置", advancedFields).
-        Columns(2).KeepValues().Show()
+        Columns(2).Show()
 }
 ```
 
@@ -146,13 +146,13 @@ func page(c *ui.Context) {
 ## 主题与样式
 
 - ModalForm 使用 Modal、ProForm 和字段控件的令牌；DrawerForm 额外使用 Drawer 的宽度、页脚和滑入动画令牌。
-- `Width` 控制 Modal 宽度或 Drawer 尺寸；`Columns` 控制表单栅格列数。
+- `Width` 控制 Modal 宽度或 Drawer 尺寸，两者默认均为 800px。`Columns` 控制表单栅格列数，默认 1 列。
 - `ConfigProvider.Defaults("ModalForm", ...)` 和 `Defaults("DrawerForm", ...)` 支持 `width`、`columns`；链式方法优先。
 
 ## 注意事项
 
 - `open` 和 `ProValues` 必须放在稳定状态中；ModalForm 会根据标题生成内部状态 key，多个同标题表单要用不同标题或外层 `Key` 区分。
-- 默认每次从关闭变为打开时重置值；需要保留草稿时调用 `KeepValues()` 或显式绑定 `Values`。
+- 调用 `KeepValues()` 可恢复默认的保留行为。
 - `OnFinish` 的 `done` 可以异步调用；`done(nil)` 才会关闭，错误应传给 `done` 以保留弹窗并显示错误。
 - `Finished` 应在 `Show()` 后读取，且只报告最近一次成功提交；不要在 `OnFinish` goroutine 中直接操作 UI。
 - 弹窗标题、字段标签和校验错误会进入无障碍结构；只读模式仍应提供明确的关闭操作。

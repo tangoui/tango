@@ -61,11 +61,11 @@ type treeVerCache struct {
 	full, half map[string]bool
 }
 
-// DataVersion turns on the Height cache (it has no effect without Height)
-// and tells the tree that its nodes were modified in place. With it, a
-// Height tree keeps the parent map, the Filter visibility, the flattened
-// visible rows and the check states between frames while the top-level
-// nodes slice (identity and length), v, the expanded keys, the search
+// DataVersion turns on the cache for a virtual scrolling tree and tells
+// it that its nodes were modified in place. The tree keeps the parent
+// map, Filter visibility, flattened visible rows and check states
+// between frames while the top-level nodes slice (identity and length),
+// v, the expanded keys, the search
 // keyword and the checked keys stay the same, so a frame costs O(rows in
 // view) instead of O(nodes). Titles and the other node fields are read
 // live; a structural change made in place (children added, removed or
@@ -78,7 +78,7 @@ type treeVerCache struct {
 func (w *TreeW) DataVersion(v int) *TreeW { w.version, w.verSet = v, true; return w }
 
 // cached reports whether the Height + DataVersion cache is in use.
-func (w *TreeW) cached() bool { return w.verSet && w.height > 0 }
+func (w *TreeW) cached() bool { return w.verSet && w.height > 0 && w.virtual }
 
 // syncData drops the cache when the node data changed and returns it with
 // the data-derived maps built.

@@ -38,7 +38,7 @@ func alertDescription(c *ui.Context) {
 }
 ```
 
-`Closable()` 显示关闭按钮；`Closed()` 可在后续即时渲染中读取关闭动作并更新业务状态。
+`Closable()` 显示关闭按钮。调用 `Show()` 后，用 `Closed()` 读取本帧的关闭动作并更新业务状态。
 
 ### 深色效果与居中
 
@@ -71,11 +71,11 @@ func alertBanner(c *ui.Context) {
 }
 ```
 
-`Banner()` 适合放在页面或窗口顶部的全宽提示。
+`Banner()` 适合放在页面或窗口顶部，默认会显示状态图标。普通提示的图标默认隐藏，可用 `ShowIcon(true)` 打开。
 
 ## 主题与样式
 
-Alert 的状态色、圆角、间距和图标由当前主题控制。可通过 `ConfigProvider.Defaults("Alert", ...)` 设置 `showIcon`、`closable`、`banner` 三个布尔默认值；单个实例的 `NoIcon`、`Closable` 和 `Banner` 会覆盖默认值。Ant Design 使用状态色浅底，Element Plus 支持 `EffectDark`，shadcn 使用带边框的 Alert 卡片。
+Alert 的状态色、圆角、间距和图标由当前主题控制。`ConfigProvider.Defaults("Alert", ...)` 支持 `showIcon`、`closable`、`banner` 三个布尔值和 `variant` 字符串。Ant Design 的 `Variant("outlined")` 默认带状态色边框，`Variant("filled")` 去掉边框。`Effect(ui.AlertEffectDark)` 对应 Element Plus 的深色实底，shadcn 使用带边框的 Alert 卡片。
 
 ## 注意事项
 

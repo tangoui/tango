@@ -3,7 +3,7 @@
 This page takes you from nothing to a running TanGo app: install the `tan` command, create a project from a template, run it in development mode, and make a release build — once for desktop and once for mobile.
 
 ::: warning Current status
-TanGo is an early 0.x release. The desktop backends are verified on **macOS** hardware; the Windows and Linux backends are implemented and pass cross-compilation and CI smoke tests, but have not been verified systematically on real machines. Mobile (iOS, Android) is **experimental**: verified on simulators/emulators only, not on devices.
+TanGo is an early 0.x release. The desktop backends are verified on **macOS** hardware; the Windows and Linux backends are implemented and pass cross-compilation and CI smoke tests, but have not been verified systematically on real machines. Mobile (iOS, Android) is **experimental**: iOS has been tested in simulators and on one iPhone 12 Pro. Android has been tested in emulators.
 :::
 
 ## Requirements
@@ -30,11 +30,13 @@ tan doctor        # checks the toolchain and platform dependencies
 
 Prebuilt `tan` binaries are attached to each [release](https://github.com/tangoui/tango/releases).
 
-::: details Before the first release: install from source
+::: details Install from source to use new features on main
 ```bash
 git clone https://github.com/tangoui/tango
 cd tango/cmd/tan && go install .
 ```
+`@latest` installs the most recent release. Install from source if the release predates features you need. For example, v0.1.0 predates `tan mcp` and `desktopBuildTags`.
+
 Create projects against your checkout with `-local`: `tan init -local ~/src/tango hello`.
 :::
 
@@ -62,7 +64,7 @@ cd hello
 | `vanilla-ts` / `react-ts` / `vue-ts` | TypeScript, React or Vue with Vite |
 | `shadcn` | React + Vite with Tailwind CSS and shadcn/ui |
 | `ui` | self-drawn Go UI (package `ui`), no WebView, no npm (experimental) |
-| `hybrid` | a WebView page with a self-drawn tool panel on top (experimental; macOS only for now) |
+| `hybrid` | a WebView page with a self-drawn tool panel on top (experimental) |
 
 The heart of the generated `main.go`:
 
@@ -113,6 +115,10 @@ tan build -platform ios                          # device .app + .ipa (needs sig
 tan run -platform android                        # debug APK for the device's ABI, install, launch, logcat
 tan build -platform android/arm64,android/amd64  # release: signed APK and AAB
 ```
+
+## Project and UI tools over MCP
+
+`tan mcp -root .` lets an MCP client work with the project or drive an app's UI. The UI tools launch a separate `tango_dev` build. [Configuration and tools](/en/reference/cli#mcp-server)
 
 ## Next
 

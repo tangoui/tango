@@ -132,7 +132,7 @@ func stickyFooter(c *ui.Context) {
 | Element Plus | 操作栏高 60、内边距 20；Element Plus 没有对应组件，取值偏离基线：吸底时底色 72% 不透明、模糊半径 10。 |
 | shadcn | 上边框、无阴影；流式底色为容器色 95%，吸底时 60% + 模糊 8（对应 `bg-background/60 backdrop-blur`）。 |
 
-FooterToolbar 组件令牌在 `theme.Components.FooterToolbar`（`theme.FooterToolbarToken`）：`Bg`（流式时的背景）、`FrostedBg`（吸底时叠在模糊内容上的半透明底色）、`BlurRadius`（背景模糊半径，逻辑像素；设为 0 则永不模糊）。以下情况不使用毛玻璃，而是绘制 `Bg`：未吸底、高对比度主题（此时为不透明背景）、渲染器声明不支持背景模糊。
+FooterToolbar 组件令牌在 `theme.Components.FooterToolbar`（`theme.FooterToolbarToken`）。流式布局使用 `Bg`，吸底时用 `BlurRadius` 设置背景模糊半径，再叠加半透明的 `FrostedBg`。半径为 0 时使用 `Bg`。高对比度主题或渲染器不支持背景模糊时，吸底的操作栏使用不透明的 `BgContainer`。
 
 `ConfigProvider.Defaults` 键：`"PageContainer"` 支持 `"ghost"`、`"fill"`、`"tabsCard"`（bool）；`"FooterToolbar"` 支持 `"sticky"`（bool）。
 

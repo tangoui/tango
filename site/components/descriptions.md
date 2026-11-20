@@ -39,7 +39,7 @@ func page(c *ui.Context) {
 }
 ```
 
-`ui.Descriptions(c, items)` 默认 3 列、无边框。每个 `DescItem` 是一对 `Label` / `Value`，`Span` 让一项占多列，列表的最后一项会自动拉伸填满所在行剩余的列。它不需要 `Show()`：链式方法在本帧构建结束前都有效，内容随后统一构建。
+`ui.Descriptions(c, items)` 默认无边框，列数随窗口宽度变化，`XS` 为 1 列、`SM` 为 2 列、`MD` 起为 3 列。每个 `DescItem` 是一对 `Label` / `Value`，`Span` 让一项占多列，最后一行的末项会填满剩余列。内容在链式配置完成后构建。
 
 ## 常见用法
 
@@ -88,7 +88,7 @@ func customDesc(c *ui.Context) {
 
 ### 尺寸、列数与垂直布局
 
-`Size(ui.Middle)` / `Size(ui.Small)` 收紧间距（默认 Large）；`Column(n)` 设置列数；`Vertical()` 把标签放在内容上方；`NoColon()` 去掉无边框模式下标签后的冒号；`LabelWidth(px)` 固定标签宽度，让各行标签对齐。
+`Size(ui.Middle)` / `Size(ui.Small)` 收紧间距（Ant Design 和 shadcn 默认 Large，Element Plus 默认 Middle）；`Column(n)` 设置列数；`Vertical()` 把标签放在内容上方；`NoColon()` 去掉无边框模式下标签后的冒号；`LabelWidth(px)` 设置横向布局的标签宽度。
 
 ```go
 func compactDesc(c *ui.Context) {
@@ -100,7 +100,7 @@ func compactDesc(c *ui.Context) {
 
 ### 响应式列数
 
-`ColumnAt(bp, n)` 从断点 `bp` 起使用 `n` 列（对应 antd 按断点设置的 `column` 对象，如 xs: 1、sm: 2、lg: 3），窗口宽度命中的最大断点生效，`Column`（默认 3）是兜底；`Columns(map[ui.Breakpoint]int)` 一次设置多个断点。
+`ColumnAt(bp, n)` 从断点 `bp` 起使用 `n` 列，窗口宽度命中的最大断点生效，`Column(n)` 可设置兜底列数。`Columns(map[ui.Breakpoint]int)` 一次设置多个断点。单项可通过 `DescItem.Spans` 按断点设置跨度，或用 `Filled: true` 占满当前行的剩余列并结束该行。
 
 ```go
 func responsiveDesc(c *ui.Context) {

@@ -65,7 +65,7 @@ func appMessagePage(c *ui.Context) {
 
 ### 配置通知
 
-`AppNotificationConfig` 可设置通知位置、持续时间、数量上限和进度条；给零值位置时要把 `PlacementSet` 设为 false，使用默认的顶部末端位置。
+`AppNotificationConfig` 可设置通知位置、持续时间、数量上限和进度条。显式指定位置时设 `PlacementSet: true`，包括 `NotifyTopEnd`（枚举零值）。省略位置时沿用 `Notification` 的默认配置。
 
 ```go
 import (
@@ -92,7 +92,7 @@ func appNotificationPage(c *ui.Context) {
 
 ### 消息与通知共用一个句柄
 
-`AppAPI` 同时提供 `Message`、`Notification`、`Confirm` 和 `Info`；把句柄传给页面回调，可以让页面动作不关心反馈实例如何配置。
+`AppAPI` 同时提供 `Message`、`Notification`、`Confirm` 和 `Info`。可以把当帧取得的句柄传给同一帧的页面回调。
 
 ```go
 import "github.com/tangoui/tango/ui"
@@ -101,7 +101,7 @@ func appActionsPage(c *ui.Context) {
     ui.App(c).Body(func() {
         app := ui.UseApp(c)
         if ui.Button(c, "同步").Clicked() {
-            app.Message("loading", "正在同步")
+            app.Message("info", "正在同步")
             app.Notification("info", "同步任务已提交")
         }
     })
@@ -158,7 +158,7 @@ func appLayoutPage(c *ui.Context) {
 
 - **状态放在哪**：App 不保存业务状态。点击次数、表单数据和请求状态放在页面变量或 `ui.State` 中；App 的配置可以每帧重建，但应保持值稳定。
 - **取最近的 App**：嵌套 App 时，`UseApp` 返回最内层容器的配置；没有 App 时返回使用普通默认值的句柄。
-- **数量限制**：`MaxCount` 只限制由该 `UseApp` 句柄打开的反馈；普通的顶层 `Message` / `Notification` 不会读取 App 的句柄配置。
+- **数量限制**。`App.Body` 会把配置作为 `Message`、`Notification` 的作用域默认值，子树中直接调用这两个函数也会应用相应的 `MaxCount`。
 - **无障碍**：反馈文案应说明结果，加载消息不应永久显示；触发反馈的按钮仍需提供清晰的可见或可访问名称。
 - **RTL**：通知位置使用 `NotifyPlacement`，逻辑位置会遵循当前方向；需要固定物理边时应按对应通知 API 选择物理位置。
 

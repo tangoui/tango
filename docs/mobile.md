@@ -21,32 +21,23 @@ func main() {
 | 进程入口 | Go 的 `main` | 原生宿主（iOS `UIApplicationMain` / Android `Activity`） |
 | Go 产物 | 可执行文件 | iOS：`-buildmode=c-archive`；Android：`-buildmode=c-shared` |
 | `main.main` 由谁调用 | Go 运行时 | 后端导出的启动函数（iOS `TangoStart`），在**新 goroutine** 里调用 |
-| `App.Run` 所在线程 | 主线程（根包 `init` 里 `LockOSThread`） | 普通 goroutine，不锁线程 |
+| `App.Run` 所在线程 | 主线程（`internal/platform/native` 的 `init` 里 `LockOSThread`） | 普通 goroutine，不锁线程 |
 | `Backend.Init` / `Run` | 主线程，`Run` 跑原生事件循环 | Run 的 goroutine；`Run` 只阻塞到退出 |
 | `Wake` | 唤醒原生循环后在主线程 `Host.Drain` | 同左（iOS：CFRunLoopSource） |
-| `Step(block)` | 主线程跑一次原生事件 | 主线程跑一次 run loop（iOS：`CFRunLoopRunInMode`） |
-| `Host.*` 回调 | 主线程 | 主线程（宿主线程上的 cgo 回调） |
+| `Step(block)` | 主线程跑一次原生事件 | iOS 跑一次 run loop，Android 只执行 Go 队列的 Drain |
+| 生命周期、窗口和普通消息回调 | 主线程 | 主线程（宿主线程上的 cgo 回调） |
 
 要点：
 
 1. **启动**：宿主在 UIKit/Android 完成启动时调用后端导出的启动函数。它安装原生侧（唤醒源、生命周期监听、窗口），然后 `go main.main()`。c-archive / c-shared 里 Go 运行时只做包初始化、不会自己调用 `main.main`，所以后端用 `//go:linkname userMain main.main` 取到它——用户的 main 包零改动，也不需要 build overlay。
 2. **Run**：`App.Run` 在 main 的 goroutine 上调用 `Backend.Init`、`Backend.Run`。这两个调用不在主线程（与契约"Init/Run 在主线程"的字面说法不同，见文末"契约建议"）；后端在 Init 里只记录 Host，然后 `Wake`。第一次 Drain（主线程）时投递 `LifecycleStarted`，应用已处于前台则紧接着投递 `Foreground`。
 3. **退出**：`App.Quit` → 后端在主线程投递 `Terminating`，`Run` 返回 → `main` 返回 → 后端结束进程（与桌面"main 返回即退出"一致）。系统终止应用（iOS `willTerminate`）时同样投递 `Terminating`、让 `Run` 返回，并最多等 2 秒让 `main` 跑完 defer。
-4. **主线程判定**：核心不能把 Run 的 goroutine 当主线程。桌面上 `Run` 在整个运行期间记录自己的 goroutine 为主线程；移动端不记录，只依赖每个 `Host` 回调进入时的记录（`enterMain`）。因此在 Host 回调里（OnReady、OnMessage……）`Await` 直接执行、`AwaitAsync` 用 `Step` 泵事件；在其他 goroutine（包括 main 自己）里则排队等主线程。
+4. **主线程判定**：核心不能把 Run 的 goroutine 当主线程。桌面上 `Run` 在整个运行期间记录自己的 goroutine 为主线程；移动端不记录，只依赖每个 `Host` 回调进入时的记录（`enterMain`）。因此在 Host 回调里（OnReady、OnMessage……）`Await` 直接执行。在 iOS 主线程用 `AwaitAsync` 会用 `Step` 泵事件。Android 的主线程不能嵌套处理原生事件，`AwaitAsync` 立即返回零值，`TryAwaitAsync` 返回 `ErrNestedWait`。在其他 goroutine（包括 main 自己）里则排队等主线程。
 5. **Run 之前在 main 里等主线程**：桌面上会 panic（防死锁），移动端同样：后端提供 main 所在 goroutine 的 id（`mobileMainGoroutine`），核心据此判断。
 
-### 根包适配（由 iOS 子项目完成，Android 复用）
+### 根包适配
 
-| 文件 | 内容 |
-|---|---|
-| `lock_desktop.go`（`!ios && !android`，已有） | 桌面在 `init` 里 `LockOSThread`；新增 `runOwnsMainThread = true`、`isMainGoroutine()` |
-| `thread_mobile.go`（`ios \|\| android`，新增） | `runOwnsMainThread = false`；`mobileMainGoroutine` 钩子与移动端 `isMainGoroutine()` |
-| `tango.go`（改一处） | `Run` 只在 `runOwnsMainThread` 时 `enterMain` |
-| `loop.go`（改一处） | `mainBeforeRun` 改用 `isMainGoroutine()` |
-| `backend_ios.go`（`ios`，新增） | `defaultBackend = ios.New`；`mobileMainGoroutine = ios.MainGoroutine` |
-| `backend_android.go`（`android`） | Android 子项目添加，同样设置这两个变量 |
-
-桌面行为不变（`CGO_ENABLED=1 go test -race ./ ./clipboard ./dialog ./menu` 通过）。
+`internal/platform/native` 的 `thread_desktop.go` 锁定桌面主 goroutine。`thread_mobile.go` 提供移动端的 `MainGoroutine()`，由 `backend_ios.go` / `backend_android.go` 接到原生宿主启动的 Go goroutine。`tango.go` 的 `Run` 按 `native.RunOwnsMainThread` 决定是否登记当前 goroutine，`loop.go` 的 `mainBeforeRun` 用 `native.MainGoroutine()` 判断移动端调用者。
 
 ## iOS
 
@@ -89,7 +80,7 @@ Go 运行时在 `TangoStart` 之前就已由 c-archive 的加载初始化启动�
 
 ### Surface 映射为页面
 
-- 每个 Surface 是一个 `UIViewController`，视图是铺满的 `WKWebView`。
+- 每个 Surface 对应一个 `UIViewController`。WebView 页使用铺满的 `WKWebView`，自绘页使用下文的画布视图。
 - 窗口的 `rootViewController` 是一个常驻容器控制器；**第一个显示的 Surface** 作为子控制器嵌入其中（根页面），之后显示的以**全屏模态** present 在当前最上层页面之上。不替换 `rootViewController`，避免首个页面紧跟窗口出现时 UIKit 的外观转场不配对。显示中的页面构成一个栈，`bridge.m` 的 `syncStack` 逐次调和 UIKit 的呈现链与该栈（等上一个转场动画结束再做下一个，有对话框在上面时等对话框结束）。
 - `Hide`：页面出栈（模态 dismiss；根页面出栈时下一个页面成为根页面），可再 `Show`。`Close`：出栈、释放 WebView，投递 `SurfaceClosed`。没有显示中的页面时窗口只显示空白容器，应用不退出。
 - iOS 没有关闭页面的用户手势，`ShouldClose` 不会被询问。

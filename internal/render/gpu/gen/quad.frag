@@ -281,16 +281,22 @@ float StrokeCoverage(vec2 p, vec2 origin, vec2 size, vec4 radii, float width, ve
     return ring * strokeDash(s + dashPhase, dash);
 }
 
-vec4 CatmullRomWeights(float f) {
-    float f2 = f * f;
-    float f3 = f2 * f;
-    return vec4((((-0.5) * f3) + f2) - (0.5 * f), ((1.5 * f3) - (2.5 * f2)) + 1.0, (((-1.5) * f3) + (2.0 * f2)) + (0.5 * f), (0.5 * f3) - (0.5 * f2));
-}
-
 vec4 imgTexel(float x, float y, vec2 size) {
     float cx = clamp(x, 0.0, size.x - 1.0);
     float cy = clamp(y, 0.0, size.y - 1.0);
     return textureLod(Img, vec2((cx + 0.5) / size.x, (cy + 0.5) / size.y), 0.0);
+}
+
+vec4 ImageTexel(vec2 p, vec2 size) {
+    vec4 c = imgTexel(floor(p.x), floor(p.y), size);
+    float a = clamp(c.w, 0.0, 1.0);
+    return vec4(clamp(c.x, 0.0, a), clamp(c.y, 0.0, a), clamp(c.z, 0.0, a), a);
+}
+
+vec4 CatmullRomWeights(float f) {
+    float f2 = f * f;
+    float f3 = f2 * f;
+    return vec4((((-0.5) * f3) + f2) - (0.5 * f), ((1.5 * f3) - (2.5 * f2)) + 1.0, (((-1.5) * f3) + (2.0 * f2)) + (0.5 * f), (0.5 * f3) - (0.5 * f2));
 }
 
 vec4 catmullRomRow(float x0, float y, vec4 w, vec2 size) {
@@ -508,6 +514,9 @@ vec4 FS(Varyings in_) {
         return in_.Color * cov;
     }
     if (in_.Kind.x > 6.5) {
+        if (in_.Params.z > 0.5) {
+            return ImageTexel(pc - in_.Rect.xy, in_.Params.xy) * cov;
+        }
         vec2 t = (pc - in_.Rect.xy) / in_.Rect.zw;
         return SampleCatmullRom(t, in_.Params.xy) * cov;
     }

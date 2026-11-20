@@ -51,7 +51,9 @@ const (
 	// KindImage draws an image into the rounded rectangle: the Img texture
 	// (the image's own premultiplied RGBA8 texture, bound per batch) is
 	// sampled with SampleCatmullRom at the pixel center mapped linearly
-	// from Rect onto the whole texture; Params.XY is the texture size in
+	// from Rect onto the whole texture; Params.Z set (1) reads one texel
+	// per pixel (paint.ImageAligned: whole-pixel position, the texture's
+	// size); Params.XY is the texture size in
 	// texels. Color is unused.
 	KindImage = 7
 )
@@ -236,6 +238,11 @@ func FS(in Varyings) sl.Vec4 {
 	}
 	if in.Kind.X > KindChecker+0.5 {
 		// KindImage: Rect maps onto the whole texture.
+		if in.Params.Z > 0.5 {
+			// Aligned (paint.ImageAligned): the pixel center is a texel
+			// center, where the filter is that texel alone.
+			return ImageTexel(pc.Sub(in.Rect.XY()), in.Params.XY()).Scale(cov)
+		}
 		t := pc.Sub(in.Rect.XY()).Div(in.Rect.ZW())
 		return SampleCatmullRom(t, in.Params.XY()).Scale(cov)
 	}

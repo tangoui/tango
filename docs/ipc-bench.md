@@ -13,7 +13,8 @@ go run ./examples/duplex -bench
 macOS 上 `up:post` 默认开启，这样跑测的就是 up:post 配置；测兜底传输（全部走消息通道）要加
 `TANGO_IPC_LANES_DARWIN=0`（iOS 相反：默认兜底，`TANGO_IPC_LANES_DARWIN=1` 才是 up:post）。
 macOS 的下行通道 `down:poll` 默认关闭，`TANGO_IPC_LANES_DARWIN=1`（或 `all`）同时开 `down:poll` 和
-`up:post`（见下文「down:poll」一节）。
+`up:post`（见下文「down:poll」一节）。Android 在 WebView 支持 ArrayBuffer 消息时默认使用
+`down:android` 和 `up:android`，比较兜底传输时用 `TANGO_IPC_LANES_ANDROID=0`（传参方式见 [移动端](mobile.md#ipc-快速通道-1)）。
 
 Windows 默认开启 `down:shm` 和 `up:shm`，Linux 默认关闭 `down:poll` 和 `up:post`。测兜底可在任何平台设
 `TANGO_IPC_LANES=0`。Windows 和 Linux 的交替测量方法见下文。

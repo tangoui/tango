@@ -20,7 +20,7 @@ title: Mobile Popup 弹出层
 
 ## 基本用法
 
-Popup 的内容通过 `Body` 构建；点击遮罩时关闭需要显式开启 `CloseOnMask(true)`。
+Popup 的内容通过 `Body` 构建。遮罩默认显示，点击遮罩或按 Esc 可以关闭。用 `CloseOnMask(false)` 禁止点击遮罩关闭。
 
 ```go
 import (

@@ -62,6 +62,8 @@ func page(c *ui.Context) {
 
 默认是水平布局（标签在左）。`Vertical()` 让标签位于控件上方，`Inline()` 把所有项排成一行（常用于查询栏）。`LabelWidth`、`LabelAlign`、`Colon` 控制标签；`Size` 统一设置表单内所有控件的尺寸（控件自己的 `Size` 优先）。
 
+`RequiredMarkOptional()` 改为在选填项标签后显示本地化的“可选”。
+
 表单项上常用的修饰：`Tooltip` 在标签后显示问号提示，`Extra` 在控件下方显示说明文字，`Help` 显示提示（有错误时被错误信息替代），`NoLabel` 用于按钮行（与上方控件对齐但不显示标签）。
 
 ```go
@@ -298,7 +300,8 @@ func page(c *ui.Context) {
 | `Submitting()` / `Validating()` | 提交是否在等待异步校验 / 是否有异步规则在运行 |
 | `Validate()` | 同步校验本帧已构建的表单项，立即返回结果（不等待异步规则） |
 | `ResetFields(names...)` | 把用 `Rules`、`RulesOf` 绑定的值恢复为表单项首次构建时的值，并清除校验；`RulesFunc` 绑定的项改为调用它的 `OnReset` |
-| `ResetValidation()` | 只清除错误和“已触碰”标记，不改值 |
+| `ResetValidation()` | 清除校验状态并保留当前值。同帧从代码改写的值作为新校验基准，下一次构建不会立即重新校验 |
+| `ClearValidate(names...)` | 清除指定字段的校验结果。省略字段名时作用于整个表单，同帧从代码改写的值作为新校验基准 |
 | `ScrollToFirstError()` | 校验失败时把第一个错误项滚动到可见区域 |
 
 `Errors()` 返回当前每个表单项的错误信息，可用于在表单外汇总展示。表单级 `Disabled(true)` 会禁用其中所有控件（例如提交期间锁定表单）。

@@ -226,7 +226,8 @@ const AppContrastChanged AppEventKind = 201 // AppReduceMotionChanged 为 200
 | macOS | `NSWorkspace.accessibilityDisplayShouldIncreaseContrast`（`darwin/contrast.go`） | `NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification`，与减少动态效果共用一个观察者（`watchDisplayOptions`） | 本机读到关闭状态；开启状态和变化通知未实机切换验证 |
 | Windows | `SystemParametersInfo(SPI_GETHIGHCONTRAST)` 的 `HCF_HIGHCONTRASTON`（Windows 11 的对比度主题同样设置此标志，`windows/contrast_windows.go`） | 每次 `WM_SETTINGCHANGE` 重新读取，值变化才上报 | 仅交叉编译 |
 | Linux | portal `org.freedesktop.appearance contrast == 1`（xdg-desktop-portal 1.19+，GNOME 47+ 由 `org.gnome.desktop.a11y.interface high-contrast` 提供），否则 GTK `gtk-theme-name` 名称含 `HighContrast`（`linux/contrast_linux.go`） | portal `SettingChanged` 与 `notify::gtk-theme-name`（复用主题监听） | 仅交叉编译；判定逻辑有单元测试 |
-| iOS / Android | 未实现。可用来源：`UIAccessibility.isDarkerSystemColorsEnabled`、API 34+ `UiModeManager.getContrast()` | — | — |
+| iOS | `UIAccessibilityDarkerSystemColorsEnabled()`（`ios/system.m`） | `UIAccessibilityDarkerSystemColorsStatusDidChangeNotification` | 已实现 |
+| Android | API 34+ 的 `UiModeManager.getContrast() >= 0.5`，旧版返回 false | `addContrastChangeListener`（`TangoCanvas.java`） | 已实现 |
 
 Linux 的限制：既没有 portal `contrast` 键、GTK 主题又不叫 HighContrast 的桌面（GNOME 46 及更早只打开了 GSettings 开关、KDE Plasma 自带的高对比度配色方案）读不到开启状态，`HighContrast()` 返回 false。后端不直接读 GSettings，因为该 schema 可能不存在，而 GLib 在 schema 缺失时会直接终止进程。
 

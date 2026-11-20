@@ -47,7 +47,7 @@ err = u.Apply(p)                 // 然后退出应用；辅助进程替换并�
         "tree_sha256": "…",
         "patches": [{"from": "1.3.0", "url": "Notes-1.3.0-to-1.4.0-darwin-arm64.patch", "size": 81234, "sha256": "…"}]
       },
-      "windows-amd64": {"format": "exe", "url": "Notes-1.4.0-windows-amd64.exe", "size": 8000000, "sha256": "…", "patches": […]},
+      "windows-amd64": {"format": "exe", "url": "Notes-1.4.0-windows-amd64.exe", "size": 8000000, "sha256": "…"},
       "linux-amd64":   {"format": "appimage", "url": "Notes-1.4.0-linux-amd64.AppImage", "size": 9000000, "sha256": "…"}
     }
   },

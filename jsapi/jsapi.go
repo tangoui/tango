@@ -128,19 +128,20 @@ type API struct {
 	r    *ipc.Router
 	caps Cap
 
-	mu       sync.Mutex
-	surfaces map[*tango.Surface]*pageState
-	order    []*tango.Surface // attach order, for broadcasts
-	pending  []pendingEvent   // launch events no page has taken yet
-	notes    map[string]*tango.Surface
-	noteOnce sync.Once
+	mu                sync.Mutex
+	surfaces          map[*tango.Surface]*pageState
+	order             []*tango.Surface // attach order, for broadcasts
+	pending           []pendingEvent   // launch events no page has taken yet
+	notes             map[string]*tango.Surface
+	pendingNoteClicks []string // clicks waiting for a page to subscribe
 }
 
 // pageState is what the API keeps per surface.
 type pageState struct {
-	hotkeys map[int]*hotkey.Hotkey
-	nextHK  int
-	gen     int // bumped when the page's document is replaced
+	hotkeys   map[int]*hotkey.Hotkey
+	nextHK    int
+	gen       int // bumped when the page's document is replaced
+	noteReady bool
 }
 
 // Install registers the runtime API on r for app's pages and returns it.
@@ -293,6 +294,7 @@ func (api *API) resetPage(s *tango.Surface) {
 	var hks []*hotkey.Hotkey
 	if ps != nil {
 		ps.gen++
+		ps.noteReady = false
 		for id, h := range ps.hotkeys {
 			hks = append(hks, h)
 			delete(ps.hotkeys, id)

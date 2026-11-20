@@ -1,9 +1,9 @@
 # 移动端（实验性）
 
-同一个 TanGo 应用不改代码就能构建成 iOS 和 Android 应用。界面仍是系统 WebView（iOS WKWebView、Android 系统 WebView），Go 代码编译成库，由 TanGo 自带的原生宿主加载。
+TanGo 的 iOS 和 Android 应用可以用系统 WebView（iOS WKWebView、Android 系统 WebView）或 `uihost.Open` 打开纯 Go 自绘页。Go 代码编译成库，由 TanGo 自带的原生宿主加载。
 
 ::: warning 实验性
-iOS 已在模拟器（Apple Silicon，arm64）上验证，真机 SDK 能编译但**未在真机上运行验证**；Android 已在 API 36 模拟器上验证（启动、生命周期、消息往返、剪贴板、对话框、返回键），**未上真机**。接口和行为可能变化。
+iOS 已在 Apple Silicon 模拟器和一台 iPhone 12 Pro 上运行。Android 已在 API 36 模拟器上验证启动、生命周期、消息往返、剪贴板、对话框和返回键。 [验证范围](/guide/platforms)
 :::
 
 ## 运行模型
@@ -30,7 +30,7 @@ func main() {
 
 `main` 包零改动：宿主通过 `go:linkname` 取到 `main.main`。
 
-- **Surface = 页面**：每个 Surface 是全屏的一页（iOS 视图控制器，Android 根布局里的一层），后建的盖在上面；关闭最上面的页面回到下一页。Android 返回键先在 WebView 历史里后退，没有历史时关闭页面。
+- **Surface = 页面**：每个 Surface 是全屏的一页（iOS 视图控制器，Android 根布局里的一层），后建的盖在上面；关闭最上面的页面回到下一页。Android 返回键先在 WebView 历史里后退，没有历史时关闭页面。自绘页可以消费返回键，例如关闭弹层，未消费时由宿主处理。
 - **生命周期**：`Started`、`Foreground`、`Background`、`Terminating` 对应系统回调；系统终止应用时投递 `Terminating` 并最多等 2 秒让 `main` 跑完。在 `Background` 里保存状态。
 - **WebView 被系统回收**：内存紧张时系统可能杀掉 WebView 内容进程，后端会重新加载页面并发 `EventWebViewRestored`（`App.OnWebViewRestored`），页面状态需要自己恢复。
 - **主线程不能嵌套等待（Android）**：在主线程回调里调用需要等待用户的函数会立即返回（`TryAwaitAsync` 给出 `ErrNestedWait`）。从 goroutine 调用对话框、分享、权限请求、定位等函数。
@@ -76,7 +76,9 @@ header { padding-top: var(--tango-safe-top, env(safe-area-inset-top, 0px)); }
 | `location-always` | `permission` | 另加 `NSLocationAlwaysAndWhenInUseUsageDescription` | 另加 `ACCESS_BACKGROUND_LOCATION` |
 | `microphone` | `permission` | `NSMicrophoneUsageDescription` | `RECORD_AUDIO` |
 | `biometric` | `biometric.Authenticate` | `NSFaceIDUsageDescription` | `USE_BIOMETRIC` |
-| `notifications` | `push.Register`、`permission` | 运行时询问（远程推送另需 `aps-environment`） | `POST_NOTIFICATIONS` |
+| `notifications` | `notify`、`push.Register`、`permission` | 运行时询问（远程推送另需 `aps-environment`） | `POST_NOTIFICATIONS` |
+| `background` | `background.Schedule` | 后台模式及 BGTaskScheduler 标识符 | 调度任务所用的 JobService |
+| `widget` | `widget.Update` | 需单独提供 WidgetKit 扩展 | 注册 Android AppWidgetProvider |
 
 iOS 上缺用途说明就调用相关 API 会被系统终止，TanGo 在调用前检查，缺键时返回 `ErrNotConfigured`（错误信息写出缺的键名）。默认用途说明是英文模板，上架前请在 `ios.usageDescriptions` 里写具体用途。
 
@@ -130,6 +132,8 @@ release 签名：
 `tan run -platform android` 没有在线设备时会启动第一个 AVD（`-avd` 指定），日志里 Go 的输出在 `Tango` 标签下，页面 console 在 `chromium` 标签下。
 
 ## 调试与 CI
+
+- `tan dev -platform ios-simulator` 和 `tan dev -platform android` 在已经运行的模拟器或连接的 Android 设备上运行开发构建，支持 `-device` 选择目标。
 
 - `bash scripts/smoke.sh ios` / `android`：构建 `examples/mobile-hello`，在模拟器里运行，等页面发来消息即 PASS，见 [CI](/guide/ci)。
 - 移动端的完整设计说明（宿主类、线程细节、各能力的实现方式）在仓库的 [docs/mobile.md](https://github.com/tangoui/tango/blob/main/docs/mobile.md)。

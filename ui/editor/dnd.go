@@ -80,7 +80,7 @@ func (w *ViewW) dndStart(p pending, snap buffer.Snapshot, off int) bool {
 // (Monaco's CONTENT_TEXT: not the gutter, not past the end of the line or
 // below the last line).
 func (w *ViewW) overText(snap buffer.Snapshot, pt geom.Point) bool {
-	vs, v := w.vs, w.st.Viewport
+	vs := w.vs
 	if !vs.text.Contains(pt) {
 		return false
 	}
@@ -97,7 +97,7 @@ func (w *ViewW) overText(snap buffer.Snapshot, pt geom.Point) bool {
 	if !ok {
 		endX = lv.endX
 	}
-	return pt.X-vs.text.X+v.ScrollX <= endX
+	return pt.X-vs.text.X+w.displayViewport().ScrollX <= endX
 }
 
 // dndInput applies this frame's input to the drag in progress: Esc from

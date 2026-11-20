@@ -96,7 +96,8 @@ func (w *TreeSelectW) Virtual(on bool) *TreeSelectW {
 	return w
 }
 
-// ListHeight sets the maximum dropdown height (Ant listHeight, 256).
+// ListHeight sets the maximum dropdown height with or without virtual
+// scrolling (Ant listHeight, 256).
 func (w *TreeSelectW) ListHeight(px float32) *TreeSelectW { w.listH = px; return w }
 
 // Checked returns the selected values; in Checkable mode they follow the
@@ -276,10 +277,7 @@ func (w *TreeSelectW) removeChip(v string) {
 }
 
 func (w *TreeSelectW) listHeight() float32 {
-	if w.listH > 0 {
-		return w.listH
-	}
-	return 256
+	return selectListHeight(w.listH, 256)
 }
 
 // virtualOn reports whether the dropdown builds only its visible rows.

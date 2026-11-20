@@ -57,7 +57,7 @@ func main() {}
 
 ### 只读、行号、字体和 Tab 大小
 
-视图修饰器只影响当前帧；应用级的持久设置应写入 `State.Options` 或 `Model` 的设置。`ReadOnly(true)` 仍允许选择、滚动和复制，但阻止修改。
+视图修饰器只影响当前帧。`TabSize(n)` 调整本帧的显示列宽和光标移动，Tab 键和缩进命令使用 `Model.SetTabSize(n)` 设置的模型宽度。`ReadOnly(true)` 仍允许选择、滚动和复制，但阻止修改。
 
 ```go
 package main
@@ -166,7 +166,7 @@ func main() {}
 
 ### 处理编辑器中的链接
 
-编辑器会识别文档中的链接。`OnOpenLink` 接收用户点击的 URL，由应用决定是否在外部浏览器、路由或内嵌页面中打开。
+编辑器会识别文档中的链接。macOS 上按住 Cmd 点击链接，其他平台按住 Ctrl 点击，`OnOpenLink` 会收到 URL。应用决定打开位置。视图会保留最后一次设置的回调，`OnOpenLink(nil)` 关闭该动作。
 
 ```go
 package main

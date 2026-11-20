@@ -40,7 +40,7 @@ func page(c *ui.Context) {
 }
 ```
 
-`ui.Confirm(c, opts)` 在调用时打开对话框（默认带警告图标、“取消”和“确定”两个按钮），之后由框架在全局浮层中渲染，直到用户作出选择。`OnOk` 在点击确定时、`OnCancel` 在点击取消、关闭按钮、按 Esc 或点击遮罩时执行，两个回调都运行在 UI 线程。`OnOk` 返回后对话框自动关闭。
+`ui.Confirm(c, opts)` 在调用时打开对话框（默认带警告图标、“取消”和“确定”两个按钮），之后由框架在全局浮层中渲染。`OnOk` 在点击确定时执行。默认情况下，取消按钮和 Esc 会触发 `OnCancel`。显示关闭按钮的主题也支持点按钮取消，启用 `MaskClosable` 后可点遮罩取消。两个回调都运行在 UI 线程。`OnOk` 返回后对话框自动关闭，除非它开启了加载状态。
 
 ## 常见用法
 
@@ -200,7 +200,7 @@ Confirm / MessageBox / Prompt 与 [Modal](/components/modal#主题与样式) 共
 - **只在事件里调用**：`Confirm` / `MessageBox` / `Prompt` 每调用一次就打开一个新对话框，放在 `if ...Clicked()` 等只执行一次的分支里，不要每帧调用。
 - **不需要保存状态**：对话框的状态由框架保存，返回的 `*ui.ConfirmRef` 只在需要时保留（例如要从外部 `Close()`、查询 `IsOpen()` 或 `Action()`）。
 - **回调与线程**：`OnOk` / `OnCancel` / `OnClose` 在 UI 线程执行，可以直接改页面状态；`d.Loading` 和 `d.Close()` 可以在任意 goroutine 调用，其余状态改动请交回 UI 线程。
-- **焦点**：对话框打开后焦点移入对话框并被限制在其中，Prompt 的焦点在输入框里；关闭后焦点回到打开前的控件。Esc 等同于取消（或在 `DistinguishCancelAndClose` 时为关闭）。
+- **焦点**。对话框打开后焦点移入对话框并被限制在其中，Prompt 的焦点在输入框里。关闭后焦点回到打开前的控件。Esc 默认取消，设置 `DistinguishCancelAndClose` 时计为关闭，设置 `NoKeyboard` 时保留对话框。
 - **主题与方向**：对话框使用调用处作用域的主题、语言和方向（例如在 RTL 的 `ConfigProvider` 里调用就按 RTL 布局）。
 
 ## 示例代码

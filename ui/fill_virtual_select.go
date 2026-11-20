@@ -121,6 +121,7 @@ type VirtualSelectW struct {
 	maxCount    int
 	itemH       float32
 	listH       float32
+	fullList    bool // the Select or MultiSelect host explicitly disabled windowing
 	version     int
 	forced      bool
 
@@ -796,13 +797,10 @@ func (w *VirtualSelectW) rowH() float32 {
 }
 
 func (w *VirtualSelectW) listHeight() float32 {
-	if w.listH > 0 {
-		return w.listH
-	}
 	if w.c.ThemeFor(theme.CompSelect).Flavor == theme.Element {
-		return 274
+		return selectListHeight(w.listH, 274)
 	}
-	return 256
+	return selectListHeight(w.listH, 256)
 }
 
 // popupName names the listbox.
@@ -846,7 +844,6 @@ func (w *VirtualSelectW) dropdown(rows []fillVSRow, sel map[string]bool) {
 		sb := fillViewport(c, "fill-vs-list", []layout.Option{layout.H(float32(h))})
 		fillSem(c, sb.n, a11y.RoleListbox, w.popupName(), fillIf(w.multiple, a11y.Multiselectable))
 		st.list = sb.n.id
-		sb.s.extent.Y = total
 		view := fillViewH(sb, float32(h))
 		fillClampOff(sb, total, view)
 		follow := !st.listShown || st.active != st.shown || st.shownH != rh // row height changes with the theme
@@ -855,8 +852,12 @@ func (w *VirtualSelectW) dropdown(rows []fillVSRow, sel map[string]bool) {
 		}
 		st.shownH = rh
 		moved := c.pointer != st.ptr
-		first, end := fillSpan(sb.s.off.Y, view, float64(rh), len(rows), 3)
-		sb.s.base.Y = float64(first) * float64(rh)
+		first, end := 0, len(rows)
+		if !w.fullList {
+			first, end = fillSpan(sb.s.off.Y, view, float64(rh), len(rows), 3)
+			sb.s.extent.Y = total
+			sb.s.base.Y = float64(first) * float64(rh)
+		}
 		sb.Body(func() {
 			for i := first; i < end; {
 				g := rows[i].group

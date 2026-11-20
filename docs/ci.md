@@ -23,9 +23,9 @@ pwsh scripts/smoke.ps1 desktop hello
 
 | 平台 | 程序 |
 |---|---|
-| macOS | `internal/platform/darwin/internal/{smoke,smokeext,smoketray,smokecanvas -smoke}` |
-| Linux | `internal/platform/linux/internal/smoke` |
-| Windows | `internal/platform/windows/internal/smoke` |
+| macOS | `internal/platform/darwin/internal/{smoke,smokeext,smoketray,smokecanvas}`，另有 `examples/{a11y-demo,webview-demo,sysx-demo}` |
+| Linux | `internal/platform/linux/internal/{smoke,smokecanvas}` |
+| Windows | `internal/platform/windows/internal/{smoke,smokecanvas}` |
 | 全部 | `examples/hello -smoke`、`examples/app-demo -smoke`、`examples/system-demo`、`examples/notify-demo` |
 
 输出在 `build/smoke/`（`SMOKE_OUT` 可改）：每个程序一个 `<名字>.log`，构建失败时有 `<名字>.build.log`，`summary.txt` 是汇总，开了截图时有 `<名字>.png`。darwin 的 smoke / smokecanvas 自己截的图（`/tmp/tango-*.png`）也会复制进来。
@@ -55,8 +55,9 @@ pwsh scripts/smoke.ps1 desktop hello
 | 作业 | 运行环境 | 做什么 |
 |---|---|---|
 | `lint` | ubuntu | 对已跟踪的 `.go` 文件跑 `gofmt -l`；`go vet ./...`（根模块和 `cmd/tan`；根模块另跑一遍 `-tags tango_dev`）；在 `CGO_ENABLED=0` 下对 windows/linux/darwin × amd64/arm64 交叉 vet（默认与 `-tags tango_dev` 各一遍）；`runtime-js` 里 `npm ci && npm test`，再检查 `runtimejs/tango.iife.js` 与源码构建结果一致 |
-| `test` | ubuntu / macos / windows | `go test -race ./...`（默认 = 生产构建）、`go test -race -tags tango_dev ./...`（开发功能，见 [dev-builds.md](dev-builds.md)）和 `cmd/tan` 的测试；Windows 上有 gcc 时用 `CGO_ENABLED=1 -race`，没有就不带 `-race` 并给出警告 |
-| `smoke` | ubuntu / macos / windows | 真实窗口冒烟。Linux 先 apt 装 `libgtk-3-0 libwebkit2gtk-4.1-0 libayatana-appindicator3-1 xvfb` 等，用 `dbus-run-session -- xvfb-run -a bash scripts/smoke.sh` 运行（`TANGO_SMOKE_SKIP=notify`：无头会话没有通知服务）；macOS 直接 `bash scripts/smoke.sh`；Windows `pwsh scripts/smoke.ps1`（runner 自带 WebView2）。每个程序 180 秒硬超时，步骤 20 分钟超时 |
+| `test` | ubuntu / macos / windows | 根模块分别测生产构建和 `-tags tango_dev`，另测 `cmd/tan`。大 UI、渲染、编辑器套件串行运行，关闭 `-race`，Gallery 在生产构建以 `-short` 运行。macOS 另测 `-tags tango_gotext` 下的 UI 与 GPU 套件。Windows 缺 gcc 时会警告并关闭 `-race` |
+| `gallery-contrast` | ubuntu | 完整的 Gallery 文本对比度扫描，在非 PR 运行中执行 |
+| `smoke` | ubuntu / macos / windows | 真实窗口冒烟。Linux 先 apt 装 `libgtk-3-0 libwebkit2gtk-4.1-0 libayatana-appindicator3-1 xvfb` 等，用 `dbus-run-session -- xvfb-run -a bash scripts/smoke.sh` 运行（`TANGO_SMOKE_SKIP=notify,hotkey,find,download,camera`），并用无头 Weston 验证 Wayland 自绘；macOS 用 `TANGO_SMOKE_SKIP=displaylink` 跳过依赖已唤醒屏幕的帧节奏检查；Windows 用 `pwsh scripts/smoke.ps1`。每个程序硬超时 180 秒，桌面步骤超时 20 分钟，Wayland 步骤超时 10 分钟 |
 | `mobile-ios` | macos | `bash scripts/smoke.sh ios`：`mobile/ios/build.sh examples/mobile-hello` → 启动第一个可用的 iPhone 模拟器 → install / launch → 等页面消息 → 截图 |
 | `mobile-android` | ubuntu | JDK 17 + runner 自带的 Android SDK/NDK（缺 NDK 时用 sdkmanager 装），`mobile/android/build.sh` 打 APK 并作为产物上传；然后用 `reactivecircus/android-emulator-runner` 起 API 34 x86_64 模拟器跑 `bash scripts/smoke.sh android` |
 

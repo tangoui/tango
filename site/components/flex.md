@@ -56,7 +56,7 @@ func page(c *ui.Context) {
 
 ### 竖向内容
 
-`Vertical()` 将主轴改为纵向；可配合 `Gap` 和 `Style` 的布局选项构造内容区。
+`Vertical()` 或 `Orientation("vertical")` 将主轴改为纵向，`Orientation("horizontal")` 改回横向。可配合 `Gap` 和 `Style` 的布局选项构造内容区。
 
 ```go
 import (

@@ -64,6 +64,11 @@ func runSign(args []string) error {
 		return fmt.Errorf("no signing identity: pass -identity or set %s (list yours with: security find-identity -v -p codesigning)", envSignIdentity)
 	}
 	ctx := context.Background()
+	if strings.EqualFold(filepath.Ext(filepath.Clean(target)), notarizeAppSuffix) {
+		if err := signMacHelpers(ctx, target, id); err != nil {
+			return err
+		}
+	}
 	if err := runIn(ctx, "", nil, "codesign", codesignArgs(id, ent, target)...); err != nil {
 		return err
 	}
@@ -79,6 +84,31 @@ func runSign(args []string) error {
 		return err
 	}
 	return notarizeAndStaple(ctx, target, auth, extra)
+}
+
+// signMacHelpers replaces the ad-hoc signatures before the outer app is signed.
+func signMacHelpers(ctx context.Context, app, identity string) error {
+	dir := filepath.Join(app, "Contents", "Helpers")
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
+			continue
+		}
+		if err := runIn(ctx, "", nil, "codesign", codesignArgs(identity, "", filepath.Join(dir, entry.Name()))...); err != nil {
+			return fmt.Errorf("sign helper %s: %w", entry.Name(), err)
+		}
+	}
+	return nil
 }
 
 // codesignArgs signs with the hardened runtime and a secure timestamp, as

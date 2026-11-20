@@ -97,7 +97,7 @@ func saveItem(row item, index int) error { return nil }
 func main() {}
 ```
 
-`OnSave` 返回错误时，行保持编辑状态并显示错误；返回 `nil` 时才写回数据。实际项目中应使用稳定且唯一的 `RowKey`，不要依赖默认行索引。
+调用 `done(err)` 并传入非空错误时，行保持编辑状态并显示错误。调用 `done(nil)` 后才写回数据。实际项目中应使用稳定且唯一的 `RowKey`。
 
 ### 受控编辑、多行编辑和限制行
 
@@ -124,23 +124,18 @@ var (
 )
 
 func page(c *ui.Context) {
-    table := ui.EditableProTable(c, taskColumns, &tasks).
+    ui.EditableProTable(c, taskColumns, &tasks).
         RowKey(func(r task) string { return r.ID }).
         EditableKeys(&editing).
         Multiple().
         RowEditable(func(r task) bool { return r.State != "done" }).
         Show()
-    if table.Changed() {
-        syncEditingRows(editing)
-    }
 }
-
-func syncEditingRows(keys []string) {}
 
 func main() {}
 ```
 
-受控 key 必须与 `RowKey` 返回值一致；删除或重排数据后同步更新 `editing`，避免保留不存在的 key。
+受控 key 必须与 `RowKey` 返回值一致，删除数据时应同步移除已删除行的编辑键。直接读取 `editing` 获取编辑集合。`Changed()` 报告的是保存、删除或重排。
 
 ### 字段规则与异步校验
 
@@ -223,7 +218,7 @@ func main() {}
 
 ### 自定义删除、保存错误和工具栏
 
-`OnDelete` 在确认删除后调用；如果不设置，组件会直接从 `*rows` 删除。`ToolBar` 可以放批量操作或状态信息，`NoDelete()` 隐藏删除动作。
+`OnDelete(func(row T, index int))` 在确认删除后调用，由回调负责更新 `*rows`。未设置回调时，组件直接删除对应行。`ToolBar` 可以放批量操作或状态信息，`NoDelete()` 隐藏删除动作。
 
 ```go
 package main
@@ -257,17 +252,19 @@ func refreshSummary() {}
 func main() {}
 ```
 
-`NoDelete()` 会隐藏删除动作，因此上述示例只演示回调签名；要启用删除时移除它。远程保存使用 `OnSave`，返回非空错误会让当前行保持编辑状态。
+上述示例用 `NoDelete()` 隐藏删除动作。移除它即可启用删除。远程保存通过 `OnSave` 的 `done` 报告结果。
 
 ### 大量数据：虚拟滚动
 
-`ScrollY(px)` 固定表体高度，只构建视口内的行；`Virtual()` 表明意图（Element Plus 主题下用 Table V2 的 50px 行高），行高默认跟随 `Size`。`CellEditorTable` 和 `RowEditorTable` 有同样的两个方法。
+`ScrollY(px)` 限制表体高度并启用窗口化构建。`Virtual()` 显式声明虚拟模式，在 Element Plus 主题下采用 Table V2 的 50px 行高，其余情况跟随 `Size`。`CellEditorTable` 和 `RowEditorTable` 有同样的两个方法。
 
-正在编辑的行（或格所在的行）总是构建，即使滚出视口，草稿和焦点也不会丢。开始编辑某行（`Edit`、`AddRow`）、焦点移进正在编辑的行（例如 Tab 到它的下一个编辑器）、在滚出视口的编辑器里输入，以及校验失败时，表格会把这一行滚进视口。工具栏和添加按钮留在滚动区外。不设 `ScrollY` 时与原来一样，每一行都构建。
+当前页正在编辑的行（或格所在的行）滚出视口后仍会构建，保留草稿和焦点。开始编辑（`Edit`、`AddRow`）、焦点移进正在编辑的行（例如 Tab 到它的下一个编辑器）、在滚出视口的编辑器里输入，以及校验失败时，表格会把这一行滚进视口。表头、工具栏和添加按钮留在滚动区外。`ScrollY` 默认为 0，此时构建当前页的全部行。
+
+有 `ScrollY` 时，表格会记住未在当前页找到的编辑键。原地改写行的 key 且行数不变时，重新出现的编辑键要等到行数变化或传入使用新底层存储的 `rows` 切片才会再次查找。
 
 ```go
 func bigTable(c *ui.Context, cols []ui.ProColumn[row], rows *[]row) {
-    ui.RowEditorTable(c, cols, rows).RowKey(func(r row) string { return r.ID }).
+    ui.EditableProTable(c, cols, rows).RowKey(func(r row) string { return r.ID }).
         ScrollY(480).Virtual().Show()
 }
 ```
@@ -280,8 +277,8 @@ EditableProTable 的单元格、编辑控件和操作链接复用 `ProTable`、`
 
 - `rows` 是应用拥有的切片，只有校验和 `OnSave` 成功后才会写回；不要在 `OnSave` 之前直接修改原行来模拟草稿。
 - `RowKey` 在新增、删除和拖拽排序时必须稳定且唯一；默认索引只适合不会重排的静态数据。
-- `OnSave`、`OnDelete` 和异步校验完成后都要调用回调；异步保存未完成时 `Validating(key)` 为 `true`，不要重复提交同一行。
-- 大数据量应使用 `Pagination`、上层的服务端分页或 `ScrollY(px).Virtual()`；编辑器列应只放真正需要修改的字段。虚拟滚动时视口外的行不构建，它们不在无障碍树里（表格的行数仍报告全部行）。
+- `OnSave` 和异步校验完成后都要调用 `done`。`Validating(key)` 在异步校验或保存未完成时为 `true`。
+- 大数据量可用 `Pagination`、上层的服务端分页或 `ScrollY(px).Virtual()`。窗口化时，当前页构建可见行和保留的编辑行。无障碍树仅包含已构建的行，表格仍会报告完整行数。
 - 操作列和编辑控件已有键盘语义；自定义 `Render` 或 `ToolBar` 中的图标按钮要设置 `A11yLabel`。
 
 ## 示例代码

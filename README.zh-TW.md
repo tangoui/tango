@@ -50,11 +50,11 @@ TanGo 是適用於 **macOS、Windows、Linux、iOS 與 Android** 的 Go 應用�
 | **Go 自繪 UI** | 直接以 Go 元件建立桌面介面，無需 Web 前端。 | `ui` |
 | **混合介面** | 在同一個桌面視窗中，為 WebView 附加 Go 自繪面板。 | `hybrid` |
 
-Go 自繪 UI 目前適用於桌面；行動平台使用 WebView 頁面。混合介面在 Go 程式碼變更後重新啟動應用程式，不使用 Canvas 熱重載。
+iOS 和 Android 除了 WebView 頁面，也支援實驗性的 Go 自繪頁面。請參閱[行動平台設定](docs/mobile.md)。桌面混合介面在 Go 程式碼變更後重新啟動應用程式，不使用 Canvas 熱重載。
 
 ## 開始建置
 
-需要 **Go 1.27+**。桌面建置不需要 cgo，但目標系統仍需對應的 WebView 執行階段函式庫；行動平台建置需要對應 SDK。
+需要 **Go 1.27+**。TanGo 的桌面後端不需要 cgo。應用程式若連結 C 函式庫，可在 `tan.json` 中設定 `"cgo": true`。WebView 應用程式仍需要目標系統的 WebView 執行階段函式庫。行動平台建置需要對應 SDK。
 
 ```bash
 go install github.com/tangoui/tango/cmd/tan@latest
@@ -63,6 +63,8 @@ cd hello
 tan dev                 # 執行應用程式，Go 程式碼變更後自動重新建置
 tan build               # 發佈建置，產物位於 build/
 ```
+
+直接執行 `go build` 或 `go run .` 也會得到正式建置。熱重載、自動化通道和前端開發伺服器代理只在帶有 `-tags tango_dev` 的開發建置中可用，`tan dev` 會自動加上這個標籤。請參閱[開發功能與正式建置](docs/dev-builds.md)。
 
 <details>
 <summary>也可以選擇其他起點：</summary>
@@ -120,7 +122,7 @@ const message = await window.tango.call("Greeter.Hello", "TanGo");
 | **Windows** | 系統 WebView · Go 自繪 · 混合介面 | 已有實作，具備交叉編譯與 CI 冒煙測試；系統性的實機驗證尚待完成。 |
 | **Linux** | 系統 WebView · Go 自繪 · 混合介面 | 已有實作，具備交叉編譯與 CI 冒煙測試；系統性的實機驗證尚待完成。 |
 | **iOS** | 系統 WebView · Go 自繪介面 | 實驗性，已進行模擬器驗證，另在一台實機（iPhone 12 Pro，iOS 27）上跑通 WebView 與自繪範例：觸控、輸入法、Metal 與 CPU 繪製、無障礙。更多機型的實機驗證尚待完成。 |
-| **Android** | 系統 WebView | 實驗性，已進行模擬器驗證；實機驗證尚待完成。 |
+| **Android** | 系統 WebView · Go 自繪介面 | 實驗性，WebView 與自繪範例已在模擬器執行。實機驗證尚待完成。 |
 
 不同平台的功能有差異，使用前請參閱 [WebView 支援矩陣](docs/webview.md)、[行動平台功能](docs/mobile.md)與[執行階段 API](docs/runtime-api.md)。Android 推播需要應用程式自行整合 FCM；目前未內建 Play Billing 與 iOS Widget。
 
@@ -161,7 +163,7 @@ go run ./examples/showcase
 | 核心與橋接 | [架構](docs/architecture.md) · [執行階段 API](docs/runtime-api.md) · [WebView](docs/webview.md) |
 | 建置與發佈 | [發佈流程](docs/release.md) · [安裝程式](docs/packaging.md) · [Windows](docs/windows.md) · [Linux 打包](docs/linux-packaging.md) · [自動更新](docs/updates.md) |
 | 系統整合 | [行動平台](docs/mobile.md) · [權限](docs/mobile-permissions.md) · [圖示](docs/icons.md) · [列印](docs/print.md) |
-| 品質與工具 | [無障礙](docs/accessibility.md) · [自動化](docs/automation.md) · [Panic 處理](docs/panics.md) · [CI 與冒煙測試](docs/ci.md) |
+| 品質與工具 | [開發功能與正式建置](docs/dev-builds.md) · [無障礙](docs/accessibility.md) · [自動化](docs/automation.md) · [tan mcp](docs/mcp.md) · [Panic 處理](docs/panics.md) · [CI 與冒煙測試](docs/ci.md) |
 
 README 提供英文、簡體中文、繁體中文與日文版本。詳細文件目前以簡體中文為主，另有英文指南及自動產生的 Go API 參考。
 

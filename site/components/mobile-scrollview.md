@@ -48,44 +48,44 @@ func page(c *ui.Context) {
 
 ### 下拉刷新
 
-刷新状态由调用方持有；`Refreshed` 在完成本次刷新时可用，业务完成后把指针设回 false。
+用户下拉超过阈值并松手时，组件将 `refreshing` 设为 `true`，`Refreshed()` 在这一帧返回 `true`。用它启动刷新，数据加载完成后将 `refreshing` 设回 `false`。
 
 ```go
 var refreshing bool
 
-func refreshPage(c *ui.Context) {
+func refreshPage(c *ui.Context, startRefresh func()) {
     w := mobile.PullToRefresh(c, &refreshing).Layout(layout.Grow(1))
     w.Body(func() { mobile.List(c, "").Body(func() { mobile.Cell(c, "最新内容") }) })
     if w.Refreshed() {
-        refreshing = false
+        startRefresh() // 数据更新到 UI 线程后将 refreshing 设回 false。
     }
 }
 ```
 
 ### 无限加载
 
-`LoadMore` 在滚到末尾且尚未加载时返回 true；异步请求开始后把 `loading` 设为 true，请求结束后设为 false。
+列表进入末端阈值且可以加载下一批时，组件将 `loading` 设为 `true`，并在这一帧通过 `LoadMore()` 报告。追加数据后将 `loading` 设回 `false`，全部加载完时设置 `Finished(true)`。`Offset(px)` 调整触发距离，默认 50px。
 
 ```go
 var loading bool
 
-func infinitePage(c *ui.Context) {
+func infinitePage(c *ui.Context, startLoad func()) {
     w := mobile.InfiniteList(c, &loading).Layout(layout.Grow(1))
     w.Body(func() { mobile.List(c, "更多").Body(func() { mobile.Cell(c, "列表项") }) })
     if w.LoadMore() {
-        loading = true
+        startLoad() // 在 UI 线程追加数据并将 loading 设回 false。
     }
 }
 ```
 
 ### 定高行
 
-`Rows` 只构建可视窗口附近的行；每一行应使用稳定的 `ui.Key`。
+`Rows` 只构建可视窗口附近的行，内置键为下标。数据会插入或重排时，可在回调中为行内控件设置 `ui.Key`。
 
 ```go
 func virtualPage(c *ui.Context) {
     mobile.ScrollView(c).Layout(layout.Grow(1)).Rows(10000, 48, func(i int) {
-        ui.Key(c, i, func() { mobile.Cell(c, fmt.Sprintf("第 %d 行", i+1)) })
+        mobile.Cell(c, fmt.Sprintf("第 %d 行", i+1))
     })
 }
 ```

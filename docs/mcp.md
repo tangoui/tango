@@ -5,7 +5,7 @@
 - **项目工具**：查看项目、检查环境、新建项目、生成绑定、构建、打包、`tan dev`，耗时的命令作为后台任务运行，代理随时查状态和输出。
 - **界面工具**：以开发构建启动应用（或连接已在运行的开发构建），读语义树、按角色和名称找节点、执行无障碍动作、坐标点击、输入文字、按键、截图；WebView 窗口用 CSS 选择器和 JavaScript 操作。走的是[整机自动化](automation.md)的同一条控制通道，能力和 `automation` 包一致。
 
-界面工具只对开发构建（`-tags tango_dev`）有效，发布构建里没有控制通道。`tango_app_start` 启动 Go 包时自动用 `-tags tango_dev` 构建，不需要自己加；传可执行文件时，它必须是用 `-tags tango_dev` 构建的。应用在后台启动：不抢焦点，窗口排在其他应用后面（见“限制”）。
+界面工具只对开发构建（`-tags tango_dev`）有效，发布构建里没有控制通道。`tango_app_start` 启动 Go 包时自动用 `-tags tango_dev` 构建，不需要自己加；传可执行文件时，它必须是用 `-tags tango_dev` 构建的。在 macOS 上，应用在后台启动，窗口排在其他应用后面。
 
 ## 配置
 
@@ -65,13 +65,13 @@ Claude Code 的配置：
 
 前端用 Vite 等工具构建的模板，Go 代码通过 `go:embed` 嵌入 `dist`：先 `tango_project_build`（或至少让前端构建跑一次）再 `tango_app_start`，否则 `dist` 不存在，编译失败或页面是旧的。
 
-WebView 应用（例如默认模板 `vanilla`、`examples/hello`）把第 2–4 步换成 `tango_web_fill {"selector": "#name", "text": "..."}`、`tango_web_click {"selector": "#go"}`、`tango_web_text {"selector": "#out"}`。
+WebView 示例 `examples/hello` 把第 1 步的 `target` 换成 `./examples/hello`，再把第 2–4 步换成 `tango_web_fill {"session": "app-1", "selector": "#name", "text": "..."}`、`tango_web_click {"session": "app-1", "selector": "#go"}`、`tango_web_text {"session": "app-1", "selector": "#out"}`。
 
 完整的端到端例子见 `cmd/tan/mcp_e2e_test.go`（`TANGO_E2E=1 go test -run TestMCPE2E -v ./cmd/tan`）。
 
 ## 工具清单
 
-所有工具的输出都是 JSON 对象（截图除外，返回 MCP 图片内容）。路径参数都相对 `-root`。
+所有工具的输出都是 JSON 对象（截图除外，返回 MCP 图片内容）。相对路径从 `-root` 解析。`tango_app_attach` 的 `tokenFile` 也接受绝对路径，并可位于根目录外。
 
 ### 项目工具
 
@@ -146,7 +146,7 @@ WebView 应用（例如默认模板 `vanilla`、`examples/hello`）把第 2–4 
 
 ## 限制
 
-- **热重载下没有界面工具**：`tan dev` 的自绘窗口画在 dev host 进程里，没有语义树（见 [整机自动化 · 限制](automation.md#限制)）。界面工具一律另起不带热重载的开发构建；`tango_project_dev` 只用于让人看或读日志。代理要操作界面时用 `tango_app_start`。
+- **热重载不支持自绘界面工具**：`tan dev` 的自绘窗口画在 dev host 进程里，没有语义树（见 [整机自动化 · 限制](automation.md#限制)）。要自动化自绘界面，用 `tango_app_start` 启动开发构建，或用 `tango_app_attach` 连接启用了控制通道的非热重载构建。`tan dev` 的 WebView 窗口启用控制通道后仍可用 WebView 工具。
 - **后台启动只在 macOS 生效**：macOS 上应用启动时不激活、窗口排在其他应用后面；Windows 和 Linux 上窗口照常出现在前台。所有操作和截图都走控制通道、在进程内完成，窗口在后面不影响结果。这一版不提供前台启动。
 - **前台测量与输入法验收不在范围内**：`tango_ui_click`、`tango_ui_type`、`tango_ui_key` 是合成到 runner 的事件，不经过系统输入法和系统事件队列；截图是进程内渲染，不代表真实呈现。测帧率、测真实呈现或验收输入法，仍要人在前台操作或用平台自己的 UI 自动化工具。
 - 协议没有按节点 ID 定位的请求：重名节点用 `nth`、`states` 或 `value` 区分。

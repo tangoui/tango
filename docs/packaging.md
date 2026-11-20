@@ -31,12 +31,34 @@
 
 路径都相对于项目目录。
 
+## 桌面构建标签
+
+`tan.json` 的可选字段 `desktopBuildTags`（例如 `["production"]`）适用于 `tan build`（含 `-debug`）和 `tan package` 的桌面主程序。每项必须是一个 Go 构建标签。tan 将它们与 `GOFLAGS` 中的标签合并，重复项只传一次。Tango 保留 `tango_dev`、`tango_release` 和 `tango_backend_` 前缀的标签。后端配置由 `features` 或 `-features` 选择，CGO 由 `cgo` 字段开关。
+
+`tan dev` 和移动端构建会校验这项配置，编译时沿用各自的标签设置。桌面开发构建的额外标签可通过 `GOFLAGS` 提供。
+
+## 随包命令行工具
+
+`tan.json` 的 `desktopHelpers` 是可选列表。每项设置 `name` 和 `build`。名称用字母或数字开头，后面可用字母、数字、下划线和连字符，忽略大小写后须唯一。`build` 从项目根目录执行。例如：
+
+```json
+"desktopHelpers": [{ "name": "helper", "build": "node scripts/build-helper.mjs" }]
+```
+
+`tan build`、`tan package` 对每个桌面目标传入 `TAN_TARGET_OS`、`TAN_TARGET_ARCH` 和绝对路径 `TAN_HELPER_OUTPUT`。构建命令须自行按目标设置交叉编译参数，并在指定路径写出非空的常规文件。Windows 输出路径已含 `.exe`，macOS 通用包的目标架构为 `universal`。移动端构建跳过这些命令。
+
+- macOS 的辅助工具位于 `.app/Contents/Helpers/`。对 `.app` 运行 `tan sign` 时，tan 先用同一身份签此目录中的可执行文件，再签整个 `.app`。应用的 entitlements 只用于外层 `.app`。
+- Windows：主程序旁的 `cli/`，内置 NSIS 脚本会安装并卸载这些文件，MSIX 布局也会包含它们。
+- Linux：构建目录、AppImage 和解压的 tar 包在主程序旁的 `cli/`；已安装的 tar 包、DEB、RPM、Flatpak 使用 `lib/<应用可执行名>/`。
+
+使用 `desktopHelpers` 构建 Linux 目标时，主程序名须避开辅助工具的 `cli` 目录名（忽略大小写）。
+
 ## Windows（NSIS）
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
 | `scope` | `user` | `user`：装到 `%LOCALAPPDATA%\Programs\<名称>`，写 HKCU，不弹 UAC，应用可以自更新（`service/updater` 的 `nsis` 格式）。`machine`：装到 `Program Files`（386 架构是 `Program Files (x86)`），写 HKLM，`RequestExecutionLevel admin`，开始菜单和桌面快捷方式对所有用户可见。 |
-| `license` | — | `.txt`、`.rtf` 或无扩展名的纯文本文件。设置后增加许可协议页，用户必须同意才能继续。 |
+| `license` | — | `.txt`、`.md`、`.rtf` 或无扩展名的纯文本文件。设置后增加许可协议页，用户必须同意才能继续。 |
 | `welcome` | `true` | 是否显示欢迎页。 |
 | `sidebarImage` | NSIS 自带 | 欢迎页和完成页左侧的图，**164×314**。可以是 `.bmp`，也可以是 `.png`（tan 叠到白底上，转成 24 位 BMP）。尺寸不对时 NSIS 会拉伸。 |
 | `headerImage` | 无 | 其余页面顶部右侧的横幅，**150×57**，格式同上。 |
@@ -102,6 +124,7 @@
 | `.Arch` | `amd64` / `arm64` / `386` |
 | `.Exe` | 安装后的文件名，例如 `Hello.exe` |
 | `.ExeSource` | 构建产物的绝对路径（`File` 指令的参数） |
+| `.Helpers` | 随包命令行工具，每项含 `.Name` 和绝对路径 `.Source`；自定义模板需自行安装和卸载 |
 | `.OutFile` | 要生成的 setup.exe 的路径 |
 | `.Scope` `.RegRoot` `.ExecutionLevel` | `user`/`HKCU`/`user`，或 `machine`/`HKLM`/`admin` |
 | `.InstallDir` | NSIS 表达式，例如 `$LOCALAPPDATA\Programs\Hello` |
@@ -159,7 +182,7 @@ SectionEnd
 | `iconSize` | `128` | 16–512 |
 | `appPosition` | `[140, 190]` | app 图标中心，从内容区左上角起算 |
 | `applicationsPosition` | `[400, 190]` | Applications 链接图标的中心 |
-| `title` | 应用名 | 卷名，即 Finder 窗口标题。不能含 `:` 或 `/`。 |
+| `title` | 应用名 | 卷名，即 Finder 窗口标题。单行，最多 255 字节，不能含 `:` 或 `/`。 |
 
 镜像里包含：`<名称>.app`、指向 `/Applications` 的符号链接、`.DS_Store`（窗口布局）、`.background/`（背景图），以及 `.VolumeIcon.icns`（app 的图标；卷上设置了"自定义图标"标志，Finder 和桌面会显示它）。这几个文件名都以点开头，并设置了 `UF_HIDDEN`。用户打开"显示隐藏文件"时，它们会排在窗口可见区域的右侧之外。
 
@@ -179,4 +202,4 @@ alias 固定字段中的日期使用本地时间，与 Finder 一致；另有 UT
 - `.dmg` 只能在 macOS 上生成（依赖 `hdiutil`、`ditto`；Retina 背景还需要 `tiffutil`）。在其他平台上会跳过并给出警告。
 - 卷名含非 ASCII 字符时，alias 固定字段里的卷名会被降为 ASCII（Unicode 卷名放在 tag 15 中）。
 - NSIS 安装包可以在任何平台生成，只要有 makensis。只有 Windows 主机会自动下载 NSIS。
-- 安装包中不包含 WebView2（Windows 10 1803 及以上、Windows 11 都自带）。
+- Windows 安装包不内置 WebView2 Runtime，WebView 应用的运行环境需要提供它。
