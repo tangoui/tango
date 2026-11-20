@@ -112,12 +112,13 @@ type Config struct {
 
 // Frontend says where the front end lives and how to run it.
 type Frontend struct {
-	Dir     string `json:"dir"`               // front-end root; commands run here
-	Dist    string `json:"dist"`              // build output, relative to Dir ("." when the sources are served as is)
-	Install string `json:"install,omitempty"` // run when Dir has package.json but no node_modules; default "npm install"
-	Dev     string `json:"dev,omitempty"`     // dev server command; its first printed http URL is used
-	DevURL  string `json:"devURL,omitempty"`  // dev server URL, when it cannot be read from the output
-	Build   string `json:"build,omitempty"`   // production build command
+	Dir              string `json:"dir"`                        // front-end root; commands run here
+	Dist             string `json:"dist"`                       // build output, relative to Dir ("." when the sources are served as is)
+	Install          string `json:"install,omitempty"`          // run when Dir has package.json but no node_modules; default "npm install"
+	Dev              string `json:"dev,omitempty"`              // dev server command; its first printed http URL is used
+	DevURL           string `json:"devURL,omitempty"`           // dev server URL, when it cannot be read from the output
+	Build            string `json:"build,omitempty"`            // production build command
+	ParallelDevBuild bool   `json:"parallelDevBuild,omitempty"` // build Go while desktop tan dev waits for its own dev server URL
 }
 
 type DesktopHelper struct {

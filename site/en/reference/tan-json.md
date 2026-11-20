@@ -76,7 +76,10 @@ The helper command receives `TAN_TARGET_OS` and `TAN_TARGET_ARCH` (`universal` f
 | `install` | Runs if `dir` contains a `package.json` without `node_modules`. Defaults to `npm install` |
 | `dev` | Dev-server command. `tan dev` reads its first printed HTTP URL |
 | `devURL` | Explicit dev-server URL when it cannot be read from the output |
+| `parallelDevBuild` | Defaults to `false`. Set to `true` to let desktop `tan dev` run the first Go build while it waits for its own `frontend.dev` command to print a URL |
 | `build` | Production build command |
+
+Parallel preparation starts after dependency installation succeeds. The app starts once the front end has printed its URL and the Go build has succeeded. Enable this only if `frontend.dev` leaves all files required by the first Go build alone, including files matched by `go:embed`. The option has no effect with `-url` or `frontend.devURL`, static serving, mobile development, or release builds.
 
 Omit `frontend` for a fully Go-drawn app.
 

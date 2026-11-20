@@ -76,7 +76,10 @@
 | `install` | `dir` 有 `package.json` 但没有 `node_modules` 时执行，默认 `npm install` |
 | `dev` | 开发服务器命令，`tan dev` 读取它打印的第一个 http 地址 |
 | `devURL` | 地址读不出来时直接指定 |
+| `parallelDevBuild` | 默认 `false`。设为 `true` 时，桌面 `tan dev` 自行运行 `frontend.dev` 并等待其打印 URL，同时执行首次 Go 构建 |
 | `build` | 生产构建命令 |
+
+依赖安装成功后才开始并行准备。应用会等到前端打印 URL 且 Go 构建成功后启动。启用前，请确认 `frontend.dev` 不会生成或更新首次 Go 构建依赖的文件，例如 `go:embed` 匹配的文件。指定 `-url` 或 `frontend.devURL`、直接提供静态文件、使用移动端开发模式或执行发布构建时，该字段无效。
 
 纯自绘 UI 的应用省略整个 `frontend`。
 

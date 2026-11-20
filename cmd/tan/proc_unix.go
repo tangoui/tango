@@ -23,6 +23,14 @@ func newGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr.Setpgid = true
 }
 
+func startDevGroup(cmd *exec.Cmd) (*jobGroup, error) {
+	newGroup(cmd)
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	return attachJobGroup(cmd), nil
+}
+
 // signalGroup sends SIGTERM (or SIGKILL when force) to cmd's group.
 func signalGroup(cmd *exec.Cmd, force bool) {
 	if cmd.Process == nil {

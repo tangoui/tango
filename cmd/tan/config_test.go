@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -54,6 +55,33 @@ func TestParseConfig(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), b.want) {
 			t.Errorf("%s: err = %v, want it to mention %s", b.json, err, b.want)
 		}
+	}
+}
+
+func TestParseParallelDevBuild(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"omitted", ``, false},
+		{"false", `,"parallelDevBuild":false`, false},
+		{"true", `,"parallelDevBuild":true`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := ParseConfig([]byte(`{"name":"Hello","id":"com.example.hello","version":"1.0.0","frontend":{"dir":"frontend","dist":"."` + tc.input + `}}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Compare the serialized opt-in as well as accepting all three inputs.
+			encoded, err := json.Marshal(cfg.Frontend)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(encoded), `"parallelDevBuild":true`) != tc.want {
+				t.Fatalf("frontend = %s, want parallelDevBuild enabled: %t", encoded, tc.want)
+			}
+		})
 	}
 }
 
