@@ -21,3 +21,11 @@ test('catalog maps aliases to actual registered demos and never silently falls b
  assert.throws(()=>mapComponentCatalog([{...rows[0],names:['MissingWidget']}],pages),/MissingWidget/);
  assert.throws(()=>mapComponentCatalog(rows,[]),/Text/);
 });
+
+test('AI chat components each have a catalog entry and their own playable scene',()=>{
+ const names=['Bubble','BubbleList','Sender','ThoughtChain','ToolCall','Approval','Conversations','Prompts'];
+ const rows=parseComponentTable(authoring).filter(row=>row.group==='AI 对话');
+ const catalog=mapComponentCatalog(rows,names.map(name=>({name,title:name})));
+ assert.ok(catalog.groups.includes('AI 对话'));
+ assert.deepEqual(catalog.components.map(entry=>[entry.id,entry.demos]),names.map(name=>[name,[name]]));
+});

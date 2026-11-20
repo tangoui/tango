@@ -53,9 +53,13 @@ func main() {
 
 ## 组件库
 
-组件以 Ant Design 6.7 和 Ant Design Pro v6 为设计基线实现，Element Plus 主题对照 Element Plus 2.14.8，shadcn 主题对照 shadcn/ui v4（见 [设计基线](https://github.com/tangoui/tango/blob/main/docs/design-baseline.md)）。每个组件只有一个公开入口，按通用、布局、导航、数据录入、数据展示、反馈分组。每个组件的文档和在线示例见 [组件](/components/)，静态截图见 [组件截图目录](/components/screenshots)。
+组件以 Ant Design 6.7 和 Ant Design Pro v6 为设计基线实现，Element Plus 主题对照 Element Plus 2.14.8，shadcn 主题对照 shadcn/ui v4（见 [设计基线](https://github.com/tangoui/tango/blob/main/docs/design-baseline.md)）。每个组件只有一个公开入口，按通用、布局、导航、数据录入、数据展示、反馈、AI 对话、图表和移动端分组。每个组件的文档和在线示例见 [组件](/components/)，静态截图见 [组件截图目录](/components/screenshots)。
 
 编写新组件的约定（文件命名、节点与保留状态、布局、主题令牌、绘制、焦点与输入法、浮层、测试）在仓库的 [ui/AUTHORING.md](https://github.com/tangoui/tango/blob/main/ui/AUTHORING.md)。
+
+### AI 对话组件
+
+从 [BubbleList 消息流演示](/components/catalog/bubblelist) 可以试玩消息气泡、输入框和模拟流式回复。其余组件见侧栏「AI 对话」，包括会话列表、工具调用和权限确认。这些组件只负责界面；应用自行接入模型或后端。
 
 ### 大数据量组件
 

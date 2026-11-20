@@ -1,5 +1,5 @@
 // Component groups and public names have one source of truth: AUTHORING §14.
-export const catalogGroups = ['通用','布局','导航','数据录入','数据展示','反馈','图表','移动端'];
+export const catalogGroups = ['通用','布局','导航','数据录入','数据展示','反馈','AI 对话','图表','移动端'];
 
 export function parseComponentTable(authoring) {
   const section = authoring.split('## 14.')[1]?.split(/\n## /)[0];

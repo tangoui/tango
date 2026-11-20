@@ -51,6 +51,8 @@ The page function runs once per frame on the main thread. It builds nodes and re
 
 Components use Ant Design 6.7 with Ant Design Pro v6, with variants based on Element Plus 2.14.8 and shadcn/ui v4. [Design baseline](https://github.com/tangoui/tango/blob/main/docs/design-baseline.md) · [Component guide](/components/)
 
+The [BubbleList demo](/components/catalog/bubblelist) combines message bubbles and a composer with a simulated streaming reply. Find the other chat widgets under 「AI 对话」 in the component sidebar. The widgets do not connect to a model on their own.
+
 `theme.AntDesign()` is the default. `theme.ElementPlus()` and `theme.Shadcn()` are alternatives. All support `theme.Dark()`, `theme.WithPrimary(...)` and `theme.Compact()`.
 
 ```go
