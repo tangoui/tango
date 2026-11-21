@@ -30,6 +30,7 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/corehook"
@@ -185,9 +186,13 @@ func (b *shortcut) allowedInText(ev input.KeyEvent) bool {
 // (and the tan dev host), while threaded windows match against their
 // per-frame snapshot instead (handleSnapshot).
 type shortcuts struct {
-	app   *tango.App
-	mu    sync.Mutex
-	binds []*shortcut
+	app              *tango.App
+	mu               sync.Mutex
+	binds            []*shortcut
+	contextual       []*contextShortcut
+	contextComposing atomic.Bool
+	contextEpoch     uint64
+	contextHeld      map[input.Key]bool
 
 	captureOn atomic.Bool
 	captured  map[input.Key]bool // keys begun while recording; do not fire on repeat after recording
@@ -233,6 +238,9 @@ func (t *shortcuts) remove(b *shortcut) {
 func (t *shortcuts) setText(on bool) {
 	if t != nil {
 		t.textOn.Store(on)
+		if !on {
+			t.contextComposing.Store(false)
+		}
 	}
 }
 
@@ -247,11 +255,11 @@ func (t *shortcuts) setCapture(on bool) {
 // handle matches ev against the table, runs a hit and reports whether ev
 // was consumed (must not reach the runner). Main thread, for windows whose
 // UI thread is the main thread; t may be nil.
-func (t *shortcuts) handle(ev input.Event) bool {
+func (t *shortcuts) handle(ev input.Event, contextual bool) bool {
 	if t == nil {
 		return false
 	}
-	return t.match(ev, t.captureOn.Load(), t.textOn.Load(), false)
+	return t.match(ev, t.captureOn.Load(), t.textOn.Load(), false, contextual)
 }
 
 // handleSnapshot is handle for a threaded window: the recording and
@@ -259,24 +267,37 @@ func (t *shortcuts) handle(ev input.Event) bool {
 // at most one frame old. Composition events are seen here before they are
 // queued, so a composition the snapshot does not show yet still blocks
 // shortcuts. Main thread; t may be nil.
-func (t *shortcuts) handleSnapshot(ev input.Event, st *uiSnapshot) bool {
+func (t *shortcuts) handleSnapshot(ev input.Event, st *uiSnapshot, contextual bool) bool {
 	if t == nil {
 		return false
 	}
-	return t.match(ev, st.capturing, st.editableFocus, st.composing)
+	return t.match(ev, st.capturing, st.editableFocus, st.composing, contextual)
 }
 
-func (t *shortcuts) match(ev input.Event, capture, textOn, composing bool) bool {
+func (t *shortcuts) match(ev input.Event, capture, textOn, composing, contextual bool) bool {
 	switch ev := ev.(type) {
 	case input.Composition:
 		t.composing = ev.Text != ""
+		t.contextComposing.Store(t.composing)
 	case input.TextInput:
 		t.composing = false
+		t.contextComposing.Store(false)
 	case input.WindowFocus:
 		clear(t.held) // releases may never come
 		clear(t.captured)
 		t.composing = false
+		t.contextComposing.Store(false)
+		t.resetContextKeys()
+	case input.Pointer:
+		if ev.Kind == input.Press {
+			for _, b := range t.contextBindings() {
+				b.cancelSequence()
+			}
+		}
 	case input.KeyEvent:
+		if contextual && t.contextKey(ev, capture, textOn, time.Now()) {
+			return true
+		}
 		return t.key(ev, capture, textOn, composing)
 	}
 	return false
@@ -315,6 +336,9 @@ func (t *shortcuts) key(ev input.KeyEvent, capture, textOn, composing bool) bool
 	}
 	if t.held[ev.Key] && ev.Repeat {
 		return true
+	}
+	if ev.Repeat && t.contextHeld[shortcutPhysicalKey(ev)] {
+		return false
 	}
 	if t.composing || composing || ev.Key.Modifier() != 0 {
 		return false

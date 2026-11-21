@@ -10,8 +10,9 @@ package windows
 // keys as their left/right Key, Mods already including the modifier on
 // press and excluding it on release, as on macOS; see canvasKeyFromMsg
 // for the key mapping). Keys the
-// IME consumes arrive as VK_PROCESSKEY and are not reported; a release is
-// only reported for a reported press. WM_SYSKEYDOWN/WM_SYSKEYUP (Alt held,
+// IME consumes arrive as VK_PROCESSKEY. The raw key filter can see them
+// via ImmGetVirtualKey, while the regular input path leaves them to the IME.
+// WM_SYSKEYDOWN/WM_SYSKEYUP (Alt held,
 // F10) are reported and then passed to DefWindowProc, and WM_SYSCHAR is not
 // handled, so Alt+F4, Alt+Space and menu mnemonics keep working. Menu
 // accelerators are translated by the backend's message loop before the
@@ -42,6 +43,7 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
+	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 )
@@ -121,6 +123,7 @@ var (
 	canvasSystemParametersInfo = user32.NewProc("SystemParametersInfoW")
 
 	canvasImmGetContext           = canvasIMM32.NewProc("ImmGetContext")
+	canvasImmGetVirtualKey        = canvasIMM32.NewProc("ImmGetVirtualKey")
 	canvasImmReleaseContext       = canvasIMM32.NewProc("ImmReleaseContext")
 	canvasImmGetCompositionString = canvasIMM32.NewProc("ImmGetCompositionStringW")
 	canvasImmSetCompositionWindow = canvasIMM32.NewProc("ImmSetCompositionWindow")
@@ -210,24 +213,8 @@ func (c *canvas) inputMessage(m uint32, wp, lp uintptr) (uintptr, bool) {
 		}
 		return 0, false
 
-	case canvasWmKeyDown, canvasWmSysKeyDown:
-		captured := c.capturesShortcutKey(uint16(wp))
-		if captured {
-			c.holdShortcut(uint16(wp))
-		}
-		if c.skipAltGrCtrl(m, wp, lp) {
-			return 0, m == canvasWmKeyDown || captured
-		}
-		c.key(uint16(wp), lp, true, canvasKeyRepeat(lp))
-		return 0, m == canvasWmKeyDown || captured // block Alt+F4/Space/F10 defaults while recording
-	case canvasWmKeyUp, canvasWmSysKeyUp:
-		captured := c.capturesShortcutKey(uint16(wp))
-		delete(c.shortcutHeld, uint16(wp))
-		if c.skipAltGrCtrl(m, wp, lp) {
-			return 0, m == canvasWmKeyUp || captured
-		}
-		c.key(uint16(wp), lp, false, false)
-		return 0, m == canvasWmKeyUp || captured
+	case canvasWmKeyDown, canvasWmSysKeyDown, canvasWmKeyUp, canvasWmSysKeyUp:
+		return 0, c.keyMessage(m, wp, lp, nil)
 	case canvasWmSysChar:
 		// TranslateMessage can have queued WM_SYSCHAR before dispatching
 		// the keydown that ends recording. Suppress its menu mnemonic too.
@@ -248,6 +235,8 @@ func (c *canvas) inputMessage(m uint32, wp, lp uintptr) (uintptr, bool) {
 		return 0, true
 	case canvasWmKillFocus:
 		clear(c.shortcutHeld)
+		clear(c.downKeys)
+		clear(c.imeKeys)
 		c.hasFocus = false
 		c.altGr = false
 		c.chars = canvasCharDecoder{}
@@ -500,36 +489,94 @@ func (c *canvas) wheel(horizontal bool, wp, lp uintptr) {
 
 // ---- keyboard ----
 
-// key reports a key message. downKeys holds canvasHeldID records of the
-// reported presses: a release (and an auto-repeat) is reported with the
-// Key and Code of the press, even when NumLock was toggled while a keypad
-// key was held and the message now carries the other form.
-func (c *canvas) key(vk uint16, lp uintptr, down, repeat bool) {
+// keyMessage runs character translation only after a key was offered to
+// the filter. The native menu and recorder checks precede this in dispatch.
+func (c *canvas) keyMessage(m uint32, wp, lp uintptr, translate func()) bool {
+	const vkProcessKey = 0xE5
+	vk := uint16(wp)
+	down := m == canvasWmKeyDown || m == canvasWmSysKeyDown
+	captured := c.capturesShortcutKey(vk)
+	if !down {
+		delete(c.shortcutHeld, vk)
+	} else if captured {
+		c.holdShortcut(vk)
+	}
+	handled := captured || m == canvasWmKeyDown || m == canvasWmKeyUp
+	var ev input.KeyEvent
+	scan := lp & 0x01FF0000
+	rawVK := c.imeKeys[scan]
+	imeOnly := rawVK != 0
+	if !down {
+		delete(c.imeKeys, scan)
+	}
+	if !c.skipAltGrCtrl(m, wp, lp) {
+		if vk == vkProcessKey && !captured {
+			if rawVK == 0 && down {
+				original, _, _ := canvasImmGetVirtualKey.Call(c.hwnd)
+				rawVK = uint16(original)
+				if rawVK != 0 && rawVK != vkProcessKey {
+					if c.imeKeys == nil {
+						c.imeKeys = make(map[uintptr]uint16)
+					}
+					c.imeKeys[scan] = rawVK
+				}
+			}
+			imeOnly = true
+			vk = rawVK
+		}
+		ev = c.key(vk, lp, down, down && canvasKeyRepeat(lp))
+		if c.ready && !c.closed && (ev.Key != 0 || ev.Code != 0) {
+			c.sinkDepth++
+			consumed := platform.FilterCanvasKey(c.sink, ev)
+			c.sinkDepth--
+			if consumed || c.closed {
+				return true
+			}
+		}
+	}
+	if !captured && translate != nil {
+		translate()
+	}
+	if !imeOnly && (ev.Key != 0 || ev.Code != 0) {
+		c.deliverKey(ev, false)
+	}
+	return handled
+}
+
+// key records a key message and pairs its physical release and repeat with
+// the original Key and Code, even if NumLock changed while held.
+func (c *canvas) key(vk uint16, lp uintptr, down, repeat bool) input.KeyEvent {
 	k, code := canvasKeyFromMsg(vk, lp)
-	if k == input.KeyUnknown && code == 0 {
-		return
+	if k == 0 && code == 0 {
+		return input.KeyEvent{}
 	}
 	mods := c.keyMods()
 	if k.Modifier() != 0 {
 		if repeat {
-			return // a held modifier auto-repeats; reported once
+			return input.KeyEvent{} // report a held modifier once
 		}
 		mods = canvasModifierEventMods(k, down, mods, keyDown(canvasOtherSideVK(k)))
 	}
 	id, held := canvasHeldFind(c.downKeys, k, code)
-	if down {
-		if held {
-			k, code = canvasHeldKey(id)
-		} else {
-			c.downKeys[canvasHeldID(k, code)] = true
-		}
-		c.input(input.KeyEvent{Key: k, Code: code, Down: true, Repeat: repeat, Mods: mods})
-		return
-	}
-	if held {
-		delete(c.downKeys, id)
+	switch {
+	case held:
 		k, code = canvasHeldKey(id)
-		c.input(input.KeyEvent{Key: k, Code: code, Down: false, Mods: mods})
+		if !down {
+			delete(c.downKeys, id)
+		}
+	case down:
+		c.downKeys[canvasHeldID(k, code)] = true
+	default:
+		return input.KeyEvent{}
+	}
+	return input.KeyEvent{Key: k, Code: code, Down: down, Repeat: repeat, Mods: mods}
+}
+
+func (c *canvas) deliverKey(ev input.KeyEvent, synthetic bool) {
+	if c.ready && !c.closed {
+		c.sinkDepth++
+		platform.DeliverCanvasKey(c.sink, ev, synthetic)
+		c.sinkDepth--
 	}
 }
 

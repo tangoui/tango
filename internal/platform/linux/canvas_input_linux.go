@@ -22,6 +22,7 @@ package linux
 import (
 	"unsafe"
 
+	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 )
@@ -162,16 +163,27 @@ func (c *canvas) onKey(ev ptr, press bool) ptr {
 	if c.closed {
 		return 0
 	}
-	if !c.shortcutCapture && !c.shortcutHeld[canvasEvU16(ev, canvasEvKeyHWCode)] && c.textOn && c.im != 0 && canvasFFI.imFilterKeypress(c.im, ev) {
-		return 1 // the input method used it
-	}
 	state := canvasEvU32(ev, canvasEvKeyState)
 	keyval := canvasEvU32(ev, canvasEvKeyKeyval)
 	hw := canvasEvU16(ev, canvasEvKeyHWCode)
+	k, code := canvasKey(keyval, hw)
+	if k == input.KeyUnknown && code == 0 && canvasNeedsLatinFallback(keyval) {
+		k = c.latinKey(ev, state)
+	}
+	consumed, consumedPress := c.filterKey(hw, state, k, code, press)
+	if consumed {
+		id, held := canvasHeldFind(c.downKeys, k, code)
+		if !press && held {
+			delete(c.downKeys, id)
+		}
+		return 1
+	}
+	if !c.shortcutCapture && !c.shortcutHeld[hw] && c.textOn && c.im != 0 && canvasFFI.imFilterKeypress(c.im, ev) {
+		return 1 // the input method used it
+	}
 	if m, ok := canvasModifierKeyMods(keyval, state, press); ok {
 		// Modifier keys are reported once per press (no auto-repeat) and
 		// not consumed, so GTK keeps tracking them.
-		k, _ := canvasKey(keyval, hw)
 		if k.Modifier() == 0 || press == c.downKeys[k] {
 			return 0
 		}
@@ -181,12 +193,8 @@ func (c *canvas) onKey(ev ptr, press bool) ptr {
 		} else {
 			delete(c.downKeys, k)
 		}
-		c.input(input.KeyEvent{Key: k, Down: press, Mods: m})
+		c.deliverKey(input.KeyEvent{Key: k, Down: press, Mods: m}, false)
 		return 0
-	}
-	k, code := canvasKey(keyval, hw)
-	if k == input.KeyUnknown && code == 0 && canvasNeedsLatinFallback(keyval) {
-		k = c.latinKey(ev, state)
 	}
 	if k == input.KeyUnknown && code == 0 {
 		return 0
@@ -203,16 +211,74 @@ func (c *canvas) onKey(ev ptr, press bool) ptr {
 		} else {
 			c.downKeys[canvasHeldID(k, code)] = true
 		}
-		c.input(input.KeyEvent{Key: k, Code: code, Down: true, Repeat: held, Mods: mods})
+		c.deliverKey(input.KeyEvent{Key: k, Code: code, Down: true, Repeat: held || consumedPress, Mods: mods}, false)
 		return 1
 	}
-	if !held {
+	if !held && !consumedPress {
 		return 0
 	}
-	delete(c.downKeys, id)
-	k, code = canvasHeldKey(id)
-	c.input(input.KeyEvent{Key: k, Code: code, Down: false, Mods: mods})
+	if held {
+		delete(c.downKeys, id)
+		k, code = canvasHeldKey(id)
+	}
+	c.deliverKey(input.KeyEvent{Key: k, Code: code, Mods: mods}, false)
 	return 1
+}
+
+// filterKey tracks hardware state independently of what GTK's IM context
+// forwards to the canvas. A consumed press still has a physical release.
+type canvasRawKey struct {
+	event    input.KeyEvent
+	consumed bool
+}
+
+func (c *canvas) filterKey(hw uint16, state uint32, k, code input.Key, press bool) (consumed, consumedPress bool) {
+	if !c.ready || c.closed {
+		return false, false
+	}
+	if _, ok := c.sink.(platform.CanvasKeySink); !ok {
+		return false, false
+	}
+	raw, held := c.rawKeys[hw]
+	ev := raw.event
+	if !held {
+		ev = input.KeyEvent{Key: k, Code: code}
+	}
+	ev.Down, ev.Repeat, ev.Mods = press, press && held, canvasMods(state)
+	if ev.Key.Modifier() != 0 {
+		if press == held {
+			return false, false
+		}
+		other := canvasOtherSide(ev.Key)
+		otherDown := false
+		for _, raw := range c.rawKeys {
+			otherDown = otherDown || raw.event.Key == other
+		}
+		ev.Mods = canvasModifierEventMods(ev.Key, press, ev.Mods, otherDown)
+	}
+	if press {
+		if c.rawKeys == nil {
+			c.rawKeys = make(map[uint16]canvasRawKey)
+		}
+		raw.event = ev
+		c.rawKeys[hw] = raw
+	} else {
+		delete(c.rawKeys, hw)
+	}
+	consumed = platform.FilterCanvasKey(c.sink, ev)
+	if consumed && press {
+		if _, stillHeld := c.rawKeys[hw]; stillHeld {
+			raw.consumed = true
+			c.rawKeys[hw] = raw
+		}
+	}
+	return consumed, raw.consumed
+}
+
+func (c *canvas) deliverKey(ev input.KeyEvent, synthetic bool) {
+	if c.ready && !c.closed {
+		platform.DeliverCanvasKey(c.sink, ev, synthetic)
+	}
 }
 
 // latinKey re-translates a non-Latin key (Cyrillic, Greek ...) in keyboard
@@ -241,7 +307,7 @@ func (c *canvas) releaseKeys() {
 	for id := range c.downKeys {
 		delete(c.downKeys, id)
 		k, code := canvasHeldKey(id)
-		c.input(input.KeyEvent{Key: k, Code: code, Down: false})
+		c.deliverKey(input.KeyEvent{Key: k, Code: code}, true)
 	}
 }
 
@@ -263,6 +329,7 @@ func (c *canvas) focusMaybeChanged() {
 	}
 	f := canvasFFI.widgetHasFocus(c.widget)
 	if !f {
+		clear(c.rawKeys)
 		clear(c.shortcutHeld)
 	}
 	c.syncIMFocus(f)

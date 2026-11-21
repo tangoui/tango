@@ -28,6 +28,7 @@ pkg github.com/tangoui/tango/uihost, func Persist(any)
 pkg github.com/tangoui/tango/uihost, func Renderer(*ui.Runner) string
 pkg github.com/tangoui/tango/uihost, func Shortcut(*tango.Surface, string, func()) (func(), error)
 pkg github.com/tangoui/tango/uihost, func ShortcutWith(*tango.Surface, string, ShortcutOptions, func()) (func(), error)
+pkg github.com/tangoui/tango/uihost, func ShortcutWithContext(*tango.Surface, string, ShortcutContextOptions, func(ShortcutContext) bool) (func(), error)
 pkg github.com/tangoui/tango/uihost, func SystemHighContrast(*tango.App) (bool, bool)
 pkg github.com/tangoui/tango/uihost, func WebView(*ui.Context, string, WebViewOptions, ...ui/layout.Option) *WebViewW
 pkg github.com/tangoui/tango/uihost, method (*Attached) Detach()
@@ -63,6 +64,13 @@ pkg github.com/tangoui/tango/uihost, type Options struct, Locale LocaleMode
 pkg github.com/tangoui/tango/uihost, type Options struct, Surface tango.SurfaceOptions
 pkg github.com/tangoui/tango/uihost, type Options struct, Theme ThemeMode
 pkg github.com/tangoui/tango/uihost, type Options struct, noncomparable
+pkg github.com/tangoui/tango/uihost, type ShortcutContext struct
+pkg github.com/tangoui/tango/uihost, type ShortcutContext struct, Composing bool
+pkg github.com/tangoui/tango/uihost, type ShortcutContext struct, Event ui/input.KeyEvent
+pkg github.com/tangoui/tango/uihost, type ShortcutContext struct, Prefix bool
+pkg github.com/tangoui/tango/uihost, type ShortcutContext struct, TextInput bool
+pkg github.com/tangoui/tango/uihost, type ShortcutContextOptions struct
+pkg github.com/tangoui/tango/uihost, type ShortcutContextOptions struct, Timeout time.Duration
 pkg github.com/tangoui/tango/uihost, type ShortcutOptions struct
 pkg github.com/tangoui/tango/uihost, type ShortcutOptions struct, InTextInput bool
 pkg github.com/tangoui/tango/uihost, type ThemeMode int

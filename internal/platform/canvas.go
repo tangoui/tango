@@ -498,3 +498,25 @@ type CanvasAccessibleSink interface {
 type CanvasShortcutCapture interface {
 	SetShortcutCapture(on bool)
 }
+
+// CanvasKeySink is the optional synchronous key filter of a canvas sink.
+// Backends call it after native menu handling, before translating a key to
+// text. Any key events subsequently emitted for that hardware event go
+// through CanvasKeyInput, so the filter is not called twice.
+type CanvasKeySink interface {
+	CanvasFilterKey(input.KeyEvent) bool
+	CanvasKeyInput(ev input.KeyEvent, synthetic bool)
+}
+
+func FilterCanvasKey(sink CanvasSink, ev input.KeyEvent) bool {
+	keys, ok := sink.(CanvasKeySink)
+	return ok && keys.CanvasFilterKey(ev)
+}
+
+func DeliverCanvasKey(sink CanvasSink, ev input.KeyEvent, synthetic bool) {
+	if keys, ok := sink.(CanvasKeySink); ok {
+		keys.CanvasKeyInput(ev, synthetic)
+	} else {
+		sink.CanvasInput(ev)
+	}
+}

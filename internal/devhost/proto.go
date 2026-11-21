@@ -191,8 +191,9 @@ type Opened struct {
 
 // Input delivers an input event.
 type Input struct {
-	Win int
-	Ev  input.Event
+	Win          int
+	Ev           input.Event
+	SyntheticKey bool
 }
 
 // Focus reports a key-focus change.
