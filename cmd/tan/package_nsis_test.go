@@ -397,3 +397,70 @@ func TestCachedMakensis(t *testing.T) {
 		t.Error("install hints")
 	}
 }
+
+// An interrupted install leaves nsis-<version>.partial beside its
+// directory: the next run must not trust that directory's makensis.exe,
+// and an archive without makensis.exe keeps the marker so it retries.
+func TestCachedMakensisPartialInstall(t *testing.T) {
+	root := "nsis-" + nsisVersion
+	good := nsisTestZip(t, map[string]string{root + "/makensis.exe": "MZstub"})
+	broken := nsisTestZip(t, map[string]string{root + "/readme.txt": "no makensis"})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/nsis.zip":
+			w.Write(good)
+		case "/broken.zip":
+			w.Write(broken)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	sum := func(b []byte) string { s := sha256.Sum256(b); return hex.EncodeToString(s[:]) }
+	set := func(url, s string) {
+		oldURL, oldSum := nsisURL, nsisSum
+		nsisURL, nsisSum = url, s
+		t.Cleanup(func() { nsisURL, nsisSum = oldURL, oldSum })
+	}
+	ctx := context.Background()
+	dir := t.TempDir()
+	marker := filepath.Join(dir, root+".partial")
+	exe := filepath.Join(dir, root, "makensis.exe")
+
+	if err := os.MkdirAll(filepath.Dir(exe), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(exe, []byte("half"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(marker, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	set(srv.URL+"/nsis.zip", sum(good))
+	got, err := cachedMakensis(ctx, srv.Client(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(got); got != exe || string(b) != "MZstub" {
+		t.Fatalf("makensis %s %q, want %s %q", got, b, exe, "MZstub")
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("partial marker remains: %v", err)
+	}
+
+	broke := t.TempDir()
+	set(srv.URL+"/broken.zip", sum(broken))
+	if _, err := cachedMakensis(ctx, srv.Client(), broke); err == nil || !strings.Contains(err.Error(), "makensis.exe") {
+		t.Fatalf("archive without makensis: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(broke, root+".partial")); err != nil {
+		t.Fatalf("failed install lost its partial marker: %v", err)
+	}
+	set(srv.URL+"/nsis.zip", sum(good))
+	if got, err := cachedMakensis(ctx, srv.Client(), broke); err != nil || got != filepath.Join(broke, root, "makensis.exe") {
+		t.Fatalf("retry after failed install: %s, %v", got, err)
+	}
+	if _, err := os.Stat(filepath.Join(broke, root+".partial")); !os.IsNotExist(err) {
+		t.Fatalf("partial marker remains after retry: %v", err)
+	}
+}

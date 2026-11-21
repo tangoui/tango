@@ -58,12 +58,19 @@ func findMakensis(ctx context.Context) (string, error) {
 }
 
 // cachedMakensis returns <dir>/nsis-<version>/makensis.exe, downloading
-// and unpacking nsisURL first when it is missing.
+// and unpacking nsisURL first when it is missing or unfinished.
 func cachedMakensis(ctx context.Context, client *http.Client, dir string) (string, error) {
 	root := filepath.Join(dir, "nsis-"+nsisVersion)
 	exe := filepath.Join(root, "makensis.exe")
-	if _, err := os.Stat(exe); err == nil {
-		return exe, nil
+	// The marker exists while root is being unpacked. Unpacking in place
+	// avoids renaming a directory that a Windows scanner may hold open.
+	partial := root + ".partial"
+	if _, err := os.Stat(partial); os.IsNotExist(err) {
+		if _, err := os.Stat(exe); err == nil {
+			return exe, nil
+		}
+	} else if err != nil {
+		return "", err
 	}
 	logf("Downloading NSIS %s (makensis is not on PATH)", nsisVersion)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -74,22 +81,19 @@ func cachedMakensis(ctx context.Context, client *http.Client, dir string) (strin
 		return "", fmt.Errorf("download NSIS: %w", err)
 	}
 	defer os.Remove(zipFile)
-	// Unpack beside the final directory and rename, so an interrupted run
-	// never leaves a half-unpacked NSIS behind.
-	tmp, err := os.MkdirTemp(dir, "unpack-*")
-	if err != nil {
+	if err := os.WriteFile(partial, nil, 0o644); err != nil {
 		return "", err
 	}
-	defer os.RemoveAll(tmp)
-	if err := unzipTo(zipFile, tmp); err != nil {
+	if err := os.RemoveAll(root); err != nil {
+		return "", err
+	}
+	if err := unzipTo(zipFile, dir); err != nil {
 		return "", fmt.Errorf("unpack NSIS: %w", err)
 	}
-	unpacked := filepath.Join(tmp, "nsis-"+nsisVersion)
-	if _, err := os.Stat(filepath.Join(unpacked, "makensis.exe")); err != nil {
+	if _, err := os.Stat(exe); err != nil {
 		return "", fmt.Errorf("unpack NSIS: no nsis-%s/makensis.exe in the zip", nsisVersion)
 	}
-	os.RemoveAll(root)
-	if err := os.Rename(unpacked, root); err != nil {
+	if err := os.Remove(partial); err != nil {
 		return "", err
 	}
 	return exe, nil
