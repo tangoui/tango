@@ -130,6 +130,7 @@ type surfaceExt struct {
 
 	lastState    platform.WindowState
 	lastX, lastY int
+	webNavID     uint64
 	navURL       string  // main-frame navigation in progress
 	zoom         float64 // arm64: CSS zoom factor (0 = 1)
 }
@@ -765,8 +766,13 @@ func (s *surface) navigationStarting(_, args uintptr) {
 	if !s.allowNavigation(args, uri) { // WebHost.ShouldNavigate (webview_ext_windows.go)
 		return
 	}
-	s.ext.navURL = uri
-	s.event(platform.SurfaceEvent{Kind: platform.SurfaceNavigating, URL: uri})
+	nav, _ := comOut[uint64](args, navStartingGetNavigationID)
+	newLoad := s.ext.webNavID != nav || s.ext.navURL == ""
+	s.ext.webNavID, s.ext.navURL = nav, uri
+	s.webNavigation(nav, platform.WebNavigationStarted, uri, "")
+	if newLoad {
+		s.event(platform.SurfaceEvent{Kind: platform.SurfaceNavigating, URL: uri})
+	}
 }
 
 // navigationFailed reports a failed main-frame navigation; one canceled
@@ -774,14 +780,17 @@ func (s *surface) navigationStarting(_, args uintptr) {
 func (s *surface) navigationFailed(args uintptr) {
 	var status int32
 	comCall(args, navCompletedGetWebErrorStatus, uintptr(unsafe.Pointer(&status)))
+	u := s.ext.navURL
+	reason := "web error status " + strconv.Itoa(int(status))
+	s.ext.navURL = ""
+	s.webNavigation(s.ext.webNavID, platform.WebNavigationFailed, u, reason)
 	if status == webErrorStatusOperationCanceled {
 		return
 	}
-	u := s.ext.navURL
 	if u == "" {
 		u = comString(s.webview, wvGetSource)
 	}
-	s.event(platform.SurfaceEvent{Kind: platform.SurfaceLoadFailed, URL: u, Error: "web error status " + strconv.Itoa(int(status))})
+	s.event(platform.SurfaceEvent{Kind: platform.SurfaceLoadFailed, URL: u, Error: reason})
 }
 
 // navigationSucceeded runs before SurfaceLoaded is reported.

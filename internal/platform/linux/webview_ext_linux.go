@@ -191,6 +191,7 @@ var wv struct {
 }
 
 func bindWebExt() {
+	bindWebHistory()
 	var bd binder
 	g, o, t, w := libGLib, libGObject, libGTK, libWebKit
 	soup := []ptr{libSoup, w}
@@ -452,6 +453,7 @@ func (s *surface) initWebExt() {
 func (s *surface) onLoadInterrupted(a [7]uintptr) uintptr {
 	if gerr := a[3]; gerr != 0 {
 		if d, c := gErrorCode(gerr); d == wv.policyErrQuark() && c == wkPolicyErrorInterrupted {
+			s.webNavigation(platform.WebNavigationFailed, goStr(a[2]), "navigation interrupted")
 			return 1
 		}
 	}

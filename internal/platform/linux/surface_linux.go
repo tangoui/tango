@@ -23,8 +23,9 @@ const (
 )
 
 type surface struct {
-	b  *backend
-	id platform.SurfaceID
+	webNavID uint64
+	b        *backend
+	id       platform.SurfaceID
 
 	win, box, web, ucm ptr     // web, ucm: 0 for a canvas surface
 	content            ptr     // the content widget: web, or the canvas widget
@@ -127,6 +128,7 @@ func (s *surface) createWeb(o platform.SurfaceOptions) error {
 func (s *surface) wireWeb() {
 	connect(s.web, "load-changed", 1, s.onLoadChanged)
 	s.initWebExt() // webview_ext_linux.go; before initExt and the first load
+	s.observePageState()
 }
 
 // releaseWeb drops what createWeb set up besides the widget itself
@@ -288,10 +290,17 @@ func (s *surface) onLoadChanged(_, event ptr) ptr {
 		// here to the commit the old document is still running while the
 		// view's URI may already be the new one.
 		s.installScript(s.gate.started())
+		s.webNavID++
+		s.webNavigation(platform.WebNavigationStarted, "", "")
 	case webkitLoadCommitted:
 		s.gate.committed(goStr(webkitWebViewGetURI(s.web)))
+		s.webNavigation(platform.WebNavigationCommitted, "", "")
 	case webkitLoadFinished:
 		s.gate.finished()
+		s.webNavigation(platform.WebNavigationFinished, "", "")
+		if s.closed {
+			return 0
+		}
 		s.b.host.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceLoaded, URL: goStr(webkitWebViewGetURI(s.web))})
 	}
 	return 0

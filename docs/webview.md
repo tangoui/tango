@@ -124,3 +124,23 @@ app.SetNavigationPolicy(func(s *tango.Surface, n tango.NavigationRequest) bool {
 `examples/webview-demo -smoke` 依次检查：创建时与运行时 UA、资源请求额外头、页内查找计数/上一个/下一个/区分大小写/无匹配、`window.open` 与 `target=_blank` 被拦截并回调、导航策略取消外部跳转（应用设置了策略时由策略决定）、资源 origin 下载与 http 下载（WKDownload）到临时目录、下载后页面仍可通信、Cookie 设置/读取/删除/页面写入后 Go 可见/按域清除、清除缓存与存储、权限回调（getUserMedia，拒绝后页面收到 `NotAllowedError`）、Basic 认证、打印 PDF 与截图写文件。
 
 没有摄像头的机器上 WebKit 不会发起权限请求，所以冒烟程序在 macOS 上用 WebKit 的私有测试开关（模拟采集设备）触发它，这只在示例里，框架代码不使用私有开关。
+
+### 主框架导航
+
+`Surface.OnWebNavigation` 在主线程报告开始、提交、完成、失败及页面状态变化。
+重定向沿用同一 ID。片段跳转和 SPA 历史更新沿用当前 ID，通过
+`WebPageChanged` 报告 URL 或历史变化。标题由原生 WebView 提供。
+`Surface.WebNavigation()` 返回最近的加载阶段和最新的元数据，可用于在
+`uihost.WebViewOptions.Created` 中初始化地址栏和前进后退按钮。
+
+```go
+s.OnWebNavigation(func(ev tango.WebNavigationEvent) {
+    updateAddressBar(ev.URL, ev.Title, ev.CanGoBack, ev.CanGoForward)
+})
+state := s.WebNavigation()
+updateAddressBar(state.URL, state.Title, state.CanGoBack, state.CanGoForward)
+ok, err := s.GoBack()
+```
+
+`GoBack` 和 `GoForward` 调用原生历史栈。返回 `false, nil` 表示当前方向
+没有历史项。macOS、Windows 和 Linux 支持上述接口。

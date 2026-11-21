@@ -158,6 +158,7 @@ func (b *backend) NewSurfaceWeb(sid platform.SurfaceID, opts platform.SurfaceOpt
 func (s *surface) initWebExt() {
 	loadWebExt()
 	send(s.web, "setUIDelegate:", uintptr(s.delegate))
+	s.observePageState(true)
 	if w := pendingWeb; w != nil && w.UserAgent != "" {
 		send(s.web, "setCustomUserAgent:", uintptr(nsString(w.UserAgent)))
 	}
@@ -166,6 +167,7 @@ func (s *surface) initWebExt() {
 // destroyWebExt runs from destroy.
 func (s *surface) destroyWebExt() {
 	if s.web != 0 {
+		s.observePageState(false)
 		send(s.web, "setUIDelegate:", 0)
 	}
 	delete(webExts, s)

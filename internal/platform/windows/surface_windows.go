@@ -244,6 +244,7 @@ func (s *surface) setUp(controller uintptr) {
 
 	addWebViewEvent(s.webview, wvAddNavigationStarting, s.navigationStarting)
 	addWebViewEvent(s.webview, wvAddNavigationCompleted, s.navigationCompleted)
+	s.initWebNavigation()
 	addWebViewEvent(s.webview, wvAddWebMessageReceived, s.webMessageReceived)
 	addWebViewEvent(s.webview, wvAddWebResourceRequested, s.webResourceRequested)
 	comCall(s.webview, wvAddWebResourceRequestedFilter, uintptr(unsafe.Pointer(u16(assetOrigin+"/*"))), webResourceContextAll)
@@ -295,7 +296,15 @@ func (s *surface) navigate(url string) {
 }
 
 func (s *surface) navigationCompleted(_, args uintptr) {
-	if s.closed || s.canceledNavigation(args) {
+	if s.closed {
+		return
+	}
+	nav, _ := comOut[uint64](args, navCompletedGetNavigationID)
+	if s.canceledNavigation(args) {
+		s.webNavigation(nav, platform.WebNavigationFailed, s.ext.navURL, "navigation blocked")
+		return
+	}
+	if nav != s.ext.webNavID {
 		return
 	}
 	if ok, _ := comOut[int32](args, navCompletedGetIsSuccess); ok == 0 {
@@ -303,6 +312,10 @@ func (s *surface) navigationCompleted(_, args uintptr) {
 		return
 	}
 	s.navigationSucceeded()
+	s.webNavigation(nav, platform.WebNavigationFinished, "", "")
+	if s.closed {
+		return
+	}
 	s.b.h.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceLoaded, URL: comString(s.webview, wvGetSource)})
 }
 

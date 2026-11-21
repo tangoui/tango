@@ -431,7 +431,11 @@ func registerWindowClasses() {
 		onNotify("windowDidBecomeKey:", focusChanged(platform.SurfaceFocused)),
 		onNotify("windowDidResignKey:", focusChanged(platform.SurfaceBlurred)),
 		// WKNavigationDelegate
-		onSurface("webView:didFinishNavigation:", func(s *surface, _ id) {
+		onSurface("webView:didFinishNavigation:", func(s *surface, nav id) {
+			s.webNavigation(nav, platform.WebNavigationFinished, "", "")
+			if s.closed {
+				return
+			}
 			s.b.h.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceLoaded, URL: s.url()})
 		}),
 		// WKScriptMessageHandler
