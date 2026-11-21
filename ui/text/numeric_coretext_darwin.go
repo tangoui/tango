@@ -284,7 +284,7 @@ func numericFaceFor(st Style, lang string, version int) (numericFaceValue, bool)
 	if v, ok := numericFaces[k]; ok {
 		return v, v.face != nil
 	}
-	chain := reg.chain(st.Mono)
+	chain := reg.chainFor(st)
 	var buf [1]*fontmap
 	fm := newFontmaps([]runStyle{{st: st, chain: chain, lang: lang}}, Options{NoWrap: true}, &buf)[0]
 	var face *Face

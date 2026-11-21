@@ -550,8 +550,12 @@ func (c *canvas) editCommand(cmd string) {
 	if !ok || c.closed {
 		return
 	}
-	c.deliverKey(input.KeyEvent{Key: k, Down: true, Mods: m}, true)
-	c.deliverKey(input.KeyEvent{Key: k, Mods: m}, true)
+	code := input.KeyUnknown
+	if cmd == "Paste" {
+		code = input.KeyPaste
+	}
+	c.deliverKey(input.KeyEvent{Key: k, Code: code, Down: true, Mods: m}, true)
+	c.deliverKey(input.KeyEvent{Key: k, Code: code, Mods: m}, true)
 }
 
 // SetCursor implements platform.Canvas. Main thread.

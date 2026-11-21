@@ -103,6 +103,7 @@ pkg github.com/tangoui/tango/ui/input, const KeyO Key = 33
 pkg github.com/tangoui/tango/ui/input, const KeyP Key = 34
 pkg github.com/tangoui/tango/ui/input, const KeyPageDown Key = 13
 pkg github.com/tangoui/tango/ui/input, const KeyPageUp Key = 12
+pkg github.com/tangoui/tango/ui/input, const KeyPaste Key = 102
 pkg github.com/tangoui/tango/ui/input, const KeyPeriod Key = 79
 pkg github.com/tangoui/tango/ui/input, const KeyQ Key = 35
 pkg github.com/tangoui/tango/ui/input, const KeyQuote Key = 77

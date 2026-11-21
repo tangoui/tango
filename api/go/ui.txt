@@ -779,6 +779,7 @@ pkg github.com/tangoui/tango/ui, method (*Box) Body(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*Box) Border(float32, ui/theme.Color) *Box
 pkg github.com/tangoui/tango/ui, method (*Box) Clicked() bool
 pkg github.com/tangoui/tango/ui, method (*Box) Clip() *Box
+pkg github.com/tangoui/tango/ui, method (*Box) Cursor(ui/input.Cursor) *Box
 pkg github.com/tangoui/tango/ui, method (*Box) DashedBorder(float32, ui/theme.Color) *Box
 pkg github.com/tangoui/tango/ui, method (*Box) Focusable(ui/input.Cursor) Interaction
 pkg github.com/tangoui/tango/ui, method (*Box) Hovered() bool
@@ -1215,6 +1216,7 @@ pkg github.com/tangoui/tango/ui, method (*Context) PointerMods() ui/input.Modifi
 pkg github.com/tangoui/tango/ui, method (*Context) PointerTaken(ID) (ui/geom.Point, bool)
 pkg github.com/tangoui/tango/ui, method (*Context) PressCount() int
 pkg github.com/tangoui/tango/ui, method (*Context) PressMods() ui/input.Modifiers
+pkg github.com/tangoui/tango/ui, method (*Context) PressPos() ui/geom.Point
 pkg github.com/tangoui/tango/ui, method (*Context) PressedOutside(...ID) bool
 pkg github.com/tangoui/tango/ui, method (*Context) RectOf(ID) (ui/geom.Rect, bool)
 pkg github.com/tangoui/tango/ui, method (*Context) ReduceMotion() bool

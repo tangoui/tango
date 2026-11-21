@@ -18,7 +18,7 @@ func coreTextShape(s string, st Style, opt Options) *Layout {
 			return nil
 		}
 	}
-	if os.Getenv("TANGO_TEXT_ENGINE") != "coretext" || opt.Ellipsis || opt.MaxLines != 0 || !opt.NoWrap || opt.Direction == DirRTL || st.Italic {
+	if os.Getenv("TANGO_TEXT_ENGINE") != "coretext" || opt.Ellipsis || opt.MaxLines != 0 || !opt.NoWrap || opt.Direction == DirRTL || st.Italic || st.FontFamily != "" {
 		return nil
 	}
 	if s == "" || len([]rune(s)) < 2 {

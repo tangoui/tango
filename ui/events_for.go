@@ -28,6 +28,10 @@ func (c *Context) EventsFor(id ID) []input.Event {
 // (Shift+click to extend a selection, Alt+click for a column cursor).
 func (c *Context) PressMods() input.Modifiers { return c.pressMods }
 
+// PressPos returns the position of the latest primary press, even if
+// more pointer events followed it in the same frame.
+func (c *Context) PressPos() geom.Point { return c.pressPos }
+
 // PointerMods returns the modifiers held at the latest pointer event (move,
 // press, release, wheel) or key event, whichever came last. Unlike
 // PressMods it follows modifier changes during a drag, so a drag source can

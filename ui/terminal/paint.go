@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/paint"
@@ -25,9 +26,8 @@ import (
 // their cells. Inverse swaps the colors, Faint halves the foreground's
 // alpha, Invisible draws no text, Underline and Strike are 1px lines at
 // the bottom and the middle of the cells; Blink draws as normal text (M1).
-// The cursor is a block (the character redrawn in CursorText on it) while
-// the view has focus, a hollow box otherwise, and is not drawn while the
-// program hides it; it does not blink (M1).
+// The focused cursor uses the requested shape and blink interval. An
+// unfocused block is hollow. The program can hide the caret.
 //
 // Redraw hints (declareDamage): the view damages the rows TakeDirty
 // reports, shifts its pixels with Box.ScrollShift by the rows TakeScroll
@@ -125,6 +125,8 @@ type cursorKey struct {
 	shown, focused bool
 	comp           string
 	compCur        int
+	shape          CursorShape
+	blinkHidden    bool
 }
 
 // damageRec is what the last paint drew, for the redraw hints.
@@ -140,6 +142,9 @@ type damageRec struct {
 	bar      geom.Rect
 	exited   bool
 	viewRows int
+	echo     echoPreview
+	link     LinkHit
+	firstRow int
 }
 
 // schemeFrom returns the scheme this frame: ViewW.Scheme or the token's.
@@ -166,15 +171,17 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	if win := c.Window(); win != nil && win.Scale() > 0 {
 		scale = win.Scale()
 	}
-	m := vs.metricsFor(px, scale)
+	m := vs.metricsFor(px, scale, w.fontFamily)
 	cols, rows := max(int(r.W/m.cellW), 2), max(int(r.H/m.lineH), 1)
 	w.sizeTo(cols, rows, m)
 	vs.cache.fit(2 * cols * rows)
 	exited, _ := w.t.Exited()
 	focused := w.ia.Focused && c.WindowFocused()
 
+	var links []effect
 	if !w.done {
 		w.readPaste() // the clipboard is read outside the emulator lock
+		links = w.linkInput(vs.pend, r)
 	}
 	v := w.t.Lock()
 	s := v.Screen()
@@ -182,7 +189,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	dirty, all := v.TakeDirty()
 	dirty = append(vs.dirty[:0], dirty...) // TakeDirty reuses its slice
 	vs.trackEviction(s)
-	out := w.applyInput(v, r)
+	out := append(links, w.applyInput(v, r)...)
 	vs.trackEviction(s)
 	// Input may have scrolled the viewport or written to the screen
 	// (Cmd+K): take those changes too.
@@ -193,11 +200,27 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	dirty = append(dirty, d2...)
 	all = all || all2
 	vs.dirty = dirty
+	var echo echoPreview
+	if w.t.echoEnabled {
+		w.t.dropStaleEcho()
+		if !focused || exited || vs.comp != "" {
+			w.t.echo = echoState{}
+		} else {
+			var remaining time.Duration
+			echo, remaining = w.t.echo.preview(v, time.Now())
+			if remaining > 0 {
+				c.WakeAt(c.Now().Add(remaining))
+			}
+		}
+	}
+	snap := v.Snapshot()
 	w.t.Unlock()
-	snap := w.t.Snapshot()
+	w.t.perf.snapshotBytes.Store(uint64(snapshotBytes(snap)))
 
 	f := &frame{l: l, r: r, m: m, sch: &sch, styles: snap.Styles()}
-	if sch.Selection.A == 255 {
+	if sch.SelectionForeground.A != 0 {
+		f.selFg = sch.SelectionForeground
+	} else if sch.Selection.A == 255 {
 		f.selFg = sch.Foreground
 	}
 	l.Fill(r, geom.Radii{}, sch.Background)
@@ -213,7 +236,9 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		key := rowCacheKey{id: snap.Rows[y].ID, version: snap.Rows[y].Version, cols: snap.Cols, metrics: m, scheme: sch, selLo: lo, selHi: hi}
 		w.paintRow(f, line, top, lo, hi, key)
 	}
-	cur := w.paintCursor(f, &snap, focused)
+	first := int(snap.Evicted()) + snap.ScrollbackLen() - snap.ViewOffset()
+	link := w.hoverLink(f, first, vrows, snap.Cols)
+	cur := w.paintCursor(f, &snap, focused, echo)
 	if exited {
 		w.paintExited(f, &snap)
 	}
@@ -231,7 +256,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	snap.Release()
 
 	rec := damageRec{ok: true, r: r, m: m, sch: sch, cur: cur, selA: selA, selB: selB, selOK: selOK,
-		bar: bar, exited: exited, viewRows: vrows}
+		bar: bar, exited: exited, viewRows: vrows, echo: echo, link: link, firstRow: first}
 	w.declareDamage(rec, n, dirty, all)
 	vs.dmg = rec
 	vs.needFull = false
@@ -427,10 +452,15 @@ func shapeSeg(k segKey, m metrics) *segShape {
 
 // paintCursor draws the cursor or the IME composition and reports the
 // caret rect to the host. snap is an immutable frame snapshot.
-func (w *ViewW) paintCursor(f *frame, snap *vt.Snapshot, focused bool) cursorKey {
+func (w *ViewW) paintCursor(f *frame, snap *vt.Snapshot, focused bool, echo echoPreview) cursorKey {
 	vs := w.vs
 	cols, rows := snap.Size()
 	cx, cy, shown := snap.CursorX, snap.CursorY, snap.CursorVisible
+	if echo.text != "" {
+		top := f.r.Y + float32(echo.y)*f.m.lineH
+		w.drawRunes(f, []rune(echo.text), echo.x, len(echo.text), top, 0, f.sch.Foreground, false)
+		cx = echo.x + len(echo.text)
+	}
 	vy := cy + snap.ViewOffset()
 	key := cursorKey{vy: vy, x: cx, n: 1, shown: shown, focused: focused, comp: vs.comp, compCur: vs.compCur}
 	if vy >= rows {
@@ -452,10 +482,12 @@ func (w *ViewW) paintCursor(f *frame, snap *vt.Snapshot, focused bool) cursorKey
 		w.c.WantTextInput(rect)
 	}
 	if key.vy < 0 {
+		vs.blinkStart = time.Time{}
 		return key
 	}
 	l := f.l
 	if vs.comp != "" && focused {
+		vs.blinkStart = time.Time{}
 		sh := shapeSeg(segKey{s: vs.comp, single: true}, f.m)
 		bg := geom.Rect{X: rect.X, Y: top, W: max(sh.width, f.m.cellW), H: f.m.lineH}
 		l.Fill(bg, geom.Radii{}, f.sch.Background)
@@ -463,7 +495,21 @@ func (w *ViewW) paintCursor(f *frame, snap *vt.Snapshot, focused bool) cursorKey
 		l.Fill(geom.Rect{X: bg.X, Y: bg.Bottom() - 1, W: bg.W, H: 1}, geom.Radii{}, f.sch.Foreground)
 		return key
 	}
-	if !shown {
+	shape, blink := w.cursorAppearance(snap.CursorStyle)
+	key.shape = shape
+	key.blinkHidden = w.blinkHidden(key, blink)
+	if !shown || key.blinkHidden {
+		return key
+	}
+	switch key.shape {
+	case CursorBar:
+		rect.W = 1 / f.m.scale
+		l.Fill(rect, geom.Radii{}, f.sch.Cursor)
+		return key
+	case CursorUnderline:
+		h := 1 / f.m.scale
+		rect.Y, rect.H = rect.Bottom()-h, h
+		l.Fill(rect, geom.Radii{}, f.sch.Cursor)
 		return key
 	}
 	if !focused {
@@ -596,6 +642,26 @@ func (w *ViewW) declareDamage(cur damageRec, n int, dirty []int, all bool) {
 	}
 	for _, y := range dirty {
 		row(y)
+	}
+	if n > 0 || prev.echo != cur.echo {
+		if prev.echo.text != "" {
+			row(prev.echo.y - n)
+		}
+		if cur.echo.text != "" {
+			row(cur.echo.y)
+		}
+	}
+	if n > 0 || prev.link != cur.link {
+		damageLink := func(hit LinkHit, first int) {
+			if hit.Target == "" {
+				return
+			}
+			for y := max(0, hit.Range.Start.Row-first); y <= min(cur.viewRows-1, hit.Range.End.Row-first); y++ {
+				row(y)
+			}
+		}
+		damageLink(prev.link, prev.firstRow+n)
+		damageLink(cur.link, cur.firstRow)
 	}
 	if n > 0 || prev.cur != cur.cur {
 		if prev.cur.vy >= 0 {

@@ -79,10 +79,12 @@ type Terminal struct {
 	penGen uint32
 	penOK  bool
 
-	saved savedCursor
-	modes Modes
-	title string
-	gl    uint8 // 0 after SI (G0), 1 after SO (G1); mapping is M2
+	saved         savedCursor
+	modes         Modes
+	title         string
+	cursorStyle   CursorStyle
+	alternateMode int
+	gl            uint8 // 0 after SI (G0), 1 after SO (G1); mapping is M2
 
 	// Rows of the viewport changed since TakeDirty; see TakeDirty and
 	// TakeScroll.
@@ -562,6 +564,8 @@ func (t *Terminal) resetAll() {
 	t.pen, t.penOK = Style{}, false
 	t.saved = savedCursor{}
 	t.modes = defaultModes()
+	t.cursorStyle = CursorDefault
+	t.alternateMode = 0
 	t.gl = 0
 	t.markAll()
 }

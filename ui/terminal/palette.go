@@ -13,7 +13,11 @@ type Scheme struct {
 	Cursor                 theme.Color
 	CursorText             theme.Color // the character under a block cursor
 	Selection              theme.Color // selected cells (may be translucent)
-	Palette                [16]theme.Color
+	// SelectionForeground overrides the selected glyph color. Zero alpha
+	// preserves ANSI colors with translucent selection, or uses Foreground
+	// with opaque selection.
+	SelectionForeground theme.Color
+	Palette             [16]theme.Color
 }
 
 // xtermANSI is the default ANSI palette of xterm.js 6 (DEFAULT_ANSI_COLORS,

@@ -38,7 +38,7 @@ type viewRig struct {
 
 // newViewRig builds a rig whose page is page(c, view builder); a nil page
 // shows the view alone.
-func newViewRig(t testing.TB, w, h float32, page func(c *ui.Context, view func())) *viewRig {
+func newViewRig(t testing.TB, w, h float32, page func(c *ui.Context, view func()), configure ...func(*ViewW)) *viewRig {
 	t.Helper()
 	g := &viewRig{t: t, conn: newPipeConn(), end: make(chan struct{})}
 	g.term = New(Options{Conn: g.conn})
@@ -55,7 +55,12 @@ func newViewRig(t testing.TB, w, h float32, page func(c *ui.Context, view func()
 			}
 		}
 	}()
-	view := func(c *ui.Context) { g.vw = View(c, g.term).Layout(layout.Grow(1)) }
+	view := func(c *ui.Context) {
+		g.vw = View(c, g.term).Layout(layout.Grow(1))
+		for _, f := range configure {
+			f(g.vw)
+		}
+	}
 	g.d = ui.NewDriver(func(c *ui.Context) {
 		if page == nil {
 			view(c)

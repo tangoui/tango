@@ -220,6 +220,9 @@ func (c *LineCache) hash(line string, runs []Run, opt LineOptions) uint64 {
 		mix(uint64(uint32(r.Start))<<32 | uint64(uint32(r.End)))
 		mix(uint64(math.Float32bits(st.Size))<<32 | uint64(math.Float32bits(st.LineHeight)))
 		mix(uint64(uint32(st.Weight))<<2 | b(st.Mono)<<1 | b(st.Italic))
+		if st.FontFamily != "" {
+			mix(maphash.String(c.seed, st.FontFamily))
+		}
 		if st.Lang != "" {
 			mix(maphash.String(c.seed, st.Lang))
 		}

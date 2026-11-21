@@ -226,6 +226,9 @@ const (
 	// that stands for Android's system Back (see KeyEvent).
 	KeyBack
 
+	// KeyPaste is the Code of a synthetic V event from a native Paste menu.
+	KeyPaste
+
 	keyCount // sentinel, keep last
 )
 
@@ -435,6 +438,7 @@ var keyNames = [...]string{
 	KeyCapsLock:       "CapsLock",
 	KeyContextMenu:    "ContextMenu",
 	KeyBack:           "Back",
+	KeyPaste:          "Paste",
 }
 
 // String returns the key name ("A", "7", "F5", "ShiftLeft", "Minus",

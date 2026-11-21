@@ -1,3 +1,6 @@
+pkg github.com/tangoui/tango/ui/terminal, const CursorBar CursorShape = "bar"
+pkg github.com/tangoui/tango/ui/terminal, const CursorBlock CursorShape = "block"
+pkg github.com/tangoui/tango/ui/terminal, const CursorUnderline CursorShape = "underline"
 pkg github.com/tangoui/tango/ui/terminal, func New(Options) *Terminal
 pkg github.com/tangoui/tango/ui/terminal, func ResolveColor(ui/terminal/vt.Color, *Scheme, bool) ui/theme.Color
 pkg github.com/tangoui/tango/ui/terminal, func View(*ui.Context, *Terminal) *ViewW
@@ -7,27 +10,60 @@ pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Lock() *ui/terminal
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Resize(int, int, int, int)
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Send([]byte)
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) SendInput([]byte) SendResult
+pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) SetPredictiveEcho(bool)
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Snapshot() ui/terminal/vt.Snapshot
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Start(int, int, func())
 pkg github.com/tangoui/tango/ui/terminal, method (*Terminal) Unlock()
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Box() *ui.Box
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) CellAt(ui/geom.Point) (CellPosition, bool)
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Clear()
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) ClearSearch()
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) CopySelection()
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Cursor(CursorShape, bool) *ViewW
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) FontFamily(string) *ViewW
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) FontSize(float32) *ViewW
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Layout(...ui/layout.Option) *ViewW
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) LinkAt(ui/geom.Point) (LinkHit, bool)
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) LinkMatcher(func(string) []LinkMatch) *ViewW
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) LogicalLineAt(ui/geom.Point) (LogicalLine, bool)
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) OnOpenLink(func(string)) *ViewW
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) OnPaste(func(string, func(string))) *ViewW
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) OptionAsMeta(bool) *ViewW
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Paste(string)
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Scheme(Scheme) *ViewW
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Search(string, bool) (int, int)
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) SearchInfo() (int, int)
 pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) SearchStep(int) (int, int)
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) SelectAll()
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) SelectedText() string
+pkg github.com/tangoui/tango/ui/terminal, method (*ViewW) Selection() (CellRange, bool)
+pkg github.com/tangoui/tango/ui/terminal, method (LogicalLine) Range(int, int) (CellRange, bool)
+pkg github.com/tangoui/tango/ui/terminal, type CellPosition struct
+pkg github.com/tangoui/tango/ui/terminal, type CellPosition struct, Column int
+pkg github.com/tangoui/tango/ui/terminal, type CellPosition struct, Row int
+pkg github.com/tangoui/tango/ui/terminal, type CellRange struct
+pkg github.com/tangoui/tango/ui/terminal, type CellRange struct, End CellPosition
+pkg github.com/tangoui/tango/ui/terminal, type CellRange struct, Start CellPosition
 pkg github.com/tangoui/tango/ui/terminal, type Conn interface { Close, Read, Resize, Write }
 pkg github.com/tangoui/tango/ui/terminal, type Conn interface, Close() error
 pkg github.com/tangoui/tango/ui/terminal, type Conn interface, Read([]byte) (int, error)
 pkg github.com/tangoui/tango/ui/terminal, type Conn interface, Resize(int, int, int, int) error
 pkg github.com/tangoui/tango/ui/terminal, type Conn interface, Write([]byte) (int, error)
+pkg github.com/tangoui/tango/ui/terminal, type CursorShape string
+pkg github.com/tangoui/tango/ui/terminal, type LinkHit struct
+pkg github.com/tangoui/tango/ui/terminal, type LinkHit struct, Range CellRange
+pkg github.com/tangoui/tango/ui/terminal, type LinkHit struct, Target string
+pkg github.com/tangoui/tango/ui/terminal, type LinkMatch struct
+pkg github.com/tangoui/tango/ui/terminal, type LinkMatch struct, From int
+pkg github.com/tangoui/tango/ui/terminal, type LinkMatch struct, Target string
+pkg github.com/tangoui/tango/ui/terminal, type LinkMatch struct, To int
+pkg github.com/tangoui/tango/ui/terminal, type LogicalLine struct
+pkg github.com/tangoui/tango/ui/terminal, type LogicalLine struct, Text string
+pkg github.com/tangoui/tango/ui/terminal, type LogicalLine struct, noncomparable
 pkg github.com/tangoui/tango/ui/terminal, type Options struct
 pkg github.com/tangoui/tango/ui/terminal, type Options struct, Conn Conn
 pkg github.com/tangoui/tango/ui/terminal, type Options struct, OnExit func(error)
+pkg github.com/tangoui/tango/ui/terminal, type Options struct, PredictiveEcho bool
 pkg github.com/tangoui/tango/ui/terminal, type Options struct, Scrollback int
 pkg github.com/tangoui/tango/ui/terminal, type Options struct, noncomparable
 pkg github.com/tangoui/tango/ui/terminal, type Scheme struct
@@ -37,12 +73,14 @@ pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, CursorText ui/them
 pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, Foreground ui/theme.Color
 pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, Palette [16]ui/theme.Color
 pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, Selection ui/theme.Color
+pkg github.com/tangoui/tango/ui/terminal, type Scheme struct, SelectionForeground ui/theme.Color
 pkg github.com/tangoui/tango/ui/terminal, type SendResult struct
 pkg github.com/tangoui/tango/ui/terminal, type SendResult struct, AcceptedBytes int
 pkg github.com/tangoui/tango/ui/terminal, type SendResult struct, Truncated bool
 pkg github.com/tangoui/tango/ui/terminal, type Terminal struct
 pkg github.com/tangoui/tango/ui/terminal, type Terminal struct, noncomparable
 pkg github.com/tangoui/tango/ui/terminal, type ViewW struct
+pkg github.com/tangoui/tango/ui/terminal, type ViewW struct, noncomparable
 pkg github.com/tangoui/tango/ui/terminal, var SchemeDark Scheme
 pkg github.com/tangoui/tango/ui/terminal, var SchemeDracula Scheme
 pkg github.com/tangoui/tango/ui/terminal, var SchemeLight Scheme
