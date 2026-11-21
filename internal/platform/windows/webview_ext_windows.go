@@ -1148,7 +1148,10 @@ func (s *surface) FindNext(backward bool, done func(platform.FindResult, error))
 	}
 	f := s.web.find
 	count, active := findCounts(f)
-	if active < 1 {
+	// WebView2 updates ActiveMatchIndex asynchronously, so right after a
+	// FindNext/FindPrevious it still reports the old match; the index this
+	// surface moved to last is the current one.
+	if s.web.findActive > 0 {
 		active = s.web.findActive
 	}
 	next, move := nextFindIndex(count, active, backward, s.web.findNoWrap)
