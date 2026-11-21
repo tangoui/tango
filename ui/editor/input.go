@@ -420,7 +420,7 @@ func (w *ViewW) commitText(s string, ime bool) {
 		w.st.insertStep(s)
 		return
 	}
-	w.st.Type(s)
+	w.st.typeText(s, true)
 }
 
 // insertStep is Insert as an undo step of its own (IME commits, paste):

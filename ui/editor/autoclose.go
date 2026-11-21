@@ -430,20 +430,62 @@ func (s *State) isAutoClosedAt(off int) bool {
 // line break ("\r\n" and "\r" count as one). Use Insert to insert text as
 // is (paste, programmatic edits).
 func (s *State) Type(text string) {
+	s.typeText(text, false)
+}
+
+func (s *State) typeText(text string, batch bool) {
 	if m := s.Model; m.notifying {
 		sels := slices.Clone(s.sels())
 		m.enqueue(func(since [][]buffer.Edit) {
 			s.SetSelections(mapSelsSince(sels, since))
-			s.Type(text)
+			s.typeText(text, batch)
 		})
 		return
 	}
+	if len(text) == 1 && text[0] != '\r' {
+		s.typeChar(text)
+		return
+	}
 	text = strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
+	// Other views and user callbacks observe each intermediate edit. Full
+	// indentation rules can also react to any character, so keep those on
+	// the per-character path.
+	batch = batch && len(text) > 1 && len(s.Model.subs.list) <= 1 &&
+		(s.Options.autoIndent() < indentFull || rulesFor(s.Model.Conf()) == nil)
+	var tc *typingConf
+	if batch {
+		tc = s.typing()
+	}
 	for i := 0; i < len(text); {
 		j := nextGrapheme(text, i)
+		// A selection replacement has its own undo step. Also keep
+		// multiple carets separate, since their ranges can merge.
+		if batch && len(s.sels()) == 1 && s.allEmpty() && tc.ordinary(text[i:j]) {
+			end := j
+			for end < len(text) {
+				next := nextGrapheme(text, end)
+				if !tc.ordinary(text[end:next]) {
+					break
+				}
+				end = next
+			}
+			if end > j {
+				s.gate = nil
+				s.clampedSels(s.Snapshot())
+				run := text[i:end]
+				s.replaceSels(kindType, func(int, int, int) string { return run })
+				i = end
+				continue
+			}
+		}
 		s.typeChar(text[i:j])
 		i = j
 	}
+}
+
+func (tc *typingConf) ordinary(ch string) bool {
+	return ch != "\n" && !isControl(ch) && utf8.ValidString(ch) && len(tc.openByEnd[ch]) == 0 &&
+		!tc.closeSingle[ch] && (len(tc.electric) == 0 || !tc.electric[asciiLower(ch)])
 }
 
 // typeChar types one character (Monaco's typeWithInterceptors).

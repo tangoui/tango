@@ -128,6 +128,7 @@
 
 ### 变更
 
+- 编辑器批量插入长文本提交中的普通字符段。换行、自动闭合、选区替换和需要逐键处理的自动缩进仍使用原来的键入规则。
 - `tan dev` 里的窗口实现了 `ui.UIPoster`：其他 goroutine 调用 `Runner.Post` 时投递到主线程运行，不再在调用者的 goroutine 上直接运行。
 - `tan.json` 允许应用自定义顶层字段；`tan` 忽略这些字段，仍严格校验内置配置对象。
 - Windows 在支持 SharedBuffer 的 WebView2 上默认开启 `down:shm` 和 `up:shm`。设 `TANGO_IPC_LANES_WINDOWS=0` 可回到消息通道。
