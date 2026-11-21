@@ -112,7 +112,10 @@ var mirrorPlace = map[Placement]Placement{
 type OverlayOptions struct {
 	_ [0]func()
 
-	Anchor     ID // widget to attach to (anchored placements)
+	Anchor ID // widget to attach to (anchored placements)
+	// AnchorRect supplies a non-empty anchor in UI logical coordinates
+	// for placement, such as an editor caret. Anchor still owns focus.
+	AnchorRect geom.Rect
 	Place      Placement
 	Offset     float32 // gap between anchor and overlay
 	MatchWidth bool    // at least as wide as the anchor
@@ -205,9 +208,13 @@ func (c *Context) placeOverlay(o *overlay) {
 		}
 		return
 	}
-	a, ok := c.anchorRect(o.opts.Anchor)
-	if !ok {
-		a = geom.Rect{X: vw / 2, Y: vh / 2}
+	a := o.opts.AnchorRect
+	if a.Empty() {
+		var ok bool
+		a, ok = c.anchorRect(o.opts.Anchor)
+		if !ok {
+			a = geom.Rect{X: vw / 2, Y: vh / 2}
+		}
 	}
 	if o.opts.MatchWidth && ln.Width == 0 {
 		ln.MinW = a.W

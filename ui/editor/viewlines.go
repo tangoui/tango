@@ -469,6 +469,11 @@ func (vl *viewLines) sync(b *buffer.Buffer, snap buffer.Snapshot) {
 	vl.dropHidden()
 	same, prev := vl.buf == b, vl.ver
 	vl.buf, vl.ver, vl.snap = b, snap.Version(), snap
+	if vl.cfg.hints != nil {
+		vl.cfg.hints = nil
+		vl.reset(snap.LineCount())
+		return
+	}
 	if !vl.on() {
 		vl.n = snap.LineCount()
 		vl.rebuild()
@@ -498,7 +503,7 @@ func (vl *viewLines) sync(b *buffer.Buffer, snap buffer.Snapshot) {
 // syncEdits follows edits (in old's coordinates) from old to snap. Hidden
 // lines are dropped.
 func (vl *viewLines) syncEdits(b *buffer.Buffer, old buffer.Snapshot, edits []buffer.Edit, snap buffer.Snapshot) {
-	if !vl.on() || vl.buf != b || old.LineCount() != vl.n || old.Version() != vl.ver {
+	if !vl.on() || vl.cfg.hints != nil || vl.buf != b || old.LineCount() != vl.n || old.Version() != vl.ver {
 		vl.sync(b, snap)
 		return
 	}
@@ -699,7 +704,14 @@ func (vl *viewLines) measureText(l int, s string) (*lineBreaks, bool) {
 	if lb := vl.breaks[l]; lb != nil {
 		return lb, false
 	}
-	lb := computeBreaks(s, vl.cfg)
+	cfg := vl.cfg
+	var lb lineBreaks
+	if cfg.hints != nil && len(cfg.hints.lines[l]) > 0 {
+		var scratch [8]injection
+		lb = breaksWith(s, cfg, cfg.injections(l, s, scratch[:0]))
+	} else {
+		lb = computeBreaks(s, cfg)
+	}
 	vl.computed++
 	if vl.breaks == nil || len(vl.breaks) >= breaksCacheMax {
 		vl.breaks = make(map[int]*lineBreaks)
@@ -732,13 +744,13 @@ func (vl *viewLines) ModelToView(line, col int) (vline int, x float32) {
 	vline, line, col = vl.locate(snap, line, col, false, measure)
 	s := vl.line(snap, line)
 	if !vl.on() {
-		return vline, float32(lineColumnTab(s, col, tab))*vl.colW + vl.gapsBefore(s, 0, col)
+		return vline, float32(lineColumnTab(s, col, tab))*vl.colW + vl.gapsBefore(line, s, 0, col)
 	}
 	lb := measure(line)
 	k := lb.rowOf(col, false)
 	b0, _ := lb.rowRange(k, len(s))
 	c := lb.rowIndent(k) + lineColumnTab(s[b0:col], col-b0, tab)
-	return vline, float32(c)*vl.colW + vl.gapsBefore(s, b0, col)
+	return vline, float32(c)*vl.colW + vl.gapsBefore(line, s, b0, col)
 }
 
 // ViewToModel returns the model line and the byte column (a grapheme
@@ -765,13 +777,13 @@ func (vl *viewLines) ViewToModel(vline int, x float32) (line, col int) {
 		return 0
 	}
 	if !vl.on() {
-		return line, nearestColumn(s, goal(vl.gapGridX(s, 0, len(s), 0, x)), tab)
+		return line, nearestColumn(s, goal(vl.gapGridX(line, s, 0, len(s), 0, x)), tab)
 	}
 	lb, _ := vl.breaksOf(snap, line)
 	row = min(row, lb.rows()-1)
 	b0, b1 := lb.rowRange(row, len(s))
 	ind := lb.rowIndent(row)
-	return line, b0 + nearestColumn(s[b0:b1], max(0, goal(vl.gapGridX(s, b0, b1, ind, x))-ind), tab)
+	return line, b0 + nearestColumn(s[b0:b1], max(0, goal(vl.gapGridX(line, s, b0, b1, ind, x))-ind), tab)
 }
 
 // lineColumnTab returns the visual column of byte end of s with tab stops

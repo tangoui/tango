@@ -95,15 +95,16 @@ type canvas struct {
 	shortcutHeld    map[uint16]bool // captured physical keys until release or loss of focus
 
 	// Text input (canvas_view.go).
-	textOn    bool
-	caret     geom.Rect
-	marked    string // IME pre-edit
-	markedSel int    // caret within marked, UTF-16 units
-	inKeyDown bool   // interpretKeyEvents: is running for keyDown
-	curKey    input.KeyEvent
-	curCode   uint16
-	downKeys  map[input.Key]bool // keys whose press was reported
-	flags     input.Modifiers    // modifiers at the last flagsChanged:
+	textOn     bool
+	imagePaste bool
+	caret      geom.Rect
+	marked     string // IME pre-edit
+	markedSel  int    // caret within marked, UTF-16 units
+	inKeyDown  bool   // interpretKeyEvents: is running for keyDown
+	curKey     input.KeyEvent
+	curCode    uint16
+	downKeys   map[input.Key]bool // keys whose press was reported
+	flags      input.Modifiers    // modifiers at the last flagsChanged:
 
 	// Focus: first responder of a key window.
 	firstResp bool

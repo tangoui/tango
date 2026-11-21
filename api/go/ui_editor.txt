@@ -195,6 +195,7 @@ pkg github.com/tangoui/tango/ui/editor, method (*State) ScrollTop() float64
 pkg github.com/tangoui/tango/ui/editor, method (*State) SelectHighlights() bool
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetDecorations(string, []Decoration)
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetHiddenAreas(string, []LineRange)
+pkg github.com/tangoui/tango/ui/editor, method (*State) SetInlayHints(uint64, []InlayHint) bool
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetLineAtTop(int, float32)
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetOverviewMarks(string, []OverviewMark)
 pkg github.com/tangoui/tango/ui/editor, method (*State) SetScrollLeft(float32)
@@ -211,16 +212,24 @@ pkg github.com/tangoui/tango/ui/editor, method (*State) VisibleLines() (int, int
 pkg github.com/tangoui/tango/ui/editor, method (*State) WordWrap() WrapMode
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Box() *ui.Box
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Changed() bool
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) CompletionAnchor() (ui/geom.Rect, bool)
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) CompletionKeys(int, *int, func(int), func()) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Context(func(string) (any, bool)) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Focused() bool
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) FoldingProvider(FoldingRangeProvider) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) FontSize(float32) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) GutterLineAtPoint(ui/geom.Point) (int, bool)
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) InlayHintAtPoint(ui/geom.Point) (int, bool)
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Keymap(*ui/editor/keymap.Keymap) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Layout(...ui/layout.Option) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) LineNumbers(bool) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) LineNumbersFunc(LineNumberFunc, int, uint64) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) MenuItems(...MenuItem) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OffsetAtPoint(ui/geom.Point) (int, bool)
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OnDocumentChange(func(ModelChange)) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OnGutterClick(func(GutterClick)) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OnOpenLink(func(string)) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OnPasteImage(func() bool) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) ReadOnly(bool) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) TabSize(int) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (LocaleSet) IsDefault() bool
@@ -271,11 +280,20 @@ pkg github.com/tangoui/tango/ui/editor, type GuidesOptions struct, BracketPairsH
 pkg github.com/tangoui/tango/ui/editor, type GuidesOptions struct, HighlightActiveBracketPair bool
 pkg github.com/tangoui/tango/ui/editor, type GuidesOptions struct, HighlightActiveIndentation bool
 pkg github.com/tangoui/tango/ui/editor, type GuidesOptions struct, Indentation bool
+pkg github.com/tangoui/tango/ui/editor, type GutterClick struct
+pkg github.com/tangoui/tango/ui/editor, type GutterClick struct, Button ui/input.Button
+pkg github.com/tangoui/tango/ui/editor, type GutterClick struct, Line int
+pkg github.com/tangoui/tango/ui/editor, type GutterClick struct, Position ui/geom.Point
 pkg github.com/tangoui/tango/ui/editor, type GutterMark struct
 pkg github.com/tangoui/tango/ui/editor, type GutterMark struct, Background image/color.NRGBA
 pkg github.com/tangoui/tango/ui/editor, type GutterMark struct, Bar image/color.NRGBA
 pkg github.com/tangoui/tango/ui/editor, type GutterMark struct, Sign string
 pkg github.com/tangoui/tango/ui/editor, type GutterMark struct, SignColor image/color.NRGBA
+pkg github.com/tangoui/tango/ui/editor, type InlayHint struct
+pkg github.com/tangoui/tango/ui/editor, type InlayHint struct, Background image/color.NRGBA
+pkg github.com/tangoui/tango/ui/editor, type InlayHint struct, Foreground image/color.NRGBA
+pkg github.com/tangoui/tango/ui/editor, type InlayHint struct, Offset int
+pkg github.com/tangoui/tango/ui/editor, type InlayHint struct, Text string
 pkg github.com/tangoui/tango/ui/editor, type InlineStyle struct
 pkg github.com/tangoui/tango/ui/editor, type InlineStyle struct, Color image/color.NRGBA
 pkg github.com/tangoui/tango/ui/editor, type InlineStyle struct, Opacity float32

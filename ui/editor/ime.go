@@ -200,6 +200,9 @@ func (w *ViewW) paintCaret(l *paint.List, snap buffer.Snapshot, lv *lineView, he
 		r.X = max(t.X, min(r.X, t.X+t.W-r.W))
 		r.Y = max(t.Y, min(r.Y, t.Y+t.H-r.H))
 		c.WantTextInput(r)
+		if w.pasteImage != nil {
+			c.WantImagePaste()
+		}
 	}
 	return caret, drawn, visible
 }

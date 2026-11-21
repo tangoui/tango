@@ -159,12 +159,15 @@ type pending struct {
 	release bool
 	relPos  geom.Point
 	// menu is the command chosen in the context menu this frame (menu.go).
-	menu *menuRun
+	menu          *menuRun
+	gutterContext bool
+	gutterPos     geom.Point
 }
 
 // inputState is the View's retained input state (embedded in viewState).
 type inputState struct {
-	pend pending
+	pend            pending
+	gutterPressLine int // one plus the model line, zero when no press
 
 	dragUnit     int
 	dragA, dragB int // range selected by the press that started the drag
@@ -287,7 +290,7 @@ func (w *ViewW) collect() {
 	pos, _ := c.Pointer()
 	if w.ia.PressedNow {
 		// 1 single, 2 double, 3 triple; a fourth click starts over.
-		p.press, p.pressPos, p.clicks = true, pos, (c.PressCount()-1)%3+1
+		p.press, p.pressPos, p.clicks = true, c.PressPos(), (c.PressCount()-1)%3+1
 		p.shift = c.PressMods().Has(input.ModShift)
 		p.alt = c.PressMods().Has(input.ModAlt)
 		p.trigger = w.triggerMods(c.PressMods())
@@ -319,10 +322,20 @@ func (w *ViewW) finish() {
 	}
 	vs.hadFocus = active
 	ver := st.Snapshot().Version()
+	if w.onChange != nil {
+		fn := w.onChange
+		stop := st.Model.Subscribe(func(ch ModelChange) {
+			if ch.Source == st && ch.Old.Version() != ch.New.Version() {
+				fn(ch)
+			}
+		})
+		defer stop()
+	}
 	w.commitPicker()
 	sel := selsKey(st.Sels)
 	rail := w.railInput(p)
-	if p.press && !rail {
+	gutter := w.gutterInput(p, rail)
+	if p.press && !rail && !gutter {
 		w.linkPress(p)
 		w.press(p)
 	}
@@ -331,13 +344,13 @@ func (w *ViewW) finish() {
 	// (keys and pointer are not ordered against each other in a frame).
 	if vs.dnd != nil {
 		w.dndInput(p)
-	} else if p.drag && !rail {
+	} else if p.drag && !rail && !gutter {
 		w.drag(p.dragPos)
 	}
-	if !rail {
+	if !rail && !gutter {
 		w.zonePointer(p) // releases and moves over view zones (zones.go)
 	}
-	if p.release && !rail {
+	if p.release && !rail && !gutter {
 		if l := vs.placeholderPress; l >= 0 && w.placeholderAt(p.relPos) == l {
 			st.toggleFoldAt(l, false)
 		}
@@ -369,6 +382,10 @@ func (w *ViewW) applyEvents(evs []input.Event) {
 	for _, e := range evs {
 		switch e := e.(type) {
 		case input.KeyEvent:
+			if w.completionKey(e) {
+				swallow = typesText(e)
+				continue
+			}
 			if c := w.key(e); e.Down {
 				swallow = c && typesText(e)
 			}
@@ -742,7 +759,7 @@ func (w *ViewW) visualAt(snap buffer.Snapshot, p geom.Point) (line, col int) {
 	vs, v := w.vs, w.displayViewport()
 	x := p.X - vs.text.X + v.ScrollX
 	line, row := w.st.lines().find(w.pointRow(p))
-	if w.st.vl.cfg.inj.on() {
+	if cfg := w.st.vl.cfg; cfg.inj.on() || cfg.hints != nil {
 		// Without the injected gaps before x (injected.go).
 		lv := w.rowAt(snap, line, row)
 		x = lv.gridX(x)
@@ -865,6 +882,16 @@ func (w *ViewW) wordAt(snap buffer.Snapshot, off int) (int, int) {
 // offsetAt returns the document offset at window point p (the last
 // painted geometry): the nearest grapheme boundary of the view line under
 // p; above the first line the document start, below the last its end.
+// OffsetAtPoint maps a point in UI logical coordinates to the nearest
+// UTF-8 byte offset, using the last laid-out text viewport. It returns
+// false before layout or outside the text area, including the gutter.
+func (w *ViewW) OffsetAtPoint(p geom.Point) (int, bool) {
+	if !w.hasGeom() || w.vs.buf != w.st.Model.Buffer() || !w.vs.text.Contains(p) {
+		return 0, false
+	}
+	return w.offsetAt(w.st.Snapshot(), p), true
+}
+
 func (w *ViewW) offsetAt(snap buffer.Snapshot, p geom.Point) int {
 	off, _ := w.hitAt(snap, p)
 	return off

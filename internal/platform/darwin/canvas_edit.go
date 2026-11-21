@@ -7,8 +7,8 @@ package darwin
 // matching Cmd+key, canvas_view.go), so AppKit would enable those menu
 // items whenever a canvas is first responder. validateMenuItem: and
 // validateUserInterfaceItem: enable them only while text input is on
-// (SetTextInput(true, ...)), and Paste only when the pasteboard holds
-// text. Other actions keep AppKit's default (enabled).
+// (SetTextInput(true, ...)). Paste accepts text and, for opted-in fields,
+// PNG or TIFF. Other actions keep AppKit's default (enabled).
 
 import (
 	"github.com/ebitengine/purego/objc"
@@ -47,6 +47,9 @@ func canvasValidates(self, item id) bool {
 		return false
 	}
 	if name == "paste:" {
+		if c.imagePaste {
+			return pasteboardHasTypes(pasteboardTypeString, pasteboardTypePNG, pasteboardTypeTIFF)
+		}
 		return pasteboardHasText()
 	}
 	return true
@@ -54,13 +57,23 @@ func canvasValidates(self, item id) bool {
 
 // pasteboardHasText reports whether the general pasteboard holds text.
 func pasteboardHasText() bool {
+	return pasteboardHasTypes(pasteboardTypeString)
+}
+
+func (c *canvas) SetImagePasteEnabled(on bool) { c.imagePaste = on }
+
+func pasteboardHasTypes(types ...string) bool {
 	has := false
 	withPool(func() {
 		pb := send(class("NSPasteboard"), "generalPasteboard")
 		if pb == 0 {
 			return
 		}
-		has = send(pb, "availableTypeFromArray:", uintptr(nsArray(nsString(pasteboardTypeString)))) != 0
+		ids := make([]id, len(types))
+		for i, typ := range types {
+			ids[i] = nsString(typ)
+		}
+		has = send(pb, "availableTypeFromArray:", uintptr(nsArray(ids...))) != 0
 	})
 	return has
 }

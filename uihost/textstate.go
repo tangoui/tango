@@ -22,3 +22,9 @@ func (w *window) SetTextInputState(st input.TextInputState) {
 		w.onMain(func() { ts.SetTextInputState(st) })
 	}
 }
+
+func (w *window) SetImagePasteEnabled(on bool) {
+	if cv, ok := w.cv.(interface{ SetImagePasteEnabled(bool) }); ok {
+		w.onMain(func() { cv.SetImagePasteEnabled(on) })
+	}
+}

@@ -766,6 +766,28 @@ func TestDropZoneHoverAndDrop(t *testing.T) {
 	})
 }
 
+func TestDropZoneDropPosition(t *testing.T) {
+	var id ID
+	var got FileDrop
+	d := NewDriver(func(c *Context) {
+		z := DropZone(c, func(bool) { Text(c, "drop here") })
+		id = z.ID()
+		if drop, ok := z.TakeDrop(); ok {
+			got = drop
+			if z.Dropped() != nil {
+				t.Error("legacy query consumed the same drop")
+			}
+		}
+	}, DriverOptions{Width: 400, Height: 300})
+	d.r.SetUIScale(2)
+	d.Settle()
+	p := d.r.c.rects[id].Center()
+	d.DropFiles(scalePoint(p, 2), "picture.png")
+	if got.Position != p || !slices.Equal(got.Paths, []string{"picture.png"}) {
+		t.Fatalf("drop = %+v, want position %v", got, p)
+	}
+}
+
 func TestDropZoneA11yAnnounce(t *testing.T) {
 	d := pro3Driver(func() *theme.Theme { return theme.AntDesign() }, 400, 300, func(c *Context) {
 		ConfigProvider(c).Locale(EnUS).Body(func() {

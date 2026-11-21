@@ -37,6 +37,37 @@ type editDriver struct {
 // TestM1KeysStillWork checks the Windows and Linux bindings.
 var macKeymap = keymap.New(keymap.Mac, keymap.DefaultRules(keymap.Mac))
 
+func TestOffsetAtPoint(t *testing.T) {
+	st := NewState("aé文\nhello", "", nil)
+	ed := newEditDriver(st, 400, 220, nil)
+	w := *ed.vw
+	if off, ok := w.OffsetAtPoint(ed.at(t, st, 0, 3)); !ok || off != 3 {
+		t.Fatalf("offset = %d, %v", off, ok)
+	}
+	if _, ok := w.OffsetAtPoint(geom.Pt(-1, -1)); ok {
+		t.Fatal("accepted point outside text viewport")
+	}
+}
+
+func TestEditorImagePasteFallback(t *testing.T) {
+	st := NewState("", "", nil)
+	calls := 0
+	ed := newEditDriver(st, 400, 220, func(w *ViewW) {
+		pinMac(w)
+		w.OnPasteImage(func() bool { calls++; return true })
+	})
+	ed.focus(t)
+	ed.Key(input.KeyV, input.ModMeta)
+	if calls != 1 {
+		t.Fatalf("image paste calls = %d", calls)
+	}
+	(*ed.vw).c.Window().WriteClipboard("text")
+	ed.Key(input.KeyV, input.ModMeta)
+	if calls != 1 || st.Snapshot().String() != "text" {
+		t.Fatalf("text paste: %q, image calls %d", st.Snapshot().String(), calls)
+	}
+}
+
 func pinMac(w *ViewW) { w.Keymap(macKeymap) }
 
 func newEditDriver(st *State, w, h float32, mods func(*ViewW)) *editDriver {
