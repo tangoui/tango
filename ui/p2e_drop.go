@@ -88,8 +88,14 @@ func (st *fileDragState) forget(c *Context) {
 	}
 }
 
-// FileDrag returns the position of a file drag over the window.
-func (r *Runner) FileDrag() (geom.Point, bool) { return r.c.FileDrag() }
+// FileDrag returns the position of a file drag in host window logical pixels.
+func (r *Runner) FileDrag() (geom.Point, bool) {
+	st := fileDragOf(r.c, false)
+	if st == nil || !st.over {
+		return geom.Point{}, false
+	}
+	return st.pos, true
+}
 
 // DropFiles delivers files dropped at p (window logical pixels) to the
 // DropZone under it: its Dropped returns them during the next frame.
@@ -104,15 +110,12 @@ func (r *Runner) DropFiles(p geom.Point, paths []string) {
 	r.Invalidate()
 }
 
-// FileDrag reports a file drag over the window and its position (window
-// logical pixels). It is read-only: use DropZone for hit testing and
+// FileDrag reports a file drag over the window and its position in UI
+// logical pixels. It is read-only: use DropZone for hit testing and
 // highlighting.
 func (c *Context) FileDrag() (geom.Point, bool) {
-	st := fileDragOf(c, false)
-	if st == nil || !st.over {
-		return geom.Point{}, false
-	}
-	return st.pos, true
+	p, ok := c.runner.FileDrag()
+	return scalePoint(p, 1/c.runner.uiScale), ok
 }
 
 // FileDragOver simulates files dragged over the window at p and runs a
@@ -210,10 +213,10 @@ func (z *DropZoneW) collect(id ID) {
 	if !ok {
 		return
 	}
-	if st.over && r.Contains(st.pos) {
+	if st.over && r.Contains(scalePoint(st.pos, 1/c.runner.hitScale)) {
 		st.next = id
 	}
-	if len(st.drops) > 0 && r.Contains(st.drops[0].pos) {
+	if len(st.drops) > 0 && r.Contains(scalePoint(st.drops[0].pos, 1/c.runner.hitScale)) {
 		st.dropNext = id
 	}
 }

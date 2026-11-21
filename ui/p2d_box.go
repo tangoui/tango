@@ -13,4 +13,7 @@ func (b *Box) Label(s string) *Box {
 
 // PointerPos returns the last pointer position in the window and whether
 // the pointer is inside it (hosts placing drops that carry no point).
-func (r *Runner) PointerPos() (geom.Point, bool) { return r.c.Pointer() }
+func (r *Runner) PointerPos() (geom.Point, bool) {
+	p, ok := r.c.Pointer()
+	return scalePoint(p, r.hitScale), ok
+}

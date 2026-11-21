@@ -294,8 +294,22 @@ func newContext(th *theme.Theme) *Context {
 // Now returns the frame time (use it for timers, not time.Now).
 func (c *Context) Now() time.Time { return c.now }
 
-// Size returns the window's logical size.
+// Size returns the viewport size in UI logical pixels, after UI scaling.
 func (c *Context) Size() geom.Size { return c.size }
+
+// PixelScale returns device pixels per UI logical pixel in the current
+// frame, including both UI scale and the host window's device-pixel ratio.
+func (c *Context) PixelScale() float32 {
+	if c.runner != nil && c.runner.renderScale > 0 {
+		return c.runner.renderScale
+	}
+	if c.win != nil {
+		if scale := c.win.Scale(); scale > 0 {
+			return scale
+		}
+	}
+	return 1
+}
 
 // Window returns the host window.
 func (c *Context) Window() Window { return c.win }
@@ -422,7 +436,8 @@ func State[T any](c *Context, id ID, init func() T) *T {
 	return v
 }
 
-// RectOf returns the absolute rectangle id had in the last painted frame.
+// RectOf returns the absolute rectangle id had in the last painted frame,
+// in UI logical pixels.
 func (c *Context) RectOf(id ID) (geom.Rect, bool) {
 	r, ok := c.rects[id]
 	return r, ok

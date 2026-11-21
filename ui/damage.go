@@ -325,7 +325,7 @@ func (r *Runner) collectDamage(scale float32) []image.Rectangle {
 		r.list.Damage(d)
 	}
 	addBlurDamage(&r.list, scale)
-	return dirtyRects(&r.list, scale, c.size)
+	return dirtyRects(&r.list, scale, r.renderSize)
 }
 
 // addBlurDamage appends a Damage hint for every backdrop blur of l

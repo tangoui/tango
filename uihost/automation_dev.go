@@ -33,7 +33,6 @@ import (
 	"github.com/tangoui/tango/internal/uithread"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/a11y"
-	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/paint"
 )
@@ -368,9 +367,9 @@ func (c *autoCanvas) Snapshot() (*image.RGBA, error) {
 		if _, err := c.bridge(); err != nil {
 			return nil, err
 		}
-		w, h := c.h.cv.Size()
+		size, scale := c.r.FrameMetrics()
 		cpu := paint.NewCPU()
-		if err := cpu.Render(c.r.List(), geom.Size{W: w, H: h}, c.h.cv.Scale()); err != nil {
+		if err := cpu.Render(c.r.List(), size, scale); err != nil {
 			return nil, err
 		}
 		return cpu.Image(), nil
@@ -378,7 +377,8 @@ func (c *autoCanvas) Snapshot() (*image.RGBA, error) {
 	var img *image.RGBA
 	err := c.onUI("Snapshot", func() error {
 		cpu := paint.NewCPU()
-		if err := cpu.Render(c.r.List(), c.h.win.Size(), c.h.win.Scale()); err != nil {
+		size, scale := c.r.FrameMetrics()
+		if err := cpu.Render(c.r.List(), size, scale); err != nil {
 			return err
 		}
 		img = cpu.Image()

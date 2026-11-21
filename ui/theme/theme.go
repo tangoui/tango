@@ -268,6 +268,10 @@ type Theme struct {
 	LineWidth                            float32
 
 	// Typography (logical px).
+	// FontFamily is an optional comma-separated list of preferred UI font
+	// families (e.g. "Inter, PingFang SC, sans-serif"). Empty keeps the
+	// platform defaults. Explicit monospace text uses its own font chain.
+	FontFamily                                   string
 	FontSize, FontSizeSM, FontSizeLG, FontSizeXL float32
 	Heading                                      [5]float32 // h1..h5
 	LineHeight                                   float32    // ratio: 22/14 for Ant

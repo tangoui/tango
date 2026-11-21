@@ -270,7 +270,7 @@ func (p *ProgressW) font() text.Style {
 	if p.small {
 		fs = th.FontSizeSM
 	}
-	return text.Style{Size: fs, Weight: text.Regular, LineHeight: th.LineHeightFor(fs)}
+	return themeTextStyle(th, fs, text.Regular)
 }
 
 func (p *ProgressW) lineStroke() float32 {
@@ -534,7 +534,7 @@ func (p *ProgressW) paintLine(l *paint.List, r geom.Rect) {
 		l.Pop()
 	}
 	if p.inside && p.showInfo && fw > 0 {
-		fs := text.Style{Size: tk.InnerFontSize, Weight: text.Regular, LineHeight: p.th.LineHeightFor(tk.InnerFontSize)}
+		fs := themeTextStyle(p.th, tk.InnerFontSize, text.Regular)
 		lay := text.Shape(p.label(), fs, text.Options{NoWrap: true})
 		if lay.Width+10 < fw {
 			// PercentPosition inner align: end (default), start or center
@@ -678,6 +678,6 @@ func (p *ProgressW) paintRing(l *paint.List, cx, cy, rad, sw float32, start, tot
 		return
 	}
 	tc := tk.TextColor
-	lay := text.Shape(p.label(), text.Style{Size: fs, LineHeight: fs * 1.2}, text.Options{NoWrap: true})
+	lay := text.Shape(p.label(), text.Style{Size: fs, LineHeight: fs * 1.2, FontFamily: p.th.FontFamily}, text.Options{NoWrap: true})
 	l.Glyphs(geom.Pt(cx-lay.Width/2, cy-lay.Height/2), lay.Glyphs, tc)
 }

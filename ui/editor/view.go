@@ -483,7 +483,7 @@ func (w *ViewW) lineHeight() float32 {
 // Keep the same top row so it still refers to the same view-line anchor.
 func (w *ViewW) displayViewport() Viewport {
 	v := w.st.Viewport
-	scale := float64(max(0.01, w.c.Window().Scale()))
+	scale := float64(max(0.01, w.c.PixelScale()))
 	top := float64(v.TopLine) * float64(v.LineHeight) * scale
 	v.OffsetY = float32((math.Round(top+float64(v.OffsetY)*scale) - top) / scale)
 	v.ScrollX = float32(math.Round(float64(v.ScrollX)*scale) / scale)

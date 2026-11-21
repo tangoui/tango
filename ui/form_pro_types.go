@@ -524,7 +524,7 @@ func proCodeBlock(c *Context, s string, compact bool) {
 	}
 	Column(c, func() {
 		t := Text(c, strings.TrimRight(s, "\n")).Size(th.FontSizeSM)
-		t.st.Mono = true
+		t.st.Mono, t.st.FontFamily = true, ""
 	}, layout.PadVH(8, 12), layout.Grow(1), layout.MinW(0)).Bg(th.FillTertiary).Radius(th.RadiusSM).
 		Semantics(a11y.RoleGroup, "")
 }

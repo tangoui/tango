@@ -1208,6 +1208,7 @@ pkg github.com/tangoui/tango/ui, method (*Context) Locale() *Locale
 pkg github.com/tangoui/tango/ui, method (*Context) Now() time.Time
 pkg github.com/tangoui/tango/ui, method (*Context) PaintIcon(*ui/paint.List, *ui/icon.Icon, ui/geom.Rect, ui/theme.Color, float64)
 pkg github.com/tangoui/tango/ui, method (*Context) PendingKeyboardReveal() (KeyboardReveal, bool)
+pkg github.com/tangoui/tango/ui, method (*Context) PixelScale() float32
 pkg github.com/tangoui/tango/ui, method (*Context) Pointer() (ui/geom.Point, bool)
 pkg github.com/tangoui/tango/ui, method (*Context) PointerCancelled(ID) bool
 pkg github.com/tangoui/tango/ui, method (*Context) PointerDownOutside(...ui/geom.Rect) bool
@@ -1230,6 +1231,7 @@ pkg github.com/tangoui/tango/ui, method (*Context) TerminalEvents(ID, func(ui/in
 pkg github.com/tangoui/tango/ui, method (*Context) TextEditsFor(ID) []ui/input.Event
 pkg github.com/tangoui/tango/ui, method (*Context) TextFor(ID) []string
 pkg github.com/tangoui/tango/ui, method (*Context) TextOpts(ui/text.Options) ui/text.Options
+pkg github.com/tangoui/tango/ui, method (*Context) TextStyle(float32, ui/text.Weight) ui/text.Style
 pkg github.com/tangoui/tango/ui, method (*Context) ThemeFor(ui/theme.Comp) *ui/theme.Theme
 pkg github.com/tangoui/tango/ui, method (*Context) Token() *ui/theme.Components
 pkg github.com/tangoui/tango/ui, method (*Context) TouchCount() int
@@ -2645,6 +2647,7 @@ pkg github.com/tangoui/tango/ui, method (*Runner) FileDrag() (ui/geom.Point, boo
 pkg github.com/tangoui/tango/ui, method (*Runner) FileDragLeave()
 pkg github.com/tangoui/tango/ui, method (*Runner) FileDragOver(ui/geom.Point)
 pkg github.com/tangoui/tango/ui, method (*Runner) Frame() error
+pkg github.com/tangoui/tango/ui, method (*Runner) FrameMetrics() (ui/geom.Size, float32)
 pkg github.com/tangoui/tango/ui, method (*Runner) HandleEvent(ui/input.Event)
 pkg github.com/tangoui/tango/ui, method (*Runner) Invalidate()
 pkg github.com/tangoui/tango/ui, method (*Runner) List() *ui/paint.List
@@ -2658,8 +2661,10 @@ pkg github.com/tangoui/tango/ui, method (*Runner) SetReduceMotion(bool)
 pkg github.com/tangoui/tango/ui, method (*Runner) SetSafeArea(ui/geom.Insets)
 pkg github.com/tangoui/tango/ui, method (*Runner) SetTheme(*ui/theme.Theme)
 pkg github.com/tangoui/tango/ui, method (*Runner) SetTouchPointerEmulation(bool)
+pkg github.com/tangoui/tango/ui, method (*Runner) SetUIScale(float32)
 pkg github.com/tangoui/tango/ui, method (*Runner) TitleBarActed(ui/geom.Point, WindowAction)
 pkg github.com/tangoui/tango/ui, method (*Runner) TrimCaches()
+pkg github.com/tangoui/tango/ui, method (*Runner) UIScale() float32
 pkg github.com/tangoui/tango/ui, method (*SchemaFormW) Columns(int) *SchemaFormW
 pkg github.com/tangoui/tango/ui, method (*SchemaFormW) Finished() bool
 pkg github.com/tangoui/tango/ui, method (*SchemaFormW) LayoutType(SchemaLayoutType) *SchemaFormW
@@ -5369,6 +5374,7 @@ pkg github.com/tangoui/tango/ui, type RunnerOptions struct, NoAnimations bool
 pkg github.com/tangoui/tango/ui, type RunnerOptions struct, ReduceMotion bool
 pkg github.com/tangoui/tango/ui, type RunnerOptions struct, Renderer ui/paint.Renderer
 pkg github.com/tangoui/tango/ui, type RunnerOptions struct, Theme *ui/theme.Theme
+pkg github.com/tangoui/tango/ui, type RunnerOptions struct, UIScale float32
 pkg github.com/tangoui/tango/ui, type RunnerOptions struct, noncomparable
 pkg github.com/tangoui/tango/ui, type SafeAreaWindow interface { SafeAreaInsets }
 pkg github.com/tangoui/tango/ui, type SafeAreaWindow interface, SafeAreaInsets() ui/geom.Insets

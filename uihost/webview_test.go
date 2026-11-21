@@ -49,7 +49,7 @@ func TestWebViewFollowsBox(t *testing.T) {
 	a, fb := faketest.Run(t, tango.Options{})
 	var w *uihost.WebViewW
 	var created *tango.Surface
-	_, win, cv := open(t, a, fb, 400, 300, func(c *ui.Context) {
+	r, win, cv := open(t, a, fb, 400, 300, func(c *ui.Context) {
 		ui.Column(c, func() {
 			ui.Div(c, layout.H(50))
 			w = uihost.WebView(c, "web", uihost.WebViewOptions{
@@ -72,6 +72,16 @@ func TestWebViewFollowsBox(t *testing.T) {
 	}
 	if w, h := created.Size(); w != 200 || h != 100 {
 		t.Fatalf("size %dx%d", w, h)
+	}
+
+	tango.Await(a, func() struct{} { r.SetUIScale(1.25); return struct{}{} })
+	settle(cv)
+	want = platform.RectF{X: 12.5, Y: 75, W: 250, H: 125}
+	if p := e.Placement(); p.Frame != want || p.Clip != want {
+		t.Fatalf("scaled placement %+v, want %v", p, want)
+	}
+	if w, h := created.Size(); w != 250 || h != 125 {
+		t.Fatalf("scaled size %dx%d", w, h)
 	}
 }
 

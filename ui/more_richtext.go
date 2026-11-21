@@ -345,6 +345,9 @@ func (w *RichTextW) styleOf(i int) text.Style {
 		st.LineHeight = w.c.Theme.LineHeightFor(w.baseSize())
 	}
 	st.Mono = sp.Code || sp.Mono
+	if st.Mono {
+		st.FontFamily = ""
+	}
 	st.Italic = sp.Italic
 	return st
 }

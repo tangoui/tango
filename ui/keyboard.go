@@ -148,6 +148,7 @@ func (r *Runner) updateKeyboardInset() {
 			in = w.KeyboardInset()
 		}
 	}
+	in = scaleInsets(in, 1/r.uiScale)
 	if k.seen && in != k.cur {
 		r.dmg.started = false // layout may move everywhere: redraw it all
 	}

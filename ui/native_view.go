@@ -73,7 +73,7 @@ func (w *NativeViewW) Focused() bool { return w.ia.Focused }
 func (w *NativeViewW) Clicked() bool { return w.ia.Clicked }
 
 // NativeRegion is where a native view sits in the frame just painted.
-// Rectangles are window logical pixels, like Box.Rect.
+// Rectangles are host window logical pixels, after UI scaling.
 type NativeRegion struct {
 	ID ID
 	// Rect is the whole box.
@@ -128,6 +128,8 @@ func (r *Runner) NativeRegions() []NativeRegion {
 				}
 			}
 		}
+		reg.Rect = scaleRect(reg.Rect, r.hitScale)
+		reg.Visible = scaleRect(reg.Visible, r.hitScale)
 		out = append(out, reg)
 	}
 	return out

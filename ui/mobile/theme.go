@@ -91,7 +91,11 @@ type Theme struct {
 // Font returns a text style of px size and weight with a mobile line
 // height (1.5×, rounded).
 func (t *Theme) Font(px float32, w text.Weight) text.Style {
-	return text.Style{Size: px, Weight: w, LineHeight: float32(int(px*1.5 + 0.5))}
+	st := text.Style{Size: px, Weight: w, LineHeight: float32(int(px*1.5 + 0.5))}
+	if t.Base != nil {
+		st.FontFamily = t.Base.FontFamily
+	}
+	return st
 }
 
 // ColorOf maps a status name ("primary", "success", "warning", "danger",

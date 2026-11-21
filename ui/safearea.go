@@ -55,6 +55,7 @@ func (r *Runner) updateSafeArea() {
 			in = w.SafeAreaInsets()
 		}
 	}
+	in = scaleInsets(in, 1/r.uiScale)
 	if s.seen && in != s.cur {
 		r.dmg.started = false // layout may move everywhere: redraw it all
 	}

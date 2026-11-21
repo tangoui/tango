@@ -750,10 +750,7 @@ func (t *TourW) Show() *TourW {
 		if !showMask {
 			return
 		}
-		scale := float32(1)
-		if c.win != nil {
-			scale = c.win.Scale()
-		}
+		scale := c.PixelScale()
 		k := tourMaskKey{r, hole, holeR, hasTarget, maskCol, scale}
 		if mc := &st.mask; !mc.ok || mc.key != k {
 			var ml paint.List

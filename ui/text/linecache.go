@@ -223,6 +223,9 @@ func (c *LineCache) hash(line string, runs []Run, opt LineOptions) uint64 {
 		if st.Lang != "" {
 			mix(maphash.String(c.seed, st.Lang))
 		}
+		if st.FontFamily != "" {
+			mix(maphash.String(c.seed, st.FontFamily))
+		}
 	}
 	mix(uint64(uint32(opt.TabSize))<<16 | uint64(opt.Direction)<<1 | b(opt.Ligatures))
 	if opt.Lang != "" {

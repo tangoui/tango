@@ -76,9 +76,10 @@ func (r *Runner) sendTextInput() {
 		}
 		r.stateOn = false
 	}
-	if c.wantText != r.textOn || (c.wantText && c.textCaret != r.lastCaret) {
-		r.win.SetTextInput(c.wantText, c.textCaret)
-		r.textOn, r.lastCaret = c.wantText, c.textCaret
+	caret := scaleRect(c.textCaret, r.uiScale)
+	if c.wantText != r.textOn || (c.wantText && caret != r.lastCaret) {
+		r.win.SetTextInput(c.wantText, caret)
+		r.textOn, r.lastCaret = c.wantText, caret
 	}
 	if c.wantText && c.ime.want && (!r.stateOn || c.ime.st != r.lastState || c.focus != r.stateFocus) {
 		r.lastState, r.stateOn, r.stateFocus = c.ime.st, true, c.focus

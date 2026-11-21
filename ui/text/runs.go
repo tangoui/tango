@@ -103,6 +103,11 @@ func prepRuns(s string, runs []Run) runPrep {
 	var chains [2][]*family
 	for k, r := range runs {
 		st := r.Style.norm()
+		if st.FontFamily != "" {
+			chain, preferred := reg.chainFor(st)
+			rs[k] = runStyle{st: st, chain: chain, preferred: preferred, lang: resolveLang(st)}
+			continue
+		}
 		m := 0
 		if st.Mono {
 			m = 1
@@ -188,6 +193,8 @@ func encodeRuns(runs []Run, rs []runStyle, n int) string {
 		b = append(b, flags)
 		b = binary.AppendUvarint(b, uint64(len(rs[k].lang)))
 		b = append(b, rs[k].lang...)
+		b = binary.AppendUvarint(b, uint64(len(st.FontFamily)))
+		b = append(b, st.FontFamily...)
 	}
 	return string(b)
 }
