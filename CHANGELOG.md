@@ -6,6 +6,8 @@
 
 ### 新增
 
+- WebView 可延迟回复脚本对话框和文件选择，并可接管保留 opener 的原生子窗口。
+
 - WebView 支持主框架导航 ID、加载阶段、实时 URL 和标题，以及原生前进后退。见 [WebView 文档](docs/webview.md)。
 
 - `uihost.ShortcutWithContext` 为自绘窗口提供可透传的快捷键回调，可读取输入法组合状态、文本焦点、按键重复和物理释放。支持多段组合键和双击修饰键。

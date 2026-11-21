@@ -192,6 +192,7 @@ var wv struct {
 
 func bindWebExt() {
 	bindWebHistory()
+	bindWebInteraction()
 	var bd binder
 	g, o, t, w := libGLib, libGObject, libGTK, libWebKit
 	soup := []ptr{libSoup, w}
@@ -422,6 +423,7 @@ func (s *surface) initWebExt() {
 	if pendingWeb != nil && pendingWeb.UserAgent != "" {
 		s.SetUserAgent(pendingWeb.UserAgent)
 	}
+	s.initWebInteraction()
 	if wv.permOK {
 		connect(s.web, "permission-request", 1, s.onPermissionRequest)
 	}
@@ -583,12 +585,8 @@ func (s *surface) onDecidePolicy(a [7]uintptr) uintptr {
 			return 1
 		}
 	case wkPolicyNewWindow:
-		// Always suppress the popup; the core decides about the URL.
-		if act := wv.navDecisionAction(dec); act != 0 {
-			s.reportNewWindow(act)
-		}
-		wv.policyIgnore(dec)
-		return 1
+		// The create signal handles native adoption or the URL fallback.
+		return 0
 	case wkPolicyResponse:
 		resp := wv.respGetResponse(dec)
 		disp := ""
@@ -606,24 +604,26 @@ func (s *surface) onDecidePolicy(a [7]uintptr) uintptr {
 	return 0
 }
 
-func (s *surface) reportNewWindow(act ptr) {
-	wh := s.webHost()
-	if wh == nil {
-		return
-	}
-	u := ""
+func (s *surface) windowRequest(act ptr) platform.NewWindowRequest {
+	var u string
 	if req := wv.navActionRequest(act); req != 0 {
 		u = goStr(wv.uriRequestGetURI(req))
 	}
-	wh.OnNewWindow(s.id, platform.NewWindowRequest{URL: u, UserInitiated: wv.navActionGesture(act)})
+	if u == "about:blank" {
+		u = ""
+	}
+	return platform.NewWindowRequest{URL: u, UserInitiated: wv.navActionGesture(act)}
 }
 
-// onCreate: create(web_view, navigation_action) for window.open (target
-// links come through decide-policy and are ignored there). Returning NULL
-// makes window.open return null.
 func (s *surface) onCreate(_, act ptr) ptr {
-	if !s.closed && act != 0 {
-		s.reportNewWindow(act)
+	if s.closed || act == 0 {
+		return 0
+	}
+	if web := s.claimPopup(act); web != 0 {
+		return web
+	}
+	if wh := s.webHost(); wh != nil {
+		wh.OnNewWindow(s.id, s.windowRequest(act))
 	}
 	return 0
 }

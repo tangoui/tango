@@ -272,3 +272,37 @@ func TestWebViewUnsupportedAndParentClose(t *testing.T) {
 	}
 	_ = win
 }
+
+func TestWebViewAdoptsNativePopup(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	var opener, popup *uihost.WebViewW
+	var adopt *tango.Surface
+	_, win, cv := open(t, a, fb, 400, 300, func(c *ui.Context) {
+		opener = uihost.WebView(c, "opener", uihost.WebViewOptions{}, layout.W(130), layout.H(80))
+		if adopt != nil {
+			popup = uihost.WebView(c, "popup", uihost.WebViewOptions{Adopt: adopt}, layout.W(100), layout.H(50))
+		}
+	})
+	original := embedOf(t, a, fb, &opener)
+	tango.Await(a, func() struct{} {
+		opener.Surface().SetWebPopupHandler(func(tango.NewWindowRequest) func(*tango.Surface) {
+			return func(s *tango.Surface) {
+				adopt = s
+				cv.Invalidate()
+			}
+		})
+		if !fb.NativeWebPopup(original.ID(), platform.NewWindowRequest{}) {
+			t.Error("popup not claimed")
+		}
+		return struct{}{}
+	})
+	wait(t, cv, "popup adopts native surface", func() bool {
+		return tango.Await(a, func() bool {
+			return popup != nil && popup.Surface() != nil
+		})
+	})
+	child := embedOf(t, a, fb, &popup)
+	if child.ID() != adopt.ID() || child.Parent() != win.ID() || child.Placement().Frame.W != 100 {
+		t.Fatalf("native child %d, parent %d, placement %+v", child.ID(), child.Parent(), child.Placement())
+	}
+}

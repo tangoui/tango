@@ -125,6 +125,10 @@ func embedWndProc(hwnd, m, wp, lp uintptr) uintptr {
 
 // NewEmbeddedWebView implements platform.WebViewEmbedder. Main thread.
 func (b *Backend) NewEmbeddedWebView(id, parentID platform.SurfaceID, opts platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
+	return b.newEmbeddedWebView(id, parentID, opts, web, true)
+}
+
+func (b *Backend) newEmbeddedWebView(id, parentID platform.SurfaceID, opts platform.SurfaceOptions, web platform.WebOptions, navigate bool) (*embedded, error) {
 	if b.h == nil {
 		return nil, errors.New("tango/windows: NewEmbeddedWebView before Init")
 	}
@@ -166,6 +170,9 @@ func (b *Backend) NewEmbeddedWebView(id, parentID platform.SurfaceID, opts platf
 	}
 	if len(web.Headers) > 0 {
 		s.SetExtraHeaders(web.Headers)
+	}
+	if !navigate {
+		return e, nil
 	}
 	url := opts.URL
 	if url == "" {

@@ -75,6 +75,7 @@ pkg github.com/tangoui/tango/uihost, type ShortcutOptions struct
 pkg github.com/tangoui/tango/uihost, type ShortcutOptions struct, InTextInput bool
 pkg github.com/tangoui/tango/uihost, type ThemeMode int
 pkg github.com/tangoui/tango/uihost, type WebViewOptions struct
+pkg github.com/tangoui/tango/uihost, type WebViewOptions struct, Adopt *tango.Surface
 pkg github.com/tangoui/tango/uihost, type WebViewOptions struct, Covered CoverMode
 pkg github.com/tangoui/tango/uihost, type WebViewOptions struct, Created func(*tango.Surface)
 pkg github.com/tangoui/tango/uihost, type WebViewOptions struct, Debug bool

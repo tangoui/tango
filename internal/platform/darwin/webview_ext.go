@@ -239,7 +239,7 @@ func webDelegateMethods(of func(self id) *surface) []objc.MethodDef {
 		// WKUIDelegate
 		method("webView:createWebViewWithConfiguration:forNavigationAction:windowFeatures:", func(self id, _ objc.SEL, web, cfg, action, features id) id {
 			if s := of(self); s != nil {
-				s.newWindow(action, features)
+				return s.newWindow(cfg, action, features)
 			}
 			return 0
 		}),
@@ -308,10 +308,10 @@ func (s *surface) navigationPolicy(action id) uintptr {
 	return wkNavigationActionPolicyCancel
 }
 
-func (s *surface) newWindow(action, features id) {
+func (s *surface) newWindow(cfg, action, features id) id {
 	h := s.webHost()
 	if h == nil {
-		return
+		return 0
 	}
 	req := platform.NewWindowRequest{}
 	withPool(func() {
@@ -330,7 +330,27 @@ func (s *surface) newWindow(action, features id) {
 	if req.URL == "about:blank" {
 		req.URL = ""
 	}
+	if wh := s.interactionHost(); wh != nil {
+		var web id
+		if wh.OnWebPopup(s.id, req, func(sid, parent platform.SurfaceID, opts platform.SurfaceOptions) (platform.Surface, error) {
+			if parent != 0 {
+				e, err := s.b.newEmbeddedWebView(sid, parent, opts, platform.WebOptions{}, cfg)
+				if err == nil {
+					web = e.s.web
+				}
+				return e, err
+			}
+			native, err := s.b.newWebSurface(sid, opts, nil, cfg)
+			if err == nil {
+				web = native.(*surface).web
+			}
+			return native, err
+		}) {
+			return web
+		}
+	}
 	h.OnNewWindow(s.id, req)
+	return 0
 }
 
 // ---- permissions ----

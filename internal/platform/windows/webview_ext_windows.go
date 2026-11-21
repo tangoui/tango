@@ -272,6 +272,7 @@ func (s *surface) initWebExt() {
 	if wh := s.webHost(); wh != nil {
 		addEvent(s.webview, wvAddPermissionRequested, s.permissionRequested)
 		addEvent(s.webview, wvAddNewWindowRequested, s.newWindowRequested)
+		addEvent(s.webview, wvAddScriptDialogOpening, s.onScriptDialog)
 		if wv := queryInterface(s.webview, &iidICoreWebView2_10); wv != 0 {
 			addEvent(wv, wv10AddBasicAuthenticationRequested, s.basicAuthenticationRequested)
 			release(wv)
@@ -414,7 +415,7 @@ func (s *surface) canceledNavigation(args uintptr) bool {
 }
 
 func (s *surface) newWindowRequested(_, args uintptr) {
-	// Always handled: no WebView2 popup window; window.open returns null.
+	// Suppress the runtime’s default window. An opt-in handler can supply a child.
 	comCall(args, newWinPutHandled, 1)
 	wh := s.webHost()
 	if wh == nil || s.closed {
@@ -433,7 +434,9 @@ func (s *surface) newWindowRequested(_, args uintptr) {
 		}
 		release(f)
 	}
-	wh.OnNewWindow(s.id, req)
+	if !s.claimPopup(req, args) {
+		wh.OnNewWindow(s.id, req)
+	}
 }
 
 func (s *surface) basicAuthenticationRequested(_, args uintptr) {

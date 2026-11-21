@@ -420,6 +420,11 @@ func (s *Surface) handleClosed() {
 	s.pageGone()
 	s.lane.Close()
 	s.setLaneNative(nil)
+	replies := s.web.replies
+	s.web.replies = nil
+	for _, cancel := range replies {
+		cancel()
+	}
 	a := s.app
 	a.mu.Lock()
 	delete(a.surfaces, s.id)

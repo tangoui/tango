@@ -18,6 +18,20 @@ var (
 )
 
 func init() {
+	corehook.AdoptEmbeddedWebView = func(parent, child any) (platform.EmbeddedWebView, error) {
+		s := child.(*Surface)
+		if s.closed.Load() {
+			return nil, ErrSurfaceClosed
+		}
+		if s.embedIn == nil || s.embedIn != parent {
+			return nil, errors.New("tango: cannot adopt WebView into a different native parent")
+		}
+		ev, ok := s.ns.(platform.EmbeddedWebView)
+		if !ok {
+			return nil, ErrUnsupported
+		}
+		return ev, nil
+	}
 	corehook.NewEmbeddedWebView = func(parent any, opts any, script string) (any, platform.EmbeddedWebView, error) {
 		p, ok := parent.(*Surface)
 		if !ok || p == nil {

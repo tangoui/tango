@@ -144,3 +144,34 @@ ok, err := s.GoBack()
 
 `GoBack` 和 `GoForward` 调用原生历史栈。返回 `false, nil` 表示当前方向
 没有历史项。macOS、Windows 和 Linux 支持上述接口。
+
+### 网页对话框、文件选择和原生子窗口
+
+```go
+s.SetWebDialogHandler(func(req tango.WebDialogRequest, reply func(tango.WebDialogResponse)) {
+    showPageDialog(req, reply)
+})
+s.OnWebFileChooser(func(ev tango.WebFileChooserEvent) { showFileChooserStatus(ev.Open, ev.FileCount) })
+s.SetWebFileChooserHandler(func(req tango.WebFileChooserRequest, reply func([]string)) {
+    showFileChooser(req, reply)
+})
+s.SetWebPopupHandler(func(req tango.NewWindowRequest) func(*tango.Surface) {
+    if !allowPopup(req) {
+        return nil // 交给现有 NewWindow 策略
+    }
+    return func(child *tango.Surface) {
+        child.OnClosed(func() { popupClosed(child) })
+    }
+})
+```
+
+对话框和文件选择的回复可以跨 goroutine，且只使用第一次回复。关闭
+Surface 会取消等待中的请求。文件选择回复使用绝对路径。Windows
+WebView2 继续显示引擎自带的文件选择器，其公开接口没有选择器回调。
+macOS 和 Linux 支持接管选择器，文件类型和目录信息以引擎提供的字段为准。
+macOS 的 beforeunload 回调取决于系统 WebKit 对该 delegate 的支持。
+
+引擎按网页自己的 opener 策略关联父子窗口，并支持空白弹窗。用
+`child.OnClosed` 观察关闭。嵌入页面的弹窗在原画布窗口内创建，把
+收到的 `child` 传给新标签的 `uihost.WebViewOptions{Adopt: child}`，
+即可由新标签定位和管理该原生视图。独立 WebView 窗口的弹窗仍可用作独立窗口。

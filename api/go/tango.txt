@@ -55,6 +55,10 @@ pkg github.com/tangoui/tango, const Terminating Lifecycle = 4
 pkg github.com/tangoui/tango, const TitleBarDefault TitleBar = 0
 pkg github.com/tangoui/tango, const TitleBarHidden TitleBar = 1
 pkg github.com/tangoui/tango, const TitleBarNone TitleBar = 2
+pkg github.com/tangoui/tango, const WebDialogAlert WebDialogKind = 0
+pkg github.com/tangoui/tango, const WebDialogBeforeUnload WebDialogKind = 3
+pkg github.com/tangoui/tango, const WebDialogConfirm WebDialogKind = 1
+pkg github.com/tangoui/tango, const WebDialogPrompt WebDialogKind = 2
 pkg github.com/tangoui/tango, const WebNavigationCommitted WebNavigationKind = 2
 pkg github.com/tangoui/tango, const WebNavigationFailed WebNavigationKind = 4
 pkg github.com/tangoui/tango, const WebNavigationFinished WebNavigationKind = 3
@@ -151,6 +155,7 @@ pkg github.com/tangoui/tango, method (*Surface) OnMoved(func(int, int))
 pkg github.com/tangoui/tango, method (*Surface) OnNavigating(func(string))
 pkg github.com/tangoui/tango, method (*Surface) OnResized(func(int, int))
 pkg github.com/tangoui/tango, method (*Surface) OnStateChanged(func(WindowState))
+pkg github.com/tangoui/tango, method (*Surface) OnWebFileChooser(func(WebFileChooserEvent))
 pkg github.com/tangoui/tango, method (*Surface) OnWebNavigation(func(WebNavigationEvent))
 pkg github.com/tangoui/tango, method (*Surface) OpenDevTools()
 pkg github.com/tangoui/tango, method (*Surface) Print() error
@@ -175,6 +180,9 @@ pkg github.com/tangoui/tango, method (*Surface) SetSizeLimits(int, int, int, int
 pkg github.com/tangoui/tango, method (*Surface) SetState(WindowState) error
 pkg github.com/tangoui/tango, method (*Surface) SetTitle(string)
 pkg github.com/tangoui/tango, method (*Surface) SetUserAgent(string) error
+pkg github.com/tangoui/tango, method (*Surface) SetWebDialogHandler(func(WebDialogRequest, func(WebDialogResponse)))
+pkg github.com/tangoui/tango, method (*Surface) SetWebFileChooserHandler(func(WebFileChooserRequest, func([]string)))
+pkg github.com/tangoui/tango, method (*Surface) SetWebPopupHandler(func(NewWindowRequest) func(*Surface))
 pkg github.com/tangoui/tango, method (*Surface) SetZoom(float64) error
 pkg github.com/tangoui/tango, method (*Surface) Show()
 pkg github.com/tangoui/tango, method (*Surface) Size() (int, int)
@@ -339,6 +347,33 @@ pkg github.com/tangoui/tango, type SurfaceOptions struct, Y int
 pkg github.com/tangoui/tango, type SurfaceOptions struct, noncomparable
 pkg github.com/tangoui/tango, type TitleBar = internal/platform.TitleBar
 pkg github.com/tangoui/tango, type TitleBar int
+pkg github.com/tangoui/tango, type WebDialogKind = internal/platform.WebDialogKind
+pkg github.com/tangoui/tango, type WebDialogKind uint8
+pkg github.com/tangoui/tango, type WebDialogRequest = internal/platform.WebDialogRequest
+pkg github.com/tangoui/tango, type WebDialogRequest struct
+pkg github.com/tangoui/tango, type WebDialogRequest struct, DefaultText string
+pkg github.com/tangoui/tango, type WebDialogRequest struct, ID uint64
+pkg github.com/tangoui/tango, type WebDialogRequest struct, Kind WebDialogKind
+pkg github.com/tangoui/tango, type WebDialogRequest struct, Message string
+pkg github.com/tangoui/tango, type WebDialogRequest struct, URL string
+pkg github.com/tangoui/tango, type WebDialogResponse = internal/platform.WebDialogResponse
+pkg github.com/tangoui/tango, type WebDialogResponse struct
+pkg github.com/tangoui/tango, type WebDialogResponse struct, Accepted bool
+pkg github.com/tangoui/tango, type WebDialogResponse struct, Text string
+pkg github.com/tangoui/tango, type WebFileChooserEvent struct
+pkg github.com/tangoui/tango, type WebFileChooserEvent struct, FileCount int
+pkg github.com/tangoui/tango, type WebFileChooserEvent struct, ID uint64
+pkg github.com/tangoui/tango, type WebFileChooserEvent struct, Open bool
+pkg github.com/tangoui/tango, type WebFileChooserEvent struct, Request WebFileChooserRequest
+pkg github.com/tangoui/tango, type WebFileChooserEvent struct, noncomparable
+pkg github.com/tangoui/tango, type WebFileChooserRequest = internal/platform.WebFileChooserRequest
+pkg github.com/tangoui/tango, type WebFileChooserRequest struct
+pkg github.com/tangoui/tango, type WebFileChooserRequest struct, Accept []string
+pkg github.com/tangoui/tango, type WebFileChooserRequest struct, Directories bool
+pkg github.com/tangoui/tango, type WebFileChooserRequest struct, ID uint64
+pkg github.com/tangoui/tango, type WebFileChooserRequest struct, Multiple bool
+pkg github.com/tangoui/tango, type WebFileChooserRequest struct, URL string
+pkg github.com/tangoui/tango, type WebFileChooserRequest struct, noncomparable
 pkg github.com/tangoui/tango, type WebNavigationEvent struct
 pkg github.com/tangoui/tango, type WebNavigationEvent struct, CanGoBack bool
 pkg github.com/tangoui/tango, type WebNavigationEvent struct, CanGoForward bool

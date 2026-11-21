@@ -17,3 +17,7 @@ var NewEmbeddedWebView func(parent any, opts any, script string) (surface any, e
 // EmbeddedParent returns the *tango.Surface (as any) an embedded WebView
 // surface lives in, or nil when surface is a window. Set by package tango.
 var EmbeddedParent func(surface any) any
+
+// AdoptEmbeddedWebView returns an existing embedded surface's view.
+// Main thread only. Set by package tango.
+var AdoptEmbeddedWebView func(parent, child any) (platform.EmbeddedWebView, error)

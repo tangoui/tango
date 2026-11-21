@@ -49,6 +49,7 @@ type surface struct {
 	overlays []*overlay // canvases attached to a WebView surface (canvas_attach.go)
 	delegate id
 	closed   bool
+	popup    bool
 
 	ext surfaceExt // round-2 window state; surface_ext.go
 
@@ -66,10 +67,21 @@ func (b *backend) NewSurface(sid platform.SurfaceID, opts platform.SurfaceOption
 // NewSurfaceEx). Canvas surfaces (canvas.go) share newWindow and
 // finishSurface and put a canvas view where the WebView would go.
 func (b *backend) newSurface(sid platform.SurfaceID, opts platform.SurfaceOptions, ex *platform.SurfaceExtras) (platform.Surface, error) {
+	return b.newWebSurface(sid, opts, ex, 0)
+}
+
+func (b *backend) newWebSurface(sid platform.SurfaceID, opts platform.SurfaceOptions, ex *platform.SurfaceExtras, popupConfiguration id) (platform.Surface, error) {
 	s, rect := b.newWindow(sid, opts, ex)
+	s.popup = popupConfiguration != 0
 	s.laneCaps = envLaneCaps() // read once, before the core can ask
 	withPool(func() {
-		cfg := s.webConfiguration(opts)
+		cfg := popupConfiguration
+		if cfg == 0 {
+			cfg = s.webConfiguration(opts)
+		} else {
+			s.installWebContentController(cfg, opts.BridgeScript)
+			retain(cfg)
+		}
 		s.web = msgInitRectID(send(class("TangoWebView"), "alloc"), sel("initWithFrame:configuration:"), rect, cfg)
 		release(cfg) // the web view keeps its own copy
 		send(s.web, "setNavigationDelegate:", uintptr(s.delegate))
@@ -83,6 +95,9 @@ func (b *backend) newSurface(sid platform.SurfaceID, opts platform.SurfaceOption
 	})
 	b.byWebView[s.web] = s
 	b.finishSurface(s, opts, ex)
+	if s.popup {
+		return s, nil
+	}
 
 	start := opts.URL
 	if start == "" {
@@ -107,15 +122,19 @@ func (s *surface) webConfiguration(opts platform.SurfaceOptions) id {
 	send(send(cfg, "preferences"), "setValue:forKey:",
 		uintptr(nsNumberBool(opts.Debug)), uintptr(nsString("developerExtrasEnabled")))
 
+	s.installWebContentController(cfg, opts.BridgeScript)
+	return cfg
+}
+
+func (s *surface) installWebContentController(cfg id, bridge string) {
 	s.ucc = alloc("WKUserContentController")
 	send(s.ucc, "addScriptMessageHandler:name:", uintptr(s.delegate), uintptr(nsString(messageHandlerName)))
-	for _, src := range []string{nativeShim, opts.BridgeScript} {
+	for _, src := range []string{nativeShim, bridge} {
 		if src != "" {
 			addUserScript(s.ucc, src)
 		}
 	}
 	send(cfg, "setUserContentController:", uintptr(s.ucc))
-	return cfg
 }
 
 // newWindow creates the NSWindow and its delegate for a surface, without
@@ -444,6 +463,7 @@ func registerWindowClasses() {
 	protocols := []string{"NSWindowDelegate", "WKNavigationDelegate", "WKScriptMessageHandler", "WKUIDelegate", "WKDownloadDelegate"}
 	all := append(own, extDelegateMethods(of)...)
 	all = append(all, webDelegateMethods(of)...)
+	all = append(all, webInteractionMethods(of)...)
 	classDef("TangoSurfaceDelegate", "NSObject", protocols, all)
 }
 

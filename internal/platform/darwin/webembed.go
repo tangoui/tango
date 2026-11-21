@@ -111,6 +111,10 @@ func embedHost(p *surface) id {
 
 // NewEmbeddedWebView implements platform.WebViewEmbedder.
 func (b *backend) NewEmbeddedWebView(sid, parent platform.SurfaceID, opts platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
+	return b.newEmbeddedWebView(sid, parent, opts, web, 0)
+}
+
+func (b *backend) newEmbeddedWebView(sid, parent platform.SurfaceID, opts platform.SurfaceOptions, web platform.WebOptions, popupConfig id) (*embedded, error) {
 	if !isMainThread() {
 		return nil, errors.New("tango/darwin: NewEmbeddedWebView must run on the main thread")
 	}
@@ -120,7 +124,7 @@ func (b *backend) NewEmbeddedWebView(sid, parent platform.SurfaceID, opts platfo
 	}
 	registerEmbedClasses()
 	e := &embedded{parent: p, hidden: false}
-	s := &surface{b: b, id: sid, win: p.win}
+	s := &surface{b: b, id: sid, win: p.win, popup: popupConfig != 0}
 	e.s = s
 	var err error
 	withPool(func() {
@@ -142,7 +146,13 @@ func (b *backend) NewEmbeddedWebView(sid, parent platform.SurfaceID, opts platfo
 
 		s.delegate = alloc("TangoSurfaceDelegate")
 		pendingWeb = &web
-		cfg := s.webConfiguration(opts)
+		cfg := popupConfig
+		if cfg == 0 {
+			cfg = s.webConfiguration(opts)
+		} else {
+			s.installWebContentController(cfg, opts.BridgeScript)
+			retain(cfg)
+		}
 		s.web = msgInitRectID(send(class("TangoWebView"), "alloc"), sel("initWithFrame:configuration:"), rect, cfg)
 		release(cfg)
 		send(s.web, "setNavigationDelegate:", uintptr(s.delegate))
@@ -163,6 +173,9 @@ func (b *backend) NewEmbeddedWebView(sid, parent platform.SurfaceID, opts platfo
 	embedByWeb[s.web] = e
 	embedsOf[p] = append(embedsOf[p], e)
 
+	if popupConfig != 0 {
+		return e, nil
+	}
 	start := opts.URL
 	if start == "" {
 		start = "about:blank"

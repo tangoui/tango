@@ -185,6 +185,14 @@ type appWeb struct {
 // Surface.mu, headers by hmu (ServeAsset runs on any thread), the rest is
 // main-thread only.
 type surfaceWeb struct {
+	onDialog      func(WebDialogRequest, func(WebDialogResponse))
+	onFileChooser func(WebFileChooserRequest, func([]string))
+	onFileEvent   []func(WebFileChooserEvent)
+	onPopup       func(NewWindowRequest) func(*Surface)
+
+	replySeq uint64
+	replies  map[uint64]func()
+
 	navigation      WebNavigationEvent
 	navigationToken uint64
 	onNavigation    []func(WebNavigationEvent)
@@ -211,6 +219,8 @@ type surfaceWeb struct {
 
 func (s *Surface) clearWebHandlers() { // s.mu held
 	s.web.onNavigation = nil
+	s.web.onDialog, s.web.onFileChooser, s.web.onPopup = nil, nil, nil
+	s.web.onFileEvent = nil
 	s.web.onPermission, s.web.onDownload, s.web.onDownloadEv = nil, nil, nil
 	s.web.onAuth, s.web.onNewWindow, s.web.onNavigate = nil, nil, nil
 }

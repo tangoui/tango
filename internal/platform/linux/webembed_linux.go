@@ -141,6 +141,10 @@ type embeddedWeb struct {
 
 // NewEmbeddedWebView implements platform.WebViewEmbedder. Main thread.
 func (b *backend) NewEmbeddedWebView(id, parent platform.SurfaceID, o platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
+	return b.newEmbeddedWebView(id, parent, o, web, 0)
+}
+
+func (b *backend) newEmbeddedWebView(id, parent platform.SurfaceID, o platform.SurfaceOptions, web platform.WebOptions, opener ptr) (*embeddedWeb, error) {
 	if !b.loaded.Load() {
 		return nil, errors.New("tango/linux: NewEmbeddedWebView before Init")
 	}
@@ -163,7 +167,7 @@ func (b *backend) NewEmbeddedWebView(id, parent platform.SurfaceID, o platform.S
 	w := &surface{b: b, id: id, debug: o.Debug, win: ps.win}
 	pendingWeb = &web // read by initWebExt (wireWeb)
 	defer func() { pendingWeb = nil }()
-	if err := w.createWeb(o); err != nil {
+	if err := w.createWeb(o, opener); err != nil {
 		return nil, err
 	}
 	layout := f.layoutNew(0, 0)
@@ -205,6 +209,10 @@ func (b *backend) NewEmbeddedWebView(id, parent platform.SurfaceID, o platform.S
 	f.overlayAddOverlay(h.overlay, layout) // last: above the canvas, the GLArea and earlier views
 	b.byWeb[w.web] = w
 
+	if opener != 0 {
+		connect(w.web, "close", 0, func(_, _ ptr) ptr { e.Close(); return 0 })
+		return e, nil
+	}
 	url := o.URL
 	if url == "" {
 		url = "about:blank"

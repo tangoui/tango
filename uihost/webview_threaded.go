@@ -222,17 +222,12 @@ func (me *mainEmbeds) apply() {
 // create makes the view's surface and tells the UI side. Main thread.
 func (mv *mainView) create(id ui.ID, opts WebViewOptions) {
 	me, v := mv.me, mv.ui
-	so, ev, err := corehook.NewEmbeddedWebView(me.parent, tango.SurfaceOptions{
-		URL:     opts.URL,
-		Debug:   opts.Debug,
-		WebView: opts.WebView,
-	}, embedFocusScript)
+	s, ev, err := createWebView(me.parent, opts)
 	if err != nil {
 		mv.failed = true
 		me.toUI(func() { v.err = err; me.h.invalidate() })
 		return
 	}
-	s := so.(*tango.Surface)
 	mv.s, mv.ev = s, ev
 	bySurface[s] = mv
 	h := me.h
