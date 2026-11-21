@@ -8,6 +8,14 @@
 
 - `(*tango.Surface).LastActivityAt()` 返回窗口最近观测到的输入时间，包含自绘画布和嵌入的 WebView。窗口隐藏时也可从任意 goroutine 读取。
 - 桌面的 `uihost.Attach` 画布和 `tan dev` 热重载的 `uihost.Open` 窗口可嵌入 `uihost.WebView`。子视图随画布布局裁剪，支持浮层遮盖和键盘焦点。见 [内嵌 WebView](docs/specs/webview-embed.md)。
+- 内嵌 WebView 支持关联主框架导航与原生布局提交的脚本结果、PNG 截图、点击、键入和滚动。
+
+- WebView 支持延迟选择下载目标、查询与关闭支持的平台检查器，以及普通网页模式和命名的隔离数据 profile。
+
+- WebView 可延迟回复脚本对话框和文件选择，并可接管保留 opener 的原生子窗口。
+
+- WebView 支持主框架导航 ID、加载阶段、实时 URL 和标题，以及原生前进后退。见 [WebView 文档](docs/webview.md)。
+
 - `uihost.ShortcutWithContext` 为自绘窗口提供可透传的快捷键回调，可读取输入法组合状态、文本焦点、按键重复和物理释放。支持多段组合键和双击修饰键。
 - 终端实例设置与交互：`ui/terminal` 支持字体家族和字号、光标形状和闪烁（可由 DECSCUSR 覆盖）、独立选区前景、可选预测回显、系统与快捷键粘贴确认、选区和逻辑行查询，以及跨软换行的 URL 和路径命中。
 - 自绘窗口支持通过 `ui.RunnerOptions.UIScale` 和 `(*ui.Runner).SetUIScale` 设置缩放。布局、绘制、输入命中、浮层、IME、原生子视图定位和无障碍坐标使用同一缩放比例。`theme.Theme.FontFamily` 接受按顺序回退的字体家族列表，自绘组件和 `(*ui.Context).TextStyle` 用它测量和排版文本。

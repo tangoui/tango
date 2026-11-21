@@ -124,7 +124,7 @@ func (b *backend) NewEmbeddedWebView(sid, parent platform.SurfaceID, opts platfo
 	if p == nil || p.closed || p.view == 0 {
 		return nil, errEmbedParent
 	}
-	return b.newEmbeddedWebView(sid, p, p.view, func() id { return embedHost(p) }, opts, web)
+	return b.newEmbeddedWebView(sid, p, p.view, func() id { return embedHost(p) }, opts, web, 0)
 }
 
 func (o *overlay) NewCanvasWebView(sid platform.SurfaceID, opts platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
@@ -136,13 +136,13 @@ func (o *overlay) NewCanvasWebView(sid platform.SurfaceID, opts platform.Surface
 			o.embedHost = makeEmbedHost(o.view)
 		}
 		return o.embedHost
-	}, opts, web)
+	}, opts, web, 0)
 }
 
-func (b *backend) newEmbeddedWebView(sid platform.SurfaceID, p *surface, focus id, container func() id, opts platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
+func (b *backend) newEmbeddedWebView(sid platform.SurfaceID, p *surface, focus id, container func() id, opts platform.SurfaceOptions, web platform.WebOptions, popupConfig id) (*embedded, error) {
 	registerEmbedClasses()
 	e := &embedded{parent: p, focus: focus}
-	s := &surface{b: b, id: sid, win: p.win}
+	s := &surface{b: b, id: sid, win: p.win, popup: popupConfig != 0}
 	e.s = s
 	var err error
 	withPool(func() {
@@ -164,7 +164,13 @@ func (b *backend) newEmbeddedWebView(sid platform.SurfaceID, p *surface, focus i
 
 		s.delegate = alloc("TangoSurfaceDelegate")
 		pendingWeb = &web
-		cfg := s.webConfiguration(opts)
+		cfg := popupConfig
+		if cfg == 0 {
+			cfg = s.webConfiguration(opts)
+		} else {
+			s.installWebContentController(cfg, opts.BridgeScript)
+			retain(cfg)
+		}
 		s.web = msgInitRectID(send(class("TangoWebView"), "alloc"), sel("initWithFrame:configuration:"), rect, cfg)
 		release(cfg)
 		send(s.web, "setNavigationDelegate:", uintptr(s.delegate))
@@ -185,6 +191,9 @@ func (b *backend) newEmbeddedWebView(sid platform.SurfaceID, p *surface, focus i
 	embedByWeb[s.web] = e
 	embedsOf[p] = append(embedsOf[p], e)
 
+	if popupConfig != 0 {
+		return e, nil
+	}
 	start := opts.URL
 	if start == "" {
 		start = "about:blank"

@@ -15,10 +15,11 @@ import (
 )
 
 type surface struct {
-	b    *Backend
-	id   platform.SurfaceID
-	opts platform.SurfaceOptions
-	hwnd uintptr
+	webProfile string
+	b          *Backend
+	id         platform.SurfaceID
+	opts       platform.SurfaceOptions
+	hwnd       uintptr
 
 	style   uint32
 	created bool // NewSurface returned: events may be reported
@@ -55,6 +56,10 @@ func (b *Backend) NewSurface(id platform.SurfaceID, opts platform.SurfaceOptions
 // surfaces (canvas_surface_windows.go) share newWindow and finishSurface
 // and put a canvas child window where the WebView would go.
 func (b *Backend) newSurface(id platform.SurfaceID, opts platform.SurfaceOptions, ex *platform.SurfaceExtras) (platform.Surface, error) {
+	return b.newWebSurface(id, opts, ex, "")
+}
+
+func (b *Backend) newWebSurface(id platform.SurfaceID, opts platform.SurfaceOptions, ex *platform.SurfaceExtras, profile string) (platform.Surface, error) {
 	if b.h == nil {
 		return nil, fmt.Errorf("tango: NewSurface before Init")
 	}
@@ -73,6 +78,7 @@ func (b *Backend) newSurface(id platform.SurfaceID, opts platform.SurfaceOptions
 		return nil, err
 	}
 
+	s.webProfile = profile
 	url := opts.URL
 	if url == "" {
 		url = "about:blank"
@@ -187,6 +193,10 @@ func (s *surface) createWebView() {
 		s.fail(s.b.envErr)
 		return
 	}
+	if s.webProfile != "" {
+		s.createProfileController()
+		return
+	}
 	start := func(h uintptr) uintptr { return comCall(s.b.env, envCreateController, s.hwnd, h) }
 	if hr := withHandler(s.controllerCreated, start); failed(hr) {
 		s.fail(hresultError("CreateCoreWebView2Controller", hr))
@@ -244,6 +254,7 @@ func (s *surface) setUp(controller uintptr) {
 
 	addWebViewEvent(s.webview, wvAddNavigationStarting, s.navigationStarting)
 	addWebViewEvent(s.webview, wvAddNavigationCompleted, s.navigationCompleted)
+	s.initWebNavigation()
 	addWebViewEvent(s.webview, wvAddWebMessageReceived, s.webMessageReceived)
 	addWebViewEvent(s.webview, wvAddWebResourceRequested, s.webResourceRequested)
 	comCall(s.webview, wvAddWebResourceRequestedFilter, uintptr(unsafe.Pointer(u16(assetOrigin+"/*"))), webResourceContextAll)
@@ -295,7 +306,15 @@ func (s *surface) navigate(url string) {
 }
 
 func (s *surface) navigationCompleted(_, args uintptr) {
-	if s.closed || s.canceledNavigation(args) {
+	if s.closed {
+		return
+	}
+	nav, _ := comOut[uint64](args, navCompletedGetNavigationID)
+	if s.canceledNavigation(args) {
+		s.webNavigation(nav, platform.WebNavigationFailed, s.ext.navURL, "navigation blocked")
+		return
+	}
+	if nav != s.ext.webNavID {
 		return
 	}
 	if ok, _ := comOut[int32](args, navCompletedGetIsSuccess); ok == 0 {
@@ -303,6 +322,10 @@ func (s *surface) navigationCompleted(_, args uintptr) {
 		return
 	}
 	s.navigationSucceeded()
+	s.webNavigation(nav, platform.WebNavigationFinished, "", "")
+	if s.closed {
+		return
+	}
 	s.b.h.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceLoaded, URL: comString(s.webview, wvGetSource)})
 }
 

@@ -155,10 +155,14 @@ func (s *surface) onLoadFailed(a [7]uintptr) uintptr {
 	domain := *(*uint32)(toPtr(gerr))
 	code := *(*int32)(unsafe.Add(toPtr(gerr), 4))
 	if wx.networkErrorQuark != nil && domain == wx.networkErrorQuark() && code == webkitNetErrorCancelled {
+		s.webNavigation(platform.WebNavigationFailed, goStr(a[2]), "navigation cancelled")
 		return 0
 	}
 	msg := goStr(*(*ptr)(unsafe.Add(toPtr(gerr), 8)))
-	s.b.host.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceLoadFailed, URL: goStr(a[2]), Error: msg})
+	s.webNavigation(platform.WebNavigationFailed, goStr(a[2]), msg)
+	if !s.closed {
+		s.b.host.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceLoadFailed, URL: goStr(a[2]), Error: msg})
+	}
 	return 0
 }
 

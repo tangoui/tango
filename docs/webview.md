@@ -124,3 +124,129 @@ app.SetNavigationPolicy(func(s *tango.Surface, n tango.NavigationRequest) bool {
 `examples/webview-demo -smoke` 依次检查：创建时与运行时 UA、资源请求额外头、页内查找计数/上一个/下一个/区分大小写/无匹配、`window.open` 与 `target=_blank` 被拦截并回调、导航策略取消外部跳转（应用设置了策略时由策略决定）、资源 origin 下载与 http 下载（WKDownload）到临时目录、下载后页面仍可通信、Cookie 设置/读取/删除/页面写入后 Go 可见/按域清除、清除缓存与存储、权限回调（getUserMedia，拒绝后页面收到 `NotAllowedError`）、Basic 认证、打印 PDF 与截图写文件。
 
 没有摄像头的机器上 WebKit 不会发起权限请求，所以冒烟程序在 macOS 上用 WebKit 的私有测试开关（模拟采集设备）触发它，这只在示例里，框架代码不使用私有开关。
+
+### 主框架导航
+
+`Surface.OnWebNavigation` 在主线程报告开始、提交、完成、失败及页面状态变化。
+重定向沿用同一 ID。片段跳转和 SPA 历史更新沿用当前 ID，通过
+`WebPageChanged` 报告 URL 或历史变化。标题由原生 WebView 提供。
+`Surface.WebNavigation()` 返回最近的加载阶段和最新的元数据，可用于在
+`uihost.WebViewOptions.Created` 中初始化地址栏和前进后退按钮。
+
+```go
+s.OnWebNavigation(func(ev tango.WebNavigationEvent) {
+    updateAddressBar(ev.URL, ev.Title, ev.CanGoBack, ev.CanGoForward)
+})
+state := s.WebNavigation()
+updateAddressBar(state.URL, state.Title, state.CanGoBack, state.CanGoForward)
+ok, err := s.GoBack()
+```
+
+`GoBack` 和 `GoForward` 调用原生历史栈。返回 `false, nil` 表示当前方向
+没有历史项。macOS、Windows 和 Linux 支持上述接口。
+
+### 网页对话框、文件选择和原生子窗口
+
+```go
+s.SetWebDialogHandler(func(req tango.WebDialogRequest, reply func(tango.WebDialogResponse)) {
+    showPageDialog(req, reply)
+})
+s.OnWebFileChooser(func(ev tango.WebFileChooserEvent) { showFileChooserStatus(ev.Open, ev.FileCount) })
+s.SetWebFileChooserHandler(func(req tango.WebFileChooserRequest, reply func([]string)) {
+    showFileChooser(req, reply)
+})
+s.SetWebPopupHandler(func(req tango.NewWindowRequest) func(*tango.Surface) {
+    if !allowPopup(req) {
+        return nil // 交给现有 NewWindow 策略
+    }
+    return func(child *tango.Surface) {
+        child.OnClosed(func() { popupClosed(child) })
+    }
+})
+```
+
+对话框和文件选择的回复可以跨 goroutine，且只使用第一次回复。关闭
+Surface 会取消等待中的请求。文件选择回复使用绝对路径。Windows
+WebView2 继续显示引擎自带的文件选择器，其公开接口没有选择器回调。
+macOS 和 Linux 支持接管选择器，文件类型和目录信息以引擎提供的字段为准。
+macOS 的 beforeunload 回调取决于系统 WebKit 对该 delegate 的支持。
+
+引擎按网页自己的 opener 策略关联父子窗口，并支持空白弹窗。用
+`child.OnClosed` 观察关闭。嵌入页面的弹窗在原画布窗口内创建，把
+收到的 `child` 传给新标签的 `uihost.WebViewOptions{Adopt: child}`，
+即可由新标签定位和管理该原生视图。独立 WebView 窗口的弹窗仍可用作独立窗口。
+
+### 下载、检查器和网页数据
+
+```go
+opts := tango.WebViewOptions{Page: true, Profile: "browser"}
+s.SetDownloadDestinationHandler(func(req tango.DownloadRequest, reply func(string)) {
+    chooseDestination(req.Filename, reply)
+})
+s.OnDownloadEvent(updateDownload)
+open, err := s.DevToolsOpen()
+err = s.CloseDevTools()
+err = s.ClearBrowsingData(tango.DataAll)
+```
+
+关闭 Surface、令 `reply("")` 或在选择期间调用 `CancelDownload(id)` 都会取消
+待处理的下载。已接受的下载在终止事件中带目的路径。WebKitGTK 2.40 前使用
+同步下载处理器或默认策略。
+
+`Page` 允许跨站 HTTP(S) 导航，并禁用应用桥接和资源访问。`Profile` 在同名 WebView
+之间共享数据，隔离默认和其他 profile。任何属于该 profile 的活动 Surface
+均可调用 `ClearBrowsingData` 清理该 profile。macOS 的持久 profile 需要 macOS 14+
+的 WKWebsiteDataStore，Windows 需要带 Environment10 的 WebView2 Runtime，
+Linux 使用命名 WebKitWebsiteDataManager 的数据目录。缺少隔离能力时创建会失败，
+Windows 的 Runtime 初始化错误也可能异步报告。
+
+macOS 和 Linux 可查询、关闭原生检查器。macOS 依赖 WebKit 的运行时
+检查器接口。WebView2 公开接口支持打开 DevTools，查询和关闭返回
+`ErrUnsupported`。
+
+### 内嵌页面操作
+
+```go
+stamp, err := s.WebViewStamp()
+if err == nil {
+    data, err := s.EvalWebView(stamp, "({title: document.title})")
+    png, captureErr := s.CaptureWebView(stamp)
+    inputErr := s.SendWebInput(stamp, tango.WebInput{Kind: tango.WebClick, X: 40, Y: 25})
+    usePageResults(data, png, err, captureErr, inputErr)
+}
+```
+
+`WebViewStamp` 在主框架加载完成且有可见布局时可用。从网页左上角计算输入坐标，
+单位是 WebView 本地逻辑像素。点击与滚动坐标必须在裁剪后可见区域内。键入发往
+当前焦点控件。脚本接收同步 JavaScript 表达式并返回 JSON 值。
+
+导航或原生布局变化后应重新获取 stamp。操作开始及结果到达时都会校验 stamp。
+`ErrStaleWebView` 表示调用方需要重新观察页面。已经派发的输入或脚本可能已经
+产生页面效果。布局 ID 对应宿主已应用的原生位置和裁剪，应用可结合自身的帧呈现
+通知等待画面更新。
+
+macOS 使用 WKWebView 求值和截图，以及 AppKit 事件或文本输入客户端。Windows
+使用 WebView2 求值、截图和 CDP Input。Linux 使用 WebKitGTK 求值、截图和
+GTK3 原生事件。系统缺少对应入口时返回 `ErrUnsupported`。
+
+`LastActivityAt` 只在观测路径收到输入后更新。`SendWebInput` 直接向 WebView
+派发消息，绕过窗口输入监视器，调用本身不更新活动时间。如果浏览器把派发的输入
+作为可信 DOM 事件报告，页面活动桥接仍可能更新子视图和父窗口的时间。浏览器
+未提供可用于区分这两类可信事件的来源信息，保留该观测可避免漏记独立浏览器进程里
+真实的键鼠操作。`Page` 模式关闭页面桥接，活动仅由宿主能够观测的原生输入更新。
+
+### 热重载代理
+
+以下限制适用于 `tan dev` 热重载中由宿主持有的嵌入 WebView。
+
+| 接口 | 代理行为 |
+|---|---|
+| `OnWebNavigation`、`WebNavigation`、`GoBack`、`GoForward` | 转发原生导航阶段、标题、URL、历史状态和历史操作结果。 |
+| `SetWebDialogHandler`、`OnWebFileChooser`、`SetWebFileChooserHandler`、`SetWebPopupHandler` | 返回 `ErrUnsupported`，保留宿主的默认行为。 |
+| `WebViewOptions.Adopt` | `WebViewW.Err()` 返回 `ErrUnsupported`。 |
+| `SetDownloadDestinationHandler`、`CancelDownload` | 返回 `ErrUnsupported`。下载沿用宿主默认策略，工作进程的 `OnDownloadEvent` 收不到代理视图的事件。 |
+| `DevToolsOpen`、`CloseDevTools`、`ClearBrowsingData` | 返回 `ErrUnsupported`。已有的 `OpenDevTools` 仍转发给宿主。 |
+| `tango.WebViewOptions.Page`、`Profile` | 设置 `Page: true` 或非空 `Profile` 时，`WebViewW.Err()` 返回 `ErrUnsupported`。 |
+| `WebViewStamp`、`EvalWebView`、`CaptureWebView`、`SendWebInput` | 返回 `ErrUnsupported`。普通 `Eval` 和 `Screenshot` 仍转发给宿主。 |
+
+Cookie 等已有扩展保持原行为，代理返回 `ErrUnsupported`。

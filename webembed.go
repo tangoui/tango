@@ -39,6 +39,29 @@ func init() {
 		}
 		return ev, err
 	}
+	corehook.AdoptEmbeddedWebView = func(parent any, canvas platform.Canvas, child any) (platform.EmbeddedWebView, error) {
+		s := child.(*Surface)
+		if s.closed.Load() {
+			return nil, ErrSurfaceClosed
+		}
+		if _, remote := parent.(*Surface).ns.(corehook.ProxyWebViewParent); remote {
+			return nil, ErrUnsupported
+		}
+		if s.embedIn == nil || s.embedIn != parent || s.embedCanvas != canvas {
+			return nil, errors.New("tango: cannot adopt WebView into a different native parent")
+		}
+		ev, ok := s.ns.(platform.EmbeddedWebView)
+		if !ok {
+			return nil, ErrUnsupported
+		}
+		return ev, nil
+	}
+	corehook.CommitWebPlacement = func(surface any, ev platform.EmbeddedWebView, placement platform.WebPlacement) {
+		ev.SetPlacement(placement)
+		if s := surface.(*Surface); !s.proxyEmbed {
+			s.commitWebPlacement(placement)
+		}
+	}
 	corehook.NewEmbeddedWebView = func(parent any, canvas platform.Canvas, opts any, script string) (any, platform.EmbeddedWebView, error) {
 		p, ok := parent.(*Surface)
 		if !ok || p == nil {
@@ -74,6 +97,11 @@ func (p *Surface) embedWebViewOn(canvas platform.Canvas, opts SurfaceOptions, sc
 	if p.closed.Load() || p.ns == nil {
 		return nil, nil, errAttachClosed
 	}
+	_, remote := p.ns.(corehook.ProxyWebViewParent)
+	remote = remote && canvas == nil
+	if remote && (opts.WebView.Page || opts.WebView.Profile != "") {
+		return nil, nil, fmt.Errorf("tango: WebView Page and Profile in the dev host: %w", ErrUnsupported)
+	}
 	var create func(*Surface, platform.SurfaceOptions, platform.WebOptions) (platform.EmbeddedWebView, error)
 	if canvas != nil {
 		if em, ok := canvas.(platform.CanvasWebViewEmbedder); ok {
@@ -88,6 +116,9 @@ func (p *Surface) embedWebViewOn(canvas platform.Canvas, opts SurfaceOptions, sc
 				Event:   func(ev platform.SurfaceEvent) { h.OnSurfaceEvent(s.id, ev) },
 				Message: func(origin, msg string) { h.OnMessage(s.id, origin, msg) },
 				Asset:   func(out http.ResponseWriter, r *http.Request) { h.ServeAsset(s.id, out, r) },
+				Navigation: func(token uint64, kind platform.WebNavigationKind, page platform.WebPageState, reason string) {
+					h.OnWebNavigation(s.id, token, kind, page, reason)
+				},
 			})
 		}
 	} else if em, ok := a.b.(platform.WebViewEmbedder); ok {
@@ -99,22 +130,26 @@ func (p *Surface) embedWebViewOn(canvas platform.Canvas, opts SurfaceOptions, sc
 		return nil, nil, fmt.Errorf("tango: embedded WebView: %w", ErrUnsupported)
 	}
 	opts.Title, opts.Hidden = "", false
-	u := a.resolveURL(opts.URL)
+	u, err := a.webStartURL(opts.URL, opts.WebView)
+	if err != nil {
+		return nil, nil, err
+	}
 	var ev platform.EmbeddedWebView
 	s, err := a.addSurface(opts, originOf(u), true, func(s *Surface) (platform.Surface, error) {
 		s.embedIn = p
+		s.embedCanvas = canvas
+		s.proxyEmbed = remote
 		wv := opts.WebView
 		s.web.opts = opts
 		s.web.userAgent = wv.UserAgent
 		s.web.coreNav = u
 		s.web.pageOrigin = originOf(u)
 		s.setHeaders(wv.Headers, wv.HeaderScope)
-		web := platform.WebOptions{UserAgent: wv.UserAgent}
-		if wv.HeaderScope == HeadersAll && len(wv.Headers) > 0 {
-			web.Headers = wv.Headers.Clone()
+		web, bridge, err := a.webNativeOptions(wv, a.bridgeScript())
+		if err != nil {
+			return nil, err
 		}
-		bridge := a.bridgeScript()
-		if script != "" {
+		if script != "" && !wv.Page {
 			bridge += "\n;" + script
 		}
 		e, err := create(s, platform.SurfaceOptions{

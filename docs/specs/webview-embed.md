@@ -71,7 +71,8 @@ darwin / windows / linux / fake 各自实现
 
 ## 已知限制
 
-- 桌面 macOS、Windows 和 Linux 支持 `Open` 与 `Attach`。`tan dev` 热加载的 `Open` 窗口由宿主创建原生 WebView，工作进程使用代理 Surface，支持导航、脚本、消息、资源、焦点、截图和页面控制。代理的 `Native()` 返回 0，其他 WebView 扩展仍取决于代理实现。替换工作进程时重建子视图。
+- 桌面 macOS、Windows 和 Linux 支持 `Open` 与 `Attach`。内嵌弹窗由打开它的画布定位和裁剪，只能在同一画布中用 `Adopt` 接管。
+- `tan dev` 热重载的 `Open` 窗口由宿主创建原生 WebView，工作进程使用代理 Surface。代理支持导航事件、原生历史、脚本、消息、资源、焦点、普通截图和页面控制，`Native()` 返回 0。替换工作进程时重建子视图。扩展的代理行为见 [WebView 文档](../webview.md#热重载代理)。
 - 无原生能力的宿主保留布局盒子和 `WebViewW.Err()`，例如无窗口 Runner、Android 和 iOS 的 Attach 画布，以及缺少 GTK 裁剪容器的 Linux 后端。
 - 盒子上的变换（`Box.Transform/Scale`）只按包围盒放置，不旋转/缩放网页；圆角裁剪不作用于原生视图。
 - 主树里画在 WebView 盒子之上的自绘内容（兄弟节点 `Abs` 覆盖、滚动条与 WebView 重叠处）会被原生视图挡住；需要时用 `Freeze(true)`。

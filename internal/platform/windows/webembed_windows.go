@@ -133,17 +133,17 @@ func (b *Backend) NewEmbeddedWebView(id, parentID platform.SurfaceID, opts platf
 	if parent == nil || parent.closed {
 		return nil, fmt.Errorf("tango/windows: NewEmbeddedWebView: no open surface %d", parentID)
 	}
-	return b.newEmbeddedWebView(id, parent, nil, opts, web)
+	return b.newEmbeddedWebView(id, parent, nil, opts, web, true)
 }
 
 func (a *attached) NewCanvasWebView(id platform.SurfaceID, opts platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
 	if a.closed {
 		return nil, errDetached
 	}
-	return a.s.b.newEmbeddedWebView(id, a.s, a, opts, web)
+	return a.s.b.newEmbeddedWebView(id, a.s, a, opts, web, true)
 }
 
-func (b *Backend) newEmbeddedWebView(id platform.SurfaceID, parent *surface, a *attached, opts platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
+func (b *Backend) newEmbeddedWebView(id platform.SurfaceID, parent *surface, a *attached, opts platform.SurfaceOptions, web platform.WebOptions, navigate bool) (*embedded, error) {
 	if b.envErr != nil { // as newSurface: let a later view try again
 		err := b.envErr
 		b.env, b.envErr, b.envStarted = 0, nil, false
@@ -156,7 +156,7 @@ func (b *Backend) newEmbeddedWebView(id platform.SurfaceID, parent *surface, a *
 		return nil, err
 	}
 	e := &embedded{parent: parent, attach: a}
-	s := &surface{b: b, id: id, opts: opts, embed: e, created: true}
+	s := &surface{b: b, id: id, opts: opts, embed: e, created: true, webProfile: web.Profile}
 	e.w = s
 	hwnd, _, err := procCreateWindowExW.Call(0,
 		uintptr(unsafe.Pointer(u16(embedClass))), 0,
@@ -178,6 +178,9 @@ func (b *Backend) newEmbeddedWebView(id platform.SurfaceID, parent *surface, a *
 	}
 	if len(web.Headers) > 0 {
 		s.SetExtraHeaders(web.Headers)
+	}
+	if !navigate {
+		return e, nil
 	}
 	url := opts.URL
 	if url == "" {

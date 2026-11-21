@@ -272,6 +272,7 @@ func (s *surface) initWebExt() {
 	if wh := s.webHost(); wh != nil {
 		addEvent(s.webview, wvAddPermissionRequested, s.permissionRequested)
 		addEvent(s.webview, wvAddNewWindowRequested, s.newWindowRequested)
+		addEvent(s.webview, wvAddScriptDialogOpening, s.onScriptDialog)
 		if wv := queryInterface(s.webview, &iidICoreWebView2_10); wv != 0 {
 			addEvent(wv, wv10AddBasicAuthenticationRequested, s.basicAuthenticationRequested)
 			release(wv)
@@ -414,7 +415,7 @@ func (s *surface) canceledNavigation(args uintptr) bool {
 }
 
 func (s *surface) newWindowRequested(_, args uintptr) {
-	// Always handled: no WebView2 popup window; window.open returns null.
+	// Suppress the runtime’s default window. An opt-in handler can supply a child.
 	comCall(args, newWinPutHandled, 1)
 	wh := s.webHost()
 	if wh == nil || s.closed {
@@ -433,7 +434,9 @@ func (s *surface) newWindowRequested(_, args uintptr) {
 		}
 		release(f)
 	}
-	wh.OnNewWindow(s.id, req)
+	if !s.claimPopup(req, args) {
+		wh.OnNewWindow(s.id, req)
+	}
 }
 
 func (s *surface) basicAuthenticationRequested(_, args uintptr) {
@@ -489,6 +492,7 @@ func (s *surface) downloadStarting(_, args uintptr) {
 	comCall(args, dlArgsPutHandled, 1) // no default download UI
 	addRef(args)
 	deferral := getDeferral(args, dlArgsGetDeferral)
+	req.CannotDefer = deferral == 0
 	answered := false
 	wh.OnDownloadStarted(s.id, req, func(path string) {
 		if answered {
@@ -589,7 +593,7 @@ func (s *surface) CancelDownload(id uint64) {
 // WebCreator, WebUserAgent, WebHeaders
 
 func (b *Backend) NewSurfaceWeb(id platform.SurfaceID, opts platform.SurfaceOptions, ex platform.SurfaceExtras, web platform.WebOptions) (platform.Surface, error) {
-	ns, err := b.newSurface(id, opts, &ex)
+	ns, err := b.newWebSurface(id, opts, &ex, web.Profile)
 	if err != nil {
 		return ns, err
 	}

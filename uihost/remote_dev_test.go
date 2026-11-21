@@ -3,6 +3,7 @@
 package uihost_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -213,6 +214,41 @@ func TestRemoteEmbeddedWebView(t *testing.T) {
 	}
 	if png, err := child.Screenshot(); err != nil || len(png) == 0 {
 		t.Fatalf("remote screenshot = %d bytes, %v", len(png), err)
+	}
+	navigation := make(chan tango.WebNavigationEvent, 2)
+	child.OnWebNavigation(func(ev tango.WebNavigationEvent) { navigation <- ev })
+	page := platform.WebPageState{URL: "https://example.test/", Title: "Native", CanGoBack: true}
+	hfb.EmitWebNavigation(e.ID(), 42, platform.WebNavigationStarted, page)
+	hfb.EmitWebNavigation(e.ID(), 42, platform.WebNavigationFinished, page)
+	for _, kind := range []tango.WebNavigationKind{tango.WebNavigationStarted, tango.WebNavigationFinished} {
+		select {
+		case ev := <-navigation:
+			if ev.ID != 1 || ev.Kind != kind || ev.WebPageState != page {
+				t.Fatalf("remote navigation = %+v, want phase %v and page %+v", ev, kind, page)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("worker did not receive native navigation")
+		}
+	}
+	if got := child.WebNavigation(); got.Kind != tango.WebNavigationFinished || got.WebPageState != page {
+		t.Fatalf("remote navigation state = %+v", got)
+	}
+	_, historyErr := child.GoBack() // the fake native view lacks history
+	_, stampErr := child.WebViewStamp()
+	_, captureErr := child.CaptureWebView(tango.WebViewStamp{})
+	for name, err := range map[string]error{
+		"GoBack":                        historyErr,
+		"WebViewStamp":                  stampErr,
+		"CaptureWebView":                captureErr,
+		"SetWebDialogHandler":           child.SetWebDialogHandler(nil),
+		"SetWebFileChooserHandler":      child.SetWebFileChooserHandler(nil),
+		"OnWebFileChooser":              child.OnWebFileChooser(nil),
+		"SetWebPopupHandler":            child.SetWebPopupHandler(nil),
+		"SetDownloadDestinationHandler": child.SetDownloadDestinationHandler(nil),
+	} {
+		if !errors.Is(err, tango.ErrUnsupported) {
+			t.Errorf("%s = %v, want ErrUnsupported", name, err)
+		}
 	}
 	wfb.Do(func() { covered = true; o.r.Invalidate() })
 	eventually(t, "covered view to hide", func() bool {

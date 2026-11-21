@@ -154,17 +154,17 @@ func (b *backend) NewEmbeddedWebView(id, parent platform.SurfaceID, o platform.S
 		// GTK older than 3.18: the canvas has no overlay to stack on.
 		return nil, fmt.Errorf("%w: the canvas has no GtkOverlay", platform.ErrUnsupported)
 	}
-	return b.newEmbeddedWebView(id, ps, ps.canvas.glOverlay, nil, o, web)
+	return b.newEmbeddedWebView(id, ps, ps.canvas.glOverlay, nil, o, web, 0)
 }
 
 func (a *attached) NewCanvasWebView(id platform.SurfaceID, o platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
 	if a.closed {
 		return nil, errDetached
 	}
-	return a.s.b.newEmbeddedWebView(id, a.s, a.h.overlay, a, o, web)
+	return a.s.b.newEmbeddedWebView(id, a.s, a.h.overlay, a, o, web, 0)
 }
 
-func (b *backend) newEmbeddedWebView(id platform.SurfaceID, ps *surface, overlay ptr, a *attached, o platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
+func (b *backend) newEmbeddedWebView(id platform.SurfaceID, ps *surface, overlay ptr, a *attached, o platform.SurfaceOptions, web platform.WebOptions, opener ptr) (*embeddedWeb, error) {
 	if err := loadEmbedFFI(); err != nil {
 		return nil, fmt.Errorf("%w: %v", platform.ErrUnsupported, err)
 	}
@@ -173,7 +173,7 @@ func (b *backend) newEmbeddedWebView(id platform.SurfaceID, ps *surface, overlay
 	w := &surface{b: b, id: id, debug: o.Debug, win: ps.win}
 	pendingWeb = &web // read by initWebExt (wireWeb)
 	defer func() { pendingWeb = nil }()
-	if err := w.createWeb(o); err != nil {
+	if err := w.createWeb(o, opener); err != nil {
 		return nil, err
 	}
 	layout := f.layoutNew(0, 0)
@@ -220,6 +220,10 @@ func (b *backend) newEmbeddedWebView(id platform.SurfaceID, ps *surface, overlay
 	}
 	b.byWeb[w.web] = w
 
+	if opener != 0 {
+		connect(w.web, "close", 0, func(_, _ ptr) ptr { e.Close(); return 0 })
+		return e, nil
+	}
 	url := o.URL
 	if url == "" {
 		url = "about:blank"

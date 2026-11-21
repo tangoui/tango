@@ -259,6 +259,18 @@ func (s *Surface) SetPageText(text string) {
 	w.mu.Unlock()
 }
 
+// NativeWebPopup dispatches a popup with a fake native child. Main thread.
+func (b *Backend) NativeWebPopup(opener platform.SurfaceID, req platform.NewWindowRequest) bool {
+	b.mustMain("NativeWebPopup")
+	h, ok := b.h.(platform.WebInteractionHost)
+	return ok && h.OnWebPopup(opener, req, func(id, parent platform.SurfaceID, opts platform.SurfaceOptions) (platform.Surface, error) {
+		if parent != 0 {
+			return b.NewEmbeddedWebView(id, parent, opts, platform.WebOptions{})
+		}
+		return b.NewSurface(id, opts)
+	})
+}
+
 // WebOptions returns the options given to NewSurfaceWeb and whether the
 // surface was created with it.
 func (s *Surface) WebOptions() (platform.WebOptions, bool) {
@@ -343,6 +355,11 @@ func (b *Backend) PageNavigate(id platform.SurfaceID, nav platform.NavigationReq
 		}
 	})
 	return ok
+}
+
+// EmitWebNavigation reports a native main-frame navigation event.
+func (b *Backend) EmitWebNavigation(id platform.SurfaceID, token uint64, kind platform.WebNavigationKind, page platform.WebPageState) {
+	b.Do(func() { platform.ReportWebNavigation(b.h, id, token, kind, page, "") })
 }
 
 // ShouldNavigate asks the WebHost about nav without navigating.

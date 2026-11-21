@@ -31,7 +31,7 @@ import (
 
 // ProtoVersion changes whenever a message changes incompatibly. A worker
 // with another version is refused, and tan dev restarts the host.
-const ProtoVersion = 4
+const ProtoVersion = 5
 
 // Marker is a string tan dev looks for in a built binary to tell whether
 // it links the dev host (package uihost built with tango_dev).

@@ -37,7 +37,7 @@ tan dev
 
   类型变化导致解码失败时，丢弃旧状态并在终端提示。
 - WebView 窗口：仍按现状重启。宿主只接管 canvas 窗口；同一个应用里的 WebView 窗口由工作进程自己创建。
-- `uihost.Open` 窗口中的 `uihost.WebView` 由热重载宿主创建。视图随工作进程更新而重建，旧视图在切换时关闭。
+- `uihost.Open` 窗口中的 `uihost.WebView` 由热重载宿主创建。视图随工作进程更新而重建，旧视图在切换时关闭。主框架导航事件和历史操作经代理转发。需要原生对话框续接、独立网页 profile 或原生布局代际的能力见 [WebView 代理限制](../webview.md#热重载代理)。
 - 叠在 WebView 上的 canvas（`uihost.Attach` / `AttachWith`）不转发给宿主：`tan dev` 构建后若二进制链接了 `uihost.AttachWith`，不进热加载，改为整进程重启模式（日志说明原因）；该检查是静态的，链接了但运行时不调用也会走重启模式。
 - 生产构建：远程窗口代码放在 `//go:build tango_dev` 文件里，只有 `tan dev` 加这个 tag；默认构建（`go build`、`tan build`）不携带 devhost。（原先是 `!tango_release`，`tango_release` 现在已无作用，见 [docs/dev-builds.md](../dev-builds.md)。）
 - 控制通道认证：`tan dev` 每次会话生成随机 token，经 `TANGO_DEV_TOKEN` 传给宿主和工作进程；每个连接的 `Hello` 必须带上它（常量时间比较），否则宿主回 `Welcome{Err}` 并断开。Windows 上通道是 `127.0.0.1` TCP，宿主拿不到 token 时拒绝启动；Unix 上 socket 在 0700 的临时目录里，本身也设为 0600。

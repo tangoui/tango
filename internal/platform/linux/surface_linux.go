@@ -23,8 +23,9 @@ const (
 )
 
 type surface struct {
-	b  *backend
-	id platform.SurfaceID
+	webNavID uint64
+	b        *backend
+	id       platform.SurfaceID
 
 	win, box, web, ucm ptr     // web, ucm: 0 for a canvas surface
 	content            ptr     // the content widget: web, or the canvas widget
@@ -59,6 +60,10 @@ func (b *backend) NewSurface(id platform.SurfaceID, o platform.SurfaceOptions) (
 // Canvas surfaces (canvas_linux.go) share newWindow and finishSurface and
 // put a canvas widget where the web view would go.
 func (b *backend) newSurface(id platform.SurfaceID, o platform.SurfaceOptions, ex *platform.SurfaceExtras) (platform.Surface, error) {
+	return b.newWebSurface(id, o, ex, 0)
+}
+
+func (b *backend) newWebSurface(id platform.SurfaceID, o platform.SurfaceOptions, ex *platform.SurfaceExtras, related ptr) (platform.Surface, error) {
 	if !b.loaded.Load() {
 		return nil, errors.New("tango/linux: NewSurface before Init")
 	}
@@ -67,7 +72,7 @@ func (b *backend) newSurface(id platform.SurfaceID, o platform.SurfaceOptions, e
 		return nil, err
 	}
 
-	if err := s.createWeb(o); err != nil {
+	if err := s.createWeb(o, related); err != nil {
 		gtkWidgetDestroy(s.win)
 		return nil, err
 	}
@@ -77,6 +82,10 @@ func (b *backend) newSurface(id platform.SurfaceID, o platform.SurfaceOptions, e
 	s.content = s.web
 	b.byWeb[s.web] = s
 	b.finishSurface(s, ex)
+	if related != 0 {
+		connect(s.web, "close", 0, func(_, _ ptr) ptr { s.Close(); return 0 })
+		return s, nil
+	}
 
 	url := o.URL
 	if url == "" {
@@ -93,14 +102,30 @@ func (b *backend) newSurface(id platform.SurfaceID, o platform.SurfaceOptions, e
 // user content manager, which carries the shim + bridge and the "tango"
 // script message handler. Shared by WebView surfaces and embedded web
 // views (webembed_linux.go). On failure nothing is left behind.
-func (s *surface) createWeb(o platform.SurfaceOptions) error {
+func (s *surface) createWeb(o platform.SurfaceOptions, related ptr) error {
+	var context ptr
+	if related == 0 && pendingWeb != nil && pendingWeb.Profile != "" {
+		var err error
+		context, err = s.b.webProfileContext(pendingWeb.Profile)
+		if err != nil {
+			return err
+		}
+	}
 	s.ucm = webkitUserContentManagerNew()
 	s.bridge = o.BridgeScript
 	s.installScript(s.gate.init())
 	webkitUserContentManagerRegisterHandler(s.ucm, messageHandlerName)
 	s.msgHandler = connect(s.ucm, "script-message-received::"+messageHandlerName, 1, s.onScriptMessage)
 
-	s.web = webkitWebViewNewWithUserContentManager(s.ucm)
+	switch {
+	case related != 0:
+		x := &webInteraction
+		s.web = x.newRelated(x.webViewType(), "related-view", related, "user-content-manager", s.ucm, 0)
+	case context != 0:
+		s.web = webProfile.newView(webInteraction.webViewType(), "web-context", context, "user-content-manager", s.ucm, 0)
+	default:
+		s.web = webkitWebViewNewWithUserContentManager(s.ucm)
+	}
 	if s.web == 0 {
 		gSignalHandlerDisconnect(s.ucm, s.msgHandler)
 		s.msgHandler = 0
@@ -127,6 +152,7 @@ func (s *surface) createWeb(o platform.SurfaceOptions) error {
 func (s *surface) wireWeb() {
 	connect(s.web, "load-changed", 1, s.onLoadChanged)
 	s.initWebExt() // webview_ext_linux.go; before initExt and the first load
+	s.observePageState()
 }
 
 // releaseWeb drops what createWeb set up besides the widget itself
@@ -288,10 +314,17 @@ func (s *surface) onLoadChanged(_, event ptr) ptr {
 		// here to the commit the old document is still running while the
 		// view's URI may already be the new one.
 		s.installScript(s.gate.started())
+		s.webNavID++
+		s.webNavigation(platform.WebNavigationStarted, "", "")
 	case webkitLoadCommitted:
 		s.gate.committed(goStr(webkitWebViewGetURI(s.web)))
+		s.webNavigation(platform.WebNavigationCommitted, "", "")
 	case webkitLoadFinished:
 		s.gate.finished()
+		s.webNavigation(platform.WebNavigationFinished, "", "")
+		if s.closed {
+			return 0
+		}
 		s.b.host.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceLoaded, URL: goStr(webkitWebViewGetURI(s.web))})
 	}
 	return 0

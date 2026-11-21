@@ -34,7 +34,10 @@ const schemeErrorCode = 1
 // every web view of the process shares. The scheme is marked secure (pages
 // from it are a secure context) and CORS-enabled (they may fetch() it).
 func (b *backend) registerScheme() {
-	wctx := webkitWebContextGetDefault()
+	b.registerSchemeIn(webkitWebContextGetDefault())
+}
+
+func (b *backend) registerSchemeIn(wctx ptr) {
 	onRequest := dispatch.add(func(req, _ ptr) ptr {
 		b.serveScheme(req)
 		return 0

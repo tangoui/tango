@@ -59,6 +59,8 @@ type SurfaceOptions struct {
 // they run there (Send and Eval asynchronously, the rest waiting for it).
 // After the surface has closed they do nothing.
 type Surface struct {
+	webPage       bool // ordinary browsing, fixed before registration
+	proxyEmbed    bool // worker-side WebView, fixed before native creation
 	app           *App
 	id            platform.SurfaceID
 	closed        atomic.Bool
@@ -90,10 +92,11 @@ type Surface struct {
 	ext surfaceExt // round-2 window state and handlers; surface_ext.go
 	web surfaceWeb // round-4 WebView state and handlers; webview.go
 
-	lane     *lane.State                                 // IPC fast lanes (any goroutine); lanes.go
-	lanes    surfaceLanes                                // their wiring to the native surface; lanes.go
-	embedIn  *Surface                                    // embedded WebViews: the surface it lives in (webembed.go); set before creation
-	proxyWeb atomic.Pointer[corehook.ProxyWebViewEvents] // dev host relay, set before native creation
+	lane        *lane.State                                 // IPC fast lanes (any goroutine); lanes.go
+	lanes       surfaceLanes                                // their wiring to the native surface; lanes.go
+	embedIn     *Surface                                    // owning window; set before creation
+	embedCanvas platform.Canvas                             // owning Attach canvas, if any
+	proxyWeb    atomic.Pointer[corehook.ProxyWebViewEvents] // dev host relay, set before native creation
 
 	downq *downq.State // downstream queue (any goroutine); downpoll.go
 	down  surfaceDown  // Send, Eval and the fallback; downpoll.go
@@ -126,7 +129,10 @@ func (a *App) NewSurface(opts SurfaceOptions) (*Surface, error) {
 // createSurface runs on the main thread.
 func (a *App) createSurface(opts SurfaceOptions) (*Surface, error) {
 	opts = a.prepareOptions(opts) // hooks.go
-	u := a.resolveURL(opts.URL)
+	u, err := a.webStartURL(opts.URL, opts.WebView)
+	if err != nil {
+		return nil, err
+	}
 	_, extrasTaken := a.b.(platform.CreatorEx)
 	return a.addSurface(opts, originOf(u), extrasTaken, func(s *Surface) (platform.Surface, error) {
 		return a.newNative(s, opts, platform.SurfaceOptions{
@@ -152,7 +158,7 @@ func (a *App) addSurface(opts SurfaceOptions, navOrigin string, extrasTaken bool
 	a.nextID++
 	id := a.nextID
 	a.mu.Unlock()
-	s := &Surface{app: a, id: id, navOrigin: navOrigin, title: opts.Title, visible: !opts.Hidden, auxiliary: opts.Auxiliary}
+	s := &Surface{app: a, id: id, webPage: opts.WebView.Page, navOrigin: navOrigin, title: opts.Title, visible: !opts.Hidden, auxiliary: opts.Auxiliary}
 	s.initDown()           // before initLanes: down:poll's sender is s.downq
 	s.initLanes(navOrigin) // outside a.mu: lane.New may log
 	// Registered before the backend call: a backend may emit events for
@@ -211,7 +217,7 @@ func originOf(u string) string {
 // or the origin the core last navigated the surface to. Main thread.
 func (s *Surface) trusts(origin string) bool {
 	origin = strings.ToLower(strings.TrimSuffix(origin, "/"))
-	if origin == "" {
+	if s.webPage || origin == "" {
 		return false
 	}
 	return origin == strings.ToLower(s.app.assetOrigin()) || origin == s.navOrigin
@@ -311,7 +317,10 @@ func (s *Surface) Navigate(u string) {
 		if s.closed.Load() || s.ns == nil {
 			return
 		}
-		abs := s.app.resolveURL(u)
+		abs, err := s.app.webStartURL(u, s.web.opts.WebView)
+		if err != nil {
+			return
+		}
 		s.pageGone() // downpoll.go
 		s.navOrigin = originOf(abs)
 		s.noteCoreNav(abs)
@@ -425,6 +434,11 @@ func (s *Surface) handleClosed() {
 	s.pageGone()
 	s.lane.Close()
 	s.setLaneNative(nil)
+	replies := s.web.replies
+	s.web.replies = nil
+	for _, cancel := range replies {
+		cancel()
+	}
 	a := s.app
 	a.mu.Lock()
 	delete(a.surfaces, s.id)
@@ -447,7 +461,7 @@ func (s *Surface) handleLoaded(u string) {
 	}
 	// A page the core did not navigate to (the user followed a link
 	// elsewhere) gets no messages; they wait for a trusted page.
-	trusted := u == "" || s.trusts(originOf(u))
+	trusted := !s.webPage && (u == "" || s.trusts(originOf(u)))
 	s.notePageLoaded(u) // webview.go: source of downloads and permission requests
 	s.noteLaneOrigin(s.web.pageOrigin)
 	s.lanesLeaving(s.web.pageOrigin) // lanes.go

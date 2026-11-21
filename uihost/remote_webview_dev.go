@@ -22,7 +22,7 @@ type remoteEmbed struct {
 	placement platform.WebPlacement
 	zoom      float64
 	closed    bool
-	snapshots map[int]func([]byte, error)
+	pending   map[int]func(devhost.EmbedResult, error)
 }
 
 func (w *remoteWin) webEmbeds() *embeds { return w.emb }
@@ -97,29 +97,47 @@ func (v *remoteEmbed) Close() {
 func (v *remoteEmbed) finish() {
 	v.closed = true
 	v.w.web.Delete(v.id)
-	for req, done := range v.snapshots {
-		delete(v.snapshots, req)
-		done(nil, devhost.ErrClosed)
+	for req, done := range v.pending {
+		delete(v.pending, req)
+		done(devhost.EmbedResult{}, devhost.ErrClosed)
 	}
 	v.ev.Event(platform.SurfaceEvent{Kind: platform.SurfaceClosed})
 }
 
 func (v *remoteEmbed) Screenshot(done func([]byte, error)) {
+	v.request("snapshot", func(r devhost.EmbedResult, err error) { done(r.PNG, err) })
+}
+
+func (v *remoteEmbed) GoInHistory(back bool, done func(bool, error)) {
+	op := "forward"
+	if back {
+		op = "back"
+	}
+	v.request(op, func(r devhost.EmbedResult, err error) { done(r.Moved, err) })
+}
+
+func (v *remoteEmbed) request(op string, done func(devhost.EmbedResult, error)) {
 	v.w.nextWebReq++
 	id := v.w.nextWebReq
-	if err := v.send(devhost.EmbedOp{Op: "snapshot", Req: id}); err != nil {
-		done(nil, err)
+	if err := v.send(devhost.EmbedOp{Op: op, Req: id}); err != nil {
+		done(devhost.EmbedResult{}, err)
 		return
 	}
-	if v.snapshots == nil {
-		v.snapshots = map[int]func([]byte, error){}
+	if v.pending == nil {
+		v.pending = make(map[int]func(devhost.EmbedResult, error))
 	}
-	v.snapshots[id] = done
+	v.pending[id] = done
 }
 
 func (w *remoteWin) embedEvent(m devhost.EmbedEvent) {
 	if value, ok := w.web.Load(m.View); ok {
 		v := value.(*remoteEmbed)
+		if m.NavKind != 0 {
+			if v.ev.Navigation != nil {
+				v.ev.Navigation(m.NavToken, m.NavKind, m.NavPage, m.NavError)
+			}
+			return
+		}
 		switch m.Event.Kind {
 		case 0:
 			v.ev.Message(m.Origin, m.Message)
@@ -134,13 +152,15 @@ func (w *remoteWin) embedEvent(m devhost.EmbedEvent) {
 func (w *remoteWin) embedResult(m devhost.EmbedResult) {
 	if value, ok := w.web.Load(m.View); ok {
 		v := value.(*remoteEmbed)
-		if done := v.snapshots[m.Req]; done != nil {
-			delete(v.snapshots, m.Req)
+		if done := v.pending[m.Req]; done != nil {
+			delete(v.pending, m.Req)
 			var err error
-			if m.Err != "" {
+			if m.Unsupported {
+				err = fmt.Errorf("%s: %w", m.Err, platform.ErrUnsupported)
+			} else if m.Err != "" {
 				err = errors.New(m.Err)
 			}
-			done(m.PNG, err)
+			done(m, err)
 		}
 	}
 }

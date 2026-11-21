@@ -40,6 +40,9 @@ func (h *Host) openEmbed(w *worker, m devhost.EmbedOpen) {
 			w.send(devhost.EmbedEvent{Win: x.id, View: v.id, Origin: origin, Message: msg})
 		},
 		Asset: v.serveAsset,
+		Navigation: func(token uint64, kind platform.WebNavigationKind, page platform.WebPageState, reason string) {
+			w.send(devhost.EmbedEvent{Win: x.id, View: v.id, NavToken: token, NavKind: kind, NavPage: page, NavError: reason})
+		},
 	})
 	if err != nil {
 		reply.Err, reply.Unsupported = err.Error(), errors.Is(err, platform.ErrUnsupported)
@@ -101,11 +104,24 @@ func (h *Host) embedOp(w *worker, m devhost.EmbedOp) {
 		if page, ok := v.ev.(platform.PageControl); ok {
 			page.Print()
 		}
+	case "back", "forward":
+		done := func(moved bool, err error) {
+			r := devhost.EmbedResult{Win: m.Win, View: m.View, Req: m.Req, Moved: moved}
+			if err != nil {
+				r.Err, r.Unsupported = err.Error(), errors.Is(err, platform.ErrUnsupported)
+			}
+			w.send(r)
+		}
+		if history, ok := v.ev.(platform.WebHistory); ok {
+			history.GoInHistory(m.Op == "back", done)
+		} else {
+			done(false, platform.ErrUnsupported)
+		}
 	case "snapshot":
 		done := func(png []byte, err error) {
 			r := devhost.EmbedResult{Win: m.Win, View: m.View, Req: m.Req, PNG: png}
 			if err != nil {
-				r.Err = err.Error()
+				r.Err, r.Unsupported = err.Error(), errors.Is(err, platform.ErrUnsupported)
 			}
 			w.send(r)
 		}

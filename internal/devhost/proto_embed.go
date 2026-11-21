@@ -36,14 +36,20 @@ type EmbedEvent struct {
 	View            uint64
 	Event           platform.SurfaceEvent
 	Origin, Message string
+	NavKind         platform.WebNavigationKind
+	NavToken        uint64
+	NavPage         platform.WebPageState
+	NavError        string
 }
 
 type EmbedResult struct {
-	Win  int
-	View uint64
-	Req  int
-	PNG  []byte
-	Err  string
+	Win         int
+	View        uint64
+	Req         int
+	PNG         []byte
+	Err         string
+	Moved       bool
+	Unsupported bool
 }
 
 type EmbedAssetRequest struct {

@@ -127,6 +127,9 @@ func (h host) ShouldNavigate(id platform.SurfaceID, nav platform.NavigationReque
 	if s == nil || s.closed.Load() {
 		return true
 	}
+	if s.webPage && nav.URL != "about:blank" && !a.webPageURL(nav.URL) {
+		return false
+	}
 	if s.web.coreNav != "" && sameURL(s.web.coreNav, nav.URL) {
 		s.web.coreNav = ""
 		return true
@@ -151,6 +154,9 @@ func (h host) ShouldNavigate(id platform.SurfaceID, nav platform.NavigationReque
 // sites open in the system browser (as window.open does), the app's own
 // pages and non-web URLs load in the surface. Main thread.
 func (a *App) defaultNavigation(s *Surface, nav NavigationRequest) bool {
+	if s.webPage {
+		return true // ShouldNavigate already checked the scheme and origin.
+	}
 	if !isWebURL(nav.URL) || s.trusts(originOf(nav.URL)) {
 		return true
 	}

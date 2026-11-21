@@ -31,9 +31,10 @@ var EmbeddedParent func(surface any) any
 
 // ProxyWebViewEvents relays the backend callbacks of a dev host WebView.
 type ProxyWebViewEvents struct {
-	Event   func(platform.SurfaceEvent)
-	Message func(origin, msg string)
-	Asset   func(http.ResponseWriter, *http.Request)
+	Event      func(platform.SurfaceEvent)
+	Message    func(origin, msg string)
+	Asset      func(http.ResponseWriter, *http.Request)
+	Navigation func(uint64, platform.WebNavigationKind, platform.WebPageState, string)
 }
 
 // ProxyWebViewParent is the native part of a canvas surface in a dev worker.
@@ -44,3 +45,11 @@ type ProxyWebViewParent interface {
 // HostProxyWebView opens the native side of a dev worker's embedded view.
 // The bridge and asset callbacks belong to the worker's surface.
 var HostProxyWebView func(parent any, opts platform.SurfaceOptions, web platform.WebOptions, events ProxyWebViewEvents) (platform.EmbeddedWebView, error)
+
+// AdoptEmbeddedWebView returns an existing embedded surface's view.
+// Main thread only. Set by package tango.
+var AdoptEmbeddedWebView func(parent any, canvas platform.Canvas, child any) (platform.EmbeddedWebView, error)
+
+// CommitWebPlacement applies the native placement and records its revision
+// for page operations. Main thread only. Set by package tango.
+var CommitWebPlacement func(surface any, ev platform.EmbeddedWebView, placement platform.WebPlacement)

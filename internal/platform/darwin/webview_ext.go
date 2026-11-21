@@ -158,6 +158,7 @@ func (b *backend) NewSurfaceWeb(sid platform.SurfaceID, opts platform.SurfaceOpt
 func (s *surface) initWebExt() {
 	loadWebExt()
 	send(s.web, "setUIDelegate:", uintptr(s.delegate))
+	s.observePageState(true)
 	if w := pendingWeb; w != nil && w.UserAgent != "" {
 		send(s.web, "setCustomUserAgent:", uintptr(nsString(w.UserAgent)))
 	}
@@ -166,6 +167,7 @@ func (s *surface) initWebExt() {
 // destroyWebExt runs from destroy.
 func (s *surface) destroyWebExt() {
 	if s.web != 0 {
+		s.observePageState(false)
 		send(s.web, "setUIDelegate:", 0)
 	}
 	delete(webExts, s)
@@ -237,7 +239,7 @@ func webDelegateMethods(of func(self id) *surface) []objc.MethodDef {
 		// WKUIDelegate
 		method("webView:createWebViewWithConfiguration:forNavigationAction:windowFeatures:", func(self id, _ objc.SEL, web, cfg, action, features id) id {
 			if s := of(self); s != nil {
-				s.newWindow(action, features)
+				return s.newWindow(cfg, action, features)
 			}
 			return 0
 		}),
@@ -306,10 +308,10 @@ func (s *surface) navigationPolicy(action id) uintptr {
 	return wkNavigationActionPolicyCancel
 }
 
-func (s *surface) newWindow(action, features id) {
+func (s *surface) newWindow(cfg, action, features id) id {
 	h := s.webHost()
 	if h == nil {
-		return
+		return 0
 	}
 	req := platform.NewWindowRequest{}
 	withPool(func() {
@@ -328,7 +330,33 @@ func (s *surface) newWindow(action, features id) {
 	if req.URL == "about:blank" {
 		req.URL = ""
 	}
+	if wh := s.interactionHost(); wh != nil {
+		var web id
+		if wh.OnWebPopup(s.id, req, func(sid, parent platform.SurfaceID, opts platform.SurfaceOptions) (platform.Surface, error) {
+			if parent != 0 {
+				opener := embedByWeb[s.web]
+				if opener == nil {
+					return nil, platform.ErrUnsupported
+				}
+				e, err := s.b.newEmbeddedWebView(sid, opener.parent, opener.focus, func() id {
+					return send(opener.clip, "superview")
+				}, opts, platform.WebOptions{}, cfg)
+				if err == nil {
+					web = e.s.web
+				}
+				return e, err
+			}
+			native, err := s.b.newWebSurface(sid, opts, nil, cfg)
+			if err == nil {
+				web = native.(*surface).web
+			}
+			return native, err
+		}) {
+			return web
+		}
+	}
 	h.OnNewWindow(s.id, req)
+	return 0
 }
 
 // ---- permissions ----
@@ -567,7 +595,9 @@ func decideDestination(dl, resp, name, handler id) {
 	h.OnDownloadStarted(d.s.id, req, func(path string) {
 		if path == "" || d.ended {
 			hb.call(0)
-			d.forget()
+			if !d.ended {
+				d.forget()
+			}
 			return
 		}
 		// WKDownload refuses to overwrite; the contract replaces.
@@ -696,8 +726,11 @@ func (d *download) end(ev platform.DownloadEvent) {
 			d.cancel()
 		}
 	}
-	if d.accepted {
-		d.poll()
+	h := d.s.webHost()
+	if d.accepted || platform.IsDownloadPending(h, d.s.id, d.id) {
+		if d.accepted {
+			d.poll()
+		}
 		ev.ID, ev.Path, ev.Received, ev.Total = d.id, d.path, d.received, d.total
 		if ev.State == platform.DownloadDone {
 			if fi, err := os.Stat(d.path); err == nil {
@@ -707,7 +740,7 @@ func (d *download) end(ev platform.DownloadEvent) {
 				}
 			}
 		}
-		if h := d.s.webHost(); h != nil {
+		if h != nil {
 			h.OnDownloadEvent(d.s.id, ev)
 		}
 	}

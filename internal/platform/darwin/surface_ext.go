@@ -712,6 +712,7 @@ func extDelegateMethods(of func(self id) *surface) []objc.MethodDef {
 		// Cancelled: another navigation replaced this one and reports
 		// for itself.
 		if sendInt(err, "code") == nsURLErrorCancelled || s.ignoreLoadError(err) {
+			s.webNavigation(nav, platform.WebNavigationFailed, "", "navigation cancelled")
 			return
 		}
 		var msg, u string
@@ -727,7 +728,10 @@ func extDelegateMethods(of func(self id) *surface) []objc.MethodDef {
 		if u == "" {
 			u = s.url() // after a provisional failure: the page still shown
 		}
-		s.b.h.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceLoadFailed, URL: u, Error: msg})
+		s.webNavigation(nav, platform.WebNavigationFailed, u, msg)
+		if !s.closed {
+			s.b.h.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceLoadFailed, URL: u, Error: msg})
+		}
 	}
 	return []objc.MethodDef{
 		method("windowDidMove:", func(self id, _ objc.SEL, n id) {
@@ -741,7 +745,20 @@ func extDelegateMethods(of func(self id) *surface) []objc.MethodDef {
 		method("windowDidExitFullScreen:", state),
 		method("webView:didStartProvisionalNavigation:", func(self id, _ objc.SEL, web, nav id) {
 			if s := of(self); s != nil {
-				s.b.h.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceNavigating, URL: s.url()})
+				s.webNavigation(nav, platform.WebNavigationStarted, "", "")
+				if !s.closed {
+					s.b.h.OnSurfaceEvent(s.id, platform.SurfaceEvent{Kind: platform.SurfaceNavigating, URL: s.url()})
+				}
+			}
+		}),
+		method("webView:didCommitNavigation:", func(self id, _ objc.SEL, web, nav id) {
+			if s := of(self); s != nil {
+				s.webNavigation(nav, platform.WebNavigationCommitted, "", "")
+			}
+		}),
+		method("observeValueForKeyPath:ofObject:change:context:", func(self id, _ objc.SEL, key, web, change id, context uintptr) {
+			if s := of(self); s != nil && s.web == web {
+				s.webNavigation(0, platform.WebPageChanged, "", "")
 			}
 		}),
 		method("webView:didFailProvisionalNavigation:withError:", failed),

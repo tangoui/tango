@@ -10,6 +10,7 @@ package uihost
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"image/png"
@@ -55,8 +56,11 @@ type WebViewOptions struct {
 	URL string
 	// Debug allows the inspector.
 	Debug bool
-	// WebView sets the user agent and extra request headers.
+	// WebView configures the user agent, headers, browsing mode and profile.
 	WebView tango.WebViewOptions
+	// Adopt places an existing native popup from the same canvas.
+	// The box takes ownership and URL, Debug, and WebView are ignored.
+	Adopt *tango.Surface
 	// Created runs once on the main thread right after the WebView's
 	// surface exists, before its first frame shows: register OnMessage
 	// handlers, ipc, OnLoaded there.
@@ -314,7 +318,7 @@ func (e *embeds) sync() {
 			continue
 		}
 		if v.ev != nil {
-			v.ev.SetPlacement(platform.WebPlacement{})
+			corehook.CommitWebPlacement(v.s, v.ev, platform.WebPlacement{})
 		}
 		v.covered, v.frozen, v.snap = false, false, nil
 		if keep := v.opts.KeepAlive; keep > 0 && v.s != nil && now.Sub(v.lastSeen) < keep {
@@ -337,7 +341,7 @@ func (e *embeds) runner() *ui.Runner {
 // place applies one frame's region to the view.
 func (v *embedView) place(reg ui.NativeRegion) {
 	p := v.decide(reg)
-	v.ev.SetPlacement(p.placement)
+	corehook.CommitWebPlacement(v.s, v.ev, p.placement)
 	if p.focus && v.e.parent.IsFocused() {
 		v.ev.FocusWeb()
 		if p.keyboard {
@@ -407,18 +411,30 @@ func rectF(r geom.Rect) platform.RectF {
 	return platform.RectF{X: float64(r.X), Y: float64(r.Y), W: float64(r.W), H: float64(r.H)}
 }
 
+func createWebView(parent *tango.Surface, canvas platform.Canvas, opts WebViewOptions) (*tango.Surface, platform.EmbeddedWebView, error) {
+	if s := opts.Adopt; s != nil {
+		if bySurface[s] != nil {
+			return nil, nil, errors.New("uihost: WebView is already placed")
+		}
+		ev, err := corehook.AdoptEmbeddedWebView(parent, canvas, s)
+		return s, ev, err
+	}
+	s, ev, err := corehook.NewEmbeddedWebView(parent, canvas, tango.SurfaceOptions{
+		URL: opts.URL, Debug: opts.Debug, WebView: opts.WebView,
+	}, embedFocusScript)
+	if err != nil {
+		return nil, nil, err
+	}
+	return s.(*tango.Surface), ev, nil
+}
+
 // create makes the WebView's surface.
 func (v *embedView) create() {
-	so, ev, err := corehook.NewEmbeddedWebView(v.e.parent, v.e.canvas, tango.SurfaceOptions{
-		URL:     v.opts.URL,
-		Debug:   v.opts.Debug,
-		WebView: v.opts.WebView,
-	}, embedFocusScript)
+	s, ev, err := createWebView(v.e.parent, v.e.canvas, v.opts)
 	if err != nil {
 		v.err = err
 		return
 	}
-	s := so.(*tango.Surface)
 	v.s, v.ev = s, ev
 	bySurface[s] = v
 	e := v.e
