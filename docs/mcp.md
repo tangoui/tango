@@ -26,6 +26,12 @@
 
 `-root` 是工具能访问的项目目录，默认当前目录。stdio 方式不需要令牌：能连上 stdin/stdout 的只有启动它的进程。代理退出（关闭 stdin）时 `tan mcp` 随之退出，并关闭它启动的所有应用和后台任务。
 
+### 验证首次连接（不启动应用）
+
+1. 在含 `tan.json` 的项目根目录运行 `tan mcp -h`。如果提示找不到 `mcp` 子命令，先按[入门指南](../site/guide/getting-started.md)安装包含 MCP 的 CLI；如果客户端找不到 `tan`，把 `.mcp.json` 的 `command` 改成 `tan` 的绝对路径。
+2. 从该目录启动 Claude Code，按提示确认项目的 MCP 配置。stdio 服务器由客户端启动，不需要另开终端运行 `tan mcp`。
+3. 让助手执行：“请用 `{}` 调用 `tango_project_inspect`，告诉我项目的模块名和界面类型，不要构建或启动应用。” 返回结果中的 `module`、`kind` 和 `config` 应对应当前项目。若返回了别的项目，检查客户端的启动目录和 `-root`。
+
 ### HTTP
 
 需要多个客户端共用一个服务器，或客户端不能启动子进程时，用 streamable HTTP：

@@ -88,6 +88,20 @@ tan run -platform android
 
 SDK、簽署與裝置需求請見[行動平台設定](docs/mobile.md)。
 
+## 用 MCP 連接 AI 助手
+
+`tan mcp` 讓 MCP 用戶端檢視 Tango 專案、建置應用程式，也能操作開發版本的介面。以 Claude Code 為例，在專案根目錄建立 `.mcp.json`：
+
+```json
+{
+  "mcpServers": {
+    "tango": { "command": "tan", "args": ["mcp", "-root", "."] }
+  }
+}
+```
+
+從該目錄啟動 Claude Code，請它以 `{}` 呼叫 `tango_project_inspect`。這一步只讀取專案資訊，不啟動應用程式。建置與啟動工具會執行專案程式碼，只對信任的專案啟用。介面自動化與本機 HTTP 設定請見 [MCP 指南](docs/mcp.md)。
+
 ## 一次呼叫，即可連接 Go 服務
 
 應用程式安裝好 IPC 路由與執行階段橋接後，即可公開 Go 服務：

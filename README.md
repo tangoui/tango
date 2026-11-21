@@ -88,6 +88,20 @@ tan run -platform android
 
 See [mobile setup](docs/mobile.md) for SDKs, signing and device requirements.
 
+## Connect an AI assistant with MCP
+
+`tan mcp` lets an MCP client inspect a Tango project, build it, and interact with the UI of a development build. For Claude Code, add `.mcp.json` at the project root:
+
+```json
+{
+  "mcpServers": {
+    "tango": { "command": "tan", "args": ["mcp", "-root", "."] }
+  }
+}
+```
+
+Start Claude Code in that directory and ask it to call `tango_project_inspect` with `{}`. It reads the project without launching the app. Only enable build and launch tools for projects you trust: they run project code. See the [MCP guide](docs/mcp.md) for UI automation and local HTTP setup.
+
 ## Go services, one call away
 
 Once your app has an IPC router and the runtime bridge installed, expose a Go service:
