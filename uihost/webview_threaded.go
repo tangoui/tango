@@ -78,7 +78,7 @@ func (e *embeds) toUI(fn func()) {
 		e.main.toUI(fn)
 		return
 	}
-	e.h.app.Post(fn)
+	e.parent.App().Post(fn)
 }
 
 func (me *mainEmbeds) toUI(fn func()) {
@@ -222,7 +222,7 @@ func (me *mainEmbeds) apply() {
 // create makes the view's surface and tells the UI side. Main thread.
 func (mv *mainView) create(id ui.ID, opts WebViewOptions) {
 	me, v := mv.me, mv.ui
-	so, ev, err := corehook.NewEmbeddedWebView(me.parent, tango.SurfaceOptions{
+	so, ev, err := corehook.NewEmbeddedWebView(me.parent, nil, tango.SurfaceOptions{
 		URL:     opts.URL,
 		Debug:   opts.Debug,
 		WebView: opts.WebView,

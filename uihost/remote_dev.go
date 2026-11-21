@@ -167,6 +167,12 @@ func msgWin(m any) (int, bool) {
 		return m.Win, true
 	case devhost.A11yAction:
 		return m.Win, true
+	case devhost.EmbedEvent:
+		return m.Win, true
+	case devhost.EmbedResult:
+		return m.Win, true
+	case devhost.Activity:
+		return m.Win, true
 	}
 	return 0, false
 }
@@ -225,6 +231,22 @@ func devHandle(m any) {
 	case devhost.A11yAction:
 		if w := devWin(m.Win); w != nil {
 			devPost(func() { w.a11yAction(m) })
+		}
+	case devhost.EmbedEvent:
+		if w := devWin(m.Win); w != nil {
+			devPost(func() { w.embedEvent(m) })
+		}
+	case devhost.EmbedResult:
+		if w := devWin(m.Win); w != nil {
+			devPost(func() { w.embedResult(m) })
+		}
+	case devhost.EmbedAssetRequest:
+		if w := devWin(m.Win); w != nil {
+			go w.serveEmbedAsset(m)
+		}
+	case devhost.Activity:
+		if w := devWin(m.Win); w != nil {
+			corehook.NoteSurfaceActivity(w.proxy, m.At)
 		}
 	case devhost.MenuClick:
 		devPost(func() {
@@ -292,6 +314,10 @@ func devOpen(app *tango.App, opts Options, page func(*ui.Context), ropts ui.Runn
 	// events go to and come from the host window (remote_surface_dev.go).
 	s = proxySurface(app, opts.Surface, w)
 	w.proxy = s
+	if s != nil {
+		w.emb = newWindowEmbeds(s, r, w.Invalidate, w.InvalidateAt)
+		corehook.NoteSurfaceActivity(s, o.ActivityAt)
+	}
 	w.sc = newShortcuts(app, s) // shortcuts.go
 	dev.mu.Lock()
 	dev.wins[o.Win] = w
@@ -373,13 +399,16 @@ func windowOpts(o tango.SurfaceOptions) devhost.WindowOpts {
 
 // remoteWin is a ui.Window shown by the host.
 type remoteWin struct {
-	cl    *devhost.Client
-	id    int
-	r     *ui.Runner
-	fw    *devhost.FrameWriter
-	proxy *tango.Surface
-	ns    *remoteSurface // proxy's native part
-	sc    *shortcuts     // window shortcuts (shortcuts.go)
+	cl         *devhost.Client
+	id         int
+	r          *ui.Runner
+	fw         *devhost.FrameWriter
+	proxy      *tango.Surface
+	ns         *remoteSurface // proxy's native part
+	sc         *shortcuts     // window shortcuts (shortcuts.go)
+	emb        *embeds
+	web        sync.Map // view id -> remoteEmbed, read by asset request goroutines
+	nextWebReq int
 
 	// Main thread.
 	size    geom.Size
@@ -513,6 +542,7 @@ func (w *remoteWin) frame() {
 	} else {
 		w.lastErr = ""
 	}
+	w.emb.sync()
 	if w.r.Animating() {
 		w.Invalidate()
 	}
@@ -568,6 +598,7 @@ func (w *remoteWin) closedLocally() {
 
 func (w *remoteWin) shutdown() {
 	w.closed = true
+	w.emb.close()
 	w.r.Close()
 	w.fw.Close()
 	dev.mu.Lock()

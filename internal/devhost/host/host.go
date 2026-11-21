@@ -284,16 +284,19 @@ func (h *Host) notify(m any) {
 
 // worker is one connected worker process.
 type worker struct {
-	h    *Host
-	conn *devhost.Conn
-	pid  int
-	gen  int
-	at   time.Time // connected
+	h        *Host
+	conn     *devhost.Conn
+	pid      int
+	gen      int
+	at       time.Time     // connected
+	connDone chan struct{} // closed by the reader when disconnected
 
-	mu    sync.Mutex
-	segs  map[int]map[int]*devhost.Segment // win → seg gen → mapping
-	inbox map[int]devhost.FrameReady       // win → newest frame not yet taken
-	have  map[int]bool                     // win has a frame in inbox
+	mu        sync.Mutex
+	segs      map[int]map[int]*devhost.Segment // win → seg gen → mapping
+	inbox     map[int]devhost.FrameReady       // win → newest frame not yet taken
+	have      map[int]bool                     // win has a frame in inbox
+	nextAsset int
+	assets    map[int]chan devhost.EmbedAssetResponse
 	// arrive is signalled when a frame lands in inbox (CanvasFrame's
 	// resize wait).
 	arrive chan struct{}
@@ -304,13 +307,15 @@ type worker struct {
 	frozen  bool                    // its state was snapshotted; input is held back
 	opened  int                     // OpenWindow calls
 	menus   map[int]devhost.SetMenu // its SetMenu calls by window; surface.go
+	embeds  map[uint64]*hostedEmbed
 	// hostFront: the host was the active app when this worker connected.
 	hostFront bool
 }
 
 func (h *Host) serveWorker(c *devhost.Conn, hello devhost.Hello) {
 	w := &worker{h: h, conn: c, pid: hello.PID, at: time.Now(),
-		segs: map[int]map[int]*devhost.Segment{}, inbox: map[int]devhost.FrameReady{}, have: map[int]bool{},
+		connDone: make(chan struct{}),
+		segs:     map[int]map[int]*devhost.Segment{}, inbox: map[int]devhost.FrameReady{}, have: map[int]bool{},
 		arrive: make(chan struct{}, 1), menus: map[int]devhost.SetMenu{}}
 	ready := make(chan struct{})
 	h.post(func() {
@@ -340,11 +345,14 @@ func (h *Host) serveWorker(c *devhost.Conn, hello devhost.Hello) {
 			}()
 		case devhost.WriteClipboard:
 			go func() { _ = clipboard.WriteText(h.app, m.Text) }()
+		case devhost.EmbedAssetResponse:
+			w.assetResponse(m)
 		default:
 			h.post(func() { h.handle(w, m) })
 		}
 	}
 	c.Close()
+	close(w.connDone)
 	h.post(func() { h.workerGone(w) })
 }
 
@@ -515,6 +523,10 @@ func (h *Host) handle(w *worker, m any) {
 		h.snapshotReply(w, m)
 	case devhost.A11yTree:
 		h.a11yTree(w, m) // a11y.go
+	case devhost.EmbedOpen:
+		h.openEmbed(w, m)
+	case devhost.EmbedOp:
+		h.embedOp(w, m)
 	}
 }
 
@@ -524,6 +536,7 @@ func (h *Host) workerGone(w *worker) {
 		return
 	}
 	w.gone = true
+	w.closeEmbeds(nil)
 	wasActive := h.active == w
 	if h.pending == w {
 		h.abandonPending(w)
@@ -554,6 +567,7 @@ func (h *Host) abandonPending(w *worker) {
 		return
 	}
 	h.pending = nil
+	w.closeEmbeds(nil)
 	for _, x := range h.wins {
 		if x.next == w {
 			x.next, x.nextCursor, x.nextText, x.nextTitle, x.nextOps = nil, nil, nil, "", nil
@@ -590,6 +604,9 @@ func (h *Host) commit(p *worker) {
 	old := h.active
 	h.pending = nil
 	h.active = p
+	if old != nil {
+		old.closeEmbeds(nil)
+	}
 	for _, x := range h.wins {
 		if x.next != p {
 			continue
@@ -615,6 +632,11 @@ func (h *Host) commit(p *worker) {
 		}
 		x.nextCursor, x.nextText, x.nextTitle, x.nextOps = nil, nil, "", nil
 		h.presentInbox(x)
+		for _, v := range p.embeds {
+			if v.x == x {
+				v.place()
+			}
+		}
 		x.wantFrame = true
 		x.cv.Invalidate()
 	}
@@ -731,21 +753,22 @@ type win struct {
 	surf *tango.Surface
 	cv   platform.Canvas
 
-	title       string
-	owner       *worker // draws the window
-	next        *worker // pending worker that reopened it
-	nextCursor  *input.Cursor
-	nextCapture *bool
-	nextText    *devhost.SetTextInput
-	nextTitle   string
-	nextOps     []devhost.SurfaceOp // Surface calls of next, applied when it takes over
-	ax          winA11y             // accessibility (a11y.go)
-	held        *heldFrame          // on screen
-	wantFrame   bool
-	outstanding *worker // FrameRequest sent, no frame yet
-	requestedAt time.Time
-	orphanedAt  time.Time
-	closed      bool
+	title        string
+	owner        *worker // draws the window
+	next         *worker // pending worker that reopened it
+	nextCursor   *input.Cursor
+	nextCapture  *bool
+	nextText     *devhost.SetTextInput
+	nextTitle    string
+	nextOps      []devhost.SurfaceOp // Surface calls of next, applied when it takes over
+	ax           winA11y             // accessibility (a11y.go)
+	held         *heldFrame          // on screen
+	wantFrame    bool
+	outstanding  *worker // FrameRequest sent, no frame yet
+	requestedAt  time.Time
+	orphanedAt   time.Time
+	closed       bool
+	activitySent time.Time
 
 	statsAt  time.Time
 	statsN   int
@@ -779,7 +802,7 @@ func (h *Host) openWindow(w *worker, m devhost.OpenWindow) {
 			return
 		}
 		cw, ch := x.cv.Size()
-		w.send(devhost.Opened{Req: m.Req, Win: x.id, W: cw, H: ch, Scale: x.cv.Scale()})
+		w.send(devhost.Opened{Req: m.Req, Win: x.id, W: cw, H: ch, Scale: x.cv.Scale(), ActivityAt: x.surf.LastActivityAt()})
 	}
 	if x := h.match(w, m); x != nil {
 		if w == h.pending {
@@ -813,12 +836,25 @@ func (h *Host) openWindow(w *worker, m devhost.OpenWindow) {
 		return
 	}
 	x.surf, x.cv = so.(*tango.Surface), cv
+	corehook.WatchSurfaceActivity(x.surf, x.relayActivity)
 	x.initA11y() // a11y.go
 	h.wins[x.id] = x
 	x.surf.OnClosed(func() { h.windowClosed(x) })
 	h.watchSurface(x)
 	reply(x, nil)
 	h.requestFrom(x, w)
+}
+
+func (x *win) relayActivity(at time.Time) {
+	if at.Sub(x.activitySent) < 100*time.Millisecond || x.closed {
+		return
+	}
+	x.activitySent = at
+	for _, w := range []*worker{x.owner, x.next} {
+		if w != nil {
+			w.send(devhost.Activity{Win: x.id, At: at})
+		}
+	}
 }
 
 // match finds the window a worker's OpenWindow takes over: one of the

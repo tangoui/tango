@@ -86,6 +86,8 @@ func replyID(m any) (int, bool) {
 		return m.Req, true
 	case SurfaceInfo:
 		return m.Req, true
+	case EmbedOpened:
+		return m.Req, true
 	}
 	return 0, false
 }

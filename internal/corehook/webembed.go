@@ -1,6 +1,7 @@
 package corehook
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/tangoui/tango/internal/platform"
@@ -8,6 +9,9 @@ import (
 
 // NoteSurfaceActivity records input observed by the canvas or dev host.
 var NoteSurfaceActivity func(surface any, at time.Time)
+
+// WatchSurfaceActivity sets the dev host relay on its top-level surface.
+var WatchSurfaceActivity func(surface any, fn func(time.Time))
 
 // NewEmbeddedWebView creates a WebView embedded in the content area of the
 // canvas surface parent (a *tango.Surface), see
@@ -19,8 +23,24 @@ var NoteSurfaceActivity func(surface any, at time.Time)
 // parent. Main thread only. It returns an error wrapping
 // platform.ErrUnsupported when the backend cannot embed WebViews. Set by
 // package tango.
-var NewEmbeddedWebView func(parent any, opts any, script string) (surface any, ev platform.EmbeddedWebView, err error)
+var NewEmbeddedWebView func(parent any, canvas platform.Canvas, opts any, script string) (surface any, ev platform.EmbeddedWebView, err error)
 
 // EmbeddedParent returns the *tango.Surface (as any) an embedded WebView
 // surface lives in, or nil when surface is a window. Set by package tango.
 var EmbeddedParent func(surface any) any
+
+// ProxyWebViewEvents relays the backend callbacks of a dev host WebView.
+type ProxyWebViewEvents struct {
+	Event   func(platform.SurfaceEvent)
+	Message func(origin, msg string)
+	Asset   func(http.ResponseWriter, *http.Request)
+}
+
+// ProxyWebViewParent is the native part of a canvas surface in a dev worker.
+type ProxyWebViewParent interface {
+	NewProxyWebView(platform.SurfaceID, platform.SurfaceOptions, platform.WebOptions, ProxyWebViewEvents) (platform.EmbeddedWebView, error)
+}
+
+// HostProxyWebView opens the native side of a dev worker's embedded view.
+// The bridge and asset callbacks belong to the worker's surface.
+var HostProxyWebView func(parent any, opts platform.SurfaceOptions, web platform.WebOptions, events ProxyWebViewEvents) (platform.EmbeddedWebView, error)

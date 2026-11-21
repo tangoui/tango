@@ -25,7 +25,13 @@ func (s *Surface) noteActivity(at time.Time) {
 	for p := s; p != nil && !p.closed.Load(); p = p.embedIn {
 		for {
 			old := p.activity.Load()
-			if old != nil && !at.After(*old) || p.activity.CompareAndSwap(old, &at) {
+			if old != nil && !at.After(*old) {
+				break
+			}
+			if p.activity.CompareAndSwap(old, &at) {
+				if relay := p.activityRelay.Load(); relay != nil {
+					(*relay)(at)
+				}
 				break
 			}
 		}
@@ -37,6 +43,9 @@ func init() {
 		if s, ok := surface.(*Surface); ok && !at.IsZero() {
 			s.noteActivity(at)
 		}
+	}
+	corehook.WatchSurfaceActivity = func(surface any, fn func(time.Time)) {
+		surface.(*Surface).activityRelay.Store(&fn)
 	}
 }
 

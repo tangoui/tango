@@ -11,12 +11,14 @@ import (
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/internal/devhost"
 	"github.com/tangoui/tango/internal/devhost/host"
+	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/fake"
 	"github.com/tangoui/tango/internal/platform/fake/faketest"
 	"github.com/tangoui/tango/sys/menu"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/uihost"
 )
 
@@ -153,6 +155,75 @@ func TestRemoteWindow(t *testing.T) {
 	case <-closed:
 	case <-time.After(5 * time.Second):
 		t.Fatal("stand-in surface not closed")
+	}
+}
+
+func TestRemoteEmbeddedWebView(t *testing.T) {
+	addr, hfb := startHost(t)
+	wa, wfb := faketest.Run(t, tango.Options{})
+	if err := uihost.ConnectDev(addr, ""); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(uihost.ResetDev)
+	created := make(chan *tango.Surface, 1)
+	message := make(chan string, 1)
+	wa.OnMessage(func(_ *tango.Surface, msg string) { message <- msg })
+	covered := false
+	detached := make(chan struct{})
+	o := tango.Await(wa, func() opened {
+		r, s, err := uihost.Open(wa, uihost.Options{Surface: tango.SurfaceOptions{Width: 300, Height: 200}}, func(c *ui.Context) {
+			v := uihost.WebView(c, "child", uihost.WebViewOptions{URL: "/child", Covered: uihost.CoverHide,
+				Created: func(s *tango.Surface) {
+					s.OnClosed(func() { close(detached) })
+					created <- s
+				}}, layout.W(180), layout.H(120))
+			v.Freeze(covered)
+		}, ui.RunnerOptions{})
+		return opened{r, s, err}
+	})
+	if o.err != nil {
+		t.Fatal(o.err)
+	}
+	var child *tango.Surface
+	select {
+	case child = <-created:
+	case <-time.After(5 * time.Second):
+		t.Fatal("remote WebView was not created")
+	}
+	if uihost.EmbeddedIn(child) != o.s || child.Native() != 0 || len(wfb.Surfaces()) != 0 {
+		t.Fatal("the worker WebView should be a proxy child")
+	}
+	var e *fake.Embedded
+	eventually(t, "native child placement", func() bool {
+		for _, s := range hfb.Surfaces() {
+			if e = hfb.Embedded(s.ID()); e != nil {
+				return e.Placement().Clip == (platform.RectF{W: 180, H: 120})
+			}
+		}
+		return false
+	})
+	hfb.EmitMessage(e.ID(), "from native child")
+	select {
+	case msg := <-message:
+		if msg != "from native child" {
+			t.Fatalf("message = %q", msg)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("worker did not receive the child message")
+	}
+	if png, err := child.Screenshot(); err != nil || len(png) == 0 {
+		t.Fatalf("remote screenshot = %d bytes, %v", len(png), err)
+	}
+	wfb.Do(func() { covered = true; o.r.Invalidate() })
+	eventually(t, "covered view to hide", func() bool {
+		hfb.Canvas(e.Parent()).FlushFrame()
+		return e.Placement().Clip.Empty()
+	})
+	hfb.RequestClose(e.Parent()) // the worker answers the close request asynchronously
+	select {
+	case <-detached:
+	case <-time.After(5 * time.Second):
+		t.Fatal("worker view survived its host window")
 	}
 }
 

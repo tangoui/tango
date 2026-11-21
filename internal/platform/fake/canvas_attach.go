@@ -84,6 +84,13 @@ type AttachedCanvas struct {
 	detaches int
 }
 
+func (c *AttachedCanvas) NewCanvasWebView(id platform.SurfaceID, opts platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
+	if c.Detached() {
+		return nil, ErrDetached
+	}
+	return c.b.NewEmbeddedWebView(id, c.s.id, opts, web)
+}
+
 // attachedSink drops callbacks after Detach.
 type attachedSink struct {
 	c    *AttachedCanvas

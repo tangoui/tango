@@ -217,6 +217,11 @@ func (a *attached) place() {
 	}
 	x, y, w, h := a.deviceRect()
 	procSetWindowPos.Call(a.hwnd, 0, uintptr(x), uintptr(y), uintptr(w), uintptr(h), swpNoZOrder|swpNoActivate)
+	for _, e := range embedsByParent[a.s] {
+		if e.attach == a && e.plan.visible() {
+			e.moveContainer(e.plan.container.rect)
+		}
+	}
 }
 
 // applyStyle makes the window layered (above the WebView) or not, and
@@ -488,6 +493,11 @@ func (a *attached) Detach() {
 		return
 	}
 	s := a.s
+	for _, e := range append([]*embedded(nil), embedsByParent[s]...) {
+		if e.attach == a {
+			e.Close()
+		}
+	}
 	focused := false
 	if f, _, _ := canvasGetFocus.Call(); f == a.hwnd {
 		focused = true
@@ -562,12 +572,23 @@ func (s *surface) restackAttached() {
 	const flags = swpNoMove | swpNoSize | swpNoActivate
 	for i := len(list) - 1; i >= 0; i-- {
 		if a := list[i]; !a.layer.Above && !a.closed {
+			views := embedsByParent[s]
+			for j := len(views) - 1; j >= 0; j-- {
+				if e := views[j]; e.attach == a && !e.closed {
+					procSetWindowPos.Call(e.w.hwnd, attachHwndBottom, 0, 0, 0, 0, flags)
+				}
+			}
 			procSetWindowPos.Call(a.hwnd, attachHwndBottom, 0, 0, 0, 0, flags)
 		}
 	}
 	for _, a := range list {
 		if a.layer.Above && !a.closed {
 			procSetWindowPos.Call(a.hwnd, attachHwndTop, 0, 0, 0, 0, flags)
+			for _, e := range embedsByParent[s] {
+				if e.attach == a && !e.closed {
+					procSetWindowPos.Call(e.w.hwnd, attachHwndTop, 0, 0, 0, 0, flags)
+				}
+			}
 		}
 	}
 }

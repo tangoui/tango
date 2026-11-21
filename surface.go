@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/downq"
 	"github.com/tangoui/tango/internal/lane"
 	"github.com/tangoui/tango/internal/platform"
@@ -58,10 +59,11 @@ type SurfaceOptions struct {
 // they run there (Send and Eval asynchronously, the rest waiting for it).
 // After the surface has closed they do nothing.
 type Surface struct {
-	app      *App
-	id       platform.SurfaceID
-	closed   atomic.Bool
-	activity atomic.Pointer[time.Time]
+	app           *App
+	id            platform.SurfaceID
+	closed        atomic.Bool
+	activity      atomic.Pointer[time.Time]
+	activityRelay atomic.Pointer[func(time.Time)]
 
 	// loaded: a trusted page has loaded and Send pushes to its
 	// downstream generation. Written under down.sendMu (downpoll.go),
@@ -88,9 +90,10 @@ type Surface struct {
 	ext surfaceExt // round-2 window state and handlers; surface_ext.go
 	web surfaceWeb // round-4 WebView state and handlers; webview.go
 
-	lane    *lane.State  // IPC fast lanes (any goroutine); lanes.go
-	lanes   surfaceLanes // their wiring to the native surface; lanes.go
-	embedIn *Surface     // embedded WebViews: the surface it lives in (webembed.go); set before creation
+	lane     *lane.State                                 // IPC fast lanes (any goroutine); lanes.go
+	lanes    surfaceLanes                                // their wiring to the native surface; lanes.go
+	embedIn  *Surface                                    // embedded WebViews: the surface it lives in (webembed.go); set before creation
+	proxyWeb atomic.Pointer[corehook.ProxyWebViewEvents] // dev host relay, set before native creation
 
 	downq *downq.State // downstream queue (any goroutine); downpoll.go
 	down  surfaceDown  // Send, Eval and the fallback; downpoll.go

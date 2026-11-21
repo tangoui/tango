@@ -70,6 +70,7 @@ const (
 type embedded struct {
 	w      *surface // the WebView part; w.hwnd is the container window
 	parent *surface
+	attach *attached
 	plan   embedPlan
 
 	focused     bool // GotFocus seen, LostFocus not yet
@@ -132,6 +133,17 @@ func (b *Backend) NewEmbeddedWebView(id, parentID platform.SurfaceID, opts platf
 	if parent == nil || parent.closed {
 		return nil, fmt.Errorf("tango/windows: NewEmbeddedWebView: no open surface %d", parentID)
 	}
+	return b.newEmbeddedWebView(id, parent, nil, opts, web)
+}
+
+func (a *attached) NewCanvasWebView(id platform.SurfaceID, opts platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
+	if a.closed {
+		return nil, errDetached
+	}
+	return a.s.b.newEmbeddedWebView(id, a.s, a, opts, web)
+}
+
+func (b *Backend) newEmbeddedWebView(id platform.SurfaceID, parent *surface, a *attached, opts platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
 	if b.envErr != nil { // as newSurface: let a later view try again
 		err := b.envErr
 		b.env, b.envErr, b.envStarted = 0, nil, false
@@ -143,7 +155,7 @@ func (b *Backend) NewEmbeddedWebView(id, parentID platform.SurfaceID, opts platf
 	if err := registerEmbedClass(); err != nil {
 		return nil, err
 	}
-	e := &embedded{parent: parent}
+	e := &embedded{parent: parent, attach: a}
 	s := &surface{b: b, id: id, opts: opts, embed: e, created: true}
 	e.w = s
 	hwnd, _, err := procCreateWindowExW.Call(0,
@@ -156,7 +168,7 @@ func (b *Backend) NewEmbeddedWebView(id, parentID platform.SurfaceID, opts platf
 	s.hwnd = hwnd
 	embedByHwnd[hwnd] = e
 	embedsByParent[parent] = append(embedsByParent[parent], e)
-	procSetWindowPos.Call(hwnd, attachHwndTop, 0, 0, 0, 0, swpNoMove|swpNoSize|swpNoActivate)
+	parent.restackEmbedded()
 	e.apply() // records the hidden state
 
 	// Before the controller exists, so setUp (initWebExt) applies them
@@ -209,9 +221,7 @@ func (e *embedded) apply() {
 		comCall(s.controller, ctlPutIsVisible, 1)
 	}
 	if c.Move {
-		r := c.Rect
-		procSetWindowPos.Call(s.hwnd, 0, uintptr(int32(r.Min.X)), uintptr(int32(r.Min.Y)),
-			uintptr(r.Dx()), uintptr(r.Dy()), swpNoZOrder|swpNoActivate)
+		e.moveContainer(c.Rect)
 		if s.controller != 0 {
 			comCall(s.controller, ctlNotifyParentWindowPositionChanged)
 		}
@@ -229,6 +239,15 @@ func (e *embedded) apply() {
 		e.focusOnShow = false
 		s.focusWebView()
 	}
+}
+
+func (e *embedded) moveContainer(r image.Rectangle) {
+	if a := e.attach; a != nil {
+		x, y, _, _ := a.deviceRect()
+		r = r.Add(image.Pt(int(x), int(y)))
+	}
+	procSetWindowPos.Call(e.w.hwnd, 0, uintptr(int32(r.Min.X)), uintptr(int32(r.Min.Y)),
+		uintptr(r.Dx()), uintptr(r.Dy()), swpNoZOrder|swpNoActivate)
 }
 
 func embedRect(r image.Rectangle) rect {
@@ -347,8 +366,11 @@ func (s *surface) destroyEmbedded() {
 // in creation order: WebView2's own window (a WebView parent) and the
 // canvas's CPU-fallback sibling appear on top when shown.
 func (s *surface) restackEmbedded() {
+	if len(attachedBySurface[s]) > 0 {
+		s.restackAttached()
+	}
 	for _, e := range embedsByParent[s] {
-		if !e.closed {
+		if !e.closed && e.attach == nil {
 			procSetWindowPos.Call(e.w.hwnd, attachHwndTop, 0, 0, 0, 0, swpNoMove|swpNoSize|swpNoActivate)
 		}
 	}
@@ -417,6 +439,8 @@ func (e *embedded) BlurWeb() {
 	p := e.parent
 	switch {
 	case p.closed:
+	case e.attach != nil && !e.attach.closed:
+		e.attach.focus()
 	case p.canvas != nil:
 		p.canvas.focus()
 	case p.controller != 0:

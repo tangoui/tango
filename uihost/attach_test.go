@@ -83,6 +83,26 @@ func TestAttachFirstFrame(t *testing.T) {
 	}
 }
 
+func TestAttachEmbeddedWebView(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	s := webSurface(t, a, 400, 300)
+	var child *tango.Surface
+	_, at, cv := attach(t, a, fb, s, uihost.Layer{Above: true}, func(c *ui.Context) {
+		uihost.WebView(c, "child", uihost.WebViewOptions{Created: func(s *tango.Surface) { child = s }})
+	})
+	cv.FlushFrame()
+	fb.Do(func() {
+		if child == nil || uihost.EmbeddedIn(child) != s {
+			t.Error("Attach did not create a WebView under the surface")
+			return
+		}
+		at.Detach()
+		if !fb.Surface(child.ID()).Closed() || fb.Surface(s.ID()).Closed() {
+			t.Error("Detach must close the embedded view and leave the parent open")
+		}
+	})
+}
+
 func TestAttachFillFollowsSurface(t *testing.T) {
 	a, fb := faketest.Run(t, tango.Options{})
 	s := webSurface(t, a, 300, 200)

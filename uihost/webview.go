@@ -79,9 +79,8 @@ type WebViewW struct {
 }
 
 // ErrNoEmbedding is reported by WebViewW.Err in windows that cannot host
-// embedded WebViews: canvases attached with Attach and windows of the tan
-// dev hot-reload host.
-var ErrNoEmbedding = fmt.Errorf("uihost: embedded WebViews need a window opened with uihost.Open: %w", tango.ErrUnsupported)
+// embedded WebViews, such as a headless runner.
+var ErrNoEmbedding = fmt.Errorf("uihost: the window cannot host embedded WebViews: %w", tango.ErrUnsupported)
 
 // WebView embeds a native WebView in the layout. key identifies it in its
 // scope (like ui.Key): building WebView with the same key in later frames
@@ -100,20 +99,20 @@ var ErrNoEmbedding = fmt.Errorf("uihost: embedded WebViews need a window opened 
 // (before) the box. Key events go to whichever side has focus, never to
 // both.
 //
-// WebView only works in windows opened with Open; elsewhere the box shows
-// its background and Err reports ErrNoEmbedding. The window's UI thread,
-// from a page function.
+// WebView works with Open and with Attach on platforms that support child
+// WebViews. On other hosts the box shows its background and Err reports
+// the reason. Call from a page function on the window's UI thread.
 //
 // Experimental: see docs/release.md.
 func WebView(c *ui.Context, key string, opts WebViewOptions, lopts ...layout.Option) *WebViewW {
 	nv := ui.NativeView(c, key, lopts...)
 	nv.Bg(c.Theme.BgContainer)
 	w := &WebViewW{NativeViewW: nv}
-	win, _ := c.Window().(*window)
-	if win == nil || win.emb == nil {
+	host, ok := c.Window().(interface{ webEmbeds() *embeds })
+	if !ok || host.webEmbeds() == nil {
 		return w
 	}
-	e := win.emb
+	e := host.webEmbeds()
 	w.e = e
 	id := nv.ID()
 	v := e.views[id]
@@ -219,13 +218,17 @@ window.__tangoEmbedFocus=function(last){var l=L(),el=last?l[l.length-1]:l[0];if(
 // main thread, or a threaded window's own UI thread (main non-nil), where
 // the native views live on main in main (webview_threaded.go).
 type embeds struct {
-	h      *host
-	parent *tango.Surface
-	views  map[ui.ID]*embedView
-	frame  uint64 // frames synced so far; builds mark views with it
-	closed bool
-	main   *mainEmbeds // threaded window: the native side
-	idle   bool        // threaded: the last frame posted to main was empty (or none was)
+	h            *host
+	parent       *tango.Surface
+	canvas       platform.Canvas // non-nil when embedded in an attached layer
+	r            *ui.Runner
+	invalidate   func()
+	invalidateAt func(time.Time)
+	views        map[ui.ID]*embedView
+	frame        uint64 // frames synced so far; builds mark views with it
+	closed       bool
+	main         *mainEmbeds // threaded window: the native side
+	idle         bool        // threaded: the last frame posted to main was empty (or none was)
 }
 
 // embedView is one embedded WebView, on the window's UI thread. On a
@@ -264,18 +267,26 @@ var bySurface = map[*tango.Surface]focusLeaver{}
 type focusLeaver interface{ focusOut(back bool) }
 
 func newEmbeds(h *host, parent *tango.Surface) *embeds {
-	corehook.HandleInternal(h.app, embedChannel, func(surface any, payload string) {
+	e := newWindowEmbeds(parent, h.r, h.invalidate, h.cv.InvalidateAt)
+	e.h = h
+	return e
+}
+
+func newWindowEmbeds(parent *tango.Surface, r *ui.Runner, invalidate func(), at func(time.Time)) *embeds {
+	corehook.HandleInternal(parent.App(), embedChannel, func(surface any, payload string) {
 		s, _ := surface.(*tango.Surface)
 		if v := bySurface[s]; v != nil {
 			v.focusOut(payload == "prev")
 		}
 	})
-	return &embeds{h: h, parent: parent, views: map[ui.ID]*embedView{}}
+	return &embeds{parent: parent, r: r, invalidate: invalidate, invalidateAt: at, views: map[ui.ID]*embedView{}}
 }
+
+func (w *window) webEmbeds() *embeds { return w.emb }
 
 // sync places every embedded WebView after a frame.
 func (e *embeds) sync() {
-	if e == nil || e.closed || e.h.r == nil {
+	if e == nil || e.closed {
 		return
 	}
 	if e.main != nil {
@@ -283,8 +294,7 @@ func (e *embeds) sync() {
 		return
 	}
 	now := time.Now()
-	regs := e.h.r.NativeRegions()
-	focusedWin := e.parent.IsFocused()
+	regs := e.runner().NativeRegions()
 	for _, reg := range regs {
 		v := e.views[reg.ID]
 		if v == nil || v.built != e.frame {
@@ -297,7 +307,7 @@ func (e *embeds) sync() {
 		if v.ev == nil {
 			continue
 		}
-		v.place(reg, focusedWin)
+		v.place(reg)
 	}
 	for id, v := range e.views {
 		if v.built == e.frame {
@@ -308,7 +318,7 @@ func (e *embeds) sync() {
 		}
 		v.covered, v.frozen, v.snap = false, false, nil
 		if keep := v.opts.KeepAlive; keep > 0 && v.s != nil && now.Sub(v.lastSeen) < keep {
-			e.h.cv.InvalidateAt(v.lastSeen.Add(keep))
+			e.invalidateAt(v.lastSeen.Add(keep))
 			continue
 		}
 		delete(e.views, id)
@@ -317,11 +327,18 @@ func (e *embeds) sync() {
 	e.frame++
 }
 
+func (e *embeds) runner() *ui.Runner {
+	if e.h != nil {
+		return e.h.r
+	}
+	return e.r
+}
+
 // place applies one frame's region to the view.
-func (v *embedView) place(reg ui.NativeRegion, focusedWin bool) {
+func (v *embedView) place(reg ui.NativeRegion) {
 	p := v.decide(reg)
 	v.ev.SetPlacement(p.placement)
-	if p.focus && focusedWin {
+	if p.focus && v.e.parent.IsFocused() {
 		v.ev.FocusWeb()
 		if p.keyboard {
 			v.s.Eval(enterScript(p.last))
@@ -379,7 +396,7 @@ func (v *embedView) decide(reg ui.NativeRegion) embedPlace {
 	p := embedPlace{id: v.id, v: v, opts: v.opts, placement: platform.WebPlacement{Frame: rectF(reg.Rect), Clip: rectF(clip)}}
 	if v.enter {
 		v.enter = false
-		if reg.Focused && !v.webFocused && !hide {
+		if reg.Focused && !v.webFocused && !clip.Empty() {
 			p.focus, p.keyboard, p.last = true, v.enterKeyboard, v.enterLast
 		}
 	}
@@ -392,7 +409,7 @@ func rectF(r geom.Rect) platform.RectF {
 
 // create makes the WebView's surface.
 func (v *embedView) create() {
-	so, ev, err := corehook.NewEmbeddedWebView(v.e.parent, tango.SurfaceOptions{
+	so, ev, err := corehook.NewEmbeddedWebView(v.e.parent, v.e.canvas, tango.SurfaceOptions{
 		URL:     v.opts.URL,
 		Debug:   v.opts.Debug,
 		WebView: v.opts.WebView,
@@ -404,9 +421,9 @@ func (v *embedView) create() {
 	s := so.(*tango.Surface)
 	v.s, v.ev = s, ev
 	bySurface[s] = v
-	h := v.e.h
-	s.OnFocused(func() { v.webFocused = true; h.invalidate() })
-	s.OnBlurred(func() { v.webFocused = false; h.invalidate() })
+	e := v.e
+	s.OnFocused(func() { v.webFocused = true; e.invalidate() })
+	s.OnBlurred(func() { v.webFocused = false; e.invalidate() })
 	s.OnClosed(func() {
 		delete(bySurface, s)
 		if v.s == s && !v.e.closed {
@@ -416,11 +433,11 @@ func (v *embedView) create() {
 			if ev, ok := v.e.views[v.id]; ok && ev == v {
 				delete(v.e.views, v.id)
 			}
-			h.invalidate()
+			e.invalidate()
 		}
 	})
 	if fn := v.opts.Created; fn != nil {
-		corehook.Guard(h.app, "uihost WebView Created", func() { fn(s) })
+		corehook.Guard(e.parent.App(), "uihost WebView Created", func() { fn(s) })
 	}
 }
 
@@ -428,7 +445,7 @@ func (v *embedView) create() {
 // (Surface.Screenshot waits for the platform) and frames again when it
 // arrives.
 func (v *embedView) takeSnapshot() {
-	s, h := v.s, v.e.h
+	s := v.s
 	v.snapWait = true
 	go func() {
 		data, err := s.Screenshot()
@@ -446,7 +463,7 @@ func (v *embedView) takeSnapshot() {
 			} else if v.covered {
 				v.snap = img
 			}
-			h.invalidate()
+			v.e.invalidate()
 		})
 	}()
 }
@@ -461,10 +478,10 @@ func (v *embedView) focusOut(back bool) {
 	if back {
 		mods = input.ModShift
 	}
-	r := v.e.h.r
+	r := v.e.runner()
 	r.HandleEvent(input.KeyEvent{Key: input.KeyTab, Down: true, Mods: mods})
 	r.HandleEvent(input.KeyEvent{Key: input.KeyTab, Mods: mods})
-	v.e.h.invalidate()
+	v.e.invalidate()
 }
 
 func (v *embedView) close() {
@@ -477,17 +494,14 @@ func (v *embedView) close() {
 	s.Close()
 }
 
-// close forgets the window's WebViews (the backend closes them with
-// their parent surface).
+// close releases the WebViews when the window or its attached canvas closes.
 func (e *embeds) close() {
 	if e == nil || e.closed {
 		return
 	}
 	e.closed = true
 	for _, v := range e.views {
-		if v.s != nil {
-			delete(bySurface, v.s)
-		}
+		v.close()
 	}
 	e.views = nil
 }

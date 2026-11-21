@@ -4,7 +4,7 @@
 
 ## 目标
 
-`uihost.Attach` 只能把整层 canvas 叠在 WebView 上下（[canvas-surface.md](canvas-surface.md) 的 D 步）。本能力反过来：在 `uihost.Open` 的自绘窗口里，WebView 是布局中的一个组件，占据一块布局矩形，宿主每帧让原生 WebView 子视图跟随它。
+在 `uihost.Open` 的自绘窗口或 `uihost.Attach` 的自绘画布里，WebView 可以作为布局组件占据一块矩形，宿主每帧让原生 WebView 子视图跟随它。Attach 子视图的坐标相对于该画布，层级跟随画布，Detach 会关闭这些子视图。
 
 ```go
 uihost.Open(app, uihost.Options{...}, func(c *ui.Context) {
@@ -71,7 +71,8 @@ darwin / windows / linux / fake 各自实现
 
 ## 已知限制
 
-- 只支持 `uihost.Open` 的窗口；`Attach` 的 canvas 与 `tan dev` 热加载宿主里 `Err()` 返回 `ErrNoEmbedding`。
+- 桌面 macOS、Windows 和 Linux 支持 `Open` 与 `Attach`。`tan dev` 热加载的 `Open` 窗口由宿主创建原生 WebView，工作进程使用代理 Surface，支持导航、脚本、消息、资源、焦点、截图和页面控制。代理的 `Native()` 返回 0，其他 WebView 扩展仍取决于代理实现。替换工作进程时重建子视图。
+- 无原生能力的宿主保留布局盒子和 `WebViewW.Err()`，例如无窗口 Runner、Android 和 iOS 的 Attach 画布，以及缺少 GTK 裁剪容器的 Linux 后端。
 - 盒子上的变换（`Box.Transform/Scale`）只按包围盒放置，不旋转/缩放网页；圆角裁剪不作用于原生视图。
 - 主树里画在 WebView 盒子之上的自绘内容（兄弟节点 `Abs` 覆盖、滚动条与 WebView 重叠处）会被原生视图挡住；需要时用 `Freeze(true)`。
 - 嵌入网页的无障碍树不并入 canvas 的语义树（盒子是 `RoleGroup`，网页自身对读屏可见）。

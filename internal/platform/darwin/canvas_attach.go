@@ -70,7 +70,8 @@ var errDetached = errors.New("tango/darwin: canvas detached")
 // overlay is a canvas attached to a WebView surface. Main thread only.
 type overlay struct {
 	*canvas
-	layer platform.CanvasLayer
+	layer     platform.CanvasLayer
+	embedHost id
 
 	// Content-area size the layer's Bounds were given for (Attach or
 	// SetLayer); anchored placement is computed from it (layoutOverlays).
@@ -130,7 +131,7 @@ func registerOverlayView() {
 		method("hitTest:", func(self id, _ objc.SEL, p nsPoint) id {
 			hit := msgSuperHit(overlaySuper(self), sel("hitTest:"), p)
 			o := overlayOf(self)
-			if hit == 0 || o == nil || !o.passThrough() {
+			if hit != self || o == nil || !o.passThrough() {
 				return hit
 			}
 			local := msgConvertPoint(self, sel("convertPoint:fromView:"), p, send(self, "superview"))
@@ -511,6 +512,11 @@ func (o *overlay) Detach() {
 		return
 	}
 	s := o.s
+	for _, e := range append([]*embedded(nil), embedsOf[s]...) {
+		if e.focus == o.view {
+			e.Close()
+		}
+	}
 	withPool(func() {
 		first := send(s.win, "firstResponder") == o.view
 		send(o.view, "removeFromSuperview")

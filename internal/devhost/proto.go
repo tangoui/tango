@@ -31,7 +31,7 @@ import (
 
 // ProtoVersion changes whenever a message changes incompatibly. A worker
 // with another version is refused, and tan dev restarts the host.
-const ProtoVersion = 3
+const ProtoVersion = 4
 
 // Marker is a string tan dev looks for in a built binary to tell whether
 // it links the dev host (package uihost built with tango_dev).
@@ -182,11 +182,12 @@ type SnapshotReply struct {
 
 // Opened answers OpenWindow.
 type Opened struct {
-	Req   int
-	Win   int
-	W, H  float32
-	Scale float32
-	Err   string
+	Req        int
+	Win        int
+	W, H       float32
+	Scale      float32
+	Err        string
+	ActivityAt time.Time
 }
 
 // Input delivers an input event.
@@ -260,6 +261,7 @@ func init() {
 		Opened{}, Input{}, Focus{}, FrameRequest{}, FrameAck{}, WindowClosed{}, ClipboardText{},
 		SnapshotReq{}, SnapshotData{}, Status{}, Swapped{}, WorkerLeft{},
 		input.Pointer{}, input.Scroll{}, input.KeyEvent{}, input.TextInput{}, input.Composition{}, input.WindowFocus{},
+		input.TouchEvent{}, input.TextEdit{}, input.SelectionChange{},
 	} {
 		gob.Register(m)
 	}

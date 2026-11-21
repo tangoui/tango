@@ -82,6 +82,7 @@ type Attached struct {
 // (pointer, wheel; keyboard while the canvas has focus: clicking it
 // focuses it, clicking the page gives focus back to the WebView). The
 // runner is closed when s closes or on Detach.
+// On macOS, Windows and Linux, the canvas can contain WebView children.
 //
 // Attach must be called on the main thread (App.OnReady, App.Post, a
 // surface callback, ...). It returns an error wrapping tango.ErrUnsupported
@@ -115,6 +116,10 @@ func AttachWith(s *tango.Surface, layer Layer, opts Options, page func(*ui.Conte
 	h.cv = cv
 	h.ax = newA11y(s.App(), cv, r, ropts) // a11y.go
 	h.win = &window{app: s.App(), cv: cv, ax: h.ax}
+	if _, ok := cv.(platform.CanvasWebViewEmbedder); ok {
+		h.win.emb = newEmbeds(h, s)
+		h.win.emb.canvas = cv
+	}
 	r.Attach(h.win)
 	at := &Attached{s: s, h: h, cv: cv, layer: layer}
 	s.OnClosed(h.close)
@@ -170,9 +175,9 @@ func (a *Attached) Detach() {
 	if a.h.closed {
 		return
 	}
+	a.h.close()
 	if ac, ok := a.cv.(platform.AttachedCanvas); ok {
 		ac.Detach()
 	}
-	a.h.close()
 	a.stop()
 }

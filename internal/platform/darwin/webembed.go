@@ -49,6 +49,7 @@ var errEmbedParent = errors.New("tango/darwin: embedded WebView: no such parent 
 type embedded struct {
 	s      *surface // the web view's own record (s.win is the parent's window)
 	parent *surface
+	focus  id // canvas that owns the placement
 	clip   id // TangoEmbedClip
 	place  platform.WebPlacement
 	hidden bool
@@ -101,11 +102,16 @@ func embedHost(p *surface) id {
 	if container == 0 {
 		return 0
 	}
+	h := makeEmbedHost(container)
+	embedHostOf[p] = h
+	return h
+}
+
+func makeEmbedHost(container id) id {
 	h := msgInitRect(send(class("TangoEmbedHost"), "alloc"), sel("initWithFrame:"), msgRect(container, sel("bounds")))
 	send(h, "setAutoresizingMask:", nsViewWidthHeightSizable)
 	send(container, "addSubview:", uintptr(h))
-	release(h) // the container keeps it
-	embedHostOf[p] = h
+	release(h)
 	return h
 }
 
@@ -118,13 +124,29 @@ func (b *backend) NewEmbeddedWebView(sid, parent platform.SurfaceID, opts platfo
 	if p == nil || p.closed || p.view == 0 {
 		return nil, errEmbedParent
 	}
+	return b.newEmbeddedWebView(sid, p, p.view, func() id { return embedHost(p) }, opts, web)
+}
+
+func (o *overlay) NewCanvasWebView(sid platform.SurfaceID, opts platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
+	if o.closed {
+		return nil, errDetached
+	}
+	return o.s.b.newEmbeddedWebView(sid, o.s, o.view, func() id {
+		if o.embedHost == 0 {
+			o.embedHost = makeEmbedHost(o.view)
+		}
+		return o.embedHost
+	}, opts, web)
+}
+
+func (b *backend) newEmbeddedWebView(sid platform.SurfaceID, p *surface, focus id, container func() id, opts platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
 	registerEmbedClasses()
-	e := &embedded{parent: p, hidden: false}
+	e := &embedded{parent: p, focus: focus}
 	s := &surface{b: b, id: sid, win: p.win}
 	e.s = s
 	var err error
 	withPool(func() {
-		host := embedHost(p)
+		host := container()
 		if host == 0 {
 			err = errEmbedParent
 			return
@@ -222,7 +244,7 @@ func devRect(r image.Rectangle, scale float64) nsRect {
 // when the web view, about to disappear, has it.
 func (e *embedded) resignIfFirst() {
 	if e.webIsFirst() {
-		send(e.parent.win, "makeFirstResponder:", uintptr(e.parent.view))
+		send(e.parent.win, "makeFirstResponder:", uintptr(e.focus))
 	}
 }
 

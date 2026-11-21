@@ -49,6 +49,7 @@ package linux
 import (
 	"errors"
 	"fmt"
+	"image"
 	"net/http"
 	"sync"
 
@@ -133,6 +134,7 @@ type embeddedWeb struct {
 	w      *surface // the web part; w.closed is the embedded view's closed flag
 	h      *embedHost
 	layout ptr // GtkLayout clip container (overlay child)
+	attach *attached
 
 	p      platform.WebPlacement
 	hidden bool // Show / Hide
@@ -148,13 +150,21 @@ func (b *backend) NewEmbeddedWebView(id, parent platform.SurfaceID, o platform.S
 	if ps == nil || ps.closed {
 		return nil, fmt.Errorf("tango/linux: NewEmbeddedWebView: no open surface %d", parent)
 	}
-	if ps.canvas == nil {
-		return nil, errors.New("tango/linux: NewEmbeddedWebView: the parent is not a canvas surface")
-	}
-	if ps.canvas.glOverlay == 0 {
+	if ps.canvas == nil || ps.canvas.glOverlay == 0 {
 		// GTK older than 3.18: the canvas has no overlay to stack on.
 		return nil, fmt.Errorf("%w: the canvas has no GtkOverlay", platform.ErrUnsupported)
 	}
+	return b.newEmbeddedWebView(id, ps, ps.canvas.glOverlay, nil, o, web)
+}
+
+func (a *attached) NewCanvasWebView(id platform.SurfaceID, o platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
+	if a.closed {
+		return nil, errDetached
+	}
+	return a.s.b.newEmbeddedWebView(id, a.s, a.h.overlay, a, o, web)
+}
+
+func (b *backend) newEmbeddedWebView(id platform.SurfaceID, ps *surface, overlay ptr, a *attached, o platform.SurfaceOptions, web platform.WebOptions) (platform.EmbeddedWebView, error) {
 	if err := loadEmbedFFI(); err != nil {
 		return nil, fmt.Errorf("%w: %v", platform.ErrUnsupported, err)
 	}
@@ -194,15 +204,20 @@ func (b *backend) NewEmbeddedWebView(id, parent platform.SurfaceID, o platform.S
 
 	h := embedHosts[ps]
 	if h == nil {
-		h = &embedHost{s: ps, overlay: ps.canvas.glOverlay}
-		gSignalConnectData(h.overlay, "get-child-position", f.posCB, 0, 0, 0)
+		h = &embedHost{s: ps, overlay: overlay}
+		if a == nil { // attached canvases use attachChildPosition
+			gSignalConnectData(h.overlay, "get-child-position", f.posCB, 0, 0, 0)
+		}
 		embedHosts[ps] = h
 		embedByOverlay[h.overlay] = h
 	}
-	e := &embeddedWeb{w: w, h: h, layout: layout}
+	e := &embeddedWeb{w: w, h: h, layout: layout, attach: a}
 	h.list = append(h.list, e)
 	embedByLayout[layout] = e
 	f.overlayAddOverlay(h.overlay, layout) // last: above the canvas, the GLArea and earlier views
+	if a != nil {
+		a.h.restack()
+	}
 	b.byWeb[w.web] = w
 
 	url := o.URL
@@ -222,6 +237,10 @@ func embedChildPosition(overlay, widget, alloc ptr) ptr {
 		return 0
 	}
 	c := e.track.clip
+	if a := e.attach; a != nil {
+		r := a.bounds()
+		c = c.Add(image.Pt(r.X, r.Y))
+	}
 	out := (*gdkRect)(toPtr(alloc))
 	*out = gdkRect{X: int32(c.Min.X), Y: int32(c.Min.Y), Width: int32(max(c.Dx(), 1)), Height: int32(max(c.Dy(), 1))}
 	return 1
@@ -267,7 +286,7 @@ func (e *embeddedWeb) SetPlacement(p platform.WebPlacement) {
 }
 
 func (e *embeddedWeb) FocusWeb() {
-	if !e.w.closed {
+	if !e.w.closed && e.track.shown {
 		embedFFI.widgetGrabFocus(e.w.web)
 	}
 }
@@ -276,7 +295,11 @@ func (e *embeddedWeb) BlurWeb() {
 	if e.w.closed || e.h.s.closed || !embedFFI.widgetIsFocus(e.w.web) {
 		return
 	}
-	embedFFI.widgetGrabFocus(e.h.s.content) // the canvas's drawing area
+	target := e.h.s.content
+	if e.attach != nil {
+		target = e.attach.widget
+	}
+	embedFFI.widgetGrabFocus(target)
 }
 
 // platform.Surface ----------------------------------------------------------

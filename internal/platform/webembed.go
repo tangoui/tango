@@ -33,6 +33,12 @@ type WebViewEmbedder interface {
 	NewEmbeddedWebView(id, parent SurfaceID, opts SurfaceOptions, web WebOptions) (EmbeddedWebView, error)
 }
 
+// CanvasWebViewEmbedder is implemented by attached canvases that can host
+// WebViews in their own coordinate system and stacking layer.
+type CanvasWebViewEmbedder interface {
+	NewCanvasWebView(id SurfaceID, opts SurfaceOptions, web WebOptions) (EmbeddedWebView, error)
+}
+
 // EmbeddedWebView is a WebView living inside another surface.
 //
 // Its Surface methods: Navigate, Eval and OpenDevTools work as for a

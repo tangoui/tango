@@ -273,15 +273,25 @@ func (h *attachHost) size() (int, int) {
 func (h *attachHost) restack() {
 	f := &attachFFI
 	var order []ptr
+	add := func(a *attached) {
+		order = append(order, a.widget)
+		if embeds := embedHosts[h.s]; embeds != nil {
+			for _, e := range embeds.list {
+				if e.attach == a {
+					order = append(order, e.layout)
+				}
+			}
+		}
+	}
 	for _, a := range h.list {
 		if !a.layer.Above && !a.closed {
-			order = append(order, a.widget)
+			add(a)
 		}
 	}
 	nBelow := len(order)
 	for _, a := range h.list {
 		if a.layer.Above && !a.closed {
-			order = append(order, a.widget)
+			add(a)
 		}
 	}
 	for i, w := range order {
@@ -313,19 +323,26 @@ func (h *attachHost) restack() {
 // attachChildPosition handles "get-child-position": canvases get their
 // layer's rectangle, everything else the default placement.
 func attachChildPosition(overlay, widget, alloc ptr) ptr {
+	if embedByLayout[widget] != nil {
+		return embedChildPosition(overlay, widget, alloc)
+	}
 	h := attachByOverlay[overlay]
 	a := attachByWidget[widget]
 	if h == nil || a == nil || a.h != h || a.closed || alloc == 0 {
 		return 0
 	}
-	w, ht := h.size()
-	if a.baseW == 0 && a.baseH == 0 {
-		a.baseW, a.baseH = w, ht
-	}
-	r := attachBounds(a.layer, a.baseW, a.baseH, w, ht)
+	r := a.bounds()
 	out := (*gdkRect)(toPtr(alloc))
 	*out = gdkRect{X: int32(r.X), Y: int32(r.Y), Width: int32(max(r.Width, 1)), Height: int32(max(r.Height, 1))}
 	return 1
+}
+
+func (a *attached) bounds() platform.Rect {
+	w, ht := a.h.size()
+	if a.baseW == 0 && a.baseH == 0 {
+		a.baseW, a.baseH = w, ht
+	}
+	return attachBounds(a.layer, a.baseW, a.baseH, w, ht)
 }
 
 func (a *attached) passThrough() bool { return a.layer.Above && a.layer.PassThrough }
@@ -450,6 +467,7 @@ func (a *attached) SetLayer(l platform.CanvasLayer) error {
 		}
 	}
 	attachFFI.widgetQueueResize(a.widget) // get-child-position runs again
+	a.Invalidate()
 	return nil
 }
 
@@ -459,6 +477,13 @@ func (a *attached) Detach() {
 		return
 	}
 	s, h := a.s, a.h
+	if embeds := embedHosts[s]; embeds != nil {
+		for _, e := range append([]*embeddedWeb(nil), embeds.list...) {
+			if e.attach == a {
+				e.Close()
+			}
+		}
+	}
 	focused := attachFFI.widgetHasFocus(a.widget)
 	widget := a.widget
 	a.mask = nil

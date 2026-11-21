@@ -402,6 +402,12 @@ func (h host) OnSurfaceEvent(id platform.SurfaceID, ev platform.SurfaceEvent) {
 	if s == nil {
 		return
 	}
+	if proxy := s.proxyWeb.Load(); proxy != nil {
+		proxy.Event(ev)
+		if ev.Kind != platform.SurfaceClosed {
+			return
+		}
+	}
 	switch ev.Kind {
 	case platform.SurfaceClosed:
 		s.handleClosed()
@@ -419,6 +425,12 @@ func (h host) OnMessage(id platform.SurfaceID, origin, msg string) {
 	a := h.a
 	defer a.enterMain()()
 	s := a.surface(id)
+	if s != nil {
+		if proxy := s.proxyWeb.Load(); proxy != nil {
+			proxy.Message(origin, msg)
+			return
+		}
+	}
 	if s == nil || a.handleActivity(s, msg) || !s.trusts(origin) {
 		return
 	}
@@ -437,6 +449,12 @@ func (h host) OnMessage(id platform.SurfaceID, origin, msg string) {
 // ServeAsset may run on any thread (contract round 2), so it must not claim
 // the main thread via enterMain.
 func (h host) ServeAsset(id platform.SurfaceID, w http.ResponseWriter, r *http.Request) {
+	if s := h.a.surface(id); s != nil {
+		if proxy := s.proxyWeb.Load(); proxy != nil {
+			proxy.Asset(w, r)
+			return
+		}
+	}
 	if strings.HasPrefix(r.URL.Path, lanePathPrefix) {
 		h.a.serveLane(id, w, r) // lanes.go
 		return
