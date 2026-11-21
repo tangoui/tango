@@ -116,6 +116,9 @@ func (b *backend) newWebSurface(sid platform.SurfaceID, opts platform.SurfaceOpt
 // scripts.
 func (s *surface) webConfiguration(opts platform.SurfaceOptions) id {
 	cfg := alloc("WKWebViewConfiguration")
+	if pendingWeb != nil && pendingWeb.Profile != "" {
+		send(cfg, "setWebsiteDataStore:", uintptr(webProfileStore(pendingWeb.Profile)))
+	}
 	send(cfg, "setURLSchemeHandler:forURLScheme:", uintptr(schemeHandler()), uintptr(nsString(assetScheme)))
 	// developerExtrasEnabled is not public API on WKPreferences, but it is
 	// key-value coding compliant and is what enables "Inspect Element".

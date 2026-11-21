@@ -164,6 +164,13 @@ type WebViewOptions struct {
 	// selects.
 	Headers     http.Header
 	HeaderScope HeaderScope
+	// Page enables ordinary browsing. HTTP(S) links can load in this
+	// surface and the page cannot access the Tango bridge or asset origin.
+	Page bool
+	// Profile selects an isolated, persistent website data store shared
+	// by surfaces with this name. Empty selects the application's default
+	// store. Use up to 64 ASCII letters, digits, underscores or hyphens.
+	Profile string
 }
 
 // ---------------------------------------------------------------------------
@@ -185,6 +192,9 @@ type appWeb struct {
 // Surface.mu, headers by hmu (ServeAsset runs on any thread), the rest is
 // main-thread only.
 type surfaceWeb struct {
+	onDownloadDestination func(DownloadRequest, func(string))
+	pendingDownloads      map[uint64]func()
+
 	onDialog      func(WebDialogRequest, func(WebDialogResponse))
 	onFileChooser func(WebFileChooserRequest, func([]string))
 	onFileEvent   []func(WebFileChooserEvent)
@@ -219,6 +229,7 @@ type surfaceWeb struct {
 
 func (s *Surface) clearWebHandlers() { // s.mu held
 	s.web.onNavigation = nil
+	s.web.onDownloadDestination = nil
 	s.web.onDialog, s.web.onFileChooser, s.web.onPopup = nil, nil, nil
 	s.web.onFileEvent = nil
 	s.web.onPermission, s.web.onDownload, s.web.onDownloadEv = nil, nil, nil
@@ -235,16 +246,16 @@ func (a *App) createNative(s *Surface, opts SurfaceOptions, po platform.SurfaceO
 	s.web.coreNav = po.URL
 	s.web.pageOrigin = originOf(po.URL)
 	s.setHeaders(wv.Headers, wv.HeaderScope)
-	web := platform.WebOptions{UserAgent: wv.UserAgent}
-	if wv.HeaderScope == HeadersAll && len(wv.Headers) > 0 {
-		web.Headers = wv.Headers.Clone()
+	web, script, err := a.webNativeOptions(wv, po.BridgeScript)
+	if err != nil {
+		return nil, err
 	}
-	hasWeb := web.UserAgent != "" || len(web.Headers) > 0
+	po.BridgeScript = script
+	hasWeb := web.UserAgent != "" || len(web.Headers) > 0 || web.Profile != ""
 	if c, ok := a.b.(platform.WebCreator); ok && hasWeb {
 		return c.NewSurfaceWeb(s.id, po, ex, web)
 	}
 	var ns platform.Surface
-	var err error
 	if c, ok := a.b.(platform.CreatorEx); ok {
 		ns, err = c.NewSurfaceEx(s.id, po, ex)
 	} else {
@@ -661,7 +672,22 @@ func (s *Surface) Screenshot() ([]byte, error) {
 // CancelDownload cancels a download of this surface (DownloadEvent.ID);
 // a DownloadCanceled event follows. Unknown ids are ignored.
 func (s *Surface) CancelDownload(id uint64) error {
-	return capDo(s, func(w platform.WebDownloads) { w.CancelDownload(id) })
+	if s.closed.Load() {
+		return ErrSurfaceClosed
+	}
+	var err error
+	s.app.awaitVoid(func() {
+		if s.closed.Load() {
+			err = ErrSurfaceClosed
+		} else if cancel := s.web.pendingDownloads[id]; cancel != nil {
+			cancel()
+		} else if w, ok := s.ns.(platform.WebDownloads); ok {
+			w.CancelDownload(id)
+		} else {
+			err = ErrUnsupported
+		}
+	})
+	return err
 }
 
 // cookieMatches reports whether c would be sent to u (RFC 6265 domain and

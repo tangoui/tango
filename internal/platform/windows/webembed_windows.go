@@ -148,7 +148,7 @@ func (b *Backend) newEmbeddedWebView(id, parentID platform.SurfaceID, opts platf
 		return nil, err
 	}
 	e := &embedded{parent: parent}
-	s := &surface{b: b, id: id, opts: opts, embed: e, created: true}
+	s := &surface{b: b, id: id, opts: opts, embed: e, created: true, webProfile: web.Profile}
 	e.w = s
 	hwnd, _, err := procCreateWindowExW.Call(0,
 		uintptr(unsafe.Pointer(u16(embedClass))), 0,

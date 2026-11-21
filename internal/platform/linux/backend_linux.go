@@ -16,8 +16,9 @@ import (
 )
 
 type backend struct {
-	host platform.Host
-	opts platform.AppOptions
+	webProfiles map[string]ptr
+	host        platform.Host
+	opts        platform.AppOptions
 
 	loaded      atomic.Bool // native libraries bound, gtk initialised
 	wakePending atomic.Bool // a Wake idle source is scheduled (coalescing)

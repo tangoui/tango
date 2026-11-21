@@ -88,7 +88,7 @@ func (s *surface) claimPopup(req platform.NewWindowRequest, args uintptr) bool {
 		var child *surface
 		var result platform.Surface
 		if parent != 0 {
-			e, err := s.b.newEmbeddedWebView(id, parent, opts, platform.WebOptions{}, false)
+			e, err := s.b.newEmbeddedWebView(id, parent, opts, platform.WebOptions{Profile: s.webProfile}, false)
 			if err != nil {
 				completeDeferral(d)
 				return nil, err
@@ -101,6 +101,7 @@ func (s *surface) claimPopup(req platform.NewWindowRequest, args uintptr) bool {
 				completeDeferral(d)
 				return nil, err
 			}
+			child.webProfile = s.webProfile
 			child.finishSurface()
 			result = child
 		}

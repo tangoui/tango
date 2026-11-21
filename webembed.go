@@ -68,7 +68,10 @@ func (p *Surface) embedWebView(opts SurfaceOptions, script string) (*Surface, pl
 		return nil, nil, fmt.Errorf("tango: embedded WebView: %w", ErrUnsupported)
 	}
 	opts.Title, opts.Hidden = "", false
-	u := a.resolveURL(opts.URL)
+	u, err := a.webStartURL(opts.URL, opts.WebView)
+	if err != nil {
+		return nil, nil, err
+	}
 	var ev platform.EmbeddedWebView
 	s, err := a.addSurface(opts, originOf(u), true, func(s *Surface) (platform.Surface, error) {
 		s.embedIn = p
@@ -78,11 +81,10 @@ func (p *Surface) embedWebView(opts SurfaceOptions, script string) (*Surface, pl
 		s.web.coreNav = u
 		s.web.pageOrigin = originOf(u)
 		s.setHeaders(wv.Headers, wv.HeaderScope)
-		web := platform.WebOptions{UserAgent: wv.UserAgent}
-		if wv.HeaderScope == HeadersAll && len(wv.Headers) > 0 {
-			web.Headers = wv.Headers.Clone()
+		web, bridge, err := a.webNativeOptions(wv, a.bridgeScript())
+		if err != nil {
+			return nil, err
 		}
-		bridge := a.bridgeScript()
 		if script != "" {
 			bridge += "\n;" + script
 		}

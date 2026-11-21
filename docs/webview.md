@@ -175,3 +175,31 @@ macOS 的 beforeunload 回调取决于系统 WebKit 对该 delegate 的支持。
 `child.OnClosed` 观察关闭。嵌入页面的弹窗在原画布窗口内创建，把
 收到的 `child` 传给新标签的 `uihost.WebViewOptions{Adopt: child}`，
 即可由新标签定位和管理该原生视图。独立 WebView 窗口的弹窗仍可用作独立窗口。
+
+### 下载、检查器和网页数据
+
+```go
+opts := tango.WebViewOptions{Page: true, Profile: "browser"}
+s.SetDownloadDestinationHandler(func(req tango.DownloadRequest, reply func(string)) {
+    chooseDestination(req.Filename, reply)
+})
+s.OnDownloadEvent(updateDownload)
+open, err := s.DevToolsOpen()
+err = s.CloseDevTools()
+err = s.ClearBrowsingData(tango.DataAll)
+```
+
+关闭 Surface、令 `reply("")` 或在选择期间调用 `CancelDownload(id)` 都会取消
+待处理的下载。已接受的下载在终止事件中带目的路径。WebKitGTK 2.40 前使用
+同步下载处理器或默认策略。
+
+`Page` 允许跨站 HTTP(S) 导航，并禁用应用桥接和资源访问。`Profile` 在同名 WebView
+之间共享数据，隔离默认和其他 profile。任何属于该 profile 的活动 Surface
+均可调用 `ClearBrowsingData` 清理该 profile。macOS 的持久 profile 需要 macOS 14+
+的 WKWebsiteDataStore，Windows 需要带 Environment10 的 WebView2 Runtime，
+Linux 使用命名 WebKitWebsiteDataManager 的数据目录。缺少隔离能力时创建会失败，
+Windows 的 Runtime 初始化错误也可能异步报告。
+
+macOS 和 Linux 可查询、关闭原生检查器。macOS 依赖 WebKit 的运行时
+检查器接口。WebView2 公开接口支持打开 DevTools，查询和关闭返回
+`ErrUnsupported`。

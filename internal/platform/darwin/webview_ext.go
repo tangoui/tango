@@ -589,7 +589,9 @@ func decideDestination(dl, resp, name, handler id) {
 	h.OnDownloadStarted(d.s.id, req, func(path string) {
 		if path == "" || d.ended {
 			hb.call(0)
-			d.forget()
+			if !d.ended {
+				d.forget()
+			}
 			return
 		}
 		// WKDownload refuses to overwrite; the contract replaces.
@@ -718,8 +720,11 @@ func (d *download) end(ev platform.DownloadEvent) {
 			d.cancel()
 		}
 	}
-	if d.accepted {
-		d.poll()
+	h := d.s.webHost()
+	if d.accepted || platform.IsDownloadPending(h, d.s.id, d.id) {
+		if d.accepted {
+			d.poll()
+		}
 		ev.ID, ev.Path, ev.Received, ev.Total = d.id, d.path, d.received, d.total
 		if ev.State == platform.DownloadDone {
 			if fi, err := os.Stat(d.path); err == nil {
@@ -729,7 +734,7 @@ func (d *download) end(ev platform.DownloadEvent) {
 				}
 			}
 		}
-		if h := d.s.webHost(); h != nil {
+		if h != nil {
 			h.OnDownloadEvent(d.s.id, ev)
 		}
 	}

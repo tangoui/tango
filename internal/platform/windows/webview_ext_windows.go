@@ -492,6 +492,7 @@ func (s *surface) downloadStarting(_, args uintptr) {
 	comCall(args, dlArgsPutHandled, 1) // no default download UI
 	addRef(args)
 	deferral := getDeferral(args, dlArgsGetDeferral)
+	req.CannotDefer = deferral == 0
 	answered := false
 	wh.OnDownloadStarted(s.id, req, func(path string) {
 		if answered {
@@ -592,7 +593,7 @@ func (s *surface) CancelDownload(id uint64) {
 // WebCreator, WebUserAgent, WebHeaders
 
 func (b *Backend) NewSurfaceWeb(id platform.SurfaceID, opts platform.SurfaceOptions, ex platform.SurfaceExtras, web platform.WebOptions) (platform.Surface, error) {
-	ns, err := b.newSurface(id, opts, &ex)
+	ns, err := b.newWebSurface(id, opts, &ex, web.Profile)
 	if err != nil {
 		return ns, err
 	}

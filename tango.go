@@ -433,6 +433,10 @@ func (h host) OnMessage(id platform.SurfaceID, origin, msg string) {
 // ServeAsset may run on any thread (contract round 2), so it must not claim
 // the main thread via enterMain.
 func (h host) ServeAsset(id platform.SurfaceID, w http.ResponseWriter, r *http.Request) {
+	if s := h.a.surface(id); s != nil && s.webPage {
+		http.NotFound(w, r)
+		return
+	}
 	if strings.HasPrefix(r.URL.Path, lanePathPrefix) {
 		h.a.serveLane(id, w, r) // lanes.go
 		return

@@ -6,6 +6,8 @@
 
 ### 新增
 
+- WebView 支持延迟选择下载目标、查询与关闭支持的平台检查器，以及普通网页模式和命名的隔离数据 profile。
+
 - WebView 可延迟回复脚本对话框和文件选择，并可接管保留 opener 的原生子窗口。
 
 - WebView 支持主框架导航 ID、加载阶段、实时 URL 和标题，以及原生前进后退。见 [WebView 文档](docs/webview.md)。

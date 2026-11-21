@@ -154,11 +154,12 @@ type AuthResponse struct {
 
 // DownloadRequest describes a download asking for a destination.
 type DownloadRequest struct {
-	ID       uint64 // allocated by the backend, unique for the app's run, never 0
-	URL      string
-	Filename string // suggested file name (no directory); may be ""
-	MIME     string // may be ""
-	Size     int64  // expected size in bytes, -1 when unknown
+	CannotDefer bool   // engine requires a synchronous destination
+	ID          uint64 // allocated by the backend, unique for the app's run, never 0
+	URL         string
+	Filename    string // suggested file name (no directory); may be ""
+	MIME        string // may be ""
+	Size        int64  // expected size in bytes, -1 when unknown
 }
 
 type DownloadState int
@@ -188,6 +189,7 @@ type DownloadEvent struct {
 // others it applies them right after creation through WebUserAgent /
 // WebHeaders, which may miss the first request.
 type WebOptions struct {
+	Profile   string      // optional isolated website data store
 	UserAgent string      // "" keeps the platform's
 	Headers   http.Header // extra headers for every request; see WebHeaders
 }
@@ -306,4 +308,14 @@ type WebSnapshot interface {
 // the backend then reports DownloadCanceled.
 type WebDownloads interface {
 	CancelDownload(id uint64)
+}
+
+// WebDownloadPending reports a destination that the core is waiting for.
+type WebDownloadPending interface {
+	DownloadPending(SurfaceID, uint64) bool
+}
+
+func IsDownloadPending(h WebHost, sid SurfaceID, id uint64) bool {
+	w, ok := h.(WebDownloadPending)
+	return ok && w.DownloadPending(sid, id)
 }

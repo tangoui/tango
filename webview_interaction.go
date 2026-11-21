@@ -198,7 +198,7 @@ func (h host) OnWebPopup(id platform.SurfaceID, req NewWindowRequest, create fun
 	if ready == nil || s.closed.Load() {
 		return false
 	}
-	opts := SurfaceOptions{Title: s.Title(), Width: req.Width, Height: req.Height, Resizable: true, Debug: s.web.opts.Debug, Hidden: true}
+	opts := SurfaceOptions{Title: s.Title(), Width: req.Width, Height: req.Height, Resizable: true, Debug: s.web.opts.Debug, Hidden: true, WebView: s.web.opts.WebView}
 	if opts.Width <= 0 || opts.Height <= 0 {
 		opts.Width, opts.Height = s.Size()
 	}

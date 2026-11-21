@@ -122,8 +122,10 @@ pkg github.com/tangoui/tango, method (*Surface) Center() error
 pkg github.com/tangoui/tango, method (*Surface) ClearBrowsingData(BrowsingData) error
 pkg github.com/tangoui/tango, method (*Surface) ClearCookies(string) error
 pkg github.com/tangoui/tango, method (*Surface) Close()
+pkg github.com/tangoui/tango, method (*Surface) CloseDevTools() error
 pkg github.com/tangoui/tango, method (*Surface) Cookies(string) ([]*net/http.Cookie, error)
 pkg github.com/tangoui/tango, method (*Surface) DeleteCookie(*net/http.Cookie) error
+pkg github.com/tangoui/tango, method (*Surface) DevToolsOpen() (bool, error)
 pkg github.com/tangoui/tango, method (*Surface) DragFiles([]string, []byte, func(DragOperation)) error
 pkg github.com/tangoui/tango, method (*Surface) DropBinarySession()
 pkg github.com/tangoui/tango, method (*Surface) Eval(string)
@@ -170,6 +172,7 @@ pkg github.com/tangoui/tango, method (*Surface) SetAppearance(Appearance) error
 pkg github.com/tangoui/tango, method (*Surface) SetAuthHandler(func(AuthChallenge) AuthResponse)
 pkg github.com/tangoui/tango, method (*Surface) SetBounds(Rect) error
 pkg github.com/tangoui/tango, method (*Surface) SetCookie(*net/http.Cookie) error
+pkg github.com/tangoui/tango, method (*Surface) SetDownloadDestinationHandler(func(DownloadRequest, func(string)))
 pkg github.com/tangoui/tango, method (*Surface) SetDownloadHandler(func(DownloadRequest) string)
 pkg github.com/tangoui/tango, method (*Surface) SetExtraHeaders(net/http.Header, HeaderScope) error
 pkg github.com/tangoui/tango, method (*Surface) SetNavigationPolicy(func(NavigationRequest) bool)
@@ -249,6 +252,7 @@ pkg github.com/tangoui/tango, type DownloadEvent struct, State DownloadState
 pkg github.com/tangoui/tango, type DownloadEvent struct, Total int64
 pkg github.com/tangoui/tango, type DownloadRequest = internal/platform.DownloadRequest
 pkg github.com/tangoui/tango, type DownloadRequest struct
+pkg github.com/tangoui/tango, type DownloadRequest struct, CannotDefer bool
 pkg github.com/tangoui/tango, type DownloadRequest struct, Filename string
 pkg github.com/tangoui/tango, type DownloadRequest struct, ID uint64
 pkg github.com/tangoui/tango, type DownloadRequest struct, MIME string
@@ -396,6 +400,8 @@ pkg github.com/tangoui/tango, type WebPermission string
 pkg github.com/tangoui/tango, type WebViewOptions struct
 pkg github.com/tangoui/tango, type WebViewOptions struct, HeaderScope HeaderScope
 pkg github.com/tangoui/tango, type WebViewOptions struct, Headers net/http.Header
+pkg github.com/tangoui/tango, type WebViewOptions struct, Page bool
+pkg github.com/tangoui/tango, type WebViewOptions struct, Profile string
 pkg github.com/tangoui/tango, type WebViewOptions struct, UserAgent string
 pkg github.com/tangoui/tango, type WebViewOptions struct, noncomparable
 pkg github.com/tangoui/tango, type WindowState = internal/platform.WindowState

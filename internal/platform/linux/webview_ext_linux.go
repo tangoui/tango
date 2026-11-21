@@ -58,8 +58,9 @@ const (
 // wv holds the native symbols of this file. The ...OK flags tell which
 // features have every symbol they need.
 var wv struct {
-	once sync.Once
-	ok   bool // core symbols (ref, type name, default context)
+	once             sync.Once
+	downloadCanDefer bool
+	ok               bool // core symbols (ref, type name, default context)
 
 	objectRef        func(o ptr) ptr
 	typeName         func(t uintptr) ptr
@@ -193,9 +194,14 @@ var wv struct {
 func bindWebExt() {
 	bindWebHistory()
 	bindWebInteraction()
+	bindWebProfile()
 	var bd binder
 	g, o, t, w := libGLib, libGObject, libGTK, libWebKit
 	soup := []ptr{libSoup, w}
+	var major, minor func() uint32
+	if bd.opt(&major, "webkit_get_major_version", w) && bd.opt(&minor, "webkit_get_minor_version", w) {
+		wv.downloadCanDefer = major() > 2 || major() == 2 && minor() >= 40
+	}
 
 	wv.ok = bd.opt(&wv.objectRef, "g_object_ref", o) &&
 		bd.opt(&wv.typeName, "g_type_name", o) &&
@@ -733,7 +739,7 @@ func (dl *download) reportEnd(st platform.DownloadState, msg string) {
 		return
 	}
 	dl.ended = true
-	if !dl.accepted {
+	if !dl.accepted && !platform.IsDownloadPending(dl.host, dl.sid, dl.id) {
 		return
 	}
 	ev := platform.DownloadEvent{ID: dl.id, State: st, Path: dl.path, Error: msg, Received: int64(wv.dlReceived(dl.obj)), Total: dl.total()}
@@ -791,7 +797,7 @@ func (dl *download) onDecideDestination(_, suggested ptr) ptr {
 	if dl.ended {
 		return 0
 	}
-	req := platform.DownloadRequest{ID: dl.id, Filename: goStr(suggested), Size: -1}
+	req := platform.DownloadRequest{ID: dl.id, Filename: goStr(suggested), Size: -1, CannotDefer: !wv.downloadCanDefer}
 	if r := wv.dlRequest(dl.obj); r != 0 {
 		req.URL = goStr(wv.uriRequestGetURI(r))
 	}
@@ -861,18 +867,18 @@ func (dl *download) onFinished(_, _ ptr) ptr {
 // CancelDownload cancels an accepted download; "failed" then reports
 // DownloadCanceled.
 func (s *surface) CancelDownload(id uint64) {
-	if dl := dls.byID[id]; dl != nil && dl.accepted && !dl.ended {
+	if dl := dls.byID[id]; dl != nil && dl.sid == s.id && dl.accepted && !dl.ended {
 		wv.dlCancel(dl.obj)
 	}
 }
 
 // Cookies --------------------------------------------------------------------------
 
-func cookieManager() ptr {
-	if !wv.ok || !wv.cookiesOK {
+func (s *surface) cookieManager() ptr {
+	if s.web == 0 || !wv.ok || !wv.cookiesOK {
 		return 0
 	}
-	return wv.ctxCookieMgr(wv.webCtxDefault())
+	return wv.ctxCookieMgr(wv.webViewGetCtx(s.web))
 }
 
 // readSoupCookie copies a SoupCookie.
@@ -935,8 +941,8 @@ func (cl *cookieList) free() {
 }
 
 // fetchCookies lists cookies for uri, or all cookies for "" (2.42+).
-func fetchCookies(uri string, done func(*cookieList, error)) {
-	cm := cookieManager()
+func (s *surface) fetchCookies(uri string, done func(*cookieList, error)) {
+	cm := s.cookieManager()
 	if cm == 0 || (uri == "" && wv.cmGetAll == nil) {
 		done(nil, platform.ErrUnsupported)
 		return
@@ -962,7 +968,7 @@ func fetchCookies(uri string, done func(*cookieList, error)) {
 }
 
 func (s *surface) Cookies(uri string, done func([]*http.Cookie, error)) {
-	fetchCookies(uri, func(cl *cookieList, err error) {
+	s.fetchCookies(uri, func(cl *cookieList, err error) {
 		if err != nil {
 			done(nil, err)
 			return
@@ -977,7 +983,7 @@ func (s *surface) Cookies(uri string, done func([]*http.Cookie, error)) {
 }
 
 func (s *surface) SetCookie(c *http.Cookie, done func(error)) {
-	cm := cookieManager()
+	cm := s.cookieManager()
 	if cm == 0 {
 		done(platform.ErrUnsupported)
 		return
@@ -1012,8 +1018,8 @@ func finishErr(ok bool, gerr ptr, what string) error {
 // deleteCookies deletes the cookies of cl selected by match, then calls
 // done once with the first error. libsoup matches a deleted cookie by name,
 // value and path, so the cookies read back from WebKit are passed as is.
-func deleteCookies(cl *cookieList, match func(cookieFields) bool, done func(error)) {
-	cm := cookieManager()
+func (s *surface) deleteCookies(cl *cookieList, match func(cookieFields) bool, done func(error)) {
+	cm := s.cookieManager()
 	var sel []ptr
 	for _, c := range cl.ptrs {
 		if match(readSoupCookie(c)) {
@@ -1051,12 +1057,12 @@ func (s *surface) DeleteCookie(c *http.Cookie, done func(error)) {
 	if wv.cmGetAll == nil {
 		uri = cookieLookupURL(c)
 	}
-	fetchCookies(uri, func(cl *cookieList, err error) {
+	s.fetchCookies(uri, func(cl *cookieList, err error) {
 		if err != nil {
 			done(err)
 			return
 		}
-		deleteCookies(cl, func(f cookieFields) bool { return sameCookie(f, c) }, done)
+		s.deleteCookies(cl, func(f cookieFields) bool { return sameCookie(f, c) }, done)
 	})
 }
 
@@ -1067,16 +1073,16 @@ func (s *surface) ClearCookies(domain string, done func(error)) {
 		s.ClearBrowsingData(platform.DataCookies, done)
 		return
 	}
-	if cookieManager() == 0 || wv.cmGetAll == nil {
+	if s.cookieManager() == 0 || wv.cmGetAll == nil {
 		done(platform.ErrUnsupported)
 		return
 	}
-	fetchCookies("", func(cl *cookieList, err error) {
+	s.fetchCookies("", func(cl *cookieList, err error) {
 		if err != nil {
 			done(err)
 			return
 		}
-		deleteCookies(cl, func(f cookieFields) bool { return cookieDomainMatch(f.Domain, domain) }, done)
+		s.deleteCookies(cl, func(f cookieFields) bool { return cookieDomainMatch(f.Domain, domain) }, done)
 	})
 }
 
@@ -1084,7 +1090,7 @@ func (s *surface) ClearCookies(domain string, done func(error)) {
 
 func (s *surface) ClearBrowsingData(kinds platform.BrowsingData, done func(error)) {
 	wv.once.Do(bindWebExt)
-	if !wv.ok || !wv.dataOK {
+	if s.web == 0 || !wv.ok || !wv.dataOK {
 		done(platform.ErrUnsupported)
 		return
 	}
@@ -1093,7 +1099,7 @@ func (s *surface) ClearBrowsingData(kinds platform.BrowsingData, done func(error
 		done(nil)
 		return
 	}
-	m := wv.ctxDataMgr(wv.webCtxDefault())
+	m := wv.ctxDataMgr(wv.webViewGetCtx(s.web))
 	if m == 0 {
 		done(platform.ErrUnsupported)
 		return

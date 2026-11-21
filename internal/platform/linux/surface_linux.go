@@ -103,17 +103,28 @@ func (b *backend) newWebSurface(id platform.SurfaceID, o platform.SurfaceOptions
 // script message handler. Shared by WebView surfaces and embedded web
 // views (webembed_linux.go). On failure nothing is left behind.
 func (s *surface) createWeb(o platform.SurfaceOptions, related ptr) error {
+	var context ptr
+	if related == 0 && pendingWeb != nil && pendingWeb.Profile != "" {
+		var err error
+		context, err = s.b.webProfileContext(pendingWeb.Profile)
+		if err != nil {
+			return err
+		}
+	}
 	s.ucm = webkitUserContentManagerNew()
 	s.bridge = o.BridgeScript
 	s.installScript(s.gate.init())
 	webkitUserContentManagerRegisterHandler(s.ucm, messageHandlerName)
 	s.msgHandler = connect(s.ucm, "script-message-received::"+messageHandlerName, 1, s.onScriptMessage)
 
-	if related == 0 {
-		s.web = webkitWebViewNewWithUserContentManager(s.ucm)
-	} else {
+	switch {
+	case related != 0:
 		x := &webInteraction
 		s.web = x.newRelated(x.webViewType(), "related-view", related, "user-content-manager", s.ucm, 0)
+	case context != 0:
+		s.web = webProfile.newView(webInteraction.webViewType(), "web-context", context, "user-content-manager", s.ucm, 0)
+	default:
+		s.web = webkitWebViewNewWithUserContentManager(s.ucm)
 	}
 	if s.web == 0 {
 		gSignalHandlerDisconnect(s.ucm, s.msgHandler)

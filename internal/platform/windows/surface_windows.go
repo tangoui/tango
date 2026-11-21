@@ -15,10 +15,11 @@ import (
 )
 
 type surface struct {
-	b    *Backend
-	id   platform.SurfaceID
-	opts platform.SurfaceOptions
-	hwnd uintptr
+	webProfile string
+	b          *Backend
+	id         platform.SurfaceID
+	opts       platform.SurfaceOptions
+	hwnd       uintptr
 
 	style   uint32
 	created bool // NewSurface returned: events may be reported
@@ -55,6 +56,10 @@ func (b *Backend) NewSurface(id platform.SurfaceID, opts platform.SurfaceOptions
 // surfaces (canvas_surface_windows.go) share newWindow and finishSurface
 // and put a canvas child window where the WebView would go.
 func (b *Backend) newSurface(id platform.SurfaceID, opts platform.SurfaceOptions, ex *platform.SurfaceExtras) (platform.Surface, error) {
+	return b.newWebSurface(id, opts, ex, "")
+}
+
+func (b *Backend) newWebSurface(id platform.SurfaceID, opts platform.SurfaceOptions, ex *platform.SurfaceExtras, profile string) (platform.Surface, error) {
 	if b.h == nil {
 		return nil, fmt.Errorf("tango: NewSurface before Init")
 	}
@@ -73,6 +78,7 @@ func (b *Backend) newSurface(id platform.SurfaceID, opts platform.SurfaceOptions
 		return nil, err
 	}
 
+	s.webProfile = profile
 	url := opts.URL
 	if url == "" {
 		url = "about:blank"
@@ -185,6 +191,10 @@ func (s *surface) createWebView() {
 	}
 	if s.b.envErr != nil {
 		s.fail(s.b.envErr)
+		return
+	}
+	if s.webProfile != "" {
+		s.createProfileController()
 		return
 	}
 	start := func(h uintptr) uintptr { return comCall(s.b.env, envCreateController, s.hwnd, h) }

@@ -57,9 +57,10 @@ type SurfaceOptions struct {
 // they run there (Send and Eval asynchronously, the rest waiting for it).
 // After the surface has closed they do nothing.
 type Surface struct {
-	app    *App
-	id     platform.SurfaceID
-	closed atomic.Bool
+	webPage bool // ordinary browsing, fixed before registration
+	app     *App
+	id      platform.SurfaceID
+	closed  atomic.Bool
 
 	// loaded: a trusted page has loaded and Send pushes to its
 	// downstream generation. Written under down.sendMu (downpoll.go),
@@ -121,7 +122,10 @@ func (a *App) NewSurface(opts SurfaceOptions) (*Surface, error) {
 // createSurface runs on the main thread.
 func (a *App) createSurface(opts SurfaceOptions) (*Surface, error) {
 	opts = a.prepareOptions(opts) // hooks.go
-	u := a.resolveURL(opts.URL)
+	u, err := a.webStartURL(opts.URL, opts.WebView)
+	if err != nil {
+		return nil, err
+	}
 	_, extrasTaken := a.b.(platform.CreatorEx)
 	return a.addSurface(opts, originOf(u), extrasTaken, func(s *Surface) (platform.Surface, error) {
 		return a.newNative(s, opts, platform.SurfaceOptions{
@@ -147,7 +151,7 @@ func (a *App) addSurface(opts SurfaceOptions, navOrigin string, extrasTaken bool
 	a.nextID++
 	id := a.nextID
 	a.mu.Unlock()
-	s := &Surface{app: a, id: id, navOrigin: navOrigin, title: opts.Title, visible: !opts.Hidden, auxiliary: opts.Auxiliary}
+	s := &Surface{app: a, id: id, webPage: opts.WebView.Page, navOrigin: navOrigin, title: opts.Title, visible: !opts.Hidden, auxiliary: opts.Auxiliary}
 	s.initDown()           // before initLanes: down:poll's sender is s.downq
 	s.initLanes(navOrigin) // outside a.mu: lane.New may log
 	// Registered before the backend call: a backend may emit events for
@@ -206,7 +210,7 @@ func originOf(u string) string {
 // or the origin the core last navigated the surface to. Main thread.
 func (s *Surface) trusts(origin string) bool {
 	origin = strings.ToLower(strings.TrimSuffix(origin, "/"))
-	if origin == "" {
+	if s.webPage || origin == "" {
 		return false
 	}
 	return origin == strings.ToLower(s.app.assetOrigin()) || origin == s.navOrigin
@@ -306,7 +310,10 @@ func (s *Surface) Navigate(u string) {
 		if s.closed.Load() || s.ns == nil {
 			return
 		}
-		abs := s.app.resolveURL(u)
+		abs, err := s.app.webStartURL(u, s.web.opts.WebView)
+		if err != nil {
+			return
+		}
 		s.pageGone() // downpoll.go
 		s.navOrigin = originOf(abs)
 		s.noteCoreNav(abs)
@@ -447,7 +454,7 @@ func (s *Surface) handleLoaded(u string) {
 	}
 	// A page the core did not navigate to (the user followed a link
 	// elsewhere) gets no messages; they wait for a trusted page.
-	trusted := u == "" || s.trusts(originOf(u))
+	trusted := !s.webPage && (u == "" || s.trusts(originOf(u)))
 	s.notePageLoaded(u) // webview.go: source of downloads and permission requests
 	s.noteLaneOrigin(s.web.pageOrigin)
 	s.lanesLeaving(s.web.pageOrigin) // lanes.go
