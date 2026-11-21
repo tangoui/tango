@@ -865,6 +865,16 @@ func (w *ViewW) wordAt(snap buffer.Snapshot, off int) (int, int) {
 // offsetAt returns the document offset at window point p (the last
 // painted geometry): the nearest grapheme boundary of the view line under
 // p; above the first line the document start, below the last its end.
+// OffsetAtPoint maps a point in UI logical coordinates to the nearest
+// UTF-8 byte offset, using the last laid-out text viewport. It returns
+// false before layout or outside the text area, including the gutter.
+func (w *ViewW) OffsetAtPoint(p geom.Point) (int, bool) {
+	if !w.hasGeom() || !w.vs.text.Contains(p) {
+		return 0, false
+	}
+	return w.offsetAt(w.st.Snapshot(), p), true
+}
+
 func (w *ViewW) offsetAt(snap buffer.Snapshot, p geom.Point) int {
 	off, _ := w.hitAt(snap, p)
 	return off

@@ -45,6 +45,7 @@ type RichTextW struct {
 	c       *Context
 	n       *node
 	spans   []Span
+	images  map[int]richImage // inline objects, indexed by span
 	size    float32
 	col     theme.Color
 	colSet  bool
@@ -295,6 +296,7 @@ type moreRichPiece struct {
 	space      bool
 	brk        bool // hard line break
 	glue       bool // no break allowed before this piece
+	imageH     float32
 }
 
 type moreRichRun struct {
@@ -303,6 +305,7 @@ type moreRichRun struct {
 	start      int     // display rune offset of text[0]
 	x, w       float32 // w includes padding
 	padL, padR float32
+	imageH     float32
 }
 
 type moreRichLine struct {
@@ -367,6 +370,12 @@ func (w *RichTextW) pieces() []moreRichPiece {
 	var out []moreRichPiece
 	pos := 0 // display rune offset of the span start
 	for si := range w.spans {
+		if im, ok := w.images[si]; ok {
+			txt := w.spans[si].Text
+			out = append(out, moreRichPiece{text: txt, span: si, start: pos, w: im.w, imageH: im.h})
+			pos += len([]rune(txt))
+			continue
+		}
 		st := w.styleOf(si)
 		start := len(out)
 		rs := w.spanRunes(si)
@@ -416,7 +425,7 @@ func (w *RichTextW) pieces() []moreRichPiece {
 	// punctuation to what follows, and Latin words continue across spans.
 	for i := 1; i < len(out); i++ {
 		p, q := &out[i], out[i-1]
-		if p.brk || p.space || q.brk || q.space {
+		if p.brk || p.space || q.brk || q.space || p.imageH > 0 || q.imageH > 0 {
 			continue
 		}
 		fr, _ := moreFirstRune(p.text)
@@ -467,6 +476,12 @@ func (w *RichTextW) doLayout(maxW float32) *moreRichLayout {
 	// Split words that cannot fit any line into characters.
 	var fixed []moreRichPiece
 	for _, p := range ps {
+		if p.imageH > 0 {
+			sz := w.images[p.span].fit(maxW)
+			p.w, p.imageH = sz.W, sz.H
+			fixed = append(fixed, p)
+			continue
+		}
 		if !p.space && !p.brk && p.w+p.padL+p.padR > maxW && len([]rune(p.text)) > 1 {
 			st := w.styleOf(p.span)
 			rs := []rune(p.text)
@@ -565,7 +580,7 @@ func (w *RichTextW) makeLine(ps []moreRichPiece) moreRichLine {
 			r.w += pw
 			r.padR = p.padR
 		} else {
-			ln.runs = append(ln.runs, moreRichRun{text: p.text, span: p.span, start: p.start, x: x, w: pw, padL: p.padL, padR: p.padR})
+			ln.runs = append(ln.runs, moreRichRun{text: p.text, span: p.span, start: p.start, x: x, w: pw, padL: p.padL, padR: p.padR, imageH: p.imageH})
 		}
 		x += pw
 	}
@@ -575,6 +590,10 @@ func (w *RichTextW) makeLine(ps []moreRichPiece) moreRichLine {
 	ln.asc = moreBaseOff(base)
 	desc := base.LineHeight - ln.asc
 	for _, r := range ln.runs {
+		if r.imageH > 0 {
+			ln.asc = max(ln.asc, r.imageH)
+			continue
+		}
 		st := w.styleOf(r.span)
 		bo := moreBaseOff(st)
 		ln.asc = max(ln.asc, bo)
@@ -611,8 +630,19 @@ func (w *RichTextW) paint(l *paint.List, r geom.Rect) {
 		shift := w.lineShift(&ln, r.W)
 		for _, run := range ln.runs {
 			sp := w.spans[run.span]
-			st := w.styleOf(run.span)
 			x := r.X + shift + run.x
+			if im, ok := w.images[run.span]; ok {
+				box := geom.R(x, baseline-run.imageH, run.w, run.imageH)
+				l.DrawImage(im.image, box, geom.Radii{})
+				if n := len([]rune(run.text)); showSel && selA < run.start+n && selB > run.start {
+					l.Fill(box, geom.Radii{}, selCol)
+				}
+				if sp.Link != "" {
+					w.st.links = append(w.st.links, moreRichLink{url: sp.Link, r: box, span: run.span})
+				}
+				continue
+			}
+			st := w.styleOf(run.span)
 			col := def
 			if sp.Color.A > 0 {
 				col = sp.Color
@@ -770,6 +800,12 @@ func (w *RichTextW) indexAt(p geom.Point) int {
 	}
 	for _, r := range ln.runs {
 		if x < r.x+r.w {
+			if r.imageH > 0 {
+				if x < r.x+r.w/2 {
+					return r.start
+				}
+				return r.start + len([]rune(r.text))
+			}
 			sh := text.Shape(r.text, w.styleOf(r.span), text.Options{NoWrap: true})
 			return r.start + sh.IndexAt(x-r.x-r.padL, 0)
 		}

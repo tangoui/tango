@@ -1241,6 +1241,7 @@ pkg github.com/tangoui/tango/ui, method (*Context) TrapFocus(ID)
 pkg github.com/tangoui/tango/ui, method (*Context) WakeAt(time.Time)
 pkg github.com/tangoui/tango/ui, method (*Context) WakeAtDamaged(time.Time)
 pkg github.com/tangoui/tango/ui, method (*Context) WantBack() bool
+pkg github.com/tangoui/tango/ui, method (*Context) WantImagePaste()
 pkg github.com/tangoui/tango/ui, method (*Context) WantTextInput(ui/geom.Rect)
 pkg github.com/tangoui/tango/ui, method (*Context) WantTextInputState(ui/geom.Rect, ui/input.TextInputState)
 pkg github.com/tangoui/tango/ui, method (*Context) WheelFor(ID) (float32, float32, bool)
@@ -1439,6 +1440,7 @@ pkg github.com/tangoui/tango/ui, method (*DropZoneW) Highlight(bool) *DropZoneW
 pkg github.com/tangoui/tango/ui, method (*DropZoneW) ID() ID
 pkg github.com/tangoui/tango/ui, method (*DropZoneW) Layout(...ui/layout.Option) *DropZoneW
 pkg github.com/tangoui/tango/ui, method (*DropZoneW) Over() bool
+pkg github.com/tangoui/tango/ui, method (*DropZoneW) TakeDrop() (FileDrop, bool)
 pkg github.com/tangoui/tango/ui, method (*DropdownW) Arrow() *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) ArrowPointAtCenter(bool) *DropdownW
 pkg github.com/tangoui/tango/ui, method (*DropdownW) AutoFocus(bool) *DropdownW
@@ -1990,6 +1992,7 @@ pkg github.com/tangoui/tango/ui, method (*MarkdownW) Highlighter(CodeHighlighter
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Images(func(string) image.Image) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) NoCopy() *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) NoSelect() *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) ResolveImage(func(MarkdownImage) image.Image) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Size(float32) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) TaskToggled() (int, bool)
 pkg github.com/tangoui/tango/ui, method (*MasonryW) Assignment() []int
@@ -4536,6 +4539,10 @@ pkg github.com/tangoui/tango/ui, type EditableTableLocale struct, noncomparable
 pkg github.com/tangoui/tango/ui, type EmptyW struct
 pkg github.com/tangoui/tango/ui, type EmptyW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type FieldVariant string
+pkg github.com/tangoui/tango/ui, type FileDrop struct
+pkg github.com/tangoui/tango/ui, type FileDrop struct, Paths []string
+pkg github.com/tangoui/tango/ui, type FileDrop struct, Position ui/geom.Point
+pkg github.com/tangoui/tango/ui, type FileDrop struct, noncomparable
 pkg github.com/tangoui/tango/ui, type FlexW struct
 pkg github.com/tangoui/tango/ui, type FlexW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type FloatButtonGroupW struct
@@ -4908,6 +4915,11 @@ pkg github.com/tangoui/tango/ui, type MarkdownEditorLocale struct, Task string
 pkg github.com/tangoui/tango/ui, type MarkdownEditorLocale struct, noncomparable
 pkg github.com/tangoui/tango/ui, type MarkdownEditorW struct
 pkg github.com/tangoui/tango/ui, type MarkdownEditorW struct, noncomparable
+pkg github.com/tangoui/tango/ui, type MarkdownImage struct
+pkg github.com/tangoui/tango/ui, type MarkdownImage struct, Alt string
+pkg github.com/tangoui/tango/ui, type MarkdownImage struct, Height float32
+pkg github.com/tangoui/tango/ui, type MarkdownImage struct, Src string
+pkg github.com/tangoui/tango/ui, type MarkdownImage struct, Width float32
 pkg github.com/tangoui/tango/ui, type MarkdownLocale struct
 pkg github.com/tangoui/tango/ui, type MarkdownLocale struct, Copied string
 pkg github.com/tangoui/tango/ui, type MarkdownLocale struct, CopyCode string

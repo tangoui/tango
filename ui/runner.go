@@ -58,17 +58,18 @@ type RunnerOptions struct {
 type Runner struct {
 	_ [0]func()
 
-	c         *Context
-	page      func(*Context)
-	win       Window
-	renderer  paint.Renderer
-	cpu       *paint.CPU
-	clock     func() time.Time
-	queue     []input.Event
-	list      paint.List
-	lastCur   input.Cursor
-	textOn    bool
-	lastCaret geom.Rect
+	c          *Context
+	page       func(*Context)
+	win        Window
+	renderer   paint.Renderer
+	cpu        *paint.CPU
+	clock      func() time.Time
+	queue      []input.Event
+	list       paint.List
+	lastCur    input.Cursor
+	textOn     bool
+	imagePaste bool
+	lastCaret  geom.Rect
 
 	requestedScale float32 // next frame; may change during page build
 	uiScale        float32 // current frame
@@ -595,6 +596,7 @@ func (r *Runner) build() {
 	c.shortcutCaptureNext = 0
 	c.wantText = false
 	c.ime.want = false
+	c.ime.imagePaste = false
 	c.traps = c.traps[:0]
 	clear(c.semOver)
 	c.running = true

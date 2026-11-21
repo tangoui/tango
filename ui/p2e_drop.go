@@ -41,6 +41,13 @@ type fileDrop struct {
 	paths []string
 }
 
+// FileDrop describes a file drop. Position uses the same UI logical
+// coordinates as Context.Pointer and Context.RectOf.
+type FileDrop struct {
+	Position geom.Point
+	Paths    []string
+}
+
 var fileDrags sync.Map // *Context -> *fileDragState
 
 func fileDragOf(c *Context, create bool) *fileDragState {
@@ -270,13 +277,21 @@ func (z *DropZoneW) Over() bool { return z.over }
 // Dropped returns the paths of files dropped on the zone (Runner.DropFiles)
 // once, or nil.
 func (z *DropZoneW) Dropped() []string {
+	drop, _ := z.TakeDrop()
+	return drop.Paths
+}
+
+// TakeDrop returns and consumes the pending drop on this zone. It shares
+// consumption with Dropped, so use either query for a given drop.
+func (z *DropZoneW) TakeDrop() (FileDrop, bool) {
 	st := z.st
 	if st == nil || st.claimID == 0 || st.claimID != z.box.n.id {
-		return nil
+		return FileDrop{}, false
 	}
-	p := st.claim.paths
+	drop := FileDrop{Position: scalePoint(st.claim.pos, 1/z.c.runner.hitScale), Paths: st.claim.paths}
 	st.claimID, st.claim = 0, fileDrop{}
-	return p
+	st.forget(z.c)
+	return drop, true
 }
 
 // ID returns the zone's widget ID.

@@ -21,7 +21,7 @@ import (
 // (* _ ** __ ***), ~~strike~~, ==mark==, `code`, [links](url), <autolinks>,
 // bare http(s) URLs, images, block quotes, nested ordered/unordered lists,
 // task lists, fenced code blocks, thematic breaks and pipe tables. Raw HTML
-// is shown as text.
+// is shown as text, with the exception of image tags.
 
 const (
 	mdPara = iota
@@ -66,7 +66,10 @@ func ParseMarkdownInline(s string) []Span {
 // ---------------------------------------------------------------------------
 // Block parser
 
-type mdParser struct{ tasks int }
+type mdParser struct {
+	tasks int
+	refs  map[string]string
+}
 
 func mdIndent(s string) int {
 	n := 0
@@ -376,6 +379,16 @@ func (p *mdParser) parse(lines []string) []*mdBlock {
 			}
 		}
 		// Paragraph (possibly a Setext heading).
+		if label, src, ok := mdImageReference(t); ok {
+			if p.refs == nil {
+				p.refs = make(map[string]string)
+			}
+			if _, exists := p.refs[label]; !exists {
+				p.refs[label] = src
+			}
+			i++
+			continue
+		}
 		para := []string{line}
 		j := i + 1
 		level := 0
@@ -523,9 +536,9 @@ func (p *mdParser) list(lines []string, i int, ordered bool, start int) (*mdBloc
 
 // mdLink parses "[text](url "title")" starting at s[i] == '['; it returns
 // the text, URL and the index after ')'.
-func mdLink(s string, i int) (string, string, int, bool) {
+func mdLabelEnd(s string, i int) int {
 	if i >= len(s) || s[i] != '[' {
-		return "", "", 0, false
+		return -1
 	}
 	depth := 0
 	j := i
@@ -539,10 +552,15 @@ func mdLink(s string, i int) (string, string, int, bool) {
 			depth--
 		}
 		if depth == 0 {
-			break
+			return j
 		}
 	}
-	if j >= len(s) || j+1 >= len(s) || s[j+1] != '(' {
+	return -1
+}
+
+func mdLink(s string, i int) (string, string, int, bool) {
+	j := mdLabelEnd(s, i)
+	if j < 0 || j+1 >= len(s) || s[j+1] != '(' {
 		return "", "", 0, false
 	}
 	k := j + 2
@@ -613,14 +631,29 @@ func mdCloser(s string, from int, delim string) int {
 	return -1
 }
 
+type mdInlinePart struct {
+	Span
+	img     *MarkdownImage
+	imgLink string
+}
+
 func mdInline(s string, base Span, imgPrefix string) []Span {
-	var out []Span
+	parts := mdInlines(s, base, imgPrefix, nil)
+	out := make([]Span, 0, len(parts))
+	for _, part := range parts {
+		out = append(out, part.Span)
+	}
+	return out
+}
+
+func mdInlines(s string, base Span, imgPrefix string, refs map[string]string) []mdInlinePart {
+	var out []mdInlinePart
 	var buf strings.Builder
 	flush := func() {
 		if buf.Len() > 0 {
 			sp := base
 			sp.Text = buf.String()
-			out = append(out, sp)
+			out = append(out, mdInlinePart{Span: sp})
 			buf.Reset()
 		}
 	}
@@ -644,7 +677,7 @@ func mdInline(s string, base Span, imgPrefix string) []Span {
 				}
 				sp := base
 				sp.Text, sp.Code, sp.Link = code, true, base.Link
-				out = append(out, sp)
+				out = append(out, mdInlinePart{Span: sp})
 				i += n + e + n
 				continue
 			}
@@ -652,12 +685,12 @@ func mdInline(s string, base Span, imgPrefix string) []Span {
 			i += n
 			continue
 		case c == '!' && i+1 < len(s) && s[i+1] == '[':
-			if alt, src, end, ok := mdLink(s, i+1); ok {
+			if img, end, ok := mdMarkdownImage(s[i:], refs); ok {
 				flush()
 				sp := base
-				sp.Text, sp.Link = imgPrefix+alt, src
-				out = append(out, sp)
-				i = end
+				sp.Text, sp.Link = imgPrefix+img.Alt, img.Src
+				out = append(out, mdInlinePart{Span: sp, img: &img, imgLink: base.Link})
+				i += end
 				continue
 			}
 		case c == '[':
@@ -665,11 +698,19 @@ func mdInline(s string, base Span, imgPrefix string) []Span {
 				flush()
 				b := base
 				b.Link = url
-				out = append(out, mdInline(txt, b, imgPrefix)...)
+				out = append(out, mdInlines(txt, b, imgPrefix, refs)...)
 				i = end
 				continue
 			}
 		case c == '<':
+			if img, n, ok := mdHTMLImage(s[i:]); ok {
+				flush()
+				sp := base
+				sp.Text, sp.Link = imgPrefix+img.Alt, img.Src
+				out = append(out, mdInlinePart{Span: sp, img: &img, imgLink: base.Link})
+				i += n
+				continue
+			}
 			if e := strings.IndexByte(s[i:], '>'); e > 1 {
 				inner := s[i+1 : i+e]
 				if !strings.ContainsAny(inner, " <") && (strings.Contains(inner, "://") || strings.Contains(inner, "@")) {
@@ -679,7 +720,7 @@ func mdInline(s string, base Span, imgPrefix string) []Span {
 					if !strings.Contains(inner, "://") {
 						sp.Link = "mailto:" + inner
 					}
-					out = append(out, sp)
+					out = append(out, mdInlinePart{Span: sp})
 					i += e + 1
 					continue
 				}
@@ -696,7 +737,7 @@ func mdInline(s string, base Span, imgPrefix string) []Span {
 			flush()
 			sp := base
 			sp.Text, sp.Link = s[i:e], s[i:e]
-			out = append(out, sp)
+			out = append(out, mdInlinePart{Span: sp})
 			i = e
 			continue
 		case c == '~' && strings.HasPrefix(s[i:], "~~"):
@@ -704,7 +745,7 @@ func mdInline(s string, base Span, imgPrefix string) []Span {
 				flush()
 				b := base
 				b.Strike = true
-				out = append(out, mdInline(s[i+2:k], b, imgPrefix)...)
+				out = append(out, mdInlines(s[i+2:k], b, imgPrefix, refs)...)
 				i = k + 2
 				continue
 			}
@@ -713,7 +754,7 @@ func mdInline(s string, base Span, imgPrefix string) []Span {
 				flush()
 				b := base
 				b.Mark = true
-				out = append(out, mdInline(s[i+2:k], b, imgPrefix)...)
+				out = append(out, mdInlines(s[i+2:k], b, imgPrefix, refs)...)
 				i = k + 2
 				continue
 			}
@@ -740,7 +781,7 @@ func mdInline(s string, base Span, imgPrefix string) []Span {
 							buf.WriteString(strings.Repeat(string(c), n-m))
 							flush()
 						}
-						out = append(out, mdInline(s[i+m:k], b, imgPrefix)...)
+						out = append(out, mdInlines(s[i+m:k], b, imgPrefix, refs)...)
 						i = k + m
 						matched = true
 					}
@@ -830,26 +871,29 @@ func ToggleMarkdownTask(src string, index int) string {
 type MarkdownW struct {
 	_ [0]func()
 
-	c        *Context
-	b        *Box
-	src      string
-	size     float32
-	images   func(src string) image.Image
-	clicked  string
-	toggled  int
-	z        *lazy
-	el       bool
-	shad     bool // shadcn's typography (h2 rule, quote bar, muted code)
-	copyable bool
-	noSelect bool
-	hl       CodeHighlighter
-	hlSet    bool
-	col      theme.Color // body text color (zero: theme Text)
+	c            *Context
+	b            *Box
+	src          string
+	size         float32
+	images       func(src string) image.Image
+	resolveImage func(MarkdownImage) image.Image
+	refs         map[string]string
+	clicked      string
+	toggled      int
+	z            *lazy
+	el           bool
+	shad         bool // shadcn's typography (h2 rule, quote bar, muted code)
+	copyable     bool
+	noSelect     bool
+	hl           CodeHighlighter
+	hlSet        bool
+	col          theme.Color // body text color (zero: theme Text)
 }
 
 type mdCache struct {
 	src    string
 	blocks []*mdBlock
+	refs   map[string]string
 }
 
 // Markdown adds a rendered Markdown document; it grows to its content (put
@@ -867,9 +911,17 @@ func Markdown(c *Context, src string, opts ...layout.Option) *MarkdownW {
 // Size sets the body font size (default theme FontSize).
 func (m *MarkdownW) Size(px float32) *MarkdownW { m.size = px; return m }
 
-// Images supplies decoded images for ![alt](src); return nil to show a
-// placeholder.
+// Images supplies decoded images by source. Return nil to show the image
+// fallback. Use ResolveImage to receive the alt text and size as well.
 func (m *MarkdownW) Images(load func(src string) image.Image) *MarkdownW { m.images = load; return m }
+
+// ResolveImage supplies decoded images for inline and reference-style
+// Markdown images and HTML img tags. It takes precedence over Images.
+// Return nil to show the image fallback.
+func (m *MarkdownW) ResolveImage(load func(MarkdownImage) image.Image) *MarkdownW {
+	m.resolveImage = load
+	return m
+}
 
 // NoSelect makes the text non-selectable (selection and Cmd/Ctrl+C copy
 // are on by default).
@@ -903,7 +955,9 @@ func (m *MarkdownW) build() {
 		src := strings.ReplaceAll(m.src, "\r\n", "\n")
 		p := &mdParser{}
 		st.blocks, st.src = p.parse(strings.Split(src, "\n")), m.src
+		st.refs = p.refs
 	}
+	m.refs = st.refs
 	m.blocks(st.blocks, Span{Color: m.col}, true)
 }
 
@@ -914,8 +968,33 @@ func (m *MarkdownW) fontSize() float32 {
 	return m.c.Theme.FontSize
 }
 
-func (m *MarkdownW) rich(spans []Span, size float32, col theme.Color) *RichTextW {
+func (m *MarkdownW) rich(src string, base Span, size float32, col theme.Color) *RichTextW {
+	parts := mdInlines(src, base, m.c.Locale().Markdown.ImagePrefix, m.refs)
+	spans := make([]Span, 0, len(parts))
+	var images map[int]richImage
+	for _, p := range parts {
+		if p.img != nil {
+			if im, ok := m.loadImage(*p.img); ok {
+				if images == nil {
+					images = make(map[int]richImage)
+				}
+				images[len(spans)] = im
+				p.Text = p.img.Alt
+				if p.Text == "" {
+					p.Text = m.c.Locale().A11y.Image
+				}
+				p.Link = p.imgLink
+				spans = append(spans, p.Span)
+				continue
+			}
+		}
+		spans = append(spans, p.Span)
+	}
+	if images == nil {
+		spans = mdMerge(spans)
+	}
 	w := RichText(m.c, spans...).Size(size)
+	w.images = images
 	if !m.noSelect {
 		w.Selectable()
 	}
@@ -948,12 +1027,11 @@ func (m *MarkdownW) blocks(bs []*mdBlock, base Span, top bool) {
 				if k > 0 {
 					mt = size * 0.6
 				}
-				spans := mdInline(b.text, Span{Bold: true}, m.c.Locale().Markdown.ImagePrefix)
 				col := th.TextHeading
 				if base.Color.A > 0 {
 					col = base.Color
 				}
-				w := m.rich(mdMerge(spans), size, col)
+				w := m.rich(b.text, Span{Bold: true}, size, col)
 				w.n.setRole(a11y.RoleHeading)
 				if lv := min(b.level, 6); c.a11yOn {
 					w.n.fill(semFunc(func(s *a11y.Node) { s.Level = lv }))
@@ -973,7 +1051,11 @@ func (m *MarkdownW) blocks(bs []*mdBlock, base Span, top bool) {
 					}
 				}
 			case mdPara:
-				m.rich(mdMerge(mdInline(b.text, base, m.c.Locale().Markdown.ImagePrefix)), fs, base.Color).Layout(layout.Margin(geom.Insets{Bottom: mb}))
+				if img, n, ok := mdImageAt(b.text, m.refs); ok && n == len(b.text) {
+					m.image(img, mb)
+				} else {
+					m.rich(b.text, base, fs, base.Color).Layout(layout.Margin(geom.Insets{Bottom: mb}))
+				}
 			case mdCode:
 				m.code(b, mb)
 			case mdQuote:
@@ -1005,7 +1087,7 @@ func (m *MarkdownW) blocks(bs []*mdBlock, base Span, top bool) {
 			case mdTable:
 				m.table(b, base, mb)
 			case mdImage:
-				m.image(b, mb)
+				m.image(mdImageSpec(b.text, b.src), mb)
 			}
 		})
 	}
@@ -1157,7 +1239,7 @@ func (m *MarkdownW) table(b *mdBlock, base Span, mb float32) {
 		sp := base
 		sp.Bold = head
 		col := Column(c, func() {
-			m.rich(mdMerge(mdInline(src, sp, m.c.Locale().Markdown.ImagePrefix)), fs, base.Color).Align(al)
+			m.rich(src, sp, fs, base.Color).Align(al)
 		}, layout.Grow(1), layout.Basis(0), layout.PadVH(8, 12))
 		col.n.setRole(a11y.RoleCell)
 		if head {
@@ -1205,40 +1287,31 @@ func (m *MarkdownW) table(b *mdBlock, base Span, mb float32) {
 	t.Border(1, border).Radius(th.RadiusSM).Clip()
 }
 
-func (m *MarkdownW) image(b *mdBlock, mb float32) {
+func (m *MarkdownW) image(spec MarkdownImage, mb float32) {
 	c, th := m.c, m.c.Theme
-	var img image.Image
-	if m.images != nil {
-		img = m.images(b.src)
-	}
-	alt := b.text
+	im, ok := m.loadImage(spec)
+	alt := spec.Alt
 	if alt == "" {
 		alt = c.Locale().A11y.Image
 	}
-	if img == nil {
+	if !ok {
 		Row(c, func() {
 			Icon(c, icon.File).Size(16).Color(th.TextTertiary)
-			alt := b.text
+			alt := spec.Alt
 			if alt == "" {
-				alt = b.src
+				alt = spec.Src
 			}
 			Text(c, alt).Color(th.TextTertiary)
 		}, layout.Gap(8), layout.Middle(), layout.PadVH(12, 16), layout.Margin(geom.Insets{Bottom: mb})).
 			DashedBorder(1, th.Border).Radius(th.RadiusSM).Semantics(a11y.RoleImage, alt).n.ln.NoStretch = true
 		return
 	}
-	sz := img.Bounds().Size()
-	iw, ih := float32(sz.X), float32(sz.Y)
-	n := c.add("md-image", b.src)
+	n := c.add("md-image", spec.Src)
 	n.setRole(a11y.RoleImage).setName(alt)
 	n.ln.NoStretch = true
 	n.ln.Margin.Bottom = mb
 	n.ln.Measure = func(maxW, _ float32) geom.Size {
-		w := min(iw, maxW)
-		if w <= 0 || iw <= 0 {
-			return geom.Size{}
-		}
-		return geom.Size{W: w, H: ih * w / iw}
+		return im.fit(maxW)
 	}
-	n.paint = func(l *paint.List, r geom.Rect) { l.DrawImage(img, r, geom.Rad(th.RadiusSM)) }
+	n.paint = func(l *paint.List, r geom.Rect) { l.DrawImage(im.image, r, geom.Rad(th.RadiusSM)) }
 }

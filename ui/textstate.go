@@ -30,11 +30,17 @@ type TextInputStateWindow interface {
 
 // imeState is the Context side of the text-input state.
 type imeState struct {
-	want  bool                 // WantTextInputState called this frame
-	st    input.TextInputState // its argument
-	edits []input.Event        // TextEdit / SelectionChange of this frame
-	aware ID                   // focused widget that took edits (TextEditsFor) this frame
+	imagePaste bool                 // focused field can handle paste from an image clipboard
+	want       bool                 // WantTextInputState called this frame
+	st         input.TextInputState // its argument
+	edits      []input.Event        // TextEdit / SelectionChange of this frame
+	aware      ID                   // focused widget that took edits (TextEditsFor) this frame
 }
+
+// WantImagePaste tells the host that the focused text field can handle
+// image-only Paste. Call alongside WantTextInput on each active frame.
+// The host still delivers the regular Paste shortcut.
+func (c *Context) WantImagePaste() { c.ime.imagePaste = true }
 
 // WantTextInputState is WantTextInput for a field that describes its text
 // to the input method: st carries the text around the selection (rune
@@ -63,6 +69,12 @@ func (c *Context) TextEditsFor(id ID) []input.Event {
 // window (afterFrame).
 func (r *Runner) sendTextInput() {
 	c := r.c
+	if enabled := c.wantText && c.ime.imagePaste; enabled != r.imagePaste {
+		r.imagePaste = enabled
+		if w, ok := r.win.(interface{ SetImagePasteEnabled(bool) }); ok {
+			w.SetImagePasteEnabled(enabled)
+		}
+	}
 	sw, hasState := r.win.(TextInputStateWindow)
 	switch {
 	case !c.wantText:

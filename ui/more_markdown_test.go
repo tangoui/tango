@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"image"
+	"slices"
 	"strings"
 	"testing"
 
@@ -82,6 +84,26 @@ func TestMoreMarkdownInline(t *testing.T) {
 	}
 	if plain := PlainText(sp); !strings.Contains(plain, "*i*") || !strings.Contains(plain, "snake_case_x") {
 		t.Fatalf("escapes / intraword: %q", plain)
+	}
+}
+
+func TestMarkdownImageResolver(t *testing.T) {
+	var got []MarkdownImage
+	d := NewDriver(func(c *Context) {
+		Markdown(c, "Before ![one](a.png) ![two][ref] <IMG src='c.png?x=1&amp;y=2' alt='three' width=24 height='12'> after \x60![code](no.png)\x60\n\n[ref]: b.png\n\n![standalone](d.png)").
+			ResolveImage(func(spec MarkdownImage) image.Image {
+				got = append(got, spec)
+				return image.NewRGBA(image.Rect(0, 0, 16, 8))
+			})
+	}, DriverOptions{Width: 500, Height: 300})
+	d.Frame()
+	want := []MarkdownImage{
+		{Src: "a.png", Alt: "one"}, {Src: "b.png", Alt: "two"},
+		{Src: "c.png?x=1&y=2", Alt: "three", Width: 24, Height: 12},
+		{Src: "d.png", Alt: "standalone"},
+	}
+	if len(got) < len(want) || !slices.Equal(got[:len(want)], want) {
+		t.Fatalf("resolved images = %+v", got)
 	}
 }
 

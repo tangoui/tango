@@ -57,9 +57,10 @@ type ViewW struct {
 	vs  *viewState
 	ia  ui.Interaction
 
-	opts  Options // this frame's options: st.Options with the modifiers' overrides
-	km    *keymap.Keymap
-	ctxFn func(key string) (any, bool)
+	opts       Options // this frame's options: st.Options with the modifiers' overrides
+	km         *keymap.Keymap
+	ctxFn      func(key string) (any, bool)
+	pasteImage func() bool
 	// lnFn, lnChars and lnGen are this frame's LineNumbersFunc (gutter.go).
 	lnFn    LineNumberFunc
 	lnChars int

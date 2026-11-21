@@ -67,13 +67,22 @@ func clipboardCommands() []Command {
 			}
 			s := win.ReadClipboard()
 			if s == "" {
-				return false
+				return w.pasteImage != nil && w.pasteImage()
 			}
 			st.paste(s)
 			st.revealCaret()
 			return true
 		}},
 	}
+}
+
+// OnPasteImage sets the fallback when Paste finds no clipboard text.
+// Read the image through sys/clipboard and return true if handled. On macOS
+// this also enables the native Paste menu for image-only clipboards while
+// this writable view has focus.
+func (w *ViewW) OnPasteImage(fn func() bool) *ViewW {
+	w.pasteImage = fn
+	return w
 }
 
 // MultiCursorPasteMode is how pasted text is shared among several cursors

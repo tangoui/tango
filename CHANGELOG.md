@@ -6,6 +6,8 @@
 
 ### 新增
 
+- `DropZoneW.TakeDrop` 一次性交付文件路径和 UI 逻辑坐标，`editor.ViewW.OffsetAtPoint` 将落点映射到 UTF-8 源码偏移。`MarkdownW.ResolveImage` 统一处理行内、引用式和 HTML 图片，传入替代文字和 HTML 尺寸。`editor.ViewW.OnPasteImage` 可处理图片剪贴板，macOS 原生编辑菜单会为支持图片粘贴的编辑器启用「粘贴」。
+
 - `uihost.ShortcutWithContext` 为自绘窗口提供可透传的快捷键回调，可读取输入法组合状态、文本焦点、按键重复和物理释放。支持多段组合键和双击修饰键。
 - 终端实例设置与交互：`ui/terminal` 支持字体家族和字号、光标形状和闪烁（可由 DECSCUSR 覆盖）、独立选区前景、可选预测回显、系统与快捷键粘贴确认、选区和逻辑行查询，以及跨软换行的 URL 和路径命中。
 - 自绘窗口支持通过 `ui.RunnerOptions.UIScale` 和 `(*ui.Runner).SetUIScale` 设置缩放。布局、绘制、输入命中、浮层、IME、原生子视图定位和无障碍坐标使用同一缩放比例。`theme.Theme.FontFamily` 接受按顺序回退的字体家族列表，自绘组件和 `(*ui.Context).TextStyle` 用它测量和排版文本。

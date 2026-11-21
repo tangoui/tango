@@ -220,7 +220,9 @@ pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Layout(...ui/layout.Opti
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) LineNumbers(bool) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) LineNumbersFunc(LineNumberFunc, int, uint64) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) MenuItems(...MenuItem) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OffsetAtPoint(ui/geom.Point) (int, bool)
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OnOpenLink(func(string)) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OnPasteImage(func() bool) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) ReadOnly(bool) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) TabSize(int) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (LocaleSet) IsDefault() bool
