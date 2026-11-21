@@ -48,6 +48,9 @@ pkg github.com/tangoui/tango/uihost, type Attached struct
 pkg github.com/tangoui/tango/uihost, type Attached struct, noncomparable
 pkg github.com/tangoui/tango/uihost, type ContrastMode int
 pkg github.com/tangoui/tango/uihost, type CoverMode uint8
+pkg github.com/tangoui/tango/uihost, type FirstPresent struct
+pkg github.com/tangoui/tango/uihost, type FirstPresent struct, DisplayedAt <-chan time.Time
+pkg github.com/tangoui/tango/uihost, type FirstPresent struct, ReturnedAt time.Time
 pkg github.com/tangoui/tango/uihost, type Layer struct
 pkg github.com/tangoui/tango/uihost, type Layer struct, Above bool
 pkg github.com/tangoui/tango/uihost, type Layer struct, Anchor Anchor
@@ -61,6 +64,7 @@ pkg github.com/tangoui/tango/uihost, type Options struct, Contrast ContrastMode
 pkg github.com/tangoui/tango/uihost, type Options struct, Customize func(*ui/theme.Theme)
 pkg github.com/tangoui/tango/uihost, type Options struct, Flavor func(bool, *ui/theme.Color) *ui/theme.Theme
 pkg github.com/tangoui/tango/uihost, type Options struct, Locale LocaleMode
+pkg github.com/tangoui/tango/uihost, type Options struct, OnFirstPresent func(FirstPresent)
 pkg github.com/tangoui/tango/uihost, type Options struct, Surface tango.SurfaceOptions
 pkg github.com/tangoui/tango/uihost, type Options struct, Theme ThemeMode
 pkg github.com/tangoui/tango/uihost, type Options struct, noncomparable

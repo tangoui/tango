@@ -517,3 +517,34 @@ func TestGPUOversizeUsesCPUTemporarily(t *testing.T) {
 		t.Fatalf("texture-limit log lines = %d, want 1", n)
 	}
 }
+
+func TestFirstPresentAfterGPUFallback(t *testing.T) {
+	t.Setenv("TANGO_RENDERER", "")
+	g := &fakeGPU{presErr: metal.ErrDeviceLost}
+	hooks(t, g)
+	a, fb := faketest.Run(t, tango.Options{})
+	fb.EnableCanvasMetal(0)
+	var events []uihost.FirstPresent
+	o := tango.Await(a, func() opened {
+		r, s, err := uihost.Open(a, uihost.Options{
+			Surface:        tango.SurfaceOptions{Width: 160, Height: 100},
+			OnFirstPresent: func(p uihost.FirstPresent) { events = append(events, p) },
+		}, func(c *ui.Context) { ui.Text(c, "frame") }, ui.RunnerOptions{})
+		return opened{r, s, err}
+	})
+	if o.err != nil {
+		t.Fatal(o.err)
+	}
+	cv := fb.Canvas(o.s.ID())
+	for range 3 {
+		cv.Frame()
+	}
+	fb.Do(func() {
+		if len(events) != 1 || events[0].DisplayedAt != nil {
+			t.Errorf("presentation events after fallback: %+v", events)
+		}
+		if cv.Presents() == 0 {
+			t.Error("no CPU frame was presented")
+		}
+	})
+}

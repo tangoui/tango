@@ -406,24 +406,29 @@ func (g *gpuRenderer) fallback(cv platform.Canvas, id platform.SurfaceID, err er
 
 // presentFrame is window.Present(nil) on a GPU window.
 func (g *gpuRenderer) presentFrame(cv platform.Canvas, id platform.SurfaceID) error {
-	return g.presentFrameAt(cv, id, geom.Size{}, 0, false)
+	return g.presentFrameAt(cv, id, geom.Size{}, 0, false, nil)
 }
 
-func (g *gpuRenderer) presentFrameAt(cv platform.Canvas, id platform.SurfaceID, size geom.Size, scale float32, threaded bool) error {
+func (g *gpuRenderer) presentFrameAt(cv platform.Canvas, id platform.SurfaceID, size geom.Size, scale float32, threaded bool, first *presentationResult) error {
 	return g.trace.timed(g.traceSlot(func(t *frameTrace) *[]time.Duration { return &t.present }), func() error {
-		return g.presentFrame1(cv, id, size, scale, threaded)
+		return g.presentFrame1(cv, id, size, scale, threaded, first)
 	})
 }
 
-func (g *gpuRenderer) presentFrame1(cv platform.Canvas, id platform.SurfaceID, size geom.Size, scale float32, threaded bool) error {
+func (g *gpuRenderer) presentFrame1(cv platform.Canvas, id platform.SurfaceID, size geom.Size, scale float32, threaded bool, first *presentationResult) error {
 	if fs, ok := cv.(frameScaler); ok && threaded {
 		fs.SetFrameScale(scale)
 	}
-	if g.cpu != nil {
-		return cv.Present(g.cpu.Image())
+	cpu := g.cpu
+	if g.bigFrame {
+		cpu = g.big // oversized frame drawn on the CPU
 	}
-	if g.bigFrame { // oversized frame drawn on the CPU
-		return cv.Present(g.big.Image())
+	if cpu != nil {
+		img := cpu.Image()
+		if first != nil {
+			first.submitted = img != nil && !img.Bounds().Empty()
+		}
+		return cv.Present(img)
 	}
 	if g.present == nil { // closed
 		return nil
@@ -433,6 +438,19 @@ func (g *gpuRenderer) presentFrame1(cv platform.Canvas, id platform.SurfaceID, s
 		scale = cv.Scale()
 	}
 	px := image.Pt(int(math.Round(float64(size.W*scale))), int(math.Round(float64(size.H*scale))))
+	type displayFeedback interface {
+		TrackNextPresent() <-chan time.Time
+		PresentedDrawables() int
+	}
+	var feedback displayFeedback
+	var before int
+	if first != nil && px.X > 0 && px.Y > 0 {
+		feedback, _ = g.gpu.(displayFeedback)
+		if feedback != nil {
+			before = feedback.PresentedDrawables()
+			first.displayed = feedback.TrackNextPresent()
+		}
+	}
 	if err := g.present(px, scale); err != nil {
 		if g.nativeMode || errors.Is(err, gpu.ErrDeviceLost) {
 			g.fallback(cv, id, err)
@@ -445,6 +463,9 @@ func (g *gpuRenderer) presentFrame1(cv platform.Canvas, id platform.SurfaceID, s
 			return nil
 		}
 		return err
+	}
+	if first != nil {
+		first.submitted = px.X > 0 && px.Y > 0 && (feedback == nil || before != feedback.PresentedDrawables())
 	}
 	g.nativePresented()
 	return cv.Present(nil) // hides a CPU frame shown before, if any

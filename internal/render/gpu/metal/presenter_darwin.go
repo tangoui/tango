@@ -183,10 +183,11 @@ func NewPresenter(layer uintptr) (r paint.Renderer, present func(size image.Poin
 
 // presenter is NewPresenter's state.
 type presenter struct {
-	layer id // retained until Close
-	dev   *Device
-	r     paint.Renderer
-	trace *presentationTrace // opt-in platform presented feedback, separate from CB timeline
+	layer     id // retained until Close
+	dev       *Device
+	r         paint.Renderer
+	trace     *presentationTrace // opt-in platform presented feedback, separate from CB timeline
+	displayed chan time.Time     // requested feedback for the next submitted drawable
 
 	presented    int // drawables presented (tests)
 	drawableSets int // drawableSize changes (tests)
@@ -217,6 +218,18 @@ func (r *presenterRenderer) ReadPixels() (*image.RGBA, error) { return r.p.dev.R
 // TANGO_FRAME_TRACE); fn runs on the presenting thread with the Device
 // locked and must not call the renderer.
 func (r *presenterRenderer) SetTimeline(fn func(Timing)) { r.p.dev.SetTimeline(fn) }
+
+// TrackNextPresent asks for display feedback on the next submitted drawable.
+// It runs on the presenter's owning thread.
+func (r *presenterRenderer) TrackNextPresent() <-chan time.Time {
+	if r.p.displayed == nil {
+		r.p.displayed = make(chan time.Time, 1)
+	}
+	return r.p.displayed
+}
+
+// PresentedDrawables counts drawable submissions on the presenter's thread.
+func (r *presenterRenderer) PresentedDrawables() int { return r.p.presented }
 
 var _ TimelineSource = (*presenterRenderer)(nil)
 
@@ -392,6 +405,7 @@ func (p *presenter) present(size image.Point, scale float32) error {
 		// The frame's own command buffer: the copy follows its draws.
 		d.openCB = 0
 		d.encodeCopy(cb, drawable.Send(sel("texture")))
+		p.watchDisplayed(drawable)
 		msgSetID(cb, sel("presentDrawable:"), drawable)
 		d.commitSubmission(cb, submitFrame, true)
 		release(cb)
@@ -405,6 +419,7 @@ func (p *presenter) present(size image.Point, scale float32) error {
 	}
 	d.encodeCopy(cb, drawable.Send(sel("texture")))
 	p.trace.watchDrawable(drawable, d.frames)
+	p.watchDisplayed(drawable)
 	msgSetID(cb, sel("presentDrawable:"), drawable)
 	d.commitAs(cb, submitPresent)
 	d.commits++
@@ -415,6 +430,10 @@ func (p *presenter) present(size image.Point, scale float32) error {
 // Close closes the Device and releases the layer. Safe to call more than
 // once.
 func (p *presenter) Close() {
+	if p.displayed != nil {
+		close(p.displayed)
+		p.displayed = nil
+	}
 	if p.trace != nil {
 		p.trace.close()
 	}

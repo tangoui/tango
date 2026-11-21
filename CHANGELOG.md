@@ -6,6 +6,7 @@
 
 ### 新增
 
+- `uihost.Options.OnFirstPresent` 在画布首次成功提交后回调，提供呈现调用返回时间。macOS Metal 可异步提供该帧的实际上屏时间。
 - `(*tango.Surface).LastActivityAt()` 返回窗口最近观测到的输入时间，包含自绘画布和嵌入的 WebView。窗口隐藏时也可从任意 goroutine 读取。
 - 桌面的 `uihost.Attach` 画布和 `tan dev` 热重载的 `uihost.Open` 窗口可嵌入 `uihost.WebView`。子视图随画布布局裁剪，支持浮层遮盖和键盘焦点。见 [内嵌 WebView](docs/specs/webview-embed.md)。
 - 内嵌 WebView 支持关联主框架导航与原生布局提交的脚本结果、PNG 截图、点击、键入和滚动。

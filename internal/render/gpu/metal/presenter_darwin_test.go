@@ -405,3 +405,32 @@ func (d *Device) copyToBGRAForTest(t *testing.T, size image.Point) []byte {
 	}
 	return append([]byte(nil), unsafe.Slice((*byte)(msgPtr(buf, sel("contents"))), n)...)
 }
+
+func TestPresentFeedbackWaitsForDrawable(t *testing.T) {
+	layer := newTestLayer(t, image.Pt(16, 16))
+	p := startPresenter(t, layer)
+	r := p.r.(*presenterRenderer)
+	ch := r.TrackNextPresent()
+	next := p.nextDrawable
+	p.nextDrawable = func(id) id { return 0 }
+	if err := r.Render(solidAndText(t), geom.Size{W: 16, H: 16}, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.present(image.Pt(16, 16), 1); err != nil {
+		t.Fatal(err)
+	}
+	if r.PresentedDrawables() != 0 || r.TrackNextPresent() != ch {
+		t.Fatal("empty presentation consumed the feedback request")
+	}
+
+	p.nextDrawable = next
+	if err := r.Render(solidAndText(t), geom.Size{W: 16, H: 16}, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.present(image.Pt(16, 16), 1); err != nil {
+		t.Fatal(err)
+	}
+	if r.PresentedDrawables() != 1 || p.displayed != nil {
+		t.Fatal("drawable submission did not consume the feedback request")
+	}
+}

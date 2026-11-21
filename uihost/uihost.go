@@ -75,6 +75,29 @@ type Options struct {
 	// Locale says whether the built-in texts of components follow
 	// i18n.Locale() (LocaleSystem, the zero value) or are left alone.
 	Locale LocaleMode
+
+	// OnFirstPresent runs on the app's main thread after the canvas's
+	// first successful presentation submission. Open and AttachWith each
+	// register the callback for their own canvas.
+	OnFirstPresent func(FirstPresent)
+}
+
+// FirstPresent records the canvas's first successful presentation submission.
+type FirstPresent struct {
+	// ReturnedAt is the time the presentation call returned. Under tan dev
+	// it records when the worker sent its first frame to the dev host.
+	ReturnedAt time.Time
+
+	// DisplayedAt delivers the platform-reported display time of that frame
+	// when available on macOS Metal. The channel delivers at most one value
+	// and can close without a value if the frame is discarded. It is nil
+	// on renderers without display feedback. Read it asynchronously.
+	DisplayedAt <-chan time.Time
+}
+
+type presentationResult struct {
+	submitted bool
+	displayed <-chan time.Time
 }
 
 // Open creates a window whose content is page, drawn by a new ui.Runner,
@@ -121,6 +144,7 @@ func Open(app *tango.App, opts Options, page func(*ui.Context), ropts ui.RunnerO
 	if h.r == nil {
 		h.openMain(s, page, ropts)
 	}
+	h.win.firstPresent = opts.OnFirstPresent
 	r := h.r
 	s.OnClosed(h.close)
 	watchMemory(app, r) // memory.go
@@ -458,6 +482,7 @@ type window struct {
 	scale           float32
 	resizePresented chan struct{}
 	startup         *threadedHost // immutable once attached; serializes Runner.Post across startup
+	firstPresent    func(FirstPresent)
 
 	// The UI state of a threaded window that its snapshot publishes
 	// (snapshot.go); UI thread.
@@ -555,19 +580,33 @@ func (w *window) SetTextInput(on bool, caret geom.Rect) {
 }
 func (w *window) Present(img *image.RGBA) error {
 	var err error
+	var result presentationResult
 	switch {
-	case img == nil && w.gpu != nil && w.t != nil:
-		err = w.gpu.presentFrameAt(w.cv, w.id, w.size, w.scale, true)
 	case img == nil && w.gpu != nil:
-		err = w.gpu.presentFrame(w.cv, w.id)
+		var first *presentationResult
+		if w.firstPresent != nil {
+			first = &result
+		}
+		err = w.gpu.presentFrameAt(w.cv, w.id, w.size, w.scale, w.t != nil, first)
 	default:
 		err = w.presentFull(img) // damage.go
+		result.submitted = img != nil && !img.Bounds().Empty()
+	}
+	if err == nil && result.submitted && w.firstPresent != nil {
+		dispatchFirstPresent(w.app, &w.firstPresent, result.displayed)
 	}
 	if w.resizePresented != nil {
 		close(w.resizePresented)
 		w.resizePresented = nil
 	}
 	return err
+}
+
+func dispatchFirstPresent(app *tango.App, cb *func(FirstPresent), displayed <-chan time.Time) {
+	fn := *cb
+	*cb = nil
+	event := FirstPresent{ReturnedAt: time.Now(), DisplayedAt: displayed}
+	app.Post(func() { fn(event) })
 }
 
 // ReadClipboard returns the clipboard's text, "" when it holds none or

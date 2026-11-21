@@ -68,3 +68,26 @@ func (t *presentationTrace) watchDrawable(drawable id, frame uint64) {
 	msgSetID(drawable, sel("addPresentedHandler:"), id(block))
 	block.Release()
 }
+
+// watchDisplayed retains only the result channel in the native block.
+func (p *presenter) watchDisplayed(drawable id) {
+	ch := p.displayed
+	if ch == nil {
+		return
+	}
+	p.displayed = nil
+	if !msgBool1(drawable, sel("respondsToSelector:"), sel("addPresentedHandler:")) {
+		close(ch)
+		return
+	}
+	block := objc.NewBlock(func(_ objc.Block, shown id) {
+		defer close(ch)
+		seconds := msgF64(shown, sel("presentedTime"))
+		now := time.Now()
+		if host := presentHostNS(); seconds > 0 && host > 0 {
+			ch <- now.Add(time.Duration(int64(seconds*float64(time.Second)) - host))
+		}
+	})
+	msgSetID(drawable, sel("addPresentedHandler:"), id(block))
+	block.Release()
+}

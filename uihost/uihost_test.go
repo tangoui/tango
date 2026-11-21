@@ -235,3 +235,40 @@ func TestOnCloseVeto(t *testing.T) {
 		t.Fatal("canvas stopped after a vetoed close")
 	}
 }
+
+func TestOnFirstPresent(t *testing.T) {
+	a, fb := faketest.Run(t, tango.Options{})
+	var events []uihost.FirstPresent
+	start := time.Now()
+	o := tango.Await(a, func() opened {
+		r, s, err := uihost.Open(a, uihost.Options{
+			Surface: tango.SurfaceOptions{Width: 160, Height: 100},
+			OnFirstPresent: func(p uihost.FirstPresent) {
+				events = append(events, p)
+			},
+		}, func(c *ui.Context) { ui.Text(c, "first") }, ui.RunnerOptions{})
+		if len(events) != 0 {
+			t.Error("first present callback ran before Open returned")
+		}
+		return opened{r, s, err}
+	})
+	if o.err != nil {
+		t.Fatal(o.err)
+	}
+	cv := fb.Canvas(o.s.ID())
+	for range 3 {
+		cv.Frame()
+	}
+	fb.Do(func() {
+		if len(events) != 1 {
+			t.Errorf("got %d first present events, want 1", len(events))
+			return
+		}
+		if events[0].ReturnedAt.Before(start) || events[0].ReturnedAt.After(time.Now()) {
+			t.Errorf("invalid present return time: %v", events[0].ReturnedAt)
+		}
+		if events[0].DisplayedAt != nil {
+			t.Error("fake canvas unexpectedly reports display feedback")
+		}
+	})
+}

@@ -93,9 +93,9 @@ func Attach(s *tango.Surface, layer Layer, page func(*ui.Context), ropts ui.Runn
 	return AttachWith(s, layer, Options{}, page, ropts)
 }
 
-// AttachWith is Attach with the theme and locale options of Open
-// (Options.Theme, Flavor, AccentFromSystem, Customize, Locale);
-// opts.Surface is ignored. Attach follows the system like Open with zero
+// AttachWith is Attach with the theme, locale and OnFirstPresent options
+// of Open. The existing surface provides the window geometry.
+// Attach follows the system like Open with zero
 // Options: the canvas's theme switches between light and dark with the
 // system, as the page under it does through prefers-color-scheme, unless
 // ropts.Theme is set.
@@ -115,7 +115,7 @@ func AttachWith(s *tango.Surface, layer Layer, opts Options, page func(*ui.Conte
 	}
 	h.cv = cv
 	h.ax = newA11y(s.App(), cv, r, ropts) // a11y.go
-	h.win = &window{app: s.App(), cv: cv, ax: h.ax}
+	h.win = &window{app: s.App(), cv: cv, ax: h.ax, firstPresent: opts.OnFirstPresent}
 	if _, ok := cv.(platform.CanvasWebViewEmbedder); ok {
 		h.win.emb = newEmbeds(h, s)
 		h.win.emb.canvas = cv

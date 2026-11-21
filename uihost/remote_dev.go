@@ -305,7 +305,7 @@ func devOpen(app *tango.App, opts Options, page func(*ui.Context), ropts ui.Runn
 		return nil, nil, true, fmt.Errorf("uihost: dev host: %s", o.Err)
 	}
 	r = ui.NewRunner(page, ropts)
-	w := &remoteWin{cl: cl, id: o.Win, r: r, size: geom.Size{W: o.W, H: o.H}, scale: o.Scale}
+	w := &remoteWin{cl: cl, id: o.Win, r: r, size: geom.Size{W: o.W, H: o.H}, scale: o.Scale, app: app, firstPresent: opts.OnFirstPresent}
 	w.fw = devhost.NewFrameWriter(o.Win, cl.Dir, cl.Send)
 	r.Attach(w)
 
@@ -399,6 +399,7 @@ func windowOpts(o tango.SurfaceOptions) devhost.WindowOpts {
 
 // remoteWin is a ui.Window shown by the host.
 type remoteWin struct {
+	app        *tango.App
 	cl         *devhost.Client
 	id         int
 	r          *ui.Runner
@@ -422,7 +423,8 @@ type remoteWin struct {
 	textSet bool
 	ax      remoteA11y // accessibility (remote_a11y_dev.go)
 
-	traced bool
+	traced       bool
+	firstPresent func(FirstPresent)
 
 	invalidSent atomic.Bool // Invalidate sent, no FrameRequest since
 
@@ -504,7 +506,11 @@ func (w *remoteWin) Present(img *image.RGBA) error {
 	if img == nil {
 		return errors.New("uihost: remote window needs a CPU frame")
 	}
-	return w.fw.Write(img, w.scale)
+	err := w.fw.Write(img, w.scale)
+	if err == nil && !img.Bounds().Empty() && w.firstPresent != nil {
+		dispatchFirstPresent(w.app, &w.firstPresent, nil)
+	}
+	return err
 }
 
 // request records a FrameRequest and posts one frame. Reading goroutine.
