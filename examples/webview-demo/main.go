@@ -358,7 +358,12 @@ func run(app *tango.App, msgs *mailbox, dir string, assetHeader *sync.Map) {
 	navAsked = nil
 	navMu.Unlock()
 	navigating := make(chan string, 4)
-	s.OnNavigating(func(u string) { navigating <- u })
+	s.OnNavigating(func(u string) {
+		select {
+		case navigating <- u:
+		default:
+		}
+	})
 	s.Eval(`location.href="https://example.com/blocked"`)
 	ok := waitFor(5*time.Second, func() bool {
 		navMu.Lock()
