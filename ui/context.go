@@ -62,20 +62,23 @@ type node struct {
 	parent   *node
 	kids     []*node
 	paint    PaintFunc
-	over     PaintFunc
-	hit      bool
-	cursor   input.Cursor
-	focus    bool
-	clip     bool
-	radii    geom.Radii
-	scroll   *scrollState
-	opacity  float32                       // 0 = opaque
-	xf       func(r geom.Rect) geom.Affine // subtree transform (absolute coordinates); nil = none
-	abs      geom.Rect
-	blocks   bool // swallow pointer for lower layers (panels, masks)
-	disabled bool
-	ownKeys  bool // widget handles Enter/Space itself (no implicit click)
-	noTab    bool // focusable by pointer only; Tab skips it
+	// paintClipped receives the visible part of the node in the same
+	// coordinate space as its full rect.
+	paintClipped func(*paint.List, geom.Rect, geom.Rect)
+	over         PaintFunc
+	hit          bool
+	cursor       input.Cursor
+	focus        bool
+	clip         bool
+	radii        geom.Radii
+	scroll       *scrollState
+	opacity      float32                       // 0 = opaque
+	xf           func(r geom.Rect) geom.Affine // subtree transform (absolute coordinates); nil = none
+	abs          geom.Rect
+	blocks       bool // swallow pointer for lower layers (panels, masks)
+	disabled     bool
+	ownKeys      bool // widget handles Enter/Space itself (no implicit click)
+	noTab        bool // focusable by pointer only; Tab skips it
 	// keepFocus keeps the focusable nodes of the subtree in the focus
 	// order while it is clipped out of view (a virtual table's edited row
 	// scrolled away keeps its editor focused and Tab-reachable). So inside

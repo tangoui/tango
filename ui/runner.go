@@ -695,6 +695,9 @@ func (c *Context) paintNode(l *paint.List, n *node, ox, oy float32, clip geom.Re
 	if n.paint != nil {
 		n.paint(l, r)
 	}
+	if n.paintClipped != nil {
+		n.paintClipped(l, r, vis)
+	}
 	self := len(c.damage)+len(c.shifts) != decl
 	if n.hit {
 		c.nextHits = append(c.nextHits, hit{id: n.id, label: n.label, rect: c.screenRect(vis), layer: layer, cursor: n.cursor, blocks: n.blocks})

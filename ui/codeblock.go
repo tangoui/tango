@@ -294,19 +294,23 @@ func (w *CodeBlockW) build() {
 	if !w.wrap {
 		contentH += 8 // room for the horizontal scrollbar
 	}
-	var opts []layout.Option
+	stackOpts := []layout.Option{layout.Grow(1)}
+	var viewOpts []layout.Option
 	switch {
 	case w.height > 0:
-		opts = append(opts, layout.H(w.height))
+		viewOpts = append(viewOpts, layout.H(w.height))
 	case w.maxH > 0:
-		opts = append(opts, layout.H(min(contentH, w.maxH)))
+		viewOpts = append(viewOpts, layout.H(min(contentH, w.maxH)))
 	default:
-		opts = append(opts, layout.H(contentH))
+		// The stack contributes the natural height in an unconstrained
+		// column. In a definite column it can shrink, and the scroll
+		// viewport stretches to that height instead of overflowing it.
+		stackOpts = append(stackOpts, layout.H(contentH))
 	}
 	// The code reads left to right in RTL layouts too.
 	ConfigProvider(c).Direction(LTR).Body(func() {
 		StackBox(c, func() {
-			v.show("codeblock-view", append(opts, layout.Grow(1)))
+			v.show("codeblock-view", viewOpts)
 			if w.copy && w.title == "" {
 				d := Div(c, layout.Abs(layout.Unset, 6, 6, layout.Unset))
 				focused := false
@@ -321,7 +325,7 @@ func (w *CodeBlockW) build() {
 				a := c.Anim(w.b.n.id, "copy", b2f(hovered || focused), th.DurationMid)
 				d.Opacity(max(a, 0.001))
 			}
-		}, layout.Grow(1))
+		}, stackOpts...)
 	})
 }
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/theme"
 )
 
@@ -199,5 +200,46 @@ func BenchmarkCodeBlockFrame100k(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		w.v.sb.s.off.Y = float64(i%1000) * 200
 		d.Frame()
+	}
+}
+
+func TestWrappedCodeBlockFillScroll(t *testing.T) {
+	code := strings.Repeat(strings.Repeat("abcd ", 20)+"\n", 25000)
+	var w *CodeBlockW
+	d := NewDriver(func(c *Context) {
+		Column(c, func() {
+			w = CodeBlock(c, code).Wrap(true).Highlighter(nil).NoCopy().Layout(layout.Fill())
+		}, layout.Fill())
+	}, DriverOptions{Width: 720, Height: 500})
+	d.Frame()
+	d.Frame()
+	d.Scroll(geom.Pt(300, 200), 400)
+	if got := w.v.st.view.H; got != 500 {
+		t.Fatalf("viewport height %v, want 500", got)
+	}
+	if got := w.v.sb.s.off.Y; got != 400 {
+		t.Fatalf("scroll offset %v, want 400", got)
+	}
+	if n := len(d.Runner().List().Ops); n > 80 {
+		t.Fatalf("visible display list has %d ops", n)
+	}
+}
+
+func TestCodeBlockClippedByAncestor(t *testing.T) {
+	code := strings.Repeat("wrapped response line with data\n", 25000)
+	var w *CodeBlockW
+	d := NewDriver(func(c *Context) {
+		Scroll(c, func() {
+			w = CodeBlock(c, code).Wrap(true).Highlighter(nil).NoCopy()
+		}, layout.H(160))
+	}, DriverOptions{Width: 280, Height: 240})
+	d.Frame()
+	d.Frame()
+	d.Scroll(geom.Pt(50, 50), 5000)
+	if w.v.first == 0 {
+		t.Fatal("paint still starts at the first row after scrolling the ancestor")
+	}
+	if n := len(d.Runner().List().Ops); n > 50 {
+		t.Fatalf("clipped display list has %d ops", n)
 	}
 }

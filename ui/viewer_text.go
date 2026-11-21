@@ -120,7 +120,7 @@ type txView struct {
 	matchB  theme.Color // outline of the current match
 	name    string      // accessible name
 
-	first, end int // visual rows built this frame
+	first, end int // visual rows painted this frame
 	selChanged bool
 }
 
@@ -368,20 +368,20 @@ func (v *txView) show(kind string, opts []layout.Option) {
 	}
 	view := fillViewH(v.sb, 200)
 	off := max(0, min(s.off.Y, total-view))
-	v.first, v.end = fillSpan(off-float64(v.padY), view, rowH, rows, txvOverscan)
-	s.base.Y = float64(v.first) * rowH
+	first, end := fillSpan(off-float64(v.padY), view, rowH, rows, txvOverscan)
+	s.base.Y = float64(first) * rowH
 	v.sb.Body(func() {
 		n := c.add(kind+"-text", "")
 		v.content = n
 		n.ln.Width = max(contentW, st.view.W)
-		n.ln.Height = max(float32(v.end-v.first)*v.lineH+2*v.padY, float32(view))
+		n.ln.Height = max(float32(end-first)*v.lineH+2*v.padY, float32(view))
 		v.ia = c.interact(n, true, input.CursorText)
 		n.ownKeys = true
 		n.setRole(a11y.RoleTextbox).setState(a11y.ReadOnly | a11y.Multiline)
 		n.setName(v.name)
 		n.fill(v)
 		v.handlePointer()
-		n.paint = v.paint
+		n.paintClipped = v.paint
 		n.over = func(l *paint.List, r geom.Rect) {
 			if v.ia.FocusVisible {
 				drawFocusRing(l, c.Theme, st.view, geom.Rad(c.Theme.RadiusSM))
@@ -684,7 +684,7 @@ func (v *txView) atBottom() bool {
 
 // paint draws the visible rows; r is the text node (it starts at the
 // first built row and spans the content width).
-func (v *txView) paint(l *paint.List, r geom.Rect) {
+func (v *txView) paint(l *paint.List, r, visible geom.Rect) {
 	st := v.st
 	s := v.sb.s
 	vx := r.X + float32(s.painted.X)
@@ -694,6 +694,10 @@ func (v *txView) paint(l *paint.List, r geom.Rect) {
 	st.gutterW = v.gutterWidth()
 	st.textX = r.X + st.gutterW + v.padX
 	st.painted = true
+	// The scroll area itself can be taller than the visible part of the
+	// window, for example when it is inside a scrolling document.
+	visible = visible.Intersect(st.view)
+	v.first, v.end = fillSpan(float64(visible.Y-st.originY-v.padY), float64(visible.H), float64(v.lineH), v.rows(), 0)
 	mono := v.mono()
 	selA, selB, hasSel := v.selRange()
 	textClip := geom.Rect{X: vx + st.gutterW, Y: vy, W: max(0, s.view.W-st.gutterW), H: s.view.H}
@@ -705,9 +709,6 @@ func (v *txView) paint(l *paint.List, r geom.Rect) {
 	for row := v.first; row < v.end; row++ {
 		line, seg := v.rowLine(row)
 		y := st.originY + v.padY + float32(row)*v.lineH
-		if y > vy+s.view.H || y+v.lineH < vy {
-			continue
-		}
 		str := v.line(line)
 		b0, b1, r0 := v.segment(str, seg)
 		segStr := str[b0:b1]
