@@ -146,7 +146,7 @@ func (w *ViewW) navigationGeometry(r geom.Rect, gw float32) {
 		// Fixed and scrolling surfaces must not share a device pixel: dirty
 		// miniature rows would otherwise merge with an exposed scroll strip
 		// into a full-height redraw at fractional layout widths.
-		scale := max(0.01, w.c.Window().Scale())
+		scale := max(0.01, w.c.PixelScale())
 		snapX := func(v float32) float32 { return float32(math.Round(float64(v*scale))) / scale }
 		mx := snapX(r.Right() - rw - mw)
 		mw = r.Right() - rw - mx

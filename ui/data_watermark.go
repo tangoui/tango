@@ -120,7 +120,7 @@ const wmFontGap = 3
 // whole (unrotated) mark: the widest line, and the line heights plus the
 // gaps between lines (antd getMarkSize).
 func (w *WatermarkW) shape() ([]*text.Layout, float32, float32) {
-	st := text.Style{Size: w.size, Weight: w.weight, Italic: w.italic}
+	st := text.Style{Size: w.size, Weight: w.weight, Italic: w.italic, FontFamily: w.c.Theme.FontFamily}
 	var mw, mh float32
 	lays := make([]*text.Layout, len(w.lines))
 	for i, s := range w.lines {

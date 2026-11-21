@@ -171,7 +171,7 @@ func (b *BadgeW) bubbleSize(s string) (w, h float32, st text.Style) {
 	if b.small {
 		h, fs, pad = tk.IndicatorHeightSM, tk.TextFontSizeSM, tk.IndicatorPaddingInlineSM
 	}
-	st = text.Style{Size: fs, Weight: text.Regular, LineHeight: b.th.LineHeightFor(fs)}
+	st = themeTextStyle(b.th, fs, text.Regular)
 	if tk.TextFontWeight != 0 {
 		st.Weight = text.Weight(tk.TextFontWeight)
 	}
@@ -280,7 +280,7 @@ func (b *BadgeW) finish() {
 func (b *BadgeW) showStatus() {
 	c, th, tk := b.c, b.th, b.tk
 	n := b.n
-	st := text.Style{Size: th.FontSize, Weight: text.Regular, LineHeight: th.LineHeightFor(th.FontSize)}
+	st := themeTextStyle(th, th.FontSize, text.Regular)
 	sz := tk.StatusSize
 	n.ln.Measure = func(_, _ float32) geom.Size {
 		w := sz
@@ -352,7 +352,7 @@ func BadgeRibbon(c *Context, label, color, placement string, fn func()) *BadgeRi
 	box := c.box("ribbon", layout.Stack, nil)
 	box.n.setRole(a11y.RoleGroup).setName(label)
 	box.Body(fn)
-	st := text.Style{Size: tk.RibbonFontSize, Weight: text.Regular, LineHeight: th.LineHeightFor(tk.RibbonFontSize)}
+	st := themeTextStyle(th, tk.RibbonFontSize, text.Regular)
 	box.n.over = func(l *paint.List, r geom.Rect) {
 		col := tk.RibbonBg
 		if color != "" {

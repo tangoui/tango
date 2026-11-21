@@ -70,7 +70,17 @@ type Label struct {
 }
 
 func (c *Context) style(size float32, w text.Weight) text.Style {
-	return text.Style{Size: size, Weight: w, LineHeight: c.Theme.LineHeightFor(size)}
+	return c.TextStyle(size, w)
+}
+
+// TextStyle returns a style using the current theme's family and line
+// height. Custom widgets can use it for both measuring and painting text.
+func (c *Context) TextStyle(size float32, weight text.Weight) text.Style {
+	return themeTextStyle(c.Theme, size, weight)
+}
+
+func themeTextStyle(th *theme.Theme, size float32, weight text.Weight) text.Style {
+	return text.Style{Size: size, Weight: weight, LineHeight: th.LineHeightFor(size), FontFamily: th.FontFamily}
 }
 
 func newLabel(c *Context, kind, s string, size float32, w text.Weight) *Label {
@@ -352,8 +362,12 @@ func (t *Label) TextDir(d text.Direction) *Label { t.opt.Direction, t.dirSet = d
 // Underline / Delete / Code / Mark decorations.
 func (t *Label) Underline() *Label { t.under = true; return t }
 func (t *Label) Delete() *Label    { t.strike = true; return t }
-func (t *Label) Code() *Label      { t.code = true; t.st.Mono = true; return t }
-func (t *Label) Mark() *Label      { t.mark = true; return t }
+func (t *Label) Code() *Label {
+	t.code = true
+	t.st.Mono, t.st.FontFamily = true, ""
+	return t
+}
+func (t *Label) Mark() *Label { t.mark = true; return t }
 
 // Layout applies layout options to the text node.
 func (t *Label) Layout(opts ...layout.Option) *Label { flexbox.Apply(&t.n.ln.Style, opts...); return t }

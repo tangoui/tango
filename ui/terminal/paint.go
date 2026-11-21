@@ -167,11 +167,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	if px <= 0 {
 		px = defaultFontSize
 	}
-	scale := float32(1)
-	if win := c.Window(); win != nil && win.Scale() > 0 {
-		scale = win.Scale()
-	}
-	m := vs.metricsFor(px, scale, w.fontFamily)
+	m := vs.metricsFor(px, c.PixelScale(), w.fontFamily)
 	cols, rows := max(int(r.W/m.cellW), 2), max(int(r.H/m.lineH), 1)
 	w.sizeTo(cols, rows, m)
 	vs.cache.fit(2 * cols * rows)

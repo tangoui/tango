@@ -16,10 +16,6 @@ type Style struct {
 	Weight     Weight  // 0 means Regular
 	LineHeight float32 // px; 0 means round(Size*22/14)
 	Mono       bool    // prefer the monospace chain
-	// FontFamily is a comma-separated list of preferred families in order.
-	// Missing fonts and glyphs fall back to the normal chain. A generic
-	// monospace or sans-serif entry selects that chain at that position.
-	FontFamily string
 	// Italic selects each family's italic (or oblique) face; families
 	// without one draw their upright face slanted by ItalicSkew (advances
 	// unchanged). Widths always come from the face actually used.
@@ -30,6 +26,12 @@ type Style struct {
 	// its Japanese or Chinese form. Runs of another script get that
 	// script's language (e.g. Arabic runs inside "en" text).
 	Lang string
+	// FontFamily is a comma-separated list of preferred registered or
+	// installed families, in order. Names are case-insensitive. The
+	// generics monospace, sans-serif and system-ui use platform families.
+	// Missing fonts or glyphs fall through to the usual fallback chain.
+	// Mono selects the monospace chain after these preferences.
+	FontFamily string
 }
 
 // ItalicSkew is the slant of synthetic italics (tan of ~11°).
@@ -223,16 +225,18 @@ func Shape(s string, st Style, opt Options) *Layout {
 		hits++
 		return l
 	}
-	if fast := simpleNumericLayout(s, st, opt, v); fast != nil {
-		putLayout(k, fast)
-		return fast
+	if st.FontFamily == "" {
+		if fast := simpleNumericLayout(s, st, opt, v); fast != nil {
+			putLayout(k, fast)
+			return fast
+		}
+		if native := coreTextShape(s, st, opt); native != nil {
+			putLayout(k, native)
+			return native
+		}
 	}
-	if native := coreTextShape(s, st, opt); native != nil {
-		putLayout(k, native)
-		return native
-	}
-	chain := reg.chainFor(st)
-	l := layout(s, st, opt, chain, lang)
+	chain, preferred := reg.chainFor(st)
+	l := layoutRuns(s, []runStyle{{st: st, chain: chain, preferred: preferred, lang: lang}}, nil, nil, opt)
 	putLayout(k, l)
 	return l
 }
@@ -247,13 +251,13 @@ func Width(s string, st Style) float32 { return Shape(s, st, Options{NoWrap: tru
 func LineHeightOf(st Style) float32 { return st.norm().LineHeight }
 
 type fontmap struct {
-	chain   []*family
-	eng     *engineState // system engine: per-rune platform fallback
-	w       Weight
-	italic  bool
-	first   *Face
-	ordered bool // honor explicit family order before script-based fallback
-	noLiga  bool // shape with liga, clig and calt off (Options.noLiga)
+	chain     []*family
+	preferred int          // prefix tried in order before script-specific fallback
+	eng       *engineState // system engine: per-rune platform fallback
+	w         Weight
+	italic    bool
+	first     *Face
+	noLiga    bool // shape with liga, clig and calt off (Options.noLiga)
 	fontmapImpl
 }
 
@@ -275,8 +279,14 @@ func (m *fontmap) resolve(r rune) (*Face, *family) {
 		}
 		return nil
 	}
-	if cl := classOf(r); !m.ordered && cl != classNone {
-		for _, fam := range m.chain {
+	for _, fam := range m.chain[:m.preferred] {
+		if f := try(fam); f != nil {
+			return f, fam
+		}
+	}
+	fallback := m.chain[m.preferred:]
+	if cl := classOf(r); cl != classNone {
+		for _, fam := range fallback {
 			if fam.user || fam.class == cl {
 				if f := try(fam); f != nil {
 					return f, fam
@@ -284,7 +294,7 @@ func (m *fontmap) resolve(r rune) (*Face, *family) {
 			}
 		}
 	}
-	for _, fam := range m.chain {
+	for _, fam := range fallback {
 		if f := try(fam); f != nil {
 			return f, fam
 		}
@@ -343,13 +353,14 @@ func layout(s string, st Style, opt Options, chain []*family, langTag string) *L
 // runStyle is one style run of layoutRuns: its normalized Style, the font
 // chain for st.Mono and the resolved language tag.
 type runStyle struct {
-	st    Style
-	chain []*family
-	lang  string
+	st        Style
+	chain     []*family
+	preferred int
+	lang      string
 }
 
 // newFontmaps returns the font map of every run: one per distinct (mono,
-// weight, italic), shared by the runs using it (and so its face cache).
+// weight, italic, family stack), shared by the runs using it (and so its face cache).
 // With one run the slice is buf's.
 func newFontmaps(rs []runStyle, opt Options, buf *[1]*fontmap) []*fontmap {
 	fms := buf[:]
@@ -359,13 +370,13 @@ func newFontmaps(rs []runStyle, opt Options, buf *[1]*fontmap) []*fontmap {
 	var distinct []int // first run of each font map
 	for k, r := range rs {
 		for _, p := range distinct {
-			if q := rs[p].st; q.Mono == r.st.Mono && q.FontFamily == r.st.FontFamily && q.Weight == r.st.Weight && q.Italic == r.st.Italic {
+			if q := rs[p].st; q.Mono == r.st.Mono && q.Weight == r.st.Weight && q.Italic == r.st.Italic && q.FontFamily == r.st.FontFamily {
 				fms[k] = fms[p]
 				break
 			}
 		}
 		if fms[k] == nil {
-			fms[k] = &fontmap{chain: r.chain, w: r.st.Weight, italic: r.st.Italic, ordered: r.st.FontFamily != "", noLiga: opt.noLiga}
+			fms[k] = &fontmap{chain: r.chain, preferred: r.preferred, w: r.st.Weight, italic: r.st.Italic, noLiga: opt.noLiga}
 			if len(r.chain) > 0 {
 				fms[k].eng = reg.engineFallback()
 			}
@@ -726,7 +737,7 @@ func TrimSpaceRight(s string) string { return strings.TrimRight(s, " \t") }
 func ShapeInto(dst *Layout, s string, st Style, opt Options) *Layout {
 	st = st.norm()
 	opt = normOptions(opt)
-	if !numericLabel(s) || !opt.NoWrap || opt.Ellipsis || opt.MaxLines != 0 || opt.Direction == DirRTL {
+	if st.FontFamily != "" || !numericLabel(s) || !opt.NoWrap || opt.Ellipsis || opt.MaxLines != 0 || opt.Direction == DirRTL {
 		return Shape(s, st, opt)
 	}
 	reg.mu.Lock()

@@ -78,7 +78,7 @@ func Divider(c *Context, title ...string) *DividerW {
 		if d.plain {
 			size, w = tk.FontSize, text.Regular
 		}
-		return text.Style{Size: size, Weight: w, LineHeight: th.LineHeightFor(size)}
+		return themeTextStyle(th, size, w)
 	}
 	pad := tk.TextPaddingInline
 	b.n.ln.Measure = func(_, _ float32) geom.Size {
@@ -829,7 +829,7 @@ func Statistic(c *Context, title string, value float64, precision int) *Statisti
 	s.n = c.add("statistic", title)
 	s.n.setRole(a11y.RoleMeter).fill(s)
 	style := func(size float32, w int) text.Style {
-		st := text.Style{Size: size, Weight: text.Regular, LineHeight: th.LineHeightFor(size)}
+		st := themeTextStyle(th, size, text.Regular)
 		if w != 0 {
 			st.Weight = text.Weight(w)
 		}

@@ -203,7 +203,7 @@ func (d *Driver) Find(label string) (geom.Rect, bool) {
 	hs := d.r.c.hits
 	for i := len(hs) - 1; i >= 0; i-- {
 		if hs[i].label == label {
-			return hs[i].rect, true
+			return scaleRect(hs[i].rect, d.r.hitScale), true
 		}
 	}
 	return geom.Rect{}, false
@@ -243,7 +243,7 @@ func (d *Driver) FindText(text string) (geom.Rect, bool) {
 	for _, exact := range []bool{true, false} {
 		for _, r := range roots {
 			if n := findLabel(r, text, exact); n != nil {
-				return n.abs, true
+				return scaleRect(n.abs, d.r.hitScale), true
 			}
 		}
 	}

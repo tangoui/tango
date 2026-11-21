@@ -252,7 +252,7 @@ type miniStripWant struct {
 func (w *ViewW) miniGlyphsFor(th *theme.Theme) *miniGlyphs {
 	m := &w.vs.mini
 	cw := 1
-	if w.c.Window().Scale() >= 2 {
+	if w.c.PixelScale() >= 2 {
 		cw = 2
 	}
 	light := relativeLuminance(defaultColor(th, "editor.background")) >= 0.5
@@ -336,7 +336,7 @@ func (w *ViewW) paintMinimapChars(l *paint.List, r geom.Rect) {
 		wt.rows[j], wt.vis[j] = m.cache[row.key], true
 	}
 	m.stripWants = wants
-	scale := max(0.01, w.c.Window().Scale())
+	scale := max(0.01, w.c.PixelScale())
 	colScale := min(1, r.W/float32(w.miniColumns()))
 	for i := range wants {
 		wt := &wants[i]

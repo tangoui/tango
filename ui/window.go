@@ -16,7 +16,7 @@ import (
 // (the thread that calls Runner.Frame / Runner.HandleEvent). Invalidate may
 // be called from any goroutine and must only schedule a frame.
 type Window interface {
-	// Size is the drawable content size in logical pixels.
+	// Size is the drawable content size in host logical pixels (before UI scaling).
 	Size() geom.Size
 	// Scale is the device-pixel ratio (2 on Retina).
 	Scale() float32

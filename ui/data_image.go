@@ -420,10 +420,7 @@ func (w *ImageW) paint(l *paint.List, r geom.Rect) {
 	}
 	b := img.Bounds()
 	dst, sx, sy, sw, sh := imgPlace(w.fit, r, float64(b.Dx()), float64(b.Dy()))
-	scale := float32(1)
-	if c.win != nil {
-		scale = c.win.Scale()
-	}
+	scale := c.PixelScale()
 	k := imgKey{src: img, sx: sx, sy: sy, sw: sw, sh: sh, w: int(math.Round(float64(dst.W * scale))), h: int(math.Round(float64(dst.H * scale)))}
 	bm := w.st.thumb.get(k, func() *image.RGBA { return paint.ToRGBA(img) })
 	l.DrawImage(bm, dst, rad)
@@ -715,10 +712,7 @@ func (w *ImageW) previewOverlay() {
 	mask := tk.PreviewBg
 	ov.n.paint = func(l *paint.List, r geom.Rect) {
 		l.Fill(r, geom.Radii{}, mask)
-		scale := float32(1)
-		if c.win != nil {
-			scale = c.win.Scale()
-		}
+		scale := c.PixelScale()
 		// Rotation eases between toolbar steps and follows a rotate drag.
 		dur := th.DurationMid
 		if st.rotDrag && c.Dragging(st.overlayPan) {

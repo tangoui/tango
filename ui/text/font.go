@@ -272,67 +272,77 @@ func Families() []string {
 }
 
 func (r *registry) chain(mono bool) []*family {
-	return r.chainFor(Style{Mono: mono})
-}
-
-func (r *registry) chainFor(st Style) []*family {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	return r.chainLocked(mono)
+}
+
+func (r *registry) chainLocked(mono bool) []*family {
 	if !r.sysBuilt || r.sysEngine != r.engineOn {
 		r.buildSystem()
 	}
 	out := make([]*family, 0, len(r.user)+len(r.system)+len(r.mono))
-	normal := func(mono bool) {
-		if mono && !r.disabled {
-			out = append(out, r.mono...)
-		}
-		out = append(out, r.user...)
-		if !r.disabled {
-			out = append(out, r.system...)
-		}
+	if mono && !r.disabled {
+		out = append(out, r.mono...)
 	}
+	out = append(out, r.user...)
+	if !r.disabled {
+		out = append(out, r.system...)
+	}
+	return out
+}
+
+// chainFor builds a preferred prefix followed by the existing fallback
+// chain. The prefix is tried in order before script-specific fallback.
+func (r *registry) chainFor(st Style) ([]*family, int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	base := r.chainLocked(st.Mono)
 	if st.FontFamily == "" {
-		normal(st.Mono)
-		return out
+		return base, 0
 	}
-	for name := range strings.SplitSeq(st.FontFamily, ",") {
-		name = strings.Trim(strings.TrimSpace(name), `"'`)
+	var preferred []*family
+	add := func(f *family) {
+		if !slices.Contains(preferred, f) {
+			preferred = append(preferred, f)
+		}
+	}
+	for part := range strings.SplitSeq(st.FontFamily, ",") {
+		name := strings.Trim(strings.TrimSpace(part), "\"'")
 		switch strings.ToLower(name) {
 		case "":
 			continue
 		case "monospace":
-			normal(true)
-		case "sans-serif":
-			normal(false)
-		default:
-			if f := r.namedFamily(name); f != nil {
-				out = append(out, f)
+			if !r.disabled {
+				for _, f := range r.mono {
+					add(f)
+				}
 			}
-		}
-	}
-	normal(st.Mono)
-	return slices.Compact(out)
-}
-
-func (r *registry) namedFamily(name string) *family {
-	for _, f := range r.user {
-		if strings.EqualFold(f.name, name) {
-			return f
-		}
-	}
-	if !r.disabled {
-		for _, chain := range [][]*family{r.mono, r.system} {
-			for _, f := range chain {
-				if strings.EqualFold(f.name, name) {
-					return f
+		case "system-ui", "sans-serif":
+			if !r.disabled {
+				for _, f := range r.system {
+					add(f)
+				}
+			}
+		default:
+			f := slices.IndexFunc(base, func(f *family) bool { return strings.EqualFold(f.name, name) })
+			if f >= 0 {
+				add(base[f])
+			} else if !r.disabled {
+				m := slices.IndexFunc(r.mono, func(f *family) bool { return strings.EqualFold(f.name, name) })
+				if m >= 0 {
+					add(r.mono[m])
+				} else if r.eng != nil {
+					add(r.eng.family(name, classNone))
 				}
 			}
 		}
-		if r.eng != nil {
-			return r.eng.family(name, classNone)
-		}
 	}
-	return nil
+	n := len(preferred)
+	for _, f := range base {
+		add(f)
+	}
+	return preferred, n
 }
 
 // buildSystem (re)builds the system chains for the current engine setting.

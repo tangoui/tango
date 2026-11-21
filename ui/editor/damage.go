@@ -313,7 +313,7 @@ func (w *ViewW) declareDamage(l *paint.List, pf *paintFrame) {
 		scrollRemainder: pf.offsetY != v.OffsetY || pf.scrollX != v.ScrollX,
 		rows:            w.rowHashes(pf, vs.dmgSpare.rows),
 		lineCount:       pf.snap.LineCount(),
-		scale:           c.Window().Scale(),
+		scale:           c.PixelScale(),
 		sticky:          vs.stickyRect,
 		marks:           append(vs.dmgSpare.marks[:0], pf.marks...),
 		fixed:           append(vs.dmgSpare.fixed[:0], vs.navPaint...)}

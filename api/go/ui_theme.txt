@@ -2187,6 +2187,7 @@ pkg github.com/tangoui/tango/ui/theme, type Theme struct, FocusOutline Color
 pkg github.com/tangoui/tango/ui/theme, type Theme struct, FocusRing Color
 pkg github.com/tangoui/tango/ui/theme, type Theme struct, FocusRingOffset float32
 pkg github.com/tangoui/tango/ui/theme, type Theme struct, FocusRingWidth float32
+pkg github.com/tangoui/tango/ui/theme, type Theme struct, FontFamily string
 pkg github.com/tangoui/tango/ui/theme, type Theme struct, FontSize float32
 pkg github.com/tangoui/tango/ui/theme, type Theme struct, FontSizeLG float32
 pkg github.com/tangoui/tango/ui/theme, type Theme struct, FontSizeSM float32

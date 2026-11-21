@@ -3,6 +3,7 @@
 package text
 
 import (
+	"slices"
 	"strings"
 	"sync"
 	"unicode"
@@ -520,7 +521,7 @@ func segmentItem(runes []rune, a, b int, fm *fontmap, lang string) []ctSegment {
 	var u int64
 	for i := a; i < b; i++ {
 		f, fam := fm.resolve(runes[i])
-		if fam != nil && !fam.user && fam.class == classCJK {
+		if fam != nil && !fam.user && fam.class == classCJK && !slices.Contains(fm.chain[:fm.preferred], fam) {
 			f = langFace(fm, f, runes[i], lang)
 		}
 		n := int64(utf16Len(runes[i]))

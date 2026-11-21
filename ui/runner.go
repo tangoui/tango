@@ -16,7 +16,9 @@ import (
 
 // RunnerOptions configure a Runner.
 type RunnerOptions struct {
-	Theme *theme.Theme // default theme.AntDesign()
+	// UIScale is the initial logical UI scale. Zero defaults to 1.
+	UIScale float32
+	Theme   *theme.Theme // default theme.AntDesign()
 	// Renderer overrides the CPU renderer (GPU backends). When it is not a
 	// *paint.CPU the runner calls Window.Present(nil) after rendering.
 	Renderer paint.Renderer
@@ -67,7 +69,13 @@ type Runner struct {
 	lastCur   input.Cursor
 	textOn    bool
 	lastCaret geom.Rect
-	closed    atomic.Bool // read by Post from any goroutine
+
+	requestedScale float32 // next frame; may change during page build
+	uiScale        float32 // current frame
+	hitScale       float32 // scale of the last frame's hit rectangles
+	renderSize     geom.Size
+	renderScale    float32
+	closed         atomic.Bool // read by Post from any goroutine
 
 	thread atomic.Pointer[uithread.Thread] // BindThread; nil: the caller's thread
 	poster atomic.Pointer[uiPosterRef]     // the attached window's UIPoster, read by Post
@@ -100,6 +108,8 @@ func NewRunner(page func(*Context), o RunnerOptions) *Runner {
 		th = theme.AntDesign()
 	}
 	r := &Runner{page: page, c: newContext(th), clock: o.Clock, renderer: o.Renderer}
+	r.requestedScale = normalizeUIScale(o.UIScale)
+	r.uiScale, r.hitScale = 1, 1
 	r.c.runner = r
 	if r.clock == nil {
 		r.clock = time.Now
@@ -196,6 +206,7 @@ func (r *Runner) Invalidate() {
 // HandleEvent queues an input event and requests a frame.
 func (r *Runner) HandleEvent(e input.Event) {
 	r.checkThread()
+	e = logicalEvent(e, r.hitScale)
 	if !r.pendingFocusChange() {
 		if fn := r.c.terminalEvents[r.c.focus]; fn != nil && fn(e) {
 			r.Invalidate()
@@ -260,7 +271,8 @@ func (r *Runner) Post(fn func()) {
 // Close releases resources. It may be called from any goroutine.
 func (r *Runner) Close() { r.closed.Store(true) }
 
-// List returns the display list of the last frame (debugging, GPU hosts).
+// List returns the display list in UI logical pixels (debugging, GPU hosts).
+// FrameMetrics gives the parameters for rendering it.
 func (r *Runner) List() *paint.List { return &r.list }
 
 // Frame processes queued input, rebuilds the UI and presents it.
@@ -271,7 +283,20 @@ func (r *Runner) Frame() error {
 	}
 	c := r.c
 	c.now = r.clock()
-	c.size = r.win.Size()
+	windowSize := r.win.Size()
+	deviceScale := r.win.Scale()
+	if !(deviceScale > 0) {
+		deviceScale = 1
+	}
+	oldScale := r.hitScale
+	r.uiScale = r.requestedScale
+	r.renderScale = deviceScale * r.uiScale
+	c.size = geom.Size{W: windowSize.W / r.uiScale, H: windowSize.H / r.uiScale}
+	if r.uiScale != oldScale {
+		r.dmg.started = false
+		// Keyboard avoidance uses the previous frame's field rectangles.
+		c.kb.pending, c.kb.lastBottom = false, 0
+	}
 	r.updateSafeArea()
 	r.updateKeyboardInset()
 	r.editAware, c.ime.aware = c.ime.aware, 0
@@ -295,16 +320,25 @@ func (r *Runner) Frame() error {
 		r.clearFrameInput()
 	}
 	r.clearFrameInput()
+	if oldScale != r.uiScale {
+		// Queued events target the last painted frame. Reproject the
+		// retained pointer for the new frame, even if it did not move.
+		c.pointer = scalePoint(c.pointer, oldScale/r.uiScale)
+	}
 	r.applyKeyboardReveal()
 	r.layoutAndPaint()
-	scale := r.win.Scale()
-	dirty := r.collectDamage(scale)
+	r.renderSize = c.size
+	if r.uiScale != 1 {
+		r.renderSize.W = renderExtent(windowSize.W*deviceScale, r.renderScale)
+		r.renderSize.H = renderExtent(windowSize.H*deviceScale, r.renderScale)
+	}
+	dirty := r.collectDamage(r.renderScale)
 	r.lastDirty = dirty
 	r.afterFrame()
 	if a11yOn {
 		r.reportA11y(host)
 	}
-	err := r.renderer.Render(&r.list, c.size, scale)
+	err := r.renderer.Render(&r.list, r.renderSize, r.renderScale)
 	if err == nil {
 		if r.cpu == nil {
 			err = r.win.Present(nil)
@@ -325,6 +359,13 @@ func (r *Runner) Frame() error {
 func (r *Runner) reportA11y(host AccessibilityHost) {
 	c := r.c
 	t := c.buildA11yTree()
+	if s := r.uiScale; s != 1 {
+		t.Walk(func(n *a11y.Node, _ int) bool {
+			b := n.Bounds
+			n.Bounds = a11y.Rect{X: b.X * s, Y: b.Y * s, W: b.W * s, H: b.H * s}
+			return true
+		})
+	}
 	changed := a11y.Diff(r.a11yTree, t)
 	focusMoved := r.a11yTree == nil || r.a11yTree.Focus != t.Focus
 	r.a11yTree = t
@@ -801,6 +842,7 @@ func (c *Context) recordRects(n *node, r geom.Rect) {
 
 func (r *Runner) afterFrame() {
 	c := r.c
+	r.hitScale = r.uiScale
 	c.hits, c.nextHits = c.nextHits, c.hits
 	c.rects, c.nextRects = c.nextRects, c.rects
 	c.focusOrder, c.nextFocusOrder = c.nextFocusOrder, c.focusOrder
@@ -910,7 +952,9 @@ func (r *Runner) DragRegions() []geom.Rect {
 				break
 			}
 		}
-		out = append(out, parts...)
+		for _, part := range parts {
+			out = append(out, scaleRect(part, r.hitScale))
+		}
 	}
 	return out
 }
@@ -950,5 +994,5 @@ func subtractRect(rs []geom.Rect, cut geom.Rect) []geom.Rect {
 // Experimental: used by the platform host (uihost).
 func (r *Runner) TitleBarActed(p geom.Point, act WindowAction) {
 	r.checkThread()
-	r.c.hostBarAct = hostBarAct{pos: p, act: act}
+	r.c.hostBarAct = hostBarAct{pos: scalePoint(p, 1/r.hitScale), act: act}
 }
