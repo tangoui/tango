@@ -423,6 +423,9 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		for _, sg := range lv.segs {
 			drawSegInline(l, sg, tx, y, vs.udIn)
 		}
+		if wcfg.hints != nil && len(lv.inj) > 0 {
+			w.paintInlays(l, lv, tx, y, lh, th)
+		}
 		w.paintWhitespace(l, snap, lv, vis, tx, y, wsColor)
 		if fold[k]&foldPlaceholder != 0 {
 			w.paintPlaceholder(l, lv, tx, y, th)
@@ -518,12 +521,17 @@ func (w *ViewW) wrapConfig(textW, colW float32) wrapConfig {
 	if w.st.LargeFile() && !w.st.wrapLarge {
 		mode = WrapOff // Monaco shows large files unwrapped (largefile.go)
 	}
-	return wrapConfig{
+	cfg := wrapConfig{
 		col:    wrapColumn(mode, w.opts.WordWrapColumn, textW, colW),
 		tab:    w.tabs(),
 		indent: wrapIndentMode(w.opts.WrappingIndent),
 		inj:    w.injectConfig(colW),
+		hints:  w.inlayLayout(),
 	}
+	if cfg.hints != nil {
+		cfg.inj.colW = colW
+	}
+	return cfg
 }
 
 // breakSelected reports whether the line break after lv is drawn selected
@@ -695,7 +703,7 @@ func (w *ViewW) layoutLine(snap buffer.Snapshot, i int, hl *highlight.Highlighte
 	if c, _, _ := sg.lay.Caret(lv.runes); sg.x0+c > lv.endX {
 		lv.endX = sg.x0 + c // trailing spaces
 	}
-	if lv.colors, lv.inj = w.lineGaps(s); lv.inj != nil {
+	if lv.colors, lv.inj = w.lineGaps(i, s); lv.inj != nil {
 		lv.withGaps(w.segArena())
 	}
 	return lv
@@ -771,7 +779,7 @@ func (w *ViewW) layoutWrapped(dst []lineView, snap buffer.Snapshot, i, k0, k1 in
 		}
 	}
 	v0 := st.vl.viewOf(i)
-	colors, inj := w.lineGaps(s)
+	colors, inj := w.lineGaps(i, s)
 	for k := k0; k <= k1; k++ {
 		b0, b1 := lb.rowRange(k, len(s))
 		r0, _ := lb.rowRunes(k, 0)
@@ -783,7 +791,7 @@ func (w *ViewW) layoutWrapped(dst []lineView, snap buffer.Snapshot, i, k0, k1 in
 		if c, _, _ := sg.lay.Caret(r1 - r0); sg.x0+c > lv.endX {
 			lv.endX = sg.x0 + c // trailing spaces
 		}
-		if lv.inj = rowInjections(inj, b0, b1); lv.inj != nil {
+		if lv.inj = rowInjections(inj, b0, b1, k == nr-1); lv.inj != nil {
 			lv.withGaps(w.segArena())
 		}
 		dst = append(dst, lv)
@@ -1590,7 +1598,7 @@ func (w *ViewW) paintDecoOver(l *paint.List, snap buffer.Snapshot, lines []lineV
 				// color (over the background, for translucent colors).
 				gx, found := float32(0), false
 				lv.eachGap(func(in injection, x0, _ float32) {
-					if in.col == d.a {
+					if in.hint == nil && in.col == d.a {
 						gx, found = x0, true
 					}
 				})

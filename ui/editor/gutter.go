@@ -6,9 +6,83 @@ import (
 	"strconv"
 
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
 )
+
+// GutterClick reports a zero-based document Line and the pointer Position
+// in UI logical coordinates. Button is ButtonLeft or ButtonRight.
+type GutterClick struct {
+	Line     int
+	Position geom.Point
+	Button   input.Button
+}
+
+// GutterLineAtPoint maps a point in the laid-out gutter to a zero-based
+// document line. Wrapped rows share a line. Padding and view zones have
+// no line. Sticky rows report the line they show.
+func (w *ViewW) GutterLineAtPoint(p geom.Point) (int, bool) {
+	if !w.hasGeom() || w.vs.buf != w.st.Model.Buffer() || !w.vs.gutter.Contains(p) {
+		return 0, false
+	}
+	for i, clip := range w.vs.stickyClips {
+		if clip.Y <= p.Y && p.Y < clip.Bottom() {
+			return w.vs.stickyLines[i], true
+		}
+	}
+	v := w.pointRow(p)
+	vl := w.st.lines()
+	if v < 0 || v >= vl.Count() {
+		return 0, false
+	}
+	line, row := vl.find(v)
+	return line, 0 <= row && row < vl.rowsOf(line)
+}
+
+// OnGutterClick handles primary clicks and secondary presses in the
+// gutter. Handled clicks leave the selection in place. An active folding
+// control still receives primary clicks. Call Changed during build to
+// handle the event there, for example to open a context menu.
+func (w *ViewW) OnGutterClick(fn func(GutterClick)) *ViewW {
+	w.gutterClick = fn
+	return w
+}
+
+func (w *ViewW) gutterInput(p pending, rail bool) bool {
+	vs := w.vs
+	fn := w.gutterClick
+	if fn == nil {
+		vs.gutterPressLine = 0
+		return false
+	}
+	if p.gutterContext {
+		if line, ok := w.GutterLineAtPoint(p.gutterPos); ok {
+			fn(GutterClick{Line: line, Position: p.gutterPos, Button: input.ButtonRight})
+		}
+	}
+	if p.press {
+		vs.gutterPressLine = 0
+		if line, ok := w.GutterLineAtPoint(p.pressPos); ok && !rail {
+			if _, fold := w.foldControlAt(p.pressPos); !fold {
+				vs.gutterPressLine = line + 1
+			}
+		}
+	}
+	start := vs.gutterPressLine
+	if p.cancel || p.release {
+		vs.gutterPressLine = 0
+	}
+	if start == 0 {
+		return false
+	}
+	if p.release && !p.cancel && !rail {
+		if line, ok := w.GutterLineAtPoint(p.relPos); ok && line+1 == start {
+			fn(GutterClick{Line: line, Position: p.relPos, Button: input.ButtonLeft})
+		}
+	}
+	return true
+}
 
 // Gutter metrics, after Monaco's defaults: line numbers take at least
 // lineNumbersMinChars digit widths, followed by the line decorations

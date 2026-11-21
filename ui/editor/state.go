@@ -54,6 +54,7 @@ type State struct {
 	zplaced  []zonePlaced              // the zones as placed in the view lines (syncZones)
 	scroll   scrollWatch               // OnDidScroll (scroll.go)
 	overview map[string][]OverviewMark // per-view owner markers (overview.go)
+	inlays   *inlaySet
 
 	goals    []int // goal columns of vertical moves, one per selection; nil when unset
 	lastKind editKind
@@ -148,6 +149,9 @@ func (s *State) Close() {
 
 // modelChanged follows a change another view (or the Model) made.
 func (s *State) modelChanged(ch ModelChange) {
+	if s.inlays != nil && s.inlays.version != ch.New.Version() {
+		s.inlays = nil
+	}
 	if ch.Source == s || len(ch.Edits) == 0 {
 		return
 	}

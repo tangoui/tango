@@ -6,6 +6,8 @@
 
 ### 新增
 
+- 代码编辑器新增 `OnDocumentChange`、`CompletionAnchor` 和 `CompletionKeys`，供应用构建随输入更新的键盘补全列表。`OverlayOptions.AnchorRect` 可将弹层定位在光标。`State.SetInlayHints` 渲染参与折行的行内提示，gutter 支持点击回调和文档行查询。
+
 - `DropZoneW.TakeDrop` 一次性交付文件路径和 UI 逻辑坐标，`editor.ViewW.OffsetAtPoint` 将落点映射到 UTF-8 源码偏移。`MarkdownW.ResolveImage` 统一处理行内、引用式和 HTML 图片，传入替代文字和 HTML 尺寸。`editor.ViewW.OnPasteImage` 可处理图片剪贴板，macOS 原生编辑菜单会为支持图片粘贴的编辑器启用「粘贴」。
 
 - `uihost.ShortcutWithContext` 为自绘窗口提供可透传的快捷键回调，可读取输入法组合状态、文本焦点、按键重复和物理释放。支持多段组合键和双击修饰键。

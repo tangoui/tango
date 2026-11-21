@@ -5054,6 +5054,7 @@ pkg github.com/tangoui/tango/ui, type OptionGroup = VirtualOptionGroup
 pkg github.com/tangoui/tango/ui, type OptionState = VirtualOptionState
 pkg github.com/tangoui/tango/ui, type OverlayOptions struct
 pkg github.com/tangoui/tango/ui, type OverlayOptions struct, Anchor ID
+pkg github.com/tangoui/tango/ui, type OverlayOptions struct, AnchorRect ui/geom.Rect
 pkg github.com/tangoui/tango/ui, type OverlayOptions struct, Flip bool
 pkg github.com/tangoui/tango/ui, type OverlayOptions struct, Margin float32
 pkg github.com/tangoui/tango/ui, type OverlayOptions struct, MatchWidth bool

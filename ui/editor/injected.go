@@ -11,7 +11,7 @@ import (
 // Injected gaps (Monaco's injected text: the `before` content of a model
 // decoration, textModel.js LineInjectedText, modelLineProjectionData.js).
 //
-// The only source is the color decorators (colors.go): Monaco's
+// Color decorators (colors.go) are one source: Monaco's
 // ColorDetector injects a no-break space before each color literal, styled
 // as an inline-block 0.8em square with 0.2em margins left and right
 // (colorPicker.css), so the literal and the rest of its line move right
@@ -63,8 +63,9 @@ import (
 // injection is a gap injected before byte column col of a model line, w
 // logical pixels wide.
 type injection struct {
-	col int     // byte column
-	w   float32 // logical pixels
+	col  int     // byte column
+	w    float32 // logical pixels
+	hint *inlayGlyph
 }
 
 // colorSwatchW is the width of a color decorator's gap: Monaco's 0.8em
@@ -131,23 +132,23 @@ func (w *ViewW) lineInjections(line int, text string, dst []injection) []injecti
 // lineGaps returns the color literals of line s (lineColors) and their
 // gaps, nil when it has none; during paint's layout of the rows (vs.arena)
 // in the frame's scratch, which the next paint reuses.
-func (w *ViewW) lineGaps(s string) ([]colorSpan, []injection) {
+func (w *ViewW) lineGaps(line int, s string) ([]colorSpan, []injection) {
 	vs := w.vs
 	sw := colorSwatchW(w.opts.fontSize())
+	hints := w.inlayLayout()
 	if !vs.arena {
 		cs := w.lineColors(s, nil)
-		if len(cs) == 0 {
-			return nil, nil
-		}
-		return cs, swatchInjections(cs, sw, nil)
+		return cs, appendInlays(swatchInjections(cs, sw, nil), 0, hints, line)
 	}
 	n := len(vs.fColors)
-	if vs.fColors = w.lineColors(s, vs.fColors); len(vs.fColors) == n {
-		return nil, nil
-	}
+	vs.fColors = w.lineColors(s, vs.fColors)
 	cs := vs.fColors[n:len(vs.fColors):len(vs.fColors)]
 	m := len(vs.fInj)
 	vs.fInj = swatchInjections(cs, sw, vs.fInj)
+	vs.fInj = appendInlays(vs.fInj, m, hints, line)
+	if len(vs.fInj) == m {
+		return cs, nil
+	}
 	return cs, vs.fInj[m:len(vs.fInj):len(vs.fInj)]
 }
 
@@ -178,7 +179,7 @@ func splitSeg(dst []seg, sg seg, text string, inj []injection) []seg {
 	cur := sg
 	dx := float32(0)
 	for _, in := range inj {
-		if in.col < sg.b0 || in.col >= sg.b1 {
+		if in.col < sg.b0 || in.col > sg.b1 {
 			continue
 		}
 		r := cur.r0 + utf8.RuneCountInString(text[cur.b0:in.col])
@@ -193,13 +194,13 @@ func splitSeg(dst []seg, sg seg, text string, inj []injection) []seg {
 }
 
 // rowInjections returns the injections of inj in the row [b0, b1).
-func rowInjections(inj []injection, b0, b1 int) []injection {
+func rowInjections(inj []injection, b0, b1 int, last bool) []injection {
 	i := 0
 	for i < len(inj) && inj[i].col < b0 {
 		i++
 	}
 	j := i
-	for j < len(inj) && inj[j].col < b1 {
+	for j < len(inj) && (inj[j].col < b1 || last && inj[j].col == b1) {
 		j++
 	}
 	if i == j {
@@ -336,15 +337,22 @@ func (sg *seg) startX() float32 {
 // injectionAt reports whether offset off is the column of a gap (the start
 // of a color literal) as of the last paint.
 func (s *State) injectionAt(snap buffer.Snapshot, off int) bool {
-	c := s.vl.cfg.inj
-	if !c.on() {
+	cfg := s.vl.cfg
+	if !cfg.inj.on() && cfg.hints == nil {
 		return false
 	}
 	off = clampOff(snap, off)
 	l := snap.LineOf(off)
 	col := off - snap.LineStart(l)
 	var buf [8]injection
-	for _, in := range c.injections(snap.Line(l), buf[:0]) {
+	if s.inlays == nil || s.inlays.version != snap.Version() {
+		cfg.hints = nil
+	}
+	text := snap.Line(l)
+	if isLong(text) && !cfg.on() {
+		return false
+	}
+	for _, in := range cfg.injections(l, text, buf[:0]) {
 		if in.col == col {
 			return true
 		}
@@ -390,7 +398,7 @@ func (s *State) setCaretRight(on bool) {
 // It has the final say after a move: without a caret arriving at a gap
 // every side is cleared (without allocating).
 func (s *State) setRights(out []Selection, right []bool) {
-	if !s.vl.cfg.inj.on() {
+	if !s.vl.cfg.inj.on() && s.vl.cfg.hints == nil {
 		s.clearRights()
 		return
 	}
@@ -460,15 +468,18 @@ func (s *State) keepRights(old []Selection, r caretAffinity) {
 // indent columns) to the column grid for the View-less mapping
 // (viewLines.ViewToModel): the gaps before x are removed, x inside a gap
 // is the gap's start.
-func (vl *viewLines) gapGridX(s string, b0, b1, indent int, x float32) float32 {
-	c := vl.cfg.inj
-	if !c.on() {
+func (vl *viewLines) gapGridX(line int, s string, b0, b1, indent int, x float32) float32 {
+	cfg := vl.cfg
+	if !cfg.on() && isLong(s) {
+		cfg.hints = nil
+	}
+	if !cfg.inj.on() && cfg.hints == nil {
 		return x
 	}
 	var buf [8]injection
 	sh := float32(0)
-	for _, in := range c.injections(s, buf[:0]) {
-		if in.col < b0 || in.col >= b1 {
+	for _, in := range cfg.injections(line, s, buf[:0]) {
+		if in.col < b0 || in.col > b1 || in.col == b1 && b1 < len(s) {
 			continue
 		}
 		gx := float32(indent+lineColumnTab(s[b0:], in.col-b0, max(vl.cfg.tab, 1)))*vl.colW + sh
@@ -486,14 +497,17 @@ func (vl *viewLines) gapGridX(s string, b0, b1, indent int, x float32) float32 {
 // gapsBefore returns the width of the gaps of row [b0, b1) of line s
 // before byte column col (the caret at a gap's column is drawn on its left
 // side, Monaco's default affinity).
-func (vl *viewLines) gapsBefore(s string, b0, col int) float32 {
-	c := vl.cfg.inj
-	if !c.on() {
+func (vl *viewLines) gapsBefore(line int, s string, b0, col int) float32 {
+	cfg := vl.cfg
+	if !cfg.on() && isLong(s) {
+		cfg.hints = nil
+	}
+	if !cfg.inj.on() && cfg.hints == nil {
 		return 0
 	}
 	var buf [8]injection
 	sh := float32(0)
-	for _, in := range c.injections(s, buf[:0]) {
+	for _, in := range cfg.injections(line, s, buf[:0]) {
 		if in.col >= b0 && in.col < col {
 			sh += in.w
 		}

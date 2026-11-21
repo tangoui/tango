@@ -3,6 +3,7 @@ package editor
 import (
 	"encoding/binary"
 	"hash/maphash"
+	"image/color"
 	"math"
 
 	"github.com/tangoui/tango/ui/editor/buffer"
@@ -217,6 +218,16 @@ func (w *ViewW) rowHashes(pf *paintFrame, dst []uint64) []uint64 {
 				num(flags)
 				num(p.r0)
 				num(p.r1)
+			}
+		}
+		for _, in := range lv.inj {
+			if q := in.hint; q != nil {
+				num(in.col)
+				f32(in.w)
+				h.WriteString(q.hint.Text)
+				for _, c := range [...]color.NRGBA{q.hint.Foreground, q.hint.Background} {
+					num(int(c.R) | int(c.G)<<8 | int(c.B)<<16 | int(c.A)<<24)
+				}
 			}
 		}
 		// The current-line highlight is drawn across the text area: it does

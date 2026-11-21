@@ -208,8 +208,12 @@ func (w *ViewW) contextMenu(wheel bool) {
 	if m.open && wheel {
 		ui.CloseContextMenu(c, id)
 	}
-	if p, ok := c.ContextMenuFor(id); ok && vs.text.Contains(p) {
-		w.openMenu(p)
+	if p, ok := c.ContextMenuFor(id); ok {
+		if vs.text.Contains(p) {
+			w.openMenu(p)
+		} else if vs.gutter.Contains(p) {
+			vs.pend.gutterContext, vs.pend.gutterPos = true, p
+		}
 	}
 	if m.open && !ui.ContextMenuOpen(c, id) {
 		m.open, m.items, m.runs = false, nil, nil

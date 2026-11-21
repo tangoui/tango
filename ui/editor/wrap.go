@@ -133,6 +133,7 @@ type wrapConfig struct {
 	tab    int
 	indent WrappingIndentMode
 	inj    injectCfg
+	hints  *inlayLayout
 }
 
 func (c wrapConfig) on() bool { return c.col > 0 }
@@ -255,10 +256,8 @@ func computeBreaks(s string, cfg wrapConfig) lineBreaks {
 }
 
 // breaksWith is computeBreaks with the injected gaps inj (sorted byte
-// columns of s), each cfg.inj.w pixels (cfg.inj.cols() columns, a
-// fraction) wide and glued to the character after it: a row's columns
-// plus its gaps never exceed the wrapping column. Tab stops stay on the
-// model column grid: the gaps only add to a row's width.
+// columns of s). Gaps are glued to the next character, or to the last
+// character at line end. Tab stops stay on the model column grid.
 func breaksWith(s string, cfg wrapConfig, inj []injection) lineBreaks {
 	var lb lineBreaks
 	lb.indent = wrappedIndent(s, max(cfg.tab, 1), cfg.col, cfg.indent)
@@ -283,7 +282,7 @@ func wrapScan(lb *lineBreaks, s string, cfg wrapConfig, inj []injection, rowStar
 		limit = cont
 	}
 	prev := uint8(wcNone) // class of the previous character in the row
-	gapCols := cfg.inj.cols()
+	colW := cfg.inj.colW
 	vc := 0                // columns from the row start
 	bo, boVC := -1, 0      // last break point in the row
 	boRI := 0              // its rune index
@@ -304,8 +303,8 @@ func wrapScan(lb *lineBreaks, s string, cfg wrapConfig, inj []injection, rowStar
 		for k < len(inj) && inj[k].col < p {
 			k++
 		}
-		if k < len(inj) && inj[k].col == p {
-			gap = gapCols
+		for j := k; j < len(inj) && (inj[j].col == p || q == len(s)); j++ {
+			gap += float64(inj[j].w) / float64(colW)
 		}
 		next := advanceCol(vc, g, tab)
 		if p > rowStart && canBreak(prev, r, cls) {
