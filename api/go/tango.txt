@@ -128,6 +128,7 @@ pkg github.com/tangoui/tango, method (*Surface) ID() internal/platform.SurfaceID
 pkg github.com/tangoui/tango, method (*Surface) IsFocused() bool
 pkg github.com/tangoui/tango, method (*Surface) IsVisible() bool
 pkg github.com/tangoui/tango, method (*Surface) LaneHello() encoding/json.RawMessage
+pkg github.com/tangoui/tango, method (*Surface) LastActivityAt() time.Time
 pkg github.com/tangoui/tango, method (*Surface) Maximize() error
 pkg github.com/tangoui/tango, method (*Surface) Minimize() error
 pkg github.com/tangoui/tango, method (*Surface) Native() uintptr

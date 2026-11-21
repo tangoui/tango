@@ -107,7 +107,7 @@ func AttachWith(s *tango.Surface, layer Layer, opts Options, page func(*ui.Conte
 	}
 	ropts, fl := followSetup(s.App(), opts, ropts) // follow.go
 	r := ui.NewRunner(page, ropts)
-	h := &host{app: s.App(), r: r, id: s.ID()}
+	h := &host{app: s.App(), r: r, id: s.ID(), surface: s}
 	cv, err := corehook.AttachCanvas(s, layer.platform(), h)
 	if err != nil {
 		return nil, nil, err

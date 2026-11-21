@@ -222,6 +222,12 @@ func (b *Backend) Step(block bool) bool {
 // dispatch delivers one message. Menu accelerators of the surface that
 // contains the target window are tried first.
 func (b *Backend) dispatch(m *msg) {
+	if m.HWnd != 0 && activityMessage(m.Message) {
+		top, _, _ := procGetAncestor.Call(m.HWnd, gaRoot)
+		if s := b.surfaces[top]; s != nil && !s.closed {
+			platform.ReportActivity(b.h, s.id)
+		}
+	}
 	if capturesCanvasShortcut(m) {
 		// No TranslateMessage: a generated SYSCHAR can otherwise remain
 		// queued until after recording ends / the captured key is released.
@@ -236,6 +242,16 @@ func (b *Backend) dispatch(m *msg) {
 	}
 	procTranslateMessage.Call(uintptr(unsafe.Pointer(m)))
 	procDispatchMessageW.Call(uintptr(unsafe.Pointer(m)))
+}
+
+func activityMessage(m uint32) bool {
+	return m >= 0x0100 && m <= 0x0109 || // WM_KEYDOWN through WM_UNICHAR
+		m >= 0x0200 && m <= 0x020e || // WM_MOUSEMOVE through WM_MOUSEHWHEEL
+		m >= 0x00a0 && m <= 0x00ad || // non-client mouse events
+		m >= canvasWmImeStartComp && m <= canvasWmImeComposition ||
+		m >= 0x0240 && m <= 0x0243 || // touch and non-client pointer events
+		m >= canvasWmPointerUpdate && m <= canvasWmPointerUp ||
+		m == 0x024e || m == 0x024f // pointer wheel
 }
 
 // A canvas with a synchronous input filter must inspect keyboard messages

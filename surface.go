@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/tangoui/tango/internal/downq"
 	"github.com/tangoui/tango/internal/lane"
@@ -57,9 +58,10 @@ type SurfaceOptions struct {
 // they run there (Send and Eval asynchronously, the rest waiting for it).
 // After the surface has closed they do nothing.
 type Surface struct {
-	app    *App
-	id     platform.SurfaceID
-	closed atomic.Bool
+	app      *App
+	id       platform.SurfaceID
+	closed   atomic.Bool
+	activity atomic.Pointer[time.Time]
 
 	// loaded: a trusted page has loaded and Send pushes to its
 	// downstream generation. Written under down.sendMu (downpoll.go),

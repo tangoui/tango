@@ -446,14 +446,15 @@ func requestHeaders(req uintptr) http.Header {
 // are marked handled and run from a posted WM_COMMAND, outside the WebView2
 // callback.
 func (s *surface) acceleratorKeyPressed(_, args uintptr) {
-	m := s.menuOwner() // an embedded view runs its parent window's menu
-	if m.spec == nil || len(m.spec.plan.Accels) == 0 {
-		return
-	}
 	switch kind, _ := comOut[int32](args, accelGetKeyEventKind); kind {
 	case keyEventKeyDown, keyEventSystemKeyDown:
 	default:
 		return // key up, or a character message
+	}
+	platform.ReportActivity(s.b.h, s.id)
+	m := s.menuOwner() // an embedded view runs its parent window's menu
+	if m.spec == nil || len(m.spec.plan.Accels) == 0 {
+		return
 	}
 	vk, _ := comOut[uint32](args, accelGetVirtualKey)
 	cmd, ok := matchAccel(m.spec.plan.Accels, uint16(vk), currentModifiers())

@@ -525,6 +525,7 @@ func (w *remoteWin) input(ev input.Event, contextual bool) {
 	if w.closed {
 		return
 	}
+	recordCanvasActivity(w.proxy, ev)
 	if devTraceOn {
 		if p, ok := ev.(input.Pointer); !ok || p.Kind != input.Move {
 			devTrace(fmt.Sprintf("input %T%+v", ev, ev))

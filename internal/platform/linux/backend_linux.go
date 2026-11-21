@@ -74,6 +74,7 @@ func (b *backend) Init(h platform.Host, opts platform.AppOptions) error {
 		return errors.New("tango/linux: gtk_init failed: cannot open display (is DISPLAY or WAYLAND_DISPLAY set?)")
 	}
 	initCallbacks()
+	b.installActivityMonitor()
 	wakeTarget = b.drain
 	b.registerScheme()
 	b.installSystemWatch()   // integration_linux.go: theme / display change events

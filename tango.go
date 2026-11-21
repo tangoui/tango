@@ -30,6 +30,7 @@
 package tango
 
 import (
+	"crypto/rand"
 	"errors"
 	"net/http"
 	"slices"
@@ -141,7 +142,8 @@ type App struct {
 	ext appExt // round-2 app events; see events.go
 	web appWeb // round-4 WebView handlers; see webview.go
 
-	intl internalRoutes // internal page→Go messages; see hooks.go
+	intl          internalRoutes // internal page→Go messages; see hooks.go
+	activityToken string         // private to the document-start activity observer
 }
 
 func init() {
@@ -158,10 +160,11 @@ func New(opts Options) *App {
 
 func newWithBackend(opts Options, b platform.Backend) *App {
 	a := &App{
-		opts:     opts,
-		b:        b,
-		closedCh: make(chan struct{}),
-		surfaces: map[platform.SurfaceID]*Surface{},
+		opts:          opts,
+		b:             b,
+		closedCh:      make(chan struct{}),
+		surfaces:      map[platform.SurfaceID]*Surface{},
+		activityToken: rand.Text(),
 	}
 	a.loop.app = a
 	// Fast lane control messages from runtime-js; lanes.go.
@@ -319,6 +322,7 @@ func (a *App) bridgeScript() string {
 	defer a.mu.Unlock()
 	var sb strings.Builder
 	sb.WriteString(coreShim)
+	sb.WriteString(a.activityScript())
 	for _, s := range a.scripts {
 		sb.WriteString("\n;")
 		sb.WriteString(s)
@@ -415,7 +419,7 @@ func (h host) OnMessage(id platform.SurfaceID, origin, msg string) {
 	a := h.a
 	defer a.enterMain()()
 	s := a.surface(id)
-	if s == nil || !s.trusts(origin) {
+	if s == nil || a.handleActivity(s, msg) || !s.trusts(origin) {
 		return
 	}
 	s.noteLaneOrigin(origin) // the page a hello comes from; lanes.go

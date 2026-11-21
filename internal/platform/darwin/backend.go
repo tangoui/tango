@@ -139,6 +139,7 @@ func (b *backend) setUpApplication(processName string) {
 	send(b.app, "setDelegate:", uintptr(b.delegate))
 	b.menuTarget = alloc("TangoMenuTarget")
 	b.installDefaultMenu()
+	b.installActivityMonitor()
 }
 
 // cfRunLoopSourceContext is CFRunLoopSourceContext (version 0) from

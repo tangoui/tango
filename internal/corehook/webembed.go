@@ -1,6 +1,13 @@
 package corehook
 
-import "github.com/tangoui/tango/internal/platform"
+import (
+	"time"
+
+	"github.com/tangoui/tango/internal/platform"
+)
+
+// NoteSurfaceActivity records input observed by the canvas or dev host.
+var NoteSurfaceActivity func(surface any, at time.Time)
 
 // NewEmbeddedWebView creates a WebView embedded in the content area of the
 // canvas surface parent (a *tango.Surface), see

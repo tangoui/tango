@@ -110,6 +110,7 @@ func Open(app *tango.App, opts Options, page func(*ui.Context), ropts ui.RunnerO
 		return nil, nil, err
 	}
 	s := so.(*tango.Surface)
+	h.surface = s
 	h.id = s.ID()
 	h.cv = cv
 	h.sc = newShortcuts(app, s) // shortcuts.go
@@ -171,6 +172,7 @@ func (h *host) watchRenderer(r *ui.Runner) {
 // ax, win and trace belong to the UI thread once Open returns, and the
 // callbacks below queue their work onto it.
 type host struct {
+	surface   *tango.Surface
 	app       *tango.App
 	r         *ui.Runner      // nil until the surface exists
 	cv        platform.Canvas // nil until the surface exists
@@ -255,6 +257,7 @@ func (h *host) CanvasFilterKey(ev input.KeyEvent) bool {
 	if h.closed || h.r == nil || h.sc == nil {
 		return false
 	}
+	corehook.NoteSurfaceActivity(h.surface, time.Now())
 	capture, text := h.sc.captureOn.Load(), h.sc.textOn.Load()
 	if h.t != nil {
 		st := h.t.snapshot()
@@ -279,6 +282,7 @@ func (h *host) canvasInput(ev input.Event, contextual bool) {
 	if h.closed || h.r == nil {
 		return
 	}
+	recordCanvasActivity(h.surface, ev)
 	guiprobe.Observe(ev) // no-op unless built explicitly with tango_guiprobe
 	// A window shortcut consumes its key (shortcuts.go). The table is
 	// matched on the main thread and its functions run there (spec §5.7),

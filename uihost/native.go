@@ -4,6 +4,8 @@ import (
 	"image"
 	"time"
 
+	"github.com/tangoui/tango"
+	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/geom"
@@ -181,6 +183,26 @@ func isUserDrivenInput(ev input.Event) bool {
 		return true
 	}
 	return false
+}
+
+func recordCanvasActivity(s *tango.Surface, ev input.Event) {
+	if s == nil {
+		return
+	}
+	switch ev := ev.(type) {
+	case input.Pointer:
+		if ev.Kind == input.Leave || ev.Kind == input.Cancel {
+			return
+		}
+	case input.TouchEvent:
+		if ev.Phase == input.TouchCancelled {
+			return
+		}
+	case input.KeyEvent, input.TextInput, input.Composition, input.TextEdit, input.Scroll:
+	default:
+		return
+	}
+	corehook.NoteSurfaceActivity(s, time.Now())
 }
 
 // keyboardInput promotes a default native window to Metal on its next
