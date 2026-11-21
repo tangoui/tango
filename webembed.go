@@ -32,6 +32,10 @@ func init() {
 		}
 		return ev, nil
 	}
+	corehook.CommitWebPlacement = func(surface any, ev platform.EmbeddedWebView, placement platform.WebPlacement) {
+		ev.SetPlacement(placement)
+		surface.(*Surface).commitWebPlacement(placement)
+	}
 	corehook.NewEmbeddedWebView = func(parent any, opts any, script string) (any, platform.EmbeddedWebView, error) {
 		p, ok := parent.(*Surface)
 		if !ok || p == nil {

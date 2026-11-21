@@ -97,6 +97,9 @@ func (h host) OnWebNavigation(id platform.SurfaceID, token uint64, kind platform
 			s.mu.Unlock()
 			return
 		}
+		if current.URL != page.URL {
+			s.web.pageRevision++
+		}
 		current.WebPageState = page
 		s.web.navigation = current
 		current.Kind, current.Error = kind, ""

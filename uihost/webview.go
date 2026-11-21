@@ -308,7 +308,7 @@ func (e *embeds) sync() {
 			continue
 		}
 		if v.ev != nil {
-			v.ev.SetPlacement(platform.WebPlacement{})
+			corehook.CommitWebPlacement(v.s, v.ev, platform.WebPlacement{})
 		}
 		v.covered, v.frozen, v.snap = false, false, nil
 		if keep := v.opts.KeepAlive; keep > 0 && v.s != nil && now.Sub(v.lastSeen) < keep {
@@ -324,7 +324,7 @@ func (e *embeds) sync() {
 // place applies one frame's region to the view.
 func (v *embedView) place(reg ui.NativeRegion, focusedWin bool) {
 	p := v.decide(reg)
-	v.ev.SetPlacement(p.placement)
+	corehook.CommitWebPlacement(v.s, v.ev, p.placement)
 	if p.focus && focusedWin {
 		v.ev.FocusWeb()
 		if p.keyboard {

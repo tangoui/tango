@@ -203,3 +203,28 @@ Windows 的 Runtime 初始化错误也可能异步报告。
 macOS 和 Linux 可查询、关闭原生检查器。macOS 依赖 WebKit 的运行时
 检查器接口。WebView2 公开接口支持打开 DevTools，查询和关闭返回
 `ErrUnsupported`。
+
+### 内嵌页面操作
+
+```go
+stamp, err := s.WebViewStamp()
+if err == nil {
+    data, err := s.EvalWebView(stamp, "({title: document.title})")
+    png, captureErr := s.CaptureWebView(stamp)
+    inputErr := s.SendWebInput(stamp, tango.WebInput{Kind: tango.WebClick, X: 40, Y: 25})
+    usePageResults(data, png, err, captureErr, inputErr)
+}
+```
+
+`WebViewStamp` 在主框架加载完成且有可见布局时可用。从网页左上角计算输入坐标，
+单位是 WebView 本地逻辑像素。点击与滚动坐标必须在裁剪后可见区域内。键入发往
+当前焦点控件。脚本接收同步 JavaScript 表达式并返回 JSON 值。
+
+导航或原生布局变化后应重新获取 stamp。操作开始及结果到达时都会校验 stamp。
+`ErrStaleWebView` 表示调用方需要重新观察页面。已经派发的输入或脚本可能已经
+产生页面效果。布局 ID 对应宿主已应用的原生位置和裁剪，应用可结合自身的帧呈现
+通知等待画面更新。
+
+macOS 使用 WKWebView 求值和截图，以及 AppKit 事件或文本输入客户端。Windows
+使用 WebView2 求值、截图和 CDP Input。Linux 使用 WebKitGTK 求值、截图和
+GTK3 原生事件。系统缺少对应入口时返回 `ErrUnsupported`。

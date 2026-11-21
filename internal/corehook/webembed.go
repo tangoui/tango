@@ -21,3 +21,7 @@ var EmbeddedParent func(surface any) any
 // AdoptEmbeddedWebView returns an existing embedded surface's view.
 // Main thread only. Set by package tango.
 var AdoptEmbeddedWebView func(parent, child any) (platform.EmbeddedWebView, error)
+
+// CommitWebPlacement applies the native placement and records its revision
+// for page operations. Main thread only. Set by package tango.
+var CommitWebPlacement func(surface any, ev platform.EmbeddedWebView, placement platform.WebPlacement)

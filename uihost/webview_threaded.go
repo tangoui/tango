@@ -193,7 +193,7 @@ func (me *mainEmbeds) apply() {
 		if mv.ev == nil {
 			continue
 		}
-		mv.ev.SetPlacement(p.placement)
+		corehook.CommitWebPlacement(mv.s, mv.ev, p.placement)
 		if p.focus {
 			if !focusedWin {
 				focusedWin = me.parent.IsFocused()

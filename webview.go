@@ -192,6 +192,10 @@ type appWeb struct {
 // Surface.mu, headers by hmu (ServeAsset runs on any thread), the rest is
 // main-thread only.
 type surfaceWeb struct {
+	placement    platform.WebPlacement
+	layoutID     uint64
+	pageRevision uint64
+
 	onDownloadDestination func(DownloadRequest, func(string))
 	pendingDownloads      map[uint64]func()
 
