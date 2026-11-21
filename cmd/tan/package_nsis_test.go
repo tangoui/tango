@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -324,6 +325,23 @@ func nsisTestZip(t *testing.T, entries map[string]string) []byte {
 	return b.Bytes()
 }
 
+// nsisCacheEntries lists dir without the install lock, which stays in
+// place so every tan locks the same file.
+func nsisCacheEntries(t *testing.T, dir string) []string {
+	t.Helper()
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range ents {
+		if e.Name() != ".publish.lock" {
+			names = append(names, e.Name())
+		}
+	}
+	return names
+}
+
 func TestCachedMakensis(t *testing.T) {
 	good := nsisTestZip(t, map[string]string{
 		"nsis-" + nsisVersion + "/makensis.exe":     "MZstub",
@@ -356,7 +374,7 @@ func TestCachedMakensis(t *testing.T) {
 	if _, err := cachedMakensis(ctx, srv.Client(), dir); err == nil || !strings.Contains(err.Error(), "SHA-256") {
 		t.Errorf("bad checksum: %v", err)
 	}
-	if ents, _ := os.ReadDir(dir); len(ents) != 0 {
+	if ents := nsisCacheEntries(t, dir); len(ents) != 0 {
 		t.Errorf("failed download left %v", ents)
 	}
 
@@ -372,7 +390,7 @@ func TestCachedMakensis(t *testing.T) {
 	if again, err := cachedMakensis(ctx, srv.Client(), dir); err != nil || again != exe || hits != before {
 		t.Errorf("cache not reused: %v, %d downloads", err, hits-before)
 	}
-	if ents, _ := os.ReadDir(dir); len(ents) != 1 {
+	if ents := nsisCacheEntries(t, dir); len(ents) != 1 {
 		t.Errorf("cache holds %v", ents)
 	}
 
@@ -462,5 +480,71 @@ func TestCachedMakensisPartialInstall(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(broke, root+".partial")); !os.IsNotExist(err) {
 		t.Fatalf("partial marker remains after retry: %v", err)
+	}
+}
+
+// Two tan processes filling an empty cache at once must not delete each
+// other's unpacked NSIS: one installs, the other waits and reuses it.
+func TestCachedMakensisConcurrentInstall(t *testing.T) {
+	root := "nsis-" + nsisVersion
+	good := nsisTestZip(t, map[string]string{root + "/makensis.exe": "MZstub"})
+	var mu sync.Mutex
+	hits := 0
+	first, release := make(chan struct{}), make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		hits++
+		n := hits
+		mu.Unlock()
+		if n == 1 {
+			close(first)
+			<-release
+		}
+		w.Write(good)
+	}))
+	defer srv.Close()
+	s := sha256.Sum256(good)
+	oldURL, oldSum := nsisURL, nsisSum
+	nsisURL, nsisSum = srv.URL, hex.EncodeToString(s[:])
+	t.Cleanup(func() { nsisURL, nsisSum = oldURL, oldSum })
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	dir := t.TempDir()
+
+	type result struct {
+		exe string
+		err error
+	}
+	a := make(chan result, 1)
+	go func() { exe, err := cachedMakensis(ctx, srv.Client(), dir); a <- result{exe, err} }()
+	select {
+	case <-first:
+	case <-ctx.Done():
+		t.Fatal("first install never downloaded")
+	}
+	b := make(chan result, 1)
+	go func() { exe, err := cachedMakensis(ctx, srv.Client(), dir); b <- result{exe, err} }()
+	// Give the second caller time to reach the cache while the first is
+	// still downloading; it must wait rather than download alongside.
+	time.Sleep(200 * time.Millisecond)
+	close(release)
+	want := filepath.Join(dir, root, "makensis.exe")
+	for _, ch := range []chan result{a, b} {
+		select {
+		case r := <-ch:
+			if r.err != nil || r.exe != want {
+				t.Fatalf("install: %s, %v", r.exe, r.err)
+			}
+		case <-ctx.Done():
+			t.Fatal("install did not finish")
+		}
+	}
+	if b, err := os.ReadFile(want); err != nil || string(b) != "MZstub" {
+		t.Fatalf("makensis %q, %v", b, err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if hits != 1 {
+		t.Fatalf("%d downloads, want 1", hits)
 	}
 }

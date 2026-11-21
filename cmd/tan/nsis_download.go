@@ -65,17 +65,23 @@ func cachedMakensis(ctx context.Context, client *http.Client, dir string) (strin
 	// The marker exists while root is being unpacked. Unpacking in place
 	// avoids renaming a directory that a Windows scanner may hold open.
 	partial := root + ".partial"
-	if _, err := os.Stat(partial); os.IsNotExist(err) {
-		if _, err := os.Stat(exe); err == nil {
-			return exe, nil
-		}
-	} else if err != nil {
-		return "", err
+	if exe, ok, err := installedMakensis(exe, partial); ok || err != nil {
+		return exe, err
 	}
-	logf("Downloading NSIS %s (makensis is not on PATH)", nsisVersion)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
+	// Another tan may be filling the same cache: hold the lock while
+	// installing, then check again in case it finished while we waited.
+	unlock, err := lockDevPublication(ctx, dir)
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
+	if exe, ok, err := installedMakensis(exe, partial); ok || err != nil {
+		return exe, err
+	}
+	logf("Downloading NSIS %s (makensis is not on PATH)", nsisVersion)
 	zipFile, err := downloadVerified(ctx, client, nsisURL, nsisSum, dir)
 	if err != nil {
 		return "", fmt.Errorf("download NSIS: %w", err)
@@ -97,6 +103,20 @@ func cachedMakensis(ctx context.Context, client *http.Client, dir string) (strin
 		return "", err
 	}
 	return exe, nil
+}
+
+// installedMakensis reports whether exe is a finished install: it exists
+// and no partial marker says its directory is still being unpacked.
+func installedMakensis(exe, partial string) (string, bool, error) {
+	if _, err := os.Stat(partial); err == nil {
+		return "", false, nil
+	} else if !os.IsNotExist(err) {
+		return "", false, err
+	}
+	if _, err := os.Stat(exe); err != nil {
+		return "", false, nil
+	}
+	return exe, true, nil
 }
 
 // downloadVerified downloads url into a temporary file in dir and returns
