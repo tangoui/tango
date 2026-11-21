@@ -12,6 +12,7 @@ type Snapshot struct {
 	Scrollback       int
 	CursorX, CursorY int
 	CursorVisible    bool
+	CursorStyle      CursorStyle
 	Title            string
 	StyleGeneration  uint64
 	StylesData       []Style
@@ -58,6 +59,7 @@ func (t *Terminal) Snapshot() Snapshot {
 		CursorX:         x,
 		CursorY:         y,
 		CursorVisible:   visible,
+		CursorStyle:     t.cursorStyle,
 		Title:           t.Title(),
 		StyleGeneration: styleGen,
 		Rows:            make([]SnapshotRow, rows),

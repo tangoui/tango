@@ -31,6 +31,7 @@ import (
 	"errors"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/tangoui/tango/ui/paint"
@@ -271,20 +272,67 @@ func Families() []string {
 }
 
 func (r *registry) chain(mono bool) []*family {
+	return r.chainFor(Style{Mono: mono})
+}
+
+func (r *registry) chainFor(st Style) []*family {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.sysBuilt || r.sysEngine != r.engineOn {
 		r.buildSystem()
 	}
 	out := make([]*family, 0, len(r.user)+len(r.system)+len(r.mono))
-	if mono && !r.disabled {
-		out = append(out, r.mono...)
+	normal := func(mono bool) {
+		if mono && !r.disabled {
+			out = append(out, r.mono...)
+		}
+		out = append(out, r.user...)
+		if !r.disabled {
+			out = append(out, r.system...)
+		}
 	}
-	out = append(out, r.user...)
+	if st.FontFamily == "" {
+		normal(st.Mono)
+		return out
+	}
+	for name := range strings.SplitSeq(st.FontFamily, ",") {
+		name = strings.Trim(strings.TrimSpace(name), `"'`)
+		switch strings.ToLower(name) {
+		case "":
+			continue
+		case "monospace":
+			normal(true)
+		case "sans-serif":
+			normal(false)
+		default:
+			if f := r.namedFamily(name); f != nil {
+				out = append(out, f)
+			}
+		}
+	}
+	normal(st.Mono)
+	return slices.Compact(out)
+}
+
+func (r *registry) namedFamily(name string) *family {
+	for _, f := range r.user {
+		if strings.EqualFold(f.name, name) {
+			return f
+		}
+	}
 	if !r.disabled {
-		out = append(out, r.system...)
+		for _, chain := range [][]*family{r.mono, r.system} {
+			for _, f := range chain {
+				if strings.EqualFold(f.name, name) {
+					return f
+				}
+			}
+		}
+		if r.eng != nil {
+			return r.eng.family(name, classNone)
+		}
 	}
-	return out
+	return nil
 }
 
 // buildSystem (re)builds the system chains for the current engine setting.

@@ -326,7 +326,7 @@ func (c *LineCache) fastShape(line string, runs []Run, opt Options) *Layout {
 	}
 	p := prepRuns(line, runs)
 	for _, r := range p.rs {
-		if !r.st.Mono {
+		if !r.st.Mono || r.st.FontFamily != "" {
 			return nil
 		}
 	}

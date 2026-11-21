@@ -83,6 +83,7 @@ pkg github.com/tangoui/tango/ui/text, type Run struct, End int
 pkg github.com/tangoui/tango/ui/text, type Run struct, Start int
 pkg github.com/tangoui/tango/ui/text, type Run struct, Style Style
 pkg github.com/tangoui/tango/ui/text, type Style struct
+pkg github.com/tangoui/tango/ui/text, type Style struct, FontFamily string
 pkg github.com/tangoui/tango/ui/text, type Style struct, Italic bool
 pkg github.com/tangoui/tango/ui/text, type Style struct, Lang string
 pkg github.com/tangoui/tango/ui/text, type Style struct, LineHeight float32

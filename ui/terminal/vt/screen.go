@@ -80,6 +80,16 @@ func (s *Screen) Line(y int) *Line {
 	return s.at(s.sbLen + y)
 }
 
+// BufferLine returns row i counted from the oldest retained scrollback
+// row, or nil outside the buffer. Like Line, its pointer lasts until
+// the next scroll.
+func (s *Screen) BufferLine(i int) *Line {
+	if i < 0 || i >= s.sbLen+s.rows {
+		return nil
+	}
+	return s.at(i)
+}
+
 // ViewLine returns row y of the viewport, 0 ≤ y < rows. It panics if y is
 // out of range. As with [Screen.Line], the pointer is valid until the
 // next scroll.

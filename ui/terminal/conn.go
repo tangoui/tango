@@ -3,6 +3,7 @@ package terminal
 import (
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tangoui/tango/ui/terminal/vt"
@@ -28,6 +29,9 @@ type Options struct {
 	// Scrollback is the number of lines kept after they scroll off the
 	// top. 0 means the default, 10 000; a negative value keeps none.
 	Scrollback int
+	// PredictiveEcho enables speculative display for this terminal. See
+	// [Terminal.SetPredictiveEcho].
+	PredictiveEcho bool
 	// OnExit is called once, from the read goroutine, when the read loop
 	// ends: err is nil at EOF or when [Terminal.Close] ended it,
 	// otherwise the read error. It may call [Terminal.Close].
@@ -65,11 +69,15 @@ const defaultCols, defaultRows = 80, 24
 // the UI thread ever waits for the program to read its input, and replies
 // and input reach the program in the order they were made.
 type Terminal struct {
-	mu sync.Mutex // guards vt and pending
+	mu sync.Mutex // guards vt, pending and predictive echo
 	vt *vt.Terminal
 	// pending collects replies made during vt.Write; the read loop
 	// queues them once it has released mu.
-	pending [][]byte
+	pending     [][]byte
+	echo        echoState
+	echoEnabled bool
+	echoReset   atomic.Bool // raw sends bypass the emulator lock
+	invalidate  func()
 
 	conn   Conn
 	onExit func(error)
@@ -114,13 +122,14 @@ type Terminal struct {
 // view calls [Terminal.Start] once it knows its size.
 func New(o Options) *Terminal {
 	t := &Terminal{
-		conn:   o.Conn,
-		onExit: o.OnExit,
-		done:   make(chan struct{}),
-		qlimit: sendQueueBytes,
-		rlimit: replyQueueBytes,
-		wake:   make(chan struct{}, 1),
-		space:  make(chan struct{}, 1),
+		conn:        o.Conn,
+		echoEnabled: o.PredictiveEcho,
+		onExit:      o.OnExit,
+		done:        make(chan struct{}),
+		qlimit:      sendQueueBytes,
+		rlimit:      replyQueueBytes,
+		wake:        make(chan struct{}, 1),
+		space:       make(chan struct{}, 1),
 	}
 	t.vt = vt.New(vt.Options{
 		Cols:       defaultCols,
@@ -159,6 +168,8 @@ func (t *Terminal) Start(cols, rows int, invalidate func()) {
 	}
 	t.mu.Lock()
 	t.vt.Resize(cols, rows)
+	t.echo = echoState{}
+	t.invalidate = invalidate
 	t.mu.Unlock()
 
 	// Resize outside smu. Close marks closing and closes the Conn before
@@ -235,6 +246,11 @@ type SendResult struct {
 // allowance with a large paste. Small protocol inputs can use the reserve;
 // larger payloads must fit the normal queue limit or are rejected whole.
 func (t *Terminal) SendInput(b []byte) SendResult {
+	t.echoReset.Store(true)
+	return t.queueInput(b)
+}
+
+func (t *Terminal) queueInput(b []byte) SendResult {
 	if len(b) == 0 || t.isClosing() {
 		return SendResult{}
 	}
@@ -280,6 +296,10 @@ func (t *Terminal) feed(b []byte) {
 		t.perf.feedBytes.Add(uint64(n))
 		t.perf.feedBatches.Add(1)
 		t.vt.Write(b[:n])
+		if t.echoEnabled {
+			t.dropStaleEcho()
+			t.echo.output(t.vt, b[:n], time.Now())
+		}
 		pending := t.pending
 		t.pending = nil
 		t.mu.Unlock()
@@ -409,6 +429,7 @@ func (t *Terminal) Unlock() { t.mu.Unlock() }
 // keeps the program's output from being read. Input sent before Start waits for it; input sent after Close, or
 // after the program's output has ended, is dropped.
 func (t *Terminal) Send(b []byte) {
+	t.echoReset.Store(true)
 	if len(b) == 0 || t.isClosing() {
 		return
 	}
@@ -456,6 +477,7 @@ func (t *Terminal) Resize(cols, rows, wpx, hpx int) {
 	}
 	t.mu.Lock()
 	t.vt.Resize(cols, rows)
+	t.echo = echoState{}
 	t.mu.Unlock()
 	t.resizeConn(cols, rows, wpx, hpx)
 }

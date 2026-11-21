@@ -16,6 +16,10 @@ type Style struct {
 	Weight     Weight  // 0 means Regular
 	LineHeight float32 // px; 0 means round(Size*22/14)
 	Mono       bool    // prefer the monospace chain
+	// FontFamily is a comma-separated list of preferred families in order.
+	// Missing fonts and glyphs fall back to the normal chain. A generic
+	// monospace or sans-serif entry selects that chain at that position.
+	FontFamily string
 	// Italic selects each family's italic (or oblique) face; families
 	// without one draw their upright face slanted by ItalicSkew (advances
 	// unchanged). Widths always come from the face actually used.
@@ -227,7 +231,7 @@ func Shape(s string, st Style, opt Options) *Layout {
 		putLayout(k, native)
 		return native
 	}
-	chain := reg.chain(st.Mono)
+	chain := reg.chainFor(st)
 	l := layout(s, st, opt, chain, lang)
 	putLayout(k, l)
 	return l
@@ -243,12 +247,13 @@ func Width(s string, st Style) float32 { return Shape(s, st, Options{NoWrap: tru
 func LineHeightOf(st Style) float32 { return st.norm().LineHeight }
 
 type fontmap struct {
-	chain  []*family
-	eng    *engineState // system engine: per-rune platform fallback
-	w      Weight
-	italic bool
-	first  *Face
-	noLiga bool // shape with liga, clig and calt off (Options.noLiga)
+	chain   []*family
+	eng     *engineState // system engine: per-rune platform fallback
+	w       Weight
+	italic  bool
+	first   *Face
+	ordered bool // honor explicit family order before script-based fallback
+	noLiga  bool // shape with liga, clig and calt off (Options.noLiga)
 	fontmapImpl
 }
 
@@ -270,7 +275,7 @@ func (m *fontmap) resolve(r rune) (*Face, *family) {
 		}
 		return nil
 	}
-	if cl := classOf(r); cl != classNone {
+	if cl := classOf(r); !m.ordered && cl != classNone {
 		for _, fam := range m.chain {
 			if fam.user || fam.class == cl {
 				if f := try(fam); f != nil {
@@ -354,13 +359,13 @@ func newFontmaps(rs []runStyle, opt Options, buf *[1]*fontmap) []*fontmap {
 	var distinct []int // first run of each font map
 	for k, r := range rs {
 		for _, p := range distinct {
-			if q := rs[p].st; q.Mono == r.st.Mono && q.Weight == r.st.Weight && q.Italic == r.st.Italic {
+			if q := rs[p].st; q.Mono == r.st.Mono && q.FontFamily == r.st.FontFamily && q.Weight == r.st.Weight && q.Italic == r.st.Italic {
 				fms[k] = fms[p]
 				break
 			}
 		}
 		if fms[k] == nil {
-			fms[k] = &fontmap{chain: r.chain, w: r.st.Weight, italic: r.st.Italic, noLiga: opt.noLiga}
+			fms[k] = &fontmap{chain: r.chain, w: r.st.Weight, italic: r.st.Italic, ordered: r.st.FontFamily != "", noLiga: opt.noLiga}
 			if len(r.chain) > 0 {
 				fms[k].eng = reg.engineFallback()
 			}

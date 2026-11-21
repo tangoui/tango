@@ -674,6 +674,10 @@ func (b *Box) Scale(k float32) *Box {
 // Style tweaks layout after creation.
 func (b *Box) Style(opts ...layout.Option) *Box { flexbox.Apply(&b.n.ln.Style, opts...); return b }
 
+// Cursor sets the pointer cursor for an interactive box. It can be set
+// during custom painting when hit geometry depends on layout.
+func (b *Box) Cursor(cursor input.Cursor) *Box { b.n.cursor = cursor; return b }
+
 // Paint adds a custom painter drawn above the background, below children.
 func (b *Box) Paint(fn PaintFunc) *Box {
 	prev := b.n.paint

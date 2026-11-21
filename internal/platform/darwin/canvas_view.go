@@ -219,8 +219,12 @@ func pointerHandler(kind input.PointerKind, button input.Button) func(self id, _
 func menuKey(k input.Key, m input.Modifiers) func(self id, _ objc.SEL, sender id) {
 	return func(self id, _ objc.SEL, sender id) {
 		if c := canvasOf(self); c != nil {
-			c.input(input.KeyEvent{Key: k, Down: true, Mods: m})
-			c.input(input.KeyEvent{Key: k, Down: false, Mods: m})
+			code := input.KeyUnknown
+			if k == input.KeyV {
+				code = input.KeyPaste
+			}
+			c.input(input.KeyEvent{Key: k, Code: code, Down: true, Mods: m})
+			c.input(input.KeyEvent{Key: k, Code: code, Down: false, Mods: m})
 		}
 	}
 }

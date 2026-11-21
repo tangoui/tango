@@ -10,6 +10,13 @@ pkg github.com/tangoui/tango/ui/terminal/vt, const ColorDefault Color = 0
 pkg github.com/tangoui/tango/ui/terminal/vt, const ColorIndexed untyped int = 1
 pkg github.com/tangoui/tango/ui/terminal/vt, const ColorKindDefault untyped int = 0
 pkg github.com/tangoui/tango/ui/terminal/vt, const ColorRGB untyped int = 2
+pkg github.com/tangoui/tango/ui/terminal/vt, const CursorBlinkBar CursorStyle = 5
+pkg github.com/tangoui/tango/ui/terminal/vt, const CursorBlinkBlock CursorStyle = 1
+pkg github.com/tangoui/tango/ui/terminal/vt, const CursorBlinkUnderline CursorStyle = 3
+pkg github.com/tangoui/tango/ui/terminal/vt, const CursorDefault CursorStyle = 0
+pkg github.com/tangoui/tango/ui/terminal/vt, const CursorSteadyBar CursorStyle = 6
+pkg github.com/tangoui/tango/ui/terminal/vt, const CursorSteadyBlock CursorStyle = 2
+pkg github.com/tangoui/tango/ui/terminal/vt, const CursorSteadyUnderline CursorStyle = 4
 pkg github.com/tangoui/tango/ui/terminal/vt, const DefaultScrollback untyped int = 10000
 pkg github.com/tangoui/tango/ui/terminal/vt, func EncodeKey(ui/input.KeyEvent, Modes) ([]byte, bool)
 pkg github.com/tangoui/tango/ui/terminal/vt, func EncodePaste(string, Modes) []byte
@@ -26,6 +33,7 @@ pkg github.com/tangoui/tango/ui/terminal/vt, method (*Params) Get(int, int) int
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Params) Len() int
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Params) Sub(int) []int
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Parser) Write([]byte)
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) BufferLine(int) *Line
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) ClearScrollback()
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) Evicted() uint64
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Screen) Line(int) *Line
@@ -50,6 +58,7 @@ pkg github.com/tangoui/tango/ui/terminal/vt, method (*StyleTable) Get(uint16) St
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*StyleTable) Intern(Style) uint16
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*StyleTable) Len() int
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Terminal) Cursor() (int, int, bool)
+pkg github.com/tangoui/tango/ui/terminal/vt, method (*Terminal) EchoCursor() (int, int, bool)
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Terminal) Modes() Modes
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Terminal) Resize(int, int)
 pkg github.com/tangoui/tango/ui/terminal/vt, method (*Terminal) Screen() *Screen
@@ -67,6 +76,7 @@ pkg github.com/tangoui/tango/ui/terminal/vt, type Cell struct, Rune rune
 pkg github.com/tangoui/tango/ui/terminal/vt, type Cell struct, Style uint16
 pkg github.com/tangoui/tango/ui/terminal/vt, type Cell struct, Width uint8
 pkg github.com/tangoui/tango/ui/terminal/vt, type Color uint32
+pkg github.com/tangoui/tango/ui/terminal/vt, type CursorStyle uint8
 pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface { CSI, DCS, ESC, Execute, OSC, Print, PrintASCII }
 pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, CSI(*Params, []byte, byte, byte)
 pkg github.com/tangoui/tango/ui/terminal/vt, type Handler interface, DCS(*Params, []byte, byte, []byte)
@@ -102,6 +112,7 @@ pkg github.com/tangoui/tango/ui/terminal/vt, type Screen struct
 pkg github.com/tangoui/tango/ui/terminal/vt, type Screen struct, noncomparable
 pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct
 pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, Cols int
+pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, CursorStyle CursorStyle
 pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, CursorVisible bool
 pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, CursorX int
 pkg github.com/tangoui/tango/ui/terminal/vt, type Snapshot struct, CursorY int

@@ -10,6 +10,9 @@ const da1Reply = "\x1b[?1;2c"
 // ignored.
 func (t *Terminal) csi(p *Params, inter []byte, final, private byte) {
 	if len(inter) > 0 {
+		if len(inter) == 1 && inter[0] == ' ' && private == 0 && final == 'q' {
+			t.setCursorStyle(p)
+		}
 		return
 	}
 	switch private {
@@ -105,7 +108,13 @@ func (t *Terminal) moveTo(x, y int) {
 // setModes handles DECSET (on) and DECRST.
 func (t *Terminal) setModes(p *Params, on bool) {
 	for i := range p.Len() {
-		switch p.Sub(i)[0] {
+		switch mode := p.Sub(i)[0]; mode {
+		case 47, 1047, 1049:
+			if on {
+				t.alternateMode = mode
+			} else if t.alternateMode == mode {
+				t.alternateMode = 0
+			}
 		case 1:
 			t.modes.AppCursor = on
 		case 7:

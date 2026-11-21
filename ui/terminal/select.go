@@ -74,28 +74,8 @@ func isSep(r rune) bool {
 	return r == 0 || unicode.IsSpace(r) || strings.ContainsRune(wordSeps, r)
 }
 
-// absLine returns the line at position abs of s (0 is the oldest
-// scrollback line), or nil. vt has no accessor by absolute position, so
-// for scrollback lines it moves the viewport there and back; the offset
-// is restored before the view's TakeDirty, which therefore sees no change.
-func absLine(s *vt.Screen, abs int) *vt.Line {
-	sb := s.ScrollbackLen()
-	_, rows := s.Size()
-	switch {
-	case abs < 0 || abs >= sb+rows:
-		return nil
-	case abs >= sb:
-		return s.Line(abs - sb)
-	}
-	old := s.ViewOffset()
-	s.SetViewOffset(sb - abs)
-	l := s.ViewLine(0)
-	s.SetViewOffset(old)
-	return l
-}
-
 // line returns the line with stable number row, or nil.
-func (w *ViewW) line(s *vt.Screen, row int) *vt.Line { return absLine(s, row-w.vs.evicted) }
+func (w *ViewW) line(s *vt.Screen, row int) *vt.Line { return s.BufferLine(row - w.vs.evicted) }
 
 // trackEviction updates the stable numbering from the screen's eviction
 // count and clears a selection whose lines were all dropped. s is locked.
@@ -305,23 +285,17 @@ func (w *ViewW) selectedText(s *vt.Screen) string {
 		l := w.line(s, row)
 		lo, hi, ok := rowRange(l, row, a, b)
 		line.Reset()
+		wrapped := l != nil && l.Wrapped && row < b.row
 		if ok {
+			if wrapped {
+				hi = min(hi, wrappedEnd(l))
+			}
 			for x := lo; x < hi; x++ {
-				c := l.Cells[x]
-				if c.Width == 0 {
-					continue
-				}
-				if c.Rune == 0 {
-					line.WriteByte(' ')
-					continue
-				}
-				line.WriteRune(c.Rune)
-				for _, m := range l.Combining(x) {
-					line.WriteRune(m)
+				if l.Cells[x].Width != 0 {
+					appendCellText(&line, l, x)
 				}
 			}
 		}
-		wrapped := l != nil && l.Wrapped && row < b.row
 		txt := line.String()
 		if !wrapped {
 			txt = strings.TrimRight(txt, " ")

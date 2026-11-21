@@ -56,6 +56,10 @@ func (c *canvas) editRole(role string) {
 	if !ok || c.closed {
 		return
 	}
-	c.input(input.KeyEvent{Key: k, Down: true, Mods: m})
-	c.input(input.KeyEvent{Key: k, Down: false, Mods: m})
+	code := input.KeyUnknown
+	if role == "paste" {
+		code = input.KeyPaste
+	}
+	c.input(input.KeyEvent{Key: k, Code: code, Down: true, Mods: m})
+	c.input(input.KeyEvent{Key: k, Code: code, Down: false, Mods: m})
 }

@@ -67,24 +67,33 @@ type ViewW struct {
 	ia  ui.Interaction
 
 	fontSize     float32
+	fontFamily   string
+	cursorShape  CursorShape
+	cursorBlink  bool
 	optionAsMeta bool
 	scheme       *Scheme
-	done         bool   // input applied (applyInput)
+	done         bool // input applied (applyInput)
+	onPaste      func(string, func(string))
+	openLink     func(string)
+	matchLink    func(string) []LinkMatch
 	clip         string // the clipboard, read for a paste (readPaste)
 }
 
 // pending is the input collected while the view is built, applied once
 // per frame when it paints.
 type pending struct {
-	events   []input.Event // input.KeyEvent and input.TextInput, in order
-	press    bool
-	pressPos geom.Point
-	clicks   int
-	shift    bool
-	drag     bool
-	dragPos  geom.Point
-	release  bool
-	wheel    float32
+	events     []input.Event // input.KeyEvent and input.TextInput, in order
+	press      bool
+	pressPos   geom.Point
+	clicks     int
+	shift      bool
+	modified   bool
+	drag       bool
+	dragPos    geom.Point
+	release    bool
+	releasePos geom.Point
+	clicked    bool
+	wheel      float32
 }
 
 // metrics are the cell geometry for a font size and scale.
@@ -96,6 +105,7 @@ type metrics struct {
 
 // viewState is the view's retained state.
 type viewState struct {
+	term *Terminal
 	pend pending
 	// IME composition shown at the cursor.
 	comp          string
@@ -104,12 +114,15 @@ type viewState struct {
 	fastCompose   bool
 	fastSwallow   bool
 	fastAwaitText bool
+	fastDeferred  bool
 
 	m       metrics
 	started bool
 	// cols×rows is the size last sent to the Terminal, at lastResize.
 	cols, rows int
 	lastResize time.Time
+	wpx, hpx   int
+	blinkStart time.Time
 
 	sel selection
 	// evicted is the screen's Evicted count this frame, the base of the
@@ -134,8 +147,9 @@ type viewState struct {
 	needFull bool
 	dirty    []int // this frame's dirty rows (buffer)
 
-	a11yText string
-	openLink func(url string) // ViewW.OnOpenLink (links come in M2)
+	a11yText     string
+	linkPress    LinkHit
+	linkPressPos geom.Point
 }
 
 func newViewState() viewState {
@@ -155,6 +169,12 @@ func View(c *ui.Context, t *Terminal) *ViewW {
 	w.box.Semantics(a11y.RoleTextbox, "Terminal").A11yState(a11y.Multiline | a11y.ReadOnly)
 	id := w.box.ID()
 	w.vs = ui.State(c, id, newViewState)
+	if w.vs.term != t {
+		if w.vs.term != nil {
+			*w.vs = newViewState()
+		}
+		w.vs.term = t
+	}
 	if c.A11yEnabled() {
 		vs := w.vs
 		w.box.A11y(func(n *a11y.Node) { n.Value = vs.a11yText })
@@ -186,10 +206,6 @@ func (w *ViewW) FontSize(px float32) *ViewW {
 // send Alt as Meta.
 func (w *ViewW) OptionAsMeta(on bool) *ViewW { w.optionAsMeta = on; return w }
 
-// OnOpenLink sets the callback that opens links. Milestone 1 does not
-// detect links yet; the callback is kept for later milestones.
-func (w *ViewW) OnOpenLink(fn func(url string)) *ViewW { w.vs.openLink = fn; return w }
-
 // Scheme sets the color scheme this frame (default: the colors of the
 // theme's terminal token).
 func (w *ViewW) Scheme(s Scheme) *ViewW { w.scheme = &s; return w }
@@ -220,7 +236,7 @@ func (w *ViewW) fastInputSideEffects() {
 // can read the clipboard and mutate selection state safely.
 func (w *ViewW) fastEvent(ev input.Event) bool {
 	w.t.perf.fastEvents.Add(1)
-	if !w.ia.Focused {
+	if !w.ia.Focused || w.vs.fastDeferred {
 		return false
 	}
 	if w.vs.fastSwallow {
@@ -250,10 +266,14 @@ func (w *ViewW) fastEvent(ev input.Event) bool {
 			return false
 		}
 		w.fastInputSideEffects()
-		w.t.SendInput(vt.EncodeText(e.Text))
+		w.sendInput(vt.EncodeText(e.Text), true)
 		return true
 	case input.KeyEvent:
 		if !e.Down {
+			return false
+		}
+		if shortcutAction(e) == "paste" {
+			w.vs.fastDeferred = true // subsequent input must queue behind the paste
 			return false
 		}
 		if w.vs.fastCompose || shortcutAction(e) != "" || e.Key == input.KeyTab && e.Mods.Has(input.ModCtrl) {
@@ -265,7 +285,7 @@ func (w *ViewW) fastEvent(ev input.Event) bool {
 		w.t.Unlock()
 		if ok && mods&(input.ModCtrl|input.ModAlt|input.ModMeta) == 0 {
 			w.fastInputSideEffects()
-			w.t.SendInput(b)
+			w.sendInput(b, false)
 			return true // Enter, arrows, Backspace and other non-text keys
 		}
 		if mods == input.ModCtrl {
@@ -289,6 +309,7 @@ func (w *ViewW) fastEvent(ev input.Event) bool {
 // the retained state: only the build pass that sees the events gets them.
 func (w *ViewW) collect() {
 	c, id, vs := w.c, w.box.ID(), w.vs
+	vs.fastDeferred = false
 	p := &vs.pend
 	if !w.ia.Focused {
 		vs.comp, vs.compCur = "", 0
@@ -316,14 +337,15 @@ func (w *ViewW) collect() {
 	}
 	pos, _ := c.Pointer()
 	if w.ia.PressedNow {
-		p.press, p.pressPos, p.clicks = true, pos, (c.PressCount()-1)%3+1
+		p.press, p.pressPos, p.clicks = true, c.PressPos(), (c.PressCount()-1)%3+1
 		p.shift = c.PressMods().Has(input.ModShift)
+		p.modified = c.PressMods()&(input.ModShift|input.ModCtrl|input.ModAlt|input.ModMeta) != 0
 	}
 	if c.Dragging(id) {
 		p.drag, p.dragPos = true, pos
 	}
-	if _, ok := c.ReleasePos(id); ok {
-		p.release = true
+	if release, ok := c.ReleasePos(id); ok {
+		p.release, p.releasePos, p.clicked = true, release, w.ia.Clicked
 	}
 	vs.hover = w.ia.Hovered || c.Dragging(id)
 	if _, dy, ok := c.WheelFor(id); ok {
@@ -333,15 +355,16 @@ func (w *ViewW) collect() {
 
 // metricsFor returns the cell geometry for font size px at scale; the
 // cell width is the advance of "M" rounded up to a device pixel.
-func (vs *viewState) metricsFor(px, scale float32) metrics {
-	if vs.m.size == px && vs.m.scale == scale {
+func (vs *viewState) metricsFor(px, scale float32, family string) metrics {
+	if vs.m.size == px && vs.m.scale == scale && vs.m.st.FontFamily == family {
 		return vs.m
 	}
 	lh := float32(math.Round(float64(px * lineHeightRatio)))
-	cw := text.Width("M", text.Style{Size: px, Mono: true})
+	st := text.Style{Size: px, LineHeight: lh, Mono: true, Weight: text.Regular, FontFamily: family}
+	cw := text.Width("M", st)
 	cw = float32(math.Ceil(float64(cw*scale))) / scale
 	vs.m = metrics{size: px, scale: scale, cellW: max(cw, 1), lineH: max(lh, 1),
-		st: text.Style{Size: px, LineHeight: lh, Mono: true, Weight: text.Regular}}
+		st: st}
 	vs.cache.reset()
 	vs.needFull = true
 	return vs.m
@@ -360,10 +383,10 @@ func (w *ViewW) sizeTo(cols, rows int, m metrics) {
 		w.t.Start(cols, rows, c.Invalidator())
 		// Start tells the program 0×0 pixels; send the real size.
 		w.t.Resize(cols, rows, wpx, hpx)
-		vs.cols, vs.rows, vs.lastResize = cols, rows, now
+		vs.cols, vs.rows, vs.wpx, vs.hpx, vs.lastResize = cols, rows, wpx, hpx, now
 		return
 	}
-	if cols == vs.cols && rows == vs.rows {
+	if cols == vs.cols && rows == vs.rows && wpx == vs.wpx && hpx == vs.hpx {
 		return
 	}
 	if due := vs.lastResize.Add(resizeThrottle); now.Before(due) {
@@ -371,8 +394,10 @@ func (w *ViewW) sizeTo(cols, rows int, m metrics) {
 		return
 	}
 	w.t.Resize(cols, rows, wpx, hpx)
-	vs.cols, vs.rows, vs.lastResize = cols, rows, now
-	vs.sel.clear() // lines may move between the screen and the scrollback
+	if cols != vs.cols || rows != vs.rows {
+		vs.sel.clear() // lines may move between the screen and the scrollback
+	}
+	vs.cols, vs.rows, vs.wpx, vs.hpx, vs.lastResize = cols, rows, wpx, hpx, now
 }
 
 // isMac reports whether application shortcuts use Cmd.
@@ -401,12 +426,12 @@ func (w *ViewW) applyInput(v *vt.Terminal, r geom.Rect) []effect {
 	}
 	out := w.keyInput(v, p.events)
 	if exited, _ := w.t.Exited(); exited {
-		// Nobody reads the input any more: keep only the copies.
+		// Clipboard copies still work after the program exits.
 		out = slices.DeleteFunc(out, func(e effect) bool { return !e.isCopy })
 		return out
 	}
 	for _, e := range out {
-		if !e.isCopy {
+		if len(e.send) != 0 {
 			v.Screen().SetViewOffset(0)
 			vs.sel.clear()
 			break
@@ -420,6 +445,9 @@ func (w *ViewW) applyInput(v *vt.Terminal, r geom.Rect) []effect {
 // to the clipboard.
 type effect struct {
 	send   []byte
+	typed  bool
+	paste  string
+	isLink bool
 	isCopy bool
 	copy   string
 }
@@ -430,12 +458,21 @@ func (w *ViewW) runEffects(out []effect) {
 	win := w.c.Window()
 	for _, e := range out {
 		switch {
+		case e.isLink:
+			w.openLink(e.copy)
+			w.c.Invalidate()
+		case e.paste != "":
+			w.Paste(e.paste)
+			w.c.Invalidate()
 		case e.isCopy:
 			if win != nil {
 				win.WriteClipboard(e.copy)
 			}
 		default:
-			w.t.SendInput(e.send)
+			w.sendInput(e.send, e.typed)
+			if e.typed && w.t.predicting() {
+				w.c.Invalidate()
+			}
 		}
 	}
 }
@@ -488,7 +525,7 @@ func (w *ViewW) keyInput(v *vt.Terminal, evs []input.Event) []effect {
 			if !isText(e) {
 				continue // control characters arrive as keys
 			}
-			out = append(out, effect{send: vt.EncodeText(e.Text)})
+			out = append(out, effect{send: vt.EncodeText(e.Text), typed: true})
 		}
 	}
 	return out
@@ -514,7 +551,7 @@ func shortcutAction(e input.KeyEvent) string {
 	switch {
 	case mods == appMods && e.Key == input.KeyC, !isMac && mods == input.ModCtrl && e.Key == input.KeyInsert:
 		return "copy"
-	case mods == appMods && e.Key == input.KeyV, !isMac && mods == input.ModShift && e.Key == input.KeyInsert:
+	case e.Key == input.KeyV && e.Code == input.KeyPaste, mods == appMods && e.Key == input.KeyV, !isMac && mods == input.ModShift && e.Key == input.KeyInsert:
 		return "paste"
 	case mods == appMods && e.Key == input.KeyA:
 		return "selectAll"
@@ -565,15 +602,12 @@ func (w *ViewW) shortcut(v *vt.Terminal, e input.KeyEvent, out *[]effect) bool {
 		// The clipboard was read before the lock (readPaste); an empty
 		// one pastes nothing, so it neither scrolls nor clears.
 		if w.clip != "" {
-			*out = append(*out, effect{send: vt.EncodePaste(w.clip, v.Modes())})
+			*out = append(*out, effect{paste: w.clip})
 		}
 	case "selectAll":
 		w.selectAll(v)
 	case "clear":
-		clearScreen(v)
-		w.vs.sel.clear()
-		w.vs.trackEviction(s) // ClearScrollback dropped lines: renumber now
-		w.vs.needFull = true
+		w.clear(v)
 	}
 	return true
 }
