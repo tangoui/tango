@@ -231,8 +231,34 @@ func (b *Backend) dispatch(m *msg) {
 	if b.translateAccelerator(m) {
 		return
 	}
+	if b.dispatchCanvasKey(m) {
+		return
+	}
 	procTranslateMessage.Call(uintptr(unsafe.Pointer(m)))
 	procDispatchMessageW.Call(uintptr(unsafe.Pointer(m)))
+}
+
+// A canvas with a synchronous input filter must inspect keyboard messages
+// before TranslateMessage can enqueue WM_CHAR or WM_SYSCHAR.
+func (b *Backend) dispatchCanvasKey(m *msg) bool {
+	switch m.Message {
+	case canvasWmKeyDown, canvasWmKeyUp, canvasWmSysKeyDown, canvasWmSysKeyUp:
+	default:
+		return false
+	}
+	c := canvasByHwnd[m.HWnd]
+	if c == nil || !c.ready || c.closed {
+		return false
+	}
+	if _, ok := c.sink.(platform.CanvasKeySink); !ok {
+		return false
+	}
+	if !c.keyMessage(m.Message, m.WParam, m.LParam, func() {
+		procTranslateMessage.Call(uintptr(unsafe.Pointer(m)))
+	}) {
+		procDefWindowProcW.Call(m.HWnd, uintptr(m.Message), m.WParam, m.LParam)
+	}
+	return true
 }
 
 func (b *Backend) translateAccelerator(m *msg) bool {

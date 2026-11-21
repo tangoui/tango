@@ -78,6 +78,7 @@ type canvas struct {
 
 	// Native menu shortcut capture, independent of text input.
 	shortcutCapture bool
+	rawKeys         map[uint16]canvasRawKey
 	shortcutHeld    map[uint16]bool // captured physical keys until release or loss of focus
 
 	// Keyboard and text input (canvas_input_linux.go).
@@ -549,8 +550,8 @@ func (c *canvas) editCommand(cmd string) {
 	if !ok || c.closed {
 		return
 	}
-	c.input(input.KeyEvent{Key: k, Down: true, Mods: m})
-	c.input(input.KeyEvent{Key: k, Down: false, Mods: m})
+	c.deliverKey(input.KeyEvent{Key: k, Down: true, Mods: m}, true)
+	c.deliverKey(input.KeyEvent{Key: k, Mods: m}, true)
 }
 
 // SetCursor implements platform.Canvas. Main thread.

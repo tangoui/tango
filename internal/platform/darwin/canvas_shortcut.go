@@ -31,16 +31,20 @@ func (c *canvas) capturesShortcutEvent(ev id) bool {
 var shortcutReleaseMonitor objc.Block
 
 // AppKit drops Command-modified keyups before NSWindow sees them. A local
-// (not global) monitor returns captured releases to their focused canvas.
+// (not global) monitor returns held Command and recorder releases to their focused canvas.
 // Without this, releasing Cmd+K would leave the repeat latch stuck forever.
 func installShortcutReleaseMonitor() {
 	shortcutReleaseMonitor = objc.NewBlock(func(_ objc.Block, event objc.ID) objc.ID {
 		ev := id(event)
 		win := send(theBackend.app, "keyWindow")
 		c := canvasOf(send(win, "firstResponder"))
-		if c != nil && c.shortcutHeld[uint16(send(ev, "keyCode"))] {
-			send(c.view, "keyUp:", uintptr(ev))
-			return 0
+		if c != nil {
+			code := uint16(send(ev, "keyCode"))
+			_, held := c.rawKeys[code]
+			if c.shortcutHeld[code] || (held && uint(send(ev, "modifierFlags"))&nsCommandKeyMask != 0) {
+				c.keyUp(ev)
+				return 0
+			}
 		}
 		return event
 	})

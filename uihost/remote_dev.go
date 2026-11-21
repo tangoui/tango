@@ -192,11 +192,11 @@ func devHandle(m any) {
 	switch m := m.(type) {
 	case devhost.Input:
 		if w := devWin(m.Win); w != nil {
-			devPost(func() { w.input(m.Ev) })
+			devPost(func() { w.input(m.Ev, !m.SyntheticKey) })
 		}
 	case devhost.Focus:
 		if w := devWin(m.Win); w != nil {
-			devPost(func() { w.input(input.WindowFocus{Focused: m.Focused}) })
+			devPost(func() { w.input(input.WindowFocus{Focused: m.Focused}, false) })
 		}
 	case devhost.FrameRequest:
 		if w := devWin(m.Win); w != nil {
@@ -521,7 +521,7 @@ func (w *remoteWin) frame() {
 	}
 }
 
-func (w *remoteWin) input(ev input.Event) {
+func (w *remoteWin) input(ev input.Event, contextual bool) {
 	if w.closed {
 		return
 	}
@@ -530,7 +530,7 @@ func (w *remoteWin) input(ev input.Event) {
 			devTrace(fmt.Sprintf("input %T%+v", ev, ev))
 		}
 	}
-	if w.sc.handle(ev) { // a window shortcut consumed its key (shortcuts.go)
+	if w.sc.handle(ev, contextual) { // a window shortcut consumed its key (shortcuts.go)
 		w.Invalidate()
 		return
 	}

@@ -56,6 +56,6 @@ func (c *canvas) editRole(role string) {
 	if !ok || c.closed {
 		return
 	}
-	c.input(input.KeyEvent{Key: k, Down: true, Mods: m})
-	c.input(input.KeyEvent{Key: k, Down: false, Mods: m})
+	c.deliverKey(input.KeyEvent{Key: k, Down: true, Mods: m}, true)
+	c.deliverKey(input.KeyEvent{Key: k, Mods: m}, true)
 }

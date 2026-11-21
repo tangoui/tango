@@ -27,6 +27,7 @@ import (
 	"github.com/ebitengine/purego"
 	"github.com/ebitengine/purego/objc"
 
+	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 )
@@ -152,12 +153,7 @@ func registerCanvasView() {
 			}),
 			method("keyUp:", func(self id, _ objc.SEL, ev id) {
 				if c := canvasOf(self); c != nil {
-					delete(c.shortcutHeld, uint16(send(ev, "keyCode")))
-					k := eventKey(ev)
-					if c.downKeys[k] {
-						delete(c.downKeys, k)
-						c.input(input.KeyEvent{Key: k, Down: false, Mods: eventMods(ev)})
-					}
+					c.keyUp(ev)
 				}
 			}),
 			method("flagsChanged:", func(self id, _ objc.SEL, ev id) {
@@ -219,8 +215,8 @@ func pointerHandler(kind input.PointerKind, button input.Button) func(self id, _
 func menuKey(k input.Key, m input.Modifiers) func(self id, _ objc.SEL, sender id) {
 	return func(self id, _ objc.SEL, sender id) {
 		if c := canvasOf(self); c != nil {
-			c.input(input.KeyEvent{Key: k, Down: true, Mods: m})
-			c.input(input.KeyEvent{Key: k, Down: false, Mods: m})
+			c.deliverKey(input.KeyEvent{Key: k, Down: true, Mods: m}, true)
+			c.deliverKey(input.KeyEvent{Key: k, Mods: m}, true)
 		}
 	}
 }
@@ -254,8 +250,25 @@ func (c *canvas) keyDown(ev id) {
 		}
 		c.shortcutHeld[uint16(send(ev, "keyCode"))] = true
 	}
+	code := uint16(send(ev, "keyCode"))
 	k := input.KeyEvent{Key: eventKey(ev), Down: true, Repeat: sendBool(ev, "isARepeat"), Mods: eventMods(ev)}
-	c.curKey = k
+	raw := c.rawKeys[code]
+	if !k.Repeat || raw.key == 0 {
+		raw.key = k.Key
+	}
+	k.Key = raw.key
+	if c.rawKeys == nil {
+		c.rawKeys = make(map[uint16]canvasRawKey)
+	}
+	c.rawKeys[code] = raw
+	if c.filterKey(k) {
+		if c.focused && !c.closed {
+			raw.consumed = true
+			c.rawKeys[code] = raw
+		}
+		return
+	}
+	c.curKey, c.curCode = k, code
 	if !captured && c.textOn && k.Mods&input.ModMeta == 0 {
 		c.inKeyDown = true
 		withPool(func() { send(c.view, "interpretKeyEvents:", uintptr(nsArray(ev))) })
@@ -263,6 +276,48 @@ func (c *canvas) keyDown(ev id) {
 		return
 	}
 	c.pressKey(k)
+}
+
+type canvasRawKey struct {
+	key      input.Key
+	reported input.Key
+	consumed bool
+}
+
+func (c *canvas) filterKey(ev input.KeyEvent) bool {
+	return c.ready && !c.closed && platform.FilterCanvasKey(c.sink, ev)
+}
+
+func (c *canvas) deliverKey(ev input.KeyEvent, synthetic bool) {
+	if c.ready && !c.closed {
+		platform.DeliverCanvasKey(c.sink, ev, synthetic)
+	}
+}
+
+func (c *canvas) keyUp(ev id) {
+	code := uint16(send(ev, "keyCode"))
+	delete(c.shortcutHeld, code)
+	raw, held := c.rawKeys[code]
+	delete(c.rawKeys, code)
+	k := raw.key
+	if !held {
+		k = eventKey(ev)
+	}
+	reported := raw.reported
+	if !held && c.downKeys[k] {
+		reported = k
+	}
+	delete(c.downKeys, reported)
+	release := input.KeyEvent{Key: k, Mods: eventMods(ev)}
+	if held && c.filterKey(release) {
+		return
+	}
+	if reported != input.KeyUnknown {
+		release.Key = reported
+		c.deliverKey(release, false)
+	} else if k != input.KeyUnknown && raw.consumed {
+		c.deliverKey(release, false)
+	}
 }
 
 // flagsChanged reports a modifier key (Shift, Control, Option, Command,
@@ -275,8 +330,8 @@ func (c *canvas) flagsChanged(ev id) {
 	flags := uint(send(ev, "modifierFlags"))
 	c.flags = modsFromMac(flags)
 	if code == macCapsLockCode {
-		c.input(input.KeyEvent{Key: input.KeyCapsLock, Down: true, Mods: c.flags})
-		c.input(input.KeyEvent{Key: input.KeyCapsLock, Down: false, Mods: c.flags})
+		c.deliverKey(input.KeyEvent{Key: input.KeyCapsLock, Down: true, Mods: c.flags}, true)
+		c.deliverKey(input.KeyEvent{Key: input.KeyCapsLock, Mods: c.flags}, true)
 		return
 	}
 	k, down, mods, ok := modifierKeyFromMac(code, flags)
@@ -288,7 +343,10 @@ func (c *canvas) flagsChanged(ev id) {
 	} else {
 		delete(c.downKeys, k)
 	}
-	c.input(input.KeyEvent{Key: k, Down: down, Mods: mods})
+	key := input.KeyEvent{Key: k, Down: down, Mods: mods}
+	if !c.filterKey(key) {
+		c.deliverKey(key, false)
+	}
 }
 
 // pressKey reports a key press (and remembers it for keyUp:).
@@ -296,8 +354,12 @@ func (c *canvas) pressKey(k input.KeyEvent) {
 	if k.Key == input.KeyUnknown {
 		return
 	}
+	if raw, ok := c.rawKeys[c.curCode]; ok {
+		raw.reported = k.Key
+		c.rawKeys[c.curCode] = raw
+	}
 	c.downKeys[k.Key] = true
-	c.input(k)
+	c.deliverKey(k, false)
 }
 
 // ---- NSTextInputClient ----
@@ -412,8 +474,8 @@ func textInputClientMethods() []objc.MethodDef {
 				return
 			}
 			if k, m, ok := keyFromSelector(name); ok {
-				c.input(input.KeyEvent{Key: k, Down: true, Mods: m})
-				c.input(input.KeyEvent{Key: k, Down: false, Mods: m})
+				c.deliverKey(input.KeyEvent{Key: k, Down: true, Mods: m}, true)
+				c.deliverKey(input.KeyEvent{Key: k, Mods: m}, true)
 			}
 		}),
 	}

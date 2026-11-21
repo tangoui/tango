@@ -6,6 +6,7 @@
 
 ### 新增
 
+- `uihost.ShortcutWithContext` 为自绘窗口提供可透传的快捷键回调，可读取输入法组合状态、文本焦点、按键重复和物理释放。支持多段组合键和双击修饰键。
 - 实验性 API `(*ui.Runner).Post(fn)` 将后台任务投递到窗口的 UI 线程，按顺序更新页面状态并请求一帧。常规 `uihost.Open`、`uihost.Attach` 和 `tan dev` 窗口的 UI 线程是应用主线程。macOS 独立 UI 线程仅用于内部验证，默认开启留待 Task 11 通过验收后单独审查。见 [迁移说明](docs/release.md#迁移说明)。
 - 自动化内部验证路径新增错误码 `busy`，表示 5 秒内未收到独立 UI 线程上的结果。动作可能已排队，收到该错误后先检查界面状态。见 [自动化文档](docs/automation.md)。
 - `tan mcp`：给 AI 代理用的 MCP 服务器，提供项目工具和运行中应用的界面工具（语义树、动作、输入、截图、WebView 选择器），应用在后台启动，见 [docs/mcp.md](docs/mcp.md)。

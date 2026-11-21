@@ -257,6 +257,7 @@ type canvas struct {
 	clicks     canvasClickCounter
 	lastClicks [3]int
 	downKeys   map[input.Key]bool
+	imeKeys    map[uintptr]uint16 // scan/extended codes of IME-owned presses
 	chars      canvasCharDecoder
 	altGr      bool          // AltGr held: its synthesized left Ctrl was dropped
 	touches    canvasTouches // fingers down (canvas_touch_windows.go)

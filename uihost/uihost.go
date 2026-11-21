@@ -248,6 +248,34 @@ func (h *host) frame() {
 }
 
 func (h *host) CanvasInput(ev input.Event) {
+	h.canvasInput(ev, true)
+}
+
+func (h *host) CanvasFilterKey(ev input.KeyEvent) bool {
+	if h.closed || h.r == nil || h.sc == nil {
+		return false
+	}
+	capture, text := h.sc.captureOn.Load(), h.sc.textOn.Load()
+	if h.t != nil {
+		st := h.t.snapshot()
+		capture, text = st.capturing, st.editableFocus
+	}
+	if !h.sc.contextKey(ev, capture, text, time.Now()) {
+		return false
+	}
+	guiprobe.Observe(ev)
+	h.onUI(func() {
+		h.noteRendererInput(ev)
+		h.invalidate()
+	})
+	return true
+}
+
+func (h *host) CanvasKeyInput(ev input.KeyEvent, _ bool) {
+	h.canvasInput(ev, false)
+}
+
+func (h *host) canvasInput(ev input.Event, contextual bool) {
 	if h.closed || h.r == nil {
 		return
 	}
@@ -272,14 +300,14 @@ func (h *host) CanvasInput(ev input.Event) {
 		if h.dragOnMain(ev) {
 			return
 		}
-		consumed = h.sc.handleSnapshot(ev, h.t.snapshot())
+		consumed = h.sc.handleSnapshot(ev, h.t.snapshot(), contextual)
 	}
 	h.onUI(func() {
 		if !rendererInputQueued {
 			h.noteRendererInput(ev)
 		}
 		if !threaded {
-			consumed = h.sc.handle(ev) // the main thread is the UI thread
+			consumed = h.sc.handle(ev, contextual) // the main thread is the UI thread
 		}
 		if !consumed {
 			h.r.HandleEvent(ev)
@@ -329,11 +357,11 @@ func (h *host) CanvasFocus(focused bool) {
 	}
 	threaded := h.t != nil // as in CanvasInput
 	if threaded {
-		h.sc.handleSnapshot(input.WindowFocus{Focused: focused}, h.t.snapshot()) // main thread, as in CanvasInput
+		h.sc.handleSnapshot(input.WindowFocus{Focused: focused}, h.t.snapshot(), false) // main thread, as in CanvasInput
 	}
 	h.onUI(func() {
 		if !threaded {
-			h.sc.handle(input.WindowFocus{Focused: focused})
+			h.sc.handle(input.WindowFocus{Focused: focused}, false)
 		}
 		h.r.HandleEvent(input.WindowFocus{Focused: focused})
 		h.invalidate()

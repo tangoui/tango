@@ -1055,6 +1055,14 @@ func devSize(v, scale float32) int {
 
 func (x *win) CanvasInput(ev input.Event) { x.forward(devhost.Input{Win: x.id, Ev: ev}) }
 
+// The app runs out of process in tan dev. Forward the key after native
+// translation, preserving whether the platform synthesized it.
+func (x *win) CanvasFilterKey(input.KeyEvent) bool { return false }
+
+func (x *win) CanvasKeyInput(ev input.KeyEvent, synthetic bool) {
+	x.forward(devhost.Input{Win: x.id, Ev: ev, SyntheticKey: synthetic})
+}
+
 func (x *win) CanvasFocus(focused bool) { x.forward(devhost.Focus{Win: x.id, Focused: focused}) }
 
 func (x *win) CanvasResized(w, h, scale float32) {

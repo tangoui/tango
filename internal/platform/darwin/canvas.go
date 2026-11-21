@@ -91,6 +91,7 @@ type canvas struct {
 
 	// Native menu shortcut capture, independent of text input.
 	shortcutCapture bool
+	rawKeys         map[uint16]canvasRawKey
 	shortcutHeld    map[uint16]bool // captured physical keys until release or loss of focus
 
 	// Text input (canvas_view.go).
@@ -100,6 +101,7 @@ type canvas struct {
 	markedSel int    // caret within marked, UTF-16 units
 	inKeyDown bool   // interpretKeyEvents: is running for keyDown
 	curKey    input.KeyEvent
+	curCode   uint16
 	downKeys  map[input.Key]bool // keys whose press was reported
 	flags     input.Modifiers    // modifiers at the last flagsChanged:
 
@@ -765,6 +767,7 @@ func (c *canvas) focusMaybeChanged() {
 	}
 	f := c.firstResp && sendBool(c.s.win, "isKeyWindow")
 	if !f {
+		clear(c.rawKeys)
 		clear(c.shortcutHeld)
 	}
 	if f == c.focused {
