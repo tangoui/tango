@@ -29,6 +29,7 @@ type mdWindowKey struct {
 	lineHeights       [9]float32 // font sizes above, plus the code header
 	checkWidth        float32
 	rtl, copy, images bool
+	hideCodeLang      bool
 	rules             uint8
 	rulesSet          bool
 }
@@ -38,7 +39,8 @@ func (m *MarkdownW) windowKey() mdWindowKey {
 	key := mdWindowKey{
 		locale: m.c.Locale(), flavor: th.Flavor, font: th.FontFamily, weight: th.FontWeightStrong,
 		rtl: m.c.IsRTL(), copy: m.copyable, images: m.images != nil || m.resolveImage != nil,
-		rules: m.headingRules, rulesSet: m.rulesSet,
+		hideCodeLang: m.hideCodeLang,
+		rules:        m.headingRules, rulesSet: m.rulesSet,
 	}
 	key.fonts[0], key.fonts[1] = m.fontSize(), m.codeFontSize()
 	for i := range 6 {

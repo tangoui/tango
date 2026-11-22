@@ -1991,7 +1991,9 @@ pkg github.com/tangoui/tango/ui, method (*MarkdownEditorW) Layout(...ui/layout.O
 pkg github.com/tangoui/tango/ui, method (*MarkdownEditorW) Mode(string) *MarkdownEditorW
 pkg github.com/tangoui/tango/ui, method (*MarkdownEditorW) Placeholder(string) *MarkdownEditorW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) ClickedLink() string
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) CodeBackground(ui/theme.Color) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) CodeBorder(ui/theme.Color) *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) CodeLanguage(bool) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) CodeSize(float32) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Color(ui/theme.Color) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) ContentWidth(float32) *MarkdownW

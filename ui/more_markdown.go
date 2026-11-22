@@ -884,6 +884,7 @@ type MarkdownW struct {
 	el           bool
 	shad         bool // shadcn's typography (h2 rule, quote bar, muted code)
 	copyable     bool
+	hideCodeLang bool
 	noSelect     bool
 	virtual      bool
 	readOnly     bool
@@ -893,6 +894,7 @@ type MarkdownW struct {
 	codeSize     float32
 	quoteBorder  *theme.Color
 	codeBorder   *theme.Color
+	codeBg       *theme.Color
 	hl           CodeHighlighter
 	hlSet        bool
 	col          theme.Color // body text color (zero: theme Text)
@@ -943,6 +945,10 @@ func (m *MarkdownW) NoCopy() *MarkdownW { return m.CopyCode(false) }
 // CopyCode controls whether fenced code blocks show a copy button (default true).
 func (m *MarkdownW) CopyCode(on bool) *MarkdownW { m.copyable = on; return m }
 
+// CodeLanguage controls whether fenced code blocks display their language
+// label (default true). Syntax highlighting and copy controls are independent.
+func (m *MarkdownW) CodeLanguage(on bool) *MarkdownW { m.hideCodeLang = !on; return m }
+
 // ReadOnlyTasks disables task toggling while retaining the checkboxes and
 // their checked state in the accessibility tree.
 func (m *MarkdownW) ReadOnlyTasks(on bool) *MarkdownW { m.readOnly = on; return m }
@@ -986,6 +992,10 @@ func (m *MarkdownW) QuoteBorder(color theme.Color) *MarkdownW { m.quoteBorder = 
 // CodeBorder overrides the code block's border color. A transparent
 // color hides the border.
 func (m *MarkdownW) CodeBorder(color theme.Color) *MarkdownW { m.codeBorder = &color; return m }
+
+// CodeBackground overrides the theme's code block background. A transparent
+// color makes the block background transparent.
+func (m *MarkdownW) CodeBackground(color theme.Color) *MarkdownW { m.codeBg = &color; return m }
 
 // Virtual makes Markdown a scroll viewport and builds only visible top-level
 // blocks, with overscan. Give it a bounded height through the layout options
@@ -1194,10 +1204,14 @@ func (m *MarkdownW) codeFontSize() float32 {
 
 func (m *MarkdownW) code(b *mdBlock, mb float32) {
 	c, th := m.c, m.c.Theme
+	lang := b.lang
+	if m.hideCodeLang {
+		lang = ""
+	}
 	box := Column(c, func() {
-		if b.lang != "" || m.copyable {
+		if lang != "" || m.copyable {
 			Row(c, func() {
-				Text(c, b.lang).Size(12).Color(th.TextTertiary).Layout(layout.Grow(1))
+				Text(c, lang).Size(12).Color(th.TextTertiary).Layout(layout.Grow(1))
 				if m.copyable && IconButton(c, icon.Copy, c.Locale().Markdown.CopyCode).Size(22, 14).Clicked() {
 					if c.win != nil {
 						c.win.WriteClipboard(b.text)
@@ -1222,6 +1236,9 @@ func (m *MarkdownW) code(b *mdBlock, mb float32) {
 	}
 	if m.codeBorder != nil {
 		box.Border(b2f(m.codeBorder.A > 0), *m.codeBorder)
+	}
+	if m.codeBg != nil {
+		box.Bg(*m.codeBg)
 	}
 }
 

@@ -8,6 +8,7 @@
 
 - `MarkdownW.Virtual()` 为有界预览启用按块虚拟滚动，保留块高度、链接身份与任务编号。
 - `MarkdownW` 支持只读任务复选框，并可覆盖标题底线、引用和代码块边框、代码复制按钮、字号及内容宽度。
+- `MarkdownW.CodeLanguage` 可隐藏代码围栏的语言标签并保留语法高亮，`CodeBackground` 可设置代码块底色。
 - `CodeBlockW` 缓存软换行段的字节索引，支持全文搜索、活动匹配高亮和按字节偏移定位。
 - `SplitterPanelW` 支持受控像素尺寸、折叠状态及变化回调，`SplitterW.PixelSizes()` 返回当前分栏尺寸。
 - `ui/editor` 新增 `HoverOffset`、`OffsetAnchor` 和 `MountContent`，支持为悬停、诊断和快速修复挂载文档位置浮层。`ViewW.Suggest` 提供键盘导航、滚动补全列表和可选详情，`DecorationOptions.Squiggle` 绘制诊断波浪线。
