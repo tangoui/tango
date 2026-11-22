@@ -1086,6 +1086,7 @@ pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Search(string, bool) *Code
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) SearchMatches() []CodeBlockMatch
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Selection() string
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) StartLine(int) *CodeBlockW
+pkg github.com/tangoui/tango/ui, method (*CodeBlockW) TextID() ID
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Title(string) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Wrap(bool) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CollapseW) Accordion() *CollapseW

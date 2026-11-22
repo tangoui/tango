@@ -146,6 +146,14 @@ func (w *CodeBlockW) Selection() string {
 // ID returns the block's ID.
 func (w *CodeBlockW) ID() ID { return w.b.n.id }
 
+// TextID returns the keyboard focus target for the selectable, read-only text.
+// Call it after configuring the block, then pass the ID to Context.SetFocus
+// to restore focus when a related control, such as a find panel, closes.
+func (w *CodeBlockW) TextID() ID {
+	w.z.run()
+	return w.v.content.id
+}
+
 // sync indexes the code's lines when it changed.
 func (st *codeBlockState) sync(code string) {
 	if st.starts != nil && st.src == code {

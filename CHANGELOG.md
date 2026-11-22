@@ -11,6 +11,7 @@
 - `MarkdownW.CodeLanguage` 可隐藏代码围栏的语言标签并保留语法高亮，`CodeBackground` 可设置代码块底色。
 - `MarkdownW.HeadingBlock` 可按标题 ID 查询块索引，虚拟预览可用 `ScrollToHeading` 和 `ScrollToBlock` 定位。
 - `CodeBlockW` 缓存软换行段的字节索引，支持全文搜索、活动匹配高亮和按字节偏移定位。
+- `CodeBlockW.TextID()` 返回内部只读文本框的焦点 ID，供快捷键路由和关闭查找后的焦点恢复使用。
 - `SplitterPanelW` 支持受控像素尺寸、折叠状态及变化回调，`SplitterW.PixelSizes()` 返回当前分栏尺寸。
 - `SplitterPanelW.AlwaysShowCollapse(true)` 让分隔条在非悬停时也显示折叠按钮。
 - `ui/editor` 新增 `HoverOffset`、`OffsetAnchor` 和 `MountContent`，支持为悬停、诊断和快速修复挂载文档位置浮层。`ViewW.Suggest` 提供键盘导航、滚动补全列表和可选详情，`DecorationOptions.Squiggle` 绘制诊断波浪线。

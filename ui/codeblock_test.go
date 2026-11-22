@@ -138,6 +138,36 @@ func TestCodeBlockCopyAndSelect(t *testing.T) {
 	}
 }
 
+func TestCodeBlockTextIDRestoresFocus(t *testing.T) {
+	var textID, focused ID
+	var restore bool
+	d := NewDriver(func(c *Context) {
+		w := CodeBlock(c, "one\ntwo").Title("Response")
+		textID = w.TextID()
+		if textID == 0 || textID == w.ID() {
+			t.Fatal("expected a distinct text area ID")
+		}
+		if restore {
+			c.SetFocus(textID)
+		}
+		focused = c.Focused()
+	}, DriverOptions{Width: 400, Height: 200})
+	d.Frame()
+	first := textID
+	restore = true
+	d.Frame()
+	restore = false
+	d.Frame()
+	if focused != first || textID != first {
+		t.Fatalf("focus = %v, text = %v, want %v", focused, textID, first)
+	}
+	d.Key(input.KeyA, input.ModCtrl|input.ModMeta)
+	d.Key(input.KeyC, input.ModCtrl|input.ModMeta)
+	if got := d.Clipboard(); got != "one\ntwo" {
+		t.Errorf("clipboard = %q", got)
+	}
+}
+
 func TestCodeBlockHeightAndScroll(t *testing.T) {
 	var b strings.Builder
 	for i := 0; i < 10000; i++ {
