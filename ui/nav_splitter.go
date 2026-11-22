@@ -27,6 +27,7 @@ type SplitterPanelW struct {
 	minPct      float32 // MinPercent (0..1; 0: none)
 	maxPct      float32 // MaxPercent (0..1; 0: none)
 	collapsible bool
+	alwaysShow  bool
 	toggle      bool   // CollapseToggle: one arrow that folds this pane
 	collapseTip string // CollapseToggle tips (empty: locale Collapse / Expand)
 	expandTip   string
@@ -104,6 +105,14 @@ func (p *SplitterPanelW) MaxPercent(f float32) *SplitterPanelW {
 
 // Collapsible shows collapse arrows on the adjacent bars.
 func (p *SplitterPanelW) Collapsible() *SplitterPanelW { p.collapsible = true; return p }
+
+// AlwaysShowCollapse keeps the adjacent bar's collapse controls visible
+// without hover, like antd's collapsible.showCollapsibleIcon=true. It
+// applies to Collapsible and Tango's single-arrow CollapseToggle.
+func (p *SplitterPanelW) AlwaysShowCollapse(on bool) *SplitterPanelW {
+	p.alwaysShow = on
+	return p
+}
 
 // CollapseToggle shows a single arrow on the adjacent bar, like an IDE
 // side bar: it points at this pane and collapses it, then flips and
@@ -513,9 +522,11 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 	other := a + bIdx - tgt
 	folded := st.folded
 	collapsible := panels[a].collapsible || panels[bIdx].collapsible || tgt >= 0
+	alwaysShow := panels[a].collapsible && panels[a].alwaysShow || panels[bIdx].collapsible && panels[bIdx].alwaysShow
 	nArrows := 2
 	if tgt >= 0 {
 		nArrows = 1
+		alwaysShow = panels[tgt].alwaysShow
 	}
 	var arrows [2]Interaction
 	var arrowNodes [2]*node
@@ -783,6 +794,9 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 		}
 		if collapsible {
 			ah := max(hov, c.Anim(id, "arrow-hover", b2f(arrows[0].Hovered || arrows[1].Hovered), th.DurationMid))
+			if alwaysShow {
+				ah = 1
+			}
 			for k, an := range arrowNodes[:nArrows] {
 				// Position the arrow boxes around the bar center for this
 				// frame (a single toggle sits on the center).

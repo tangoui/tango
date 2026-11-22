@@ -8,7 +8,50 @@ import (
 	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
+	"github.com/tangoui/tango/ui/paint"
+	"github.com/tangoui/tango/ui/theme"
 )
+
+func TestSplitterAlwaysShowCollapse(t *testing.T) {
+	for _, toggle := range []bool{false, true} {
+		always := false
+		th := theme.AntDesign()
+		d := NewDriver(func(c *Context) {
+			Splitter(c).Style(layout.Fill()).Body(func() {
+				p := SplitterPanel(c).DefaultSize(160).AlwaysShowCollapse(always)
+				if toggle {
+					p.CollapseToggle("Fold sidebar", "Restore sidebar")
+				} else {
+					p.Collapsible()
+				}
+				SplitterPanel(c)
+			})
+		}, DriverOptions{Width: 500, Height: 200, Theme: th})
+		painted := func() int {
+			n := 0
+			tk := th.Components.Splitter
+			for _, op := range d.r.List().Ops {
+				if f, ok := op.(paint.FillRect); ok && f.Color == tk.CollapseBg && f.Rect.W == tk.CollapseWidth && f.Rect.H == tk.CollapseHeight {
+					n++
+				}
+			}
+			return n
+		}
+		d.Settle()
+		if n := painted(); n != 0 {
+			t.Fatalf("painted %d collapse controls by default", n)
+		}
+		always = true
+		d.Settle()
+		want := 2
+		if toggle {
+			want = 1
+		}
+		if n := painted(); n != want {
+			t.Fatalf("painted %d collapse controls without hover, want %d", n, want)
+		}
+	}
+}
 
 // TestSplitterLazyAndDragEvents: a lazy drag keeps the panes until the
 // release commits the clamped ratio; DragStarted / DragEnded fire once.

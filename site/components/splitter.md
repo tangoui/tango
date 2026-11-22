@@ -44,6 +44,8 @@ func page(c *ui.Context) {
 
 `Collapsible()` 显示相邻分隔条的折叠箭头；`CollapseToggle` 只显示一个带提示的箭头，适合 IDE 侧栏。
 
+在可折叠面板上调用 `AlwaysShowCollapse(true)` 可让相邻分隔条始终显示折叠按钮。对应 antd 6.7 的 `collapsible.showCollapsibleIcon: true`，在 Tango 中也可用于单箭头的 `CollapseToggle`。
+
 ```go
 import (
     "github.com/tangoui/tango/ui"

@@ -2845,6 +2845,7 @@ pkg github.com/tangoui/tango/ui, method (*SpinW) Size(ControlSize) *SpinW
 pkg github.com/tangoui/tango/ui, method (*SpinW) Spinning(bool) *SpinW
 pkg github.com/tangoui/tango/ui, method (*SpinW) Tip(string) *SpinW
 pkg github.com/tangoui/tango/ui, method (*SpinW) Wrap(func()) *Box
+pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) AlwaysShowCollapse(bool) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Body(func()) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) CollapseToggle(string, string) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Collapsed(bool) *SplitterPanelW
