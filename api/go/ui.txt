@@ -2845,6 +2845,7 @@ pkg github.com/tangoui/tango/ui, method (*SpinW) Tip(string) *SpinW
 pkg github.com/tangoui/tango/ui, method (*SpinW) Wrap(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Body(func()) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) CollapseToggle(string, string) *SplitterPanelW
+pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Collapsed(bool) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Collapsible() *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) DefaultPercent(float32) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) DefaultSize(float32) *SplitterPanelW
@@ -2852,7 +2853,10 @@ pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Max(float32) *Splitter
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) MaxPercent(float32) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Min(float32) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) MinPercent(float32) *SplitterPanelW
+pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) OnCollapse(func(bool)) *SplitterPanelW
+pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) OnResize(func(float32)) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Resizable(bool) *SplitterPanelW
+pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Size(float32) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Body(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*SplitterW) DragEnded() (int, bool)
@@ -2860,6 +2864,7 @@ pkg github.com/tangoui/tango/ui, method (*SplitterW) DragStarted() (int, bool)
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Dragging() bool
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Lazy() *SplitterW
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Orientation(string) *SplitterW
+pkg github.com/tangoui/tango/ui, method (*SplitterW) PixelSizes() []float32
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Sizes() []float32
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Style(...ui/layout.Option) *SplitterW
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Vertical() *SplitterW

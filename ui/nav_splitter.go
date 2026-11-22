@@ -32,6 +32,12 @@ type SplitterPanelW struct {
 	expandTip   string
 	fixed       bool
 	fn          func()
+	sizePx      float32
+	sizeSet     bool
+	collapsed   bool
+	collapseSet bool
+	onResize    func(float32)
+	onCollapse  func(bool)
 }
 
 type splitterCtx struct{ panels []*SplitterPanelW }
@@ -51,6 +57,29 @@ func SplitterPanel(c *Context) *SplitterPanelW {
 
 // DefaultSize sets the initial size in pixels.
 func (p *SplitterPanelW) DefaultSize(px float32) *SplitterPanelW { p.size = px; return p }
+
+// Size controls the expanded pane size in logical pixels along the
+// splitter's axis. A pane without Size shares the remaining space.
+// Use OnResize to accept changes made with the bar.
+func (p *SplitterPanelW) Size(px float32) *SplitterPanelW {
+	p.sizePx, p.sizeSet = max(0, px), true
+	return p
+}
+
+// Collapsed controls whether this pane is folded. Use Collapsible or
+// CollapseToggle to add a bar control and OnCollapse to accept its changes.
+func (p *SplitterPanelW) Collapsed(on bool) *SplitterPanelW {
+	p.collapsed, p.collapseSet = on, true
+	return p
+}
+
+// OnResize reports an expanded pane's new size in logical pixels when a
+// bar is moved by the user. Lazy pointer drags report on release.
+func (p *SplitterPanelW) OnResize(fn func(float32)) *SplitterPanelW { p.onResize = fn; return p }
+
+// OnCollapse reports whether a bar action folded or restored this pane.
+// Programmatic changes to Collapsed do not emit this callback.
+func (p *SplitterPanelW) OnCollapse(fn func(bool)) *SplitterPanelW { p.onCollapse = fn; return p }
 
 // DefaultPercent sets the initial size as a fraction (0.3 = 30%).
 func (p *SplitterPanelW) DefaultPercent(f float32) *SplitterPanelW { p.percent = f; return p }
@@ -151,6 +180,7 @@ type SplitterW struct {
 	ended    int                  // bar index whose drag ended this frame (0: none)
 	th       *theme.Theme         // c.ThemeFor(theme.CompSplitter), set by Body
 	tk       *theme.SplitterToken // &th.Components.Splitter
+	pixels   float32
 }
 
 // Splitter starts a split view; chain options, then Body with SplitterPanel calls.
@@ -205,6 +235,26 @@ func (s *SplitterW) Dragging() bool { return s.st != nil && s.st.dragging }
 // Sizes returns the pane sizes as fractions.
 func (s *SplitterW) Sizes() []float32 { return append([]float32(nil), s.st.frac...) }
 
+// PixelSizes returns the effective pane sizes in logical pixels along the
+// splitter's axis, excluding the bars. Call it after Body.
+func (s *SplitterW) PixelSizes() []float32 {
+	sizes := s.Sizes()
+	var weight float32
+	for _, f := range sizes {
+		if f > 0.0005 {
+			weight += f
+		}
+	}
+	for i := range sizes {
+		if sizes[i] > 0.0005 {
+			sizes[i] *= s.pixels / weight
+		} else {
+			sizes[i] = 0
+		}
+	}
+	return sizes
+}
+
 // Changed reports a resize or collapse this frame.
 func (s *SplitterW) Changed() bool { return s.changed }
 
@@ -242,6 +292,7 @@ func (s *SplitterW) Body(fn func()) *Box {
 		prevRect = geom.Rect{W: c.size.W, H: c.size.H}
 	}
 	total := s.total(prevRect, n)
+	s.pixels = total
 	if !s.st.init || len(s.st.frac) != n {
 		s.st.frac = make([]float32, n)
 		s.st.saved = make([]float32, n)
@@ -289,6 +340,19 @@ func (s *SplitterW) Body(fn func()) *Box {
 		hi = max(hi, lo) // min > max: the minimum wins
 		return
 	}
+	controlled, notify := false, false
+	for _, p := range panels {
+		controlled = controlled || p.sizeSet || p.collapseSet
+		notify = notify || p.onResize != nil || p.onCollapse != nil
+	}
+	if controlled {
+		s.applyPaneControls(panels, total, limits)
+	}
+	var before, saved []float32
+	if notify {
+		before = append(before, s.st.frac...)
+		saved = append(saved, s.st.saved...)
+	}
 	if s.lazy {
 		st, tk, vertical := s.st, s.tk, s.vertical
 		b.PaintOver(func(l *paint.List, r geom.Rect) {
@@ -306,6 +370,17 @@ func (s *SplitterW) Body(fn func()) *Box {
 				l.Fill(geom.Rect{X: r.X, Y: r.Y + off - w/2, W: r.W, H: w}, geom.Rad(0), tk.PreviewColor)
 			} else {
 				l.Fill(geom.Rect{X: c.inline(r).X(off-w/2, w), Y: r.Y, W: w, H: r.H}, geom.Rad(0), tk.PreviewColor)
+			}
+		})
+	}
+	if controlled {
+		over := b.n.over
+		b.PaintOver(func(l *paint.List, r geom.Rect) {
+			if over != nil {
+				over(l, r)
+			}
+			if s.total(r, n) != total {
+				c.animating = true
 			}
 		})
 	}
@@ -328,7 +403,69 @@ func (s *SplitterW) Body(fn func()) *Box {
 			Key(c, i, func() { c.body(pane, p.fn) })
 		}
 	})
+	if s.changed && notify {
+		for i, p := range panels {
+			wasFolded := before[i] <= 0.0005 && saved[i] > 0
+			folded := s.st.folded(i)
+			if wasFolded != folded {
+				if p.onCollapse != nil {
+					p.onCollapse(folded)
+				}
+			} else if !folded && p.onResize != nil && before[i] != s.st.frac[i] {
+				p.onResize(total * s.st.frac[i])
+			}
+		}
+	}
 	return b
+}
+
+func (st *splitterState) folded(i int) bool { return st.frac[i] <= 0.0005 && st.saved[i] > 0 }
+
+func (s *SplitterW) applyPaneControls(panels []*SplitterPanelW, total float32, limits func(int) (float32, float32)) {
+	st := s.st
+	var used, weight float32
+	free := 0
+	for i, p := range panels {
+		folded := st.folded(i)
+		if p.collapseSet {
+			folded = p.collapsed
+		}
+		switch {
+		case folded:
+			if st.saved[i] <= 0 {
+				st.saved[i] = max(st.frac[i], 1/float32(len(panels)))
+			}
+			st.frac[i] = 0
+		case p.sizeSet:
+			lo, hi := limits(i)
+			st.frac[i], st.saved[i] = max(lo, min(p.sizePx/total, hi)), 0
+			used += st.frac[i]
+		default:
+			if st.saved[i] > 0 {
+				st.frac[i], st.saved[i] = st.saved[i], 0
+			}
+			weight += st.frac[i]
+			free++
+		}
+	}
+	for i, p := range panels {
+		if st.folded(i) {
+			continue
+		}
+		if used >= 1 || free == 0 {
+			if !p.sizeSet {
+				st.frac[i] = 0
+			} else if used > 0 {
+				st.frac[i] /= used
+			}
+		} else if !p.sizeSet {
+			if weight > 0 {
+				st.frac[i] = st.frac[i] / weight * (1 - used)
+			} else {
+				st.frac[i] = (1 - used) / float32(free)
+			}
+		}
+	}
 }
 
 func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits func(int) (float32, float32)) {
@@ -374,7 +511,7 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 		tgt = bIdx
 	}
 	other := a + bIdx - tgt
-	folded := func(k int) bool { return st.frac[k] <= 0.0005 && st.saved[k] > 0 }
+	folded := st.folded
 	collapsible := panels[a].collapsible || panels[bIdx].collapsible || tgt >= 0
 	nArrows := 2
 	if tgt >= 0 {
@@ -472,6 +609,9 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 	// clampA returns the fractions of panes a and b when the bar moves so
 	// that pane a gets na, honoring both panes' limits.
 	clampA := func(na float32, start []float32) (float32, float32) {
+		if panels[a].collapseSet && folded(a) || panels[bIdx].collapseSet && folded(bIdx) {
+			return st.frac[a], st.frac[bIdx]
+		}
 		loA, hiA := limits(a)
 		loB, hiB := limits(bIdx)
 		sum := start[a] + start[bIdx]
