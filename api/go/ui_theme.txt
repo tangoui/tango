@@ -2113,10 +2113,13 @@ pkg github.com/tangoui/tango/ui/theme, type TabsToken struct, ItemHoverColor Col
 pkg github.com/tangoui/tango/ui/theme, type TabsToken struct, ItemSelectedBg Color
 pkg github.com/tangoui/tango/ui/theme, type TabsToken struct, ItemSelectedBorder Color
 pkg github.com/tangoui/tango/ui/theme, type TabsToken struct, ItemSelectedColor Color `contrast:"text:@Page"`
+pkg github.com/tangoui/tango/ui/theme, type TabsToken struct, LineBorderWidth float32
+pkg github.com/tangoui/tango/ui/theme, type TabsToken struct, LineTrimOuter bool
 pkg github.com/tangoui/tango/ui/theme, type TabsToken struct, SegmentedList bool
 pkg github.com/tangoui/tango/ui/theme, type TabsToken struct, TitleFontSize float32
 pkg github.com/tangoui/tango/ui/theme, type TabsToken struct, TitleFontSizeLG float32
 pkg github.com/tangoui/tango/ui/theme, type TabsToken struct, TitleFontSizeSM float32
+pkg github.com/tangoui/tango/ui/theme, type TabsToken struct, TitleFontWeight int
 pkg github.com/tangoui/tango/ui/theme, type TabsToken struct, embedded Alias
 pkg github.com/tangoui/tango/ui/theme, type TagToken struct
 pkg github.com/tangoui/tango/ui/theme, type TagToken struct, BorderColor Color

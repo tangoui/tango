@@ -348,13 +348,17 @@ func (w *InputW) prefixWidth() float32 {
 }
 
 func (w *InputW) padX() float32 {
-	switch w.size {
+	return inputPaddingInline(w.tk, w.size)
+}
+
+func inputPaddingInline(tk *theme.InputToken, size ControlSize) float32 {
+	switch size {
 	case Small:
-		return w.tk.PaddingInlineSM
+		return tk.PaddingInlineSM
 	case Large:
-		return w.tk.PaddingInlineLG
+		return tk.PaddingInlineLG
 	}
-	return w.tk.PaddingInline
+	return tk.PaddingInline
 }
 
 // fontSize is the text (and affix icon) size of the field.

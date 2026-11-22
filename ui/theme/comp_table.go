@@ -200,11 +200,6 @@ func deriveTable(t *Theme) TableToken {
 		k.StickyScrollBarBg, k.StickyScrollBarHoverBg, k.StickyScrollBarSize = Fade(t.TextTertiary, .3), Fade(t.TextTertiary, .5), 6
 		// el-table-v2 row-height 50, header-height 50.
 		k.VirtualRowHeight, k.VirtualHeaderHeight = 50, 50
-		if t.elementControls {
-			// common/var.scss $table and $scrollbar.
-			k.HeaderColor = t.TextSecondary
-			k.StickyScrollBarBg, k.StickyScrollBarHoverBg = Fade(t.TextSecondary, .3), Fade(t.TextSecondary, .5)
-		}
 	case StyleShadcn:
 		// One density (p-2); Small trims the vertical padding.
 		k.CellPaddingBlockMD, k.CellPaddingInlineMD = t.TablePaddingV, t.TablePaddingH

@@ -16,7 +16,7 @@ func deriveScrollbar(t *Theme) ScrollbarToken {
 		// element-plus@2.14.8: scrollbar.scss and $scrollbar in common/var.scss.
 		// The 20px minimum is the component's minSize prop (scrollbar.mjs).
 		return ScrollbarToken{TrackInset: 2, Thickness: 6, ThumbRadius: 4, MinThumbLength: 20,
-			Thumb: Fade(t.TextSecondary, .3), ThumbHover: Fade(t.TextSecondary, .5)}
+			Thumb: Fade(t.TextTertiary, .3), ThumbHover: Fade(t.TextTertiary, .5)}
 	}
 	return ScrollbarToken{Thickness: 6, ThumbRadius: 3, MinThumbLength: 24, Thumb: t.TextQuaternary, ThumbHover: t.TextTertiary}
 }

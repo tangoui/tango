@@ -16,6 +16,9 @@ type TabsToken struct {
 	TitleFontSizeLG       float32
 	HorizontalItemGutter  float32
 	HorizontalItemPadding float32 // vertical padding of a horizontal tab
+	TitleFontWeight       int
+	LineTrimOuter         bool    // keep line tab labels at the bar edges
+	LineBorderWidth       float32 // positive override for the baseline thickness
 
 	// Sizes (antd cardHeightSM / cardHeightLG, horizontalItemPaddingSM /
 	// LG, the inline part of cardPadding / cardPaddingSM).
@@ -60,6 +63,7 @@ func deriveTabs(t *Theme) TabsToken {
 		if t.elementControls {
 			// tabs.scss .el-tabs__item uses 20 px on each side of adjacent labels.
 			k.HorizontalItemGutter = 40
+			k.LineTrimOuter, k.LineBorderWidth, k.TitleFontWeight = true, 2, 500
 			k.CardPaddingH, k.CardPaddingHSM, k.TitleFontSizeLG = 20, 20, t.FontSize
 		}
 	case StyleShadcn:

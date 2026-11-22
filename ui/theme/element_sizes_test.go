@@ -76,7 +76,7 @@ func TestElementPlusControlRefinements(t *testing.T) {
 			t.Fatal("Element checkbox, radio or switch sizing mismatch")
 		}
 		if k.Button.ContentFontSizeSM != 12 || k.Button.ContentFontSizeLG != 14 || k.Button.RadiusSM != 3 || k.Button.RadiusLG != 4 ||
-			k.Tabs.HorizontalItemGutter != 40 || k.Tabs.CardHeight != 40 || k.Table.CellLineHeight != 23 || k.Table.HeaderColor != el.TextSecondary {
+			k.Tabs.HorizontalItemGutter != 40 || k.Tabs.CardHeight != 40 || k.Table.CellLineHeight != 23 || k.Table.HeaderColor != el.TextTertiary {
 			t.Fatal("Element button, tabs or table sizing/color mismatch")
 		}
 		if k.Dropdown.ItemHeight != 32 || k.Dropdown.PopupBorderColor != el.Split || k.Modal.MaskBg != RGBA(0, 0, 0, .5) ||
@@ -85,7 +85,7 @@ func TestElementPlusControlRefinements(t *testing.T) {
 		}
 		s := k.Scrollbar
 		if s.TrackInset != 2 || s.Thickness != 6 || s.MinThumbLength != 20 || s.ThumbRadius != 4 ||
-			s.Thumb != Fade(el.TextSecondary, .3) || s.ThumbHover != Fade(el.TextSecondary, .5) {
+			s.Thumb != Fade(el.TextTertiary, .3) || s.ThumbHover != Fade(el.TextTertiary, .5) {
 			t.Fatalf("Element scrollbar = %+v", s)
 		}
 	}

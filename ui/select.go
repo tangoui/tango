@@ -246,13 +246,18 @@ func (w *SelectW) finish() {
 	st := w.st
 	w.n.ln.Height = controlHeightOf(w.th, w.size)
 	w.n.ln.Padding = geom.Insets{Left: 11, Right: 11 + 18}
+	if w.th.Components.Select.InputSizing {
+		// theme-chalk $select-wrapper-padding includes its inset border.
+		pad := inputPaddingInline(&w.th.Components.Input, w.size) + 1
+		w.n.ln.Padding.Left, w.n.ln.Padding.Right = pad, pad+18
+	}
 	w.prefixNode()
 	// Text node for selected label / placeholder / search editor.
 	ed := &node{id: w.edID, parent: w.n}
 	ed.ln.Ref = ed
 	ed.ln.Grow = 1
 	ed.ln.Measure = func(_, _ float32) geom.Size {
-		return geom.Size{W: max(80, text.Width(w.label(), c.style(controlFontOf(w.th, w.size), text.Regular))), H: 22}
+		return geom.Size{W: max(80, text.Width(w.label(), c.style(selectFontSize(w.th, w.size), text.Regular))), H: 22}
 	}
 	w.n.kids = append(w.n.kids, ed)
 	ed.paint = w.paintValue
@@ -480,7 +485,7 @@ func (w *SelectW) options(opts []Option, moved bool, optH float32) {
 					entPaintOption(c, l, r, o.Label, entOptState{selected: sel, active: w.st.active == i, disabled: o.Disabled})
 					return
 				}
-				col := th.Text
+				col := tk.ContentColor
 				wt := text.Regular
 				if el {
 					col = th.TextSecondary
@@ -517,7 +522,7 @@ func (w *SelectW) options(opts []Option, moved bool, optH float32) {
 
 func (w *SelectW) paint(l *paint.List, r geom.Rect) {
 	c, th := w.c, w.th
-	rad := geom.Rad(controlRadiusOf(th, w.size))
+	rad := geom.Rad(selectRadius(th, w.size))
 	dis := w.disabled || w.n.disabled
 	focus := w.st.open || c.focus == w.n.id || c.focus == w.edID
 	c.paintFrameWith(l, r, w.variant.frameRadii(rad), w.n.id, frameState{hover: w.ia.Hovered, focus: focus, disabled: dis, status: w.status, variant: string(w.variant)}, selectFrameTok(th))
@@ -549,9 +554,9 @@ func (w *SelectW) paint(l *paint.List, r geom.Rect) {
 
 func (w *SelectW) paintValue(l *paint.List, r geom.Rect) {
 	c, th := w.c, w.th
-	st := c.style(controlFontOf(th, w.size), text.Regular)
+	st := c.style(selectFontSize(th, w.size), text.Regular)
 	dis := w.disabled || w.n.disabled
-	col := th.Text
+	col := th.Components.Select.ContentColor
 	if dis {
 		col = th.TextDisabled
 	}

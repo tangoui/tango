@@ -128,11 +128,21 @@ func (b *selector) semantics(s *a11y.Node) {
 }
 
 func (b *selector) font() text.Style {
-	size := controlFontOf(b.th, b.size)
-	if b.th.Components.Select.InputSizing {
-		size = inputFontSize(&b.th.Components.Input, b.size)
+	return b.c.style(selectFontSize(b.th, b.size), text.Regular)
+}
+
+func selectFontSize(th *theme.Theme, size ControlSize) float32 {
+	if th.Components.Select.InputSizing {
+		return inputFontSize(&th.Components.Input, size)
 	}
-	return b.c.style(size, text.Regular)
+	return controlFontOf(th, size)
+}
+
+func selectRadius(th *theme.Theme, size ControlSize) float32 {
+	if radius := th.Components.Select.ControlRadius; radius > 0 {
+		return radius
+	}
+	return controlRadiusOf(th, size)
 }
 
 // selectFrameTok reads the frame tokens of the Select component of th
@@ -358,11 +368,7 @@ func (b *selector) hovered(r geom.Rect) bool {
 
 func (b *selector) paint(l *paint.List, r geom.Rect) {
 	c, th := b.c, b.th
-	radius := th.Components.Select.ControlRadius
-	if radius <= 0 {
-		radius = controlRadiusOf(th, b.size)
-	}
-	rad := geom.Rad(radius)
+	rad := geom.Rad(selectRadius(th, b.size))
 	hover := b.hovered(r)
 	focus := b.open || b.focused()
 	c.paintFrameWith(l, r, b.variant.frameRadii(rad), b.n.id, frameState{hover: hover, focus: focus && !b.disabled, disabled: b.disabled, status: b.status, variant: string(b.variant)}, selectFrameTok(th))

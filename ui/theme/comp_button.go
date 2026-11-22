@@ -97,6 +97,7 @@ func deriveButton(t *Theme) ButtonToken {
 			// common/var.scss $button-font-size and $button-border-radius.
 			k.ContentFontSizeSM, k.ContentFontSizeLG = 12, t.FontSize
 			k.RadiusSM, k.RadiusLG = max(0, t.Radius-1), t.Radius
+			k.PaddingInlineSM, k.PaddingInlineLG = 11, 19 // excludes the 1px border
 		}
 	case StyleShadcn:
 		// outline: input background, accent on hover; ghost uses accent.

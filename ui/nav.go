@@ -581,6 +581,9 @@ func (t *TabsW) tabMetrics() (fs float32, st text.Style, padV float32) {
 		fs, padV = tk.TitleFontSizeSM, tk.HorizontalItemPaddingSM
 	}
 	st = c.style(fs, text.Regular)
+	if tk.TitleFontWeight > 0 {
+		st.Weight = themeWeight(tk.TitleFontWeight)
+	}
 	if th.Flavor == theme.StyleShadcn {
 		st = c.style(fs, text.Medium)
 	}
@@ -836,16 +839,21 @@ func (t *TabsW) bar() {
 	}
 	if !shad && !t.borderCard {
 		// Baseline (the split line across the bar) and the ink bar.
-		outer.PaintOver(func(l *paint.List, r geom.Rect) {
+		paintBaseline := outer.PaintOver
+		if tk.LineTrimOuter && !t.card {
+			paintBaseline = outer.Paint
+		}
+		paintBaseline(func(l *paint.List, r geom.Rect) {
+			width := max(1, tk.LineBorderWidth)
 			switch place {
 			case Bottom:
-				l.Fill(geom.Rect{X: r.X, Y: r.Y, W: r.W, H: 1}, geom.Radii{}, th.Split)
+				l.Fill(geom.Rect{X: r.X, Y: r.Y, W: r.W, H: width}, geom.Radii{}, th.Split)
 			case Left:
-				l.Fill(geom.Rect{X: r.Right() - 1, Y: r.Y, W: 1, H: r.H}, geom.Radii{}, th.Split)
+				l.Fill(geom.Rect{X: r.Right() - width, Y: r.Y, W: width, H: r.H}, geom.Radii{}, th.Split)
 			case Right:
-				l.Fill(geom.Rect{X: r.X, Y: r.Y, W: 1, H: r.H}, geom.Radii{}, th.Split)
+				l.Fill(geom.Rect{X: r.X, Y: r.Y, W: width, H: r.H}, geom.Radii{}, th.Split)
 			default:
-				l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, th.Split)
+				l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - width, W: r.W, H: width}, geom.Radii{}, th.Split)
 			}
 		})
 	}
@@ -877,7 +885,7 @@ func (t *TabsW) bar() {
 			}
 			ax := c.Anim(id, "inkx", off, th.DurationSlow)
 			aw := c.Anim(id, "inkw", an.abs.W, th.DurationSlow)
-			if el {
+			if el && !tk.LineTrimOuter {
 				ax += 20
 				aw -= 40
 			}
@@ -1219,6 +1227,8 @@ func (t *TabsW) tab(i int, it TabItem) *node {
 			return geom.Size{W: w + 48, H: st.LineHeight + 16}
 		case t.card:
 			return geom.Size{W: w + 2*t.cardPadH(), H: t.cardH()}
+		case el && tk.LineTrimOuter:
+			return geom.Size{W: w, H: 40}
 		case el:
 			return geom.Size{W: w + 40, H: 40}
 		}
@@ -1247,7 +1257,7 @@ func (t *TabsW) tab(i int, it TabItem) *node {
 		n.ln.Margin.Top = 2
 	case vert && !el && i > 0:
 		n.ln.Margin.Top = 16
-	case !vert && !t.card && !el && i > 0:
+	case !vert && !t.card && (!el || tk.LineTrimOuter) && i > 0:
 		n.ln.Margin.Left = tk.HorizontalItemGutter
 	case !vert && t.card && i > 0:
 		n.ln.Margin.Left = 2
