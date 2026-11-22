@@ -1070,6 +1070,7 @@ pkg github.com/tangoui/tango/ui, method (*CheckboxW) Indeterminate(bool) *Checkb
 pkg github.com/tangoui/tango/ui, method (*CheckboxW) Size(ControlSize) *CheckboxW
 pkg github.com/tangoui/tango/ui, method (*CheckboxW) Status(string) *CheckboxW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) A11yLabel(string) *CodeBlockW
+pkg github.com/tangoui/tango/ui, method (*CodeBlockW) ActiveMatch(int) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Copied() bool
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Height(float32) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) HighlightLines(...int) *CodeBlockW
@@ -1080,6 +1081,9 @@ pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Layout(...ui/layout.Option
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) LineNumbers(bool) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) MaxHeight(float32) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) NoCopy() *CodeBlockW
+pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Reveal(int) *CodeBlockW
+pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Search(string, bool) *CodeBlockW
+pkg github.com/tangoui/tango/ui, method (*CodeBlockW) SearchMatches() []CodeBlockMatch
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Selection() string
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) StartLine(int) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Title(string) *CodeBlockW
@@ -4324,6 +4328,9 @@ pkg github.com/tangoui/tango/ui, type CheckedStrategy int
 pkg github.com/tangoui/tango/ui, type CodeBlockLocale struct
 pkg github.com/tangoui/tango/ui, type CodeBlockLocale struct, Code string
 pkg github.com/tangoui/tango/ui, type CodeBlockLocale struct, noncomparable
+pkg github.com/tangoui/tango/ui, type CodeBlockMatch struct
+pkg github.com/tangoui/tango/ui, type CodeBlockMatch struct, End int
+pkg github.com/tangoui/tango/ui, type CodeBlockMatch struct, Start int
 pkg github.com/tangoui/tango/ui, type CodeBlockW struct
 pkg github.com/tangoui/tango/ui, type CodeBlockW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type CodeDocument interface { Line }

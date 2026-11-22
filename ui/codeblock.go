@@ -24,39 +24,48 @@ import (
 type CodeBlockW struct {
 	_ [0]func()
 
-	c       *Context
-	b       *Box
-	code    string
-	lang    string
-	title   string
-	numbers bool
-	start   int
-	copy    bool
-	wrap    bool
-	hl      CodeHighlighter
-	hlSet   bool
-	height  float32
-	maxH    float32
-	marked  map[int]bool
-	label   string
-	copied  bool
-	v       *txView
-	z       *lazy
+	c         *Context
+	b         *Box
+	code      string
+	lang      string
+	title     string
+	numbers   bool
+	start     int
+	copy      bool
+	wrap      bool
+	hl        CodeHighlighter
+	hlSet     bool
+	height    float32
+	maxH      float32
+	marked    map[int]bool
+	label     string
+	copied    bool
+	v         *txView
+	z         *lazy
+	st        *codeBlockState
+	query     string
+	match     int
+	sensitive bool
+	offset    int
+	reveal    bool
 }
 
 type codeBlockState struct {
-	src     string // the caller's code
-	code    string // src with "\n" line breaks
-	starts  []int  // byte offset of each line
-	cells   []int32
-	ver     uint64
-	doc     CodeDocument
-	docLang string
-	docVer  uint64
-	docHL   CodeHighlighter
-	spans   map[int][]CodeSpan // final spans of recently drawn lines
-	spansTh *theme.Theme
-	copied  time.Time
+	src       string // the caller's code
+	code      string // src with "\n" line breaks
+	starts    []int  // byte offset of each line
+	cells     []int32
+	ver       uint64
+	doc       CodeDocument
+	docLang   string
+	docVer    uint64
+	docHL     CodeHighlighter
+	spans     map[int][]CodeSpan // final spans of recently drawn lines
+	spansTh   *theme.Theme
+	copied    time.Time
+	wrapCols  int
+	wrapIndex map[int][]txvBoundary
+	search    codeBlockSearch
 }
 
 // CodeBlock adds a read-only code block for code (lines separated by "\n";
@@ -64,7 +73,7 @@ type codeBlockState struct {
 //
 //	ui.CodeBlock(c, src).Lang("go").LineNumbers(true).MaxHeight(400)
 func CodeBlock(c *Context, code string, opts ...layout.Option) *CodeBlockW {
-	w := &CodeBlockW{c: c, code: code, start: 1, copy: true}
+	w := &CodeBlockW{c: c, code: code, start: 1, copy: true, match: -1}
 	w.b = c.box("codeblock", layout.Column, opts)
 	w.z = c.lazy(w.b.n, w.build)
 	return w
@@ -160,6 +169,23 @@ func (st *codeBlockState) sync(code string) {
 	}
 	st.cells = append(st.cells, int32(txvCells(code[prev:])))
 	st.spans = nil
+	st.wrapIndex = nil
+}
+
+func (st *codeBlockState) wrapBoundaries(line, cols int) []txvBoundary {
+	if st.wrapCols != cols || st.wrapIndex == nil {
+		st.wrapCols = cols
+		st.wrapIndex = make(map[int][]txvBoundary)
+	}
+	a, ok := st.wrapIndex[line]
+	if !ok {
+		a = txvBoundaries(st.line(line), cols)
+		if len(st.wrapIndex) >= 4096 {
+			clear(st.wrapIndex)
+		}
+		st.wrapIndex[line] = a
+	}
+	return a
 }
 
 func (st *codeBlockState) line(i int) string {
@@ -176,6 +202,7 @@ func (w *CodeBlockW) build() {
 	tk := &th.Components.CodeBlock
 	loc := c.Locale()
 	st := State[codeBlockState](c, w.b.n.id, nil)
+	w.st = st
 	st.sync(w.code)
 	// The highlighter document (rebuilt for new code, language or highlighter).
 	h := w.hl
@@ -227,9 +254,11 @@ func (w *CodeBlockW) build() {
 	lines := len(st.starts)
 	v.count = lines
 	v.line = st.line
+	v.index = st.wrapBoundaries
 	v.cells = func(i int) int { return int(st.cells[i]) }
 	v.ver = st.ver
 	v.wrap = w.wrap
+	w.configureSearch(v)
 	v.size, v.lineH = tk.CodeFontSize, tk.LineHeight
 	v.padX, v.padY = tk.PaddingInline, tk.PaddingBlock
 	v.fg, v.gutter, v.gutterB, v.selBg = tk.Text, tk.GutterColor, tk.GutterBorder, tk.SelectionBg

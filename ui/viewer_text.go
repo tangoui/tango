@@ -75,6 +75,7 @@ type txvState struct {
 	maxCells  int
 	cellLines int
 	cellVer   uint64
+	fullCells bool
 
 	cache    *text.LineCache
 	charW    float32 // advance of one cell
@@ -97,28 +98,31 @@ type txView struct {
 	content *node
 	ia      Interaction
 
-	count   int                                  // lines
-	line    func(i int) string                   // text of line i (no "\n")
-	runs    func(i int, dst []txvRun) []txvRun   // style runs of line i (nil: plain)
-	cells   func(i int) int                      // display cells of line i
-	marks   func(i int, dst []txvMark) []txvMark // search matches of line i (nil: none)
-	lineBg  func(i int) theme.Color              // tint of line i (nil: none)
-	numbers func(i int) int                      // gutter number of line i (nil: no gutter)
-	maxNo   int                                  // widest gutter number
-	ver     uint64                               // bumps when lines change other than by appending
-	wrap    bool
-	size    float32
-	lineH   float32
-	padX    float32
-	padY    float32
-	fg      theme.Color
-	gutter  theme.Color
-	gutterB theme.Color // gutter rule (zero: none)
-	selBg   theme.Color
-	match   theme.Color
-	matchC  theme.Color
-	matchB  theme.Color // outline of the current match
-	name    string      // accessible name
+	count    int                                  // lines
+	line     func(i int) string                   // text of line i (no "\n")
+	index    func(int, int) []txvBoundary         // optional indexed wrap boundaries by line and width
+	runs     func(i int, dst []txvRun) []txvRun   // style runs of line i (nil: plain)
+	cells    func(i int) int                      // display cells of line i
+	marks    func(i int, dst []txvMark) []txvMark // search matches of line i (nil: none)
+	lineBg   func(i int) theme.Color              // tint of line i (nil: none)
+	numbers  func(i int) int                      // gutter number of line i (nil: no gutter)
+	maxNo    int                                  // widest gutter number
+	ver      uint64                               // bumps when lines change other than by appending
+	wrap     bool
+	size     float32
+	lineH    float32
+	padX     float32
+	padY     float32
+	fg       theme.Color
+	gutter   theme.Color
+	gutterB  theme.Color // gutter rule (zero: none)
+	selBg    theme.Color
+	match    theme.Color
+	matchC   theme.Color
+	matchB   theme.Color // outline of the current match
+	name     string      // accessible name
+	reveal   func()
+	fullLine bool // opt-in unwrapped navigation through lines beyond the usual preview cap
 
 	first, end int // visual rows painted this frame
 	selChanged bool
@@ -225,11 +229,16 @@ func (v *txView) syncWrap() {
 // syncCells keeps the widest line up to date.
 func (v *txView) syncCells() {
 	st := v.st
-	if st.cellVer != v.ver || st.cellLines > v.count {
+	if st.cellVer != v.ver || st.cellLines > v.count || st.fullCells != v.fullLine {
 		st.cellVer, st.cellLines, st.maxCells = v.ver, 0, 0
+		st.fullCells = v.fullLine
 	}
 	for i := st.cellLines; i < v.count; i++ {
-		st.maxCells = max(st.maxCells, min(v.cells(i), txvMaxRunes+2))
+		cells := v.cells(i)
+		if !v.fullLine {
+			cells = min(cells, txvMaxRunes+2)
+		}
+		st.maxCells = max(st.maxCells, cells)
 	}
 	st.cellLines = v.count
 }
@@ -293,7 +302,7 @@ func (v *txView) lineRow(i int) int {
 // seg of s (the whole line, capped at txvMaxRunes, without wrapping).
 func (v *txView) segment(s string, seg int) (b0, b1, r0 int) {
 	if !v.wrap {
-		if len(s) <= txvMaxRunes {
+		if v.fullLine || len(s) <= txvMaxRunes {
 			return 0, len(s), 0
 		}
 		n := 0
@@ -332,6 +341,37 @@ func (v *txView) segment(s string, seg int) (b0, b1, r0 int) {
 	return b0, b1, r0
 }
 
+type txvBoundary struct{ byteOffset, runeOffset int }
+
+func txvBoundaries(s string, cols int) []txvBoundary {
+	starts := []txvBoundary{{}}
+	i, cell := 0, 0
+	next := cols
+	for at, r := range s {
+		for cell >= next {
+			starts = append(starts, txvBoundary{at, i})
+			next += cols
+		}
+		if r == '\t' {
+			cell += txvTab - cell%txvTab
+		} else {
+			cell += txvRuneCells(r)
+		}
+		i++
+	}
+	starts = append(starts, txvBoundary{len(s), i})
+	return starts
+}
+
+func (v *txView) segmentAt(line, seg int, s string) (b0, b1, r0 int) {
+	if v.wrap && v.index != nil && v.cells(line) > v.st.wrapCols {
+		a := v.index(line, v.st.wrapCols)
+		i := min(seg, len(a)-1)
+		return a[i].byteOffset, a[min(i+1, len(a)-1)].byteOffset, a[i].runeOffset
+	}
+	return v.segment(s, seg)
+}
+
 // show builds the viewport into the current parent.
 func (v *txView) show(kind string, opts []layout.Option) {
 	c, st := v.c, v.st
@@ -361,6 +401,9 @@ func (v *txView) show(kind string, opts []layout.Option) {
 		contentW = gw + 2*v.padX + float32(st.maxCells)*cw + 2
 	}
 	s.extent = vec64{X: float64(contentW), Y: total}
+	if v.reveal != nil {
+		v.reveal()
+	}
 	if st.shift > 0 {
 		// Keep the visible lines in place when lines above them went away.
 		s.off.Y = max(0, s.off.Y-float64(st.shift)*float64(v.lineH))
@@ -429,7 +472,7 @@ func (v *txView) posAt(p geom.Point) txvPos {
 	}
 	line, seg := v.rowLine(r)
 	s := v.line(line)
-	b0, b1, r0 := v.segment(s, seg)
+	b0, b1, r0 := v.segmentAt(line, seg, s)
 	x := p.X - st.textX
 	if x <= 0 {
 		return txvPos{line, r0}
@@ -646,8 +689,15 @@ func (v *txView) revealLine(i int) {
 	if v.sb == nil || v.count == 0 {
 		return
 	}
+	v.revealRow(v.lineRow(i))
+}
+
+func (v *txView) revealRow(row int) {
+	if v.sb == nil || v.count == 0 {
+		return
+	}
 	s := v.sb.s
-	top := float64(v.lineRow(i))*float64(v.lineH) + float64(v.padY)
+	top := float64(row)*float64(v.lineH) + float64(v.padY)
 	view := fillViewH(v.sb, 200)
 	if top < s.off.Y || top+float64(v.lineH) > s.off.Y+view {
 		s.off.Y = max(0, top-view/2)
@@ -689,6 +739,9 @@ func (v *txView) paint(l *paint.List, r, visible geom.Rect) {
 	s := v.sb.s
 	vx := r.X + float32(s.painted.X)
 	vy := r.Y + float32(s.painted.Y-s.base.Y)
+	if v.reveal != nil && st.view.W != s.view.W {
+		v.c.WakeAt(v.c.now.Add(time.Millisecond))
+	}
 	st.view = geom.Rect{X: vx, Y: vy, W: s.view.W, H: s.view.H}
 	st.originY = r.Y - float32(s.base.Y)
 	st.gutterW = v.gutterWidth()
@@ -710,7 +763,7 @@ func (v *txView) paint(l *paint.List, r, visible geom.Rect) {
 		line, seg := v.rowLine(row)
 		y := st.originY + v.padY + float32(row)*v.lineH
 		str := v.line(line)
-		b0, b1, r0 := v.segment(str, seg)
+		b0, b1, r0 := v.segmentAt(line, seg, str)
 		segStr := str[b0:b1]
 		if v.lineBg != nil {
 			if bg := v.lineBg(line); bg.A > 0 {
