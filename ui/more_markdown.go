@@ -886,6 +886,13 @@ type MarkdownW struct {
 	copyable     bool
 	noSelect     bool
 	virtual      bool
+	readOnly     bool
+	headingRules uint8
+	rulesSet     bool
+	headingSizes [6]float32
+	codeSize     float32
+	quoteBorder  *theme.Color
+	codeBorder   *theme.Color
 	hl           CodeHighlighter
 	hlSet        bool
 	col          theme.Color // body text color (zero: theme Text)
@@ -931,7 +938,54 @@ func (m *MarkdownW) ResolveImage(load func(MarkdownImage) image.Image) *Markdown
 func (m *MarkdownW) NoSelect() *MarkdownW { m.noSelect = true; return m }
 
 // NoCopy hides the copy button of code blocks.
-func (m *MarkdownW) NoCopy() *MarkdownW { m.copyable = false; return m }
+func (m *MarkdownW) NoCopy() *MarkdownW { return m.CopyCode(false) }
+
+// CopyCode controls whether fenced code blocks show a copy button (default true).
+func (m *MarkdownW) CopyCode(on bool) *MarkdownW { m.copyable = on; return m }
+
+// ReadOnlyTasks disables task toggling while retaining the checkboxes and
+// their checked state in the accessibility tree.
+func (m *MarkdownW) ReadOnlyTasks(on bool) *MarkdownW { m.readOnly = on; return m }
+
+// HeadingRules draws a bottom rule under the specified heading levels (1–6).
+// With no levels, it removes the theme's heading rules.
+func (m *MarkdownW) HeadingRules(levels ...int) *MarkdownW {
+	m.rulesSet, m.headingRules = true, 0
+	for _, level := range levels {
+		if level >= 1 && level <= 6 {
+			m.headingRules |= 1 << (level - 1)
+		}
+	}
+	return m
+}
+
+// HeadingSize sets a heading level's font size in logical pixels. Use 0
+// for the theme default.
+func (m *MarkdownW) HeadingSize(level int, px float32) *MarkdownW {
+	if level >= 1 && level <= 6 {
+		m.headingSizes[level-1] = px
+	}
+	return m
+}
+
+// CodeSize sets the code block font size in logical pixels. Use 0 for
+// the default (body size minus one).
+func (m *MarkdownW) CodeSize(px float32) *MarkdownW { m.codeSize = px; return m }
+
+// ContentWidth caps the width of the document box, including its layout
+// padding, in logical pixels. Use a positive maximum.
+func (m *MarkdownW) ContentWidth(px float32) *MarkdownW {
+	m.b.n.ln.MaxW = max(0, px)
+	return m
+}
+
+// QuoteBorder overrides the quote's leading border color. A transparent
+// color hides the border while preserving the quote's inset.
+func (m *MarkdownW) QuoteBorder(color theme.Color) *MarkdownW { m.quoteBorder = &color; return m }
+
+// CodeBorder overrides the code block's border color. A transparent
+// color hides the border.
+func (m *MarkdownW) CodeBorder(color theme.Color) *MarkdownW { m.codeBorder = &color; return m }
 
 // Virtual makes Markdown a scroll viewport and builds only visible top-level
 // blocks, with overscan. Give it a bounded height through the layout options
@@ -1060,17 +1114,17 @@ func (m *MarkdownW) block(b *mdBlock, base Span, k int, last bool) {
 				w.n.fill(semFunc(func(s *a11y.Node) { s.Level = lv }))
 			}
 			w.Layout(layout.Margin(geom.Insets{Top: mt, Bottom: min(mb, size*0.5)}))
-			switch {
-			case m.el && b.level <= 2:
-				w.n.ln.Padding.Bottom = 6
+			rule, pad, color := m.el && b.level <= 2, float32(6), th.BorderSecondary
+			if m.shad {
+				rule, pad, color = b.level == 2, 8, th.Border
+			}
+			if m.rulesSet {
+				rule = m.headingRules&(1<<(b.level-1)) != 0
+			}
+			if rule {
+				w.n.ln.Padding.Bottom = pad
 				w.n.over = func(l *paint.List, r geom.Rect) {
-					l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, th.BorderSecondary)
-				}
-			case m.shad && b.level == 2:
-				// shadcn typography h2: border-b pb-2.
-				w.n.ln.Padding.Bottom = 8
-				w.n.over = func(l *paint.List, r geom.Rect) {
-					l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, th.Border)
+					l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, color)
 				}
 			}
 		case mdPara:
@@ -1088,6 +1142,9 @@ func (m *MarkdownW) block(b *mdBlock, base Span, k int, last bool) {
 				// shadcn typography blockquote: border-l-2 pl-6 italic,
 				// in the body color.
 				col, bar, barW, padL = base.Color, th.Border, 2, 24
+			}
+			if m.quoteBorder != nil {
+				bar = *m.quoteBorder
 			}
 			q := Column(c, func() {
 				inner := base
@@ -1117,12 +1174,22 @@ func (m *MarkdownW) block(b *mdBlock, base Span, k int, last bool) {
 
 func (m *MarkdownW) headingSize(level int) float32 {
 	th := m.c.Theme
+	if level >= 1 && level <= 6 && m.headingSizes[level-1] > 0 {
+		return m.headingSizes[level-1]
+	}
 	if level >= 1 && level <= 5 {
 		// Documents read better a step below Typography's display sizes.
 		sizes := [5]float32{th.Heading[1], th.Heading[2], th.Heading[3], th.Heading[4], th.FontSizeLG}
 		return sizes[level-1]
 	}
 	return m.fontSize()
+}
+
+func (m *MarkdownW) codeFontSize() float32 {
+	if m.codeSize > 0 {
+		return m.codeSize
+	}
+	return m.fontSize() - 1
 }
 
 func (m *MarkdownW) code(b *mdBlock, mb float32) {
@@ -1139,7 +1206,7 @@ func (m *MarkdownW) code(b *mdBlock, mb float32) {
 				}
 			}, layout.Middle(), layout.Margin(geom.Insets{Bottom: 4}))
 		}
-		code := RichText(c, m.codeSpans(b)...).Pre().Size(m.fontSize() - 1)
+		code := RichText(c, m.codeSpans(b)...).Pre().Size(m.codeFontSize())
 		code.n.setRole(a11y.RoleParagraph).setName(b.text)
 		if !m.noSelect {
 			code.Selectable()
@@ -1152,6 +1219,9 @@ func (m *MarkdownW) code(b *mdBlock, mb float32) {
 	case m.shad:
 		// bg-muted, no border, rounded-md (the Typography code token).
 		box.Bg(c.ThemeFor(theme.CompTypography).Components.Typography.CodeBg).Border(0, theme.Color{}).Radius(th.Radius)
+	}
+	if m.codeBorder != nil {
+		box.Border(b2f(m.codeBorder.A > 0), *m.codeBorder)
 	}
 }
 
@@ -1193,6 +1263,10 @@ func (m *MarkdownW) list(b *mdBlock, base Span, depth int, mb float32) {
 					case it.task >= 0:
 						on := it.task == 1
 						cb := Checkbox(c, "", &on)
+						if m.readOnly {
+							cb.Disabled(true)
+							cb.n.setState(a11y.ReadOnly | a11y.Disabled)
+						}
 						if len(it.blocks) > 0 {
 							cb.A11yLabel(PlainText(mdInline(it.blocks[0].text, Span{}, "")))
 						}

@@ -21,14 +21,37 @@ type mdWindow struct {
 }
 
 type mdWindowKey struct {
-	theme             *theme.Theme
 	locale            *Locale
-	size              float32
+	flavor            theme.Flavor
+	font              string
+	weight            int
+	fonts             [8]float32 // body, code, headings
+	lineHeights       [9]float32 // font sizes above, plus the code header
+	checkWidth        float32
 	rtl, copy, images bool
+	rules             uint8
+	rulesSet          bool
 }
 
 func (m *MarkdownW) windowKey() mdWindowKey {
-	return mdWindowKey{m.c.Theme, m.c.Locale(), m.fontSize(), m.c.IsRTL(), m.copyable, m.images != nil || m.resolveImage != nil}
+	th := m.c.Theme
+	key := mdWindowKey{
+		locale: m.c.Locale(), flavor: th.Flavor, font: th.FontFamily, weight: th.FontWeightStrong,
+		rtl: m.c.IsRTL(), copy: m.copyable, images: m.images != nil || m.resolveImage != nil,
+		rules: m.headingRules, rulesSet: m.rulesSet,
+	}
+	key.fonts[0], key.fonts[1] = m.fontSize(), m.codeFontSize()
+	for i := range 6 {
+		key.fonts[i+2] = m.headingSize(i + 1)
+	}
+	for i, size := range key.fonts {
+		key.lineHeights[i] = th.LineHeightFor(size)
+	}
+	key.lineHeights[8] = th.LineHeightFor(12)
+	check := CheckboxW{c: m.c, size: m.c.defaultSize()}
+	check.configDefaults()
+	key.checkWidth = m.c.boxSizeOf(check.size)
+	return key
 }
 
 func (w *mdWindow) prefix(n int) float64 {

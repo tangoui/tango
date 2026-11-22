@@ -1987,11 +1987,19 @@ pkg github.com/tangoui/tango/ui, method (*MarkdownEditorW) Layout(...ui/layout.O
 pkg github.com/tangoui/tango/ui, method (*MarkdownEditorW) Mode(string) *MarkdownEditorW
 pkg github.com/tangoui/tango/ui, method (*MarkdownEditorW) Placeholder(string) *MarkdownEditorW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) ClickedLink() string
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) CodeBorder(ui/theme.Color) *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) CodeSize(float32) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Color(ui/theme.Color) *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) ContentWidth(float32) *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) CopyCode(bool) *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) HeadingRules(...int) *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) HeadingSize(int, float32) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Highlighter(CodeHighlighter) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Images(func(string) image.Image) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) NoCopy() *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) NoSelect() *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) QuoteBorder(ui/theme.Color) *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) ReadOnlyTasks(bool) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) ResolveImage(func(MarkdownImage) image.Image) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Size(float32) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) TaskToggled() (int, bool)
