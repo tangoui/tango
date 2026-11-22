@@ -346,6 +346,66 @@ func TestCTMonoFastMatchesGeneral(t *testing.T) {
 	}
 }
 
+func TestCTNamedMonoFastMatchesGeneral(t *testing.T) {
+	needCT(t)
+	c := NewLineCache(8)
+	opt := LineOptions{TabSize: 2}
+	for _, tc := range []struct {
+		name, family, line, lang string
+		fast                     bool
+	}{
+		{"menlo", "Menlo", "func main() { return 42 }", "en", true},
+		{"sf-mono", "SF Mono", "func main() { return 42 }", "en", true},
+		{"resolved-stack", `Unavailable Tango Test Family, "menlo", Helvetica`, "x := 1 // named", "en", true},
+		{"tabs", "SF Mono", "\tx := 1\t// tab", "en", true},
+		{"menlo-tabs", "Menlo", "\tx := 1\t// tab", "en", false},
+		{"menlo-morx", "Menlo", "find floor", "en", false},
+		{"menlo-cjk", "Menlo", "x := \"中文\"", "zh-Hans", false},
+		{"cjk-fallback", "SF Mono", "x := \"中文\"", "ko", true},
+		{"preferred-cjk", "SF Mono, PingFang SC", "x := \"中文\"", "ko", true},
+		{"emoji-sequence", "SF Mono", "x := \"中文👩‍💻\"", "zh-Hans", false},
+		{"japanese-context", "SF Mono", "return有。", "ja", false},
+		{"proportional", "Helvetica, Menlo", "AV To", "en", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := Style{Size: 13, LineHeight: 19.5, Mono: true, FontFamily: tc.family, Lang: tc.lang}
+			runs := []Run{{0, utf8.RuneCountInString(tc.line), st}}
+			fast, slow := c.stats.fast, c.stats.slow
+			got := c.Shape(tc.line, runs, opt)
+			sameLayout(t, tc.line, got, monoGeneral(tc.line, runs, opt))
+			if (c.stats.fast == fast+1) != tc.fast || (c.stats.slow == slow+1) != !tc.fast {
+				t.Errorf("fast/slow = %d/%d, want fast %v", c.stats.fast-fast, c.stats.slow-slow, tc.fast)
+			}
+		})
+	}
+}
+
+func TestCTNamedMonoFastAcrossStyleRuns(t *testing.T) {
+	needCT(t)
+	menlo := Style{Size: 13, Mono: true, FontFamily: "Menlo"}
+	sf := Style{Size: 13, Mono: true, FontFamily: "SF Mono"}
+	boldMenlo := menlo
+	boldMenlo.Weight, boldMenlo.Italic = Bold, true
+	c := NewLineCache(8)
+	for _, tc := range []struct {
+		line string
+		runs []Run
+		fast bool
+	}{
+		{"func main", []Run{{0, 4, boldMenlo}, {4, 9, sf}}, true},
+		{"find", []Run{{0, 1, menlo}, {1, 4, menlo}}, false}, // one shaped item
+		{"find", []Run{{0, 1, menlo}, {1, 4, sf}}, true},     // two shaped items
+	} {
+		fast := c.stats.fast
+		opt := LineOptions{TabSize: 2}
+		got := c.Shape(tc.line, tc.runs, opt)
+		sameLayout(t, tc.line, got, monoGeneral(tc.line, tc.runs, opt))
+		if (c.stats.fast == fast+1) != tc.fast {
+			t.Errorf("%q with runs %+v: want fast %v", tc.line, tc.runs, tc.fast)
+		}
+	}
+}
+
 // Every printable ASCII character, in languages whose locl forms the
 // monospace font could carry, lays out as in the general path.
 func TestCTMonoFastMatchesGeneralASCIIAndLanguages(t *testing.T) {

@@ -288,18 +288,43 @@ func TestCTMonoASCIIFallsBackOnContextualGSUB(t *testing.T) {
 	// The ascending ASCII probe contains no xax; contextual ccmp does
 	// apply to this line despite the probe reporting cmap equality.
 	line := "xax"
-	runs := []Run{{0, len(line), Style{Size: 13, Mono: true, Lang: "en"}}}
-	opt := LineOptions{}
-	general := monoGeneral(line, runs, opt)
-	if len(general.Glyphs) != 3 || general.Glyphs[1].ID != uint32(A) {
-		t.Fatalf("CoreText did not apply the fixture's contextual substitution: %+v", general.Glyphs)
+	for _, name := range []string{"", "ASCIIContextFixture"} {
+		runs := []Run{{0, len(line), Style{Size: 13, Mono: true, FontFamily: name, Lang: "en"}}}
+		opt := LineOptions{}
+		general := monoGeneral(line, runs, opt)
+		if len(general.Glyphs) != 3 || general.Glyphs[1].ID != uint32(A) {
+			t.Fatalf("CoreText did not apply the fixture's contextual substitution: %+v", general.Glyphs)
+		}
+		c := NewLineCache(8)
+		got := c.Shape(line, runs, opt)
+		if c.stats.fast != 0 {
+			t.Errorf("family %q: ASCII cmap route bypassed contextual GSUB", name)
+		}
+		sameLayout(t, line, got, general)
+	}
+}
+
+func TestCTNamedMonoFallsBackOnKerning(t *testing.T) {
+	gid := fixtureMono(t)
+	// OpenType kern format 0, horizontal: kern AV by -256 font units.
+	kern := fixtureU16(0, 1, 0, 20, 1, 1, 6, 0, 0, gid('A'), gid('V'), 0xff00)
+	const name = "NamedMonoKernFixture"
+	if err := RegisterFont(name, fixtureMonoWithTable("kern", kern)); err != nil {
+		t.Fatal(err)
+	}
+	st := Style{Size: 13, Mono: true, FontFamily: name}
+	runs := []Run{{0, 2, st}}
+	opt := LineOptions{TabSize: 2}
+	want := monoGeneral("AV", runs, opt)
+	if !(want.Width < Width("A", st)+Width("V", st)) {
+		t.Fatal("fixture did not kern AV")
 	}
 	c := NewLineCache(8)
-	got := c.Shape(line, runs, opt)
-	if c.stats.fast != 0 {
-		t.Errorf("ASCII cmap route bypassed contextual GSUB (glyph %d instead of %d)", got.Glyphs[1].ID, A)
+	got := c.Shape("AV", runs, opt)
+	if c.stats.slow != 1 {
+		t.Fatal("kerned line took the fast path")
 	}
-	sameLayout(t, line, got, general)
+	sameLayout(t, "AV", got, want)
 }
 
 func TestCTNumericFallsBackOnContextualGSUB(t *testing.T) {
@@ -442,13 +467,17 @@ func fixtureU16(vals ...uint16) []byte {
 // Append GSUB to the bundled Go Mono font: reuse its glyphs and cmap,
 // omitting layout tables that would otherwise disable the ASCII route.
 func fixtureFont(gsub []byte) []byte {
+	return fixtureMonoWithTable("GSUB", gsub)
+}
+
+func fixtureMonoWithTable(tag string, data []byte) []byte {
 	src := gomono.TTF
 	dir := src[12 : 12+16*int(binary.BigEndian.Uint16(src[4:]))]
 	type entry struct {
 		tag string
 		b   []byte
 	}
-	tables := []entry{{"GSUB", gsub}}
+	tables := []entry{{tag, data}}
 	for i := 0; i < len(dir); i += 16 {
 		tag := string(dir[i : i+4])
 		switch tag {

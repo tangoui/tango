@@ -520,10 +520,7 @@ func segmentItem(runes []rune, a, b int, fm *fontmap, lang string) []ctSegment {
 	var segs []ctSegment
 	var u int64
 	for i := a; i < b; i++ {
-		f, fam := fm.resolve(runes[i])
-		if fam != nil && !fam.user && fam.class == classCJK && !slices.Contains(fm.chain[:fm.preferred], fam) {
-			f = langFace(fm, f, runes[i], lang)
-		}
+		f := fm.resolveCTFace(runes[i], lang)
 		n := int64(utf16Len(runes[i]))
 		switch k := len(segs) - 1; {
 		case f == nil && k >= 0, k >= 0 && segs[k].face == f:
@@ -543,6 +540,16 @@ func segmentItem(runes []rune, a, b int, fm *fontmap, lang string) []ctSegment {
 		}
 	}
 	return segs
+}
+
+// resolveCTFace picks the face mapping r, including the language-specific
+// variant of a system CJK fallback. Preferred families keep their face.
+func (fm *fontmap) resolveCTFace(r rune, lang string) *Face {
+	f, fam := fm.resolve(r)
+	if fam != nil && !fam.user && fam.class == classCJK && !slices.Contains(fm.chain[:fm.preferred], fam) {
+		return langFace(fm, f, r, lang)
+	}
+	return f
 }
 
 // The CJK family of the system chain (PingFang on macOS) is a Chinese

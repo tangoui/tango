@@ -10,7 +10,8 @@ import (
 )
 
 // The monospace fast path of LineCache (see LineCache) on CoreText. A line
-// qualifies when every run is Mono, ligatures are off, every rune is a
+// qualifies when every run is Mono, any named stack resolves to a
+// monospace primary face, ligatures are off, every rune is a
 // grapheme cluster of its own (simpleText) with no right-to-left or bidi
 // control character (maybeRTL), no rune is a default ignorable or control
 // character (CoreText may hide them) and every rune resolves to a face.
@@ -27,13 +28,16 @@ import (
 // language) where a probe found CoreText setting the whole printable ASCII
 // range as the character map's glyphs at their own advances (asciiProbe),
 // and the layout tables prove the glyphs are independent of context.
+// A face with only AAT ligature substitutions can also use the character
+// map for printable ASCII items that its state tables prove unchanged.
 //
 // Exact route: every other rune (CJK and other fallback faces, non-ASCII
 // runes of a GSUB or trak face, faces with GPOS) is set in the face the
 // general path's segmentItem picks (fontmap.resolve, then langFace for the
 // system CJK family). The face's OpenType tables must show that no lookup
 // CoreText applies by default can make the rune depend on its neighbours
-// or on its run's script (otlInfo.allows; AAT faces never qualify), and a
+// or on its run's script (otlInfo.allows; AAT faces use the character map
+// route or fall back), and a
 // probe measures what CoreText sets for the rune by itself: the rune three
 // times over in one item of the run's face, size and language must give
 // one glyph per rune, the same glyph and advance all three times, with no
@@ -75,16 +79,18 @@ type exactGlyph struct {
 }
 
 type fastFontKey struct {
+	family string
 	w      Weight
 	italic bool
 }
 
-// fastFont is the monospace font map of one (weight, slant) with its
-// primary face and whether each rune resolves to it.
+// fastFont is the font map of one (family stack, weight, slant) with its
+// primary face and the faces its runes resolve to.
 type fastFont struct {
 	fm      *fontmap
 	primary *Face               // nil: no fonts (approximate metrics)
 	plain   bool                // primary has plain advances (Face.plainAdvances)
+	morx    *morxASCII          // printable ASCII proof for an AAT ligature font
 	faces   map[langRune1]*Face // faceFor
 }
 
@@ -106,36 +112,37 @@ type monoGlyph struct {
 	done bool
 }
 
-func (fp *fastPath) font(w Weight, italic bool) *fastFont {
-	k := fastFontKey{w, italic}
+func (fp *fastPath) font(r runStyle) *fastFont {
+	k := fastFontKey{r.st.FontFamily, r.st.Weight, r.st.Italic}
 	if ff := fp.fonts[k]; ff != nil {
 		return ff
 	}
-	chain := reg.chain(true)
-	fm := &fontmap{chain: chain, w: w, italic: italic, noLiga: true}
-	if len(chain) > 0 {
+	fm := &fontmap{chain: r.chain, preferred: r.preferred, w: k.w, italic: k.italic, noLiga: true}
+	if len(r.chain) > 0 {
 		fm.eng = reg.engineFallback()
 	}
 	ff := &fastFont{fm: fm, faces: map[langRune1]*Face{}}
 	if p := fm.primary(); p != nil {
 		ff.primary, ff.plain = p, p.plainAdvances()
+		if r.st.FontFamily != "" && p.mono && !ff.plain {
+			ff.morx = readMorxASCII(p)
+		}
+	}
+	if len(fp.fonts) >= 64 {
+		clear(fp.fonts)
 	}
 	fp.fonts[k] = ff
 	return ff
 }
 
 // faceFor is the face the general path sets r in for language lang
-// (segmentItem): fontmap.resolve, then langFace for the system CJK family;
-// nil when no face maps r.
+// (segmentItem), or nil when no face maps r.
 func (ff *fastFont) faceFor(r rune, lang string) *Face {
 	k := langRune1{lang, r}
 	if f, ok := ff.faces[k]; ok {
 		return f
 	}
-	f, fam := ff.fm.resolve(r)
-	if fam != nil && !fam.user && fam.class == classCJK {
-		f = langFace(ff.fm, f, r, lang)
-	}
+	f := ff.fm.resolveCTFace(r, lang)
 	if len(ff.faces) >= 8192 {
 		clear(ff.faces)
 	}
@@ -318,13 +325,16 @@ func (fp *fastPath) asciiProbe(ff *fastFont, st Style, lang string) bool {
 	adv := make([]float32, n+1)
 	gl := shapeItems(runes, []item{{start: 0, end: n, st: st, lang: lang}}, []*fontmap{ff.fm}, adv)
 	ok := len(gl) == n
-	o := fp.otlOf(f, lang)
+	var o *otlInfo
+	if ff.morx == nil {
+		o = fp.otlOf(f, lang)
+	}
 	for i := 0; ok && i < n; i++ {
 		g := gl[i]
 		mg, mapped := fp.glyph(f, st.Size, runes[i])
-		ok = mapped && o.allows(mg.gid, otlScriptOf(runes[i])) &&
+		ok = mapped && (o == nil || o.allows(mg.gid, otlScriptOf(runes[i]))) &&
 			g.face == f && g.cluster == i && g.gid == mg.gid &&
-			near5(g.adv, mg.adv) && near5(g.xoff, 0) && near5(g.yoff, 0)
+			near5(g.adv, mg.adv) && near5(adv[i], mg.adv) && near5(g.xoff, 0) && near5(g.yoff, 0)
 	}
 	t = fp.tables[k] // fp.glyph made it (or cleared the tables)
 	if t == nil {
@@ -362,7 +372,7 @@ func (c *LineCache) fastShape(line string, runs []Run, opt Options) *Layout {
 	}
 	p := prepRuns(line, runs)
 	for _, r := range p.rs {
-		if !r.st.Mono || r.st.FontFamily != "" {
+		if !r.st.Mono {
 			return nil
 		}
 	}
@@ -391,11 +401,17 @@ func (c *LineCache) fastShape(line string, runs []Run, opt Options) *Layout {
 		ascii = ascii && r < 0x80
 	}
 	ffs := make([]*fastFont, len(p.rs))
+	hasMorx := false
 	for k, r := range p.rs {
-		ffs[k] = fp.font(r.st.Weight, r.st.Italic)
-		if ffs[k].primary == nil {
+		ff := fp.font(r)
+		if ff.primary == nil || r.st.FontFamily != "" && !ff.primary.mono {
 			return nil
 		}
+		ffs[k] = ff
+		hasMorx = hasMorx || ff.morx != nil
+	}
+	if hasMorx && (!ascii || tabs || !morxAllows(runes, p.shapeOf, ffs)) {
+		return nil
 	}
 	// A rune takes the character map route when it is set in its run's
 	// primary face with plain advances, except in a face with GSUB or trak
@@ -404,10 +420,10 @@ func (c *LineCache) fastShape(line string, runs []Run, opt Options) *Layout {
 	probed := make([]int8, len(p.rs)) // asciiProbe per shaping run: 0 unknown, 1 ok, -1 not
 	cmapRoute := func(sr int32, f *Face) bool {
 		ff := ffs[sr]
-		if f != ff.primary || !ff.plain {
+		if f != ff.primary || !ff.plain && ff.morx == nil {
 			return false
 		}
-		if !f.needsProbe() {
+		if ff.plain && !f.needsProbe() {
 			return true
 		}
 		if !ascii {
@@ -444,7 +460,7 @@ func (c *LineCache) fastShape(line string, runs []Run, opt Options) *Layout {
 		if r != '\t' {
 			st, lang := p.rs[sr].st, p.rs[sr].lang
 			f := ff.faceFor(r, lang)
-			if f == nil {
+			if f == nil || ff.morx != nil && f != ff.primary {
 				return nil
 			}
 			if cmapRoute(sr, f) {
@@ -535,6 +551,26 @@ func (c *LineCache) fastShape(line string, runs []Run, opt Options) *Layout {
 	l.Lines = []Line{ln}
 	l.Height = lh
 	return l
+}
+
+// morxAllows checks each contiguous item independently, as shapeItems does.
+func morxAllows(runes []rune, shapeOf []int32, ffs []*fastFont) bool {
+	if shapeOf == nil {
+		m := ffs[0].morx
+		return m == nil || m.allows(runes)
+	}
+	for a := 0; a < len(runes); {
+		sr := shapeOf[a]
+		b := a + 1
+		for b < len(runes) && shapeOf[b] == sr {
+			b++
+		}
+		if m := ffs[sr].morx; m != nil && !m.allows(runes[a:b]) {
+			return false
+		}
+		a = b
+	}
+	return true
 }
 
 // usedShaping reports whether some rune is shaped with run k.

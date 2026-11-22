@@ -35,6 +35,7 @@ type faceImpl struct {
 	asc    float32 // font units, positive
 	desc   float32 // font units, positive
 	italic bool    // the CTFont has the italic trait (a designed italic or oblique)
+	mono   bool    // the CTFont has the monospace trait
 
 	// Lazily built faces (newCTFace): returns the raster, nil when the
 	// face cannot be built.
@@ -133,7 +134,9 @@ func (f *Face) setRaster(r *ctRaster) bool {
 	if f.asc <= 0 && f.desc <= 0 {
 		f.asc, f.desc = f.upem*0.8, f.upem*0.2
 	}
-	f.italic = ctFontGetSymbolicTraits(base)&ctFontItalicTrait != 0
+	traits := ctFontGetSymbolicTraits(base)
+	f.italic = traits&ctFontItalicTrait != 0
+	f.mono = traits&ctFontMonoSpaceTrait != 0
 	return true
 }
 
