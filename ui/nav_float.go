@@ -540,7 +540,7 @@ func (b *BackTopW) Clicked() bool { return b.clicked }
 func (b *BackTopW) Show() *BackTopW {
 	c, th := b.c, b.c.Theme
 	navScrollStep(c, b.target)
-	s := navScrollState(c, b.target)
+	s := scrollStateOf(c, b.target)
 	show := s != nil && s.off.Y >= float64(b.visible)
 	id := hashID(c.scope, "backtop", b.target)
 	a := c.Anim(id, "show", b2f(show), th.DurationMid)

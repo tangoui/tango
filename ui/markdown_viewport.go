@@ -165,7 +165,12 @@ func (w *mdWindow) build(m *MarkdownW, blocks []*mdBlock) {
 	s, pad := sb.s, sb.n.ln.Padding
 	view := fillViewH(sb, c.size.H)
 	s.extent.Y = w.prefix(len(blocks)) + float64(pad.Vertical())
+	endOffset := max(0, s.extent.Y-view)
+	atEnd := s.off.Y > 0 && (s.off.Y >= endOffset || s.off.Y >= s.maxY())
 	fillClampOff(sb, s.extent.Y, view)
+	if atEnd {
+		s.off.Y = endOffset
+	}
 	off := s.off.Y - float64(pad.Top)
 	first := max(0, w.find(off)-fillWinOverscan)
 	end := min(len(blocks), w.find(off+view)+1+fillWinOverscan)
@@ -194,8 +199,11 @@ func (w *mdWindow) build(m *MarkdownW, blocks []*mdBlock) {
 			changed = w.measure(first+j, max(1, n.ln.Rect.H)) || changed
 		}
 		if changed || view != float64(r.H) {
-			// Keep the current block aligned while offscreen estimates settle.
-			if anchor > 0 {
+			// Keep the bottom aligned as estimates change after a jump to the
+			// end. Else keep the current block in place.
+			if atEnd {
+				s.off.Y = max(0, w.prefix(len(blocks))+float64(pad.Vertical())-float64(r.H))
+			} else if anchor > 0 {
 				s.off.Y += w.prefix(anchor) - before
 			}
 			c.WakeAt(c.now.Add(time.Millisecond))

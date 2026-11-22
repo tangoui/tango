@@ -1496,7 +1496,7 @@ func (w *TreeW) virtualBody() {
 	ih := float64(rowH + gap)
 	rows := w.rowsNow()
 	w.sb = c.finishScroll(w.box, func() {
-		s := State[scrollState](c, w.box.n.id, nil) // the viewport's scroll state
+		s := w.box.n.scroll
 		s.extent.Y = float64(len(rows)) * ih
 		view := float64(w.height)
 		if s.view.H > 0 {

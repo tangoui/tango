@@ -46,19 +46,9 @@ type navScrollTween struct {
 	active   bool
 }
 
-func navScrollState(c *Context, id ID) *scrollState {
-	if e, ok := c.states[id]; ok {
-		if s, ok := e.v.(*scrollState); ok {
-			e.seen = c.pass
-			return s
-		}
-	}
-	return nil
-}
-
 // navScrollTo starts a smooth vertical scroll of container id to y.
 func navScrollTo(c *Context, id ID, y float32, dur time.Duration) {
-	s := navScrollState(c, id)
+	s := scrollStateOf(c, id)
 	if s == nil {
 		return
 	}
@@ -74,7 +64,7 @@ func navScrollStep(c *Context, id ID) {
 	if !tw.active {
 		return
 	}
-	s := navScrollState(c, id)
+	s := scrollStateOf(c, id)
 	if s == nil {
 		tw.active = false
 		return

@@ -26,7 +26,6 @@ func (c *Context) touchScroll(b *Box, s *scrollState) {
 		axes |= PanY
 	}
 	b.takePointerTouch(axes)
-	// Own key: State is keyed by ID, and id already holds the scrollState.
 	st := State[touchScrollState](c, id^touchScrollTag, nil)
 	// Only finger drags of the content: mouse presses and scrollbar
 	// thumb drags (which also make the area the holder) are left alone.

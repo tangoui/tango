@@ -18,6 +18,9 @@ const scrollTag ID = 0x5c011
 // scrollBarHit is the width of the edge strip that grabs the scrollbar.
 const scrollBarHit = 10
 
+// Keep scroll mechanics separate from state owned by the viewport's widget.
+func scrollStateKey(id ID) ID { return hashID(id, "scroll-state") }
+
 // vec64 is a scroll position in content space. Offsets are float64 so a
 // virtual list of millions of rows still scrolls by single pixels.
 type vec64 struct{ X, Y float64 }
@@ -335,7 +338,7 @@ func ScrollH(c *Context, fn func(), opts ...layout.Option) *ScrollBox {
 }
 
 func (c *Context) finishScroll(b *Box, fn func()) *ScrollBox {
-	s := State[scrollState](c, b.n.id, nil)
+	s := State[scrollState](c, scrollStateKey(b.n.id), nil)
 	b.n.scroll = s
 	s.base, s.extent = vec64{}, vec64{}
 	s.ln = &b.n.ln
@@ -472,7 +475,7 @@ func (c *Context) revealInset(scrollID ID, target geom.Rect, inset geom.Insets) 
 
 // scrollStateOf returns the retained state of scroll container id.
 func scrollStateOf(c *Context, id ID) *scrollState {
-	if e, ok := c.states[id]; ok {
+	if e, ok := c.states[scrollStateKey(id)]; ok {
 		if s, ok := e.v.(*scrollState); ok {
 			e.seen = c.pass
 			return s

@@ -260,6 +260,7 @@
 
 ### 修复
 
+- 修复虚拟 Markdown 和编辑器补全列表的滚动偏移被组件状态覆盖的问题。虚拟 Markdown 大幅滚动到文末时会随块高度测量对齐底部。
 - `Dropdown`、右键菜单和菜单栏：弹层打开时从透明平滑淡入，不再先闪现一帧。
 - Linux 的 `tango://` 响应现在保留 `Content-Type`，带 `X-Content-Type-Options: nosniff` 的外部脚本可以执行。
 - Windows 上行共享环读包失败或核心拒收时会通知页面，后续上行帧自动回退到消息通道。

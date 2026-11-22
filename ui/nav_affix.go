@@ -327,7 +327,7 @@ func (a *AnchorW) computeActive(flat []anchorFlat) string {
 		}
 	}
 	if best == "" && len(flat) > 0 {
-		if s := navScrollState(c, a.target); s != nil && s.off.Y <= 0 {
+		if s := scrollStateOf(c, a.target); s != nil && s.off.Y <= 0 {
 			return flat[0].it.Key
 		}
 	}
@@ -400,7 +400,7 @@ func (a *AnchorW) Show() *AnchorW {
 			a.clicked = it.Key
 			a.st.clicked = it.Key
 			if id, ok := c.anchorReg().ids[it.Key]; ok && a.target != 0 {
-				if s := navScrollState(c, a.target); s != nil {
+				if s := scrollStateOf(c, a.target); s != nil {
 					sr, ok1 := c.rects[id]
 					vr, ok2 := c.rects[a.target]
 					if ok1 && ok2 {

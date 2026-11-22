@@ -11,6 +11,21 @@ import (
 	"github.com/tangoui/tango/ui/text"
 )
 
+func TestScrollRetainsStateAlongsideWidgetState(t *testing.T) {
+	var sb *ScrollBox
+	var own *int
+	d := NewDriver(func(c *Context) {
+		sb = Scroll(c, func() { Div(c, layout.H(1000)) }, layout.Fill())
+		own = State[int](c, sb.ID(), func() int { return 5 })
+	}, DriverOptions{Width: 420, Height: 300})
+	d.Frame()
+	*own = 42
+	d.Scroll(geom.Pt(200, 150), 180)
+	if _, y := sb.Offset(); y != 180 || *own != 42 || scrollStateOf(sb.c, sb.ID()) != sb.s {
+		t.Fatalf("scroll offset=%v, widget state=%d", y, *own)
+	}
+}
+
 func TestScrollHorizontalBarDragAndHover(t *testing.T) {
 	var sb *ScrollBox
 	d := NewDriver(func(c *Context) {
