@@ -323,13 +323,7 @@ func (w *ViewW) finish() {
 	vs.hadFocus = active
 	ver := st.Snapshot().Version()
 	if w.onChange != nil {
-		fn := w.onChange
-		stop := st.Model.Subscribe(func(ch ModelChange) {
-			if ch.Source == st && ch.Old.Version() != ch.New.Version() {
-				fn(ch)
-			}
-		})
-		defer stop()
+		defer w.observeDocumentChanges()()
 	}
 	w.commitPicker()
 	sel := selsKey(st.Sels)

@@ -10,6 +10,9 @@
 - `MarkdownW` 支持只读任务复选框，并可覆盖标题底线、引用和代码块边框、代码复制按钮、字号及内容宽度。
 - `CodeBlockW` 缓存软换行段的字节索引，支持全文搜索、活动匹配高亮和按字节偏移定位。
 - `SplitterPanelW` 支持受控像素尺寸、折叠状态及变化回调，`SplitterW.PixelSizes()` 返回当前分栏尺寸。
+- `ui/editor` 新增 `HoverOffset`、`OffsetAnchor` 和 `MountContent`，支持为悬停、诊断和快速修复挂载文档位置浮层。`ViewW.Suggest` 提供键盘导航、滚动补全列表和可选详情，`DecorationOptions.Squiggle` 绘制诊断波浪线。
+- `theme.DialogMask(color)` 为 Modal、Confirm 和 Drawer 配置遮罩颜色和透明度，支持局部主题覆盖。
+- `ContextMenuOptions.Width` 可指定根菜单的逻辑像素宽度，边缘换向使用同一宽度。
 - `uihost.Options.OnFirstPresent` 在画布首次成功提交后回调，提供呈现调用返回时间。macOS Metal 可异步提供该帧的实际上屏时间。
 - `(*tango.Surface).LastActivityAt()` 返回窗口最近观测到的输入时间，包含自绘画布和嵌入的 WebView。窗口隐藏时也可从任意 goroutine 读取。
 - 桌面的 `uihost.Attach` 画布和 `tan dev` 热重载的 `uihost.Open` 窗口可嵌入 `uihost.WebView`。子视图随画布布局裁剪，支持浮层遮盖和键盘焦点。见 [内嵌 WebView](docs/specs/webview-embed.md)。
@@ -133,6 +136,7 @@
 
 ### 变更
 
+- 编辑器行号宽度按 Monaco 的取整规则计算，默认装饰区收至 10 px。当前行边框在高对比主题下为 1 px，括号匹配边框贴合完整字符行盒。
 - 编辑器批量插入长文本提交中的普通字符段。换行、自动闭合、选区替换和需要逐键处理的自动缩进仍使用原来的键入规则。
 - 自动换行的 CodeBlock 在填充布局中使用分配到的高度作为滚动视口，跨多个滚动容器时仅绘制当前可见的行。
 - `tan dev` 里的窗口实现了 `ui.UIPoster`：其他 goroutine 调用 `Runner.Post` 时投递到主线程运行，不再在调用者的 goroutine 上直接运行。

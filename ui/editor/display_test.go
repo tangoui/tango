@@ -3,6 +3,7 @@ package editor
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -10,7 +11,35 @@ import (
 
 	"github.com/tangoui/tango/ui/editor/theme"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/paint"
 )
+
+func TestMonacoGutterAndLineBorder(t *testing.T) {
+	for _, tt := range []struct {
+		base  string
+		width float32
+	}{{"vs", 2}, {"hc-black", 1}} {
+		t.Run(tt.base, func(t *testing.T) {
+			st := NewState("alpha\nbeta", "", theme.Base(tt.base))
+			t.Cleanup(st.Close)
+			st.Options.RenderLineHighlight = RenderLineHighlightLine
+			h := decoHost(t, st, geom.Size{W: 400, H: 160})
+			w := h.vw
+			digits := digitsOf(w.monoStyle())
+			want := float32(math.Round(float64(5*digits.adv))) + 26
+			if w.vs.gutter.W != want {
+				t.Fatalf("gutter width = %v, want %v", w.vs.gutter.W, want)
+			}
+			ink := defaultColor(st.Theme, "editor.lineHighlightBorder")
+			for _, op := range h.r.List().Ops {
+				if s, ok := op.(paint.StrokeRect); ok && s.Color == ink && s.Width == tt.width && s.Rect.X == w.vs.text.X {
+					return
+				}
+			}
+			t.Fatalf("no current-line border with width %v", tt.width)
+		})
+	}
+}
 
 func TestRelativeLineNumbers(t *testing.T) {
 	o := DefaultOptions()

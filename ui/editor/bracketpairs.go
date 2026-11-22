@@ -1150,7 +1150,7 @@ func paintMatch(l *paint.List, snap buffer.Snapshot, rows []lineView, match []br
 				for _, sr := range sg.lay.SelectionRects(sg.local(p0), sg.local(p1)) {
 					box := rectXYWH(tx+sg.x0+sr.X, lineY(lv.vi), sr.W, lh)
 					l.Fill(box, geom.Radii{}, bg)
-					l.Stroke(geom.Rect{X: box.X + 0.5, Y: box.Y + 0.5, W: box.W - 1, H: box.H - 1}, geom.Radii{}, 1, border)
+					l.Stroke(box, geom.Radii{}, 1, border)
 					drawn = true
 				}
 			}

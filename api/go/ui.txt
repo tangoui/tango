@@ -4437,6 +4437,7 @@ pkg github.com/tangoui/tango/ui, type Context struct, Theme *ui/theme.Theme
 pkg github.com/tangoui/tango/ui, type Context struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ContextMenuOptions struct
 pkg github.com/tangoui/tango/ui, type ContextMenuOptions struct, NoAutoSelect bool
+pkg github.com/tangoui/tango/ui, type ContextMenuOptions struct, Width float32
 pkg github.com/tangoui/tango/ui, type ContextMenuOptions struct, noncomparable
 pkg github.com/tangoui/tango/ui, type ControlSize uint8
 pkg github.com/tangoui/tango/ui, type Conversation struct

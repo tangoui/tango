@@ -102,6 +102,7 @@ pkg github.com/tangoui/tango/ui/theme, func ContrastIssues(*Theme) []ContrastChe
 pkg github.com/tangoui/tango/ui/theme, func ContrastRatio(Color, Color) float64
 pkg github.com/tangoui/tango/ui/theme, func ContrastReport(...*Theme) string
 pkg github.com/tangoui/tango/ui/theme, func Dark() Option
+pkg github.com/tangoui/tango/ui/theme, func DialogMask(Color) Components
 pkg github.com/tangoui/tango/ui/theme, func ElementIcons() *ui/icon.Style
 pkg github.com/tangoui/tango/ui/theme, func ElementPalette(Color, bool, Color) Palette
 pkg github.com/tangoui/tango/ui/theme, func ElementPlus(...Option) *Theme

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"math"
+	"strconv"
 	"testing"
 
 	"github.com/tangoui/tango/ui/a11y"
@@ -325,6 +326,36 @@ func TestContextMenuAtEdges(t *testing.T) {
 	r := ctxPanel(t, d)
 	if r.Right() != 790 || r.Bottom() != 590 {
 		t.Fatalf("edge panel %v", r)
+	}
+}
+
+func TestContextMenuWidthKeepsKeyboardAndScroll(t *testing.T) {
+	items := make([]MenuItem, 40)
+	for i := range items {
+		label := strconv.Itoa(i)
+		items[i] = MenuItem{Key: label, Label: label}
+	}
+	var picked string
+	open := true
+	d := NewDriver(func(c *Context) {
+		a := Column(c, func() {}, layout.Size(800, 600))
+		if open {
+			open = false
+			ContextMenuAtWith(c, a.ID(), geom.Pt(620, 50), items, func(k string) { picked = k }, ContextMenuOptions{Width: 238})
+		}
+	}, DriverOptions{Width: 800, Height: 600})
+	d.Settle()
+	if r := ctxPanel(t, d); r.W != 238 || r.Right() != 620 {
+		t.Fatalf("panel = %v, want 238 wide and flipped left of x=620", r)
+	}
+	d.Key(input.KeyEnd, 0)
+	r := mustFind(t, d, "39")
+	if r.Intersect(ctxPanel(t, d)).Empty() {
+		t.Fatalf("End did not scroll last row into the panel: %v", r)
+	}
+	d.Key(input.KeyEnter, 0)
+	if picked != "39" {
+		t.Fatalf("picked %q, want 39", picked)
 	}
 }
 

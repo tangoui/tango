@@ -230,9 +230,8 @@ func (w *ViewW) rowHashes(pf *paintFrame, dst []uint64) []uint64 {
 				}
 			}
 		}
-		// The current-line highlight is drawn across the text area: it does
-		// not scroll horizontally with the text (its border's ends would
-		// be carried along by a horizontal shift).
+		// Repaint current-line borders when horizontal scrolling changes
+		// which edges are clipped by the viewport.
 		if pf.cur != nil && pf.cur[k] {
 			num(2)
 			f32(pf.scrollX)

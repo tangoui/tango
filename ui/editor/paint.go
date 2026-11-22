@@ -280,14 +280,14 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	l.Clip(vs.text, geom.Radii{})
 
 	// 2. Current line highlight: the lines of the carets, in the text area
-	// only when no selection is empty, in the gutter always (Monaco's
+	// only when every selection is empty, in the gutter always (Monaco's
 	// renderLineHighlight). With word wrap the background fills every row
 	// of the caret's line and the border (the themes without a background)
 	// frames the caret's row only (Monaco's current-line /
 	// current-line-exact).
 	hlGutter, hlLine := w.opts.lineHighlight()
-	fill, isFill := lookupColor(th, "editor.lineHighlightBackground")
-	border := defaultColor(th, "editor.lineHighlightBorder")
+	highlight := lineHighlightOf(th, focused)
+	isFill := highlight.fill.A > 0
 	lineHL := func(on bool) []bool {
 		if !on {
 			return nil
@@ -301,7 +301,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 				for r := max(r0, lo); r <= min(r0+vl.rowsOf(cl)-1, hi); r++ {
 					marks[r-lo] = true
 				}
-			} else if cr >= lo && cr <= hi && border.A > 0 {
+			} else if cr >= lo && cr <= hi && highlight.border.A > 0 {
 				marks[cr-lo] = true
 			}
 		}
@@ -315,9 +315,12 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		}
 		row := rectXYWH(vs.text.X, lineY(lines[k].vi), vs.text.W, lh)
 		if isFill {
-			l.Fill(row, geom.Radii{}, fill)
+			l.Fill(row, geom.Radii{}, highlight.fill)
 		} else {
-			l.Stroke(row, geom.Radii{}, 2, border)
+			// Monaco's border belongs to the scrollable line box.
+			row.X -= display.ScrollX
+			row.W = max(row.W+display.ScrollX, vs.maxW)
+			l.Stroke(row, geom.Radii{}, highlight.width, highlight.border)
 		}
 	}
 
@@ -486,7 +489,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	// below the visible ones stay inside the view).
 	gbg := defaultColor(th, "editorGutter.background")
 	l.Clip(vs.gutter, geom.Radii{})
-	w.paintGutter(l, vs.gutter.X, vs.gutter.W, lines, ud, lineY, n, caretLine, dg, gbg, curG, fill, isFill, border)
+	w.paintGutter(l, vs.gutter.X, vs.gutter.W, lines, ud, lineY, n, caretLine, dg, gbg, curG, cur, highlight)
 	vs.foldX = -1
 	if w.foldControlsShown() {
 		vs.foldX = w.foldControlX(vs.gutter.X, dg, n)
@@ -510,6 +513,28 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		boundRows: boundRows, rowOps: rowOps,
 	})
 	st.checkScroll() // what paint itself scrolled (scroll.go)
+}
+
+type lineHighlightStyle struct {
+	fill, border color.NRGBA
+	width        float32
+}
+
+func lineHighlightOf(th *theme.Theme, focused bool) lineHighlightStyle {
+	active := defaultColor(th, "editor.lineHighlightBackground")
+	fill := active
+	if !focused {
+		fill = defaultColor(th, "editor.inactiveLineHighlightBackground")
+	}
+	var border color.NRGBA
+	if active.A == 0 {
+		border = defaultColor(th, "editor.lineHighlightBorder")
+	}
+	width := float32(2)
+	if themeType(th) >= 2 {
+		width = 1
+	}
+	return lineHighlightStyle{fill, border, width}
 }
 
 // wrapConfig returns the wrapping in effect for a text area textW wide.

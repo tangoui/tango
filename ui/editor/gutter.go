@@ -89,9 +89,7 @@ func (w *ViewW) gutterInput(p pending, rail bool) bool {
 // margin before the text.
 const (
 	lineNumbersMinChars = 5
-	gutterLeftPad       = 8
-	lineDecorationsW    = 18
-	noNumbersGutterW    = 10 // only the decorations margin
+	lineDecorationsW    = 10
 	// foldControlW is the room of the folding controls, at the left of
 	// the decorations margin (Monaco widens lineDecorationsWidth by 16
 	// while folding is on and showFoldingControls is not "never").
@@ -135,9 +133,9 @@ func (w *ViewW) gutterWidth(d digitGlyphs, n int) float32 {
 		fw = foldControlW
 	}
 	if !w.opts.lineNumbers() {
-		return noNumbersGutterW + fw
+		return lineDecorationsW + fw
 	}
-	return gutterLeftPad + w.numbersWidth(d, n) + fw + lineDecorationsW
+	return w.numbersWidth(d, n) + fw + lineDecorationsW
 }
 
 // foldControlsShown reports whether the gutter has room for the folding
@@ -153,7 +151,7 @@ func (w *ViewW) foldControlX(gx float32, d digitGlyphs, n int) float32 {
 	if !w.opts.lineNumbers() {
 		return gx
 	}
-	return gx + gutterLeftPad + w.numbersWidth(d, n)
+	return gx + w.numbersWidth(d, n)
 }
 
 // Folding decorations of a row (paintFrame.fold, damage.go).
@@ -192,7 +190,7 @@ func (w *ViewW) numbersWidth(d digitGlyphs, n int) float32 {
 	if w.lnFn != nil {
 		digits = max(w.lnChars, lineNumbersMinChars) // LineNumbersFunc
 	}
-	return float32(math.Ceil(float64(float32(digits) * d.adv)))
+	return float32(math.Round(float64(float32(digits) * d.adv)))
 }
 
 // lineNumber returns what the gutter shows for model line i (0-based) of
@@ -229,7 +227,7 @@ func (o *Options) lineNumber(i, caretLine, n int) (num int, show, left bool) {
 // The caret's line uses the active color. ud are the rows' Model
 // decorations (nil for none): their margin backgrounds, marks and line
 // number colors.
-func (w *ViewW) paintGutter(l *paint.List, gx, gw float32, rows []lineView, ud []udRow, lineY func(int) float32, n, caretLine int, d digitGlyphs, bg color.NRGBA, curG []bool, fill color.NRGBA, isFill bool, border color.NRGBA) {
+func (w *ViewW) paintGutter(l *paint.List, gx, gw float32, rows []lineView, ud []udRow, lineY func(int) float32, n, caretLine int, d digitGlyphs, bg color.NRGBA, curG, cur []bool, hl lineHighlightStyle) {
 	th := w.st.Theme
 	l.Fill(rectXYWH(gx, w.vs.rect.Y, gw, w.vs.rect.H), geom.Radii{}, bg)
 	lh := w.lineHeight()
@@ -249,10 +247,13 @@ func (w *ViewW) paintGutter(l *paint.List, gx, gw float32, rows []lineView, ud [
 			continue
 		}
 		row := rectXYWH(gx, lineY(rows[k].vi), gw, lh)
-		if isFill {
-			l.Fill(row, geom.Radii{}, fill)
+		if hl.fill.A > 0 {
+			l.Fill(row, geom.Radii{}, hl.fill)
 		} else {
-			l.Stroke(row, geom.Radii{}, 2, border)
+			if cur != nil && cur[k] {
+				row.W += hl.width // clipped at the join with the text highlight
+			}
+			l.Stroke(row, geom.Radii{}, hl.width, hl.border)
 		}
 	}
 	w.paintGutterMarks(l, gx, gw, rows, ud, lineY, n, d)
@@ -261,7 +262,7 @@ func (w *ViewW) paintGutter(l *paint.List, gx, gw float32, rows []lineView, ud [
 	}
 	fg := defaultColor(th, "editorLineNumber.foreground")
 	act := defaultColor(th, "editorLineNumber.activeForeground")
-	left := gx + gutterLeftPad
+	left := gx
 	right := left + w.numbersWidth(d, n)
 	var buf [20]byte
 	var gl []paint.Glyph

@@ -26,6 +26,7 @@ type contextMenuState struct {
 	fresh    bool // (re)opened during this build: skip the outside checks
 	panels   []ID
 	popup    navPopupState
+	width    float32
 }
 
 var contextMenuKey = hashID("context-menu")
@@ -41,6 +42,10 @@ type ContextMenuOptions struct {
 	// item starting with it, and Enter/Space do nothing until an item is
 	// highlighted. Pointer hover, Escape and closing work as usual.
 	NoAutoSelect bool
+	// Width specifies the root panel width in logical pixels. It is
+	// capped to the window width minus the edge margins. A non-positive
+	// value uses the content width. Submenus still size to their content.
+	Width float32
 }
 
 // ContextMenuAt opens a context menu of items with its top-left corner at
@@ -76,6 +81,7 @@ func ContextMenuAtWith(c *Context, owner ID, pos geom.Point, items []MenuItem, o
 		return
 	}
 	st.open, st.owner, st.pos, st.env = true, owner, pos, c.env
+	st.width = opts.Width
 	st.seq++
 	st.panels = nil
 	if opts.NoAutoSelect {
@@ -159,7 +165,7 @@ func renderContextMenu(c *Context) {
 func (st *contextMenuState) build(c *Context) {
 	th := c.ThemeFor(theme.CompDropdown)
 	a := c.AnimFrom(hashID(contextMenuKey, st.seq), "open", 0, 1, th.DurationMid)
-	pop := &navMenuPopup{c: c, th: th, tk: &th.Components.Dropdown, st: &st.popup, element: navEl(c), opacity: a, edge: true}
+	pop := &navMenuPopup{c: c, th: th, tk: &th.Components.Dropdown, st: &st.popup, element: navEl(c), opacity: a, edge: true, pointWidth: st.width}
 	at := st.pos
 	pop.panel(st.items, 0, 0, 0, 0, &at)
 	st.panels = pop.panels

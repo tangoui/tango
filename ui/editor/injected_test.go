@@ -212,8 +212,9 @@ func TestColorInjectedWrap(t *testing.T) {
 	doc := line + "\n" + line + "\n"
 	goText(t)
 	st := NewState(doc, "a.css", theme.Base("vs"))
-	st.Options.WordWrap = WrapOn
-	h := newHintHost(t, st, geom.Size{W: 260, H: 300}, 1)
+	// Exercise the same breaks independently of the editor's gutter width.
+	st.Options.WordWrap, st.Options.WordWrapColumn = WrapColumn, 10
+	h := newHintHost(t, st, geom.Size{W: 260, H: 600}, 1)
 	h.focusAt(0)
 	vl := &st.vl
 	colW := h.vw.vs.colW

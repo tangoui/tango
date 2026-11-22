@@ -36,6 +36,7 @@
 | 令牌：标题、内边距 | antd `titleFontSize` fontSizeHeading5 16、`titleLineHeight` 1.5、`contentPadding` paddingMD 20 / paddingContentHorizontalLG 24、`headerMarginBottom` marginXS 8、`footerMarginTop` marginSM 12、`titleColor` colorTextHeading（style:291-312）；EP padding-primary 16、标题 18/24（var.scss $dialog） | `ModalToken` | 已对齐（TestAlignB3KModalTokens） |
 | shadcn 标题行高 | `DialogTitle text-lg leading-none font-semibold`（dialog.tsx:128） | 主题行高（28） | 已补齐：shadcn `TitleLineHeight` 18；**变更** |
 | shadcn 遮罩 | `DialogOverlay bg-black/50`（dialog.tsx） | 全局 `BgMask` 0.8（v3 写法） | 已补齐：shadcn `ModalToken.MaskBg` = 黑 50%；**变更**；全局 `BgMask` 见共享文件改动请求 |
+| EP 遮罩颜色 | Element Plus 2.14.8 `theme-chalk/el-overlay.css` 使用 `--el-overlay-color-lighter`，`theme-chalk/base.css` 定义为 `#00000080`（2026-11-22 核对） | Element 亮色黑色 alpha 128，暗色黑色 alpha 204 | 保留默认值。用 `theme.WithComponents(theme.DialogMask(theme.Hex("#00000080")))` 给 `theme.ElementPlus` 配置，或传给 `ConfigProvider(c).Components(...)` 以局部覆盖 Modal、Confirm 和 Drawer。 |
 | shadcn showCloseButton / 页脚 / 描述 | `showCloseButton`；页脚 `flex-col-reverse sm:flex-row sm:justify-end gap-2`；`DialogDescription text-sm text-muted-foreground` | `Closable`；页脚右对齐 gap 8；无描述槽 | 已对齐；描述写等价写法：Body 里 `Text(c, s).Color(th.TextTertiary)`；窄屏纵向反排暂不做（缺容器宽度断点，同第 2 批缺口） |
 | 明暗主题 | 令牌 | 全部来自 `ModalToken` | 已对齐（三套 × 明暗出图） |
 | a11y | `role=dialog`、`aria-modal` | `RoleDialog` + `Modal`、`Dismiss`、关闭按钮名取 `Locale().Close` | 已对齐（TestAlignB3KA11yDialogs） |

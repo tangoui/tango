@@ -19,7 +19,7 @@ type ModalToken struct {
 	CloseIconColor     Color // zero: the icon button default
 	Radius             float32
 	BorderColor        Color // zero: none
-	MaskBg             Color
+	MaskBg             Color // mask color including opacity
 	Shadow             []paint.Shadow
 
 	// Default placement and size (Modal.Width / Top / Centered override).
@@ -44,6 +44,17 @@ type ModalToken struct {
 	// Confirm / MessageBox / Prompt.
 	ConfirmWidth         float32
 	ConfirmBtnsMarginTop float32 // Ant body: buttons below the text
+}
+
+// DialogMask sets the mask color and alpha for Modal (including Confirm)
+// and Drawer. Pass it to WithComponents, Theme.Override or
+// ConfigProvider.Components. A zero color gives a fully transparent mask.
+// Element Plus 2.14.8's .el-overlay uses Hex("#00000080").
+func DialogMask(c Color) Components {
+	if c == (Color{}) {
+		c = Transparent
+	}
+	return Components{Modal: ModalToken{MaskBg: c}, Drawer: DrawerToken{MaskBg: c}}
 }
 
 func deriveModal(t *Theme) ModalToken {

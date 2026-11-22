@@ -174,6 +174,31 @@ func decoHost(t *testing.T, st *State, size geom.Size) *hintHost {
 	return h
 }
 
+func TestDiagnosticSquiggleAcrossWrappedRows(t *testing.T) {
+	st := NewState("abcdefghijklmno", "", theme.Base("vs"))
+	t.Cleanup(st.Close)
+	st.Options.WordWrap, st.Options.WordWrapColumn = WrapColumn, 8
+	h := decoHost(t, st, geom.Size{W: 440, H: 160})
+	st.SetDecorations("diagnostics", []Decoration{{Start: 1, End: 14, Options: &DecorationOptions{Squiggle: decoRed}}})
+	h.frame()
+	waves := 0
+	for _, op := range h.r.List().Ops {
+		if p, ok := op.(paint.FillPath); ok && p.Color == decoRed {
+			waves++
+		}
+	}
+	if waves != 2 {
+		t.Fatalf("painted %d squiggles, want one on each wrapped row", waves)
+	}
+	st.SetDecorations("diagnostics", nil)
+	h.frame()
+	for _, op := range h.r.List().Ops {
+		if p, ok := op.(paint.FillPath); ok && p.Color == decoRed {
+			t.Fatal("removed diagnostic still painted")
+		}
+	}
+}
+
 // TestDecorationsPaintLayers: a whole-line background spans the text area
 // of each of its lines, a range background its characters (above the
 // selection), inline colors recolor the glyphs, and the gutter shows the
