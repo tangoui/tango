@@ -8,6 +8,29 @@ import (
 	"github.com/tangoui/tango/ui/layout"
 )
 
+// MountFind mounts a caller-owned find/replace panel at the editor's top
+// right. It reserves Monaco's 419 px default width, limited by the editor's
+// available width. Pass layout options to override the panel size. The
+// editor owns the overlay's focus return target when the caller closes it.
+func (w *ViewW) MountFind(body func(), opts ...layout.Option) *ui.Box {
+	if body == nil {
+		return nil
+	}
+	const scrollbarWidth = 14 // Monaco's default verticalScrollbarSize
+	right := 2*scrollbarWidth + w.vs.minimapRect.W
+	viewW := w.vs.rect.W
+	if viewW <= 0 {
+		viewW = w.c.Size().W
+	}
+	width := min(419, max(1, viewW-right-4))
+	th := themeOf(w.st)
+	opts = append([]layout.Option{layout.W(width), layout.MaxW(width)}, opts...)
+	return ui.Overlay(w.c, ui.OverlayOptions{
+		Anchor: w.box.ID(), Place: ui.InsideTopRight, Offset: 4, ShiftX: 4 - right,
+	}, body, opts...).Bg(defaultColor(th, "editorWidget.background")).
+		Border(1, defaultColor(th, "widget.border")).Radius(4)
+}
+
 func (w *ViewW) contentAnchorClip() geom.Rect {
 	r := w.vs.text
 	top := max(r.Y, w.vs.stickyRect.Bottom())

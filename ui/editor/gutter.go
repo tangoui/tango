@@ -40,6 +40,15 @@ func (w *ViewW) GutterLineAtPoint(p geom.Point) (int, bool) {
 	return line, 0 <= row && row < vl.rowsOf(line)
 }
 
+// GlyphMarginLineAtPoint maps a point in the dedicated glyph margin to a
+// zero-based document line. Use it inside OnGutterClick for breakpoints.
+func (w *ViewW) GlyphMarginLineAtPoint(p geom.Point) (int, bool) {
+	if p.X >= w.vs.gutter.X+w.glyphMarginWidth() {
+		return 0, false
+	}
+	return w.GutterLineAtPoint(p)
+}
+
 // OnGutterClick handles primary clicks and secondary presses in the
 // gutter. Handled clicks leave the selection in place. An active folding
 // control still receives primary clicks. Call Changed during build to
@@ -132,10 +141,25 @@ func (w *ViewW) gutterWidth(d digitGlyphs, n int) float32 {
 	if w.foldControlsShown() {
 		fw = foldControlW
 	}
-	if !w.opts.lineNumbers() {
-		return lineDecorationsW + fw
+	width := w.glyphMarginWidth() + w.lineDecorationsWidth() + fw
+	if w.opts.lineNumbers() {
+		width += w.numbersWidth(d, n)
 	}
-	return w.numbersWidth(d, n) + fw + lineDecorationsW
+	return width
+}
+
+func (w *ViewW) glyphMarginWidth() float32 {
+	if w.opts.GlyphMargin {
+		return w.lineHeight()
+	}
+	return 0
+}
+
+func (w *ViewW) lineDecorationsWidth() float32 {
+	if w.opts.LineDecorationsWidth > 0 {
+		return w.opts.LineDecorationsWidth
+	}
+	return lineDecorationsW
 }
 
 // foldControlsShown reports whether the gutter has room for the folding
@@ -148,6 +172,7 @@ func (w *ViewW) foldControlsShown() bool {
 // foldControlX returns the x of the folding controls' box (foldControlW
 // wide) in a gutter at gx.
 func (w *ViewW) foldControlX(gx float32, d digitGlyphs, n int) float32 {
+	gx += w.glyphMarginWidth()
 	if !w.opts.lineNumbers() {
 		return gx
 	}
@@ -166,7 +191,7 @@ const (
 // line's control on its first row): a chevron pointing down for an
 // unfolded range, right for a folded region (Monaco's codicons
 // folding-expanded / folding-collapsed), in a box foldControlW wide at x.
-func paintFoldControls(l *paint.List, x float32, rows []lineView, codes []uint8, lineY func(int) float32, lh float32, c color.NRGBA) {
+func paintFoldControls(l *paint.List, x float32, rows []lineView, codes []uint8, lineY func(int) float32, lh float32, c color.NRGBA, opacity float32) {
 	for k := range rows {
 		code := codes[k]
 		if code&(foldCtlExpanded|foldCtlCollapsed) == 0 {
@@ -179,16 +204,23 @@ func paintFoldControls(l *paint.List, x float32, rows []lineView, codes []uint8,
 			l.Line(geom.Pt(cx-a/2, cy-a), geom.Pt(cx+a/2, cy), 1.5, c)
 			l.Line(geom.Pt(cx+a/2, cy), geom.Pt(cx-a/2, cy+a), 1.5, c)
 		} else {
-			l.Line(geom.Pt(cx-a, cy-a/2), geom.Pt(cx, cy+a/2), 1.5, c)
-			l.Line(geom.Pt(cx, cy+a/2), geom.Pt(cx+a, cy-a/2), 1.5, c)
+			col := c
+			col.A = uint8(float32(c.A) * opacity)
+			l.Line(geom.Pt(cx-a, cy-a/2), geom.Pt(cx, cy+a/2), 1.5, col)
+			l.Line(geom.Pt(cx, cy+a/2), geom.Pt(cx+a, cy-a/2), 1.5, col)
 		}
 	}
 }
 
 func (w *ViewW) numbersWidth(d digitGlyphs, n int) float32 {
-	digits := max(len(strconv.Itoa(max(n, 1))), lineNumbersMinChars)
+	minChars := w.opts.LineNumbersMinChars
+	if minChars <= 0 {
+		minChars = lineNumbersMinChars
+	}
+	minChars = min(minChars, 300) // Monaco's option maximum
+	digits := max(len(strconv.Itoa(max(n, 1))), minChars)
 	if w.lnFn != nil {
-		digits = max(w.lnChars, lineNumbersMinChars) // LineNumbersFunc
+		digits = max(w.lnChars, minChars) // LineNumbersFunc
 	}
 	return float32(math.Round(float64(float32(digits) * d.adv)))
 }
@@ -262,7 +294,7 @@ func (w *ViewW) paintGutter(l *paint.List, gx, gw float32, rows []lineView, ud [
 	}
 	fg := defaultColor(th, "editorLineNumber.foreground")
 	act := defaultColor(th, "editorLineNumber.activeForeground")
-	left := gx
+	left := gx + w.glyphMarginWidth()
 	right := left + w.numbersWidth(d, n)
 	var buf [20]byte
 	var gl []paint.Glyph
@@ -326,30 +358,27 @@ func (w *ViewW) decoMargin(gx, gw float32, d digitGlyphs, n int) (x, width float
 	if w.foldControlsShown() {
 		fw = foldControlW
 	}
-	if !w.opts.lineNumbers() {
-		return gx + fw, max(0, gw-fw)
-	}
 	x = w.foldControlX(gx, d, n) + fw
-	return x, max(0, min(lineDecorationsW, gx+gw-x))
+	return x, max(0, min(w.lineDecorationsWidth(), gx+gw-x))
 }
 
 // signKey is a shaped gutter sign: its text at a font size.
 type signKey struct {
 	s    string
-	size float32
+	font text.Style
 }
 
 // sign returns the shaped gutter sign s.
 func (w *ViewW) sign(s string) *text.Layout {
 	vs := w.vs
-	k := signKey{s, w.opts.fontSize()}
+	k := signKey{s, w.monoStyle()}
 	if lay := vs.signs[k]; lay != nil {
 		return lay
 	}
 	if vs.signs == nil || len(vs.signs) > 64 {
 		vs.signs = map[signKey]*text.Layout{}
 	}
-	lay := text.Shape(s, w.monoStyle(), text.Options{NoWrap: true})
+	lay := text.Shape(s, k.font, text.Options{NoWrap: true})
 	vs.signs[k] = lay
 	return lay
 }
@@ -361,10 +390,8 @@ func (w *ViewW) paintGutterMarks(l *paint.List, gx, gw float32, rows []lineView,
 	if ud == nil {
 		return
 	}
-	mx, mw := w.decoMargin(gx, gw, d, n)
-	if mw <= 0 {
-		return
-	}
+	decoX, decoW := w.decoMargin(gx, gw, d, n)
+	glyphW := min(gw, w.glyphMarginWidth())
 	lh := w.lineHeight()
 	var marks []*GutterMark
 	for k := range ud {
@@ -374,6 +401,13 @@ func (w *ViewW) paintGutterMarks(l *paint.List, gx, gw float32, rows []lineView,
 		_, _, marks = gutterDecos(ud[k].ds, marks[:0])
 		y := lineY(rows[k].vi)
 		for _, m := range marks {
+			mx, mw := decoX, decoW
+			if m.GlyphMargin {
+				mx, mw = gx, glyphW
+			}
+			if mw <= 0 {
+				continue
+			}
 			if m.Background.A > 0 {
 				l.Fill(rectXYWH(mx, y, mw, lh), geom.Radii{}, m.Background)
 			}
@@ -409,7 +443,7 @@ type LineNumberFunc func(line int) (label string, ok bool)
 // frame, while line numbers are shown (Options.LineNumbers not off): right
 // aligned, the caret's line in the active color (the relative and
 // interval modes do not apply). The numbers' column is maxChars digits
-// wide (at least lineNumbersMinChars, 5); gen tells the View that the
+// wide (at least Options.LineNumbersMinChars); gen tells the View that the
 // labels changed: increment it whenever fn would return other labels for
 // the same lines (the whole view is redrawn then). nil fn restores the
 // numbers.

@@ -296,6 +296,9 @@ func (w *ViewW) rowHashes(pf *paintFrame, dst []uint64) []uint64 {
 		if k < len(pf.fold) && pf.fold[k] != 0 {
 			num(6)
 			num(int(pf.fold[k]))
+			if pf.fold[k]&foldCtlExpanded != 0 {
+				f32(w.foldOpacity)
+			}
 		}
 		// The composition (inline: its text is in lv.text).
 		if c := pf.cmp; c.on && lv.i == pf.caretLine {

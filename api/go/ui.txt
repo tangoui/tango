@@ -123,6 +123,7 @@ pkg github.com/tangoui/tango/ui, const InlineEndTop Placement = 20
 pkg github.com/tangoui/tango/ui, const InlineStart Placement = 22
 pkg github.com/tangoui/tango/ui, const InlineStartBottom Placement = 24
 pkg github.com/tangoui/tango/ui, const InlineStartTop Placement = 23
+pkg github.com/tangoui/tango/ui, const InsideTopRight Placement = 30
 pkg github.com/tangoui/tango/ui, const ItemSizeDefault ItemSize = "default"
 pkg github.com/tangoui/tango/ui, const ItemSizeSmall ItemSize = "sm"
 pkg github.com/tangoui/tango/ui, const ItemVariantDefault ItemVariant = "default"

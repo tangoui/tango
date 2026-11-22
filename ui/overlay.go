@@ -50,6 +50,7 @@ const (
 	ScreenTopEnd      // top corner on the inline end side (notifications)
 	ScreenTopStart    // top corner on the inline start side
 	ScreenTopLeft     // physical top-left corner
+	InsideTopRight    // inside the anchor, at its physical top-right corner
 )
 
 // Resolve maps a logical placement to the physical one used for the
@@ -221,6 +222,10 @@ func (c *Context) placeOverlay(o *overlay) {
 	}
 	sz := flexbox.SolveAt(ln, vw, vh, false, false)
 	off := o.opts.Offset
+	if phys == InsideTopRight {
+		ln.Rect.X, ln.Rect.Y = a.Right()-sz.W-off, a.Y+off
+		return
+	}
 	var x, y float32
 	place := phys
 	below := vh - a.Bottom() - off

@@ -64,6 +64,7 @@ type ViewW struct {
 	onChange    func(ModelChange)
 	completion  completionKeys
 	gutterClick func(GutterClick)
+	foldOpacity float32
 	// lnFn, lnChars and lnGen are this frame's LineNumbersFunc (gutter.go).
 	lnFn    LineNumberFunc
 	lnChars int
@@ -118,7 +119,7 @@ type viewState struct {
 	// paint (-1: none), and the shaped placeholder of folded lines.
 	foldX        float32
 	ellipsis     *text.Layout
-	ellipsisSize float32
+	ellipsisFont text.Style
 	// The folding ranges awaiting the debounce (foldRangesNow): the text
 	// they are for and when they are due.
 	foldStale foldRangesKey
@@ -264,6 +265,15 @@ func View(c *ui.Context, st *State) *ViewW {
 		}
 	}
 	w.ia = w.box.Focusable(cur)
+	w.foldOpacity = 1
+	if w.opts.AnimateFoldingControls && w.foldControlsShown() && w.opts.foldingControls() == FoldingControlsMouseOver {
+		p, in := c.Pointer()
+		target := float32(0)
+		if in && w.ia.Hovered && w.vs.gutter.Contains(p) {
+			target = 1
+		}
+		w.foldOpacity = c.Anim(w.box.ID(), "fold-controls", target, 500*time.Millisecond)
+	}
 	w.collect()
 	wheel := false
 	if dx, dy, ok := c.WheelFor(w.box.ID()); ok && (dx != 0 || dy != 0) {
@@ -478,7 +488,17 @@ func (w *ViewW) measure(maxW, maxH float32) geom.Size {
 
 // lineHeight returns the line height for the font size.
 func (w *ViewW) lineHeight() float32 {
+	if h := w.opts.LineHeight; h > 0 {
+		return max(1, float32(math.Round(float64(h)*(1+w.opts.zoom*0.1))))
+	}
 	return float32(math.Round(float64(w.opts.fontSize()) * lineHeightRatio))
+}
+
+func (w *ViewW) cursorWidth() float32 {
+	if w.opts.CursorWidth > 0 {
+		return w.opts.CursorWidth
+	}
+	return 2
 }
 
 // displayViewport uses whole device pixels for the scroll displacement so
@@ -496,7 +516,7 @@ func (w *ViewW) displayViewport() Viewport {
 
 // monoStyle returns the text style of the document text.
 func (w *ViewW) monoStyle() text.Style {
-	return text.Style{Size: w.opts.fontSize(), LineHeight: w.lineHeight(), Mono: true}
+	return text.Style{Size: w.opts.fontSize(), LineHeight: w.lineHeight(), Mono: true, FontFamily: w.opts.FontFamily}
 }
 
 // tabs returns the tab width in columns.

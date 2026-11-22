@@ -218,6 +218,7 @@ pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Context(func(string) (an
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) Focused() bool
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) FoldingProvider(FoldingRangeProvider) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) FontSize(float32) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) GlyphMarginLineAtPoint(ui/geom.Point) (int, bool)
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) GutterLineAtPoint(ui/geom.Point) (int, bool)
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) HoverOffset() (int, bool)
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) InlayHintAtPoint(ui/geom.Point) (int, bool)
@@ -227,6 +228,7 @@ pkg github.com/tangoui/tango/ui/editor, method (*ViewW) LineNumbers(bool) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) LineNumbersFunc(LineNumberFunc, int, uint64) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) MenuItems(...MenuItem) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) MountContent(int, ui.Placement, func(), ...ui/layout.Option) *ui.Box
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) MountFind(func(), ...ui/layout.Option) *ui.Box
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OffsetAnchor(int) (ui/geom.Rect, bool)
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OffsetAtPoint(ui/geom.Point) (int, bool)
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OnDocumentChange(func(ModelChange)) *ViewW
@@ -292,6 +294,7 @@ pkg github.com/tangoui/tango/ui/editor, type GutterClick struct, Position ui/geo
 pkg github.com/tangoui/tango/ui/editor, type GutterMark struct
 pkg github.com/tangoui/tango/ui/editor, type GutterMark struct, Background image/color.NRGBA
 pkg github.com/tangoui/tango/ui/editor, type GutterMark struct, Bar image/color.NRGBA
+pkg github.com/tangoui/tango/ui/editor, type GutterMark struct, GlyphMargin bool
 pkg github.com/tangoui/tango/ui/editor, type GutterMark struct, Sign string
 pkg github.com/tangoui/tango/ui/editor, type GutterMark struct, SignColor image/color.NRGBA
 pkg github.com/tangoui/tango/ui/editor, type InlayHint struct
@@ -356,6 +359,7 @@ pkg github.com/tangoui/tango/ui/editor, type ModelPool struct, noncomparable
 pkg github.com/tangoui/tango/ui/editor, type MultiCursorPasteMode string
 pkg github.com/tangoui/tango/ui/editor, type OccurrencesHighlightMode string
 pkg github.com/tangoui/tango/ui/editor, type Options struct
+pkg github.com/tangoui/tango/ui/editor, type Options struct, AnimateFoldingControls bool
 pkg github.com/tangoui/tango/ui/editor, type Options struct, AutoClosingBrackets AutoClosingStrategy
 pkg github.com/tangoui/tango/ui/editor, type Options struct, AutoClosingComments AutoClosingStrategy
 pkg github.com/tangoui/tango/ui/editor, type Options struct, AutoClosingDelete AutoClosingEditStrategy
@@ -367,14 +371,20 @@ pkg github.com/tangoui/tango/ui/editor, type Options struct, BracketPairColoriza
 pkg github.com/tangoui/tango/ui/editor, type Options struct, ColorDecorators bool
 pkg github.com/tangoui/tango/ui/editor, type Options struct, Comments CommentsOptions
 pkg github.com/tangoui/tango/ui/editor, type Options struct, ContextMenu bool
+pkg github.com/tangoui/tango/ui/editor, type Options struct, CursorWidth float32
 pkg github.com/tangoui/tango/ui/editor, type Options struct, DragAndDrop bool
 pkg github.com/tangoui/tango/ui/editor, type Options struct, EmptySelectionClipboard bool
 pkg github.com/tangoui/tango/ui/editor, type Options struct, Folding bool
 pkg github.com/tangoui/tango/ui/editor, type Options struct, FoldingHighlight bool
 pkg github.com/tangoui/tango/ui/editor, type Options struct, FoldingStrategy FoldingStrategy
+pkg github.com/tangoui/tango/ui/editor, type Options struct, FontFamily string
 pkg github.com/tangoui/tango/ui/editor, type Options struct, FontSize float32
+pkg github.com/tangoui/tango/ui/editor, type Options struct, GlyphMargin bool
 pkg github.com/tangoui/tango/ui/editor, type Options struct, Guides GuidesOptions
+pkg github.com/tangoui/tango/ui/editor, type Options struct, LineDecorationsWidth float32
+pkg github.com/tangoui/tango/ui/editor, type Options struct, LineHeight float32
 pkg github.com/tangoui/tango/ui/editor, type Options struct, LineNumbers LineNumbersMode
+pkg github.com/tangoui/tango/ui/editor, type Options struct, LineNumbersMinChars int
 pkg github.com/tangoui/tango/ui/editor, type Options struct, Links bool
 pkg github.com/tangoui/tango/ui/editor, type Options struct, MatchBrackets MatchBracketsMode
 pkg github.com/tangoui/tango/ui/editor, type Options struct, Minimap MinimapOptions

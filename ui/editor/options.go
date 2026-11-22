@@ -138,6 +138,14 @@ type Options struct {
 	// FontSize is the font size in logical pixels (fontSize; see
 	// DefaultFontSize). Values <= 0 mean DefaultFontSize.
 	FontSize float32
+	// FontFamily selects the document font, with the default monospace fallback.
+	FontFamily string
+	// LineHeight specifies a row height in logical pixels before editor zoom.
+	// Non-positive values use the height derived from FontSize.
+	LineHeight float32
+	// CursorWidth specifies the insertion caret width in logical pixels.
+	// Non-positive values use the default 2 px.
+	CursorWidth float32
 	// ReadOnly refuses edits: every command marked Mutates (typing,
 	// deleting, Enter, Tab, paste, undo, redo, the line commands ...), the
 	// IME, the deletion of cut and dragging text; the caret, selection,
@@ -147,6 +155,15 @@ type Options struct {
 	// LineNumbers is how the gutter shows line numbers (lineNumbers:
 	// "on"); unset or unknown values are "on".
 	LineNumbers LineNumbersMode
+	// LineNumbersMinChars reserves at least this many digit widths. Zero
+	// uses the Monaco default of 5.
+	LineNumbersMinChars int
+	// LineDecorationsWidth specifies the logical pixel width of the line
+	// decorations lane, exclusive of folding controls. Zero uses 10 px.
+	LineDecorationsWidth float32
+	// GlyphMargin reserves a separate line-height-wide lane to the left of
+	// line numbers, for marks such as breakpoints.
+	GlyphMargin bool
 	// Comments are the settings of the comment commands (comments).
 	Comments CommentsOptions
 
@@ -218,6 +235,9 @@ type Options struct {
 	// (showFoldingControls: "mouseover"); unset or unknown values are
 	// "mouseover".
 	ShowFoldingControls ShowFoldingControls
+	// AnimateFoldingControls fades expanded controls in and out over 500 ms
+	// in mouseover mode. Collapsed controls stay visible.
+	AnimateFoldingControls bool
 
 	// RenderWhitespace is which blanks are drawn as marks
 	// (renderWhitespace: "selection"); unset or unknown values are

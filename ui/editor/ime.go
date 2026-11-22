@@ -188,7 +188,7 @@ func (w *ViewW) paintCaret(l *paint.List, snap buffer.Snapshot, lv *lineView, he
 		x = float32(w.st.peekViewColumn(snap, head, w.st.caretUp())) * vs.colW
 	}
 	cx := float32(math.Round(float64(tx + x)))
-	r := rectXYWH(cx, y, 2, lh)
+	r := rectXYWH(cx, y, w.cursorWidth(), lh)
 	caret, drawn = r, visible && lv != nil
 	if drawn {
 		l.Fill(r, geom.Radii{}, defaultColor(th, "editorCursor.foreground"))

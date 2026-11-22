@@ -124,6 +124,8 @@ type InlineStyle struct {
 //
 // Experimental: part of the decorations API (docs/specs/diff-view.md).
 type GutterMark struct {
+	// GlyphMargin places the mark in the separate glyph lane, when enabled.
+	GlyphMargin bool
 	// Background fills the margin's cell.
 	Background color.NRGBA
 	// Bar is a 3 pixel bar at the cell's left edge (a change bar).
@@ -208,6 +210,7 @@ func newDecorationStyle(o *DecorationOptions) *decorationStyle {
 	flag(ds.in.Strikethrough)
 	num(int(math.Float32bits(ds.in.Opacity)))
 	flag(ds.o.Gutter != nil)
+	flag(ds.gm.GlyphMargin)
 	col(ds.gm.Background)
 	col(ds.gm.Bar)
 	h.WriteString(ds.gm.Sign)

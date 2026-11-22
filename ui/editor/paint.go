@@ -470,7 +470,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 				}
 				if x, ok := lv.caretXSide(lv.runeAt(vsl.head-snap.LineStart(lv.i)), st.headRight(vsl.idx)); ok {
 					cx := float32(math.Round(float64(tx + x)))
-					cr := rectXYWH(cx, lineY(lv.vi), 2, lh)
+					cr := rectXYWH(cx, lineY(lv.vi), w.cursorWidth(), lh)
 					l.Fill(cr, geom.Radii{}, cc)
 					marks = append(marks, cr)
 				}
@@ -493,7 +493,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	vs.foldX = -1
 	if w.foldControlsShown() {
 		vs.foldX = w.foldControlX(vs.gutter.X, dg, n)
-		paintFoldControls(l, vs.foldX, lines, fold, lineY, lh, defaultColor(th, "editorGutter.foldingControlForeground"))
+		paintFoldControls(l, vs.foldX, lines, fold, lineY, lh, defaultColor(th, "editorGutter.foldingControlForeground"), w.foldOpacity)
 	}
 	w.paintZones(l, lines, lineY, tx, true)
 	l.Pop()
@@ -1210,7 +1210,8 @@ func (w *ViewW) foldControls() (all, folded bool) {
 		return true, true
 	}
 	p, in := w.c.Pointer()
-	return in && w.ia.Hovered && w.vs.gutter.Contains(p), true
+	hovered := in && w.ia.Hovered && w.vs.gutter.Contains(p)
+	return hovered || (w.opts.AnimateFoldingControls && w.foldOpacity > 0), true
 }
 
 // Folding ranges for the gutter's controls are computed at once in a
@@ -1298,12 +1299,12 @@ func (w *ViewW) placeholderX(lv *lineView) (x0, x1 float32) {
 	return x0, x0 + lay.Width + 0.2*em
 }
 
-// ellipsis returns the shaped placeholder, cached per font size.
+// ellipsis returns the shaped placeholder, cached per font style.
 func (w *ViewW) ellipsis() *text.Layout {
 	vs := w.vs
-	if sz := w.opts.fontSize(); vs.ellipsis == nil || vs.ellipsisSize != sz {
-		vs.ellipsis = text.Shape(foldEllipsis, w.monoStyle(), text.Options{NoWrap: true})
-		vs.ellipsisSize = sz
+	if style := w.monoStyle(); vs.ellipsis == nil || vs.ellipsisFont != style {
+		vs.ellipsis = text.Shape(foldEllipsis, style, text.Options{NoWrap: true})
+		vs.ellipsisFont = style
 	}
 	return vs.ellipsis
 }

@@ -16,6 +16,7 @@
 - `SplitterPanelW` 支持受控像素尺寸、折叠状态及变化回调，`SplitterW.PixelSizes()` 返回当前分栏尺寸。
 - `SplitterPanelW.AlwaysShowCollapse(true)` 让分隔条在非悬停时也显示折叠按钮。
 - `ui/editor` 新增 `HoverOffset`、`OffsetAnchor` 和 `MountContent`，支持为悬停、诊断和快速修复挂载文档位置浮层。`ViewW.Suggest` 提供键盘导航、滚动补全列表和可选详情，`DecorationOptions.Squiggle` 绘制诊断波浪线。
+- `ui/editor` 可设置行号列最少位数、行装饰宽度、独立断点槽、折叠图标淡入淡出、字体、行高和光标宽度。`ViewW.MountFind` 可在编辑器右上角挂载应用的查找替换面板。
 - `theme.DialogMask(color)` 为 Modal、Confirm 和 Drawer 配置遮罩颜色和透明度，支持局部主题覆盖。
 - `ContextMenuOptions.Width` 可指定根菜单的逻辑像素宽度，边缘换向使用同一宽度。
 - `uihost.Options.OnFirstPresent` 在画布首次成功提交后回调，提供呈现调用返回时间。macOS Metal 可异步提供该帧的实际上屏时间。
