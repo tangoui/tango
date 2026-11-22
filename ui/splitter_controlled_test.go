@@ -54,3 +54,33 @@ func TestSplitterControlledSizeAndCollapse(t *testing.T) {
 	}
 	assertWidth(190)
 }
+
+func TestSplitterPairKeyboardStep(t *testing.T) {
+	var split *SplitterW
+	d := NewDriver(func(c *Context) {
+		split = Splitter(c).Style(layout.Fill()).KeyboardStep(.05, .2)
+		split.Body(func() {
+			SplitterPanel(c).DefaultPercent(.25)
+			SplitterPanel(c).DefaultPercent(.25)
+			SplitterPanel(c).DefaultPercent(.5)
+		})
+	}, DriverOptions{Width: 600, Height: 120})
+	d.Frame()
+	bar, ok := d.Find("splitter-bar-1")
+	if !ok {
+		t.Fatal("first splitter bar missing")
+	}
+	d.Click(bar.Center())
+	check := func(want float32) {
+		t.Helper()
+		if got := split.Sizes(); math.Abs(float64(got[0]-want)) > 0.0001 || got[2] != .5 {
+			t.Fatalf("splitter sizes %v, want first %v and third .5", got, want)
+		}
+	}
+	d.Key(input.KeyDown, 0)
+	check(.25)
+	d.Key(input.KeyRight, 0)
+	check(.275)
+	d.Key(input.KeyLeft, input.ModShift)
+	check(.175)
+}

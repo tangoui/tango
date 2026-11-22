@@ -166,6 +166,15 @@ func (st *contextMenuState) build(c *Context) {
 	th := c.ThemeFor(theme.CompDropdown)
 	a := c.AnimFrom(hashID(contextMenuKey, st.seq), "open", 0, 1, th.DurationMid)
 	pop := &navMenuPopup{c: c, th: th, tk: &th.Components.Dropdown, st: &st.popup, element: navEl(c), opacity: a, edge: true, pointWidth: st.width}
+	pop.marks = &navMarks{
+		color: pop.tk.IndicatorColor, size: pop.tk.IndicatorSize, width: pop.tk.IndicatorWidth,
+		of: func(it MenuItem) (navMarkKind, bool) {
+			if it.Radio == nil || len(it.Children) != 0 || it.Divider {
+				return navMarkNone, false
+			}
+			return navMarkCheck, *it.Radio
+		},
+	}
 	at := st.pos
 	pop.panel(st.items, 0, 0, 0, 0, &at)
 	st.panels = pop.panels

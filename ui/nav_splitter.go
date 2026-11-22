@@ -20,25 +20,27 @@ import (
 type SplitterPanelW struct {
 	_ [0]func()
 
-	c           *Context
-	size        float32 // default size in px (0 = share)
-	percent     float32 // default size as fraction 0..1
-	min, max    float32 // px limits
-	minPct      float32 // MinPercent (0..1; 0: none)
-	maxPct      float32 // MaxPercent (0..1; 0: none)
-	collapsible bool
-	alwaysShow  bool
-	toggle      bool   // CollapseToggle: one arrow that folds this pane
-	collapseTip string // CollapseToggle tips (empty: locale Collapse / Expand)
-	expandTip   string
-	fixed       bool
-	fn          func()
-	sizePx      float32
-	sizeSet     bool
-	collapsed   bool
-	collapseSet bool
-	onResize    func(float32)
-	onCollapse  func(bool)
+	c                *Context
+	size             float32 // default size in px (0 = share)
+	percent          float32 // default size as fraction 0..1
+	min, max         float32 // px limits
+	minPct           float32 // MinPercent (0..1; 0: none)
+	maxPct           float32 // MaxPercent (0..1; 0: none)
+	collapsible      bool
+	alwaysShow       bool
+	toggle           bool   // CollapseToggle: one arrow that folds this pane
+	collapseTip      string // CollapseToggle tips (empty: locale Collapse / Expand)
+	expandTip        string
+	toggleOffsets    [2]float32
+	toggleOffsetsSet bool
+	fixed            bool
+	fn               func()
+	sizePx           float32
+	sizeSet          bool
+	collapsed        bool
+	collapseSet      bool
+	onResize         func(float32)
+	onCollapse       func(bool)
 }
 
 type splitterCtx struct{ panels []*SplitterPanelW }
@@ -124,6 +126,14 @@ func (p *SplitterPanelW) CollapseToggle(collapseTip, expandTip string) *Splitter
 	return p
 }
 
+// CollapseOffsets sets the toggle center's distance from the bar in
+// logical pixels. Positive values shift it toward the expanded pane, or
+// toward its neighbor when collapsed. Use with CollapseToggle.
+func (p *SplitterPanelW) CollapseOffsets(expanded, collapsed float32) *SplitterPanelW {
+	p.toggleOffsets, p.toggleOffsetsSet = [2]float32{expanded, collapsed}, true
+	return p
+}
+
 // splitterToggleIcon is the CollapseToggle caret: towards the pane it
 // collapses (start: left / up), flipped once that pane is collapsed.
 func splitterToggleIcon(vertical, start, collapsed bool) *icon.Icon {
@@ -178,18 +188,19 @@ type splitterState struct {
 type SplitterW struct {
 	_ [0]func()
 
-	c        *Context
-	vertical bool
-	opts     []layout.Option
-	st       *splitterState
-	changed  bool
-	lazy     bool
-	handle   bool                 // WithHandle
-	started  int                  // bar index whose drag started this frame (0: none)
-	ended    int                  // bar index whose drag ended this frame (0: none)
-	th       *theme.Theme         // c.ThemeFor(theme.CompSplitter), set by Body
-	tk       *theme.SplitterToken // &th.Components.Splitter
-	pixels   float32
+	c                               *Context
+	vertical                        bool
+	opts                            []layout.Option
+	st                              *splitterState
+	changed                         bool
+	lazy                            bool
+	handle                          bool                 // WithHandle
+	started                         int                  // bar index whose drag started this frame (0: none)
+	ended                           int                  // bar index whose drag ended this frame (0: none)
+	th                              *theme.Theme         // c.ThemeFor(theme.CompSplitter), set by Body
+	tk                              *theme.SplitterToken // &th.Components.Splitter
+	pixels                          float32
+	keyboardStep, keyboardShiftStep float32
 }
 
 // Splitter starts a split view; chain options, then Body with SplitterPanel calls.
@@ -229,6 +240,14 @@ func (s *SplitterW) Style(opts ...layout.Option) *SplitterW { s.opts = opts; ret
 // until the pointer is released, then the new ratio is committed at once
 // (Changed reports it on that frame). Keyboard resizing is unaffected.
 func (s *SplitterW) Lazy() *SplitterW { s.lazy = true; return s }
+
+// KeyboardStep sets arrow and Shift+arrow increments as fractions of the
+// two adjacent panes' total size. A positive step also restricts arrows
+// to the splitter's axis. Zero restores the default 10 px step.
+func (s *SplitterW) KeyboardStep(step, shiftStep float32) *SplitterW {
+	s.keyboardStep, s.keyboardShiftStep = min(1, max(0, step)), min(1, max(0, shiftStep))
+	return s
+}
 
 // DragStarted reports the bar (1-based: bar i sits before pane i) whose
 // pointer drag began this frame.
@@ -650,6 +669,10 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 	}
 	if resizable && ia.Focused {
 		step := 10 / total // 10px per arrow press
+		pair := st.frac[a] + st.frac[bIdx]
+		if s.keyboardStep > 0 {
+			step = pair * s.keyboardStep
+		}
 		cur := st.frac[a]
 		target, moved := cur, false
 		if act, _, ok := c.A11yAction(n.id); ok && (act == a11y.Increment || act == a11y.Decrement) {
@@ -668,11 +691,22 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 			// The bar follows the arrow visually: towards the start pane
 			// (Left in LTR, Right in RTL, Up) shrinks it.
 			prev, next := c.inlineKey(k.Key)
+			keyStep := step
+			if s.keyboardStep > 0 {
+				if s.vertical {
+					prev, next = k.Key == input.KeyUp, k.Key == input.KeyDown
+				}
+				if k.Mods.Has(input.ModShift) && s.keyboardShiftStep > 0 {
+					keyStep = pair * s.keyboardShiftStep
+				}
+			} else {
+				prev, next = prev || k.Key == input.KeyUp, next || k.Key == input.KeyDown
+			}
 			switch {
-			case prev || k.Key == input.KeyUp:
-				target, moved = target-step, true
-			case next || k.Key == input.KeyDown:
-				target, moved = target+step, true
+			case prev:
+				target, moved = target-keyStep, true
+			case next:
+				target, moved = target+keyStep, true
 			}
 			switch k.Key {
 			case input.KeyHome:
@@ -811,7 +845,23 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 				} else {
 					ar = geom.Rect{X: r.X + r.W/2 - cw/2, Y: r.Y + r.H/2 + off, W: cw, H: ch}
 				}
-				if tgt >= 0 && folded(tgt) {
+				if tgt >= 0 && panels[tgt].toggleOffsetsSet {
+					isFolded := folded(tgt)
+					delta := panels[tgt].toggleOffsets[0]
+					if isFolded {
+						delta = panels[tgt].toggleOffsets[1]
+					}
+					if (tgt == a) != isFolded {
+						delta = -delta
+					}
+					if vertical {
+						ar.Y += delta
+					} else if c.IsRTL() {
+						ar.X -= delta
+					} else {
+						ar.X += delta
+					}
+				} else if tgt >= 0 && folded(tgt) {
 					// The bar now lies on the splitter's edge (the folded
 					// pane's side): grow the arrow away from that edge so a
 					// clipping splitter does not cut it in half.

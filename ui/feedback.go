@@ -1095,6 +1095,7 @@ type ModalW struct {
 	c          *Context
 	open       *bool
 	title      string
+	header     func()
 	width      float32
 	okText     string
 	cancelText string
@@ -1143,6 +1144,11 @@ func (m *ModalW) MaskClosable(on bool) *ModalW   { m.maskClose = on; return m }
 func (m *ModalW) Closable(on bool) *ModalW       { m.closable = on; return m }
 func (m *ModalW) Danger() *ModalW                { m.danger = true; return m }
 func (m *ModalW) ConfirmLoading(on bool) *ModalW { m.loading = on; return m }
+
+// Header replaces the visible title with custom content. The title passed
+// to Modal remains the accessible dialog name. The built-in fullscreen
+// and close buttons, drag handle and focus management remain available.
+func (m *ModalW) Header(fn func()) *ModalW { m.header = fn; return m }
 
 // Mask(false) hides the dimming mask (the page stays visible but blocked).
 func (m *ModalW) Mask(on bool) *ModalW { m.mask = on; return m }
@@ -1253,12 +1259,16 @@ func (m *ModalW) Body(fn func()) *ModalW {
 		pad := geom.VH(tk.PaddingBlock, tk.Padding)
 		col := Column(c, func() {
 			hb := Row(c, func() {
-				t := Text(c, m.title).Layout(layout.Grow(1)).NoWrap().Ellipsis().Size(tk.TitleFontSize).Color(tk.TitleColor)
-				if tk.TitleLineHeight > 0 {
-					t.LineHeight(tk.TitleLineHeight)
-				}
-				if tk.TitleFontWeight != 0 {
-					t.Weight(text.Weight(tk.TitleFontWeight))
+				if m.header != nil {
+					Row(c, m.header, layout.Grow(1), layout.Middle())
+				} else {
+					t := Text(c, m.title).Layout(layout.Grow(1)).NoWrap().Ellipsis().Size(tk.TitleFontSize).Color(tk.TitleColor)
+					if tk.TitleLineHeight > 0 {
+						t.LineHeight(tk.TitleLineHeight)
+					}
+					if tk.TitleFontWeight != 0 {
+						t.Weight(text.Weight(tk.TitleFontWeight))
+					}
 				}
 				if m.fullToggle {
 					label := loc.Fullscreen

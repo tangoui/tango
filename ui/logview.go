@@ -290,7 +290,7 @@ func (w *LogViewW) build() {
 		return dst
 	}
 	if len(st.matches) > 0 {
-		v.marks = func(i int, dst []txvMark) []txvMark {
+		v.marks = func(i, _, _ int, dst []txvMark) []txvMark {
 			a := abs(i)
 			k := sort.Search(len(st.matches), func(k int) bool { return st.matches[k].abs >= a })
 			for ; k < len(st.matches) && st.matches[k].abs == a; k++ {

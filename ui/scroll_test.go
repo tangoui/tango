@@ -28,6 +28,30 @@ func TestElementScrollbarTrackAndDrag(t *testing.T) {
 	}
 }
 
+func TestScrollPaintedAndMaxOffsets(t *testing.T) {
+	var box *ScrollBox
+	move := false
+	d := NewDriver(func(c *Context) {
+		box = Scroll(c, func() { Div(c, layout.H(500)) }, layout.H(100))
+		if move {
+			box.ScrollTo(0, 450)
+			if _, y := box.PaintedOffset(); y != 0 {
+				t.Errorf("queued scroll changed painted offset to %v", y)
+			}
+			move = false
+		}
+	}, DriverOptions{Width: 200, Height: 200})
+	d.Frame()
+	if _, y := box.MaxOffset(); y != 400 {
+		t.Fatalf("maximum offset = %v, want 400", y)
+	}
+	move = true
+	d.Frame()
+	if _, y := box.PaintedOffset(); y != 400 {
+		t.Fatalf("painted offset = %v, want 400", y)
+	}
+}
+
 func TestScrollRetainsStateAlongsideWidgetState(t *testing.T) {
 	var sb *ScrollBox
 	var own *int

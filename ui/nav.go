@@ -37,6 +37,9 @@ type MenuItem struct {
 	// handles the key itself); the label stays the accessible name and the
 	// shortcut is exposed as the node's keyboard shortcut.
 	Shortcut string
+	// Radio marks a point context-menu leaf as a single-choice item. The
+	// caller owns the checked value and updates it when the item is chosen.
+	Radio *bool
 }
 
 // menuFlatGroups returns items with groups replaced by their children

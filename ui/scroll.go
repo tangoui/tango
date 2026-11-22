@@ -387,6 +387,14 @@ func (s *ScrollBox) Always() *ScrollBox { s.s.always = true; return s }
 // top-left corner (top-right in RTL, where x counts from the right end).
 func (s *ScrollBox) Offset() (x, y float64) { return s.s.off.X, s.s.off.Y }
 
+// PaintedOffset returns the logical scroll offset used by the last paint.
+// It stays at that position until scheduled scrolling is drawn.
+func (s *ScrollBox) PaintedOffset() (x, y float64) { return s.s.painted.X, s.s.painted.Y }
+
+// MaxOffset returns the maximum logical offsets measured by the last
+// paint. Subtract PaintedOffset from it to get the remaining scroll range.
+func (s *ScrollBox) MaxOffset() (x, y float64) { return s.s.maxX(), s.s.maxY() }
+
 // ScrollTo sets the scroll offset (clamped at paint). x is logical: 0 is
 // the inline start, which is the right end in RTL.
 func (s *ScrollBox) ScrollTo(x, y float64) *ScrollBox {

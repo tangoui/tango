@@ -1085,6 +1085,8 @@ pkg github.com/tangoui/tango/ui, method (*CodeBlockW) MaxHeight(float32) *CodeBl
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) NoCopy() *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Reveal(int) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Search(string, bool) *CodeBlockW
+pkg github.com/tangoui/tango/ui, method (*CodeBlockW) SearchLimit(int) *CodeBlockW
+pkg github.com/tangoui/tango/ui, method (*CodeBlockW) SearchMatchCount() (int, bool)
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) SearchMatches() []CodeBlockMatch
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Selection() string
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) StartLine(int) *CodeBlockW
@@ -2118,6 +2120,7 @@ pkg github.com/tangoui/tango/ui, method (*ModalW) Draggable() *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) Footer(func()) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) Fullscreen(*bool) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) FullscreenToggle() *ModalW
+pkg github.com/tangoui/tango/ui, method (*ModalW) Header(func()) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) Keyboard(bool) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) Loading(bool) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) Mask(bool) *ModalW
@@ -2710,7 +2713,9 @@ pkg github.com/tangoui/tango/ui, method (*SchemaFormW) Values(*ProValues) *Schem
 pkg github.com/tangoui/tango/ui, method (*SchemaFormW) Width(float32) *SchemaFormW
 pkg github.com/tangoui/tango/ui, method (*ScrollBox) Always() *ScrollBox
 pkg github.com/tangoui/tango/ui, method (*ScrollBox) Both() *ScrollBox
+pkg github.com/tangoui/tango/ui, method (*ScrollBox) MaxOffset() (float64, float64)
 pkg github.com/tangoui/tango/ui, method (*ScrollBox) Offset() (float64, float64)
+pkg github.com/tangoui/tango/ui, method (*ScrollBox) PaintedOffset() (float64, float64)
 pkg github.com/tangoui/tango/ui, method (*ScrollBox) Reveal(float64, float64) *ScrollBox
 pkg github.com/tangoui/tango/ui, method (*ScrollBox) ScrollTo(float64, float64) *ScrollBox
 pkg github.com/tangoui/tango/ui, method (*ScrollBox) ScrollToSmooth(float32, time.Duration) *ScrollBox
@@ -2858,6 +2863,7 @@ pkg github.com/tangoui/tango/ui, method (*SpinW) Tip(string) *SpinW
 pkg github.com/tangoui/tango/ui, method (*SpinW) Wrap(func()) *Box
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) AlwaysShowCollapse(bool) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Body(func()) *SplitterPanelW
+pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) CollapseOffsets(float32, float32) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) CollapseToggle(string, string) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Collapsed(bool) *SplitterPanelW
 pkg github.com/tangoui/tango/ui, method (*SplitterPanelW) Collapsible() *SplitterPanelW
@@ -2876,6 +2882,7 @@ pkg github.com/tangoui/tango/ui, method (*SplitterW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*SplitterW) DragEnded() (int, bool)
 pkg github.com/tangoui/tango/ui, method (*SplitterW) DragStarted() (int, bool)
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Dragging() bool
+pkg github.com/tangoui/tango/ui, method (*SplitterW) KeyboardStep(float32, float32) *SplitterW
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Lazy() *SplitterW
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Orientation(string) *SplitterW
 pkg github.com/tangoui/tango/ui, method (*SplitterW) PixelSizes() []float32
@@ -4985,6 +4992,7 @@ pkg github.com/tangoui/tango/ui, type MenuItem struct, Group bool
 pkg github.com/tangoui/tango/ui, type MenuItem struct, Icon *ui/icon.Icon
 pkg github.com/tangoui/tango/ui, type MenuItem struct, Key string
 pkg github.com/tangoui/tango/ui, type MenuItem struct, Label string
+pkg github.com/tangoui/tango/ui, type MenuItem struct, Radio *bool
 pkg github.com/tangoui/tango/ui, type MenuItem struct, Shortcut string
 pkg github.com/tangoui/tango/ui, type MenuItem struct, noncomparable
 pkg github.com/tangoui/tango/ui, type MenuMode uint8

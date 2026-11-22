@@ -98,16 +98,16 @@ type txView struct {
 	content *node
 	ia      Interaction
 
-	count    int                                  // lines
-	line     func(i int) string                   // text of line i (no "\n")
-	index    func(int, int) []txvBoundary         // optional indexed wrap boundaries by line and width
-	runs     func(i int, dst []txvRun) []txvRun   // style runs of line i (nil: plain)
-	cells    func(i int) int                      // display cells of line i
-	marks    func(i int, dst []txvMark) []txvMark // search matches of line i (nil: none)
-	lineBg   func(i int) theme.Color              // tint of line i (nil: none)
-	numbers  func(i int) int                      // gutter number of line i (nil: no gutter)
-	maxNo    int                                  // widest gutter number
-	ver      uint64                               // bumps when lines change other than by appending
+	count    int                                             // lines
+	line     func(i int) string                              // text of line i (no "\n")
+	index    func(int, int) []txvBoundary                    // optional indexed wrap boundaries by line and width
+	runs     func(i int, dst []txvRun) []txvRun              // style runs of line i (nil: plain)
+	cells    func(i int) int                                 // display cells of line i
+	marks    func(line, lo, hi int, dst []txvMark) []txvMark // search matches of the visible segment (nil: none)
+	lineBg   func(i int) theme.Color                         // tint of line i (nil: none)
+	numbers  func(i int) int                                 // gutter number of line i (nil: no gutter)
+	maxNo    int                                             // widest gutter number
+	ver      uint64                                          // bumps when lines change other than by appending
 	wrap     bool
 	size     float32
 	lineH    float32
@@ -344,6 +344,15 @@ func (v *txView) segment(s string, seg int) (b0, b1, r0 int) {
 type txvBoundary struct{ byteOffset, runeOffset int }
 
 func txvBoundaries(s string, cols int) []txvBoundary {
+	cols = max(1, cols)
+	if txvASCII(s) {
+		starts := make([]txvBoundary, 0, max(0, len(s)-1)/cols+2)
+		starts = append(starts, txvBoundary{})
+		for at := cols; at < len(s); at += cols {
+			starts = append(starts, txvBoundary{at, at})
+		}
+		return append(starts, txvBoundary{len(s), len(s)})
+	}
 	starts := []txvBoundary{{}}
 	i, cell := 0, 0
 	next := cols
@@ -361,6 +370,15 @@ func txvBoundaries(s string, cols int) []txvBoundary {
 	}
 	starts = append(starts, txvBoundary{len(s), i})
 	return starts
+}
+
+func txvASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\t' || s[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
 }
 
 func (v *txView) segmentAt(line, seg int, s string) (b0, b1, r0 int) {
@@ -789,7 +807,7 @@ func (v *txView) paint(l *paint.List, r, visible geom.Rect) {
 		}
 		// Search matches.
 		if v.marks != nil {
-			marks = v.marks(line, marks[:0])
+			marks = v.marks(line, b0, b1, marks[:0])
 			for _, m := range marks {
 				ms, me := max(m.start, b0), min(m.end, b1)
 				if ms >= me && !(m.start == m.end) {

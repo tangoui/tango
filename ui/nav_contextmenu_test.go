@@ -282,6 +282,26 @@ func TestContextMenuAt(t *testing.T) {
 	}
 }
 
+func TestContextMenuRadioItems(t *testing.T) {
+	p := &ctxPage{}
+	first, second := true, false
+	d := ctxDriver(p, []MenuItem{
+		{Key: "first", Label: "One", Radio: &first},
+		{Key: "second", Label: "Two", Radio: &second},
+	})
+	d.Settle()
+	d.RightClick(d.r.c.rects[p.area].Center())
+	for _, v := range []struct {
+		name string
+		on   bool
+	}{{"One", true}, {"Two", false}} {
+		n := mustNode(t, d, a11y.RoleMenuItemRadio, v.name)
+		if !n.States.Has(a11y.Checkable) || n.States.Has(a11y.Checked) != v.on {
+			t.Errorf("%s: states %v, checked want %v", v.name, n.States, v.on)
+		}
+	}
+}
+
 // TestContextMenuAtRTL: in RTL the panel's top-right corner is at the
 // point and the shortcut column is on the left.
 func TestContextMenuAtRTL(t *testing.T) {

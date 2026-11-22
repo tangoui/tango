@@ -46,7 +46,7 @@ func MacToggle(n *a11y.Node) bool {
 	case a11y.RoleButton:
 		return n.States.Has(a11y.Toggleable)
 	}
-	return n.States.Has(a11y.Checkable) && n.Role == a11y.RoleMenuItem
+	return n.States.Has(a11y.Checkable) && (n.Role == a11y.RoleMenuItem || n.Role == a11y.RoleMenuItemRadio)
 }
 
 // MacTextField reports whether n is an editable text field whose AXValue
@@ -223,7 +223,7 @@ var atspiRoles = map[string]uint32{
 	"DIALOG": 16, "DRAWING_AREA": 18, "FILLER": 20, "FRAME": 23, "IMAGE": 27, "LABEL": 29,
 	"LIST": 31, "LIST_ITEM": 32, "MENU": 33, "MENU_BAR": 34, "MENU_ITEM": 35, "PAGE_TAB": 37,
 	"PAGE_TAB_LIST": 38, "PANEL": 39, "PASSWORD_TEXT": 40, "PROGRESS_BAR": 42,
-	"PUSH_BUTTON": 43, "RADIO_BUTTON": 44, "ROW_HEADER": 47, "SCROLL_PANE": 49,
+	"PUSH_BUTTON": 43, "RADIO_BUTTON": 44, "RADIO_MENU_ITEM": 45, "ROW_HEADER": 47, "SCROLL_PANE": 49,
 	"SEPARATOR": 50, "SLIDER": 51, "SPIN_BUTTON": 52, "STATUS_BAR": 54, "TABLE": 55,
 	"TABLE_CELL": 56, "TEXT": 61, "TOGGLE_BUTTON": 62, "TOOL_BAR": 63, "TOOL_TIP": 64,
 	"TREE": 65, "UNKNOWN": 67, "WINDOW": 69, "PARAGRAPH": 73, "APPLICATION": 75, "ENTRY": 79,

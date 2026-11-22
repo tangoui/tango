@@ -26,18 +26,60 @@ func TestCodeBlockSearchAndRevealWrappedTail(t *testing.T) {
 	if got := w.v.sb.s.off.Y; got < 1000 {
 		t.Fatalf("active match's wrapped segment did not scroll into view: offset %v", got)
 	}
-	if marks := w.v.marks(1, nil); len(marks) != 1 || !marks[0].current || marks[0].end != len("next") {
+	if marks := w.v.marks(1, 0, len(w.st.line(1)), nil); len(marks) != 1 || !marks[0].current || marks[0].end != len("next") {
 		t.Fatalf("cross-line marks: %+v", marks)
 	}
 	index = 1
 	d.Frame()
-	if marks := w.v.marks(2, nil); len(marks) != 1 || !marks[0].current {
+	if marks := w.v.marks(2, 0, len(w.st.line(2)), nil); len(marks) != 1 || !marks[0].current {
 		t.Fatalf("next marks: %+v", marks)
 	}
 	query = ""
 	d.Frame()
 	if got := w.SearchMatches(); len(got) != 0 || w.v.marks != nil {
 		t.Fatalf("clearing query left matches %v", got)
+	}
+}
+
+func TestCodeBlockSearchLimit(t *testing.T) {
+	limit, sensitive := 2, false
+	var w *CodeBlockW
+	d := NewDriver(func(c *Context) {
+		w = CodeBlock(c, "one ONE one").Search("one", sensitive).SearchLimit(limit)
+	}, DriverOptions{})
+	d.Frame()
+	if n, capped := w.SearchMatchCount(); n != 2 || !capped {
+		t.Fatalf("case-folded results: count=%d, capped=%t", n, capped)
+	}
+	if marks := w.v.marks(0, 4, 7, nil); len(marks) != 1 || marks[0].start != 4 || marks[0].end != 7 {
+		t.Fatalf("visible segment marks: %+v", marks)
+	}
+	sensitive = true
+	d.Frame()
+	if n, capped := w.SearchMatchCount(); n != 2 || capped {
+		t.Fatalf("case-sensitive results: count=%d, capped=%t", n, capped)
+	}
+	limit = 1
+	d.Frame()
+	if n, capped := w.SearchMatchCount(); n != 1 || !capped {
+		t.Fatalf("reconfigured limit: count=%d, capped=%t", n, capped)
+	}
+}
+
+func TestCodeBlockASCIIWrapBoundary(t *testing.T) {
+	for _, test := range []struct {
+		text string
+		want []txvBoundary
+	}{
+		{"", []txvBoundary{{}, {}}},
+		{"abc", []txvBoundary{{}, {3, 3}}},
+		{"abcd", []txvBoundary{{}, {3, 3}, {4, 4}}},
+		{"abc\td", []txvBoundary{{}, {3, 3}, {5, 5}}},
+		{"汉abc", []txvBoundary{{}, {4, 2}, {6, 4}}},
+	} {
+		if got := txvBoundaries(test.text, 3); !slices.Equal(got, test.want) {
+			t.Errorf("boundaries for %q = %v, want %v", test.text, got, test.want)
+		}
 	}
 }
 

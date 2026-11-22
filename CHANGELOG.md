@@ -13,13 +13,18 @@
 - `MarkdownW.HeadingBlock` 可按标题 ID 查询块索引，虚拟预览可用 `ScrollToHeading` 和 `ScrollToBlock` 定位。
 - `CodeBlockW` 缓存软换行段的字节索引，支持全文搜索、活动匹配高亮和按字节偏移定位。
 - `CodeBlockW.TextID()` 返回内部只读文本框的焦点 ID，供快捷键路由和关闭查找后的焦点恢复使用。
+- `CodeBlockW.SearchLimit` 可限制保留的结果数，`SearchMatchCount` 可直接读计数和截断标记。软换行采用 ASCII 等距索引并按可见段提取查找高亮。
 - `SplitterPanelW` 支持受控像素尺寸、折叠状态及变化回调，`SplitterW.PixelSizes()` 返回当前分栏尺寸。
 - `SplitterPanelW.AlwaysShowCollapse(true)` 让分隔条在非悬停时也显示折叠按钮。
+- `SplitterPanelW.CollapseOffsets` 可偏移展开和折叠状态的按钮，`SplitterW.KeyboardStep` 支持按相邻窗格总尺寸比例调整键盘步长。
+- `ModalW.Header` 支持自定义可见标题栏，并保留对话框的可访问名称、关闭及全屏操作。
 - `ui/editor` 新增 `HoverOffset`、`OffsetAnchor` 和 `MountContent`，支持为悬停、诊断和快速修复挂载文档位置浮层。`ViewW.Suggest` 提供键盘导航、滚动补全列表和可选详情，`DecorationOptions.Squiggle` 绘制诊断波浪线。
 - `ui/editor` 可设置行号列最少位数、行装饰宽度、独立断点槽、折叠图标淡入淡出、字体、行高和光标宽度。`ViewW.MountFind` 可在编辑器右上角挂载应用的查找替换面板。
 - `theme.DialogMask(color)` 为 Modal、Confirm 和 Drawer 配置遮罩颜色和透明度，支持局部主题覆盖。
 - `theme.ElementPlusControls()` 为 Element 主题启用 2.14.8 的控件细节，包括表单圆角与字号、标签间距、浮层及固定宽度滚动条。滚动条样式可通过 `theme.Components.Scrollbar` 覆盖。
 - `ContextMenuOptions.Width` 可指定根菜单的逻辑像素宽度，边缘换向使用同一宽度。
+- 点位上下文菜单支持 `MenuItem.Radio`，绘制勾选并向辅助技术报告单选菜单项及其选中状态。
+- `ScrollBox.PaintedOffset` 和 `MaxOffset` 返回已绘制的滚动偏移和可滚动范围。
 - `uihost.Options.OnFirstPresent` 在画布首次成功提交后回调，提供呈现调用返回时间。macOS Metal 可异步提供该帧的实际上屏时间。
 - `(*tango.Surface).LastActivityAt()` 返回窗口最近观测到的输入时间，包含自绘画布和嵌入的 WebView。窗口隐藏时也可从任意 goroutine 读取。
 - 桌面的 `uihost.Attach` 画布和 `tan dev` 热重载的 `uihost.Open` 窗口可嵌入 `uihost.WebView`。子视图随画布布局裁剪，支持浮层遮盖和键盘焦点。见 [内嵌 WebView](docs/specs/webview-embed.md)。

@@ -51,6 +51,7 @@ pkg github.com/tangoui/tango/ui/a11y, const RoleListbox Role = 16
 pkg github.com/tangoui/tango/ui/a11y, const RoleMenu Role = 18
 pkg github.com/tangoui/tango/ui/a11y, const RoleMenuBar Role = 19
 pkg github.com/tangoui/tango/ui/a11y, const RoleMenuItem Role = 20
+pkg github.com/tangoui/tango/ui/a11y, const RoleMenuItemRadio Role = 50
 pkg github.com/tangoui/tango/ui/a11y, const RoleMeter Role = 49
 pkg github.com/tangoui/tango/ui/a11y, const RoleNavigation Role = 42
 pkg github.com/tangoui/tango/ui/a11y, const RoleNone Role = 0

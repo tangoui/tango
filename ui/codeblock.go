@@ -23,31 +23,32 @@ import (
 type CodeBlockW struct {
 	_ [0]func()
 
-	c         *Context
-	b         *Box
-	code      string
-	lang      string
-	title     string
-	header    *CodeHeaderStyle
-	numbers   bool
-	start     int
-	copy      bool
-	wrap      bool
-	hl        CodeHighlighter
-	hlSet     bool
-	height    float32
-	maxH      float32
-	marked    map[int]bool
-	label     string
-	copied    bool
-	v         *txView
-	z         *lazy
-	st        *codeBlockState
-	query     string
-	match     int
-	sensitive bool
-	offset    int
-	reveal    bool
+	c           *Context
+	b           *Box
+	code        string
+	lang        string
+	title       string
+	header      *CodeHeaderStyle
+	numbers     bool
+	start       int
+	copy        bool
+	wrap        bool
+	hl          CodeHighlighter
+	hlSet       bool
+	height      float32
+	maxH        float32
+	marked      map[int]bool
+	label       string
+	copied      bool
+	v           *txView
+	z           *lazy
+	st          *codeBlockState
+	query       string
+	match       int
+	sensitive   bool
+	searchLimit int
+	offset      int
+	reveal      bool
 }
 
 type codeBlockState struct {

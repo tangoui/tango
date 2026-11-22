@@ -537,6 +537,9 @@ func (p *navMenuPopup) items(items []MenuItem, level int, parent ID) {
 			mark, marked = p.marks.of(it)
 			if mark != navMarkNone {
 				n.setState(a11y.Checkable).stateIf(marked, a11y.Checked)
+				if it.Radio != nil {
+					n.setRole(a11y.RoleMenuItemRadio)
+				}
 			}
 		}
 		if ia.Hovered && !it.Disabled && !p.st.kbd {

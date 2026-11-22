@@ -106,6 +106,7 @@ func (r *Runner) SetReduceMotion(on bool)         // 系统「减少动态效果
 | `menu` | AXMenu | Menu | MENU | container | android.widget.ListView |
 | `menubar` | AXMenuBar | MenuBar | MENU_BAR | container | android.view.ViewGroup |
 | `menuitem` | AXMenuItem | MenuItem | MENU_ITEM | button | android.view.View |
+| `menuitemradio` | AXMenuItem | MenuItem | RADIO_MENU_ITEM | button | android.view.View |
 | `tab` | AXRadioButton/AXTabButton | TabItem | PAGE_TAB | button | android.view.View |
 | `tablist` | AXTabGroup | Tab | PAGE_TAB_LIST | tabBar | android.widget.TabWidget |
 | `tabpanel` | AXGroup | Pane | SCROLL_PANE | container | android.view.ViewGroup |

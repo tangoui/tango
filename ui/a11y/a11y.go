@@ -78,9 +78,10 @@ const (
 	RoleSeparator // static divider; focusable (with Value range) when it resizes panes
 	RoleScrollArea
 	RoleForm
-	RoleFigure // chart: Name + Description summary
-	RoleTimer  // countdown
-	RoleMeter  // read-only scalar (Statistic, Gauge)
+	RoleFigure        // chart: Name + Description summary
+	RoleTimer         // countdown
+	RoleMeter         // read-only scalar (Statistic, Gauge)
+	RoleMenuItemRadio // a checkable single-choice menu item
 	roleCount
 )
 
@@ -90,7 +91,8 @@ var roleNames = [...]string{
 	RoleRadio: "radio", RoleRadioGroup: "radiogroup", RoleSwitch: "switch", RoleTextbox: "textbox",
 	RoleSearchbox: "searchbox", RoleSpinButton: "spinbutton", RoleCombobox: "combobox", RoleListbox: "listbox",
 	RoleOption: "option", RoleMenu: "menu", RoleMenuBar: "menubar", RoleMenuItem: "menuitem", RoleTab: "tab",
-	RoleTabList: "tablist", RoleTabPanel: "tabpanel", RoleDialog: "dialog", RoleAlertDialog: "alertdialog",
+	RoleMenuItemRadio: "menuitemradio",
+	RoleTabList:       "tablist", RoleTabPanel: "tabpanel", RoleDialog: "dialog", RoleAlertDialog: "alertdialog",
 	RoleAlert: "alert", RoleStatus: "status", RoleTooltip: "tooltip", RoleSlider: "slider",
 	RoleProgressBar: "progressbar", RoleTable: "table", RoleGrid: "grid", RoleRow: "row", RoleCell: "cell",
 	RoleColumnHeader: "columnheader", RoleRowHeader: "rowheader", RoleTree: "tree", RoleTreeItem: "treeitem",
@@ -131,7 +133,7 @@ func ParseRole(s string) (Role, bool) {
 func (r Role) Interactive() bool {
 	switch r {
 	case RoleLink, RoleButton, RoleCheckbox, RoleRadio, RoleSwitch, RoleTextbox, RoleSearchbox,
-		RoleSpinButton, RoleCombobox, RoleListbox, RoleOption, RoleMenuItem, RoleTab, RoleSlider,
+		RoleSpinButton, RoleCombobox, RoleListbox, RoleOption, RoleMenuItem, RoleMenuItemRadio, RoleTab, RoleSlider,
 		RoleTreeItem:
 		return true
 	}
@@ -142,7 +144,7 @@ func (r Role) Interactive() bool {
 // name is named by the text it contains (WAI-ARIA "name from content").
 func (r Role) NameFromContent() bool {
 	switch r {
-	case RoleLink, RoleButton, RoleCheckbox, RoleRadio, RoleSwitch, RoleOption, RoleMenuItem, RoleTab,
+	case RoleLink, RoleButton, RoleCheckbox, RoleRadio, RoleSwitch, RoleOption, RoleMenuItem, RoleMenuItemRadio, RoleTab,
 		RoleTreeItem, RoleCell, RoleColumnHeader, RoleRowHeader, RoleHeading, RoleTooltip, RoleListItem,
 		RoleRow, RoleText, RoleParagraph, RoleStatus, RoleAlert:
 		return true
@@ -155,7 +157,7 @@ func (r Role) NameFromContent() bool {
 // separately (a button's label, an option's text).
 func (r Role) Atomic() bool {
 	switch r {
-	case RoleButton, RoleLink, RoleCheckbox, RoleRadio, RoleSwitch, RoleOption, RoleMenuItem, RoleTab,
+	case RoleButton, RoleLink, RoleCheckbox, RoleRadio, RoleSwitch, RoleOption, RoleMenuItem, RoleMenuItemRadio, RoleTab,
 		RoleSlider, RoleProgressBar, RoleImage, RoleTextbox, RoleSearchbox, RoleSpinButton, RoleHeading,
 		RoleSeparator, RoleMeter, RoleTimer, RoleText, RoleParagraph:
 		return true

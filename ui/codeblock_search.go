@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"math"
 	"regexp"
 	"slices"
 	"sort"
@@ -18,6 +19,8 @@ type codeBlockSearch struct {
 	query     string
 	ver       uint64
 	sensitive bool
+	limit     int
+	capped    bool
 	matches   []CodeBlockMatch
 	active    int
 	offset    int
@@ -31,6 +34,10 @@ func (w *CodeBlockW) Search(query string, caseSensitive bool) *CodeBlockW {
 	w.query, w.sensitive = query, caseSensitive
 	return w
 }
+
+// SearchLimit caps the number of retained results in document order.
+// Zero keeps all results, as in Search without this option.
+func (w *CodeBlockW) SearchLimit(limit int) *CodeBlockW { w.searchLimit = max(0, limit); return w }
 
 // ActiveMatch marks and reveals the zero-based search result at index when
 // the index or result set changes. Pass -1 to clear the active highlight.
@@ -53,11 +60,18 @@ func (w *CodeBlockW) SearchMatches() []CodeBlockMatch {
 	return slices.Clone(w.st.search.matches)
 }
 
+// SearchMatchCount returns the number of retained matches without copying
+// their ranges. Capped is true if additional matches were found.
+func (w *CodeBlockW) SearchMatchCount() (count int, capped bool) {
+	w.z.run()
+	return len(w.st.search.matches), w.st.search.capped
+}
+
 func (w *CodeBlockW) configureSearch(v *txView) {
 	st := w.st
 	s := &st.search
-	if s.ver != st.ver || s.query != w.query || s.sensitive != w.sensitive {
-		*s = codeBlockSearch{ver: st.ver, query: w.query, sensitive: w.sensitive, active: -1}
+	if s.ver != st.ver || s.query != w.query || s.sensitive != w.sensitive || s.limit != w.searchLimit {
+		*s = codeBlockSearch{ver: st.ver, query: w.query, sensitive: w.sensitive, limit: w.searchLimit, active: -1}
 		if w.query != "" {
 			q := strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(w.query)
 			if w.sensitive {
@@ -66,12 +80,25 @@ func (w *CodeBlockW) configureSearch(v *txView) {
 					if i < 0 {
 						break
 					}
+					if s.limit > 0 && len(s.matches) == s.limit {
+						s.capped = true
+						break
+					}
 					start := from + i
 					from = start + len(q)
 					s.matches = append(s.matches, CodeBlockMatch{start, from})
 				}
 			} else if re, err := regexp.Compile("(?i)" + regexp.QuoteMeta(q)); err == nil {
-				for _, m := range re.FindAllStringIndex(st.code, -1) {
+				limit := -1
+				if s.limit > 0 && s.limit < math.MaxInt {
+					limit = s.limit + 1
+				}
+				matches := re.FindAllStringIndex(st.code, limit)
+				if s.limit > 0 && len(matches) > s.limit {
+					s.capped, matches = true, matches[:s.limit]
+				}
+				s.matches = make([]CodeBlockMatch, 0, len(matches))
+				for _, m := range matches {
 					s.matches = append(s.matches, CodeBlockMatch{m[0], m[1]})
 				}
 			}
@@ -88,12 +115,13 @@ func (w *CodeBlockW) configureSearch(v *txView) {
 	}
 	if len(s.matches) > 0 {
 		v.match, v.matchC, v.matchB = w.c.Theme.Warning.Bg, w.c.Theme.Warning.BgHover, w.c.Theme.Warning.Border
-		v.marks = func(line int, dst []txvMark) []txvMark {
-			start, end := st.starts[line], st.starts[line]+len(st.line(line))
+		v.marks = func(line, lo, hi int, dst []txvMark) []txvMark {
+			base := st.starts[line]
+			start, end := base+lo, base+hi
 			i := sort.Search(len(s.matches), func(i int) bool { return s.matches[i].End > start })
 			for ; i < len(s.matches) && s.matches[i].Start < end; i++ {
 				m := s.matches[i]
-				dst = append(dst, txvMark{max(m.Start, start) - start, min(m.End, end) - start, i == s.active})
+				dst = append(dst, txvMark{max(m.Start, start) - base, min(m.End, end) - base, i == s.active})
 			}
 			return dst
 		}
