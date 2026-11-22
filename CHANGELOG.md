@@ -6,6 +6,7 @@
 
 ### 新增
 
+- `theme.DialogMask(color)` 为 Modal、Confirm 和 Drawer 配置遮罩颜色和透明度，支持局部主题覆盖。
 - `ContextMenuOptions.Width` 可指定根菜单的逻辑像素宽度，边缘换向使用同一宽度。
 - `uihost.Options.OnFirstPresent` 在画布首次成功提交后回调，提供呈现调用返回时间。macOS Metal 可异步提供该帧的实际上屏时间。
 - `(*tango.Surface).LastActivityAt()` 返回窗口最近观测到的输入时间，包含自绘画布和嵌入的 WebView。窗口隐藏时也可从任意 goroutine 读取。

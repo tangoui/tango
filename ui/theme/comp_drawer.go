@@ -21,7 +21,7 @@ type DrawerToken struct {
 	FooterBorderColor   Color // divider above the footer (zero: none)
 	CloseIconColor      Color // zero: the icon button default
 	BorderColor         Color // edge facing the page (zero: none)
-	MaskBg              Color
+	MaskBg              Color // mask color including opacity
 	Shadow              []paint.Shadow
 	ResizeHandleSize    float32 // Resizable: hit width of the edge handle
 	ResizeLineColor     Color   `contrast:"nontext:Bg" spec:"dragger hover: antd 6.7 drawer/style colorPrimary opacity .2; el-drawer primary"` // Resizable: edge line under the pointer / while dragging
