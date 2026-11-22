@@ -85,6 +85,9 @@ type DecorationOptions struct {
 	Background color.NRGBA
 	// Border strokes a one pixel border inside each filled box.
 	Border color.NRGBA
+	// Squiggle draws a wavy diagnostic underline across the visible text
+	// of the range. Transparent disables it. Empty ranges have no underline.
+	Squiggle color.NRGBA
 	// Inline changes how the range's glyphs are drawn without changing
 	// their layout (Monaco's inlineClassName); nil: no change.
 	Inline *InlineStyle
@@ -117,7 +120,7 @@ type InlineStyle struct {
 }
 
 // GutterMark is a decoration's mark in the gutter's line decorations
-// margin (the 18 pixels between the line numbers and the text).
+// margin between the line numbers (or folding controls) and the text.
 //
 // Experimental: part of the decorations API (docs/specs/diff-view.md).
 type GutterMark struct {
@@ -198,6 +201,7 @@ func newDecorationStyle(o *DecorationOptions) *decorationStyle {
 	flag(ds.o.ShowIfCollapsed)
 	col(ds.o.Background)
 	col(ds.o.Border)
+	col(ds.o.Squiggle)
 	flag(ds.o.Inline != nil)
 	col(ds.in.Color)
 	flag(ds.in.Underline)
@@ -501,21 +505,48 @@ func (w *ViewW) paintRangeDecos(l *paint.List, snap buffer.Snapshot, lines []lin
 		y := lineY(lv.vi)
 		for _, e := range ud[k].ds {
 			o := &e.opts.o
-			if o.WholeLine || o.Background.A == 0 && o.Border.A == 0 || e.start == e.end {
+			boxOn := !o.WholeLine && (o.Background.A > 0 || o.Border.A > 0)
+			if !boxOn && o.Squiggle.A == 0 || e.start == e.end {
 				continue
 			}
 			a, b := max(e.start, ls)-ls, min(e.end-ls, len(lv.text))
 			decoRects(lv, a, b, func(x0, x1 float32) {
 				box := rectXYWH(tx+x0, y, x1-x0, lh)
-				if o.Background.A > 0 {
+				if boxOn && o.Background.A > 0 {
 					l.Fill(box, geom.Radii{}, o.Background)
 				}
-				if o.Border.A > 0 {
+				if boxOn && o.Border.A > 0 {
 					decoStroke(l, box, o.Border)
+				}
+				if o.Squiggle.A > 0 {
+					paintSquiggle(l, box, w.vs.text, o.Squiggle)
 				}
 			})
 		}
 	}
+}
+
+// Keep the wave in document coordinates while limiting work to the viewport.
+func paintSquiggle(l *paint.List, r, clip geom.Rect, c color.NRGBA) {
+	left, right := max(r.X, clip.X-2), min(r.Right(), clip.Right()+2)
+	if left >= right {
+		return
+	}
+	const halfWave float32 = 2
+	step := int((left - r.X) / halfWave)
+	x, y := r.X+float32(step)*halfWave, r.Bottom()-3
+	point := func(i int) float32 { return y + float32(i%2)*2 }
+	p := paint.NewPath().MoveTo(x, point(step))
+	for x < right {
+		next := min(x+halfWave, right)
+		if next <= x {
+			break // float32 spacing can exceed the wave length on very long lines
+		}
+		y0, y1 := point(step), point(step+1)
+		p.LineTo(next, y0+(y1-y0)*(next-x)/halfWave)
+		x, step = next, step+1
+	}
+	l.StrokePath(p, paint.StrokeStyle{Width: 1}, c)
 }
 
 // inlineSpans returns the inline styles of row k (line runes, in paint

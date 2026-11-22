@@ -2,17 +2,16 @@ package editor
 
 import (
 	"cmp"
+	"math"
+	"slices"
+	"unicode/utf8"
+
 	"github.com/tangoui/tango/ui/editor/buffer"
+	"github.com/tangoui/tango/ui/editor/internal/frameclock"
 	"github.com/tangoui/tango/ui/editor/monarch"
 	"github.com/tangoui/tango/ui/editor/theme"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/paint"
-	"image/color"
-	"math"
-	"slices"
-
-	"github.com/tangoui/tango/ui/editor/internal/frameclock"
-	"unicode/utf8"
 )
 
 // StickyScrollOptions configures stickyScroll (enabled: true, maxLineCount: 5).
@@ -219,7 +218,7 @@ func (w *ViewW) paintSticky(l *paint.List, rows []lineView, th *theme.Theme, scr
 		}
 		l.Pop()
 		l.Clip(vs.gutter.Intersect(clip), geom.Radii{})
-		w.paintGutter(l, vs.gutter.X, vs.gutter.W, []lineView{lv}, nil, func(int) float32 { return vs.stickyY[k] }, w.st.Snapshot().LineCount(), pf.caretLine, digitsOf(w.monoStyle()), bg, nil, color.NRGBA{}, false, color.NRGBA{})
+		w.paintGutter(l, vs.gutter.X, vs.gutter.W, []lineView{lv}, nil, func(int) float32 { return vs.stickyY[k] }, w.st.Snapshot().LineCount(), pf.caretLine, digitsOf(w.monoStyle()), bg, nil, nil, lineHighlightStyle{})
 		l.Pop()
 		l.Pop()
 	}

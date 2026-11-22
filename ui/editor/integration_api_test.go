@@ -7,7 +7,52 @@ import (
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
+	"github.com/tangoui/tango/ui/layout"
 )
+
+func TestSuggestDetailsAndAccept(t *testing.T) {
+	st := NewState("word", "", nil)
+	t.Cleanup(st.Close)
+	selected, accepted := 0, -1
+	open := false
+	labels := []string{"first", "second", "third"}
+	ed := newEditDriver(st, 640, 220, func(w *ViewW) {
+		if open {
+			w.Suggest(SuggestOptions{Labels: labels, Selected: &selected, Accept: func(i int) {
+				accepted, open = i, false
+			}, Details: func(i int) { ui.Text(w.c, "Detail: "+labels[i]) }})
+		}
+	})
+	ed.focus(t)
+	open = true
+	ed.Frame()
+	ed.Key(input.KeyDown, 0)
+	if _, ok := ed.FindText("Detail: second"); selected != 1 || !ok {
+		t.Fatalf("selected = %d, second detail visible = %t", selected, ok)
+	}
+	ed.Key(input.KeyTab, 0)
+	if accepted != 1 || st.Snapshot().String() != "word" {
+		t.Fatalf("accepted = %d, text = %q", accepted, st.Snapshot().String())
+	}
+}
+
+func TestEditorMountUsesDocumentOffset(t *testing.T) {
+	st := NewState("first\nsecond", "", nil)
+	t.Cleanup(st.Close)
+	var anchor geom.Rect
+	var ok bool
+	ed := newEditDriver(st, 400, 200, func(w *ViewW) {
+		anchor, ok = w.OffsetAnchor(6)
+		if off, hit := w.HoverOffset(); hit && off == 6 {
+			w.MountContent(off, ui.BottomStart, func() { ui.Text(w.c, "Hover") }, layout.W(100))
+		}
+	})
+	ed.Move(ed.at(t, st, 1, 0))
+	r, found := ed.FindText("Hover")
+	if !ok || !found || r.Y < anchor.Bottom() || r.X < anchor.X {
+		t.Fatalf("anchor %v (%t), popup %v (%t)", anchor, ok, r, found)
+	}
+}
 
 func TestCompletionInputAndAnchor(t *testing.T) {
 	st := NewState("sel", "", nil)
