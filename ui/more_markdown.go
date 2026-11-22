@@ -885,6 +885,7 @@ type MarkdownW struct {
 	shad         bool // shadcn's typography (h2 rule, quote bar, muted code)
 	copyable     bool
 	noSelect     bool
+	virtual      bool
 	hl           CodeHighlighter
 	hlSet        bool
 	col          theme.Color // body text color (zero: theme Text)
@@ -894,6 +895,8 @@ type mdCache struct {
 	src    string
 	blocks []*mdBlock
 	refs   map[string]string
+	parsed bool
+	window mdWindow
 }
 
 // Markdown adds a rendered Markdown document; it grows to its content (put
@@ -930,6 +933,11 @@ func (m *MarkdownW) NoSelect() *MarkdownW { m.noSelect = true; return m }
 // NoCopy hides the copy button of code blocks.
 func (m *MarkdownW) NoCopy() *MarkdownW { m.copyable = false; return m }
 
+// Virtual makes Markdown a scroll viewport and builds only visible top-level
+// blocks, with overscan. Give it a bounded height through the layout options
+// and use it in place of an enclosing vertical Scroll.
+func (m *MarkdownW) Virtual() *MarkdownW { m.virtual = true; return m }
+
 // Highlighter sets the code highlighter of fenced code blocks with a
 // language (default DefaultCodeHighlighter; nil: plain text).
 func (m *MarkdownW) Highlighter(h CodeHighlighter) *MarkdownW { m.hl, m.hlSet = h, true; return m }
@@ -951,14 +959,24 @@ func (m *MarkdownW) build() {
 	m.el = c.Theme.Flavor == theme.Element
 	m.shad = c.Theme.Flavor == theme.StyleShadcn
 	st := State[mdCache](c, m.b.n.id, nil)
-	if st.blocks == nil || st.src != m.src {
+	if !st.parsed || st.src != m.src {
 		src := strings.ReplaceAll(m.src, "\r\n", "\n")
 		p := &mdParser{}
-		st.blocks, st.src = p.parse(strings.Split(src, "\n")), m.src
+		bs := p.parse(strings.Split(src, "\n"))
+		if m.virtual {
+			st.window.updateDocument(m, st.blocks, bs, st.refs, p.refs)
+		} else {
+			st.window = mdWindow{}
+		}
+		st.blocks, st.src, st.parsed = bs, m.src, true
 		st.refs = p.refs
 	}
 	m.refs = st.refs
-	m.blocks(st.blocks, Span{Color: m.col}, true)
+	if m.virtual {
+		st.window.build(m, st.blocks)
+	} else {
+		m.blocks(st.blocks, Span{Color: m.col}, true)
+	}
 }
 
 func (m *MarkdownW) fontSize() float32 {
@@ -1010,88 +1028,91 @@ func (m *MarkdownW) rich(src string, base Span, size float32, col theme.Color) *
 
 // blocks renders bs; base carries inherited inline style (quote color).
 func (m *MarkdownW) blocks(bs []*mdBlock, base Span, top bool) {
+	for k, b := range bs {
+		m.block(b, base, k, k == len(bs)-1)
+	}
+	_ = top
+}
+
+func (m *MarkdownW) block(b *mdBlock, base Span, k int, last bool) {
 	c, th := m.c, m.c.Theme
 	fs := m.fontSize()
 	gap := fs // 1em between blocks
-	for k, b := range bs {
-		last := k == len(bs)-1
-		mb := gap
-		if last {
-			mb = 0
-		}
-		var mt float32
-		Key(c, k, func() {
-			switch b.kind {
-			case mdHeading:
-				size := m.headingSize(b.level)
-				if k > 0 {
-					mt = size * 0.6
-				}
-				col := th.TextHeading
-				if base.Color.A > 0 {
-					col = base.Color
-				}
-				w := m.rich(b.text, Span{Bold: true}, size, col)
-				w.n.setRole(a11y.RoleHeading)
-				if lv := min(b.level, 6); c.a11yOn {
-					w.n.fill(semFunc(func(s *a11y.Node) { s.Level = lv }))
-				}
-				w.Layout(layout.Margin(geom.Insets{Top: mt, Bottom: min(mb, size*0.5)}))
-				switch {
-				case m.el && b.level <= 2:
-					w.n.ln.Padding.Bottom = 6
-					w.n.over = func(l *paint.List, r geom.Rect) {
-						l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, th.BorderSecondary)
-					}
-				case m.shad && b.level == 2:
-					// shadcn typography h2: border-b pb-2.
-					w.n.ln.Padding.Bottom = 8
-					w.n.over = func(l *paint.List, r geom.Rect) {
-						l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, th.Border)
-					}
-				}
-			case mdPara:
-				if img, n, ok := mdImageAt(b.text, m.refs); ok && n == len(b.text) {
-					m.image(img, mb)
-				} else {
-					m.rich(b.text, base, fs, base.Color).Layout(layout.Margin(geom.Insets{Bottom: mb}))
-				}
-			case mdCode:
-				m.code(b, mb)
-			case mdQuote:
-				col := th.TextSecondary
-				bar, barW, padL := th.Split, float32(4), float32(12)
-				if m.shad {
-					// shadcn typography blockquote: border-l-2 pl-6 italic,
-					// in the body color.
-					col, bar, barW, padL = base.Color, th.Border, 2, 24
-				}
-				q := Column(c, func() {
-					inner := base
-					inner.Color = col
-					inner.Italic = inner.Italic || m.shad
-					m.blocks(b.kids, inner, false)
-				}, layout.Padding(geom.Insets{Left: padL, Top: 2, Bottom: 2}), layout.Margin(geom.Insets{Bottom: mb}))
-				q.Paint(func(l *paint.List, r geom.Rect) {
-					l.Fill(c.inline(r).Rect(0, r.Y, barW, r.H), geom.Rad(barW/2), bar) // bar on the start edge
-				})
-				if m.el {
-					q.n.ln.Padding = geom.Insets{Left: 12, Top: 8, Right: 12, Bottom: 8}
-					q.Bg(th.FillQuaternary).Radius(th.RadiusSM)
-				}
-			case mdList:
-				m.list(b, base, 0, mb)
-			case mdHR:
-				d := Divider(c)
-				d.n.ln.Margin = geom.Insets{Top: 4, Bottom: max(mb, 4)}
-			case mdTable:
-				m.table(b, base, mb)
-			case mdImage:
-				m.image(mdImageSpec(b.text, b.src), mb)
-			}
-		})
+	mb := gap
+	if last {
+		mb = 0
 	}
-	_ = top
+	var mt float32
+	Key(c, k, func() {
+		switch b.kind {
+		case mdHeading:
+			size := m.headingSize(b.level)
+			if k > 0 {
+				mt = size * 0.6
+			}
+			col := th.TextHeading
+			if base.Color.A > 0 {
+				col = base.Color
+			}
+			w := m.rich(b.text, Span{Bold: true}, size, col)
+			w.n.setRole(a11y.RoleHeading)
+			if lv := min(b.level, 6); c.a11yOn {
+				w.n.fill(semFunc(func(s *a11y.Node) { s.Level = lv }))
+			}
+			w.Layout(layout.Margin(geom.Insets{Top: mt, Bottom: min(mb, size*0.5)}))
+			switch {
+			case m.el && b.level <= 2:
+				w.n.ln.Padding.Bottom = 6
+				w.n.over = func(l *paint.List, r geom.Rect) {
+					l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, th.BorderSecondary)
+				}
+			case m.shad && b.level == 2:
+				// shadcn typography h2: border-b pb-2.
+				w.n.ln.Padding.Bottom = 8
+				w.n.over = func(l *paint.List, r geom.Rect) {
+					l.Fill(geom.Rect{X: r.X, Y: r.Bottom() - 1, W: r.W, H: 1}, geom.Radii{}, th.Border)
+				}
+			}
+		case mdPara:
+			if img, n, ok := mdImageAt(b.text, m.refs); ok && n == len(b.text) {
+				m.image(img, mb)
+			} else {
+				m.rich(b.text, base, fs, base.Color).Layout(layout.Margin(geom.Insets{Bottom: mb}))
+			}
+		case mdCode:
+			m.code(b, mb)
+		case mdQuote:
+			col := th.TextSecondary
+			bar, barW, padL := th.Split, float32(4), float32(12)
+			if m.shad {
+				// shadcn typography blockquote: border-l-2 pl-6 italic,
+				// in the body color.
+				col, bar, barW, padL = base.Color, th.Border, 2, 24
+			}
+			q := Column(c, func() {
+				inner := base
+				inner.Color = col
+				inner.Italic = inner.Italic || m.shad
+				m.blocks(b.kids, inner, false)
+			}, layout.Padding(geom.Insets{Left: padL, Top: 2, Bottom: 2}), layout.Margin(geom.Insets{Bottom: mb}))
+			q.Paint(func(l *paint.List, r geom.Rect) {
+				l.Fill(c.inline(r).Rect(0, r.Y, barW, r.H), geom.Rad(barW/2), bar) // bar on the start edge
+			})
+			if m.el {
+				q.n.ln.Padding = geom.Insets{Left: 12, Top: 8, Right: 12, Bottom: 8}
+				q.Bg(th.FillQuaternary).Radius(th.RadiusSM)
+			}
+		case mdList:
+			m.list(b, base, 0, mb)
+		case mdHR:
+			d := Divider(c)
+			d.n.ln.Margin = geom.Insets{Top: 4, Bottom: max(mb, 4)}
+		case mdTable:
+			m.table(b, base, mb)
+		case mdImage:
+			m.image(mdImageSpec(b.text, b.src), mb)
+		}
+	})
 }
 
 func (m *MarkdownW) headingSize(level int) float32 {

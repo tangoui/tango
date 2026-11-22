@@ -1995,6 +1995,7 @@ pkg github.com/tangoui/tango/ui, method (*MarkdownW) NoSelect() *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) ResolveImage(func(MarkdownImage) image.Image) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Size(float32) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) TaskToggled() (int, bool)
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) Virtual() *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MasonryW) Assignment() []int
 pkg github.com/tangoui/tango/ui, method (*MasonryW) Built() int
 pkg github.com/tangoui/tango/ui, method (*MasonryW) Columns(int) *MasonryW
