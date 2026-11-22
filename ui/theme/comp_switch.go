@@ -57,6 +57,9 @@ func deriveSwitch(t *Theme) SwitchToken {
 		// el-switch--large: core 24px high, 50px wide, 20px handle.
 		k.TrackHeightLG, k.TrackMinWidthLG = 24, 50
 		k.LabelGap = 10
+		if t.elementControls {
+			k.HandleShadow = nil // switch.scss .el-switch__action
+		}
 	case StyleShadcn:
 		// new-york v4: h-[1.15rem] w-8 with a size-4 thumb; sm h-3.5 w-6
 		// with a size-3 thumb; ring-0 (no thumb shadow).

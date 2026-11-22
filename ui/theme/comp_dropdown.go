@@ -101,6 +101,10 @@ func deriveDropdown(t *Theme) DropdownToken {
 		k.SubmenuArrowSize, k.SubmenuArrowInset = 10, 12
 		k.IndicatorSize, k.IndicatorWidth = 12, 20
 		k.MouseLeaveDelay, k.PopupOffset = 150*time.Millisecond, 8
+		if t.elementControls {
+			// dropdown.scss picker-popper uses --el-border-color-light.
+			k.PopupBorderColor = t.Split
+		}
 	case StyleShadcn:
 		// DropdownMenuContent: bordered rounded-md panel, px-2 items,
 		// muted size-4 icons, a destructive tint on danger items, medium

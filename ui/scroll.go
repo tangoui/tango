@@ -40,7 +40,8 @@ type scrollState struct {
 	painted vec64 // offset used by the last paint
 	view    geom.Size
 
-	always bool // keep the bars visible
+	always   bool // keep the bars visible
+	barStyle theme.ScrollbarToken
 	// Scrollbar dragging: which axis and where the thumb was grabbed.
 	dragX, dragY bool
 	grab         float32
@@ -133,10 +134,34 @@ func (s *scrollState) physOffX() float64 {
 // onVBar reports whether p lies on the vertical scrollbar strip of r: the
 // inline end edge (right in LTR, left in RTL).
 func (s *scrollState) onVBar(p geom.Point, r geom.Rect) bool {
+	if s.barStyle.TrackInset > 0 {
+		return s.verticalTrack(r).Contains(p)
+	}
 	if s.rtl {
 		return p.X <= r.X+scrollBarHit
 	}
 	return p.X >= r.Right()-scrollBarHit
+}
+
+func (s *scrollState) onHBar(p geom.Point, r geom.Rect) bool {
+	if s.barStyle.TrackInset > 0 {
+		return s.horizontalTrack(r).Contains(p)
+	}
+	return p.Y >= r.Bottom()-scrollBarHit
+}
+
+func (s *scrollState) verticalTrack(r geom.Rect) geom.Rect {
+	inset, width := s.barStyle.TrackInset, s.barStyle.Thickness
+	x := r.Right() - inset - width
+	if s.rtl {
+		x = r.X + inset
+	}
+	return geom.R(x, r.Y+inset, width, max(0, r.H-2*inset))
+}
+
+func (s *scrollState) horizontalTrack(r geom.Rect) geom.Rect {
+	inset, height := s.barStyle.TrackInset, s.barStyle.Thickness
+	return geom.R(r.X+inset, r.Bottom()-inset-height, max(0, r.W-2*inset), height)
 }
 
 // reveal scrolls the minimum amount that makes the content range
@@ -342,6 +367,7 @@ func (c *Context) finishScroll(b *Box, fn func()) *ScrollBox {
 	b.n.scroll = s
 	s.base, s.extent = vec64{}, vec64{}
 	s.ln = &b.n.ln
+	s.barStyle = c.ThemeFor(theme.CompScrollbar).Components.Scrollbar
 	id := b.n.id
 	navScrollStep(c, id)
 	c.dragScrollbars(id, s)
@@ -485,8 +511,8 @@ func scrollStateOf(c *Context, id ID) *scrollState {
 }
 
 // scrollThumb returns the thumb's offset along a track and its length.
-func scrollThumb(track, view float32, content, off float64) (pos, size float32) {
-	size = min(track, max(24, float32(float64(track)*float64(view)/content)))
+func (s *scrollState) scrollThumb(track, view float32, content, off float64) (pos, size float32) {
+	size = min(track, max(s.barStyle.MinThumbLength, float32(float64(track)*float64(view)/content)))
 	if content > float64(view) {
 		pos = (track - size) * float32(off/(content-float64(view)))
 	}
@@ -505,19 +531,20 @@ func (c *Context) dragScrollbars(id ID, s *scrollState) {
 		return
 	}
 	bar := id ^ scrollTag
+	vr, hr := s.verticalTrack(r), s.horizontalTrack(r)
 	if c.pressed[bar] {
 		p := c.pressPos
 		switch {
 		case s.canY() && s.onVBar(p, r):
-			pos, size := scrollThumb(r.H, s.view.H, s.content.Y, s.off.Y)
+			pos, size := s.scrollThumb(vr.H, s.view.H, s.content.Y, s.off.Y)
 			s.dragY, s.grab = true, size/2
-			if y := p.Y - r.Y; y >= pos && y <= pos+size {
+			if y := p.Y - vr.Y; y >= pos && y <= pos+size {
 				s.grab = y - pos
 			}
-		case s.canX() && p.Y >= r.Bottom()-scrollBarHit:
-			pos, size := scrollThumb(r.W, s.view.W, s.content.X, s.physOffX())
+		case s.canX() && s.onHBar(p, r):
+			pos, size := s.scrollThumb(hr.W, s.view.W, s.content.X, s.physOffX())
 			s.dragX, s.grab = true, size/2
-			if x := p.X - r.X; x >= pos && x <= pos+size {
+			if x := p.X - hr.X; x >= pos && x <= pos+size {
 				s.grab = x - pos
 			}
 		}
@@ -526,8 +553,8 @@ func (c *Context) dragScrollbars(id ID, s *scrollState) {
 	if s.dragY {
 		if !held {
 			s.dragY = false
-		} else if _, size := scrollThumb(r.H, s.view.H, s.content.Y, s.off.Y); r.H > size {
-			s.off.Y = float64((c.pointer.Y-r.Y-s.grab)/(r.H-size)) * s.maxY()
+		} else if _, size := s.scrollThumb(vr.H, s.view.H, s.content.Y, s.off.Y); vr.H > size {
+			s.off.Y = float64((c.pointer.Y-vr.Y-s.grab)/(vr.H-size)) * s.maxY()
 			s.clampOffset()
 			c.invalid = true
 		}
@@ -535,8 +562,8 @@ func (c *Context) dragScrollbars(id ID, s *scrollState) {
 	if s.dragX {
 		if !held {
 			s.dragX = false
-		} else if _, size := scrollThumb(r.W, s.view.W, s.content.X, s.off.X); r.W > size {
-			s.off.X = float64((c.pointer.X-r.X-s.grab)/(r.W-size)) * s.maxX()
+		} else if _, size := s.scrollThumb(hr.W, s.view.W, s.content.X, s.physOffX()); hr.W > size {
+			s.off.X = float64((c.pointer.X-hr.X-s.grab)/(hr.W-size)) * s.maxX()
 			if s.rtl {
 				s.off.X = s.maxX() - s.off.X
 			}
@@ -559,10 +586,24 @@ func (c *Context) paintScrollbars(l *paint.List, id ID, s *scrollState, r geom.R
 		return
 	}
 	g := c.Anim(id, "sbw", b2f(onBar || drag), th.DurationFast)
-	thick := 6 + 2*g
-	col := theme.Lerp(theme.Fade(th.TextQuaternary, float64(a)), theme.Fade(th.TextTertiary, float64(a)), g)
+	tk := s.barStyle
+	if tk.TrackInset > 0 {
+		if s.canY() {
+			track := s.verticalTrack(r)
+			pos, size := s.scrollThumb(track.H, s.view.H, s.content.Y, s.off.Y)
+			s.paintThumb(l, geom.R(track.X, track.Y+pos, track.W, size), c.pointer, a, onBar, s.dragY)
+		}
+		if s.canX() {
+			track := s.horizontalTrack(r)
+			pos, size := s.scrollThumb(track.W, s.view.W, s.content.X, s.physOffX())
+			s.paintThumb(l, geom.R(track.X+pos, track.Y, size, track.H), c.pointer, a, onBar, s.dragX)
+		}
+		return
+	}
+	thick := tk.Thickness + 2*g
+	col := theme.Lerp(theme.Fade(tk.Thumb, float64(a)), theme.Fade(tk.ThumbHover, float64(a)), g)
 	if s.canY() {
-		pos, size := scrollThumb(r.H, s.view.H, s.content.Y, s.off.Y)
+		pos, size := s.scrollThumb(r.H, s.view.H, s.content.Y, s.off.Y)
 		x := r.Right() - 2 - thick
 		if s.rtl {
 			x = r.X + 2
@@ -570,9 +611,17 @@ func (c *Context) paintScrollbars(l *paint.List, id ID, s *scrollState, r geom.R
 		l.Fill(geom.Rect{X: x, Y: r.Y + pos + 2, W: thick, H: size - 4}, geom.Rad(thick/2), col)
 	}
 	if s.canX() {
-		pos, size := scrollThumb(r.W, s.view.W, s.content.X, s.physOffX())
+		pos, size := s.scrollThumb(r.W, s.view.W, s.content.X, s.physOffX())
 		l.Fill(geom.Rect{X: r.X + pos + 2, Y: r.Bottom() - 2 - thick, W: size - 4, H: thick}, geom.Rad(thick/2), col)
 	}
+}
+
+func (s *scrollState) paintThumb(l *paint.List, r geom.Rect, p geom.Point, opacity float32, onBar, drag bool) {
+	col := s.barStyle.Thumb
+	if drag || onBar && r.Contains(p) {
+		col = s.barStyle.ThumbHover
+	}
+	l.Fill(r, geom.Rad(s.barStyle.ThumbRadius), theme.Fade(col, float64(opacity)))
 }
 
 // scrollbarAt returns the scrollbar hit ID (scroll ID ^ scrollTag) when p
@@ -596,7 +645,7 @@ func (c *Context) scrollbarAt(p geom.Point) (ID, bool) {
 		if s.canY() && s.onVBar(p, r) {
 			return t.id ^ scrollTag, true
 		}
-		if s.canX() && p.Y >= r.Bottom()-scrollBarHit {
+		if s.canX() && s.onHBar(p, r) {
 			return t.id ^ scrollTag, true
 		}
 		return 0, false // inner-most scroll area under p, not on its bars

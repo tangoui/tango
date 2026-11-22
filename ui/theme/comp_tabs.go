@@ -57,6 +57,11 @@ func deriveTabs(t *Theme) TabsToken {
 		k.ItemHoverColor, k.HorizontalItemGutter, k.HorizontalItemPadding = t.Primary.Base, 20, 0
 		k.CardHeight, k.CardHeightSM, k.CardHeightLG = 40, 40, 40
 		k.HorizontalItemPaddingSM, k.HorizontalItemPaddingLG, k.CardPaddingHSM = 0, 0, 16
+		if t.elementControls {
+			// tabs.scss .el-tabs__item uses 20 px on each side of adjacent labels.
+			k.HorizontalItemGutter = 40
+			k.CardPaddingH, k.CardPaddingHSM, k.TitleFontSizeLG = 20, 20, t.FontSize
+		}
 	case StyleShadcn:
 		k.ItemColor, k.ItemHoverColor, k.ItemSelectedColor, k.ItemActiveColor = t.TextTertiary, t.Text, t.Text, t.Text
 		k.InkBarColor, k.CardHeight, k.HorizontalItemGutter, k.HorizontalItemPadding = t.Text, 36, 4, 4

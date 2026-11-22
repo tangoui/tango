@@ -108,6 +108,7 @@ const (
 	CompSpin
 	CompPageHeader
 	CompCommand
+	CompScrollbar
 	// numComps counts the Comp values. Internally Comp(i) indexes the
 	// i-th field of Components, so both lists only ever grow at the end.
 	numComps
@@ -188,6 +189,7 @@ type Components struct {
 	Spin               SpinToken
 	PageHeader         PageHeaderToken
 	Command            CommandToken
+	Scrollbar          ScrollbarToken
 }
 
 // Alias is the subset of global tokens a component may override for itself
@@ -477,6 +479,8 @@ func deriveComp(t *Theme, k Comp) any {
 		return derivePageHeader(t)
 	case CompCommand:
 		return deriveCommand(t)
+	case CompScrollbar:
+		return deriveScrollbar(t)
 	}
 	panic("theme: unknown component")
 }
@@ -675,6 +679,9 @@ func (t *Theme) stockTheme(primary *Color) *Theme {
 	}
 	switch t.Flavor {
 	case Element:
+		if t.elementControls {
+			opts = append(opts, ElementPlusControls())
+		}
 		return elementPlusCore(collect(opts), false)
 	case StyleShadcn:
 		o := ShadcnOptions{Dark: t.Dark}

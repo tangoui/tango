@@ -9,7 +9,24 @@ import (
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/text"
+	"github.com/tangoui/tango/ui/theme"
 )
+
+func TestElementScrollbarTrackAndDrag(t *testing.T) {
+	var sb *ScrollBox
+	d := NewDriver(func(c *Context) {
+		sb = Scroll(c, func() { Div(c, layout.H(1000)) }, layout.Fill()).Always()
+	}, DriverOptions{Width: 160, Height: 120, Theme: theme.ElementPlus(theme.ElementPlusControls())})
+	d.Frame()
+	track := sb.s.verticalTrack(sb.Rect())
+	if track != geom.R(152, 2, 6, 116) {
+		t.Fatalf("track = %v", track)
+	}
+	d.Drag(geom.Pt(155, 12), geom.Pt(155, track.Bottom()-9))
+	if _, got := sb.Offset(); got != sb.s.maxY() {
+		t.Fatalf("offset after drag = %v, want %v", got, sb.s.maxY())
+	}
+}
 
 func TestScrollRetainsStateAlongsideWidgetState(t *testing.T) {
 	var sb *ScrollBox

@@ -7,7 +7,10 @@ import "github.com/tangoui/tango/ui/paint"
 type SelectToken struct {
 	Alias
 	SelectorBg               Color
-	ActiveBorderColor        Color `contrast:"nontext:SelectorBg"`
+	ContentColor             Color
+	ControlRadius            float32 // positive: radius used at every size
+	InputSizing              bool    // use Input's size-dependent text metrics
+	ActiveBorderColor        Color   `contrast:"nontext:SelectorBg"`
 	HoverBorderColor         Color
 	ActiveOutlineColor       Color // focus halo (zero: none)
 	OptionActiveBg           Color // option under the pointer / keyboard cursor
@@ -33,7 +36,7 @@ type SelectToken struct {
 
 func deriveSelect(t *Theme) SelectToken {
 	k := SelectToken{
-		SelectorBg: t.ControlBg, ActiveBorderColor: t.ControlFocusBorder, HoverBorderColor: t.BorderHover,
+		SelectorBg: t.ControlBg, ContentColor: t.Text, ActiveBorderColor: t.ControlFocusBorder, HoverBorderColor: t.BorderHover,
 		ActiveOutlineColor: t.ControlOutline,
 		OptionActiveBg:     t.ItemHoverBg, OptionSelectedBg: t.ItemSelectedBg, OptionSelectedColor: t.Text,
 		OptionSelectedFontWeight: t.FontWeightStrong,
@@ -53,6 +56,11 @@ func deriveSelect(t *Theme) SelectToken {
 		k.MultipleItemBg, k.MultipleItemColor = t.Info.Bg, t.Info.Base
 		k.PopupBorderColor = t.Split
 		k.PopupRadius = t.Radius
+		if t.elementControls {
+			// select.scss wrapper and common/var.scss $select.
+			k.ContentColor, k.ActiveBorderColor, k.ControlRadius = t.TextSecondary, t.Primary.Base, t.Radius
+			k.InputSizing = true
+		}
 	case StyleShadcn:
 		k.OptionHeight, k.OptionPadding = 32, 8
 		k.OptionSelectedFontWeight = 400

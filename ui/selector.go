@@ -127,7 +127,13 @@ func (b *selector) semantics(s *a11y.Node) {
 	}
 }
 
-func (b *selector) font() text.Style { return b.c.style(controlFontOf(b.th, b.size), text.Regular) }
+func (b *selector) font() text.Style {
+	size := controlFontOf(b.th, b.size)
+	if b.th.Components.Select.InputSizing {
+		size = inputFontSize(&b.th.Components.Input, b.size)
+	}
+	return b.c.style(size, text.Regular)
+}
 
 // selectFrameTok reads the frame tokens of the Select component of th
 // (the halo geometry and the status halos come from its Input token).
@@ -320,7 +326,7 @@ func (b *selector) edit() editResult {
 
 func (b *selector) paintEditor(l *paint.List, r geom.Rect) {
 	c, th := b.c, b.th
-	col := th.Text
+	col := th.Components.Select.ContentColor
 	if b.disabled {
 		col = th.TextDisabled
 	}
@@ -334,7 +340,7 @@ func (b *selector) paintEditor(l *paint.List, r geom.Rect) {
 		if b.single != "" {
 			s, scol = b.single, col
 		}
-		entTextIn(c, l, s, 0, r, controlFontOf(th, b.size), text.Regular, scol, r.W+1)
+		entTextIn(c, l, s, 0, r, b.font().Size, text.Regular, scol, r.W+1)
 		return
 	}
 	if b.single != "" {
@@ -352,7 +358,11 @@ func (b *selector) hovered(r geom.Rect) bool {
 
 func (b *selector) paint(l *paint.List, r geom.Rect) {
 	c, th := b.c, b.th
-	rad := geom.Rad(controlRadiusOf(th, b.size))
+	radius := th.Components.Select.ControlRadius
+	if radius <= 0 {
+		radius = controlRadiusOf(th, b.size)
+	}
+	rad := geom.Rad(radius)
 	hover := b.hovered(r)
 	focus := b.open || b.focused()
 	c.paintFrameWith(l, r, b.variant.frameRadii(rad), b.n.id, frameState{hover: hover, focus: focus && !b.disabled, disabled: b.disabled, status: b.status, variant: string(b.variant)}, selectFrameTok(th))

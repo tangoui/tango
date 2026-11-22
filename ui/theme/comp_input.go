@@ -19,6 +19,8 @@ type InputToken struct {
 	ActiveBorderColor Color `contrast:"nontext:ActiveBg"` // focused field border (the focus indicator)
 	HoverBorderColor  Color
 	PlaceholderColor  Color `contrast:"text:ActiveBg"`
+	ContentColor      Color
+	ControlRadius     float32 // positive: radius used at every size
 	AddonBg           Color
 	AddonColor        Color `contrast:"text:AddonBg"`
 
@@ -45,6 +47,7 @@ func deriveInput(t *Theme) InputToken {
 		Bg: t.ControlBg, ActiveBg: t.ControlBg, HoverBg: t.ControlBg,
 		ActiveBorderColor: t.ControlFocusBorder, HoverBorderColor: t.BorderHover,
 		PlaceholderColor: t.TextQuaternary,
+		ContentColor:     t.Text,
 		AddonBg:          t.AddonBg, AddonColor: t.AddonText,
 		ActiveShadowColor: t.ControlOutline, ActiveShadowWidth: t.ControlOutlineWidth, ActiveShadowOffset: t.ControlOutlineOffset,
 		ErrorActiveShadowColor: t.ControlOutlineError, WarningActiveShadowColor: t.ControlOutlineWarning,
@@ -57,6 +60,10 @@ func deriveInput(t *Theme) InputToken {
 		// padding including the 1px border.
 		k.InputFontSizeSM, k.InputFontSizeLG = 12, t.FontSize
 		k.PaddingInlineLG = 15
+		if t.elementControls {
+			// common/var.scss $input and input.scss wrapper.
+			k.ContentColor, k.ActiveBorderColor, k.ControlRadius = t.TextSecondary, t.Primary.Base, t.Radius
+		}
 	case StyleShadcn:
 		// new-york: text-sm at every size, no hover border.
 		k.InputFontSizeLG = t.FontSize

@@ -62,3 +62,36 @@ func TestElementPlusDivider(t *testing.T) {
 		t.Errorf("ant divider: %+v", d)
 	}
 }
+
+func TestElementPlusControlRefinements(t *testing.T) {
+	for _, opt := range [][]Option{{ElementPlusControls()}, {ElementPlusControls(), Dark()}} {
+		el := ElementPlus(opt...)
+		k := el.Components
+		if k.Input.ControlRadius != 4 || k.Input.ActiveBorderColor != el.Primary.Base || k.Input.ContentColor != el.TextSecondary ||
+			k.Select.ControlRadius != 4 || k.Select.ActiveBorderColor != el.Primary.Base || !k.Select.InputSizing {
+			t.Fatal("Element input or select sizing/color mismatch")
+		}
+		if k.Checkbox.ControlInteractiveSize != 14 || k.Checkbox.Radius != 2 || k.Radio.RadioSize != 14 ||
+			k.Switch.TrackHeight != 20 || k.Switch.TrackMinWidth != 40 || len(k.Switch.HandleShadow) != 0 {
+			t.Fatal("Element checkbox, radio or switch sizing mismatch")
+		}
+		if k.Button.ContentFontSizeSM != 12 || k.Button.ContentFontSizeLG != 14 || k.Button.RadiusSM != 3 || k.Button.RadiusLG != 4 ||
+			k.Tabs.HorizontalItemGutter != 40 || k.Tabs.CardHeight != 40 || k.Table.CellLineHeight != 23 || k.Table.HeaderColor != el.TextSecondary {
+			t.Fatal("Element button, tabs or table sizing/color mismatch")
+		}
+		if k.Dropdown.ItemHeight != 32 || k.Dropdown.PopupBorderColor != el.Split || k.Modal.MaskBg != RGBA(0, 0, 0, .5) ||
+			k.Drawer.MaskBg != k.Modal.MaskBg || k.Tooltip.ContentFontSize != 12 || k.Tooltip.MinHeight != 30 {
+			t.Fatal("Element dropdown, dialog, drawer or tooltip mismatch")
+		}
+		s := k.Scrollbar
+		if s.TrackInset != 2 || s.Thickness != 6 || s.MinThumbLength != 20 || s.ThumbRadius != 4 ||
+			s.Thumb != Fade(el.TextSecondary, .3) || s.ThumbHover != Fade(el.TextSecondary, .5) {
+			t.Fatalf("Element scrollbar = %+v", s)
+		}
+	}
+	for _, th := range []*Theme{AntDesign(ElementPlusControls()), ElementPlus()} {
+		if th.Components.Scrollbar.TrackInset != 0 || th.Components.Input.ControlRadius != 0 {
+			t.Fatal("control refinements require an opt-in Element theme")
+		}
+	}
+}

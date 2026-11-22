@@ -18,6 +18,7 @@
 - `ui/editor` 新增 `HoverOffset`、`OffsetAnchor` 和 `MountContent`，支持为悬停、诊断和快速修复挂载文档位置浮层。`ViewW.Suggest` 提供键盘导航、滚动补全列表和可选详情，`DecorationOptions.Squiggle` 绘制诊断波浪线。
 - `ui/editor` 可设置行号列最少位数、行装饰宽度、独立断点槽、折叠图标淡入淡出、字体、行高和光标宽度。`ViewW.MountFind` 可在编辑器右上角挂载应用的查找替换面板。
 - `theme.DialogMask(color)` 为 Modal、Confirm 和 Drawer 配置遮罩颜色和透明度，支持局部主题覆盖。
+- `theme.ElementPlusControls()` 为 Element 主题启用 2.14.8 的控件细节，包括表单圆角与字号、标签间距、浮层及固定宽度滚动条。滚动条样式可通过 `theme.Components.Scrollbar` 覆盖。
 - `ContextMenuOptions.Width` 可指定根菜单的逻辑像素宽度，边缘换向使用同一宽度。
 - `uihost.Options.OnFirstPresent` 在画布首次成功提交后回调，提供呈现调用返回时间。macOS Metal 可异步提供该帧的实际上屏时间。
 - `(*tango.Surface).LastActivityAt()` 返回窗口最近观测到的输入时间，包含自绘画布和嵌入的 WebView。窗口隐藏时也可从任意 goroutine 读取。

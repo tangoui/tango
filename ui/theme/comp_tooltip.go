@@ -39,6 +39,10 @@ func deriveTooltip(t *Theme) TooltipToken {
 		// es/hooks/use-delayed-toggle: showAfter 0, hideAfter 200;
 		// el-tooltip offset 12.
 		k.Offset, k.MouseEnterDelay, k.MouseLeaveDelay = 12, 0, 200*time.Millisecond
+		if t.elementControls {
+			// popper.scss: font-size 12px, line-height 20px, no box shadow.
+			k.ContentFontSize, k.MinHeight, k.Shadow = 12, 30, nil
+		}
 	case StyleShadcn:
 		// px-3 py-1.5, text-xs, no shadow.
 		k.ContentFontSize, k.PaddingBlock, k.PaddingInline, k.MinHeight, k.Shadow = t.FontSizeSM, 6, 12, 0, t.TooltipShadow

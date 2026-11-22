@@ -333,18 +333,20 @@ type Theme struct {
 	TabsHeaderBg Color
 
 	// Components holds the resolved component tokens (components.go).
-	Components Components
-	comp       *compState // overrides and per-component Alias themes (For)
+	Components      Components
+	comp            *compState // overrides and per-component Alias themes (For)
+	elementControls bool
 }
 
 // Option tweaks a theme while it is being constructed.
 type Option func(*options)
 
 type options struct {
-	dark       bool
-	primary    *Color
-	compact    bool
-	components Components
+	dark            bool
+	primary         *Color
+	compact         bool
+	components      Components
+	elementControls bool
 }
 
 // Dark selects the dark algorithm.
@@ -355,6 +357,10 @@ func WithPrimary(c Color) Option { return func(o *options) { o.primary = &c } }
 
 // Compact reduces control heights (Ant's compact algorithm, simplified).
 func Compact() Option { return func(o *options) { o.compact = true } }
+
+// ElementPlusControls opts an ElementPlus theme into the Element Plus
+// 2.14.8 control refinements. Other theme constructors ignore this option.
+func ElementPlusControls() Option { return func(o *options) { o.elementControls = true } }
 
 func collect(opts []Option) options {
 	var o options
@@ -559,7 +565,7 @@ func elementPlusCore(o options, full bool) *Theme {
 	if o.primary != nil {
 		primary = *o.primary
 	}
-	t := &Theme{Name: "element-plus", Flavor: Element, Dark: o.dark}
+	t := &Theme{Name: "element-plus", Flavor: Element, Dark: o.dark, elementControls: o.elementControls}
 	if full {
 		t.Icons = ElementIcons()
 	}

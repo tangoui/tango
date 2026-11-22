@@ -5,11 +5,13 @@ import "github.com/tangoui/tango/ui/paint"
 // ButtonToken styles Button.
 type ButtonToken struct {
 	Alias
-	FontWeight      int     // label weight
-	PaddingInline   float32 // horizontal padding, middle size
-	PaddingInlineSM float32
-	PaddingInlineLG float32
-	ContentFontSize float32 // label size, middle (small and large use the Alias FontSizeSM / FontSizeLG)
+	FontWeight                           int     // label weight
+	PaddingInline                        float32 // horizontal padding, middle size
+	PaddingInlineSM                      float32
+	PaddingInlineLG                      float32
+	ContentFontSize                      float32 // label size, middle (small and large use the Alias FontSizeSM / FontSizeLG)
+	ContentFontSizeSM, ContentFontSizeLG float32 // nonzero overrides for those sizes
+	RadiusSM, RadiusLG                   float32 // positive overrides for those sizes
 
 	DefaultBg               Color // default / outline button fill
 	DefaultColor            Color `contrast:"text:DefaultBg"`
@@ -91,6 +93,11 @@ func deriveButton(t *Theme) ButtonToken {
 		k.DefaultHoverBg, k.DefaultHoverColor, k.DefaultHoverBorderColor = t.Primary.Bg, t.Primary.Base, t.Primary.Shades[2]
 		k.DefaultShadow, k.PrimaryShadow, k.DangerShadow = nil, nil, nil
 		k.GroupDividerOpacity = 0.5 // --el-button-divide-border-color
+		if t.elementControls {
+			// common/var.scss $button-font-size and $button-border-radius.
+			k.ContentFontSizeSM, k.ContentFontSizeLG = 12, t.FontSize
+			k.RadiusSM, k.RadiusLG = max(0, t.Radius-1), t.Radius
+		}
 	case StyleShadcn:
 		// outline: input background, accent on hover; ghost uses accent.
 		k.DefaultBg, k.DefaultHoverBg = t.ControlBg, t.ControlBgHover

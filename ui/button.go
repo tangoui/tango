@@ -347,8 +347,17 @@ func (b *ButtonW) isDisabled() bool { return b.disabled || b.n.disabled }
 
 func (b *ButtonW) font() text.Style {
 	size := controlFontOf(b.th, b.size)
-	if b.size == Middle {
+	switch b.size {
+	case Middle:
 		size = b.tk.ContentFontSize
+	case Small:
+		if b.tk.ContentFontSizeSM > 0 {
+			size = b.tk.ContentFontSizeSM
+		}
+	case Large:
+		if b.tk.ContentFontSizeLG > 0 {
+			size = b.tk.ContentFontSizeLG
+		}
 	}
 	st := b.c.style(size, text.Regular)
 	st.Weight = themeWeight(b.tk.FontWeight)
@@ -594,7 +603,14 @@ func (b *ButtonW) lookShadcn(variant ButtonVariant, danger bool, pal theme.Palet
 }
 
 func (b *ButtonW) radius(r geom.Rect) geom.Radii {
-	rad := geom.Rad(controlRadiusOf(b.th, b.size))
+	radius := controlRadiusOf(b.th, b.size)
+	if b.size == Small && b.tk.RadiusSM > 0 {
+		radius = b.tk.RadiusSM
+	}
+	if b.size == Large && b.tk.RadiusLG > 0 {
+		radius = b.tk.RadiusLG
+	}
+	rad := geom.Rad(radius)
 	if b.circle || b.round {
 		rad = geom.Rad(r.H / 2)
 	}

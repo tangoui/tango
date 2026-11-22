@@ -465,7 +465,7 @@ func (w *InputW) font() text.Style { return w.c.style(w.fontSize(), text.Regular
 
 func (w *InputW) paintBox(l *paint.List, r geom.Rect) {
 	c, th := w.c, w.th
-	rad := geom.Rad(controlRadiusOf(th, w.size))
+	rad := geom.Rad(inputRadius(th, w.size))
 	hover := w.boxIA.Hovered || w.edIA.Hovered || w.partHover
 	if w.variant == "underlined" {
 		rad = geom.Radii{}
@@ -529,13 +529,20 @@ func (w *InputW) paintBox(l *paint.List, r geom.Rect) {
 
 func (w *InputW) paintText(l *paint.List, r geom.Rect) {
 	th := w.th
-	col := th.Text
+	col := w.tk.ContentColor
 	if w.box.disabled {
 		col = th.TextDisabled
 	}
 	l.Clip(r.Expand(1), geom.Radii{})
 	w.c.entPaintEdit(l, r, w.ed.id, w.e, *w.val, w.font(), col, w.tk.PlaceholderColor, w.placeholder, w.password && !w.st.showPwd)
 	l.Pop()
+}
+
+func inputRadius(th *theme.Theme, size ControlSize) float32 {
+	if radius := th.Components.Input.ControlRadius; radius > 0 {
+		return radius
+	}
+	return controlRadiusOf(th, size)
 }
 
 // ---------------------------------------------------------------------------
@@ -627,7 +634,7 @@ func InputNumber(c *Context, val *float64) *InputNumberW {
 	th := c.ThemeFor(theme.CompInput)
 	w.th = th
 	w.box.paint = func(l *paint.List, r geom.Rect) {
-		rad := geom.Rad(controlRadiusOf(th, w.size))
+		rad := geom.Rad(inputRadius(th, w.size))
 		if w.variant == "underlined" {
 			rad = geom.Radii{}
 		}
@@ -635,7 +642,7 @@ func InputNumber(c *Context, val *float64) *InputNumberW {
 		w.paintPrefix(l, r)
 	}
 	w.ed.paint = func(l *paint.List, r geom.Rect) {
-		col := th.Text
+		col := th.Components.Input.ContentColor
 		if w.box.disabled {
 			col = th.TextDisabled
 		}
@@ -677,7 +684,7 @@ func InputNumber(c *Context, val *float64) *InputNumberW {
 		s := c.inline(r)
 		if tk.HandleBg.A > 0 {
 			// Inside the frame's 1px border, rounded at the outer corners.
-			rr := max(controlRadiusOf(th, w.size)-1, 0)
+			rr := max(inputRadius(th, w.size)-1, 0)
 			rad := geom.Radii{TR: rr, BR: rr}
 			if c.IsRTL() {
 				rad = geom.Radii{TL: rr, BL: rr}

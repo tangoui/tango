@@ -70,6 +70,12 @@ func deriveDrawer(t *Theme) DrawerToken {
 		k.HeaderPaddingTop, k.HeaderPaddingBottom, k.HeaderPaddingInline, k.HeaderBorderColor = 20, 0, 20, Color{}
 		k.Padding, k.BodyPaddingTop = 20, 20
 		k.FooterPaddingTop, k.FooterPaddingBlock, k.FooterPaddingInline, k.FooterBorderColor = 10, 20, 20, Color{}
+		if t.elementControls {
+			// drawer.scss: --el-drawer-bg-color, --el-box-shadow-dark and
+			// color-primary on the close button's hover and focus states.
+			k.Bg, k.MaskBg = t.BgContainer, RGBA(0, 0, 0, .5)
+			k.Shadow = []paint.Shadow{sh(0, 16, 48, 16, RGBA(0, 0, 0, .08)), sh(0, 12, 32, 0, RGBA(0, 0, 0, .12)), sh(0, 8, 16, -8, RGBA(0, 0, 0, .16))}
+		}
 	case StyleShadcn:
 		// sheet.tsx: SheetHeader p-4 gap-1.5 with a font-semibold
 		// title (1rem), content gap-4, SheetFooter p-4, no dividers;

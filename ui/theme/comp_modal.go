@@ -82,6 +82,11 @@ func deriveModal(t *Theme) ModalToken {
 		// .el-dialog__close color-info, primary on hover / focus.
 		k.CloseNoHoverBg, k.CloseIconColor, k.CloseHoverColor = true, t.Info.Base, t.Primary.Base
 		k.ConfirmWidth = 420 // --el-messagebox-width
+		if t.elementControls {
+			// dialog.scss and common/var.scss $dialog; overlay.scss uses
+			// --el-overlay-color-lighter in both light and dark themes.
+			k.ContentBg, k.MaskBg = t.BgContainer, RGBA(0, 0, 0, .5)
+		}
 	case StyleShadcn:
 		// DialogContent p-6, DialogTitle text-lg font-semibold.
 		k.TitleFontSize, k.TitleFontWeight = 18, 600
