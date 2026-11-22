@@ -134,7 +134,14 @@ func (m *MarkdownW) loadImage(spec MarkdownImage) (richImage, bool) {
 	case spec.Height > 0:
 		w, h = w*spec.Height/h, spec.Height
 	}
-	return richImage{image: img, w: w, h: h}, true
+	scale := float32(1)
+	if m.imageMax.W > 0 {
+		scale = min(scale, m.imageMax.W/w)
+	}
+	if m.imageMax.H > 0 {
+		scale = min(scale, m.imageMax.H/h)
+	}
+	return richImage{image: img, w: w * scale, h: h * scale}, true
 }
 
 type richImage struct {

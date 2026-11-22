@@ -47,6 +47,7 @@ type RichTextW struct {
 	spans   []Span
 	images  map[int]richImage // inline objects, indexed by span
 	size    float32
+	lineH   float32
 	col     theme.Color
 	colSet  bool
 	pre     bool
@@ -347,6 +348,9 @@ func (w *RichTextW) styleOf(i int) text.Style {
 		// Code keeps the surrounding line height so mixed lines stay even.
 		st.LineHeight = w.c.Theme.LineHeightFor(w.baseSize())
 	}
+	if w.lineH > 0 {
+		st.LineHeight = w.lineH
+	}
 	st.Mono = sp.Code || sp.Mono
 	if st.Mono {
 		st.FontFamily = ""
@@ -587,6 +591,9 @@ func (w *RichTextW) makeLine(ps []moreRichPiece) moreRichLine {
 	ln.w = x
 	// Baseline: the largest baseline offset; height covers every run's line box.
 	base := w.c.style(w.baseSize(), text.Regular)
+	if w.lineH > 0 {
+		base.LineHeight = w.lineH
+	}
 	ln.asc = moreBaseOff(base)
 	desc := base.LineHeight - ln.asc
 	for _, r := range ln.runs {

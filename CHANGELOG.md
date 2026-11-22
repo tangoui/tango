@@ -9,6 +9,7 @@
 - `MarkdownW.Virtual()` 为有界预览启用按块虚拟滚动，保留块高度、链接身份与任务编号。
 - `MarkdownW` 支持只读任务复选框，并可覆盖标题底线、引用和代码块边框、代码复制按钮、字号及内容宽度。
 - `MarkdownW.CodeLanguage` 可隐藏代码围栏的语言标签并保留语法高亮，`CodeBackground` 可设置代码块底色。
+- `MarkdownW.CodeHeader` 与 `CodeBlockW.HeaderStyle` 可设置代码头部分隔线、内边距、等宽标签和文字复制按钮。Markdown 另可设置正文与代码行高、列表间距和标记、图片最大尺寸。
 - `MarkdownW.HeadingBlock` 可按标题 ID 查询块索引，虚拟预览可用 `ScrollToHeading` 和 `ScrollToBlock` 定位。
 - `CodeBlockW` 缓存软换行段的字节索引，支持全文搜索、活动匹配高亮和按字节偏移定位。
 - `CodeBlockW.TextID()` 返回内部只读文本框的焦点 ID，供快捷键路由和关闭查找后的焦点恢复使用。

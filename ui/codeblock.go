@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/tangoui/tango/ui/geom"
-	"github.com/tangoui/tango/ui/icon"
 	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
@@ -29,6 +28,7 @@ type CodeBlockW struct {
 	code      string
 	lang      string
 	title     string
+	header    *CodeHeaderStyle
 	numbers   bool
 	start     int
 	copy      bool
@@ -86,6 +86,10 @@ func (w *CodeBlockW) Lang(lang string) *CodeBlockW { w.lang = lang; return w }
 // Title shows a header row with title (a file name, the language …) and
 // the copy button.
 func (w *CodeBlockW) Title(s string) *CodeBlockW { w.title = s; return w }
+
+// HeaderStyle styles the header. An untitled block with a copy button also
+// gets a header when this option is set.
+func (w *CodeBlockW) HeaderStyle(style CodeHeaderStyle) *CodeBlockW { w.header = &style; return w }
 
 // LineNumbers shows the line-number gutter.
 func (w *CodeBlockW) LineNumbers(on bool) *CodeBlockW { w.numbers = on; return w }
@@ -238,13 +242,19 @@ func (w *CodeBlockW) build() {
 		}
 		Message(c, "success", loc.Markdown.Copied)
 	}
-	copyIcon := icon.Copy
-	if !st.copied.IsZero() && c.now.Sub(st.copied) < 2*time.Second {
-		copyIcon = icon.Check
-		c.WakeAt(st.copied.Add(2 * time.Second))
+	copyDuration := 2 * time.Second
+	if w.header != nil && w.header.TextCopy {
+		copyDuration = 1500 * time.Millisecond
 	}
+	copied := !st.copied.IsZero() && c.now.Sub(st.copied) < copyDuration
+	if copied {
+		c.WakeAt(st.copied.Add(copyDuration))
+	}
+	copyIcon := codeCopyIcon(copied)
 	hovered := w.b.Hovered()
-	if w.title != "" {
+	if w.header != nil && (w.title != "" || w.copy) {
+		codeHeader(c, w.title, w.copy, copied, *w.header, copyNow)
+	} else if w.title != "" {
 		hd := Row(c, func() {
 			Text(c, w.title).Size(th.FontSizeSM).Color(tk.HeaderColor).Layout(layout.Grow(1))
 			if w.copy && IconButton(c, copyIcon, loc.Markdown.CopyCode).Size(22, 14).Clicked() {
@@ -348,7 +358,7 @@ func (w *CodeBlockW) build() {
 	ConfigProvider(c).Direction(LTR).Body(func() {
 		StackBox(c, func() {
 			v.show("codeblock-view", viewOpts)
-			if w.copy && w.title == "" {
+			if w.copy && w.title == "" && w.header == nil {
 				d := Div(c, layout.Abs(layout.Unset, 6, 6, layout.Unset))
 				focused := false
 				d.Body(func() {

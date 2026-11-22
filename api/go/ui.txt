@@ -1072,6 +1072,7 @@ pkg github.com/tangoui/tango/ui, method (*CheckboxW) Status(string) *CheckboxW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) A11yLabel(string) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) ActiveMatch(int) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Copied() bool
+pkg github.com/tangoui/tango/ui, method (*CodeBlockW) HeaderStyle(CodeHeaderStyle) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Height(float32) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) HighlightLines(...int) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Highlighter(CodeHighlighter) *CodeBlockW
@@ -1991,10 +1992,13 @@ pkg github.com/tangoui/tango/ui, method (*MarkdownEditorW) Height(float32) *Mark
 pkg github.com/tangoui/tango/ui, method (*MarkdownEditorW) Layout(...ui/layout.Option) *MarkdownEditorW
 pkg github.com/tangoui/tango/ui, method (*MarkdownEditorW) Mode(string) *MarkdownEditorW
 pkg github.com/tangoui/tango/ui, method (*MarkdownEditorW) Placeholder(string) *MarkdownEditorW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) BodyLineHeight(float32) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) ClickedLink() string
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) CodeBackground(ui/theme.Color) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) CodeBorder(ui/theme.Color) *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) CodeHeader(CodeHeaderStyle) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) CodeLanguage(bool) *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) CodeLineHeight(float32) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) CodeSize(float32) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Color(ui/theme.Color) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) ContentWidth(float32) *MarkdownW
@@ -2003,7 +2007,9 @@ pkg github.com/tangoui/tango/ui, method (*MarkdownW) HeadingBlock(string) (int, 
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) HeadingRules(...int) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) HeadingSize(int, float32) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Highlighter(CodeHighlighter) *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) ImageMaxSize(float32, float32) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Images(func(string) image.Image) *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) ListStyle(MarkdownListStyle) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) NoCopy() *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) NoSelect() *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) QuoteBorder(ui/theme.Color) *MarkdownW
@@ -4347,6 +4353,11 @@ pkg github.com/tangoui/tango/ui, type CodeBlockW struct
 pkg github.com/tangoui/tango/ui, type CodeBlockW struct, noncomparable
 pkg github.com/tangoui/tango/ui, type CodeDocument interface { Line }
 pkg github.com/tangoui/tango/ui, type CodeDocument interface, Line(int, []CodeSpan) ([]CodeSpan, bool)
+pkg github.com/tangoui/tango/ui, type CodeHeaderStyle struct
+pkg github.com/tangoui/tango/ui, type CodeHeaderStyle struct, Divider ui/theme.Color
+pkg github.com/tangoui/tango/ui, type CodeHeaderStyle struct, Mono bool
+pkg github.com/tangoui/tango/ui, type CodeHeaderStyle struct, Padding ui/geom.Insets
+pkg github.com/tangoui/tango/ui, type CodeHeaderStyle struct, TextCopy bool
 pkg github.com/tangoui/tango/ui, type CodeHighlighter interface { Document }
 pkg github.com/tangoui/tango/ui, type CodeHighlighter interface, Document(string, string) CodeDocument
 pkg github.com/tangoui/tango/ui, type CodeSpan struct
@@ -4949,6 +4960,10 @@ pkg github.com/tangoui/tango/ui, type MarkdownImage struct, Alt string
 pkg github.com/tangoui/tango/ui, type MarkdownImage struct, Height float32
 pkg github.com/tangoui/tango/ui, type MarkdownImage struct, Src string
 pkg github.com/tangoui/tango/ui, type MarkdownImage struct, Width float32
+pkg github.com/tangoui/tango/ui, type MarkdownListStyle struct
+pkg github.com/tangoui/tango/ui, type MarkdownListStyle struct, Bullet string
+pkg github.com/tangoui/tango/ui, type MarkdownListStyle struct, Indent float32
+pkg github.com/tangoui/tango/ui, type MarkdownListStyle struct, ItemGap float32
 pkg github.com/tangoui/tango/ui, type MarkdownLocale struct
 pkg github.com/tangoui/tango/ui, type MarkdownLocale struct, Copied string
 pkg github.com/tangoui/tango/ui, type MarkdownLocale struct, CopyCode string

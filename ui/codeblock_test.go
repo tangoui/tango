@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
 	"github.com/tangoui/tango/ui/layout"
@@ -165,6 +166,32 @@ func TestCodeBlockTextIDRestoresFocus(t *testing.T) {
 	d.Key(input.KeyC, input.ModCtrl|input.ModMeta)
 	if got := d.Clipboard(); got != "one\ntwo" {
 		t.Errorf("clipboard = %q", got)
+	}
+}
+
+func TestCodeHeaderTextCopy(t *testing.T) {
+	d := NewDriver(func(c *Context) {
+		Markdown(c, "```go\npackage main\n```").CodeHeader(CodeHeaderStyle{
+			Padding: geom.Insets{Top: 3, Right: 6, Bottom: 3, Left: 15},
+			Divider: c.Theme.Border, Mono: true, TextCopy: true,
+		})
+	}, DriverOptions{Width: 400, Height: 180, Accessibility: true})
+	d.Frame()
+	button, ok := d.A11yFind(a11y.RoleButton, "复制代码")
+	if !ok || button.Bounds.H != 22 {
+		t.Fatalf("copy button = %+v", button)
+	}
+	d.Click(geom.Pt(button.Bounds.X+button.Bounds.W/2, button.Bounds.Y+button.Bounds.H/2))
+	if got := d.Clipboard(); got != "package main" {
+		t.Errorf("clipboard = %q", got)
+	}
+	if _, ok := d.FindText("已复制"); !ok {
+		t.Error("missing inline copy feedback")
+	}
+	d.Advance(1500 * time.Millisecond)
+	d.Frame()
+	if _, ok := d.FindText("复制"); !ok {
+		t.Error("copy label did not recover")
 	}
 }
 

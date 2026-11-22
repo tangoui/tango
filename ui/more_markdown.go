@@ -4,6 +4,7 @@ import (
 	"image"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
@@ -895,6 +896,11 @@ type MarkdownW struct {
 	quoteBorder  *theme.Color
 	codeBorder   *theme.Color
 	codeBg       *theme.Color
+	codeHeader   *CodeHeaderStyle
+	lineHeight   float32
+	codeLineH    float32
+	listStyle    *MarkdownListStyle
+	imageMax     geom.Size
 	hl           CodeHighlighter
 	hlSet        bool
 	col          theme.Color // body text color (zero: theme Text)
@@ -924,6 +930,31 @@ func Markdown(c *Context, src string, opts ...layout.Option) *MarkdownW {
 // Size sets the body font size (default theme FontSize).
 func (m *MarkdownW) Size(px float32) *MarkdownW { m.size = px; return m }
 
+// BodyLineHeight sets the line height in logical pixels for prose, list
+// items and table cells. Zero uses the theme line height.
+func (m *MarkdownW) BodyLineHeight(px float32) *MarkdownW { m.lineHeight = max(0, px); return m }
+
+// CodeLineHeight sets the line height of fenced code in logical pixels.
+// Zero uses the theme line height for the code font size.
+func (m *MarkdownW) CodeLineHeight(px float32) *MarkdownW { m.codeLineH = max(0, px); return m }
+
+// MarkdownListStyle controls Markdown list spacing and unordered markers.
+type MarkdownListStyle struct {
+	Indent  float32 // logical pixels before item text, including the marker
+	ItemGap float32 // logical pixels between items at the same depth
+	Bullet  string  // optional marker text, reused at each depth
+}
+
+// ListStyle overrides the default list spacing and unordered markers.
+func (m *MarkdownW) ListStyle(style MarkdownListStyle) *MarkdownW { m.listStyle = &style; return m }
+
+// ImageMaxSize caps both standalone and inline images, keeping their
+// aspect ratio. A non-positive dimension leaves that axis unconstrained.
+func (m *MarkdownW) ImageMaxSize(width, height float32) *MarkdownW {
+	m.imageMax = geom.Size{W: max(0, width), H: max(0, height)}
+	return m
+}
+
 // Images supplies decoded images by source. Return nil to show the image
 // fallback. Use ResolveImage to receive the alt text and size as well.
 func (m *MarkdownW) Images(load func(src string) image.Image) *MarkdownW { m.images = load; return m }
@@ -949,6 +980,10 @@ func (m *MarkdownW) CopyCode(on bool) *MarkdownW { m.copyable = on; return m }
 // CodeLanguage controls whether fenced code blocks display their language
 // label (default true). Syntax highlighting and copy controls are independent.
 func (m *MarkdownW) CodeLanguage(on bool) *MarkdownW { m.hideCodeLang = !on; return m }
+
+// CodeHeader styles the header of fenced code blocks. CodeLanguage and
+// CopyCode still control whether the language and copy button are shown.
+func (m *MarkdownW) CodeHeader(style CodeHeaderStyle) *MarkdownW { m.codeHeader = &style; return m }
 
 // ReadOnlyTasks disables task toggling while retaining the checkboxes and
 // their checked state in the accessibility tree.
@@ -1058,7 +1093,14 @@ func (m *MarkdownW) fontSize() float32 {
 	return m.c.Theme.FontSize
 }
 
-func (m *MarkdownW) rich(src string, base Span, size float32, col theme.Color) *RichTextW {
+func (m *MarkdownW) bodyLineH() float32 {
+	if m.lineHeight > 0 {
+		return m.lineHeight
+	}
+	return m.c.Theme.LineHeightFor(m.fontSize())
+}
+
+func (m *MarkdownW) rich(src string, base Span, size, lineH float32, col theme.Color) *RichTextW {
 	parts := mdInlines(src, base, m.c.Locale().Markdown.ImagePrefix, m.refs)
 	spans := make([]Span, 0, len(parts))
 	var images map[int]richImage
@@ -1084,6 +1126,7 @@ func (m *MarkdownW) rich(src string, base Span, size float32, col theme.Color) *
 		spans = mdMerge(spans)
 	}
 	w := RichText(m.c, spans...).Size(size)
+	w.lineH = lineH
 	w.images = images
 	if !m.noSelect {
 		w.Selectable()
@@ -1126,7 +1169,7 @@ func (m *MarkdownW) block(b *mdBlock, base Span, k int, last bool) {
 			if base.Color.A > 0 {
 				col = base.Color
 			}
-			w := m.rich(b.text, Span{Bold: true}, size, col)
+			w := m.rich(b.text, Span{Bold: true}, size, 0, col)
 			w.n.setRole(a11y.RoleHeading)
 			if lv := min(b.level, 6); c.a11yOn {
 				w.n.fill(semFunc(func(s *a11y.Node) { s.Level = lv }))
@@ -1149,7 +1192,7 @@ func (m *MarkdownW) block(b *mdBlock, base Span, k int, last bool) {
 			if img, n, ok := mdImageAt(b.text, m.refs); ok && n == len(b.text) {
 				m.image(img, mb)
 			} else {
-				m.rich(b.text, base, fs, base.Color).Layout(layout.Margin(geom.Insets{Bottom: mb}))
+				m.rich(b.text, base, fs, m.lineHeight, base.Color).Layout(layout.Margin(geom.Insets{Bottom: mb}))
 			}
 		case mdCode:
 			m.code(b, mb)
@@ -1216,8 +1259,31 @@ func (m *MarkdownW) code(b *mdBlock, mb float32) {
 	if m.hideCodeLang {
 		lang = ""
 	}
+	styled := m.codeHeader != nil
+	padding := geom.Insets{Top: 10, Bottom: 10, Left: 14, Right: 14}
+	if styled {
+		padding = geom.Insets{Top: 13, Bottom: 13, Left: 15, Right: 15} // MinCode markdown.css pre
+	}
 	box := Column(c, func() {
-		if lang != "" || m.copyable {
+		if styled && (lang != "" || m.copyable) {
+			loc := c.Locale()
+			if lang == "" && !m.hideCodeLang {
+				lang = loc.CodeBlock.Code
+			}
+			copiedAt := State[time.Time](c, hashID(c.cur.id, "code-copied"), nil)
+			until := copiedAt.Add(1500 * time.Millisecond)
+			copied := c.Now().Before(until)
+			if copied {
+				c.WakeAt(until)
+			}
+			codeHeader(c, lang, m.copyable, copied, *m.codeHeader, func() {
+				if c.win != nil {
+					c.win.WriteClipboard(b.text)
+				}
+				*copiedAt = c.Now()
+				c.Invalidate()
+			})
+		} else if lang != "" || m.copyable {
 			Row(c, func() {
 				Text(c, lang).Size(12).Color(th.TextTertiary).Layout(layout.Grow(1))
 				if m.copyable && IconButton(c, icon.Copy, c.Locale().Markdown.CopyCode).Size(22, 14).Clicked() {
@@ -1228,12 +1294,25 @@ func (m *MarkdownW) code(b *mdBlock, mb float32) {
 				}
 			}, layout.Middle(), layout.Margin(geom.Insets{Bottom: 4}))
 		}
-		code := RichText(c, m.codeSpans(b)...).Pre().Size(m.codeFontSize())
-		code.n.setRole(a11y.RoleParagraph).setName(b.text)
-		if !m.noSelect {
-			code.Selectable()
+		body := func() {
+			code := RichText(c, m.codeSpans(b)...).Pre().Size(m.codeFontSize())
+			code.lineH = m.codeLineH
+			code.n.setRole(a11y.RoleParagraph).setName(b.text)
+			if !m.noSelect {
+				code.Selectable()
+			}
 		}
-	}, layout.PadVH(10, 14), layout.Margin(geom.Insets{Bottom: mb}))
+		if styled {
+			Column(c, body, layout.Padding(padding))
+		} else {
+			body()
+		}
+	}, layout.Margin(geom.Insets{Bottom: mb}))
+	if styled {
+		box.Clip()
+	} else {
+		box.Style(layout.Padding(padding))
+	}
 	box.Bg(theme.RGBA(150, 150, 150, .1)).Border(1, theme.RGBA(100, 100, 100, .2)).Radius(th.RadiusSM + 2)
 	switch {
 	case m.el:
@@ -1247,6 +1326,11 @@ func (m *MarkdownW) code(b *mdBlock, mb float32) {
 	}
 	if m.codeBg != nil {
 		box.Bg(*m.codeBg)
+	} else if styled {
+		box.Bg(th.FillAlter)
+	}
+	if styled {
+		box.Radius(6)
 	}
 }
 
@@ -1273,8 +1357,12 @@ func (m *MarkdownW) codeSpans(b *mdBlock) []Span {
 func (m *MarkdownW) list(b *mdBlock, base Span, depth int, mb float32) {
 	c, th := m.c, m.c.Theme
 	fs := m.fontSize()
-	lh := th.LineHeightFor(fs)
+	lh := m.bodyLineH()
 	markW := float32(18)
+	indent, gap, bullet := float32(4), float32(4), ""
+	if s := m.listStyle; s != nil {
+		markW, indent, gap, bullet = max(0, s.Indent), 0, max(0, s.ItemGap), s.Bullet
+	}
 	if b.ordered {
 		last := strconv.Itoa(b.start+len(b.items)-1) + "."
 		markW = max(markW, text.Width(last, c.style(fs, text.Regular))+6)
@@ -1319,6 +1407,11 @@ func (m *MarkdownW) list(b *mdBlock, base Span, depth int, mb float32) {
 								l.Glyphs(geom.Pt(c.inline(r).X(r.W-6-lay.Width, lay.Width), r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
 								return
 							}
+							if bullet != "" {
+								lay := text.Shape(bullet, c.style(fs, text.Regular), text.Options{NoWrap: true})
+								l.Glyphs(geom.Pt(c.inline(r).X(r.W-6-lay.Width, lay.Width), r.Y+(r.H-lay.Height)/2), lay.Glyphs, col)
+								return
+							}
 							cx := c.inline(r).X(6, 0)
 							switch d % 3 {
 							case 0:
@@ -1348,7 +1441,7 @@ func (m *MarkdownW) list(b *mdBlock, base Span, depth int, mb float32) {
 				}, layout.AlignItems(layout.AlignStart)).n.setRole(a11y.RoleListItem)
 			})
 		}
-	}, layout.Gap(4), layout.Padding(geom.Insets{Left: 4}), layout.Margin(geom.Insets{Top: b2f(depth > 0) * 4, Bottom: mb})).n.setRole(a11y.RoleList)
+	}, layout.Gap(gap), layout.Padding(geom.Insets{Left: indent}), layout.Margin(geom.Insets{Top: b2f(depth > 0) * gap, Bottom: mb})).n.setRole(a11y.RoleList)
 }
 
 func (m *MarkdownW) table(b *mdBlock, base Span, mb float32) {
@@ -1359,7 +1452,7 @@ func (m *MarkdownW) table(b *mdBlock, base Span, mb float32) {
 		sp := base
 		sp.Bold = head
 		col := Column(c, func() {
-			m.rich(src, sp, fs, base.Color).Align(al)
+			m.rich(src, sp, fs, m.lineHeight, base.Color).Align(al)
 		}, layout.Grow(1), layout.Basis(0), layout.PadVH(8, 12))
 		col.n.setRole(a11y.RoleCell)
 		if head {

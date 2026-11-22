@@ -319,6 +319,11 @@ func i18nCases() []i18nCase {
 				Markdown(c, "```go\nx := 1\n```\n")
 			},
 			texts: func(l *Locale) []string { return []string{l.Markdown.CopyCode} }},
+		i18nCase{name: "MarkdownTextCopy",
+			page: func(c *Context, ids i18nIDs) {
+				Markdown(c, "```go\nx := 1\n```\n").CodeHeader(CodeHeaderStyle{TextCopy: true})
+			},
+			texts: func(l *Locale) []string { return []string{l.Copy} }},
 		i18nCase{name: "CodeBlock",
 			page: func(c *Context, ids i18nIDs) {
 				CodeBlock(c, "x := 1").Title("a.go")

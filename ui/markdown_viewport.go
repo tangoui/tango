@@ -34,6 +34,12 @@ type mdWindowKey struct {
 	hideCodeLang      bool
 	rules             uint8
 	rulesSet          bool
+	headerPadding     geom.Insets
+	styledHeader      bool
+	headerRule        bool
+	list              MarkdownListStyle
+	styledList        bool
+	imageMax          geom.Size
 }
 
 func (m *MarkdownW) windowKey() mdWindowKey {
@@ -52,6 +58,17 @@ func (m *MarkdownW) windowKey() mdWindowKey {
 		key.lineHeights[i] = th.LineHeightFor(size)
 	}
 	key.lineHeights[8] = th.LineHeightFor(12)
+	key.lineHeights[0] = m.bodyLineH()
+	if m.codeLineH > 0 {
+		key.lineHeights[1] = m.codeLineH
+	}
+	if h := m.codeHeader; h != nil {
+		key.styledHeader, key.headerPadding, key.headerRule = true, h.Padding, h.Divider.A > 0
+	}
+	if m.listStyle != nil {
+		key.styledList, key.list = true, *m.listStyle
+	}
+	key.imageMax = m.imageMax
 	check := CheckboxW{c: m.c, size: m.c.defaultSize()}
 	check.configDefaults()
 	key.checkWidth = m.c.boxSizeOf(check.size)
@@ -102,18 +119,28 @@ func (w *mdWindow) reset(m *MarkdownW, blocks []*mdBlock, old []float32, head, t
 	w.key = m.windowKey()
 	w.heights = make([]float32, len(blocks))
 	w.sums = make([]float64, len(blocks)+1)
-	line := m.c.Theme.LineHeightFor(m.fontSize())
+	line := w.key.lineHeights[0]
 	for i, b := range blocks {
 		h := line + m.fontSize()
 		switch b.kind {
 		case mdHeading:
 			h = m.headingSize(b.level) * 2
 		case mdList:
-			h = max(1, float32(len(b.items)))*(line+4) + m.fontSize()
+			gap := float32(4)
+			if w.key.styledList {
+				gap = max(0, w.key.list.ItemGap)
+			}
+			h = max(1, float32(len(b.items)))*(line+gap) + m.fontSize()
 		case mdTable:
 			h = float32(len(b.rows)+1)*(line+16) + m.fontSize()
 		case mdCode:
 			h = float32(strings.Count(b.text, "\n")+1)*line + 45
+			if w.key.styledHeader || m.codeLineH > 0 {
+				h = float32(strings.Count(b.text, "\n")+1)*w.key.lineHeights[1] + 26 + m.fontSize()
+				if m.copyable || (!m.hideCodeLang && b.lang != "") {
+					h += 22 + w.key.headerPadding.Top + w.key.headerPadding.Bottom + b2f(w.key.headerRule)
+				}
+			}
 		case mdImage:
 			h = 2*line + m.fontSize()
 		}
