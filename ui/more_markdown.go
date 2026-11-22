@@ -901,11 +901,12 @@ type MarkdownW struct {
 }
 
 type mdCache struct {
-	src    string
-	blocks []*mdBlock
-	refs   map[string]string
-	parsed bool
-	window mdWindow
+	src      string
+	blocks   []*mdBlock
+	refs     map[string]string
+	headings map[string]int
+	parsed   bool
+	window   mdWindow
 }
 
 // Markdown adds a rendered Markdown document; it grows to its content (put
@@ -1019,10 +1020,20 @@ func (m *MarkdownW) ClickedLink() string { m.z.run(); return m.clicked }
 func (m *MarkdownW) TaskToggled() (int, bool) { m.z.run(); return m.toggled, m.toggled >= 0 }
 
 func (m *MarkdownW) build() {
-	c := m.c
-	m.el = c.Theme.Flavor == theme.Element
-	m.shad = c.Theme.Flavor == theme.StyleShadcn
-	st := State[mdCache](c, m.b.n.id, nil)
+	m.el = m.c.Theme.Flavor == theme.Element
+	m.shad = m.c.Theme.Flavor == theme.StyleShadcn
+	st := m.document()
+	m.refs = st.refs
+	if m.virtual {
+		st.window.build(m, st.blocks)
+	} else {
+		st.window.hasJump = false
+		m.blocks(st.blocks, Span{Color: m.col}, true)
+	}
+}
+
+func (m *MarkdownW) document() *mdCache {
+	st := State[mdCache](m.c, m.b.n.id, nil)
 	if !st.parsed || st.src != m.src {
 		src := strings.ReplaceAll(m.src, "\r\n", "\n")
 		p := &mdParser{}
@@ -1034,13 +1045,10 @@ func (m *MarkdownW) build() {
 		}
 		st.blocks, st.src, st.parsed = bs, m.src, true
 		st.refs = p.refs
+		st.headings = nil
+		st.window.hasJump = false
 	}
-	m.refs = st.refs
-	if m.virtual {
-		st.window.build(m, st.blocks)
-	} else {
-		m.blocks(st.blocks, Span{Color: m.col}, true)
-	}
+	return st
 }
 
 func (m *MarkdownW) fontSize() float32 {

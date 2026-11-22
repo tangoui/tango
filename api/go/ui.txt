@@ -1998,6 +1998,7 @@ pkg github.com/tangoui/tango/ui, method (*MarkdownW) CodeSize(float32) *Markdown
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Color(ui/theme.Color) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) ContentWidth(float32) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) CopyCode(bool) *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) HeadingBlock(string) (int, bool)
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) HeadingRules(...int) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) HeadingSize(int, float32) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Highlighter(CodeHighlighter) *MarkdownW
@@ -2007,6 +2008,8 @@ pkg github.com/tangoui/tango/ui, method (*MarkdownW) NoSelect() *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) QuoteBorder(ui/theme.Color) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) ReadOnlyTasks(bool) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) ResolveImage(func(MarkdownImage) image.Image) *MarkdownW
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) ScrollToBlock(int) bool
+pkg github.com/tangoui/tango/ui, method (*MarkdownW) ScrollToHeading(string) bool
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Size(float32) *MarkdownW
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) TaskToggled() (int, bool)
 pkg github.com/tangoui/tango/ui, method (*MarkdownW) Virtual() *MarkdownW

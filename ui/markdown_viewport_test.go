@@ -65,6 +65,67 @@ func TestMarkdownVirtualBoundsBuild(t *testing.T) {
 	}
 }
 
+func TestMarkdownHeadingBlocks(t *testing.T) {
+	src := "# **Hello**, `World`!\n\n> # 中文\n\n- ## Hello World\n\nHello World-1\n-------------\n\n```go\n# Hidden\n```"
+	var got map[string]int
+	d := NewDriver(func(c *Context) {
+		m := Markdown(c, src)
+		got = make(map[string]int)
+		for _, id := range []string{"hello-world", "#%E4%B8%AD%E6%96%87", "hello-world-1", "hello-world-1-1", "hidden", "edited"} {
+			if block, ok := m.HeadingBlock(id); ok {
+				got[id] = block
+			}
+		}
+	}, DriverOptions{Width: 420, Height: 300})
+	d.Frame()
+	if len(got) != 4 || got["hello-world"] != 0 || got["#%E4%B8%AD%E6%96%87"] != 1 || got["hello-world-1"] != 2 || got["hello-world-1-1"] != 3 {
+		t.Fatalf("heading blocks: %v", got)
+	}
+	src = "# Edited"
+	d.Frame()
+	if block, ok := got["edited"]; !ok || block != 0 || len(got) != 1 {
+		t.Fatalf("stale heading blocks after edit: %v", got)
+	}
+}
+
+func TestMarkdownVirtualScrollToHeading(t *testing.T) {
+	var doc strings.Builder
+	doc.WriteString("[Go to section](#section-70)\n\n")
+	for i := range 80 {
+		fmt.Fprintf(&doc, "## Section %d\n\n%s\n\n", i+1, strings.Repeat("Paragraph text wraps in the preview. ", 12))
+	}
+	src := doc.String()
+	var request, clicked bool
+	d := NewDriver(func(c *Context) {
+		m := Markdown(c, src, layout.Fill(), layout.Pad(12)).Virtual()
+		if request {
+			request = false
+			if m.ScrollToBlock(-1) || m.ScrollToBlock(161) || m.ScrollToHeading("#missing") || !m.ScrollToBlock(0) {
+				t.Error("unexpected block or heading lookup result")
+			}
+		}
+		if link := m.ClickedLink(); link != "" {
+			clicked = m.ScrollToHeading(link)
+		}
+	}, DriverOptions{Width: 420, Height: 300, Accessibility: true})
+	d.Settle()
+	d.Frame() // RichText link nodes use the previously painted link bounds.
+	link, ok := d.A11yFind(a11y.RoleLink, "Go to section")
+	if !ok {
+		t.Fatal("link is missing")
+	}
+	d.Click(geom.Pt(link.Bounds.X+link.Bounds.W/2, link.Bounds.Y+link.Bounds.H/2))
+	target, ok := d.A11yFind(a11y.RoleHeading, "Section 70")
+	if !clicked || !ok || target.Bounds.Y < 0 || target.Bounds.Y > 30 {
+		t.Fatalf("fragment click=%v, heading=%+v", clicked, target)
+	}
+	request = true
+	d.Settle()
+	if p, ok := d.A11yFind(a11y.RoleParagraph, "Go to section"); !ok || p.Bounds.Y < 0 || p.Bounds.Y > 30 {
+		t.Fatal("scrolling to block 0 did not bring the link back into view")
+	}
+}
+
 // Use the same workload with the pre-viewport test binary.
 func asVirtualMarkdown(m *MarkdownW) bool {
 	if v, ok := any(m).(interface{ Virtual() *MarkdownW }); ok {

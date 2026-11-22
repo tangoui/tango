@@ -18,6 +18,8 @@ type mdWindow struct {
 	built   []*node
 	width   float32
 	key     mdWindowKey
+	jump    int
+	hasJump bool
 }
 
 type mdWindowKey struct {
@@ -62,6 +64,13 @@ func (w *mdWindow) prefix(n int) float64 {
 		total += w.sums[n]
 	}
 	return total
+}
+
+func (w *mdWindow) blockTop(i int, pad geom.Insets) float64 {
+	if i == 0 {
+		return 0
+	}
+	return w.prefix(i) + float64(pad.Top)
 }
 
 // find returns the block containing y, clamped to the document.
@@ -169,6 +178,11 @@ func (w *mdWindow) build(m *MarkdownW, blocks []*mdBlock) {
 	s.extent.Y = w.prefix(len(blocks)) + float64(pad.Vertical())
 	endOffset := max(0, s.extent.Y-view)
 	atEnd := s.off.Y > 0 && (s.off.Y >= endOffset || s.off.Y >= s.maxY())
+	jump, hasJump := w.jump, w.hasJump
+	if hasJump {
+		s.off.Y = w.blockTop(jump, pad)
+		atEnd = false
+	}
 	fillClampOff(sb, s.extent.Y, view)
 	if atEnd {
 		s.off.Y = endOffset
@@ -189,6 +203,9 @@ func (w *mdWindow) build(m *MarkdownW, blocks []*mdBlock) {
 	over := sb.n.over
 	sb.n.over = func(l *paint.List, r geom.Rect) {
 		over(l, r)
+		if hasJump && w.jump == jump {
+			w.hasJump = false
+		}
 		anchor := w.find(s.off.Y - float64(pad.Top))
 		before := w.prefix(anchor)
 		width := max(0, r.W-pad.Horizontal())
@@ -201,10 +218,12 @@ func (w *mdWindow) build(m *MarkdownW, blocks []*mdBlock) {
 			changed = w.measure(first+j, max(1, n.ln.Rect.H)) || changed
 		}
 		if changed || view != float64(r.H) {
-			// Keep the bottom aligned as estimates change after a jump to the
-			// end. Else keep the current block in place.
-			if atEnd {
+			if hasJump || atEnd {
+				// The target and the end may both move as estimates settle.
 				s.off.Y = max(0, w.prefix(len(blocks))+float64(pad.Vertical())-float64(r.H))
+				if hasJump {
+					s.off.Y = min(w.blockTop(jump, pad), s.off.Y)
+				}
 			} else if anchor > 0 {
 				s.off.Y += w.prefix(anchor) - before
 			}

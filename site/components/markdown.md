@@ -51,6 +51,28 @@ func page(c *ui.Context) {
 }
 ```
 
+### 虚拟预览与标题锚点
+
+`Virtual()` 在有界容器内按可见块渲染长文档，并自行处理滚动。点击文档内的 `#heading` 链接时，可将片段传给 `ScrollToHeading`。
+
+```go
+import (
+    "strings"
+
+    "github.com/tangoui/tango/ui"
+    "github.com/tangoui/tango/ui/layout"
+)
+
+func preview(c *ui.Context, src string) {
+    md := ui.Markdown(c, src, layout.H(480)).Virtual()
+    if link := md.ClickedLink(); strings.HasPrefix(link, "#") {
+        md.ScrollToHeading(link)
+    }
+}
+```
+
+`HeadingBlock` 查询标题所在的顶层块，索引从 0 开始。引用和列表中的标题返回外层块的索引。`ScrollToBlock` 可在虚拟预览中按索引跳转。
+
 ### 交互式任务列表
 
 任务列表的勾选会通过 `TaskToggled` 返回文档顺序中的索引；用 `ToggleMarkdownTask` 生成新的 Markdown 源文本，再在下一帧渲染。

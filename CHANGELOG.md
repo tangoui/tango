@@ -9,6 +9,7 @@
 - `MarkdownW.Virtual()` 为有界预览启用按块虚拟滚动，保留块高度、链接身份与任务编号。
 - `MarkdownW` 支持只读任务复选框，并可覆盖标题底线、引用和代码块边框、代码复制按钮、字号及内容宽度。
 - `MarkdownW.CodeLanguage` 可隐藏代码围栏的语言标签并保留语法高亮，`CodeBackground` 可设置代码块底色。
+- `MarkdownW.HeadingBlock` 可按标题 ID 查询块索引，虚拟预览可用 `ScrollToHeading` 和 `ScrollToBlock` 定位。
 - `CodeBlockW` 缓存软换行段的字节索引，支持全文搜索、活动匹配高亮和按字节偏移定位。
 - `SplitterPanelW` 支持受控像素尺寸、折叠状态及变化回调，`SplitterW.PixelSizes()` 返回当前分栏尺寸。
 - `SplitterPanelW.AlwaysShowCollapse(true)` 让分隔条在非悬停时也显示折叠按钮。
