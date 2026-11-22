@@ -80,6 +80,8 @@ type navMenuPopup struct {
 	// menu: its inline-start top corner at the point (top-right in RTL),
 	// flipped to the other side of the point when it does not fit.
 	edge bool
+	// pointWidth overrides the width of the root panel opened at a point.
+	pointWidth float32
 	// marks gives items a checked state (Menubar check and radio items);
 	// nil: none.
 	marks *navMarks
@@ -261,6 +263,9 @@ func (p *navMenuPopup) panel(items []MenuItem, level int, anchor ID, place Place
 		var inner *Box
 		holder := Overlay(c, OverlayOptions{Place: ScreenFill}, func() {
 			inner = Column(c, body)
+			if p.pointWidth > 0 && c.size.W > 8 {
+				inner.Style(layout.W(min(p.pointWidth, c.size.W-8))).Clip()
+			}
 			inner.n.ln.Absolute = true
 			inner.n.ln.Pos = flexbox.Pos{Left: at.X, Top: at.Y, Right: layout.Unset, Bottom: layout.Unset}
 			inner.n.hit, inner.n.blocks = true, true
