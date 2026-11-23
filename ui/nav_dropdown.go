@@ -1359,7 +1359,12 @@ func (d *DropdownW) Body(trigger func()) *DropdownW {
 	if d.changed && d.autoFocus && d.st.popup.focus == 0 {
 		d.st.popup.focus = 1
 	}
-	a := c.AnimFrom(b.n.id, "open", 0, 1, th.DurationMid)
+	var a float32
+	if th.UsesElementPlusControls() {
+		a = c.anim(b.n.id, "open", 0, 1, th.DurationSlow, elementFastEase)
+	} else {
+		a = c.AnimFrom(b.n.id, "open", 0, 1, th.DurationMid)
+	}
 	pop := &navMenuPopup{c: c, th: th, tk: d.tk, st: &d.st.popup, selected: d.selected, element: el, opacity: a, minW: d.minW, maxH: d.maxH,
 		marks: d.marks(), wrap: d.wrap}
 	off := d.tk.PopupOffset

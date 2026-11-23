@@ -103,6 +103,16 @@ func cubicBezier(x1, y1, x2, y2 float64) func(float64) float64 {
 	}
 }
 
+// CSS timing functions used by Element Plus 2.14.8 theme-chalk.
+var (
+	elementEase      = cubicBezier(0.25, 0.1, 0.25, 1)
+	elementEaseIn    = cubicBezier(0.42, 0, 1, 1)
+	elementFastEase  = cubicBezier(0.23, 1, 0.32, 1)
+	elementCheckEase = cubicBezier(0.71, -0.46, 0.29, 1.46)
+)
+
+func linearEase(x float64) float64 { return x }
+
 // Ant Design motion curves.
 var (
 	EaseInOut = cubicBezier(0.645, 0.045, 0.355, 1)

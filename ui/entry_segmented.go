@@ -338,6 +338,10 @@ func (w *SegmentedW) paintTrack(l *paint.List, r geom.Rect) {
 	c, th := w.c, w.th
 	track, thumb, _, _, _ := w.colors()
 	outer, inner := w.radii()
+	ease := EaseInOut
+	if th.UsesElementPlusControls() {
+		ease = elementEase // segmented.scss: transition all 0.3s
+	}
 	l.Fill(r, geom.Rad(outer), track)
 	sel := w.selected()
 	if sel < 0 || sel >= len(w.items) {
@@ -348,8 +352,8 @@ func (w *SegmentedW) paintTrack(l *paint.List, r geom.Rect) {
 	kr := w.items[sel].ln.Rect
 	var tr geom.Rect
 	if w.vertical {
-		y := c.Anim(w.n.id, "seg-y", kr.Y, th.DurationSlow)
-		ht := c.Anim(w.n.id, "seg-ht", kr.H, th.DurationSlow)
+		y := c.anim(w.n.id, "seg-y", kr.Y, kr.Y, th.DurationSlow, ease)
+		ht := c.anim(w.n.id, "seg-ht", kr.H, kr.H, th.DurationSlow, ease)
 		tr = geom.Rect{X: r.X + kr.X, Y: r.Y + y, W: kr.W, H: ht}
 	} else {
 		s := c.inline(r)
@@ -357,8 +361,8 @@ func (w *SegmentedW) paintTrack(l *paint.List, r geom.Rect) {
 		if c.IsRTL() {
 			lo = r.W - kr.X - kr.W
 		}
-		x := c.Anim(w.n.id, "seg-x", lo, th.DurationSlow)
-		wd := c.Anim(w.n.id, "seg-w", kr.W, th.DurationSlow)
+		x := c.anim(w.n.id, "seg-x", lo, lo, th.DurationSlow, ease)
+		wd := c.anim(w.n.id, "seg-w", kr.W, kr.W, th.DurationSlow, ease)
 		tr = s.Rect(x, r.Y+kr.Y, wd, kr.H)
 	}
 	if w.dis() || th.UsesElementPlusControls() && w.items[sel].disabled {
@@ -405,6 +409,9 @@ func (w *SegmentedW) paintItem(l *paint.List, r geom.Rect, i int, ia Interaction
 		}
 	case sel:
 		col = fgSel
+	case ia.Pressed && th.UsesElementPlusControls():
+		col = w.tk.ItemHoverColor
+		l.Fill(r, geom.Rad(inner), w.tk.ItemActiveBg)
 	case ia.Hovered:
 		col = w.tk.ItemHoverColor
 		h := c.Anim(w.items[i].id, "seg-h", 1, th.DurationMid)

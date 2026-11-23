@@ -409,7 +409,12 @@ func (w *SelectW) dropdown(opts []Option) {
 	c, th := w.c, w.th
 	tk := &th.Components.Select
 	el := th.Flavor == theme.Element
-	a := c.AnimFrom(w.n.id, "open", 0, 1, th.DurationMid)
+	var a float32
+	if th.UsesElementPlusControls() {
+		a = c.anim(w.n.id, "open", 0, 1, th.DurationSlow, elementFastEase)
+	} else {
+		a = c.AnimFrom(w.n.id, "open", 0, 1, th.DurationMid)
+	}
 	st := w.st
 	follow := !st.listShown || st.active != st.shown
 	moved := c.pointer != st.ptr

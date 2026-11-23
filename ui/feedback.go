@@ -969,7 +969,11 @@ func motionLive(c *Context, id ID, open bool) bool {
 	if c.anims[animKey{id, "open"}] == nil {
 		return false
 	}
-	return motionTo(c, id, "open", false, c.Theme.DurationSlow, nil, motionOut(c)) > 0
+	out := motionOut(c)
+	if c.Theme.UsesElementPlusControls() {
+		out = elementEase
+	}
+	return motionTo(c, id, "open", false, c.Theme.DurationSlow, nil, out) > 0
 }
 
 // motionOut is the leave curve of dialog-like layers.
@@ -1028,6 +1032,12 @@ func modalMotion(c *Context, id ID, open bool) (modalAnim, bool) {
 	if shad {
 		dur = th.DurationMid
 	}
+	if th.UsesElementPlusControls() {
+		// dialog.scss applies CSS ease to both the overlay and its child.
+		m.a = motionTo(c, id, "open", open, dur, elementEase, elementEase)
+		m.m = m.a
+		return m, true
+	}
 	m.a = motionTo(c, id, "open", open, dur, in, out)
 	m.m = motionTo(c, id, "mask", open, dur, EaseOut, EaseInOut)
 	return m, true
@@ -1071,6 +1081,9 @@ func (m modalAnim) apply(dlg *Box) {
 func drawerMotion(c *Context, id ID, open bool) (a float32, ok bool) {
 	if !motionLive(c, id, open) {
 		return 0, false
+	}
+	if c.Theme.UsesElementPlusControls() {
+		return motionTo(c, id, "open", open, c.Theme.DurationSlow, elementEase, elementEase), true
 	}
 	return motionTo(c, id, "open", open, c.Theme.DurationSlow, EaseOut, motionOut(c)), true
 }

@@ -1223,7 +1223,12 @@ func (t *TooltipW) build() {
 	if !t.arrow && !th.UsesElementPlusControls() {
 		off = 4
 	}
-	a := c.AnimFrom(b.n.id, "tip", 0, 1, th.DurationFast)
+	var a float32
+	if th.UsesElementPlusControls() {
+		a = c.anim(b.n.id, "tip", 0, 1, th.DurationMid, linearEase)
+	} else {
+		a = c.AnimFrom(b.n.id, "tip", 0, 1, th.DurationFast)
+	}
 	ov := Overlay(c, OverlayOptions{Anchor: b.n.id, Place: place, Offset: off, Flip: true}, func() {
 		if t.content != nil {
 			Column(c, t.content, layout.MaxW(tk.MaxWidth))

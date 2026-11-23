@@ -4,6 +4,7 @@ import (
 	"github.com/tangoui/tango/ui/a11y"
 	"math"
 	"sync/atomic"
+	"time"
 
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
@@ -386,7 +387,8 @@ func (w *CheckboxW) paint(l *paint.List, r geom.Rect) {
 		hovered:       w.ia.Hovered && !dis,
 		focused:       focusBox,
 		invalid:       w.status == "error",
-		t:             c.Anim(w.n.id, "check", b2f(*w.val), th.DurationMid),
+		t:             w.checkProgress(th),
+		transition:    th.UsesElementPlusControls(),
 	})
 	if w.label != "" {
 		st := c.choiceFontOf(w.size)
@@ -405,6 +407,14 @@ func (w *CheckboxW) paint(l *paint.List, r geom.Rect) {
 	}
 }
 
+func (w *CheckboxW) checkProgress(th *theme.Theme) float32 {
+	target := b2f(*w.val)
+	if th.UsesElementPlusControls() {
+		return w.c.anim(w.n.id, "check", target, target, 250*time.Millisecond, elementCheckEase)
+	}
+	return w.c.Anim(w.n.id, "check", target, th.DurationMid)
+}
+
 // checkLook is the state of a checkbox square drawn by drawCheckbox.
 type checkLook struct {
 	checked       bool
@@ -414,6 +424,7 @@ type checkLook struct {
 	focused       bool    // keyboard focus ring
 	invalid       bool    // aria-invalid (shadcn: destructive border / ring)
 	t             float32 // check animation progress 0..1; static rows pass 1
+	transition    bool    // use t to interpolate even when unchecked
 }
 
 // drawCheckbox paints the checkbox square (checked, half-checked or empty)
@@ -459,7 +470,12 @@ func drawCheckbox(c *Context, l *paint.List, box geom.Rect, s checkLook) {
 		if len(tk.Shadow) > 0 {
 			l.Shadows(box, rad, tk.Shadow)
 		}
-		l.Fill(box, rad, tk.Bg) // shadcn dark: bg-input/30
+		bg := tk.Bg // shadcn dark: bg-input/30
+		if s.transition && s.t > 0 {
+			bg = theme.Lerp(bg, tk.CheckedBg, min(1, s.t))
+			bc = theme.Lerp(bc, tk.CheckedBg, min(1, s.t))
+		}
+		l.Fill(box, rad, bg)
 		l.Stroke(box, rad, 1, bc)
 	}
 	mark := tk.CheckColor
@@ -805,7 +821,15 @@ func (w *RadioW) paint(l *paint.List, r geom.Rect) {
 	bs := tk.RadioSize
 	s := c.inline(r)
 	cx, cy := s.X(0, bs)+bs/2, r.Y+r.H/2
-	t := c.Anim(w.n.id, "on", b2f(w.checked), th.DurationMid)
+	target := b2f(w.checked)
+	var t, dotT float32
+	if th.UsesElementPlusControls() {
+		t = c.anim(w.n.id, "on", target, target, th.DurationSlow, elementEase)
+		dotT = c.anim(w.n.id, "dot", target, target, 150*time.Millisecond, elementEaseIn)
+	} else {
+		t = c.Anim(w.n.id, "on", target, th.DurationMid)
+		dotT = t
+	}
 	outer := paint.NewPath().Circle(cx, cy, bs/2)
 	inner := paint.NewPath().Circle(cx, cy, bs/2-1)
 	hov := w.ia.Hovered && !dis
@@ -849,8 +873,8 @@ func (w *RadioW) paint(l *paint.List, r geom.Rect) {
 		}
 		l.Path(outer, theme.Lerp(border, on, t))
 		l.Path(inner, theme.Lerp(th.BgContainer, on, t))
-		if t > 0 {
-			dot := tk.DotSize / 2 * t
+		if dotT > 0 {
+			dot := tk.DotSize / 2 * dotT
 			if th.Flavor == theme.Ant {
 				dot = tk.DotSize / 2 * float32(math.Max(0.4, float64(t)))
 			}
@@ -1448,7 +1472,13 @@ func (w *SwitchW) paint(l *paint.List, r geom.Rect) {
 	c, th := w.c, w.c.ThemeFor(theme.CompSwitch)
 	tk := &th.Components.Switch
 	h, _, hs := w.dims()
-	t := c.Anim(w.n.id, "on", b2f(*w.val), th.DurationMid)
+	target := b2f(*w.val)
+	var t float32
+	if th.UsesElementPlusControls() {
+		t = c.anim(w.n.id, "on", target, target, th.DurationSlow, elementEase)
+	} else {
+		t = c.Anim(w.n.id, "on", target, th.DurationMid)
+	}
 	dis := w.disabled || w.n.disabled
 	hov := w.ia.Hovered && !w.disabled
 	off, on := tk.OffBg, tk.OnBg
@@ -1460,7 +1490,9 @@ func (w *SwitchW) paint(l *paint.List, r geom.Rect) {
 	track := rs.Rect(before, r.Y+(r.H-h)/2, w.trackW(), h)
 	if dis || w.busy() {
 		op := float32(0.65)
-		if th.Flavor == theme.StyleShadcn {
+		if th.UsesElementPlusControls() {
+			op = 0.6 // switch.scss .is-disabled
+		} else if th.Flavor == theme.StyleShadcn {
 			op = 0.5
 		}
 		l.Opacity(op)

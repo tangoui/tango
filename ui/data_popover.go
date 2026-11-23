@@ -326,7 +326,12 @@ func (p *PopoverW) Body(fn func()) *Box {
 	if p.arrow {
 		off = tk.Offset
 	}
-	a := c.AnimFrom(b.n.id, "pop", 0, 1, th.DurationMid)
+	var a float32
+	if th.UsesElementPlusControls() {
+		a = c.anim(b.n.id, "pop", 0, 1, th.DurationMid, linearEase)
+	} else {
+		a = c.AnimFrom(b.n.id, "pop", 0, 1, th.DurationMid)
+	}
 	pad := layout.Pad(tk.InnerPadding)
 	if p.noPadding {
 		pad = layout.Pad(0)
