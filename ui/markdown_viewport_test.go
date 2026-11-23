@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image"
+	"math"
 	"strings"
 	"testing"
 
@@ -22,8 +23,14 @@ func TestMarkdownVirtualWheel(t *testing.T) {
 			var m *MarkdownW
 			d := NewDriver(func(c *Context) {
 				m = Markdown(c, doc.String(), layout.Fill(), layout.Pad(12)).Virtual()
-			}, DriverOptions{Width: 420, Height: 300, Accessibility: true})
+			}, DriverOptions{Width: 420, Height: 300, Scale: 1, Accessibility: true})
 			d.Settle()
+			// The height index sums float64 block heights, while flex layout
+			// measures the built window in float32. They can round differently
+			// even when the final block sits at the bottom pixel.
+			atEnd := func(s *scrollState) bool {
+				return math.Round(s.painted.Y) == math.Round(s.maxY())
+			}
 			limit := 160
 			if step > 180 {
 				limit = 1
@@ -34,17 +41,18 @@ func TestMarkdownVirtualWheel(t *testing.T) {
 				if s.painted.Y <= 0 {
 					t.Fatal("wheel offset was lost on the next frame")
 				}
-				if s.painted.Y >= s.maxY() {
+				if atEnd(s) {
 					break
 				}
 			}
 			s := m.b.n.scroll
 			last, found := d.A11yFind(a11y.RoleHeading, "Section 80")
 			end := m.b.n.kids[len(m.b.n.kids)-1]
-			if !found || last.Bounds.Y < 0 || last.Bounds.Y+last.Bounds.H > 300 || s.painted.Y != s.maxY() {
-				t.Fatalf("document end: heading=%+v offset=%.1f max=%.1f", last, s.painted.Y, s.maxY())
+			r, laidOut := m.c.RectOf(end.id)
+			if !found || last.Bounds.Y < 0 || last.Bounds.Y+last.Bounds.H > 300 || !atEnd(s) {
+				t.Fatalf("document end: heading=%+v found=%t offset=%g max=%g last block=%+v laidOut=%t", last, found, s.painted.Y, s.maxY(), r, laidOut)
 			}
-			if r, ok := m.c.RectOf(end.id); !ok || r.Bottom() < 287 || r.Bottom() > 289 {
+			if !laidOut || r.Bottom() < 287 || r.Bottom() > 289 {
 				t.Fatalf("last block ends at %.1f, want 288 with bottom padding", r.Bottom())
 			}
 		})

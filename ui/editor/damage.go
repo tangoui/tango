@@ -142,6 +142,8 @@ type paintFrame struct {
 	offsetY   float32
 	scrollX   float32
 	marks     []geom.Rect
+	// Width of the highlighted line box when painted with a border.
+	lineBorderW float32
 	// aLine, aRow: the model line and row at the top.
 	aLine, aRow int
 	fold        []uint8 // folding decorations per row (foldCtlExpanded ...)
@@ -230,11 +232,12 @@ func (w *ViewW) rowHashes(pf *paintFrame, dst []uint64) []uint64 {
 				}
 			}
 		}
-		// Repaint current-line borders when horizontal scrolling changes
-		// which edges are clipped by the viewport.
+		// Repaint current-line borders when a scroll or a change in the
+		// widest line moves a border edge into or out of the text clip.
 		if pf.cur != nil && pf.cur[k] {
 			num(2)
 			f32(pf.scrollX)
+			f32(pf.lineBorderW)
 		}
 		// Selections on the row (as paint draws them).
 		ls := snap.LineStart(lv.i)

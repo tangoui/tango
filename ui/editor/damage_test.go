@@ -11,6 +11,7 @@ import (
 	"github.com/tangoui/tango/internal/render/gpu"
 	"github.com/tangoui/tango/internal/render/gpu/cpuexec"
 	"github.com/tangoui/tango/ui"
+	"github.com/tangoui/tango/ui/editor/buffer"
 	"github.com/tangoui/tango/ui/editor/theme"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
@@ -92,6 +93,21 @@ func (h *hintHost) step(what string) {
 		} else {
 			h.t.Logf("full frame: %s", what)
 		}
+	}
+}
+
+func TestLineHighlightBorderDamageWhenDocumentWidens(t *testing.T) {
+	goText(t)
+	st := NewState(manyLines(80), "a.txt", theme.Base("vs"))
+	defer st.Close()
+	h := newHintHost(t, st, geom.Size{W: 720, H: 220}, 1)
+	h.frame()
+	off := st.Snapshot().LineStart(3)
+	if err := st.Edit([]buffer.Edit{{Start: off, End: off, Text: strings.Repeat("X", 120)}}, Selection{}); err != nil {
+		t.Fatal(err)
+	}
+	if !h.frame() {
+		t.Fatal("expected a partial redraw when a different line widens the document")
 	}
 }
 

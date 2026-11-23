@@ -527,7 +527,7 @@ func TestFirstPresentAfterGPUFallback(t *testing.T) {
 	var events []uihost.FirstPresent
 	o := tango.Await(a, func() opened {
 		r, s, err := uihost.Open(a, uihost.Options{
-			Surface:        tango.SurfaceOptions{Width: 160, Height: 100},
+			Surface:        tango.SurfaceOptions{Width: 160, Height: 100, Hidden: true},
 			OnFirstPresent: func(p uihost.FirstPresent) { events = append(events, p) },
 		}, func(c *ui.Context) { ui.Text(c, "frame") }, ui.RunnerOptions{})
 		return opened{r, s, err}
@@ -536,15 +536,20 @@ func TestFirstPresentAfterGPUFallback(t *testing.T) {
 		t.Fatal(o.err)
 	}
 	cv := fb.Canvas(o.s.ID())
-	for range 3 {
-		cv.Frame()
+	if !cv.FlushFrame() || rendererOf(a, o.r) != "cpu" {
+		t.Fatal("first frame did not fall back to the CPU")
 	}
-	fb.Do(func() {
-		if len(events) != 1 || events[0].DisplayedAt != nil {
-			t.Errorf("presentation events after fallback: %+v", events)
-		}
-		if cv.Presents() == 0 {
-			t.Error("no CPU frame was presented")
-		}
-	})
+	// Await follows OnFirstPresent on the app queue. Backend.Do uses the
+	// native event queue, which can run before a posted callback.
+	firstEvents := tango.Await(a, func() int { return len(events) })
+	if firstEvents != 0 || cv.Presents() != 0 {
+		t.Fatal("failed GPU frame reported a presentation")
+	}
+	if !cv.FlushFrame() || cv.Presents() == 0 {
+		t.Fatal("fallback did not request and present a CPU frame")
+	}
+	got := tango.Await(a, func() []uihost.FirstPresent { return events })
+	if len(got) != 1 || got[0].DisplayedAt != nil {
+		t.Errorf("presentation events after fallback: %+v", got)
+	}
 }

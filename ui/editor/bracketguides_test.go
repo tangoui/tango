@@ -353,26 +353,36 @@ func TestBracketGuidesFoldWrap(t *testing.T) {
 	// the bracket's row have the guide too.
 	long := strings.Repeat("word ", 40)
 	doc := "func f() {\n\tif x {\n\t\t" + long + "\n\t}\n}\n"
-	st2, vw2, frame2 := guideView(t, doc, 360, 300, func(o *Options) {
-		o.Guides.BracketPairs = BracketGuidesOn
-		o.Guides.BracketPairsHorizontal = BracketGuidesOff
-		o.Guides.HighlightActiveBracketPair = false
-		o.WordWrap = WrapOn
-	})
-	caretAt(st2, 0, 0)
-	frame2()
-	vs := verticals(vw2())
+	st2 := NewState(doc, "a.go", theme.Base("vs"))
+	defer st2.Close()
+	st2.Options.Guides.BracketPairs = BracketGuidesOn
+	st2.Options.Guides.BracketPairsHorizontal = BracketGuidesOff
+	st2.Options.Guides.HighlightActiveBracketPair = false
+	st2.Options.WordWrap = WrapColumn
+	st2.Options.WordWrapColumn = 23
+	st2.Options.LineHeight = 20
+	// The outer closer can fall below the laid-out rows. Make both
+	// closers available before checking how their guides span the wrap.
+	snap := st2.Snapshot()
+	if !st2.Highlighter().Highlight(snap, snap.LineCount(), time.Second) {
+		t.Fatal("failed to tokenize the wrap fixture")
+	}
+	d2, vw2 := viewDriver(st2, 360, 300, nil)
+	d2.Frame()
+	vs := verticals(*vw2)
 	rows := 0
-	for k, v := range vs {
-		if strings.HasPrefix(k, "2:") {
-			rows++
-			if !slices.Equal(v, []string{"0/0", "4/1"}) {
-				t.Errorf("row %s of the wrapped line: %v", k, v)
-			}
+	for _, r := range (*vw2).vs.bgRows {
+		if r.line != 2 {
+			continue
+		}
+		rows++
+		k := fmt.Sprintf("%d:%d", r.line, r.row)
+		if v := vs[k]; !slices.Equal(v, []string{"0/0", "4/1"}) {
+			t.Errorf("row %s of the wrapped line: %v", k, v)
 		}
 	}
 	if rows < 2 {
-		t.Fatalf("the long line is not wrapped (%d rows with guides: %v)", rows, vs)
+		t.Fatalf("the long line is not wrapped (%d rows: %v)", rows, vs)
 	}
 	// An opening line wrapping after its bracket: the rows after the
 	// bracket's row have the guide, the bracket's row not.

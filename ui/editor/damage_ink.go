@@ -30,6 +30,7 @@ type rowInk struct {
 	start, end int
 	sel        spanX
 	number     int // zero when the number is hidden
+	borderW    float32
 	bands      uint8
 	fallback   bool
 }
@@ -72,6 +73,7 @@ func (r *damageRec) recordInk(f *paintFrame, spare *damageRec) {
 		ink := lv.damageInk
 		if f.cur != nil && f.cur[k] {
 			ink.bands |= inkLineHighlight
+			ink.borderW = f.lineBorderW
 		}
 		if f.curG != nil && f.curG[k] {
 			ink.bands |= inkGutterHighlight
@@ -114,7 +116,7 @@ type rowInkMeasure struct {
 // disappeared when a line shrank or became empty.
 func (m *rowInkMeasure) changedRows(prev, cur *damageRec, k int) (spanX, bool) {
 	a, b := prev.ink[k], cur.ink[k]
-	if a.fallback || b.fallback || a.bands != b.bands || a.number != b.number {
+	if a.fallback || b.fallback || a.bands != b.bands || a.number != b.number || a.borderW != b.borderW {
 		return spanX{}, false
 	}
 	x, ok := m.measure(a, prev.rowOps[a.start:a.end])

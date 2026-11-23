@@ -313,6 +313,10 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	}
 	cur := lineHL(hlLine && allEmpty) // rows with the highlight, for the redraw hints
 	curG := lineHL(hlGutter)
+	var lineBorderW float32
+	if !isFill {
+		lineBorderW = max(vs.text.W+display.ScrollX, vs.maxW)
+	}
 	for k := range cur {
 		if !cur[k] {
 			continue
@@ -323,7 +327,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 		} else {
 			// Monaco's border belongs to the scrollable line box.
 			row.X -= display.ScrollX
-			row.W = max(row.W+display.ScrollX, vs.maxW)
+			row.W = lineBorderW
 			l.Stroke(row, geom.Radii{}, highlight.width, highlight.border)
 		}
 	}
@@ -514,7 +518,8 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 			lnFn: w.lnFn != nil, lnGen: w.lnGen},
 		snap: snap, lines: lines, vis: vis, cur: cur, curG: curG, cmp: cmp, caretLine: caretLine, offsetY: display.OffsetY, scrollX: display.ScrollX, marks: marks,
 		aLine: aLine, aRow: aRow, fold: fold, guides: guides, bguides: vs.bgRows, match: matchRows, decos: decoSigs, udecos: ud,
-		boundRows: boundRows, rowOps: rowOps,
+		lineBorderW: lineBorderW,
+		boundRows:   boundRows, rowOps: rowOps,
 	})
 	st.checkScroll() // what paint itself scrolled (scroll.go)
 }
