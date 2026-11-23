@@ -4,7 +4,7 @@ go 1.27
 
 require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/tangoui/tango v0.1.1-0.20261119064814-5052b328afb8
+	github.com/tangoui/tango v0.2.0
 	golang.org/x/sys v0.49.0
 )
 
