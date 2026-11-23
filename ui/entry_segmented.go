@@ -367,7 +367,7 @@ func (w *SegmentedW) paintTrack(l *paint.List, r geom.Rect) {
 	}
 	if w.dis() || th.UsesElementPlusControls() && w.items[sel].disabled {
 		if th.UsesElementPlusControls() {
-			thumb = th.Primary.Shades[5] // --el-color-primary-light-5
+			thumb = th.Primary.Border // --el-color-primary-light-5
 		} else if th.Flavor == theme.Element {
 			thumb = th.Primary.Border
 		} else if th.Flavor == theme.StyleShadcn {
