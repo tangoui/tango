@@ -1009,6 +1009,9 @@ func Dropdown(c *Context, items []MenuItem) *DropdownW {
 	d := &DropdownW{c: c, items: items, place: BottomStart}
 	d.th = c.ThemeFor(theme.CompDropdown)
 	d.tk = &d.th.Components.Dropdown
+	if d.th.UsesElementPlusControls() {
+		d.place, d.arrow = Bottom, true // Element Plus dropdown.mjs.
+	}
 	d.defaults() // ConfigProvider.Defaults("Dropdown", ...): trigger, placement, arrow, disabled
 	d.enter = Prop(c, "Dropdown", "mouseEnterDelay", d.tk.MouseEnterDelay)
 	d.leave = Prop(c, "Dropdown", "mouseLeaveDelay", d.tk.MouseLeaveDelay)
@@ -1360,7 +1363,7 @@ func (d *DropdownW) Body(trigger func()) *DropdownW {
 	pop := &navMenuPopup{c: c, th: th, tk: d.tk, st: &d.st.popup, selected: d.selected, element: el, opacity: a, minW: d.minW, maxH: d.maxH,
 		marks: d.marks(), wrap: d.wrap}
 	off := d.tk.PopupOffset
-	if d.arrow {
+	if d.arrow && !th.UsesElementPlusControls() {
 		off += 6
 	}
 	if d.lazy != nil {
@@ -1372,7 +1375,11 @@ func (d *DropdownW) Body(trigger func()) *DropdownW {
 		root = pop.panel(d.items, 0, 0, 0, 0, &at)
 	} else {
 		root = pop.panel(d.items, 0, b.n.id, d.place, off, nil)
-		if d.arrow || el {
+		if th.UsesElementPlusControls() {
+			if d.arrow {
+				elementPopupArrow(c, root, d.tk.PopupBg, d.tk.PopupBorderColor)
+			}
+		} else if d.arrow || el {
 			d.drawArrow(root)
 		}
 	}
@@ -1478,7 +1485,7 @@ func (d *DropdownW) Button(label string) *DropdownW {
 			ic = icon.Down
 		}
 	}
-	if !d.placeSet {
+	if !d.placeSet && !d.th.UsesElementPlusControls() {
 		d.place = BottomEnd
 	}
 	style := func(x *ButtonW) {

@@ -86,6 +86,7 @@ func deriveModal(t *Theme) ModalToken {
 			// dialog.scss and common/var.scss $dialog; overlay.scss uses
 			// --el-overlay-color-lighter in both light and dark themes.
 			k.ContentBg, k.MaskBg = t.BgContainer, RGBA(0, 0, 0, .5)
+			k.Width, k.Shadow = 0, t.Shadow
 		}
 	case StyleShadcn:
 		// DialogContent p-6, DialogTitle text-lg font-semibold.

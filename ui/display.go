@@ -1220,7 +1220,7 @@ func (t *TooltipW) build() {
 	bg, fg, border := t.colors()
 	place, _ := c.popPlacement(t.place)
 	off := tk.Offset
-	if !t.arrow {
+	if !t.arrow && !th.UsesElementPlusControls() {
 		off = 4
 	}
 	a := c.AnimFrom(b.n.id, "tip", 0, 1, th.DurationFast)
@@ -1249,6 +1249,10 @@ func (t *TooltipW) build() {
 		}
 	}
 	if !t.arrow {
+		return
+	}
+	if th.UsesElementPlusControls() {
+		elementPopupArrow(c, ov.n.id, bg, border)
 		return
 	}
 	anchor := b.n.id

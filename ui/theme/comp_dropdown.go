@@ -102,6 +102,7 @@ func deriveDropdown(t *Theme) DropdownToken {
 		k.IndicatorSize, k.IndicatorWidth = 12, 20
 		k.MouseLeaveDelay, k.PopupOffset = 150*time.Millisecond, 8
 		if t.elementControls {
+			k.PopupOffset = 12 // dropdown2.mjs inherits popper content offset.
 			// dropdown.scss picker-popper uses --el-border-color-light.
 			k.PopupBorderColor = t.Split
 		}

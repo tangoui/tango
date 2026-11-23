@@ -122,8 +122,12 @@ func popFindID(n *node, id ID) *node {
 func Popover(c *Context) *PopoverW {
 	th := c.ThemeFor(theme.CompPopover)
 	tk := &th.Components.Popover
+	placement := "top"
+	if th.UsesElementPlusControls() {
+		placement = "bottom" // Element Plus popover.mjs inherits Dropdown's placement.
+	}
 	return &PopoverW{c: c,
-		place:   Prop(c, "Popover", "placement", "top"),
+		place:   Prop(c, "Popover", "placement", placement),
 		trigger: Prop(c, "Popover", "trigger", "hover"),
 		arrow:   Prop(c, "Popover", "arrow", tk.Arrow),
 		enter:   Prop(c, "Popover", "mouseEnterDelay", tk.MouseEnterDelay),
@@ -379,7 +383,9 @@ func (p *PopoverW) Body(fn func()) *Box {
 	if p.title != "" {
 		ov.n.setName(p.title)
 	}
-	if p.arrow {
+	if p.arrow && th.UsesElementPlusControls() {
+		elementPopupArrow(c, ov.n.id, tk.Bg, tk.BorderColor)
+	} else if p.arrow {
 		anchor := b.n.id
 		ov.n.over = func(l *paint.List, r geom.Rect) {
 			ar, ok := c.anchorRect(anchor)

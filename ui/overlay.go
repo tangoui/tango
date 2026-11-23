@@ -124,12 +124,16 @@ type OverlayOptions struct {
 	Flip       bool    // flip to the opposite side when it does not fit (currently always on for anchored placements)
 	ShiftX     float32 // translation applied after placement (enter/leave motion)
 	ShiftY     float32
+
+	exactTop bool // retain the top margin as the panel grows
 }
 
 type overlay struct {
-	root *node
-	opts OverlayOptions
-	rtl  bool // direction of the scope that built the overlay
+	root   *node
+	opts   OverlayOptions
+	rtl    bool // direction of the scope that built the overlay
+	anchor geom.Rect
+	placed Placement
 }
 
 // Overlay builds fn in a new layer above everything built so far. Layers
@@ -194,6 +198,11 @@ func (c *Context) placeOverlay(o *overlay) {
 		}
 		return
 	case ScreenCenter, ScreenTop, ScreenTopRight, ScreenTopLeft, ScreenTopCenter:
+		if o.opts.exactTop && phys == ScreenTopCenter {
+			sz := flexbox.SolveAt(ln, vw, max(0, vh-m), false, false)
+			ln.Rect.X, ln.Rect.Y = (vw-sz.W)/2, m
+			return
+		}
 		sz := flexbox.SolveAt(ln, vw-2*m, vh-2*m, false, false)
 		switch phys {
 		case ScreenCenter:
@@ -279,6 +288,7 @@ func (c *Context) placeOverlay(o *overlay) {
 	x = max(4, min(x, vw-sz.W-4))
 	y = max(4, min(y, vh-sz.H-4))
 	ln.Rect.X, ln.Rect.Y = x, y
+	o.anchor, o.placed = a, place
 }
 
 var sideFlip = map[Placement]Placement{

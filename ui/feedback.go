@@ -1246,6 +1246,9 @@ func (m *ModalW) Body(fn func()) *ModalW {
 	// antd max-width calc(100vw - 2 * margin), shadcn
 	// max-w-[calc(100%-2rem)].
 	width := min(m.width, max(0, c.size.W-32))
+	if th.UsesElementPlusControls() {
+		width = min(m.width, c.size.W)
+	}
 	if full {
 		place, top, width = ScreenFill, 0, c.size.W
 	}
@@ -1255,7 +1258,7 @@ func (m *ModalW) Body(fn func()) *ModalW {
 	if m.closable {
 		closeReserve = max(0, tk.CloseInsetEnd+tk.CloseBtnSize-tk.Padding)
 	}
-	dlg := Overlay(c, mo.place(OverlayOptions{Place: place, Margin: top, ShiftX: st.off.X, ShiftY: st.off.Y}), func() {
+	dlg := Overlay(c, mo.place(OverlayOptions{Place: place, Margin: top, ShiftX: st.off.X, ShiftY: st.off.Y, exactTop: th.UsesElementPlusControls()}), func() {
 		pad := geom.VH(tk.PaddingBlock, tk.Padding)
 		col := Column(c, func() {
 			hb := Row(c, func() {
@@ -1932,10 +1935,12 @@ func (d *DrawerW) header() {
 			return
 		}
 		ib := IconButton(c, icon.Close, c.Locale().Close).Size(tk.CloseBtnSize, tk.CloseIconSize)
-		if shad {
+		if shad || th.UsesElementPlusControls() {
 			ib.NoHoverBg()
 		}
-		if tk.CloseIconColor.A > 0 {
+		if th.UsesElementPlusControls() && (ib.Hovered() || ib.ia.Focused) {
+			ib.Color(th.Primary.Base)
+		} else if tk.CloseIconColor.A > 0 {
 			ib.Color(tk.CloseIconColor)
 		}
 		if ib.Clicked() {
@@ -1968,7 +1973,9 @@ func (d *DrawerW) header() {
 			close()
 		}
 	}, pad, layout.Gap(tk.HeaderGap), layout.Middle())
-	if el {
+	if th.UsesElementPlusControls() {
+		hd.n.ln.Margin.Bottom = 32 // drawer.scss .el-drawer__header
+	} else if el {
 		hd.n.ln.Margin.Bottom = 12
 	}
 	if hb := tk.HeaderBorderColor; hb.A > 0 {

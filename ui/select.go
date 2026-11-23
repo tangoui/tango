@@ -415,7 +415,11 @@ func (w *SelectW) dropdown(opts []Option) {
 	moved := c.pointer != st.ptr
 	optH := tk.OptionHeight
 	listH := selectListHeight(w.rx.listH, 256)
-	ov := Overlay(c, OverlayOptions{Anchor: w.n.id, Place: w.place, Offset: 4, MatchWidth: true, Flip: true}, func() {
+	off := float32(4)
+	if th.UsesElementPlusControls() {
+		off = 12 // Element Plus select.mjs offset default.
+	}
+	ov := Overlay(c, OverlayOptions{Anchor: w.n.id, Place: w.place, Offset: off, MatchWidth: true, Flip: true}, func() {
 		if len(opts) == 0 {
 			Empty(c).Simple().Description(selEmptyText(c, w.notFound))
 			return
@@ -449,6 +453,9 @@ func (w *SelectW) dropdown(opts []Option) {
 	}
 	ov.Opacity(a)
 	ov.n.clip = true
+	if th.UsesElementPlusControls() {
+		elementPopupArrow(c, ov.n.id, tk.PopupBg, tk.PopupBorderColor)
+	}
 	w.st.panel = ov.n.id
 }
 
