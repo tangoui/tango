@@ -58,23 +58,52 @@ func (w *ViewW) OnGutterClick(fn func(GutterClick)) *ViewW {
 	return w
 }
 
+// OnGlyphMarginClick handles primary clicks and secondary presses inside
+// the dedicated glyph margin. Events outside the margin go to OnGutterClick
+// when set, otherwise they retain the editor's normal gutter behavior.
+func (w *ViewW) OnGlyphMarginClick(fn func(GutterClick)) *ViewW {
+	w.glyphMarginClick = fn
+	return w
+}
+
+func (w *ViewW) gutterTarget(pos geom.Point) (int, bool, bool) {
+	if w.glyphMarginClick != nil {
+		if line, ok := w.GlyphMarginLineAtPoint(pos); ok {
+			return line, true, true
+		}
+	}
+	if w.gutterClick != nil {
+		line, ok := w.GutterLineAtPoint(pos)
+		return line, false, ok
+	}
+	return 0, false, false
+}
+
+func (w *ViewW) dispatchGutterClick(line int, glyph bool, pos geom.Point, button input.Button) {
+	fn := w.gutterClick
+	if glyph {
+		fn = w.glyphMarginClick
+	}
+	fn(GutterClick{Line: line, Position: pos, Button: button})
+}
+
 func (w *ViewW) gutterInput(p pending, rail bool) bool {
 	vs := w.vs
-	fn := w.gutterClick
-	if fn == nil {
+	if w.gutterClick == nil && w.glyphMarginClick == nil {
 		vs.gutterPressLine = 0
 		return false
 	}
 	if p.gutterContext {
-		if line, ok := w.GutterLineAtPoint(p.gutterPos); ok {
-			fn(GutterClick{Line: line, Position: p.gutterPos, Button: input.ButtonRight})
+		if line, glyph, ok := w.gutterTarget(p.gutterPos); ok {
+			w.dispatchGutterClick(line, glyph, p.gutterPos, input.ButtonRight)
 		}
 	}
 	if p.press {
 		vs.gutterPressLine = 0
-		if line, ok := w.GutterLineAtPoint(p.pressPos); ok && !rail {
+		if line, glyph, ok := w.gutterTarget(p.pressPos); ok && !rail {
 			if _, fold := w.foldControlAt(p.pressPos); !fold {
 				vs.gutterPressLine = line + 1
+				vs.gutterPressGlyph = glyph
 			}
 		}
 	}
@@ -86,8 +115,8 @@ func (w *ViewW) gutterInput(p pending, rail bool) bool {
 		return false
 	}
 	if p.release && !p.cancel && !rail {
-		if line, ok := w.GutterLineAtPoint(p.relPos); ok && line+1 == start {
-			fn(GutterClick{Line: line, Position: p.relPos, Button: input.ButtonLeft})
+		if line, glyph, ok := w.gutterTarget(p.relPos); ok && line+1 == start && glyph == vs.gutterPressGlyph {
+			w.dispatchGutterClick(line, glyph, p.relPos, input.ButtonLeft)
 		}
 	}
 	return true

@@ -232,6 +232,7 @@ pkg github.com/tangoui/tango/ui/editor, method (*ViewW) MountFind(func(), ...ui/
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OffsetAnchor(int) (ui/geom.Rect, bool)
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OffsetAtPoint(ui/geom.Point) (int, bool)
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OnDocumentChange(func(ModelChange)) *ViewW
+pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OnGlyphMarginClick(func(GutterClick)) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OnGutterClick(func(GutterClick)) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OnOpenLink(func(string)) *ViewW
 pkg github.com/tangoui/tango/ui/editor, method (*ViewW) OnPasteImage(func() bool) *ViewW

@@ -108,26 +108,28 @@ type TabItem struct {
 type TabsW struct {
 	_ [0]func()
 
-	c        *Context
-	th       *theme.Theme // Tabs tokens (c.ThemeFor(theme.CompTabs))
-	items    []TabItem
-	active   *string
-	card     bool
-	size     ControlSize
-	changed  bool
-	extra    func()
-	tabIDs   []ID
-	panel    ID // tab panel built by Panel (0 if the app renders its own)
-	closable bool
-	onAdd    func()
-	added    bool
-	closed   string
-	place    Placement
-	centered bool
-	noMargin bool
-	barOpts  []layout.Option
-	wrap     *Box // holds bar and panel for bottom / left / right placement
-	loc      *Locale
+	c                              *Context
+	th                             *theme.Theme // Tabs tokens (c.ThemeFor(theme.CompTabs))
+	items                          []TabItem
+	active                         *string
+	card                           bool
+	size                           ControlSize
+	changed                        bool
+	extra                          func()
+	tabIDs                         []ID
+	panel                          ID // tab panel built by Panel (0 if the app renders its own)
+	closable                       bool
+	onAdd                          func()
+	added                          bool
+	closed                         string
+	place                          Placement
+	centered                       bool
+	noMargin                       bool
+	barOpts                        []layout.Option
+	itemHeight, indicatorThickness float32
+	activeWeight                   int
+	wrap                           *Box // holds bar and panel for bottom / left / right placement
+	loc                            *Locale
 
 	cardSet    bool // Card or type="card" given (shadcn: the outline list)
 	borderCard bool
@@ -412,6 +414,27 @@ func (t *TabsW) NoMargin() *TabsW { t.noMargin = true; return t }
 // Ant tabBarStyle). They apply after the theme's defaults.
 func (t *TabsW) TabBarStyle(opts ...layout.Option) *TabsW {
 	t.barOpts = append(t.barOpts, opts...)
+	return t
+}
+
+// TabItemHeight sets the height of horizontal tabs in logical pixels.
+// A non-positive value restores the theme height.
+func (t *TabsW) TabItemHeight(px float32) *TabsW {
+	t.itemHeight = max(0, px)
+	return t
+}
+
+// ActiveTabFontWeight sets the active tab label's font weight (100–900).
+// Zero restores the theme weight.
+func (t *TabsW) ActiveTabFontWeight(weight int) *TabsW {
+	t.activeWeight = weight
+	return t
+}
+
+// IndicatorThickness sets the cross-axis thickness of a line-tab indicator
+// in logical pixels. A non-positive value restores the theme thickness.
+func (t *TabsW) IndicatorThickness(px float32) *TabsW {
+	t.indicatorThickness = max(0, px)
 	return t
 }
 
@@ -868,15 +891,19 @@ func (t *TabsW) bar() {
 				return
 			}
 			an := nodes[activeIdx]
+			thickness := t.indicatorThickness
+			if thickness <= 0 {
+				thickness = 2
+			}
 			if vert {
 				ay := c.Anim(id, "inky", an.abs.Y-r.Y, th.DurationSlow)
 				ah := c.Anim(id, "inkh", an.abs.H, th.DurationSlow)
 				ay, ah = t.indicator(ay, ah)
-				x := r.Right() - 2
+				x := r.Right() - thickness
 				if place == Right {
 					x = r.X
 				}
-				l.Fill(geom.Rect{X: x, Y: r.Y + ay, W: 2, H: ah}, geom.Radii{}, tk.InkBarColor)
+				l.Fill(geom.Rect{X: x, Y: r.Y + ay, W: thickness, H: ah}, geom.Radii{}, tk.InkBarColor)
 				return
 			}
 			// The ink bar animates its logical offset from the start edge,
@@ -893,11 +920,11 @@ func (t *TabsW) bar() {
 				aw -= 40
 			}
 			ax, aw = t.indicator(ax, aw)
-			y := r.Bottom() - 2
+			y := r.Bottom() - thickness
 			if place == Bottom {
 				y = r.Y
 			}
-			l.Fill(geom.Rect{X: s.X(ax, aw), Y: y, W: aw, H: 2}, geom.Radii{}, tk.InkBarColor)
+			l.Fill(geom.Rect{X: s.X(ax, aw), Y: y, W: aw, H: thickness}, geom.Radii{}, tk.InkBarColor)
 		})
 	}
 	// Gap between bar and content.
@@ -1212,10 +1239,16 @@ func (t *TabsW) tab(i int, it TabItem) *node {
 		t.activate(it.Key)
 	}
 	active := it.Key == *t.active
+	if active && t.activeWeight > 0 {
+		st.Weight = themeWeight(t.activeWeight)
+	}
 	closeBtn := t.closable && !it.NoClose
 	shadH := t.shadHeight() - 6
 	// Size of the tab box (without a close button).
-	size := func() geom.Size {
+	size := func() (result geom.Size) {
+		if !vert && t.itemHeight > 0 {
+			defer func() { result.H = t.itemHeight }()
+		}
 		w := labelW()
 		switch {
 		case shad:

@@ -143,3 +143,24 @@ func TestInlayHintsWrapHitAndLifetime(t *testing.T) {
 		t.Fatal("stale hints survived the edit")
 	}
 }
+
+func TestGlyphMarginClickLeavesLineNumberSelection(t *testing.T) {
+	st := NewState("first line\nsecond line\nlast line", "", nil)
+	defer st.Close()
+	st.Options.GlyphMargin = true
+	var clicks []GutterClick
+	ed := newEditDriver(st, 450, 220, func(w *ViewW) {
+		w.OnGlyphMarginClick(func(click GutterClick) { clicks = append(clicks, click) })
+	})
+	w := *ed.vw
+	y := ed.at(t, st, 1, 0).Y
+	glyph := geom.Pt(w.vs.gutter.X+3, y)
+	ed.Click(glyph)
+	if len(clicks) != 1 || clicks[0].Line != 1 || st.Primary().Head != 0 {
+		t.Fatalf("glyph click = %v, caret = %v", clicks, st.Primary())
+	}
+	ed.Click(geom.Pt(w.vs.gutter.X+w.glyphMarginWidth()+3, y))
+	if len(clicks) != 1 || st.Primary().Anchor == st.Primary().Head {
+		t.Fatalf("line-number click = %v, selection = %v", clicks, st.Primary())
+	}
+}

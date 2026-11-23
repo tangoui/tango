@@ -1092,6 +1092,7 @@ pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Selection() string
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) StartLine(int) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) TextID() ID
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Title(string) *CodeBlockW
+pkg github.com/tangoui/tango/ui, method (*CodeBlockW) VisibleStartByte() (int, bool)
 pkg github.com/tangoui/tango/ui, method (*CodeBlockW) Wrap(bool) *CodeBlockW
 pkg github.com/tangoui/tango/ui, method (*CollapseW) Accordion() *CollapseW
 pkg github.com/tangoui/tango/ui, method (*CollapseW) BeforeCollapse(func(string) bool) *CollapseW
@@ -3093,6 +3094,7 @@ pkg github.com/tangoui/tango/ui, method (*TableW) Tree([]int, func(int) []int) *
 pkg github.com/tangoui/tango/ui, method (*TableW) TreeLazy(func(int) bool, func(int)) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) TreeOpenKeys(*[]string) *TableW
 pkg github.com/tangoui/tango/ui, method (*TableW) Virtual() *TableW
+pkg github.com/tangoui/tango/ui, method (*TabsW) ActiveTabFontWeight(int) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) AddIcon(*ui/icon.Icon) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Added() bool
 pkg github.com/tangoui/tango/ui, method (*TabsW) BeforeLeave(func(string, string) bool) *TabsW
@@ -3107,6 +3109,7 @@ pkg github.com/tangoui/tango/ui, method (*TabsW) Extra(func()) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) ExtraLeft(func()) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Height(float32) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) Indicator(float32, string) *TabsW
+pkg github.com/tangoui/tango/ui, method (*TabsW) IndicatorThickness(float32) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) MoreIcon(*ui/icon.Icon) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) NoMargin() *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) OnAdd(func()) *TabsW
@@ -3121,6 +3124,7 @@ pkg github.com/tangoui/tango/ui, method (*TabsW) Stretch() *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) TabBarGutter(float32) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) TabBarStyle(...ui/layout.Option) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) TabClicked() string
+pkg github.com/tangoui/tango/ui, method (*TabsW) TabItemHeight(float32) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) TabPlacement(string) *TabsW
 pkg github.com/tangoui/tango/ui, method (*TabsW) TornOff() (string, ui/geom.Point, bool)
 pkg github.com/tangoui/tango/ui, method (*TabsW) Variant(string) *TabsW

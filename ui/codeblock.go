@@ -159,6 +159,19 @@ func (w *CodeBlockW) TextID() ID {
 	return w.v.content.id
 }
 
+// VisibleStartByte returns the normalized source byte offset of the first
+// visible visual row from the last painted frame. CRLF and CR count as one
+// LF byte. The result is unavailable until the current source and wrap
+// setting have been painted.
+func (w *CodeBlockW) VisibleStartByte() (offset int, ok bool) {
+	w.z.run()
+	st := w.v.st
+	if !st.visible || st.visibleVer != w.st.ver || st.visibleWrap != w.wrap {
+		return 0, false
+	}
+	return w.st.starts[st.visibleLine] + st.visibleByte, true
+}
+
 // sync indexes the code's lines when it changed.
 func (st *codeBlockState) sync(code string) {
 	if st.starts != nil && st.src == code {
@@ -277,6 +290,7 @@ func (w *CodeBlockW) build() {
 	v.cells = func(i int) int { return int(st.cells[i]) }
 	v.ver = st.ver
 	v.wrap = w.wrap
+	v.boundedA11y = th.UsesElementPlusControls()
 	w.configureSearch(v)
 	v.size, v.lineH = tk.CodeFontSize, tk.LineHeight
 	v.padX, v.padY = tk.PaddingInline, tk.PaddingBlock

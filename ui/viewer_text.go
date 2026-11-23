@@ -88,6 +88,11 @@ type txvState struct {
 	gutterW float32
 	painted bool
 
+	visible                  bool
+	visibleVer               uint64
+	visibleWrap              bool
+	visibleLine, visibleByte int
+
 	shift int // rows removed from the top since the last frame (dropFront)
 }
 
@@ -124,8 +129,9 @@ type txView struct {
 	reveal   func()
 	fullLine bool // opt-in unwrapped navigation through lines beyond the usual preview cap
 
-	first, end int // visual rows painted this frame
-	selChanged bool
+	first, end  int // visual rows painted this frame
+	selChanged  bool
+	boundedA11y bool
 }
 
 // newTxView prepares a viewer; set its fields, then call show.
@@ -456,6 +462,28 @@ func (v *txView) show(kind string, opts []layout.Option) {
 func (v *txView) semantics(s *a11y.Node) {
 	var b strings.Builder
 	for r := v.first; r < v.end; r++ {
+		if v.boundedA11y {
+			const limit = 4096
+			left := limit - b.Len()
+			if left <= 1 {
+				break
+			}
+			line, seg := v.rowLine(r)
+			str := v.line(line)
+			from, to, _ := v.segmentAt(line, seg, str)
+			if r > v.first {
+				b.WriteByte('\n')
+				left--
+			}
+			if to-from > left {
+				to = from + left
+				for to > from && !utf8.RuneStart(str[to]) {
+					to--
+				}
+			}
+			b.WriteString(str[from:to])
+			continue
+		}
 		line, seg := v.rowLine(r)
 		if seg > 0 {
 			continue
@@ -769,6 +797,8 @@ func (v *txView) paint(l *paint.List, r, visible geom.Rect) {
 	// window, for example when it is inside a scrolling document.
 	visible = visible.Intersect(st.view)
 	v.first, v.end = fillSpan(float64(visible.Y-st.originY-v.padY), float64(visible.H), float64(v.lineH), v.rows(), 0)
+	st.visible = v.first < v.end
+	st.visibleVer, st.visibleWrap = v.ver, v.wrap
 	mono := v.mono()
 	selA, selB, hasSel := v.selRange()
 	textClip := geom.Rect{X: vx + st.gutterW, Y: vy, W: max(0, s.view.W-st.gutterW), H: s.view.H}
@@ -782,6 +812,9 @@ func (v *txView) paint(l *paint.List, r, visible geom.Rect) {
 		y := st.originY + v.padY + float32(row)*v.lineH
 		str := v.line(line)
 		b0, b1, r0 := v.segmentAt(line, seg, str)
+		if row == v.first {
+			st.visibleLine, st.visibleByte = line, b0
+		}
 		segStr := str[b0:b1]
 		if v.lineBg != nil {
 			if bg := v.lineBg(line); bg.A > 0 {

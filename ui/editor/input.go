@@ -166,8 +166,9 @@ type pending struct {
 
 // inputState is the View's retained input state (embedded in viewState).
 type inputState struct {
-	pend            pending
-	gutterPressLine int // one plus the model line, zero when no press
+	pend             pending
+	gutterPressLine  int // one plus the model line, zero when no press
+	gutterPressGlyph bool
 
 	dragUnit     int
 	dragA, dragB int // range selected by the press that started the drag
