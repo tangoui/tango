@@ -331,6 +331,9 @@ func (w *SelectW) finish() {
 		}
 	}
 	if !st.open {
+		if w.th.UsesElementPlusControls() {
+			delete(c.anims, animKey{w.n.id, "open"})
+		}
 		st.listShown = false
 		if c.focus == w.edID {
 			c.SetFocus(w.n.id)
@@ -460,6 +463,7 @@ func (w *SelectW) dropdown(opts []Option) {
 	ov.n.clip = true
 	if th.UsesElementPlusControls() {
 		elementPopupArrow(c, ov.n.id, tk.PopupBg, tk.PopupBorderColor)
+		elementPopupZoom(c, ov.n.id, a)
 	}
 	w.st.panel = ov.n.id
 }

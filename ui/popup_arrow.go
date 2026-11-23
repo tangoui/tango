@@ -41,15 +41,20 @@ func drawPopupArrow(l *paint.List, panel, anchor geom.Rect, bg, border theme.Col
 	}
 }
 
+func findOverlay(c *Context, id ID) *overlay {
+	for i := len(c.overlays) - 1; i >= 0; i-- {
+		if o := c.overlays[i]; o.root.id == id {
+			return o
+		}
+	}
+	return nil
+}
+
 // elementPopupArrow follows the placement after edge flipping and shifts.
 // Element Plus popper.scss paints a 10px square rotated by 45 degrees,
 // half outside the panel, and Popper's arrow modifier uses 5px padding.
 func elementPopupArrow(c *Context, id ID, bg, border theme.Color) {
-	for i := len(c.overlays) - 1; i >= 0; i-- {
-		o := c.overlays[i]
-		if o.root.id != id {
-			continue
-		}
+	if o := findOverlay(c, id); o != nil {
 		prev := o.root.over
 		o.root.over = func(l *paint.List, panel geom.Rect) {
 			if prev != nil {
@@ -57,7 +62,23 @@ func elementPopupArrow(c *Context, id ID, bg, border theme.Color) {
 			}
 			drawElementPopupArrow(l, panel, o.anchor, o.placed, bg, border)
 		}
+	}
+}
+
+// elementPopupZoom follows theme-chalk's zoom-in-top, including the
+// bottom origin when Popper has flipped the overlay above its anchor.
+func elementPopupZoom(c *Context, id ID, progress float32) {
+	if progress >= 1 {
 		return
+	}
+	if o := findOverlay(c, id); o != nil {
+		o.root.xf = func(r geom.Rect) geom.Affine {
+			y := r.Y
+			if o.placed == Top || o.placed == TopStart || o.placed == TopEnd {
+				y = r.Bottom()
+			}
+			return geom.ScaleAround(1, progress, geom.Pt(r.Center().X, y))
+		}
 	}
 }
 

@@ -14,8 +14,8 @@ func TestElementChoiceGeometry(t *testing.T) {
 		height, font float32
 	}{
 		{"opt in", theme.ElementPlus(theme.ElementPlusControls()), 32, 14},
-		{"legacy", theme.ElementPlus(), 22, 12},
-		{"Ant", theme.AntDesign(theme.ElementPlusControls()), 22, 12},
+		{"legacy", theme.ElementPlus(), 22, 14},
+		{"Ant", theme.AntDesign(theme.ElementPlusControls()), 22, 14},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var value string

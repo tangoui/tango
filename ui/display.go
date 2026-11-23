@@ -1214,6 +1214,9 @@ func (t *TooltipW) build() {
 	}
 	t.isOpen = show
 	if !show {
+		if th.UsesElementPlusControls() {
+			delete(c.anims, animKey{b.n.id, "tip"})
+		}
 		st.panel = 0
 		return
 	}

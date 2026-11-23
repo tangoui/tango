@@ -5,6 +5,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/icon"
@@ -290,6 +291,18 @@ func (w *InputW) Focused() bool { return w.c.focus == w.ed.id }
 
 // Focus requests keyboard focus.
 func (w *InputW) Focus() *InputW { w.c.SetFocus(w.ed.id); return w }
+
+// SelectAll selects the full text of the input. It can be used after
+// Focus when presenting a prefilled field and does not move focus itself.
+func (w *InputW) SelectAll() *InputW {
+	w.finish()
+	if !w.box.disabled {
+		w.e.anc, w.e.cur = 0, utf8.RuneCountInString(*w.val)
+		w.e.lead, w.e.dragging = false, false
+		w.e.activity = w.c.now
+	}
+	return w
+}
 
 // ID returns the editor's widget ID.
 func (w *InputW) ID() ID { return w.ed.id }

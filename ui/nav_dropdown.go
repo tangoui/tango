@@ -1351,6 +1351,9 @@ func (d *DropdownW) Body(trigger func()) *DropdownW {
 		}
 	}
 	if !d.st.open || disabled {
+		if th.UsesElementPlusControls() {
+			delete(c.anims, animKey{b.n.id, "open"})
+		}
 		d.st.panels = nil
 		d.st.popup.ids = d.st.popup.ids[:0]
 		d.st.popup.layer = 0
@@ -1381,6 +1384,7 @@ func (d *DropdownW) Body(trigger func()) *DropdownW {
 	} else {
 		root = pop.panel(d.items, 0, b.n.id, d.place, off, nil)
 		if th.UsesElementPlusControls() {
+			elementPopupZoom(c, root, a)
 			if d.arrow {
 				elementPopupArrow(c, root, d.tk.PopupBg, d.tk.PopupBorderColor)
 			}

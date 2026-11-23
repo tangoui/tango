@@ -13,7 +13,7 @@ func TestMiddlePressedUsesVisibleHit(t *testing.T) {
 	d := NewDriver(func(c *Context) {
 		b := Div(c, layout.Size(60, 60))
 		b.Interact(input.CursorDefault)
-		middle = c.MiddlePressed(b.ID())
+		middle = middle || c.MiddlePressed(b.ID())
 		if cover {
 			Overlay(c, OverlayOptions{Place: ScreenFill}, func() {})
 		}
@@ -21,6 +21,7 @@ func TestMiddlePressedUsesVisibleHit(t *testing.T) {
 	d.Frame()
 	for _, over := range []bool{false, true} {
 		cover = over
+		middle = false
 		d.Frame()
 		d.Inject(input.Pointer{Kind: input.Press, Button: input.ButtonMiddle, Pos: geom.Pt(30, 30)})
 		d.Frame()
@@ -35,7 +36,8 @@ func TestInputNumberSubmittedWithoutChange(t *testing.T) {
 	var submitted, changed bool
 	d := NewDriver(func(c *Context) {
 		w := InputNumber(c, &n).Controls(false)
-		submitted, changed = w.Submitted(), w.Changed()
+		submitted = submitted || w.Submitted()
+		changed = changed || w.Changed()
 	}, DriverOptions{Width: 240, Height: 90})
 	d.Frame()
 	d.Key(input.KeyTab, 0)

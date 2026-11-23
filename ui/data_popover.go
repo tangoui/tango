@@ -319,6 +319,9 @@ func (p *PopoverW) Body(fn func()) *Box {
 		}
 	}
 	if !*open {
+		if th.UsesElementPlusControls() {
+			delete(c.anims, animKey{b.n.id, "pop"})
+		}
 		return b
 	}
 	place, _ := c.popPlacement(p.place)

@@ -1765,6 +1765,7 @@ pkg github.com/tangoui/tango/ui, method (*InputW) Prefix(*ui/icon.Icon) *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) PrefixText(string) *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) ReadOnly() *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) ShowCount() *InputW
+pkg github.com/tangoui/tango/ui, method (*InputW) SelectAll() *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) Size(ControlSize) *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) Status(string) *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) Submitted() bool
