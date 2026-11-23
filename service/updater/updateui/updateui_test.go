@@ -390,29 +390,45 @@ func TestStartWhileWindowPaints(t *testing.T) {
 	s.publish("1.4.0")
 	u := s.updater(t, "1.2.0")
 	CheckNow(a, u, en)
-	waitFor(t, "the window", func() bool { return len(updateWindows(fb)) == 1 })
-	cv := fb.Canvas(updateWindows(fb)[0].ID())
+	var cv *fake.Canvas
+	waitFor(t, "the update window's canvas", func() bool {
+		windows := updateWindows(fb)
+		if len(windows) != 1 {
+			return false
+		}
+		// The fake backend registers the surface before its canvas.
+		cv = fb.Canvas(windows[0].ID())
+		return cv != nil
+	})
 	// Paint frames (each reads the session's texts) while Start runs.
+	painting := make(chan bool, 1)
 	stopPaint := make(chan struct{})
 	painted := make(chan struct{})
 	go func() {
 		defer close(painted)
-		for {
+		ok := cv.Frame()
+		painting <- ok
+		if !ok {
+			return
+		}
+		for cv.Frame() {
 			select {
 			case <-stopPaint:
 				return
 			default:
-				cv.Frame()
 			}
 		}
 	}()
-	time.Sleep(10 * time.Millisecond)
+	defer func() {
+		close(stopPaint)
+		<-painted
+	}()
+	if !<-painting {
+		t.Fatal("the update window could not paint a frame")
+	}
 	stop, err := Start(a, u, en)
 	if err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(10 * time.Millisecond)
-	close(stopPaint)
-	<-painted
-	stop()
+	t.Cleanup(stop)
 }

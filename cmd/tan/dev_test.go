@@ -487,7 +487,26 @@ func devTestLines(t *testing.T, path string) []string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return strings.Split(strings.TrimSuffix(string(b), "\n"), "\n")
+	// A writer may have opened the log or appended only part of a line.
+	end := bytes.LastIndexByte(b, '\n')
+	if end < 0 {
+		return nil
+	}
+	return strings.Split(string(b[:end]), "\n")
+}
+
+func TestDevTestLinesRequiresCompleteEntries(t *testing.T) {
+	log := filepath.Join(t.TempDir(), "builds")
+	for _, entry := range []string{"", "/workers/initial-123"} {
+		writeDevTestFile(t, log, entry, 0o644)
+		if got := devTestLines(t, log); len(got) != 0 {
+			t.Errorf("incomplete log %q returned entries %q", entry, got)
+		}
+	}
+	writeDevTestFile(t, log, "/workers/initial-123/app\n/partial", 0o644)
+	if got := devTestLines(t, log); len(got) != 1 || got[0] != "/workers/initial-123/app" {
+		t.Errorf("log entries = %q, want one complete entry", got)
+	}
 }
 
 func (d devTest) checkRuns(t *testing.T, version, args string) {
