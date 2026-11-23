@@ -169,6 +169,12 @@ const message = await window.tango.call("Greeter.Hello", "TanGo");
 go run ./examples/showcase
 ```
 
+## 使用 TanGo 构建的项目
+
+| 项目 | 简介 |
+| --- | --- |
+| [MinCode](https://github.com/tangoui/mincode) | 开源的桌面开发工作台，集成终端、SSH/SFTP、数据库、HTTP 调试、笔记、AI 助手与 AI CLI 会话。Vue 前端运行在系统 WebView 上，用 `tan package` 打包（macOS、Windows、Linux 的 x64 与 ARM64 安装包约 11–16 MB），通过 `service/updater` 从 GitHub Releases 自动更新。AGPL-3.0 许可。 |
+
 ## 文档导航
 
 | 主题 | 阅读入口 |

@@ -171,6 +171,12 @@ From a checkout of this repository:
 go run ./examples/showcase
 ```
 
+## Built with TanGo
+
+| Project | What it is |
+| --- | --- |
+| [MinCode](https://github.com/tangoui/mincode) | An open-source desktop developer workspace: terminals, SSH/SFTP, databases, HTTP debugging, notes, an AI assistant and AI CLI sessions in one app. A Vue front end on the system WebView, packaged with `tan package` (installers of about 11–16 MB for macOS, Windows and Linux, x64 and ARM64) and updated through `service/updater` from GitHub Releases. AGPL-3.0. |
+
 ## Documentation
 
 | Topic | Read |

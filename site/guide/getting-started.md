@@ -167,3 +167,4 @@ tan build -platform android/arm64,android/amd64   # release：签名的 APK 和 
 - 想知道 `App`、`Surface`、主线程、IPC 是怎么配合的：[核心概念](/guide/concepts/app-surface)
 - 页面里调用剪贴板、对话框、通知：[前端运行时 API](/reference/js-api) 与 [系统能力](/guide/system/)
 - 看一个完整的演示应用：仓库里的 `examples/showcase`（`go run ./examples/showcase`）
+- 看一个用 TanGo 写的完整产品：[MinCode](https://github.com/tangoui/mincode)（开源桌面开发工作台，Vue 前端 + 系统 WebView，含打包与自动更新）

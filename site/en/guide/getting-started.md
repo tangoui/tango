@@ -125,3 +125,4 @@ tan build -platform android/arm64,android/amd64  # release: signed APK and AAB
 - How `App`, `Surface`, the main thread and IPC fit together: [Core concepts](/en/guide/concepts)
 - The command reference: [tan CLI](/en/reference/cli)
 - A complete demo: `examples/showcase` in the repository (`go run ./examples/showcase`)
+- A complete product built with TanGo: [MinCode](https://github.com/tangoui/mincode) (an open-source desktop developer workspace; Vue front end on the system WebView, with packaging and auto-update)

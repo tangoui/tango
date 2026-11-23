@@ -169,6 +169,12 @@ const message = await window.tango.call("Greeter.Hello", "TanGo");
 go run ./examples/showcase
 ```
 
+## TanGo で作られたプロジェクト
+
+| プロジェクト | 概要 |
+| --- | --- |
+| [MinCode](https://github.com/tangoui/mincode) | オープンソースのデスクトップ開発ワークスペース。ターミナル、SSH/SFTP、データベース、HTTP デバッグ、ノート、AI アシスタント、AI CLI セッションを 1 つのアプリにまとめています。Vue のフロントエンドをシステム WebView で動かし、`tan package` でパッケージ化（macOS・Windows・Linux の x64／ARM64 向けインストーラーは約 11–16 MB）、`service/updater` で GitHub Releases から自動更新します。AGPL-3.0。 |
+
 ## ドキュメント
 
 | トピック | 資料 |
