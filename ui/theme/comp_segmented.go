@@ -5,12 +5,16 @@ import "github.com/tangoui/tango/ui/paint"
 // SegmentedToken styles Segmented.
 type SegmentedToken struct {
 	Alias
-	TrackBg             Color
-	TrackPadding        float32
-	ItemColor           Color `contrast:"text:TrackBg"`
-	ItemHoverColor      Color
-	ItemHoverBg         Color
-	ItemActiveBg        Color
+	TrackBg        Color
+	TrackPadding   float32
+	ItemColor      Color `contrast:"text:TrackBg"`
+	ItemHoverColor Color
+	ItemHoverBg    Color
+	ItemActiveBg   Color
+	// ItemSelectedBorder optionally outlines the selected item.
+	ItemSelectedBorder Color
+	// FocusOutlineColor overrides the Element Plus keyboard focus outline.
+	FocusOutlineColor   Color
 	ItemSelectedBg      Color
 	ItemSelectedColor   Color          `contrast:"text:ItemSelectedBg"`
 	ItemSelectedShadow  []paint.Shadow // the sliding thumb
@@ -34,6 +38,7 @@ func deriveSegmented(t *Theme) SegmentedToken {
 		if t.UsesElementPlusControls() {
 			// Element Plus 2.14.8 common/var.scss $segmented.
 			k.ItemSelectedBg = t.Primary.Base
+			k.FocusOutlineColor = t.Primary.Base
 			k.ItemHoverBg = Hex("#ebedf0")
 			k.ItemActiveBg = Hex("#e6e8eb")
 			if t.Dark {

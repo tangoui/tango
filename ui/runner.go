@@ -384,6 +384,7 @@ func (r *Runner) clearFrameInput() {
 	clear(c.releasePos)
 	c.pressedAny = false
 	c.ctxPressed = false
+	clear(c.middlePressed)
 	c.keys = c.keys[:0]
 	c.shortcutBlurred = false
 	c.frameKeys = c.frameKeys[:0]
@@ -414,6 +415,12 @@ func (r *Runner) processEvents() bool {
 			c.updateHot()
 			switch ev.Kind {
 			case input.Press:
+				if ev.Button == input.ButtonMiddle && c.hot != 0 {
+					if c.middlePressed == nil {
+						c.middlePressed = make(map[ID]bool)
+					}
+					c.middlePressed[c.hot] = true
+				}
 				if ev.Button == input.ButtonRight {
 					c.ctxPressed, c.ctxPos, c.ctxLayer = true, ev.Pos, c.topLayer
 				}

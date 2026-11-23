@@ -382,6 +382,9 @@ func (w *SegmentedW) paintTrack(l *paint.List, r geom.Rect) {
 		l.Shadows(tr, geom.Rad(inner), w.tk.ItemSelectedShadow)
 	}
 	l.Fill(tr, geom.Rad(inner), thumb)
+	if border := w.tk.ItemSelectedBorder; border.A > 0 && !w.items[sel].disabled {
+		l.Stroke(tr, geom.Rad(inner), 1, border)
+	}
 }
 
 func (w *SegmentedW) paintItem(l *paint.List, r geom.Rect, i int, ia Interaction) {
@@ -456,7 +459,7 @@ func (w *SegmentedW) paintOver(l *paint.List, r geom.Rect) {
 	item := geom.Rect{X: r.X + kr.X, Y: r.Y + kr.Y, W: kr.W, H: kr.H}
 	if w.th.UsesElementPlusControls() {
 		if !w.items[sel].disabled {
-			elementChoiceOutline(l, item, geom.Rad(inner), w.tk.ItemSelectedBg)
+			elementChoiceOutline(l, item, geom.Rad(inner), w.tk.FocusOutlineColor)
 		}
 		return
 	}

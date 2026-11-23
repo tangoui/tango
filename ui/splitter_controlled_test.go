@@ -84,3 +84,31 @@ func TestSplitterPairKeyboardStep(t *testing.T) {
 	d.Key(input.KeyLeft, input.ModShift)
 	check(.175)
 }
+
+func TestSplitterKeyboardMinimumCap(t *testing.T) {
+	var split *SplitterW
+	d := NewDriver(func(c *Context) {
+		split = Splitter(c).Style(layout.Fill()).KeyboardMinimumCap(.35).KeyboardStepPixels(10, 40)
+		split.Body(func() {
+			SplitterPanel(c).DefaultPercent(.5)
+			SplitterPanel(c).DefaultPercent(.25).Min(120)
+			SplitterPanel(c).DefaultPercent(.25).Min(120)
+		})
+	}, DriverOptions{Width: 600, Height: 120})
+	d.Frame()
+	bar, ok := d.Find("splitter-bar-2")
+	if !ok {
+		t.Fatal("second splitter bar missing")
+	}
+	d.Click(bar.Center())
+	before := split.PixelSizes()
+	d.Key(input.KeyRight, 0)
+	if got := split.PixelSizes(); math.Abs(float64(got[1]-before[1]-10)) > .01 {
+		t.Fatalf("right arrow: %v, started at %v", got, before)
+	}
+	d.Key(input.KeyEnd, 0)
+	got := split.Sizes()
+	if math.Abs(float64(got[2]-.175)) > .001 || got[0] != .5 {
+		t.Fatalf("End should limit the trailing pane to 35%% of the pair: %v", got)
+	}
+}

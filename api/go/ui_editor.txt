@@ -391,6 +391,7 @@ pkg github.com/tangoui/tango/ui/editor, type Options struct, MatchBrackets Match
 pkg github.com/tangoui/tango/ui/editor, type Options struct, Minimap MinimapOptions
 pkg github.com/tangoui/tango/ui/editor, type Options struct, MouseWheelZoom bool
 pkg github.com/tangoui/tango/ui/editor, type Options struct, MultiCursorPaste MultiCursorPasteMode
+pkg github.com/tangoui/tango/ui/editor, type Options struct, NoScrollBeyondLastLine bool
 pkg github.com/tangoui/tango/ui/editor, type Options struct, OccurrencesHighlight OccurrencesHighlightMode
 pkg github.com/tangoui/tango/ui/editor, type Options struct, OccurrencesHighlightDelay int
 pkg github.com/tangoui/tango/ui/editor, type Options struct, OverviewRulerBorder bool
@@ -491,6 +492,7 @@ pkg github.com/tangoui/tango/ui/editor, type Viewport struct
 pkg github.com/tangoui/tango/ui/editor, type Viewport struct, ContentWidth float32
 pkg github.com/tangoui/tango/ui/editor, type Viewport struct, Height float32
 pkg github.com/tangoui/tango/ui/editor, type Viewport struct, LineHeight float32
+pkg github.com/tangoui/tango/ui/editor, type Viewport struct, NoScrollBeyondLastLine bool
 pkg github.com/tangoui/tango/ui/editor, type Viewport struct, OffsetY float32
 pkg github.com/tangoui/tango/ui/editor, type Viewport struct, PadBottom float32
 pkg github.com/tangoui/tango/ui/editor, type Viewport struct, PadTop float32

@@ -143,6 +143,7 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 
 	v := &st.Viewport
 	v.LineHeight, v.Height, v.Width = lh, vs.text.H, vs.text.W
+	v.NoScrollBeyondLastLine = w.opts.NoScrollBeyondLastLine
 	// Padding: a view scrolled to the very top stays there when the top
 	// padding changes (a new State starts at the top).
 	if pt, pb := max(w.opts.Padding.Top, 0), max(w.opts.Padding.Bottom, 0); v.PadTop != pt || v.PadBottom != pb {
@@ -166,6 +167,9 @@ func (w *ViewW) paint(l *paint.List, r geom.Rect) {
 	showAll, showFolded := w.foldControls()
 	st.foldPrepare((showAll || w.stickyOn()) && w.foldRangesNow())
 	st.measureViewport()
+	if v.NoScrollBeyondLastLine {
+		st.clampViewport()
+	}
 	hlDeadline := frameclock.Now().Add(highlightBudget)
 	vs.highlightDeadline = hlDeadline
 	w.prepareSticky(snap)

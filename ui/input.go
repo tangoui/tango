@@ -570,6 +570,7 @@ type InputNumberW struct {
 	disabled   bool
 	size       ControlSize
 	changed    bool
+	submitted  bool
 	done       bool
 	ia, edIA   Interaction
 	upIA, dnIA Interaction
@@ -736,8 +737,11 @@ func (w *InputNumberW) Width(px float32) *InputNumberW   { w.box.ln.Width = px; 
 func (w *InputNumberW) Size(s ControlSize) *InputNumberW { w.size = s; return w }
 func (w *InputNumberW) Changed() bool                    { w.finish(); return w.changed }
 
-// A11yLabel sets the accessible name (inside a FormItem the item label is
-// used).
+// Submitted reports Enter after committing the numeric value. It may
+// be true when the committed value is unchanged.
+func (w *InputNumberW) Submitted() bool { w.finish(); return w.submitted }
+
+// A11yLabel sets the accessible name of the numeric input.
 func (w *InputNumberW) A11yLabel(s string) *InputNumberW { w.ed.setName(s); return w }
 
 // Formatter formats the value for display ("$ 1,000"); the text being
@@ -1178,6 +1182,7 @@ func (w *InputNumberW) finish() {
 		}
 		if res.submitted {
 			w.commit()
+			w.submitted = !w.readOnly
 		}
 	} else if w.st.editing {
 		w.commit()

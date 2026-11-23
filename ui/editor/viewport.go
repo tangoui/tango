@@ -36,6 +36,8 @@ type Viewport struct {
 	ContentWidth  float32
 	// PadTop and PadBottom are Options.Padding, set by the View.
 	PadTop, PadBottom float32
+	// NoScrollBeyondLastLine limits scrolling to the document and padding.
+	NoScrollBeyondLastLine bool
 }
 
 // scrollY returns the vertical scroll position in pixels.
@@ -51,7 +53,12 @@ func (v *Viewport) setScrollY(y float64, n int) {
 		v.TopLine, v.OffsetY = max(0, min(v.TopLine, n-1)), 0
 		return
 	}
-	y = max(-float64(max(v.PadTop, 0)), min(y, float64(n-1)*lh))
+	upper := float64(n-1) * lh
+	lower := -float64(max(v.PadTop, 0))
+	if v.NoScrollBeyondLastLine && v.Height > 0 {
+		upper = max(lower, min(upper, float64(n)*lh+float64(v.PadBottom-v.Height)))
+	}
+	y = max(lower, min(y, upper))
 	if y < 0 {
 		v.TopLine, v.OffsetY = 0, float32(y)
 		return

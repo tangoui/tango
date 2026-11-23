@@ -1216,6 +1216,7 @@ pkg github.com/tangoui/tango/ui, method (*Context) KeyboardCover(ui/geom.Rect) f
 pkg github.com/tangoui/tango/ui, method (*Context) KeyboardInset() ui/geom.Insets
 pkg github.com/tangoui/tango/ui, method (*Context) KeysFor(ID) []ui/input.KeyEvent
 pkg github.com/tangoui/tango/ui, method (*Context) Locale() *Locale
+pkg github.com/tangoui/tango/ui, method (*Context) MiddlePressed(ID) bool
 pkg github.com/tangoui/tango/ui, method (*Context) Now() time.Time
 pkg github.com/tangoui/tango/ui, method (*Context) PaintIcon(*ui/paint.List, *ui/icon.Icon, ui/geom.Rect, ui/theme.Color, float64)
 pkg github.com/tangoui/tango/ui, method (*Context) PendingKeyboardReveal() (KeyboardReveal, bool)
@@ -1384,6 +1385,7 @@ pkg github.com/tangoui/tango/ui, method (*DrawerW) Keyboard(bool) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Large() *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Loading(bool) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Mask(bool) *DrawerW
+pkg github.com/tangoui/tango/ui, method (*DrawerW) MaskBlur(float32) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) MaskClosable(bool) *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) NoHeader() *DrawerW
 pkg github.com/tangoui/tango/ui, method (*DrawerW) Placement(DrawerPlacement) *DrawerW
@@ -1722,6 +1724,7 @@ pkg github.com/tangoui/tango/ui, method (*InputNumberW) Status(string) *InputNum
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Step(float64) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) StepStrictly() *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) StringMode(*string) *InputNumberW
+pkg github.com/tangoui/tango/ui, method (*InputNumberW) Submitted() bool
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) UpDisabled() bool
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Variant(string) *InputNumberW
 pkg github.com/tangoui/tango/ui, method (*InputNumberW) Wheel() *InputNumberW
@@ -2125,6 +2128,7 @@ pkg github.com/tangoui/tango/ui, method (*ModalW) Header(func()) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) Keyboard(bool) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) Loading(bool) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) Mask(bool) *ModalW
+pkg github.com/tangoui/tango/ui, method (*ModalW) MaskBlur(float32) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) MaskClosable(bool) *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) NoFooter() *ModalW
 pkg github.com/tangoui/tango/ui, method (*ModalW) Ok() bool
@@ -2883,7 +2887,9 @@ pkg github.com/tangoui/tango/ui, method (*SplitterW) Changed() bool
 pkg github.com/tangoui/tango/ui, method (*SplitterW) DragEnded() (int, bool)
 pkg github.com/tangoui/tango/ui, method (*SplitterW) DragStarted() (int, bool)
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Dragging() bool
+pkg github.com/tangoui/tango/ui, method (*SplitterW) KeyboardMinimumCap(float32) *SplitterW
 pkg github.com/tangoui/tango/ui, method (*SplitterW) KeyboardStep(float32, float32) *SplitterW
+pkg github.com/tangoui/tango/ui, method (*SplitterW) KeyboardStepPixels(float32, float32) *SplitterW
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Lazy() *SplitterW
 pkg github.com/tangoui/tango/ui, method (*SplitterW) Orientation(string) *SplitterW
 pkg github.com/tangoui/tango/ui, method (*SplitterW) PixelSizes() []float32

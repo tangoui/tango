@@ -1723,6 +1723,7 @@ pkg github.com/tangoui/tango/ui/theme, type ScrollbarToken struct, ThumbRadius f
 pkg github.com/tangoui/tango/ui/theme, type ScrollbarToken struct, TrackInset float32
 pkg github.com/tangoui/tango/ui/theme, type ScrollbarToken struct, embedded Alias
 pkg github.com/tangoui/tango/ui/theme, type SegmentedToken struct
+pkg github.com/tangoui/tango/ui/theme, type SegmentedToken struct, FocusOutlineColor Color
 pkg github.com/tangoui/tango/ui/theme, type SegmentedToken struct, ItemActiveBg Color
 pkg github.com/tangoui/tango/ui/theme, type SegmentedToken struct, ItemColor Color `contrast:"text:TrackBg"`
 pkg github.com/tangoui/tango/ui/theme, type SegmentedToken struct, ItemFontWeight int
@@ -1731,6 +1732,7 @@ pkg github.com/tangoui/tango/ui/theme, type SegmentedToken struct, ItemHoverColo
 pkg github.com/tangoui/tango/ui/theme, type SegmentedToken struct, ItemPaddingInline float32
 pkg github.com/tangoui/tango/ui/theme, type SegmentedToken struct, ItemPaddingInlineSM float32
 pkg github.com/tangoui/tango/ui/theme, type SegmentedToken struct, ItemSelectedBg Color
+pkg github.com/tangoui/tango/ui/theme, type SegmentedToken struct, ItemSelectedBorder Color
 pkg github.com/tangoui/tango/ui/theme, type SegmentedToken struct, ItemSelectedColor Color `contrast:"text:ItemSelectedBg"`
 pkg github.com/tangoui/tango/ui/theme, type SegmentedToken struct, ItemSelectedShadow []ui/paint.Shadow
 pkg github.com/tangoui/tango/ui/theme, type SegmentedToken struct, TrackBg Color

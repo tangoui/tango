@@ -164,6 +164,9 @@ type Options struct {
 	// GlyphMargin reserves a separate line-height-wide lane to the left of
 	// line numbers, for marks such as breakpoints.
 	GlyphMargin bool
+	// NoScrollBeyondLastLine stops vertical scrolling at the document's
+	// bottom padding instead of permitting the last row at the top.
+	NoScrollBeyondLastLine bool
 	// Comments are the settings of the comment commands (comments).
 	Comments CommentsOptions
 

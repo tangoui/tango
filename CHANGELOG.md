@@ -26,6 +26,8 @@
 - Element Plus 控件选项对齐 Popover、Dropdown、Tooltip 和 Select 的弹层锚点与箭头，并更新 Dialog 和 Drawer 的标题区与间距。
 - Element Plus 控件选项更新选择控件、弹层和遮罩的状态动效，并尊重系统减少动效设置。
 - Tabs 支持自定义水平项高度、活动项字重和指示线粗细。编辑器支持独立断点槽点击回调。CodeBlock 可查询上一帧首个可见折行的源码字节位置，Element Plus 控件选项同时限制长行无障碍文本的大小。
+- InputNumber 可报告 Enter 提交，Context 可查询可见控件上的中键按下。Modal 与 Drawer 可为遮罩启用背景模糊，Segmented 可覆盖选中项边框和键盘焦点颜色。
+- Splitter 可配置像素键盘步长及独立的相邻 pane 最小份额上限，编辑器可停在末行与底部留白。
 - `ContextMenuOptions.Width` 可指定根菜单的逻辑像素宽度，边缘换向使用同一宽度。
 - 点位上下文菜单支持 `MenuItem.Radio`，绘制勾选并向辅助技术报告单选菜单项及其选中状态。
 - `ScrollBox.PaintedOffset` 和 `MaxOffset` 返回已绘制的滚动偏移和可滚动范围。

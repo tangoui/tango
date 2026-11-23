@@ -201,6 +201,8 @@ type SplitterW struct {
 	tk                              *theme.SplitterToken // &th.Components.Splitter
 	pixels                          float32
 	keyboardStep, keyboardShiftStep float32
+	keyboardStepPixels              bool
+	keyboardMinCap                  float32
 }
 
 // Splitter starts a split view; chain options, then Body with SplitterPanel calls.
@@ -246,6 +248,23 @@ func (s *SplitterW) Lazy() *SplitterW { s.lazy = true; return s }
 // to the splitter's axis. Zero restores the default 10 px step.
 func (s *SplitterW) KeyboardStep(step, shiftStep float32) *SplitterW {
 	s.keyboardStep, s.keyboardShiftStep = min(1, max(0, step)), min(1, max(0, shiftStep))
+	s.keyboardStepPixels = false
+	return s
+}
+
+// KeyboardStepPixels sets arrow and Shift+arrow increments in logical
+// pixels. A positive step restricts arrows to the splitter's axis.
+func (s *SplitterW) KeyboardStepPixels(step, shiftStep float32) *SplitterW {
+	s.keyboardStep, s.keyboardShiftStep = max(0, step), max(0, shiftStep)
+	s.keyboardStepPixels = step > 0
+	return s
+}
+
+// KeyboardMinimumCap caps each pane's keyboard-only minimum to the given
+// fraction of the adjacent pair's total size. A non-positive value uses
+// the pane minima unchanged. Pointer dragging always uses the pane minima.
+func (s *SplitterW) KeyboardMinimumCap(fraction float32) *SplitterW {
+	s.keyboardMinCap = min(.5, max(0, fraction))
 	return s
 }
 
@@ -638,13 +657,16 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 	}
 	// clampA returns the fractions of panes a and b when the bar moves so
 	// that pane a gets na, honoring both panes' limits.
-	clampA := func(na float32, start []float32) (float32, float32) {
+	clampA := func(na float32, start []float32, keyboard bool) (float32, float32) {
 		if panels[a].collapseSet && folded(a) || panels[bIdx].collapseSet && folded(bIdx) {
 			return st.frac[a], st.frac[bIdx]
 		}
 		loA, hiA := limits(a)
 		loB, hiB := limits(bIdx)
 		sum := start[a] + start[bIdx]
+		if keyboard && s.keyboardMinCap > 0 {
+			loA, loB = min(loA, sum*s.keyboardMinCap), min(loB, sum*s.keyboardMinCap)
+		}
 		na = max(loA, min(na, hiA))
 		nb := sum - na
 		if nb < loB {
@@ -658,8 +680,8 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 		return na, nb
 	}
 	// setA moves the bar so that pane a gets fraction na (clamped).
-	setA := func(na float32, start []float32) {
-		na, nb := clampA(na, start)
+	setA := func(na float32, start []float32, keyboard bool) {
+		na, nb := clampA(na, start, keyboard)
 		if na != st.frac[a] {
 			st.frac[a], st.frac[bIdx] = max(0, na), max(0, nb)
 			st.saved[a], st.saved[bIdx] = 0, 0
@@ -670,8 +692,12 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 	if resizable && ia.Focused {
 		step := 10 / total // 10px per arrow press
 		pair := st.frac[a] + st.frac[bIdx]
+		stepScale := pair
+		if s.keyboardStepPixels {
+			stepScale = 1 / total
+		}
 		if s.keyboardStep > 0 {
-			step = pair * s.keyboardStep
+			step = stepScale * s.keyboardStep
 		}
 		cur := st.frac[a]
 		target, moved := cur, false
@@ -697,7 +723,7 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 					prev, next = k.Key == input.KeyUp, k.Key == input.KeyDown
 				}
 				if k.Mods.Has(input.ModShift) && s.keyboardShiftStep > 0 {
-					keyStep = pair * s.keyboardShiftStep
+					keyStep = stepScale * s.keyboardShiftStep
 				}
 			} else {
 				prev, next = prev || k.Key == input.KeyUp, next || k.Key == input.KeyDown
@@ -723,7 +749,7 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 			}
 		}
 		if moved {
-			setA(target, st.frac)
+			setA(target, st.frac, true)
 		}
 	}
 	// PressedNow holds for every build of the press frame; start once.
@@ -739,7 +765,7 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 		// Released (or cancelled): a lazy drag commits its preview now,
 		// unless the system cancelled the gesture.
 		if s.lazy && st.previewOn && !c.PointerCancelled(n.id) && len(st.dragStart) == len(st.frac) {
-			setA(st.preview, st.dragStart)
+			setA(st.preview, st.dragStart, false)
 		}
 		st.dragging, st.previewOn = false, false
 		s.ended = i
@@ -757,10 +783,10 @@ func (s *SplitterW) bar(i int, panels []*SplitterPanelW, total float32, limits f
 			d = c.pointer.Y - st.dragFrom.Y
 		}
 		if s.lazy {
-			na, _ := clampA(st.dragStart[a]+d/total, st.dragStart)
+			na, _ := clampA(st.dragStart[a]+d/total, st.dragStart, false)
 			st.preview, st.previewOn = na, true
 		} else {
-			setA(st.dragStart[a]+d/total, st.dragStart)
+			setA(st.dragStart[a]+d/total, st.dragStart, false)
 		}
 	}
 	id := n.id

@@ -1125,6 +1125,7 @@ type ModalW struct {
 	fullToggle bool
 	top        float32
 	mask       bool
+	maskBlur   float32
 	keyboard   bool
 	skeleton   bool
 	settled    bool
@@ -1165,6 +1166,10 @@ func (m *ModalW) Header(fn func()) *ModalW { m.header = fn; return m }
 
 // Mask(false) hides the dimming mask (the page stays visible but blocked).
 func (m *ModalW) Mask(on bool) *ModalW { m.mask = on; return m }
+
+// MaskBlur sets the Gaussian blur radius of the canvas behind the mask,
+// in logical pixels. A zero radius draws the mask without blur.
+func (m *ModalW) MaskBlur(radius float32) *ModalW { m.maskBlur = max(0, radius); return m }
 
 // Centered centers the dialog vertically.
 func (m *ModalW) Centered() *ModalW { m.centered = true; return m }
@@ -1240,6 +1245,9 @@ func (m *ModalW) Body(fn func()) *ModalW {
 	mask := Overlay(c, OverlayOptions{Place: ScreenFill}, func() {})
 	if m.mask {
 		mask.Bg(theme.Fade(tk.MaskBg, mo.mask()))
+		if !c.noBlur {
+			mask.blur = m.maskBlur * mo.m
+		}
 	}
 	if m.maskClose && c.clicked[mask.n.id] > 0 {
 		m.cancel = true
@@ -1505,6 +1513,7 @@ type DrawerW struct {
 	extra     func()
 	closable  bool
 	mask      bool
+	maskBlur  float32
 	maskClose bool
 	closed    bool
 	noHeader  bool
@@ -1554,12 +1563,16 @@ func (d *DrawerW) Size(px float32) *DrawerW { d.size = px; return d }
 // Large uses the large preset (736).
 func (d *DrawerW) Large() *DrawerW { d.size = 736; return d }
 
-func (d *DrawerW) Footer(fn func()) *DrawerW     { d.footer = fn; return d }
-func (d *DrawerW) Extra(fn func()) *DrawerW      { d.extra = fn; return d }
-func (d *DrawerW) Closable(on bool) *DrawerW     { d.closable = on; return d }
-func (d *DrawerW) Mask(on bool) *DrawerW         { d.mask = on; return d }
-func (d *DrawerW) MaskClosable(on bool) *DrawerW { d.maskClose = on; return d }
-func (d *DrawerW) NoHeader() *DrawerW            { d.noHeader = true; return d }
+func (d *DrawerW) Footer(fn func()) *DrawerW { d.footer = fn; return d }
+func (d *DrawerW) Extra(fn func()) *DrawerW  { d.extra = fn; return d }
+func (d *DrawerW) Closable(on bool) *DrawerW { d.closable = on; return d }
+func (d *DrawerW) Mask(on bool) *DrawerW     { d.mask = on; return d }
+
+// MaskBlur sets the Gaussian blur radius of the canvas behind the mask,
+// in logical pixels. A zero radius draws the mask without blur.
+func (d *DrawerW) MaskBlur(radius float32) *DrawerW { d.maskBlur = max(0, radius); return d }
+func (d *DrawerW) MaskClosable(on bool) *DrawerW    { d.maskClose = on; return d }
+func (d *DrawerW) NoHeader() *DrawerW               { d.noHeader = true; return d }
 
 // ClosablePlacement puts the close button "start" (before the title) or
 // "end" (after the title and extra); default from the theme (Ant start,
@@ -1675,6 +1688,9 @@ func (d *DrawerW) Body(fn func()) *DrawerW {
 	if d.mask {
 		mask := Overlay(c, OverlayOptions{Place: ScreenFill}, func() {})
 		mask.Bg(theme.Fade(tk.MaskBg, float64(a)))
+		if !c.noBlur {
+			mask.blur = d.maskBlur * a
+		}
 		if d.maskClose && c.clicked[mask.n.id] > 0 {
 			d.closed = true
 		}

@@ -164,3 +164,16 @@ func TestGlyphMarginClickLeavesLineNumberSelection(t *testing.T) {
 		t.Fatalf("line-number click = %v, selection = %v", clicks, st.Primary())
 	}
 }
+
+func TestNoScrollBeyondLastLine(t *testing.T) {
+	st := NewState("first\nsecond", "", nil)
+	defer st.Close()
+	st.Options.NoScrollBeyondLastLine = true
+	st.Options.Padding = PaddingOptions{Top: 7, Bottom: 10}
+	ed := newEditDriver(st, 450, 220, nil)
+	ed.Frame()
+	st.ScrollBy(1000, 0)
+	if v := st.Viewport; v.TopLine != 0 || v.OffsetY != -7 {
+		t.Fatalf("short document moved: %+v", v)
+	}
+}

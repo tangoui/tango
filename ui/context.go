@@ -226,12 +226,13 @@ type Context struct {
 	curOverlay       ID         // overlay whose content is being built (0 = page)
 	overlayLayer     map[ID]int // overlay root -> layer, last painted frame
 	nextOverlayLayer map[ID]int
-	escTop, escNext  int  // highest layer listening for Escape: last frame / this build
-	escPending       []ID // Escape listeners whose panel had no layer yet
-	backClaimed      bool // ClaimBack in the last frame (back.go)
-	backNext         bool // ClaimBack in this build
-	pressLayer       int  // layer under the pointer when it went down this frame
-	ctxPressed       bool // secondary-button press this frame
+	escTop, escNext  int         // highest layer listening for Escape: last frame / this build
+	escPending       []ID        // Escape listeners whose panel had no layer yet
+	backClaimed      bool        // ClaimBack in the last frame (back.go)
+	backNext         bool        // ClaimBack in this build
+	pressLayer       int         // layer under the pointer when it went down this frame
+	middlePressed    map[ID]bool // middle-button presses on visible hit targets
+	ctxPressed       bool        // secondary-button press this frame
 	ctxPos           geom.Point
 	ctxLayer         int
 
@@ -567,6 +568,10 @@ func (c *Context) WantTextInput(caret geom.Rect) {
 
 // Pointer returns the pointer position and whether it is inside the window.
 func (c *Context) Pointer() (geom.Point, bool) { return c.pointer, c.pointerIn }
+
+// MiddlePressed reports a middle-button press on the visible hit region
+// of id. The topmost overlay wins and clipped content does not receive presses.
+func (c *Context) MiddlePressed(id ID) bool { return c.middlePressed[id] }
 
 // Dragging reports whether id holds the pointer capture.
 func (c *Context) Dragging(id ID) bool { return c.active == id }

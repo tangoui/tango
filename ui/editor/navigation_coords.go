@@ -32,6 +32,9 @@ func (w *ViewW) navigationOffset(off int, up bool) int {
 // like Viewport.setScrollY: the last view row can reach the viewport top.
 func (w *ViewW) navigationHeight() float32 {
 	v := w.st.Viewport
+	if v.NoScrollBeyondLastLine {
+		return max(1, float32(w.st.vl.Count())*v.LineHeight+v.PadTop+v.PadBottom)
+	}
 	return max(1, float32(max(0, w.st.vl.Count()-1))*v.LineHeight+v.PadTop+v.Height)
 }
 
