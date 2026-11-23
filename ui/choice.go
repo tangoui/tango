@@ -213,7 +213,11 @@ func (w *CheckboxW) measure(_, _ float32) geom.Size {
 		sz := choiceContentSize(c, w.label, c.boxSizeOf(w.size), w.size)
 		return geom.Size{W: tk.BorderedPaddingStart + sz.W + tk.BorderedPaddingEnd, H: controlHeightOf(th, w.size)}
 	}
-	return choiceContentSize(c, w.label, c.boxSizeOf(w.size), w.size)
+	sz := choiceContentSize(c, w.label, c.boxSizeOf(w.size), w.size)
+	if th.UsesElementPlusControls() {
+		sz.H = controlHeightOf(th, w.size)
+	}
+	return sz
 }
 
 // choiceContentSize is a control mark of size bs followed by an optional
@@ -347,6 +351,12 @@ func drawSegButton(c *Context, l *paint.List, th *theme.Theme, r geom.Rect, radi
 }
 
 // The box sits at the inline start, the label after it.
+// Element Plus radio.scss, checkbox.scss and switch.scss use a 2px
+// brand-color outline offset 1px from the control.
+func elementChoiceOutline(l *paint.List, box geom.Rect, rad geom.Radii, col theme.Color) {
+	l.Stroke(box.Expand(3), rad.Grow(3), 2, col)
+}
+
 func (w *CheckboxW) paint(l *paint.List, r geom.Rect) {
 	c, th := w.c, w.c.ThemeFor(theme.CompCheckbox)
 	tk := &th.Components.Checkbox
@@ -362,8 +372,8 @@ func (w *CheckboxW) paint(l *paint.List, r geom.Rect) {
 	}
 	focusBox := w.ia.FocusVisible
 	if w.look == lookBorder {
-		drawChoiceFrame(l, th, r, w.size, *w.val, dis, w.ia.Hovered && !dis, w.ia.FocusVisible, tk.BorderedCheckedColor)
-		focusBox = false
+		drawChoiceFrame(l, th, r, w.size, *w.val, dis, w.ia.Hovered && !dis, w.ia.FocusVisible && !th.UsesElementPlusControls(), tk.BorderedCheckedColor)
+		focusBox = focusBox && th.UsesElementPlusControls()
 		r = c.inline(r).Rect(tk.BorderedPaddingStart, r.Y, r.W-tk.BorderedPaddingStart, r.H)
 	}
 	bs := c.boxSizeOf(w.size)
@@ -440,7 +450,7 @@ func drawCheckbox(c *Context, l *paint.List, box geom.Rect, s checkLook) {
 		l.Stroke(box, rad, 1, theme.Lerp(tk.BorderColor, bg, s.t))
 	default:
 		bc := tk.BorderColor
-		if (s.hovered || s.focused) && !shad {
+		if (s.hovered || s.focused && !th.UsesElementPlusControls()) && !shad {
 			bc = th.Primary.Base
 		}
 		if shad && s.invalid {
@@ -483,7 +493,11 @@ func drawCheckbox(c *Context, l *paint.List, box geom.Rect, s checkLook) {
 		}
 	}
 	if s.focused {
-		if shad {
+		if th.UsesElementPlusControls() {
+			if !s.disabled {
+				elementChoiceOutline(l, box, rad, th.Primary.Base)
+			}
+		} else if shad {
 			shadFocusRing(l, th, box, rad, s.invalid)
 		} else {
 			l.Stroke(box.Expand(3), rad.Grow(3), 2, th.FocusRing)
@@ -736,10 +750,14 @@ func (w *RadioW) measure(_, _ float32) geom.Size {
 	c := w.c
 	th := c.ThemeFor(theme.CompRadio)
 	tk := &th.Components.Radio
-	if w.label == "" && !w.border {
-		return geom.Size{W: tk.RadioSize, H: 22}
+	h := float32(22)
+	if th.UsesElementPlusControls() {
+		h = controlHeightOf(th, w.size) // radio.scss $radio-height
 	}
-	sz := geom.Size{W: tk.RadioSize + 8 + text.Width(w.label, c.choiceFontOf(w.size)), H: 22}
+	if w.label == "" && !w.border {
+		return geom.Size{W: tk.RadioSize, H: h}
+	}
+	sz := geom.Size{W: tk.RadioSize + 8 + text.Width(w.label, c.choiceFontOf(w.size)), H: h}
 	if w.border {
 		sz = geom.Size{W: tk.BorderedPaddingStart + sz.W + tk.BorderedPaddingEnd, H: controlHeightOf(th, w.size)}
 	}
@@ -780,8 +798,8 @@ func (w *RadioW) paint(l *paint.List, r geom.Rect) {
 		}
 	}
 	if w.border {
-		drawChoiceFrame(l, th, r, w.size, w.checked, dis, w.ia.Hovered && !dis, w.ia.FocusVisible, tk.BorderedCheckedColor)
-		focusDot = false
+		drawChoiceFrame(l, th, r, w.size, w.checked, dis, w.ia.Hovered && !dis, w.ia.FocusVisible && !th.UsesElementPlusControls(), tk.BorderedCheckedColor)
+		focusDot = focusDot && th.UsesElementPlusControls()
 		r = c.inline(r).Rect(tk.BorderedPaddingStart, r.Y, r.W-tk.BorderedPaddingStart, r.H)
 	}
 	bs := tk.RadioSize
@@ -792,7 +810,7 @@ func (w *RadioW) paint(l *paint.List, r geom.Rect) {
 	inner := paint.NewPath().Circle(cx, cy, bs/2-1)
 	hov := w.ia.Hovered && !dis
 	border := tk.BorderColor
-	if (hov || w.ia.FocusVisible) && th.Flavor != theme.StyleShadcn {
+	if (hov || w.ia.FocusVisible && !th.UsesElementPlusControls()) && th.Flavor != theme.StyleShadcn {
 		border = th.Primary.Base
 	}
 	if th.Flavor == theme.StyleShadcn {
@@ -840,8 +858,12 @@ func (w *RadioW) paint(l *paint.List, r geom.Rect) {
 		}
 	}
 	if focusDot {
-		if th.Flavor == theme.StyleShadcn {
-			box := geom.Rect{X: cx - bs/2, Y: cy - bs/2, W: bs, H: bs}
+		box := geom.Rect{X: cx - bs/2, Y: cy - bs/2, W: bs, H: bs}
+		if th.UsesElementPlusControls() {
+			if !dis {
+				elementChoiceOutline(l, box, geom.Rad(bs/2), th.Primary.Base)
+			}
+		} else if th.Flavor == theme.StyleShadcn {
 			shadFocusRing(l, th, box, geom.Rad(bs/2), w.status == "error")
 		} else {
 			l.StrokePath(paint.NewPath().Circle(cx, cy, bs/2+2), paint.StrokeStyle{Width: 2}, th.FocusRing)
@@ -1021,6 +1043,9 @@ func (g *RadioGroupW) build() {
 	g.layoutGroup()
 	if !g.buttons {
 		g.n.ln.Gap = 8
+		if g.vertical && c.ThemeFor(theme.CompRadio).UsesElementPlusControls() {
+			g.n.ln.Gap = 0 // radio-group.scss adds no block-axis gap
+		}
 		if c.Theme.Flavor == theme.Element && !g.vertical {
 			g.n.ln.Gap = 30
 			if g.border {
@@ -1402,7 +1427,15 @@ func (w *SwitchW) outerW() (before, after float32) {
 func (w *SwitchW) measure(_, _ float32) geom.Size {
 	h, _, _ := w.dims()
 	b, a := w.outerW()
-	if b > 0 || a > 0 {
+	if w.c.ThemeFor(theme.CompSwitch).UsesElementPlusControls() {
+		// switch.scss reserves the full form row, with the core centered.
+		h = 32
+		if w.small {
+			h = 24
+		} else if w.large {
+			h = 40
+		}
+	} else if b > 0 || a > 0 {
 		h = max(h, 22)
 	}
 	return geom.Size{W: b + w.trackW() + a, H: h}
@@ -1493,7 +1526,11 @@ func (w *SwitchW) paint(l *paint.List, r geom.Rect) {
 		c.paintIcon(l, ic, s.Rect(lo, track.Y+(h-is)/2, is, is), fg, 0)
 	}
 	if w.ia.FocusVisible {
-		if th.Flavor == theme.StyleShadcn {
+		if th.UsesElementPlusControls() {
+			if !dis {
+				elementChoiceOutline(l, track, geom.Rad(h/2), tk.OnBg)
+			}
+		} else if th.Flavor == theme.StyleShadcn {
 			shadFocusRing(l, th, track, geom.Rad(h/2), false)
 		} else {
 			l.Stroke(track.Expand(2), geom.Rad(h/2+2), 2, th.FocusRing)

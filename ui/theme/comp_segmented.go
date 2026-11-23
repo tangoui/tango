@@ -31,6 +31,17 @@ func deriveSegmented(t *Theme) SegmentedToken {
 		k.ItemSelectedColor = t.TextOnPrimary
 		k.ItemHoverBg = t.Fill
 		k.ItemSelectedShadow = nil
+		if t.UsesElementPlusControls() {
+			// Element Plus 2.14.8 common/var.scss $segmented.
+			k.ItemSelectedBg = t.Primary.Base
+			k.ItemHoverBg = Hex("#ebedf0")
+			k.ItemActiveBg = Hex("#e6e8eb")
+			if t.Dark {
+				k.TrackBg = Hex("#262727")
+				k.ItemHoverBg = Hex("#39393a")
+				k.ItemActiveBg = Hex("#424243")
+			}
+		}
 	case StyleShadcn:
 		// TabsList: p-[3px], font-medium px-3 triggers, hover only
 		// darkens the text.

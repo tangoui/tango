@@ -22,6 +22,7 @@
 - `ui/editor` 可设置行号列最少位数、行装饰宽度、独立断点槽、折叠图标淡入淡出、字体、行高和光标宽度。`ViewW.MountFind` 可在编辑器右上角挂载应用的查找替换面板。
 - `theme.DialogMask(color)` 为 Modal、Confirm 和 Drawer 配置遮罩颜色和透明度，支持局部主题覆盖。
 - `theme.ElementPlusControls()` 为 Element 主题启用 2.14.8 的控件细节，包括表单圆角与字号、标签间距、浮层及固定宽度滚动条。滚动条样式可通过 `theme.Components.Scrollbar` 覆盖。
+- Element Plus 控件选项对齐 Radio 行高与换行、Segmented 三档尺寸和禁用色、Checkbox 和 Switch 的行盒及键盘焦点轮廓。
 - `ContextMenuOptions.Width` 可指定根菜单的逻辑像素宽度，边缘换向使用同一宽度。
 - 点位上下文菜单支持 `MenuItem.Radio`，绘制勾选并向辅助技术报告单选菜单项及其选中状态。
 - `ScrollBox.PaintedOffset` 和 `MaxOffset` 返回已绘制的滚动偏移和可滚动范围。

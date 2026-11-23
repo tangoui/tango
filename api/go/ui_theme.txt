@@ -150,6 +150,7 @@ pkg github.com/tangoui/tango/ui/theme, method (*Theme) LineHeightFor(float32) fl
 pkg github.com/tangoui/tango/ui/theme, method (*Theme) Override(Components) *Theme
 pkg github.com/tangoui/tango/ui/theme, method (*Theme) Overrides() Components
 pkg github.com/tangoui/tango/ui/theme, method (*Theme) TextOn(Color, Color) Color
+pkg github.com/tangoui/tango/ui/theme, method (*Theme) UsesElementPlusControls() bool
 pkg github.com/tangoui/tango/ui/theme, method (Comp) String() string
 pkg github.com/tangoui/tango/ui/theme, method (Components) Hash() uint64
 pkg github.com/tangoui/tango/ui/theme, method (Components) Merge(Components) Components

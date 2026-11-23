@@ -151,7 +151,14 @@ func (w *SegmentedW) Changed() bool { w.z.run(); return w.changed }
 
 func (w *SegmentedW) dis() bool { return w.disabled || w.n.disabled }
 
-func (w *SegmentedW) itemH() float32 { return controlHeightOf(w.th, w.size) - 2*w.trackPad() }
+func (w *SegmentedW) itemH() float32 {
+	h := controlHeightOf(w.th, w.size) - 2*w.trackPad()
+	if w.vertical && w.th.UsesElementPlusControls() {
+		// segmented.scss applies the inline padding to both axes vertically.
+		return w.font()*w.th.LineHeight + 2*w.padX()
+	}
+	return h
+}
 
 // trackPad is the inset of the items inside the track.
 func (w *SegmentedW) trackPad() float32 { return w.tk.TrackPadding }
@@ -166,13 +173,25 @@ func (w *SegmentedW) padX() float32 {
 	return w.tk.ItemPaddingInline
 }
 
-func (w *SegmentedW) font() float32 { return controlFontOf(w.th, w.size) }
+func (w *SegmentedW) font() float32 {
+	if w.size == Small && w.th.UsesElementPlusControls() {
+		return w.th.FontSize // segmented.scss $segmented-font-size
+	}
+	return controlFontOf(w.th, w.size)
+}
 
 func (w *SegmentedW) radii() (outer, inner float32) {
 	th := w.th
 	if w.shape == SegmentedShapeRound {
 		ih := w.itemH()
 		return ih/2 + w.trackPad(), ih / 2
+	}
+	if th.UsesElementPlusControls() {
+		outer = th.Radius
+		if w.size == Small {
+			outer--
+		}
+		return outer, max(outer-2, 0)
 	}
 	if th.Flavor == theme.Element {
 		return th.Radius, th.Radius
@@ -342,8 +361,10 @@ func (w *SegmentedW) paintTrack(l *paint.List, r geom.Rect) {
 		wd := c.Anim(w.n.id, "seg-w", kr.W, th.DurationSlow)
 		tr = s.Rect(x, r.Y+kr.Y, wd, kr.H)
 	}
-	if w.dis() {
-		if th.Flavor == theme.Element {
+	if w.dis() || th.UsesElementPlusControls() && w.items[sel].disabled {
+		if th.UsesElementPlusControls() {
+			thumb = th.Primary.Shades[5] // --el-color-primary-light-5
+		} else if th.Flavor == theme.Element {
 			thumb = th.Primary.Border
 		} else if th.Flavor == theme.StyleShadcn {
 			l.Opacity(0.5)
@@ -371,6 +392,11 @@ func (w *SegmentedW) paintItem(l *paint.List, r geom.Rect, i int, ia Interaction
 		col = theme.Fade(fg, .5)
 		if sel {
 			col = theme.Fade(fgSel, .5)
+		}
+	case w.items[i].disabled && th.UsesElementPlusControls():
+		col = th.TextQuaternary // --el-text-color-placeholder
+		if sel {
+			col = fgSel
 		}
 	case w.items[i].disabled:
 		col = th.TextDisabled
@@ -420,5 +446,12 @@ func (w *SegmentedW) paintOver(l *paint.List, r geom.Rect) {
 	}
 	_, inner := w.radii()
 	kr := w.items[sel].ln.Rect
-	entFocusRing(w.c, l, geom.Rect{X: r.X + kr.X, Y: r.Y + kr.Y, W: kr.W, H: kr.H}, inner)
+	item := geom.Rect{X: r.X + kr.X, Y: r.Y + kr.Y, W: kr.W, H: kr.H}
+	if w.th.UsesElementPlusControls() {
+		if !w.items[sel].disabled {
+			elementChoiceOutline(l, item, geom.Rad(inner), w.tk.ItemSelectedBg)
+		}
+		return
+	}
+	entFocusRing(w.c, l, item, inner)
 }

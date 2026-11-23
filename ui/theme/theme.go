@@ -362,6 +362,9 @@ func Compact() Option { return func(o *options) { o.compact = true } }
 // 2.14.8 control refinements. Other theme constructors ignore this option.
 func ElementPlusControls() Option { return func(o *options) { o.elementControls = true } }
 
+// UsesElementPlusControls reports whether the Element Plus component refinements are enabled.
+func (t *Theme) UsesElementPlusControls() bool { return t.Flavor == Element && t.elementControls }
+
 func collect(opts []Option) options {
 	var o options
 	for _, f := range opts {
