@@ -705,6 +705,22 @@ var winExtScanHID = map[uint16]uint16{
 
 const canvasVKPause = 0x13
 
+// canvasAlwaysExtendedVK reports virtual keys that only exist as extended
+// keys (E0 prefix) on a PC keyboard. Input injected with a virtual key but
+// no scan code and no KEYEVENTF_EXTENDEDKEY flag gets the extended flag
+// for these, so an injected Left is the arrow key, not keypad 4.
+func canvasAlwaysExtendedVK(vk uint16) bool {
+	switch vk {
+	case canvasVKInsert, canvasVKDelete, canvasVKHome, canvasVKEnd, canvasVKPrior, canvasVKNext,
+		canvasVKLeft, canvasVKUp, canvasVKRight, canvasVKDown,
+		canvasVKRControl, canvasVKRMenu, canvasVKDivide, canvasVKLWin, canvasVKRWin, canvasVKApps,
+		0x2C, // VK_SNAPSHOT
+		0x90: // VK_NUMLOCK
+		return true
+	}
+	return false
+}
+
 // hidFromWinScan returns the USB HID usage and the KeyEvent.Native code of
 // a key message: its scan code, with an 0xE000 prefix for extended keys;
 // Pause, whose real sequence is E1 1D 45, is 0xE11D. The fake Shift the

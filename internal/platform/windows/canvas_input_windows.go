@@ -559,6 +559,7 @@ func (c *canvas) key(vk uint16, lp uintptr, down, repeat bool) input.KeyEvent {
 	scan, ext := canvasKeyLParam(lp)
 	if scan == 0 && canvasVKToScan != nil {
 		scan = canvasVKToScan(vk) // injected input without a scan code
+		ext = ext || canvasAlwaysExtendedVK(vk)
 	}
 	hid, native := hidFromWinScan(vk, scan, ext)
 	if k == 0 && code == 0 {

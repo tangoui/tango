@@ -248,7 +248,7 @@ func eventTime(ev id) time.Duration {
 
 // withCodes adds the physical codes of virtual key code code to k.
 func withCodes(k input.KeyEvent, code uint16) input.KeyEvent {
-	k.HID, k.Native = hidFromMac(code), uint32(code)
+	k.HID, k.Native = hidFromMacKeyboard(code, macISOKeyboard()), uint32(code)
 	return k
 }
 
@@ -271,6 +271,9 @@ func (c *canvas) keyDown(ev id) {
 	raw := c.rawKeys[code]
 	if !k.Repeat || raw.key == 0 {
 		raw.key = k.Key
+	}
+	if !k.Repeat {
+		raw.physical = false
 	}
 	k.Key = raw.key
 	if c.rawKeys == nil {
@@ -503,6 +506,8 @@ func textInputClientMethods() []objc.MethodDef {
 			if c.inKeyDown {
 				if k, m, ok := commandKey(c.curKey.Key, c.curKey.Mods, name); ok {
 					c.pressKey(input.KeyEvent{Key: k, Down: true, Repeat: c.curKey.Repeat, Mods: m, HID: c.curKey.HID, Native: c.curKey.Native})
+				} else if c.curKey.Key == input.KeyUnknown && c.curKey.HID != 0 {
+					c.pressKey(c.curKey) // a key Key has no name for, by its codes
 				}
 				return
 			}

@@ -225,7 +225,7 @@ func (c *canvas) onKey(ev ptr, press bool) ptr {
 			return 0
 		}
 		c.deliverKey(input.KeyEvent{Down: press, Repeat: press && held, Mods: canvasMods(state), HID: hid, Native: uint32(hw)}, false)
-		return 1
+		return 0 // not consumed: GTK still sees media and IME keys, as before
 	}
 	// downKeys holds canvasHeldID records of the reported presses: a
 	// repeat and the release are reported with the Key and Code of the
@@ -336,6 +336,10 @@ func (c *canvas) releaseKeys() {
 		delete(c.downKeys, id)
 		k, code := canvasHeldKey(id)
 		c.deliverKey(input.KeyEvent{Key: k, Code: code}, true)
+	}
+	for hid := range c.downHID {
+		delete(c.downHID, hid)
+		c.deliverKey(input.KeyEvent{HID: hid}, true)
 	}
 }
 

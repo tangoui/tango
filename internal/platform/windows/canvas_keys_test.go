@@ -561,3 +561,18 @@ func TestHIDFromWinScan(t *testing.T) {
 		}
 	}
 }
+
+func TestCanvasAlwaysExtendedVK(t *testing.T) {
+	for vk, want := range map[uint16]bool{
+		canvasVKLeft: true, canvasVKDelete: true, canvasVKRControl: true, canvasVKDivide: true,
+		canvasVKNumpad0: false, 'A': false, canvasVKControl: false, canvasVKReturn: false,
+	} {
+		if got := canvasAlwaysExtendedVK(vk); got != want {
+			t.Errorf("canvasAlwaysExtendedVK(%#x) = %v, want %v", vk, got, want)
+		}
+	}
+	// An injected Left (no scan code, no extended flag) is the arrow key.
+	if hid, native := hidFromWinScan(canvasVKLeft, 0x4B, canvasAlwaysExtendedVK(canvasVKLeft)); hid != 0x50 || native != 0xE04B {
+		t.Errorf("injected Left = %#x, %#x; want 0x50, 0xe04b", hid, native)
+	}
+}

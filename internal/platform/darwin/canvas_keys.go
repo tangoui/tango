@@ -422,3 +422,19 @@ var macHIDKeys = map[uint16]uint16{
 
 // hidFromMac returns the USB HID usage of a virtual key code, 0 if none.
 func hidFromMac(code uint16) uint16 { return macHIDKeys[code] }
+
+// hidFromMacKeyboard is hidFromMac for the keyboard that sent the key. On
+// ISO keyboards AppKit reports the key left of 1 as kVK_ISO_Section (0x0A)
+// and the key next to left Shift as kVK_ANSI_Grave (0x32), the reverse of
+// their positions; the usages are swapped back so HID stays physical.
+func hidFromMacKeyboard(code uint16, iso bool) uint16 {
+	if iso {
+		switch code {
+		case 0x0A:
+			code = 0x32
+		case 0x32:
+			code = 0x0A
+		}
+	}
+	return hidFromMac(code)
+}

@@ -253,3 +253,23 @@ func TestHIDFromMac(t *testing.T) {
 		}
 	}
 }
+
+func TestHIDFromMacKeyboardSwapsISO(t *testing.T) {
+	for _, tc := range []struct {
+		code uint16
+		iso  bool
+		hid  uint16
+	}{
+		{0x0A, false, 0x64}, {0x32, false, 0x35}, // ANSI/JIS: as named
+		{0x0A, true, 0x35}, {0x32, true, 0x64}, // ISO: AppKit reports the two swapped
+		{0x00, true, 0x04},
+	} {
+		if got := hidFromMacKeyboard(tc.code, tc.iso); got != tc.hid {
+			t.Errorf("hidFromMacKeyboard(%#x, iso=%v) = %#x, want %#x", tc.code, tc.iso, got, tc.hid)
+		}
+	}
+}
+
+func TestMacISOKeyboardLoads(t *testing.T) {
+	_ = macISOKeyboard() // must not crash, whatever keyboard this machine has
+}
