@@ -76,6 +76,32 @@ func offMain(c Canvas) bool {
 	return ok && o.OffMain()
 }
 
+// TreeWaiter is implemented by canvases that announce each new tree:
+// settle and waitTree wait for the announcement instead of polling every
+// pollEvery, which added up to a poll interval to every action a client
+// timed. TreeChanged returns a channel closed once the tree generation
+// differs from gen (at once if it already does) or the window is gone. It
+// must not wait for the canvas's own thread.
+type TreeWaiter interface {
+	TreeChanged(gen uint64) <-chan struct{}
+}
+
+// waitTreeChange waits until c's generation differs from gen or d passes.
+// It reports false when c does not announce trees.
+func waitTreeChange(c Canvas, gen uint64, d time.Duration) bool {
+	w, ok := c.(TreeWaiter)
+	if !ok {
+		return false
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-w.TreeChanged(gen):
+	case <-t.C:
+	}
+	return true
+}
+
 // settler returns c's Settler when the server calls c off the main thread.
 func settler(c Canvas) (Settler, bool) {
 	st, ok := c.(Settler)
@@ -443,16 +469,20 @@ func (s *Server) waitTree(c Canvas, timeout time.Duration, done func(t *a11y.Tre
 	deadline := time.Now().Add(timeout)
 	for {
 		ok := false
-		if err := s.snapshot(c, func(t *a11y.Tree, _ uint64) { ok = t != nil && done(t) }); err != nil {
+		var gen uint64
+		if err := s.snapshot(c, func(t *a11y.Tree, g uint64) { ok, gen = t != nil && done(t), g }); err != nil {
 			return false, err
 		}
 		if ok {
 			return false, nil
 		}
-		if !time.Now().Before(deadline) {
+		left := time.Until(deadline)
+		if left <= 0 {
 			return true, nil
 		}
-		time.Sleep(s.pollEvery)
+		if !waitTreeChange(c, gen, left) {
+			time.Sleep(s.pollEvery)
+		}
 	}
 }
 
@@ -618,6 +648,9 @@ var settleFor = 400 * time.Millisecond
 // settle waits until c's tree generation differs from gen0 (the frame
 // that handled an action or input has run) or settleFor passes.
 func (s *Server) settle(c Canvas, gen0 uint64) {
+	if waitTreeChange(c, gen0, s.settleFor) {
+		return
+	}
 	deadline := time.Now().Add(s.settleFor)
 	for time.Now().Before(deadline) {
 		changed := false

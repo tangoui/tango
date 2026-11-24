@@ -639,13 +639,31 @@ func (c *canvas) SetTextInput(enabled bool, caret geom.Rect) {
 		c.marked, c.markedSel = "", 0
 	}
 	c.textOn = enabled
-	if enabled && (!was || old != caret) {
-		withPool(func() {
-			if ctx := send(c.view, "inputContext"); ctx != 0 {
-				send(ctx, "invalidateCharacterCoordinates")
-			}
-		})
+	if imeCoordinatesChanged(c.focused, was, enabled, old, caret) {
+		c.invalidateIMECoordinates()
 	}
+}
+
+// imeCoordinatesChanged reports whether AppKit must re-read the caret
+// rectangle (firstRectForCharacterRange) for the input method's candidate
+// window. The notification is a synchronous round trip into the input
+// system (about 4 ms the first time a background window enables text
+// input), and it matters only while the canvas is the active input client:
+// an unfocused canvas sends it when it gains focus (imeCoordinatesOnFocus).
+func imeCoordinatesChanged(focused, wasOn, isOn bool, old, caret geom.Rect) bool {
+	return focused && isOn && (!wasOn || old != caret)
+}
+
+// imeCoordinatesOnFocus reports whether a canvas gaining or losing focus
+// must send the coordinate notification SetTextInput deferred.
+func imeCoordinatesOnFocus(focused, textOn bool) bool { return focused && textOn }
+
+func (c *canvas) invalidateIMECoordinates() {
+	withPool(func() {
+		if ctx := send(c.view, "inputContext"); ctx != 0 {
+			send(ctx, "invalidateCharacterCoordinates")
+		}
+	})
 }
 
 // Present copies img into a CGImage and makes it the layer's contents.
@@ -779,5 +797,8 @@ func (c *canvas) focusMaybeChanged() {
 		return
 	}
 	c.focused = f
+	if imeCoordinatesOnFocus(f, c.textOn) {
+		c.invalidateIMECoordinates()
+	}
 	c.sink.CanvasFocus(f)
 }

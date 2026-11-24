@@ -104,3 +104,40 @@ func TestAutomationThreadedQuitReportsQuit(t *testing.T) {
 		t.Fatalf("Tree after quit took %v", d)
 	}
 }
+
+// TreeChanged announces each tree the tap delivers, and the window's end,
+// so the automation server's settle returns when the frame lands instead
+// of at its next 15 ms poll.
+func TestAutomationTreeChangedAnnounces(t *testing.T) {
+	c := &autoCanvas{gone: make(chan struct{})}
+	closed := func(ch <-chan struct{}) bool {
+		select {
+		case <-ch:
+			return true
+		default:
+			return false
+		}
+	}
+	ch := c.TreeChanged(0)
+	if closed(ch) {
+		t.Fatal("announced before a new tree")
+	}
+	c.noteTree(&a11y.Tree{})
+	if !closed(ch) {
+		t.Fatal("a new tree was not announced")
+	}
+	if !closed(c.TreeChanged(0)) {
+		t.Fatal("a stale generation must not wait")
+	}
+	next := c.TreeChanged(1)
+	if closed(next) {
+		t.Fatal("announced the current generation")
+	}
+	c.stop()
+	if !closed(next) {
+		t.Fatal("the window's end was not announced")
+	}
+	if !closed(c.TreeChanged(1)) {
+		t.Fatal("a stopped canvas must not wait")
+	}
+}

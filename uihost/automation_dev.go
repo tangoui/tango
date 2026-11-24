@@ -85,8 +85,9 @@ type autoCanvas struct {
 	stopped bool
 	tree    *a11y.Tree
 	gen     uint64
-	release func() // drops the force reference; bridge's thread
-	cancel  func() // ends the subscription; bridge's thread
+	changed chan struct{} // closed at the next tree or stop (TreeChanged)
+	release func()        // drops the force reference; bridge's thread
+	cancel  func()        // ends the subscription; bridge's thread
 }
 
 // OffMain implements automation.OffMain: threaded windows are driven off
@@ -213,18 +214,47 @@ func (c *autoCanvas) subscribe(b *a11yBridge) {
 	c.mu.Unlock()
 	// Subscribe first: an existing tree (assistive technology already
 	// active) arrives synchronously as the baseline.
-	cancel := b.tap(func(t *a11y.Tree, _ []a11y.NodeID) {
-		c.mu.Lock()
-		if !c.stopped {
-			c.tree = t
-			c.gen++
-		}
-		c.mu.Unlock()
-	})
+	cancel := b.tap(func(t *a11y.Tree, _ []a11y.NodeID) { c.noteTree(t) })
 	release := b.force()
 	c.mu.Lock()
 	c.cancel, c.release = cancel, release
 	c.mu.Unlock()
+}
+
+// noteTree records a new tree from the tap and announces it.
+func (c *autoCanvas) noteTree(t *a11y.Tree) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.stopped {
+		return
+	}
+	c.tree = t
+	c.gen++
+	c.announceLocked()
+}
+
+func (c *autoCanvas) announceLocked() {
+	if c.changed != nil {
+		close(c.changed)
+		c.changed = nil
+	}
+}
+
+// TreeChanged implements automation.TreeWaiter: a channel closed once the
+// generation differs from gen or the window is gone. Any thread; it never
+// waits for the window's thread.
+func (c *autoCanvas) TreeChanged(gen uint64) <-chan struct{} {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.stopped || c.gen != gen {
+		ch := make(chan struct{})
+		close(ch)
+		return ch
+	}
+	if c.changed == nil {
+		c.changed = make(chan struct{})
+	}
+	return c.changed
 }
 
 // subscribeUI is subscribe for a threaded window, refusing any thread but
@@ -402,6 +432,7 @@ func (c *autoCanvas) stop() {
 		return
 	}
 	c.stopped = true
+	c.announceLocked()
 	cancel, release := c.cancel, c.release
 	c.cancel, c.release, c.tree = nil, nil, nil
 	c.mu.Unlock()
