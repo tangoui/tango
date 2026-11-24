@@ -4,6 +4,8 @@
 
 ## [未发布]
 
+## [0.2.1] - 2026-11-24
+
 ### 修复
 
 - macOS 自绘窗口只在画布获得焦点、成为当前输入客户端时才通知输入法刷新候选框坐标，失焦期间开启的文本输入在获得焦点时补发。后台窗口首次聚焦文本框不再同步等待输入系统（约 4 ms）。
@@ -415,6 +417,7 @@
 - 资源源上 GET/HEAD 以外的跨源请求回 403（`Options.AllowCrossOriginAssets` 关闭）；macOS/iOS 后端用主文档 URL 补上 WebKit 缺失的 `Origin`。
 - `tan dev` 热加载控制通道要求会话 token（`TANGO_DEV_TOKEN`），unix socket 权限 0600。
 
-[未发布]: https://github.com/tangoui/tango/compare/v0.2.0...HEAD
+[未发布]: https://github.com/tangoui/tango/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/tangoui/tango/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/tangoui/tango/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tangoui/tango/releases/tag/v0.1.0

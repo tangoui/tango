@@ -1,6 +1,6 @@
 {
   "name": "@tangoui/runtime",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "JavaScript runtime for Tango apps: calls, events and streams to Go over window.__tango",
   "keywords": [
     "tango",
