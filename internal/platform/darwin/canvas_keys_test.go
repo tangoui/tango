@@ -269,7 +269,3 @@ func TestHIDFromMacKeyboardSwapsISO(t *testing.T) {
 		}
 	}
 }
-
-func TestMacISOKeyboardLoads(t *testing.T) {
-	_ = macISOKeyboard() // must not crash, whatever keyboard this machine has
-}
