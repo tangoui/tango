@@ -203,3 +203,53 @@ func TestUTF16(t *testing.T) {
 		t.Fatalf("cleanInsert = %q", got)
 	}
 }
+
+func TestHIDFromMac(t *testing.T) {
+	for _, tc := range []struct {
+		code uint16
+		hid  uint16
+	}{
+		{0x00, 0x04},               // A
+		{0x24, 0x28},               // Return
+		{0x4C, 0x58},               // keypad Enter
+		{0x38, 0xE1}, {0x3C, 0xE5}, // left / right Shift
+		{0x37, 0xE3}, {0x36, 0xE7}, // left / right Command
+		{0x3A, 0xE2}, {0x3D, 0xE6}, // left / right Option
+		{0x3B, 0xE0}, {0x3E, 0xE4}, // left / right Control
+		{0x39, 0x39},               // Caps Lock
+		{0x69, 0x68},               // F13
+		{0x5A, 0x6F},               // F20
+		{0x0A, 0x64},               // ISO Section (non-US backslash)
+		{0x32, 0x35},               // Grave
+		{0x66, 0x91}, {0x68, 0x90}, // JIS Eisu / Kana
+		{0x5D, 0x89}, {0x5E, 0x87}, // JIS Yen / Underscore
+		{0x5F, 0x85}, // JIS keypad comma
+		{0x72, 0x49}, // Help, the Insert key of PC keyboards
+		{0x7F, 0},    // no such key
+		{0x3F, 0},    // Fn: no HID keyboard usage
+	} {
+		if got := hidFromMac(tc.code); got != tc.hid {
+			t.Errorf("hidFromMac(%#x) = %#x, want %#x", tc.code, got, tc.hid)
+		}
+	}
+	codes := []uint16{macCapsLockCode}
+	for c := range macKeyCodes {
+		codes = append(codes, c)
+	}
+	for c := range macPhysicalKeys {
+		codes = append(codes, c)
+	}
+	for c := range macModifierKeys {
+		codes = append(codes, c)
+	}
+	for _, c := range codes {
+		if hidFromMac(c) == 0 {
+			t.Errorf("hidFromMac(%#x) = 0 for a key the backend names", c)
+		}
+	}
+	for c := uint16(0); c <= 0x2F; c++ { // letters, digits and punctuation of the main block
+		if c != 0x0A && hidFromMac(c) == 0 {
+			t.Errorf("hidFromMac(%#x) = 0 in the main block", c)
+		}
+	}
+}

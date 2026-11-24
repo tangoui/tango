@@ -22,6 +22,7 @@ package darwin
 import (
 	"math"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -191,7 +192,7 @@ func pointerHandler(kind input.PointerKind, button input.Button) func(self id, _
 		if c == nil {
 			return
 		}
-		p := input.Pointer{Kind: kind, Pos: c.loc(ev), Button: button, Mods: eventMods(ev)}
+		p := input.Pointer{Kind: kind, Pos: c.loc(ev), Button: button, Mods: eventMods(ev), Time: eventTime(ev)}
 		if button == input.ButtonMiddle && sendInt(ev, "buttonNumber") != 2 {
 			return // back / forward and other extra buttons
 		}
@@ -240,6 +241,17 @@ func (c *canvas) loc(ev id) geom.Point {
 
 func eventMods(ev id) input.Modifiers { return modsFromMac(uint(send(ev, "modifierFlags"))) }
 
+// eventTime is the NSEvent timestamp: seconds since system startup.
+func eventTime(ev id) time.Duration {
+	return time.Duration(msgGetFloat(ev, sel("timestamp")) * float64(time.Second))
+}
+
+// withCodes adds the physical codes of virtual key code code to k.
+func withCodes(k input.KeyEvent, code uint16) input.KeyEvent {
+	k.HID, k.Native = hidFromMac(code), uint32(code)
+	return k
+}
+
 func eventKey(ev id) input.Key {
 	var chars string
 	withPool(func() { chars = goString(send(ev, "charactersIgnoringModifiers")) })
@@ -255,7 +267,7 @@ func (c *canvas) keyDown(ev id) {
 		c.shortcutHeld[uint16(send(ev, "keyCode"))] = true
 	}
 	code := uint16(send(ev, "keyCode"))
-	k := input.KeyEvent{Key: eventKey(ev), Down: true, Repeat: sendBool(ev, "isARepeat"), Mods: eventMods(ev)}
+	k := withCodes(input.KeyEvent{Key: eventKey(ev), Down: true, Repeat: sendBool(ev, "isARepeat"), Mods: eventMods(ev)}, code)
 	raw := c.rawKeys[code]
 	if !k.Repeat || raw.key == 0 {
 		raw.key = k.Key
@@ -286,6 +298,9 @@ type canvasRawKey struct {
 	key      input.Key
 	reported input.Key
 	consumed bool
+	// physical: the press was reported by its codes alone (a key Key has
+	// no name for, such as F13), so its release is reported too.
+	physical bool
 }
 
 func (c *canvas) filterKey(ev input.KeyEvent) bool {
@@ -312,11 +327,14 @@ func (c *canvas) keyUp(ev id) {
 		reported = k
 	}
 	delete(c.downKeys, reported)
-	release := input.KeyEvent{Key: k, Mods: eventMods(ev)}
+	release := withCodes(input.KeyEvent{Key: k, Mods: eventMods(ev)}, code)
 	if held && c.filterKey(release) {
 		return
 	}
-	if reported != input.KeyUnknown {
+	if raw.physical {
+		release.Key = input.KeyUnknown
+		c.deliverKey(release, false)
+	} else if reported != input.KeyUnknown {
 		release.Key = reported
 		c.deliverKey(release, false)
 	} else if k != input.KeyUnknown && raw.consumed {
@@ -334,8 +352,8 @@ func (c *canvas) flagsChanged(ev id) {
 	flags := uint(send(ev, "modifierFlags"))
 	c.flags = modsFromMac(flags)
 	if code == macCapsLockCode {
-		c.deliverKey(input.KeyEvent{Key: input.KeyCapsLock, Down: true, Mods: c.flags}, true)
-		c.deliverKey(input.KeyEvent{Key: input.KeyCapsLock, Mods: c.flags}, true)
+		c.deliverKey(withCodes(input.KeyEvent{Key: input.KeyCapsLock, Down: true, Mods: c.flags}, code), true)
+		c.deliverKey(withCodes(input.KeyEvent{Key: input.KeyCapsLock, Mods: c.flags}, code), true)
 		return
 	}
 	k, down, mods, ok := modifierKeyFromMac(code, flags)
@@ -347,7 +365,7 @@ func (c *canvas) flagsChanged(ev id) {
 	} else {
 		delete(c.downKeys, k)
 	}
-	key := input.KeyEvent{Key: k, Down: down, Mods: mods}
+	key := withCodes(input.KeyEvent{Key: k, Down: down, Mods: mods}, code)
 	if !c.filterKey(key) {
 		c.deliverKey(key, false)
 	}
@@ -356,6 +374,17 @@ func (c *canvas) flagsChanged(ev id) {
 // pressKey reports a key press (and remembers it for keyUp:).
 func (c *canvas) pressKey(k input.KeyEvent) {
 	if k.Key == input.KeyUnknown {
+		// A key Key has no name for (F13, ISO and JIS extras) still
+		// reaches apps that read physical codes; keys without even a
+		// HID usage are dropped as before.
+		if k.HID == 0 {
+			return
+		}
+		if raw, ok := c.rawKeys[c.curCode]; ok {
+			raw.physical = true
+			c.rawKeys[c.curCode] = raw
+		}
+		c.deliverKey(k, false)
 		return
 	}
 	if raw, ok := c.rawKeys[c.curCode]; ok {
@@ -473,7 +502,7 @@ func textInputClientMethods() []objc.MethodDef {
 			name := selGetName(cmd)
 			if c.inKeyDown {
 				if k, m, ok := commandKey(c.curKey.Key, c.curKey.Mods, name); ok {
-					c.pressKey(input.KeyEvent{Key: k, Down: true, Repeat: c.curKey.Repeat, Mods: m})
+					c.pressKey(input.KeyEvent{Key: k, Down: true, Repeat: c.curKey.Repeat, Mods: m, HID: c.curKey.HID, Native: c.curKey.Native})
 				}
 				return
 			}
