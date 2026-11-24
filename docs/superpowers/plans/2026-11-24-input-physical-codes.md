@@ -16,6 +16,7 @@
 - HID 用法码取 USB HID Usage Tables 的 Keyboard/Keypad 页（0x07），只存用法码本身（`uint16`，如 A = 0x04，Enter = 0x28），不含页号。
 - `Native`：macOS 为 NSEvent `keyCode`；Windows 为扫描码，扩展键加 0xE000 前缀（右 Ctrl = 0xE01D），Pause 为 0xE11D；Linux 为 XKB 键码（evdev + 8）。
 - `Pointer.Time`：系统事件时间，单调时钟，原点任意（只用于同一来源事件之间求差）；macOS 取 NSEvent `timestamp`，Windows 取 `GetMessageTime`（毫秒），Linux 取 GDK 事件 `time`（毫秒）；拿不到时为 0。
+- 〔执行中决定〕`Key` 没有名字但有 HID 用法码的键（F13–F24、ISO/JIS 额外键）改为以 `KeyUnknown` 上报，按下和松开按 HID 成对；没有 HID 的键仍丢弃。原因：三个后端此前都丢弃 `Key` 未知的键，只填字段达不到目的。代价：现有应用会多收到 `Key` 为未知的事件，按 `Key` 匹配的代码不受影响。
 - 不关闭系统自身的鼠标合并（AppKit、Windows、GTK 的默认行为保持）；不捕获系统快捷键。
 - 映射表事实可参考公开的键码对照资料（如 USB HID Usage Tables、各平台 SDK 头文件），实现按 Tango 风格自写。
 - 推送前检查：`gofmt -l`（含带构建标签的文件）、`go vet ./...`、`GOOS=linux go vet ./...`、`GOOS=windows go vet ./...`、`go run ./internal/cmd/apitxt -check`、相关包测试。编译测试用 `nice -n 19`（本机有其他会话在做性能测量）。

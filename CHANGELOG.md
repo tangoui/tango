@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 新增
+
+- `input.KeyEvent` 新增 `HID`（USB HID 键盘页用法码，覆盖 ANSI、ISO、JIS 全键盘）和 `Native`（平台原始键码：macOS keyCode、Windows 扫描码、Linux XKB 键码），`input.Pointer` 新增 `Time`（系统事件时间）；macOS、Windows、Linux 后端都会填写，零值表示未知。远程桌面这类按物理键位转发键盘的应用不再受 `Key` 枚举范围限制。
+- `Key` 没有名字但有 HID 用法码的键（F13–F24、ISO 键盘左 Shift 旁的键、JIS 的英数/かな/¥ 等）现在会以 `KeyUnknown` 上报，按下和松开成对；此前这些键被丢弃。按 `Key` 匹配的现有代码不受影响。
+- `Context.PointerEvents()` 返回本帧按到达顺序的全部指针事件，`Pointer()` 只给出帧末位置。
+
 ### 修复
 
 - `Tabs` 的下划线只在选中标签改变后滑动。选中项没变、只是标签位置变化（窗口缩放、拉伸标签重新排布、切回页面时侧栏宽度稳定下来）时直接画到位，不再连续 300 ms 按刷新率重绘，切回页面的首帧不必排在它后面。与 Ant Design 的 CSS 过渡相比，重新排布时少了这段滑动。

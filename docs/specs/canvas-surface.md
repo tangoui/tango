@@ -97,7 +97,7 @@ type CanvasLayer struct {
 - 尺寸：`setFrameSize:` / `viewDidChangeBackingProperties` → `CanvasResized` + 重绘。
 - 鼠标：`mouseDown/Up/Dragged/Moved`、`right*`、`other*`、`NSTrackingArea`（`mouseEntered/Exited`），`clickCount` → `Pointer.Clicks`；`acceptsFirstMouse:` = YES。
 - 滚轮：`scrollWheel:`，`hasPreciseScrollingDeltas` 时用像素增量，否则乘行高；方向按 `ui/window.go` 约定（正 DY 显示下方内容）。
-- 键盘：`acceptsFirstResponder` = YES；`keyDown:` 在文本输入开启时交给 `interpretKeyEvents:`，同时把功能键映射成 `input.KeyEvent`；`keyUp:`、`flagsChanged:`；`performKeyEquivalent:` 不吞菜单快捷键。
+- 键盘：`acceptsFirstResponder` = YES；`keyDown:` 在文本输入开启时交给 `interpretKeyEvents:`，同时把功能键映射成 `input.KeyEvent`（带 `HID` 用法码和 `Native` keyCode，见 `hidFromMac`）；`keyUp:`、`flagsChanged:`；`performKeyEquivalent:` 不吞菜单快捷键。
 - 输入法：完整实现 `NSTextInputClient`（`insertText:replacementRange:` → `TextInput`，`setMarkedText:selectedRange:replacementRange:` → `Composition`，`unmarkText`，`hasMarkedText`，`markedRange`，`selectedRange`，`firstRectForCharacterRange:actualRange:` 用 `SetTextInput` 传来的 caret 换算到屏幕坐标，`validAttributesForMarkedText`，`attributedSubstringForProposedRange:actualRange:` 返回 nil，`characterIndexForPoint:` 返回 NSNotFound，`doCommandBySelector:` 映射为功能键）。
 - 光标：`input.Cursor` → `NSCursor`（arrow / pointingHand / IBeam / operationNotAllowed / resizeLeftRight / resizeUpDown / openHand / closedHand / 移动用 openHand），在 `mouseMoved` 和 `cursorUpdate:` 里 `set`。
 - 窗口：复用现有 NSWindow 创建与 `SurfaceExtras` 处理，只把 contentView 换成 canvas view。
