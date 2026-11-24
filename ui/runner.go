@@ -388,6 +388,7 @@ func (r *Runner) clearFrameInput() {
 	c.keys = c.keys[:0]
 	c.shortcutBlurred = false
 	c.frameKeys = c.frameKeys[:0]
+	c.framePointers = c.framePointers[:0]
 	c.keySeq++
 	c.text = c.text[:0]
 	clear(c.events)
@@ -409,6 +410,7 @@ func (r *Runner) processEvents() bool {
 	for _, e := range r.queue {
 		switch ev := e.(type) {
 		case input.Pointer:
+			c.framePointers = append(c.framePointers, ev)
 			c.pointerMods = ev.Mods
 			c.pointer = ev.Pos
 			c.pointerIn = ev.Kind != input.Leave

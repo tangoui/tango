@@ -1224,6 +1224,7 @@ pkg github.com/tangoui/tango/ui, method (*Context) PixelScale() float32
 pkg github.com/tangoui/tango/ui, method (*Context) Pointer() (ui/geom.Point, bool)
 pkg github.com/tangoui/tango/ui, method (*Context) PointerCancelled(ID) bool
 pkg github.com/tangoui/tango/ui, method (*Context) PointerDownOutside(...ui/geom.Rect) bool
+pkg github.com/tangoui/tango/ui, method (*Context) PointerEvents() []ui/input.Pointer
 pkg github.com/tangoui/tango/ui, method (*Context) PointerMods() ui/input.Modifiers
 pkg github.com/tangoui/tango/ui, method (*Context) PointerTaken(ID) (ui/geom.Point, bool)
 pkg github.com/tangoui/tango/ui, method (*Context) PressCount() int
@@ -1764,8 +1765,8 @@ pkg github.com/tangoui/tango/ui, method (*InputW) Placeholder(string) *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) Prefix(*ui/icon.Icon) *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) PrefixText(string) *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) ReadOnly() *InputW
-pkg github.com/tangoui/tango/ui, method (*InputW) ShowCount() *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) SelectAll() *InputW
+pkg github.com/tangoui/tango/ui, method (*InputW) ShowCount() *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) Size(ControlSize) *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) Status(string) *InputW
 pkg github.com/tangoui/tango/ui, method (*InputW) Submitted() bool

@@ -182,8 +182,10 @@ pkg github.com/tangoui/tango/ui/input, type Key uint16
 pkg github.com/tangoui/tango/ui/input, type KeyEvent struct
 pkg github.com/tangoui/tango/ui/input, type KeyEvent struct, Code Key
 pkg github.com/tangoui/tango/ui/input, type KeyEvent struct, Down bool
+pkg github.com/tangoui/tango/ui/input, type KeyEvent struct, HID uint16
 pkg github.com/tangoui/tango/ui/input, type KeyEvent struct, Key Key
 pkg github.com/tangoui/tango/ui/input, type KeyEvent struct, Mods Modifiers
+pkg github.com/tangoui/tango/ui/input, type KeyEvent struct, Native uint32
 pkg github.com/tangoui/tango/ui/input, type KeyEvent struct, Repeat bool
 pkg github.com/tangoui/tango/ui/input, type Modifiers uint8
 pkg github.com/tangoui/tango/ui/input, type Pointer struct
@@ -193,6 +195,7 @@ pkg github.com/tangoui/tango/ui/input, type Pointer struct, Kind PointerKind
 pkg github.com/tangoui/tango/ui/input, type Pointer struct, Mods Modifiers
 pkg github.com/tangoui/tango/ui/input, type Pointer struct, Pos ui/geom.Point
 pkg github.com/tangoui/tango/ui/input, type Pointer struct, Source PointerSource
+pkg github.com/tangoui/tango/ui/input, type Pointer struct, Time time.Duration
 pkg github.com/tangoui/tango/ui/input, type PointerKind uint8
 pkg github.com/tangoui/tango/ui/input, type PointerSource uint8
 pkg github.com/tangoui/tango/ui/input, type Scroll struct

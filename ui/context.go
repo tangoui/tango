@@ -197,7 +197,10 @@ type Context struct {
 	// after the focused one (Menubar's Alt / F10). keySeq counts the
 	// frames that delivered input, so a handler reading frameKeys can
 	// skip the rebuilds of the same frame.
-	frameKeys     []input.KeyEvent
+	frameKeys []input.KeyEvent
+	// framePointers holds the frame's pointer events in arrival order
+	// (PointerEvents).
+	framePointers []input.Pointer
 	keySeq        uint64
 	text          []string
 	compose       *input.Composition
@@ -568,6 +571,15 @@ func (c *Context) WantTextInput(caret geom.Rect) {
 
 // Pointer returns the pointer position and whether it is inside the window.
 func (c *Context) Pointer() (geom.Point, bool) { return c.pointer, c.pointerIn }
+
+// PointerEvents returns every pointer event of the frame (Move, Press,
+// Release, Leave), in arrival order, in the same coordinates as Pointer.
+// Pointer reports only where the frame ended; apps that forward the
+// pointer elsewhere, such as a remote desktop, read the whole path here.
+// Like keys, the events reach the first build of the frame only; a
+// rebuild of the same frame sees none. The slice is valid until the next
+// build.
+func (c *Context) PointerEvents() []input.Pointer { return c.framePointers }
 
 // MiddlePressed reports a middle-button press on the visible hit region
 // of id. The topmost overlay wins and clipped content does not receive presses.

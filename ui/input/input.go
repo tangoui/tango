@@ -14,6 +14,7 @@ package input
 
 import (
 	"runtime"
+	"time"
 
 	"github.com/tangoui/tango/ui/geom"
 )
@@ -83,6 +84,10 @@ type Pointer struct {
 	// value) or a finger (pointer events the UI synthesizes from the
 	// primary touch, or hosts that report touches as pointers).
 	Source PointerSource
+	// Time is when the platform produced the event, on a monotonic clock
+	// with an arbitrary origin: compare it only with Time of other events.
+	// 0 means unknown.
+	Time time.Duration
 }
 
 // PointerSource tells mouse-made pointer events from touch-made ones.
@@ -506,6 +511,16 @@ type KeyEvent struct {
 	Down   bool
 	Repeat bool
 	Mods   Modifiers
+	// HID is the physical key as a USB HID usage on the Keyboard/Keypad
+	// page (0x07), without the page: 0x04 is A, 0x28 Enter, 0xE5 right
+	// Shift. It covers every key of a full ANSI, ISO or JIS keyboard, also
+	// those Key has no name for. 0 means unknown.
+	HID uint16
+	// Native is the platform's own code for the key: the NSEvent keyCode
+	// on macOS; the scan code on Windows, extended keys with an 0xE000
+	// prefix (right Ctrl is 0xE01D, Pause 0xE11D); the XKB keycode on
+	// Linux. 0 means unknown.
+	Native uint32
 }
 
 // TextInput carries committed text (typing, paste from IME, dictation).
