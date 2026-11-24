@@ -3,6 +3,7 @@ package ui
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tangoui/tango/ui/a11y"
 
@@ -112,6 +113,7 @@ type TabsW struct {
 	th                             *theme.Theme // Tabs tokens (c.ThemeFor(theme.CompTabs))
 	items                          []TabItem
 	active                         *string
+	inkDur                         time.Duration // ink bar slide for this frame (bar)
 	card                           bool
 	size                           ControlSize
 	changed                        bool
@@ -159,9 +161,13 @@ type tabsState struct {
 	more   bool   // the tab list overflowed: the more button is shown
 	reveal bool   // scroll the active tab into view once it is laid out
 	last   string // active key of the last frame
-	woke   int    // frames requested before the bar was first laid out
-	tries  int    // laid-out reveal attempts that still missed the viewport
-	seen   geom.Rect
+	built  bool   // the bar was built before (its first frame set last)
+	// inkAt is when the active key last changed after the first frame
+	// (zero: never). The ink bar slides only for a while after it.
+	inkAt time.Time
+	woke  int // frames requested before the bar was first laid out
+	tries int // laid-out reveal attempts that still missed the viewport
+	seen  geom.Rect
 }
 
 // wake asks for one more frame while the bar has not been laid out yet
@@ -689,7 +695,20 @@ func (t *TabsW) bar() {
 	st := State[tabsState](c, outer.n.id, func() tabsState { return tabsState{reveal: true} })
 	t.fallback(st)
 	if t.active != nil && st.last != *t.active {
+		if st.built {
+			st.inkAt = c.now // a new active tab, not the bar's first frame
+		}
 		st.last, st.reveal = *t.active, true
+	}
+	st.built = true
+	// The ink bar slides to a new active tab. When its tab only moves (a
+	// resize, stretched tabs reflowing, a page switched back to while its
+	// sidebar settles) it is drawn in place: a slide there kept the window
+	// drawing at display rate with no change of selection to show. A slide
+	// under way still finishes (Anim keeps the duration it started with).
+	t.inkDur = 0
+	if !st.inkAt.IsZero() && c.now.Sub(st.inkAt) < th.DurationSlow {
+		t.inkDur = th.DurationSlow
 	}
 	var nodes []*node
 	activeIdx := 0
@@ -896,8 +915,8 @@ func (t *TabsW) bar() {
 				thickness = 2
 			}
 			if vert {
-				ay := c.Anim(id, "inky", an.abs.Y-r.Y, th.DurationSlow)
-				ah := c.Anim(id, "inkh", an.abs.H, th.DurationSlow)
+				ay := c.Anim(id, "inky", an.abs.Y-r.Y, t.inkDur)
+				ah := c.Anim(id, "inkh", an.abs.H, t.inkDur)
 				ay, ah = t.indicator(ay, ah)
 				x := r.Right() - thickness
 				if place == Right {
@@ -913,8 +932,8 @@ func (t *TabsW) bar() {
 			if s.rtl {
 				off = s.Off(an.abs.Right())
 			}
-			ax := c.Anim(id, "inkx", off, th.DurationSlow)
-			aw := c.Anim(id, "inkw", an.abs.W, th.DurationSlow)
+			ax := c.Anim(id, "inkx", off, t.inkDur)
+			aw := c.Anim(id, "inkw", an.abs.W, t.inkDur)
 			if el && !tk.LineTrimOuter {
 				ax += 20
 				aw -= 40
@@ -1004,8 +1023,8 @@ func (t *TabsW) shadUnderline(tr *Box, active func() *node) {
 		}
 		col := th.Components.Tabs.InkBarColor
 		if vert {
-			ay := c.Anim(id, "inky", an.abs.Y-r.Y, th.DurationSlow)
-			ah := c.Anim(id, "inkh", an.abs.H, th.DurationSlow)
+			ay := c.Anim(id, "inky", an.abs.Y-r.Y, t.inkDur)
+			ah := c.Anim(id, "inkh", an.abs.H, t.inkDur)
 			ay, ah = t.indicator(ay, ah)
 			x := r.Right() - 1
 			if place == Right {
@@ -1019,8 +1038,8 @@ func (t *TabsW) shadUnderline(tr *Box, active func() *node) {
 		if s.rtl {
 			off = s.Off(an.abs.Right())
 		}
-		ax := c.Anim(id, "inkx", off, th.DurationSlow)
-		aw := c.Anim(id, "inkw", an.abs.W, th.DurationSlow)
+		ax := c.Anim(id, "inkx", off, t.inkDur)
+		aw := c.Anim(id, "inkw", an.abs.W, t.inkDur)
 		ax, aw = t.indicator(ax, aw)
 		l.Fill(geom.Rect{X: s.X(ax, aw), Y: r.Bottom() - 1, W: aw, H: 2}, geom.Radii{}, col)
 	})
