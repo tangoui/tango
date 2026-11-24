@@ -377,6 +377,7 @@ func (s *surface) restackEmbedded() {
 			procSetWindowPos.Call(e.w.hwnd, attachHwndTop, 0, 0, 0, 0, swpNoMove|swpNoSize|swpNoActivate)
 		}
 	}
+	s.restackNatives() // nativeembed_windows.go
 }
 
 // restackEmbeddedIn is restackEmbedded for the surface whose top-level

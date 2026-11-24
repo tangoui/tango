@@ -617,6 +617,7 @@ func (s *surface) destroyed() {
 		return
 	}
 	s.closed = true
+	s.destroyNatives()  // nativeembed_windows.go: the app's windows survive the parent
 	s.destroyEmbedded() // webembed_windows.go: each reports SurfaceClosed first
 	s.pending = nil
 	s.closeWebExt()
