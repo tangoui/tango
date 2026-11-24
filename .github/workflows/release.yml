@@ -31,6 +31,9 @@ concurrency:
 
 env:
   TAG: ${{ inputs.tag || github.ref_name }}
+  # Timing gates and smoke programs relax on shared runners, as in ci.yml;
+  # without it the verify job held them to the local budgets.
+  TANGO_SMOKE_TIMEOUT_SCALE: "3"
 
 jobs:
   verify:

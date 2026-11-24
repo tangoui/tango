@@ -397,23 +397,28 @@ func TestActiveGuideFirstCallFast(t *testing.T) {
 		fmt.Fprintf(&sb, "    \"key%d\": [%d, \"value %d\"],\n", i, i, i)
 	}
 	sb.WriteString("    \"end\": 0\n}\n")
-	st := NewState(sb.String(), "a.json", theme.Base("vs"))
-	vs := newViewState()
-	w := &ViewW{st: st, opts: DefaultOptions(), vs: &vs}
 	rows := make([]lineView, 40)
 	for i := range rows {
 		rows[i] = lineView{i: i, vi: i, rows: 1}
 	}
-	snap := st.Snapshot()
 	caret := 15_000 // mid-file, outside the view
-	start := time.Now()
-	g := w.guidesFor(snap, rows, caret)
-	el := time.Since(start)
-	if g[1].active != 1 || g[39].active != 1 {
-		t.Fatalf("active guides %+v %+v, want the object's (level 1)", g[1], g[39])
+	// The first call on a fresh state each time; the fastest of three, so
+	// one scheduling hiccup on a shared runner does not fail the gate.
+	el := time.Duration(1<<63 - 1)
+	for range 3 {
+		st := NewState(sb.String(), "a.json", theme.Base("vs"))
+		vs := newViewState()
+		w := &ViewW{st: st, opts: DefaultOptions(), vs: &vs}
+		snap := st.Snapshot()
+		start := time.Now()
+		g := w.guidesFor(snap, rows, caret)
+		el = min(el, time.Since(start))
+		if g[1].active != 1 || g[39].active != 1 {
+			t.Fatalf("active guides %+v %+v, want the object's (level 1)", g[1], g[39])
+		}
 	}
 	limit := gateLimit(5 * time.Millisecond)
-	t.Logf("first call: %v", el)
+	t.Logf("fastest first call: %v", el)
 	if el > limit {
 		t.Errorf("first active guide computation: %v, want at most %v", el, limit)
 	}
