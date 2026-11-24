@@ -82,6 +82,8 @@ var embedFFI struct {
 	widgetQueueResize func(w ptr)
 	widgetGrabFocus   func(w ptr)
 	widgetIsFocus     func(w ptr) bool
+	containerRemove   func(c, w ptr)          // nativeembed_linux.go
+	overlayPassThru   func(o, w ptr, on bool) // 3.18, nativeembed_linux.go
 
 	posCB ptr // get-child-position trampoline
 }
@@ -104,6 +106,8 @@ func loadEmbedFFI() error {
 		bd.req(&f.widgetQueueResize, "gtk_widget_queue_resize", t)
 		bd.req(&f.widgetGrabFocus, "gtk_widget_grab_focus", t)
 		bd.req(&f.widgetIsFocus, "gtk_widget_is_focus", t)
+		bd.req(&f.containerRemove, "gtk_container_remove", t)
+		bd.req(&f.overlayPassThru, "gtk_overlay_set_overlay_pass_through", t)
 		if len(bd.missing) > 0 {
 			f.err = fmt.Errorf("tango/linux: embedded web view: missing native symbols: %v", bd.missing)
 			return
@@ -120,7 +124,8 @@ func loadEmbedFFI() error {
 type embedHost struct {
 	s       *surface
 	overlay ptr
-	list    []*embeddedWeb // in creation order (bottom to top)
+	list    []*embeddedWeb    // in creation order (bottom to top)
+	natives []*embeddedNative // app native views (nativeembed_linux.go)
 }
 
 var (
@@ -202,15 +207,7 @@ func (b *backend) newEmbeddedWebView(id platform.SurfaceID, ps *surface, overlay
 		return 0
 	})
 
-	h := embedHosts[ps]
-	if h == nil {
-		h = &embedHost{s: ps, overlay: overlay}
-		if a == nil { // attached canvases use attachChildPosition
-			gSignalConnectData(h.overlay, "get-child-position", f.posCB, 0, 0, 0)
-		}
-		embedHosts[ps] = h
-		embedByOverlay[h.overlay] = h
-	}
+	h := embedHostFor(ps, overlay, a)
 	e := &embeddedWeb{w: w, h: h, layout: layout, attach: a}
 	h.list = append(h.list, e)
 	embedByLayout[layout] = e
@@ -232,10 +229,30 @@ func (b *backend) newEmbeddedWebView(id platform.SurfaceID, ps *surface, overlay
 	return e, nil
 }
 
+// embedHostFor returns the embed host of ps, creating it on overlay.
+func embedHostFor(ps *surface, overlay ptr, a *attached) *embedHost {
+	h := embedHosts[ps]
+	if h == nil {
+		h = &embedHost{s: ps, overlay: overlay}
+		if a == nil { // attached canvases use attachChildPosition
+			gSignalConnectData(h.overlay, "get-child-position", embedFFI.posCB, 0, 0, 0)
+		}
+		embedHosts[ps] = h
+		embedByOverlay[h.overlay] = h
+	}
+	return h
+}
+
 // embedChildPosition handles "get-child-position" on a canvas overlay:
 // embedded views get their clip rectangle, everything else (the GLArea)
 // the default placement.
 func embedChildPosition(overlay, widget, alloc ptr) ptr {
+	if n := nativeByLayout[widget]; n != nil && !n.closed && n.h.overlay == overlay && alloc != 0 {
+		c := n.track.clip
+		out := (*gdkRect)(toPtr(alloc))
+		*out = gdkRect{X: int32(c.Min.X), Y: int32(c.Min.Y), Width: int32(max(c.Dx(), 1)), Height: int32(max(c.Dy(), 1))}
+		return 1
+	}
 	e := embedByLayout[widget]
 	if e == nil || e.w.closed || e.h.overlay != overlay || alloc == 0 {
 		return 0
@@ -251,9 +268,9 @@ func embedChildPosition(overlay, widget, alloc ptr) ptr {
 }
 
 // embedLowerGL keeps a GLArea that UseGLArea just added to a canvas
-// overlay below the embedded web views (canvas_gl_linux.go).
+// overlay below the embedded web views and native views (canvas_gl_linux.go).
 func embedLowerGL(overlay, area ptr) {
-	if h := embedByOverlay[overlay]; h != nil && len(h.list) > 0 {
+	if h := embedByOverlay[overlay]; h != nil && (len(h.list) > 0 || len(h.natives) > 0) {
 		embedFFI.overlayReorder(overlay, area, 0)
 	}
 }
@@ -361,6 +378,7 @@ func (s *surface) closeEmbedded() {
 	if h == nil {
 		return
 	}
+	h.closeNatives() // nativeembed_linux.go: the app's widgets survive the parent
 	for _, e := range append([]*embeddedWeb(nil), h.list...) {
 		e.Close()
 	}
