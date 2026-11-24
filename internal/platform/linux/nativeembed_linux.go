@@ -7,9 +7,9 @@ package linux
 // added to the canvas's GtkOverlay above the canvas and the embedded web
 // views and placed like them (webembed_linux.go): the layout is the clip
 // rectangle (get-child-position), the application's widget its frame.
-// With PassInput the layout is an overlay pass-through child, so pointer
-// events reach the canvas unless the application's widget has input
-// windows of its own. The application keeps its reference to the widget;
+// With PassInput the layout is an overlay pass-through child and every
+// GdkWindow inside it is made pass-through when it maps, so pointer events
+// reach the canvas (passThroughNative; not verified on a GTK desktop yet). The application keeps its reference to the widget;
 // it is taken out of the layout before the layout is destroyed.
 
 import (
@@ -65,9 +65,42 @@ func (b *backend) NewEmbeddedNativeView(parent platform.SurfaceID, view uintptr,
 	nativeByLayout[layout] = n
 	f.overlayAddOverlay(h.overlay, layout) // last: above the canvas and earlier views
 	if opts.PassInput {
-		f.overlayPassThru(h.overlay, layout, true)
+		passThroughNative(h.overlay, layout)
 	}
 	return n, nil
+}
+
+// passThroughNative makes the layout transparent to the pointer: an
+// overlay pass-through child, and every GdkWindow inside it (the layout's
+// own windows and those of the application's widget) pass-through, on
+// every map, as the GL path does for the GLArea (canvas_gl_linux.go).
+// Needs GTK 3.18; on older GTK the view takes the input over its area.
+func passThroughNative(overlay, layout ptr) {
+	if f := &embedFFI; f.overlayPassThru != nil {
+		f.overlayPassThru(overlay, layout, true)
+	}
+	if loadCanvasGLFFI() != nil {
+		return
+	}
+	connect(layout, "map", 0, func(_, _ ptr) ptr {
+		g := &canvasGLFFI
+		if parent := g.widgetGetParentWindow(layout); parent != 0 {
+			passThroughWindows(parent)
+		}
+		return 0
+	})
+}
+
+// passThroughWindows makes win's descendants pass-through.
+func passThroughWindows(win ptr) {
+	g := &canvasGLFFI
+	list := g.windowGetChildren(win)
+	for l := list; l != 0; l = (*gListNode)(toPtr(l)).next {
+		child := (*gListNode)(toPtr(l)).data
+		g.windowSetPassThrough(child, true)
+		passThroughWindows(child)
+	}
+	g.listFree(list)
 }
 
 // SetPlacement implements platform.EmbeddedNativeView.

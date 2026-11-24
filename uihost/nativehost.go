@@ -11,6 +11,7 @@ package uihost
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -246,6 +247,12 @@ func (m *nativeMain) apply(list []nativePlace) {
 		return
 	}
 	kept := make(map[ui.ID]bool, len(list))
+	for h := range m.failed {
+		// Failures stay recorded until the UI side has dropped the box.
+		if !slices.ContainsFunc(list, func(p nativePlace) bool { return p.h == h }) {
+			delete(m.failed, h)
+		}
+	}
 	for _, p := range list {
 		mv := m.views[p.id]
 		if mv != nil && mv.h != p.h { // a new box with the same key
@@ -292,7 +299,9 @@ func (m *nativeMain) create(p nativePlace) *mainNative {
 	mv := &mainNative{h: p.h, view: view, release: p.opts.Release}
 	id := p.id
 	ev, err := corehook.NewEmbeddedNativeView(m.parent, view, platform.NativeViewOptions{PassInput: p.opts.PassInput}, func() {
-		// The backend removed the view with its parent window.
+		// The backend removed the view with its parent window: the window
+		// is going away, so nothing is created any more.
+		m.closed = true
 		if m.views[id] == mv {
 			delete(m.views, id)
 		}

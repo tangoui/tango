@@ -31,10 +31,12 @@ package windows
 // focused view gives focus back to the canvas first.
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"image"
 	"net/http"
+	"slices"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -72,6 +74,7 @@ type embedded struct {
 	parent *surface
 	attach *attached
 	plan   embedPlan
+	seq    uint64 // creation order among embedded WebViews and native views
 
 	focused     bool // GotFocus seen, LostFocus not yet
 	focusOnShow bool // FocusWeb while hidden: focus when shown
@@ -155,7 +158,8 @@ func (b *Backend) newEmbeddedWebView(id platform.SurfaceID, parent *surface, a *
 	if err := registerEmbedClass(); err != nil {
 		return nil, err
 	}
-	e := &embedded{parent: parent, attach: a}
+	embedSeq++
+	e := &embedded{parent: parent, attach: a, seq: embedSeq}
 	s := &surface{b: b, id: id, opts: opts, embed: e, created: true, webProfile: web.Profile}
 	e.w = s
 	hwnd, _, err := procCreateWindowExW.Call(0,
@@ -372,13 +376,32 @@ func (s *surface) restackEmbedded() {
 	if len(attachedBySurface[s]) > 0 {
 		s.restackAttached()
 	}
+	// WebViews and native views (nativeembed_windows.go) in creation
+	// order, each brought to the top in turn.
+	type stacked struct {
+		seq  uint64
+		hwnd uintptr
+	}
+	var order []stacked
 	for _, e := range embedsByParent[s] {
 		if !e.closed && e.attach == nil {
-			procSetWindowPos.Call(e.w.hwnd, attachHwndTop, 0, 0, 0, 0, swpNoMove|swpNoSize|swpNoActivate)
+			order = append(order, stacked{e.seq, e.w.hwnd})
 		}
 	}
-	s.restackNatives() // nativeembed_windows.go
+	for _, n := range nativesByParent[s] {
+		if !n.closed {
+			order = append(order, stacked{n.seq, n.hwnd})
+		}
+	}
+	slices.SortFunc(order, func(a, b stacked) int { return cmp.Compare(a.seq, b.seq) })
+	for _, o := range order {
+		procSetWindowPos.Call(o.hwnd, attachHwndTop, 0, 0, 0, 0, swpNoMove|swpNoSize|swpNoActivate)
+	}
 }
+
+// embedSeq numbers embedded WebViews and native views in creation order
+// (restackEmbedded). Main thread.
+var embedSeq uint64
 
 // restackEmbeddedIn is restackEmbedded for the surface whose top-level
 // window is hwnd, if any.

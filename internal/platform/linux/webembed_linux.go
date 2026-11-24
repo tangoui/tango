@@ -83,7 +83,7 @@ var embedFFI struct {
 	widgetGrabFocus   func(w ptr)
 	widgetIsFocus     func(w ptr) bool
 	containerRemove   func(c, w ptr)          // nativeembed_linux.go
-	overlayPassThru   func(o, w ptr, on bool) // 3.18, nativeembed_linux.go
+	overlayPassThru   func(o, w ptr, on bool) // 3.18, optional, nativeembed_linux.go
 
 	posCB ptr // get-child-position trampoline
 }
@@ -107,7 +107,7 @@ func loadEmbedFFI() error {
 		bd.req(&f.widgetGrabFocus, "gtk_widget_grab_focus", t)
 		bd.req(&f.widgetIsFocus, "gtk_widget_is_focus", t)
 		bd.req(&f.containerRemove, "gtk_container_remove", t)
-		bd.req(&f.overlayPassThru, "gtk_overlay_set_overlay_pass_through", t)
+		bd.opt(&f.overlayPassThru, "gtk_overlay_set_overlay_pass_through", t) // only NativeHost PassInput
 		if len(bd.missing) > 0 {
 			f.err = fmt.Errorf("tango/linux: embedded web view: missing native symbols: %v", bd.missing)
 			return

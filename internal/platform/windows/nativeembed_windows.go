@@ -45,6 +45,7 @@ var (
 	nativesByParent = map[*surface][]*embeddedNative{}
 	nativeByHwnd    = map[uintptr]*embeddedNative{} // container → view
 	nativeOldProc   = map[uintptr]uintptr{}         // application window → its own procedure
+	nativePassing   = map[uintptr]bool{}            // application windows whose hit tests fall through
 )
 
 // embeddedNative is an application's HWND placed in a canvas surface.
@@ -53,6 +54,7 @@ type embeddedNative struct {
 	hwnd   uintptr // the clip container
 	view   uintptr // the application's window
 	pass   bool
+	seq    uint64 // creation order (restackEmbedded)
 	plan   embedPlan
 	closed bool
 	onGone func() // the parent closed (platform.NativeViewEmbedder)
@@ -91,7 +93,7 @@ func nativeEmbedWndProc(hwnd, m, wp, lp uintptr) uintptr {
 // nativePassWndProc replaces the procedure of a PassInput application
 // window: hit tests fall through, everything else goes to its own.
 func nativePassWndProc(hwnd, m, wp, lp uintptr) uintptr {
-	if uint32(m) == attachWmNCHitTest {
+	if uint32(m) == attachWmNCHitTest && nativePassing[hwnd] {
 		return attachHTTransparent
 	}
 	old := nativeOldProc[hwnd]
@@ -125,15 +127,19 @@ func (b *Backend) NewEmbeddedNativeView(parentID platform.SurfaceID, view uintpt
 	if hwnd == 0 {
 		return nil, fmt.Errorf("tango/windows: NewEmbeddedNativeView: CreateWindowExW: %v", err)
 	}
-	n := &embeddedNative{parent: parent, hwnd: hwnd, view: view, pass: opts.PassInput, onGone: closed}
+	embedSeq++
+	n := &embeddedNative{parent: parent, hwnd: hwnd, view: view, pass: opts.PassInput, seq: embedSeq, onGone: closed}
 	nativeByHwnd[hwnd] = n
 	style, _, _ := wxGetWindowLongPtrW.Call(view, gwlStyle)
 	wxSetWindowLongPtrW.Call(view, gwlStyle, (style|embedWsChild|embedWsClipSiblings)&^wsPopup)
 	procSetParent.Call(view, hwnd)
 	if n.pass {
-		old, _, _ := wxGetWindowLongPtrW.Call(view, gwlpWndProc)
-		nativeOldProc[view] = old
-		wxSetWindowLongPtrW.Call(view, gwlpWndProc, nativePassProc)
+		if _, ok := nativeOldProc[view]; !ok { // not still chained from an earlier embedding
+			old, _, _ := wxGetWindowLongPtrW.Call(view, gwlpWndProc)
+			nativeOldProc[view] = old
+			wxSetWindowLongPtrW.Call(view, gwlpWndProc, nativePassProc)
+		}
+		nativePassing[view] = true
 	}
 	procShowWindow.Call(view, swShowNA) // shows with its container
 	nativesByParent[parent] = append(nativesByParent[parent], n)
@@ -197,9 +203,14 @@ func (n *embeddedNative) Close() {
 // message-only window, and destroys the container.
 func (n *embeddedNative) remove() {
 	n.closed = true
+	delete(nativePassing, n.view)
 	if old, ok := nativeOldProc[n.view]; ok {
-		wxSetWindowLongPtrW.Call(n.view, gwlpWndProc, old)
-		delete(nativeOldProc, n.view)
+		// Restore the application's procedure, unless something replaced
+		// ours since: then ours stays in its chain, forwarding everything.
+		if cur, _, _ := wxGetWindowLongPtrW.Call(n.view, gwlpWndProc); cur == nativePassProc {
+			wxSetWindowLongPtrW.Call(n.view, gwlpWndProc, old)
+			delete(nativeOldProc, n.view)
+		}
 	}
 	procShowWindow.Call(n.view, swHide)
 	procSetParent.Call(n.view, hwndMessage)
@@ -221,16 +232,6 @@ func (s *surface) destroyNatives() {
 		n.remove()
 		if n.onGone != nil {
 			n.onGone()
-		}
-	}
-}
-
-// restackNatives puts the native views above the canvas and the embedded
-// WebViews, in creation order (restackEmbedded).
-func (s *surface) restackNatives() {
-	for _, n := range nativesByParent[s] {
-		if !n.closed {
-			procSetWindowPos.Call(n.hwnd, attachHwndTop, 0, 0, 0, 0, swpNoMove|swpNoSize|swpNoActivate)
 		}
 	}
 }

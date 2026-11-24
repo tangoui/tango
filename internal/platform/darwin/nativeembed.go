@@ -84,6 +84,7 @@ func (b *backend) NewEmbeddedNativeView(parent platform.SurfaceID, view uintptr,
 			send(l, "setMasksToBounds:", 1)
 		}
 		send(n.clip, "setHidden:", 1)
+		send(n.view, "setHidden:", 0)                // a view given back earlier was hidden
 		send(n.clip, "addSubview:", uintptr(n.view)) // retained by the clip view until Close
 		send(host, "addSubview:", uintptr(n.clip))   // above earlier views
 	})
