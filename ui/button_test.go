@@ -303,3 +303,42 @@ func TestButtonNotInGroup(t *testing.T) {
 		t.Fatalf("radii %+v", r)
 	}
 }
+
+// TestButtonGroupJoinsDropdownTrigger covers the Element split-button
+// layout: a main button and a Dropdown whose trigger is a button share
+// one seam and only the outer corners stay round.
+func TestButtonGroupJoinsDropdownTrigger(t *testing.T) {
+	var mainBtn, caret *ButtonW
+	var dd *DropdownW
+	d := driver(func(c *Context) {
+		Column(c, func() {
+			ButtonGroup(c).Body(func() {
+				mainBtn = Button(c, "send").Primary()
+				dd = Dropdown(c, []MenuItem{{Key: "code", Label: "code"}}).Trigger(TriggerClick)
+				dd.Body(func() { caret = Button(c, "caret").Primary() })
+			})
+		}, layout.Pad(20))
+	})
+	d.Frame()
+	d.Frame()
+	one, two := mustFind(t, d, "send"), mustFind(t, d, "caret")
+	if two.X != one.Right()-1 {
+		t.Fatalf("seam not shared: %v %v", one, two)
+	}
+	if caret.grp == nil || caret.grpSlot == caret.n {
+		t.Fatalf("caret did not join through its dropdown: grp %v", caret.grp)
+	}
+	r0, r1 := mainBtn.radius(one), caret.radius(two)
+	if r0.TL == 0 || r0.BL == 0 || r0.TR != 0 || r0.BR != 0 {
+		t.Errorf("main radii %+v", r0)
+	}
+	if r1.TL != 0 || r1.BL != 0 || r1.TR == 0 || r1.BR == 0 {
+		t.Errorf("caret radii %+v", r1)
+	}
+	// The caret still opens the menu.
+	d.Click(geom.Point{X: two.X + two.W/2, Y: two.Y + two.H/2})
+	d.Frame()
+	if !dd.IsOpen() {
+		t.Fatal("menu did not open from the joined caret")
+	}
+}

@@ -122,7 +122,8 @@ type ButtonW struct {
 	ia       Interaction
 	color    ButtonColor      // "" = from variant / danger
 	appear   ButtonAppearance // "" = from variant
-	grp      *ButtonGroupW    // enclosing ButtonGroup (direct child), nil otherwise
+	grp      *ButtonGroupW    // enclosing ButtonGroup, nil otherwise
+	grpSlot  *node            // the group child holding the button: itself or its Dropdown
 	// autoSpace: AutoInsertSpace (Defaults "autoInsertSpace").
 	autoSpace bool
 	// loadIc replaces the spinner (LoadingIcon); loadDelay postpones

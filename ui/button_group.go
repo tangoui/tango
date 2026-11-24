@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/tangoui/tango/ui/a11y"
 	"github.com/tangoui/tango/ui/geom"
+	"github.com/tangoui/tango/ui/internal/flexbox"
 	"github.com/tangoui/tango/ui/layout"
 	"github.com/tangoui/tango/ui/paint"
 	"github.com/tangoui/tango/ui/theme"
@@ -19,7 +20,10 @@ import (
 //		ui.Button(c, "下一页").IconRight(icon.Right)
 //	})
 //
-// Only buttons that are direct children join; each stays its own Tab stop.
+// Buttons that are direct children join, and so does a button that is the
+// whole trigger of a Dropdown placed directly in the group (Element
+// split-button: a main button and a menu caret sharing one seam). Each
+// button stays its own Tab stop.
 type ButtonGroupW struct {
 	_        [0]func()
 	c        *Context
@@ -134,11 +138,21 @@ func buttonGroupOf(c *Context, p *node) *ButtonGroupW {
 // joinGroup applies the settings of an enclosing ButtonGroup (before the
 // button's own modifiers run) and overlaps it with the previous child.
 func (b *ButtonW) joinGroup() {
-	g := buttonGroupOf(b.c, b.n.parent)
+	slot := b.n
+	g := buttonGroupOf(b.c, slot.parent)
 	if g == nil {
-		return
+		// A Dropdown trigger: the button is the first child of a
+		// "dropdown" box that is itself a direct child of the group.
+		p := slot.parent
+		if p == nil || p.kind != "dropdown" || len(p.kids) != 1 || p.kids[0] != slot {
+			return
+		}
+		if g = buttonGroupOf(b.c, p.parent); g == nil {
+			return
+		}
+		slot = p
 	}
-	b.grp = g
+	b.grp, b.grpSlot = g, slot
 	if g.sizeSet {
 		b.size = g.size
 	}
@@ -155,10 +169,14 @@ func (b *ButtonW) joinGroup() {
 		b.Block() // equal widths
 	}
 	if len(g.n.kids) > 1 {
+		m := layout.Margin(geom.Insets{Left: -1}) // start edge; mirrored in RTL
 		if g.vertical {
-			b.Layout(layout.Margin(geom.Insets{Top: -1}))
+			m = layout.Margin(geom.Insets{Top: -1})
+		}
+		if slot == b.n {
+			b.Layout(m)
 		} else {
-			b.Layout(layout.Margin(geom.Insets{Left: -1})) // start edge; mirrored in RTL
+			flexbox.Apply(&slot.ln.Style, m)
 		}
 	}
 	g.btns = append(g.btns, b)
@@ -168,7 +186,7 @@ func (b *ButtonW) joinGroup() {
 func (g *ButtonGroupW) position(b *ButtonW) (first, last bool) {
 	kids := g.n.kids
 	for i, k := range kids {
-		if k == b.n {
+		if k == b.grpSlot {
 			return i == 0, i == len(kids)-1
 		}
 	}
@@ -232,7 +250,7 @@ func (g *ButtonGroupW) divider(l *paint.List, b *ButtonW, r geom.Rect, lk btnLoo
 // focused button above its neighbours (they share a border column).
 func (g *ButtonGroupW) paintOver(l *paint.List, _ geom.Rect) {
 	for _, b := range g.btns {
-		if b.n.parent != g.n || b.isDisabled() {
+		if b.grpSlot == nil || b.grpSlot.parent != g.n || b.isDisabled() {
 			continue
 		}
 		if !b.ia.Hovered && !b.ia.Pressed && !b.ia.FocusVisible {
