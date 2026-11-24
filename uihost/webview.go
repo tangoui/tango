@@ -233,6 +233,10 @@ type embeds struct {
 	closed       bool
 	main         *mainEmbeds // threaded window: the native side
 	idle         bool        // threaded: the last frame posted to main was empty (or none was)
+
+	natives    map[ui.ID]*nativeHost // NativeHost boxes (nativehost.go)
+	nativeIdle bool                  // the last natives frame handed to main was empty
+	nm         *nativeMain           // their main-thread side; set while the window is created
 }
 
 // embedView is one embedded WebView, on the window's UI thread. On a
@@ -283,7 +287,9 @@ func newWindowEmbeds(parent *tango.Surface, r *ui.Runner, invalidate func(), at 
 			v.focusOut(payload == "prev")
 		}
 	})
-	return &embeds{parent: parent, r: r, invalidate: invalidate, invalidateAt: at, views: map[ui.ID]*embedView{}}
+	e := &embeds{parent: parent, r: r, invalidate: invalidate, invalidateAt: at, views: map[ui.ID]*embedView{}, nativeIdle: true}
+	e.nm = newNativeMain(e, nil) // nativehost.go
+	return e
 }
 
 func (w *window) webEmbeds() *embeds { return w.emb }
@@ -328,6 +334,7 @@ func (e *embeds) sync() {
 		delete(e.views, id)
 		v.close()
 	}
+	e.syncNatives() // nativehost.go
 	e.frame++
 }
 
@@ -520,4 +527,5 @@ func (e *embeds) close() {
 		v.close()
 	}
 	e.views = nil
+	e.closeNatives()
 }

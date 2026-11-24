@@ -23,6 +23,7 @@ pkg github.com/tangoui/tango/uihost, func FilePicker(*tango.App) func(string, bo
 pkg github.com/tangoui/tango/uihost, func FilePickerWith(*tango.App, sys/dialog.FileOptions) func(string, bool, bool) ([]string, error)
 pkg github.com/tangoui/tango/uihost, func FollowSystemTheme(*ui.Runner, bool)
 pkg github.com/tangoui/tango/uihost, func FollowingSystemTheme(*ui.Runner) bool
+pkg github.com/tangoui/tango/uihost, func NativeHost(*ui.Context, string, NativeHostOptions, ...ui/layout.Option) *NativeHostW
 pkg github.com/tangoui/tango/uihost, func Open(*tango.App, Options, func(*ui.Context), ui.RunnerOptions) (*ui.Runner, *tango.Surface, error)
 pkg github.com/tangoui/tango/uihost, func Persist(any)
 pkg github.com/tangoui/tango/uihost, func Renderer(*ui.Runner) string
@@ -37,6 +38,7 @@ pkg github.com/tangoui/tango/uihost, method (*Attached) Layer() Layer
 pkg github.com/tangoui/tango/uihost, method (*Attached) SetLayer(Layer) error
 pkg github.com/tangoui/tango/uihost, method (*Attached) Size() (float32, float32, float32)
 pkg github.com/tangoui/tango/uihost, method (*Attached) Surface() *tango.Surface
+pkg github.com/tangoui/tango/uihost, method (*NativeHostW) Err() error
 pkg github.com/tangoui/tango/uihost, method (*WebViewW) Err() error
 pkg github.com/tangoui/tango/uihost, method (*WebViewW) Freeze(bool) *WebViewW
 pkg github.com/tangoui/tango/uihost, method (*WebViewW) Frozen() bool
@@ -58,6 +60,15 @@ pkg github.com/tangoui/tango/uihost, type Layer struct, Bounds tango.Rect
 pkg github.com/tangoui/tango/uihost, type Layer struct, HitAlpha uint8
 pkg github.com/tangoui/tango/uihost, type Layer struct, PassThrough bool
 pkg github.com/tangoui/tango/uihost, type LocaleMode int
+pkg github.com/tangoui/tango/uihost, type NativeHostOptions struct
+pkg github.com/tangoui/tango/uihost, type NativeHostOptions struct, Covered CoverMode
+pkg github.com/tangoui/tango/uihost, type NativeHostOptions struct, Create func() (uintptr, error)
+pkg github.com/tangoui/tango/uihost, type NativeHostOptions struct, KeepAlive time.Duration
+pkg github.com/tangoui/tango/uihost, type NativeHostOptions struct, PassInput bool
+pkg github.com/tangoui/tango/uihost, type NativeHostOptions struct, Release func(uintptr)
+pkg github.com/tangoui/tango/uihost, type NativeHostOptions struct, noncomparable
+pkg github.com/tangoui/tango/uihost, type NativeHostW struct
+pkg github.com/tangoui/tango/uihost, type NativeHostW struct, embedded *ui.NativeViewW
 pkg github.com/tangoui/tango/uihost, type Options struct
 pkg github.com/tangoui/tango/uihost, type Options struct, AccentFromSystem bool
 pkg github.com/tangoui/tango/uihost, type Options struct, Contrast ContrastMode
@@ -91,4 +102,5 @@ pkg github.com/tangoui/tango/uihost, type WebViewW struct
 pkg github.com/tangoui/tango/uihost, type WebViewW struct, embedded *ui.NativeViewW
 pkg github.com/tangoui/tango/uihost, var ErrDetached error
 pkg github.com/tangoui/tango/uihost, var ErrNoEmbedding error
+pkg github.com/tangoui/tango/uihost, var ErrNoNativeHost error
 pkg github.com/tangoui/tango/uihost, var ErrNotUI error

@@ -73,6 +73,13 @@ func init() {
 		}
 		return s, ev, nil
 	}
+	corehook.NewEmbeddedNativeView = func(parent any, view uintptr, opts platform.NativeViewOptions, closed func()) (platform.EmbeddedNativeView, error) {
+		p, ok := parent.(*Surface)
+		if !ok || p == nil {
+			return nil, errors.New("tango: NewEmbeddedNativeView: not a *tango.Surface")
+		}
+		return p.embedNativeView(view, opts, closed)
+	}
 	corehook.EmbeddedParent = func(surface any) any {
 		if s, ok := surface.(*Surface); ok && s != nil && s.embedIn != nil {
 			return s.embedIn
@@ -170,4 +177,27 @@ func (p *Surface) embedWebViewOn(canvas platform.Canvas, opts SurfaceOptions, sc
 		return nil, nil, errEmbedClosed
 	}
 	return s, ev, nil
+}
+
+// embedNativeView puts the application's native view in p's content area.
+// Main thread.
+func (p *Surface) embedNativeView(view uintptr, opts platform.NativeViewOptions, closed func()) (platform.EmbeddedNativeView, error) {
+	a := p.app
+	if a.b == nil {
+		return nil, ErrNoBackend
+	}
+	if !a.isMain() {
+		return nil, errEmbedNotMain
+	}
+	if p.closed.Load() || p.ns == nil {
+		return nil, errAttachClosed
+	}
+	if _, remote := p.ns.(corehook.ProxyWebViewParent); remote {
+		return nil, fmt.Errorf("tango: native views in the dev host: %w", ErrUnsupported)
+	}
+	em, ok := a.b.(platform.NativeViewEmbedder)
+	if !ok {
+		return nil, fmt.Errorf("tango: embedded native view: %w", ErrUnsupported)
+	}
+	return em.NewEmbeddedNativeView(p.id, view, opts, closed)
 }

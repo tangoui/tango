@@ -53,3 +53,11 @@ var AdoptEmbeddedWebView func(parent any, canvas platform.Canvas, child any) (pl
 // CommitWebPlacement applies the native placement and records its revision
 // for page operations. Main thread only. Set by package tango.
 var CommitWebPlacement func(surface any, ev platform.EmbeddedWebView, placement platform.WebPlacement)
+
+// NewEmbeddedNativeView embeds the application's native view (NSView*,
+// HWND, GtkWidget*) in the content area of the canvas surface parent (a
+// *tango.Surface), see platform.NativeViewEmbedder. closed runs on the
+// main thread if the backend removes the view because parent closed. Main
+// thread only. It returns an error wrapping platform.ErrUnsupported when
+// the backend or parent cannot host native views. Set by package tango.
+var NewEmbeddedNativeView func(parent any, view uintptr, opts platform.NativeViewOptions, closed func()) (platform.EmbeddedNativeView, error)

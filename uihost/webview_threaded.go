@@ -49,6 +49,7 @@ type mainEmbeds struct {
 	views  map[ui.ID]*mainView
 	dead   map[*embedView]bool // closed by the app: never recreate for this UI view
 	closed bool
+	nm     *nativeMain  // the window's NativeHost views (nativehost.go)
 	frames int          // placement tasks applied (tests)
 	posts  atomic.Int32 // placement tasks queued on main (tests)
 }
@@ -68,6 +69,8 @@ func newThreadedEmbeds(h *host, t *threadedHost, parent *tango.Surface) (*embeds
 	e.idle = true // main has nothing yet
 	me := &mainEmbeds{h: h, t: t, parent: parent, views: map[ui.ID]*mainView{}, dead: map[*embedView]bool{}}
 	e.main = me
+	e.nm = newNativeMain(e, h.app.Post) // nativehost.go: placements posted to main
+	me.nm = e.nm
 	return e, me
 }
 
@@ -119,6 +122,7 @@ func (e *embeds) syncThreaded() {
 		delete(e.views, id)
 		v.s = nil // closed by the main thread: it is not in fr
 	}
+	e.syncNatives() // nativehost.go
 	e.frame++
 	empty := len(fr.views) == 0
 	if empty && e.idle {
@@ -310,6 +314,9 @@ func (me *mainEmbeds) close() {
 		}
 	}
 	me.views = nil
+	if me.nm != nil {
+		me.nm.closeAll()
+	}
 }
 
 // switchToMain hands a running threaded window back to the main thread
