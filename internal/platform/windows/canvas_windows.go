@@ -257,6 +257,7 @@ type canvas struct {
 	clicks     canvasClickCounter
 	lastClicks [3]int
 	downKeys   map[input.Key]bool
+	downHID    map[uint16]bool    // presses reported by HID usage alone (key)
 	imeKeys    map[uintptr]uint16 // scan/extended codes of IME-owned presses
 	chars      canvasCharDecoder
 	altGr      bool          // AltGr held: its synthesized left Ctrl was dropped

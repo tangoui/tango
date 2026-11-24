@@ -40,6 +40,7 @@ package windows
 // input context, so the IME stays out of the way, and WM_CHAR is ignored.
 
 import (
+	"time"
 	"unicode/utf16"
 	"unsafe"
 
@@ -236,6 +237,7 @@ func (c *canvas) inputMessage(m uint32, wp, lp uintptr) (uintptr, bool) {
 	case canvasWmKillFocus:
 		clear(c.shortcutHeld)
 		clear(c.downKeys)
+		clear(c.downHID)
 		clear(c.imeKeys)
 		c.hasFocus = false
 		c.altGr = false
@@ -316,6 +318,13 @@ func lparamPoint(lp uintptr) (int32, int32) {
 	return int32(int16(loword(lp))), int32(int16(hiword(lp)))
 }
 
+// messageTime is the time of the message being handled (GetMessageTime):
+// milliseconds since system start, wrapping after about 49.7 days.
+func messageTime() time.Duration {
+	t, _, _ := canvasGetMessageTime.Call()
+	return time.Duration(uint32(t)) * time.Millisecond
+}
+
 func (c *canvas) mouseMods(wp uintptr) input.Modifiers {
 	return c.altGrMods(canvasMouseMods(wp, keyDown(canvasVKMenu), keyDown(canvasVKLWin) || keyDown(canvasVKRWin)))
 }
@@ -378,7 +387,7 @@ func (c *canvas) mouseMove(wp, lp uintptr) {
 	if !c.inside && c.over(x, y) {
 		c.enter()
 	}
-	c.input(input.Pointer{Kind: input.Move, Pos: c.toLogical(x, y), Button: c.dragButton(), Mods: c.mouseMods(wp)})
+	c.input(input.Pointer{Kind: input.Move, Pos: c.toLogical(x, y), Button: c.dragButton(), Mods: c.mouseMods(wp), Time: messageTime()})
 }
 
 // mouseLeave handles WM_MOUSELEAVE. While a button is held (capture) the
@@ -405,7 +414,7 @@ func (c *canvas) lastPointer() (int32, int32) {
 
 func (c *canvas) button(b input.Button, down bool, wp, lp uintptr) {
 	x, y := lparamPoint(lp)
-	p := input.Pointer{Pos: c.toLogical(x, y), Button: b, Mods: c.mouseMods(wp)}
+	p := input.Pointer{Pos: c.toLogical(x, y), Button: b, Mods: c.mouseMods(wp), Time: messageTime()}
 	bit := uint8(1) << b
 	if down {
 		if f, _, _ := canvasGetFocus.Call(); f != c.hwnd {
@@ -525,7 +534,7 @@ func (c *canvas) keyMessage(m uint32, wp, lp uintptr, translate func()) bool {
 			vk = rawVK
 		}
 		ev = c.key(vk, lp, down, down && canvasKeyRepeat(lp))
-		if c.ready && !c.closed && (ev.Key != 0 || ev.Code != 0) {
+		if c.ready && !c.closed && (ev.Key != 0 || ev.Code != 0 || ev.HID != 0) {
 			c.sinkDepth++
 			consumed := platform.FilterCanvasKey(c.sink, ev)
 			c.sinkDepth--
@@ -537,7 +546,7 @@ func (c *canvas) keyMessage(m uint32, wp, lp uintptr, translate func()) bool {
 	if !captured && translate != nil {
 		translate()
 	}
-	if !imeOnly && (ev.Key != 0 || ev.Code != 0) {
+	if !imeOnly && (ev.Key != 0 || ev.Code != 0 || ev.HID != 0) {
 		c.deliverKey(ev, false)
 	}
 	return handled
@@ -547,8 +556,30 @@ func (c *canvas) keyMessage(m uint32, wp, lp uintptr, translate func()) bool {
 // the original Key and Code, even if NumLock changed while held.
 func (c *canvas) key(vk uint16, lp uintptr, down, repeat bool) input.KeyEvent {
 	k, code := canvasKeyFromMsg(vk, lp)
+	scan, ext := canvasKeyLParam(lp)
+	if scan == 0 && canvasVKToScan != nil {
+		scan = canvasVKToScan(vk) // injected input without a scan code
+	}
+	hid, native := hidFromWinScan(vk, scan, ext)
 	if k == 0 && code == 0 {
-		return input.KeyEvent{}
+		// A key Key has no name for (F13-F24, JIS and Korean keys) still
+		// reaches apps that read physical codes; its press and release
+		// are paired by HID usage.
+		if hid == 0 || vk == canvasVKProcess {
+			return input.KeyEvent{}
+		}
+		switch {
+		case down:
+			if c.downHID == nil {
+				c.downHID = map[uint16]bool{}
+			}
+			c.downHID[hid] = true
+		case c.downHID[hid]:
+			delete(c.downHID, hid)
+		default:
+			return input.KeyEvent{}
+		}
+		return input.KeyEvent{Down: down, Repeat: repeat, Mods: c.keyMods(), HID: hid, Native: native}
 	}
 	mods := c.keyMods()
 	if k.Modifier() != 0 {
@@ -569,7 +600,7 @@ func (c *canvas) key(vk uint16, lp uintptr, down, repeat bool) input.KeyEvent {
 	default:
 		return input.KeyEvent{}
 	}
-	return input.KeyEvent{Key: k, Code: code, Down: down, Repeat: repeat, Mods: mods}
+	return input.KeyEvent{Key: k, Code: code, Down: down, Repeat: repeat, Mods: mods, HID: hid, Native: native}
 }
 
 func (c *canvas) deliverKey(ev input.KeyEvent, synthetic bool) {

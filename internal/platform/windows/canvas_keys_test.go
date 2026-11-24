@@ -505,3 +505,59 @@ func TestCanvasSeeThrough(t *testing.T) {
 		}
 	}
 }
+
+func TestHIDFromWinScan(t *testing.T) {
+	const (
+		vkPause    = 0x13
+		vkNumLock  = 0x90
+		vkSnapshot = 0x2C
+		vkOEM102   = 0xE2
+		vkF13      = 0x7C
+	)
+	for _, tc := range []struct {
+		vk     uint16
+		scan   uint16
+		ext    bool
+		hid    uint16
+		native uint32
+	}{
+		{'A', 0x1E, false, 0x04, 0x1E},
+		{canvasVKReturn, 0x1C, false, 0x28, 0x1C},
+		{canvasVKReturn, 0x1C, true, 0x58, 0xE01C}, // keypad Enter
+		{canvasVKControl, 0x1D, false, 0xE0, 0x1D},
+		{canvasVKControl, 0x1D, true, 0xE4, 0xE01D},
+		{canvasVKMenu, 0x38, false, 0xE2, 0x38},
+		{canvasVKMenu, 0x38, true, 0xE6, 0xE038}, // right Alt / AltGr
+		{canvasVKShift, 0x2A, false, 0xE1, 0x2A},
+		{canvasVKShift, 0x36, false, 0xE5, 0x36},
+		{canvasVKShift, 0x2A, true, 0, 0}, // the fake Shift around Print Screen
+		{vkNumLock, 0x45, true, 0x53, 0xE045},
+		{vkPause, 0x45, false, 0x48, 0xE11D},
+		{vkSnapshot, 0x37, true, 0x46, 0xE037},
+		{canvasVKMultiply, 0x37, false, 0x55, 0x37}, // keypad * shares Print Screen's scan code
+		{canvasVKLWin, 0x5B, true, 0xE3, 0xE05B},
+		{canvasVKApps, 0x5D, true, 0x65, 0xE05D},
+		{canvasVKDelete, 0x53, true, 0x4C, 0xE053},
+		{canvasVKDelete, 0x53, false, 0x63, 0x53}, // keypad decimal with NumLock off
+		{vkOEM102, 0x56, false, 0x64, 0x56},
+		{vkF13, 0x64, false, 0x68, 0x64},
+		{0, 0x7D, false, 0x89, 0x7D}, // JIS Yen
+		{0, 0x73, false, 0x87, 0x73}, // JIS Ro
+		{0, 0x00, false, 0, 0},
+	} {
+		hid, native := hidFromWinScan(tc.vk, tc.scan, tc.ext)
+		if hid != tc.hid || native != tc.native {
+			t.Errorf("hidFromWinScan(%#x, %#x, %v) = %#x, %#x; want %#x, %#x", tc.vk, tc.scan, tc.ext, hid, native, tc.hid, tc.native)
+		}
+	}
+	for scan := range canvasPunctScanKeys {
+		if hid, _ := hidFromWinScan(0, scan, false); hid == 0 {
+			t.Errorf("hidFromWinScan(0, %#x) = 0 for a punctuation key", scan)
+		}
+	}
+	for scan := range canvasNumpadScanKeys {
+		if hid, _ := hidFromWinScan(0, scan, false); hid == 0 {
+			t.Errorf("hidFromWinScan(0, %#x) = 0 for a keypad key", scan)
+		}
+	}
+}
