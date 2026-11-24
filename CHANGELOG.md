@@ -9,6 +9,7 @@
 - `input.KeyEvent` 新增 `HID`（USB HID 键盘页用法码，覆盖 ANSI、ISO、JIS 全键盘）和 `Native`（平台原始键码：macOS keyCode、Windows 扫描码、Linux XKB 键码），`input.Pointer` 新增 `Time`（系统事件时间）；macOS、Windows、Linux 后端都会填写，零值表示未知。远程桌面这类按物理键位转发键盘的应用不再受 `Key` 枚举范围限制。
 - `Key` 没有名字但有 HID 用法码的键（F13–F24、ISO 键盘左 Shift 旁的键、JIS 的英数/かな/¥ 等）现在会以 `KeyUnknown` 上报，按下和松开成对；此前这些键被丢弃。按 `Key` 匹配的现有代码不受影响。
 - `Context.PointerEvents()` 返回本帧按到达顺序的全部指针事件，`Pointer()` 只给出帧末位置。
+- `uihost.NativeHost` 把应用自己创建的原生视图（macOS `NSView`、Windows 子窗口、Linux GTK 控件）嵌入自绘布局，每帧随盒子移动、缩放和裁剪，可选让鼠标穿透到下面的界面（`PassInput`）；用于硬件解码视频、远程桌面画面等必须由系统直接合成的内容。应用在 `Create` 里创建视图，在 `Release` 里销毁。实验性接口。
 
 ### 修复
 

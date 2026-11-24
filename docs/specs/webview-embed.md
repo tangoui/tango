@@ -79,3 +79,15 @@ darwin / windows / linux / fake 各自实现
 - 嵌入网页的无障碍树不并入 canvas 的语义树（盒子是 `RoleGroup`，网页自身对读屏可见）。
 - 冻结期间的快照是静态的；快照到达前浮层有一两帧被盖住。
 - macOS：canvas 的鼠标跟踪区域在 WebView 下面仍收到移动事件（ui 里落在盒子上，不影响其它控件）。
+
+## 应用原生视图（NativeHost）
+
+`uihost.NativeHost` 用同一套机制嵌入应用自己创建的原生视图，用于必须由系统直接合成的内容（硬件解码的视频、远程桌面画面）。
+
+- **所有权**：`NativeHostOptions.Create` 在主线程、盒子第一次构建后的那一帧调用，返回应用的视图句柄（macOS `NSView*`、Windows 子窗口 `HWND`、Linux `GtkWidget*`）。窗口只负责挂入、摆放和移除；视图不再显示时（盒子不再构建且超过 `KeepAlive`、窗口关闭、嵌入失败），先从窗口移除，再在主线程调用 `Release(view)`，由应用销毁。每个视图的 `Release` 恰好调用一次。`Create` 失败或平台拒绝时由 `Err()` 报告，不再重试。
+- **摆放**：与 WebView 相同（`platform.WebPlacement`、`Geometry`），共用宿主层，按创建顺序叠放；Windows 上原生视图统一叠在 WebView 之上。
+- **PassInput**：鼠标穿透到下面的画布，盒子不是 Tab 停靠点。macOS 由裁剪视图 `TangoEmbedClipPass` 的 `hitTest:` 返回 nil 实现；Windows 由容器窗口和应用的顶层子窗口应答 `WM_NCHITTEST` 为 `HTTRANSPARENT`（嵌入期间替换应用窗口的窗口过程，移除时恢复；应用窗口自己的子窗口不在此列）；Linux 把容器设为 overlay pass-through 子项（应用控件自带输入窗口时仍会接收输入）。
+- **覆盖**：原生视图没有快照，`CoverSnapshot`（零值）按 `CoverHide` 处理；`CoverIgnore` 保持显示。系统原生菜单（`sys/menu`）浮在视图之上，不触发覆盖。
+- **线程**：UI 线程每帧决定摆放，主线程执行；线程化窗口把最新一帧投递到主线程，多帧合并只应用最后一帧。`Create`、`Release` 只在主线程调用。
+- **父窗口关闭**：后端先把应用视图移出（Windows 移到消息窗口 `HWND_MESSAGE` 下，避免随父窗口销毁；Linux 先 `gtk_container_remove`），再通知 uihost 调用 `Release`。
+- **不支持**：headless、`Attach` 的叠加画布、开发宿主（dev host）里的窗口，以及没有实现 `platform.NativeViewEmbedder` 的后端。盒子画背景，`Err()` 返回 `ErrNoNativeHost`。
