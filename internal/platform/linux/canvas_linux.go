@@ -88,6 +88,7 @@ type canvas struct {
 	marked    string // IME pre-edit
 	markedCur int    // caret within marked, runes
 	downKeys  map[input.Key]bool
+	downHID   map[uint16]bool // presses reported by HID usage alone (onKey)
 	clicks    canvasClickCounter
 	focused   bool // last focus reported to the sink
 

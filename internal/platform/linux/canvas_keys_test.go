@@ -107,6 +107,7 @@ func TestCanvasEventOffsets(t *testing.T) {
 		{"button.y", unsafe.Offsetof(b.y), canvasEvButtonY},
 		{"button.state", unsafe.Offsetof(b.state), canvasEvButtonState},
 		{"button.button", unsafe.Offsetof(b.button), canvasEvButtonButton},
+		{"motion.time", unsafe.Offsetof(m.time), canvasEvMotionTime},
 		{"motion.x", unsafe.Offsetof(m.x), canvasEvMotionX},
 		{"motion.y", unsafe.Offsetof(m.y), canvasEvMotionY},
 		{"motion.state", unsafe.Offsetof(m.state), canvasEvMotionState},
@@ -620,5 +621,40 @@ func TestCanvasAltGr(t *testing.T) {
 	// A key typed with AltGr held (state Mod5) carries no Ctrl or Alt.
 	if got := canvasMods(canvasGdkMod5Mask | canvasGdkShiftMask); got != input.ModShift {
 		t.Errorf("mods with AltGr+Shift held = %v, want ModShift", got)
+	}
+}
+
+func TestHIDFromXKB(t *testing.T) {
+	for _, tc := range []struct{ hw, hid uint16 }{
+		{38, 0x04},              // A
+		{36, 0x28},              // Return
+		{104, 0x58},             // KP Enter
+		{37, 0xE0}, {105, 0xE4}, // left / right Ctrl
+		{50, 0xE1}, {62, 0xE5}, // left / right Shift
+		{64, 0xE2}, {108, 0xE6}, // left / right Alt
+		{133, 0xE3}, {134, 0xE7}, // left / right Super
+		{94, 0x64},  // ISO 102nd key
+		{191, 0x68}, // F13
+		{202, 0x73}, // F24
+		{127, 0x48}, // Pause
+		{107, 0x46}, // Print
+		{77, 0x53},  // Num Lock
+		{132, 0x89}, // JIS Yen
+		{97, 0x87},  // JIS Ro
+		{0, 0}, {8, 0}, {255, 0},
+	} {
+		if got := hidFromXKB(tc.hw); got != tc.hid {
+			t.Errorf("hidFromXKB(%d) = %#x, want %#x", tc.hw, got, tc.hid)
+		}
+	}
+	for hw := range canvasHWKeys {
+		if hidFromXKB(hw) == 0 {
+			t.Errorf("hidFromXKB(%d) = 0 for a key the backend names", hw)
+		}
+	}
+	for hw := uint16(9); hw <= 61; hw++ { // Escape through the main block
+		if hidFromXKB(hw) == 0 {
+			t.Errorf("hidFromXKB(%d) = 0 in the main block", hw)
+		}
 	}
 }

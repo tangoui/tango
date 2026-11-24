@@ -20,6 +20,7 @@ package linux
 // the IM context without changing its text-input state.
 
 import (
+	"time"
 	"unsafe"
 
 	"github.com/tangoui/tango/internal/platform"
@@ -28,6 +29,12 @@ import (
 )
 
 func canvasEvU32(ev ptr, off uintptr) uint32 { return *(*uint32)(unsafe.Add(toPtr(ev), off)) }
+
+// canvasEvTime reads a GdkEvent time field (milliseconds, server clock).
+func canvasEvTime(ev ptr, off uintptr) time.Duration {
+	return time.Duration(canvasEvU32(ev, off)) * time.Millisecond
+}
+
 func canvasEvU16(ev ptr, off uintptr) uint16 { return *(*uint16)(unsafe.Add(toPtr(ev), off)) }
 func canvasEvU8(ev ptr, off uintptr) uint8   { return *(*uint8)(unsafe.Add(toPtr(ev), off)) }
 func canvasEvF64(ev ptr, off uintptr) float64 {
@@ -88,7 +95,8 @@ func (c *canvas) onButton(ev ptr, press bool) ptr {
 		return 0 // back / forward: let GTK have them
 	}
 	pos := canvasEvPoint(ev, canvasEvButtonX, canvasEvButtonY)
-	p := input.Pointer{Kind: input.Release, Pos: pos, Button: b, Mods: canvasMods(canvasEvU32(ev, canvasEvButtonState))}
+	p := input.Pointer{Kind: input.Release, Pos: pos, Button: b, Mods: canvasMods(canvasEvU32(ev, canvasEvButtonState)),
+		Time: canvasEvTime(ev, canvasEvButtonTime)}
 	if press {
 		p.Kind = input.Press
 		p.Clicks = c.clicks.press(b, canvasEvU32(ev, canvasEvButtonTime), float64(pos.X), float64(pos.Y),
@@ -109,7 +117,7 @@ func (c *canvas) onMotion(_, ev ptr) ptr {
 	}
 	state := canvasEvU32(ev, canvasEvMotionState)
 	c.input(input.Pointer{Kind: input.Move, Pos: canvasEvPoint(ev, canvasEvMotionX, canvasEvMotionY),
-		Button: canvasHeldButton(state), Mods: canvasMods(state)})
+		Button: canvasHeldButton(state), Mods: canvasMods(state), Time: canvasEvTime(ev, canvasEvMotionTime)})
 	return 1
 }
 
@@ -166,6 +174,7 @@ func (c *canvas) onKey(ev ptr, press bool) ptr {
 	state := canvasEvU32(ev, canvasEvKeyState)
 	keyval := canvasEvU32(ev, canvasEvKeyKeyval)
 	hw := canvasEvU16(ev, canvasEvKeyHWCode)
+	hid := hidFromXKB(hw)
 	k, code := canvasKey(keyval, hw)
 	if k == input.KeyUnknown && code == 0 && canvasNeedsLatinFallback(keyval) {
 		k = c.latinKey(ev, state)
@@ -193,11 +202,30 @@ func (c *canvas) onKey(ev ptr, press bool) ptr {
 		} else {
 			delete(c.downKeys, k)
 		}
-		c.deliverKey(input.KeyEvent{Key: k, Down: press, Mods: m}, false)
+		c.deliverKey(input.KeyEvent{Key: k, Down: press, Mods: m, HID: hid, Native: uint32(hw)}, false)
 		return 0
 	}
 	if k == input.KeyUnknown && code == 0 {
-		return 0
+		// A key Key has no name for (F13-F24, JIS and Korean keys) still
+		// reaches apps that read physical codes; its press and release
+		// are paired by HID usage.
+		if hid == 0 {
+			return 0
+		}
+		held := c.downHID[hid]
+		switch {
+		case press && !held:
+			if c.downHID == nil {
+				c.downHID = map[uint16]bool{}
+			}
+			c.downHID[hid] = true
+		case !press && held:
+			delete(c.downHID, hid)
+		case !press:
+			return 0
+		}
+		c.deliverKey(input.KeyEvent{Down: press, Repeat: press && held, Mods: canvasMods(state), HID: hid, Native: uint32(hw)}, false)
+		return 1
 	}
 	// downKeys holds canvasHeldID records of the reported presses: a
 	// repeat and the release are reported with the Key and Code of the
@@ -211,7 +239,7 @@ func (c *canvas) onKey(ev ptr, press bool) ptr {
 		} else {
 			c.downKeys[canvasHeldID(k, code)] = true
 		}
-		c.deliverKey(input.KeyEvent{Key: k, Code: code, Down: true, Repeat: held || consumedPress, Mods: mods}, false)
+		c.deliverKey(input.KeyEvent{Key: k, Code: code, Down: true, Repeat: held || consumedPress, Mods: mods, HID: hid, Native: uint32(hw)}, false)
 		return 1
 	}
 	if !held && !consumedPress {
@@ -221,7 +249,7 @@ func (c *canvas) onKey(ev ptr, press bool) ptr {
 		delete(c.downKeys, id)
 		k, code = canvasHeldKey(id)
 	}
-	c.deliverKey(input.KeyEvent{Key: k, Code: code, Mods: mods}, false)
+	c.deliverKey(input.KeyEvent{Key: k, Code: code, Mods: mods, HID: hid, Native: uint32(hw)}, false)
 	return 1
 }
 

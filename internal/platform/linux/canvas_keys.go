@@ -98,6 +98,7 @@ const (
 
 	// GdkEventMotion { any; guint32 time; gdouble x, y; gdouble *axes;
 	// guint state; gint16 is_hint; GdkDevice *device; gdouble x_root, y_root; }
+	canvasEvMotionTime  = 20
 	canvasEvMotionX     = 24
 	canvasEvMotionY     = 32
 	canvasEvMotionState = 48
@@ -713,4 +714,53 @@ func canvasEditKey(cmd string) (input.Key, input.Modifiers, bool) {
 		return input.KeyZ, input.ModCtrl | input.ModShift, true
 	}
 	return input.KeyUnknown, 0, false
+}
+
+// evdevHID maps Linux evdev key codes (KEY_*, input-event-codes.h) to USB
+// HID usages on the Keyboard/Keypad page.
+var evdevHID = map[uint16]uint16{
+	1: 0x29,                                                                                    // ESC
+	2: 0x1E, 3: 0x1F, 4: 0x20, 5: 0x21, 6: 0x22, 7: 0x23, 8: 0x24, 9: 0x25, 10: 0x26, 11: 0x27, // 1-9 0
+	12: 0x2D, 13: 0x2E, 14: 0x2A, 15: 0x2B, // MINUS EQUAL BACKSPACE TAB
+	16: 0x14, 17: 0x1A, 18: 0x08, 19: 0x15, 20: 0x17, 21: 0x1C, 22: 0x18, 23: 0x0C, 24: 0x12, 25: 0x13, // Q-P
+	26: 0x2F, 27: 0x30, 28: 0x28, 29: 0xE0, // LEFTBRACE RIGHTBRACE ENTER LEFTCTRL
+	30: 0x04, 31: 0x16, 32: 0x07, 33: 0x09, 34: 0x0A, 35: 0x0B, 36: 0x0D, 37: 0x0E, 38: 0x0F, // A-L
+	39: 0x33, 40: 0x34, 41: 0x35, 42: 0xE1, 43: 0x31, // SEMICOLON APOSTROPHE GRAVE LEFTSHIFT BACKSLASH
+	44: 0x1D, 45: 0x1B, 46: 0x06, 47: 0x19, 48: 0x05, 49: 0x11, 50: 0x10, // Z-M
+	51: 0x36, 52: 0x37, 53: 0x38, 54: 0xE5, 55: 0x55, 56: 0xE2, 57: 0x2C, 58: 0x39, // COMMA DOT SLASH RIGHTSHIFT KPASTERISK LEFTALT SPACE CAPSLOCK
+	59: 0x3A, 60: 0x3B, 61: 0x3C, 62: 0x3D, 63: 0x3E, 64: 0x3F, 65: 0x40, 66: 0x41, 67: 0x42, 68: 0x43, // F1-F10
+	69: 0x53, 70: 0x47, // NUMLOCK SCROLLLOCK
+	71: 0x5F, 72: 0x60, 73: 0x61, 74: 0x56, 75: 0x5C, 76: 0x5D, 77: 0x5E, 78: 0x57, // KP7 KP8 KP9 KPMINUS KP4 KP5 KP6 KPPLUS
+	79: 0x59, 80: 0x5A, 81: 0x5B, 82: 0x62, 83: 0x63, // KP1 KP2 KP3 KP0 KPDOT
+	85: 0x94,           // ZENKAKUHANKAKU (LANG5)
+	86: 0x64,           // 102ND: the key next to left Shift on ISO keyboards
+	87: 0x44, 88: 0x45, // F11 F12
+	89: 0x87,                                          // RO (International1)
+	90: 0x92,                                          // KATAKANA (LANG3)
+	91: 0x93,                                          // HIRAGANA (LANG4)
+	92: 0x8A,                                          // HENKAN (International4)
+	93: 0x88,                                          // KATAKANAHIRAGANA (International2)
+	94: 0x8B,                                          // MUHENKAN (International5)
+	95: 0x8C,                                          // KPJPCOMMA (International6)
+	96: 0x58, 97: 0xE4, 98: 0x54, 99: 0x46, 100: 0xE6, // KPENTER RIGHTCTRL KPSLASH SYSRQ RIGHTALT
+	102: 0x4A, 103: 0x52, 104: 0x4B, 105: 0x50, 106: 0x4F, // HOME UP PAGEUP LEFT RIGHT
+	107: 0x4D, 108: 0x51, 109: 0x4E, 110: 0x49, 111: 0x4C, // END DOWN PAGEDOWN INSERT DELETE
+	113: 0x7F, 114: 0x81, 115: 0x80, 116: 0x66, 117: 0x67, // MUTE VOLUMEDOWN VOLUMEUP POWER KPEQUAL
+	119: 0x48,                       // PAUSE
+	121: 0x85,                       // KPCOMMA
+	122: 0x90,                       // HANGEUL (LANG1)
+	123: 0x91,                       // HANJA (LANG2)
+	124: 0x89,                       // YEN (International3)
+	125: 0xE3, 126: 0xE7, 127: 0x65, // LEFTMETA RIGHTMETA COMPOSE (Application)
+	183: 0x68, 184: 0x69, 185: 0x6A, 186: 0x6B, 187: 0x6C, 188: 0x6D, // F13-F18
+	189: 0x6E, 190: 0x6F, 191: 0x70, 192: 0x71, 193: 0x72, 194: 0x73, // F19-F24
+}
+
+// hidFromXKB returns the USB HID usage of a hardware (XKB) keycode, which
+// is the evdev code + 8 on X11 and Wayland; 0 if none.
+func hidFromXKB(hw uint16) uint16 {
+	if hw < 8 {
+		return 0
+	}
+	return evdevHID[hw-8]
 }
