@@ -30,7 +30,7 @@ import (
 )
 
 // version is set at release time with -ldflags "-X main.version=...".
-var version = "0.2.1-dev"
+var version = "0.3.0-dev"
 
 type command struct {
 	name    string

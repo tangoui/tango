@@ -215,7 +215,7 @@ func createProject(o initOptions) error {
 		Module:  o.Module,
 		Embed:   path.Clean(path.Join(ft.frontend.Dir, ft.frontend.Dist)),
 		Dist:    builtDist(ft.frontend),
-		Runtime: "^0.2.1",
+		Runtime: "^0.3.0",
 	}
 	var local string
 	if o.Local != "" {

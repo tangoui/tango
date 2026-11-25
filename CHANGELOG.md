@@ -4,6 +4,8 @@
 
 ## [未发布]
 
+## [0.3.0] - 2026-11-25
+
 ### 新增
 
 - `input.KeyEvent` 新增 `HID`（USB HID 键盘页用法码，覆盖 ANSI、ISO、JIS 全键盘）和 `Native`（平台原始键码：macOS keyCode、Windows 扫描码、Linux XKB 键码），`input.Pointer` 新增 `Time`（系统事件时间）；macOS、Windows、Linux 后端都会填写，零值表示未知。远程桌面这类按物理键位转发键盘的应用不再受 `Key` 枚举范围限制。
@@ -428,7 +430,8 @@
 - 资源源上 GET/HEAD 以外的跨源请求回 403（`Options.AllowCrossOriginAssets` 关闭）；macOS/iOS 后端用主文档 URL 补上 WebKit 缺失的 `Origin`。
 - `tan dev` 热加载控制通道要求会话 token（`TANGO_DEV_TOKEN`），unix socket 权限 0600。
 
-[未发布]: https://github.com/tangoui/tango/compare/v0.2.1...HEAD
+[未发布]: https://github.com/tangoui/tango/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/tangoui/tango/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/tangoui/tango/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/tangoui/tango/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tangoui/tango/releases/tag/v0.1.0
