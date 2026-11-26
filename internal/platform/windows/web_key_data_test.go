@@ -21,6 +21,21 @@ func TestWindowsWebKey(t *testing.T) {
 	if !ok || k.vk != 0x0d || k.code != "NumpadEnter" || k.event(true, "")["isKeypad"] != true {
 		t.Fatalf("NumpadEnter: %+v %v", k, ok)
 	}
+	for _, tc := range []struct {
+		key      input.Key
+		vk       uint16
+		location int
+	}{
+		{input.KeyShiftLeft, 0x10, 1}, {input.KeyShiftRight, 0x10, 2},
+		{input.KeyCtrlLeft, 0x11, 1}, {input.KeyCtrlRight, 0x11, 2},
+		{input.KeyAltLeft, 0x12, 1}, {input.KeyAltRight, 0x12, 2},
+		{input.KeyMetaLeft, 0x5b, 1}, {input.KeyMetaRight, 0x5c, 2},
+	} {
+		k, ok := planWebKey(tc.key, 0)
+		if d := k.event(true, ""); !ok || d["windowsVirtualKeyCode"] != tc.vk || d["location"] != tc.location {
+			t.Errorf("%v: %v %v", tc.key, d, ok)
+		}
+	}
 	k, _ = planWebKey(input.KeyA, input.ModCtrl)
 	if d := k.event(true, "selectAll"); d["type"] != "rawKeyDown" || d["text"] != nil || d["commands"].([]string)[0] != "selectAll" {
 		t.Fatalf("edit event: %v", d)

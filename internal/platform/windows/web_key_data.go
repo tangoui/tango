@@ -72,6 +72,12 @@ func planWebKey(key input.Key, mods input.Modifiers) (webKeyPlan, bool) {
 		bits := [...]int{webShift, webCtrl, webAlt, webMeta}
 		index := key - input.KeyShiftLeft
 		p.key, p.location = names[index/2], 1+int(index%2)
+		// DOM keyCode is the side-neutral VK (16, 17, 18) for Shift,
+		// Control and Alt; the side is in location. The Windows keys
+		// keep their own VK_LWIN/VK_RWIN.
+		if vk := [...]uint16{canvasVKShift, canvasVKControl, canvasVKMenu, 0}[index/2]; vk != 0 {
+			p.vk = vk
+		}
 		p.code = p.key + [...]string{"Left", "Right"}[index%2]
 		p.mods |= bits[index/2]
 		p.releasedMods &^= bits[index/2]
