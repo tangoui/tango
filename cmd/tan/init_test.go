@@ -259,3 +259,21 @@ writeFileSync("runtimejs/tango.iife.js", "generated copy");
 		t.Fatal(err)
 	}
 }
+
+func TestViteTemplatesPinLoopbackHost(t *testing.T) {
+	for _, template := range frontendTemplates {
+		if template.frontend.Dev == "" {
+			continue
+		}
+		t.Run(template.name, func(t *testing.T) {
+			config, err := templates.ReadFile("templates/" + template.name + "/frontend/vite.config.ts")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(config), `host: "127.0.0.1"`) ||
+				!strings.Contains(string(config), "strictPort: true") {
+				t.Fatalf("Vite must report a conflict on the same IPv4 endpoint tan dev uses:\n%s", config)
+			}
+		})
+	}
+}
