@@ -18,20 +18,20 @@ const (
 )
 
 // WebDialogRequest describes a dialog and its requesting document.
-type WebDialogRequest struct {
-	ID          uint64        // identifies the dialog on this surface
-	Kind        WebDialogKind // script dialog type
-	URL         string        // URL of the requesting document, when available
-	Message     string        // text supplied by the page
-	DefaultText string        // initial value for a prompt
-}
+//
+//   - ID (uint64) identifies the dialog on this surface.
+//   - Kind (WebDialogKind) identifies the script dialog type.
+//   - URL (string) is the requesting document's URL, when available.
+//   - Message (string) is the text supplied by the page.
+//   - DefaultText (string) is the initial value for a prompt.
+type WebDialogRequest = platform.WebDialogRequest
 
-// WebDialogResponse accepts or dismisses a dialog. Text supplies the
-// accepted prompt's value. For beforeunload, Accepted allows navigation.
-type WebDialogResponse struct {
-	Accepted bool   // OK for confirm or prompt, or permission to leave for beforeunload
-	Text     string // the typed value for an accepted prompt
-}
+// WebDialogResponse accepts or dismisses a dialog.
+//
+//   - Accepted (bool) signals OK for confirm or prompt, or allows navigation
+//     for beforeunload.
+//   - Text (string) supplies the value of an accepted prompt.
+type WebDialogResponse = platform.WebDialogResponse
 
 // WebFileChooserRequest describes the selection requested by a file input.
 // Accept may be empty when the backend cannot read the requested filters.
@@ -40,8 +40,8 @@ type WebFileChooserRequest = platform.WebFileChooserRequest
 // SetWebDialogHandler intercepts script dialogs. fn runs on the main
 // thread and may answer later from any goroutine. Only the first reply
 // is used. Closing the surface dismisses pending dialogs. A nil handler
-// restores the platform's default behavior. Desktop backends dismiss
-// unhandled script dialogs.
+// restores the platform's default behavior. macOS dismisses unhandled
+// script dialogs.
 // The dev host proxy returns ErrUnsupported.
 func (s *Surface) SetWebDialogHandler(fn func(WebDialogRequest, func(WebDialogResponse))) error {
 	if s.proxyEmbed {
@@ -109,7 +109,7 @@ func (h host) HasWebDialogHandler(id platform.SurfaceID) bool {
 	return s.web.onDialog != nil
 }
 
-func (h host) OnWebDialog(id platform.SurfaceID, request platform.WebDialogRequest, done func(platform.WebDialogResponse)) bool {
+func (h host) OnWebDialog(id platform.SurfaceID, req WebDialogRequest, done func(WebDialogResponse)) bool {
 	defer h.a.enterMain()()
 	s := h.a.surface(id)
 	if s == nil || s.closed.Load() {
@@ -121,10 +121,7 @@ func (h host) OnWebDialog(id platform.SurfaceID, request platform.WebDialogReque
 	if fn == nil {
 		return false
 	}
-	finish := webReply(s, WebDialogResponse{}, func(response WebDialogResponse) {
-		done(platform.WebDialogResponse(response))
-	})
-	req := WebDialogRequest(request)
+	finish := webReply(s, WebDialogResponse{}, done)
 	req.ID = s.web.replySeq
 	if !guardCall(h.a, whereEvent, false, func() bool {
 		fn(req, finish)

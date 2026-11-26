@@ -22,7 +22,7 @@ func TestWebDialogReplyAfterCallback(t *testing.T) {
 	})
 	Await(a, func() struct{} {
 		request := platform.WebDialogRequest{Kind: platform.WebDialogPrompt, URL: "tango://app/", Message: "Name", DefaultText: "Example"}
-		if !(host{a}).OnWebDialog(s.id, request, func(r platform.WebDialogResponse) { results <- WebDialogResponse(r) }) {
+		if !(host{a}).OnWebDialog(s.id, request, func(r platform.WebDialogResponse) { results <- r }) {
 			t.Error("dialog wasn't intercepted")
 		}
 		return struct{}{}

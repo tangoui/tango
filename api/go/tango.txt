@@ -361,12 +361,14 @@ pkg github.com/tangoui/tango, type TitleBar = internal/platform.TitleBar
 pkg github.com/tangoui/tango, type TitleBar int
 pkg github.com/tangoui/tango, type WebDialogKind = internal/platform.WebDialogKind
 pkg github.com/tangoui/tango, type WebDialogKind uint8
+pkg github.com/tangoui/tango, type WebDialogRequest = internal/platform.WebDialogRequest
 pkg github.com/tangoui/tango, type WebDialogRequest struct
 pkg github.com/tangoui/tango, type WebDialogRequest struct, DefaultText string
 pkg github.com/tangoui/tango, type WebDialogRequest struct, ID uint64
 pkg github.com/tangoui/tango, type WebDialogRequest struct, Kind WebDialogKind
 pkg github.com/tangoui/tango, type WebDialogRequest struct, Message string
 pkg github.com/tangoui/tango, type WebDialogRequest struct, URL string
+pkg github.com/tangoui/tango, type WebDialogResponse = internal/platform.WebDialogResponse
 pkg github.com/tangoui/tango, type WebDialogResponse struct
 pkg github.com/tangoui/tango, type WebDialogResponse struct, Accepted bool
 pkg github.com/tangoui/tango, type WebDialogResponse struct, Text string
