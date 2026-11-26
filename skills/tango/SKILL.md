@@ -40,3 +40,8 @@ Run the app and exercise the changed behavior before reporting completion. Use t
 - Start an app in the background, drive it, and capture a screenshot. [Verification](references/verify.md)
 - Build desktop artifacts and find the settings for packaging or signing. [Packaging](references/packaging.md)
 - Find the mobile setup and target-specific requirements. [Mobile guide](https://tangoui.github.io/tango/guide/mobile)
+
+## Runnable examples
+
+- Try a native checklist, focus timer, tray, and menus. [Native tray timer](examples/native-tray-timer/main.go)
+- Try an embedded Markdown editor with Go bindings, menu events, a save dialog, and window state. [WebView notes](examples/webview-notes/main.go)

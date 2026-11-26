@@ -25,3 +25,5 @@ async function saveNote() {
 Use `window.tango.call` and `window.tango.on` with a plain embedded page that loads the injected runtime. With an npm frontend you can import the same client from `@tangoui/runtime`. To generate typed TypeScript clients, run `tan generate bindings`. Rerun it when Go service methods change. Run generation explicitly when using `tan dev` or `tan build`.
 
 On macOS, put the application menu first and include the `menu.EditMenu` role for copy and paste. [Verification](verify.md)
+
+From a Tango module checkout, run `go run ./skills/tango/examples/webview-notes`. The example embeds a page with no npm build. Use `-window-state` to choose where it saves window placement. [WebView notes source](../examples/webview-notes/main.go)

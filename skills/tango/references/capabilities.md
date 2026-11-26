@@ -118,3 +118,5 @@ func callerSurface(ctx context.Context) *tango.Surface {
 ```
 
 Declare `context.Context` as the first parameter of the bound Go method and check the returned surface before using it. [WebView wiring](webview-app.md)
+
+See complete startup and callback wiring in the [native tray timer](../examples/native-tray-timer/main.go) and [WebView notes](../examples/webview-notes/main.go) examples.

@@ -24,3 +24,5 @@ func drawTasks(c *ui.Context, tasks []task) {
 Keep state writes in the UI callback or schedule them with `runner.Post(func() { /* update state */ })` when work completes in a goroutine. The post requests a redraw. Use `c.WakeAt(nextUpdate)` to schedule a future frame, such as the next second of a countdown. Compute remaining time from a deadline so delayed frames do not slow the countdown. Keep disk and network work out of the drawing path where it could block a frame.
 
 Use `app.Post` for work that needs the platform main thread and does not itself request a native UI redraw. [Verification](verify.md)
+
+From a Tango module checkout, run `go run ./skills/tango/examples/native-tray-timer`. Use `-data-dir` to choose where it saves its checklist. [Native tray timer source](../examples/native-tray-timer/main.go)
