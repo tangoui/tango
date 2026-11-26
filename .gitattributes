@@ -13,3 +13,9 @@ api/** text eol=lf
 # tan's CLI golden and tan.json schema (cmd/tan TestCLIGolden, TestConfigSchema).
 cmd/tan/testdata/** text eol=lf
 cmd/tan/tan.schema.json text eol=lf
+# The app-development skill that tan copies into projects (cmd/tan
+# TestCreateProjectInstallsSkill, internal/skilldocs); keep it LF so module
+# downloads and Windows checkouts install the same bytes.
+skills/tango/**/*.md text eol=lf
+skills/tango/**/*.go text eol=lf
+skills/tango/**/*.html text eol=lf

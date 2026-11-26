@@ -101,7 +101,9 @@ func locateTango(ctx context.Context, projectDir string) (dir, version string, e
 	if dir == "" {
 		return "", "", fmt.Errorf("locating %s from %s: module not downloaded (run go mod download)", tangoModule, projectDir)
 	}
-	return dir, version, nil
+	// A replace directive's path comes back as written (forward slashes on
+	// Windows); clean it to the native form.
+	return filepath.Clean(dir), version, nil
 }
 
 func skillVersion(version string) string {

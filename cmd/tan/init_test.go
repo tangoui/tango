@@ -195,7 +195,8 @@ func TestCreateProjectInstallsSkill(t *testing.T) {
 			if err := createProject(initOptions{Dir: dir, Template: template, Local: root}); err != nil {
 				t.Fatal(err)
 			}
-			skill := readSkillFixture(t, filepath.Join(dir, ".agents/skills/tango/SKILL.md"))
+			// A Windows checkout may have CRLF line endings.
+			skill := strings.ReplaceAll(readSkillFixture(t, filepath.Join(dir, ".agents/skills/tango/SKILL.md")), "\r\n", "\n")
 			if !strings.Contains(skill, "  tango-version: local\n") {
 				t.Fatalf("missing local version in %q", skill)
 			}

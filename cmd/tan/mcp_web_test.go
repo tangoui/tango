@@ -228,3 +228,9 @@ func TestWebKeySendsChord(t *testing.T) {
 		t.Errorf("got %d web_key requests", n)
 	}
 }
+
+func TestOpWebKeyMatchesWire(t *testing.T) {
+	if opWebKey != wire.OpWebKey {
+		t.Fatalf("opWebKey = %q, wire.OpWebKey = %q", opWebKey, wire.OpWebKey)
+	}
+}

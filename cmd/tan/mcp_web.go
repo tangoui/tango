@@ -19,6 +19,11 @@ import (
 // with its rejection (the same margin package automation uses).
 const webEvalSlack = 2 * time.Second
 
+// opWebKey is wire.OpWebKey. tan is built against the released Tango module
+// (CI builds it with GOWORK=off), which may predate the op, so it is spelled
+// out here; TestOpWebKeyMatchesWire keeps the two in sync.
+const opWebKey = "web_key"
+
 // webEvalMax caps the serialized value tango_web_eval returns.
 const webEvalMax = 64 << 10
 
@@ -80,7 +85,7 @@ func (s *mcpServer) addWebTools() {
 		if err != nil {
 			return nil, webEmptyOutput{}, err
 		}
-		req := &wire.Request{Op: wire.OpWebKey, Window: w.ID, Input: &wire.Input{Kind: "key", Keys: in.Keys}}
+		req := &wire.Request{Op: opWebKey, Window: w.ID, Input: &wire.Input{Kind: "key", Keys: in.Keys}}
 		_, err = a.doOK(ctx, req, uiTimeoutDefault+connSlack)
 		return nil, webEmptyOutput{}, err
 	})
