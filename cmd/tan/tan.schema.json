@@ -621,7 +621,7 @@
       "$ref": "#/$defs/MacOS"
     },
     "name": {
-      "description": "display name; also names the executable (see Exe)",
+      "description": "display and package name. Must contain an ASCII letter or digit for the executable name",
       "type": "string"
     },
     "permissions": {

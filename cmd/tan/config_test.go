@@ -58,6 +58,24 @@ func TestParseConfig(t *testing.T) {
 	}
 }
 
+func TestConfigNameExplainsExecutableRequirement(t *testing.T) {
+	for _, name := range []string{"待办", "__--", "待办 Notes"} {
+		t.Run(name, func(t *testing.T) {
+			cfg := Config{Name: name, ID: "com.example.notes", Version: "1.0.0"}
+			parsed, err := ParseConfig(cfg.Marshal())
+			if name == "待办 Notes" {
+				if err != nil || parsed.Exe() != "Notes" {
+					t.Fatalf("mixed name: config = %v, error = %v", parsed, err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), "ASCII letter or digit") || !strings.Contains(err.Error(), "executable name") {
+				t.Fatalf("name error = %v", err)
+			}
+		})
+	}
+}
+
 func TestParseParallelDevBuild(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
