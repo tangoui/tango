@@ -149,6 +149,22 @@ func TestSyncSkillRequiresVersionLine(t *testing.T) {
 	}
 }
 
+func TestSyncSkillStaleStage(t *testing.T) {
+	source, project := skillFixture(t), t.TempDir()
+	writeSkillFixture(t, filepath.Join(project, ".agents/skills/.tango-update/next/SKILL.md"), "x\n")
+	_, err := syncSkill(source, "", project)
+	if err == nil || !strings.Contains(err.Error(), "remove "+filepath.Join(project, ".agents", "skills", ".tango-update")) {
+		t.Fatalf("stale stage error = %v", err)
+	}
+
+	// Interrupted between the renames: the skill is only in previous.
+	writeSkillFixture(t, filepath.Join(project, ".agents/skills/.tango-update/previous/SKILL.md"), "old\n")
+	_, err = syncSkill(source, "", project)
+	if err == nil || !strings.Contains(err.Error(), "move it back to "+filepath.Join(project, ".agents", "skills", "tango")) {
+		t.Fatalf("interrupted update error = %v", err)
+	}
+}
+
 func TestLocateTangoUsesLocalReplacement(t *testing.T) {
 	source, project := skillFixture(t), t.TempDir()
 	writeSkillFixture(t, filepath.Join(source, "go.mod"), "module github.com/tangoui/tango\n\ngo 1.27\n")
@@ -157,6 +173,18 @@ func TestLocateTangoUsesLocalReplacement(t *testing.T) {
 	dir, version, err := locateTango(context.Background(), project)
 	if err != nil || dir != source || version != "" {
 		t.Fatalf("locateTango = %q, %q, %v", dir, version, err)
+	}
+}
+
+func TestLocateTangoInVendoredProject(t *testing.T) {
+	source, project := skillFixture(t), t.TempDir()
+	writeSkillFixture(t, filepath.Join(source, "go.mod"), "module github.com/tangoui/tango\n\ngo 1.27\n")
+	writeSkillFixture(t, filepath.Join(project, "go.mod"), "module example.com/app\n\ngo 1.27\n\nrequire github.com/tangoui/tango v0.3.0\n\nreplace github.com/tangoui/tango => "+filepath.ToSlash(source)+"\n")
+	writeSkillFixture(t, filepath.Join(project, "vendor/modules.txt"), "# github.com/tangoui/tango v0.3.0 => "+filepath.ToSlash(source)+"\n## explicit; go 1.27\n# github.com/tangoui/tango => "+filepath.ToSlash(source)+"\n")
+	t.Setenv("GOWORK", "off")
+	dir, _, err := locateTango(context.Background(), project)
+	if err != nil || dir != source {
+		t.Fatalf("locateTango = %q, %v; want %q", dir, err, source)
 	}
 }
 

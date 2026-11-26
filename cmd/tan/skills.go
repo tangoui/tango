@@ -89,7 +89,9 @@ func locateTango(ctx context.Context, projectDir string) (dir, version string, e
 	// A replacement has its own version. A local replacement has none,
 	// even when the original module has a version in the require directive.
 	const format = `{{.Dir}}{{"\t"}}{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}`
-	cmd := exec.CommandContext(ctx, "go", "list", "-m", "-f", format, tangoModule)
+	// -mod=readonly reads the module cache even in a vendored project,
+	// whose vendor directory has no skills/.
+	cmd := exec.CommandContext(ctx, "go", "list", "-mod=readonly", "-m", "-f", format, tangoModule)
 	cmd.Dir = projectDir
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -129,7 +131,8 @@ func syncSkillWithReport(moduleDir, version, projectDir string, beforeReplace fu
 	sourceDir := filepath.Join(moduleDir, "skills", "tango")
 	source := os.DirFS(sourceDir)
 	if _, err := fs.Stat(source, "SKILL.md"); errors.Is(err, fs.ErrNotExist) {
-		return skillChanges{}, fmt.Errorf("%s has no skills/tango/SKILL.md; upgrade %s", moduleDir, tangoModule)
+		return skillChanges{}, fmt.Errorf("%s has no skills/tango/SKILL.md: Tango %s predates the AI skill; upgrade %s to a release that ships it, or point a replace directive at a Tango checkout",
+			moduleDir, skillVersion(version), tangoModule)
 	} else if err != nil {
 		return skillChanges{}, err
 	}
@@ -164,7 +167,9 @@ func syncSkillWithReport(moduleDir, version, projectDir string, beforeReplace fu
 	// The staging directory also serializes concurrent updates. Keep the
 	// previous installation there until the replacement is in place.
 	stage := path.Join(parent, ".tango-update")
-	if err := project.Mkdir(stage, 0700); err != nil {
+	if err := project.Mkdir(stage, 0700); errors.Is(err, fs.ErrExist) {
+		return skillChanges{}, staleStageError(project, projectDir, stage)
+	} else if err != nil {
 		return skillChanges{}, fmt.Errorf("preparing Tango skill update: %w", err)
 	}
 	cleanup := true
@@ -226,6 +231,21 @@ func syncSkillWithReport(moduleDir, version, projectDir string, beforeReplace fu
 		return skillChanges{}, err
 	}
 	return changes, nil
+}
+
+// staleStageError explains a leftover staging directory: another update is
+// running, or one was interrupted. An interruption between the two renames
+// leaves the installed skill only in the stage's previous directory.
+func staleStageError(project *os.Root, projectDir, stage string) error {
+	dir := filepath.Join(projectDir, filepath.FromSlash(stage))
+	msg := fmt.Sprintf("another Tango skill update is running, or one was interrupted; if none is running, remove %s and retry", dir)
+	if _, err := project.Lstat(skillDir); errors.Is(err, fs.ErrNotExist) {
+		if info, err := project.Lstat(path.Join(stage, "previous")); err == nil && info.IsDir() {
+			msg = fmt.Sprintf("an interrupted Tango skill update left the installed skill in %s; move it back to %s, remove %s and retry",
+				filepath.Join(dir, "previous"), filepath.Join(projectDir, filepath.FromSlash(skillDir)), dir)
+		}
+	}
+	return errors.New(msg)
 }
 
 func stampSkillVersion(data []byte, version string) ([]byte, error) {
