@@ -14,11 +14,26 @@ func rememberWindow(s *tango.Surface) error {
 
 Import `sys/windowstate`. Use `Hidden: true` in `SurfaceOptions`, attach the tracker, then show the window. A nil store uses the app's default configuration path. Pass `windowstate.NewFileStore(path)` to choose another location.
 
-Use `app.OnEventKind(tango.EventReopen, func(tango.AppEvent) { s.Show(); s.Focus() })` for macOS Dock reopen. To keep a tray app running when every window closes, pass a pointer to `false` in `tango.Options.QuitOnLastClose`. Give users an explicit Quit action wired to `app.Quit()`.
+For an app that lives in the tray, set `tango.Options.QuitOnLastClose` to a pointer to `false`. macOS already defaults to false. Windows and Linux default to true. Intercept the close button to hide and retain the same window. Give users an explicit Quit action wired to `app.Quit()`.
+
+```go
+func keepWindowInTray(app *tango.App, s *tango.Surface) {
+	s.OnClose(func() bool {
+		s.Hide()
+		return false // veto closing the surface
+	})
+	app.OnEventKind(tango.EventReopen, func(tango.AppEvent) {
+		s.Show()
+		s.Focus()
+	})
+}
+```
+
+Show the same surface from the tray menu. `EventReopen` also brings it back when macOS reopens the app from the Dock.
 
 ## Menus and shortcuts
 
-Import `sys/menu`. On macOS the first submenu occupies the application-menu slot. Include an Edit menu for standard WebView editing shortcuts.
+Import `sys/menu`. On macOS the first submenu occupies the application-menu slot. Use `m.Role(menu.EditMenu)` at the menu bar level for standard WebView editing shortcuts. On macOS, `menu.Quit` already binds Command-Q. Use that binding once if you add your own Quit item.
 
 ```go
 func installMenu(app *tango.App, onNew func()) error {
@@ -30,11 +45,19 @@ func installMenu(app *tango.App, onNew func()) error {
 }
 ```
 
-Use `menu.SetSurfaceMenu(s, m)` for window-specific menus where supported. After an installed item's `SetLabel` or `SetChecked`, call `Update()` on the installed root menu and handle the error.
+For window-specific menus where supported, the same menu can target a single surface.
+
+```go
+func installWindowMenu(app *tango.App, s *tango.Surface, m *menu.Menu) error {
+	return menu.SetSurfaceMenu(app, s, m)
+}
+```
+
+After an installed item's `SetLabel` or `SetChecked`, call `Update()` on the installed menu and handle the error.
 
 ## Tray
 
-Import `sys/tray` and `sys/menu`. Embed or load PNG bytes before creating the tray. On macOS a monochrome icon with transparency and `Template: true` adapts to the menu bar appearance.
+Import `sys/tray` and `sys/menu`. Embed or load PNG bytes before creating the tray. On macOS a monochrome icon with transparency and `Template: true` adapts to the menu bar appearance. Update the text next to it using `t.SetTitle("24:59")` on macOS.
 
 ```go
 func makeTray(app *tango.App, s *tango.Surface, pngData []byte) error {

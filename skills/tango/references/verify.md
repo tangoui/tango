@@ -20,6 +20,25 @@ For a native UI, inspect `tango_ui_tree`, choose the real semantic name and role
 
 Capture either window with `tango_ui_screenshot` and call `tango_app_stop` after verification. Use `tango_app_output` to inspect logs. Native menu bars and tray items are outside the semantic tree. WebView key injection is unavailable through these tools. Use OS-level automation for native controls and WebView keyboard shortcuts. Build and start a proper macOS `.app` for notification permission and delivery. [macOS troubleshooting](pitfalls.md)
 
+## Native UI tool arguments
+
+- Pass `{"keys":"Enter"}` to `tango_ui_key`. Input goes to the self-drawn window, so exercise native menu shortcuts through the OS.
+- `tango_ui_type` commits text at the current selection or caret. To replace the whole value, use `tango_ui_act` with `"action":"setValue"` and the new text in `"arg"` when the node supports it.
+- `query.nth` starts at 0 in tree order. Use `-1` for the last match. The node returned by `tango_ui_act` describes the target before the action. Call `tango_ui_find` or `tango_ui_tree` to inspect the resulting state.
+
+## Attach to a running development app
+
+From the app directory, use an absolute token file path in a private temporary directory. Set the address as well as the token file to enable the control channel.
+
+```sh
+tango_control_dir=$(mktemp -d)
+TANGO_AUTOMATION=127.0.0.1:0 \
+TANGO_AUTOMATION_TOKEN_FILE="$tango_control_dir/automation.json" \
+TANGO_LAUNCH_BACKGROUND=1 tan dev
+```
+
+Once the file appears, call `tango_app_attach` with `{"tokenFile":"/absolute/path/to/automation.json"}`. To verify a rebuild that restarts the app process, attach again using the token file for the new process. Stop the attach session with `tango_app_stop` and stop `tan dev` in its own terminal when finished. [Automation setup](https://github.com/tangoui/tango/blob/main/docs/automation.md)
+
 ## Use HTTP from a shell
 
 Start `tan mcp -root . -http -addr 127.0.0.1:7811` from the app directory. The server prints its URL and a generated bearer token. Put the token in `tango_mcp_token` in your local shell. Initialize at the printed URL. Copy `Mcp-Session-Id` from the response headers and `result.protocolVersion` from the JSON-RPC response. When streamed, the response is in the SSE `data:` line.

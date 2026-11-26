@@ -14,7 +14,7 @@ Before writing Go, look up system capabilities in `sys/*` and `service/*`. Use p
 | Windows, visibility, geometry | `tango` | `App.NewSurface`, `SurfaceOptions`, `Surface.IsVisible`, `Surface.Bounds`, `Surface.OnMoved`, `Surface.OnResized` |
 | Remember placement | `sys/windowstate` | `Track` |
 | Menus and shortcuts | `sys/menu` | `New`, `Menu.Submenu`, `Menu.Add`, `Item.Accelerator`, `SetAppMenu`, `SetSurfaceMenu`, `EditMenu`, `Menu.Update` |
-| Tray icon and menu | `sys/tray` | `New` with PNG bytes in `Options.Icon`, `Tray.SetMenu` |
+| Tray icon and menu | `sys/tray` | `New` with PNG bytes in `Options.Icon`, `Tray.SetMenu`, `Tray.SetTitle` (macOS) |
 | System notifications | `sys/notify` | `RequestPermission`, `Send` (run a macOS `.app`) |
 | Pick a file or folder | `sys/dialog` | `Open`, `FileOptions.PickFolders`, `ErrCanceled` |
 | App data directory | `service/paths` | `Data(appID)` |
