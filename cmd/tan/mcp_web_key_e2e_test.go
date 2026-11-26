@@ -44,14 +44,13 @@ func TestMCPE2EWebKey(t *testing.T) {
 	key("Shift+K")
 	wait("editor.value === 'K' && keyEvents.includes('keydown K KeyK true Shift') && keyEvents.includes('keyup K KeyK true Shift')")
 	key("CmdOrCtrl+Shift+K")
-	wait("keyEvents.some(e => /^keydown K KeyK true (Meta|Ctrl) Shift$/.test(e)) && keyEvents.some(e => /^keyup K KeyK true (Meta|Ctrl) Shift$/.test(e))")
+	wait("keyEvents.some(e => /^keydown K KeyK true (Meta|Ctrl) Shift$/.test(e)) && keyEvents.some(e => /^keyup K KeyK true (Meta|Ctrl) Shift$/.test(e)) && disabledClicks === 0")
 	key("CmdOrCtrl+S")
 	wait("document.querySelector('#save').textContent.endsWith(': 1')")
-	key("CmdOrCtrl+B")
-	var disabled struct{ Value any }
-	call("tango_web_eval", "expr", "({events: keyEvents.slice(), disabledClicks})", &disabled)
-	t.Logf("after disabled menu chord: %+v", disabled.Value)
-	wait("disabledClicks === 0")
+	if runtime.GOOS == "linux" {
+		key("Meta+J")
+		wait("keyEvents.includes('keydown j KeyJ true Meta') && keyEvents.includes('keyup j KeyJ true Meta')")
+	}
 	eval("editor.value = 'replace me'")
 	key("CmdOrCtrl+A")
 	wait("editor.selectionStart === 0 && editor.selectionEnd === editor.value.length")
@@ -114,6 +113,14 @@ func TestMCPE2EWebKey(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Logf("saved %s", path)
+	}
+	if runtime.GOOS == "linux" {
+		key("CmdOrCtrl+Shift+Y")
+		a := args()
+		a["keys"] = "Shift+K"
+		if msg := callErr(t, cs, "tango_web_key", a); !strings.Contains(msg, "WebView cannot dispatch key") {
+			t.Errorf("hidden WebView key error = %q", msg)
+		}
 	}
 	appStop(t, cs, app.Session)
 	if processAlive(pid) {

@@ -184,7 +184,7 @@ const (
 	printLandscape    = 1 // COREWEBVIEW2_PRINT_ORIENTATION_LANDSCAPE
 )
 
-var errWebClosed = errors.New("tango: surface closed")
+var errWebClosed = platform.ErrWebViewClosed
 
 // downloadSeq allocates download IDs, unique for the process.
 var downloadSeq atomic.Uint64

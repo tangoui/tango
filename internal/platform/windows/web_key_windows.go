@@ -3,14 +3,25 @@
 package windows
 
 import (
+	"errors"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/ui/input"
 )
 
 func (s *surface) DispatchWebKey(key input.Key, mods input.Modifiers, done func(error)) {
 	p, ok := planWebKey(key, mods)
-	if !ok || s.closed || !s.ready || s.webview == 0 {
+	switch {
+	case s.closed:
+		done(platform.ErrWebViewClosed)
+		return
+	case !ok || s.canvas != nil:
 		done(platform.ErrUnsupported)
+		return
+	case s.failed != nil:
+		done(s.failed)
+		return
+	case !s.ready || s.webview == 0:
+		done(errors.New("tango/windows: WebView2 is not ready"))
 		return
 	}
 	m := s.menuOwner()

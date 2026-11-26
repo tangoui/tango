@@ -1,6 +1,13 @@
 package platform
 
-import "github.com/tangoui/tango/ui/input"
+import (
+	"errors"
+
+	"github.com/tangoui/tango/ui/input"
+)
+
+// ErrWebViewClosed indicates a WebView closed before an operation finished.
+var ErrWebViewClosed = errors.New("tango: surface closed")
 
 // WebKeySink dispatches a key chord in a development build. Called on the
 // main thread. done fires once, once native dispatch has completed.

@@ -142,7 +142,10 @@ func (h *autoHost) WebKey(win uint64, key input.Key, mods input.Modifiers, done 
 		return
 	}
 	corehook.SurfaceWebKey(s, key, mods, func(err error) {
-		if errors.Is(err, platform.ErrUnsupported) {
+		switch {
+		case errors.Is(err, platform.ErrWebViewClosed):
+			err = &automation.Error{Code: automation.CodeNoWindow, Msg: fmt.Sprintf("automation: window %d closed", win)}
+		case errors.Is(err, platform.ErrUnsupported):
 			err = &automation.Error{Code: automation.CodeUnsupported, Msg: fmt.Sprintf("automation: WebView cannot dispatch key %s: %v", key, err)}
 		}
 		done(err)

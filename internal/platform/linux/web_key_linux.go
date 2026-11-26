@@ -16,6 +16,7 @@ var webKeyGTK struct {
 	ok               bool
 	activateKey      func(ptr, ptr) bool
 	grabFocus        func(ptr)
+	isMapped         func(ptr) bool
 	keymapForDisplay func(ptr) ptr
 	keymapEntries    func(ptr, uint32, *ptr, *int32) bool
 }
@@ -25,6 +26,7 @@ func bindWebKeyGTK() {
 	k := &webKeyGTK
 	k.ok = bd.opt(&k.activateKey, "gtk_window_activate_key", libGTK) &&
 		bd.opt(&k.grabFocus, "gtk_widget_grab_focus", libGTK) &&
+		bd.opt(&k.isMapped, "gtk_widget_get_mapped", libGTK) &&
 		bd.opt(&k.keymapForDisplay, "gdk_keymap_get_for_display", libGDK, libGTK) &&
 		bd.opt(&k.keymapEntries, "gdk_keymap_get_entries_for_keyval", libGDK, libGTK)
 }
@@ -45,7 +47,7 @@ func (s *surface) dispatchWebKey(key input.Key, mods input.Modifiers) error {
 		return platform.ErrUnsupported
 	}
 	win := f.widgetWindow(s.web)
-	if win == 0 {
+	if win == 0 || !webKeyGTK.isMapped(s.web) {
 		return platform.ErrUnsupported
 	}
 	display := f.windowDisplay(win)
@@ -80,8 +82,11 @@ func (s *surface) dispatchWebKey(key input.Key, mods input.Modifiers) error {
 		if k.modifier {
 			e.modifier = 1
 			bit := canvasModifierKeyMask(k.keyval)
-			if key == input.KeyCapsLock {
+			switch key {
+			case input.KeyCapsLock:
 				bit = canvasGdkLockMask
+			case input.KeyMetaLeft, input.KeyMetaRight:
+				bit |= canvasGdkMod4Mask | webGdkMetaMask
 			}
 			if kind == keyPress {
 				e.state &^= bit

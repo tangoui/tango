@@ -15,6 +15,7 @@ func TestGTKWebKey(t *testing.T) {
 	}{
 		{input.KeyS, input.ModCtrl, 's', canvasGdkControlMask, ""},
 		{input.KeyK, input.ModShift, 'K', canvasGdkShiftMask, "K"},
+		{input.KeyK, input.ModMeta, 'k', canvasGdkMod4Mask | canvasGdkSuperMask | (1 << 28), ""},
 		{input.KeyEqual, input.ModShift, '+', canvasGdkShiftMask, "+"},
 		{input.KeyLeft, input.ModAlt, 0xff51, canvasGdkMod1Mask, ""},
 		{input.KeyTab, input.ModShift, 0xfe20, canvasGdkShiftMask, ""},

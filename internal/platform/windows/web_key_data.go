@@ -80,7 +80,7 @@ func planWebKey(key input.Key, mods input.Modifiers) (webKeyPlan, bool) {
 	case r != 0:
 		p.key = string(platform.WebKeyRune(key, mods))
 		if p.mods&(webCtrl|webAlt|webMeta) == 0 {
-			p.text, p.unmodifiedText = p.key, string(r)
+			p.text, p.unmodifiedText = p.key, p.key
 		}
 	case key >= input.KeyLeft && key <= input.KeyDown:
 		p.key = "Arrow" + p.code

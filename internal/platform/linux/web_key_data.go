@@ -28,12 +28,15 @@ type gtkWebKeyData struct {
 	modifier      bool
 }
 
+// WebKitGTK reads GDK_META_MASK when populating DOM metaKey.
+const webGdkMetaMask = 1 << 28
+
 func gtkWebKey(key input.Key, mods input.Modifiers) (gtkWebKeyData, bool) {
 	k := gtkWebKeyData{keyval: gtkWebKeyvals[key]}
 	for _, m := range [...]struct {
 		mod  input.Modifiers
 		mask uint32
-	}{{input.ModShift, canvasGdkShiftMask}, {input.ModCtrl, canvasGdkControlMask}, {input.ModAlt, canvasGdkMod1Mask}, {input.ModMeta, canvasGdkMod4Mask | canvasGdkSuperMask}} {
+	}{{input.ModShift, canvasGdkShiftMask}, {input.ModCtrl, canvasGdkControlMask}, {input.ModAlt, canvasGdkMod1Mask}, {input.ModMeta, canvasGdkMod4Mask | canvasGdkSuperMask | webGdkMetaMask}} {
 		if mods&m.mod != 0 {
 			k.state |= m.mask
 		}

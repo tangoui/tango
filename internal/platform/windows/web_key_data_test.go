@@ -14,7 +14,7 @@ func TestWindowsWebKey(t *testing.T) {
 	}
 	d := k.event(true, "")
 	u := k.event(false, "")
-	if d["type"] != "keyDown" || d["text"] != "K" || d["unmodifiedText"] != "k" || u["type"] != "keyUp" || u["text"] != nil {
+	if d["type"] != "keyDown" || d["text"] != "K" || d["unmodifiedText"] != "K" || u["type"] != "keyUp" || u["text"] != nil {
 		t.Fatalf("down=%v up=%v", d, u)
 	}
 	k, ok = planWebKey(input.KeyNumpadEnter, 0)

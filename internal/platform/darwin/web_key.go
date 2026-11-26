@@ -40,6 +40,8 @@ func (s *surface) DispatchWebKey(key input.Key, mods input.Modifiers, done func(
 			}
 			target = send(win, "firstResponder")
 		}
+		retain(target)
+		defer release(target)
 		number := sendInt(win, "windowNumber")
 		makeEvent := func(kind uint, flags uint) id {
 			return webKeyEvent.new(class("NSEvent"), sel("keyEventWithType:location:modifierFlags:timestamp:windowNumber:context:characters:charactersIgnoringModifiers:isARepeat:keyCode:"),
@@ -47,7 +49,7 @@ func (s *surface) DispatchWebKey(key input.Key, mods input.Modifiers, done func(
 		}
 		if modifier, ok := macModifierKeys[code]; ok {
 			const flagsChanged = 12
-			mod := [...]uint{nsShiftKeyMask, nsControlKeyMask, nsAlternateKeyMask, nsCommandKeyMask}[(modifier.key-input.KeyShiftLeft)/2]
+			mod := macWebFlags(key.Modifier())
 			for _, state := range []uint{flags | mod | modifier.side, flags &^ mod} {
 				ev := makeEvent(flagsChanged, state)
 				if ev == 0 {
@@ -74,15 +76,15 @@ func (s *surface) DispatchWebKey(key input.Key, mods input.Modifiers, done func(
 }
 
 // AppKit normally looks up responder-chain actions in the key window.
-// Bind those menu items to the selected window's responders for the call,
-// so Edit actions also work when this window is behind another app.
+// A background window needs explicit targets. A private menu copy keeps
+// these targets out of nested dispatch and AppKit's normal event loop.
 func (s *surface) performWebKeyEquivalent(win, responder, event id) bool {
-	menu := retain(send(s.b.app, "mainMenu"))
-	defer release(menu)
+	menu := send(s.b.app, "mainMenu")
 	if sendBool(win, "isKeyWindow") {
 		return sendBool(menu, "performKeyEquivalent:", uintptr(event))
 	}
-	var bound []id
+	menu = send(menu, "copy")
+	defer release(menu)
 	var bindTargets func(id)
 	bindTargets = func(m id) {
 		for i, n := 0, sendInt(m, "numberOfItems"); i < n; i++ {
@@ -95,24 +97,21 @@ func (s *surface) performWebKeyEquivalent(win, responder, event id) bool {
 			if action == 0 || send(item, "target") != 0 {
 				continue
 			}
-			for target := responder; target != 0; target = send(target, "nextResponder") {
-				if sendBool(target, "respondsToSelector:", uintptr(action)) {
-					send(item, "setTarget:", uintptr(target))
-					bound = append(bound, retain(item))
-					break
-				}
+			target := responder
+			for target != 0 && !sendBool(target, "respondsToSelector:", uintptr(action)) {
 				if target == win {
-					break
+					target = 0
+				} else {
+					target = send(target, "nextResponder")
 				}
+			}
+			if target != 0 {
+				send(item, "setTarget:", uintptr(target))
+			} else {
+				send(item, "setKeyEquivalent:", uintptr(nsString("")))
 			}
 		}
 	}
 	bindTargets(menu)
-	defer func() {
-		for _, item := range bound {
-			send(item, "setTarget:", 0)
-			release(item)
-		}
-	}()
 	return sendBool(menu, "performKeyEquivalent:", uintptr(event))
 }

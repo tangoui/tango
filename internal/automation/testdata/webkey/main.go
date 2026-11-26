@@ -29,8 +29,9 @@ func main() {
 		disabled := file.Add("Disabled", func() {
 			w.Eval("window.disabledClicks++")
 		})
-		disabled.Accelerator = "CmdOrCtrl+B"
+		disabled.Accelerator = "CmdOrCtrl+Shift+K"
 		disabled.SetDisabled(true)
+		file.Add("Hide window", w.Hide).Accelerator = "CmdOrCtrl+Shift+Y"
 		bar.Submenu("Edit").Role(menu.EditMenu)
 		if err := menu.SetAppMenu(app, bar); err != nil {
 			log.Fatal(err)
