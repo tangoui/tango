@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"cmp"
+	"context"
 	"embed"
 	"errors"
 	"flag"
@@ -275,6 +276,13 @@ func createProject(o initOptions) error {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			warnf("go mod tidy failed; run it yourself once github.com/tangoui/tango is reachable:\n%s", out)
 		}
+	}
+	moduleDir, version, err := locateTango(context.Background(), dir)
+	if err == nil {
+		_, err = syncSkill(moduleDir, version, dir)
+	}
+	if err != nil {
+		warnf("could not install the Tango AI skill: %v\nrun `tan skills update` in %s later", err, dir)
 	}
 	return nil
 }

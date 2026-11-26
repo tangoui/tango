@@ -185,3 +185,38 @@ func TestGeneratedProjectBuilds(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateProjectInstallsSkill(t *testing.T) {
+	t.Setenv("GOWORK", "off")
+	root := repoRoot(t)
+	for _, template := range []string{"ui", "vue-ts"} {
+		t.Run(template, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "demo")
+			if err := createProject(initOptions{Dir: dir, Template: template, Local: root}); err != nil {
+				t.Fatal(err)
+			}
+			skill := readSkillFixture(t, filepath.Join(dir, ".agents/skills/tango/SKILL.md"))
+			if !strings.Contains(skill, "  tango-version: local\n") {
+				t.Fatalf("missing local version in %q", skill)
+			}
+		})
+	}
+}
+
+func TestCreateProjectSkillFailureIsWarning(t *testing.T) {
+	t.Setenv("GOWORK", "off")
+	t.Setenv("GOMODCACHE", t.TempDir())
+	t.Setenv("GOPROXY", "off")
+	dir := filepath.Join(t.TempDir(), "demo")
+	out := captureStd(t, func() {
+		if err := createProject(initOptions{Dir: dir, Template: "ui"}); err != nil {
+			t.Errorf("createProject: %v", err)
+		}
+	})
+	if !strings.Contains(out, "could not install the Tango AI skill") || !strings.Contains(out, "tan skills update") {
+		t.Fatalf("missing recovery advice in %q", out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "main.go")); err != nil {
+		t.Fatal(err)
+	}
+}
