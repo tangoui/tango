@@ -37,16 +37,41 @@ func macWebFlags(mods input.Modifiers) uint {
 	return flags
 }
 
-func macWebKey(key input.Key, mods input.Modifiers) (uint16, string, uint, bool) {
+// macOptionChars is the Option layer of the U.S. (ABC) layout, matching
+// the kVK_ANSI key codes sent: unshifted and Shift+Option characters per
+// base key. A zero rune is a dead key, which produces no characters on its
+// own.
+var macOptionChars = map[rune][2]rune{
+	'`': {0, '`'}, '1': {'¡', '⁄'}, '2': {'™', '€'}, '3': {'£', '‹'}, '4': {'¢', '›'},
+	'5': {'∞', 'ﬁ'}, '6': {'§', 'ﬂ'}, '7': {'¶', '‡'}, '8': {'•', '°'}, '9': {'ª', '·'},
+	'0': {'º', '‚'}, '-': {'–', '—'}, '=': {'≠', '±'},
+	'q': {'œ', 'Œ'}, 'w': {'∑', '„'}, 'e': {0, '´'}, 'r': {'®', '‰'}, 't': {'†', 'ˇ'},
+	'y': {'¥', 'Á'}, 'u': {0, '¨'}, 'i': {0, 'ˆ'}, 'o': {'ø', 'Ø'}, 'p': {'π', '∏'},
+	'[': {'“', '”'}, ']': {'‘', '’'}, '\\': {'«', '»'},
+	'a': {'å', 'Å'}, 's': {'ß', 'Í'}, 'd': {'∂', 'Î'}, 'f': {'ƒ', 'Ï'}, 'g': {'©', '˝'},
+	'h': {'˙', 'Ó'}, 'j': {'∆', 'Ô'}, 'k': {'˚', '\uf8ff'}, 'l': {'¬', 'Ò'}, ';': {'…', 'Ú'}, '\'': {'æ', 'Æ'},
+	'z': {'Ω', '¸'}, 'x': {'≈', '˛'}, 'c': {'ç', 'Ç'}, 'v': {'√', '◊'}, 'b': {'∫', 'ı'},
+	'n': {0, '˜'}, 'm': {'µ', 'Â'}, ',': {'≤', '¯'}, '.': {'≥', '˘'}, '/': {'÷', '¿'},
+	' ': {'\u00a0', '\u00a0'},
+}
+
+// macWebKey returns the key code, characters, characters ignoring
+// modifiers other than Shift (what key equivalents match), and flags of
+// the AppKit events for key.
+func macWebKey(key input.Key, mods input.Modifiers) (uint16, string, string, uint, bool) {
 	code, ok := macWebKeyCodes[key]
 	flags := macWebFlags(mods)
 	var r rune
-	const numericPad = 1 << 21
+	const (
+		numericPad = 1 << 21
+		function   = 1 << 23 // NSEventModifierFlagFunction
+	)
 	switch {
 	case key >= input.KeyLeft && key <= input.KeyDown:
-		flags |= numericPad
+		flags |= numericPad | function
 		r = [...]rune{0xf702, 0xf703, 0xf700, 0xf701}[key-input.KeyLeft]
 	case key >= input.KeyF1 && key <= input.KeyF12:
+		flags |= function
 		r = 0xf704 + rune(key-input.KeyF1)
 	case key >= input.KeyNumpad0 && key <= input.KeyNumpadEnter:
 		flags |= numericPad
@@ -82,9 +107,23 @@ func macWebKey(key input.Key, mods input.Modifiers) (uint16, string, uint, bool)
 		default:
 			r = platform.WebKeyRune(key, mods)
 		}
+		if r >= 0xf727 && r <= 0xf72d {
+			flags |= function
+		}
 	}
 	if r == 0 {
-		return code, "", flags, ok
+		return code, "", "", flags, ok
 	}
-	return code, string(r), flags, ok
+	ignoring, chars := string(r), string(r)
+	if mods&input.ModAlt != 0 {
+		if option, found := macOptionChars[key.Rune()]; found {
+			chars = ""
+			if r := option[0]; mods&input.ModShift != 0 {
+				chars = string(option[1])
+			} else if r != 0 {
+				chars = string(r)
+			}
+		}
+	}
+	return code, chars, ignoring, flags, ok
 }

@@ -17,8 +17,12 @@ var webKeyEvent struct {
 }
 
 func (s *surface) DispatchWebKey(key input.Key, mods input.Modifiers, done func(error)) {
-	code, chars, flags, ok := macWebKey(key, mods)
-	if !ok || s.web == 0 || s.closed {
+	if s.closed {
+		done(platform.ErrWebViewClosed)
+		return
+	}
+	code, chars, ignoring, flags, ok := macWebKey(key, mods)
+	if !ok || s.web == 0 {
 		done(platform.ErrUnsupported)
 		return
 	}
@@ -45,7 +49,7 @@ func (s *surface) DispatchWebKey(key input.Key, mods input.Modifiers, done func(
 		number := sendInt(win, "windowNumber")
 		makeEvent := func(kind uint, flags uint) id {
 			return webKeyEvent.new(class("NSEvent"), sel("keyEventWithType:location:modifierFlags:timestamp:windowNumber:context:characters:charactersIgnoringModifiers:isARepeat:keyCode:"),
-				kind, nsPoint{}, flags, 0, number, 0, nsString(chars), nsString(chars), false, code)
+				kind, nsPoint{}, flags, 0, number, 0, nsString(chars), nsString(ignoring), false, code)
 		}
 		if modifier, ok := macModifierKeys[code]; ok {
 			const flagsChanged = 12

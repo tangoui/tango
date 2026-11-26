@@ -81,7 +81,22 @@ func testNestedWebKeyMenu() error {
 		handled := s.performWebKeyEquivalent(0, first, event("s", 1))
 		if !handled || !nestedHandled || firstCalls != 0 || secondCalls != 1 {
 			result = fmt.Errorf("menu handled %v/%v, Select All called first=%d second=%d", handled, nestedHandled, firstCalls, secondCalls)
+			return
 		}
+		// The targets went to a private copy: the real menu, submenus
+		// included, keeps no reference to the responders.
+		var check func(m id)
+		check = func(m id) {
+			for i, n := 0, sendInt(m, "numberOfItems"); i < n && result == nil; i++ {
+				item := send(m, "itemAtIndex:", uintptr(i))
+				if sub := send(item, "submenu"); sub != 0 {
+					check(sub)
+				} else if target := send(item, "target"); target == first || target == second {
+					result = fmt.Errorf("main menu item %q kept a dispatch target", goString(send(item, "title")))
+				}
+			}
+		}
+		check(send(b.app, "mainMenu"))
 	})
 	return result
 }
