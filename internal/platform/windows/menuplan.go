@@ -39,9 +39,10 @@ type menuAction struct {
 }
 
 type menuPlan struct {
-	Entries []menuEntry
-	Actions map[uint16]menuAction
-	Accels  []accelEntry
+	Entries    []menuEntry
+	Actions    map[uint16]menuAction
+	Accels     []accelEntry
+	EditAccels []accelEntry // synthetic WebView key dispatch only
 }
 
 // Command IDs stay below 0xF000, where SC_* system commands start.
@@ -165,8 +166,13 @@ func buildMenuPlan(items []platform.MenuItem, appName string) *menuPlan {
 			if accelText != "" {
 				if a, err := parseAccelerator(accelText); err == nil {
 					e.Label += "\t" + a.String()
-					if e.Cmd != 0 && !native && !it.Disabled {
-						p.Accels = append(p.Accels, accelEntry{Accel: a, Cmd: e.Cmd})
+					if e.Cmd != 0 && !it.Disabled {
+						entry := accelEntry{Accel: a, Cmd: e.Cmd}
+						if native {
+							p.EditAccels = append(p.EditAccels, entry)
+						} else {
+							p.Accels = append(p.Accels, entry)
+						}
 					}
 				}
 			}
