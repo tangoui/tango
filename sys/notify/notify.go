@@ -13,9 +13,15 @@
 // tango.ErrNotRunning after the app quit.
 //
 // Platform notes: on macOS notifications need the app to run from a .app
-// bundle with a bundle identifier (a bare `go run` binary gets a clear
-// error, not a crash), and the user must allow them. On Windows they are
-// WinRT toast notifications: the app's ID (else Name) becomes the
+// bundle with a bundle identifier, and the user must allow them. A bare
+// go run or go build executable returns an error. If
+// RequestPermission returns "Notifications are not allowed for this
+// application" when testing a bundle from a temporary directory, quit
+// the app, move the signed bundle to /Applications or ~/Applications and
+// relaunch it with Finder or open. Check the app in System Settings >
+// Notifications if permission was already requested. See the [notify guide].
+//
+// Windows shows WinRT toast notifications. The app's ID (else Name) becomes the
 // process's AppUserModelID and is registered under HKCU so an app without
 // a Start-menu shortcut can show toasts; a click on a toast still in the
 // Action Center calls OnClick while the app runs, but cannot launch a
@@ -32,6 +38,8 @@
 // a tap opens the app and calls OnClick; a tap on a notification of an
 // earlier run (including the one that launched the app) arrives through
 // OnClick too.
+//
+// [notify guide]: https://tangoui.github.io/tango/guide/system/notify#macos-通知排障
 package notify
 
 import (
