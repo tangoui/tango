@@ -1,6 +1,6 @@
 // Package ui is the self-drawn GUI layer of Tango: an immediate-mode API
 // over retained widget state, rendered by a pure-Go pipeline (no cgo) with
-// the visual language of Ant Design v5 (default), Element Plus and shadcn/ui.
+// the visual language of Ant Design 6.7 (default), Element Plus and shadcn/ui.
 //
 // # Programming model
 //
