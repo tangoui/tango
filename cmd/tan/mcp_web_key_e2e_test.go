@@ -44,16 +44,27 @@ func TestMCPE2EWebKey(t *testing.T) {
 	key("Shift+K")
 	wait("editor.value === 'K' && keyEvents.includes('keydown K KeyK true Shift') && keyEvents.includes('keyup K KeyK true Shift')")
 	key("CmdOrCtrl+Shift+K")
-	wait("keyEvents.some(e => /^keydown K KeyK true (Meta|Ctrl) Shift$/.test(e)) && keyEvents.some(e => /^keyup K KeyK true (Meta|Ctrl) Shift$/.test(e)) && disabledClicks === 0")
+	wait("keyEvents.some(e => /^keydown K KeyK true (Meta|Ctrl) Shift$/.test(e)) && keyEvents.some(e => /^keyup K KeyK true (Meta|Ctrl) Shift$/.test(e))")
 	key("CmdOrCtrl+S")
 	wait("document.querySelector('#save').textContent.endsWith(': 1')")
+	// Menu callbacks reach the page through ordered Evals: once Save's has
+	// run, a wrongly fired Disabled callback would have run too.
+	var disabled struct{ Value int }
+	call("tango_web_eval", "expr", "disabledClicks", &disabled)
+	if disabled.Value != 0 {
+		t.Fatalf("disabled menu item ran %d times", disabled.Value)
+	}
 	if runtime.GOOS == "linux" {
 		key("Meta+J")
 		wait("keyEvents.includes('keydown j KeyJ true Meta') && keyEvents.includes('keyup j KeyJ true Meta')")
 	}
 	eval("editor.value = 'replace me'")
+	// On macOS only the Edit menu selects with Command-A. Chromium also
+	// handles Ctrl+A itself, so on Windows this cannot tell the menu route
+	// apart; TestWindowsWebKeyMenu covers the attached editing command.
 	key("CmdOrCtrl+A")
 	wait("editor.selectionStart === 0 && editor.selectionEnd === editor.value.length")
+	eval("document.querySelector('#edit').textContent = 'Select All: ' + editor.selectionStart + '-' + editor.selectionEnd")
 	// Clipboard verification is opt-in for an isolated desktop (e.g. Xvfb).
 	testClipboard := os.Getenv("TANGO_WEB_KEY_TEST_CLIPBOARD") == "1"
 	if testClipboard {
@@ -66,7 +77,6 @@ func TestMCPE2EWebKey(t *testing.T) {
 		wait("editor.value === 'Zreplace me'")
 		t.Log("Edit menu Copy and Paste preserved the selected text")
 	}
-	eval("document.querySelector('#edit').textContent = 'Edit menu Select All: passed'")
 	var result struct {
 		Value struct {
 			Events            []string

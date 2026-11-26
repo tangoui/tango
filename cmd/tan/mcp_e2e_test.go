@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"image/png"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -148,18 +146,6 @@ func (e *e2eTan) appPID(t *testing.T) int {
 		t.Fatalf("token file %s: pid %d", files[0], tf.PID)
 	}
 	return tf.PID
-}
-
-// processAlive reports whether a process with pid exists.
-func processAlive(pid int) bool {
-	p, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	// Signal 0 checks without signalling (Windows refuses it with an
-	// error other than ErrProcessDone while the process lives).
-	err = p.Signal(syscall.Signal(0))
-	return err == nil || !errors.Is(err, os.ErrProcessDone)
 }
 
 // frontmost is the name of the frontmost application's process on macOS,

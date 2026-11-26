@@ -32,7 +32,7 @@ func main() {
 		disabled.Accelerator = "CmdOrCtrl+Shift+K"
 		disabled.SetDisabled(true)
 		file.Add("Hide window", w.Hide).Accelerator = "CmdOrCtrl+Shift+Y"
-		bar.Submenu("Edit").Role(menu.EditMenu)
+		bar.Role(menu.EditMenu)
 		if err := menu.SetAppMenu(app, bar); err != nil {
 			log.Fatal(err)
 		}
