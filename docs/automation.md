@@ -53,7 +53,7 @@ TANGO_E2E=1 TANGO_E2E_VERBOSE=1 go test -tags tango_dev ./examples/hello -run E2
 
 - 读取后两个环境变量会从进程环境里删除，被测应用启动的子进程（包括其他 Tango 应用）不会继承。
 - 自动化处理中的 panic 走统一的 panic 处理，开发构建默认记日志后继续运行，连接不断。默认在主线程执行的请求报 `Panic.Where = "automation"`。内部验证路径上，独立 UI 线程执行的任务报 `Panic.Where = "event handler"`，请求返回 `internal`。已转入异步处理的请求在窗口回退到主线程后报 `Panic.Where = "main-thread callback"`。被测应用的 `Options.OnPanic` 返回 false 时退出。见 [panics.md](panics.md)。
-- 窗口列表、WebView 的 `Eval` 和截图、`quit` 以及普通自绘窗口的请求都在主线程执行（`App.Post` 或 `Await`）。macOS 独立 UI 线程只用于内部验证。该路径把语义树、动作、输入和截图任务交给窗口的 UI 线程，由控制通道的 goroutine 等结果。见 [canvas-surface.md](specs/canvas-surface.md#uihost-包)。
+- 窗口列表、WebView 的 `Eval`、按键和截图、`quit` 以及普通自绘窗口的请求都在主线程执行（`App.Post` 或 `Await`）。macOS 独立 UI 线程只用于内部验证。该路径把语义树、动作、输入和截图任务交给窗口的 UI 线程，由控制通道的 goroutine 等结果。见 [canvas-surface.md](specs/canvas-surface.md#uihost-包)。
 
 ## 架构与协议
 
@@ -66,7 +66,7 @@ automation（客户端）  ── TCP/unix ──  internal/automation.Server（
 ```
 
 - 帧格式：4 字节大端长度 + JSON，鉴权后单帧上限 64 MiB（鉴权前 4 KiB）。客户端发 `Request{id, op, ...}`，服务端按顺序逐条回 `Response{id, error, code, ...}`。一个连接上请求串行处理；可以同时有多个连接（最多 4 个）。
-- 操作：`hello`、`ping`、`windows`、`tree`、`find`、`count`、`wait`、`action`、`input`、`eval`、`screenshot`、`quit`。错误码：`auth`、`bad_request`、`no_window`、`timeout`、`hot_reload`、`unsupported`、`action`、`script`、`quit`、`internal`、`busy`。定义见 `internal/automation/proto.go`。
+- 操作：`hello`、`ping`、`windows`、`tree`、`find`、`count`、`wait`、`action`、`input`、`web_key`、`eval`、`screenshot`、`quit`。错误码：`auth`、`bad_request`、`no_window`、`timeout`、`hot_reload`、`unsupported`、`action`、`script`、`quit`、`internal`、`busy`。定义见 `internal/automation/proto.go`。
 - `busy` 用于独立 UI 线程的内部验证路径，表示 5 秒内未收到窗口线程的结果（例如长帧或等待对话框）。`Locator.Exists` 遇到 `busy` 会报错。卡住的一次取树可使 `wait` 或 `find` 超过较短的请求超时。**动作或输入收到 `busy` 后，先用 `Wait*` 确认界面状态**，已排队的动作可能仍会执行，直接重试可能执行两次。
 - 根包在 `New` 时（`automationAttach`）读取变量，`OnReady` 时开始监听，应用退出时关闭；`uihost.Open` 为每个窗口注册自绘适配器，窗口关闭时注销。
 
@@ -95,6 +95,8 @@ automation（客户端）  ── TCP/unix ──  internal/automation.Server（
 `Eval(expr)` 把表达式嵌进一段包装脚本，经 `Surface.Eval` 执行，结果（Promise 会被 await，值 `JSON.stringify`）通过内部消息通道 `\x00tango-int:automation:` 回传。表达式以源码形式嵌入而非交给 `eval()`，页面 CSP 不含 `unsafe-eval` 也能用。页面还没加载完（`OnLoaded` 之前）时先等加载完成。要求页面有 Tango 桥（应用自己的资源页，或核心导航过且受信任的源）；语法错误表现为超时，错误信息会提示。
 
 选择器辅助都是在页面里跑的 JS：`WaitSelector`、`WaitJS`、`ClickSelector`（等待、滚动到可见、`click()`）、`Fill`（用原生 setter 设值并派发 `input`/`change`，React/Vue 能感知）、`TextOf`。截图用 `Surface.Screenshot`。
+
+MCP 的 `tango_web_key` 通过 `web_key` 操作把组合键交给目标 WebView 的原生输入路径。`Window` 指定窗口 ID，`Input` 为 `{"kind":"key","keys":"CmdOrCtrl+S"}`。组合键沿用自绘输入的解析规则。已启用的原生菜单快捷键优先处理，其他按键发给 WebView。返回成功表示分发完成，页面更新可能稍后发生。读取窗口或页面状态后再重试超时的按键请求，避免重复触发菜单动作。
 
 ## API
 
@@ -190,6 +192,7 @@ func (l *Locator) Expand()                 // Collapse、Increment、Decrement�
 
 - macOS：需要图形会话（已登录用户的桌面）；锁屏时 WebView 与 Metal 相关的项目可能失败，先用 `ioreg -n Root -d1 -a | grep CGSSessionScreenIsLocked` 确认。
 - Linux：在 xvfb 下运行，例如 `TANGO_E2E=1 xvfb-run -a go test ./examples/ledger ./examples/hello -run E2E`（需要 GTK3 与 WebKitGTK 运行库）。
+- WebView 按键的 MCP 端到端用例可在各平台运行，命令为 `TANGO_E2E=1 go -C cmd/tan test -run '^TestMCPE2EWebKey$' -v .`。Linux 在同一命令外套 `xvfb-run -a env`。用 `TANGO_WEB_KEY_ARTIFACTS` 指定截图目录。在隔离的桌面会话中设置 `TANGO_WEB_KEY_TEST_CLIPBOARD=1` 可同时验证复制和粘贴。
 - Windows：交互式桌面会话中运行（服务账户的 session 0 没有可见桌面）。
 - 慢机器调大等待：`app.SetTimeout(30*time.Second)`、`Options.StartTimeout`。首次 `go build` 不计入启动超时。
 - 截图可以作为失败产物上传：失败时 `win.SaveScreenshot(filepath.Join(os.Getenv("ARTIFACTS"), t.Name()+".png"))`。

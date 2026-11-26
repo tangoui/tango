@@ -1,6 +1,6 @@
 // Package ui is the self-drawn GUI layer of Tango: an immediate-mode API
 // over retained widget state, rendered by a pure-Go pipeline (no cgo) with
-// the visual language of Ant Design v5 (default), Element Plus and shadcn/ui.
+// the visual language of Ant Design 6.7 (default), Element Plus and shadcn/ui.
 //
 // # Programming model
 //
@@ -20,9 +20,12 @@
 // enclosing scope, widget kind, label and occurrence; wrap dynamic lists in
 // ui.Key. Values live in the app (pointers); widgets only retain transient
 // state (caret, scroll, open dropdowns, animations) via ui.State.
-// Frames are event driven: a host calls Runner.Frame after input or when the
-// UI asks (Window.Invalidate / InvalidateAt for animations and timers); a
-// static UI produces no frames.
+// Frames are event driven. A static UI stays idle until input or a request
+// for a new frame. In a page function, call [Context.WakeAt] to schedule a
+// frame. For example, compute a countdown from its deadline each frame,
+// and call c.WakeAt(time.Now().Add(time.Second)) while it is still running.
+// From a background goroutine, use [Runner.Post] to update application
+// state on the UI thread and request a redraw.
 //
 // # Layers
 //

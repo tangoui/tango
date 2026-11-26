@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebView Notes</title>
+  <style>
+    :root { color-scheme: light dark; font: 16px/1.5 system-ui, sans-serif; }
+    body { margin: 0; background: canvas; color: canvastext; }
+    main { max-width: 44rem; margin: 0 auto; padding: 2rem; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    h1 { margin: 0; font-size: 1.75rem; }
+    label { display: block; margin: 1rem 0 0.35rem; }
+    textarea { box-sizing: border-box; width: 100%; min-height: 15rem; resize: vertical;
+               border: 1px solid #838a99; border-radius: 0.5rem; padding: 0.8rem;
+               font: 0.94rem/1.6 ui-monospace, monospace; }
+    button { background: #254bc2; color: #fff; border: 0; padding: 0.5rem 0.85rem;
+             border-radius: 0.45rem; font: inherit; cursor: pointer; }
+    button:disabled { opacity: 0.65; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>WebView Notes</h1>
+      <button id="save" type="button">Save As…</button>
+    </header>
+    <label for="note">Markdown note</label>
+    <textarea id="note" spellcheck="false"># A first note
+
+Write here, then use Save As to choose a file.</textarea>
+    <div id="status" role="status"></div>
+  </main>
+  <script>
+    const note = document.querySelector("#note");
+    const status = document.querySelector("#status");
+    const button = document.querySelector("#save");
+
+    async function save() {
+      if (button.disabled) return;
+      button.disabled = true;
+      status.textContent = "";
+      try {
+        const name = await window.tango.call("Notes.Save", note.value);
+        if (name) status.textContent = "Saved " + name;
+      } catch (error) {
+        status.textContent = String(error);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    button.addEventListener("click", save);
+    window.tango.on("menu:save", save);
+  </script>
+</body>
+</html>

@@ -12,12 +12,17 @@
 //	view := m.Submenu("View")
 //	view.Radio("size", "Small", false, nil)
 //	view.Radio("size", "Large", true, nil)
-//	m.Submenu("Edit").Role(menu.EditMenu)
+//	m.Role(menu.EditMenu)
 //	err := menu.SetAppMenu(a, m)
 //
 // The same Menu can be shown in several places: the menu bar
 // (SetAppMenu / SetSurfaceMenu), a tray icon (package tray), a context
 // menu (Popup, RegisterContext).
+//
+// Add AppMenu, EditMenu, and WindowMenu directly to the menu bar. Each
+// role supplies an entire submenu. Add individual roles to a named
+// submenu when you need custom contents. Quit already has Command-Q
+// on macOS, so assign that shortcut to just one quit item.
 //
 // # Changing a menu
 //
@@ -140,17 +145,17 @@ func (m *Menu) Submenu(label string) *Menu {
 	return sub
 }
 
-// SetLabel changes the label. Call Update to show it.
+// SetLabel changes the label. Call [Menu.Update] to apply the change to native menus.
 func (it *Item) SetLabel(label string) { mu.Lock(); it.Label = label; mu.Unlock() }
 
-// SetDisabled enables or disables the item. Call Update to show it.
+// SetDisabled enables or disables the item. Call [Menu.Update] to apply the change to native menus.
 func (it *Item) SetDisabled(disabled bool) { mu.Lock(); it.Disabled = disabled; mu.Unlock() }
 
-// SetIcon sets the PNG icon (nil removes it). Call Update to show it.
+// SetIcon sets the PNG icon (nil removes it). Call [Menu.Update] to apply the change to native menus.
 func (it *Item) SetIcon(png []byte) { mu.Lock(); it.Icon = png; mu.Unlock() }
 
 // SetChecked checks or unchecks the item. Checking a radio item unchecks
-// the others of its group. Call Update to show it.
+// the others of its group. Call [Menu.Update] to apply the change to native menus.
 func (it *Item) SetChecked(checked bool) {
 	mu.Lock()
 	it.setChecked(checked)

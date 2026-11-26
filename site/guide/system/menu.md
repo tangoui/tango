@@ -22,9 +22,11 @@ file.Add("New", newDoc).Accelerator = "CmdOrCtrl+N"
 var wrap *menu.Item
 wrap = file.Check("Word Wrap", true, func() { setWrap(wrap.IsChecked()) })
 
-m.Submenu("Edit").Role(menu.EditMenu)
+m.Role(menu.EditMenu)
 _ = menu.SetAppMenu(app, m)
 ```
+
+把 `AppMenu`、`EditMenu` 和 `WindowMenu` 加到菜单栏顶层。每个角色都会生成一个完整的子菜单。macOS 上 `Quit` 已绑定 Command-Q，自定义退出项使用同一快捷键时，只需保留其中一项。
 
 改动菜单后调用 `Update`：
 

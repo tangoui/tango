@@ -43,7 +43,7 @@
 | Field | Meaning |
 |---|---|
 | `$schema` | Optional schema URL for editors |
-| `name` | Required display name. Also determines the executable name |
+| `name` | Required app display and package name. The executable name keeps ASCII letters, digits, hyphens, and underscores. Include at least one ASCII letter or digit |
 | `id` | Required reverse-DNS identifier for the bundle ID, Android application ID and MSIX identity |
 | `version` | Required. One to three dot-separated numbers with an optional `-` or `+` suffix. iOS strips the suffix from `CFBundleShortVersionString` |
 | `icon` | Square, full-bleed master PNG, ideally 1024×1024. Tan derives the desktop shapes |

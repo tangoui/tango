@@ -25,9 +25,16 @@ tan <command> -h      # 某个命令的参数
 | `tan sign-update` | 用 Ed25519 私钥签名更新清单 |
 | `tan applinks` | 生成发布到网站 `/.well-known/` 的 iOS Universal Links 和 Android App Links 验证文件 |
 | `tan generate bindings` | 为 `bind.Register` 注册的服务生成 TypeScript 客户端 |
+| `tan skills update` | 从项目使用的 Tango 模块安装或更新 AI 技能 |
 | `tan doctor` | 检查工具链和平台依赖 |
 | `tan mcp` | 为 AI 代理提供项目工具和开发构建的界面自动化工具 |
 | `tan version` | 打印版本 |
+
+## 项目 AI 技能
+
+在应用目录运行 `tan skills update`，也可以用 `tan skills update -C <dir>` 指定目录。命令通过 Go 解析项目使用的 Tango 模块，支持 `go.work` 和 `replace`。模块尚未下载时，先在项目目录运行 `go mod download`。模块中没有 `skills/tango/` 时，先升级 `github.com/tangoui/tango`。
+
+更新前会列出 `.agents/skills/tango/` 内将新增、修改、删除的文件。该目录由 `tan` 管理，请把自定义技能放在 `.agents/skills/` 下的其他目录。
 
 ## 平台目标
 

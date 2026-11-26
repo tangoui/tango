@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"cmp"
+	"context"
 	"embed"
 	"errors"
 	"flag"
@@ -22,7 +23,19 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
+
+	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/module"
 )
+
+const tangoModule = "github.com/tangoui/tango"
+
+// Embed the requirement because Go build info only reports the workspace
+// module as (devel) when tan is built inside the Tango workspace.
+//
+//go:embed go.mod
+var cliGoMod []byte
 
 // templates holds the project templates: go/ is shared by all of them, the
 // other directories hold each template's front end and, where it differs
@@ -115,6 +128,15 @@ func runInit(args []string) error {
 	}
 	if err := createProject(o); err != nil {
 		return err
+	}
+	if ft, _ := findTemplate(o.Template); o.Local != "" && ft.frontend.Build != "" {
+		runtimeDir := filepath.Join(o.Local, "runtime-js")
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		err := prepareLocalRuntime(ctx, runtimeDir)
+		cancel()
+		if err != nil {
+			warnf("could not build the local @tangoui/runtime: %v\nrun npm ci and npm run build in %q before building the frontend", err, runtimeDir)
+		}
 	}
 	logf("Created %s. Next:", o.Dir)
 	cd := o.Dir
@@ -209,14 +231,14 @@ func createProject(o initOptions) error {
 		return err
 	}
 	data := templateData{
-		Name:    o.Name,
-		ID:      o.ID,
-		Slug:    s,
-		Module:  o.Module,
-		Embed:   path.Clean(path.Join(ft.frontend.Dir, ft.frontend.Dist)),
-		Dist:    builtDist(ft.frontend),
-		Runtime: "^0.3.0",
+		Name:   o.Name,
+		ID:     o.ID,
+		Slug:   s,
+		Module: o.Module,
+		Embed:  path.Clean(path.Join(ft.frontend.Dir, ft.frontend.Dist)),
+		Dist:   builtDist(ft.frontend),
 	}
+	version := "v0.0.0"
 	var local string
 	if o.Local != "" {
 		if local, err = filepath.Abs(o.Local); err != nil {
@@ -226,6 +248,17 @@ func createProject(o initOptions) error {
 			return fmt.Errorf("-local %s: not a Tango checkout: %w", o.Local, err)
 		}
 		data.Runtime = "file:" + filepath.ToSlash(filepath.Join(local, "runtime-js"))
+	} else {
+		version, err = projectTangoVersion()
+		if err != nil {
+			return err
+		}
+		if ft.frontend.Build != "" {
+			data.Runtime, err = npmRuntimeVersion(version)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -239,7 +272,7 @@ func createProject(o initOptions) error {
 	}
 	files := map[string][]byte{
 		ConfigFile: projectConfig(cfg),
-		"go.mod":   goMod(o.Module, local),
+		"go.mod":   goMod(o.Module, version, local),
 		"icon.png": defaultIcon(o.Name),
 	}
 	for name, b := range files {
@@ -253,6 +286,13 @@ func createProject(o initOptions) error {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			warnf("go mod tidy failed; run it yourself once github.com/tangoui/tango is reachable:\n%s", out)
 		}
+	}
+	moduleDir, version, err := locateTango(context.Background(), dir)
+	if err == nil {
+		_, err = syncSkill(moduleDir, version, dir)
+	}
+	if err != nil {
+		warnf("could not install the Tango AI skill: %v\nrun `tan skills update` in %s later", err, dir)
 	}
 	return nil
 }
@@ -406,11 +446,40 @@ func builtDist(f Frontend) string {
 	return path.Join(f.Dir, f.Dist)
 }
 
-func goMod(module, local string) []byte {
+func projectTangoVersion() (string, error) {
+	mod, err := modfile.Parse("tan's embedded go.mod", cliGoMod, nil)
+	if err != nil {
+		return "", err
+	}
+	for _, req := range mod.Require {
+		if req.Mod.Path == tangoModule {
+			return req.Mod.Version, nil
+		}
+	}
+	return "", fmt.Errorf("tan's embedded go.mod has no requirement for %s", tangoModule)
+}
+
+func npmRuntimeVersion(goVersion string) (string, error) {
+	release := goVersion
+	if module.IsPseudoVersion(goVersion) {
+		// npm publishes tags only. Use the tag the Go pseudo-version follows.
+		var err error
+		release, err = module.PseudoVersionBase(goVersion)
+		if err != nil {
+			return "", err
+		}
+		if release == "" {
+			return "", fmt.Errorf("Tango %s has no tagged npm runtime; use -local with a Tango checkout", goVersion)
+		}
+	}
+	return strings.TrimPrefix(release, "v"), nil
+}
+
+func goMod(module, version, local string) []byte {
 	var b bytes.Buffer
-	fmt.Fprintf(&b, "module %s\n\ngo 1.27\n", module)
+	fmt.Fprintf(&b, "module %s\n\ngo 1.27\n\nrequire %s %s\n", module, tangoModule, version)
 	if local != "" {
-		fmt.Fprintf(&b, "\nrequire github.com/tangoui/tango v0.0.0\n\nreplace github.com/tangoui/tango => %s\n", filepath.ToSlash(local))
+		fmt.Fprintf(&b, "\nreplace %s => %s\n", tangoModule, filepath.ToSlash(local))
 	}
 	return b.Bytes()
 }

@@ -2,13 +2,65 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"image/png"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/module"
 )
+
+func TestCreateReleasedProjectVersions(t *testing.T) {
+	const tangoModule = "github.com/tangoui/tango"
+	versionIn := func(path string) string {
+		t.Helper()
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mod, err := modfile.Parse(path, b, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, req := range mod.Require {
+			if req.Mod.Path == tangoModule {
+				return req.Mod.Version
+			}
+		}
+		t.Fatalf("%s has no requirement for %s", path, tangoModule)
+		return ""
+	}
+	goVersion := versionIn("go.mod")
+	dir := filepath.Join(t.TempDir(), "demo")
+	if err := createProject(initOptions{Dir: dir, Template: "vue-ts"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := versionIn(filepath.Join(dir, "go.mod")); got != goVersion {
+		t.Errorf("generated Tango dependency = %q, want %q", got, goVersion)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "frontend", "package.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pkg struct{ Dependencies map[string]string }
+	if err := json.Unmarshal(b, &pkg); err != nil {
+		t.Fatal(err)
+	}
+	release := goVersion
+	if module.IsPseudoVersion(goVersion) {
+		release, err = module.PseudoVersionBase(goVersion)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, want := pkg.Dependencies["@tangoui/runtime"], strings.TrimPrefix(release, "v"); got != want {
+		t.Errorf("generated runtime dependency = %q, want %q", got, want)
+	}
+}
 
 // repoRoot is the Tango checkout this CLI lives in.
 func repoRoot(t *testing.T) string {
@@ -129,6 +181,98 @@ func TestGeneratedProjectBuilds(t *testing.T) {
 				if b, _ := os.ReadFile(prod); bytes.Contains(b, []byte("TANGO_DEV_URL")) || bytes.Contains(b, []byte("TANGO_AUTOMATION_TOKEN_FILE")) {
 					t.Error("production build reads TANGO_DEV_URL or TANGO_AUTOMATION")
 				}
+			}
+		})
+	}
+}
+
+func TestCreateProjectInstallsSkill(t *testing.T) {
+	t.Setenv("GOWORK", "off")
+	root := repoRoot(t)
+	for _, template := range []string{"ui", "vue-ts"} {
+		t.Run(template, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "demo")
+			if err := createProject(initOptions{Dir: dir, Template: template, Local: root}); err != nil {
+				t.Fatal(err)
+			}
+			skill := readSkillFixture(t, filepath.Join(dir, ".agents/skills/tango/SKILL.md"))
+			if !strings.Contains(skill, "  tango-version: local\n") {
+				t.Fatalf("missing local version in %q", skill)
+			}
+		})
+	}
+}
+
+func TestCreateProjectSkillFailureIsWarning(t *testing.T) {
+	t.Setenv("GOWORK", "off")
+	t.Setenv("GOMODCACHE", t.TempDir())
+	t.Setenv("GOPROXY", "off")
+	dir := filepath.Join(t.TempDir(), "demo")
+	out := captureStd(t, func() {
+		if err := createProject(initOptions{Dir: dir, Template: "ui"}); err != nil {
+			t.Errorf("createProject: %v", err)
+		}
+	})
+	if !strings.Contains(out, "could not install the Tango AI skill") || !strings.Contains(out, "tan skills update") {
+		t.Fatalf("missing recovery advice in %q", out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "main.go")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPrepareLocalRuntimeBuildsMissingDist(t *testing.T) {
+	if _, err := exec.LookPath("npm"); err != nil {
+		t.Skip("npm is required for a local front end")
+	}
+	runtime := filepath.Join(t.TempDir(), "runtime-js")
+	writeSkillFixture(t, filepath.Join(runtime, "package.json"), `{"name":"fixture-runtime","scripts":{"build":"node build.mjs"}}`)
+	writeSkillFixture(t, filepath.Join(runtime, "package-lock.json"), `{"name":"fixture-runtime","lockfileVersion":3,"packages":{"":{"name":"fixture-runtime"}}}`)
+	writeSkillFixture(t, filepath.Join(runtime, "tsconfig.json"), "{}")
+	writeSkillFixture(t, filepath.Join(runtime, "src", "index.ts"), "export {}")
+	writeSkillFixture(t, filepath.Join(runtime, "runtimejs", "tango.iife.js"), "checked-in copy")
+	writeSkillFixture(t, filepath.Join(runtime, "build.mjs"), `
+import { mkdirSync, writeFileSync } from "node:fs";
+mkdirSync("dist");
+for (const name of ["index.js", "index.d.ts", "tango.iife.js"]) {
+  writeFileSync("dist/" + name, name);
+}
+writeFileSync("runtimejs/tango.iife.js", "generated copy");
+`)
+	if err := prepareLocalRuntime(t.Context(), runtime); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"index.js", "index.d.ts", "tango.iife.js"} {
+		if got := readSkillFixture(t, filepath.Join(runtime, "dist", name)); got != name {
+			t.Fatalf("dist/%s = %q", name, got)
+		}
+	}
+	if got := readSkillFixture(t, filepath.Join(runtime, "runtimejs", "tango.iife.js")); got != "checked-in copy" {
+		t.Fatalf("checkout's Go embed changed: %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(runtime, "node_modules")); !os.IsNotExist(err) {
+		t.Fatalf("checkout node_modules: %v, want it absent", err)
+	}
+	// A later init can reuse the build even if npm is now unavailable.
+	t.Setenv("PATH", t.TempDir())
+	if err := prepareLocalRuntime(t.Context(), runtime); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestViteTemplatesPinLoopbackHost(t *testing.T) {
+	for _, template := range frontendTemplates {
+		if template.frontend.Dev == "" {
+			continue
+		}
+		t.Run(template.name, func(t *testing.T) {
+			config, err := templates.ReadFile("templates/" + template.name + "/frontend/vite.config.ts")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(config), `host: "127.0.0.1"`) ||
+				!strings.Contains(string(config), "strictPort: true") {
+				t.Fatalf("Vite must report a conflict on the same IPv4 endpoint tan dev uses:\n%s", config)
 			}
 		})
 	}

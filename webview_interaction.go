@@ -18,10 +18,19 @@ const (
 )
 
 // WebDialogRequest describes a dialog and its requesting document.
+//
+//   - ID (uint64) identifies the dialog on this surface.
+//   - Kind (WebDialogKind) identifies the script dialog type.
+//   - URL (string) is the requesting document's URL, when available.
+//   - Message (string) is the text supplied by the page.
+//   - DefaultText (string) is the initial value for a prompt.
 type WebDialogRequest = platform.WebDialogRequest
 
-// WebDialogResponse accepts or dismisses a dialog. Text supplies the
-// accepted prompt's value. For beforeunload, Accepted allows navigation.
+// WebDialogResponse accepts or dismisses a dialog.
+//
+//   - Accepted (bool) signals OK for confirm or prompt, or allows navigation
+//     for beforeunload.
+//   - Text (string) supplies the value of an accepted prompt.
 type WebDialogResponse = platform.WebDialogResponse
 
 // WebFileChooserRequest describes the selection requested by a file input.
@@ -31,7 +40,8 @@ type WebFileChooserRequest = platform.WebFileChooserRequest
 // SetWebDialogHandler intercepts script dialogs. fn runs on the main
 // thread and may answer later from any goroutine. Only the first reply
 // is used. Closing the surface dismisses pending dialogs. A nil handler
-// restores the platform's default behavior.
+// restores the platform's default behavior. macOS dismisses unhandled
+// script dialogs.
 // The dev host proxy returns ErrUnsupported.
 func (s *Surface) SetWebDialogHandler(fn func(WebDialogRequest, func(WebDialogResponse))) error {
 	if s.proxyEmbed {

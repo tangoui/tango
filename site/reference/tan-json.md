@@ -43,7 +43,7 @@
 | 字段 | 说明 |
 |---|---|
 | `$schema` | 可选的 JSON Schema URL，供编辑器使用 |
-| `name` | 必填。显示名，也决定可执行文件名 |
+| `name` | 必填。应用显示名和包名。生成可执行文件名时只保留 ASCII 字母、数字、连字符和下划线，至少需要一个 ASCII 字母或数字 |
 | `id` | 必填。反向域名 ID（Bundle ID、applicationId、MSIX Identity），如 `com.example.notes` |
 | `version` | 必填。1 至 3 段数字，可带 `-` 或 `+` 后缀。iOS 的 `CFBundleShortVersionString` 去掉后缀 |
 | `icon` | 主图标：正方形、铺满画布的 PNG，最好 1024×1024；桌面的圆角形状由 tan 派生 |

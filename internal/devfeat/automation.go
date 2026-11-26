@@ -26,6 +26,7 @@ import (
 	"github.com/tangoui/tango/internal/automation"
 	"github.com/tangoui/tango/internal/corehook"
 	"github.com/tangoui/tango/internal/platform"
+	"github.com/tangoui/tango/ui/input"
 )
 
 // autoSurface is the part of *tango.Surface's exported API automation
@@ -132,6 +133,23 @@ func (h *autoHost) surface(win uint64) (autoSurface, error) {
 		return nil, &automation.Error{Code: automation.CodeNoWindow, Msg: fmt.Sprintf("automation: no window %d", win)}
 	}
 	return s.(autoSurface), nil
+}
+
+func (h *autoHost) WebKey(win uint64, key input.Key, mods input.Modifiers, done func(error)) {
+	s, err := h.surface(win)
+	if err != nil {
+		done(err)
+		return
+	}
+	corehook.SurfaceWebKey(s, key, mods, func(err error) {
+		switch {
+		case errors.Is(err, platform.ErrWebViewClosed):
+			err = &automation.Error{Code: automation.CodeNoWindow, Msg: fmt.Sprintf("automation: window %d closed", win)}
+		case errors.Is(err, platform.ErrUnsupported):
+			err = &automation.Error{Code: automation.CodeUnsupported, Msg: fmt.Sprintf("automation: WebView cannot dispatch key %s: %v", key, err)}
+		}
+		done(err)
+	})
 }
 
 func (h *autoHost) Screenshot(win uint64) ([]byte, error) {

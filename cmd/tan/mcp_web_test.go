@@ -126,6 +126,7 @@ func TestWebOnCanvasRejected(t *testing.T) {
 		args map[string]any
 	}{
 		{"tango_web_eval", map[string]any{"expr": "1"}},
+		{"tango_web_key", map[string]any{"keys": "Enter"}},
 		{"tango_web_click", map[string]any{"selector": "#a"}},
 		{"tango_web_fill", map[string]any{"selector": "#a", "text": "x"}},
 		{"tango_web_text", map[string]any{"selector": "#a"}},
@@ -199,5 +200,31 @@ func TestWebEvalTruncatesLargeValue(t *testing.T) {
 	callOK(t, cs, "tango_web_eval", map[string]any{"session": a.ID, "expr": "big"}, &out)
 	if !out.Truncated || len(out.Value) > webEvalMax || len(out.Value) < webEvalMax-utf8.UTFMax || !utf8.ValidString(out.Value) || !strings.HasPrefix(out.Value, `"éé`) {
 		t.Errorf("big value: truncated %v, %d bytes, valid %v", out.Truncated, len(out.Value), utf8.ValidString(out.Value))
+	}
+}
+
+func TestWebKeySendsChord(t *testing.T) {
+	s, cs := projectServer(t)
+	windows := append(append([]wire.WindowInfo(nil), webWindow...), wire.WindowInfo{ID: 9, Title: "Other", Kind: wire.KindWebView})
+	a, got := fakeSession(t, s, windows, nil)
+	callOK(t, cs, "tango_web_key", map[string]any{"session": a.ID, "window": "Other", "keys": "CmdOrCtrl+S"}, nil)
+	if msg := callErr(t, cs, "tango_web_key", map[string]any{"session": a.ID, "keys": ""}); !strings.Contains(msg, "keys") {
+		t.Errorf("missing keys: %s", msg)
+	}
+	n := 0
+	for _, r := range got() {
+		switch r.Op {
+		case wire.OpWindows:
+		case wire.OpWebKey:
+			n++
+			if r.Window != 9 || r.Input == nil || r.Input.Kind != "key" || r.Input.Keys != "CmdOrCtrl+S" {
+				t.Errorf("wrong key request: %+v, input %+v", r, r.Input)
+			}
+		default:
+			t.Errorf("unexpected request %s", r.Op)
+		}
+	}
+	if n != 1 {
+		t.Errorf("got %d web_key requests", n)
 	}
 }

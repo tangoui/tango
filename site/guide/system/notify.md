@@ -68,7 +68,16 @@ const off = Notify.onClick((id) => console.log("clicked", id));
 
 ## 注意
 
-- **macOS 需要 .app**：通知要求应用以带 bundle identifier 的 .app 运行，直接 `go run` 的裸二进制会得到一个明确的错误（不会崩溃）；用户还必须在系统设置中允许。开发时用 `tan dev` / `tan build` 生成的包测试，见 [命令行](/reference/cli)。
 - macOS、iOS 和 Android 也会报告前次运行的通知点击，包括通过通知启动应用。id 在多次运行之间保持唯一。
 - Windows 走通知区域气泡，不需要 AUMID 或安装程序。
 - 应用运行后可在任意 goroutine 调用；Android 上用 goroutine 调用 `RequestPermission`，因为主线程不能嵌套等待。应用退出后返回 `tango.ErrNotRunning`。
+
+## macOS 通知排障
+
+从带 `CFBundleIdentifier` 的 `.app` 请求通知权限。用 `tan build` 生成带 ad-hoc 签名的应用包。`go run` 或直接运行普通 `go build` 产物会收到需要 `.app` 的错误。
+
+如果 `RequestPermission` 返回 `Notifications are not allowed for this application`，且系统未弹出授权询问，先退出正在运行的测试副本。将完整的 `.app` 移到 `/Applications` 或 `~/Applications`，用 Finder 或 `open` 启动安装后的副本，再请求权限。
+
+macOS 26.6 上，同一份 ad-hoc 签名的包从 `/tmp` 通过 `open -g` 启动时，系统日志中的 `usernoted` 报 `Failed to find or validate client`。用 LaunchServices 显式登记临时副本后仍有该错误。移到 `~/Applications` 后用 `open -g` 启动，系统正常发出首次授权询问。
+
+如果系统已经询问过，前往「系统设置 → 通知」检查本应用的「允许通知」。

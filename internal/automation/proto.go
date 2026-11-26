@@ -73,6 +73,7 @@ const (
 	OpWait       = "wait"       // Window, Query, Gone, Timeout → Node (nil when Gone)
 	OpAction     = "action"     // Window, Query, Action, Arg, Timeout → Node
 	OpInput      = "input"      // Window, Input → nothing
+	OpWebKey     = "web_key"    // Window, Input.Keys → nothing (WebView)
 	OpEval       = "eval"       // Window, Script, Timeout → Value (WebView)
 	OpScreenshot = "screenshot" // Window → PNG
 	OpQuit       = "quit"       // → nothing; the app quits after answering

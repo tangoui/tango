@@ -103,6 +103,10 @@ app.OnReady(func() {
 app.Run()
 ```
 
+## 项目里的 AI 技能
+
+`tan init` 会从项目依赖的 Tango 模块安装 `.agents/skills/tango/`。Codex、Cursor 和 Gemini CLI 会自动读取该目录。使用 Claude Code 时，在对话里请它先读 `.agents/skills/tango/SKILL.md`。升级 Tango 后或给已有项目安装技能时，运行 `tan skills update`。 [CLI 用法](/reference/cli#项目-ai-技能)
+
 ## 开发模式：tan dev
 
 ```bash

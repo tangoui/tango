@@ -1,6 +1,9 @@
 package corehook
 
-import "github.com/tangoui/tango/internal/platform"
+import (
+	"github.com/tangoui/tango/internal/platform"
+	"github.com/tangoui/tango/ui/input"
+)
 
 // Hooks for the development features of package internal/devfeat (window
 // placement across `tan dev` restarts, the automation channel), which only
@@ -44,3 +47,6 @@ var SurfaceClosed func(surface any) bool
 // SurfaceLoaded reports whether the page of surface (a *tango.Surface) has
 // finished loading. Main thread.
 var SurfaceLoaded func(surface any) bool
+
+// SurfaceWebKey dispatches a parsed chord to the native WebView on the main thread.
+var SurfaceWebKey func(surface any, key input.Key, mods input.Modifiers, done func(error))

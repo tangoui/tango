@@ -50,7 +50,7 @@ tan sign -notarize build/Hello-1.0.0-darwin-arm64.dmg
 | `-notarize` | 提交公证并装订票据 |
 | `-profile` / `TANGO_NOTARY_PROFILE` | notarytool 钥匙串 profile；或者用 `TANGO_APPLE_ID`、`TANGO_APPLE_TEAM_ID`、`TANGO_APPLE_PASSWORD`（App 专用密码） |
 
-通知（`sys/notify`）在 macOS 上要求应用从带 Bundle ID 的 `.app` 运行，裸二进制会得到明确的错误。
+macOS 通知要求应用从带 Bundle ID 的 `.app` 运行。在临时目录里测试遇到 `Notifications are not allowed for this application` 时，将包移到 `/Applications` 或 `~/Applications` 后重新启动。详见[通知排障](/guide/system/notify#macos-通知排障)。
 
 ## Windows：Authenticode
 

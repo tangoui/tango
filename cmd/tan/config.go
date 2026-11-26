@@ -58,7 +58,7 @@ type Config struct {
 	// Schema is the URL of tan.json's JSON Schema, which editors use for
 	// completion and checks; tan ignores it.
 	Schema  string `json:"$schema,omitempty"`
-	Name    string `json:"name"`    // display name; also names the executable (see Exe)
+	Name    string `json:"name"`    // display and package name. Must contain an ASCII letter or digit for the executable name
 	ID      string `json:"id"`      // reverse-DNS identifier, e.g. com.example.hello
 	Version string `json:"version"` // x.y.z
 	// Features selects the compile-time desktop backend profile. Omitted means all capabilities.
@@ -346,8 +346,8 @@ func (c *Config) validate() error {
 	var errs []error
 	if strings.TrimSpace(c.Name) == "" {
 		errs = append(errs, errors.New(`"name" is required`))
-	} else if c.Exe() == "" {
-		errs = append(errs, fmt.Errorf(`"name" %q has no letters or digits`, c.Name))
+	} else if strings.Trim(c.Exe(), "-_") == "" {
+		errs = append(errs, fmt.Errorf(`"name" %q must contain an ASCII letter or digit to form the executable name`, c.Name))
 	} else if err := checkAppName(c.Name); err != nil {
 		errs = append(errs, err)
 	}
@@ -623,7 +623,7 @@ func (c *Config) FrontendDir() string {
 // DistDir is the absolute front-end build output directory.
 func (c *Config) DistDir() string { return filepath.Join(c.FrontendDir(), c.Frontend.Dist) }
 
-// Exe is the executable name: Name with everything but letters, digits,
+// Exe is the executable name: Name with everything but ASCII letters, digits,
 // '-' and '_' removed ("My App" → "MyApp").
 func (c *Config) Exe() string {
 	var b strings.Builder

@@ -269,6 +269,7 @@ uihost.Shortcut(s, "CmdOrCtrl+N", func() { runner.Post(l.newEntry) })
 - [ ] `CHANGELOG.md`：把「未发布」里的内容移到新的 `## [0.2.0] - YYYY-MM-DD` 一节，更新文末的比较链接。
 - [ ] `runtime-js/package.json` 的 `version` 改成 `0.2.0`，在 `runtime-js` 里 `npm install --package-lock-only` 同步 lock 文件，`npm test` 通过，提交更新后的 `runtimejs/tango.iife.js`（如有变化）。
 - [ ] `cmd/tan` 模板里引用的 `@tangoui/runtime` 版本与本次一致（`tan init` 生成的 package.json）。
+- [ ] 确认 `skills/tango/` 中的 API 用法和示例与本版 Tango 一致。
 - [ ] 文档：新功能有对应页面；实验性功能有标注。`cd site && npm run docs:build && npm run docs:links` 通过。
 
 ### 2. 打根模块标签
@@ -311,6 +312,8 @@ git push origin main cmd/tan/v0.2.0
 
 - [ ] 验证：在一个空目录里 `go install github.com/tangoui/tango/cmd/tan@v0.2.0 && tan version`。
 - [ ] 本地开发继续由仓库根目录的 `go.work` 把两个模块连在一起，不需要恢复 `replace`。
+
+`tan init` 从 `cmd/tan/go.mod` 取 Tango 依赖版本，写入应用的 `go.mod`。使用 npm 的模板固定到对应的 `@tangoui/runtime` 发布版本。CLI 依赖伪版本时，npm 依赖使用该伪版本所基于的标签。测试尚未发布的 Go 和 JS 改动时，使用 `tan init -local <Tango checkout>`。
 
 普通开发提交也必须保持 CLI 可独立构建：在 `cmd/tan` 目录执行 `GOWORK=off go build -mod=readonly .`。CI 会执行同一检查，并拒绝 CLI 模块里的 `replace`；发布校验也会将它视为错误。没有正式版本时，可以依赖已经推送、能被 Go 模块代理下载的根模块伪版本。本地修复尚未推送时，远程的 `go install …@latest` 仍会读取旧的 `go.mod`；可先在本地 `cmd/tan` 目录执行 `go install .`。
 

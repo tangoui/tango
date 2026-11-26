@@ -56,4 +56,5 @@ ui/terminal/...         experimental
 # Not API.
 examples/...            exclude
 site/...                exclude
+skills/tango/examples/... exclude
 tools/...               exclude

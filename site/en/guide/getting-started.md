@@ -86,6 +86,10 @@ app.OnReady(func() {
 app.Run()
 ```
 
+## Project AI skill
+
+`tan init` installs `.agents/skills/tango/` from the project's Tango module. Codex, Cursor, and Gemini CLI discover it automatically. In Claude Code, ask the assistant to read `.agents/skills/tango/SKILL.md` before working on the app. Run `tan skills update` after upgrading Tango or to install the skill in an existing project. [CLI reference](/en/reference/cli#project-ai-skill)
+
 ## Development: tan dev
 
 ```bash
