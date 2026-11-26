@@ -11,12 +11,13 @@
 //	tan sign-update         sign an update manifest with an Ed25519 key
 //	tan applinks            apple-app-site-association and assetlinks.json for tan.json "appLinks"
 //	tan generate bindings   TypeScript clients for bind.Register services
+//	tan skills update       install the project AI skill from its Tango module
 //	tan doctor              check the toolchain
 //	tan mcp                 MCP server for AI agents (stdio, or loopback HTTP)
 //	tan version             print the CLI version
 //
 // Every command reads tan.json from the current directory (or the one
-// given by -C) except init, keygen, doctor, mcp and version.
+// given by -C) except init, keygen, skills, doctor, mcp and version.
 package main
 
 import (
@@ -51,6 +52,7 @@ func commands() []command {
 		{"sign-update", "sign an update manifest with an Ed25519 key", runSignUpdate},
 		{"applinks", "write the Universal Links / App Links files for /.well-known/", runAppLinks},
 		{"generate", "generate code (bindings)", runGenerate},
+		{"skills", "install or update the project's AI skill", runSkills},
 		{"doctor", "check the toolchain and platform dependencies", runDoctor},
 		{"mcp", "run an MCP server for AI agents (project and UI tools)", runMCP},
 		{"version", "print the version", runVersion},

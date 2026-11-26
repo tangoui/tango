@@ -35,6 +35,9 @@ func cliHelp(t *testing.T) string {
 		case "generate":
 			b.WriteString("\n")
 			capture("generate", "bindings", "-h")
+		case "skills":
+			b.WriteString("\n")
+			capture("skills", "update", "-h")
 		default:
 			b.WriteString("\n")
 			capture(c.name, "-h")

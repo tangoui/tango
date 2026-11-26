@@ -13,6 +13,7 @@ Commands:
   sign-update  sign an update manifest with an Ed25519 key
   applinks     write the Universal Links / App Links files for /.well-known/
   generate     generate code (bindings)
+  skills       install or update the project's AI skill
   doctor       check the toolchain and platform dependencies
   mcp          run an MCP server for AI agents (project and UI tools)
   version      print the version
@@ -196,6 +197,14 @@ Usage: tan generate bindings [flags]
     	Go package dir with the bind.Register calls, relative to the project (default ".")
   -runtime module
     	module that exports call (default "@tangoui/runtime")
+
+$ tan skills update -h
+Usage: tan skills update [-C dir]
+  -C dir
+    	project dir (where tan.json is) (default ".")
+
+Install the skill from the project's Tango module. Run go mod download first if needed.
+.agents/skills/tango is managed by tan; put your own skills in another directory.
 
 $ tan doctor -h
 Usage: tan doctor 

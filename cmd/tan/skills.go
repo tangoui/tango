@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io/fs"
 	"os"
@@ -15,6 +16,74 @@ import (
 )
 
 const skillDir = ".agents/skills/tango"
+
+func runSkills(args []string) error {
+	fs := newFlags("skills update", "[-C dir]")
+	project := projectFlag(fs)
+	printFlags := fs.Usage
+	fs.Usage = func() {
+		printFlags()
+		fmt.Fprintln(fs.Output(), "\nInstall the skill from the project's Tango module. Run go mod download first if needed.")
+		fmt.Fprintf(fs.Output(), "%s is managed by tan; put your own skills in another directory.\n", skillDir)
+	}
+	if len(args) == 0 {
+		fs.Usage()
+		return errors.New("missing skills subcommand")
+	}
+	switch args[0] {
+	case "update":
+	case "-h", "-help", "--help":
+		fs.Usage()
+		return flag.ErrHelp
+	default:
+		fs.Usage()
+		return fmt.Errorf("unknown skills subcommand %q", args[0])
+	}
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	if err := noArgs(fs); err != nil {
+		return err
+	}
+	if info, err := os.Stat(filepath.Join(*project, "go.mod")); err != nil {
+		return fmt.Errorf("finding the project go.mod: %w", err)
+	} else if !info.Mode().IsRegular() {
+		return fmt.Errorf("%s has no regular go.mod file", *project)
+	}
+	module, version, err := locateTango(context.Background(), *project)
+	if err != nil {
+		return err
+	}
+	printChanges := func(changes skillChanges) {
+		fmt.Printf("tango skill %s -> %s\n", skillVersion(version), skillDir)
+		if changes.Empty() {
+			fmt.Println("already up to date")
+			return
+		}
+		fmt.Printf("added %d, modified %d, removed %d\n", len(changes.Added), len(changes.Modified), len(changes.Removed))
+		for _, group := range []struct {
+			action string
+			files  []string
+		}{
+			{"added", changes.Added},
+			{"modified", changes.Modified},
+			{"removed", changes.Removed},
+		} {
+			for _, name := range group.files {
+				fmt.Printf("  %s %s\n", group.action, name)
+			}
+		}
+	}
+	changes, err := syncSkillWithReport(module, version, *project, printChanges)
+	if err != nil {
+		return err
+	}
+	if changes.Empty() {
+		printChanges(changes)
+	}
+	fmt.Printf("%s is managed by tan; put your own skills in another directory\n", skillDir)
+	return nil
+}
 
 func locateTango(ctx context.Context, projectDir string) (dir, version string, err error) {
 	// A replacement has its own version. A local replacement has none,
@@ -51,6 +120,10 @@ func (c skillChanges) Empty() bool {
 }
 
 func syncSkill(moduleDir, version, projectDir string) (skillChanges, error) {
+	return syncSkillWithReport(moduleDir, version, projectDir, nil)
+}
+
+func syncSkillWithReport(moduleDir, version, projectDir string, beforeReplace func(skillChanges)) (skillChanges, error) {
 	sourceDir := filepath.Join(moduleDir, "skills", "tango")
 	source := os.DirFS(sourceDir)
 	if _, err := fs.Stat(source, "SKILL.md"); errors.Is(err, fs.ErrNotExist) {
@@ -132,6 +205,9 @@ func syncSkill(moduleDir, version, projectDir string) (skillChanges, error) {
 		if err := project.WriteFile(dest, contents, 0644); err != nil {
 			return skillChanges{}, err
 		}
+	}
+	if beforeReplace != nil {
+		beforeReplace(changes)
 	}
 	if exists {
 		if err := project.Rename(skillDir, previous); err != nil {
