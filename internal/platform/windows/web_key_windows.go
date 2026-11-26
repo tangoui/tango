@@ -3,7 +3,6 @@
 package windows
 
 import (
-	"errors"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/ui/input"
 )
@@ -21,7 +20,9 @@ func (s *surface) DispatchWebKey(key input.Key, mods input.Modifiers, done func(
 		done(s.failed)
 		return
 	case !s.ready || s.webview == 0:
-		done(errors.New("tango/windows: WebView2 is not ready"))
+		// Like Eval, wait for the controller; the automation request
+		// times out if the WebView fails or closes first.
+		s.whenReady(func() { s.DispatchWebKey(key, mods, done) })
 		return
 	}
 	m := s.menuOwner()

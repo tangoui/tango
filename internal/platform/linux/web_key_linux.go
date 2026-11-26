@@ -36,8 +36,11 @@ func (s *surface) DispatchWebKey(key input.Key, mods input.Modifiers, done func(
 }
 
 func (s *surface) dispatchWebKey(key input.Key, mods input.Modifiers) error {
+	if s.closed {
+		return platform.ErrWebViewClosed
+	}
 	k, ok := gtkWebKey(key, mods)
-	if !ok || s.closed || s.web == 0 || s.win == 0 {
+	if !ok || s.web == 0 || s.win == 0 {
 		return platform.ErrUnsupported
 	}
 	f := &webOperations
