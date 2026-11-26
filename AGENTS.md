@@ -1,5 +1,7 @@
 # Tango 开发须知（给所有 AI 和开发者）
 
+本文件面向开发 Tango 框架本身的贡献者。使用 Tango 开发应用时，本文件的贡献者规则不适用。请从[应用开发快速开始](https://tangoui.github.io/tango/guide/getting-started)入门，仓库内源文件是 [site/guide/getting-started.md](site/guide/getting-started.md)。
+
 ## UI 设计基线（必须遵守）
 
 自绘 UI（`ui/`、`ui/theme`、`ui/icon`、`ui-gallery`、`site` 的组件文档）统一按 **Ant Design 6.7（`antd@6.7.0`）+ Ant Design Pro v6（配套 Pro Components v3）** 设计和实现。
