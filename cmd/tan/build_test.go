@@ -96,6 +96,25 @@ func TestGoBuildArgs(t *testing.T) {
 	}
 }
 
+func TestGoBuildArgsWindowsGUIWithCgo(t *testing.T) {
+	t.Setenv("GOFLAGS", "")
+	cfg := &Config{CGO: true}
+	// External linkers get -H windowsgui as -mwindows, which zig cc
+	// ignores: the subsystem is passed to the linker directly too.
+	rel := strings.Join(cfg.goBuildArgs(target{"windows", "amd64"}, "out.exe", false), " ")
+	if rel != "build -tags tango_release -trimpath -ldflags -s -w -H windowsgui -extldflags=-Wl,--subsystem=windows -o out.exe ." {
+		t.Errorf("windows cgo release = %q", rel)
+	}
+	dbg := strings.Join(cfg.goBuildArgs(target{"windows", "amd64"}, "out.exe", true), " ")
+	if dbg != "build -tags tango_release -o out.exe ." {
+		t.Errorf("windows cgo debug = %q", dbg)
+	}
+	mac := strings.Join(cfg.goBuildArgs(target{"darwin", "arm64"}, "out", false), " ")
+	if mac != "build -tags tango_release -trimpath -ldflags -s -w -o out ." {
+		t.Errorf("darwin cgo release = %q", mac)
+	}
+}
+
 func TestDesktopBuildTags(t *testing.T) {
 	t.Setenv("GOFLAGS", "-tags=extra,nocoredrivers,tango_dev")
 	cfg, err := ParseConfig([]byte(`{"name":"App","id":"com.example.app","version":"1.0.0","desktopBuildTags":["production","nocoredrivers"],"features":["webview"]}`))

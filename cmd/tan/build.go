@@ -255,6 +255,12 @@ func (cfg *Config) goBuildArgs(t target, out string, debug bool, features ...bui
 		ldflags = append(ldflags, "-s", "-w")
 		if t.OS == "windows" {
 			ldflags = append(ldflags, "-H", "windowsgui")
+			if cfg.CGO {
+				// With cgo the external linker gets -H windowsgui as
+				// -mwindows, which zig cc ignores (the exe would open a
+				// console); GNU ld and lld both take the subsystem directly.
+				ldflags = append(ldflags, "-extldflags=-Wl,--subsystem=windows")
+			}
 		}
 	}
 	if len(ldflags) > 0 {
