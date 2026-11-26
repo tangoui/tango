@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>WebView keyboard test</title>
+<style>
+body { font: 16px system-ui; margin: 36px; color: #1c2940; background: #f3f6fb; }
+h1 { margin: 0 0 24px; font-size: 26px; }
+input { display: block; font: inherit; width: 90%; padding: 10px; margin: 8px 0 18px; }
+pre { white-space: pre-wrap; }
+</style>
+<h1>WebView keyboard test</h1>
+<label for="editor">Text input</label>
+<input id="editor">
+<p id="save">Native Save OnClick: 0</p>
+<p id="edit"></p>
+<pre id="events"></pre>
+<script>
+window.keyEvents = [];
+window.disabledClicks = 0;
+for (const type of ["keydown", "keyup"]) {
+  addEventListener(type, e => {
+    const mods = [e.metaKey && "Meta", e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift"].filter(Boolean);
+    keyEvents.push([e.type, e.key, e.code, e.isTrusted, ...mods].join(" "));
+    document.querySelector("#events").textContent = keyEvents.slice(-6).join("\n");
+  });
+}
+</script>

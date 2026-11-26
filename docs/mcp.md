@@ -3,7 +3,7 @@
 `tan mcp` 是一个 [MCP](https://modelcontextprotocol.io) 服务器，让 Claude Code 等 AI 代理直接操作 Tango 项目和运行中的 Tango 应用。工具分两类：
 
 - **项目工具**：查看项目、检查环境、新建项目、生成绑定、构建、打包、`tan dev`，耗时的命令作为后台任务运行，代理随时查状态和输出。
-- **界面工具**：以开发构建启动应用（或连接已在运行的开发构建），读语义树、按角色和名称找节点、执行无障碍动作、坐标点击、输入文字、按键、截图；WebView 窗口用 CSS 选择器和 JavaScript 操作。走的是[整机自动化](automation.md)的同一条控制通道，能力和 `automation` 包一致。
+- **界面工具**：以开发构建启动应用（或连接已在运行的开发构建），读语义树、按角色和名称找节点、执行无障碍动作、坐标点击、输入文字、按键、截图；WebView 窗口支持 CSS 选择器、JavaScript 和原生按键。这些工具走[整机自动化](automation.md)的控制通道。
 
 界面工具只对开发构建（`-tags tango_dev`）有效，发布构建里没有控制通道。`tango_app_start` 启动 Go 包时自动用 `-tags tango_dev` 构建，不需要自己加；传可执行文件时，它必须是用 `-tags tango_dev` 构建的。在 macOS 上，应用在后台启动，窗口排在其他应用后面。
 
@@ -134,10 +134,13 @@ WebView 示例 `examples/hello` 把第 1 步的 `target` 换成 `./examples/hell
 | 工具 | 主要输入 | 输出 |
 |---|---|---|
 | `tango_web_eval` | `session`、`window`、`expr`（JavaScript 表达式，Promise 会等待；多条语句包成 `(() => { ...; return x })()`）、`timeoutMs` | `value`（JSON，`undefined` 为 `null`）；序列化后超过 64 KiB 时 `value` 改为该 JSON 前 64 KiB 的字符串，并带 `"truncated": true` |
+| `tango_web_key` | `session`、`window`、`keys`，语法与 `tango_ui_key` 相同 | `{}`，分发按键或组合键 |
 | `tango_web_click` | `session`、`window`、`selector`、`timeoutMs` | `{}`；等元素出现，滚到可见、聚焦并点击 |
 | `tango_web_fill` | `session`、`window`、`selector`、`text`、`timeoutMs` | `{}`；替换 input / textarea / contenteditable 的值，触发 `input` 和 `change` |
 | `tango_web_text` | `session`、`window`、`selector`、`timeoutMs` | `text`（元素的 `innerText`） |
 | `tango_web_wait` | `session`、`window`、`selector` 或 `expr`（二选一）、`timeoutMs` | `{}` |
+
+在 macOS、Windows 和 Linux 的桌面 WebView 上，可以用 `tango_web_key {"session":"app-1","keys":"CmdOrCtrl+S"}` 触发保存菜单项。匹配的原生菜单快捷键优先处理按下事件。要验证页面按键和输入，先用 `tango_web_click` 聚焦输入框，再发送 `Shift+A`、`Backspace` 等按键。文字按美式键位生成。分发期间鼠标位置和前台应用保持原样。用 `tango_web_wait` 等待菜单回调或页面状态更新。
 
 对 WebView 窗口用 `tango_ui_*`（截图除外）、对自绘窗口用 `tango_web_*` 会直接报错，并指出该用哪组工具。
 
