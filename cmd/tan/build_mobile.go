@@ -66,18 +66,9 @@ func androidABI(goarch string) string {
 // holds the native hosts (mobile/ios, mobile/android). It follows the
 // project's go.mod, so replace directives and workspaces are honoured.
 func tangoModuleDir(ctx context.Context, cfg *Config) (string, error) {
-	const mod = "github.com/tangoui/tango"
-	cmd := exec.CommandContext(ctx, "go", "list", "-m", "-f", "{{.Dir}}", mod)
-	cmd.Dir = cfg.dir
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	dir := strings.TrimSpace(string(out))
-	if err != nil || dir == "" {
-		if dir == "" && err == nil {
-			err = errors.New("module not downloaded (run go mod download)")
-		}
-		return "", fmt.Errorf("locating %s from %s: %v %s", mod, cfg.dir, err, strings.TrimSpace(stderr.String()))
+	dir, _, err := locateTango(ctx, cfg.dir)
+	if err != nil {
+		return "", err
 	}
 	if _, err := os.Stat(filepath.Join(dir, "mobile")); err != nil {
 		return "", fmt.Errorf("%s has no mobile/ directory; update github.com/tangoui/tango", dir)
