@@ -35,7 +35,7 @@ func TestAppMenuClicks(t *testing.T) {
 	open := file.Add("Open", func() { clicks <- "open" })
 	open.Disabled = true
 	file.Add("Checked", nil).Checked = true
-	m.Submenu("Edit").Role(menu.EditMenu)
+	m.Role(menu.EditMenu)
 
 	if err := menu.SetAppMenu(a, m); err != nil {
 		t.Fatal(err)
@@ -46,6 +46,9 @@ func TestAppMenuClicks(t *testing.T) {
 	}
 	if r := items[0].Submenu; r[0].Role != "about" || !r[1].Separator || r[2].Role != "quit" || r[0].ID != 0 || r[1].ID != 0 {
 		t.Fatalf("roles %+v", r)
+	}
+	if edit := items[2]; edit.Role != "editMenu" || len(edit.Submenu) != 0 {
+		t.Fatalf("EditMenu belongs directly in the menu bar: %+v", edit)
 	}
 	if items[0].ID != 0 {
 		t.Fatal("submenu got an id")

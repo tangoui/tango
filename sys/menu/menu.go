@@ -12,12 +12,17 @@
 //	view := m.Submenu("View")
 //	view.Radio("size", "Small", false, nil)
 //	view.Radio("size", "Large", true, nil)
-//	m.Submenu("Edit").Role(menu.EditMenu)
+//	m.Role(menu.EditMenu)
 //	err := menu.SetAppMenu(a, m)
 //
 // The same Menu can be shown in several places: the menu bar
 // (SetAppMenu / SetSurfaceMenu), a tray icon (package tray), a context
 // menu (Popup, RegisterContext).
+//
+// Add AppMenu, EditMenu, and WindowMenu directly to the menu bar. Each
+// role supplies an entire submenu. Add individual roles to a named
+// submenu when you need custom contents. Quit already has Command-Q
+// on macOS, so assign that shortcut to just one quit item.
 //
 // # Changing a menu
 //

@@ -59,7 +59,7 @@ func installMenu(app *tango.App, s *tango.Surface, router *ipc.Router) error {
 			log.Print(err)
 		}
 	}).Accelerator = "CmdOrCtrl+S"
-	bar.Submenu("Edit").Role(menu.EditMenu)
+	bar.Role(menu.EditMenu)
 	return menu.SetAppMenu(app, bar)
 }
 

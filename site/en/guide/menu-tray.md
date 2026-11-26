@@ -25,6 +25,8 @@ err := menu.SetAppMenu(app, m)
 
 Use standard roles such as `Quit`, `About`, `Copy`, `Paste`, `Cut`, `SelectAll`, `Undo`, `Redo`, `Minimize` and `Close` for localized labels and native actions. `CmdOrCtrl` resolves to Command on macOS and Ctrl elsewhere. `menu.SetSurfaceMenu(app, s, m)` sets a window menu on Windows and Linux. macOS normally uses the shared menu bar. [Internationalization](/en/guide/i18n)
 
+Add `AppMenu`, `EditMenu`, and `WindowMenu` directly to the menu bar. Each role creates a complete submenu. On macOS, `Quit` already binds Command-Q.
+
 After installing a menu, use setters such as `SetLabel` and `SetDisabled` from any goroutine, then call `Update()` on the menu or a submenu to publish changes. Toggling a check or radio item refreshes it before calling its callback.
 
 ## Context menus

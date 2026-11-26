@@ -25,7 +25,7 @@ func installMenu(app *tango.App, onNew func()) error {
 	m := menu.New()
 	m.Submenu("Notes").Role(menu.Quit)
 	m.Submenu("File").Add("New Note", onNew).Accelerator = "CmdOrCtrl+N"
-	m.Submenu("Edit").Role(menu.EditMenu)
+	m.Role(menu.EditMenu)
 	return menu.SetAppMenu(app, m)
 }
 ```

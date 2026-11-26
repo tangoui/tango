@@ -146,7 +146,7 @@ func installMenus(app *tango.App, s *tango.Surface, page *timerPage) {
 	bar.Submenu("Timer").Add("Start 25 minutes", func() {
 		page.runner.Post(page.start)
 	}).Accelerator = "CmdOrCtrl+T"
-	bar.Submenu("Edit").Role(menu.EditMenu)
+	bar.Role(menu.EditMenu)
 	if err := menu.SetAppMenu(app, bar); err != nil {
 		log.Print(err)
 	}

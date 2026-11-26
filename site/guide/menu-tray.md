@@ -29,7 +29,7 @@ m.Role(menu.WindowMenu)
 if err := menu.SetAppMenu(app, m); err != nil { ... }
 ```
 
-- **标准项（Role）**：`Quit`、`About`、`Hide`、`Copy`、`Paste`、`Cut`、`SelectAll`、`Undo`、`Redo`、`Minimize`、`Close`，以及整组的 `AppMenu`、`EditMenu`、`WindowMenu`。标签和动作由平台提供，会跟随系统语言（见 [多语言](/guide/i18n)）。
+- **标准项（Role）**：`Quit`、`About`、`Hide`、`Copy`、`Paste`、`Cut`、`SelectAll`、`Undo`、`Redo`、`Minimize`、`Close`，以及整组的 `AppMenu`、`EditMenu`、`WindowMenu`。标签和动作由平台提供，会跟随系统语言（见 [多语言](/guide/i18n)）。 把 `AppMenu`、`EditMenu` 和 `WindowMenu` 直接加到菜单栏顶层。每个角色都生成完整子菜单。macOS 上 `Quit` 默认绑定 Command-Q。
 - **加速键写法**：`CmdOrCtrl+Shift+N`，`CmdOrCtrl` 在 macOS 是 Command、其他平台是 Ctrl。
 - `menu.SetSurfaceMenu(app, s, m)` 设置某个窗口的菜单栏（Windows / Linux；macOS 通常是共享菜单栏）。
 
