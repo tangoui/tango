@@ -15,13 +15,14 @@ func TestWebDialogReplyAfterCallback(t *testing.T) {
 	var answer func(WebDialogResponse)
 	results := make(chan WebDialogResponse, 2)
 	s.SetWebDialogHandler(func(req WebDialogRequest, reply func(WebDialogResponse)) {
-		if req.Kind != WebDialogPrompt {
-			t.Errorf("dialog kind = %v", req.Kind)
+		if req.Kind != WebDialogPrompt || req.ID == 0 || req.URL != "tango://app/" || req.Message != "Name" || req.DefaultText != "Example" {
+			t.Errorf("dialog request = %+v", req)
 		}
 		answer = reply
 	})
 	Await(a, func() struct{} {
-		if !(host{a}).OnWebDialog(s.id, platform.WebDialogRequest{Kind: platform.WebDialogPrompt}, func(r platform.WebDialogResponse) { results <- r }) {
+		request := platform.WebDialogRequest{Kind: platform.WebDialogPrompt, URL: "tango://app/", Message: "Name", DefaultText: "Example"}
+		if !(host{a}).OnWebDialog(s.id, request, func(r platform.WebDialogResponse) { results <- WebDialogResponse(r) }) {
 			t.Error("dialog wasn't intercepted")
 		}
 		return struct{}{}

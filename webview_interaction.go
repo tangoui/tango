@@ -18,11 +18,20 @@ const (
 )
 
 // WebDialogRequest describes a dialog and its requesting document.
-type WebDialogRequest = platform.WebDialogRequest
+type WebDialogRequest struct {
+	ID          uint64        // identifies the dialog on this surface
+	Kind        WebDialogKind // script dialog type
+	URL         string        // URL of the requesting document, when available
+	Message     string        // text supplied by the page
+	DefaultText string        // initial value for a prompt
+}
 
 // WebDialogResponse accepts or dismisses a dialog. Text supplies the
 // accepted prompt's value. For beforeunload, Accepted allows navigation.
-type WebDialogResponse = platform.WebDialogResponse
+type WebDialogResponse struct {
+	Accepted bool   // OK for confirm or prompt, or permission to leave for beforeunload
+	Text     string // the typed value for an accepted prompt
+}
 
 // WebFileChooserRequest describes the selection requested by a file input.
 // Accept may be empty when the backend cannot read the requested filters.
@@ -31,7 +40,8 @@ type WebFileChooserRequest = platform.WebFileChooserRequest
 // SetWebDialogHandler intercepts script dialogs. fn runs on the main
 // thread and may answer later from any goroutine. Only the first reply
 // is used. Closing the surface dismisses pending dialogs. A nil handler
-// restores the platform's default behavior.
+// restores the platform's default behavior. Desktop backends dismiss
+// unhandled script dialogs.
 // The dev host proxy returns ErrUnsupported.
 func (s *Surface) SetWebDialogHandler(fn func(WebDialogRequest, func(WebDialogResponse))) error {
 	if s.proxyEmbed {
@@ -99,7 +109,7 @@ func (h host) HasWebDialogHandler(id platform.SurfaceID) bool {
 	return s.web.onDialog != nil
 }
 
-func (h host) OnWebDialog(id platform.SurfaceID, req WebDialogRequest, done func(WebDialogResponse)) bool {
+func (h host) OnWebDialog(id platform.SurfaceID, request platform.WebDialogRequest, done func(platform.WebDialogResponse)) bool {
 	defer h.a.enterMain()()
 	s := h.a.surface(id)
 	if s == nil || s.closed.Load() {
@@ -111,7 +121,10 @@ func (h host) OnWebDialog(id platform.SurfaceID, req WebDialogRequest, done func
 	if fn == nil {
 		return false
 	}
-	finish := webReply(s, WebDialogResponse{}, done)
+	finish := webReply(s, WebDialogResponse{}, func(response WebDialogResponse) {
+		done(platform.WebDialogResponse(response))
+	})
+	req := WebDialogRequest(request)
 	req.ID = s.web.replySeq
 	if !guardCall(h.a, whereEvent, false, func() bool {
 		fn(req, finish)
