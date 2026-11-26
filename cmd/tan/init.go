@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"golang.org/x/mod/modfile"
 	"golang.org/x/mod/module"
@@ -127,6 +128,15 @@ func runInit(args []string) error {
 	}
 	if err := createProject(o); err != nil {
 		return err
+	}
+	if ft, _ := findTemplate(o.Template); o.Local != "" && ft.frontend.Build != "" {
+		runtimeDir := filepath.Join(o.Local, "runtime-js")
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		err := prepareLocalRuntime(ctx, runtimeDir)
+		cancel()
+		if err != nil {
+			warnf("could not build the local @tangoui/runtime: %v\nrun npm ci and npm run build in %q before building the frontend", err, runtimeDir)
+		}
 	}
 	logf("Created %s. Next:", o.Dir)
 	cd := o.Dir

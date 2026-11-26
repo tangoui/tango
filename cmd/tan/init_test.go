@@ -220,3 +220,42 @@ func TestCreateProjectSkillFailureIsWarning(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPrepareLocalRuntimeBuildsMissingDist(t *testing.T) {
+	if _, err := exec.LookPath("npm"); err != nil {
+		t.Skip("npm is required for a local front end")
+	}
+	runtime := filepath.Join(t.TempDir(), "runtime-js")
+	writeSkillFixture(t, filepath.Join(runtime, "package.json"), `{"name":"fixture-runtime","scripts":{"build":"node build.mjs"}}`)
+	writeSkillFixture(t, filepath.Join(runtime, "package-lock.json"), `{"name":"fixture-runtime","lockfileVersion":3,"packages":{"":{"name":"fixture-runtime"}}}`)
+	writeSkillFixture(t, filepath.Join(runtime, "tsconfig.json"), "{}")
+	writeSkillFixture(t, filepath.Join(runtime, "src", "index.ts"), "export {}")
+	writeSkillFixture(t, filepath.Join(runtime, "runtimejs", "tango.iife.js"), "checked-in copy")
+	writeSkillFixture(t, filepath.Join(runtime, "build.mjs"), `
+import { mkdirSync, writeFileSync } from "node:fs";
+mkdirSync("dist");
+for (const name of ["index.js", "index.d.ts", "tango.iife.js"]) {
+  writeFileSync("dist/" + name, name);
+}
+writeFileSync("runtimejs/tango.iife.js", "generated copy");
+`)
+	if err := prepareLocalRuntime(t.Context(), runtime); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"index.js", "index.d.ts", "tango.iife.js"} {
+		if got := readSkillFixture(t, filepath.Join(runtime, "dist", name)); got != name {
+			t.Fatalf("dist/%s = %q", name, got)
+		}
+	}
+	if got := readSkillFixture(t, filepath.Join(runtime, "runtimejs", "tango.iife.js")); got != "checked-in copy" {
+		t.Fatalf("checkout's Go embed changed: %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(runtime, "node_modules")); !os.IsNotExist(err) {
+		t.Fatalf("checkout node_modules: %v, want it absent", err)
+	}
+	// A later init can reuse the build even if npm is now unavailable.
+	t.Setenv("PATH", t.TempDir())
+	if err := prepareLocalRuntime(t.Context(), runtime); err != nil {
+		t.Fatal(err)
+	}
+}
