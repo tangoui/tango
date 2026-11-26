@@ -31,6 +31,8 @@ type Host interface {
 	// Eval evaluates a JavaScript expression in a WebView window and
 	// returns its JSON value. Any goroutine.
 	Eval(win uint64, expr string, timeout time.Duration) ([]byte, error)
+	// WebKey dispatches a chord to the WebView. Called on the main thread.
+	WebKey(win uint64, key input.Key, mods input.Modifiers, done func(error))
 	// Screenshot captures a WebView window as PNG. Any goroutine.
 	Screenshot(win uint64) ([]byte, error)
 	// Quit asks the app to quit. Any goroutine.
@@ -378,6 +380,8 @@ func (s *Server) dispatch(req *Request) *Response {
 			}
 		}
 		return &Response{Windows: ws}
+	case OpWebKey:
+		return s.webKey(req)
 	case OpEval:
 		if lookup(s.app, req.Window) != nil {
 			return fail(CodeUnsupported, "automation: window %d is self-drawn: Eval needs a WebView window", req.Window)
@@ -429,6 +433,34 @@ func (s *Server) dispatch(req *Request) *Response {
 		return s.canvasOp(c, req)
 	}
 	return fail(CodeBadRequest, "automation: unknown operation %q", req.Op)
+}
+
+func (s *Server) webKey(req *Request) *Response {
+	if req.Input == nil || req.Input.Kind != "key" {
+		return fail(CodeBadRequest, "automation: web_key requires key input")
+	}
+	key, mods, err := ParseKeys(req.Input.Keys)
+	if err != nil {
+		return fail(CodeBadRequest, "%v", err)
+	}
+	if lookup(s.app, req.Window) != nil {
+		return fail(CodeUnsupported, "automation: window %d is self-drawn: web_key needs a WebView window", req.Window)
+	}
+	done := make(chan error, 1)
+	if err := s.main(func() {
+		s.host.WebKey(req.Window, key, mods, func(err error) { done <- err })
+	}); err != nil {
+		return failErr(err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			return failErr(err)
+		}
+		return &Response{}
+	case <-time.After(10 * time.Second):
+		return fail(CodeTimeout, "automation: WebView key dispatch did not complete")
+	}
 }
 
 func (s *Server) windowExists(id uint64) bool {

@@ -67,8 +67,24 @@ type webTextOutput struct {
 type webEmptyOutput struct{}
 
 // addWebTools registers the tools that drive the WebView pages of an app
-// session through JavaScript evaluated in the page.
+// session.
 func (s *mcpServer) addWebTools() {
+	mcp.AddTool(s.srv, &mcp.Tool{
+		Name:        "tango_web_key",
+		Description: "Send a key or chord to a WebView window. Matching native menu shortcuts take precedence.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in uiKeyInput) (*mcp.CallToolResult, webEmptyOutput, error) {
+		if in.Keys == "" {
+			return nil, webEmptyOutput{}, errors.New("keys: required")
+		}
+		a, w, err := s.webTarget(ctx, in.Session, in.Window)
+		if err != nil {
+			return nil, webEmptyOutput{}, err
+		}
+		req := &wire.Request{Op: wire.OpWebKey, Window: w.ID, Input: &wire.Input{Kind: "key", Keys: in.Keys}}
+		_, err = a.doOK(ctx, req, uiTimeoutDefault+connSlack)
+		return nil, webEmptyOutput{}, err
+	})
+
 	mcp.AddTool(s.srv, &mcp.Tool{
 		Name:        "tango_web_eval",
 		Description: "Evaluate a JavaScript expression in a WebView page and return its value as JSON (a Promise is awaited).",
@@ -145,16 +161,9 @@ func (s *mcpServer) addWebTools() {
 // and returns its value (null for undefined). The app's errors, a
 // script's exception among them, are returned with their message as is.
 func (s *mcpServer) webEval(ctx context.Context, session, ref string, ms int, script func(time.Duration) string) (json.RawMessage, error) {
-	a, err := s.apps.get(session)
+	a, w, err := s.webTarget(ctx, session, ref)
 	if err != nil {
 		return nil, err
-	}
-	w, err := a.windowCtx(ctx, ref)
-	if err != nil {
-		return nil, err
-	}
-	if w.Kind != wire.KindWebView {
-		return nil, selfDrawnError(w)
 	}
 	to := timeoutMs(ms, uiTimeoutDefault, uiTimeoutMax)
 	req := &wire.Request{Op: wire.OpEval, Window: w.ID, Script: script(to), Timeout: (to + webEvalSlack).Milliseconds()}
@@ -167,6 +176,21 @@ func (s *mcpServer) webEval(ctx context.Context, session, ref string, ms int, sc
 		return json.RawMessage("null"), nil
 	}
 	return r.Value, nil
+}
+
+func (s *mcpServer) webTarget(ctx context.Context, session, ref string) (*appSession, wire.WindowInfo, error) {
+	a, err := s.apps.get(session)
+	if err != nil {
+		return nil, wire.WindowInfo{}, err
+	}
+	w, err := a.windowCtx(ctx, ref)
+	if err != nil {
+		return nil, wire.WindowInfo{}, err
+	}
+	if w.Kind != wire.KindWebView {
+		return nil, w, selfDrawnError(w)
+	}
+	return a, w, nil
 }
 
 // evalOutput returns v as is, or when its JSON is over webEvalMax, a

@@ -310,5 +310,13 @@ func init() {
 		return nil // not a typed nil *Surface
 	}
 	corehook.SurfaceClosed = func(surface any) bool { return surface.(*Surface).closed.Load() }
+	corehook.SurfaceWebKey = func(surface any, key input.Key, mods input.Modifiers, done func(error)) {
+		s := surface.(*Surface)
+		if native, ok := s.ns.(platform.WebKeySink); ok {
+			native.DispatchWebKey(key, mods, done)
+		} else {
+			done(platform.ErrUnsupported)
+		}
+	}
 	corehook.SurfaceLoaded = func(surface any) bool { return surface.(*Surface).loaded.Load() }
 }

@@ -49,7 +49,10 @@ func (h *fakeHost) Eval(win uint64, expr string, _ time.Duration) ([]byte, error
 	return []byte(`"` + expr + `"`), nil
 }
 func (h *fakeHost) Screenshot(uint64) ([]byte, error) { return []byte("png"), nil }
-func (h *fakeHost) Quit()                             { close(h.quit) }
+func (h *fakeHost) WebKey(uint64, input.Key, input.Modifiers, func(error)) {
+	panic("unexpected fake WebKey call")
+}
+func (h *fakeHost) Quit() { close(h.quit) }
 
 // fakeCanvas: Perform and Input change the tree "on the next frame".
 type fakeCanvas struct {
@@ -487,5 +490,58 @@ func TestServerPanicCodeByThread(t *testing.T) {
 				t.Fatalf("panic reported as %+v, want code %q", r, tt.want)
 			}
 		})
+	}
+}
+
+type webKeyHost struct {
+	fakeHost
+	win    uint64
+	key    input.Key
+	mods   input.Modifiers
+	keyErr error
+}
+
+func (h *webKeyHost) WebKey(win uint64, key input.Key, mods input.Modifiers, done func(error)) {
+	if win != 3 {
+		done(&Error{Code: CodeNoWindow, Msg: "no such window"})
+		return
+	}
+	h.win, h.key, h.mods = win, key, mods
+	go done(h.keyErr)
+}
+
+func TestWebKeyDispatch(t *testing.T) {
+	h := &webKeyHost{fakeHost: fakeHost{windows: []WindowInfo{{ID: 3}, {ID: 4}}}}
+	app := new(int)
+	defer Register(app, 4, &fakeCanvas{})()
+	s := &Server{app: app, host: h}
+
+	call := func(win uint64, keys string) *Response {
+		return s.dispatch(&Request{Op: OpWebKey, Window: win, Input: &Input{Kind: "key", Keys: keys}})
+	}
+	if r := call(3, "CmdOrCtrl+Shift+S"); r.Error != "" {
+		t.Fatal(r)
+	}
+	primary, _ := ParseMod("CmdOrCtrl")
+	if h.win != 3 || h.key != input.KeyS || h.mods != primary|input.ModShift {
+		t.Fatalf("dispatched window=%d key=%v mods=%v", h.win, h.key, h.mods)
+	}
+	for _, tc := range []struct {
+		win        uint64
+		keys, code string
+	}{
+		{3, "Bogus+S", CodeBadRequest},
+		{3, "", CodeBadRequest},
+		{4, "S", CodeUnsupported},
+		{99, "S", CodeNoWindow},
+	} {
+		h.win = 0
+		if r := call(tc.win, tc.keys); r.Code != tc.code || h.win != 0 {
+			t.Errorf("window %d keys %q: got %+v, dispatched %d, want %s", tc.win, tc.keys, r, h.win, tc.code)
+		}
+	}
+	h.keyErr = &Error{Code: CodeUnsupported, Msg: "no native backend"}
+	if r := call(3, "S"); r.Code != CodeUnsupported || r.Error != "no native backend" {
+		t.Errorf("backend failure: %+v", r)
 	}
 }
