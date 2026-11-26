@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/mod/modfile"
 	"golang.org/x/mod/module"
@@ -258,6 +259,25 @@ writeFileSync("runtimejs/tango.iife.js", "generated copy");
 	t.Setenv("PATH", t.TempDir())
 	if err := prepareLocalRuntime(t.Context(), runtime); err != nil {
 		t.Fatal(err)
+	}
+	// A source changed after the build (a pull) makes it stale.
+	later := time.Now().Add(time.Hour)
+	if err := os.Chtimes(filepath.Join(runtime, "src", "index.ts"), later, later); err != nil {
+		t.Fatal(err)
+	}
+	if localRuntimeCurrent(runtime) {
+		t.Fatal("dist older than src is current")
+	}
+}
+
+func TestGoModLocalPathWithSpaces(t *testing.T) {
+	local := filepath.Join(t.TempDir(), "my tango")
+	f, err := modfile.Parse("go.mod", goMod("example.com/app", "v0.3.0", local), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Replace) != 1 || f.Replace[0].New.Path != filepath.ToSlash(local) {
+		t.Fatalf("replace = %+v, want %s", f.Replace, filepath.ToSlash(local))
 	}
 }
 

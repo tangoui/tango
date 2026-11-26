@@ -131,7 +131,7 @@ func runInit(args []string) error {
 	}
 	if ft, _ := findTemplate(o.Template); o.Local != "" && ft.frontend.Build != "" {
 		runtimeDir := filepath.Join(o.Local, "runtime-js")
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		err := prepareLocalRuntime(ctx, runtimeDir)
 		cancel()
 		if err != nil {
@@ -479,7 +479,8 @@ func goMod(module, version, local string) []byte {
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "module %s\n\ngo 1.27\n\nrequire %s %s\n", module, tangoModule, version)
 	if local != "" {
-		fmt.Fprintf(&b, "\nreplace %s => %s\n", tangoModule, filepath.ToSlash(local))
+		// AutoQuote keeps a path with spaces a single token.
+		fmt.Fprintf(&b, "\nreplace %s => %s\n", tangoModule, modfile.AutoQuote(filepath.ToSlash(local)))
 	}
 	return b.Bytes()
 }

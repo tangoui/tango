@@ -2,19 +2,64 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 )
 
+var localRuntimeInputs = []string{"package.json", "package-lock.json", "build.mjs", "tsconfig.json"}
+
 func localRuntimeBuilt(dir string) bool {
+	_, ok := localRuntimeBuiltAt(dir)
+	return ok
+}
+
+// localRuntimeBuiltAt reports the modification time of the oldest output.
+func localRuntimeBuiltAt(dir string) (time.Time, bool) {
+	var oldest time.Time
 	for _, name := range []string{"index.js", "index.d.ts", "tango.iife.js"} {
 		info, err := os.Stat(filepath.Join(dir, name))
 		if err != nil || !info.Mode().IsRegular() {
+			return time.Time{}, false
+		}
+		if oldest.IsZero() || info.ModTime().Before(oldest) {
+			oldest = info.ModTime()
+		}
+	}
+	return oldest, true
+}
+
+// localRuntimeCurrent reports whether dist was built after the last change
+// to the runtime sources; dist is ignored by git and outlives a pull.
+func localRuntimeCurrent(runtimeDir string) bool {
+	built, ok := localRuntimeBuiltAt(filepath.Join(runtimeDir, "dist"))
+	if !ok {
+		return false
+	}
+	for _, name := range localRuntimeInputs {
+		info, err := os.Stat(filepath.Join(runtimeDir, name))
+		if err != nil || info.ModTime().After(built) {
 			return false
 		}
 	}
-	return true
+	errStale := errors.New("stale")
+	err := filepath.WalkDir(filepath.Join(runtimeDir, "src"), func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		if info.ModTime().After(built) {
+			return errStale
+		}
+		return nil
+	})
+	return err == nil
 }
 
 // prepareLocalRuntime builds the frontend package in a scratch directory.
@@ -22,7 +67,7 @@ func localRuntimeBuilt(dir string) bool {
 // scaffolding must not write back into the checkout.
 func prepareLocalRuntime(ctx context.Context, runtimeDir string) error {
 	dist := filepath.Join(runtimeDir, "dist")
-	if localRuntimeBuilt(dist) {
+	if localRuntimeCurrent(runtimeDir) {
 		return nil
 	}
 	stage, err := os.MkdirTemp(runtimeDir, ".tan-runtime-")
@@ -31,7 +76,7 @@ func prepareLocalRuntime(ctx context.Context, runtimeDir string) error {
 	}
 	defer os.RemoveAll(stage)
 
-	for _, name := range []string{"package.json", "package-lock.json", "build.mjs", "tsconfig.json"} {
+	for _, name := range localRuntimeInputs {
 		data, err := os.ReadFile(filepath.Join(runtimeDir, name))
 		if err != nil {
 			return err
@@ -56,7 +101,15 @@ func prepareLocalRuntime(ctx context.Context, runtimeDir string) error {
 	if !localRuntimeBuilt(built) {
 		return fmt.Errorf("npm build did not produce the Tango runtime exports in %s", built)
 	}
-	if err := os.Rename(built, dist); err != nil && !localRuntimeBuilt(dist) {
+	// Replace a stale build; a concurrent init may have installed a
+	// current one in the meantime.
+	if localRuntimeCurrent(runtimeDir) {
+		return nil
+	}
+	if err := os.RemoveAll(dist); err != nil {
+		return err
+	}
+	if err := os.Rename(built, dist); err != nil && !localRuntimeCurrent(runtimeDir) {
 		return err
 	}
 	return nil
