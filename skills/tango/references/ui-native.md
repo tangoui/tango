@@ -25,4 +25,4 @@ Keep state writes in the UI callback or schedule them with `runner.Post(func() {
 
 Use `app.Post` for work that needs the platform main thread and does not itself request a native UI redraw. [Verification](verify.md)
 
-From your app directory, run `go run ./.agents/skills/tango/examples/native-tray-timer`. Use `-data-dir` to choose where it saves its checklist. Copy the complete example folder, including `timer.png`, to adapt it in your app. [Native tray timer source](../examples/native-tray-timer/main.go)
+From your app directory, run `go run -mod=mod ./.agents/skills/tango/examples/native-tray-timer`. Go may add dependencies for the example to your `go.mod` and `go.sum`. Use `-data-dir` to choose where it saves its checklist. Copy the complete example folder, including `timer.png`, to adapt it in your app. [Native tray timer source](../examples/native-tray-timer/main.go)

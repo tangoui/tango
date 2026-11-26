@@ -54,4 +54,4 @@ func installScriptDialogs(app *tango.App, s *tango.Surface) error {
 
 This handler displays alerts and confirms and dismisses prompts. To support `prompt`, show a text field initialized from `req.DefaultText` and return `tango.WebDialogResponse{Accepted: true, Text: value}` when the user accepts it.
 
-From your app directory, run `go run ./.agents/skills/tango/examples/webview-notes`. The example embeds its static page and runs without npm. Use `-window-state` to choose where it saves window placement. Copy the complete example folder, including `page/`, to adapt it in your app. [WebView notes source](../examples/webview-notes/main.go)
+From your app directory, run `go run -mod=mod ./.agents/skills/tango/examples/webview-notes`. Go may add dependencies for the example to your `go.mod` and `go.sum`. The example embeds its static page and runs without npm. Use `-window-state` to choose where it saves window placement. Copy the complete example folder, including `page/`, to adapt it in your app. [WebView notes source](../examples/webview-notes/main.go)
