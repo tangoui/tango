@@ -10,6 +10,10 @@
 // Go-drawn UI) reaches the same handlers with Router.Call and Router.Open,
 // without the wire format.
 //
+// In a bound Go method that takes a context.Context, use [ConnFrom] to get the
+// connection for the calling window. For WebView calls, it is a *tango.Surface.
+// Calls made in the same Go process with Router.Call have no window connection.
+//
 // # Wire format
 //
 // One JSON object per raw message, tagged by the "tango" field. Messages
