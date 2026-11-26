@@ -2,13 +2,65 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"image/png"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/module"
 )
+
+func TestCreateReleasedProjectVersions(t *testing.T) {
+	const tangoModule = "github.com/tangoui/tango"
+	versionIn := func(path string) string {
+		t.Helper()
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mod, err := modfile.Parse(path, b, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, req := range mod.Require {
+			if req.Mod.Path == tangoModule {
+				return req.Mod.Version
+			}
+		}
+		t.Fatalf("%s has no requirement for %s", path, tangoModule)
+		return ""
+	}
+	goVersion := versionIn("go.mod")
+	dir := filepath.Join(t.TempDir(), "demo")
+	if err := createProject(initOptions{Dir: dir, Template: "vue-ts"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := versionIn(filepath.Join(dir, "go.mod")); got != goVersion {
+		t.Errorf("generated Tango dependency = %q, want %q", got, goVersion)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "frontend", "package.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pkg struct{ Dependencies map[string]string }
+	if err := json.Unmarshal(b, &pkg); err != nil {
+		t.Fatal(err)
+	}
+	release := goVersion
+	if module.IsPseudoVersion(goVersion) {
+		release, err = module.PseudoVersionBase(goVersion)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, want := pkg.Dependencies["@tangoui/runtime"], strings.TrimPrefix(release, "v"); got != want {
+		t.Errorf("generated runtime dependency = %q, want %q", got, want)
+	}
+}
 
 // repoRoot is the Tango checkout this CLI lives in.
 func repoRoot(t *testing.T) string {

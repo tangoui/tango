@@ -312,6 +312,8 @@ git push origin main cmd/tan/v0.2.0
 - [ ] 验证：在一个空目录里 `go install github.com/tangoui/tango/cmd/tan@v0.2.0 && tan version`。
 - [ ] 本地开发继续由仓库根目录的 `go.work` 把两个模块连在一起，不需要恢复 `replace`。
 
+`tan init` 从 `cmd/tan/go.mod` 取 Tango 依赖版本，写入应用的 `go.mod`。使用 npm 的模板固定到对应的 `@tangoui/runtime` 发布版本。CLI 依赖伪版本时，npm 依赖使用该伪版本所基于的标签。测试尚未发布的 Go 和 JS 改动时，使用 `tan init -local <Tango checkout>`。
+
 普通开发提交也必须保持 CLI 可独立构建：在 `cmd/tan` 目录执行 `GOWORK=off go build -mod=readonly .`。CI 会执行同一检查，并拒绝 CLI 模块里的 `replace`；发布校验也会将它视为错误。没有正式版本时，可以依赖已经推送、能被 Go 模块代理下载的根模块伪版本。本地修复尚未推送时，远程的 `go install …@latest` 仍会读取旧的 `go.mod`；可先在本地 `cmd/tan` 目录执行 `go install .`。
 
 > `cmd/tan/v*` 标签不匹配 `v*` 触发条件，不会再跑一遍发布工作流。
