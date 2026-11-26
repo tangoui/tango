@@ -25,9 +25,16 @@ This page describes the CLI on the main branch. Install from source for features
 | `tan sign-update` | sign an update manifest with the Ed25519 private key |
 | `tan applinks` | generate iOS Universal Links and Android App Links verification files to publish under `/.well-known/` |
 | `tan generate bindings` | TypeScript clients for services registered with `bind.Register` |
+| `tan skills update` | install or update the AI skill from the project’s Tango module |
 | `tan doctor` | check the toolchain and platform dependencies |
 | `tan mcp` | provide project tools and UI automation for development builds to AI agents |
 | `tan version` | print the version |
+
+## Project AI skill
+
+Run `tan skills update` in the app directory, or use `tan skills update -C <dir>` to select it. The command uses Go's module resolution, including `go.work` and `replace`. If the module has yet to be downloaded, run `go mod download` from the project directory. If the module has no `skills/tango/` directory, upgrade `github.com/tangoui/tango`.
+
+The command lists the files it will add, modify, or remove in `.agents/skills/tango/` before updating it. Tan manages that directory. Put custom skills in other directories under `.agents/skills/`.
 
 ## Platform targets
 

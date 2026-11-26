@@ -16,7 +16,8 @@ const stop = on("menu:save", () => {
 });
 
 async function saveNote() {
-  await call<void>("Notes.Save", "draft.md", "# Draft");
+  const name = await call<string>("Notes.Save", "# Draft");
+  if (name) console.log("Saved " + name);
 }
 
 // When the subscribing component unmounts, call stop().

@@ -269,6 +269,7 @@ uihost.Shortcut(s, "CmdOrCtrl+N", func() { runner.Post(l.newEntry) })
 - [ ] `CHANGELOG.md`：把「未发布」里的内容移到新的 `## [0.2.0] - YYYY-MM-DD` 一节，更新文末的比较链接。
 - [ ] `runtime-js/package.json` 的 `version` 改成 `0.2.0`，在 `runtime-js` 里 `npm install --package-lock-only` 同步 lock 文件，`npm test` 通过，提交更新后的 `runtimejs/tango.iife.js`（如有变化）。
 - [ ] `cmd/tan` 模板里引用的 `@tangoui/runtime` 版本与本次一致（`tan init` 生成的 package.json）。
+- [ ] 确认 `skills/tango/` 中的 API 用法和示例与本版 Tango 一致。
 - [ ] 文档：新功能有对应页面；实验性功能有标注。`cd site && npm run docs:build && npm run docs:links` 通过。
 
 ### 2. 打根模块标签
