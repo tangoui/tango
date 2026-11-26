@@ -33,7 +33,7 @@
 
 ## 前置：分支基线
 
-本分支 `feat/app-skill`（worktree `/Users/admin/min/.tango-app-skill`）目前只有设计文档提交 ae1e2762，基于 origin/main。开工前由派单会话把它 rebase 到 `fix/app-dev-baseline` 核对完成后的提交上（设计 §3）。实现者开工时先确认 `git log --oneline -8` 里能看到 `a52670a8 fix(tan): keep scaffolded Go and npm Tango versions aligned`，看不到就停下报告。
+本分支 `feat/app-skill`（worktree `/Users/admin/min/.tango-app-skill`）已 rebase 到 `fix/app-dev-baseline` 的 8fba7495 之上（设计 §3）。实现者开工时先确认 `git log --oneline -8` 里能看到 `a52670a8 fix(tan): keep scaffolded Go and npm Tango versions aligned`，看不到就停下报告。修复分支评估后**没有**加 `tango_web_key`，技能里按"WebView 窗口不能用 tan mcp 发按键"写。
 
 ## 文件结构
 
