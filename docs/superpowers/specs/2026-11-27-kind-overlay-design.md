@@ -81,6 +81,12 @@
 ## 实现者审查后补充的决定（均为作者的决定，用户可推翻）
 
 1. **WebView 浮层的悬停**：只保证能创建、不抢焦点、第一次点击就生效。应用在后台时的悬停、`:hover`、选区颜色尽力而为，限制写进 `KindOverlay` 文档。完整的后台悬停只承诺给自绘画布浮层（tracking area 改为 ActiveAlways）。理由：候选窗用自绘画布实现；WKWebView 内部的跟踪区域改不了，自己合成事件代价大。
-2. **`tan dev` 热重载**：创建浮层返回 `ErrUnsupported`，开发代理 backend 不声明支持。理由：输入法本来就跑不了 dev 模式；通过 devhost 协议转发 Kind 是额外的一整块工作，等有需要再做。
+2. **`tan dev` 热重载**：支持。开发协议的 `WindowOpts.Kind` 已经把窗口类型传给宿主（`internal/devhost/proto.go`），宿主用 `tango.SurfaceKind(o.Kind)` 创建真实窗口（`internal/devhost/host/host.go:1139`），`KindPanel` 现在就是这样工作的。只需要两件事：开发代理 backend 在宿主支持时声明支持浮层（宿主是 macOS 时）；补一个测试，确认 `KindOverlay` 能穿过协议，宿主建出的是浮层。宿主不支持时，worker 侧同样返回 `ErrUnsupported`。输入法进程本身不能用 `tan dev` 运行（必须由系统拉起），这与浮层无关。
 3. **应用启动时的激活**：本期只保证"浮层窗口本身显示、点击时不激活应用"。一个普通的、未打包的 Regular 应用（比如 `go run` 示例）启动时仍会照旧激活一次，这一点写进文档。输入法打包后是 `LSBackgroundOnly`，不受影响。理由：改启动激活会碰到应用级的生命周期，影响面大，留到真正有"只有浮层的普通应用"需求时再做。
 4. **运行中修改外观和状态**：对浮层调用 `SetAppearance` 时套用和创建时相同的规则。`Transparent`、`Background`、`Material`、`NoShadow`、`Opacity` 生效；`TitleBar`、`AlwaysOnTop`、系统按钮相关字段被忽略。`applyAppearance` 必须为浮层保留 Borderless、NonactivatingPanel 样式、浮层层级和 collectionBehavior，不能把它们重置掉。`SetState` 只接受 Normal（最小化、最大化、全屏返回 `ErrUnsupported`）。`SetResizable` 被忽略。测试要覆盖"运行中 SetAppearance 之后，浮层特性仍然保留"。
+
+## 自审补充
+
+- **公开 API**：在根包新增常量 `KindOverlay`。根包是 stable 层级，新增常量属于兼容改动，需要更新 `api/go` 下的 golden 文件，并通过 `go run ./internal/cmd/apitxt -check`。站点文档里列举窗口类型的地方（`site/guide` 中讲 SurfaceOptions.Kind 的页面）要同步补上。
+- **打开流程**：core、uihost 或 flyout 在创建、打开窗口时如果调用了 `Focus()` 或 `makeKeyAndOrderFront:`，对浮层一律是空操作，不能有遗漏的路径（包括 `Centered`、初始 `State`、`afterShow`）。
+- **并行改动**：另一个会话（Codex）正在 Tango main 上做 Windows、Linux 的 `sys/ime`，可能会改 `examples/inputmethod` 和 `sys/ime`。本分支对 `examples/inputmethod` 的改动放到最后一步，动手前先 rebase 到最新 main；`sys/ime` 的公开 API 本分支不改。
