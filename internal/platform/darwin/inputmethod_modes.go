@@ -78,7 +78,10 @@ func imeSetValue(self id, cmd objc.SEL, value id, tag int, client id) {
 	imeOnMain(func() {
 		m := &imeHost.modes
 		session := imeHost.sessions[self]
-		if session == 0 || imeHost.active != 0 && session != imeHost.active ||
+		// A new controller may report the system's mode before activation.
+		// Previously deactivated controllers can still deliver stale values.
+		if session == 0 || imeHost.inactive[session] ||
+			imeHost.active != 0 && session != imeHost.active ||
 			!sendBool(value, "isKindOfClass:", uintptr(class("NSString"))) {
 			return
 		}

@@ -33,6 +33,7 @@ var imeHost struct {
 	nextSession uint64
 	sessions    map[id]uint64
 	controllers map[uint64]id
+	inactive    map[uint64]bool // sessions deactivated since their last activation
 	active      uint64
 	modes       imeModes
 }
@@ -120,6 +121,7 @@ func (*backend) ServeInputMethod(connection string, sink platform.InputMethodSin
 		imeHost.sink = sink
 		imeHost.sessions = make(map[id]uint64)
 		imeHost.controllers = make(map[uint64]id)
+		imeHost.inactive = make(map[uint64]bool)
 		imeHost.modes = imeModesFromBundle(bundle, goString(bundleID))
 		server := send(class("IMKServer"), "alloc")
 		connection = imeConnectionName(connection, bundle)
@@ -128,6 +130,7 @@ func (*backend) ServeInputMethod(connection string, sink platform.InputMethodSin
 			imeHost.sink = nil
 			imeHost.sessions = nil
 			imeHost.controllers = nil
+			imeHost.inactive = nil
 			imeHost.modes = imeModes{}
 			err = fmt.Errorf("darwin: IMKServer initialization failed for %q", connection)
 		}
@@ -234,6 +237,7 @@ func imeActivate(self id, cmd objc.SEL, client id) {
 	self.SendSuper(cmd, client)
 	imeOnMain(func() {
 		if session := imeHost.sessions[self]; session != 0 {
+			delete(imeHost.inactive, session)
 			imeHost.active = session
 			imeHost.modes.applyPending(imeClient(session))
 			imeHost.sink.IMEActivate(session)
@@ -244,10 +248,11 @@ func imeActivate(self id, cmd objc.SEL, client id) {
 func imeDeactivate(self id, cmd objc.SEL, client id) {
 	imeOnMain(func() {
 		if session := imeHost.sessions[self]; session != 0 {
-			imeHost.sink.IMEDeactivate(session)
+			imeHost.inactive[session] = true
 			if imeHost.active == session {
 				imeHost.active = 0
 			}
+			imeHost.sink.IMEDeactivate(session)
 		}
 	})
 	self.SendSuper(cmd, client)
@@ -266,6 +271,7 @@ func imeDealloc(self id, cmd objc.SEL) {
 		if session := imeHost.sessions[self]; session != 0 {
 			delete(imeHost.sessions, self)
 			delete(imeHost.controllers, session)
+			delete(imeHost.inactive, session)
 			if imeHost.active == session {
 				imeHost.active = 0
 			}

@@ -203,11 +203,18 @@ func runNativeIMEController() {
 			!slices.Equal(sink.modes, []string{"en"}) || !slices.Equal(selected, []string{bundle + ".zh"}) {
 			panic(fmt.Sprintf("mode = %q, callbacks = %v, selection = %v", got, sink.modes, selected))
 		}
+		// The probe has no initialized IMK server, so simulate its focus
+		// handoff without invoking the superclass's transport.
 		imeHost.active = 0
+		imeHost.inactive = map[uint64]bool{2: true}
 		if err := host.IMESetMode("en"); err != nil {
 			panic(err)
 		}
 		systemMode(active, "zh")
+		if got := host.IMECurrentMode(); got != "en" || !slices.Equal(sink.modes, []string{"en"}) {
+			panic(fmt.Sprintf("old session changed mode to %q, callbacks = %v", got, sink.modes))
+		}
+		systemMode(controller, "zh")
 		if got := host.IMECurrentMode(); got != "zh" || !slices.Equal(sink.modes, []string{"en", "zh"}) {
 			panic(fmt.Sprintf("mode after newer system selection = %q, callbacks = %v", got, sink.modes))
 		}
