@@ -175,20 +175,26 @@ SectionEnd
 
 ## macOS 输入法
 
-在 `tan.json` 中设置 `macos.inputMethod` 后，`tan build` 会生成可供 macOS 加载的输入法应用包。应用的 `id` 必须含 `.inputmethod.`，例如 `com.example.inputmethod.pinyin`。
+在 `tan.json` 中设置顶层 `inputMethod` 后，`tan build` 会生成可供 macOS 加载的输入法应用包。应用的 `id` 必须含 `.inputmethod.`，例如 `com.example.inputmethod.pinyin`。
 
 ```json
-"macos": {
-  "inputMethod": {
-    "language": "zh-Hans",
-    "icon": "assets/menu-icon.png"
-  }
+"inputMethod": {
+  "language": "zh-Hans",
+  "icon": "assets/menu-icon.png",
+  "modes": [
+    {"id": "zh", "label": "中文", "short": "中", "icon": "assets/mode-zh.tiff"},
+    {"id": "en", "label": "英文", "short": "英", "icon": "assets/mode-en.tiff"}
+  ]
 }
 ```
 
 - `language` 是输入法的主要语言，默认为 `zh-Hans`。
 - `icon` 是项目内的菜单图标 PNG。省略时使用应用图标（如果有）。
-- `connection` 默认为 `<id>_Connection`。如需自定义，请同时设置 `ime.Handler.Connection` 为相同的值。
+- `connection` 默认为 `<id>_Connection`。macOS 从应用包读取该值。若在 `ime.Handler.Connection` 中设置覆盖值，两者必须一致。
+- `modes` 按显示顺序声明可选模式。每项需要唯一的 `id`、显示名 `label` 和状态短文字 `short`。应用用 `ime.SetMode` 传入模式 `id`。macOS 输入源 ID 采用 `<应用 id>.<模式 id>`。模式 `en` 的语言为英语，其余模式沿用 `language`。每个模式可以覆盖菜单图标，省略时使用输入法的默认图标。
+- `windows.clsid`、`windows.profile` 和 `linux.engine` 为后续平台打包预留。
+
+`macos.inputMethod` 是已弃用的兼容别名。迁移时把整个配置段移到顶层，两种写法只能使用一种。
 
 把生成的 `.app` 复制到 `~/Library/Input Methods/`。更新已运行的输入法时，用 `killall <可执行文件名>` 结束旧进程，macOS 会在下次使用该输入法时重新启动它。在「系统设置 → 键盘 → 文字输入 → 编辑」中添加并选择该输入法。
 

@@ -344,10 +344,8 @@ func writeBundle(cfg *Config, app string) error {
 			warnf("Icon skipped: %v", err)
 		}
 	}
-	if im := cfg.MacOS.InputMethod; im != nil && im.Icon != "" {
-		if err := copyFile(cfg.Path(im.Icon), filepath.Join(res, "menuicon.png"), 0o644); err != nil {
-			return fmt.Errorf("macos.inputMethod.icon: %w", err)
-		}
+	if err := writeInputMethodResources(cfg, res); err != nil {
+		return err
 	}
 	if err := os.WriteFile(filepath.Join(contents, "Info.plist"), infoPlist(cfg, icon), 0o644); err != nil {
 		return err
@@ -403,7 +401,7 @@ func infoPlist(cfg *Config, icon string) []byte {
 	if cfg.Copyright != "" {
 		entries = append(entries, kv{"NSHumanReadableCopyright", cfg.Copyright})
 	}
-	if im := cfg.MacOS.InputMethod; im != nil {
+	if im := cfg.inputMethod(); im != nil {
 		language := im.Language
 		if language == "" {
 			language = "zh-Hans"
@@ -433,9 +431,12 @@ func infoPlist(cfg *Config, icon string) []byte {
 		fmt.Fprintf(&b, "\t<key>%s</key>\n\t<string>%s</string>\n", e.k, html.EscapeString(e.v))
 	}
 	b.WriteString("\t<key>NSHighResolutionCapable</key>\n\t<true/>\n")
-	if im := cfg.MacOS.InputMethod; im != nil {
+	if im := cfg.inputMethod(); im != nil {
 		b.WriteString("\t<key>LSBackgroundOnly</key>\n\t<true/>\n")
 		plistStrings(&b, "\t", "tsInputMethodCharacterRepertoireKey", []string{repertoire(im.Language)})
+		if len(im.Modes) != 0 {
+			writeInputModes(&b, cfg.ID, im, icon)
+		}
 	}
 	plistStrings(&b, "\t", "CFBundleLocalizations", cfg.AppleLocalizations())
 	writeURLTypes(&b, cfg)

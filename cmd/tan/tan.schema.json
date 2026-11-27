@@ -191,6 +191,27 @@
       ],
       "type": "object"
     },
+    "IMELinux": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "IMEWindows": {
+      "additionalProperties": false,
+      "properties": {
+        "clsid": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "IOS": {
       "additionalProperties": false,
       "description": "IOS holds iOS-only settings.",
@@ -268,7 +289,7 @@
     },
     "InputMethod": {
       "additionalProperties": false,
-      "description": "InputMethod packages the app as a macOS InputMethodKit input source.",
+      "description": "InputMethod declares the application's input method and its modes.",
       "properties": {
         "connection": {
           "description": "defaults to the app ID followed by _Connection",
@@ -281,8 +302,50 @@
         "language": {
           "description": "intended language, defaults to zh-Hans",
           "type": "string"
+        },
+        "linux": {
+          "$ref": "#/$defs/IMELinux",
+          "description": "reserved for Linux IME packaging"
+        },
+        "modes": {
+          "description": "in display order",
+          "items": {
+            "$ref": "#/$defs/InputMode"
+          },
+          "type": "array"
+        },
+        "windows": {
+          "$ref": "#/$defs/IMEWindows",
+          "description": "reserved for Windows IME packaging"
         }
       },
+      "type": "object"
+    },
+    "InputMode": {
+      "additionalProperties": false,
+      "description": "InputMode declares one selectable mode.",
+      "properties": {
+        "icon": {
+          "description": "project-relative menu icon, defaults to the input method icon",
+          "type": "string"
+        },
+        "id": {
+          "description": "unique letters, digits and hyphens",
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "short": {
+          "description": "short status text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "short"
+      ],
       "type": "object"
     },
     "Installer": {
@@ -375,7 +438,8 @@
           "type": "string"
         },
         "inputMethod": {
-          "$ref": "#/$defs/InputMethod"
+          "$ref": "#/$defs/InputMethod",
+          "description": "deprecated alias for the top-level inputMethod"
         },
         "minVersion": {
           "description": "LSMinimumSystemVersion; default 11.0",
@@ -510,6 +574,9 @@
     "^[iI][dD]$": {
       "$ref": "#/properties/id"
     },
+    "^[iI][nN][pP][uU][tT][Mm][eE][tT][hH][oO][dD]$": {
+      "$ref": "#/properties/inputMethod"
+    },
     "^[iI][nN][sſS][tT][aA][lL][lL][eE][rR]$": {
       "$ref": "#/properties/installer"
     },
@@ -621,6 +688,9 @@
     "id": {
       "description": "reverse-DNS identifier, e.g. com.example.hello",
       "type": "string"
+    },
+    "inputMethod": {
+      "$ref": "#/$defs/InputMethod"
     },
     "installer": {
       "$ref": "#/$defs/Installer",
