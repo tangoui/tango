@@ -12,6 +12,7 @@ import (
 	"github.com/tangoui/tango/internal/devhost"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/fake"
+	"github.com/tangoui/tango/internal/platform/fake/apphook"
 	"github.com/tangoui/tango/internal/platform/fake/faketest"
 	"github.com/tangoui/tango/ui/geom"
 	"github.com/tangoui/tango/ui/input"
@@ -32,6 +33,11 @@ type env struct {
 func start(t *testing.T) *env {
 	t.Helper()
 	a, fb := faketest.Run(t, tango.Options{})
+	return serve(t, a, fb)
+}
+
+func serve(t *testing.T, a *tango.App, fb *fake.Backend) *env {
+	t.Helper()
 	dir, err := os.MkdirTemp("", "dh")
 	if err != nil {
 		t.Fatal(err)
@@ -113,8 +119,13 @@ func next[T any](w *rawWorker) T {
 
 func (w *rawWorker) open(title string, seq int) devhost.Opened {
 	w.t.Helper()
+	return w.openOpts(devhost.WindowOpts{Title: title, Width: 300, Height: 200}, seq)
+}
+
+func (w *rawWorker) openOpts(opts devhost.WindowOpts, seq int) devhost.Opened {
+	w.t.Helper()
 	m, err := w.cl.Request(func(id int) any {
-		return devhost.OpenWindow{Req: id, Seq: seq, Opts: devhost.WindowOpts{Title: title, Width: 300, Height: 200}}
+		return devhost.OpenWindow{Req: id, Seq: seq, Opts: opts}
 	}, wait)
 	if err != nil {
 		w.t.Fatal(err)
@@ -346,6 +357,67 @@ func TestPendingWorkerDiesKeepsOld(t *testing.T) {
 	}
 	w3.frame(o3.Win, blue)
 	eventually(t, "recovered", func() bool { return pixel(cv, 1, 150) == blue })
+}
+
+type overlayBackend struct{ *fake.Backend }
+
+func (overlayBackend) SupportsOverlay() bool { return true }
+
+func startOverlayHost(t *testing.T) *env {
+	t.Helper()
+	fb := fake.New()
+	a := apphook.NewApp(overlayBackend{fb}, tango.Options{}).(*tango.App)
+	faketest.Start(t, a, fb)
+	return serve(t, a, fb)
+}
+
+func TestOverlayHidesWhenReplacedByNormalWindow(t *testing.T) {
+	e := startOverlayHost(t)
+	w1 := e.worker()
+	overlay := w1.openOpts(devhost.WindowOpts{Title: "Window", Width: 100, Height: 100, Kind: int(tango.KindOverlay)}, 0)
+	w1.frame(overlay.Win, red)
+	ctlNext[devhost.Swapped](e)
+
+	w2 := e.worker()
+	normal := w2.open("Window", 0)
+	w2.frame(normal.Win, blue)
+	ctlNext[devhost.Swapped](e)
+	if old := e.fb.Surfaces()[0]; old.Visible() {
+		t.Fatal("old overlay still intercepts clicks after the new worker took over")
+	}
+}
+
+func TestOverlayAndHiddenWindowKeepHostInBackground(t *testing.T) {
+	e := startOverlayHost(t)
+	e.fb.Do(func() { e.fb.HideApp() })
+	w := e.worker()
+	overlay := w.openOpts(devhost.WindowOpts{Width: 100, Height: 100, Kind: int(tango.KindOverlay)}, 0)
+	request := next[devhost.FrameRequest](w)
+	w.msgs <- request
+	w.openOpts(devhost.WindowOpts{Width: 100, Height: 100, Hidden: true}, 1)
+	w.frame(overlay.Win, red)
+	ctlNext[devhost.Swapped](e)
+	if !e.fb.AppControl().Hidden {
+		t.Fatal("hidden ordinary window caused the host to activate")
+	}
+}
+
+func TestUnsupportedOverlayDoesNotBlockWindowlessSwap(t *testing.T) {
+	old := NoWindowCommit
+	NoWindowCommit = 500 * time.Millisecond
+	t.Cleanup(func() { NoWindowCommit = old })
+	e := start(t)
+	w := e.worker()
+	m, err := w.cl.Request(func(req int) any {
+		return devhost.OpenWindow{Req: req, Opts: devhost.WindowOpts{Kind: int(tango.KindOverlay)}}
+	}, wait)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o := m.(devhost.Opened); !o.Unsupported {
+		t.Fatalf("response = %+v", o)
+	}
+	ctlNext[devhost.Swapped](e)
 }
 
 func TestWorkerClosesWindowAndNewWindows(t *testing.T) {

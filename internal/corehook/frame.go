@@ -10,6 +10,9 @@ var StartWindowMove func(surface any)
 // *tango.Surface). Registration and notifications run on the main thread.
 var WatchAppearance func(surface any, fn func())
 
+// IsOverlaySurface reports whether surface (a *tango.Surface) is an overlay.
+var IsOverlaySurface func(surface any) bool
+
 // FollowUILocale installs next if the current default is last or next.
 // Both arguments are *ui.Locale. A nil last permits the first update.
 // Set by package ui.

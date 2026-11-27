@@ -608,15 +608,10 @@ func (h *Host) commit(p *worker) {
 	if old != nil {
 		old.closeEmbeds(nil)
 	}
-	hasOverlay, hasRegular := false, false
+	hasOverlay, hasVisibleOrdinary := false, false
 	for _, x := range h.wins {
 		if x.next != p {
 			continue
-		}
-		if x.overlay {
-			hasOverlay = true
-		} else {
-			hasRegular = true
 		}
 		x.owner, x.next = p, nil
 		x.outstanding = nil
@@ -637,6 +632,11 @@ func (h *Host) commit(p *worker) {
 		for _, op := range x.nextOps {
 			h.applyOp(x, op)
 		}
+		if x.overlay {
+			hasOverlay = true
+		} else if x.surf.IsVisible() {
+			hasVisibleOrdinary = true
+		}
 		x.nextCursor, x.nextText, x.nextTitle, x.nextOps = nil, nil, "", nil
 		h.presentInbox(x)
 		for _, v := range p.embeds {
@@ -653,6 +653,9 @@ func (h *Host) commit(p *worker) {
 			if x.owner == old {
 				x.owner = nil
 				x.setShortcutCapture(false)
+				if x.overlay {
+					x.surf.Hide()
+				}
 				x.orphanedAt = time.Now()
 				h.scheduleOrphanCheck(id)
 			}
@@ -661,7 +664,7 @@ func (h *Host) commit(p *worker) {
 	}
 	h.commitMenus(p)
 	h.replay(p)
-	if hasOverlay && !hasRegular {
+	if hasOverlay && !hasVisibleOrdinary {
 		h.reclaimUntil = time.Time{}
 	} else {
 		h.reclaimFocus(p)
@@ -807,12 +810,12 @@ type heldFrame struct {
 }
 
 func (h *Host) openWindow(w *worker, m devhost.OpenWindow) {
-	w.opened++
 	reply := func(x *win, err error) {
 		if err != nil {
 			w.send(devhost.Opened{Req: m.Req, Err: err.Error(), Unsupported: errors.Is(err, tango.ErrUnsupported)})
 			return
 		}
+		w.opened++
 		cw, ch := x.cv.Size()
 		w.send(devhost.Opened{Req: m.Req, Win: x.id, W: cw, H: ch, Scale: x.cv.Scale(), ActivityAt: x.surf.LastActivityAt()})
 	}

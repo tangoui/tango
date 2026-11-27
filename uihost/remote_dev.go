@@ -20,7 +20,6 @@ import (
 	"image"
 	"log"
 	"os"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -678,22 +677,7 @@ func (w *remoteWin) FrameInfo() ui.WindowFrameInfo {
 	if w.proxy == nil {
 		return ui.WindowFrameInfo{}
 	}
-	ap := w.proxy.Appearance()
-	var st ui.WindowState
-	switch w.proxy.State() {
-	case tango.StateMinimized:
-		st = ui.WindowMinimized
-	case tango.StateMaximized:
-		st = ui.WindowMaximized
-	case tango.StateFullscreen:
-		st = ui.WindowFullscreen
-	}
-	return ui.WindowFrameInfo{
-		State:          st,
-		SystemTitleBar: ap.TitleBar == tango.TitleBarDefault,
-		SystemButtons:  ap.TitleBar == tango.TitleBarHidden && (runtime.GOOS == "darwin" || runtime.GOOS == "ios"),
-		NoMinimize:     ap.NoMinimize, NoMaximize: ap.NoMaximize, NoClose: ap.NoClose,
-	}
+	return readFrameInfo(w.proxy)
 }
 
 // SetWindowState implements ui.WindowFrame through the proxy surface.

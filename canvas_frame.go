@@ -10,6 +10,9 @@ import (
 // frame shim's "move" message.
 
 func init() {
+	corehook.IsOverlaySurface = func(surface any) bool {
+		return surface.(*Surface).kind == KindOverlay
+	}
 	corehook.WatchAppearance = func(surface any, fn func()) {
 		s := surface.(*Surface)
 		s.ext.onAppearance = append(s.ext.onAppearance, fn)

@@ -66,10 +66,6 @@ func serveTestHost(t *testing.T, ha *tango.App, hfb *fake.Backend) string {
 	return addr
 }
 
-type overlayHostBackend struct{ *fake.Backend }
-
-func (overlayHostBackend) SupportsOverlay() bool { return true }
-
 func TestDevOverlayKind(t *testing.T) {
 	fb := fake.New()
 	ha := apphook.NewApp(overlayHostBackend{fb}, tango.Options{}).(*tango.App)
@@ -107,6 +103,12 @@ func TestDevOverlayKind(t *testing.T) {
 	})
 	if o.err != nil || o.s == nil {
 		t.Fatalf("overlay open: surface=%v err=%v", o.s, o.err)
+	}
+	info := tango.Await(wa, func() ui.WindowFrameInfo {
+		return o.r.Context().Window().(ui.WindowFrame).FrameInfo()
+	})
+	if info.SystemTitleBar || info.SystemButtons || !info.NoMinimize || !info.NoMaximize || info.NoClose {
+		t.Fatalf("remote overlay frame info = %+v", info)
 	}
 	surfaces := fb.Surfaces()
 	if len(surfaces) != 2 {
