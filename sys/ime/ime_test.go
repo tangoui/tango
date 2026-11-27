@@ -212,3 +212,156 @@ func TestEndWithoutActivateHandler(t *testing.T) {
 		t.Fatalf("End got %v, want session 9", ended)
 	}
 }
+
+func TestModifierRouting(t *testing.T) {
+	a, f := runInputMethod(t, tango.Options{})
+	want := ModifierKey{Code: "ShiftRight", Down: true, CapsLock: true}
+	var got ModifierKey
+	var session uint64
+	if err := Serve(a, Handler{Key: passKey, Modifier: func(s *Session, m ModifierKey) bool {
+		got, session = m, s.ID()
+		return true
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	handled := tango.Await(a, func() bool {
+		sink := f.sink.(platform.InputMethodModifiers)
+		handled := sink.IMEModifier(7, platform.IMEModifierKey(want))
+		f.sink.(*server).h.Modifier = nil
+		return handled && !sink.IMEModifier(7, platform.IMEModifierKey(want))
+	})
+	if !handled || got != want || session != 7 {
+		t.Fatalf("modifier = %+v, session = %d, routing passed = %t", got, session, handled)
+	}
+}
+
+func TestKeyNewFields(t *testing.T) {
+	a, f := runInputMethod(t, tango.Options{})
+	var got Key
+	if err := Serve(a, Handler{Key: func(_ *Session, k Key) bool {
+		got = k
+		return false
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	tango.Await(a, func() bool {
+		return f.sink.IMEKey(1, platform.IMEKey{CapsLock: true, Repeat: true})
+	})
+	if !got.CapsLock || !got.Repeat {
+		t.Fatalf("key = %+v", got)
+	}
+}
+
+type fakeInputModes struct {
+	*fakeInputMethod
+	mode string
+	sets int
+}
+
+func (f *fakeInputModes) IMECurrentMode() string { return f.mode }
+
+func (f *fakeInputModes) IMESetMode(id string) error {
+	if id != "zh" && id != "en" {
+		return errors.New("unknown mode")
+	}
+	f.mode = id
+	f.sets++
+	return nil
+}
+
+func runInputModes(t *testing.T) (*tango.App, *fakeInputModes) {
+	t.Helper()
+	a, f := runInputMethod(t, tango.Options{})
+	modes := &fakeInputModes{fakeInputMethod: f, mode: "zh"}
+	backendOf = func(*tango.App) (platform.InputMethods, bool) { return modes, true }
+	return a, modes
+}
+
+func TestSetModeUnsupported(t *testing.T) {
+	a, _ := runInputMethod(t, tango.Options{})
+	if err := SetMode(a, "en"); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("SetMode = %v, want ErrUnsupported", err)
+	}
+}
+
+func TestSetModeUnknown(t *testing.T) {
+	a, _ := runInputModes(t)
+	if err := SetMode(a, "unknown"); err == nil || err == ErrUnsupported {
+		t.Fatalf("SetMode = %v, want an unknown mode error", err)
+	}
+}
+
+func TestModeChangedNoLoop(t *testing.T) {
+	a, f := runInputModes(t)
+	var modes []string
+	var setErr error
+	if err := Serve(a, Handler{Key: passKey, ModeChanged: func(id string) {
+		modes = append(modes, id)
+		setErr = SetMode(a, id)
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	got := tango.Await(a, func() string {
+		f.mode = "en" // The native backend updates its state before notifying.
+		f.sink.(platform.InputMethodModeSink).IMEModeChanged("en")
+		return CurrentMode(a)
+	})
+	if got != "en" || len(modes) != 1 || modes[0] != "en" || setErr != nil || f.sets != 0 {
+		t.Fatalf("mode = %q, callbacks = %v, SetMode = %v, backend sets = %d", got, modes, setErr, f.sets)
+	}
+}
+
+func TestMenu(t *testing.T) {
+	a, f := runInputMethod(t, tango.Options{})
+	want := MenuItem{ID: "about", Title: "About", Checked: true, Disabled: true}
+	var clicked string
+	if err := Serve(a, Handler{Key: passKey,
+		Menu:        func() []MenuItem { return []MenuItem{want} },
+		MenuClicked: func(id string) { clicked = id },
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got := tango.Await(a, func() []platform.IMEMenuItem {
+		sink := f.sink.(platform.InputMethodMenus)
+		sink.IMEMenuClicked("about")
+		return sink.IMEMenu()
+	})
+	if len(got) != 1 || MenuItem(got[0]) != want || clicked != "about" {
+		t.Fatalf("menu = %+v, clicked = %q", got, clicked)
+	}
+}
+
+func TestMenuPanic(t *testing.T) {
+	var panics []string
+	a, f := runInputMethod(t, tango.Options{OnPanic: func(p tango.Panic) bool {
+		panics = append(panics, p.Where)
+		return false
+	}})
+	if err := Serve(a, Handler{Key: passKey,
+		Menu:        func() []MenuItem { panic("menu") },
+		MenuClicked: func(string) { panic("click") },
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got := tango.Await(a, func() []platform.IMEMenuItem {
+		sink := f.sink.(platform.InputMethodMenus)
+		sink.IMEMenuClicked("about")
+		return sink.IMEMenu()
+	})
+	if len(got) != 0 || len(panics) != 2 || panics[0] != "ime menu clicked" || panics[1] != "ime menu" {
+		t.Fatalf("menu = %+v, panic locations = %v", got, panics)
+	}
+}
+
+func TestSetCandidatesNoBackend(t *testing.T) {
+	a, f := runInputMethod(t, tango.Options{})
+	if err := Serve(a, Handler{Key: func(s *Session, _ Key) bool {
+		s.SetCandidates([]Candidate{{Text: "你", Comment: "ni"}}, 0)
+		return true
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if !tango.Await(a, func() bool { return f.sink.IMEKey(1, platform.IMEKey{}) }) {
+		t.Fatal("candidate call interrupted the key callback")
+	}
+}

@@ -12,7 +12,7 @@
 | `menu item` | `sys/menu` 菜单项的 `OnClick`（应用菜单、窗口菜单、托盘菜单、右键菜单） |
 | `tray click` | `sys/tray` 的 `OnClick`/`OnRightClick`/`OnDoubleClick` |
 | `hotkey` | `hotkey.Register` 的全局快捷键回调 |
-| `ime key`、`ime activate`、`ime deactivate`、`ime commit composition`、`ime end` | `sys/ime` 的输入法回调 |
+| `ime key`、`ime activate`、`ime deactivate`、`ime commit composition`、`ime end`、`ime modifier`、`ime mode changed`、`ime menu`、`ime menu clicked` | `sys/ime` 的输入法回调 |
 | `background task` | `background.OnTask` 的任务函数（只报告：任务照常按失败报告给系统，不退出） |
 | `canvas callback` | 画布窗口的帧、输入、尺寸、焦点、拖放回调 |
 | `ui frame` | uihost 的 Go 自绘帧（含页面函数） |
@@ -47,7 +47,7 @@ app := tango.New(tango.Options{
 
 ipc 绑定和流的 panic 仍按原样变成 `internal` 错误（`"panic: ..."`）返回给页面，同时报告给 `OnPanic`/默认处理一次，但**只报告不退出**，`keepRunning` 对它们不生效。连接不是 `*tango.Surface` 时，可以用 `Router.OnPanic` 自己接收，否则只写 slog 日志。
 
-`sys/ime` 回调发生 panic 时会交给 `OnPanic`，或在没有配置处理器时写入日志。应用进程会继续运行，无论 `OnPanic` 返回什么。若 `Key` 回调 panic，按键交还给客户端应用处理。
+`sys/ime` 回调发生 panic 时会交给 `OnPanic`，或在没有配置处理器时写入日志。应用进程会继续运行，无论 `OnPanic` 返回什么。若 `Key` 或 `Modifier` 回调 panic，按键交还给客户端应用处理。若 `Menu` 回调 panic，本次菜单不提供应用自定义条目。
 
 ## `App.Go` 与裸 goroutine
 

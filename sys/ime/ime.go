@@ -37,10 +37,37 @@ var ErrServing = errors.New("ime: already serving")
 // Key is a key-down event. Code follows KeyboardEvent.code naming, such as
 // "KeyA", "Digit1", or "ArrowLeft", and is empty for an unknown key. Text
 // holds the printable character produced with modifiers applied, if any.
+// CapsLock and Repeat are currently reported on macOS.
 type Key struct {
 	Code                   string
 	Text                   string
 	Shift, Ctrl, Alt, Meta bool
+	CapsLock, Repeat       bool
+}
+
+// ModifierKey reports a change to a modifier, with the side in Code where
+// applicable (for example, "ShiftLeft", "ControlRight", or "CapsLock").
+// For CapsLock, Down reports the new lock state.
+type ModifierKey struct {
+	Code           string
+	Down, CapsLock bool
+}
+
+// Mode describes a declared input mode from the application's packaging config.
+type Mode struct {
+	ID, Label, Short string
+}
+
+// MenuItem describes a command in the input method menu. A separator ignores
+// all other fields. Command IDs are passed to Handler.MenuClicked.
+type MenuItem struct {
+	ID, Title                    string
+	Checked, Disabled, Separator bool
+}
+
+// Candidate is an entry in a native candidate panel.
+type Candidate struct {
+	Text, Comment string
 }
 
 // Handler receives events on the app's main thread. Callback panics are
@@ -76,6 +103,16 @@ type Handler struct {
 	// connection. Focus changes between fields in the same client use
 	// Activate and Deactivate.
 	End func(s *Session)
+	// Modifier receives modifier changes on macOS. Return true to consume
+	// the event. With no handler the event is passed through.
+	Modifier func(s *Session, m ModifierKey) bool
+	// ModeChanged receives a system-initiated change of the global input mode
+	// on macOS. SetMode does not invoke it.
+	ModeChanged func(mode string)
+	// Menu supplies the items each time the macOS input method menu opens.
+	Menu func() []MenuItem
+	// MenuClicked receives the ID of a selected macOS input method menu item.
+	MenuClicked func(id string)
 }
 
 var (
@@ -145,6 +182,85 @@ func (s *server) IMEKey(id uint64, k platform.IMEKey) bool {
 	return handled
 }
 
+func (s *server) IMEModifier(id uint64, m platform.IMEModifierKey) bool {
+	var handled bool
+	if s.h.Modifier != nil {
+		corehook.GuardNonFatal(s.app, "ime modifier", func() {
+			handled = s.h.Modifier(s.session(id), ModifierKey(m))
+		})
+	}
+	return handled
+}
+
+func (s *server) IMEModeChanged(id string) {
+	if s.h.ModeChanged != nil {
+		corehook.GuardNonFatal(s.app, "ime mode changed", func() { s.h.ModeChanged(id) })
+	}
+}
+
+func (s *server) IMEMenu() []platform.IMEMenuItem {
+	var items []platform.IMEMenuItem
+	if s.h.Menu != nil {
+		corehook.GuardNonFatal(s.app, "ime menu", func() {
+			for _, item := range s.h.Menu() {
+				items = append(items, platform.IMEMenuItem(item))
+			}
+		})
+	}
+	return items
+}
+
+func (s *server) IMEMenuClicked(id string) {
+	if s.h.MenuClicked != nil {
+		corehook.GuardNonFatal(s.app, "ime menu clicked", func() { s.h.MenuClicked(id) })
+	}
+}
+
+// SetMode sets the app's process-wide input mode after Serve. The ID must
+// be declared in tan.json. Platforms without modes return ErrUnsupported.
+func SetMode(a *tango.App, id string) error {
+	im, ok := backendOf(a)
+	if !ok {
+		return ErrUnsupported
+	}
+	modes, ok := im.(platform.InputMethodModes)
+	if !ok {
+		return ErrUnsupported
+	}
+	type result struct {
+		err error
+		ran bool
+	}
+	r := tango.Await(a, func() result {
+		if id != "" && modes.IMECurrentMode() == id {
+			return result{ran: true}
+		}
+		return result{err: modes.IMESetMode(id), ran: true}
+	})
+	if !r.ran {
+		return tango.ErrNotRunning
+	}
+	return r.err
+}
+
+// CurrentMode returns the app's process-wide mode ID, or an empty string
+// when no mode is active or the platform does not support modes.
+func CurrentMode(a *tango.App) string {
+	im, ok := backendOf(a)
+	if !ok {
+		return ""
+	}
+	modes, ok := im.(platform.InputMethodModes)
+	if !ok {
+		return ""
+	}
+	return tango.Await(a, modes.IMECurrentMode)
+}
+
+// SystemDrawsCandidates reports whether the platform backend provides a
+// native candidate panel. No current backend has a native panel.
+func SystemDrawsCandidates() bool { return false }
+
 func (s *server) IMEActivate(id uint64) {
 	// An activated session can end before it receives its first key.
 	s.session(id)
@@ -209,6 +325,27 @@ func (s *Session) SetComposition(text string, cursor int) {
 func (s *Session) Commit(text string) {
 	text = strings.ToValidUTF8(text, "\uFFFD")
 	s.run(func() { s.server.im.IMECommit(s.id, text) })
+}
+
+// SetCandidates replaces the system candidate list. Pass an empty list to
+// clear it and use -1 for no selection. This is a no-op on backends without
+// a native panel. Calls from other goroutines are posted to the main thread.
+func (s *Session) SetCandidates(list []Candidate, selected int) {
+	im, ok := s.server.im.(platform.InputMethodCandidates)
+	if !ok {
+		return
+	}
+	items := make([]platform.IMECandidate, len(list))
+	for i, item := range list {
+		items[i] = platform.IMECandidate{
+			Text:    strings.ToValidUTF8(item.Text, "\uFFFD"),
+			Comment: strings.ToValidUTF8(item.Comment, "\uFFFD"),
+		}
+	}
+	if selected < 0 || selected >= len(items) {
+		selected = -1
+	}
+	s.run(func() { im.IMESetCandidates(s.id, items, selected) })
 }
 
 // Caret returns the cursor rectangle in logical desktop pixels from the

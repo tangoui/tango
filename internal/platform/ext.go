@@ -513,6 +513,21 @@ type LaneHost interface {
 type IMEKey struct {
 	Code, Text             string
 	Shift, Ctrl, Alt, Meta bool
+	CapsLock, Repeat       bool
+}
+
+type IMEModifierKey struct {
+	Code           string
+	Down, CapsLock bool
+}
+
+type IMEMenuItem struct {
+	ID, Title                    string
+	Checked, Disabled, Separator bool
+}
+
+type IMECandidate struct {
+	Text, Comment string
 }
 
 // InputMethodSink receives events for the lifetime of each input session.
@@ -522,6 +537,33 @@ type InputMethodSink interface {
 	IMEDeactivate(session uint64)
 	IMECommitComposition(session uint64)
 	IMEEnd(session uint64)
+}
+
+// InputMethodModifiers is the optional modifier event sink.
+type InputMethodModifiers interface {
+	IMEModifier(session uint64, key IMEModifierKey) bool
+}
+
+// InputMethodModeSink is notified after a system-initiated mode change.
+type InputMethodModeSink interface {
+	IMEModeChanged(id string)
+}
+
+// InputMethodModes controls the backend's process-wide input mode.
+type InputMethodModes interface {
+	IMESetMode(id string) error
+	IMECurrentMode() string
+}
+
+// InputMethodMenus is the optional menu event sink.
+type InputMethodMenus interface {
+	IMEMenu() []IMEMenuItem
+	IMEMenuClicked(id string)
+}
+
+// InputMethodCandidates sends a session's candidates to a native panel.
+type InputMethodCandidates interface {
+	IMESetCandidates(session uint64, list []IMECandidate, selected int)
 }
 
 // InputMethods is implemented by backends that can host a system input method.
