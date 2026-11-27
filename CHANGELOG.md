@@ -4,6 +4,30 @@
 
 ## [未发布]
 
+## [0.4.0] - 2026-11-27
+
+### 新增
+
+- `tan init` 生成的项目自带面向 AI 编程助手的应用开发技能 `.agents/skills/tango/`（Agent Skills 格式，Codex、Cursor、Gemini CLI 会自动读取；Claude Code 需要在对话里让它读这个目录）。技能列出常见需求对应的包和函数、从 Wails/Electron 习惯到 Tango 写法的对照、编译通过但行为不对的陷阱、用 `tan mcp` 验证应用的流程，并附自绘界面和 WebView 两个可编译示例。技能取自项目 `go.mod` 依赖的 Tango 版本，安装时把版本写进 `SKILL.md` 的 `metadata.tango-version`。
+- 新命令 `tan skills update [-C dir]`：为已有项目安装或更新这份技能，升级 Tango 后运行即可。`.agents/skills/tango/` 由 tan 管理，会被整体替换；同目录下的其他技能不受影响。
+- `tan mcp` 新增 `tango_web_key`：向 WebView 窗口发送按键和组合键（语法与 `tango_ui_key` 相同），效果等同真实键盘，匹配的原生菜单快捷键优先处理（例如 `CmdOrCtrl+S` 触发保存菜单项），其余按键送进页面；不移动鼠标、不切换前台应用。支持 macOS、Windows（WebView2）和 Linux（WebKitGTK），仅开发构建可用。
+
+### 修复
+
+- `tan init` 生成项目的 Go 依赖与 `@tangoui/runtime` 版本保持一致，都取自 tan 自己依赖的 Tango 版本；此前前端模板固定写 `^0.2.1`，与 Go 端的版本不匹配。
+- `tan init -local` 在本地仓库的前端运行时缺少或过期构建产物时自动构建，`replace` 路径含空格时加引号，生成的前端项目可直接 `npm run build`。
+- 前端模板的 Vite 开发服务器固定监听 `127.0.0.1`，端口被占用时报错，不再悄悄改到 IPv6 地址启动。
+- `tan.json` 的 `name` 不含 ASCII 字母或数字时，错误信息说明原因（可执行文件名由它生成）。
+- 启用 cgo 的 Windows 发布构建（例如 `CC="zig cc"`）也使用 GUI 子系统，运行时不再多开一个控制台窗口。
+
+### 文档
+
+- `sys/notify` 与通知指南补充 macOS 排障：放在临时目录（如 `/tmp`）里的 `.app` 会被系统拒绝通知授权，移到 `~/Applications` 后再试。
+- `sys/menu` 的 setter 写明修改后需调用 `Menu.Update`；`EditMenu` 等标准菜单组应直接挂在菜单栏顶层（`m.Role(menu.EditMenu)`），放进自建子菜单会多一层。
+- `ipc` 包文档说明在绑定方法里用 `ConnFrom` 取得调用的窗口；`ui` 包文档补充 `Context.WakeAt`、`Runner.Post` 的用法，视觉基线更正为 Ant Design 6.7。
+- `WebDialogRequest`、`WebDialogResponse` 的字段可在 `go doc` 中查看。
+- 仓库根目录的 `AGENTS.md` 注明只适用于 Tango 框架本身的贡献者。
+
 ## [0.3.0] - 2026-11-25
 
 ### 新增
@@ -430,7 +454,8 @@
 - 资源源上 GET/HEAD 以外的跨源请求回 403（`Options.AllowCrossOriginAssets` 关闭）；macOS/iOS 后端用主文档 URL 补上 WebKit 缺失的 `Origin`。
 - `tan dev` 热加载控制通道要求会话 token（`TANGO_DEV_TOKEN`），unix socket 权限 0600。
 
-[未发布]: https://github.com/tangoui/tango/compare/v0.3.0...HEAD
+[未发布]: https://github.com/tangoui/tango/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/tangoui/tango/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/tangoui/tango/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/tangoui/tango/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/tangoui/tango/compare/v0.1.0...v0.2.0
