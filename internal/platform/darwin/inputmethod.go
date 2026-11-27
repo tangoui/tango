@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"runtime"
 	"sync"
 
 	"github.com/ebitengine/purego"
@@ -53,11 +54,25 @@ func loadIME() error {
 		if imeRuntime.err != nil {
 			return
 		}
-		purego.RegisterFunc(&imeRuntime.mark, msgSendAddr)
+		if runtime.GOARCH == "amd64" {
+			imeRuntime.mark = imeMarkAMD64
+		} else {
+			purego.RegisterFunc(&imeRuntime.mark, msgSendAddr)
+		}
 		purego.RegisterFunc(&imeRuntime.insert, msgSendAddr)
 		purego.RegisterFunc(&imeRuntime.lineRect, msgSendAddr)
 	})
 	return imeRuntime.err
+}
+
+// On x86-64, self, the selector, the string, and the selection consume five
+// of the six integer argument registers. The entire replacement NSRange
+// goes on the stack. Reserve the unused sixth register so purego cannot
+// split that range across the last register and the stack.
+func imeMarkAMD64(client id, op objc.SEL, text id, selection, replacement nsRange) {
+	purego.SyscallN(msgSendAddr, uintptr(client), uintptr(op), uintptr(text),
+		uintptr(selection.Location), uintptr(selection.Length), 0,
+		uintptr(replacement.Location), uintptr(replacement.Length))
 }
 
 func (*backend) ServeInputMethod(connection string, sink platform.InputMethodSink) error {
