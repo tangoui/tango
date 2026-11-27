@@ -17,6 +17,7 @@ package ime
 
 import (
 	"errors"
+	"strings"
 	"sync/atomic"
 
 	"github.com/tangoui/tango"
@@ -168,15 +169,19 @@ func (s *Session) ClientApp() string {
 }
 
 // SetComposition replaces the marked text, or clears it when text is
-// empty. Cursor counts runes and is clamped to the text. Calls from other
-// goroutines are posted to the main thread.
+// empty. Cursor counts runes and is clamped to the text. Invalid UTF-8 is
+// replaced with U+FFFD. Calls from other goroutines are posted to the main
+// thread.
 func (s *Session) SetComposition(text string, cursor int) {
+	text = strings.ToValidUTF8(text, "\uFFFD")
 	s.run(func() { s.server.im.IMESetComposition(s.id, text, cursor) })
 }
 
-// Commit replaces the marked text with final text. Calls from other
-// goroutines are posted to the main thread.
+// Commit replaces the marked text with final text. Invalid UTF-8 is
+// replaced with U+FFFD. Calls from other goroutines are posted to the main
+// thread.
 func (s *Session) Commit(text string) {
+	text = strings.ToValidUTF8(text, "\uFFFD")
 	s.run(func() { s.server.im.IMECommit(s.id, text) })
 }
 

@@ -169,3 +169,22 @@ func TestEndForgetsSession(t *testing.T) {
 		t.Fatalf("ended session committed %q", f.committed)
 	}
 }
+
+// The backends need valid UTF-8: macOS cannot make an NSString of
+// anything else.
+func TestSessionReplacesInvalidUTF8(t *testing.T) {
+	a, f := runInputMethod(t, tango.Options{})
+	err := Serve(a, Handler{Key: func(s *Session, _ Key) bool {
+		cut := "你好"[:4] // a rune cut in half
+		s.SetComposition(cut, 2)
+		s.Commit(cut)
+		return true
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tango.Await(a, func() bool { return f.sink.IMEKey(1, platform.IMEKey{}) })
+	if want := "你\uFFFD"; f.marked != want || f.committed != want {
+		t.Fatalf("marked %q, committed %q; want %q", f.marked, f.committed, want)
+	}
+}
