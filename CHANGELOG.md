@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 新增
+
+- 新包 `sys/ime`（实验性）：用 Go 编写系统输入法。`ime.Serve` 注册处理函数，按键、激活、失活和结束组字都在主线程回调；`Session` 提供 `SetComposition`、`Commit`、`Caret`、`ClientApp`。macOS 由 InputMethodKit 承载，Windows 经 TSF 桥接（示例 `examples/inputmethod/windows`），Linux 注册为 IBus 引擎。示例 `examples/inputmethod` 是一个玩具拼音输入法。
+- `tan.json` 新增 `macos.inputMethod`（`language`、`icon`、`connection`）：`tan build` 生成可放入 `~/Library/Input Methods/` 的输入法应用包，应用 `id` 须含 `.inputmethod.`。
+- macOS 应用的 `Info.plist` 里 `LSBackgroundOnly` 和 `LSUIElement` 在启动时生效，前者优先。
+
 ## [0.4.0] - 2026-11-27
 
 ### 新增
