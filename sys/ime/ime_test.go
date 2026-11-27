@@ -77,13 +77,13 @@ func TestServeNeedsKey(t *testing.T) {
 	}
 }
 
-func TestDefaultConnection(t *testing.T) {
+func TestDefaultConnectionIsResolvedByBackend(t *testing.T) {
 	a, f := runInputMethod(t, tango.Options{ID: "com.example.inputmethod.toy"})
 	if err := Serve(a, Handler{Key: passKey}); err != nil {
 		t.Fatal(err)
 	}
-	if want := "com.example.inputmethod.toy_Connection"; f.connection != want {
-		t.Errorf("connection = %q, want %q", f.connection, want)
+	if f.connection != "" {
+		t.Errorf("connection = %q, want empty so the backend chooses it", f.connection)
 	}
 }
 

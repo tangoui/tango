@@ -75,6 +75,21 @@ func imeMarkAMD64(client id, op objc.SEL, text id, selection, replacement nsRang
 		uintptr(replacement.Location), uintptr(replacement.Length))
 }
 
+// imeConnectionName resolves the server name inside an autorelease pool.
+func imeConnectionName(connection string, bundle id) string {
+	if connection != "" {
+		return connection
+	}
+	dict := send(bundle, "infoDictionary")
+	value := send(dict, "objectForKey:", uintptr(nsString("InputMethodConnectionName")))
+	if sendBool(value, "isKindOfClass:", uintptr(class("NSString"))) {
+		if name := goString(value); name != "" {
+			return name
+		}
+	}
+	return goString(send(bundle, "bundleIdentifier")) + "_Connection"
+}
+
 func (*backend) ServeInputMethod(connection string, sink platform.InputMethodSink) error {
 	if imeHost.sink != nil {
 		return errors.New("darwin: input method already serving")
@@ -95,6 +110,7 @@ func (*backend) ServeInputMethod(connection string, sink platform.InputMethodSin
 		imeHost.sessions = make(map[id]uint64)
 		imeHost.controllers = make(map[uint64]id)
 		server := send(class("IMKServer"), "alloc")
+		connection = imeConnectionName(connection, bundle)
 		imeHost.server = send(server, "initWithName:bundleIdentifier:", uintptr(nsString(connection)), uintptr(bundleID))
 		if imeHost.server == 0 {
 			imeHost.sink = nil

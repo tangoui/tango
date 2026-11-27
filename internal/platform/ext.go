@@ -526,6 +526,7 @@ type InputMethodSink interface {
 
 // InputMethods is implemented by backends that can host a system input method.
 type InputMethods interface {
+	// An empty connection selects the platform default.
 	ServeInputMethod(connection string, sink InputMethodSink) error
 	IMESetComposition(session uint64, text string, cursor int) // cursor counts runes
 	IMECommit(session uint64, text string)

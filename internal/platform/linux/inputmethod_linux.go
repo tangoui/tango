@@ -125,6 +125,9 @@ func (b *backend) ServeInputMethod(connection string, sink platform.InputMethodS
 	if ibusErr != nil {
 		return fmt.Errorf("tango/linux: input method: %w", ibusErr)
 	}
+	if connection == "" {
+		connection = b.opts.ID + "_Connection"
+	}
 	name := strings.TrimSuffix(connection, "_Connection")
 	if name == "" || strings.ContainsAny(name, "\x00 \t\n") {
 		return errors.New("tango/linux: invalid IBus engine name")

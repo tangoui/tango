@@ -29,6 +29,9 @@ func (b *Backend) ServeInputMethod(connection string, sink platform.InputMethodS
 	if b.inputMethod != nil {
 		return errors.New("tango/windows: input method already serving")
 	}
+	if connection == "" {
+		connection = b.opts.ID + "_Connection"
+	}
 	if len(connection) == 0 || len(connection) > 120 || strings.ContainsFunc(connection, func(r rune) bool {
 		return !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '.' || r == '-' || r == '_')
 	}) {

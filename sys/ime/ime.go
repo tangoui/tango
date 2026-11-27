@@ -42,10 +42,15 @@ type Key struct {
 
 // Handler receives events on the app's main thread.
 type Handler struct {
-	// Connection defaults to the app's ID followed by _Connection.
-	// It matches InputMethodConnectionName on macOS and the TSF bridge's
-	// connection on Windows. IBus uses it without the _Connection suffix
-	// as the engine name.
+	// Connection overrides the platform default. On macOS the default comes
+	// from InputMethodConnectionName in Info.plist, or the bundle identifier
+	// followed by _Connection if the plist omits it.
+	//
+	// On Windows and Linux the default is the app's ID followed by _Connection.
+	// Set the ID to the one in tan.json when using that default. On Windows
+	// the resolved value must match the TSF DLL's TANGO_IME_CONNECTION at
+	// build time. IBus uses it without the _Connection suffix as the engine
+	// name, which must match the name used to select the engine.
 	Connection string
 	// Key is required. Return true to consume the key.
 	Key func(s *Session, k Key) bool
@@ -79,9 +84,6 @@ func Serve(a *tango.App, h Handler) error {
 	}
 	if h.Key == nil {
 		return errors.New("ime: Handler.Key is required")
-	}
-	if h.Connection == "" {
-		h.Connection = a.ID() + "_Connection"
 	}
 	type result struct {
 		err error
