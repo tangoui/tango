@@ -271,7 +271,23 @@ class Tip final : public TipProcessorEx, public ITfKeyEventSink,
         if (keys[VK_MENU] & 0x80) frame.modifiers |= alt;
         if ((keys[VK_LWIN] | keys[VK_RWIN]) & 0x80) frame.modifiers |= meta;
         if (keys[VK_CAPITAL] & 1) frame.modifiers |= caps_lock;
-        if (!down_event) return;
+        if (!down_event) {
+            // GetKeyboardState may still include the key TSF is releasing.
+            const bool right = (frame.flags & extended) != 0;
+            if (key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT) {
+                const bool right_shift = key == VK_RSHIFT || frame.scan == 0x36;
+                if (!(keys[right_shift ? VK_LSHIFT : VK_RSHIFT] & 0x80)) frame.modifiers &= ~shift;
+            } else if (key == VK_CONTROL || key == VK_LCONTROL || key == VK_RCONTROL) {
+                if (!(keys[right || key == VK_RCONTROL ? VK_LCONTROL : VK_RCONTROL] & 0x80))
+                    frame.modifiers &= ~ctrl;
+            } else if (key == VK_MENU || key == VK_LMENU || key == VK_RMENU) {
+                if (!(keys[right || key == VK_RMENU ? VK_LMENU : VK_RMENU] & 0x80))
+                    frame.modifiers &= ~alt;
+            } else if (key == VK_LWIN || key == VK_RWIN) {
+                if (!(keys[key == VK_RWIN ? VK_LWIN : VK_RWIN] & 0x80)) frame.modifiers &= ~meta;
+            }
+            return;
+        }
         wchar_t text[16]{};
         const int n = ToUnicodeEx(static_cast<UINT>(key), frame.scan, keys,
                                   text, ARRAYSIZE(text), 4, GetKeyboardLayout(0));

@@ -3,64 +3,66 @@
 package windows
 
 import (
-	"encoding/binary"
-	"net"
+	"os"
+	"strconv"
 	"testing"
 	"time"
-	"unicode/utf16"
 
-	"github.com/tangoui/tango/internal/platform"
+	winio "github.com/Microsoft/go-winio"
+	"github.com/tangoui/tango/internal/imebridge/proto"
 )
 
-// A key handler that outlasts the bridge's deadline must not lose the
-// text it committed: the next Poll delivers it.
-func TestTIPServeKeepsLateResponse(t *testing.T) {
-	sink := &tipTestSink{}
-	server := &tipServer{tipSessions: newTIPSessions(sink, func(uint32) string { return "" })}
-	main := make(chan func(), 8)
-	done := make(chan struct{})
-	defer close(done)
+func TestTIPPersistentPipe(t *testing.T) {
+	sink := &imeSink{}
+	sessions := newTIPSessions(sink, []proto.Mode{{ID: "zh"}})
+	name := "Test_" + strconv.Itoa(os.Getpid()) + "_" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	main := make(chan func(), 32)
+	server, err := newTIPServer(name, sessions, func(fn func()) { main <- fn })
+	if err != nil {
+		t.Fatal(err)
+	}
+	stopMain := make(chan struct{})
+	defer close(stopMain)
+	defer server.close()
 	go func() {
 		for {
 			select {
+			case <-stopMain:
+				return
 			case fn := <-main:
 				fn()
-			case <-done:
-				return
 			}
 		}
 	}()
-	runMain := func(fn func()) { main <- fn }
-	onMain := func(fn func()) {
-		finished := make(chan struct{})
-		runMain(func() { fn(); close(finished) })
-		<-finished
-	}
-
-	token := [16]byte{3}
-	onMain(func() { server.dispatch(tipRequest{Version: tipVersion, Action: tipActivate, Token: token}) })
-	sink.onKey = func(id uint64, _ platform.IMEKey) bool {
-		server.byID[id].commit("慢")
-		time.Sleep(150 * time.Millisecond)
-		return true
-	}
-	client, conn := net.Pipe()
-	served := make(chan struct{})
-	go func() { server.serve(conn, runMain); close(served) }()
-	if err := binary.Write(client, binary.LittleEndian, tipRequest{Version: tipVersion, Action: tipKey, Token: token, VK: 'M'}); err != nil {
+	go server.accept()
+	timeout := time.Second
+	client, err := winio.DialPipe(server.listener.Addr().String(), &timeout)
+	if err != nil {
 		t.Fatal(err)
 	}
-	// The bridge gives up waiting, like tip.cpp's read timeout.
-	client.Close()
-	<-served
-
-	var poll tipResponse
-	deadline := time.Now().Add(2 * time.Second)
-	for poll.Flags&tipCommit == 0 && time.Now().Before(deadline) {
-		onMain(func() { poll = server.dispatch(tipRequest{Version: tipVersion, Action: tipPoll, Token: token}) })
-		time.Sleep(10 * time.Millisecond)
+	defer client.Close()
+	_ = client.SetDeadline(time.Now().Add(timeout))
+	send := func(seq uint64, payload any) {
+		t.Helper()
+		frame, err := proto.Marshal(proto.Message{Seq: seq, Body: payload})
+		if err == nil {
+			_, err = client.Write(frame)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
-	if got := string(utf16.Decode(poll.Committed[:poll.CommittedLength])); poll.Flags&tipCommit == 0 || got != "慢" {
-		t.Fatalf("poll after a late response: flags %d, committed %q", poll.Flags, got)
+	send(0, proto.Hello{PID: uint32(os.Getpid())})
+	if msg, err := proto.Read(client); err != nil || msg.Body != (proto.Mode{ID: "zh"}) {
+		t.Fatalf("initial mode = %+v, %v", msg, err)
+	}
+	send(0, proto.SessionOpen(7))
+	send(0, proto.Focus{Session: 7, On: true})
+	for seq := uint64(1); seq <= 2; seq++ {
+		send(seq, proto.TestKey{Session: 7, VK: 'A', Flags: proto.KeyDown})
+		msg, err := proto.Read(client)
+		if err != nil || msg.Seq != seq || msg.Body != (proto.KeyResult{Session: 7, Eaten: true}) {
+			t.Fatalf("reply %d = %+v, %v", seq, msg, err)
+		}
 	}
 }

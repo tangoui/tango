@@ -169,7 +169,7 @@ func (b *Backend) terminate() {
 	}
 	b.terminated = true
 	if b.inputMethod != nil {
-		_ = b.inputMethod.listener.Close()
+		b.inputMethod.close()
 	}
 	b.h.OnLifecycle(platform.LifecycleTerminating)
 	removeAllTrays() // tray_windows.go: icons outlive the process otherwise

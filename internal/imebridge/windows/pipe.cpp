@@ -128,7 +128,7 @@ void Pipe::run() {
             WaitForSingleObject(wake_, 50);
             continue;
         }
-        const HANDLE pipe = CreateFileW(name_.c_str(), GENERIC_READ | GENERIC_WRITE,
+        const HANDLE pipe = CreateFileW(name_.c_str(), FILE_READ_DATA | FILE_WRITE_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
             0, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT |
             SECURITY_IDENTIFICATION, nullptr);
         if (pipe != INVALID_HANDLE_VALUE) {

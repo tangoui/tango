@@ -37,7 +37,7 @@ var ErrServing = errors.New("ime: already serving")
 // Key is a key-down event. Code follows KeyboardEvent.code naming, such as
 // "KeyA", "Digit1", or "ArrowLeft", and is empty for an unknown key. Text
 // holds the printable character produced with modifiers applied, if any.
-// CapsLock and Repeat are currently reported on macOS.
+// macOS and Windows report CapsLock and Repeat.
 type Key struct {
 	Code                   string
 	Text                   string
@@ -81,12 +81,12 @@ type Handler struct {
 	// from InputMethodConnectionName in Info.plist, or the bundle identifier
 	// followed by _Connection if the plist omits it.
 	//
-	// On Windows and Linux the default is App.ID() followed by _Connection.
-	// App.ID() uses Options.Name when Options.ID is empty. Use the ID from
-	// tan.json for a packaged app relying on the default. On Windows
-	// the resolved value must match the TSF DLL's TANGO_IME_CONNECTION at
-	// build time. IBus uses it without the _Connection suffix as the engine
-	// name, which must match the name used to select the engine.
+	// On Windows the default comes from the packaged IME configuration.
+	// Without a configured name, Windows and Linux use App.ID() followed
+	// by _Connection. App.ID() uses Options.Name when Options.ID is empty.
+	// The resolved value must match the name configured for the TSF bridge
+	// on Windows. IBus uses it without the _Connection suffix as the engine
+	// name.
 	Connection string
 	// Key is required. Return true to consume the key.
 	Key func(s *Session, k Key) bool
@@ -105,15 +105,15 @@ type Handler struct {
 	// connection. Focus changes between fields in the same client use
 	// Activate and Deactivate.
 	End func(s *Session)
-	// Modifier receives modifier changes on macOS. Return true to consume
+	// Modifier receives modifier changes on macOS and Windows. Return true to consume
 	// the event. With no handler the event is passed through.
 	Modifier func(s *Session, m ModifierKey) bool
 	// ModeChanged receives a system-initiated change of the global input mode
-	// on macOS. SetMode does not invoke it.
+	// on macOS and Windows. SetMode does not invoke it.
 	ModeChanged func(mode string)
-	// Menu supplies the items each time the macOS input method menu opens.
+	// Menu supplies items for the macOS and Windows input method menus.
 	Menu func() []MenuItem
-	// MenuClicked receives the ID of a selected macOS input method menu item.
+	// MenuClicked receives the ID of a selected input method menu item.
 	MenuClicked func(id string)
 }
 
