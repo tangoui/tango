@@ -31,7 +31,7 @@ import (
 )
 
 // version is set at release time with -ldflags "-X main.version=...".
-var version = "0.3.0-dev"
+var version string
 
 type command struct {
 	name    string
@@ -149,14 +149,16 @@ func runVersion(args []string) error {
 	return nil
 }
 
-// cliVersion is "tan <version>": the module version when installed with go
-// install, otherwise the one set at release time.
+// cliVersion displays the release build's version, the installed module's
+// version, or "dev" for an unversioned local build.
 func cliVersion() string {
-	v := version
-	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
-		v = strings.TrimPrefix(bi.Main.Version, "v")
+	if version != "" {
+		return "tan " + version
 	}
-	return "tan " + v
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return "tan " + strings.TrimPrefix(bi.Main.Version, "v")
+	}
+	return "tan dev"
 }
 
 func logf(format string, a ...any)  { fmt.Fprintf(os.Stderr, "• "+format+"\n", a...) }

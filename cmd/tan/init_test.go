@@ -35,31 +35,48 @@ func TestCreateReleasedProjectVersions(t *testing.T) {
 		t.Fatalf("%s has no requirement for %s", path, tangoModule)
 		return ""
 	}
-	goVersion := versionIn("go.mod")
-	dir := filepath.Join(t.TempDir(), "demo")
-	if err := createProject(initOptions{Dir: dir, Template: "vue-ts"}); err != nil {
-		t.Fatal(err)
-	}
-	if got := versionIn(filepath.Join(dir, "go.mod")); got != goVersion {
-		t.Errorf("generated Tango dependency = %q, want %q", got, goVersion)
-	}
-	b, err := os.ReadFile(filepath.Join(dir, "frontend", "package.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var pkg struct{ Dependencies map[string]string }
-	if err := json.Unmarshal(b, &pkg); err != nil {
-		t.Fatal(err)
-	}
-	release := goVersion
-	if module.IsPseudoVersion(goVersion) {
-		release, err = module.PseudoVersionBase(goVersion)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	if got, want := pkg.Dependencies["@tangoui/runtime"], strings.TrimPrefix(release, "v"); got != want {
-		t.Errorf("generated runtime dependency = %q, want %q", got, want)
+
+	embedded := versionIn("go.mod")
+	for _, tc := range []struct {
+		name, buildVersion, wantGoVersion string
+	}{
+		{"module", "", embedded},
+		{"release binary", "0.99.1", "v0.99.1"},
+		{"prerelease binary", "0.99.1-rc.1", "v0.99.1-rc.1"},
+		{"pseudo-version is not a release tag", "0.99.1-0.20260102150405-abcdef123456", embedded},
+		{"noncanonical version is not a release tag", "0.99", embedded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			old := version
+			t.Cleanup(func() { version = old })
+			version = tc.buildVersion
+
+			dir := filepath.Join(t.TempDir(), "demo")
+			if err := createProject(initOptions{Dir: dir, Template: "vue-ts"}); err != nil {
+				t.Fatal(err)
+			}
+			if got := versionIn(filepath.Join(dir, "go.mod")); got != tc.wantGoVersion {
+				t.Errorf("generated Tango dependency = %q, want %q", got, tc.wantGoVersion)
+			}
+			b, err := os.ReadFile(filepath.Join(dir, "frontend", "package.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var pkg struct{ Dependencies map[string]string }
+			if err := json.Unmarshal(b, &pkg); err != nil {
+				t.Fatal(err)
+			}
+			release := tc.wantGoVersion
+			if module.IsPseudoVersion(release) {
+				release, err = module.PseudoVersionBase(release)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got, want := pkg.Dependencies["@tangoui/runtime"], strings.TrimPrefix(release, "v"); got != want {
+				t.Errorf("generated runtime dependency = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

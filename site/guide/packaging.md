@@ -116,4 +116,4 @@ tan sign-update -key update.key latest.json   # 只重新签名一个手改过�
 
 ## 发布 TanGo 自己
 
-TanGo 框架本身的版本号规则和发布流程见仓库的 [docs/release.md](https://github.com/tangoui/tango/blob/main/docs/release.md)。
+推送根模块标签后，发布工作流会构建 `tan` 附件，用它生成项目并核对 Go 依赖、npm runtime 和 AI 技能的版本。公开 GitHub Release 前，维护者还会推送同版本的 `cmd/tan` 子模块标签并验证 `go install`。完整清单见仓库的 [docs/release.md](https://github.com/tangoui/tango/blob/main/docs/release.md)。

@@ -27,12 +27,13 @@ import (
 
 	"golang.org/x/mod/modfile"
 	"golang.org/x/mod/module"
+	"golang.org/x/mod/semver"
 )
 
 const tangoModule = "github.com/tangoui/tango"
 
-// Embed the requirement because Go build info only reports the workspace
-// module as (devel) when tan is built inside the Tango workspace.
+// Embed the requirement as the project dependency for module installs and
+// development builds, including when Go sees the workspace module as (devel).
 //
 //go:embed go.mod
 var cliGoMod []byte
@@ -447,6 +448,12 @@ func builtDist(f Frontend) string {
 }
 
 func projectTangoVersion() (string, error) {
+	// Release binaries are built from the root tag in go.work before the
+	// CLI module's requirement can be updated to that tag.
+	tag := "v" + version
+	if semver.Canonical(tag) == tag && !module.IsPseudoVersion(tag) {
+		return tag, nil
+	}
 	mod, err := modfile.Parse("tan's embedded go.mod", cliGoMod, nil)
 	if err != nil {
 		return "", err
