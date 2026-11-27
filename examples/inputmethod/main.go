@@ -1,4 +1,4 @@
-// The Tango input method example is launched by macOS after installation.
+// The Tango input method example hosts a small Pinyin engine.
 package main
 
 import (

@@ -1,4 +1,5 @@
-// Package ime hosts a system input method on macOS. Experimental.
+// Package ime hosts a system input method on macOS, Windows, and Linux.
+// Experimental.
 // Call Serve from OnReady to handle input sessions on the app's main thread:
 //
 //	a.OnReady(func() {
@@ -7,10 +8,11 @@
 //		}
 //	})
 //
-// Set macos.inputMethod in tan.json, build with tan build, and install the
-// .app under ~/Library/Input Methods. See the [packaging guide].
+// macOS uses InputMethodKit, Windows uses a Text Services Framework DLL,
+// and Linux uses IBus. The [input method example] shows how to build and
+// install each host.
 //
-// [packaging guide]: https://github.com/tangoui/tango/blob/main/docs/packaging.md#macos-输入法
+// [input method example]: https://github.com/tangoui/tango/tree/main/examples/inputmethod
 package ime
 
 import (
@@ -39,14 +41,17 @@ type Key struct {
 
 // Handler receives events on the app's main thread.
 type Handler struct {
-	// Connection defaults to the app's ID followed by _Connection and
-	// must match InputMethodConnectionName in the bundle's Info.plist.
+	// Connection defaults to the app's ID followed by _Connection.
+	// It matches InputMethodConnectionName on macOS and the TSF bridge's
+	// connection on Windows. IBus uses it without the _Connection suffix
+	// as the engine name.
 	Connection string
 	// Key is required. Return true to consume the key.
 	Key func(s *Session, k Key) bool
 	// Activate runs when the session becomes active.
 	Activate func(s *Session)
 	// Deactivate runs when focus leaves or the input method changes.
+	// IBus commits the last marked text itself before sending Deactivate.
 	Deactivate func(s *Session)
 	// CommitComposition runs when the system requests an immediate end to
 	// composition. A nil handler leaves composition up to the app.
@@ -151,7 +156,8 @@ type Session struct {
 // ID identifies this session for the life of the process.
 func (s *Session) ID() uint64 { return s.id }
 
-// ClientApp returns the bundle identifier of the client application, or "".
+// ClientApp returns the macOS bundle ID, Windows executable name, or IBus
+// client identification string, when the platform provides one.
 func (s *Session) ClientApp() string {
 	return tango.Await(s.server.app, func() string {
 		if s.live() {

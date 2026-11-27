@@ -47,6 +47,8 @@ type Backend struct {
 	deferredMu sync.Mutex
 	deferred   []func()
 
+	inputMethod *tipServer
+
 	defaultMenu *menuSpec // SetAppMenu(0, ...): current and future surfaces
 }
 
@@ -166,6 +168,9 @@ func (b *Backend) terminate() {
 		return
 	}
 	b.terminated = true
+	if b.inputMethod != nil {
+		_ = b.inputMethod.listener.Close()
+	}
 	b.h.OnLifecycle(platform.LifecycleTerminating)
 	removeAllTrays() // tray_windows.go: icons outlive the process otherwise
 }

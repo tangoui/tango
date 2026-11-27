@@ -3,6 +3,7 @@ module github.com/tangoui/tango
 go 1.27
 
 require (
+	github.com/Microsoft/go-winio v0.6.2
 	github.com/dlclark/regexp2 v1.12.0
 	github.com/ebitengine/purego v0.11.1
 	github.com/go-text/typesetting v0.3.5

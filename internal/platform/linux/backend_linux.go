@@ -24,12 +24,13 @@ type backend struct {
 	wakePending atomic.Bool // a Wake idle source is scheduled (coalescing)
 
 	// Main-thread state.
-	quitting bool
-	surfaces map[platform.SurfaceID]*surface
-	byWeb    map[ptr]*surface
-	focus    focusTracker
-	settling bool // a focus settle timeout is scheduled
-	appMenu  *appMenu
+	quitting    bool
+	surfaces    map[platform.SurfaceID]*surface
+	byWeb       map[ptr]*surface
+	focus       focusTracker
+	settling    bool // a focus settle timeout is scheduled
+	appMenu     *appMenu
+	inputMethod *ibusServer
 }
 
 // New returns the Linux (GTK 3 + WebKitGTK 4.1) backend. Native libraries
@@ -98,6 +99,9 @@ func (b *backend) Run() error {
 		gtkMain()
 	}
 	b.quitting = true
+	if b.inputMethod != nil {
+		b.inputMethod.close()
+	}
 	b.host.OnLifecycle(platform.LifecycleTerminating)
 	return nil
 }
