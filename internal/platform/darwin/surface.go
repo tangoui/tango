@@ -144,6 +144,7 @@ func (s *surface) installWebContentController(cfg id, bridge string) {
 // content. rect is the initial content rectangle.
 func (b *backend) newWindow(sid platform.SurfaceID, opts platform.SurfaceOptions, ex *platform.SurfaceExtras) (*surface, nsRect) {
 	s := &surface{b: b, id: sid}
+	s.ext.overlay = ex != nil && ex.Kind == platform.KindOverlay
 	rect := nsRect{Size: nsSize{
 		Width:  float64(positiveOr(opts.Width, defaultWidth)),
 		Height: float64(positiveOr(opts.Height, defaultHeight)),
@@ -170,6 +171,9 @@ func (b *backend) newWindow(sid platform.SurfaceID, opts platform.SurfaceOptions
 // windowStyle is the NSWindowStyleMask for a new surface window: a normal
 // titled window, optionally resizable, plus whatever the window kind adds.
 func windowStyle(resizable bool, ex *platform.SurfaceExtras) uint {
+	if ex != nil && ex.Kind == platform.KindOverlay {
+		return overlayStyle()
+	}
 	mask := uint(nsWindowStyleMaskTitled | nsWindowStyleMaskClosable | nsWindowStyleMaskMiniaturizable)
 	if resizable {
 		mask |= nsWindowStyleMaskResizable
@@ -223,6 +227,10 @@ func (s *surface) Show() {
 		return
 	}
 	withPool(func() {
+		if s.ext.overlay {
+			send(s.win, "orderFrontRegardless")
+			return
+		}
 		if launchBackground && !sendBool(s.b.app, "isActive") {
 			// Started in the background (TANGO_LAUNCH_BACKGROUND=1): an
 			// inactive app's makeKeyAndOrderFront still puts the window
@@ -293,11 +301,11 @@ func (s *surface) IsVisible() bool {
 
 // IsFocused: the key window of the active app.
 func (s *surface) IsFocused() bool {
-	return !s.closed && sendBool(s.b.app, "isActive") && sendBool(s.win, "isKeyWindow")
+	return !s.closed && !s.ext.overlay && sendBool(s.b.app, "isActive") && sendBool(s.win, "isKeyWindow")
 }
 
 func (s *surface) Focus() {
-	if s.closed {
+	if s.closed || s.ext.overlay {
 		return
 	}
 	s.b.bringToFront()

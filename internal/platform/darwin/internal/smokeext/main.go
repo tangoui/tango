@@ -11,6 +11,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -44,7 +45,7 @@ var (
 		"setbounds", "moved-event", "resized-event", "maximize", "restore",
 		"zoom", "reload-navigating", "reload-loaded", "send-after-reload",
 		"loadfailed", "probe-delivery", "internal-hidden", "sheet",
-		"spaces-normal", "spaces-panel", "spaces-all", "spaces-off",
+		"spaces-normal", "spaces-panel", "spaces-all", "spaces-off", "overlay",
 	}
 )
 
@@ -107,6 +108,7 @@ func main() {
 		normal.OnNavigating(func(u string) { emit(steps, "nav:"+u) })
 		normal.OnLoaded(func() { emit(steps, "loaded") })
 		normal.OnLoadFailed(func(u, e string) { emit(steps, "failed:"+u+" "+e) })
+		checkOverlay(app)
 		go script(app, &normal, steps)
 	})
 
@@ -327,6 +329,72 @@ func spaces(app *tango.App, normal *tango.Surface) {
 	} else {
 		fail("spaces-off", fmt.Sprintf("%#x", b))
 	}
+}
+
+func checkOverlay(app *tango.App) {
+	const name = "overlay"
+	nsapp := objc.Send[objc.ID](objc.ID(objc.GetClass("NSApplication")), objc.RegisterName("sharedApplication"))
+	active := objc.Send[bool](nsapp, objc.RegisterName("isActive"))
+	key := objc.Send[objc.ID](nsapp, objc.RegisterName("keyWindow"))
+	o, err := app.NewSurface(tango.SurfaceOptions{
+		Title: name, Kind: tango.KindOverlay, Hidden: true, Width: 180, Height: 80,
+		Centered: true, Resizable: true, State: tango.StateFullscreen,
+	})
+	if err != nil {
+		fail(name, err.Error())
+		return
+	}
+	defer o.Close()
+	events := 0
+	o.OnFocused(func() { events++ })
+	o.OnBlurred(func() { events++ })
+	win := objc.ID(o.Native())
+	check := func() bool {
+		for _, sel := range []string{"canBecomeKeyWindow", "canBecomeMainWindow", "isKeyWindow"} {
+			if objc.Send[bool](win, objc.RegisterName(sel)) {
+				fail(name, sel)
+				return false
+			}
+		}
+		level := objc.Send[int](win, objc.RegisterName("level"))
+		style := objc.Send[uint](win, objc.RegisterName("styleMask"))
+		cb := objc.Send[uint](win, objc.RegisterName("collectionBehavior"))
+		if level != 101 || style != 128 || cb != 337 {
+			fail(name, fmt.Sprintf("level=%d style=%#x collectionBehavior=%d", level, style, cb))
+			return false
+		}
+		visible := objc.Send[bool](win, objc.RegisterName("isVisible"))
+		focused, state := o.IsFocused(), o.State()
+		currentActive := objc.Send[bool](nsapp, objc.RegisterName("isActive"))
+		currentKey := objc.Send[objc.ID](nsapp, objc.RegisterName("keyWindow"))
+		if !visible || focused || state != tango.StateNormal || events != 0 || active != currentActive || key != currentKey {
+			fail(name, fmt.Sprintf("visible=%t focused=%t state=%d focus events=%d active=%t→%t key=%#x→%#x",
+				visible, focused, state, events, active, currentActive, key, currentKey))
+			return false
+		}
+		return true
+	}
+	o.Show()
+	if !check() {
+		return
+	}
+	o.Focus()
+	if err := o.SetAppearance(tango.Appearance{Transparent: true, NoShadow: true, AlwaysOnTop: true}); err != nil {
+		fail(name, err.Error())
+		return
+	}
+	if !check() {
+		return
+	}
+	if objc.Send[bool](win, objc.RegisterName("isOpaque")) || objc.Send[bool](win, objc.RegisterName("hasShadow")) {
+		fail(name, "appearance did not apply transparency and remove shadow")
+		return
+	}
+	if err := o.Maximize(); !errors.Is(err, tango.ErrUnsupported) {
+		fail(name, fmt.Sprintf("Maximize: %v", err))
+		return
+	}
+	pass(name, "visible at level 101, appearance updated, key window and activation preserved")
 }
 
 var hiddenFailed bool

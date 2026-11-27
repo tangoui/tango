@@ -257,6 +257,9 @@ func (s *Surface) State() (st WindowState) {
 
 // SetState minimizes, maximizes, makes fullscreen or restores the window.
 func (s *Surface) SetState(st WindowState) error {
+	if s.kind == KindOverlay && st != StateNormal {
+		return ErrUnsupported
+	}
 	return capDo(s, func(c platform.Stateful) { c.SetState(st) })
 }
 

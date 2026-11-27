@@ -44,10 +44,12 @@ const (
 	nsWindowTitleVisible = 0
 	nsWindowTitleHidden  = 1
 
-	nsNormalWindowLevel   = 0
-	nsFloatingWindowLevel = 3
+	nsNormalWindowLevel    = 0
+	nsFloatingWindowLevel  = 3
+	nsPopUpMenuWindowLevel = 101
 
 	nsWindowCollectionBehaviorCanJoinAllSpaces    = 1 << 0
+	nsWindowCollectionBehaviorStationary          = 1 << 4
 	nsWindowCollectionBehaviorIgnoresCycle        = 1 << 6
 	nsWindowCollectionBehaviorFullScreenPrimary   = 1 << 7
 	nsWindowCollectionBehaviorFullScreenAuxiliary = 1 << 8
@@ -69,6 +71,7 @@ const (
 type surfaceExt struct {
 	resizable   bool
 	panel       bool
+	overlay     bool
 	acceptFiles bool
 	appearance  platform.Appearance
 	effect      id // NSVisualEffectView, when a Material is set
@@ -105,13 +108,16 @@ func loadExt() {
 }
 
 var (
-	_ platform.CreatorEx   = (*backend)(nil)
-	_ platform.Geometry    = (*surface)(nil)
-	_ platform.Stateful    = (*surface)(nil)
-	_ platform.Styled      = (*surface)(nil)
-	_ platform.PageControl = (*surface)(nil)
-	_ platform.Dragger     = (*surface)(nil)
+	_ platform.CreatorEx      = (*backend)(nil)
+	_ platform.OverlaySupport = (*backend)(nil)
+	_ platform.Geometry       = (*surface)(nil)
+	_ platform.Stateful       = (*surface)(nil)
+	_ platform.Styled         = (*surface)(nil)
+	_ platform.PageControl    = (*surface)(nil)
+	_ platform.Dragger        = (*surface)(nil)
 )
+
+func (*backend) SupportsOverlay() bool { return true }
 
 // NewSurfaceEx implements platform.CreatorEx.
 func (b *backend) NewSurfaceEx(sid platform.SurfaceID, opts platform.SurfaceOptions, ex platform.SurfaceExtras) (platform.Surface, error) {
@@ -122,11 +128,27 @@ func (b *backend) NewSurfaceEx(sid platform.SurfaceID, opts platform.SurfaceOpti
 }
 
 func windowClass(ex *platform.SurfaceExtras) string {
-	if ex != nil && ex.Kind == platform.KindPanel {
-		return "TangoPanel"
+	if ex != nil {
+		switch ex.Kind {
+		case platform.KindPanel:
+			return "TangoPanel"
+		case platform.KindOverlay:
+			return "TangoOverlay"
+		}
 	}
 	return "TangoWindow"
 }
+
+func overlayStyle() uint { return nsWindowStyleMaskNonactivatingPanel }
+
+func overlayCollectionBehavior() uint {
+	return nsWindowCollectionBehaviorCanJoinAllSpaces | nsWindowCollectionBehaviorStationary |
+		nsWindowCollectionBehaviorIgnoresCycle | nsWindowCollectionBehaviorFullScreenAuxiliary
+}
+
+// Place candidates at the level AppKit reserves for pop-up menus, above
+// ordinary floating panels and below the cursor.
+func overlayLevel() int { return nsPopUpMenuWindowLevel }
 
 func kindStyle(ex *platform.SurfaceExtras) uint {
 	if ex != nil && ex.Kind == platform.KindPanel {
@@ -152,6 +174,13 @@ func (s *surface) initExt(opts platform.SurfaceOptions, ex *platform.SurfaceExtr
 	}
 	withPool(func() {
 		switch ex.Kind {
+		case platform.KindOverlay:
+			s.ext.resizable = false
+			send(s.win, "setFloatingPanel:", 1)
+			send(s.win, "setHidesOnDeactivate:", 0)
+			send(s.win, "setExcludedFromWindowsMenu:", 1)
+			send(s.win, "setLevel:", uintptr(overlayLevel()))
+			send(s.win, "setCollectionBehavior:", uintptr(overlayCollectionBehavior()))
 		case platform.KindPanel:
 			s.ext.panel = true
 			send(s.win, "setFloatingPanel:", 1)
@@ -176,7 +205,9 @@ func (s *surface) initExt(opts platform.SurfaceOptions, ex *platform.SurfaceExtr
 		}
 		s.SetBounds(platform.Rect{X: ex.Bounds.X, Y: ex.Bounds.Y, Width: w, Height: h})
 	}
-	s.ext.initState = ex.State
+	if !s.ext.overlay {
+		s.ext.initState = ex.State
+	}
 	s.ext.lastState = s.State()
 }
 
@@ -269,7 +300,7 @@ func (s *surface) SetSizeLimits(minW, minH, maxW, maxH int) {
 // ---- Stateful ----
 
 func (s *surface) State() platform.WindowState {
-	if s.closed {
+	if s.closed || s.ext.overlay {
 		return platform.StateNormal
 	}
 	return windowState(
@@ -279,7 +310,7 @@ func (s *surface) State() platform.WindowState {
 }
 
 func (s *surface) SetState(st platform.WindowState) {
-	if s.closed {
+	if s.closed || s.ext.overlay {
 		return
 	}
 	withPool(func() {
@@ -374,39 +405,11 @@ func (s *surface) applyAppearance(a platform.Appearance, initial bool) {
 	}
 	s.ext.appearance = a
 	withPool(func() {
-		cur := uint(send(s.win, "styleMask"))
-		style := uint(nsWindowStyleMaskTitled) | cur&(nsWindowStyleMaskFullScreen|nsWindowStyleMaskNonactivatingPanel|nsWindowStyleMaskUtilityWindow)
-		if !a.NoClose {
-			style |= nsWindowStyleMaskClosable
+		if !s.ext.overlay {
+			s.applyTitleBar(a)
 		}
-		if !a.NoMinimize {
-			style |= nsWindowStyleMaskMiniaturizable
-		}
-		if s.ext.resizable {
-			style |= nsWindowStyleMaskResizable
-		}
-		custom := a.TitleBar != platform.TitleBarDefault
-		if custom {
-			style |= nsWindowStyleMaskFullSizeContent
-		}
-		if style != cur {
-			send(s.win, "setStyleMask:", uintptr(style))
-		}
-		send(s.win, "setTitlebarAppearsTransparent:", boolArg(custom))
-		vis := uintptr(nsWindowTitleVisible)
-		if custom {
-			vis = nsWindowTitleHidden
-		}
-		send(s.win, "setTitleVisibility:", vis)
-		for _, kind := range []uintptr{nsWindowCloseButton, nsWindowMiniaturizeButton, nsWindowZoomButton} {
-			if btn := send(s.win, "standardWindowButton:", kind); btn != 0 {
-				send(btn, "setHidden:", boolArg(a.TitleBar == platform.TitleBarNone))
-				if kind == nsWindowZoomButton {
-					send(btn, "setEnabled:", boolArg(!a.NoMaximize && s.ext.resizable))
-				}
-			}
-		}
-		send(s.win, "setHasShadow:", boolArg(a.TitleBar != platform.TitleBarNone || !a.NoShadow))
+
+		send(s.win, "setHasShadow:", boolArg(!a.NoShadow || (!s.ext.overlay && a.TitleBar != platform.TitleBarNone)))
 
 		see := a.Transparent || a.Material != platform.MaterialNone
 		send(s.win, "setOpaque:", boolArg(!see))
@@ -424,18 +427,56 @@ func (s *surface) applyAppearance(a platform.Appearance, initial bool) {
 		s.applyWebBackground(see, bg) // canvas_attach.go
 		s.applyMaterial(a.Material)
 
-		level := uintptr(nsNormalWindowLevel)
-		if a.AlwaysOnTop || s.ext.panel {
-			level = nsFloatingWindowLevel
+		if !s.ext.overlay {
+			level := uintptr(nsNormalWindowLevel)
+			if a.AlwaysOnTop || s.ext.panel {
+				level = nsFloatingWindowLevel
+			}
+			send(s.win, "setLevel:", level)
+			s.applyCollectionBehavior(a.AllSpaces)
 		}
-		send(s.win, "setLevel:", level)
-		s.applyCollectionBehavior(a.AllSpaces)
 		op := a.Opacity
 		if op <= 0 || op > 1 {
 			op = 1
 		}
 		msgSetFloat(s.win, sel("setAlphaValue:"), op)
 	})
+}
+
+// applyTitleBar updates the style and buttons of a non-overlay window.
+func (s *surface) applyTitleBar(a platform.Appearance) {
+	cur := uint(send(s.win, "styleMask"))
+	style := uint(nsWindowStyleMaskTitled) | cur&(nsWindowStyleMaskFullScreen|nsWindowStyleMaskNonactivatingPanel|nsWindowStyleMaskUtilityWindow)
+	if !a.NoClose {
+		style |= nsWindowStyleMaskClosable
+	}
+	if !a.NoMinimize {
+		style |= nsWindowStyleMaskMiniaturizable
+	}
+	if s.ext.resizable {
+		style |= nsWindowStyleMaskResizable
+	}
+	custom := a.TitleBar != platform.TitleBarDefault
+	if custom {
+		style |= nsWindowStyleMaskFullSizeContent
+	}
+	if style != cur {
+		send(s.win, "setStyleMask:", uintptr(style))
+	}
+	send(s.win, "setTitlebarAppearsTransparent:", boolArg(custom))
+	vis := uintptr(nsWindowTitleVisible)
+	if custom {
+		vis = nsWindowTitleHidden
+	}
+	send(s.win, "setTitleVisibility:", vis)
+	for _, kind := range []uintptr{nsWindowCloseButton, nsWindowMiniaturizeButton, nsWindowZoomButton} {
+		if btn := send(s.win, "standardWindowButton:", kind); btn != 0 {
+			send(btn, "setHidden:", boolArg(a.TitleBar == platform.TitleBarNone))
+			if kind == nsWindowZoomButton {
+				send(btn, "setEnabled:", boolArg(!a.NoMaximize && s.ext.resizable))
+			}
+		}
+	}
 }
 
 // applyCollectionBehavior sets how the window takes part in Spaces,
@@ -574,6 +615,10 @@ func (s *surface) StartResize(string) {}
 // ---- classes and delegate methods ----
 
 func registerExtClasses() {
+	classDef("TangoOverlay", "NSPanel", nil, []objc.MethodDef{
+		method("canBecomeKeyWindow", func(id, objc.SEL) bool { return false }),
+		method("canBecomeMainWindow", func(id, objc.SEL) bool { return false }),
+	})
 	classDef("TangoPanel", "NSPanel", nil, []objc.MethodDef{
 		shortcutEquivalentMethod("TangoPanel"),
 		method("canBecomeKeyWindow", func(self id, _ objc.SEL) bool { return true }),

@@ -63,6 +63,7 @@ type Surface struct {
 	proxyEmbed    bool // worker-side WebView, fixed before native creation
 	app           *App
 	id            platform.SurfaceID
+	kind          SurfaceKind
 	closed        atomic.Bool
 	activity      atomic.Pointer[time.Time]
 	activityRelay atomic.Pointer[func(time.Time)]
@@ -158,7 +159,7 @@ func (a *App) addSurface(opts SurfaceOptions, navOrigin string, extrasTaken bool
 	a.nextID++
 	id := a.nextID
 	a.mu.Unlock()
-	s := &Surface{app: a, id: id, webPage: opts.WebView.Page, navOrigin: navOrigin, title: opts.Title, visible: !opts.Hidden, auxiliary: opts.Auxiliary}
+	s := &Surface{app: a, id: id, kind: opts.Kind, webPage: opts.WebView.Page, navOrigin: navOrigin, title: opts.Title, visible: !opts.Hidden, auxiliary: opts.Auxiliary}
 	s.initDown()           // before initLanes: down:poll's sender is s.downq
 	s.initLanes(navOrigin) // outside a.mu: lane.New may log
 	// Registered before the backend call: a backend may emit events for
