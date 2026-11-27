@@ -66,9 +66,9 @@ func imeGUID(name string) string {
 }
 
 type imePackage struct {
-	DLL     nsisHelper
-	ININame string
-	Files   []nsisHelper
+	DLL, INI nsisHelper
+	Stem     string
+	Files    []nsisHelper
 }
 
 func prepareIMEPackage(ctx context.Context, cfg *Config, a artifact) (*imePackage, error) {
@@ -102,7 +102,10 @@ func prepareIMEPackage(ctx context.Context, cfg *Config, a artifact) (*imePackag
 	}
 	hash := sha256.Sum256(data)
 	base := fmt.Sprintf("TangoIMEBridge-%s-%x-%s", cfg.Version, hash[:6], arch)
-	files := &imePackage{DLL: nsisHelper{base + ".dll", filepath.Join(staging, base+".dll")}, ININame: base + ".ini"}
+	files := &imePackage{
+		DLL: nsisHelper{base + ".dll", filepath.Join(staging, base+".dll")},
+		INI: nsisHelper{base + ".ini", filepath.Join(staging, base+".ini")}, Stem: base,
+	}
 	if err := os.WriteFile(files.DLL.Source, data, 0o644); err != nil {
 		return nil, err
 	}
@@ -122,7 +125,7 @@ func prepareIMEPackage(ctx context.Context, cfg *Config, a artifact) (*imePackag
 	for _, ch := range utf16.Encode([]rune(ini)) {
 		encoded = binary.LittleEndian.AppendUint16(encoded, ch)
 	}
-	if err := write(files.ININame, encoded); err != nil {
+	if err := os.WriteFile(files.INI.Source, encoded, 0o644); err != nil {
 		return nil, err
 	}
 	modes := append([]InputMode(nil), cfg.InputMethod.Modes...)

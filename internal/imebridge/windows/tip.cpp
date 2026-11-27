@@ -3,6 +3,7 @@
 #include "pipe.h"
 
 #include <algorithm>
+#include <memory>
 
 namespace tango::ime {
 namespace {
@@ -16,8 +17,12 @@ class Tip final : public TipProcessorEx, public ITfKeyEventSink,
     bool key_sink_ = false;
     bool foreground_ = true;
     ComPtr<ITfThreadMgr> manager_;
-    ComPtr<ITfContext> context_;
-    ComPtr<ITfComposition> composition_;
+    struct EditState {
+        ComPtr<ITfContext> context;
+        ComPtr<ITfComposition> composition;
+        EditQueue queued;
+    };
+    std::shared_ptr<EditState> active_;
     ComPtr<ITfLangBarItemMgr> bar_manager_;
     ComPtr<LangBar> bar_;
     Pipe pipe_;
@@ -31,17 +36,15 @@ class Tip final : public TipProcessorEx, public ITfKeyEventSink,
     class Edit final : public ITfEditSession {
         ULONG refs_ = 1;
         Tip* tip_;
-        ComPtr<ITfContext> context_;
-        uint64_t session_;
+        std::shared_ptr<EditState> state_;
         std::vector<Frame> edits_;
         Frame* caret_;
         bool finish_;
     public:
-        Edit(Tip* tip, ITfContext* context, uint64_t session, std::vector<Frame> edits,
+        Edit(Tip* tip, std::shared_ptr<EditState> state, std::vector<Frame> edits,
              bool finish, Frame* caret)
-            : tip_(tip), session_(session), edits_(std::move(edits)), caret_(caret), finish_(finish) {
+            : tip_(tip), state_(std::move(state)), edits_(std::move(edits)), caret_(caret), finish_(finish) {
             tip_->AddRef();
-            context_.retain(context);
         }
         ~Edit() { tip_->Release(); }
         HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** out) override {
@@ -60,18 +63,20 @@ class Tip final : public TipProcessorEx, public ITfKeyEventSink,
         }
         HRESULT STDMETHODCALLTYPE DoEditSession(TfEditCookie cookie) override {
             try {
-                if (tip_->session_ != session_ || tip_->context_.get() != context_.get()) return S_FALSE;
                 if (caret_) {
-                    Tip::add_caret(context_.get(), cookie, *caret_);
+                    Tip::add_caret(state_->context.get(), cookie, *caret_);
                     return S_OK;
                 }
-                for (auto& frame : edits_) {
+                // A synchronous key can overtake a requested async TSF
+                // edit. Apply that edit's queued frames before this key.
+                auto ordered = state_->queued.take(std::move(edits_));
+                for (auto& frame : ordered) {
                     const auto hr = frame.type == Type::compose
-                        ? tip_->set_marked(context_.get(), cookie, frame)
-                        : tip_->commit(context_.get(), cookie, frame);
+                        ? tip_->set_marked(*state_, cookie, frame)
+                        : tip_->commit(*state_, cookie, frame);
                     if (FAILED(hr)) return hr;
                 }
-                return finish_ ? tip_->finish(cookie) : S_OK;
+                return finish_ ? tip_->finish(*state_, cookie) : S_OK;
             } catch (...) {
                 return E_FAIL;
             }
@@ -108,10 +113,11 @@ class Tip final : public TipProcessorEx, public ITfKeyEventSink,
         return context->SetSelection(cookie, 1, &value);
     }
 
-    HRESULT set_marked(ITfContext* context, TfEditCookie cookie, const Frame& frame) {
+    HRESULT set_marked(EditState& state, TfEditCookie cookie, const Frame& frame) {
+        auto* context = state.context.get();
         ComPtr<ITfRange> range;
         const auto text = wide(frame.text);
-        if (!composition_) {
+        if (!state.composition) {
             if (text.empty()) return S_OK;
             ComPtr<ITfInsertAtSelection> insert;
             auto hr = context->QueryInterface(__uuidof(ITfInsertAtSelection),
@@ -122,15 +128,15 @@ class Tip final : public TipProcessorEx, public ITfKeyEventSink,
             ComPtr<ITfContextComposition> owner;
             hr = context->QueryInterface(__uuidof(ITfContextComposition), reinterpret_cast<void**>(owner.put()));
             if (FAILED(hr)) return hr;
-            hr = owner->StartComposition(cookie, range.get(), this, composition_.put());
-            if (FAILED(hr) || !composition_) return FAILED(hr) ? hr : E_FAIL;
+            hr = owner->StartComposition(cookie, range.get(), this, state.composition.put());
+            if (FAILED(hr) || !state.composition) return FAILED(hr) ? hr : E_FAIL;
         } else {
-            const auto hr = composition_->GetRange(range.put());
+            const auto hr = state.composition->GetRange(range.put());
             if (FAILED(hr) || !range) return FAILED(hr) ? hr : E_FAIL;
         }
         const auto hr = range->SetText(cookie, 0, text.data(), static_cast<LONG>(text.size()));
         if (FAILED(hr)) return hr;
-        if (text.empty()) return finish(cookie);
+        if (text.empty()) return finish(state, cookie);
         size_t offset = 0;
         for (uint32_t rune = 0; offset < text.size() && rune < frame.cursor; ++rune) {
             const auto ch = text[offset++];
@@ -139,24 +145,25 @@ class Tip final : public TipProcessorEx, public ITfKeyEventSink,
         return place_cursor(context, cookie, range.get(), static_cast<LONG>(offset));
     }
 
-    HRESULT finish(TfEditCookie cookie) {
-        if (!composition_) return S_OK;
+    HRESULT finish(EditState& state, TfEditCookie cookie) {
+        if (!state.composition) return S_OK;
         ComPtr<ITfComposition> value;
-        value.retain(composition_.get());
-        composition_.reset();
+        value.retain(state.composition.get());
+        state.composition.reset();
         return value->EndComposition(cookie);
     }
 
-    HRESULT commit(ITfContext* context, TfEditCookie cookie, const Frame& frame) {
+    HRESULT commit(EditState& state, TfEditCookie cookie, const Frame& frame) {
+        auto* context = state.context.get();
         const auto text = wide(frame.text);
-        if (composition_) {
+        if (state.composition) {
             ComPtr<ITfRange> range;
-            auto hr = composition_->GetRange(range.put());
+            auto hr = state.composition->GetRange(range.put());
             if (FAILED(hr) || !range) return FAILED(hr) ? hr : E_FAIL;
             hr = range->SetText(cookie, 0, text.data(), static_cast<LONG>(text.size()));
             if (FAILED(hr)) return hr;
             place_cursor(context, cookie, range.get(), static_cast<LONG>(text.size()));
-            return finish(cookie);
+            return finish(state, cookie);
         }
         if (text.empty()) return S_OK;
         ComPtr<ITfInsertAtSelection> insert;
@@ -169,10 +176,10 @@ class Tip final : public TipProcessorEx, public ITfKeyEventSink,
 
     HRESULT edit(std::vector<Frame> frames, DWORD flags, bool finish_composition = false,
                  Frame* caret = nullptr) {
-        if (!context_) return S_FALSE;
-        auto* request = new Edit(this, context_.get(), session_, std::move(frames), finish_composition, caret);
+        if (!active_) return S_FALSE;
+        auto* request = new Edit(this, active_, std::move(frames), finish_composition, caret);
         HRESULT result = E_FAIL;
-        const auto hr = context_->RequestEditSession(client_, request, flags, &result);
+        const auto hr = active_->context->RequestEditSession(client_, request, flags, &result);
         request->Release();
         return FAILED(hr) ? hr : result;
     }
@@ -201,23 +208,33 @@ class Tip final : public TipProcessorEx, public ITfKeyEventSink,
 
     void end_session() {
         pending_.reset();
-        if (!session_) return;
-        if (opened_generation_ == pipe_.generation()) {
-            post_session(Type::focus, false);
+        if (!active_) return;
+        if (opened_generation_ == pipe_.generation() && pipe_.connected()) {
+            Frame loss;
+            loss.type = Type::focus;
+            loss.session = session_;
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
+            if (auto reply = pipe_.request(std::move(loss), deadline)) {
+                receive(reply->received_through, false);
+                for (auto& frame : reply->edits) active_->queued.push(std::move(frame));
+            }
             post_session(Type::close);
         }
-        if (composition_) edit({}, TF_ES_SYNC | TF_ES_READWRITE, true);
-        composition_.reset();
-        context_.reset();
+        // Keep the old context and its composition alive if TSF only
+        // grants an asynchronous edit during the focus transition.
+        if (edit({}, TF_ES_SYNC | TF_ES_READWRITE, true) != S_OK)
+            edit({}, TF_ES_ASYNC | TF_ES_READWRITE, true);
+        active_.reset();
         session_ = opened_generation_ = 0;
         if (bar_) bar_->session(0);
     }
 
     void use_context(ITfContext* context) {
-        if (context_.get() == context) return;
+        if (active_ && active_->context.get() == context) return;
         end_session();
         if (!context || !foreground_) return;
-        context_.retain(context);
+        active_ = std::make_shared<EditState>();
+        active_->context.retain(context);
         session_ = ++next_session_;
         if (bar_) bar_->session(session_);
         ensure_session();
@@ -239,20 +256,21 @@ class Tip final : public TipProcessorEx, public ITfKeyEventSink,
         return DefWindowProcW(window, message, w, l);
     }
 
-    void receive() {
+    void receive(uint64_t through = UINT64_MAX, bool apply = true) {
+        if (pending_) return;
         if (!pipe_.connected()) {
             opened_generation_ = 0;
             pending_.reset();
-            if (composition_) edit({}, TF_ES_ASYNCDONTCARE | TF_ES_READWRITE, true);
+            if (active_ && active_->composition) edit({}, TF_ES_ASYNCDONTCARE | TF_ES_READWRITE, true);
             return;
         }
         ensure_session();
-        for (auto& frame : pipe_.received()) {
+        for (auto& frame : pipe_.received(through)) {
             if ((frame.type == Type::mode || frame.type == Type::menu) && bar_) bar_->update(std::move(frame));
-            else if (frame.session == session_ && (frame.type == Type::compose || frame.type == Type::commit)) {
-                std::vector<Frame> edits;
-                edits.push_back(std::move(frame));
-                edit(std::move(edits), TF_ES_ASYNCDONTCARE | TF_ES_READWRITE);
+            else if (active_ && frame.session == session_ &&
+                     (frame.type == Type::compose || frame.type == Type::commit)) {
+                if (active_->queued.push(std::move(frame)) && apply)
+                    edit({}, TF_ES_ASYNCDONTCARE | TF_ES_READWRITE);
             }
         }
     }
@@ -304,14 +322,20 @@ class Tip final : public TipProcessorEx, public ITfKeyEventSink,
             use_context(context);
             if (!ensure_session()) return S_OK;
             Frame frame;
+            frame.type = Type::test_key;
             frame.session = session_;
             translate(frame, key, scan, pressed);
             edit({}, TF_ES_SYNC | TF_ES_READ, false, &frame);
-            auto result = pipe_.test(std::move(frame), std::chrono::steady_clock::now() + key_timeout);
+            auto result = pipe_.request(std::move(frame), std::chrono::steady_clock::now() + key_timeout);
             if (!result) return S_OK;
+            // The reader enqueues unsolicited frames sent before the
+            // decision even if our window message has not run yet.
+            receive(result->received_through);
             if (!result->eaten) {
+                for (auto& frame : result->edits) active_->queued.push(std::move(frame));
                 if (!result->edits.empty())
-                    edit(std::move(result->edits), TF_ES_ASYNCDONTCARE | TF_ES_READWRITE);
+                    edit({}, TF_ES_ASYNCDONTCARE | TF_ES_READWRITE);
+                PostMessageW(window_, bridge_message, 0, 0);
                 return S_OK;
             }
             tested_key_ = key;
@@ -331,9 +355,11 @@ class Tip final : public TipProcessorEx, public ITfKeyEventSink,
         try {
             auto result = std::move(pending_);
             pending_.reset();
-            if (context != context_.get() || !result || key != tested_key_ ||
+            PostMessageW(window_, bridge_message, 0, 0);
+            if (!active_ || context != active_->context.get() || !result || key != tested_key_ ||
                 scan != tested_scan_ || pressed != tested_down_) return S_OK;
-            if (result->edits.empty() || edit(std::move(result->edits), TF_ES_SYNC | TF_ES_READWRITE) == S_OK)
+            if ((result->edits.empty() && active_->queued.empty()) ||
+                edit(std::move(result->edits), TF_ES_SYNC | TF_ES_READWRITE) == S_OK)
                 *eaten = TRUE;
         } catch (...) {}
         return S_OK;
@@ -462,13 +488,13 @@ public:
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE OnPopContext(ITfContext* context) override {
-        try { if (context == context_.get()) end_session(); }
+        try { if (active_ && context == active_->context.get()) end_session(); }
         catch (...) {}
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE OnCompositionTerminated(TfEditCookie, ITfComposition* composition) override {
-        if (composition == composition_.get()) {
-            composition_.reset();
+        if (active_ && composition == active_->composition.get()) {
+            active_->composition.reset();
             try {
                 end_session();
             } catch (...) {}

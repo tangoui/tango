@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	_ "embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -18,7 +20,10 @@ import (
 //go:embed imebridge-checksums.txt
 var imeBridgeSums string
 
-var imeBridgeBaseURL = "https://github.com/tangoui/tango/releases/download"
+var (
+	imeBridgeBaseURL    = "https://github.com/tangoui/tango/releases/download"
+	imeBridgeReleaseAPI = "https://api.github.com/repos/tangoui/tango/releases/tags"
+)
 
 func imeBridgeFile(ctx context.Context, cfg *Config, arch, dir string) (string, error) {
 	name := "TangoIMEBridge-" + arch + ".dll"
@@ -61,11 +66,52 @@ func imeBridgeFile(ctx context.Context, cfg *Config, arch, dir string) (string, 
 	if module.Main || !semver.IsValid(version) || strings.Contains(version, "+") {
 		return "", fmt.Errorf("set TANGO_IME_BRIDGE_DIR when building against an unreleased Tango module")
 	}
+	sum, err := imeBridgeChecksum(ctx, version, arch, name)
+	if err != nil {
+		return "", err
+	}
+	return downloadVerified(ctx, http.DefaultClient, imeBridgeBaseURL+"/"+version+"/"+name, sum, dir)
+}
+
+func imeBridgeChecksum(ctx context.Context, version, arch, name string) (string, error) {
 	for line := range strings.Lines(imeBridgeSums) {
 		fields := strings.Fields(line)
 		if len(fields) == 3 && fields[0] == version && fields[1] == arch {
-			return downloadVerified(ctx, http.DefaultClient, imeBridgeBaseURL+"/"+version+"/"+name, fields[2], dir)
+			return fields[2], nil
 		}
 	}
-	return "", fmt.Errorf("no trusted IME bridge checksum for Tango %s (%s); use a matching release of tan or set TANGO_IME_BRIDGE_DIR", version, arch)
+	// Source-installed tan has no CI-generated table. Resolve the asset's
+	// SHA-256 from the official repository's HTTPS release metadata.
+	ctx, cancel := context.WithTimeout(ctx, nsisDownloadTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imeBridgeReleaseAPI+"/"+version, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("resolve trusted Tango %s IME bridge checksum: %s", version, resp.Status)
+	}
+	var release struct {
+		Tag    string `json:"tag_name"`
+		Assets []struct{ Name, Digest string }
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&release); err != nil {
+		return "", err
+	}
+	if release.Tag == version {
+		for _, asset := range release.Assets {
+			digest, ok := strings.CutPrefix(asset.Digest, "sha256:")
+			decoded, err := hex.DecodeString(digest)
+			if asset.Name == name && ok && err == nil && len(decoded) == 32 {
+				return digest, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no trusted IME bridge checksum for Tango %s (%s); set TANGO_IME_BRIDGE_DIR for a local bridge", version, arch)
 }

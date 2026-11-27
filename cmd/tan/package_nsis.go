@@ -296,8 +296,11 @@ ManifestDPIAware true
 !include "MUI2.nsh"
 {{- if .IME}}
 !include "x64.nsh"
+!include "FileFunc.nsh"
 Var TanOldBridge
 Var TanOldIMEINI
+Var TanNewBridge
+Var TanNewIMEINI
 !macro TanStopIME
   System::Call 'kernel32::SetEnvironmentVariableW(w "TANGO_IME_INSTALL_EXE", w "$INSTDIR\{{.Exe}}")'
   nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process | Where-Object { $$_.ExecutablePath -eq $$env:TANGO_IME_INSTALL_EXE } | ForEach-Object { Stop-Process -Id $$_.ProcessId -ErrorAction Stop }"'
@@ -397,34 +400,72 @@ Section "Install"
   Abort "Could not stop the previous input method host (error $0)."
   ReadRegStr $TanOldBridge HKLM "{{.UninstallKey}}" "IMEBridge"
   ReadRegStr $TanOldIMEINI HKLM "{{.UninstallKey}}" "IMEBridgeINI"
-{{- end}}
-  File {{q .ExeSource}}
-{{- if .IME}}
-  IfFileExists "$INSTDIR\{{lit .IME.DLL.Name}}" +2 0
+  InitPluginsDir
+  IfFileExists "$INSTDIR\{{.Exe}}" 0 tan_ime_backed_up
+  System::Call 'kernel32::CopyFileW(w "$INSTDIR\{{.Exe}}", w "$PLUGINSDIR\old-ime-host.exe", i 1) i .r0'
+  StrCmp $0 "0" 0 tan_ime_backed_up
+  Exec '"$WINDIR\explorer.exe" "$INSTDIR\{{.Exe}}"'
+  Abort "Could not back up the previous input method host."
+  tan_ime_backed_up:
+  SetOutPath "$PLUGINSDIR"
   File "/oname={{lit .IME.DLL.Name}}" {{q .IME.DLL.Source}}
-{{- range .IME.Files}}
-  File "/oname={{lit .Name}}" {{q .Source}}
-{{- end}}
+  File "/oname={{lit .IME.INI.Name}}" {{q .IME.INI.Source}}
+  SetOutPath "$INSTDIR"
+  ClearErrors
+  GetTempFileName $0 "$INSTDIR"
+  IfErrors tan_ime_stage_failed
+  ${GetFileName} "$0" $2
+  Delete "$0"
+  StrCpy $TanNewBridge "{{lit .IME.Stem}}-$2.dll"
+  StrCpy $TanNewIMEINI "{{lit .IME.Stem}}-$2.ini"
+  System::Call 'kernel32::CopyFileW(w "$PLUGINSDIR\{{lit .IME.DLL.Name}}", w "$INSTDIR\$TanNewBridge", i 1) i .r0'
+  StrCmp $0 "0" tan_ime_stage_failed
+  System::Call 'kernel32::CopyFileW(w "$PLUGINSDIR\{{lit .IME.INI.Name}}", w "$INSTDIR\$TanNewIMEINI", i 1) i .r0'
+  StrCmp $0 "0" tan_ime_stage_failed
+  ClearErrors
+  File {{q .ExeSource}}
+  IfErrors tan_ime_restore_host
   ${DisableX64FSRedirection}
   StrCpy $1 "-1"
-  ExecWait '"$SYSDIR\regsvr32.exe" /s "$INSTDIR\{{lit .IME.DLL.Name}}"' $1
+  ExecWait '"$SYSDIR\regsvr32.exe" /s "$INSTDIR\$TanNewBridge"' $1
   StrCmp $1 "0" tan_ime_registered_native
   StrCmp $TanOldBridge "" +2
   ExecWait '"$SYSDIR\regsvr32.exe" /s "$INSTDIR\$TanOldBridge"'
   ${EnableX64FSRedirection}
-  Abort "Could not register the Tango input method (error $1)."
+  Goto tan_ime_restore_host
+  tan_ime_stage_failed:
+  StrCpy $1 "staging failed"
+  Goto tan_ime_restart_previous
+  tan_ime_restore_host:
+  IfFileExists "$PLUGINSDIR\old-ime-host.exe" 0 tan_ime_remove_failed_host
+  System::Call 'kernel32::CopyFileW(w "$PLUGINSDIR\old-ime-host.exe", w "$INSTDIR\{{.Exe}}", i 0) i .r0'
+  StrCmp $0 "0" 0 tan_ime_restart_previous
+  Abort "Could not recover the previous Tango input method host."
+  tan_ime_remove_failed_host:
+  Delete /REBOOTOK "$INSTDIR\{{.Exe}}"
+  tan_ime_restart_previous:
+  StrCmp $TanNewBridge "" +2
+  Delete /REBOOTOK "$INSTDIR\$TanNewBridge"
+  StrCmp $TanNewIMEINI "" +2
+  Delete /REBOOTOK "$INSTDIR\$TanNewIMEINI"
+  IfFileExists "$PLUGINSDIR\old-ime-host.exe" 0 +2
+  Exec '"$WINDIR\explorer.exe" "$INSTDIR\{{.Exe}}"'
+  Abort "Could not install the Tango input method (error $1)."
   tan_ime_registered_native:
   ${EnableX64FSRedirection}
-  WriteRegStr HKLM "{{.UninstallKey}}" "IMEBridge" {{q .IME.DLL.Name}}
-  WriteRegStr HKLM "{{.UninstallKey}}" "IMEBridgeINI" {{q .IME.ININame}}
+{{- range .IME.Files}}
+  File "/oname={{lit .Name}}" {{q .Source}}
+{{- end}}
+  WriteRegStr HKLM "{{.UninstallKey}}" "IMEBridge" "$TanNewBridge"
+  WriteRegStr HKLM "{{.UninstallKey}}" "IMEBridgeINI" "$TanNewIMEINI"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Run" {{q .ID}} '"$INSTDIR\{{.Exe}}"'
-  StrCmp $TanOldBridge "" +3
-  StrCmp $TanOldBridge {{q .IME.DLL.Name}} +2
+  StrCmp $TanOldBridge "" +2
   Delete /REBOOTOK "$INSTDIR\$TanOldBridge"
-  StrCmp $TanOldIMEINI "" +3
-  StrCmp $TanOldIMEINI {{q .IME.ININame}} +2
+  StrCmp $TanOldIMEINI "" +2
   Delete /REBOOTOK "$INSTDIR\$TanOldIMEINI"
   Exec '"$WINDIR\explorer.exe" "$INSTDIR\{{.Exe}}"'
+{{- else}}
+  File {{q .ExeSource}}
 {{- end}}
 {{- if .Helpers}}
   SetOutPath "$INSTDIR\cli"
@@ -485,14 +526,17 @@ Section "Uninstall"
   StrCmp $0 "0" +2
   Abort "Could not stop the input method host (error $0)."
   ${DisableX64FSRedirection}
+  ReadRegStr $TanNewBridge HKLM "{{.UninstallKey}}" "IMEBridge"
+  ReadRegStr $TanNewIMEINI HKLM "{{.UninstallKey}}" "IMEBridgeINI"
   StrCpy $1 "-1"
-  ExecWait '"$SYSDIR\regsvr32.exe" /s /u "$INSTDIR\{{lit .IME.DLL.Name}}"' $1
+  ExecWait '"$SYSDIR\regsvr32.exe" /s /u "$INSTDIR\$TanNewBridge"' $1
   ${EnableX64FSRedirection}
   StrCmp $1 "0" tan_ime_unregistered
   Abort "Could not unregister the Tango input method (error $1)."
   tan_ime_unregistered:
   DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" {{q .ID}}
-  Delete /REBOOTOK "$INSTDIR\{{lit .IME.DLL.Name}}"
+  Delete /REBOOTOK "$INSTDIR\$TanNewBridge"
+  Delete /REBOOTOK "$INSTDIR\$TanNewIMEINI"
 {{- range .IME.Files}}
   Delete /REBOOTOK "$INSTDIR\{{lit .Name}}"
 {{- end}}
@@ -506,7 +550,11 @@ Section "Uninstall"
   RMDir "$INSTDIR\cli"
 {{- end}}
   Delete "$INSTDIR\uninstall.exe"
+{{- if .IME}}
+  RMDir /REBOOTOK "$INSTDIR"
+{{- else}}
   RMDir "$INSTDIR"
+{{- end}}
   Delete "$SMPROGRAMS\{{lit .ShortcutName}}.lnk"
   Delete "$DESKTOP\{{lit .ShortcutName}}.lnk"
   DeleteRegKey {{.RegRoot}} "{{.UninstallKey}}"

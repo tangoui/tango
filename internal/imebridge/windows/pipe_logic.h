@@ -1,6 +1,7 @@
 #pragma once
 #include "proto.h"
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
@@ -21,8 +22,43 @@ public:
     void connected() { ready_at_ = 0; delay_ = 1000; }
 };
 
+// A missed decision immediately makes the pipe ineligible for further
+// synchronous requests. The reader reconnects using its normal backoff.
+class KeyConnection {
+    enum class State { disconnected, connected, timed_out };
+    std::atomic<State> state_{State::disconnected};
+public:
+    bool ready() const { return state_.load() == State::connected; }
+    bool reconnect() const { return state_.load() == State::timed_out; }
+    void connected() { state_ = State::connected; }
+    void disconnected() { state_ = State::disconnected; }
+    void timed_out() {
+        State expected = State::connected;
+        state_.compare_exchange_strong(expected, State::timed_out);
+    }
+};
+
+class EditQueue {
+    std::vector<Frame> queued_;
+public:
+    bool push(Frame frame) {
+        if (queued_.size() >= 64) return false;
+        queued_.push_back(std::move(frame));
+        return true;
+    }
+    std::vector<Frame> take(std::vector<Frame> newer) {
+        if (queued_.empty()) return newer;
+        auto ordered = std::exchange(queued_, {});
+        for (auto& frame : newer) ordered.push_back(std::move(frame));
+        return ordered;
+    }
+    bool empty() const { return queued_.empty(); }
+    void clear() { queued_.clear(); }
+};
+
 struct KeyOutcome {
     bool eaten = false;
+    uint64_t received_through = 0;
     std::vector<Frame> edits;
 };
 
@@ -45,11 +81,12 @@ public:
 
     // Capture edits associated with a synchronous decision. A late edit
     // from an abandoned key is dropped along with its reply.
-    bool accept(Frame frame) {
+    bool accept(Frame frame, uint64_t received_through = 0) {
         std::lock_guard<std::mutex> lock(mutex_);
         if (!seq_ || completed_ || frame.seq != seq_ || frame.session != session_) return false;
         if (frame.type == Type::key_result) {
             result_.eaten = frame.eaten;
+            result_.received_through = received_through;
             completed_ = true;
             cv_.notify_one();
         } else if ((frame.type == Type::compose || frame.type == Type::commit) && result_.edits.size() < 32) {

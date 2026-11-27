@@ -206,7 +206,7 @@ SectionEnd
 
 `inputMethod.windows.clsid` 和 `profile` 省略时由应用 ID 稳定生成。升级时请保留同一应用 ID、CLSID 和语言配置 GUID。`langid` 默认为 `0804`（简体中文，中国）。Windows 语言栏接受模式的 ICO 或 PNG 图标，其他格式采用模式短文字绘制图标。
 
-`tan` 根据应用所用的 Tango 模块版本下载桥接 DLL，并校验发布构建内置的 SHA-256。使用本地 Tango 时，设置 `TANGO_IME_BRIDGE_DIR` 指向包含 `TangoIMEBridge-x64.dll` 或 `TangoIMEBridge-arm64.dll` 的目录。
+`tan` 根据应用所用的 Tango 模块版本下载桥接 DLL，并用发布构建内置的 SHA-256 或官方 GitHub Release API 中的资产摘要校验。使用本地 Tango 时，设置 `TANGO_IME_BRIDGE_DIR` 指向包含 `TangoIMEBridge-x64.dll` 或 `TangoIMEBridge-arm64.dll` 的目录。
 
 桥接 DLL、宿主和安装器默认使用未签名的构建。启用智能应用控制的 Windows 11 可能拒绝加载未签名产物。需要签名时配置 `windows.certificate`，`tan package` 会沿用 Windows 签名流程同时签名。ARM64 桥接提供原生 DLL。Windows 32 位客户端不在支持范围内。
 

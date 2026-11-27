@@ -21,7 +21,9 @@ The protocol uses little-endian fields and limits the total frame size to
 it. Type and version are 16-bit fields, followed by the 64-bit sequence number.
 Strings are UTF-16LE with a 16-bit code-unit count. Composition cursors count
 runes. Sequence zero is reserved for unsolicited updates. Edits caused by a
-synchronous key carry that key's sequence and precede the key result.
+synchronous key or focus loss carry the request's sequence and precede
+the result. The TSF thread applies an earlier unsolicited edit before the
+edits tied to a key decision.
 
 Run the shared codec vectors and timeout checks on the build host.
 

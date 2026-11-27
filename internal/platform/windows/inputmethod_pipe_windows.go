@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -80,35 +81,20 @@ func (s *tipServer) serve(conn net.Conn) {
 		windows.ProcessIdToSessionId(pid, &login) != nil || login != s.login {
 		return
 	}
-	process, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
-	if err != nil {
-		return
-	}
-	var token windows.Token
-	err = windows.OpenProcessToken(process, windows.TOKEN_QUERY, &token)
-	if err != nil {
-		windows.CloseHandle(process)
-		return
-	}
-	user, err := token.GetTokenUser()
-	token.Close()
-	var exe string
-	if err == nil && user.User.Sid.Equals(s.user) {
-		var path [1024]uint16
-		length := uint32(len(path))
-		if windows.QueryFullProcessImageName(process, 0, &path[0], &length) == nil {
-			exe = filepath.Base(windows.UTF16ToString(path[:length]))
-		}
-	}
-	windows.CloseHandle(process)
-	if exe == "" {
-		return
-	}
-
+	handle := windows.Handle(pipe.Fd())
 	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	msg, err := proto.Read(conn)
 	hello, isHello := msg.Body.(proto.Hello)
 	if err != nil || !isHello || msg.Seq != 0 || hello.PID != pid {
+		return
+	}
+	exe, user := tipClientProcess(pid)
+	if user == nil {
+		// A protected or packaged client may be inaccessible through
+		// OpenProcessToken. Identify it through the pipe token instead.
+		user = tipPipeClientUser(handle)
+	}
+	if user == nil || !user.Equals(s.user) {
 		return
 	}
 	_ = conn.SetReadDeadline(time.Time{})
@@ -183,6 +169,57 @@ func (s *tipServer) serve(conn net.Conn) {
 			return
 		}
 	}
+}
+
+var tipImpersonateNamedPipeClient = windows.NewLazySystemDLL("advapi32.dll").NewProc("ImpersonateNamedPipeClient")
+
+func tipPipeClientUser(pipe windows.Handle) (sid *windows.SID) {
+	runtime.LockOSThread()
+	if ok, _, _ := tipImpersonateNamedPipeClient.Call(uintptr(pipe)); ok == 0 {
+		runtime.UnlockOSThread()
+		return nil
+	}
+	defer func() {
+		if windows.RevertToSelf() == nil {
+			runtime.UnlockOSThread()
+		} else {
+			// The caller returns on nil, discarding this OS thread.
+			sid = nil
+		}
+	}()
+	var token windows.Token
+	if windows.OpenThreadToken(windows.CurrentThread(), windows.TOKEN_QUERY, true, &token) != nil {
+		return nil
+	}
+	defer token.Close()
+	user, err := token.GetTokenUser()
+	if err != nil {
+		return nil
+	}
+	return user.User.Sid
+}
+
+func tipClientProcess(pid uint32) (exe string, user *windows.SID) {
+	process, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+	if err != nil {
+		return "", nil
+	}
+	defer windows.CloseHandle(process)
+	var path [1024]uint16
+	length := uint32(len(path))
+	if windows.QueryFullProcessImageName(process, 0, &path[0], &length) == nil {
+		exe = filepath.Base(windows.UTF16ToString(path[:length]))
+	}
+	var token windows.Token
+	if windows.OpenProcessToken(process, windows.TOKEN_QUERY, &token) != nil {
+		return exe, nil
+	}
+	defer token.Close()
+	account, err := token.GetTokenUser()
+	if err != nil {
+		return exe, nil
+	}
+	return exe, account.User.Sid
 }
 
 func (s *tipServer) onMain(closed <-chan struct{}, fn func()) bool {

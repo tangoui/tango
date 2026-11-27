@@ -1,5 +1,6 @@
 #include "pipe.h"
 #include <sddl.h>
+#include <aclapi.h>
 
 namespace tango::ime {
 
@@ -42,14 +43,34 @@ bool process_info(DWORD& login, std::wstring& pipe, std::wstring_view connection
     return true;
 }
 
+bool expected_pipe_owner(HANDLE pipe) {
+    PSID owner = nullptr;
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    if (GetSecurityInfo(pipe, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION,
+                        &owner, nullptr, nullptr, nullptr, &descriptor) != ERROR_SUCCESS)
+        return false;
+    HANDLE token;
+    bool matches = false;
+    if (owner && OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+        alignas(TOKEN_USER) BYTE account[sizeof(TOKEN_USER) + SECURITY_MAX_SID_SIZE];
+        DWORD size = 0;
+        if (GetTokenInformation(token, TokenUser, account, sizeof(account), &size))
+            matches = EqualSid(owner, reinterpret_cast<TOKEN_USER*>(account)->User.Sid) != FALSE;
+        CloseHandle(token);
+    }
+    LocalFree(descriptor);
+    return matches;
+}
+
 bool expected_host(HANDLE pipe, DWORD login, const std::wstring& expected, bool appcontainer) {
     ULONG process_id = 0, session_id = 0;
     if (!GetNamedPipeServerProcessId(pipe, &process_id) ||
         !GetNamedPipeServerSessionId(pipe, &session_id) || session_id != login) return false;
     HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, process_id);
     // AppContainer can be denied access to the medium-integrity process
-    // object. The server still needs to be local and in this login session.
-    if (!process) return appcontainer && GetLastError() == ERROR_ACCESS_DENIED;
+    // object. In that case verify the pipe owner's user SID as well as the
+    // login session. In an unrestricted process, verify the executable path.
+    if (!process) return appcontainer && GetLastError() == ERROR_ACCESS_DENIED && expected_pipe_owner(pipe);
     wchar_t path[32768];
     DWORD length = ARRAYSIZE(path);
     const bool matches = QueryFullProcessImageNameW(process, 0, path, &length) &&
@@ -104,19 +125,26 @@ bool Pipe::post(Frame frame) {
     return true;
 }
 
-std::optional<KeyOutcome> Pipe::test(Frame frame, std::chrono::steady_clock::time_point deadline) {
+std::optional<KeyOutcome> Pipe::request(Frame frame, std::chrono::steady_clock::time_point deadline) {
     if (!connected()) return std::nullopt;
-    frame.type = Type::test_key;
     frame.seq = ++seq_;
     if (!reply_.begin(frame.seq, frame.session)) return std::nullopt;
     if (!post(std::move(frame))) reply_.disconnect();
-    return reply_.wait(deadline);
+    auto result = reply_.wait(deadline);
+    if (!result) {
+        connection_.timed_out();
+        SetEvent(wake_);
+    }
+    return result;
 }
 
-std::deque<Frame> Pipe::received() {
+std::deque<Frame> Pipe::received(uint64_t through) {
     std::deque<Frame> frames;
     std::lock_guard<std::mutex> lock(mutex_);
-    frames.swap(incoming_);
+    while (!incoming_.empty() && incoming_.front().first <= through) {
+        frames.push_back(std::move(incoming_.front().second));
+        incoming_.pop_front();
+    }
     return frames;
 }
 
@@ -128,14 +156,13 @@ void Pipe::run() {
             WaitForSingleObject(wake_, 50);
             continue;
         }
-        const HANDLE pipe = CreateFileW(name_.c_str(), FILE_READ_DATA | FILE_WRITE_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+        const HANDLE pipe = CreateFileW(name_.c_str(), FILE_READ_DATA | FILE_WRITE_DATA | FILE_READ_ATTRIBUTES | READ_CONTROL | SYNCHRONIZE,
             0, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT |
             SECURITY_IDENTIFICATION, nullptr);
         if (pipe != INVALID_HANDLE_VALUE) {
             try {
                 if (expected_host(pipe, login_, host_, hello_.appcontainer)) {
-                    retry.connected();
-                    session(pipe);
+                    session(pipe, retry);
                 }
             } catch (...) {
                 // An allocation or transport error leaves keys untouched.
@@ -144,7 +171,7 @@ void Pipe::run() {
         }
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            connected_ = false;
+            connection_.disconnected();
             outgoing_.clear();
             incoming_.clear();
         }
@@ -154,13 +181,13 @@ void Pipe::run() {
     }
 }
 
-void Pipe::session(HANDLE pipe) {
+void Pipe::session(HANDLE pipe, Reconnect& retry) {
     Bytes hello;
     if (!encode(hello_, hello) || !transfer(pipe, true, hello.data(), hello.size())) return;
     ++generation_;
-    connected_ = true;
+    connection_.connected();
     PostMessageW(window_, bridge_message, 0, 0);
-    while (!stopping_) {
+    while (!stopping_ && !connection_.reconnect()) {
         std::deque<Bytes> outgoing;
         {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -182,7 +209,7 @@ void Pipe::session(HANDLE pipe) {
             if (!transfer(pipe, false, bytes.data() + 4, n)) return;
             Frame frame;
             if (!decode(bytes, frame)) return;
-            deliver(std::move(frame));
+            if (deliver(std::move(frame))) retry.connected();
         }
         WaitForSingleObject(wake_, 5);
     }
@@ -217,20 +244,21 @@ bool Pipe::transfer(HANDLE pipe, bool write, void* ptr, size_t size) {
     return size == 0;
 }
 
-void Pipe::deliver(Frame frame) {
+bool Pipe::deliver(Frame frame) {
     if (frame.seq && (frame.type == Type::key_result || frame.type == Type::compose ||
                       frame.type == Type::commit)) {
-        reply_.accept(std::move(frame));
-        return;
+        const bool result = frame.type == Type::key_result;
+        return reply_.accept(std::move(frame), received_) && result;
     }
     if (frame.type != Type::compose && frame.type != Type::commit &&
-        frame.type != Type::mode && frame.type != Type::menu) return;
+        frame.type != Type::mode && frame.type != Type::menu) return false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (incoming_.size() >= 64) return;
-        incoming_.push_back(std::move(frame));
+        if (incoming_.size() >= 64) return false;
+        incoming_.emplace_back(++received_, std::move(frame));
     }
     PostMessageW(window_, bridge_message, 0, 0);
+    return false;
 }
 
 } // namespace tango::ime

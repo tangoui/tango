@@ -39,9 +39,10 @@ func TestNSISIMEScript(t *testing.T) {
 	}
 	script := nsisScript(cfg, a, "setup.exe")
 	for _, want := range []string{
-		"RequestExecutionLevel admin", "SetRegView 64",
+		"RequestExecutionLevel admin", "SetRegView 64", "tan_ime_restore_host:",
+		`GetTempFileName $0 "$INSTDIR"`,
 		`WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Run"`,
-		`"$SYSDIR\regsvr32.exe" /s "$INSTDIR\TangoIMEBridge-1.0.0-x64.dll"`,
+		`"$SYSDIR\regsvr32.exe" /s "$INSTDIR\$TanNewBridge"`,
 		`"$SYSDIR\regsvr32.exe" /s /u`,
 		`Delete /REBOOTOK "$INSTDIR\`,
 	} {
@@ -146,5 +147,24 @@ func TestNSISWithoutIMEGolden(t *testing.T) {
 	const want = "a435140b8e6d3e93564796e0c20bec3692269987effe713f65e1470e5a53ad9d"
 	if got := fmt.Sprintf("%x", sha256.Sum256([]byte(nsisScript(cfg, a, "Pinyin-setup.exe")))); got != want {
 		t.Fatalf("ordinary installer SHA-256 = %s, want %s", got, want)
+	}
+}
+
+func TestIMEBridgeChecksumForSourceBuild(t *testing.T) {
+	want := strings.Repeat("1", 64)
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1.2.3" {
+			t.Errorf("checksum URL: %s", r.URL.Path)
+		}
+		fmt.Fprintf(w, `{"tag_name":"v1.2.3","assets":[{"name":"TangoIMEBridge-x64.dll","digest":"sha256:%s"}]}`, want)
+	}))
+	defer api.Close()
+	oldURL, oldSums := imeBridgeReleaseAPI, imeBridgeSums
+	defer func() { imeBridgeReleaseAPI, imeBridgeSums = oldURL, oldSums }()
+	imeBridgeReleaseAPI = api.URL
+	imeBridgeSums = ""
+	got, err := imeBridgeChecksum(context.Background(), "v1.2.3", "x64", "TangoIMEBridge-x64.dll")
+	if err != nil || got != want {
+		t.Fatalf("checksum = %q, %v, want %q", got, err, want)
 	}
 }

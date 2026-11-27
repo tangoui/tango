@@ -15,19 +15,20 @@ public:
     ~Pipe() { stop(); }
     void start(const Config& config, HWND window);
     void stop();
-    bool connected() const { return connected_.load(); }
+    bool connected() const { return connection_.ready(); }
     uint64_t generation() const { return generation_.load(); }
 
     bool post(Frame frame);
-    std::optional<KeyOutcome> test(Frame frame, std::chrono::steady_clock::time_point deadline);
-    std::deque<Frame> received();
+    std::optional<KeyOutcome> request(Frame frame, std::chrono::steady_clock::time_point deadline);
+    std::deque<Frame> received(uint64_t through = UINT64_MAX);
 private:
     void run();
-    void session(HANDLE pipe);
+    void session(HANDLE pipe, Reconnect& retry);
     bool transfer(HANDLE pipe, bool write, void* ptr, size_t size);
-    void deliver(Frame frame);
+    bool deliver(Frame frame);
 
-    std::atomic<bool> connected_{false}, stopping_{false};
+    KeyConnection connection_;
+    std::atomic<bool> stopping_{false};
     std::atomic<uint64_t> generation_{0};
     uint64_t seq_ = 0; // TSF thread
     HWND window_ = nullptr;
@@ -40,7 +41,8 @@ private:
     KeyReply reply_;
     std::mutex mutex_;
     std::deque<Bytes> outgoing_;
-    std::deque<Frame> incoming_;
+    std::deque<std::pair<uint64_t, Frame>> incoming_;
+    uint64_t received_ = 0; // pipe reader thread
 };
 
 } // namespace tango::ime

@@ -139,7 +139,15 @@ func (m *tipSessions) dispatch(c *tipClient, msg proto.Message) {
 	case proto.SessionClose:
 		m.end(c, uint64(v))
 	case proto.Focus:
-		m.focus(c.sessions[v.Session], v.On)
+		s := c.sessions[v.Session]
+		if msg.Seq != 0 {
+			m.reply(c, v.Session, msg.Seq, s, func() bool {
+				m.focus(s, v.On)
+				return false
+			})
+		} else {
+			m.focus(s, v.On)
+		}
 	case proto.TestKey:
 		if msg.Seq != 0 {
 			m.test(c, proto.Key(v), msg.Seq)
@@ -177,16 +185,22 @@ func (m *tipSessions) sendMenu(c *tipClient) {
 }
 
 func (m *tipSessions) test(c *tipClient, key proto.Key, seq uint64) {
-	s := c.sessions[key.Session]
-	reply := proto.Message{Seq: seq, Body: proto.KeyResult{Session: key.Session}}
-	if s == nil || !s.active {
+	session := c.sessions[key.Session]
+	m.reply(c, key.Session, seq, session, func() bool {
+		return session.active && m.key(session, key)
+	})
+}
+
+func (m *tipSessions) reply(c *tipClient, remote, seq uint64, session *tipSession, apply func() bool) {
+	reply := proto.Message{Seq: seq, Body: proto.KeyResult{Session: remote}}
+	if session == nil {
 		c.send([]proto.Message{reply})
 		return
 	}
-	s.seq = seq
-	defer func() { s.seq, s.batch = 0, nil }()
-	reply.Body = proto.KeyResult{Session: key.Session, Eaten: m.key(s, key)}
-	c.send(append(s.batch, reply))
+	session.seq = seq
+	defer func() { session.seq, session.batch = 0, nil }()
+	reply.Body = proto.KeyResult{Session: remote, Eaten: apply()}
+	c.send(append(session.batch, reply))
 }
 
 func (m *tipSessions) key(s *tipSession, key proto.Key) bool {
@@ -207,7 +221,7 @@ func (m *tipSessions) key(s *tipSession, key proto.Key) bool {
 // The low mandatory label permits local AppContainer access. The server still
 // checks the peer's login session before dispatch.
 func tipPipeSecurityDescriptor(sid string) string {
-	return "D:P(A;;GA;;;" + sid + ")(A;;0x100083;;;AC)S:(ML;;NW;;;LW)"
+	return "D:P(A;;GA;;;" + sid + ")(A;;0x120083;;;AC)S:(ML;;NW;;;LW)"
 }
 
 func tipLogicalCaret(r proto.Rect, dpi int) platform.Rect {

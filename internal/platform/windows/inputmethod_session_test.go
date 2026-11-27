@@ -10,13 +10,14 @@ import (
 )
 
 type imeSink struct {
-	keys   []uint64
-	ended  []uint64
-	mods   []platform.IMEModifierKey
-	modes  []string
-	clicks []string
-	menu   []platform.IMEMenuItem
-	onKey  func(uint64)
+	onDeactivate func(uint64)
+	keys         []uint64
+	ended        []uint64
+	mods         []platform.IMEModifierKey
+	modes        []string
+	clicks       []string
+	menu         []platform.IMEMenuItem
+	onKey        func(uint64)
 }
 
 func (s *imeSink) IMEKey(id uint64, _ platform.IMEKey) bool {
@@ -26,8 +27,12 @@ func (s *imeSink) IMEKey(id uint64, _ platform.IMEKey) bool {
 	}
 	return true
 }
-func (*imeSink) IMEActivate(uint64)          {}
-func (*imeSink) IMEDeactivate(uint64)        {}
+func (*imeSink) IMEActivate(uint64) {}
+func (s *imeSink) IMEDeactivate(id uint64) {
+	if s.onDeactivate != nil {
+		s.onDeactivate(id)
+	}
+}
 func (*imeSink) IMECommitComposition(uint64) {}
 func (s *imeSink) IMEEnd(id uint64)          { s.ended = append(s.ended, id) }
 func (*imeSink) IMEWantsModifiers() bool     { return true }
@@ -136,5 +141,26 @@ func TestCandidateBoundsWindows(t *testing.T) {
 	want := platform.Rect{X: -200, Y: 102, Width: 2, Height: 20}
 	if got := tipLogicalCaret(physical, 144); got != want {
 		t.Fatalf("caret = %+v, want %+v", got, want)
+	}
+}
+
+func TestDeactivationCommitPrecedesReply(t *testing.T) {
+	sink := &imeSink{}
+	m := newTIPSessions(sink, nil)
+	var out []proto.Message
+	c := m.connect("a.exe", func(batch []proto.Message) { out = append(out, batch...) })
+	m.dispatch(c, proto.Message{Body: proto.SessionOpen(2)})
+	m.dispatch(c, proto.Message{Body: proto.Focus{Session: 2, On: true}})
+	sink.onDeactivate = func(id uint64) {
+		session := m.byID[id]
+		session.post(proto.Commit{Session: session.remoteID, Text: "ni"})
+	}
+	m.dispatch(c, proto.Message{Seq: 4, Body: proto.Focus{Session: 2}})
+	want := []proto.Message{
+		{Seq: 4, Body: proto.Commit{Session: 2, Text: "ni"}},
+		{Seq: 4, Body: proto.KeyResult{Session: 2}},
+	}
+	if !slices.Equal(out, want) {
+		t.Fatalf("deactivation messages = %v, want %v", out, want)
 	}
 }

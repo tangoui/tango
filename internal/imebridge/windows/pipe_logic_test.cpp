@@ -20,8 +20,9 @@ int main() {
     assert(steady_clock::now() - start >= key_timeout);
     assert(reply.begin(10, 4));
     result.seq = 10;
-    assert(reply.accept(result));
-    assert(reply.wait(steady_clock::now() + key_timeout)->eaten);
+    assert(reply.accept(result, 3));
+    auto decision = reply.wait(steady_clock::now() + key_timeout);
+    assert(decision && decision->eaten && decision->received_through == 3);
     assert(reply.begin(11, 4));
     reply.disconnect();
     assert(!reply.wait(steady_clock::now() + key_timeout));
@@ -37,6 +38,27 @@ int main() {
     backoff.connected();
     backoff.fail(7000);
     assert(!backoff.ready(7999) && backoff.ready(8000));
+
+    KeyConnection connection;
+    assert(!connection.ready());
+    connection.connected();
+    assert(connection.ready());
+    connection.timed_out();
+    assert(!connection.ready() && connection.reconnect());
+    connection.connected();
+    assert(connection.ready() && !connection.reconnect());
+
+    EditQueue edits;
+    Frame commit;
+    commit.type = Type::commit;
+    commit.text = u"你";
+    Frame compose;
+    compose.type = Type::compose;
+    compose.text = u"h";
+    assert(edits.push(std::move(commit)));
+    auto ordered = edits.take({compose});
+    assert(ordered.size() == 2 && ordered[0].type == Type::commit && ordered[1].type == Type::compose);
+    assert(edits.take({}).empty());
 
     ConfigIni ini;
     assert(!parse_ini(u"[IME]\nprofile={12345678-1234-1234-1234-123456789abc}\n", ini));
