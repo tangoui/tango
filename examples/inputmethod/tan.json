@@ -1,0 +1,10 @@
+{
+  "name": "Tango Pinyin",
+  "id": "com.tangoui.inputmethod.example",
+  "version": "0.1.0",
+  "macos": {
+    "inputMethod": {
+      "language": "zh-Hans"
+    }
+  }
+}
