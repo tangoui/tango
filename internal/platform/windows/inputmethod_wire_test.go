@@ -114,3 +114,9 @@ func TestTIPKeyCodes(t *testing.T) {
 		}
 	}
 }
+
+func TestTIPNumpadDigit(t *testing.T) {
+	if got := tipKeyEvent(tipRequest{VK: 0x62, Text: [8]uint16{'2'}}); got.Code != "Numpad2" || got.Text != "2" {
+		t.Fatalf("key = %+v", got)
+	}
+}

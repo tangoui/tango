@@ -387,6 +387,31 @@ func TestOverlayHidesWhenReplacedByNormalWindow(t *testing.T) {
 	}
 }
 
+func TestVisibleOverlayReopensAfterOrphaning(t *testing.T) {
+	e := startOverlayHost(t)
+	opts := devhost.WindowOpts{Title: "Overlay", Width: 100, Height: 100, Kind: int(tango.KindOverlay)}
+	w1 := e.worker()
+	overlay := w1.openOpts(opts, 0)
+	w1.frame(overlay.Win, red)
+	ctlNext[devhost.Swapped](e)
+
+	w2 := e.worker()
+	normal := w2.open("Window", 0)
+	w2.frame(normal.Win, blue)
+	ctlNext[devhost.Swapped](e)
+
+	w3 := e.worker()
+	reopened := w3.openOpts(opts, 0)
+	w3.frame(reopened.Win, red)
+	ctlNext[devhost.Swapped](e)
+	for _, surface := range e.fb.Surfaces() {
+		if surface.Title() == opts.Title && surface.Visible() {
+			return
+		}
+	}
+	t.Fatal("overlay stayed hidden after the next worker reopened it")
+}
+
 func TestOverlayAndHiddenWindowKeepHostInBackground(t *testing.T) {
 	e := startOverlayHost(t)
 	e.fb.Do(func() { e.fb.HideApp() })

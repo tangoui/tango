@@ -94,7 +94,7 @@ func TestOverlayWindowFrame(t *testing.T) {
 	if got.err != nil {
 		t.Fatal(got.err)
 	}
-	if got.info.SystemTitleBar || got.info.SystemButtons || !got.info.NoMinimize || !got.info.NoMaximize || got.info.NoClose {
+	if got.info.SystemTitleBar || got.info.SystemButtons || !got.info.NoMinimize || !got.info.NoMaximize || !got.info.NoClose {
 		t.Fatalf("overlay frame info = %+v", got.info)
 	}
 }

@@ -533,3 +533,11 @@ type InputMethods interface {
 	IMECaret(session uint64) Rect
 	IMEClientApp(session uint64) string
 }
+
+// DefaultIMEConnection uses the same ID fallback as tango.App.ID.
+func (o AppOptions) DefaultIMEConnection() string {
+	if o.ID != "" {
+		return o.ID + "_Connection"
+	}
+	return o.Name + "_Connection"
+}

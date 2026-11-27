@@ -881,6 +881,11 @@ func (h *Host) match(w *worker, m devhost.OpenWindow) *win {
 		if x.closed || x.next == w || x.owner == w || x.overlay != overlay {
 			return false
 		}
+		// A retired overlay was hidden during the swap. Let the new
+		// worker create one with the visibility it requested.
+		if x.overlay && !x.orphanedAt.IsZero() {
+			return false
+		}
 		if w == h.pending {
 			return x.next == nil && (x.owner == nil || x.owner == h.active || x.owner.gone)
 		}

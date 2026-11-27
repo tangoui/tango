@@ -28,7 +28,7 @@ s, err := app.NewSurface(tango.SurfaceOptions{
 
 `KindPanel` 是浮动工具面板（不激活应用，不出现在任务栏和窗口切换里：macOS 的 Cmd+\`、Windows 的 Alt+Tab）；`KindSheet` 在 macOS 上是附着在父窗口上的表单，其他平台按 `KindModal` 处理。
 
-`KindOverlay` 是 macOS 上的无边框浮层，可出现在所有桌面及全屏窗口上方。显示或点击时保留原应用的键盘焦点，适合候选窗和浮动提示。其他平台创建时返回 `ErrUnsupported`。
+`KindOverlay` 是 macOS 上的无边框浮层，可出现在所有桌面的普通窗口上方。显示或点击时保留原应用的键盘焦点，适合候选窗和浮动提示。全屏可见性已在 `LSBackgroundOnly` 输入法进程中验证，普通未打包应用的全屏表现待验证。浮层没有失焦事件，`sys/flyout` 无法依靠它的失焦事件自动关闭。其他平台创建时返回 `ErrUnsupported`。
 
 ## 几何与状态
 

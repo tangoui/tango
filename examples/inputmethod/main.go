@@ -2,6 +2,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"strings"
 	"unicode/utf8"
@@ -31,7 +32,7 @@ func main() {
 	app.OnReady(func() {
 		var err error
 		candidates, err = newCandidateWindow(app)
-		if err != nil {
+		if err != nil && !errors.Is(err, tango.ErrUnsupported) {
 			log.Printf("Tango Pinyin candidates: %v", err)
 		}
 		err = ime.Serve(app, ime.Handler{
@@ -57,8 +58,8 @@ func main() {
 				} else if res.Handled {
 					s.SetComposition(res.Preedit, utf8.RuneCountInString(res.Preedit))
 				}
-				if len(res.Candidates) != 0 {
-					candidates.show(s, res.Candidates, func(index int) {
+				if candidates != nil && len(res.Candidates) != 0 {
+					candidates.show(s, s.Caret(), res.Candidates, func(index int) {
 						if text, ok := c.Pick(index); ok {
 							delete(composers, s.ID())
 							candidates.hide(s)
@@ -93,7 +94,11 @@ func handle(c *engine.Composer, k ime.Key) (res engine.Result, flush string, con
 	if k.Ctrl || k.Alt || k.Meta {
 		return engine.Result{}, c.Flush(), false
 	}
-	if digit, ok := strings.CutPrefix(k.Code, "Digit"); !k.Shift && ok &&
+	digit, ok := strings.CutPrefix(k.Code, "Digit")
+	if !ok {
+		digit, ok = strings.CutPrefix(k.Code, "Numpad")
+	}
+	if !k.Shift && ok &&
 		len(digit) == 1 && digit[0] >= '1' && digit[0] <= '9' {
 		if text, ok := c.Pick(int(digit[0] - '1')); ok {
 			return engine.Result{Handled: true, Commit: text}, "", true

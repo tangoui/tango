@@ -121,6 +121,8 @@ func tipKeyEvent(r tipRequest) platform.IMEKey {
 		result.Code = "Key" + string(rune(vk))
 	case vk >= '0' && vk <= '9':
 		result.Code = "Digit" + string(rune(vk))
+	case vk >= 0x60 && vk <= 0x69: // VK_NUMPAD0 through VK_NUMPAD9
+		result.Code = "Numpad" + string(rune('0'+vk-0x60))
 	case vk == 0x0d && r.Modifiers&16 != 0:
 		result.Code = "NumpadEnter"
 	default:

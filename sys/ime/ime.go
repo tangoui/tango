@@ -52,8 +52,9 @@ type Handler struct {
 	// from InputMethodConnectionName in Info.plist, or the bundle identifier
 	// followed by _Connection if the plist omits it.
 	//
-	// On Windows and Linux the default is the app's ID followed by _Connection.
-	// Set the ID to the one in tan.json when using that default. On Windows
+	// On Windows and Linux the default is App.ID() followed by _Connection.
+	// App.ID() uses Options.Name when Options.ID is empty. Use the ID from
+	// tan.json for a packaged app relying on the default. On Windows
 	// the resolved value must match the TSF DLL's TANGO_IME_CONNECTION at
 	// build time. IBus uses it without the _Connection suffix as the engine
 	// name, which must match the name used to select the engine.
@@ -70,6 +71,10 @@ type Handler struct {
 	CommitComposition func(s *Session)
 	// End runs once when an activated session or one seen by a handler ends.
 	// The session is already closed. Use End to release associated state.
+	// End may run without a preceding Deactivate. On macOS it runs when
+	// InputMethodKit releases the controller at the end of the client
+	// connection. Focus changes between fields in the same client use
+	// Activate and Deactivate.
 	End func(s *Session)
 }
 

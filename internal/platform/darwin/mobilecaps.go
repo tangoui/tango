@@ -60,12 +60,12 @@ func initShare() {
 // shareWindow is the key window, else the main window, else any visible one.
 func (b *backend) shareWindow() id {
 	for _, s := range []string{"keyWindow", "mainWindow"} {
-		if w := send(b.app, s); w != 0 && sendBool(w, "isVisible") {
+		if w := send(b.app, s); w != 0 && !isOverlayWindow(w) && sendBool(w, "isVisible") {
 			return w
 		}
 	}
 	for _, w := range arrayItems(send(b.app, "windows")) {
-		if sendBool(w, "isVisible") && send(w, "contentView") != 0 {
+		if !isOverlayWindow(w) && sendBool(w, "isVisible") && send(w, "contentView") != 0 {
 			return w
 		}
 	}

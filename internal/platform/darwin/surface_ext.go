@@ -141,6 +141,10 @@ func windowClass(ex *platform.SurfaceExtras) string {
 
 func overlayStyle() uint { return nsWindowStyleMaskNonactivatingPanel }
 
+func isOverlayWindow(w id) bool {
+	return w != 0 && sendBool(w, "isKindOfClass:", uintptr(class("TangoOverlay")))
+}
+
 func overlayCollectionBehavior() uint {
 	return nsWindowCollectionBehaviorCanJoinAllSpaces | nsWindowCollectionBehaviorStationary |
 		nsWindowCollectionBehaviorIgnoresCycle | nsWindowCollectionBehaviorFullScreenAuxiliary
@@ -639,7 +643,7 @@ func registerExtClasses() {
 	super := func(self id, name string, info id) id { return webSuperArg(self, name, info) }
 	classDef("TangoWebView", "WKWebView", nil, []objc.MethodDef{
 		method("acceptsFirstMouse:", func(self id, _ objc.SEL, ev id) bool {
-			if s := of(self); s != nil && s.ext.overlay {
+			if isOverlayWindow(send(self, "window")) {
 				return true
 			}
 			return byte(super(self, "acceptsFirstMouse:", ev)) != 0

@@ -41,10 +41,12 @@ func TestPick(t *testing.T) {
 }
 
 func TestHandleDigitPicks(t *testing.T) {
-	c := composerWith("nihao")
-	res, flush, consumed := handle(c, ime.Key{Code: "Digit2", Text: "2"})
-	if !consumed || !res.Handled || res.Commit != "拟好" || flush != "" || c.Composing() {
-		t.Fatalf("Digit2 = %+v, flush=%q, consumed=%t, composing=%t", res, flush, consumed, c.Composing())
+	for _, code := range []string{"Digit2", "Numpad2"} {
+		c := composerWith("nihao")
+		res, flush, consumed := handle(c, ime.Key{Code: code, Text: "2"})
+		if !consumed || !res.Handled || res.Commit != "拟好" || flush != "" || c.Composing() {
+			t.Fatalf("%s = %+v, flush=%q, consumed=%t, composing=%t", code, res, flush, consumed, c.Composing())
+		}
 	}
 }
 
@@ -73,5 +75,23 @@ func TestEndSessionClearsComposerAndCandidateWindow(t *testing.T) {
 	if len(composers) != 0 || candidates.current != nil || surface.IsVisible() {
 		t.Fatalf("session ended with %d composers, candidates=%v, visible=%t",
 			len(composers), candidates.current, surface.IsVisible())
+	}
+}
+
+func TestUnknownCaretClearsPreviousSessionsCandidates(t *testing.T) {
+	a, _ := faketest.Run(t, tango.Options{})
+	surface, err := a.NewSurface(tango.SurfaceOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous, next := new(ime.Session), new(ime.Session)
+	candidates := &candidateWindow{surface: surface, app: a, current: &candidateList{session: previous}}
+
+	tango.Await(a, func() bool {
+		candidates.show(next, tango.Rect{}, []string{"你"}, nil)
+		return true
+	})
+	if candidates.current != nil || surface.IsVisible() {
+		t.Fatal("previous session's candidates survived an unknown caret")
 	}
 }

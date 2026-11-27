@@ -47,7 +47,7 @@ func (w *window) FrameInfo() ui.WindowFrameInfo {
 // readFrameInfo reads the native window on the main thread.
 func readFrameInfo(s *tango.Surface) ui.WindowFrameInfo {
 	if corehook.IsOverlaySurface(s) {
-		return ui.WindowFrameInfo{NoMinimize: true, NoMaximize: true}
+		return ui.WindowFrameInfo{NoMinimize: true, NoMaximize: true, NoClose: true}
 	}
 	ap, state := s.Appearance(), s.State()
 	var st ui.WindowState

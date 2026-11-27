@@ -126,7 +126,7 @@ func (b *backend) ServeInputMethod(connection string, sink platform.InputMethodS
 		return fmt.Errorf("tango/linux: input method: %w", ibusErr)
 	}
 	if connection == "" {
-		connection = b.opts.ID + "_Connection"
+		connection = b.opts.DefaultIMEConnection()
 	}
 	name := strings.TrimSuffix(connection, "_Connection")
 	if name == "" || strings.ContainsAny(name, "\x00 \t\n") {

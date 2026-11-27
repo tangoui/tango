@@ -66,14 +66,14 @@ func (w *candidateWindow) page(c *ui.Context) {
 		Bg(th.BgElevated).Radius(th.RadiusLG)
 }
 
-func (w *candidateWindow) show(s *ime.Session, words []string, choose func(int)) {
-	if w == nil {
+func (w *candidateWindow) show(s *ime.Session, caret tango.Rect, words []string, choose func(int)) {
+	if caret.Height <= 0 {
+		w.dismiss()
 		return
 	}
-	caret := s.Caret()
 	display, err := screen.At(w.app, caret.X, caret.Y)
-	if caret.Height <= 0 || err != nil {
-		w.hide(s)
+	if err != nil {
+		w.dismiss()
 		return
 	}
 	words = words[:min(len(words), 9)]
@@ -93,9 +93,13 @@ func (w *candidateWindow) show(s *ime.Session, words []string, choose func(int))
 
 func (w *candidateWindow) hide(s *ime.Session) {
 	if w != nil && w.current != nil && w.current.session == s {
-		w.current = nil
-		w.surface.Hide()
+		w.dismiss()
 	}
+}
+
+func (w *candidateWindow) dismiss() {
+	w.current = nil
+	w.surface.Hide()
 }
 
 func candidateBounds(caret tango.Rect, w, h int, work tango.Rect) tango.Rect {

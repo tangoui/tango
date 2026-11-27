@@ -107,7 +107,7 @@ func TestDevOverlayKind(t *testing.T) {
 	info := tango.Await(wa, func() ui.WindowFrameInfo {
 		return o.r.Context().Window().(ui.WindowFrame).FrameInfo()
 	})
-	if info.SystemTitleBar || info.SystemButtons || !info.NoMinimize || !info.NoMaximize || info.NoClose {
+	if info.SystemTitleBar || info.SystemButtons || !info.NoMinimize || !info.NoMaximize || !info.NoClose {
 		t.Fatalf("remote overlay frame info = %+v", info)
 	}
 	surfaces := fb.Surfaces()
