@@ -119,7 +119,7 @@ func (b *Backend) newWindow(id platform.SurfaceID, opts platform.SurfaceOptions,
 	b.surfaces[hwnd] = s
 	b.byID[id] = s
 
-	if b.defaultMenu != nil {
+	if b.defaultMenu != nil && s.ext.kind != platform.KindOverlay {
 		s.applyMenu(b.defaultMenu)
 	}
 	s.placeInitially()
@@ -530,6 +530,14 @@ func (s *surface) event(ev platform.SurfaceEvent) {
 
 // message handles the surface window's messages.
 func (s *surface) message(m uint32, wp, lp uintptr) (uintptr, bool) {
+	if s.ext.kind == platform.KindOverlay {
+		switch m {
+		case wmMouseActivate:
+			return overlayMouseActivate, true
+		case wmActivate, wmSetFocus:
+			return 0, true
+		}
+	}
 	if r, ok := s.extMessage(m, wp, lp); ok {
 		return r, true
 	}
@@ -650,6 +658,12 @@ func (s *surface) Show() {
 	if s.closed {
 		return
 	}
+	if s.ext.kind == platform.KindOverlay {
+		s.shown = true
+		procSetWindowPos.Call(s.hwnd, wxHwndTopmost, 0, 0, 0, 0, swpNoMove|swpNoSize|swpNoActivate)
+		procShowWindow.Call(s.hwnd, overlayShowCmd)
+		return
+	}
 	s.beforeShow()
 	if !s.shown {
 		s.shown = true
@@ -705,7 +719,7 @@ func (s *surface) Size() (int, int) {
 }
 
 func (s *surface) Focus() {
-	if s.closed {
+	if s.closed || s.ext.kind == platform.KindOverlay {
 		return
 	}
 	if r, _, _ := procIsIconic.Call(s.hwnd); r != 0 {

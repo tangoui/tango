@@ -51,8 +51,9 @@ const (
 	KindModal  = platform.KindModal  // modal to SurfaceOptions.Parent
 	KindSheet  = platform.KindSheet  // macOS sheet on Parent; KindModal elsewhere
 
-	// KindOverlay is a borderless window above ordinary windows on all
-	// desktops. Showing or clicking it leaves the active application
+	// KindOverlay is a borderless window above ordinary windows. On macOS
+	// it follows the active Space. On Windows it stays above ordinary
+	// windows on its virtual desktop. Showing or clicking it leaves the active application
 	// and keyboard focus in place. Focus does nothing, IsFocused returns false,
 	// and the surface emits no focus or blur events.
 	// It cannot supply blur-driven dismissal to sys/flyout.
@@ -61,10 +62,10 @@ const (
 	// ignored, including when changing appearance. Transparency, background,
 	// material, shadow and opacity can be configured. SetState only accepts
 	// StateNormal. Unsupported backends return ErrUnsupported at creation.
-	// Currently only macOS supports this kind.
+	// macOS and Windows support this kind.
 	//
 	// Canvas overlays support mouse hover while the app is inactive. WebView
-	// hover and selection styling while inactive are best effort. Full-screen
+	// hover and selection styling while inactive are best effort. On macOS, full-screen
 	// visibility was verified with an LSBackgroundOnly input method. For an
 	// ordinary unpackaged app, full-screen visibility is unverified and the
 	// app can still activate at startup.

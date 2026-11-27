@@ -135,6 +135,11 @@ type surfaceExt struct {
 	zoom         float64 // arm64: CSS zoom factor (0 = 1)
 }
 
+var _ platform.OverlaySupport = (*Backend)(nil)
+
+// SupportsOverlay reports support for non-activating, topmost tool windows.
+func (*Backend) SupportsOverlay() bool { return true }
+
 // platform.CreatorEx
 
 func (b *Backend) NewSurfaceEx(id platform.SurfaceID, opts platform.SurfaceOptions, ex platform.SurfaceExtras) (platform.Surface, error) {
@@ -158,6 +163,12 @@ func (s *surface) prepareExtras(ex *platform.SurfaceExtras) (exStyle, owner uint
 	s.ext.kind = ex.Kind
 	if s.ext.kind == platform.KindSheet {
 		s.ext.kind = platform.KindModal
+	}
+	if s.ext.kind == platform.KindOverlay {
+		s.style = overlayStyle
+		s.ext.acceptFiles = ex.AcceptFiles
+		s.ext.frameless = true
+		return overlayExStyle, 0
 	}
 	if p := s.b.byID[ex.Parent]; p != nil && !p.closed && s.ext.kind != platform.KindWindow {
 		s.ext.owner = p.hwnd // owned: stays above the parent, goes with it
@@ -363,7 +374,7 @@ func (s *surface) IsVisible() bool {
 // IsFocused reports whether the window is the foreground window (active
 // in the foreground app), as SurfaceFocused / SurfaceBlurred track it.
 func (s *surface) IsFocused() bool {
-	if s.closed || s.hwnd == 0 {
+	if s.closed || s.hwnd == 0 || s.ext.kind == platform.KindOverlay {
 		return false
 	}
 	fg, _, _ := procGetForegroundWindow.Call()
@@ -443,7 +454,7 @@ func (s *surface) State() platform.WindowState {
 }
 
 func (s *surface) SetState(st platform.WindowState) {
-	if s.closed {
+	if s.closed || s.ext.kind == platform.KindOverlay {
 		return
 	}
 	if !s.shown {
@@ -511,6 +522,11 @@ func (s *surface) exitFullscreen() {
 func (s *surface) SetAppearance(a platform.Appearance) {
 	if s.closed {
 		return
+	}
+	if s.ext.kind == platform.KindOverlay {
+		a.TitleBar = platform.TitleBarNone
+		a.AlwaysOnTop = true
+		a.NoClose, a.NoMinimize, a.NoMaximize = true, true, true
 	}
 	first := !s.ext.hasApp
 	old := s.ext.app

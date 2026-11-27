@@ -161,6 +161,7 @@ const (
 	wmQuit            = 0x0012
 	wmEndSession      = 0x0016
 	wmActivateApp     = 0x001C
+	wmMouseActivate   = 0x0021
 	wmGetMinMaxInfo   = 0x0024
 	wmCommand         = 0x0111
 	wmMoving          = 0x0216
