@@ -192,13 +192,23 @@ SectionEnd
 - `icon` 是项目内的菜单图标 PNG。省略时使用应用图标（如果有）。
 - `connection` 默认为 `<id>_Connection`。macOS 从应用包读取该值。若在 `ime.Handler.Connection` 中设置覆盖值，两者必须一致。
 - `modes` 按显示顺序声明可选模式。每项需要唯一的 `id`、显示名 `label` 和状态短文字 `short`。应用用 `ime.SetMode` 传入模式 `id`。macOS 输入源 ID 采用 `<应用 id>.<模式 id>`。模式 `en` 的语言为英语，其余模式沿用 `language`。每个模式可以覆盖菜单图标，省略时使用输入法的默认图标。
-- `windows.clsid`、`windows.profile` 和 `linux.engine` 为后续平台打包预留。
+- `windows.clsid`、`windows.profile` 和 `windows.langid` 配置 Windows TSF 注册。`linux.engine` 为 Linux 打包预留。
 
 `macos.inputMethod` 是已弃用的兼容别名。迁移时把整个配置段移到顶层，两种写法只能使用一种。
 
 把生成的 `.app` 复制到 `~/Library/Input Methods/`。首次安装或新增输入模式后，请注销并重新登录，让 macOS 重新加载系统输入菜单。在「系统设置 → 键盘 → 文字输入 → 编辑」中添加要用的输入法和模式，再从输入菜单选择。后台通过 TIS 启用输入源时，其他进程可能仍读不到启用状态。
 
 更新已运行的输入法时，用 `killall <可执行文件名>` 结束旧进程，macOS 会在下次使用该输入法时重新启动它。
+
+## Windows 输入法
+
+顶层 `inputMethod` 会让 `tan package -platform windows/amd64` 生成机器级 NSIS 输入法安装包。安装需要 UAC，默认装到 Program Files。登录时系统启动输入法宿主，TSF 桥接 DLL 与当前登录会话中的宿主通信。应用仍通过 `ime.Serve` 启动宿主。安装包为目标架构放入对应的 TSF DLL。
+
+`inputMethod.windows.clsid` 和 `profile` 省略时由应用 ID 稳定生成。升级时请保留同一应用 ID、CLSID 和语言配置 GUID。`langid` 默认为 `0804`（简体中文，中国）。Windows 语言栏接受模式的 ICO 或 PNG 图标，其他格式采用模式短文字绘制图标。
+
+`tan` 根据应用所用的 Tango 模块版本下载桥接 DLL，并校验发布构建内置的 SHA-256。使用本地 Tango 时，设置 `TANGO_IME_BRIDGE_DIR` 指向包含 `TangoIMEBridge-x64.dll` 或 `TangoIMEBridge-arm64.dll` 的目录。
+
+桥接 DLL、宿主和安装器默认使用未签名的构建。启用智能应用控制的 Windows 11 可能拒绝加载未签名产物。需要签名时配置 `windows.certificate`，`tan package` 会沿用 Windows 签名流程同时签名。ARM64 桥接提供原生 DLL。Windows 32 位客户端不在支持范围内。
 
 ## macOS 磁盘映像
 

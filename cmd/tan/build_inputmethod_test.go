@@ -98,7 +98,7 @@ func TestRepertoire(t *testing.T) {
 }
 
 func TestInputMethodTopLevel(t *testing.T) {
-	cfg, err := ParseConfig([]byte(`{"name":"Toy","id":"com.example.inputmethod.toy","version":"1.0.0","inputMethod":{"connection":"ToyConnection","language":"ja","icon":"custom.png","windows":{"clsid":"x","profile":"y"},"linux":{"engine":"toy"}}}`))
+	cfg, err := ParseConfig([]byte(`{"name":"Toy","id":"com.example.inputmethod.toy","version":"1.0.0","inputMethod":{"connection":"ToyConnection","language":"ja","icon":"custom.png","windows":{"clsid":"{12345678-1234-1234-1234-123456789abc}","profile":"{87654321-4321-4321-4321-abcdefabcdef}"},"linux":{"engine":"toy"}}}`))
 	if err != nil {
 		t.Fatal(err)
 	}

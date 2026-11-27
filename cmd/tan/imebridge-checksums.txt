@@ -1,0 +1,1 @@
+# Release CI appends the tag, architecture and SHA-256 before building tan.

@@ -338,3 +338,8 @@ grep -F 'tango-version:' "$check_dir/app/.agents/skills/tango/SKILL.md"
 - **版本校验或技能检查失败**：根据日志核对根标签、构建参数和该标签下的 `skills/tango/`。修复源码后发布新补丁版本。已推送的 Go 模块标签应保留，必要时可以在 `go.mod` 里用 `retract` 撤回旧版本。
 - **npm 已发布但有问题**：npm 上的版本号不能复用。发布 `0.2.1` 修复，并用 `npm deprecate @tangoui/runtime@0.2.0 "<原因>"` 标记旧版本。
 - **只想重建附件**：Actions → Release → Run workflow，填已有标签；这时不会发布 npm、不会部署文档。
+
+
+### Windows TSF 桥接资产
+
+发布流水线在 Ubuntu 上用固定版本的 llvm-mingw 构建两种架构的 Windows TSF DLL。它在构建 `tan` 之前将标签、架构和每个 DLL 的 SHA-256 写入 CLI 的内置校验表。对应的 DLL 随安装包工具一并上传到 GitHub Release。本地应用打包可通过 `TANGO_IME_BRIDGE_DIR` 使用自行构建的 DLL。

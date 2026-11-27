@@ -160,7 +160,7 @@ type InputMethod struct {
 	Language   string      `json:"language,omitempty"`   // intended language, defaults to zh-Hans
 	Icon       string      `json:"icon,omitempty"`       // project-relative menu icon PNG, defaults to the app icon
 	Modes      []InputMode `json:"modes,omitempty"`      // in display order
-	Windows    *IMEWindows `json:"windows,omitempty"`    // reserved for Windows IME packaging
+	Windows    *IMEWindows `json:"windows,omitempty"`    // settings for the Windows TSF bridge
 	Linux      *IMELinux   `json:"linux,omitempty"`      // reserved for Linux IME packaging
 }
 
@@ -175,6 +175,7 @@ type InputMode struct {
 type IMEWindows struct {
 	CLSID   string `json:"clsid,omitempty"`
 	Profile string `json:"profile,omitempty"`
+	LangID  string `json:"langid,omitempty"` // four hexadecimal digits, default 0804
 }
 
 type IMELinux struct {
@@ -413,6 +414,11 @@ func (c *Config) validate() error {
 			errs = append(errs, fmt.Errorf(`"%s.icon" path %q must be relative to the project`, field, im.Icon))
 		}
 		errs = append(errs, im.validateModes(field)...)
+		if c.InputMethod != nil && im.Windows != nil {
+			if _, err := c.windowsIME(); err != nil {
+				errs = append(errs, err)
+			}
+		}
 	}
 	if !versionPattern.MatchString(c.Version) {
 		errs = append(errs, fmt.Errorf(`"version" %q must look like 1.2.3`, c.Version))

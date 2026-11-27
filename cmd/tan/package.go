@@ -371,12 +371,21 @@ func writeTarGz(out, prefix string, files map[string]fileEntry) error {
 // With a signing certificate configured (winsign.go) the executable is
 // signed before NSIS packs it, and the installer after.
 func packageWindows(ctx context.Context, cfg *Config, a artifact) ([]string, error) {
+	ime, err := prepareIMEPackage(ctx, cfg, a)
+	if err != nil {
+		return nil, err
+	}
+	a.ime = ime
 	signer, sign, err := packageSigner(cfg)
 	if err != nil {
 		return nil, err
 	}
 	if sign {
-		for _, executable := range append([]string{a.exe}, a.helpers...) {
+		executables := append([]string{a.exe}, a.helpers...)
+		if ime != nil {
+			executables = append(executables, ime.DLL.Source)
+		}
+		for _, executable := range executables {
 			if err := signWindowsFile(ctx, signer, executable); err != nil {
 				return nil, err
 			}

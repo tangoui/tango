@@ -125,11 +125,12 @@ func signalContext() (context.Context, context.CancelFunc) {
 type artifact struct {
 	target   target
 	features buildFeatures
-	dir      string   // <out>/<os>-<arch>
-	path     string   // the .app bundle, the executable, or the APK
-	exe      string   // the executable itself
-	extra    []string // more outputs (.ipa, .aab)
-	helpers  []string // built helper executable paths for desktop packaging
+	dir      string      // <out>/<os>-<arch>
+	path     string      // the .app bundle, the executable, or the APK
+	exe      string      // the executable itself
+	extra    []string    // more outputs (.ipa, .aab)
+	helpers  []string    // built helper executable paths for desktop packaging
+	ime      *imePackage // Windows installer input method files
 }
 
 // build runs the front-end build once, then builds every target.

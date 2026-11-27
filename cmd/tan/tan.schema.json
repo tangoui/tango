@@ -206,6 +206,10 @@
         "clsid": {
           "type": "string"
         },
+        "langid": {
+          "description": "four hexadecimal digits, default 0804",
+          "type": "string"
+        },
         "profile": {
           "type": "string"
         }
@@ -316,7 +320,7 @@
         },
         "windows": {
           "$ref": "#/$defs/IMEWindows",
-          "description": "reserved for Windows IME packaging"
+          "description": "settings for the Windows TSF bridge"
         }
       },
       "type": "object"

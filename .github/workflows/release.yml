@@ -115,6 +115,26 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: "**/go.sum"
 
+      - name: Build Windows input method bridges
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          toolchain=llvm-mingw-20261117-ucrt-ubuntu-22.04-x86_64.tar.xz
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/$toolchain" \
+            "https://github.com/mstorsjo/llvm-mingw/releases/download/20261117/$toolchain"
+          (cd "$RUNNER_TEMP" && echo "e7a15a49a2ea95e9f3d8a9d0cfabe5052a4b10fb4777cc54de5a8c27b64bb701  $toolchain" | sha256sum -c -)
+          tar -xJf "$RUNNER_TEMP/$toolchain" -C "$RUNNER_TEMP"
+          export PATH="$RUNNER_TEMP/${toolchain%.tar.xz}/bin:$PATH"
+          for arch in x64 arm64; do
+            triple=x86_64
+            [ "$arch" != arm64 ] || triple=aarch64
+            TANGO_IME_CXX="$triple-w64-mingw32-clang++" bash internal/imebridge/windows/build.sh "$arch" dist
+            file="dist/TangoIMEBridge-$arch.dll"
+            digest=$(sha256sum "$file" | cut -d' ' -f1)
+            printf 'v%s %s %s\n' "$VERSION" "$arch" "$digest" >> cmd/tan/imebridge-checksums.txt
+          done
+
       - name: Cross-compile tan
         env:
           CGO_ENABLED: "0"
