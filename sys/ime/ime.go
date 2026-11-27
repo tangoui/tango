@@ -12,6 +12,9 @@
 // and Linux uses IBus. The [input method example] shows how to build and
 // install each host.
 //
+// Use Handler.End to release per-session state such as a candidate window.
+// See Handler.Connection for the name expected by the platform's host.
+//
 // [input method example]: https://github.com/tangoui/tango/tree/main/examples/inputmethod
 package ime
 
@@ -40,7 +43,10 @@ type Key struct {
 	Shift, Ctrl, Alt, Meta bool
 }
 
-// Handler receives events on the app's main thread.
+// Handler receives events on the app's main thread. Callback panics are
+// recovered and reported to tango.Options.OnPanic when set. The process keeps
+// running regardless of its return value. A panicking Key leaves the key
+// unhandled.
 type Handler struct {
 	// Connection overrides the platform default. On macOS the default comes
 	// from InputMethodConnectionName in Info.plist, or the bundle identifier
@@ -76,7 +82,9 @@ var (
 )
 
 // Serve starts the process's input method server. Call it from OnReady.
-// A failed start can be retried. A successful server runs until process exit.
+// A successful server runs until process exit. Startup errors such as an
+// unavailable IBus daemon can be retried. macOS and Linux cache native IME
+// loading errors for the life of the process, so retry those after restarting.
 func Serve(a *tango.App, h Handler) error {
 	im, ok := backendOf(a)
 	if !ok {

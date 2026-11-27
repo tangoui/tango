@@ -28,6 +28,8 @@ type Panic struct {
 	// AwaitAsync), "OnReady", "event handler" (OnXxx handlers),
 	// "canvas callback", "ui frame", "goroutine" (App.Go), or
 	// "binding Service.Method" / "stream Service.Method" (ipc).
+	// Input method callbacks use "ime key", "ime activate", "ime deactivate",
+	// "ime commit composition", or "ime end".
 	Where string
 }
 
@@ -120,8 +122,9 @@ func guardCall[T any](a *App, where string, def T, fn func() T) (v T) {
 	return v
 }
 
-// reportPanic hands p to Options.OnPanic or the default handling. mayExit
-// false (ipc bindings) only reports: keepRunning is ignored.
+// reportPanic hands p to Options.OnPanic or the default handling.
+// With mayExit set to false, as for IPC bindings and IME callbacks, the
+// process keeps running regardless of the handler's return value.
 func (a *App) reportPanic(p Panic, mayExit bool) {
 	keep := !releaseBuild
 	fn := a.opts.OnPanic
