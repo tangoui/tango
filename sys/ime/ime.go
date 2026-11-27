@@ -57,6 +57,9 @@ type Handler struct {
 	// CommitComposition runs when the system requests an immediate end to
 	// composition. A nil handler leaves composition up to the app.
 	CommitComposition func(s *Session)
+	// End runs once when an activated session or one seen by a handler ends.
+	// The session is already closed. Use End to release associated state.
+	End func(s *Session)
 }
 
 var (
@@ -128,6 +131,8 @@ func (s *server) IMEKey(id uint64, k platform.IMEKey) bool {
 }
 
 func (s *server) IMEActivate(id uint64) {
+	// An activated session can end before it receives its first key.
+	s.session(id)
 	s.call(id, "ime activate", s.h.Activate)
 }
 
@@ -139,7 +144,13 @@ func (s *server) IMECommitComposition(id uint64) {
 	s.call(id, "ime commit composition", s.h.CommitComposition)
 }
 
-func (s *server) IMEEnd(id uint64) { delete(s.sessions, id) }
+func (s *server) IMEEnd(id uint64) {
+	session := s.sessions[id]
+	delete(s.sessions, id)
+	if session != nil && s.h.End != nil {
+		corehook.GuardNonFatal(s.app, "ime end", func() { s.h.End(session) })
+	}
+}
 
 func (s *server) call(id uint64, where string, fn func(*Session)) {
 	if fn != nil {

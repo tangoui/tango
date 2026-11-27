@@ -145,11 +145,15 @@ func TestSessionRouting(t *testing.T) {
 
 func TestEndForgetsSession(t *testing.T) {
 	a, f := runInputMethod(t, tango.Options{})
-	var sessions []*Session
+	var sessions, ended []*Session
 	record := func(s *Session) { sessions = append(sessions, s) }
 	if err := Serve(a, Handler{
 		Key:      func(s *Session, _ Key) bool { record(s); return true },
 		Activate: record, Deactivate: record, CommitComposition: record,
+		End: func(s *Session) {
+			ended = append(ended, s)
+			s.Commit("during End")
+		},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -158,12 +162,16 @@ func TestEndForgetsSession(t *testing.T) {
 		f.sink.IMECommitComposition(7)
 		f.sink.IMEDeactivate(7)
 		f.sink.IMEEnd(7)
+		f.sink.IMEEnd(7)
 		f.sink.IMEKey(7, platform.IMEKey{})
 		sessions[0].Commit("stale")
 		return true
 	})
 	if len(sessions) != 4 || sessions[0] != sessions[1] || sessions[0] != sessions[2] || sessions[0] == sessions[3] {
 		t.Fatalf("session lifecycle = %v", sessions)
+	}
+	if len(ended) != 1 || ended[0] != sessions[0] {
+		t.Fatalf("End received %v, want the original session once", ended)
 	}
 	if f.committed != "" {
 		t.Fatalf("ended session committed %q", f.committed)
@@ -186,5 +194,21 @@ func TestSessionReplacesInvalidUTF8(t *testing.T) {
 	tango.Await(a, func() bool { return f.sink.IMEKey(1, platform.IMEKey{}) })
 	if want := "你\uFFFD"; f.marked != want || f.committed != want {
 		t.Fatalf("marked %q, committed %q; want %q", f.marked, f.committed, want)
+	}
+}
+
+func TestEndWithoutActivateHandler(t *testing.T) {
+	a, f := runInputMethod(t, tango.Options{})
+	var ended *Session
+	if err := Serve(a, Handler{Key: passKey, End: func(s *Session) { ended = s }}); err != nil {
+		t.Fatal(err)
+	}
+	tango.Await(a, func() bool {
+		f.sink.IMEActivate(9)
+		f.sink.IMEEnd(9)
+		return true
+	})
+	if ended == nil || ended.ID() != 9 {
+		t.Fatalf("End got %v, want session 9", ended)
 	}
 }

@@ -23,3 +23,29 @@ func TestKeyPanicPassesThrough(t *testing.T) {
 		t.Errorf("OnPanic received %+v", seen)
 	}
 }
+
+func TestEndPanicKeepsServing(t *testing.T) {
+	var seen tango.Panic
+	var keys []*Session
+	a, f := runInputMethod(t, tango.Options{OnPanic: func(p tango.Panic) bool {
+		seen = p
+		return false
+	}})
+	if err := Serve(a, Handler{
+		Key: func(s *Session, _ Key) bool { keys = append(keys, s); return true },
+		End: func(*Session) { panic("end panic") },
+	}); err != nil {
+		t.Fatal(err)
+	}
+	tango.Await(a, func() bool {
+		f.sink.IMEKey(7, platform.IMEKey{})
+		f.sink.IMEEnd(7)
+		return f.sink.IMEKey(7, platform.IMEKey{})
+	})
+	if len(keys) != 2 || keys[0] == keys[1] {
+		t.Fatalf("keys after End = %v", keys)
+	}
+	if seen.Value != "end panic" || seen.Where != "ime end" || len(seen.Stack) == 0 {
+		t.Errorf("OnPanic received %+v", seen)
+	}
+}
