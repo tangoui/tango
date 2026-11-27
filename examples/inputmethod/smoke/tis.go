@@ -17,20 +17,19 @@ import (
 )
 
 type tis struct {
-	createList        func(uintptr, bool) uintptr
-	current           func() uintptr
-	property          func(uintptr, uintptr) uintptr
-	register          func(uintptr) int32
-	enable            func(uintptr) int32
-	selectInput       func(uintptr) int32
-	disable           func(uintptr) int32
-	count             func(uintptr) int
-	at                func(uintptr, int) uintptr
-	string            func(uintptr, []byte, int, uint32) bool
-	boolean           func(uintptr) bool
-	fileURL           func(uintptr, []byte, int, bool) uintptr
-	release           func(uintptr)
-	idKey, enabledKey uintptr
+	createList  func(uintptr, bool) uintptr
+	current     func() uintptr
+	property    func(uintptr, uintptr) uintptr
+	register    func(uintptr) int32
+	enable      func(uintptr) int32
+	selectInput func(uintptr) int32
+	disable     func(uintptr) int32
+	count       func(uintptr) int
+	at          func(uintptr, int) uintptr
+	string      func(uintptr, []byte, int, uint32) bool
+	fileURL     func(uintptr, []byte, int, bool) uintptr
+	release     func(uintptr)
+	idKey       uintptr
 }
 
 func loadTIS() (t tis, err error) {
@@ -52,15 +51,10 @@ func loadTIS() (t tis, err error) {
 	purego.RegisterLibFunc(&t.count, cf, "CFArrayGetCount")
 	purego.RegisterLibFunc(&t.at, cf, "CFArrayGetValueAtIndex")
 	purego.RegisterLibFunc(&t.string, cf, "CFStringGetCString")
-	purego.RegisterLibFunc(&t.boolean, cf, "CFBooleanGetValue")
 	purego.RegisterLibFunc(&t.fileURL, cf, "CFURLCreateFromFileSystemRepresentation")
 	purego.RegisterLibFunc(&t.release, cf, "CFRelease")
 	// These exported data symbols contain the addresses of the CFStrings.
 	t.idKey, err = dataSymbol(carbon, "kTISPropertyInputSourceID")
-	if err != nil {
-		return t, err
-	}
-	t.enabledKey, err = dataSymbol(carbon, "kTISPropertyInputSourceIsEnabled")
 	return t, err
 }
 
@@ -83,8 +77,41 @@ func (t tis) sourceID(source uintptr) string {
 	return string(buf[:bytes.IndexByte(buf[:], 0)])
 }
 
+func (t tis) status(id string) (string, error) {
+	// An input mode can report its default enabled flag while its parent
+	// is disabled. Use the effective list before checking registration.
+	for _, includeDisabled := range []bool{false, true} {
+		sources := t.createList(0, includeDisabled)
+		if sources == 0 {
+			return "", errors.New("TISCreateInputSourceList failed")
+		}
+		count := t.count(sources)
+		found := false
+		for i := 0; i < count; i++ {
+			if t.sourceID(t.at(sources, i)) == id {
+				found = true
+				break
+			}
+		}
+		t.release(sources)
+		if found {
+			if includeDisabled {
+				return "disabled", nil
+			}
+			return "enabled", nil
+		}
+	}
+	return "missing", nil
+}
+
 func (t tis) run(action, argument string) error {
 	switch action {
+	case "status":
+		state, err := t.status(argument)
+		if err == nil {
+			fmt.Println(state)
+		}
+		return err
 	case "current":
 		source := t.current()
 		if source == 0 {
@@ -120,13 +147,6 @@ func (t tis) run(action, argument string) error {
 			continue
 		}
 		switch action {
-		case "status":
-			if value := t.property(source, t.enabledKey); value != 0 && t.boolean(value) {
-				fmt.Println("enabled")
-			} else {
-				fmt.Println("disabled")
-			}
-			return nil
 		case "enable":
 			return checkStatus(action, argument, t.enable(source))
 		case "select":
@@ -134,10 +154,6 @@ func (t tis) run(action, argument string) error {
 		case "disable":
 			return checkStatus(action, argument, t.disable(source))
 		}
-	}
-	if action == "status" {
-		fmt.Println("missing")
-		return nil
 	}
 	return fmt.Errorf("input source %q does not appear in the TIS list", argument)
 }

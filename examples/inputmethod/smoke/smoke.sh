@@ -130,7 +130,16 @@ ditto "$app" "$bundle"
 killall -q TangoPinyin || true
 "$tis" register "$bundle"
 "$tis" enable "$parent_source_id"
-"$tis" enable "$source_id"
+for id in "$source_id" "$parent_source_id.en"; do
+	"$tis" enable "$id"
+done
+for id in "$source_id" "$parent_source_id.en"; do
+	state=$("$tis" status "$id")
+	if [[ "$state" != enabled ]]; then
+		echo "Test mode $id is $state in a fresh TIS process. For manual verification, install the built app and enable both Tango modes in System Settings → Keyboard → Input Sources." >&2
+		exit 1
+	fi
+done
 
 first="$work/Tango IME Smoke.txt"
 second="$work/Tango IME Focus.txt"

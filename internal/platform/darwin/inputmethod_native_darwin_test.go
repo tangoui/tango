@@ -161,8 +161,10 @@ func runNativeIMEController() {
 			panic("unknown mode accepted")
 		}
 		var selected []string
+		var selectedClient id
 		classDef("TangoIMEProbeClient", "NSObject", nil, []objc.MethodDef{
-			method("selectInputMode:", func(_ id, _ objc.SEL, mode id) {
+			method("selectInputMode:", func(self id, _ objc.SEL, mode id) {
+				selectedClient = self
 				selected = append(selected, goString(mode))
 				send(imeHost.controllers[imeHost.active], "setValue:forTag:client:", uintptr(mode), 0x696d696d, 0)
 			}),
@@ -170,11 +172,17 @@ func runNativeIMEController() {
 		})
 		client := alloc("TangoIMEProbeClient")
 		defer release(client)
-		if !objc.GetClass(imeControllerClass).AddMethod(sel("client"), objc.NewIMP(func(id, objc.SEL) id { return client }), "@@:") {
+		oldClient := alloc("TangoIMEProbeClient")
+		defer release(oldClient)
+		clientFor := map[id]id{controller: oldClient}
+		if !objc.GetClass(imeControllerClass).AddMethod(sel("client"), objc.NewIMP(func(self id, _ objc.SEL) id {
+			return clientFor[self]
+		}), "@@:") {
 			panic("failed to override the probe controller client")
 		}
 		active := send(class(imeControllerClass), "alloc")
 		defer release(active)
+		clientFor[active] = client
 		imeHost.sessions[active] = 2
 		imeHost.controllers[2] = active
 		imeHost.active = 2
@@ -199,9 +207,10 @@ func runNativeIMEController() {
 		}
 		systemMode(active, "zh")
 		systemMode(controller, "en") // a notification from the older session
-		if got := host.IMECurrentMode(); got != "zh" ||
+		if got := host.IMECurrentMode(); got != "zh" || selectedClient != client ||
 			!slices.Equal(sink.modes, []string{"en"}) || !slices.Equal(selected, []string{bundle + ".zh"}) {
-			panic(fmt.Sprintf("mode = %q, callbacks = %v, selection = %v", got, sink.modes, selected))
+			panic(fmt.Sprintf("mode = %q, callbacks = %v, selection = %v, client = %#x want %#x",
+				got, sink.modes, selected, selectedClient, client))
 		}
 		// The probe has no initialized IMK server, so simulate its focus
 		// handoff without invoking the superclass's transport.
