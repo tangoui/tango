@@ -126,7 +126,10 @@ func main() {
 				}
 				return false
 			},
-			ModeChanged: mode.changed,
+			ModeChanged: func(id string) {
+				mode.changed(id)
+				log.Printf("Tango Pinyin system mode: %s", id)
+			},
 			Menu:        mode.menu,
 			MenuClicked: mode.click,
 		})

@@ -133,6 +133,14 @@ func (*backend) ServeInputMethod(connection string, sink platform.InputMethodSin
 			imeHost.inactive = nil
 			imeHost.modes = imeModes{}
 			err = fmt.Errorf("darwin: IMKServer initialization failed for %q", connection)
+			return
+		}
+		if len(imeHost.modes.ids) != 0 {
+			if source, sourceErr := loadIMEInputSource(); sourceErr == nil {
+				imeHost.modes.source = source
+				imeObserveInputSource()
+				watchIMEInputSource(source.notification)
+			}
 		}
 	})
 	return err
@@ -216,6 +224,9 @@ func imeHandleEvent(self id, _ objc.SEL, event, _ id) bool {
 		if session == 0 {
 			return
 		}
+		if session == imeHost.active {
+			imeObserveInputSource()
+		}
 		code := uint16(send(event, "keyCode"))
 		flags := uint(send(event, "modifierFlags"))
 		if kind == nsEventTypeFlagsChanged {
@@ -241,6 +252,7 @@ func imeActivate(self id, cmd objc.SEL, client id) {
 			imeHost.active = session
 			imeHost.modes.applyPending(imeClient(session))
 			imeHost.sink.IMEActivate(session)
+			imeObserveInputSource()
 		}
 	})
 }

@@ -4,6 +4,7 @@ package darwin
 
 import (
 	"fmt"
+	"log"
 	"slices"
 
 	"github.com/ebitengine/purego/objc"
@@ -13,10 +14,13 @@ import (
 const imeDocumentInputModeTag = 0x696d696d // kTSMDocumentInputModePropertyTag, 'imim'
 
 type imeModes struct {
-	bundleID string
-	ids      []string
-	current  string
-	pending  bool // an application selection awaiting an active client
+	bundleID   string
+	ids        []string
+	current    string
+	pending    bool // an application selection awaiting an active client
+	source     imeInputSource
+	lastSource string
+	request    uint64
 }
 
 var _ platform.InputMethodModes = (*backend)(nil)
@@ -55,6 +59,7 @@ func (*backend) IMESetMode(mode string) error {
 		return fmt.Errorf("ime: undeclared input mode %q", mode)
 	}
 	if m.current != mode {
+		m.request++
 		m.current, m.pending = mode, true
 		withPool(func() { m.applyPending(imeClient(imeHost.active)) })
 	}
@@ -64,9 +69,74 @@ func (*backend) IMESetMode(mode string) error {
 func (*backend) IMECurrentMode() string { return imeHost.modes.current }
 
 func (m *imeModes) applyPending(client id) {
-	if m.pending && client != 0 {
-		m.pending = false
-		send(client, "selectInputMode:", uintptr(nsString(imeModeSourceID(m.bundleID, m.current))))
+	if !m.pending || client == 0 {
+		return
+	}
+	mode, request, session := m.current, m.request, imeHost.active
+	before := ""
+	if m.source.current != nil {
+		before = m.source.current()
+		m.lastSource = before
+	}
+	m.pending = false
+	send(client, "selectInputMode:", uintptr(nsString(imeModeSourceID(m.bundleID, mode))))
+	if before == "" {
+		return
+	}
+	// Let the client finish the IMK event before using the TIS fallback.
+	postMain(func() {
+		if m.request == request && imeHost.active == session {
+			m.selectInputSourceIfUnchanged(mode, before)
+			imeObserveInputSource()
+		}
+	})
+}
+
+func (m *imeModes) selectInputSourceIfUnchanged(mode, before string) {
+	if m.current != mode || !slices.Contains(m.ids, imeModeID(m.bundleID, before)) {
+		return
+	}
+	want := imeModeSourceID(m.bundleID, mode)
+	if before != want && m.source.current() == before {
+		if err := m.source.selectMode(want); err != nil {
+			log.Printf("tango: IME mode: %v", err)
+		}
+	}
+}
+
+func (m *imeModes) observeInputSource() string {
+	if m.source.current == nil {
+		return ""
+	}
+	sourceID := m.source.current()
+	if sourceID == m.lastSource {
+		return ""
+	}
+	m.lastSource = sourceID
+	mode := imeModeID(m.bundleID, sourceID)
+	if m.acceptSystemMode(mode) {
+		return mode
+	}
+	return ""
+}
+
+func (m *imeModes) acceptSystemMode(mode string) bool {
+	if mode == m.current || !slices.Contains(m.ids, mode) {
+		return false
+	}
+	m.current, m.pending = mode, false
+	return true
+}
+
+func imeObserveInputSource() {
+	if mode := imeHost.modes.observeInputSource(); mode != "" {
+		imeNotifyModeChanged(mode)
+	}
+}
+
+func imeNotifyModeChanged(mode string) {
+	if sink, ok := imeHost.sink.(platform.InputMethodModeSink); ok {
+		sink.IMEModeChanged(mode)
 	}
 }
 
@@ -86,12 +156,8 @@ func imeSetValue(self id, cmd objc.SEL, value id, tag int, client id) {
 			return
 		}
 		mode := imeModeID(m.bundleID, goString(value))
-		if mode == m.current || !slices.Contains(m.ids, mode) {
-			return
-		}
-		m.current, m.pending = mode, false
-		if sink, ok := imeHost.sink.(platform.InputMethodModeSink); ok {
-			sink.IMEModeChanged(mode)
+		if m.acceptSystemMode(mode) {
+			imeNotifyModeChanged(mode)
 		}
 	})
 }

@@ -136,7 +136,7 @@ done
 for id in "$source_id" "$parent_source_id.en"; do
 	state=$("$tis" status "$id")
 	if [[ "$state" != enabled ]]; then
-		echo "Test mode $id is $state in a fresh TIS process. For manual verification, install the built app and enable both Tango modes in System Settings → Keyboard → Input Sources." >&2
+		echo "Test mode $id is $state in a fresh TIS process. For manual verification, install the built app, sign out and sign back in, then add both Tango modes in System Settings → Keyboard → Input Sources." >&2
 		exit 1
 	fi
 done
