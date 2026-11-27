@@ -1,6 +1,7 @@
 package darwin
 
 import (
+	"strings"
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -9,13 +10,41 @@ import (
 	"github.com/tangoui/tango/ui/input"
 )
 
-func imeKey(code uint16, chars, charsIgnoringMods string, flags uint) platform.IMEKey {
+const (
+	nsEventTypeKeyDown      = 10
+	nsEventTypeFlagsChanged = 12
+	imeRecognizedEventsMask = 1<<nsEventTypeKeyDown | 1<<nsEventTypeFlagsChanged
+	nsCapsLockKeyMask       = 1 << 16
+)
+
+func imeModifierFromFlags(code uint16, flags uint) (platform.IMEModifierKey, bool) {
+	caps := flags&nsCapsLockKeyMask != 0
+	if code == macCapsLockCode {
+		return platform.IMEModifierKey{Code: "CapsLock", Down: caps, CapsLock: caps}, true
+	}
+	key, down, _, ok := modifierKeyFromMac(code, flags)
+	if !ok {
+		return platform.IMEModifierKey{}, false
+	}
+	name := key.String()
+	switch key {
+	case input.KeyCtrlLeft:
+		name = "ControlLeft"
+	case input.KeyCtrlRight:
+		name = "ControlRight"
+	}
+	return platform.IMEModifierKey{Code: name, Down: down, CapsLock: caps}, true
+}
+
+func imeKey(code uint16, chars, charsIgnoringMods string, flags uint, repeat bool) platform.IMEKey {
 	key := keyFromMac(code, charsIgnoringMods)
 	out := platform.IMEKey{
-		Shift: flags&nsShiftKeyMask != 0,
-		Ctrl:  flags&nsControlKeyMask != 0,
-		Alt:   flags&nsAlternateKeyMask != 0,
-		Meta:  flags&nsCommandKeyMask != 0,
+		Shift:    flags&nsShiftKeyMask != 0,
+		Ctrl:     flags&nsControlKeyMask != 0,
+		Alt:      flags&nsAlternateKeyMask != 0,
+		Meta:     flags&nsCommandKeyMask != 0,
+		CapsLock: flags&nsCapsLockKeyMask != 0,
+		Repeat:   repeat,
 	}
 	name := key.String()
 	switch {
@@ -34,6 +63,15 @@ func imeKey(code uint16, chars, charsIgnoringMods string, flags uint) platform.I
 		out.Text = chars
 	}
 	return out
+}
+
+func imeModeSourceID(bundleID, mode string) string { return bundleID + "." + mode }
+
+func imeModeID(bundleID, sourceID string) string {
+	if mode, ok := strings.CutPrefix(sourceID, bundleID+"."); ok {
+		return mode
+	}
+	return ""
 }
 
 // utf16Offset translates a rune index to an NSRange offset.

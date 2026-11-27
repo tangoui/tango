@@ -18,10 +18,11 @@ const imeControllerClass = "TangoInputController"
 
 var imeRuntime = struct {
 	sync.Once
-	err      error
-	mark     func(id, objc.SEL, id, nsRange, nsRange)
-	insert   func(id, objc.SEL, id, nsRange)
-	lineRect func(id, objc.SEL, int, *nsRect) id
+	err         error
+	mark        func(id, objc.SEL, id, nsRange, nsRange)
+	insert      func(id, objc.SEL, id, nsRange)
+	lineRect    func(id, objc.SEL, int, *nsRect) id
+	menuItemKey id
 }{}
 
 // IMK state is owned by the main thread. The retained server lives until
@@ -32,6 +33,8 @@ var imeHost struct {
 	nextSession uint64
 	sessions    map[id]uint64
 	controllers map[uint64]id
+	active      uint64
+	modes       imeModes
 }
 
 var _ platform.InputMethods = (*backend)(nil)
@@ -39,16 +42,23 @@ var _ platform.InputMethods = (*backend)(nil)
 func loadIME() error {
 	imeRuntime.Do(func() {
 		var l linker
-		l.open(frameworksDir + "InputMethodKit.framework/InputMethodKit")
+		imk := l.open(frameworksDir + "InputMethodKit.framework/InputMethodKit")
+		if imk != 0 {
+			imeRuntime.menuItemKey = id(constPtr(imk, "kIMKCommandMenuItemName"))
+		}
 		if imeRuntime.err = errors.Join(l.failures...); imeRuntime.err != nil {
 			return
 		}
 		_, imeRuntime.err = objc.RegisterClass(imeControllerClass, objc.GetClass("IMKInputController"), nil, nil, []objc.MethodDef{
 			method("initWithServer:delegate:client:", imeInitController),
 			method("handleEvent:client:", imeHandleEvent),
+			method("recognizedEvents:", imeRecognizedEvents),
 			method("activateServer:", imeActivate),
 			method("deactivateServer:", imeDeactivate),
 			method("commitComposition:", imeCommitComposition),
+			method("setValue:forTag:client:", imeSetValue),
+			method("menu", imeMenu),
+			method("tangoMenuItem:", imeMenuItem),
 			method("dealloc", imeDealloc),
 		})
 		if imeRuntime.err != nil {
@@ -109,6 +119,7 @@ func (*backend) ServeInputMethod(connection string, sink platform.InputMethodSin
 		imeHost.sink = sink
 		imeHost.sessions = make(map[id]uint64)
 		imeHost.controllers = make(map[uint64]id)
+		imeHost.modes = imeModesFromBundle(bundle, goString(bundleID))
 		server := send(class("IMKServer"), "alloc")
 		connection = imeConnectionName(connection, bundle)
 		imeHost.server = send(server, "initWithName:bundleIdentifier:", uintptr(nsString(connection)), uintptr(bundleID))
@@ -116,6 +127,7 @@ func (*backend) ServeInputMethod(connection string, sink platform.InputMethodSin
 			imeHost.sink = nil
 			imeHost.sessions = nil
 			imeHost.controllers = nil
+			imeHost.modes = imeModes{}
 			err = fmt.Errorf("darwin: IMKServer initialization failed for %q", connection)
 		}
 	})
@@ -150,20 +162,35 @@ func imeInitController(self id, cmd objc.SEL, server, delegate, client id) id {
 	return controller
 }
 
+func imeRecognizedEvents(id, objc.SEL, id) uint { return imeRecognizedEventsMask }
+
 func imeHandleEvent(self id, _ objc.SEL, event, _ id) bool {
-	const nsEventTypeKeyDown = 10
-	if event == 0 || send(event, "type") != nsEventTypeKeyDown {
+	if event == 0 {
+		return false
+	}
+	kind := send(event, "type")
+	if kind != nsEventTypeKeyDown && kind != nsEventTypeFlagsChanged {
 		return false
 	}
 	var handled bool
 	imeOnMain(func() {
-		if session := imeHost.sessions[self]; session != 0 {
-			code := uint16(send(event, "keyCode"))
-			chars := goString(send(event, "characters"))
-			unmodified := goString(send(event, "charactersIgnoringModifiers"))
-			flags := uint(send(event, "modifierFlags"))
-			handled = imeHost.sink.IMEKey(session, imeKey(code, chars, unmodified, flags))
+		session := imeHost.sessions[self]
+		if session == 0 {
+			return
 		}
+		code := uint16(send(event, "keyCode"))
+		flags := uint(send(event, "modifierFlags"))
+		if kind == nsEventTypeFlagsChanged {
+			if sink, ok := imeHost.sink.(platform.InputMethodModifiers); ok {
+				if mod, ok := imeModifierFromFlags(code, flags); ok {
+					handled = sink.IMEModifier(session, mod)
+				}
+			}
+			return
+		}
+		chars := goString(send(event, "characters"))
+		unmodified := goString(send(event, "charactersIgnoringModifiers"))
+		handled = imeHost.sink.IMEKey(session, imeKey(code, chars, unmodified, flags, sendBool(event, "isARepeat")))
 	})
 	return handled
 }
@@ -172,6 +199,8 @@ func imeActivate(self id, cmd objc.SEL, client id) {
 	self.SendSuper(cmd, client)
 	imeOnMain(func() {
 		if session := imeHost.sessions[self]; session != 0 {
+			imeHost.active = session
+			imeHost.modes.applyPending(imeClient(session))
 			imeHost.sink.IMEActivate(session)
 		}
 	})
@@ -181,6 +210,9 @@ func imeDeactivate(self id, cmd objc.SEL, client id) {
 	imeOnMain(func() {
 		if session := imeHost.sessions[self]; session != 0 {
 			imeHost.sink.IMEDeactivate(session)
+			if imeHost.active == session {
+				imeHost.active = 0
+			}
 		}
 	})
 	self.SendSuper(cmd, client)
@@ -199,6 +231,9 @@ func imeDealloc(self id, cmd objc.SEL) {
 		if session := imeHost.sessions[self]; session != 0 {
 			delete(imeHost.sessions, self)
 			delete(imeHost.controllers, session)
+			if imeHost.active == session {
+				imeHost.active = 0
+			}
 			imeHost.sink.IMEEnd(session)
 		}
 	})
