@@ -1,0 +1,23 @@
+pkg github.com/tangoui/tango/sys/ime, func Serve(*tango.App, Handler) error
+pkg github.com/tangoui/tango/sys/ime, method (*Session) Caret() tango.Rect
+pkg github.com/tangoui/tango/sys/ime, method (*Session) ClientApp() string
+pkg github.com/tangoui/tango/sys/ime, method (*Session) Commit(string)
+pkg github.com/tangoui/tango/sys/ime, method (*Session) ID() uint64
+pkg github.com/tangoui/tango/sys/ime, method (*Session) SetComposition(string, int)
+pkg github.com/tangoui/tango/sys/ime, type Handler struct
+pkg github.com/tangoui/tango/sys/ime, type Handler struct, Activate func(*Session)
+pkg github.com/tangoui/tango/sys/ime, type Handler struct, CommitComposition func(*Session)
+pkg github.com/tangoui/tango/sys/ime, type Handler struct, Connection string
+pkg github.com/tangoui/tango/sys/ime, type Handler struct, Deactivate func(*Session)
+pkg github.com/tangoui/tango/sys/ime, type Handler struct, Key func(*Session, Key) bool
+pkg github.com/tangoui/tango/sys/ime, type Handler struct, noncomparable
+pkg github.com/tangoui/tango/sys/ime, type Key struct
+pkg github.com/tangoui/tango/sys/ime, type Key struct, Alt bool
+pkg github.com/tangoui/tango/sys/ime, type Key struct, Code string
+pkg github.com/tangoui/tango/sys/ime, type Key struct, Ctrl bool
+pkg github.com/tangoui/tango/sys/ime, type Key struct, Meta bool
+pkg github.com/tangoui/tango/sys/ime, type Key struct, Shift bool
+pkg github.com/tangoui/tango/sys/ime, type Key struct, Text string
+pkg github.com/tangoui/tango/sys/ime, type Session struct
+pkg github.com/tangoui/tango/sys/ime, var ErrServing error
+pkg github.com/tangoui/tango/sys/ime, var ErrUnsupported error

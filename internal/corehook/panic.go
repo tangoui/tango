@@ -9,6 +9,10 @@ package corehook
 // Set by package tango.
 var Guard func(app any, where string, fn func()) bool
 
+// GuardNonFatal reports a callback panic to the app and lets its caller
+// continue. It returns false when the callback panicked.
+var GuardNonFatal func(app any, where string, fn func()) bool
+
 // ReportPanic reports a panic another package already recovered (ipc
 // bindings, sys/background tasks) to the app owning conn, when conn is a
 // *tango.Surface, or to conn itself when it is a *tango.App. It only

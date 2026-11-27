@@ -63,6 +63,9 @@ func init() {
 		}
 		return a.guard(where, fn)
 	}
+	corehook.GuardNonFatal = func(app any, where string, fn func()) bool {
+		return app.(*App).guardCallback(where, fn, false)
+	}
 	corehook.ReportPanic = func(conn any, where string, value any, stack []byte) bool {
 		var a *App
 		switch c := conn.(type) {
@@ -93,10 +96,16 @@ func (a *App) Go(fn func()) {
 // guard runs fn, reporting false and handing a panic in it to reportPanic.
 // After a panic the caller carries on (with the next handler, the next
 // queued function, ...) unless the panic was fatal.
-func (a *App) guard(where string, fn func()) (ok bool) {
+func (a *App) guard(where string, fn func()) bool {
+	return a.guardCallback(where, fn, true)
+}
+
+func (a *App) guardCallback(where string, fn func(), mayExit bool) (ok bool) {
 	defer func() {
 		if !ok {
-			a.recovered(where, recover())
+			if v := recover(); v != nil {
+				a.reportPanic(Panic{Value: v, Stack: debug.Stack(), Where: where}, mayExit)
+			}
 		}
 	}()
 	fn()
@@ -109,15 +118,6 @@ func guardCall[T any](a *App, where string, def T, fn func() T) (v T) {
 		return def
 	}
 	return v
-}
-
-// recovered handles the value guard's deferred function recovered; nil
-// means fn called runtime.Goexit, which is left alone.
-func (a *App) recovered(where string, v any) {
-	if v == nil {
-		return
-	}
-	a.reportPanic(Panic{Value: v, Stack: debug.Stack(), Where: where}, true)
 }
 
 // reportPanic hands p to Options.OnPanic or the default handling. mayExit

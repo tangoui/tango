@@ -334,6 +334,7 @@ func (a *App) wakeIfRunning() {
 const quitWait = time.Second
 
 func init() {
+	corehook.IsMain = func(app any) bool { return app.(*App).isMain() }
 	corehook.OnQuitStart = func(app any, fn func()) {
 		a := app.(*App)
 		if a.quitStarted {

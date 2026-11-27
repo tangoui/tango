@@ -8,6 +8,9 @@ package corehook
 
 import "github.com/tangoui/tango/internal/platform"
 
+// IsMain reports whether the caller is on the app's main thread.
+var IsMain func(app any) bool
+
 // InternalPrefix starts every internal page→Go message:
 //
 //	"\x00tango-int:" + channel + ":" + payload
