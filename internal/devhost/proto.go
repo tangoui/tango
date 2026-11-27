@@ -182,12 +182,13 @@ type SnapshotReply struct {
 
 // Opened answers OpenWindow.
 type Opened struct {
-	Req        int
-	Win        int
-	W, H       float32
-	Scale      float32
-	Err        string
-	ActivityAt time.Time
+	Req         int
+	Win         int
+	W, H        float32
+	Scale       float32
+	Err         string
+	Unsupported bool
+	ActivityAt  time.Time
 }
 
 // Input delivers an input event.

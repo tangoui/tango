@@ -14,7 +14,9 @@ import (
 	"github.com/tangoui/tango/internal/devhost/host"
 	"github.com/tangoui/tango/internal/platform"
 	"github.com/tangoui/tango/internal/platform/fake"
+	"github.com/tangoui/tango/internal/platform/fake/apphook"
 	"github.com/tangoui/tango/internal/platform/fake/faketest"
+	"github.com/tangoui/tango/sys/appctl"
 	"github.com/tangoui/tango/sys/menu"
 	"github.com/tangoui/tango/ui"
 	"github.com/tangoui/tango/ui/geom"
@@ -43,6 +45,11 @@ func eventually(t *testing.T, what string, cond func() bool) {
 func startHost(t *testing.T) (string, *fake.Backend) {
 	t.Helper()
 	ha, hfb := faketest.Run(t, tango.Options{})
+	return serveTestHost(t, ha, hfb), hfb
+}
+
+func serveTestHost(t *testing.T, ha *tango.App, hfb *fake.Backend) string {
+	t.Helper()
 	hfb.SetCanvasScale(2)
 	dir, err := os.MkdirTemp("", "uh")
 	if err != nil {
@@ -56,7 +63,110 @@ func startHost(t *testing.T) (string, *fake.Backend) {
 	}
 	t.Cleanup(func() { ln.Close() })
 	go host.New(ha).Serve(ln)
-	return addr, hfb
+	return addr
+}
+
+type overlayHostBackend struct{ *fake.Backend }
+
+func (overlayHostBackend) SupportsOverlay() bool { return true }
+
+func TestDevOverlayKind(t *testing.T) {
+	fb := fake.New()
+	ha := apphook.NewApp(overlayHostBackend{fb}, tango.Options{}).(*tango.App)
+	faketest.Start(t, ha, fb)
+	addr := serveTestHost(t, ha, fb)
+	wa, _ := faketest.Run(t, tango.Options{})
+	if err := uihost.ConnectDev(addr, ""); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(uihost.ResetDev)
+	err := tango.Await(wa, func() error {
+		_, _, err := uihost.Open(wa, uihost.Options{Surface: tango.SurfaceOptions{
+			Title: "same title", Width: 100, Height: 100,
+		}}, func(*ui.Context) {}, ui.RunnerOptions{})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "first worker's frame", func() bool {
+		cv := fb.Canvas(1)
+		w, _ := cv.LastFrameSize()
+		return w != 0
+	})
+	uihost.ResetDev()
+
+	if err := uihost.ConnectDev(addr, ""); err != nil {
+		t.Fatal(err)
+	}
+	o := tango.Await(wa, func() opened {
+		r, s, err := uihost.Open(wa, uihost.Options{Surface: tango.SurfaceOptions{
+			Title: "same title", Kind: tango.KindOverlay,
+		}}, func(*ui.Context) {}, ui.RunnerOptions{})
+		return opened{r, s, err}
+	})
+	if o.err != nil || o.s == nil {
+		t.Fatalf("overlay open: surface=%v err=%v", o.s, o.err)
+	}
+	surfaces := fb.Surfaces()
+	if len(surfaces) != 2 {
+		t.Fatalf("host reused the ordinary window: %d surfaces", len(surfaces))
+	}
+	if ex, ok := surfaces[1].Extras(); !ok || ex.Kind != platform.KindOverlay {
+		t.Fatalf("host extras=%+v present=%t", ex, ok)
+	}
+}
+
+func TestDevOverlayDoesNotActivateHost(t *testing.T) {
+	fb := fake.New()
+	ha := apphook.NewApp(overlayHostBackend{fb}, tango.Options{}).(*tango.App)
+	faketest.Start(t, ha, fb)
+	if err := appctl.Hide(ha); err != nil {
+		t.Fatal(err)
+	}
+	addr := serveTestHost(t, ha, fb)
+	wa, _ := faketest.Run(t, tango.Options{})
+	if err := uihost.ConnectDev(addr, ""); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(uihost.ResetDev)
+	err := tango.Await(wa, func() error {
+		_, _, err := uihost.Open(wa, uihost.Options{Surface: tango.SurfaceOptions{
+			Kind: tango.KindOverlay, Width: 100, Height: 100,
+		}}, func(*ui.Context) {}, ui.RunnerOptions{})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "overlay's first frame", func() bool {
+		w, _ := fb.Canvas(1).LastFrameSize()
+		return w != 0
+	})
+	if !tango.Await(ha, func() bool { return fb.AppControl().Hidden }) {
+		t.Fatal("the overlay's first frame activated the host")
+	}
+}
+
+func TestDevOverlayUnsupported(t *testing.T) {
+	addr, fb := startHost(t)
+	wa, _ := faketest.Run(t, tango.Options{})
+	if err := uihost.ConnectDev(addr, ""); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(uihost.ResetDev)
+	err := tango.Await(wa, func() error {
+		_, _, err := uihost.Open(wa, uihost.Options{Surface: tango.SurfaceOptions{
+			Kind: tango.KindOverlay,
+		}}, func(*ui.Context) {}, ui.RunnerOptions{})
+		return err
+	})
+	if !errors.Is(err, tango.ErrUnsupported) {
+		t.Fatalf("overlay open: %v", err)
+	}
+	if len(fb.Surfaces()) != 0 {
+		t.Fatal("unsupported host created a native window")
+	}
 }
 
 func TestRemoteWindow(t *testing.T) {

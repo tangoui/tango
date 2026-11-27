@@ -301,6 +301,9 @@ func devOpen(app *tango.App, opts Options, page func(*ui.Context), ropts ui.Runn
 		return nil, nil, true, fmt.Errorf("uihost: dev host: %w", err)
 	}
 	o := m.(devhost.Opened)
+	if o.Unsupported {
+		return nil, nil, true, fmt.Errorf("uihost: dev host: %s: %w", o.Err, tango.ErrUnsupported)
+	}
 	if o.Err != "" {
 		return nil, nil, true, fmt.Errorf("uihost: dev host: %s", o.Err)
 	}

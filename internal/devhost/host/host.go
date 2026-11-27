@@ -10,6 +10,7 @@
 package host
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -607,9 +608,15 @@ func (h *Host) commit(p *worker) {
 	if old != nil {
 		old.closeEmbeds(nil)
 	}
+	hasOverlay, hasRegular := false, false
 	for _, x := range h.wins {
 		if x.next != p {
 			continue
+		}
+		if x.overlay {
+			hasOverlay = true
+		} else {
+			hasRegular = true
 		}
 		x.owner, x.next = p, nil
 		x.outstanding = nil
@@ -654,7 +661,11 @@ func (h *Host) commit(p *worker) {
 	}
 	h.commitMenus(p)
 	h.replay(p)
-	h.reclaimFocus(p)
+	if hasOverlay && !hasRegular {
+		h.reclaimUntil = time.Time{}
+	} else {
+		h.reclaimFocus(p)
+	}
 	oldPID := 0
 	if old != nil {
 		oldPID = old.pid
@@ -747,11 +758,12 @@ func (h *Host) snapshotReply(from *worker, m devhost.SnapshotReply) {
 
 // win is one host window.
 type win struct {
-	h    *Host
-	id   int
-	seq  int
-	surf *tango.Surface
-	cv   platform.Canvas
+	h       *Host
+	id      int
+	seq     int
+	surf    *tango.Surface
+	cv      platform.Canvas
+	overlay bool
 
 	title        string
 	owner        *worker // draws the window
@@ -798,7 +810,7 @@ func (h *Host) openWindow(w *worker, m devhost.OpenWindow) {
 	w.opened++
 	reply := func(x *win, err error) {
 		if err != nil {
-			w.send(devhost.Opened{Req: m.Req, Err: err.Error()})
+			w.send(devhost.Opened{Req: m.Req, Err: err.Error(), Unsupported: errors.Is(err, tango.ErrUnsupported)})
 			return
 		}
 		cw, ch := x.cv.Size()
@@ -824,7 +836,7 @@ func (h *Host) openWindow(w *worker, m devhost.OpenWindow) {
 		return
 	}
 	h.nextWin++
-	x := &win{h: h, id: h.nextWin, seq: m.Seq, title: m.Opts.Title}
+	x := &win{h: h, id: h.nextWin, seq: m.Seq, title: m.Opts.Title, overlay: m.Opts.Kind == int(tango.KindOverlay)}
 	if w == h.pending {
 		x.next = w
 	} else {
@@ -861,8 +873,9 @@ func (x *win) relayActivity(at time.Time) {
 // active worker's (or orphaned) windows not yet taken by w, with the same
 // title, else the same sequence number.
 func (h *Host) match(w *worker, m devhost.OpenWindow) *win {
+	overlay := m.Opts.Kind == int(tango.KindOverlay)
 	free := func(x *win) bool {
-		if x.closed || x.next == w || x.owner == w {
+		if x.closed || x.next == w || x.owner == w || x.overlay != overlay {
 			return false
 		}
 		if w == h.pending {
