@@ -5,6 +5,7 @@ import (
 
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/examples/inputmethod/engine"
+	"github.com/tangoui/tango/internal/platform/fake/faketest"
 	"github.com/tangoui/tango/sys/ime"
 )
 
@@ -53,4 +54,24 @@ func composerWith(preedit string) *engine.Composer {
 		c.Feed(engine.Key{Rune: ch})
 	}
 	return c
+}
+
+func TestEndSessionClearsComposerAndCandidateWindow(t *testing.T) {
+	a, _ := faketest.Run(t, tango.Options{})
+	surface, err := a.NewSurface(tango.SurfaceOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := new(ime.Session)
+	composers := map[uint64]*engine.Composer{session.ID(): composerWith("ni")}
+	candidates := &candidateWindow{surface: surface, current: &candidateList{session: session}}
+
+	tango.Await(a, func() bool {
+		endSession(session, composers, candidates)
+		return true
+	})
+	if len(composers) != 0 || candidates.current != nil || surface.IsVisible() {
+		t.Fatalf("session ended with %d composers, candidates=%v, visible=%t",
+			len(composers), candidates.current, surface.IsVisible())
+	}
 }

@@ -70,6 +70,9 @@ func main() {
 			},
 			Deactivate:        flush,
 			CommitComposition: flush,
+			End: func(s *ime.Session) {
+				endSession(s, composers, candidates)
+			},
 		})
 		if err != nil {
 			log.Printf("Tango Pinyin: %v", err)
@@ -79,6 +82,11 @@ func main() {
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func endSession(s *ime.Session, composers map[uint64]*engine.Composer, candidates *candidateWindow) {
+	delete(composers, s.ID())
+	candidates.hide(s)
 }
 
 func handle(c *engine.Composer, k ime.Key) (res engine.Result, flush string, consumed bool) {
