@@ -77,6 +77,13 @@ func TestMCPE2EWebKey(t *testing.T) {
 		wait("editor.value === 'Zreplace me'")
 		t.Log("Edit menu Copy and Paste preserved the selected text")
 	}
+	// A lone modifier reports the side-neutral keyCode, with its side in
+	// location, as a real keyboard does.
+	eval("(() => { window.modifierCodes = []; addEventListener('keydown', e => modifierCodes.push([e.key, e.code, e.keyCode, e.location].join(' '))); return true })()")
+	for _, k := range []string{"ShiftLeft", "ShiftRight", "CtrlLeft", "CtrlRight", "AltLeft", "AltRight"} {
+		key(k)
+	}
+	wait("modifierCodes.join('|') === 'Shift ShiftLeft 16 1|Shift ShiftRight 16 2|Control ControlLeft 17 1|Control ControlRight 17 2|Alt AltLeft 18 1|Alt AltRight 18 2'")
 	var result struct {
 		Value struct {
 			Events            []string
