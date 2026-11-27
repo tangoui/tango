@@ -3,6 +3,7 @@ package main
 
 import (
 	"log"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/tangoui/tango"
@@ -17,7 +18,9 @@ func main() {
 		QuitOnLastClose: &quitOnLastClose,
 	})
 	composers := make(map[uint64]*engine.Composer)
+	var candidates *candidateWindow
 	flush := func(s *ime.Session) {
+		candidates.hide(s)
 		if c := composers[s.ID()]; c != nil {
 			delete(composers, s.ID())
 			if text := c.Flush(); text != "" {
@@ -26,7 +29,12 @@ func main() {
 		}
 	}
 	app.OnReady(func() {
-		err := ime.Serve(app, ime.Handler{
+		var err error
+		candidates, err = newCandidateWindow(app)
+		if err != nil {
+			log.Printf("Tango Pinyin candidates: %v", err)
+		}
+		err = ime.Serve(app, ime.Handler{
 			Key: func(s *ime.Session, k ime.Key) bool {
 				c := composers[s.ID()]
 				if c == nil {
@@ -38,6 +46,9 @@ func main() {
 				} else {
 					delete(composers, s.ID())
 				}
+				if len(res.Candidates) == 0 && (res.Handled || raw != "") {
+					candidates.hide(s)
+				}
 				if raw != "" {
 					s.Commit(raw)
 				}
@@ -45,6 +56,15 @@ func main() {
 					s.Commit(res.Commit)
 				} else if res.Handled {
 					s.SetComposition(res.Preedit, utf8.RuneCountInString(res.Preedit))
+				}
+				if len(res.Candidates) != 0 {
+					candidates.show(s, res.Candidates, func(index int) {
+						if text, ok := c.Pick(index); ok {
+							delete(composers, s.ID())
+							candidates.hide(s)
+							s.Commit(text)
+						}
+					})
 				}
 				return consumed
 			},
@@ -64,6 +84,12 @@ func main() {
 func handle(c *engine.Composer, k ime.Key) (res engine.Result, flush string, consumed bool) {
 	if k.Ctrl || k.Alt || k.Meta {
 		return engine.Result{}, c.Flush(), false
+	}
+	if digit, ok := strings.CutPrefix(k.Code, "Digit"); !k.Shift && ok &&
+		len(digit) == 1 && digit[0] >= '1' && digit[0] <= '9' {
+		if text, ok := c.Pick(int(digit[0] - '1')); ok {
+			return engine.Result{Handled: true, Commit: text}, "", true
+		}
 	}
 	var key engine.Key
 	switch k.Code {

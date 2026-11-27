@@ -59,6 +59,16 @@ func New() *Composer { return &Composer{} }
 // Composing reports whether there is text being composed.
 func (c *Composer) Composing() bool { return len(c.buf) > 0 }
 
+// Pick commits the candidate at index and ends composition.
+func (c *Composer) Pick(index int) (string, bool) {
+	words := toyDict[string(c.buf)]
+	if index < 0 || index >= len(words) {
+		return "", false
+	}
+	c.buf = c.buf[:0]
+	return words[index], true
+}
+
 // Flush ends composition and returns the raw letters to commit (used when
 // the input field loses focus).
 func (c *Composer) Flush() string {
