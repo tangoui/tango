@@ -25,6 +25,8 @@ import (
 	"github.com/ebitengine/purego/objc"
 
 	"github.com/tangoui/tango"
+	"github.com/tangoui/tango/ui"
+	"github.com/tangoui/tango/uihost"
 )
 
 const page = `<!doctype html><html><head><style>
@@ -45,7 +47,7 @@ var (
 		"setbounds", "moved-event", "resized-event", "maximize", "restore",
 		"zoom", "reload-navigating", "reload-loaded", "send-after-reload",
 		"loadfailed", "probe-delivery", "internal-hidden", "sheet",
-		"spaces-normal", "spaces-panel", "spaces-all", "spaces-off", "overlay",
+		"spaces-normal", "spaces-panel", "spaces-all", "spaces-off", "overlay", "overlay-canvas", "overlay-web-first-mouse",
 	}
 )
 
@@ -109,6 +111,7 @@ func main() {
 		normal.OnLoaded(func() { emit(steps, "loaded") })
 		normal.OnLoadFailed(func(u, e string) { emit(steps, "failed:"+u+" "+e) })
 		checkOverlay(app)
+		checkOverlayCanvas(app)
 		go script(app, &normal, steps)
 	})
 
@@ -395,6 +398,58 @@ func checkOverlay(app *tango.App) {
 		return
 	}
 	pass(name, "visible at level 101, appearance updated, key window and activation preserved")
+	checkFirstMouse("overlay-web-first-mouse", win)
+}
+
+// view is the direct canvas or WebView child of the window's content container.
+func surfaceView(win objc.ID) objc.ID {
+	content := objc.Send[objc.ID](win, objc.RegisterName("contentView"))
+	views := objc.Send[objc.ID](content, objc.RegisterName("subviews"))
+	return objc.Send[objc.ID](views, objc.RegisterName("firstObject"))
+}
+
+func checkFirstMouse(name string, win objc.ID) {
+	view := surfaceView(win)
+	if !objc.Send[bool](view, objc.RegisterName("acceptsFirstMouse:"), objc.ID(0)) {
+		fail(name, "content view requires activation before the first click")
+		return
+	}
+	pass(name, "content view accepts the first mouse event")
+}
+
+func checkOverlayCanvas(app *tango.App) {
+	const name = "overlay-canvas"
+	nsapp := objc.Send[objc.ID](objc.ID(objc.GetClass("NSApplication")), objc.RegisterName("sharedApplication"))
+	active := objc.Send[bool](nsapp, objc.RegisterName("isActive"))
+	key := objc.Send[objc.ID](nsapp, objc.RegisterName("keyWindow"))
+	_, o, err := uihost.Open(app, uihost.Options{Surface: tango.SurfaceOptions{
+		Title: name, Kind: tango.KindOverlay, Width: 180, Height: 80,
+		Hidden: true, Centered: true, State: tango.StateMaximized,
+	}}, func(*ui.Context) {}, ui.RunnerOptions{})
+	if err != nil {
+		fail(name, err.Error())
+		return
+	}
+	defer o.Close()
+	o.Show()
+	win := objc.ID(o.Native())
+	view := surfaceView(win)
+	areas := objc.Send[objc.ID](view, objc.RegisterName("trackingAreas"))
+	area := objc.Send[objc.ID](areas, objc.RegisterName("firstObject"))
+	tracking := objc.Send[uint](area, objc.RegisterName("options"))
+	if tracking != 0x287 || !objc.Send[bool](view, objc.RegisterName("acceptsFirstMouse:"), objc.ID(0)) {
+		fail(name, fmt.Sprintf("tracking=%#x or first mouse rejected", tracking))
+		return
+	}
+	if o.IsFocused() || o.State() != tango.StateNormal ||
+		objc.Send[bool](win, objc.RegisterName("isKeyWindow")) ||
+		!objc.Send[bool](win, objc.RegisterName("isVisible")) ||
+		active != objc.Send[bool](nsapp, objc.RegisterName("isActive")) ||
+		key != objc.Send[objc.ID](nsapp, objc.RegisterName("keyWindow")) {
+		fail(name, "visibility, focus, state or app activation changed unexpectedly")
+		return
+	}
+	pass(name, "uihost overlay tracks mouse while inactive and preserves focus")
 }
 
 var hiddenFailed bool

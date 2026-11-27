@@ -638,6 +638,12 @@ func registerExtClasses() {
 	}
 	super := func(self id, name string, info id) id { return webSuperArg(self, name, info) }
 	classDef("TangoWebView", "WKWebView", nil, []objc.MethodDef{
+		method("acceptsFirstMouse:", func(self id, _ objc.SEL, ev id) bool {
+			if s := of(self); s != nil && s.ext.overlay {
+				return true
+			}
+			return byte(super(self, "acceptsFirstMouse:", ev)) != 0
+		}),
 		// Embedded web views report keyboard focus (webembed.go).
 		method("becomeFirstResponder", func(self id, _ objc.SEL) bool {
 			ok := webSuperBool(self, "becomeFirstResponder")

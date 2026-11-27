@@ -302,19 +302,28 @@ func (b *backend) NewCanvasSurface(sid platform.SurfaceID, opts platform.Surface
 	return s, c, nil
 }
 
-// installScheduling adds the view's tracking area, display link and
-// InvalidateAt timer (released in destroy). Inside withPool, after the
-// view is in its window.
-func (c *canvas) installScheduling() {
+func canvasTrackingOptions(overlay bool) uint {
 	const (
 		trackEnteredExited = 0x01
 		trackMoved         = 0x02
 		trackCursorUpdate  = 0x04
 		trackActiveInApp   = 0x40
+		trackActiveAlways  = 0x80
 		trackInVisibleRect = 0x200
 	)
+	options := uint(trackEnteredExited | trackMoved | trackCursorUpdate | trackInVisibleRect)
+	if overlay {
+		return options | trackActiveAlways
+	}
+	return options | trackActiveInApp
+}
+
+// installScheduling adds the view's tracking area, display link and
+// InvalidateAt timer (released in destroy). Inside withPool, after the
+// view is in its window.
+func (c *canvas) installScheduling() {
 	c.tracking = msgInitTrack(send(class("NSTrackingArea"), "alloc"), sel("initWithRect:options:owner:userInfo:"),
-		nsRect{}, trackEnteredExited|trackMoved|trackCursorUpdate|trackActiveInApp|trackInVisibleRect, c.view, 0)
+		nsRect{}, canvasTrackingOptions(c.s.ext.overlay), c.view, 0)
 	send(c.view, "addTrackingArea:", uintptr(c.tracking))
 
 	if respondsTo(c.view, "displayLinkWithTarget:selector:") && nsRunLoopCommon != 0 { // macOS 14+

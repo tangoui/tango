@@ -26,3 +26,12 @@ func TestOverlayLevel(t *testing.T) {
 		t.Fatalf("level = %d, want at least the pop-up menu level", got)
 	}
 }
+
+func TestCanvasTrackingOptions(t *testing.T) {
+	if got := canvasTrackingOptions(false); got != 0x247 {
+		t.Errorf("regular canvas tracking = %#x, want 0x247", got)
+	}
+	if got := canvasTrackingOptions(true); got != 0x287 {
+		t.Errorf("overlay canvas tracking = %#x, want 0x287", got)
+	}
+}
