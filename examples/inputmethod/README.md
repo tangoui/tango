@@ -23,26 +23,8 @@ go build -o /tmp/tango-pinyin ./examples/inputmethod
 
 ## Windows
 
-从仓库根目录运行以下命令，需要 Go、CMake 和 Visual Studio 的 C++ 工具链。DLL 和宿主 EXE 需要安装在同一目录。
+在示例目录运行 `tan package -platform windows/amd64`，用生成的 `setup.exe` 安装。使用本地 Tango 工作树时，先按桥接构建说明生成 DLL，再将 `TANGO_IME_BRIDGE_DIR` 指向 DLL 目录。[打包说明](../../docs/packaging.md#windows-输入法) · [桥接构建](../../internal/imebridge/windows/README.md)
 
-```powershell
-cmake -S examples/inputmethod/windows -B examples/inputmethod/build/tsf -A x64
-cmake --build examples/inputmethod/build/tsf --config Release
-go build -ldflags=-H=windowsgui -o examples/inputmethod/build/tsf/Release/TangoPinyin.exe ./examples/inputmethod
-```
+在「设置 → 时间和语言 → 语言和区域」为简体中文添加 Tango Pinyin，再用 Win+空格切换。登录时系统会启动宿主。单击 Shift 切换中英文，点击光标旁的候选词可直接上屏。语言栏菜单提供「切换中/英」和「关于」。日志位于 `%LOCALAPPDATA%/Tango Pinyin/ime.log`。
 
-用管理员 PowerShell 把生成的文件安装到 Program Files，再注册 TSF 服务。
-
-```powershell
-$dest = Join-Path $env:ProgramFiles 'Tango Pinyin'
-New-Item -ItemType Directory -Force $dest | Out-Null
-Copy-Item examples/inputmethod/build/tsf/Release/TangoPinyin*.dll $dest
-Copy-Item examples/inputmethod/build/tsf/Release/TangoPinyin.exe $dest
-regsvr32.exe (Join-Path $dest 'TangoPinyinTIP.dll')
-```
-
-在 Windows 的「语言和区域」设置中为「中文（简体，中国）」添加 Tango Pinyin，用 Win+空格切换。TSF 加载 DLL 后会按需启动同目录的宿主。DLL 的架构需要与使用输入法的应用相同。上述命令构建 x64 版。在 ARM64 Windows 上，可以用 `-A ARM64` 构建原生 DLL，并用 ARM64 Go 构建宿主。
-
-卸载前先切换到其他输入源，在管理员终端对同一 DLL 运行 `regsvr32.exe /u`。关闭宿主和使用过该输入法的程序后，可以删除安装目录。
-
-TSF DLL 保留在原生应用进程中，Go 引擎通过当前用户和登录会话的命名管道运行在独立进程。框架使用 `ime.Handler.Connection` 匹配 DLL 的 `TANGO_IME_CONNECTION` 编译常量。这个示例使用自己的 TSF 类和语言配置 GUID。
+在「设置 → 应用」卸载。部分应用仍持有旧 TSF DLL 时，安装器会安排 Windows 在下次重启时删除该文件。

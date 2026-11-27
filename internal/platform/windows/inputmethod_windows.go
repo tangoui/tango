@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	_ platform.InputMethods     = (*Backend)(nil)
-	_ platform.InputMethodModes = (*Backend)(nil)
+	tipMonitorFromPoint                           = user32.export("MonitorFromPoint")
+	_                   platform.InputMethods     = (*Backend)(nil)
+	_                   platform.InputMethodModes = (*Backend)(nil)
 )
 
 type tipConfig struct {
@@ -68,7 +69,13 @@ func (b *Backend) ServeInputMethod(connection string, sink platform.InputMethodS
 	}) {
 		return errors.New("tango/windows: invalid input method connection name")
 	}
-	server, err := newTIPServer(connection, newTIPSessions(sink, config.Modes), b.runDeferred)
+	sessions := newTIPSessions(sink, config.Modes)
+	sessions.convertCaret = func(r proto.Rect) platform.Rect {
+		point := uintptr(uint64(uint32(r.Y))<<32 | uint64(uint32(r.X)))
+		mon, _, _ := tipMonitorFromPoint.Call(point, monitorDefaultToNearest)
+		return tipLogicalCaret(r, monitorDPI(mon))
+	}
+	server, err := newTIPServer(connection, sessions, b.runDeferred)
 	if err != nil {
 		return err
 	}

@@ -399,6 +399,15 @@ func (s *surface) SetBounds(b platform.Rect) {
 		return
 	}
 	dpi := dpiOf(s.hwnd)
+	if s.ext.kind == platform.KindOverlay {
+		for _, display := range s.b.Displays() {
+			r := display.Bounds
+			if b.X >= r.X && b.X < r.X+r.Width && b.Y >= r.Y && b.Y < r.Y+r.Height {
+				dpi = int(display.Scale * baseDPI)
+				break
+			}
+		}
+	}
 	flags := uintptr(swpNoZOrder | swpNoActivate)
 	var w, h int32
 	if b.Width > 0 && b.Height > 0 {

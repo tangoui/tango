@@ -37,10 +37,8 @@ type tipSession struct {
 func newTIPSessions(sink platform.InputMethodSink, modes []proto.Mode) *tipSessions {
 	m := &tipSessions{
 		sink: sink, byID: make(map[uint64]*tipSession), clients: make(map[*tipClient]bool),
-		modes: make(map[string]proto.Mode),
-		convertCaret: func(r proto.Rect) platform.Rect {
-			return platform.Rect{X: int(r.X), Y: int(r.Y), Width: int(r.Width), Height: int(r.Height)}
-		},
+		modes:        make(map[string]proto.Mode),
+		convertCaret: func(r proto.Rect) platform.Rect { return tipLogicalCaret(r, baseDPI) },
 	}
 	for _, mode := range modes {
 		m.modes[mode.ID] = mode
@@ -210,4 +208,13 @@ func (m *tipSessions) key(s *tipSession, key proto.Key) bool {
 // checks the peer's login session before dispatch.
 func tipPipeSecurityDescriptor(sid string) string {
 	return "D:P(A;;GA;;;" + sid + ")(A;;0x100083;;;AC)S:(ML;;NW;;;LW)"
+}
+
+func tipLogicalCaret(r proto.Rect, dpi int) platform.Rect {
+	x, y := pxToDIP(int(r.X), dpi), pxToDIP(int(r.Y), dpi)
+	return platform.Rect{
+		X: x, Y: y,
+		Width:  max(1, pxToDIP(int(r.X)+int(r.Width), dpi)-x),
+		Height: max(1, pxToDIP(int(r.Y)+int(r.Height), dpi)-y),
+	}
 }

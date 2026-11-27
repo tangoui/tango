@@ -4,6 +4,9 @@ package main
 import (
 	"errors"
 	"log"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -14,6 +17,17 @@ import (
 )
 
 func main() {
+	if runtime.GOOS == "windows" {
+		if cache, err := os.UserCacheDir(); err == nil {
+			dir := filepath.Join(cache, "Tango Pinyin")
+			if err := os.MkdirAll(dir, 0o755); err == nil {
+				if file, err := os.OpenFile(filepath.Join(dir, "ime.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644); err == nil {
+					log.SetOutput(file)
+					defer file.Close()
+				}
+			}
+		}
+	}
 	quitOnLastClose := false
 	app := tango.New(tango.Options{
 		Name: "Tango Pinyin", ID: "com.tangoui.inputmethod.example",

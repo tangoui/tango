@@ -206,15 +206,7 @@ func (b *Backend) Displays() []platform.Display {
 		if r, _, _ := procGetMonitorInfoW.Call(mon, uintptr(unsafe.Pointer(&mi))); r == 0 {
 			continue
 		}
-		dpi := baseDPI
-		if has(mtGetDpiForMonitor) {
-			var dx, dy uint32
-			if hr, _, _ := mtGetDpiForMonitor.Call(mon, mtMDTEffectiveDPI, uintptr(unsafe.Pointer(&dx)), uintptr(unsafe.Pointer(&dy))); hr == sOK && dx > 0 {
-				dpi = int(dx)
-			}
-		} else {
-			dpi = dpiOf(0)
-		}
+		dpi := monitorDPI(mon)
 		dev := syscall.UTF16ToString(mi.Device[:])
 		out = append(out, platform.Display{
 			ID:       dev,
@@ -226,6 +218,16 @@ func (b *Backend) Displays() []platform.Display {
 		})
 	}
 	return out
+}
+
+func monitorDPI(mon uintptr) int {
+	if mon != 0 && has(mtGetDpiForMonitor) {
+		var x, y uint32
+		if hr, _, _ := mtGetDpiForMonitor.Call(mon, mtMDTEffectiveDPI, uintptr(unsafe.Pointer(&x)), uintptr(unsafe.Pointer(&y))); hr == sOK && x > 0 {
+			return int(x)
+		}
+	}
+	return dpiOf(0)
 }
 
 func ixLogical(r rect, dpi int) platform.Rect {

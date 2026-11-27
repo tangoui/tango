@@ -130,3 +130,11 @@ func TestPipeSecurityDescriptor(t *testing.T) {
 		}
 	}
 }
+
+func TestCandidateBoundsWindows(t *testing.T) {
+	physical := proto.Rect{X: -300, Y: 153, Width: 3, Height: 30}
+	want := platform.Rect{X: -200, Y: 102, Width: 2, Height: 20}
+	if got := tipLogicalCaret(physical, 144); got != want {
+		t.Fatalf("caret = %+v, want %+v", got, want)
+	}
+}
