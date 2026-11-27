@@ -193,6 +193,9 @@ func (s *ibusServer) newEngine(name string) ptr {
 	return engine
 }
 
+// session returns the engine's session, activating a new one. A key or
+// cursor update can arrive without focus-in, such as after disable and
+// enable in the same text field.
 func (s *ibusServer) session(engine ptr) *ibusSession {
 	if session := s.byEngine[engine]; session != nil {
 		return session
@@ -200,6 +203,7 @@ func (s *ibusServer) session(engine ptr) *ibusSession {
 	s.nextSession++
 	session := &ibusSession{id: s.nextSession, engine: engine}
 	s.byEngine[engine], s.byID[session.id] = session, session
+	s.sink.IMEActivate(session.id)
 	return session
 }
 
@@ -212,7 +216,6 @@ func (s *ibusServer) focusIn(engine ptr, path, client string) {
 	}
 	session := s.session(engine)
 	session.path, session.client = path, client
-	s.sink.IMEActivate(session.id)
 }
 
 func (s *ibusServer) focusOut(engine ptr, path string) {

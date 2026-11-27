@@ -1,6 +1,7 @@
 package linux
 
 import (
+	"strings"
 	"unicode"
 
 	"github.com/tangoui/tango/internal/platform"
@@ -18,6 +19,8 @@ func ibusKey(keyval, hardware, state uint32, char rune) platform.IMEKey {
 	name := key.String()
 	switch {
 	case key == input.KeyUnknown:
+	case key == input.KeyCtrlLeft || key == input.KeyCtrlRight:
+		event.Code = "Control" + strings.TrimPrefix(name, "Ctrl")
 	case key == input.KeyUp || key == input.KeyDown || key == input.KeyLeft || key == input.KeyRight:
 		event.Code = "Arrow" + name
 	case len(name) == 1 && name[0] >= 'A' && name[0] <= 'Z':
@@ -27,7 +30,8 @@ func ibusKey(keyval, hardware, state uint32, char rune) platform.IMEKey {
 	default:
 		event.Code = name
 	}
-	if unicode.IsPrint(char) {
+	// keyval ignores Control; the client would type nothing.
+	if unicode.IsPrint(char) && !event.Ctrl {
 		event.Text = string(char)
 	}
 	return event
