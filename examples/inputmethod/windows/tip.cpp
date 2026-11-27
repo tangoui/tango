@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <msctf.h>
 #include <sddl.h>
+#include <algorithm>
 #include <atomic>
 #include <cwchar>
 #include <new>
@@ -24,7 +25,12 @@ constexpr wchar_t kName[] = L"Tango Pinyin";
 constexpr LANGID kLanguage = MAKELANGID(LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED);
 constexpr DWORD kVersion = 0x31454d49;
 enum Action : DWORD { ActivateSession = 1, Key = 2, Reset = 3, End = 4, Poll = 5 };
-enum Flags : DWORD { Handled = 1, Marked = 2, Commit = 4 };
+// More: committed text is still queued; poll for it before applying marked text.
+enum Flags : DWORD { Handled = 1, Marked = 2, Commit = 4, More = 8 };
+// The host queues at most 64K UTF-16 units of committed text per session.
+constexpr int kMaxParts = 65;
+// Poll quickly while composing or just after activity, slower when idle.
+constexpr UINT kFastPoll = 160, kSlowPoll = 1280;
 
 struct Request {
     DWORD version{kVersion}, action{};
@@ -40,6 +46,11 @@ struct Response {
 };
 static_assert(sizeof(Request) == 68);
 static_assert(sizeof(Response) == 4116);
+// Result joins the parts of one exchange.
+struct Result {
+    DWORD flags{}, cursor{};
+    std::wstring marked, committed;
+};
 
 HMODULE module;
 std::atomic<long> references{0};
@@ -143,7 +154,7 @@ bool VerifyHost(HANDLE pipe) {
     return matches && integrity && integrity == IntegrityLevel(GetCurrentProcess());
 }
 
-bool Exchange(const std::wstring& pipeName, Request& request, Response& response) {
+bool ExchangeOnce(const std::wstring& pipeName, const Request& request, Response& response) {
     if (pipeName.empty()) return false;
     HANDLE pipe = INVALID_HANDLE_VALUE;
     const auto deadline = GetTickCount64() + 15;
@@ -157,11 +168,36 @@ bool Exchange(const std::wstring& pipeName, Request& request, Response& response
     } while (GetTickCount64() < deadline);
     if (pipe == INVALID_HANDLE_VALUE) return false;
     const bool done = VerifyHost(pipe) &&
-                      Transfer(pipe, true, &request, sizeof(request), 20) &&
+                      Transfer(pipe, true, const_cast<Request*>(&request), sizeof(request), 20) &&
                       Transfer(pipe, false, &response, sizeof(response), 100);
     CloseHandle(pipe);
     return done && response.version == kVersion && response.markedLength <= ARRAYSIZE(response.marked) &&
            response.committedLength <= ARRAYSIZE(response.committed) && response.cursor <= response.markedLength;
+}
+
+// Exchange sends request and polls for any parts of committed text that did
+// not fit in the first response. Parts that fail to arrive stay queued.
+bool Exchange(const std::wstring& pipeName, Request request, Result& result) {
+    result = Result{};
+    for (int part = 0; part < kMaxParts; ++part) {
+        Response response;
+        if (!ExchangeOnce(pipeName, request, response)) return part > 0;
+        if (part == 0) result.flags |= response.flags & Handled;
+        if (response.flags & Commit) {
+            result.flags |= Commit;
+            result.committed.append(response.committed, response.committedLength);
+        }
+        if (!(response.flags & More)) {
+            if (response.flags & Marked) {
+                result.flags |= Marked;
+                result.marked.assign(response.marked, response.markedLength);
+                result.cursor = response.cursor;
+            }
+            return true;
+        }
+        request.action = Poll;
+    }
+    return true;
 }
 
 void StartHost() {
@@ -190,6 +226,7 @@ class Tip final : public ITfTextInputProcessor, public ITfKeyEventSink,
     std::wstring pipeName_;
     ULONGLONG startAfter_{};
     UINT_PTR timer_{};
+    UINT interval_{kFastPoll};
     static thread_local Tip* polling_;
 
     class Edit final : public ITfEditSession {
@@ -255,10 +292,11 @@ class Tip final : public ITfTextInputProcessor, public ITfKeyEventSink,
         request.h = rect.bottom - rect.top;
     }
 
-    HRESULT SetMarked(ITfContext* context, TfEditCookie cookie, const Response& r) {
+    HRESULT SetMarked(ITfContext* context, TfEditCookie cookie, const Result& r) {
+        const auto markedLength = static_cast<LONG>(r.marked.size());
         ComPtr<ITfRange> range;
         if (!composition_) {
-            if (!r.markedLength) return S_OK;
+            if (!markedLength) return S_OK;
             ComPtr<ITfInsertAtSelection> insert;
             HRESULT hr = context->QueryInterface(__uuidof(ITfInsertAtSelection),
                                                  reinterpret_cast<void**>(insert.put()));
@@ -275,9 +313,9 @@ class Tip final : public ITfTextInputProcessor, public ITfKeyEventSink,
             HRESULT hr = composition_->GetRange(range.put());
             if (FAILED(hr)) return hr;
         }
-        HRESULT hr = range->SetText(cookie, 0, r.marked, r.markedLength);
+        HRESULT hr = range->SetText(cookie, 0, r.marked.data(), markedLength);
         if (FAILED(hr)) return hr;
-        if (!r.markedLength) return FinishComposition(cookie);
+        if (!markedLength) return FinishComposition(cookie);
         hr = range->Collapse(cookie, TF_ANCHOR_START);
         if (FAILED(hr)) return hr;
         LONG moved;
@@ -297,30 +335,33 @@ class Tip final : public ITfTextInputProcessor, public ITfKeyEventSink,
         return current->EndComposition(cookie);
     }
 
-    HRESULT CommitText(ITfContext* context, TfEditCookie cookie, const Response& r) {
+    HRESULT CommitText(ITfContext* context, TfEditCookie cookie, const Result& r) {
+        const auto committedLength = static_cast<LONG>(r.committed.size());
         if (composition_) {
             ComPtr<ITfRange> range;
             HRESULT hr = composition_->GetRange(range.put());
-            if (SUCCEEDED(hr)) hr = range->SetText(cookie, 0, r.committed, r.committedLength);
+            if (SUCCEEDED(hr)) hr = range->SetText(cookie, 0, r.committed.data(), committedLength);
             if (FAILED(hr)) return hr;
             range->Collapse(cookie, TF_ANCHOR_END);
             TF_SELECTION selection{range.get(), {TF_AE_NONE, FALSE}};
             context->SetSelection(cookie, 1, &selection);
             return FinishComposition(cookie);
         }
-        if (!r.committedLength) return S_OK;
+        if (!committedLength) return S_OK;
         ComPtr<ITfInsertAtSelection> insert;
         HRESULT hr = context->QueryInterface(__uuidof(ITfInsertAtSelection),
                                              reinterpret_cast<void**>(insert.put()));
         if (FAILED(hr)) return hr;
         return insert->InsertTextAtSelection(cookie, TF_IAS_NOQUERY,
-                                             r.committed, r.committedLength, nullptr);
+                                             r.committed.data(), committedLength, nullptr);
     }
 
     HRESULT RunEdit(ITfContext* context, TfEditCookie cookie, Request request, BOOL* handled) {
         AddCaret(context, cookie, request);
-        Response response;
-        if (!Exchange(pipeName_, request, response)) {
+        Result response;
+        const bool exchanged = Exchange(pipeName_, request, response);
+        SchedulePoll(request.action != Poll || response.flags & (Marked | Commit));
+        if (!exchanged) {
             if (request.action == End) FinishComposition(cookie);
             return S_OK;
         }
@@ -330,6 +371,18 @@ class Tip final : public ITfTextInputProcessor, public ITfKeyEventSink,
         if (request.action == End) FinishComposition(cookie);
         if (handled && SUCCEEDED(hr)) *handled = (response.flags & Handled) != 0;
         return hr;
+    }
+
+    // SchedulePoll resets the poll interval after activity or while composing,
+    // and otherwise doubles it up to kSlowPoll.
+    void SchedulePoll(bool active) {
+        if (!timer_) return;
+        const UINT next = active || composition_ ? kFastPoll : std::min(interval_ * 2, kSlowPoll);
+        if (next == interval_) return;
+        if (const UINT_PTR id = SetTimer(nullptr, timer_, next, Timer)) {
+            timer_ = id;
+            interval_ = next;
+        }
     }
 
     void EditContext(ITfContext* context, Request request, BOOL* handled = nullptr) {
@@ -360,11 +413,12 @@ class Tip final : public ITfTextInputProcessor, public ITfKeyEventSink,
         Request request;
         request.action = ActivateSession;
         request.token = token_;
-        Response response;
+        Result response;
         if (!Exchange(pipeName_, request, response) && GetTickCount64() >= startAfter_) {
             startAfter_ = GetTickCount64() + 1000;
             StartHost();
         }
+        SchedulePoll(true);
     }
 
     static void CALLBACK Timer(HWND, UINT, UINT_PTR, DWORD) {
@@ -432,7 +486,8 @@ public:
         ComPtr<ITfDocumentMgr> focused;
         if (SUCCEEDED(mgr_->GetFocus(focused.put())) && focused) OnSetFocus(focused.get(), nullptr);
         polling_ = this;
-        timer_ = SetTimer(nullptr, 0, 160, Timer);
+        interval_ = kFastPoll;
+        timer_ = SetTimer(nullptr, 0, interval_, Timer);
         return S_OK;
     }
 
@@ -492,9 +547,10 @@ public:
         Request request;
         request.action = Reset;
         request.token = token_;
-        Response response;
+        Result response;
         if (range && Exchange(pipeName_, request, response) && response.flags & Commit)
-            return range->SetText(cookie, 0, response.committed, response.committedLength);
+            return range->SetText(cookie, 0, response.committed.data(),
+                                  static_cast<LONG>(response.committed.size()));
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE OnTestKeyDown(ITfContext* context, WPARAM key, LPARAM, BOOL* eaten) override {

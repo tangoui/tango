@@ -23,6 +23,12 @@ const (
 	tipHandled = 1
 	tipMarked  = 2
 	tipCommit  = 4
+	// tipMore means committed text is still queued: the bridge polls again
+	// before applying marked text, which arrives with the last part.
+	tipMore = 8
+
+	// tipMaxCommitted bounds the text queued for one session, in UTF-16 units.
+	tipMaxCommitted = 64 * 1024
 )
 
 type tipRequest struct {
@@ -57,7 +63,13 @@ type tipSession struct {
 	caret   platform.Rect
 	client  string
 	updated time.Time
-	pending tipResponse
+	// pending holds the Handled and Commit flags and the marked text; the
+	// committed text waits in committed and goes out in response-sized parts.
+	pending   tipResponse
+	committed []uint16
+	// ended marks a session whose End response left text queued. Only Poll
+	// reaches it, until the queue drains.
+	ended bool
 }
 
 func (s *tipSessions) dispatch(r tipRequest) tipResponse {
@@ -67,6 +79,14 @@ func (s *tipSessions) dispatch(r tipRequest) tipResponse {
 		return response
 	}
 	session := s.byToken[r.Token]
+	if session != nil && session.ended {
+		session.updated = now
+		response = session.take()
+		if response.Flags&tipMore == 0 {
+			delete(s.byToken, r.Token)
+		}
+		return response
+	}
 	if session == nil {
 		if r.Action == tipReset || r.Action == tipEnd || r.Action == tipPoll {
 			return response
@@ -75,9 +95,11 @@ func (s *tipSessions) dispatch(r tipRequest) tipResponse {
 		// behind. Bound those entries and reclaim them before opening more.
 		for token, stale := range s.byToken {
 			if now.Sub(stale.updated) > time.Minute {
-				delete(s.byID, stale.id)
+				if !stale.ended {
+					delete(s.byID, stale.id)
+					s.sink.IMEEnd(stale.id)
+				}
 				delete(s.byToken, token)
-				s.sink.IMEEnd(stale.id)
 			}
 		}
 		if len(s.byToken) >= 256 {
@@ -101,14 +123,42 @@ func (s *tipSessions) dispatch(r tipRequest) tipResponse {
 		s.sink.IMECommitComposition(session.id)
 	case tipEnd:
 		s.sink.IMEDeactivate(session.id)
-		delete(s.byToken, r.Token)
 		delete(s.byID, session.id)
 		s.sink.IMEEnd(session.id)
+		session.ended = true
 	}
-	response = session.pending
-	response.Version = tipVersion
-	session.pending = tipResponse{}
+	response = session.take()
+	if session.ended && response.Flags&tipMore == 0 {
+		delete(s.byToken, r.Token)
+	}
 	return response
+}
+
+// take removes the next response from the session's queue.
+func (s *tipSession) take() tipResponse {
+	pending := &s.pending
+	r := tipResponse{Version: tipVersion, Flags: pending.Flags & tipHandled}
+	pending.Flags &^= tipHandled
+	if pending.Flags&tipCommit != 0 {
+		n := min(len(s.committed), len(r.Committed))
+		if n < len(s.committed) && n > 0 && utf16.IsSurrogate(rune(s.committed[n-1])) && s.committed[n-1] < 0xdc00 {
+			n--
+		}
+		r.Flags |= tipCommit
+		r.CommittedLength = uint32(copy(r.Committed[:], s.committed[:n]))
+		s.committed = s.committed[n:]
+		if len(s.committed) != 0 {
+			r.Flags |= tipMore
+			return r
+		}
+		s.committed = nil
+	}
+	if pending.Flags&tipMarked != 0 {
+		r.Flags |= tipMarked
+		r.Marked, r.MarkedLength, r.Cursor = pending.Marked, pending.MarkedLength, pending.Cursor
+	}
+	*pending = tipResponse{}
+	return r
 }
 
 func tipKeyEvent(r tipRequest) platform.IMEKey {
@@ -184,9 +234,15 @@ func (s *tipSession) mark(text string, cursor int) {
 }
 
 func (s *tipSession) commit(text string) {
-	pending := &s.pending
-	pending.Flags = pending.Flags&^tipMarked | tipCommit
-	pending.CommittedLength += uint32(tipCopyUTF16(pending.Committed[pending.CommittedLength:], text))
+	s.pending.Flags = s.pending.Flags&^tipMarked | tipCommit
+	units := utf16.Encode([]rune(text))
+	if room := tipMaxCommitted - len(s.committed); len(units) > room {
+		units = units[:max(room, 0)]
+		if n := len(units); n > 0 && utf16.IsSurrogate(rune(units[n-1])) && units[n-1] < 0xdc00 {
+			units = units[:n-1]
+		}
+	}
+	s.committed = append(s.committed, units...)
 }
 
 // requeue returns an undelivered response's text to its session, ahead of
@@ -197,26 +253,15 @@ func (s *tipSessions) requeue(token [16]byte, r tipResponse) {
 	if session == nil || r.Flags&(tipMarked|tipCommit) == 0 {
 		return
 	}
-	newer := session.pending
-	merged := tipResponse{Version: tipVersion}
-	if r.Flags&tipCommit != 0 || newer.Flags&tipCommit != 0 {
-		merged.Flags |= tipCommit
-		committed := append(r.Committed[:r.CommittedLength:r.CommittedLength], newer.Committed[:newer.CommittedLength]...)
-		n := copy(merged.Committed[:], committed)
-		if n < len(committed) && n > 0 && utf16.IsSurrogate(rune(committed[n-1])) && committed[n-1] < 0xdc00 {
-			n--
-		}
-		merged.CommittedLength = uint32(n)
-	}
+	pending := &session.pending
 	// Text marked or committed since supersedes the older marked text.
-	marked := r
-	if newer.Flags&(tipMarked|tipCommit) != 0 {
-		marked = newer
+	newer := pending.Flags&(tipMarked|tipCommit) != 0
+	if r.Flags&tipCommit != 0 {
+		session.committed = append(slices.Clip(r.Committed[:r.CommittedLength]), session.committed...)
+		pending.Flags |= tipCommit
 	}
-	if marked.Flags&tipMarked != 0 {
-		merged.Flags |= tipMarked
-		merged.Marked, merged.MarkedLength, merged.Cursor = marked.Marked, marked.MarkedLength, marked.Cursor
+	if !newer && r.Flags&tipMarked != 0 {
+		pending.Flags |= tipMarked
+		pending.Marked, pending.MarkedLength, pending.Cursor = r.Marked, r.MarkedLength, r.Cursor
 	}
-	merged.Flags |= newer.Flags & tipHandled
-	session.pending = merged
 }

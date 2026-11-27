@@ -90,12 +90,20 @@ func (s *tipServer) accept(runMain func(func())) {
 
 func (s *tipServer) serve(conn net.Conn, runMain func(func())) {
 	defer conn.Close()
-	deadline := time.Now().Add(75 * time.Millisecond)
+	// A key must reach the handler within 75ms. Its response may take a
+	// little longer: tip.cpp waits 100ms for it after sending the request.
+	start := time.Now()
+	deadline := start.Add(75 * time.Millisecond)
+	reply := start.Add(90 * time.Millisecond)
 	conn.SetDeadline(deadline)
 	var request tipRequest
 	if binary.Read(conn, binary.LittleEndian, &request) != nil || request.Version != tipVersion {
 		return
 	}
+	// The PID names the client app. Take it from the pipe rather than
+	// trusting the request.
+	request.PID = tipClientPID(conn)
+	conn.SetDeadline(reply)
 	// dispatch takes the session's pending text. A response the bridge
 	// never reads (dispatch finished after the deadline, or the write
 	// failed) goes back to the session for the next Poll.
@@ -115,7 +123,7 @@ func (s *tipServer) serve(conn net.Conn, runMain func(func())) {
 		}
 		response <- result
 	})
-	timer := time.NewTimer(time.Until(deadline))
+	timer := time.NewTimer(time.Until(reply))
 	defer timer.Stop()
 	select {
 	case result := <-response:
@@ -132,6 +140,16 @@ func (s *tipServer) serve(conn net.Conn, runMain func(func())) {
 		default:
 		}
 	}
+}
+
+func tipClientPID(conn net.Conn) uint32 {
+	var pid uint32
+	if f, ok := conn.(interface{ Fd() uintptr }); ok {
+		if windows.GetNamedPipeClientProcessId(windows.Handle(f.Fd()), &pid) != nil {
+			pid = 0
+		}
+	}
+	return pid
 }
 
 func tipProcessName(pid uint32) string {

@@ -4,13 +4,51 @@ package windows
 
 import (
 	"encoding/binary"
+	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 	"unicode/utf16"
 
+	winio "github.com/Microsoft/go-winio"
 	"github.com/tangoui/tango/internal/platform"
 )
+
+// The client PID comes from the pipe, not from the request.
+func TestTIPClientPID(t *testing.T) {
+	name := fmt.Sprintf(`\\.\pipe\TangoIMETest-%d-%d`, os.Getpid(), time.Now().UnixNano())
+	listener, err := winio.ListenPipe(name, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		conn, _ := listener.Accept()
+		accepted <- conn
+	}()
+	timeout := time.Second
+	client, err := winio.DialPipe(name, &timeout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	conn := <-accepted
+	if conn == nil {
+		t.Fatal("accept failed")
+	}
+	defer conn.Close()
+	if got := tipClientPID(conn); got != uint32(os.Getpid()) {
+		t.Fatalf("client PID %d, want %d", got, os.Getpid())
+	}
+	a, b := net.Pipe()
+	defer a.Close()
+	defer b.Close()
+	if got := tipClientPID(a); got != 0 {
+		t.Fatalf("PID without a pipe handle %d, want 0", got)
+	}
+}
 
 // A key handler that outlasts the bridge's deadline must not lose the
 // text it committed: the next Poll delivers it.

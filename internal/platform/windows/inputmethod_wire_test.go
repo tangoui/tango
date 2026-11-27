@@ -3,6 +3,7 @@ package windows
 import (
 	"encoding/binary"
 	"slices"
+	"strings"
 	"testing"
 	"unicode/utf16"
 
@@ -75,23 +76,20 @@ func TestTIPRequeue(t *testing.T) {
 	// The lost response committed "你" and marked "h"; "好" came since.
 	session.commit("你")
 	session.mark("h", 1)
-	lost := session.pending
-	lost.Flags |= tipHandled
-	session.pending = tipResponse{}
+	session.pending.Flags |= tipHandled
+	lost := session.take()
 	session.commit("好")
 	state.requeue(token, lost)
-	got := session.pending
+	got := session.take()
 	if got.Flags != tipCommit || text(got.Committed[:got.CommittedLength]) != "你好" {
 		t.Fatalf("requeued commit: flags %d, committed %q", got.Flags, text(got.Committed[:got.CommittedLength]))
 	}
 
 	// Older marked text comes back when nothing newer is queued.
-	session.pending = tipResponse{}
 	session.mark("ni", 2)
-	lost = session.pending
-	session.pending = tipResponse{}
+	lost = session.take()
 	state.requeue(token, lost)
-	if got := session.pending; got.Flags != tipMarked || text(got.Marked[:got.MarkedLength]) != "ni" || got.Cursor != 2 {
+	if got := session.take(); got.Flags != tipMarked || text(got.Marked[:got.MarkedLength]) != "ni" || got.Cursor != 2 {
 		t.Fatalf("requeued mark: %+v", got.Flags)
 	}
 
@@ -100,6 +98,78 @@ func TestTIPRequeue(t *testing.T) {
 	state.requeue(token, lost)
 	if len(state.byToken) != 0 {
 		t.Fatal("requeue revived an ended session")
+	}
+}
+
+// Committed text longer than one response goes out in parts. Marked text
+// waits for the last part, and a surrogate pair is never split.
+func TestTIPLongCommit(t *testing.T) {
+	sink := &tipTestSink{}
+	state := newTIPSessions(sink, func(uint32) string { return "" })
+	token := [16]byte{9}
+	state.dispatch(tipRequest{Version: tipVersion, Action: tipActivate, Token: token})
+	session := state.byToken[token]
+
+	long := strings.Repeat("a", 1023) + "😀" + strings.Repeat("字", 1500)
+	session.commit(long)
+	session.mark("zi", 1)
+	var got []uint16
+	var last tipResponse
+	for i := 0; ; i++ {
+		if i > 4 {
+			t.Fatal("commit did not drain")
+		}
+		last = state.dispatch(tipRequest{Version: tipVersion, Action: tipPoll, Token: token})
+		if last.Flags&tipCommit == 0 {
+			t.Fatalf("part %d has flags %d", i, last.Flags)
+		}
+		got = append(got, last.Committed[:last.CommittedLength]...)
+		if last.Flags&tipMore == 0 {
+			break
+		}
+		if last.Flags&tipMarked != 0 {
+			t.Fatalf("part %d carries marked text before the commit drained", i)
+		}
+	}
+	if string(utf16.Decode(got)) != long {
+		t.Fatalf("reassembled %d units, want %d", len(got), len(utf16.Encode([]rune(long))))
+	}
+	if last.Flags&tipMarked == 0 || string(utf16.Decode(last.Marked[:last.MarkedLength])) != "zi" {
+		t.Fatalf("last part flags %d", last.Flags)
+	}
+	if poll := state.dispatch(tipRequest{Version: tipVersion, Action: tipPoll, Token: token}); poll.Flags != 0 {
+		t.Fatalf("drained session flags %d", poll.Flags)
+	}
+
+	session.commit(strings.Repeat("b", tipMaxCommitted+10))
+	if len(session.committed) != tipMaxCommitted {
+		t.Fatalf("queued %d units, want the %d cap", len(session.committed), tipMaxCommitted)
+	}
+}
+
+// Text committed while a session ends stays reachable by Poll until drained.
+func TestTIPEndDrainsCommit(t *testing.T) {
+	sink := &tipTestSink{}
+	state := newTIPSessions(sink, func(uint32) string { return "" })
+	token := [16]byte{11}
+	state.dispatch(tipRequest{Version: tipVersion, Action: tipActivate, Token: token})
+	id := state.byToken[token].id
+	long := strings.Repeat("末", 1500)
+	state.byID[id].commit(long)
+
+	end := state.dispatch(tipRequest{Version: tipVersion, Action: tipEnd, Token: token})
+	if end.Flags != tipCommit|tipMore || len(state.byID) != 0 ||
+		!slices.Equal(sink.events, []string{"activate", "deactivate", "end"}) {
+		t.Fatalf("end flags %d, events %v", end.Flags, sink.events)
+	}
+	got := end.Committed[:end.CommittedLength]
+	poll := state.dispatch(tipRequest{Version: tipVersion, Action: tipPoll, Token: token})
+	got = append(got, poll.Committed[:poll.CommittedLength]...)
+	if poll.Flags != tipCommit || string(utf16.Decode(got)) != long {
+		t.Fatalf("drain flags %d, %d units", poll.Flags, len(got))
+	}
+	if len(state.byToken) != 0 || len(sink.events) != 3 {
+		t.Fatalf("drained session left tokens %d, events %v", len(state.byToken), sink.events)
 	}
 }
 
