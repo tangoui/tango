@@ -47,10 +47,12 @@ type Key struct {
 
 // ModifierKey reports a change to a modifier, with the side in Code where
 // applicable (for example, "ShiftLeft", "ControlRight", or "CapsLock").
-// For CapsLock, Down reports the new lock state.
+// The flags reflect the state after the event. macOS reports CapsLock as a
+// lock-state change, so Down on a CapsLock event is the new lock state.
 type ModifierKey struct {
-	Code           string
-	Down, CapsLock bool
+	Code                   string
+	Down, CapsLock         bool
+	Shift, Ctrl, Alt, Meta bool
 }
 
 // Mode describes a declared input mode from the application's packaging config.
@@ -181,6 +183,8 @@ func (s *server) IMEKey(id uint64, k platform.IMEKey) bool {
 	corehook.GuardNonFatal(s.app, "ime key", func() { handled = s.h.Key(s.session(id), Key(k)) })
 	return handled
 }
+
+func (s *server) IMEWantsModifiers() bool { return s.h.Modifier != nil }
 
 func (s *server) IMEModifier(id uint64, m platform.IMEModifierKey) bool {
 	var handled bool

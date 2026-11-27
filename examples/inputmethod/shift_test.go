@@ -63,14 +63,16 @@ func TestEnglishModePassesLetters(t *testing.T) {
 }
 
 func TestCapsLockPassesLetters(t *testing.T) {
-	c := engine.New()
 	for _, key := range []ime.Key{
-		{Code: "KeyA", Text: "a", CapsLock: true, Shift: true},
 		{Code: "KeyA", Text: "A", CapsLock: true},
+		{Code: "KeyA", Text: "a", CapsLock: true},
 		{Code: "KeyA", Text: "A", Shift: true},
+		{Code: "KeyA", Text: "a", Meta: true},
+		{Code: "KeyA", Text: "a", Ctrl: true},
 	} {
-		if _, _, consumed := handle(c, key, "zh"); consumed || c.Composing() {
-			t.Errorf("key %+v should pass through", key)
+		c := composerWith("nihao")
+		if _, raw, consumed := handle(c, key, "zh"); consumed || raw != "nihao" || c.Composing() {
+			t.Errorf("key %+v: consumed = %t, raw = %q, composing = %t", key, consumed, raw, c.Composing())
 		}
 	}
 }
@@ -116,5 +118,14 @@ func TestModeMenu(t *testing.T) {
 	mode.click(got[2].ID)
 	if !opened {
 		t.Fatal("About callback did not run")
+	}
+}
+
+func TestShiftTapWithModifierHeldAtActivation(t *testing.T) {
+	var tap shiftTap
+	now := time.Now()
+	tap.modifier(ime.ModifierKey{Code: "ShiftLeft", Down: true, Shift: true, Meta: true}, now)
+	if tap.modifier(ime.ModifierKey{Code: "ShiftLeft", Meta: true}, now.Add(100*time.Millisecond)) {
+		t.Fatal("Shift cannot toggle while Command is already held")
 	}
 }

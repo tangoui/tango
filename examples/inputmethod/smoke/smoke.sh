@@ -9,7 +9,9 @@ mkdir -p -- "$output"
 output=$(cd -- "$output" && pwd)
 exec > >(tee "$output/smoke.log") 2>&1
 
-source_id=com.tangoui.inputmethod.example
+parent_source_id=com.tangoui.inputmethod.example
+source_id="$parent_source_id.zh"
+source_ids=("$source_id" "$parent_source_id.en" "$parent_source_id")
 bundle="$HOME/Library/Input Methods/Tango Pinyin.app"
 session=tango-ime-smoke
 work=$(mktemp -d)
@@ -62,7 +64,7 @@ JS
 )
 
 cleanup() {
-	local code=$? current state
+	local code=$? current state id
 	trap - EXIT
 	set +e
 	if [[ "$restore" = 1 ]]; then
@@ -75,17 +77,21 @@ cleanup() {
 		[[ "$current" = "$original" ]] || code=1
 	fi
 	if [[ "$installed" = 1 ]]; then
-		state=$("$tis" status "$source_id")
-		if [[ "$state" = enabled ]]; then
-			"$tis" disable "$source_id" || code=1
-			echo "Disabled test input source"
-		fi
+		for id in "${source_ids[@]}"; do
+			state=$("$tis" status "$id")
+			if [[ "$state" = enabled ]]; then
+				"$tis" disable "$id" || code=1
+				echo "Disabled test input source: $id"
+			fi
+		done
 		killall -q TangoPinyin || true
 		rm -rf -- "$bundle"
 		[[ ! -e "$bundle" ]] || code=1
-		state=$("$tis" status "$source_id")
-		echo "Test input source after removing bundle: $state"
-		[[ "$state" = missing || "$state" = disabled ]] || code=1
+		for id in "${source_ids[@]}"; do
+			state=$("$tis" status "$id")
+			echo "Test input source after removing bundle: $id $state"
+			[[ "$state" = missing || "$state" = disabled ]] || code=1
+		done
 	fi
 	if [[ -n "$focus_window" ]]; then
 		if close_doc "$focus_window"; then echo "Closed TextEdit focus test document"; else code=1; fi
@@ -111,7 +117,9 @@ plutil -lint -- "$app/Contents/Info.plist"
 
 original=$("$tis" current)
 echo "Original input source: $original"
-"$tis" status "$source_id" | jq -Re '. != "enabled"' >/dev/null
+for id in "${source_ids[@]}"; do
+	"$tis" status "$id" | jq -Re '. != "enabled"' >/dev/null
+done
 if [[ -e "$bundle" || -L "$bundle" ]]; then
 	echo "Already installed: $bundle" >&2
 	exit 1
@@ -121,6 +129,7 @@ installed=1
 ditto "$app" "$bundle"
 killall -q TangoPinyin || true
 "$tis" register "$bundle"
+"$tis" enable "$parent_source_id"
 "$tis" enable "$source_id"
 
 first="$work/Tango IME Smoke.txt"

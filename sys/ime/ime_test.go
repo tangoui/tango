@@ -333,23 +333,38 @@ func TestMenu(t *testing.T) {
 
 func TestMenuPanic(t *testing.T) {
 	var panics []string
+	var menuCalls, clickCalls int
 	a, f := runInputMethod(t, tango.Options{OnPanic: func(p tango.Panic) bool {
 		panics = append(panics, p.Where)
 		return false
 	}})
 	if err := Serve(a, Handler{Key: passKey,
-		Menu:        func() []MenuItem { panic("menu") },
-		MenuClicked: func(string) { panic("click") },
+		Menu: func() []MenuItem {
+			menuCalls++
+			if menuCalls == 1 {
+				panic("menu")
+			}
+			return []MenuItem{{ID: "about", Title: "About"}}
+		},
+		MenuClicked: func(string) {
+			clickCalls++
+			if clickCalls == 1 {
+				panic("click")
+			}
+		},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	got := tango.Await(a, func() []platform.IMEMenuItem {
+	got := tango.Await(a, func() [2][]platform.IMEMenuItem {
 		sink := f.sink.(platform.InputMethodMenus)
 		sink.IMEMenuClicked("about")
-		return sink.IMEMenu()
+		first, next := sink.IMEMenu(), sink.IMEMenu()
+		sink.IMEMenuClicked("about")
+		return [2][]platform.IMEMenuItem{first, next}
 	})
-	if len(got) != 0 || len(panics) != 2 || panics[0] != "ime menu clicked" || panics[1] != "ime menu" {
-		t.Fatalf("menu = %+v, panic locations = %v", got, panics)
+	if len(got[0]) != 0 || len(got[1]) != 1 || got[1][0].ID != "about" || clickCalls != 2 ||
+		len(panics) != 2 || panics[0] != "ime menu clicked" || panics[1] != "ime menu" {
+		t.Fatalf("menus = %+v, clicks = %d, panic locations = %v", got, clickCalls, panics)
 	}
 }
 

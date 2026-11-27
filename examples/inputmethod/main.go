@@ -121,10 +121,7 @@ func main() {
 				if active != s {
 					return false
 				}
-				now := time.Now()
-				if m.Down {
-					tap.Down(m.Code, now)
-				} else if tap.Up(m.Code, now) {
+				if tap.modifier(m, time.Now()) {
 					mode.toggle()
 				}
 				return false

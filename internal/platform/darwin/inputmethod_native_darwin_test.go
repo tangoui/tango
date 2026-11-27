@@ -43,10 +43,12 @@ func TestIMENativeController(t *testing.T) {
 
 type imeControllerProbeSink struct {
 	platform.InputMethodSink
-	clicked []string
-	modes   []string
-	keys    []platform.IMEKey
-	mods    []platform.IMEModifierKey
+	clicked        []string
+	modes          []string
+	keys           []platform.IMEKey
+	mods           []platform.IMEModifierKey
+	wantsModifiers bool
+	commits        int
 }
 
 func (s *imeControllerProbeSink) IMEKey(_ uint64, k platform.IMEKey) bool {
@@ -55,6 +57,10 @@ func (s *imeControllerProbeSink) IMEKey(_ uint64, k platform.IMEKey) bool {
 }
 
 func (*imeControllerProbeSink) IMEEnd(uint64) {}
+
+func (s *imeControllerProbeSink) IMECommitComposition(uint64) { s.commits++ }
+
+func (s *imeControllerProbeSink) IMEWantsModifiers() bool { return s.wantsModifiers }
 
 func (s *imeControllerProbeSink) IMEModifier(_ uint64, m platform.IMEModifierKey) bool {
 	s.mods = append(s.mods, m)
@@ -99,11 +105,17 @@ func runNativeIMEController() {
 			send(itemAt(2), "target") != controller {
 			panic("native menu item state")
 		}
-		dict := send(class("NSDictionary"), "dictionaryWithObject:forKey:", uintptr(itemAt(2)), uintptr(imeRuntime.menuItemKey))
-		send(controller, "doCommandBySelector:commandDictionary:", uintptr(sel("tangoMenuItem:")), uintptr(dict))
+		for _, i := range []uintptr{0, 2} {
+			dict := send(class("NSDictionary"), "dictionaryWithObject:forKey:", uintptr(itemAt(i)), uintptr(imeRuntime.menuItemKey))
+			send(controller, "doCommandBySelector:commandDictionary:", uintptr(sel("tangoMenuItem:")), uintptr(dict))
+		}
 		if !slices.Equal(sink.clicked, []string{"about"}) {
 			panic(fmt.Sprintf("menu clicks = %v", sink.clicked))
 		}
+		if got := send(controller, "recognizedEvents:", 0); got != 1<<10 {
+			panic(fmt.Sprintf("legacy recognized events = %#x", got))
+		}
+		sink.wantsModifiers = true
 		if got := send(controller, "recognizedEvents:", 0); got != imeRecognizedEventsMask {
 			panic(fmt.Sprintf("recognized events = %#x", got))
 		}
@@ -148,21 +160,56 @@ func runNativeIMEController() {
 		if err := host.IMESetMode("unknown"); err == nil {
 			panic("unknown mode accepted")
 		}
-		const modeTag = 0x696d696d
-		systemMode := func(id string) {
-			send(controller, "setValue:forTag:client:", uintptr(nsString(bundle+"."+id)), modeTag, 0)
+		var selected []string
+		classDef("TangoIMEProbeClient", "NSObject", nil, []objc.MethodDef{
+			method("selectInputMode:", func(_ id, _ objc.SEL, mode id) {
+				selected = append(selected, goString(mode))
+				send(imeHost.controllers[imeHost.active], "setValue:forTag:client:", uintptr(mode), 0x696d696d, 0)
+			}),
+			method("markedRange", func(id, objc.SEL) nsRange { return nsRange{5, 2} }),
+		})
+		client := alloc("TangoIMEProbeClient")
+		defer release(client)
+		if !objc.GetClass(imeControllerClass).AddMethod(sel("client"), objc.NewIMP(func(id, objc.SEL) id { return client }), "@@:") {
+			panic("failed to override the probe controller client")
 		}
-		systemMode("en")
-		systemMode("en")
+		active := send(class(imeControllerClass), "alloc")
+		defer release(active)
+		imeHost.sessions[active] = 2
+		imeHost.controllers[2] = active
+		imeHost.active = 2
+		mouseDown := func(index uint) bool {
+			return objc.Send[bool](active, sel("mouseDownOnCharacterIndex:coordinate:withModifier:continueTracking:client:"),
+				index, nsPoint{}, uint(0), uintptr(0), client)
+		}
+		if mouseDown(6) || mouseDown(2) || sink.commits != 1 {
+			panic(fmt.Sprintf("mouse clicks requested %d commits", sink.commits))
+		}
+		const modeTag = 0x696d696d
+		systemMode := func(target id, mode string) {
+			send(target, "setValue:forTag:client:", uintptr(nsString(bundle+"."+mode)), modeTag, uintptr(client))
+		}
+		systemMode(active, "en")
+		systemMode(active, "en")
 		if got := host.IMECurrentMode(); got != "en" || !slices.Equal(sink.modes, []string{"en"}) {
 			panic(fmt.Sprintf("mode = %q, callbacks = %v", got, sink.modes))
 		}
 		if err := host.IMESetMode("zh"); err != nil {
 			panic(err)
 		}
-		systemMode("zh")
-		if got := host.IMECurrentMode(); got != "zh" || !slices.Equal(sink.modes, []string{"en"}) {
-			panic(fmt.Sprintf("mode = %q, callbacks = %v", got, sink.modes))
+		systemMode(active, "zh")
+		systemMode(controller, "en") // a notification from the older session
+		if got := host.IMECurrentMode(); got != "zh" ||
+			!slices.Equal(sink.modes, []string{"en"}) || !slices.Equal(selected, []string{bundle + ".zh"}) {
+			panic(fmt.Sprintf("mode = %q, callbacks = %v, selection = %v", got, sink.modes, selected))
+		}
+		imeHost.active = 0
+		if err := host.IMESetMode("en"); err != nil {
+			panic(err)
+		}
+		systemMode(active, "zh")
+		if got := host.IMECurrentMode(); got != "zh" || !slices.Equal(sink.modes, []string{"en", "zh"}) {
+			panic(fmt.Sprintf("mode after newer system selection = %q, callbacks = %v", got, sink.modes))
 		}
 	})
 }

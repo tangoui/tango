@@ -39,6 +39,16 @@ func (t *shiftTap) Up(code string, now time.Time) bool {
 	return match
 }
 
+func (t *shiftTap) modifier(key ime.ModifierKey, now time.Time) bool {
+	if key.Down {
+		t.Down(key.Code, now)
+	}
+	if key.Ctrl || key.Alt || key.Meta || !key.Down && key.Shift {
+		t.Key()
+	}
+	return !key.Down && t.Up(key.Code, now)
+}
+
 type pinyinMode struct {
 	current string
 	set     func(string) error

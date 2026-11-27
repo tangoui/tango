@@ -517,8 +517,9 @@ type IMEKey struct {
 }
 
 type IMEModifierKey struct {
-	Code           string
-	Down, CapsLock bool
+	Code                   string
+	Down, CapsLock         bool
+	Shift, Ctrl, Alt, Meta bool
 }
 
 type IMEMenuItem struct {
@@ -541,6 +542,7 @@ type InputMethodSink interface {
 
 // InputMethodModifiers is the optional modifier event sink.
 type InputMethodModifiers interface {
+	IMEWantsModifiers() bool
 	IMEModifier(session uint64, key IMEModifierKey) bool
 }
 

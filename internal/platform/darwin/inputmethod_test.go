@@ -70,14 +70,14 @@ func TestIMEModifierFromFlags(t *testing.T) {
 		want  platform.IMEModifierKey
 		ok    bool
 	}{
-		{0x38, 1 << 17, platform.IMEModifierKey{Code: "ShiftLeft", Down: true}, true},
+		{0x38, 1 << 17, platform.IMEModifierKey{Code: "ShiftLeft", Down: true, Shift: true}, true},
 		{0x38, 0, platform.IMEModifierKey{Code: "ShiftLeft"}, true},
-		{0x3c, 1 << 17, platform.IMEModifierKey{Code: "ShiftRight", Down: true}, true},
-		{0x38, 1<<17 | nxDeviceRShiftKeyMask, platform.IMEModifierKey{Code: "ShiftLeft"}, true},
+		{0x3c, 1 << 17, platform.IMEModifierKey{Code: "ShiftRight", Down: true, Shift: true}, true},
+		{0x38, 1<<17 | nxDeviceRShiftKeyMask, platform.IMEModifierKey{Code: "ShiftLeft", Shift: true}, true},
 		{0x39, 1 << 16, platform.IMEModifierKey{Code: "CapsLock", Down: true, CapsLock: true}, true},
 		{0x39, 0, platform.IMEModifierKey{Code: "CapsLock"}, true},
-		{0x37, 1 << 20, platform.IMEModifierKey{Code: "MetaLeft", Down: true}, true},
-		{0x3b, 1 << 18, platform.IMEModifierKey{Code: "ControlLeft", Down: true}, true},
+		{0x37, 1 << 20, platform.IMEModifierKey{Code: "MetaLeft", Down: true, Meta: true}, true},
+		{0x3b, 1 << 18, platform.IMEModifierKey{Code: "ControlLeft", Down: true, Ctrl: true}, true},
 		{0x3f, 0, platform.IMEModifierKey{}, false},
 	} {
 		got, ok := imeModifierFromFlags(tc.code, tc.flags)

@@ -53,6 +53,7 @@ func loadIME() error {
 			method("initWithServer:delegate:client:", imeInitController),
 			method("handleEvent:client:", imeHandleEvent),
 			method("recognizedEvents:", imeRecognizedEvents),
+			method("mouseDownOnCharacterIndex:coordinate:withModifier:continueTracking:client:", imeMouseDown),
 			method("activateServer:", imeActivate),
 			method("deactivateServer:", imeDeactivate),
 			method("commitComposition:", imeCommitComposition),
@@ -162,7 +163,41 @@ func imeInitController(self id, cmd objc.SEL, server, delegate, client id) id {
 	return controller
 }
 
-func imeRecognizedEvents(id, objc.SEL, id) uint { return imeRecognizedEventsMask }
+func imeRecognizedEvents(id, objc.SEL, id) uint {
+	mask := uint(1 << nsEventTypeKeyDown)
+	imeOnMain(func() {
+		if sink, ok := imeHost.sink.(platform.InputMethodModifiers); ok && sink.IMEWantsModifiers() {
+			mask = imeRecognizedEventsMask
+		}
+	})
+	return mask
+}
+
+// IMK only provides its default click-to-commit behavior for a KeyDown-only
+// event mask. When flags are requested, handle the equivalent mouse callback.
+func imeMouseDown(self id, cmd objc.SEL, index uint, point nsPoint, flags uint, tracking *bool, client id) bool {
+	var modifiers bool
+	imeOnMain(func() {
+		sink, ok := imeHost.sink.(platform.InputMethodModifiers)
+		modifiers = ok && sink.IMEWantsModifiers()
+		if !modifiers {
+			return
+		}
+		session := imeHost.sessions[self]
+		if session == 0 || !sendBool(client, "respondsToSelector:", uintptr(sel("markedRange"))) {
+			return
+		}
+		marked := objc.Send[nsRange](client, sel("markedRange"))
+		if marked.Location != nsNotFound && marked.Length != nsNotFound && marked.Length != 0 &&
+			(index < marked.Location || index-marked.Location >= marked.Length) {
+			imeHost.sink.IMECommitComposition(session)
+		}
+	})
+	if !modifiers {
+		return objc.SendSuper[bool](self, cmd, index, point, flags, tracking, client)
+	}
+	return false
+}
 
 func imeHandleEvent(self id, _ objc.SEL, event, _ id) bool {
 	if event == 0 {

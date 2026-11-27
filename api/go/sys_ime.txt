@@ -43,9 +43,13 @@ pkg github.com/tangoui/tango/sys/ime, type Mode struct, ID string
 pkg github.com/tangoui/tango/sys/ime, type Mode struct, Label string
 pkg github.com/tangoui/tango/sys/ime, type Mode struct, Short string
 pkg github.com/tangoui/tango/sys/ime, type ModifierKey struct
+pkg github.com/tangoui/tango/sys/ime, type ModifierKey struct, Alt bool
 pkg github.com/tangoui/tango/sys/ime, type ModifierKey struct, CapsLock bool
 pkg github.com/tangoui/tango/sys/ime, type ModifierKey struct, Code string
+pkg github.com/tangoui/tango/sys/ime, type ModifierKey struct, Ctrl bool
 pkg github.com/tangoui/tango/sys/ime, type ModifierKey struct, Down bool
+pkg github.com/tangoui/tango/sys/ime, type ModifierKey struct, Meta bool
+pkg github.com/tangoui/tango/sys/ime, type ModifierKey struct, Shift bool
 pkg github.com/tangoui/tango/sys/ime, type Session struct
 pkg github.com/tangoui/tango/sys/ime, var ErrServing error
 pkg github.com/tangoui/tango/sys/ime, var ErrUnsupported error

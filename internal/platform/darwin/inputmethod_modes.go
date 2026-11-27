@@ -77,14 +77,16 @@ func imeSetValue(self id, cmd objc.SEL, value id, tag int, client id) {
 	}
 	imeOnMain(func() {
 		m := &imeHost.modes
-		if m.pending || !sendBool(value, "isKindOfClass:", uintptr(class("NSString"))) {
+		session := imeHost.sessions[self]
+		if session == 0 || imeHost.active != 0 && session != imeHost.active ||
+			!sendBool(value, "isKindOfClass:", uintptr(class("NSString"))) {
 			return
 		}
 		mode := imeModeID(m.bundleID, goString(value))
 		if mode == m.current || !slices.Contains(m.ids, mode) {
 			return
 		}
-		m.current = mode
+		m.current, m.pending = mode, false
 		if sink, ok := imeHost.sink.(platform.InputMethodModeSink); ok {
 			sink.IMEModeChanged(mode)
 		}

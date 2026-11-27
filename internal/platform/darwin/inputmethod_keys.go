@@ -18,9 +18,16 @@ const (
 )
 
 func imeModifierFromFlags(code uint16, flags uint) (platform.IMEModifierKey, bool) {
-	caps := flags&nsCapsLockKeyMask != 0
+	m := platform.IMEModifierKey{
+		CapsLock: flags&nsCapsLockKeyMask != 0,
+		Shift:    flags&nsShiftKeyMask != 0,
+		Ctrl:     flags&nsControlKeyMask != 0,
+		Alt:      flags&nsAlternateKeyMask != 0,
+		Meta:     flags&nsCommandKeyMask != 0,
+	}
 	if code == macCapsLockCode {
-		return platform.IMEModifierKey{Code: "CapsLock", Down: caps, CapsLock: caps}, true
+		m.Code, m.Down = "CapsLock", m.CapsLock
+		return m, true
 	}
 	key, down, _, ok := modifierKeyFromMac(code, flags)
 	if !ok {
@@ -33,7 +40,8 @@ func imeModifierFromFlags(code uint16, flags uint) (platform.IMEModifierKey, boo
 	case input.KeyCtrlRight:
 		name = "ControlRight"
 	}
-	return platform.IMEModifierKey{Code: name, Down: down, CapsLock: caps}, true
+	m.Code, m.Down = name, down
+	return m, true
 }
 
 func imeKey(code uint16, chars, charsIgnoringMods string, flags uint, repeat bool) platform.IMEKey {
