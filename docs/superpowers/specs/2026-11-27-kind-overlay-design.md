@@ -57,7 +57,7 @@
 - 窗口类：新增一个 NSPanel 子类，比如 `TangoOverlay`，覆盖 `canBecomeKeyWindow` 和 `canBecomeMainWindow`，都返回 NO。样式为 `NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel`。
 - `Show()`：浮层改走 `orderFrontRegardless`，不调用 `makeKeyAndOrderFront:`，也不受 `launchBackground` 分支影响。
 - 层级：使用菜单之上、光标之下的层级，按 Squirrel 等输入法的做法取 `CGWindowLevelForKey(kCGCursorWindowLevelKey) - 1` 或 `NSPopUpMenuWindowLevel`，由实现者实测在全屏应用和 Spotlight 下的表现后选定，并在代码注释中写明理由。
-- collectionBehavior：`CanJoinAllSpaces | FullScreenAuxiliary | Stationary | IgnoresCycle | Transient`，并且不加 `FullScreenPrimary`。
+- collectionBehavior：`CanJoinAllSpaces | FullScreenAuxiliary | Stationary | IgnoresCycle`（=337），不加 `FullScreenPrimary`；`Transient` 与 `Stationary` 互斥，不能同时设置（自审更正）。
 - `setHidesOnDeactivate:NO`，`setFloatingPanel:YES`。
 - 自绘画布：浮层窗口的 NSTrackingArea 用 `NSTrackingActiveAlways`（0x80）替代 `ActiveInActiveApp`（0x40），这样后台应用也能收到悬停事件。`acceptsFirstMouse:` 已经返回 YES，保持不变。WebView 浮层也需要第一次点击就生效，由实现者核对 WKWebView 的行为。
 - 核心层（`surface_ext.go`）：`KindOverlay` 交给 backend 前，先检查 backend 是否声明支持（例如实现 `platform.OverlaySupport` 标记接口）；不支持时 `NewSurface` 和 `uihost.Open` 返回包装了 `ErrUnsupported` 的错误。
