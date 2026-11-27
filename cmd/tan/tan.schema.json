@@ -266,6 +266,25 @@
       },
       "type": "object"
     },
+    "InputMethod": {
+      "additionalProperties": false,
+      "description": "InputMethod packages the app as a macOS InputMethodKit input source.",
+      "properties": {
+        "connection": {
+          "description": "defaults to the app ID followed by _Connection",
+          "type": "string"
+        },
+        "icon": {
+          "description": "project-relative menu icon PNG, defaults to the app icon",
+          "type": "string"
+        },
+        "language": {
+          "description": "intended language, defaults to zh-Hans",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "Installer": {
       "additionalProperties": false,
       "description": "Installer is the \"installer\" section of tan.json: how tan package dresses its installers. Every field is optional. See docs/packaging.md.",
@@ -354,6 +373,9 @@
         "entitlements": {
           "description": "plist used by tan sign",
           "type": "string"
+        },
+        "inputMethod": {
+          "$ref": "#/$defs/InputMethod"
         },
         "minVersion": {
           "description": "LSMinimumSystemVersion; default 11.0",

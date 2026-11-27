@@ -148,8 +148,24 @@ func (f FileAssociation) MIMEType(c *Config) string {
 
 // MacOS holds macOS-only settings.
 type MacOS struct {
-	MinVersion   string `json:"minVersion,omitempty"`   // LSMinimumSystemVersion; default 11.0
-	Entitlements string `json:"entitlements,omitempty"` // plist used by tan sign
+	MinVersion   string       `json:"minVersion,omitempty"`   // LSMinimumSystemVersion; default 11.0
+	Entitlements string       `json:"entitlements,omitempty"` // plist used by tan sign
+	InputMethod  *InputMethod `json:"inputMethod,omitempty"`
+}
+
+// InputMethod packages the app as a macOS InputMethodKit input source.
+type InputMethod struct {
+	Connection string `json:"connection,omitempty"` // defaults to the app ID followed by _Connection
+	Language   string `json:"language,omitempty"`   // intended language, defaults to zh-Hans
+	Icon       string `json:"icon,omitempty"`       // project-relative menu icon PNG, defaults to the app icon
+}
+
+// InputMethodConnection is the name the input method server must use.
+func (c *Config) InputMethodConnection() string {
+	if im := c.MacOS.InputMethod; im != nil && im.Connection != "" {
+		return im.Connection
+	}
+	return c.ID + "_Connection"
 }
 
 // Windows holds Windows-only settings. See docs/windows.md.
@@ -353,6 +369,14 @@ func (c *Config) validate() error {
 	}
 	if !idPattern.MatchString(c.ID) {
 		errs = append(errs, fmt.Errorf(`"id" %q must be reverse-DNS, like com.example.app`, c.ID))
+	}
+	if im := c.MacOS.InputMethod; im != nil {
+		if !strings.Contains(c.ID, ".inputmethod.") {
+			errs = append(errs, errors.New(`"id" must contain .inputmethod. when macos.inputMethod is set`))
+		}
+		if configPathAbs(im.Icon) {
+			errs = append(errs, fmt.Errorf(`"macos.inputMethod.icon" path %q must be relative to the project`, im.Icon))
+		}
 	}
 	if !versionPattern.MatchString(c.Version) {
 		errs = append(errs, fmt.Errorf(`"version" %q must look like 1.2.3`, c.Version))

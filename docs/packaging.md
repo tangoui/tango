@@ -173,6 +173,25 @@ SectionEnd
 - `InstallDirRegKey` 会记住上次的安装目录。`/S /D=<目录>` 静默安装（自更新使用这种方式）不显示完成页，所以不会运行应用，也不会新建桌面快捷方式。
 - `machine` 安装默认不在完成页提供"运行"：安装器以管理员权限运行，直接启动会让应用也带着管理员权限。显式开启 `runAfterInstall` 时，tan 改为通过 explorer.exe 以当前登录用户、非提升身份启动（这是社区通行做法，没有官方文档背书，请在目标系统上验证）。
 
+## macOS 输入法
+
+在 `tan.json` 中设置 `macos.inputMethod` 后，`tan build` 会生成可供 macOS 加载的输入法应用包。应用的 `id` 必须含 `.inputmethod.`，例如 `com.example.inputmethod.pinyin`。
+
+```json
+"macos": {
+  "inputMethod": {
+    "language": "zh-Hans",
+    "icon": "assets/menu-icon.png"
+  }
+}
+```
+
+- `language` 是输入法的主要语言，默认为 `zh-Hans`。
+- `icon` 是项目内的菜单图标 PNG。省略时使用应用图标（如果有）。
+- `connection` 默认为 `<id>_Connection`。如需自定义，请同时设置 `ime.Handler.Connection` 为相同的值。
+
+把生成的 `.app` 复制到 `~/Library/Input Methods/`。更新已运行的输入法时，用 `killall <可执行文件名>` 结束旧进程，macOS 会在下次使用该输入法时重新启动它。在「系统设置 → 键盘 → 文字输入 → 编辑」中添加并选择该输入法。
+
 ## macOS 磁盘映像
 
 | 字段 | 默认 | 说明 |

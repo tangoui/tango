@@ -344,6 +344,11 @@ func writeBundle(cfg *Config, app string) error {
 			warnf("Icon skipped: %v", err)
 		}
 	}
+	if im := cfg.MacOS.InputMethod; im != nil && im.Icon != "" {
+		if err := copyFile(cfg.Path(im.Icon), filepath.Join(res, "menuicon.png"), 0o644); err != nil {
+			return fmt.Errorf("macos.inputMethod.icon: %w", err)
+		}
+	}
 	if err := os.WriteFile(filepath.Join(contents, "Info.plist"), infoPlist(cfg, icon), 0o644); err != nil {
 		return err
 	}
@@ -398,6 +403,24 @@ func infoPlist(cfg *Config, icon string) []byte {
 	if cfg.Copyright != "" {
 		entries = append(entries, kv{"NSHumanReadableCopyright", cfg.Copyright})
 	}
+	if im := cfg.MacOS.InputMethod; im != nil {
+		language := im.Language
+		if language == "" {
+			language = "zh-Hans"
+		}
+		menuIcon := ""
+		if im.Icon != "" {
+			menuIcon = "menuicon.png"
+		} else if icon != "" {
+			menuIcon = icon + ".icns"
+		}
+		entries = append(entries,
+			kv{"InputMethodConnectionName", cfg.InputMethodConnection()},
+			kv{"InputMethodServerControllerClass", "TangoInputController"},
+			kv{"TISIntendedLanguage", language},
+			kv{"tsInputMethodIconFileKey", menuIcon},
+		)
+	}
 	slices.SortFunc(entries, func(a, b kv) int { return strings.Compare(a.k, b.k) })
 
 	var b bytes.Buffer
@@ -410,11 +433,28 @@ func infoPlist(cfg *Config, icon string) []byte {
 		fmt.Fprintf(&b, "\t<key>%s</key>\n\t<string>%s</string>\n", e.k, html.EscapeString(e.v))
 	}
 	b.WriteString("\t<key>NSHighResolutionCapable</key>\n\t<true/>\n")
+	if im := cfg.MacOS.InputMethod; im != nil {
+		b.WriteString("\t<key>LSBackgroundOnly</key>\n\t<true/>\n")
+		plistStrings(&b, "\t", "tsInputMethodCharacterRepertoireKey", []string{repertoire(im.Language)})
+	}
 	plistStrings(&b, "\t", "CFBundleLocalizations", cfg.AppleLocalizations())
 	writeURLTypes(&b, cfg)
 	writeDocumentTypes(&b, cfg)
 	b.WriteString("</dict>\n</plist>\n")
 	return b.Bytes()
+}
+
+func repertoire(lang string) string {
+	switch lang {
+	case "", "zh-Hans":
+		return "Hans"
+	case "zh-Hant":
+		return "Hant"
+	case "ja":
+		return "Jpan"
+	default:
+		return "Latn"
+	}
 }
 
 // writeURLTypes declares the deep-link schemes (CFBundleURLTypes), one
