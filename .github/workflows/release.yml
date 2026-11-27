@@ -2,7 +2,7 @@
 # See docs/release.md for the version rules and the release checklist.
 #
 #   verify   tag matches runtime-js/package.json and CHANGELOG.md; vet + tests
-#   tan      tan binaries for darwin/linux/windows × amd64/arm64 + checksums
+#   tan      tan binaries for darwin/linux/windows × amd64/arm64; scaffold smoke test
 #   npm      npm publish --provenance of @tangoui/runtime (skipped without
 #            the NPM_TOKEN secret)
 #   release  GitHub release (draft) with the binaries, release notes and the
@@ -127,8 +127,7 @@ jobs:
               name="tan_${VERSION}_${goos}_${goarch}"
               ext=""; [ "$goos" = windows ] && ext=.exe
               mkdir -p "stage/$name"
-              # -buildvcs=false: otherwise `tan version` reports the cmd/tan
-              # module's VCS pseudo-version instead of main.version.
+              # Build in go.work so tan links the tagged Tango checkout.
               (cd cmd/tan && GOOS=$goos GOARCH=$goarch go build -trimpath -buildvcs=false \
                 -ldflags "-s -w -X main.version=$VERSION" -o "../../stage/$name/tan$ext" .)
               cp LICENSE README.md "stage/$name/"
@@ -142,6 +141,32 @@ jobs:
           (cd dist && sha256sum * > "tan_${VERSION}_checksums.txt")
           ls -l dist
 
+      - name: Verify the release binary scaffolds the tagged version
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+          GOWORK: "off"
+          # The tag is on GitHub, but the public module proxy and checksum
+          # database may not have indexed it yet. Fetch this module from Git.
+          GONOPROXY: github.com/tangoui/tango
+          GONOSUMDB: github.com/tangoui/tango
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          bin="$PWD/stage/tan_${VERSION}_$(go env GOOS)_$(go env GOARCH)/tan"
+          (cd "$tmp" && "$bin" init -yes -template vue-ts app)
+          go_version="$(go -C "$tmp/app" mod edit -json | jq -r '.Require[]? | select(.Path == "github.com/tangoui/tango") | .Version')"
+          npm_version="$(jq -r '.dependencies["@tangoui/runtime"]' "$tmp/app/frontend/package.json")"
+          if [[ "$go_version" != "$TAG" || "$npm_version" != "$VERSION" ]]; then
+            echo "::error::tan init generated Tango '$go_version' and npm runtime '$npm_version'; expected '$TAG' and '$VERSION'"
+            exit 1
+          fi
+          if ! grep -Fx "  tango-version: $TAG" "$tmp/app/.agents/skills/tango/SKILL.md"; then
+            echo "::error::tan init did not install the Tango $TAG skill"
+            exit 1
+          fi
+          echo "tan init verified Tango $go_version, npm runtime $npm_version, and the matching skill"
+
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: tan-binaries
@@ -150,7 +175,7 @@ jobs:
 
   npm:
     name: publish @tangoui/runtime
-    needs: verify
+    needs: [verify, tan]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -290,7 +315,7 @@ jobs:
 
   docs:
     name: documentation site
-    needs: verify
+    needs: [verify, tan]
     if: github.event_name == 'push' && needs.verify.outputs.prerelease == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 40
