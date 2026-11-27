@@ -19,7 +19,7 @@ Tango 一次发布包含三样东西，它们**使用同一个版本号**：
 - **预发布**：`vX.Y.Z-rc.N`、`-beta.N`。发布工作流把它们标为 GitHub pre-release，npm 用 `next` 标签发布（不影响 `latest`），不部署文档站。
 - **三者同步**：即使某次只改了其中一部分，也一起升到同一个版本，方便用户对应。`tan init` 生成的项目引用同版本的 `@tangoui/runtime`。
 - **Go 模块路径**：进入 v2 时模块路径要加 `/v2` 后缀（Go 的规则），届时另行规划。
-- `tan version` 的版本号来自构建时的 `-ldflags "-X main.version=X.Y.Z"`；`go install …@vX.Y.Z` 安装的则取模块版本。
+- Release 附件通过 `-ldflags "-X main.version=X.Y.Z"` 设置 `tan version` 和 `tan init` 的发布版本。通过 `go install …@vX.Y.Z` 安装时，`tan version` 读取 CLI 模块版本，`tan init` 读取内嵌的 `cmd/tan/go.mod`。没有版本元数据的本地构建显示 `tan dev`。
 
 ## API 稳定性
 
@@ -268,7 +268,6 @@ uihost.Shortcut(s, "CmdOrCtrl+N", func() { runner.Post(l.newEntry) })
 - [ ] 在 macOS 上手动跑 `bash scripts/smoke.sh` 和 `go run ./examples/showcase -smoke`；有条件的话在 Windows、Linux 实机上各跑一遍，并在发布说明里如实写明验证范围。
 - [ ] `CHANGELOG.md`：把「未发布」里的内容移到新的 `## [0.2.0] - YYYY-MM-DD` 一节，更新文末的比较链接。
 - [ ] `runtime-js/package.json` 的 `version` 改成 `0.2.0`，在 `runtime-js` 里 `npm install --package-lock-only` 同步 lock 文件，`npm test` 通过，提交更新后的 `runtimejs/tango.iife.js`（如有变化）。
-- [ ] `cmd/tan` 模板里引用的 `@tangoui/runtime` 版本与本次一致（`tan init` 生成的 package.json）。
 - [ ] 确认 `skills/tango/` 中的 API 用法和示例与本版 Tango 一致。
 - [ ] 文档：新功能有对应页面；实验性功能有标注。`cd site && npm run docs:build && npm run docs:links` 通过。
 
@@ -284,21 +283,17 @@ git push origin v0.2.0
 
 | 作业 | 做什么 |
 |---|---|
-| `verify` | 标签格式；`runtime-js/package.json` 版本与标签一致；CHANGELOG 有 `## [0.2.0]`；`go vet` / `go test`（根模块与 cmd/tan）；`runtime-js` 的 `npm test` |
-| `tan` | `CGO_ENABLED=0` 交叉编译 `tan`（darwin / linux / windows × amd64 / arm64），打成 `tan_0.2.0_<os>_<arch>.tar.gz` / `.zip`，附 `tan_0.2.0_checksums.txt` |
+| `verify` | 标签格式、npm 版本、CHANGELOG 条目和 CLI 模块的 `replace` 检查。在 `go.work` 中运行 `go vet` / `go test`（根模块与 cmd/tan），并运行 `runtime-js` 的 `npm test` |
+| `tan` | 在 `go.work` 中交叉编译六个平台的 `tan`（darwin / linux / windows × amd64 / arm64，`CGO_ENABLED=0`），注入根标签版本。用 Linux 产物生成 Vue 项目，核对 Go 模块、npm runtime 和技能版本，再上传压缩包和校验和 |
 | `npm` | 有 `NPM_TOKEN` 时 `npm publish --provenance --access public` 发布 `@tangoui/runtime@0.2.0`（`prepublishOnly` 会先构建并测试）；该版本已存在则跳过 |
 | `release` | 从 CHANGELOG 取本版本一节作为说明，附加 GitHub 自动生成的 PR 列表，创建**草稿** Release 并上传二进制；Release 已存在时只更新附件和说明 |
 | `docs` | 正式版本才执行：在 Linux 上生成组件截图、构建文档站（含 API 参考）、检查死链，部署到 GitHub Pages |
 
-### 3. 检查并发布 Release
+`verify` 通过后运行 `tan`。`release`、`npm` 和 `docs` 都等待 `tan` 通过。冒烟检查在临时目录以独立 Go 模块运行，从 GitHub 直接获取刚推送的根标签，避免受公共 Go 模块代理与校验和数据库的索引延迟影响。
 
-- [ ] 打开 GitHub Releases 里的草稿，核对说明、附件和校验和，按 **Publish release**。
-- [ ] npm：`npm view @tangoui/runtime@0.2.0`，页面上应显示 provenance。
-- [ ] 文档站已更新。
+### 3. 打 cmd/tan 子模块标签
 
-### 4. 打 cmd/tan 子模块标签
-
-`cmd/tan` 是独立模块。`cmd/tan/go.mod` 必须依赖一个可下载的根模块版本（正式标签或伪版本），不能用 `v0.0.0` 占位，也不能带 `replace`。本地开发由仓库根目录的 `go.work` 连接两个模块，无需把本地路径写进发布模块。根模块发布后，再把 CLI 的依赖更新到该版本：
+等 `tan` 作业通过且 `proxy.golang.org` 能下载根标签后，把 `cmd/tan` 的直接依赖更新到同一版本。此提交用于 `go install`。Release 附件已在根标签上构建，并通过 `tan init` 校验。
 
 ```bash
 cd cmd/tan
@@ -310,14 +305,27 @@ git tag -a cmd/tan/v0.2.0 -m "tan v0.2.0"
 git push origin main cmd/tan/v0.2.0
 ```
 
-- [ ] 验证：在一个空目录里 `go install github.com/tangoui/tango/cmd/tan@v0.2.0 && tan version`。
-- [ ] 本地开发继续由仓库根目录的 `go.work` 把两个模块连在一起，不需要恢复 `replace`。
+验证代理上的 CLI 模块和新项目。`go mod edit -json` 中 `github.com/tangoui/tango` 的版本应为 `v0.2.0`，`frontend/package.json` 中 `@tangoui/runtime` 应为 `0.2.0`，技能的 `tango-version` 应为 `v0.2.0`。
 
-`tan init` 从 `cmd/tan/go.mod` 取 Tango 依赖版本，写入应用的 `go.mod`。使用 npm 的模板固定到对应的 `@tangoui/runtime` 发布版本。CLI 依赖伪版本时，npm 依赖使用该伪版本所基于的标签。测试尚未发布的 Go 和 JS 改动时，使用 `tan init -local <Tango checkout>`。
+```bash
+check_dir=$(mktemp -d)
+GOWORK=off GOBIN="$check_dir/bin" go install github.com/tangoui/tango/cmd/tan@v0.2.0
+"$check_dir/bin/tan" version
+GOWORK=off "$check_dir/bin/tan" init -yes -template vue-ts "$check_dir/app"
+go -C "$check_dir/app" mod edit -json
+grep -F '"@tangoui/runtime"' "$check_dir/app/frontend/package.json"
+grep -F 'tango-version:' "$check_dir/app/.agents/skills/tango/SKILL.md"
+```
 
-普通开发提交也必须保持 CLI 可独立构建：在 `cmd/tan` 目录执行 `GOWORK=off go build -mod=readonly .`。CI 会执行同一检查，并拒绝 CLI 模块里的 `replace`；发布校验也会将它视为错误。没有正式版本时，可以依赖已经推送、能被 Go 模块代理下载的根模块伪版本。本地修复尚未推送时，远程的 `go install …@latest` 仍会读取旧的 `go.mod`；可先在本地 `cmd/tan` 目录执行 `go install .`。
+普通开发提交也必须保持 CLI 可独立构建。在 `cmd/tan` 目录执行 `GOWORK=off go build -mod=readonly .`。CI 会执行同一检查。`cmd/tan/go.mod` 依赖可下载的根模块版本，本地模块连接放在 `go.work`。CLI 依赖伪版本时，`tan init` 的 npm 依赖使用该伪版本所基于的标签。测试尚未发布的 Go 和 JS 改动时，使用 `tan init -local <Tango checkout>`。本地修复尚未推送时，可以在 `cmd/tan` 目录执行 `go install .`。
 
 > `cmd/tan/v*` 标签不匹配 `v*` 触发条件，不会再跑一遍发布工作流。
+
+### 4. 检查并发布 Release
+
+- [ ] 核对 GitHub Release 草稿的说明、六个平台附件和校验和，确认第 3 步验证通过后按 **Publish release**。
+- [ ] `npm view @tangoui/runtime@0.2.0` 可查到该版本，npm 页面显示 provenance。
+- [ ] 正式版本的文档站已更新。
 
 ### 5. 收尾
 
@@ -326,6 +334,7 @@ git push origin main cmd/tan/v0.2.0
 
 ## 出问题时
 
-- **`verify` 失败**：修正后删除并重打标签（`git push --delete origin v0.2.0 && git tag -d v0.2.0`），前提是 npm 还没发布这个版本。
-- **npm 已发布但有问题**：npm 上的版本号不能复用。发布 `0.2.1` 修复，并 `npm deprecate @tangoui/runtime@0.2.0 "<原因>"`。Go 模块同理：已推送的标签不要移动（Go 校验和数据库已经记录），用新补丁版本修复，必要时在 `go.mod` 里用 `retract` 撤回。
+- **`verify` 或 `tan` 因网络故障失败**：待下载恢复后重跑失败作业，检查 `tan init` 的输出。第 3 步遇到 Go 代理尚未索引时，等代理可下载根标签后再更新 CLI 依赖。
+- **版本校验或技能检查失败**：根据日志核对根标签、构建参数和该标签下的 `skills/tango/`。修复源码后发布新补丁版本。已推送的 Go 模块标签应保留，必要时可以在 `go.mod` 里用 `retract` 撤回旧版本。
+- **npm 已发布但有问题**：npm 上的版本号不能复用。发布 `0.2.1` 修复，并用 `npm deprecate @tangoui/runtime@0.2.0 "<原因>"` 标记旧版本。
 - **只想重建附件**：Actions → Release → Run workflow，填已有标签；这时不会发布 npm、不会部署文档。
