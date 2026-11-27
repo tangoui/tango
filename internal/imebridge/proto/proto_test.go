@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -87,5 +89,47 @@ func TestCPPProtocol(t *testing.T) {
 	}
 	if out, err := exec.Command(test, "testdata").CombinedOutput(); err != nil {
 		t.Fatalf("C++ protocol tests: %v\n%s", err, out)
+	}
+}
+
+func TestCPPBridgeLogic(t *testing.T) {
+	clang, err := exec.LookPath("clang++")
+	if err != nil {
+		t.Skip("clang++ not available")
+	}
+	test := filepath.Join(t.TempDir(), "pipe_logic_test")
+	if out, err := exec.Command(clang, "-std=c++17", "-Wall", "-Wextra", "-Werror", "-pthread", "../windows/pipe_logic_test.cpp", "-o", test).CombinedOutput(); err != nil {
+		t.Fatalf("compile C++ bridge logic: %v\n%s", err, out)
+	}
+	if out, err := exec.Command(test).CombinedOutput(); err != nil {
+		t.Fatalf("C++ bridge logic: %v\n%s", err, out)
+	}
+}
+
+func TestBridgeDLLBuilds(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-based cross-build test")
+	}
+	if _, err := exec.LookPath("x86_64-w64-mingw32-g++"); err != nil {
+		t.Skip("MinGW-w64 cross-compiler not available")
+	}
+	dir := t.TempDir()
+	if out, err := exec.Command("bash", "../windows/build.sh", "x64", dir).CombinedOutput(); err != nil {
+		t.Fatalf("cross-build DLL: %v\n%s", err, out)
+	}
+	dll := filepath.Join(dir, "TangoIMEBridge-x64.dll")
+	out, err := exec.Command("x86_64-w64-mingw32-objdump", "-p", dll).CombinedOutput()
+	if err != nil {
+		t.Fatalf("check DLL: %v\n%s", err, out)
+	}
+	for _, name := range []string{"DllGetClassObject", "DllCanUnloadNow", "DllRegisterServer", "DllUnregisterServer"} {
+		if !strings.Contains(string(out), name) {
+			t.Errorf("missing export %s", name)
+		}
+	}
+	for _, name := range []string{"libstdc++-6.dll", "libgcc_s", "libwinpthread-1.dll"} {
+		if strings.Contains(strings.ToLower(string(out)), name) {
+			t.Errorf("dynamic dependency %s", name)
+		}
 	}
 }
