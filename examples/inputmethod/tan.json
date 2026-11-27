@@ -2,9 +2,11 @@
   "name": "Tango Pinyin",
   "id": "com.tangoui.inputmethod.example",
   "version": "0.1.0",
-  "macos": {
-    "inputMethod": {
-      "language": "zh-Hans"
-    }
+  "inputMethod": {
+    "language": "zh-Hans",
+    "modes": [
+      {"id": "zh", "label": "中文", "short": "中", "icon": "icons/zh.tiff"},
+      {"id": "en", "label": "英文", "short": "英", "icon": "icons/en.tiff"}
+    ]
   }
 }

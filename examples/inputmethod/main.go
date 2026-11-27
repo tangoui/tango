@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/tangoui/tango"
@@ -20,8 +21,18 @@ func main() {
 	})
 	composers := make(map[uint64]*engine.Composer)
 	var candidates *candidateWindow
+	var active *ime.Session
+	var tap shiftTap
+	systemCandidates := ime.SystemDrawsCandidates()
+	hideCandidates := func(s *ime.Session) {
+		if systemCandidates {
+			s.SetCandidates(nil, -1)
+		} else {
+			candidates.hide(s)
+		}
+	}
 	flush := func(s *ime.Session) {
-		candidates.hide(s)
+		hideCandidates(s)
 		if c := composers[s.ID()]; c != nil {
 			delete(composers, s.ID())
 			if text := c.Flush(); text != "" {
@@ -29,26 +40,39 @@ func main() {
 			}
 		}
 	}
+	mode := pinyinMode{
+		current: "zh",
+		set:     func(id string) error { return ime.SetMode(app, id) },
+		flush: func() {
+			if active != nil {
+				flush(active)
+			}
+		},
+		about: func() { log.Print("关于 Tango Pinyin") },
+	}
 	app.OnReady(func() {
-		var err error
-		candidates, err = newCandidateWindow(app)
-		if err != nil && !errors.Is(err, tango.ErrUnsupported) {
-			log.Printf("Tango Pinyin candidates: %v", err)
+		if !systemCandidates {
+			var err error
+			candidates, err = newCandidateWindow(app)
+			if err != nil && !errors.Is(err, tango.ErrUnsupported) {
+				log.Printf("Tango Pinyin candidates: %v", err)
+			}
 		}
-		err = ime.Serve(app, ime.Handler{
+		err := ime.Serve(app, ime.Handler{
 			Key: func(s *ime.Session, k ime.Key) bool {
+				tap.Key()
 				c := composers[s.ID()]
 				if c == nil {
 					c = engine.New()
 				}
-				res, raw, consumed := handle(c, k)
+				res, raw, consumed := handle(c, k, mode.current)
 				if c.Composing() {
 					composers[s.ID()] = c
 				} else {
 					delete(composers, s.ID())
 				}
 				if len(res.Candidates) == 0 && (res.Handled || raw != "") {
-					candidates.hide(s)
+					hideCandidates(s)
 				}
 				if raw != "" {
 					s.Commit(raw)
@@ -58,26 +82,64 @@ func main() {
 				} else if res.Handled {
 					s.SetComposition(res.Preedit, utf8.RuneCountInString(res.Preedit))
 				}
-				if candidates != nil && len(res.Candidates) != 0 {
-					candidates.show(s, s.Caret(), res.Candidates, func(index int) {
-						if text, ok := c.Pick(index); ok {
-							delete(composers, s.ID())
-							candidates.hide(s)
-							s.Commit(text)
+				if len(res.Candidates) != 0 {
+					if systemCandidates {
+						list := make([]ime.Candidate, len(res.Candidates))
+						for i, text := range res.Candidates {
+							list[i] = ime.Candidate{Text: text}
 						}
-					})
+						s.SetCandidates(list, 0)
+					} else if candidates != nil {
+						candidates.show(s, s.Caret(), res.Candidates, func(index int) {
+							if text, ok := c.Pick(index); ok {
+								delete(composers, s.ID())
+								hideCandidates(s)
+								s.Commit(text)
+							}
+						})
+					}
 				}
 				return consumed
 			},
-			Deactivate:        flush,
+			Activate: func(s *ime.Session) {
+				active, tap = s, shiftTap{}
+			},
+			Deactivate: func(s *ime.Session) {
+				flush(s)
+				if active == s {
+					active, tap = nil, shiftTap{}
+				}
+			},
 			CommitComposition: flush,
 			End: func(s *ime.Session) {
 				endSession(s, composers, candidates)
+				if active == s {
+					active, tap = nil, shiftTap{}
+				}
 			},
+			Modifier: func(s *ime.Session, m ime.ModifierKey) bool {
+				if active != s {
+					return false
+				}
+				now := time.Now()
+				if m.Down {
+					tap.Down(m.Code, now)
+				} else if tap.Up(m.Code, now) {
+					mode.toggle()
+				}
+				return false
+			},
+			ModeChanged: mode.changed,
+			Menu:        mode.menu,
+			MenuClicked: mode.click,
 		})
 		if err != nil {
 			log.Printf("Tango Pinyin: %v", err)
 			app.Quit()
+			return
+		}
+		if current := ime.CurrentMode(app); current != "" {
+			mode.changed(current)
 		}
 	})
 	if err := app.Run(); err != nil {
@@ -90,8 +152,9 @@ func endSession(s *ime.Session, composers map[uint64]*engine.Composer, candidate
 	candidates.hide(s)
 }
 
-func handle(c *engine.Composer, k ime.Key) (res engine.Result, flush string, consumed bool) {
-	if k.Ctrl || k.Alt || k.Meta {
+func handle(c *engine.Composer, k ime.Key, mode string) (res engine.Result, flush string, consumed bool) {
+	if mode == "en" || k.Ctrl || k.Alt || k.Meta ||
+		(k.CapsLock || k.Shift) && strings.HasPrefix(k.Code, "Key") {
 		return engine.Result{}, c.Flush(), false
 	}
 	digit, ok := strings.CutPrefix(k.Code, "Digit")

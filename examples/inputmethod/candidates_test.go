@@ -43,7 +43,7 @@ func TestPick(t *testing.T) {
 func TestHandleDigitPicks(t *testing.T) {
 	for _, code := range []string{"Digit2", "Numpad2"} {
 		c := composerWith("nihao")
-		res, flush, consumed := handle(c, ime.Key{Code: code, Text: "2"})
+		res, flush, consumed := handle(c, ime.Key{Code: code, Text: "2"}, "zh")
 		if !consumed || !res.Handled || res.Commit != "拟好" || flush != "" || c.Composing() {
 			t.Fatalf("%s = %+v, flush=%q, consumed=%t, composing=%t", code, res, flush, consumed, c.Composing())
 		}

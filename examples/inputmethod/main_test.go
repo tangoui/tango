@@ -25,7 +25,7 @@ func TestHandleKey(t *testing.T) {
 			for _, r := range tc.preedit {
 				c.Feed(engine.Key{Rune: r})
 			}
-			res, flush, consumed := handle(c, tc.key)
+			res, flush, consumed := handle(c, tc.key, "zh")
 			if flush != tc.flush || consumed != tc.consumed || res.Handled {
 				t.Fatalf("handle = %+v, %q, %t", res, flush, consumed)
 			}
