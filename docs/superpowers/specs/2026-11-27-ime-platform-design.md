@@ -92,3 +92,15 @@
 3. **Windows 覆盖范围对标搜狗**：管理员权限运行的程序、开始菜单搜索、"设置"、UWP/商店应用里都要能打字。因此安装包用机器级安装（HKLM、Program Files，需要 UAC）；Go 宿主改为常驻（登录时自启），不再由 DLL 拉起；管道 ACL 加上 `ALL APPLICATION PACKAGES` 和低完整性标签。管理员进程连同一个用户宿主（按会话 id 区分），模式状态只有一份。这是 Windows 阶段工作量最大的部分。
 4. **多个 Tango 输入法可以共存**：每个应用带一份自己的 DLL 副本，有自己的 CLSID；DLL 从模块旁边的配置文件读取 CLSID、语言配置和连接名。升级时用带版本号的 DLL 文件名并重新注册，旧文件用 `MoveFileEx` 安排在重启时删除，所以升级和卸载后不需要立即重启。
 5. **取代现有的 `IME1` 协议和 CMake 示例**：通用 DLL 用新协议（长连接、双向推送、版本号可升级），不兼容旧的按应用编译的 DLL；`examples/inputmethod/windows` 的 CMake 路径和 `IME1` 测试相应改写或删除（sys/ime 仍是 experimental）。
+
+## 用户回答（2026-11-27）
+
+- **没有 Windows 代码签名证书**：桥接 DLL 和宿主默认不签名。测试时由用户在自己的电脑上关闭"智能应用控制"。`tan package` 保留签名挂钩：tan.json 里配置了 `windows.certificate`（沿用现有 `tan sign` 流程）时，对 DLL 和宿主 EXE 一并签名。文档写明未签名时在哪些机器上会被拒绝加载，以及正式发布前需要证书。
+- **用户的 Windows 电脑是 Intel**：ARM64 版 DLL（包括 ARM64X 转发）只做到能编译，不做实机验证，不作为完成标准。验收以 x64 为准。
+
+## 自审补充
+
+- **tan.json 结构**：模式表是三端共用的，所以新增顶层 `inputMethod` 段（`connection`、`language`、`icon`、`modes`），并加 Windows 专用的 `clsid`/`profile` 以及 Linux 专用的引擎名。现有的 `macos.inputMethod` 保留为兼容别名：两者同时出现时报错，只有旧写法时照旧工作，并在文档里标为已弃用。
+- **预编译 DLL 的构建**：现有 Release 流水线只有 ubuntu runner，所以 DLL 用 llvm-mingw（mingw-w64 自带 TSF/COM 头文件）在 Linux 上交叉编译出 x64 和 ARM64，不引入 Windows runner。本地开发时，Mac 上也能用同一套交叉编译器构建，便于在 Mac 上先跑通编译和线协议测试。
+- **分阶段时各平台的行为**：第 1 阶段先定公开 API。Windows 和 Linux 的新能力在各自的阶段完成之前，返回 `ErrUnsupported` 或按文档说明被忽略，旧能力（按键、组字、上屏）保持可用。每个阶段合并后，main 都是可以发布的状态。
+- **修饰键的判定留给应用**：框架只转发修饰键按下和松开的原始事件（带左右之分）。"单击 Shift"的判定（按下与松开之间没有其他键、时间不超过阈值）由应用或示例自己做，示例里给出参考实现，因为不同输入法对这件事的规则不一样。
