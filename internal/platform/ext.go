@@ -131,17 +131,21 @@ type SurfaceStatus interface {
 	IsFocused() bool
 }
 
-// SurfaceKind and Parent are in SurfaceOptions (types.go additions below are
-// fields the core may set; backends that do not support a kind create a
-// normal window).
+// SurfaceKind selects the native window type.
 type SurfaceKind int
 
 const (
-	KindWindow SurfaceKind = iota
-	KindPanel              // floating utility panel, does not activate the app (NSPanel / WS_EX_TOOLWINDOW)
-	KindModal              // modal to Parent; Parent must be set
-	KindSheet              // macOS sheet attached to Parent; other platforms: KindModal
+	KindWindow  SurfaceKind = iota
+	KindPanel               // floating utility panel, does not activate the app (NSPanel / WS_EX_TOOLWINDOW)
+	KindModal               // modal to Parent; Parent must be set
+	KindSheet               // macOS sheet attached to Parent; other platforms: KindModal
+	KindOverlay             // non-activating, non-focusable overlay
 )
+
+// OverlaySupport is implemented by backends that can create KindOverlay windows.
+type OverlaySupport interface {
+	SupportsOverlay() bool
+}
 
 // SurfaceExtras carries round-2 creation options. The core passes it to
 // backends implementing CreatorEx; others get the plain SurfaceOptions.

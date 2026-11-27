@@ -31,6 +31,7 @@ pkg github.com/tangoui/tango, const Foreground Lifecycle = 2
 pkg github.com/tangoui/tango, const HeadersAll HeaderScope = 1
 pkg github.com/tangoui/tango, const HeadersAssets HeaderScope = 0
 pkg github.com/tangoui/tango, const KindModal SurfaceKind = 2
+pkg github.com/tangoui/tango, const KindOverlay SurfaceKind = 4
 pkg github.com/tangoui/tango, const KindPanel SurfaceKind = 1
 pkg github.com/tangoui/tango, const KindSheet SurfaceKind = 3
 pkg github.com/tangoui/tango, const KindWindow SurfaceKind = 0

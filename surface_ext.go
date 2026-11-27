@@ -13,6 +13,7 @@ package tango
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -49,6 +50,22 @@ const (
 	KindPanel  = platform.KindPanel  // floating utility panel that does not activate the app
 	KindModal  = platform.KindModal  // modal to SurfaceOptions.Parent
 	KindSheet  = platform.KindSheet  // macOS sheet on Parent; KindModal elsewhere
+
+	// KindOverlay is a borderless window above normal and full-screen windows
+	// on all desktops. Showing or clicking it leaves the active application
+	// and keyboard focus in place. Focus does nothing, IsFocused returns false,
+	// and the surface emits no focus or blur events.
+	//
+	// Parent, Resizable, TitleBar, AlwaysOnTop and system button options are
+	// ignored, including when changing appearance. Transparency, background,
+	// material, shadow and opacity can be configured. SetState only accepts
+	// StateNormal. Unsupported backends return ErrUnsupported at creation.
+	// Currently only macOS supports this kind.
+	//
+	// Canvas overlays support mouse hover while the app is inactive. WebView
+	// hover and selection styling while inactive are best effort. An ordinary
+	// unpackaged app can still activate at startup.
+	KindOverlay = platform.KindOverlay
 )
 
 // TitleBar is the style of a window's title bar.
@@ -116,7 +133,12 @@ func (a *App) extras(opts SurfaceOptions) (platform.SurfaceExtras, error) {
 		Appearance:  opts.Appearance,
 		AcceptFiles: opts.AcceptFiles,
 	}
-	if p := opts.Parent; p != nil && p.app == a && !p.closed.Load() {
+	if ex.Kind == KindOverlay {
+		b, ok := a.b.(platform.OverlaySupport)
+		if !ok || !b.SupportsOverlay() {
+			return ex, fmt.Errorf("tango: KindOverlay: %w", ErrUnsupported)
+		}
+	} else if p := opts.Parent; p != nil && p.app == a && !p.closed.Load() {
 		ex.Parent = p.id
 	}
 	if (ex.Kind == KindModal || ex.Kind == KindSheet) && ex.Parent == 0 {
