@@ -504,3 +504,27 @@ type LaneGenerations interface {
 type LaneHost interface {
 	OnLanePacket(id SurfaceID, origin string, gen uint64, p []byte) bool
 }
+
+// IMEKey is one key-down event from the system input method.
+type IMEKey struct {
+	Code, Text             string
+	Shift, Ctrl, Alt, Meta bool
+}
+
+// InputMethodSink receives events for the lifetime of each input session.
+type InputMethodSink interface {
+	IMEKey(session uint64, k IMEKey) bool
+	IMEActivate(session uint64)
+	IMEDeactivate(session uint64)
+	IMECommitComposition(session uint64)
+	IMEEnd(session uint64)
+}
+
+// InputMethods is implemented by backends that can host a system input method.
+type InputMethods interface {
+	ServeInputMethod(connection string, sink InputMethodSink) error
+	IMESetComposition(session uint64, text string, cursor int) // cursor counts runes
+	IMECommit(session uint64, text string)
+	IMECaret(session uint64) Rect
+	IMEClientApp(session uint64) string
+}
