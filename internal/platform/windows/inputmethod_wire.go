@@ -2,6 +2,7 @@ package windows
 
 import (
 	"slices"
+	"strconv"
 	"time"
 	"unicode"
 	"unicode/utf16"
@@ -136,12 +137,25 @@ func tipKeyEvent(r tipRequest) platform.IMEKey {
 	return result
 }
 
-var tipKeyCodes = map[uint32]string{
-	0x08: "Backspace", 0x09: "Tab", 0x0d: "Enter", 0x1b: "Escape", 0x20: "Space",
-	0x21: "PageUp", 0x22: "PageDown", 0x23: "End", 0x24: "Home",
-	0x25: "ArrowLeft", 0x26: "ArrowUp", 0x27: "ArrowRight", 0x28: "ArrowDown",
-	0x2d: "Insert", 0x2e: "Delete",
-}
+var tipKeyCodes = func() map[uint32]string {
+	codes := map[uint32]string{
+		0x08: "Backspace", 0x09: "Tab", 0x0d: "Enter", 0x1b: "Escape", 0x20: "Space",
+		0x21: "PageUp", 0x22: "PageDown", 0x23: "End", 0x24: "Home",
+		0x25: "ArrowLeft", 0x26: "ArrowUp", 0x27: "ArrowRight", 0x28: "ArrowDown",
+		0x2d: "Insert", 0x2e: "Delete",
+		0x6a: "NumpadMultiply", 0x6b: "NumpadAdd", 0x6d: "NumpadSubtract", 0x6e: "NumpadDecimal", 0x6f: "NumpadDivide",
+		// VK_OEM_*, named as on a U.S. keyboard like Code on the other platforms.
+		0xba: "Semicolon", 0xbb: "Equal", 0xbc: "Comma", 0xbd: "Minus", 0xbe: "Period", 0xbf: "Slash",
+		0xc0: "Backquote", 0xdb: "BracketLeft", 0xdc: "Backslash", 0xdd: "BracketRight", 0xde: "Quote",
+	}
+	for i := range uint32(10) {
+		codes[0x60+i] = "Numpad" + string(rune('0'+i))
+	}
+	for i := range uint32(12) {
+		codes[0x70+i] = "F" + strconv.Itoa(int(i)+1)
+	}
+	return codes
+}()
 
 func tipCopyUTF16(dst []uint16, text string) int {
 	all := utf16.Encode([]rune(text))
@@ -171,4 +185,36 @@ func (s *tipSession) commit(text string) {
 	pending := &s.pending
 	pending.Flags = pending.Flags&^tipMarked | tipCommit
 	pending.CommittedLength += uint32(tipCopyUTF16(pending.Committed[pending.CommittedLength:], text))
+}
+
+// requeue returns an undelivered response's text to its session, ahead of
+// anything queued since. The bridge has already let the key through, so
+// the Handled flag is dropped.
+func (s *tipSessions) requeue(token [16]byte, r tipResponse) {
+	session := s.byToken[token]
+	if session == nil || r.Flags&(tipMarked|tipCommit) == 0 {
+		return
+	}
+	newer := session.pending
+	merged := tipResponse{Version: tipVersion}
+	if r.Flags&tipCommit != 0 || newer.Flags&tipCommit != 0 {
+		merged.Flags |= tipCommit
+		committed := append(r.Committed[:r.CommittedLength:r.CommittedLength], newer.Committed[:newer.CommittedLength]...)
+		n := copy(merged.Committed[:], committed)
+		if n < len(committed) && n > 0 && utf16.IsSurrogate(rune(committed[n-1])) && committed[n-1] < 0xdc00 {
+			n--
+		}
+		merged.CommittedLength = uint32(n)
+	}
+	// Text marked or committed since supersedes the older marked text.
+	marked := r
+	if newer.Flags&(tipMarked|tipCommit) != 0 {
+		marked = newer
+	}
+	if marked.Flags&tipMarked != 0 {
+		merged.Flags |= tipMarked
+		merged.Marked, merged.MarkedLength, merged.Cursor = marked.Marked, marked.MarkedLength, marked.Cursor
+	}
+	merged.Flags |= newer.Flags & tipHandled
+	session.pending = merged
 }

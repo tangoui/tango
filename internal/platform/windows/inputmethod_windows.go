@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -92,18 +93,41 @@ func (s *tipServer) serve(conn net.Conn, runMain func(func())) {
 	if binary.Read(conn, binary.LittleEndian, &request) != nil || request.Version != tipVersion {
 		return
 	}
+	// dispatch takes the session's pending text. A response the bridge
+	// never reads (dispatch finished after the deadline, or the write
+	// failed) goes back to the session for the next Poll.
+	var mu sync.Mutex
+	abandoned := false
 	response := make(chan tipResponse, 1)
 	runMain(func() {
-		if time.Now().Before(deadline) {
-			response <- s.dispatch(request)
+		if !time.Now().Before(deadline) {
+			return
 		}
+		result := s.dispatch(request)
+		mu.Lock()
+		defer mu.Unlock()
+		if abandoned {
+			s.requeue(request.Token, result)
+			return
+		}
+		response <- result
 	})
 	timer := time.NewTimer(time.Until(deadline))
 	defer timer.Stop()
 	select {
 	case result := <-response:
-		_ = binary.Write(conn, binary.LittleEndian, result)
+		if binary.Write(conn, binary.LittleEndian, result) != nil {
+			runMain(func() { s.requeue(request.Token, result) })
+		}
 	case <-timer.C:
+		mu.Lock()
+		abandoned = true
+		mu.Unlock()
+		select {
+		case result := <-response:
+			runMain(func() { s.requeue(request.Token, result) })
+		default:
+		}
 	}
 }
 
