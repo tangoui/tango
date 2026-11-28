@@ -144,9 +144,14 @@ void TangoBridge::deactivate(const fcitx::InputMethodEntry&, fcitx::InputContext
             Frame focus;
             focus.type = Type::focus;
             focus.session = session;
-            if (auto result = pipe_.request(focus, std::chrono::milliseconds(50))) {
-                receive(result->received_through);
-                for (auto& frame : result->edits) apply(std::move(frame));
+            // On focus-out Fcitx or its frontend owns preedit commitment.
+            // While switching engines with focus intact, deliver the host's
+            // final edits before tearing down the session.
+            if (event.type() != fcitx::EventType::InputContextFocusOut) {
+                if (auto result = pipe_.request(focus, std::chrono::milliseconds(50))) {
+                    receive(result->received_through);
+                    for (auto& frame : result->edits) apply(std::move(frame));
+                }
             }
             Frame close;
             close.type = Type::close;

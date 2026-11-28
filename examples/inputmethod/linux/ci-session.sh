@@ -146,8 +146,9 @@ else
     sleep 0.2
     xdotool key n i
     sleep 0.2
-    xdotool mousemove --window "$window" 100 75 click 1
+    xdotool mousemove --window "$window" 375 75 click 1
     sleep 0.3
+    test "$(cat "${TANGO_SMOKE_TEXT%.txt}.focus")" = secondary
     test "$(cat "$TANGO_SMOKE_TEXT")" = 你好abc你nini
     xdotool mousemove --window "$window" 375 25 click 1
     sleep 0.2
