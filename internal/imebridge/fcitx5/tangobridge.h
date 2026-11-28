@@ -39,7 +39,8 @@ private:
     void apply(Frame frame);
     void refreshMenu(const std::vector<MenuItem>& items);
     void clearPanel(fcitx::InputContext& context);
-    void selectCandidate(fcitx::InputContext* input, uint64_t session, uint64_t revision, uint32_t index);
+    void selectCandidate(fcitx::InputContext* input, uint64_t session, uint64_t generation,
+                         uint64_t revision, uint32_t index);
 
     fcitx::EventDispatcher dispatcher_;
     fcitx::Instance* instance_;

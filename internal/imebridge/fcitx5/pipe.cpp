@@ -95,27 +95,32 @@ void SocketPipe::wake() {
     if (signal_[1] >= 0) (void)write(signal_[1], &byte, 1);
 }
 
-bool SocketPipe::post(Frame frame) {
+bool SocketPipe::post(Frame frame, uint64_t expectedGeneration) {
     if (!connected()) return false;
     Bytes encoded;
     if (!encode(frame, encoded)) return false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (!connected() || sent_.size() >= 64) return false;
+        if (!connected() || sent_.size() >= 64 ||
+            (expectedGeneration && expectedGeneration != generation())) return false;
         sent_.push_back(std::move(encoded));
     }
     wake();
     return true;
 }
 
-std::optional<KeyOutcome> SocketPipe::request(Frame frame, std::chrono::milliseconds timeout) {
-    if (!connected()) return std::nullopt;
+std::optional<KeyOutcome> SocketPipe::request(Frame frame, std::chrono::milliseconds timeout,
+                                              uint64_t expectedGeneration) {
+    if (!connected() || (expectedGeneration && expectedGeneration != generation())) return std::nullopt;
     const auto deadline = Clock::now() + timeout;
     frame.seq = ++sequence_;
     if (!reply_.begin(frame.seq, frame.session)) return std::nullopt;
-    if (!post(std::move(frame))) reply_.disconnect();
+    if (!post(std::move(frame), expectedGeneration)) {
+        reply_.disconnect();
+        if (expectedGeneration && expectedGeneration != generation()) return std::nullopt;
+    }
     auto result = reply_.wait(deadline);
-    if (!result) {
+    if (!result && (!expectedGeneration || expectedGeneration == generation())) {
         connection_.timed_out();
         wake();
     }
