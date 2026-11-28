@@ -4,6 +4,7 @@
 #include <fcitx-utils/eventdispatcher.h>
 #include <fcitx/action.h>
 #include <fcitx/inputcontext.h>
+#include <fcitx/instance.h>
 #include <fcitx/inputmethodengine.h>
 #include <fcitx/menu.h>
 #include <unordered_map>
