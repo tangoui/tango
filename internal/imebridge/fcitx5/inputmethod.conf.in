@@ -1,0 +1,6 @@
+[InputMethod]
+Name={{.Name}}
+Addon={{.Library}}
+LangCode={{.LangCode}}
+Icon={{.Icon}}
+Label={{.Label}}

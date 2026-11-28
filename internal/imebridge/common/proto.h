@@ -17,7 +17,7 @@ inline constexpr size_t max_frame = 64 * 1024;
 
 enum class Type : uint16_t {
     hello = 1, open, close, key, test_key, focus, menu_open, menu_pick, mode_pick,
-    key_result, compose, commit, mode, menu,
+    key_result, compose, commit, mode, menu, candidates, reset,
 };
 
 enum KeyFlag : uint8_t { down = 1, up = 2, repeat = 4, extended = 8 };
@@ -33,6 +33,10 @@ struct MenuItem {
     std::u16string id, title;
 };
 
+struct Candidate {
+    std::u16string text, comment;
+};
+
 // The message type determines which fields are encoded.
 struct Frame {
     Type type{};
@@ -44,6 +48,8 @@ struct Frame {
     Rect caret;
     std::u16string exe, text, id, label, short_text, icon;
     std::vector<MenuItem> items;
+    std::vector<Candidate> candidates;
+    int32_t selected = -1;
 };
 
 inline bool valid_utf16(const std::u16string& text) {
@@ -89,6 +95,14 @@ public:
             if ((item.flags & ~7) || !(*this)(item.flags) ||
                 !(*this)(item.id) || !(*this)(item.title)) return false;
         }
+        return true;
+    }
+
+    bool operator()(const std::vector<Candidate>& items) {
+        if (items.size() > (max_frame - header_size - 14) / 4 ||
+            !(*this)(static_cast<uint16_t>(items.size()))) return false;
+        for (const auto& item : items)
+            if (!(*this)(item.text) || !(*this)(item.comment)) return false;
         return true;
     }
 
@@ -143,6 +157,15 @@ public:
         return true;
     }
 
+    bool operator()(std::vector<Candidate>& items) {
+        uint16_t count;
+        if (!(*this)(count) || count > remaining() / 4) return false;
+        items.resize(count);
+        for (auto& item : items)
+            if (!(*this)(item.text) || !(*this)(item.comment)) return false;
+        return true;
+    }
+
 private:
     const Bytes& input_;
     size_t offset_ = 0;
@@ -156,7 +179,10 @@ bool code_body(Codec& c, Message& f) {
     case Type::open:
     case Type::close:
     case Type::menu_open:
+    case Type::reset:
         return c(f.session);
+    case Type::candidates:
+        return c(f.session) && c(f.selected) && c(f.candidates);
     case Type::key:
     case Type::test_key:
         return c(f.session) && c(f.vk) && c(f.scan) && c(f.flags) && c(f.modifiers) &&

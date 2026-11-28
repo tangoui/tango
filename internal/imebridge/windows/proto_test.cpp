@@ -32,5 +32,5 @@ int main(int argc, char** argv) {
         bad.resize(65537);
         assert(!decode(bad, frame));
     }
-    assert(count == 14);
+    assert(count == 16);
 }

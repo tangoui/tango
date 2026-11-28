@@ -33,6 +33,8 @@ const (
 	TypeCommit
 	TypeMode
 	TypeMenu
+	TypeCandidates
+	TypeReset
 )
 
 const (
@@ -65,6 +67,7 @@ type Hello struct {
 type SessionOpen uint64
 type SessionClose uint64
 type MenuOpen uint64
+type Reset uint64
 type MenuPick string
 type ModePick string
 
@@ -116,6 +119,14 @@ type Menu struct {
 	Items []MenuItem
 }
 
+type Candidate struct{ Text, Comment string }
+
+type Candidates struct {
+	Session  uint64
+	Selected int32 // -1 when selection is unset
+	Items    []Candidate
+}
+
 var errFrame = errors.New("imebridge: invalid frame")
 
 // Marshal encodes exactly one length-prefixed frame.
@@ -148,6 +159,21 @@ func Marshal(msg Message) ([]byte, error) {
 	case MenuOpen:
 		kind = TypeMenuOpen
 		e.u64(uint64(v))
+	case Reset:
+		kind = TypeReset
+		e.u64(uint64(v))
+	case Candidates:
+		kind = TypeCandidates
+		if len(v.Items) > (MaxFrame-headerSize-14)/4 {
+			return nil, errFrame
+		}
+		e.u64(v.Session)
+		e.u32(uint32(v.Selected))
+		e.u16(uint16(len(v.Items)))
+		for _, item := range v.Items {
+			e.text(item.Text)
+			e.text(item.Comment)
+		}
 	case MenuPick:
 		kind = TypeMenuPick
 		e.text(string(v))
@@ -244,6 +270,19 @@ func Read(r io.Reader) (Message, error) {
 		body = Focus{Session: d.u64(), On: d.flag()}
 	case TypeMenuOpen:
 		body = MenuOpen(d.u64())
+	case TypeReset:
+		body = Reset(d.u64())
+	case TypeCandidates:
+		session, selected := d.u64(), int32(d.u32())
+		count := int(d.u16())
+		if count > len(d.data)/4 {
+			return Message{}, errFrame
+		}
+		items := make([]Candidate, count)
+		for i := range items {
+			items[i] = Candidate{Text: d.text(), Comment: d.text()}
+		}
+		body = Candidates{Session: session, Selected: selected, Items: items}
 	case TypeMenuPick:
 		body = MenuPick(d.text())
 	case TypeModePick:

@@ -1,0 +1,8 @@
+[Addon]
+Name={{.Name}}
+Category=InputMethod
+Library={{.Library}}
+Type=SharedLibrary
+Version=1
+Configurable=False
+OnDemand=True

@@ -1,4 +1,4 @@
-#include "pipe_logic.h"
+#include "../common/pipe_logic.h"
 #include "config_ini.h"
 
 #include <cassert>

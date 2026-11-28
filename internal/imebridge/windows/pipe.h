@@ -1,6 +1,6 @@
 #pragma once
 #include "bridge.h"
-#include "pipe_logic.h"
+#include "../common/pipe_logic.h"
 
 #include <deque>
 #include <thread>

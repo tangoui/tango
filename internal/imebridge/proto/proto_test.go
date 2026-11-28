@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"text/template"
 )
 
 var vectors = []struct {
@@ -30,6 +31,8 @@ var vectors = []struct {
 	{"commit", Commit{Session: 55, Text: "你好"}},
 	{"mode", Mode{ID: "zh", Label: "中文", Short: "中", Icon: "icons/zh.ico"}},
 	{"menu", Menu{Items: []MenuItem{{ID: "toggle", Title: "切换中/英", Checked: true}, {Separator: true}, {ID: "about", Title: "关于", Disabled: true}}}},
+	{"candidates", Candidates{Session: 55, Selected: -1, Items: []Candidate{{Text: "你", Comment: "ni"}}}},
+	{"reset", Reset(55)},
 }
 
 func TestProtoGolden(t *testing.T) {
@@ -161,6 +164,42 @@ func TestARM64XForwarderBuild(t *testing.T) {
 		for _, name := range []string{"DllGetClassObject", "DllCanUnloadNow", "DllRegisterServer", "DllUnregisterServer"} {
 			if want := "ForwardedTo: TangoIMEBridge-" + arch + "." + name; !strings.Contains(string(out), want) {
 				t.Errorf("forwarder is missing %q", want)
+			}
+		}
+	}
+}
+
+func TestFcitx5PipeLogic(t *testing.T) {
+	clang, err := exec.LookPath("clang++")
+	if err != nil {
+		t.Skip("clang++ not available")
+	}
+	test := filepath.Join(t.TempDir(), "fcitx-pipe")
+	if out, err := exec.Command(clang, "-std=c++17", "-Wall", "-Wextra", "-Werror", "-pthread", "../fcitx5/pipe_logic_test.cpp", "-o", test).CombinedOutput(); err != nil {
+		t.Fatalf("compile Fcitx5 pipe logic: %v\n%s", err, out)
+	}
+	if out, err := exec.Command(test).CombinedOutput(); err != nil {
+		t.Fatalf("Fcitx5 pipe logic: %v\n%s", err, out)
+	}
+}
+
+func TestFcitx5ConfTemplates(t *testing.T) {
+	data := struct{ Name, Library, LangCode, Icon, Label string }{"Pinyin", "tango-test", "zh_CN", "pinyin", "中"}
+	for file, want := range map[string][]string{
+		"addon.conf.in":       {"Name=Pinyin", "Library=tango-test", "Category=InputMethod"},
+		"inputmethod.conf.in": {"Name=Pinyin", "Addon=tango-test", "LangCode=zh_CN", "Icon=pinyin", "Label=中"},
+	} {
+		tmpl, err := template.ParseFiles(filepath.Join("../fcitx5", file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var rendered strings.Builder
+		if err := tmpl.Execute(&rendered, data); err != nil {
+			t.Fatal(err)
+		}
+		for _, line := range want {
+			if !strings.Contains(rendered.String(), "\n"+line+"\n") {
+				t.Errorf("%s lacks %s", file, line)
 			}
 		}
 	}
