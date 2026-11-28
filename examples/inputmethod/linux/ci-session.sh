@@ -112,7 +112,9 @@ fi
 export TANGO_SMOKE_TEXT="$out/$framework-text.txt"
 : > "$TANGO_SMOKE_TEXT"
 focus_file="${TANGO_SMOKE_TEXT%.txt}.focus"
+preedit_file="${TANGO_SMOKE_TEXT%.txt}.preedit"
 rm -f "$focus_file"
+: > "$preedit_file"
 /usr/bin/python3 "$here/gtk-smoke.py" >"$out/$framework-client.log" 2>&1 &
 pids+=("$!")
 for i in {1..100}; do
@@ -140,15 +142,26 @@ if [[ "$framework" == ibus ]]; then
 else
     fcitx5-remote -o
     fcitx5-remote -s "$engine"
-    # F12 leaves the entry empty while the GTK input context and host connect.
+    # The daemon can report a mode before GTK has an active input context.
+    # Wait until the first real key produces preedit in this GTK entry.
     for i in {1..50}; do
-        if grep -Fq 'Tango Fcitx5 mode zh' "$daemon_log"; then break; fi
-        xdotool key F12
+        if [[ "$(fcitx5-remote)" != 2 || "$(fcitx5-remote -n)" != "$engine" ]]; then
+            fcitx5-remote -o
+            fcitx5-remote -s "$engine"
+        fi
+        xdotool key n
+        sleep 0.2
+        [[ "$(cat "$preedit_file")" == n ]] && break
+        # Clear a key passed through while the host is connecting.
+        xdotool key BackSpace
         sleep 0.2
     done
-    grep -Fq 'Tango Fcitx5 mode zh' "$daemon_log"
+    test "$(cat "$preedit_file")" = n
+    test ! -s "$TANGO_SMOKE_TEXT"
 fi
-for key in n i h a o space; do
+keys=(n i h a o space)
+if [[ "$framework" == fcitx ]]; then keys=(i h a o space); fi
+for key in "${keys[@]}"; do
     xdotool key "$key"
     sleep 0.1
 done
