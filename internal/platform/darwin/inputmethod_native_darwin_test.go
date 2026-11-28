@@ -227,6 +227,56 @@ func runNativeIMEController() {
 		if got := host.IMECurrentMode(); got != "zh" || !slices.Equal(sink.modes, []string{"en", "zh"}) {
 			panic(fmt.Sprintf("mode after newer system selection = %q, callbacks = %v", got, sink.modes))
 		}
+
+		// Exercise the real controller and deferred queue with a fake TIS
+		// source so the fixture never changes the machine's input source.
+		sourceID := bundle + ".zh"
+		var tisSelections []string
+		imeHost.modes.source = imeInputSource{
+			current: func() string { return sourceID },
+			selectMode: func(id string) error {
+				tisSelections = append(tisSelections, id)
+				sourceID = id
+				return nil
+			},
+		}
+		imeHost.active = 2
+		delete(imeHost.inactive, 2)
+		setMode := func(mode string) {
+			if err := host.IMESetMode(mode); err != nil {
+				panic(err)
+			}
+		}
+		setMode("en")
+		if len(tisSelections) != 0 || sourceID != bundle+".zh" {
+			panic("TIS fallback ran inside the IMK event")
+		}
+		drainMainQueue()
+		if !slices.Equal(tisSelections, []string{bundle + ".en"}) || !slices.Equal(sink.modes, []string{"en", "zh"}) {
+			panic(fmt.Sprintf("TIS fallback selections = %v, callbacks = %v", tisSelections, sink.modes))
+		}
+
+		setMode("zh")
+		imeHost.active = 1 // Focus moved before the deferred fallback.
+		drainMainQueue()
+		if len(tisSelections) != 1 || sourceID != bundle+".en" {
+			panic(fmt.Sprintf("inactive controller changed the TIS source: %v", tisSelections))
+		}
+
+		sourceID = bundle + ".zh"
+		setMode("en")
+		setMode("zh") // A newer request arrived on the same controller.
+		drainMainQueue()
+		if len(tisSelections) != 1 || sourceID != bundle+".zh" {
+			panic(fmt.Sprintf("superseded request changed the TIS source: %v", tisSelections))
+		}
+
+		setMode("en")
+		sourceID = "com.apple.keylayout.ABC" // A user selection intervened.
+		drainMainQueue()
+		if len(tisSelections) != 1 || sourceID != "com.apple.keylayout.ABC" {
+			panic(fmt.Sprintf("fallback overrode a foreign input source: %v", tisSelections))
+		}
 	})
 }
 
