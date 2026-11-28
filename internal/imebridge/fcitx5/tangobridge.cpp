@@ -144,10 +144,11 @@ void TangoBridge::deactivate(const fcitx::InputMethodEntry&, fcitx::InputContext
             Frame focus;
             focus.type = Type::focus;
             focus.session = session;
-            // On focus-out Fcitx or its frontend owns preedit commitment.
-            // While switching engines with focus intact, deliver the host's
-            // final edits before tearing down the session.
-            if (event.type() != fcitx::EventType::InputContextFocusOut) {
+            // Fcitx or its frontend commits client preedit on focus-out.
+            // Panel preedit and engine switches still need the host's final edits.
+            const auto& panel = event.inputContext()->inputPanel();
+            if (event.type() != fcitx::EventType::InputContextFocusOut ||
+                panel.preedit().textLength() != 0) {
                 if (auto result = pipe_.request(focus, std::chrono::milliseconds(50))) {
                     receive(result->received_through);
                     for (auto& frame : result->edits) apply(std::move(frame));
@@ -251,10 +252,13 @@ void TangoBridge::apply(Frame frame) {
             const auto byteOffset = toUTF8(frame.text.substr(0, cursor)).size();
             fcitx::Text text(toUTF8(frame.text), fcitx::TextFormatFlag::Underline);
             text.setCursor(static_cast<int>(byteOffset));
-            if (input->capabilityFlags().test(fcitx::CapabilityFlag::Preedit))
+            if (input->capabilityFlags().test(fcitx::CapabilityFlag::Preedit)) {
+                panel.setPreedit({});
                 panel.setClientPreedit(text);
-            else
+            } else {
+                panel.setClientPreedit({});
                 panel.setPreedit(text);
+            }
             input->updatePreedit();
         } else if (frame.type == Type::candidates) {
             if (frame.candidates.empty()) panel.setCandidateList(nullptr);
