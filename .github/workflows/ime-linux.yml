@@ -10,7 +10,14 @@ permissions:
 
 jobs:
   ubuntu:
-    runs-on: ubuntu-24.04
+    name: Ubuntu 24.04 (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {arch: amd64, runner: ubuntu-24.04}
+          - {arch: arm64, runner: ubuntu-24.04-arm}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
@@ -29,17 +36,34 @@ jobs:
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          name: ime-ubuntu-24.04
+          name: ime-ubuntu-24.04-${{ matrix.arch }}
           path: ${{ runner.temp }}/ime-ubuntu/
 
   fedora:
+    name: Fedora ${{ matrix.release }} (amd64)
+    strategy:
+      fail-fast: false
+      matrix:
+        release: [41, 43]
     runs-on: ubuntu-24.04
-    container: fedora:43
+    container: fedora:${{ matrix.release }}
     timeout-minutes: 20
     steps:
       - name: Install Linux IME test dependencies
+        shell: bash
         run: |
-          dnf -y install git tar gzip findutils cmake gcc-c++ pkgconf-pkg-config \
+          repos=()
+          if [[ '${{ matrix.release }}' == 41 ]]; then
+            archive=https://archive.fedoraproject.org/pub/archive/fedora/linux
+            repos=(
+              --disablerepo='*'
+              --enablerepo=fedora --enablerepo=updates
+              --setopt=fedora.metalink= --setopt=updates.metalink=
+              --setopt="fedora.baseurl=$archive/releases/41/Everything/x86_64/os/"
+              --setopt="updates.baseurl=$archive/updates/41/Everything/x86_64/"
+            )
+          fi
+          dnf "${repos[@]}" -y install git tar gzip findutils cmake gcc-c++ pkgconf-pkg-config \
             fcitx5 fcitx5-devel fcitx5-gtk ibus ibus-gtk3 python3-gobject gtk3 \
             xorg-x11-server-Xvfb xdotool dbus-daemon dbus-x11 xwininfo webkit2gtk4.1 util-linux
       - uses: actions/checkout@v7.0.1
@@ -52,5 +76,53 @@ jobs:
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          name: ime-fedora-43
+          name: ime-fedora-${{ matrix.release }}
           path: ${{ runner.temp }}/ime-fedora/
+
+  debian:
+    name: Debian 12 (amd64)
+    runs-on: ubuntu-24.04
+    container: debian:12
+    timeout-minutes: 20
+    steps:
+      - name: Install Linux IME test dependencies
+        run: |
+          apt-get update
+          apt-get install -y ca-certificates git cmake g++ pkg-config fcitx5 fcitx5-frontend-gtk3 \
+            fcitx5-modules-dev libfcitx5core-dev ibus ibus-gtk3 python3-gi gir1.2-gtk-3.0 \
+            gir1.2-ibus-1.0 xvfb xdotool dbus-x11 x11-utils libwebkit2gtk-4.1-0
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: "**/go.sum"
+      - name: Build and test Debian package against Fcitx5 5.0
+        run: bash examples/inputmethod/linux/ci.sh deb "$RUNNER_TEMP/ime-debian" 5.0
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: ime-debian-12
+          path: ${{ runner.temp }}/ime-debian/
+
+  arch:
+    name: Arch Linux (amd64)
+    runs-on: ubuntu-24.04
+    container: archlinux:base
+    timeout-minutes: 20
+    steps:
+      - name: Install Linux IME test dependencies
+        run: |
+          pacman -Syu --noconfirm --needed git cmake gcc pkgconf fcitx5 fcitx5-gtk ibus \
+            python-gobject gtk3 xorg-server-xvfb xorg-xkbcomp xorg-xwininfo xdotool dbus webkit2gtk-4.1
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: "**/go.sum"
+      - name: Build, install and test the native plugin on Arch
+        run: bash examples/inputmethod/linux/ci.sh arch "$RUNNER_TEMP/ime-arch"
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: ime-arch-linux
+          path: ${{ runner.temp }}/ime-arch/

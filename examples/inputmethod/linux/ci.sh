@@ -2,8 +2,9 @@
 # Run in a disposable Linux job with package-manager access.
 set -euo pipefail
 
-format=${1:?deb or rpm}
+format=${1:?deb, rpm or arch}
 out=${2:?evidence directory}
+expected_fcitx=${3:-}
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../../.." && pwd)
 mkdir -p "$out"
@@ -14,12 +15,39 @@ exec > >(tee "$out/build.log") 2>&1
 export CGO_ENABLED=0 GOFLAGS=-buildvcs=false
 go test ./internal/platform/linux ./internal/platform/imesession ./internal/imebridge/proto ./sys/ime
 go build -o "$out/tan" ./cmd/tan
-"$out/tan" package -C examples/inputmethod -format "$format" -o "$out"
+if [[ "$format" == arch ]]; then
+    "$out/tan" package -C examples/inputmethod -format deb -o "$out"
+else
+    "$out/tan" package -C examples/inputmethod -format "$format" -o "$out"
+fi
 rm "$out/tan"
 engine=com.tangoui.inputmethod.example
+version=$(pkg-config --modversion Fcitx5Core | tee "$out/fcitx5-version.txt")
+if [[ -n "$expected_fcitx" ]]; then
+    [[ "$version" == "$expected_fcitx".* ]]
+fi
 if [[ "$format" == deb ]]; then
-    sudo dpkg -i "$out"/*.deb
+    depends=$(dpkg-deb -f "$out"/*.deb Depends)
+    printf '%s\n' "$depends" | tee "$out/package-depends.txt"
+    minor=${version%.*}
+    upper=${minor%.*}.$((${minor##*.} + 1))
+    grep -Fq "fcitx5 (>= $minor)" <<<"$depends"
+    grep -Fq "fcitx5 (<< $upper)" <<<"$depends"
+    installer=()
+    if [[ "$(id -u)" != 0 ]]; then installer=(sudo); fi
+    "${installer[@]}" dpkg -i "$out"/*.deb
     dpkg -L tango-pinyin > "$out/package-files.txt"
+elif [[ "$format" == arch ]]; then
+    # Repackage the test payload so pacman owns the files during the smoke.
+    stage=$(mktemp -d)
+    ar p "$out"/*.deb data.tar.gz | tar -xz -C "$stage"
+    arch=$(uname -m)
+    package="$out/tango-pinyin-0.1.0-1-$arch.pkg.tar.zst"
+    printf 'pkgname = tango-pinyin\npkgver = 0.1.0-1\narch = %s\n' "$arch" > "$stage/.PKGINFO"
+    tar --zstd -cf "$package" -C "$stage" .PKGINFO usr
+    rm -rf "$stage"
+    pacman -U --noconfirm "$package"
+    pacman -Qlq tango-pinyin > "$out/package-files.txt"
 else
     rpm -U "$out"/*.rpm
     rpm -ql tango-pinyin > "$out/package-files.txt"
@@ -28,7 +56,6 @@ grep -F "/usr/share/ibus/component/$engine.xml" "$out/package-files.txt"
 grep -F "/usr/share/fcitx5/inputmethod/$engine.conf" "$out/package-files.txt"
 plugin=$(grep -E "/fcitx5/$engine[.]so$" "$out/package-files.txt")
 test -f "$plugin"
-pkg-config --modversion Fcitx5Core | tee "$out/fcitx5-version.txt"
 failed=0
 for check in ibus fcitx fcitx-panel; do
     framework=${check%-panel}
@@ -44,7 +71,9 @@ for check in ibus fcitx fcitx-panel; do
     fi
 done
 if [[ "$format" == deb ]]; then
-    sudo dpkg -r tango-pinyin
+    "${installer[@]}" dpkg -r tango-pinyin
+elif [[ "$format" == arch ]]; then
+    pacman -R --noconfirm tango-pinyin
 else
     rpm -e tango-pinyin
 fi
