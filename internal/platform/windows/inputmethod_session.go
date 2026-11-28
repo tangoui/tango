@@ -2,6 +2,7 @@ package windows
 
 import (
 	"fmt"
+	"unicode/utf16"
 
 	"github.com/tangoui/tango/internal/imebridge/proto"
 	"github.com/tangoui/tango/internal/platform"
@@ -122,14 +123,54 @@ func (c *tipClient) post(body any) {
 	c.send([]proto.Message{{Body: body}})
 }
 
-func (s *tipSession) post(body any) {
+func (s *tipSession) post(bodies ...any) {
 	if s.seq != 0 {
-		if len(s.batch) < 32 {
-			s.batch = append(s.batch, proto.Message{Seq: s.seq, Body: body})
+		for _, body := range bodies {
+			if len(s.batch) < tipMaxEdits {
+				s.batch = append(s.batch, proto.Message{Seq: s.seq, Body: body})
+			}
 		}
 		return
 	}
-	s.client.post(body)
+	batch := make([]proto.Message, len(bodies))
+	for i, body := range bodies {
+		batch[i] = proto.Message{Body: body}
+	}
+	s.client.send(batch)
+}
+
+const (
+	// tipMaxText bounds the UTF-16 length of the text in one Compose or
+	// Commit frame, well inside proto.MaxFrame.
+	tipMaxText = 16 * 1024
+	// tipMaxEdits matches the bridge's limit on edits per key reply.
+	tipMaxEdits = 32
+)
+
+// tipTextParts splits text at rune boundaries into at most limit parts of
+// up to tipMaxText UTF-16 units each, dropping any text beyond them.
+func tipTextParts(text string, limit int) []string {
+	var parts []string
+	for len(parts) < limit {
+		units, end := 0, len(text)
+		for i, r := range text {
+			n := utf16.RuneLen(r)
+			if n < 0 {
+				n = 1
+			}
+			if units+n > tipMaxText {
+				end = i
+				break
+			}
+			units += n
+		}
+		parts = append(parts, text[:end])
+		text = text[end:]
+		if text == "" {
+			break
+		}
+	}
+	return parts
 }
 
 func (m *tipSessions) dispatch(c *tipClient, msg proto.Message) {

@@ -164,3 +164,41 @@ func TestDeactivationCommitPrecedesReply(t *testing.T) {
 		t.Fatalf("deactivation messages = %v, want %v", out, want)
 	}
 }
+
+// Text too long for one frame goes out in parts that each encode, split at
+// rune boundaries; marked text keeps only the first part.
+func TestTIPTextParts(t *testing.T) {
+	long := strings.Repeat("a", tipMaxText-1) + "😀" + strings.Repeat("字", 40000)
+	parts := tipTextParts(long, tipMaxEdits)
+	if strings.Join(parts, "") != long || len(parts) != 4 {
+		t.Fatalf("%d parts do not rejoin to the text", len(parts))
+	}
+	if !strings.HasSuffix(parts[0], "a") || !strings.HasPrefix(parts[1], "😀") {
+		t.Fatal("a surrogate pair was split")
+	}
+	for i, part := range parts {
+		if _, err := proto.Marshal(proto.Message{Seq: 1, Body: proto.Commit{Session: 1, Text: part}}); err != nil {
+			t.Fatalf("part %d does not encode: %v", i, err)
+		}
+	}
+	if got := tipTextParts(long, 2); len(got) != 2 || got[1] != parts[1] {
+		t.Fatal("limit did not drop the trailing parts")
+	}
+	if got := tipTextParts("", 1); len(got) != 1 || got[0] != "" {
+		t.Fatalf("empty text = %q", got)
+	}
+
+	m := newTIPSessions(&imeSink{}, nil)
+	var out [][]proto.Message
+	c := m.connect("a.exe", func(batch []proto.Message) { out = append(out, batch) })
+	m.dispatch(c, proto.Message{Body: proto.SessionOpen(1)})
+	s := c.sessions[1]
+	var bodies []any
+	for _, part := range parts {
+		bodies = append(bodies, proto.Commit{Session: 1, Text: part})
+	}
+	s.post(bodies...)
+	if len(out) != 1 || len(out[0]) != len(parts) {
+		t.Fatalf("posted %d batches, want one batch of %d commits", len(out), len(parts))
+	}
+}

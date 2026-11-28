@@ -100,13 +100,21 @@ func (b *Backend) IMESetMode(id string) error {
 
 func (b *Backend) IMESetComposition(id uint64, text string, cursor int) {
 	if session := b.inputMethod.byID[id]; session != nil {
+		// Marked text past one frame's limit is cut off.
+		text = tipTextParts(text, 1)[0]
 		session.post(proto.Compose{Session: session.remoteID, Text: text, Cursor: uint32(max(cursor, 0))})
 	}
 }
 
 func (b *Backend) IMECommit(id uint64, text string) {
 	if session := b.inputMethod.byID[id]; session != nil {
-		session.post(proto.Commit{Session: session.remoteID, Text: text})
+		// Long text goes out as consecutive commits in one batch.
+		parts := tipTextParts(text, tipMaxEdits)
+		bodies := make([]any, len(parts))
+		for i, part := range parts {
+			bodies[i] = proto.Commit{Session: session.remoteID, Text: part}
+		}
+		session.post(bodies...)
 	}
 }
 
