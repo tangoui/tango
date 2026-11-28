@@ -144,6 +144,15 @@ else
     test "$(cat "$TANGO_SMOKE_TEXT")" = 你好abc你ni
     fcitx5-remote -s "$engine"
     sleep 0.2
+    xdotool key n i
+    sleep 0.2
+    xdotool mousemove --window "$window" 100 75 click 1
+    sleep 0.3
+    test "$(cat "$TANGO_SMOKE_TEXT")" = 你好abc你nini
+    xdotool mousemove --window "$window" 375 25 click 1
+    sleep 0.2
+    xdotool key End
+    printf '%s\n' "Fcitx5 commits preedit once on GTK focus-out"
     host=$(/usr/bin/python3 - <<'PYTHON'
 import os
 import socket
@@ -163,12 +172,12 @@ PYTHON
     sleep 1.5
     xdotool key q
     sleep 0.2
-    test "$(cat "$TANGO_SMOKE_TEXT")" = 你好abc你nizq
+    test "$(cat "$TANGO_SMOKE_TEXT")" = 你好abc你ninizq
     kill -KILL "$host"
     sleep 0.2
     xdotool key x
     sleep 0.2
-    test "$(cat "$TANGO_SMOKE_TEXT")" = 你好abc你nizqx
+    test "$(cat "$TANGO_SMOKE_TEXT")" = 你好abc你ninizqx
     echo "Fcitx5 preedit on switch, stopped-host pass-through and disconnected-host pass-through verified"
 fi
 echo "$framework keyboard smoke passed" | tee "$out/$framework-result.txt"
