@@ -12,7 +12,7 @@
 
 在示例目录运行 `tan package -format deb` 或 `tan package -format rpm`。在匹配目标架构的 Linux 上打包时，安装 CMake 和本发行版的 Fcitx5 开发包即可一并构建 Fcitx5 插件。从 macOS 交叉打包得到的是 IBus 引擎包。
 
-用发行版的包管理器安装生成的文件，然后重启 IBus 或 Fcitx5。在 IBus 首选项或 Fcitx5 配置工具中搜索并添加 Tango Pinyin。单击 Shift 切换中英文，系统面板显示候选、模式和菜单。键入 `nihao` 后按空格提交「你好」，按数字键可选候选。
+用发行版的包管理器安装生成的文件，然后重启 IBus 或 Fcitx5。在 IBus 首选项或 Fcitx5 配置工具中搜索并添加 Tango Pinyin。单击 Shift 切换中英文，系统面板显示候选、模式和菜单。键入 `nihao` 后按空格提交「你好」，按数字键可选候选。如果 Fcitx5 的全局热键已使用单击左 Shift 切换输入法，请在 Fcitx5 设置中改绑该热键，让 Tango 收到单击 Shift。
 
 开发时可在 IBus 桌面会话中运行 `go run ./examples/inputmethod` 临时注册引擎，然后在同一会话使用 `ibus engine com.tangoui.inputmethod.example` 切换。可用 `ibus engine` 记录并恢复原输入源。系统需提供 GTK 3 和 libibus。
 

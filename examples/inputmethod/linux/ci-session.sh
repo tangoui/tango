@@ -11,7 +11,11 @@ pids=()
 cleanup() {
     for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null || true; done
     wait 2>/dev/null || true
-    rm -rf -- "$session"
+    # Some runners mount an XDG document portal inside this session.
+    if command -v fusermount3 >/dev/null && [[ -d "$session/runtime/doc" ]]; then
+        fusermount3 -u "$session/runtime/doc" 2>/dev/null || true
+    fi
+    rm -rf -- "$session" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -39,6 +43,12 @@ if [[ "$framework" == ibus ]]; then
     done
 else
     mkdir -p "$XDG_CONFIG_HOME/fcitx5"
+    # Reserve a standalone Shift for Tango. Fcitx defaults to using it to
+    # temporarily switch between the current engine and the first engine.
+    cat >"$XDG_CONFIG_HOME/fcitx5/config" <<'CONFIG'
+[Hotkey/AltTriggerKeys]
+0=Control+Shift_L
+CONFIG
     cat >"$XDG_CONFIG_HOME/fcitx5/profile" <<PROFILE
 [Groups/0]
 Name=Default
@@ -90,6 +100,10 @@ sleep 0.2
 for key in a b c; do xdotool key "$key"; done
 sleep 0.2
 test "$(cat "$TANGO_SMOKE_TEXT")" = 你好abc
+if [[ "$framework" == fcitx ]]; then
+    test "$(fcitx5-remote)" = 2
+    test "$(fcitx5-remote -n)" = "$engine"
+fi
 xdotool key Shift_L
 sleep 0.2
 for key in n i space; do
