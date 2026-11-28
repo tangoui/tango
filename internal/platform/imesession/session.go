@@ -3,6 +3,8 @@ package imesession
 
 import (
 	"fmt"
+	"unicode/utf16"
+
 	"github.com/tangoui/tango/internal/imebridge/proto"
 	"github.com/tangoui/tango/internal/platform"
 )
@@ -124,14 +126,55 @@ func (c *Client) post(body any) {
 	c.send([]proto.Message{{Body: body}})
 }
 
+const (
+	maxEditTextUnits = 16 * 1024 // UTF-16 code units per text frame, within proto.MaxFrame
+	maxReplyEdits    = 32        // Maximum edits accepted by the bridges per reply
+)
+
 func (s *Session) Post(body any) {
-	if s.seq != 0 {
-		if len(s.batch) < 32 {
-			s.batch = append(s.batch, proto.Message{Seq: s.seq, Body: body})
-		}
+	limit := maxReplyEdits - len(s.batch)
+	if limit == 0 {
 		return
 	}
-	s.client.post(body)
+	switch edit := body.(type) {
+	case proto.Commit:
+		// Keep all parts in one batch, before the key result if replying.
+		remaining := edit.Text
+		var batch []proto.Message
+		for range limit {
+			end := editTextEnd(remaining)
+			edit.Text, remaining = remaining[:end], remaining[end:]
+			batch = append(batch, proto.Message{Seq: s.seq, Body: edit})
+			if remaining == "" {
+				break
+			}
+		}
+		s.post(batch)
+		return
+	case proto.Compose:
+		edit.Text = edit.Text[:editTextEnd(edit.Text)]
+		body = edit
+	}
+	s.post([]proto.Message{{Seq: s.seq, Body: body}})
+}
+
+func (s *Session) post(batch []proto.Message) {
+	if s.seq != 0 {
+		s.batch = append(s.batch, batch...)
+		return
+	}
+	s.client.send(batch)
+}
+
+func editTextEnd(text string) int {
+	units := 0
+	for i, r := range text {
+		units += utf16.RuneLen(r)
+		if units > maxEditTextUnits {
+			return i
+		}
+	}
+	return len(text)
 }
 
 func (m *Mux) Dispatch(c *Client, msg proto.Message) {

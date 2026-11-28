@@ -121,7 +121,9 @@ func (s *tipServer) serve(conn net.Conn) {
 				for _, msg := range batch {
 					data, err := proto.Marshal(msg)
 					if err != nil {
-						return
+						// An unencodable message, such as an oversized
+						// menu, is dropped without closing the connection.
+						continue
 					}
 					n, err := conn.Write(data)
 					if err != nil || n != len(data) {

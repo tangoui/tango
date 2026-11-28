@@ -184,7 +184,8 @@ func (s *fcitxServer) serve(conn *net.UnixConn) {
 				for _, item := range batch {
 					data, err := proto.Marshal(item)
 					if err != nil {
-						return
+						// Skip unencodable frames and keep the connection open.
+						continue
 					}
 					if n, err := conn.Write(data); err != nil || n != len(data) {
 						return
