@@ -29,14 +29,15 @@ grep -F "/usr/share/fcitx5/inputmethod/$engine.conf" "$out/package-files.txt"
 plugin=$(grep -E "/fcitx5/$engine[.]so$" "$out/package-files.txt")
 test -f "$plugin"
 pkg-config --modversion Fcitx5Core | tee "$out/fcitx5-version.txt"
+failed=0
 for framework in ibus fcitx; do
     session=(dbus-run-session -- bash "$here/ci-session.sh" "$framework" "$out")
     if [[ "$(id -u)" == 0 ]]; then
         id ime-test >/dev/null 2>&1 || useradd --create-home ime-test
         chown ime-test "$out"
-        runuser -u ime-test -- "${session[@]}"
+        runuser -u ime-test -- "${session[@]}" || failed=1
     else
-        "${session[@]}"
+        "${session[@]}" || failed=1
     fi
 done
 if [[ "$format" == deb ]]; then
@@ -49,3 +50,4 @@ test ! -e "/usr/share/ibus/component/$engine.xml"
 test ! -e "/usr/share/fcitx5/addon/$engine.conf"
 test ! -e "/usr/share/fcitx5/inputmethod/$engine.conf"
 echo "Package removal verified" | tee "$out/uninstall.txt"
+exit "$failed"

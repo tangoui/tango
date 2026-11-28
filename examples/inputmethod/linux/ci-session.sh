@@ -37,7 +37,6 @@ if [[ "$framework" == ibus ]]; then
         if ibus list-engine 2>/dev/null | grep -Fq "$engine"; then break; fi
         sleep 0.2
     done
-    ibus engine "$engine"
 else
     mkdir -p "$XDG_CONFIG_HOME/fcitx5"
     cat >"$XDG_CONFIG_HOME/fcitx5/profile" <<PROFILE
@@ -70,7 +69,11 @@ pids+=("$!")
 window=$(timeout 10 xdotool search --sync --onlyvisible --name '^Tango IME Smoke$')
 xdotool windowfocus --sync "$window"
 if [[ "$framework" == ibus ]]; then
-    ibus engine "$engine"
+    for i in {1..25}; do
+        if ibus engine "$engine" && [[ "$(ibus engine 2>/dev/null)" == "$engine" ]]; then break; fi
+        sleep 0.2
+    done
+    test "$(ibus engine)" = "$engine"
 else
     fcitx5-remote -o
     fcitx5-remote -s "$engine"
