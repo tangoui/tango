@@ -27,14 +27,21 @@ export XDG_CONFIG_HOME="$session/config" XDG_DATA_HOME="$session/data"
 export XDG_RUNTIME_DIR="$session/runtime" TANGO_IME_SMOKE_TRACE=1
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
 mkdir -m 700 "$XDG_RUNTIME_DIR"
-Xvfb -displayfd 3 -screen 0 800x600x24 -nolisten tcp -noreset 3>"$session/display" >"$log_prefix-xvfb.log" 2>&1 &
-pids+=("$!")
-for i in {1..50}; do
-    [[ -s "$session/display" ]] && break
+# CI runs these sessions sequentially on a disposable job runner.
+export DISPLAY=:91
+Xvfb "$DISPLAY" -screen 0 800x600x24 -nolisten tcp -noreset >"$log_prefix-xvfb.log" 2>&1 &
+xvfb_pid=$!
+pids+=("$xvfb_pid")
+display_ready=false
+for i in {1..150}; do
+    kill -0 "$xvfb_pid"
+    if xwininfo -root >/dev/null 2>&1; then
+        display_ready=true
+        break
+    fi
     sleep 0.1
 done
-test -s "$session/display"
-export DISPLAY=":$(cat "$session/display")"
+test "$display_ready" = true
 export GDK_BACKEND=x11 GTK_IM_MODULE="$framework" XMODIFIERS="@im=$framework"
 dbus-update-activation-environment DISPLAY GTK_IM_MODULE XMODIFIERS XDG_CONFIG_HOME XDG_DATA_HOME XDG_RUNTIME_DIR TANGO_IME_SMOKE_TRACE
 
