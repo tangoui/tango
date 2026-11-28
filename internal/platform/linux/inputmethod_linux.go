@@ -404,7 +404,9 @@ func (s *ibusServer) publishProps(session *ibusSession) {
 	if s.factory == 0 || session.routed == nil || session.leaving {
 		return
 	}
-	ibus.registerProps(session.engine, makeIBusProps(ibusProps(s.modes, s.mux.CurrentMode(), session.menu)))
+	mode := s.mux.CurrentMode()
+	ibus.registerProps(session.engine, makeIBusProps(ibusProps(s.modes, mode, session.menu)))
+	ibusTrace("mode %s", mode)
 }
 
 func makeIBusProps(definitions []ibusProperty) ptr {
@@ -446,6 +448,19 @@ func ibusSetCandidates(engine ptr, list []platform.IMECandidate, selected int) {
 		ibus.lookupAppend(native, ibus.textNew(ibusCandidateLabel(candidate)))
 	}
 	ibus.updateLookup(engine, native, int32(gbool(len(list) != 0)))
+	ibusTrace("candidates %d", len(list))
+}
+
+func ibusTrace(format string, args ...any) {
+	path := os.Getenv("TANGO_IME_IBUS_TRACE")
+	if path == "" {
+		return
+	}
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err == nil {
+		fmt.Fprintf(file, format+"\n", args...)
+		_ = file.Close()
+	}
 }
 
 func (b *backend) IMESetMode(id string) error {

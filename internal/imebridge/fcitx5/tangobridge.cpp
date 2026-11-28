@@ -10,6 +10,7 @@
 #include <fcitx/userinterfacemanager.h>
 #include <codecvt>
 #include <cstdlib>
+#include <cstdio>
 #include <fstream>
 #include <locale>
 #include <stdexcept>
@@ -208,6 +209,8 @@ void TangoBridge::apply(Frame frame) {
         mode_ = std::move(frame);
         action_.setShortText(toUTF8(mode_.short_text));
         action_.setLongText(toUTF8(mode_.label));
+        if (std::getenv("TANGO_IME_SMOKE_TRACE"))
+            std::fprintf(stderr, "Tango Fcitx5 mode %s\n", toUTF8(mode_.id).c_str());
         for (auto& entry : contexts_) {
             if (auto* context = entry.second.view.get()) action_.update(context);
         }
@@ -253,6 +256,8 @@ void TangoBridge::apply(Frame frame) {
             }
         }
         input->updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
+        if (frame.type == Type::candidates && std::getenv("TANGO_IME_SMOKE_TRACE"))
+            std::fprintf(stderr, "Tango Fcitx5 candidates %zu\n", frame.candidates.size());
         return;
     }
 }

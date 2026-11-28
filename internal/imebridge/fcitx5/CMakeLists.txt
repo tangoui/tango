@@ -10,7 +10,7 @@ if(NOT TANGO_FCITX_ADDON OR NOT TANGO_FCITX_CONFIG)
 endif()
 
 add_library(tango_fcitx MODULE tangobridge.cpp pipe.cpp)
-target_compile_features(tango_fcitx PRIVATE cxx_std_17)
+target_compile_features(tango_fcitx PRIVATE cxx_std_20)
 target_compile_definitions(tango_fcitx PRIVATE
     "TANGO_FCITX_ADDON=\"${TANGO_FCITX_ADDON}\""
     "TANGO_FCITX_CONFIG=\"${TANGO_FCITX_CONFIG}\"")
