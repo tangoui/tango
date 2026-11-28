@@ -63,12 +63,14 @@ if [[ "$framework" == ibus ]]; then
     fi
 else
     mkdir -p "$XDG_CONFIG_HOME/fcitx5"
-    # Reserve a standalone Shift for Tango. Fcitx defaults to using it to
-    # temporarily switch between the current engine and the first engine.
-    cat >"$XDG_CONFIG_HOME/fcitx5/config" <<'CONFIG'
+    # Test the default shortcut in the panel probe. For the GTK test,
+    # reserve both standalone Shift keys for Tango.
+    if [[ "$expect" == installed ]]; then
+        cat >"$XDG_CONFIG_HOME/fcitx5/config" <<'CONFIG'
 [Hotkey/AltTriggerKeys]
 0=Control+Shift_L
 CONFIG
+    fi
     cat >"$XDG_CONFIG_HOME/fcitx5/profile" <<PROFILE
 [Groups/0]
 Name=Default
@@ -102,6 +104,7 @@ PROFILE
     fcitx5-remote -s "$engine"
     if [[ "$expect" == panel-preedit ]]; then
         /usr/bin/python3 "$here/fcitx-panel-smoke.py" | tee "$out/fcitx-panel-focus.txt"
+        test "$(grep -Fc 'standalone left Shift is reserved by Fcitx5' "$daemon_log")" = 1
         exit 0
     fi
 fi
@@ -160,7 +163,7 @@ if [[ "$framework" == fcitx ]]; then
     test "$(fcitx5-remote)" = 2
     test "$(fcitx5-remote -n)" = "$engine"
 fi
-xdotool key Shift_L
+xdotool key Shift_R
 sleep 0.2
 for key in n i space; do
     xdotool key "$key"
@@ -174,6 +177,7 @@ if [[ "$framework" == ibus ]]; then
     grep -Fx 'mode en' "$TANGO_IME_IBUS_TRACE"
     test "$(grep '^mode ' "$TANGO_IME_IBUS_TRACE" | tail -1)" = 'mode zh'
 else
+    if grep -Fq 'standalone left Shift is reserved by Fcitx5' "$daemon_log"; then exit 1; fi
     grep -Eq 'Tango Fcitx5 candidates [1-9][0-9]*$' "$out/fcitx-daemon.log"
     grep -F 'Tango Fcitx5 mode en' "$out/fcitx-daemon.log"
     test "$(grep 'Tango Fcitx5 mode ' "$out/fcitx-daemon.log" | tail -1)" = 'Tango Fcitx5 mode zh'

@@ -10,11 +10,13 @@ import (
 )
 
 func TestShiftTapSimple(t *testing.T) {
-	var tap shiftTap
 	now := time.Now()
-	tap.Down("ShiftLeft", now)
-	if !tap.Up("ShiftLeft", now.Add(100*time.Millisecond)) {
-		t.Fatal("a short Shift press should toggle")
+	for _, code := range []string{"ShiftLeft", "ShiftRight"} {
+		var tap shiftTap
+		tap.modifier(ime.ModifierKey{Code: code, Down: true, Shift: true}, now)
+		if !tap.modifier(ime.ModifierKey{Code: code}, now.Add(100*time.Millisecond)) {
+			t.Errorf("a short %s press should toggle", code)
+		}
 	}
 }
 
