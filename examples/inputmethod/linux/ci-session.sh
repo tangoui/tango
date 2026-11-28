@@ -7,8 +7,9 @@ out=${2:?evidence directory}
 here=$(cd "$(dirname "$0")" && pwd)
 engine=com.tangoui.inputmethod.example
 expect=${3:-installed}
-daemon_log="$out/$framework-daemon.log"
-if [[ "$expect" != installed ]]; then daemon_log="$out/$framework-$expect-daemon.log"; fi
+log_prefix="$out/$framework"
+if [[ "$expect" != installed ]]; then log_prefix="$log_prefix-$expect"; fi
+daemon_log="$log_prefix-daemon.log"
 session=$(mktemp -d)
 pids=()
 cleanup() {
@@ -26,18 +27,20 @@ export XDG_CONFIG_HOME="$session/config" XDG_DATA_HOME="$session/data"
 export XDG_RUNTIME_DIR="$session/runtime" TANGO_IME_SMOKE_TRACE=1
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
 mkdir -m 700 "$XDG_RUNTIME_DIR"
-Xvfb -displayfd 3 -screen 0 800x600x24 -nolisten tcp 3>"$session/display" >"$out/$framework-xvfb.log" 2>&1 &
+Xvfb -displayfd 3 -screen 0 800x600x24 -nolisten tcp -noreset 3>"$session/display" >"$log_prefix-xvfb.log" 2>&1 &
 pids+=("$!")
 for i in {1..50}; do
     [[ -s "$session/display" ]] && break
     sleep 0.1
 done
+test -s "$session/display"
 export DISPLAY=":$(cat "$session/display")"
 export GDK_BACKEND=x11 GTK_IM_MODULE="$framework" XMODIFIERS="@im=$framework"
 dbus-update-activation-environment DISPLAY GTK_IM_MODULE XMODIFIERS XDG_CONFIG_HOME XDG_DATA_HOME XDG_RUNTIME_DIR TANGO_IME_SMOKE_TRACE
 
 if [[ "$framework" == ibus ]]; then
     export TANGO_IME_IBUS_TRACE="$out/ibus-panel.log"
+    if [[ "$expect" == installed ]]; then : > "$TANGO_IME_IBUS_TRACE"; fi
     ibus-daemon --xim --panel=disable --config=disable >"$daemon_log" 2>&1 &
     pids+=("$!")
     for i in {1..50}; do
@@ -75,10 +78,14 @@ Layout=
 PROFILE
     fcitx5 --replace >"$daemon_log" 2>&1 &
     pids+=("$!")
+    # Poll the bus so probing readiness cannot activate a second daemon.
     for i in {1..50}; do
-        if fcitx5-remote >/dev/null 2>&1; then break; fi
+        owner=$(gdbus call --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus \
+            --method org.freedesktop.DBus.NameHasOwner org.fcitx.Fcitx5)
+        [[ "$owner" == '(true,)' ]] && break
         sleep 0.2
     done
+    test "$owner" = '(true,)'
     if [[ "$expect" == removed ]]; then
         gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller \
             --method org.fcitx.Fcitx.Controller1.AvailableInputMethods >"$out/fcitx-after-removal.txt"
@@ -94,21 +101,43 @@ fi
 
 export TANGO_SMOKE_TEXT="$out/$framework-text.txt"
 : > "$TANGO_SMOKE_TEXT"
+focus_file="${TANGO_SMOKE_TEXT%.txt}.focus"
+rm -f "$focus_file"
 /usr/bin/python3 "$here/gtk-smoke.py" >"$out/$framework-client.log" 2>&1 &
 pids+=("$!")
-window=$(timeout 10 xdotool search --sync --onlyvisible --name '^Tango IME Smoke$')
+for i in {1..100}; do
+    if window=$(xdotool search --onlyvisible --name '^Tango IME Smoke$' 2>/dev/null); then break; fi
+    sleep 0.1
+done
+test -n "$window"
 xdotool windowfocus --sync "$window"
+for i in {1..50}; do
+    [[ -s "$focus_file" ]] && break
+    sleep 0.1
+done
+test "$(cat "$focus_file")" = primary
 if [[ "$framework" == ibus ]]; then
     for i in {1..25}; do
         if ibus engine "$engine" && [[ "$(ibus engine 2>/dev/null)" == "$engine" ]]; then break; fi
         sleep 0.2
     done
     test "$(ibus engine)" = "$engine"
+    for i in {1..50}; do
+        if grep -Fxq 'mode zh' "$TANGO_IME_IBUS_TRACE"; then break; fi
+        sleep 0.2
+    done
+    grep -Fxq 'mode zh' "$TANGO_IME_IBUS_TRACE"
 else
     fcitx5-remote -o
     fcitx5-remote -s "$engine"
+    # F12 leaves the entry empty while the GTK input context and host connect.
+    for i in {1..50}; do
+        if grep -Fq 'Tango Fcitx5 mode zh' "$daemon_log"; then break; fi
+        xdotool key F12
+        sleep 0.2
+    done
+    grep -Fq 'Tango Fcitx5 mode zh' "$daemon_log"
 fi
-sleep 1
 for key in n i h a o space; do
     xdotool key "$key"
     sleep 0.1
@@ -154,7 +183,7 @@ else
     sleep 0.2
     xdotool mousemove --window "$window" 375 75 click 1
     sleep 0.3
-    test "$(cat "${TANGO_SMOKE_TEXT%.txt}.focus")" = secondary
+    test "$(cat "$focus_file")" = secondary
     test "$(cat "$TANGO_SMOKE_TEXT")" = 你好abc你nini
     xdotool mousemove --window "$window" 375 25 click 1
     sleep 0.2
