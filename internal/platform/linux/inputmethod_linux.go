@@ -3,36 +3,47 @@
 package linux
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
+	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"unicode/utf8"
 
 	"github.com/ebitengine/purego"
+	"github.com/tangoui/tango/internal/imebridge/proto"
 	"github.com/tangoui/tango/internal/platform"
+	"github.com/tangoui/tango/internal/platform/imesession"
 )
 
 var ibus struct {
-	init                        func()
-	busNew                      func() ptr
-	busConnected                func(ptr) bool
-	busConnection               func(ptr) ptr
-	busRegister                 func(ptr, ptr) bool
-	factoryNew                  func(ptr) ptr
-	componentNew                func(string, string, string, string, string, string, string, string) ptr
-	engineDescNew               func(string, string, string, string, string, string, string, string) ptr
-	componentAdd                func(ptr, ptr)
-	engineType                  func() ptr
-	objectNew                   func(ptr, string, ...any) ptr
-	destroy                     func(ptr)
-	textNew                     func(string) ptr
-	commit                      func(ptr, ptr)
-	preedit                     func(ptr, ptr, uint32, int32, uint32)
-	keyvalToUnicode             func(uint32) uint32
-	create, key, in, out, caret ptr
+	init                                  func()
+	busNew                                func() ptr
+	busConnected                          func(ptr) bool
+	busConnection                         func(ptr) ptr
+	busRegister                           func(ptr, ptr) bool
+	busRequestName                        func(ptr, string, uint32) uint32
+	lookupNew                             func(uint32, uint32, int32, int32) ptr
+	lookupAppend                          func(ptr, ptr)
+	updateLookup                          func(ptr, ptr, int32)
+	propNew                               func(string, uint32, ptr, string, ptr, int32, int32, uint32, ptr) ptr
+	propListNew                           func() ptr
+	propListAppend                        func(ptr, ptr)
+	registerProps                         func(ptr, ptr)
+	factoryNew                            func(ptr) ptr
+	componentNew                          func(string, string, string, string, string, string, string, string) ptr
+	engineDescNew                         func(string, string, string, string, string, string, string, string) ptr
+	componentAdd                          func(ptr, ptr)
+	engineType                            func() ptr
+	objectNew                             func(ptr, string, ...any) ptr
+	destroy                               func(ptr)
+	textNew                               func(string) ptr
+	commit                                func(ptr, ptr)
+	preedit                               func(ptr, ptr, uint32, int32, uint32)
+	keyvalToUnicode                       func(uint32) uint32
+	create, key, in, out, caret, property ptr
 }
 
 var ibusHost *ibusServer
@@ -54,6 +65,14 @@ var loadIBus = sync.OnceFunc(func() {
 		{&ibus.busConnected, "ibus_bus_is_connected"},
 		{&ibus.busConnection, "ibus_bus_get_connection"},
 		{&ibus.busRegister, "ibus_bus_register_component"},
+		{&ibus.busRequestName, "ibus_bus_request_name"},
+		{&ibus.lookupNew, "ibus_lookup_table_new"},
+		{&ibus.lookupAppend, "ibus_lookup_table_append_candidate"},
+		{&ibus.updateLookup, "ibus_engine_update_lookup_table"},
+		{&ibus.propNew, "ibus_property_new"},
+		{&ibus.propListNew, "ibus_prop_list_new"},
+		{&ibus.propListAppend, "ibus_prop_list_append"},
+		{&ibus.registerProps, "ibus_engine_register_properties"},
 		{&ibus.factoryNew, "ibus_factory_new"},
 		{&ibus.componentNew, "ibus_component_new"},
 		{&ibus.engineDescNew, "ibus_engine_desc_new"},
@@ -83,34 +102,53 @@ var loadIBus = sync.OnceFunc(func() {
 		ibusHost.focusOut(engine, goStr(path))
 	})
 	ibus.key = purego.NewCallback(func(engine ptr, keyval, hardware, state uint32, _ ptr) ptr {
-		const release = 1 << 30
-		if state&release != 0 {
+		session := ibusHost.session(engine)
+		repeat := session.held.event(keyval, hardware, state)
+		if mod, ok := ibusModifier(keyval, state); ok {
+			return gbool(!repeat && ibusHost.mux.Modifier(session.routed, mod))
+		}
+		if state&ibusReleaseMask != 0 {
 			return 0
 		}
-		session := ibusHost.session(engine)
 		key := ibusKey(keyval, hardware, state, rune(ibus.keyvalToUnicode(keyval)))
-		return gbool(ibusHost.sink.IMEKey(session.id, key))
+		key.Repeat = repeat
+		return gbool(ibusHost.mux.Key(session.routed, key))
 	})
+	ibus.property = purego.NewCallback(func(engine, a ptr, state uint32, _ ptr) {
+		s := ibusHost
+		if session := s.byEngine[engine]; session != nil {
+			key := goStr(a)
+			switch {
+			case strings.HasPrefix(key, "mode:") && state == 1:
+				_ = s.mux.SetMode(strings.TrimPrefix(key, "mode:"), true)
+			case strings.HasPrefix(key, "menu:"):
+				s.mux.Dispatch(session.transport, proto.Message{Body: proto.MenuPick(strings.TrimPrefix(key, "menu:"))})
+			}
+		}
+	})
+
 	ibus.caret = purego.NewCallback(func(engine ptr, x, y, width, height int32, _ ptr) {
-		ibusHost.session(engine).caret = platform.Rect{X: int(x), Y: int(y), Width: int(width), Height: int(height)}
+		ibusHost.session(engine).routed.SetCaret(platform.Rect{X: int(x), Y: int(y), Width: int(width), Height: int(height)})
 	})
 })
 
 type ibusSession struct {
-	id      uint64
-	engine  ptr
-	path    string
-	client  string
-	caret   platform.Rect
-	leaving bool
+	id        uint64
+	engine    ptr
+	path      string
+	routed    *imesession.Session
+	transport *imesession.Client
+	menu      []proto.MenuItem
+	held      ibusHeldKeys
+	leaving   bool
 }
 
 type ibusServer struct {
 	bus, factory, connection ptr
 	name                     string
-	sink                     platform.InputMethodSink
+	mux                      *imesession.Mux
+	modes                    []proto.Mode
 	nextEngine               uint64
-	nextSession              uint64
 	byEngine                 map[ptr]*ibusSession
 	byID                     map[uint64]*ibusSession
 }
@@ -118,34 +156,52 @@ type ibusServer struct {
 var _ platform.InputMethods = (*backend)(nil)
 
 func (b *backend) ServeInputMethod(connection string, sink platform.InputMethodSink) error {
-	if ibusHost != nil {
-		return errors.New("tango/linux: input method already serving")
+	cfg, err := readLinuxIMEConfig(b.opts.ID)
+	if err != nil {
+		return err
 	}
-	loadIBus()
-	if ibusErr != nil {
-		return fmt.Errorf("tango/linux: input method: %w", ibusErr)
+	if connection == "" {
+		connection = cfg.Connection
 	}
 	if connection == "" {
 		connection = b.opts.DefaultIMEConnection()
 	}
-	name := strings.TrimSuffix(connection, "_Connection")
+	server, err := b.startIBus(connection, cfg, imesession.New(sink, cfg.Modes, nil))
+	if err == nil {
+		b.inputMethod = server
+	}
+	return err
+}
+
+func (b *backend) startIBus(connection string, cfg linuxIMEConfig, mux *imesession.Mux) (*ibusServer, error) {
+	if ibusHost != nil {
+		return nil, errors.New("tango/linux: input method already serving")
+	}
+	loadIBus()
+	if ibusErr != nil {
+		return nil, fmt.Errorf("tango/linux: input method: %w", ibusErr)
+	}
+	name := cfg.IBusEngine
+	if name == "" {
+		name = strings.TrimSuffix(connection, "_Connection")
+	}
 	if name == "" || strings.ContainsAny(name, "\x00 \t\n") {
-		return errors.New("tango/linux: invalid IBus engine name")
+		return nil, errors.New("tango/linux: invalid IBus engine name")
 	}
 	bus := ibus.busNew()
 	if bus == 0 {
-		return errors.New("tango/linux: cannot create IBus connection")
+		return nil, errors.New("tango/linux: cannot create IBus connection")
 	}
 	if !ibus.busConnected(bus) {
 		gObjectUnref(bus)
-		return errors.New("tango/linux: IBus daemon is not running")
+		return nil, errors.New("tango/linux: IBus daemon is not running")
 	}
-	server := &ibusServer{bus: bus, connection: ibus.busConnection(bus), name: name, sink: sink,
+	server := &ibusServer{bus: bus, connection: ibus.busConnection(bus), name: name, mux: mux, modes: cfg.Modes,
 		byEngine: make(map[ptr]*ibusSession), byID: make(map[uint64]*ibusSession)}
 	server.factory = ibus.factoryNew(server.connection)
 	if server.factory == 0 {
 		gObjectUnref(bus)
-		return errors.New("tango/linux: cannot create IBus engine factory")
+		return nil, errors.New("tango/linux: cannot create IBus engine factory")
 	}
 	ibusHost = server
 	gSignalConnectData(server.factory, "create-engine", ibus.create, 0, 0, 0)
@@ -153,8 +209,15 @@ func (b *backend) ServeInputMethod(connection string, sink platform.InputMethodS
 	if displayName == "" {
 		displayName = name
 	}
-	hash := sha256.Sum256([]byte(name))
-	componentName := fmt.Sprintf("org.freedesktop.IBus.Tango.Engine%x", hash[:8])
+	componentName := ibusComponentName(name)
+	if slices.Contains(os.Args[1:], "--ibus") {
+		const primaryOwner = 1
+		if ibus.busRequestName(bus, componentName, 0) != primaryOwner {
+			server.close()
+			return nil, fmt.Errorf("tango/linux: cannot own IBus component %q", componentName)
+		}
+		return server, nil
+	}
 	component := ibus.componentNew(componentName, displayName, "1", "", "", "", "", "")
 	desc := ibus.engineDescNew(name, displayName, displayName, "", "", "", "", "default")
 	ibus.componentAdd(component, desc)
@@ -162,10 +225,9 @@ func (b *backend) ServeInputMethod(connection string, sink platform.InputMethodS
 	gObjectUnref(component)
 	if !registered {
 		server.close()
-		return fmt.Errorf("tango/linux: cannot register IBus engine %q", name)
+		return nil, fmt.Errorf("tango/linux: cannot register IBus engine %q", name)
 	}
-	b.inputMethod = server
-	return nil
+	return server, nil
 }
 
 func (s *ibusServer) newEngine(name string) ptr {
@@ -188,10 +250,11 @@ func (s *ibusServer) newEngine(name string) ptr {
 	connect(engine, "disable", 0, func(ptr, ptr) ptr { s.focusOut(engine, ""); return 0 })
 	connect(engine, "reset", 0, func(ptr, ptr) ptr {
 		if session := s.byEngine[engine]; session != nil {
-			s.sink.IMECommitComposition(session.id)
+			s.mux.CommitComposition(session.routed)
 		}
 		return 0
 	})
+	gSignalConnectData(engine, "property-activate", ibus.property, 0, 0, 0)
 	connect(engine, "destroy", 0, func(ptr, ptr) ptr { s.focusOut(engine, ""); return 0 })
 	return engine
 }
@@ -203,10 +266,23 @@ func (s *ibusServer) session(engine ptr) *ibusSession {
 	if session := s.byEngine[engine]; session != nil {
 		return session
 	}
-	s.nextSession++
-	session := &ibusSession{id: s.nextSession, engine: engine}
+	session := &ibusSession{engine: engine, held: make(ibusHeldKeys)}
+	session.transport = s.mux.Connect("", func(batch []proto.Message) {
+		for _, frame := range batch {
+			switch value := frame.Body.(type) {
+			case proto.Menu:
+				session.menu = value.Items
+				s.publishProps(session)
+			case proto.Mode:
+				s.publishProps(session)
+			}
+		}
+	})
+	session.routed = s.mux.Open(session.transport, 1)
+	session.id = session.routed.ID()
 	s.byEngine[engine], s.byID[session.id] = session, session
-	s.sink.IMEActivate(session.id)
+	s.mux.Focus(session.routed, true)
+	s.mux.SendMenu(session.transport)
 	return session
 }
 
@@ -218,17 +294,17 @@ func (s *ibusServer) focusIn(engine ptr, path, client string) {
 		s.focusOut(engine, active.path)
 	}
 	session := s.session(engine)
-	session.path, session.client = path, client
+	session.path = path
+	session.routed.SetClientApp(client)
 }
 
 func (s *ibusServer) focusOut(engine ptr, path string) {
 	if session := s.byEngine[engine]; session != nil && (path == "" || session.path == path) {
 		// IBus commits the last preedit before notifying the engine of focus loss.
 		session.leaving = true
-		s.sink.IMEDeactivate(session.id)
+		s.mux.Disconnect(session.transport)
 		delete(s.byEngine, engine)
 		delete(s.byID, session.id)
-		s.sink.IMEEnd(session.id)
 	}
 }
 
@@ -258,14 +334,68 @@ func (b *backend) IMECommit(id uint64, text string) {
 
 func (b *backend) IMECaret(id uint64) platform.Rect {
 	if session := b.inputMethod.byID[id]; session != nil {
-		return session.caret
+		return session.routed.Caret()
 	}
 	return platform.Rect{}
 }
 
 func (b *backend) IMEClientApp(id uint64) string {
 	if session := b.inputMethod.byID[id]; session != nil {
-		return session.client
+		return session.routed.ClientApp()
 	}
 	return ""
+}
+
+func (s *ibusServer) publishProps(session *ibusSession) {
+	if s.factory == 0 || session.routed == nil || session.leaving {
+		return
+	}
+	ibus.registerProps(session.engine, makeIBusProps(ibusProps(s.modes, s.mux.CurrentMode(), session.menu)))
+}
+
+func makeIBusProps(definitions []ibusProperty) ptr {
+	list := ibus.propListNew()
+	for _, property := range definitions {
+		var children ptr
+		if len(property.children) != 0 {
+			children = makeIBusProps(property.children)
+		}
+		state := uint32(0)
+		if property.checked {
+			state = 1
+		}
+		p := ibus.propNew(property.key, property.kind, ibus.textNew(property.label), "",
+			ibus.textNew(""), int32(gbool(!property.disabled)), 1, state, children)
+		ibus.propListAppend(list, p)
+	}
+	return list
+}
+
+func (b *backend) IMESetCandidates(id uint64, list []platform.IMECandidate, selected int) {
+	if session := b.inputMethod.byID[id]; session != nil && !session.leaving {
+		ibusSetCandidates(session.engine, list, selected)
+	}
+}
+
+func ibusSetCandidates(engine ptr, list []platform.IMECandidate, selected int) {
+	table := newIBusLookup(list, selected)
+	native := ibus.lookupNew(uint32(table.pageSize), uint32(table.cursor), int32(gbool(table.cursorVisible)), 0)
+	for _, candidate := range table.candidates {
+		ibus.lookupAppend(native, ibus.textNew(ibusCandidateLabel(candidate)))
+	}
+	ibus.updateLookup(engine, native, int32(gbool(len(list) != 0)))
+}
+
+func (b *backend) IMESetMode(id string) error {
+	if b.inputMethod == nil {
+		return platform.ErrUnsupported
+	}
+	return b.inputMethod.mux.SetMode(id, false)
+}
+
+func (b *backend) IMECurrentMode() string {
+	if b.inputMethod == nil {
+		return ""
+	}
+	return b.inputMethod.mux.CurrentMode()
 }
