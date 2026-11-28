@@ -30,6 +30,15 @@ def context_call(method, signature=None, args=()):
     return call(path, context_interface, method, signature, args)
 
 
+def wait_for_signals():
+    deadline = time.monotonic() + 1
+    loop = GLib.MainContext.default()
+    while time.monotonic() < deadline:
+        while loop.pending():
+            loop.iteration(False)
+        time.sleep(0.005)
+
+
 try:
     context_call("SetCapability", "(t)", (0,))
     context_call("FocusIn")
@@ -43,14 +52,17 @@ try:
     assert context_call("ProcessKeyEvent", "(uuubu)", (ord("i"), 0, 0, False, 0))[0]
     print("Fcitx5 handled both keys in a context without client preedit", flush=True)
     context_call("FocusOut")
-    deadline = time.monotonic() + 1
-    loop = GLib.MainContext.default()
-    while time.monotonic() < deadline:
-        while loop.pending():
-            loop.iteration(False)
-        time.sleep(0.005)
+    wait_for_signals()
     assert commits == ["ni"], commits
     print("Fcitx5 commits panel-only preedit once on focus-out")
+
+    context_call("FocusIn")
+    for char in "ni":
+        assert context_call("ProcessKeyEvent", "(uuubu)", (ord(char), 0, 0, False, 0))[0]
+    context_call("SelectCandidate", "(i)", (1,))
+    wait_for_signals()
+    assert commits == ["ni", "泥"], commits
+    print("Fcitx5 panel selection commits the second candidate")
 finally:
     context_call("DestroyIC")
     bus.signal_unsubscribe(subscription)
