@@ -133,3 +133,35 @@ func TestBridgeDLLBuilds(t *testing.T) {
 		}
 	}
 }
+
+func TestARM64XForwarderBuild(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-based cross-build test")
+	}
+	for _, tool := range []string{"clang", "lld-link", "llvm-readobj"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			t.Skipf("%s is not available", tool)
+		}
+	}
+	dir := t.TempDir()
+	if out, err := exec.Command("bash", "../windows/build.sh", "arm64x", dir).CombinedOutput(); err != nil {
+		t.Fatalf("cross-build ARM64X: %v\n%s", err, out)
+	}
+	dll := filepath.Join(dir, "TangoIMEBridge-arm64x.dll")
+	out, err := exec.Command("llvm-readobj", "--coff-load-config", "--coff-exports", dll).CombinedOutput()
+	if err != nil {
+		t.Fatalf("inspect hybrid DLL: %v\n%s", err, out)
+	}
+	for _, want := range []string{"Format: COFF-ARM64X", "DynamicRelocations ["} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("forwarder is missing %q", want)
+		}
+	}
+	for _, arch := range []string{"arm64", "x64"} {
+		for _, name := range []string{"DllGetClassObject", "DllCanUnloadNow", "DllRegisterServer", "DllUnregisterServer"} {
+			if want := "ForwardedTo: TangoIMEBridge-" + arch + "." + name; !strings.Contains(string(out), want) {
+				t.Errorf("forwarder is missing %q", want)
+			}
+		}
+	}
+}

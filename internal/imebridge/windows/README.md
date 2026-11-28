@@ -5,7 +5,13 @@ Build the x64 bridge with mingw-w64 and the ARM64 bridge with llvm-mingw or Zig.
 ```sh
 bash internal/imebridge/windows/build.sh x64 ./build/imebridge
 bash internal/imebridge/windows/build.sh arm64 ./build/imebridge
+bash internal/imebridge/windows/build.sh arm64x ./build/imebridge
 ```
+
+The ARM64X target uses Clang and LLD 22 or later. LLVM inspection verifies
+the native ARM64 and emulated x64 forwarding tables. The ARM64 installer
+uses the native bridge. ARM64X registration and loading await Windows on
+Arm verification.
 
 Each DLL reads a UTF-16LE INI with a BOM from the same directory and with
 the same base name. The `[IME]` section contains `clsid`, `profile`, `connection`,

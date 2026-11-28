@@ -134,6 +134,7 @@ jobs:
             digest=$(sha256sum "$file" | cut -d' ' -f1)
             printf 'v%s %s %s\n' "$VERSION" "$arch" "$digest" >> cmd/tan/imebridge-checksums.txt
           done
+          bash internal/imebridge/windows/build.sh arm64x dist
 
       - name: Cross-compile tan
         env:

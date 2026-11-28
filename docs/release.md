@@ -342,4 +342,4 @@ grep -F 'tango-version:' "$check_dir/app/.agents/skills/tango/SKILL.md"
 
 ### Windows TSF 桥接资产
 
-发布流水线在 Ubuntu 上用固定版本的 llvm-mingw 构建两种架构的 Windows TSF DLL。它在构建 `tan` 之前将标签、架构和每个 DLL 的 SHA-256 写入 CLI 的内置校验表。对应的 DLL 随安装包工具一并上传到 GitHub Release。源码安装的 tan 使用官方 GitHub Release API 提供的资产 SHA-256。本地应用打包可通过 `TANGO_IME_BRIDGE_DIR` 使用自行构建的 DLL。
+发布流水线在 Ubuntu 上用固定版本的 llvm-mingw 构建 x64、ARM64 的 Windows TSF DLL 及 ARM64X 转发资产。它在构建 `tan` 之前将标签、架构和每个 DLL 的 SHA-256 写入 CLI 的内置校验表。对应的 DLL 随安装包工具一并上传到 GitHub Release。源码安装的 tan 使用官方 GitHub Release API 提供的资产 SHA-256。本地应用打包可通过 `TANGO_IME_BRIDGE_DIR` 使用自行构建的 DLL。
