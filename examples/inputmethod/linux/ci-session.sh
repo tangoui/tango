@@ -7,6 +7,8 @@ out=${2:?evidence directory}
 here=$(cd "$(dirname "$0")" && pwd)
 engine=com.tangoui.inputmethod.example
 expect=${3:-installed}
+daemon_log="$out/$framework-daemon.log"
+if [[ "$expect" != installed ]]; then daemon_log="$out/$framework-$expect-daemon.log"; fi
 session=$(mktemp -d)
 pids=()
 cleanup() {
@@ -36,7 +38,7 @@ dbus-update-activation-environment DISPLAY GTK_IM_MODULE XMODIFIERS XDG_CONFIG_H
 
 if [[ "$framework" == ibus ]]; then
     export TANGO_IME_IBUS_TRACE="$out/ibus-panel.log"
-    ibus-daemon --xim --panel=disable --config=disable >"$out/ibus-daemon.log" 2>&1 &
+    ibus-daemon --xim --panel=disable --config=disable >"$daemon_log" 2>&1 &
     pids+=("$!")
     for i in {1..50}; do
         if ibus list-engine >"$session/engine-list" 2>/dev/null; then
@@ -71,7 +73,7 @@ Layout=
 [GroupOrder]
 0=Default
 PROFILE
-    fcitx5 --replace >"$out/fcitx-daemon.log" 2>&1 &
+    fcitx5 --replace >"$daemon_log" 2>&1 &
     pids+=("$!")
     for i in {1..50}; do
         if fcitx5-remote >/dev/null 2>&1; then break; fi

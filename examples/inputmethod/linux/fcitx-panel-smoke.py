@@ -16,7 +16,7 @@ def call(path, interface, method, signature=None, args=()):
                          Gio.DBusCallFlags.NONE, 2000, None).unpack()
 
 
-path, _ = call("/inputmethod", method_interface, "CreateInputContext", "(a(ss))",
+path, _ = call("/org/freedesktop/portal/inputmethod", method_interface, "CreateInputContext", "(a(ss))",
                ([("program", "tango-panel-smoke")],))
 commits = []
 subscription = bus.signal_subscribe(
