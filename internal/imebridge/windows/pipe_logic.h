@@ -1,5 +1,5 @@
 #pragma once
-#include "proto.h"
+#include "../common/proto.h"
 #include <algorithm>
 #include <atomic>
 #include <chrono>

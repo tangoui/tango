@@ -7,7 +7,7 @@
 #include <string>
 
 #include "config_ini.h"
-#include "proto.h"
+#include "../common/proto.h"
 
 namespace tango::ime {
 

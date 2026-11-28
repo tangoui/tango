@@ -12,6 +12,7 @@ import (
 
 	"github.com/tangoui/tango/internal/imebridge/proto"
 	"github.com/tangoui/tango/internal/platform"
+	"github.com/tangoui/tango/internal/platform/imesession"
 )
 
 var (
@@ -69,12 +70,13 @@ func (b *Backend) ServeInputMethod(connection string, sink platform.InputMethodS
 	}) {
 		return errors.New("tango/windows: invalid input method connection name")
 	}
-	sessions := newTIPSessions(sink, config.Modes)
-	sessions.convertCaret = func(r proto.Rect) platform.Rect {
-		point := uintptr(uint64(uint32(r.Y))<<32 | uint64(uint32(r.X)))
-		mon, _, _ := tipMonitorFromPoint.Call(point, monitorDefaultToNearest)
-		return tipLogicalCaret(r, monitorDPI(mon))
-	}
+	sessions := imesession.New(sink, config.Modes, func(m *imesession.Mux, session *imesession.Session, key proto.Key) bool {
+		return tipRouteKey(m, session, key, func(r proto.Rect) platform.Rect {
+			point := uintptr(uint64(uint32(r.Y))<<32 | uint64(uint32(r.X)))
+			mon, _, _ := tipMonitorFromPoint.Call(point, monitorDefaultToNearest)
+			return tipLogicalCaret(r, monitorDPI(mon))
+		})
+	})
 	server, err := newTIPServer(connection, sessions, b.runDeferred)
 	if err != nil {
 		return err
@@ -88,38 +90,38 @@ func (b *Backend) IMECurrentMode() string {
 	if b.inputMethod == nil {
 		return ""
 	}
-	return b.inputMethod.current
+	return b.inputMethod.CurrentMode()
 }
 
 func (b *Backend) IMESetMode(id string) error {
 	if b.inputMethod == nil {
 		return platform.ErrUnsupported
 	}
-	return b.inputMethod.setMode(id, false)
+	return b.inputMethod.SetMode(id, false)
 }
 
 func (b *Backend) IMESetComposition(id uint64, text string, cursor int) {
-	if session := b.inputMethod.byID[id]; session != nil {
-		session.post(proto.Compose{Session: session.remoteID, Text: text, Cursor: uint32(max(cursor, 0))})
+	if session := b.inputMethod.Session(id); session != nil {
+		session.Post(proto.Compose{Session: session.RemoteID(), Text: text, Cursor: uint32(max(cursor, 0))})
 	}
 }
 
 func (b *Backend) IMECommit(id uint64, text string) {
-	if session := b.inputMethod.byID[id]; session != nil {
-		session.post(proto.Commit{Session: session.remoteID, Text: text})
+	if session := b.inputMethod.Session(id); session != nil {
+		session.Post(proto.Commit{Session: session.RemoteID(), Text: text})
 	}
 }
 
 func (b *Backend) IMECaret(id uint64) platform.Rect {
-	if session := b.inputMethod.byID[id]; session != nil {
-		return session.caret
+	if session := b.inputMethod.Session(id); session != nil {
+		return session.Caret()
 	}
 	return platform.Rect{}
 }
 
 func (b *Backend) IMEClientApp(id uint64) string {
-	if session := b.inputMethod.byID[id]; session != nil {
-		return session.client.exe
+	if session := b.inputMethod.Session(id); session != nil {
+		return session.ClientApp()
 	}
 	return ""
 }

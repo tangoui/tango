@@ -1,4 +1,4 @@
-#include "proto.h"
+#include "../common/proto.h"
 
 #include <cassert>
 #include <filesystem>

@@ -7,6 +7,7 @@ import (
 
 	"github.com/tangoui/tango/internal/imebridge/proto"
 	"github.com/tangoui/tango/internal/platform"
+	"github.com/tangoui/tango/internal/platform/imesession"
 )
 
 type imeSink struct {
@@ -48,16 +49,16 @@ func TestSessionMux(t *testing.T) {
 	sink := &imeSink{}
 	m := newTIPSessions(sink, nil)
 	var outA, outB []proto.Message
-	a := m.connect("a.exe", func(batch []proto.Message) { outA = append(outA, batch...) })
-	b := m.connect("b.exe", func(batch []proto.Message) { outB = append(outB, batch...) })
-	sink.onKey = func(id uint64) { m.byID[id].post(proto.Commit{Session: m.byID[id].remoteID, Text: "你"}) }
-	for _, c := range []*tipClient{a, b} {
-		m.dispatch(c, proto.Message{Body: proto.SessionOpen(1)})
-		m.dispatch(c, proto.Message{Body: proto.Focus{Session: 1, On: true}})
-		m.dispatch(c, proto.Message{Seq: 5, Body: proto.TestKey{Session: 1, VK: 'N', Flags: proto.KeyDown}})
+	a := m.Connect("a.exe", func(batch []proto.Message) { outA = append(outA, batch...) })
+	b := m.Connect("b.exe", func(batch []proto.Message) { outB = append(outB, batch...) })
+	sink.onKey = func(id uint64) { m.Session(id).Post(proto.Commit{Session: m.Session(id).RemoteID(), Text: "你"}) }
+	for _, c := range []*imesession.Client{a, b} {
+		m.Dispatch(c, proto.Message{Body: proto.SessionOpen(1)})
+		m.Dispatch(c, proto.Message{Body: proto.Focus{Session: 1, On: true}})
+		m.Dispatch(c, proto.Message{Seq: 5, Body: proto.TestKey{Session: 1, VK: 'N', Flags: proto.KeyDown}})
 	}
 	if len(sink.keys) != 2 || sink.keys[0] == sink.keys[1] ||
-		m.byID[sink.keys[0]].client != a || m.byID[sink.keys[1]].client != b {
+		m.Session(sink.keys[0]).Client() != a || m.Session(sink.keys[1]).Client() != b {
 		t.Fatalf("client routing: %v", sink.keys)
 	}
 	for _, out := range [][]proto.Message{outA, outB} {
@@ -67,10 +68,10 @@ func TestSessionMux(t *testing.T) {
 			t.Fatalf("key edits/results = %v", out)
 		}
 	}
-	m.dispatch(a, proto.Message{Body: proto.SessionClose(1)})
-	m.disconnect(b)
-	if !slices.Equal(sink.ended, sink.keys) || len(m.byID) != 0 {
-		t.Fatalf("ended %v, keys %v, live %v", sink.ended, sink.keys, m.byID)
+	m.Dispatch(a, proto.Message{Body: proto.SessionClose(1)})
+	m.Disconnect(b)
+	if !slices.Equal(sink.ended, sink.keys) || m.Session(sink.keys[0]) != nil || m.Session(sink.keys[1]) != nil {
+		t.Fatalf("ended %v, keys %v", sink.ended, sink.keys)
 	}
 }
 
@@ -78,11 +79,11 @@ func TestModifierUpDown(t *testing.T) {
 	sink := &imeSink{}
 	m := newTIPSessions(sink, nil)
 	var out []proto.Message
-	c := m.connect("host.exe", func(batch []proto.Message) { out = append(out, batch...) })
-	m.dispatch(c, proto.Message{Body: proto.SessionOpen(11)})
-	m.dispatch(c, proto.Message{Body: proto.Focus{Session: 11, On: true}})
-	m.dispatch(c, proto.Message{Seq: 1, Body: proto.TestKey{Session: 11, VK: 0x10, Scan: 0x36, Flags: proto.KeyDown, Mods: proto.ModShift}})
-	m.dispatch(c, proto.Message{Seq: 2, Body: proto.TestKey{Session: 11, VK: 0x10, Scan: 0x36, Flags: proto.KeyUp}})
+	c := m.Connect("host.exe", func(batch []proto.Message) { out = append(out, batch...) })
+	m.Dispatch(c, proto.Message{Body: proto.SessionOpen(11)})
+	m.Dispatch(c, proto.Message{Body: proto.Focus{Session: 11, On: true}})
+	m.Dispatch(c, proto.Message{Seq: 1, Body: proto.TestKey{Session: 11, VK: 0x10, Scan: 0x36, Flags: proto.KeyDown, Mods: proto.ModShift}})
+	m.Dispatch(c, proto.Message{Seq: 2, Body: proto.TestKey{Session: 11, VK: 0x10, Scan: 0x36, Flags: proto.KeyUp}})
 	want := []platform.IMEModifierKey{{Code: "ShiftRight", Down: true, Shift: true}, {Code: "ShiftRight"}}
 	if !slices.Equal(sink.mods, want) || len(out) != 2 ||
 		out[0].Body != (proto.KeyResult{Session: 11, Eaten: true}) ||
@@ -95,13 +96,13 @@ func TestModeBroadcast(t *testing.T) {
 	sink := &imeSink{}
 	m := newTIPSessions(sink, []proto.Mode{{ID: "zh", Short: "中"}, {ID: "en", Short: "英"}})
 	var a, b []proto.Message
-	m.connect("a.exe", func(batch []proto.Message) { a = append(a, batch...) })
-	c := m.connect("b.exe", func(batch []proto.Message) { b = append(b, batch...) })
-	if err := m.setMode("en", false); err != nil {
+	m.Connect("a.exe", func(batch []proto.Message) { a = append(a, batch...) })
+	c := m.Connect("b.exe", func(batch []proto.Message) { b = append(b, batch...) })
+	if err := m.SetMode("en", false); err != nil {
 		t.Fatal(err)
 	}
-	m.dispatch(c, proto.Message{Body: proto.ModePick("zh")})
-	m.dispatch(c, proto.Message{Body: proto.ModePick("zh")})
+	m.Dispatch(c, proto.Message{Body: proto.ModePick("zh")})
+	m.Dispatch(c, proto.Message{Body: proto.ModePick("zh")})
 	if len(a) != 3 || len(b) != 3 || a[1].Body != (proto.Mode{ID: "en", Short: "英"}) ||
 		b[1].Body != a[1].Body || !slices.Equal(sink.modes, []string{"zh"}) {
 		t.Fatalf("broadcasts %v, %v; callbacks %v", a, b, sink.modes)
@@ -113,11 +114,11 @@ func TestMenuRoundTrip(t *testing.T) {
 		{ID: "inactive", Title: "Inactive", Disabled: true}}}
 	m := newTIPSessions(sink, nil)
 	var out []proto.Message
-	c := m.connect("a.exe", func(batch []proto.Message) { out = append(out, batch...) })
-	m.dispatch(c, proto.Message{Body: proto.SessionOpen(2)})
-	m.dispatch(c, proto.Message{Body: proto.MenuOpen(2)})
-	m.dispatch(c, proto.Message{Body: proto.MenuPick("inactive")})
-	m.dispatch(c, proto.Message{Body: proto.MenuPick("about")})
+	c := m.Connect("a.exe", func(batch []proto.Message) { out = append(out, batch...) })
+	m.Dispatch(c, proto.Message{Body: proto.SessionOpen(2)})
+	m.Dispatch(c, proto.Message{Body: proto.MenuOpen(2)})
+	m.Dispatch(c, proto.Message{Body: proto.MenuPick("inactive")})
+	m.Dispatch(c, proto.Message{Body: proto.MenuPick("about")})
 	if len(out) != 2 || !slices.Equal(out[0].Body.(proto.Menu).Items, []proto.MenuItem{
 		{ID: "about", Title: "About", Checked: true},
 		{ID: "inactive", Title: "Inactive", Disabled: true},
@@ -148,14 +149,14 @@ func TestDeactivationCommitPrecedesReply(t *testing.T) {
 	sink := &imeSink{}
 	m := newTIPSessions(sink, nil)
 	var out []proto.Message
-	c := m.connect("a.exe", func(batch []proto.Message) { out = append(out, batch...) })
-	m.dispatch(c, proto.Message{Body: proto.SessionOpen(2)})
-	m.dispatch(c, proto.Message{Body: proto.Focus{Session: 2, On: true}})
+	c := m.Connect("a.exe", func(batch []proto.Message) { out = append(out, batch...) })
+	m.Dispatch(c, proto.Message{Body: proto.SessionOpen(2)})
+	m.Dispatch(c, proto.Message{Body: proto.Focus{Session: 2, On: true}})
 	sink.onDeactivate = func(id uint64) {
-		session := m.byID[id]
-		session.post(proto.Commit{Session: session.remoteID, Text: "ni"})
+		session := m.Session(id)
+		session.Post(proto.Commit{Session: session.RemoteID(), Text: "ni"})
 	}
-	m.dispatch(c, proto.Message{Seq: 4, Body: proto.Focus{Session: 2}})
+	m.Dispatch(c, proto.Message{Seq: 4, Body: proto.Focus{Session: 2}})
 	want := []proto.Message{
 		{Seq: 4, Body: proto.Commit{Session: 2, Text: "ni"}},
 		{Seq: 4, Body: proto.KeyResult{Session: 2}},

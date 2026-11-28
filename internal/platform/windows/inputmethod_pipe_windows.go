@@ -13,11 +13,12 @@ import (
 
 	winio "github.com/Microsoft/go-winio"
 	"github.com/tangoui/tango/internal/imebridge/proto"
+	"github.com/tangoui/tango/internal/platform/imesession"
 	"golang.org/x/sys/windows"
 )
 
 type tipServer struct {
-	*tipSessions
+	*imesession.Mux
 	listener net.Listener
 	login    uint32
 	user     *windows.SID
@@ -26,7 +27,7 @@ type tipServer struct {
 	limit    chan struct{}
 }
 
-func newTIPServer(connection string, sessions *tipSessions, runMain func(func())) (*tipServer, error) {
+func newTIPServer(connection string, sessions *imesession.Mux, runMain func(func())) (*tipServer, error) {
 	user, err := windows.GetCurrentProcessToken().GetTokenUser()
 	if err != nil {
 		return nil, err
@@ -43,7 +44,7 @@ func newTIPServer(connection string, sessions *tipSessions, runMain func(func())
 	if err != nil {
 		return nil, fmt.Errorf("tango/windows: open input method pipe: %w", err)
 	}
-	return &tipServer{tipSessions: sessions, listener: listener, login: login, user: user.User.Sid,
+	return &tipServer{Mux: sessions, listener: listener, login: login, user: user.User.Sid,
 		runMain: runMain, done: make(chan struct{}), limit: make(chan struct{}, 256)}, nil
 }
 
@@ -132,16 +133,16 @@ func (s *tipServer) serve(conn net.Conn) {
 	}()
 	defer stop()
 
-	var c *tipClient
+	var c *imesession.Client
 	// Queue cleanup on the same application thread as the connect and
 	// dispatch callbacks, even if shutdown wins while connect is queued.
 	defer s.runMain(func() {
 		if c != nil {
-			s.disconnect(c)
+			s.Disconnect(c)
 		}
 	})
 	if !s.onMain(closed, func() {
-		c = s.connect(exe, func(batch []proto.Message) {
+		c = s.Connect(exe, func(batch []proto.Message) {
 			select {
 			case out <- batch:
 			case <-closed:
@@ -164,7 +165,7 @@ func (s *tipServer) serve(conn net.Conn) {
 			if _, isTest := msg.Body.(proto.TestKey); isTest && !time.Now().Before(deadline) {
 				return
 			}
-			s.dispatch(c, msg)
+			s.Dispatch(c, msg)
 		}) {
 			return
 		}
