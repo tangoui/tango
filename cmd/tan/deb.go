@@ -55,7 +55,7 @@ func debArch(goarch string) string {
 }
 
 // debControl renders the control file. installedKB is Installed-Size.
-func debControl(cfg *Config, arch string, installedKB int64) string {
+func debControl(cfg *Config, arch string, installedKB int64, ime *linuxIMEPackage) string {
 	var b strings.Builder
 	field := func(name, value string) {
 		if value = oneLine(value); value != "" {
@@ -67,7 +67,14 @@ func debControl(cfg *Config, arch string, installedKB int64) string {
 	field("Architecture", arch)
 	field("Maintainer", cfg.Linux.Maintainer)
 	field("Installed-Size", fmt.Sprint(installedKB))
-	field("Depends", strings.Join(append(debDefaultDepends[:len(debDefaultDepends):len(debDefaultDepends)], cfg.Linux.Depends...), ", "))
+	depends := append(slices.Clone(debDefaultDepends), cfg.Linux.Depends...)
+	if ime != nil {
+		depends = append(depends, "ibus | fcitx5")
+		if ime.minFcitx != "" {
+			depends = append(depends, "fcitx5 (>= "+ime.minFcitx+")", "fcitx5 (<< "+ime.maxFcitx+")")
+		}
+	}
+	field("Depends", strings.Join(depends, ", "))
 	field("Section", "misc")
 	field("Priority", "optional")
 	field("Homepage", cfg.Linux.Homepage)
@@ -109,7 +116,7 @@ func packageDeb(cfg *Config, a artifact, icons map[string][]byte) (string, error
 	script := []byte(linuxCacheScript(files))
 
 	control, err := debTarGz(mtime, nil, []debTarFile{
-		{name: "control", data: []byte(debControl(cfg, debArch(a.target.Arch), installedKB)), mode: 0o644},
+		{name: "control", data: []byte(debControl(cfg, debArch(a.target.Arch), installedKB, a.linuxIME)), mode: 0o644},
 		{name: "md5sums", data: []byte(sums.String()), mode: 0o644},
 		{name: "postinst", data: script, mode: 0o755},
 		{name: "postrm", data: script, mode: 0o755},

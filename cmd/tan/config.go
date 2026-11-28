@@ -161,7 +161,7 @@ type InputMethod struct {
 	Icon       string      `json:"icon,omitempty"`       // project-relative menu icon PNG, defaults to the app icon
 	Modes      []InputMode `json:"modes,omitempty"`      // in display order
 	Windows    *IMEWindows `json:"windows,omitempty"`    // settings for the Windows TSF bridge
-	Linux      *IMELinux   `json:"linux,omitempty"`      // reserved for Linux IME packaging
+	Linux      *IMELinux   `json:"linux,omitempty"`      // Linux input method engine names
 }
 
 // InputMode declares one selectable mode.
@@ -179,7 +179,9 @@ type IMEWindows struct {
 }
 
 type IMELinux struct {
-	Engine string `json:"engine,omitempty"`
+	Engine string `json:"engine,omitempty"` // legacy alias for ibus
+	IBus   string `json:"ibus,omitempty"`   // defaults to the app ID
+	Fcitx5 string `json:"fcitx5,omitempty"` // defaults to the app ID
 }
 
 func (c *Config) inputMethod() *InputMethod {
@@ -414,6 +416,12 @@ func (c *Config) validate() error {
 			errs = append(errs, fmt.Errorf(`"%s.icon" path %q must be relative to the project`, field, im.Icon))
 		}
 		errs = append(errs, im.validateModes(field)...)
+		if c.InputMethod != nil && im.Linux != nil {
+			ibus, fcitx := c.linuxIMEEngines()
+			if !linuxIMENamePattern.MatchString(ibus) || !linuxIMENamePattern.MatchString(fcitx) {
+				errs = append(errs, errors.New("inputMethod.linux engine names must use letters, digits, dots, hyphens or underscores"))
+			}
+		}
 		if c.InputMethod != nil && im.Windows != nil {
 			if _, err := c.windowsIME(); err != nil {
 				errs = append(errs, err)

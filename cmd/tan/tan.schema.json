@@ -195,6 +195,15 @@
       "additionalProperties": false,
       "properties": {
         "engine": {
+          "description": "legacy alias for ibus",
+          "type": "string"
+        },
+        "fcitx5": {
+          "description": "defaults to the app ID",
+          "type": "string"
+        },
+        "ibus": {
+          "description": "defaults to the app ID",
           "type": "string"
         }
       },
@@ -309,7 +318,7 @@
         },
         "linux": {
           "$ref": "#/$defs/IMELinux",
-          "description": "reserved for Linux IME packaging"
+          "description": "Linux input method engine names"
         },
         "modes": {
           "description": "in display order",

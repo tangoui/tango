@@ -10,16 +10,13 @@
 
 ## Linux
 
-在使用 IBus 的桌面会话中，从仓库根目录运行以下命令。宿主进程启动后会向当前会话注册 Tango Pinyin，进程退出后注册随连接消失。GTK 3 和 libibus 由发行版提供。
+在示例目录运行 `tan package -format deb` 或 `tan package -format rpm`。在匹配目标架构的 Linux 上打包时，安装 CMake 和本发行版的 Fcitx5 开发包即可一并构建 Fcitx5 插件。从 macOS 交叉打包得到的是 IBus 引擎包。
 
-```sh
-go build -o /tmp/tango-pinyin ./examples/inputmethod
-/tmp/tango-pinyin
-```
+用发行版的包管理器安装生成的文件，然后重启 IBus 或 Fcitx5。在 IBus 首选项或 Fcitx5 配置工具中搜索并添加 Tango Pinyin。单击 Shift 切换中英文，系统面板显示候选、模式和菜单。键入 `nihao` 后按空格提交「你好」，按数字键可选候选。
 
-保持宿主运行，在另一个终端用 `ibus engine com.tangoui.inputmethod.example` 切换输入法，然后在使用 IBus 的应用里输入。可用 `ibus engine` 记录当前输入源，以便测试完成后切回。
+开发时可在 IBus 桌面会话中运行 `go run ./examples/inputmethod` 临时注册引擎，然后在同一会话使用 `ibus engine com.tangoui.inputmethod.example` 切换。可用 `ibus engine` 记录并恢复原输入源。系统需提供 GTK 3 和 libibus。
 
-在单独的 IBus 测试会话中，可以使用 `python3 examples/inputmethod/linux/smoke.py` 检查按键、组字、提交和失焦行为。该测试需要系统 Python 的 PyGObject 与 IBus introspection 数据。
+在隔离的 IBus 会话中可运行 `python3 examples/inputmethod/linux/smoke.py` 验证按键、组字、提交和失焦，测试依赖系统 Python 的 PyGObject 与 IBus introspection 数据。
 
 ## Windows
 

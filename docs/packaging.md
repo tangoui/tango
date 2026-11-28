@@ -192,13 +192,23 @@ SectionEnd
 - `icon` 是项目内的菜单图标 PNG。省略时使用应用图标（如果有）。
 - `connection` 默认为 `<id>_Connection`。macOS 从应用包读取该值。若在 `ime.Handler.Connection` 中设置覆盖值，两者必须一致。
 - `modes` 按显示顺序声明可选模式。每项需要唯一的 `id`、显示名 `label` 和状态短文字 `short`。应用用 `ime.SetMode` 传入模式 `id`。macOS 输入源 ID 采用 `<应用 id>.<模式 id>`。模式 `en` 的语言为英语，其余模式沿用 `language`。每个模式可以覆盖菜单图标，省略时使用输入法的默认图标。
-- `windows.clsid`、`windows.profile` 和 `windows.langid` 配置 Windows TSF 注册。`linux.engine` 为 Linux 打包预留。
+- `windows.clsid`、`windows.profile` 和 `windows.langid` 配置 Windows TSF 注册。`linux.ibus` 和 `linux.fcitx5` 配置 Linux 引擎名称。
 
 `macos.inputMethod` 是已弃用的兼容别名。迁移时把整个配置段移到顶层，两种写法只能使用一种。
 
 把生成的 `.app` 复制到 `~/Library/Input Methods/`。首次安装或新增输入模式后，请注销并重新登录，让 macOS 重新加载系统输入菜单。在「系统设置 → 键盘 → 文字输入 → 编辑」中添加要用的输入法和模式，再从输入菜单选择。后台通过 TIS 启用输入源时，其他进程可能仍读不到启用状态。
 
 更新已运行的输入法时，用 `killall <可执行文件名>` 结束旧进程，macOS 会在下次使用该输入法时重新启动它。
+
+## Linux 输入法
+
+输入法项目使用 `tan package -format deb` 或 `tan package -format rpm` 生成系统包。安装后，在桌面的输入法配置中添加该引擎。`inputMethod.linux.ibus` 和 `inputMethod.linux.fcitx5` 默认使用应用 ID，旧字段 `inputMethod.linux.engine` 仍可作为 IBus 名称。
+
+包会安装 IBus 的组件 XML。IBus 守护进程通过 XML 中的 `--ibus` 参数启动宿主。Fcitx5 安装包还包含一个插件，以及 addon 和输入法配置。Fcitx5 插件通过当前用户的 `XDG_RUNTIME_DIR` 连接宿主，候选列表由桌面输入法面板显示。
+
+要打包 Fcitx5 插件，请在与目标架构相同的 Linux 机器上安装 CMake、pkg-config 和该发行版提供的 Fcitx5 开发库。同一个发行版主次版本可共用包，例如用 5.1.x 构建的包依赖 Fcitx5 5.1 到 5.2 之间的版本。macOS、跨架构环境或缺少开发库时，打包命令会提示跳过插件，生成的包可用于 IBus。
+
+安装或卸载后，请重启所用的输入法框架，以重新加载输入源和插件。
 
 ## Windows 输入法
 

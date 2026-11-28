@@ -400,6 +400,14 @@ func packageRPM(cfg *Config, a artifact, icons map[string][]byte) (string, error
 		{"/bin/sh", rpmSenseInterp | rpmSenseScriptPost, ""},
 		{"/bin/sh", rpmSenseInterp | rpmSenseScriptPostUn, ""},
 	}
+	if ime := a.linuxIME; ime != nil {
+		reqs = append(reqs, dep{"rpmlib(RichDependencies)", rpmSenseRPMLib | rpmSenseLess | rpmSenseEqual, "4.12.0-1"},
+			dep{"(ibus or fcitx5)", 0, ""})
+		if ime.minFcitx != "" {
+			reqs = append(reqs, dep{"fcitx5", rpmSenseGreater | rpmSenseEqual, ime.minFcitx},
+				dep{"fcitx5", rpmSenseLess, ime.maxFcitx})
+		}
+	}
 	for _, r := range append(rpmDefaultRequires(a.target.Arch), cfg.Linux.RPMRequires...) {
 		n, f, v := rpmRequire(r)
 		reqs = append(reqs, dep{n, f, v})

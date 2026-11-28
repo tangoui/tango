@@ -120,7 +120,7 @@ func TestPackageFieldsStayOnOneLine(t *testing.T) {
 	if strings.Contains(d, "\nExec=/bin/sh") || !strings.Contains(d, `Name=Evil\nExec=/bin/sh -c id\r\\x`+"\n") {
 		t.Errorf(".desktop:\n%s", d)
 	}
-	c := debControl(cfg, "amd64", 1)
+	c := debControl(cfg, "amd64", 1, nil)
 	for _, line := range strings.Split(strings.TrimSuffix(c, "\n"), "\n") {
 		if strings.HasPrefix(line, "Depends: evil") || strings.HasPrefix(line, "Exec=") {
 			t.Errorf("control gained a line %q:\n%s", line, c)

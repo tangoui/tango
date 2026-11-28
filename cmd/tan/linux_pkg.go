@@ -54,6 +54,12 @@ func packageLinuxFormats(ctx context.Context, cfg *Config, a artifact, formats [
 	if err != nil {
 		return nil, err
 	}
+	if slices.Contains(formats, "deb") || slices.Contains(formats, "rpm") {
+		a.linuxIME, err = prepareLinuxIME(ctx, cfg, a, warnf)
+		if err != nil {
+			return nil, err
+		}
+	}
 	var made []string
 	for _, f := range formats {
 		var m []string
@@ -116,6 +122,9 @@ func linuxSystemFiles(cfg *Config, a artifact, icons map[string][]byte) ([]sysFi
 	if x := mimePackage(cfg); x != nil {
 		files = append(files, sysFile{path: "/usr/share/mime/packages/" + cfg.ID + ".xml", data: x, mode: 0o644})
 	}
+	if a.linuxIME != nil {
+		files = append(files, a.linuxIME.files...)
+	}
 	slices.SortFunc(files, func(a, b sysFile) int { return strings.Compare(a.path, b.path) })
 	return files, nil
 }
@@ -150,6 +159,10 @@ func linuxCacheScript(files []sysFile) string {
 	}
 	if has("/usr/share/icons/hicolor/") {
 		b.WriteString("if command -v gtk-update-icon-cache >/dev/null 2>&1; then\n  gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true\nfi\n")
+	}
+	if has("/usr/share/ibus/component/") {
+		b.WriteString("if command -v ibus >/dev/null 2>&1; then\n  ibus write-cache || true\nfi\n")
+		b.WriteString("echo 'Restart IBus or Fcitx5 for input method changes to take effect.'\n")
 	}
 	b.WriteString("exit 0\n")
 	return b.String()

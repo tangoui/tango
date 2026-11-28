@@ -131,6 +131,7 @@ type artifact struct {
 	extra    []string    // more outputs (.ipa, .aab)
 	helpers  []string    // built helper executable paths for desktop packaging
 	ime      *imePackage // Windows installer input method files
+	linuxIME *linuxIMEPackage
 }
 
 // build runs the front-end build once, then builds every target.

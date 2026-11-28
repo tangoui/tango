@@ -2,9 +2,11 @@
   "name": "Tango Pinyin",
   "id": "com.tangoui.inputmethod.example",
   "version": "0.1.0",
+  "linux": {"maintainer": "Tango <903300326@qq.com>"},
   "inputMethod": {
     "language": "zh-Hans",
     "windows": {"langid": "0804"},
+    "linux": {"ibus": "com.tangoui.inputmethod.example", "fcitx5": "com.tangoui.inputmethod.example"},
     "modes": [
       {"id": "zh", "label": "中文", "short": "中", "icon": "icons/zh.tiff"},
       {"id": "en", "label": "英文", "short": "英", "icon": "icons/en.tiff"}
