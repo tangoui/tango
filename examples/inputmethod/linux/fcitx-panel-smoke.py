@@ -1,4 +1,5 @@
 """Check focus-out from a Fcitx input context with only panel preedit."""
+import os
 import subprocess
 import time
 
@@ -17,7 +18,7 @@ def call(path, interface, method, signature=None, args=()):
 
 
 path, _ = call("/org/freedesktop/portal/inputmethod", method_interface, "CreateInputContext", "(a(ss))",
-               ([("program", "tango-panel-smoke")],))
+               ([("program", "tango-panel-smoke"), ("display", "x11:" + os.environ["DISPLAY"])],))
 commits = []
 subscription = bus.signal_subscribe(
     service, context_interface, "CommitString", path, None, Gio.DBusSignalFlags.NONE,
@@ -34,9 +35,13 @@ try:
     context_call("FocusIn")
     subprocess.run(["fcitx5-remote", "-o"], check=True)
     subprocess.run(["fcitx5-remote", "-s", "com.tangoui.inputmethod.example"], check=True)
-    for char in "ni":
-        handled, = context_call("ProcessKeyEvent", "(uuubu)", (ord(char), 0, 0, False, 0))
-        assert handled, char
+    # The addon passes keys through until the host finishes its handshake.
+    deadline = time.monotonic() + 5
+    while not context_call("ProcessKeyEvent", "(uuubu)", (ord("n"), 0, 0, False, 0))[0]:
+        assert time.monotonic() < deadline, "Tango did not handle the first key"
+        time.sleep(0.1)
+    assert context_call("ProcessKeyEvent", "(uuubu)", (ord("i"), 0, 0, False, 0))[0]
+    print("Fcitx5 handled both keys in a context without client preedit", flush=True)
     context_call("FocusOut")
     deadline = time.monotonic() + 1
     loop = GLib.MainContext.default()
