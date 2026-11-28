@@ -154,7 +154,13 @@ for key in n i h a o space; do
 done
 sleep 0.3
 test "$(cat "$TANGO_SMOKE_TEXT")" = 你好
-xdotool key Shift_L
+# Numeric X11 keycodes avoid xdotool synthesizing an extra left Shift to set
+# the modifier mask for a named right Shift. Read the keycodes from Xvfb.
+shift_codes=$(xkbcomp -xkb "$DISPLAY" - 2>/dev/null)
+left_shift=$(awk '$1 == "<LFSH>" { print $3 + 0 }' <<<"$shift_codes")
+right_shift=$(awk '$1 == "<RTSH>" { print $3 + 0 }' <<<"$shift_codes")
+test -n "$left_shift" && test -n "$right_shift"
+xdotool key "$left_shift"
 sleep 0.2
 for key in a b c; do xdotool key "$key"; done
 sleep 0.2
@@ -163,7 +169,7 @@ if [[ "$framework" == fcitx ]]; then
     test "$(fcitx5-remote)" = 2
     test "$(fcitx5-remote -n)" = "$engine"
 fi
-xdotool key Shift_R
+xdotool key "$right_shift"
 sleep 0.2
 for key in n i space; do
     xdotool key "$key"

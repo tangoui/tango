@@ -4,10 +4,12 @@
 #include <fcitx/addonmanager.h>
 #include <fcitx/candidatelist.h>
 #include <fcitx/event.h>
+#include <fcitx/globalconfig.h>
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
 #include <fcitx/statusarea.h>
 #include <fcitx/userinterfacemanager.h>
+#include <algorithm>
 #include <codecvt>
 #include <cstdlib>
 #include <cstdio>
@@ -131,7 +133,25 @@ bool TangoBridge::open(Context& value) {
 }
 
 void TangoBridge::activate(const fcitx::InputMethodEntry&, fcitx::InputContextEvent& event) {
-    try { open(context(event.inputContext())); }
+    try {
+        if (!warnedLeftShift_) {
+            const auto& config = instance_->globalConfig();
+            const auto leftShift = fcitx::Key("Shift_L");
+            for (const auto* keys : {&config.altTriggerKeys(), &config.triggerKeys(),
+                                    &config.activateKeys(), &config.deactivateKeys(),
+                                    &config.enumerateForwardKeys(), &config.enumerateBackwardKeys(),
+                                    &config.enumerateGroupForwardKeys(), &config.enumerateGroupBackwardKeys()}) {
+                if (std::find(keys->begin(), keys->end(), leftShift) != keys->end()) {
+                    std::fputs("Tango IME: standalone left Shift is reserved by Fcitx5. "
+                               "Use right Shift or change the shortcut in Fcitx5 Configuration > Global Options > Hotkey.\n",
+                               stderr);
+                    warnedLeftShift_ = true;
+                    break;
+                }
+            }
+        }
+        open(context(event.inputContext()));
+    }
     catch (...) {}
 }
 

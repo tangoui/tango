@@ -206,6 +206,8 @@ SectionEnd
 
 包会安装 IBus 的组件 XML。IBus 守护进程通过 XML 中的 `--ibus` 参数启动宿主。Fcitx5 安装包还包含一个插件，以及 addon 和输入法配置。Fcitx5 插件通过当前用户的 `XDG_RUNTIME_DIR` 连接宿主，候选列表由桌面输入法面板显示。
 
+Fcitx5 默认把单击左 Shift 用于临时切换输入法。Tango 检测到占用时会在 Fcitx5 日志中提示一次。要把左 Shift 交给输入法处理，在 `fcitx5-configtool` 的 **全局选项 → 快捷键** 中修改或清除 **在第一个和当前输入法之间临时切换**（Temporally switch between first and current Input Method）的绑定。
+
 要打包 Fcitx5 插件，请在与目标架构相同的 Linux 机器上安装 CMake、pkg-config 和该发行版提供的 Fcitx5 开发库。同一个发行版主次版本可共用包，例如用 5.1.x 构建的包依赖 Fcitx5 5.1 到 5.2 之间的版本。macOS、跨架构环境或缺少开发库时，打包命令会提示跳过插件，生成的包可用于 IBus。
 
 安装或卸载后，请重启所用的输入法框架，以重新加载输入源和插件。

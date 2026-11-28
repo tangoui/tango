@@ -43,6 +43,7 @@ private:
     fcitx::Instance* instance_;
     std::unordered_map<fcitx::InputContext*, Context> contexts_;
     uint64_t next_ = 0;
+    bool warnedLeftShift_ = false;
     Frame mode_;
     std::vector<std::unique_ptr<MenuAction>> commands_;
     fcitx::Menu menu_;
