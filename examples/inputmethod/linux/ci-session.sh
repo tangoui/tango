@@ -84,6 +84,10 @@ PROFILE
         exit 0
     fi
     fcitx5-remote -s "$engine"
+    if [[ "$expect" == panel-preedit ]]; then
+        /usr/bin/python3 "$here/fcitx-panel-smoke.py" | tee "$out/fcitx-panel-focus.txt"
+        exit 0
+    fi
 fi
 
 export TANGO_SMOKE_TEXT="$out/$framework-text.txt"

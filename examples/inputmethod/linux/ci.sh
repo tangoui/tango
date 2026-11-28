@@ -30,8 +30,11 @@ plugin=$(grep -E "/fcitx5/$engine[.]so$" "$out/package-files.txt")
 test -f "$plugin"
 pkg-config --modversion Fcitx5Core | tee "$out/fcitx5-version.txt"
 failed=0
-for framework in ibus fcitx; do
-    session=(dbus-run-session -- bash "$here/ci-session.sh" "$framework" "$out")
+for check in ibus fcitx fcitx-panel; do
+    framework=${check%-panel}
+    expectation=installed
+    if [[ "$check" == fcitx-panel ]]; then expectation=panel-preedit; fi
+    session=(dbus-run-session -- bash "$here/ci-session.sh" "$framework" "$out" "$expectation")
     if [[ "$(id -u)" == 0 ]]; then
         id ime-test >/dev/null 2>&1 || useradd --create-home ime-test
         chown ime-test "$out"
