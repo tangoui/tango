@@ -165,7 +165,8 @@ void SocketPipe::serve(int fd, Reconnect& backoff) {
     Frame hello;
     hello.type = Type::hello;
     hello.pid = static_cast<uint32_t>(getpid());
-    hello.exe = u"fcitx5";
+    // Old hosts accept this Hello but keep sending unversioned lists.
+    hello.exe = u"fcitx5/candidate-selection";
     Bytes bytes;
     if (!encode(hello, bytes) || !transfer(fd, true, bytes.data(), bytes.size(), stop_)) return;
     Frame acknowledgment;
@@ -209,6 +210,7 @@ void SocketPipe::deliver(Frame frame, Reconnect& backoff) {
     case Type::compose:
     case Type::commit:
     case Type::candidates:
+    case Type::candidate_list:
         if (frame.seq) {
             reply_.accept(std::move(frame));
             return;

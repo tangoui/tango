@@ -70,6 +70,11 @@ else
 [Hotkey/AltTriggerKeys]
 0=Control+Shift_L
 CONFIG
+    elif [[ "$expect" == shift-alias ]]; then
+        cat >"$XDG_CONFIG_HOME/fcitx5/config" <<'CONFIG'
+[Hotkey/AltTriggerKeys]
+0=Shift+Shift_L
+CONFIG
     fi
     cat >"$XDG_CONFIG_HOME/fcitx5/profile" <<PROFILE
 [Groups/0]
@@ -102,8 +107,10 @@ PROFILE
         exit 0
     fi
     fcitx5-remote -s "$engine"
-    if [[ "$expect" == panel-preedit ]]; then
-        /usr/bin/python3 "$here/fcitx-panel-smoke.py" | tee "$out/fcitx-panel-focus.txt"
+    if [[ "$expect" == panel-preedit || "$expect" == shift-alias ]]; then
+        panel_result="$out/fcitx-panel-focus.txt"
+        if [[ "$expect" == shift-alias ]]; then panel_result="$log_prefix-probe.log"; fi
+        /usr/bin/python3 "$here/fcitx-panel-smoke.py" | tee "$panel_result"
         test "$(grep -Fc 'standalone left Shift is reserved by Fcitx5' "$daemon_log")" = 1
         exit 0
     fi

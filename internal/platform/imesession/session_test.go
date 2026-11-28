@@ -14,6 +14,43 @@ type testSink struct {
 	modes []string
 }
 
+type candidateSink struct {
+	platform.InputMethodSink
+	picks []int
+}
+
+func (*candidateSink) IMEActivate(uint64) {}
+
+func (s *candidateSink) IMECandidateSelected(_ uint64, index int) {
+	s.picks = append(s.picks, index)
+}
+
+func TestCandidatePickRejectsReplacedList(t *testing.T) {
+	sink := &candidateSink{}
+	mux := New(sink, nil, nil)
+	var sent []proto.Message
+	client := mux.Connect("fcitx5", func(batch []proto.Message) { sent = append(sent, batch...) })
+	session := mux.Open(client, 1)
+	mux.Focus(session, true)
+	publish := func(text string) uint64 {
+		session.Post(proto.Candidates{Session: 1, Items: []proto.Candidate{{Text: text}}})
+		return sent[len(sent)-1].Body.(proto.Candidates).Revision
+	}
+	first := publish("你")
+	second := publish("泥")
+	if first == 0 || second == 0 || first == second {
+		t.Fatalf("candidate list revisions = %d, %d", first, second)
+	}
+	for _, revision := range []uint64{0, first, second} {
+		mux.Dispatch(client, proto.Message{
+			Seq: revision + 1, Body: proto.CandidatePick{Session: 1, Revision: revision},
+		})
+	}
+	if !slices.Equal(sink.picks, []int{0}) {
+		t.Fatalf("selected candidate indexes = %v, want only the current list's first index", sink.picks)
+	}
+}
+
 func (s *testSink) IMEModeChanged(id string) { s.modes = append(s.modes, id) }
 
 func TestSessionMuxTwoTransports(t *testing.T) {

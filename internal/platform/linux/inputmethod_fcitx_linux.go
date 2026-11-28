@@ -182,7 +182,7 @@ func (s *fcitxServer) serve(conn *net.UnixConn) {
 			case batch := <-output:
 				_ = conn.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
 				for _, item := range batch {
-					data, err := proto.Marshal(item)
+					data, err := proto.Marshal(fcitxMessageForPeer(item, hello))
 					if err != nil {
 						// Skip unencodable frames and keep the connection open.
 						continue

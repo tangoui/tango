@@ -89,7 +89,9 @@ public:
             result_.received_through = received_through;
             completed_ = true;
             cv_.notify_one();
-        } else if ((frame.type == Type::compose || frame.type == Type::commit || frame.type == Type::candidates) && result_.edits.size() < 32) {
+        } else if ((frame.type == Type::compose || frame.type == Type::commit ||
+                    frame.type == Type::candidates || frame.type == Type::candidate_list) &&
+                   result_.edits.size() < 32) {
             result_.edits.push_back(std::move(frame));
         } else {
             return false;

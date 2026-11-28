@@ -84,16 +84,18 @@ Frame keyFrame(const fcitx::KeyEvent& event, uint64_t session) {
 
 class TangoBridge::Word final : public fcitx::CandidateWord {
 public:
-    Word(const Candidate& choice, TangoBridge& bridge, uint64_t session, uint32_t index)
-        : CandidateWord(fcitx::Text(label(choice))), bridge_(bridge), session_(session), index_(index) {}
+    Word(const Candidate& choice, TangoBridge& bridge, uint64_t session, uint64_t revision, uint32_t index)
+        : CandidateWord(fcitx::Text(label(choice))), bridge_(bridge),
+          session_(session), revision_(revision), index_(index) {}
 
     void select(fcitx::InputContext* input) const override {
-        bridge_.selectCandidate(input, session_, index_);
+        if (revision_) bridge_.selectCandidate(input, session_, revision_, index_);
     }
 
 private:
     TangoBridge& bridge_;
     uint64_t session_;
+    uint64_t revision_;
     uint32_t index_;
 };
 
@@ -149,7 +151,7 @@ void TangoBridge::activate(const fcitx::InputMethodEntry&, fcitx::InputContextEv
                                     &config.activateKeys(), &config.deactivateKeys(),
                                     &config.enumerateForwardKeys(), &config.enumerateBackwardKeys(),
                                     &config.enumerateGroupForwardKeys(), &config.enumerateGroupBackwardKeys()}) {
-                if (std::find(keys->begin(), keys->end(), leftShift) != keys->end()) {
+                if (leftShift.checkKeyList(*keys)) {
                     std::fputs("Tango IME: standalone left Shift is reserved by Fcitx5. "
                                "Use right Shift or change the shortcut in Fcitx5 Configuration > Global Options > Hotkey.\n",
                                stderr);
@@ -218,7 +220,7 @@ void TangoBridge::keyEvent(const fcitx::InputMethodEntry&, fcitx::KeyEvent& even
     } catch (...) {}
 }
 
-void TangoBridge::selectCandidate(fcitx::InputContext* input, uint64_t session, uint32_t index) {
+void TangoBridge::selectCandidate(fcitx::InputContext* input, uint64_t session, uint64_t revision, uint32_t index) {
     try {
         const auto found = contexts_.find(input);
         if (!input->hasFocus() || found == contexts_.end() ||
@@ -227,6 +229,7 @@ void TangoBridge::selectCandidate(fcitx::InputContext* input, uint64_t session, 
         Frame pick;
         pick.type = Type::candidate_pick;
         pick.session = session;
+        pick.candidate_revision = revision;
         pick.candidate_index = index;
         if (auto result = pipe_.request(std::move(pick))) {
             receive(result->received_through);
@@ -305,21 +308,23 @@ void TangoBridge::apply(Frame frame) {
                 panel.setPreedit(text);
             }
             input->updatePreedit();
-        } else if (frame.type == Type::candidates) {
+        } else if (frame.type == Type::candidates || frame.type == Type::candidate_list) {
             if (frame.candidates.empty()) panel.setCandidateList(nullptr);
             else {
                 auto list = std::make_unique<fcitx::CommonCandidateList>();
                 list->setPageSize(9);
                 list->setLabels({"1", "2", "3", "4", "5", "6", "7", "8", "9"});
                 for (uint32_t i = 0; i < frame.candidates.size(); ++i)
-                    list->append(std::make_unique<Word>(frame.candidates[i], *this, frame.session, i));
+                    list->append(std::make_unique<Word>(frame.candidates[i], *this, frame.session,
+                                                       frame.candidate_revision, i));
                 list->setGlobalCursorIndex(frame.selected >= 0 &&
                     static_cast<size_t>(frame.selected) < frame.candidates.size() ? frame.selected : -1);
                 panel.setCandidateList(std::move(list));
             }
         }
         input->updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
-        if (frame.type == Type::candidates && std::getenv("TANGO_IME_SMOKE_TRACE"))
+        if ((frame.type == Type::candidates || frame.type == Type::candidate_list) &&
+            std::getenv("TANGO_IME_SMOKE_TRACE"))
             std::fprintf(stderr, "Tango Fcitx5 candidates %zu\n", frame.candidates.size());
         return;
     }

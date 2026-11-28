@@ -36,6 +36,7 @@ const (
 	TypeCandidates
 	TypeReset
 	TypeCandidatePick
+	TypeCandidateList
 )
 
 const (
@@ -124,13 +125,15 @@ type Candidate struct{ Text, Comment string }
 
 type Candidates struct {
 	Session  uint64
-	Selected int32 // -1 when selection is unset
+	Revision uint64 // zero for peers without candidate selection support
+	Selected int32  // -1 when selection is unset
 	Items    []Candidate
 }
 
 type CandidatePick struct {
-	Session uint64
-	Index   uint32
+	Session  uint64
+	Revision uint64
+	Index    uint32
 }
 
 var errFrame = errors.New("imebridge: invalid frame")
@@ -171,13 +174,20 @@ func Marshal(msg Message) ([]byte, error) {
 	case CandidatePick:
 		kind = TypeCandidatePick
 		e.u64(v.Session)
+		e.u64(v.Revision)
 		e.u32(v.Index)
 	case Candidates:
 		kind = TypeCandidates
+		if v.Revision != 0 {
+			kind = TypeCandidateList
+		}
 		if len(v.Items) > (MaxFrame-headerSize-14)/4 {
 			return nil, errFrame
 		}
 		e.u64(v.Session)
+		if v.Revision != 0 {
+			e.u64(v.Revision)
+		}
 		e.u32(uint32(v.Selected))
 		e.u16(uint16(len(v.Items)))
 		for _, item := range v.Items {
@@ -265,7 +275,8 @@ func Read(r io.Reader) (Message, error) {
 	}
 	d := decoder{data: payload}
 	var body any
-	switch Type(binary.LittleEndian.Uint16(header[4:])) {
+	kind := Type(binary.LittleEndian.Uint16(header[4:]))
+	switch kind {
 	case TypeHello:
 		body = Hello{PID: d.u32(), AppContainer: d.flag(), Integrity: d.u32(), Exe: d.text()}
 	case TypeSessionOpen:
@@ -283,9 +294,17 @@ func Read(r io.Reader) (Message, error) {
 	case TypeReset:
 		body = Reset(d.u64())
 	case TypeCandidatePick:
-		body = CandidatePick{Session: d.u64(), Index: d.u32()}
-	case TypeCandidates:
-		session, selected := d.u64(), int32(d.u32())
+		body = CandidatePick{Session: d.u64(), Revision: d.u64(), Index: d.u32()}
+	case TypeCandidates, TypeCandidateList:
+		session := d.u64()
+		var revision uint64
+		if kind == TypeCandidateList {
+			revision = d.u64()
+			if revision == 0 {
+				return Message{}, errFrame
+			}
+		}
+		selected := int32(d.u32())
 		count := int(d.u16())
 		if count > len(d.data)/4 {
 			return Message{}, errFrame
@@ -294,7 +313,7 @@ func Read(r io.Reader) (Message, error) {
 		for i := range items {
 			items[i] = Candidate{Text: d.text(), Comment: d.text()}
 		}
-		body = Candidates{Session: session, Selected: selected, Items: items}
+		body = Candidates{Session: session, Revision: revision, Selected: selected, Items: items}
 	case TypeMenuPick:
 		body = MenuPick(d.text())
 	case TypeModePick:

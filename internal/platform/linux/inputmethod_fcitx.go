@@ -11,9 +11,18 @@ import (
 )
 
 const (
-	fcitxSocketMode    = 0o600
-	fcitxSocketDirMode = 0o700
+	fcitxSocketMode              = 0o600
+	fcitxSocketDirMode           = 0o700
+	fcitxCandidateSelectionHello = "fcitx5/candidate-selection"
 )
+
+func fcitxMessageForPeer(msg proto.Message, hello proto.Hello) proto.Message {
+	if list, ok := msg.Body.(proto.Candidates); ok && hello.Exe != fcitxCandidateSelectionHello {
+		list.Revision = 0
+		msg.Body = list
+	}
+	return msg
+}
 
 func fcitxSocketPath(runtime, connection string) (string, error) {
 	if !filepath.IsAbs(runtime) {

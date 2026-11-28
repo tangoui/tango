@@ -28,13 +28,15 @@ type Client struct {
 }
 
 type Session struct {
-	id, remoteID uint64
-	client       *Client
-	active       bool
-	caret        platform.Rect
-	exe          string
-	seq          uint64
-	batch        []proto.Message
+	id, remoteID      uint64
+	client            *Client
+	active            bool
+	caret             platform.Rect
+	exe               string
+	seq               uint64
+	batch             []proto.Message
+	candidateRevision uint64
+	candidateCount    int
 }
 
 func New(sink platform.InputMethodSink, modes []proto.Mode, routeKey func(*Mux, *Session, proto.Key) bool) *Mux {
@@ -95,6 +97,7 @@ func (m *Mux) Focus(s *Session, on bool) {
 	if on {
 		m.sink.IMEActivate(s.id)
 	} else {
+		s.candidateCount = 0
 		m.sink.IMEDeactivate(s.id)
 	}
 }
@@ -132,6 +135,12 @@ const (
 )
 
 func (s *Session) Post(body any) {
+	if list, ok := body.(proto.Candidates); ok {
+		s.candidateRevision++
+		s.candidateCount = len(list.Items)
+		list.Revision = s.candidateRevision
+		body = list
+	}
 	limit := maxReplyEdits - len(s.batch)
 	if limit == 0 {
 		return
@@ -205,6 +214,9 @@ func (m *Mux) Dispatch(c *Client, msg proto.Message) {
 		if msg.Seq != 0 {
 			session := c.sessions[v.Session]
 			m.reply(c, v.Session, msg.Seq, session, func() bool {
+				if v.Revision != session.candidateRevision || uint64(v.Index) >= uint64(session.candidateCount) {
+					return false
+				}
 				return m.SelectCandidate(session, int(v.Index))
 			})
 		}

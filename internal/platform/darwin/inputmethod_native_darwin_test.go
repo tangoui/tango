@@ -232,8 +232,9 @@ func runNativeIMEController() {
 		// source so the fixture never changes the machine's input source.
 		sourceID := bundle + ".zh"
 		var tisSelections []string
+		var sourceReads int
 		imeHost.modes.source = imeInputSource{
-			current: func() string { return sourceID },
+			current: func() string { sourceReads++; return sourceID },
 			selectMode: func(id string) error {
 				tisSelections = append(tisSelections, id)
 				sourceID = id
@@ -265,16 +266,18 @@ func runNativeIMEController() {
 
 		sourceID = bundle + ".zh"
 		setMode("en")
-		setMode("zh") // A newer request arrived on the same controller.
+		setMode("zh")
+		setMode("en") // Same mode as the first request, with a newer sequence.
+		sourceReads = 0
 		drainMainQueue()
-		if len(tisSelections) != 1 || sourceID != bundle+".zh" {
-			panic(fmt.Sprintf("superseded request changed the TIS source: %v", tisSelections))
+		if sourceReads != 2 || !slices.Equal(tisSelections, []string{bundle + ".en", bundle + ".en"}) {
+			panic(fmt.Sprintf("superseded requests read TIS %d times, selections = %v", sourceReads, tisSelections))
 		}
 
-		setMode("en")
+		setMode("zh")
 		sourceID = "com.apple.keylayout.ABC" // A user selection intervened.
 		drainMainQueue()
-		if len(tisSelections) != 1 || sourceID != "com.apple.keylayout.ABC" {
+		if len(tisSelections) != 2 || sourceID != "com.apple.keylayout.ABC" {
 			panic(fmt.Sprintf("fallback overrode a foreign input source: %v", tisSelections))
 		}
 	})

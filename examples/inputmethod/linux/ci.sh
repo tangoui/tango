@@ -57,10 +57,11 @@ grep -F "/usr/share/fcitx5/inputmethod/$engine.conf" "$out/package-files.txt"
 plugin=$(grep -E "/fcitx5/$engine[.]so$" "$out/package-files.txt")
 test -f "$plugin"
 failed=0
-for check in ibus fcitx fcitx-panel; do
-    framework=${check%-panel}
+for check in ibus fcitx fcitx-panel fcitx-shift; do
+    framework=${check%%-*}
     expectation=installed
     if [[ "$check" == fcitx-panel ]]; then expectation=panel-preedit; fi
+    if [[ "$check" == fcitx-shift ]]; then expectation=shift-alias; fi
     session=(dbus-run-session -- bash "$here/ci-session.sh" "$framework" "$out" "$expectation")
     if [[ "$(id -u)" == 0 ]]; then
         id ime-test >/dev/null 2>&1 || useradd --create-home ime-test

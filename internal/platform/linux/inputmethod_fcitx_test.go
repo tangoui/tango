@@ -1,8 +1,11 @@
 package linux
 
 import (
+	"encoding/binary"
 	"path/filepath"
 	"testing"
+
+	"github.com/tangoui/tango/internal/imebridge/proto"
 )
 
 func TestFcitxSocketPath(t *testing.T) {
@@ -24,5 +27,26 @@ func TestFcitxSocketPath(t *testing.T) {
 func TestFcitxPeerCred(t *testing.T) {
 	if !fcitxPeerAllowed(1000, 1000) || fcitxPeerAllowed(1000, 1001) || fcitxPeerAllowed(1000, 0) {
 		t.Fatal("unexpected peer UID policy")
+	}
+}
+
+func TestFcitxCandidateListPeerCompatibility(t *testing.T) {
+	msg := proto.Message{Body: proto.Candidates{
+		Session: 1, Revision: 2, Selected: -1, Items: []proto.Candidate{{Text: "你"}},
+	}}
+	for _, tc := range []struct {
+		exe  string
+		kind proto.Type
+	}{
+		{"fcitx5", proto.TypeCandidates},
+		{fcitxCandidateSelectionHello, proto.TypeCandidateList},
+	} {
+		data, err := proto.Marshal(fcitxMessageForPeer(msg, proto.Hello{Exe: tc.exe}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := proto.Type(binary.LittleEndian.Uint16(data[4:6])); got != tc.kind {
+			t.Errorf("Hello %q got candidate frame %d, want %d", tc.exe, got, tc.kind)
+		}
 	}
 }
