@@ -21,7 +21,7 @@ jobs:
       - name: Install Linux IME test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ pkg-config fcitx5 fcitx5-gtk fcitx5-modules-dev \
+          sudo apt-get install -y cmake g++ pkg-config fcitx5 fcitx5-frontend-gtk3 fcitx5-modules-dev \
             libfcitx5core-dev ibus ibus-gtk3 python3-gi gir1.2-gtk-3.0 gir1.2-ibus-1.0 \
             xvfb xdotool dbus-x11 x11-utils libwebkit2gtk-4.1-0
       - name: Build and test Debian package

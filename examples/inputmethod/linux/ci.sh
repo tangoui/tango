@@ -11,7 +11,7 @@ out=$(cd "$out" && pwd)
 cd "$root"
 exec > >(tee "$out/build.log") 2>&1
 
-export CGO_ENABLED=0
+export CGO_ENABLED=0 GOFLAGS=-buildvcs=false
 go test ./internal/platform/linux ./internal/platform/imesession ./internal/imebridge/proto ./sys/ime
 go build -o "$out/tan" ./cmd/tan
 "$out/tan" package -C examples/inputmethod -format "$format" -o "$out"
