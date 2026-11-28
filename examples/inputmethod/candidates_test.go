@@ -88,7 +88,7 @@ func TestUnknownCaretClearsPreviousSessionsCandidates(t *testing.T) {
 	candidates := &candidateWindow{surface: surface, app: a, current: &candidateList{session: previous}}
 
 	tango.Await(a, func() bool {
-		candidates.show(next, tango.Rect{}, []string{"你"}, nil)
+		candidates.show(next, tango.Rect{}, []string{"你"})
 		return true
 	})
 	if candidates.current != nil || surface.IsVisible() {

@@ -5,6 +5,8 @@ from gi.repository import IBus, GLib
 IBus.init()
 bus = IBus.Bus()
 assert bus.is_connected()
+panel = IBus.PanelService.new(bus.get_connection())
+assert bus.request_name("org.freedesktop.IBus.Panel", 0) == 1
 ctx = bus.create_input_context('tango-integration')
 ctx.set_capabilities(IBus.Capabilite.PREEDIT_TEXT | IBus.Capabilite.FOCUS)
 ctx.focus_in()
@@ -50,3 +52,12 @@ ctx.focus_out()
 drain(200)
 print('after blur:', seen[-10:])
 assert [item[1] for item in seen if item[0] == 'commit'] == ['你好', 'wo', 'ni'], seen
+ctx.focus_in()
+drain(100)
+for ch in 'ni':
+    assert ctx.process_key_event(ord(ch), 0, 0), ch
+panel.candidate_clicked(1, 1, 0)
+drain(200)
+assert [item[1] for item in seen if item[0] == 'commit'] == ['你好', 'wo', 'ni', '泥'], seen
+print("IBus panel selection commits the second candidate")
+ctx.focus_out()

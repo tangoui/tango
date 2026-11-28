@@ -17,7 +17,7 @@ inline constexpr size_t max_frame = 64 * 1024;
 
 enum class Type : uint16_t {
     hello = 1, open, close, key, test_key, focus, menu_open, menu_pick, mode_pick,
-    key_result, compose, commit, mode, menu, candidates, reset,
+    key_result, compose, commit, mode, menu, candidates, reset, candidate_pick,
 };
 
 enum KeyFlag : uint8_t { down = 1, up = 2, repeat = 4, extended = 8 };
@@ -50,6 +50,7 @@ struct Frame {
     std::vector<MenuItem> items;
     std::vector<Candidate> candidates;
     int32_t selected = -1;
+    uint32_t candidate_index = 0;
 };
 
 inline bool valid_utf16(const std::u16string& text) {
@@ -181,6 +182,8 @@ bool code_body(Codec& c, Message& f) {
     case Type::menu_open:
     case Type::reset:
         return c(f.session);
+    case Type::candidate_pick:
+        return c(f.session) && c(f.candidate_index);
     case Type::candidates:
         return c(f.session) && c(f.selected) && c(f.candidates);
     case Type::key:

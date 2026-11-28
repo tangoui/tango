@@ -72,6 +72,14 @@ func newIBusLookup(list []platform.IMECandidate, selected int) ibusLookup {
 		cursorVisible: visible, candidates: list}
 }
 
+func (table ibusLookup) clickedIndex(row uint32) (int, bool) {
+	if table.pageSize == 0 || row >= uint32(table.pageSize) {
+		return 0, false
+	}
+	index := table.cursor - table.cursor%table.pageSize + int(row)
+	return index, index < len(table.candidates)
+}
+
 func ibusCandidateLabel(c platform.IMECandidate) string {
 	if c.Comment == "" {
 		return c.Text

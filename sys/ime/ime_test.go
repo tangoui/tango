@@ -2,6 +2,7 @@ package ime
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/tangoui/tango"
@@ -378,5 +379,48 @@ func TestSetCandidatesNoBackend(t *testing.T) {
 	}
 	if !tango.Await(a, func() bool { return f.sink.IMEKey(1, platform.IMEKey{}) }) {
 		t.Fatal("candidate call interrupted the key callback")
+	}
+}
+
+func TestCandidateSelection(t *testing.T) {
+	a, f := runInputMethod(t, tango.Options{})
+	var picked []int
+	var session *Session
+	if err := Serve(a, Handler{
+		Key:      func(*Session, Key) bool { t.Error("selection generated a key event"); return false },
+		Activate: func(s *Session) { session = s },
+		CandidateSelected: func(s *Session, index int) {
+			if s != session {
+				t.Error("selection routed to a different session")
+			}
+			picked = append(picked, index)
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	tango.Await(a, func() bool {
+		sink := f.sink.(platform.InputMethodCandidateSink)
+		f.sink.IMEActivate(1)
+		session.SetCandidates([]Candidate{{Text: "你"}, {Text: "泥"}}, 0)
+		sink.IMECandidateSelected(2, 0)
+		sink.IMECandidateSelected(1, 2)
+		sink.IMECandidateSelected(1, 1)
+		session.SelectCandidate(-1)
+		session.SelectCandidate(0)
+		session.SetCandidates(nil, -1)
+		session.SelectCandidate(0)
+		session.SetCandidates([]Candidate{{Text: "你"}}, 0)
+		f.sink.IMEDeactivate(1)
+		sink.IMECandidateSelected(1, 0)
+		session.SelectCandidate(0)
+		f.sink.IMEEnd(1)
+		f.sink.IMEActivate(1)
+		session.SetCandidates([]Candidate{{Text: "你"}}, 0)
+		f.sink.IMEEnd(1)
+		session.SelectCandidate(0)
+		return true
+	})
+	if !slices.Equal(picked, []int{1, 0}) {
+		t.Fatalf("picked candidates = %v, want [1 0]", picked)
 	}
 }

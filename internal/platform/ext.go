@@ -568,6 +568,11 @@ type InputMethodCandidates interface {
 	IMESetCandidates(session uint64, list []IMECandidate, selected int)
 }
 
+// InputMethodCandidateSink reports a selection by zero-based list index.
+type InputMethodCandidateSink interface {
+	IMECandidateSelected(session uint64, index int)
+}
+
 // InputMethods is implemented by backends that can host a system input method.
 type InputMethods interface {
 	// An empty connection selects the platform default.

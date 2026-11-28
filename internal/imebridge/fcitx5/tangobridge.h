@@ -22,6 +22,7 @@ public:
     std::string subModeIconImpl(const fcitx::InputMethodEntry&, fcitx::InputContext&) override;
 
 private:
+    class Word;
     struct Context {
         fcitx::TrackableObjectReference<fcitx::InputContext> view;
         uint64_t session = 0;
@@ -38,6 +39,7 @@ private:
     void apply(Frame frame);
     void refreshMenu(const std::vector<MenuItem>& items);
     void clearPanel(fcitx::InputContext& context);
+    void selectCandidate(fcitx::InputContext* input, uint64_t session, uint32_t index);
 
     fcitx::EventDispatcher dispatcher_;
     fcitx::Instance* instance_;

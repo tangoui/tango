@@ -201,6 +201,13 @@ func (m *Mux) Dispatch(c *Client, msg proto.Message) {
 		if msg.Seq != 0 {
 			m.test(c, proto.Key(v), msg.Seq)
 		}
+	case proto.CandidatePick:
+		if msg.Seq != 0 {
+			session := c.sessions[v.Session]
+			m.reply(c, v.Session, msg.Seq, session, func() bool {
+				return m.SelectCandidate(session, int(v.Index))
+			})
+		}
 	case proto.Key:
 		if session := c.sessions[v.Session]; session != nil && session.active && m.routeKey != nil {
 			m.routeKey(m, session, v)
@@ -265,6 +272,15 @@ func (m *Mux) Modifier(s *Session, key platform.IMEModifierKey) bool {
 
 func (m *Mux) CommitComposition(s *Session) {
 	m.sink.IMECommitComposition(s.id)
+}
+
+func (m *Mux) SelectCandidate(s *Session, index int) bool {
+	sink, ok := m.sink.(platform.InputMethodCandidateSink)
+	if !ok || s == nil || !s.active || index < 0 {
+		return false
+	}
+	sink.IMECandidateSelected(s.id, index)
+	return true
 }
 
 func (m *Mux) Session(id uint64) *Session { return m.byID[id] }

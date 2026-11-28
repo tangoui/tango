@@ -33,6 +33,7 @@ var vectors = []struct {
 	{"menu", Menu{Items: []MenuItem{{ID: "toggle", Title: "切换中/英", Checked: true}, {Separator: true}, {ID: "about", Title: "关于", Disabled: true}}}},
 	{"candidates", Candidates{Session: 55, Selected: -1, Items: []Candidate{{Text: "你", Comment: "ni"}}}},
 	{"reset", Reset(55)},
+	{"candidate-pick", CandidatePick{Session: 55, Index: 2}},
 }
 
 func TestProtoGolden(t *testing.T) {

@@ -182,6 +182,7 @@ if [[ "$framework" == ibus ]]; then
     grep -Eq '^candidates [1-9][0-9]*$' "$TANGO_IME_IBUS_TRACE"
     grep -Fx 'mode en' "$TANGO_IME_IBUS_TRACE"
     test "$(grep '^mode ' "$TANGO_IME_IBUS_TRACE" | tail -1)" = 'mode zh'
+    /usr/bin/python3 "$here/smoke.py" | tee "$out/ibus-panel-selection.txt"
 else
     if grep -Fq 'standalone left Shift is reserved by Fcitx5' "$daemon_log"; then exit 1; fi
     grep -Eq 'Tango Fcitx5 candidates [1-9][0-9]*$' "$out/fcitx-daemon.log"

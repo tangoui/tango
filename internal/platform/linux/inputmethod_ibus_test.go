@@ -39,6 +39,20 @@ func TestIBusLookupTablePaging(t *testing.T) {
 	}
 }
 
+func TestIBusCandidateClickIndex(t *testing.T) {
+	table := newIBusLookup(make([]platform.IMECandidate, 12), 10)
+	if index, ok := table.clickedIndex(1); !ok || index != 10 {
+		t.Fatalf("second candidate on page two = %d, %t", index, ok)
+	}
+	if _, ok := table.clickedIndex(3); ok {
+		t.Fatal("accepted a click past the end of the last page")
+	}
+	table = newIBusLookup(make([]platform.IMECandidate, 19), -1)
+	if _, ok := table.clickedIndex(9); ok {
+		t.Fatal("accepted a click outside the displayed page")
+	}
+}
+
 func TestIBusPropsFromModes(t *testing.T) {
 	modes := []proto.Mode{{ID: "zh", Label: "中文", Short: "中"}, {ID: "en", Label: "英文", Short: "英"}}
 	menu := []proto.MenuItem{{ID: "toggle", Title: "切换", Checked: true}, {Separator: true}, {ID: "about", Title: "关于"}}

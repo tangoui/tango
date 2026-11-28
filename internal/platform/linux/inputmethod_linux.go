@@ -19,31 +19,31 @@ import (
 )
 
 var ibus struct {
-	init                                  func()
-	busNew                                func() ptr
-	busConnected                          func(ptr) bool
-	busConnection                         func(ptr) ptr
-	busRegister                           func(ptr, ptr) bool
-	busRequestName                        func(ptr, string, uint32) uint32
-	lookupNew                             func(uint32, uint32, int32, int32) ptr
-	lookupAppend                          func(ptr, ptr)
-	updateLookup                          func(ptr, ptr, int32)
-	propNew                               func(string, uint32, ptr, string, ptr, int32, int32, uint32, ptr) ptr
-	propListNew                           func() ptr
-	propListAppend                        func(ptr, ptr)
-	registerProps                         func(ptr, ptr)
-	factoryNew                            func(ptr) ptr
-	componentNew                          func(string, string, string, string, string, string, string, string) ptr
-	engineDescNew                         func(string, string, string, string, string, string, string, string) ptr
-	componentAdd                          func(ptr, ptr)
-	engineType                            func() ptr
-	objectNew                             func(ptr, string, ...any) ptr
-	destroy                               func(ptr)
-	textNew                               func(string) ptr
-	commit                                func(ptr, ptr)
-	preedit                               func(ptr, ptr, uint32, int32, uint32)
-	keyvalToUnicode                       func(uint32) uint32
-	create, key, in, out, caret, property ptr
+	init                                             func()
+	busNew                                           func() ptr
+	busConnected                                     func(ptr) bool
+	busConnection                                    func(ptr) ptr
+	busRegister                                      func(ptr, ptr) bool
+	busRequestName                                   func(ptr, string, uint32) uint32
+	lookupNew                                        func(uint32, uint32, int32, int32) ptr
+	lookupAppend                                     func(ptr, ptr)
+	updateLookup                                     func(ptr, ptr, int32)
+	propNew                                          func(string, uint32, ptr, string, ptr, int32, int32, uint32, ptr) ptr
+	propListNew                                      func() ptr
+	propListAppend                                   func(ptr, ptr)
+	registerProps                                    func(ptr, ptr)
+	factoryNew                                       func(ptr) ptr
+	componentNew                                     func(string, string, string, string, string, string, string, string) ptr
+	engineDescNew                                    func(string, string, string, string, string, string, string, string) ptr
+	componentAdd                                     func(ptr, ptr)
+	engineType                                       func() ptr
+	objectNew                                        func(ptr, string, ...any) ptr
+	destroy                                          func(ptr)
+	textNew                                          func(string) ptr
+	commit                                           func(ptr, ptr)
+	preedit                                          func(ptr, ptr, uint32, int32, uint32)
+	keyvalToUnicode                                  func(uint32) uint32
+	create, key, in, out, caret, property, candidate ptr
 }
 
 var ibusHost *ibusServer
@@ -126,6 +126,14 @@ var loadIBus = sync.OnceFunc(func() {
 			}
 		}
 	})
+	ibus.candidate = purego.NewCallback(func(engine ptr, row, button, _ uint32, _ ptr) {
+		s := ibusHost
+		if session := s.byEngine[engine]; session != nil && !session.leaving && button == 1 {
+			if index, ok := session.lookup.clickedIndex(row); ok {
+				s.mux.SelectCandidate(session.routed, index)
+			}
+		}
+	})
 
 	ibus.caret = purego.NewCallback(func(engine ptr, x, y, width, height int32, _ ptr) {
 		ibusHost.session(engine).routed.SetCaret(platform.Rect{X: int(x), Y: int(y), Width: int(width), Height: int(height)})
@@ -139,6 +147,7 @@ type ibusSession struct {
 	routed    *imesession.Session
 	transport *imesession.Client
 	menu      []proto.MenuItem
+	lookup    ibusLookup
 	held      ibusHeldKeys
 	leaving   bool
 }
@@ -298,6 +307,7 @@ func (s *ibusServer) newEngine(name string) ptr {
 		return 0
 	})
 	gSignalConnectData(engine, "property-activate", ibus.property, 0, 0, 0)
+	gSignalConnectData(engine, "candidate-clicked", ibus.candidate, 0, 0, 0)
 	connect(engine, "destroy", 0, func(ptr, ptr) ptr { s.focusOut(engine, ""); return 0 })
 	return engine
 }
@@ -429,7 +439,8 @@ func makeIBusProps(definitions []ibusProperty) ptr {
 
 func (b *backend) IMESetCandidates(id uint64, list []platform.IMECandidate, selected int) {
 	if session := b.inputMethod.ibusSession(id); session != nil && !session.leaving {
-		ibusSetCandidates(session.engine, list, selected)
+		session.lookup = newIBusLookup(list, selected)
+		ibusSetCandidates(session.engine, session.lookup)
 	} else if session == nil {
 		if routed := b.inputMethod.mux.Session(id); routed != nil {
 			items := make([]proto.Candidate, len(list))
@@ -441,14 +452,13 @@ func (b *backend) IMESetCandidates(id uint64, list []platform.IMECandidate, sele
 	}
 }
 
-func ibusSetCandidates(engine ptr, list []platform.IMECandidate, selected int) {
-	table := newIBusLookup(list, selected)
+func ibusSetCandidates(engine ptr, table ibusLookup) {
 	native := ibus.lookupNew(uint32(table.pageSize), uint32(table.cursor), int32(gbool(table.cursorVisible)), 0)
 	for _, candidate := range table.candidates {
 		ibus.lookupAppend(native, ibus.textNew(ibusCandidateLabel(candidate)))
 	}
-	ibus.updateLookup(engine, native, int32(gbool(len(list) != 0)))
-	ibusTrace("candidates %d", len(list))
+	ibus.updateLookup(engine, native, int32(gbool(len(table.candidates) != 0)))
+	ibusTrace("candidates %d", len(table.candidates))
 }
 
 func ibusTrace(format string, args ...any) {

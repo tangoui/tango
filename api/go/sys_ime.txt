@@ -6,6 +6,7 @@ pkg github.com/tangoui/tango/sys/ime, method (*Session) Caret() tango.Rect
 pkg github.com/tangoui/tango/sys/ime, method (*Session) ClientApp() string
 pkg github.com/tangoui/tango/sys/ime, method (*Session) Commit(string)
 pkg github.com/tangoui/tango/sys/ime, method (*Session) ID() uint64
+pkg github.com/tangoui/tango/sys/ime, method (*Session) SelectCandidate(int)
 pkg github.com/tangoui/tango/sys/ime, method (*Session) SetCandidates([]Candidate, int)
 pkg github.com/tangoui/tango/sys/ime, method (*Session) SetComposition(string, int)
 pkg github.com/tangoui/tango/sys/ime, type Candidate struct
@@ -13,6 +14,7 @@ pkg github.com/tangoui/tango/sys/ime, type Candidate struct, Comment string
 pkg github.com/tangoui/tango/sys/ime, type Candidate struct, Text string
 pkg github.com/tangoui/tango/sys/ime, type Handler struct
 pkg github.com/tangoui/tango/sys/ime, type Handler struct, Activate func(*Session)
+pkg github.com/tangoui/tango/sys/ime, type Handler struct, CandidateSelected func(*Session, int)
 pkg github.com/tangoui/tango/sys/ime, type Handler struct, CommitComposition func(*Session)
 pkg github.com/tangoui/tango/sys/ime, type Handler struct, Connection string
 pkg github.com/tangoui/tango/sys/ime, type Handler struct, Deactivate func(*Session)

@@ -35,6 +35,7 @@ const (
 	TypeMenu
 	TypeCandidates
 	TypeReset
+	TypeCandidatePick
 )
 
 const (
@@ -127,6 +128,11 @@ type Candidates struct {
 	Items    []Candidate
 }
 
+type CandidatePick struct {
+	Session uint64
+	Index   uint32
+}
+
 var errFrame = errors.New("imebridge: invalid frame")
 
 // Marshal encodes exactly one length-prefixed frame.
@@ -162,6 +168,10 @@ func Marshal(msg Message) ([]byte, error) {
 	case Reset:
 		kind = TypeReset
 		e.u64(uint64(v))
+	case CandidatePick:
+		kind = TypeCandidatePick
+		e.u64(v.Session)
+		e.u32(v.Index)
 	case Candidates:
 		kind = TypeCandidates
 		if len(v.Items) > (MaxFrame-headerSize-14)/4 {
@@ -272,6 +282,8 @@ func Read(r io.Reader) (Message, error) {
 		body = MenuOpen(d.u64())
 	case TypeReset:
 		body = Reset(d.u64())
+	case TypeCandidatePick:
+		body = CandidatePick{Session: d.u64(), Index: d.u32()}
 	case TypeCandidates:
 		session, selected := d.u64(), int32(d.u32())
 		count := int(d.u16())

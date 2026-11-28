@@ -39,9 +39,8 @@ func main() {
 	var tap shiftTap
 	systemCandidates := ime.SystemDrawsCandidates()
 	hideCandidates := func(s *ime.Session) {
-		if systemCandidates {
-			s.SetCandidates(nil, -1)
-		} else {
+		s.SetCandidates(nil, -1)
+		if !systemCandidates {
 			candidates.hide(s)
 		}
 	}
@@ -97,23 +96,25 @@ func main() {
 					s.SetComposition(res.Preedit, utf8.RuneCountInString(res.Preedit))
 				}
 				if len(res.Candidates) != 0 {
-					if systemCandidates {
-						list := make([]ime.Candidate, len(res.Candidates))
-						for i, text := range res.Candidates {
-							list[i] = ime.Candidate{Text: text}
-						}
-						s.SetCandidates(list, 0)
-					} else if candidates != nil {
-						candidates.show(s, s.Caret(), res.Candidates, func(index int) {
-							if text, ok := c.Pick(index); ok {
-								delete(composers, s.ID())
-								hideCandidates(s)
-								s.Commit(text)
-							}
-						})
+					list := make([]ime.Candidate, len(res.Candidates))
+					for i, text := range res.Candidates {
+						list[i] = ime.Candidate{Text: text}
+					}
+					s.SetCandidates(list, 0)
+					if candidates != nil {
+						candidates.show(s, s.Caret(), res.Candidates)
 					}
 				}
 				return consumed
+			},
+			CandidateSelected: func(s *ime.Session, index int) {
+				if c := composers[s.ID()]; c != nil {
+					if text, ok := c.Pick(index); ok {
+						delete(composers, s.ID())
+						hideCandidates(s)
+						s.Commit(text)
+					}
+				}
 			},
 			Activate: func(s *ime.Session) {
 				active, tap = s, shiftTap{}

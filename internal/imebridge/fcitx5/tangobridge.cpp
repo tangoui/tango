@@ -60,13 +60,6 @@ std::string label(const Candidate& choice) {
     return text;
 }
 
-class Word final : public fcitx::CandidateWord {
-public:
-    explicit Word(const Candidate& choice) : CandidateWord(fcitx::Text(label(choice))) {}
-    // The app owns candidate selection through its normal key handler.
-    void select(fcitx::InputContext*) const override {}
-};
-
 Frame keyFrame(const fcitx::KeyEvent& event, uint64_t session) {
     const auto key = event.rawKey();
     const auto state = key.states();
@@ -88,6 +81,21 @@ Frame keyFrame(const fcitx::KeyEvent& event, uint64_t session) {
 }
 
 } // namespace
+
+class TangoBridge::Word final : public fcitx::CandidateWord {
+public:
+    Word(const Candidate& choice, TangoBridge& bridge, uint64_t session, uint32_t index)
+        : CandidateWord(fcitx::Text(label(choice))), bridge_(bridge), session_(session), index_(index) {}
+
+    void select(fcitx::InputContext* input) const override {
+        bridge_.selectCandidate(input, session_, index_);
+    }
+
+private:
+    TangoBridge& bridge_;
+    uint64_t session_;
+    uint32_t index_;
+};
 
 TangoBridge::TangoBridge(fcitx::Instance* instance) : instance_(instance) {
     const auto config = settings();
@@ -210,6 +218,23 @@ void TangoBridge::keyEvent(const fcitx::InputMethodEntry&, fcitx::KeyEvent& even
     } catch (...) {}
 }
 
+void TangoBridge::selectCandidate(fcitx::InputContext* input, uint64_t session, uint32_t index) {
+    try {
+        const auto found = contexts_.find(input);
+        if (!input->hasFocus() || found == contexts_.end() ||
+            found->second.session != session || found->second.opened != pipe_.generation())
+            return;
+        Frame pick;
+        pick.type = Type::candidate_pick;
+        pick.session = session;
+        pick.candidate_index = index;
+        if (auto result = pipe_.request(std::move(pick))) {
+            receive(result->received_through);
+            for (auto& frame : result->edits) apply(std::move(frame));
+        }
+    } catch (...) {}
+}
+
 void TangoBridge::clearPanel(fcitx::InputContext& input) {
     auto& panel = input.inputPanel();
     panel.setClientPreedit({});
@@ -286,8 +311,8 @@ void TangoBridge::apply(Frame frame) {
                 auto list = std::make_unique<fcitx::CommonCandidateList>();
                 list->setPageSize(9);
                 list->setLabels({"1", "2", "3", "4", "5", "6", "7", "8", "9"});
-                for (const auto& choice : frame.candidates)
-                    list->append(std::make_unique<Word>(choice));
+                for (uint32_t i = 0; i < frame.candidates.size(); ++i)
+                    list->append(std::make_unique<Word>(frame.candidates[i], *this, frame.session, i));
                 list->setGlobalCursorIndex(frame.selected >= 0 &&
                     static_cast<size_t>(frame.selected) < frame.candidates.size() ? frame.selected : -1);
                 panel.setCandidateList(std::move(list));

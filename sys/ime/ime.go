@@ -116,6 +116,9 @@ type Handler struct {
 	Menu func() []MenuItem
 	// MenuClicked receives the ID of a selected input method menu item.
 	MenuClicked func(id string)
+	// CandidateSelected receives the zero-based index in the session's
+	// current candidate list when a user selects an entry from a panel.
+	CandidateSelected func(s *Session, index int)
 }
 
 var (
@@ -268,12 +271,22 @@ func SystemDrawsCandidates() bool { return runtime.GOOS == "linux" }
 
 func (s *server) IMEActivate(id uint64) {
 	// An activated session can end before it receives its first key.
-	s.session(id)
+	s.session(id).inactive = false
 	s.call(id, "ime activate", s.h.Activate)
 }
 
 func (s *server) IMEDeactivate(id uint64) {
+	if session := s.sessions[id]; session != nil {
+		session.inactive = true
+		session.candidateCount = 0
+	}
 	s.call(id, "ime deactivate", s.h.Deactivate)
+}
+
+func (s *server) IMECandidateSelected(id uint64, index int) {
+	if session := s.sessions[id]; session != nil {
+		session.selectCandidate(index)
+	}
 }
 
 func (s *server) IMECommitComposition(id uint64) {
@@ -297,8 +310,10 @@ func (s *server) call(id uint64, where string, fn func(*Session)) {
 // Session is the input method's connection to a client text-entry session.
 // Its methods can be called from any goroutine.
 type Session struct {
-	server *server
-	id     uint64
+	server         *server
+	id             uint64
+	candidateCount int
+	inactive       bool
 }
 
 // ID identifies this session for the life of the process.
@@ -332,25 +347,49 @@ func (s *Session) Commit(text string) {
 	s.run(func() { s.server.im.IMECommit(s.id, text) })
 }
 
-// SetCandidates replaces the system candidate list. Pass an empty list to
-// clear it and use -1 for no selection. This is a no-op on backends without
-// a native panel. Calls from other goroutines are posted to the main thread.
+// SetCandidates replaces the session's candidate list. Pass an empty list
+// to clear it and use -1 for no highlighted entry. On backends with a native
+// panel this also updates the panel. Calls from other goroutines are posted
+// to the main thread.
 func (s *Session) SetCandidates(list []Candidate, selected int) {
-	im, ok := s.server.im.(platform.InputMethodCandidates)
-	if !ok {
-		return
-	}
-	items := make([]platform.IMECandidate, len(list))
-	for i, item := range list {
-		items[i] = platform.IMECandidate{
-			Text:    strings.ToValidUTF8(item.Text, "\uFFFD"),
-			Comment: strings.ToValidUTF8(item.Comment, "\uFFFD"),
+	im, native := s.server.im.(platform.InputMethodCandidates)
+	var items []platform.IMECandidate
+	if native {
+		items = make([]platform.IMECandidate, len(list))
+		for i, item := range list {
+			items[i] = platform.IMECandidate{
+				Text:    strings.ToValidUTF8(item.Text, "\uFFFD"),
+				Comment: strings.ToValidUTF8(item.Comment, "\uFFFD"),
+			}
 		}
 	}
-	if selected < 0 || selected >= len(items) {
+	count := len(list)
+	if selected < 0 || selected >= count {
 		selected = -1
 	}
-	s.run(func() { im.IMESetCandidates(s.id, items, selected) })
+	s.run(func() {
+		if !s.inactive {
+			s.candidateCount = count
+		}
+		if native {
+			im.IMESetCandidates(s.id, items, selected)
+		}
+	})
+}
+
+// SelectCandidate reports a user selection from a custom panel to
+// Handler.CandidateSelected. Index is zero-based in the last list passed to
+// SetCandidates. Closed or inactive sessions and out-of-range indexes are
+// ignored. Calls from other goroutines are posted to the main thread.
+func (s *Session) SelectCandidate(index int) {
+	s.run(func() { s.selectCandidate(index) })
+}
+
+func (s *Session) selectCandidate(index int) {
+	if callback := s.server.h.CandidateSelected; callback != nil &&
+		!s.inactive && index >= 0 && index < s.candidateCount {
+		corehook.GuardNonFatal(s.server.app, "ime candidate selected", func() { callback(s, index) })
+	}
 }
 
 // Caret returns the cursor rectangle in logical desktop pixels from the

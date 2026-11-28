@@ -26,7 +26,6 @@ type candidateWindow struct {
 type candidateList struct {
 	session *ime.Session
 	words   []string
-	choose  func(int)
 }
 
 func newCandidateWindow(app *tango.App) (*candidateWindow, error) {
@@ -57,7 +56,7 @@ func (w *candidateWindow) page(c *ui.Context) {
 			if ui.Button(c, label).Text().Small().Clicked() {
 				w.app.Post(func() {
 					if w.current == list {
-						list.choose(i)
+						list.session.SelectCandidate(i)
 					}
 				})
 			}
@@ -66,7 +65,7 @@ func (w *candidateWindow) page(c *ui.Context) {
 		Bg(th.BgElevated).Radius(th.RadiusLG)
 }
 
-func (w *candidateWindow) show(s *ime.Session, caret tango.Rect, words []string, choose func(int)) {
+func (w *candidateWindow) show(s *ime.Session, caret tango.Rect, words []string) {
 	if caret.Height <= 0 {
 		w.dismiss()
 		return
@@ -85,7 +84,7 @@ func (w *candidateWindow) show(s *ime.Session, caret tango.Rect, words []string,
 	}
 	height := th.ControlHeightSM + 2*th.PaddingXS
 	bounds := candidateBounds(caret, int(math.Ceil(float64(width))), int(height), display.WorkArea)
-	w.current = &candidateList{session: s, words: words, choose: choose}
+	w.current = &candidateList{session: s, words: words}
 	w.surface.SetBounds(bounds)
 	w.surface.Show()
 	w.runner.Invalidate()
