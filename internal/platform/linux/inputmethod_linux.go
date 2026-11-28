@@ -383,6 +383,10 @@ func (b *backend) IMESetComposition(id uint64, text string, cursor int) {
 
 func (b *backend) IMECommit(id uint64, text string) {
 	if session := b.inputMethod.ibusSession(id); session != nil && !session.leaving {
+		if len(session.lookup.candidates) != 0 {
+			session.lookup = newIBusLookup(nil, -1)
+			ibusSetCandidates(session.engine, session.lookup)
+		}
 		if text != "" {
 			ibus.commit(session.engine, ibus.textNew(text))
 		}

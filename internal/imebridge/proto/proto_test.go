@@ -82,6 +82,21 @@ func TestRejectMalformedFrame(t *testing.T) {
 	}
 }
 
+func TestReadUnversionedCandidatePick(t *testing.T) {
+	data := make([]byte, headerSize)
+	binary.LittleEndian.PutUint32(data, headerSize-4+12)
+	binary.LittleEndian.PutUint16(data[4:], uint16(TypeCandidatePick))
+	binary.LittleEndian.PutUint16(data[6:], Version)
+	binary.LittleEndian.PutUint64(data[8:], 17)
+	data = binary.LittleEndian.AppendUint64(data, 55)
+	data = binary.LittleEndian.AppendUint32(data, 2)
+	got, err := Read(bytes.NewReader(data))
+	want := Message{Seq: 17, Body: CandidatePick{Session: 55, Index: 2}}
+	if err != nil || got != want {
+		t.Fatalf("legacy candidate pick = %+v, %v; want %+v", got, err, want)
+	}
+}
+
 func TestCPPProtocol(t *testing.T) {
 	clang, err := exec.LookPath("clang++")
 	if err != nil {

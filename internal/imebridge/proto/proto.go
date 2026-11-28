@@ -294,7 +294,14 @@ func Read(r io.Reader) (Message, error) {
 	case TypeReset:
 		body = Reset(d.u64())
 	case TypeCandidatePick:
-		body = CandidatePick{Session: d.u64(), Revision: d.u64(), Index: d.u32()}
+		pick := CandidatePick{Session: d.u64()}
+		// The first test-branch plugin sent just the session and index.
+		// Revision zero lets the host reject the selection and keep the connection.
+		if len(d.data) != 4 {
+			pick.Revision = d.u64()
+		}
+		pick.Index = d.u32()
+		body = pick
 	case TypeCandidates, TypeCandidateList:
 		session := d.u64()
 		var revision uint64

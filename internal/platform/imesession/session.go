@@ -147,6 +147,7 @@ func (s *Session) Post(body any) {
 	}
 	switch edit := body.(type) {
 	case proto.Commit:
+		s.candidateCount = 0
 		// Keep all parts in one batch, before the key result if replying.
 		remaining := edit.Text
 		var batch []proto.Message
@@ -214,7 +215,8 @@ func (m *Mux) Dispatch(c *Client, msg proto.Message) {
 		if msg.Seq != 0 {
 			session := c.sessions[v.Session]
 			m.reply(c, v.Session, msg.Seq, session, func() bool {
-				if v.Revision != session.candidateRevision || uint64(v.Index) >= uint64(session.candidateCount) {
+				if v.Revision == 0 || v.Revision != session.candidateRevision ||
+					uint64(v.Index) >= uint64(session.candidateCount) {
 					return false
 				}
 				return m.SelectCandidate(session, int(v.Index))

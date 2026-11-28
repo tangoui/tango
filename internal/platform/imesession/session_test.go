@@ -46,6 +46,10 @@ func TestCandidatePickRejectsReplacedList(t *testing.T) {
 			Seq: revision + 1, Body: proto.CandidatePick{Session: 1, Revision: revision},
 		})
 	}
+	session.Post(proto.Commit{Session: 1, Text: "泥"})
+	mux.Dispatch(client, proto.Message{
+		Seq: second + 2, Body: proto.CandidatePick{Session: 1, Revision: second},
+	})
 	if !slices.Equal(sink.picks, []int{0}) {
 		t.Fatalf("selected candidate indexes = %v, want only the current list's first index", sink.picks)
 	}
