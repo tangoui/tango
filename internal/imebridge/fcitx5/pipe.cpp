@@ -40,6 +40,16 @@ bool transfer(int fd, bool writing, uint8_t* bytes, size_t length, const std::at
     return length == 0;
 }
 
+bool readFrame(int fd, Bytes& bytes, Frame& frame, const std::atomic<bool>& stop) {
+    bytes.resize(4);
+    if (!transfer(fd, false, bytes.data(), 4, stop)) return false;
+    const auto length = uint32_t(bytes[0]) | uint32_t(bytes[1]) << 8 |
+                        uint32_t(bytes[2]) << 16 | uint32_t(bytes[3]) << 24;
+    if (length < header_size - 4 || length > max_frame - 4) return false;
+    bytes.resize(length + 4);
+    return transfer(fd, false, bytes.data() + 4, length, stop) && decode(bytes, frame);
+}
+
 int connect_host(const std::string& path) {
     sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
@@ -98,9 +108,9 @@ bool SocketPipe::post(Frame frame) {
     return true;
 }
 
-std::optional<KeyOutcome> SocketPipe::request(Frame frame) {
+std::optional<KeyOutcome> SocketPipe::request(Frame frame, std::chrono::milliseconds timeout) {
     if (!connected()) return std::nullopt;
-    const auto deadline = Clock::now() + key_timeout;
+    const auto deadline = Clock::now() + timeout;
     frame.seq = ++sequence_;
     if (!reply_.begin(frame.seq, frame.session)) return std::nullopt;
     if (!post(std::move(frame))) reply_.disconnect();
@@ -158,8 +168,11 @@ void SocketPipe::serve(int fd, Reconnect& backoff) {
     hello.exe = u"fcitx5";
     Bytes bytes;
     if (!encode(hello, bytes) || !transfer(fd, true, bytes.data(), bytes.size(), stop_)) return;
+    Frame acknowledgment;
+    if (!readFrame(fd, bytes, acknowledgment, stop_) || !isSocketHello(acknowledgment, hello.pid)) return;
     ++generation_;
     connection_.connected();
+    backoff.connected();
     notify_();
     while (!stop_ && !connection_.reconnect()) {
         std::deque<Bytes> outgoing;
@@ -179,15 +192,8 @@ void SocketPipe::serve(int fd, Reconnect& backoff) {
             while (read(signal_[0], buffer, sizeof(buffer)) > 0) {}
         }
         if (ready[0].revents & POLLIN) {
-            bytes.resize(4);
-            if (!transfer(fd, false, bytes.data(), 4, stop_)) return;
-            const auto length = uint32_t(bytes[0]) | uint32_t(bytes[1]) << 8 |
-                                uint32_t(bytes[2]) << 16 | uint32_t(bytes[3]) << 24;
-            if (length < header_size - 4 || length > max_frame - 4) return;
-            bytes.resize(length + 4);
-            if (!transfer(fd, false, bytes.data() + 4, length, stop_)) return;
             Frame frame;
-            if (!decode(bytes, frame)) return;
+            if (!readFrame(fd, bytes, frame, stop_)) return;
             deliver(std::move(frame), backoff);
         } else if (ready[0].revents & (POLLHUP | POLLERR | POLLNVAL)) {
             return;

@@ -35,6 +35,14 @@ int main() {
     state.timed_out();
     assert(!state.ready() && state.reconnect());
 
+    Frame hello;
+    hello.type = Type::hello;
+    hello.pid = 22;
+    assert(!isSocketHello(hello, 23));
+    assert(isSocketHello(hello, 22));
+    hello.seq = 1;
+    assert(!isSocketHello(hello, 22));
+
     Reconnect retry;
     uint64_t now = 0;
     for (auto backoff : {1000, 2000, 4000, 8000, 16000, 30000, 30000}) {

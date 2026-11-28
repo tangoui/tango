@@ -6,6 +6,7 @@ framework=${1:?ibus or fcitx}
 out=${2:?evidence directory}
 here=$(cd "$(dirname "$0")" && pwd)
 engine=com.tangoui.inputmethod.example
+expect=${3:-installed}
 session=$(mktemp -d)
 pids=()
 cleanup() {
@@ -38,9 +39,16 @@ if [[ "$framework" == ibus ]]; then
     ibus-daemon --xim --panel=disable --config=disable >"$out/ibus-daemon.log" 2>&1 &
     pids+=("$!")
     for i in {1..50}; do
-        if ibus list-engine 2>/dev/null | grep -Fq "$engine"; then break; fi
+        if ibus list-engine >"$session/engine-list" 2>/dev/null; then
+            if [[ "$expect" == removed ]] || grep -Fq "$engine" "$session/engine-list"; then break; fi
+        fi
         sleep 0.2
     done
+    if [[ "$expect" == removed ]]; then
+        ibus list-engine >"$out/ibus-after-removal.txt"
+        if grep -Fq "$engine" "$out/ibus-after-removal.txt"; then exit 1; fi
+        exit 0
+    fi
 else
     mkdir -p "$XDG_CONFIG_HOME/fcitx5"
     # Reserve a standalone Shift for Tango. Fcitx defaults to using it to
@@ -69,6 +77,12 @@ PROFILE
         if fcitx5-remote >/dev/null 2>&1; then break; fi
         sleep 0.2
     done
+    if [[ "$expect" == removed ]]; then
+        gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller \
+            --method org.fcitx.Fcitx.Controller1.AvailableInputMethods >"$out/fcitx-after-removal.txt"
+        if grep -Fq "$engine" "$out/fcitx-after-removal.txt"; then exit 1; fi
+        exit 0
+    fi
     fcitx5-remote -s "$engine"
 fi
 
@@ -121,10 +135,40 @@ else
     grep -Eq 'Tango Fcitx5 candidates [1-9][0-9]*$' "$out/fcitx-daemon.log"
     grep -F 'Tango Fcitx5 mode en' "$out/fcitx-daemon.log"
     test "$(grep 'Tango Fcitx5 mode ' "$out/fcitx-daemon.log" | tail -1)" = 'Tango Fcitx5 mode zh'
-    pkill -KILL -u "$(id -u)" -x TangoPinyin
+    # Switch away with an active preedit. The host should commit it to
+    # the same GTK entry before the addon releases that context.
+    xdotool key n i
     sleep 0.2
+    fcitx5-remote -s keyboard-us
+    sleep 0.2
+    test "$(cat "$TANGO_SMOKE_TEXT")" = 你好abc你ni
+    fcitx5-remote -s "$engine"
+    sleep 0.2
+    host=$(/usr/bin/python3 - <<'PYTHON'
+import os
+import socket
+import struct
+from pathlib import Path
+
+name = "com.tangoui.inputmethod.example_Connection.sock"
+with socket.socket(socket.AF_UNIX) as client:
+    client.connect(str(Path(os.environ["XDG_RUNTIME_DIR"]) / "tango-ime" / name))
+    print(struct.unpack("3i", client.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))[0])
+PYTHON
+)
+    test "$(readlink "/proc/$host/exe")" = /usr/bin/TangoPinyin
+    pids+=("$host")
+    kill -STOP "$host"
     xdotool key z
+    sleep 1.5
+    xdotool key q
     sleep 0.2
-    test "$(cat "$TANGO_SMOKE_TEXT")" = 你好abc你z
+    test "$(cat "$TANGO_SMOKE_TEXT")" = 你好abc你nizq
+    kill -KILL "$host"
+    sleep 0.2
+    xdotool key x
+    sleep 0.2
+    test "$(cat "$TANGO_SMOKE_TEXT")" = 你好abc你nizqx
+    echo "Fcitx5 preedit on switch, stopped-host pass-through and disconnected-host pass-through verified"
 fi
 echo "$framework keyboard smoke passed" | tee "$out/$framework-result.txt"

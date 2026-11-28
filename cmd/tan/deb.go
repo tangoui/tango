@@ -69,8 +69,10 @@ func debControl(cfg *Config, arch string, installedKB int64, ime *linuxIMEPackag
 	field("Installed-Size", fmt.Sprint(installedKB))
 	depends := append(slices.Clone(debDefaultDepends), cfg.Linux.Depends...)
 	if ime != nil {
-		depends = append(depends, "ibus | fcitx5")
-		if ime.minFcitx != "" {
+		if ime.minFcitx == "" {
+			depends = append(depends, "ibus")
+		} else {
+			depends = append(depends, "ibus | fcitx5")
 			depends = append(depends, "fcitx5 (>= "+ime.minFcitx+")", "fcitx5 (<< "+ime.maxFcitx+")")
 		}
 	}

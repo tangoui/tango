@@ -12,7 +12,7 @@ public:
     ~SocketPipe();
     void start(std::string path, std::string host, std::function<void()> notify);
     bool post(Frame frame);
-    std::optional<KeyOutcome> request(Frame frame);
+    std::optional<KeyOutcome> request(Frame frame, std::chrono::milliseconds timeout = key_timeout);
     std::deque<Frame> received(uint64_t through = UINT64_MAX) { return inbox_.take(through); }
     bool connected() const { return connection_.ready(); }
     uint64_t generation() const { return generation_.load(); }

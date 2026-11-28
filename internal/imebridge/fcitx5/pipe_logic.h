@@ -4,6 +4,11 @@
 
 namespace tango::ime {
 
+inline bool isSocketHello(const Frame& frame, uint32_t pid) {
+    return frame.type == Type::hello && frame.seq == 0 && frame.pid == pid;
+}
+
+
 // A decision records its receive watermark. The Fcitx event thread drains
 // pushes before that watermark before applying the decision's edits.
 class SocketInbox {

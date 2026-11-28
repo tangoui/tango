@@ -401,9 +401,11 @@ func packageRPM(cfg *Config, a artifact, icons map[string][]byte) (string, error
 		{"/bin/sh", rpmSenseInterp | rpmSenseScriptPostUn, ""},
 	}
 	if ime := a.linuxIME; ime != nil {
-		reqs = append(reqs, dep{"rpmlib(RichDependencies)", rpmSenseRPMLib | rpmSenseLess | rpmSenseEqual, "4.12.0-1"},
-			dep{"(ibus or fcitx5)", 0, ""})
-		if ime.minFcitx != "" {
+		if ime.minFcitx == "" {
+			reqs = append(reqs, dep{"ibus", 0, ""})
+		} else {
+			reqs = append(reqs, dep{"rpmlib(RichDependencies)", rpmSenseRPMLib | rpmSenseLess | rpmSenseEqual, "4.12.0-1"},
+				dep{"(ibus or fcitx5)", 0, ""})
 			reqs = append(reqs, dep{"fcitx5", rpmSenseGreater | rpmSenseEqual, ime.minFcitx},
 				dep{"fcitx5", rpmSenseLess, ime.maxFcitx})
 		}

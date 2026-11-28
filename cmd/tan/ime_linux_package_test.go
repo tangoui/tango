@@ -76,7 +76,7 @@ func TestDebIMEFiles(t *testing.T) {
 	control, _, _ := readTarGz(t, members[1])
 	files, _, _ := readTarGz(t, members[2])
 	checkIMEPaths(t, cfg, files)
-	if !strings.Contains(string(control["./control"]), "ibus | fcitx5") ||
+	if (!strings.Contains(string(control["./control"]), ", ibus\n") || strings.Contains(string(control["./control"]), "ibus | fcitx5")) ||
 		!strings.Contains(strings.Join(warnings, "\n"), "Fcitx5") {
 		t.Fatalf("control = %s, warnings = %v", control["./control"], warnings)
 	}
@@ -101,7 +101,7 @@ func TestRpmIMEFiles(t *testing.T) {
 	_, count := readRPMHeader(t, blob[96:], rpmTagHeaderSignatures)
 	start := 96 + (count+7)&^7
 	header, size := readRPMHeader(t, blob[start:], rpmTagHeaderImmutable)
-	if !slices.Contains(header.strs(rpmTagRequireName), "(ibus or fcitx5)") {
+	if !slices.Contains(header.strs(rpmTagRequireName), "ibus") || slices.Contains(header.strs(rpmTagRequireName), "(ibus or fcitx5)") {
 		t.Errorf("RPM dependencies: %v", header.strs(rpmTagRequireName))
 	}
 	reader, err := gzip.NewReader(bytes.NewReader(blob[start+size:]))

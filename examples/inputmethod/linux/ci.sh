@@ -49,5 +49,13 @@ test ! -e "$plugin"
 test ! -e "/usr/share/ibus/component/$engine.xml"
 test ! -e "/usr/share/fcitx5/addon/$engine.conf"
 test ! -e "/usr/share/fcitx5/inputmethod/$engine.conf"
+for framework in ibus fcitx; do
+    session=(dbus-run-session -- bash "$here/ci-session.sh" "$framework" "$out" removed)
+    if [[ "$(id -u)" == 0 ]]; then
+        runuser -u ime-test -- "${session[@]}" || failed=1
+    else
+        "${session[@]}" || failed=1
+    fi
+done
 echo "Package removal verified" | tee "$out/uninstall.txt"
 exit "$failed"

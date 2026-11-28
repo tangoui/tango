@@ -201,6 +201,7 @@ func (s *fcitxServer) serve(conn *net.UnixConn) {
 		}
 	})
 	if !s.onMain(closed, func() {
+		output <- []proto.Message{{Body: proto.Hello{PID: hello.PID}}}
 		client = s.mux.Connect("fcitx5", func(batch []proto.Message) {
 			select {
 			case output <- batch:

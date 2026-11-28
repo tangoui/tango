@@ -140,11 +140,20 @@ void TangoBridge::deactivate(const fcitx::InputMethodEntry&, fcitx::InputContext
         const auto found = contexts_.find(event.inputContext());
         if (found == contexts_.end()) return;
         const auto session = found->second.session;
-        Frame close;
-        close.type = Type::close;
-        close.session = session;
-        if (found->second.opened == pipe_.generation()) pipe_.post(std::move(close));
-        contexts_.erase(found);
+        if (found->second.opened == pipe_.generation() && pipe_.connected()) {
+            Frame focus;
+            focus.type = Type::focus;
+            focus.session = session;
+            if (auto result = pipe_.request(focus, std::chrono::milliseconds(50))) {
+                receive(result->received_through);
+                for (auto& frame : result->edits) apply(std::move(frame));
+            }
+            Frame close;
+            close.type = Type::close;
+            close.session = session;
+            pipe_.post(std::move(close));
+        }
+        contexts_.erase(event.inputContext());
         clearPanel(*event.inputContext());
     } catch (...) {}
 }
