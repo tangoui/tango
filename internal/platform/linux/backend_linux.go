@@ -30,7 +30,7 @@ type backend struct {
 	focus       focusTracker
 	settling    bool // a focus settle timeout is scheduled
 	appMenu     *appMenu
-	inputMethod *ibusServer
+	inputMethod *linuxIMEServer
 }
 
 // New returns the Linux (GTK 3 + WebKitGTK 4.1) backend. Native libraries

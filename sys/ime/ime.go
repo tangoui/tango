@@ -9,7 +9,7 @@
 //	})
 //
 // macOS uses InputMethodKit, Windows uses a Text Services Framework DLL,
-// and Linux uses IBus. The [input method example] shows how to build and
+// and Linux uses IBus or Fcitx5. The [input method example] shows how to build and
 // install each host.
 //
 // Use Handler.End to release per-session state such as a candidate window.
@@ -20,6 +20,7 @@ package ime
 
 import (
 	"errors"
+	"runtime"
 	"strings"
 	"sync/atomic"
 
@@ -37,7 +38,7 @@ var ErrServing = errors.New("ime: already serving")
 // Key is a key-down event. Code follows KeyboardEvent.code naming, such as
 // "KeyA", "Digit1", or "ArrowLeft", and is empty for an unknown key. Text
 // holds the printable character produced with modifiers applied, if any.
-// macOS and Windows report CapsLock and Repeat.
+// The desktop backends report CapsLock and Repeat.
 type Key struct {
 	Code                   string
 	Text                   string
@@ -105,13 +106,13 @@ type Handler struct {
 	// connection. Focus changes between fields in the same client use
 	// Activate and Deactivate.
 	End func(s *Session)
-	// Modifier receives modifier changes on macOS and Windows. Return true to consume
+	// Modifier receives modifier changes on desktop backends. Return true to consume
 	// the event. With no handler the event is passed through.
 	Modifier func(s *Session, m ModifierKey) bool
 	// ModeChanged receives a system-initiated change of the global input mode
-	// on macOS and Windows. SetMode does not invoke it.
+	// on desktop backends. SetMode does not invoke it.
 	ModeChanged func(mode string)
-	// Menu supplies items for the macOS and Windows input method menus.
+	// Menu supplies items for the system input method menu.
 	Menu func() []MenuItem
 	// MenuClicked receives the ID of a selected input method menu item.
 	MenuClicked func(id string)
@@ -262,8 +263,8 @@ func CurrentMode(a *tango.App) string {
 }
 
 // SystemDrawsCandidates reports whether the platform backend provides a
-// native candidate panel. No current backend has a native panel.
-func SystemDrawsCandidates() bool { return false }
+// native candidate panel. Linux uses the IBus or Fcitx5 panel.
+func SystemDrawsCandidates() bool { return runtime.GOOS == "linux" }
 
 func (s *server) IMEActivate(id uint64) {
 	// An activated session can end before it receives its first key.
@@ -353,7 +354,8 @@ func (s *Session) SetCandidates(list []Candidate, selected int) {
 }
 
 // Caret returns the cursor rectangle in logical desktop pixels from the
-// top-left of the primary display. It returns the zero rectangle if unknown.
+// top-left of the primary display. It returns the zero rectangle if unknown,
+// including on Wayland and when using Fcitx5.
 func (s *Session) Caret() tango.Rect {
 	return tango.Await(s.server.app, func() tango.Rect {
 		if s.live() {

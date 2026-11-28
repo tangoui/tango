@@ -155,7 +155,32 @@ type ibusServer struct {
 
 var _ platform.InputMethods = (*backend)(nil)
 
+type linuxIMEServer struct {
+	ibus  *ibusServer
+	fcitx *fcitxServer
+	mux   *imesession.Mux
+}
+
+func (s *linuxIMEServer) close() {
+	if s.fcitx != nil {
+		s.fcitx.close()
+	}
+	if s.ibus != nil {
+		s.ibus.close()
+	}
+}
+
+func (s *linuxIMEServer) ibusSession(id uint64) *ibusSession {
+	if s.ibus == nil {
+		return nil
+	}
+	return s.ibus.byID[id]
+}
+
 func (b *backend) ServeInputMethod(connection string, sink platform.InputMethodSink) error {
+	if b.inputMethod != nil {
+		return errors.New("tango/linux: input method already serving")
+	}
 	cfg, err := readLinuxIMEConfig(b.opts.ID)
 	if err != nil {
 		return err
@@ -166,11 +191,29 @@ func (b *backend) ServeInputMethod(connection string, sink platform.InputMethodS
 	if connection == "" {
 		connection = b.opts.DefaultIMEConnection()
 	}
-	server, err := b.startIBus(connection, cfg, imesession.New(sink, cfg.Modes, nil))
-	if err == nil {
-		b.inputMethod = server
+	mux := imesession.New(sink, cfg.Modes, fcitxKey)
+	fcitx, fcitxErr := startFcitx(connection, mux)
+
+	// Preserve runtime registration for the IBus sessions which do not
+	// export their address (libibus can derive it from the display).
+	wantIBus := os.Getenv("IBUS_ADDRESS") != "" || slices.Contains(os.Args[1:], "--ibus") ||
+		os.Getenv("GTK_IM_MODULE") == "ibus" || os.Getenv("XMODIFIERS") == "@im=ibus"
+	fcitxDesktop := os.Getenv("GTK_IM_MODULE") == "fcitx" || os.Getenv("XMODIFIERS") == "@im=fcitx"
+	var bus *ibusServer
+	var ibusErr error
+	if wantIBus || !fcitxDesktop {
+		bus, ibusErr = b.startIBus(connection, cfg, mux)
 	}
-	return err
+	if bus == nil && fcitx == nil {
+		return fmt.Errorf("tango/linux: neither input method transport is available: %w",
+			errors.Join(fcitxErr, ibusErr))
+	}
+	if slices.Contains(os.Args[1:], "--ibus") && bus == nil {
+		fcitx.close()
+		return ibusErr
+	}
+	b.inputMethod = &linuxIMEServer{ibus: bus, fcitx: fcitx, mux: mux}
+	return nil
 }
 
 func (b *backend) startIBus(connection string, cfg linuxIMEConfig, mux *imesession.Mux) (*ibusServer, error) {
@@ -210,7 +253,7 @@ func (b *backend) startIBus(connection string, cfg linuxIMEConfig, mux *imesessi
 		displayName = name
 	}
 	componentName := ibusComponentName(name)
-	if slices.Contains(os.Args[1:], "--ibus") {
+	if cfg.IBusEngine != "" || slices.Contains(os.Args[1:], "--ibus") {
 		const primaryOwner = 1
 		if ibus.busRequestName(bus, componentName, 0) != primaryOwner {
 			server.close()
@@ -316,32 +359,43 @@ func (s *ibusServer) close() {
 }
 
 func (b *backend) IMESetComposition(id uint64, text string, cursor int) {
-	if session := b.inputMethod.byID[id]; session != nil && !session.leaving {
+	if session := b.inputMethod.ibusSession(id); session != nil && !session.leaving {
 		cursor = min(max(cursor, 0), utf8.RuneCountInString(text))
 		const preeditCommitOnBlur = 1 // IBUS_ENGINE_PREEDIT_COMMIT
 		ibus.preedit(session.engine, ibus.textNew(text), uint32(cursor), int32(gbool(text != "")), preeditCommitOnBlur)
+	} else if session == nil {
+		if routed := b.inputMethod.mux.Session(id); routed != nil {
+			cursor = min(max(cursor, 0), utf8.RuneCountInString(text))
+			routed.Post(proto.Compose{Session: routed.RemoteID(), Text: text, Cursor: uint32(cursor)})
+		}
 	}
 }
 
 func (b *backend) IMECommit(id uint64, text string) {
-	if session := b.inputMethod.byID[id]; session != nil && !session.leaving {
+	if session := b.inputMethod.ibusSession(id); session != nil && !session.leaving {
 		if text != "" {
 			ibus.commit(session.engine, ibus.textNew(text))
 		}
 		ibus.preedit(session.engine, ibus.textNew(""), 0, 0, 0)
+	} else if session == nil {
+		if routed := b.inputMethod.mux.Session(id); routed != nil {
+			routed.Post(proto.Commit{Session: routed.RemoteID(), Text: text})
+		}
 	}
 }
 
 func (b *backend) IMECaret(id uint64) platform.Rect {
-	if session := b.inputMethod.byID[id]; session != nil {
-		return session.routed.Caret()
+	if os.Getenv("WAYLAND_DISPLAY") == "" {
+		if session := b.inputMethod.ibusSession(id); session != nil {
+			return session.routed.Caret()
+		}
 	}
 	return platform.Rect{}
 }
 
 func (b *backend) IMEClientApp(id uint64) string {
-	if session := b.inputMethod.byID[id]; session != nil {
-		return session.routed.ClientApp()
+	if session := b.inputMethod.mux.Session(id); session != nil {
+		return session.ClientApp()
 	}
 	return ""
 }
@@ -372,8 +426,16 @@ func makeIBusProps(definitions []ibusProperty) ptr {
 }
 
 func (b *backend) IMESetCandidates(id uint64, list []platform.IMECandidate, selected int) {
-	if session := b.inputMethod.byID[id]; session != nil && !session.leaving {
+	if session := b.inputMethod.ibusSession(id); session != nil && !session.leaving {
 		ibusSetCandidates(session.engine, list, selected)
+	} else if session == nil {
+		if routed := b.inputMethod.mux.Session(id); routed != nil {
+			items := make([]proto.Candidate, len(list))
+			for i, item := range list {
+				items[i] = proto.Candidate(item)
+			}
+			routed.Post(proto.Candidates{Session: routed.RemoteID(), Selected: int32(selected), Items: items})
+		}
 	}
 }
 

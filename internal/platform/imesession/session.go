@@ -140,6 +140,10 @@ func (m *Mux) Dispatch(c *Client, msg proto.Message) {
 		m.Open(c, uint64(v))
 	case proto.SessionClose:
 		m.End(c, uint64(v))
+	case proto.Reset:
+		if session := c.sessions[uint64(v)]; session != nil {
+			m.CommitComposition(session)
+		}
 	case proto.Focus:
 		s := c.sessions[v.Session]
 		if msg.Seq != 0 {
