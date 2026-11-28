@@ -1,0 +1,56 @@
+name: Linux input method smoke
+
+on:
+  push:
+    branches: [test/ime-linux]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: "**/go.sum"
+      - name: Install Linux IME test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ pkg-config fcitx5 fcitx5-gtk fcitx5-modules-dev \
+            libfcitx5core-dev ibus ibus-gtk3 python3-gi gir1.2-gtk-3.0 gir1.2-ibus-1.0 \
+            xvfb xdotool dbus-x11 x11-utils libwebkit2gtk-4.1-0
+      - name: Build and test Debian package
+        run: bash examples/inputmethod/linux/ci.sh deb "$RUNNER_TEMP/ime-ubuntu"
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: ime-ubuntu-24.04
+          path: ${{ runner.temp }}/ime-ubuntu/
+
+  fedora:
+    runs-on: ubuntu-24.04
+    container: fedora:43
+    timeout-minutes: 20
+    steps:
+      - name: Install Linux IME test dependencies
+        run: |
+          dnf -y install git tar gzip findutils cmake gcc-c++ pkgconf-pkg-config \
+            fcitx5 fcitx5-devel fcitx5-gtk ibus ibus-gtk3 python3-gobject gtk3 \
+            xorg-x11-server-Xvfb xdotool dbus-daemon dbus-x11 xwininfo webkit2gtk4.1 util-linux
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: "**/go.sum"
+      - name: Build and test RPM package
+        run: bash examples/inputmethod/linux/ci.sh rpm "$RUNNER_TEMP/ime-fedora"
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: ime-fedora-43
+          path: ${{ runner.temp }}/ime-fedora/
