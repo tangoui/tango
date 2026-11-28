@@ -31,7 +31,8 @@ func TestIBusComponentXML(t *testing.T) {
 		t.Fatalf("exec = %q", component.Exec)
 	}
 	for _, want := range []string{"<name>" + cfg.ID + "</name>", "<longname>" + cfg.Name + "</longname>",
-		"<language>zh_CN</language>", "<layout>default</layout>", "<icon>input-keyboard</icon>"} {
+		"<language>zh_CN</language>", "<layout>default</layout>", "<icon>input-keyboard</icon>",
+		"<author>Tango</author>", "<license>Proprietary</license>", "<homepage>https://github.com/tangoui/tango</homepage>", "<textdomain>" + cfg.ID + "</textdomain>"} {
 		if !bytes.Contains(content, []byte(want)) {
 			t.Errorf("IBus XML lacks %s", want)
 		}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -38,11 +39,14 @@ func (c *Config) linuxIMEEngines() (ibus, fcitx string) {
 
 func ibusComponentXML(cfg *Config, name, icon string) ([]byte, error) {
 	type engine struct {
-		Name     string `xml:"name"`
-		LongName string `xml:"longname"`
-		Language string `xml:"language"`
-		Layout   string `xml:"layout"`
-		Icon     string `xml:"icon"`
+		Name        string `xml:"name"`
+		LongName    string `xml:"longname"`
+		Description string `xml:"description"`
+		Author      string `xml:"author"`
+		License     string `xml:"license"`
+		Language    string `xml:"language"`
+		Layout      string `xml:"layout"`
+		Icon        string `xml:"icon"`
 	}
 	type component struct {
 		XMLName     xml.Name `xml:"component"`
@@ -50,13 +54,22 @@ func ibusComponentXML(cfg *Config, name, icon string) ([]byte, error) {
 		Description string   `xml:"description"`
 		Exec        string   `xml:"exec"`
 		Version     string   `xml:"version"`
+		Author      string   `xml:"author"`
+		License     string   `xml:"license"`
+		Homepage    string   `xml:"homepage"`
+		TextDomain  string   `xml:"textdomain"`
 		Engines     []engine `xml:"engines>engine"`
 	}
 	hash := sha256.Sum256([]byte(name))
+	author := cmp.Or(cfg.Linux.Maintainer, "Tango")
+	license := cmp.Or(cfg.Linux.License, "Proprietary")
 	content, err := xml.MarshalIndent(component{
 		Name:        fmt.Sprintf("org.freedesktop.IBus.Tango.Engine%x", hash[:8]),
 		Description: cfg.Name, Exec: "/usr/bin/" + cfg.Exe() + " --ibus", Version: cfg.Version,
-		Engines: []engine{{Name: name, LongName: cfg.Name, Language: linuxIMELanguage(cfg), Layout: "default", Icon: icon}},
+		Author: author, License: license, Homepage: cmp.Or(cfg.Linux.Homepage, "https://github.com/tangoui/tango"),
+		TextDomain: cfg.ID,
+		Engines: []engine{{Name: name, LongName: cfg.Name, Description: cfg.Name, Author: author,
+			License: license, Language: linuxIMELanguage(cfg), Layout: "default", Icon: icon}},
 	}, "", "  ")
 	if err != nil {
 		return nil, err

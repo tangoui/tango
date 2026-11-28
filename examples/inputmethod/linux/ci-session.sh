@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+trap 'printf "Smoke failure at line %s: %s\n" "$LINENO" "$BASH_COMMAND" >&2' ERR
 
 framework=${1:?ibus or fcitx}
 out=${2:?evidence directory}
