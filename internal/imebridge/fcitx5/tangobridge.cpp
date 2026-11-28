@@ -271,6 +271,7 @@ void TangoBridge::receive(uint64_t through) {
 }
 
 void TangoBridge::apply(Frame frame) {
+    if (!pipe_.connected() || frame.socket_generation != pipe_.generation()) return;
     if (frame.type == Type::mode) {
         mode_ = std::move(frame);
         action_.setShortText(toUTF8(mode_.short_text));
@@ -287,7 +288,7 @@ void TangoBridge::apply(Frame frame) {
         return;
     }
     for (const auto& entry : contexts_) {
-        if (entry.second.session != frame.session) continue;
+        if (entry.second.session != frame.session || entry.second.opened != frame.socket_generation) continue;
         auto* input = entry.second.view.get();
         if (!input) return;
         auto& panel = input->inputPanel();
@@ -319,7 +320,7 @@ void TangoBridge::apply(Frame frame) {
                 list->setLabels({"1", "2", "3", "4", "5", "6", "7", "8", "9"});
                 for (uint32_t i = 0; i < frame.candidates.size(); ++i)
                     list->append(std::make_unique<Word>(frame.candidates[i], *this, frame.session,
-                                                       entry.second.opened, frame.candidate_revision, i));
+                                                       frame.socket_generation, frame.candidate_revision, i));
                 list->setGlobalCursorIndex(frame.selected >= 0 &&
                     static_cast<size_t>(frame.selected) < frame.candidates.size() ? frame.selected : -1);
                 panel.setCandidateList(std::move(list));

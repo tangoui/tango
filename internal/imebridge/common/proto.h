@@ -52,6 +52,7 @@ struct Frame {
     int32_t selected = -1;
     uint32_t candidate_index = 0;
     uint64_t candidate_revision = 0;
+    uint64_t socket_generation = 0; // Local Fcitx5 metadata, never serialized.
 };
 
 inline bool valid_utf16(const std::u16string& text) {

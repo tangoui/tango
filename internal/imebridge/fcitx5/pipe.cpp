@@ -176,7 +176,7 @@ void SocketPipe::serve(int fd, Reconnect& backoff) {
     if (!encode(hello, bytes) || !transfer(fd, true, bytes.data(), bytes.size(), stop_)) return;
     Frame acknowledgment;
     if (!readFrame(fd, bytes, acknowledgment, stop_) || !isSocketHello(acknowledgment, hello.pid)) return;
-    ++generation_;
+    const auto generation = ++generation_;
     connection_.connected();
     backoff.connected();
     notify_();
@@ -200,6 +200,7 @@ void SocketPipe::serve(int fd, Reconnect& backoff) {
         if (ready[0].revents & POLLIN) {
             Frame frame;
             if (!readFrame(fd, bytes, frame, stop_)) return;
+            frame.socket_generation = generation;
             deliver(std::move(frame), backoff);
         } else if (ready[0].revents & (POLLHUP | POLLERR | POLLNVAL)) {
             return;

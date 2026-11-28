@@ -10,6 +10,7 @@ int main() {
     commit.type = Type::commit;
     commit.session = 2;
     commit.text = u"你";
+    commit.socket_generation = 3;
     Frame compose = commit;
     compose.type = Type::compose;
     compose.text = u"ha";
@@ -18,9 +19,20 @@ int main() {
     assert(queue.push(commit));
     auto earlier = queue.take(before);
     assert(earlier.size() == 2 && earlier.front().text == u"你" && earlier.back().text == u"ha");
+    assert(earlier.front().socket_generation == 3);
     assert(queue.take().size() == 1);
 
     KeyReply reply;
+    assert(reply.begin(6, 2));
+    commit.seq = 6;
+    assert(reply.accept(commit));
+    Frame finished;
+    finished.type = Type::key_result;
+    finished.seq = 6;
+    finished.session = 2;
+    assert(reply.accept(finished));
+    auto held = reply.wait(steady_clock::now());
+    assert(held && held->edits.size() == 1 && held->edits.front().socket_generation == 3);
     assert(reply.begin(7, 2));
     Frame response;
     response.type = Type::key_result;
