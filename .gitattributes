@@ -19,3 +19,6 @@ cmd/tan/tan.schema.json text eol=lf
 skills/tango/**/*.md text eol=lf
 skills/tango/**/*.go text eol=lf
 skills/tango/**/*.html text eol=lf
+# Fcitx5 config templates, rendered into packages and checked line by line
+# (internal/imebridge/proto TestFcitx5ConfTemplates).
+internal/imebridge/fcitx5/*.conf.in text eol=lf

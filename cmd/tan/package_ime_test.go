@@ -68,7 +68,12 @@ func TestIMEBridgeDownload(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	t.Setenv("GOPROXY", (&url.URL{Scheme: "file", Path: filepath.ToSlash(proxy)}).String())
+	// A Windows drive path needs a leading slash: file:///C:/...
+	proxyPath := filepath.ToSlash(proxy)
+	if !strings.HasPrefix(proxyPath, "/") {
+		proxyPath = "/" + proxyPath
+	}
+	t.Setenv("GOPROXY", (&url.URL{Scheme: "file", Path: proxyPath}).String())
 	t.Setenv("GOSUMDB", "off")
 	dir := t.TempDir()
 	cfg := &Config{dir: dir}
